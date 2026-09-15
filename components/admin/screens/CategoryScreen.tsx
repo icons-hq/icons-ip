@@ -121,7 +121,7 @@ function AssignmentForm({ categories }: { categories: AdminCategoryNode[] }) {
 export function CategoryScreen({ data, legacyTypes = [] }: { data: { categories: AdminCategoryNode[]; mappings: AdminCategoryErpMapping[]; migrations: AdminCategoryMigration[]; activation: AdminCategoryActivation }; legacyTypes?: string[] }) {
   const activeLeaves = data.categories.filter((category) => !category.archivedAt && category.childCount === 0);
   const mappings = new Map(data.mappings.map((mapping) => [mapping.categoryId, mapping]));
-  return <section className="wc-admin-kit">
+  return <section className="wc-admin-kit wc-admin-kit__screen">
     <AdminPageHeader title="고객 카테고리" description="최대 4단계 단일 부모 트리와 기본 말단 분류를 관리합니다. 기존 유형과 미분류 상품은 계속 유지됩니다." actions={<Link className="wc-admin-kit__button" href={categoryExportHref()}>분류·ERP CSV</Link>} />
     <AdminSectionCard title="활성화 상태"><AdminStatusBadge tone={data.activation.customerEnabled ? 'success' : 'neutral'}>{categoryActivationLabel(data.activation)}</AdminStatusBadge><ActivationForm activation={data.activation} /></AdminSectionCard>
     <div className="admin-master-detail">

@@ -48,7 +48,7 @@ import {
   type OrderShipment,
   type ShippingCarrierRegistry,
 } from '@/lib/orders/shipment';
-import { formatKrw } from '../format';
+import { formatKrwExact } from '../format';
 import { ADMIN_VOCABULARY } from '@/lib/admin/vocabulary';
 import { isParcelShipment } from '@/lib/admin/shipment-dispatch';
 import { DELIVERY_METHOD_LABELS, deliveryStatusLabel } from '@/lib/shipment-delivery';
@@ -517,6 +517,7 @@ function OrderDetail({
   order: AdminOrderRecord;
 }) {
   const status = orderStatusMeta(order.status);
+  const statusLabel = ADMIN_ORDER_STATUS_LABELS[order.status] ?? status.label;
   const cancellationRequest = order.cancellationRequest;
   const canAdvanceOrderStatus = !cancellationRequest || cancellationRequest.status === 'rejected';
   /* 반송비 부담 주체는 실제로 물건이 나간 뒤에만 의미가 있다. 사다리가 늘어
@@ -542,8 +543,8 @@ function OrderDetail({
           <span className={`order-status order-status--${order.status}`}
             title={order.status === 'done' ? ADMIN_VOCABULARY.settledHint : undefined}
             data-admin-tooltip={order.status === 'done' ? ADMIN_VOCABULARY.settledHint : undefined}
-            aria-label={order.status === 'done' ? `${status.label}: ${ADMIN_VOCABULARY.settledHint}` : undefined}
-            tabIndex={order.status === 'done' ? 0 : undefined}>{status.label}</span>
+            aria-label={order.status === 'done' ? `${statusLabel}: ${ADMIN_VOCABULARY.settledHint}` : undefined}
+            tabIndex={order.status === 'done' ? 0 : undefined}>{statusLabel}</span>
           <h2 id="admin-order-detail-title">주문 {orderReferenceLabel(order.id)}</h2>
           <p className="faint mono">{order.id}</p>
           <Link
@@ -555,7 +556,7 @@ function OrderDetail({
             상세 열기 (새 탭)
           </Link>
         </div>
-        <strong>{formatKrw(order.total)}</strong>
+        <strong>{formatKrwExact(order.total)}</strong>
       </header>
 
       <dl className="admin-order-summary">
@@ -572,7 +573,7 @@ function OrderDetail({
             <div className="admin-order-item" key={item.id}>
               <div><strong>{item.name}</strong><span>{item.type}</span></div>
               <span>{item.qty.toLocaleString('ko-KR')}개</span>
-              <strong>{formatKrw(item.unitPrice * item.qty)}</strong>
+              <strong>{formatKrwExact(item.unitPrice * item.qty)}</strong>
             </div>
           ))}
         </div>
@@ -598,14 +599,14 @@ function OrderDetail({
             <div key={payment.id}>
               <span>결제 · {paymentStatusLabel(payment.status)}</span>
               <span>{formatOrderDateTime(payment.createdAt)}</span>
-              <strong>{formatKrw(payment.amount)}</strong>
+              <strong>{formatKrwExact(payment.amount)}</strong>
             </div>
           ))}
           {order.refunds.map((refund) => (
             <div key={refund.id}>
               <span>환불 · {refundStatusLabel(refund.status)}</span>
               <span>{formatOrderDateTime(refund.createdAt)}</span>
-              <strong>{formatKrw(refund.amount)}</strong>
+              <strong>{formatKrwExact(refund.amount)}</strong>
             </div>
           ))}
           {!order.payments.length && !order.refunds.length ? <p className="muted">결제 기록이 없습니다.</p> : null}
@@ -781,10 +782,10 @@ export function OrdersSection({ data }: { data: AdminOrderConsoleData }) {
                 title={order.status === 'done' ? ADMIN_VOCABULARY.settledHint : undefined}
             data-admin-tooltip={order.status === 'done' ? ADMIN_VOCABULARY.settledHint : undefined}
                 aria-label={order.status === 'done' ? `${ADMIN_VOCABULARY.settled}: ${ADMIN_VOCABULARY.settledHint}` : undefined}
-                tabIndex={order.status === 'done' ? 0 : undefined}>{orderStatusMeta(order.status).label}</span>
+                tabIndex={order.status === 'done' ? 0 : undefined}>{ADMIN_ORDER_STATUS_LABELS[order.status] ?? orderStatusMeta(order.status).label}</span>
               <strong>@{order.buyerName}</strong>
               <span className="faint mono">{orderReferenceLabel(order.id)}</span>
-              <span className="admin-order-row-total">{formatKrw(order.total)}</span>
+              <span className="admin-order-row-total">{formatKrwExact(order.total)}</span>
               {openRequest ? (
                 <CancellationReasonBadge
                   className="admin-order-row-reason"

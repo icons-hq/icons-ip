@@ -62,6 +62,7 @@ export async function saveGoodsPricePeriodAction(formData: FormData): Promise<Mu
         ?? '기간 할인을 저장하지 못했습니다. 할인가가 옵션 판매가보다 낮은지 확인해주세요.' };
     }
     revalidatePath('/admin/catalog/goods');
+    revalidatePath('/admin');
     revalidatePath('/shop');
     revalidatePath(`/shop/${encodeURIComponent(goodId)}`);
     revalidatePath('/cart');

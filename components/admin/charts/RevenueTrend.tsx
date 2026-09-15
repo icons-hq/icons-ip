@@ -11,27 +11,28 @@ function dayLabel(date: string) {
 
 function LegendDot({ color, label }: { color: string; label: string }) {
   return (
-    <span className="row" style={{ fontSize: 12, color: 'var(--wc-ink-tertiary)', gap: 6 }}>
-      <span style={{ background: color, borderRadius: 999, height: 9, width: 9 }} />
+    <span className="admin-overview-legend__item">
+      <span className="admin-overview-legend__dot" style={{ background: color }} />
       {label}
     </span>
   );
 }
 
 export function RevenueTrend({ data }: { data: AdminDailyRevenue[] }) {
+  const hasRevenue = data.some(day => day.goods !== 0 || day.tickets !== 0);
   return (
-    <div className="card col wc-admin-kit wc-admin-kit__card" style={{ minWidth: 0 }}>
-      <div className="between" style={{ marginBottom: 14 }}>
+    <div className="card wc-admin-kit wc-admin-kit__card admin-overview-panel">
+      <header className="admin-overview-panel__heading">
         <div>
-          <h2 style={{ fontSize: 15, fontWeight: 700, margin: 0 }}>매출 추이</h2>
-          <div className="muted" style={{ fontSize: 12.5, marginTop: 2 }}>최근 30일 · 결제 완료 기준</div>
+          <h3 className="admin-overview-panel__title">매출 추이</h3>
+          <p className="admin-overview-panel__description">최근 30일 · 결제 완료 기준</p>
         </div>
-        <div className="row" style={{ gap: 14 }}>
+        <div className="admin-overview-legend">
           <LegendDot color="var(--wc-info)" label="상품" />
           <LegendDot color="var(--wc-success)" label="티켓" />
         </div>
-      </div>
-      <div style={{ height: 260, width: '100%' }}>
+      </header>
+      {hasRevenue ? <div className="admin-revenue-chart">
         <ResponsiveContainer height="100%" width="100%">
           <AreaChart data={data} margin={{ bottom: 0, left: 0, right: 8, top: 8 }}>
             <defs>
@@ -66,7 +67,7 @@ export function RevenueTrend({ data }: { data: AdminDailyRevenue[] }) {
               contentStyle={{
                 backgroundColor: 'var(--wc-surface)',
                 border: '1px solid var(--wc-line-control)',
-                borderRadius: 10,
+                borderRadius: 'var(--wc-radius-form)',
                 fontSize: 12,
               }}
               formatter={(value, name) => [formatKrw(Number(value)), name === 'goods' ? '상품' : '티켓']}
@@ -79,7 +80,10 @@ export function RevenueTrend({ data }: { data: AdminDailyRevenue[] }) {
             <Area dataKey="goods" fill="url(#adminGoodsRevenue)" isAnimationActive={false} stroke="var(--wc-info)" strokeWidth={2} type="monotone" />
           </AreaChart>
         </ResponsiveContainer>
-      </div>
+      </div> : <div className="admin-revenue-empty" role="status">
+        <strong>최근 30일 결제 완료 매출이 없습니다.</strong>
+        <p>결제가 완료되면 날짜별 매출이 여기에 표시됩니다.</p>
+      </div>}
     </div>
   );
 }

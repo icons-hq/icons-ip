@@ -1,3 +1,4 @@
+import { loadAdminWorkQueue } from '@/lib/admin/work-queue.server';
 import { redirect } from 'next/navigation';
 import { OverviewSection } from '@/components/admin/sections/Overview';
 import { requireAdminScreenAccess } from '@/lib/admin/guard.server';
@@ -30,10 +31,11 @@ export default async function AdminOverviewPage({
 
   await requireAdminScreenAccess('/admin');
 
-  const [insights, moderation] = await Promise.all([
-    getAdminInsights(),
-    getAdminModerationRecords(),
+  const [insights, moderation, workQueue] = await Promise.all([
+    getAdminInsights().catch(() => null),
+    getAdminModerationRecords().catch(() => null),
+    loadAdminWorkQueue(),
   ]);
 
-  return <OverviewSection insights={insights} reports={moderation.reports} />;
+  return <OverviewSection insights={insights} reports={moderation?.reports ?? null} workQueue={workQueue} />;
 }

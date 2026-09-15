@@ -195,4 +195,16 @@ describe('ArtworkUploadField', () => {
     expect(html).toContain('id="good-artwork-help"');
     expect(html).toContain('아트워크 파일');
   });
+
+  it('does not render inactive upload controls for an empty auto-upload slot', () => {
+    const html = renderToStaticMarkup(
+      <ArtworkUploadField autoUpload allowRemove currentPath={null} currentUrl={null} kind="good" />,
+    );
+
+    expect(html).toContain('data-upload-state="empty"');
+    expect(html).not.toContain('class="btn btn-ghost admin-artwork-upload"');
+    expect(html).not.toContain('>이미지 업로드</button>');
+    expect(html).not.toContain('>선택 취소</button>');
+    expect(html).not.toContain('admin-artwork-remove');
+  });
 });

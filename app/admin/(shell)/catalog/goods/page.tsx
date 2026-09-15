@@ -1,3 +1,4 @@
+import { loadGoodShippingRegionSummaries } from '@/lib/admin/good-shipping-summary.server';
 import { randomUUID } from 'node:crypto';
 import Link from 'next/link';
 import { notFound } from 'next/navigation';
@@ -22,19 +23,20 @@ export default async function AdminCatalogGoodsPage({ searchParams }: {
   if (!creating && !/^[a-z0-9][a-z0-9-]*$/.test(goodId)) notFound();
 
   const editor = creating ? await loadAdminGoodEditor() : await loadAdminGoodEditor(goodId);
+  const regionSummaries = await loadGoodShippingRegionSummaries(editor.origins);
   const selected = creating ? null : editor.records.goods.find((good) => good.id === goodId);
   if (!creating && !selected) notFound();
   const initialIpId = creating && editor.records.ips.some((ip) => ip.id === filters.ipId && !ip.archivedAt)
     ? filters.ipId : undefined;
   const listHref = goodsListHref(filters);
   const business = creating ? await getBusinessInfo() : null;
-  return <section className="wc-admin-kit">
+  return <section className="wc-admin-kit wc-admin-kit__screen">
     <Link href={listHref}>← {ADMIN_VOCABULARY.goods} 목록으로</Link>
     <AdminPageHeader title={selected?.name ?? `${ADMIN_VOCABULARY.goods} 등록`} description={selected?.id} />
     <GoodScreen key={selected?.id ?? `create-${initialIpId ?? 'any'}`}
       accountId={auth.user.id} cloneOperationId={randomUUID()} canManageCosts={auth.role === 'admin'} categories={editor.categories} shippingNoticeOptions={editor.shippingNoticeOptions} origins={editor.origins} noticeDefaults={business ? { asManager: business.companyName, asContact: business.phone || business.email } : undefined}
       adjustmentId={randomUUID()} catalogIps={editor.catalogIps} ips={editor.records.ips}
-      records={selected ? [selected] : []} variants={editor.variants}
+      records={selected ? [selected] : []} variants={editor.variants} readiness={editor.readiness} regionSummaries={regionSummaries}
       initialIpId={initialIpId} initialSelectedId={selected?.id} hideRecordList listHref={listHref} />
   </section>;
 }

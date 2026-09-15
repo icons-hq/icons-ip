@@ -149,6 +149,7 @@ const server = await createServer({
   root: fixtureRoot,
   resolve: {
     alias: [
+      { find: 'next/image', replacement: `${fixtureRoot}/next-image.tsx` },
       { find: 'next/link', replacement: `${fixtureRoot}/next-link.tsx` },
       { find: 'next/navigation', replacement: `${fixtureRoot}/next-navigation.ts` },
       { find: /^@\/app\/login\/actions$/, replacement: `${fixtureRoot}/login-actions.ts` },

@@ -1,78 +1,79 @@
 import 'server-only';
 import { loadAdminCategoryWorkspace } from './category.server';
 import { loadActiveShippingNoticeTemplateOptions } from './shipping-notice-templates.server';
-
 import { createClient } from '@/lib/supabase/server';
 import { getAdminCatalogRecords } from './catalog.server';
 import { loadAdminFulfillmentOrigins } from './fulfillment-origins.server';
 import { loadAdminGoodsVariants } from './goods-variants.server';
-import { imageBg } from '@/lib/media';
+import { loadAdminGoodsReadiness, parseGoodsReadiness } from './goods-readiness.server';
+import { imageBg, publicMediaUrl } from '@/lib/media';
 import type { Ip, Stock } from '@/lib/data';
 import { GOODS_LIST_PAGE_SIZE, type AdminGoodsListData, type GoodsListFilters } from './goods-list';
 
-interface GoodsListRow {
-  id: string; code: string; name: string; ip_id: string;
-  published_at: string | null; archived_at: string | null;
-  allow_card_payment: boolean; allow_bank_transfer: boolean; sale_restriction: 'none' | 'adult';
-  notice_maker: string | null; notice_origin: string | null; notice_material: string | null; notice_size: string | null;
-  notice_made_on: string | null; notice_as_manager: string | null; notice_as_contact: string | null;
-  stock: Stock; stock_qty: number; active_stock_qty: number; sale_available_qty?: number; low_stock_option_count: number; ip: { title: string };
+export function goodsWorkspaceQuery(filters: GoodsListFilters) {
+  return { p_query: filters.query, p_ip_id: filters.ipId, p_status: filters.status, p_stock: filters.stock,
+    p_category_id: filters.categoryId || null, p_readiness: filters.readiness || 'all' };
 }
-
+const LIST_ERROR = '상품 목록을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.';
+interface WorkspaceRow {
+  id: string; code: string; name: string; ipId: string; ipTitle: string;
+  publishedAt: string | null; archivedAt: string | null; stock: Stock; stockQty: number;
+  imagePath: string | null; categoryName: string | null;
+  readiness: { activeStockQty: number; lowStockOptionCount: number; noticeComplete: boolean; priceMin: number | null; priceMax: number | null };
+}
 export async function loadAdminGoodsList(filters: GoodsListFilters): Promise<AdminGoodsListData> {
-  const supabase = await createClient();
-  let query = supabase.rpc('admin_search_goods', { search_text: filters.query }, { count: 'exact' })
-    .select('id,code,name,ip_id,published_at,archived_at,stock,stock_qty,allow_card_payment,allow_bank_transfer,sale_restriction,active_stock_qty:admin_goods_active_stock_qty,sale_available_qty:goods_sale_available_qty,low_stock_option_count:admin_goods_low_stock_option_count,notice_maker,notice_origin,notice_material,notice_size,notice_made_on,notice_as_manager,notice_as_contact,ip:ips!inner(title)');
-  if (filters.ipId) query = query.eq('ip_id', filters.ipId);
-  if (filters.status === 'archived') query = query.not('archived_at', 'is', null);
-  else if (filters.status !== 'all') {
-    query = query.is('archived_at', null);
-    if (filters.status === 'draft') query = query.is('published_at', null);
-    if (filters.status === 'published') query = query.not('published_at', 'is', null);
-  }
-  // Compute before filtering/count/pagination: stopped options still own physical
-  // inventory but cannot make a good appear available for a new purchase.
-  if (filters.stock === 'soldout') query = query.or('stock.eq.soldout,admin_goods_active_stock_qty.eq.0');
-  else if (filters.stock !== 'all') query = query.eq('stock', filters.stock).gt('admin_goods_active_stock_qty', 0);
-  const result = await query.order('id')
-    .range((filters.page - 1) * GOODS_LIST_PAGE_SIZE, filters.page * GOODS_LIST_PAGE_SIZE - 1);
-  if (result.error) throw new Error('상품 목록을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.');
-  const total = result.count ?? 0;
+  const client = await createClient();
+  const result = await client.rpc('admin_search_goods_workspace', { ...goodsWorkspaceQuery(filters),
+    p_limit: GOODS_LIST_PAGE_SIZE, p_offset: (filters.page - 1) * GOODS_LIST_PAGE_SIZE });
+  if (result.error || !result.data || !Number.isSafeInteger(result.data.total) || result.data.total < 0
+    || !Array.isArray(result.data.rows)) throw new Error(LIST_ERROR);
+  const total: number = result.data.total;
   const lastPage = Math.max(1, Math.ceil(total / GOODS_LIST_PAGE_SIZE));
   if (filters.page > lastPage) return loadAdminGoodsList({ ...filters, page: lastPage });
-  const ips: AdminGoodsListData['ips'] = [];
-  for (let offset = 0; ; offset += 1000) {
-    const result = await supabase.from('ips').select('id,title,archived_at').order('title').order('id').range(offset, offset + 999);
-    if (result.error) throw new Error('IP 필터를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.');
-    ips.push(...(result.data ?? []).map((ip) => ({ id: ip.id, title: ip.title, archivedAt: ip.archived_at })));
-    if ((result.data?.length ?? 0) < 1000) break;
-  }
-  return {
-    filters, total, ips,
-    goods: ((result.data ?? []) as unknown as GoodsListRow[]).map((good) => ({
-      id: good.id, code: good.code, name: good.name, ipId: good.ip_id,
-      ipTitle: good.ip.title,
-      publishedAt: good.published_at, archivedAt: good.archived_at,
-      allowCardPayment: good.allow_card_payment, allowBankTransfer: good.allow_bank_transfer,
-      saleRestriction: good.sale_restriction,
-      stock: good.stock, stockQty: good.stock_qty ?? 0,
-      activeStockQty: good.active_stock_qty ?? 0, lowStockOptionCount: good.low_stock_option_count ?? 0,
-      saleAvailableQty: good.sale_available_qty,
-      noticeComplete: [good.notice_maker,good.notice_origin,good.notice_material,good.notice_size,good.notice_made_on,good.notice_as_manager,good.notice_as_contact].every(value=>Boolean(value?.trim())),
-    })),
+  const [ips, categories] = await Promise.all([
+    (async () => {
+      const rows: AdminGoodsListData['ips'] = [];
+      for (let offset = 0; ; offset += 1000) {
+        const page = await client.from('ips').select('id,title,archived_at').order('title').order('id').range(offset, offset + 999);
+        if (page.error) throw new Error('IP 필터를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.');
+        rows.push(...(page.data ?? []).map(ip => ({ id: ip.id, title: ip.title, archivedAt: ip.archived_at })));
+        if ((page.data?.length ?? 0) < 1000) return rows;
+      }
+    })(),
+    (async () => {
+      const rows: NonNullable<AdminGoodsListData['categories']> = [];
+      for (let offset = 0; ; offset += 1000) {
+        const page = await client.from('catalog_categories').select('id,name,depth,archived_at').order('sort_order').order('code').range(offset, offset + 999);
+        if (page.error) throw new Error('카테고리 필터를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.');
+        rows.push(...(page.data ?? []).map(category => ({ id: category.id, name: category.name, depth: category.depth, archivedAt: category.archived_at })));
+        if ((page.data?.length ?? 0) < 1000) return rows;
+      }
+    })(),
+  ]);
+  return { filters, total, ips, categories, checkedAt: result.data.checkedAt,
+    goods: (result.data.rows as WorkspaceRow[]).map(good => {
+      const readiness = parseGoodsReadiness(good.readiness);
+      return { id: good.id, code: good.code, name: good.name, ipId: good.ipId, ipTitle: good.ipTitle,
+        publishedAt: good.publishedAt, archivedAt: good.archivedAt, stock: good.stock, stockQty: good.stockQty,
+        activeStockQty: good.readiness.activeStockQty, lowStockOptionCount: good.readiness.lowStockOptionCount,
+        saleAvailableQty: readiness.availableQty ?? undefined, noticeComplete: good.readiness.noticeComplete,
+        imageUrl: good.imagePath ? publicMediaUrl(good.imagePath) : null, categoryName: good.categoryName,
+        priceMin: good.readiness.priceMin, priceMax: good.readiness.priceMax, readiness };
+    }),
   };
 }
 
 /** Editor requests one good and its options; opening the list never loads these. */
 export async function loadAdminGoodEditor(goodId?: string) {
   const supabase = await createClient();
-  const [records, variants, verticals, origins, categoryWorkspace, shippingNoticeOptions] = await Promise.all([
+  const [records, variants, verticals, origins, categoryWorkspace, shippingNoticeOptions, readiness] = await Promise.all([
     getAdminCatalogRecords({ include: goodId ? ['goods', 'ips'] : ['ips'], ...(goodId ? { goodId } : {}) }),
     goodId ? loadAdminGoodsVariants(goodId) : Promise.resolve([]),
     supabase.from('verticals').select('key,label,color').order('key'),
     loadAdminFulfillmentOrigins(),
     loadAdminCategoryWorkspace(),
     loadActiveShippingNoticeTemplateOptions(),
+    goodId ? loadAdminGoodsReadiness(goodId) : Promise.resolve(null),
   ]);
   if (verticals.error) throw new Error('상품 편집 정보를 불러오지 못했습니다.');
   // The preview needs IP presentation only, so avoid the public snapshot's full
@@ -85,5 +86,5 @@ export async function loadAdminGoodEditor(goodId?: string) {
     fans: ip.fansCount, goods: 0, cards: 0, featured: ip.featured,
     tagline: ip.tagline ?? '', synopsis: ip.synopsis ?? '',
   }));
-  return { records, variants, catalogIps, origins, categories: categoryWorkspace.categories, shippingNoticeOptions };
+  return { records, variants, catalogIps, origins, categories: categoryWorkspace.categories, shippingNoticeOptions, readiness };
 }

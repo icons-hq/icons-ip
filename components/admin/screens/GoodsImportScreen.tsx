@@ -168,7 +168,7 @@ export function GoodsImportScreen({
     }
   }
   return (
-    <section className="wc-admin-kit">
+    <section className="wc-admin-kit wc-admin-kit__screen">
       <AdminPageHeader
         title="상품 엑셀 등록·수정"
         description="옵션마다 한 행을 작성합니다. 검증 결과를 확인한 뒤 상품별로 적용합니다."

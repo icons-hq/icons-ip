@@ -23,7 +23,7 @@ export async function setAdminGoodPublishedAction(_previous: GoodPublishActionSt
       : error.message.includes('goods_publish_incomplete')
       ? '상품 유형·대표 이미지·상품정보제공고시와 옵션을 채운 뒤 공개해주세요.'
       : error.message.includes('catalog_item_archived') ? '보관된 상품은 복원한 뒤 공개해주세요.' : '게시 상태를 변경하지 못했습니다. 최신 상품을 확인해주세요.' };
-    for (const path of ['/', '/shop', '/cart', '/checkout', '/search', '/admin/catalog/goods', '/admin/catalog/ips']) revalidatePath(path);
+    for (const path of ['/', '/shop', '/cart', '/checkout', '/search', '/admin', '/admin/catalog/goods', '/admin/catalog/ips']) revalidatePath(path);
     revalidatePath(`/shop/${id}`);
     revalidatePath('/ip/[id]', 'page');
     revalidatePath('/events/[eventId]', 'page');

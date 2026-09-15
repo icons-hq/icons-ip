@@ -8,9 +8,15 @@ export function AdminPageHeader({ title, description, actions }: { title: string
   </header>;
 }
 
-export function AdminSectionCard({ title, children }: { title: string; children: ReactNode }) {
-  return <section aria-label={title} className="wc-admin-kit wc-admin-kit__card">
-    <header><h3>{title}</h3></header>{children}
+export function AdminSectionCard({ title, children, id, summary, requirement, status, errorCount = 0 }: {
+  title: string; children: ReactNode; id?: string; summary?: ReactNode;
+  requirement?: string; status?: string; errorCount?: number;
+}) {
+  return <section aria-label={title} id={id} tabIndex={id ? -1 : undefined} className="wc-admin-kit wc-admin-kit__card wc-admin-kit__section">
+    <header><h3>{title}</h3>{requirement ? <span className="wc-admin-kit__hint">{requirement}</span> : null}
+      {status ? <AdminStatusBadge tone={errorCount ? 'danger' : 'neutral'}>{errorCount ? `오류 ${errorCount}개` : status}</AdminStatusBadge> : null}
+      {summary ? <p className="wc-admin-kit__hint">{summary}</p> : null}
+    </header>{children}
   </section>;
 }
 

@@ -1,5 +1,7 @@
 'use client';
 
+import Link from 'next/link';
+import { goodsListHref, normalizeGoodsListFilters } from '@/lib/admin/goods-list';
 import type { AdminCategoryNode } from '@/lib/admin/category';
 
 export function CategoryTree({ categories }: { categories: AdminCategoryNode[] }) {
@@ -19,6 +21,7 @@ export function CategoryTree({ categories }: { categories: AdminCategoryNode[] }
         <div className="row" style={{ alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
           <strong>{category.name}</strong>
           <code>{category.code}</code>
+          <Link href={goodsListHref(normalizeGoodsListFilters({ categoryId: category.id }))}>{category.name} 상품 목록</Link>
           <span className="muted">{category.depth}/4 · 굿즈 {category.assignedGoodCount}개</span>
           {category.archivedAt ? <span className="muted">보관</span> : null}
         </div>

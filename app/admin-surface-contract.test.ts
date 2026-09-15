@@ -32,7 +32,8 @@ describe('complete admin WC cutover (#433)', () => {
   });
 
   it('scopes nested surface rules and resolves only WC tokens', () => {
-    const source = read('./styles/wc-admin-surfaces.css');
+    const source = ['wc-admin-surfaces.css', 'admin-goods-worklist.css', 'wc-admin-option-artwork.css', 'admin-ux-521.css']
+      .map((file) => read(`./styles/${file}`)).join('\n');
     const ast = postcss.parse(source);
     const foundation = postcss.parse(read('./styles/wc-foundation.css'));
     const tokens = new Set<string>();

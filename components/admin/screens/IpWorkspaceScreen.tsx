@@ -11,7 +11,7 @@ export function IpWorkspaceScreen({ data, children }: { data: AdminIpWorkspaceDa
   const { ip, tab, related, relatedTotal } = data;
   const label = tab === 'goods' ? ADMIN_VOCABULARY.goods : tab === 'pools' ? '카드풀' : '이벤트';
   const relatedHref = tab === 'goods' ? `/admin/catalog/goods?ipId=${encodeURIComponent(ip.id)}` : tab === 'pools' ? '/admin/catalog/pools' : '/admin/catalog/events';
-  return <section className="wc-admin-kit">
+  return <section className="wc-admin-kit wc-admin-kit__screen">
     <Link href={`${IP_INDEX_PATH}?vertical=${encodeURIComponent(ip.verticalKey)}`}>← 같은 버티컬의 IP 목록</Link>
     <AdminPageHeader title={ip.title} description={ip.id} actions={<AdminStatusBadge tone={ip.publishedAt && !ip.archivedAt ? 'success' : 'neutral'}>{ip.archivedAt ? '보관' : ip.publishedAt ? '공개' : '초안'}</AdminStatusBadge>} />
     <nav aria-label="IP 작업 탭" className="wc-admin-kit__actions" style={{ marginBottom: 24 }}>

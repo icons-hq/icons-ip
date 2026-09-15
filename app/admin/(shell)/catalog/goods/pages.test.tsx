@@ -22,7 +22,7 @@ describe('goods directory routes', () => {
   });
   it('opens a server-paged list without any editor data', async () => {
     await Page({ searchParams: Promise.resolve({ q: ' CODE ', page: '2', stock: 'low' }) });
-    expect(mocks.list).toHaveBeenCalledWith({ query: 'CODE', page: 2, ipId: '', status: 'active', stock: 'low' });
+    expect(mocks.list).toHaveBeenCalledWith({ query: 'CODE', page: 2, ipId: '', status: 'active', stock: 'low', categoryId: '', readiness: 'all' });
     expect(mocks.editor).not.toHaveBeenCalled();
   });
   it('loads the exact editor id and preserves the URL filters in the return link', async () => {

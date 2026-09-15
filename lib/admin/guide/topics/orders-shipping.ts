@@ -13,6 +13,16 @@ export const ORDERS_SHIPPING_TOPIC: AdminGuideTopic = {
   summary: `주문 사다리 7단계와 출고지별 배송 처리 — ${L.paid} 확인부터 발송, 배송완료, 자동 거래확정까지의 절차입니다.`,
   sections: [
     {
+      id: 'amounts-and-workflow',
+      heading: '정확한 금액과 발송 작업 순서',
+      paragraphs: [
+        '주문·품목·결제·환불 금액은 42,000원처럼 원 단위 정수로 대조합니다. 주문 단계 신규주문은 발주확인 대기이고, 결제 상태 결제완료와 배송 단계는 별도 정보입니다.',
+        '발주·발송은 대상 선택 → 출고지시 내보내기 → 창고 회신 확인 → 운송장 등록 순서입니다. 주문 기준 발주확인과 출고지별 배송 건의 대상을 구분합니다.',
+        '운송장 가져오기 영역을 펼쳐 지원 양식·예시·최대 처리량과 실패 행을 확인합니다. 같은 결과의 재시도와 분할 배송, 퀵·방문수령, 예약 물량 할당은 기존 처리 규칙을 유지합니다.',
+      ],
+      screens: [{ href: '/admin/sales/orders' }, { href: '/admin/sales/dispatch' }],
+    },
+    {
       id: 'order-detail',
       heading: '주문 상세와 운영자 메모',
       paragraphs: [

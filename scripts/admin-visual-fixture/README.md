@@ -20,6 +20,7 @@ node scripts/admin-visual-fixture.mjs
 (`wc-foundation`, `wc-admin-surfaces`, `wc-admin`, specialized admin CSS)를 적용한다.
 
 `main.tsx`의 account/action/navigation shim은 fixture 경계용이며 제품 코드가 아니다.
+`next-image.tsx`는 썸네일 조판만 재현한다. Next 이미지 최적화와 실제 경로 응답은 연결된 앱에서 검증한다.
 
 interaction QA와 PNG·JSON은 저장소 밖으로 남긴다.
 기본 출력은 매 실행 새 전용 임시 디렉터리다. 지정한 경로는 저장소 밖의 private

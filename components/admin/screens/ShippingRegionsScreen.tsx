@@ -140,7 +140,7 @@ export function ShippingRegionsScreen({ policies: initialPolicies, adoptions, or
     setPolicies((current) => current.some((row) => row.id === policy.id) ? current.map((row) => row.id === policy.id ? policy : row) : [...current, policy]);
     setSelectedId(policy.id); setCopy(null); setEditorKey((key) => key + 1); setMessage(success);
   }
-  return <section className="wc-admin-kit">
+  return <section className="wc-admin-kit wc-admin-kit__screen">
     <AdminPageHeader title="지역 추가 배송비" description="실제 물류사 회신을 출고지·계약 택배사·적용 기간별로 관리합니다. 확정된 정책만 배송지별 견적과 주문에 적용합니다." />
     <nav className="wc-admin-kit__actions" aria-label="배송 설정"><Link href="/admin/settings/origins">출고지·배송비</Link><Link href="/admin/settings/carriers">택배사</Link></nav>
     {message ? <p role="status">{message}</p> : null}

@@ -22,7 +22,12 @@ export function AdminShell({
 
   return (
     <div className={collapsed ? 'admin-shell wc-root wc-admin collapsed' : 'admin-shell wc-root wc-admin'}>
-      <AdminSidebar collapsed={collapsed} onCollapsedChange={setCollapsed} role={admin.role} />
+      <AdminSidebar
+        accountId={admin.id || admin.email || admin.role}
+        collapsed={collapsed}
+        onCollapsedChange={setCollapsed}
+        role={admin.role}
+      />
       <div className="wc-admin__main">
         <Header admin={admin} next={pathname} title={screen?.label ?? '어드민'} />
         {badges}

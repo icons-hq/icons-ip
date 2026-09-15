@@ -160,11 +160,13 @@ export async function loadGoodsExportParts(filters: GoodsListFilters) {
   const candidates: { id: string; rows: number }[] = [];
   for (let start = 0; ; start += 1000) {
     const { data, error } = await client
-      .rpc('admin_goods_export_candidates', {
-        search_text: filters.query,
-        ip_filter: filters.ipId,
-        status_filter: filters.status,
-        stock_filter: filters.stock,
+      .rpc('admin_goods_workspace_export_candidates', {
+        p_query: filters.query,
+        p_ip_id: filters.ipId,
+        p_status: filters.status,
+        p_stock: filters.stock,
+        p_category_id: filters.categoryId || null,
+        p_readiness: filters.readiness || 'all',
       })
       .order('good_id')
       .range(start, start + 999);

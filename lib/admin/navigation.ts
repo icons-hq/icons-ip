@@ -38,7 +38,7 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
   },
   {
     id: 'sales',
-    label: '판매 관리',
+    label: '주문·배송',
     icon: 'bag',
     screens: [
       { id: 'orders', label: '주문 통합검색', href: '/admin/sales/orders', status: 'ready' },
@@ -49,29 +49,50 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
       { id: 'claims-cancels', label: '취소 관리', href: '/admin/sales/claims/cancels', status: 'ready' },
       { id: 'claims-returns', label: '반품 관리', href: '/admin/sales/claims/returns', status: 'ready' },
       { id: 'claims-exchanges', label: '교환 관리', href: '/admin/sales/claims/exchanges', status: 'ready' },
-      { id: 'coupons', label: '쿠폰 관리', href: '/admin/sales/coupons', status: 'ready' },
     ],
   },
   {
     id: 'cs',
-    label: '문의·리뷰 관리',
+    label: '고객 응대',
     icon: 'chat',
     screens: [
       { id: 'inquiries', label: '1:1 문의', href: '/admin/cs/inquiries', status: 'ready' },
       { id: 'faq', label: 'FAQ 관리', href: '/admin/cs/faq', status: 'ready' },
       { id: 'qna', label: '상품 Q&A', href: '/admin/cs/qna', status: 'ready' },
       { id: 'reviews', label: '리뷰 관리', href: '/admin/cs/reviews', status: 'ready' },
+      { id: 'moderation', label: '커뮤니티 모더레이션', href: '/admin/community/moderation', status: 'ready' },
+      { id: 'members', label: '회원', href: '/admin/community/members', status: 'ready' },
+      { id: 'roles', label: '역할', href: '/admin/community/roles', status: 'ready', adminOnly: true },
     ],
   },
   {
     id: 'catalog',
-    label: '카탈로그 관리',
+    label: '상품 관리',
     icon: 'shop',
     screens: [
-      { id: 'ips', label: 'IP', href: '/admin/catalog/ips', status: 'ready' },
       { id: 'goods', label: ADMIN_VOCABULARY.goods, href: '/admin/catalog/goods', status: 'ready' },
       { id: 'categories', label: '고객 카테고리', href: '/admin/catalog/categories', status: 'ready' },
       { id: 'notice-presets', label: `${ADMIN_VOCABULARY.noticeInfo} 프리셋`, href: '/admin/catalog/notice-presets', status: 'ready' },
+    ],
+  },
+  {
+    id: 'display',
+    label: '혜택·전시',
+    icon: 'star',
+    screens: [
+      { id: 'coupons', label: '쿠폰 관리', href: '/admin/sales/coupons', status: 'ready' },
+      { id: 'curations', label: '홈 큐레이션', href: '/admin/display/curations', status: 'ready' },
+      { id: 'campaigns', label: '캠페인', href: '/admin/display/campaigns', status: 'ready' },
+      { id: 'notifications', label: '공지 발송', href: '/admin/messaging/notifications', status: 'ready' },
+      { id: 'emails', label: '메일 발송 이력', href: '/admin/messaging/emails', status: 'ready' },
+    ],
+  },
+  {
+    id: 'content',
+    label: 'IP·콘텐츠 운영',
+    icon: 'spark',
+    screens: [
+      { id: 'ips', label: 'IP', href: '/admin/catalog/ips', status: 'ready' },
       { id: 'cards', label: '카드', href: '/admin/catalog/cards', status: 'ready' },
       { id: 'pools', label: '카드풀', href: '/admin/catalog/pools', status: 'ready' },
       { id: 'policies', label: '뽑기권 발급 정책', href: '/admin/catalog/policies', status: 'ready' },
@@ -82,46 +103,13 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
     ],
   },
   {
-    id: 'display',
-    label: '전시 관리',
-    icon: 'star',
-    screens: [
-      { id: 'curations', label: '홈 큐레이션', href: '/admin/display/curations', status: 'ready' },
-      { id: 'campaigns', label: '캠페인', href: '/admin/display/campaigns', status: 'ready' },
-    ],
-  },
-  {
-    id: 'community',
-    label: '커뮤니티·회원',
-    icon: 'shield',
-    screens: [
-      { id: 'moderation', label: '모더레이션', href: '/admin/community/moderation', status: 'ready' },
-      { id: 'members', label: '회원', href: '/admin/community/members', status: 'ready' },
-      { id: 'roles', label: '역할', href: '/admin/community/roles', status: 'ready', adminOnly: true },
-    ],
-  },
-  {
-    id: 'messaging',
-    label: '알림·메시지',
-    icon: 'bell',
-    screens: [
-      { id: 'notifications', label: '공지 발송', href: '/admin/messaging/notifications', status: 'ready' },
-      { id: 'emails', label: '메일 발송 이력', href: '/admin/messaging/emails', status: 'ready' },
-    ],
-  },
-  {
     id: 'stats',
-    label: '통계',
+    label: '분석·설정',
     icon: 'trendUp',
     screens: [
       { id: 'stats-sales', label: '판매분석', href: '/admin/stats/sales', status: 'ready' },
       { id: 'stats-claims', label: ADMIN_VOCABULARY.claims, href: '/admin/stats/claims', status: 'ready' },
       { id: 'stats-customers', label: '고객현황', href: '/admin/stats/customers', status: 'ready' },
-    ],
-  },
-  {
-    id: 'settings', label: '설정', icon: 'settings',
-    screens: [
       { id: 'operations-settings', label: '운영 준비', href: '/admin/settings/operations', status: 'ready' },
       { id: 'store-credits', label: '적립금 정책', href: '/admin/settings/store-credits', status: 'ready', adminOnly: true },
       { id: 'store-settings', label: '사업자·CS·결제 표시', href: '/admin/settings/store', status: 'ready' },

@@ -22,7 +22,7 @@ async function staff() {
   return auth.isConfigured && auth.user && auth.isStaff ? auth : null;
 }
 function refreshGood(goodId: string) {
-  for (const path of ['/admin/catalog/goods', '/shop', `/shop/${encodeURIComponent(goodId)}`, '/cart', '/checkout']) revalidatePath(path);
+  for (const path of ['/admin', '/admin/catalog/goods', '/shop', `/shop/${encodeURIComponent(goodId)}`, '/cart', '/checkout']) revalidatePath(path);
 }
 export async function listGoodsPreordersAction(goodIdValue: unknown): Promise<{ ok: true; policies: AdminGoodsPreorder[] } | Failure> {
   if (!await staff()) return { ok: false, error: STAFF_REQUIRED };

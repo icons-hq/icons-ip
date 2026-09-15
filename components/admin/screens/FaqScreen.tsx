@@ -9,7 +9,7 @@ import { FaqDeleteForm, FaqEntryForm } from './FaqEntryForm';
 
 export function FaqScreen({ data }: { data: FaqPageData }) {
   const { entries, filters, total } = data;
-  return <section className="admin-faq wc-admin-kit">
+  return <section className="admin-faq wc-admin-kit wc-admin-kit__screen">
     <AdminPageHeader title="FAQ 관리" description="고객이 문의하기 전에 찾아볼 질문과 답변을 관리합니다." actions={<Link href="/help" target="_blank" rel="noopener noreferrer">공개 FAQ 보기 (새 창)</Link>} />
     <details className="admin-faq__create"><summary>새 FAQ 등록</summary><FaqEntryForm /></details>
     <ConsoleFilterPanel action={ADMIN_FAQ_PATH}

@@ -220,6 +220,9 @@ jobs:
           run_sql_test supabase/tests/store_settings.sql
           run_sql_test supabase/tests/admin_operations_contacts.sql
           run_sql_test supabase/tests/admin_goods_directory.sql
+          run_sql_test supabase/tests/admin_goods_readiness_workspace.sql
+          run_sql_test supabase/tests/admin_work_queue.sql
+          run_sql_test supabase/tests/goods_inactive_shipping_fee.sql
           run_sql_test supabase/tests/goods_publish_state.sql
           run_sql_test supabase/tests/fulfillment_origins_policy.sql
           run_sql_test supabase/tests/fulfillment_zero_price_policy.sql
