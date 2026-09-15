@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { GoodsListScreen } from './GoodsListScreen';
+import { GOODS_READINESS_REASONS, unknownGoodsReadiness } from '@/lib/admin/goods-readiness';
 import { normalizeGoodsListFilters } from '@/lib/admin/goods-list';
 
 describe('goods list screen', () => {
@@ -12,6 +13,8 @@ describe('goods list screen', () => {
     }}/>);
     expect(html).toContain('admin-console-grid-table');
     expect(html).toContain('상품코드'); expect(html).toContain('상품명');
+    expect(html).toContain('ERP 코드·ERP 품명·바코드');
+    expect(html).toContain('name="categoryId"'); expect(html).toContain('name="readiness"');
     expect(html).toContain('name="q"'); expect(html).toContain('name="ipId"');
     expect(html).toContain('name="status"'); expect(html).toContain('name="stock"');
     expect(html).toContain('goodId=g100'); expect(html).toContain('page=3');
@@ -23,13 +26,16 @@ describe('goods list screen', () => {
       filters: normalizeGoodsListFilters({}), total: 1, ips: [],
       goods: [{ id: 'stopped', code: 'STOPPED', name: '중지 상품', ipId: 'ip', ipTitle: 'IP',
         publishedAt: '2026-09-10', archivedAt: null, stock: 'ok', noticeComplete: true,
-        stockQty: 10, activeStockQty: 0, lowStockOptionCount: 1 }],
+        stockQty: 10, activeStockQty: 0, lowStockOptionCount: 1, priceMin: 12345, priceMax: 17890,
+        readiness: { ...unknownGoodsReadiness(), state: 'blocked', operation: 'active', availableQty: 0, reasons: [{ code: 'no_active_options', ...GOODS_READINESS_REASONS.no_active_options, kind: 'blocking' }] } }],
     }} />);
     const body = html.split('<tbody')[1]?.split('</tbody>')[0] ?? '';
     expect(body).toContain('10개');
     expect(body).toContain('0개');
-    expect(body).toContain('품절·판매 중지');
+    expect(body).toContain('사용 중인 옵션 없음');
     expect(body).toContain('판매 준비 중');
+    expect(body).toContain('12,345~17,890원');
+    expect(body).toContain('#good-section-variants');
     expect(body).toContain('부족 1개 옵션');
   });
 });

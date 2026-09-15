@@ -7,7 +7,7 @@ export type ShipmentConsoleSurface='dispatch'|'shipping';
 export const SHIPMENT_CONSOLE_PAGE_SIZE=100;
 const MAX_SHIPMENT_PAGE=Math.floor(2147483647/SHIPMENT_CONSOLE_PAGE_SIZE)+1;
 export const SHIPMENT_CONSOLE_TABS:Record<ShipmentConsoleSurface,readonly {id:ShipmentConsoleTab;label:string}[]>={
- dispatch:[{id:'new',label:'신규 주문'},{id:'ready',label:'발송 대기'},{id:'delayed',label:'발송 지연'}],
+ dispatch:[{id:'new',label:'신규주문'},{id:'ready',label:'발송 대기'},{id:'delayed',label:'발송 지연'}],
  shipping:[{id:'transit',label:'배송 중'},{id:'delivered',label:'배송완료'}],
 };
 export interface ShipmentConsoleFilters {tab:ShipmentConsoleTab;originId:string|null;query:string;from:string|null;to:string|null;page:number}

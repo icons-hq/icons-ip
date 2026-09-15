@@ -1,3 +1,5 @@
+import { WorkQueueSection } from './WorkQueue';
+import type { AdminWorkQueueData } from '@/lib/admin/work-queue';
 import { ADMIN_VOCABULARY } from '@/lib/admin/vocabulary';
 import Link from 'next/link';
 import type { AdminInsights } from '@/lib/admin/insights.server';
@@ -14,14 +16,23 @@ import { reportTargetLabels } from './Moderation';
 export function OverviewSection({
   insights,
   reports,
+  workQueue,
 }: {
-  insights: AdminInsights;
-  reports: AdminReportRecord[];
+  insights: AdminInsights | null;
+  workQueue?: AdminWorkQueueData;
+  reports: AdminReportRecord[] | null;
 }) {
-  const recent = reports.slice(0, 5);
+  const recent = reports?.slice(0, 5) ?? [];
 
   return (
-    <section className="col" style={{ gap: 16 }}>
+    <section className="admin-overview">
+      <WorkQueueSection data={workQueue} />
+      <section className="admin-overview__performance" aria-labelledby="admin-performance-title">
+      <header className="admin-overview__heading">
+        <h2 id="admin-performance-title" className="admin-overview__title">성과 통계 · 최근 30일</h2>
+        <p className="admin-overview__description">오늘을 포함한 KST 30일 · 매출·결제 건수·평균 결제액은 결제완료 결제 기준입니다. 주문 단계 분포는 전체 기간입니다.</p>
+      </header>
+      {insights ? <>
       <div className="admin-metric-grid">
         <MetricCard
           icon="spark"
@@ -77,34 +88,39 @@ export function OverviewSection({
         <TopIps ips={insights.topIps} />
       </div>
 
-      <div className="card col wc-admin-kit wc-admin-kit__card" style={{  }}>
-        <div className="between" style={{ marginBottom: 8 }}>
+      </> : <p role="status">성과 통계를 불러오지 못했습니다. 새로고침 후 다시 확인해주세요.</p>}
+      </section>
+
+      <section className="card wc-admin-kit wc-admin-kit__card admin-overview-panel" aria-labelledby="admin-recent-reports-title">
+        <header className="admin-overview-panel__heading">
           <div>
-            <h2 style={{ fontSize: 15, fontWeight: 700, margin: 0 }}>최근 신고</h2>
-            <div className="muted" style={{ fontSize: 12.5, marginTop: 2 }}>커뮤니티 신고 최신 5건</div>
+            <h2 id="admin-recent-reports-title" className="admin-overview-panel__title">최근 신고</h2>
+            <p className="admin-overview-panel__description">커뮤니티 신고 최신 5건</p>
           </div>
           <Link className="btn btn-sm btn-ghost" href="/admin/community/moderation">
             모두 보기 <Icon name="arrow" size={14} />
           </Link>
-        </div>
+        </header>
+        <div className="admin-overview-list">
         {recent.map((report) => (
-          <div key={report.id} className="between" style={{ borderTop: '1px solid var(--wc-hairline)', gap: 12, padding: '11px 0' }}>
-            <div className="col" style={{ gap: 3, minWidth: 0 }}>
-              <strong style={{ fontSize: 13.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+          <div key={report.id} className="admin-overview-list__row">
+            <div className="admin-overview-list__copy">
+              <strong className="admin-overview-list__name">
                 {report.targetLabel}
               </strong>
-              <span className="faint mono" style={{ fontSize: 11 }}>
+              <span className="admin-overview-list__meta">
                 {reportTargetLabels[report.targetType]} · 신고자 @{report.reporterName} ·{' '}
                 {new Date(report.createdAt).toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul' })}
               </span>
             </div>
-            <span className="tag" style={{ color: 'var(--wc-info)' }}>{report.status}</span>
+            <span className="tag">{report.status}</span>
           </div>
         ))}
         {!recent.length && (
-          <p className="muted" style={{ fontSize: 13, margin: '8px 0 2px' }}>접수된 신고가 없습니다.</p>
+          <p className="admin-overview-panel__description">{reports ? '접수된 신고가 없습니다.' : '신고 목록을 불러오지 못했습니다.'}</p>
         )}
-      </div>
+        </div>
+      </section>
     </section>
   );
 }

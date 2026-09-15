@@ -9,7 +9,7 @@ import { GoodsNoticePresetDeleteForm, GoodsNoticePresetForm } from './GoodsNotic
 
 export function GoodsNoticePresetsScreen({ data }: { data: GoodsNoticePresetPageData }) {
   const { presets, filters, total } = data;
-  return <section className="wc-admin-kit admin-notice-presets">
+  return <section className="wc-admin-kit wc-admin-kit__screen admin-notice-presets">
     <AdminPageHeader title="상품정보제공고시 프리셋" description="자주 사용하는 제조사·소재·A/S 정보를 이름으로 저장합니다. 기존 상품에 입력된 값은 바뀌지 않습니다." />
     <details className="admin-notice-presets__create">
       <summary>새 프리셋 등록</summary><GoodsNoticePresetForm />

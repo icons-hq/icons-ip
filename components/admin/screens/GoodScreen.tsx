@@ -1,11 +1,13 @@
 'use client';
 
+import type { GoodShippingRegionSummary } from '@/lib/admin/good-shipping-summary';
 import type { AdminCategoryNode } from '@/lib/admin/category';
 import type { GoodsShippingNoticeOption } from '@/components/admin/GoodsShippingNoticeField';
 
 import { useActionState, useEffect, useMemo, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { upsertAdminGoodAction, type AdminCatalogActionState } from '@/app/admin/actions';
+import type { AdminGoodsReadiness } from '@/lib/admin/goods-readiness';
 import { GoodSection } from '@/components/admin/sections/GoodSection';
 import type { AdminCatalogRecords } from '@/lib/admin/catalog.server';
 import type { FulfillmentOrigin } from '@/lib/admin/fulfillment-origins';
@@ -34,7 +36,7 @@ export function GoodScreen({
   initialSelectedId,
   hideRecordList=false,
   listHref='/admin/catalog/goods',
-  accountId='', origins=[], noticeDefaults, categories=[], shippingNoticeOptions=[], canManageCosts=false, cloneOperationId,
+  accountId='', origins=[], noticeDefaults, categories=[], shippingNoticeOptions=[], canManageCosts=false, cloneOperationId, readiness, regionSummaries = [],
 }: {
   adjustmentId: string;
   catalogIps: CatalogSnapshot['ips'];
@@ -47,7 +49,7 @@ export function GoodScreen({
   hideRecordList?: boolean;
   listHref?: string;
   accountId?: string; origins?: FulfillmentOrigin[]; noticeDefaults?: GoodNoticeDefaults;
-  categories?: AdminCategoryNode[]; shippingNoticeOptions?: GoodsShippingNoticeOption[]; canManageCosts?: boolean; cloneOperationId?: string;
+  categories?: AdminCategoryNode[]; shippingNoticeOptions?: GoodsShippingNoticeOption[]; canManageCosts?: boolean; cloneOperationId?: string; readiness?: AdminGoodsReadiness | null; regionSummaries?: GoodShippingRegionSummary[];
 }) {
   const [state, action, pending] = useActionState(upsertAdminGoodAction, emptyState);
   const noticeState = useMemo(() => adminGoodsNotice(state), [state]);
@@ -61,11 +63,12 @@ export function GoodScreen({
     const url=new URL(listHref,'https://admin.invalid');
     url.searchParams.delete('create');
     url.searchParams.set('goodId',state.savedGoodId);
-    router.replace(`${url.pathname}?${url.searchParams}`,{scroll:false});
-  },[hideRecordList,listHref,router,state.savedGoodId]);
+    router.replace(`${url.pathname}?${url.searchParams}${initialSelectedId ? '' : '#good-operation-kc'}`,{scroll:false});
+  },[hideRecordList,initialSelectedId,listHref,router,state.savedGoodId]);
 
   return (
     <GoodSection
+      readiness={readiness} regionSummaries={regionSummaries}
       accountId={accountId} origins={origins} noticeDefaults={noticeDefaults}
       categories={categories} shippingNoticeOptions={shippingNoticeOptions} canManageCosts={canManageCosts} cloneOperationId={cloneOperationId}
       action={action}
@@ -73,7 +76,7 @@ export function GoodScreen({
       catalogIps={catalogIps}
       ipOptions={ipOptions}
       onSelect={(record)=>setSelection({id:record?.id??null,savedId:state.savedGoodId})}
-      pending={pending}
+      pending={pending || Boolean(state.savedGoodId && !selected)}
       records={records}
       selected={selected}
       state={noticeState}

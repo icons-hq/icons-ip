@@ -7,7 +7,7 @@ import { IP_INDEX_PATH, IP_INDEX_PAGE_SIZE, ipIndexHref, ipWorkspaceHref, type A
 
 export function IpIndexScreen({ data }: { data: AdminIpIndexData }) {
   const { filters, ips, total, verticals } = data;
-  return <section className="wc-admin-kit">
+  return <section className="wc-admin-kit wc-admin-kit__screen">
     <AdminPageHeader title="IP" description="버티컬에서 IP를 찾고 연결된 콘텐츠를 관리합니다."
       actions={<Link className="wc-admin-kit__button" href={`${IP_INDEX_PATH}?create=1`}>IP 등록</Link>} />
     <ConsoleFilterPanel action={IP_INDEX_PATH} search={{ name: 'q', label: 'IP 이름·ID', value: filters.query }}

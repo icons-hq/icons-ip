@@ -1,6 +1,8 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import type { AdminInsights } from '@/lib/admin/insights.server';
+import { RecentOrders } from '../RecentOrders';
+import { OrderPipeline } from '../charts/OrderPipeline';
 import { OverviewSection } from './Overview';
 
 vi.mock('@/components/ui/Icon', () => ({ Icon: () => null }));
@@ -37,6 +39,23 @@ describe('OverviewSection', () => {
     expect(html).toContain('href="/admin/stats/customers"');
   });
 
+  it('매출이 없는 기간에는 임의의 숫자 축 대신 빈 상태를 표시한다', () => {
+    const empty = { ...insights, dailyRevenue: [{ date: '2026-08-18', goods: 0, tickets: 0 }] };
+    const html = renderToStaticMarkup(<OverviewSection insights={empty} reports={[]} />);
+    expect(html).toContain('최근 30일 결제 완료 매출이 없습니다.');
+    expect(html).toContain('role="status"');
+    expect(html).not.toContain('recharts-responsive-container');
+    const populated = renderToStaticMarkup(<OverviewSection insights={insights} reports={[]} />);
+    expect(populated).not.toContain('최근 30일 결제 완료 매출이 없습니다.');
+    expect(populated).toContain('recharts-responsive-container');
+  });
+
+  it('최근 주문에서도 원 단위 금액을 보존한다', () => {
+    const html = renderToStaticMarkup(<RecentOrders orders={[{ id: 'exact-order', kind: 'good', buyerName: '운영연습', total: 13100, status: 'paid', createdAt: '2026-09-08T00:00:00Z' }]} />);
+    expect(html).toContain('₩13,100');
+    expect(html).not.toContain('₩1만');
+  });
+
   it.each([
     ['pending', '결제 대기'],
     ['paid', '신규주문'],
@@ -46,11 +65,8 @@ describe('OverviewSection', () => {
     ['done', '거래확정'],
     ['canceled', '취소'],
   ] as const)('주문 파이프라인과 최근 상품 주문의 %s를 %s로 표시한다', (status, label) => {
-    const html = renderToStaticMarkup(<OverviewSection insights={{
-      ...insights,
-      pipeline: [{ status, count: 1 }],
-      recentOrders: [{ id: 'goods-order', kind: 'good', buyerName: '운영연습', total: 10000, status, createdAt: '2026-09-08T00:00:00Z' }],
-    }} reports={[]} />);
+    const html = renderToStaticMarkup(<><OrderPipeline stages={[{ status, count: 1 }]} />
+      <RecentOrders orders={[{ id: 'goods-order', kind: 'good', buyerName: '운영연습', total: 10000, status, createdAt: '2026-09-08T00:00:00Z' }]} /></>);
 
     expect(html.split(`>${label}</span>`)).toHaveLength(3);
     expect(html).not.toContain(`>${status}</span>`);
@@ -63,11 +79,7 @@ describe('OverviewSection', () => {
     ['paid', '결제 완료'],
     ['canceled', '취소'],
   ])('최근 티켓 주문의 %s는 상품 발주 상태와 구분한다', (status, label) => {
-    const html = renderToStaticMarkup(<OverviewSection insights={{
-      ...insights,
-      pipeline: [],
-      recentOrders: [{ id: 'ticket-order', kind: 'ticket', buyerName: '예매자', total: 20000, status, createdAt: '2026-09-08T00:00:00Z' }],
-    }} reports={[]} />);
+    const html = renderToStaticMarkup(<RecentOrders orders={[{ id: 'ticket-order', kind: 'ticket', buyerName: '예매자', total: 20000, status, createdAt: '2026-09-08T00:00:00Z' }]} />);
 
     expect(html).toContain(`>${label}</span>`);
     expect(html).toContain('티켓 ·');

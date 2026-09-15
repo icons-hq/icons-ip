@@ -8,7 +8,7 @@ import { formatOrderDateTime } from '@/lib/orders';
 import { DeliveryPoliciesPanel } from '@/components/admin/DeliveryPoliciesPanel';
 
 export function FulfillmentOriginsScreen({ origins, carriers, history, canEdit }: { origins: FulfillmentOrigin[]; carriers: EditableCarrier[]; history: StoreSettingsAudit[]; canEdit: boolean }) {
-  return <section className="wc-admin-kit">
+  return <section className="wc-admin-kit wc-admin-kit__screen">
     <AdminPageHeader title="출고지·배송 정책" description="출고지별로 배송비를 계산합니다. 무료배송 상품은 기준 금액에서 빼고, 개별 배송비는 상품당 한 번 더합니다." />
     <nav className="wc-admin-kit__actions" aria-label="설정 항목"><Link href={STORE_SETTINGS_PATH}>사업자·결제 표시 설정</Link><Link href={CARRIER_SETTINGS_PATH}>택배사</Link><Link href="/admin/settings/shipping-regions">지역 추가 배송비</Link></nav>
     {origins.map((origin) => <AdminSectionCard key={origin.id} title={`${origin.name} · ${origin.active ? '사용 중' : '비활성'}`}>

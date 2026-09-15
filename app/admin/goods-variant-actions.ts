@@ -52,6 +52,7 @@ export async function setGoodsVariantActiveAction(
       ?? '옵션 사용 상태를 변경하지 못했습니다. 잠시 후 다시 시도해주세요.' };
   }
   revalidatePath('/admin/catalog/goods');
+  revalidatePath('/admin');
   revalidatePath('/shop');
   revalidatePath(`/shop/${encodeURIComponent(goodId)}`);
   revalidatePath('/cart');

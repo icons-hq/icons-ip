@@ -36,7 +36,7 @@ const ACTION_LABELS: Record<string, string> = {
   'admin.order.claim_resumed': '요청 처리 재개',
 };
 const STATUS_LABELS: Record<string, string> = {
-  pending: '대기', paid: '결제 완료', failed: '실패', canceled: '취소', refunded: '환불',
+  pending: '대기', paid: '결제완료', failed: '실패', canceled: '취소', refunded: '환불',
   partial_refunded: '부분 환불', requested: '접수', done: '완료', completed: '완료',
   sent: '발송 완료', open: '미답변', answered: '답변 완료', closed: '종결',
 };

@@ -65,7 +65,7 @@ describe('adminScreenForPath', () => {
     expect(adminScreenForPath('/admin/sales/claims/cancels')?.id).toBe('claims-cancels');
     expect(adminScreenForPath('/admin/catalog/goods/some-id')?.id).toBe('goods');
     expect(adminScreenForPath('/admin/customers/customer-id')?.id).toBe('members');
-    expect(adminGroupForPath('/admin/customers/customer-id')?.id).toBe('community');
+    expect(adminGroupForPath('/admin/customers/customer-id')?.id).toBe('cs');
   });
 
   it('끝 슬래시를 붙여도 같은 화면을 고른다', () => {
@@ -77,8 +77,8 @@ describe('adminScreenForPath', () => {
   });
 
   it('화면이 속한 대분류를 찾는다', () => {
-    expect(adminGroupForPath('/admin/catalog/pools')?.label).toBe('카탈로그 관리');
-    expect(adminGroupForPath('/admin/community/roles')?.label).toBe('커뮤니티·회원');
+    expect(adminGroupForPath('/admin/catalog/pools')?.label).toBe('IP·콘텐츠 운영');
+    expect(adminGroupForPath('/admin/community/roles')?.label).toBe('고객 응대');
   });
 });
 

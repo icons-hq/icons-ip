@@ -127,6 +127,40 @@ function actionMarker(label: string) {
 }
 
 describe('OrdersSection', () => {
+  it('주문 대조 금액은 0원·경계값·큰 금액을 모두 원 단위로 보여주고 paid를 신규주문으로 표시한다', () => {
+    const data = orderData({
+      total: 42000,
+      items: [{
+        id: 'item-1',
+        variantId: '00000000-0000-4000-8000-000000000001',
+        name: '경계 상품',
+        type: '굿즈',
+        qty: 1,
+        unitPrice: 9999,
+      }],
+      payments: [{
+        id: 'payment-1',
+        amount: 10000,
+        status: 'paid',
+        createdAt: '2026-07-14T06:01:00.000Z',
+      }],
+      refunds: [{
+        id: 'refund-1',
+        amount: 0,
+        status: 'completed',
+        createdAt: '2026-07-14T06:02:00.000Z',
+      }],
+    });
+    const html = renderToStaticMarkup(<OrdersSection data={data} />);
+
+    expect(html).toContain('₩42,000');
+    expect(html).toContain('₩9,999');
+    expect(html).toContain('₩10,000');
+    expect(html).toContain('₩0');
+    expect(html).not.toContain('₩4만');
+    expect(html).toMatch(/order-status order-status--paid[^>]*>신규주문/);
+  });
+
   it('opens no replacement panel when a linked order is outside the current page', () => {
     const data = orderData();
     data.filters.orderId = '99999999-9999-4999-8999-999999999999';

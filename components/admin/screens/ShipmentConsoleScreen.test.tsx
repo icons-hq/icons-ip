@@ -48,4 +48,11 @@ describe('배송 건 콘솔',()=>{
   const incoming=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,filters:{...base.filters,tab:'new'},rows:[held]}}/>);
   expect(incoming).toContain(`aria-label="배송 건 ${row.id.slice(-8).toUpperCase()} 선택"`);expect(incoming).toContain('발주확인');
  });
+ it('운송장 가져오기는 목록과 분리된 접힌 작업으로 열고 닫아도 입력 상태를 보존한다',()=>{
+  const html=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,rows:[row]}}/>);
+  expect(html).toContain('<details class="admin-shipment-import-disclosure">');
+  expect(html).toContain('<summary>운송장 가져오기 · 창고 회신 등록</summary>');
+  expect(html).not.toContain('<details open="">');
+  expect(html).toContain('순서: 대상 선택 → 출고지시 내보내기 → 창고 회신 → 운송장 등록');
+ });
 });

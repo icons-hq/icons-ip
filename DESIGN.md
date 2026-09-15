@@ -373,13 +373,19 @@ protected-boundaries:
 
 ### 컴포넌트 키트 anatomy (#409)
 
+상품 작성 워크스페이스(#521)의 섹션 제목·필수 조건·현재 값·작성 상태·오류 수는 `AdminSectionCard`의 선택적 입력이다. 업무 모듈이 판정하며 공통 키트는 도메인 검증을 소유하지 않는다. 상품 폼은 `wc-admin-surfaces.css`, 목록·업무 대기는 `admin-goods-worklist.css`, 옵션·이미지는 `wc-admin-option-artwork.css`, 업무별 메뉴·발송 안내는 `admin-ux-521.css`가 소유하며 모두 `.wc-admin`과 White Catalog 토큰 경계를 유지한다. 기본 저장과 독립 작업의 저장 범위를 구분하고 접힘으로 입력을 제거하지 않는다.
+
 전용 레이어는 `wc-admin-surfaces.css`(표면 배치)와 `wc-admin.css`(셸·공통 키트)다. `wc-foundation.css` → `wc-admin-surfaces.css` → `wc-admin.css` 순서로 임포트한다. 셸 루트는 `admin-shell wc-root wc-admin`, 독립 검표 루트는 `check-in-shell wc-root wc-admin`이다. 공통 Field·TextArea·SelectField는 AdminField의 label/입력/오류 구조를 쓰고, RecordList는 AdminSidePanel을 쓴다.
+
+자체 레이아웃이 없는 화면 최상위 `section.wc-admin-kit`은 `wc-admin-kit__screen`을 함께 사용해 직접 자식 사이 20px 간격과 `min-width: 0`을 보장한다. 직접 자식인 페이지 헤더·설명·필터는 자체 margin 대신 화면 간격을 사용하며, 내부 `wc-admin-kit` 배지·필드·카드의 배치는 이 규칙에 포함하지 않는다.
+
+개요는 `wc-admin-surfaces.css`의 `.admin-overview`가 구역 사이 32px, 성과 통계 내부 24px(600px 이하 16px)를 소유한다. 카드 높이는 콘텐츠로 결정하며 차트를 이웃 카드 높이에 강제로 늘리지 않는다. 성과 구역 제목은 20px, 카드 제목은 16px, 설명은 13px다. 본문·기존 폼·주문 필터의 기본 배치와 반응형·인쇄 규칙은 같은 파일의 정본 블록에서 관리한다. 표면별 파일은 공통 키트 뒤에 임포트한다.
 
 | 요소 | 구조와 규율 |
 |---|---|
 | 셸 | 사이드바 248px(접힘 72px), 900px 이하 아이콘 내비게이션(600px 이하 56px). 헤더 최소 72px, 본문 최대폭 1488px. 각 링크에 접근성 이름·현재 페이지 표시. |
 | 페이지 헤더 | `AdminPageHeader`: h2 제목 20px/700, 설명 14px/1.7, 우측 액션 8px 간격. 헤더 아래 24px. |
-| 섹션 카드 | `AdminSectionCard`: section + h3, 흰 지면·hairline·2px 모서리, 패딩 24px(600px 이하 16px, 400px 이하 12px). |
+| 섹션 카드 | `AdminSectionCard`: section + h3, 흰 지면·hairline·2px 모서리, 패딩 24px(600px 이하 16px, 400px 이하 12px). 헤더 안 제목·필수 조건·상태·요약 사이 8px, 본문 직접 자식 사이 20px. |
 | 데이터 표 | 기존 `ConsoleGrid`를 `wc-admin-kit` 안에서 사용. caption·정렬 링크·행 선택 계약 유지, 본문 13px·셀 패딩 12px 16px, 숫자 우측 정렬. 상품명·상태·편집 입력의 최소폭을 확보하고 많은 열은 표 안에서 가로 스크롤한다. |
 | 폼 | `AdminFormGrid`: 최대 2열, 필드별 260px 공간이 없으면 컨테이너 너비에 따라 1열(600px 이하 항상 1열). 행 간격 20px·열 24px. `AdminField`: label→입력→도움말→오류, 도움말 13px/1.65. 컨트롤 최소 40px, 오류는 aria-invalid와 error id를 연결. |
 | 검색·필터 | 기간·상태·검색의 용도에 따라 폭을 배분하고 공간이 부족하면 다음 줄로 이동한다. 검색 대상 안내는 입력칸 밖에 표시하며 GET 파라미터 계약은 유지한다. |

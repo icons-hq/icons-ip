@@ -4,51 +4,37 @@ import { formatKrw } from './format';
 
 export function TopIps({ ips }: { ips: AdminTopIp[] }) {
   return (
-    <div className="card col wc-admin-kit wc-admin-kit__card" style={{ minWidth: 0 }}>
-      <div className="between" style={{ marginBottom: 8 }}>
+    <div className="card col wc-admin-kit wc-admin-kit__card admin-overview-panel">
+      <div className="admin-overview-panel__heading">
         <div>
-          <h2 style={{ fontSize: 15, fontWeight: 700, margin: 0 }}>IP별 매출 톱 {ips.length || 5}</h2>
-          <div className="muted" style={{ fontSize: 12.5, marginTop: 2 }}>최근 30일 · 상품 주문 기준</div>
+          <h3 className="admin-overview-panel__title">IP별 매출 톱 {ips.length || 5}</h3>
+          <div className="admin-overview-panel__description">최근 30일 · 상품 주문 기준</div>
         </div>
-        <span style={{ color: 'var(--wc-warning)' }}>
+        <span aria-hidden="true" className="admin-overview-panel__icon">
           <Icon name="star" size={18} />
         </span>
       </div>
-      {ips.map((ip, index) => (
-        <div className="between" key={ip.ipId} style={{ borderTop: '1px solid var(--wc-hairline)', gap: 12, padding: '11px 0' }}>
-          <div className="row" style={{ gap: 11, justifyContent: 'flex-start', minWidth: 0 }}>
-            <span
-              className="mono"
-              style={{
-                alignItems: 'center',
-                background: index === 0 ? 'var(--wc-accent)' : 'var(--wc-surface-grey)',
-                border: index === 0 ? 'none' : '1px solid var(--wc-hairline)',
-                borderRadius: 999,
-                color: index === 0 ? '#0A0813' : 'var(--wc-ink-tertiary)',
-                display: 'grid',
-                flex: '0 0 auto',
-                fontSize: 12.5,
-                fontWeight: 700,
-                height: 30,
-                placeItems: 'center',
-                width: 30,
-              }}
-            >
-              {index + 1}
-            </span>
-            <div className="col" style={{ gap: 3, minWidth: 0 }}>
-              <strong style={{ fontSize: 13.5, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                {ip.title}
-              </strong>
-              <span className="faint mono" style={{ fontSize: 11 }}>주문 {ip.orderCount.toLocaleString('ko-KR')}건</span>
+      <div className="admin-overview-list">
+        {ips.map((ip, index) => (
+          <div className="admin-overview-list__row" key={ip.ipId}>
+            <div className="admin-overview-list__identity">
+              <span className={`mono admin-overview-list__avatar${index === 0 ? ' admin-overview-list__avatar--top' : ''}`}>
+                {index + 1}
+              </span>
+              <div className="admin-overview-list__copy">
+                <strong className="admin-overview-list__name">{ip.title}</strong>
+                <span className="admin-overview-list__meta">주문 {ip.orderCount.toLocaleString('ko-KR')}건</span>
+              </div>
+            </div>
+            <div className="admin-overview-list__amount">
+              <span className="admin-overview-list__value">{formatKrw(ip.revenue)}</span>
             </div>
           </div>
-          <span style={{ fontSize: 13.5, fontWeight: 700 }}>{formatKrw(ip.revenue)}</span>
-        </div>
-      ))}
-      {!ips.length && (
-        <p className="muted" style={{ fontSize: 13, margin: '8px 0 2px' }}>최근 30일 매출 데이터가 없습니다.</p>
-      )}
+        ))}
+        {!ips.length && (
+          <p className="admin-overview-list__empty muted">최근 30일 매출 데이터가 없습니다.</p>
+        )}
+      </div>
     </div>
   );
 }

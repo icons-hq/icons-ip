@@ -12,6 +12,8 @@ import {DispatchTrackingImportPanel} from './DispatchTrackingImportPanel';
 import {DispatchDelayNoteForm} from './DispatchDelayNoteForm';
 export function ShipmentConsoleScreen({data,registeredCount}:{data:ShipmentConsoleData;registeredCount?:number|null}){
  const {surface,filters,rows,origins,carriers}=data;const isDispatch=surface==='dispatch';
+ const hasParcelRows=!rows.length||rows.some(isParcelShipment);
+ const workflowStep=filters.tab==='new'?1:filters.tab==='ready'?2:filters.tab==='delayed'?3:4;
  const columns:ConsoleGridColumn[]=[{key:'reference',label:'배송건번호 / 주문번호',width:'165px'},{key:'origin',label:'출고지',width:'100px'},
   {key:'method',label:'배송 방식',width:'110px'},
   {key:'recipient',label:'수취인',width:'110px'},{key:'items',label:'상품 · 옵션'},{key:'time',label:isDispatch?'주문 / 발주확인':'발송 / 배송완료',width:'165px'},
@@ -39,14 +41,23 @@ export function ShipmentConsoleScreen({data,registeredCount}:{data:ShipmentConso
    ...(filters.tab==='delayed'?[<DispatchDelayNoteForm key="delay" orderId={row.orderId} reference={orderReferenceLabel(row.orderId)} note={row.delayReason?{reason:row.delayReason,expectedShipDate:row.expectedShipDate,updatedAt:row.updatedAt}:null}/>]:[]),
   ]};
  });
- return <section className="wc-admin-kit">
-  <AdminPageHeader title={isDispatch?'발주·발송':'배송현황'} description={isDispatch?'출고지별 배송 건을 확인합니다. 택배는 출고지시·운송장으로 처리하고, 퀵·방문수령은 주문 상세에서 실제 인계와 수령을 확인합니다.':'택배의 실제 도착을 확인해 배송완료로 처리합니다. 퀵·방문수령은 주문 상세에서 일회 수령 확인값과 인계 근거를 기록합니다.'}/>
+ return <section className="wc-admin-kit wc-admin-kit__screen">
+  <AdminPageHeader title={isDispatch?'발주·발송':'배송현황'} description={isDispatch&&hasParcelRows?'순서: 대상 선택 → 출고지시 내보내기 → 창고 회신 → 운송장 등록. 출고지별 배송 건을 확인하며, 퀵·방문수령은 주문 상세에서 실제 인계와 수령을 확인합니다.':isDispatch?'현재 목록은 퀵·방문수령 배송 건입니다. 주문 상세에서 실제 인계와 수령을 확인합니다.':'택배의 실제 도착을 확인해 배송완료로 처리합니다. 퀵·방문수령은 주문 상세에서 일회 수령 확인값과 인계 근거를 기록합니다.'}/>
+  {isDispatch?<ol aria-label="발주·발송 작업 순서" className="admin-dispatch-workflow">
+   <li data-active={workflowStep===1}><strong>1. 대상 선택</strong>신규주문에서 주문을 발주확인합니다.</li>
+   <li data-active={workflowStep===2}><strong>{hasParcelRows?'2. 출고지시 내보내기':'2. 택배 출고 대상 확인'}</strong>출고지별 배송 건을 선택합니다.</li>
+   <li data-active={workflowStep===3}><strong>3. 창고 회신</strong>창고 처리 결과를 확인합니다.</li>
+   <li data-active={workflowStep===4}><strong>4. 운송장 등록</strong>회신값을 가져와 배송현황에서 재조회합니다.</li>
+  </ol>:null}
   {!isDispatch&&registeredCount?<p role="status" className="wc-admin-kit__card">운송장 {registeredCount.toLocaleString('ko-KR')}건을 등록했습니다. 배송 메일은 대기열에서 처리됩니다.</p>:null}
   <ConsoleFilterPanel action={`/admin/sales/${surface}`} hiddenFields={{tab:filters.tab}} dateRange={{from:filters.from,to:filters.to,label:'주문일'}}
    statusFilter={{name:'originId',label:'출고지',value:filters.originId??'',options:[{value:'',label:'전체 출고지'},...origins.map(origin=>({value:origin.id,label:origin.name}))]}}
    search={{value:filters.query,placeholder:'배송건번호 · 주문번호 · 구매자'}} />
   <ConsoleCountChips label="배송 처리 단계" chips={SHIPMENT_CONSOLE_TABS[surface].map(tab=>({active:tab.id===filters.tab,label:tab.label,count:data.counts[tab.id],href:shipmentConsoleHref(surface,filters,{tab:tab.id,page:1})}))}/>
-  {isDispatch&&filters.tab!=='new'&&(!rows.length||rows.some(isParcelShipment))?<DispatchTrackingImportPanel carriers={carriers} originId={filters.originId} shippingHref={shipmentConsoleHref('shipping',filters,{tab:'transit',page:1})}/>:null}
+  {isDispatch&&filters.tab!=='new'&&(!rows.length||rows.some(isParcelShipment))?<details className="admin-shipment-import-disclosure">
+   <summary>운송장 가져오기 · 창고 회신 등록</summary>
+   <DispatchTrackingImportPanel carriers={carriers} originId={filters.originId} shippingHref={shipmentConsoleHref('shipping',filters,{tab:'transit',page:1})}/>
+  </details>:null}
   <ShipmentConsoleGrid rows={rows} columns={columns} gridRows={gridRows} tab={filters.tab}
    currentHref={shipmentConsoleHref(surface,filters)} readyHref={shipmentConsoleHref('dispatch',filters,{tab:'ready',page:1})}/>
   <ConsolePagination label="배송 건 페이지" page={filters.page} pageSize={data.pageSize} total={data.total} hrefForPage={page=>shipmentConsoleHref(surface,filters,{page})}/>

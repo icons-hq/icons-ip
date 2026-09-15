@@ -1048,7 +1048,7 @@ describe('admin catalog actions', () => {
     const form=goodForm();
     form.delete('id');
     mocks.rpc.mockResolvedValue({data:{id:'hwasan-kiring',code:'HWA-0001'},error:null});
-    expect(await upsertAdminGoodAction({},form)).toEqual({message:'굿즈를 저장했습니다.',savedGoodId:'hwasan-kiring'});
+    expect(await upsertAdminGoodAction({},form)).toEqual({message:'굿즈를 저장했습니다.',savedGoodId:'hwasan-kiring',attempt:1});
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/shop/hwasan-kiring');
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/admin/catalog/goods');
   });

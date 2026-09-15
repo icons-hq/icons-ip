@@ -340,7 +340,7 @@ export async function upsertAdminIpAction(
 export async function upsertAdminGoodAction(state: AdminCatalogActionState, formData: FormData): Promise<AdminCatalogActionState> {
   try {
     const result = await saveAdminGood(state, formData);
-    return result.errors ? withPreservedFormValues(result, state, formData) : result;
+    return result.errors ? withPreservedFormValues(result, state, formData) : { ...result, attempt: (state.attempt ?? 0) + 1 };
   } catch (error) {
     unstable_rethrow(error);
     return withPreservedFormValues(rpcFailure('상품을 저장하지 못했습니다. 다시 시도해주세요.'), state, formData);
@@ -439,7 +439,7 @@ async function saveAdminGood(
   if (!savedId) return rpcFailure('상품 저장 결과를 확인하지 못했습니다. 목록을 새로고침해주세요.');
   notifyRestockSubscribers(savedId);
   revalidateCatalog([...relatedIpPaths(value.ipId, previousIpPath), `/admin/catalog/ips/${value.ipId}`, `/shop/${savedId}`, ...(value.previousId ? [`/shop/${value.previousId}`] : [])]);
-  return { message: '굿즈를 저장했습니다.', savedGoodId: savedId };
+  return { message: value.publish ? '굿즈를 저장하고 공개했습니다.' : '굿즈를 저장했습니다.', savedGoodId: savedId };
 }
 
 export async function adjustAdminStockAction(

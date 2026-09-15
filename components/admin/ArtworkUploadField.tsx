@@ -14,6 +14,7 @@ const CURRENT_PREVIEW_ALT = '현재 아트워크 미리보기';
 const SELECTED_PREVIEW_ALT = '선택한 아트워크 미리보기';
 const UPLOADED_PREVIEW_ALT = '업로드된 아트워크 미리보기';
 const UPLOAD_VALIDITY_MESSAGE = '이미지를 먼저 업로드해주세요.';
+export const COMMON_ARTWORK_GUIDANCE = 'JPEG, PNG, WebP · 최대 5MB · 가로·세로 최대 8192px · 총 4,000만 픽셀 이하 · 애니메이션 제외';
 
 export interface ArtworkDisplayState {
   committedAlt: string;
@@ -92,7 +93,9 @@ export function restoreCommittedArtworkPreview(
  */
 export function ArtworkUploadField({
   allowRemove = false,
+  ariaDescribedBy,
   autoUpload = false,
+  compact = false,
   currentPath,
   currentUrl,
   fieldId,
@@ -101,9 +104,15 @@ export function ArtworkUploadField({
   label = '아트워크 파일',
   name = 'imagePath',
   onPreviewChange,
+  onPathChange,
+  showCropGuide = true,
+  showGuidance = true,
+  showPath = true,
 }: {
   allowRemove?: boolean;
+  ariaDescribedBy?: string;
   autoUpload?: boolean;
+  compact?: boolean;
   currentPath: string | null;
   currentUrl: string | null;
   fieldId?: string;
@@ -112,12 +121,17 @@ export function ArtworkUploadField({
   label?: string;
   name?: string;
   onPreviewChange?: (url: string | null) => void;
+  onPathChange?: (path: string) => void;
+  showCropGuide?: boolean;
+  showGuidance?: boolean;
+  showPath?: boolean;
 }) {
   const [display, setDisplay] = useState(() => createArtworkDisplayState(currentPath, currentUrl));
   const [error, setError] = useState<string>();
   const [file, setFile] = useState<File | null>(null);
   const [pending, setPending] = useState(false);
   const [status, setStatus] = useState<string>();
+  const [hasUnsavedUpload, setHasUnsavedUpload] = useState(false);
   const committedObjectUrlRef = useRef<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const selectedObjectUrlRef = useRef<string | null>(null);
@@ -160,6 +174,7 @@ export function ArtworkUploadField({
     setStatus(undefined);
     clearFileInput();
     restoreCommittedPreview();
+    onPathChange?.(display.imagePath);
   }
 
   function handleRemove() {
@@ -170,8 +185,10 @@ export function ArtworkUploadField({
     setFile(null);
     clearFileInput();
     setDisplay((current) => clearArtworkDisplayState(current));
-    setStatus('저장하면 현재 이미지 연결을 제거합니다.');
+    setHasUnsavedUpload(true);
+    setStatus('저장하면 현재 이미지 연결을 제거합니다. 저장소 원본은 별도 보존됩니다.');
     onPreviewChange?.(null);
+    onPathChange?.('');
   }
 
   function handleFileChange(event: ChangeEvent<HTMLInputElement>) {
@@ -188,6 +205,7 @@ export function ArtworkUploadField({
       setFile(null);
       event.currentTarget.setCustomValidity('');
       restoreCommittedPreview();
+      onPathChange?.(display.imagePath);
       return;
     }
 
@@ -201,6 +219,7 @@ export function ArtworkUploadField({
       setFile(null);
       event.currentTarget.setCustomValidity('');
       restoreCommittedPreview();
+      onPathChange?.(display.imagePath);
       event.currentTarget.value = '';
       return;
     }
@@ -210,7 +229,7 @@ export function ArtworkUploadField({
     selectedObjectUrlRef.current = objectUrl;
     setFile(selected);
     setDisplay((current) => showSelectedArtworkPreview(current, objectUrl));
-    setStatus('업로드 전 미리보기입니다. 확인 후 업로드해주세요.');
+    setStatus(autoUpload ? '업로드를 시작했습니다.' : '업로드 전 미리보기입니다. 확인 후 업로드해주세요.');
     event.currentTarget.setCustomValidity(UPLOAD_VALIDITY_MESSAGE);
     onPreviewChange?.(objectUrl);
     if (autoUpload) void handleUpload(selected);
@@ -221,39 +240,58 @@ export function ArtworkUploadField({
 
     setError(undefined);
     setPending(true);
-    setStatus(undefined);
+    setStatus('업로드 중…');
     const result = await uploadAdminArtwork({ kind, file: selectedFile });
     setPending(false);
 
     if (!result.ok) {
+      // Keep the selected file and preview so this exact file can be retried or cancelled.
       setError(result.error);
-      setFile(null);
-      clearFileInput();
-      restoreCommittedPreview();
+      setStatus('업로드에 실패했습니다. 다시 업로드하거나 선택을 취소해주세요.');
       return;
     }
 
     revokeCommittedObjectUrl();
-    committedObjectUrlRef.current = selectedObjectUrlRef.current;
+    const uploadedPreviewUrl = selectedObjectUrlRef.current;
+    committedObjectUrlRef.current = uploadedPreviewUrl;
     selectedObjectUrlRef.current = null;
-    setDisplay((current) => commitSelectedArtworkPreview(current, result.imagePath));
+    // autoUpload can resolve before the selection event has rendered again. Use
+    // the ref so the uploaded file, rather than the previous preview, is committed.
+    setDisplay((current) => commitSelectedArtworkPreview(
+      uploadedPreviewUrl ? { ...current, previewUrl: uploadedPreviewUrl } : current,
+      result.imagePath,
+    ));
     setFile(null);
-    setStatus('이미지를 업로드했습니다. 아래 저장 버튼을 눌러 카탈로그에 적용해주세요.');
+    setHasUnsavedUpload(true);
+    setStatus('업로드 완료 · 상품 저장 전');
     clearFileInput();
+    onPathChange?.(result.imagePath);
   }
 
   const idPrefix = fieldId ?? kind;
   const errorId = `${idPrefix}-artwork-error`;
   const guidanceId = `${idPrefix}-artwork-guidance`;
   const helpId = `${idPrefix}-artwork-help`;
-  const describedBy = [helpId, helpText ? guidanceId : null, error ? errorId : null]
+  const describedBy = [showGuidance ? helpId : null, helpText ? guidanceId : null, ariaDescribedBy, error ? errorId : null]
     .filter(Boolean)
     .join(' ');
+  const uploadState = pending
+    ? 'uploading'
+    : error
+      ? 'failed'
+      : file
+        ? 'selected'
+        : hasUnsavedUpload
+          ? 'uploaded'
+          : display.imagePath
+            ? 'saved'
+            : 'empty';
 
   return (
     <section
       data-auto-upload={autoUpload || undefined}
-      className="card col"
+      data-upload-state={uploadState}
+      className={`card col wc-admin-artwork-upload-field${compact ? ' wc-admin-artwork-upload-field--compact' : ''}`}
       data-artwork-kind={kind}
       style={{ borderRadius: 10, gap: 12, padding: 14 }}
     >
@@ -290,7 +328,7 @@ export function ArtworkUploadField({
             <input
               accept={ADMIN_ARTWORK_ACCEPT}
               aria-disabled={pending || undefined}
-              aria-describedby={describedBy}
+              aria-describedby={describedBy || undefined}
               aria-invalid={Boolean(error)}
               className="admin-artwork-input"
               data-upload-validity-message={UPLOAD_VALIDITY_MESSAGE}
@@ -303,28 +341,26 @@ export function ArtworkUploadField({
               style={{ color: 'var(--dim)', fontFamily: 'inherit', fontSize: 12, width: '100%' }}
             />
           </label>
-          <span className="mono" id={helpId} style={{ color: 'var(--faint)', fontSize: 10 }}>
-            JPEG, PNG, WebP · 최대 5MB · 가로·세로 최대 8192px · 총 4,000만 픽셀 이하 · 애니메이션 제외
-          </span>
+          {showGuidance && <span className="mono" id={helpId} style={{ color: 'var(--faint)', fontSize: 10 }}>{COMMON_ARTWORK_GUIDANCE}</span>}
           {helpText && <span id={guidanceId} style={{ color: 'var(--dim)', fontSize: 12 }}>{helpText}</span>}
           <div className="row admin-artwork-actions" style={{ flexWrap: 'wrap', justifyContent: 'flex-start' }}>
-            <button
+            {(!autoUpload || Boolean(file && error)) && <button
               className="btn btn-ghost admin-artwork-upload"
               disabled={!file || pending}
               onClick={() => void handleUpload()}
               type="button"
             >
-              {pending ? '업로드 중' : display.imagePath ? '이미지 교체' : '이미지 업로드'}
-            </button>
-            <button
+              {pending ? '업로드 중' : error && file ? '다시 업로드' : display.imagePath ? '이미지 교체' : '이미지 업로드'}
+            </button>}
+            {(!autoUpload || Boolean(file && !pending)) && <button
               className="btn btn-ghost"
               disabled={!file || pending}
               onClick={handleSelectionCancel}
               type="button"
             >
               선택 취소
-            </button>
-            {allowRemove && (
+            </button>}
+            {allowRemove && (!autoUpload || Boolean(display.imagePath && !pending)) && (
               <button
                 className="btn btn-ghost admin-artwork-remove"
                 disabled={!display.imagePath || pending}
@@ -337,17 +373,18 @@ export function ArtworkUploadField({
           </div>
         </div>
       </div>
-      <ArtworkCropGuide kind={kind} src={display.previewUrl} detailImage={name === 'detailImagePath'} />
+      {showCropGuide && <ArtworkCropGuide kind={kind} src={display.previewUrl} detailImage={name === 'detailImagePath'} />}
       <input name={name} readOnly type="hidden" value={display.imagePath} />
-      <div className="mono" style={{ color: 'var(--faint)', fontSize: 10, overflowWrap: 'anywhere' }}>
+      {showPath && <div className="mono" style={{ color: 'var(--faint)', fontSize: 10, overflowWrap: 'anywhere' }}>
         현재 경로: {display.imagePath || '없음'}
-      </div>
+      </div>}
       {error && (
         <span id={errorId} role="alert" style={{ color: 'var(--pink)', fontSize: 12, fontWeight: 700 }}>
           {error}
         </span>
       )}
-      {status && <span aria-live="polite" role="status" style={{ color: 'var(--mint)', fontSize: 12 }}>{status}</span>}
+      {status && <span aria-live="polite" data-upload-status={uploadState} role="status" style={{ color: error ? 'var(--pink)' : 'var(--mint)', fontSize: 12 }}>{status}</span>}
+      {!status && uploadState === 'saved' && <span aria-live="polite" data-upload-status="saved" role="status" style={{ color: 'var(--dim)', fontSize: 12 }}>현재 저장된 이미지</span>}
     </section>
   );
 }

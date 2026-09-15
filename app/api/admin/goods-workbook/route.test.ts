@@ -53,11 +53,11 @@ describe('downloadable goods XLSX', () => {
     mocks.rows.mockResolvedValue({ rows: [values], kcRows: [] });
     const response = await GET(
       new Request(
-        'http://localhost/api/admin/goods-workbook?mode=export&q=CODE&ipId=ip&status=draft&stock=low&part=2',
+        'http://localhost/api/admin/goods-workbook?mode=export&q=CODE&ipId=ip&status=draft&stock=low&categoryId=00000000-0000-4000-8000-000000000001&readiness=kc_required&part=2',
       ),
     );
     expect(mocks.rows).toHaveBeenCalledWith(
-      { query: 'CODE', ipId: 'ip', status: 'draft', stock: 'low', page: 1 },
+      { query: 'CODE', ipId: 'ip', status: 'draft', stock: 'low', page: 1, categoryId: '00000000-0000-4000-8000-000000000001', readiness: 'kc_required' },
       2,
     );
     expect(

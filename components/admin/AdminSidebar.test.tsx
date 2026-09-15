@@ -20,8 +20,8 @@ describe('AdminSidebar 2단 메뉴', () => {
   it('대분류 헤딩과 소분류 항목을 함께 보여준다', () => {
     const html = render();
 
-    expect(html).toContain('판매 관리');
-    expect(html).toContain('카탈로그 관리');
+    expect(html).toContain('주문·배송');
+    expect(html).toContain('상품 관리');
     expect(html).toContain('주문 통합검색');
     expect(html).toContain('href="/admin/catalog/goods"');
   });
@@ -30,8 +30,8 @@ describe('AdminSidebar 2단 메뉴', () => {
   it('대분류를 정해진 순서로 세운다', () => {
     const html = render();
 
-    expect(html.indexOf('판매 관리')).toBeLessThan(html.indexOf('카탈로그 관리'));
-    expect(html.indexOf('카탈로그 관리')).toBeLessThan(html.indexOf('통계'));
+    expect(html.indexOf('주문·배송')).toBeLessThan(html.indexOf('상품 관리'));
+    expect(html.indexOf('상품 관리')).toBeLessThan(html.indexOf('분석·설정'));
   });
 
   it('현재 화면만 aria-current를 단다', () => {

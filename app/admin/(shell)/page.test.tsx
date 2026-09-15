@@ -8,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   overviewSection: vi.fn(() => null),
 }));
 
+vi.mock('@/lib/admin/work-queue.server', () => ({ loadAdminWorkQueue: async () => ({ checkedAt: '2026-09-15T00:00:00Z', counts: {}, goodsReasons: [] }) }));
 vi.mock('@/lib/admin/guard.server', () => ({ requireAdminScreenAccess: mocks.requireAccess }));
 vi.mock('@/lib/admin/insights.server', () => ({ getAdminInsights: mocks.getInsights }));
 vi.mock('@/lib/admin/moderation.server', () => ({ getAdminModerationRecords: mocks.getModeration }));

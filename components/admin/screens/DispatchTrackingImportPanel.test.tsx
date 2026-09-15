@@ -20,7 +20,7 @@ describe('운송장 업로드 후속 동선', () => {
     expect(html).toContain('배송건번호 · 택배사코드 · 운송장번호');
   });
 
-  it('패널을 여는 추가 클릭 없이 파일 선택과 등록을 제공한다', () => {
+  it('목록에서는 접혀 있고 작업을 펼치면 파일 선택과 등록을 제공한다', () => {
     const html = renderToStaticMarkup(<DispatchTrackingImportPanel carriers={[]} />);
     expect(html).not.toContain('<details');
     expect(html).toContain('type="file"');

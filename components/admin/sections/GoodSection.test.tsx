@@ -120,6 +120,28 @@ function renderGoodSection(
 }
 
 describe('GoodSection', () => {
+  it('keeps the task order and error links in the same authoring sequence', () => {
+    const html = renderGoodSection(null, { errors: { maxOrderQty: '수량 오류', originId: '배송 오류', noticeMaker: '고시 오류', variants: '옵션 오류', price: '가격 오류', name: '이름 오류' } });
+    const sections = ['basic', 'price', 'variants', 'notice', 'shipping', 'sale'];
+    const positions = sections.map((key) => html.indexOf(`id="good-section-${key}"`));
+    expect(positions.every((position) => position >= 0)).toBe(true);
+    expect(positions).toEqual([...positions].sort((a, b) => a - b));
+    const summary = html.slice(html.indexOf('aria-label="저장 오류 요약"')).split('</section>')[0];
+    expect([...summary.matchAll(/href="#good-section-([a-z]+)"/g)].map((match) => match[1])).toEqual(sections);
+  });
+
+  it('shows all seven published identity locks without omitting their submitted values', () => {
+    const html = renderGoodSection(good);
+    for (const name of ['name', 'noticeMaker', 'noticeOrigin', 'noticeMaterial', 'noticeSize']) {
+      expect(html.match(new RegExp(`<input[^>]*name="${name}"[^>]*>`))?.[0]).toContain('readOnly');
+    }
+    for (const name of ['ipId', 'type']) {
+      expect(html.match(new RegExp(`<select[^>]*name="${name}"[^>]*>`))?.[0]).toContain('disabled');
+      expect(html).toMatch(new RegExp(`<input[^>]*type="hidden"[^>]*name="${name}"`));
+    }
+    expect(html).toContain('초안으로 전환 후 수정');
+  });
+
   it('저장 실패 후 HTML 원문·형식·업로드를 복구하고 제거 사유와 정리된 미리보기를 함께 보여준다', () => {
     const path = 'public-media/catalog/good/22222222-2222-4222-8222-222222222222.webp';
     const html = renderGoodSection(good, { attempt: 2, values: { previousId: good.id, descriptionFormat: 'html', description: '<h2>보존 제목</h2><p style="color:red">본문</p><img src="https://external.test/a.png">', descriptionUploadPath: path, descriptionImageAlt: '입력한 대체 설명' } });
@@ -190,11 +212,11 @@ describe('GoodSection', () => {
     expect(stockForm).not.toContain('name="saleRestriction"');
   });
 
-  it('derives soldout for zero quantity without changing the raw stock label', () => {
+  it('does not infer readiness when the server summary is unavailable, and preserves the raw stock label', () => {
     const html = renderGoodSection({ ...good, stock: 'ok', stockQty: 0 });
 
     expect(html).toContain('<option value="ok" selected="">');
-    expect(html).toContain('판매 준비 중');
+    expect(html).toContain('판매 준비 정보를 확인하지 못했습니다.');
   });
 
   it('does not expose inventory adjustment controls while creating a new good', () => {
@@ -203,7 +225,7 @@ describe('GoodSection', () => {
     expect(html).not.toContain('현재 실재고');
     expect(html).not.toContain('name="delta"');
     expect(html).not.toContain('name="reason"');
-    expect(html).not.toContain('재고 조정');
+    expect(html).not.toContain('id="good-operation-stock"');
     expect(html.match(/<form/g)).toHaveLength(1);
   });
 
@@ -278,7 +300,7 @@ describe('GoodSection', () => {
     expect(html).toContain('상세 이미지');
     /* 이미지 제약은 공유 업로드 칸에서 그대로 따라온다. */
     expect(html.match(/accept="image\/jpeg,image\/png,image\/webp"/g)).toHaveLength(7);
-    expect(html.match(/최대 5MB · 가로·세로 최대 8192px/g)).toHaveLength(7);
+    expect(html.match(/최대 5MB · 가로·세로 최대 8192px/g)).toHaveLength(1);
   });
 
   it('prefills gallery slots in stored order and keeps the detail image', () => {

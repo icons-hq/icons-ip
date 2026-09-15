@@ -57,6 +57,7 @@ export async function saveGoodsKcAction(goodIdValue: unknown, inputValue: unknow
     const configuration = data && typeof data.changed === 'boolean' ? parseAdminGoodsKc(data.configuration) : null;
     if (!configuration) return { ok: false, error: 'KC 저장 결과를 확인하지 못했습니다. 저장된 정보를 다시 불러와주세요.' };
     revalidatePath('/admin/catalog/goods');
+    revalidatePath('/admin');
     revalidatePath(`/shop/${encodeURIComponent(id)}`);
     return { ok: true, configuration, message: input.status === 'reviewed'
       ? '대상 모델·옵션과 근거를 결속해 KC 검토를 완료했습니다. 상품 공개는 별도로 진행해주세요.'

@@ -1,0 +1,31 @@
+.wc-admin .admin-goods-worklist__identity { display: flex; align-items: center; gap: 12px; min-width: 180px; white-space: normal; }
+.wc-admin .admin-goods-worklist__identity img { flex: 0 0 52px; object-fit: cover; border: 1px solid var(--wc-hairline); }
+.wc-admin .admin-goods-worklist__identity small, .wc-admin .admin-goods-worklist__secondary { display: block; color: var(--wc-ink-tertiary); margin-top: 4px; }
+.wc-admin .admin-goods-worklist__image-empty { display: grid; place-content: center; flex: 0 0 52px; height: 52px; font-size: 11px; text-align: center; background: var(--wc-surface-grey); color: var(--wc-ink-tertiary); }
+.wc-admin .admin-goods-worklist__price { font-variant-numeric: tabular-nums; white-space: nowrap; }
+.wc-admin .admin-goods-worklist__readiness { display: grid; gap: 7px; min-width: 170px; white-space: normal; }
+.wc-admin .admin-goods-worklist__readiness > div { display: flex; align-items: center; flex-wrap: wrap; gap: 7px; }
+.wc-admin .admin-goods-worklist__readiness details a { display: block; margin-top: 8px; }
+.wc-admin .admin-goods-worklist__details { display: grid; gap: 4px; min-width: 145px; white-space: normal; }
+.wc-admin .admin-goods-worklist__details dt { font-size: 11px; color: var(--wc-ink-tertiary); }
+.wc-admin .admin-goods-worklist__details dd { margin: 0 0 8px; overflow-wrap: anywhere; }
+.wc-admin .admin-goods-worklist summary { cursor: pointer; text-underline-offset: 3px; }
+.wc-admin .admin-goods-worklist__export { padding: 10px 12px; border: 1px solid var(--wc-line-control); }
+.wc-admin .admin-goods-worklist__export > div { display: grid; gap: 12px; padding-top: 14px; }
+.wc-admin .admin-work-queue { display: grid; grid-template-columns: minmax(0, 1fr); gap: 16px; container-type: inline-size; }
+.wc-admin .admin-work-queue__cards { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 12px; }
+.wc-admin .admin-work-queue__card { display: grid; align-content: start; gap: 8px; min-width: 0; padding: 16px; border: 1px solid var(--wc-hairline); border-radius: var(--wc-radius-form); background: var(--wc-surface); color: var(--wc-ink); }
+.wc-admin .admin-work-queue__card:hover { border-color: var(--wc-ink-sub); background: var(--wc-surface-grey); }
+.wc-admin .admin-work-queue__card > span { font-size: 13px; font-weight: 600; }
+.wc-admin .admin-work-queue__card strong { font-size: 26px; font-variant-numeric: tabular-nums; }
+.wc-admin .admin-work-queue__card small { color: var(--wc-ink-tertiary); line-height: 1.6; }
+.wc-admin .admin-work-queue__reasons { display: flex; flex-wrap: wrap; gap: 10px 18px; padding: 0; list-style: none; }
+.wc-admin .admin-work-queue__error { color: var(--wc-danger); }
+.wc-admin .admin-work-queue__footer { display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 12px 24px; padding-top: 16px; border-top: 1px solid var(--wc-hairline); }
+.wc-admin .admin-work-queue__footer details { flex: 1; min-width: 0; }
+.wc-admin .admin-work-queue__footer summary { width: fit-content; cursor: pointer; font-size: 13px; font-weight: 600; }
+.wc-admin .admin-work-queue__timestamp { margin: 0; color: var(--wc-ink-sub); font-size: 12px; }
+@container (max-width: 760px) { .wc-admin .admin-work-queue__cards { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+@container (max-width: 520px) { .wc-admin .admin-work-queue__cards { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@container (max-width: 300px) { .wc-admin .admin-work-queue__cards { grid-template-columns: minmax(0, 1fr); } }
+@media (forced-colors: active) { .wc-admin .admin-work-queue__card, .wc-admin .admin-goods-worklist__image-empty { border: 1px solid CanvasText; } }
