@@ -144,6 +144,7 @@ const blockExternalBoundary = () => ({
 
 const server = await createServer({
   appType: 'spa',
+  define: { 'process.env.NEXT_PUBLIC_SUPABASE_URL': 'undefined' },
   envDir: fixtureRoot,
   plugins: [blockExternalBoundary()],
   root: fixtureRoot,
@@ -153,6 +154,10 @@ const server = await createServer({
       { find: 'next/link', replacement: `${fixtureRoot}/next-link.tsx` },
       { find: 'next/navigation', replacement: `${fixtureRoot}/next-navigation.ts` },
       { find: /^@\/app\/login\/actions$/, replacement: `${fixtureRoot}/login-actions.ts` },
+      { find: /^\.\.\/\.\.\/lib\/admin\/artwork-upload\.client$/, replacement: `${fixtureRoot}/artwork-upload.ts` },
+      { find: /^@\/app\/admin\/(goods-identifier|good-notice|artwork)-actions$/, replacement: `${fixtureRoot}/editor-actions.ts` },
+      { find: /^@\/app\/shop\/actions$/, replacement: `${fixtureRoot}/editor-actions.ts` },
+      { find: /^@\/components\/shell\/CartProvider$/, replacement: `${fixtureRoot}/cart.ts` },
       { find: /^@\//, replacement: `${repoRoot}/` },
     ],
   },

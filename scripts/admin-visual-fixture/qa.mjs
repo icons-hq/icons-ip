@@ -4,6 +4,7 @@ import { mkdtemp, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { browserExecutable, prepareOutputDirectory } from '../admin-visual-qa.mjs';
+import { verifyGoodEditor } from './good-editor-qa.mjs';
 import { measureAdminLayout } from '../admin-visual-qa-measure.mjs';
 
 const origin = 'http://127.0.0.1:4319';
@@ -204,9 +205,9 @@ async function run() {
 
     await page.setViewportSize({ width: 1440, height: 900 });
     const options = await navigate(page, '/?view=options', '상품 옵션 편집 fixture');
-    const beforeRows = await page.locator('.fixture-options-screen table tbody tr').count();
+    const beforeRows = await page.locator('.fixture-options-screen .goods-option-primary-table tbody tr').count();
     await page.getByRole('button', { name: '조합 생성' }).click();
-    const afterRows = await page.locator('.fixture-options-screen table tbody tr').count();
+    const afterRows = await page.locator('.fixture-options-screen .goods-option-primary-table tbody tr').count();
     assert(beforeRows === 2, `expected 2 initial option rows, got ${beforeRows}`);
     assert(afterRows === 9, `expected 9 generated option rows, got ${afterRows}`);
     const optionName = page.locator('input[aria-label="옵션 1 이름"]');
@@ -227,6 +228,9 @@ async function run() {
     const mobile = await navigate(page, '/?view=options', '상품 옵션 편집 fixture');
     report.results.push({ name: 'options-mobile', url: page.url(), findings: mobile.measure.findings });
     await page.screenshot({ path: `${output}/options-mobile.png`, fullPage: false });
+
+    await page.setViewportSize({ width: 1440, height: 900 });
+    report.results.push(await verifyGoodEditor(page, origin, output));
 
     assert(blocked.length === 0, `external/Auth/API request attempted: ${JSON.stringify(blocked)}`);
     assert(errors.length === 0, `browser errors: ${JSON.stringify(errors)}`);

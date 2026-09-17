@@ -1,6 +1,25 @@
 import { expect, it } from 'vitest';
-import { goodEditorValues, GOOD_LOCAL_DRAFT_FIELDS } from './good-editor';
+import { goodEditorValues, createGoodEditorDraft, buildGoodEditorPreview, GOOD_LOCAL_DRAFT_FIELDS } from './good-editor';
 import { createAdminLocalAutosave, withLocalRecoveryValues } from './local-autosave';
+it('restores failed option edits and their optimistic baseline into the same preview and submission values', () => {
+  const records = new Map<string, string>();
+  const storage = { getItem: (key: string) => records.get(key) ?? null, setItem: (key: string, value: string) => records.set(key, value), removeItem: (key: string) => records.delete(key) };
+  const scope = { accountId: 'operator', formId: 'good', recordId: null };
+  const optionId = '11111111-1111-4111-8111-111111111111';
+  const edited = { name: '편집 상품', price: '1000', compareAtPrice: '2000', variantBaseline: JSON.stringify([optionId]),
+    variants: JSON.stringify([{ id: optionId, name: '수정 옵션', code: '0001', attributes: {}, extraPrice: 500, stockQty: 4, expectedStockQty: 7 }]) };
+  const current = createAdminLocalAutosave({ scope, storage, fields: GOOD_LOCAL_DRAFT_FIELDS });
+  current.capture(Object.entries(edited)); current.beginSubmission(); current.completeSubmission(false);
+  const reopened = createAdminLocalAutosave({ scope, storage, fields: GOOD_LOCAL_DRAFT_FIELDS });
+  reopened.restore();
+  const draft = createGoodEditorDraft(null, withLocalRecoveryValues({}, null, reopened.getSnapshot().restoredValues), []);
+  expect(draft.baseline).toEqual([optionId]);
+  expect(JSON.parse(draft.values.variants)[0]).toMatchObject({ id: optionId, expectedStockQty: 7, stockQty: 4 });
+  const preview = buildGoodEditorPreview({ values: draft.values, imageUrls: draft.imageUrls, selected: null, catalogIps: [], origins: [], shippingNoticeOptions: [] });
+  expect(preview.detail.good).toMatchObject({ price: 1500, compareAtPrice: 2000, stockQty: 4, options: [{ id: optionId, name: '수정 옵션' }] });
+  reopened.beginSubmission(); reopened.completeSubmission(true);
+  expect(storage.getItem(reopened.key)).toBe(null);
+});
 it('keeps explicit empty or copied notice and uploaded paths on failure above new business defaults', () => {
   const defaults = { asManager: '회사', asContact: '02-1111' };
   expect(goodEditorValues(null, {}, 'ip1', defaults)).toMatchObject({ ipId: 'ip1', noticeAsManager: '회사', noticeAsContact: '02-1111' });
