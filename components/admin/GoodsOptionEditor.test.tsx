@@ -4,8 +4,8 @@ import { GoodsOptionEditor } from './GoodsOptionEditor';
 
 describe('상품 옵션 ERP 식별자 입력', () => {
   it('renders separate ERP fields and carries their values in the option payload', () => {
-    const html = renderToStaticMarkup(<GoodsOptionEditor
-      initialRows={[{
+    const html = renderToStaticMarkup(<GoodsOptionEditor onRowsChange={() => {}}
+      rows={[{
         id: '11111111-1111-4111-8111-111111111111', name: '기본 옵션', code: 'OWN-01', attributes: {},
         extraPrice: 0, stockQty: 2, erpCode: '0000123', erpName: 'ERP 품명', barcode: '0007',
         externalUpdatedAt: '2026-09-10T07:00:00.000Z',
@@ -19,8 +19,8 @@ describe('상품 옵션 ERP 식별자 입력', () => {
   });
 
   it('renders a single default option as a compact price and allocated-stock input', () => {
-    const html = renderToStaticMarkup(<GoodsOptionEditor
-      initialRows={[{
+    const html = renderToStaticMarkup(<GoodsOptionEditor onRowsChange={() => {}}
+      rows={[{
         id: '11111111-1111-4111-8111-111111111111', name: '기본 옵션', code: 'GOOD-0001', attributes: {},
         extraPrice: 1500, stockQty: 8, lowStockThreshold: 2, isActive: true,
         erpCode: '0000123', erpName: 'ERP 품명', barcode: '0007',
@@ -42,8 +42,8 @@ describe('상품 옵션 ERP 식별자 입력', () => {
   });
 
   it('puts price and allocated stock before collapsed external identity details for multiple options', () => {
-    const html = renderToStaticMarkup(<GoodsOptionEditor
-      initialRows={[
+    const html = renderToStaticMarkup(<GoodsOptionEditor onRowsChange={() => {}}
+      rows={[
         { id: '11111111-1111-4111-8111-111111111111', name: '빨강', code: 'GOOD-01', attributes: { 색상: '빨강' }, extraPrice: 0, stockQty: 4, isActive: true },
         { id: '22222222-2222-4222-8222-222222222222', name: '파랑', code: 'GOOD-02', attributes: { 색상: '파랑' }, extraPrice: 1000, stockQty: 5, isActive: true },
       ]}

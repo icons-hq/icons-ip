@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import { AdminShell } from '../../components/admin/AdminShell';
+import { GoodEditorFixture } from './good-editor';
 import { GoodsOptionEditor } from '../../components/admin/GoodsOptionEditor';
 import { AdminSelect } from '../../components/admin/console/AdminSelect';
 import { ConsoleFilterPanel } from '../../components/admin/console/ConsoleFilterPanel';
@@ -13,6 +14,7 @@ import '../../app/globals.css';
 import '../../app/styles/wc-foundation.css';
 import '../../app/styles/wc-admin-surfaces.css';
 import '../../app/styles/wc-admin.css';
+import '../../app/styles/wc-catalog.css';
 import '../../app/styles/admin-goods-worklist.css';
 import '../../app/styles/wc-admin-option-artwork.css';
 import '../../app/styles/admin-ux-521.css';
@@ -22,14 +24,14 @@ import '../../app/styles/admin-order-detail.css';
 import '../../app/styles/admin-customer-detail.css';
 import '../../app/styles/admin-store-settings.css';
 
-type FixtureView = 'goods' | 'filter-date' | 'options' | 'shell';
+type FixtureView = 'goods' | 'filter-date' | 'options' | 'editor' | 'shell';
 
 const ADMIN = { id: 'fixture-staff', email: 'fixture.staff@local.test', role: 'staff' };
 
 function currentView(): FixtureView {
   const params = new URLSearchParams(window.location.search);
   const value = params.get('view');
-  if (value === 'filter-date' || value === 'options' || value === 'shell') return value;
+  if (value === 'filter-date' || value === 'options' || value === 'editor' || value === 'shell') return value;
   if (window.location.pathname.startsWith('/admin/sales/orders')) return 'filter-date';
   if (window.location.pathname.startsWith('/admin/catalog/goods')) return 'goods';
   return 'goods';
@@ -49,7 +51,7 @@ function RouteSwitcher({ active }: { active: FixtureView }) {
   return (
     <nav aria-label="Fixture route selector" className="fixture-route-switcher">
       <span className="fixture-route-switcher__label">component fixture</span>
-      {(['goods', 'filter-date', 'options', 'shell'] as FixtureView[]).map((view) => (
+      {(['goods', 'filter-date', 'options', 'editor', 'shell'] as FixtureView[]).map((view) => (
         <a className={view === active ? 'is-active' : undefined} href={`/?view=${view}`} key={view}>
           {view}
         </a>
@@ -181,7 +183,7 @@ function OptionsFixture() {
         baseline={['fixture-option-baseline']}
         basePrice={26000}
         codePrefix="LONG-KR-OPTION"
-        initialRows={rows}
+        rows={rows}
         onRowsChange={setRows}
       />
       <div className="fixture-options-footer">
@@ -229,7 +231,7 @@ function App() {
       ? <DateFilterFixture />
       : view === 'options'
         ? <OptionsFixture />
-        : <ShellFixture />;
+        : view === 'editor' ? <GoodEditorFixture /> : <ShellFixture />;
   return <FixtureFrame view={view}>{content}</FixtureFrame>;
 }
 

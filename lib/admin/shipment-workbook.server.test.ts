@@ -3,12 +3,35 @@ import { describe, expect, it } from 'vitest';
 import { buildShipmentExport } from './shipment-workbook.server';
 import { DEFAULT_SHIPMENT_EXPORT_COLUMNS } from './shipment-workbook';
 import type { ShipmentExportData } from './shipment-dispatch';
+import { parseTrackingWorkbook } from './tracking-workbook.server';
+import { trackingImportCommand } from './warehouse-templates.server';
 
 const line = { shipmentId: '00000000-0000-4000-8000-000000000001', orderId: '00000000-0000-4000-8000-000000000002',
   recipient: '=HYPERLINK("https://example.test")', phone: '01001234567', postalCode: '00123', address: '서울시, 상세주소',
   goodCode: '000123', variantCode: '000123-RED', goodName: '상품', optionName: '파랑', qty: 2, unitPrice: 12500, deliveryNote: '문 앞\n부탁합니다', carrier: '한진택배' };
 const shipment = { id: line.shipmentId, updatedAt: '2026-09-08T00:00:00Z', originId: 'gimpo', originName: '김포', template: 'standard', shippingFee: 3000, columns: [...DEFAULT_SHIPMENT_EXPORT_COLUMNS], lines: [line] };
 describe('shipment workbook exchange', () => {
+  it('round-trips a generated Gimpo export into an origin-scoped tracking command without losing IDs or leading zeros', async () => {
+    const originId = '00000000-0000-4000-8000-000000000099';
+    const secondOrder = '00000000-0000-4000-8000-000000000043';
+    const gimpo = { ...shipment, originId, template: 'wms_csv', lines: [line, { ...line, optionName: '빨강' }] };
+    const file = await buildShipmentExport({ shipments: [gimpo, { ...gimpo, lines: [{ ...line, orderId: secondOrder }] }] }, 'xlsx');
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(file.bytes as never);
+    const sheet = workbook.worksheets[0];
+    for (let index = 2; index <= sheet.rowCount; index++) sheet.getCell(`U${index}`).value = '001234567890';
+    const parsed = await parseTrackingWorkbook(Buffer.from(await workbook.xlsx.writeBuffer()), []);
+    expect(parsed.issues).toEqual([]);
+    expect(parsed.rows.map(row => row.reference)).toEqual([line.orderId, line.orderId, secondOrder]);
+    expect(trackingImportCommand(parsed, originId)).toEqual({
+      name: 'admin_import_warehouse_tracking_batch', args: { target_origin_id: originId, target_rows: [
+        { line: 2, reference: line.orderId, trackingNumber: '001234567890' },
+        { line: 3, reference: line.orderId, trackingNumber: '001234567890' },
+        { line: 4, reference: secondOrder, trackingNumber: '001234567890' },
+      ] },
+    });
+    expect(() => trackingImportCommand(parsed, '')).toThrow('출고지를 선택');
+  });
   it('exports the seven Seowon headers and one row per shipment with unknown fields blank', async () => {
     const file = await buildShipmentExport({ shipments: [{ ...shipment, template: 'seowon_xlsx', lines: [
       { ...line, goodName: '합성 키링', optionName: '빨강' },

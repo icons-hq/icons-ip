@@ -1,6 +1,6 @@
 'use server';
 
-import { goodsLinkedMetadataRpcFields } from '@/lib/admin/goods-linked-metadata';
+import { goodSaveFields } from '@/lib/admin/good-save';
 
 import { revalidatePath } from 'next/cache';
 import { redirect, unstable_rethrow } from 'next/navigation';
@@ -24,7 +24,6 @@ import {
 import { getAdminCatalogRecords } from '@/lib/admin/catalog.server';
 import { parseGoodsOptionRows } from '@/lib/admin/goods-option-editor';
 import { withPreservedFormValues, type AdminFormValuesState } from '@/lib/admin/form-state';
-import { goodsSalePolicyRpcFields } from '@/lib/admin/goods-sale-policy';
 import {
   normalizeAdminHideCommentForm,
   normalizeAdminHidePostForm,
@@ -379,37 +378,8 @@ async function saveAdminGood(
   const { data, error } = await supabase.rpc('admin_save_good', { target_good: {
     ...optionFields,
     ...fulfillmentFields,
-    ...goodsSalePolicyRpcFields(value),
-    id: value.id,
-    ip_id: value.ipId,
-    name: value.name,
-    ...(value.nameEn !== undefined ? { name_en: value.nameEn } : {}),
-    ...(value.searchKeywords !== undefined ? { search_keywords: value.searchKeywords } : {}),
-    ...(value.displayOrder !== undefined ? { display_order: value.displayOrder } : {}),
-    ...goodsLinkedMetadataRpcFields(value),
-    ...(value.claimPolicy ? { claim_policy: value.claimPolicy } : {}),
-    type: value.type,
-    price: value.price,
-    badge: value.badge,
-    stock: value.stock,
-    bg: value.bg,
-    image_path: value.imagePath,
-    notice_maker: value.notice.maker,
-    notice_origin: value.notice.origin,
-    notice_material: value.notice.material,
-    notice_size: value.notice.size,
-    notice_made_on: value.notice.madeOn,
-    notice_as_manager: value.notice.asManager,
-    notice_as_contact: value.notice.asContact,
-    description: value.description,
-    ...(value.descriptionFormat ? { description_format: value.descriptionFormat, description_image_paths: value.descriptionImagePaths ?? [] } : {}),
-    gallery_paths: value.galleryPaths,
-    detail_image_path: value.detailImagePath,
-    previous_id: value.previousId,
-    compare_at_price: value.compareAtPrice,
-    code: value.code,
+    ...goodSaveFields(value),
     default_variant_code: value.defaultVariantCode,
-    publish: value.publish,
   } });
 
   if (error) {

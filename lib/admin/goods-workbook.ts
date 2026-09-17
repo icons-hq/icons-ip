@@ -7,8 +7,7 @@ import {
 import { parseGoodsOptionRows } from './goods-option-editor';
 import { sanitizeGoodsDescription } from '@/lib/goods-description';
 import { parsePurchaseCostInput, type PurchaseTaxBasis } from './goods-purchase-costs';
-import { goodsLinkedMetadataRpcFields } from './goods-linked-metadata';
-import { goodsSalePolicyRpcFields } from './goods-sale-policy';
+import { goodSaveFields } from './good-save';
 import type { AdminGoodsKc } from './goods-kc';
 import { goodsKcWorkbookOrphanErrors, planGoodsKcWorkbookRows, type GoodsKcWorkbookInputRow } from './goods-kc-workbook';
 
@@ -624,39 +623,22 @@ export function planGoodsWorkbookImport(
     if (value.descriptionFormat === 'html') group.warnings.push(...sanitizeGoodsDescription(first.description).warnings);
     group.target = {
       ...(kcPlan.kind === 'save' ? { kc_update: kcPlan.update } : {}),
-      ...goodsSalePolicyRpcFields(value),
-      ...goodsLinkedMetadataRpcFields(value),
-      ...(value.claimPolicy ? { claim_policy: value.claimPolicy } : {}),
-      id: value.id,
-      previous_id: record ? str(record.good.id) : null,
-      code: value.code,
-      ip_id: value.ipId,
-      name: value.name,
-      name_en: value.nameEn ?? null,
-      type: value.type,
-      price: value.price,
-      compare_at_price: value.compareAtPrice,
-      badge: value.badge,
-      stock: value.stock,
-      bg: record?.good.bg ?? null,
-      image_path: imageValues.image_path,
-      detail_image_path: imageValues.detail_image_path,
-      gallery_paths: galleries,
-      description: value.description,
-      description_format: value.descriptionFormat ?? 'plain',
-      description_image_paths: value.descriptionImagePaths ?? [],
-      search_keywords: value.searchKeywords ?? [],
-      display_order: value.displayOrder ?? null,
-      notice_maker: value.notice.maker,
-      notice_origin: value.notice.origin,
-      notice_material: value.notice.material,
-      notice_size: value.notice.size,
-      notice_made_on: value.notice.madeOn,
-      notice_as_manager: value.notice.asManager,
-      notice_as_contact: value.notice.asContact,
-      allow_bank_transfer: first.allowBankTransfer !== '아니오',
-      sale_restriction: first.saleRestriction || 'none',
-      publish: first.publish === '공개',
+      ...goodSaveFields({
+        ...value,
+        // Workbook blanks are explicit replacements; the manual form can omit keys.
+        previousId: record ? str(record.good.id) : null,
+        nameEn: value.nameEn ?? null,
+        searchKeywords: value.searchKeywords ?? [],
+        displayOrder: value.displayOrder ?? null,
+        descriptionFormat: value.descriptionFormat ?? 'plain',
+        bg: record?.good.bg as string | null ?? null,
+        imagePath: imageValues.image_path as string | null,
+        detailImagePath: imageValues.detail_image_path as string | null,
+        galleryPaths: galleries,
+        allowBankTransfer: first.allowBankTransfer !== '아니오',
+        saleRestriction: (first.saleRestriction || 'none') as 'none' | 'adult',
+        publish: first.publish === '공개',
+      }),
       origin_id: origin?.id ?? null,
       shipping_fee_type: first.shippingFeeType || 'policy',
       individual_fee: Number(first.individualFee || 0),

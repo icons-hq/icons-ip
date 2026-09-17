@@ -36,10 +36,28 @@ export function useAdminLocalAutosave({ scope, fields, serverState }: {
     submission.current = null;
   }, [serverState]);
 
-  const formRef = useCallback((form: HTMLFormElement | null) => {
+  const formRef = useCallback((form: HTMLFormElement | null, onCapture?: (data: FormData) => void) => {
     if (!form) return;
-    const capture = () => store.capture(new FormData(form));
-    const flush = () => store.flush();
+    let captureTimer: ReturnType<typeof setTimeout> | undefined;
+    // Native events can reach this form before React's delegated change handler.
+    // Read once after that event finishes, including the committed option hidden input.
+    const capture = () => {
+      if (captureTimer !== undefined) return;
+      captureTimer = setTimeout(() => {
+        captureTimer = undefined;
+        const data = new FormData(form);
+        store.capture(data);
+        onCapture?.(data);
+      }, 0);
+    };
+    const flush = () => {
+      if (captureTimer !== undefined) {
+        clearTimeout(captureTimer);
+        captureTimer = undefined;
+        store.capture(new FormData(form));
+      }
+      store.flush();
+    };
     const visibility = () => { if (document.visibilityState === 'hidden') flush(); };
     form.addEventListener('input', capture);
     form.addEventListener('change', capture);

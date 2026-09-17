@@ -1,16 +1,16 @@
 'use client';
 
-import { useEffect, useState, type Dispatch, type SetStateAction } from 'react';
+import { useState, type Dispatch, type SetStateAction } from 'react';
 import { generateGoodsOptionRows, type GoodsOptionAxis, type GoodsOptionRow } from '@/lib/admin/goods-option-editor';
 import { AdminField, AdminFormGrid } from './console/AdminKit';
 
 type GoodsOptionEditorProps = {
-  initialRows: GoodsOptionRow[];
+  rows: GoodsOptionRow[];
   baseline: string[];
   basePrice: number;
   error?: string;
   axisValues?: Record<string, string>;
-  onRowsChange?: (rows: GoodsOptionRow[]) => void;
+  onRowsChange: Dispatch<SetStateAction<GoodsOptionRow[]>>;
   codePrefix?: string;
 };
 
@@ -126,14 +126,9 @@ function OptionPrimaryTable({ rows, basePrice, update, move, setRows }: {
   </div>;
 }
 
-export function GoodsOptionEditor({ initialRows, baseline, basePrice, error, axisValues, onRowsChange, codePrefix }: GoodsOptionEditorProps) {
-  const [rows, setRows] = useState(initialRows);
-  // Fresh option props must not authorize rows from an older editor mount.
-  // Keep the optimistic baseline in the same snapshot as the editable rows.
-  const [baselineSnapshot] = useState(() => [...baseline]);
-  useEffect(() => { onRowsChange?.(rows); }, [rows, onRowsChange]);
-  const firstAttributes = initialRows[0]?.attributes ?? {};
-  const initialAxes = Object.keys(firstAttributes).map((name) => ({ name, values: [...new Set(initialRows.map((row) => row.attributes[name]))].join(', ') }));
+export function GoodsOptionEditor({ rows, baseline, basePrice, error, axisValues, onRowsChange: setRows, codePrefix }: GoodsOptionEditorProps) {
+  const firstAttributes = rows[0]?.attributes ?? {};
+  const initialAxes = Object.keys(firstAttributes).map((name) => ({ name, values: [...new Set(rows.map((row) => row.attributes[name]))].join(', ') }));
   const [axes, setAxes] = useState<GoodsOptionAxis[]>([0, 1].map((i) => ({ name: axisValues?.[`optionAxisName${i}`] ?? initialAxes[i]?.name ?? '', values: axisValues?.[`optionAxisValues${i}`] ?? initialAxes[i]?.values ?? '' })));
   const [generationError, setGenerationError] = useState('');
   function update(index: number, changes: Partial<GoodsOptionRow>) { setRows((current) => current.map((row, i) => i === index ? { ...row, ...changes } : row)); }
@@ -175,6 +170,6 @@ export function GoodsOptionEditor({ initialRows, baseline, basePrice, error, axi
     {error && <p role="alert">{error}</p>}
     {rows.every((row) => row.isActive === false) && <p role="status">모든 옵션이 사용 중지되어 고객이 구매할 수 없습니다.</p>}
     <input type="hidden" name="variants" value={JSON.stringify(rows)} readOnly />
-    <input type="hidden" name="variantBaseline" value={JSON.stringify(baselineSnapshot)} readOnly />
+    <input type="hidden" name="variantBaseline" value={JSON.stringify(baseline)} readOnly />
   </div>;
 }

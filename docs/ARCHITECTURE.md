@@ -399,6 +399,9 @@ Production Auth 설정:
 - 같은 Next 앱의 라우트 그룹. 진입 시 `profiles.role ∈ {staff, admin}` 검사(라우트 + RLS 이중).
 - 셸 구조: 대분류 9개 > 소분류의 2단 메뉴와 **화면별 라우트**다(`app/admin/(shell)/**`). IA 정의는 `lib/admin/navigation.ts`가 소유하고 사이드바·헤더 제목·레거시 리다이렉트가 여기서 파생된다. 옛 `?section=` 딥링크는 `/admin`이 새 라우트로 넘긴다. 화면마다 자기 로더만 실행하며, 권한 게이트의 진실원은 각 page의 `requireAdminScreenAccess(경로)`다 — layout은 pathname을 몰라 로그인 `next`를 정확히 만들 수 없어서 미인증 처리를 page에 맡긴다. `/admin/check-in`은 route group 밖이라 셸 없이 전체화면으로 뜬다.
 - 기능: 카탈로그 CRUD·보관 상태 필터·참조 가드 보관/복원, 홈 히어로·특집 IP·공지 배너의 순서·KST 기간·활성 관리(`/admin/display/curations`), **카드풀 운영 기간·등급별 발급 확률·카드 풀 바인딩**, 뽑기권 발급 정책(`/admin/catalog/policies`), 참여형 게임(`/admin/catalog/games`) 관리, 이벤트·티켓 회차, 독립 모바일 현장 검표(`/admin/check-in`), 주문 검색·배송 전이·청약철회/환불 정합화, 인앱 공지 수신자 추정·즉시 발송·이력(`/admin/messaging/notifications`), 커뮤니티 신고·포스트/댓글 숨김, 마스킹 회원 검색·명시적 상세·정지/해제(`/admin/community/members`), 1:1 문의 큐·스레드 답변·답변 템플릿·종결과 연결 주문/구매자 컨텍스트 패널(`/admin/cs/inquiries`), 리뷰 관리 콘솔의 기간·평점·상태·사진/답글 유무 필터와 저평점(1~2점) 고정 필터·운영자 답글·사유가 붙는 블라인드/해제(`/admin/cs/reviews`), 쿠폰 정의·기간·발급 한도·등급 혜택 지정(`/admin/sales/coupons`), 캠페인 편성과 랜딩 블록 구성·허브 배너 순서(`/admin/display/campaigns`), 상품 Q&A 답변·블라인드(`/admin/cs/qna`). 큐레이션 공지 저장은 알림 fan-out을 일으키지 않고 공지 발송 콘솔로의 navigation만 제공한다.
+- 굿즈 기본 편집은 `components/admin/GoodEditor.tsx`가 편집·실패 복구·브라우저 복구의 수명을 함께 소유한다. `lib/admin/good-editor.ts`가 옵션과 낙관적 기준값의 초기 스냅샷 및 배송·소비자가를 포함한 미리보기를 구성한다. 옵션 행은 이 편집 상태가 소유하며, `useAdminLocalAutosave`의 폼 관찰 하나가 미리보기와 복구 기록을 함께 갱신한다. 별도 KC·재고 조정·게시 작업은 기존 저장 경계를 유지한다.
+- 수동 폼과 엑셀은 입력별 생략·공란 의미를 해석한 뒤 `lib/admin/good-save.ts`에서 공통 저장 필드를 구성한다. 생략한 선택 필드의 보존과 명시적 공란의 초기화를 구별하며, 옵션·재고·게시의 원자적 확정은 계속 `admin_save_good`가 맡는다.
+- 출고지 양식의 열 정의는 `lib/admin/warehouse-templates.ts`, 내보낼 행과 지원 회신의 해석·등록 명령 구성은 `warehouse-templates.server.ts`가 소유한다. XLSX/CSV 직렬화와 파일 안전 검사는 별도로 유지하고, 김포 출고 XLSX에 합성 운송장을 채워 재입력하는 왕복 테스트로 열 계약을 확인한다.
 - 모든 민감 작업은 `audit_log` 기록.
 
 ---
