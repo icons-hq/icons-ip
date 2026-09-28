@@ -48,11 +48,6 @@ jobs:
   validate:
     name: validate
     runs-on: ubuntu-latest
-    if: >-
-      github.event_name != 'pull_request'
-      || github.event.action != 'edited'
-      || github.event.changes.base != null
-      || github.event.changes.body != null
     permissions:
       actions: read
       contents: read

@@ -55,12 +55,12 @@ describe('admin guide changelog guard', () => {
     ] }).ok).toBe(true);
   });
 
-  it('checks PR body edits without redeploying and skips the guard on main pushes', async () => {
+  it('checks every PR edit without redeploying and skips the guard on main pushes', async () => {
     const workflow = yaml.load(await readFile(new URL('../.github/workflows/pipeline.yml', import.meta.url), 'utf8'));
     const validation = workflow.jobs.validate;
     const guard = validation.steps.find((step) => step.run === 'node scripts/check-admin-guide-changelog.mjs');
     expect(guard?.if).toBe("github.event_name == 'pull_request'");
-    expect(validation.if).toContain('github.event.changes.body != null');
+    expect(validation.if).toBeUndefined();
     expect(validation.steps.find((step) => step.uses?.startsWith('actions/checkout@')).with['fetch-depth']).toBe(0);
     expect(workflow.jobs['deploy-supabase-preview'].if).toContain("github.event.action != 'edited'");
     expect(workflow.jobs['deploy-supabase-preview'].if).toContain('github.event.changes.base != null');
