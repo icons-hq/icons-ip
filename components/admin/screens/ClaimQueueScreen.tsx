@@ -1,4 +1,4 @@
-import { ADMIN_VOCABULARY as V } from '@/lib/admin/vocabulary';
+import { ADMIN_VOCABULARY as V, adminGoodsCopy } from '@/lib/admin/vocabulary';
 import {
   ConsoleCountChips,
   ConsoleFilterPanel,
@@ -106,7 +106,7 @@ export function ClaimQueueScreen({
         <span className="mono" key="reference">{orderClaimReferenceLabel(row.reference)}</span>,
         <span className="mono" key="order">{orderReferenceLabel(row.orderId)}</span>,
         <span key="type">{ORDER_CLAIM_TYPE_LABELS[row.claimType]}</span>,
-        <span key="reason">{ORDER_WITHDRAWAL_REASON_LABELS[row.reasonType]}</span>,
+        <span key="reason">{adminGoodsCopy(ORDER_WITHDRAWAL_REASON_LABELS[row.reasonType])}</span>,
         <span key="stage">{ORDER_CLAIM_STAGE_LABELS[row.stage]}</span>,
         <span key="buyer">
           @{row.buyerName}

@@ -12,7 +12,7 @@ import type { GoodsShippingNoticeOption } from '../GoodsShippingNoticeField';
 import type { Ip } from '@/lib/data';
 import { adminCatalogArchiveCounts, filterAdminCatalogRecords, formatAdminCatalogRecordLabel, type AdminCatalogArchiveFilter } from '@/lib/admin/catalog-archive';
 import { goodsReadinessAnchor, type AdminGoodsReadiness } from '@/lib/admin/goods-readiness';
-import { ADMIN_VOCABULARY } from '@/lib/admin/vocabulary';
+import { ADMIN_VOCABULARY, adminGoodsCopy } from '@/lib/admin/vocabulary';
 import { AdminStatusBadge } from '../console/AdminKit';
 import { RecordList } from '../fields';
 import { GoodEditor } from '../GoodEditor';
@@ -133,7 +133,7 @@ export function GoodSection({
         {selected && <GoodOperationSection id="variants" title="옵션 사용·보관" description="옵션 사용 상태만 별도로 반영합니다."><GoodVariantsPanel goodId={selected.id} variants={variants} basePrice={selected.price} /></GoodOperationSection>}
         {selected && !selected.archivedAt && <GoodOperationSection id="kc" title="KC 자료·검토" description="모델과 근거·적용 옵션을 검토하고 KC만 저장합니다."><GoodsKcPanel goodId={selected.id} templateRequest={kcTemplate.request} onTemplateApplied={kcTemplate.consume} key={`kc-${selected.id}-${selected.publishedAt}-${selected.archivedAt}`} /></GoodOperationSection>}
         {selected && !selected.archivedAt && canManageCosts && <GoodOperationSection id="costs" title="매입단가" description="권한이 있는 관리자만 매입단가를 저장합니다."><GoodsPurchaseCostsPanel goodId={selected.id} variants={variants} key={`costs-${selected.id}`} /></GoodOperationSection>}
-        {selected && !selected.archivedAt && <GoodOperationSection id="additional" title="추가 구성 상품" description="추가 구성 연결만 저장합니다."><GoodsAdditionalPanel goodId={selected.id} key={`additional-${selected.id}`} /></GoodOperationSection>}
+        {selected && !selected.archivedAt && <GoodOperationSection id="additional" title={adminGoodsCopy("추가 구성 상품")} description="추가 구성 연결만 저장합니다."><GoodsAdditionalPanel goodId={selected.id} key={`additional-${selected.id}`} /></GoodOperationSection>}
         {selected && !selected.archivedAt && <GoodOperationSection id="prices" title="기간 할인" description="기간과 옵션별 할인 설정만 저장합니다."><GoodsPricePeriodsPanel goodId={selected.id} variants={variants} key={`prices-${selected.id}`} /></GoodOperationSection>}
         {selected && !selected.archivedAt && <GoodOperationSection id="preorders" title="예약판매" description="예약판매 설정과 물량을 별도로 저장합니다."><GoodsPreordersPanel goodId={selected.id} variants={variants} canActivate={canManageCosts} key={`preorders-${selected.id}`} /></GoodOperationSection>}
         {selected && !selected.archivedAt && cloneOperationId && <GoodOperationSection id="clone" title="상품 복사" description="서버에 저장된 상품으로 새로운 초안을 만듭니다."><GoodClonePanel operationId={cloneOperationId} goodId={selected.id} goodName={selected.name} goodCode={selected.code} key={`clone-${selected.id}`} /></GoodOperationSection>}

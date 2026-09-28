@@ -1,5 +1,5 @@
 import Link from 'next/link';
-import type { NotificationItem, NotificationType } from '@/lib/notifications';
+import { notificationDisplayCopy, type NotificationItem, type NotificationType } from '@/lib/notifications';
 import { Icon } from '@/components/ui/Icon';
 import { MypageShell } from '@/components/wc/MypageShell';
 
@@ -19,7 +19,7 @@ const TYPE_LABELS: Record<NotificationType, string> = {
   loyalty_grade_upgraded: '등급',
   /* 비공개 1:1('문의')과 다른 표면이라 라벨도 갈라 둔다 — 같은 말이면 알림함에서
      어느 쪽에 답이 달렸는지 알 수 없다. */
-  product_question_answered: '상품 Q&A',
+  product_question_answered: '굿즈 Q&A',
 };
 
 const TYPE_ICONS: Record<NotificationType, string> = {
@@ -80,39 +80,42 @@ export function Notifications({ error = false, notifications, openAction }: Noti
           </div>
         ) : (
           <ol className="wc-notif__list">
-            {notifications.map((notification) => (
-              <li
-                className={`wc-notif__row${notification.isUnread ? ' is-unread' : ''}`}
-                key={notification.id}
-              >
-                <form action={openAction.bind(null, notification.id)}>
-                  <button className="wc-notif__open" type="submit">
-                    <span aria-hidden className="wc-notif__icon">
-                      <Icon name={TYPE_ICONS[notification.type]} size={20} />
-                    </span>
-                    <span className="wc-notif__copy">
-                      <span className="wc-notif__meta">
-                        <span>{TYPE_LABELS[notification.type]}</span>
-                        <time dateTime={notification.createdAt}>
-                          {notificationDate.format(new Date(notification.createdAt))}
-                        </time>
+            {notifications.map((notification) => {
+              const copy = notificationDisplayCopy(notification);
+              return (
+                <li
+                  className={`wc-notif__row${notification.isUnread ? ' is-unread' : ''}`}
+                  key={notification.id}
+                >
+                  <form action={openAction.bind(null, notification.id)}>
+                    <button className="wc-notif__open" type="submit">
+                      <span aria-hidden className="wc-notif__icon">
+                        <Icon name={TYPE_ICONS[notification.type]} size={20} />
                       </span>
-                      <strong>{notification.title}</strong>
-                      <span>{notification.body}</span>
-                      <span className="sr-only">
-                        {notification.isUnread ? '안 읽은 알림' : '읽은 알림'}
+                      <span className="wc-notif__copy">
+                        <span className="wc-notif__meta">
+                          <span>{TYPE_LABELS[notification.type]}</span>
+                          <time dateTime={notification.createdAt}>
+                            {notificationDate.format(new Date(notification.createdAt))}
+                          </time>
+                        </span>
+                        <strong>{copy.title}</strong>
+                        <span>{copy.body}</span>
+                        <span className="sr-only">
+                          {notification.isUnread ? '안 읽은 알림' : '읽은 알림'}
+                        </span>
                       </span>
-                    </span>
-                    {notification.isUnread && (
-                      <span aria-hidden className="wc-notif__dot" />
-                    )}
-                    <span aria-hidden className="wc-notif__arrow">
-                      <Icon name="chevronRight" size={18} />
-                    </span>
-                  </button>
-                </form>
-              </li>
-            ))}
+                      {notification.isUnread && (
+                        <span aria-hidden className="wc-notif__dot" />
+                      )}
+                      <span aria-hidden className="wc-notif__arrow">
+                        <Icon name="chevronRight" size={18} />
+                      </span>
+                    </button>
+                  </form>
+                </li>
+              );
+            })}
           </ol>
         )}
       </section>

@@ -1,5 +1,6 @@
 'use client';
 
+import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import { useActionState } from 'react';
 import Link from 'next/link';
 import { AdminPageHeader, AdminSectionCard, AdminStatusBadge } from '../console/AdminKit';
@@ -110,7 +111,7 @@ function AssignmentForm({ categories }: { categories: AdminCategoryNode[] }) {
   return <form action={action} className="card col" style={{ gap: 10, padding: 14 }}>
     <input name="operationId" type="hidden" value="" />
     <input name="expectedUpdatedAt" type="hidden" value="" />
-    <label className="col" style={{ gap: 5 }}>굿즈 ID<input className="admin-field-control" name="goodId" placeholder="goods-id" required /></label>
+    <label className="col" style={{ gap: 5 }}>{adminGoodsCopy("굿즈 ID")}<input className="admin-field-control" name="goodId" placeholder="goods-id" required /></label>
     <CategoryAssignmentField categories={categories} error={state.errors?.categoryId} />
     {state.errors?.form ? <p role="alert" style={{ color: 'var(--pink)', margin: 0 }}>{state.errors.form}</p> : null}
     {state.message ? <p role="status" style={{ color: 'var(--mint)', margin: 0 }}>{state.message}</p> : null}
@@ -130,6 +131,6 @@ export function CategoryScreen({ data, legacyTypes = [] }: { data: { categories:
     </div>
     <AdminSectionCard title={`ERP 분류 매핑 ${activeLeaves.length}개 말단`}><p className="muted">실제 ERP 코드·품명·출처·검증 시각이 없는 매핑은 활성화하지 않습니다. 미매핑은 export에서 미설정으로 표시합니다.</p>{activeLeaves.map((category) => <MappingForm category={category} key={category.id} mapping={mappings.get(category.id)} />)}</AdminSectionCard>
     <AdminSectionCard title="기존 8종 이관 메모"><p className="muted">유사 이름으로 자동 이관하지 않습니다. 확인된 항목만 선택적으로 기록하며, 전체 category 기능의 활성화 조건은 아닙니다.</p><MigrationForm categories={data.categories} types={legacyTypes} />{data.migrations.length ? <ul>{data.migrations.map((migration) => <li key={migration.type}>{migration.type} · {migration.status} · {migration.categoryId ?? '미설정'}</li>)}</ul> : null}</AdminSectionCard>
-    <AdminSectionCard title="굿즈 기본 카테고리 적용"><p className="muted">대표 분류 하나를 바로 변경합니다. 추가 분류는 상품 편집에서 확인하고 저장하며 ERP는 대표 분류를 사용합니다.</p><AssignmentForm categories={data.categories} /></AdminSectionCard>
+    <AdminSectionCard title={adminGoodsCopy("굿즈 기본 카테고리 적용")}><p className="muted">대표 분류 하나를 바로 변경합니다. 추가 분류는 상품 편집에서 확인하고 저장하며 ERP는 대표 분류를 사용합니다.</p><AssignmentForm categories={data.categories} /></AdminSectionCard>
   </section>;
 }

@@ -43,12 +43,12 @@ describe('admin curation targets', () => {
   });
 
   /*
-   * 굿즈 상세가 목록에 없으면 첫 판매 굿즈를 홈에서 상세로 바로 보낼 수 없다.
+   * 상품 상세가 목록에 없으면 첫 판매 굿즈를 홈에서 상세로 바로 보낼 수 없다.
    * 경로는 공개 화면과 같은 헬퍼로 만들어 두 곳이 어긋나지 않게 한다.
    */
   it('offers active goods detail pages and hides archived ones', () => {
     const goodsGroup = adminCurationTargetGroups(source)
-      .find((group) => group.label === '굿즈 상세');
+      .find((group) => group.label === '상품 상세');
 
     expect(goodsGroup?.options).toEqual([
       { label: '홍실 아크릴 블록 (g13)', path: goodDetailHref('g13') },

@@ -1,5 +1,6 @@
 'use client';
 
+import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import { useActionState, useState } from 'react';
 import {
   answerProductQuestionAction,
@@ -25,8 +26,8 @@ const EMPTY_STATE: AdminQnaActionState = {};
 const ANSWER_MAX_LENGTH = 2000;
 
 const HIDE_CONFIRMATION =
-  '이 질문을 비노출 처리할까요? 굿즈 상세에서 즉시 빠지고 작성자에게는 계속 보입니다.';
-const SHOW_CONFIRMATION = '이 질문을 다시 공개할까요? 굿즈 상세 목록에 즉시 다시 나옵니다.';
+  adminGoodsCopy('이 질문을 비노출 처리할까요? 굿즈 상세에서 즉시 빠지고 작성자에게는 계속 보입니다.');
+const SHOW_CONFIRMATION = adminGoodsCopy('이 질문을 다시 공개할까요? 굿즈 상세 목록에 즉시 다시 나옵니다.');
 
 function Feedback({ state }: { state: AdminQnaActionState }) {
   return (
@@ -64,9 +65,7 @@ export function QnaActionPanel({ question }: { question: AdminProductQuestionRow
       <div className="col" style={{ gap: 12, marginTop: 10 }}>
         <form action={answerAction} className="col" style={{ gap: 6 }}>
           <input name="questionId" type="hidden" value={question.id} />
-          <label className="admin-console-filter-label" htmlFor={`qna-answer-${question.id}`}>
-            운영자 답변 (굿즈 상세에 공개)
-          </label>
+          <label className="admin-console-filter-label" htmlFor={`qna-answer-${question.id}`}>{adminGoodsCopy(" 운영자 답변 (굿즈 상세에 공개) ")}</label>
           <textarea
             defaultValue={question.answerBody ?? ''}
             id={`qna-answer-${question.id}`}

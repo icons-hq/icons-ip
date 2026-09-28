@@ -2,8 +2,15 @@ import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
 import { ADMIN_VOCABULARY, adminGoodsCopy, adminGoodsNotice } from './vocabulary';
 import { ADMIN_SCREENS } from './navigation';
+import { ADMIN_INQUIRY_CATEGORY_OPTIONS } from './inquiries';
+import { INQUIRY_CATEGORY_LABELS } from '@/lib/inquiries';
 
 describe('운영 콘솔 어휘', () => {
+  it('같은 문의 유형도 고객에게는 굿즈, 운영자에게는 상품으로 표시한다', () => {
+    expect(INQUIRY_CATEGORY_LABELS.good).toBe('굿즈');
+    expect(ADMIN_INQUIRY_CATEGORY_OPTIONS.find(option => option.value === 'good')?.label).toBe('상품');
+    expect(adminGoodsCopy('추가상품과 추가 구성 굿즈를 확인합니다.')).toBe('추가구성상품과 추가구성상품을 확인합니다.');
+  });
   it('실물 라벨과 확정 상태를 한 표에서 정의한다', () => {
     expect(ADMIN_VOCABULARY).toMatchObject({ goods: '상품', goodsCode: '상품코드',
       noticeInfo: '상품정보제공고시', claims: '취소·반품·교환 관리',

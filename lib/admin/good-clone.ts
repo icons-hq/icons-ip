@@ -1,3 +1,4 @@
+import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 export const GOOD_CLONE_PATH = '/admin/catalog/goods';
 export const GOOD_CLONE_ID_PATTERN = /^[a-z0-9][a-z0-9-]{0,63}$/;
 export const GOOD_CLONE_CODE_PATTERN = /^[A-Z0-9][A-Z0-9-]{0,99}$/;
@@ -30,7 +31,7 @@ export function normalizeGoodCloneForm(input: {
   const newCode = typeof input.newCode === 'string' ? input.newCode.trim().toUpperCase() : '';
   const newName = typeof input.newName === 'string' ? input.newName.trim() : '';
   const errors: Partial<Record<GoodCloneValidationError, string>> = {};
-  if (!GOOD_CLONE_ID_PATTERN.test(sourceGoodId)) errors.sourceGoodId = '복사할 굿즈 ID가 올바르지 않습니다.';
+  if (!GOOD_CLONE_ID_PATTERN.test(sourceGoodId)) errors.sourceGoodId = adminGoodsCopy('복사할 굿즈 ID가 올바르지 않습니다.');
   if (newId && !GOOD_CLONE_ID_PATTERN.test(newId)) errors.newId = '새 상품 URL은 영문 소문자·숫자·하이픈으로 입력해주세요.';
   if (newCode && !GOOD_CLONE_CODE_PATTERN.test(newCode)) errors.newCode = '새 상품코드는 영문 대문자·숫자·하이픈으로 입력해주세요.';
   if (newName.length > GOOD_CLONE_NAME_MAX_LENGTH) errors.newName = `상품 이름은 ${GOOD_CLONE_NAME_MAX_LENGTH}자 이내로 입력해주세요.`;

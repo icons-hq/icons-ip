@@ -151,6 +151,6 @@ describe('GoodQna', () => {
 
     expect(html).not.toContain('문의');
     expect(html).not.toContain('리뷰');
-    expect(html).toContain('상품 Q&amp;A');
+    expect(html).toContain('굿즈 Q&amp;A');
   });
 });

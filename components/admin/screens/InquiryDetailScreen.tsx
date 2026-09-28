@@ -1,3 +1,4 @@
+import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 
 import { ShipmentDetails } from '@/components/shop/ShipmentDetails';
 import Link from 'next/link';
@@ -82,7 +83,7 @@ export function InquiryDetailScreen({
         <div className="row" style={{ alignItems: 'baseline', gap: 8, justifyContent: 'flex-start' }}>
           <span className="mono">{inquiryReferenceLabel(inquiry.reference)}</span>
           <span className="muted">·</span>
-          <span className="muted">{INQUIRY_CATEGORY_LABELS[inquiry.category]}</span>
+          <span className="muted">{adminGoodsCopy(INQUIRY_CATEGORY_LABELS[inquiry.category])}</span>
           <span className="muted">·</span>
           <span>{ADMIN_INQUIRY_STATUS_LABELS[inquiry.status]}</span>
           <span className="muted">·</span>
@@ -199,11 +200,9 @@ export function InquiryDetailScreen({
 
           {inquiry.goodId ? (
             <section className="card col" style={{ gap: 8, padding: 16 }}>
-              <strong style={{ fontSize: 13.5 }}>연결 굿즈</strong>
+              <strong style={{ fontSize: 13.5 }}>{adminGoodsCopy("연결 굿즈")}</strong>
               <ContextRow label="상품" value={inquiry.goodName ?? inquiry.goodId} />
-              <Link className="btn btn-sm btn-ghost" href={`/shop/${inquiry.goodId}`}>
-                굿즈 상세 보기
-              </Link>
+              <Link className="btn btn-sm btn-ghost" href={`/shop/${inquiry.goodId}`}>{adminGoodsCopy(" 굿즈 상세 보기 ")}</Link>
             </section>
           ) : null}
 

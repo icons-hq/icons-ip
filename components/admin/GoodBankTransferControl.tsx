@@ -1,5 +1,6 @@
 'use client';
 
+import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import { useActionState } from 'react';
 import {
   setGoodBankTransferAction,
@@ -33,8 +34,8 @@ export function GoodBankTransferControl({
         <strong>무통장 입금</strong>
         <p className="mono" style={{ color: 'var(--dim)', fontSize: 11 }}>
           {allowBankTransfer
-            ? '이 굿즈는 무통장 주문을 받습니다. 재고가 최대 24시간 선점됩니다.'
-            : '이 굿즈는 카드 결제만 받습니다.'}
+            ? adminGoodsCopy('이 굿즈는 무통장 주문을 받습니다. 재고가 최대 24시간 선점됩니다.')
+            : adminGoodsCopy('이 굿즈는 카드 결제만 받습니다.')}
         </p>
       </div>
       <input name="id" type="hidden" value={id} />

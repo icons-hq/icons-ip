@@ -2,6 +2,7 @@
 export const ADMIN_VOCABULARY = Object.freeze({
   goods: '상품',
   goodsCode: '상품코드',
+  additionalGoods: '추가구성상품',
   option: '옵션',
   noticeInfo: '상품정보제공고시',
   claims: '취소·반품·교환 관리',
@@ -21,7 +22,8 @@ export function adminGoodsCopy(copy: string): string {
     .replace(/굿즈\s*코드/g, ADMIN_VOCABULARY.goodsCode)
     .replace(/고시정보/g, ADMIN_VOCABULARY.noticeInfo)
     .replace(/굿즈(?!샵| 마켓)(가|는|를|와|로)?/g, (_, particle: string | undefined) =>
-      ADMIN_VOCABULARY.goods + (particle ? particles[particle] : ''));
+      ADMIN_VOCABULARY.goods + (particle ? particles[particle] : ''))
+    .replace(/추가(?:\s*구성)?\s*상품/g, ADMIN_VOCABULARY.additionalGoods);
 }
 
 /** Only server-owned notice strings change; preserved form values and user content pass through. */

@@ -1,5 +1,6 @@
 'use server';
 
+import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { ADMIN_PRODUCT_QUESTIONS_PATH } from '@/lib/admin/product-questions';
@@ -102,7 +103,7 @@ export async function answerProductQuestionAction(
 
   revalidateQuestionSurfaces();
   return {
-    message: '답변을 저장했습니다. 굿즈 상세에 공개되고 작성자에게 알림이 갑니다.',
+    message: adminGoodsCopy('답변을 저장했습니다. 굿즈 상세에 공개되고 작성자에게 알림이 갑니다.'),
     resultKey: crypto.randomUUID(),
   };
 }
@@ -139,7 +140,7 @@ export async function setProductQuestionVisibilityAction(
   revalidateQuestionSurfaces();
   return {
     message: hidden === 'true'
-      ? '질문을 비노출 처리했습니다. 굿즈 상세에서 즉시 빠집니다.'
+      ? adminGoodsCopy('질문을 비노출 처리했습니다. 굿즈 상세에서 즉시 빠집니다.')
       : '질문을 다시 공개했습니다.',
     resultKey: crypto.randomUUID(),
   };

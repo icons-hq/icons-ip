@@ -67,7 +67,7 @@ export function GoodQna({
 
   return (
     <section aria-labelledby="pdp-qna-heading" className="wc-qna" id="qna">
-      <h2 className="wc-sr-only" id="pdp-qna-heading">상품 Q&amp;A</h2>
+      <h2 className="wc-sr-only" id="pdp-qna-heading">굿즈 Q&amp;A</h2>
 
       <QuestionComposer goodId={goodId} next={goodQuestionsHref(goodId, currentPage)} />
 
@@ -91,7 +91,7 @@ export function GoodQna({
           )}
 
           {pageCount > 1 ? (
-            <nav aria-label="상품 Q&amp;A 페이지" className="wc-pagination">
+            <nav aria-label="굿즈 Q&amp;A 페이지" className="wc-pagination">
               {currentPage > 1 ? (
                 <Link className="wc-pagination__arrow" href={goodQuestionsHref(goodId, currentPage - 1)}>
                   이전

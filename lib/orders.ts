@@ -34,7 +34,7 @@ export type OrderWithdrawalReasonType = (typeof ORDER_WITHDRAWAL_REASON_TYPES)[n
 
 export const ORDER_WITHDRAWAL_REASON_LABELS: Record<OrderWithdrawalReasonType, string> = {
   change_of_mind: '단순 변심',
-  defect: '상품 하자·오배송',
+  defect: '굿즈 하자·오배송',
 };
 
 export const ORDER_WITHDRAWAL_DEADLINE_LABELS: Record<OrderWithdrawalReasonType, string> = {
@@ -292,4 +292,4 @@ export function paymentStatusLabel(status: string): string {
    "계약내용에 관한 서면"의 내용이 채널마다 갈리지 않는다(#180 · L4). */
 // 문구는 실제로 강제되는 기한과 일치해야 한다(#189). 사유별 기한은
 // order_withdrawal_deadline_passed가 진실원이고, 이 문구는 그 규칙의 고지다.
-export const LEGAL_WITHDRAWAL_NOTICE = '굿즈를 공급받은 날부터 7일 이내에 단순 변심 청약철회를 요청할 수 있습니다. 상품 하자나 오배송은 공급받은 날부터 3개월 이내에 요청할 수 있습니다. 상품 훼손·사용 등 법정 제한 사유가 있으면 제한될 수 있습니다.';
+export const LEGAL_WITHDRAWAL_NOTICE = '굿즈를 공급받은 날부터 7일 이내에 단순 변심 청약철회를 요청할 수 있습니다. 굿즈 하자나 오배송은 공급받은 날부터 3개월 이내에 요청할 수 있습니다. 굿즈 훼손·사용 등 법정 제한 사유가 있으면 제한될 수 있습니다.';

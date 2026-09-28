@@ -1,4 +1,5 @@
 'use client';
+import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import { useActionState, useState } from 'react';
 import { adjustStoreCreditAction, saveStoreCreditPolicyAction, type StoreCreditActionState } from '@/app/admin/store-credit-actions';
 import { AdminField, AdminFormGrid } from '@/components/admin/console/AdminKit';
@@ -20,7 +21,7 @@ export function StoreCreditPolicyForm({ policy, operationId }: { policy: StoreCr
     <p>지급·사용 정책은 빈 값을 허용하는 비활성 초안으로 저장할 수 있습니다. 활성화하려면 모든 수치와 정책 근거를 입력해주세요.</p>
     <AdminFormGrid>
       <AdminField label="거래확정 시 적립 방식" inputId="credit-earnKind"><select id="credit-earnKind" name="earnKind" value={values.earnKind} onChange={event => set('earnKind', event.target.value)}>
-        <option value="">미설정</option><option value="rate_bps">할인 후 굿즈 금액의 정률</option><option value="fixed">거래확정 주문당 정액</option>
+        <option value="">미설정</option><option value="rate_bps">{adminGoodsCopy("할인 후 굿즈 금액의 정률")}</option><option value="fixed">거래확정 주문당 정액</option>
       </select></AdminField>
       <AdminField label={values.earnKind === 'rate_bps' ? '적립률 (0.01% 단위)' : '적립 금액 (원)'} inputId="credit-earnValue" hint="정률은 100이 1%입니다. 배송비와 사용 적립금은 적립 기준에서 제외합니다.">
         <input id="credit-earnValue" name="earnValue" type="number" min="0" step="1" value={values.earnValue} onChange={event => set('earnValue', event.target.value)} />
@@ -34,7 +35,7 @@ export function StoreCreditPolicyForm({ policy, operationId }: { policy: StoreCr
         </select>
       </AdminField>
     </AdminFormGrid>
-    <p>쿠폰 1장을 적용한 뒤 남은 굿즈 금액에 적립금을 사용합니다. 배송비 사용은 제외하고 기존 최소 유상 결제액을 유지합니다. 현금 청구·환불액 차감은 발생하지 않습니다.</p>
+    <p>{adminGoodsCopy("쿠폰 1장을 적용한 뒤 남은 굿즈 금액에 적립금을 사용합니다. 배송비 사용은 제외하고 기존 최소 유상 결제액을 유지합니다. 현금 청구·환불액 차감은 발생하지 않습니다.")}</p>
     <AdminField label="정책 승인 근거" inputId="credit-evidence"><textarea id="credit-evidence" name="evidence" maxLength={2000} rows={4} value={values.evidence} onChange={event => set('evidence', event.target.value)} /></AdminField>
     <label><input type="checkbox" name="enabled" checked={values.enabled === 'true'} onChange={event => set('enabled', String(event.target.checked))} /> 적립금 지급과 주문 사용 활성화</label>
     <p>비활성화해도 기존 주문에 약속한 적립과 사용분 복원, 기존 원장은 보존됩니다.</p>

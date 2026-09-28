@@ -1,3 +1,4 @@
+import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import { readGoodsClaimPolicy } from './goods-claim-policy';
 import type { GoodClaimPolicy } from '@/lib/goods-claim-policy';
 import { readGoodsLinkedMetadata, type GoodsLinkedMetadataInput } from './goods-linked-metadata';
@@ -539,7 +540,7 @@ export function normalizeAdminGoodForm(
   Object.assign(errors, salePolicy.errors);
   const galleryPaths = readGoodsGalleryPaths(formData, errors);
 
-  if (!name) errors.name = '굿즈 이름을 입력해주세요.';
+  if (!name) errors.name = adminGoodsCopy('굿즈 이름을 입력해주세요.');
   if (requiresCompleteNotice && !type) errors.type = '상품 유형을 선택해주세요.';
   if (publish && !nullableString(formData, 'imagePath')) errors.imagePath = '대표 이미지를 업로드한 뒤 공개해주세요.';
   if (!STOCK_VALUES.has(stock)) errors.stock = '재고 상태를 선택해주세요.';
@@ -592,7 +593,7 @@ export function normalizeAdminStockAdjustmentForm(
 ): AdminFormResult<AdminStockAdjustmentFormValue> {
   const errors: AdminFieldErrors = {};
   const adjustmentId = readString(formData, 'adjustmentId').toLowerCase();
-  const goodId = readSlug(formData, 'goodId', errors, '굿즈를 선택해주세요.');
+  const goodId = readSlug(formData, 'goodId', errors, adminGoodsCopy('굿즈를 선택해주세요.'));
   const variantId = readString(formData, 'variantId').toLowerCase();
   const expectedStockQtyRaw = readString(formData, 'expectedStockQty');
   const deltaRaw = readString(formData, 'delta');

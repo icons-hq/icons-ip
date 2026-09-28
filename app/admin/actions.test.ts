@@ -394,7 +394,7 @@ describe('admin catalog actions', () => {
   });
 
   it.each([
-    ['상품', upsertAdminGoodAction, goodForm, '굿즈를 저장했습니다.'],
+    ['상품', upsertAdminGoodAction, goodForm, '상품을 저장했습니다.'],
     ['카드', upsertAdminCardAction, cardForm, '카드를 저장했습니다.'],
     ['카드풀', upsertAdminCardPoolAction, cardPoolForm, '카드풀을 저장했습니다.'],
     ['이벤트', upsertAdminEventAction, eventForm, '이벤트를 저장했습니다.'],
@@ -533,7 +533,7 @@ describe('admin catalog actions', () => {
     formData.set('previousIpId', 'lumen');
 
     await expect(upsertAdminGoodAction({}, formData)).resolves.toMatchObject({
-      message: '굿즈를 저장했습니다.',
+      message: '상품을 저장했습니다.',
       savedGoodId: 'g100',
     });
 
@@ -572,7 +572,7 @@ describe('admin catalog actions', () => {
     formData.set('displayOrder', '7');
 
     await expect(upsertAdminGoodAction({}, formData)).resolves.toMatchObject({
-      message: '굿즈를 저장했습니다.',
+      message: '상품을 저장했습니다.',
       savedGoodId: 'g100',
     });
 
@@ -611,7 +611,7 @@ describe('admin catalog actions', () => {
     formData.set('compareAtPrice', '');
 
     await expect(upsertAdminGoodAction({}, formData)).resolves.toMatchObject({
-      message: '굿즈를 저장했습니다.',
+      message: '상품을 저장했습니다.',
       savedGoodId: 'g100',
     });
     expect(mocks.rpc.mock.calls[0][1].target_good).toMatchObject({ compare_at_price: null });
@@ -678,7 +678,7 @@ describe('admin catalog actions', () => {
         return form;
       },
       records: { goods: [{ id: 'g100', ipId: 'archived-ip' }] },
-      expected: '굿즈를 저장했습니다.',
+      expected: '상품을 저장했습니다.',
     },
     {
       label: '카드',
@@ -803,7 +803,7 @@ describe('admin catalog actions', () => {
 
   it.each([
     ['stock_out_of_range', '재고는 0개 미만이거나 허용 범위를 넘도록 조정할 수 없습니다.'],
-    ['good_not_found', '굿즈를 찾을 수 없습니다.'],
+    ['good_not_found', '상품을 찾을 수 없습니다.'],
     ['catalog_item_archived', '보관된 카탈로그 항목을 먼저 복원해주세요.'],
     ['stock_changed', '실재고가 변경되었습니다. 최신 수량을 확인한 뒤 다시 시도해주세요.'],
     ['adjustment_conflict', '이미 사용된 재고 조정 요청입니다. 최신 수량을 확인해주세요.'],
@@ -1043,7 +1043,7 @@ describe('admin catalog actions', () => {
     formData.set('previousId', 'g100');
 
     await expect(upsertAdminGoodAction({}, formData)).resolves.toMatchObject({
-      message: '굿즈를 저장했습니다.',
+      message: '상품을 저장했습니다.',
       savedGoodId: 'g100',
     });
 
@@ -1057,7 +1057,7 @@ describe('admin catalog actions', () => {
     const form=goodForm();
     form.delete('id');
     mocks.rpc.mockResolvedValue({data:{id:'hwasan-kiring',code:'HWA-0001'},error:null});
-    expect(await upsertAdminGoodAction({},form)).toEqual({message:'굿즈를 저장했습니다.',savedGoodId:'hwasan-kiring',attempt:1});
+    expect(await upsertAdminGoodAction({},form)).toEqual({message:'상품을 저장했습니다.',savedGoodId:'hwasan-kiring',attempt:1});
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/shop/hwasan-kiring');
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/admin/catalog/goods');
   });
@@ -1118,7 +1118,7 @@ describe('admin catalog actions', () => {
     formData.set('detailImagePath', 'public-media/catalog/good/44444444-4444-4444-8444-444444444444.webp');
 
     await expect(upsertAdminGoodAction({}, formData)).resolves.toMatchObject({
-      message: '굿즈를 저장했습니다.',
+      message: '상품을 저장했습니다.',
       savedGoodId: 'g100',
     });
 

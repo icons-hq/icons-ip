@@ -62,8 +62,8 @@ describe('setGoodSaleRestrictionAction', () => {
      아니라 이 액션 하나로 끝나야 하므로, 어떤 감사 RPC가 어떤 인자로 불리는지와
      판매 표면 갱신 순서를 못 박는다. */
   it.each([
-    ['none', '이 굿즈는 판매 제한 없이 스토어에 노출됩니다.'],
-    ['adult', '이 굿즈는 성인(19금) 상품입니다. 성인인증 도입 전까지 스토어에서 숨기고 구매를 막습니다.'],
+    ['none', '이 상품은 판매 제한 없이 스토어에 노출됩니다.'],
+    ['adult', '이 상품은 성인(19금) 상품입니다. 성인인증 도입 전까지 스토어에서 숨기고 구매를 막습니다.'],
   ] as const)('restriction=%s를 감사 RPC로 그대로 넘기고 판매 표면을 갱신한다', async (
     restriction,
     message,
@@ -130,14 +130,14 @@ describe('setGoodSaleRestrictionAction', () => {
     ['필드 없음', null],
   ] as const)('굿즈 id가 %s이면 RPC에 닿기 전에 막는다', async (_label, id) => {
     await expect(setGoodSaleRestrictionAction({}, saleRestrictionForm(id))).resolves.toEqual({
-      error: '굿즈를 찾을 수 없습니다.',
+      error: '상품을 찾을 수 없습니다.',
     });
     expect(mocks.rpc).not.toHaveBeenCalled();
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
 
   it.each([
-    ['catalog_record_missing: private detail', '굿즈를 찾을 수 없습니다.'],
+    ['catalog_record_missing: private detail', '상품을 찾을 수 없습니다.'],
     ['private permission detail', '판매 제한 설정을 바꾸지 못했습니다.'],
   ])('RPC 오류 %o를 DB 원문 없이 운영자 문구로 옮긴다', async (dbMessage, message) => {
     mocks.rpc.mockResolvedValue({ data: null, error: { code: 'P0001', message: dbMessage } });

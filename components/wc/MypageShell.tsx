@@ -56,10 +56,10 @@ const MYPAGE_MENU_GROUPS: MypageMenuGroup[] = [
   {
     title: '고객센터',
     items: [
-      { href: '/my/inquiries', label: '1:1 문의', description: '주문·배송, 취소/반품/교환, 상품에 대해 운영자에게 문의하세요.' },
+      { href: '/my/inquiries', label: '1:1 문의', description: '주문·배송, 취소/반품/교환, 굿즈에 대해 운영자에게 문의하세요.' },
       /* 공개 Q&A 와 비공개 1:1 은 같은 그룹에 나란히 서지만 이름이 겹치면 안 된다 —
          사용자가 자기 글이 공개인지 비공개인지 여기서 이미 갈라 읽어야 한다. */
-      { href: '/my/questions', label: '상품 Q&A', description: '굿즈 상세에 공개로 남긴 질문과 답변을 확인하세요.' },
+      { href: '/my/questions', label: '굿즈 Q&A', description: '굿즈 상세에 공개로 남긴 질문과 답변을 확인하세요.' },
     ],
   },
 ];

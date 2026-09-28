@@ -1,5 +1,6 @@
 'use client';
 
+import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import Link from 'next/link';
 import { useActionState, useState, type FormEvent } from 'react';
 import {
@@ -221,7 +222,7 @@ function MemberDetail({
   member: AdminMemberDetail;
 }) {
   const counts = [
-    ['굿즈 주문', member.goodsOrderCount],
+    [adminGoodsCopy('굿즈 주문'), member.goodsOrderCount],
     ['티켓 예매', member.ticketOrderCount],
     ['제출한 신고', member.submittedReportCount],
     ['받은 신고', member.receivedReportCount],

@@ -80,7 +80,7 @@ describe('Notifications', () => {
       { ...read, id: '44444444-4444-4444-8444-444444444444', type: 'inquiry_answered' },
     ]);
 
-    expect(html).toContain('>상품 Q&amp;A</span>');
+    expect(html).toContain('>굿즈 Q&amp;A</span>');
     expect(html).toContain('>문의</span>');
   });
 
@@ -88,5 +88,20 @@ describe('Notifications', () => {
     expect(render([unread], true)).toContain(
       '알림을 열지 못했습니다. 잠시 후 다시 시도해주세요.',
     );
+  });
+
+  it('기존 DB 시스템 알림도 고객 어휘로 표시하면서 상품명과 공지는 보존한다', () => {
+    const html = render([
+      { ...unread, type: 'product_question_answered', title: '상품 Q&A에 답변이 등록됐어요', body: '상품명 질문에 ICONS 운영자가 답변을 남겼습니다.' },
+      { ...read, type: 'claim_updated', title: '교환 상품이 재출고됐어요', body: '교환 상품을 새 운송장으로 발송했습니다.' },
+      { ...read, id: 'notice', type: 'announcement', title: '상품 선물 안내', body: '추가상품 소개' },
+    ]);
+    expect(html).toContain('굿즈 Q&amp;A에 답변이 등록됐어요');
+    expect(html).toContain('교환 굿즈가 재출고됐어요');
+    expect(html).toContain('교환 굿즈를 새 운송장으로 발송했습니다.');
+    expect(html).toContain('상품명 질문에 ICONS 운영자가 답변을 남겼습니다.');
+    expect(html).toContain('상품 선물 안내');
+    expect(html).toContain('추가상품 소개');
+    expect(html).not.toContain('교환 상품');
   });
 });

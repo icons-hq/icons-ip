@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   isSafeNotificationLink,
   notificationOpenedPath,
+  notificationDisplayCopy,
   toNotificationItem,
   type NotificationRow,
 } from './notifications';
@@ -17,6 +18,23 @@ const row: NotificationRow = {
 };
 
 describe('notification DTO', () => {
+  it('DB가 생성하는 Q&A·교환 시스템 문장만 고객 어휘로 표시한다', () => {
+    expect(notificationDisplayCopy({ type: 'product_question_answered', title: '상품 Q&A에 답변이 등록됐어요', body: '상품명 질문에 ICONS 운영자가 답변을 남겼습니다.' }))
+      .toEqual({ title: '굿즈 Q&A에 답변이 등록됐어요', body: '상품명 질문에 ICONS 운영자가 답변을 남겼습니다.' });
+    expect(notificationDisplayCopy({ type: 'claim_updated', title: '교환 상품이 재출고됐어요', body: '교환 상품을 새 운송장으로 발송했습니다.' }))
+      .toEqual({ title: '교환 굿즈가 재출고됐어요', body: '교환 굿즈를 새 운송장으로 발송했습니다.' });
+    expect(notificationDisplayCopy({ type: 'claim_updated', title: '반송한 굿즈가 입고됐어요', body: '입고가 확인됐습니다. 교환 상품 재출고를 준비합니다.' }).body)
+      .toBe('입고가 확인됐습니다. 교환 굿즈 재출고를 준비합니다.');
+  });
+  it('같은 단어가 있어도 작성자 공지·상품명·임의 문구와 DB 원본은 보존한다', () => {
+    const input = { type: 'announcement' as const, title: '상품 Q&A에 답변이 등록됐어요', body: '교환 상품을 새 운송장으로 발송했습니다.' };
+    expect(notificationDisplayCopy(input)).toEqual({ title: input.title, body: input.body });
+    expect(notificationDisplayCopy({ ...input, type: 'claim_updated', title: '상품 선물 안내', body: '상품명: 추가상품' }))
+      .toEqual({ title: '상품 선물 안내', body: '상품명: 추가상품' });
+    expect(notificationDisplayCopy({ ...input, type: 'product_question_answered', title: '__proto__', body: 'constructor' }))
+      .toEqual({ title: '__proto__', body: 'constructor' });
+    expect(input.title).toBe('상품 Q&A에 답변이 등록됐어요');
+  });
   it('maps the selected database row to a safe unread inbox item', () => {
     expect(toNotificationItem(row)).toEqual({
       id: row.id,

@@ -100,7 +100,7 @@ export function claimStageNotice(claim: OrderCancellationRequestSummary): string
       return '요청이 승인됐습니다. 안내받은 방법으로 굿즈를 반송해주세요.';
     case 'collected':
       return claim.claimType === 'exchange'
-        ? '반송하신 굿즈가 입고됐습니다. 교환 상품 재출고를 준비하고 있습니다.'
+        ? '반송하신 굿즈가 입고됐습니다. 교환 굿즈 재출고를 준비하고 있습니다.'
         : '반송하신 굿즈가 모두 입고됐습니다. 반환받은 날부터 영업일 기준 3일 이내에 환급합니다. 담당자의 확인이 늦어져도 기한은 연장되지 않습니다.';
     case 'on_hold':
       /* 보류 사유는 hold_reason이고 그 칸은 구매자에게 grant하지 않는다(운영 메모).
@@ -115,7 +115,7 @@ export function claimStageNotice(claim: OrderCancellationRequestSummary): string
       return claim.claimType === 'exchange'
         ? claim.reshipDeliveredAt
           ? '교환품의 배송완료가 확인됐습니다. 추가 반품·교환은 신청 가능 여부와 기한을 확인해주세요.'
-          : '교환 상품을 재출고했습니다. 모든 교환품의 배송완료 확인 뒤에 다시 반품·교환을 신청할 수 있습니다.'
+          : '교환 굿즈를 재출고했습니다. 모든 교환품의 배송완료 확인 뒤에 다시 반품·교환을 신청할 수 있습니다.'
         : '환급 처리가 완료됐습니다.';
     case 'rejected':
       return `요청이 거절됐습니다. ${claim.decisionNote ?? '자세한 내용은 1:1 문의로 확인해주세요.'}`;

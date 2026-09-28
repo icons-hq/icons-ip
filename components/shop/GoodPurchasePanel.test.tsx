@@ -233,7 +233,7 @@ describe('GoodPurchasePanel', () => {
       additionalChoices: [{ goodId: extra.id, name: extra.name, good: extra, selected: true, selectedOption: extraOption, quantity: 2 }],
       toggleAdditional: vi.fn(), selectAdditionalOption: vi.fn(), setAdditionalQuantity: vi.fn(),
     })} />);
-    expect(html).toContain('추가상품');
+    expect(html).toContain('추가 구성 굿즈');
     expect(html).toContain('(선택)');
     expect(html).toMatch(/type="checkbox"[^>]*checked=""/);
     expect(html).toContain('추가 스티커 옵션');

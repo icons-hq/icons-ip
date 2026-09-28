@@ -72,7 +72,7 @@ export function MyQuestions({ questions }: { questions: MyProductQuestion[] }) {
   return (
     <MypageShell active="/my/questions">
       <div className="wc-mypage__headbar">
-        <h1 className="wc-mypage__headbar-title">내 상품 Q&amp;A</h1>
+        <h1 className="wc-mypage__headbar-title">내 굿즈 Q&amp;A</h1>
       </div>
       <p className="wc-mypage__lede">
         굿즈 상세에 남긴 질문과 운영자 답변입니다. 질문과 답변은 굿즈 상세에 공개됩니다.

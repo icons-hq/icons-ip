@@ -1,3 +1,4 @@
+import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import Link from 'next/link';
 import { AdminPageHeader, AdminStatusBadge } from '@/components/admin/console/AdminKit';
 import { ConsoleFilterPanel } from '@/components/admin/console/ConsoleFilterPanel';
@@ -19,7 +20,7 @@ export function FaqScreen({ data }: { data: FaqPageData }) {
     </ConsoleFilterPanel>
     <p className="admin-faq__hint">질문을 열어 수정할 수 있습니다. 공개 FAQ만 고객에게 표시됩니다.</p>
     {entries.length ? <div className="admin-faq__entries">{entries.map((entry) => <details key={entry.id} className="admin-faq__entry">
-      <summary><span>{inquiryCategoryLabel(entry.category)}</span><strong>{entry.question}</strong><AdminStatusBadge tone={entry.published ? 'success' : 'neutral'}>{entry.published ? '공개' : '비공개'}</AdminStatusBadge><span>순서 {entry.sortOrder}</span></summary>
+      <summary><span>{adminGoodsCopy(inquiryCategoryLabel(entry.category))}</span><strong>{entry.question}</strong><AdminStatusBadge tone={entry.published ? 'success' : 'neutral'}>{entry.published ? '공개' : '비공개'}</AdminStatusBadge><span>순서 {entry.sortOrder}</span></summary>
       <FaqEntryForm entry={entry} /><FaqDeleteForm entry={entry} />
     </details>)}</div> : <p className="admin-faq__empty">조건에 맞는 FAQ가 없습니다. 새 FAQ를 등록하거나 검색 조건을 바꿔주세요.</p>}
     <ConsolePagination page={filters.page} pageSize={FAQ_PAGE_SIZE} total={total} hrefForPage={(page) => faqHref(ADMIN_FAQ_PATH, filters, page)} />

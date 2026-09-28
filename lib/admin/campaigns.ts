@@ -1,3 +1,4 @@
+import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import type { AdminFieldErrors } from '@/lib/admin/catalog';
 import { kstDateTimeToIso } from '@/lib/admin/kst';
 
@@ -169,7 +170,7 @@ const SECTION_SPECS = [
   },
   {
     type: 'goods',
-    label: '굿즈 묶음',
+    label: adminGoodsCopy('굿즈 묶음'),
     fields: [{
       key: 'good_ids',
       kind: 'stringArray',

@@ -97,7 +97,7 @@ describe('ReviewConsoleScreen', () => {
   it('요구된 그리드 칸을 모두 그린다', () => {
     const html = render();
 
-    for (const label of ['작성일', '굿즈', '평점', '리뷰 내용', '사진', '작성자', '신고', '상태', '답글']) {
+    for (const label of ['작성일', '상품', '평점', '리뷰 내용', '사진', '작성자', '신고', '상태', '답글']) {
       expect(html).toContain(label);
     }
   });

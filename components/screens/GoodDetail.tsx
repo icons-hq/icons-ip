@@ -119,7 +119,7 @@ function ShippingGuide({ policy, goods }: { policy?: GoodShippingPolicy | null; 
          * 두 개가 되어, 어느 쪽이 약정인지 정할 수 없다. 그래서 정책 문장을 그대로 싣는다.
          */}
         {preorders.length ? <>
-          <li>예약판매 옵션은 아래 발송 예정일에 맞춰 공급을 준비합니다. 같은 출고지의 일반 상품과 예약상품을 함께 주문하면 가장 늦은 예정일에 함께 발송합니다. 주문서에서 최종 발송 예정일을 확인해주세요.</li>
+          <li>예약판매 옵션은 아래 발송 예정일에 맞춰 공급을 준비합니다. 같은 출고지의 일반 굿즈와 예약 굿즈를 함께 주문하면 가장 늦은 예정일에 함께 발송합니다. 주문서에서 최종 발송 예정일을 확인해주세요.</li>
           {preorders.map(option => <li key={option.id}>{option.label}: {goodsShipDateLabel(option.date)}</li>)}
           <li>일반 판매 옵션만 주문한 경우에는 기본 배송 정책을 따릅니다. 예약 공급 일정이 바뀌면 주문 상세에서 변경된 예정일을 확인할 수 있습니다.</li>
         </> : <li>대금을 먼저 지급하는 선지급 주문이므로, 결제가 확정된 날부터 3영업일 이내에 배송에 필요한 조치를 취합니다. 무통장 입금 주문은 입금이 확인된 날이 결제 확정일입니다. 공급 절차가 늦어지면 그 진행 상황을 알립니다.</li>}
@@ -136,7 +136,7 @@ function ReturnGuide({ policy }: { policy?: GoodShippingPolicy | null }) {
     <section aria-labelledby="pdp-return-heading" className="wc-pdp-guide">
       <h2 className="wc-pdp-panel__title" id="pdp-return-heading">교환 · 반품 안내</h2>
       <ul className="wc-pdp-guide__list">
-        {terms?.restrictionReason && <li style={{ whiteSpace: 'pre-wrap' }}>상품별 확인 조건: {terms.restrictionReason} · 고객센터에 사유를 접수하면 개별 확인합니다.</li>}
+        {terms?.restrictionReason && <li style={{ whiteSpace: 'pre-wrap' }}>굿즈별 확인 조건: {terms.restrictionReason} · 고객센터에 사유를 접수하면 개별 확인합니다.</li>}
         {terms && <>
           <li>고객 귀책 반품비(편도): {terms.returnFee === null ? '확인 후 안내' : krw(terms.returnFee)}</li>
           <li>최초 무료배송 후 반품비(왕복 합계): {terms.returnFreeShippingFee === null ? '확인 후 안내' : krw(terms.returnFreeShippingFee)}</li>
@@ -167,13 +167,13 @@ function ReturnGuide({ policy }: { policy?: GoodShippingPolicy | null }) {
 function InquiryEntry({ goodId }: { goodId: string }) {
   return (
     <section aria-labelledby="pdp-inquiry-heading" className="wc-pdp-guide">
-      <h2 className="wc-pdp-panel__title" id="pdp-inquiry-heading">상품 문의</h2>
+      <h2 className="wc-pdp-panel__title" id="pdp-inquiry-heading">굿즈 문의</h2>
       <p className="wc-pdp-panel__note">
         구성, 재고, 배송 일정처럼 이 굿즈에 대해 궁금한 점을 운영자에게 비공개로 물어볼 수 있습니다.
         영업일 기준 24시간 안에 첫 답변을 드립니다.
       </p>
       <Link className="wc-pdp-guide__link" href={newInquiryHref({ category: 'good', goodId })}>
-        상품 문의하기
+        굿즈 문의하기
       </Link>
     </section>
   );

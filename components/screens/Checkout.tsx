@@ -38,7 +38,7 @@ const actionErrors = {
   onboarding_required: '프로필 설정을 먼저 완료해주세요.',
   payment_unavailable: '현재 결제 환경을 확인 중이에요. 잠시 후 다시 시도해주세요.',
   bank_transfer_blocked: '무통장 입금을 쓸 수 없는 굿즈가 담겨 있어요. 카드로 결제해주세요.',
-  card_payment_blocked: '카드 결제를 쓸 수 없는 상품이 담겨 있어요. 결제수단을 다시 확인해주세요.',
+  card_payment_blocked: '카드 결제를 쓸 수 없는 굿즈가 담겨 있어요. 결제수단을 다시 확인해주세요.',
   purchase_limit_not_configured: goodsPurchaseReasonMessage('purchase_limit_not_configured'),
   order_quantity_below_minimum: goodsPurchaseReasonMessage('order_quantity_below_minimum'),
   order_quantity_above_maximum: goodsPurchaseReasonMessage('order_quantity_above_maximum'),
@@ -49,9 +49,9 @@ const actionErrors = {
   coupon_rejected: '적용한 쿠폰을 쓸 수 없게 됐어요. 장바구니에서 쿠폰을 확인해주세요.',
   store_credit_rejected: '적립금 잔액이나 사용 조건이 바뀌었어요. 사용 금액을 다시 확인해주세요.',
   checkout_changed: '이미 만든 주문과 요청 내용이 달라요. 내 주문에서 결제를 이어가거나 기존 주문을 취소한 뒤 다시 주문해주세요.',
-  preorder_sale_not_open: '예약 접수가 종료되거나 중지된 상품이 있어요. 장바구니를 확인해주세요.',
+  preorder_sale_not_open: '예약 접수가 종료되거나 중지된 굿즈가 있어요. 장바구니를 확인해주세요.',
   preorder_capacity_exceeded: '예약 가능한 수량이 변경됐어요. 장바구니에서 수량을 다시 확인해주세요.',
-  preorder_policy_not_configured: '상품의 예약 조건을 확인 중입니다. 잠시 후 다시 시도해주세요.',
+  preorder_policy_not_configured: '굿즈의 예약 조건을 확인 중입니다. 잠시 후 다시 시도해주세요.',
   shipping_region_unresolved: '배송지의 배송 가능 여부와 배송비가 변경되었습니다. 배송지와 최신 배송비를 다시 확인해주세요.',
   unavailable: '주문을 만들지 못했어요. 잠시 후 다시 시도해주세요.',
 } as const;
@@ -403,7 +403,7 @@ export function Checkout({
               />
               <span>
                 <strong>신용·체크카드</strong>
-                <small>{shipping.sales?.paymentMethods.card === false ? '이 주문에는 카드를 쓸 수 없는 상품이 있어요.' : '결제 후 바로 확정됩니다. 재고 선점 15분.'}</small>
+                <small>{shipping.sales?.paymentMethods.card === false ? '이 주문에는 카드를 쓸 수 없는 굿즈가 있어요.' : '결제 후 바로 확정됩니다. 재고 선점 15분.'}</small>
               </span>
             </label>
             <label className="checkout-method-option">

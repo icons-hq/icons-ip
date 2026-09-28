@@ -1,4 +1,5 @@
 'use client';
+import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import { useState, useTransition } from 'react';
 import { searchCouponTargetGoodsAction, type CouponTargetSearch } from '@/app/admin/coupon-target-actions';
 import { AdminField, AdminFormGrid } from '@/components/admin/console/AdminKit';
@@ -28,7 +29,7 @@ export function CouponTargetingFields({ recipientSegment, goodsScope, targetIds,
       </SelectField>
     </AdminFormGrid>
     <input type="hidden" name="targetGoodIds" value={JSON.stringify(scope === 'selected_goods' ? selected.map(item => item.id) : [])} />
-    <p>첫구매·재구매는 전액 취소 완료를 제외한 유효 굿즈 결제 이력으로 판단합니다. 발급 자격과 할인 대상 상품은 별개이며, 등급 혜택도 주문당 쿠폰 1장 안에서 사용합니다.</p>
+    <p>{adminGoodsCopy("첫구매·재구매는 전액 취소 완료를 제외한 유효 굿즈 결제 이력으로 판단합니다. 발급 자격과 할인 대상 상품은 별개이며, 등급 혜택도 주문당 쿠폰 1장 안에서 사용합니다.")}</p>
     {scope === 'selected_goods' ? <>
       <AdminField inputId="coupon-goods-query" label="대상 상품명·상품코드 검색" error={errors?.targetGoodIds}>
         <input id="coupon-goods-query" type="search" maxLength={100} value={query} onChange={event => setQuery(event.target.value)} />

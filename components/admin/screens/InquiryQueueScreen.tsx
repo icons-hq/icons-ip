@@ -1,3 +1,4 @@
+import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import Link from 'next/link';
 import { InquiryLiveUpdates } from '@/components/screens/InquiryLiveUpdates';
 import {
@@ -75,7 +76,7 @@ export function InquiryQueueScreen({
       href: adminInquiryDetailHref(row.id, filters),
       cells: [
         <span className="mono" key="reference">{inquiryReferenceLabel(row.reference)}</span>,
-        <span key="category">{INQUIRY_CATEGORY_LABELS[row.category]}</span>,
+        <span key="category">{adminGoodsCopy(INQUIRY_CATEGORY_LABELS[row.category])}</span>,
         <span key="title">
           {row.title}
           {isAdminInquiryOverdue(row, now) ? <span data-sla-tone="danger"> · 미답변 24시간 경과</span> : null}

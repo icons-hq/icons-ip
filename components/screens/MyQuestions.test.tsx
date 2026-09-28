@@ -32,7 +32,7 @@ describe('MyQuestions', () => {
   it('답변 대기 질문은 대상 굿즈 링크와 함께 기다리는 이유를 적는다', () => {
     const html = render([myQuestion()]);
 
-    expect(html).toContain('>내 상품 Q&amp;A</h1>');
+    expect(html).toContain('>내 굿즈 Q&amp;A</h1>');
     expect(html).toContain('href="/shop/g13?qnaPage=1#qna"');
     expect(html).toContain('아크릴 블록');
     expect(html).toContain('답변 대기');
@@ -47,7 +47,7 @@ describe('MyQuestions', () => {
     const aside = html.slice(html.indexOf('wc-mypage__aside'), html.indexOf('wc-mypage__content'));
 
     expect(aside).toContain('href="/my/questions"');
-    expect(aside).toContain('>상품 Q&amp;A</a>');
+    expect(aside).toContain('>굿즈 Q&amp;A</a>');
     expect(aside).toContain('>1:1 문의</a>');
   });
 

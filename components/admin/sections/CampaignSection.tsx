@@ -1,5 +1,6 @@
 'use client';
 
+import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import { AdminFormGrid } from '@/components/admin/console/AdminKit';
 import { useState } from 'react';
 import type { AdminCampaignActionState } from '@/app/admin/campaign-actions';
@@ -79,8 +80,7 @@ function SectionSchemaHelp() {
         </ul>
         <p className="muted" style={{ fontSize: 12, lineHeight: 1.7, margin: 0 }}>
           <code>exchange</code> 블록의 <code>offer_id</code>는 아래 카드팩 교환처 목록의 ID를
-          복사해 넣습니다. <code>goods</code>의 <code>good_ids</code>는 굿즈 ID 1~8개,
-          {' '}<code>notice</code>의 <code>items</code>는 문구 1~20줄입니다.
+          복사해 넣습니다. <code>goods</code>의 <code>good_ids</code>{adminGoodsCopy("는 굿즈 ID 1~8개, ")}{' '}<code>notice</code>의 <code>items</code>는 문구 1~20줄입니다.
         </p>
         <p className="muted" style={{ fontSize: 12, lineHeight: 1.7, margin: 0 }}>
           <code>coupon</code>의 <code>coupon_code</code>는 쿠폰 관리에 먼저 등록되어 있어야 해요 —

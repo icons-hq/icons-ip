@@ -189,7 +189,7 @@ export function useGoodPurchase({
     && !selectedGoods.every((item) => item.allowBankTransfer !== false);
   const conditionProblem = goodsPurchaseConditionProblem(good)
     ?? (unavailableAddition ? `${unavailableAddition.name}의 판매 상태가 변경되었습니다. 추가 선택을 해제하고 다시 확인해주세요.` : null)
-    ?? (noCommonPayment ? '함께 선택한 상품에서 사용할 수 있는 결제수단이 없습니다.' : null);
+    ?? (noCommonPayment ? '함께 선택한 굿즈에서 사용할 수 있는 결제수단이 없습니다.' : null);
   const nextQuantity = mergedCartQuantity(selectedOption ? cart.getQuantity(good.id, selectedOption.id) : 0, quantity);
   const blocked = purchaseBlockReason({
     disabled: disabled || Boolean(conditionProblem),
@@ -286,9 +286,9 @@ function CartGlyph() {
 
 function AdditionalChoices({ purchase }: { purchase: GoodPurchaseController }) {
   if (!purchase.additionalChoices?.length) return null;
-  return <section aria-label="추가상품" style={{ borderTop: '1px solid var(--wc-hairline)', marginTop: 20, paddingTop: 20 }}>
-    <h3 style={{ fontSize: 14, margin: '0 0 8px' }}>추가상품 <span style={{ fontWeight: 400 }}>(선택)</span></h3>
-    <p className="wc-buy-panel__state">원하는 상품과 수량을 함께 담을 수 있습니다.</p>
+  return <section aria-label="추가 구성 굿즈" style={{ borderTop: '1px solid var(--wc-hairline)', marginTop: 20, paddingTop: 20 }}>
+    <h3 style={{ fontSize: 14, margin: '0 0 8px' }}>추가 구성 굿즈 <span style={{ fontWeight: 400 }}>(선택)</span></h3>
+    <p className="wc-buy-panel__state">원하는 굿즈와 수량을 함께 담을 수 있습니다.</p>
     {purchase.additionalChoices.map((choice) => <fieldset key={choice.goodId} disabled={purchase.disabled || purchase.busy}
       style={{ minWidth: 0, border: 0, borderBottom: '1px solid var(--wc-hairline)', margin: 0, padding: '12px 0' }}>
       <label style={{ display: 'flex', alignItems: 'flex-start', gap: 8, fontSize: 14, lineHeight: 1.5 }}>
@@ -328,7 +328,7 @@ export function GoodPurchasePanel({ purchase }: { purchase: GoodPurchaseControll
   return (
     <div className="wc-buy-panel">
       {stockLabel ? <p className="wc-buy-panel__state">{stockLabel}</p> : null}
-      {good.orderQuantityLimitEnabled && good.minOrderQty && good.maxOrderQty ? <p className="wc-buy-panel__state">같은 상품의 옵션을 합산하여 주문당 {good.minOrderQty.toLocaleString('ko-KR')}–{good.maxOrderQty.toLocaleString('ko-KR')}개 구매할 수 있습니다.</p> : null}
+      {good.orderQuantityLimitEnabled && good.minOrderQty && good.maxOrderQty ? <p className="wc-buy-panel__state">같은 굿즈의 옵션을 합산하여 주문당 {good.minOrderQty.toLocaleString('ko-KR')}–{good.maxOrderQty.toLocaleString('ko-KR')}개 구매할 수 있습니다.</p> : null}
       {good.memberPurchaseLimitEnabled && good.memberLifetimeQtyLimit ? <p className="wc-buy-panel__state">회원 누적 최대 {good.memberLifetimeQtyLimit.toLocaleString('ko-KR')}개 · 결제 대기 주문 포함</p> : null}
       {(good.options?.length ?? 0) > 1 ? (
         <label className="wc-buy-panel__option">

@@ -184,10 +184,10 @@ describe('admin catalog archive actions', () => {
 
   it.each([
     ['catalog_not_found', '카탈로그 항목을 찾을 수 없습니다.'],
-    ['ip_has_active_children', '운영 중인 하위 굿즈·카드·이벤트를 먼저 보관해주세요.'],
+    ['ip_has_active_children', '운영 중인 하위 상품·카드·이벤트를 먼저 보관해주세요.'],
     ['ip_has_active_operations', '진행 중인 카드풀·리워드·게임 운영을 먼저 종료해주세요.'],
-    ['good_has_stock', '판매 가능한 재고가 남아 있어 굿즈를 보관할 수 없습니다.'],
-    ['good_has_active_policy', '활성 리워드 정책에 연결된 굿즈는 보관할 수 없습니다.'],
+    ['good_has_stock', '판매 가능한 재고가 남아 있어 상품을 보관할 수 없습니다.'],
+    ['good_has_active_policy', '활성 리워드 정책에 연결된 상품은 보관할 수 없습니다.'],
     ['card_has_open_pool', '운영 중인 카드풀에 연결된 카드는 보관할 수 없습니다.'],
     ['card_has_open_tickets', '미개봉 카드팩에서 발급될 수 있는 카드는 보관할 수 없습니다.'],
     ['event_has_open_ticketing', '진행 중인 예매가 있는 이벤트는 보관할 수 없습니다.'],

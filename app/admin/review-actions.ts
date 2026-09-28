@@ -1,5 +1,6 @@
 'use server';
 
+import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
@@ -88,7 +89,7 @@ export async function replyToReviewAction(
 
   revalidatePath(REVIEWS_PATH);
   return {
-    message: '답글을 저장했습니다. 굿즈 상세에 함께 표시됩니다.',
+    message: adminGoodsCopy('답글을 저장했습니다. 굿즈 상세에 함께 표시됩니다.'),
     resultKey: crypto.randomUUID(),
   };
 }

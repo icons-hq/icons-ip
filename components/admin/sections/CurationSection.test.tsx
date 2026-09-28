@@ -169,7 +169,7 @@ describe('CurationSection', () => {
     const linkSelect = html.match(/<select[^>]*name="linkPath"[\s\S]*?<\/select>/)?.[0];
 
     expect(linkSelect).toBeDefined();
-    expect(linkSelect).toContain('label="굿즈 상세"');
+    expect(linkSelect).toContain('label="상품 상세"');
     expect(linkSelect).toContain('<option value="/shop/g13">홍실 아크릴 블록 (g13)</option>');
     expect(linkSelect).not.toContain('/shop/archived-good');
   });

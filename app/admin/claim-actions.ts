@@ -1,5 +1,6 @@
 'use server';
 
+import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import { revalidatePath } from 'next/cache';
 import { redirect, unstable_rethrow } from 'next/navigation';
 import {
@@ -166,7 +167,7 @@ export async function recordOrderClaimCollectionAction(
   revalidateClaimSurfaces(normalized.value.claimId, readClaimType(formData));
   return {
     message: normalized.value.stage === 'collected'
-      ? '반송 굿즈 입고를 확인했습니다. 실제 반환받은 날을 기준으로 환급 기한을 확인해주세요.'
+      ? adminGoodsCopy('반송 굿즈 입고를 확인했습니다. 실제 반환받은 날을 기준으로 환급 기한을 확인해주세요.')
       : '수거중으로 표시했습니다.',
   };
 }

@@ -219,7 +219,7 @@ function CartCouponSection({
 
       {belowMinimum ? (
         <p className="wc-cart__coupon-warning" role="alert">
-          쿠폰 대상 상품의 최소 주문 금액 미달로 지금은 할인이 적용되지 않아요.
+          쿠폰 대상 굿즈의 최소 주문 금액 미달로 지금은 할인이 적용되지 않아요.
         </p>
       ) : null}
 
