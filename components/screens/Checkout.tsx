@@ -221,7 +221,7 @@ export function Checkout({
       return;
     }
     if (!result.ok) {
-      setSubmitError(result.pendingOrder ? '첫구매 혜택으로 진행 중인 주문을 완료하거나 취소해주세요.' : actionErrors[result.error]);
+      setSubmitError(result.pendingOrder ? '진행 중인 다른 주문을 완료하거나 취소한 뒤 다시 시도해주세요.' : actionErrors[result.error]);
       setPendingOrder(result.pendingOrder === true);
       shipping.refresh();
       credits.refresh();
