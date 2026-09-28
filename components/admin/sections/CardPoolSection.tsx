@@ -231,18 +231,7 @@ function OddsForm({
                 step="0.001"
                 type="number"
                 value={values[rarity]}
-                style={{
-                  background: 'var(--wc-surface)',
-                  border: '1px solid var(--wc-hairline)',
-                  borderRadius: 10,
-                  color: 'var(--wc-ink)',
-                  fontFamily: 'inherit',
-                  fontSize: 14,
-                  minHeight: 42,
-                  outline: 'none',
-                  padding: '0 12px',
-                  width: '100%',
-                }}
+                style={{ padding: '0 12px', width: '100%' }}
               />
               <ErrorText id={errorId}>{state.errors?.[name]}</ErrorText>
             </label>

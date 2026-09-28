@@ -101,7 +101,7 @@ export function GoodsPurchaseCostsPanel({ goodId, variants }: { goodId: string; 
   const visible = loaded?.goodId === goodId ? loaded : null;
   const reload = () => setRefresh((value) => value + 1);
   const saved = (message: string) => { setNotice({ goodId, message }); reload(); };
-  return <section className="card col wc-admin-kit" aria-labelledby={`purchase-costs-${goodId}`} style={{ borderRadius: 10, gap: 18, padding: 18 }}>
+  return <section className="card col wc-admin-kit" aria-labelledby={`purchase-costs-${goodId}`} style={{ gap: 18, padding: 18 }}>
     <div>
       <h2 id={`purchase-costs-${goodId}`} style={{ fontSize: 18, margin: 0 }}>매입단가 · 관리자 전용</h2>
       <p className="muted" style={{ fontSize: 12, lineHeight: 1.6 }}>공급처에서 사오는 옵션 1개의 매입단가를 원 단위로 입력합니다.

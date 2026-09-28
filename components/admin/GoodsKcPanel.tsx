@@ -150,7 +150,7 @@ export function GoodsKcPanel({ goodId }: { goodId: string }) {
     return () => { canceled = true; };
   }, [goodId, refresh]);
   const visible = loaded?.goodId === goodId ? loaded : null;
-  return <section className="card col wc-admin-kit" aria-labelledby={`kc-review-${goodId}`} style={{ padding: 18, borderRadius: 10, gap: 16 }}>
+  return <section className="card col wc-admin-kit" aria-labelledby={`kc-review-${goodId}`} style={{ padding: 18, gap: 16 }}>
     <div><h2 id={`kc-review-${goodId}`} style={{ margin: 0, fontSize: 18 }}>KC 정보 · 모델별 검토</h2>
       <p className="muted" style={{ fontSize: 12, lineHeight: 1.6 }}>실제 상품의 적용 제도와 근거를 모델·옵션별로 확인합니다. 미검토와 근거가 있는 해당 없음은 다릅니다.
         신규 공개와 비공개 후 재공개에는 검토 완료가 필요하며, 기존 공개 미기록 상품은 자동 승인하거나 중지하지 않습니다.</p>

@@ -101,7 +101,7 @@ export function IpSection({
           recovery={Boolean(localDraft.recovery) && !preservedFormValues(state, selected?.id)}
           unavailable={localDraft.unavailable}
         />
-        <form action={action} className="card col" key={formKey} onSubmitCapture={onSubmitCapture} ref={formRef} style={{ borderRadius: 10, gap: 14, padding: 18 }}>
+        <form action={action} className="card col" key={formKey} onSubmitCapture={onSubmitCapture} ref={formRef} style={{ gap: 14, padding: 18 }}>
           <div className="row" style={{ gap: 10 }}>
             <span className="mono" style={{ color: 'var(--dim)', fontSize: 11 }}>게시 상태</span>
             <IpPublishStateBadge state={publishState} />

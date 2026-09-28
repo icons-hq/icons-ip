@@ -176,6 +176,8 @@ provider callback replay와 known-only Toss webhook 재전달이 겹쳐도 legac
 | `EMAIL_PROVIDER_ENDPOINT` | — | 기본 `https://api.resend.com/emails`. 같은 모양의 API면 이 값만 바꿔 갈아끼운다 |
 | `SITE_URL` | — | 메일 본문 링크의 오리진. 기본 `https://iconsip.com` |
 
+주문·재입고·문의 답변·배송 지연 안내 메일은 `lib/email/site-url.ts`의 같은 주소 규칙을 사용한다. 앞뒤 공백과 마지막 슬래시를 제거하며 미설정이면 운영 기본 주소를 쓴다. Preview·스테이징에서는 해당 환경의 `SITE_URL`을 설정해야 그 환경의 주문 상세로 연결된다. 이 규칙 변경은 발송 gate나 수신자·멱등키를 바꾸지 않는다.
+
 **`EMAIL_PROVIDER_API_KEY` 또는 `EMAIL_FROM`이 없으면 메일을 보내지 않는다.** 대신
 `email_deliveries`에 `status='failed'` 행을 남긴다. 런타임 결과·로그의 사유는
 `provider_not_configured`이고, #191 dark migration 이후 ledger의 `last_error`는 PII-free stable code

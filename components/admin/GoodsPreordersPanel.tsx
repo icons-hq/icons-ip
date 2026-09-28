@@ -217,7 +217,7 @@ export function GoodsPreordersPanel({ goodId, variants, canActivate = false }: {
   const selectedVariants = variants.filter((variant) => variant.goodId === goodId);
   const reload = () => setRefresh((value) => value + 1);
   const saved = (message: string) => { setNotice({ goodId, message }); reload(); };
-  return <section className="card col wc-admin-kit" aria-labelledby={`goods-preorders-${goodId}`} style={{ borderRadius: 10, gap: 18, padding: 18 }}>
+  return <section className="card col wc-admin-kit" aria-labelledby={`goods-preorders-${goodId}`} style={{ gap: 18, padding: 18 }}>
     <div><h2 id={`goods-preorders-${goodId}`} style={{ margin: 0, fontSize: 18 }}>예약판매</h2>
       <p className="muted" style={{ fontSize: 12, lineHeight: 1.6 }}>승인된 미래 공급 물량을 실제 옵션 재고와 구별하여 관리합니다. 물량·접수 기간·발송 예정일·승인 근거가 모두 있어야 활성화할 수 있습니다.
         같은 출고지에서 주문한 일반 상품과 예약 상품은 가장 늦은 예정일에 함께 발송하도록 안내합니다.</p>

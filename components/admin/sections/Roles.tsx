@@ -22,17 +22,7 @@ function UserRoleForm({ profile, isSelf }: { profile: AdminProfileRecord; isSelf
       <select
         defaultValue={profile.role}
         name="role"
-        style={{
-          background: 'var(--wc-surface)',
-          border: '1px solid var(--wc-hairline)',
-          borderRadius: 10,
-          color: 'var(--wc-ink)',
-          fontFamily: 'inherit',
-          fontSize: 13,
-          minHeight: 36,
-          outline: 'none',
-          padding: '0 10px',
-        }}
+        style={{ padding: '0 10px' }}
       >
         {ADMIN_ASSIGNABLE_ROLES.map((role) => (
           <option key={role} value={role}>{role}</option>

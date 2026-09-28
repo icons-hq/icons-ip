@@ -234,7 +234,7 @@ export function ClaimActionPanel({
             aria-label="결제사 취소 접수 양식"
             readOnly
             rows={9}
-            style={{ width: '100%', fontFamily: 'monospace', fontSize: 12 }}
+            style={{ width: '100%' }}
             value={cancellationForm}
           />
           <button

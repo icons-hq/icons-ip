@@ -20,17 +20,17 @@
 .wc-admin .admin-nav-search input {
   min-width: 0;
   width: 100%;
-  border: 0 !important;
+  border: 0;
   outline: 0;
-  background: transparent !important;
+  background: transparent;
   color: var(--wc-ink);
   font: inherit;
-  font-size: 13px;
+  font-size: 14px;
 }
 
 .wc-admin .admin-nav-search input::-webkit-search-cancel-button { display: none; }
 .wc-admin .admin-nav-search:focus-within { border-color: var(--wc-focus); outline: 2px solid var(--wc-focus); outline-offset: 2px; }
-.wc-admin .admin-nav-search input:focus-visible { outline: none !important; }
+.wc-admin .admin-nav-search input:focus-visible { outline: none; }
 .wc-admin .admin-nav-search > button {
   display: grid;
   width: 28px;

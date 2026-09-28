@@ -73,10 +73,10 @@
 .wc-admin .wc-admin__header :focus-visible,
 .wc-admin .admin-shell-badge:focus-visible,
 .wc-admin .wc-admin-kit :focus-visible {
-  border-color: var(--wc-focus) !important;
-  box-shadow: none !important;
-  outline: 2px solid var(--wc-focus) !important;
-  outline-offset: 2px !important;
+  border-color: var(--wc-focus);
+  box-shadow: none;
+  outline: 2px solid var(--wc-focus);
+  outline-offset: 2px;
 }
 .wc-admin.collapsed .wc-admin__sidebar { width: 72px; }
 .wc-admin.collapsed .wc-admin__main { margin-left: 72px; }
@@ -103,16 +103,16 @@
 }
 /* Use consistent White Catalog inputs throughout the operational forms. */
 .wc-admin .wc-admin-kit :where(input:not([type='checkbox']):not([type='radio']):not([type='hidden']), select, textarea) {
-  min-height: 44px !important;
-  border: 1px solid var(--wc-line-control) !important;
-  border-radius: var(--wc-radius-form) !important;
-  background: var(--wc-surface) !important;
-  box-shadow: none !important;
-  color: var(--wc-ink) !important;
-  font-family: var(--wc-font) !important;
-  font-size: 14px !important;
+  min-height: 44px;
+  border: 1px solid var(--wc-line-control);
+  border-radius: var(--wc-radius-form);
+  background: var(--wc-surface);
+  box-shadow: none;
+  color: var(--wc-ink);
+  font-family: var(--wc-font);
+  font-size: 14px;
 }
-.wc-admin .wc-admin-kit :where(input, select, textarea)[aria-invalid='true'] { border-color: var(--wc-danger) !important; }
+.wc-admin .wc-admin-kit :where(input, select, textarea)[aria-invalid='true'] { border-color: var(--wc-danger); }
 .wc-admin .wc-admin-kit__page-header { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 24px; }
 .wc-admin .wc-admin-kit__heading { margin: 0; color: var(--wc-ink); font: 700 20px/1.4 var(--wc-font); }
 .wc-admin .wc-admin-kit__description { max-width: 80ch; margin: 8px 0 0; color: var(--wc-ink-sub); font-size: 14px; line-height: 1.7; word-break: keep-all; overflow-wrap: anywhere; }
@@ -127,7 +127,8 @@
 .wc-admin .wc-admin-kit__form-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, max(260px, calc((100% - 24px) / 2))), 1fr)); gap: 20px 24px; }
 .wc-admin .wc-admin-kit__field { display: grid; align-content: start; gap: 8px; min-width: 0; font-size: 13px; }
 .wc-admin .wc-admin-kit__field-label { font-weight: 600; }
-.wc-admin .wc-admin-kit__field :is(input, select, textarea) { width: 100%; min-height: 40px; padding: 8px 12px; border: 1px solid var(--wc-line-control); border-radius: var(--wc-radius-form); background: var(--wc-surface); color: var(--wc-ink); font: inherit; }
+.wc-admin .wc-admin-kit__field :is(input, select, textarea) { width: 100%; min-height: 44px; padding: 8px 12px; border: 1px solid var(--wc-line-control); border-radius: var(--wc-radius-form); background: var(--wc-surface); color: var(--wc-ink); font: inherit; font-size: 14px; }
+.wc-admin .wc-admin-kit__field textarea { padding: 12px; }
 .wc-admin .wc-admin-kit__field [aria-invalid='true'] { border-color: var(--wc-danger); }
 .wc-admin .wc-admin-kit__hint { margin: 0; color: var(--wc-ink-sub); font-size: 13px; line-height: 1.65; word-break: keep-all; overflow-wrap: anywhere; }
 .wc-admin .wc-admin-kit__error { margin: 0; color: var(--wc-danger); font-size: 12px; }
@@ -147,7 +148,7 @@
 .wc-admin .wc-admin-kit .admin-console-bulk-action { border: 1px solid var(--wc-ink); border-radius: var(--wc-radius-form); background: var(--wc-ink); color: var(--wc-surface); box-shadow: none; }
 .wc-admin .wc-admin-kit .admin-console-bulk-action--danger { background: var(--wc-danger); border-color: var(--wc-danger); }
 .wc-admin .wc-admin-kit .admin-console-filters { border: 1px solid var(--wc-hairline); border-radius: var(--wc-radius-form); background: var(--wc-surface); box-shadow: none; }
-.wc-admin .wc-admin-kit .admin-console-filters :is(input, select) { border: 1px solid var(--wc-line-control); border-radius: var(--wc-radius-form); background: var(--wc-surface); color: var(--wc-ink); font: 400 13px/1.5 var(--wc-font); }
+.wc-admin .wc-admin-kit .admin-console-filters :is(input, select) { border: 1px solid var(--wc-line-control); border-radius: var(--wc-radius-form); background: var(--wc-surface); color: var(--wc-ink); font: 400 14px/1.5 var(--wc-font); }
 .wc-admin .wc-admin-kit .admin-console-filter-label { color: var(--wc-ink-tertiary); font-family: var(--wc-font); }
 .wc-admin .wc-admin-kit :is(.admin-console-filters, .admin-console-pagination) .btn { border: 1px solid var(--wc-ink); border-radius: var(--wc-radius-form); background: var(--wc-ink); color: var(--wc-surface); box-shadow: none; font-family: var(--wc-font); }
 .wc-admin .wc-admin-kit :is(.admin-console-filters, .admin-console-pagination) .btn-ghost { border-color: var(--wc-line-control); background: var(--wc-surface); color: var(--wc-ink); }
@@ -195,4 +196,17 @@
   font: inherit;
   font-size: 13px;
   cursor: pointer;
+}
+
+/* Long native select values remain readable without widening their grid track. */
+.wc-admin .wc-admin-kit__select-hint { display: block; width: 100%; min-width: 0; max-width: 100%; margin-top: 4px; color: var(--wc-ink-sub); font-size: 13px; line-height: 1.65; overflow-wrap: anywhere; white-space: normal; }
+
+@media (forced-colors: active) {
+  .wc-admin:is(.admin-shell, .check-in-shell) .wc-admin-kit :is(input, select, textarea),
+  .wc-admin:is(.admin-shell, .check-in-shell) .wc-admin-kit__card { border-color: CanvasText; background: Canvas; color: CanvasText; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wc-admin { --wc-duration-short: .01ms; --wc-duration-default: .01ms; --wc-duration-medium: .01ms; --wc-duration-long: .01ms; }
+  .wc-admin:is(.admin-shell, .check-in-shell) :is(.wc-admin__sidebar, .wc-admin__main) { transition: none; }
 }

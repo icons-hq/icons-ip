@@ -84,7 +84,7 @@ export function InquiryReplyPanel({
 
   if (closed) {
     return (
-      <section className="card col" style={{ borderRadius: 12, gap: 8, padding: 18 }}>
+      <section className="card col" style={{ gap: 8, padding: 18 }}>
         <strong>종결된 문의입니다.</strong>
         <span className="muted" style={{ fontSize: 13 }}>
           종결 후에도 기록은 남습니다. 구매자가 이어서 물으려면 새 문의를 접수해야 합니다.
@@ -94,7 +94,7 @@ export function InquiryReplyPanel({
   }
 
   return (
-    <section className="card col" style={{ borderRadius: 12, gap: 14, padding: 18 }}>
+    <section className="card col" style={{ gap: 14, padding: 18 }}>
       <div className="row" style={{ alignItems: 'center', gap: 8, justifyContent: 'space-between' }}>
         <strong>답변 작성</strong>
         <button

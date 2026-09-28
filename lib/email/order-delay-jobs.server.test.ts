@@ -1,4 +1,4 @@
-import {describe,expect,it,vi} from 'vitest';
+import {afterEach,describe,expect,it,vi} from 'vitest';
 import {createEmailDispatcher,type EmailDispatcherRepository,type EmailProvider} from './dispatcher';
 import {processOrderDelayEmails,type OrderDelayEmailJob,type OrderDelayEmailRepository} from './order-delay-jobs.server';
 
@@ -23,7 +23,22 @@ function setup(){
  const provider:EmailProvider={send:vi.fn(async()=>({kind:'accepted' as const,providerReference:'synthetic-provider-id'}))};
  return {jobs,repo,provider,finishes,dispatcher:createEmailDispatcher({repository:repo,provider}),requeue:()=>{available=true;}};
 }
+afterEach(() => vi.unstubAllEnvs());
 describe('지연 주문 이메일 작업',()=>{
+ it.each([
+   [' https://preview.example.test/// ', 'https://preview.example.test'],
+   ['https://staging.example.test', 'https://staging.example.test'],
+   ['https://iconsip.com/', 'https://iconsip.com'],
+   ['', 'https://iconsip.com'],
+ ])('사이트 설정 %s를 거래 메일과 같은 주문 주소로 사용한다', async (configured, expected) => {
+   vi.stubEnv('SITE_URL', configured);
+   const s = setup();
+   await processOrderDelayEmails({ repository: s.jobs, dispatcher: s.dispatcher });
+   expect(s.provider.send).toHaveBeenCalledWith(expect.objectContaining({ message: expect.objectContaining({
+     text: expect.stringContaining(`${expected}/orders/${job.orderId}`),
+     html: expect.stringContaining(`href="${expected}/orders/${job.orderId}"`),
+   }) }));
+ });
  it('고정된 실제 구매자와 고객 문구를 기존 dispatcher에 보내고 공급자 접수 결과를 보존한다',async()=>{
   const s=setup();const result=await processOrderDelayEmails({repository:s.jobs,dispatcher:s.dispatcher});
   expect(result).toEqual({claimed:1,sent:1,queued:0,failed:0,unknown:0,suppressed:0,stale:0});

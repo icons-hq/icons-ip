@@ -49,7 +49,7 @@ export function IpPublishControl({
   const [actionState, formAction, pending] = useActionState(action, initialState);
 
   return (
-    <section className="card col" data-ip-publish-control={state} style={{ borderRadius: 10, gap: 12, padding: 18 }}>
+    <section className="card col" data-ip-publish-control={state} style={{ gap: 12, padding: 18 }}>
       <div>
         <span className="eyebrow">PUBLISH STATE</span>
         <h2 style={{ fontSize: 18, margin: '6px 0 0' }}>

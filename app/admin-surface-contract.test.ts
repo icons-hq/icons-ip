@@ -1,4 +1,4 @@
-import { existsSync, readFileSync } from 'node:fs';
+import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import postcss from 'postcss';
 import { describe, expect, it } from 'vitest';
 
@@ -6,6 +6,17 @@ const read = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf
 const retired = ['editorial-foundation.css', 'editorial-admin.css', 'admin-console.css'];
 
 describe('complete admin WC cutover (#433)', () => {
+  it('keeps admin controls and accessibility variants in the normal cascade', () => {
+    for (const file of readdirSync(new URL('./styles/', import.meta.url)).filter(file => file.includes('admin') && file.endsWith('.css'))) {
+      postcss.parse(read(`./styles/${file}`)).walkDecls(declaration => {
+        expect(declaration.important, `${file}: ${declaration.toString()}`).toBeFalsy();
+      });
+    }
+    const select = read('../components/admin/console/AdminSelect.tsx');
+    expect(select).toContain('wc-admin-kit__select-hint');
+    expect(select).not.toContain("color: 'var(--wc-ink-sub)'");
+    expect(read('./styles/wc-admin.css')).toContain('.wc-admin .wc-admin-kit__select-hint');
+  });
   it('keeps the actionable unanswered-inquiry badge spaced inside the WC shell', () => {
     const css=postcss.parse(read('./styles/wc-admin.css'));
     const rules=new Map<string,Map<string,string>>();

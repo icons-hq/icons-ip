@@ -377,6 +377,8 @@ protected-boundaries:
 
 전용 레이어는 `wc-admin-surfaces.css`(표면 배치)와 `wc-admin.css`(셸·공통 키트)다. `wc-foundation.css` → `wc-admin-surfaces.css` → `wc-admin.css` 순서로 임포트한다. 셸 루트는 `admin-shell wc-root wc-admin`, 독립 검표 루트는 `check-in-shell wc-root wc-admin`이다. 공통 Field·TextArea·SelectField는 AdminField의 label/입력/오류 구조를 쓰고, RecordList는 AdminSidePanel을 쓴다.
 
+어드민 전용 CSS는 `!important` 없이 공통 키트 → 표면별 선택자 → 미디어 상태의 우선순위를 명시한다. 입력은 기본 44px·14px이며, 테마와 반응형에서 바뀌는 색·테두리·배치 값은 JSX 인라인 스타일로 고정하지 않는다. 긴 선택값 도움말은 `wc-admin-kit__select-hint`가 소유한다. 고대비·모션 감소·인쇄 규칙도 같은 우선순위 안에서 검증한다.
+
 자체 레이아웃이 없는 화면 최상위 `section.wc-admin-kit`은 `wc-admin-kit__screen`을 함께 사용해 직접 자식 사이 20px 간격과 `min-width: 0`을 보장한다. 직접 자식인 페이지 헤더·설명·필터는 자체 margin 대신 화면 간격을 사용하며, 내부 `wc-admin-kit` 배지·필드·카드의 배치는 이 규칙에 포함하지 않는다.
 
 개요는 `wc-admin-surfaces.css`의 `.admin-overview`가 구역 사이 32px, 성과 통계 내부 24px(600px 이하 16px)를 소유한다. 카드 높이는 콘텐츠로 결정하며 차트를 이웃 카드 높이에 강제로 늘리지 않는다. 성과 구역 제목은 20px, 카드 제목은 16px, 설명은 13px다. 본문·기존 폼·주문 필터의 기본 배치와 반응형·인쇄 규칙은 같은 파일의 정본 블록에서 관리한다. 표면별 파일은 공통 키트 뒤에 임포트한다.

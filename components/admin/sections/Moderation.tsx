@@ -42,17 +42,7 @@ function ReportStatusForm({ report }: { report: AdminReportRecord }) {
         defaultValue={report.status}
         key={report.status}
         name="status"
-        style={{
-          background: 'var(--wc-surface)',
-          border: '1px solid var(--wc-hairline)',
-          borderRadius: 10,
-          color: 'var(--wc-ink)',
-          fontFamily: 'inherit',
-          fontSize: 13,
-          minHeight: 44,
-          outline: 'none',
-          padding: '0 10px',
-        }}
+        style={{ padding: '0 10px' }}
       >
         {reportStatuses.map((status) => (
           <option key={status} value={status}>{status}</option>

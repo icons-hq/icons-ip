@@ -117,7 +117,7 @@ function MemberSuspensionControl({
       action={suspendAction}
       className="card col"
       onSubmit={confirmMemberSuspension}
-      style={{ borderRadius: 10, gap: 10, padding: 14 }}
+      style={{ gap: 10, padding: 14 }}
     >
       <input name="profileId" type="hidden" value={member.id} />
       <TextArea
@@ -228,7 +228,7 @@ function MemberDetail({
   ] as const;
 
   return (
-    <article className="card col" style={{ borderRadius: 10, gap: 16, padding: 18 }}>
+    <article className="card col" style={{ gap: 16, padding: 18 }}>
       <div className="between" style={{ alignItems: 'start', flexWrap: 'wrap', gap: 12 }}>
         <div className="col" style={{ gap: 5, minWidth: 0 }}>
           <div className="row" style={{ flexWrap: 'wrap', gap: 8, justifyContent: 'flex-start' }}>
@@ -308,7 +308,7 @@ export function MembersSection({
         action={searchAction}
         className="card col"
         onSubmit={() => setSelectedProfileId(null)}
-        style={{ borderRadius: 10, gap: 8, padding: 14 }}
+        style={{ gap: 8, padding: 14 }}
       >
         <label className="col" style={{ gap: 7 }}>
           <span className="mono" style={{ color: 'var(--dim)', fontSize: 11 }}>회원 검색</span>
@@ -321,18 +321,7 @@ export function MembersSection({
               maxLength={100}
               name="query"
               placeholder="이메일 또는 닉네임"
-              style={{
-                background: 'rgba(255,255,255,.045)',
-                border: '1px solid var(--line)',
-                borderRadius: 10,
-                color: 'var(--text)',
-                fontFamily: 'inherit',
-                fontSize: 14,
-                minHeight: 44,
-                outline: 'none',
-                padding: '0 12px',
-                width: '100%',
-              }}
+              style={{ padding: '0 12px', width: '100%' }}
             />
             <button className="btn btn-sm admin-field-control" disabled={searchPending} style={{ minHeight: 44 }}>
               <Icon name="search" size={14} /> {searchPending ? '검색 중' : '검색'}
@@ -345,7 +334,7 @@ export function MembersSection({
 
       <div className="col" style={{ gap: 8 }}>
         {searchState.members.map((member) => (
-          <article key={member.id} className="card between" style={{ borderRadius: 10, flexWrap: 'wrap', gap: 12, padding: 14 }}>
+          <article key={member.id} className="card between" style={{ flexWrap: 'wrap', gap: 12, padding: 14 }}>
             <div className="col" style={{ gap: 4, minWidth: 0 }}>
               <div className="row" style={{ flexWrap: 'wrap', gap: 8, justifyContent: 'flex-start' }}>
                 <strong style={{ fontSize: 15 }}>@{member.nickname}</strong>

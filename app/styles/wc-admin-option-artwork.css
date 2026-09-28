@@ -185,7 +185,7 @@
 
 .wc-admin .goods-option-primary-table .wc-admin-table :is(th, td),
 .wc-admin .goods-option-secondary-table :is(th, td) {
-  min-width: 0 !important;
+  min-width: 0;
   padding: 11px 9px;
   border-bottom: 1px solid var(--wc-hairline);
   vertical-align: top;
@@ -210,7 +210,7 @@
 .wc-admin .goods-option-secondary-table input,
 .wc-admin .goods-option-primary-table .wc-admin-table select {
   width: 100%;
-  min-width: 0 !important;
+  min-width: 0;
   max-width: 100%;
   box-sizing: border-box;
 }
@@ -333,28 +333,30 @@
 
 .wc-admin .wc-admin-artwork-upload-field {
   min-width: 0;
+  gap: 12px;
+  padding: 14px;
 }
 
 .wc-admin .wc-admin-artwork-upload-field--compact {
-  padding: 10px !important;
+  padding: 10px;
   border-color: var(--wc-hairline);
 }
 
 .wc-admin .wc-admin-artwork-upload-field--compact .admin-artwork-preview {
-  flex-basis: min(168px, 34%) !important;
-  min-height: 96px;
+  flex-basis: min(168px, 34%);
+  min-height: 110px;
 }
 
 .wc-admin .wc-admin-artwork-upload-field[data-upload-state='uploading'] .admin-artwork-preview {
-  border-color: var(--wc-info) !important;
+  border-color: var(--wc-info);
 }
 
 .wc-admin .wc-admin-artwork-upload-field[data-upload-state='failed'] .admin-artwork-preview {
-  border-color: var(--wc-danger) !important;
+  border-color: var(--wc-danger);
 }
 
 .wc-admin .wc-admin-artwork-upload-field[data-upload-state='uploaded'] .admin-artwork-preview {
-  border-color: var(--wc-success) !important;
+  border-color: var(--wc-success);
 }
 
 .wc-admin .wc-admin-gallery-fields {
@@ -425,7 +427,7 @@
 
 .wc-admin .wc-admin-gallery-slot__state {
   flex: none;
-  color: var(--wc-success) !important;
+  color: var(--wc-success);
   font-weight: 700;
   white-space: nowrap;
 }
@@ -446,12 +448,12 @@
   }
 
   .wc-admin .admin-artwork-layout {
-    align-items: stretch !important;
+    align-items: stretch;
     flex-direction: column;
   }
 
-  .wc-admin .admin-artwork-preview {
-    flex-basis: auto !important;
+  .wc-admin .wc-admin-artwork-upload-field .admin-artwork-preview {
+    flex-basis: auto;
     width: min(100%, 360px);
   }
 
@@ -498,7 +500,7 @@
   }
 
   .wc-admin .goods-option-primary-table .wc-admin-table td {
-    width: auto !important;
+    width: auto;
     padding: 7px 0;
     border: 0;
   }
