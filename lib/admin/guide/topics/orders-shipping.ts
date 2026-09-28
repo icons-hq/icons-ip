@@ -176,6 +176,17 @@ export const ORDERS_SHIPPING_TOPIC: AdminGuideTopic = {
       screens: [{ href: '/admin/sales/shipping' }, { href: '/admin/sales/settled' }],
     },
     {
+      id: 'settled-export',
+      heading: '거래확정 엑셀과 금액 대조',
+      steps: [
+        { text: '거래확정 내역에서 날짜와 검색 조건을 정한 뒤 엑셀을 생성합니다.', screenHref: '/admin/sales/settled' },
+        { text: '품목별 수량·판매액·배송비·할인·ERP 코드·ERP 품명·바코드와 주문 합계를 확인합니다. 파일은 생성 시점의 거래확정 기록을 고정합니다.' },
+        { text: '누락 식별자·결제 시각·금액 차이는 파일의 확인 항목과 주문 원장에서 대조합니다. 모르는 값을 임의로 채우거나 파일 금액만으로 정산 완료를 판단하지 않습니다.' },
+      ],
+      paragraphs: ['한 파일의 범위를 넘으면 기간을 나누어 생성합니다. 조회·내보내기는 기존 주문과 결제·환불 기록을 변경하지 않습니다.'],
+      screens: [{ href: '/admin/sales/settled' }],
+    },
+    {
       id: 'shipping-notice-template',
       heading: '배송정보 템플릿과 상품 적용',
       paragraphs: [

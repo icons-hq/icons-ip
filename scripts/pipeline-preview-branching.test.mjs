@@ -19,7 +19,7 @@ function findStep(job, name) {
 }
 
 describe('Supabase preview branch workflow contract', () => {
-  it('reruns only meaningful pull request edits so base retargets redeploy preview', async () => {
+  it('revalidates every edit while only base retargets redeploy preview', async () => {
     const workflow = await loadWorkflow(pipelinePath);
     const validate = workflow.jobs.validate;
 
@@ -29,8 +29,9 @@ describe('Supabase preview branch workflow contract', () => {
       'reopened',
       'edited',
     ]);
-    expect(validate.if).toContain("github.event.action != 'edited'");
-    expect(validate.if).toContain('github.event.changes.base != null');
+    expect(validate.if).toBeUndefined();
+    expect(workflow.jobs['deploy-supabase-preview'].if).toContain("github.event.action != 'edited'");
+    expect(workflow.jobs['deploy-supabase-preview'].if).toContain('github.event.changes.base != null');
     expect(workflow.concurrency['cancel-in-progress']).toContain(
       "github.event.action != 'edited'",
     );

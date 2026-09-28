@@ -48,10 +48,6 @@ jobs:
   validate:
     name: validate
     runs-on: ubuntu-latest
-    if: >-
-      github.event_name != 'pull_request'
-      || github.event.action != 'edited'
-      || github.event.changes.base != null
     permissions:
       actions: read
       contents: read
@@ -101,12 +97,18 @@ jobs:
 
       - name: Check out repository
         uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
 
       - name: Set up Node.js
         uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
           cache: npm
+
+      - name: Check admin guide changelog
+        if: github.event_name == 'pull_request'
+        run: node scripts/check-admin-guide-changelog.mjs
 
       - name: Install dependencies
         run: npm ci
@@ -397,7 +399,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     needs: validate
-    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository
+    if: >-
+      github.event_name == 'pull_request'
+      && github.event.pull_request.head.repo.full_name == github.repository
+      && (github.event.action != 'edited' || github.event.changes.base != null)
     permissions:
       actions: read
       contents: read

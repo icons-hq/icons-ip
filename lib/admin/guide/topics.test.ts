@@ -13,6 +13,7 @@ import {
   type AdminGuideTopic,
 } from './topics';
 import { ADMIN_GUIDE_ERROR_CASES, TROUBLESHOOTING_TOPIC } from './topics/troubleshooting';
+import { ADMIN_WEEKLY_CHANGES } from './changes';
 
 const topics = ADMIN_GUIDE_TOPIC_SLUGS.map((slug) => ADMIN_GUIDE_TOPICS[slug]);
 
@@ -78,6 +79,18 @@ describe('어드민 가이드 레지스트리', () => {
 });
 
 describe('어드민 가이드 콘텐츠 무결성', () => {
+  it('변경 기록은 최신 날짜부터 유일한 날짜와 운영 행동을 제공한다', () => {
+    const dates = ADMIN_WEEKLY_CHANGES.map((entry) => entry.week);
+    expect(dates).toEqual([...dates].sort().reverse());
+    expect(new Set(dates).size).toBe(dates.length);
+    expect(dates).toEqual(expect.arrayContaining(['2026-09-11', '2026-09-14']));
+    for (const entry of ADMIN_WEEKLY_CHANGES) {
+      expect(entry.week).toMatch(/^\d{4}-\d{2}-\d{2}$/);
+      expect(Number.isFinite(Date.parse(entry.week))).toBe(true);
+      expect(entry.changes.length).toBeGreaterThan(0);
+    }
+  });
+
   it('주제마다 제목·요약·섹션을 갖고, 섹션마다 본문이 있다', () => {
     for (const topic of topics) {
       expect(topic.title.length, topic.slug).toBeGreaterThan(0);
