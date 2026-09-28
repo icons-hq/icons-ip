@@ -30,7 +30,7 @@ const stylesheet = Object.keys(files).find(path => path.endsWith('.css'))!;
 const environment = 'media/school-environment.glb';
 
 function expectPrivate(response: Response) {
-  expect(response.headers.get('Cache-Control')).toBe(response.status < 400 ? 'private, max-age=0, must-revalidate' : 'private, no-store, max-age=0');
+  expect(response.headers.get('Cache-Control')).toBe(response.status < 400 ? 'private, max-age=0, must-revalidate, no-transform' : 'private, no-store, max-age=0');
   expect(response.headers.get('Vary')).toBe('Cookie, Accept-Encoding');
   expect(response.headers.get('X-Content-Type-Options')).toBe('nosniff');
   expect(response.headers.get('X-Robots-Tag')).toBe('noindex, nofollow');

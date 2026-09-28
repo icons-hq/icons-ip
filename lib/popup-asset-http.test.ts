@@ -31,7 +31,7 @@ describe('public popup conditional HTTP requests', () => {
     const cached = await route.get(request('GET', { 'If-None-Match': etag! }), context(route.path));
     expect(cached.status).toBe(304);
     expect(await cached.text()).toBe('');
-    expect(cached.headers.get('cache-control')).toBe('private, max-age=0, must-revalidate');
+    expect(cached.headers.get('cache-control')).toBe('private, max-age=0, must-revalidate, no-transform');
     expect(cached.headers.has('content-length')).toBe(false);
     expect(access.auth).not.toHaveBeenCalled();
   });

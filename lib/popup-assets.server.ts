@@ -95,6 +95,8 @@ export async function createPopupAssetResponse(request: Request, parts: string[]
     if (!stat.isFile()) return new Response(null, { status: 404, headers });
     if (stat.size !== selected.bytes) return new Response(null, { status: 503, headers });
 
+    // Preserve the manifest representation through intermediaries (RFC 9111 §5.2.2.6).
+    // A strong validator and byte ranges must describe the same delivered bytes.
     const etag = `"${selected.sha256}"`;
     headers.set('Content-Type', original.contentType);
     headers.set('Accept-Ranges', 'bytes');
@@ -104,7 +106,7 @@ export async function createPopupAssetResponse(request: Request, parts: string[]
       return tag === '*' || tag.replace(/^W\//, '') === etag;
     });
     if (matches) {
-      headers.set('Cache-Control', 'private, max-age=0, must-revalidate');
+      headers.set('Cache-Control', 'private, max-age=0, must-revalidate, no-transform');
       headers.set('ETag', etag);
       return new Response(null, { status: 304, headers });
     }
@@ -117,7 +119,7 @@ export async function createPopupAssetResponse(request: Request, parts: string[]
     }
     const start = range?.start ?? 0;
     const end = range?.end ?? selected.bytes - 1;
-    headers.set('Cache-Control', 'private, max-age=0, must-revalidate');
+    headers.set('Cache-Control', 'private, max-age=0, must-revalidate, no-transform');
     headers.set('ETag', etag);
     headers.set('Content-Length', String(range ? end - start + 1 : selected.bytes));
     if (range) headers.set('Content-Range', `bytes ${start}-${end}/${selected.bytes}`);

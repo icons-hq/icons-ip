@@ -22,7 +22,7 @@ const request = (method = 'GET', headers?: HeadersInit) => new Request(`https://
 const hash = (data: Uint8Array) => createHash('sha256').update(data).digest('hex');
 
 function expectPrivate(response: Response) {
-  expect(response.headers.get('cache-control')).toBe(response.status < 400 ? 'private, max-age=0, must-revalidate' : 'private, no-store, max-age=0');
+  expect(response.headers.get('cache-control')).toBe(response.status < 400 ? 'private, max-age=0, must-revalidate, no-transform' : 'private, no-store, max-age=0');
   expect(response.headers.get('vary')).toBe('Cookie, Accept-Encoding');
   expect(response.headers.get('x-content-type-options')).toBe('nosniff');
   expect(response.headers.get('x-robots-tag')).toBe('noindex, nofollow');
