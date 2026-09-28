@@ -11,7 +11,7 @@ export interface ResolvedPublicIpIdentity {
   isAlias: boolean;
 }
 
-function ipLinkReference(href: string): { slug: string; suffix: string } | null {
+export function parsePublicIpLink(href: string): { slug: string; suffix: string } | null {
   try {
     const match = /^\/ip\/([^/?#]+)([?#].*)?$/.exec(href);
     if (match) {
@@ -32,7 +32,7 @@ function ipLinkReference(href: string): { slug: string; suffix: string } | null 
 /** Canonicalize stored internal links using only already-public catalog IPs. */
 export async function resolvePublicIpLinks(hrefs: readonly string[], ips: readonly PublicIpReference[]): Promise<Map<string, string>> {
   const references = new Map(hrefs.flatMap(href => {
-    const reference = ipLinkReference(href);
+    const reference = parsePublicIpLink(href);
     return reference ? [[href, reference] as const] : [];
   }));
   const ipsById = new Map(ips.map(ip => [ip.id, ip]));
@@ -70,8 +70,7 @@ function isPublic(row: IpIdentityRow): boolean {
   return Boolean(row.public_slug && !row.archived_at && row.published_at);
 }
 
-async function loadIpById(id: string): Promise<IpIdentityRow | null> {
-  const supabase = await createClient();
+async function loadIpById(id: string, supabase: Awaited<ReturnType<typeof createClient>>): Promise<IpIdentityRow | null> {
   const result = await supabase
     .from('ips')
     .select('id,public_slug,archived_at,published_at')
@@ -85,14 +84,17 @@ async function loadIpById(id: string): Promise<IpIdentityRow | null> {
  * Resolve a public path segment without allowing an alias to become a second
  * mutable identity. Old aliases are only a lookup into the current IP row.
  */
-export async function resolvePublicIpIdentity(value: string): Promise<ResolvedPublicIpIdentity | null> {
+export async function resolvePublicIpIdentity(
+  value: string,
+  client?: Awaited<ReturnType<typeof createClient>>,
+): Promise<ResolvedPublicIpIdentity | null> {
   /* The existing local/mock catalog has no identity table. Keep its public
      routes usable while the configured Supabase path gets canonical aliases. */
   if (!getSupabaseConfig().isConfigured) {
     return { internalId: value, publicSlug: value, isAlias: false };
   }
 
-  const supabase = await createClient();
+  const supabase = client ?? await createClient();
   const canonicalResult = await supabase
     .from('ips')
     .select('id,public_slug,archived_at,published_at')
@@ -119,7 +121,7 @@ export async function resolvePublicIpIdentity(value: string): Promise<ResolvedPu
   const alias = (aliasResult.data as IpSlugAliasRow | null) ?? null;
   if (!alias) return null;
 
-  const target = await loadIpById(alias.ip_id);
+  const target = await loadIpById(alias.ip_id, supabase);
   if (!target || !isPublic(target)) return null;
   return { internalId: target.id, publicSlug: target.public_slug!, isAlias: true };
 }

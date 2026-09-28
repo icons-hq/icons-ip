@@ -12,11 +12,12 @@ const mocks = vi.hoisted(() => ({
   createClient: vi.fn(),
   rpc: vi.fn(),
   revalidatePath: vi.fn(),
+  updateTag: vi.fn(),
 }));
 
 vi.mock('@/lib/auth/admin', () => ({ getCurrentAdminAuthState: mocks.getCurrentAdminAuthState }));
 vi.mock('@/lib/supabase/server', () => ({ createClient: mocks.createClient }));
-vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidatePath }));
+vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidatePath, updateTag: mocks.updateTag, unstable_cache: (fn: unknown) => fn }));
 vi.mock('next/navigation', () => ({
   redirect: (path: string) => { throw new Error(`NEXT_REDIRECT:${path}`); },
   unstable_rethrow: (error: unknown) => { throw error; },
@@ -42,6 +43,7 @@ beforeEach(() => {
   mocks.createClient.mockReset().mockReturnValue({ rpc: mocks.rpc });
   mocks.rpc.mockReset().mockResolvedValue({ data: true, error: null });
   mocks.revalidatePath.mockReset();
+  mocks.updateTag.mockReset();
 });
 
 describe('admin IP identity action', () => {
@@ -69,6 +71,7 @@ describe('admin IP identity action', () => {
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/ip/hwasan');
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/ip/mountain-fire');
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/ip/[id]', 'page');
+    expect(mocks.updateTag).toHaveBeenCalledWith('home-curations');
   });
 
   it('accepts a legacy expected slug while keeping the newly chosen slug strict', async () => {
