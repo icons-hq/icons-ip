@@ -1,11 +1,12 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { InquiryWidget, InquiryWidgetPanel, WidgetInquiryConversation } from './InquiryWidget';
+import { InquiryThread } from './InquiryThread';
 import type { InquiryThreadView } from '@/lib/inquiries.server';
 vi.mock('@/app/my/inquiries/actions', () => ({ createWidgetInquiryAction: vi.fn(), replyToInquiryAction: vi.fn() }));
 vi.mock('@/lib/supabase/client', () => ({ createClient: vi.fn() }));
 const mocks = vi.hoisted(() => ({ pathname: '/' }));
-vi.mock('next/navigation', () => ({ usePathname: () => mocks.pathname }));
+vi.mock('next/navigation', () => ({ usePathname: () => mocks.pathname, useRouter:()=>({refresh:vi.fn()}) }));
 describe('FAQ 먼저 여는 상담 위젯', () => {
   it('독립 AOUAD 경험에는 문의 런처를 겹치지 않는다', () => {
     mocks.pathname = '/ip/aouad';
@@ -31,5 +32,28 @@ describe('FAQ 먼저 여는 상담 위젯', () => {
     const html = renderToStaticMarkup(<WidgetInquiryConversation inquiry={inquiry} onSaved={() => {}} />);
     expect(html).toContain('수민'); expect(html).toContain('오늘 출고했습니다.'); expect(html).toContain('signed-image');
     expect(html).toContain('종결된 문의'); expect(html).not.toContain('name="body"');
+  });
+  it('자동 안내는 운영자 답변과 구분하고 FAQ HTTPS 주소만 링크로 표시한다', () => {
+    const inquiry:InquiryThreadView = {id:'thread',reference:1,category:'order',categoryLabel:'주문/배송',title:'문의',status:'open',
+      orderId:null,goodId:null,createdAt:'2026-09-28T00:00:00Z',lastMessageAt:'2026-09-28T00:00:00Z',answeredAt:null,closedAt:null,messages:[{
+      id:'auto',author:'system',authorName:null,body:'FAQ https://iconsip.com/help\n<script>bad</script> javascript:alert(1)',
+      imageUrls:[],createdAt:'2026-09-28T00:00:00Z',
+    }]};
+    const html=renderToStaticMarkup(<WidgetInquiryConversation inquiry={inquiry} onSaved={()=>{}}/>);
+    expect(html).toContain('자동 안내');
+    expect(html).not.toContain('ICONS 운영자');
+    expect(html).toContain('href="https://iconsip.com/help"');
+    expect(html).toContain('&lt;script&gt;');
+    expect(html).not.toContain('href="javascript:');
+  });
+  it('내 문의 상세도 자동 안내를 답변 대기 상태에서 구분해 표시한다', () => {
+    const inquiry={id:'thread',reference:1,category:'order',categoryLabel:'주문/배송',title:'문의',status:'open',orderId:null,goodId:null,
+      createdAt:'2026-09-28T00:00:00Z',lastMessageAt:'2026-09-28T00:00:00Z',answeredAt:null,closedAt:null,
+      messages:[{id:'auto',author:'system',authorName:null,body:'FAQ https://iconsip.com/help',imageUrls:[],createdAt:'2026-09-28T00:00:01Z'}],
+    } as InquiryThreadView;
+    const html=renderToStaticMarkup(<InquiryThread inquiry={inquiry}/>);
+    expect(html).toContain('자동 안내');
+    expect(html).toContain('답변 대기');
+    expect(html).toContain('href="https://iconsip.com/help"');
   });
 });

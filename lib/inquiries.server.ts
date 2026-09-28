@@ -5,6 +5,8 @@ import { orderReferenceLabel } from '@/lib/orders';
 import { createClient } from '@/lib/supabase/server';
 import {
   inquiryCategoryLabel,
+  inquiryMessageAuthor,
+  type InquiryMessageAuthor,
   isInquiryCategory,
   isInquiryStatus,
   type InquiryCategory,
@@ -21,7 +23,7 @@ const SIGNED_IMAGE_EXPIRES_IN_SECONDS = 60 * 60;
 
 export interface InquiryMessageView {
   id: string;
-  author: 'user' | 'staff';
+  author: InquiryMessageAuthor;
   authorName: string | null;
   body: string;
   imageUrls: string[];
@@ -159,8 +161,8 @@ export async function loadMyInquiryThread(
     ...toListItem(data),
     messages: rows.map((row) => ({
       id: row.id,
-      author: row.author === 'staff' ? 'staff' : 'user',
-      authorName: authorNames.get(row.id) ?? null,
+      author: inquiryMessageAuthor(row.author),
+      authorName: row.author==='staff'?(authorNames.get(row.id)??null):null,
       body: row.body,
       imageUrls: (row.image_paths ?? [])
         .map((path) => urls.get(path))

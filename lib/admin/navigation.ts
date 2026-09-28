@@ -112,7 +112,7 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
       { id: 'stats-customers', label: '고객현황', href: '/admin/stats/customers', status: 'ready' },
       { id: 'operations-settings', label: '운영 준비', href: '/admin/settings/operations', status: 'ready' },
       { id: 'store-credits', label: '적립금 정책', href: '/admin/settings/store-credits', status: 'ready', adminOnly: true },
-      { id: 'store-settings', label: '사업자·CS·결제 표시', href: '/admin/settings/store', status: 'ready' },
+      { id: 'store-settings', label: '사업자·CS·결제·문의 설정', href: '/admin/settings/store', status: 'ready' },
       { id: 'fulfillment-origins', label: '출고지·배송비', href: '/admin/settings/origins', status: 'ready' },
       { id: 'shipping-regions', label: '지역 추가 배송비', href: '/admin/settings/shipping-regions', status: 'ready' },
       { id: 'shipping-notice-templates', label: '배송정보 템플릿', href: '/admin/settings/shipping-notices', status: 'ready' },

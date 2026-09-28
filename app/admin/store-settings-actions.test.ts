@@ -4,7 +4,7 @@ vi.mock('@/lib/auth/admin',()=>({getCurrentAdminAuthState:async()=>mocks.auth}))
 vi.mock('@/lib/supabase/server',()=>({createClient:async()=>({rpc:mocks.rpc})}));
 vi.mock('next/cache',()=>({updateTag:mocks.updateTag,revalidatePath:mocks.revalidatePath}));
 vi.mock('next/navigation',()=>({redirect:(path:string)=>{throw new Error(`redirect:${path}`);},unstable_rethrow:(e:unknown)=>{if(e instanceof Error&&e.message.startsWith('redirect:'))throw e;}}));
-import { saveStoreSettingsAction,saveShippingCarrierAction } from './store-settings-actions';
+import { saveStoreSettingsAction,saveShippingCarrierAction,saveInquiryAutoRepliesAction } from './store-settings-actions';
 const stamp='2026-09-08T01:00:00.000001Z';
 function form(fields:Record<string,string>={}) { const data=new FormData(); for(const [k,v] of Object.entries({section:'business',updatedAt:stamp,email:'cs@example.test',phone:'02-000-0000',...fields}))data.set(k,v);return data;}
 beforeEach(()=>{mocks.auth.role='admin';mocks.auth.isStaff=true;mocks.auth.isConfigured=true;mocks.rpc.mockReset().mockResolvedValue({data:'2026-09-08T02:00:00.000001Z',error:null});mocks.updateTag.mockClear();mocks.revalidatePath.mockClear();});
@@ -35,4 +35,43 @@ it('새 택배사 연속 등록에 이전 레코드의 버전을 재사용하지
   const result=await saveShippingCarrierAction({},form({code:'demo',label:'연습택배',trackingUrlTemplate:'https://carrier.example.test/{trackingNumber}',active:'true',updatedAt:''}));
   expect(result.message).toContain('저장했습니다');expect(result.updatedAt).toBeUndefined();
   expect(mocks.rpc).toHaveBeenCalledWith('admin_save_shipping_carrier',expect.objectContaining({expected_updated_at:null}));
+});
+
+it('문의 자동 안내는 다섯 유형을 함께 저장하고 앞뒤 공백만 정리한다', async () => {
+  const data = form({ 'order.enabled': 'true', 'order.body': '  주문 안내\nhttps://iconsip.com/help  ' });
+  const result = await saveInquiryAutoRepliesAction({}, data);
+  expect(result.message).toContain('저장했습니다');
+  expect(mocks.rpc).toHaveBeenCalledWith('admin_save_store_settings', {
+    target_section: 'inquiry_auto_replies', expected_updated_at: stamp,
+    target_values: {
+      order: { enabled: true, body: '주문 안내\nhttps://iconsip.com/help' },
+      claim: { enabled: false, body: '' }, good: { enabled: false, body: '' },
+      account: { enabled: false, body: '' }, etc: { enabled: false, body: '' },
+    },
+  });
+});
+
+it('켠 안내의 공백 문구와 2000자 초과 문구를 거부하며 입력을 그대로 보존한다', async () => {
+  for (const body of [' \n\t ', '가'.repeat(2001)]) {
+    const result = await saveInquiryAutoRepliesAction({}, form({ 'order.enabled': 'true', 'order.body': body }));
+    expect(result.errors?.['order.body']).toBeDefined();
+    expect(result.values?.['order.body']).toBe(body);
+    expect(result.values?.['order.enabled']).toBe('true');
+  }
+  expect(mocks.rpc).not.toHaveBeenCalled();
+});
+
+it('문의 안내 staff 저장을 막고 충돌·통신 실패에도 설정을 보존한다', async () => {
+  const data = form({ 'good.enabled': 'true', 'good.body': '상품 안내' });
+  mocks.auth.role = 'staff';
+  expect((await saveInquiryAutoRepliesAction({}, data)).errors?.form).toContain('admin');
+  expect(mocks.rpc).not.toHaveBeenCalled();
+  mocks.auth.role = 'admin';
+  mocks.rpc.mockResolvedValue({error:{message:'store_settings_conflict internal'}});
+  expect(await saveInquiryAutoRepliesAction({}, data)).toMatchObject({values:{'good.body':'상품 안내','good.enabled':'true'},errors:{form:expect.stringContaining('다른 관리자')}});
+  mocks.rpc.mockRejectedValue(new Error('network detail'));
+  const result = await saveInquiryAutoRepliesAction({}, data);
+  expect(result.values?.['good.body']).toBe('상품 안내');
+  expect(result.errors?.form).toContain('입력값은 유지');
+  expect(JSON.stringify(result)).not.toContain('network detail');
 });

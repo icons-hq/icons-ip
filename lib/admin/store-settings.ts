@@ -1,13 +1,15 @@
 import { BUSINESS_INFO, BUSINESS_INFO_LABELS, type BusinessInfo } from '@/lib/legal/business-info';
+import { INQUIRY_CATEGORIES, type InquiryCategory } from '@/lib/inquiries';
 
 export const STORE_SETTINGS_PATH = '/admin/settings/store';
 export const CARRIER_SETTINGS_PATH = '/admin/settings/carriers';
 export const STORE_SETTINGS_CACHE_TAG = 'store-settings';
-export type StoreSettingsSection = 'business' | 'bank_transfer';
+export type StoreSettingsSection = 'business' | 'bank_transfer' | 'inquiry_auto_replies';
+export type InquiryAutoReplies = Record<InquiryCategory, { enabled: boolean; body: string }>;
 export const BANK_ACCOUNT_LABELS = { bank:'은행',accountNumber:'계좌번호',holder:'예금주' } as const;
 export type StoreSettingsValue = Record<string,string>;
 export type ParsedSettings<T> = {ok:true;value:T} | {ok:false;errors:Record<string,string>};
-export type StoreSettingsSnapshot = { business:StoreSettingsValue;bankTransfer:StoreSettingsValue|null;updatedAt:string };
+export type StoreSettingsSnapshot = { business:StoreSettingsValue;bankTransfer:StoreSettingsValue|null;inquiryAutoReplies:InquiryAutoReplies;updatedAt:string };
 export type StoreSettingsAudit = { id:string;actorName:string;action:string;target:string;createdAt:string;diff:Record<string,unknown> };
 export type EditableCarrier = { code:string;label:string;trackingUrlTemplate:string;active:boolean;updatedAt:string };
 
@@ -18,7 +20,7 @@ export function mergeBusinessInfo(overrides:Record<string,unknown>,fallback:Busi
   ])) as unknown as BusinessInfo;
 }
 
-export function parseStoreSettingsInput(section:StoreSettingsSection,input:unknown):ParsedSettings<StoreSettingsValue> {
+export function parseStoreSettingsInput(section:Exclude<StoreSettingsSection,'inquiry_auto_replies'>,input:unknown):ParsedSettings<StoreSettingsValue> {
   const fields=section==='business'?BUSINESS_INFO_LABELS:BANK_ACCOUNT_LABELS;
   if (!input || typeof input!=='object' || Array.isArray(input)) return {ok:false,errors:{form:'설정 값을 다시 확인해주세요.'}};
   const entries=Object.entries(input);
@@ -57,6 +59,16 @@ export function storeSettingsHistoryRows(entry:StoreSettingsAudit) {
   const before=entry.diff.before&&typeof entry.diff.before==='object'?entry.diff.before as Record<string,unknown>:{};
   const after=entry.diff.after&&typeof entry.diff.after==='object'?entry.diff.after as Record<string,unknown>:{};
   const words=(value:unknown)=>value===true?'사용':value===false?'비활성':typeof value==='string'||typeof value==='number'?String(value):'미설정';
+  if (entry.target==='store_settings:inquiry_auto_replies') {
+    return INQUIRY_CATEGORIES.flatMap(({id,label})=>{
+      const old=before[id] as {enabled?:boolean;body?:string}|undefined;
+      const next=after[id] as {enabled?:boolean;body?:string}|undefined;
+      return (['enabled','body'] as const).filter(key=>old?.[key]!==next?.[key]).map(key=>({
+        key:`${id}.${key}`,label:`${label} · ${key==='enabled'?'사용 여부':'안내 문구'}`,
+        before:words(old?.[key]),after:words(next?.[key]),
+      }));
+    });
+  }
   return Object.keys(labels).filter(key=>(key in before||key in after)&&before[key]!==after[key])
     .map(key=>({key,label:labels[key],before:words(before[key]),after:words(after[key])}));
 }

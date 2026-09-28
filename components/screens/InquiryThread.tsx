@@ -18,6 +18,8 @@ import {
 import type { InquiryThreadView } from '@/lib/inquiries.server';
 import { orderReferenceLabel } from '@/lib/orders';
 import { InquiryLiveUpdates } from './InquiryLiveUpdates';
+import { InquiryMessageBody } from './InquiryMessageBody';
+import { inquiryMessageAuthorLabel } from '@/lib/inquiries';
 
 /* 문의 스레드(#253).
  *
@@ -33,12 +35,12 @@ function MessageBubble({
 }) {
   const isStaff = message.author === 'staff';
   return (
-    <li className={`wc-thread__bubble${isStaff ? ' wc-thread__bubble--staff' : ''}`}>
+    <li className={`wc-thread__bubble${isStaff ? ' wc-thread__bubble--staff' : ''}`} data-author={message.author}>
       <span className="wc-thread__meta">
-        {isStaff ? (message.authorName ?? 'ICONS 운영자') : '내 문의'} · {formatInquiryDateTime(message.createdAt)}
+        {inquiryMessageAuthorLabel(message.author,message.authorName)} · {formatInquiryDateTime(message.createdAt)}
       </span>
       <p className="wc-thread__body">
-        {message.body}
+        <InquiryMessageBody body={message.body} automatic={message.author==='system'}/>
       </p>
       {message.imageUrls.length ? (
         <div className="wc-thread__images">

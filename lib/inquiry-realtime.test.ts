@@ -13,6 +13,12 @@ function transport() {
     client: { channel: () => channel, removeChannel } as unknown as InquiryRealtimeClient };
 }
 describe('실시간 문의 화면 구독', () => {
+  it('자동 안내 이벤트를 고객·staff 답글로 바꾸지 않는다', () => {
+    const test=transport();const changed=vi.fn();
+    observeInquiryChanges(test.client,{inquiryId:'thread-a',onChange:changed});
+    test.handlers.find(handler=>handler.filter.table==='inquiry_messages')!.callback({new:{id:'auto',inquiry_id:'thread-a',author:'system'}});
+    expect(changed).toHaveBeenCalledWith({kind:'message',inquiryId:'thread-a',messageId:'auto',author:'system'});
+  });
   it('WebSocket 입장만으로 DB 구독을 완료했다고 판단하지 않는다', () => {
     const test = transport(); const ready = vi.fn();
     observeInquiryChanges(test.client, { onChange: vi.fn(), onReady: ready });
