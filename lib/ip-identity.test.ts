@@ -10,6 +10,11 @@ import {
 } from './ip-identity';
 
 describe('IP public identity', () => {
+  it('prefers the current public slug while preserving a legacy id fallback', () => {
+    expect(publicIpHref({ id: 'old-ip', publicSlug: 'new-ip' })).toBe('/ip/new-ip');
+    expect(publicIpHref({ id: 'legacy ip' })).toBe('/ip/legacy%20ip');
+    expect(publicIpHref({ id: 'old-ip', publicSlug: null })).toBe('/ip/old-ip');
+  });
   it('normalizes form whitespace without changing the public slug contract', () => {
     expect(normalizeIpPublicSlug('  hwasan  ')).toBe('hwasan');
     expect(validateIpPublicSlug('hwasan')).toBeNull();

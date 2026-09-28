@@ -5,6 +5,8 @@ import { unstable_cache } from 'next/cache';
 import { HOME_CURATION_IMAGE_PATTERN, isSafeInternalLink, type NoticeStrip } from './home-catalog';
 import { normalizePublicMediaPath, PUBLIC_MEDIA_BUCKET } from './media';
 import { getSupabaseConfig } from './supabase/config';
+import { publicIpHref } from './ip-identity';
+import { parsePublicIpLink, resolvePublicIpIdentity } from './ip-identity.server';
 
 export type { NoticeStrip } from './home-catalog';
 
@@ -58,9 +60,16 @@ async function loadActiveNoticeStrip(): Promise<NoticeStrip | null> {
     if (!row) return null;
 
     const title = row.title.trim();
-    const href = row.link_path.trim();
+    let href = row.link_path.trim();
     if (!title || Array.from(title).length > 120 || !isSafeInternalLink(href)) return null;
     if (!row.image_path || !HOME_CURATION_IMAGE_PATTERN.test(row.image_path)) return null;
+
+    const ipReference = parsePublicIpLink(href);
+    if (ipReference) {
+      // Reuse this cookie-free client inside the cached global shell read.
+      const identity = await resolvePublicIpIdentity(ipReference.slug, supabase);
+      if (identity) href = publicIpHref(identity.publicSlug) + ipReference.suffix;
+    }
 
     const publicUrlFor = (path: string) => supabase.storage
       .from(PUBLIC_MEDIA_BUCKET)

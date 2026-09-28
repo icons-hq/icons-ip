@@ -32,8 +32,14 @@ export function validateIpPublicSlug(value: unknown): IpPublicSlugValidationErro
   return null;
 }
 
-export function publicIpHref(publicSlug: string): string {
-  return `/ip/${encodeURIComponent(publicSlug)}`;
+export interface PublicIpReference {
+  id: string;
+  publicSlug?: string | null;
+}
+
+export function publicIpHref(ip: string | PublicIpReference): string {
+  const slug = typeof ip === 'string' ? ip : ip.publicSlug || ip.id;
+  return `/ip/${encodeURIComponent(slug)}`;
 }
 
 export function internalIpHref(internalId: string): string {

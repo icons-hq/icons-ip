@@ -10,6 +10,7 @@ import { parseGoodsVariantPricing } from '@/lib/goods-sales';
 import { parseGoodsVariantSupply } from '@/lib/goods-preorders';
 import { parseGoodsKcDisclosures } from '@/lib/goods-kc';
 import { imageBg, normalizePublicMediaPath, PUBLIC_MEDIA_BUCKET } from '@/lib/media';
+import { resolvePublicIpLinks } from '@/lib/ip-identity.server';
 import { isRarityKey } from '@/lib/rarity';
 import { getSupabaseConfig } from '@/lib/supabase/config';
 import { postgrestInList } from '@/lib/supabase/postgrest';
@@ -101,6 +102,7 @@ interface VerticalRow {
 
 interface IpRow {
   id: string;
+  public_slug?: string | null;
   title: string;
   sub: string | null;
   vertical_key: string;
@@ -497,6 +499,7 @@ function applyHomeFeaturedArtwork(
 function toIp(row: IpRow, verticalsByKey: Map<string, Vertical>, imageUrlForPath: (path: string) => string): Ip {
   return {
     id: row.id,
+    ...(row.public_slug ? { publicSlug: row.public_slug } : {}),
     title: row.title,
     sub: row.sub ?? '',
     v: verticalsByKey.get(row.vertical_key) ?? fallbackVertical(row.vertical_key),
@@ -703,7 +706,7 @@ export async function getCatalogSnapshot(options: CatalogSnapshotOptions = {}): 
     supabase.from('verticals').select('key,label,color').order('key'),
     supabase
       .from('ips')
-      .select('id,title,sub,vertical_key,tagline,synopsis,glyph,bg,image_path,featured,sort_order,fans_count,goods_count,cards_count')
+      .select('id,public_slug,title,sub,vertical_key,tagline,synopsis,glyph,bg,image_path,featured,sort_order,fans_count,goods_count,cards_count')
       .is('archived_at', null)
       /* 초안(published_at null)은 공개 표면 어디에도 나오지 않는다 — 보관 필터와 같은 층 (20260907130000). */
       .not('published_at', 'is', null)
@@ -832,7 +835,7 @@ export async function getBinderCatalogOverlay(): Promise<BinderCatalogOverlay | 
   const [ipsResult, verticalsResult] = await Promise.all([
     supabase
       .from('ips')
-      .select('id,title,sub,vertical_key,tagline,synopsis,glyph,bg,image_path,featured,sort_order,fans_count,goods_count,cards_count')
+      .select('id,public_slug,title,sub,vertical_key,tagline,synopsis,glyph,bg,image_path,featured,sort_order,fans_count,goods_count,cards_count')
       .in('id', parentIpIds)
       .order('id'),
     supabase
@@ -1065,7 +1068,7 @@ export async function getHomeSnapshot(options: CatalogIpDetailOptions = {}): Pro
       ? getActiveHomeCurationSnapshot()
       : Promise.resolve(emptyLoadedHomeCuration()),
   ]);
-  const normalizedCuration: HomeCurationSnapshot = catalog.source === 'mock'
+  const rawCuration: HomeCurationSnapshot = catalog.source === 'mock'
     ? loadedCuration.curation
     : {
         ...loadedCuration.curation,
@@ -1087,6 +1090,19 @@ export async function getHomeSnapshot(options: CatalogIpDetailOptions = {}): Pro
             goods: resolveHomeGoodsCards(catalog, goodIds, HOME_BEST_TAB_GOODS_LIMIT),
           })),
       };
+  const linkEntries = [rawCuration.hero, rawCuration.announcement, ...rawCuration.heroSlides,
+    ...rawCuration.editorPicks, ...rawCuration.goodsBands, ...rawCuration.benefitTiles];
+  const canonicalLinks = await resolvePublicIpLinks(linkEntries.flatMap(entry => entry ? [entry.href] : []), catalog.ips);
+  const canonicalLink = <T extends { href: string }>(entry: T): T => ({ ...entry, href: canonicalLinks.get(entry.href) ?? entry.href });
+  const normalizedCuration: HomeCurationSnapshot = {
+    ...rawCuration,
+    hero: rawCuration.hero ? canonicalLink(rawCuration.hero) : null,
+    announcement: rawCuration.announcement ? canonicalLink(rawCuration.announcement) : null,
+    heroSlides: rawCuration.heroSlides.map(canonicalLink),
+    editorPicks: rawCuration.editorPicks.map(canonicalLink),
+    goodsBands: rawCuration.goodsBands.map(canonicalLink),
+    benefitTiles: rawCuration.benefitTiles.map(canonicalLink),
+  };
   const homeCatalog = catalog.source === 'mock'
     ? catalog
     : applyHomeFeaturedArtwork(catalog, loadedCuration.featuredIps, normalizedCuration.featuredIpIds);

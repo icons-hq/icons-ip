@@ -88,7 +88,7 @@ type QueryResult<T> = {
 };
 
 type SupabaseRows = Record<
-  'verticals' | 'ips' | 'goods' | 'cards' | 'events' | 'posts' | 'public_profiles' | 'likes' | 'comments' | 'blocks' | 'user_cards' | 'home_curations',
+  'verticals' | 'ips' | 'ip_public_slug_aliases' | 'goods' | 'cards' | 'events' | 'posts' | 'public_profiles' | 'likes' | 'comments' | 'blocks' | 'user_cards' | 'home_curations',
   Record<string, unknown>[]
 >;
 
@@ -213,6 +213,7 @@ function createQuery(
 function defaultSupabaseRows(): SupabaseRows {
   return {
     verticals: [vertical],
+    ip_public_slug_aliases: [],
     ips: [{
       id: 'hwasan',
       title: '화산강림',
@@ -325,6 +326,34 @@ describe('buildCatalogIpDetail', () => {
 });
 
 describe('getCatalogSnapshot', () => {
+  it('carries the canonical slug through catalog, goods detail and home reads without exposing hidden IPs', async () => {
+    mocks.isConfigured = true;
+    const records: QueryRecord[] = [];
+    const base = defaultSupabaseRows().ips[0];
+    mocks.client = createSupabaseClient(records, {
+      ips: [
+        { ...base, public_slug: 'mountain-fire' },
+        { ...base, id: 'draft-ip', public_slug: 'hidden-draft', published_at: null },
+        { ...base, id: 'archived-ip', public_slug: 'hidden-archive', archived_at: '2026-09-01T00:00:00Z' },
+      ],
+      goods: [{ id: 'g-slug', ip_id: 'hwasan', name: '검증 굿즈', type: '문구', price: 1000, stock: 'ok', stock_qty: 1, sale_restriction: 'none', 'ips.published_at': '2026-09-01' }],
+      ip_public_slug_aliases: [{ slug: 'old-display', ip_id: 'hwasan' }],
+      home_curations: ['/ip/old-display?tab=goods#detail', '/ip/hwasan', '/ip?ip=hwasan&tab=cards', '/ip/aouad'].map((href, index) => ({
+        id: `curation-${index}`, kind: 'benefit', ip_id: null, title: 'IP 바로가기', image_path: null,
+        link_path: href, enabled: true, active_from: '2020-01-01', active_to: null,
+      })),
+    });
+    const snapshot = await getCatalogSnapshot();
+    expect(snapshot.ips).toHaveLength(1);
+    expect(snapshot.ips[0]).toMatchObject({ id: 'hwasan', publicSlug: 'mountain-fire' });
+    expect((await getCatalogGoodDetail('g-slug'))?.ip?.publicSlug).toBe('mountain-fire');
+    const home = await getHomeSnapshot();
+    expect(home.catalog.ips[0]?.publicSlug).toBe('mountain-fire');
+    expect(home.curation.benefitTiles.map(tile => tile.href)).toEqual([
+      '/ip/mountain-fire?tab=goods#detail', '/ip/mountain-fire', '/ip/mountain-fire?tab=cards', '/ip/aouad',
+    ]);
+    expect(records.filter(record => record.table === 'ips').every(record => record.select?.includes('public_slug'))).toBe(true);
+  });
   it('publishes the Hong Sil Quest IP and its launch goods in the mock catalog', async () => {
     mocks.isConfigured = false;
     mocks.client = null;
