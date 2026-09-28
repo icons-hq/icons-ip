@@ -584,6 +584,15 @@ describe('admin catalog actions', () => {
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/shop/best');
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/search');
   });
+  it.each(['category_not_leaf', 'category_archived', 'category_not_found', 'invalid_additional_categories'])('분류 경합 %s를 안내하고 추가 분류 입력을 보존한다', async (message) => {
+    const form = goodForm();
+    const ids = '["00000000-0000-4000-8000-000000051121"]';
+    form.set('additionalCategoryIds', ids);
+    mocks.rpc.mockResolvedValue({ data: null, error: { message } });
+    expect(await upsertAdminGoodAction({}, form)).toMatchObject({
+      errors: { form: expect.stringContaining('카테고리') }, values: { additionalCategoryIds: ids },
+    });
+  });
 
   /* 정가가 판매가 이하면 0%·음수 할인율이 나온다. RPC 도 막지만, 운영자에게는
      저장 실패가 아니라 그 칸의 에러로 보여야 고칠 수 있다. */

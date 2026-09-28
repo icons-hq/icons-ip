@@ -21,4 +21,12 @@ describe('CategoryScreen', () => {
     expect(html).toContain('기존 8종 이관 메모');
     expect(html).toContain('키링');
   });
+
+  it('links every category to its goods including descendants while public categories are disabled', () => {
+    const html = renderToStaticMarkup(<CategoryScreen data={{ categories, mappings: [], migrations: [], activation: { customerEnabled: false, erpEnabled: false, customerEvidence: null, erpEvidence: null, updatedAt: null } }} />);
+    expect(html).toContain('href="/admin/catalog/goods?status=active&amp;stock=all&amp;page=1&amp;categoryId=00000000-0000-4000-8000-000000047401"');
+    expect(html).toContain('href="/admin/catalog/goods?status=active&amp;stock=all&amp;page=1&amp;categoryId=00000000-0000-4000-8000-000000047402"');
+    expect(html).toContain('생활 상품 목록');
+    expect(html).toContain('문구 상품 목록');
+  });
 });

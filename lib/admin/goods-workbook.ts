@@ -65,6 +65,7 @@ export const GOODS_WORKBOOK_HEADERS = {
   detailImageFile: '상세 이미지 파일명',
   nameEn: '영문 상품명',
   categoryCode: '고객 카테고리 코드',
+  additionalCategoryCodes: '추가 카테고리 코드',
   claimReturnAllowed: '반품 기본조건 적용',
   claimExchangeAllowed: '교환 기본조건 적용',
   claimRestrictionReason: '교환 반품 제한 사유',
@@ -201,6 +202,11 @@ export function exportGoodsWorkbookRows(
   const { good } = record;
   const categoryCode = good.category_id ? context.categories?.find((category) => category.id === good.category_id)?.code : '';
   if (good.category_id && !categoryCode) throw new Error('상품의 카테고리 코드를 확인하지 못했습니다. 다시 내보내주세요.');
+  const additionalCodes = (Array.isArray(good.additional_category_ids) ? good.additional_category_ids : []).map(id => {
+    const code = context.categories?.find(category => category.id === id)?.code;
+    if (!code) throw new Error('상품의 추가 카테고리 코드를 확인하지 못했습니다. 다시 내보내주세요.');
+    return code;
+  });
   const shippingNotice = good.shipping_notice_snapshot && typeof good.shipping_notice_snapshot === 'object' ? good.shipping_notice_snapshot as Record<string, unknown> : {};
   const base: GoodsWorkbookRow = {
     ...emptyGoodsWorkbookRow(),
@@ -208,6 +214,7 @@ export function exportGoodsWorkbookRows(
     name: str(good.name),
     nameEn: str(good.name_en),
     categoryCode: categoryCode ?? '',
+    additionalCategoryCodes: additionalCodes.join('\n'),
     claimReturnAllowed: good.claim_return_allowed == null ? '' : good.claim_return_allowed ? '예' : '아니오',
     claimExchangeAllowed: good.claim_exchange_allowed == null ? '' : good.claim_exchange_allowed ? '예' : '아니오',
     claimRestrictionReason: str(good.claim_restriction_reason),
@@ -463,6 +470,16 @@ export function planGoodsWorkbookImport(
     if (first.categoryCode && !category) errors.push('고객 카테고리 코드를 찾을 수 없습니다.');
     if (category?.archived_at && category.id !== record?.good.category_id) errors.push('보관한 카테고리에 새 상품을 연결할 수 없습니다.');
     form.set('categoryId', category?.id ?? '');
+    const additionalIds: string[] = [];
+    for (const code of new Set(first.additionalCategoryCodes.split(/[\n,]+/).map(code => code.trim()).filter(Boolean))) {
+      const additional = context.categories?.find(category => category.code === code);
+      if (!additional) { errors.push(`추가 카테고리 코드를 찾을 수 없습니다: ${code}`); continue; }
+      if (additional.archived_at && !(Array.isArray(record?.good.additional_category_ids) && record.good.additional_category_ids.includes(additional.id))) {
+        errors.push(`보관한 추가 카테고리에 새 상품을 연결할 수 없습니다: ${code}`);
+      }
+      additionalIds.push(additional.id);
+    }
+    form.set('additionalCategoryIds', JSON.stringify(additionalIds));
     for (const key of ['claimReturnAllowed', 'claimExchangeAllowed'] as const) {
       if (!['', '예', '아니오'].includes(first[key])) errors.push(`${GOODS_WORKBOOK_HEADERS[key]}은 예/아니오 또는 미검토 공란으로 입력해주세요.`);
       form.set(key, first[key] === '' ? '' : String(first[key] === '예'));

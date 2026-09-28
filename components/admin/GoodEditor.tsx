@@ -252,7 +252,7 @@ function GoodEditorForm({ action, catalogIps, ipOptions, pending, selected, stat
           <SelectField defaultValue={initial.ipId} error={errors.ipId} label={locked ? "연결 IP · 공개 중 잠금" : "연결 IP (초안 필수)"} disabled={locked} name="ipId"><option value="">선택</option>{ipOptions.map((ip) => <option disabled={Boolean(ip.archivedAt && ip.id !== selected?.ipId)} key={ip.id} value={ip.id}>{ip.archivedAt ? `[보관] ${ip.title}` : ip.title}</option>)}</SelectField>
           {locked && <input type="hidden" name="ipId" value={values.ipId} />}
           <Field readOnly={locked} defaultValue={initial.name} error={errors.name} label={`${ADMIN_VOCABULARY.goods} 이름${locked ? ' · 공개 중 잠금' : ' (초안 필수)'}`} name="name" />
-          <CategoryAssignmentField categories={categories} value={initial.categoryId} error={errors.categoryId} />
+          <CategoryAssignmentField categories={categories} value={initial.categoryId} error={errors.categoryId} additionalValue={initial.additionalCategoryIds} additionalError={errors.additionalCategoryIds} />
           <SelectField defaultValue={initial.type} error={errors.type} label={locked ? "유형 · 공개 중 잠금" : "유형 (공개 필수)"} disabled={locked} name="type"><option value="">선택</option>{GOOD_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}</SelectField>
           {locked && <input type="hidden" name="type" value={values.type} />}
           <SelectField defaultValue={initial.badge} error={errors.badge} label="배지" name="badge"><option value="">없음</option>{GOOD_BADGES.map((badge) => <option key={badge} value={badge}>{badge}</option>)}</SelectField>

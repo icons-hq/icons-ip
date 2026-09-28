@@ -203,6 +203,8 @@ export async function loadGoodsExportWorkbook(
   return { rows, kcRows: exportGoodsKcWorkbookRows(context.existing.map(record => ({ goodCode: String(record.good.code), review: record.kcReview ?? null }))) };
 }
 export function goodsImportErrorMessage(error?: string) {
+  if (error?.includes('category') || error?.includes('additional_categories'))
+    return '대표·추가 카테고리의 코드와 활성 말단 상태를 확인하고 다시 검증해주세요.';
   if (error?.includes('stock_changed'))
     return '미리보기 이후 재고가 바뀌었습니다. 최신 파일로 다시 검증해주세요.';
   if (error?.includes('changed') || error?.includes('conflict'))

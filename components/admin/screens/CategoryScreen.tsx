@@ -114,7 +114,7 @@ function AssignmentForm({ categories }: { categories: AdminCategoryNode[] }) {
     <CategoryAssignmentField categories={categories} error={state.errors?.categoryId} />
     {state.errors?.form ? <p role="alert" style={{ color: 'var(--pink)', margin: 0 }}>{state.errors.form}</p> : null}
     {state.message ? <p role="status" style={{ color: 'var(--mint)', margin: 0 }}>{state.message}</p> : null}
-    <button className="wc-admin-kit__button" disabled={pending} type="submit">{pending ? '저장 중' : '상품 편집에서 적용'}</button>
+    <button className="wc-admin-kit__button" disabled={pending} type="submit">{pending ? '저장 중' : '대표 분류 저장'}</button>
   </form>;
 }
 
@@ -122,7 +122,7 @@ export function CategoryScreen({ data, legacyTypes = [] }: { data: { categories:
   const activeLeaves = data.categories.filter((category) => !category.archivedAt && category.childCount === 0);
   const mappings = new Map(data.mappings.map((mapping) => [mapping.categoryId, mapping]));
   return <section className="wc-admin-kit wc-admin-kit__screen">
-    <AdminPageHeader title="고객 카테고리" description="최대 4단계 단일 부모 트리와 기본 말단 분류를 관리합니다. 기존 유형과 미분류 상품은 계속 유지됩니다." actions={<Link className="wc-admin-kit__button" href={categoryExportHref()}>분류·ERP CSV</Link>} />
+    <AdminPageHeader title="고객 카테고리" description="최대 4단계 트리와 상품의 대표·추가 말단 분류를 관리합니다. 기존 유형과 미분류 상품은 계속 유지됩니다." actions={<Link className="wc-admin-kit__button" href={categoryExportHref()}>분류·ERP CSV</Link>} />
     <AdminSectionCard title="활성화 상태"><AdminStatusBadge tone={data.activation.customerEnabled ? 'success' : 'neutral'}>{categoryActivationLabel(data.activation)}</AdminStatusBadge><ActivationForm activation={data.activation} /></AdminSectionCard>
     <div className="admin-master-detail">
       <AdminSectionCard title={`카테고리 트리 ${data.categories.length}개`}><CategoryTree categories={data.categories} /></AdminSectionCard>
@@ -130,6 +130,6 @@ export function CategoryScreen({ data, legacyTypes = [] }: { data: { categories:
     </div>
     <AdminSectionCard title={`ERP 분류 매핑 ${activeLeaves.length}개 말단`}><p className="muted">실제 ERP 코드·품명·출처·검증 시각이 없는 매핑은 활성화하지 않습니다. 미매핑은 export에서 미설정으로 표시합니다.</p>{activeLeaves.map((category) => <MappingForm category={category} key={category.id} mapping={mappings.get(category.id)} />)}</AdminSectionCard>
     <AdminSectionCard title="기존 8종 이관 메모"><p className="muted">유사 이름으로 자동 이관하지 않습니다. 확인된 항목만 선택적으로 기록하며, 전체 category 기능의 활성화 조건은 아닙니다.</p><MigrationForm categories={data.categories} types={legacyTypes} />{data.migrations.length ? <ul>{data.migrations.map((migration) => <li key={migration.type}>{migration.type} · {migration.status} · {migration.categoryId ?? '미설정'}</li>)}</ul> : null}</AdminSectionCard>
-    <AdminSectionCard title="굿즈 기본 카테고리 적용"><p className="muted">상품 편집 폼과 일괄 저장은 동일한 말단·미분류 계약을 사용합니다. 이 독립 action은 공유 상품 폼 통합 전에도 운영자가 한 건을 적용할 수 있습니다.</p><AssignmentForm categories={data.categories} /></AdminSectionCard>
+    <AdminSectionCard title="굿즈 기본 카테고리 적용"><p className="muted">대표 분류 하나를 바로 변경합니다. 추가 분류는 상품 편집에서 확인하고 저장하며 ERP는 대표 분류를 사용합니다.</p><AssignmentForm categories={data.categories} /></AdminSectionCard>
   </section>;
 }

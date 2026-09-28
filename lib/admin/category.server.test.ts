@@ -26,6 +26,7 @@ beforeEach(() => {
       if (table === 'catalog_category_erp_mappings') return query([{ category_id: 'c2', erp_code: 'ERP-01', erp_name: '문구', source: 'erp-sheet', verified_at: '2026-09-10T00:00:00Z', verified_by: 'staff' }]);
       if (table === 'goods_type_category_migrations') return query([]);
       if (table === 'category_activation_control') return query({ id: 'catalog', customer_enabled: true, erp_enabled: false, evidence: { customer: { source: 'sheet', reference: 'CAT-01', verifiedAt: '2026-09-10T00:00:00Z' } }, updated_at: '2026-09-10T00:00:00Z' });
+      if (table === 'goods_additional_categories') return query([{ good_id: 'g2', category_id: 'c2' }]);
       return query([{ id: 'g1', category_id: 'c2' }]);
     },
   });
@@ -35,13 +36,13 @@ describe('admin category loader', () => {
   it('joins child and assigned counts while keeping ERP activation separate', async () => {
     const data = await loadAdminCategoryWorkspace();
     expect(data.categories[0]).toMatchObject({ childCount: 1, assignedGoodCount: 0 });
-    expect(data.categories[1]).toMatchObject({ childCount: 0, assignedGoodCount: 1 });
+    expect(data.categories[1]).toMatchObject({ childCount: 0, assignedGoodCount: 2 });
     expect(data.activation).toMatchObject({ customerEnabled: true, erpEnabled: false });
   });
 
   it('exports missing ERP values as explicit unconfigured labels', async () => {
     const rows = await loadAdminCategoryExportRows();
     expect(rows[0]).toMatchObject({ path: '생활', erpCode: '미설정' });
-    expect(rows[1]).toMatchObject({ path: '생활 > 문구', erpCode: 'ERP-01', assignedGoods: 1 });
+    expect(rows[1]).toMatchObject({ path: '생활 > 문구', erpCode: 'ERP-01', assignedGoods: 2 });
   });
 });

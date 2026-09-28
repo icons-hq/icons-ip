@@ -22,7 +22,7 @@ export function CategoryTree({ categories }: { categories: AdminCategoryNode[] }
           <strong>{category.name}</strong>
           <code>{category.code}</code>
           <Link href={goodsListHref(normalizeGoodsListFilters({ categoryId: category.id }))}>{category.name} 상품 목록</Link>
-          <span className="muted">{category.depth}/4 · 굿즈 {category.assignedGoodCount}개</span>
+          <span className="muted">{category.depth}/4 · 직접 연결 상품 {category.assignedGoodCount}개</span>
           {category.archivedAt ? <span className="muted">보관</span> : null}
         </div>
         {branch(category.id, depth + 1)}
