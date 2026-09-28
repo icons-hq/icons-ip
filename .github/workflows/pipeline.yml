@@ -240,6 +240,7 @@ jobs:
           run_sql_test supabase/tests/goods_variant_external_identity.sql
           run_sql_test supabase/tests/goods_purchase_policies.sql
           run_sql_test supabase/tests/goods_sales_publication.sql
+          run_sql_test supabase/tests/sales_review_cleanup.sql
           run_sql_test supabase/tests/sales_category_hierarchy.sql
           run_sql_test supabase/tests/shipping_notice_templates.sql
           run_sql_test supabase/tests/goods_variant_purchase_cost.sql
