@@ -3,6 +3,7 @@ import 'server-only';
 import { createClient } from '@/lib/supabase/server';
 import {
   GOODS_NOTICE_PRESET_PAGE_SIZE,
+  normalizeGoodsKcPresetTemplate,
   type GoodsNoticePresetFilters,
   type GoodsNoticePresetPageData,
 } from '@/lib/admin/goods-notice-presets';
@@ -10,7 +11,7 @@ import {
 export async function loadGoodsNoticePresets(filters: GoodsNoticePresetFilters): Promise<GoodsNoticePresetPageData> {
   const supabase = await createClient();
   let query = supabase.from('goods_notice_presets')
-    .select('id,name,maker,origin,material,size,made_on,as_manager,as_contact,updated_at', { count: 'exact' });
+    .select('id,name,maker,origin,material,size,made_on,as_manager,as_contact,kc_template,updated_at', { count: 'exact' });
   if (filters.query) query = query.ilike('name', `%${filters.query.replace(/[\\%_]/g, '\\$&')}%`);
   const { data, count, error } = await query.order('name').order('id')
     .range((filters.page - 1) * GOODS_NOTICE_PRESET_PAGE_SIZE, filters.page * GOODS_NOTICE_PRESET_PAGE_SIZE - 1);
@@ -22,6 +23,7 @@ export async function loadGoodsNoticePresets(filters: GoodsNoticePresetFilters):
     filters, total,
     presets: (data ?? []).map((row) => ({
       id: row.id, name: row.name, updatedAt: row.updated_at,
+      kcTemplate: normalizeGoodsKcPresetTemplate(row.kc_template),
       notice: { maker: row.maker, origin: row.origin, material: row.material, size: row.size,
         madeOn: row.made_on, asManager: row.as_manager, asContact: row.as_contact },
     })),

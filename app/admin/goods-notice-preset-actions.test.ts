@@ -26,6 +26,35 @@ beforeEach(() => {
 });
 
 describe('상품정보제공고시 프리셋 저장 액션', () => {
+  it('KC 틀 누락과 명시적 삭제를 구분해 기존 7칸 클라이언트를 유지한다', async () => {
+    await saveGoodsNoticePresetAction({}, form());
+    expect(mocks.rpc.mock.calls[0][1].target_notice).not.toHaveProperty('kcTemplate');
+    await saveGoodsNoticePresetAction({}, form({ kcTemplate: 'null' }));
+    expect(mocks.rpc.mock.calls[1][1].target_notice).toHaveProperty('kcTemplate', null);
+  });
+  it('인증번호나 검토 상태가 섞인 KC 틀은 저장하지 않고 입력을 보존한다', async () => {
+    const raw = JSON.stringify({ family: 'living', scheme: 'not_applicable', publicNote: '합성', identifier: 'COPIED' });
+    const result = await saveGoodsNoticePresetAction({}, form({ kcTemplate: raw }));
+    expect(result.errors?.kcTemplate).toBeTruthy();
+    expect(result.values?.kcTemplate).toBe(raw);
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+  it('KC 포함 프리셋의 저장 충돌에도 새 안내 문구와 기존 고시값을 유지한다', async () => {
+    mocks.rpc.mockResolvedValue({ error: { message: 'goods_notice_preset_conflict' } });
+    const raw = JSON.stringify({ family: 'living', scheme: 'not_applicable', publicNote: '작성 중인 안내' });
+    const result = await saveGoodsNoticePresetAction({}, form({ kcTemplate: raw }));
+    expect(result.errors?.form).toContain('다른 운영자');
+    expect(result.values?.kcTemplate).toBe(raw);
+    expect(result.values?.noticeMaterial).toBe('아크릴');
+  });
+  it('고시정보 7칸과 선택적인 KC 유형 틀을 함께 저장한다', async () => {
+    const template={family:'living',scheme:'not_applicable',publicNote:'  합성 해당 없음 안내  '};
+    const result=await saveGoodsNoticePresetAction({},form({kcTemplate:JSON.stringify(template)}));
+    expect(result.message).toContain('저장했습니다');
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_save_goods_notice_preset',expect.objectContaining({
+      target_notice:expect.objectContaining({maker:'아이콘스',kcTemplate:{...template,publicNote:'합성 해당 없음 안내'}}),
+    }));
+  });
   it('필수 항목을 빠뜨리면 해당 필드 오류와 입력값을 되돌려준다', async () => {
     const result = await saveGoodsNoticePresetAction({}, form({ noticeOrigin: '' }));
     expect(result.errors?.noticeOrigin).toContain('원산지');

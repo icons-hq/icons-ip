@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Ip } from '@/lib/data';
 import { buildGoodPreview, goodFormValues } from './good-preview';
+import { parseGoodsKcDisclosures } from '@/lib/goods-kc';
 
 const ip: Ip = {
   id: 'hong-sil-quest',
@@ -36,6 +37,14 @@ const values = {
 };
 
 describe('어드민 굿즈 미리보기', () => {
+  it('저장된 검토 기준의 KC 표를 공개 상세와 같은 파생 함수로 전달한다', () => {
+    const disclosures=parseGoodsKcDisclosures([{family:'living',scheme:'not_applicable',productCategory:'합성 분류',modelName:'합성 모델',
+      businessRole:'manufacturer',businessName:'합성 제조자',identifier:'',publicNote:'합성 해당 없음 안내',
+      variants:[{id:'00000000-0000-4000-8000-000000050901',name:'기본 옵션'}]}])!;
+    const input={values,imageUrls:{},ip,fallbackBg:null,stockQty:0,kcDisclosures:disclosures};
+    expect(buildGoodPreview(input).kcDisclosures).toEqual(disclosures);
+    expect(buildGoodPreview({...input,kcDisclosures:[]}).kcDisclosures).toEqual([]);
+  });
   it('현재 HTML 입력을 저장 서버와 같은 문서/이미지 형식으로 미리본다', () => {
     const path = 'public-media/catalog/good/22222222-2222-4222-8222-222222222222.webp';
     const preview = buildGoodPreview({ values: { ...values, descriptionFormat: 'html', description: `<h2>상세</h2><img src="${path}" alt="앞면"><img src="https://evil.test/x.png"><script>alert(1)</script>` }, imageUrls: {}, ip, fallbackBg: null, stockQty: 0 });

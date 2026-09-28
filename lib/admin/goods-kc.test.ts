@@ -22,6 +22,12 @@ function model() {
 }
 
 describe('모델별 KC 검토', () => {
+  it('프리셋의 해당 없음 안내를 새 모델에만 채우고 근거와 옵션은 비워둔다', () => {
+    const draft=kcModelFromTemplate('living','not_applicable','합성 해당 없음 안내')!;
+    expect(draft).toEqual({...emptyGoodsKcModel(),family:'living',scheme:'not_applicable',publicNote:'합성 해당 없음 안내'});
+    expect(goodsKcReviewProblems([draft],variants).join(' ')).toContain('근거');
+    expect(publicGoodsKcDisclosures([draft],variants)).toEqual([]);
+  });
   it('미검토 입력은 저장할 수 있지만 번호와 근거가 없으면 완료할 수 없다', () => {
     expect(normalizeGoodsKcModels([emptyGoodsKcModel()])).toEqual([emptyGoodsKcModel()]);
     const problems = goodsKcReviewProblems([emptyGoodsKcModel()], variants);

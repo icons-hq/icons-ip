@@ -23,6 +23,7 @@ import { GoodVariantsPanel } from '../GoodVariantsPanel';
 import { GoodPublishControls } from '../GoodPublishControls';
 import { GoodClonePanel } from '../GoodClonePanel';
 import { GoodsKcPanel } from '../GoodsKcPanel';
+import { useGoodsKcTemplate } from '../useGoodsKcTemplate';
 import { GoodsPurchaseCostsPanel } from '../GoodsPurchaseCostsPanel';
 import { GoodsAdditionalPanel } from '../GoodsAdditionalPanel';
 import { GoodsPricePeriodsPanel } from '../GoodsPricePeriodsPanel';
@@ -64,6 +65,7 @@ export function GoodSection({
     selected?.archivedAt ? 'archived' : 'active',
   );
   const [query,setQuery]=useState(initialQuery);
+  const kcTemplate = useGoodsKcTemplate(selected?.id ?? null);
   const normalizedQuery=query.trim().toLocaleLowerCase();
   const visibleRecords = filterAdminCatalogRecords(records, archiveFilter).filter((good)=>!normalizedQuery
     || `${good.name} ${good.code} ${(good.searchKeywords ?? []).join(' ')}`.toLocaleLowerCase().includes(normalizedQuery)
@@ -113,6 +115,7 @@ export function GoodSection({
             <small>확인 시각 {readiness.checkedAt ? new Date(readiness.checkedAt).toLocaleString('ko-KR') : '확인 필요'} · 미저장 입력은 판정에 포함되지 않습니다.</small></> : <p>판매 준비 정보를 확인하지 못했습니다. 다시 불러와 확인해주세요.</p>}
         </section>}
         <GoodEditor
+          onApplyKcTemplate={kcTemplate.apply}
           regionSummaries={regionSummaries} origins={origins} noticeDefaults={noticeDefaults} categories={categories} shippingNoticeOptions={shippingNoticeOptions} accountId={accountId}
           variants={variants.filter((variant) => variant.goodId === selected?.id)}
           action={action}
@@ -128,7 +131,7 @@ export function GoodSection({
         )}
         {selected && <GoodOperationSection id="publish" title="게시 상태 · 공개·초안 전환" description="현재 서버 저장값으로 게시 상태만 전환합니다."><GoodPublishControls id={selected.id} publishedAt={selected.publishedAt} archivedAt={selected.archivedAt} key={`publish-${selected.id}-${selected.publishedAt}-${selected.archivedAt}`}/></GoodOperationSection>}
         {selected && <GoodOperationSection id="variants" title="옵션 사용·보관" description="옵션 사용 상태만 별도로 반영합니다."><GoodVariantsPanel goodId={selected.id} variants={variants} basePrice={selected.price} /></GoodOperationSection>}
-        {selected && !selected.archivedAt && <GoodOperationSection id="kc" title="KC 자료·검토" description="모델과 근거·적용 옵션을 검토하고 KC만 저장합니다."><GoodsKcPanel goodId={selected.id} key={`kc-${selected.id}-${selected.publishedAt}-${selected.archivedAt}`} /></GoodOperationSection>}
+        {selected && !selected.archivedAt && <GoodOperationSection id="kc" title="KC 자료·검토" description="모델과 근거·적용 옵션을 검토하고 KC만 저장합니다."><GoodsKcPanel goodId={selected.id} templateRequest={kcTemplate.request} onTemplateApplied={kcTemplate.consume} key={`kc-${selected.id}-${selected.publishedAt}-${selected.archivedAt}`} /></GoodOperationSection>}
         {selected && !selected.archivedAt && canManageCosts && <GoodOperationSection id="costs" title="매입단가" description="권한이 있는 관리자만 매입단가를 저장합니다."><GoodsPurchaseCostsPanel goodId={selected.id} variants={variants} key={`costs-${selected.id}`} /></GoodOperationSection>}
         {selected && !selected.archivedAt && <GoodOperationSection id="additional" title="추가 구성 상품" description="추가 구성 연결만 저장합니다."><GoodsAdditionalPanel goodId={selected.id} key={`additional-${selected.id}`} /></GoodOperationSection>}
         {selected && !selected.archivedAt && <GoodOperationSection id="prices" title="기간 할인" description="기간과 옵션별 할인 설정만 저장합니다."><GoodsPricePeriodsPanel goodId={selected.id} variants={variants} key={`prices-${selected.id}`} /></GoodOperationSection>}

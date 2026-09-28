@@ -1,10 +1,11 @@
 'use client';
 
-import { useActionState, useId, useState } from 'react';
+import { startTransition, useActionState, useId, useState } from 'react';
 import {
   deleteGoodsNoticePresetAction, saveGoodsNoticePresetAction, type GoodsNoticePresetActionState,
 } from '@/app/admin/goods-notice-preset-actions';
 import { AdminField, AdminFormGrid } from '@/components/admin/console/AdminKit';
+import { GoodsKcPresetFields } from '@/components/admin/GoodsKcPresetFields';
 import { GOODS_NOTICE_FIELDS } from '@/lib/goods-notice';
 import {
   GOODS_NOTICE_PRESET_FIELD_MAX, GOODS_NOTICE_PRESET_NAME_MAX, type GoodsNoticePreset,
@@ -30,7 +31,13 @@ export function GoodsNoticePresetForm({ preset }: { preset?: GoodsNoticePreset }
     'aria-describedby': state.errors?.[name] ? `${prefix}-${name}-error` : undefined,
   });
 
-  return <form action={action} className="admin-notice-presets__form">
+  // Keep the form's controlled KC selects until the keyed fieldset restores the
+  // action result. A handled failure must not invoke the native action reset.
+  return <form action={action} className="admin-notice-presets__form" onSubmit={event => {
+    event.preventDefault();
+    const data = new FormData(event.currentTarget);
+    startTransition(() => action(data));
+  }}>
     <fieldset key={state.attempt ?? 0} disabled={pending}>
       <input name="id" type="hidden" value={preset?.id ?? ''} />
       <input name="updatedAt" type="hidden" value={value('updatedAt', editingPreset?.updatedAt ?? '')} />
@@ -45,6 +52,7 @@ export function GoodsNoticePresetForm({ preset }: { preset?: GoodsNoticePreset }
             defaultValue={value(field.formName, editingPreset?.notice[field.key] ?? '')} placeholder={field.placeholder} />
         </AdminField>)}
       </AdminFormGrid>
+      <GoodsKcPresetFields template={editingPreset?.kcTemplate} raw={state.values?.kcTemplate} error={state.errors?.kcTemplate}/>
       <button className="wc-admin-kit__button" type="submit">{pending ? '저장 중…' : preset ? '프리셋 수정 저장' : '프리셋 등록'}</button>
     </fieldset>
     {state.errors?.form ? <p className="admin-notice-presets__error" role="alert">{state.errors.form}</p> : null}

@@ -101,7 +101,7 @@ export function buildGoodEditorPreview({ values, imageUrls, selected, catalogIps
       cs: { name: notice.csName, phone: notice.csPhone, email: notice.csEmail } } : {}),
   } : null;
   const ip = catalogIps.find(ip => ip.id === values.ipId) ?? null;
-  const preview = buildGoodPreview({ fallbackBg: selected?.bg ?? null, imageUrls, ip, stockQty: selected?.stockQty ?? 0, values });
+  const preview = buildGoodPreview({ fallbackBg: selected?.bg ?? null, imageUrls, ip, stockQty: selected?.stockQty ?? 0, values, kcDisclosures:selected?.kcDisclosures });
   const compare = Number(values.compareAtPrice);
   const detail = { ...preview, good: { ...preview.good, showDiscountRate: values.showDiscountRate !== 'false',
     compareAtPrice: Number.isInteger(compare) && compare > preview.good.price ? compare : null } };

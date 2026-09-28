@@ -24,6 +24,7 @@ import { GoodsFulfillmentFields } from './GoodsFulfillmentFields';
 import { GoodsOptionEditor } from './GoodsOptionEditor';
 import { GoodsSalePolicyFields } from './GoodsSalePolicyFields';
 import { GoodNoticePicker } from './GoodNoticePicker';
+import type { GoodsKcPresetTemplate } from '@/lib/admin/goods-notice-presets';
 import { useAdminLocalAutosave } from './useAdminLocalAutosave';
 import { AdminLocalDraftNotice } from './AdminLocalDraftNotice';
 import { goodFormValues } from '@/lib/admin/good-preview';
@@ -104,6 +105,7 @@ function GoodPreviewPanel({ detail, ip, shippingPolicy }: { detail: GoodDetailCo
       <div className="col" style={{ gap: 14, marginTop: 14 }}>
         <p className="muted" style={{ fontSize: 12, lineHeight: 1.6, margin: 0 }}>
           지금 폼에 입력된 값으로 그린 화면입니다. 저장하기 전 모습이며, 미리보기는 카탈로그를 바꾸지 않습니다.
+          KC 표는 마지막으로 저장해 검토를 완료한 자료만 표시합니다. 모델 관련 기본 정보·옵션을 저장해 검토가 무효화되면 KC를 다시 검토해야 합니다.
         </p>
         <div className="col" style={{ gap: 8 }}>
           <span className="mono" style={{ color: 'var(--dim)', fontSize: 11 }}>굿즈샵 목록 카드</span>
@@ -133,13 +135,14 @@ function GoodPreviewPanel({ detail, ip, shippingPolicy }: { detail: GoodDetailCo
   );
 }
 
-function GoodEditorForm({ action, catalogIps, ipOptions, pending, selected, state, initialIpId, variants, origins, noticeDefaults, categories, shippingNoticeOptions, regionSummaries, formRef, onSubmitCapture }: {
+function GoodEditorForm({ action, catalogIps, ipOptions, pending, selected, state, initialIpId, variants, origins, noticeDefaults, categories, shippingNoticeOptions, regionSummaries, formRef, onSubmitCapture, onApplyKcTemplate }: {
   action: (payload: FormData) => void; catalogIps: Ip[];
   ipOptions: { id: string; title: string; archivedAt: string | null }[];
   pending: boolean; selected: AdminGoodRecord | null; state: AdminCatalogActionState;
   initialIpId?: string; variants: AdminGoodsVariant[]; origins: FulfillmentOrigin[]; noticeDefaults?: GoodNoticeDefaults;
   categories: AdminCategoryNode[]; shippingNoticeOptions: GoodsShippingNoticeOption[]; regionSummaries: GoodShippingRegionSummary[];
   formRef: ReturnType<typeof useAdminLocalAutosave>['formRef']; onSubmitCapture: (event: FormEvent<HTMLFormElement>) => void;
+  onApplyKcTemplate?:(template:GoodsKcPresetTemplate)=>void;
 }) {
   const [draft] = useState(() => createGoodEditorDraft(selected, state, variants, initialIpId, noticeDefaults));
   const { initial, baseline } = draft;
@@ -222,13 +225,14 @@ function GoodEditorForm({ action, catalogIps, ipOptions, pending, selected, stat
     input.focus();
   }
   function setImageUrl(name: string, url: string | null) { setImageUrls((current) => ({ ...current, [name]: url })); }
-  function applyNotice(notice: GoodsNoticeInfo) {
+  function applyNotice(notice: GoodsNoticeInfo,kcTemplate?:GoodsKcPresetTemplate|null) {
     const form = editorRef.current;
     if (!form) return;
     for (const field of GOODS_NOTICE_FIELDS) {
       const input = form.elements.namedItem(field.formName);
       if (input instanceof HTMLInputElement) { input.value = notice[field.key] ?? ''; input.dispatchEvent(new Event('input', { bubbles: true })); }
     }
+    if (kcTemplate) onApplyKcTemplate?.(kcTemplate);
   }
   const { origin: previewOrigin, ip: previewIp, detail: previewDetail, shippingPolicy } = buildGoodEditorPreview({
     values, imageUrls, selected, catalogIps, origins, shippingNoticeOptions,
@@ -319,7 +323,7 @@ function GoodEditorForm({ action, catalogIps, ipOptions, pending, selected, stat
       </AdminSectionCard>
       <AdminSectionCard title="옵션과 재고" id="good-section-variants" requirement="공개 필수 · 기본 옵션 1개부터" status="옵션 확인" errorCount={errorCount('variants')} summary="할당 재고는 ICONS 판매 수량입니다. 안전재고 기준은 경보이며 판매 수량에서 차감하지 않습니다."><GoodsOptionEditor onRowsChange={setRows} codePrefix={values.code || suggestedCode} rows={rows} baseline={baseline} basePrice={Number(values.price) || 0} error={errors.variants} axisValues={initial} /></AdminSectionCard>
       <AdminSectionCard title={ADMIN_VOCABULARY.noticeInfo} id="good-section-notice" requirement="공개 필수 · 초안에는 일부 저장 가능" status={GOODS_NOTICE_FIELDS.every((field) => values[field.formName]?.trim()) ? '입력 완료 · KC 별도 검토' : '미입력'} errorCount={errorCount('notice')} summary={`${GOODS_NOTICE_FIELDS.filter((field) => values[field.formName]?.trim()).length}/${GOODS_NOTICE_FIELDS.length}개 작성 · KC는 저장 후 검토`}>
-        <GoodNoticePicker onApply={applyNotice} /><GoodsNoticeFields notice={notice} required={Boolean(selected?.publishedAt)} locked={locked} state={{ ...state, errors }} />
+        <GoodNoticePicker onApply={applyNotice} readOnly={locked||Boolean(selected?.archivedAt)} /><GoodsNoticeFields notice={notice} required={Boolean(selected?.publishedAt)} locked={locked} state={{ ...state, errors }} />
         <p>{selected ? <a href="#good-operation-kc" onClick={(event) => { event.preventDefault(); focusGoodWorkspaceTarget('good-operation-kc'); }}>KC 검토 영역 열기</a> : '초안 저장 후 실제 상품에 KC 자료를 연결하고 검토할 수 있습니다.'}</p>
       </AdminSectionCard>
       <AdminSectionCard title="배송 정보" id="good-section-shipping" requirement="출고지 · 공개 필수" status={values.originId ? '출고지 선택됨' : '미입력'} errorCount={errorCount('shipping')} summary={`${previewOrigin?.name || '출고지 확인 필요'} · ${values.shippingFeeType === 'policy' ? '출고지 정책' : values.shippingFeeType === 'free' ? '무료배송' : '개별 배송비'}`}><GoodsFulfillmentFields regionSummaries={regionSummaries} origins={origins} value={{ originId: initial.originId || null, shippingFeeType: initial.shippingFeeType as 'policy' | 'free' | 'individual', individualFee: Number(initial.individualFee) }} errors={errors} /><GoodsShippingNoticeField options={shippingNoticeOptions} value={initial.shippingNoticeTemplate} error={errors.shippingNoticeTemplate} /></AdminSectionCard>

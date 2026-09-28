@@ -9,6 +9,7 @@ describe('상품정보제공고시 프리셋 관리 화면', () => {
     const html = renderToStaticMarkup(<GoodsNoticePresetsScreen data={{
       total: 1, filters: { query: '', page: 1 }, presets: [{
         id: 'preset-1', name: '아크릴 기본', updatedAt: '2026-09-08T01:00:00Z',
+        kcTemplate:{family:'living',scheme:'not_applicable',publicNote:'합성 안내'},
         notice: { maker: '아이콘스', origin: '대한민국', material: '아크릴', size: '80mm', madeOn: '2026-09', asManager: '아이콘스 고객센터', asContact: '02-000-0000' },
       }],
     }} />);
@@ -16,6 +17,10 @@ describe('상품정보제공고시 프리셋 관리 화면', () => {
       expect(html).toContain(`name="${name}"`);
     }
     expect(html).toContain('value="아크릴 기본"');
+    expect(html).toContain('KC 모델 틀 포함');
+    expect(html).toContain('합성 안내');
+    expect(html).toContain('name="kcTemplate"');
+    expect(html).toContain('검토 완료 상태는 복사하지 않습니다');
     expect(html).toContain('value="아이콘스"');
     expect(html).toContain('value="02-000-0000"');
     expect(html).toContain('이 프리셋을 삭제하겠습니다.');

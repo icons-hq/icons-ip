@@ -37,7 +37,7 @@ export default async function AdminCatalogGoodsPage({ searchParams }: {
   return <section className="wc-admin-kit wc-admin-kit__screen">
     <Link href={listHref}>← {ADMIN_VOCABULARY.goods} 목록으로</Link>
     <AdminPageHeader title={selected?.name ?? `${ADMIN_VOCABULARY.goods} 등록`} description={selected?.id} />
-    <GoodScreen key={selected?.id ?? `create-${initialIpId ?? 'any'}`}
+    <GoodScreen
       accountId={auth.user.id} cloneOperationId={randomUUID()} canManageCosts={auth.role === 'admin'} categories={editor.categories} shippingNoticeOptions={editor.shippingNoticeOptions} origins={editor.origins} noticeDefaults={business ? { asManager: business.companyName, asContact: business.phone || business.email } : undefined}
       adjustmentId={randomUUID()} catalogIps={editor.catalogIps} ips={editor.records.ips}
       records={selected ? [selected] : []} variants={editor.variants} readiness={editor.readiness} regionSummaries={regionSummaries}

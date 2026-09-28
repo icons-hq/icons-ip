@@ -1231,3 +1231,12 @@
 @media (max-width: 600px) { .wc-admin .admin-form-grid { grid-template-columns: minmax(0, 1fr); } }
 @media (max-width: 400px) { .wc-admin .admin-content { padding: 12px; } }
 @media print { .wc-admin:is(.admin-shell, .check-in-shell) .admin-content { width: 100%; padding: 0; } }
+/* Embedded customer disclosures must leave readable values in narrow editors. */
+.wc-admin .wc-pdp.is-embedded .wc-pdp-notice__table th {
+  width: clamp(88px, 35%, 180px);
+  padding-right: 12px;
+}
+
+.wc-admin .wc-pdp.is-embedded .wc-pdp-notice__table td {
+  overflow-wrap: anywhere;
+}

@@ -8,6 +8,23 @@ const variant = { id: '00000000-0000-4000-8000-000000000001', code: 'OPTION-1', 
 const draft: AdminGoodsKc = { revision: null, status: 'unreviewed', models: [], contextFingerprint: 'a'.repeat(64),
   publishedAt: null, archivedAt: null, reviewedAt: null, reviewerName: null, variants: [variant], history: [] };
 describe('KC 모델 검토 화면', () => {
+  it('프리셋은 검토된 상품에도 새 미검토 모델만 추가하고 이전 검토 표기를 숨긴다', () => {
+    const html = renderToStaticMarkup(<GoodsKcEditor goodId="g1" configuration={{ ...draft, status: 'reviewed', reviewedAt: '2026-09-01T00:00:00Z', reviewerName: '이전 검토자' }} onSaved={() => {}}
+      templateRequest={{ id: 'preset-request', template: { family: 'living', scheme: 'not_applicable', publicNote: '합성 해당 없음 안내' } }} />);
+    expect(html).toContain('KC 미검토 초안 · 미저장');
+    expect(html).toContain('합성 해당 없음 안내');
+    expect(html).toContain('모델 1 모델명');
+    expect(html).not.toContain('모델 2 모델명');
+    expect(html).not.toContain('이전 검토자');
+    expect(html).toMatch(/<button[^>]*disabled=""[^>]*>KC 검토 완료/);
+  });
+  it('공개 상품에는 프리셋 모델을 추가하지 않는다', () => {
+    const html = renderToStaticMarkup(<GoodsKcEditor goodId="g1" configuration={{ ...draft, publishedAt: '2026-09-01T00:00:00Z' }} onSaved={() => {}}
+      templateRequest={{ id: 'preset-request', template: { family: 'living', scheme: 'not_applicable', publicNote: '복사 불가 문구' } }} />);
+    expect(html).not.toContain('모델 1 모델명');
+    expect(html).not.toContain('복사 불가 문구');
+    expect(html).toContain('비공개 상품의 미검토 모델');
+  });
   it('유형 틀만 제공하고 실제 증빙 없는 최초 검토 완료는 비활성화한다', () => {
     const html = renderToStaticMarkup(<GoodsKcEditor goodId="g1" configuration={draft} onSaved={() => {}} />);
     expect(html).toContain('유형 틀로 모델 추가');
