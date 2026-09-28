@@ -70,7 +70,7 @@ function WishlistRow({ line }: { line: WishlistLine }) {
           <Link className="wc-wishlist__name-link" href={`/shop/${good.id}`}>{good.name}</Link>
           {soldOut ? <span className="wc-sr-only"> (품절)</span> : null}
         </p>
-        <PriceBlock compareAtPrice={good.compareAtPrice} price={good.price} />
+        <PriceBlock showDiscountRate={good.showDiscountRate} compareAtPrice={good.compareAtPrice} price={good.price} />
       </div>
       <div className="wc-wishlist__actions">
         <WishlistHeart goodId={good.id} initialWished />

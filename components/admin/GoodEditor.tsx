@@ -112,7 +112,7 @@ function GoodPreviewPanel({ detail, ip, shippingPolicy }: { detail: GoodDetailCo
             <ProductCard
               badges={goodDisplayBadges(good)}
               brand={ip?.title ?? null}
-              compareAtPrice={good.compareAtPrice}
+              showDiscountRate={good.showDiscountRate} compareAtPrice={good.compareAtPrice}
               href={href}
               imageBackground={good.img}
               name={good.name}
@@ -311,8 +311,11 @@ function GoodEditorForm({ action, catalogIps, ipOptions, pending, selected, stat
         <AdminFormGrid>
           <Field defaultValue={initial.price} error={errors.price} label="기준 판매가" name="price" min={0} type="number" />
           <Field defaultValue={initial.compareAtPrice} error={errors.compareAtPrice} label="소비자가 (비교용, 선택)" name="compareAtPrice" min={0} type="number" />
+          <SelectField defaultValue={initial.showDiscountRate} error={errors.showDiscountRate} label="할인율 표시" name="showDiscountRate">
+            <option value="true">표시</option><option value="false">숨김 · 판매가만 표시</option>
+          </SelectField>
         </AdminFormGrid>
-        <p className="muted">소비자가는 할인 표시를 위한 비교 금액입니다. 비워두면 할인율을 표시하지 않습니다.</p>
+        <p className="muted">할인율을 숨기면 정가 취소선과 할인율 없이 판매가만 표시합니다. 기간 할인·쿠폰·적립금과 실제 결제 금액은 그대로 적용됩니다.</p>
       </AdminSectionCard>
       <AdminSectionCard title="옵션과 재고" id="good-section-variants" requirement="공개 필수 · 기본 옵션 1개부터" status="옵션 확인" errorCount={errorCount('variants')} summary="할당 재고는 ICONS 판매 수량입니다. 안전재고 기준은 경보이며 판매 수량에서 차감하지 않습니다."><GoodsOptionEditor onRowsChange={setRows} codePrefix={values.code || suggestedCode} rows={rows} baseline={baseline} basePrice={Number(values.price) || 0} error={errors.variants} axisValues={initial} /></AdminSectionCard>
       <AdminSectionCard title={ADMIN_VOCABULARY.noticeInfo} id="good-section-notice" requirement="공개 필수 · 초안에는 일부 저장 가능" status={GOODS_NOTICE_FIELDS.every((field) => values[field.formName]?.trim()) ? '입력 완료 · KC 별도 검토' : '미입력'} errorCount={errorCount('notice')} summary={`${GOODS_NOTICE_FIELDS.filter((field) => values[field.formName]?.trim()).length}/${GOODS_NOTICE_FIELDS.length}개 작성 · KC는 저장 후 검토`}>

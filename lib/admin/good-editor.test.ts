@@ -1,6 +1,13 @@
 import { expect, it } from 'vitest';
 import { goodEditorValues, createGoodEditorDraft, buildGoodEditorPreview, GOOD_LOCAL_DRAFT_FIELDS } from './good-editor';
 import { createAdminLocalAutosave, withLocalRecoveryValues } from './local-autosave';
+it('defaults discount display on and carries a recovered off setting into the public preview', () => {
+  expect(goodEditorValues(null, {})).toHaveProperty('showDiscountRate', 'true');
+  expect(GOOD_LOCAL_DRAFT_FIELDS).toContain('showDiscountRate');
+  const values = goodEditorValues(null, { values: { previousId: '', showDiscountRate: 'false' } });
+  const preview = buildGoodEditorPreview({ values, imageUrls: {}, selected: null, catalogIps: [], origins: [], shippingNoticeOptions: [] });
+  expect(preview.detail.good.showDiscountRate).toBe(false);
+});
 it('restores failed option edits and their optimistic baseline into the same preview and submission values', () => {
   const records = new Map<string, string>();
   const storage = { getItem: (key: string) => records.get(key) ?? null, setItem: (key: string, value: string) => records.set(key, value), removeItem: (key: string) => records.delete(key) };

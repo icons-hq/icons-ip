@@ -336,7 +336,7 @@ describe('getCatalogSnapshot', () => {
         { ...base, id: 'draft-ip', public_slug: 'hidden-draft', published_at: null },
         { ...base, id: 'archived-ip', public_slug: 'hidden-archive', archived_at: '2026-09-01T00:00:00Z' },
       ],
-      goods: [{ id: 'g-slug', ip_id: 'hwasan', name: '검증 굿즈', type: '문구', price: 1000, stock: 'ok', stock_qty: 1, sale_restriction: 'none', 'ips.published_at': '2026-09-01' }],
+      goods: [{ id: 'g-slug', ip_id: 'hwasan', name: '검증 굿즈', type: '문구', price: 1000, stock: 'ok', stock_qty: 1, sale_restriction: 'none', show_discount_rate: false, 'ips.published_at': '2026-09-01' }],
       ip_public_slug_aliases: [{ slug: 'old-display', ip_id: 'hwasan' }],
       home_curations: ['/ip/old-display?tab=goods#detail', '/ip/hwasan', '/ip?ip=hwasan&tab=cards', '/ip/aouad'].map((href, index) => ({
         id: `curation-${index}`, kind: 'benefit', ip_id: null, title: 'IP 바로가기', image_path: null,
@@ -346,6 +346,7 @@ describe('getCatalogSnapshot', () => {
     const snapshot = await getCatalogSnapshot();
     expect(snapshot.ips).toHaveLength(1);
     expect(snapshot.ips[0]).toMatchObject({ id: 'hwasan', publicSlug: 'mountain-fire' });
+    expect(snapshot.goods[0]).toMatchObject({ price: 1000, showDiscountRate: false });
     expect((await getCatalogGoodDetail('g-slug'))?.ip?.publicSlug).toBe('mountain-fire');
     const home = await getHomeSnapshot();
     expect(home.catalog.ips[0]?.publicSlug).toBe('mountain-fire');

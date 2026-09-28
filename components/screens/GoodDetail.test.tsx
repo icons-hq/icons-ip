@@ -208,6 +208,13 @@ describe('GoodDetail', () => {
     expect(render()).not.toContain('wc-price__original');
   });
 
+  it('할인율 표시를 끄면 상세에서도 비교 금액과 할인율을 숨기고 판매가는 유지한다', () => {
+    const html = render({ good: { ...good, compareAtPrice: 18000, showDiscountRate: false } });
+    expect(html).not.toContain('wc-price__original');
+    expect(html).not.toContain('wc-price__rate');
+    expect(html).toContain('₩12,000');
+  });
+
   it('갤러리를 scroll-snap 스테이지와 도트·썸네일로 그린다', () => {
     const html = render();
 

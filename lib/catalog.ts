@@ -141,6 +141,7 @@ interface GoodRow {
   /* #326 컬럼 2종은 옵셔널이다 — 기존 테스트 픽스처(리터럴 GoodRow)를 전부
      깨지 않으면서, select 에 포함된 실 쿼리에서는 값이 흐른다. */
   compare_at_price?: number | null;
+  show_discount_rate?: boolean;
   created_at?: string | null;
   badge: string | null;
   stock: string;
@@ -544,6 +545,7 @@ function toGood(row: GoodRow, imageUrlForPath: (path: string) => string): Good {
     originId: row.origin_id,
     compareAtPrice: cheapestOption?.pricing?.pricePeriodId ? cheapestOption.pricing.regularPrice : row.compare_at_price ?? null,
     catalogCompareAtPrice: row.compare_at_price ?? null,
+    showDiscountRate: row.show_discount_rate ?? true,
     badge: row.badge,
     stock: stockQty <= 0 ? 'soldout' : toStock(row.stock),
     stockQty,
@@ -713,7 +715,7 @@ export async function getCatalogSnapshot(options: CatalogSnapshotOptions = {}): 
       .order('fans_count', { ascending: false }),
     supabase
       .from('goods')
-      .select('id,ip_id,name,name_en,search_keywords,display_order,category_id,additional_good_ids:goods_additional_ids,type,price,compare_at_price,created_at,badge,stock,stock_qty,bg,image_path,allow_bank_transfer,allow_card_payment,sale_restriction,order_quantity_limit_enabled,min_order_qty,max_order_qty,member_purchase_limit_enabled,member_lifetime_qty_limit,origin_id,goods_variants(id,name,code,price,stock_qty,is_default,attributes,archived_at,sort_order,pricing:goods_variant_pricing,supply:goods_variant_supply)')
+      .select('id,ip_id,name,name_en,search_keywords,display_order,category_id,additional_good_ids:goods_additional_ids,type,price,compare_at_price,show_discount_rate,created_at,badge,stock,stock_qty,bg,image_path,allow_bank_transfer,allow_card_payment,sale_restriction,order_quantity_limit_enabled,min_order_qty,max_order_qty,member_purchase_limit_enabled,member_lifetime_qty_limit,origin_id,goods_variants(id,name,code,price,stock_qty,is_default,attributes,archived_at,sort_order,pricing:goods_variant_pricing,supply:goods_variant_supply)')
       .is('archived_at', null)
       .not('published_at', 'is', null)
       /* 판매 제한(19금) 상품은 성인인증(#209·#210) 도입 전까지 스토어 전 표면에서

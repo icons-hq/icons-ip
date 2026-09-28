@@ -14,6 +14,8 @@ insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,published_at,o
 values('credits-check-good','credits-check-ip','합성 적립금 굿즈','문구',10000,'ok',100,null,'00000000-0000-4000-8000-000000004890','policy');
 -- Build reviewed synthetic KC evidence before publishing each fixture.
 select pg_temp.publish_goods_kc_fixture('credits-check-good');
+-- The same coupon/credit/order snapshots apply when discount display is hidden.
+update public.goods set show_discount_rate=false where id='credits-check-good';
 
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000004891',true);
 set local role authenticated;

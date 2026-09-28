@@ -15,7 +15,7 @@ import type { FulfillmentOrigin } from './fulfillment-origins';
 import type { GoodShippingPolicy, ShippingNoticeSnapshot } from '@/lib/fulfillment';
 import { readGoodsClaimPolicy } from './goods-claim-policy';
 export type GoodNoticeDefaults = { asManager: string; asContact: string };
-export const GOOD_LOCAL_DRAFT_FIELDS = ['id', 'ipId', 'name', 'nameEn', 'searchKeywords', 'displayOrder', 'categoryId', 'shippingNoticeTemplate', 'type', 'code', 'defaultVariantCode', 'price', 'compareAtPrice', 'badge', 'stock', 'description', 'descriptionFormat', 'descriptionUploadPath', 'descriptionImageAlt', 'imagePath', 'detailImagePath', 'originId', 'shippingFeeType', 'individualFee', 'variants', 'variantBaseline', 'optionAxisName0', 'optionAxisValues0', 'optionAxisName1', 'optionAxisValues1', ...GOODS_SALE_POLICY_FIELDS, ...GOODS_CLAIM_POLICY_FIELDS,
+export const GOOD_LOCAL_DRAFT_FIELDS = ['id', 'ipId', 'name', 'nameEn', 'searchKeywords', 'displayOrder', 'categoryId', 'shippingNoticeTemplate', 'type', 'code', 'defaultVariantCode', 'price', 'compareAtPrice', 'showDiscountRate', 'badge', 'stock', 'description', 'descriptionFormat', 'descriptionUploadPath', 'descriptionImageAlt', 'imagePath', 'detailImagePath', 'originId', 'shippingFeeType', 'individualFee', 'variants', 'variantBaseline', 'optionAxisName0', 'optionAxisValues0', 'optionAxisName1', 'optionAxisValues1', ...GOODS_SALE_POLICY_FIELDS, ...GOODS_CLAIM_POLICY_FIELDS,
   ...GOODS_NOTICE_FIELDS.map((field) => field.formName), ...Array.from({ length: GOODS_GALLERY_MAX }, (_, i) => `galleryPath${i}`)];
 /** Failure/recovery owns even empty values; business defaults apply only to untouched new goods. */
 export function goodEditorValues(selected: AdminGoodRecord | null, state: AdminFormValuesState, initialIpId = '', noticeDefaults?: GoodNoticeDefaults): Record<string, string> {
@@ -23,6 +23,7 @@ export function goodEditorValues(selected: AdminGoodRecord | null, state: AdminF
     id: selected?.id ?? '', code: selected?.code ?? '', ipId: selected?.ipId ?? initialIpId,
     name: selected?.name ?? '', nameEn: selected?.nameEn ?? '', searchKeywords: selected?.searchKeywords?.join('\n') ?? '', displayOrder: selected?.displayOrder == null ? '' : String(selected.displayOrder), type: selected?.type ?? '', price: String(selected?.price ?? 0),
     compareAtPrice: selected?.compareAtPrice == null ? '' : String(selected.compareAtPrice),
+    showDiscountRate: String(selected?.showDiscountRate ?? true),
     claimReturnAllowed: selected?.claimPolicy?.returnAllowed == null ? '' : String(selected.claimPolicy.returnAllowed),
     claimExchangeAllowed: selected?.claimPolicy?.exchangeAllowed == null ? '' : String(selected.claimPolicy.exchangeAllowed),
     claimRestrictionReason: selected?.claimPolicy?.restrictionReason ?? '',
@@ -101,6 +102,7 @@ export function buildGoodEditorPreview({ values, imageUrls, selected, catalogIps
   const ip = catalogIps.find(ip => ip.id === values.ipId) ?? null;
   const preview = buildGoodPreview({ fallbackBg: selected?.bg ?? null, imageUrls, ip, stockQty: selected?.stockQty ?? 0, values });
   const compare = Number(values.compareAtPrice);
-  const detail = { ...preview, good: { ...preview.good, compareAtPrice: Number.isInteger(compare) && compare > preview.good.price ? compare : null } };
+  const detail = { ...preview, good: { ...preview.good, showDiscountRate: values.showDiscountRate !== 'false',
+    compareAtPrice: Number.isInteger(compare) && compare > preview.good.price ? compare : null } };
   return { origin, ip, detail, shippingPolicy };
 }

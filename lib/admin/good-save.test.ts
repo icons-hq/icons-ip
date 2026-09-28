@@ -12,6 +12,13 @@ function manual(values: Record<string, string>) {
 }
 
 describe('manual and workbook goods persistence contract', () => {
+  it('preserves omitted display settings and persists explicit on/off without changing prices', () => {
+    expect(manual({})).not.toHaveProperty('show_discount_rate');
+    expect(manual({ price: '9000', compareAtPrice: '12000', showDiscountRate: 'false' }))
+      .toMatchObject({ price: 9000, compare_at_price: 12000, show_discount_rate: false });
+    expect(manual({ showDiscountRate: 'true' })).toHaveProperty('show_discount_rate', true);
+    expect(() => manual({ showDiscountRate: 'invalid' })).toThrow('showDiscountRate');
+  });
   it('keeps omitted manual fields absent while explicit blanks and workbook blanks clear them', () => {
     const omitted = manual({});
     const cleared = manual({ nameEn: '', searchKeywords: '', displayOrder: '', categoryId: '', shippingNoticeTemplate: '', descriptionFormat: 'plain' });

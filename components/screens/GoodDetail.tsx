@@ -337,7 +337,7 @@ export function GoodDetailView({
             <h1 className="wc-pdp__title">{good.name}</h1>
             {good.nameEn ? <p lang="en" className="wc-pdp__english-name">{good.nameEn}</p> : null}
             <PriceBlock className="wc-pdp__price"
-              compareAtPrice={displayedGood.compareAtPrice} price={displayedGood.price} priceMax={displayedGood.priceMax} />
+              showDiscountRate={displayedGood.showDiscountRate} compareAtPrice={displayedGood.compareAtPrice} price={displayedGood.price} priceMax={displayedGood.priceMax} />
             <div className="wc-pdp-tools">
               {reviewSummary ? (
                 <p className="wc-pdp-tools__rating">

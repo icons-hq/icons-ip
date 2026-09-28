@@ -71,6 +71,9 @@ select public.admin_save_good(pg_temp.good_payload('sales-policy-main') - array[
  'order_quantity_limit_enabled','min_order_qty','max_order_qty','member_purchase_limit_enabled','member_lifetime_qty_limit']);
 select 1/case when exists(select 1 from public.goods where id='sales-policy-main' and not allow_bank_transfer and min_order_qty=2 and member_lifetime_qty_limit=5)
  then 1 else 0 end as assert_omitted_policy_fields_are_preserved;
+-- Hiding the discount is presentation-only: the following period, coupon
+-- subtotal and locked order-price assertions must still use the sale price.
+select public.admin_save_good(pg_temp.good_payload('sales-policy-main')||'{"show_discount_rate":false}');
 
 select public.admin_save_goods_price_period('sales-policy-main',:'default_variant',null,
  '{"state":"draft","discountPrice":null,"startsAt":null,"endsAt":null}')->>'id' as draft_period \gset
