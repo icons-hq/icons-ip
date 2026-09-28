@@ -9,7 +9,7 @@ export function isAouadLocalPreviewEnabled(): boolean {
     && process.env.ICONS_AOUAD_LOCAL_PREVIEW === '1';
 }
 
-/** 직접 URL 진입도 어드민과 같은 정지되지 않은 staff/admin 경계를 매 요청 통과한다. */
+/** 공개 모드는 익명을 허용하고, 비공개 모드만 정지되지 않은 staff/admin으로 제한한다. */
 export async function canViewAouadPopup(): Promise<boolean> {
   if (!AOUAD_POPUP_ENABLED) return false;
   if (AOUAD_POPUP_PUBLIC || isAouadLocalPreviewEnabled()) return true;
