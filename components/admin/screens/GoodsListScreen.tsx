@@ -1,5 +1,7 @@
 import Image from 'next/image';
 import Link from 'next/link';
+import { ShippingRegionExpiryNotice } from '../ShippingRegionExpiryNotice';
+import type { ShippingRegionExpiryState } from '@/lib/admin/shipping-regions';
 import { GOODS_READINESS_REASONS, GOODS_READINESS_STATE_LABELS, unknownGoodsReadiness } from '@/lib/admin/goods-readiness';
 import { AdminPageHeader, AdminStatusBadge } from '../console/AdminKit';
 import { ConsoleFilterPanel } from '../console/ConsoleFilterPanel';
@@ -13,7 +15,7 @@ function priceLabel(min: number | null | undefined, max: number | null | undefin
   return min === max ? `${min!.toLocaleString('ko-KR')}원` : `${min!.toLocaleString('ko-KR')}~${max!.toLocaleString('ko-KR')}원`;
 }
 
-export function GoodsListScreen({ data }: { data: AdminGoodsListData }) {
+export function GoodsListScreen({ data, shippingRegionExpiry }: { data: AdminGoodsListData; shippingRegionExpiry?: ShippingRegionExpiryState }) {
   const { filters, goods, total, ips, categories = [] } = data;
   return <section className="wc-admin-kit wc-admin-kit__screen admin-goods-worklist">
     <AdminPageHeader title="상품 목록" description="상품과 판매 준비 사유를 확인하고 필요한 작업으로 이동합니다."
@@ -22,6 +24,7 @@ export function GoodsListScreen({ data }: { data: AdminGoodsListData }) {
           <Link href="/admin/catalog/goods/import">엑셀 등록·수정</Link>
           <Link href={goodsListHref(filters).replace('/catalog/goods?', '/catalog/goods/export?')}>현재 필터 전체 내보내기</Link>
         </div></details></>} />
+    <ShippingRegionExpiryNotice state={shippingRegionExpiry} />
     <p className="wc-admin-kit__description">상품명·영문명·상품코드·옵션코드·ID·검색 키워드·ERP 코드·ERP 품명·바코드로 검색합니다.</p>
     <ConsoleFilterPanel action={GOODS_LIST_PATH} search={{ name: 'q', label: '상품 검색', value: filters.query }}
       statusFilter={{ value: filters.status, label: '게시 상태', options: [

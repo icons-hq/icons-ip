@@ -28,6 +28,15 @@ beforeEach(() => {
 });
 
 describe('applyCouponCodeAction', () => {
+  it('첫구매 선점 거절은 기존 문구와 진행 중 주문 안내를 함께 반환한다', async () => {
+    mocks.rpc.mockResolvedValue({ error: { message: 'coupon_first_purchase_reserved' } });
+    expect(await applyCouponCodeAction('FIRST')).toEqual({
+      ok: false,
+      message: '첫구매 혜택으로 진행 중인 주문을 완료하거나 취소해주세요.',
+      pendingOrder: true,
+    });
+  });
+
   it('코드를 RPC에 그대로 넘기고 카트를 재검증한다', async () => {
     const result = await applyCouponCodeAction(' welcome-5000 ');
 

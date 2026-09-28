@@ -2,7 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { getCurrentAuthState } from '@/lib/auth/server';
-import { mapCouponActionError } from '@/lib/coupons';
+import { couponErrorNeedsPendingOrder, mapCouponActionError } from '@/lib/coupons';
 import { createClient } from '@/lib/supabase/server';
 
 /* 카트 쿠폰 적용·해제 액션 (S7).
@@ -17,6 +17,7 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3
 export interface CouponActionResult {
   ok: boolean;
   message?: string;
+  pendingOrder?: boolean;
 }
 
 async function requireCouponUser(): Promise<CouponActionResult | null> {
@@ -40,7 +41,8 @@ export async function applyCouponCodeAction(code: unknown): Promise<CouponAction
   const supabase = await createClient();
   const { error } = await supabase.rpc('apply_cart_coupon_code', { p_code: normalized });
   if (error) {
-    return { ok: false, message: mapCouponActionError(error.message) };
+    return { ok: false, message: mapCouponActionError(error.message),
+      ...(couponErrorNeedsPendingOrder(error.message) ? { pendingOrder: true } : {}) };
   }
 
   revalidatePath('/cart');
@@ -60,7 +62,8 @@ export async function applyCouponAction(userCouponId: unknown): Promise<CouponAc
   const supabase = await createClient();
   const { error } = await supabase.rpc('apply_cart_coupon', { p_user_coupon_id: normalized });
   if (error) {
-    return { ok: false, message: mapCouponActionError(error.message) };
+    return { ok: false, message: mapCouponActionError(error.message),
+      ...(couponErrorNeedsPendingOrder(error.message) ? { pendingOrder: true } : {}) };
   }
 
   revalidatePath('/cart');
@@ -75,7 +78,8 @@ export async function clearCouponAction(): Promise<CouponActionResult> {
   const supabase = await createClient();
   const { error } = await supabase.rpc('clear_cart_coupon');
   if (error) {
-    return { ok: false, message: mapCouponActionError(error.message) };
+    return { ok: false, message: mapCouponActionError(error.message),
+      ...(couponErrorNeedsPendingOrder(error.message) ? { pendingOrder: true } : {}) };
   }
 
   revalidatePath('/cart');

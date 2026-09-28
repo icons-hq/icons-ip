@@ -2,9 +2,10 @@ import { OperationsSettingsScreen } from '@/components/admin/screens/OperationsS
 import { requireAdminScreenAccess } from '@/lib/admin/guard.server';
 import { OPERATIONS_SETTINGS_PATH } from '@/lib/admin/operations-contacts';
 import { loadAdminOperationsContacts } from '@/lib/admin/operations-contacts.server';
+import { loadAdminShippingRegionExpiry } from '@/lib/admin/shipping-regions.server';
 
 export default async function Page() {
   const auth = await requireAdminScreenAccess(OPERATIONS_SETTINGS_PATH);
-  const data = await loadAdminOperationsContacts();
-  return <OperationsSettingsScreen {...data} canEdit={auth.role === 'admin'}/>;
+  const [data, shippingRegionExpiry] = await Promise.all([loadAdminOperationsContacts(), loadAdminShippingRegionExpiry()]);
+  return <OperationsSettingsScreen {...data} shippingRegionExpiry={shippingRegionExpiry} canEdit={auth.role === 'admin'}/>;
 }

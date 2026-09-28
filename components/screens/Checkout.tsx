@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { PendingOrderResolution } from '@/components/checkout/PendingOrderResolution';
 import { useRouter } from 'next/navigation';
 import { useMemo, useRef, useState, type FormEvent } from 'react';
 import { placeOrderAction } from '@/app/checkout/actions';
@@ -104,6 +105,7 @@ export function Checkout({
   const checkoutKey = useRef<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [pendingOrder, setPendingOrder] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<CheckoutAddressErrors>({});
   /* 카드 게이트가 닫혀 있으면 열려 있는 무통장으로 시작한다 — 고를 수 없는
      라디오가 선택된 채 뜨지 않게. 두 게이트 prop은 서버가 내려주는 고정값이다. */
@@ -208,6 +210,7 @@ export function Checkout({
 
     setSubmitting(true);
     setSubmitError(null);
+    setPendingOrder(false);
     checkoutKey.current ??= crypto.randomUUID();
     let result: Awaited<ReturnType<typeof placeOrderAction>>;
     try {
@@ -218,7 +221,8 @@ export function Checkout({
       return;
     }
     if (!result.ok) {
-      setSubmitError(actionErrors[result.error]);
+      setSubmitError(result.pendingOrder ? '첫구매 혜택으로 진행 중인 주문을 완료하거나 취소해주세요.' : actionErrors[result.error]);
+      setPendingOrder(result.pendingOrder === true);
       shipping.refresh();
       credits.refresh();
       setSubmitting(false);
@@ -427,7 +431,7 @@ export function Checkout({
 
           {unavailable && <p className="checkout-error" role="alert">재고가 변경된 굿즈가 있어요. 장바구니에서 수량을 확인해주세요.</p>}
           {!methodAvailable && <p className="checkout-error" role="alert">선택한 결제수단을 지금은 쓸 수 없어요. 다른 수단을 골라주세요.</p>}
-          {submitError && <p className="checkout-error" role="alert">{submitError}</p>}
+          {submitError && <p className="checkout-error" role="alert">{submitError}{pendingOrder ? <PendingOrderResolution /> : null}</p>}
           <button className="btn btn-holo checkout-submit" disabled={submitting || cartPending || unavailable || !methodAvailable || !shippingReady || !shipping.sales || Boolean(purchaseProblem) || !creditReady || couponSelectionChanged}>
             {submitting
               ? '재고를 확인하는 중'

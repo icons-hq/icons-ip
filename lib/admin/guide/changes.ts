@@ -1,6 +1,14 @@
 /** Newest first. Describe available behavior; do not preannounce unfinished tickets. */
 export const ADMIN_WEEKLY_CHANGES = [
   {
+    week: '2026-09-28',
+    title: '지역 정책 만료 경고와 첫구매 주문 안내',
+    changes: [
+      '운영 준비와 상품 목록에서 지역 배송 정책의 7일 이내 만료·이미 종료된 상태를 확인하고 정책 관리로 이동합니다. 정책 조회 실패는 미등록 상태와 구분합니다.',
+      '첫구매 쿠폰을 진행 중인 주문이 선점한 경우 고객이 안내 링크로 내 주문을 열어 결제를 이어가거나 해당 주문을 취소할 수 있습니다. 기존 선점·주문 제한 규칙은 유지합니다.',
+    ],
+  },
+  {
     week: '2026-09-15',
     title: '상품 작성·저장과 처리할 업무를 명확하게',
     changes: [

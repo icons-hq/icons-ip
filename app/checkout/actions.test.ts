@@ -99,6 +99,12 @@ function onboardedAuth(): CurrentAuthState {
   };
 }
 
+it.each(['coupon_first_purchase_reserved', 'coupon_first_purchase_pending'])('첫구매 진행 중 주문 안내를 보존한다: %s', async (message) => {
+  mocks.auth = onboardedAuth();
+  mocks.rpc.mockResolvedValue({ data: null, error: { message } });
+  expect(await placeOrderAction(address, checkoutKey)).toEqual({ ok: false, error: 'coupon_rejected', pendingOrder: true });
+});
+
 describe('placeOrderAction', () => {
   beforeEach(() => {
     vi.unstubAllEnvs();

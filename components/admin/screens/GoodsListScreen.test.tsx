@@ -5,6 +5,12 @@ import { GOODS_READINESS_REASONS, unknownGoodsReadiness } from '@/lib/admin/good
 import { normalizeGoodsListFilters } from '@/lib/admin/goods-list';
 
 describe('goods list screen', () => {
+  it('빈 상품 목록에서도 지역 배송 정책 만료를 알린다', () => {
+    const html = renderToStaticMarkup(<GoodsListScreen data={{ filters: normalizeGoodsListFilters({}), goods: [], ips: [], total: 0 }}
+      shippingRegionExpiry={{ warnings: [{ id: 'policy', name: '지역 정책', version: 1, endsAt: '2026-09-27T00:00:00Z', status: 'expired' }] }} />);
+    expect(html).toContain('정책 만료');
+    expect(html).toContain('href="/admin/settings/shipping-regions"');
+  });
   it('renders catalog filters and twenty-row paging with a precise edit link', () => {
     const html=renderToStaticMarkup(<GoodsListScreen data={{
       filters:normalizeGoodsListFilters({q:'ICONS',ipId:'hwasan',page:'2'}),total:1000,

@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { PendingOrderResolution } from '@/components/checkout/PendingOrderResolution';
 import { useMemo, useState, useTransition, type FormEvent } from 'react';
 import {
   applyCouponAction,
@@ -147,6 +148,7 @@ function CartCouponSection({
 }) {
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
+  const [pendingOrder, setPendingOrder] = useState(false);
   const [code, setCode] = useState('');
 
   const selectableCoupons = couponState.coupons.filter((held) => (
@@ -155,9 +157,11 @@ function CartCouponSection({
 
   function runAction(action: () => Promise<CouponActionResult>) {
     setMessage(null);
+    setPendingOrder(false);
     startTransition(async () => {
       const result = await action();
       setMessage(result.ok ? null : result.message ?? null);
+      setPendingOrder(!result.ok && result.pendingOrder === true);
     });
   }
 
@@ -170,6 +174,7 @@ function CartCouponSection({
     event.preventDefault();
     if (!code.trim()) {
       setMessage('쿠폰 코드를 입력해주세요.');
+      setPendingOrder(false);
       return;
     }
     runAction(async () => {
@@ -246,7 +251,7 @@ function CartCouponSection({
         </button>
       </form>
 
-      {message ? <p className="wc-cart__coupon-warning" role="alert">{message}</p> : null}
+      {message ? <p className="wc-cart__coupon-warning" role="alert">{message}{pendingOrder ? <PendingOrderResolution /> : null}</p> : null}
     </div>
   );
 }
