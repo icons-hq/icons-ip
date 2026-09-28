@@ -20,7 +20,7 @@ import { krw } from '@/lib/format';
 import { cartItemKey } from '@/lib/cart';
 import { cartOptionGood, goodAtQuotedPrice, optionLabel } from '@/lib/goods-options';
 import { goodsPurchaseReasonMessage, goodsSalesQuoteProblem } from '@/lib/goods-sales';
-import type { UserCouponSummary } from '@/lib/coupons';
+import { couponErrorNeedsPendingOrder, type UserCouponSummary } from '@/lib/coupons';
 import { normalizeStoreCreditAmount } from '@/lib/store-credits';
 import { goodsShipDateLabel } from '@/lib/goods-preorders';
 import { paymentFailNoticeCopy } from '@/lib/payments/checkout-fail-copy';
@@ -385,7 +385,9 @@ export function Checkout({
           {shipping.quote?.groups.map(group => <section className="wc-shipping-group" key={group.originId}><h3>{group.originName} 출고</h3><ShippingGroupSummary group={group} /></section>)}
           {shipping.loading ? <p role="status">현재 가격과 배송비를 확인하고 있어요.</p> : null}
           {shipping.error ? <div role="alert"><p>{shipping.error}</p><button type="button" onClick={shipping.refresh}>가격·배송비 다시 확인</button></div> : null}
-          {purchaseProblem ? <p className="checkout-error" role="alert">{purchaseProblem}</p> : null}
+          {purchaseProblem ? <p className="checkout-error" role="alert">{purchaseProblem}
+            {couponErrorNeedsPendingOrder(shipping.sales?.coupon?.reason) ? <PendingOrderResolution /> : null}
+          </p> : null}
           {couponSelectionChanged ? <p className="checkout-error" role="alert">다른 화면에서 선택한 쿠폰이 변경되었습니다. <button type="button" onClick={() => router.refresh()}>현재 쿠폰 다시 확인</button></p> : null}
 
           <fieldset className="checkout-method" aria-describedby="checkout-method-note">

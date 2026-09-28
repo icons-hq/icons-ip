@@ -20,6 +20,7 @@ import {
   couponBenefitLabel,
   couponConditionLabel,
   couponDisplayState,
+  couponErrorNeedsPendingOrder,
   couponExpiryLabel,
   type UserCouponSummary,
 } from '@/lib/coupons';
@@ -374,7 +375,9 @@ export function Cart({
               <p className="wc-cart__summary-note">출고지별 배송비를 합산합니다. 주문을 만들 때 서버가 최종 금액을 확인합니다.</p>
               {shipping.loading ? <p role="status">현재 가격과 배송비를 확인하고 있어요.</p> : null}
               {shipping.error ? <div role="alert"><p>{shipping.error}</p><button type="button" onClick={shipping.refresh}>가격·배송비 다시 확인</button></div> : null}
-              {purchaseProblem ? <p className="wc-cart__error" role="alert">{purchaseProblem}</p> : null}
+              {purchaseProblem ? <p className="wc-cart__error" role="alert">{purchaseProblem}
+                {couponErrorNeedsPendingOrder(shipping.sales?.coupon?.reason) ? <PendingOrderResolution /> : null}
+              </p> : null}
               {shipping.sales?.goods.filter(good => good.memberRemainingQty !== null).map(good => <p key={good.goodId}>
                 {catalog.goods.find(item => item.id === good.goodId)?.name} · 회원 추가 구매 가능 {good.memberRemainingQty}개
               </p>)}
