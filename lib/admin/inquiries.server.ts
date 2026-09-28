@@ -1,5 +1,6 @@
 import type { ShipmentRecord } from '@/lib/orders/shipments';
 import 'server-only';
+import { inquiryMessageAuthor, type InquiryMessageAuthor } from '@/lib/inquiries';
 
 import { loadInquiryAuthorNames } from '@/lib/inquiry-authors.server';
 import { createClient } from '@/lib/supabase/server';
@@ -140,7 +141,7 @@ export async function getAdminOpenInquiryCount(): Promise<number> {
 
 export interface AdminInquiryMessage {
   id: string;
-  author: 'user' | 'staff';
+  author: InquiryMessageAuthor;
   authorName: string | null;
   body: string;
   imageUrls: string[];
@@ -342,8 +343,8 @@ export async function loadAdminInquiryDetail(
     },
     messages: messageRows.map((message) => ({
       id: message.id,
-      author: message.author === 'staff' ? 'staff' : 'user',
-      authorName: authorNames.get(message.id) ?? null,
+      author: inquiryMessageAuthor(message.author),
+      authorName: message.author==='staff'?(authorNames.get(message.id)??null):null,
       body: message.body,
       imageUrls: (message.image_paths ?? [])
         .map((path) => urls.get(path))

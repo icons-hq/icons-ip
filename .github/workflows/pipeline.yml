@@ -220,6 +220,8 @@ jobs:
           run_sql_test supabase/tests/ip_directory_workspace.sql
           run_sql_test supabase/tests/goods_identifiers.sql
           run_sql_test supabase/tests/store_settings.sql
+          run_sql_test supabase/tests/inquiry_auto_reply_settings.sql
+          run_sql_test supabase/tests/inquiry_system_messages.sql
           run_sql_test supabase/tests/admin_operations_contacts.sql
           run_sql_test supabase/tests/admin_goods_directory.sql
           run_sql_test supabase/tests/admin_goods_readiness_workspace.sql

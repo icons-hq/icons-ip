@@ -4,6 +4,7 @@ import { redirect, unstable_rethrow } from 'next/navigation';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
 import { createClient } from '@/lib/supabase/server';
 import { BUSINESS_INFO_LABELS } from '@/lib/legal/business-info';
+import { INQUIRY_CATEGORIES } from '@/lib/inquiries';
 import { BANK_ACCOUNT_LABELS, CARRIER_SETTINGS_PATH, STORE_SETTINGS_CACHE_TAG, STORE_SETTINGS_PATH, parseCarrierInput, parseStoreSettingsInput } from '@/lib/admin/store-settings';
 
 export type StoreSettingsActionState={message?:string;errors?:Record<string,string>;values?:Record<string,string>;updatedAt?:string;attempt?:number};
@@ -21,6 +22,32 @@ function refreshSettings() {
   updateTag(STORE_SETTINGS_CACHE_TAG);
   revalidatePath(STORE_SETTINGS_PATH);revalidatePath(CARRIER_SETTINGS_PATH);
   revalidatePath('/','layout');
+}
+export async function saveInquiryAutoRepliesAction(previous:StoreSettingsActionState,data:FormData):Promise<StoreSettingsActionState> {
+  const values=Object.fromEntries(INQUIRY_CATEGORIES.flatMap(({id})=>[
+    [`${id}.enabled`,value(data,`${id}.enabled`)], [`${id}.body`,value(data,`${id}.body`)],
+  ]));
+  const attempt=(previous.attempt??0)+1;
+  const fail=(errors:Record<string,string>)=>({errors,values,attempt});
+  try {
+    if (!await requireSettingsAdmin(STORE_SETTINGS_PATH)) return fail({form:'설정 변경은 관리자(admin)만 할 수 있습니다.'});
+    const stamp=value(data,'updatedAt');
+    if (!validStamp(stamp)) return fail({form:'최신 설정을 다시 열어주세요.'});
+    const targetValues=Object.fromEntries(INQUIRY_CATEGORIES.map(({id})=>[id,{
+      enabled:values[`${id}.enabled`]==='true',body:values[`${id}.body`].trim(),
+    }]));
+    const errors:Record<string,string>={};
+    for (const [id,notice] of Object.entries(targetValues)) {
+      if (notice.enabled && !notice.body) errors[`${id}.body`]='사용할 자동 안내 문구를 입력해주세요.';
+      else if (Array.from(notice.body).length>2000 || /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/.test(notice.body)) errors[`${id}.body`]='안내 문구는 2,000자 이내의 텍스트로 입력해주세요.';
+    }
+    if (Object.keys(errors).length) return fail(errors);
+    const client=await createClient();
+    const {data:updatedAt,error}=await client.rpc('admin_save_store_settings',{target_section:'inquiry_auto_replies',target_values:targetValues,expected_updated_at:stamp});
+    if (error) return fail({form:errorMessage(error)});
+    refreshSettings();
+    return {message:'문의 자동 안내를 저장했습니다.',updatedAt,attempt};
+  } catch(error) {unstable_rethrow(error);return fail({form:'설정을 저장하지 못했습니다. 입력값은 유지됩니다. 잠시 후 다시 시도해주세요.'});}
 }
 export async function saveStoreSettingsAction(previous:StoreSettingsActionState,data:FormData):Promise<StoreSettingsActionState> {
   const section=value(data,'section');
