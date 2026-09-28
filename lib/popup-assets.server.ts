@@ -95,15 +95,16 @@ export async function createPopupAssetResponse(request: Request, parts: string[]
     if (!stat.isFile()) return new Response(null, { status: 404, headers });
     if (stat.size !== selected.bytes) return new Response(null, { status: 503, headers });
 
-    // Preserve the manifest representation through intermediaries (RFC 9111 §5.2.2.6).
-    // A strong validator and byte ranges must describe the same delivered bytes.
-    const etag = `"${selected.sha256}"`;
+    // Vercel can recompress responses even with no-transform. Weak validation
+    // proves equivalent content without promising identical transfer bytes.
+    const tagValue = `"${selected.sha256}"`;
+    const etag = `W/${tagValue}`;
     headers.set('Content-Type', original.contentType);
     headers.set('Accept-Ranges', 'bytes');
     if (encoding !== 'identity') headers.set('Content-Encoding', encoding);
     const matches = request.headers.get('if-none-match')?.split(',').some(value => {
       const tag = value.trim();
-      return tag === '*' || tag.replace(/^W\//, '') === etag;
+      return tag === '*' || tag.replace(/^W\//, '') === tagValue;
     });
     if (matches) {
       headers.set('Cache-Control', 'private, max-age=0, must-revalidate, no-transform');
@@ -111,7 +112,9 @@ export async function createPopupAssetResponse(request: Request, parts: string[]
       return new Response(null, { status: 304, headers });
     }
     const ifRange = request.headers.get('if-range');
-    const range = request.method === 'HEAD' || (ifRange !== null && ifRange !== etag)
+    // If-Range requires a strong validator; never splice a CDN-transformed
+    // cached prefix with bytes from the packaged representation.
+    const range = request.method === 'HEAD' || ifRange !== null
       ? null : byteRange(request.headers.get('range'), selected.bytes);
     if (range === 'invalid') {
       headers.set('Content-Range', `bytes */${selected.bytes}`);

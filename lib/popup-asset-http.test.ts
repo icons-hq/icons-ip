@@ -27,7 +27,7 @@ describe('public popup conditional HTTP requests', () => {
     const head = await route.head(request('HEAD'), context(route.path));
     expect(head.status).toBe(200);
     const etag = head.headers.get('etag');
-    expect(etag).toMatch(/^"[a-f0-9]{64}"$/);
+    expect(etag).toMatch(/^W\/"[a-f0-9]{64}"$/);
     const cached = await route.get(request('GET', { 'If-None-Match': etag! }), context(route.path));
     expect(cached.status).toBe(304);
     expect(await cached.text()).toBe('');
@@ -56,7 +56,7 @@ describe('public popup conditional HTTP requests', () => {
     expect(await head.text()).toBe('');
     expect(head.headers.has('content-range')).toBe(false);
     const response = await route.get(request('GET', {
-      Range: 'bytes=0-15', 'If-Range': head.headers.get('etag')!,
+      Range: 'bytes=0-15',
     }), context(route.path));
     expect(response.status).toBe(206);
     expect(response.headers.get('content-range')).toBe(`bytes 0-15/${head.headers.get('content-length')}`);
@@ -66,7 +66,7 @@ describe('public popup conditional HTTP requests', () => {
 
   it.each(routes)('$name supports weak/list validators and never validates missing files', async (route) => {
     const head = await route.head(request('HEAD'), context(route.path));
-    for (const validator of [`"previous", W/${head.headers.get('etag')}`, '*']) {
+    for (const validator of [`"previous", ${head.headers.get('etag')}`, head.headers.get('etag')!.replace(/^W\//, ''), '*']) {
       const response = await route.head(request('HEAD', { 'If-None-Match': validator }), context(route.path));
       expect(response.status).toBe(304);
       expect(await response.text()).toBe('');
@@ -74,6 +74,19 @@ describe('public popup conditional HTTP requests', () => {
     const missing = await route.get(request('GET', { 'If-None-Match': '*' }), context('missing.png'));
     expect(missing.status).toBe(404);
     expect(missing.headers.has('etag')).toBe(false);
+  });
+
+  it.each(['identity', 'br', 'gzip'])('does not splice %s bytes using an edge-transformable validator', async encoding => {
+    const path = Object.keys(manifest.files).find(name => name.endsWith('.js'))!;
+    const head = await gameHead(request('HEAD', { 'Accept-Encoding': encoding }), context(path));
+    const etag = head.headers.get('etag')!;
+    expect(etag).toMatch(/^W\//);
+    for (const validator of [etag, etag.replace(/^W\//, '')]) {
+      const response = await gameGet(request('GET', { 'Accept-Encoding': encoding, Range: 'bytes=0-255', 'If-Range': validator }), context(path));
+      expect(response.status).toBe(200);
+      expect(response.headers.has('content-range')).toBe(false);
+      expect((await response.arrayBuffer()).byteLength).toBe(Number(head.headers.get('content-length')));
+    }
   });
 
   it('binds game validators to the negotiated manifest representation', async () => {
