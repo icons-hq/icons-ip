@@ -7,9 +7,9 @@
 - 2026-09-10 현재 기본값은 `AOUAD_POPUP_ENABLED=true`, `AOUAD_POPUP_PUBLIC=true`다. 비로그인·일반 회원·staff/admin 모두 `/ip`의 카드를 보고 `/ip/aouad`에 직접 들어가며, 전용 에셋 GET·HEAD·Range도 사용할 수 있다. Next.js의 스트리밍 응답은 HTTP 200일 수 있으므로 페이지 검증 때 상태 코드만 보지 않고 시연 본문·noindex를 함께 확인한다.
 - 서버 페이지·에셋의 공통 게이트는 `lib/aouad-popup.server.ts`의 `canViewAouadPopup()`이다. 공개 모드에서는 인증 전에 통과하고, `AOUAD_POPUP_PUBLIC=false`인 비공개 모드에서만 `getCurrentAdminAuthState()`의 정지되지 않은 staff/admin 판정을 사용한다. 디렉토리의 `is_staff` readback은 비공개 카드 노출용이며 서버 검사를 대신하지 않는다.
 - 공개 전환은 `lib/aouad-popup.ts`의 `AOUAD_POPUP_PUBLIC`을, 전체 회수는 `AOUAD_POPUP_ENABLED`를 변경한 뒤 같은 검증·배포 경로로 반영한다. 현재 공개 상태는 환경 변수로 우회하지 않으며, `AOUAD_POPUP_PUBLIC=false`로 되돌릴 때는 아래 비공개 접근 검증을 다시 적용한다.
-- 2026-09-10 PM이 현재 시연 스틸의 Netflix 검토용 공유에 대한 사용을 승인했다. 공개 모드는 페이지뿐 아니라 현재 시연의 이미지·영상도 익명으로 열며, `noindex`·`no-store`는 접근 통제가 아니다. 원본 권리 기록과 이번 시연 사용 승인 범위는 [모듈 README](../../components/online-popup/aouad/README.md#시연과-운영의-경계)에 구분해 둔다.
+- 2026-09-10 PM이 현재 시연 스틸의 Netflix 검토용 공유에 대한 사용을 승인했다. 공개 모드는 페이지뿐 아니라 현재 시연의 이미지·영상도 익명으로 열며, `noindex`·캐시 지시자는 접근 통제가 아니다. 원본 권리 기록과 이번 시연 사용 승인 범위는 [모듈 README](../../components/online-popup/aouad/README.md#시연과-운영의-경계)에 구분해 둔다.
 - 페이지는 `force-dynamic`이고 `noindex, nofollow`다. 전용 화면의 ICONS 복귀 링크로 `/ip`에 돌아온다.
-- 이미지·영상·오디오·게임 JSON 229개는 `private/ip-popups/aouad/`에 둔다. 같은 URL의 `/ip-popups/aouad/[...asset]` Route Handler가 GET·HEAD마다 같은 공개·회수 스위치를 확인하므로 현재 공개 모드에서는 비로그인 요청도 통과한다. 비활성화·manifest 밖 경로·경로 탈출·symlink는 HTTP 404와 빈 본문으로 닫힌다. 모든 응답은 `private, no-store, max-age=0`이며 영상은 스트리밍과 단일 byte Range를 지원한다. 에셋을 `public`으로 복사하면 Route Handler의 allowlist·경로 보호를 우회하므로 금지한다. 새 파일은 `asset-index.json`의 크기·SHA와 생성 이미지 manifest를 함께 갱신한다.
+- 이미지·영상·오디오·게임 JSON 229개는 `private/ip-popups/aouad/`에 둔다. 같은 URL의 `/ip-popups/aouad/[...asset]` Route Handler가 GET·HEAD마다 같은 공개·회수 스위치를 확인하므로 현재 공개 모드에서는 비로그인 요청도 통과한다. 비활성화·manifest 밖 경로·경로 탈출·symlink는 HTTP 404와 빈 본문으로 닫힌다. 정상 응답은 `private, max-age=0, must-revalidate, no-transform`와 manifest SHA 기반 약한 ETag를 제공하며 영상은 스트리밍과 단일 byte Range를 지원한다. 브라우저는 매번 재검증하고 같은 ETag면 본문 없는 304를 받는다. 권한·allowlist·realpath 검사는 조건부 응답보다 먼저 수행하므로 회수된 파일은 같은 ETag로 재요청해도 404와 `private, no-store, max-age=0`을 받는다. CDN 캐시는 금지한다. 에셋을 `public`으로 복사하면 Route Handler의 allowlist·경로 보호를 우회하므로 금지한다. 새 파일은 `asset-index.json`의 크기·SHA와 생성 이미지 manifest를 함께 갱신한다.
 
 ## 로컬 시연
 
@@ -35,8 +35,8 @@ macOS Safari의 기본 키보드 탐색에서는 버튼 이동에 `Option+Tab`·
 
 - `private/ip-popups/aouad-hyosan/`의 50파일은 약 98.77MB다. 공개 요청 키는 `package-manifest.json`의 HTML·JS·CSS·미디어 18개뿐이며 원본 manifest·소스 보관본·압축 디렉터리는 직접 요청할 수 없다.
 - `/ip-popups/aouad/hyosan/[...asset]`의 GET·HEAD는 문서·엔진·미디어 모두 `canViewAouadPopup()`을 먼저 확인한다. 기존 `AOUAD_POPUP_PUBLIC`·`AOUAD_POPUP_ENABLED`로 함께 회수한다. 다운로드되어 이미 실행 중인 문서의 즉시 종료까지 보장하는 스위치는 아니다.
-- `Accept-Encoding`에 따라 Brotli/gzip·identity를 선택하고 `Vary: Cookie, Accept-Encoding`·`private, no-store`·`noindex`로 응답한다. 패키지에 보관한 엔진 JS의 Brotli 압축본은 1,412,926 bytes이며 모델도 미리 압축한다. 큰 파일은 메모리 응답으로 합치지 않고 스트리밍한다.
-- 원격 전송에는 [Vercel CDN 압축](https://vercel.com/docs/how-vercel-cdn-works/compression)이 추가로 관여한다. 2026-09-10 Preview에서는 Brotli 16개 응답의 전송 바이트가 사전 압축본과 달랐지만, 50개 identity/Brotli/gzip 응답을 각각 해제한 원본 크기·SHA는 모두 일치했다. 당시 실제 Brotli 전송량은 JS 1,642,992 bytes, 최대 학교 모델 11,196,289 bytes였으며 스트림이 끝까지 도착했다. 배포 검증은 실제 `Content-Encoding`·전송 크기·전송 SHA를 별도로 기록하고, 압축 해제 후 `package-manifest.json`의 원본 크기·SHA와 비교한다. CDN 전송량을 사전 압축 파일의 크기로 단정하지 않는다.
+- `Accept-Encoding`에 따라 Brotli/gzip·identity를 선택하고 `Vary: Cookie, Accept-Encoding`·`private, max-age=0, must-revalidate, no-transform`·`noindex`로 응답한다. 약한 ETag는 선택한 identity/Brotli/gzip 표현의 manifest SHA이므로 다른 압축 표현의 ETag로 304를 반환하지 않는다. 두 라우트는 같은 CORP·X-Frame-Options·CSP 보안 헤더와 파일 제공 함수를 사용한다. 패키지에 보관한 엔진 JS의 Brotli 압축본은 1,412,926 bytes이며 모델도 미리 압축한다. 큰 파일은 메모리 응답으로 합치지 않고 스트리밍한다.
+- 원격 전송에는 [Vercel CDN 압축](https://vercel.com/docs/how-vercel-cdn-works/compression)이 추가로 관여한다. 2026-09-10 Preview에서는 Brotli 16개 응답의 전송 바이트가 사전 압축본과 달랐지만, 50개 identity/Brotli/gzip 응답을 각각 해제한 원본 크기·SHA는 모두 일치했다. 당시 실제 Brotli 전송량은 JS 1,642,992 bytes, 최대 학교 모델 11,196,289 bytes였으며 스트림이 끝까지 도착했다. 배포 검증은 실제 `Content-Encoding`·전송 크기·전송 SHA를 별도로 기록하고, 압축 해제 후 `package-manifest.json`의 원본 크기·SHA와 비교한다. 2026-09-28 Preview에서도 `no-transform`을 넣었으나 Brotli 재압축이 관찰됐다. 따라서 ETag는 `W/`를 붙인 약한 검증자로 제공하고, 바이트 동일성을 요구하는 If-Range 요청은 항상 전체 200 응답으로 처리한다. 일반 미디어 Range 요청은 206을 유지한다. 배포 시 실제 전송 SHA는 기록하되 압축 해제 후 원본 SHA로 콘텐츠를 대조하고, If-Range가 200으로 돌아가 부분 캐시와 합쳐지지 않는지 확인한다.
 - Next 출력 추적은 기존 팝업 미디어 함수와 게임 패키지 함수를 분리한다. includes/excludes 모두 실제 동적 route의 대괄호를 escape한 키를 사용한다. Next matcher의 `contains: true`에서는 부모 경로의 단순 `*`가 게임 경로에도 적용되므로 이를 넓히지 않는다. `public/` 복사나 `/api/dev/hyosan-3d/` 공개로 대체하지 않는다.
 - `/games/hyosan-memories`·카드·리워드·계정별 진행·DB 권한은 이번 통합의 대상이 아니다. 이 게임은 브라우저 저장으로만 동작한다.
 
@@ -71,6 +71,8 @@ npm run typecheck
 npm run lint
 npm run build
 ```
+
+모바일 스모크는 각 Chromium·WebKit에서 320×568·375×667·390×844·440×956 네 크기를 순회합니다. 각 크기마다 기본 화면 9개, 첫 방문·직접 링크 2개, 열린 HUD 크기 복원 1개를 실행해 12개 그룹 × 4개 크기 × 2개 엔진의 96개 결과를 `results.json`의 `checks`에 기록합니다. 첫 방문에서는 가로 회전도 확인한 뒤 원래 크기로 돌아와 학생증 발급을 마칩니다.
 
 게임 브라우저 검사는 별도 저장 컨텍스트에서 첫 방문·진입 전 지연 로딩·실제 WASD/J/E·다중 탭 저장 보호·팝업 복귀·좁은 화면을 확인한다. `keyboard` 그룹은 Chromium·WebKit의 실제 게임 시작/일시정지 메뉴에서 양방향 Tab 이동·Enter 복귀·포커스 복원을 확인한다. 개발 QA driver나 시뮬레이션 좌표를 조작하지 않는다. 브라우저 출력 폴더의 `results.json`과 스크린샷으로 검증 범위를 확인하며, viewport 에뮬레이션은 실제 iPhone·카카오톡의 GPU·터치·발열 검사와 구분한다. 배포 시에는 해당 산출물의 최종 SHA, 공개/회수 동작, Brotli 해제 후 실제 HTTP 바이트를 다시 확인한다.
 

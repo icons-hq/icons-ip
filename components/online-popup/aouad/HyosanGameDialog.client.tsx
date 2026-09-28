@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState, type RefObject } from 'react';
 import PresentationDialog from './source/components/aouad/PresentationDialog';
 import styles from './HyosanGameDialog.module.css';
 
@@ -18,7 +18,7 @@ function hasGameRendererMarker(frame: HTMLIFrameElement | null) {
   }
 }
 
-export function HyosanGameDialog({ onClose }: { onClose: () => void }) {
+export function HyosanGameDialog({ onClose, returnFocusRef }: { onClose: () => void; returnFocusRef?: RefObject<HTMLElement | null> }) {
   const frameRef = useRef<HTMLIFrameElement>(null);
   const returnButtonRef = useRef<HTMLButtonElement>(null);
   const keyboardCleanupRef = useRef<(() => void) | null>(null);
@@ -99,7 +99,7 @@ export function HyosanGameDialog({ onClose }: { onClose: () => void }) {
   }, [clearPendingChecks]);
 
   return (
-    <PresentationDialog className={styles.dialog} label="효산의 기억 게임" onClose={onClose}>
+    <PresentationDialog className={styles.dialog} label="효산의 기억 게임" onClose={onClose} returnFocusRef={returnFocusRef}>
       <div className={styles.shell} data-hyosan-game-status={status}>
         <header className={styles.topbar}>
           <div className={styles.heading}>

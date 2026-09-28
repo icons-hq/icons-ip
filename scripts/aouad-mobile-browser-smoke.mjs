@@ -190,41 +190,45 @@ async function checkMobile(browser, engine, viewport) {
   }
 }
 
-async function checkFirstVisit(browser, engine) {
-  const context = await browser.newContext({ viewport: { width: 320, height: 568 }, isMobile: true, hasTouch: true, deviceScaleFactor: 1 });
+async function checkFirstVisit(browser, engine, viewport) {
+  const context = await browser.newContext({ viewport, isMobile: true, hasTouch: true, deviceScaleFactor: 1 });
   try {
     const page = await context.newPage();
     await page.goto(`${origin}/ip/aouad?s=offline`);
     await page.getByRole('button', { name: '…누구야. 나한테 말한 거야?', exact: true }).tap();
     await page.getByRole('textbox', { name: '이름', exact: true }).waitFor();
-    for (const height of [568, 360]) {
-      await page.setViewportSize({ width: 320, height });
+    for (const size of [viewport, { width: viewport.height, height: viewport.width }]) {
+      await page.setViewportSize(size);
       const opening = page.getByRole('dialog', { name: '무전 수신', exact: true });
       await opening.evaluate((element) => { element.scrollTop = 0; });
-      assert.ok((await rect(opening.locator('p').first())).y >= 58, 'Short viewport clips the first-visit dialogue above the header');
-      await screenshot(page, `${engine}-320x${height}-first-visit`);
+      await screenshot(page, `${engine}-${viewport.width}-${size.width}x${size.height}-first-visit`);
+      const firstLine = await rect(opening.locator('p').first());
+      assert.ok(firstLine.y >= 58, `Short viewport clips the first-visit dialogue above the header: ${JSON.stringify({ size, firstLine })}`);
     }
+    // Complete onboarding in the requested portrait layout after checking rotation.
+    await page.setViewportSize(viewport);
     await page.getByRole('textbox', { name: '이름', exact: true }).fill('모바일검수');
     await page.getByRole('button', { name: '이청산', exact: true }).tap();
     await page.getByRole('button', { name: '그래, 옥상으로 갈게, 만나', exact: true }).tap();
     await page.getByRole('button', { name: '학생증 · 모바일검수', exact: true }).waitFor();
     assert.equal(new URL(page.url()).searchParams.get('s'), 'offline');
-    results.push({ engine, status: 'passed', checks: ['short-first-visit', 'onboarding-deep-link'] });
-    console.log(`${engine} first visit: passed`);
+    results.push({ engine, viewport, status: 'passed', checks: ['short-first-visit', 'onboarding-deep-link'] });
+    console.log(`${engine} ${viewport.width} first visit: passed`);
   } finally {
     await context.close();
   }
 }
 
-async function checkHudResize(browser, engine) {
-  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, isMobile: true, hasTouch: true, deviceScaleFactor: 1 });
+async function checkHudResize(browser, engine, viewport) {
+  const context = await browser.newContext({ viewport, isMobile: true, hasTouch: true, deviceScaleFactor: 1 });
   try {
     await context.addInitScript((state) => localStorage.setItem('icons:aouad-presentation:v1', JSON.stringify(state)), fixture);
     const page = await context.newPage();
     await page.goto(`${origin}/ip/aouad?zone=store`);
     await page.getByRole('button', { name: /안내 펼치기$/ }).tap();
-    for (const viewport of [{ width: 390, height: 844 }, { width: 320, height: 568 }, { width: 390, height: 844 }]) {
-      await page.setViewportSize(viewport);
+    const other = viewport.width === 320 ? { width: 390, height: 844 } : { width: 320, height: 568 };
+    for (const size of [viewport, other, viewport]) {
+      await page.setViewportSize(size);
       await page.waitForFunction(() => {
         const panel = document.querySelector('nav[aria-label="효산고 탐험 안내"] > [class*="mid"]');
         const scope = document.querySelector('[data-aouad-experience]');
@@ -235,10 +239,10 @@ async function checkHudResize(browser, engine) {
         return Math.abs(height - cap) < 1 && Math.abs(reserved - height) < 1
           && Math.abs(panel.getBoundingClientRect().bottom - panel.parentElement.getBoundingClientRect().bottom) < 1;
       }, undefined, { timeout: 3000 });
-      await screenshot(page, `${engine}-${viewport.width}-resized-hud`);
+      await screenshot(page, `${engine}-${viewport.width}-${size.width}-resized-hud`);
     }
-    results.push({ engine, status: 'passed', checks: ['open-hud-resize-and-restore'] });
-    console.log(`${engine} open HUD resize: passed`);
+    results.push({ engine, viewport, status: 'passed', checks: ['open-hud-resize-and-restore'] });
+    console.log(`${engine} ${viewport.width} open HUD resize: passed`);
   } finally {
     await context.close();
   }
@@ -248,14 +252,16 @@ try {
   for (const [engine, launcher] of [['chromium', chromium], ['webkit', webkit]]) {
     const browser = await launcher.launch({ headless: true, ...(engine === 'chromium' ? { channel: process.env.AOUAD_CHROMIUM_CHANNEL || 'chrome' } : {}) });
     try {
-      for (const viewport of viewports) await checkMobile(browser, engine, viewport);
-      await checkFirstVisit(browser, engine);
-      await checkHudResize(browser, engine);
+      for (const viewport of viewports) {
+        await checkMobile(browser, engine, viewport);
+        await checkFirstVisit(browser, engine, viewport);
+        await checkHudResize(browser, engine, viewport);
+      }
     } finally {
       await browser.close();
     }
   }
 } finally {
-  await writeFile(join(output, 'results.json'), JSON.stringify({ origin, results }, null, 2));
+  await writeFile(join(output, 'results.json'), JSON.stringify({ origin, results, checks: results.flatMap(({ engine, viewport, status, checks }) => checks.map(group => ({ engine, viewport, group, status }))) }, null, 2));
   console.log(`Evidence: ${output}`);
 }

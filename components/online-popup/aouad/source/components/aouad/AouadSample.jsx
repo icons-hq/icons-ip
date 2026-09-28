@@ -3463,11 +3463,6 @@ export default function AouadSample() {
   }, []);
   const closeHyosan = useCallback(() => {
     setHyosanOpen(false);
-    window.setTimeout(() => {
-      const target = hyosanReturnFocusRef.current;
-      if (target?.isConnected) target.focus({ preventScroll: true });
-      hyosanReturnFocusRef.current = null;
-    }, 0);
   }, []);
   const [meOpen, setMeOpen] = useState(false);
   const [hudOverlayOpen, setHudOverlayOpen] = useState(false);
@@ -3734,7 +3729,7 @@ export default function AouadSample() {
         />
       )}
     </div>
-    {hyosanOpen && <HyosanGameDialog onClose={closeHyosan} />}
+    {hyosanOpen && <HyosanGameDialog onClose={closeHyosan} returnFocusRef={hyosanReturnFocusRef} />}
     </>
   );
 }
