@@ -27,11 +27,16 @@ export interface ShippingRegionExpiryState {
   unavailable?: boolean;
 }
 
-/** The latest started active version owns each origin/carrier pair, including a coverage gap. */
+/** Warn for upcoming active versions and the latest started version, including a coverage gap. */
 export function shippingRegionExpiryWarnings(policies: ShippingRegionPolicy[], now: number): ShippingRegionExpiryWarning[] {
   const latest = new Map<string, ShippingRegionPolicy>();
+  const upcoming: ShippingRegionPolicy[] = [];
   for (const policy of policies) {
-    if (policy.status !== 'active' || !policy.startsAt || Date.parse(policy.startsAt) > now) continue;
+    if (policy.status !== 'active' || !policy.startsAt) continue;
+    if (Date.parse(policy.startsAt) > now) {
+      upcoming.push(policy);
+      continue;
+    }
     const key = `${policy.originId}:${policy.carrierCode}`;
     const previous = latest.get(key);
     if (!previous || Date.parse(policy.startsAt) > Date.parse(previous.startsAt!)
@@ -39,7 +44,7 @@ export function shippingRegionExpiryWarnings(policies: ShippingRegionPolicy[], n
   }
   const warnings: ShippingRegionExpiryWarning[] = [];
   const deadline = now + 7 * 24 * 60 * 60 * 1000;
-  for (const policy of latest.values()) {
+  for (const policy of [...latest.values(), ...upcoming]) {
     if (!policy.endsAt || Date.parse(policy.endsAt) > deadline) continue;
     warnings.push({ id: policy.id, name: policy.name, version: policy.version, endsAt: policy.endsAt,
       status: Date.parse(policy.endsAt) <= now ? 'expired' : 'expiring' });

@@ -36,6 +36,13 @@ describe('지역 배송 정책 만료 경고', () => {
     expect(shippingRegionExpiryWarnings([old, next], now)).toEqual([]);
     expect(shippingRegionExpiryWarnings([old, { ...next, startsAt: '2026-09-29T00:00:00Z' }], now)).toHaveLength(1);
   });
+
+  it('아직 시작하지 않았어도 7일 안에 끝나는 활성 정책을 경고한다', () => {
+    expect(shippingRegionExpiryWarnings([{ ...active, startsAt: '2026-09-29T00:00:00Z',
+      endsAt: '2026-10-01T00:00:00Z', openEnded: false }], now)).toEqual([
+      { id: 'policy-1', name: '합성 정책', version: 1, endsAt: '2026-10-01T00:00:00Z', status: 'expiring' },
+    ]);
+  });
 });
 describe('지역 배송 정책 초안과 활성화', () => {
   it('공란은 초안으로 보존하되 확인되지 않은 기간·근거·무료 관계로 활성화하지 않는다', () => {
