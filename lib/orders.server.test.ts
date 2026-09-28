@@ -127,6 +127,14 @@ beforeEach(() => {
 });
 
 describe('loadOrders', () => {
+  it('복구 목록은 취소 요청이 없는 본인의 결제 대기 주문도 보여준다', async () => {
+    mocks.client=createClient({records:[],rows:{orders:[
+      {id:orderId,user_id:userId,status:'pending',total:10000,created_at:'2026-09-28T00:00:00Z'},
+      {id:'other',user_id:'other-user',status:'pending',total:10000,created_at:'2026-09-28T00:00:00Z'},
+    ],order_items:[]}});
+    expect(await loadOrders(userId,{includePending:true})).toMatchObject([{id:orderId,status:'pending'}]);
+    expect(await loadOrders(userId)).toEqual([]);
+  });
   it('loads only the viewer visible history and summarizes immutable item snapshots', async () => {
     const records: QueryRecord[] = [];
     mocks.client = createClient({

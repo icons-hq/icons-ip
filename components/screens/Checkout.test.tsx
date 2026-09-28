@@ -104,7 +104,7 @@ it.each(['coupon_first_purchase_reserved', 'coupon_first_purchase_pending'])('�
   const html = render({ paymentAvailable: true, bankTransferAvailable: true, quote: { coupon: {
     userCouponId: '00000000-0000-4000-8000-000000000099', couponCode: 'FIRST', eligibleSubtotal: 12000, discount: 0, reason,
   } } });
-  expect(html).toContain('href="/orders"');
+  expect(html).toContain('href="/orders?pending=1"');
   expect(html).toContain('진행 중인 주문 확인');
 });
 

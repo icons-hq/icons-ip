@@ -8,7 +8,7 @@ const policy: ShippingRegionPolicyInput = { ...draft, name: '합성 정책', sta
 
 describe('지역 배송 정책 만료 경고', () => {
   const now = Date.parse('2026-09-28T00:00:00Z');
-  const active: ShippingRegionPolicy = { ...policy, id: 'policy-1', version: 1, revision: 1, status: 'active',
+  const active: ShippingRegionPolicy & {originName:string;carrierLabel:string} = { ...policy, originName:'김포',carrierLabel:'한진택배', id: 'policy-1', version: 1, revision: 1, status: 'active',
     confirmedAt: '2026-09-10T00:00:00Z', confirmedBy: 'admin', updatedAt: '2026-09-10T00:00:00Z' };
 
   it.each([
@@ -16,22 +16,22 @@ describe('지역 배송 정책 만료 경고', () => {
     ['2026-09-28T00:00:00Z', 'expired'],
     ['2026-10-05T00:00:00Z', 'expiring'],
   ])('종료 7일 전 경계와 종료 후를 경고한다: %s', (endsAt, status) => {
-    expect(shippingRegionExpiryWarnings([{ ...active, openEnded: false, endsAt }], now)).toEqual([
-      { id: 'policy-1', name: '합성 정책', version: 1, endsAt, status },
+    expect(shippingRegionExpiryWarnings([{ ...active, endsAt }], now)).toEqual([
+      { originName:'김포',carrierLabel:'한진택배', id: 'policy-1', name: '합성 정책', version: 1, endsAt, status },
     ]);
   });
 
   it('미등록·여유 기간·무기한·초안·퇴역 정책은 경고하지 않는다', () => {
     expect(shippingRegionExpiryWarnings([], now)).toEqual([]);
     for (const item of [active,
-      { ...active, endsAt: '2026-10-05T00:00:01Z', openEnded: false },
+      { ...active, endsAt: '2026-10-05T00:00:01Z' },
       { ...active, endsAt: '2026-09-27T00:00:00Z', status: 'draft' as const },
       { ...active, endsAt: '2026-09-27T00:00:00Z', status: 'retired' as const },
     ]) expect(shippingRegionExpiryWarnings([item], now)).toEqual([]);
   });
 
   it('같은 출고지·택배사의 새 적용 정책이 있으면 이전 만료 경고를 남기지 않는다', () => {
-    const old = { ...active, endsAt: '2026-09-27T00:00:00Z', openEnded: false };
+    const old = { ...active, endsAt: '2026-09-27T00:00:00Z' };
     const next = { ...active, id: 'policy-2', version: 2, startsAt: '2026-09-27T00:00:00Z' };
     expect(shippingRegionExpiryWarnings([old, next], now)).toEqual([]);
     expect(shippingRegionExpiryWarnings([old, { ...next, startsAt: '2026-09-29T00:00:00Z' }], now)).toHaveLength(1);
@@ -39,8 +39,8 @@ describe('지역 배송 정책 만료 경고', () => {
 
   it('아직 시작하지 않았어도 7일 안에 끝나는 활성 정책을 경고한다', () => {
     expect(shippingRegionExpiryWarnings([{ ...active, startsAt: '2026-09-29T00:00:00Z',
-      endsAt: '2026-10-01T00:00:00Z', openEnded: false }], now)).toEqual([
-      { id: 'policy-1', name: '합성 정책', version: 1, endsAt: '2026-10-01T00:00:00Z', status: 'expiring' },
+      endsAt: '2026-10-01T00:00:00Z' }], now)).toEqual([
+      { originName:'김포',carrierLabel:'한진택배', id: 'policy-1', name: '합성 정책', version: 1, endsAt: '2026-10-01T00:00:00Z', status: 'expiring' },
     ]);
   });
 });

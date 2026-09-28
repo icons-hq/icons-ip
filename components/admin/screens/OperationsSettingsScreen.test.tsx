@@ -10,7 +10,7 @@ const contacts: OperationsContact[] = [
 const history: OperationsContactHistory[] = [{ id: 'history', actorName: '관리자', scope: 'origin', originName: '연습 창고', changedFields: ['contact'], createdAt: '2026-09-11T03:00:00Z' }];
 it('운영 준비에서 지역 정책 만료 경고를 확인한다', () => {
   const html = renderToStaticMarkup(<OperationsSettingsScreen contacts={[]} history={[]} canEdit={false}
-    shippingRegionExpiry={{ warnings: [{ id: 'policy', name: '실제 지역 정책', version: 1, endsAt: '2026-10-01T00:00:00Z', status: 'expiring' }] }} />);
+    shippingRegionExpiry={{ warnings: [{ originName: "김포", carrierLabel: "한진택배", id: 'policy', name: '실제 지역 정책', version: 1, endsAt: '2026-10-01T00:00:00Z', status: 'expiring' }] }} />);
   expect(html).toContain('7일 이내 만료');
   expect(html).toContain('실제 지역 정책');
 });

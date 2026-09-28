@@ -258,6 +258,7 @@ jobs:
           run_sql_test supabase/tests/checkout_coupon_expectation.sql
           run_sql_test supabase/tests/settled_export.sql
           run_sql_test supabase/tests/shipping_regions.sql
+          run_sql_test supabase/tests/shipping_region_expiry.sql
           run_sql_test supabase/tests/shipment_delivery_methods.sql
           bash supabase/tests/goods_purchase_policies_concurrency.sh supabase_db_icons-ip postgres
           bash supabase/tests/sales_category_hierarchy_concurrency.sh supabase_db_icons-ip postgres

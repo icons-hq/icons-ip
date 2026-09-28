@@ -206,7 +206,7 @@ describe('Cart 쿠폰 슬롯 (S7)', () => {
       [{ goodId: 'g13', variantId: DEFAULT_VARIANT, qty: 1 }],
       { selectedUserCouponId: fix5k.id, coupons: [fix5k] },
     );
-    expect(html).toContain('href="/orders"');
+    expect(html).toContain('href="/orders?pending=1"');
     expect(html).toContain('진행 중인 주문 확인');
     expect(html).not.toContain('href="/checkout"');
   });

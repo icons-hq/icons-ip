@@ -1,6 +1,6 @@
 import 'server-only';
 import { createClient } from '@/lib/supabase/server';
-import { parseShippingRegionPolicy, shippingRegionExpiryWarnings, type ShippingRegionPolicy, type ShippingRegionExpiryState } from './shipping-regions';
+import { parseShippingRegionPolicy, shippingRegionExpiryWarnings, type ShippingRegionPolicy, type ShippingRegionExpiryPolicy, type ShippingRegionExpiryState } from './shipping-regions';
 import { unstable_rethrow } from 'next/navigation';
 
 export interface ShippingRegionAdoption { originId: string; managedFrom: string }
@@ -18,8 +18,15 @@ export async function loadAdminShippingRegionPolicies(): Promise<{ policies: Shi
 
 export async function loadAdminShippingRegionExpiry(): Promise<ShippingRegionExpiryState> {
   try {
-    const { policies } = await loadAdminShippingRegionPolicies();
-    return { warnings: shippingRegionExpiryWarnings(policies, Date.now()) };
+    const client=await createClient();
+    const now=Date.now();
+    const {data,error}=await client.rpc('admin_shipping_region_expiry_metadata',{p_at:new Date(now).toISOString()});
+    if (error || !Array.isArray(data) || data.some((row)=>!row || typeof row!=='object'
+      || !['id','name','originId','originName','carrierCode','carrierLabel'].every(key=>typeof row[key]==='string')
+      || row.status!=='active' || !Number.isSafeInteger(row.version) || row.version<1
+      || typeof row.startsAt!=='string' || !Number.isFinite(Date.parse(row.startsAt))
+      || typeof row.endsAt!=='string' || !Number.isFinite(Date.parse(row.endsAt)))) throw new Error('Invalid expiry metadata');
+    return { warnings: shippingRegionExpiryWarnings(data as ShippingRegionExpiryPolicy[], now) };
   } catch (error) {
     unstable_rethrow(error);
     return { warnings: [], unavailable: true };

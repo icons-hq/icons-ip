@@ -50,6 +50,13 @@ describe('/orders', () => {
     expect(mocks.loadOrders).toHaveBeenCalledWith(userId);
   });
 
+  it('복구 링크에서 결제 대기 주문을 포함하고 로그인 복귀에도 선택을 보존한다', async () => {
+    await Page({searchParams:Promise.resolve({pending:'1'})});
+    expect(mocks.loadOrders).toHaveBeenCalledWith(userId,{includePending:true});
+    mocks.auth={user:null,profile:null};
+    await expect(Page({searchParams:Promise.resolve({pending:'1'})})).rejects.toThrow(encodeURIComponent('/orders?pending=1'));
+  });
+
   it('payment 쿼리가 없거나 콜백 계약 밖의 값이면 배너 없이 렌더한다', async () => {
     expect(renderToStaticMarkup(await render(undefined))).toContain('data-payment-result="none"');
     expect(renderToStaticMarkup(await render('paid'))).toContain('data-payment-result="none"');

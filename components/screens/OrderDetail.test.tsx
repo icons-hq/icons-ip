@@ -42,6 +42,11 @@ function order(overrides: Partial<OrderDetailData> = {}): OrderDetailData {
 }
 
 describe('OrderDetail', () => {
+  it('결제 대기 카드 주문은 결제 상태 확인과 이어가기 화면으로 이동한다', () => {
+    const html=renderToStaticMarkup(<OrderDetail order={order({status:'pending',payment:null,shipments:[]})}/>);
+    expect(html).toContain(`href="/checkout/${ORDER_ID}"`);
+    expect(html).toContain('결제 상태 확인·이어가기');
+  });
   it('운송장이 등록되면 택배사·운송장번호와 배송조회 링크를 노출한다', () => {
     const html = renderToStaticMarkup(<OrderDetail order={order()} />);
 
