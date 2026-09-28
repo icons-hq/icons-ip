@@ -19,6 +19,12 @@ export const HYOSAN_SOURCE_COMMIT = '88b9937a118120f60ef5166b66e5c370fc292b3a';
 export const HYOSAN_SOURCE_MANIFEST_SHA256 = '421bb226cce51d3eaa9f90d2e416ac75de0f02d98a00bc9ef45082c7125dadc8';
 export const HYOSAN_SOURCE_CAPSULE_SHA256 = '80c742a03d33a29da8f80e253fc74141d426f4753bfbecdcdd683138ca680dce';
 export const HYOSAN_POPUP_BASE = '/ip-popups/aouad/hyosan/';
+const EXPECTED_BUILD_OUTPUT_COUNT = 3;
+const EXPECTED_MEDIA_COUNT = 15;
+const EXPECTED_UPSTREAM_FILE_COUNT = 45;
+const EXPECTED_MEDIA_ROOT_REPLACEMENTS = 6;
+const EXPECTED_BUNDLE_REPLACEMENTS = 2;
+
 export const sha256 = (bytes) => createHash('sha256').update(bytes).digest('hex');
 
 export function assertSafeRelativePath(value) {
@@ -103,7 +109,7 @@ export async function readPinnedUpstream(sourceDirectory) {
     throw new Error(`Hyosan upstream manifest does not match pinned commit ${HYOSAN_SOURCE_COMMIT}`);
   }
   const manifest = JSON.parse(bytes.toString('utf8'));
-  if (manifest.version !== 1 || manifest.outputFiles.length !== 3 || manifest.assets.length !== 15) {
+  if (manifest.version !== 1 || manifest.outputFiles.length !== EXPECTED_BUILD_OUTPUT_COUNT || manifest.assets.length !== EXPECTED_MEDIA_COUNT) {
     throw new Error('Unsupported Hyosan upstream manifest shape');
   }
   return { manifest, bytesByPath: await verifyUpstreamFileSet(root, manifest, bytes) };
@@ -146,7 +152,7 @@ export function relocateHyosanBuild(outputFiles, bytesByPath) {
     html = html.replaceAll(from, `"${HYOSAN_POPUP_BASE}${after}"`);
   }
   files.set('index.html', Buffer.from(html));
-  if (mediaReplacements !== 6 || bundleReplacements !== 2) throw new Error('Hyosan pinned URL replacement count changed');
+  if (mediaReplacements !== EXPECTED_MEDIA_ROOT_REPLACEMENTS || bundleReplacements !== EXPECTED_BUNDLE_REPLACEMENTS) throw new Error('Hyosan pinned URL replacement count changed');
   for (const [path, bytes] of files) {
     assertNoDevelopmentDriver(bytes, path);
     if (bytes.includes(Buffer.from(developmentAssetRoot)) || bytes.includes(Buffer.from('"/assets/'))) {
@@ -198,7 +204,7 @@ export async function packageAouadHyosan(sourceDirectory) {
       manifestPath: `${packageDirectory}/upstream-manifest.json`,
       capsulePath: `${packageDirectory}/${capsule.archive.path}`,
       capsuleSha256: capsule.archive.sha256,
-      upstreamFiles: 45,
+      upstreamFiles: EXPECTED_UPSTREAM_FILE_COUNT,
       productionQaDriverAbsent: true,
       relocation: { mediaRoots: relocated.mediaReplacements, bundleReferences: relocated.bundleReplacements },
     },
