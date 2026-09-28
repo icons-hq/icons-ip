@@ -79,6 +79,21 @@ const row = (
   },
 });
 describe('goods Excel planning', () => {
+  it('대표·추가 카테고리를 XLSX로 왕복하고 추가 분류 공란은 명시 해제한다', async () => {
+    const primary = '00000000-0000-4000-8000-000000051111';
+    const extra = '00000000-0000-4000-8000-000000051121';
+    const record = { ...existing, good: { ...existing.good, category_id: primary, additional_category_ids: [extra] } };
+    const ctx = { ...context, existing: [record], categories: [
+      { id: primary, code: 'primary-leaf', archived_at: null }, { id: extra, code: 'extra-leaf', archived_at: null },
+    ] };
+    const parsed = await parseGoodsWorkbookWithKc(await buildGoodsWorkbook(exportGoodsWorkbookRows(record, ctx)));
+    expect(parsed.rows[0].values).toMatchObject({ categoryCode: 'primary-leaf', additionalCategoryCodes: 'extra-leaf' });
+    expect(planGoodsWorkbookImport(parsed.rows, ctx)[0].kind).toBe('unchanged');
+    const cleared = { ...parsed.rows[0], values: { ...parsed.rows[0].values, additionalCategoryCodes: '' } };
+    expect(planGoodsWorkbookImport([cleared], ctx)[0]).toMatchObject({ kind: 'update', target: { category_id: primary, additional_category_ids: [] } });
+    const invalid = { ...cleared, values: { ...cleared.values, additionalCategoryCodes: 'unknown' } };
+    expect(planGoodsWorkbookImport([invalid], ctx)[0]).toMatchObject({ kind: 'error', errors: expect.arrayContaining([expect.stringContaining('추가 카테고리')]) });
+  });
   it('round-trips discount display through an actual workbook and validates explicit changes', async () => {
     const record = { ...existing, good: { ...existing.good, show_discount_rate: false } };
     const ctx = { ...context, existing: [record] };

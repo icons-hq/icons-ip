@@ -121,26 +121,32 @@ function toNode(row: CategoryRow, childCount: number, assignedGoodCount: number)
 
 export async function loadAdminCategoryWorkspace(): Promise<AdminCategoryWorkspaceData> {
   const supabase = await createClient();
-  const [categoriesResult, mappingsResult, migrationsResult, activationResult, goodsResult] = await Promise.all([
+  const [categoriesResult, mappingsResult, migrationsResult, activationResult, goodsResult, additionalResult] = await Promise.all([
     readAllRows<CategoryRow>(supabase.from('catalog_categories').select('id,code,name,parent_id,depth,sort_order,archived_at,updated_at').order('sort_order').order('code')),
     readAllRows<MappingRow>(supabase.from('catalog_category_erp_mappings').select('category_id,erp_code,erp_name,source,verified_at,verified_by').order('category_id')),
     readAllRows<MigrationRow>(supabase.from('goods_type_category_migrations').select('type,category_id,status,note,updated_at').order('type')),
     supabase.from('category_activation_control').select('id,customer_enabled,erp_enabled,evidence,updated_at').eq('id', 'catalog').maybeSingle(),
-    readAllRows<GoodCategoryRow>(supabase.from('goods').select('id,category_id')),
+    readAllRows<GoodCategoryRow>(supabase.from('goods').select('id,category_id').order('id')),
+    readAllRows<{ good_id: string; category_id: string }>(supabase.from('goods_additional_categories').select('good_id,category_id').order('good_id').order('category_id')),
   ]);
-  if (categoriesResult.error || mappingsResult.error || migrationsResult.error || activationResult.error || goodsResult.error) {
+  if (categoriesResult.error || mappingsResult.error || migrationsResult.error || activationResult.error || goodsResult.error || additionalResult.error) {
     throw new Error('고객 카테고리 정보를 불러오지 못했습니다. 잠시 후 다시 시도해주세요.');
   }
 
   const categoryRows = categoriesResult.data;
   const goods = goodsResult.data;
   const childCounts = new Map<string, number>();
-  for (const row of categoryRows) if (row.parent_id) childCounts.set(row.parent_id, (childCounts.get(row.parent_id) ?? 0) + 1);
-  const assignedCounts = new Map<string, number>();
-  for (const good of goods) if (good.category_id) assignedCounts.set(good.category_id, (assignedCounts.get(good.category_id) ?? 0) + 1);
+  for (const row of categoryRows) if (row.parent_id && !row.archived_at) childCounts.set(row.parent_id, (childCounts.get(row.parent_id) ?? 0) + 1);
+  const assignedGoods = new Map<string, Set<string>>();
+  for (const membership of [...goods.map(good => ({ good_id: good.id, category_id: good.category_id })), ...additionalResult.data]) {
+    if (!membership.category_id) continue;
+    const ids = assignedGoods.get(membership.category_id) ?? new Set<string>();
+    ids.add(membership.good_id);
+    assignedGoods.set(membership.category_id, ids);
+  }
 
   return {
-    categories: categoryRows.map((row) => toNode(row, childCounts.get(row.id) ?? 0, assignedCounts.get(row.id) ?? 0)),
+    categories: categoryRows.map((row) => toNode(row, childCounts.get(row.id) ?? 0, assignedGoods.get(row.id)?.size ?? 0)),
     mappings: mappingsResult.data.map((row) => ({
       categoryId: row.category_id,
       erpCode: row.erp_code,
