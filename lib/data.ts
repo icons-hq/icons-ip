@@ -16,6 +16,7 @@ export interface Vertical {
 }
 export interface Ip {
   id: string;
+  publicSlug?: string;
   title: string;
   sub: string;
   v: Vertical;

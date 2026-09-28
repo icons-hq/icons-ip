@@ -36,6 +36,12 @@ function text(html: string) {
   return html.replace(/<[^>]+>/g, '');
 }
 
+it('피처드 카드와 IP 목록은 바뀐 공개 주소로 직접 연결한다', () => {
+  const html = render([ip('old-ip', '테스트 IP', { publicSlug: 'new-ip', featured: true })]);
+  expect(html.match(/href="\/ip\/new-ip"/g)).toHaveLength(2);
+  expect(html).not.toContain('href="/ip/old-ip"');
+});
+
 describe('IpDirectory', () => {
   it('renders the 28-entry A–Z index bar with ALL pressed by default', () => {
     const html = render([maplestory]);

@@ -58,7 +58,7 @@ export function IpDirectory({
                   <Link
                     key={ip.id}
                     className="wc-ipdir__tile"
-                    href={hrefFor('ip', ip.id)}
+                    href={hrefFor('ip', ip)}
                     style={{ background: ip.bg, backgroundSize: 'cover', backgroundPosition: 'center' }}
                   >
                     <span>{ipEn(ip)}</span>
@@ -98,7 +98,7 @@ export function IpDirectory({
             ) : (
               <div className="wc-ipdir__list">
                 {filtered.map((ip) => (
-                  <Link key={ip.id} className="wc-ipdir__row" href={hrefFor('ip', ip.id)}>
+                  <Link key={ip.id} className="wc-ipdir__row" href={hrefFor('ip', ip)}>
                     <span
                       aria-hidden
                       className="wc-ipdir__thumb"

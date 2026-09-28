@@ -4,6 +4,7 @@ import { EmptyState } from '@/components/wc/EmptyState';
 import { ProductCard } from '@/components/wc/ProductCard';
 import { SectionHeading } from '@/components/wc/SectionHeading';
 import { COMMUNITY_ENABLED } from '@/lib/community-visibility';
+import { publicIpHref } from '@/lib/ip-identity';
 import type { Ip } from '@/lib/data';
 import { goodDisplayBadges } from '@/lib/goods-taxonomy';
 import type { GoodsSearchResult } from '@/lib/search-goods';
@@ -29,7 +30,7 @@ function searchHref(query: string, page: number) {
 
 /** 결과 클릭은 목록이 아니라 실제 상세로 간다 — 구 화면의 '굿즈 → /shop' 은 버그였다. */
 function resultHref(result: SearchResult) {
-  if (result.kind === 'ip') return `/ip/${result.ipId ?? result.id}`;
+  if (result.kind === 'ip') return publicIpHref({ id: result.ipId ?? result.id, publicSlug: result.ipPublicSlug });
   if (result.kind === 'card') return '/binder';
   if (result.kind === 'post') return '/community';
   if (result.kind === 'tag') return `/search?q=${encodeURIComponent(result.id)}`;

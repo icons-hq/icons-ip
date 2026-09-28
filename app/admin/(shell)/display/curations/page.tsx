@@ -29,6 +29,7 @@ export default async function AdminDisplayCurationsPage() {
       }))}
       ipOptions={records.ips.map((ip) => ({
         id: ip.id,
+        publicSlug: ip.publicSlug,
         title: ip.title,
         archivedAt: ip.archivedAt,
       }))}

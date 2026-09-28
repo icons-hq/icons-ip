@@ -165,6 +165,12 @@ describe('Search 빈 상태', () => {
 });
 
 describe('Search 비굿즈 그룹', () => {
+  it('IP 검색 결과는 현재 공개 슬러그로 연결한다', () => {
+    const html = renderToStaticMarkup(<Search ips={IPS} goodsResult={goodsResultOf({ items: [], total: 0 })} query="리락쿠마"
+      snapshot={snapshotOf('리락쿠마', [{ kind: 'ip', label: 'IP', results: [{ ...result('ip', 'rilakkuma', '리락쿠마'), ipPublicSlug: 'relax-world' }] }])} />);
+    expect(html).toContain('href="/ip/relax-world"');
+    expect(html).not.toContain('href="/ip/rilakkuma"');
+  });
   const html = renderToStaticMarkup(
     <Search
       ips={IPS}

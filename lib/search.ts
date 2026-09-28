@@ -15,6 +15,7 @@ export interface SearchResult {
   label: string;
   subtitle: string | null;
   ipId: string | null;
+  ipPublicSlug?: string;
   ipTitle: string | null;
   imagePath: string | null;
   bg: string | null;
@@ -251,6 +252,17 @@ export async function getSearchSnapshot(rawQuery: string | string[] | null | und
     .filter((result): result is SearchResult => result !== null);
 
   const visible = visibleSearchResults(results);
+  const ipIds = [...new Set(visible.flatMap(result => result.ipId ? [result.ipId] : result.kind === 'ip' ? [result.id] : []))];
+  if (ipIds.length > 0) {
+    const identities = await supabase.from('ips').select('id,public_slug')
+      .in('id', ipIds).is('archived_at', null).not('published_at', 'is', null);
+    if (identities.error) throw new Error(`Failed to load search IP identities: ${identities.error.message}`);
+    const slugs = new Map((identities.data ?? []).map(ip => [ip.id as string, ip.public_slug as string | null]));
+    for (const result of visible) {
+      const slug = slugs.get(result.ipId ?? result.id);
+      if (slug) result.ipPublicSlug = slug;
+    }
+  }
 
   return {
     source,

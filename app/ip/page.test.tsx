@@ -53,6 +53,11 @@ describe('/ip page', () => {
     expect(mocks.directory).not.toHaveBeenCalled();
   });
 
+  it('resolves a legacy query directly to the current slug with the same redirect contract', async () => {
+    mocks.catalog.ips = [{ ...ip, publicSlug: 'current-ip' }];
+    await expect(Page({ searchParams: Promise.resolve({ ip: 'ip-1' }) })).rejects.toThrow('redirect:/ip/current-ip');
+  });
+
   it('renders the directory instead of redirecting for an unknown ?ip=', async () => {
     renderToStaticMarkup(await Page({ searchParams: Promise.resolve({ ip: 'no-such-ip' }) }));
 

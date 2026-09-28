@@ -1,6 +1,13 @@
 /** Newest first. Describe available behavior; do not preannounce unfinished tickets. */
 export const ADMIN_WEEKLY_CHANGES = [
   {
+    week: '2026-09-28',
+    title: 'IP 공개 주소 연결',
+    changes: [
+      'IP 공개 주소를 바꾸면 상품 상세·IP 목록·검색·홈 큐레이션이 현재 주소로 바로 연결됩니다. 새 큐레이션의 IP 목적지도 현재 주소를 사용하며 이전 외부 주소는 별칭으로 유지합니다.',
+    ],
+  },
+  {
     week: '2026-09-15',
     title: '상품 작성·저장과 처리할 업무를 명확하게',
     changes: [

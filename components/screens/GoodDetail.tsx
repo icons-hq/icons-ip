@@ -3,6 +3,7 @@
 import { krw } from '@/lib/format';
 
 import Link from 'next/link';
+import { publicIpHref } from '@/lib/ip-identity';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { GoodBuyBars, GoodPurchasePanel, isMiniBuybarVisible, useGoodPurchase } from '@/components/shop/GoodPurchasePanel';
@@ -355,7 +356,7 @@ export function GoodDetailView({
             {ip ? (
               <div className="wc-pdp__brand">
                 <span className="wc-pdp__brand-name">{ip.title}</span>
-                <Link className="wc-pdp__brand-link" href={`/ip/${ip.id}`}>브랜드 보러가기</Link>
+                <Link className="wc-pdp__brand-link" href={publicIpHref(ip)}>브랜드 보러가기</Link>
               </div>
             ) : null}
           </div>

@@ -23,6 +23,10 @@ function paths(groups: ReturnType<typeof adminCurationTargetGroups>) {
 }
 
 describe('admin curation targets', () => {
+  it('uses the current public IP address when creating a new curation link', () => {
+    expect(paths(adminCurationTargetGroups({ ...source, ips: [{ ...source.ips[0], publicSlug: 'relax-world' }] })))
+      .toContain('/ip/relax-world');
+  });
   it('커뮤니티 임시 비공개 동안 커뮤니티를 고정 타깃으로 제안하지 않는다', () => {
     expect(paths(adminCurationTargetGroups(source)).includes('/community')).toBe(COMMUNITY_ENABLED);
   });

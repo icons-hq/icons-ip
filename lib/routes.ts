@@ -3,6 +3,7 @@
    아직 여기로 모이지 않은 잔여물은 하나다: components/screens/Home.tsx의 하드코딩 내비게이션(S3에서 제거). */
 
 import { COMMUNITY_ENABLED } from './community-visibility';
+import { publicIpHref, type PublicIpReference } from './ip-identity';
 
 export const AOUAD_POPUP_PATH = '/ip/aouad';
 
@@ -82,8 +83,8 @@ const PATHS: Record<string, string> = {
 };
 
 /** 함정: 미등록 id는 '/'로 폴백한다. 오타 하나가 홈 링크로 둔갑해 조용히 통과하므로 새 항목은 반드시 PATHS에 등록한다. */
-export function hrefFor(route: string, param?: string | null): string {
-  if (route === 'ip') return param ? `/ip/${param}` : '/ip';
+export function hrefFor(route: string, param?: string | PublicIpReference | null): string {
+  if (route === 'ip') return param ? publicIpHref(param) : '/ip';
   return PATHS[route] ?? '/';
 }
 

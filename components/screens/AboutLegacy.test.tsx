@@ -95,6 +95,11 @@ function renderAboutLegacy(overrides: Partial<ComponentProps<typeof AboutLegacy>
 }
 
 describe('AboutLegacy curation', () => {
+  it('uses the current public IP address for fandom entry and IP cards', () => {
+    const html = renderAboutLegacy({ catalog: catalog('supabase', [{ ...ip('lumen', '루멘'), publicSlug: 'lumen-world' }]) });
+    expect(html).toContain('href="/ip/lumen-world"');
+    expect(html).not.toContain('href="/ip/lumen"');
+  });
   it('hides every card-pack destination and reward CTA while the global gate is disabled', () => {
     const html = renderAboutLegacy({
       cardRewardsEnabled: false,

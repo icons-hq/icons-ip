@@ -5,6 +5,7 @@
 import { redirect } from 'next/navigation';
 import { IpDirectory } from '@/components/screens/IpDirectory';
 import { getCatalogSnapshot } from '@/lib/catalog';
+import { publicIpHref } from '@/lib/ip-identity';
 import { isAouadLocalPreviewEnabled } from '@/lib/aouad-popup.server';
 
 function firstParam(value: string | string[] | undefined) {
@@ -19,8 +20,9 @@ export default async function Page({
   const [catalog, query] = await Promise.all([getCatalogSnapshot(), searchParams]);
 
   const legacyId = firstParam(query.ip);
-  if (legacyId && catalog.ips.some((ip) => ip.id === legacyId)) {
-    redirect(`/ip/${encodeURIComponent(legacyId)}`);
+  const legacyIp = legacyId ? catalog.ips.find((ip) => ip.id === legacyId) : null;
+  if (legacyIp) {
+    redirect(publicIpHref(legacyIp));
   }
 
   return <IpDirectory ips={catalog.ips} aouadLocalPreview={isAouadLocalPreviewEnabled()} />;

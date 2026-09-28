@@ -2,13 +2,56 @@ import 'server-only';
 
 import { createClient } from '@/lib/supabase/server';
 import { getSupabaseConfig } from '@/lib/supabase/config';
-import type { AdminIpIdentity } from './ip-identity';
+import { publicIpHref, RESERVED_IP_PUBLIC_SLUGS, type AdminIpIdentity, type PublicIpReference } from './ip-identity';
 export type { AdminIpIdentity } from './ip-identity';
 
 export interface ResolvedPublicIpIdentity {
   internalId: string;
   publicSlug: string;
   isAlias: boolean;
+}
+
+function ipLinkReference(href: string): { slug: string; suffix: string } | null {
+  try {
+    const match = /^\/ip\/([^/?#]+)([?#].*)?$/.exec(href);
+    if (match) {
+      const slug = decodeURIComponent(match[1]);
+      return RESERVED_IP_PUBLIC_SLUGS.has(slug) ? null : { slug, suffix: match[2] ?? '' };
+    }
+    if (!href.startsWith('/ip?')) return null;
+    const url = new URL(href, 'https://icons.local');
+    const slug = url.searchParams.get('ip');
+    if (!slug || RESERVED_IP_PUBLIC_SLUGS.has(slug)) return null;
+    url.searchParams.delete('ip');
+    return { slug, suffix: url.search + url.hash };
+  } catch {
+    return null;
+  }
+}
+
+/** Canonicalize stored internal links using only already-public catalog IPs. */
+export async function resolvePublicIpLinks(hrefs: readonly string[], ips: readonly PublicIpReference[]): Promise<Map<string, string>> {
+  const references = new Map(hrefs.flatMap(href => {
+    const reference = ipLinkReference(href);
+    return reference ? [[href, reference] as const] : [];
+  }));
+  const ipsById = new Map(ips.map(ip => [ip.id, ip]));
+  const targets = new Map(ips.flatMap(ip => [[ip.id, ip] as const, [ip.publicSlug || ip.id, ip] as const]));
+  const unresolved = [...new Set([...references.values()].map(reference => reference.slug).filter(slug => !targets.has(slug)))];
+  if (unresolved.length > 0 && ips.length > 0) {
+    const supabase = await createClient();
+    const { data, error } = await supabase.from('ip_public_slug_aliases').select('slug,ip_id')
+      .in('slug', unresolved).in('ip_id', [...ipsById.keys()]);
+    if (error) throw new Error(`Failed to load curated IP identities: ${error.message}`);
+    for (const alias of (data ?? []) as IpSlugAliasRow[]) {
+      const ip = ipsById.get(alias.ip_id);
+      if (ip) targets.set(alias.slug, ip);
+    }
+  }
+  return new Map([...references].flatMap(([href, reference]) => {
+    const ip = targets.get(reference.slug);
+    return ip ? [[href, publicIpHref(ip) + reference.suffix] as const] : [];
+  }));
 }
 
 interface IpIdentityRow {

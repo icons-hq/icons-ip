@@ -10,6 +10,7 @@ import { imageUrlFromBg, normalizePublicMediaPath } from '@/lib/media';
 
 export interface AdminIpRecord {
   id: string;
+  publicSlug?: string;
   archivedAt: string | null;
   /** 게시 시각. null 이면 초안(비공개). 보관 여부와 함께 읽어야 상태가 정해진다(lib/admin/ip-publish.ts). */
   publishedAt: string | null;
@@ -315,6 +316,7 @@ const skippedResult = Promise.resolve({ data: [] as never[], error: null as { me
 
 interface IpRow {
   id: string;
+  public_slug?: string | null;
   archived_at: string | null;
   published_at?: string | null;
   title: string;
@@ -551,7 +553,7 @@ export async function getAdminCatalogRecords(
     queried.has('ips')
       ? supabase
         .from('ips')
-        .select('id,archived_at,published_at,title,sub,vertical_key,tagline,synopsis,glyph,bg,image_path,featured,fans_count')
+        .select('id,public_slug,archived_at,published_at,title,sub,vertical_key,tagline,synopsis,glyph,bg,image_path,featured,fans_count')
         .order('id')
       : skippedResult,
     goodsQuery ?? skippedResult,
@@ -655,6 +657,7 @@ export async function getAdminCatalogRecords(
   const loaded: AdminCatalogRecords = {
     ips: ((ipsResult.data ?? []) as IpRow[]).map((row) => ({
       id: row.id,
+      ...(row.public_slug ? { publicSlug: row.public_slug } : {}),
       archivedAt: row.archived_at,
       publishedAt: row.published_at ?? null,
       title: row.title,

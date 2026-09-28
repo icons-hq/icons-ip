@@ -380,6 +380,12 @@ describe('GoodDetail', () => {
     expect(html).toContain('브랜드 보러가기');
   });
 
+  it('IP 주소를 바꾼 뒤 브랜드 링크는 새 주소로 직접 간다', () => {
+    const html = render({ ip: { ...detail.ip!, publicSlug: 'new-hong-sil' } });
+    expect(html).toContain('href="/ip/new-hong-sil"');
+    expect(html).not.toContain('href="/ip/hong-sil-quest"');
+  });
+
   it('상품 문의 진입점을 유지한다', () => {
     expect(render()).toContain('href="/my/inquiries/new?category=good&amp;goodId=g13"');
   });
