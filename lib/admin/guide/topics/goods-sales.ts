@@ -58,7 +58,7 @@ export const GOODS_SALES_TOPIC: AdminGuideTopic = {
       id: 'additional-goods',
       heading: '추가구성상품 연결',
       steps: [
-        { text: '저장된 상품의 추가 구성 작업 영역에서 함께 판매할 상품명·상품코드로 검색합니다.', screenHref: '/admin/catalog/goods' },
+        { text: '저장된 상품의 추가 구성 작업 영역에서 함께 판매할 상품명으로 검색합니다.', screenHref: '/admin/catalog/goods' },
         { text: '상품을 선택하고 위로·아래로 버튼으로 연결 순서를 정한 뒤 해당 영역의 저장 버튼을 누릅니다. 기본 상품 저장과는 별도 작업입니다.' },
         { text: '고객 상세에서 연결된 상품을 확인합니다. 각 상품의 옵션 가격·할당 재고를 사용하며, 품절·판매 중지 상품은 구매 화면에 표시하지 않습니다.' },
       ],

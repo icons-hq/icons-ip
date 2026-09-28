@@ -10,7 +10,7 @@ function isAdminSurface(file) {
     || /^app\/admin\/\(shell\)\/guide\//.test(file)) return false;
   return file.startsWith('components/admin/')
     || /^app\/admin\/(?:.*\/)?(page|layout|loading|error|not-found)\.tsx$/.test(file)
-    || /^lib\/admin\/(navigation|sections)\.ts$/.test(file);
+    || /^lib\/admin\/(navigation|sections|vocabulary)\.ts$/.test(file);
 }
 
 export function checkAdminGuideChangelog({ files, body = '' }) {

@@ -20,6 +20,7 @@ describe('admin guide changelog guard', () => {
     'components/admin/sections/CatalogSection.tsx',
     'lib/admin/navigation.ts',
     'lib/admin/sections.ts',
+    'lib/admin/vocabulary.ts',
   ])('requires an entry for the admin surface %s', (file) => {
     expect(checkAdminGuideChangelog({ files: [file] }).ok).toBe(false);
   });
