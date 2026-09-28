@@ -212,7 +212,7 @@ npm run hong-sil:download -- \
 
 ## CI/CD
 
-어드민 화면·섹션·내비게이션·전용 CSS를 바꾸는 PR은 `lib/admin/guide/changes.ts`에 운영자가 할 수 있게 된 행동을 함께 기록합니다. `scripts/check-admin-guide-changelog.mjs`가 PR 전체 diff를 검사하며, 가이드·문서·테스트만 바뀌면 통과합니다. 순수 버그 수정으로 안내가 불필요한 경우 PR 본문의 별도 줄에 `guide-changelog: skip — <구체적인 사유>`를 적습니다. 사유 없는 생략 표기는 실패합니다. PR 제목·본문 변경도 검증을 다시 실행하지만 Preview를 재배포하지 않으며, main push에는 이 가드를 적용하지 않습니다.
+어드민 화면·섹션·내비게이션의 TS/TSX 경로를 바꾸는 PR은 `lib/admin/guide/changes.ts`에 운영자가 할 수 있게 된 행동을 함께 기록합니다. `scripts/check-admin-guide-changelog.mjs`가 PR 전체 diff를 검사하며, 가이드·문서·테스트만 바뀌면 통과합니다. 화면과 가이드가 함께 사용하는 CSS만으로는 변경 의미를 판정하지 않습니다. 순수 버그 수정으로 안내가 불필요한 경우 PR 본문의 별도 줄에 `guide-changelog: skip — <구체적인 사유>`를 적습니다. 사유 없는 생략 표기는 실패합니다. PR 제목·본문 변경도 검증을 다시 실행하지만 Preview를 재배포하지 않으며, main push에는 이 가드를 적용하지 않습니다.
 
 GitHub Actions의 `CI/CD Pipeline`은 PR 검증(lint/typecheck/test/build/Supabase local lint), Vercel preview 배포, production 배포를 처리하고 `Supabase Preview Cleanup`은 PR close 시 최종 base와 무관하게 deterministic isolated branch만 정리한다. 운영팀용 `deploy-staging`은 성공한 main shared-preview 동기화 뒤 영구 `staging` branch에 앱을 배포한다. 고정 alias·test 키·생성 계정·연습 데이터 보존 절차와 실제 활성화 상태는 [스테이징 런북](docs/runbooks/staging.md)을 따른다.
 

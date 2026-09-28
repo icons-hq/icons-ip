@@ -5,13 +5,12 @@ import { pathToFileURL } from 'node:url';
 const CHANGELOG = 'lib/admin/guide/changes.ts';
 
 function isAdminSurface(file) {
-  if (/\.(test|spec)\.[^/]+$/.test(file) || !/\.(tsx?|css)$/.test(file)) return false;
+  if (/\.(test|spec)\.[^/]+$/.test(file) || !/\.tsx?$/.test(file)) return false;
   if (file.startsWith('lib/admin/guide/') || /\/AdminGuide[^/]*$/.test(file)
     || /^app\/admin\/\(shell\)\/guide\//.test(file)) return false;
   return file.startsWith('components/admin/')
     || /^app\/admin\/(?:.*\/)?(page|layout|loading|error|not-found)\.tsx$/.test(file)
-    || /^lib\/admin\/(navigation|sections)\.ts$/.test(file)
-    || /^app\/styles\/(?:wc-)?admin(?:-[^/]+)?\.css$/.test(file);
+    || /^lib\/admin\/(navigation|sections)\.ts$/.test(file);
 }
 
 export function checkAdminGuideChangelog({ files, body = '' }) {

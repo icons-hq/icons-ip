@@ -20,8 +20,6 @@ describe('admin guide changelog guard', () => {
     'components/admin/sections/CatalogSection.tsx',
     'lib/admin/navigation.ts',
     'lib/admin/sections.ts',
-    'app/styles/wc-admin.css',
-    'app/styles/admin-goods-worklist.css',
   ])('requires an entry for the admin surface %s', (file) => {
     expect(checkAdminGuideChangelog({ files: [file] }).ok).toBe(false);
   });
@@ -52,6 +50,7 @@ describe('admin guide changelog guard', () => {
       'app/admin/(shell)/guide/[topic]/page.tsx',
       'components/admin/screens/GoodsListScreen.test.tsx',
       'components/screens/GoodsShop.tsx',
+      'app/styles/wc-admin-surfaces.css',
     ] }).ok).toBe(true);
   });
 
