@@ -26,6 +26,17 @@ function setup(){
 afterEach(() => vi.unstubAllEnvs());
 describe('지연 주문 이메일 작업',()=>{
  it.each([
+   ['preview', '', 'icons-pr-515.vercel.app', 'https://icons-pr-515.vercel.app'],
+   ['preview', 'https://icons-ip-staging.vercel.app/', 'icons-random.vercel.app', 'https://icons-ip-staging.vercel.app'],
+   ['production', '', 'icons-random.vercel.app', 'https://iconsip.com'],
+ ])('SITE_URL 미설정 배포도 환경별 주문 링크를 유지한다: %s %s', async (environment, configured, deployment, expected) => {
+   vi.stubEnv('VERCEL_ENV', environment);vi.stubEnv('VERCEL_URL', deployment);vi.stubEnv('SITE_URL', configured);
+   const s=setup();await processOrderDelayEmails({repository:s.jobs,dispatcher:s.dispatcher});
+   expect(s.provider.send).toHaveBeenCalledWith(expect.objectContaining({message:expect.objectContaining({
+     text:expect.stringContaining(`${expected}/orders/${job.orderId}`),html:expect.stringContaining(`href="${expected}/orders/${job.orderId}"`),
+   })}));
+ });
+ it.each([
    [' https://preview.example.test/// ', 'https://preview.example.test'],
    ['https://staging.example.test', 'https://staging.example.test'],
    ['https://iconsip.com/', 'https://iconsip.com'],
