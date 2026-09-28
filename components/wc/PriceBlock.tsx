@@ -4,14 +4,16 @@ export interface PriceBlockProps {
   price: number;
   priceMax?: number;
   compareAtPrice?: number | null;
+  /** Controls presentation only; sale prices and order calculations stay unchanged. */
+  showDiscountRate?: boolean;
   className?: string;
 }
 
-export function PriceBlock({ className, compareAtPrice, price, priceMax }: PriceBlockProps) {
+export function PriceBlock({ className, compareAtPrice, price, priceMax, showDiscountRate = true }: PriceBlockProps) {
   /* compareAtPrice가 판매가와 같거나 더 싼 경우까지 세일로 치면 `0%`나 음수 할인율이
      노출된다. 정가가 판매가보다 높을 때만 할인 표기로 넘어간다. */
   const ranged = priceMax != null && priceMax > price;
-  const onSale = !ranged && compareAtPrice != null && compareAtPrice > price;
+  const onSale = showDiscountRate && !ranged && compareAtPrice != null && compareAtPrice > price;
   const rate = onSale ? Math.round((1 - price / compareAtPrice) * 100) : 0;
 
   return (

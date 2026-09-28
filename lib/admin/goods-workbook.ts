@@ -26,6 +26,7 @@ export const GOODS_WORKBOOK_HEADERS = {
   type: '상품 유형',
   price: '기준 판매가',
   compareAtPrice: '소비자가',
+  showDiscountRate: '할인율 표시',
   badge: '배지',
   stock: '재고 표시',
   allowBankTransfer: '무통장 허용',
@@ -225,6 +226,7 @@ export function exportGoodsWorkbookRows(
     type: str(good.type),
     price: str(good.price),
     compareAtPrice: str(good.compare_at_price),
+    showDiscountRate: good.show_discount_rate === false ? '아니오' : '예',
     badge: str(good.badge),
     stock: str(good.stock),
     allowBankTransfer: good.allow_bank_transfer === false ? '아니오' : '예',
@@ -407,7 +409,7 @@ export function planGoodsWorkbookImport(
       errors.push('게시 상태는 초안 또는 공개로 입력해주세요.');
     if (!['', '예', '아니오'].includes(first.allowBankTransfer))
       errors.push('무통장 허용은 예 또는 아니오입니다.');
-    for (const key of ['allowCardPayment', 'orderQuantityLimitEnabled', 'memberPurchaseLimitEnabled'] as const) {
+    for (const key of ['allowCardPayment', 'orderQuantityLimitEnabled', 'memberPurchaseLimitEnabled', 'showDiscountRate'] as const) {
       if (!['', '예', '아니오'].includes(first[key])) errors.push(`${GOODS_WORKBOOK_HEADERS[key]}은 예 또는 아니오입니다.`);
     }
     if (!['', 'none', 'adult'].includes(first.saleRestriction))
@@ -467,6 +469,7 @@ export function planGoodsWorkbookImport(
     }
     form.set('price', first.price || '0');
     form.set('allowCardPayment', String(first.allowCardPayment !== '아니오'));
+    form.set('showDiscountRate', String(first.showDiscountRate !== '아니오'));
     form.set('allowBankTransfer', String(first.allowBankTransfer !== '아니오'));
     form.set('saleRestriction', first.saleRestriction || 'none');
     form.set('orderQuantityLimitEnabled', String(first.orderQuantityLimitEnabled === '예'));

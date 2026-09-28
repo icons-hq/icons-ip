@@ -403,7 +403,7 @@ export function Shop({ query, result, view }: ShopProps) {
                       key={good.id}
                       badges={goodDisplayBadges(good)}
                       brand={brandByIpId.get(good.ip)}
-                      compareAtPrice={good.compareAtPrice}
+                      showDiscountRate={good.showDiscountRate} compareAtPrice={good.compareAtPrice}
                       href={goodDetailHref(good.id)}
                       imageBackground={good.img}
                       name={good.name}

@@ -167,7 +167,7 @@ export function Search({ goodsResult, ips, query, snapshot }: SearchProps) {
                   key={good.id}
                   badges={goodDisplayBadges(good)}
                   brand={ipTitleById.get(good.ip) ?? null}
-                  compareAtPrice={good.compareAtPrice}
+                  showDiscountRate={good.showDiscountRate} compareAtPrice={good.compareAtPrice}
                   href={`/shop/${good.id}`}
                   imageBackground={good.img}
                   name={good.name}

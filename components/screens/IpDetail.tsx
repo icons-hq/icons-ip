@@ -244,7 +244,7 @@ export function IpDetail({
                   key={good.id}
                   badges={goodDisplayBadges(good)}
                   brand={ip.title}
-                  compareAtPrice={good.compareAtPrice}
+                  showDiscountRate={good.showDiscountRate} compareAtPrice={good.compareAtPrice}
                   href={goodDetailHref(good.id)}
                   imageBackground={good.img}
                   name={good.name}

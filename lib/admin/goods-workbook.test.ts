@@ -79,6 +79,19 @@ const row = (
   },
 });
 describe('goods Excel planning', () => {
+  it('round-trips discount display through an actual workbook and validates explicit changes', async () => {
+    const record = { ...existing, good: { ...existing.good, show_discount_rate: false } };
+    const ctx = { ...context, existing: [record] };
+    const exported = exportGoodsWorkbookRows(record, ctx);
+    expect(exported[0].showDiscountRate).toBe('아니오');
+    const parsed = await parseGoodsWorkbookWithKc(await buildGoodsWorkbook(exported));
+    expect(parsed.rows[0].values.showDiscountRate).toBe('아니오');
+    expect(planGoodsWorkbookImport(parsed.rows, ctx)[0]).toMatchObject({ kind: 'unchanged' });
+    const plan = (value: string) => planGoodsWorkbookImport([{ ...parsed.rows[0], values: { ...parsed.rows[0].values, showDiscountRate: value } }], ctx)[0];
+    expect(plan('예')).toMatchObject({ kind: 'update', target: { show_discount_rate: true, price: 12000 } });
+    expect(plan('임의')).toMatchObject({ kind: 'error', errors: expect.arrayContaining([expect.stringContaining('할인율 표시')]) });
+    expect(plan('')).toMatchObject({ target: { show_discount_rate: true } });
+  });
   it('CRLF HTML과 검증 이미지 경로가 실제 XLSX에서 LF로 바뀌어도 무수정으로 계획한다', async () => {
     const path = 'public-media/catalog/good/22222222-2222-4222-8222-222222222222.webp';
     const description = `<h2>구성품</h2>\r\n<p>키링 &amp; 스티커</p>\r\n<img src="${path}" alt="구성" loading="lazy" decoding="async" />`;

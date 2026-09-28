@@ -127,7 +127,7 @@ function SectionBody({
           {section.goods.map((good) => (
             <ProductCard
               badges={good.badge ? [good.badge] : undefined}
-              compareAtPrice={good.compareAtPrice}
+              showDiscountRate={good.showDiscountRate} compareAtPrice={good.compareAtPrice}
               href={`/shop/${encodeURIComponent(good.id)}`}
               imageBackground={good.imageBackground}
               key={good.id}

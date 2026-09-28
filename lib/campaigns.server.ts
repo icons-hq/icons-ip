@@ -56,6 +56,7 @@ interface GoodRow {
   name: string;
   price: number;
   compare_at_price: number | null;
+  show_discount_rate?: boolean;
   badge: string | null;
   stock: string;
   stock_qty: number;
@@ -87,6 +88,7 @@ export interface GoodCardView {
   name: string;
   price: number;
   compareAtPrice: number | null;
+  showDiscountRate?: boolean;
   badge: string | null;
   soldOut: boolean;
   imageBackground: string;
@@ -207,7 +209,7 @@ async function loadSectionGoods(
 
   const { data, error } = await supabase
     .from('goods')
-    .select('id,name,price,compare_at_price,badge,stock,stock_qty,bg,image_path,ips:ip_id(archived_at,published_at),goods_variants(price,archived_at)')
+    .select('id,name,price,compare_at_price,show_discount_rate,badge,stock,stock_qty,bg,image_path,ips:ip_id(archived_at,published_at),goods_variants(price,archived_at)')
     .in('id', goodIds)
     // 캠페인 섹션은 카탈로그 스냅샷을 우회하는 직접 조회라 보관 제외와
     // 판매 제한 비노출(#392)을 여기서 따로 건다.
@@ -228,6 +230,7 @@ async function loadSectionGoods(
       price: prices.length ? Math.min(...prices) : row.price,
       priceMax: prices.length ? Math.max(...prices) : row.price,
       compareAtPrice: row.compare_at_price ?? null,
+      showDiscountRate: row.show_discount_rate ?? true,
       badge: row.badge,
       soldOut: stockQty <= 0 || row.stock === 'soldout',
       imageBackground: imageUrl ? imageBg(imageUrl) : row.bg ?? '',
