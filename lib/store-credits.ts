@@ -1,3 +1,4 @@
+import { isUuid } from '@/lib/uuid';
 /** 주문 할인용 적립금. 무료 코인·카드팩 원장과 값을 공유하지 않는다. */
 export interface StoreCreditPolicy {
   enabled: boolean;
@@ -29,13 +30,12 @@ export interface StoreCreditCheckoutQuote {
 }
 export interface StoreCreditBalanceValues { available: number; reserved: number; debt: number }
 const MAX_AMOUNT = 999_999_999_999; // Existing goods payment technical ceiling.
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function record(value: unknown): value is Record<string, unknown> { return Boolean(value) && typeof value === 'object' && !Array.isArray(value); }
 function money(value: unknown): value is number { return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 && value <= MAX_AMOUNT; }
 function signedMoney(value: unknown): value is number { return typeof value === 'number' && Number.isSafeInteger(value) && Math.abs(value) <= MAX_AMOUNT; }
 function count(value: unknown): value is number { return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0; }
 function instant(value: unknown): value is string { return typeof value === 'string' && /^\d{4}-\d{2}-\d{2}T/.test(value) && Number.isFinite(Date.parse(value)); }
-function nullableUuid(value: unknown): value is string | null { return value === null || typeof value === 'string' && UUID_PATTERN.test(value); }
+function nullableUuid(value: unknown): value is string | null { return value === null || typeof value === 'string' && isUuid(value); }
 export function parseStoreCreditBalanceValues(value: unknown): StoreCreditBalanceValues | null {
   if (!record(value) || !money(value.available) || !money(value.reserved) || !money(value.debt)) return null;
   return { available: value.available, reserved: value.reserved, debt: value.debt };
@@ -57,7 +57,7 @@ export function parseStoreCreditCheckoutQuote(value: unknown): StoreCreditChecko
 }
 
 export function parseStoreCreditHistory(value: unknown): StoreCreditHistory | null {
-  if (!record(value) || !balances(value) || typeof value.userId !== 'string' || !UUID_PATTERN.test(value.userId)
+  if (!record(value) || !balances(value) || typeof value.userId !== 'string' || !isUuid(value.userId)
     || !count(value.total) || !count(value.page) || value.page < 1 || value.page > 1_000_000
     || !count(value.pageSize) || value.pageSize < 1 || value.pageSize > 100 || !Array.isArray(value.items)
     || value.items.length > value.pageSize || value.items.length > value.total) return null;

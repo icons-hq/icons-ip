@@ -1,8 +1,12 @@
 'use server';
 
+import { revalidateGoodsSurfaces } from '@/lib/admin/revalidate-goods.server';
+
+import { isUuid } from '@/lib/uuid';
+
 import { revalidatePath } from 'next/cache';
-import { redirect } from 'next/navigation';
-import { getCurrentAdminAuthState } from '@/lib/auth/admin';
+import { unstable_rethrow } from 'next/navigation';
+import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { createClient } from '@/lib/supabase/server';
 import { nextFormAttempt, type AdminFormValuesState } from '@/lib/admin/form-state';
 import {
@@ -19,7 +23,6 @@ export interface ShippingNoticeTemplateActionState extends AdminFormValuesState 
   updatedAt?: string;
 }
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const SAVE_FAILED = '배송정보 템플릿을 저장하지 못했습니다. 입력값은 유지됩니다. 잠시 후 다시 시도해주세요.';
 const ACTIVATE_FAILED = '배송정보 템플릿을 활성화하지 못했습니다. 입력값과 확인 근거를 다시 확인해주세요.';
 const APPLY_FAILED = '상품에 배송정보 템플릿을 적용하지 못했습니다. 최신 상품을 다시 확인해주세요.';
@@ -30,14 +33,12 @@ function stringValue(data: FormData, key: string): string {
 }
 
 async function staffError(): Promise<string | null> {
-  let auth: Awaited<ReturnType<typeof getCurrentAdminAuthState>>;
   try {
-    auth = await getCurrentAdminAuthState();
-  } catch {
+    return await requireAdminActionAccess(SHIPPING_NOTICE_TEMPLATES_PATH) ? null : '관리자 권한이 필요합니다.';
+  } catch (error) {
+    unstable_rethrow(error);
     return '권한을 확인하지 못했습니다. 잠시 후 다시 시도해주세요.';
   }
-  if (!auth.isConfigured || !auth.user) redirect(`/login?next=${encodeURIComponent(SHIPPING_NOTICE_TEMPLATES_PATH)}`);
-  return auth.isStaff ? null : '관리자 권한이 필요합니다.';
 }
 
 function rpcErrors(error: { code?: string; message: string }, fallback: string): Record<string, string> {
@@ -71,7 +72,7 @@ export async function saveShippingNoticeTemplateAction(
   const fail = (errors: Record<string, string>): ShippingNoticeTemplateActionState => ({ errors, values, attempt });
   const accessError = await staffError();
   if (accessError) return fail({ form: accessError });
-  if (values.id && (!UUID.test(values.id) || !values.updatedAt || Number.isNaN(Date.parse(values.updatedAt)))) {
+  if (values.id && (!isUuid(values.id) || !values.updatedAt || Number.isNaN(Date.parse(values.updatedAt)))) {
     return fail({ form: '최신 배송정보 템플릿을 다시 열어주세요.' });
   }
   const parsed = parseShippingNoticeTemplateInput(values);
@@ -164,8 +165,7 @@ export async function applyShippingNoticeTemplateAction(
     });
     if (error) return fail(rpcErrors(error, APPLY_FAILED));
     revalidatePath(SHIPPING_NOTICE_TEMPLATES_PATH);
-    revalidatePath('/admin/catalog/goods');
-    revalidatePath(`/shop/${encodeURIComponent(goodId)}`);
+    revalidateGoodsSurfaces();
     return { attempt, message: '상품에 배송정보 템플릿을 적용했습니다.' };
   } catch {
     return fail({ form: APPLY_FAILED });

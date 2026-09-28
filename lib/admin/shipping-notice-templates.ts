@@ -1,3 +1,4 @@
+import { isUuid } from '@/lib/uuid';
 export const SHIPPING_NOTICE_TEMPLATES_PATH = '/admin/settings/shipping-notices';
 // This is the customer-notice template version, independent from the goods
 // workbook format version. A new code starts at v1; later copy changes use the
@@ -65,7 +66,6 @@ export interface ShippingNoticeTemplateInput {
   cs_email: string;
 }
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const DISALLOWED_CONTROL_CHARS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\u007F]/;
 
 /** Tabs, LF and CR are valid in customer copy; other control characters are not. */
@@ -140,5 +140,5 @@ export function parseShippingNoticeTemplateInput(input: Record<string, string>):
 }
 
 export function isShippingNoticeTemplateId(value: string): boolean {
-  return UUID.test(value);
+  return isUuid(value);
 }

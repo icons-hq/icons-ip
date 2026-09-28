@@ -1,3 +1,4 @@
+import { isUuid } from '@/lib/uuid';
 /** Customer-safe KC disclosure fields. Review evidence and staff identities live
  * in lib/admin/goods-kc.ts and must never be serialized into this shape. */
 export const GOODS_KC_FAMILY_LABELS = {
@@ -32,7 +33,6 @@ export function goodsKcSchemeAllowed(family: GoodsKcFamily, scheme: GoodsKcSchem
 export function goodsKcNeedsIdentifier(scheme: GoodsKcScheme): boolean {
   return scheme === 'safety_certification' || scheme === 'safety_confirmation';
 }
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function record(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -62,7 +62,7 @@ export function parseGoodsKcDisclosures(value: unknown): GoodsKcDisclosure[] | n
     const variants: GoodsKcDisclosure['variants'] = [];
     for (const variant of row.variants) {
       if (!record(variant) || Object.keys(variant).some((key) => !['id', 'name'].includes(key))
-        || typeof variant.id !== 'string' || !UUID.test(variant.id)
+        || typeof variant.id !== 'string' || !isUuid(variant.id)
         || typeof variant.name !== 'string' || !variant.name.trim() || variant.name.length > 200
         || variants.some((entry) => entry.id === variant.id)) return null;
       variants.push({ id: variant.id, name: variant.name });

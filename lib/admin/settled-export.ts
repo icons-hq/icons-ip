@@ -1,3 +1,4 @@
+import { isUuid } from '@/lib/uuid';
 import { normalizeAdminSettledFilters } from './settled';
 
 export interface SettledExportFilters { from: string | null; to: string | null; query: string }
@@ -32,8 +33,7 @@ export interface SettledExportOrderSummary {
 }
 export interface SettledExportModel { snapshot: SettledExportSnapshot; lines: SettledExportLine[]; orders: SettledExportOrderSummary[] }
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-export function isSettledExportId(value: string) { return UUID.test(value); }
+export function isSettledExportId(value: string) { return isUuid(value); }
 export function parseSettledExportFilters(value: Record<string, unknown>): SettledExportFilters | null {
   const inputs: Record<string, string> = {};
   for (const key of ['from', 'to', 'query']) {

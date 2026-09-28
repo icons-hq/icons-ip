@@ -1,12 +1,12 @@
 'use server';
-import { getCurrentAdminAuthState } from '@/lib/auth/admin';
+import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { createClient } from '@/lib/supabase/server';
 import { isSettledExportId, parseSettledExportFilters, settledExportErrorMessage, type SettledExportReceipt } from '@/lib/admin/settled-export';
 
 export interface SettledExportActionState { error?: string; receipt?: SettledExportReceipt; requestId?: string }
 export async function createSettledExportAction(_previous: SettledExportActionState, form: FormData): Promise<SettledExportActionState> {
-  const auth = await getCurrentAdminAuthState();
-  if (!auth.isConfigured || !auth.user || !auth.isStaff) return { error: '운영자 권한이 필요합니다.' };
+  const auth = await requireAdminActionAccess('/admin/sales/settled');
+  if (!auth) return { error: '운영자 권한이 필요합니다.' };
   const values: Record<string, unknown> = {};
   for (const key of ['from', 'to', 'query', 'requestId']) {
     const all = form.getAll(key); if (all.length > 1 || (all.length && typeof all[0] !== 'string')) return { error: '조회 조건을 확인해주세요.' };

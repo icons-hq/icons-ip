@@ -23,7 +23,7 @@ describe('상품 게시 상태 액션', () => {
     expect((await setAdminGoodPublishedAction({}, form(false, true))).message).toContain('초안');
     expect(mocks.rpc).toHaveBeenCalledWith('admin_set_good_published', { target_id: 'good-1', target_published: false });
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/admin/catalog/goods');
-    expect(mocks.revalidatePath).toHaveBeenCalledWith('/shop/good-1');
+    expect(mocks.revalidatePath).toHaveBeenCalledWith('/shop/[goodId]', 'page');
   });
   it('공개 필수 항목 오류를 안내하고 DB 내부 상세는 노출하지 않는다', async () => {
     mocks.rpc.mockResolvedValue({ error: { message: 'goods_publish_incomplete private diagnostic' } });

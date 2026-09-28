@@ -1,3 +1,4 @@
+import { isUuid } from '@/lib/uuid';
 import { parseShippingQuote, type ShippingQuote, type ShippingQuoteGroup } from './fulfillment';
 import { parseGoodsSalesQuote, type GoodsSalesQuote } from './goods-sales';
 
@@ -20,7 +21,6 @@ export interface AddressShippingQuote extends ShippingQuote {
   destination: ShippingDestination | null; nextChangeAt: string | null;
 }
 export interface AddressGoodsSalesQuote extends GoodsSalesQuote { shipping: AddressShippingQuote }
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const STATUSES: readonly ShippingRegionStatus[] = ['unconfigured', 'standard', 'surcharge', 'address_required',
   'unavailable', 'manual_review', 'policy_unavailable', 'carrier_mismatch'];
 const RESOLVED: readonly ShippingRegionStatus[] = ['unconfigured', 'standard', 'surcharge'];
@@ -28,7 +28,7 @@ const object = (value: unknown): value is Record<string, unknown> => Boolean(val
 const amount = (value: unknown): value is number => typeof value === 'number' && Number.isSafeInteger(value) && value >= 0;
 const nullableAmount = (value: unknown): value is number | null => value === null || amount(value);
 const nullableText = (value: unknown, max: number): value is string | null => value === null || (typeof value === 'string' && value.trim().length > 0 && value.length <= max);
-const nullableId = (value: unknown): value is string | null => value === null || (typeof value === 'string' && UUID.test(value));
+const nullableId = (value: unknown): value is string | null => value === null || (typeof value === 'string' && isUuid(value));
 
 /** Postal data comes from the checkout address. No substring or fuzzy region inference. */
 export function normalizeShippingAddress(value: string): string { return value.replace(/\s+/gu, ' ').trim(); }

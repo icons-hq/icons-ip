@@ -4,10 +4,10 @@ vi.mock('@/lib/auth/admin', () => ({ getCurrentAdminAuthState: mocks.auth }));
 vi.mock('@/lib/supabase/server', () => ({ createClient: mocks.client }));
 vi.mock('@/lib/admin/goods-notice-presets.server', () => ({ loadGoodsNoticePresets: mocks.presets }));
 import { findGoodNoticePresets, loadLastSavedGoodNotice } from './good-notice-actions';
-beforeEach(() => { vi.clearAllMocks(); mocks.auth.mockResolvedValue({ user: { id: 'staff' }, isStaff: true }); mocks.client.mockResolvedValue({ rpc: mocks.rpc }); });
+beforeEach(() => { vi.clearAllMocks(); mocks.auth.mockResolvedValue({ isConfigured: true, user: { id: 'staff' }, isStaff: true }); mocks.client.mockResolvedValue({ rpc: mocks.rpc }); });
 describe('goods notice copying', () => {
   it('rejects nonstaff before reading saved values or presets', async () => {
-    mocks.auth.mockResolvedValue({ user: { id: 'fan' }, isStaff: false });
+    mocks.auth.mockResolvedValue({ isConfigured: true, user: { id: 'fan' }, isStaff: false });
     expect(await findGoodNoticePresets('cotton', 1)).toEqual({ error: '관리자 권한이 필요합니다.' });
     expect(await loadLastSavedGoodNotice()).toEqual({ error: '관리자 권한이 필요합니다.' });
     expect(mocks.presets).not.toHaveBeenCalled(); expect(mocks.client).not.toHaveBeenCalled();

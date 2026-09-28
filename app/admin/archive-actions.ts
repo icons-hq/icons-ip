@@ -1,6 +1,7 @@
 'use server';
 
 import { adminGoodsCopy } from '@/lib/admin/vocabulary';
+import { revalidateGoodsSurfaces } from '@/lib/admin/revalidate-goods.server';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
@@ -98,24 +99,8 @@ function archiveRpcError(error: { code?: unknown; message?: unknown }) {
 }
 
 function revalidateCatalogArchiveSurfaces(kind: AdminCatalogArchiveKind, id: string) {
-  for (const path of [
-    '/',
-    '/ip',
-    '/shop',
-    '/binder',
-    '/events',
-    '/offline-popups',
-    '/search',
-    '/cart',
-    '/checkout',
-    '/packs',
-    '/admin',
-    '/admin/catalog/goods',
-  ]) {
-    revalidatePath(path);
-  }
-  revalidatePath('/ip/[id]', 'page');
-  revalidatePath('/events/[eventId]', 'page');
+  revalidateGoodsSurfaces();
+  for (const path of ['/binder', '/events', '/offline-popups', '/packs']) revalidatePath(path);
   revalidatePath('/offline-popups/[eventId]', 'page');
   revalidatePath('/games/[gameId]', 'page');
   if (kind === 'ip') {

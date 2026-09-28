@@ -1,11 +1,12 @@
 'use server';
 
+import { isUuid } from '@/lib/uuid';
+
 import { revalidatePath } from 'next/cache';
-import { getCurrentAdminAuthState } from '@/lib/auth/admin';
+import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { createClient } from '@/lib/supabase/server';
 import { emailDispatcherFromEnvironment } from '@/lib/email/dispatcher.server';
 import {
-  ORDER_DELAY_UUID,
   orderDelayNoticeError,
   parseOrderDelayNotice,
   type OrderDelayNoticeActionResult,
@@ -13,10 +14,6 @@ import {
   type PrepareOrderDelayNotice,
 } from '@/lib/admin/order-delay-notices';
 
-async function authorized() {
-  const auth = await getCurrentAdminAuthState();
-  return Boolean(auth.isConfigured && auth.user && auth.isStaff);
-}
 async function run(
   name: string,
   args: Record<string, unknown>,
@@ -39,16 +36,16 @@ async function run(
 export async function prepareOrderDelayNoticeAction(
   input: PrepareOrderDelayNotice,
 ): Promise<OrderDelayNoticeActionResult> {
-  if (!(await authorized())) return { error: '직원 권한이 필요합니다.' };
+  if (!(await requireAdminActionAccess('/admin/sales/dispatch'))) return { error: '직원 권한이 필요합니다.' };
   if (
     !input ||
     typeof input.requestId !== 'string' ||
-    !ORDER_DELAY_UUID.test(input.requestId) ||
+    !isUuid(input.requestId) ||
     !Array.isArray(input.shipmentIds) ||
     input.shipmentIds.length < 1 ||
     input.shipmentIds.length > 100 ||
     input.shipmentIds.some(
-      (id) => typeof id !== 'string' || !ORDER_DELAY_UUID.test(id),
+      (id) => typeof id !== 'string' || !isUuid(id),
     ) ||
     typeof input.title !== 'string' ||
     !input.title.trim() ||
@@ -79,8 +76,8 @@ export async function prepareOrderDelayNoticeAction(
 export async function readOrderDelayNoticeAction(
   id: string,
 ): Promise<OrderDelayNoticeActionResult> {
-  if (!(await authorized())) return { error: '직원 권한이 필요합니다.' };
-  if (typeof id !== 'string' || !ORDER_DELAY_UUID.test(id))
+  if (!(await requireAdminActionAccess('/admin/sales/dispatch'))) return { error: '직원 권한이 필요합니다.' };
+  if (typeof id !== 'string' || !isUuid(id))
     return { error: orderDelayNoticeError('delay_notice_not_found') };
   return run('admin_get_order_delay_notice', { target_notice: id });
 }
@@ -89,8 +86,8 @@ async function mutate(
   id: string,
   name: string,
 ): Promise<OrderDelayNoticeActionResult> {
-  if (!(await authorized())) return { error: '직원 권한이 필요합니다.' };
-  if (typeof id !== 'string' || !ORDER_DELAY_UUID.test(id))
+  if (!(await requireAdminActionAccess('/admin/sales/dispatch'))) return { error: '직원 권한이 필요합니다.' };
+  if (typeof id !== 'string' || !isUuid(id))
     return { error: orderDelayNoticeError('delay_notice_not_found') };
   // Read first so a committed request can always be recovered even if the provider was subsequently disabled.
   const current = await run('admin_get_order_delay_notice', {
@@ -127,7 +124,7 @@ export async function listOrderDelayNoticesAction(): Promise<{
   notices?: OrderDelayNoticeSummary[];
   error?: string;
 }> {
-  if (!(await authorized())) return { error: '직원 권한이 필요합니다.' };
+  if (!(await requireAdminActionAccess('/admin/sales/dispatch'))) return { error: '직원 권한이 필요합니다.' };
   try {
     const client = await createClient();
     const { data, error } = await client.rpc('admin_list_order_delay_notices', {
@@ -141,7 +138,7 @@ export async function listOrderDelayNoticesAction(): Promise<{
         (row) =>
           row &&
           typeof row.id === 'string' &&
-          ORDER_DELAY_UUID.test(row.id) &&
+          isUuid(row.id) &&
           typeof row.title === 'string' &&
           typeof row.createdAt === 'string',
       )

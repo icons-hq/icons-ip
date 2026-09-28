@@ -1,3 +1,4 @@
+import { isUuid } from '@/lib/uuid';
 export interface GoodsLinkedMetadataInput {
   categoryId?: string | null;
   additionalCategoryIds?: string[];
@@ -10,7 +11,7 @@ export function readGoodsLinkedMetadata(form: FormData) {
   const errors: Record<string, string> = {};
   if (form.has('categoryId')) {
     const id = String(form.get('categoryId') ?? '').trim();
-    if (id && !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) {
+    if (id && !isUuid(id)) {
       errors.categoryId = '카테고리를 다시 선택해주세요.';
     } else value.categoryId = id || null;
   }
@@ -18,7 +19,7 @@ export function readGoodsLinkedMetadata(form: FormData) {
     try {
       const ids: unknown = JSON.parse(String(form.get('additionalCategoryIds')));
       if (!Array.isArray(ids) || ids.some(id => typeof id !== 'string'
-        || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id))) throw new Error('invalid');
+        || !isUuid(id))) throw new Error('invalid');
       value.additionalCategoryIds = [...new Set((ids as string[]).map(id => id.toLowerCase()))]
         .filter(id => id !== value.categoryId?.toLowerCase()).sort();
     } catch {

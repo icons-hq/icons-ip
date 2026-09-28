@@ -1,3 +1,4 @@
+import { isUuid } from '@/lib/uuid';
 export type OrderDelayChannelStatus =
   | 'prepared'
   | 'queued'
@@ -80,8 +81,6 @@ export const ORDER_DELAY_ERROR_LABELS: Record<string, string> = {
     '이메일 공급자가 발송 실패 또는 반송을 기록했습니다. 수신 상태를 확인해주세요.',
   provider_suppressed: '이메일 공급자가 해당 수신자 발송을 제외했습니다.',
 };
-export const ORDER_DELAY_UUID =
-  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const object = (value: unknown): value is Record<string, unknown> =>
   Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 const optionalString = (value: unknown) =>
@@ -92,7 +91,7 @@ export function parseOrderDelayNotice(value: unknown): OrderDelayNotice | null {
   if (
     !object(value) ||
     typeof value.id !== 'string' ||
-    !ORDER_DELAY_UUID.test(value.id) ||
+    !isUuid(value.id) ||
     typeof value.title !== 'string' ||
     typeof value.customerBody !== 'string' ||
     !optionalString(value.expectedShipDate) ||
@@ -110,15 +109,15 @@ export function parseOrderDelayNotice(value: unknown): OrderDelayNotice | null {
       (target: unknown) =>
         object(target) &&
         typeof target.id === 'string' &&
-        ORDER_DELAY_UUID.test(target.id) &&
+        isUuid(target.id) &&
         typeof target.orderId === 'string' &&
-        ORDER_DELAY_UUID.test(target.orderId) &&
+        isUuid(target.orderId) &&
         typeof target.buyerName === 'string' &&
         optionalString(target.recipientEmail) &&
         Array.isArray(target.shipmentIds) &&
         target.shipmentIds.length > 0 &&
         target.shipmentIds.every(
-          (id: unknown) => typeof id === 'string' && ORDER_DELAY_UUID.test(id),
+          (id: unknown) => typeof id === 'string' && isUuid(id),
         ) &&
         Array.isArray(target.shipmentLabels) &&
         target.shipmentLabels.every(

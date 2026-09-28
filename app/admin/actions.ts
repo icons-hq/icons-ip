@@ -4,7 +4,7 @@ import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import { goodSaveFields } from '@/lib/admin/good-save';
 
 import { revalidatePath } from 'next/cache';
-import { redirect, unstable_rethrow } from 'next/navigation';
+import { unstable_rethrow } from 'next/navigation';
 import { after } from 'next/server';
 import {
   catalogContextFromSnapshot,
@@ -31,7 +31,8 @@ import {
   normalizeAdminReportStatusForm,
 } from '@/lib/admin/moderation';
 import { normalizeAdminUserRoleForm } from '@/lib/admin/roles';
-import { getCurrentAdminAuthState } from '@/lib/auth/admin';
+import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
+import { revalidateGoodsSurfaces } from '@/lib/admin/revalidate-goods.server';
 import { getCatalogSnapshot } from '@/lib/catalog';
 import { sendRestockAlertEmails } from '@/lib/email/transactional.server';
 import { createClient } from '@/lib/supabase/server';
@@ -47,50 +48,26 @@ export interface AdminCatalogActionState extends AdminFormValuesState {
   message?: string;
 }
 
-function loginPath() {
-  return `/login?next=${encodeURIComponent('/admin')}`;
-}
-
 async function requireStaffAction(): Promise<AdminCatalogActionState | null> {
-  const auth = await getCurrentAdminAuthState();
-
-  if (!auth.isConfigured || !auth.user) {
-    redirect(loginPath());
-  }
-
-  if (!auth.isStaff) {
-    return { errors: { form: '관리자 권한이 필요합니다.' } };
-  }
-
-  return null;
+  return await requireAdminActionAccess('/admin') ? null : { errors: { form: '관리자 권한이 필요합니다.' } };
 }
 
 /* 역할 부여·회수는 staff가 아니라 admin 전용 — RPC도 내부에서 재검사한다. */
 async function requireAdminAction(): Promise<AdminCatalogActionState | null> {
-  const auth = await getCurrentAdminAuthState();
-
-  if (!auth.isConfigured || !auth.user) {
-    redirect(loginPath());
-  }
-
-  if (!auth.isStaff || auth.role !== 'admin') {
-    return { errors: { form: '최고 관리자(admin) 권한이 필요합니다.' } };
-  }
-
-  return null;
+  return await requireAdminActionAccess('/admin', { adminOnly: true }) ? null : { errors: { form: '최고 관리자(admin) 권한이 필요합니다.' } };
 }
 
 function revalidateCatalog(paths: string[]) {
-  const defaults = ['/', '/ip', '/shop', '/shop/new', '/shop/best', '/search', '/binder', '/events', '/offline-popups', '/admin', '/admin/catalog/goods'];
+  revalidateGoodsSurfaces();
+  const defaults = ['/binder', '/events', '/offline-popups'];
   for (const path of [...defaults, ...paths]) {
     revalidatePath(path);
   }
 }
 
 function revalidateStock(ipPath: string | null) {
-  const paths = ['/', '/ip', '/shop', '/cart', '/checkout', '/admin', '/admin/catalog/goods'];
-  if (ipPath) paths.push(ipPath);
-  for (const path of paths) revalidatePath(path);
+  revalidateGoodsSurfaces();
+  if (ipPath) revalidatePath(ipPath);
 }
 
 function revalidateTicketing() {

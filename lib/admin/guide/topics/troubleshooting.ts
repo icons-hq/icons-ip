@@ -8,6 +8,12 @@ import type { AdminGuideErrorCase, AdminGuideTable, AdminGuideTopic } from '../t
 
 const CATALOG_CASES: AdminGuideErrorCase[] = [
   {
+    quote: '옵션 사용 상태를 변경하지 못했습니다. 잠시 후 다시 시도해주세요.',
+    sourceFile: 'app/admin/goods-variant-actions.ts',
+    cause: '옵션 사용 상태 저장 중 연결이 끊기거나 서버가 요청을 완료하지 못했습니다.',
+    fix: '화면의 오류를 확인하고 다시 시도합니다. 로그인 화면으로 이동했다면 로그인 후 돌아온 상품에서 최신 옵션 상태를 확인합니다.',
+  },
+  {
     quote: '이미 사용 중인 ID입니다. 수정하려면 목록에서 선택해주세요.',
     sourceFile: 'app/admin/actions.ts',
     cause: '빈 폼(신규 등록)에 기존 항목의 ID를 직접 입력했습니다. 신규 등록이 기존 데이터를 덮어쓰는 사고를 막는 안전장치입니다.',

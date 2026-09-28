@@ -1,9 +1,13 @@
 'use server';
 
+import { revalidateGoodsSurfaces } from '@/lib/admin/revalidate-goods.server';
+
+import { isUuid } from '@/lib/uuid';
+
 import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import { revalidatePath } from 'next/cache';
-import { redirect, unstable_rethrow } from 'next/navigation';
-import { getCurrentAdminAuthState } from '@/lib/auth/admin';
+import { unstable_rethrow } from 'next/navigation';
+import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { withPreservedFormValues, type AdminFormValuesState } from '@/lib/admin/form-state';
 import {
   CATEGORY_PATH,
@@ -28,26 +32,18 @@ export interface AdminCategoryActionState extends AdminFormValuesState {
   changed?: boolean;
 }
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const GOOD_ID = /^[a-z0-9][a-z0-9-]*$/;
 const OPERATION_ID = 'operationId';
 const RETRY = '카테고리 저장을 완료하지 못했습니다. 입력값은 유지됩니다. 다시 시도해주세요.';
 
 function operationId(formData: FormData): string {
   const value = formData.get(OPERATION_ID);
-  return typeof value === 'string' && UUID.test(value) ? value : crypto.randomUUID();
-}
-
-function loginPath() {
-  return `/login?next=${encodeURIComponent(CATEGORY_PATH)}`;
+  return isUuid(value) ? value : crypto.randomUUID();
 }
 
 async function requireCategoryStaff() {
-  const auth = await getCurrentAdminAuthState();
-  if (!auth.isConfigured) return { error: 'Supabase 환경변수를 설정한 뒤 카테고리를 관리할 수 있습니다.' };
-  if (!auth.user) redirect(loginPath());
-  if (!auth.isStaff) return { error: '관리자 권한이 필요합니다.' };
-  return { auth };
+  const auth = await requireAdminActionAccess(CATEGORY_PATH);
+  return auth ? { auth } : { error: '관리자 권한이 필요합니다.' };
 }
 
 function preserve(state: AdminCategoryActionState, formData: FormData, errors: NonNullable<AdminCategoryActionState['errors']>) {
@@ -73,13 +69,17 @@ function mapRpcError(error: { code?: unknown; message?: unknown }): string {
 }
 
 function revalidateCategorySurfaces() {
-  for (const path of [CATEGORY_PATH, '/admin/catalog/goods', '/shop', '/search', '/']) revalidatePath(path);
+  revalidatePath(CATEGORY_PATH);
+  revalidateGoodsSurfaces();
 }
 
 export async function saveAdminCategoryAction(
   state: AdminCategoryActionState,
   formData: FormData,
 ): Promise<AdminCategoryActionState> {
+  let access: Awaited<ReturnType<typeof requireCategoryStaff>>;
+  try { access = await requireCategoryStaff(); } catch (error) { unstable_rethrow(error); return preserve(state, formData, { form: RETRY }); }
+  if ('error' in access) return preserve(state, formData, { form: access.error });
   const normalized = normalizeCategoryForm({
     id: formData.get('id'), code: formData.get('code'), name: formData.get('name'),
     parentId: formData.get('parentId'), sortOrder: formData.get('sortOrder'), expectedUpdatedAt: formData.get('expectedUpdatedAt'),
@@ -95,9 +95,6 @@ export async function saveAdminCategoryAction(
     });
   }
 
-  let access: Awaited<ReturnType<typeof requireCategoryStaff>>;
-  try { access = await requireCategoryStaff(); } catch (error) { unstable_rethrow(error); return preserve(state, formData, { form: RETRY }); }
-  if ('error' in access) return preserve(state, formData, { form: access.error });
   try {
     const supabase = await createClient();
     const { data, error } = await supabase.rpc('admin_upsert_category', {
@@ -123,13 +120,13 @@ async function archiveCategory(
   state: AdminCategoryActionState,
   formData: FormData,
 ): Promise<AdminCategoryActionState> {
+  let access: Awaited<ReturnType<typeof requireCategoryStaff>>;
+  try { access = await requireCategoryStaff(); } catch (error) { unstable_rethrow(error); return preserve(state, formData, { form: RETRY }); }
+  if ('error' in access) return preserve(state, formData, { form: access.error });
   const id = typeof formData.get('id') === 'string' ? String(formData.get('id')).trim() : '';
   const expectedUpdatedAt = typeof formData.get('expectedUpdatedAt') === 'string' ? String(formData.get('expectedUpdatedAt')).trim() : '';
   if (!isCategoryId(id)) return preserve(state, formData, { id: '카테고리 ID가 올바르지 않습니다.' });
   if (!expectedUpdatedAt) return preserve(state, formData, { form: '최신 카테고리를 확인한 뒤 다시 시도해주세요.' });
-  let access: Awaited<ReturnType<typeof requireCategoryStaff>>;
-  try { access = await requireCategoryStaff(); } catch (error) { unstable_rethrow(error); return preserve(state, formData, { form: RETRY }); }
-  if ('error' in access) return preserve(state, formData, { form: access.error });
   try {
     const supabase = await createClient();
     const { data, error } = await supabase.rpc(operation === 'archive' ? 'admin_archive_category' : 'admin_unarchive_category', {
@@ -156,6 +153,9 @@ export async function saveAdminCategoryErpMappingAction(
   state: AdminCategoryActionState,
   formData: FormData,
 ): Promise<AdminCategoryActionState> {
+  let access: Awaited<ReturnType<typeof requireCategoryStaff>>;
+  try { access = await requireCategoryStaff(); } catch (error) { unstable_rethrow(error); return preserve(state, formData, { form: RETRY }); }
+  if ('error' in access) return preserve(state, formData, { form: access.error });
   const categoryId = typeof formData.get('categoryId') === 'string' ? String(formData.get('categoryId')).trim() : '';
   const erpCode = typeof formData.get('erpCode') === 'string' ? String(formData.get('erpCode')).trim() : '';
   const erpName = typeof formData.get('erpName') === 'string' ? String(formData.get('erpName')).trim() : '';
@@ -168,9 +168,6 @@ export async function saveAdminCategoryErpMappingAction(
   if (!source) errors.source = 'ERP 분류 출처를 입력해주세요.';
   if (!verifiedAt || Number.isNaN(Date.parse(verifiedAt))) errors.form = '검증 시각을 입력해주세요.';
   if (Object.keys(errors).length) return preserve(state, formData, errors);
-  let access: Awaited<ReturnType<typeof requireCategoryStaff>>;
-  try { access = await requireCategoryStaff(); } catch (error) { unstable_rethrow(error); return preserve(state, formData, { form: RETRY }); }
-  if ('error' in access) return preserve(state, formData, { form: access.error });
   try {
     const supabase = await createClient();
     const { data, error } = await supabase.rpc('admin_set_category_erp_mapping', {
@@ -190,6 +187,9 @@ export async function setAdminCategoryActivationAction(
   state: AdminCategoryActionState,
   formData: FormData,
 ): Promise<AdminCategoryActionState> {
+  let access: Awaited<ReturnType<typeof requireCategoryStaff>>;
+  try { access = await requireCategoryStaff(); } catch (error) { unstable_rethrow(error); return preserve(state, formData, { form: RETRY }); }
+  if ('error' in access) return preserve(state, formData, { form: access.error });
   const customerEnabled = formData.get('customerEnabled') === 'on';
   const erpEnabled = formData.get('erpEnabled') === 'on';
   const customerEvidence = {
@@ -208,9 +208,6 @@ export async function setAdminCategoryActivationAction(
   if (erpEnabled && (!erpEvidence.source || !erpEvidence.reference || !erpEvidence.verifiedAt)) {
     return preserve(state, formData, { form: 'ERP 실제 분류와 검증 근거를 입력해주세요.' });
   }
-  let access: Awaited<ReturnType<typeof requireCategoryStaff>>;
-  try { access = await requireCategoryStaff(); } catch (error) { unstable_rethrow(error); return preserve(state, formData, { form: RETRY }); }
-  if ('error' in access) return preserve(state, formData, { form: access.error });
   try {
     const supabase = await createClient();
     const { data, error } = await supabase.rpc('admin_set_category_activation', {
@@ -230,13 +227,13 @@ export async function assignAdminGoodCategoryAction(
   state: AdminCategoryActionState,
   formData: FormData,
 ): Promise<AdminCategoryActionState> {
+  let access: Awaited<ReturnType<typeof requireCategoryStaff>>;
+  try { access = await requireCategoryStaff(); } catch (error) { unstable_rethrow(error); return preserve(state, formData, { form: RETRY }); }
+  if ('error' in access) return preserve(state, formData, { form: access.error });
   const goodId = typeof formData.get('goodId') === 'string' ? String(formData.get('goodId')).trim() : '';
   const categoryId = typeof formData.get('categoryId') === 'string' ? String(formData.get('categoryId')).trim() : '';
   if (!GOOD_ID.test(goodId)) return preserve(state, formData, { form: adminGoodsCopy('굿즈 ID가 올바르지 않습니다.') });
   if (categoryId && !isCategoryId(categoryId)) return preserve(state, formData, { categoryId: '말단 카테고리를 선택해주세요.' });
-  let access: Awaited<ReturnType<typeof requireCategoryStaff>>;
-  try { access = await requireCategoryStaff(); } catch (error) { unstable_rethrow(error); return preserve(state, formData, { form: RETRY }); }
-  if ('error' in access) return preserve(state, formData, { form: access.error });
   try {
     const supabase = await createClient();
     const { data, error } = await supabase.rpc('admin_assign_good_category', {
@@ -256,15 +253,15 @@ export async function saveAdminCategoryTypeMigrationAction(
   state: AdminCategoryActionState,
   formData: FormData,
 ): Promise<AdminCategoryActionState> {
+  let access: Awaited<ReturnType<typeof requireCategoryStaff>>;
+  try { access = await requireCategoryStaff(); } catch (error) { unstable_rethrow(error); return preserve(state, formData, { form: RETRY }); }
+  if ('error' in access) return preserve(state, formData, { form: access.error });
   const type = typeof formData.get('type') === 'string' ? String(formData.get('type')).trim() : '';
   const categoryId = typeof formData.get('categoryId') === 'string' ? String(formData.get('categoryId')).trim() : '';
   const status = String(formData.get('status') ?? 'suggested');
   if (!type) return preserve(state, formData, { form: '기존 유형을 입력해주세요.' });
   if (categoryId && !isCategoryId(categoryId)) return preserve(state, formData, { categoryId: '카테고리를 선택해주세요.' });
   if (!['suggested', 'confirmed', 'rejected'].includes(status)) return preserve(state, formData, { form: '이관 상태가 올바르지 않습니다.' });
-  let access: Awaited<ReturnType<typeof requireCategoryStaff>>;
-  try { access = await requireCategoryStaff(); } catch (error) { unstable_rethrow(error); return preserve(state, formData, { form: RETRY }); }
-  if ('error' in access) return preserve(state, formData, { form: access.error });
   try {
     const supabase = await createClient();
     const { data, error } = await supabase.rpc('admin_set_category_type_migration', {

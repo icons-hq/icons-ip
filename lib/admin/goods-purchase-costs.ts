@@ -1,3 +1,4 @@
+import { isUuid } from '@/lib/uuid';
 export const PURCHASE_TAX_BASIS_LABELS = {
   included: '세금 포함', excluded: '세금 별도', exempt: '면세',
 } as const;
@@ -19,7 +20,6 @@ export interface PurchaseCostChange {
   changedAt: string;
 }
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function object(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -46,7 +46,7 @@ export function parseAdminPurchaseCosts(value: unknown): AdminGoodsPurchaseCost[
   if (!Array.isArray(value)) return null;
   const costs: AdminGoodsPurchaseCost[] = [];
   for (const row of value) {
-    if (!object(row) || typeof row.variant_id !== 'string' || !UUID.test(row.variant_id)
+    if (!object(row) || typeof row.variant_id !== 'string' || !isUuid(row.variant_id)
       || typeof row.good_id !== 'string' || !row.good_id
       || (row.revision !== null && !integer(row.revision, 1)) || (row.updated_at !== null && !instant(row.updated_at))) return null;
     const cost = parsePurchaseCostInput({ unitCostKrw: row.unit_cost_krw, taxBasis: row.tax_basis });
@@ -62,7 +62,7 @@ export function parsePurchaseCostHistory(value: unknown): PurchaseCostChange[] |
   if (!Array.isArray(value)) return null;
   const result: PurchaseCostChange[] = [];
   for (const row of value) {
-    if (!object(row) || typeof row.id !== 'string' || !UUID.test(row.id) || typeof row.variantId !== 'string' || !UUID.test(row.variantId)
+    if (!object(row) || typeof row.id !== 'string' || !isUuid(row.id) || typeof row.variantId !== 'string' || !isUuid(row.variantId)
       || !integer(row.revision, 1) || !instant(row.changedAt) || (row.actorName !== null && typeof row.actorName !== 'string')) return null;
     const before = row.before === null ? null : parsePurchaseCostInput(row.before);
     const after = parsePurchaseCostInput(row.after);

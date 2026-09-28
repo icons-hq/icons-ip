@@ -1,8 +1,8 @@
 'use server';
 
 import { revalidatePath } from 'next/cache';
-import { redirect, unstable_rethrow } from 'next/navigation';
-import { getCurrentAdminAuthState } from '@/lib/auth/admin';
+import { unstable_rethrow } from 'next/navigation';
+import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { createClient } from '@/lib/supabase/server';
 import { OPERATIONS_CONTACT_FIELDS, OPERATIONS_SETTINGS_PATH, parseOperationsContactValues, validOperationsContactTarget, validOperationsContactVersion, type OperationsContactValues } from '@/lib/admin/operations-contacts';
 
@@ -20,9 +20,8 @@ function formString(data: FormData, key: string): string | null {
 export async function saveOperationsContactAction(previous: OperationsContactActionState, data: FormData): Promise<OperationsContactActionState> {
   const fail = (errors: Record<string, string>): OperationsContactActionState => ({ errors, updatedAt: previous.updatedAt });
   try {
-    const auth = await getCurrentAdminAuthState();
-    if (!auth.isConfigured || !auth.user) redirect(`/login?next=${encodeURIComponent(OPERATIONS_SETTINGS_PATH)}`);
-    if (!auth.isStaff || auth.role !== 'admin') return fail({ form: '담당자 정보 변경은 관리자(admin)만 할 수 있습니다.' });
+    const auth = await requireAdminActionAccess(OPERATIONS_SETTINGS_PATH, { adminOnly: true });
+    if (!auth) return fail({ form: '담당자 정보 변경은 관리자(admin)만 할 수 있습니다.' });
 
     const scope = formString(data, 'scope');
     const originId = formString(data, 'originId');
