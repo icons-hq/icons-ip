@@ -127,6 +127,8 @@ export async function processOrderDelayEmails(
     dispatcher: emailDispatcherFromEnvironment(),
   },
 ) {
+  // Validate configuration before claiming jobs so they remain available after a fix.
+  const siteUrl = dependencies.dispatcher ? emailSiteUrl() : null;
   const jobs = await dependencies.repository.claim();
   const result = {
     claimed: jobs.length,
@@ -166,7 +168,7 @@ export async function processOrderDelayEmails(
               result.stale++;
               return;
             }
-            const orderUrl = `${emailSiteUrl()}/orders/${job.orderId}`;
+            const orderUrl = `${siteUrl}/orders/${job.orderId}`;
             const text = `주문 ${orderReferenceLabel(job.orderId)}\n안내 대상 배송 건: ${job.shipmentLabels.join(', ')}\n\n${job.body}\n\n주문 확인: ${orderUrl}`;
             delivery = outcome(
               await dependencies.dispatcher.dispatch({

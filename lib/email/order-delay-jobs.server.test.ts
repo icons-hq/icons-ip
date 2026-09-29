@@ -25,8 +25,14 @@ function setup(){
 }
 afterEach(() => vi.unstubAllEnvs());
 describe('지연 주문 이메일 작업',()=>{
+ it('고정 SITE_URL 없는 Preview는 배포 URL로 발송하지 않고 작업을 선점하기 전에 중단한다', async () => {
+   vi.stubEnv('VERCEL_ENV', 'preview');vi.stubEnv('VERCEL_URL', 'icons-changing.vercel.app');vi.stubEnv('SITE_URL', '');
+   const s=setup();s.jobs.claim=vi.fn(s.jobs.claim);
+   await expect(processOrderDelayEmails({repository:s.jobs,dispatcher:s.dispatcher})).rejects.toThrow('email_site_url_required');
+   expect(s.jobs.claim).not.toHaveBeenCalled();expect(s.provider.send).not.toHaveBeenCalled();
+ });
+
  it.each([
-   ['preview', '', 'icons-pr-515.vercel.app', 'https://icons-pr-515.vercel.app'],
    ['preview', 'https://icons-ip-staging.vercel.app/', 'icons-random.vercel.app', 'https://icons-ip-staging.vercel.app'],
    ['production', '', 'icons-random.vercel.app', 'https://iconsip.com'],
  ])('SITE_URL 미설정 배포도 환경별 주문 링크를 유지한다: %s %s', async (environment, configured, deployment, expected) => {
@@ -58,14 +64,17 @@ describe('지연 주문 이메일 작업',()=>{
  expect(s.finishes).toEqual([{status:'sent',errorCode:null,retryable:false}]);
  });
  it('공급자 접수 후 timeout이면 같은 멱등키로만 복구하고 두 worker가 같은 작업을 발송하지 않는다',async()=>{
-  const s=setup();const keys=new Set<string>();let calls=0;
+  vi.stubEnv('VERCEL_ENV','preview');vi.stubEnv('SITE_URL','https://icons-ip-staging.vercel.app');vi.stubEnv('VERCEL_URL','icons-first.vercel.app');
+  const s=setup();const keys=new Set<string>();const messages:unknown[]=[];let calls=0;
   s.provider.send=vi.fn(async input=>{
-   keys.add(input.idempotencyKey);calls++;
+   keys.add(input.idempotencyKey);messages.push(input.message);calls++;
    return calls===1?{kind:'ambiguous_failure' as const}:{kind:'accepted' as const,providerReference:'accepted-before-timeout'};
   });
   await Promise.all([processOrderDelayEmails({repository:s.jobs,dispatcher:s.dispatcher}),processOrderDelayEmails({repository:s.jobs,dispatcher:s.dispatcher})]);
   expect(calls).toBe(1);expect(s.finishes[0]).toEqual({status:'unknown',errorCode:'delivery_outcome_unknown',retryable:false});
+  vi.stubEnv('VERCEL_URL','icons-redeployed.vercel.app');
   s.requeue();await processOrderDelayEmails({repository:s.jobs,dispatcher:s.dispatcher});
+  expect(messages[1]).toEqual(messages[0]);
   expect([...keys]).toEqual(['email/frozen-notice']);expect(s.finishes[1]).toEqual({status:'sent',errorCode:null,retryable:false});
   s.requeue();await processOrderDelayEmails({repository:s.jobs,dispatcher:s.dispatcher});
   expect(calls).toBe(2); // The accepted third replay never calls the provider.
