@@ -128,7 +128,7 @@ export async function processOrderDelayEmails(
   },
 ) {
   // Validate configuration before claiming jobs so they remain available after a fix.
-  const siteUrl = dependencies.dispatcher ? emailSiteUrl() : null;
+  const siteUrl = emailSiteUrl();
   const jobs = await dependencies.repository.claim();
   const result = {
     claimed: jobs.length,

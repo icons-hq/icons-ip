@@ -25,10 +25,10 @@ function setup(){
 }
 afterEach(() => vi.unstubAllEnvs());
 describe('지연 주문 이메일 작업',()=>{
- it('고정 SITE_URL 없는 Preview는 배포 URL로 발송하지 않고 작업을 선점하기 전에 중단한다', async () => {
+ it.each([true, false])('고정 SITE_URL 없는 Preview는 공급자 구성(%s)과 무관하게 작업 선점 전에 중단한다', async (configured) => {
    vi.stubEnv('VERCEL_ENV', 'preview');vi.stubEnv('VERCEL_URL', 'icons-changing.vercel.app');vi.stubEnv('SITE_URL', '');
    const s=setup();s.jobs.claim=vi.fn(s.jobs.claim);
-   await expect(processOrderDelayEmails({repository:s.jobs,dispatcher:s.dispatcher})).rejects.toThrow('email_site_url_required');
+   await expect(processOrderDelayEmails({repository:s.jobs,dispatcher:configured?s.dispatcher:null})).rejects.toThrow('email_site_url_required');
    expect(s.jobs.claim).not.toHaveBeenCalled();expect(s.provider.send).not.toHaveBeenCalled();
  });
 
