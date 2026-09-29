@@ -51,6 +51,31 @@ export interface NotificationItem {
   isUnread: boolean;
 }
 
+// 저장된 알림 원문과 상품명·공지 본문을 보존하고, 알려진 시스템 문장만 표시 시 바꾼다.
+const SYSTEM_NOTIFICATION_COPY = new Map<NotificationType, {
+  titles?: ReadonlyMap<string, string>;
+  bodies?: ReadonlyMap<string, string>;
+}>([
+  ['product_question_answered', {
+    titles: new Map([['상품 Q&A에 답변이 등록됐어요', '굿즈 Q&A에 답변이 등록됐어요']]),
+  }],
+  ['claim_updated', {
+    titles: new Map([['교환 상품이 재출고됐어요', '교환 굿즈가 재출고됐어요']]),
+    bodies: new Map([
+      ['입고가 확인됐습니다. 교환 상품 재출고를 준비합니다.', '입고가 확인됐습니다. 교환 굿즈 재출고를 준비합니다.'],
+      ['교환 상품을 새 운송장으로 발송했습니다.', '교환 굿즈를 새 운송장으로 발송했습니다.'],
+    ]),
+  }],
+]);
+
+export function notificationDisplayCopy(notification: Pick<NotificationItem, 'type' | 'title' | 'body'>) {
+  const copy = SYSTEM_NOTIFICATION_COPY.get(notification.type);
+  return {
+    title: copy?.titles?.get(notification.title) ?? notification.title,
+    body: copy?.bodies?.get(notification.body) ?? notification.body,
+  };
+}
+
 export function isSafeNotificationLink(value: unknown): value is string {
   return typeof value === 'string'
     && value.startsWith('/')

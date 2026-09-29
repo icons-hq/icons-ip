@@ -62,8 +62,8 @@ describe('setGoodBankTransferAction', () => {
      아니라 이 액션 하나로 끝나야 한다는 것이 #256의 결정이므로, 정확히 어떤
      감사 RPC가 어떤 인자로 불리는지를 못 박는다. */
   it.each([
-    ['true', true, '이 굿즈로 무통장 입금 주문을 받습니다.'],
-    ['false', false, '이 굿즈는 무통장 입금을 받지 않습니다. 카드 결제만 열립니다.'],
+    ['true', true, '이 상품으로 무통장 입금 주문을 받습니다.'],
+    ['false', false, '이 상품은 무통장 입금을 받지 않습니다. 카드 결제만 열립니다.'],
   ] as const)('allowed=%s를 감사 RPC로 그대로 넘기고 판매 표면을 갱신한다', async (
     allowedField,
     targetAllowed,
@@ -84,7 +84,7 @@ describe('setGoodBankTransferAction', () => {
      방향으로 기울면 안 된다. */
   it.each(['', 'TRUE', '1', 'yes'])('allowed=%o는 무통장을 닫는 것으로 읽는다', async (allowedField) => {
     await expect(setGoodBankTransferAction({}, bankTransferForm(GOOD_ID, allowedField)))
-      .resolves.toEqual({ message: '이 굿즈는 무통장 입금을 받지 않습니다. 카드 결제만 열립니다.' });
+      .resolves.toEqual({ message: '이 상품은 무통장 입금을 받지 않습니다. 카드 결제만 열립니다.' });
 
     expect(mocks.rpc).toHaveBeenCalledWith('admin_set_good_bank_transfer', {
       target_id: GOOD_ID,
@@ -127,14 +127,14 @@ describe('setGoodBankTransferAction', () => {
     ['필드 없음', null],
   ] as const)('굿즈 id가 %s이면 RPC에 닿기 전에 막는다', async (_label, id) => {
     await expect(setGoodBankTransferAction({}, bankTransferForm(id))).resolves.toEqual({
-      error: '굿즈를 찾을 수 없습니다.',
+      error: '상품을 찾을 수 없습니다.',
     });
     expect(mocks.rpc).not.toHaveBeenCalled();
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
 
   it.each([
-    ['catalog_record_missing: private detail', '굿즈를 찾을 수 없습니다.'],
+    ['catalog_record_missing: private detail', '상품을 찾을 수 없습니다.'],
     ['private permission detail', '무통장 설정을 바꾸지 못했습니다.'],
   ])('RPC 오류 %o를 DB 원문 없이 운영자 문구로 옮긴다', async (dbMessage, message) => {
     mocks.rpc.mockResolvedValue({ data: null, error: { code: 'P0001', message: dbMessage } });

@@ -1,3 +1,4 @@
+import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import type { AdminGuideTopic } from '../types';
 
 export const DEV_REQUESTS_TOPIC: AdminGuideTopic = {
@@ -32,7 +33,7 @@ export const DEV_REQUESTS_TOPIC: AdminGuideTopic = {
         '부분 취소·부분 환불 — 취소·반품의 환불은 주문 단위 전액뿐입니다.',
         '어드민에서 클레임 만들기 — 클레임은 구매자가 주문 상세에서 접수합니다.',
         '어드민에서 예매 만들기 — 티켓은 고객 결제로만 발권됩니다.',
-        '특정 회원에게 쿠폰 직접 지급 — 쿠폰은 장바구니 코드 입력 등록과 등급 혜택 자동 발급으로만 나갑니다("굿즈 등록과 판매 시작" 주제의 쿠폰 섹션 참고).',
+        adminGoodsCopy('특정 회원에게 쿠폰 직접 지급 — 쿠폰은 장바구니 코드 입력 등록과 등급 혜택 자동 발급으로만 나갑니다("굿즈 등록과 판매 시작" 주제의 쿠폰 섹션 참고).'),
         '공지 예약 발송, 이메일·푸시 공지 — 공지 발송은 인앱 즉시 발송만 있습니다.',
         '통계 CSV 내려받기·임의 기간 조회 — 화면에 제공되는 기간 탭만 있습니다.',
       ],
@@ -41,7 +42,7 @@ export const DEV_REQUESTS_TOPIC: AdminGuideTopic = {
       id: 'how-to-request',
       heading: '요청할 때 함께 적어주세요',
       list: [
-        '무엇을(대상 굿즈 ID·주문번호·계정 이메일 등 식별자), 어떻게 바꾸고 싶은지.',
+        adminGoodsCopy('무엇을(대상 굿즈 ID·주문번호·계정 이메일 등 식별자), 어떻게 바꾸고 싶은지.'),
         '언제까지 필요한지 — 특히 결제 열기·닫기는 판매 일정과 묶이므로 시점이 중요합니다.',
         '오류라면 화면에 뜬 문구 원문과 발생 시각.',
       ],

@@ -1,3 +1,4 @@
+import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import {
   ADMIN_INQUIRY_STATUS_LABELS,
   INQUIRY_CATEGORIES,
@@ -42,7 +43,7 @@ export const ADMIN_INQUIRY_CATEGORY_OPTIONS: { value: AdminInquiryCategoryFilter
   { value: 'all', label: '전체' },
   ...INQUIRY_CATEGORIES.map((category) => ({
     value: category.id as AdminInquiryCategoryFilter,
-    label: category.label,
+    label: adminGoodsCopy(category.label),
   })),
 ];
 

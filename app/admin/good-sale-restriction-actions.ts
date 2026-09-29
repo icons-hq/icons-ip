@@ -1,5 +1,6 @@
 'use server';
 
+import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
@@ -22,8 +23,8 @@ import { createClient } from '@/lib/supabase/server';
 const SALE_RESTRICTIONS: readonly AdminGoodSaleRestriction[] = ['none', 'adult'];
 
 const SALE_RESTRICTION_MESSAGES: Record<AdminGoodSaleRestriction, string> = {
-  none: '이 굿즈는 판매 제한 없이 스토어에 노출됩니다.',
-  adult: '이 굿즈는 성인(19금) 상품입니다. 성인인증 도입 전까지 스토어에서 숨기고 구매를 막습니다.',
+  none: adminGoodsCopy('이 굿즈는 판매 제한 없이 스토어에 노출됩니다.'),
+  adult: adminGoodsCopy('이 굿즈는 성인(19금) 상품입니다. 성인인증 도입 전까지 스토어에서 숨기고 구매를 막습니다.'),
 };
 
 export interface AdminGoodSaleRestrictionActionState {
@@ -40,7 +41,7 @@ export async function setGoodSaleRestrictionAction(
   if (!auth.isStaff) return { error: '관리자 권한이 필요합니다.' };
 
   const id = String(formData.get('id') ?? '').trim();
-  if (!id) return { error: '굿즈를 찾을 수 없습니다.' };
+  if (!id) return { error: adminGoodsCopy('굿즈를 찾을 수 없습니다.') };
   const submitted = String(formData.get('restriction') ?? '');
   const restriction = SALE_RESTRICTIONS.find((value) => value === submitted);
   if (!restriction) return { error: '지원하지 않는 판매 제한 유형입니다.' };
@@ -53,7 +54,7 @@ export async function setGoodSaleRestrictionAction(
   if (error) {
     return {
       error: error.message.includes('catalog_record_missing')
-        ? '굿즈를 찾을 수 없습니다.'
+        ? adminGoodsCopy('굿즈를 찾을 수 없습니다.')
         : '판매 제한 설정을 바꾸지 못했습니다.',
     };
   }

@@ -1,3 +1,4 @@
+import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import { BUSINESS_INFO, BUSINESS_INFO_LABELS, type BusinessInfo } from '@/lib/legal/business-info';
 import { INQUIRY_CATEGORIES, type InquiryCategory } from '@/lib/inquiries';
 
@@ -64,7 +65,7 @@ export function storeSettingsHistoryRows(entry:StoreSettingsAudit) {
       const old=before[id] as {enabled?:boolean;body?:string}|undefined;
       const next=after[id] as {enabled?:boolean;body?:string}|undefined;
       return (['enabled','body'] as const).filter(key=>old?.[key]!==next?.[key]).map(key=>({
-        key:`${id}.${key}`,label:`${label} · ${key==='enabled'?'사용 여부':'안내 문구'}`,
+        key:`${id}.${key}`,label:`${adminGoodsCopy(label)} · ${key==='enabled'?'사용 여부':'안내 문구'}`,
         before:words(old?.[key]),after:words(next?.[key]),
       }));
     });

@@ -74,7 +74,7 @@ export async function syncCartAction(localItemsValue: unknown): Promise<CartActi
   }
   const normalized = canonicalizeStoredCartItems(stored, defaults);
   if (!normalized.ok) return { ok: false, mode: 'local', unresolvedItems: normalized.unresolved,
-    error: '이전 장바구니의 일부 상품을 확인할 수 없습니다. 다시 시도하거나 해당 항목을 삭제해주세요.' };
+    error: '이전 장바구니의 일부 굿즈를 확인할 수 없습니다. 다시 시도하거나 해당 항목을 삭제해주세요.' };
   const localItems = normalized.items;
   if (!user) return { ok: true, mode: 'local', items: localItems };
   supabase ??= await createClient();
@@ -161,7 +161,7 @@ export async function addCartSelectionAction(baseGoodIdValue: unknown, entriesVa
   if (error) {
     return { ok: false, mode: 'server', error: error.message === 'out of stock' ? STOCK_ERROR
       : error.message === 'cart_selection_changed' ? '장바구니가 변경되었습니다. 현재 수량을 확인하고 다시 담아주세요.'
-        : error.message === 'additional_good_unavailable' ? '추가상품의 판매 또는 연결 상태가 변경되었습니다. 선택을 다시 확인해주세요.'
+        : error.message === 'additional_good_unavailable' ? '추가 구성 굿즈의 판매 또는 연결 상태가 변경되었습니다. 선택을 다시 확인해주세요.'
           : SAVE_ERROR };
   }
   const items = parseCartAdditionSnapshot(data);

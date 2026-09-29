@@ -1,3 +1,4 @@
+import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 /*
  * 홈 큐레이션이 가리킬 수 있는 실재 목적지 (#183).
  *
@@ -61,7 +62,7 @@ export function adminCurationTargetGroups(
     { label: '주요 화면', options: FIXED_TARGETS },
     { label: 'IP 상세', options: detailOptions(source.ips, publicIpHref) },
     /* 굿즈 상세가 빠지면 첫 판매 굿즈를 홈에서 상세로 바로 보낼 수 없다. */
-    { label: '굿즈 상세', options: detailOptions(source.goods, (record) => goodDetailHref(record.id)) },
+    { label: adminGoodsCopy('굿즈 상세'), options: detailOptions(source.goods, (record) => goodDetailHref(record.id)) },
     { label: '오프라인 팝업 상세', options: detailOptions(source.events, (record) => `/offline-popups/${record.id}`) },
   ].filter((group) => group.options.length > 0);
 }

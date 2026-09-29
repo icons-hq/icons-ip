@@ -80,7 +80,7 @@ describe('Home empty curation', () => {
 
     expect(html).toContain('wc-home__empty');
     expect(html).toContain('홈을 준비하고 있어요');
-    expect(html).toContain('곧 새로운 소식과 상품을 만나볼 수 있어요.');
+    expect(html).toContain('곧 새로운 소식과 굿즈를 만나볼 수 있어요.');
     expect(html).toContain('href="/shop"');
     expect(html).toContain('굿즈샵 둘러보기');
   });

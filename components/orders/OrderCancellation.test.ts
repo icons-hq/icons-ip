@@ -20,7 +20,7 @@ describe('WITHDRAWAL_REASON_LABELS', () => {
   it('keeps the customer-facing wording that pairs each reason with its deadline', () => {
     expect(WITHDRAWAL_REASON_LABELS).toEqual({
       change_of_mind: '단순 변심 (공급받은 날부터 7일)',
-      defect: '상품 하자·오배송 (공급받은 날부터 3개월)',
+      defect: '굿즈 하자·오배송 (공급받은 날부터 3개월)',
     });
   });
 });
@@ -212,7 +212,7 @@ describe('submitOrderCancellation', () => {
 
   it('keeps the statutory notice and fail-closed error copy exact', () => {
     // 고지 문구는 실제로 강제되는 기한과 일치해야 한다(#189).
-    expect(LEGAL_WITHDRAWAL_NOTICE).toBe('굿즈를 공급받은 날부터 7일 이내에 단순 변심 청약철회를 요청할 수 있습니다. 상품 하자나 오배송은 공급받은 날부터 3개월 이내에 요청할 수 있습니다. 상품 훼손·사용 등 법정 제한 사유가 있으면 제한될 수 있습니다.');
+    expect(LEGAL_WITHDRAWAL_NOTICE).toBe('굿즈를 공급받은 날부터 7일 이내에 단순 변심 청약철회를 요청할 수 있습니다. 굿즈 하자나 오배송은 공급받은 날부터 3개월 이내에 요청할 수 있습니다. 굿즈 훼손·사용 등 법정 제한 사유가 있으면 제한될 수 있습니다.');
     expect(CANCELLATION_FAILURE_MESSAGE).toBe('취소 요청을 처리하지 못했습니다. 주문 상태를 새로 확인한 뒤 다시 시도해주세요.');
   });
 });

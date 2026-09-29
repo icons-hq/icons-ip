@@ -1,3 +1,4 @@
+import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import {
   ADMIN_REVIEW_STATUS_LABELS,
   LOW_REVIEW_RATING_MAX,
@@ -55,7 +56,7 @@ export const ADMIN_REVIEW_REPLY_OPTIONS: { value: AdminReviewTernaryFilter; labe
 
 export const ADMIN_REVIEW_SEARCH_FIELDS: { value: AdminReviewSearchField; label: string }[] = [
   { value: 'all', label: '전체' },
-  { value: 'good', label: '굿즈' },
+  { value: 'good', label: adminGoodsCopy('굿즈') },
   { value: 'author', label: '작성자' },
   { value: 'body', label: '리뷰 내용' },
 ];

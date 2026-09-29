@@ -273,7 +273,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     const previous = itemsRef.current;
     const prepared = prepareCartAddition(previous, selection);
     if (!prepared.ok) {
-      setError(prepared.reason === 'stock' ? STOCK_ERROR : '선택한 상품과 수량을 확인해주세요.');
+      setError(prepared.reason === 'stock' ? STOCK_ERROR : '선택한 굿즈와 수량을 확인해주세요.');
       return false;
     }
     setError(null);
@@ -297,7 +297,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
         return true;
       }
       replaceItems(previous);
-      setError(result.error ?? '선택한 상품을 담지 못했습니다. 장바구니를 새로고침한 뒤 확인해주세요.');
+      setError(result.error ?? '선택한 굿즈를 담지 못했습니다. 장바구니를 새로고침한 뒤 확인해주세요.');
       return false;
     } catch {
       if (operationVersion === operationVersionRef.current) {

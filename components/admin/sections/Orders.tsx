@@ -1,4 +1,5 @@
 'use client';
+import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 
 import Link from 'next/link';
 import { useActionState, useEffect, useRef } from 'react';
@@ -89,7 +90,7 @@ function CancellationReasonBadge({
 }) {
   return (
     <span className={`${className ? `${className} ` : ''}admin-order-reason admin-order-reason--${reasonType}`}>
-      {ORDER_WITHDRAWAL_REASON_LABELS[reasonType]}
+      {adminGoodsCopy(ORDER_WITHDRAWAL_REASON_LABELS[reasonType])}
     </span>
   );
 }
@@ -772,7 +773,7 @@ export function OrdersSection({ data }: { data: AdminOrderConsoleData }) {
               /* aria-label이 행 내용을 덮어쓰므로 사유 배지를 이름에도 넣는다. 넣지
                  않으면 스크린리더 사용자에게만 사유가 사라진다. */
               aria-label={`주문 ${orderReferenceLabel(order.id)} 선택${
-                openRequest ? ` · 청약철회 ${ORDER_WITHDRAWAL_REASON_LABELS[openRequest.reasonType]}` : ''
+                openRequest ? ` · 청약철회 ${adminGoodsCopy(ORDER_WITHDRAWAL_REASON_LABELS[openRequest.reasonType])}` : ''
               }`}
               className={selected?.id === order.id ? 'admin-order-row on' : 'admin-order-row'}
               href={adminOrdersHref(data.filters, { orderId: order.id })}

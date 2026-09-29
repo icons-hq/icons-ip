@@ -1,5 +1,6 @@
 'use server';
 
+import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
@@ -28,7 +29,7 @@ export async function setGoodBankTransferAction(
   if (!auth.isStaff) return { error: '관리자 권한이 필요합니다.' };
 
   const id = String(formData.get('id') ?? '').trim();
-  if (!id) return { error: '굿즈를 찾을 수 없습니다.' };
+  if (!id) return { error: adminGoodsCopy('굿즈를 찾을 수 없습니다.') };
   const allowed = String(formData.get('allowed') ?? '') === 'true';
 
   const supabase = await createClient();
@@ -39,7 +40,7 @@ export async function setGoodBankTransferAction(
   if (error) {
     return {
       error: error.message.includes('catalog_record_missing')
-        ? '굿즈를 찾을 수 없습니다.'
+        ? adminGoodsCopy('굿즈를 찾을 수 없습니다.')
         : '무통장 설정을 바꾸지 못했습니다.',
     };
   }
@@ -48,7 +49,7 @@ export async function setGoodBankTransferAction(
   revalidatePath('/shop');
   return {
     message: allowed
-      ? '이 굿즈로 무통장 입금 주문을 받습니다.'
-      : '이 굿즈는 무통장 입금을 받지 않습니다. 카드 결제만 열립니다.',
+      ? adminGoodsCopy('이 굿즈로 무통장 입금 주문을 받습니다.')
+      : adminGoodsCopy('이 굿즈는 무통장 입금을 받지 않습니다. 카드 결제만 열립니다.'),
   };
 }

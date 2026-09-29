@@ -1,5 +1,6 @@
 'use server';
 
+import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import { goodSaveFields } from '@/lib/admin/good-save';
 
 import { revalidatePath } from 'next/cache';
@@ -403,14 +404,14 @@ async function saveAdminGood(
       ?? archivedParentFailure(error.message)
       ?? goodsNoticeFailure(error.message)
       ?? compareAtPriceFailure(error.message)
-      ?? rpcFailure('굿즈를 저장하지 못했습니다. 다시 시도해주세요.');
+      ?? rpcFailure(adminGoodsCopy('굿즈를 저장하지 못했습니다. 다시 시도해주세요.'));
   }
 
   const savedId = typeof data?.id === 'string' ? data.id : value.id;
   if (!savedId) return rpcFailure('상품 저장 결과를 확인하지 못했습니다. 목록을 새로고침해주세요.');
   notifyRestockSubscribers(savedId);
   revalidateCatalog([...relatedIpPaths(value.ipId, previousIpPath), `/admin/catalog/ips/${value.ipId}`, `/shop/${savedId}`, ...(value.previousId ? [`/shop/${value.previousId}`] : [])]);
-  return { message: value.publish ? '굿즈를 저장하고 공개했습니다.' : '굿즈를 저장했습니다.', savedGoodId: savedId };
+  return { message: value.publish ? adminGoodsCopy('굿즈를 저장하고 공개했습니다.') : adminGoodsCopy('굿즈를 저장했습니다.'), savedGoodId: savedId };
 }
 
 export async function adjustAdminStockAction(
@@ -451,7 +452,7 @@ export async function adjustAdminStockAction(
     }
     if (error.message.includes('goods_variant_not_found')) return rpcFailure('재고를 조정할 옵션을 찾을 수 없습니다. 최신 옵션 목록을 확인해주세요.');
     if (error.message.includes('good_not_found')) {
-      return rpcFailure('굿즈를 찾을 수 없습니다.');
+      return rpcFailure(adminGoodsCopy('굿즈를 찾을 수 없습니다.'));
     }
     return rpcFailure('실재고를 조정하지 못했습니다. 다시 시도해주세요.');
   }

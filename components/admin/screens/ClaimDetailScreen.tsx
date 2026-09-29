@@ -1,6 +1,6 @@
 
 import { ShipmentDetails } from '@/components/shop/ShipmentDetails';
-import { ADMIN_VOCABULARY as V } from '@/lib/admin/vocabulary';
+import { ADMIN_VOCABULARY as V, adminGoodsCopy } from '@/lib/admin/vocabulary';
 import Link from 'next/link';
 import type { AdminClaimDetail } from '@/lib/admin/claims.server';
 import { krw } from '@/lib/format';
@@ -110,7 +110,7 @@ export function ClaimDetailScreen({
           <p className="muted" style={{ fontSize: 12.5, margin: '4px 0 0' }}>
             {ORDER_CLAIM_STAGE_LABELS[claim.stage]}
             {' · '}
-            {ORDER_WITHDRAWAL_REASON_LABELS[claim.reasonType]}
+            {adminGoodsCopy(ORDER_WITHDRAWAL_REASON_LABELS[claim.reasonType])}
             {' · 접수 '}
             <time dateTime={claim.requestedAt}>{formatOrderDateTime(claim.requestedAt)}</time>
           </p>

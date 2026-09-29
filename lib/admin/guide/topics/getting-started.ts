@@ -1,3 +1,4 @@
+import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import type { AdminGuideTopic } from '../types';
 
 export const GETTING_STARTED_TOPIC: AdminGuideTopic = {
@@ -97,7 +98,7 @@ export const GETTING_STARTED_TOPIC: AdminGuideTopic = {
       id: 'propagation',
       heading: '저장하면 사이트에 언제 반영되나요?',
       paragraphs: [
-        '카탈로그(IP·굿즈·이벤트 등)를 저장하면 홈·굿즈샵·IP 상세 같은 공개 화면의 캐시가 곧바로 비워집니다. 별도의 반영 대기 시간은 없습니다.',
+        adminGoodsCopy('카탈로그(IP·굿즈·이벤트 등)를 저장하면 홈·굿즈샵·IP 상세 같은 공개 화면의 캐시가 곧바로 비워집니다. 별도의 반영 대기 시간은 없습니다.'),
       ],
       callouts: [
         {

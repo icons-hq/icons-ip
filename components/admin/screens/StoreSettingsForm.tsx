@@ -1,4 +1,5 @@
 'use client';
+import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import { useActionState, useState } from 'react';
 import { saveStoreSettingsAction,saveShippingCarrierAction,saveInquiryAutoRepliesAction,type StoreSettingsActionState } from '@/app/admin/store-settings-actions';
 import { AdminField,AdminFormGrid } from '@/components/admin/console/AdminKit';
@@ -36,9 +37,9 @@ export function InquiryAutoRepliesForm({settings,canEdit}:{settings:StoreSetting
     <p>문의 유형별 사용 여부와 안내 문구를 함께 저장합니다. 기본은 모두 꺼짐입니다. 문구에 HTTPS로 시작하는 FAQ 전체 주소를 넣을 수 있습니다.</p>
     <div key={state.attempt??0} className="admin-store-settings__auto-replies">
       {INQUIRY_CATEGORIES.map(({id,label})=><fieldset key={id} disabled={pending}>
-        <legend>{label}</legend>
+        <legend>{adminGoodsCopy(label)}</legend>
         <label><input type="checkbox" name={`${id}.enabled`} value="true" disabled={!canEdit}
-          defaultChecked={state.values?state.values[`${id}.enabled`]==='true':settings.inquiryAutoReplies[id].enabled}/> {label} 자동 안내 사용</label>
+          defaultChecked={state.values?state.values[`${id}.enabled`]==='true':settings.inquiryAutoReplies[id].enabled}/> {adminGoodsCopy(label)} 자동 안내 사용</label>
         <AdminField label="안내 문구" inputId={`auto-reply-${id}`} error={state.errors?.[`${id}.body`]} hint="최대 2,000자. 사용을 켜려면 공백이 아닌 문구가 필요합니다.">
           <textarea id={`auto-reply-${id}`} name={`${id}.body`} rows={4} maxLength={2000} readOnly={!canEdit}
             defaultValue={state.values?.[`${id}.body`]??settings.inquiryAutoReplies[id].body}

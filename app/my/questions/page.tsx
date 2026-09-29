@@ -6,7 +6,7 @@ import { getCurrentAuthState } from '@/lib/auth/server';
 import { loadMyQuestions } from '@/lib/product-questions.server';
 
 export const metadata: Metadata = {
-  title: '내 상품 Q&A — ICONS',
+  title: '내 굿즈 Q&A — ICONS',
   description: '굿즈 상세에 남긴 질문과 운영자 답변을 확인하세요.',
   robots: { index: false, follow: false },
 };

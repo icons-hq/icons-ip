@@ -60,7 +60,7 @@ function TabProductBand({
       id: tab.id,
       label: tab.label,
       content: (
-        <Slider label={`${tab.label} 상품`}>
+        <Slider label={`${tab.label} 굿즈`}>
           {paginate(tab.goods, TAB_PAGE_SIZE).map((page) => (
             <div className="wc-tab-band__page" key={page[0].id}>
               {page.map((good) => (
@@ -156,7 +156,7 @@ export function Home({ cardRewardsEnabled, curation: rawCuration }: HomeProps) {
         <div className="wc-home__empty">
           <EmptyState
             action={<Link className="wc-btn primary" href="/shop">굿즈샵 둘러보기</Link>}
-            description="곧 새로운 소식과 상품을 만나볼 수 있어요."
+            description="곧 새로운 소식과 굿즈를 만나볼 수 있어요."
             title="홈을 준비하고 있어요"
             titleAs="h2"
           />

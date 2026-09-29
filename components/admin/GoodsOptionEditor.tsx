@@ -1,5 +1,6 @@
 'use client';
 
+import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import { useState, type Dispatch, type SetStateAction } from 'react';
 import { generateGoodsOptionRows, type GoodsOptionAxis, type GoodsOptionRow } from '@/lib/admin/goods-option-editor';
 import { AdminField, AdminFormGrid } from './console/AdminKit';
@@ -138,21 +139,21 @@ export function GoodsOptionEditor({ rows, baseline, basePrice, error, axisValues
 
   return <div className="col admin-option-editor wc-admin-option-artwork" style={{ gap: 16 }} data-option-mode={isSimple ? 'single' : 'multiple'}>
     <p className="wc-admin-option-artwork__intro">
-      {isSimple ? '옵션이 없는 굿즈도 내부에서는 기본 옵션 한 개로 저장됩니다. 기준 판매가에 추가금액을 더한 옵션 판매가와 할당 재고를 입력하세요.' : '옵션명·옵션 판매가·할당 재고·사용 상태를 먼저 확인하세요. 외부 식별자와 안전재고는 옵션 상세 정보에서 관리합니다.'}
+      {isSimple ? adminGoodsCopy('옵션이 없는 굿즈도 내부에서는 기본 옵션 한 개로 저장됩니다. 기준 판매가에 추가금액을 더한 옵션 판매가와 할당 재고를 입력하세요.') : '옵션명·옵션 판매가·할당 재고·사용 상태를 먼저 확인하세요. 외부 식별자와 안전재고는 옵션 상세 정보에서 관리합니다.'}
     </p>
     <p id="goods-option-stock-guidance" className="wc-admin-option-artwork__hint">안전재고는 부족 경보 기준입니다. 재고 10개·기준 3개이면 10개 모두 판매할 수 있습니다. 비워두면 경보하지 않으며, 사용 중지는 재고와 주문 이력을 보존합니다.</p>
     <p id="goods-option-external-identity-guidance" className="wc-admin-option-artwork__hint">ERP 코드·ERP 품명·바코드는 옵션별 외부 식별자입니다. 자체 옵션코드와 별도로 입력하며, 선행 0은 유지됩니다. 비워두면 미설정으로 저장합니다.</p>
 
     {isSimple && simpleRow ? <section className="goods-option-single" aria-labelledby="goods-option-single-title">
       <div className="goods-option-single__heading">
-        <div><h4 id="goods-option-single-title">기본 옵션</h4><p>옵션 선택 없이 판매하는 굿즈의 내부 기본 옵션입니다.</p></div>
+        <div><h4 id="goods-option-single-title">기본 옵션</h4><p>{adminGoodsCopy("옵션 선택 없이 판매하는 굿즈의 내부 기본 옵션입니다.")}</p></div>
         <span className="wc-admin-option-artwork__badge">옵션 1개</span>
       </div>
       <div className="goods-option-single__grid">
         <AdminField inputId="goods-single-option-name" label="옵션명">
           <input id="goods-single-option-name" aria-label="기본 옵션명" value={simpleRow.name} maxLength={200} onChange={(event) => update(0, { name: event.target.value })} />
         </AdminField>
-        <div className="goods-option-single__readout"><span>기준 판매가</span><strong>{formatWon(basePrice)}</strong><small>굿즈의 기준 판매가 입력에서 수정</small></div>
+        <div className="goods-option-single__readout"><span>기준 판매가</span><strong>{formatWon(basePrice)}</strong><small>{adminGoodsCopy("굿즈의 기준 판매가 입력에서 수정")}</small></div>
         <AdminField inputId="goods-single-extra-price" label="추가금액">
           <input id="goods-single-extra-price" aria-label="기본 옵션 추가금액" value={simpleRow.extraPrice} min={0} step={1} type="number" onChange={(event) => update(0, { extraPrice: Number(event.target.value) })} />
         </AdminField>

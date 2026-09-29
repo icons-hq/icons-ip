@@ -1,5 +1,6 @@
 'use server';
 
+import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import { revalidatePath } from 'next/cache';
 import { redirect, unstable_rethrow } from 'next/navigation';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
@@ -61,7 +62,7 @@ function mapRpcError(error: { code?: unknown; message?: unknown }): string {
   if (descriptor.includes('category_cycle')) return '자기 자신이나 하위 카테고리로 이동할 수 없습니다.';
   if (descriptor.includes('category_depth_exceeded')) return '카테고리는 최대 4단계까지만 만들 수 있습니다.';
   if (descriptor.includes('category_parent_archived')) return '보관된 부모 카테고리는 선택할 수 없습니다.';
-  if (descriptor.includes('category_has_goods')) return '굿즈가 연결된 카테고리는 하위 카테고리를 추가하거나 이동 목적지로 사용할 수 없습니다.';
+  if (descriptor.includes('category_has_goods')) return adminGoodsCopy('굿즈가 연결된 카테고리는 하위 카테고리를 추가하거나 이동 목적지로 사용할 수 없습니다.');
   if (descriptor.includes('category_has_active_children')) return '활성 하위 카테고리를 먼저 정리해주세요.';
   if (descriptor.includes('category_erp_code_taken')) return '이미 연결된 ERP 코드입니다.';
   if (descriptor.includes('category_activation_unready')) return '실제 분류·ERP 값과 운영 확인 근거를 채운 뒤 활성화해주세요.';
@@ -231,7 +232,7 @@ export async function assignAdminGoodCategoryAction(
 ): Promise<AdminCategoryActionState> {
   const goodId = typeof formData.get('goodId') === 'string' ? String(formData.get('goodId')).trim() : '';
   const categoryId = typeof formData.get('categoryId') === 'string' ? String(formData.get('categoryId')).trim() : '';
-  if (!GOOD_ID.test(goodId)) return preserve(state, formData, { form: '굿즈 ID가 올바르지 않습니다.' });
+  if (!GOOD_ID.test(goodId)) return preserve(state, formData, { form: adminGoodsCopy('굿즈 ID가 올바르지 않습니다.') });
   if (categoryId && !isCategoryId(categoryId)) return preserve(state, formData, { categoryId: '말단 카테고리를 선택해주세요.' });
   let access: Awaited<ReturnType<typeof requireCategoryStaff>>;
   try { access = await requireCategoryStaff(); } catch (error) { unstable_rethrow(error); return preserve(state, formData, { form: RETRY }); }
@@ -244,7 +245,7 @@ export async function assignAdminGoodCategoryAction(
     });
     if (error) return preserve(state, formData, { form: mapRpcError(error) });
     revalidateCategorySurfaces();
-    return { message: categoryId ? '굿즈의 기본 카테고리를 저장했습니다.' : '굿즈를 미분류로 되돌렸습니다.', changed: data !== false };
+    return { message: categoryId ? adminGoodsCopy('굿즈의 기본 카테고리를 저장했습니다.') : adminGoodsCopy('굿즈를 미분류로 되돌렸습니다.'), changed: data !== false };
   } catch (error) {
     unstable_rethrow(error);
     return preserve(state, formData, { form: RETRY });

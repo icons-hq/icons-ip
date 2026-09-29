@@ -168,7 +168,7 @@ describe('CampaignLanding', () => {
     expect(html).toContain('disabled=""');
   });
 
-  it('교환 상품을 못 찾으면 자리는 남기고 안내만 바꾼다', () => {
+  it('교환할 카드팩을 못 찾으면 자리는 남기고 안내만 바꾼다', () => {
     const html = render({
       campaign: snapshot({
         resolvedSections: [{ type: 'exchange', anchor: '교환', offer_id: OFFER_ID, offer: null }],
@@ -176,12 +176,13 @@ describe('CampaignLanding', () => {
     });
 
     expect(html).toContain('지금은 교환할 수 없어요.');
+    expect(html).toContain('교환할 카드팩이 준비되면 다시 안내해 드릴게요.');
     expect(html).toContain('href="#campaign-section-0"');
     expect(html).not.toContain('카드팩 교환하기');
   });
 
   /* 한 페이지에 교환 블록이 여러 개일 수 있다. 키를 공유하면 첫 교환이 성립한 뒤
-     다른 상품 제출이 already_exchanged 로 답해 가짜 성공이 된다. */
+     다른 교환 설정 제출이 already_exchanged 로 답해 가짜 성공이 된다. */
   it('교환 블록마다 자기 멱등 키를 심는다', () => {
     const html = render({
       campaign: snapshot({

@@ -111,7 +111,7 @@ describe('MembersSection', () => {
 
     expect(html).toContain('fan@example.test');
     expect(html).toContain('현재 동의 상태');
-    expect(html).toContain('굿즈 주문');
+    expect(html).toContain('상품 주문');
     expect(html).toContain('티켓 예매');
     expect(html).toContain('받은 신고');
     expect(html).not.toContain('생년월일');

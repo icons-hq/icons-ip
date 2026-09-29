@@ -1,3 +1,4 @@
+import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import {
   ORDER_CLAIM_STAGE_LABELS,
   ORDER_CLAIM_STAGES,
@@ -42,7 +43,7 @@ export const ADMIN_CLAIM_REASON_OPTIONS: { value: AdminClaimReasonFilter; label:
   { value: 'all', label: '전체' },
   ...ORDER_WITHDRAWAL_REASON_TYPES.map((reasonType) => ({
     value: reasonType as AdminClaimReasonFilter,
-    label: ORDER_WITHDRAWAL_REASON_LABELS[reasonType],
+    label: adminGoodsCopy(ORDER_WITHDRAWAL_REASON_LABELS[reasonType]),
   })),
 ];
 

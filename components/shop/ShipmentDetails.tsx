@@ -1,3 +1,4 @@
+import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import { formatOrderDateTime } from '@/lib/orders';
 import { krw } from '@/lib/format';
 import { shipmentStatusLabel, type ShipmentRecord } from '@/lib/orders/shipments';
@@ -23,7 +24,7 @@ export function ShipmentDetails({ shipments, items = [], admin = false }: {
       {admin && shipment.regionalShipping ? <div><dt>주문 당시 지역 배송 정책</dt><dd>
         {shipment.regionalShipping.regionMode === 'legacy_base_only' ? '지역 요금표 미등록 · 기존 배송비로 확정' : `버전 ${shipment.regionalShipping.policyVersion} · ${shipment.regionalShipping.carrierCode}`}
         {shipment.regionalShipping.regionMode === 'managed' && shipment.regionalShipping.regionalContractFee != null
-          ? ` · 계약 추가료 ${krw(shipment.regionalShipping.regionalContractFee)} × ${shipment.regionalShipping.unitCount}${shipment.regionalShipping.feeUnit === 'per_good' ? '개 상품' : '건'}` : ''}
+          ? ` · 계약 추가료 ${krw(shipment.regionalShipping.regionalContractFee)} × ${shipment.regionalShipping.unitCount}${shipment.regionalShipping.feeUnit === 'per_good' ? adminGoodsCopy('개 굿즈') : '건'}` : ''}
       </dd></div> : null}
       {shipment.originalExpectedShipDate ? <div><dt>주문 당시 발송 예정일</dt><dd>{goodsShipDateLabel(shipment.originalExpectedShipDate)}</dd></div> : null}
       {shipment.expectedShipDate && shipment.expectedShipDate !== shipment.originalExpectedShipDate ? <div><dt>변경된 발송 예정일</dt><dd>{goodsShipDateLabel(shipment.expectedShipDate)}</dd></div> : null}

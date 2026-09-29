@@ -50,7 +50,7 @@ export function Inquiries({ inquiries }: { inquiries: InquiryListItem[] }) {
           <div className="wc-empty" role="status">
             <h2 className="wc-empty__title">아직 보낸 문의가 없습니다.</h2>
             <p className="wc-empty__desc">
-              주문·배송, 취소/반품/교환, 상품, 계정에 대해 궁금한 점을 보내주세요.
+              주문·배송, 취소/반품/교환, 굿즈, 계정에 대해 궁금한 점을 보내주세요.
             </p>
           </div>
         ) : (

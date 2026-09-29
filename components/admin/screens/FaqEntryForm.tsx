@@ -3,6 +3,7 @@
 import { useActionState, useId } from 'react';
 import { deleteFaqAction, saveFaqAction, type FaqActionState } from '@/app/admin/faq-actions';
 import { FAQ_CATEGORIES, FAQ_QUESTION_MAX_LENGTH, FAQ_ANSWER_MAX_LENGTH, type FaqEntry } from '@/lib/faq';
+import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 
 const EMPTY: FaqActionState = {};
 export function FaqEntryForm({ entry }: { entry?: FaqEntry }) {
@@ -18,7 +19,7 @@ export function FaqEntryForm({ entry }: { entry?: FaqEntry }) {
       <input type="hidden" name="updatedAt" value={value('updatedAt', entry?.updatedAt ?? '')} />
       <div className="admin-faq__form-row">
         <label>카테고리<select name="category" defaultValue={value('category', entry?.category ?? 'order')} {...fieldProps('category')}>
-          {FAQ_CATEGORIES.map((category) => <option key={category.id} value={category.id}>{category.label}</option>)}
+          {FAQ_CATEGORIES.map((category) => <option key={category.id} value={category.id}>{adminGoodsCopy(category.label)}</option>)}
         </select>{error('category')}</label>
         <label>게시 상태<select name="published" defaultValue={value('published', entry?.published ? 'true' : 'false')} {...fieldProps('published')}>
           <option value="false">비공개</option><option value="true">공개</option>

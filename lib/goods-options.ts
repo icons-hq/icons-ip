@@ -29,10 +29,10 @@ export function cartOptionGood(good: Good | undefined, variantId: string): Good 
 export function goodsPurchaseConditionProblem(good: Pick<Good,
   'allowCardPayment' | 'allowBankTransfer' | 'saleRestriction' | 'orderQuantityLimitEnabled' |
   'minOrderQty' | 'maxOrderQty' | 'memberPurchaseLimitEnabled' | 'memberLifetimeQtyLimit'>): string | null {
-  if (good.saleRestriction === 'adult') return '현재 판매 준비 중인 상품입니다.';
-  if (good.allowCardPayment === false && good.allowBankTransfer === false) return '현재 주문을 받지 않는 상품입니다.';
+  if (good.saleRestriction === 'adult') return '현재 판매 준비 중인 굿즈입니다.';
+  if (good.allowCardPayment === false && good.allowBankTransfer === false) return '현재 주문을 받지 않는 굿즈입니다.';
   if ((good.orderQuantityLimitEnabled && (!good.minOrderQty || !good.maxOrderQty || good.minOrderQty > good.maxOrderQty))
-    || (good.memberPurchaseLimitEnabled && !good.memberLifetimeQtyLimit)) return '구매 조건을 확인 중인 상품입니다.';
+    || (good.memberPurchaseLimitEnabled && !good.memberLifetimeQtyLimit)) return '구매 조건을 확인 중인 굿즈입니다.';
   return null;
 }
 

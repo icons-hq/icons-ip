@@ -25,7 +25,7 @@ const EMPTY_STATE: ParticipationActionState = {};
 export interface ExchangePanelProps {
   balance: number;
   loginHref: string;
-  /** 못 찾았거나 내려간 상품이면 null — 블록 자리는 남기고 안내만 바꾼다. */
+  /** 교환할 카드팩을 못 찾았거나 교환이 중단되면 null — 블록 자리는 남기고 안내만 바꾼다. */
   offer: ExchangeOfferView | null;
   operationId: string;
   next: string;
@@ -46,7 +46,7 @@ export function ExchangePanel({
     return (
       <div className="wc-campaign-panel">
         <p className="wc-campaign-panel__lede">지금은 교환할 수 없어요.</p>
-        <p className="wc-campaign-panel__note">교환 상품이 준비되면 다시 안내해 드릴게요.</p>
+        <p className="wc-campaign-panel__note">교환할 카드팩이 준비되면 다시 안내해 드릴게요.</p>
       </div>
     );
   }

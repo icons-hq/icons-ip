@@ -1,3 +1,4 @@
+import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 export interface CategoryExportRow {
   code: string;
   name: string;
@@ -17,7 +18,7 @@ const HEADERS = [
   '고객 카테고리 경로',
   '깊이',
   '상태',
-  '연결 굿즈 수',
+  adminGoodsCopy('연결 굿즈 수'),
   'ERP 코드',
   'ERP 품명',
   'ERP 출처',

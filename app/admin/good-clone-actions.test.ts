@@ -34,7 +34,7 @@ describe('cloneAdminGoodAction', () => {
 
   it('sends one stable operation id and returns the new draft identity', async () => {
     const result = await cloneAdminGoodAction({}, form({ newId: 'copy-good', newCode: 'COPY-0001', newName: '복사본' }));
-    expect(result).toMatchObject({ message: '초안 굿즈 COPY-0001를 만들었습니다.', savedGood: { id: 'copy-good' }, operationId: '00000000-0000-4000-8000-000000047901' });
+    expect(result).toMatchObject({ message: '초안 상품 COPY-0001를 만들었습니다.', savedGood: { id: 'copy-good' }, operationId: '00000000-0000-4000-8000-000000047901' });
     expect(mocks.rpc).toHaveBeenCalledWith('admin_clone_good', {
       target_operation_id: '00000000-0000-4000-8000-000000047901',
       target_source_good_id: 'source-good', target_new_id: 'copy-good', target_new_code: 'COPY-0001', target_new_name: '복사본',
@@ -45,7 +45,7 @@ describe('cloneAdminGoodAction', () => {
   it('preserves the operation id and input when the source is archived or missing', async () => {
     mocks.rpc.mockResolvedValue({ data: null, error: { message: 'source_good_archived' } });
     const result = await cloneAdminGoodAction({}, form({ newName: '복사본' }));
-    expect(result).toMatchObject({ operationId: '00000000-0000-4000-8000-000000047901', errors: { form: '보관된 굿즈는 복사할 수 없습니다.' }, values: { newName: '복사본' } });
+    expect(result).toMatchObject({ operationId: '00000000-0000-4000-8000-000000047901', errors: { form: '보관된 상품은 복사할 수 없습니다.' }, values: { newName: '복사본' } });
   });
   it('preserves the same operation and input for retry after an overlapping checkout', async () => {
     mocks.rpc.mockResolvedValue({ data: null, error: { code: 'PT409', message: 'goods_clone_source_busy' } });

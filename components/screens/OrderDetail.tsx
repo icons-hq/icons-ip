@@ -155,7 +155,7 @@ function WithdrawalDeadlineNotice({
         </>
       ) : (
         <span>
-          단순 변심 청약철회 기한이 지났습니다. 상품 하자·오배송은
+          단순 변심 청약철회 기한이 지났습니다. 굿즈 하자·오배송은
           {' '}{ORDER_WITHDRAWAL_DEADLINE_LABELS.defect} 이내에 요청할 수 있습니다.
         </span>
       )}
