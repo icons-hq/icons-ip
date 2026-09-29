@@ -1,6 +1,8 @@
 
 import { ShipmentDetails } from '@/components/shop/ShipmentDetails';
 import Link from 'next/link';
+import { InquiryMessageBody } from '@/components/screens/InquiryMessageBody';
+import { inquiryMessageAuthorLabel } from '@/lib/inquiries';
 import type { AdminInquiryDetail } from '@/lib/admin/inquiries.server';
 import {
   ADMIN_INQUIRY_STATUS_LABELS,
@@ -107,12 +109,12 @@ export function InquiryDetailScreen({
                 style={{ borderRadius: 12, gap: 8, padding: 14 }}
               >
                 <span className="mono muted" style={{ fontSize: 11 }}>
-                  {message.author === 'staff' ? (message.authorName ?? 'ICONS 운영자') : `@${inquiry.buyerName}`}
+                  {inquiryMessageAuthorLabel(message.author,message.authorName,`@${inquiry.buyerName}`)}
                   {' · '}
                   {formatInquiryDateTime(message.createdAt)}
                 </span>
                 <p style={{ fontSize: 13.5, lineHeight: 1.75, margin: 0, whiteSpace: 'pre-wrap' }}>
-                  {message.body}
+                  <InquiryMessageBody body={message.body} automatic={message.author==='system'}/>
                 </p>
                 {message.imageUrls.length ? (
                   <div className="row" style={{ flexWrap: 'wrap', gap: 8, justifyContent: 'flex-start' }}>

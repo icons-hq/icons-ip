@@ -2,8 +2,8 @@ import { GOODS_NOTICE_FIELDS } from '@/lib/goods-notice';
 
 /** Display grouping only. Validation and publish decisions remain with the server. */
 export const GOOD_EDITOR_SECTIONS = [
-  { key: 'basic', label: '기본 상품·이미지', fields: ['ipId', 'name', 'categoryId', 'type', 'imagePath', 'id', 'code', 'defaultVariantCode', 'nameEn', 'searchKeywords', 'displayOrder', 'badge', 'stock', 'description', 'descriptionFormat', 'detailImagePath', 'galleryPath0', 'galleryPath1', 'galleryPath2', 'galleryPath3'] },
-  { key: 'price', label: '가격', fields: ['price', 'compareAtPrice'] },
+  { key: 'basic', label: '기본 상품·이미지', fields: ['ipId', 'name', 'categoryId', 'additionalCategoryIds', 'type', 'imagePath', 'id', 'code', 'defaultVariantCode', 'nameEn', 'searchKeywords', 'displayOrder', 'badge', 'stock', 'description', 'descriptionFormat', 'detailImagePath', 'galleryPath0', 'galleryPath1', 'galleryPath2', 'galleryPath3'] },
+  { key: 'price', label: '가격', fields: ['price', 'compareAtPrice', 'showDiscountRate'] },
   { key: 'variants', label: '옵션·할당 재고', fields: ['variants', 'variantBaseline'] },
   { key: 'notice', label: '고시정보·KC', fields: GOODS_NOTICE_FIELDS.map((field) => field.formName) },
   { key: 'shipping', label: '배송·교환반품', fields: ['originId', 'shippingFeeType', 'individualFee', 'shippingNoticeTemplate', 'claimReturnAllowed', 'claimExchangeAllowed', 'claimReturnFee', 'claimReturnFreeShippingFee', 'claimExchangeFee', 'claimRestrictionReason'] },

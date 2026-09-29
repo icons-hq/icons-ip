@@ -1,6 +1,6 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
+import { revalidatePath, updateTag } from 'next/cache';
 import { redirect, unstable_rethrow } from 'next/navigation';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
 import {
@@ -10,6 +10,7 @@ import {
 import { ipWorkspaceHref } from '@/lib/admin/ip-workspace';
 import { normalizeIpPublicSlug, validateIpPublicSlug } from '@/lib/ip-identity';
 import { createClient } from '@/lib/supabase/server';
+import { NOTICE_STRIP_CACHE_TAG } from '@/lib/notice-strip.server';
 
 export interface AdminIpIdentityActionState extends AdminFormValuesState {
   errors?: {
@@ -84,6 +85,7 @@ function identityRpcError(error: { code?: unknown; message?: unknown }) {
 }
 
 function revalidateIpIdentitySurfaces(id: string, previousSlug: string, nextSlug: string) {
+  updateTag(NOTICE_STRIP_CACHE_TAG);
   for (const path of ['/', '/ip', '/shop', '/search', '/admin', '/admin/catalog/ips']) revalidatePath(path);
   revalidatePath('/ip/[id]', 'page');
   revalidatePath(`/ip/${id}`);

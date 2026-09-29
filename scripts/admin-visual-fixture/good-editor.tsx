@@ -5,6 +5,10 @@ import type { Ip } from '../../lib/data';
 
 const ip: Ip = { id: 'fixture-ip', title: '합성 IP', sub: '', v: { key: 'character', label: '캐릭터', color: '#ddd' },
   glyph: 'IP', bg: '#eee', fans: 0, goods: 0, cards: 0, featured: false, tagline: '', synopsis: '' };
+const categories = ['문구', '신학기', '선물'].map((name, index) => ({
+  id: `00000000-0000-4000-8000-00000005112${index}`, name, code: `fixture-${index}`,
+  parentId: null, depth: 1, childCount: 0, sortOrder: index, archivedAt: null, updatedAt: '', assignedGoodCount: 0,
+}));
 
 /** Real edit/recovery UI with a local action; no Auth, Storage or DB writes. */
 export function GoodEditorFixture() {
@@ -24,6 +28,6 @@ export function GoodEditorFixture() {
     <output id="fixture-good-submission" hidden>{JSON.stringify(submitted)}</output>
     <GoodEditor accountId="fixture-operator" action={action} pending={pending} state={state} selected={null} initialIpId={ip.id}
       catalogIps={[ip]} ipOptions={[{ id: ip.id, title: ip.title, archivedAt: null }]} variants={[]}
-      origins={[]} categories={[]} shippingNoticeOptions={[]} regionSummaries={[]} />
+      origins={[]} categories={categories} shippingNoticeOptions={[]} regionSummaries={[]} />
   </section>;
 }

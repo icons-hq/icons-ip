@@ -30,7 +30,7 @@ const IDENTIFIER_KEYS = new Set<GoodsWorkbookKey>([
   'ipId',
   'id',
   'originCode',
-  'erpCode', 'barcode', 'categoryCode', 'shippingNoticeTemplateCode',
+  'erpCode', 'barcode', 'categoryCode', 'additionalCategoryCodes', 'shippingNoticeTemplateCode',
 ]);
 const LISTS: Partial<Record<GoodsWorkbookKey, string>> = {
   descriptionFormat: 'plain,html',
@@ -43,6 +43,7 @@ const LISTS: Partial<Record<GoodsWorkbookKey, string>> = {
   stock: 'ok,low,soldout',
   allowBankTransfer: '예,아니오',
   allowCardPayment: '예,아니오',
+  showDiscountRate: '예,아니오',
   orderQuantityLimitEnabled: '예,아니오',
   memberPurchaseLimitEnabled: '예,아니오',
   saleRestriction: 'none,adult',
@@ -153,6 +154,8 @@ export async function buildGoodsWorkbook(
   guide.columns = [{ width: 24 }, { width: 115 }];
   const notes = [
     ['ICONS 상품 일괄 등록', ''],
+    ['할인율 표시', '예(기본값) 또는 아니오를 선택합니다. 공란은 예로 적용합니다. 아니오는 정가 취소선과 할인율만 숨기며 판매가·기간 할인·쿠폰·적립금 계산은 바꾸지 않습니다.'],
+    ['고객 카테고리 코드 / 추가 카테고리 코드', '고객 카테고리 코드는 대표 말단 1개입니다. 추가 카테고리 코드는 줄바꿈 또는 쉼표로 구분하며 공란은 추가 분류 전체 해제입니다. 대표·추가 분류 모두 관리자 검색에 쓰고, ERP·공개 분류는 대표 카테고리와 기존 활성화 조건을 따릅니다.'],
     ['KC 검토', '별도 KC 검토 시트에 모델마다 한 행을 입력합니다. 적용 옵션코드는 줄바꿈으로 구분합니다. 검토 상태·버전은 바꾸지 마세요. 시트 또는 상품 행을 없애도 기존 KC 정보는 유지합니다.'],
     ['KC 변경과 초기화', 'KC 내용을 수정하거나 상품 시트의 KC 초기화를 예로 선택하면 상품 게시 상태를 초안으로 바꿔야 합니다. 미검토로 저장한 뒤 상품 편집의 KC 검토에서 실제 근거를 확인합니다. 새 자동코드는 초안 저장 후 다시 내보내세요.'],
     ['영문 상품명', '선택 항목입니다. 공개 상세와 미리보기에 표시하며 공란으로 저장하면 기존 영문명을 지웁니다.'],

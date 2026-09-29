@@ -1,6 +1,19 @@
 import { expect, it } from 'vitest';
 import { goodEditorValues, createGoodEditorDraft, buildGoodEditorPreview, GOOD_LOCAL_DRAFT_FIELDS } from './good-editor';
 import { createAdminLocalAutosave, withLocalRecoveryValues } from './local-autosave';
+it('추가 분류는 저장 실패와 브라우저 복구에서도 보존한다', () => {
+  const ids = '["00000000-0000-4000-8000-000000051121"]';
+  expect(GOOD_LOCAL_DRAFT_FIELDS).toContain('additionalCategoryIds');
+  expect(goodEditorValues(null, {})).toHaveProperty('additionalCategoryIds', '[]');
+  expect(goodEditorValues(null, { values: { previousId: '', additionalCategoryIds: ids } })).toHaveProperty('additionalCategoryIds', ids);
+});
+it('defaults discount display on and carries a recovered off setting into the public preview', () => {
+  expect(goodEditorValues(null, {})).toHaveProperty('showDiscountRate', 'true');
+  expect(GOOD_LOCAL_DRAFT_FIELDS).toContain('showDiscountRate');
+  const values = goodEditorValues(null, { values: { previousId: '', showDiscountRate: 'false' } });
+  const preview = buildGoodEditorPreview({ values, imageUrls: {}, selected: null, catalogIps: [], origins: [], shippingNoticeOptions: [] });
+  expect(preview.detail.good.showDiscountRate).toBe(false);
+});
 it('restores failed option edits and their optimistic baseline into the same preview and submission values', () => {
   const records = new Map<string, string>();
   const storage = { getItem: (key: string) => records.get(key) ?? null, setItem: (key: string, value: string) => records.set(key, value), removeItem: (key: string) => records.delete(key) };

@@ -29,13 +29,17 @@ insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,image_path,not
  ('sales-policy-restock-adult','sales-publish-tests','성인 변경 재고 저장','문구',10000,'soldout',0,'public-media/sales-restock-adult.webp',
  '제조사','한국','종이','A5','2026-09','CS','02-000',null),
  ('sales-policy-restock-closed','sales-publish-tests','결제 중지 재고 저장','문구',10000,'soldout',0,'public-media/sales-restock-closed.webp',
+ '제조사','한국','종이','A5','2026-09','CS','02-000',null),
+ ('sales-policy-restock-unpublish','sales-publish-tests','비공개 변경 재고 저장','문구',10000,'soldout',0,'public-media/sales-restock-unpublish.webp',
  '제조사','한국','종이','A5','2026-09','CS','02-000',null);
 -- Build reviewed synthetic KC evidence before publishing each fixture.
 select pg_temp.publish_goods_kc_fixture('sales-policy-restock-adult');
 select pg_temp.publish_goods_kc_fixture('sales-policy-restock-closed');
+select pg_temp.publish_goods_kc_fixture('sales-policy-restock-unpublish');
 insert into public.restock_alerts(user_id,good_id) values
  ('00000000-0000-4000-8000-000000047652','sales-policy-restock-adult'),
- ('00000000-0000-4000-8000-000000047652','sales-policy-restock-closed');
+ ('00000000-0000-4000-8000-000000047652','sales-policy-restock-closed'),
+ ('00000000-0000-4000-8000-000000047652','sales-policy-restock-unpublish');
 
 set local role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000047651',true);
@@ -65,11 +69,14 @@ select public.admin_save_good(jsonb_set(pg_temp.good_payload('sales-policy-resto
  ||'{"stock":"ok","sale_restriction":"adult"}');
 select public.admin_save_good(jsonb_set(pg_temp.good_payload('sales-policy-restock-closed'),'{variants,0,stockQty}','10')
  ||'{"stock":"ok","allow_card_payment":false,"allow_bank_transfer":false}');
+select public.admin_save_good(jsonb_set(pg_temp.good_payload('sales-policy-restock-unpublish'),'{variants,0,stockQty}','10')
+ ||'{"stock":"ok","publish":false}');
 reset role;
 select set_config('request.jwt.claim.sub','',true);
 select 1/case when (select count(*) from public.restock_alerts where user_id='00000000-0000-4000-8000-000000047652'
- and good_id in ('sales-policy-restock-adult','sales-policy-restock-closed') and status='pending')=2
+ and good_id in ('sales-policy-restock-adult','sales-policy-restock-closed','sales-policy-restock-unpublish') and status='pending')=3
  and not exists(select 1 from public.notifications where user_id='00000000-0000-4000-8000-000000047652'
-   and source_type='good' and source_id in ('sales-policy-restock-adult','sales-policy-restock-closed'))
+   and source_type='good' and source_id in ('sales-policy-restock-adult','sales-policy-restock-closed','sales-policy-restock-unpublish'))
+ and exists(select 1 from public.goods where id='sales-policy-restock-unpublish' and published_at is null)
  then 1 else 0 end as assert_closed_sales_do_not_consume_restock_subscriptions;
 rollback;

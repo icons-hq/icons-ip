@@ -3,6 +3,7 @@
 import { krw } from '@/lib/format';
 
 import Link from 'next/link';
+import { publicIpHref } from '@/lib/ip-identity';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { GoodBuyBars, GoodPurchasePanel, isMiniBuybarVisible, useGoodPurchase } from '@/components/shop/GoodPurchasePanel';
@@ -336,7 +337,7 @@ export function GoodDetailView({
             <h1 className="wc-pdp__title">{good.name}</h1>
             {good.nameEn ? <p lang="en" className="wc-pdp__english-name">{good.nameEn}</p> : null}
             <PriceBlock className="wc-pdp__price"
-              compareAtPrice={displayedGood.compareAtPrice} price={displayedGood.price} priceMax={displayedGood.priceMax} />
+              showDiscountRate={displayedGood.showDiscountRate} compareAtPrice={displayedGood.compareAtPrice} price={displayedGood.price} priceMax={displayedGood.priceMax} />
             <div className="wc-pdp-tools">
               {reviewSummary ? (
                 <p className="wc-pdp-tools__rating">
@@ -355,7 +356,7 @@ export function GoodDetailView({
             {ip ? (
               <div className="wc-pdp__brand">
                 <span className="wc-pdp__brand-name">{ip.title}</span>
-                <Link className="wc-pdp__brand-link" href={`/ip/${ip.id}`}>브랜드 보러가기</Link>
+                <Link className="wc-pdp__brand-link" href={publicIpHref(ip)}>브랜드 보러가기</Link>
               </div>
             ) : null}
           </div>

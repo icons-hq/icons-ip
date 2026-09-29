@@ -1,13 +1,13 @@
 # #474 고객용 계층 카테고리·ERP 분류 연결 — 설계 범위안
 
-상태: **구현 중**
+상태: **구현 중** · 2026-09-28 #511의 관리자 복수 분류 계약 반영
 
 이 문서는 #474의 구현 파일과 계약을 고정하기 위한 범위안이다. 현재 운영에 실제로 쓰는 4단계 분류표와 ERP 분류표가 제공되지 않았으므로, 이 문서만으로 고객 카테고리나 ERP 매핑을 활성화하지 않는다. 실제 값·출처·검증 담당자·적용 시점이 없는 상태는 `미설정`이며 0, 무제한, 자동 매핑, 검토 완료로 해석하지 않는다.
 
 ## 채택할 기본 구조
 
 - 고객 카테고리는 최대 **4단계**의 단일 부모 트리다. 각 노드는 부모를 0개 또는 1개만 가지며, 루트부터 말단까지 깊이를 1~4로 계산한다.
-- 굿즈는 고객용 **기본 말단 카테고리 하나**만 가진다. 복수 소속은 이번 범위에 넣지 않는다. 미분류 굿즈는 새 분류가 활성화된 뒤에도 기존 `type`·전체 목록에서 계속 판매하며, 새 category가 없다는 이유로 전체 상품 판매를 차단하지 않는다.
+- 굿즈는 고객용 **대표 말단 카테고리 하나**와 관리자 검색용 **선택적 추가 말단 분류**를 가진다. 영업팀·MD가 상품을 중복 등록하지 않고 여러 분류에서 찾도록 #511에서 확장했다. 관리자 목록과 엑셀 대상은 대표·추가 분류 및 하위 분류를 함께 검색하고 상품은 한 번만 집계한다. 공개 필터와 ERP는 대표 분류를 사용하며 기존 활성화 게이트를 유지한다. 미분류 굿즈는 새 분류가 활성화된 뒤에도 기존 `type`·전체 목록에서 계속 판매하며, 새 category가 없다는 이유로 전체 상품 판매를 차단하지 않는다.
 - 각 고객 카테고리는 ERP 분류 **하나**에만 연결된다. ERP 코드·표시명·출처와 유효 시점을 함께 보존하며, N:M·복수 ERP 코드·상품별 예외 매핑은 후속 결정이다.
 - 기존 `goods.type` 8종은 즉시 제거하지 않는다. 기존 목록·검색·엑셀·주문 기록 소비자는 그대로 동작하고, 새 계층 카테고리와 병행한다. 실제 분류표가 제공된 뒤에만 이관표를 별도 입력하며, 이름이 비슷하다는 이유로 자동 매핑하지 않는다.
 
@@ -50,7 +50,7 @@ ERP mapping gate를 열려면 별도로 다음이 필요하다.
 | 순수 도메인 | `lib/admin/category.ts`, `lib/admin/category.test.ts` | 깊이 계산, cycle 검사, leaf 판정, filter/query 정규화, gate 상태 DTO |
 | 서버 조회 | `lib/admin/category.server.ts`, `lib/admin/category.server.test.ts` | 트리·매핑·참조 수 조회와 권한 경계 |
 | 관리자 mutation | `app/admin/category-actions.ts`, `app/admin/category-actions.test.ts` | 생성·이동·보관/복원·ERP 매핑·상품 적용·복구 가능한 입력 보존 |
-| 관리자 UI | `components/admin/CategoryTree.tsx`, `components/admin/CategoryAssignmentField.tsx`, `components/admin/screens/CategoryScreen.tsx` | 트리 편집, 매핑 상태, 굿즈 기본 말단 선택, gate 안내 |
+| 관리자 UI | `components/admin/CategoryTree.tsx`, `components/admin/CategoryAssignmentField.tsx`, `components/admin/screens/CategoryScreen.tsx` | 트리 편집, 매핑 상태, 굿즈 대표·추가 말단 선택, gate 안내 |
 | 라우트 | `app/admin/(shell)/catalog/categories/page.tsx` 및 해당 테스트 | staff/admin 화면 진입과 server loader 연결 |
 | DB | `supabase/migrations/<root-assigned-sales-category>.sql`, `supabase/tests/sales_category_hierarchy.sql` | 트리·매핑·상품 연결·gate·RLS·audit·경합 불변식 |
 
@@ -69,7 +69,8 @@ ERP mapping gate를 열려면 별도로 다음이 필요하다.
 
 - `catalog_categories`: 내부 ID, 안정적인 category code, 이름, parent ID, depth, sort order, archived/published 상태, created/updated 시각
 - `catalog_category_erp_mappings`: category ID, ERP code, ERP name, source/version, effective window, verified actor/time, active 상태
-- `goods.category_id`: nullable 기본 말단 category FK. 기존 주문 스냅샷과 `goods.type`은 보존한다.
+- `goods.category_id`: nullable 대표 말단 category FK. 기존 주문 스냅샷과 `goods.type`은 보존한다.
+- `goods_additional_categories`: 관리자 검색용 `(good_id, category_id)` 복합 키. staff 읽기와 audited 상품 저장만 허용한다. 보관된 기존 연결은 유지하되 새 연결은 막고, 상품 복사는 활성 추가 분류만 복사한다. 대표로 승격된 추가 분류는 중복 연결을 제거한다.
 - `category_activation_control`: customer category gate와 ERP mapping gate, 실제 검증 증거 요약. gate OFF에서도 기존 `type`/전체 목록은 유지하고 공개 category consumer만 닫는다.
 - `goods_type_category_migrations`: 기존 8종별 제안/확정 category, 상태, 근거와 actor. 자동 확정하지 않는다.
 
@@ -80,7 +81,8 @@ ERP mapping gate를 열려면 별도로 다음이 필요하다.
 먼저 red SQL/단위 테스트를 추가한 뒤 구현한다.
 
 - 깊이 4 허용, 5단계·cycle·자기참조·존재하지 않는 부모 거절
-- 단일 부모와 leaf-only 상품 적용, 미분류 초안 저장, 보관/참조 guard
+- 단일 부모와 대표·추가 leaf-only 상품 적용, 미분류 초안 저장, 보관/참조 guard
+- 추가 분류 생략 시 보존·명시 빈 배열 시 해제, 저장·복사 재시도·감사·XLSX 왕복, 이전 미리보기의 변경 충돌 검증
 - ERP 매핑 1:1과 중복·미매핑·비활성 매핑 차단
 - staff/admin 허용, 일반 사용자·anon 직접 mutation 차단
 - stale tree version과 동시 이동/상품 연결의 business conflict
@@ -92,4 +94,4 @@ ERP mapping gate를 열려면 별도로 다음이 필요하다.
 
 ## 범위 밖
 
-복수 고객 카테고리, N:M ERP 매핑, `goods.type` 삭제/자동 이관, IP·버티컬을 고객 카테고리로 재사용, ERP 코드 추정, 카테고리 hard delete, 실제 ERP 동기화 API, 실제 값이 없는 상태의 공개 활성화는 포함하지 않는다.
+공개 필터의 복수 분류 확대, N:M ERP 매핑, `goods.type` 삭제/자동 이관, IP·버티컬을 고객 카테고리로 재사용, ERP 코드 추정, 카테고리 hard delete, 실제 ERP 동기화 API, 실제 값이 없는 상태의 공개 활성화는 포함하지 않는다.

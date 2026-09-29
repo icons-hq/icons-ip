@@ -10,6 +10,7 @@ import { imageUrlFromBg, normalizePublicMediaPath } from '@/lib/media';
 
 export interface AdminIpRecord {
   id: string;
+  publicSlug?: string;
   archivedAt: string | null;
   /** 게시 시각. null 이면 초안(비공개). 보관 여부와 함께 읽어야 상태가 정해진다(lib/admin/ip-publish.ts). */
   publishedAt: string | null;
@@ -47,12 +48,14 @@ export interface AdminGoodRecord {
   searchKeywords?: string[];
   displayOrder?: number | null;
   categoryId?: string | null;
+  additionalCategoryIds?: string[];
   claimPolicy?: GoodClaimPolicy | null;
   shippingNoticeSnapshot?: import('@/lib/fulfillment').ShippingNoticeSnapshot | null;
   type: string;
   price: number;
   /** 취소선으로 표기할 정가 (#326). 할인 중일 때만 값이 있다. */
   compareAtPrice: number | null;
+  showDiscountRate?: boolean;
   badge: string | null;
   stock: Stock;
   stockQty: number;
@@ -315,6 +318,7 @@ const skippedResult = Promise.resolve({ data: [] as never[], error: null as { me
 
 interface IpRow {
   id: string;
+  public_slug?: string | null;
   archived_at: string | null;
   published_at?: string | null;
   title: string;
@@ -344,12 +348,14 @@ interface GoodRow {
   search_keywords?: string[] | null;
   display_order?: number | null;
   category_id?: string | null;
+  additional_categories?: { category_id: string }[];
   shipping_notice_snapshot?: unknown;
   claim_return_allowed?: boolean | null; claim_exchange_allowed?: boolean | null; claim_restriction_reason?: string | null;
   claim_return_fee?: number | null; claim_return_free_shipping_fee?: number | null; claim_exchange_fee?: number | null;
   type: string;
   price: number;
   compare_at_price: number | null;
+  show_discount_rate?: boolean;
   badge: string | null;
   stock: Stock;
   stock_qty: number | null;
@@ -534,7 +540,7 @@ export async function getAdminCatalogRecords(
       ? supabase
         .from('goods')
         /* supabase-js 는 select 를 문자열 리터럴로 받아야 행 타입을 추론한다 — 쪼개면 안 된다. */
-        .select('id,code,origin_id,shipping_fee_type,individual_fee,first_published_at,published_at,archived_at,sale_available_qty:goods_sale_available_qty,ip_id,name,name_en,search_keywords,display_order,category_id,shipping_notice_snapshot,claim_return_allowed,claim_exchange_allowed,claim_restriction_reason,claim_return_fee,claim_return_free_shipping_fee,claim_exchange_fee,type,price,compare_at_price,badge,stock,stock_qty,allow_bank_transfer,allow_card_payment,order_quantity_limit_enabled,min_order_qty,max_order_qty,member_purchase_limit_enabled,member_lifetime_qty_limit,sale_restriction,bg,image_path,notice_maker,notice_origin,notice_material,notice_size,notice_made_on,notice_as_manager,notice_as_contact,description,description_format,description_image_paths,gallery_paths,detail_image_path')
+        .select('id,code,origin_id,shipping_fee_type,individual_fee,first_published_at,published_at,archived_at,sale_available_qty:goods_sale_available_qty,ip_id,name,name_en,search_keywords,display_order,category_id,additional_categories:goods_additional_categories(category_id),shipping_notice_snapshot,claim_return_allowed,claim_exchange_allowed,claim_restriction_reason,claim_return_fee,claim_return_free_shipping_fee,claim_exchange_fee,type,price,compare_at_price,show_discount_rate,badge,stock,stock_qty,allow_bank_transfer,allow_card_payment,order_quantity_limit_enabled,min_order_qty,max_order_qty,member_purchase_limit_enabled,member_lifetime_qty_limit,sale_restriction,bg,image_path,notice_maker,notice_origin,notice_material,notice_size,notice_made_on,notice_as_manager,notice_as_contact,description,description_format,description_image_paths,gallery_paths,detail_image_path')
         .order('id')
       : null;
   if (goodsQuery && options.goodId) goodsQuery = goodsQuery.eq('id', options.goodId);
@@ -551,7 +557,7 @@ export async function getAdminCatalogRecords(
     queried.has('ips')
       ? supabase
         .from('ips')
-        .select('id,archived_at,published_at,title,sub,vertical_key,tagline,synopsis,glyph,bg,image_path,featured,fans_count')
+        .select('id,public_slug,archived_at,published_at,title,sub,vertical_key,tagline,synopsis,glyph,bg,image_path,featured,fans_count')
         .order('id')
       : skippedResult,
     goodsQuery ?? skippedResult,
@@ -655,6 +661,7 @@ export async function getAdminCatalogRecords(
   const loaded: AdminCatalogRecords = {
     ips: ((ipsResult.data ?? []) as IpRow[]).map((row) => ({
       id: row.id,
+      ...(row.public_slug ? { publicSlug: row.public_slug } : {}),
       archivedAt: row.archived_at,
       publishedAt: row.published_at ?? null,
       title: row.title,
@@ -686,10 +693,12 @@ export async function getAdminCatalogRecords(
       ...(row.name_en ? { nameEn: row.name_en } : {}),
       searchKeywords: row.search_keywords ?? [],
       displayOrder: row.display_order ?? null,
-    categoryId: row.category_id ?? null,
+      categoryId: row.category_id ?? null,
+      additionalCategoryIds: (row.additional_categories ?? []).map(category => category.category_id),
       shippingNoticeSnapshot: parseShippingNoticeSnapshot(row.shipping_notice_snapshot),
       claimPolicy: parseGoodClaimPolicy({ returnAllowed: row.claim_return_allowed ?? null, exchangeAllowed: row.claim_exchange_allowed ?? null, restrictionReason: row.claim_restriction_reason ?? null, returnFee: row.claim_return_fee ?? null, returnFreeShippingFee: row.claim_return_free_shipping_fee ?? null, exchangeFee: row.claim_exchange_fee ?? null }),
       compareAtPrice: row.compare_at_price,
+      showDiscountRate: row.show_discount_rate ?? true,
       badge: row.badge,
       stock: row.stock,
       stockQty: row.stock_qty ?? 0,

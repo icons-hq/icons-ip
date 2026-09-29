@@ -7,6 +7,7 @@
 
 import { COMMUNITY_ENABLED } from '@/lib/community-visibility';
 import { goodDetailHref } from '@/lib/goods-display';
+import { publicIpHref } from '@/lib/ip-identity';
 
 export interface AdminCurationTargetOption {
   label: string;
@@ -20,6 +21,7 @@ export interface AdminCurationTargetGroup {
 
 export interface AdminCurationTargetRecord {
   id: string;
+  publicSlug?: string;
   title: string;
   archivedAt: string | null;
 }
@@ -45,11 +47,11 @@ const FIXED_TARGETS: AdminCurationTargetOption[] = [
 /* 경로 조립은 호출부가 넘긴다 — 굿즈처럼 이미 헬퍼가 있는 대상은 그것을 쓴다. */
 function detailOptions(
   records: readonly AdminCurationTargetRecord[],
-  href: (id: string) => string,
+  href: (record: AdminCurationTargetRecord) => string,
 ): AdminCurationTargetOption[] {
   return records
     .filter((record) => !record.archivedAt)
-    .map((record) => ({ label: `${record.title} (${record.id})`, path: href(record.id) }));
+    .map((record) => ({ label: `${record.title} (${record.id})`, path: href(record) }));
 }
 
 export function adminCurationTargetGroups(
@@ -57,10 +59,10 @@ export function adminCurationTargetGroups(
 ): AdminCurationTargetGroup[] {
   return [
     { label: '주요 화면', options: FIXED_TARGETS },
-    { label: 'IP 상세', options: detailOptions(source.ips, (id) => `/ip/${id}`) },
+    { label: 'IP 상세', options: detailOptions(source.ips, publicIpHref) },
     /* 굿즈 상세가 빠지면 첫 판매 굿즈를 홈에서 상세로 바로 보낼 수 없다. */
-    { label: '굿즈 상세', options: detailOptions(source.goods, goodDetailHref) },
-    { label: '오프라인 팝업 상세', options: detailOptions(source.events, (id) => `/offline-popups/${id}`) },
+    { label: '굿즈 상세', options: detailOptions(source.goods, (record) => goodDetailHref(record.id)) },
+    { label: '오프라인 팝업 상세', options: detailOptions(source.events, (record) => `/offline-popups/${record.id}`) },
   ].filter((group) => group.options.length > 0);
 }
 

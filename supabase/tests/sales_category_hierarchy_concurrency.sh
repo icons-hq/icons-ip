@@ -144,4 +144,43 @@ category_db <<'SQL'
 select 1 / case when (select category_id from public.goods where id='category-race-good-0474')=(select id from public.catalog_categories where code='category-race-a-0474')
 then 1 else 0 end as assert_assignment_race_keeps_first_commit;
 SQL
-printf '%s\n' 'PASS: category operation idempotency and stale assignment race.'
+# Adding a secondary membership holds the same tree lock as category moves.
+# The competing move must observe the committed membership before deciding
+# whether its new parent is still a leaf.
+category_db >"$category_test_tmp/additional-a.log" 2>&1 <<SQL &
+begin;
+set local statement_timeout='15s';
+set local role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000047481',true);
+select public.admin_save_good(to_jsonb(good)||jsonb_build_object('previous_id',good.id,'additional_category_ids',jsonb_build_array('${category_b}')))
+ from public.goods good where id='category-race-good-0474';
+\echo CATEGORY_ADDITIONAL_A
+select pg_sleep(3);
+commit;
+SQL
+category_race_pid=$!
+category_wait_marker "$category_test_tmp/additional-a.log" CATEGORY_ADDITIONAL_A
+set +e
+category_db >"$category_test_tmp/additional-b.log" 2>&1 <<SQL
+begin;
+set local statement_timeout='15s';
+set local role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000047482',true);
+select public.admin_upsert_category('00000000-0000-4000-8000-000000047488',id,code,name,'${category_b}'::uuid,sort_order,updated_at)
+ from public.catalog_categories where code='category-race-idempotent-0474';
+commit;
+SQL
+category_additional_b_status=$?
+set -e
+wait "$category_race_pid"; category_race_pid=''
+if [[ "$category_additional_b_status" -eq 0 ]] || ! rg --quiet 'category_has_goods' "$category_test_tmp/additional-b.log"; then
+  cat "$category_test_tmp/additional-b.log" >&2
+  printf '%s\n' 'Expected an assigned additional category to remain a leaf.' >&2
+  exit 1
+fi
+category_db <<'SQL'
+select 1 / case when exists(select 1 from public.goods_additional_categories where good_id='category-race-good-0474')
+ and (select parent_id from public.catalog_categories where code='category-race-idempotent-0474') is null
+then 1 else 0 end as assert_additional_membership_serializes_tree_move;
+SQL
+printf '%s\n' 'PASS: category operation idempotency, stale assignment and additional membership/move races.'

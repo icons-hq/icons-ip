@@ -9,6 +9,12 @@ const card = {
 };
 
 describe('ProductCard', () => {
+  it('carries hidden discount display into its price block', () => {
+    const html = renderToStaticMarkup(<ProductCard {...card} price={9000} compareAtPrice={12000} showDiscountRate={false} />);
+    expect(html).toContain('₩9,000');
+    expect(html).not.toContain('wc-price__original');
+    expect(html).not.toContain('wc-price__rate');
+  });
   /* 이미지 링크 안에는 읽을 텍스트가 없어 접근 가능한 이름이 빈 문자열이다.
      접근성 트리에서 빼지 않으면 axe link-name(WCAG 2.4.4) 위반이 상품 개수만큼 나고
      스크린리더 링크 목록에 이름 없는 링크가 하나씩 더 쌓인다. */

@@ -105,7 +105,7 @@ function CartLineRow({ line }: { line: CartLine }) {
         <p className="wc-cart__line-brand">{ip?.title ?? 'ICONS'}</p>
         <Link className="wc-cart__line-name" href={href}>{good.name}</Link>
         {optionName ? <p className="wc-cart__line-option">{optionName}</p> : null}
-        <PriceBlock compareAtPrice={good.compareAtPrice} price={good.price} />
+        <PriceBlock showDiscountRate={good.showDiscountRate} compareAtPrice={good.compareAtPrice} price={good.price} />
         {stateLabel ? <p className="wc-cart__line-state">{stateLabel}</p> : null}
         {supply?.mode === 'preorder' ? <p className="wc-cart__line-state">{goodsShipDateLabel(supply.expectedShipDate)}</p> : null}
       </div>

@@ -16,6 +16,7 @@ export interface Vertical {
 }
 export interface Ip {
   id: string;
+  publicSlug?: string;
   title: string;
   sub: string;
   v: Vertical;
@@ -63,6 +64,7 @@ export interface Good {
    * 파생된다.
    */
   compareAtPrice?: number | null;
+  showDiscountRate?: boolean;
   /** Stored comparison amount, retained while a period uses its own regular option price. */
   catalogCompareAtPrice?: number | null;
   badge: string | null;

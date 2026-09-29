@@ -6,4 +6,8 @@
   .wc-admin .admin-store-settings__history { display: grid; gap: 16px; padding-inline-start: 24px; }
   .wc-admin .admin-store-settings__history table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 13px; }
   .wc-admin .admin-store-settings__history :is(th,td) { padding: 8px; text-align: left; overflow-wrap: anywhere; border-bottom: 1px solid var(--wc-hairline); }
+  .wc-admin .admin-store-settings__auto-replies { display: grid; gap: 20px; min-width: 0; }
+  .wc-admin .admin-store-settings__auto-replies fieldset { display: grid; gap: 12px; min-width: 0; margin: 0; padding: 16px; border: 1px solid var(--wc-line-control); }
+  .wc-admin .admin-store-settings__auto-replies legend { padding-inline: 6px; font-weight: 700; }
+  .wc-admin .admin-store-settings__auto-replies textarea { width: 100%; resize: vertical; }
 }

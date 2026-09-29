@@ -2,6 +2,24 @@ import { describe, expect, it } from 'vitest';
 import { goodsLinkedMetadataRpcFields, readGoodsLinkedMetadata } from './goods-linked-metadata';
 
 describe('상품 분류와 배송 템플릿 입력 계약', () => {
+  it('추가 분류를 중복 없이 전달하고 생략과 전체 해제를 구별한다', () => {
+    const form = new FormData();
+    const first = '00000000-0000-4000-8000-000000051101';
+    const second = '00000000-0000-4000-8000-000000051102';
+    form.set('categoryId', first);
+    form.set('additionalCategoryIds', JSON.stringify([second, first, second]));
+    expect(goodsLinkedMetadataRpcFields(readGoodsLinkedMetadata(form).value)).toEqual({
+      category_id: first, additional_category_ids: [second],
+    });
+    form.set('additionalCategoryIds', '[]');
+    expect(readGoodsLinkedMetadata(form).value).toMatchObject({ additionalCategoryIds: [] });
+    form.delete('additionalCategoryIds');
+    expect(readGoodsLinkedMetadata(form).value).not.toHaveProperty('additionalCategoryIds');
+  });
+  it.each(['null', '{}', '[1]', '["invalid"]', 'invalid'])('잘못된 추가 분류 %s를 조용히 해제하지 않는다', (value) => {
+    const form = new FormData(); form.set('additionalCategoryIds', value);
+    expect(readGoodsLinkedMetadata(form).errors.additionalCategoryIds).toBeTruthy();
+  });
   it('기존 호출의 생략과 명시 해제를 구별한다', () => {
     const form = new FormData();
     expect(goodsLinkedMetadataRpcFields(readGoodsLinkedMetadata(form).value)).toEqual({});

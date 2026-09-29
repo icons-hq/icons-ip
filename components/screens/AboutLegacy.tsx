@@ -194,7 +194,7 @@ function heroSlidesFor({
       title: previewCopy?.title ?? ip.tagline,
       description: previewCopy?.description ?? ip.synopsis,
       background: ip.bg,
-      href: hrefFor('ip', ip.id),
+      href: hrefFor('ip', ip),
       label: ip.title,
     });
   };
@@ -232,7 +232,7 @@ function heroSlidesFor({
         title: copy.title,
         description: copy.description,
         background: ip.bg,
-        href: hrefFor('ip', ip.id),
+        href: hrefFor('ip', ip),
         label: ip.title,
       });
     }
@@ -255,7 +255,7 @@ function heroSlidesFor({
         title: copy.title,
         description: copy.description,
         background: previewKakao.bg,
-        href: hrefFor('ip', previewKakao.id),
+        href: hrefFor('ip', previewKakao),
         label: previewKakao.title,
       });
     }
@@ -398,7 +398,7 @@ function IpWorlds({ ips }: { ips: Ip[] }) {
         <Link
           aria-label={duplicate ? undefined : `${ip.title} 세계 보기`}
           className={`ip-orbit ip-orbit--${shapes[index % shapes.length]}`}
-          href={hrefFor('ip', ip.id)}
+          href={hrefFor('ip', ip)}
           key={`${duplicate ? 'copy' : 'main'}-${ip.id}`}
           tabIndex={duplicate ? -1 : undefined}
         >
@@ -654,7 +654,7 @@ function WorldFeatures({
           <span className="feature-number">01</span><p className="eyebrow dark">ONE IP, ONE WORLD</p>
           <h3>하나의 IP,<br />하나로 이어진 세계</h3>
           <p>좋아하는 IP를 고르면 굿즈, 카드, 팝업, 커뮤니티가 한 화면에서 연결됩니다.</p>
-          <Link href={hrefFor('ip', worldIp.id)}>IP 세계로 들어가기 <span aria-hidden>↗</span></Link>
+          <Link href={hrefFor('ip', worldIp)}>IP 세계로 들어가기 <span aria-hidden>↗</span></Link>
         </div>
         <div className="feature-art feature-art--world">
           <div className="world-poster feature-float" data-end="-35" data-parallax="true" data-start="5">
@@ -800,7 +800,7 @@ export function AboutLegacy({
       id: `ip-${selectedIp.id}`,
       title: `${selectedIp.title} 세계의 새로운 소식을 확인하세요.`,
       imageBg: null,
-      href: hrefFor('ip', selectedIp.id),
+      href: hrefFor('ip', selectedIp),
     } : null;
   }, [catalog.events, curatedAnnouncement, hasPreviewDataset, selectedIp]);
   const announcementDateLabel = curatedAnnouncement === null && announcement?.id === 'event-e2'

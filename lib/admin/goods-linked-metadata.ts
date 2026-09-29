@@ -1,5 +1,6 @@
 export interface GoodsLinkedMetadataInput {
   categoryId?: string | null;
+  additionalCategoryIds?: string[];
   shippingNoticeTemplateCode?: string | null;
   shippingNoticeTemplateVersion?: number | null;
 }
@@ -12,6 +13,17 @@ export function readGoodsLinkedMetadata(form: FormData) {
     if (id && !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)) {
       errors.categoryId = '카테고리를 다시 선택해주세요.';
     } else value.categoryId = id || null;
+  }
+  if (form.has('additionalCategoryIds')) {
+    try {
+      const ids: unknown = JSON.parse(String(form.get('additionalCategoryIds')));
+      if (!Array.isArray(ids) || ids.some(id => typeof id !== 'string'
+        || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id))) throw new Error('invalid');
+      value.additionalCategoryIds = [...new Set((ids as string[]).map(id => id.toLowerCase()))]
+        .filter(id => id !== value.categoryId?.toLowerCase()).sort();
+    } catch {
+      errors.additionalCategoryIds = '추가 카테고리를 다시 선택해주세요.';
+    }
   }
   if (form.has('shippingNoticeTemplate') || form.has('shippingNoticeTemplateCode') || form.has('shippingNoticeTemplateVersion')) {
     const combined = String(form.get('shippingNoticeTemplate') ?? '').trim();
@@ -33,6 +45,7 @@ export function readGoodsLinkedMetadata(form: FormData) {
 export function goodsLinkedMetadataRpcFields(value: GoodsLinkedMetadataInput): Record<string, unknown> {
   return {
     ...(value.categoryId !== undefined ? { category_id: value.categoryId } : {}),
+    ...(value.additionalCategoryIds !== undefined ? { additional_category_ids: value.additionalCategoryIds } : {}),
     ...(value.shippingNoticeTemplateCode !== undefined ? {
       shipping_notice_template_code: value.shippingNoticeTemplateCode,
       shipping_notice_template_version: value.shippingNoticeTemplateVersion ?? null,

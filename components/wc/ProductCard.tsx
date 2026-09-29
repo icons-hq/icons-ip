@@ -10,6 +10,7 @@ export interface ProductCardProps {
   price: number;
   priceMax?: number;
   compareAtPrice?: number | null;
+  showDiscountRate?: boolean;
   badges?: string[];
   soldOut?: boolean;
   imageBackground?: string;
@@ -36,6 +37,7 @@ export function ProductCard({
   brand,
   className,
   compareAtPrice,
+  showDiscountRate,
   href,
   image,
   imageBackground,
@@ -66,7 +68,7 @@ export function ProductCard({
           <Link className="wc-product-card__name-link" href={href}>{name}</Link>
           {soldOut ? <span className="wc-sr-only"> (품절)</span> : null}
         </h3>
-        <PriceBlock compareAtPrice={compareAtPrice} price={price} priceMax={priceMax} />
+        <PriceBlock compareAtPrice={compareAtPrice} price={price} priceMax={priceMax} showDiscountRate={showDiscountRate} />
       </div>
     </article>
   );

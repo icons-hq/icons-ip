@@ -1,8 +1,9 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
+import { inquiryMessageAuthor, type InquiryMessageAuthor } from './inquiries';
 
 export type InquiryRealtimeClient = Pick<SupabaseClient, 'channel' | 'removeChannel'>;
 export interface InquiryChange {
-  kind: 'thread' | 'message'; inquiryId: string; messageId?: string; author?: 'user' | 'staff';
+  kind: 'thread' | 'message'; inquiryId: string; messageId?: string; author?: InquiryMessageAuthor;
 }
 
 /** Payloads are invalidation signals. Existing authenticated loaders own display data. */
@@ -21,7 +22,7 @@ export function observeInquiryChanges(client: InquiryRealtimeClient, options: {
       ...(options.inquiryId ? { filter: `inquiry_id=eq.${options.inquiryId}` } : {}) }, ({ new: row }) => {
       if (!active || typeof row.id !== 'string' || typeof row.inquiry_id !== 'string') return;
       options.onChange({ kind: 'message', inquiryId: row.inquiry_id, messageId: row.id,
-        author: row.author === 'staff' ? 'staff' : 'user' });
+        author: inquiryMessageAuthor(row.author) });
     }).on('system', {}, (event) => {
       if (!active || event.extension !== 'postgres_changes') return;
       // Channel join precedes the database subscription on a cold/reconnecting

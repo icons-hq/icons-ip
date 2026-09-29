@@ -10,6 +10,7 @@ import { parseGoodsVariantPricing } from '@/lib/goods-sales';
 import { parseGoodsVariantSupply } from '@/lib/goods-preorders';
 import { parseGoodsKcDisclosures } from '@/lib/goods-kc';
 import { imageBg, normalizePublicMediaPath, PUBLIC_MEDIA_BUCKET } from '@/lib/media';
+import { resolvePublicIpLinks } from '@/lib/ip-identity.server';
 import { isRarityKey } from '@/lib/rarity';
 import { getSupabaseConfig } from '@/lib/supabase/config';
 import { postgrestInList } from '@/lib/supabase/postgrest';
@@ -101,6 +102,7 @@ interface VerticalRow {
 
 interface IpRow {
   id: string;
+  public_slug?: string | null;
   title: string;
   sub: string | null;
   vertical_key: string;
@@ -139,6 +141,7 @@ interface GoodRow {
   /* #326 컬럼 2종은 옵셔널이다 — 기존 테스트 픽스처(리터럴 GoodRow)를 전부
      깨지 않으면서, select 에 포함된 실 쿼리에서는 값이 흐른다. */
   compare_at_price?: number | null;
+  show_discount_rate?: boolean;
   created_at?: string | null;
   badge: string | null;
   stock: string;
@@ -497,6 +500,7 @@ function applyHomeFeaturedArtwork(
 function toIp(row: IpRow, verticalsByKey: Map<string, Vertical>, imageUrlForPath: (path: string) => string): Ip {
   return {
     id: row.id,
+    ...(row.public_slug ? { publicSlug: row.public_slug } : {}),
     title: row.title,
     sub: row.sub ?? '',
     v: verticalsByKey.get(row.vertical_key) ?? fallbackVertical(row.vertical_key),
@@ -541,6 +545,7 @@ function toGood(row: GoodRow, imageUrlForPath: (path: string) => string): Good {
     originId: row.origin_id,
     compareAtPrice: cheapestOption?.pricing?.pricePeriodId ? cheapestOption.pricing.regularPrice : row.compare_at_price ?? null,
     catalogCompareAtPrice: row.compare_at_price ?? null,
+    showDiscountRate: row.show_discount_rate ?? true,
     badge: row.badge,
     stock: stockQty <= 0 ? 'soldout' : toStock(row.stock),
     stockQty,
@@ -703,14 +708,14 @@ export async function getCatalogSnapshot(options: CatalogSnapshotOptions = {}): 
     supabase.from('verticals').select('key,label,color').order('key'),
     supabase
       .from('ips')
-      .select('id,title,sub,vertical_key,tagline,synopsis,glyph,bg,image_path,featured,sort_order,fans_count,goods_count,cards_count')
+      .select('id,public_slug,title,sub,vertical_key,tagline,synopsis,glyph,bg,image_path,featured,sort_order,fans_count,goods_count,cards_count')
       .is('archived_at', null)
       /* 초안(published_at null)은 공개 표면 어디에도 나오지 않는다 — 보관 필터와 같은 층 (20260907130000). */
       .not('published_at', 'is', null)
       .order('fans_count', { ascending: false }),
     supabase
       .from('goods')
-      .select('id,ip_id,name,name_en,search_keywords,display_order,category_id,additional_good_ids:goods_additional_ids,type,price,compare_at_price,created_at,badge,stock,stock_qty,bg,image_path,allow_bank_transfer,allow_card_payment,sale_restriction,order_quantity_limit_enabled,min_order_qty,max_order_qty,member_purchase_limit_enabled,member_lifetime_qty_limit,origin_id,goods_variants(id,name,code,price,stock_qty,is_default,attributes,archived_at,sort_order,pricing:goods_variant_pricing,supply:goods_variant_supply)')
+      .select('id,ip_id,name,name_en,search_keywords,display_order,category_id,additional_good_ids:goods_additional_ids,type,price,compare_at_price,show_discount_rate,created_at,badge,stock,stock_qty,bg,image_path,allow_bank_transfer,allow_card_payment,sale_restriction,order_quantity_limit_enabled,min_order_qty,max_order_qty,member_purchase_limit_enabled,member_lifetime_qty_limit,origin_id,goods_variants(id,name,code,price,stock_qty,is_default,attributes,archived_at,sort_order,pricing:goods_variant_pricing,supply:goods_variant_supply)')
       .is('archived_at', null)
       .not('published_at', 'is', null)
       /* 판매 제한(19금) 상품은 성인인증(#209·#210) 도입 전까지 스토어 전 표면에서
@@ -832,7 +837,7 @@ export async function getBinderCatalogOverlay(): Promise<BinderCatalogOverlay | 
   const [ipsResult, verticalsResult] = await Promise.all([
     supabase
       .from('ips')
-      .select('id,title,sub,vertical_key,tagline,synopsis,glyph,bg,image_path,featured,sort_order,fans_count,goods_count,cards_count')
+      .select('id,public_slug,title,sub,vertical_key,tagline,synopsis,glyph,bg,image_path,featured,sort_order,fans_count,goods_count,cards_count')
       .in('id', parentIpIds)
       .order('id'),
     supabase
@@ -1065,7 +1070,7 @@ export async function getHomeSnapshot(options: CatalogIpDetailOptions = {}): Pro
       ? getActiveHomeCurationSnapshot()
       : Promise.resolve(emptyLoadedHomeCuration()),
   ]);
-  const normalizedCuration: HomeCurationSnapshot = catalog.source === 'mock'
+  const rawCuration: HomeCurationSnapshot = catalog.source === 'mock'
     ? loadedCuration.curation
     : {
         ...loadedCuration.curation,
@@ -1087,6 +1092,19 @@ export async function getHomeSnapshot(options: CatalogIpDetailOptions = {}): Pro
             goods: resolveHomeGoodsCards(catalog, goodIds, HOME_BEST_TAB_GOODS_LIMIT),
           })),
       };
+  const linkEntries = [rawCuration.hero, rawCuration.announcement, ...rawCuration.heroSlides,
+    ...rawCuration.editorPicks, ...rawCuration.goodsBands, ...rawCuration.benefitTiles];
+  const canonicalLinks = await resolvePublicIpLinks(linkEntries.flatMap(entry => entry ? [entry.href] : []), catalog.ips);
+  const canonicalLink = <T extends { href: string }>(entry: T): T => ({ ...entry, href: canonicalLinks.get(entry.href) ?? entry.href });
+  const normalizedCuration: HomeCurationSnapshot = {
+    ...rawCuration,
+    hero: rawCuration.hero ? canonicalLink(rawCuration.hero) : null,
+    announcement: rawCuration.announcement ? canonicalLink(rawCuration.announcement) : null,
+    heroSlides: rawCuration.heroSlides.map(canonicalLink),
+    editorPicks: rawCuration.editorPicks.map(canonicalLink),
+    goodsBands: rawCuration.goodsBands.map(canonicalLink),
+    benefitTiles: rawCuration.benefitTiles.map(canonicalLink),
+  };
   const homeCatalog = catalog.source === 'mock'
     ? catalog
     : applyHomeFeaturedArtwork(catalog, loadedCuration.featuredIps, normalizedCuration.featuredIpIds);

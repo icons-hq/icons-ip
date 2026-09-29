@@ -79,6 +79,34 @@ const row = (
   },
 });
 describe('goods Excel planning', () => {
+  it('대표·추가 카테고리를 XLSX로 왕복하고 추가 분류 공란은 명시 해제한다', async () => {
+    const primary = '00000000-0000-4000-8000-000000051111';
+    const extra = '00000000-0000-4000-8000-000000051121';
+    const record = { ...existing, good: { ...existing.good, category_id: primary, additional_category_ids: [extra] } };
+    const ctx = { ...context, existing: [record], categories: [
+      { id: primary, code: 'primary-leaf', archived_at: null }, { id: extra, code: 'extra-leaf', archived_at: null },
+    ] };
+    const parsed = await parseGoodsWorkbookWithKc(await buildGoodsWorkbook(exportGoodsWorkbookRows(record, ctx)));
+    expect(parsed.rows[0].values).toMatchObject({ categoryCode: 'primary-leaf', additionalCategoryCodes: 'extra-leaf' });
+    expect(planGoodsWorkbookImport(parsed.rows, ctx)[0].kind).toBe('unchanged');
+    const cleared = { ...parsed.rows[0], values: { ...parsed.rows[0].values, additionalCategoryCodes: '' } };
+    expect(planGoodsWorkbookImport([cleared], ctx)[0]).toMatchObject({ kind: 'update', target: { category_id: primary, additional_category_ids: [] } });
+    const invalid = { ...cleared, values: { ...cleared.values, additionalCategoryCodes: 'unknown' } };
+    expect(planGoodsWorkbookImport([invalid], ctx)[0]).toMatchObject({ kind: 'error', errors: expect.arrayContaining([expect.stringContaining('추가 카테고리')]) });
+  });
+  it('round-trips discount display through an actual workbook and validates explicit changes', async () => {
+    const record = { ...existing, good: { ...existing.good, show_discount_rate: false } };
+    const ctx = { ...context, existing: [record] };
+    const exported = exportGoodsWorkbookRows(record, ctx);
+    expect(exported[0].showDiscountRate).toBe('아니오');
+    const parsed = await parseGoodsWorkbookWithKc(await buildGoodsWorkbook(exported));
+    expect(parsed.rows[0].values.showDiscountRate).toBe('아니오');
+    expect(planGoodsWorkbookImport(parsed.rows, ctx)[0]).toMatchObject({ kind: 'unchanged' });
+    const plan = (value: string) => planGoodsWorkbookImport([{ ...parsed.rows[0], values: { ...parsed.rows[0].values, showDiscountRate: value } }], ctx)[0];
+    expect(plan('예')).toMatchObject({ kind: 'update', target: { show_discount_rate: true, price: 12000 } });
+    expect(plan('임의')).toMatchObject({ kind: 'error', errors: expect.arrayContaining([expect.stringContaining('할인율 표시')]) });
+    expect(plan('')).toMatchObject({ target: { show_discount_rate: true } });
+  });
   it('CRLF HTML과 검증 이미지 경로가 실제 XLSX에서 LF로 바뀌어도 무수정으로 계획한다', async () => {
     const path = 'public-media/catalog/good/22222222-2222-4222-8222-222222222222.webp';
     const description = `<h2>구성품</h2>\r\n<p>키링 &amp; 스티커</p>\r\n<img src="${path}" alt="구성" loading="lazy" decoding="async" />`;

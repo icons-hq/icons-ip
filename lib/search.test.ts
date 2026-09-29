@@ -5,6 +5,9 @@ import { getSearchSnapshot, normalizeSearchQuery } from './search';
 const mocks = vi.hoisted(() => ({
   isConfigured: false,
   rpc: vi.fn(),
+  identityRead: vi.fn(),
+  identities: [] as { id: string; public_slug: string | null }[],
+  identityError: null as { message: string } | null,
 }));
 const originalVercelEnv = process.env.VERCEL_ENV;
 const originalCatalogSource = process.env.ICONS_CATALOG_SOURCE;
@@ -16,12 +19,21 @@ vi.mock('@/lib/supabase/config', () => ({
 vi.mock('@/lib/supabase/server', () => ({
   createClient: () => ({
     rpc: mocks.rpc,
+    from: (table: string) => ({ select: (columns: string) => ({ in: (column: string, ids: string[]) => ({ is: (archive: string, value: null) => ({
+      not: async (published: string, operator: string, other: null) => {
+        mocks.identityRead({ table, columns, column, ids, archive, value, published, operator, other });
+        return { data: mocks.identities.filter(ip => ids.includes(ip.id)), error: mocks.identityError };
+      },
+    }) }) }) }),
   }),
 }));
 
 beforeEach(() => {
   mocks.isConfigured = false;
   mocks.rpc.mockReset();
+  mocks.identityRead.mockReset();
+  mocks.identities = [];
+  mocks.identityError = null;
   if (originalVercelEnv === undefined) {
     delete process.env.VERCEL_ENV;
   } else {
@@ -42,6 +54,20 @@ describe('normalizeSearchQuery', () => {
 });
 
 describe('getSearchSnapshot', () => {
+  it('loads current public slugs in one batch while keeping catalog visibility filters', async () => {
+    mocks.isConfigured = true;
+    mocks.identities = [{ id: 'old-ip', public_slug: 'new-ip' }];
+    mocks.rpc.mockResolvedValue({ data: [
+      { kind: 'ip', id: 'old-ip', label: 'IP', ip_id: 'old-ip' },
+      { kind: 'good', id: 'good-1', label: '굿즈', ip_id: 'old-ip' },
+    ], error: null });
+    const snapshot = await getSearchSnapshot('IP');
+    expect(snapshot.groups.flatMap(group => group.results).map(result => result.ipPublicSlug)).toEqual(['new-ip', 'new-ip']);
+    expect(mocks.identityRead).toHaveBeenCalledExactlyOnceWith({ table: 'ips', columns: 'id,public_slug', column: 'id', ids: ['old-ip'],
+      archive: 'archived_at', value: null, published: 'published_at', operator: 'is', other: null });
+    mocks.identityError = { message: 'identity unavailable' };
+    await expect(getSearchSnapshot('IP')).rejects.toThrow('Failed to load search IP identities: identity unavailable');
+  });
   it('uses mock catalog data when Supabase is not configured', async () => {
     const snapshot = await getSearchSnapshot('리락쿠마');
 

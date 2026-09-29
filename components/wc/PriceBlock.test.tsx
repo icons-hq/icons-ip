@@ -3,6 +3,13 @@ import { describe, expect, it } from 'vitest';
 import { PriceBlock } from './PriceBlock';
 
 describe('PriceBlock', () => {
+  it('hides only the original and rate when the operator disables discount display', () => {
+    const html = renderToStaticMarkup(<PriceBlock showDiscountRate={false} compareAtPrice={12000} price={9000} />);
+    expect(html).toContain('₩9,000');
+    expect(html).not.toContain('₩12,000');
+    expect(html).not.toContain('wc-price__rate');
+    expect(html).not.toContain('<s ');
+  });
   it('shows a bare amount when there is no comparison price', () => {
     const html = renderToStaticMarkup(<PriceBlock price={12000} />);
 

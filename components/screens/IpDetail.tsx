@@ -148,7 +148,7 @@ export function IpDetail({
   notificationSaved: boolean;
 }) {
   const { ip, goods, cards } = detail;
-  const canonicalSlug = publicSlug ?? ip.id;
+  const canonicalSlug = publicSlug ?? ip.publicSlug ?? ip.id;
   const [typeFilter, setTypeFilter] = useState(ALL_TYPES);
   const types = useMemo(() => [...new Set(goods.map((good) => good.type))], [goods]);
   /* 타입 칩은 실존 타입에서만 파생되는 단일 축이라, 필터 결과가 0이 되는 경우는 없다. */
@@ -244,7 +244,7 @@ export function IpDetail({
                   key={good.id}
                   badges={goodDisplayBadges(good)}
                   brand={ip.title}
-                  compareAtPrice={good.compareAtPrice}
+                  showDiscountRate={good.showDiscountRate} compareAtPrice={good.compareAtPrice}
                   href={goodDetailHref(good.id)}
                   imageBackground={good.img}
                   name={good.name}

@@ -57,6 +57,7 @@ export interface AdminGoodFormValue extends AdminGoodsSalePolicyInput, GoodsLink
   price: number;
   /** 취소선으로 표기할 정가 (#326). 할인 중일 때만 값이 있고, 아니면 null 이다. */
   compareAtPrice: number | null;
+  showDiscountRate?: boolean;
   badge: string | null;
   stock: Stock;
   bg: string | null;
@@ -504,6 +505,10 @@ export function normalizeAdminGoodForm(
     '소비자가는 0 이상의 정수여야 합니다.',
   );
   const notice = readGoodsNotice(formData, errors, requiresCompleteNotice);
+  const showDiscountRate = formData.has('showDiscountRate') ? readString(formData, 'showDiscountRate') : undefined;
+  if (showDiscountRate !== undefined && !['true', 'false'].includes(showDiscountRate)) {
+    errors.showDiscountRate = '할인율 표시 여부를 선택해주세요.';
+  }
   const descriptionFormat = readString(formData, 'descriptionFormat') || 'plain';
   const rawDescription = nullableString(formData, 'description');
   const htmlContent = descriptionFormat === 'html' && rawDescription && rawDescription.length <= GOODS_HTML_MAX_LENGTH
@@ -565,6 +570,7 @@ export function normalizeAdminGoodForm(
       defaultVariantCode,
       publish,
       compareAtPrice,
+      ...(showDiscountRate !== undefined ? { showDiscountRate: showDiscountRate === 'true' } : {}),
       ...(searchKeywords !== undefined ? { searchKeywords } : {}),
       ...(displayOrder !== undefined ? { displayOrder } : {}),
       badge: nullableString(formData, 'badge'),

@@ -54,7 +54,7 @@ function FeaturedEvent({ e, ip, games }: { e: FandomEvent; ip: Ip | null; games:
                 </Link>
               ))}
               {e.ip && (
-                <Link className="btn btn-ghost" href={hrefFor('ip', e.ip)} style={{ height: 48, padding: '0 22px', fontSize: 14 }}>
+                <Link className="btn btn-ghost" href={hrefFor('ip', ip ?? e.ip)} style={{ height: 48, padding: '0 22px', fontSize: 14 }}>
                   이 세계 더 보기
                 </Link>
               )}

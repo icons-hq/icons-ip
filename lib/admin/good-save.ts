@@ -19,6 +19,7 @@ export function goodSaveFields(value: AdminGoodFormValue) {
     type: value.type,
     price: value.price,
     compare_at_price: value.compareAtPrice,
+    ...(value.showDiscountRate !== undefined ? { show_discount_rate: value.showDiscountRate } : {}),
     badge: value.badge,
     stock: value.stock,
     bg: value.bg,

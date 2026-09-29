@@ -1,5 +1,8 @@
 'use client';
 
+import { InquiryMessageBody } from './InquiryMessageBody';
+import { inquiryMessageAuthorLabel } from '@/lib/inquiries';
+
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useActionState, useCallback, useEffect, useRef, useState } from 'react';
@@ -88,8 +91,8 @@ export function WidgetInquiryConversation({ inquiry, onSaved }: { inquiry: Inqui
     <h3>{inquiry.title}</h3><p>{INQUIRY_STATUS_LABELS[inquiry.status]}</p>
     <ol className="wc-inquiry-widget__messages" aria-live="polite" aria-relevant="additions">
       {inquiry.messages.map((message) => <li key={message.id} data-author={message.author}>
-        <span>{message.author === 'staff' ? message.authorName ?? 'ICONS 운영자' : '내 문의'} · {formatInquiryDateTime(message.createdAt)}</span>
-        <p>{message.body}</p>{message.imageUrls.map((url, index) =>
+        <span>{inquiryMessageAuthorLabel(message.author,message.authorName)} · {formatInquiryDateTime(message.createdAt)}</span>
+        <p><InquiryMessageBody body={message.body} automatic={message.author==='system'}/></p>{message.imageUrls.map((url, index) =>
           // eslint-disable-next-line @next/next/no-img-element
           <img key={url} src={url} alt={`첨부 이미지 ${index + 1}`} />)}
       </li>)}
