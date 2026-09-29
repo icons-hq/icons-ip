@@ -142,7 +142,7 @@ function GoodEditorForm({ action, catalogIps, ipOptions, pending, selected, stat
   initialIpId?: string; variants: AdminGoodsVariant[]; origins: FulfillmentOrigin[]; noticeDefaults?: GoodNoticeDefaults;
   categories: AdminCategoryNode[]; shippingNoticeOptions: GoodsShippingNoticeOption[]; regionSummaries: GoodShippingRegionSummary[];
   formRef: ReturnType<typeof useAdminLocalAutosave>['formRef']; onSubmitCapture: (event: FormEvent<HTMLFormElement>) => void;
-  onApplyKcTemplate?:(template:GoodsKcPresetTemplate)=>void;
+  onApplyKcTemplate?:(template:GoodsKcPresetTemplate|null)=>void;
 }) {
   const [draft] = useState(() => createGoodEditorDraft(selected, state, variants, initialIpId, noticeDefaults));
   const { initial, baseline } = draft;
@@ -232,7 +232,8 @@ function GoodEditorForm({ action, catalogIps, ipOptions, pending, selected, stat
       const input = form.elements.namedItem(field.formName);
       if (input instanceof HTMLInputElement) { input.value = notice[field.key] ?? ''; input.dispatchEvent(new Event('input', { bubbles: true })); }
     }
-    if (kcTemplate) onApplyKcTemplate?.(kcTemplate);
+    // Omitted means notice-only copy; explicit null cancels a queued classification.
+    if (kcTemplate !== undefined) onApplyKcTemplate?.(kcTemplate);
   }
   const { origin: previewOrigin, ip: previewIp, detail: previewDetail, shippingPolicy } = buildGoodEditorPreview({
     values, imageUrls, selected, catalogIps, origins, shippingNoticeOptions,

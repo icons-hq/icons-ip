@@ -4,7 +4,7 @@ export const fixtureNoticePreset = { id: 'fixture-preset', name: '합성 KC 프�
   kcTemplate: { family: 'living' as const, scheme: 'not_applicable' as const, publicNote: '합성 프리셋 안내' },
   notice: { maker: '합성 제조사', origin: '한국', material: '종이', size: 'A5', madeOn: '2026-09', asManager: '합성 담당자', asContact: '합성 연락처' },
 };
-export const findGoodNoticePresets = async () => ({ presets: [fixtureNoticePreset], total: 1, filters: { page: 1, query: '' } });
+export const findGoodNoticePresets = async () => ({ presets: [fixtureNoticePreset, { ...fixtureNoticePreset, id: 'fixture-no-kc', name: 'KC 없는 합성 프리셋', kcTemplate: null }], total: 2, filters: { page: 1, query: '' } });
 export const loadLastSavedGoodNotice = async () => ({ name: '합성 프리셋', notice: {
   maker: '합성 제조사', origin: '한국', material: '종이', size: 'A5', madeOn: '2026-09', asManager: '합성 담당자', asContact: '합성 연락처',
 } });

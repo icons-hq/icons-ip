@@ -10,7 +10,7 @@ export interface GoodsKcTemplateRequest {
 interface PendingTemplate extends GoodsKcTemplateRequest { goodId: string | null }
 interface TemplateContext {
   pending: PendingTemplate | null;
-  apply: (template: GoodsKcPresetTemplate, goodId: string | null) => void;
+  apply: (template: GoodsKcPresetTemplate | null, goodId: string | null) => void;
   bindSavedGood: (goodId: string) => void;
   consume: (id: string) => void;
   discard: () => void;
@@ -26,8 +26,8 @@ export function GoodsKcTemplateProvider({ selectionKey, children }: { selectionK
     setPreviousSelection(selectionKey);
     if (pending && selectionKey !== `good:${pending.goodId}`) setPending(null);
   }
-  const apply = useCallback((template: GoodsKcPresetTemplate, goodId: string | null) => {
-    setPending({ id: crypto.randomUUID(), template, goodId });
+  const apply = useCallback((template: GoodsKcPresetTemplate | null, goodId: string | null) => {
+    setPending(template ? { id: crypto.randomUUID(), template, goodId } : null);
   }, []);
   const bindSavedGood = useCallback((goodId: string) => {
     setPending(current => current?.goodId === null ? { ...current, goodId } : current);
@@ -43,7 +43,7 @@ export function useGoodsKcTemplate(selectedId: string | null = null) {
   const context = useContext(Context);
   if (!context) throw new Error('GoodsKcTemplateProvider is required.');
   const { apply } = context;
-  const applyToSelection = useCallback((template: GoodsKcPresetTemplate) => apply(template, selectedId), [apply, selectedId]);
+  const applyToSelection = useCallback((template: GoodsKcPresetTemplate | null) => apply(template, selectedId), [apply, selectedId]);
   return {
     request: selectedId && context.pending?.goodId === selectedId ? context.pending : null,
     apply: applyToSelection,
