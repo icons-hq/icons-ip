@@ -16,6 +16,8 @@ catalog_holder_log="$(mktemp)"
 catalog_contender_log="$(mktemp)"
 cancel_holder_log="$(mktemp)"
 callback_contender_log="$(mktemp)"
+expiry_gate_log="$(mktemp)"
+expiry_sweeper_log="$(mktemp)"
 expiry_cancel_holder_log="$(mktemp)"
 
 psql_exec() {
@@ -107,36 +109,56 @@ cleanup() {
     "$catalog_contender_log" \
     "$cancel_holder_log" \
     "$callback_contender_log" \
+    "$expiry_gate_log" \
+    "$expiry_sweeper_log" \
     "$expiry_cancel_holder_log"
 }
 trap cleanup EXIT
 
-wait_for_lock() {
+# expected_wait is a wait_event_type ("Lock") or type:event ("Lock:advisory").
+wait_for_backend_wait() {
   local application_name="$1"
-  local client_pid="$2"
-  local log_file="$3"
+  local expected_wait="$2"
+  local client_pid="$3"
+  local log_file="$4"
   local observed=""
 
   for _ in $(seq 1 200); do
     observed="$(psql_scalar "
-      select coalesce(wait_event_type, '')
+      select coalesce(wait_event_type, '') || ':' || coalesce(wait_event, '')
       from pg_catalog.pg_stat_activity
       where application_name = '${application_name}'
     ")"
-    if [[ "$observed" == "Lock" ]]; then
+    if [[ "$observed" == "$expected_wait" || "$observed" == "${expected_wait}:"* ]]; then
       return 0
     fi
     if ! kill -0 "$client_pid" 2>/dev/null; then
-      echo "backend exited before lock wait: ${application_name}" >&2
+      echo "backend exited before ${expected_wait} wait: ${application_name}" >&2
       sed -n '1,160p' "$log_file" >&2
       return 1
     fi
     sleep 0.05
   done
 
-  echo "timed out waiting for lock: ${application_name} (last=${observed})" >&2
+  echo "timed out waiting for ${expected_wait}: ${application_name} (last=${observed})" >&2
   sed -n '1,160p' "$log_file" >&2
   return 1
+}
+
+wait_for_lock() {
+  wait_for_backend_wait "$1" "Lock" "$2" "$3"
+}
+
+release_gate() {
+  local gate_application="$1"
+  local gate_client_pid="$2"
+
+  psql_exec -q <<SQL >/dev/null
+select pg_catalog.pg_terminate_backend(pid)
+from pg_catalog.pg_stat_activity
+where application_name = '${gate_application}';
+SQL
+  wait "$gate_client_pid" >/dev/null 2>&1 || true
 }
 
 terminate_test_backends
@@ -493,6 +515,14 @@ echo "PASS=cancellation-serializes-known-callback-without-qr"
 # Expiry uses SKIP LOCKED while cancellation owns the order. It must neither
 # release early nor lose the request; the next expiry pass transitions this
 # exact expired prepared attempt and completes the request exactly once.
+#
+# pg_cron runs this same global sweep every minute (expire-stale-checkouts).
+# A scheduled pass that lands after the order turns stale can take the order
+# first, and the test's own pass then counts 0. The sweeper session therefore
+# holds public.orders, the first table every pass locks, in EXCLUSIVE mode from
+# before the order turns stale until its own post-commit pass, so scheduled
+# passes park on that fence. Advisory gates, not sleeps, order both test passes
+# around the cancellation commit.
 expiry_order_id="$(psql_scalar "
   select public.reserve_tickets(
     '${owner_one}',
@@ -505,6 +535,93 @@ psql_exec -q <<SQL >/dev/null
 select public.prepare_ticket_payment_attempt(
   '${owner_one}', '${expiry_order_id}', 'korpay'
 );
+SQL
+
+dump_expiry_race_diagnostics() {
+  echo "--- expiry cancellation holder" >&2
+  sed -n '1,160p' "$expiry_cancel_holder_log" >&2
+  echo "--- expiry sweeper" >&2
+  sed -n '1,160p' "$expiry_sweeper_log" >&2
+  echo "--- expiry order and scheduled sweeps" >&2
+  psql_exec -A -t <<SQL >&2 || true
+select 'order=' || ticket_order.status
+  || ' attempt=' || attempt.state
+  || ' request=' || coalesce(request.status::text, 'none')
+  || ' completed_at=' || coalesce(request.completed_at::text, 'none')
+  || ' sold=' || ticket_type.sold
+from public.ticket_orders as ticket_order
+join public.payment_attempts as attempt
+  on attempt.purpose = 'ticket' and attempt.ref_id = ticket_order.id
+join public.ticket_order_reservations as reservation
+  on reservation.ticket_order_id = ticket_order.id
+join public.ticket_types as ticket_type on ticket_type.id = reservation.ticket_type_id
+left join public.ticket_cancellation_requests as request
+  on request.ticket_order_id = ticket_order.id
+where ticket_order.id = '${expiry_order_id}'::uuid;
+select 'cron expire-stale-checkouts ' || run.status
+  || ' ' || run.start_time || ' .. ' || coalesce(run.end_time::text, 'running')
+from cron.job_run_details as run
+join cron.job as job on job.jobid = run.jobid
+where job.jobname = 'expire-stale-checkouts'
+order by run.start_time desc
+limit 3;
+SQL
+}
+
+expiry_gate_application="${test_prefix}-expiry-gate"
+expiry_sweeper_application="${test_prefix}-expiry-sweeper"
+expiry_cancel_holder_application="${test_prefix}-expiry-cancel-holder"
+expiry_sweep_gate_key=9207501
+expiry_commit_gate_key=9207502
+
+# Parks the sweeper behind its fence until the order is stale and owned by
+# cancellation.
+docker exec -e PGAPPNAME="$expiry_gate_application" -i "$db_container" \
+  psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 >"$expiry_gate_log" 2>&1 <<SQL &
+select pg_catalog.pg_advisory_lock(${expiry_sweep_gate_key});
+select pg_catalog.pg_sleep(60);
+SQL
+expiry_gate_pid=$!
+wait_for_backend_wait "$expiry_gate_application" "Timeout" "$expiry_gate_pid" "$expiry_gate_log"
+
+# The session-level commit gate keeps cancellation uncommitted until the locked
+# pass has run; the row lock then returns only after cancellation commits.
+docker exec -e PGAPPNAME="$expiry_sweeper_application" -i "$db_container" \
+  psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 -A -t >"$expiry_sweeper_log" 2>&1 <<SQL &
+select pg_catalog.pg_advisory_lock(${expiry_commit_gate_key});
+begin;
+lock table public.orders in exclusive mode;
+select pg_catalog.pg_advisory_xact_lock(${expiry_sweep_gate_key});
+select 'locked_sweep=' || public.expire_stale_checkouts();
+select 'locked_state=' || case when
+    ticket_order.status = 'pending'
+    and attempt.state = 'prepared'
+    and ticket_type.sold = 1
+  then 'ok' else 'invalid' end
+from public.ticket_orders as ticket_order
+join public.payment_attempts as attempt
+  on attempt.purpose = 'ticket' and attempt.ref_id = ticket_order.id
+join public.ticket_order_reservations as reservation
+  on reservation.ticket_order_id = ticket_order.id
+join public.ticket_types as ticket_type on ticket_type.id = reservation.ticket_type_id
+where ticket_order.id = '${expiry_order_id}'::uuid;
+select pg_catalog.pg_advisory_unlock(${expiry_commit_gate_key});
+select 'released_order=' || ticket_order.id
+from public.ticket_orders as ticket_order
+where ticket_order.id = '${expiry_order_id}'::uuid
+for update;
+select 'committed_sweep=' || public.expire_stale_checkouts();
+commit;
+SQL
+expiry_sweeper_pid=$!
+# Waiting on the sweep gate means the orders fence is already held.
+wait_for_backend_wait \
+  "$expiry_sweeper_application" \
+  "Lock:advisory" \
+  "$expiry_sweeper_pid" \
+  "$expiry_sweeper_log"
+
+psql_exec -q <<SQL >/dev/null
 update public.ticket_orders
 set expires_at = now() - interval '10 minutes'
 where id = '${expiry_order_id}'::uuid;
@@ -513,54 +630,57 @@ set expires_at = now() - interval '1 minute'
 where purpose = 'ticket' and ref_id = '${expiry_order_id}'::uuid;
 SQL
 
-expiry_cancel_holder_application="${test_prefix}-expiry-cancel-holder"
 docker exec -e PGAPPNAME="$expiry_cancel_holder_application" -i "$db_container" \
   psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 -A -t >"$expiry_cancel_holder_log" 2>&1 <<SQL &
 begin;
 select result
 from public.request_ticket_cancellation('${owner_one}', '${expiry_order_id}');
-select pg_catalog.pg_sleep(2);
+select pg_catalog.pg_advisory_xact_lock(${expiry_commit_gate_key});
 commit;
 SQL
 expiry_cancel_holder_pid=$!
 
 for _ in $(seq 1 200); do
   if grep -q '^requested$' "$expiry_cancel_holder_log"; then break; fi
-  if ! kill -0 "$expiry_cancel_holder_pid" 2>/dev/null; then
-    echo "expiry cancellation holder exited before acquiring order lock" >&2
-    sed -n '1,160p' "$expiry_cancel_holder_log" >&2
-    exit 1
-  fi
+  if ! kill -0 "$expiry_cancel_holder_pid" 2>/dev/null; then break; fi
   sleep 0.05
 done
-
-if [[ "$(psql_scalar 'select public.expire_stale_checkouts()')" != "0" ]]; then
-  echo "expiry released a ticket reservation locked by cancellation" >&2
+if ! grep -q '^requested$' "$expiry_cancel_holder_log"; then
+  echo "expiry cancellation holder did not acquire the order as requested" >&2
+  dump_expiry_race_diagnostics
   exit 1
 fi
 
-locked_expiry_state="$(psql_scalar "
-  select case when
-    ticket_order.status = 'pending'
-    and attempt.state = 'prepared'
-    and ticket_type.sold = 1
-  then 'ok' else 'invalid' end
-  from public.ticket_orders as ticket_order
-  join public.payment_attempts as attempt
-    on attempt.purpose = 'ticket' and attempt.ref_id = ticket_order.id
-  join public.ticket_order_reservations as reservation
-    on reservation.ticket_order_id = ticket_order.id
-  join public.ticket_types as ticket_type on ticket_type.id = reservation.ticket_type_id
-  where ticket_order.id = '${expiry_order_id}'::uuid
-")"
-if [[ "$locked_expiry_state" != "ok" ]]; then
+release_gate "$expiry_gate_application" "$expiry_gate_pid"
+
+if ! wait "$expiry_sweeper_pid"; then
+  echo "expiry sweeper session failed" >&2
+  dump_expiry_race_diagnostics
+  exit 1
+fi
+if ! wait "$expiry_cancel_holder_pid"; then
+  echo "expiry cancellation holder failed to commit" >&2
+  dump_expiry_race_diagnostics
+  exit 1
+fi
+
+locked_sweep="$(sed -n 's/^locked_sweep=//p' "$expiry_sweeper_log")"
+locked_state="$(sed -n 's/^locked_state=//p' "$expiry_sweeper_log")"
+committed_sweep="$(sed -n 's/^committed_sweep=//p' "$expiry_sweeper_log")"
+
+if [[ "$locked_sweep" != "0" ]]; then
+  echo "expiry released a ticket reservation locked by cancellation (returned ${locked_sweep:-nothing})" >&2
+  dump_expiry_race_diagnostics
+  exit 1
+fi
+if [[ "$locked_state" != "ok" ]]; then
   echo "locked expiry race mutated prepared ticket state" >&2
+  dump_expiry_race_diagnostics
   exit 1
 fi
-
-wait "$expiry_cancel_holder_pid"
-if [[ "$(psql_scalar 'select public.expire_stale_checkouts()')" != "1" ]]; then
-  echo "expiry did not transition the committed prepared cancellation" >&2
+if [[ "$committed_sweep" != "1" ]]; then
+  echo "expiry did not transition the committed prepared cancellation (returned ${committed_sweep:-nothing})" >&2
+  dump_expiry_race_diagnostics
   exit 1
 fi
 
@@ -589,7 +709,7 @@ expiry_race_state="$(psql_scalar "
 
 if [[ "$expiry_race_state" != "ok" ]]; then
   echo "cancellation/expiry race did not restore capacity exactly once" >&2
-  sed -n '1,160p' "$expiry_cancel_holder_log" >&2
+  dump_expiry_race_diagnostics
   exit 1
 fi
 if [[ "$(psql_scalar 'select public.expire_stale_checkouts()')" != "0" ]]; then
