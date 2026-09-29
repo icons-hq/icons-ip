@@ -8,9 +8,17 @@ admin_id="00000000-0000-4000-8000-000000002082"
 order_id="20000000-0000-4000-8000-000000002081"
 claim_token="40000000-0000-4000-8000-000000002081"
 nonce_digest="$(printf 'f%.0s' {1..64})"
+commit_gate_key=9208101
+gate_application="${test_prefix}-gate"
+cron_fence_application="${test_prefix}-cron-fence"
 claim_log="$(mktemp)"
 cancel_log="$(mktemp)"
 expiry_log="$(mktemp)"
+gate_log="$(mktemp)"
+cron_fence_log="$(mktemp)"
+lock_session_pid=""
+gate_client_pid=""
+cron_fence_client_pid=""
 
 psql_exec() {
   docker exec -i "$db_container" psql \
@@ -55,13 +63,14 @@ cleanup() {
   set +e
   terminate_test_backends
   cleanup_fixtures
-  rm -f "$claim_log" "$cancel_log" "$expiry_log"
+  rm -f "$claim_log" "$cancel_log" "$expiry_log" "$gate_log" "$cron_fence_log"
 }
 trap cleanup EXIT
 
+# expected_wait is a wait_event_type ("Lock") or type:event ("Lock:advisory").
 wait_for_backend_wait() {
   local application_name="$1"
-  local expected_wait_type="$2"
+  local expected_wait="$2"
   local client_pid="$3"
   local log_file="$4"
   local observed=""
@@ -72,20 +81,132 @@ wait_for_backend_wait() {
       from pg_catalog.pg_stat_activity
       where application_name = '${application_name}'
     ")"
-    if [[ "$observed" == "${expected_wait_type}:"* ]]; then
+    if [[ "$observed" == "$expected_wait" || "$observed" == "${expected_wait}:"* ]]; then
       return 0
     fi
     if ! kill -0 "$client_pid" 2>/dev/null; then
-      echo "backend exited before ${expected_wait_type} wait: ${application_name}" >&2
+      echo "backend exited before ${expected_wait} wait: ${application_name}" >&2
       sed -n '1,160p' "$log_file" >&2
       return 1
     fi
     sleep 0.05
   done
 
-  echo "timed out waiting for ${expected_wait_type}: ${application_name} (last=${observed})" >&2
+  echo "timed out waiting for ${expected_wait}: ${application_name} (last=${observed})" >&2
   sed -n '1,160p' "$log_file" >&2
   return 1
+}
+
+# Opens a transaction that takes one lock and parks until release_lock_session
+# terminates it. The sleep only bounds a leaked session.
+start_lock_session() {
+  local application_name="$1"
+  local log_file="$2"
+  local lock_statement="$3"
+
+  docker exec -e PGAPPNAME="$application_name" -i "$db_container" \
+    psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 >"$log_file" 2>&1 <<SQL &
+begin;
+${lock_statement};
+select pg_catalog.pg_sleep(300);
+SQL
+  lock_session_pid=$!
+  wait_for_backend_wait "$application_name" "Timeout" "$lock_session_pid" "$log_file"
+}
+
+release_lock_session() {
+  local application_name="$1"
+  local client_pid="$2"
+  local terminated=""
+
+  terminated="$(psql_scalar "
+    select pg_catalog.pg_terminate_backend(pid)
+    from pg_catalog.pg_stat_activity
+    where application_name = '${application_name}'
+  ")"
+  wait "$client_pid" >/dev/null 2>&1 || true
+  if [[ "$terminated" != *t* ]]; then
+    echo "lock session ended before its release: ${application_name}" >&2
+    return 1
+  fi
+}
+
+# A holder ends its transaction with pg_advisory_xact_lock(commit_gate_key), so
+# it stays open, visibly waiting on Lock:advisory, until the gate is released.
+# Contenders and sweeps then run inside the holder's lock window by
+# construction instead of inside a sleep.
+open_commit_gate() {
+  start_lock_session "$gate_application" "$gate_log" \
+    "select pg_catalog.pg_advisory_xact_lock(${commit_gate_key})"
+  gate_client_pid="$lock_session_pid"
+}
+
+release_commit_gate() {
+  release_lock_session "$gate_application" "$gate_client_pid"
+}
+
+# pg_cron runs this same global sweep every minute (expire-stale-checkouts).
+# Once a fixture turns the order into a sweep candidate, a scheduled pass can
+# take it first and this script's own pass then counts 0. Goods holders lock
+# the order row and read every table the sweep locks, so no goods table lock
+# can park cron without parking them too. The fence parks the scheduler
+# instead: with cron.log_run on, pg_cron commits a job_run_details row
+# (starting, connecting, sending) before it sends any job, and a SHARE lock on
+# that table blocks those writes. It counts only once the latest
+# expire-stale-checkouts run is terminal, since pg_cron starts a job's next run
+# only after the previous one ends.
+hold_cron_fence() {
+  local settled=""
+
+  if [[ "$(psql_scalar 'show cron.log_run')" != "on" ]]; then
+    echo "cron fence requires cron.log_run = on" >&2
+    return 1
+  fi
+
+  for _ in $(seq 1 150); do
+    start_lock_session "$cron_fence_application" "$cron_fence_log" \
+      "lock table cron.job_run_details in share mode"
+    cron_fence_client_pid="$lock_session_pid"
+
+    settled="$(psql_scalar "
+      select coalesce((
+        select run.status in ('succeeded', 'failed')
+        from cron.job_run_details as run
+        join cron.job as job on job.jobid = run.jobid
+        where job.jobname = 'expire-stale-checkouts'
+        order by run.runid desc
+        limit 1
+      ), true)
+    ")"
+    if [[ "$settled" == "t" ]]; then
+      return 0
+    fi
+
+    release_lock_session "$cron_fence_application" "$cron_fence_client_pid"
+    sleep 0.1
+  done
+
+  echo "expire-stale-checkouts stayed in flight; cron fence not established" >&2
+  dump_cron_runs
+  return 1
+}
+
+release_cron_fence() {
+  release_lock_session "$cron_fence_application" "$cron_fence_client_pid"
+}
+
+dump_cron_runs() {
+  echo "--- recent expire-stale-checkouts runs" >&2
+  psql_exec -A -t <<SQL >&2 || true
+select run.runid || ' ' || run.status
+  || ' ' || coalesce(run.start_time::text, '-')
+  || ' .. ' || coalesce(run.end_time::text, '-')
+from cron.job_run_details as run
+join cron.job as job on job.jobid = run.jobid
+where job.jobname = 'expire-stale-checkouts'
+order by run.runid desc
+limit 3;
+SQL
 }
 
 terminate_test_backends
@@ -187,18 +308,19 @@ provider_order_id="$(psql_scalar "
 claim_application="${test_prefix}-claim"
 cancel_application="${test_prefix}-cancel"
 
+open_commit_gate
 docker exec -e PGAPPNAME="$claim_application" -i "$db_container" \
   psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 -A -t >"$claim_log" 2>&1 <<SQL &
 begin;
 select public.claim_goods_payment_attempt(
   'toss', '${provider_order_id}', '${nonce_digest}', '${claim_token}'
 );
-select pg_catalog.pg_sleep(2);
+select pg_catalog.pg_advisory_xact_lock(${commit_gate_key});
 commit;
 SQL
 claim_client_pid=$!
 
-wait_for_backend_wait "$claim_application" "Timeout" "$claim_client_pid" "$claim_log"
+wait_for_backend_wait "$claim_application" "Lock:advisory" "$claim_client_pid" "$claim_log"
 
 docker exec -e PGAPPNAME="$cancel_application" -i "$db_container" \
   psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 -A -t >"$cancel_log" 2>&1 <<SQL &
@@ -209,6 +331,7 @@ SQL
 cancel_client_pid=$!
 
 wait_for_backend_wait "$cancel_application" "Lock" "$cancel_client_pid" "$cancel_log"
+release_commit_gate
 wait "$claim_client_pid"
 wait "$cancel_client_pid"
 
@@ -324,19 +447,20 @@ SQL
 cancel_first_application="${test_prefix}-cancel-first"
 claim_second_application="${test_prefix}-claim-second"
 
+open_commit_gate
 docker exec -e PGAPPNAME="$cancel_first_application" -i "$db_container" \
   psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 -A -t >"$cancel_log" 2>&1 <<SQL &
 begin;
 select public.request_order_cancellation(
   '${order_id}', '${user_id}', '취소 요청 선점 경합', 'change_of_mind'
 );
-select pg_catalog.pg_sleep(2);
+select pg_catalog.pg_advisory_xact_lock(${commit_gate_key});
 commit;
 SQL
 cancel_first_client_pid=$!
 
 wait_for_backend_wait \
-  "$cancel_first_application" "Timeout" "$cancel_first_client_pid" "$cancel_log"
+  "$cancel_first_application" "Lock:advisory" "$cancel_first_client_pid" "$cancel_log"
 
 docker exec -e PGAPPNAME="$claim_second_application" -i "$db_container" \
   psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 -A -t >"$claim_log" 2>&1 <<SQL &
@@ -348,6 +472,7 @@ claim_second_client_pid=$!
 
 wait_for_backend_wait \
   "$claim_second_application" "Lock" "$claim_second_client_pid" "$claim_log"
+release_commit_gate
 wait "$cancel_first_client_pid"
 if wait "$claim_second_client_pid"; then
   echo "callback unexpectedly claimed after cancellation request won" >&2
@@ -395,6 +520,9 @@ echo "PASS=cancellation-wins-callback-fails-closed"
 # The losing callback leaves a prepared attempt and a durable request. Once
 # that action's authoritative TTL elapses, the expiry worker must close the
 # attempt and request in one transaction before restoring inventory once.
+# Stale deadlines make the order a sweep candidate, so the cron fence keeps
+# the scheduled pass off it until this script has swept.
+hold_cron_fence
 psql_exec -q <<SQL >/dev/null
 update public.orders
 set expires_at = pg_catalog.now() - interval '10 minutes'
@@ -404,10 +532,13 @@ set expires_at = pg_catalog.now() - interval '10 minutes'
 where ref_id = '${order_id}'::uuid;
 SQL
 
-if [[ "$(psql_scalar 'select public.expire_stale_checkouts()')" != "1" ]]; then
-  echo "expired prepared attempt with a durable request was not swept" >&2
+swept="$(psql_scalar 'select public.expire_stale_checkouts()')"
+if [[ "$swept" != "1" ]]; then
+  echo "expired prepared attempt with a durable request was not swept (returned ${swept})" >&2
+  dump_cron_runs
   exit 1
 fi
+release_cron_fence
 
 expiry_final_state="$(psql_scalar "
   select case when
@@ -444,7 +575,10 @@ echo "PASS=cancellation-race-eventually-expires-and-restores-once"
 # attempt is already expired, the dedicated RPC owns the order lock first and
 # closes the no-capture path. A concurrent callback must fail closed from the
 # already-expired durable TTL snapshot without claiming the attempt.
+# One transaction: the pending stale order commits only together with its
+# processing request, which keeps the scheduled sweep off it.
 psql_exec -q <<SQL >/dev/null
+begin;
 delete from public.audit_log
 where actor_id = '${admin_id}'::uuid
   and action = 'admin.order.prepared_goods_cancellation_completed';
@@ -474,11 +608,13 @@ insert into public.order_cancellation_claims (
   order_id, requested_by, previous_status
 )
 values ('${order_id}', '${user_id}', 'pending');
+commit;
 SQL
 
 expiry_application="${test_prefix}-prepared-expiry"
 callback_after_expiry_application="${test_prefix}-callback-after-expiry"
 
+open_commit_gate
 docker exec -e PGAPPNAME="$expiry_application" -i "$db_container" \
   psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 -A -t >"$expiry_log" 2>&1 <<SQL &
 begin;
@@ -487,13 +623,13 @@ select public.reconcile_expired_prepared_goods_cancellation(
     where order_id = '${order_id}'::uuid),
   '${admin_id}'
 );
-select pg_catalog.pg_sleep(2);
+select pg_catalog.pg_advisory_xact_lock(${commit_gate_key});
 commit;
 SQL
 expiry_client_pid=$!
 
 wait_for_backend_wait \
-  "$expiry_application" "Timeout" "$expiry_client_pid" "$expiry_log"
+  "$expiry_application" "Lock:advisory" "$expiry_client_pid" "$expiry_log"
 
 : >"$claim_log"
 docker exec -e PGAPPNAME="$callback_after_expiry_application" -i "$db_container" \
@@ -514,12 +650,17 @@ fi
 # before taking the order lock. While the winning expiry transaction is still
 # open, this callback may reject from its old-but-already-expired snapshot
 # without waiting. Assert overlap instead of falsely requiring a Lock wait.
-if ! kill -0 "$expiry_client_pid" 2>/dev/null; then
+if [[ "$(psql_scalar "
+  select coalesce(wait_event_type, '') || ':' || coalesce(wait_event, '')
+  from pg_catalog.pg_stat_activity
+  where application_name = '${expiry_application}'
+")" != "Lock:advisory" ]]; then
   echo "callback rejection did not overlap the winning expiry transaction" >&2
   sed -n '1,160p' "$expiry_log" >&2
   exit 1
 fi
 
+release_commit_gate
 wait "$expiry_client_pid"
 
 if ! grep -qx 'completed' "$expiry_log"; then
