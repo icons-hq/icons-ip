@@ -1,10 +1,11 @@
 'use client';
 
 import { useEffect, useState, useTransition } from 'react';
+import type { GoodsKcTemplateRequest } from './useGoodsKcTemplate';
 import { readGoodsKcAction, saveGoodsKcAction } from '@/app/admin/goods-kc-actions';
 import { GoodsKcDisclosure } from '@/components/shop/GoodsKcDisclosure';
 import {
-  GOODS_KC_EVIDENCE_LABELS, MAX_GOODS_KC_MODELS, emptyGoodsKcModel, goodsKcReviewProblems, publicGoodsKcDisclosures,
+  GOODS_KC_EVIDENCE_LABELS, MAX_GOODS_KC_MODELS, emptyGoodsKcModel, goodsKcReviewProblems, publicGoodsKcDisclosures, kcModelFromTemplate,
   type AdminGoodsKc, type GoodsKcModelInput, type GoodsKcVariant,
 } from '@/lib/admin/goods-kc';
 import {
@@ -68,8 +69,9 @@ function ModelFields({ model, index, variants, disabled, onChange, onRemove }: {
   </fieldset>;
 }
 
-export function GoodsKcEditor({ goodId, configuration, onSaved }: {
+export function GoodsKcEditor({ goodId, configuration, onSaved, templateRequest, onTemplateApplied }: {
   goodId: string; configuration: AdminGoodsKc; onSaved: (configuration: AdminGoodsKc, message: string) => void;
+  templateRequest?:GoodsKcTemplateRequest|null;onTemplateApplied?:(id:string)=>void;
 }) {
   const [models, setModels] = useState(configuration.models);
   const [attested, setAttested] = useState(false);
@@ -78,6 +80,16 @@ export function GoodsKcEditor({ goodId, configuration, onSaved }: {
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const readOnly = Boolean(configuration.publishedAt || configuration.archivedAt);
+  const [appliedTemplate,setAppliedTemplate]=useState<string|null>(null);
+  if (templateRequest && !pending && appliedTemplate!==templateRequest.id) {
+    setAppliedTemplate(templateRequest.id);
+    const model=kcModelFromTemplate(templateRequest.template.family,templateRequest.template.scheme,templateRequest.template.publicNote);
+    if (readOnly) setError('KC 유형 틀은 비공개 상품의 미검토 모델에 적용할 수 있습니다.');
+    else if (!model || models.length>=MAX_GOODS_KC_MODELS) setError('KC 모델의 최대 개수와 유형 틀을 확인해주세요.');
+    else {setModels([...models,model]);setAttested(false);setError(null);}
+  }
+  useEffect(()=>{if(appliedTemplate) onTemplateApplied?.(appliedTemplate);},[appliedTemplate,onTemplateApplied]);
+  const dirty=JSON.stringify(models)!==JSON.stringify(configuration.models);
   const problems = goodsKcReviewProblems(models, configuration.variants);
   function change(next: GoodsKcModelInput[]) { setModels(next); setAttested(false); }
   function save(status: 'unreviewed' | 'reviewed') {
@@ -91,8 +103,8 @@ export function GoodsKcEditor({ goodId, configuration, onSaved }: {
     });
   }
   return <div className="col" style={{ gap: 16 }}>
-    <p role="status">{configuration.status === 'reviewed' ? 'KC 검토 완료' : configuration.publishedAt ? '기존 공개 · KC 미기록' : 'KC 미검토'}
-      {configuration.reviewedAt ? ` · ${configuration.reviewerName ?? '운영자'} · ${new Date(configuration.reviewedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}` : ''}</p>
+    <p role="status">{dirty?'KC 미검토 초안 · 미저장':configuration.status === 'reviewed' ? 'KC 검토 완료' : configuration.publishedAt ? '기존 공개 · KC 미기록' : 'KC 미검토'}
+      {!dirty && configuration.reviewedAt ? ` · ${configuration.reviewerName ?? '운영자'} · ${new Date(configuration.reviewedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}` : ''}</p>
     {readOnly && <p className="muted">{configuration.archivedAt ? '보관된 상품은 복원한 뒤 검토할 수 있습니다.' : 'KC 정보를 수정하려면 먼저 상품을 비공개로 전환해주세요.'}</p>}
     {models.map((model, index) => <ModelFields key={index} model={model} index={index} variants={configuration.variants} disabled={pending || readOnly}
       onChange={(next) => change(models.map((item, position) => position === index ? next : item))}
@@ -134,7 +146,7 @@ export function GoodsKcEditor({ goodId, configuration, onSaved }: {
 
 /** Independent domain editor. Mount outside the main goods form, after the
  * goods draft and its actual option identifiers have been saved. */
-export function GoodsKcPanel({ goodId }: { goodId: string }) {
+export function GoodsKcPanel({ goodId,templateRequest,onTemplateApplied }: { goodId: string;templateRequest?:GoodsKcTemplateRequest|null;onTemplateApplied?:(id:string)=>void }) {
   const [loaded, setLoaded] = useState<{ goodId: string; configuration?: AdminGoodsKc; error?: string } | null>(null);
   const [notice, setNotice] = useState<{ goodId: string; message: string } | null>(null);
   const [refresh, setRefresh] = useState(0);
@@ -157,7 +169,7 @@ export function GoodsKcPanel({ goodId }: { goodId: string }) {
     </div>
     {notice?.goodId === goodId && <p role="status">{notice.message}</p>}
     {!visible ? <p role="status">KC 검토를 불러오는 중입니다…</p> : visible.error ? <p role="alert">{visible.error}</p>
-      : visible.configuration ? <GoodsKcEditor key={`${goodId}:${visible.configuration.revision}:${refresh}`} goodId={goodId} configuration={visible.configuration}
+      : visible.configuration ? <GoodsKcEditor key={`${goodId}:${visible.configuration.revision}:${refresh}`} goodId={goodId} configuration={visible.configuration} templateRequest={templateRequest} onTemplateApplied={onTemplateApplied}
         onSaved={(configuration, message) => { setLoaded({ goodId, configuration }); setNotice({ goodId, message }); }} /> : null}
     <button type="button" className="btn btn-ghost" disabled={pending} onClick={() => { setLoaded(null); setRefresh((value) => value + 1); }}>저장된 KC 정보 다시 불러오기</button>
     <small className="muted">저장 실패 시 현재 입력은 유지됩니다. 내부 증빙 참조는 브라우저 자동복구 저장소에 보관하지 않으므로, 작업을 중단하기 전에 미검토로 저장해주세요.</small>

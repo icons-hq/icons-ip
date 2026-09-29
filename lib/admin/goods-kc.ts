@@ -68,8 +68,8 @@ export function emptyGoodsKcModel(): GoodsKcModelInput {
     identifier: '', publicNote: '', variantIds: [], basis: '',
     evidence: { applicability: '', certificate: '', testReport: '', declaration: '' } };
 }
-export function kcModelFromTemplate(family: GoodsKcFamily, scheme: GoodsKcScheme): GoodsKcModelInput | null {
-  return goodsKcSchemeAllowed(family, scheme) ? { ...emptyGoodsKcModel(), family, scheme } : null;
+export function kcModelFromTemplate(family: GoodsKcFamily, scheme: GoodsKcScheme, publicNote=''): GoodsKcModelInput | null {
+  return goodsKcSchemeAllowed(family, scheme) ? { ...emptyGoodsKcModel(), family, scheme, publicNote:scheme==='not_applicable'?publicNote:'' } : null;
 }
 
 /** Partial drafts are supported. Unsupported combinations and malformed payloads

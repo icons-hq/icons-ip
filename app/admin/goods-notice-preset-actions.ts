@@ -10,6 +10,8 @@ import {
   GOODS_NOTICE_PRESET_FIELD_MAX,
   GOODS_NOTICE_PRESET_NAME_MAX,
   GOODS_NOTICE_PRESETS_PATH,
+  normalizeGoodsKcPresetTemplate,
+  type GoodsKcPresetTemplate,
 } from '@/lib/admin/goods-notice-presets';
 
 export interface GoodsNoticePresetActionState extends AdminFormValuesState {
@@ -44,11 +46,20 @@ export async function saveGoodsNoticePresetAction(
   data: FormData,
 ): Promise<GoodsNoticePresetActionState> {
   const values = Object.fromEntries(VALUE_FIELDS.map((name) => [name, typeof data.get(name) === 'string' ? data.get(name) as string : '']));
+  if (data.has('kcTemplate')) values.kcTemplate=typeof data.get('kcTemplate')==='string'?data.get('kcTemplate') as string:'';
   const attempt = nextFormAttempt(previous);
   const fail = (errors: Record<string, string>): GoodsNoticePresetActionState => ({ errors, values, attempt });
   const accessError = await staffError();
   if (accessError) return fail({ form: accessError });
   const errors: Record<string, string> = {};
+  let kcTemplate:GoodsKcPresetTemplate|null=null;
+  if ('kcTemplate' in values) {
+    try {
+      const raw=JSON.parse(values.kcTemplate);
+      kcTemplate=normalizeGoodsKcPresetTemplate(raw);
+      if (raw!==null && !kcTemplate) errors.kcTemplate='KC 유형 틀의 제품군·제도·안내 문구를 확인해주세요.';
+    } catch {errors.kcTemplate='KC 유형 틀의 입력 형식을 확인해주세요.';}
+  }
   const name = values.name.trim();
   if (!name || name.length > GOODS_NOTICE_PRESET_NAME_MAX) errors.name = `이름은 1~${GOODS_NOTICE_PRESET_NAME_MAX}자로 입력해주세요.`;
   if (values.id && (!UUID.test(values.id) || !values.updatedAt || Number.isNaN(Date.parse(values.updatedAt)))) {
@@ -63,7 +74,8 @@ export async function saveGoodsNoticePresetAction(
     const supabase = await createClient();
     const { error } = await supabase.rpc('admin_save_goods_notice_preset', {
       target_id: values.id || null, target_name: name,
-      target_notice: Object.fromEntries(GOODS_NOTICE_FIELDS.map((field) => [field.key, values[field.formName].trim()])),
+      target_notice: {...Object.fromEntries(GOODS_NOTICE_FIELDS.map((field) => [field.key, values[field.formName].trim()])),
+        ...('kcTemplate' in values?{kcTemplate}:{})},
       expected_updated_at: values.updatedAt || null,
     });
     if (error) return fail(rpcError(error));

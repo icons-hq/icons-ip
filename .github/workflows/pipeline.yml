@@ -213,6 +213,7 @@ jobs:
           run_sql_test supabase/tests/inquiry_assignment_and_private_notes.sql
           run_sql_test supabase/tests/faq_entries.sql
           run_sql_test supabase/tests/goods_notice_presets.sql
+          run_sql_test supabase/tests/goods_notice_kc_templates.sql
           run_sql_test supabase/tests/admin_order_detail.sql
           run_sql_test supabase/tests/goods_variants_expand.sql
           run_sql_test supabase/tests/shipping_policy_lookup.sql

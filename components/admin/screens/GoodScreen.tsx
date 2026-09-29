@@ -16,6 +16,7 @@ import type { AdminGoodsVariant } from '@/lib/admin/goods-variants';
 import type { CatalogSnapshot } from '@/lib/catalog';
 import { adminGoodsNotice } from '@/lib/admin/vocabulary';
 import { toRecordOptions } from './record-selection';
+import { GoodsKcTemplateProvider, useGoodsKcTemplate } from '../useGoodsKcTemplate';
 
 const emptyState: AdminCatalogActionState = {};
 
@@ -25,7 +26,14 @@ const emptyState: AdminCatalogActionState = {};
  * `adjustmentId`는 실재고 조정의 멱등 키다. 여기서 만들면 리렌더마다 값이 바뀌어
  * 같은 조정이 두 번 먹힐 수 있어서, 서버 컴포넌트인 page가 만들어 내려준다.
  */
-export function GoodScreen({
+export function GoodScreen(props: Parameters<typeof GoodScreenForm>[0]) {
+  const selectionKey = props.initialSelectedId ? `good:${props.initialSelectedId}` : `create:${props.initialIpId ?? 'any'}`;
+  return <GoodsKcTemplateProvider key={props.accountId} selectionKey={selectionKey}>
+    <GoodScreenForm {...props} key={selectionKey}/>
+  </GoodsKcTemplateProvider>;
+}
+
+function GoodScreenForm({
   adjustmentId,
   catalogIps,
   ips,
@@ -55,16 +63,18 @@ export function GoodScreen({
   const noticeState = useMemo(() => adminGoodsNotice(state), [state]);
   const ipOptions = useMemo(() => toRecordOptions(ips), [ips]);
   const router=useRouter();
+  const { bindSavedGood, discard: discardKcTemplate } = useGoodsKcTemplate();
   const [selection,setSelection]=useState<{id:string|null;savedId?:string}>({id:initialSelectedId??null});
   const selectedId=state.savedGoodId && selection.savedId!==state.savedGoodId?state.savedGoodId:selection.id;
   const selected=records.find((record)=>record.id===selectedId)??null;
   useEffect(()=>{
     if (!hideRecordList || !state.savedGoodId) return;
+    bindSavedGood(state.savedGoodId);
     const url=new URL(listHref,'https://admin.invalid');
     url.searchParams.delete('create');
     url.searchParams.set('goodId',state.savedGoodId);
     router.replace(`${url.pathname}?${url.searchParams}${initialSelectedId ? '' : '#good-operation-kc'}`,{scroll:false});
-  },[hideRecordList,initialSelectedId,listHref,router,state.savedGoodId]);
+  },[hideRecordList,initialSelectedId,listHref,router,state.savedGoodId,bindSavedGood]);
 
   return (
     <GoodSection
@@ -75,7 +85,7 @@ export function GoodScreen({
       adjustmentId={adjustmentId}
       catalogIps={catalogIps}
       ipOptions={ipOptions}
-      onSelect={(record)=>setSelection({id:record?.id??null,savedId:state.savedGoodId})}
+      onSelect={(record)=>{ discardKcTemplate(); setSelection({id:record?.id??null,savedId:state.savedGoodId}); }}
       pending={pending || Boolean(state.savedGoodId && !selected)}
       records={records}
       selected={selected}

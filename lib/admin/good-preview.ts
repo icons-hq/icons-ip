@@ -6,6 +6,7 @@ import { GOODS_GALLERY_MAX, normalizeGoodsSearchKeywords } from './catalog';
 import { restoreGoodsOptionRows } from './goods-option-editor';
 import { optionPriceRange } from '@/lib/goods-options';
 import { sanitizeGoodsDescription } from '@/lib/goods-description';
+import { parseGoodsKcDisclosures, type GoodsKcDisclosure } from '@/lib/goods-kc';
 
 /*
  * 어드민 굿즈 미리보기 (#184).
@@ -30,6 +31,8 @@ export interface GoodPreviewInput {
   ip: Ip | null;
   /** 옵션 입력이 없는 레거시 호출의 재고 기본값. */
   stockQty: number;
+  /** Only the saved, current review projection; never unsaved internal evidence. */
+  kcDisclosures?: readonly GoodsKcDisclosure[];
 }
 
 /**
@@ -109,5 +112,6 @@ export function buildGoodPreview(input: GoodPreviewInput): GoodDetailContent {
     gallery,
     detailImageUrl: imageUrls.detailImagePath ?? null,
     notice: previewNotice(values),
+    kcDisclosures: parseGoodsKcDisclosures(input.kcDisclosures ?? []) ?? [],
   };
 }

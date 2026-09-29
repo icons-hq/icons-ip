@@ -3,6 +3,7 @@ import { createRoot } from 'react-dom/client';
 import { AdminShell } from '../../components/admin/AdminShell';
 import { GoodEditorFixture } from './good-editor';
 import { InquirySettingsFixture } from './inquiry-settings';
+import { KcPresetFixture, KcTemplateFixture } from './kc-template';
 import { GoodsOptionEditor } from '../../components/admin/GoodsOptionEditor';
 import { AdminSelect } from '../../components/admin/console/AdminSelect';
 import { ConsoleFilterPanel } from '../../components/admin/console/ConsoleFilterPanel';
@@ -25,14 +26,14 @@ import '../../app/styles/admin-order-detail.css';
 import '../../app/styles/admin-customer-detail.css';
 import '../../app/styles/admin-store-settings.css';
 
-type FixtureView = 'goods' | 'filter-date' | 'options' | 'editor' | 'inquiry-settings' | 'shell';
+type FixtureView = 'goods' | 'filter-date' | 'options' | 'editor' | 'inquiry-settings' | 'kc-presets' | 'kc-editor' | 'shell';
 
 const ADMIN = { id: 'fixture-staff', email: 'fixture.staff@local.test', role: 'staff' };
 
 function currentView(): FixtureView {
   const params = new URLSearchParams(window.location.search);
   const value = params.get('view');
-  if (value === 'inquiry-settings' || value === 'filter-date' || value === 'options' || value === 'editor' || value === 'shell') return value;
+  if (value === 'kc-presets' || value === 'kc-editor' || value === 'inquiry-settings' || value === 'filter-date' || value === 'options' || value === 'editor' || value === 'shell') return value;
   if (window.location.pathname.startsWith('/admin/sales/orders')) return 'filter-date';
   if (window.location.pathname.startsWith('/admin/catalog/goods')) return 'goods';
   return 'goods';
@@ -52,7 +53,7 @@ function RouteSwitcher({ active }: { active: FixtureView }) {
   return (
     <nav aria-label="Fixture route selector" className="fixture-route-switcher">
       <span className="fixture-route-switcher__label">component fixture</span>
-      {(['goods', 'filter-date', 'options', 'editor', 'inquiry-settings', 'shell'] as FixtureView[]).map((view) => (
+      {(['goods', 'filter-date', 'options', 'editor', 'inquiry-settings', 'kc-presets', 'kc-editor', 'shell'] as FixtureView[]).map((view) => (
         <a className={view === active ? 'is-active' : undefined} href={`/?view=${view}`} key={view}>
           {view}
         </a>
@@ -232,7 +233,8 @@ function App() {
       ? <DateFilterFixture />
       : view === 'options'
         ? <OptionsFixture />
-        : view === 'editor' ? <GoodEditorFixture /> : view === 'inquiry-settings' ? <InquirySettingsFixture /> : <ShellFixture />;
+        : view === 'editor' ? <GoodEditorFixture /> : view === 'inquiry-settings' ? <InquirySettingsFixture />
+          : view === 'kc-presets' ? <KcPresetFixture /> : view === 'kc-editor' ? <KcTemplateFixture /> : <ShellFixture />;
   return <FixtureFrame view={view}>{content}</FixtureFrame>;
 }
 

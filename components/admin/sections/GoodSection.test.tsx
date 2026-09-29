@@ -5,6 +5,7 @@ import type { Ip } from '@/lib/data';
 import { GOODS_NOTICE_FIELDS } from '@/lib/goods-notice';
 import { GOOD_BADGES, GOOD_TYPES } from '@/lib/goods-taxonomy';
 import { GoodSection } from './GoodSection';
+import { GoodsKcTemplateProvider } from '../useGoodsKcTemplate';
 
 vi.mock('@/app/admin/actions', () => ({
   adjustAdminStockAction: vi.fn(),
@@ -103,6 +104,7 @@ function renderGoodSection(
   options: Pick<Parameters<typeof GoodSection>[0],'initialQuery'|'initialIpId'|'variants'> = {},
 ) {
   return renderToStaticMarkup(
+    <GoodsKcTemplateProvider selectionKey={selected ? `good:${selected.id}` : 'create:any'}>
     <GoodSection
       action={vi.fn()}
       adjustmentId="11111111-1111-4111-8111-111111111111"
@@ -115,7 +117,7 @@ function renderGoodSection(
       variants={selected ? [{ id: '11111111-1111-4111-8111-111111111111', goodId: selected.id, name: '기본 옵션', code: 'HW-0100-01', price: selected.price, stockQty: selected.stockQty, isDefault: true, archivedAt: null }] : []}
       state={state}
       {...options}
-    />,
+    /></GoodsKcTemplateProvider>,
   );
 }
 

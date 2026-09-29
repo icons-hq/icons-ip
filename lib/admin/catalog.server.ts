@@ -1,6 +1,7 @@
 import 'server-only';
 import { parseGoodClaimPolicy, type GoodClaimPolicy } from '@/lib/goods-claim-policy';
 import { parseShippingNoticeSnapshot } from '@/lib/fulfillment';
+import { parseGoodsKcDisclosures, type GoodsKcDisclosure } from '@/lib/goods-kc';
 
 import { createClient } from '@/lib/supabase/server';
 import type { RarityKey } from '@/lib/rarity';
@@ -35,6 +36,7 @@ export type AdminGoodSaleRestriction = 'none' | 'adult';
 
 export interface AdminGoodRecord {
   id: string;
+  kcDisclosures?: GoodsKcDisclosure[];
   code: string;
   firstPublishedAt: string | null;
   originId?: string | null;
@@ -377,6 +379,7 @@ interface GoodRow {
   notice_made_on: string | null;
   notice_as_manager: string | null;
   notice_as_contact: string | null;
+  kc_disclosures?: unknown;
   description: string | null;
   description_format?: 'plain' | 'html';
   description_image_paths?: string[];
@@ -540,7 +543,7 @@ export async function getAdminCatalogRecords(
       ? supabase
         .from('goods')
         /* supabase-js 는 select 를 문자열 리터럴로 받아야 행 타입을 추론한다 — 쪼개면 안 된다. */
-        .select('id,code,origin_id,shipping_fee_type,individual_fee,first_published_at,published_at,archived_at,sale_available_qty:goods_sale_available_qty,ip_id,name,name_en,search_keywords,display_order,category_id,additional_categories:goods_additional_categories(category_id),shipping_notice_snapshot,claim_return_allowed,claim_exchange_allowed,claim_restriction_reason,claim_return_fee,claim_return_free_shipping_fee,claim_exchange_fee,type,price,compare_at_price,show_discount_rate,badge,stock,stock_qty,allow_bank_transfer,allow_card_payment,order_quantity_limit_enabled,min_order_qty,max_order_qty,member_purchase_limit_enabled,member_lifetime_qty_limit,sale_restriction,bg,image_path,notice_maker,notice_origin,notice_material,notice_size,notice_made_on,notice_as_manager,notice_as_contact,description,description_format,description_image_paths,gallery_paths,detail_image_path')
+        .select('id,code,origin_id,shipping_fee_type,individual_fee,first_published_at,published_at,archived_at,sale_available_qty:goods_sale_available_qty,ip_id,name,name_en,search_keywords,display_order,category_id,additional_categories:goods_additional_categories(category_id),shipping_notice_snapshot,claim_return_allowed,claim_exchange_allowed,claim_restriction_reason,claim_return_fee,claim_return_free_shipping_fee,claim_exchange_fee,type,price,compare_at_price,show_discount_rate,badge,stock,stock_qty,allow_bank_transfer,allow_card_payment,order_quantity_limit_enabled,min_order_qty,max_order_qty,member_purchase_limit_enabled,member_lifetime_qty_limit,sale_restriction,bg,image_path,notice_maker,notice_origin,notice_material,notice_size,notice_made_on,notice_as_manager,notice_as_contact,kc_disclosures,description,description_format,description_image_paths,gallery_paths,detail_image_path')
         .order('id')
       : null;
   if (goodsQuery && options.goodId) goodsQuery = goodsQuery.eq('id', options.goodId);
@@ -722,6 +725,7 @@ export async function getAdminCatalogRecords(
         asManager: row.notice_as_manager,
         asContact: row.notice_as_contact,
       },
+      kcDisclosures: parseGoodsKcDisclosures(row.kc_disclosures ?? []) ?? [],
       description: row.description,
       descriptionFormat: row.description_format ?? 'plain',
       descriptionImagePaths: row.description_image_paths ?? [],
