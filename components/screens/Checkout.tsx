@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { PendingOrderResolution } from '@/components/checkout/PendingOrderResolution';
 import { useRouter } from 'next/navigation';
 import { useMemo, useRef, useState, type FormEvent } from 'react';
 import { placeOrderAction } from '@/app/checkout/actions';
@@ -19,7 +20,7 @@ import { krw } from '@/lib/format';
 import { cartItemKey } from '@/lib/cart';
 import { cartOptionGood, goodAtQuotedPrice, optionLabel } from '@/lib/goods-options';
 import { goodsPurchaseReasonMessage, goodsSalesQuoteProblem } from '@/lib/goods-sales';
-import type { UserCouponSummary } from '@/lib/coupons';
+import { couponErrorNeedsPendingOrder, type UserCouponSummary } from '@/lib/coupons';
 import { normalizeStoreCreditAmount } from '@/lib/store-credits';
 import { goodsShipDateLabel } from '@/lib/goods-preorders';
 import { paymentFailNoticeCopy } from '@/lib/payments/checkout-fail-copy';
@@ -104,6 +105,7 @@ export function Checkout({
   const checkoutKey = useRef<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
+  const [pendingOrder, setPendingOrder] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<CheckoutAddressErrors>({});
   /* 카드 게이트가 닫혀 있으면 열려 있는 무통장으로 시작한다 — 고를 수 없는
      라디오가 선택된 채 뜨지 않게. 두 게이트 prop은 서버가 내려주는 고정값이다. */
@@ -208,6 +210,7 @@ export function Checkout({
 
     setSubmitting(true);
     setSubmitError(null);
+    setPendingOrder(false);
     checkoutKey.current ??= crypto.randomUUID();
     let result: Awaited<ReturnType<typeof placeOrderAction>>;
     try {
@@ -218,7 +221,8 @@ export function Checkout({
       return;
     }
     if (!result.ok) {
-      setSubmitError(actionErrors[result.error]);
+      setSubmitError(result.pendingOrder ? '진행 중인 다른 주문을 완료하거나 취소한 뒤 다시 시도해주세요.' : actionErrors[result.error]);
+      setPendingOrder(result.pendingOrder === true);
       shipping.refresh();
       credits.refresh();
       setSubmitting(false);
@@ -381,7 +385,9 @@ export function Checkout({
           {shipping.quote?.groups.map(group => <section className="wc-shipping-group" key={group.originId}><h3>{group.originName} 출고</h3><ShippingGroupSummary group={group} /></section>)}
           {shipping.loading ? <p role="status">현재 가격과 배송비를 확인하고 있어요.</p> : null}
           {shipping.error ? <div role="alert"><p>{shipping.error}</p><button type="button" onClick={shipping.refresh}>가격·배송비 다시 확인</button></div> : null}
-          {purchaseProblem ? <p className="checkout-error" role="alert">{purchaseProblem}</p> : null}
+          {purchaseProblem ? <p className="checkout-error" role="alert">{purchaseProblem}
+            {couponErrorNeedsPendingOrder(shipping.sales?.coupon?.reason) ? <PendingOrderResolution /> : null}
+          </p> : null}
           {couponSelectionChanged ? <p className="checkout-error" role="alert">다른 화면에서 선택한 쿠폰이 변경되었습니다. <button type="button" onClick={() => router.refresh()}>현재 쿠폰 다시 확인</button></p> : null}
 
           <fieldset className="checkout-method" aria-describedby="checkout-method-note">
@@ -427,7 +433,7 @@ export function Checkout({
 
           {unavailable && <p className="checkout-error" role="alert">재고가 변경된 굿즈가 있어요. 장바구니에서 수량을 확인해주세요.</p>}
           {!methodAvailable && <p className="checkout-error" role="alert">선택한 결제수단을 지금은 쓸 수 없어요. 다른 수단을 골라주세요.</p>}
-          {submitError && <p className="checkout-error" role="alert">{submitError}</p>}
+          {submitError && <p className="checkout-error" role="alert">{submitError}{pendingOrder ? <PendingOrderResolution /> : null}</p>}
           <button className="btn btn-holo checkout-submit" disabled={submitting || cartPending || unavailable || !methodAvailable || !shippingReady || !shipping.sales || Boolean(purchaseProblem) || !creditReady || couponSelectionChanged}>
             {submitting
               ? '재고를 확인하는 중'

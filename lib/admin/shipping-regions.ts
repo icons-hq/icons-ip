@@ -18,6 +18,42 @@ export interface ShippingRegionPolicy extends ShippingRegionPolicyInput {
   id: string; version: number; revision: number; status: 'draft' | 'active' | 'retired';
   confirmedAt: string | null; confirmedBy: string | null; updatedAt: string;
 }
+
+export interface ShippingRegionExpiryWarning {
+  id: string; name: string; version: number; endsAt: string; status: 'expired' | 'expiring';
+  originName: string; carrierLabel: string;
+}
+export type ShippingRegionExpiryPolicy = Pick<ShippingRegionPolicy,'id'|'name'|'version'|'status'|'originId'|'carrierCode'|'startsAt'|'endsAt'> & {originName:string;carrierLabel:string};
+export interface ShippingRegionExpiryState {
+  warnings: ShippingRegionExpiryWarning[];
+  unavailable?: boolean;
+}
+
+/** Warn for upcoming active versions and the latest started version, including a coverage gap. */
+export function shippingRegionExpiryWarnings(policies: ShippingRegionExpiryPolicy[], now: number): ShippingRegionExpiryWarning[] {
+  const latest = new Map<string, ShippingRegionExpiryPolicy>();
+  const upcoming: ShippingRegionExpiryPolicy[] = [];
+  for (const policy of policies) {
+    if (policy.status !== 'active' || !policy.startsAt) continue;
+    if (Date.parse(policy.startsAt) > now) {
+      upcoming.push(policy);
+      continue;
+    }
+    const key = `${policy.originId}:${policy.carrierCode}`;
+    const previous = latest.get(key);
+    if (!previous || Date.parse(policy.startsAt) > Date.parse(previous.startsAt!)
+      || (policy.startsAt === previous.startsAt && policy.version > previous.version)) latest.set(key, policy);
+  }
+  const warnings: ShippingRegionExpiryWarning[] = [];
+  const deadline = now + 7 * 24 * 60 * 60 * 1000;
+  for (const policy of [...latest.values(), ...upcoming]) {
+    if (!policy.endsAt || Date.parse(policy.endsAt) > deadline) continue;
+    warnings.push({ id: policy.id, name: policy.name, version: policy.version, endsAt: policy.endsAt,originName:policy.originName,carrierLabel:policy.carrierLabel,
+      status: Date.parse(policy.endsAt) <= now ? 'expired' : 'expiring' });
+  }
+  return warnings.sort((a, b) => Date.parse(a.endsAt) - Date.parse(b.endsAt) || a.id.localeCompare(b.id));
+}
+
 export const REGION_DISPOSITION_LABELS: Record<RegionRuleDisposition, string> = {
   standard: '추가료 없음', surcharge: '추가료 부과', unavailable: '배송 불가', manual_review: '개별 확인 필요',
 };

@@ -1,4 +1,6 @@
 import Link from 'next/link';
+import { ShippingRegionExpiryNotice } from '../ShippingRegionExpiryNotice';
+import type { ShippingRegionExpiryState } from '@/lib/admin/shipping-regions';
 import { AdminPageHeader, AdminSectionCard, AdminStatusBadge } from '@/components/admin/console/AdminKit';
 import { OperationsContactForm } from './OperationsContactForm';
 import { OPERATIONS_CONTACT_FIELDS, operationsContactValues, type OperationsContact, type OperationsContactHistory } from '@/lib/admin/operations-contacts';
@@ -22,10 +24,11 @@ function changedFieldLabels(fields: string[]): string {
     .map(field => OPERATIONS_CONTACT_FIELDS[field as keyof typeof OPERATIONS_CONTACT_FIELDS].label).join(', ');
 }
 
-export function OperationsSettingsScreen({ contacts, history, canEdit }: { contacts: OperationsContact[]; history: OperationsContactHistory[]; canEdit: boolean }) {
+export function OperationsSettingsScreen({ contacts, history, canEdit, shippingRegionExpiry }: { contacts: OperationsContact[]; history: OperationsContactHistory[]; canEdit: boolean; shippingRegionExpiry?: ShippingRegionExpiryState }) {
   return <section className="wc-admin-kit admin-operations">
     <AdminPageHeader title="운영 준비" description="운영에 필요한 설정을 입력하고, 담당자와 자료 위치를 함께 관리합니다."
       actions={<Link href="/admin/guide/store-settings">입력 가이드</Link>}/>
+    <ShippingRegionExpiryNotice state={shippingRegionExpiry} />
     <AdminSectionCard title="운영 정보 입력">
       <p className="wc-admin-kit__description">항목을 선택하면 해당 입력 화면으로 이동합니다. 실제 계약과 자료를 확인한 뒤 저장해주세요.</p>
       <ul className="admin-operations__links">{INPUT_LINKS.filter(item => !item.adminOnly || canEdit).map(item => <li key={item.href}>

@@ -21,15 +21,20 @@ function paymentResultFromQuery(
 export default async function Page({
   searchParams,
 }: {
-  searchParams: Promise<{ payment?: string | string[] }>;
+  searchParams: Promise<{ payment?: string | string[]; pending?: string | string[] }>;
 }) {
-  const paymentResult = paymentResultFromQuery((await searchParams).payment);
-  const next = paymentResult ? `/orders?payment=${paymentResult}` : '/orders';
+  const query=await searchParams;
+  const paymentResult = paymentResultFromQuery(query.payment);
+  const includePending=query.pending==='1';
+  const params=new URLSearchParams();
+  if (paymentResult) params.set('payment',paymentResult);
+  if (includePending) params.set('pending','1');
+  const next = params.size ? `/orders?${params}` : '/orders';
 
   const auth = await getCurrentAuthState();
   if (!auth.user) redirect(`/login?next=${encodeURIComponent(next)}`);
   if (!isOnboarded(auth.profile, auth.user.email)) redirect(onboardingPath(next));
 
-  const orders = await loadOrders(auth.user.id);
+  const orders = includePending?await loadOrders(auth.user.id,{includePending:true}):await loadOrders(auth.user.id);
   return <Orders orders={orders} paymentResult={paymentResult} />;
 }

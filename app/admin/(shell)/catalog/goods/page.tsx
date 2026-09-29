@@ -10,6 +10,7 @@ import { loadAdminGoodsList, loadAdminGoodEditor } from '@/lib/admin/goods-list.
 import { GOODS_LIST_PATH, goodsListHref, normalizeGoodsListFilters } from '@/lib/admin/goods-list';
 import { getBusinessInfo } from '@/lib/legal/business-info.server';
 import { ADMIN_VOCABULARY } from '@/lib/admin/vocabulary';
+import { loadAdminShippingRegionExpiry } from '@/lib/admin/shipping-regions.server';
 
 export default async function AdminCatalogGoodsPage({ searchParams }: {
   searchParams: Promise<Record<string, string | string[] | undefined>>;
@@ -19,7 +20,10 @@ export default async function AdminCatalogGoodsPage({ searchParams }: {
   const filters = normalizeGoodsListFilters(params);
   const creating = params.create === '1';
   const goodId = typeof params.goodId === 'string' ? params.goodId : '';
-  if (!creating && !goodId) return <GoodsListScreen data={await loadAdminGoodsList(filters)} />;
+  if (!creating && !goodId) {
+    const [data, shippingRegionExpiry] = await Promise.all([loadAdminGoodsList(filters), loadAdminShippingRegionExpiry()]);
+    return <GoodsListScreen data={data} shippingRegionExpiry={shippingRegionExpiry} />;
+  }
   if (!creating && !/^[a-z0-9][a-z0-9-]*$/.test(goodId)) notFound();
 
   const editor = creating ? await loadAdminGoodEditor() : await loadAdminGoodEditor(goodId);

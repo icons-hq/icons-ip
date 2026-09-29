@@ -161,6 +161,12 @@ const COUPON_ACTION_MESSAGES: Record<string, string> = {
 
 export const COUPON_ACTION_FALLBACK_MESSAGE = '쿠폰을 적용하지 못했어요. 잠시 후 다시 시도해주세요.';
 
+export function couponErrorNeedsPendingOrder(message: unknown): boolean {
+  const normalized = typeof message === 'string' ? message.toLowerCase() : '';
+  return normalized.includes('coupon_first_purchase_reserved')
+    || normalized.includes('coupon_first_purchase_pending');
+}
+
 export function mapCouponActionError(message: unknown): string {
   const normalized = typeof message === 'string' ? message.toLowerCase() : '';
   for (const [code, label] of Object.entries(COUPON_ACTION_MESSAGES)) {

@@ -96,14 +96,14 @@ function requireDetailStatus(status: string) {
   return status;
 }
 
-export async function loadOrders(userId: string): Promise<OrderListItem[]> {
+export async function loadOrders(userId: string, {includePending=false}:{includePending?:boolean}={}): Promise<OrderListItem[]> {
   const supabase = await createClient();
   const [orderResult, requestResult] = await Promise.all([
     supabase
       .from('orders')
       .select('id,user_id,status,total,created_at,payment_method')
       .eq('user_id', userId)
-      .in('status', [...VISIBLE_ORDER_STATUSES])
+      .in('status', includePending?[...ORDER_DETAIL_STATUSES]:[...VISIBLE_ORDER_STATUSES])
       .order('created_at', { ascending: false })
       .order('id', { ascending: false }),
     supabase
@@ -123,7 +123,7 @@ export async function loadOrders(userId: string): Promise<OrderListItem[]> {
     ((requestResult.data ?? []) as CancellationRequestOrderRow[]).map((request) => request.order_id),
   )];
 
-  if (requestedOrderIds.length) {
+  if (requestedOrderIds.length && !includePending) {
     const { data: pendingData, error: pendingError } = await supabase
       .from('orders')
       .select('id,user_id,status,total,created_at,payment_method')

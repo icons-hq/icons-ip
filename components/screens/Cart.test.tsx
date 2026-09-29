@@ -200,6 +200,17 @@ describe('Cart 쿠폰 슬롯 (S7)', () => {
     expect(html).toContain('₩15,000');
   });
 
+  it.each(['coupon_first_purchase_reserved', 'coupon_first_purchase_pending'])('견적에서 첫구매 주문이 차단돼도 내 주문 링크를 제공한다: %s', (reason) => {
+    mocks.coupon = { userCouponId: fix5k.id, couponCode: 'FIRST', eligibleSubtotal: 12000, discount: 0, reason };
+    const html = render(
+      [{ goodId: 'g13', variantId: DEFAULT_VARIANT, qty: 1 }],
+      { selectedUserCouponId: fix5k.id, coupons: [fix5k] },
+    );
+    expect(html).toContain('href="/orders?pending=1"');
+    expect(html).toContain('진행 중인 주문 확인');
+    expect(html).not.toContain('href="/checkout"');
+  });
+
   it('로그인 전에는 컨트롤 대신 안내만 둔다', () => {
     mocks.mode = 'local';
     const html = render([{ goodId: 'g13', variantId: DEFAULT_VARIANT, qty: 1 }], emptyCouponState);

@@ -18,6 +18,7 @@ import { createRuntimeGoodsPaymentCheckout } from '@/lib/payments/goods-checkout
 import { deriveGoodsOrderProvider } from '@/lib/payments/goods-sale-restriction.server';
 import { createServiceClient } from '@/lib/supabase/service';
 import { normalizeStoreCreditAmount } from '@/lib/store-credits';
+import { couponErrorNeedsPendingOrder } from '@/lib/coupons';
 
 type PlaceOrderActionError =
   | PlaceOrderErrorCode
@@ -28,7 +29,7 @@ type PlaceOrderActionError =
 
 export type PlaceOrderActionResult =
   | { ok: true; orderId: string }
-  | { ok: false; error: PlaceOrderActionError };
+  | { ok: false; error: PlaceOrderActionError; pendingOrder?: boolean };
 
 export interface PrepareGoodsPaymentActionState {
   readonly prepared?: PreparedCheckout;
@@ -132,7 +133,8 @@ export async function placeOrderAction(
     return { ok: false, error: 'unavailable' };
   }
 
-  if (error) return { ok: false, error: mapPlaceOrderError(error.message) };
+  if (error) return { ok: false, error: mapPlaceOrderError(error.message),
+    ...(couponErrorNeedsPendingOrder(error.message) ? { pendingOrder: true } : {}) };
 
   const orderId = normalizeOrderReference(data);
   return orderId

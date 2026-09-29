@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { PendingOrderResolution } from '@/components/checkout/PendingOrderResolution';
 import { useMemo, useState, useTransition, type FormEvent } from 'react';
 import {
   applyCouponAction,
@@ -19,6 +20,7 @@ import {
   couponBenefitLabel,
   couponConditionLabel,
   couponDisplayState,
+  couponErrorNeedsPendingOrder,
   couponExpiryLabel,
   type UserCouponSummary,
 } from '@/lib/coupons';
@@ -147,6 +149,7 @@ function CartCouponSection({
 }) {
   const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState<string | null>(null);
+  const [pendingOrder, setPendingOrder] = useState(false);
   const [code, setCode] = useState('');
 
   const selectableCoupons = couponState.coupons.filter((held) => (
@@ -155,9 +158,11 @@ function CartCouponSection({
 
   function runAction(action: () => Promise<CouponActionResult>) {
     setMessage(null);
+    setPendingOrder(false);
     startTransition(async () => {
       const result = await action();
       setMessage(result.ok ? null : result.message ?? null);
+      setPendingOrder(!result.ok && result.pendingOrder === true);
     });
   }
 
@@ -170,6 +175,7 @@ function CartCouponSection({
     event.preventDefault();
     if (!code.trim()) {
       setMessage('쿠폰 코드를 입력해주세요.');
+      setPendingOrder(false);
       return;
     }
     runAction(async () => {
@@ -246,7 +252,7 @@ function CartCouponSection({
         </button>
       </form>
 
-      {message ? <p className="wc-cart__coupon-warning" role="alert">{message}</p> : null}
+      {message ? <p className="wc-cart__coupon-warning" role="alert">{message}{pendingOrder ? <PendingOrderResolution /> : null}</p> : null}
     </div>
   );
 }
@@ -369,7 +375,9 @@ export function Cart({
               <p className="wc-cart__summary-note">출고지별 배송비를 합산합니다. 주문을 만들 때 서버가 최종 금액을 확인합니다.</p>
               {shipping.loading ? <p role="status">현재 가격과 배송비를 확인하고 있어요.</p> : null}
               {shipping.error ? <div role="alert"><p>{shipping.error}</p><button type="button" onClick={shipping.refresh}>가격·배송비 다시 확인</button></div> : null}
-              {purchaseProblem ? <p className="wc-cart__error" role="alert">{purchaseProblem}</p> : null}
+              {purchaseProblem ? <p className="wc-cart__error" role="alert">{purchaseProblem}
+                {couponErrorNeedsPendingOrder(shipping.sales?.coupon?.reason) ? <PendingOrderResolution /> : null}
+              </p> : null}
               {shipping.sales?.goods.filter(good => good.memberRemainingQty !== null).map(good => <p key={good.goodId}>
                 {catalog.goods.find(item => item.id === good.goodId)?.name} · 회원 추가 구매 가능 {good.memberRemainingQty}개
               </p>)}

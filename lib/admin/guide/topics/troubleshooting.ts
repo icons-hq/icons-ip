@@ -173,6 +173,16 @@ export const TROUBLESHOOTING_TOPIC: AdminGuideTopic = {
   summary: '화면에 실제로 뜨는 오류 문구를 그대로 모아, 원인과 해결 방법을 정리했습니다.',
   sections: [
     {
+      id: 'policy-guards',
+      heading: '입력과 주문을 보호하는 세 가지 제한',
+      paragraphs: [
+        '공개 중인 상품의 이름·유형·IP·제조자·제조국·소재·크기는 KC 검토 대상이라 잠깁니다. 게시 작업에서 초안 전환의 비노출 영향을 확인한 뒤 수정하고, 해당 없음 판단을 포함한 KC 재검토를 마쳐 다시 공개합니다.',
+        '첫구매 쿠폰 혜택으로 진행 중인 주문이 있으면 새 주문을 만들 수 없습니다. 고객에게 장바구니·주문서 안내의 진행 중인 주문 확인 링크에서 결제를 이어가거나 해당 주문을 취소하도록 안내합니다. 일반 재구매 쿠폰으로 임의 우회하지 않습니다.',
+        '지역 정책을 도입한 출고지에서 정책이 만료되면 새 주문이 차단됩니다. 운영 준비와 상품 목록의 7일 이내 만료·정책 만료 경고를 확인하고 실제 계약에 맞는 다음 정책을 준비합니다. 조회 실패를 추가료 없음으로 해석하지 않습니다.',
+      ],
+      screens: [{ href: '/admin/catalog/goods' }, { href: '/admin/settings/operations' }, { href: '/admin/settings/shipping-regions' }],
+    },
+    {
       id: 'how-to-read',
       heading: '오류가 표시되는 방식',
       paragraphs: [
