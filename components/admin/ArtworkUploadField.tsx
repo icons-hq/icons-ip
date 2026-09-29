@@ -293,23 +293,11 @@ export function ArtworkUploadField({
       data-upload-state={uploadState}
       className={`card col wc-admin-artwork-upload-field${compact ? ' wc-admin-artwork-upload-field--compact' : ''}`}
       data-artwork-kind={kind}
-      style={{ borderRadius: 10, gap: 12, padding: 14 }}
     >
-      <div className="row admin-artwork-layout" style={{ alignItems: 'flex-start', gap: 14, justifyContent: 'flex-start' }}>
+      <div className="row admin-artwork-layout">
         <div
           className="admin-artwork-preview"
-          style={{
-            alignItems: 'center',
-            aspectRatio: adminArtworkAspectRatio(kind),
-            background: 'rgba(255,255,255,.035)',
-            border: '1px solid var(--line)',
-            borderRadius: 10,
-            display: 'flex',
-            flex: '0 0 min(220px, 42%)',
-            justifyContent: 'center',
-            minHeight: 110,
-            overflow: 'hidden',
-          }}
+          style={{ aspectRatio: adminArtworkAspectRatio(kind) }}
         >
           {display.previewUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
@@ -338,7 +326,7 @@ export function ArtworkUploadField({
               }}
               ref={fileInputRef}
               type="file"
-              style={{ color: 'var(--dim)', fontFamily: 'inherit', fontSize: 12, width: '100%' }}
+              style={{ width: '100%' }}
             />
           </label>
           {showGuidance && <span className="mono" id={helpId} style={{ color: 'var(--faint)', fontSize: 10 }}>{COMMON_ARTWORK_GUIDANCE}</span>}

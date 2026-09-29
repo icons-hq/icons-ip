@@ -145,7 +145,7 @@ export function InquiryDetailScreen({
 
         <aside aria-label="문의 컨텍스트" className="col" style={{ gap: 12 }}>
           <InquiryAssignmentPanel assigneeId={inquiry.assigneeId} assigneeName={inquiry.assigneeName} inquiryId={inquiry.id} staffOptions={staffOptions} />
-          <section className="card col" style={{ borderRadius: 12, gap: 8, padding: 16 }}>
+          <section className="card col" style={{ gap: 8, padding: 16 }}>
             <strong style={{ fontSize: 13.5 }}>연결 주문</strong>
             {order ? (
               <>
@@ -198,7 +198,7 @@ export function InquiryDetailScreen({
           </section>
 
           {inquiry.goodId ? (
-            <section className="card col" style={{ borderRadius: 12, gap: 8, padding: 16 }}>
+            <section className="card col" style={{ gap: 8, padding: 16 }}>
               <strong style={{ fontSize: 13.5 }}>연결 굿즈</strong>
               <ContextRow label="상품" value={inquiry.goodName ?? inquiry.goodId} />
               <Link className="btn btn-sm btn-ghost" href={`/shop/${inquiry.goodId}`}>
@@ -207,7 +207,7 @@ export function InquiryDetailScreen({
             </section>
           ) : null}
 
-          <section className="card col" style={{ borderRadius: 12, gap: 8, padding: 16 }}>
+          <section className="card col" style={{ gap: 8, padding: 16 }}>
             <strong style={{ fontSize: 13.5 }}>구매자</strong>
             <ContextRow label="닉네임" value={`@${inquiry.buyerName}`} />
             <ContextRow label="이메일" value={buyer.email ?? '없음'} />

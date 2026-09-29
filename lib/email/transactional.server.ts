@@ -1,4 +1,5 @@
 import 'server-only';
+import { emailSiteUrl as siteUrl } from './site-url';
 
 import { normalizeCheckoutAddress } from '../checkout';
 import type { ShipmentRecord } from '../orders/shipments';
@@ -37,7 +38,6 @@ import {
  * 보내지 못한 사실은 반드시 관측 가능해야 한다. 결과를 버리는 호출자가 하나라도 있으면
  * 미발송이 흔적 없이 사라지므로, 로그는 호출부가 아니라 이 훅이 직접 남긴다. */
 
-const DEFAULT_SITE_URL = 'https://iconsip.com';
 
 /* 메일 본문이 지금도 사실인 주문 상태.
  *
@@ -100,10 +100,6 @@ interface OrderEmailContext {
   orderUrl: string;
 }
 
-function siteUrl() {
-  const configured = process.env.SITE_URL?.trim();
-  return (configured || DEFAULT_SITE_URL).replace(/\/+$/, '');
-}
 
 type ServiceClient = ReturnType<typeof createServiceClient>;
 

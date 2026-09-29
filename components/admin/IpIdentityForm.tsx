@@ -23,7 +23,7 @@ export function IpIdentityForm({ identity }: { identity: AdminIpIdentity }) {
   const formKey = `${identity.internalId}:${state.attempt ?? 0}`;
 
   return (
-    <section className="card col" style={{ borderRadius: 10, gap: 14, padding: 18 }}>
+    <section className="card col" style={{ gap: 14, padding: 18 }}>
       <div>
         <span className="eyebrow">PUBLIC IDENTITY</span>
         <h2 style={{ fontSize: 18, margin: '6px 0 0' }}>공개 URL</h2>

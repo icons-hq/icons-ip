@@ -38,7 +38,7 @@ export function InquiryAssignmentPanel({ inquiryId, assigneeId, assigneeName, st
     setClearedKey(state.resultKey);
     setReason('');
   }
-  return <section className="card col" style={{ borderRadius: 12, gap: 10, padding: 16 }}>
+  return <section className="card col" style={{ gap: 10, padding: 16 }}>
     <strong>문의 담당자</strong>
     <span>{assigneeName ? `@${assigneeName}` : '미배정'}</span>
     <p className="muted" style={{ fontSize: 12, margin: 0 }}>첫 답변자가 자동 배정됩니다. 담당 변경은 사유와 함께 기록됩니다.</p>
@@ -74,7 +74,7 @@ export function InquiryInternalNotesPanel({ inquiryId, notes }: {
     setClearedKey(state.resultKey);
     setBody('');
   }
-  return <section aria-label="내부 메모" className="card col" style={{ borderRadius: 12, gap: 10, padding: 16 }}>
+  return <section aria-label="내부 메모" className="card col" style={{ gap: 10, padding: 16 }}>
     <strong>내부 메모 · 고객 비노출</strong>
     <p className="muted" style={{ fontSize: 12, margin: 0 }}>운영팀만 볼 수 있습니다. 고객 답변과 알림으로 전달되지 않습니다.</p>
     {notes.length ? <ol className="col" style={{ gap: 12, listStyle: 'none', margin: 0, padding: 0 }}>

@@ -137,18 +137,7 @@ function MemberPicker({
               maxLength={100}
               name="query"
               placeholder="이메일 또는 닉네임"
-              style={{
-                background: 'var(--wc-surface)',
-                border: '1px solid var(--wc-hairline)',
-                borderRadius: 10,
-                color: 'var(--wc-ink)',
-                fontFamily: 'inherit',
-                fontSize: 14,
-                minHeight: 44,
-                outline: 'none',
-                padding: '0 12px',
-                width: '100%',
-              }}
+              style={{ padding: '0 12px', width: '100%' }}
             />
             <button className="btn btn-sm admin-field-control" disabled={pending} style={{ minHeight: 44 }}>
               <Icon name="search" size={14} /> {pending ? '검색 중' : '검색'}

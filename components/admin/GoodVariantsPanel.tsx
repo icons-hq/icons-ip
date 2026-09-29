@@ -62,7 +62,7 @@ export function GoodVariantsPanel({ goodId, variants, basePrice }: { goodId: str
   const activeAllocatedStock = activeVariants.reduce((sum, variant) => sum + variant.stockQty, 0);
   const totalAllocatedStock = selectedVariants.reduce((sum, variant) => sum + variant.stockQty, 0);
   return (
-    <section aria-labelledby={`good-variants-${goodId}`} className="card col wc-admin-option-artwork" style={{ borderRadius: 10, gap: 14, padding: 18 }} data-variant-panel={goodId}>
+    <section aria-labelledby={`good-variants-${goodId}`} className="card col wc-admin-option-artwork" style={{ gap: 14, padding: 18 }} data-variant-panel={goodId}>
       <div>
         <h2 id={`good-variants-${goodId}`} style={{ fontSize: 18, margin: 0 }}>옵션 목록</h2>
         <p className="muted" style={{ fontSize: 12, lineHeight: 1.6, margin: '8px 0 0' }}>

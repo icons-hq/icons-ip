@@ -152,20 +152,9 @@ export const AdminSelect = forwardRef<HTMLSelectElement, AdminSelectProps>(funct
       </select>
       {clipped && selectedText ? (
         <span
-          className="admin-select-hint"
+          className="admin-select-hint wc-admin-kit__select-hint"
           id={hintId}
-          style={{
-            color: 'var(--wc-ink-sub)',
-            display: 'block',
-            fontSize: 13,
-            lineHeight: 1.65,
-            marginTop: 4,
-            maxWidth: '100%',
-            minWidth: 0,
-            overflowWrap: 'anywhere',
-            whiteSpace: 'normal',
-            width: '100%',
-          }}
+
         >
           {selectedText}
         </span>

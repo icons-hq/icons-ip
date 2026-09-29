@@ -174,7 +174,9 @@ provider callback replay와 known-only Toss webhook 재전달이 겹쳐도 legac
 | `EMAIL_FROM` | ✅ | 발신자. 예: `ICONS <no-reply@iconsip.com>` — 로컬 파트 앞의 도메인이 인증된 도메인이어야 한다 |
 | `EMAIL_REPLY_TO` | — | 회신 주소. 발신 전용을 유지하려면 비워둔다 |
 | `EMAIL_PROVIDER_ENDPOINT` | — | 기본 `https://api.resend.com/emails`. 같은 모양의 API면 이 값만 바꿔 갈아끼운다 |
-| `SITE_URL` | — | 메일 본문 링크의 오리진. 기본 `https://iconsip.com` |
+| `SITE_URL` | — | 메일 본문 링크의 고정 오리진. Vercel Preview에서는 필수이며 나머지 환경의 기본값은 `https://iconsip.com` |
+
+주문·재입고·문의 답변·배송 지연 안내 메일은 `lib/email/site-url.ts`의 같은 주소 규칙을 사용한다. 앞뒤 공백과 마지막 슬래시를 제거한다. 명시한 `SITE_URL`이 우선하며, Vercel Preview에서는 재배포 후에도 유지되는 테스트 사이트 주소를 반드시 설정한다. `VERCEL_URL`은 배포마다 달라지므로 메일 오리진으로 사용하지 않는다. 미설정 Preview의 지연 안내 worker는 작업 선점 전에 중단하고 cron은 503을 반환한다. 일반 거래 메일 훅도 구성 실패를 반환하며 공급자에게 발송하지 않는다. 스테이징은 배포 스크립트가 지정한 `SITE_URL` 별칭을 유지하고 운영 기본 주소는 `https://iconsip.com`이다. 재시도 중인 메일이 있는 동안 `SITE_URL`을 변경하지 않는다. 이 규칙 변경은 발송 gate나 수신자·멱등키를 바꾸지 않는다.
 
 **`EMAIL_PROVIDER_API_KEY` 또는 `EMAIL_FROM`이 없으면 메일을 보내지 않는다.** 대신
 `email_deliveries`에 `status='failed'` 행을 남긴다. 런타임 결과·로그의 사유는

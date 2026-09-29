@@ -108,7 +108,7 @@ export function GoodsPricePeriodsPanel({ goodId, variants }: { goodId: string; v
   const visible = loaded?.goodId === goodId ? loaded : null;
   const reload = () => setRefresh((value) => value + 1);
   const saved = (message: string) => { setNotice({ goodId, message }); reload(); };
-  return <section className="card col wc-admin-kit" aria-labelledby={`price-periods-${goodId}`} style={{ borderRadius: 10, gap: 18, padding: 18 }}>
+  return <section className="card col wc-admin-kit" aria-labelledby={`price-periods-${goodId}`} style={{ gap: 18, padding: 18 }}>
     <div>
       <h2 id={`price-periods-${goodId}`} style={{ fontSize: 18, margin: 0 }}>기간 할인</h2>
       <p className="muted" style={{ fontSize: 12, lineHeight: 1.6 }}>저장된 옵션에 기간 할인을 설정합니다. 미설정 초안은 가격에 반영되지 않습니다.

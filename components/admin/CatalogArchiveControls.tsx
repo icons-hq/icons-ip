@@ -35,17 +35,7 @@ export function CatalogArchiveFilter({
         className="admin-field-control"
         onChange={(event) => onChange(event.target.value as ArchiveFilter)}
         value={filter}
-        style={{
-          background: 'rgba(255,255,255,.045)',
-          border: '1px solid var(--line)',
-          borderRadius: 10,
-          color: 'var(--text)',
-          fontFamily: 'inherit',
-          fontSize: 13,
-          minHeight: 40,
-          padding: '0 10px',
-          width: '100%',
-        }}
+        style={{ padding: '0 10px', width: '100%' }}
       >
         <option value="active">운영 중 {counts.active}</option>
         <option value="archived">보관됨 {counts.archived}</option>
@@ -71,7 +61,7 @@ export function CatalogArchiveControl({
   const [state, formAction, pending] = useActionState(action, initialState);
 
   return (
-    <section className="card col" style={{ borderRadius: 10, gap: 12, padding: 18 }}>
+    <section className="card col" style={{ gap: 12, padding: 18 }}>
       <div>
         <span className="eyebrow">CATALOG VISIBILITY</span>
         <h2 style={{ fontSize: 18, margin: '6px 0 0' }}>{archived ? '보관 복원' : '카탈로그 보관'}</h2>
