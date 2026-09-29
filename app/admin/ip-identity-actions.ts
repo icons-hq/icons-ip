@@ -1,8 +1,9 @@
 'use server';
 
 import { revalidatePath, updateTag } from 'next/cache';
-import { redirect, unstable_rethrow } from 'next/navigation';
-import { getCurrentAdminAuthState } from '@/lib/auth/admin';
+import { unstable_rethrow } from 'next/navigation';
+import { revalidateGoodsSurfaces } from '@/lib/admin/revalidate-goods.server';
+import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import {
   withPreservedFormValues,
   type AdminFormValuesState,
@@ -23,13 +24,8 @@ export interface AdminIpIdentityActionState extends AdminFormValuesState {
 }
 
 const INTERNAL_ID_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
-const CONFIG_ERROR = 'Supabase 환경변수를 설정한 뒤 IP 공개 URL을 변경할 수 있습니다.';
 const RETRY_ERROR = 'IP 공개 URL을 저장하지 못했습니다. 다시 시도해주세요.';
 const STALE_ERROR = '다른 운영자가 IP 공개 URL을 변경했습니다. 최신 내용을 확인한 뒤 다시 시도해주세요.';
-
-function loginPath(id: string) {
-  return `/login?next=${encodeURIComponent(ipWorkspaceHref(id))}`;
-}
 
 function fail(
   state: AdminIpIdentityActionState | null | undefined,
@@ -86,8 +82,8 @@ function identityRpcError(error: { code?: unknown; message?: unknown }) {
 
 function revalidateIpIdentitySurfaces(id: string, previousSlug: string, nextSlug: string) {
   updateTag(NOTICE_STRIP_CACHE_TAG);
-  for (const path of ['/', '/ip', '/shop', '/search', '/admin', '/admin/catalog/ips']) revalidatePath(path);
-  revalidatePath('/ip/[id]', 'page');
+  revalidateGoodsSurfaces();
+  revalidatePath('/admin/catalog/ips');
   revalidatePath(`/ip/${id}`);
   if (previousSlug) revalidatePath(`/ip/${previousSlug}`);
   if (nextSlug) revalidatePath(`/ip/${nextSlug}`);
@@ -98,19 +94,19 @@ export async function updateAdminIpIdentityAction(
   state: AdminIpIdentityActionState,
   formData: FormData,
 ): Promise<AdminIpIdentityActionState> {
-  const normalized = normalizeIdentityForm(formData);
-  if (!normalized.ok) return fail(state, formData, normalized.errors);
 
-  let auth: Awaited<ReturnType<typeof getCurrentAdminAuthState>>;
+  let auth: Awaited<ReturnType<typeof requireAdminActionAccess>>;
   try {
-    auth = await getCurrentAdminAuthState();
+    auth = await requireAdminActionAccess(ipWorkspaceHref(String(formData.get('id') ?? '').trim()));
   } catch (error) {
     unstable_rethrow(error);
     return fail(state, formData, { form: RETRY_ERROR });
   }
-  if (!auth.isConfigured) return fail(state, formData, { form: CONFIG_ERROR });
-  if (!auth.user) redirect(loginPath(normalized.id));
-  if (!auth.isStaff) return fail(state, formData, { form: '관리자 권한이 필요합니다.' });
+  if (!auth) return fail(state, formData, { form: '관리자 권한이 필요합니다.' });
+
+  const normalized = normalizeIdentityForm(formData);
+  if (!normalized.ok) return fail(state, formData, normalized.errors);
+
 
   let data: unknown;
   let error: { code?: unknown; message?: unknown } | null;

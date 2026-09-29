@@ -1,8 +1,8 @@
+import { isUuid } from '@/lib/uuid';
 import { cartItemKey, setCartItemQuantity, type CartItem } from './cart';
 
 export const MAX_CART_SELECTION_LINES = 51;
 const MAX_QUANTITY = 2147483647;
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export interface CartSelectionItem extends CartItem { stockQty: number }
 export interface CartAdditionEntry extends CartItem { expectedQty: number }
 function record(value: unknown): value is Record<string, unknown> {
@@ -14,7 +14,7 @@ function quantity(value: unknown, minimum: number): value is number {
 function identity(value: Record<string, unknown>) {
   const goodId = typeof value.goodId === 'string' ? value.goodId.trim() : '';
   const variantId = typeof value.variantId === 'string' ? value.variantId.trim().toLowerCase() : '';
-  return goodId && goodId.length <= 200 && UUID.test(variantId) ? { goodId, variantId } : null;
+  return goodId && goodId.length <= 200 && isUuid(variantId) ? { goodId, variantId } : null;
 }
 
 /** Every requested line must be valid. Cart storage's best-effort decoder is not

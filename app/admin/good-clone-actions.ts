@@ -1,9 +1,11 @@
 'use server';
 
+import { revalidateGoodsSurfaces } from '@/lib/admin/revalidate-goods.server';
+import { isUuid } from '@/lib/uuid';
+
 import { adminGoodsCopy } from '@/lib/admin/vocabulary';
-import { revalidatePath } from 'next/cache';
-import { redirect, unstable_rethrow } from 'next/navigation';
-import { getCurrentAdminAuthState } from '@/lib/auth/admin';
+import { unstable_rethrow } from 'next/navigation';
+import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { withPreservedFormValues, type AdminFormValuesState } from '@/lib/admin/form-state';
 import {
   GOOD_CLONE_PATH,
@@ -26,23 +28,15 @@ export interface GoodCloneActionState extends AdminFormValuesState {
   message?: string;
 }
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 function operationId(formData: FormData): string {
   const value = formData.get('operationId');
-  return typeof value === 'string' && UUID.test(value) ? value : crypto.randomUUID();
-}
-
-function loginPath() {
-  return `/login?next=${encodeURIComponent(GOOD_CLONE_PATH)}`;
+  return isUuid(value) ? value : crypto.randomUUID();
 }
 
 async function requireCloneStaff() {
-  const auth = await getCurrentAdminAuthState();
-  if (!auth.isConfigured) return { error: 'Supabase 환경변수를 설정한 뒤 상품을 복사할 수 있습니다.' };
-  if (!auth.user) redirect(loginPath());
-  if (!auth.isStaff) return { error: '관리자 권한이 필요합니다.' };
-  return { auth };
+  const auth = await requireAdminActionAccess(GOOD_CLONE_PATH);
+  return auth ? { auth } : { error: '관리자 권한이 필요합니다.' };
 }
 
 function preserve(
@@ -78,6 +72,15 @@ export async function cloneAdminGoodAction(
   formData: FormData,
 ): Promise<GoodCloneActionState> {
   const currentOperationId = operationId(formData);
+  let access: Awaited<ReturnType<typeof requireCloneStaff>>;
+  try {
+    access = await requireCloneStaff();
+  } catch (error) {
+    unstable_rethrow(error);
+    return preserve(state, formData, { form: '상품 복사를 시작하지 못했습니다. 다시 시도해주세요.' }, currentOperationId);
+  }
+  if ('error' in access) return preserve(state, formData, { form: access.error }, currentOperationId);
+
   const normalized = normalizeGoodCloneForm({
     sourceGoodId: formData.get('sourceGoodId'),
     newId: formData.get('newId'),
@@ -87,15 +90,6 @@ export async function cloneAdminGoodAction(
   if (!normalized.ok) {
     return preserve(state, formData, normalized.errors, currentOperationId);
   }
-
-  let access: Awaited<ReturnType<typeof requireCloneStaff>>;
-  try {
-    access = await requireCloneStaff();
-  } catch (error) {
-    unstable_rethrow(error);
-    return preserve(state, formData, { form: '상품 복사를 시작하지 못했습니다. 다시 시도해주세요.' }, currentOperationId);
-  }
-  if ('error' in access) return preserve(state, formData, { form: access.error }, currentOperationId);
 
   try {
     const supabase = await createClient();
@@ -109,7 +103,7 @@ export async function cloneAdminGoodAction(
     if (error) return preserve(state, formData, { form: rpcErrorMessage(error) }, currentOperationId);
     const savedGood = goodCloneResult(data);
     if (!savedGood) return preserve(state, formData, { form: '복사 결과를 확인하지 못했습니다. 목록을 새로고침해주세요.' }, currentOperationId);
-    for (const path of ['/admin/catalog/goods', '/shop', '/search', '/']) revalidatePath(path);
+    revalidateGoodsSurfaces();
     return { operationId: currentOperationId, savedGood, message: `${adminGoodsCopy('초안 굿즈')} ${savedGood.code}를 만들었습니다.` };
   } catch (error) {
     unstable_rethrow(error);

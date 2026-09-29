@@ -1,3 +1,4 @@
+import { isUuid } from '@/lib/uuid';
 import type { ShipmentRecord } from '@/lib/orders/shipments';
 import type { OrderWithdrawalReasonType } from '@/lib/orders';
 import type { OrderClaimStage, OrderClaimType } from '@/lib/orders/claims';
@@ -479,6 +480,11 @@ export function adminOrdersHref(
 }
 
 /** 목록 문맥을 함께 들고 여는 전용 주문 상세 링크. */
+/** 액션의 복귀 문맥일 뿐이며 주문 접근 권한은 기존 RPC/RLS에서 검사한다. */
+export function adminOrderActionHref(orderId: unknown) {
+  return isUuid(orderId) ? adminOrderDetailHref(orderId) : '/admin/sales/orders';
+}
+
 export function adminOrderDetailHref(orderId: string, filters?: AdminOrderFilters) {
   const base = `/admin/sales/orders/${orderId}`;
   if (!filters) return base;

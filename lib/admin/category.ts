@@ -1,3 +1,4 @@
+import { isUuid } from '@/lib/uuid';
 import { z } from 'zod';
 
 export const CATEGORY_MAX_DEPTH = 4;
@@ -7,7 +8,6 @@ export const CATEGORY_PATH = '/admin/catalog/categories';
 export const CATEGORY_EXPORT_API_PATH = '/api/admin/categories/export';
 
 export const CATEGORY_CODE_PATTERN = /^[a-z0-9][a-z0-9-]*$/;
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 export type CategoryStatus = 'active' | 'archived';
 export type CategoryMigrationStatus = 'suggested' | 'confirmed' | 'rejected';
@@ -91,7 +91,7 @@ const categoryFormSchema = z.object({
 });
 
 export function isCategoryId(value: unknown): value is string {
-  return typeof value === 'string' && UUID_PATTERN.test(value);
+  return isUuid(value);
 }
 
 export function normalizeCategoryCode(value: unknown): string {

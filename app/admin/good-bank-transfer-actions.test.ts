@@ -77,7 +77,7 @@ describe('setGoodBankTransferAction', () => {
       target_id: GOOD_ID,
       target_allowed: targetAllowed,
     });
-    expect(mocks.revalidatePath.mock.calls).toEqual([['/admin'], ['/shop']]);
+    expect(mocks.revalidatePath.mock.calls).toEqual(expect.arrayContaining([['/admin'], ['/shop'], ['/cart'], ['/checkout'], ['/shop/[goodId]', 'page']]));
   });
 
   /* 'true' 이외의 값은 전부 닫는 쪽으로 읽는다. 폼이 깨졌을 때 재고가 묶이는

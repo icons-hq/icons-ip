@@ -20,7 +20,7 @@ function PromiseEditor({ promise, onSaved }: { promise: ShipmentPreorderPromise;
     });
   }
   return <form className="col wc-admin-kit" onSubmit={save} style={{ gap: 10 }}>
-    <input type="hidden" name="shipmentId" value={promise.shipmentId} /><input type="hidden" name="updatedAt" value={promise.updatedAt} />
+    <input type="hidden" name="orderId" value={promise.orderId} /><input type="hidden" name="shipmentId" value={promise.shipmentId} /><input type="hidden" name="updatedAt" value={promise.updatedAt} />
     <label>새 발송 예정일
       <input name="expectedShipDate" type="date" value={date} onChange={(event) => setDate(event.target.value)} required disabled={pending} />
     </label>
@@ -34,18 +34,18 @@ function PromiseEditor({ promise, onSaved }: { promise: ShipmentPreorderPromise;
 }
 
 /** Staff-only server actions enforce access even when the component is invoked directly. */
-export function ShipmentPreorderPromisePanel({ shipmentId }: { shipmentId: string }) {
+export function ShipmentPreorderPromisePanel({ shipmentId, orderId }: { shipmentId: string; orderId: string }) {
   const [refresh, setRefresh] = useState(0);
   const key = `${shipmentId}:${refresh}`;
   const [notice, setNotice] = useState<{ shipmentId: string; message: string } | null>(null);
   const [loaded, setLoaded] = useState<{ key: string; promise?: ShipmentPreorderPromise; error?: string } | null>(null);
   useEffect(() => {
     let canceled = false;
-    void readShipmentPreorderPromiseAction(shipmentId).then((result) => {
+    void readShipmentPreorderPromiseAction(shipmentId, orderId).then((result) => {
       if (!canceled) setLoaded(result.ok ? { key, promise: result.promise } : { key, error: result.error });
     }).catch(() => { if (!canceled) setLoaded({ key, error: '예약 발송 일정을 불러오지 못했습니다.' }); });
     return () => { canceled = true; };
-  }, [key, shipmentId]);
+  }, [key, shipmentId, orderId]);
   const visible = loaded?.key === key ? loaded : null;
   const reload = () => setRefresh((value) => value + 1);
   const promise = visible?.promise;

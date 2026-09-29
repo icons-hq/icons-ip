@@ -1,9 +1,8 @@
 'use server';
 
 import { adminGoodsCopy } from '@/lib/admin/vocabulary';
-import { revalidatePath } from 'next/cache';
-import { redirect } from 'next/navigation';
-import { getCurrentAdminAuthState } from '@/lib/auth/admin';
+import { revalidateGoodsSurfaces } from '@/lib/admin/revalidate-goods.server';
+import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { createClient } from '@/lib/supabase/server';
 
 /*
@@ -24,9 +23,8 @@ export async function setGoodBankTransferAction(
   _state: AdminGoodBankTransferActionState,
   formData: FormData,
 ): Promise<AdminGoodBankTransferActionState> {
-  const auth = await getCurrentAdminAuthState();
-  if (!auth.isConfigured || !auth.user) redirect('/login?next=%2Fadmin');
-  if (!auth.isStaff) return { error: '관리자 권한이 필요합니다.' };
+  const auth = await requireAdminActionAccess('/admin');
+  if (!auth) return { error: '관리자 권한이 필요합니다.' };
 
   const id = String(formData.get('id') ?? '').trim();
   if (!id) return { error: adminGoodsCopy('굿즈를 찾을 수 없습니다.') };
@@ -45,8 +43,7 @@ export async function setGoodBankTransferAction(
     };
   }
 
-  revalidatePath('/admin');
-  revalidatePath('/shop');
+  revalidateGoodsSurfaces();
   return {
     message: allowed
       ? adminGoodsCopy('이 굿즈로 무통장 입금 주문을 받습니다.')

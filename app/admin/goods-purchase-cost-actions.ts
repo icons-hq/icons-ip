@@ -1,8 +1,10 @@
 'use server';
 
+import { isUuid } from '@/lib/uuid';
+
 import { revalidatePath } from 'next/cache';
 import { unstable_rethrow } from 'next/navigation';
-import { getCurrentAdminAuthState } from '@/lib/auth/admin';
+import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { createClient } from '@/lib/supabase/server';
 import {
   parseAdminPurchaseCosts, parsePurchaseCostHistory, parsePurchaseCostInput,
@@ -10,12 +12,7 @@ import {
 } from '@/lib/admin/goods-purchase-costs';
 
 const ADMIN_REQUIRED = '매입단가는 관리자 계정에서만 조회·수정할 수 있습니다.';
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 type Failure = { ok: false; error: string };
-async function canManageCosts() {
-  const auth = await getCurrentAdminAuthState();
-  return auth.isConfigured && Boolean(auth.user) && auth.isStaff && auth.role === 'admin';
-}
 function goodId(value: unknown) {
   const id = typeof value === 'string' ? value.trim() : '';
   return id && id.length <= 200 ? id : null;
@@ -24,7 +21,7 @@ function goodId(value: unknown) {
 export async function listGoodsPurchaseCostsAction(goodIdValue: unknown): Promise<
   { ok: true; costs: AdminGoodsPurchaseCost[] } | Failure
 > {
-  if (!await canManageCosts()) return { ok: false, error: ADMIN_REQUIRED };
+  if (!await requireAdminActionAccess('/admin/catalog/goods', { adminOnly: true })) return { ok: false, error: ADMIN_REQUIRED };
   const id = goodId(goodIdValue);
   if (!id) return { ok: false, error: '상품을 다시 선택해주세요.' };
   try {
@@ -41,10 +38,10 @@ export async function listGoodsPurchaseCostsAction(goodIdValue: unknown): Promis
 export async function listGoodsPurchaseCostHistoryAction(goodIdValue: unknown, variantIdValue: unknown, beforeRevision?: number): Promise<
   { ok: true; history: PurchaseCostChange[]; hasMore: boolean } | Failure
 > {
-  if (!await canManageCosts()) return { ok: false, error: ADMIN_REQUIRED };
+  if (!await requireAdminActionAccess('/admin/catalog/goods', { adminOnly: true })) return { ok: false, error: ADMIN_REQUIRED };
   const id = goodId(goodIdValue);
   const variantId = typeof variantIdValue === 'string' ? variantIdValue : '';
-  if (!id || !UUID.test(variantId) || (beforeRevision !== undefined && (!Number.isSafeInteger(beforeRevision) || beforeRevision < 1 || beforeRevision > 2147483647))) {
+  if (!id || !isUuid(variantId) || (beforeRevision !== undefined && (!Number.isSafeInteger(beforeRevision) || beforeRevision < 1 || beforeRevision > 2147483647))) {
     return { ok: false, error: '상품·옵션과 이력 조회 범위를 다시 확인해주세요.' };
   }
   try {
@@ -62,13 +59,13 @@ export async function listGoodsPurchaseCostHistoryAction(goodIdValue: unknown, v
 }
 
 export async function saveGoodsPurchaseCostAction(formData: FormData): Promise<{ ok: true; message: string } | Failure> {
-  if (!await canManageCosts()) return { ok: false, error: ADMIN_REQUIRED };
+  if (!await requireAdminActionAccess('/admin/catalog/goods', { adminOnly: true })) return { ok: false, error: ADMIN_REQUIRED };
   const id = goodId(formData.get('goodId'));
   const variantId = String(formData.get('variantId') ?? '');
   const rawRevision = String(formData.get('expectedRevision') ?? '');
   const revision = rawRevision ? Number(rawRevision) : null;
   const cost = parsePurchaseCostInput({ unitCostKrw: formData.get('unitCostKrw'), taxBasis: formData.get('taxBasis') });
-  if (!id || !UUID.test(variantId) || !cost || (rawRevision && (!/^[1-9]\d*$/.test(rawRevision)
+  if (!id || !isUuid(variantId) || !cost || (rawRevision && (!/^[1-9]\d*$/.test(rawRevision)
     || !Number.isSafeInteger(revision) || revision! > 2147483647))) {
     return { ok: false, error: '매입단가(원 단위 정수)와 세금 구분을 함께 입력해주세요. 해제하려면 두 값을 모두 비워주세요.' };
   }

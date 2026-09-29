@@ -1,3 +1,4 @@
+import { isUuid } from '@/lib/uuid';
 import { normalizeShippingAddress, type ShippingRegionFeeUnit } from '../shipping-regions';
 
 export const SHIPPING_REGIONS_PATH = '/admin/settings/shipping-regions';
@@ -57,7 +58,6 @@ export function shippingRegionExpiryWarnings(policies: ShippingRegionExpiryPolic
 export const REGION_DISPOSITION_LABELS: Record<RegionRuleDisposition, string> = {
   standard: '추가료 없음', surcharge: '추가료 부과', unavailable: '배송 불가', manual_review: '개별 확인 필요',
 };
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const object = (value: unknown): value is Record<string, unknown> => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
 const booleanOrNull = (value: unknown): value is boolean | null => value === null || typeof value === 'boolean';
 const instantOrNull = (value: unknown): value is string | null => value === null || (typeof value === 'string' && Number.isFinite(Date.parse(value)));
@@ -68,7 +68,7 @@ export function emptyShippingRegionPolicy(originId = '', carrierCode = ''): Ship
     chargeIndividualGoods: null, noRulesConfirmed: false, rules: [] };
 }
 export function parseShippingRegionPolicyInput(value: unknown): ShippingRegionPolicyInput | null {
-  if (!object(value) || typeof value.originId !== 'string' || !UUID.test(value.originId)
+  if (!object(value) || typeof value.originId !== 'string' || !isUuid(value.originId)
     || !text(value.carrierCode, 80) || !value.carrierCode.trim() || !text(value.name, 100)
     || !instantOrNull(value.startsAt) || !instantOrNull(value.endsAt) || !booleanOrNull(value.openEnded)
     || !text(value.sourceEvidence, 2000) || ![null, 'standard', 'manual_review'].includes(value.unlistedDisposition as null)
@@ -77,7 +77,7 @@ export function parseShippingRegionPolicyInput(value: unknown): ShippingRegionPo
     || typeof value.noRulesConfirmed !== 'boolean' || !Array.isArray(value.rules) || value.rules.length > MAX_SHIPPING_REGION_RULES) return null;
   const ids = new Set<string>(); const rules: ShippingRegionRuleInput[] = [];
   for (const row of value.rules) {
-    if (!object(row) || !(row.id === null || (typeof row.id === 'string' && UUID.test(row.id) && !ids.has(row.id)))
+    if (!object(row) || !(row.id === null || (typeof row.id === 'string' && isUuid(row.id) && !ids.has(row.id)))
       || !text(row.postalFrom, 5) || !text(row.postalTo, 5) || !/^(\d{5})?$/.test(row.postalFrom) || !/^(\d{5})?$/.test(row.postalTo)
       || !text(row.addressPrefix, 200) || !text(row.regionLabel, 100)
       || !['', ...Object.keys(REGION_DISPOSITION_LABELS)].includes(String(row.disposition))
@@ -94,7 +94,7 @@ export function parseShippingRegionPolicyInput(value: unknown): ShippingRegionPo
 }
 export function parseShippingRegionPolicy(value: unknown): ShippingRegionPolicy | null {
   const input = parseShippingRegionPolicyInput(value);
-  if (!input || !object(value) || typeof value.id !== 'string' || !UUID.test(value.id)
+  if (!input || !object(value) || typeof value.id !== 'string' || !isUuid(value.id)
     || !Number.isSafeInteger(value.version) || Number(value.version) < 1 || !Number.isSafeInteger(value.revision) || Number(value.revision) < 1
     || !['draft', 'active', 'retired'].includes(String(value.status)) || !instantOrNull(value.confirmedAt)
     || !(value.confirmedBy === null || typeof value.confirmedBy === 'string')

@@ -229,6 +229,8 @@ Cloudflare DNS는 `iconsip.com`/`www.iconsip.com`을 Vercel로 보내고, 같은
 
 ## 6. 권한 모델 (RLS)
 
+영업 운영 서버 액션은 `lib/admin/action-access.server.ts`의 공통 가드로 미로그인 호출을 복귀 주소가 있는 로그인 화면에 보낸다. 로그인한 비운영자와 admin 전용 작업의 staff 거절은 각 액션의 폼 오류 상태로 표시하며, 화면 진입의 404 가드는 별도로 유지한다. UUID 형식은 `lib/uuid.ts`에서 검사하고 소유권·권한은 기존 RPC/RLS가 확정한다. 상품 변경 후에는 `lib/admin/revalidate-goods.server.ts`가 목록·공개 굿즈·IP·장바구니·주문서 캐시를 함께 갱신한다. 공개 slug와 내부 ID 차이를 놓치지 않도록 상세는 실제 동적 라우트 패턴으로 갱신한다.
+
 | 테이블군 | 읽기 | 쓰기 |
 |---|---|---|
 | 일반 카탈로그(verticals/ips/goods/events) | **공개(anon)** | staff/admin only |

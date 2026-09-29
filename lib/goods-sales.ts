@@ -1,3 +1,4 @@
+import { isUuid } from '@/lib/uuid';
 import { parseShippingQuote, type ShippingQuote } from './fulfillment';
 import { parseCouponQuote, type CouponQuote } from './coupon-targeting';
 import { MIN_PAYABLE_TOTAL } from './coupons';
@@ -53,7 +54,6 @@ export interface GoodsSalesQuote {
   coupon?: CouponQuote | null;
 }
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const REASONS = new Set<GoodsPurchaseReason>([
   'purchase_limit_not_configured', 'order_quantity_below_minimum',
   'order_quantity_above_maximum', 'member_purchase_limit_exceeded',
@@ -78,7 +78,7 @@ function priceFields(value: Record<string, unknown>): boolean {
   if (value.pricePeriodId === null) {
     return value.effectivePrice === value.regularPrice && value.startsAt === null && value.endsAt === null;
   }
-  return typeof value.pricePeriodId === 'string' && UUID.test(value.pricePeriodId)
+  return typeof value.pricePeriodId === 'string' && isUuid(value.pricePeriodId)
     && instant(value.startsAt) && instant(value.endsAt)
     && Date.parse(value.startsAt) < Date.parse(value.endsAt)
     && value.effectivePrice < value.regularPrice;
@@ -102,7 +102,7 @@ export function parseGoodsSalesQuote(value: unknown, shippingParser: (value: unk
   const identities = new Set<string>();
   let subtotal = 0;
   for (const line of value.lines) {
-    if (!object(line) || !identity(line.goodId) || typeof line.variantId !== 'string' || !UUID.test(line.variantId)
+    if (!object(line) || !identity(line.goodId) || typeof line.variantId !== 'string' || !isUuid(line.variantId)
       || !positive(line.qty) || !priceFields(line) || typeof line.available !== 'boolean') return null;
     if (line.supply !== undefined) {
       const supply = parseGoodsVariantSupply(line.supply);

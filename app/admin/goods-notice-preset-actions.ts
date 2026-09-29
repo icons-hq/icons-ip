@@ -1,8 +1,10 @@
 'use server';
 
+import { isUuid } from '@/lib/uuid';
+
 import { revalidatePath } from 'next/cache';
-import { redirect } from 'next/navigation';
-import { getCurrentAdminAuthState } from '@/lib/auth/admin';
+import { unstable_rethrow } from 'next/navigation';
+import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { createClient } from '@/lib/supabase/server';
 import { GOODS_NOTICE_FIELDS } from '@/lib/goods-notice';
 import { nextFormAttempt, type AdminFormValuesState } from '@/lib/admin/form-state';
@@ -18,17 +20,17 @@ export interface GoodsNoticePresetActionState extends AdminFormValuesState {
   errors?: Record<string, string>;
   message?: string;
 }
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const VALUE_FIELDS = ['id', 'name', 'updatedAt', ...GOODS_NOTICE_FIELDS.map((field) => field.formName)];
 const SAVE_FAILED = '프리셋을 저장하지 못했습니다. 입력값은 유지됩니다. 잠시 후 다시 시도해주세요.';
 const DELETE_FAILED = '프리셋을 삭제하지 못했습니다. 잠시 후 다시 시도해주세요.';
 
 async function staffError(): Promise<string | null> {
-  let auth: Awaited<ReturnType<typeof getCurrentAdminAuthState>>;
-  try { auth = await getCurrentAdminAuthState(); }
-  catch { return '권한을 확인하지 못했습니다. 잠시 후 다시 시도해주세요.'; }
-  if (!auth.isConfigured || !auth.user) redirect(`/login?next=${encodeURIComponent(GOODS_NOTICE_PRESETS_PATH)}`);
-  return auth.isStaff ? null : '관리자 권한이 필요합니다.';
+  try {
+    return await requireAdminActionAccess(GOODS_NOTICE_PRESETS_PATH) ? null : '관리자 권한이 필요합니다.';
+  } catch (error) {
+    unstable_rethrow(error);
+    return '권한을 확인하지 못했습니다. 잠시 후 다시 시도해주세요.';
+  }
 }
 
 function rpcError(error: { code?: string; message: string }, fallback = SAVE_FAILED): Record<string, string> {
@@ -62,7 +64,7 @@ export async function saveGoodsNoticePresetAction(
   }
   const name = values.name.trim();
   if (!name || name.length > GOODS_NOTICE_PRESET_NAME_MAX) errors.name = `이름은 1~${GOODS_NOTICE_PRESET_NAME_MAX}자로 입력해주세요.`;
-  if (values.id && (!UUID.test(values.id) || !values.updatedAt || Number.isNaN(Date.parse(values.updatedAt)))) {
+  if (values.id && (!isUuid(values.id) || !values.updatedAt || Number.isNaN(Date.parse(values.updatedAt)))) {
     errors.form = '최신 프리셋을 다시 열어주세요.';
   }
   for (const field of GOODS_NOTICE_FIELDS) {
@@ -97,7 +99,7 @@ export async function deleteGoodsNoticePresetAction(
   if (accessError) return fail({ form: accessError });
   const id = typeof data.get('id') === 'string' ? data.get('id') as string : '';
   const updatedAt = typeof data.get('updatedAt') === 'string' ? data.get('updatedAt') as string : '';
-  if (!UUID.test(id) || !updatedAt || Number.isNaN(Date.parse(updatedAt))) return fail({ form: '최신 프리셋을 다시 열어주세요.' });
+  if (!isUuid(id) || !updatedAt || Number.isNaN(Date.parse(updatedAt))) return fail({ form: '최신 프리셋을 다시 열어주세요.' });
   if (data.get('confirmed') !== 'true') return fail({ form: '삭제 확인을 선택해주세요.' });
   try {
     const supabase = await createClient();

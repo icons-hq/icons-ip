@@ -23,7 +23,7 @@ describe('additional goods staff actions', () => {
     expect(mocks.rpc).toHaveBeenCalledWith('admin_save_goods_additional', {
       p_good_id: 'g1', p_target_good_ids: ['g3', 'g2'], p_expected_revision: 3,
     });
-    expect(mocks.revalidate).toHaveBeenCalledWith('/shop/g1');
+    expect(mocks.revalidate).toHaveBeenCalledWith('/shop/[goodId]', 'page');
   });
   it('rejects self references before a request and reports conflicts without successful invalidation', async () => {
     expect(await saveGoodsAdditionalAction('g1', ['g1'], null)).toMatchObject({ ok: false });

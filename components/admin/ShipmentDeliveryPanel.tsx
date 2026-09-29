@@ -30,7 +30,7 @@ function MethodSelection({ shipment, onSaved }: { shipment: AdminShipmentDeliver
     });
   }
   return <form onSubmit={submit} className="col" style={{ gap: 10 }}>
-    <input type="hidden" name="shipmentId" value={shipment.shipmentId} /><input type="hidden" name="updatedAt" value={shipment.updatedAt} />
+    <input type="hidden" name="orderId" value={shipment.orderId} /><input type="hidden" name="shipmentId" value={shipment.shipmentId} /><input type="hidden" name="updatedAt" value={shipment.updatedAt} />
     <fieldset disabled={pending} className="col" style={{ gap: 10, border: 0, margin: 0, padding: 0 }}>
       <legend className="sr-only">고객 요청에 따른 배송 방식 선택</legend>
       <label>변경할 배송 방식<select name="method" value={method} onChange={(event) => { setMethod(event.target.value as DeliveryMethod); setPolicyId(''); }}>
@@ -68,7 +68,7 @@ function HandoffForm({ shipment, onSaved }: { shipment: AdminShipmentDelivery; o
   }
   return <form onSubmit={submit} className="col" style={{ gap: 10 }}>
     <h4 style={{ margin: 0 }}>{HISTORY_LABELS[kind]} 기록</h4>
-    <input type="hidden" name="shipmentId" value={shipment.shipmentId} /><input type="hidden" name="updatedAt" value={shipment.updatedAt} /><input type="hidden" name="kind" value={kind} />
+    <input type="hidden" name="orderId" value={shipment.orderId} /><input type="hidden" name="shipmentId" value={shipment.shipmentId} /><input type="hidden" name="updatedAt" value={shipment.updatedAt} /><input type="hidden" name="kind" value={kind} />
     <fieldset disabled={pending || !shipment.preorderReady} className="col" style={{ gap: 10, border: 0, margin: 0, padding: 0 }}>
       <legend className="sr-only">실제 인계·수령 증거</legend>
       <label>실제 인계·확인 담당자<input name="operatorName" maxLength={100} required /></label>
@@ -94,16 +94,16 @@ function HandoffForm({ shipment, onSaved }: { shipment: AdminShipmentDelivery; o
 }
 
 /** Own read/CAS baselines keep receipt forms independent of the parent order form. */
-export function ShipmentDeliveryPanel({ shipmentId, originName }: { shipmentId: string; originName?: string }) {
+export function ShipmentDeliveryPanel({ shipmentId, orderId, originName }: { shipmentId: string; orderId: string; originName?: string }) {
   const [refresh, setRefresh] = useState(0); const key = `${shipmentId}:${refresh}`;
   const [notice, setNotice] = useState<{ shipmentId: string; text: string } | null>(null);
   const [loaded, setLoaded] = useState<{ key: string; shipment?: AdminShipmentDelivery; error?: string } | null>(null);
   useEffect(() => {
     let canceled = false;
-    void readShipmentDeliveryAction(shipmentId).then((result) => { if (!canceled) setLoaded(result.ok ? { key, shipment: result.shipment } : { key, error: result.error }); })
+    void readShipmentDeliveryAction(shipmentId, orderId).then((result) => { if (!canceled) setLoaded(result.ok ? { key, shipment: result.shipment } : { key, error: result.error }); })
       .catch(() => { if (!canceled) setLoaded({ key, error: '배송 인계 정보를 불러오지 못했습니다.' }); });
     return () => { canceled = true; };
-  }, [key, shipmentId]);
+  }, [key, shipmentId, orderId]);
   const visible = loaded?.key === key ? loaded : null; const shipment = visible?.shipment;
   const reload = () => setRefresh((value) => value + 1); const saved = (text: string) => { setNotice({ shipmentId, text }); reload(); };
   return <section className="card col wc-admin-kit" style={{ padding: 16, gap: 12 }} aria-labelledby={`shipment-delivery-${shipmentId}`}>
