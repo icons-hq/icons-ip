@@ -149,7 +149,7 @@ describe('exchangeCoinsAction', () => {
     });
   });
 
-  it('멱등 키와 상품 id를 RPC에 그대로 넘긴다', async () => {
+  it('멱등 키와 카드팩 교환 설정 id를 RPC에 그대로 넘긴다', async () => {
     const state = await exchangeCoinsAction({}, exchangeForm());
 
     expect(mocks.rpc).toHaveBeenCalledWith('exchange_coins_for_draw_tickets', {
@@ -190,8 +190,9 @@ describe('exchangeCoinsAction', () => {
 
   it.each([
     ['insufficient_coins', '코인이 부족해요.'],
-    ['offer_unavailable', '지금은 교환할 수 없는 상품이에요.'],
-    ['reward_pool_not_ready', '지금은 교환할 수 없는 상품이에요.'],
+    ['offer_unavailable', '지금은 교환할 수 없는 카드팩이에요.'],
+    ['reward_pool_not_ready', '지금은 교환할 수 없는 카드팩이에요.'],
+    ['pool_not_found', '지금은 교환할 수 없는 카드팩이에요.'],
     ['card_rewards_disabled', '카드팩 교환을 준비하고 있어요. 잠시 후 다시 시도해 주세요.'],
     ['exchange_operation_conflict', '카드팩 교환을 완료하지 못했어요. 잠시 후 다시 시도해 주세요.'],
     ['account_deletion_write_fenced', '탈퇴 처리 중인 계정에서는 이용할 수 없어요.'],

@@ -66,11 +66,13 @@ function excepted(copy: CopyLiteral, exceptions: readonly { file: string; text?:
 
 const PUBLIC_SOURCES = [
   'components/shop', 'components/orders', 'app/cart', 'app/checkout', 'app/orders', 'app/shop', 'app/my',
+  'app/help', 'components/campaign', 'app/events/participation-actions.ts',
   ...['GoodDetail', 'Cart', 'Checkout', 'CheckoutOrder', 'OrderDetail', 'Orders', 'MyPage', 'MyQuestions', 'MyReviews',
     'MyCoupons', 'MyStoreCredits', 'Wishlist', 'Inquiries', 'Notifications', 'Home', 'CampaignLanding'].map(name => `components/screens/${name}.tsx`),
   'components/wc/MypageShell.tsx', 'components/wc/ProductCard.tsx', 'components/shell/CartProvider.tsx',
   ...['checkout', 'fulfillment', 'shipping', 'product-questions', 'inquiries', 'cart', 'goods-sales', 'goods-options', 'goods-claim-policy', 'orders', 'notifications'].map(name => `lib/${name}.ts`),
 ];
+const CARD_PACK_EXCHANGE_SOURCES = ['components/campaign/ExchangePanel.tsx', 'app/events/participation-actions.ts'];
 
 describe('관리자·공개 굿즈 어휘 계약 (#503)', () => {
   it('관리자 정적 문구의 굿즈는 운영 어휘 매핑을 거친다', () => {
@@ -79,9 +81,14 @@ describe('관리자·공개 굿즈 어휘 계약 (#503)', () => {
         && !Object.hasOwn(MAPPED_GUIDE_SOURCES, copy.file) && !excepted(copy, ADMIN_COPY_EXCEPTIONS));
     expect(violations).toEqual([]);
   });
-  it('공개 굿즈 표면은 법정 고시 명칭 외에 상품이라는 별칭을 쓰지 않는다', () => {
+  it('공개 굿즈·참여 표면은 법정 고시 명칭 외에 상품이라는 별칭을 쓰지 않는다', () => {
     const violations = PUBLIC_SOURCES.flatMap(sourceFiles).flatMap(literals)
       .filter(copy => copy.text.includes('상품') && !excepted(copy, PUBLIC_COPY_EXCEPTIONS));
+    expect(violations).toEqual([]);
+  });
+  it('카드팩 교환 문구는 실물 굿즈와 유료 가챠 어휘를 쓰지 않는다', () => {
+    const violations = CARD_PACK_EXCHANGE_SOURCES.flatMap(literals)
+      .filter(copy => /상품|굿즈|가챠|뽑기|충전/.test(copy.text));
     expect(violations).toEqual([]);
   });
   it('모든 예외와 일괄 매핑 경로는 구체적인 이유를 남긴다', () => {

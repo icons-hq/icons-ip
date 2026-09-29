@@ -51,14 +51,14 @@ function mapParticipationError(message: string | null | undefined, fallback: str
   const value = (message ?? '').toLowerCase();
 
   if (value.includes('insufficient_coins')) return '코인이 부족해요.';
-  if (value.includes('offer_unavailable')) return '지금은 교환할 수 없는 상품이에요.';
+  if (value.includes('offer_unavailable')) return '지금은 교환할 수 없는 카드팩이에요.';
   /* 전역 카드 리워드 게이트가 내려간 상태다. RPC 가 코인 차감까지 되돌린 뒤
      던지므로 "다시 시도"는 안전한 안내다. */
   if (value.includes('card_rewards_disabled')) {
     return '카드팩 교환을 준비하고 있어요. 잠시 후 다시 시도해 주세요.';
   }
   if (value.includes('reward_pool_not_ready') || value.includes('pool_not_found')) {
-    return '지금은 교환할 수 없는 상품이에요.';
+    return '지금은 교환할 수 없는 카드팩이에요.';
   }
   if (value.includes('account_suspended')) return '정지된 계정은 이벤트에 참여할 수 없어요.';
   /* 탈퇴 신청으로 쓰기가 봉인된 계정. "잠시 후 다시"라고 하면 될 때까지 다시 누른다. */

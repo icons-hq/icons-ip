@@ -16,7 +16,7 @@ export function FaqScreen({ data }: { data: FaqPageData }) {
     <ConsoleFilterPanel action={ADMIN_FAQ_PATH}
       search={{ name: 'q', label: '질문 검색', value: filters.query, placeholder: '질문 내용으로 검색' }}
       statusFilter={{ value: filters.status, label: '게시 상태', options: [{ value: 'all', label: '전체' }, { value: 'published', label: '공개' }, { value: 'draft', label: '비공개' }] }}>
-      <label>카테고리<select name="category" defaultValue={filters.category}><option value="">전체</option>{FAQ_CATEGORIES.map((category) => <option key={category.id} value={category.id}>{category.label}</option>)}</select></label>
+      <label>카테고리<select name="category" defaultValue={filters.category}><option value="">전체</option>{FAQ_CATEGORIES.map((category) => <option key={category.id} value={category.id}>{adminGoodsCopy(category.label)}</option>)}</select></label>
     </ConsoleFilterPanel>
     <p className="admin-faq__hint">질문을 열어 수정할 수 있습니다. 공개 FAQ만 고객에게 표시됩니다.</p>
     {entries.length ? <div className="admin-faq__entries">{entries.map((entry) => <details key={entry.id} className="admin-faq__entry">
