@@ -209,6 +209,14 @@ describe('White Catalog home wiring', () => {
 
     expect(css).toMatch(/\.wc-hero__slide\s*\{[^}]*transition:[^}]*opacity/s);
   });
+
+  it('keeps the hero viewport full-bleed when the desktop height cap applies', () => {
+    /* 너비가 auto면 max-height 770이 aspect-ratio를 타고 너비 상한 1425px로 전이돼,
+     * 넓은 데스크톱에서 히어로가 왼쪽에 붙은 채 잘린다(R-02 §2①은 전폭 × 고정 770). */
+    const css = read('./styles/wc-home.css');
+
+    expect(css).toMatch(/\.wc-hero__viewport\s*\{[^}]*width:\s*100%/s);
+  });
 });
 
 describe('White Catalog catalog wiring', () => {
