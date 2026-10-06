@@ -1,6 +1,13 @@
 /** Newest first. Describe available behavior; do not preannounce unfinished tickets. */
 export const ADMIN_WEEKLY_CHANGES = [
   {
+    week: '2026-10-06',
+    title: '로그인 만료 복귀와 저장 오류 안내',
+    changes: [
+      '로그인이 만료된 상품·분류·배송 설정 작업은 다시 로그인한 뒤 해당 화면으로 돌아옵니다. 권한이 없거나 옵션 저장·쿠폰 상품 검색에 연결 오류가 생기면 화면 안에서 이유와 재시도 안내를 확인합니다.',
+    ],
+  },
+  {
     week: '2026-09-28',
     title: '상품·문의 운영 개선과 정책 만료 안내',
     changes: [

@@ -1,3 +1,4 @@
+import { isUuid } from '@/lib/uuid';
 export interface GoodsVariantSupply {
   mode: 'stock' | 'preorder';
   availableQty: number;
@@ -10,7 +11,6 @@ export interface GoodsVariantSupply {
   calculatedAt: string;
   nextChangeAt: string | null;
 }
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function object(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -33,7 +33,7 @@ export function parseGoodsVariantSupply(value: unknown): GoodsVariantSupply | nu
     if (value.state !== 'stock' || value.policyId !== null || value.policyRevision !== null
       || value.startsAt !== null || value.endsAt !== null || value.expectedShipDate !== null || value.nextChangeAt !== null) return null;
   } else {
-    if (typeof value.policyId !== 'string' || !UUID.test(value.policyId) || !integer(value.policyRevision, 1)
+    if (typeof value.policyId !== 'string' || !isUuid(value.policyId) || !integer(value.policyRevision, 1)
       || !instant(value.startsAt) || !instant(value.endsAt) || Date.parse(value.startsAt) >= Date.parse(value.endsAt)
       || !isGoodsShipDate(value.expectedShipDate) || !['scheduled', 'open', 'closed', 'stopped'].includes(String(value.state))) return null;
     const now = Date.parse(value.calculatedAt);

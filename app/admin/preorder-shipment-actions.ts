@@ -1,8 +1,11 @@
 'use server';
 
+import { adminOrderActionHref } from '@/lib/admin/orders';
+import { isUuid } from '@/lib/uuid';
+
 import { revalidatePath } from 'next/cache';
 import { unstable_rethrow } from 'next/navigation';
-import { getCurrentAdminAuthState } from '@/lib/auth/admin';
+import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { createClient } from '@/lib/supabase/server';
 import { isGoodsShipDate } from '@/lib/goods-preorders';
 
@@ -14,22 +17,16 @@ export interface ShipmentPreorderPromise {
   originalExpectedShipDate: string | null; expectedShipDate: string | null; updatedAt: string; changes: ShipmentPromiseChange[];
 }
 type Failure = { ok: false; error: string };
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-function uuid(value: unknown): value is string { return typeof value === 'string' && UUID.test(value); }
 function record(value: unknown): value is Record<string, unknown> { return typeof value === 'object' && value !== null && !Array.isArray(value); }
 function timestamp(value: unknown): value is string { return typeof value === 'string' && Number.isFinite(Date.parse(value)); }
-async function staff() {
-  const auth = await getCurrentAdminAuthState();
-  return auth.isConfigured && Boolean(auth.user) && auth.isStaff;
-}
 function parsePromise(value: unknown): ShipmentPreorderPromise | null {
-  if (!record(value) || !uuid(value.shipmentId) || !uuid(value.orderId) || !timestamp(value.updatedAt)
+  if (!record(value) || !isUuid(value.shipmentId) || !isUuid(value.orderId) || !timestamp(value.updatedAt)
     || !['ready', 'shipping', 'delivered', 'canceled'].includes(String(value.status)) || !Array.isArray(value.changes)
     || (value.originalExpectedShipDate !== null && !isGoodsShipDate(value.originalExpectedShipDate))
     || (value.expectedShipDate !== null && !isGoodsShipDate(value.expectedShipDate))) return null;
   const changes: ShipmentPromiseChange[] = [];
   for (const row of value.changes) {
-    if (!record(row) || !uuid(row.id) || !isGoodsShipDate(row.fromDate) || !isGoodsShipDate(row.toDate)
+    if (!record(row) || !isUuid(row.id) || !isGoodsShipDate(row.fromDate) || !isGoodsShipDate(row.toDate)
       || typeof row.reason !== 'string' || !timestamp(row.changedAt) || (row.actorName !== null && typeof row.actorName !== 'string')) return null;
     changes.push({ id: row.id, fromDate: row.fromDate, toDate: row.toDate, reason: row.reason, actorName: row.actorName as string | null, changedAt: row.changedAt });
   }
@@ -37,9 +34,9 @@ function parsePromise(value: unknown): ShipmentPreorderPromise | null {
     originalExpectedShipDate: value.originalExpectedShipDate as string | null, expectedShipDate: value.expectedShipDate as string | null,
     updatedAt: value.updatedAt, changes };
 }
-export async function readShipmentPreorderPromiseAction(shipmentId: unknown): Promise<{ ok: true; promise: ShipmentPreorderPromise } | Failure> {
-  if (!await staff()) return { ok: false, error: '예약 발송 일정은 운영자가 확인할 수 있습니다.' };
-  if (!uuid(shipmentId)) return { ok: false, error: '배송 건을 다시 선택해주세요.' };
+export async function readShipmentPreorderPromiseAction(shipmentId: unknown, orderId?: string): Promise<{ ok: true; promise: ShipmentPreorderPromise } | Failure> {
+  if (!await requireAdminActionAccess(adminOrderActionHref(orderId))) return { ok: false, error: '예약 발송 일정은 운영자가 확인할 수 있습니다.' };
+  if (!isUuid(shipmentId)) return { ok: false, error: '배송 건을 다시 선택해주세요.' };
   try {
     const client = await createClient();
     const { data, error } = await client.rpc('admin_read_shipment_preorder_promise', { p_shipment_id: shipmentId });
@@ -48,12 +45,12 @@ export async function readShipmentPreorderPromiseAction(shipmentId: unknown): Pr
   } catch (error) { unstable_rethrow(error); return { ok: false, error: '예약 발송 일정을 불러오지 못했습니다.' }; }
 }
 export async function changeShipmentPreorderDateAction(formData: FormData): Promise<{ ok: true; message: string } | Failure> {
-  if (!await staff()) return { ok: false, error: '예약 발송 일정은 운영자가 변경할 수 있습니다.' };
+  if (!await requireAdminActionAccess(adminOrderActionHref(formData.get('orderId')))) return { ok: false, error: '예약 발송 일정은 운영자가 변경할 수 있습니다.' };
   const shipmentId = formData.get('shipmentId');
   const date = formData.get('expectedShipDate');
   const expectedVersion = formData.get('updatedAt');
   const reason = String(formData.get('reason') ?? '').trim();
-  if (!uuid(shipmentId) || !isGoodsShipDate(date) || !timestamp(expectedVersion) || !reason || reason.length > 2000) {
+  if (!isUuid(shipmentId) || !isGoodsShipDate(date) || !timestamp(expectedVersion) || !reason || reason.length > 2000) {
     return { ok: false, error: '새 발송 예정일과 변경 사유를 입력해주세요.' };
   }
   try {

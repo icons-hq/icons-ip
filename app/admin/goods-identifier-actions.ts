@@ -1,13 +1,13 @@
 'use server';
 
-import { getCurrentAdminAuthState } from '@/lib/auth/admin';
+import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { createClient } from '@/lib/supabase/server';
 
 export async function suggestGoodsIdentifiersAction(ipId: string, name: string): Promise<{
   code: string; slug: string; defaultVariantCode: string;
 } | null> {
-  const auth=await getCurrentAdminAuthState();
-  if (!auth.isConfigured || !auth.user || !auth.isStaff) return null;
+  const auth=await requireAdminActionAccess('/admin/catalog/goods');
+  if (!auth) return null;
   if (typeof ipId!=='string' || !/^[a-z0-9][a-z0-9-]*$/.test(ipId)
     || typeof name!=='string' || name.length>200) return null;
   const supabase=await createClient();

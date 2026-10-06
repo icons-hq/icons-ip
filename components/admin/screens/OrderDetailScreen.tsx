@@ -123,8 +123,8 @@ export function OrderDetailScreen({
     </div>
     <AdminSectionCard title="배송 건별 현황">
       <ShipmentDetails admin shipments={detail.shipments} items={items} />
-      {detail.shipments.map(shipment => <ShipmentDeliveryPanel shipmentId={shipment.id} originName={shipment.originName} key={shipment.id} />)}
-      {detail.shipments.filter(shipment => shipment.originalExpectedShipDate).map(shipment => <ShipmentPreorderPromisePanel shipmentId={shipment.id} key={shipment.id} />)}
+      {detail.shipments.map(shipment => <ShipmentDeliveryPanel orderId={order.id} shipmentId={shipment.id} originName={shipment.originName} key={shipment.id} />)}
+      {detail.shipments.filter(shipment => shipment.originalExpectedShipDate).map(shipment => <ShipmentPreorderPromisePanel orderId={order.id} shipmentId={shipment.id} key={shipment.id} />)}
       {detail.emailJobs.length ? <section aria-label="배송 메일 처리 상태">
         <h3>배송 안내 메일</h3>
         <ul>{detail.emailJobs.map(job=><li key={job.shipmentId}>

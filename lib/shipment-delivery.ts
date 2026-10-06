@@ -1,3 +1,4 @@
+import { isUuid } from '@/lib/uuid';
 import { isGoodsShipDate } from './goods-preorders';
 
 export type DeliveryMethod = 'parcel' | 'quick' | 'pickup';
@@ -37,9 +38,7 @@ export type AdminShipmentDelivery = {
 export const DELIVERY_POLICY_TEXT_FIELDS = ['contactName', 'contactPhone', 'handoffLocation', 'handoffInstructions',
   'appointmentInstructions', 'completionInstructions', 'cancellationInstructions', 'approvalReference'] as const;
 export const DELIVERY_METHOD_LABELS: Record<DeliveryMethod, string> = { parcel: '택배', quick: '퀵', pickup: '방문수령' };
-export function deliveryUuid(value: unknown): value is string {
-  return typeof value === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
-}
+export const deliveryUuid = isUuid;
 export function deliveryObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }

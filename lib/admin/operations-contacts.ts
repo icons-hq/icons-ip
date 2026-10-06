@@ -1,3 +1,4 @@
+import { isUuid } from '@/lib/uuid';
 export const OPERATIONS_SETTINGS_PATH = '/admin/settings/operations';
 
 export const OPERATIONS_CONTACT_FIELDS = {
@@ -53,7 +54,7 @@ export function parseOperationsContactValues(input: unknown):
 
 export function validOperationsContactTarget(scope: string, originId: string): scope is OperationsContactScope {
   return scope === 'operations' ? originId === ''
-    : scope === 'origin' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(originId);
+    : scope === 'origin' && isUuid(originId);
 }
 
 export function validOperationsContactVersion(value: string): boolean {

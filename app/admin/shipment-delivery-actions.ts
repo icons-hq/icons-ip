@@ -2,7 +2,8 @@
 
 import { revalidatePath } from 'next/cache';
 import { unstable_rethrow } from 'next/navigation';
-import { getCurrentAdminAuthState } from '@/lib/auth/admin';
+import { adminOrderActionHref } from '@/lib/admin/orders';
+import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { createClient } from '@/lib/supabase/server';
 import {
   DELIVERY_POLICY_TEXT_FIELDS, deliveryErrorMessage, deliveryObject, deliveryTimestamp, deliveryUuid,
@@ -12,10 +13,6 @@ import {
 
 type Failure = { ok: false; error: string };
 type Saved = { ok: true; message: string };
-async function staff(admin = false) {
-  const auth = await getCurrentAdminAuthState();
-  return auth.isConfigured && Boolean(auth.user) && auth.isStaff && (!admin || auth.role === 'admin');
-}
 function nullableUuid(value: unknown): string | null | false { return value === '' || value == null ? null : deliveryUuid(value) ? value : false; }
 function revision(value: unknown): number | null | false {
   if (value === '' || value == null) return null;
@@ -27,7 +24,7 @@ function refreshDelivery() {
   revalidatePath('/orders/[orderId]', 'page'); revalidatePath('/admin/sales/orders/[orderId]', 'page');
 }
 export async function readDeliveryPoliciesAction(originId: unknown): Promise<{ ok: true; policies: AdminDeliveryPolicy[] } | Failure> {
-  if (!await staff()) return { ok: false, error: '운영자만 배송 방식 정책을 확인할 수 있습니다.' };
+  if (!await requireAdminActionAccess('/admin/settings/origins')) return { ok: false, error: '운영자만 배송 방식 정책을 확인할 수 있습니다.' };
   if (!deliveryUuid(originId)) return { ok: false, error: '출고지를 다시 선택해주세요.' };
   try {
     const client = await createClient(); const { data, error } = await client.rpc('admin_list_delivery_policies', { p_origin_id: originId });
@@ -36,7 +33,7 @@ export async function readDeliveryPoliciesAction(originId: unknown): Promise<{ o
   } catch (error) { unstable_rethrow(error); return { ok: false, error: '배송 방식 정책을 불러오지 못했습니다.' }; }
 }
 export async function saveDeliveryPolicyAction(form: FormData): Promise<Saved | Failure> {
-  if (!await staff(true)) return { ok: false, error: '배송 방식 정책은 관리자만 저장할 수 있습니다.' };
+  if (!await requireAdminActionAccess('/admin/settings/origins', { adminOnly: true })) return { ok: false, error: '배송 방식 정책은 관리자만 저장할 수 있습니다.' };
   const originId = form.get('originId'); const policyId = nullableUuid(form.get('policyId'));
   const expectedRevision = revision(form.get('revision')); const method = form.get('method');
   const delegate = form.get('allowDelegate');
@@ -55,8 +52,8 @@ export async function saveDeliveryPolicyAction(form: FormData): Promise<Saved | 
       : input.state === 'stopped' ? '새 배송 방식 선택을 중지했습니다. 이미 선택한 배송 건의 인계는 저장된 조건으로 진행합니다.' : '배송 방식 정책을 초안으로 저장했습니다.' };
   } catch (error) { unstable_rethrow(error); return { ok: false, error: deliveryErrorMessage() }; }
 }
-export async function readShipmentDeliveryAction(shipmentId: unknown): Promise<{ ok: true; shipment: AdminShipmentDelivery } | Failure> {
-  if (!await staff()) return { ok: false, error: '운영자만 배송 인계 정보를 확인할 수 있습니다.' };
+export async function readShipmentDeliveryAction(shipmentId: unknown, orderId?: string): Promise<{ ok: true; shipment: AdminShipmentDelivery } | Failure> {
+  if (!await requireAdminActionAccess(adminOrderActionHref(orderId))) return { ok: false, error: '운영자만 배송 인계 정보를 확인할 수 있습니다.' };
   if (!deliveryUuid(shipmentId)) return { ok: false, error: '배송 건을 다시 선택해주세요.' };
   try {
     const client = await createClient(); const { data, error } = await client.rpc('admin_read_shipment_delivery', { p_shipment_id: shipmentId });
@@ -65,7 +62,7 @@ export async function readShipmentDeliveryAction(shipmentId: unknown): Promise<{
   } catch (error) { unstable_rethrow(error); return { ok: false, error: '배송 인계 정보를 불러오지 못했습니다.' }; }
 }
 export async function selectShipmentDeliveryMethodAction(form: FormData): Promise<Saved | Failure> {
-  if (!await staff()) return { ok: false, error: '운영자만 배송 방식을 변경할 수 있습니다.' };
+  if (!await requireAdminActionAccess(adminOrderActionHref(form.get('orderId')))) return { ok: false, error: '운영자만 배송 방식을 변경할 수 있습니다.' };
   const shipmentId = form.get('shipmentId'); const operationId = form.get('operationId'); const method = form.get('method');
   const policyId = nullableUuid(form.get('policyId')); const updatedAt = form.get('updatedAt');
   const requestReference = String(form.get('customerRequestReference') ?? '').trim();
@@ -86,7 +83,7 @@ export async function selectShipmentDeliveryMethodAction(form: FormData): Promis
   } catch (error) { unstable_rethrow(error); return { ok: false, error: deliveryErrorMessage() }; }
 }
 export async function recordShipmentDeliveryAction(form: FormData): Promise<Saved | Failure> {
-  if (!await staff()) return { ok: false, error: '운영자만 인계·수령을 확인할 수 있습니다.' };
+  if (!await requireAdminActionAccess(adminOrderActionHref(form.get('orderId')))) return { ok: false, error: '운영자만 인계·수령을 확인할 수 있습니다.' };
   const shipmentId = form.get('shipmentId'); const operationId = form.get('operationId'); const kind = form.get('kind'); const updatedAt = form.get('updatedAt');
   const keys = kind === 'quick_handoff' ? ['operatorName', 'providerName', 'providerPhone', 'handoffReference', 'occurredAt']
     : ['operatorName', 'receiptReference', 'recipientKind', 'occurredAt'];

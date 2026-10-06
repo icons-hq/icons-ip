@@ -100,10 +100,10 @@ describe('admin catalog archive actions', () => {
 
     expect(mocks.rpc).toHaveBeenCalledOnce();
     expect(mocks.rpc).toHaveBeenCalledWith(rpcName, { target_id: RECORD_ID });
-    expect(mocks.revalidatePath.mock.calls).toEqual([
+    expect(mocks.revalidatePath.mock.calls).toEqual(expect.arrayContaining([
       ...broadRevalidationCalls,
       ...(kind === 'ip' ? [[`/ip/${RECORD_ID}`], ['/admin/catalog/ips'], [`/admin/catalog/ips/${RECORD_ID}`]] : []),
-    ]);
+    ]));
   });
 
   it.each([

@@ -1,8 +1,10 @@
 'use server';
+
+import { revalidateGoodsSurfaces } from '@/lib/admin/revalidate-goods.server';
 import { createHash } from 'node:crypto';
-import { redirect, unstable_rethrow } from 'next/navigation';
+import { unstable_rethrow } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
-import { getCurrentAdminAuthState } from '@/lib/auth/admin';
+import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { createClient } from '@/lib/supabase/server';
 import { createServiceClient } from '@/lib/supabase/service';
 import { readBoundedZip } from '@/lib/admin/bounded-zip.server';
@@ -25,11 +27,8 @@ import {
 import { prepareGoodsImportImages } from '@/lib/admin/goods-import-images.server';
 
 async function requireStaff() {
-  const auth = await getCurrentAdminAuthState();
-  if (!auth.isConfigured || !auth.user)
-    redirect(`/login?next=${encodeURIComponent(GOODS_IMPORT_PATH)}`);
-  if (!auth.isStaff)
-    throw new Error('상품 엑셀 작업은 운영자만 할 수 있습니다.');
+  const auth = await requireAdminActionAccess(GOODS_IMPORT_PATH);
+  if (!auth) throw new Error('상품 엑셀 작업은 운영자만 할 수 있습니다.');
   return auth.user.id;
 }
 function safeError(error: unknown) {
@@ -264,15 +263,8 @@ export async function commitNextGoodsImport(id: string) {
           '적용 상태를 저장하지 못했습니다. 같은 작업에서 다시 시도해주세요.',
         );
       if (saved.data?.status === 'success') {
-        for (const path of [
-          '/admin/catalog/goods',
-          '/admin/catalog/ips',
-          '/shop',
-          '/',
-        ])
-          revalidatePath(path);
-        revalidatePath('/shop/[goodId]', 'page');
-        revalidatePath('/ip/[ipId]', 'page');
+        revalidateGoodsSurfaces();
+        revalidatePath('/admin/catalog/ips');
       }
       return {
         ok: true as const,

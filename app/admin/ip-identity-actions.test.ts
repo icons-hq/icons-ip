@@ -47,14 +47,14 @@ beforeEach(() => {
 });
 
 describe('admin IP identity action', () => {
-  it('validates the editable slug before auth or RPC access and preserves input', async () => {
+  it('validates the editable slug after access checks but before RPC and preserves input', async () => {
     const form = identityForm({ publicSlug: 'Mountain Fire' });
     await expect(updateAdminIpIdentityAction({}, form)).resolves.toMatchObject({
       errors: { publicSlug: '공개 URL은 영문 소문자·숫자·하이픈만 사용할 수 있습니다.' },
       values: { publicSlug: 'Mountain Fire', expectedPublicSlug: 'hwasan' },
       attempt: 1,
     });
-    expect(mocks.getCurrentAdminAuthState).not.toHaveBeenCalled();
+    expect(mocks.getCurrentAdminAuthState).toHaveBeenCalledOnce();
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
@@ -71,6 +71,8 @@ describe('admin IP identity action', () => {
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/ip/hwasan');
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/ip/mountain-fire');
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/ip/[id]', 'page');
+    expect(mocks.revalidatePath).toHaveBeenCalledWith('/shop/[goodId]', 'page');
+    expect(mocks.revalidatePath).toHaveBeenCalledWith('/checkout/[orderId]', 'page');
     expect(mocks.updateTag).toHaveBeenCalledWith('home-curations');
   });
 

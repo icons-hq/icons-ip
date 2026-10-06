@@ -1,3 +1,4 @@
+import { isUuid } from '@/lib/uuid';
 export type GoodsPricePeriodState = 'draft' | 'active' | 'disabled';
 export interface GoodsPricePeriodInput {
   state: GoodsPricePeriodState;
@@ -15,7 +16,6 @@ export interface AdminGoodsPricePeriod extends GoodsPricePeriodInput {
   updatedAt: string;
 }
 
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function object(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
@@ -70,8 +70,8 @@ export function parseAdminGoodsPricePeriods(value: unknown): AdminGoodsPricePeri
   if (!Array.isArray(value)) return null;
   const result: AdminGoodsPricePeriod[] = [];
   for (const row of value) {
-    if (!object(row) || typeof row.id !== 'string' || !UUID.test(row.id)
-      || typeof row.goodId !== 'string' || !row.goodId || typeof row.variantId !== 'string' || !UUID.test(row.variantId)
+    if (!object(row) || typeof row.id !== 'string' || !isUuid(row.id)
+      || typeof row.goodId !== 'string' || !row.goodId || typeof row.variantId !== 'string' || !isUuid(row.variantId)
       || typeof row.regularPrice !== 'number' || !Number.isSafeInteger(row.regularPrice) || row.regularPrice < 0 || row.regularPrice > 2147483647
       || !positive(row.revision)
       || typeof row.createdAt !== 'string' || !Number.isFinite(Date.parse(row.createdAt))

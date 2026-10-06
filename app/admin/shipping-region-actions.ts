@@ -1,13 +1,15 @@
 'use server';
 
+import { revalidateGoodsSurfaces } from '@/lib/admin/revalidate-goods.server';
+import { isUuid } from '@/lib/uuid';
+
 import { revalidatePath } from 'next/cache';
 import { unstable_rethrow } from 'next/navigation';
-import { getCurrentAdminAuthState } from '@/lib/auth/admin';
+import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { createClient } from '@/lib/supabase/server';
 import { parseShippingRegionPolicy, parseShippingRegionPolicyInput, SHIPPING_REGIONS_PATH, type ShippingRegionPolicy } from '@/lib/admin/shipping-regions';
 
 type Result = { ok: true; policy: ShippingRegionPolicy; message: string } | { ok: false; error: string };
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function errorMessage(message: string): string {
   if (message === 'shipping_region_policy_changed') return '다른 관리자가 정책을 변경했습니다. 현재 입력을 보관한 뒤 저장된 정책을 다시 불러와주세요.';
   if (message === 'shipping_region_rules_overlap') return '지역표에 겹치는 우편번호·주소 구간이 있습니다. 각 주소가 한 행에만 해당하도록 수정해주세요.';
@@ -19,14 +21,15 @@ function errorMessage(message: string): string {
   return '지역 배송 정책을 저장하지 못했습니다. 입력을 확인하고 다시 시도해주세요.';
 }
 function revalidate() {
-  for (const path of [SHIPPING_REGIONS_PATH, '/admin/settings/origins', '/cart', '/checkout']) revalidatePath(path);
+  revalidateGoodsSurfaces();
+  for (const path of [SHIPPING_REGIONS_PATH, '/admin/settings/origins']) revalidatePath(path);
 }
 export async function saveShippingRegionPolicyAction(id: unknown, revision: unknown, value: unknown): Promise<Result> {
   try {
-    const auth = await getCurrentAdminAuthState();
-    if (!auth.isConfigured || !auth.user || !auth.isStaff || auth.role !== 'admin') return { ok: false, error: '지역 배송 정책은 관리자(admin)만 변경할 수 있습니다.' };
+    const auth = await requireAdminActionAccess(SHIPPING_REGIONS_PATH, { adminOnly: true });
+    if (!auth) return { ok: false, error: '지역 배송 정책은 관리자(admin)만 변경할 수 있습니다.' };
     const input = parseShippingRegionPolicyInput(value);
-    if (!input || !(id === null || (typeof id === 'string' && UUID.test(id)))
+    if (!input || !(id === null || (typeof id === 'string' && isUuid(id)))
       || (id === null ? revision !== null : !Number.isSafeInteger(revision) || Number(revision) < 1)) return { ok: false, error: '출고지·택배사와 지역표 입력 형식을 확인해주세요.' };
     const client = await createClient();
     const { data, error } = await client.rpc('admin_save_shipping_region_policy', { p_policy_id: id, p_values: input, p_expected_revision: revision });
@@ -38,9 +41,9 @@ export async function saveShippingRegionPolicyAction(id: unknown, revision: unkn
 }
 export async function setShippingRegionPolicyStatusAction(id: string, revision: number, status: 'active' | 'retired', attested: boolean): Promise<Result> {
   try {
-    const auth = await getCurrentAdminAuthState();
-    if (!auth.isConfigured || !auth.user || !auth.isStaff || auth.role !== 'admin') return { ok: false, error: '지역 배송 정책은 관리자(admin)만 변경할 수 있습니다.' };
-    if (!UUID.test(id) || !Number.isSafeInteger(revision) || revision < 1 || !['active', 'retired'].includes(status) || attested !== true) {
+    const auth = await requireAdminActionAccess(SHIPPING_REGIONS_PATH, { adminOnly: true });
+    if (!auth) return { ok: false, error: '지역 배송 정책은 관리자(admin)만 변경할 수 있습니다.' };
+    if (!isUuid(id) || !Number.isSafeInteger(revision) || revision < 1 || !['active', 'retired'].includes(status) || attested !== true) {
       return { ok: false, error: '저장된 정책과 원본 확인 항목을 확인해주세요.' };
     }
     const client = await createClient();

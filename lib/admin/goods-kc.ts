@@ -1,3 +1,4 @@
+import { isUuid } from '@/lib/uuid';
 import {
   GOODS_KC_BUSINESS_LABELS, GOODS_KC_FAMILY_LABELS, GOODS_KC_SCHEME_LABELS,
   goodsKcNeedsIdentifier, goodsKcSchemeAllowed,
@@ -45,7 +46,6 @@ export interface GoodsKcSaveInput {
   expectedContextFingerprint: string;
   attested: boolean;
 }
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const FINGERPRINT = /^[a-f0-9]{64}$/;
 const SINGLE_LINE_CONTROLS = /[\u0000-\u001f\u007f]/;
 const MULTI_LINE_CONTROLS = /[\u0000-\u0008\u000b\u000c\u000e-\u001f\u007f]/;
@@ -93,7 +93,7 @@ export function normalizeGoodsKcModels(value: unknown): GoodsKcModelInput[] | nu
       if (text === null) return null;
       normalized[key] = text;
     }
-    if (!Array.isArray(row.variantIds) || row.variantIds.length > 200 || row.variantIds.some((id) => typeof id !== 'string' || !UUID.test(id))
+    if (!Array.isArray(row.variantIds) || row.variantIds.length > 200 || row.variantIds.some((id) => typeof id !== 'string' || !isUuid(id))
       || new Set(row.variantIds).size !== row.variantIds.length) return null;
     normalized.variantIds = (row.variantIds as string[]).map((id) => id.toLowerCase()).sort();
     if (new Set(normalized.variantIds).size !== normalized.variantIds.length || !record(row.evidence)
@@ -181,7 +181,7 @@ export function parseAdminGoodsKc(value: unknown): AdminGoodsKc | null {
   if (!models) return null;
   const variants: GoodsKcVariant[] = [];
   for (const variant of value.variants) {
-    if (!record(variant) || typeof variant.id !== 'string' || !UUID.test(variant.id)
+    if (!record(variant) || typeof variant.id !== 'string' || !isUuid(variant.id)
       || typeof variant.code !== 'string' || !variant.code || typeof variant.name !== 'string' || !variant.name
       || typeof variant.active !== 'boolean' || variants.some((entry) => entry.id === variant.id)) return null;
     variants.push({ id: variant.id, code: variant.code, name: variant.name, active: variant.active });

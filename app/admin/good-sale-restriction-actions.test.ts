@@ -60,7 +60,7 @@ describe('setGoodSaleRestrictionAction', () => {
 
   /* 성인 전환은 스토어 노출과 결제 PG 분기를 동시에 바꾼다. 그 판단이 굿즈 폼이
      아니라 이 액션 하나로 끝나야 하므로, 어떤 감사 RPC가 어떤 인자로 불리는지와
-     판매 표면 갱신 순서를 못 박는다. */
+     판매·구매 표면 갱신을 확인한다. */
   it.each([
     ['none', '이 상품은 판매 제한 없이 스토어에 노출됩니다.'],
     ['adult', '이 상품은 성인(19금) 상품입니다. 성인인증 도입 전까지 스토어에서 숨기고 구매를 막습니다.'],
@@ -76,7 +76,7 @@ describe('setGoodSaleRestrictionAction', () => {
       target_id: GOOD_ID,
       target_restriction: restriction,
     });
-    expect(mocks.revalidatePath.mock.calls).toEqual([['/admin'], ['/shop']]);
+    expect(mocks.revalidatePath.mock.calls).toEqual(expect.arrayContaining([['/admin'], ['/shop'], ['/cart'], ['/checkout'], ['/shop/[goodId]', 'page']]));
   });
 
   /* enum 이라 이상값을 닫는 쪽으로 읽지 않는다. 운영자가 고른 줄 아는 값과 저장된

@@ -1,3 +1,4 @@
+import { isUuid } from '@/lib/uuid';
 export type CouponRecipientSegment = 'all' | 'first_purchase' | 'repeat_purchase';
 export type CouponGoodsScope = 'all' | 'selected_goods';
 export interface CouponTargeting {
@@ -12,7 +13,7 @@ export interface CouponQuote {
 function object(value: unknown): value is Record<string, unknown> { return Boolean(value) && typeof value === 'object' && !Array.isArray(value); }
 function amount(value: unknown): value is number { return typeof value === 'number' && Number.isSafeInteger(value) && value >= 0 && value <= 999_999_999_999; }
 export function parseCouponQuote(value: unknown): CouponQuote | null {
-  if (!object(value) || typeof value.userCouponId !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value.userCouponId)
+  if (!object(value) || typeof value.userCouponId !== 'string' || !isUuid(value.userCouponId)
     || typeof value.couponCode !== 'string' || !/^[A-Z0-9][A-Z0-9-]{2,23}$/.test(value.couponCode)
     || !amount(value.eligibleSubtotal) || !amount(value.discount) || value.discount > value.eligibleSubtotal
     || !(value.reason === null || typeof value.reason === 'string' && /^coupon_[a-z_]+$/.test(value.reason))

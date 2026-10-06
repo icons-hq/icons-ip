@@ -1,8 +1,9 @@
 'use server';
 
-import { revalidatePath } from 'next/cache';
+import { revalidateGoodsSurfaces } from '@/lib/admin/revalidate-goods.server';
+
 import { unstable_rethrow } from 'next/navigation';
-import { getCurrentAdminAuthState } from '@/lib/auth/admin';
+import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { createClient } from '@/lib/supabase/server';
 import { parseAdminGoodsKc, parseGoodsKcSaveInput, type AdminGoodsKc } from '@/lib/admin/goods-kc';
 
@@ -25,8 +26,8 @@ function saveError(message: string): string {
 
 export async function readGoodsKcAction(goodIdValue: unknown): Promise<{ ok: true; configuration: AdminGoodsKc } | Failure> {
   try {
-    const auth = await getCurrentAdminAuthState();
-    if (!auth.isConfigured || !auth.user || !auth.isStaff) return { ok: false, error: STAFF_REQUIRED };
+    const auth = await requireAdminActionAccess('/admin/catalog/goods');
+    if (!auth) return { ok: false, error: STAFF_REQUIRED };
     const id = goodId(goodIdValue);
     if (!id) return { ok: false, error: '상품을 다시 선택해주세요.' };
     const client = await createClient();
@@ -43,8 +44,8 @@ export async function saveGoodsKcAction(goodIdValue: unknown, inputValue: unknow
   ok: true; message: string; configuration: AdminGoodsKc;
 } | Failure> {
   try {
-    const auth = await getCurrentAdminAuthState();
-    if (!auth.isConfigured || !auth.user || !auth.isStaff) return { ok: false, error: STAFF_REQUIRED };
+    const auth = await requireAdminActionAccess('/admin/catalog/goods');
+    if (!auth) return { ok: false, error: STAFF_REQUIRED };
     const id = goodId(goodIdValue);
     const input = parseGoodsKcSaveInput(inputValue);
     if (!id || !input) return { ok: false, error: 'KC 입력 형식과 모델별 필수 정보·근거를 확인해주세요.' };
@@ -56,9 +57,7 @@ export async function saveGoodsKcAction(goodIdValue: unknown, inputValue: unknow
     if (error) return { ok: false, error: saveError(error.message) };
     const configuration = data && typeof data.changed === 'boolean' ? parseAdminGoodsKc(data.configuration) : null;
     if (!configuration) return { ok: false, error: 'KC 저장 결과를 확인하지 못했습니다. 저장된 정보를 다시 불러와주세요.' };
-    revalidatePath('/admin/catalog/goods');
-    revalidatePath('/admin');
-    revalidatePath(`/shop/${encodeURIComponent(id)}`);
+    revalidateGoodsSurfaces();
     return { ok: true, configuration, message: input.status === 'reviewed'
       ? '대상 모델·옵션과 근거를 결속해 KC 검토를 완료했습니다. 상품 공개는 별도로 진행해주세요.'
       : 'KC 정보를 미검토 상태로 저장했습니다. 필수 정보와 실제 증빙을 확인한 뒤 검토를 완료해주세요.' };

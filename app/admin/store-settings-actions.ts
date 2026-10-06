@@ -1,18 +1,13 @@
 'use server';
 import { revalidatePath, updateTag } from 'next/cache';
-import { redirect, unstable_rethrow } from 'next/navigation';
-import { getCurrentAdminAuthState } from '@/lib/auth/admin';
+import { unstable_rethrow } from 'next/navigation';
+import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { createClient } from '@/lib/supabase/server';
 import { BUSINESS_INFO_LABELS } from '@/lib/legal/business-info';
 import { INQUIRY_CATEGORIES } from '@/lib/inquiries';
 import { BANK_ACCOUNT_LABELS, CARRIER_SETTINGS_PATH, STORE_SETTINGS_CACHE_TAG, STORE_SETTINGS_PATH, parseCarrierInput, parseStoreSettingsInput } from '@/lib/admin/store-settings';
 
 export type StoreSettingsActionState={message?:string;errors?:Record<string,string>;values?:Record<string,string>;updatedAt?:string;attempt?:number};
-async function requireSettingsAdmin(path:string) {
-  const auth=await getCurrentAdminAuthState();
-  if (!auth.user || !auth.isConfigured) redirect(`/login?next=${encodeURIComponent(path)}`);
-  return auth.isStaff && auth.role==='admin';
-}
 function value(data:FormData,key:string) { const raw=data.get(key);return typeof raw==='string'?raw:''; }
 function validStamp(stamp:string) {return Boolean(stamp) && !Number.isNaN(Date.parse(stamp));}
 function errorMessage(error:{message?:string}) {
@@ -30,7 +25,7 @@ export async function saveInquiryAutoRepliesAction(previous:StoreSettingsActionS
   const attempt=(previous.attempt??0)+1;
   const fail=(errors:Record<string,string>)=>({errors,values,attempt});
   try {
-    if (!await requireSettingsAdmin(STORE_SETTINGS_PATH)) return fail({form:'설정 변경은 관리자(admin)만 할 수 있습니다.'});
+    if (!await requireAdminActionAccess(STORE_SETTINGS_PATH, { adminOnly: true })) return fail({form:'설정 변경은 관리자(admin)만 할 수 있습니다.'});
     const stamp=value(data,'updatedAt');
     if (!validStamp(stamp)) return fail({form:'최신 설정을 다시 열어주세요.'});
     const targetValues=Object.fromEntries(INQUIRY_CATEGORIES.map(({id})=>[id,{
@@ -56,7 +51,7 @@ export async function saveStoreSettingsAction(previous:StoreSettingsActionState,
   const attempt=(previous.attempt??0)+1;
   const fail=(errors:Record<string,string>)=>({errors,values,attempt});
   try {
-    if (!await requireSettingsAdmin(STORE_SETTINGS_PATH)) return fail({form:'설정 변경은 관리자(admin)만 할 수 있습니다.'});
+    if (!await requireAdminActionAccess(STORE_SETTINGS_PATH, { adminOnly: true })) return fail({form:'설정 변경은 관리자(admin)만 할 수 있습니다.'});
     if (section!=='business' && section!=='bank_transfer') return fail({form:'설정 항목을 확인해주세요.'});
     const parsed=parseStoreSettingsInput(section,values);
     if (!parsed.ok) return fail(parsed.errors);
@@ -74,7 +69,7 @@ export async function saveShippingCarrierAction(previous:StoreSettingsActionStat
   const attempt=(previous.attempt??0)+1;
   const fail=(errors:Record<string,string>)=>({errors,values,attempt});
   try {
-    if (!await requireSettingsAdmin(CARRIER_SETTINGS_PATH)) return fail({form:'설정 변경은 관리자(admin)만 할 수 있습니다.'});
+    if (!await requireAdminActionAccess(CARRIER_SETTINGS_PATH, { adminOnly: true })) return fail({form:'설정 변경은 관리자(admin)만 할 수 있습니다.'});
     const parsed=parseCarrierInput({code:values.code,label:values.label,trackingUrlTemplate:values.trackingUrlTemplate,active:values.active==='true'});
     if (!parsed.ok) return fail(parsed.errors);
     if (values.updatedAt && !validStamp(values.updatedAt)) return fail({form:'최신 택배사 설정을 다시 열어주세요.'});

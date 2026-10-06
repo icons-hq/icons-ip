@@ -1,3 +1,4 @@
+import { isUuid } from '@/lib/uuid';
 import { isGoodsShipDate } from '@/lib/goods-preorders';
 
 export type GoodsPreorderState = 'draft' | 'active' | 'stopped';
@@ -22,14 +23,12 @@ export interface AdminPreorderReservation {
   releasedAt: string | null; releaseReason: string | null;
 }
 export interface AdminPreorderReservationPage { total: number; items: AdminPreorderReservation[]; hasMore: boolean }
-const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 function object(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 function integer(value: unknown, minimum = 0): value is number {
   return typeof value === 'number' && Number.isInteger(value) && value >= minimum && value <= 2147483647;
 }
-function uuid(value: unknown): value is string { return typeof value === 'string' && UUID.test(value); }
 function timestamp(value: unknown): value is string { return typeof value === 'string' && Number.isFinite(Date.parse(value)); }
 function optionalInstant(value: unknown): string | null | false {
   if (value === '' || value === null || value === undefined) return null;
@@ -71,7 +70,7 @@ export function parseAdminGoodsPreorders(value: unknown): AdminGoodsPreorder[] |
   if (!Array.isArray(value)) return null;
   const result: AdminGoodsPreorder[] = [];
   for (const row of value) {
-    if (!object(row) || !uuid(row.id) || !uuid(row.variantId) || typeof row.goodId !== 'string' || !row.goodId
+    if (!object(row) || !isUuid(row.id) || !isUuid(row.variantId) || typeof row.goodId !== 'string' || !row.goodId
       || !['draft', 'active', 'stopped'].includes(String(row.state)) || !integer(row.revision, 1) || typeof row.selected !== 'boolean'
       || !integer(row.reservedQty) || !integer(row.allocatedQty) || !timestamp(row.createdAt)
       || (row.activatedAt !== null && !timestamp(row.activatedAt)) || (row.stoppedAt !== null && !timestamp(row.stoppedAt))) return null;
@@ -92,7 +91,7 @@ export function parseAdminPreorderReservations(value: unknown): AdminPreorderRes
   if (!object(value) || !integer(value.total) || !Array.isArray(value.items) || typeof value.hasMore !== 'boolean') return null;
   const items: AdminPreorderReservation[] = [];
   for (const row of value.items) {
-    if (!object(row) || !uuid(row.orderItemId) || !uuid(row.orderId) || !uuid(row.policyId) || !uuid(row.variantId)
+    if (!object(row) || !isUuid(row.orderItemId) || !isUuid(row.orderId) || !isUuid(row.policyId) || !isUuid(row.variantId)
       || !integer(row.qty, 1) || !integer(row.physicalStockQty) || !timestamp(row.createdAt) || !isGoodsShipDate(row.expectedShipDate)
       || (row.variantName !== null && typeof row.variantName !== 'string')
       || !['reserved', 'allocated', 'released', 'returned'].includes(String(row.state))
@@ -107,12 +106,12 @@ export function parseAdminPreorderReservations(value: unknown): AdminPreorderRes
 }
 export function preparePreorderAllocation(rows: readonly Pick<AdminPreorderReservation, 'orderItemId' | 'variantId' | 'physicalStockQty'>[], idsValue: unknown):
   { orderItemIds: string[]; expectedStock: Record<string, number> } | null {
-  if (!Array.isArray(idsValue) || !idsValue.length || idsValue.length > 100 || !idsValue.every(uuid)
+  if (!Array.isArray(idsValue) || !idsValue.length || idsValue.length > 100 || !idsValue.every(isUuid)
     || new Set(idsValue).size !== idsValue.length) return null;
   const expectedStock: Record<string, number> = {};
   for (const id of idsValue) {
     const row = rows.find((item) => item.orderItemId === id);
-    if (!row || !uuid(row.variantId) || !integer(row.physicalStockQty)
+    if (!row || !isUuid(row.variantId) || !integer(row.physicalStockQty)
       || (Object.hasOwn(expectedStock, row.variantId) && expectedStock[row.variantId] !== row.physicalStockQty)) return null;
     expectedStock[row.variantId] = row.physicalStockQty;
   }
