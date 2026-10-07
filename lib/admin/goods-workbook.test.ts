@@ -284,6 +284,13 @@ describe('goods Excel planning', () => {
       },
     });
   });
+  it('소비자가 오류는 편집기의 판매가·할인 대신 엑셀 열 이름(기준 판매가·소비자가)으로 알린다', () => {
+    const [equal] = planGoodsWorkbookImport([row({ code: 'price-eq', price: '12000', compareAtPrice: '12000' })], context);
+    expect(equal.errors).toEqual(['소비자가는 기준 판매가보다 커야 합니다.']);
+    const [text] = planGoodsWorkbookImport([row({ code: 'price-text', price: '12000', compareAtPrice: '12,000원' })], context);
+    expect(text.errors).toEqual(['소비자가는 0 이상의 정수여야 합니다.']);
+    for (const group of [equal, text]) expect(group.errors.join()).not.toMatch(/할인/);
+  });
   it('keeps errors scoped to a complete product group and allows other products', () => {
     const groups = planGoodsWorkbookImport(
       [

@@ -622,6 +622,7 @@ export function planGoodsWorkbookImport(
     }
     form.set('imagePath', str(imageValues.image_path));
     galleries.forEach((path, index) => form.set(`galleryPath${index}`, path));
+    // 오류 문구는 엑셀 열 이름(기준 판매가·소비자가)을 따른다 — 미리보기와 실패 행 파일의 오류 칸에 그대로 나간다.
     const normalized = normalizeAdminGoodForm(form, {
       ipIds: new Set(
         context.ips.filter((ip) => !ip.archived_at).map((ip) => ip.id),
@@ -629,7 +630,7 @@ export function planGoodsWorkbookImport(
       eventIds: new Set(),
       goodIpById: new Map(),
       verticalKeys: new Set(),
-    });
+    }, { copy: 'workbook' });
     if (!normalized.ok)
       errors.push(
         ...Object.values(normalized.errors).filter((error): error is string =>
