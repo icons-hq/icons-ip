@@ -16,7 +16,11 @@ export { normalizeRemoteImageUrl };
  *   홉마다 같은 검사를 반복한다.
  * - 응답 Content-Type은 JPEG·PNG·WebP이거나, 형식을 밝히지 않은 octet-stream 계열(값 없음 포함,
  *   S3 기본값 binary/octet-stream 등)이어야 한다. 어느 쪽이든 파일 서명이 JPEG·PNG·WebP여야
- *   받는다. 용량 상한을 넘으면 스트림을 즉시 끊고, 한 장의 전체 시간은 10초를 넘지 않는다.
+ *   받는다. 용량 상한을 넘으면 스트림을 즉시 끊는다.
+ * - 리다이렉트·200이 아닌 응답·거절한 응답은 본문을 받지 않고 소켓을 바로 끊는다. 상대 서버가
+ *   본문을 열어 두어도 소켓이 시간 상한 밖에 남지 않는다.
+ * - 한 장의 전체 시간 상한(기본 10초)을 넘으면 끊는다. idleTimeoutMs를 주면 그 시간 동안 아무
+ *   바이트도 오지 않을 때도 끊는다(느리지만 계속 오는 응답은 전체 상한까지 받는다).
  */
 export const REMOTE_IMAGE_TIMEOUT_MS = 10_000;
 export const REMOTE_IMAGE_MAX_REDIRECTS = 3;
@@ -133,16 +137,32 @@ function requestHop(
   pinned: { address: string; family: number },
   deadline: number,
   maxBytes: number,
+  idleTimeoutMs: number | undefined,
 ): Promise<Hop> {
   const wait = remaining(deadline);
   return new Promise((resolve, reject) => {
-    const state: { settled: boolean; timer?: ReturnType<typeof setTimeout> } = { settled: false };
+    const state: {
+      settled: boolean;
+      timer?: ReturnType<typeof setTimeout>;
+      idle?: ReturnType<typeof setTimeout>;
+    } = { settled: false };
     const finish = (error: Error | null, hop?: Hop) => {
       if (state.settled) return;
       state.settled = true;
       clearTimeout(state.timer);
+      clearTimeout(state.idle);
       if (error) reject(error);
       else resolve(hop!);
+    };
+    const expire = () => {
+      finish(new Error(MESSAGES.timeout));
+      req.destroy();
+    };
+    /* Restarts the inactivity window on connect, headers and every chunk. */
+    const touch = () => {
+      if (!idleTimeoutMs || state.settled) return;
+      clearTimeout(state.idle);
+      state.idle = setTimeout(expire, idleTimeoutMs);
     };
     const req = request(
       url,
@@ -161,34 +181,43 @@ function requestHop(
         },
       },
       (response) => {
+        touch();
+        // A body we will not read must not keep the socket open past the time limit.
+        // Settle first: tearing the socket down may emit errors that must not win the race.
+        const close = () => {
+          response.on('error', () => {});
+          response.destroy();
+          req.destroy();
+        };
         const status = response.statusCode ?? 0;
         if (status >= 300 && status < 400 && response.headers.location) {
-          response.resume();
           finish(null, { kind: 'redirect', location: response.headers.location });
+          close();
           return;
         }
         if (status !== 200) {
-          response.resume();
           finish(new Error(MESSAGES.status));
+          close();
           return;
         }
         if (!acceptsContentType(response.headers['content-type'])) {
-          response.destroy();
           finish(new Error(MESSAGES.type));
+          close();
           return;
         }
         if (Number(response.headers['content-length'] ?? 0) > maxBytes) {
-          response.destroy();
           finish(new Error(MESSAGES.size));
+          close();
           return;
         }
         const chunks: Buffer[] = [];
         let size = 0;
         response.on('data', (chunk: Buffer) => {
+          touch();
           size += chunk.length;
           if (size > maxBytes) {
-            response.destroy();
             finish(new Error(MESSAGES.size));
+            close();
             return;
           }
           chunks.push(chunk);
@@ -199,12 +228,10 @@ function requestHop(
         );
       },
     );
-    state.timer = setTimeout(() => {
-      finish(new Error(MESSAGES.timeout));
-      req.destroy();
-    }, wait);
-    req.on('error', (error) =>
-      finish(error.message === MESSAGES.timeout ? error : new Error(MESSAGES.status)),
+    state.timer = setTimeout(expire, wait);
+    touch();
+    req.on('error', (error?: Error) =>
+      finish(error instanceof Error && error.message === MESSAGES.timeout ? error : new Error(MESSAGES.status)),
     );
     req.end();
   });
@@ -212,7 +239,7 @@ function requestHop(
 
 export async function fetchRemoteImage(
   source: string,
-  options: { timeoutMs?: number; maxBytes?: number } = {},
+  options: { timeoutMs?: number; idleTimeoutMs?: number; maxBytes?: number } = {},
 ): Promise<RemoteImage> {
   const deadline = Date.now() + (options.timeoutMs ?? REMOTE_IMAGE_TIMEOUT_MS);
   const maxBytes = options.maxBytes ?? ADMIN_ARTWORK_MAX_BYTES;
@@ -220,7 +247,7 @@ export async function fetchRemoteImage(
   for (let hops = 0; ; hops++) {
     if (!current) throw new Error(MESSAGES.url);
     const pinned = await resolvePublicAddress(current.hostname, deadline);
-    const hop = await requestHop(current, pinned, deadline, maxBytes);
+    const hop = await requestHop(current, pinned, deadline, maxBytes, options.idleTimeoutMs);
     if (hop.kind === 'image') {
       const sniffed = sniffImageMime(hop.bytes);
       if (!sniffed) throw new Error(MESSAGES.type);

@@ -28,9 +28,21 @@ import {
 
 export { isPublicImageAddress };
 export const imageMime = sniffImageMime;
+/**
+ * ICONS 양식을 적용할 때 URL 이미지는 상품 단위로 받는다. 기존처럼 10초 동안 바이트가 오지 않으면
+ * 끊고, 느리지만 계속 오는 큰 이미지는 전체 30초까지 받는다. 사방넷 미리보기의 장당 10초·전체 예산은
+ * prefetchGoodsImportImages가 따로 지킨다.
+ */
+export const GOODS_IMPORT_IMAGE_TIMEOUT_MS = 30_000;
+export const GOODS_IMPORT_IMAGE_IDLE_TIMEOUT_MS = 10_000;
 /** URL images share the SSRF-guarded fetcher: pinned DNS, https only, per-hop redirect checks. */
 export async function fetchGoodsImportImage(source: string): Promise<Buffer> {
-  return (await fetchRemoteImage(source)).bytes;
+  return (
+    await fetchRemoteImage(source, {
+      timeoutMs: GOODS_IMPORT_IMAGE_TIMEOUT_MS,
+      idleTimeoutMs: GOODS_IMPORT_IMAGE_IDLE_TIMEOUT_MS,
+    })
+  ).bytes;
 }
 async function verificationWait(actorId: string) {
   const service = createServiceClient();
