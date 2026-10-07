@@ -228,6 +228,17 @@ describe('GoodDetail', () => {
     expect(html).toContain('https://cdn.example/g13-1.webp');
   });
 
+  /* 2026-10-07 — 대표 이미지 1장 + 추가 이미지 최대 9장 = 10장을 도트·썸네일 모두 끝까지 그린다. */
+  it('대표 이미지와 추가 이미지 9장을 10개 슬라이드·도트·썸네일로 그린다', () => {
+    const html = render({ gallery: Array.from({ length: 9 }, (_, index) => `url("https://cdn.example/g13-extra-${index + 1}.webp")`) });
+
+    expect(html.match(/class="wc-pdp-gallery__slide"/g)).toHaveLength(10);
+    expect(html.match(/class="wc-pdp-gallery__dot(?: is-active)?"/g)).toHaveLength(10);
+    expect(html.match(/class="wc-pdp-gallery__thumb(?: is-active)?"/g)).toHaveLength(10);
+    expect(html).toContain('aria-label="10번째 이미지 보기"');
+    expect(html).toContain('https://cdn.example/g13-extra-9.webp');
+  });
+
   /* #172 완료 조건 — 갤러리가 비어도 대표 이미지로 정상 렌더된다. */
   it('갤러리가 비면 대표 이미지 한 장만 남고 도트는 사라진다', () => {
     const html = render({ gallery: [], detailImageUrl: null });

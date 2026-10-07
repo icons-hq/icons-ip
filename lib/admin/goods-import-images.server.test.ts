@@ -36,6 +36,7 @@ import {
   prepareGoodsImportImages,
 } from './goods-import-images.server';
 import { goodsImportView, type GoodsImportBatch } from './goods-import.server';
+import { ADMIN_ARTWORK_VERIFICATIONS_PER_MINUTE } from './artwork';
 import { countDroppedGoodsImportImages, type GoodsImportGroup } from './goods-workbook';
 const PNG = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 1, 2]);
 function response(
@@ -210,7 +211,7 @@ describe('사방넷 이미지 미리 받기와 초안 이미지 준비', () => {
       batch.prepared_images[args.target_index] = { ...batch.prepared_images[args.target_index], ...args.target_images };
       return { error: null };
     });
-    const busy = Array.from({ length: 12 }, () => ({ processing_started_at: new Date().toISOString() }));
+    const busy = Array.from({ length: ADMIN_ARTWORK_VERIFICATIONS_PER_MINUTE }, () => ({ processing_started_at: new Date().toISOString() }));
     mocks.claims
       .mockResolvedValueOnce({ data: [], error: null }) // 대표 이미지 차례
       .mockResolvedValueOnce({ data: [], error: null }) // 대표 이미지 검증 실패 뒤 대기 확인

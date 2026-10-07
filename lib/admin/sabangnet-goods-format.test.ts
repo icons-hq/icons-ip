@@ -7,6 +7,7 @@ import {
   parseRememberedSabangnetTargets,
   parseSabangnetCsv,
   rememberSabangnetTargets,
+  SABANGNET_GALLERY_LIMIT,
   SABANGNET_KC_WARNING,
   suggestSabangnetBrandIps,
   suggestSabangnetTargets,
@@ -166,14 +167,17 @@ describe('사방넷 행 → ICONS 일괄 등록 행 변환', () => {
     expect(warnings.get(10) ?? []).not.toEqual(expect.arrayContaining([expect.stringContaining('이미지 주소를 읽지 못해')]));
   });
 
-  it('추가 이미지는 ICONS 갤러리 칸 수까지만 가져온다', () => {
-    const headers = ['상품명', '부가이미지2', '부가이미지3', '부가이미지4', '부가이미지5', '부가이미지6', '부가이미지7'];
+  it('추가 이미지는 ICONS 추가 이미지 칸 수(9장)까지만 가져온다', () => {
+    const numbers = Array.from({ length: 11 }, (_, index) => index + 1);
+    const headers = ['상품명', ...numbers.map((n) => `부가이미지${n + 1}`)];
     const result = convertSabangnetRows({
       headers, targets: suggestSabangnetTargets(headers).targets, ipId: 'maple',
-      rows: [{ row: 2, cells: ['상품', ...[1, 2, 3, 4, 5, 6].map((n) => `https://img.example.com/${n}.png`)] }],
+      rows: [{ row: 2, cells: ['상품', ...numbers.map((n) => `https://img.example.com/${n}.png`)] }],
     });
+    expect(SABANGNET_GALLERY_LIMIT).toBe(9);
     expect(result.rows[0].values.galleryUrl3).toBe('https://img.example.com/4.png');
-    expect(result.warnings.get(2)).toEqual([expect.stringContaining('나머지 2장')]);
+    expect(result.rows[0].values.galleryUrl8).toBe('https://img.example.com/9.png');
+    expect(result.warnings.get(2)).toEqual([expect.stringContaining('추가 이미지는 9장까지 가져옵니다. 나머지 2장')]);
   });
 
   it('브랜드명이 IP와 같으면 행별로 그 IP를 쓰고 나머지는 일괄 선택 IP를 쓴다', () => {

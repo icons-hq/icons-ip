@@ -3,6 +3,7 @@ import { createHash } from 'node:crypto';
 import { createServiceClient } from '@/lib/supabase/service';
 import {
   ADMIN_ARTWORK_MAX_BYTES,
+  ADMIN_ARTWORK_VERIFICATIONS_PER_MINUTE,
   buildAdminArtworkPath,
 } from './artwork';
 import {
@@ -39,9 +40,9 @@ async function verificationWait(actorId: string) {
     .eq('actor_id', actorId)
     .gte('processing_started_at', new Date(Date.now() - 60000).toISOString())
     .order('processing_started_at')
-    .limit(12);
+    .limit(ADMIN_ARTWORK_VERIFICATIONS_PER_MINUTE);
   if (error) throw new Error('이미지 검증 상태를 읽지 못했습니다.');
-  return (data?.length ?? 0) >= 12
+  return (data?.length ?? 0) >= ADMIN_ARTWORK_VERIFICATIONS_PER_MINUTE
     ? Math.max(
         1000,
         Date.parse(data![0].processing_started_at) + 61000 - Date.now(),

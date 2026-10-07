@@ -20,12 +20,13 @@ describe('상품 이미지 썸네일 그리드', () => {
   it('대표 이미지와 추가 이미지를 1:1 타일 하나의 목록으로 그리고 자리별 hidden input을 순서대로 둔다', () => {
     const html = render(['main', 'a', '', 'b', '']);
 
-    expect(html).toContain('상품 이미지 · 대표 이미지 1장 + 추가 이미지 최대 4장');
+    expect(html).toContain('상품 이미지 · 대표 이미지 1장 + 추가 이미지 최대 9장');
     expect(html).toContain('1000×1000(1:1) 이미지를 권장합니다. 올린 원본 비율 그대로, 잘리지 않고 표시됩니다.');
     expect(html).toContain('id="goods-image-upload-guidance"');
     expect(html).not.toMatch(/슬롯|갤러리/);
     expect([...html.matchAll(/<input readOnly="" type="hidden" name="([a-zA-Z0-9]+)" value="([^"]*)"\/>/g)].map(([, name, value]) => [name, value]))
-      .toEqual([['imagePath', path('main')], ['galleryPath0', path('a')], ['galleryPath1', path('b')], ['galleryPath2', ''], ['galleryPath3', '']]);
+      .toEqual([['imagePath', path('main')], ['galleryPath0', path('a')], ['galleryPath1', path('b')],
+        ...Array.from({ length: 7 }, (_, index) => [`galleryPath${index + 2}`, ''])]);
     expect(html.match(/<li class="wc-admin-image-tile wc-admin-artwork-upload-field"/g)).toHaveLength(4);
     expect(html).toContain('src="https://cdn.example/b.webp"');
   });
@@ -43,7 +44,7 @@ describe('상품 이미지 썸네일 그리드', () => {
     expect(html).toMatch(/aria-label="추가 이미지 2를 뒤로" disabled=""/);
     expect(html).toContain('aria-label="추가 이미지 1을 대표로 지정"');
     expect(html).toContain('aria-label="이미지 추가 (추가 이미지, 여러 장 선택 가능)"');
-    expect(html).toContain('추가 이미지 2/4');
+    expect(html).toContain('추가 이미지 2/9');
     expect(html.match(/data-draggable="true"/g)).toHaveLength(2);
     /* 끌기 손잡이는 추가 이미지에만 있고, 스크린리더·키보드에서도 닿는 버튼이다(aria-hidden 아님). */
     expect(html.match(/class="wc-admin-image-tile__handle"/g)).toHaveLength(2);
@@ -80,11 +81,17 @@ describe('상품 이미지 썸네일 그리드', () => {
     expect(html.match(/multiple=""/g)).toHaveLength(2);
   });
 
-  it('추가 이미지가 가득 차면 이미지 추가 타일을 숨긴다', () => {
-    const html = render(['main', 'a', 'b', 'c', 'd']);
+  it('추가 이미지 9장이 가득 차면 10개 타일을 모두 보여 주고 이미지 추가 타일은 숨긴다', () => {
+    const gallery = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i'];
+    const html = render(['main', ...gallery]);
 
+    expect(html.match(/<li /g)).toHaveLength(10);
+    expect(render(['main', 'a', 'b', 'c', 'd'])).toContain('추가 이미지 4/9');
+    expect(html).toContain('aria-label="추가 이미지 9 교체"');
+    expect(html).toMatch(/aria-label="추가 이미지 9를 뒤로" disabled=""/);
     expect(html).not.toContain('이미지 추가 (추가 이미지');
-    expect(html.match(/<li /g)).toHaveLength(5);
+    expect([...html.matchAll(/<input readOnly="" type="hidden" name="(galleryPath\d)" value="([^"]*)"\/>/g)].map(([, name, value]) => [name, value]))
+      .toEqual(gallery.map((name, index) => [`galleryPath${index}`, path(name)]));
   });
 
   it('폼 오류 키(imagePath, galleryPath{i})를 해당 타일의 오류 문구와 파일 입력 설명에 연결한다', () => {

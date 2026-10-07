@@ -2,6 +2,7 @@ import { isValidElement, type ReactElement, type ReactNode } from 'react';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { uploadAdminArtwork } from '@/lib/admin/artwork-upload.client';
 import { GoodsImageGrid } from './GoodsImageGrid';
+import { GOODS_IMAGE_SLOT_COUNT } from '@/lib/admin/goods-image-grid';
 
 /* 컴포넌트 함수를 직접 호출하는 최소 훅 하네스 — DOM 없이 핸들러와 hidden input 값을 검증한다. */
 const hooks = vi.hoisted(() => ({
@@ -36,6 +37,8 @@ vi.mock('@/lib/admin/artwork-upload.client', () => ({ uploadAdminArtwork: vi.fn(
 
 const upload = vi.mocked(uploadAdminArtwork);
 const path = (name: string) => `public-media/catalog/good/${name}.webp`;
+/** 대표 이미지부터 자리 순서대로 채우고 나머지 자리는 빈 값이다. */
+const slots = (...names: string[]) => Array.from({ length: GOODS_IMAGE_SLOT_COUNT }, (_, index) => names[index] ?? '');
 const previews: Record<string, string | null> = {};
 let initial: string[] = [];
 
@@ -119,26 +122,26 @@ afterEach(() => {
 
 describe('상품 이미지 그리드 상호작용', () => {
   it('앞으로·뒤로·키보드 화살표로 추가 이미지 순서를 바꾸고 미리보기 순서도 함께 바꾼다', () => {
-    initial = ['main', 'a', 'b', 'c', ''];
+    initial = slots('main', 'a', 'b', 'c');
     byLabel('추가 이미지 1을 뒤로').onClick();
-    expect(hiddenValues()).toEqual(['main', 'b', 'a', 'c', '']);
+    expect(hiddenValues()).toEqual(slots('main', 'b', 'a', 'c'));
     expect(previews.galleryPath0).toBe('https://cdn.example/b.webp');
 
     const preventDefault = vi.fn();
     byLabel('추가 이미지 3 교체').onKeyDown({ key: 'ArrowLeft', preventDefault });
     expect(preventDefault).toHaveBeenCalled();
-    expect(hiddenValues()).toEqual(['main', 'b', 'c', 'a', '']);
+    expect(hiddenValues()).toEqual(slots('main', 'b', 'c', 'a'));
   });
 
   it('대표로 지정하면 대표 이미지와 자리를 맞바꾼다', () => {
-    initial = ['main', 'a', 'b', '', ''];
+    initial = slots('main', 'a', 'b');
     byLabel('추가 이미지 2를 대표로 지정').onClick();
-    expect(hiddenValues()).toEqual(['b', 'a', 'main', '', '']);
+    expect(hiddenValues()).toEqual(slots('b', 'a', 'main'));
     expect(previews.imagePath).toBe('https://cdn.example/b.webp');
   });
 
   it('마우스로 타일을 끌어 놓은 자리로 옮기고, 끌기 뒤의 click은 파일 선택을 열지 않는다', () => {
-    initial = ['main', 'a', 'b', 'c', ''];
+    initial = slots('main', 'a', 'b', 'c');
     vi.stubGlobal('document', { elementFromPoint: () => ({ closest: () => ({ dataset: { imagePosition: '3' } }) }) });
     const setPointerCapture = vi.fn();
     const releasePointerCapture = vi.fn();
@@ -151,12 +154,12 @@ describe('상품 이미지 그리드 상호작용', () => {
     const preventDefault = vi.fn();
     tileFrame(1).onClick({ preventDefault });
     expect(preventDefault).toHaveBeenCalled();
-    expect(hiddenValues()).toEqual(['main', 'b', 'c', 'a', '']);
+    expect(hiddenValues()).toEqual(slots('main', 'b', 'c', 'a'));
   });
 
   /* openRisks 재현: 타일 본문에서 시작한 터치가 끌기로 잡히면(touch-action:none) 모바일에서 세로 스크롤이 막혔다. */
   it('터치로 타일 본문을 쓸면 끌기를 시작하지 않아 스크롤로 남고, 탭은 파일 선택(교체)으로 이어진다', () => {
-    initial = ['main', 'a', 'b', 'c', ''];
+    initial = slots('main', 'a', 'b', 'c');
     vi.stubGlobal('document', { elementFromPoint: () => ({ closest: () => ({ dataset: { imagePosition: '3' } }) }) });
     const setPointerCapture = vi.fn();
     const currentTarget = { setPointerCapture, releasePointerCapture: vi.fn() };
@@ -171,11 +174,11 @@ describe('상품 이미지 그리드 상호작용', () => {
     expect(setPointerCapture).not.toHaveBeenCalled();
     expect(elements(render()).some((element) => element.props['data-drop-target'] === 'true')).toBe(false);
     expect(preventDefault).not.toHaveBeenCalled();
-    expect(hiddenValues()).toEqual(['main', 'a', 'b', 'c', '']);
+    expect(hiddenValues()).toEqual(slots('main', 'a', 'b', 'c'));
   });
 
   it('터치로 손잡이를 끌면 놓은 자리로 옮기고 순서 변경을 알린다', () => {
-    initial = ['main', 'a', 'b', 'c', ''];
+    initial = slots('main', 'a', 'b', 'c');
     vi.stubGlobal('document', { elementFromPoint: () => ({ closest: () => ({ dataset: { imagePosition: '1' } }) }) });
     const setPointerCapture = vi.fn();
     const currentTarget = { setPointerCapture, releasePointerCapture: vi.fn() };
@@ -185,16 +188,16 @@ describe('상품 이미지 그리드 상호작용', () => {
     expect(elements(render()).find((element) => element.props['data-dragging'])?.props['data-image-position']).toBe(3);
     tileHandle(3).onPointerUp({ pointerId: 4, clientX: 20, clientY: 14, currentTarget });
 
-    expect(hiddenValues()).toEqual(['main', 'c', 'a', 'b', '']);
+    expect(hiddenValues()).toEqual(slots('main', 'c', 'a', 'b'));
     expect(elements(render()).find((element) => element.props.role === 'status')?.props.children).toBe('추가 이미지 3을 1번째 추가 이미지로 옮겼습니다.');
   });
 
   it('손잡이에 초점을 두고 ←·→ 키로 순서를 바꾸면 초점이 옮긴 자리의 손잡이를 따라간다', () => {
-    initial = ['main', 'a', 'b', '', ''];
+    initial = slots('main', 'a', 'b');
     const preventDefault = vi.fn();
     tileHandle(1).onKeyDown({ key: 'ArrowRight', preventDefault });
     expect(preventDefault).toHaveBeenCalled();
-    expect(hiddenValues()).toEqual(['main', 'b', 'a', '', '']);
+    expect(hiddenValues()).toEqual(slots('main', 'b', 'a'));
 
     const focus = vi.fn();
     (tileHandle(2).ref as unknown as (node: unknown) => void)({ disabled: false, focus });
@@ -203,7 +206,7 @@ describe('상품 이미지 그리드 상호작용', () => {
   });
 
   it('여러 파일을 빈 추가 이미지 자리에 순서대로 올리고, 업로드가 끝나기 전에는 저장을 막는다', async () => {
-    initial = ['main', 'a', '', '', ''];
+    initial = slots('main', 'a');
     let finishFirst!: (value: { ok: true; imagePath: string }) => void;
     upload
       .mockImplementationOnce(() => new Promise((resolve) => { finishFirst = resolve; }))
@@ -212,40 +215,40 @@ describe('상품 이미지 그리드 상호작용', () => {
     await settle();
 
     expect(upload).toHaveBeenCalledTimes(2);
-    expect(hiddenValues()).toEqual(['main', 'a', '', 'second', '']);
+    expect(hiddenValues()).toEqual(slots('main', 'a', '', 'second'));
     expect(previews.galleryPath1).toBe('blob:local-1');
     expect(validity()).toEqual(['', '', '이미지 업로드가 끝난 뒤 저장해주세요.', '', '']);
 
     finishFirst({ ok: true, imagePath: path('first') });
     await settle();
-    expect(hiddenValues()).toEqual(['main', 'a', 'first', 'second', '']);
+    expect(hiddenValues()).toEqual(slots('main', 'a', 'first', 'second'));
     expect(validity().every((message) => message === '')).toBe(true);
   });
 
   it('업로드 중에 자리를 옮겨도 결과는 그 이미지를 따라간다', async () => {
-    initial = ['main', 'a', '', '', ''];
+    initial = slots('main', 'a');
     let finish!: (value: { ok: true; imagePath: string }) => void;
     upload.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
     chooseFiles('이미지 추가 (추가 이미지, 여러 장 선택 가능)', [file('late.png')]);
     byLabel('추가 이미지 2를 앞으로').onClick();
     finish({ ok: true, imagePath: path('late') });
     await settle();
-    expect(hiddenValues()).toEqual(['main', 'late', 'a', '', '']);
+    expect(hiddenValues()).toEqual(slots('main', 'late', 'a'));
   });
 
   it('교체 업로드가 실패하면 원래 이미지 경로를 유지하고 타일에 이유를 보여준다', async () => {
-    initial = ['main', 'a', '', '', ''];
+    initial = slots('main', 'a');
     upload.mockResolvedValueOnce({ ok: false, error: '이미지를 업로드하지 못했습니다. 다시 시도해주세요.' });
     chooseFiles('추가 이미지 1 교체', [file('next.png')]);
-    expect(hiddenValues()).toEqual(['main', 'a', '', '', '']);
+    expect(hiddenValues()).toEqual(slots('main', 'a'));
     await settle();
-    expect(hiddenValues()).toEqual(['main', 'a', '', '', '']);
+    expect(hiddenValues()).toEqual(slots('main', 'a'));
     expect(previews.galleryPath0).toBe('https://cdn.example/a.webp');
     expect(elements(render()).some((element) => element.props.role === 'alert' && String(element.props.children).includes('원래 이미지를 유지합니다'))).toBe(true);
   });
 
   it('새 이미지 업로드가 실패하면 다시 시도하거나 삭제할 때까지 저장을 막는다', async () => {
-    initial = ['', '', '', '', ''];
+    initial = slots();
     upload.mockResolvedValueOnce({ ok: false, error: '업로드 실패' }).mockResolvedValueOnce({ ok: true, imagePath: path('retry') });
     chooseFiles('대표 이미지 추가', [file('main.png')]);
     await settle();
@@ -254,30 +257,45 @@ describe('상품 이미지 그리드 상호작용', () => {
     const retry = elements(render()).find((element) => element.type === 'button' && element.props.children === '다시 시도');
     (retry!.props.onClick as () => void)();
     await settle();
-    expect(hiddenValues()).toEqual(['retry', '', '', '', '']);
+    expect(hiddenValues()).toEqual(slots('retry'));
   });
 
   it('업로드 중에 삭제한 이미지의 늦은 결과는 버린다', async () => {
-    initial = ['main', '', '', '', ''];
+    initial = slots('main');
     let finish!: (value: { ok: true; imagePath: string }) => void;
     upload.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
     chooseFiles('이미지 추가 (추가 이미지, 여러 장 선택 가능)', [file('gone.png')]);
     byLabel('추가 이미지 1 삭제').onClick();
     finish({ ok: true, imagePath: path('gone') });
     await settle();
-    expect(hiddenValues()).toEqual(['main', '', '', '', '']);
+    expect(hiddenValues()).toEqual(slots('main'));
     expect(URL.revokeObjectURL).toHaveBeenCalledWith('blob:local-1');
   });
 
   it('최대 장수를 넘거나 형식이 맞지 않는 파일은 넣지 않고 이유를 알린다', async () => {
-    initial = ['main', 'a', 'b', 'c', ''];
-    upload.mockResolvedValue({ ok: true, imagePath: path('d') });
-    chooseFiles('이미지 추가 (추가 이미지, 여러 장 선택 가능)', [file('d.png'), file('e.png'), file('x.gif', 'image/gif')]);
+    initial = slots('main', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h');
+    upload.mockResolvedValue({ ok: true, imagePath: path('i') });
+    chooseFiles('이미지 추가 (추가 이미지, 여러 장 선택 가능)', [file('i.png'), file('j.png'), file('x.gif', 'image/gif')]);
     await settle();
     expect(upload).toHaveBeenCalledTimes(1);
-    expect(hiddenValues()).toEqual(['main', 'a', 'b', 'c', 'd']);
+    expect(hiddenValues()).toEqual(slots('main', 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h', 'i'));
     const notice = elements(render()).find((element) => element.type === 'p' && element.props.role === 'alert');
-    expect(notice?.props.children).toContain('추가 이미지는 최대 4장입니다. 선택한 파일 중 1개는 넣지 않았습니다.');
+    expect(notice?.props.children).toContain('추가 이미지는 최대 9장입니다. 선택한 파일 중 1개는 넣지 않았습니다.');
     expect(notice?.props.children).toContain('형식·크기 조건에 맞지 않는 파일 1개는 넣지 않았습니다.');
+    /* 9장이 차면 "이미지 추가" 타일은 사라지고 10번째 자리는 hidden input만 남는다. */
+    expect(elements(render()).some((element) => element.props['aria-label'] === '이미지 추가 (추가 이미지, 여러 장 선택 가능)')).toBe(false);
+  });
+
+  it('추가 이미지 9장을 한 번에 골라 빈 자리에 순서대로 넣고 10번째 파일은 넣지 않는다', async () => {
+    initial = slots('main');
+    upload.mockImplementation(async ({ file: chosen }) => ({ ok: true, imagePath: path(chosen.name.replace(/\.png$/, '')) }));
+    const names = ['g1', 'g2', 'g3', 'g4', 'g5', 'g6', 'g7', 'g8', 'g9', 'g10'];
+    chooseFiles('이미지 추가 (추가 이미지, 여러 장 선택 가능)', names.map((name) => file(`${name}.png`)));
+    await settle();
+    expect(upload).toHaveBeenCalledTimes(9);
+    expect(hiddenValues()).toEqual(slots('main', ...names.slice(0, 9)));
+    expect(previews.galleryPath8).toBe('blob:local-9');
+    const notice = elements(render()).find((element) => element.type === 'p' && element.props.role === 'alert');
+    expect(notice?.props.children).toContain('추가 이미지는 최대 9장입니다. 선택한 파일 중 1개는 넣지 않았습니다.');
   });
 });

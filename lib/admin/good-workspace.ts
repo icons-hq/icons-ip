@@ -2,7 +2,7 @@ import { GOODS_NOTICE_FIELDS } from '@/lib/goods-notice';
 
 /** Display grouping only. Validation and publish decisions remain with the server. */
 export const GOOD_EDITOR_SECTIONS = [
-  { key: 'basic', label: '기본 상품·이미지', fields: ['ipId', 'name', 'categoryId', 'additionalCategoryIds', 'type', 'imagePath', 'id', 'code', 'defaultVariantCode', 'nameEn', 'searchKeywords', 'displayOrder', 'badge', 'stock', 'description', 'descriptionFormat', 'detailImagePath', 'galleryPath0', 'galleryPath1', 'galleryPath2', 'galleryPath3'] },
+  { key: 'basic', label: '기본 상품·이미지', fields: ['ipId', 'name', 'categoryId', 'additionalCategoryIds', 'type', 'imagePath', 'id', 'code', 'defaultVariantCode', 'nameEn', 'searchKeywords', 'displayOrder', 'badge', 'stock', 'description', 'descriptionFormat', 'detailImagePath', 'galleryPath0', 'galleryPath1', 'galleryPath2', 'galleryPath3', 'galleryPath4', 'galleryPath5', 'galleryPath6', 'galleryPath7', 'galleryPath8'] },
   { key: 'price', label: '판매가', fields: ['price', 'compareAtPrice', 'showDiscountRate', 'regularPrice', 'discountEnabled', 'discountValue', 'discountUnit'] },
   { key: 'variants', label: '재고수량·옵션', fields: ['variants', 'variantBaseline', 'optionUsage', 'optionAxisName0', 'optionAxisValues0', 'optionAxisName1', 'optionAxisValues1'] },
   { key: 'notice', label: '고시정보·KC', fields: GOODS_NOTICE_FIELDS.map((field) => field.formName) },
