@@ -130,8 +130,10 @@ export function ErpItemImportPanel() {
     setError('');
     setSummary(null);
     setProgress({ done: 0, total });
+    /* 미리보기에서 걸러진 행도 반입되지 않았으므로 결과의 거부에 함께 센다. */
+    const previewIssues = [...plan.issues];
     startImporting(async () => {
-      const merged: ErpImportSummary = { inserted: 0, updated: 0, unchanged: 0, rejected: [] };
+      const merged: ErpImportSummary = { inserted: 0, updated: 0, unchanged: 0, rejected: previewIssues };
       let done = 0;
       for (const chunk of chunks) {
         const result = await importErpItemsAction(chunk);
@@ -139,7 +141,7 @@ export function ErpItemImportPanel() {
           setError(done
             ? `${done.toLocaleString('ko-KR')}건까지 반입했습니다. ${result.error}`
             : result.error);
-          if (done) setSummary(merged);
+          if (done) setSummary({ ...merged, rejected: [...merged.rejected].sort((left, right) => left.row - right.row) });
           setProgress(null);
           router.refresh();
           return;

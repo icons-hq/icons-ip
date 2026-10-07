@@ -113,8 +113,25 @@ describe('ERP 품목 반입 패널', () => {
     expect(hooks.importRows.mock.calls[1][0]).toHaveLength(101);
     tree = render();
     expect(text(tree)).toContain('추가 601');
-    expect(text(tree)).toContain('거부 0');
+    expect(text(tree)).toContain('거부 1');
     expect(hooks.refresh).toHaveBeenCalledOnce();
+  });
+
+  it('미리보기에서 걸러진 행도 반입 결과의 거부 건수와 행 목록에 함께 센다', async () => {
+    find(render(), (element) => element.props.id === 'erp-item-paste')[0].props.onChange?.({ target: { value: '품번\t품명\nA1\t키링\nA2\t\nA3\t토끼' } });
+    button(render(), '붙여넣은 표 확인').props.onClick?.();
+    expect(text(render())).toContain('반입 가능 2건 · 오류 1건');
+    hooks.importRows.mockResolvedValueOnce({ ok: true, inserted: 1, updated: 0, unchanged: 0, rejected: [{ row: 4, code: 'A3', reason: 'invalid_name' }] });
+    button(render(), '2건 반입').props.onClick?.();
+    await settle();
+    expect(hooks.importRows.mock.calls[0][0].map((row: { code: string }) => row.code)).toEqual(['A1', 'A3']);
+    const tree = render();
+    expect(text(tree)).toContain('추가 1');
+    expect(text(tree)).toContain('거부 2');
+    expect(find(tree, (element) => element.props.caption === '반입하지 못한 행')[0].props.issues).toEqual([
+      { row: 3, code: 'A2', reason: 'missing_name' },
+      { row: 4, code: 'A3', reason: 'invalid_name' },
+    ]);
   });
 
   it('열을 직접 바꾸면 그 열 기준으로 다시 미리보기하고, 필수 열이 없으면 반입을 막는다', () => {
@@ -137,7 +154,10 @@ describe('ERP 품목 반입 패널', () => {
     const tree = render();
     expect(text(tree)).toContain('500건까지 반입했습니다. ERP 품목을 반입하지 못했습니다. 같은 내용으로 다시 반입하면 이어서 반영됩니다.');
     expect(text(tree)).toContain('추가 499');
-    expect(find(tree, (element) => element.props.caption === '반입하지 못한 행')[0].props.issues).toEqual([{ row: 9, code: 'C0007', reason: 'duplicate_code' }]);
+    expect(find(tree, (element) => element.props.caption === '반입하지 못한 행')[0].props.issues).toEqual([
+      { row: 9, code: 'C0007', reason: 'duplicate_code' },
+      { row: 603, code: '', reason: 'missing_code' },
+    ]);
   });
 
   it('파일은 서버에서 읽은 표와 경고를 미리보기에 넘기고, 읽기 오류는 그대로 안내한다', async () => {
