@@ -89,8 +89,9 @@ describe('모델별 KC 검토', () => {
     expect(quick).toMatchObject({ scheme: 'not_applicable', modelName: '', businessRole: '', publicNote: '' });
     expect(parseGoodsKcDisclosures([quick])).toEqual([quick]);
     expect(goodsKcDisclosureRows(quick, { sole: true })).toEqual([['KC 인증', 'KC 인증 대상이 아닌 상품입니다.']]);
+    // 다른 모델(KC 대상 제도 포함)과 함께 고지되면 상품 전체가 아니라 연결한 옵션만 해당 없음이다.
     expect(goodsKcDisclosureRows({ ...quick, publicNote: '합성 고객 안내' })).toEqual([
-      ['KC 인증', 'KC 인증 대상이 아닌 상품입니다.'], ['적용 옵션', '기본, 파랑'], ['안내', '합성 고객 안내']]);
+      ['KC 인증', '적용 옵션은 KC 인증 대상이 아닙니다.'], ['적용 옵션', '기본, 파랑'], ['안내', '합성 고객 안내']]);
     const named = { ...quick, modelName: '합성 모델', businessRole: 'manufacturer' as const, businessName: '합성 제조자' };
     expect(goodsKcDisclosureRows(named, { sole: true })).toEqual([
       ['KC 인증', 'KC 인증 대상이 아닌 상품입니다.'], ['모델명', '합성 모델'], ['제조업자', '합성 제조자']]);

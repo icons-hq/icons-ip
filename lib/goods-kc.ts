@@ -25,7 +25,10 @@ export interface GoodsKcDisclosure {
   publicNote: string;
   variants: { id: string; name: string }[];
 }
+/** Product-level wording only for a product's sole not-applicable model. Next
+ * to other models (possibly KC-subject ones) the notice covers its options only. */
 export const GOODS_KC_NOT_APPLICABLE_NOTICE = 'KC 인증 대상이 아닌 상품입니다.';
+export const GOODS_KC_NOT_APPLICABLE_OPTION_NOTICE = '적용 옵션은 KC 인증 대상이 아닙니다.';
 
 export function goodsKcSchemeAllowed(family: GoodsKcFamily, scheme: GoodsKcScheme): boolean {
   if (scheme === 'not_applicable') return true;
@@ -80,14 +83,15 @@ export function parseGoodsKcDisclosures(value: unknown): GoodsKcDisclosure[] | n
 }
 
 /** `sole` marks the only disclosure of a product: a not-applicable row then
- * covers every option, so the customer table omits the option list. */
+ * covers every option, so the customer table states it for the product and
+ * omits the option list. Otherwise it is stated for the listed options. */
 export function goodsKcDisclosureRows(disclosure: GoodsKcDisclosure, { sole = false }: { sole?: boolean } = {}): [string, string][] {
   const variants: [string, string] = ['적용 옵션', disclosure.variants.map((variant) => variant.name).join(', ')];
   const note: [string, string][] = disclosure.publicNote ? [['안내', disclosure.publicNote]] : [];
   if (disclosure.scheme === 'not_applicable') {
     const filled = (rows: [string, string][]) => rows.filter(([, value]) => value.trim());
     return [
-      ['KC 인증', GOODS_KC_NOT_APPLICABLE_NOTICE],
+      ['KC 인증', sole ? GOODS_KC_NOT_APPLICABLE_NOTICE : GOODS_KC_NOT_APPLICABLE_OPTION_NOTICE],
       ...filled([['품목 분류', disclosure.productCategory], ['모델명', disclosure.modelName],
         [disclosure.businessRole ? GOODS_KC_BUSINESS_LABELS[disclosure.businessRole] : '사업자', disclosure.businessName]]),
       ...(sole ? [] : [variants]),
