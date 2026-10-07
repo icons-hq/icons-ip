@@ -195,6 +195,12 @@ describe('GoodSection', () => {
     const saved = renderGoodSection(draft, { message: '상품을 저장했습니다.', savedGoodId: draft.id, attempt: 1 });
     expect(saved).toContain('기본 상품 저장 완료');
     expect(saved).not.toContain('공개 보류');
+    // KC를 다시 검토하고 게시 작업으로 공개하면, 남아 있던 보류 안내가 공개 상태와 어긋나지 않게 사라진다.
+    const published = renderGoodSection({ ...good, publishedAt: '2026-10-07T12:00:00.000Z' }, { message, kcPublishBlocked: true, savedGoodId: good.id, attempt: 1 });
+    const publishedSave = published.slice(published.indexOf('aria-label="기본 상품 저장"'));
+    expect(publishedSave).not.toContain('공개 보류');
+    expect(publishedSave).not.toContain('KC를 다시 검토해야 공개할 수 있습니다');
+    expect(publishedSave).toContain('서버 저장값과 동일');
   });
   it('초안 저장은 브라우저 고시 필수 검증에 막히지 않고 공개 이미지 오류를 표시한다', () => {
     const html = renderGoodSection(null, { errors: { imagePath: '대표 이미지를 업로드한 뒤 공개해주세요.' } });

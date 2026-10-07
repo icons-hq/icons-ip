@@ -1237,6 +1237,7 @@
 .wc-admin .admin-good-workspace__nav a { font-size: 13px; text-decoration: underline; text-underline-offset: 4px; }
 .wc-admin .admin-good-workspace__form [id], .wc-admin .admin-good-workspace__form input, .wc-admin .admin-good-workspace__form select, .wc-admin .admin-good-workspace__form textarea { scroll-margin-block: 140px; }
 .wc-admin .admin-good-workspace__optional, .wc-admin .admin-good-workspace__operation { border: 1px solid var(--wc-hairline); border-radius: 2px; padding: 16px; }
+.wc-admin .admin-good-workspace__operation { scroll-margin-top: 96px; }
 .wc-admin .admin-good-workspace__optional summary, .wc-admin .admin-good-workspace__operation summary { cursor: pointer; font-weight: 600; line-height: 1.7; }
 .wc-admin .admin-good-workspace__optional summary span, .wc-admin .admin-good-workspace__operation summary span { display: block; color: var(--wc-ink-sub); font-size: 13px; font-weight: 400; }
 .wc-admin .admin-good-workspace__optional > div { margin-top: 16px; gap: 16px; }
