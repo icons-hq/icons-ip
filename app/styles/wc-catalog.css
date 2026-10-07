@@ -734,10 +734,11 @@
   position: relative;
 }
 
-/* Swiper 없이 네이티브 scroll-snap 으로 넘긴다 — 자동재생도 화살표도 없다(R-04 §2). */
+/* Swiper 없이 네이티브 scroll-snap 으로 넘긴다 — 자동재생도 화살표도 없다(R-04 §2).
+   모바일·데스크톱 모두 1:1이고 이미지는 잘리지 않는다(2026-10-07 MD 요청, lib/goods-image.ts). */
 .wc-pdp-gallery__stage {
   display: flex;
-  aspect-ratio: 3 / 4;
+  aspect-ratio: 1 / 1;
   overflow-x: auto;
   scroll-snap-type: x mandatory;
   scrollbar-width: none;
@@ -759,7 +760,7 @@
   display: block;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
 }
 
 /* 도트는 이미지 바깥이 아니라 안쪽 하단에 앉는다(피치 16px = 8px 도트 + 8px 간격). */
@@ -806,10 +807,6 @@
 }
 
 @media (min-width: 990px) {
-  .wc-pdp-gallery__stage {
-    aspect-ratio: 1 / 1;
-  }
-
   /* 84×7 + 10×6 = 648 — 갤러리 폭(649)에 그대로 맞는다. 넘치면 가로 스크롤로 흘린다. */
   .wc-pdp-gallery__thumbs {
     display: flex;
@@ -843,7 +840,7 @@
     display: block;
     width: 100%;
     height: 100%;
-    object-fit: cover;
+    object-fit: contain;
   }
 }
 
@@ -2009,7 +2006,7 @@
 .wc-cart__line-media {
   display: block;
   width: 80px;
-  aspect-ratio: 3 / 4;
+  aspect-ratio: 1 / 1;
   overflow: hidden;
   background-color: var(--wc-surface-grey-2);
 }
@@ -2018,7 +2015,7 @@
   display: block;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
 }
 
 /* 결제로 넘어갈 수 없는 라인은 흐리게 낮춘다 — 상태 문구(`__line-state`)가 이유를 말한다. */
@@ -2356,7 +2353,7 @@
 .wc-wishlist__media {
   display: block;
   width: 72px;
-  aspect-ratio: 3 / 4;
+  aspect-ratio: 1 / 1;
   overflow: hidden;
   background-color: var(--wc-surface-grey-2);
 }
@@ -2366,7 +2363,7 @@
   display: block;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
 }
 
 .wc-wishlist__info {

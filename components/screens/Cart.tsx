@@ -16,6 +16,7 @@ import { PriceBlock } from '@/components/wc/PriceBlock';
 import { QuantityStepper } from '@/components/wc/QuantityStepper';
 import { WcButton } from '@/components/wc/WcButton';
 import type { CatalogSnapshot } from '@/lib/catalog';
+import { goodsImageBackground } from '@/lib/goods-image';
 import {
   couponBenefitLabel,
   couponConditionLabel,
@@ -98,7 +99,7 @@ function CartLineRow({ line }: { line: CartLine }) {
         aria-hidden
         className="wc-cart__line-media"
         href={href}
-        style={{ background: good.img }}
+        style={{ background: goodsImageBackground(good.img) }}
         tabIndex={-1}
       />
       <div className="wc-cart__line-info">
