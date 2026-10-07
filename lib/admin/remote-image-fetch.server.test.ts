@@ -55,9 +55,15 @@ describe('remote image SSRF boundary', () => {
     expect(normalizeRemoteImageUrl('http://img.example.com/a.jpg')?.toString()).toBe('https://img.example.com/a.jpg');
     expect(normalizeRemoteImageUrl('//img.example.com/a.jpg')?.toString()).toBe('https://img.example.com/a.jpg');
     expect(normalizeRemoteImageUrl('https://img.example.com:443/a.jpg')?.toString()).toBe('https://img.example.com/a.jpg');
+    // 파일명에 공백·한글이 든 호스팅 주소는 퍼센트 인코딩해 그대로 받는다.
+    expect(normalizeRemoteImageUrl('https://img.example.com/상세 01.jpg')?.toString())
+      .toBe('https://img.example.com/%EC%83%81%EC%84%B8%2001.jpg');
+    expect(normalizeRemoteImageUrl(' http://img.example.com/a b.jpg ')?.toString()).toBe('https://img.example.com/a%20b.jpg');
     for (const bad of [
       'https://user:pass@img.example.com/a.jpg', 'https://img.example.com:8443/a.jpg', 'http://img.example.com:8080/a.jpg',
-      'ftp://img.example.com/a.jpg', 'file:///etc/passwd', 'javascript:alert(1)', 'a.jpg', '', 'https://img.example.com/a b.jpg',
+      'ftp://img.example.com/a.jpg', 'file:///etc/passwd', 'javascript:alert(1)', 'a.jpg', '',
+      'https://img.example.com/a\tb.jpg', 'https://img.example.com/a\u0000b.jpg', 'https://img.example.com/a\u007fb.jpg',
+      'https://img.example.com\\a.jpg', 'https://img ex.com/a.jpg',
     ])
       expect(normalizeRemoteImageUrl(bad), bad).toBeNull();
   });
@@ -112,8 +118,6 @@ describe('remote image SSRF boundary', () => {
   it('requires an image content type and matching file signature', async () => {
     respond(200, { 'content-type': 'text/html' });
     await expect(fetchRemoteImage('https://img.example.com/a.png')).rejects.toThrow('JPEG·PNG·WebP');
-    respond(200, {});
-    await expect(fetchRemoteImage('https://img.example.com/a.png')).rejects.toThrow('JPEG·PNG·WebP');
     respond(200, { 'content-type': 'image/png' }, Buffer.from('<svg></svg>'));
     await expect(fetchRemoteImage('https://img.example.com/a.png')).rejects.toThrow('JPEG·PNG·WebP');
     respond(200, { 'content-type': 'IMAGE/JPEG; charset=binary' }, Buffer.from([0xff, 0xd8, 0xff, 0xe0]));
@@ -121,6 +125,19 @@ describe('remote image SSRF boundary', () => {
     respond(404, { 'content-type': 'image/png' });
     await expect(fetchRemoteImage('https://img.example.com/a.png')).rejects.toThrow('내려받지 못했습니다');
     expect(sniffImageMime(Buffer.from('RIFF0000WEBP'))).toBe('image/webp');
+  });
+
+  it('accepts octet-stream or missing content types only when the file signature is JPEG·PNG·WebP', async () => {
+    respond(200, { 'content-type': 'application/octet-stream' });
+    await expect(fetchRemoteImage('https://img.example.com/a.png')).resolves.toMatchObject({ mimeType: 'image/png' });
+    respond(200, { 'content-type': 'Binary/Octet-Stream; charset=binary' }, Buffer.from([0xff, 0xd8, 0xff, 0xe0, 1]));
+    await expect(fetchRemoteImage('https://s3.example.com/a')).resolves.toMatchObject({ mimeType: 'image/jpeg' });
+    respond(200, {}, Buffer.from('RIFF0000WEBPVP8 '));
+    await expect(fetchRemoteImage('https://img.example.com/a.webp')).resolves.toMatchObject({ mimeType: 'image/webp' });
+    respond(200, { 'content-type': 'application/octet-stream' }, Buffer.from('<html></html>'));
+    await expect(fetchRemoteImage('https://img.example.com/a.png')).rejects.toThrow('JPEG·PNG·WebP');
+    respond(200, { 'content-type': 'application/pdf' });
+    await expect(fetchRemoteImage('https://img.example.com/a.png')).rejects.toThrow('JPEG·PNG·WebP');
   });
 
   it('stops at the size limit from the header or while streaming', async () => {

@@ -14,20 +14,34 @@ export { normalizeRemoteImageUrl };
  * - DNS 결과가 하나라도 공인 유니캐스트가 아니면 거부하고(사설·루프백·링크로컬·CGNAT·멀티캐스트·
  *   예약·IPv4-mapped IPv6 포함), 검증한 그 주소로만 소켓을 연다. 리다이렉트는 직접 따라가며
  *   홉마다 같은 검사를 반복한다.
- * - 응답은 JPEG·PNG·WebP Content-Type과 파일 서명이 모두 맞아야 하고, 용량 상한을 넘으면
- *   스트림을 즉시 끊는다. 한 장의 전체 시간은 10초를 넘지 않는다.
+ * - 응답 Content-Type은 JPEG·PNG·WebP이거나, 형식을 밝히지 않은 octet-stream 계열(값 없음 포함,
+ *   S3 기본값 binary/octet-stream 등)이어야 한다. 어느 쪽이든 파일 서명이 JPEG·PNG·WebP여야
+ *   받는다. 용량 상한을 넘으면 스트림을 즉시 끊고, 한 장의 전체 시간은 10초를 넘지 않는다.
  */
 export const REMOTE_IMAGE_TIMEOUT_MS = 10_000;
 export const REMOTE_IMAGE_MAX_REDIRECTS = 3;
 export const REMOTE_IMAGE_CONCURRENCY = 4;
 
-const CONTENT_TYPES: Record<string, AdminArtworkMimeType> = {
-  'image/jpeg': 'image/jpeg',
-  'image/jpg': 'image/jpeg',
-  'image/pjpeg': 'image/jpeg',
-  'image/png': 'image/png',
-  'image/webp': 'image/webp',
-};
+const IMAGE_CONTENT_TYPES = new Set([
+  'image/jpeg',
+  'image/jpg',
+  'image/pjpeg',
+  'image/png',
+  'image/webp',
+]);
+/**
+ * Generic binary types many image hosts send for stored files; an absent header means the
+ * same (RFC 9110 §8.3). The file signature decides whether the bytes are an image.
+ */
+const UNTYPED_CONTENT_TYPES = new Set([
+  '',
+  'application/octet-stream',
+  'binary/octet-stream',
+]);
+function acceptsContentType(header: string | string[] | undefined) {
+  const type = String(header ?? '').split(';')[0].trim().toLowerCase();
+  return IMAGE_CONTENT_TYPES.has(type) || UNTYPED_CONTENT_TYPES.has(type);
+}
 const MESSAGES = {
   url: '공개 HTTPS 이미지 URL만 사용할 수 있습니다.',
   private: '내부 네트워크 이미지 URL은 사용할 수 없습니다.',
@@ -112,7 +126,7 @@ async function resolvePublicAddress(hostname: string, deadline: number) {
 
 type Hop =
   | { kind: 'redirect'; location: string }
-  | { kind: 'image'; bytes: Buffer; contentType: AdminArtworkMimeType };
+  | { kind: 'image'; bytes: Buffer };
 
 function requestHop(
   url: URL,
@@ -158,14 +172,7 @@ function requestHop(
           finish(new Error(MESSAGES.status));
           return;
         }
-        const contentType =
-          CONTENT_TYPES[
-            String(response.headers['content-type'] ?? '')
-              .split(';')[0]
-              .trim()
-              .toLowerCase()
-          ];
-        if (!contentType) {
+        if (!acceptsContentType(response.headers['content-type'])) {
           response.destroy();
           finish(new Error(MESSAGES.type));
           return;
@@ -188,7 +195,7 @@ function requestHop(
         });
         response.on('error', () => finish(new Error(MESSAGES.status)));
         response.on('end', () =>
-          finish(null, { kind: 'image', bytes: Buffer.concat(chunks), contentType }),
+          finish(null, { kind: 'image', bytes: Buffer.concat(chunks) }),
         );
       },
     );

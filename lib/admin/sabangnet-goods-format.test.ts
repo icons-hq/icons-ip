@@ -155,6 +155,17 @@ describe('사방넷 행 → ICONS 일괄 등록 행 변환', () => {
     expect(warnings.get(9)).toEqual(expect.arrayContaining([SABANGNET_KC_WARNING, expect.stringContaining('부가이미지3')]));
   });
 
+  it('파일명에 공백이 든 이미지 주소는 인코딩해 가져오고 경고하지 않는다', () => {
+    const { rows, warnings } = convert([
+      sheetRow(10, { 상품명: '키링', 판매가: '5000', 대표이미지: 'https://img.example.com/상세 01.jpg', 부가이미지2: 'https://img.example.com/sub 2.png' }),
+    ]);
+    expect(rows[0].values).toMatchObject({
+      imageUrl: 'https://img.example.com/%EC%83%81%EC%84%B8%2001.jpg',
+      galleryUrl0: 'https://img.example.com/sub%202.png',
+    });
+    expect(warnings.get(10) ?? []).not.toEqual(expect.arrayContaining([expect.stringContaining('이미지 주소를 읽지 못해')]));
+  });
+
   it('추가 이미지는 ICONS 갤러리 칸 수까지만 가져온다', () => {
     const headers = ['상품명', '부가이미지2', '부가이미지3', '부가이미지4', '부가이미지5', '부가이미지6', '부가이미지7'];
     const result = convertSabangnetRows({
