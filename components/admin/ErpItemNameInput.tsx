@@ -113,6 +113,9 @@ export function ErpItemNameInput({ value, onChange, onSelect, ariaLabel, ariaDes
       disabled={disabled}
       onChange={(event) => {
         onChange(event.target.value);
+        /* 입력이 바뀌면 시각 포커스를 입력 칸으로 되돌린다(ARIA combobox). 새 결과가 오기 전
+           Enter가 이전 입력에서 강조한 제안을 고르지 않게 한다. */
+        setActive(-1);
         /* 결과가 오기 전 입력 위치로 목록 자리를 잡아 둔다. 열린 뒤에는 스크롤·크기 변경을 따라간다. */
         setPlacement(placementFor(event.currentTarget));
         scheduler.request(event.target.value);

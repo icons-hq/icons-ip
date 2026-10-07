@@ -191,6 +191,26 @@ describe('ERP 품명 입력 상호작용', () => {
     expect(down.preventDefault).not.toHaveBeenCalled();
   });
 
+  it('강조한 제안이 있어도 이어서 입력하면 강조를 풀어 Enter가 이전 제안을 고르지 않는다', async () => {
+    const onChange = vi.fn();
+    const onSelect = vi.fn();
+    input(render({ onChange, onSelect })).props.onChange?.({ target: { value: '키링' } });
+    await vi.advanceTimersByTimeAsync(250);
+    input(render({ value: '키링', onChange, onSelect })).props.onKeyDown?.(key('ArrowDown'));
+    expect(input(render({ value: '키링', onChange, onSelect })).props['aria-activedescendant']).toBe('erp-list-option-0');
+
+    /* 새 검색 결과가 오기 전(디바운스 + 서버 왕복)에 Enter를 누른다. */
+    input(render({ value: '키링', onChange, onSelect })).props.onChange?.({ target: { value: '키링 세트 B' } });
+    const tree = render({ value: '키링 세트 B', onChange, onSelect });
+    expect(input(tree).props['aria-activedescendant']).toBeUndefined();
+    expect(options(tree).every((option) => option.props['aria-selected'] === false)).toBe(true);
+    const enter = key('Enter');
+    input(tree).props.onKeyDown?.(enter);
+    expect(enter.preventDefault).not.toHaveBeenCalled();
+    expect(onSelect).not.toHaveBeenCalled();
+    expect(onChange).toHaveBeenLastCalledWith('키링 세트 B');
+  });
+
   it('한글 조합 중 Enter는 제안 선택으로 가로채지 않는다', async () => {
     const onSelect = vi.fn();
     input(render({ onSelect })).props.onChange?.({ target: { value: '키링' } });
