@@ -1,6 +1,6 @@
 import { readdirSync, readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import postcss from 'postcss';
+import postcss, { type AtRule } from 'postcss';
 
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8');
 
@@ -310,6 +310,61 @@ describe('White Catalog catalog wiring', () => {
     }
     /* 글자 문단의 기본 간격은 그대로다. */
     expect(css).toMatch(/\.wc-root \.wc-goods-description :is\(p, ul, ol, blockquote, figure, table\) \{ margin: 0 0 18px; \}/);
+  });
+
+  it('상품 갤러리 도트는 메인 이미지 안에 앉고 점마다 겹치지 않는 24×44 터치 영역을 갖는다', () => {
+    /* 2026-10-07 QA 6·7 (추가 이미지 9장 확장으로 드러난 기존 결함):
+     * 6) 도트의 기준이 썸네일까지 품은 `.wc-pdp-gallery`라 데스크톱에서 도트가 썸네일 줄 위에 떴다.
+     *    기준 상자는 스테이지와 도트만 담는 `__viewport`다(구조는 GoodDetail.test가 지킨다).
+     * 7) 8px 점 + 8px 간격(피치 16px)에 점마다 44px `::after`를 붙여 뒤 점의 히트박스가 앞 점 중앙을
+     *    덮었다. 점의 그림보다 버튼 상자 자체를 터치 영역으로 삼고, 상자끼리 겹치지 않게 피치 = 상자 폭 + 간격으로 둔다. */
+    const css = read('./styles/wc-catalog.css');
+    const rules: Array<{ selectors: string[]; media: string | null; decls: Record<string, string> }> = [];
+    postcss.parse(css).walkRules((rule) => {
+      const media = rule.parent?.type === 'atrule' ? (rule.parent as AtRule).params : null;
+      const decls: Record<string, string> = {};
+      rule.walkDecls((decl) => { decls[decl.prop] = decl.value.trim(); });
+      rules.push({ selectors: rule.selectors.map((selector) => selector.trim()), media, decls });
+    });
+    const base = (selector: string) => Object.assign({}, ...rules
+      .filter((rule) => rule.media === null && rule.selectors.includes(selector))
+      .map((rule) => rule.decls)) as Record<string, string>;
+    const px = (value: string | undefined) => {
+      expect(value, 'px 값').toMatch(/^\d+(?:\.\d+)?px$/);
+      return Number.parseFloat(value!);
+    };
+
+    expect(base('.wc-pdp-gallery__viewport').position).toBe('relative');
+    const dots = base('.wc-pdp-gallery__dots');
+    expect(dots.position).toBe('absolute');
+    /* 44px 터치 줄 가운데의 빈 자리는 스와이프가 스테이지로 그대로 내려가야 한다. */
+    expect(dots['pointer-events']).toBe('none');
+
+    const dot = base('.wc-pdp-gallery__dot');
+    expect(dot['pointer-events']).toBe('auto');
+    const width = px(dot.width);
+    const height = px(dot.height);
+    expect(width).toBeGreaterThanOrEqual(24);
+    expect(height).toBeGreaterThanOrEqual(44);
+    /* 음수 여백으로 상자를 이웃 쪽으로 끌어당기면 피치가 상자 폭보다 좁아진다. */
+    expect(dot.margin ?? '0').not.toMatch(/-/);
+    expect(dots.gap ?? '0').not.toMatch(/-/);
+
+    /* 의사 요소는 8px 점을 그리기만 한다 — 버튼 상자보다 크면 그 초과분이 이웃 점을 덮는다. */
+    const marks = ['::before', '::after'].map((pseudo) => base(`.wc-pdp-gallery__dot${pseudo}`)).filter((decls) => Object.keys(decls).length);
+    expect(marks).toHaveLength(1);
+    const [mark] = marks;
+    expect(px(mark.width)).toBe(8);
+    expect(px(mark.height)).toBe(8);
+    expect(mark['border-radius']).toBe('50%');
+    expect(px(mark.width)).toBeLessThanOrEqual(width);
+    expect(px(mark.height)).toBeLessThanOrEqual(height);
+
+    /* 폭·위치는 모바일·데스크톱 공통이다 — 미디어 쿼리가 도트를 다시 잡으면 위 계약이 그 폭에서 깨진다. */
+    const overridden = rules.filter((rule) => rule.media !== null && /min-width|max-width/.test(rule.media)
+      && rule.selectors.some((selector) => /\.wc-pdp-gallery__(?:viewport|dots?)\b/.test(selector))
+      && ['position', 'top', 'bottom', 'left', 'right', 'inset', 'width', 'height', 'gap'].some((prop) => prop in rule.decls));
+    expect(overridden).toEqual([]);
   });
 
   it('moves small accent text to the success ink while decoration keeps brand green', () => {

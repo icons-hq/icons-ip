@@ -730,7 +730,10 @@
    PDP — 갤러리
    ------------------------------------------------------------------ */
 
-.wc-pdp-gallery {
+/* 도트의 기준 상자는 갤러리 전체가 아니라 메인 이미지(스테이지 + 도트)다. 데스크톱은 썸네일이
+   갤러리 높이에 더해지고 10장이면 두 줄이 되므로, 갤러리 전체를 기준으로 하면 도트가 썸네일 위로
+   내려앉는다(2026-10-07 QA). */
+.wc-pdp-gallery__viewport {
   position: relative;
 }
 
@@ -763,42 +766,71 @@
   object-fit: contain;
 }
 
-/* 도트는 이미지 바깥이 아니라 안쪽 하단에 앉는다(피치 16px = 8px 도트 + 8px 간격). */
+/* 도트는 이미지 바깥이 아니라 안쪽 하단에 앉는다. 8px 점의 중심은 이미지 하단에서 28px 위다
+   (44px 터치 줄의 아래 끝 6px + 절반 22px). 줄의 빈 자리는 터치를 받지 않아 스와이프가 스테이지로 간다. */
 .wc-pdp-gallery__dots {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: 24px;
+  bottom: 6px;
   display: flex;
   justify-content: center;
-  gap: 8px;
+  pointer-events: none;
 }
 
-/* 시각 지름은 8px 이지만 히트박스는 아이콘 컨트롤 최소 44px 규칙을 따른다. */
+/* 버튼 상자 24×44 가 곧 터치 영역이고 상자끼리 맞붙어 겹치지 않는다(피치 24px).
+   레퍼런스 피치 16px 에 44px 히트박스를 겹쳐 붙이면 뒤 점이 앞 점 중앙을 덮어 다음 이미지가
+   열렸다(2026-10-07 QA) — 최소 터치 대상 24px 를 지키는 의도적 편차다. 10장이어도 240px 다. */
 .wc-pdp-gallery__dot {
   position: relative;
-  width: 8px;
-  height: 8px;
+  flex: none;
+  width: 24px;
+  height: 44px;
   padding: 0;
   border: 0;
-  border-radius: 50%;
-  background: var(--wc-ink);
-  opacity: .3;
+  background: transparent;
   cursor: pointer;
+  pointer-events: auto;
 }
 
-.wc-pdp-gallery__dot::after {
+/* 보이는 점은 의사 요소가 그린다 — 버튼 상자보다 커지면 이웃 점의 터치 영역을 덮는다.
+   흐린 점은 opacity 대신 반투명 색으로 그린다. opacity 는 아래 포커스 링까지 30%로 흐린다. */
+.wc-pdp-gallery__dot::before {
   content: '';
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 44px;
-  height: 44px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--wc-ink) 30%, transparent);
   transform: translate(-50%, -50%);
 }
 
-.wc-pdp-gallery__dot[aria-current='true'] {
-  opacity: 1;
+.wc-pdp-gallery__dot[aria-current='true']::before {
+  background: var(--wc-ink);
+}
+
+/* 포커스 링은 세로로 긴 터치 상자가 아니라 보이는 점을 감싼다. */
+.wc-root .wc-pdp-gallery__dot:focus-visible {
+  outline: none;
+}
+
+.wc-root .wc-pdp-gallery__dot:focus-visible::before {
+  outline: 2px solid var(--wc-focus);
+  outline-offset: 2px;
+}
+
+/* 강제 색상 모드는 배경색을 지면색으로 덮어 점이 사라진다 — 시스템 글자색으로 다시 그린다. */
+@media (forced-colors: active) {
+  .wc-pdp-gallery__dot::before {
+    forced-color-adjust: none;
+    background: CanvasText;
+  }
+
+  .wc-pdp-gallery__dot[aria-current='true']::before {
+    background: Highlight;
+  }
 }
 
 /* 썸네일 스트립은 모바일에서 숨긴다 — 도트와 스와이프가 이동 수단이다(R-04 §2). */
