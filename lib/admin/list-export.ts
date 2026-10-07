@@ -7,6 +7,7 @@
  *
  * 클라이언트 버튼도 이 모듈의 주소 헬퍼를 쓰므로 서버 전용 의존을 두지 않는다.
  */
+import { ORDER_CLAIM_TYPE_SLUGS, type OrderClaimType } from '@/lib/orders/claims';
 
 /** 한 파일에 담는 최대 행 수. 화면 조건의 결과 건수와 엑셀 행 수 양쪽에 적용한다. */
 export const ADMIN_LIST_EXPORT_ROW_LIMIT = 10_000;
@@ -47,6 +48,11 @@ export const ADMIN_LIST_EXPORT_SCREENS: Record<AdminListExportScreenId, AdminLis
   'claims-returns': { id: 'claims-returns', label: '반품 관리', href: '/admin/sales/claims/returns', fileLabel: '반품관리', asciiLabel: 'claims-returns' },
   'claims-exchanges': { id: 'claims-exchanges', label: '교환 관리', href: '/admin/sales/claims/exchanges', fileLabel: '교환관리', asciiLabel: 'claims-exchanges' },
 };
+
+/** 클레임 유형별 화면 id. 사이드바 id(`claims-cancels` 등)와 같다. */
+export function adminListExportClaimScreenId(claimType: OrderClaimType): AdminListExportScreenId {
+  return `claims-${ORDER_CLAIM_TYPE_SLUGS[claimType]}` as AdminListExportScreenId;
+}
 
 export function isAdminListExportScreenId(value: unknown): value is AdminListExportScreenId {
   return typeof value === 'string'

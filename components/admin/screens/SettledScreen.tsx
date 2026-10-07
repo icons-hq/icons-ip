@@ -96,12 +96,12 @@ export function SettledScreen({
         }}
       />
 
+      {exportRequestId ? <SettledExportForm key={adminSettledHref(filters)} filters={filters} requestId={exportRequestId} /> : null}
+
       <p className="muted">
         <span data-admin-tooltip={ADMIN_VOCABULARY.settledHint} title={ADMIN_VOCABULARY.settledHint} tabIndex={0}>{ADMIN_VOCABULARY.settled}</span>은 배송완료 8일 뒤 자동으로 처리됩니다. 확정 이후에도 상품 하자·오배송
         {ADMIN_VOCABULARY.claimRequest}은 공급받은 날부터 3개월 이내에 접수할 수 있습니다.
       </p>
-
-      {exportRequestId ? <SettledExportForm key={adminSettledHref(filters)} filters={filters} requestId={exportRequestId} /> : null}
 
       <ConsoleGrid
         caption="거래확정 주문 목록"

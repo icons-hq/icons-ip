@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { AdminListExportButton } from '@/components/admin/AdminListExportButton';
 import { BankDepositQueue } from '@/components/admin/BankDepositQueue';
 import { UnpaidActionsPanel } from '@/components/admin/UnpaidActionsPanel';
 import {
@@ -8,6 +9,7 @@ import {
   type ConsoleGridColumn,
   type ConsoleGridRow,
 } from '@/components/admin/console';
+import { adminListExportHref } from '@/lib/admin/list-export';
 import { adminUnpaidAttemptStateLabel, adminUnpaidHref, type AdminUnpaidConsoleData } from '@/lib/admin/unpaid';
 import { krw } from '@/lib/format';
 import { formatOrderDateTime } from '@/lib/orders';
@@ -89,6 +91,8 @@ export function UnpaidScreen({
         }}
         submitLabel="검색"
       />
+
+      <AdminListExportButton href={adminListExportHref('unpaid', adminUnpaidHref({ query: filters.query }))} total={total} />
 
       <ConsoleGrid
         caption="미입금 무통장 주문 목록"

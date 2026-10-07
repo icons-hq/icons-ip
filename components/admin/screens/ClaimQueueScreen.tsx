@@ -29,6 +29,8 @@ import {
   orderReferenceLabel,
 } from '@/lib/orders';
 import { krw } from '@/lib/format';
+import { adminListExportClaimScreenId, adminListExportHref } from '@/lib/admin/list-export';
+import { AdminListExportButton } from '@/components/admin/AdminListExportButton';
 
 /* 어드민 클레임 콘솔 목록(#252) — 취소·반품·교환 3화면이 이 컴포넌트를 공유한다.
  *
@@ -171,6 +173,11 @@ export function ClaimQueueScreen({
           </select>
         </div>
       </ConsoleFilterPanel>
+
+      <AdminListExportButton
+        href={adminListExportHref(adminListExportClaimScreenId(claimType), adminClaimHref(claimType, filters))}
+        total={total}
+      />
 
       <ConsoleCountChips
         chips={CHIP_STAGES.map((stage) => ({

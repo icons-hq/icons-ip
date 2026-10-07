@@ -27,6 +27,7 @@ import {
 } from './claims';
 import {
   ADMIN_LIST_EXPORT_SCREENS,
+  adminListExportClaimScreenId,
   kstDateTimeText,
   listExportPeriodLabel,
   type AdminListExportScreenId,
@@ -40,7 +41,6 @@ import {
   ORDER_CLAIM_REFUND_METHOD_LABELS,
   ORDER_CLAIM_STAGE_LABELS,
   ORDER_CLAIM_TYPE_LABELS,
-  ORDER_CLAIM_TYPE_SLUGS,
   orderClaimReferenceLabel,
   orderClaimSlaState,
   type OrderClaimType,
@@ -348,10 +348,6 @@ interface ClaimLine {
   shipment: ShipmentRecord | null;
 }
 
-export function listExportClaimScreen(claimType: OrderClaimType): AdminListExportScreenId {
-  return `claims-${ORDER_CLAIM_TYPE_SLUGS[claimType]}` as AdminListExportScreenId;
-}
-
 export function claimsListExportSheet(input: {
   claimType: OrderClaimType;
   rows: AdminClaimRow[];
@@ -409,7 +405,7 @@ export function claimsListExportSheet(input: {
       : []),
   ];
 
-  const screen = listExportClaimScreen(claimType);
+  const screen = adminListExportClaimScreenId(claimType);
   return {
     screen,
     title: ADMIN_LIST_EXPORT_SCREENS[screen].label,

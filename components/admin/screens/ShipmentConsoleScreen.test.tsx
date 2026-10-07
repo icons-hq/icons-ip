@@ -56,3 +56,12 @@ describe('배송 건 콘솔',()=>{
   expect(html).toContain('순서: 대상 선택 → 출고지시 내보내기 → 창고 회신 → 운송장 등록');
  });
 });
+describe('배송 건 목록 엑셀 다운로드',()=>{
+ it('출고지시 파일과 다른 이름으로 현재 탭·출고지 조건을 내려받는다',()=>{
+  const html=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,filters:{...base.filters,originId:'00000000-0000-4000-8000-000000042201',query:'홍',page:2},rows:[row]}}/>);
+  expect(html).toContain('목록 엑셀 다운로드');expect(html).toContain('출고지시 내보내기');
+  expect(html).toContain('data-export-href="/api/admin/list-export?screen=dispatch&amp;tab=ready&amp;originId=00000000-0000-4000-8000-000000042201&amp;query=%ED%99%8D"');
+  const shipping=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,surface:'shipping',filters:{...base.filters,tab:'delivered'}}}/>);
+  expect(shipping).toContain('data-export-href="/api/admin/list-export?screen=shipping&amp;tab=delivered"');
+ });
+});

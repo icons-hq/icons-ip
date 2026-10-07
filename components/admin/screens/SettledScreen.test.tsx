@@ -86,7 +86,9 @@ describe('SettledScreen', () => {
   it('같은 조회 조건의 전체 페이지를 영수증 생성 동선에 전달한다', () => {
     const html = renderToStaticMarkup(<SettledScreen data={data({ filters: { from: '2026-09-01', to: '2026-09-09', query: '0000', page: 3 } })}
       exportRequestId="10000000-0000-4000-8000-000000004951" now={NOW} />);
-    expect(html).toContain('현재 조건의 거래확정 엑셀 만들기');
+    expect(html).toContain('목록 엑셀 다운로드');
+    /* 다른 주문·배송 목록처럼 필터 바로 아래, 안내 문단보다 앞에 둔다. */
+    expect(html.indexOf('목록 엑셀 다운로드')).toBeLessThan(html.indexOf('배송완료 8일 뒤'));
     expect(html).toContain('현재 조회 조건의 전체 페이지');
     expect(html).toContain('name="from" value="2026-09-01"');
     expect(html).toContain('name="query" value="0000"');

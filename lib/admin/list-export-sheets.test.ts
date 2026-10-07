@@ -6,13 +6,12 @@ import type { AdminClaimRow } from './claims';
 import type { ShipmentConsoleRow } from './shipment-dispatch';
 import {
   claimsListExportSheet,
-  listExportClaimScreen,
   listExportContact,
   ordersListExportSheet,
   shipmentsListExportSheet,
   unpaidListExportSheet,
 } from './list-export-sheets';
-import type { AdminListExportSheet } from './list-export';
+import { adminListExportClaimScreenId, type AdminListExportSheet } from './list-export';
 
 const ORDER_ID = '11111111-1111-4111-8111-111111111111';
 
@@ -203,7 +202,7 @@ describe('취소·반품·교환 목록 엑셀', () => {
     const sheet = claimsListExportSheet({ claimType: 'cancel', rows: [{ ...claim, claimType: 'cancel' }], filters, orders, now: new Date() });
     expect(sheet.screen).toBe('claims-cancels');
     expect(sheet.columns.map((column) => column.header)).not.toEqual(expect.arrayContaining(['연락처', '주소', '운송장번호']));
-    expect(listExportClaimScreen('exchange')).toBe('claims-exchanges');
+    expect(adminListExportClaimScreenId('exchange')).toBe('claims-exchanges');
   });
 });
 
