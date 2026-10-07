@@ -5,7 +5,9 @@ import { emptyGoodsKcWorkbookRow, GOODS_KC_WORKBOOK_SHEET } from './goods-kc-wor
 import {
   emptyGoodsWorkbookRow,
   GOODS_WORKBOOK_HEADERS,
+  planGoodsWorkbookImport,
 } from './goods-workbook';
+import { convertSabangnetRows, suggestSabangnetTargets } from './sabangnet-goods-format';
 const values = {
   ...emptyGoodsWorkbookRow(),
   code: '00001',
@@ -126,6 +128,22 @@ describe('사방넷 상품 파일 읽기', () => {
     await expect(readSabangnetGoodsSheet(Buffer.from('<html><table><tr><td>상품명</td></tr></table>'))).rejects.toThrow('웹 페이지');
     await expect(readSabangnetGoodsSheet(Buffer.from('이름,가격\nA,1'))).rejects.toThrow('열 이름');
     await expect(readSabangnetGoodsSheet(Buffer.alloc(0))).rejects.toThrow('2MB');
+  });
+  it('실제 XLSX에서 읽은 사방넷 행이 변환을 거쳐 기존 검증의 신규 초안 계획이 된다', async () => {
+    const book = new ExcelJS.Workbook();
+    const sheet = book.addWorksheet('Sheet1');
+    sheet.getRow(1).values = ['상품명', '자체상품코드', '판매가', 'TAG가', '옵션제목(1)', '옵션상세명칭(1)', '대표이미지', '상품상세설명', '모델명'];
+    sheet.getRow(2).values = ['핑크빈 쿠션', 'pb-cushion', 32000, 39000, '크기', 'S,M(+5,000원)', 'http://img.example.com/pb.jpg', '<p>쿠션</p>', 'PB-01'];
+    const read = await readSabangnetGoodsSheet(Buffer.from(await book.xlsx.writeBuffer()));
+    const converted = convertSabangnetRows({ ...read, targets: suggestSabangnetTargets(read.headers).targets, ipId: 'maple' });
+    const plan = planGoodsWorkbookImport(converted.rows, {
+      existing: [], ips: [{ id: 'maple', archived_at: null }], origins: [], presets: [], mediaUrl: () => null,
+    });
+    expect(converted.ignoredColumns).toEqual(['모델명']);
+    expect(plan).toMatchObject([{ kind: 'new', code: 'PB-CUSHION', errors: [], target: {
+      price: 32000, compare_at_price: 39000, publish: false, ip_id: 'maple',
+      variants: [{ name: 'S', extraPrice: 0, stockQty: 0 }, { name: 'M', extraPrice: 5000, stockQty: 0 }],
+    } }]);
   });
   it('사방넷 상품은 파일당 500개까지 읽는다', async () => {
     const csv = ['상품명,판매가', ...Array.from({ length: 501 }, (_, index) => `상품${index},1000`)].join('\n');

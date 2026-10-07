@@ -458,10 +458,12 @@ export function convertSabangnetRows(input: {
       }
       return url.toString();
     };
-    const main = [single('image'), single('imageFallback')]
-      .filter((column): column is number => column !== undefined)
-      .map(imageUrl)
-      .find(Boolean) ?? '';
+    let main = '';
+    for (const column of [single('image'), single('imageFallback')]) {
+      if (column === undefined) continue;
+      main = imageUrl(column);
+      if (main) break;
+    }
     values.imageUrl = main;
     const gallery = [...new Set(columnsOf('gallery').map(imageUrl).filter((url) => url && url !== main))];
     gallery.slice(0, SABANGNET_GALLERY_LIMIT).forEach((url, index) => {
