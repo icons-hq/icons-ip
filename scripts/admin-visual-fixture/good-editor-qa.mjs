@@ -36,7 +36,7 @@ export async function verifyGoodEditor(page, origin, output) {
   assert.match(await page.locator('.wc-product-card').innerText(),/1,700/);
  });
  // The real widget processes a local image; its upload adapter returns a synthetic verified path.
- await page.getByLabel('대표 이미지', { exact: true }).setInputFiles({ name: 'fixture.png', mimeType: 'image/png',
+ await page.getByLabel('대표 이미지 추가', { exact: true }).setInputFiles({ name: 'fixture.png', mimeType: 'image/png',
    buffer: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+a3ioAAAAASUVORK5CYII=', 'base64') });
  await page.waitForFunction(() => document.querySelector('input[name="imagePath"]').value.includes('22222222'));
  const snapshot=await page.locator('input[name="variants"]').inputValue();

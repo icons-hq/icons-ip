@@ -165,7 +165,9 @@ describe('GoodSection', () => {
     expect(html).toContain('value="public-media/catalog/good/failed.webp"');
     expect(html).toContain('value="보존 옵션"');
     expect(html).toContain('value="-1"');
-    expect(html.match(/data-auto-upload="true"/g)).toHaveLength(7);
+    /* 대표·추가 이미지는 한 그리드(자리별 hidden input)이고, 상세 HTML 이미지·긴 상세 이미지만 별도 업로드 칸이다. */
+    expect(html.match(/data-auto-upload="true"/g)).toHaveLength(2);
+    expect(html.match(/class="wc-admin-image-tile wc-admin-artwork-upload-field"/g)).toHaveLength(2);
     expect(html).toContain('최근 저장된 상품에서 복사');
     expect(html).toContain('프리셋 찾기');
   });
@@ -290,19 +292,24 @@ describe('GoodSection', () => {
   });
 
   /* #172 — 설명·갤러리 4슬롯·상세 이미지가 같은 업로드 칸을 재사용한다. */
-  it('offers a description, four ordered gallery slots, and one detail image', () => {
+  /* 2026-10-07 MD 요청 — 대표 이미지·추가 이미지를 한 썸네일 그리드로, "슬롯"·잘림 예시 없이. */
+  it('offers one image grid for the main and additional images, a description, and one detail image', () => {
     const html = renderGoodSection(null);
 
     expect(html).toMatch(/<textarea[^>]*name="description"/);
-    expect(html).toContain('갤러리 (최대 4장)');
-    for (const slot of [0, 1, 2, 3]) {
-      expect(html).toContain(`name="galleryPath${slot}"`);
-      expect(html).toContain(`갤러리 ${slot + 1}`);
+    expect(html).toContain('상품 이미지 · 대표 이미지 1장 + 추가 이미지 최대 4장');
+    expect(html).toContain('1000×1000(1:1) 이미지를 권장합니다. 올린 원본 비율 그대로, 잘리지 않고 표시됩니다.');
+    for (const name of ['imagePath', 'galleryPath0', 'galleryPath1', 'galleryPath2', 'galleryPath3']) {
+      expect(html).toContain(`name="${name}"`);
     }
+    expect(html).toContain('aria-label="대표 이미지 추가"');
+    expect(html).toContain('aria-label="이미지 추가 (추가 이미지, 여러 장 선택 가능)"');
+    expect(html).not.toMatch(/슬롯|갤러리 \(최대|공개 화면 잘림 확인/);
+    expect(html).toContain('상세페이지(상세 설명) 편집');
     expect(html).toContain('name="detailImagePath"');
     expect(html).toContain('상세 이미지');
-    /* 이미지 제약은 공유 업로드 칸에서 그대로 따라온다. */
-    expect(html.match(/accept="image\/jpeg,image\/png,image\/webp"/g)).toHaveLength(7);
+    /* 이미지 제약은 공유 업로드 계약(ADMIN_ARTWORK_ACCEPT)을 그대로 따른다. */
+    expect(html.match(/accept="image\/jpeg,image\/png,image\/webp"/g)).toHaveLength(4);
     expect(html.match(/최대 5MB · 가로·세로 최대 8192px/g)).toHaveLength(1);
   });
 
