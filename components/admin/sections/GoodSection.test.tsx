@@ -344,6 +344,53 @@ describe('GoodSection', () => {
     expect(preview).not.toContain('<form');
   });
 
+  /* 2026-10-07 MD 회의 ⑥ — 스마트스토어식 판매가 → 할인 입력이 기존 price·compareAtPrice 계약으로 저장된다. */
+  it('저장된 정가·판매가를 판매가·할인으로 열고 같은 저장 값을 hidden 입력으로 보낸다', () => {
+    const html = renderGoodSection(good);
+    const card = html.slice(html.indexOf('id="good-section-price"'), html.indexOf('id="good-section-variants"'));
+    expect(card).toContain('<h3>판매가</h3>');
+    expect(card).toMatch(/<input[^>]*name="regularPrice"[^>]*value="26000"/);
+    expect(card).toMatch(/<input type="radio" name="discountEnabled" checked="" value="true"\/>설정함/);
+    expect(card).toMatch(/<input[^>]*name="discountValue"[^>]*value="4000"/);
+    expect(card).toContain('할인가 <strong>22,000원</strong> (4,000원 할인)');
+    expect(card).toContain('<input type="hidden" name="price" value="22000"/>');
+    expect(card).toContain('<input type="hidden" name="compareAtPrice" value="26000"/>');
+    expect(card).toContain('고객 화면에 할인율 표시');
+    for (const legacy of ['기준 판매가', '소비자가', '옵션 판매가', '추가금액']) expect(card).not.toContain(legacy);
+  });
+
+  it('새 상품은 할인 설정안함·빈 판매가로 시작하고 서버 가격 오류를 해당 칸에 붙인다', () => {
+    const fresh = renderGoodSection(null);
+    const card = fresh.slice(fresh.indexOf('id="good-section-price"'), fresh.indexOf('id="good-section-variants"'));
+    expect(card).toMatch(/<input type="radio" name="discountEnabled" checked="" value="false"\/>설정안함/);
+    expect(card).toMatch(/<input[^>]*name="regularPrice"[^>]*value=""/);
+    expect(card).toContain('<input type="hidden" name="compareAtPrice" value=""/>');
+    expect(card).toContain('class="goods-price-editor__discount" hidden=""');
+
+    const failed = renderGoodSection(good, { errors: { compareAtPrice: '소비자가는 기준 판매가보다 커야 해요', price: '가격 오류' } });
+    const failedCard = failed.slice(failed.indexOf('id="good-section-price"'), failed.indexOf('id="good-section-variants"'));
+    expect(failedCard).toMatch(/id="goods-regular-price-error" role="alert">가격 오류/);
+    expect(failedCard).toMatch(/id="goods-discount-value-error" role="alert">소비자가는 기준 판매가보다 커야 해요/);
+  });
+
+  it('저장 실패 후에는 입력한 할인 단위와 값을 그대로 되살린다', () => {
+    const html = renderGoodSection(good, { attempt: 1, values: { previousId: good.id, price: '8415', compareAtPrice: '9900', regularPrice: '9900', discountEnabled: 'true', discountValue: '15', discountUnit: 'percent' } });
+    expect(html).toMatch(/<input[^>]*name="discountValue"[^>]*value="15"/);
+    expect(html).toMatch(/<option value="percent" selected="">%<\/option>/);
+    expect(html).toContain('<input type="hidden" name="price" value="8415"/>');
+    expect(html).toContain('할인가 <strong>8,415원</strong> (1,485원 할인)');
+  });
+
+  it('재고수량·옵션 카드는 옵션 없는 상품의 재고수량을 먼저 보여준다', () => {
+    const html = renderGoodSection(good);
+    const card = html.slice(html.indexOf('id="good-section-variants"'), html.indexOf('id="good-section-notice"'));
+    expect(card).toContain('<h3>재고수량·옵션</h3>');
+    expect(card).toContain('옵션 없음 · 재고수량 12개');
+    expect(card.indexOf('for="goods-single-stock">재고수량')).toBeLessThan(card.indexOf('<legend>옵션</legend>'));
+    expect(html).toContain('2. 판매가');
+    expect(html).toContain('3. 재고수량·옵션');
+  });
+
   /* #326 — 유형·배지는 자유 입력이 아니라 표준 값 select 다(DB CHECK 와 같은 목록). */
   it('offers the standard type and badge options plus a compare-at price field', () => {
     const html = renderGoodSection(null);

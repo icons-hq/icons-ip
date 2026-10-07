@@ -11,7 +11,10 @@ import type { AdminGoodRecord } from '@/lib/admin/catalog.server';
 import type { AdminGoodsVariant } from '@/lib/admin/goods-variants';
 import type { FulfillmentOrigin } from '@/lib/admin/fulfillment-origins';
 import { goodEditorValues, createGoodEditorDraft, goodEditorFingerprint, buildGoodEditorPreview, GOOD_LOCAL_DRAFT_FIELDS, type GoodNoticeDefaults } from '@/lib/admin/good-editor';
-import { restoreGoodsOptionRows, type GoodsOptionRow } from '@/lib/admin/goods-option-editor';
+import { goodsOptionStockTotals, isSingleGoodsOption, restoreGoodsOptionRows, type GoodsOptionRow } from '@/lib/admin/goods-option-editor';
+import { formatWon, goodsPriceDraftFromValues, resolveGoodsPrice } from '@/lib/admin/goods-price-editor';
+import { planErpCategorySuggestion, type ErpCategorySuggestion } from '@/lib/admin/goods-erp-suggestion';
+import type { ErpItemMatch } from '@/lib/admin/erp-items';
 import { preservedFormValues } from '@/lib/admin/form-state';
 import { withLocalRecoveryValues } from '@/lib/admin/local-autosave';
 import { publicMediaUrl } from '@/lib/media';
@@ -22,6 +25,8 @@ import { GoodsShippingNoticeField } from './GoodsShippingNoticeField';
 import type { GoodShippingPolicy } from '@/lib/fulfillment';
 import { GoodsFulfillmentFields } from './GoodsFulfillmentFields';
 import { GoodsOptionEditor } from './GoodsOptionEditor';
+import { GoodsPriceFields } from './GoodsPriceFields';
+import { GoodsErpCategoryNotice } from './GoodsErpCategoryNotice';
 import { GoodsSalePolicyFields } from './GoodsSalePolicyFields';
 import { GoodNoticePicker } from './GoodNoticePicker';
 import type { GoodsKcPresetTemplate } from '@/lib/admin/goods-notice-presets';
@@ -182,6 +187,17 @@ function GoodEditorForm({ action, catalogIps, ipOptions, pending, selected, stat
     });
   }, []);
   const [imageUrls, setImageUrls] = useState(draft.imageUrls);
+  /* 판매가·할인은 화면 입력에서 저장 계약(price·compareAtPrice)을 한 번에 만든다. */
+  const [priceDraft, setPriceDraft] = useState(() => goodsPriceDraftFromValues(draft.values));
+  const priceResult = resolveGoodsPrice(priceDraft);
+  /* ERP 품목 선택이 비어 있는 대표 카테고리를 채울 수 있도록 대표 카테고리는 이 폼이 제어한다. */
+  const [categoryId, setCategoryId] = useState(initial.categoryId);
+  const [erpCategory, setErpCategory] = useState<ErpCategorySuggestion | null>(null);
+  function applyErpItem(item: ErpItemMatch) {
+    const suggestion = planErpCategorySuggestion(item, categoryId, categories);
+    if (suggestion?.kind === 'filled') setCategoryId(suggestion.categoryId);
+    setErpCategory(suggestion);
+  }
   function submit(event: FormEvent<HTMLFormElement>) {
     if (pending) { event.preventDefault(); return; }
     const changes = locked ? changedGoodLockedFields(lockedValues, goodFormValues(new FormData(event.currentTarget))) : [];
@@ -257,7 +273,7 @@ function GoodEditorForm({ action, catalogIps, ipOptions, pending, selected, stat
           <SelectField defaultValue={initial.ipId} error={errors.ipId} label={locked ? "연결 IP · 공개 중 잠금" : "연결 IP (초안 필수)"} disabled={locked} name="ipId"><option value="">선택</option>{ipOptions.map((ip) => <option disabled={Boolean(ip.archivedAt && ip.id !== selected?.ipId)} key={ip.id} value={ip.id}>{ip.archivedAt ? `[보관] ${ip.title}` : ip.title}</option>)}</SelectField>
           {locked && <input type="hidden" name="ipId" value={values.ipId} />}
           <Field readOnly={locked} defaultValue={initial.name} error={errors.name} label={`${ADMIN_VOCABULARY.goods} 이름${locked ? ' · 공개 중 잠금' : ' (초안 필수)'}`} name="name" />
-          <CategoryAssignmentField categories={categories} value={initial.categoryId} error={errors.categoryId} additionalValue={initial.additionalCategoryIds} additionalError={errors.additionalCategoryIds} />
+          <CategoryAssignmentField categories={categories} value={initial.categoryId} primary={categoryId} onPrimaryChange={setCategoryId} error={errors.categoryId} additionalValue={initial.additionalCategoryIds} additionalError={errors.additionalCategoryIds} />
           <SelectField defaultValue={initial.type} error={errors.type} label={locked ? "유형 · 공개 중 잠금" : "유형 (공개 필수)"} disabled={locked} name="type"><option value="">선택</option>{GOOD_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}</SelectField>
           {locked && <input type="hidden" name="type" value={values.type} />}
           <SelectField defaultValue={initial.badge} error={errors.badge} label="배지" name="badge"><option value="">없음</option>{GOOD_BADGES.map((badge) => <option key={badge} value={badge}>{badge}</option>)}</SelectField>
@@ -311,18 +327,15 @@ function GoodEditorForm({ action, catalogIps, ipOptions, pending, selected, stat
         <ErrorText>{errors.detailImagePath}</ErrorText>
         </GoodOptionalFields>
       </AdminSectionCard>
-      <AdminSectionCard title="가격" id="good-section-price" requirement="기준가 + 옵션 추가금액" status="입력값 확인" errorCount={errorCount('price')} summary={`기준 판매가 ${Number(values.price || 0).toLocaleString('ko-KR')}원${dirty ? ' · 미저장 입력' : ''}`}>
-        <p>옵션 판매가는 기준 판매가에 옵션별 추가금액을 더한 금액입니다. 고객은 선택한 옵션 판매가로 구매합니다.</p>
-        <AdminFormGrid>
-          <Field defaultValue={initial.price} error={errors.price} label="기준 판매가" name="price" min={0} type="number" />
-          <Field defaultValue={initial.compareAtPrice} error={errors.compareAtPrice} label="소비자가 (비교용, 선택)" name="compareAtPrice" min={0} type="number" />
-          <SelectField defaultValue={initial.showDiscountRate} error={errors.showDiscountRate} label="할인율 표시" name="showDiscountRate">
-            <option value="true">표시</option><option value="false">숨김 · 판매가만 표시</option>
-          </SelectField>
-        </AdminFormGrid>
-        <p className="muted">할인율을 숨기면 정가 취소선과 할인율 없이 판매가만 표시합니다. 기간 할인·쿠폰·적립금과 실제 결제 금액은 그대로 적용됩니다.</p>
+      <AdminSectionCard title="판매가" id="good-section-price" requirement="판매가 → 할인(선택)" status={priceResult.regularPriceError || priceResult.discountError ? '입력 확인 필요' : '입력값 확인'} errorCount={errorCount('price')} summary={`판매가 ${priceResult.regularPrice ? formatWon(priceResult.regularPrice) : '미입력'}${priceDraft.discountEnabled ? priceResult.discountAmount > 0 && priceResult.salePrice !== null ? ` · 할인가 ${formatWon(priceResult.salePrice)}` : ' · 할인 입력 확인' : ' · 할인 없음'}${dirty ? ' · 미저장 입력' : ''}`}>
+        <GoodsPriceFields draft={priceDraft} onDraftChange={setPriceDraft} result={priceResult} errors={errors} showDiscountRate={initial.showDiscountRate} />
       </AdminSectionCard>
-      <AdminSectionCard title="옵션과 재고" id="good-section-variants" requirement="공개 필수 · 기본 옵션 1개부터" status="옵션 확인" errorCount={errorCount('variants')} summary="할당 재고는 ICONS 판매 수량입니다. 안전재고 기준은 경보이며 판매 수량에서 차감하지 않습니다."><GoodsOptionEditor onRowsChange={setRows} codePrefix={values.code || suggestedCode} rows={rows} baseline={baseline} basePrice={Number(values.price) || 0} error={errors.variants} axisValues={initial} /></AdminSectionCard>
+      <AdminSectionCard title="재고수량·옵션" id="good-section-variants" requirement="공개 필수 · 옵션 없이 팔면 재고수량만 입력" status="옵션 확인" errorCount={errorCount('variants')} summary={`${isSingleGoodsOption(rows) ? '옵션 없음 · 재고수량' : `옵션 ${rows.length.toLocaleString('ko-KR')}개 · 재고수량 합계`} ${goodsOptionStockTotals(rows).total.toLocaleString('ko-KR')}개`}>
+        <GoodsOptionEditor onRowsChange={setRows} codePrefix={values.code || suggestedCode} rows={rows} baseline={baseline} basePrice={priceResult.salePrice ?? 0}
+          basePriceValid={!priceResult.regularPriceError && !priceResult.discountError} discountAmount={priceResult.discountAmount} error={errors.variants} axisValues={initial}
+          onErpItemSelect={applyErpItem} onRegularPriceApply={(price) => setPriceDraft((current) => ({ ...current, regularPrice: String(price) }))}
+          erpNotice={<GoodsErpCategoryNotice suggestion={erpCategory} currentCategoryId={categoryId} onReplace={setCategoryId} onReview={() => focusGoodWorkspaceTarget('good-section-basic', 'categoryId')} />} />
+      </AdminSectionCard>
       <AdminSectionCard title={ADMIN_VOCABULARY.noticeInfo} id="good-section-notice" requirement="공개 필수 · 초안에는 일부 저장 가능" status={GOODS_NOTICE_FIELDS.every((field) => values[field.formName]?.trim()) ? '입력 완료 · KC 별도 검토' : '미입력'} errorCount={errorCount('notice')} summary={`${GOODS_NOTICE_FIELDS.filter((field) => values[field.formName]?.trim()).length}/${GOODS_NOTICE_FIELDS.length}개 작성 · KC는 저장 후 검토`}>
         <GoodNoticePicker onApply={applyNotice} readOnly={locked||Boolean(selected?.archivedAt)} /><GoodsNoticeFields notice={notice} required={Boolean(selected?.publishedAt)} locked={locked} state={{ ...state, errors }} />
         <p>{selected ? <a href="#good-operation-kc" onClick={(event) => { event.preventDefault(); focusGoodWorkspaceTarget('good-operation-kc'); }}>KC 검토 영역 열기</a> : '초안 저장 후 실제 상품에 KC 자료를 연결하고 검토할 수 있습니다.'}</p>
