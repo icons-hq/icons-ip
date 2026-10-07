@@ -91,15 +91,40 @@ describe('ERP 판매가 적용 계산', () => {
     expect(extra.message).toContain('19,500원');
   });
 
-  it('옵션 사용 중이면 옵션가 = ERP 판매가 − 현재 판매 금액이고 음수는 적용하지 않는다', () => {
-    expect(planErpSalePrice({ salePrice: 13000, mode: 'multiple', price: draft() })).toMatchObject({ ok: true, target: 'extraPrice', value: 3000 });
+  it('옵션 사용 중이면 옵션가 = ERP 판매가 − 판매가(할인 전)이고 음수는 적용하지 않는다', () => {
+    expect(planErpSalePrice({ salePrice: 13000, mode: 'multiple', price: draft() }))
+      .toEqual({ ok: true, target: 'extraPrice', value: 3000, attention: false, message: '옵션가를 3,000원으로 맞춰 판매 13,000원이 되었습니다.' });
     expect(planErpSalePrice({ salePrice: 13000, mode: 'multiple', price: draft({ discountEnabled: true, discountValue: '10', discountUnit: 'percent' }) }))
-      .toMatchObject({ ok: true, target: 'extraPrice', value: 4000 });
+      .toMatchObject({ ok: true, target: 'extraPrice', value: 3000 });
     expect(planErpSalePrice({ salePrice: 10000, mode: 'multiple', price: draft() })).toMatchObject({ ok: true, value: 0 });
     expect(planErpSalePrice({ salePrice: 9000, mode: 'multiple', price: draft() })).toMatchObject({ ok: false, error: expect.stringContaining('낮아') });
+    /* 할인가(9,000원)보다는 높아도 판매가(할인 전)보다 낮으면 옵션가가 음수가 되어 적용하지 않는다. */
+    expect(planErpSalePrice({ salePrice: 9500, mode: 'multiple', price: draft({ discountEnabled: true, discountValue: '1000' }) }))
+      .toEqual({ ok: false, error: expect.stringContaining('판매가(할인 전) 10,000원보다 낮아') });
     expect(planErpSalePrice({ salePrice: 9000, mode: 'multiple', price: draft({ regularPrice: '1.5' }) })).toMatchObject({ ok: false });
     expect(planErpSalePrice({ salePrice: 9000, mode: 'multiple', price: draft({ discountEnabled: true, discountValue: '0' }) })).toMatchObject({ ok: false });
     expect(planErpSalePrice({ salePrice: -1, mode: 'single', price: draft() })).toMatchObject({ ok: false });
+  });
+
+  /* 2026-10-07 QA: 할인 중 옵션가를 할인가 기준으로 맞춰 그 옵션만 할인이 상쇄됐다(빨강 12,000원 · 파랑 10,800원). 옵션 미사용과 같은 의미로 맞춘다. */
+  it('옵션 사용 중에도 ERP 판매가는 그 옵션의 할인 전 금액이고, 상품 할인은 그대로 적용해 할인 전·후 금액을 알린다', () => {
+    const percent = draft({ regularPrice: '12000', discountEnabled: true, discountValue: '10', discountUnit: 'percent' });
+    const same = planErpSalePrice({ salePrice: 12000, mode: 'multiple', price: percent });
+    expect(same).toMatchObject({ ok: true, target: 'extraPrice', value: 0, attention: false });
+    if (!same.ok) throw new Error();
+    expect(same.message).toBe('옵션가를 0원으로 맞춰 할인 전 판매 12,000원(ERP 판매가)이 되었습니다. 상품 할인 10%(1,200원)이 그대로 적용되어 할인가는 10,800원입니다.');
+    const higher = planErpSalePrice({ salePrice: 15000, mode: 'multiple', price: percent });
+    expect(higher).toMatchObject({ ok: true, value: 3000 });
+    if (!higher.ok) throw new Error();
+    expect(higher.message).toContain('할인 전 판매 15,000원');
+    expect(higher.message).toContain('할인가는 13,800원');
+    const won = planErpSalePrice({ salePrice: 13000, mode: 'multiple', price: draft({ discountEnabled: true, discountValue: '2000' }) });
+    expect(won).toMatchObject({ ok: true, value: 3000 });
+    if (!won.ok) throw new Error();
+    expect(won.message).toContain('상품 할인 2,000원이 그대로 적용되어 할인가는 11,000원입니다.');
+    /* 옵션 미사용의 ERP 판매가도 할인 전 판매가다 — 두 모드의 결과 금액이 같다. */
+    const single = planErpSalePrice({ salePrice: 12000, mode: 'single', price: percent });
+    expect(single.ok && single.message).toContain('할인가는 10,800원');
   });
 
   /* 2026-10-07 리뷰: 판매가가 비어 있으면 ERP 판매가 전액이 옵션가가 되어, 나중에 판매가를 넣으면 이중으로 더해진다. */
