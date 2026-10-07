@@ -11,6 +11,7 @@ import {
   erpImportRowPayload,
   normalizeErpHeader,
   normalizeErpImportRowInput,
+  parseErpDelimitedTable,
   parseErpDelimitedText,
   parseErpSalePrice,
 } from './erp-item-import';
@@ -34,10 +35,41 @@ describe('붙여넣기·CSV 표 읽기', () => {
     expect(parseErpDelimitedText('A,1\tB')).toEqual([['A,1', 'B']]);
   });
 
+  it('닫는 큰따옴표가 없는 셀은 원문 그대로 두고 뒤 행을 한 셀로 합치지 않는다', () => {
+    const parsed = parseErpDelimitedTable('품번\t품명\nA1\t"곰돌이 키링\nA2\t토끼\nA3\t고양이');
+    expect(parsed.rows).toEqual([['품번', '품명'], ['A1', '"곰돌이 키링'], ['A2', '토끼'], ['A3', '고양이']]);
+    expect(parsed.warnings).toEqual(['닫는 큰따옴표가 없는 셀 1개(2행)는 따옴표를 포함해 적힌 그대로 읽었습니다. 값을 확인해주세요.']);
+    expect(parseErpDelimitedText('A,"B\nC,D')).toEqual([['A', '"B'], ['C', 'D']]);
+  });
+
+  it('셀 전체를 감싸지 않은 큰따옴표는 값의 일부로 보존한다', () => {
+    const parsed = parseErpDelimitedTable('품번\t품명\nA1\t"한정판" 키링\nA2\t"토끼"\nA3\t"줄1\n줄2"\tX');
+    expect(parsed.rows).toEqual([['품번', '품명'], ['A1', '"한정판" 키링'], ['A2', '토끼'], ['A3', '줄1\n줄2', 'X']]);
+    expect(parsed.warnings).toEqual([]);
+    expect(parseErpDelimitedText('"한정판" 키링,"A"')).toEqual([['"한정판" 키링', 'A']]);
+  });
+
   it('UTF-8이 아니면 EUC-KR로 읽는다', () => {
     const eucKr = new Uint8Array([0xc7, 0xb0, 0xb9, 0xf8]); // "품번"
     expect(decodeErpTextBytes(eucKr)).toBe('품번');
     expect(decodeErpTextBytes(new TextEncoder().encode('﻿품명'))).toBe('품명');
+  });
+
+  it('엑셀 유니코드 텍스트(UTF-16, BOM 유무)를 읽는다', () => {
+    const text = '품번\t품명\r\n000123\t키링\r\n';
+    const le = Buffer.from(text, 'utf16le');
+    const be = Buffer.from(le).swap16();
+    expect(decodeErpTextBytes(new Uint8Array([0xff, 0xfe, ...le]))).toBe(text);
+    expect(decodeErpTextBytes(new Uint8Array([0xfe, 0xff, ...be]))).toBe(text);
+    expect(decodeErpTextBytes(new Uint8Array(le))).toBe(text);
+    expect(decodeErpTextBytes(new Uint8Array(be))).toBe(text);
+  });
+
+  it('글자로 읽을 수 없는 파일은 CSV UTF-8로 다시 저장하라고 안내한다', () => {
+    expect(() => decodeErpTextBytes(new Uint8Array([0x00, 0x00, 0x41, 0x00, 0x00, 0x00, 0x42, 0x00, 0x00, 0x00])))
+      .toThrow('엑셀에서 CSV UTF-8(쉼표로 분리)로 저장해 다시 올려주세요.');
+    expect(() => decodeErpTextBytes(new Uint8Array([0x41, ...Array.from({ length: 40 }, () => 0xff)])))
+      .toThrow('엑셀에서 CSV UTF-8(쉼표로 분리)로 저장해 다시 올려주세요.');
   });
 
   it('열 수와 셀 길이를 묶는다', () => {

@@ -8,7 +8,7 @@ import {
   ERP_ITEM_IMPORT_ROW_LIMIT,
   boundErpTable,
   decodeErpTextBytes,
-  parseErpDelimitedText,
+  parseErpDelimitedTable,
 } from './erp-item-import';
 
 export interface ErpItemFileTable {
@@ -99,9 +99,9 @@ export async function readErpItemFile(name: string, bytes: Buffer): Promise<ErpI
   if (!bytes.length || bytes.length > ERP_ITEM_FILE_BYTES_LIMIT) throw new Error('파일은 900KB 이하로 올려주세요.');
   if (/\.xlsx$/i.test(name)) return readWorkbookTable(bytes);
   if (/\.(csv|tsv|txt)$/i.test(name)) {
-    const table = parseErpDelimitedText(decodeErpTextBytes(bytes));
-    if (table.length > ERP_ITEM_TABLE_ROW_LIMIT) throw new Error(TOO_MANY_ROWS);
-    return { table: boundErpTable(table), numericColumns: [], warnings: [], sheetName: null };
+    const { rows, warnings } = parseErpDelimitedTable(decodeErpTextBytes(bytes));
+    if (rows.length > ERP_ITEM_TABLE_ROW_LIMIT) throw new Error(TOO_MANY_ROWS);
+    return { table: boundErpTable(rows), numericColumns: [], warnings, sheetName: null };
   }
   throw new Error('XLSX 또는 CSV 파일을 올려주세요.');
 }

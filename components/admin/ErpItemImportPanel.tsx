@@ -15,7 +15,7 @@ import {
   buildErpImportPlan,
   chunkErpImportRows,
   erpImportIssueLabel,
-  parseErpDelimitedText,
+  parseErpDelimitedTable,
   boundErpTable,
   normalizeErpText,
   type ErpColumnTarget,
@@ -93,7 +93,8 @@ export function ErpItemImportPanel() {
   const readPasted = () => {
     if (!normalizeErpText(pasted, true)) { setError('엑셀에서 복사한 표를 붙여넣어 주세요.'); return; }
     if (pasted.length > ERP_ITEM_PASTE_CHAR_LIMIT) { setError('붙여넣은 내용이 너무 깁니다. 나누어 반입해주세요.'); return; }
-    begin({ label: '붙여넣은 표', table: boundErpTable(parseErpDelimitedText(pasted)), numericColumns: [], warnings: [] });
+    const parsed = parseErpDelimitedTable(pasted);
+    begin({ label: '붙여넣은 표', table: boundErpTable(parsed.rows), numericColumns: [], warnings: parsed.warnings });
   };
 
   const readFile = (file: File) => {

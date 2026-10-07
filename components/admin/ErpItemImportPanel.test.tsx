@@ -134,6 +134,14 @@ describe('ERP 품목 반입 패널', () => {
     ]);
   });
 
+  it('붙여넣기의 닫히지 않은 큰따옴표는 뒤 행을 삼키지 않고 미리보기 경고로 알린다', () => {
+    find(render(), (element) => element.props.id === 'erp-item-paste')[0].props.onChange?.({ target: { value: '품번\t품명\nA1\t"곰돌이 키링\nA2\t토끼\nA3\t고양이' } });
+    button(render(), '붙여넣은 표 확인').props.onClick?.();
+    const tree = render();
+    expect(text(tree)).toContain('반입 가능 3건');
+    expect(text(tree)).toContain('닫는 큰따옴표가 없는 셀 1개(2행)는 따옴표를 포함해 적힌 그대로 읽었습니다.');
+  });
+
   it('열을 직접 바꾸면 그 열 기준으로 다시 미리보기하고, 필수 열이 없으면 반입을 막는다', () => {
     find(render(), (element) => element.props.id === 'erp-item-paste')[0].props.onChange?.({ target: { value: PASTED } });
     button(render(), '붙여넣은 표 확인').props.onClick?.();

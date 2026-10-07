@@ -56,6 +56,19 @@ describe('ERP 품목 XLSX 읽기', () => {
     expect(readErpWorkbookCell({ value: new Date('2026-10-07T00:00:00Z'), numFmt: '', text: '' })).toEqual({ text: '2026-10-07' });
   });
 
+  it('엑셀 유니코드 텍스트(.txt, UTF-16LE)를 읽어 머리글을 찾는다', async () => {
+    const bytes = Buffer.concat([Buffer.from([0xff, 0xfe]), Buffer.from('품번\t품명\r\n000123\t아크릴 키링\r\n', 'utf16le')]);
+    const read = await readErpItemFile('품목.txt', bytes);
+    expect(read).toEqual({ table: [['품번', '품명'], ['000123', '아크릴 키링']], numericColumns: [], warnings: [], sheetName: null });
+    expect(buildErpImportPlan(read.table).rows).toEqual([{ row: 2, code: '000123', name: '아크릴 키링' }]);
+  });
+
+  it('CSV의 닫히지 않은 큰따옴표를 원문 그대로 읽고 경고를 넘긴다', async () => {
+    const read = await readErpItemFile('a.csv', Buffer.from('품번,품명\nA1,"곰돌이 키링\nA2,토끼\n'));
+    expect(read.table).toEqual([['품번', '품명'], ['A1', '"곰돌이 키링'], ['A2', '토끼']]);
+    expect(read.warnings).toEqual(['닫는 큰따옴표가 없는 셀 1개(2행)는 따옴표를 포함해 적힌 그대로 읽었습니다. 값을 확인해주세요.']);
+  });
+
   it('행 수·형식 상한을 넘으면 한국어 안내로 거절한다', async () => {
     const csv = ['품번,품명', ...Array.from({ length: 5_200 }, (_, index) => `C${index},품목`)].join('\n');
     await expect(readErpItemFile('a.csv', Buffer.from(csv))).rejects.toThrow('5,000행까지');
