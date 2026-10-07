@@ -137,7 +137,7 @@ export function ordersListExportSheet(input: {
   paymentMethods: ReadonlyMap<string, string | null>;
   filters: AdminOrderFilters;
 }): AdminListExportSheet {
-  const lines: OrderLine[] = input.records.flatMap((order) => {
+  const lines = input.records.flatMap<OrderLine>((order) => {
     const paymentMethod = input.paymentMethods.get(order.id) ?? null;
     if (!order.items.length) return [{ order, item: null, shipment: null, paymentMethod }];
     return order.items.map((item) => ({
@@ -250,7 +250,7 @@ export function shipmentsListExportSheet(input: {
 }): AdminListExportSheet {
   const { surface, filters, carriers } = input;
   const isDispatch = surface === 'dispatch';
-  const lines: ShipmentLine[] = input.rows.flatMap((row) => {
+  const lines = input.rows.flatMap<ShipmentLine>((row) => {
     const contact = input.contacts.get(row.orderId) ?? null;
     if (!row.items.length) return [{ row, item: null, contact }];
     return row.items.map((item) => ({ row, item, contact }));
@@ -358,7 +358,7 @@ export function claimsListExportSheet(input: {
   const { claimType, filters, now } = input;
   /* 회수가 있는 유형만 배송지를 싣는다. 취소는 출고 전 중단이라 주소가 필요 없다. */
   const withDelivery = claimType !== 'cancel';
-  const lines: ClaimLine[] = input.rows.flatMap((claim) => {
+  const lines = input.rows.flatMap<ClaimLine>((claim) => {
     const order = input.orders.get(claim.orderId);
     const contact = withDelivery ? order?.contact ?? null : null;
     if (!order?.items.length) return [{ claim, item: null, contact, shipment: null }];
