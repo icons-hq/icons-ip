@@ -159,6 +159,7 @@ jobs:
           run_sql_test supabase/tests/admin_role_management.sql
           run_sql_test supabase/tests/admin_member_suspension.sql
           run_sql_test supabase/tests/admin_artwork_upload_storage.sql
+          run_sql_test supabase/tests/goods_gallery_nine_images.sql
           run_sql_test supabase/tests/home_curations.sql
           bash supabase/tests/home_curations_concurrency.sh
           run_sql_test supabase/tests/cart_items.sql
