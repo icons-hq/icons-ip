@@ -30,7 +30,8 @@ export const GOODS_IMAGE_RATIO_GUIDANCE = '1000×1000(1:1) 이미지를 권장�
 
 type Slots = GoodsImageSlots<File>;
 type Tile = GoodsImageTile<File>;
-type FocusTarget = { position: number; control: 'input' | 'earlier' | 'later' };
+type FocusTarget = { position: number; control: 'input' | 'handle' | 'earlier' | 'later' };
+type DragSource = 'frame' | 'handle';
 type DragState = { pointerId: number; from: number; startX: number; startY: number; active: boolean; over: number };
 
 const DRAG_THRESHOLD = 6;
@@ -44,6 +45,9 @@ const DRAG_THRESHOLD = 6;
  *   로컬 자동복구·미저장 감지(hidden value 변경 감시)가 그대로 동작한다.
  * - 각 타일은 `.wc-admin-artwork-upload-field` 경계 안에 hidden input과 파일 입력을 함께 둔다. 폼의
  *   오류 이동·유효성 매핑(GoodEditor·GoodWorkspace)이 그 경계로 자리 이름을 찾는다.
+ * - 끌기는 추가 이미지의 손잡이(⋮⋮)에서 시작한다. 손잡이만 `touch-action: none`이고 타일 본문은
+ *   세로 스크롤을 허용하므로, 모바일에서 타일 위를 쓸어도 화면이 스크롤된다. 마우스는 스크롤과 겹치지
+ *   않아 타일 본문에서도 끌 수 있다. 키보드는 손잡이·파일 입력에서 ←/→, 또는 ◀/▶ 버튼을 쓴다.
  */
 export function GoodsImageGrid({ errors = {}, initialPaths, initialUrls, onPreviewChange }: {
   errors?: Record<string, string | undefined>;
@@ -210,20 +214,22 @@ export function GoodsImageGrid({ errors = {}, initialPaths, initialUrls, onPrevi
     commit(promoteGoodsImage(slotsRef.current, position), `${goodsImageLabel(position)}${goodsImageObjectParticle(position)} 대표 이미지로 지정했습니다.${hadMain ? ` 기존 대표 이미지는 ${position}번째 추가 이미지로 옮겼습니다.` : ''}`);
   }
 
-  function handleKeyDown(event: KeyboardEvent<HTMLInputElement>, position: number) {
+  function handleKeyDown(event: KeyboardEvent<HTMLElement>, position: number, control: FocusTarget['control'] = 'input') {
     if (position < 1) return;
     const delta = event.key === 'ArrowLeft' || event.key === 'ArrowUp' ? -1 : event.key === 'ArrowRight' || event.key === 'ArrowDown' ? 1 : 0;
     if (!delta) return;
     event.preventDefault();
-    move(position, position + delta);
+    move(position, position + delta, control);
   }
 
-  function pointerDown(event: PointerEvent<HTMLLabelElement>, position: number) {
+  function pointerDown(event: PointerEvent<HTMLElement>, position: number, source: DragSource) {
     if (position < 1 || !event.isPrimary || event.button !== 0) return;
+    // 터치·펜으로 타일 본문을 누르면 끌기 대신 스크롤·탭(교체)이다. 끌기는 손잡이에서만 시작한다.
+    if (source === 'frame' && event.pointerType !== 'mouse') return;
     dragRef.current = { pointerId: event.pointerId, from: position, startX: event.clientX, startY: event.clientY, active: false, over: position };
   }
 
-  function pointerMove(event: PointerEvent<HTMLLabelElement>) {
+  function pointerMove(event: PointerEvent<HTMLElement>) {
     const current = dragRef.current;
     if (!current || current.pointerId !== event.pointerId) return;
     if (!current.active) {
@@ -241,7 +247,7 @@ export function GoodsImageGrid({ errors = {}, initialPaths, initialUrls, onPrevi
     }
   }
 
-  function pointerEnd(event: PointerEvent<HTMLLabelElement>, cancelled = false) {
+  function pointerEnd(event: PointerEvent<HTMLElement>, cancelled = false) {
     const current = dragRef.current;
     if (!current || current.pointerId !== event.pointerId) return;
     dragRef.current = null;
@@ -295,7 +301,7 @@ export function GoodsImageGrid({ errors = {}, initialPaths, initialUrls, onPrevi
         data-draggable={(tile && !isMain) || undefined}
         onClick={(event) => frameClick(event, tile)}
         onPointerCancel={(event) => pointerEnd(event, true)}
-        onPointerDown={(event) => tile && pointerDown(event, position)}
+        onPointerDown={(event) => tile && pointerDown(event, position, 'frame')}
         onPointerMove={pointerMove}
         onPointerUp={(event) => pointerEnd(event)}
       >
@@ -322,6 +328,24 @@ export function GoodsImageGrid({ errors = {}, initialPaths, initialUrls, onPrevi
           type="file"
         />
       </label>
+      {tile && !isMain ? (
+        <button
+          aria-keyshortcuts="ArrowLeft ArrowRight"
+          aria-label={`${label} 순서 바꾸기 손잡이 (끌거나 ←·→ 키)`}
+          className="wc-admin-image-tile__handle"
+          onKeyDown={(event) => handleKeyDown(event, position, 'handle')}
+          onPointerCancel={(event) => pointerEnd(event, true)}
+          onPointerDown={(event) => pointerDown(event, position, 'handle')}
+          onPointerMove={pointerMove}
+          onPointerUp={(event) => pointerEnd(event)}
+          ref={(element) => { controlRefs.current[`handle-${position}`] = element; }}
+          type="button"
+        >
+          <svg aria-hidden="true" focusable="false" height="16" viewBox="0 0 10 16" width="10">
+            {[3, 8, 13].flatMap((cy) => [2, 8].map((cx) => <circle cx={cx} cy={cy} key={`${cx}-${cy}`} r="1.5" />))}
+          </svg>
+        </button>
+      ) : null}
       {tile && (!isMain || !tile.path) ? (
         <button aria-label={isMain ? '대표 이미지 업로드 취소' : `${label} 삭제`} className="wc-admin-image-tile__remove" onClick={() => remove(position)} type="button">
           <span aria-hidden="true">×</span>
@@ -349,7 +373,7 @@ export function GoodsImageGrid({ errors = {}, initialPaths, initialUrls, onPrevi
   return <fieldset className="wc-admin-image-grid">
     <legend>상품 이미지 · 대표 이미지 1장 + 추가 이미지 최대 {GOODS_GALLERY_MAX}장</legend>
     <p className="wc-admin-image-grid__guidance" id={GOODS_IMAGE_GUIDANCE_ID}>{GOODS_IMAGE_RATIO_GUIDANCE} 공통 파일 규격: {COMMON_ARTWORK_GUIDANCE}.</p>
-    <p className="wc-admin-image-grid__intro">이미지를 누르면 다른 파일로 바꿉니다. 추가 이미지는 끌어서(키보드는 ←·→) 순서를 바꾸며, 이 순서대로 상세페이지에 표시됩니다. 파일은 고르는 즉시 업로드되며, 상품 저장 후 공개 화면에 반영됩니다.</p>
+    <p className="wc-admin-image-grid__intro">이미지를 누르면 다른 파일로 바꿉니다. 추가 이미지는 왼쪽 위 손잡이(⋮⋮)를 끌거나 ←·→ 키로 순서를 바꾸며(마우스는 이미지를 바로 끌어도 됩니다), 이 순서대로 상품 상세 상단 이미지에서 대표 이미지 다음에 표시됩니다. 파일은 고르는 즉시 업로드되며, 상품 저장 후 공개 화면에 반영됩니다.</p>
     <ol className="wc-admin-image-grid__tiles">
       {Array.from({ length: GOODS_IMAGE_SLOT_COUNT }, (_, position) =>
         position === 0 || slots[position] || position === galleryCount + 1 ? renderTile(position) : null)}

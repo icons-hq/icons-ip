@@ -74,6 +74,13 @@ function tileFrame(position: number) {
   return frame!.props as Record<string, (...args: unknown[]) => unknown>;
 }
 
+function tileHandle(position: number) {
+  const handle = elements(render()).find((element) => element.props.className === 'wc-admin-image-tile__handle'
+    && String(element.props['aria-label']).startsWith(`추가 이미지 ${position} `));
+  if (!handle) throw new Error(`no handle for ${position}`);
+  return handle.props as Record<string, (...args: unknown[]) => unknown>;
+}
+
 function chooseFiles(label: string, files: File[]) {
   byLabel(label).onChange({ currentTarget: { files, value: 'C:\\fakepath\\x' } });
 }
@@ -130,13 +137,13 @@ describe('상품 이미지 그리드 상호작용', () => {
     expect(previews.imagePath).toBe('https://cdn.example/b.webp');
   });
 
-  it('포인터로 끌어 놓은 자리로 옮기고, 끌기 뒤의 click은 파일 선택을 열지 않는다', () => {
+  it('마우스로 타일을 끌어 놓은 자리로 옮기고, 끌기 뒤의 click은 파일 선택을 열지 않는다', () => {
     initial = ['main', 'a', 'b', 'c', ''];
     vi.stubGlobal('document', { elementFromPoint: () => ({ closest: () => ({ dataset: { imagePosition: '3' } }) }) });
     const setPointerCapture = vi.fn();
     const releasePointerCapture = vi.fn();
     const currentTarget = { setPointerCapture, releasePointerCapture };
-    tileFrame(1).onPointerDown({ isPrimary: true, button: 0, pointerId: 7, clientX: 10, clientY: 10, currentTarget });
+    tileFrame(1).onPointerDown({ isPrimary: true, button: 0, pointerId: 7, pointerType: 'mouse', clientX: 10, clientY: 10, currentTarget });
     tileFrame(1).onPointerMove({ pointerId: 7, clientX: 80, clientY: 12, currentTarget });
     expect(setPointerCapture).toHaveBeenCalledWith(7);
     expect(elements(render()).find((element) => element.props['data-drop-target'] === 'true')?.props['data-image-position']).toBe(3);
@@ -145,6 +152,54 @@ describe('상품 이미지 그리드 상호작용', () => {
     tileFrame(1).onClick({ preventDefault });
     expect(preventDefault).toHaveBeenCalled();
     expect(hiddenValues()).toEqual(['main', 'b', 'c', 'a', '']);
+  });
+
+  /* openRisks 재현: 타일 본문에서 시작한 터치가 끌기로 잡히면(touch-action:none) 모바일에서 세로 스크롤이 막혔다. */
+  it('터치로 타일 본문을 쓸면 끌기를 시작하지 않아 스크롤로 남고, 탭은 파일 선택(교체)으로 이어진다', () => {
+    initial = ['main', 'a', 'b', 'c', ''];
+    vi.stubGlobal('document', { elementFromPoint: () => ({ closest: () => ({ dataset: { imagePosition: '3' } }) }) });
+    const setPointerCapture = vi.fn();
+    const currentTarget = { setPointerCapture, releasePointerCapture: vi.fn() };
+    for (const pointerType of ['touch', 'pen']) {
+      tileFrame(1).onPointerDown({ isPrimary: true, button: 0, pointerId: 9, pointerType, clientX: 10, clientY: 10, currentTarget });
+      tileFrame(1).onPointerMove({ pointerId: 9, clientX: 12, clientY: 160, currentTarget });
+      tileFrame(1).onPointerUp({ pointerId: 9, clientX: 12, clientY: 160, currentTarget });
+    }
+    const preventDefault = vi.fn();
+    tileFrame(1).onClick({ preventDefault });
+
+    expect(setPointerCapture).not.toHaveBeenCalled();
+    expect(elements(render()).some((element) => element.props['data-drop-target'] === 'true')).toBe(false);
+    expect(preventDefault).not.toHaveBeenCalled();
+    expect(hiddenValues()).toEqual(['main', 'a', 'b', 'c', '']);
+  });
+
+  it('터치로 손잡이를 끌면 놓은 자리로 옮기고 순서 변경을 알린다', () => {
+    initial = ['main', 'a', 'b', 'c', ''];
+    vi.stubGlobal('document', { elementFromPoint: () => ({ closest: () => ({ dataset: { imagePosition: '1' } }) }) });
+    const setPointerCapture = vi.fn();
+    const currentTarget = { setPointerCapture, releasePointerCapture: vi.fn() };
+    tileHandle(3).onPointerDown({ isPrimary: true, button: 0, pointerId: 4, pointerType: 'touch', clientX: 200, clientY: 10, currentTarget });
+    tileHandle(3).onPointerMove({ pointerId: 4, clientX: 20, clientY: 14, currentTarget });
+    expect(setPointerCapture).toHaveBeenCalledWith(4);
+    expect(elements(render()).find((element) => element.props['data-dragging'])?.props['data-image-position']).toBe(3);
+    tileHandle(3).onPointerUp({ pointerId: 4, clientX: 20, clientY: 14, currentTarget });
+
+    expect(hiddenValues()).toEqual(['main', 'c', 'a', 'b', '']);
+    expect(elements(render()).find((element) => element.props.role === 'status')?.props.children).toBe('추가 이미지 3을 1번째 추가 이미지로 옮겼습니다.');
+  });
+
+  it('손잡이에 초점을 두고 ←·→ 키로 순서를 바꾸면 초점이 옮긴 자리의 손잡이를 따라간다', () => {
+    initial = ['main', 'a', 'b', '', ''];
+    const preventDefault = vi.fn();
+    tileHandle(1).onKeyDown({ key: 'ArrowRight', preventDefault });
+    expect(preventDefault).toHaveBeenCalled();
+    expect(hiddenValues()).toEqual(['main', 'b', 'a', '', '']);
+
+    const focus = vi.fn();
+    (tileHandle(2).ref as unknown as (node: unknown) => void)({ disabled: false, focus });
+    for (const effect of hooks.effects) effect();
+    expect(focus).toHaveBeenCalled();
   });
 
   it('여러 파일을 빈 추가 이미지 자리에 순서대로 올리고, 업로드가 끝나기 전에는 저장을 막는다', async () => {

@@ -1185,8 +1185,12 @@
 .wc-admin .wc-admin-image-grid .wc-admin-image-tile { position: relative; display: grid; align-content: start; gap: 6px; min-width: 0; padding: 0; }
 .wc-admin .wc-admin-image-tile__frame { position: relative; display: flex; align-items: center; justify-content: center; aspect-ratio: 1 / 1; overflow: hidden; border: 1px solid var(--wc-line-control); border-radius: var(--wc-radius-form); background: var(--wc-surface-grey-2); color: var(--wc-ink-tertiary); cursor: pointer; user-select: none; }
 .wc-admin .wc-admin-image-tile__frame img { width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
-.wc-admin .wc-admin-image-tile__frame[data-draggable] { cursor: grab; touch-action: none; }
+/* 끌기는 손잡이에서만 시작한다(터치). 타일 본문은 세로 스크롤·확대를 막지 않는다. grab 커서는 마우스 끌기용이다. */
+.wc-admin .wc-admin-image-tile__frame[data-draggable] { cursor: grab; touch-action: pan-y pinch-zoom; }
 .wc-admin .wc-admin-image-tile[data-dragging] .wc-admin-image-tile__frame { cursor: grabbing; opacity: .55; }
+.wc-admin .wc-admin-image-tile__handle { position: absolute; top: 4px; left: 4px; z-index: 1; display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; padding: 0; border: 1px solid var(--wc-line-control); border-radius: var(--wc-radius-form); background: var(--wc-surface); color: var(--wc-ink); cursor: grab; touch-action: none; user-select: none; }
+.wc-admin .wc-admin-image-tile__handle svg { fill: currentColor; }
+.wc-admin .wc-admin-image-tile[data-dragging] .wc-admin-image-tile__handle { cursor: grabbing; }
 .wc-admin .wc-admin-image-tile[data-main] .wc-admin-image-tile__frame { border: 2px solid var(--wc-ink); }
 .wc-admin .wc-admin-image-tile:is([data-add-tile], [data-upload-state='empty']) .wc-admin-image-tile__frame { border-style: dashed; background: var(--wc-surface); }
 .wc-admin .wc-admin-image-tile[data-upload-state='uploading'] .wc-admin-image-tile__frame { border-color: var(--wc-info); cursor: progress; }
@@ -1209,7 +1213,7 @@
 .wc-admin .wc-admin-image-tile__actions button,
 .wc-admin .wc-admin-image-tile__retry { min-width: 28px; min-height: 28px; padding: 0 6px; border: 1px solid var(--wc-line-control); border-radius: var(--wc-radius-form); background: var(--wc-surface); color: var(--wc-ink); font: inherit; font-size: 12px; cursor: pointer; }
 .wc-admin .wc-admin-image-tile__actions button:disabled { color: var(--wc-ink-disabled); cursor: not-allowed; }
-.wc-admin .wc-admin-image-tile :is(.wc-admin-image-tile__remove, .wc-admin-image-tile__actions button, .wc-admin-image-tile__retry):focus-visible { outline: 2px solid var(--wc-focus); outline-offset: 2px; }
+.wc-admin .wc-admin-image-tile :is(.wc-admin-image-tile__handle, .wc-admin-image-tile__remove, .wc-admin-image-tile__actions button, .wc-admin-image-tile__retry):focus-visible { outline: 2px solid var(--wc-focus); outline-offset: 2px; }
 .wc-admin .wc-admin-image-tile__error { color: var(--wc-danger); font-size: 12px; font-weight: 600; line-height: 1.4; overflow-wrap: anywhere; }
 @media (forced-colors: active) {
   .wc-admin .wc-admin-image-tile__frame { border: 1px solid CanvasText; }
