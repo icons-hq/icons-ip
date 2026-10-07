@@ -80,11 +80,23 @@ export function goodsKcProductNotApplicableModel(variants: readonly GoodsKcVaria
   return { ...emptyGoodsKcModel(), family: GOODS_KC_PRODUCT_NOT_APPLICABLE_FAMILY, scheme: 'not_applicable', publicNote: publicNote.trim(),
     variantIds: variants.filter((variant) => variant.active).map((variant) => variant.id.toLowerCase()).sort() };
 }
+/** True when the product already has exactly one not-applicable model. */
+export function goodsKcSoleNotApplicable(models: readonly GoodsKcModelInput[]): boolean {
+  return models.length === 1 && models[0].scheme === 'not_applicable';
+}
+/** Customer note the one-click action saves. A sole not-applicable model keeps
+ * its own note, which the MD may just have edited in the model fields; the
+ * separately typed draft applies only when the action creates that model. */
+export function goodsKcProductNotApplicableNote(models: readonly GoodsKcModelInput[], draftNote = ''): string {
+  return goodsKcSoleNotApplicable(models) ? models[0].publicNote : draftNote;
+}
 /** Plan for the one-click action. `discarded` counts current model rows that the
- * replacement would erase; the editor confirms before discarding any input. */
-export function planGoodsKcProductNotApplicable(models: readonly GoodsKcModelInput[], variants: readonly GoodsKcVariant[], publicNote = '') {
-  const next = [goodsKcProductNotApplicableModel(variants, publicNote)];
-  return { models: next, discarded: models.length && JSON.stringify(models) !== JSON.stringify(next) ? models.length : 0 };
+ * replacement would erase; the editor confirms before discarding any input.
+ * Rows are compared in saved form, so trimming or option order alone is no loss. */
+export function planGoodsKcProductNotApplicable(models: readonly GoodsKcModelInput[], variants: readonly GoodsKcVariant[], draftNote = '') {
+  const next = [goodsKcProductNotApplicableModel(variants, goodsKcProductNotApplicableNote(models, draftNote))];
+  const current = normalizeGoodsKcModels(models) ?? models;
+  return { models: next, discarded: models.length && JSON.stringify(current) !== JSON.stringify(next) ? models.length : 0 };
 }
 
 /** Partial drafts are supported. Unsupported combinations and malformed payloads

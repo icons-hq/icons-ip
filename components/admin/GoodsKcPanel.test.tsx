@@ -85,6 +85,37 @@ describe('KC 모델 검토 화면', () => {
       { ...emptyGoodsKcModel(), family: 'living' as const }];
     expect(planGoodsKcProductNotApplicable(detailed, [variant]).discarded).toBe(2);
   });
+  it('해당 없음 모델 1개를 아래에서 고친 고객 안내가 위쪽 이전 입력으로 덮이지 않는다', () => {
+    // 'A'로 검토한 뒤 아래 '모델 1 고객 안내'를 'B '로 고쳤고, 위쪽 칸에는 열 때의 'A'가 남아 있는 상황.
+    const edited = { ...goodsKcProductNotApplicableModel([variant]), publicNote: 'B ' };
+    const plan = planGoodsKcProductNotApplicable([edited], [variant], 'A');
+    expect(plan.models).toEqual([{ ...goodsKcProductNotApplicableModel([variant]), publicNote: 'B' }]);
+    expect(plan.discarded).toBe(0);
+    // 저장값의 옵션 순서·대소문자가 달라도 같은 해당 없음 모델이면 지울 입력이 없다.
+    const second = { id: '00000000-0000-4000-8000-00000000000B', code: 'OPTION-B', name: '파랑', active: true };
+    const loaded = { ...goodsKcProductNotApplicableModel([variant, second]), variantIds: [second.id, variant.id] };
+    expect(planGoodsKcProductNotApplicable([loaded], [variant, second]).discarded).toBe(0);
+    // 아래 모델이 해당 없음 1개가 아니면 위쪽에 따로 입력한 안내를 쓴다.
+    expect(planGoodsKcProductNotApplicable([], [variant], 'A').models[0].publicNote).toBe('A');
+  });
+  it('위쪽 고객 안내 칸은 해당 없음 모델 1개의 고객 안내를 그대로 보여준다', () => {
+    const html = renderToStaticMarkup(<GoodsKcEditor goodId="g1" configuration={{ ...draft, revision: 1,
+      models: [{ ...goodsKcProductNotApplicableModel([variant]), publicNote: '아래 모델 안내' }] }} onSaved={() => {}} />);
+    expect(html).toMatch(/aria-label="해당 없음 고객 안내"[^>]*>아래 모델 안내<\/textarea>/);
+    expect(html).toMatch(/aria-label="모델 1 고객 안내 \(선택\)"[^>]*>아래 모델 안내<\/textarea>/);
+  });
+  it('해당 없음의 선택 칸은 접근 가능한 이름에도 (선택)을 붙이고 KC 대상 제도에는 붙이지 않는다', () => {
+    const notApplicable = renderToStaticMarkup(<GoodsKcEditor goodId="g1" configuration={{ ...draft, revision: 1,
+      models: [goodsKcProductNotApplicableModel([variant])] }} onSaved={() => {}} />);
+    for (const name of ['모델 1 품목 분류 (선택)', '모델 1 모델명 (선택)', '모델 1 사업자 구분 (선택)', '모델 1 사업자명 (선택)',
+      '모델 1 고객 안내 (선택)']) expect(notApplicable).toContain(`aria-label="${name}"`);
+    const subject = renderToStaticMarkup(<GoodsKcEditor goodId="g1" configuration={{ ...draft, revision: 1,
+      models: [{ ...emptyGoodsKcModel(), family: 'children', scheme: 'safety_confirmation', variantIds: [variant.id] }] }} onSaved={() => {}} />);
+    for (const name of ['모델 1 품목 분류', '모델 1 모델명', '모델 1 사업자 구분', '모델 1 사업자명', '모델 1 고객 안내', '모델 1 인증·신고번호']) {
+      expect(subject).toContain(`aria-label="${name}"`);
+    }
+    expect(subject).not.toContain('(선택)"');
+  });
   it('모델·옵션·사내근거를 따로 입력하고 잘못된 기존 옵션 연결도 해제할 수 있다', () => {
     const html = renderToStaticMarkup(<GoodsKcEditor goodId="g1" configuration={{ ...draft, revision: 1,
       models: [{ ...emptyGoodsKcModel(), family: 'children', scheme: 'safety_confirmation',
