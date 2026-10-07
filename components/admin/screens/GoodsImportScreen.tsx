@@ -214,8 +214,8 @@ export function SabangnetMappingStep({
         </div>
       ) : null}
       <p className="wc-admin-kit__hint">
-        옵션제목·옵션상세명칭은 옵션 축과 값(쉼표 구분)으로, 대표이미지·부가이미지는 대표 이미지와 추가 이미지
-        {SABANGNET_GALLERY_LIMIT}장으로 가져옵니다. 옵션 재고는 0으로 만들고, 인증 정보는 KC 검토에 반영하지 않습니다.
+        옵션제목·옵션상세명칭은 옵션 축과 값(쉼표 구분)으로, 대표이미지·부가이미지는 대표 이미지와
+        추가 이미지 {SABANGNET_GALLERY_LIMIT}장으로 가져옵니다. 옵션 재고는 0으로 만들고, 인증 정보는 KC 검토에 반영하지 않습니다.
       </p>
       <button className="wc-admin-kit__button" type="button" onClick={onPreview} disabled={busy}>
         미리보기 만들기
