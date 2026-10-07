@@ -7,6 +7,8 @@ import { AdminField } from './console/AdminKit';
 import { AdminSelect } from './console/AdminSelect';
 
 const RATE_HINT = '위 할인과 기간 할인에도 적용됩니다. 숨김이면 취소선·할인율 없이 결제 금액만 보이며, 결제 금액은 바뀌지 않습니다.';
+/* 서버는 판매가·할인가만 저장해 할인 단위가 남지 않는다(같은 저장 값의 10%와 1,200원을 구분할 수 없다). 다시 열면 원으로 보인다. */
+const DISCOUNT_HINT = '판매가에서 뺄 금액(원) 또는 비율(%)입니다. % 할인은 원 단위로 내립니다. 저장 후 다시 열면 할인은 원 단위로 표시됩니다(결과 금액은 같습니다). 판매가를 바꿀 때는 할인도 다시 확인해주세요.';
 
 /**
  * 스마트스토어식 판매가 → 할인 입력. 화면 입력은 이름을 가진 보조 값이고,
@@ -51,7 +53,7 @@ export function GoodsPriceFields({ draft, onDraftChange, result, errors, showDis
       숨긴 입력도 브라우저 검증 대상이라 disabled로 검증·제출에서 빼고, 복구용 값만 hidden으로 보낸다.
     */}
     <div className="goods-price-editor__discount" hidden={discountOff}>
-      <AdminField inputId="goods-discount-value" label="할인 금액 또는 할인율" hint="판매가에서 뺄 금액(원) 또는 비율(%)입니다. % 할인은 원 단위로 내립니다." error={discountError}>
+      <AdminField inputId="goods-discount-value" label="할인 금액 또는 할인율" hint={DISCOUNT_HINT} error={discountError}>
         <span className="goods-amount-input goods-amount-input--unit">
           <input ref={discountRef} id="goods-discount-value" name="discountValue" type="number" step="any" min={0} inputMode="decimal" disabled={discountOff}
             aria-describedby={`goods-discount-value-hint${discountError ? ' goods-discount-value-error' : ''}`} aria-invalid={discountError ? 'true' : undefined}

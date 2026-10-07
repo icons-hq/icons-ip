@@ -29,6 +29,13 @@ describe('판매가·할인 입력', () => {
     expect(render()).toContain('class="goods-price-editor__discount" hidden=""');
   });
 
+  /* 2026-10-07 QA: 10%로 저장한 할인을 다시 열면 1,200원으로 보여, 판매가를 바꿔도 할인율이 따라가지 않는 것을 몰랐다. */
+  it('할인 칸 도움말은 저장 후 다시 열면 원 단위로 표시되고 판매가를 바꾸면 할인을 다시 확인하라고 안내한다', () => {
+    const html = render({ discountEnabled: true, discountValue: '10', discountUnit: 'percent' });
+    const hint = html.slice(html.indexOf('id="goods-discount-value-hint"'));
+    expect(hint.slice(0, hint.indexOf('</'))).toContain('저장 후 다시 열면 할인은 원 단위로 표시됩니다(결과 금액은 같습니다). 판매가를 바꿀 때는 할인도 다시 확인해주세요.');
+  });
+
   /* 2026-10-07 리뷰: 숨긴 할인 입력에 남은 음수 값(rangeUnderflow)이 설정안함 상태의 저장을 막았다. */
   it('할인 설정안함이면 할인 입력을 검증·제출에서 빼고, 입력값은 복구용 hidden 값으로 보존한다', () => {
     const off = render({ discountEnabled: false, discountValue: '-10', discountUnit: 'percent' });

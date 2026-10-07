@@ -55,6 +55,18 @@ describe('판매가·할인 입력 변환', () => {
     expect(goodsPriceDraftFromValues({ price: '0', compareAtPrice: '' })).toMatchObject({ regularPrice: '' });
   });
 
+  /*
+   * 2026-10-07 QA 결정: 서버는 판매가·할인가만 저장하고 할인 단위를 저장하지 않는다. 10%와 1,200원 할인(판매가 12,000원)은
+   * 저장 값이 같아 구분할 수 없고, 정수 %로 나누어떨어진다고 %로 되짚으면 원으로 입력한 흔한 할인(1,000원 등)까지 %로 바뀌어
+   * 판매가를 바꿀 때 입력하지 않은 방식으로 할인이 따라간다. 그래서 저장 값 그대로 원으로 열고, 할인 칸 도움말로 알린다.
+   */
+  it('저장된 % 할인은 결과 금액이 같은 원 할인으로 다시 연다', () => {
+    const reopened = goodsPriceDraftFromValues({ price: '10800', compareAtPrice: '12000' });
+    expect(reopened).toEqual({ regularPrice: '12000', discountEnabled: true, discountValue: '1200', discountUnit: 'won' });
+    expect(resolveGoodsPrice(reopened)).toMatchObject({ price: '10800', compareAtPrice: '12000', discountAmount: 1200 });
+    expect(goodsPriceDraftFromValues({ price: '9000', compareAtPrice: '10000' })).toMatchObject({ discountValue: '1000', discountUnit: 'won' });
+  });
+
   it('실패·브라우저 복구의 화면 입력을 저장 값보다 먼저 되살린다', () => {
     const recovered = { price: '10000', compareAtPrice: '', regularPrice: '10000', discountEnabled: 'true', discountValue: '15', discountUnit: 'percent' };
     expect(goodsPriceDraftFromValues(recovered)).toEqual({ regularPrice: '10000', discountEnabled: true, discountValue: '15', discountUnit: 'percent' });
