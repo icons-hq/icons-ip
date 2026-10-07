@@ -4,7 +4,9 @@ import { useEffect, useRef, type Dispatch, type SetStateAction } from 'react';
 import { formatWon, type GoodsPriceDraft, type GoodsPriceResolution } from '@/lib/admin/goods-price-editor';
 import { ADMIN_VOCABULARY } from '@/lib/admin/vocabulary';
 import { AdminField } from './console/AdminKit';
-import { SelectField } from './fields';
+import { AdminSelect } from './console/AdminSelect';
+
+const RATE_HINT = '위 할인과 기간 할인에도 적용됩니다. 숨김이면 취소선·할인율 없이 결제 금액만 보이며, 결제 금액은 바뀌지 않습니다.';
 
 /**
  * 스마트스토어식 판매가 → 할인 입력. 화면 입력은 이름을 가진 보조 값이고,
@@ -24,6 +26,7 @@ export function GoodsPriceFields({ draft, onDraftChange, result, errors, showDis
   useEffect(() => { regularRef.current?.setCustomValidity(result.regularPriceError ?? ''); }, [result.regularPriceError]);
   useEffect(() => { discountRef.current?.setCustomValidity(result.discountError ?? ''); }, [result.discountError]);
   const change = (changes: Partial<GoodsPriceDraft>) => onDraftChange((current) => ({ ...current, ...changes }));
+  const discountOff = !draft.discountEnabled;
   const regularError = result.regularPriceError ?? errors.regularPrice ?? errors.price ?? (draft.discountEnabled ? undefined : errors.compareAtPrice);
   const discountError = result.discountError ?? errors.discountValue ?? (draft.discountEnabled ? errors.compareAtPrice : undefined);
 
@@ -43,14 +46,17 @@ export function GoodsPriceFields({ draft, onDraftChange, result, errors, showDis
       <label><input type="radio" name="discountEnabled" value="false" checked={!draft.discountEnabled} onChange={() => change({ discountEnabled: false })} />설정안함</label>
     </fieldset>
 
-    {/* 설정안함이어도 입력은 지우지 않는다. 다시 켜면 이전 값을 이어 쓴다. */}
-    <div className="goods-price-editor__discount" hidden={!draft.discountEnabled}>
+    {/*
+      설정안함이어도 입력은 지우지 않는다. 다시 켜면 이전 값을 이어 쓴다.
+      숨긴 입력도 브라우저 검증 대상이라 disabled로 검증·제출에서 빼고, 복구용 값만 hidden으로 보낸다.
+    */}
+    <div className="goods-price-editor__discount" hidden={discountOff}>
       <AdminField inputId="goods-discount-value" label="할인 금액 또는 할인율" hint="판매가에서 뺄 금액(원) 또는 비율(%)입니다. % 할인은 원 단위로 내립니다." error={discountError}>
         <span className="goods-amount-input goods-amount-input--unit">
-          <input ref={discountRef} id="goods-discount-value" name="discountValue" type="number" step="any" min={0} inputMode="decimal"
+          <input ref={discountRef} id="goods-discount-value" name="discountValue" type="number" step="any" min={0} inputMode="decimal" disabled={discountOff}
             aria-describedby={`goods-discount-value-hint${discountError ? ' goods-discount-value-error' : ''}`} aria-invalid={discountError ? 'true' : undefined}
             value={draft.discountValue} onChange={(event) => change({ discountValue: event.target.value })} />
-          <select aria-label="할인 단위" name="discountUnit" value={draft.discountUnit} onChange={(event) => change({ discountUnit: event.target.value === 'percent' ? 'percent' : 'won' })}>
+          <select aria-label="할인 단위" name="discountUnit" disabled={discountOff} value={draft.discountUnit} onChange={(event) => change({ discountUnit: event.target.value === 'percent' ? 'percent' : 'won' })}>
             <option value="won">원</option><option value="percent">%</option>
           </select>
         </span>
@@ -60,11 +66,19 @@ export function GoodsPriceFields({ draft, onDraftChange, result, errors, showDis
           ? <>할인가 <strong>{formatWon(result.salePrice)}</strong> ({formatWon(result.discountAmount)} 할인)</>
           : '할인 금액을 입력하면 할인가를 계산합니다.'}
       </p>
-      <SelectField defaultValue={showDiscountRate} error={errors.showDiscountRate} label="고객 화면에 할인율 표시" name="showDiscountRate">
-        <option value="true">표시</option><option value="false">숨김 · 할인가만 표시</option>
-      </SelectField>
     </div>
-    <p className="muted">고객이 결제하는 기준 금액은 할인가입니다(할인이 없으면 판매가). 할인율을 숨기면 취소선과 할인율 없이 할인가만 보입니다. 기간 할인·쿠폰·적립금은 별도 영역에서 관리하며 실제 결제 금액에 그대로 적용됩니다.</p>
+    {discountOff && <>
+      <input type="hidden" name="discountValue" value={draft.discountValue} />
+      <input type="hidden" name="discountUnit" value={draft.discountUnit} />
+    </>}
+    {/* 할인율 표시는 위 할인뿐 아니라 기간 할인에도 쓰이므로 할인 설정과 상관없이 늘 보인다. */}
+    <AdminField inputId="goods-show-discount-rate" label="고객 화면에 할인율 표시" hint={RATE_HINT} error={errors.showDiscountRate}>
+      <AdminSelect id="goods-show-discount-rate" name="showDiscountRate" className="admin-field-control" wrapperClassName="goods-price-editor__rate" defaultValue={showDiscountRate}
+        aria-describedby={`goods-show-discount-rate-hint${errors.showDiscountRate ? ' goods-show-discount-rate-error' : ''}`} aria-invalid={errors.showDiscountRate ? 'true' : undefined}>
+        <option value="true">표시</option><option value="false">숨김 · 할인가만 표시</option>
+      </AdminSelect>
+    </AdminField>
+    <p className="muted">고객이 결제하는 기준 금액은 할인가입니다(할인이 없으면 판매가). 기간 할인·쿠폰·적립금은 별도 영역에서 관리하며 실제 결제 금액에 그대로 적용됩니다.</p>
     <input type="hidden" name="price" value={result.price} />
     <input type="hidden" name="compareAtPrice" value={result.compareAtPrice} />
   </div>;

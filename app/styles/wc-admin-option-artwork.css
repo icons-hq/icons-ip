@@ -542,6 +542,11 @@
   font-size: 13px;
 }
 
+.wc-admin .goods-price-editor__rate {
+  width: 100%;
+  max-width: 320px;
+}
+
 .wc-admin .goods-amount-input--unit > select {
   flex: none;
   width: auto;
@@ -759,7 +764,8 @@
     grid-template-columns: minmax(0, 1fr);
   }
 
-  .wc-admin .goods-amount-input {
+  .wc-admin .goods-amount-input,
+  .wc-admin .goods-price-editor__rate {
     max-width: none;
   }
 
