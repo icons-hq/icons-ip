@@ -144,12 +144,11 @@ export function GoodsKcEditor({ goodId, configuration, onSaved, templateRequest,
   }
   function save(status: 'unreviewed' | 'reviewed') { persist(models, status, attested); }
   function completeNotApplicable(next: GoodsKcModelInput[]) { change(next); persist(next, 'reviewed', true); }
-  return <div className="col" style={{ gap: 16 }}>
-    <p role="status">{dirty?'KC 미검토 초안 · 미저장':configuration.status === 'reviewed' ? 'KC 검토 완료' : configuration.publishedAt ? '기존 공개 · KC 미기록' : 'KC 미검토'}
-      {!dirty && configuration.reviewedAt ? ` · ${configuration.reviewerName ?? '운영자'} · ${new Date(configuration.reviewedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}` : ''}</p>
-    {readOnly && <p className="muted">{configuration.archivedAt ? '보관된 상품은 복원한 뒤 검토할 수 있습니다.' : 'KC 정보를 수정하려면 먼저 상품을 비공개로 전환해주세요.'}</p>}
-    <ProductNotApplicable variants={configuration.variants} models={models} disabled={pending || readOnly}
-      onNoteChange={(publicNote) => change([{ ...models[0], publicNote }])} onComplete={completeNotApplicable} />
+  // 저장된 검토가 상품 전체 해당 없음 1개로 완료됐으면 결과를 위에 요약하고 모델 상세는 접는다.
+  // 저장값으로만 판단해 입력 중에 화면 구조가 바뀌지 않게 하고, 미저장 입력이 생기면 펼친다.
+  const notApplicableReviewed = configuration.status === 'reviewed' && goodsKcSoleNotApplicable(configuration.models);
+  const linked = configuration.variants.filter((variant) => variant.active).length;
+  const modelDetails = <>
     <p className="muted" style={{ margin: 0 }}>KC 대상 상품은 아래에서 모델별로 제도·번호·근거를 입력합니다.</p>
     {models.map((model, index) => <ModelFields key={index} model={model} index={index} variants={configuration.variants} disabled={pending || readOnly}
       onChange={(next) => change(models.map((item, position) => position === index ? next : item))}
@@ -180,6 +179,23 @@ export function GoodsKcEditor({ goodId, configuration, onSaved, templateRequest,
         <button type="button" className="btn" disabled={pending || !attested || problems.length > 0} onClick={() => save('reviewed')}>KC 검토 완료</button>
       </div>
     </>}
+  </>;
+  return <div className="col" style={{ gap: 16 }}>
+    <p role="status">{dirty?'KC 미검토 초안 · 미저장':configuration.status === 'reviewed' ? notApplicableReviewed ? '상품 전체 KC 해당 없음으로 검토 완료' : 'KC 검토 완료' : configuration.publishedAt ? '기존 공개 · KC 미기록' : 'KC 미검토'}
+      {!dirty && configuration.reviewedAt ? ` · ${configuration.reviewerName ?? '운영자'} · ${new Date(configuration.reviewedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}` : ''}</p>
+    {readOnly && <p className="muted">{configuration.archivedAt ? '보관된 상품은 복원한 뒤 검토할 수 있습니다.' : 'KC 정보를 수정하려면 먼저 상품을 비공개로 전환해주세요.'}</p>}
+    {notApplicableReviewed ? <>
+      <p className="muted" style={{ margin: 0 }}>사용 중인 옵션 {linked}개가 모두 해당 없음으로 연결되어 있습니다. 확인 체크를 다시 누르지 않아도 됩니다.
+        {readOnly ? ' 모델 상세는 아래에서 확인할 수 있습니다.' : ' 고객 안내를 고치거나 KC 대상으로 바꾸려면 아래 모델 상세를 펼쳐주세요.'}
+        {configuration.models[0].publicNote ? ` 고객 안내: ${configuration.models[0].publicNote}` : ''}</p>
+      <details open={dirty || undefined}><summary>모델 상세 보기·고치기</summary>
+        <div className="col" style={{ gap: 16, marginTop: 12 }}>{modelDetails}</div>
+      </details>
+    </> : <>
+      <ProductNotApplicable variants={configuration.variants} models={models} disabled={pending || readOnly}
+        onNoteChange={(publicNote) => change([{ ...models[0], publicNote }])} onComplete={completeNotApplicable} />
+      {modelDetails}
+    </>}
     {error && <p role="alert">{error}</p>}
     <details><summary>최근 검토 이력</summary>{configuration.history.length ? <ol>
       {configuration.history.map((entry) => <li key={entry.revision}>버전 {entry.revision} · {entry.status === 'reviewed' ? '검토 완료' : '미검토'}
@@ -191,10 +207,17 @@ export function GoodsKcEditor({ goodId, configuration, onSaved, templateRequest,
 
 /** Independent domain editor. Mount outside the main goods form, after the
  * goods draft and its actual option identifiers have been saved. */
-export function GoodsKcPanel({ goodId,templateRequest,onTemplateApplied }: { goodId: string;templateRequest?:GoodsKcTemplateRequest|null;onTemplateApplied?:(id:string)=>void }) {
+export function GoodsKcPanel({ goodId,templateRequest,onTemplateApplied,refreshKey=0 }: {
+  goodId: string;templateRequest?:GoodsKcTemplateRequest|null;onTemplateApplied?:(id:string)=>void;
+  /** 기본 상품 저장 회차. 상품·옵션 저장이 KC 검토를 무효화할 수 있어 바뀔 때마다 서버 상태를 다시 읽는다. */
+  refreshKey?: number;
+}) {
   const [loaded, setLoaded] = useState<{ goodId: string; configuration?: AdminGoodsKc; error?: string } | null>(null);
   const [notice, setNotice] = useState<{ goodId: string; message: string } | null>(null);
   const [refresh, setRefresh] = useState(0);
+  const [seenRefreshKey, setSeenRefreshKey] = useState(refreshKey);
+  // 다시 읽는 동안 이전 화면은 유지하되, 이전 KC 저장 안내는 새 상태와 어긋날 수 있어 지운다.
+  if (seenRefreshKey !== refreshKey) { setSeenRefreshKey(refreshKey); setNotice(null); }
   const [pending, startTransition] = useTransition();
   useEffect(() => {
     let canceled = false;
@@ -205,7 +228,7 @@ export function GoodsKcPanel({ goodId,templateRequest,onTemplateApplied }: { goo
       } catch { if (!canceled) setLoaded({ goodId, error: 'KC 검토를 불러오지 못했습니다.' }); }
     });
     return () => { canceled = true; };
-  }, [goodId, refresh]);
+  }, [goodId, refresh, refreshKey]);
   const visible = loaded?.goodId === goodId ? loaded : null;
   return <section className="card col wc-admin-kit" aria-labelledby={`kc-review-${goodId}`} style={{ padding: 18, gap: 16 }}>
     <div><h2 id={`kc-review-${goodId}`} style={{ margin: 0, fontSize: 18 }}>KC 정보</h2>

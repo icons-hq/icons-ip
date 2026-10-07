@@ -172,6 +172,30 @@ describe('GoodSection', () => {
     expect(html).toContain('최근 저장된 상품에서 복사');
     expect(html).toContain('프리셋 찾기');
   });
+  it('초안 저장 영역은 KC 검토 전에 KC 맥락을 먼저 채우는 순서와 재검토 조건을 안내한다', () => {
+    const order = '1. 기본 정보·유형·고시정보·옵션까지 입력해 초안 저장 → 2. KC 검토 → 3. 공개. KC 검토 뒤 상품명·유형·IP·고시정보(제조자·제조국·소재·크기)나 옵션 구성을 바꾸면 KC를 다시 검토합니다.';
+    const draft = { ...good, publishedAt: null };
+    for (const html of [renderGoodSection(null), renderGoodSection(draft)]) {
+      const save = html.slice(html.indexOf('aria-label="기본 상품 저장"'));
+      expect(save).toContain(order);
+      expect(save).not.toContain('1. 초안 생성 → 2. KC 검토 → 3. 공개 요청');
+    }
+    expect(renderGoodSection(good)).not.toContain(order);
+  });
+  it('저장 후 공개가 KC에 막혀 초안으로만 저장되면 성공이 아니라 공개 보류로 알리고 KC 정보로 안내한다', () => {
+    const draft = { ...good, publishedAt: null };
+    const message = "초안으로 저장했습니다. 상품명·유형·IP·고시정보가 바뀌어 KC를 다시 검토해야 공개할 수 있습니다. KC 정보에서 다시 검토(KC 대상이 아니면 '상품 전체 KC 해당 없음')한 뒤 공개해주세요.";
+    const html = renderGoodSection(draft, { message, kcPublishBlocked: true, savedGoodId: draft.id, attempt: 1 });
+    const save = html.slice(html.indexOf('aria-label="기본 상품 저장"'));
+    expect(save).toContain('초안 저장 완료 · 공개 보류');
+    expect(save).not.toContain('기본 상품 저장 완료');
+    const escaped = message.replaceAll("'", '&#x27;').replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    expect(save).toMatch(new RegExp(`role="alert"[^>]*>${escaped}`));
+    expect(save).toMatch(/<a href="#good-operation-kc"[^>]*>KC 정보 열기<\/a>/);
+    const saved = renderGoodSection(draft, { message: '상품을 저장했습니다.', savedGoodId: draft.id, attempt: 1 });
+    expect(saved).toContain('기본 상품 저장 완료');
+    expect(saved).not.toContain('공개 보류');
+  });
   it('초안 저장은 브라우저 고시 필수 검증에 막히지 않고 공개 이미지 오류를 표시한다', () => {
     const html = renderGoodSection(null, { errors: { imagePath: '대표 이미지를 업로드한 뒤 공개해주세요.' } });
     expect(html).toContain('초안으로 저장');

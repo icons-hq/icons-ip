@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { emptyGoodsKcModel, goodsKcProductNotApplicableModel, planGoodsKcProductNotApplicable, type AdminGoodsKc } from '@/lib/admin/goods-kc';
@@ -62,18 +63,59 @@ describe('KC 모델 검토 화면', () => {
     expect(empty).toContain('사용 중인 옵션이 없습니다');
     expect(empty).toMatch(/<button[^>]*disabled=""[^>]*>해당 없음으로 검토 완료/);
   });
-  it('이미 해당 없음으로 검토한 상품은 고객 안내를 이어받고 빈 선택 칸 없이 미리보기를 보여준다', () => {
+  it('해당 없음 원클릭 검토를 마친 상품은 결과·검토자·시각을 위에 보이고 모델 상세는 접어 둔다', () => {
     const reviewed = { ...goodsKcProductNotApplicableModel([variant]), publicNote: '합성 고객 안내' };
     const html = renderToStaticMarkup(<GoodsKcEditor goodId="g1" configuration={{ ...draft, revision: 2, status: 'reviewed',
       reviewedAt: '2026-10-07T00:00:00Z', reviewerName: '합성 검토자', models: [reviewed] }} onSaved={() => {}} />);
-    expect(html).toContain('KC 검토 완료 · 합성 검토자');
-    expect(html).toMatch(/aria-label="해당 없음 고객 안내"[^>]*>합성 고객 안내<\/textarea>/);
-    expect(html).toContain('KC 인증 대상이 아닌 상품입니다.');
-    expect(html).toContain('모델 1 고객 안내');
-    expect(html).toContain('고객 안내 (선택)');
-    expect(html).toContain('모델명 (선택)');
+    expect(html).toContain('<p role="status">상품 전체 KC 해당 없음으로 검토 완료 · 합성 검토자 · 2026. 10. 7.');
+    expect(html).toContain('사용 중인 옵션 1개가 모두 해당 없음으로 연결되어 있습니다.');
+    expect(html).toContain('고객 안내: 합성 고객 안내');
+    // 확인 체크가 풀린 원클릭 칸을 다시 보여주지 않는다 — 다시 눌러야 하는 것처럼 보이지 않게.
+    expect(html).not.toContain(GOODS_KC_NOT_APPLICABLE_ATTESTATION);
+    expect(html).not.toContain('>해당 없음으로 검토 완료</button>');
+    expect(html).not.toContain('aria-label="해당 없음 고객 안내"');
+    // 모델 상세·내부 근거·검토 버튼은 닫힌 '모델 상세 보기·고치기' 안에 있다.
+    const details = html.match(/<details( open="")?><summary>모델 상세 보기·고치기<\/summary>/);
+    expect(details?.[1]).toBeUndefined();
+    const folded = html.slice(html.indexOf('모델 상세 보기·고치기'));
+    for (const text of ['모델 1 고객 안내 (선택)', '내부 검토 근거', 'KC 인증 대상이 아닌 상품입니다.', '>미검토로 저장</button>']) {
+      expect(html.indexOf(text), text).toBeGreaterThan(html.indexOf('모델 상세 보기·고치기'));
+      expect(folded).toContain(text);
+    }
+    expect(html).toMatch(/aria-label="모델 1 고객 안내 \(선택\)"[^>]*>합성 고객 안내<\/textarea>/);
     expect(html).not.toContain('<td style="white-space:pre-wrap"></td>');
     expect(html).not.toContain('<caption class="wc-pdp-notice__caption"></caption>');
+  });
+  it('해당 없음 검토 완료 상품에 새 모델 틀을 넣으면 접힌 모델 상세를 펼쳐 미저장 입력을 보여준다', () => {
+    const html = renderToStaticMarkup(<GoodsKcEditor goodId="g1" configuration={{ ...draft, revision: 2, status: 'reviewed',
+      reviewedAt: '2026-10-07T00:00:00Z', reviewerName: '합성 검토자', models: [goodsKcProductNotApplicableModel([variant])] }} onSaved={() => {}}
+      templateRequest={{ id: 'preset-request', template: { family: 'living', scheme: 'safety_confirmation', publicNote: '' } }} />);
+    expect(html).toContain('<p role="status">KC 미검토 초안 · 미저장');
+    expect(html).toContain('<details open=""><summary>모델 상세 보기·고치기</summary>');
+    expect(html).toContain('모델 2 모델명');
+  });
+  it('해당 없음 단독이 아닌 검토 완료와 미검토 해당 없음은 기존처럼 모델을 펼쳐 둔다', () => {
+    const subject = { ...emptyGoodsKcModel(), family: 'children' as const, scheme: 'safety_confirmation' as const, productCategory: '합성 분류',
+      modelName: '합성 모델', businessRole: 'importer' as const, businessName: '합성 수입자', identifier: 'TEST-ONLY-1', variantIds: [variant.id],
+      basis: '합성 사유', evidence: { applicability: 'TEST:a', certificate: 'TEST:c', testReport: '', declaration: '' } };
+    const reviewed = renderToStaticMarkup(<GoodsKcEditor goodId="g1" configuration={{ ...draft, revision: 2, status: 'reviewed',
+      reviewedAt: '2026-10-07T00:00:00Z', reviewerName: '합성 검토자', models: [subject] }} onSaved={() => {}} />);
+    expect(reviewed).toContain('<p role="status">KC 검토 완료 · 합성 검토자');
+    expect(reviewed).not.toContain('모델 상세 보기·고치기');
+    expect(reviewed).toContain(GOODS_KC_NOT_APPLICABLE_ATTESTATION);
+    const unreviewed = renderToStaticMarkup(<GoodsKcEditor goodId="g1" configuration={{ ...draft, revision: 1,
+      models: [goodsKcProductNotApplicableModel([variant])] }} onSaved={() => {}} />);
+    expect(unreviewed).not.toContain('모델 상세 보기·고치기');
+    expect(unreviewed).toContain(GOODS_KC_NOT_APPLICABLE_ATTESTATION);
+  });
+  it('기본 상품 저장(성공·실패 회차)마다 KC 패널이 서버 KC 상태를 다시 읽는다', () => {
+    // 상품명·유형·IP·고시정보·옵션 저장은 DB에서 KC 검토를 미검토로 되돌릴 수 있다. 패널은 회차가 바뀌면
+    // 화면을 비우지 않고 다시 읽어 '검토 완료'가 남지 않게 한다. effect는 정적 렌더로 실행되지 않아 배선을 대조한다.
+    const section = readFileSync('components/admin/sections/GoodSection.tsx', 'utf8');
+    expect(section).toMatch(/<GoodsKcPanel goodId=\{selected\.id\} refreshKey=\{state\.attempt \?\? 0\}/);
+    const panel = readFileSync('components/admin/GoodsKcPanel.tsx', 'utf8');
+    expect(panel).toContain('}, [goodId, refresh, refreshKey]);');
+    expect(panel).toMatch(/if \(seenRefreshKey !== refreshKey\) \{ setSeenRefreshKey\(refreshKey\); setNotice\(null\); \}/);
   });
   it('기존 모델 입력을 지울 때만 확인을 요구하고 사용 중인 옵션 전부를 연결한다', () => {
     const stopped = { id: '00000000-0000-4000-8000-000000000003', code: 'OPTION-3', name: '중지 옵션', active: false };
