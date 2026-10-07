@@ -1040,6 +1040,14 @@
    사이의 글자를 건너뛰므로 <br>을 여기서 숨기면 "제품명<br>소재" 같은 글자 줄까지 붙는다. */
 .wc-root .wc-goods-description img:has(+ img) { margin-bottom: 0; }
 .wc-root .wc-goods-description img + img { margin-top: 0; }
+/* 이미지마다 p·div 하나로 감싼 소스(`<p><img></p><p><img></p>`, `<div align=center><img></div>…`)도 같은 이음매로 붙인다.
+   :only-child는 글자 노드를 세지 않아 `<p>글자 <img></p>`도 래퍼로 잡히므로 래퍼 여백 전체가 아니라 이미지↔이미지
+   이음매만 지운다 — 글자 문단과 이미지 사이 간격은 그대로 남는다. */
+.wc-root .wc-goods-description img:has(+ :is(p, div) > img:only-child),
+.wc-root .wc-goods-description :is(p, div):has(> img:only-child):has(+ img, + :is(p, div) > img:only-child),
+.wc-root .wc-goods-description :is(p, div):has(> img:only-child):has(+ img, + :is(p, div) > img:only-child) > img { margin-bottom: 0; }
+.wc-root .wc-goods-description :is(p, div):has(> img:only-child) + img,
+.wc-root .wc-goods-description :is(img, :is(p, div):has(> img:only-child)) + :is(p, div) > img:only-child { margin-top: 0; }
 .wc-root .wc-goods-description figcaption { color: var(--wc-ink-tertiary); font-size: 12px; text-align: center; }
 .wc-root .wc-goods-description table { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; }
 .wc-root .wc-goods-description :is(th, td) { min-width: 80px; padding: 10px 12px; border: 1px solid var(--wc-hairline); text-align: left; vertical-align: top; }
