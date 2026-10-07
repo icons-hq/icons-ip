@@ -1,0 +1,150 @@
+/**
+ * 상품 편집의 판매가·할인 입력(스마트스토어식)과 저장 계약의 변환.
+ *
+ * 화면은 "판매가(할인 전) + 할인"으로 입력받고, 서버·DB 계약은 그대로 둔다.
+ * - 할인 설정안함: form `price` = 판매가, `compareAtPrice` = 빈 값
+ * - 할인 설정함: form `compareAtPrice` = 판매가, `price` = 할인가
+ * 고객이 결제하는 기준 금액은 `price`(할인가)이고 옵션가는 그 위에 더한다.
+ */
+export type GoodsDiscountUnit = 'won' | 'percent';
+
+export type GoodsPriceDraft = {
+  /** 판매가(할인 전). 입력 원문을 유지한다. */
+  regularPrice: string;
+  discountEnabled: boolean;
+  /** 할인 입력 원문. 단위에 따라 원 또는 %. */
+  discountValue: string;
+  discountUnit: GoodsDiscountUnit;
+};
+
+/** 화면 입력 이름. 실패 복구·브라우저 복구가 입력한 그대로 되살린다. 서버는 읽지 않는다. */
+export const GOODS_PRICE_DRAFT_FIELDS = ['regularPrice', 'discountEnabled', 'discountValue', 'discountUnit'] as const;
+
+export type GoodsPriceResolution = {
+  /** form `price` 값 */
+  price: string;
+  /** form `compareAtPrice` 값 */
+  compareAtPrice: string;
+  /** 해석한 판매가. 판매가 입력이 잘못되면 null */
+  regularPrice: number | null;
+  /** 적용되는 할인 금액(원). 할인이 없거나 잘못되면 0 */
+  discountAmount: number;
+  /** 고객 결제 기준 금액(할인가 또는 판매가). 판매가 입력이 잘못되면 null */
+  salePrice: number | null;
+  regularPriceError?: string;
+  discountError?: string;
+};
+
+const INT32_MAX = 2147483647;
+
+function wholeWon(raw: string | undefined): number | null {
+  const text = (raw ?? '').trim();
+  if (!/^\d+$/.test(text)) return null;
+  const value = Number(text);
+  return Number.isSafeInteger(value) && value <= INT32_MAX ? value : null;
+}
+
+export function formatWon(value: number): string {
+  return `${value.toLocaleString('ko-KR')}원`;
+}
+
+/**
+ * 편집을 열 때의 입력 상태. 실패·브라우저 복구로 화면 입력이 돌아오면 그 값을 그대로 쓰고,
+ * 아니면 저장된 `price`·`compareAtPrice`에서 판매가·할인(원)을 되짚는다.
+ */
+export function goodsPriceDraftFromValues(values: Readonly<Record<string, string | undefined>>): GoodsPriceDraft {
+  if (values.regularPrice !== undefined) {
+    return {
+      regularPrice: values.regularPrice,
+      discountEnabled: values.discountEnabled === 'true',
+      discountValue: values.discountValue ?? '',
+      discountUnit: values.discountUnit === 'percent' ? 'percent' : 'won',
+    };
+  }
+  const price = wholeWon(values.price);
+  const compare = wholeWon(values.compareAtPrice);
+  if (price !== null && compare !== null && compare > price) {
+    return { regularPrice: String(compare), discountEnabled: true, discountValue: String(compare - price), discountUnit: 'won' };
+  }
+  const regularPrice = (values.price ?? '').trim();
+  return { regularPrice: regularPrice === '0' ? '' : regularPrice, discountEnabled: false, discountValue: '', discountUnit: 'won' };
+}
+
+function discountAmount(regular: number, draft: GoodsPriceDraft): { amount: number } | { error: string } {
+  if (regular <= 0) return { error: '판매가를 먼저 입력한 뒤 할인을 설정해주세요.' };
+  const text = draft.discountValue.trim();
+  if (draft.discountUnit === 'percent') {
+    if (!/^\d+(\.\d{1,2})?$/.test(text)) return { error: '할인율을 0보다 크고 100보다 작은 숫자로 입력해주세요. 소수 둘째 자리까지 입력할 수 있습니다.' };
+    const hundredths = Math.round(Number(text) * 100);
+    if (hundredths <= 0 || hundredths >= 10000) return { error: '할인율을 0보다 크고 100보다 작은 숫자로 입력해주세요. 소수 둘째 자리까지 입력할 수 있습니다.' };
+    /* % 할인은 원 단위 내림이다. 정수 연산으로 부동소수 오차를 피한다. */
+    const amount = Math.floor((regular * hundredths) / 10000);
+    if (amount < 1) return { error: '할인율을 적용한 금액이 1원보다 작습니다. 할인율이나 판매가를 확인해주세요.' };
+    return { amount };
+  }
+  const amount = wholeWon(text);
+  if (amount === null || amount < 1 || amount >= regular) {
+    return { error: `할인 금액은 1원 이상, 판매가 ${formatWon(regular)}보다 작게 입력해주세요.` };
+  }
+  return { amount };
+}
+
+/** 저장할 때의 변환. 잘못된 할인은 오류로 돌려주고 저장 값에는 할인을 싣지 않는다. */
+export function resolveGoodsPrice(draft: GoodsPriceDraft): GoodsPriceResolution {
+  const regularText = draft.regularPrice.trim();
+  const regular = regularText === '' ? 0 : wholeWon(regularText);
+  if (regular === null) {
+    return {
+      price: regularText, compareAtPrice: '', regularPrice: null, discountAmount: 0, salePrice: null,
+      regularPriceError: '판매가는 0원 이상의 정수로 입력해주세요.',
+    };
+  }
+  const regularValue = regularText === '' ? '' : String(regular);
+  if (!draft.discountEnabled) {
+    return { price: regularValue, compareAtPrice: '', regularPrice: regular, discountAmount: 0, salePrice: regular };
+  }
+  const discount = discountAmount(regular, draft);
+  if ('error' in discount) {
+    return { price: regularValue, compareAtPrice: '', regularPrice: regular, discountAmount: 0, salePrice: regular, discountError: discount.error };
+  }
+  const salePrice = regular - discount.amount;
+  return { price: String(salePrice), compareAtPrice: String(regular), regularPrice: regular, discountAmount: discount.amount, salePrice };
+}
+
+export type ErpSalePricePlan =
+  | { ok: true; target: 'regularPrice'; value: number; message: string }
+  | { ok: true; target: 'extraPrice'; value: number; message: string }
+  | { ok: false; error: string };
+
+/**
+ * ERP 판매가 적용 버튼(자동 적용하지 않는다).
+ * - 옵션 미사용: 판매가 칸에 ERP 판매가를 넣는다.
+ * - 옵션 사용: 그 옵션의 옵션가 = ERP 판매가 − 현재 판매 기준 금액(할인가 또는 판매가). 음수면 적용하지 않는다.
+ */
+export function planErpSalePrice({ salePrice, mode, basePrice, discountAmount: currentDiscount = 0 }: {
+  salePrice: number;
+  mode: 'single' | 'multiple';
+  /** 현재 판매 기준 금액. 판매가·할인 입력이 잘못되면 null */
+  basePrice: number | null;
+  /** 현재 적용 중인 할인 금액(원) */
+  discountAmount?: number;
+}): ErpSalePricePlan {
+  if (!Number.isSafeInteger(salePrice) || salePrice < 0 || salePrice > INT32_MAX) {
+    return { ok: false, error: 'ERP 판매가를 확인할 수 없어 적용하지 않았습니다.' };
+  }
+  if (mode === 'single') {
+    const discounted = currentDiscount > 0 && currentDiscount < salePrice
+      ? ` 설정한 할인 ${formatWon(currentDiscount)}이 그대로 적용되어 할인가는 ${formatWon(salePrice - currentDiscount)}입니다.`
+      : '';
+    return { ok: true, target: 'regularPrice', value: salePrice, message: `판매가에 ERP 판매가 ${formatWon(salePrice)}을 넣었습니다.${discounted}` };
+  }
+  if (basePrice === null) return { ok: false, error: '판매가·할인 입력 오류를 먼저 고친 뒤 ERP 판매가를 적용해주세요.' };
+  const extraPrice = salePrice - basePrice;
+  if (extraPrice < 0) {
+    return {
+      ok: false,
+      error: `ERP 판매가 ${formatWon(salePrice)}이 현재 판매 금액 ${formatWon(basePrice)}보다 낮아 옵션가로 적용하지 않았습니다. 옵션가는 0원 이상이므로 판매가나 할인을 먼저 확인해주세요.`,
+    };
+  }
+  return { ok: true, target: 'extraPrice', value: extraPrice, message: `옵션가를 ${formatWon(extraPrice)}으로 맞춰 판매 ${formatWon(salePrice)}이 되었습니다.` };
+}

@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest';
-import { generateGoodsOptionRows, initialGoodsOptionRows, parseGoodsOptionRows, restoreGoodsOptionRows } from './goods-option-editor';
+import {
+  applyErpItemToGoodsOption, applyGoodsOptionBulkEdit, collapseGoodsOptionRows, generateGoodsOptionRows, goodsOptionRowKey, goodsOptionStockTotals,
+  initialGoodsOptionRows, isSingleGoodsOption, parseGoodsOptionBulkEdit, parseGoodsOptionRows, removeGoodsOptionRows, restoreGoodsOptionRows,
+} from './goods-option-editor';
 describe('goods option editing', () => {
   it('generates two axes with additive prices while preserving an existing combination', () => {
     const existing = [{ id: '11111111-1111-4111-8111-111111111111', name: '빨강 / M', code: 'RED-M', attributes: { 색상: '빨강', 사이즈: 'M' }, extraPrice: 500, stockQty: 4, expectedStockQty: 4 }];
@@ -47,5 +50,51 @@ describe('goods option editing', () => {
     expect(restoreGoodsOptionRows(JSON.stringify(rows))).toEqual(rows);
     expect(parseGoodsOptionRows(JSON.stringify([{ ...rows[0], erpCode: 'x'.repeat(121) }]), 1000)).toMatchObject({ ok: false });
     expect(parseGoodsOptionRows(JSON.stringify([{ ...rows[0], externalUpdatedAt: 'stale' }]), 1000)).toMatchObject({ ok: false });
+  });
+});
+
+describe('옵션목록 선택·일괄수정·재고 합계', () => {
+  const saved = { id: '11111111-1111-4111-8111-111111111111', name: '빨강', code: 'R', attributes: { 색상: '빨강' }, extraPrice: 0, stockQty: 4, expectedStockQty: 4, isActive: true };
+  const fresh = { name: '파랑', code: '', attributes: { 색상: '파랑' }, extraPrice: 500, stockQty: 6 };
+  const stopped = { ...saved, id: '22222222-2222-4222-8222-222222222222', name: '노랑', attributes: { 색상: '노랑' }, stockQty: 3, isActive: false };
+  const rows = [saved, fresh, stopped];
+
+  it('저장된 옵션은 id, 새 조합은 옵션값으로 행을 구분한다', () => {
+    expect(goodsOptionRowKey(saved)).toBe(saved.id);
+    expect(goodsOptionRowKey(fresh)).toBe(goodsOptionRowKey({ attributes: { 색상: '파랑' } }));
+    expect(goodsOptionRowKey(fresh)).not.toBe(goodsOptionRowKey(saved));
+  });
+
+  it('옵션 재고수량 합계와 사용 중 합계를 함께 계산한다', () => {
+    expect(goodsOptionStockTotals(rows)).toEqual({ total: 13, active: 10 });
+    expect(isSingleGoodsOption([{ ...saved, attributes: {} }])).toBe(true);
+    expect(isSingleGoodsOption([saved])).toBe(false);
+  });
+
+  it('선택한 행만 빈 칸이 아닌 값으로 일괄수정한다', () => {
+    const parsed = parseGoodsOptionBulkEdit({ extraPrice: '1,000', stockQty: '', isActive: 'stopped' });
+    expect(parsed).toEqual({ ok: true, edit: { extraPrice: 1000, isActive: false } });
+    if (!parsed.ok) throw new Error();
+    const next = applyGoodsOptionBulkEdit(rows, new Set([goodsOptionRowKey(fresh)]), parsed.edit);
+    expect(next[1]).toMatchObject({ extraPrice: 1000, stockQty: 6, isActive: false });
+    expect(next[0]).toBe(rows[0]);
+    expect(parseGoodsOptionBulkEdit({ extraPrice: '', stockQty: '', isActive: '' })).toMatchObject({ ok: false });
+    expect(parseGoodsOptionBulkEdit({ extraPrice: '-1', stockQty: '', isActive: '' })).toMatchObject({ ok: false });
+    expect(parseGoodsOptionBulkEdit({ extraPrice: '', stockQty: '1.5', isActive: '' })).toMatchObject({ ok: false });
+  });
+
+  it('선택삭제는 한 개 이상 남기고, 옵션 사용 해제는 첫 행의 식별자를 유지한다', () => {
+    expect(removeGoodsOptionRows(rows, new Set([goodsOptionRowKey(fresh)]))).toEqual({ ok: true, rows: [saved, stopped] });
+    expect(removeGoodsOptionRows(rows, new Set(rows.map(goodsOptionRowKey)))).toMatchObject({ ok: false });
+    expect(removeGoodsOptionRows(rows, new Set())).toMatchObject({ ok: false });
+    expect(collapseGoodsOptionRows(rows)).toEqual([{ ...saved, attributes: {} }]);
+  });
+
+  it('ERP 품목 선택은 품명·품번을 덮어쓰고 비어 있는 바코드만 채운다', () => {
+    const item = { code: '000123', name: 'ERP 품명', barcode: '0880' };
+    expect(applyErpItemToGoodsOption({ ...saved, erpCode: 'OLD', erpName: '이전', barcode: '' }, item))
+      .toMatchObject({ erpCode: '000123', erpName: 'ERP 품명', barcode: '0880' });
+    expect(applyErpItemToGoodsOption({ ...saved, barcode: '0007' }, item)).toMatchObject({ barcode: '0007' });
+    expect(applyErpItemToGoodsOption({ ...saved, barcode: null }, { ...item, barcode: null })).toMatchObject({ barcode: null });
   });
 });
