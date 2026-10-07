@@ -5,7 +5,8 @@ import type { GoodsKcTemplateRequest } from './useGoodsKcTemplate';
 import { readGoodsKcAction, saveGoodsKcAction } from '@/app/admin/goods-kc-actions';
 import { GoodsKcDisclosure } from '@/components/shop/GoodsKcDisclosure';
 import {
-  GOODS_KC_EVIDENCE_LABELS, MAX_GOODS_KC_MODELS, emptyGoodsKcModel, goodsKcReviewProblems, publicGoodsKcDisclosures, kcModelFromTemplate,
+  GOODS_KC_EVIDENCE_LABELS, MAX_GOODS_KC_MODELS, emptyGoodsKcModel, goodsKcReviewProblems, planGoodsKcProductNotApplicable,
+  goodsKcProductNotApplicableNote, goodsKcSoleNotApplicable, publicGoodsKcDisclosures, kcModelFromTemplate,
   type AdminGoodsKc, type GoodsKcModelInput, type GoodsKcVariant,
 } from '@/lib/admin/goods-kc';
 import {
@@ -18,8 +19,11 @@ function ModelFields({ model, index, variants, disabled, onChange, onRemove }: {
   onChange: (model: GoodsKcModelInput) => void; onRemove: () => void;
 }) {
   const label = `모델 ${index + 1}`;
+  // 해당 없음은 제품군·제도·적용 옵션만 필수다. 나머지 칸은 보이는 라벨과 접근 가능한 이름 모두에 선택으로 표시한다.
+  const hint = model.scheme === 'not_applicable' ? ' (선택)' : '';
   function field(key: 'productCategory' | 'modelName' | 'businessName' | 'identifier', title: string, limit = 200) {
-    return <label>{title}<input aria-label={`${label} ${title}`} value={model[key]} maxLength={limit} disabled={disabled}
+    const optional = key === 'identifier' ? '' : hint;
+    return <label>{title}{optional}<input aria-label={`${label} ${title}${optional}`} value={model[key]} maxLength={limit} disabled={disabled}
       onChange={(event) => onChange({ ...model, [key]: event.target.value })} /></label>;
   }
   const needsNumber = model.scheme && goodsKcNeedsIdentifier(model.scheme);
@@ -34,7 +38,7 @@ function ModelFields({ model, index, variants, disabled, onChange, onRemove }: {
         <option value="">미선택</option>{Object.entries(GOODS_KC_SCHEME_LABELS).filter(([value]) => model.family && goodsKcSchemeAllowed(model.family, value as GoodsKcScheme))
           .map(([value, text]) => <option key={value} value={value}>{text}</option>)}</select></label>
       {field('productCategory', '품목 분류')}{field('modelName', '모델명')}
-      <label>사업자 구분<select aria-label={`${label} 사업자 구분`} value={model.businessRole} onChange={(event) => onChange({ ...model, businessRole: event.target.value as GoodsKcModelInput['businessRole'] })}>
+      <label>사업자 구분{hint}<select aria-label={`${label} 사업자 구분${hint}`} value={model.businessRole} onChange={(event) => onChange({ ...model, businessRole: event.target.value as GoodsKcModelInput['businessRole'] })}>
         <option value="">미선택</option>{Object.entries(GOODS_KC_BUSINESS_LABELS).map(([value, text]) => <option key={value} value={value}>{text}</option>)}</select></label>
       {field('businessName', '사업자명')}
       {(needsNumber || model.identifier) ? field('identifier', model.scheme === 'safety_certification' ? '안전인증번호' : '인증·신고번호', 100) : null}
@@ -50,9 +54,9 @@ function ModelFields({ model, index, variants, disabled, onChange, onRemove }: {
         <span>삭제된 옵션 · 연결을 해제하고 다시 선택해주세요. <small>{id}</small></span>
       </label>)}</div>
     </fieldset>
-    <label>고객 안내<textarea aria-label={`${label} 고객 안내`} rows={2} maxLength={1000} value={model.publicNote}
+    <label>고객 안내{hint}<textarea aria-label={`${label} 고객 안내${hint}`} rows={2} maxLength={1000} value={model.publicNote}
       onChange={(event) => onChange({ ...model, publicNote: event.target.value })} /></label>
-    <details open><summary>내부 검토 근거 · 고객에게 공개되지 않습니다</summary>
+    <details open><summary>내부 검토 근거{hint} · 고객에게 공개되지 않습니다</summary>
       <div className="col" style={{ gap: 12, marginTop: 12 }}>
         <label>적용 판단 사유<textarea aria-label={`${label} 적용 판단 사유`} rows={3} maxLength={2000} value={model.basis}
           onChange={(event) => onChange({ ...model, basis: event.target.value })} /></label>
@@ -66,6 +70,42 @@ function ModelFields({ model, index, variants, disabled, onChange, onRemove }: {
       </div>
     </details>
     <button type="button" className="btn btn-ghost" onClick={onRemove}>이 모델 입력 제거</button>
+  </fieldset>;
+}
+
+export const GOODS_KC_NOT_APPLICABLE_ATTESTATION = '이 상품은 KC 안전인증·안전확인·공급자적합성확인·안전기준준수 대상이 아님을 확인했습니다.';
+
+/** "상품 전체 KC 해당 없음": one confirmation and one action replace the model
+ * list with a single not-applicable model covering every active option, then
+ * save it as reviewed through the same attested save contract. */
+function ProductNotApplicable({ variants, models, disabled, onNoteChange, onComplete }: {
+  variants: readonly GoodsKcVariant[]; models: readonly GoodsKcModelInput[]; disabled: boolean;
+  onNoteChange: (publicNote: string) => void; onComplete: (models: GoodsKcModelInput[]) => void;
+}) {
+  const active = variants.filter((variant) => variant.active);
+  const [confirmed, setConfirmed] = useState(false);
+  // 해당 없음 모델 1개가 이미 있으면 이 칸은 그 모델의 고객 안내를 그대로 보여주고 고친다.
+  // 따로 들고 있으면 아래 모델 칸에서 고친 안내가 접힌 칸의 이전 값으로 덮인다.
+  const [draftNote, setDraftNote] = useState('');
+  const sole = goodsKcSoleNotApplicable(models);
+  const note = goodsKcProductNotApplicableNote(models, draftNote);
+  function complete() {
+    const plan = planGoodsKcProductNotApplicable(models, variants, draftNote);
+    if (plan.discarded && !window.confirm(`입력한 KC 모델 ${plan.discarded}개를 지우고 상품 전체 해당 없음으로 검토를 완료합니다. 계속할까요?`)) return;
+    onComplete(plan.models);
+  }
+  return <fieldset className="col" disabled={disabled} style={{ gap: 10, padding: 16, border: '1px solid var(--line)', borderRadius: 8 }}>
+    <legend>상품 전체 KC 해당 없음</legend>
+    <p className="muted" style={{ margin: 0 }}>{active.length
+      ? `KC 대상이 아닌 상품은 확인 체크 후 바로 검토를 끝낼 수 있습니다. 사용 중인 옵션 ${active.length}개가 모두 연결되고, 모델·사업자·판단 근거는 입력하지 않아도 됩니다.`
+      : '사용 중인 옵션이 없습니다. 옵션을 저장한 뒤 해당 없음으로 검토를 완료할 수 있습니다.'}</p>
+    <label className="row" style={{ gap: 8, alignItems: 'flex-start' }}><input type="checkbox" checked={confirmed} disabled={!active.length}
+      onChange={(event) => setConfirmed(event.target.checked)} /><span>{GOODS_KC_NOT_APPLICABLE_ATTESTATION}</span></label>
+    <details><summary>고객 안내 추가 (선택)</summary>
+      <textarea aria-label="해당 없음 고객 안내" rows={2} maxLength={1000} value={note} style={{ marginTop: 8, width: '100%' }}
+        onChange={(event) => (sole ? onNoteChange : setDraftNote)(event.target.value)} />
+    </details>
+    <div><button type="button" className="btn" disabled={!active.length || !confirmed} onClick={complete}>해당 없음으로 검토 완료</button></div>
   </fieldset>;
 }
 
@@ -92,20 +132,25 @@ export function GoodsKcEditor({ goodId, configuration, onSaved, templateRequest,
   const dirty=JSON.stringify(models)!==JSON.stringify(configuration.models);
   const problems = goodsKcReviewProblems(models, configuration.variants);
   function change(next: GoodsKcModelInput[]) { setModels(next); setAttested(false); }
-  function save(status: 'unreviewed' | 'reviewed') {
+  function persist(nextModels: GoodsKcModelInput[], status: 'unreviewed' | 'reviewed', attestedValue: boolean) {
     setError(null);
     startTransition(async () => {
       try {
-        const result = await saveGoodsKcAction(goodId, { models, status, expectedRevision: configuration.revision,
-          expectedContextFingerprint: configuration.contextFingerprint, attested: status === 'reviewed' && attested });
+        const result = await saveGoodsKcAction(goodId, { models: nextModels, status, expectedRevision: configuration.revision,
+          expectedContextFingerprint: configuration.contextFingerprint, attested: status === 'reviewed' && attestedValue });
         if (result.ok) onSaved(result.configuration, result.message); else setError(result.error);
       } catch { setError('KC 정보를 저장하지 못했습니다. 입력은 유지되므로 다시 시도해주세요.'); }
     });
   }
+  function save(status: 'unreviewed' | 'reviewed') { persist(models, status, attested); }
+  function completeNotApplicable(next: GoodsKcModelInput[]) { change(next); persist(next, 'reviewed', true); }
   return <div className="col" style={{ gap: 16 }}>
     <p role="status">{dirty?'KC 미검토 초안 · 미저장':configuration.status === 'reviewed' ? 'KC 검토 완료' : configuration.publishedAt ? '기존 공개 · KC 미기록' : 'KC 미검토'}
       {!dirty && configuration.reviewedAt ? ` · ${configuration.reviewerName ?? '운영자'} · ${new Date(configuration.reviewedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}` : ''}</p>
     {readOnly && <p className="muted">{configuration.archivedAt ? '보관된 상품은 복원한 뒤 검토할 수 있습니다.' : 'KC 정보를 수정하려면 먼저 상품을 비공개로 전환해주세요.'}</p>}
+    <ProductNotApplicable variants={configuration.variants} models={models} disabled={pending || readOnly}
+      onNoteChange={(publicNote) => change([{ ...models[0], publicNote }])} onComplete={completeNotApplicable} />
+    <p className="muted" style={{ margin: 0 }}>KC 대상 상품은 아래에서 모델별로 제도·번호·근거를 입력합니다.</p>
     {models.map((model, index) => <ModelFields key={index} model={model} index={index} variants={configuration.variants} disabled={pending || readOnly}
       onChange={(next) => change(models.map((item, position) => position === index ? next : item))}
       onRemove={() => change(models.filter((_, position) => position !== index))} />)}
@@ -163,8 +208,8 @@ export function GoodsKcPanel({ goodId,templateRequest,onTemplateApplied }: { goo
   }, [goodId, refresh]);
   const visible = loaded?.goodId === goodId ? loaded : null;
   return <section className="card col wc-admin-kit" aria-labelledby={`kc-review-${goodId}`} style={{ padding: 18, gap: 16 }}>
-    <div><h2 id={`kc-review-${goodId}`} style={{ margin: 0, fontSize: 18 }}>KC 정보 · 모델별 검토</h2>
-      <p className="muted" style={{ fontSize: 12, lineHeight: 1.6 }}>실제 상품의 적용 제도와 근거를 모델·옵션별로 확인합니다. 미검토와 근거가 있는 해당 없음은 다릅니다.
+    <div><h2 id={`kc-review-${goodId}`} style={{ margin: 0, fontSize: 18 }}>KC 정보</h2>
+      <p className="muted" style={{ fontSize: 12, lineHeight: 1.6 }}>KC 대상이 아니면 상품 전체 KC 해당 없음으로 바로 검토를 끝내고, KC 대상이면 모델·옵션별로 제도와 근거를 입력합니다.
         신규 공개와 비공개 후 재공개에는 검토 완료가 필요하며, 기존 공개 미기록 상품은 자동 승인하거나 중지하지 않습니다.</p>
     </div>
     {notice?.goodId === goodId && <p role="status">{notice.message}</p>}

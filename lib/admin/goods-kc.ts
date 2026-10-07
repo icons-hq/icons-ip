@@ -71,6 +71,33 @@ export function emptyGoodsKcModel(): GoodsKcModelInput {
 export function kcModelFromTemplate(family: GoodsKcFamily, scheme: GoodsKcScheme, publicNote=''): GoodsKcModelInput | null {
   return goodsKcSchemeAllowed(family, scheme) ? { ...emptyGoodsKcModel(), family, scheme, publicNote:scheme==='not_applicable'?publicNote:'' } : null;
 }
+/** Family for "상품 전체 KC 해당 없음". Every family allows not-applicable;
+ * '그 외' is the one that does not imply a KC-regulated product group. */
+export const GOODS_KC_PRODUCT_NOT_APPLICABLE_FAMILY: GoodsKcFamily = 'other';
+/** One not-applicable model linked to every active option of the product. The
+ * optional customer note is the only other value; the rest stays blank. */
+export function goodsKcProductNotApplicableModel(variants: readonly GoodsKcVariant[], publicNote = ''): GoodsKcModelInput {
+  return { ...emptyGoodsKcModel(), family: GOODS_KC_PRODUCT_NOT_APPLICABLE_FAMILY, scheme: 'not_applicable', publicNote: publicNote.trim(),
+    variantIds: variants.filter((variant) => variant.active).map((variant) => variant.id.toLowerCase()).sort() };
+}
+/** True when the product already has exactly one not-applicable model. */
+export function goodsKcSoleNotApplicable(models: readonly GoodsKcModelInput[]): boolean {
+  return models.length === 1 && models[0].scheme === 'not_applicable';
+}
+/** Customer note the one-click action saves. A sole not-applicable model keeps
+ * its own note, which the MD may just have edited in the model fields; the
+ * separately typed draft applies only when the action creates that model. */
+export function goodsKcProductNotApplicableNote(models: readonly GoodsKcModelInput[], draftNote = ''): string {
+  return goodsKcSoleNotApplicable(models) ? models[0].publicNote : draftNote;
+}
+/** Plan for the one-click action. `discarded` counts current model rows that the
+ * replacement would erase; the editor confirms before discarding any input.
+ * Rows are compared in saved form, so trimming or option order alone is no loss. */
+export function planGoodsKcProductNotApplicable(models: readonly GoodsKcModelInput[], variants: readonly GoodsKcVariant[], draftNote = '') {
+  const next = [goodsKcProductNotApplicableModel(variants, goodsKcProductNotApplicableNote(models, draftNote))];
+  const current = normalizeGoodsKcModels(models) ?? models;
+  return { models: next, discarded: models.length && JSON.stringify(current) !== JSON.stringify(next) ? models.length : 0 };
+}
 
 /** Partial drafts are supported. Unsupported combinations and malformed payloads
  * are rejected before they reach the database; required evidence is checked at
@@ -109,22 +136,25 @@ export function normalizeGoodsKcModels(value: unknown): GoodsKcModelInput[] | nu
 }
 
 /** These are data/review completeness requirements, not a product's legal
- * classification or an authenticity check of a certificate. */
+ * classification or an authenticity check of a certificate. Mirrors
+ * private.goods_kc_review_problems: a not-applicable model only needs its
+ * family, scheme and options; model, business, basis and note are optional. */
 export function goodsKcReviewProblems(models: readonly GoodsKcModelInput[], variants?: readonly GoodsKcVariant[]): string[] {
   const normalized = normalizeGoodsKcModels(models);
   if (!normalized) return ['KC 입력 형식과 제품군·제도 조합을 확인해주세요.'];
-  if (normalized.length === 0) return ['검토할 KC 모델을 추가해주세요.'];
+  if (normalized.length === 0) return ['KC 대상이 아니면 상품 전체 KC 해당 없음을 선택하고, KC 대상이면 검토할 모델을 추가해주세요.'];
   const problems: string[] = [];
   const coverage = new Set<string>();
   for (const [index, model] of normalized.entries()) {
     const label = `모델 ${index + 1}`;
+    const subject = model.scheme !== 'not_applicable';
     if (!model.family || !model.scheme || (model.family && model.scheme && !goodsKcSchemeAllowed(model.family, model.scheme))) {
       problems.push(`${label}: 제품군과 적용 제도를 선택해주세요.`);
     }
-    if (!model.productCategory || !model.modelName || !model.businessRole || !model.businessName) {
+    if (subject && (!model.productCategory || !model.modelName || !model.businessRole || !model.businessName)) {
       problems.push(`${label}: 품목 분류·모델명·사업자 구분·사업자명을 입력해주세요.`);
     }
-    if (!model.basis || !model.evidence.applicability) problems.push(`${label}: 적용 판단 사유와 근거 참조를 입력해주세요.`);
+    if (subject && (!model.basis || !model.evidence.applicability)) problems.push(`${label}: 적용 판단 사유와 근거 참조를 입력해주세요.`);
     if (!model.variantIds.length) problems.push(`${label}: 적용 옵션을 선택해주세요.`);
     for (const id of model.variantIds) {
       coverage.add(id);
@@ -137,7 +167,6 @@ export function goodsKcReviewProblems(models: readonly GoodsKcModelInput[], vari
     if (model.scheme === 'supplier_conformity' && (!model.evidence.testReport || !model.evidence.declaration)) {
       problems.push(`${label}: 시험성적서와 공급자 확인서의 근거 참조를 입력해주세요.`);
     }
-    if (model.scheme === 'not_applicable' && !model.publicNote) problems.push(`${label}: 해당 없음의 고객 안내를 입력해주세요.`);
   }
   for (const variant of variants ?? []) {
     if (variant.active && !coverage.has(variant.id)) problems.push(`${variant.name}: 사용 중인 옵션의 KC 모델 연결이 필요합니다.`);
@@ -151,7 +180,7 @@ export function publicGoodsKcDisclosures(models: readonly GoodsKcModelInput[], v
   return normalized.map((model) => ({
     family: model.family as GoodsKcFamily, scheme: model.scheme as GoodsKcScheme,
     productCategory: model.productCategory, modelName: model.modelName,
-    businessRole: model.businessRole as GoodsKcBusinessRole, businessName: model.businessName,
+    businessRole: model.businessRole, businessName: model.businessName,
     identifier: model.identifier, publicNote: model.publicNote,
     variants: model.variantIds.map((id) => ({ id, name: variants.find((variant) => variant.id === id)!.name })),
   }));

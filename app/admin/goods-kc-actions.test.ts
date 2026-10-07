@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { emptyGoodsKcModel } from '@/lib/admin/goods-kc';
+import { emptyGoodsKcModel, goodsKcProductNotApplicableModel } from '@/lib/admin/goods-kc';
 const mocks = vi.hoisted(() => ({ auth: vi.fn(), rpc: vi.fn(), revalidate: vi.fn() }));
 vi.mock('@/lib/auth/admin', () => ({ getCurrentAdminAuthState: mocks.auth }));
 vi.mock('@/lib/supabase/server', () => ({ createClient: async () => ({ rpc: mocks.rpc }) }));
@@ -34,6 +34,24 @@ describe('KC 조회·저장 서버 경계', () => {
     expect(await saveGoodsKcAction('g1', { ...input, status: 'reviewed', attested: true })).toMatchObject({ ok: false });
     expect(await saveGoodsKcAction('g1', { ...input, reviewerId: 'someone' })).toMatchObject({ ok: false });
     expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+  it('상품 전체 해당 없음은 확인 체크와 함께 최소 입력으로 검토 완료를 요청한다', async () => {
+    const variant = { id: '00000000-0000-4000-8000-000000000001', code: 'OPTION-1', name: '기본', active: true };
+    const models = [goodsKcProductNotApplicableModel([variant])];
+    const reviewed = { ...configuration, revision: 2, status: 'reviewed', models, variants: [variant],
+      reviewedAt: '2026-10-07T00:00:00Z', reviewerName: '합성 검토자' };
+    mocks.rpc.mockResolvedValue({ data: { changed: true, configuration: reviewed }, error: null });
+    const result = await saveGoodsKcAction('g1', { ...input, models, status: 'reviewed', expectedRevision: 1, attested: true });
+    expect(result).toMatchObject({ ok: true, message: expect.stringContaining('KC 검토를 완료했습니다') });
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_save_goods_kc', expect.objectContaining({ p_models: models, p_status: 'reviewed', p_attested: true }));
+    mocks.rpc.mockClear();
+    expect(await saveGoodsKcAction('g1', { ...input, models, status: 'reviewed', expectedRevision: 1, attested: false })).toMatchObject({ ok: false });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+  it('검토 완료 거절은 옵션 연결과 KC 대상 제도의 필수 정보를 함께 안내한다', async () => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'goods_kc_review_incomplete' } });
+    const result = await saveGoodsKcAction('g1', input);
+    expect(result).toMatchObject({ ok: false, error: expect.stringContaining('사용 중인 옵션 연결') });
   });
   it('stale 응답은 변경 충돌로 설명하고 성공/재검토를 꾸미지 않는다', async () => {
     mocks.rpc.mockResolvedValue({ data: null, error: { code: 'PT409', message: 'goods_kc_review_changed' } });
