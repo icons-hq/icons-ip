@@ -14,3 +14,12 @@ it('대표와 추가 분류를 구분하고 보관된 기존 연결은 해제 �
   expect(html).toContain('보관됨');
   expect(html).toContain('ERP');
 });
+it('상위에서 대표 카테고리를 제어하면 그 값을 선택하고 같은 분류를 추가 분류에서 뺀다', () => {
+  const active = [categories[0], { ...categories[1], id: 'gift', name: '선물', archivedAt: null }];
+  const html = renderToStaticMarkup(<CategoryAssignmentField categories={active} value="" primary="gift" onPrimaryChange={() => {}} additionalValue='["gift","primary"]' />);
+  expect(html).toMatch(/<option value="gift" selected="">/);
+  expect(html).toContain('value="[&quot;primary&quot;]"');
+  expect(html).not.toContain('선물 추가 분류 해제');
+  const uncontrolled = renderToStaticMarkup(<CategoryAssignmentField categories={active} value="primary" primary="gift" />);
+  expect(uncontrolled).toMatch(/<option value="primary" selected="">/);
+});

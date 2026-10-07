@@ -3,20 +3,34 @@
 import { useState } from 'react';
 import { categoryPath, type AdminCategoryNode } from '@/lib/admin/category';
 
+/**
+ * 대표·추가 고객 카테고리 선택. 기본은 내부 상태를 갖는 비제어 입력이다.
+ * `primary`·`onPrimaryChange`를 함께 주면 대표 카테고리를 상위에서 제어한다
+ * (예: 옵션의 ERP 품목 선택이 대표 카테고리를 채울 때). DOM 값만 바꾸면 React 상태와 어긋난다.
+ */
 export function CategoryAssignmentField({
   categories,
   value = '',
   error,
   additionalValue,
   additionalError,
+  primary: controlledPrimary,
+  onPrimaryChange,
 }: {
   categories: AdminCategoryNode[];
+  /** 비제어 모드의 초기 대표 카테고리 */
   value?: string;
   error?: string;
   additionalValue?: string;
   additionalError?: string;
+  /** 제어 모드의 현재 대표 카테고리 */
+  primary?: string;
+  onPrimaryChange?: (id: string) => void;
 }) {
-  const [primary, setPrimary] = useState(value);
+  const [uncontrolledPrimary, setUncontrolledPrimary] = useState(value);
+  const controlled = controlledPrimary !== undefined && onPrimaryChange !== undefined;
+  const primary = controlled ? controlledPrimary : uncontrolledPrimary;
+  const setPrimary = controlled ? onPrimaryChange : setUncontrolledPrimary;
   const [additional, setAdditional] = useState<string[]>(() => {
     try {
       const values: unknown = JSON.parse(additionalValue ?? '[]');
@@ -43,7 +57,8 @@ export function CategoryAssignmentField({
       </span>
       {error ? <span role="alert" style={{ color: 'var(--pink)', fontSize: 12 }}>{error}</span> : null}
       {additionalValue !== undefined && <>
-        <input name="additionalCategoryIds" type="hidden" value={JSON.stringify(additional)} />
+        {/* 상위에서 대표를 바꿔도 같은 분류가 추가 분류에 중복 저장되지 않는다. */}
+        <input name="additionalCategoryIds" type="hidden" value={JSON.stringify(additional.filter(id => id !== primary))} />
         <label className="mono" htmlFor="additional-category-assignment">추가 카테고리 (선택)</label>
         <select className="admin-field-control" id="additional-category-assignment" aria-describedby="additional-category-hint" aria-invalid={additionalError ? 'true' : undefined} value="" onChange={(event) => {
           const id = event.target.value;
@@ -53,7 +68,7 @@ export function CategoryAssignmentField({
           {activeLeaves.filter(category => category.id !== primary && !additional.includes(category.id)).map(category =>
             <option key={category.id} value={category.id}>{categoryPath(categories, category.id).join(' > ')} ({category.code})</option>)}
         </select>
-        {additional.map(id => {
+        {additional.filter(id => id !== primary).map(id => {
           const category = categories.find(category => category.id === id);
           return <div className="row" key={id} style={{ flexWrap: 'wrap', gap: 8 }}>
             <span>{category?.archivedAt ? '보관됨 · ' : ''}{category ? categoryPath(categories, id).join(' > ') : id}</span>
