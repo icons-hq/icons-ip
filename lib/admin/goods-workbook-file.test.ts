@@ -193,6 +193,49 @@ describe('사방넷 상품 파일 읽기', () => {
     ]);
     await expect(readSabangnetGoodsSheet(bytes)).rejects.toThrow("'CSV UTF-8(쉼표로 분리)'로 저장하거나 XLSX로 올려 주세요.");
   });
+  async function wideSabangnetXlsx(rows: number, extra?: (sheet: ExcelJS.Worksheet) => void) {
+    const book = new ExcelJS.Workbook();
+    const sheet = book.addWorksheet('Sheet1');
+    sheet.getRow(1).values = ['상품명', '자체상품코드', '판매가'];
+    for (let row = 2; row <= rows + 1; row++) sheet.getRow(row).values = [`상품${row}`, `C${row}`, 1000];
+    // 엑셀에서 오른쪽 끝 열(XFD) 셀 하나에 채우기 서식만 넣은 파일. 시트 열 수가 16,384가 된다.
+    sheet.getCell(`XFD${Math.ceil(rows / 2) + 1}`).fill = { type: 'pattern', pattern: 'solid', fgColor: { argb: 'FFFFFF00' } };
+    extra?.(sheet);
+    return Buffer.from(await book.xlsx.writeBuffer());
+  }
+  it('서식만 있는 먼 열(XFD) 셀이 있어도 머리글의 마지막 열까지만 읽어 500행을 빠르게 처리한다', async () => {
+    const small = await readSabangnetGoodsSheet(await wideSabangnetXlsx(20, (sheet) => {
+      sheet.getCell('H5').value = '머리글 밖 메모';
+    }));
+    expect(small.headers).toEqual(['상품명', '자체상품코드', '판매가']);
+    expect(small.rows).toHaveLength(20);
+    expect(small.rows.every((row) => row.cells.length === 3)).toBe(true);
+    expect(small.rows[3].cells).toEqual(['상품5', 'C5', '1000']);
+
+    const bytes = await wideSabangnetXlsx(500);
+    const started = performance.now();
+    const full = await readSabangnetGoodsSheet(bytes);
+    expect(performance.now() - started).toBeLessThan(5000);
+    expect(full.rows).toHaveLength(500);
+    expect(Math.max(...full.rows.map((row) => row.cells.length))).toBe(3);
+  }, 20_000);
+  it('열 이름 행이 200열을 넘으면 쓰지 않는 열을 지우도록 안내한다', async () => {
+    const headers = ['상품명', '판매가', ...Array.from({ length: 199 }, (_, index) => `메모${index + 1}`)];
+    const book = new ExcelJS.Workbook();
+    const sheet = book.addWorksheet('Sheet1');
+    sheet.getRow(1).values = headers;
+    sheet.getRow(2).values = ['키링', 1000];
+    await expect(readSabangnetGoodsSheet(Buffer.from(await book.xlsx.writeBuffer()))).rejects.toThrow('열이 200개를 넘습니다');
+    await expect(readSabangnetGoodsSheet(Buffer.from(`${headers.join(',')}\n키링,1000\n`))).rejects.toThrow('열이 200개를 넘습니다');
+    const gap = new ExcelJS.Workbook();
+    const gapSheet = gap.addWorksheet('Sheet1');
+    gapSheet.getRow(1).values = ['상품명', '판매가'];
+    gapSheet.getCell(1, 250).value = '부가이미지22';
+    gapSheet.getRow(2).values = ['키링', 1000];
+    await expect(readSabangnetGoodsSheet(Buffer.from(await gap.xlsx.writeBuffer()))).rejects.toThrow('열이 200개를 넘습니다');
+    const fits = await readSabangnetGoodsSheet(Buffer.from(`${headers.slice(0, 200).join(',')}\n키링,1000\n`));
+    expect(fits.headers).toHaveLength(200);
+  });
   it('사방넷 상품은 파일당 500개까지 읽는다', async () => {
     const csv = ['상품명,판매가', ...Array.from({ length: 501 }, (_, index) => `상품${index},1000`)].join('\n');
     await expect(readSabangnetGoodsSheet(Buffer.from(csv))).rejects.toThrow('500개');
