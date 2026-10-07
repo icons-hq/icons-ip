@@ -80,6 +80,12 @@ export function goodsKcProductNotApplicableModel(variants: readonly GoodsKcVaria
   return { ...emptyGoodsKcModel(), family: GOODS_KC_PRODUCT_NOT_APPLICABLE_FAMILY, scheme: 'not_applicable', publicNote: publicNote.trim(),
     variantIds: variants.filter((variant) => variant.active).map((variant) => variant.id.toLowerCase()).sort() };
 }
+/** Plan for the one-click action. `discarded` counts current model rows that the
+ * replacement would erase; the editor confirms before discarding any input. */
+export function planGoodsKcProductNotApplicable(models: readonly GoodsKcModelInput[], variants: readonly GoodsKcVariant[], publicNote = '') {
+  const next = [goodsKcProductNotApplicableModel(variants, publicNote)];
+  return { models: next, discarded: models.length && JSON.stringify(models) !== JSON.stringify(next) ? models.length : 0 };
+}
 
 /** Partial drafts are supported. Unsupported combinations and malformed payloads
  * are rejected before they reach the database; required evidence is checked at
