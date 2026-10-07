@@ -450,6 +450,15 @@ describe('admin catalog form normalization', () => {
       ok: false,
       errors: { compareAtPrice: '판매가와 할인은 0 이상의 원 단위 숫자로 입력해주세요.' },
     });
+    /* 상품 엑셀은 같은 검증을 쓰되 기준 판매가·소비자가 열 이름으로 알린다. */
+    expect(normalizeAdminGoodForm(goodForm('22000'), context, { copy: 'workbook' })).toEqual({
+      ok: false,
+      errors: { compareAtPrice: '소비자가는 기준 판매가보다 커야 합니다.' },
+    });
+    expect(normalizeAdminGoodForm(goodForm('26000.5'), context, { copy: 'workbook' })).toEqual({
+      ok: false,
+      errors: { compareAtPrice: '소비자가는 0 이상의 정수여야 합니다.' },
+    });
   });
 
   /* #171 — 고시정보는 법정 표기라 한 항목이라도 비면 저장을 막는다. */

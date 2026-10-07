@@ -12,6 +12,7 @@ import {
   type GoodsWorkbookRow,
 } from './goods-workbook';
 import { normalizeRemoteImageUrl } from './remote-image-url';
+import { decodeSpreadsheetText, parseDelimitedText } from './spreadsheet-text';
 
 /*
  * 사방넷 상품 엑셀을 ICONS 일괄 등록 행으로 바꾸는 열 이름 표와 변환 규칙.
@@ -67,6 +68,8 @@ export type SabangnetSheetRow = {
   row: number;
   cells: string[];
   errors?: Record<number, string>;
+  /** 파일을 읽으며 이 행에 남긴 경고(예: 닫히지 않은 큰따옴표). 미리보기의 상품 경고가 된다. */
+  warnings?: string[];
 };
 
 export const SABANGNET_TARGETS: readonly {
@@ -106,6 +109,8 @@ const GALLERY_KEYS = GOODS_WORKBOOK_KEYS.filter((key) => /^galleryUrl\d+$/.test(
 /** ICONS 양식의 갤러리 칸 수와 같다. */
 export const SABANGNET_GALLERY_LIMIT = GALLERY_KEYS.length;
 export const SABANGNET_HEADER_SCAN_ROWS = 10;
+/** 열 이름 행에서 읽는 최대 열 수. 넘으면 열을 줄여 다시 올리게 한다(조용히 자르지 않는다). */
+export const SABANGNET_COLUMN_LIMIT = 200;
 /** 한 번의 미리보기에서 내려받는 서로 다른 이미지 주소 수. */
 export const SABANGNET_IMAGE_LIMIT = 200;
 const OPTION_LIMIT = 100;
@@ -290,52 +295,27 @@ export function suggestSabangnetBrandIps(
   return suggestions;
 }
 
-export function decodeSabangnetText(bytes: Uint8Array): string {
-  if (bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf)
-    return new TextDecoder('utf-8').decode(bytes.subarray(3));
-  if (bytes[0] === 0xff && bytes[1] === 0xfe)
-    return new TextDecoder('utf-16le').decode(bytes.subarray(2));
-  try {
-    return new TextDecoder('utf-8', { fatal: true }).decode(bytes);
-  } catch {
-    // 한국어 엑셀이 저장한 CSV는 대개 CP949(EUC-KR)다.
-    return new TextDecoder('euc-kr').decode(bytes);
-  }
-}
+/** UTF-16·UTF-8·EUC-KR을 읽고, CP949 확장 한글처럼 글자가 되지 않으면 다시 저장하라고 안내한다(ERP 반입과 같은 경계). */
+export const decodeSabangnetText = decodeSpreadsheetText;
 
-/** RFC 4180 CSV(쉼표 또는 탭 구분, 큰따옴표 이스케이프, CRLF/LF). */
+export const SABANGNET_UNCLOSED_QUOTE_WARNING =
+  '닫는 큰따옴표가 없는 셀을 따옴표를 포함해 적힌 그대로 읽었습니다. 값을 확인해 주세요.';
+
+/**
+ * CSV(쉼표 또는 탭 구분, CRLF/LF)를 ERP 반입과 같은 인용 규칙으로 읽는다. 셀 전체를 감싼 큰따옴표만
+ * 인용이고, 닫히지 않은 따옴표는 원문 그대로 두고 그 행에 경고한다 — 뒤 상품이 한 셀로 합쳐지지 않는다.
+ * 상세 HTML처럼 긴 인용 셀도 읽도록 셀 길이로 인용을 끊지 않는다.
+ */
 export function parseSabangnetCsv(text: string): SabangnetSheetRow[] {
   const firstLine = text.slice(0, text.search(/\r?\n|$/));
   const delimiter = (firstLine.match(/\t/g)?.length ?? 0) > (firstLine.match(/,/g)?.length ?? 0) ? '\t' : ',';
-  const records: string[][] = [];
-  let record: string[] = [];
-  let field = '';
-  let quoted = false;
-  for (let index = 0; index < text.length; index++) {
-    const char = text[index];
-    if (quoted) {
-      if (char === '"' && text[index + 1] === '"') {
-        field += '"';
-        index++;
-      } else if (char === '"') quoted = false;
-      else field += char;
-    } else if (char === '"' && field === '') quoted = true;
-    else if (char === delimiter) {
-      record.push(field);
-      field = '';
-    } else if (char === '\n' || char === '\r') {
-      if (char === '\r' && text[index + 1] === '\n') index++;
-      record.push(field);
-      records.push(record);
-      record = [];
-      field = '';
-    } else field += char;
-  }
-  if (field !== '' || record.length) {
-    record.push(field);
-    records.push(record);
-  }
-  return records.map((cells, index) => ({ row: index + 1, cells }));
+  const { rows, unclosedCells } = parseDelimitedText(text, delimiter);
+  const unclosed = new Set(unclosedCells);
+  return rows.map((cells, index) => ({
+    row: index + 1,
+    cells,
+    ...(unclosed.has(index + 1) ? { warnings: [SABANGNET_UNCLOSED_QUOTE_WARNING] } : {}),
+  }));
 }
 
 function money(text: string) {
@@ -398,7 +378,7 @@ export function convertSabangnetRows(input: {
     // 안내·합계 행처럼 연결한 열이 모두 빈 행은 상품으로 보지 않는다.
     if (!targets.some((target, column) => target !== 'ignore' && ((source.cells[column] ?? '').trim() || source.errors?.[column]))) continue;
     products += 1;
-    const notes = new Set<string>();
+    const notes = new Set<string>(source.warnings);
     const errors: string[] = [];
     const cell = (target: SabangnetTarget) => {
       const column = single(target);

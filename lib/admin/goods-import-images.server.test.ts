@@ -78,6 +78,41 @@ describe('import image source boundary', () => {
     response(200, { 'content-type': 'application/octet-stream' }, Buffer.from('<html></html>'));
     await expect(fetchGoodsImportImage('https://example.test/a.png')).rejects.toThrow('JPEG·PNG·WebP');
   });
+  it('ICONS 양식 URL 이미지는 느리지만 계속 오는 큰 이미지를 끝까지 받고 10초 무응답이면 끊는다', async () => {
+    vi.useFakeTimers();
+    try {
+      const slow = (gap: number, count: number) => {
+        const response = Object.assign(new EventEmitter(), {
+          statusCode: 200, headers: { 'content-type': 'image/png' }, destroy: vi.fn(), resume: vi.fn(),
+        });
+        mocks.request.mockImplementationOnce((_url, _options, receive) => {
+          const req = Object.assign(new EventEmitter(), { destroy: vi.fn(), end: () => receive(response) });
+          return req;
+        });
+        let sent = 0;
+        const next = () => {
+          if (response.destroy.mock.calls.length) return;
+          if (sent === count) return void response.emit('end');
+          response.emit('data', sent === 0 ? Buffer.concat([PNG, Buffer.alloc(64 * 1024)]) : Buffer.alloc(64 * 1024));
+          sent += 1;
+          setTimeout(next, gap);
+        };
+        setTimeout(next, gap);
+      };
+      // 초당 약 256KB로 끊기지 않고 오는 3MB 이미지(약 12초). 기존처럼 무활동 10초 기준이면 받는다.
+      slow(250, 48);
+      const received = fetchGoodsImportImage('https://example.test/big.png');
+      await vi.advanceTimersByTimeAsync(12_500);
+      await expect(received).resolves.toHaveLength(PNG.length + 48 * 64 * 1024);
+      // 데이터가 10초 넘게 끊기면 응답 시간 초과다.
+      slow(11_000, 2);
+      const stalled = fetchGoodsImportImage('https://example.test/stall.png').catch((error: Error) => error);
+      await vi.advanceTimersByTimeAsync(10_500);
+      expect(await stalled).toMatchObject({ message: '이미지 URL 응답 시간이 초과됐습니다.' });
+    } finally {
+      vi.useRealTimers();
+    }
+  });
   it('denies local, metadata, private, mapped-private and multicast addresses', async () => {
     for (const ip of [
       '127.0.0.1',

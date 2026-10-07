@@ -1,6 +1,6 @@
 import { EventEmitter } from 'node:events';
 import { Readable } from 'node:stream';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({ lookup: vi.fn(), request: vi.fn() }));
 vi.mock('node:dns/promises', () => ({ lookup: mocks.lookup }));
 vi.mock('node:https', () => ({ request: mocks.request }));
@@ -23,6 +23,36 @@ function respond(status: number, headers: Record<string, string>, bytes: Buffer 
     };
     return req;
   });
+}
+type FakeResponse = EventEmitter & {
+  statusCode: number;
+  headers: Record<string, string>;
+  destroy: ReturnType<typeof vi.fn>;
+  resume: ReturnType<typeof vi.fn>;
+};
+/** A response whose body the test drives by hand; it never ends unless the test says so. */
+function openResponse(status: number, headers: Record<string, string>) {
+  const response = Object.assign(new EventEmitter(), { statusCode: status, headers }) as FakeResponse;
+  response.destroy = vi.fn();
+  response.resume = vi.fn();
+  const req = Object.assign(new EventEmitter(), { end: () => {}, destroy: vi.fn() });
+  mocks.request.mockImplementationOnce((_url, _options, receive) => {
+    req.end = () => receive(response);
+    return req;
+  });
+  return { response, req };
+}
+/** Sends `count` chunks `every` ms apart (fake timers), then ends the body. */
+function trickle(response: FakeResponse, chunk: Buffer, every: number, count: number) {
+  let sent = 0;
+  const next = () => {
+    if (response.destroy.mock.calls.length) return;
+    if (sent === count) return void response.emit('end');
+    response.emit('data', sent === 0 ? Buffer.concat([PNG, chunk]) : chunk);
+    sent += 1;
+    setTimeout(next, every);
+  };
+  setTimeout(next, every);
 }
 function hang() {
   mocks.request.mockImplementationOnce(() => {
@@ -152,6 +182,56 @@ describe('remote image SSRF boundary', () => {
   it('gives up on a silent server within the time budget', async () => {
     hang();
     await expect(fetchRemoteImage('https://slow.example.com/a.png', { timeoutMs: 30 })).rejects.toThrow('시간');
+  });
+
+  it('closes the socket at once on redirects and non-200 responses instead of draining an open body', async () => {
+    const redirect = openResponse(302, { location: '/img.png' });
+    respond(200, { 'content-type': 'image/png' });
+    await expect(fetchRemoteImage('https://img.example.com/a.png')).resolves.toMatchObject({ url: 'https://img.example.com/img.png' });
+    expect(redirect.response.destroy).toHaveBeenCalled();
+    expect(redirect.req.destroy).toHaveBeenCalled();
+    expect(redirect.response.resume).not.toHaveBeenCalled();
+
+    const missing = openResponse(404, { 'content-type': 'text/html' });
+    await expect(fetchRemoteImage('https://img.example.com/a.png')).rejects.toThrow('내려받지 못했습니다');
+    expect(missing.response.destroy).toHaveBeenCalled();
+    expect(missing.req.destroy).toHaveBeenCalled();
+  });
+
+  describe('time limits (fake timers)', () => {
+    beforeEach(() => vi.useFakeTimers());
+    afterEach(() => vi.useRealTimers());
+    const chunk = Buffer.alloc(64 * 1024);
+
+    it('keeps the 10-second total limit by default (Sabangnet preview) even while bytes keep coming', async () => {
+      const { response, req } = openResponse(200, { 'content-type': 'image/png' });
+      trickle(response, chunk, 250, 48); // 약 12초에 걸쳐 3MB
+      const result = fetchRemoteImage('https://img.example.com/a.png').catch((error: Error) => error);
+      await vi.advanceTimersByTimeAsync(10_500);
+      expect(await result).toMatchObject({ message: expect.stringContaining('시간') });
+      expect(req.destroy).toHaveBeenCalled();
+    });
+
+    it('with an idle limit, a slow but steady stream finishes within the total and a stall is cut', async () => {
+      const steady = openResponse(200, { 'content-type': 'image/png' });
+      trickle(steady.response, chunk, 250, 48);
+      const done = fetchRemoteImage('https://img.example.com/a.png', { timeoutMs: 30_000, idleTimeoutMs: 10_000 });
+      await vi.advanceTimersByTimeAsync(12_500);
+      await expect(done).resolves.toMatchObject({ mimeType: 'image/png' });
+
+      const stalled = openResponse(200, { 'content-type': 'image/png' });
+      trickle(stalled.response, chunk, 11_000, 3);
+      const cut = fetchRemoteImage('https://img.example.com/a.png', { timeoutMs: 30_000, idleTimeoutMs: 10_000 }).catch((error: Error) => error);
+      await vi.advanceTimersByTimeAsync(10_500);
+      expect(await cut).toMatchObject({ message: expect.stringContaining('시간') });
+      expect(stalled.req.destroy).toHaveBeenCalled();
+
+      const endless = openResponse(200, { 'content-type': 'image/png' });
+      trickle(endless.response, Buffer.alloc(1024), 500, 1_000);
+      const capped = fetchRemoteImage('https://img.example.com/a.png', { timeoutMs: 30_000, idleTimeoutMs: 10_000 }).catch((error: Error) => error);
+      await vi.advanceTimersByTimeAsync(30_500);
+      expect(await capped).toMatchObject({ message: expect.stringContaining('시간') });
+    });
   });
 
   it('fetches distinct sources with at most four in flight, a count limit and a deadline', async () => {

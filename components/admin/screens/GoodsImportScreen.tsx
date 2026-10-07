@@ -52,6 +52,16 @@ const COLUMN_STATES: Record<ColumnState, { label: string; tone: 'neutral' | 'suc
   duplicate: { label: '앞 열과 같은 항목', tone: 'warning' },
   manual: { label: '직접 고름', tone: 'neutral' },
 };
+const XLSX_TYPE = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+/**
+ * storage-js sends a File/Blob as a multipart part typed by the Blob itself and ignores the
+ * contentType option, and Storage checks that part type against the private bucket's allow-list
+ * (XLSX·ZIP·octet-stream). Browsers type .csv as text/csv or application/vnd.ms-excel and Windows
+ * Chrome types .zip as application/x-zip-compressed, so every upload is re-typed to an allowed type.
+ */
+function typedUpload(file: Blob, type: string) {
+  return file.slice(0, file.size, type);
+}
 const SABANGNET_COLUMNS_KEY = 'icons-admin:sabangnet-columns:v1';
 function readRememberedColumns() {
   try {
@@ -279,19 +289,15 @@ export function GoodsImportScreen({
       const storage = createClient().storage.from(GOODS_IMPORT_BUCKET);
       const uploaded = await storage.upload(
         `${prepared.prefix}/workbook.xlsx`,
-        file,
-        {
-          contentType:
-            'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
-          upsert: false,
-        },
+        typedUpload(file, XLSX_TYPE),
+        { contentType: XLSX_TYPE, upsert: false },
       );
       if (uploaded.error)
         throw new Error('XLSX 업로드를 완료하지 못했습니다. 다시 올려주세요.');
       if (zip) {
         const images = await storage.upload(
           `${prepared.prefix}/images.zip`,
-          zip,
+          typedUpload(zip, 'application/zip'),
           { contentType: 'application/zip', upsert: false },
         );
         if (images.error)
@@ -338,12 +344,11 @@ export function GoodsImportScreen({
       const prepared = await prepareGoodsImport({ name: file.name, size: file.size, format: 'sabangnet' });
       if (!prepared.ok) throw new Error(prepared.error);
       // The private object keeps its fixed name; the server reads the bytes to tell XLSX from CSV.
+      const type = /\.csv$/i.test(file.name) ? 'application/octet-stream' : XLSX_TYPE;
       const uploaded = await createClient()
         .storage.from(GOODS_IMPORT_BUCKET)
-        .upload(`${prepared.prefix}/workbook.xlsx`, file, {
-          contentType: /\.csv$/i.test(file.name)
-            ? 'application/octet-stream'
-            : 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        .upload(`${prepared.prefix}/workbook.xlsx`, typedUpload(file, type), {
+          contentType: type,
           upsert: false,
         });
       if (uploaded.error) throw new Error('파일 업로드를 완료하지 못했습니다. 다시 올려 주세요.');

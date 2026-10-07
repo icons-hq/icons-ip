@@ -94,6 +94,35 @@ describe('사방넷 CSV 읽기', () => {
     expect(decodeSabangnetText(Buffer.from('﻿상품명', 'utf8'))).toBe('상품명');
     expect(decodeSabangnetText(Buffer.from([0xbb, 0xf3, 0xc7, 0xb0, 0xb8, 0xed]))).toBe('상품명');
   });
+
+  it('CP949 확장 한글(똠·햏)이 든 CSV는 깨진 상품명으로 만들지 않고 UTF-8 CSV·XLSX로 저장하라고 안내한다', () => {
+    // '똠양꿍 인형'·'햏 키링'(CP949). Node의 euc-kr 디코더는 0x8C63·0xC164를 C1 제어문자·U+FFFD로 바꾼다.
+    for (const name of [[0x8c, 0x63, 0xbe, 0xe7, 0xb2, 0xe1, 0x20, 0xc0, 0xce, 0xc7, 0xfc], [0xc1, 0x64, 0x20, 0xc5, 0xb0, 0xb8, 0xb5]])
+      expect(() => decodeSabangnetText(Buffer.from([0xbb, 0xf3, 0xc7, 0xb0, 0xb8, 0xed, 0x0a, ...name])))
+        .toThrow("엑셀에서 'CSV UTF-8(쉼표로 분리)'로 저장하거나 XLSX로 올려 주세요.");
+  });
+
+  it('셀 전체를 감싼 큰따옴표만 인용으로 읽고, 닫히지 않은 따옴표는 원문 그대로 두고 그 행에 경고한다', () => {
+    const rows = parseSabangnetCsv('상품명,자체상품코드,판매가\n"곰돌이 키링,A1,12000\n토끼 키링,A2,9000\n고양이 키링,A3,8000\n');
+    expect(rows.map((row) => row.cells)).toEqual([
+      ['상품명', '자체상품코드', '판매가'],
+      ['"곰돌이 키링', 'A1', '12000'],
+      ['토끼 키링', 'A2', '9000'],
+      ['고양이 키링', 'A3', '8000'],
+    ]);
+    expect(rows[1].warnings).toEqual([expect.stringContaining('닫는 큰따옴표가 없는 셀')]);
+    expect(rows.filter((row) => row.warnings)).toHaveLength(1);
+    expect(parseSabangnetCsv('상품명,판매가\n"한정판" 키링,9000\n').map((row) => row.cells))
+      .toEqual([['상품명', '판매가'], ['"한정판" 키링', '9000']]);
+    // 상세 HTML처럼 긴 인용 셀도 한 셀로 읽는다.
+    const long = `<p>${'설명 '.repeat(8000)}</p>`;
+    expect(parseSabangnetCsv(`상품명,상품상세설명\n키링,"${long.replace(/"/g, '""')}"\n`)[1]).toEqual({ row: 2, cells: ['키링', long] });
+    const { rows: converted, warnings } = convertSabangnetRows({
+      headers: rows[0].cells, rows: rows.slice(1), targets: suggestSabangnetTargets(rows[0].cells).targets, ipId: 'maple',
+    });
+    expect(converted.map((row) => row.values.name)).toEqual(['"곰돌이 키링', '토끼 키링', '고양이 키링']);
+    expect(warnings.get(2)).toEqual([expect.stringContaining('닫는 큰따옴표가 없는 셀')]);
+  });
 });
 
 describe('사방넷 행 → ICONS 일괄 등록 행 변환', () => {

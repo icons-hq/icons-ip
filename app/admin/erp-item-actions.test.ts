@@ -93,7 +93,7 @@ describe('ERP 품목 파일 읽기', () => {
 
   it('글자로 읽을 수 없는 텍스트 파일은 CSV UTF-8로 다시 저장하라고 안내한다', async () => {
     expect(await readErpItemFileAction(fileForm('items.txt', new Uint8Array([0x41, ...Array.from({ length: 40 }, () => 0xff)])))).toEqual({
-      ok: false, error: '파일의 글자를 읽지 못했습니다. 엑셀에서 CSV UTF-8(쉼표로 분리)로 저장해 다시 올려주세요.',
+      ok: false, error: "파일의 글자를 읽지 못했습니다. 엑셀에서 'CSV UTF-8(쉼표로 분리)'로 저장하거나 XLSX로 올려 주세요.",
     });
   });
 

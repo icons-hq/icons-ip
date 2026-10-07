@@ -67,9 +67,9 @@ describe('붙여넣기·CSV 표 읽기', () => {
 
   it('글자로 읽을 수 없는 파일은 CSV UTF-8로 다시 저장하라고 안내한다', () => {
     expect(() => decodeErpTextBytes(new Uint8Array([0x00, 0x00, 0x41, 0x00, 0x00, 0x00, 0x42, 0x00, 0x00, 0x00])))
-      .toThrow('엑셀에서 CSV UTF-8(쉼표로 분리)로 저장해 다시 올려주세요.');
+      .toThrow("엑셀에서 'CSV UTF-8(쉼표로 분리)'로 저장하거나 XLSX로 올려 주세요.");
     expect(() => decodeErpTextBytes(new Uint8Array([0x41, ...Array.from({ length: 40 }, () => 0xff)])))
-      .toThrow('엑셀에서 CSV UTF-8(쉼표로 분리)로 저장해 다시 올려주세요.');
+      .toThrow("엑셀에서 'CSV UTF-8(쉼표로 분리)'로 저장하거나 XLSX로 올려 주세요.");
   });
 
   it('열 수와 셀 길이를 묶는다', () => {

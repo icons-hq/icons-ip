@@ -19,6 +19,7 @@ import {
   decodeSabangnetText,
   detectSabangnetHeaderRow,
   parseSabangnetCsv,
+  SABANGNET_COLUMN_LIMIT,
   SABANGNET_HEADER_SCAN_ROWS,
   type SabangnetSheetRow,
 } from './sabangnet-goods-format';
@@ -385,57 +386,77 @@ export type SabangnetGoodsSheet = {
   rows: SabangnetSheetRow[];
 };
 const SABANGNET_READ_ROWS = GOODS_WORKBOOK_ROW_LIMIT + SABANGNET_HEADER_SCAN_ROWS + 1;
+const TOO_MANY_SABANGNET_ROWS = `사방넷 상품은 파일당 ${GOODS_WORKBOOK_ROW_LIMIT}개까지 올릴 수 있습니다. 파일을 나누어 올려 주세요.`;
+const TOO_MANY_SABANGNET_COLUMNS = `사방넷 상품 파일의 열이 ${SABANGNET_COLUMN_LIMIT}개를 넘습니다. 쓰지 않는 열을 지운 뒤 다시 올려 주세요.`;
+/** Columns up to the header row's last named column; more than the limit is refused rather than cut silently. */
+function sabangnetHeaderWidth(cells: readonly string[]) {
+  let width = cells.length;
+  while (width && !cells[width - 1]?.trim()) width -= 1;
+  if (width > SABANGNET_COLUMN_LIMIT) throw new Error(TOO_MANY_SABANGNET_COLUMNS);
+  return width;
+}
+/**
+ * Reads only the cells that hold values, up to `width` columns. A style-only cell far to the right
+ * (e.g. XFD) makes sheet.columnCount 16,384; reading every row to that width ran out of memory.
+ */
+function readSabangnetRow(row: ExcelJS.Row, number: number, width: number): SabangnetSheetRow {
+  const cells: string[] = [];
+  const errors: Record<number, string> = {};
+  row.eachCell({ includeEmpty: false }, (excelCell, column) => {
+    if (column > width) return;
+    const cell = sabangnetCell(excelCell);
+    cells[column - 1] = cell.value;
+    if (cell.error) errors[column - 1] = cell.error;
+  });
+  return { row: number, cells: Array.from(cells, (value) => value ?? ''), ...(Object.keys(errors).length ? { errors } : {}) };
+}
 /** Reads a Sabangnet download (.xlsx or .csv) without trusting the file name: the bytes decide the format. */
 export async function readSabangnetGoodsSheet(bytes: Buffer): Promise<SabangnetGoodsSheet> {
   if (!bytes.length || bytes.length > GOODS_WORKBOOK_BYTES_LIMIT)
     throw new Error('사방넷 상품 파일은 2MB 이하로 올려 주세요. 파일을 나누어 올릴 수 있습니다.');
   if (bytes.subarray(0, 8).equals(Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1])))
     throw new Error('XLS(Excel 97-2003) 파일은 읽을 수 없습니다. 엑셀에서 “Excel 통합 문서(.xlsx)”로 저장해 다시 올려 주세요.');
-  let rows: SabangnetSheetRow[];
+  let rows: SabangnetSheetRow[] = [];
+  let index: number | null = null;
   if (bytes.subarray(0, 4).equals(Buffer.from([0x50, 0x4b, 0x03, 0x04]))) {
     const workbook = await loadSafeWorkbook(bytes, { fileBytes: GOODS_WORKBOOK_BYTES_LIMIT });
     const sheets = workbook.worksheets.filter((sheet) => sheet.state !== 'hidden' && sheet.state !== 'veryHidden');
-    rows = [];
-    const readRow = (sheet: ExcelJS.Worksheet, row: ExcelJS.Row, number: number): SabangnetSheetRow => {
-      const cells: string[] = [];
-      const errors: Record<number, string> = {};
-      for (let column = 1; column <= sheet.columnCount; column++) {
-        const cell = sabangnetCell(row.getCell(column));
-        cells.push(cell.value);
-        if (cell.error) errors[column - 1] = cell.error;
-      }
-      return { row: number, cells, ...(Object.keys(errors).length ? { errors } : {}) };
-    };
     // 안내·코드표 시트가 앞에 있어도 열 이름 행이 있는 첫 시트를 읽는다.
     for (const sheet of sheets) {
-      const head = Array.from({ length: SABANGNET_HEADER_SCAN_ROWS }, (_, index) =>
-        readRow(sheet, sheet.getRow(index + 1), index + 1));
-      if (detectSabangnetHeaderRow(head) === null) continue;
-      if (sheet.actualRowCount > SABANGNET_READ_ROWS)
-        throw new Error(`사방넷 상품은 파일당 ${GOODS_WORKBOOK_ROW_LIMIT}개까지 올릴 수 있습니다. 파일을 나누어 올려 주세요.`);
-      sheet.eachRow((row, number) => {
-        rows.push(readRow(sheet, row, number));
+      const head = Array.from({ length: SABANGNET_HEADER_SCAN_ROWS }, (_, offset) =>
+        readSabangnetRow(sheet.getRow(offset + 1), offset + 1, SABANGNET_COLUMN_LIMIT));
+      const headIndex = detectSabangnetHeaderRow(head);
+      if (headIndex === null) continue;
+      if (sheet.actualRowCount > SABANGNET_READ_ROWS) throw new Error(TOO_MANY_SABANGNET_ROWS);
+      let named = false;
+      sheet.getRow(head[headIndex].row).eachCell({ includeEmpty: false }, (cell, column) => {
+        if (column > SABANGNET_COLUMN_LIMIT && cell.text.trim()) named = true;
       });
+      if (named) throw new Error(TOO_MANY_SABANGNET_COLUMNS);
+      const width = sabangnetHeaderWidth(head[headIndex].cells);
+      sheet.eachRow((row, number) => {
+        rows.push(readSabangnetRow(row, number, width));
+      });
+      index = rows.findIndex((row) => row.row === head[headIndex].row);
       break;
     }
   } else {
     const text = decodeSabangnetText(bytes);
     if (/^\s*</.test(text) && /<(table|html)[\s>]/i.test(text.slice(0, 4096)))
       throw new Error('웹 페이지 형식으로 저장된 파일입니다. 엑셀에서 열어 “Excel 통합 문서(.xlsx)”로 저장해 다시 올려 주세요.');
-    if (text.includes('\u0000'))
-      throw new Error('사방넷에서 내려받은 .xlsx 또는 .csv 파일을 올려 주세요.');
     rows = parseSabangnetCsv(text);
-    if (rows.length > SABANGNET_READ_ROWS)
-      throw new Error(`사방넷 상품은 파일당 ${GOODS_WORKBOOK_ROW_LIMIT}개까지 올릴 수 있습니다. 파일을 나누어 올려 주세요.`);
+    if (rows.length > SABANGNET_READ_ROWS) throw new Error(TOO_MANY_SABANGNET_ROWS);
+    index = detectSabangnetHeaderRow(rows);
   }
-  const index = detectSabangnetHeaderRow(rows);
-  if (index === null)
+  if (index === null || index < 0)
     throw new Error('사방넷 상품 양식의 열 이름(상품명·판매가 등)을 찾지 못했습니다. 첫 10행 안에 열 이름 행이 있는지 확인해 주세요.');
-  const headers = rows[index].cells.map((cell) => cell.trim());
-  while (headers.length && !headers[headers.length - 1]) headers.pop();
-  const data = rows.slice(index + 1).filter((row) => row.cells.some((cell) => cell.trim()) || row.errors);
-  if (data.length > GOODS_WORKBOOK_ROW_LIMIT)
-    throw new Error(`사방넷 상품은 파일당 ${GOODS_WORKBOOK_ROW_LIMIT}개까지 올릴 수 있습니다. 파일을 나누어 올려 주세요.`);
+  const width = sabangnetHeaderWidth(rows[index].cells);
+  const headers = rows[index].cells.slice(0, width).map((cell) => cell.trim());
+  const data = rows
+    .slice(index + 1)
+    .map((row) => (row.cells.length > width ? { ...row, cells: row.cells.slice(0, width) } : row))
+    .filter((row) => row.cells.some((cell) => cell.trim()) || row.errors);
+  if (data.length > GOODS_WORKBOOK_ROW_LIMIT) throw new Error(TOO_MANY_SABANGNET_ROWS);
   return { headerRow: rows[index].row, headers, rows: data };
 }
 /** Sabangnet exports carry numeric codes and dates as typed cells; formulas and cell errors stay rejected. */

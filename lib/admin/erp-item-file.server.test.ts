@@ -63,6 +63,16 @@ describe('ERP 품목 XLSX 읽기', () => {
     expect(buildErpImportPlan(read.table).rows).toEqual([{ row: 2, code: '000123', name: '아크릴 키링' }]);
   });
 
+  it('CP949 확장 한글이 든 CSV는 깨진 품명을 반입하지 않고 UTF-8 CSV·XLSX로 저장하라고 안내한다', async () => {
+    // '품번,품명\n000123,똠양꿍 인형\n000124,햏 키링'(CP949)
+    const bytes = Buffer.from([
+      0xc7, 0xb0, 0xb9, 0xf8, 0x2c, 0xc7, 0xb0, 0xb8, 0xed, 0x0a,
+      0x30, 0x30, 0x30, 0x31, 0x32, 0x33, 0x2c, 0x8c, 0x63, 0xbe, 0xe7, 0xb2, 0xe1, 0x20, 0xc0, 0xce, 0xc7, 0xfc, 0x0a,
+      0x30, 0x30, 0x30, 0x31, 0x32, 0x34, 0x2c, 0xc1, 0x64, 0x20, 0xc5, 0xb0, 0xb8, 0xb5, 0x0a,
+    ]);
+    await expect(readErpItemFile('품목.csv', bytes)).rejects.toThrow("엑셀에서 'CSV UTF-8(쉼표로 분리)'로 저장하거나 XLSX로 올려 주세요.");
+  });
+
   it('CSV의 닫히지 않은 큰따옴표를 원문 그대로 읽고 경고를 넘긴다', async () => {
     const read = await readErpItemFile('a.csv', Buffer.from('품번,품명\nA1,"곰돌이 키링\nA2,토끼\n'));
     expect(read.table).toEqual([['품번', '품명'], ['A1', '"곰돌이 키링'], ['A2', '토끼']]);
