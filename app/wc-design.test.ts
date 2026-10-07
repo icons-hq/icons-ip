@@ -257,6 +257,61 @@ describe('White Catalog catalog wiring', () => {
     expect(css).toMatch(/\.wc-goods-description img \+ img\s*\{\s*margin-top:\s*0;/);
   });
 
+  it('이미지마다 p·div로 감싼 상세 이미지도 이음매 여백만 지우고 글자 문단 간격은 남긴다', () => {
+    /* 2026-10-07 4차 리뷰: 판매처 공통 상세 HTML은 `<p><img></p><p><img></p>`나 `<div align=center><img></div>…`처럼
+     * 이미지를 하나씩 감싼다. 형제 img 규칙만으로는 p 여백 18px·img 여백 12px 틈이 남았다.
+     * :only-child는 글자 노드를 세지 않으므로 래퍼 여백 전체가 아니라 이미지↔이미지 이음매만 지워야
+     * 글자 문단과 이미지 사이 간격(12~18px)이 그대로 남는다. */
+    const css = read('./styles/wc-catalog.css');
+    const subjectOf = (selector: string) => {
+      let depth = 0;
+      let start = 0;
+      for (let index = 0; index < selector.length; index++) {
+        const char = selector[index];
+        if (char === '(') depth++;
+        else if (char === ')') depth--;
+        else if (depth === 0 && /[\s>+~]/.test(char)) start = index + 1;
+      }
+      return selector.slice(start);
+    };
+    const zeroed = { top: new Set<string>(), bottom: new Set<string>() };
+    postcss.parse(css).walkRules((rule) => {
+      const scoped = rule.selectors.filter((selector) => selector.includes('.wc-goods-description'));
+      if (!scoped.length) return;
+      rule.walkDecls((decl) => {
+        const sides = decl.prop === 'margin' || decl.prop === 'margin-block'
+          ? (decl.value.trim() === '0' ? ['top', 'bottom'] as const : [])
+          : decl.prop === 'margin-top' && decl.value.trim() === '0' ? ['top'] as const
+            : decl.prop === 'margin-bottom' && decl.value.trim() === '0' ? ['bottom'] as const : [];
+        for (const side of sides) for (const selector of scoped) zeroed[side].add(selector.trim());
+      });
+    });
+
+    const root = '.wc-root .wc-goods-description';
+    const wrapper = ':is(p, div):has(> img:only-child)';
+    const followedByImage = ':has(+ img, + :is(p, div) > img:only-child)';
+    expect([...zeroed.bottom]).toEqual(expect.arrayContaining([
+      `${root} img:has(+ :is(p, div) > img:only-child)`,
+      `${root} ${wrapper}${followedByImage}`,
+      `${root} ${wrapper}${followedByImage} > img`,
+    ]));
+    expect([...zeroed.top]).toEqual(expect.arrayContaining([
+      `${root} ${wrapper} + img`,
+      `${root} :is(img, ${wrapper}) + :is(p, div) > img:only-child`,
+    ]));
+
+    /* 여백을 지우는 규칙의 주체는 이미지, 컨테이너 가장자리, 또는 "이미지 하나만 담고 다음 이미지가 이어지는" 래퍼뿐이다. */
+    for (const selector of [...zeroed.top, ...zeroed.bottom]) {
+      const subject = subjectOf(selector);
+      if (/^img\b/.test(subject) || /^:(?:first|last)-child$/.test(subject)) continue;
+      expect(subject, selector).toMatch(/^(?::is\(p, div\)|(?:p|div)\b)/);
+      expect(subject, selector).toContain(':has(> img:only-child)');
+      expect(subject, selector).toContain(':has(+ img, + :is(p, div) > img:only-child)');
+    }
+    /* 글자 문단의 기본 간격은 그대로다. */
+    expect(css).toMatch(/\.wc-root \.wc-goods-description :is\(p, ul, ol, blockquote, figure, table\) \{ margin: 0 0 18px; \}/);
+  });
+
   it('moves small accent text to the success ink while decoration keeps brand green', () => {
     /* S4 확정: brand-green은 흰 지면에서 2.3:1이라 소형 텍스트에 쓰면 AA를 못 넘는다.
      * 텍스트(배지·할인율·GNB 활성·추천 칩)만 --wc-success로 내리고,
