@@ -3,6 +3,9 @@ import { lookup } from 'node:dns/promises';
 import { request } from 'node:https';
 import ipaddr from 'ipaddr.js';
 import { ADMIN_ARTWORK_MAX_BYTES, type AdminArtworkMimeType } from './artwork';
+import { normalizeRemoteImageUrl } from './remote-image-url';
+
+export { normalizeRemoteImageUrl };
 
 /*
  * 운영자가 엑셀에 적은 외부 이미지 주소를 서버가 직접 내려받는 유일한 경로다.
@@ -69,32 +72,6 @@ export function sniffImageMime(bytes: Uint8Array): AdminArtworkMimeType | null {
   )
     return 'image/webp';
   return null;
-}
-
-/** Returns the https URL that will be requested, or null when the reference cannot be fetched safely. */
-export function normalizeRemoteImageUrl(source: string): URL | null {
-  const text = source.trim();
-  if (!text || /[\u0000- \u007f\\]/.test(text)) return null;
-  let url: URL;
-  try {
-    url = new URL(text.startsWith('//') ? `https:${text}` : text);
-  } catch {
-    return null;
-  }
-  if (url.protocol === 'http:') {
-    if (url.port && url.port !== '80') return null;
-    url.protocol = 'https:';
-    url.port = '';
-  }
-  if (
-    url.protocol !== 'https:' ||
-    !url.hostname ||
-    url.username ||
-    url.password ||
-    (url.port && url.port !== '443')
-  )
-    return null;
-  return url;
 }
 
 function remaining(deadline: number) {
