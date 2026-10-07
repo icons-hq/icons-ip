@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { isValidElement, type ReactElement, type ReactNode } from 'react';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { ErpImportIssue } from '@/lib/admin/erp-item-import';
@@ -170,12 +171,12 @@ describe('ERP 품목 반입 패널', () => {
 
   it('파일은 서버에서 읽은 표와 경고를 미리보기에 넘기고, 읽기 오류는 그대로 안내한다', async () => {
     hooks.readFile
-      .mockResolvedValueOnce({ ok: false, error: 'XLSX 또는 CSV 파일을 올려주세요.' })
+      .mockResolvedValueOnce({ ok: false, error: '시트에서 표를 찾지 못했습니다.' })
       .mockResolvedValueOnce({ ok: true, fileName: '품목.xlsx', sheetName: '품목', numericColumns: [0], warnings: ['수식 셀 1개(E5)는 값을 읽지 않았습니다.'], table: [['품목코드', '품목명'], ['123', '키링']] });
     const fileInput = () => find(render(), (element) => element.props.type === 'file')[0];
-    fileInput().props.onChange?.({ target: { files: [new File(['x'], 'a.pdf')] } });
+    fileInput().props.onChange?.({ target: { files: [new File(['x'], '빈 시트.xlsx')] } });
     await settle();
-    expect(text(render())).toContain('XLSX 또는 CSV 파일을 올려주세요.');
+    expect(text(render())).toContain('시트에서 표를 찾지 못했습니다.');
     fileInput().props.onChange?.({ target: { files: [new File(['x'], '품목.xlsx')] } });
     await settle();
     const tree = render();
@@ -183,6 +184,56 @@ describe('ERP 품목 반입 패널', () => {
     expect(text(tree)).toContain('미리보기 · 품목.xlsx · 품목 시트');
     expect(text(tree)).toContain('수식 셀 1개(E5)는 값을 읽지 않았습니다.');
     expect(text(tree)).toContain('ERP 코드(품번) 열에 숫자 형식 셀이 있습니다');
-    expect(text(tree)).not.toContain('XLSX 또는 CSV 파일을 올려주세요.');
+    expect(text(tree)).not.toContain('시트에서 표를 찾지 못했습니다.');
+  });
+
+  /* 2026-10-07 3차 리뷰: 1MB를 넘는 파일은 서버 액션 본문 상한에 먼저 걸려 900KB 안내 대신 전역 오류 화면으로 넘어갔다. */
+  describe('파일을 보내기 전 확인과 요청 실패', () => {
+    const fileInput = () => find(render(), (element) => element.props.type === 'file')[0];
+
+    it.each([
+      ['900KB를 넘는 파일', new File([new Uint8Array(900 * 1024 + 1)], '품목 전체.csv'), '파일은 900KB 이하로 올려주세요. 크면 필요한 열만 남겨 저장하거나 표를 복사해 붙여넣어 주세요.'],
+      ['XLS 파일', new File(['x'], '품목.xls'), 'XLS 파일은 엑셀에서 XLSX로 다시 저장하거나, 표를 복사해 붙여넣어 주세요.'],
+      ['XLSX·CSV가 아닌 파일', new File(['x'], '품목.pdf'), 'XLSX 또는 CSV 파일을 올려주세요.'],
+      ['빈 파일', new File([], '품목.csv'), '반입할 파일을 선택해주세요.'],
+    ])('%s은 서버로 보내지 않고 서버와 같은 문구로 안내한다', async (_label, file, copy) => {
+      fileInput().props.onChange?.({ target: { files: [file] } });
+      await settle();
+      expect(hooks.readFile).not.toHaveBeenCalled();
+      expect(text(render())).toContain(copy);
+      /* 화면 안내와 서버 액션의 문구가 갈라지지 않게 한다. */
+      expect(readFileSync(new URL('../../app/admin/erp-item-actions.ts', import.meta.url), 'utf8')).toContain(copy);
+    });
+
+    it('900KB 이하 파일은 서버로 보낸다', async () => {
+      hooks.readFile.mockResolvedValueOnce({ ok: false, error: '시트에서 표를 찾지 못했습니다.' });
+      fileInput().props.onChange?.({ target: { files: [new File([new Uint8Array(900 * 1024)], '품목.CSV')] } });
+      await settle();
+      expect(hooks.readFile).toHaveBeenCalledOnce();
+    });
+
+    it('파일 읽기 요청이 거부되면 전역 오류 화면 대신 패널에 안내한다', async () => {
+      hooks.readFile.mockRejectedValueOnce(new Error('Body exceeded 1 MB limit'));
+      fileInput().props.onChange?.({ target: { files: [new File(['x'], '품목.xlsx')] } });
+      await expect(settle()).resolves.toBeUndefined();
+      const tree = render();
+      expect(text(tree)).toContain('파일을 보내지 못했습니다. 900KB 이하의 XLSX·CSV 파일인지 확인한 뒤 다시 올려주세요.');
+      expect(text(tree)).not.toContain('Body exceeded');
+    });
+
+    it('반입 요청이 중간에 거부되면 반영된 건수와 다시 반입 안내를 보여 준다', async () => {
+      hooks.importRows
+        .mockResolvedValueOnce({ ok: true, inserted: 500, updated: 0, unchanged: 0, rejected: [] })
+        .mockRejectedValueOnce(new Error('network'));
+      find(render(), (element) => element.props.id === 'erp-item-paste')[0].props.onChange?.({ target: { value: PASTED } });
+      button(render(), '붙여넣은 표 확인').props.onClick?.();
+      button(render(), '601건 반입').props.onClick?.();
+      await expect(settle()).resolves.toBeUndefined();
+      const tree = render();
+      expect(text(tree)).toContain('500건까지 반입했습니다. ERP 품목 반입 요청이 끊겼습니다. 같은 내용으로 다시 반입하면 이어서 반영됩니다.');
+      expect(text(tree)).toContain('추가 500');
+      expect(text(tree)).not.toContain('반입 중 ·');
+      expect(hooks.refresh).toHaveBeenCalledOnce();
+    });
   });
 });

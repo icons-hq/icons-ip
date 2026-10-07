@@ -2,11 +2,12 @@
 
 import { useMemo, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
-import { importErpItemsAction, readErpItemFileAction } from '@/app/admin/erp-item-actions';
+import { importErpItemsAction, readErpItemFileAction, type ErpItemFileResult, type ErpItemImportResult } from '@/app/admin/erp-item-actions';
 import { AdminSectionCard, AdminStatusBadge } from '@/components/admin/console/AdminKit';
 import {
   ERP_COLUMN_TARGETS,
   ERP_COLUMN_TARGET_LABELS,
+  ERP_ITEM_FILE_BYTES_LIMIT,
   ERP_ITEM_HEADER_SCAN_ROWS,
   ERP_ITEM_IMPORT_ROW_LIMIT,
   ERP_ITEM_PASTE_CHAR_LIMIT,
@@ -34,6 +35,21 @@ type ErpImportSource = {
 type ErpImportSummary = { inserted: number; updated: number; unchanged: number; rejected: ErpImportIssue[] };
 
 const ISSUE_LIST_LIMIT = 100;
+const FILE_KB = ERP_ITEM_FILE_BYTES_LIMIT / 1024;
+const FILE_REQUEST_FAILED = `파일을 보내지 못했습니다. ${FILE_KB}KB 이하의 XLSX·CSV 파일인지 확인한 뒤 다시 올려주세요. 계속 안 되면 표를 복사해 붙여넣어 주세요.`;
+const IMPORT_REQUEST_FAILED = 'ERP 품목 반입 요청이 끊겼습니다. 같은 내용으로 다시 반입하면 이어서 반영됩니다.';
+
+/**
+ * 파일을 서버로 보내기 전 확인. 서버 액션 요청 본문은 1MB에서 액션 실행 전에 끊기므로,
+ * 크기·형식은 여기서 readErpItemFileAction과 같은 순서·문구로 먼저 막는다(서버도 다시 확인한다).
+ */
+export function erpItemFileError(file: Pick<File, 'name' | 'size'>): string | null {
+  if (file.size === 0) return '반입할 파일을 선택해주세요.';
+  if (/\.xls$/i.test(file.name)) return 'XLS 파일은 엑셀에서 XLSX로 다시 저장하거나, 표를 복사해 붙여넣어 주세요.';
+  if (!/\.(xlsx|csv|tsv|txt)$/i.test(file.name)) return 'XLSX 또는 CSV 파일을 올려주세요.';
+  if (file.size > ERP_ITEM_FILE_BYTES_LIMIT) return `파일은 ${FILE_KB}KB 이하로 올려주세요. 크면 필요한 열만 남겨 저장하거나 표를 복사해 붙여넣어 주세요.`;
+  return null;
+}
 
 function keptValue(row: ErpImportRow, key: 'category' | 'salePrice' | 'barcode') {
   if (!Object.hasOwn(row, key)) return <span className="admin-erp-items__muted">기존 값 유지</span>;
@@ -97,13 +113,20 @@ export function ErpItemImportPanel() {
     begin({ label: '붙여넣은 표', table: boundErpTable(parsed.rows), numericColumns: [], warnings: parsed.warnings });
   };
 
+  /* 안내 뒤 같은 파일을 고쳐 다시 고를 수 있게 선택을 비운다(같은 파일은 change가 다시 나지 않는다). */
+  const clearFile = () => { if (fileInput.current) fileInput.current.value = ''; };
+
   const readFile = (file: File) => {
+    const invalid = erpItemFileError(file);
+    if (invalid) { setError(invalid); clearFile(); return; }
     setError('');
     startReading(async () => {
       const form = new FormData();
       form.set('file', file);
-      const result = await readErpItemFileAction(form);
-      if (!result.ok) { setError(result.error); return; }
+      /* 요청 거부(본문 상한·연결 끊김)가 transition 밖으로 나가면 전역 오류 화면이 어드민을 덮는다. */
+      let result: ErpItemFileResult;
+      try { result = await readErpItemFileAction(form); } catch { result = { ok: false, error: FILE_REQUEST_FAILED }; }
+      if (!result.ok) { setError(result.error); clearFile(); return; }
       begin({
         label: result.sheetName ? `${result.fileName} · ${result.sheetName} 시트` : result.fileName,
         table: result.table,
@@ -137,7 +160,8 @@ export function ErpItemImportPanel() {
       const merged: ErpImportSummary = { inserted: 0, updated: 0, unchanged: 0, rejected: previewIssues };
       let done = 0;
       for (const chunk of chunks) {
-        const result = await importErpItemsAction(chunk);
+        let result: ErpItemImportResult;
+        try { result = await importErpItemsAction(chunk); } catch { result = { ok: false, error: IMPORT_REQUEST_FAILED }; }
         if (!result.ok) {
           setError(done
             ? `${done.toLocaleString('ko-KR')}건까지 반입했습니다. ${result.error}`
@@ -195,7 +219,7 @@ export function ErpItemImportPanel() {
           accept=".xlsx,.csv,.tsv,.txt,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,text/plain"
           onChange={(event) => { const file = event.target.files?.[0]; if (file) readFile(file); }}
         />
-        <p className="wc-admin-kit__hint" id="erp-item-file-hint">XLSX·CSV 900KB 이하. 제목 행이 있어도 처음 10행 안에서 머리글을 찾습니다. XLS는 XLSX로 다시 저장해 올려주세요.</p>
+        <p className="wc-admin-kit__hint" id="erp-item-file-hint">XLSX·CSV {FILE_KB}KB 이하. 제목 행이 있어도 처음 10행 안에서 머리글을 찾습니다. XLS는 XLSX로 다시 저장해 올려주세요.</p>
         {reading ? <p className="wc-admin-kit__hint" role="status">파일을 읽는 중입니다.</p> : null}
       </div>
     </div>
