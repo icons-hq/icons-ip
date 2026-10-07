@@ -92,6 +92,25 @@ describe('상품 옵션 ERP 식별자 입력', () => {
     for (const legacy of ['기준 판매가', '추가금액', '옵션 판매가', '할당 재고', '조합 생성']) expect(html).not.toContain(legacy);
   });
 
+  /* 2026-10-07 QA: 관리코드 칸 예시가 행 순서 번호라, 교체된 기본 옵션이 쓰는 -01과 겹쳐 저장값과 달랐다. */
+  it('빈 관리코드 칸은 저장 시 붙을 코드를 보이고, 예상할 수 없으면 저장 시 자동 생성만 보인다', () => {
+    const rows = [
+      { name: '빨강', code: '', attributes: { 색상: '빨강' }, extraPrice: 0, stockQty: 0 },
+      { name: '파랑', code: '', attributes: { 색상: '파랑' }, extraPrice: 0, stockQty: 0 },
+    ];
+    const placeholders = (html: string) => [...html.matchAll(/aria-label="옵션 \d+ 관리코드"[^>]*placeholder="([^"]*)"/g)].map((match) => match[1]);
+    const predicted = renderToStaticMarkup(<GoodsOptionEditor onRowsChange={() => {}} rows={rows} baseline={[savedA]} basePrice={10000}
+      codePrefix="RIL-0001" savedCodes={{ goodCode: 'RIL-0001', options: [{ id: savedA, code: 'RIL-0001-01' }] }} />);
+    expect(placeholders(predicted)).toEqual(['RIL-0001-02', 'RIL-0001-03']);
+    const unknown = renderToStaticMarkup(<GoodsOptionEditor onRowsChange={() => {}} rows={rows} baseline={[savedA]} basePrice={10000} codePrefix="RIL-0001" />);
+    expect(placeholders(unknown)).toEqual(['저장 시 자동 생성', '저장 시 자동 생성']);
+    const single = renderToStaticMarkup(<GoodsOptionEditor onRowsChange={() => {}} rows={[{ name: '기본 옵션', code: '', attributes: {}, extraPrice: 0, stockQty: 0 }]}
+      baseline={[]} basePrice={10000} codePrefix="RIL-0002" savedCodes={{ goodCode: null, options: [] }} />);
+    expect(single).toMatch(/id="goods-single-code"[^>]*placeholder="RIL-0002-01"/);
+    expect(renderToStaticMarkup(<GoodsOptionEditor onRowsChange={() => {}} rows={[{ name: '기본 옵션', code: '', attributes: {}, extraPrice: 0, stockQty: 0 }]}
+      baseline={[]} basePrice={10000} codePrefix="RIL-0002" />)).toMatch(/id="goods-single-code"[^>]*placeholder="저장 시 자동 생성"/);
+  });
+
   it('옵션 입력은 기존 폼 이름을 유지하고, 적용 전 설정함 상태를 복구한다', () => {
     const html = renderToStaticMarkup(<GoodsOptionEditor onRowsChange={() => {}}
       rows={[{ name: '기본 옵션', code: '', attributes: {}, extraPrice: 0, stockQty: 0 }]}

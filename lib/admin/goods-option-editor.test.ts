@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   applyErpItemToGoodsOption, applyGoodsOptionBulkEdit, collapseGoodsOptionRows, goodsOptionCollapseNotice, generateGoodsOptionRows, goodsOptionRowKey, goodsOptionStockTotals,
   initialGoodsOptionRows, isSingleGoodsOption, parseGoodsOptionBulkEdit, parseGoodsOptionRows, removeGoodsOptionRows, restoreGoodsOptionRows,
-  selectErpItemForGoodsOption,
+  predictGoodsOptionCodes, selectErpItemForGoodsOption, type GoodsOptionRow,
 } from './goods-option-editor';
 describe('goods option editing', () => {
   it('generates two axes with additive prices while preserving an existing combination', () => {
@@ -140,5 +140,46 @@ describe('옵션목록 선택·일괄수정·재고 합계', () => {
         .toEqual({ ok: true, row: applyErpItemToGoodsOption(blue, item) });
       expect(selectErpItemForGoodsOption([red], 'missing', item)).toMatchObject({ ok: false });
     });
+  });
+});
+
+/* 2026-10-07 QA: 옵션목록 적용 직후 관리코드 칸은 RIL-0001-01/-02로 보였지만, 저장하면 교체된 기본 옵션이 -01을 이미 써서 -02/-03이 붙었다. */
+describe('관리코드 칸의 저장 시 코드 예상', () => {
+  const DEFAULT = '33333333-3333-4333-8333-333333333333';
+  const RED = '44444444-4444-4444-8444-444444444444';
+  const ARCHIVED = '55555555-5555-4555-8555-555555555555';
+  const fresh = (code = ''): GoodsOptionRow => ({ name: '새 옵션', code, attributes: {}, extraPrice: 0, stockQty: 0 });
+  const kept = (id: string, code = ''): GoodsOptionRow => ({ id, name: '저장된 옵션', code, attributes: {}, extraPrice: 0, stockQty: 0, expectedStockQty: 0 });
+
+  it('기본 옵션을 옵션목록으로 바꾸면 기본 옵션 코드(-01)를 건너뛴 다음 빈 번호를 보인다', () => {
+    const generated = generateGoodsOptionRows([{ name: '색상', values: '빨강, 파랑' }], [kept(DEFAULT, 'RIL-0001-01')]);
+    if (!generated.ok) throw new Error();
+    expect(predictGoodsOptionCodes(generated.rows, 'RIL-0001', { goodCode: 'RIL-0001', options: [{ id: DEFAULT, code: 'RIL-0001-01' }] }))
+      .toEqual(['RIL-0001-02', 'RIL-0001-03']);
+  });
+
+  it('보관된 옵션·위 옵션의 관리코드를 피하고, 저장된 옵션은 비워도 기존 코드를 유지한다', () => {
+    const saved = { goodCode: 'GOOD', options: [{ id: RED, code: 'GOOD-01' }, { id: ARCHIVED, code: 'GOOD-03' }] };
+    expect(predictGoodsOptionCodes([kept(RED), fresh(' good-02 '), fresh(), fresh()], 'GOOD', saved))
+      .toEqual(['GOOD-01', 'GOOD-02', 'GOOD-04', 'GOOD-05']);
+  });
+
+  it('저장된 옵션의 관리코드를 바꾸면 이전 코드는 아래 옵션이 받을 수 있다', () => {
+    expect(predictGoodsOptionCodes([kept(RED, 'red-x'), fresh()], 'GOOD', { goodCode: 'GOOD', options: [{ id: RED, code: 'GOOD-01' }] }))
+      .toEqual(['RED-X', 'GOOD-01']);
+  });
+
+  it('새 상품은 첫 저장에서 옵션을 다시 만들므로 -01부터 차례로 붙이고, 100번째부터는 세 자리다', () => {
+    expect(predictGoodsOptionCodes([fresh(), fresh()], ' ril-0002 ', { goodCode: null, options: [] })).toEqual(['RIL-0002-01', 'RIL-0002-02']);
+    expect(predictGoodsOptionCodes(Array.from({ length: 100 }, () => fresh()), 'X', { goodCode: null, options: [] }).at(-1)).toBe('X-100');
+  });
+
+  it('저장된 옵션 정보가 없거나, 상품코드를 이번에 바꾸거나, 모르는 옵션이 있으면 예상하지 않는다', () => {
+    const saved = { goodCode: 'GOOD', options: [{ id: RED, code: 'GOOD-01' }] };
+    expect(predictGoodsOptionCodes([fresh(), fresh()], 'GOOD', undefined)).toEqual([null, null]);
+    expect(predictGoodsOptionCodes([fresh()], 'NEW', saved)).toEqual([null]);
+    expect(predictGoodsOptionCodes([fresh()], '', { goodCode: null, options: [] })).toEqual([null]);
+    expect(predictGoodsOptionCodes([kept(DEFAULT), fresh()], 'GOOD', saved)).toEqual([null, null]);
+    expect(predictGoodsOptionCodes([kept(RED), fresh()], 'GOOD', { goodCode: null, options: [] })).toEqual([null, null]);
   });
 });
