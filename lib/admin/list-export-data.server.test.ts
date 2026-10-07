@@ -38,6 +38,7 @@ vi.mock('@/lib/supabase/server', () => ({
 
 import {
   AdminListExportAuditError,
+  AdminListExportChangedError,
   collectAdminListExportPages,
   loadAdminListExportSheet,
   recordAdminListExport,
@@ -61,17 +62,52 @@ describe('전체 페이지 모으기', () => {
     expect(loadPage).toHaveBeenCalledTimes(1);
   });
 
-  it('모든 페이지를 읽고, 경계가 밀려 겹친 건은 지우고, 늘어난 건수만큼 더 읽는다', async () => {
-    const pages: Record<number, { items: { id: string }[]; total: number }> = {
-      1: { items: [{ id: '1' }, { id: '2' }], total: 5 },
-      2: { items: [{ id: '2' }, { id: '3' }], total: 6 },
-      3: { items: [{ id: '4' }, { id: '5' }], total: 6 },
-      4: { items: [{ id: '6' }], total: 6 },
-    };
-    const loadPage = vi.fn(async (page: number) => pages[page] ?? { items: [], total: 6 });
+  it('모든 페이지를 읽어 순서대로 모은다', async () => {
+    const set = ['1', '2', '3', '4', '5'];
+    const loadPage = vi.fn(async (page: number) => ({ items: set.slice((page - 1) * 2, page * 2).map((id) => ({ id })), total: set.length }));
     const items = await collectAdminListExportPages(2, loadPage, (item) => item.id);
-    expect(items.map((item) => item.id)).toEqual(['1', '2', '3', '4', '5', '6']);
-    expect(loadPage.mock.calls.map(([page]) => page)).toEqual([1, 2, 3, 4]);
+    expect(items.map((item) => item.id)).toEqual(['1', '2', '3', '4', '5']);
+    expect(loadPage.mock.calls.map(([page]) => page)).toEqual([1, 2, 3]);
+  });
+
+  it('읽는 사이 앞 페이지 건이 조건에서 빠지면 아직 맞는 건을 빠뜨리지 않고 오류로 멈춘다', async () => {
+    let set = ['1', '2', '3', '4', '5'];
+    const loadPage = vi.fn(async (page: number) => {
+      const result = { items: set.slice((page - 1) * 2, page * 2).map((id) => ({ id })), total: set.length };
+      if (page === 1) set = set.filter((id) => id !== '1');
+      return result;
+    });
+    await expect(collectAdminListExportPages(2, loadPage, (item) => item.id)).rejects.toBeInstanceOf(AdminListExportChangedError);
+  });
+
+  it('건이 빠지고 새로 생겨 전체 건수가 같아도 경계가 밀려 겹치면 오류로 멈춘다', async () => {
+    let set = ['1', '2', '3', '4', '5'];
+    const loadPage = vi.fn(async (page: number) => {
+      const result = { items: set.slice((page - 1) * 2, page * 2).map((id) => ({ id })), total: set.length };
+      if (page === 1) set = ['0', '1', '2', '3', '5'];
+      return result;
+    });
+    await expect(collectAdminListExportPages(2, loadPage, (item) => item.id)).rejects.toBeInstanceOf(AdminListExportChangedError);
+  });
+
+  it('페이지마다 전체 건수가 다르면 오류로 멈춘다', async () => {
+    const pages: Record<number, { items: { id: string }[]; total: number }> = {
+      1: { items: [{ id: '1' }, { id: '2' }], total: 4 },
+      2: { items: [{ id: '3' }, { id: '4' }], total: 5 },
+    };
+    const loadPage = vi.fn(async (page: number) => pages[page]);
+    await expect(collectAdminListExportPages(2, loadPage, (item) => item.id)).rejects.toBeInstanceOf(AdminListExportChangedError);
+  });
+
+  it('상품 줄로 펼친 행이 상한을 넘는 순간 남은 페이지를 읽지 않고 행 기준 오류로 멈춘다', async () => {
+    const loadPage = vi.fn(async (page: number) => ({
+      items: Array.from({ length: 1000 }, (_, index) => ({ id: `${page}-${index}`, lines: 3 })),
+      total: 6000,
+    }));
+    const failure = collectAdminListExportPages(1000, loadPage, (item) => item.id, (item) => item.lines);
+    await expect(failure).rejects.toBeInstanceOf(AdminListExportLimitError);
+    await expect(failure).rejects.toMatchObject({ unit: 'rows' });
+    expect(loadPage.mock.calls.length).toBeLessThan(6);
   });
 
   it('빈 결과는 첫 페이지만 읽는다', async () => {

@@ -7,13 +7,16 @@ vi.mock('@/lib/admin/list-export-data.server', async () => {
   class AdminListExportAuditError extends Error {
     constructor() { super('다운로드 기록을 남기지 못해 파일을 만들지 않았습니다. 잠시 후 다시 내려받아 주세요.'); }
   }
-  return { AdminListExportAuditError, loadAdminListExportSheet: mocks.load, recordAdminListExport: mocks.record };
+  class AdminListExportChangedError extends Error {
+    constructor() { super('목록이 바뀌는 중이라 파일을 만들지 않았습니다. 잠시 후 다시 내려받아 주세요.'); }
+  }
+  return { AdminListExportAuditError, AdminListExportChangedError, loadAdminListExportSheet: mocks.load, recordAdminListExport: mocks.record };
 });
 vi.mock('next/navigation', () => ({ unstable_rethrow: vi.fn() }));
 
 import { GET, maxDuration, runtime } from './route';
 import { AdminListExportLimitError } from '@/lib/admin/list-export';
-import { AdminListExportAuditError } from '@/lib/admin/list-export-data.server';
+import { AdminListExportAuditError, AdminListExportChangedError } from '@/lib/admin/list-export-data.server';
 
 const sheet = { screen: 'dispatch', rows: [['a'], ['b']], recordCount: 1, filters: { tab: 'ready' } };
 
@@ -79,6 +82,22 @@ describe('목록 엑셀 다운로드 라우트', () => {
     expect(response.status).toBe(400);
     expect(response.headers.get('cache-control')).toBe('private, no-store');
     expect(await response.json()).toEqual({ error: '한 번에 내려받을 수 있는 양을 넘었습니다. 조건을 좁혀 다시 내려받아 주세요(최대 10,000건).' });
+    expect(mocks.build).not.toHaveBeenCalled();
+    expect(mocks.record).not.toHaveBeenCalled();
+  });
+
+  it('상품 줄로 펼친 행이 상한을 넘으면 행 기준 안내로 400을 준다', async () => {
+    mocks.load.mockRejectedValue(new AdminListExportLimitError(12_000, 10_000, 'rows'));
+    const response = await GET(request('screen=orders'));
+    expect(response.status).toBe(400);
+    expect((await response.json()).error).toBe('상품 한 줄을 한 행으로 펼치면 한 파일에 담을 수 있는 10,000행을 넘습니다. 기간·상태를 좁혀 나누어 받아 주세요.');
+  });
+
+  it('읽는 사이 목록이 바뀌면 파일과 기록 없이 409로 다시 받도록 안내한다', async () => {
+    mocks.load.mockRejectedValue(new AdminListExportChangedError());
+    const response = await GET(request('screen=dispatch&tab=new'));
+    expect(response.status).toBe(409);
+    expect((await response.json()).error).toBe('목록이 바뀌는 중이라 파일을 만들지 않았습니다. 잠시 후 다시 내려받아 주세요.');
     expect(mocks.build).not.toHaveBeenCalled();
     expect(mocks.record).not.toHaveBeenCalled();
   });

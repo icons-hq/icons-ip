@@ -76,55 +76,56 @@ async function mapLimited<T, R>(values: readonly T[], limit: number, task: (valu
   return results;
 }
 
+export class AdminListExportChangedError extends Error {
+  constructor() {
+    super('목록이 바뀌는 중이라 파일을 만들지 않았습니다. 잠시 후 다시 내려받아 주세요.');
+    this.name = 'AdminListExportChangedError';
+  }
+}
+
 /**
- * 페이지 로더를 상한까지 반복해 전체 결과를 모은다.
+ * 페이지 로더를 마지막 페이지까지 반복해 전체 결과를 모은다.
  *
- * 첫 페이지의 전체 건수가 상한을 넘으면 더 읽지 않고 멈춘다. 읽는 사이 새 건이 생겨
- * 페이지 경계가 밀리면 같은 건이 두 번 올 수 있어 키로 중복을 지우고, 건수가 늘었으면
- * 남은 페이지를 더 읽는다.
+ * 첫 페이지의 전체 건수가 상한을 넘으면 더 읽지 않고 멈춘다. 화면 RPC는 offset 페이지라
+ * 읽는 사이 다른 운영자의 처리로 건이 빠지거나 생기면 페이지 경계가 밀려, 아직 조건에
+ * 맞는 건이 오류 없이 빠질 수 있다. 그래서 모든 페이지의 전체 건수가 첫 페이지와 같고
+ * 중복 없이 모은 건수가 그 전체 건수와 정확히 같을 때만 결과를 돌려준다. 아니면 일부만
+ * 담긴 파일 대신 AdminListExportChangedError로 다시 받도록 안내한다.
+ *
+ * `rowCount`를 주면 상품 줄로 펼친 엑셀 행 수를 읽는 도중 누적해, 행 상한을 넘는 순간
+ * 남은 페이지를 읽지 않고 멈춘다.
  */
 export async function collectAdminListExportPages<T>(
   pageSize: number,
   loadPage: (page: number) => Promise<{ items: T[]; total: number }>,
   key: (item: T) => string,
+  rowCount?: (item: T) => number,
 ): Promise<T[]> {
   const first = await loadPage(1);
   assertAdminListExportWithinLimit(first.total);
-  let total = first.total;
-  const pages = [first.items];
-  let next = 2;
-  const plannedLast = Math.ceil(total / pageSize);
-  if (plannedLast >= next) {
-    const planned = Array.from({ length: plannedLast - 1 }, (_, index) => index + 2);
-    const loaded = await mapLimited(planned, PAGE_CONCURRENCY, loadPage);
-    for (const page of loaded) {
-      pages.push(page.items);
-      total = Math.max(total, page.total);
-    }
-    next = plannedLast + 1;
-  }
-
+  const total = first.total;
   const seen = new Set<string>();
   const unique: T[] = [];
-  const add = (items: T[]) => {
-    for (const item of items) {
+  let rows = 0;
+  const add = (page: { items: T[]; total: number }) => {
+    if (page.total !== total) throw new AdminListExportChangedError();
+    for (const item of page.items) {
       const id = key(item);
-      if (seen.has(id)) continue;
+      if (seen.has(id)) throw new AdminListExportChangedError();
       seen.add(id);
       unique.push(item);
+      if (rowCount) rows += Math.max(1, rowCount(item));
     }
+    if (rowCount) assertAdminListExportWithinLimit(rows, ADMIN_LIST_EXPORT_ROW_LIMIT, 'rows');
   };
-  pages.forEach(add);
+  add(first);
 
-  const lastPage = Math.ceil(ADMIN_LIST_EXPORT_ROW_LIMIT / pageSize) + 1;
-  while (unique.length < total && next <= lastPage) {
-    assertAdminListExportWithinLimit(total);
-    const page = await loadPage(next++);
-    if (!page.items.length) break;
-    total = Math.max(total, page.total);
-    add(page.items);
+  const lastPage = Math.ceil(total / pageSize);
+  const rest = Array.from({ length: Math.max(0, lastPage - 1) }, (_, index) => index + 2);
+  for (const batch of chunks(rest, PAGE_CONCURRENCY)) {
+    (await Promise.all(batch.map(loadPage))).forEach(add);
   }
-  assertAdminListExportWithinLimit(unique.length);
+  if (unique.length !== total) throw new AdminListExportChangedError();
   return unique;
 }
 
@@ -150,6 +151,7 @@ async function ordersSheet(params: SearchParams) {
       return { items: data.items, total: data.total };
     },
     (record) => record.id,
+    (record) => record.items.length,
   );
   const extras = await orderContacts(records.map((record) => record.id));
   const paymentMethods = new Map([...extras].map(([id, value]) => [id, value.paymentMethod]));
@@ -180,6 +182,7 @@ async function shipmentsSheet(surface: 'dispatch' | 'shipping', params: SearchPa
       return { items: data.rows, total: data.total };
     },
     (row) => row.id,
+    (row) => row.items.length,
   );
   const extras = await orderContacts(rows.map((row) => row.orderId));
   const contacts = new Map([...extras].map(([id, value]) => [id, value.contact]));
@@ -250,7 +253,7 @@ export async function loadAdminListExportSheet(
   else if (screen === 'unpaid') sheet = await unpaidSheet(params);
   else if (screen === 'dispatch' || screen === 'shipping') sheet = await shipmentsSheet(screen, params);
   else sheet = await claimsSheet(CLAIM_TYPES[screen], params, now);
-  assertAdminListExportWithinLimit(sheet.rows.length);
+  assertAdminListExportWithinLimit(sheet.rows.length, ADMIN_LIST_EXPORT_ROW_LIMIT, 'rows');
   return sheet;
 }
 

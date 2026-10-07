@@ -99,17 +99,33 @@ export function adminListExportLimitMessage(limit = ADMIN_LIST_EXPORT_ROW_LIMIT)
   return `한 번에 내려받을 수 있는 양을 넘었습니다. 조건을 좁혀 다시 내려받아 주세요(최대 ${limit.toLocaleString('ko-KR')}건).`;
 }
 
+/** 화면 건수는 상한 안이지만 상품 줄로 펼친 엑셀 행이 상한을 넘었을 때의 안내. */
+export function adminListExportRowLimitMessage(limit = ADMIN_LIST_EXPORT_ROW_LIMIT) {
+  return `상품 한 줄을 한 행으로 펼치면 한 파일에 담을 수 있는 ${limit.toLocaleString('ko-KR')}행을 넘습니다. 기간·상태를 좁혀 나누어 받아 주세요.`;
+}
+
+/** `records`는 화면 결과 건수, `rows`는 상품 줄로 펼친 엑셀 행 수가 상한을 넘은 경우다. */
+export type AdminListExportLimitUnit = 'records' | 'rows';
+
 export class AdminListExportLimitError extends Error {
-  constructor(readonly count: number, readonly limit = ADMIN_LIST_EXPORT_ROW_LIMIT) {
-    super(adminListExportLimitMessage(limit));
+  constructor(
+    readonly count: number,
+    readonly limit = ADMIN_LIST_EXPORT_ROW_LIMIT,
+    readonly unit: AdminListExportLimitUnit = 'records',
+  ) {
+    super(unit === 'rows' ? adminListExportRowLimitMessage(limit) : adminListExportLimitMessage(limit));
     this.name = 'AdminListExportLimitError';
   }
 }
 
 /** 상한을 넘으면 파일을 만들지 않는다. 일부만 자른 파일을 성공처럼 내보내지 않는다. */
-export function assertAdminListExportWithinLimit(count: number, limit = ADMIN_LIST_EXPORT_ROW_LIMIT) {
+export function assertAdminListExportWithinLimit(
+  count: number,
+  limit = ADMIN_LIST_EXPORT_ROW_LIMIT,
+  unit: AdminListExportLimitUnit = 'records',
+) {
   if (!Number.isSafeInteger(count) || count < 0 || count > limit) {
-    throw new AdminListExportLimitError(count, limit);
+    throw new AdminListExportLimitError(count, limit, unit);
   }
 }
 

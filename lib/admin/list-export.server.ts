@@ -2,6 +2,7 @@ import 'server-only';
 import ExcelJS from 'exceljs';
 import {
   ADMIN_LIST_EXPORT_PRIVACY_NOTICE,
+  ADMIN_LIST_EXPORT_ROW_LIMIT,
   ADMIN_LIST_EXPORT_SCREENS,
   assertAdminListExportWithinLimit,
   kstDateTimeText,
@@ -26,7 +27,7 @@ export async function buildAdminListExportWorkbook(
   sheet: AdminListExportSheet,
   generatedAt: Date,
 ): Promise<Buffer> {
-  assertAdminListExportWithinLimit(sheet.rows.length);
+  assertAdminListExportWithinLimit(sheet.rows.length, ADMIN_LIST_EXPORT_ROW_LIMIT, 'rows');
   const workbook = new ExcelJS.Workbook();
   workbook.creator = 'ICONS';
   workbook.created = generatedAt;

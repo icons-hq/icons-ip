@@ -81,6 +81,6 @@ describe('목록 엑셀 워크북', () => {
 
   it('상한을 넘는 행은 파일로 만들지 않는다', async () => {
     const rows = Array.from({ length: ADMIN_LIST_EXPORT_ROW_LIMIT + 1 }, () => ['x', null, null, null, 1, 1]);
-    await expect(buildAdminListExportWorkbook(sheet({ rows }), new Date())).rejects.toThrow('최대 10,000건');
+    await expect(buildAdminListExportWorkbook(sheet({ rows }), new Date())).rejects.toThrow('10,000행을 넘습니다');
   });
 });

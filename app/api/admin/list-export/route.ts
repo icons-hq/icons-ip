@@ -10,6 +10,7 @@ import {
 import { buildAdminListExportWorkbook } from '@/lib/admin/list-export.server';
 import {
   AdminListExportAuditError,
+  AdminListExportChangedError,
   loadAdminListExportSheet,
   recordAdminListExport,
 } from '@/lib/admin/list-export-data.server';
@@ -60,6 +61,7 @@ export async function GET(request: Request) {
   } catch (error) {
     unstable_rethrow(error);
     if (error instanceof AdminListExportLimitError) return errorResponse(error.message, 400);
+    if (error instanceof AdminListExportChangedError) return errorResponse(error.message, 409);
     if (error instanceof AdminListExportAuditError) return errorResponse(error.message, 500);
     return errorResponse(
       error instanceof Error && /[가-힣]/.test(error.message)
