@@ -59,7 +59,7 @@ function OptionDetailTable({ rows, single, update, erpRows, onErpChange, onErpSe
       ERP 품명을 입력해 반입된 ERP 품목을 고르면 ERP 코드·바코드를 채우고 카테고리·판매가를 제안합니다. ERP 코드·바코드는 관리코드와 따로 저장하며 선행 0을 유지합니다. 비워 두면 미설정입니다.
     </p>
     <div className="goods-option-secondary__table" role="region" aria-label="옵션 ERP 정보와 안전재고 상세" tabIndex={0}>
-      <table className="wc-admin-table goods-option-secondary-table">
+      <table className="wc-admin-table goods-option-secondary-table goods-option-detail-table">
         <caption className="sr-only">옵션별 ERP 품명·ERP 코드·바코드·안전재고 기준</caption>
         <thead><tr>
           <th scope="col">옵션</th>
@@ -184,7 +184,7 @@ function OptionList({ rows, basePrice, codePrefix, update, setRows }: {
       <button type="button" className="btn btn-ghost" disabled={!selected.size} onClick={removeSelected}>선택삭제</button>
     </div>
     {bulkMessage && <p className={bulkMessage.failed ? 'goods-option-bulk__message goods-option-bulk__message--failed' : 'goods-option-bulk__message'} role="status">{bulkMessage.text}</p>}
-    <div className="admin-option-editor__table goods-option-primary-table" role="region" aria-label="옵션목록 편집표" tabIndex={0}>
+    <div className="admin-option-editor__table goods-option-list-table" role="region" aria-label="옵션목록 편집표" tabIndex={0}>
       <table className="wc-admin-table">
         <caption className="sr-only">선택·옵션명·옵션가·재고수량·사용여부·관리코드·순서·삭제</caption>
         <thead><tr>
@@ -279,7 +279,7 @@ export function GoodsOptionEditor({
     if (next === 'off' && !single) {
       const first = rows[0];
       const removed = rows.length - 1;
-      const message = `옵션 사용을 설정안함으로 바꾸면 첫 옵션 '${first?.name ?? ''}'이 옵션값 없이 기본 옵션으로 남습니다(관리코드·재고수량·ERP 정보 유지).`
+      const message = `옵션 사용을 설정안함으로 바꾸면 첫 옵션(${first?.name ?? ''})만 옵션값 없이 기본 옵션으로 남습니다. 관리코드·재고수량·ERP 정보는 유지됩니다.`
         + (removed ? ` 나머지 옵션 ${removed}개는 옵션목록에서 빠지고, 주문·장바구니에 쓰인 옵션은 저장할 때 삭제 대신 보관됩니다.` : '')
         + ' 계속할까요?';
       if (!window.confirm(message)) return;
@@ -310,15 +310,14 @@ export function GoodsOptionEditor({
   }
 
   return <div className="col admin-option-editor wc-admin-option-artwork" style={{ gap: 16 }} data-option-mode={single ? 'single' : 'multiple'}>
-    <section className="goods-option-stock" aria-labelledby="goods-option-stock-title">
-      <h4 id="goods-option-stock-title">재고수량</h4>
-      <p id="goods-option-stock-guidance" className="wc-admin-option-artwork__hint">{STOCK_GUIDANCE}</p>
+    <section className="goods-option-stock" aria-label="재고수량">
       {singleRow ? <SingleStock row={singleRow} basePrice={basePrice} codePrefix={codePrefix} update={update} />
         : <p className="goods-option-stock__total">
           <span>옵션 재고수량 합계</span><strong>{stock.total.toLocaleString('ko-KR')}개</strong>
           {stock.active !== stock.total && <small>사용 중 옵션 {stock.active.toLocaleString('ko-KR')}개</small>}
           <small>옵션목록에서 옵션별로 입력합니다.</small>
         </p>}
+      <p id="goods-option-stock-guidance" className="wc-admin-option-artwork__hint">{STOCK_GUIDANCE}</p>
       {singleRow?.lowStockThreshold != null && singleRow.stockQty <= singleRow.lowStockThreshold && <p className="goods-option-single__warning" role="status">재고 부족 · 안전재고 기준 {singleRow.lowStockThreshold.toLocaleString('ko-KR')}개 이하</p>}
     </section>
 

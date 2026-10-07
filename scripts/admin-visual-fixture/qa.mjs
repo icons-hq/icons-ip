@@ -205,9 +205,9 @@ async function run() {
 
     await page.setViewportSize({ width: 1440, height: 900 });
     const options = await navigate(page, '/?view=options', '상품 옵션 편집 fixture');
-    const beforeRows = await page.locator('.fixture-options-screen .goods-option-primary-table tbody tr').count();
-    await page.getByRole('button', { name: '조합 생성' }).click();
-    const afterRows = await page.locator('.fixture-options-screen .goods-option-primary-table tbody tr').count();
+    const beforeRows = await page.locator('.fixture-options-screen .goods-option-list-table tbody tr').count();
+    await page.getByRole('button', { name: '옵션목록으로 적용' }).click();
+    const afterRows = await page.locator('.fixture-options-screen .goods-option-list-table tbody tr').count();
     assert(beforeRows === 2, `expected 2 initial option rows, got ${beforeRows}`);
     assert(afterRows === 9, `expected 9 generated option rows, got ${afterRows}`);
     const optionName = page.locator('input[aria-label="옵션 1 이름"]');

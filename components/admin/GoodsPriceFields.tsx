@@ -44,7 +44,7 @@ export function GoodsPriceFields({ draft, onDraftChange, result, errors, showDis
 
     {/* 설정안함이어도 입력은 지우지 않는다. 다시 켜면 이전 값을 이어 쓴다. */}
     <div className="goods-price-editor__discount" hidden={!draft.discountEnabled}>
-      <AdminField inputId="goods-discount-value" label="할인" hint="판매가에서 뺄 금액 또는 비율입니다. % 할인은 원 단위로 내립니다." error={discountError}>
+      <AdminField inputId="goods-discount-value" label="할인 금액 또는 할인율" hint="판매가에서 뺄 금액(원) 또는 비율(%)입니다. % 할인은 원 단위로 내립니다." error={discountError}>
         <span className="goods-amount-input goods-amount-input--unit">
           <input ref={discountRef} id="goods-discount-value" name="discountValue" type="number" step="any" min={0} inputMode="decimal"
             aria-describedby={`goods-discount-value-hint${discountError ? ' goods-discount-value-error' : ''}`} aria-invalid={discountError ? 'true' : undefined}
