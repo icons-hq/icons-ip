@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   applyErpItemToGoodsOption, applyGoodsOptionBulkEdit, collapseGoodsOptionRows, goodsOptionCollapseNotice, generateGoodsOptionRows, goodsOptionRowKey, goodsOptionStockTotals,
   initialGoodsOptionRows, isSingleGoodsOption, parseGoodsOptionBulkEdit, parseGoodsOptionRows, removeGoodsOptionRows, restoreGoodsOptionRows,
+  selectErpItemForGoodsOption,
 } from './goods-option-editor';
 describe('goods option editing', () => {
   it('generates two axes with additive prices while preserving an existing combination', () => {
@@ -108,5 +109,36 @@ describe('옵션목록 선택·일괄수정·재고 합계', () => {
       .toMatchObject({ erpCode: '000123', erpName: 'ERP 품명', barcode: '0880' });
     expect(applyErpItemToGoodsOption({ ...saved, barcode: '0007' }, item)).toMatchObject({ barcode: '0007' });
     expect(applyErpItemToGoodsOption({ ...saved, barcode: null }, { ...item, barcode: null })).toMatchObject({ barcode: null });
+  });
+
+  /* 2026-10-07 3차 리뷰: 같은 ERP 품목을 두 옵션에 고르면 저장이 전역 unique 위반으로만 실패했다. */
+  describe('같은 상품의 다른 옵션이 쓰는 ERP 품목 선택', () => {
+    const item = { code: '000123', name: '아크릴 키링', barcode: '0880000000123' };
+    const red = { ...saved, erpCode: null, erpName: null, barcode: null };
+    const blue = { ...fresh, erpCode: '000123', erpName: '아크릴 키링', barcode: null };
+
+    it('다른 옵션에 이미 있는 ERP 코드면 채우지 않고 그 옵션과 맞바꾸기 방법을 알린다', () => {
+      const result = selectErpItemForGoodsOption([red, blue], goodsOptionRowKey(red), { ...item, code: ' 000123 ' });
+      expect(result).toEqual({ ok: false, error: '옵션 2(파랑)에 이미 같은 ERP 코드(000123)가 있어 채우지 않았습니다. 한 ERP 품목은 옵션 하나에만 연결할 수 있습니다. 두 옵션의 ERP 품목을 맞바꾸려면 한쪽을 비우고 저장한 뒤 다시 지정해주세요.' });
+    });
+
+    it('ERP 코드는 대소문자·앞뒤 공백 없이 비교하고, 바코드는 비어 있어 채울 때만 비교한다', () => {
+      expect(selectErpItemForGoodsOption([red, { ...blue, erpCode: 'ab-1' }], goodsOptionRowKey(red), { ...item, code: 'AB-1' }))
+        .toMatchObject({ ok: false, error: expect.stringContaining('같은 ERP 코드(AB-1)') });
+      const barcodeTaken = [red, { ...blue, erpCode: '000999', barcode: '0880000000123' }];
+      expect(selectErpItemForGoodsOption(barcodeTaken, goodsOptionRowKey(red), item))
+        .toMatchObject({ ok: false, error: expect.stringContaining('옵션 2(파랑)에 이미 같은 바코드(0880000000123)가 있어') });
+      /* 자기 바코드가 있으면 ERP 품목 바코드를 쓰지 않으므로 겹치지 않는다. */
+      expect(selectErpItemForGoodsOption([{ ...red, barcode: '0007' }, barcodeTaken[1]], goodsOptionRowKey(red), item))
+        .toEqual({ ok: true, row: { ...red, barcode: '0007', erpCode: '000123', erpName: '아크릴 키링' } });
+    });
+
+    it('겹치지 않으면 고른 행만 채우고, 같은 행을 다시 골라도 자기 값과는 겹치지 않는다', () => {
+      expect(selectErpItemForGoodsOption([red, { ...blue, erpCode: '000124' }], goodsOptionRowKey(red), item))
+        .toEqual({ ok: true, row: applyErpItemToGoodsOption(red, item) });
+      expect(selectErpItemForGoodsOption([red, blue], goodsOptionRowKey(blue), item))
+        .toEqual({ ok: true, row: applyErpItemToGoodsOption(blue, item) });
+      expect(selectErpItemForGoodsOption([red], 'missing', item)).toMatchObject({ ok: false });
+    });
   });
 });

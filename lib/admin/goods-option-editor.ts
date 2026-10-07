@@ -178,3 +178,35 @@ export function applyErpItemToGoodsOption(row: GoodsOptionRow, item: Pick<ErpIte
     barcode: row.barcode?.trim() ? row.barcode : item.barcode ?? row.barcode ?? null,
   };
 }
+
+const erpIdentityKey = (value: string | null | undefined) => value?.trim().toLowerCase() ?? '';
+
+/**
+ * 옵션의 ERP 품명에서 ERP 품목을 고를 때. ERP 코드·바코드는 저장할 때 옵션 전체에서 하나뿐이어야 하므로
+ * (대소문자·앞뒤 공백 무시) 같은 상품의 다른 옵션이 이미 쓰는 값이면 채우지 않고 이유를 돌려준다.
+ * 바코드는 비어 있어 ERP 품목 값으로 채울 때만 비교한다. 다른 상품·보관된 옵션과의 충돌은 저장 오류가 알린다.
+ */
+export function selectErpItemForGoodsOption(
+  rows: readonly GoodsOptionRow[],
+  key: string,
+  item: Pick<ErpItemMatch, 'code' | 'name' | 'barcode'>,
+): { ok: true; row: GoodsOptionRow } | { ok: false; error: string } {
+  const index = rows.findIndex((row) => goodsOptionRowKey(row) === key);
+  const current = rows[index];
+  if (!current) return { ok: false, error: 'ERP 품목을 넣을 옵션을 찾지 못했습니다. 옵션목록을 확인한 뒤 다시 골라주세요.' };
+  const row = applyErpItemToGoodsOption(current, item);
+  const checks: { label: string; field: 'erpCode' | 'barcode' }[] = [
+    { label: 'ERP 코드', field: 'erpCode' },
+    ...(row.barcode !== current.barcode ? [{ label: '바코드', field: 'barcode' as const }] : []),
+  ];
+  for (const { label, field } of checks) {
+    const wanted = erpIdentityKey(row[field]);
+    if (!wanted) continue;
+    const otherIndex = rows.findIndex((other, position) => position !== index && erpIdentityKey(other[field]) === wanted);
+    if (otherIndex < 0) continue;
+    const otherName = rows[otherIndex].name.trim();
+    return { ok: false, error: `옵션 ${otherIndex + 1}${otherName ? `(${otherName})` : ''}에 이미 같은 ${label}(${row[field]?.trim()})가 있어 채우지 않았습니다. `
+      + '한 ERP 품목은 옵션 하나에만 연결할 수 있습니다. 두 옵션의 ERP 품목을 맞바꾸려면 한쪽을 비우고 저장한 뒤 다시 지정해주세요.' };
+  }
+  return { ok: true, row };
+}

@@ -4,7 +4,7 @@ import { useState, type Dispatch, type ReactNode, type SetStateAction } from 're
 import type { ErpItemMatch } from '@/lib/admin/erp-items';
 import {
   applyErpItemToGoodsOption, applyGoodsOptionBulkEdit, collapseGoodsOptionRows, generateGoodsOptionRows, goodsOptionCollapseNotice, goodsOptionRowKey,
-  goodsOptionStockTotals, isSingleGoodsOption, parseGoodsOptionBulkEdit, removeGoodsOptionRows,
+  goodsOptionStockTotals, isSingleGoodsOption, parseGoodsOptionBulkEdit, removeGoodsOptionRows, selectErpItemForGoodsOption,
   type GoodsOptionAxis, type GoodsOptionBulkInput, type GoodsOptionRow,
 } from '@/lib/admin/goods-option-editor';
 import { formatWon, planErpSalePrice, type GoodsPriceDraft } from '@/lib/admin/goods-price-editor';
@@ -34,8 +34,11 @@ type GoodsOptionEditorProps = {
   erpNotice?: ReactNode;
 };
 
-/** warning: 적용하지 못했거나, 적용했지만 결과 금액을 확인해야 하는 안내 */
-type ErpRowState = { item: ErpItemMatch; message?: string; warning?: boolean };
+/**
+ * item: 옵션에 채운 ERP 품목(판매가 적용 버튼의 근거). 다른 옵션이 쓰는 품목이라 채우지 않았으면 없다.
+ * warning: 채우거나 적용하지 못했거나, 적용했지만 결과 금액을 확인해야 하는 안내
+ */
+type ErpRowState = { item?: ErpItemMatch; message?: string; warning?: boolean };
 type OptionUsage = 'on' | 'off';
 
 const EMPTY_AXES: GoodsOptionAxis[] = [{ name: '', values: '' }, { name: '', values: '' }];
@@ -74,7 +77,7 @@ function OptionDetailTable({ rows, single, update, erpRows, onErpChange, onErpSe
         <tbody>{rows.map((row, index) => {
           const key = goodsOptionRowKey(row);
           const erp = erpRows[key];
-          const erpSalePrice = erp?.item.salePrice ?? null;
+          const erpSalePrice = erp?.item?.salePrice ?? null;
           return <tr key={key} data-variant-id={row.id ?? undefined}>
             <td>{single
               ? <input aria-label="기본 옵션명" value={row.name} maxLength={200} onChange={(event) => update(key, { name: event.target.value })} />
@@ -295,6 +298,15 @@ export function GoodsOptionEditor({
     setOptionUsage(next);
   }
   function selectErp(key: string, item: ErpItemMatch) {
+    /* 한 ERP 품목은 옵션 하나에만 연결된다. 다른 옵션이 쓰는 품목이면 채우지도, 카테고리·판매가를 제안하지도 않는다. */
+    const selection = selectErpItemForGoodsOption(rows, key, item);
+    if (!selection.ok) {
+      /* 입력 칸은 고른 품목의 품명을 먼저 넣는다(onChange). 품명과 ERP 코드가 다른 품목을 가리키지 않게 고르기 전 품명으로 되돌린다. */
+      const previous = rows.find((row) => goodsOptionRowKey(row) === key);
+      if (previous) update(key, { erpName: previous.erpName ?? null });
+      setErpRows((current) => ({ ...current, [key]: { message: selection.error, warning: true } }));
+      return;
+    }
     setRows((current) => current.map((row) => goodsOptionRowKey(row) === key ? applyErpItemToGoodsOption(row, item) : row));
     setErpRows((current) => ({ ...current, [key]: { item } }));
     onErpItemSelect?.(item);
