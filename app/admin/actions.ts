@@ -23,7 +23,7 @@ import {
   type AdminFieldErrors,
 } from '@/lib/admin/catalog';
 import { getAdminCatalogRecords } from '@/lib/admin/catalog.server';
-import { parseGoodsOptionRows } from '@/lib/admin/goods-option-editor';
+import { parseGoodsOptionRows, type GoodsOptionRow } from '@/lib/admin/goods-option-editor';
 import { withPreservedFormValues, type AdminFormValuesState } from '@/lib/admin/form-state';
 import {
   normalizeAdminHideCommentForm,
@@ -149,6 +149,27 @@ function compareAtPriceFailure(message: string): AdminCatalogActionState | null 
   return message.includes('goods_compare_at_price_invalid')
     ? rpcFailure('할인은 0원보다 크고 판매가보다 작아야 해요. 판매가와 할인을 확인해주세요.')
     : null;
+}
+
+const ERP_IDENTITY_TAKEN = {
+  erpCode: '이미 다른 옵션에 연결된 ERP 코드입니다.',
+  barcode: '이미 다른 옵션에 연결된 바코드입니다.',
+} as const;
+const ERP_IDENTITY_TAKEN_GUIDANCE = '한 ERP 품목은 옵션 하나에만 연결할 수 있습니다. 다른 상품의 옵션이 쓰고 있으면 그 옵션에서 먼저 비우고, 두 옵션의 ERP 품목을 맞바꾸려면 한쪽을 비우고 저장한 뒤 다시 지정해주세요. 입력값은 유지됩니다.';
+
+/*
+ * ERP 코드·바코드는 옵션 전체에서 대소문자 구분 없이 하나뿐이다(전역 unique). 같은 상품의 두 옵션,
+ * 다른 상품·보관된 옵션, 한 번에 맞바꾼 두 옵션이 모두 이 위반으로 끝나므로 옵션 칸에 원인을 알린다.
+ * Postgres DETAIL의 값은 lower()라 제출한 옵션에서 원래 표기와 옵션 이름을 찾는다.
+ */
+function erpIdentityTakenFailure(error: { message: string; details?: unknown }, rows: readonly GoodsOptionRow[], field: string): AdminCatalogActionState | null {
+  const column = error.message.includes('goods_variant_external_identity_erp_code_key') ? 'erpCode'
+    : error.message.includes('goods_variant_external_identity_barcode_key') ? 'barcode' : null;
+  if (!column) return null;
+  const value = /=\((.*)\) already exists/.exec(typeof error.details === 'string' ? error.details : '')?.[1];
+  const row = value === undefined ? undefined : rows.find((option) => option[column]?.trim().toLowerCase() === value);
+  const target = row ? ` 확인할 옵션: ${row.name}(${row[column]?.trim()}).` : '';
+  return { errors: { [field]: `${ERP_IDENTITY_TAKEN[column]}${target} ${ERP_IDENTITY_TAKEN_GUIDANCE}` } };
 }
 
 /*
@@ -337,9 +358,11 @@ async function saveAdminGood(
 
   const value = result.value;
   const optionFields: Record<string, unknown> = {};
+  let optionRows: GoodsOptionRow[] = [];
   if (formData.has('variants')) {
     const options = parseGoodsOptionRows(String(formData.get('variants')), value.price);
     if (!options.ok) return { errors: { variants: options.error } };
+    optionRows = options.rows;
     try {
       const baseline = JSON.parse(String(formData.get('variantBaseline') ?? '[]'));
       if (!Array.isArray(baseline) || baseline.length > 100 || baseline.some((id) => typeof id !== 'string')) throw new Error();
@@ -363,7 +386,7 @@ async function saveAdminGood(
   if (error) {
     if (/category_not_leaf|category_archived|category_not_found|invalid_good_category|invalid_additional_categories/.test(error.message)) return { errors: { form: '카테고리가 변경되었거나 연결할 수 없는 상태입니다. 대표·추가 분류의 활성 말단을 확인해주세요. 입력값은 유지됩니다.' } };
     if (/goods_description_/.test(error.message)) return { errors: { description: '상세페이지 형식과 정리 후 길이, 업로드한 HTML 이미지 20장 제한을 확인해주세요. 입력한 원문은 유지됩니다.' } };
-    if (/stock_changed|goods_options_changed/.test(error.message)) return { errors: { variants: '다른 작업에서 옵션이나 재고가 바뀌었습니다. 입력값은 유지됩니다. 최신 내용을 확인하고 다시 저장해주세요.' } };
+    if (/stock_changed|goods_options_changed|goods_variant_external_identity_changed/.test(error.message)) return { errors: { variants: '다른 작업에서 옵션이나 재고가 바뀌었습니다. 입력값은 유지됩니다. 최신 내용을 확인하고 다시 저장해주세요.' } };
     if (/goods_kc_reassessment_required|goods_kc_published_edit_requires_draft/.test(error.message)) return { errors: { form: '모델·옵션·고시정보 변경에는 KC 재검토가 필요합니다. 상품을 먼저 초안으로 전환한 뒤 수정해주세요.' } };
     if (error.message.includes('goods_kc_')) return { errors: { form: "KC 정보에서 검토를 완료한 뒤 공개해주세요. KC 대상이 아니면 '상품 전체 KC 해당 없음'으로 바로 끝낼 수 있습니다." } };
     if (error.message.includes('active_price_period_requires_reset')) return { errors: { price: '활성 기간 할인을 중지한 뒤 판매가·할인·옵션가를 변경해주세요.' } };
@@ -374,6 +397,8 @@ async function saveAdminGood(
     if (error.message.includes('goods_publish_incomplete')) return { errors: { form: '상품 유형·대표 이미지·상품정보제공고시와 옵션을 채운 뒤 공개해주세요.' } };
     if (error.message.includes('goods_code_key')) return { errors: { code: '이미 사용 중인 상품코드입니다.' } };
     if (error.message.includes('goods_variants_code_key')) return { errors: { [formData.has('variants') ? 'variants' : 'defaultVariantCode']: '이미 사용 중인 옵션코드입니다.' } };
+    const erpIdentityError = erpIdentityTakenFailure(error, optionRows, formData.has('variants') ? 'variants' : 'form');
+    if (erpIdentityError) return erpIdentityError;
     if (error.message.includes('goods_slug_locked')) return { errors: { id: '한 번 공개한 상품의 URL은 변경할 수 없습니다.' } };
     if (error.message.includes('goods_pkey')) return { errors: { id: '이미 사용 중인 URL입니다.' } };
     return catalogWriteIntentFailure(error.message)

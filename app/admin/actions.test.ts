@@ -1071,6 +1071,47 @@ describe('admin catalog actions', () => {
     expect(await upsertAdminGoodAction({},goodForm())).toMatchObject({errors:{[field]:copy}});
   });
 
+  /* 2026-10-07 3차 리뷰: 같은 ERP 품목을 두 옵션에 고르거나 맞바꾸면 전역 unique 위반이 원인 없는 일반 오류로 떨어졌다. */
+  describe('옵션 ERP 식별자 중복', () => {
+    const erpForm = () => {
+      const form = goodForm();
+      form.set('variants', JSON.stringify([
+        { name: '빨강', code: '', attributes: { 색상: '빨강' }, extraPrice: 0, stockQty: 1, erpCode: 'AB-000123', erpName: '아크릴 키링', barcode: '0880000000123', externalUpdatedAt: null },
+        { name: '파랑', code: '', attributes: { 색상: '파랑' }, extraPrice: 0, stockQty: 1, erpCode: null, erpName: null, barcode: null, externalUpdatedAt: null },
+      ]));
+      form.set('variantBaseline', '[]');
+      return form;
+    };
+    const GUIDANCE = '한 ERP 품목은 옵션 하나에만 연결할 수 있습니다. 다른 상품의 옵션이 쓰고 있으면 그 옵션에서 먼저 비우고, 두 옵션의 ERP 품목을 맞바꾸려면 한쪽을 비우고 저장한 뒤 다시 지정해주세요. 입력값은 유지됩니다.';
+
+    it.each([
+      [
+        'duplicate key value violates unique constraint "goods_variant_external_identity_erp_code_key"',
+        'Key (lower(erp_code))=(ab-000123) already exists.',
+        `이미 다른 옵션에 연결된 ERP 코드입니다. 확인할 옵션: 빨강(AB-000123). ${GUIDANCE}`,
+      ],
+      [
+        'duplicate key value violates unique constraint "goods_variant_external_identity_barcode_key"',
+        'Key (lower(barcode))=(0880000000123) already exists.',
+        `이미 다른 옵션에 연결된 바코드입니다. 확인할 옵션: 빨강(0880000000123). ${GUIDANCE}`,
+      ],
+      [
+        'duplicate key value violates unique constraint "goods_variant_external_identity_erp_code_key"',
+        undefined,
+        `이미 다른 옵션에 연결된 ERP 코드입니다. ${GUIDANCE}`,
+      ],
+    ])('%s 를 옵션 칸 오류로 옮겨 어느 옵션인지 알린다', async (message, details, copy) => {
+      mocks.rpc.mockResolvedValue({ data: null, error: { message, details, code: '23505' } });
+      const form = erpForm();
+      expect(await upsertAdminGoodAction({}, form)).toMatchObject({ errors: { variants: copy }, values: collectFormValues(form) });
+    });
+
+    it('다른 운영자가 먼저 바꾼 ERP 정보(PT409)는 최신 내용 확인 안내로 옮긴다', async () => {
+      mocks.rpc.mockResolvedValue({ data: null, error: { message: 'goods_variant_external_identity_changed', code: 'PT409' } });
+      expect(await upsertAdminGoodAction({}, erpForm())).toMatchObject({ errors: { variants: expect.stringContaining('다른 작업에서') } });
+    });
+  });
+
   it.each([
     ['굿즈', upsertAdminGoodAction, goodForm],
     ['카드', upsertAdminCardAction, cardForm],

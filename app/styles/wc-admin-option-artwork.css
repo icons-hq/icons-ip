@@ -194,7 +194,8 @@
   padding-inline: 8px;
 }
 
-.wc-admin .goods-option-secondary-table small {
+/* 재고 부족 경고. ERP 안내(.goods-option-erp-message)는 성공·확인 필요 색을 따로 정하므로 제외한다. */
+.wc-admin .goods-option-secondary-table small:not(.goods-option-erp-message) {
   display: block;
   margin-top: 5px;
   color: var(--wc-warning);

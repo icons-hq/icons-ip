@@ -32,8 +32,9 @@ function placementFor(input: HTMLInputElement | null | undefined): ErpItemListPl
  * 함께 쓰는 고정 계약이다.
  *
  * 2자 이상 입력이 250ms 멈추면 반입된 ERP 품목을 검색해 최대 8개를 제안한다
- * (ARIA combobox: ↑↓ 이동, Enter 선택, Esc 닫기). 제안이 없거나 검색이 실패해도
- * 입력을 막지 않고, 직접 입력한 값은 그대로 저장된다.
+ * (ARIA combobox: ↑↓ 이동, Enter 선택, Esc 닫기). 목록이 열려 있으면 Enter는 폼을
+ * 제출하지 않고, 강조가 없으면 제안이 하나뿐일 때만 고르고 아니면 목록만 닫는다.
+ * 제안이 없거나 검색이 실패해도 입력을 막지 않고, 직접 입력한 값은 그대로 저장된다.
  */
 export function ErpItemNameInput({ value, onChange, onSelect, ariaLabel, ariaDescribedBy, maxLength, placeholder, disabled }: ErpItemNameInputProps) {
   const listId = useId();
@@ -42,10 +43,13 @@ export function ErpItemNameInput({ value, onChange, onSelect, ariaLabel, ariaDes
   const [open, setOpen] = useState(false);
   const [active, setActive] = useState(-1);
   const [placement, setPlacement] = useState<ErpItemListPlacement | null>(null);
+  /* 지금 보이는 제안을 만든 입력. 이어서 입력해 새 결과를 기다리는 동안 이전 제안을 Enter로 고르지 않게 한다. */
+  const [resultsQuery, setResultsQuery] = useState('');
   const [scheduler] = useState(() => createErpItemSearchScheduler({
     search: searchErpItemsAction,
-    onResults: (next) => {
+    onResults: (next, query) => {
       setItems(next);
+      setResultsQuery(query);
       setActive(-1);
       setOpen(next.length > 0);
     },
@@ -85,9 +89,14 @@ export function ErpItemNameInput({ value, onChange, onSelect, ariaLabel, ariaDes
       setActive(nextErpItemHighlight(expanded ? active : -1, items.length, event.key));
       return;
     }
-    if (event.key === 'Enter' && expanded && active >= 0 && items[active]) {
+    /* 목록이 열려 있으면 Enter는 상품 폼을 제출하지 않는다. 강조한 제안, 또는 지금 입력의 제안이 하나뿐이면
+       그 품목을 고르고, 그 밖에는 목록만 닫는다. */
+    if (event.key === 'Enter' && expanded) {
       event.preventDefault();
-      choose(items[active]);
+      const picked = active >= 0 ? items[active]
+        : items.length === 1 && resultsQuery === value.trim() ? items[0] : undefined;
+      if (picked) choose(picked);
+      else close();
       return;
     }
     if (event.key === 'Escape' && expanded) {
