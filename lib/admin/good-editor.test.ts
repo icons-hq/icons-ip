@@ -50,3 +50,12 @@ it('미저장 HTML 원문·형식·검증 업로드 경로를 다시 연 상품 
   reopened.restore();
   expect(goodEditorValues(null, withLocalRecoveryValues({}, null, reopened.getSnapshot().restoredValues))).toMatchObject(values);
 });
+it('판매가·할인 화면 입력과 옵션 사용 여부를 복구 대상에 넣고 판매가 영역의 오류로 묶는다', async () => {
+  const { GOODS_PRICE_DRAFT_FIELDS } = await import('./goods-price-editor');
+  const { goodFieldSection } = await import('./good-workspace');
+  for (const field of [...GOODS_PRICE_DRAFT_FIELDS, 'optionUsage']) expect(GOOD_LOCAL_DRAFT_FIELDS).toContain(field);
+  for (const field of [...GOODS_PRICE_DRAFT_FIELDS, 'price', 'compareAtPrice']) expect(goodFieldSection(field).key).toBe('price');
+  for (const field of ['optionUsage', 'optionAxisName0', 'optionAxisValues1', 'variants']) expect(goodFieldSection(field).key).toBe('variants');
+  const values = goodEditorValues(null, { values: { previousId: '', regularPrice: '9900', discountEnabled: 'true', discountValue: '15', discountUnit: 'percent', optionUsage: 'on' } });
+  expect(values).toMatchObject({ regularPrice: '9900', discountEnabled: 'true', discountValue: '15', discountUnit: 'percent', optionUsage: 'on' });
+});

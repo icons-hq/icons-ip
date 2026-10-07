@@ -4,6 +4,12 @@ export const ADMIN_VOCABULARY = Object.freeze({
   goodsCode: '상품코드',
   additionalGoods: '추가구성상품',
   option: '옵션',
+  /* 상품 편집의 가격·재고 입력은 스마트스토어 용어를 쓴다. 저장 계약은 price=할인가, compareAtPrice=판매가(할인 시)다. */
+  salePrice: '판매가',
+  discountedPrice: '할인가',
+  optionPrice: '옵션가',
+  stockQuantity: '재고수량',
+  optionCode: '관리코드',
   noticeInfo: '상품정보제공고시',
   claims: '취소·반품·교환 관리',
   claimRequest: '취소·반품·교환 요청',

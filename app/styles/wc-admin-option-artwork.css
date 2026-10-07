@@ -35,75 +35,6 @@
   white-space: nowrap;
 }
 
-.wc-admin .goods-option-single {
-  display: grid;
-  gap: 18px;
-  padding: 18px;
-  border: 1px solid var(--wc-line-control);
-  border-radius: var(--wc-radius-form);
-  background: var(--wc-surface);
-}
-
-.wc-admin .goods-option-single__heading {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 16px;
-}
-
-.wc-admin .goods-option-single__heading h4 {
-  margin: 0;
-  font-size: 16px;
-  line-height: 1.5;
-}
-
-.wc-admin .goods-option-single__heading p {
-  margin: 5px 0 0;
-  color: var(--wc-ink-tertiary);
-  font-size: 12px;
-  line-height: 1.6;
-}
-
-.wc-admin .goods-option-single__grid {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 16px;
-  align-items: stretch;
-}
-
-.wc-admin .goods-option-single__readout {
-  display: grid;
-  align-content: start;
-  gap: 5px;
-  min-width: 0;
-  padding: 12px;
-  border: 1px solid var(--wc-hairline);
-  border-radius: var(--wc-radius-form);
-  background: var(--wc-surface-grey);
-}
-
-.wc-admin .goods-option-single__readout span {
-  color: var(--wc-ink-tertiary);
-  font-size: 12px;
-}
-
-.wc-admin .goods-option-single__readout strong {
-  font-size: 17px;
-  font-variant-numeric: tabular-nums;
-}
-
-.wc-admin .goods-option-single__readout small {
-  color: var(--wc-ink-tertiary);
-  font-size: 11px;
-  line-height: 1.5;
-  overflow-wrap: anywhere;
-}
-
-.wc-admin .goods-option-single__readout--emphasis {
-  border-color: var(--wc-accent);
-  background: var(--wc-accent-tint);
-}
-
 .wc-admin .goods-option-single__warning,
 .wc-admin .goods-option-row-status,
 .wc-admin .goods-variant-low-stock {
@@ -117,7 +48,6 @@
   font-weight: 700;
 }
 
-.wc-admin .goods-option-axes,
 .wc-admin .goods-option-secondary {
   min-width: 0;
   border: 1px solid var(--wc-hairline);
@@ -125,7 +55,6 @@
   background: var(--wc-surface);
 }
 
-.wc-admin .goods-option-axes > summary,
 .wc-admin .goods-option-secondary > summary {
   min-height: 44px;
   padding: 11px 14px;
@@ -136,32 +65,21 @@
   list-style-position: inside;
 }
 
-.wc-admin .goods-option-axes[open] > summary,
 .wc-admin .goods-option-secondary[open] > summary {
   border-bottom: 1px solid var(--wc-hairline);
 }
 
-.wc-admin .goods-option-axes > :not(summary),
 .wc-admin .goods-option-secondary > :not(summary) {
   margin-inline: 14px;
 }
 
-.wc-admin .goods-option-axes > .wc-admin-kit__form-grid {
-  margin-top: 16px;
-}
-
-.wc-admin .goods-option-axes > .btn {
-  margin-top: 16px;
-  margin-bottom: 12px;
-}
-
-.wc-admin .goods-option-axes > .wc-admin-option-artwork__secondary-hint,
 .wc-admin .goods-option-secondary > .wc-admin-option-artwork__secondary-hint {
   margin-top: 14px;
 }
 
 .wc-admin .goods-option-secondary__table,
-.wc-admin .admin-option-editor__table {
+.wc-admin .admin-option-editor__table,
+.wc-admin .goods-option-list-table {
   min-width: 0;
   max-width: 100%;
 }
@@ -175,6 +93,7 @@
 }
 
 .wc-admin .goods-option-primary-table .wc-admin-table,
+.wc-admin .goods-option-list-table .wc-admin-table,
 .wc-admin .goods-option-secondary-table {
   width: 100%;
   min-width: 0;
@@ -184,6 +103,7 @@
 }
 
 .wc-admin .goods-option-primary-table .wc-admin-table :is(th, td),
+.wc-admin .goods-option-list-table .wc-admin-table :is(th, td),
 .wc-admin .goods-option-secondary-table :is(th, td) {
   min-width: 0;
   padding: 11px 9px;
@@ -193,6 +113,7 @@
 }
 
 .wc-admin .goods-option-primary-table .wc-admin-table th,
+.wc-admin .goods-option-list-table .wc-admin-table th,
 .wc-admin .goods-option-secondary-table th {
   background: var(--wc-surface-grey);
   color: var(--wc-ink-sub);
@@ -202,11 +123,13 @@
 }
 
 .wc-admin .goods-option-primary-table .wc-admin-table td,
+.wc-admin .goods-option-list-table .wc-admin-table td,
 .wc-admin .goods-option-secondary-table td {
   font-size: 13px;
 }
 
 .wc-admin .goods-option-primary-table .wc-admin-table input,
+.wc-admin .goods-option-list-table .wc-admin-table :is(input:not([type='checkbox']), select),
 .wc-admin .goods-option-secondary-table input,
 .wc-admin .goods-option-primary-table .wc-admin-table select {
   width: 100%;
@@ -215,18 +138,31 @@
   box-sizing: border-box;
 }
 
-.wc-admin .goods-option-primary-table .wc-admin-table th:nth-child(1),
-.wc-admin .goods-option-primary-table .wc-admin-table td:nth-child(1) { width: 23%; }
-.wc-admin .goods-option-primary-table .wc-admin-table th:nth-child(2),
-.wc-admin .goods-option-primary-table .wc-admin-table td:nth-child(2) { width: 14%; }
-.wc-admin .goods-option-primary-table .wc-admin-table th:nth-child(3),
-.wc-admin .goods-option-primary-table .wc-admin-table td:nth-child(3) { width: 17%; }
-.wc-admin .goods-option-primary-table .wc-admin-table th:nth-child(4),
-.wc-admin .goods-option-primary-table .wc-admin-table td:nth-child(4) { width: 16%; }
-.wc-admin .goods-option-primary-table .wc-admin-table th:nth-child(5),
-.wc-admin .goods-option-primary-table .wc-admin-table td:nth-child(5) { width: 13%; }
-.wc-admin .goods-option-primary-table .wc-admin-table th:nth-child(6),
-.wc-admin .goods-option-primary-table .wc-admin-table td:nth-child(6) { width: 17%; }
+.wc-admin .goods-option-list-table .wc-admin-table {
+  /* 8개 열은 좁은 화면에서 줄이지 않고 표 영역 안에서 가로로 이동한다. */
+  min-width: 880px;
+}
+
+.wc-admin .goods-option-list-table .wc-admin-table th:nth-child(1),
+.wc-admin .goods-option-list-table .wc-admin-table td:nth-child(1) { width: 48px; text-align: center; }
+.wc-admin .goods-option-list-table .wc-admin-table th:nth-child(2),
+.wc-admin .goods-option-list-table .wc-admin-table td:nth-child(2) { width: 22%; }
+.wc-admin .goods-option-list-table .wc-admin-table th:nth-child(3),
+.wc-admin .goods-option-list-table .wc-admin-table td:nth-child(3) { width: 15%; }
+.wc-admin .goods-option-list-table .wc-admin-table th:nth-child(4),
+.wc-admin .goods-option-list-table .wc-admin-table td:nth-child(4) { width: 12%; }
+.wc-admin .goods-option-list-table .wc-admin-table th:nth-child(5),
+.wc-admin .goods-option-list-table .wc-admin-table td:nth-child(5) { width: 11%; }
+.wc-admin .goods-option-list-table .wc-admin-table th:nth-child(6),
+.wc-admin .goods-option-list-table .wc-admin-table td:nth-child(6) { width: 17%; }
+.wc-admin .goods-option-list-table .wc-admin-table th:nth-child(7),
+.wc-admin .goods-option-list-table .wc-admin-table td:nth-child(7) { width: 104px; }
+.wc-admin .goods-option-list-table .wc-admin-table th:nth-child(8),
+.wc-admin .goods-option-list-table .wc-admin-table td:nth-child(8) { width: 80px; }
+
+.wc-admin .goods-option-list-table tr[data-selected] td {
+  background: var(--wc-accent-tint);
+}
 
 .wc-admin .goods-option-secondary-table th:nth-child(1),
 .wc-admin .goods-option-secondary-table td:nth-child(1) { width: 17%; }
@@ -443,10 +379,6 @@
 }
 
 @media (max-width: 900px) {
-  .wc-admin .goods-option-single__grid {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-
   .wc-admin .admin-artwork-layout {
     align-items: stretch;
     flex-direction: column;
@@ -464,7 +396,6 @@
 }
 
 @media (max-width: 640px) {
-  .wc-admin .goods-option-single__grid,
   .wc-admin .goods-variants-summary {
     grid-template-columns: minmax(0, 1fr);
   }
@@ -514,11 +445,6 @@
   }
 
   .wc-admin .goods-option-primary-table .wc-admin-table td:nth-child(1)::before { content: '옵션명'; }
-  .wc-admin .goods-option-primary-table .wc-admin-table td:nth-child(2)::before { content: '추가금액'; }
-  .wc-admin .goods-option-primary-table .wc-admin-table td:nth-child(3)::before { content: '옵션 판매가'; }
-  .wc-admin .goods-option-primary-table .wc-admin-table td:nth-child(4)::before { content: '할당 재고'; }
-  .wc-admin .goods-option-primary-table .wc-admin-table td:nth-child(5)::before { content: '사용 상태'; }
-  .wc-admin .goods-option-primary-table .wc-admin-table td:nth-child(6)::before { content: '순서·제거'; }
   .wc-admin .goods-variants-primary-table .wc-admin-table td:nth-child(2)::before { content: '옵션 판매가'; }
   .wc-admin .goods-variants-primary-table .wc-admin-table td:nth-child(3)::before { content: '할당 재고'; }
   .wc-admin .goods-variants-primary-table .wc-admin-table td:nth-child(4)::before { content: '사용 상태'; }
@@ -538,6 +464,323 @@
   .wc-admin .wc-admin-option-artwork__badge,
   .wc-admin .goods-option-single__readout--emphasis,
   .wc-admin .wc-admin-artwork-upload-field[data-upload-state='uploaded'] .admin-artwork-preview {
+    border: 1px solid CanvasText;
+    background: Canvas;
+    color: CanvasText;
+  }
+}
+
+/* 2026-10 MD 피드백 ⑥: 스마트스토어 순서의 판매가 → 할인 → 재고수량 → 옵션 입력 → 옵션목록. */
+.wc-admin .goods-price-editor,
+.wc-admin .goods-price-editor__discount,
+.wc-admin .goods-option-stock,
+.wc-admin .goods-option-inputs,
+.wc-admin .goods-option-list {
+  display: grid;
+  gap: 14px;
+  min-width: 0;
+}
+
+.wc-admin .goods-price-editor__discount[hidden],
+.wc-admin .goods-option-inputs[hidden] {
+  display: none;
+}
+
+.wc-admin .goods-price-editor__discount,
+.wc-admin .goods-option-stock,
+.wc-admin .goods-option-inputs,
+.wc-admin .goods-option-list {
+  padding: 16px;
+  border: 1px solid var(--wc-hairline);
+  border-radius: var(--wc-radius-form);
+  background: var(--wc-surface);
+}
+
+.wc-admin .goods-option-inputs h5,
+.wc-admin .goods-option-list h5 {
+  margin: 0;
+  color: var(--wc-ink);
+  font-size: 15px;
+  line-height: 1.5;
+}
+
+.wc-admin .goods-option-inputs__heading,
+.wc-admin .goods-option-list__heading {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 12px;
+}
+
+.wc-admin .goods-option-inputs__heading span,
+.wc-admin .goods-option-list__heading span,
+.wc-admin .goods-choice__hint {
+  color: var(--wc-ink-tertiary);
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+.wc-admin .goods-amount-input {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  max-width: 320px;
+  min-width: 0;
+}
+
+.wc-admin .goods-amount-input > input {
+  flex: 1 1 auto;
+  min-width: 0;
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+
+.wc-admin .goods-amount-input > span {
+  flex: none;
+  color: var(--wc-ink-sub);
+  font-size: 13px;
+}
+
+.wc-admin .goods-price-editor__rate {
+  width: 100%;
+  max-width: 320px;
+}
+
+.wc-admin .goods-amount-input--unit > select {
+  flex: none;
+  width: auto;
+  min-width: 76px;
+}
+
+.wc-admin .goods-choice {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 20px;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+  border: 0;
+}
+
+.wc-admin .goods-choice > legend {
+  float: left;
+  width: 100%;
+  margin: 0;
+  padding: 0;
+  color: var(--wc-ink);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.wc-admin .goods-choice > label {
+  display: inline-flex;
+  min-height: 44px;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  cursor: pointer;
+}
+
+.wc-admin .goods-choice input[type='radio'],
+.wc-admin .goods-option-bulk input[type='checkbox'],
+.wc-admin .goods-option-list-table input[type='checkbox'] {
+  width: 18px;
+  min-width: 0;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--wc-accent);
+}
+
+.wc-admin .goods-choice__hint {
+  flex-basis: 100%;
+}
+
+.wc-admin .goods-price-editor__result {
+  margin: 0;
+  color: var(--wc-ink-sub);
+  font-size: 13px;
+  font-variant-numeric: tabular-nums;
+}
+
+.wc-admin .goods-price-editor__result strong {
+  color: var(--wc-ink);
+  font-size: 17px;
+}
+
+.wc-admin .goods-option-stock__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+  align-items: start;
+}
+
+.wc-admin .goods-option-stock__total {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 4px 10px;
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+.wc-admin .goods-option-stock__total span,
+.wc-admin .goods-option-stock__total small {
+  color: var(--wc-ink-tertiary);
+  font-size: 12px;
+}
+
+.wc-admin .goods-option-stock__total strong {
+  font-size: 17px;
+}
+
+.wc-admin .goods-option-inputs__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+  gap: 12px 16px;
+}
+
+.wc-admin .goods-option-inputs > .btn {
+  justify-self: start;
+}
+
+.wc-admin .goods-option-list__empty {
+  margin: 0;
+  padding: 14px 16px;
+  border: 1px dashed var(--wc-line-control);
+  border-radius: var(--wc-radius-form);
+  color: var(--wc-ink-sub);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.wc-admin .goods-option-bulk {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 10px 12px;
+  padding: 12px;
+  border-radius: var(--wc-radius-form);
+  background: var(--wc-surface-grey);
+}
+
+.wc-admin .goods-option-bulk > label {
+  display: grid;
+  gap: 4px;
+  color: var(--wc-ink-sub);
+  font-size: 12px;
+}
+
+.wc-admin .goods-option-bulk > label :is(input, select) {
+  width: 120px;
+  min-height: 40px;
+}
+
+.wc-admin .goods-option-bulk > .goods-option-bulk__all {
+  display: inline-flex;
+  min-height: 40px;
+  align-items: center;
+  gap: 8px;
+  color: var(--wc-ink);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.wc-admin .goods-option-bulk > .btn {
+  min-height: 40px;
+}
+
+.wc-admin .goods-option-bulk__message,
+.wc-admin .goods-option-erp-message {
+  margin: 0;
+  color: var(--wc-success);
+  font-size: 12px;
+  line-height: 1.5;
+}
+
+.wc-admin .goods-option-bulk__message--failed,
+.wc-admin .goods-option-erp-message--failed {
+  color: var(--wc-warning);
+}
+
+.wc-admin .goods-option-primary-table__sale {
+  display: block;
+  margin-top: 5px;
+  color: var(--wc-ink-tertiary);
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+}
+
+.wc-admin .goods-option-detail-table th:nth-child(1),
+.wc-admin .goods-option-detail-table td:nth-child(1) { width: 18%; }
+.wc-admin .goods-option-detail-table th:nth-child(2),
+.wc-admin .goods-option-detail-table td:nth-child(2) { width: 30%; }
+.wc-admin .goods-option-detail-table th:nth-child(3),
+.wc-admin .goods-option-detail-table td:nth-child(3) { width: 18%; }
+.wc-admin .goods-option-detail-table th:nth-child(4),
+.wc-admin .goods-option-detail-table td:nth-child(4) { width: 17%; }
+.wc-admin .goods-option-detail-table th:nth-child(5),
+.wc-admin .goods-option-detail-table td:nth-child(5) { width: 17%; }
+
+.wc-admin .goods-option-detail-table .goods-option-erp-price {
+  min-height: 36px;
+  margin-top: 6px;
+  padding-inline: 10px;
+  font-size: 12px;
+}
+
+.wc-admin .goods-option-erp-message {
+  display: block;
+  margin-top: 5px;
+}
+
+.wc-admin .goods-erp-category-notice {
+  display: grid;
+  gap: 8px;
+  justify-items: start;
+  margin: 0 14px 14px;
+  padding: 12px;
+  border: 1px solid var(--wc-hairline);
+  border-radius: var(--wc-radius-form);
+  background: var(--wc-accent-tint);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.wc-admin .goods-erp-category-notice p {
+  margin: 0;
+}
+
+@media (max-width: 900px) {
+  .wc-admin .goods-option-stock__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 640px) {
+  .wc-admin .goods-option-stock__grid,
+  .wc-admin .goods-option-inputs__row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .wc-admin .goods-amount-input,
+  .wc-admin .goods-price-editor__rate {
+    max-width: none;
+  }
+
+  .wc-admin .goods-option-bulk > label {
+    flex: 1 1 120px;
+  }
+
+  .wc-admin .goods-option-bulk > label :is(input, select) {
+    width: 100%;
+  }
+}
+
+@media (forced-colors: active) {
+  .wc-admin .goods-option-list-table tr[data-selected] td,
+  .wc-admin .goods-erp-category-notice {
     border: 1px solid CanvasText;
     background: Canvas;
     color: CanvasText;

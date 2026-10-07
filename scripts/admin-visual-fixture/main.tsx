@@ -172,7 +172,7 @@ function OptionsFixture() {
       <header className="wc-admin-kit wc-admin-kit__page-header">
         <div>
           <h2 className="wc-admin-kit__heading">상품 옵션 편집 fixture</h2>
-          <p className="wc-admin-kit__description">실제 GoodsOptionEditor. 조합 생성과 행 상태 변경은 브라우저 로컬 상태만 바꿉니다.</p>
+          <p className="wc-admin-kit__description">실제 GoodsOptionEditor. 옵션목록으로 적용·일괄수정과 행 상태 변경은 브라우저 로컬 상태만 바꿉니다.</p>
         </div>
       </header>
       <GoodsOptionEditor
