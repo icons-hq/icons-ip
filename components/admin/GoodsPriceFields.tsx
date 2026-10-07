@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, type Dispatch, type SetStateAction } from 'react';
 import { formatWon, type GoodsPriceDraft, type GoodsPriceResolution } from '@/lib/admin/goods-price-editor';
+import { ADMIN_VOCABULARY } from '@/lib/admin/vocabulary';
 import { AdminField } from './console/AdminKit';
 import { SelectField } from './fields';
 
@@ -27,7 +28,7 @@ export function GoodsPriceFields({ draft, onDraftChange, result, errors, showDis
   const discountError = result.discountError ?? errors.discountValue ?? (draft.discountEnabled ? errors.compareAtPrice : undefined);
 
   return <div className="goods-price-editor">
-    <AdminField inputId="goods-regular-price" label="판매가" hint="할인 전 가격입니다. 옵션가는 이 금액(할인하면 할인가)에 더합니다." error={regularError}>
+    <AdminField inputId="goods-regular-price" label={ADMIN_VOCABULARY.salePrice} hint="할인 전 가격입니다. 옵션가는 이 금액(할인하면 할인가)에 더합니다." error={regularError}>
       <span className="goods-amount-input">
         <input ref={regularRef} id="goods-regular-price" name="regularPrice" type="number" min={0} max={2147483647} step={1} inputMode="numeric" placeholder="0"
           aria-describedby={`goods-regular-price-hint${regularError ? ' goods-regular-price-error' : ''}`} aria-invalid={regularError ? 'true' : undefined}

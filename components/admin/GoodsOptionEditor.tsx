@@ -8,6 +8,7 @@ import {
   type GoodsOptionAxis, type GoodsOptionBulkInput, type GoodsOptionRow,
 } from '@/lib/admin/goods-option-editor';
 import { formatWon, planErpSalePrice } from '@/lib/admin/goods-price-editor';
+import { ADMIN_VOCABULARY } from '@/lib/admin/vocabulary';
 import { AdminField } from './console/AdminKit';
 import { ErpItemNameInput } from './ErpItemNameInput';
 
@@ -190,10 +191,10 @@ function OptionList({ rows, basePrice, codePrefix, update, setRows }: {
         <thead><tr>
           <th scope="col"><span className="sr-only">선택</span></th>
           <th scope="col">옵션명</th>
-          <th scope="col">옵션가</th>
-          <th scope="col">재고수량</th>
+          <th scope="col">{ADMIN_VOCABULARY.optionPrice}</th>
+          <th scope="col">{ADMIN_VOCABULARY.stockQuantity}</th>
           <th scope="col">사용여부</th>
-          <th scope="col">관리코드</th>
+          <th scope="col">{ADMIN_VOCABULARY.optionCode}</th>
           <th scope="col">순서</th>
           <th scope="col">삭제</th>
         </tr></thead>
