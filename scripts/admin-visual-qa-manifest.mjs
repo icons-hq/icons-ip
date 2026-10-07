@@ -16,7 +16,7 @@ export const ADMIN_QA_ROUTES = [
   ['catalog/ips', 'IP'], ['catalog/ips?create=1', 'IP 등록'],
   ['catalog/goods', '상품'], ['catalog/goods?create=1', '상품 등록'],
   ['catalog/goods/import', '상품 엑셀 등록·수정'], ['catalog/goods/export', '상품 엑셀 내보내기'],
-  ['catalog/categories', '고객 카테고리'], ['catalog/notice-presets', '상품정보제공고시 프리셋'],
+  ['catalog/categories', '고객 카테고리'], ['catalog/erp-items', 'ERP 품목'], ['catalog/notice-presets', '상품정보제공고시 프리셋'],
   ['catalog/cards', '카드'], ['catalog/pools', '카드풀'], ['catalog/policies', '뽑기권 발급 정책'],
   ['catalog/grants', '카드팩 수동 발급'], ['catalog/games', '게임'],
   ['catalog/events', '이벤트'], ['catalog/ticket-types', '티켓 회차'],
