@@ -2,7 +2,8 @@
 
 import { useEffect, useRef, useState, type ChangeEvent, type KeyboardEvent, type MouseEvent, type PointerEvent } from 'react';
 import { ADMIN_ARTWORK_ACCEPT, ADMIN_ARTWORK_ERROR, normalizeAdminArtworkMetadata } from '@/lib/admin/artwork';
-import { uploadAdminArtwork } from '@/lib/admin/artwork-upload.client';
+// 상대 경로는 ArtworkUploadField와 같은 모듈 지정자다 — 시각 fixture가 이 지정자로 합성 업로드를 끼운다.
+import { uploadAdminArtwork } from '../../lib/admin/artwork-upload.client';
 import { GOODS_GALLERY_MAX } from '@/lib/admin/catalog';
 import {
   GOODS_IMAGE_FIELD_NAMES,

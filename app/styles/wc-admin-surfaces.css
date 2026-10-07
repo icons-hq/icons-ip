@@ -1176,12 +1176,12 @@
 .wc-admin .wc-admin-artwork-guide__crops figcaption { margin-top: 6px; font-size: 12px; }
 /* 상품 이미지 그리드 (2026-10-07 MD 요청) — 대표 이미지 + 추가 이미지 1:1 타일. 타일은 오류 이동 계약 때문에
    .wc-admin-artwork-upload-field 경계를 함께 쓰므로 그 기본 여백을 3단계 선택자로 되돌린다. */
-.wc-admin .wc-admin-image-grid { display: grid; gap: 10px; min-width: 0; margin: 0; padding: 14px; border: 1px solid var(--wc-line-control); border-radius: var(--wc-radius-form); }
+.wc-admin .wc-admin-image-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; min-width: 0; margin: 0; padding: 14px; border: 1px solid var(--wc-line-control); border-radius: var(--wc-radius-form); }
 .wc-admin .wc-admin-image-grid > legend { padding: 0 6px; color: var(--wc-ink-sub); font-size: 13px; font-weight: 600; }
 .wc-admin .wc-admin-image-grid__guidance { margin: 0; color: var(--wc-ink); font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
 .wc-admin .wc-admin-image-grid__intro { margin: 0; color: var(--wc-ink-tertiary); font-size: 12px; line-height: 1.6; }
 .wc-admin .wc-admin-image-grid__notice { margin: 0; color: var(--wc-danger); font-size: 12px; font-weight: 600; line-height: 1.5; }
-.wc-admin .wc-admin-image-grid__tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(116px, 1fr)); gap: 12px; max-width: 760px; margin: 0; padding: 0; list-style: none; }
+.wc-admin .wc-admin-image-grid__tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 12px; max-width: 680px; margin: 0; padding: 0; list-style: none; }
 .wc-admin .wc-admin-image-grid .wc-admin-image-tile { position: relative; display: grid; align-content: start; gap: 6px; min-width: 0; padding: 0; }
 .wc-admin .wc-admin-image-tile__frame { position: relative; display: flex; align-items: center; justify-content: center; aspect-ratio: 1 / 1; overflow: hidden; border: 1px solid var(--wc-line-control); border-radius: var(--wc-radius-form); background: var(--wc-surface-grey-2); color: var(--wc-ink-tertiary); cursor: pointer; user-select: none; }
 .wc-admin .wc-admin-image-tile__frame img { width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
