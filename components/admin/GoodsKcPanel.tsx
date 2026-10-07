@@ -6,7 +6,7 @@ import { readGoodsKcAction, saveGoodsKcAction } from '@/app/admin/goods-kc-actio
 import { GoodsKcDisclosure } from '@/components/shop/GoodsKcDisclosure';
 import {
   GOODS_KC_EVIDENCE_LABELS, MAX_GOODS_KC_MODELS, emptyGoodsKcModel, goodsKcReviewProblems, planGoodsKcProductNotApplicable,
-  goodsKcProductNotApplicableNote, goodsKcSoleNotApplicable, publicGoodsKcDisclosures, kcModelFromTemplate,
+  goodsKcEditorRefresh, goodsKcProductNotApplicableNote, goodsKcSoleNotApplicable, publicGoodsKcDisclosures, kcModelFromTemplate,
   type AdminGoodsKc, type GoodsKcModelInput, type GoodsKcVariant,
 } from '@/lib/admin/goods-kc';
 import {
@@ -115,6 +115,20 @@ export function GoodsKcEditor({ goodId, configuration, onSaved, templateRequest,
 }) {
   const [models, setModels] = useState(configuration.models);
   const [attested, setAttested] = useState(false);
+  // 기본 상품 저장이 KC 버전을 올려도 편집기를 다시 마운트하지 않는다. 입력 중인 모델은 지키고
+  // 새 버전(기대 revision·맥락 지문)만 받아, 다시 저장할 때 충돌하지 않게 한다.
+  const [seenConfiguration, setSeenConfiguration] = useState(configuration);
+  const [refreshNotice, setRefreshNotice] = useState<string | null>(null);
+  if (seenConfiguration !== configuration) {
+    const refreshed = goodsKcEditorRefresh(seenConfiguration, configuration, models);
+    setSeenConfiguration(configuration);
+    setModels(refreshed.models);
+    if (configuration.revision !== seenConfiguration.revision || configuration.contextFingerprint !== seenConfiguration.contextFingerprint) setAttested(false);
+    setRefreshNotice(refreshed.keptUnsavedInput
+      ? '기본 상품 저장으로 KC 검토가 다시 열렸습니다. 입력 중인 KC 내용은 그대로 두었으니 확인 체크 후 다시 저장해주세요.'
+      : refreshed.reopened ? '기본 상품 저장으로 상품·옵션 정보가 바뀌어 KC 검토가 다시 필요합니다.' : null);
+  }
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const [templateFamily, setTemplateFamily] = useState<GoodsKcFamily>('living');
   const [templateScheme, setTemplateScheme] = useState<GoodsKcScheme>('safety_certification');
   const [error, setError] = useState<string | null>(null);
@@ -130,6 +144,9 @@ export function GoodsKcEditor({ goodId, configuration, onSaved, templateRequest,
   }
   useEffect(()=>{if(appliedTemplate) onTemplateApplied?.(appliedTemplate);},[appliedTemplate,onTemplateApplied]);
   const dirty=JSON.stringify(models)!==JSON.stringify(configuration.models);
+  // 해당 없음 완료 요약의 모델 상세는 사용자가 연 상태를 유지한다. 미저장 입력이 생기면 열기만 하고 닫지는 않는다.
+  const [wasDirty, setWasDirty] = useState(dirty);
+  if (wasDirty !== dirty) { setWasDirty(dirty); if (dirty) setDetailsOpen(true); }
   const problems = goodsKcReviewProblems(models, configuration.variants);
   function change(next: GoodsKcModelInput[]) { setModels(next); setAttested(false); }
   function persist(nextModels: GoodsKcModelInput[], status: 'unreviewed' | 'reviewed', attestedValue: boolean) {
@@ -183,12 +200,13 @@ export function GoodsKcEditor({ goodId, configuration, onSaved, templateRequest,
   return <div className="col" style={{ gap: 16 }}>
     <p role="status">{dirty?'KC 미검토 초안 · 미저장':configuration.status === 'reviewed' ? notApplicableReviewed ? '상품 전체 KC 해당 없음으로 검토 완료' : 'KC 검토 완료' : configuration.publishedAt ? '기존 공개 · KC 미기록' : 'KC 미검토'}
       {!dirty && configuration.reviewedAt ? ` · ${configuration.reviewerName ?? '운영자'} · ${new Date(configuration.reviewedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}` : ''}</p>
+    {refreshNotice && <p role="status">{refreshNotice}</p>}
     {readOnly && <p className="muted">{configuration.archivedAt ? '보관된 상품은 복원한 뒤 검토할 수 있습니다.' : 'KC 정보를 수정하려면 먼저 상품을 비공개로 전환해주세요.'}</p>}
     {notApplicableReviewed ? <>
       <p className="muted" style={{ margin: 0 }}>사용 중인 옵션 {linked}개가 모두 해당 없음으로 연결되어 있습니다. 확인 체크를 다시 누르지 않아도 됩니다.
         {readOnly ? ' 모델 상세는 아래에서 확인할 수 있습니다.' : ' 고객 안내를 고치거나 KC 대상으로 바꾸려면 아래 모델 상세를 펼쳐주세요.'}
         {configuration.models[0].publicNote ? ` 고객 안내: ${configuration.models[0].publicNote}` : ''}</p>
-      <details open={dirty || undefined}><summary>모델 상세 보기·고치기</summary>
+      <details open={detailsOpen} onToggle={(event) => setDetailsOpen(event.currentTarget.open)}><summary>모델 상세 보기·고치기</summary>
         <div className="col" style={{ gap: 16, marginTop: 12 }}>{modelDetails}</div>
       </details>
     </> : <>
@@ -215,6 +233,9 @@ export function GoodsKcPanel({ goodId,templateRequest,onTemplateApplied,refreshK
   const [loaded, setLoaded] = useState<{ goodId: string; configuration?: AdminGoodsKc; error?: string } | null>(null);
   const [notice, setNotice] = useState<{ goodId: string; message: string } | null>(null);
   const [refresh, setRefresh] = useState(0);
+  // KC를 직접 저장하면 편집기를 새로 마운트해 저장된 모델로 시작한다. 기본 상품 저장으로 다시 읽을 때는
+  // 마운트를 유지해 입력 중인 KC 내용을 지킨다(goodsKcEditorRefresh).
+  const [savedEpoch, setSavedEpoch] = useState(0);
   const [seenRefreshKey, setSeenRefreshKey] = useState(refreshKey);
   // 다시 읽는 동안 이전 화면은 유지하되, 이전 KC 저장 안내는 새 상태와 어긋날 수 있어 지운다.
   if (seenRefreshKey !== refreshKey) { setSeenRefreshKey(refreshKey); setNotice(null); }
@@ -237,8 +258,8 @@ export function GoodsKcPanel({ goodId,templateRequest,onTemplateApplied,refreshK
     </div>
     {notice?.goodId === goodId && <p role="status">{notice.message}</p>}
     {!visible ? <p role="status">KC 검토를 불러오는 중입니다…</p> : visible.error ? <p role="alert">{visible.error}</p>
-      : visible.configuration ? <GoodsKcEditor key={`${goodId}:${visible.configuration.revision}:${refresh}`} goodId={goodId} configuration={visible.configuration} templateRequest={templateRequest} onTemplateApplied={onTemplateApplied}
-        onSaved={(configuration, message) => { setLoaded({ goodId, configuration }); setNotice({ goodId, message }); }} /> : null}
+      : visible.configuration ? <GoodsKcEditor key={`${goodId}:${refresh}:${savedEpoch}`} goodId={goodId} configuration={visible.configuration} templateRequest={templateRequest} onTemplateApplied={onTemplateApplied}
+        onSaved={(configuration, message) => { setLoaded({ goodId, configuration }); setNotice({ goodId, message }); setSavedEpoch((value) => value + 1); }} /> : null}
     <button type="button" className="btn btn-ghost" disabled={pending} onClick={() => { setLoaded(null); setRefresh((value) => value + 1); }}>저장된 KC 정보 다시 불러오기</button>
     <small className="muted">저장 실패 시 현재 입력은 유지됩니다. 내부 증빙 참조는 브라우저 자동복구 저장소에 보관하지 않으므로, 작업을 중단하기 전에 미검토로 저장해주세요.</small>
   </section>;

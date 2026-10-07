@@ -261,6 +261,7 @@ jobs:
           run_sql_test supabase/tests/goods_additional.sql
           run_sql_test supabase/tests/goods_kc_compliance.sql
           run_sql_test supabase/tests/goods_kc_not_applicable_quick_review.sql
+          run_sql_test supabase/tests/goods_kc_publish_draft_fallback.sql
           run_sql_test supabase/tests/goods_preorders.sql
           run_sql_test supabase/tests/coupon_targeting.sql
           run_sql_test supabase/tests/coupon_targeting_restore.sql

@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  GOODS_KC_PUBLISH_BLOCKED_COPY, emptyGoodsKcModel, goodsKcProductNotApplicableModel, goodsKcPublishBlockedMessage, goodsKcReviewProblems,
+  GOODS_KC_PUBLISH_BLOCKED_COPY, emptyGoodsKcModel, goodsKcEditorRefresh, goodsKcProductNotApplicableModel, goodsKcPublishBlockedMessage, goodsKcReviewProblems,
   normalizeGoodsKcModels, parseAdminGoodsKc, parseGoodsKcSaveInput, publicGoodsKcDisclosures, kcModelFromTemplate,
 } from './goods-kc';
 import { goodsKcDisclosureRows, goodsKcSchemeAllowed, parseGoodsKcDisclosures, type GoodsKcScheme } from '@/lib/goods-kc';
@@ -161,5 +161,31 @@ describe('저장 후 공개가 KC 때문에 막혀 초안으로 저장한 뒤의
     expect(goodsKcPublishBlockedMessage(reviewed, reviewed)).toBe(unreviewed);
     expect(goodsKcPublishBlockedMessage({ ...reviewed, revision: 3 }, { status: 'unreviewed', revision: 3,
       history: [{ revision: 3, reason: 'draft_saved' }, { revision: 2, reason: 'goods_context_changed' }] })).toBe(unreviewed);
+  });
+});
+
+describe('기본 상품 저장 뒤 KC 편집기 새로고침', () => {
+  const configuration = (revision: number, status: 'reviewed' | 'unreviewed', models = [goodsKcProductNotApplicableModel(variants)]) => ({
+    revision, status, models, contextFingerprint: 'a'.repeat(64), publishedAt: null, archivedAt: null,
+    reviewedAt: status === 'reviewed' ? '2026-10-07T00:00:00Z' : null, reviewerName: null, variants, history: [],
+  });
+
+  it('입력 중인 모델이 없으면 서버의 새 모델과 버전을 따르고, 검토가 다시 열렸음을 알린다', () => {
+    const before = configuration(1, 'reviewed');
+    const after = configuration(2, 'unreviewed');
+    expect(goodsKcEditorRefresh(before, after, before.models)).toEqual({ models: after.models, keptUnsavedInput: false, reopened: true });
+  });
+
+  it('저장하지 않은 KC 입력은 버전이 올라도 그대로 지킨다', () => {
+    const before = configuration(1, 'unreviewed', [model()]);
+    const typing = [{ ...model(), basis: '입력 중인 근거' }];
+    const after = configuration(2, 'unreviewed', [model()]);
+    expect(goodsKcEditorRefresh(before, after, typing)).toEqual({ models: typing, keptUnsavedInput: true, reopened: false });
+  });
+
+  it('버전이 같으면 입력을 지켜도 다시 열렸다고 알리지 않는다', () => {
+    const before = configuration(3, 'unreviewed', [model()]);
+    const typing = [{ ...model(), modelName: '바뀐 모델명' }];
+    expect(goodsKcEditorRefresh(before, { ...before }, typing)).toEqual({ models: typing, keptUnsavedInput: false, reopened: false });
   });
 });

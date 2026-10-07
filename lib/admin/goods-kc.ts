@@ -84,6 +84,21 @@ export function goodsKcProductNotApplicableModel(variants: readonly GoodsKcVaria
 export function goodsKcSoleNotApplicable(models: readonly GoodsKcModelInput[]): boolean {
   return models.length === 1 && models[0].scheme === 'not_applicable';
 }
+/** A basic goods save can bump the KC review underneath an open editor (context
+ * change invalidates it). Unsaved model input must survive that refresh, so the
+ * editor adopts the new server revision but keeps what the MD is typing; with no
+ * unsaved input it simply shows the server models. Compared against the models
+ * the editor last loaded, never against the new ones. */
+export function goodsKcEditorRefresh(previous: AdminGoodsKc, next: AdminGoodsKc, models: GoodsKcModelInput[]): {
+  models: GoodsKcModelInput[]; keptUnsavedInput: boolean; reopened: boolean;
+} {
+  const unsaved = JSON.stringify(models) !== JSON.stringify(previous.models);
+  return {
+    models: unsaved ? models : next.models,
+    keptUnsavedInput: unsaved && next.revision !== previous.revision,
+    reopened: previous.status === 'reviewed' && next.status !== 'reviewed',
+  };
+}
 /** Customer note the one-click action saves. A sole not-applicable model keeps
  * its own note, which the MD may just have edited in the model fields; the
  * separately typed draft applies only when the action creates that model. */

@@ -334,6 +334,7 @@ function GoodEditorForm({ action, catalogIps, ipOptions, pending, selected, stat
       <AdminSectionCard title="재고수량·옵션" id="good-section-variants" requirement="공개 필수 · 옵션 없이 팔면 재고수량만 입력" status="옵션 확인" errorCount={errorCount('variants')} summary={`${isSingleGoodsOption(rows) ? '옵션 없음 · 재고수량' : `옵션 ${rows.length.toLocaleString('ko-KR')}개 · 재고수량 합계`} ${goodsOptionStockTotals(rows).total.toLocaleString('ko-KR')}개`}>
         <GoodsOptionEditor onRowsChange={setRows} codePrefix={values.code || suggestedCode} rows={rows} baseline={baseline} basePrice={priceResult.salePrice ?? 0}
           priceDraft={priceDraft} error={errors.variants} axisValues={initial}
+          savedCodes={{ goodCode: selected?.code ?? null, options: variants }}
           onErpItemSelect={applyErpItem} onRegularPriceApply={(price) => setPriceDraft((current) => ({ ...current, regularPrice: String(price) }))}
           erpNotice={<GoodsErpCategoryNotice suggestion={erpCategory} currentCategoryId={categoryId} onReplace={setCategoryId} onReview={() => focusGoodWorkspaceTarget('good-section-basic', 'categoryId')} />} />
       </AdminSectionCard>
