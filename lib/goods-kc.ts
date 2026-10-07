@@ -18,12 +18,14 @@ export interface GoodsKcDisclosure {
   scheme: GoodsKcScheme;
   productCategory: string;
   modelName: string;
-  businessRole: GoodsKcBusinessRole;
+  /** Empty only for a not-applicable model, where model/business fields are optional. */
+  businessRole: GoodsKcBusinessRole | '';
   businessName: string;
   identifier: string;
   publicNote: string;
   variants: { id: string; name: string }[];
 }
+export const GOODS_KC_NOT_APPLICABLE_NOTICE = 'KC 인증 대상이 아닌 상품입니다.';
 
 export function goodsKcSchemeAllowed(family: GoodsKcFamily, scheme: GoodsKcScheme): boolean {
   if (scheme === 'not_applicable') return true;
@@ -47,17 +49,20 @@ export function parseGoodsKcDisclosures(value: unknown): GoodsKcDisclosure[] | n
       'family', 'scheme', 'productCategory', 'modelName', 'businessRole', 'businessName', 'identifier', 'publicNote', 'variants',
     ].includes(key))) return null;
     if (typeof row.family !== 'string' || !Object.hasOwn(GOODS_KC_FAMILY_LABELS, row.family)
-      || typeof row.scheme !== 'string' || !Object.hasOwn(GOODS_KC_SCHEME_LABELS, row.scheme)
-      || typeof row.businessRole !== 'string' || !Object.hasOwn(GOODS_KC_BUSINESS_LABELS, row.businessRole)) return null;
+      || typeof row.scheme !== 'string' || !Object.hasOwn(GOODS_KC_SCHEME_LABELS, row.scheme)) return null;
     const family = row.family as GoodsKcFamily; const scheme = row.scheme as GoodsKcScheme;
     if (!goodsKcSchemeAllowed(family, scheme)) return null;
+    // A not-applicable review only requires family, scheme and options; every
+    // other customer field may be blank. KC-subject schemes stay complete.
+    const optional = scheme === 'not_applicable';
+    if (typeof row.businessRole !== 'string'
+      || (row.businessRole === '' ? !optional : !Object.hasOwn(GOODS_KC_BUSINESS_LABELS, row.businessRole))) return null;
     for (const key of ['productCategory', 'modelName', 'businessName'] as const) {
-      if (typeof row[key] !== 'string' || !row[key].trim() || row[key].length > 200) return null;
+      if (typeof row[key] !== 'string' || (!optional && !row[key].trim()) || row[key].length > 200) return null;
     }
     if (typeof row.identifier !== 'string' || row.identifier.length > 100
       || Boolean(row.identifier.trim()) !== goodsKcNeedsIdentifier(scheme)
       || typeof row.publicNote !== 'string' || row.publicNote.length > 1000
-      || (scheme === 'not_applicable' && !row.publicNote.trim())
       || !Array.isArray(row.variants) || row.variants.length < 1 || row.variants.length > 200) return null;
     const variants: GoodsKcDisclosure['variants'] = [];
     for (const variant of row.variants) {
@@ -68,20 +73,34 @@ export function parseGoodsKcDisclosures(value: unknown): GoodsKcDisclosure[] | n
       variants.push({ id: variant.id, name: variant.name });
     }
     result.push({ family, scheme, productCategory: row.productCategory as string, modelName: row.modelName as string,
-      businessRole: row.businessRole as GoodsKcBusinessRole, businessName: row.businessName as string,
+      businessRole: row.businessRole as GoodsKcDisclosure['businessRole'], businessName: row.businessName as string,
       identifier: row.identifier, publicNote: row.publicNote, variants });
   }
   return result;
 }
 
-export function goodsKcDisclosureRows(disclosure: GoodsKcDisclosure): [string, string][] {
+/** `sole` marks the only disclosure of a product: a not-applicable row then
+ * covers every option, so the customer table omits the option list. */
+export function goodsKcDisclosureRows(disclosure: GoodsKcDisclosure, { sole = false }: { sole?: boolean } = {}): [string, string][] {
+  const variants: [string, string] = ['적용 옵션', disclosure.variants.map((variant) => variant.name).join(', ')];
+  const note: [string, string][] = disclosure.publicNote ? [['안내', disclosure.publicNote]] : [];
+  if (disclosure.scheme === 'not_applicable') {
+    const filled = (rows: [string, string][]) => rows.filter(([, value]) => value.trim());
+    return [
+      ['KC 인증', GOODS_KC_NOT_APPLICABLE_NOTICE],
+      ...filled([['품목 분류', disclosure.productCategory], ['모델명', disclosure.modelName],
+        [disclosure.businessRole ? GOODS_KC_BUSINESS_LABELS[disclosure.businessRole] : '사업자', disclosure.businessName]]),
+      ...(sole ? [] : [variants]),
+      ...note,
+    ];
+  }
   return [
     ['제품군', GOODS_KC_FAMILY_LABELS[disclosure.family]],
     ['적용 제도', GOODS_KC_SCHEME_LABELS[disclosure.scheme]],
     ['품목 분류', disclosure.productCategory], ['모델명', disclosure.modelName],
-    ['적용 옵션', disclosure.variants.map((variant) => variant.name).join(', ')],
-    [GOODS_KC_BUSINESS_LABELS[disclosure.businessRole], disclosure.businessName],
+    variants,
+    [disclosure.businessRole ? GOODS_KC_BUSINESS_LABELS[disclosure.businessRole] : '사업자', disclosure.businessName],
     ...(disclosure.identifier ? [[disclosure.scheme === 'safety_certification' ? '안전인증번호' : '안전확인 신고번호', disclosure.identifier] as [string, string]] : []),
-    ...(disclosure.publicNote ? [['안내', disclosure.publicNote] as [string, string]] : []),
+    ...note,
   ];
 }
