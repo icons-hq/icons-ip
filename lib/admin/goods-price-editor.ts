@@ -123,8 +123,10 @@ function appliedDiscountLabel(draft: GoodsPriceDraft, amount: number): string {
 
 /**
  * ERP 판매가 적용 버튼(자동 적용하지 않는다). 안내 금액은 적용 뒤의 입력으로 다시 계산한다.
+ * 두 모드 모두 ERP 판매가를 할인 전 금액으로 보고 상품 할인은 그대로 둔다.
  * - 옵션 미사용: 판매가 칸에 ERP 판매가를 넣는다. % 할인·남은 기본 옵션 옵션가도 반영해 결과를 알린다.
- * - 옵션 사용: 그 옵션의 옵션가 = ERP 판매가 − 현재 판매 기준 금액(할인가 또는 판매가).
+ * - 옵션 사용: 그 옵션의 옵션가 = ERP 판매가 − 판매가(할인 전). 옵션가는 할인가에 더하므로
+ *   그 옵션의 할인 전 금액이 ERP 판매가가 되고 상품 할인 금액만큼 낮은 할인가로 판다. 할인 전·후 금액을 함께 알린다.
  *   판매가가 비었거나 0원이면 ERP 판매가 전액이 옵션가가 되므로 적용하지 않는다. 음수도 적용하지 않는다.
  */
 export function planErpSalePrice({ salePrice, mode, price, extraPrice = 0 }: {
@@ -169,13 +171,19 @@ export function planErpSalePrice({ salePrice, mode, price, extraPrice = 0 }: {
       error: '판매가를 먼저 입력해주세요. 옵션가는 판매가에 더하는 금액이라, 판매가가 비어 있으면 ERP 판매가를 옵션가로 넣지 않습니다. 보통 옵션 중 가장 낮은 판매 금액을 판매가로 입력합니다.',
     };
   }
-  const basePrice = current.salePrice;
-  const optionPrice = salePrice - basePrice;
+  const optionPrice = salePrice - current.regularPrice;
   if (optionPrice < 0) {
     return {
       ok: false,
-      error: `ERP 판매가 ${formatWon(salePrice)}이 현재 판매 금액 ${formatWon(basePrice)}보다 낮아 옵션가로 적용하지 않았습니다. 옵션가는 0원 이상이므로 판매가나 할인을 먼저 확인해주세요.`,
+      error: `ERP 판매가 ${formatWon(salePrice)}이 판매가(할인 전) ${formatWon(current.regularPrice)}보다 낮아 옵션가로 적용하지 않았습니다. 옵션가는 0원 이상이므로 판매가를 옵션 중 가장 낮은 금액으로 먼저 맞춰주세요.`,
     };
   }
-  return { ok: true, target: 'extraPrice', value: optionPrice, attention: false, message: `옵션가를 ${formatWon(optionPrice)}으로 맞춰 판매 ${formatWon(salePrice)}이 되었습니다.` };
+  if (current.discountAmount <= 0) {
+    return { ok: true, target: 'extraPrice', value: optionPrice, attention: false, message: `옵션가를 ${formatWon(optionPrice)}으로 맞춰 판매 ${formatWon(salePrice)}이 되었습니다.` };
+  }
+  return {
+    ok: true, target: 'extraPrice', value: optionPrice, attention: false,
+    message: `옵션가를 ${formatWon(optionPrice)}으로 맞춰 할인 전 판매 ${formatWon(salePrice)}(ERP 판매가)이 되었습니다. `
+      + `상품 할인 ${appliedDiscountLabel(price, current.discountAmount)}이 그대로 적용되어 할인가는 ${formatWon(current.salePrice + optionPrice)}입니다.`,
+  };
 }

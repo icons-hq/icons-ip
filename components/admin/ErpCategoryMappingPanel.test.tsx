@@ -90,13 +90,40 @@ describe('ERP 분류 연결 표', () => {
   it('고른 값만 저장하고, 서버 거절 문구를 그 행에 보여 준다', async () => {
     hooks.save.mockResolvedValue({ ok: false, error: '보관된 카테고리에는 연결할 수 없습니다.' });
     let tree = await renderRow();
-    expect(button(tree, '연결 해제').props.disabled).toBe(true);
     find(tree, (element) => element.type === 'select')[0].props.onChange?.({ target: { value: PHOTO } });
     tree = await renderRow();
     button(tree, '연결 저장').props.onClick?.();
     await Promise.all(hooks.pending.splice(0));
     expect(text(await renderRow())).toContain('보관된 카테고리에는 연결할 수 없습니다.');
     expect(hooks.refresh).not.toHaveBeenCalled();
+  });
+
+  /* 2026-10-07 QA: 연결 안 된 분류에도 비활성 '연결 해제' 버튼이 보여 이미 연결된 분류처럼 읽혔다. */
+  it('연결도 선택도 없으면 저장 버튼을 숨기고, 저장된 연결을 비웠을 때만 연결 해제를 보여 준다', async () => {
+    const saveButtons = (tree: ReactNode) => find(tree, (element) => element.type === 'button' && /연결 (저장|해제)|저장 중/.test(text(element)));
+    const choose = (tree: ReactNode, value: string) => find(tree, (element) => element.type === 'select')[0].props.onChange?.({ target: { value } });
+    let tree = await renderRow();
+    expect(saveButtons(tree)).toHaveLength(0);
+    choose(tree, PHOTO);
+    tree = await renderRow();
+    expect(saveButtons(tree).map((element) => [text(element), element.props.disabled])).toEqual([['연결 저장', false]]);
+    choose(tree, '');
+    expect(saveButtons(await renderRow())).toHaveLength(0);
+
+    hooks.state = [];
+    const linkedRows: Row[] = [{ ...rows[0], categoryId: PHOTO, updatedAt: '2026-10-07T00:00:00Z' }];
+    tree = await renderRow({ rows: linkedRows });
+    expect(saveButtons(tree).map((element) => [text(element), element.props.disabled])).toEqual([['연결 저장', true]]);
+    choose(tree, '');
+    tree = await renderRow({ rows: linkedRows });
+    expect(saveButtons(tree).map((element) => [text(element), element.props.disabled])).toEqual([['연결 해제', false]]);
+    hooks.save.mockResolvedValue({ ok: true, changed: true, categoryId: null, message: 'ERP 분류 연결을 해제했습니다.' });
+    button(tree, '연결 해제').props.onClick?.();
+    await Promise.all(hooks.pending.splice(0));
+    expect(hooks.save).toHaveBeenCalledWith({ erpCategory: '문구 > 포토카드', categoryId: null });
+    tree = await renderRow({ rows: linkedRows });
+    expect(saveButtons(tree)).toHaveLength(0);
+    expect(text(tree)).toContain('ERP 분류 연결을 해제했습니다.');
   });
 
   it('새 연결이 없어도 고객 카테고리의 정본 ERP 분류 매핑으로 제안 중인 말단을 보여 주고 연결된 분류로 센다', async () => {

@@ -101,6 +101,46 @@ export function goodsOptionRowKey(row: Pick<GoodsOptionRow, 'id' | 'attributes'>
   return row.id ?? `new:${signature(row.attributes)}`;
 }
 
+/** 저장된 상품코드와 이 상품의 저장된 옵션 전체(보관된 옵션 포함). 새 상품이면 `{ goodCode: null, options: [] }`. */
+export type GoodsOptionSavedCodes = {
+  goodCode: string | null;
+  options: readonly Pick<AdminGoodsVariant, 'id' | 'code'>[];
+};
+
+const optionCode = (value: string | null | undefined) => (value ?? '').trim().toUpperCase();
+
+/**
+ * 관리코드 칸이 보여 줄 저장 시 코드(예상). 행마다 코드 또는 예상할 수 없으면 null.
+ * 서버(private.save_goods_options → private.set_goods_variant_code)는 옵션을 위에서부터 저장하며, 빈 관리코드에
+ * `상품코드-01`부터 아직 쓰이지 않은 첫 번호를 붙인다(관리코드는 앞뒤 공백을 지우고 대문자로 저장한다).
+ * 목록에서 뺀 옵션·보관된 옵션의 코드는 저장이 끝날 때까지 남아 있어 건너뛰고, 위 옵션이 받거나 입력한 코드도 피한다.
+ * 저장된 옵션은 관리코드를 비우면 기존 코드를 유지한다. 새 상품의 첫 저장은 옵션을 다시 만들어 -01부터 붙인다.
+ * 저장된 옵션 정보가 없거나 상품코드를 이번 저장에서 바꾸면(기본 옵션 코드가 함께 바뀐다) 예상하지 않는다.
+ * 다른 상품이 이 상품코드로 시작하는 옵션코드를 직접 쓰는 경우는 화면에서 알 수 없다.
+ */
+export function predictGoodsOptionCodes(rows: readonly GoodsOptionRow[], goodCode: string | undefined, saved: GoodsOptionSavedCodes | undefined): (string | null)[] {
+  const unknown = rows.map(() => null);
+  const prefix = optionCode(goodCode);
+  if (!prefix || !saved || (saved.goodCode !== null && optionCode(saved.goodCode) !== prefix)) return unknown;
+  const savedById = new Map(saved.options.map((option) => [option.id, optionCode(option.code)]));
+  if (rows.some((row) => row.id && !savedById.has(row.id))) return unknown;
+  const taken = new Set(savedById.values());
+  const nextFree = () => {
+    let ordinal = 1;
+    while (taken.has(`${prefix}-${String(ordinal).padStart(2, '0')}`)) ordinal += 1;
+    return `${prefix}-${String(ordinal).padStart(2, '0')}`;
+  };
+  return rows.map((row) => {
+    const before = row.id ? savedById.get(row.id)! : null;
+    /* 저장된 옵션의 빈 칸은 기존 코드를 쓰지만, 공백만 넣으면 서버가 새 번호를 붙인다. */
+    if (before && row.code === '') return before;
+    const code = optionCode(row.code) || nextFree();
+    if (before) taken.delete(before);
+    taken.add(code);
+    return code;
+  });
+}
+
 /** 옵션 미사용(기본 옵션 한 개만으로 판매) 상태인지. */
 export function isSingleGoodsOption(rows: readonly GoodsOptionRow[]): boolean {
   return rows.length === 1 && Object.keys(rows[0]?.attributes ?? {}).length === 0;

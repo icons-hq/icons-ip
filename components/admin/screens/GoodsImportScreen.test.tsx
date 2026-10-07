@@ -20,7 +20,7 @@ vi.mock('@/lib/supabase/client', () => ({
   createClient: () => ({ storage: { from: () => ({ upload: vi.fn() }) } }),
 }));
 import { GoodsImportScreen, SabangnetMappingStep } from './GoodsImportScreen';
-import { suggestSabangnetTargets } from '@/lib/admin/sabangnet-goods-format';
+import { SABANGNET_GALLERY_LIMIT, suggestSabangnetTargets } from '@/lib/admin/sabangnet-goods-format';
 const group = {
   index: 0,
   code: 'G0001',
@@ -183,5 +183,7 @@ describe('사방넷 상품 양식 화면', () => {
     expect(html).toContain('메이플스토리 브랜드 상품을 연결할 IP');
     expect(html).toContain('미리보기 만들기');
     expect(html).not.toContain('슬롯');
+    /* 2026-10-07 QA: JSX 줄바꿈 뒤 숫자가 붙어 "추가 이미지9장으로"로 보였다. */
+    expect(html).toContain(`대표 이미지와 추가 이미지 ${SABANGNET_GALLERY_LIMIT}장으로 가져옵니다.`);
   });
 });

@@ -4,8 +4,8 @@ import { useState, type Dispatch, type ReactNode, type SetStateAction } from 're
 import type { ErpItemMatch } from '@/lib/admin/erp-items';
 import {
   applyErpItemToGoodsOption, applyGoodsOptionBulkEdit, collapseGoodsOptionRows, generateGoodsOptionRows, goodsOptionCollapseNotice, goodsOptionRowKey,
-  goodsOptionStockTotals, isSingleGoodsOption, parseGoodsOptionBulkEdit, removeGoodsOptionRows, selectErpItemForGoodsOption,
-  type GoodsOptionAxis, type GoodsOptionBulkInput, type GoodsOptionRow,
+  goodsOptionStockTotals, isSingleGoodsOption, parseGoodsOptionBulkEdit, predictGoodsOptionCodes, removeGoodsOptionRows, selectErpItemForGoodsOption,
+  type GoodsOptionAxis, type GoodsOptionBulkInput, type GoodsOptionRow, type GoodsOptionSavedCodes,
 } from '@/lib/admin/goods-option-editor';
 import { formatWon, planErpSalePrice, type GoodsPriceDraft } from '@/lib/admin/goods-price-editor';
 import { ADMIN_VOCABULARY } from '@/lib/admin/vocabulary';
@@ -25,7 +25,13 @@ type GoodsOptionEditorProps = {
   error?: string;
   axisValues?: Record<string, string>;
   onRowsChange: Dispatch<SetStateAction<GoodsOptionRow[]>>;
+  /** 저장할 상품코드(입력값 또는 제안값). 빈 관리코드에 붙을 코드의 앞부분이다. */
   codePrefix?: string;
+  /**
+   * 저장된 상품코드와 이 상품의 저장된 옵션 전체(보관 포함). 빈 관리코드 칸에 저장 시 붙을 코드를 보이는 근거다.
+   * 없으면 예상하지 않고 '저장 시 자동 생성'만 보인다.
+   */
+  savedCodes?: GoodsOptionSavedCodes;
   /** 옵션의 ERP 품명에서 반입된 ERP 품목을 골랐을 때 */
   onErpItemSelect?: (item: ErpItemMatch) => void;
   /** 옵션 미사용 상품에서 ERP 판매가 적용을 누르면 판매가 칸에 넣는다 */
@@ -44,6 +50,7 @@ type OptionUsage = 'on' | 'off';
 const EMPTY_AXES: GoodsOptionAxis[] = [{ name: '', values: '' }, { name: '', values: '' }];
 const EMPTY_BULK: GoodsOptionBulkInput = { extraPrice: '', stockQty: '', isActive: '' };
 const STOCK_GUIDANCE = 'ICONS에서 판매할 수량이며 주문하면 차감됩니다. 안전재고는 부족 알림 기준입니다.';
+const AUTO_CODE = '저장 시 자동 생성';
 
 function wholeNumber(raw: string): number {
   return raw === '' ? 0 : Number(raw);
@@ -137,10 +144,11 @@ function OptionInputs({ axes, rows, hidden, setAxes, setRows }: {
   </section>;
 }
 
-function OptionList({ rows, basePrice, codePrefix, update, setRows }: {
+function OptionList({ rows, basePrice, predictedCodes, update, setRows }: {
   rows: GoodsOptionRow[];
   basePrice: number;
-  codePrefix?: string;
+  /** 행마다 저장 시 코드(예상). 모르면 null */
+  predictedCodes: (string | null)[];
   update: (key: string, changes: Partial<GoodsOptionRow>) => void;
   setRows: Dispatch<SetStateAction<GoodsOptionRow[]>>;
 }) {
@@ -219,7 +227,7 @@ function OptionList({ rows, basePrice, codePrefix, update, setRows }: {
             <td><select aria-label={`옵션 ${index + 1} 사용여부`} value={row.isActive === false ? 'stopped' : 'active'} onChange={(event) => update(key, { isActive: event.target.value === 'active' })}>
               <option value="active">사용</option><option value="stopped">중지</option>
             </select></td>
-            <td><input aria-label={`옵션 ${index + 1} 관리코드`} value={row.code} maxLength={120} placeholder={codePrefix ? `${codePrefix}-${String(index + 1).padStart(2, '0')}` : '저장 시 자동 생성'} onChange={(event) => update(key, { code: event.target.value })} /></td>
+            <td><input aria-label={`옵션 ${index + 1} 관리코드`} value={row.code} maxLength={120} placeholder={predictedCodes[index] ?? AUTO_CODE} onChange={(event) => update(key, { code: event.target.value })} /></td>
             <td><div className="row goods-option-row-actions">
               <button type="button" className="btn btn-ghost" aria-label={`옵션 ${index + 1} 위로`} disabled={index === 0} onClick={() => move(index, -1)}>↑</button>
               <button type="button" className="btn btn-ghost" aria-label={`옵션 ${index + 1} 아래로`} disabled={index === rows.length - 1} onClick={() => move(index, 1)}>↓</button>
@@ -232,10 +240,10 @@ function OptionList({ rows, basePrice, codePrefix, update, setRows }: {
   </section>;
 }
 
-function SingleStock({ row, basePrice, codePrefix, update }: {
+function SingleStock({ row, basePrice, predictedCode, update }: {
   row: GoodsOptionRow;
   basePrice: number;
-  codePrefix?: string;
+  predictedCode: string | null;
   update: (key: string, changes: Partial<GoodsOptionRow>) => void;
 }) {
   const key = goodsOptionRowKey(row);
@@ -251,7 +259,7 @@ function SingleStock({ row, basePrice, codePrefix, update }: {
       </span>
     </AdminField>
     <AdminField inputId="goods-single-code" label="관리코드 (선택)" hint="ICONS 자체 옵션코드입니다. 비워 두면 저장할 때 만듭니다.">
-      <input id="goods-single-code" aria-describedby="goods-single-code-hint" value={row.code} maxLength={120} placeholder={codePrefix ? `${codePrefix}-01` : '저장 시 자동 생성'} onChange={(event) => update(key, { code: event.target.value })} />
+      <input id="goods-single-code" aria-describedby="goods-single-code-hint" value={row.code} maxLength={120} placeholder={predictedCode ?? AUTO_CODE} onChange={(event) => update(key, { code: event.target.value })} />
     </AdminField>
     {(extraVisible || row.extraPrice !== 0) && <AdminField inputId="goods-single-extra-price" label="기본 옵션 옵션가" hint="판매가(할인하면 할인가)에 더하는 금액입니다. 0원이면 판매가 그대로 판매합니다.">
       <span className="goods-amount-input">
@@ -270,7 +278,7 @@ function SingleStock({ row, basePrice, codePrefix, update }: {
 }
 
 export function GoodsOptionEditor({
-  rows, baseline, basePrice, priceDraft, error, axisValues, onRowsChange: setRows, codePrefix,
+  rows, baseline, basePrice, priceDraft, error, axisValues, onRowsChange: setRows, codePrefix, savedCodes,
   onErpItemSelect, onRegularPriceApply, erpNotice,
 }: GoodsOptionEditorProps) {
   const firstAttributes = rows[0]?.attributes ?? {};
@@ -285,6 +293,8 @@ export function GoodsOptionEditor({
   const optionsEnabled = !single || optionUsage === 'on';
   const singleRow = single ? rows[0] : undefined;
   const stock = goodsOptionStockTotals(rows);
+  /* 행 순서 번호가 아니라 서버가 실제로 붙일 번호(기존·보관 옵션 코드를 피한 다음 빈 번호)를 보인다. */
+  const predictedCodes = predictGoodsOptionCodes(rows, codePrefix, savedCodes);
 
   function update(key: string, changes: Partial<GoodsOptionRow>) {
     setRows((current) => current.map((row) => goodsOptionRowKey(row) === key ? { ...row, ...changes } : row));
@@ -332,7 +342,7 @@ export function GoodsOptionEditor({
 
   return <div className="col admin-option-editor wc-admin-option-artwork" style={{ gap: 16 }} data-option-mode={single ? 'single' : 'multiple'}>
     <section className="goods-option-stock" aria-label="재고수량">
-      {singleRow ? <SingleStock row={singleRow} basePrice={basePrice} codePrefix={codePrefix} update={update} />
+      {singleRow ? <SingleStock row={singleRow} basePrice={basePrice} predictedCode={predictedCodes[0] ?? null} update={update} />
         : <p className="goods-option-stock__total">
           <span>옵션 재고수량 합계</span><strong>{stock.total.toLocaleString('ko-KR')}개</strong>
           {stock.active !== stock.total && <small>사용 중 옵션 {stock.active.toLocaleString('ko-KR')}개</small>}
@@ -352,7 +362,7 @@ export function GoodsOptionEditor({
     <OptionInputs axes={axes} rows={rows} hidden={!optionsEnabled} setAxes={setAxes} setRows={setRows} />
     {optionsEnabled && (single
       ? <p className="goods-option-list__empty" role="status">옵션목록 (총 0개) · 옵션명과 옵션값을 입력하고 옵션목록으로 적용을 누르세요. 적용 전에는 옵션 없이 판매하는 상품으로 저장됩니다.</p>
-      : <OptionList rows={rows} basePrice={basePrice} codePrefix={codePrefix} update={update} setRows={setRows} />)}
+      : <OptionList rows={rows} basePrice={basePrice} predictedCodes={predictedCodes} update={update} setRows={setRows} />)}
 
     <OptionDetailTable rows={rows} single={single} update={update} erpRows={erpRows} onErpChange={changeErpName}
       onErpSelect={selectErp} onErpPrice={applyErpPrice} notice={erpNotice} />
