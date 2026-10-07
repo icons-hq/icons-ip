@@ -24,6 +24,7 @@ import {
 } from '@/lib/admin/catalog';
 import { getAdminCatalogRecords } from '@/lib/admin/catalog.server';
 import { parseGoodsOptionRows, type GoodsOptionRow } from '@/lib/admin/goods-option-editor';
+import { goodsKcPublishBlockedMessage, parseAdminGoodsKc } from '@/lib/admin/goods-kc';
 import { withPreservedFormValues, type AdminFormValuesState } from '@/lib/admin/form-state';
 import {
   normalizeAdminHideCommentForm,
@@ -43,6 +44,8 @@ import { createClient } from '@/lib/supabase/server';
  */
 export interface AdminCatalogActionState extends AdminFormValuesState {
   savedGoodId?: string;
+  /** 저장 후 공개가 KC 검토에 막혀 같은 입력을 초안으로만 저장했다. `message`가 그 이유다. */
+  kcPublishBlocked?: true;
   stockAdjustment?: { variantId: string; stockQty: number; adjustmentId: string };
   errors?: AdminFieldErrors & { form?: string };
   message?: string;
@@ -376,12 +379,18 @@ async function saveAdminGood(
   if (formData.has('individualFee')) fulfillmentFields.individual_fee = String(formData.get('individualFee'));
   const previousIpPath = readPreviousIpPath(formData);
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc('admin_save_good', { target_good: {
+  const targetGood = {
     ...optionFields,
     ...fulfillmentFields,
     ...goodSaveFields(value),
     default_variant_code: value.defaultVariantCode,
-  } });
+  };
+  let { data, error } = await supabase.rpc('admin_save_good', { target_good: targetGood });
+  let kcPublishBlocked: string | null = null;
+  if (error && value.publish === true && error.message.includes('goods_kc_review_required')) {
+    const draft = await saveDraftAfterKcPublishBlock(supabase, targetGood, value.previousId);
+    if (draft) ({ data, error, message: kcPublishBlocked } = draft);
+  }
 
   if (error) {
     if (/category_not_leaf|category_archived|category_not_found|invalid_good_category|invalid_additional_categories/.test(error.message)) return { errors: { form: '카테고리가 변경되었거나 연결할 수 없는 상태입니다. 대표·추가 분류의 활성 말단을 확인해주세요. 입력값은 유지됩니다.' } };
@@ -413,7 +422,43 @@ async function saveAdminGood(
   if (!savedId) return rpcFailure('상품 저장 결과를 확인하지 못했습니다. 목록을 새로고침해주세요.');
   notifyRestockSubscribers(savedId);
   revalidateCatalog([...relatedIpPaths(value.ipId, previousIpPath), `/admin/catalog/ips/${value.ipId}`, `/shop/${savedId}`, ...(value.previousId ? [`/shop/${value.previousId}`] : [])]);
+  if (kcPublishBlocked) return { message: kcPublishBlocked, kcPublishBlocked: true, savedGoodId: savedId };
   return { message: value.publish ? adminGoodsCopy('굿즈를 저장하고 공개했습니다.') : adminGoodsCopy('굿즈를 저장했습니다.'), savedGoodId: savedId };
+}
+
+type AdminSupabase = Awaited<ReturnType<typeof createClient>>;
+
+async function readGoodsKcState(supabase: AdminSupabase, goodId: string | null) {
+  if (!goodId) return null;
+  try {
+    const { data, error } = await supabase.rpc('admin_read_goods_kc', { p_good_id: goodId });
+    return error ? null : parseAdminGoodsKc(data);
+  } catch (error) {
+    unstable_rethrow(error);
+    return null;
+  }
+}
+
+/*
+ * "저장 후 공개"의 KC 거절(goods_kc_review_required)은 admin_save_good 안에서 저장을 마친 뒤
+ * 마지막 공개 전환이 낸다. RPC 하나가 트랜잭션이라 첫 호출은 저장까지 모두 되돌려졌으므로,
+ * 공개 전환만 뺀 같은 전체 입력을 초안으로 다시 저장해 입력을 잃지 않게 한다. 저장 전 KC 상태는
+ * 첫 호출이 되돌려진 지금 읽어야 이번 저장이 검토를 무효화했는지 구분할 수 있다.
+ * 다시 저장이 실패하면 아무것도 저장되지 않았으므로 null을 돌려 원래 KC 오류를 유지한다.
+ */
+async function saveDraftAfterKcPublishBlock(supabase: AdminSupabase, targetGood: Record<string, unknown>, previousId: string | null) {
+  const before = await readGoodsKcState(supabase, previousId);
+  let retry: Awaited<ReturnType<AdminSupabase['rpc']>>;
+  try {
+    retry = await supabase.rpc('admin_save_good', { target_good: { ...targetGood, publish: null } });
+  } catch (error) {
+    unstable_rethrow(error);
+    return null;
+  }
+  if (retry.error) return null;
+  const savedId = typeof retry.data?.id === 'string' ? retry.data.id : null;
+  const after = await readGoodsKcState(supabase, savedId);
+  return { data: retry.data, error: null, message: goodsKcPublishBlockedMessage(before, after) };
 }
 
 export async function adjustAdminStockAction(

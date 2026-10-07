@@ -99,6 +99,31 @@ export function planGoodsKcProductNotApplicable(models: readonly GoodsKcModelInp
   return { models: next, discarded: models.length && JSON.stringify(current) !== JSON.stringify(next) ? models.length : 0 };
 }
 
+/** Copy after "저장 후 공개" was refused only for KC and the same input was saved
+ * as a draft instead. The admin guide's error table quotes these strings verbatim. */
+export const GOODS_KC_PUBLISH_BLOCKED_COPY = {
+  goods: "초안으로 저장했습니다. 상품명·유형·IP·고시정보가 바뀌어 KC를 다시 검토해야 공개할 수 있습니다. KC 정보에서 다시 검토(KC 대상이 아니면 '상품 전체 KC 해당 없음')한 뒤 공개해주세요.",
+  options: "초안으로 저장했습니다. 옵션이 바뀌어 KC를 다시 검토해야 공개할 수 있습니다. KC 정보에서 다시 검토(KC 대상이 아니면 '상품 전체 KC 해당 없음')한 뒤 공개해주세요.",
+  goodsAndOptions: "초안으로 저장했습니다. 상품명·유형·IP·고시정보와 옵션이 바뀌어 KC를 다시 검토해야 공개할 수 있습니다. KC 정보에서 다시 검토(KC 대상이 아니면 '상품 전체 KC 해당 없음')한 뒤 공개해주세요.",
+  unreviewed: "초안으로 저장했습니다. KC 정보에서 검토를 완료한 뒤 공개해주세요. KC 대상이 아니면 '상품 전체 KC 해당 없음'으로 바로 끝낼 수 있습니다.",
+} as const;
+type GoodsKcPublishSnapshot = Pick<AdminGoodsKc, 'status' | 'revision'> & { history: readonly Pick<GoodsKcHistoryEntry, 'revision' | 'reason'>[] };
+/** Picks the copy from the KC state read before and after the draft save. Only a
+ * completed review that this save invalidated names a cause; the reasons are the
+ * invalidation events newer than the revision read before the save
+ * (private.invalidate_goods_kc_review). Anything else, including an unreadable
+ * state, keeps the generic "complete the review" copy. */
+export function goodsKcPublishBlockedMessage(before: GoodsKcPublishSnapshot | null, after: GoodsKcPublishSnapshot | null): string {
+  const reviewedRevision = before?.status === 'reviewed' ? before.revision : null;
+  if (reviewedRevision === null || !after || after.status === 'reviewed') return GOODS_KC_PUBLISH_BLOCKED_COPY.unreviewed;
+  const reasons = new Set(after.history.filter((entry) => entry.revision > reviewedRevision).map((entry) => entry.reason));
+  const goods = reasons.has('goods_context_changed');
+  const options = reasons.has('variant_context_changed');
+  if (goods && options) return GOODS_KC_PUBLISH_BLOCKED_COPY.goodsAndOptions;
+  if (goods) return GOODS_KC_PUBLISH_BLOCKED_COPY.goods;
+  return options ? GOODS_KC_PUBLISH_BLOCKED_COPY.options : GOODS_KC_PUBLISH_BLOCKED_COPY.unreviewed;
+}
+
 /** Partial drafts are supported. Unsupported combinations and malformed payloads
  * are rejected before they reach the database; required evidence is checked at
  * the separate review-completion boundary. */

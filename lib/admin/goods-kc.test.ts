@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
-  emptyGoodsKcModel, goodsKcProductNotApplicableModel, goodsKcReviewProblems, normalizeGoodsKcModels,
-  parseAdminGoodsKc, parseGoodsKcSaveInput, publicGoodsKcDisclosures, kcModelFromTemplate,
+  GOODS_KC_PUBLISH_BLOCKED_COPY, emptyGoodsKcModel, goodsKcProductNotApplicableModel, goodsKcPublishBlockedMessage, goodsKcReviewProblems,
+  normalizeGoodsKcModels, parseAdminGoodsKc, parseGoodsKcSaveInput, publicGoodsKcDisclosures, kcModelFromTemplate,
 } from './goods-kc';
 import { goodsKcDisclosureRows, goodsKcSchemeAllowed, parseGoodsKcDisclosures, type GoodsKcScheme } from '@/lib/goods-kc';
 
@@ -133,5 +133,33 @@ describe('모델별 KC 검토', () => {
     expect(parseAdminGoodsKc(raw)?.status).toBe('unreviewed');
     expect(parseAdminGoodsKc({ ...raw, status: 'reviewed' })).toBeNull();
     expect(parseAdminGoodsKc({ ...raw, contextFingerprint: '' })).toBeNull();
+  });
+});
+
+describe('저장 후 공개가 KC 때문에 막혀 초안으로 저장한 뒤의 안내', () => {
+  const reviewed = { status: 'reviewed' as const, revision: 1, history: [{ revision: 1, reason: 'review_completed' }] };
+  function invalidated(...reasons: string[]) {
+    return { status: 'unreviewed' as const, revision: 1 + reasons.length,
+      history: [...reasons.map((reason, index) => ({ revision: 1 + reasons.length - index, reason })), { revision: 1, reason: 'review_completed' }] };
+  }
+  it('이번 저장이 검토 완료를 무효화했으면 바뀐 KC 맥락을 원인으로 알리고 다시 검토하게 한다', () => {
+    expect(goodsKcPublishBlockedMessage(reviewed, invalidated('goods_context_changed'))).toBe(GOODS_KC_PUBLISH_BLOCKED_COPY.goods);
+    expect(GOODS_KC_PUBLISH_BLOCKED_COPY.goods).toBe("초안으로 저장했습니다. 상품명·유형·IP·고시정보가 바뀌어 KC를 다시 검토해야 공개할 수 있습니다. KC 정보에서 다시 검토(KC 대상이 아니면 '상품 전체 KC 해당 없음')한 뒤 공개해주세요.");
+    expect(goodsKcPublishBlockedMessage(reviewed, invalidated('variant_context_changed'))).toBe(GOODS_KC_PUBLISH_BLOCKED_COPY.options);
+    expect(goodsKcPublishBlockedMessage(reviewed, invalidated('variant_context_changed', 'goods_context_changed'))).toBe(GOODS_KC_PUBLISH_BLOCKED_COPY.goodsAndOptions);
+  });
+  it('검토가 원래 없거나 미검토였으면 무효화 원인을 지어내지 않고 검토 완료를 안내한다', () => {
+    const unreviewed = GOODS_KC_PUBLISH_BLOCKED_COPY.unreviewed;
+    expect(unreviewed).toBe("초안으로 저장했습니다. KC 정보에서 검토를 완료한 뒤 공개해주세요. KC 대상이 아니면 '상품 전체 KC 해당 없음'으로 바로 끝낼 수 있습니다.");
+    expect(goodsKcPublishBlockedMessage(null, { status: 'unreviewed', revision: null, history: [] })).toBe(unreviewed);
+    // 미검토 상태에서 맥락을 바꿔도 이벤트는 남지만, 검토 완료를 무효화한 것은 아니다.
+    expect(goodsKcPublishBlockedMessage({ status: 'unreviewed', revision: 2, history: [] }, invalidated('draft_saved', 'goods_context_changed'))).toBe(unreviewed);
+    // 저장 전 상태를 읽지 못했거나 저장 뒤 상태를 읽지 못하면 일반 안내로 돌아간다.
+    expect(goodsKcPublishBlockedMessage(null, invalidated('goods_context_changed'))).toBe(unreviewed);
+    expect(goodsKcPublishBlockedMessage(reviewed, null)).toBe(unreviewed);
+    // 검토 완료가 그대로인데 현재 상품과 맞지 않거나, 이번 저장이 아닌 이전 이벤트만 있으면 일반 안내다.
+    expect(goodsKcPublishBlockedMessage(reviewed, reviewed)).toBe(unreviewed);
+    expect(goodsKcPublishBlockedMessage({ ...reviewed, revision: 3 }, { status: 'unreviewed', revision: 3,
+      history: [{ revision: 3, reason: 'draft_saved' }, { revision: 2, reason: 'goods_context_changed' }] })).toBe(unreviewed);
   });
 });
