@@ -14,6 +14,7 @@ import {
   imageMime,
   isPublicImageAddress,
 } from './goods-import-images.server';
+const PNG = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 1, 2]);
 function response(
   status: number,
   headers: Record<string, string>,
@@ -56,7 +57,7 @@ describe('import image source boundary', () => {
       expect(isPublicImageAddress(ip)).toBe(false);
     expect(isPublicImageAddress('8.8.8.8')).toBe(true);
     await expect(
-      fetchGoodsImportImage('http://example.test/a.png'),
+      fetchGoodsImportImage('ftp://example.test/a.png'),
     ).rejects.toThrow('HTTPS');
     mocks.lookup.mockResolvedValue([
       { address: '8.8.8.8', family: 4 },
@@ -68,10 +69,10 @@ describe('import image source boundary', () => {
     expect(mocks.request).not.toHaveBeenCalled();
   });
   it('pins the resolved public socket address and rechecks every redirect', async () => {
-    response(200, {});
+    response(200, { 'content-type': 'image/png' }, PNG);
     await expect(
       fetchGoodsImportImage('https://example.test/a.png'),
-    ).resolves.toEqual(Buffer.from('image'));
+    ).resolves.toEqual(PNG);
     const callback = vi.fn();
     mocks.request.mock.calls[0][1].lookup('example.test', {}, callback);
     expect(callback).toHaveBeenCalledWith(null, '8.8.8.8', 4);
@@ -84,11 +85,11 @@ describe('import image source boundary', () => {
     ).rejects.toThrow('내부');
   });
   it('enforces header and streamed size and requires supported image signatures', async () => {
-    response(200, { 'content-length': String(6 * 1024 * 1024) });
+    response(200, { 'content-type': 'image/png', 'content-length': String(6 * 1024 * 1024) });
     await expect(
       fetchGoodsImportImage('https://example.test/a.png'),
     ).rejects.toThrow('5MB');
-    response(200, {}, Buffer.alloc(6 * 1024 * 1024));
+    response(200, { 'content-type': 'image/png' }, Buffer.concat([PNG, Buffer.alloc(6 * 1024 * 1024)]));
     await expect(
       fetchGoodsImportImage('https://example.test/a.png'),
     ).rejects.toThrow('5MB');
