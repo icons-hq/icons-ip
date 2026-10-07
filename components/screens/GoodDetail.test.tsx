@@ -239,6 +239,33 @@ describe('GoodDetail', () => {
     expect(html).toContain('https://cdn.example/g13-extra-9.webp');
   });
 
+  /* 2026-10-07 QA 6 — 도트의 기준 상자가 썸네일까지 품은 갤러리 전체라, 데스크톱에서 도트가
+   * 썸네일 줄(10장이면 둘째 줄) 위에 떴다. 도트는 메인 이미지(스테이지)와 같은 상자에 두고
+   * 썸네일은 그 상자 밖에 둬야 썸네일 줄 수와 무관하게 이미지 안쪽 하단에 남는다. */
+  it('도트는 메인 이미지 상자 안에, 썸네일은 그 상자 밖에 그린다', () => {
+    const html = render({ gallery: Array.from({ length: 9 }, (_, index) => `url("https://cdn.example/g13-extra-${index + 1}.webp")`) });
+    const open = html.indexOf('<div class="wc-pdp-gallery__viewport">');
+    expect(open).toBeGreaterThanOrEqual(0);
+
+    /* 열린 div를 짝이 맞는 닫는 태그까지 잘라 낸다(슬라이드는 div, 도트·썸네일은 button). */
+    let depth = 0;
+    let end = -1;
+    for (const match of html.slice(open).matchAll(/<div\b|<\/div>/g)) {
+      depth += match[0] === '</div>' ? -1 : 1;
+      if (depth === 0) {
+        end = open + (match.index ?? 0) + match[0].length;
+        break;
+      }
+    }
+    const viewport = html.slice(open, end);
+
+    expect(viewport).toContain('class="wc-pdp-gallery__stage"');
+    expect(viewport).toContain('class="wc-pdp-gallery__dots"');
+    expect(viewport.match(/class="wc-pdp-gallery__dot(?: is-active)?"/g)).toHaveLength(10);
+    expect(viewport).not.toContain('wc-pdp-gallery__thumb');
+    expect(html.indexOf('class="wc-pdp-gallery__thumbs"')).toBeGreaterThanOrEqual(end);
+  });
+
   /* #172 완료 조건 — 갤러리가 비어도 대표 이미지로 정상 렌더된다. */
   it('갤러리가 비면 대표 이미지 한 장만 남고 도트는 사라진다', () => {
     const html = render({ gallery: [], detailImageUrl: null });
