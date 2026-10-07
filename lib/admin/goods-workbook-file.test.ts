@@ -185,6 +185,14 @@ describe('사방넷 상품 파일 읽기', () => {
       variants: [{ name: 'S', extraPrice: 0, stockQty: 0 }, { name: 'M', extraPrice: 5000, stockQty: 0 }],
     } }]);
   });
+  it('CP949 확장 한글이 든 사방넷 CSV는 오류 없는 초안 대신 다시 저장 안내로 막는다', async () => {
+    // '상품명,판매가\n똠양꿍 인형,9000'(CP949)
+    const bytes = Buffer.from([
+      0xbb, 0xf3, 0xc7, 0xb0, 0xb8, 0xed, 0x2c, 0xc6, 0xc7, 0xb8, 0xc5, 0xb0, 0xa1, 0x0a,
+      0x8c, 0x63, 0xbe, 0xe7, 0xb2, 0xe1, 0x20, 0xc0, 0xce, 0xc7, 0xfc, 0x2c, 0x39, 0x30, 0x30, 0x30,
+    ]);
+    await expect(readSabangnetGoodsSheet(bytes)).rejects.toThrow("'CSV UTF-8(쉼표로 분리)'로 저장하거나 XLSX로 올려 주세요.");
+  });
   it('사방넷 상품은 파일당 500개까지 읽는다', async () => {
     const csv = ['상품명,판매가', ...Array.from({ length: 501 }, (_, index) => `상품${index},1000`)].join('\n');
     await expect(readSabangnetGoodsSheet(Buffer.from(csv))).rejects.toThrow('500개');

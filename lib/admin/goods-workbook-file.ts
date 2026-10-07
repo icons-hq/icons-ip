@@ -422,8 +422,6 @@ export async function readSabangnetGoodsSheet(bytes: Buffer): Promise<SabangnetG
     const text = decodeSabangnetText(bytes);
     if (/^\s*</.test(text) && /<(table|html)[\s>]/i.test(text.slice(0, 4096)))
       throw new Error('웹 페이지 형식으로 저장된 파일입니다. 엑셀에서 열어 “Excel 통합 문서(.xlsx)”로 저장해 다시 올려 주세요.');
-    if (text.includes('\u0000'))
-      throw new Error('사방넷에서 내려받은 .xlsx 또는 .csv 파일을 올려 주세요.');
     rows = parseSabangnetCsv(text);
     if (rows.length > SABANGNET_READ_ROWS)
       throw new Error(`사방넷 상품은 파일당 ${GOODS_WORKBOOK_ROW_LIMIT}개까지 올릴 수 있습니다. 파일을 나누어 올려 주세요.`);
