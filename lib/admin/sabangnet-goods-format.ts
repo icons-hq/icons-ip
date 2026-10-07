@@ -106,6 +106,8 @@ const GALLERY_KEYS = GOODS_WORKBOOK_KEYS.filter((key) => /^galleryUrl\d+$/.test(
 /** ICONS 양식의 갤러리 칸 수와 같다. */
 export const SABANGNET_GALLERY_LIMIT = GALLERY_KEYS.length;
 export const SABANGNET_HEADER_SCAN_ROWS = 10;
+/** 한 번의 미리보기에서 내려받는 서로 다른 이미지 주소 수. */
+export const SABANGNET_IMAGE_LIMIT = 200;
 const OPTION_LIMIT = 100;
 
 const ALIASES: readonly [header: string, target: SabangnetTarget, confirmed: boolean][] = [

@@ -17,6 +17,7 @@ import {
   type GoodsImportGroup,
   type GoodsImportImage,
 } from './goods-workbook';
+import { SABANGNET_IMAGE_LIMIT } from './sabangnet-goods-format';
 import {
   fetchRemoteImage,
   fetchRemoteImages,
@@ -179,7 +180,6 @@ export async function prepareGoodsImportImages(
 export function goodsImportFilePath(batch: Pick<GoodsImportBatch, 'actor_id' | 'id'>, name: string) {
   return `${batch.actor_id}/${batch.id}/images/${createHash('sha256').update(name).digest('hex')}`;
 }
-export const SABANGNET_IMAGE_LIMIT = 200;
 /** Leaves room in the 300-second preview action for planning and saving after downloads. */
 export const SABANGNET_IMAGE_BUDGET_MS = 150_000;
 const IMAGE_LABELS: Record<string, string> = {
