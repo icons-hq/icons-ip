@@ -85,6 +85,15 @@ describe('real xlsx boundary', () => {
     );
     expect((await parseGoodsWorkbook(bytes))[0].values).toEqual(values);
   });
+  it('작성 안내 시트는 상세 HTML의 https 호스팅 이미지가 그대로 표시된다고 안내한다', async () => {
+    const book = new ExcelJS.Workbook();
+    await book.xlsx.load((await buildGoodsWorkbook([values])) as never);
+    const guide = book.getWorksheet('작성 안내')!;
+    const rows = guide.getSheetValues().filter(Boolean) as unknown[][];
+    const detail = rows.find((row) => row[1] === '상세 설명');
+    expect(detail?.[2]).toContain('https 호스팅 이미지 주소는 그대로 표시되고, CSS·스크립트와 확인할 수 없는 이미지는 제거됩니다.');
+    expect(detail?.[2]).not.toContain('외부 이미지는 제거됩니다');
+  });
   it('round trips the full 500-row limit within the server processing budget', async () => {
     const rows = Array.from({ length: 500 }, (_, index) => ({
       ...values,
