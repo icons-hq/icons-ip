@@ -165,7 +165,6 @@ export function adminListExportFileNameFromDisposition(header: string | null, fa
 }
 
 /* XML 1.0이 허용하지 않는 제어문자는 xlsx를 깨뜨린다. 탭·줄바꿈은 남긴다. */
-// eslint-disable-next-line no-control-regex
 const XML_INVALID_CHARS = /[\u0000-\u0008\u000B\u000C\u000E-\u001F\uFFFE\uFFFF]/g;
 const EXCEL_CELL_TEXT_LIMIT = 32_767;
 
