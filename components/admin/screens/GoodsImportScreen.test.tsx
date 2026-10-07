@@ -32,6 +32,7 @@ const view = {
   id: 'batch',
   fileName: 'goods.xlsx',
   state: 'ready' as const,
+  format: 'icons' as const,
   groups: [group],
 };
 describe('goods workbook confirmation screen', () => {

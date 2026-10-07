@@ -155,6 +155,24 @@ export async function loadGoodsWorkbookContext(
     })),
   };
 }
+/** Active IPs a Sabangnet import can attach new drafts to. */
+export async function loadGoodsImportIps(): Promise<{ id: string; title: string }[]> {
+  const client = await createClient();
+  const ips: { id: string; title: string }[] = [];
+  for (let start = 0; ; start += 1000) {
+    const result = await client
+      .from('ips')
+      .select('id,title,archived_at')
+      .is('archived_at', null)
+      .order('title')
+      .order('id')
+      .range(start, start + 999);
+    if (result.error) throw new Error('IP 목록을 읽지 못했습니다.');
+    ips.push(...(result.data ?? []).map((ip) => ({ id: String(ip.id), title: String(ip.title) })));
+    if ((result.data?.length ?? 0) < 1000) break;
+  }
+  return ips;
+}
 export async function loadGoodsExportParts(filters: GoodsListFilters) {
   const client = await createClient();
   const candidates: { id: string; rows: number }[] = [];
@@ -222,11 +240,13 @@ export function goodsImportView(batch: GoodsImportBatch) {
     id: batch.id,
     fileName: batch.workbook_name,
     state: batch.state,
+    format: batch.plan.some((group) => group.format === 'sabangnet') ? 'sabangnet' as const : 'icons' as const,
     groups: batch.plan.map((group, index) => ({
       index,
       code: group.code,
       name: group.name,
-      rows: group.rows,
+      // A Sabangnet row expands to one row per option; show its source row once.
+      rows: [...new Set(group.rows)],
       kind: group.kind,
       errors: group.errors,
       warnings: group.warnings,

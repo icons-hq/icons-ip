@@ -142,6 +142,8 @@ export type GoodsImportImage = {
   field: 'image_path' | 'detail_image_path' | `gallery_${number}`;
   source: string;
   kind: 'url' | 'file';
+  /** URL image already downloaded at preview into the batch's private files under this name. */
+  cached?: string;
 };
 export type GoodsImportGroup = {
   key: string;
@@ -156,7 +158,19 @@ export type GoodsImportGroup = {
   fingerprint: string | null;
   images: GoodsImportImage[];
   kcSource?: GoodsKcWorkbookInputRow[];
+  /** Set for groups converted from a Sabangnet sheet: drafts only, and an image that fails is left out. */
+  format?: 'sabangnet';
 };
+/** Removes a not-yet-prepared image from a planned group so the product saves without it. */
+export function dropGoodsImportImage(group: GoodsImportGroup, field: GoodsImportImage['field']) {
+  group.images = group.images.filter((image) => image.field !== field);
+  if (!group.target) return;
+  const placeholder = `import-image:${field}`;
+  if (field.startsWith('gallery_'))
+    group.target.gallery_paths = ((group.target.gallery_paths as string[] | undefined) ?? [])
+      .filter((path) => path !== placeholder);
+  else if (group.target[field] === placeholder) group.target[field] = null;
+}
 const OPTION_KEYS = new Set<GoodsWorkbookKey>([
   'variantCode',
   'variantName',
