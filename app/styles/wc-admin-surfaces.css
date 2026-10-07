@@ -1286,6 +1286,8 @@
 .wc-admin .admin-erp-items__mapping-filters input[type='search'] { width: min(100%, 320px); min-height: 40px; }
 .wc-admin .admin-erp-items__check { display: inline-flex; align-items: center; gap: 6px; font-weight: 400; }
 .wc-admin .admin-erp-items__suggestion { margin-top: 8px; max-width: 100%; height: auto; min-height: 38px; white-space: normal; text-align: left; }
+.wc-admin .admin-erp-items__mapping-note { margin-top: 8px; font-size: 12px; }
+.wc-admin .admin-erp-items__mapping-warning { margin: 8px 0 0; padding: 8px 10px; border: 1px solid var(--wc-line-control); border-radius: var(--wc-radius-form); background: var(--wc-surface-grey); color: var(--wc-ink); font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
 .wc-admin .admin-erp-items__save { display: grid; justify-items: start; gap: 6px; min-width: 120px; }
 .wc-admin .admin-erp-items__search { display: grid; gap: 8px; }
 .wc-admin .admin-erp-items__search label { font-size: 13px; font-weight: 600; }
@@ -1297,7 +1299,7 @@
   .wc-admin .admin-erp-items__table select { min-width: 140px; }
 }
 @media (forced-colors: active) {
-  .wc-admin .admin-erp-items__warnings, .wc-admin .admin-erp-items__table-scroll { border: 2px solid; }
+  .wc-admin .admin-erp-items__warnings, .wc-admin .admin-erp-items__table-scroll, .wc-admin .admin-erp-items__mapping-warning { border: 2px solid; }
 }
 @media print {
   .wc-admin .admin-erp-items__sources, .wc-admin .admin-erp-items__preview .wc-admin-kit__actions { display: none; }

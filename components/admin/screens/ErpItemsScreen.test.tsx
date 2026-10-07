@@ -25,9 +25,9 @@ function data(overrides: Partial<ErpItemsWorkspaceData> = {}): ErpItemsWorkspace
       { code: 'K-2', name: '키링 거치대', category: null, salePrice: null, barcode: null, mappedCategoryId: null, importedAt: '2026-10-06T16:30:00Z', updatedAt: '2026-10-06T16:30:00Z' },
     ] },
     erpCategories: [
-      { erpCategory: '문구 > 키링', itemCount: 1, categoryId: KEYRING, updatedAt: '2026-10-07T03:00:00Z' },
-      { erpCategory: '문구 > 포토카드', itemCount: 3, categoryId: null, updatedAt: null },
-      { erpCategory: '단종 분류', itemCount: 0, categoryId: ARCHIVED, updatedAt: '2026-10-01T00:00:00Z' },
+      { erpCategory: '문구 > 키링', itemCount: 1, categoryId: KEYRING, updatedAt: '2026-10-07T03:00:00Z', fallbackCategoryId: null },
+      { erpCategory: '문구 > 포토카드', itemCount: 3, categoryId: null, updatedAt: null, fallbackCategoryId: null },
+      { erpCategory: '단종 분류', itemCount: 0, categoryId: ARCHIVED, updatedAt: '2026-10-01T00:00:00Z', fallbackCategoryId: null },
     ],
     categories: [
       node('00000000-0000-4000-8000-000000071110', '문구', null, { childCount: 2 }),

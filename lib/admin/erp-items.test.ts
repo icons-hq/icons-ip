@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { AdminCategoryNode } from './category';
 import {
   ERP_ITEMS_PATH,
+  conflictingCategoryErpMapping,
   erpItemRejectReasonLabel,
   erpItemsHref,
   formatErpSalePrice,
@@ -42,9 +43,10 @@ describe('ERP 품목 RPC 행 해석', () => {
     expect(parseErpItemListPage({ total: 3, items: [item] })).toMatchObject({ total: 3, items: [{ code: 'A', importedAt: '2026-10-07T00:00:00Z' }] });
     expect(parseErpItemListPage({ total: 0, items: [item] })).toBeNull();
     expect(parseErpItemListPage({ total: 1, items: [{ ...item, imported_at: null }] })).toBeNull();
-    expect(parseErpCategoryMappingRow({ erp_category: '문구 > 키링', item_count: '2', category_id: null, updated_at: null }))
-      .toEqual({ erpCategory: '문구 > 키링', itemCount: 2, categoryId: null, updatedAt: null });
-    expect(parseErpCategoryMappingRow({ erp_category: '', item_count: 1, category_id: null, updated_at: null })).toBeNull();
+    expect(parseErpCategoryMappingRow({ erp_category: '문구 > 키링', item_count: '2', category_id: null, updated_at: null, fallback_category_id: 'keyring' }))
+      .toEqual({ erpCategory: '문구 > 키링', itemCount: 2, categoryId: null, updatedAt: null, fallbackCategoryId: 'keyring' });
+    expect(parseErpCategoryMappingRow({ erp_category: '', item_count: 1, category_id: null, updated_at: null, fallback_category_id: null })).toBeNull();
+    expect(parseErpCategoryMappingRow({ erp_category: '문구', item_count: 1, category_id: null, updated_at: null })).toBeNull();
   });
 
   it('거부 사유를 안내 문구로 바꾸고 모르는 사유도 빈칸으로 두지 않는다', () => {
@@ -82,5 +84,20 @@ describe('ERP 분류 → 고객 카테고리 제안', () => {
     expect(suggestErpCategoryTarget('KR-01', categories, [{ categoryId: 'living-keyring', erpCode: 'KR-01', erpName: '키링류' }]))
       .toEqual({ categoryId: 'living-keyring', basis: 'erp_mapping', label: '리빙 > 키링' });
     expect(suggestErpCategoryTarget('키링류', categories, [{ categoryId: 'archived', erpCode: 'X', erpName: '키링류' }])).toBeNull();
+  });
+});
+
+describe('고른 고객 카테고리의 정본 ERP 분류 매핑과 비교', () => {
+  const mappings = [{ categoryId: 'keyring', erpCode: 'KR-01', erpName: '문구  키링' }];
+
+  it('정본 매핑의 이름이나 코드가 ERP 분류와 같으면 경고하지 않는다', () => {
+    expect(conflictingCategoryErpMapping('문구 키링', 'keyring', mappings)).toBeNull();
+    expect(conflictingCategoryErpMapping(' KR-01 ', 'keyring', mappings)).toBeNull();
+    expect(conflictingCategoryErpMapping('키링', 'photo', mappings)).toBeNull();
+  });
+
+  it('정본 매핑이 다르면 그 매핑을 돌려준다(대소문자도 다르게 본다)', () => {
+    expect(conflictingCategoryErpMapping('문구 > 포토카드', 'keyring', mappings)).toEqual(mappings[0]);
+    expect(conflictingCategoryErpMapping('kr-01', 'keyring', mappings)).toEqual(mappings[0]);
   });
 });

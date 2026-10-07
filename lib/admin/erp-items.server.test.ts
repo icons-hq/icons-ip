@@ -18,7 +18,7 @@ beforeEach(() => {
   mocks.rpc.mockImplementation((name: string) => name === 'admin_list_erp_categories'
     ? { range: mocks.range }
     : Promise.resolve({ data: { total: 51, items: [item('A')] }, error: null }));
-  mocks.range.mockResolvedValue({ data: [{ erp_category: '문구 > 키링', item_count: 2, category_id: null, updated_at: null }], error: null });
+  mocks.range.mockResolvedValue({ data: [{ erp_category: '문구 > 키링', item_count: 2, category_id: null, updated_at: null, fallback_category_id: null }], error: null });
 });
 
 describe('ERP 품목 화면 로더', () => {
@@ -43,8 +43,8 @@ describe('ERP 품목 화면 로더', () => {
 
   it('분류가 1,000개를 넘으면 나눠 읽는다', async () => {
     mocks.range
-      .mockResolvedValueOnce({ data: Array.from({ length: 1000 }, (_, index) => ({ erp_category: `분류 ${index}`, item_count: 1, category_id: null, updated_at: null })), error: null })
-      .mockResolvedValueOnce({ data: [{ erp_category: '마지막', item_count: 1, category_id: null, updated_at: null }], error: null });
+      .mockResolvedValueOnce({ data: Array.from({ length: 1000 }, (_, index) => ({ erp_category: `분류 ${index}`, item_count: 1, category_id: null, updated_at: null, fallback_category_id: null })), error: null })
+      .mockResolvedValueOnce({ data: [{ erp_category: '마지막', item_count: 1, category_id: null, updated_at: null, fallback_category_id: null }], error: null });
     const data = await loadErpItemsWorkspace({ query: '', page: 1 });
     expect(mocks.range.mock.calls).toEqual([[0, 999], [1000, 1999]]);
     expect(data.erpCategories).toHaveLength(1001);

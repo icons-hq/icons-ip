@@ -123,8 +123,14 @@ export function parseErpItemListPage(value: unknown): ErpItemListPage | null {
 export interface ErpCategoryMappingRow {
   erpCategory: string;
   itemCount: number;
+  /** ERP 품목 화면에서 저장한 연결. 없으면 null. */
   categoryId: string | null;
   updatedAt: string | null;
+  /**
+   * 새 연결이 없을 때 고객 카테고리 화면의 ERP 분류 매핑(정본)으로 제안하는 활성 말단.
+   * ERP 분류 이름 또는 코드가 원문과 정확히 같은 말단이 하나뿐일 때만 값이 있다.
+   */
+  fallbackCategoryId: string | null;
 }
 
 /** `admin_list_erp_categories` 행 → 연결 표 행. */
@@ -134,10 +140,34 @@ export function parseErpCategoryMappingRow(value: unknown): ErpCategoryMappingRo
   const itemCount = typeof row.item_count === 'number' ? row.item_count : Number(row.item_count);
   const categoryId = textOrNull(row.category_id);
   const updatedAt = textOrNull(row.updated_at);
+  const fallbackCategoryId = textOrNull(row.fallback_category_id);
   if (typeof row.erp_category !== 'string' || !row.erp_category || !Number.isSafeInteger(itemCount) || itemCount < 0
-    || categoryId === undefined || updatedAt === undefined) return null;
-  return { erpCategory: row.erp_category, itemCount, categoryId, updatedAt };
+    || categoryId === undefined || updatedAt === undefined || fallbackCategoryId === undefined) return null;
+  return { erpCategory: row.erp_category, itemCount, categoryId, updatedAt, fallbackCategoryId };
 }
+
+/* DB(private.erp_item_text)처럼 공백 연속을 하나로 합치고 앞뒤 공백을 지운다. 대소문자는 그대로 비교한다. */
+function sameErpText(left: string, right: string): boolean {
+  const normalize = (value: string) => value.replace(/\s+/g, ' ').trim();
+  return normalize(left) === normalize(right);
+}
+
+/**
+ * 연결 화면에서 고른 고객 카테고리의 정본 ERP 분류 매핑(고객 카테고리 화면)이 이 ERP 분류와
+ * 다르면 그 매핑을 돌려준다. 매핑이 없거나 이름·코드 중 하나가 같으면 null.
+ */
+export function conflictingCategoryErpMapping<T extends Pick<AdminCategoryErpMapping, 'categoryId' | 'erpCode' | 'erpName'>>(
+  erpCategory: string,
+  categoryId: string,
+  erpMappings: readonly T[],
+): T | null {
+  const mapping = erpMappings.find((entry) => entry.categoryId === categoryId);
+  if (!mapping) return null;
+  return sameErpText(mapping.erpName, erpCategory) || sameErpText(mapping.erpCode, erpCategory) ? null : mapping;
+}
+
+/** 한 번에 지울 수 있는 ERP 품목 수(`admin_delete_erp_items`와 같은 상한). */
+export const ERP_ITEM_DELETE_LIMIT = 500;
 
 export interface ErpItemFilters {
   query: string;
