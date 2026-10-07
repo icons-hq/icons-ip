@@ -150,3 +150,11 @@ describe('ClaimQueueScreen', () => {
     expect(html).toContain('조건에 맞는 교환 요청이 없습니다.');
   });
 });
+
+describe('취소·반품·교환 목록 엑셀 다운로드', () => {
+  it('유형별 화면 id와 현재 조건으로 내려받는다', () => {
+    const html = renderToStaticMarkup(<ClaimQueueScreen data={data({ filters: { from: '2026-10-01', page: 2, query: 'C00042', reasonType: 'defect', stage: 'all', to: null } })} now={NOW} />);
+    expect(html).toContain('목록 엑셀 다운로드');
+    expect(html).toContain('data-export-href="/api/admin/list-export?screen=claims-returns&amp;stage=all&amp;reasonType=defect&amp;from=2026-10-01&amp;query=C00042"');
+  });
+});

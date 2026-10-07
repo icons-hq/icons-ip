@@ -170,10 +170,16 @@ function buyerName(value: string | null, userId: string) {
   return value?.trim() || `fan_${userId.slice(0, 6)}`;
 }
 
+/**
+ * `pageSize`는 목록 엑셀 다운로드가 전체 결과를 페이지 단위로 모을 때만 쓴다.
+ * 화면은 기본 20건을 유지하고, RPC 상한(100건)을 넘기지 않는다.
+ */
 export async function getAdminOrderRecords(
   filters: AdminOrderFilters,
   includeManualRecovery = false,
+  options: { pageSize?: number } = {},
 ): Promise<AdminOrderConsoleData> {
+  const pageSize = Math.min(Math.max(Math.trunc(options.pageSize ?? PAGE_SIZE) || PAGE_SIZE, 1), 100);
   const supabase = await createClient();
   /* 드롭다운과 배송조회 링크가 같은 레지스트리를 봐야 한다. 클라이언트 콘솔에는
      상수가 없으므로 목록 응답에 실어 보낸다(#251). */
@@ -181,8 +187,8 @@ export async function getAdminOrderRecords(
   const { data, error } = await supabase.rpc('admin_search_orders', {
     p_field: filters.field,
     p_from: filters.from,
-    p_limit: PAGE_SIZE,
-    p_offset: (filters.page - 1) * PAGE_SIZE,
+    p_limit: pageSize,
+    p_offset: (filters.page - 1) * pageSize,
     p_query: filters.query || null,
     p_status: filters.status === 'all' ? null : filters.status,
     p_to: filters.to,
@@ -191,7 +197,7 @@ export async function getAdminOrderRecords(
   if (error) throw new Error(`Failed to load admin orders: ${error.message}`);
   const rows = (data ?? []) as SearchRow[];
   if (!rows.length) {
-    return { carriers, filters, items: [], pageSize: PAGE_SIZE, total: 0 };
+    return { carriers, filters, items: [], pageSize, total: 0 };
   }
 
   const orderIds = rows.map((row) => row.id);
@@ -361,7 +367,7 @@ export async function getAdminOrderRecords(
     carriers,
     filters,
     items,
-    pageSize: PAGE_SIZE,
+    pageSize,
     total: rows[0].total_count,
   };
 }

@@ -10,6 +10,8 @@ import {DELIVERY_METHOD_LABELS,deliveryStatusLabel} from '@/lib/shipment-deliver
 import {ShipmentConsoleGrid} from './ShipmentConsoleGrid';
 import {DispatchTrackingImportPanel} from './DispatchTrackingImportPanel';
 import {DispatchDelayNoteForm} from './DispatchDelayNoteForm';
+import {AdminListExportButton} from '@/components/admin/AdminListExportButton';
+import {adminListExportHref} from '@/lib/admin/list-export';
 export function ShipmentConsoleScreen({data,registeredCount}:{data:ShipmentConsoleData;registeredCount?:number|null}){
  const {surface,filters,rows,origins,carriers}=data;const isDispatch=surface==='dispatch';
  const hasParcelRows=!rows.length||rows.some(isParcelShipment);
@@ -53,6 +55,7 @@ export function ShipmentConsoleScreen({data,registeredCount}:{data:ShipmentConso
   <ConsoleFilterPanel action={`/admin/sales/${surface}`} hiddenFields={{tab:filters.tab}} dateRange={{from:filters.from,to:filters.to,label:'주문일'}}
    statusFilter={{name:'originId',label:'출고지',value:filters.originId??'',options:[{value:'',label:'전체 출고지'},...origins.map(origin=>({value:origin.id,label:origin.name}))]}}
    search={{value:filters.query,placeholder:'배송건번호 · 주문번호 · 구매자'}} />
+  <AdminListExportButton href={adminListExportHref(surface,shipmentConsoleHref(surface,filters))} total={data.total}/>
   <ConsoleCountChips label="배송 처리 단계" chips={SHIPMENT_CONSOLE_TABS[surface].map(tab=>({active:tab.id===filters.tab,label:tab.label,count:data.counts[tab.id],href:shipmentConsoleHref(surface,filters,{tab:tab.id,page:1})}))}/>
   {isDispatch&&filters.tab!=='new'&&(!rows.length||rows.some(isParcelShipment))?<details className="admin-shipment-import-disclosure">
    <summary>운송장 가져오기 · 창고 회신 등록</summary>
