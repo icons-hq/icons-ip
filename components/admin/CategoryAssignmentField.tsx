@@ -1,7 +1,27 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { categoryPath, type AdminCategoryNode } from '@/lib/admin/category';
+
+/**
+ * 상위가 대표 카테고리를 바꾸면(예: ERP 카테고리로 바꾸기) select에 bubbling change 이벤트를 보낸다.
+ * 상품 폼의 미리보기·브라우저 복구 기록은 input/change 이벤트로 폼을 다시 읽기 때문이다.
+ * 사용자가 select에서 직접 고른 값은 이미 change가 났으므로 다시 보내지 않는다.
+ */
+export function createPrimaryChangeAnnouncer(initial: string) {
+  let announced = initial;
+  return {
+    /** select에서 직접 고른 값 */
+    chosen(value: string) { announced = value; },
+    /** 화면에 반영된 값. 알리지 않은 변경이면 change를 보내고 true */
+    committed(value: string, target: EventTarget | null | undefined): boolean {
+      if (value === announced) return false;
+      announced = value;
+      target?.dispatchEvent(new Event('change', { bubbles: true }));
+      return true;
+    },
+  };
+}
 
 /**
  * 대표·추가 고객 카테고리 선택. 기본은 내부 상태를 갖는 비제어 입력이다.
@@ -31,6 +51,10 @@ export function CategoryAssignmentField({
   const controlled = controlledPrimary !== undefined && onPrimaryChange !== undefined;
   const primary = controlled ? controlledPrimary : uncontrolledPrimary;
   const setPrimary = controlled ? onPrimaryChange : setUncontrolledPrimary;
+  const selectRef = useRef<HTMLSelectElement>(null);
+  const [announcer] = useState(() => createPrimaryChangeAnnouncer(primary));
+  /* 커밋된 뒤 보내야 폼 관찰자가 새 값을 읽는다. */
+  useEffect(() => { announcer.committed(primary, selectRef.current); }, [announcer, primary]);
   const [additional, setAdditional] = useState<string[]>(() => {
     try {
       const values: unknown = JSON.parse(additionalValue ?? '[]');
@@ -45,7 +69,8 @@ export function CategoryAssignmentField({
   return (
     <div className="col" style={{ gap: 7 }}>
       <label className="mono" htmlFor="category-assignment" style={{ color: 'var(--dim)', fontSize: 11 }}>대표 카테고리</label>
-      <select aria-describedby="category-assignment-hint" aria-invalid={error ? 'true' : undefined} className="admin-field-control" value={primary} id="category-assignment" name="categoryId" onChange={(event) => {
+      <select aria-describedby="category-assignment-hint" aria-invalid={error ? 'true' : undefined} className="admin-field-control" value={primary} id="category-assignment" name="categoryId" ref={selectRef} onChange={(event) => {
+        announcer.chosen(event.target.value);
         setPrimary(event.target.value);
         setAdditional(current => current.filter(id => id !== event.target.value));
       }}>
