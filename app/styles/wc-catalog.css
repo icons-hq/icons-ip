@@ -807,17 +807,13 @@
 }
 
 @media (min-width: 990px) {
-  /* 84×7 + 10×6 = 648 — 갤러리 폭(649)에 그대로 맞는다. 넘치면 가로 스크롤로 흘린다. */
+  /* 84×7 + 10×6 = 648 — 갤러리 폭(649)에 7개가 그대로 맞는다. 대표 1 + 추가 이미지 9 = 10장까지
+     올 수 있으므로(2026-10-07) 넘치면 숨은 가로 스크롤 대신 다음 줄로 내려 모든 썸네일이 보이게 한다. */
   .wc-pdp-gallery__thumbs {
     display: flex;
+    flex-wrap: wrap;
     gap: 10px;
     margin-top: 10px;
-    overflow-x: auto;
-    scrollbar-width: none;
-  }
-
-  .wc-pdp-gallery__thumbs::-webkit-scrollbar {
-    display: none;
   }
 
   /* 레퍼런스에는 활성 마커가 아예 없다(R-04 §10-2) — 보더 한 겹으로 결함을 메운다. */

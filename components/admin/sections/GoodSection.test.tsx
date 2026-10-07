@@ -292,15 +292,15 @@ describe('GoodSection', () => {
     expect(html).toContain('고시정보 필수 항목입니다.');
   });
 
-  /* #172 — 설명·갤러리 4슬롯·상세 이미지가 같은 업로드 칸을 재사용한다. */
+  /* #172 — 설명·추가 이미지 9칸(2026-10-07 4칸에서 확대)·상세 이미지가 같은 업로드 칸을 재사용한다. */
   /* 2026-10-07 MD 요청 — 대표 이미지·추가 이미지를 한 썸네일 그리드로, "슬롯"·잘림 예시 없이. */
   it('offers one image grid for the main and additional images, a description, and one detail image', () => {
     const html = renderGoodSection(null);
 
     expect(html).toMatch(/<textarea[^>]*name="description"/);
-    expect(html).toContain('상품 이미지 · 대표 이미지 1장 + 추가 이미지 최대 4장');
+    expect(html).toContain('상품 이미지 · 대표 이미지 1장 + 추가 이미지 최대 9장');
     expect(html).toContain('1000×1000(1:1) 이미지를 권장합니다. 올린 원본 비율 그대로, 잘리지 않고 표시됩니다.');
-    for (const name of ['imagePath', 'galleryPath0', 'galleryPath1', 'galleryPath2', 'galleryPath3']) {
+    for (const name of ['imagePath', ...Array.from({ length: 9 }, (_, index) => `galleryPath${index}`)]) {
       expect(html).toContain(`name="${name}"`);
     }
     expect(html).toContain('aria-label="대표 이미지 추가"');

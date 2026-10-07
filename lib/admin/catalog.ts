@@ -184,8 +184,10 @@ const INTEGER_PATTERN = /^-?\d+$/;
 const INT32_MIN = -2147483648;
 const INT32_MAX = 2147483647;
 const STOCK_VALUES = new Set<Stock>(['low', 'ok', 'soldout']);
-/* 갤러리는 대표 이미지 외 최대 4장 (#172 · 계획 D6). DB check 제약과 같은 값이다. */
-export const GOODS_GALLERY_MAX = 4;
+/* 추가 이미지(갤러리)는 대표 이미지 외 최대 9장이다 — 스마트스토어와 같은 대표 1 + 추가 9
+ * (#172 · 계획 D6, 2026-10-07 MD 요청으로 4장에서 확대). DB check 제약 goods_gallery_paths_limit과
+ * admin_upsert_good 검사(20261007160000)와 같은 값이다. */
+export const GOODS_GALLERY_MAX = 9;
 export const GOODS_DESCRIPTION_MAX_LENGTH = 2000;
 export const GOODS_SEARCH_KEYWORDS_MAX_COUNT = 50;
 export const GOODS_SEARCH_KEYWORD_MAX_LENGTH = 80;
@@ -370,8 +372,8 @@ function readGoodsNotice(formData: FormData, errors: AdminFieldErrors, required 
 }
 
 /*
- * 갤러리는 번호가 붙은 슬롯 4칸이다 (#172). 운영자는 슬롯을 골라 순서를 정하고,
- * 비운 슬롯은 배열에서 빠진다 — 배열 인덱스가 그대로 노출 순서가 된다.
+ * 추가 이미지는 번호가 붙은 칸 GOODS_GALLERY_MAX개다 (#172). 운영자는 칸 순서로 노출 순서를 정하고,
+ * 비운 칸은 배열에서 빠진다 — 배열 인덱스가 그대로 노출 순서가 된다.
  */
 function readGoodsGalleryPaths(formData: FormData, errors: AdminFieldErrors): string[] {
   const paths: string[] = [];
