@@ -345,14 +345,14 @@ function GoodEditorForm({ action, catalogIps, ipOptions, pending, selected, stat
       <GoodsClaimPolicyFields values={initial} errors={errors} />
       <GoodsSalePolicyFields values={initial} errors={errors} />
       <div className="admin-good-workspace__save" aria-label="기본 상품 저장">
-        <div><strong role="status">{pending ? '저장 중…' : Object.keys(errors).length ? '저장 실패 · 입력값 유지' : dirty ? '미저장 변경 있음' : state.message ? '기본 상품 저장 완료' : selected ? '서버 저장값과 동일' : '새 초안 · 아직 저장 전'}</strong>
+        <div><strong role="status">{pending ? '저장 중…' : Object.keys(errors).length ? '저장 실패 · 입력값 유지' : dirty ? '미저장 변경 있음' : state.kcPublishBlocked ? '초안 저장 완료 · 공개 보류' : state.message ? '기본 상품 저장 완료' : selected ? '서버 저장값과 동일' : '새 초안 · 아직 저장 전'}</strong>
           <p>기본 상품·이미지·옵션·고시·배송·판매 조건만 저장합니다. KC·재고 조정·혜택은 각 영역에서 별도 저장합니다.</p>
           {dirty && <p>브라우저 복구 기록은 서버 저장이 아닙니다.</p>}
           {selected?.publishedAt && <p>저장하면 공개 중인 상품 화면에 반영됩니다.</p>}
         </div>
         <div className="row"><button className="btn btn-holo" disabled={pending || Boolean(selected?.archivedAt)} name="intent" value="save">{pending ? '저장 중…' : selected?.publishedAt ? '기본 상품 저장' : '초안으로 저장'}</button>{selected && !selected.publishedAt && !selected.archivedAt && <button className="btn btn-ghost" disabled={pending} name="intent" value="publish">저장 후 공개</button>}</div>
-        {!selected && <p>1. 초안 생성 → 2. KC 검토 → 3. 공개 요청</p>}
-        <ActionNotice state={state} />
+        {!selected?.publishedAt && !selected?.archivedAt && <p>1. 기본 정보·유형·고시정보·옵션까지 입력해 초안 저장 → 2. KC 검토 → 3. 공개. KC 검토 뒤 상품명·유형·IP·고시정보(제조자·제조국·소재·크기)나 옵션 구성을 바꾸면 KC를 다시 검토합니다.</p>}
+        {state.kcPublishBlocked && state.message ? <div className="card" role="alert" style={{ color: 'var(--wc-warning)', padding: 12, borderRadius: 10, fontWeight: 700 }}>{state.message}{selected && <> <a href="#good-operation-kc" onClick={(event) => { event.preventDefault(); focusGoodWorkspaceTarget('good-operation-kc'); }}>KC 정보 열기</a></>}</div> : <ActionNotice state={state} />}
       </div>
     </form>
     <GoodPreviewPanel detail={previewDetail} ip={previewIp} shippingPolicy={shippingPolicy} />

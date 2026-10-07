@@ -45,6 +45,27 @@ const CATALOG_CASES: AdminGuideErrorCase[] = [
   },
 ];
 
+const KC_PUBLISH_CASES: AdminGuideErrorCase[] = [
+  {
+    quote: "초안으로 저장했습니다. 상품명·유형·IP·고시정보가 바뀌어 KC를 다시 검토해야 공개할 수 있습니다. KC 정보에서 다시 검토(KC 대상이 아니면 '상품 전체 KC 해당 없음')한 뒤 공개해주세요.",
+    sourceFile: 'lib/admin/goods-kc.ts',
+    cause: 'KC 검토를 마친 뒤 상품명·유형·IP나 고시정보의 제조자·제조국·소재·크기를 바꿔 저장 후 공개를 눌렀습니다. 이 변경으로 KC 검토가 미검토로 돌아가 공개만 보류됐고, 입력은 초안으로 저장됐습니다. 옵션 구성을 바꾼 경우에는 문구가 옵션이 바뀌었다고 알립니다.',
+    fix: '저장 영역의 KC 정보 열기로 이동해 다시 검토합니다. KC 대상이 아니면 상품 전체 KC 해당 없음으로 끝냅니다. 검토가 끝나면 저장 후 공개를 다시 누르거나 게시 상태에서 공개로 전환합니다.',
+  },
+  {
+    quote: "초안으로 저장했습니다. KC 정보에서 검토를 완료한 뒤 공개해주세요. KC 대상이 아니면 '상품 전체 KC 해당 없음'으로 바로 끝낼 수 있습니다.",
+    sourceFile: 'lib/admin/goods-kc.ts',
+    cause: 'KC 검토를 완료하지 않은 초안에서 저장 후 공개를 눌렀습니다. 입력은 초안으로 저장됐고 공개만 보류됐습니다.',
+    fix: 'KC 정보에서 검토를 완료한 뒤 다시 공개합니다. KC 대상이 아니면 상품 전체 KC 해당 없음에서 확인 체크 후 해당 없음으로 검토 완료를 누릅니다.',
+  },
+  {
+    quote: "KC 정보에서 검토를 완료한 뒤 공개해주세요. KC 대상이 아니면 '상품 전체 KC 해당 없음'으로 바로 끝낼 수 있습니다.",
+    sourceFile: 'app/admin/goods-publish-actions.ts',
+    cause: '게시 상태에서 공개로 전환했는데 KC 검토가 완료되지 않았거나, 검토 뒤 상품·옵션 저장으로 검토가 미검토로 돌아갔습니다. 저장 후 공개에서 이 문구만 보이면 초안 저장도 되지 않은 것입니다.',
+    fix: 'KC 정보에서 저장된 검토 상태를 확인하고 검토를 완료한 뒤 다시 공개합니다. 저장 후 공개였다면 입력을 확인하고 다시 저장합니다.',
+  },
+];
+
 const STOCK_CASES: AdminGuideErrorCase[] = [
   {
     quote: '실재고가 변경되었습니다. 최신 수량을 확인한 뒤 다시 시도해주세요.',
@@ -167,6 +188,7 @@ const POOL_CASES: AdminGuideErrorCase[] = [
 
 export const ADMIN_GUIDE_ERROR_CASES: AdminGuideErrorCase[] = [
   ...CATALOG_CASES,
+  ...KC_PUBLISH_CASES,
   ...STOCK_CASES,
   ...ORDER_CASES,
   ...BANK_CASES,
@@ -210,6 +232,7 @@ export const TROUBLESHOOTING_TOPIC: AdminGuideTopic = {
       ],
     },
     { id: 'catalog', heading: '카탈로그 등록·이미지', table: errorTable(CATALOG_CASES) },
+    { id: 'kc-publish', heading: '상품 KC 검토와 공개', table: errorTable(KC_PUBLISH_CASES) },
     { id: 'stock', heading: '실재고 조정', table: errorTable(STOCK_CASES) },
     { id: 'orders', heading: '주문·배송', table: errorTable(ORDER_CASES) },
     { id: 'bank', heading: '무통장 입금', table: errorTable(BANK_CASES) },
