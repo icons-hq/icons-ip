@@ -3,11 +3,11 @@
 import { useState, type Dispatch, type ReactNode, type SetStateAction } from 'react';
 import type { ErpItemMatch } from '@/lib/admin/erp-items';
 import {
-  applyErpItemToGoodsOption, applyGoodsOptionBulkEdit, collapseGoodsOptionRows, generateGoodsOptionRows, goodsOptionRowKey,
+  applyErpItemToGoodsOption, applyGoodsOptionBulkEdit, collapseGoodsOptionRows, generateGoodsOptionRows, goodsOptionCollapseNotice, goodsOptionRowKey,
   goodsOptionStockTotals, isSingleGoodsOption, parseGoodsOptionBulkEdit, removeGoodsOptionRows,
   type GoodsOptionAxis, type GoodsOptionBulkInput, type GoodsOptionRow,
 } from '@/lib/admin/goods-option-editor';
-import { formatWon, planErpSalePrice } from '@/lib/admin/goods-price-editor';
+import { formatWon, planErpSalePrice, type GoodsPriceDraft } from '@/lib/admin/goods-price-editor';
 import { ADMIN_VOCABULARY } from '@/lib/admin/vocabulary';
 import { AdminField } from './console/AdminKit';
 import { ErpItemNameInput } from './ErpItemNameInput';
@@ -17,10 +17,11 @@ type GoodsOptionEditorProps = {
   baseline: string[];
   /** 옵션가를 더하는 판매 기준 금액(할인하면 할인가, 아니면 판매가) */
   basePrice: number;
-  /** 판매가·할인 입력이 잘못되면 false. 옵션가로 ERP 판매가를 적용하지 않는다. */
-  basePriceValid?: boolean;
-  /** 현재 적용 중인 할인 금액(원) */
-  discountAmount?: number;
+  /**
+   * 현재 판매가·할인 입력. ERP 판매가 적용은 이 입력으로 결과 금액을 다시 계산한다.
+   * 없으면 basePrice를 할인 없는 판매가로 본다.
+   */
+  priceDraft?: GoodsPriceDraft;
   error?: string;
   axisValues?: Record<string, string>;
   onRowsChange: Dispatch<SetStateAction<GoodsOptionRow[]>>;
@@ -33,7 +34,8 @@ type GoodsOptionEditorProps = {
   erpNotice?: ReactNode;
 };
 
-type ErpRowState = { item: ErpItemMatch; message?: string; failed?: boolean };
+/** warning: 적용하지 못했거나, 적용했지만 결과 금액을 확인해야 하는 안내 */
+type ErpRowState = { item: ErpItemMatch; message?: string; warning?: boolean };
 type OptionUsage = 'on' | 'off';
 
 const EMPTY_AXES: GoodsOptionAxis[] = [{ name: '', values: '' }, { name: '', values: '' }];
@@ -83,7 +85,7 @@ function OptionDetailTable({ rows, single, update, erpRows, onErpChange, onErpSe
               {erpSalePrice !== null && <button type="button" className="btn btn-ghost goods-option-erp-price" onClick={() => onErpPrice(key, erpSalePrice)}>
                 ERP 판매가 {formatWon(erpSalePrice)} 적용
               </button>}
-              {erp?.message && <small role="status" className={erp.failed ? 'goods-option-erp-message goods-option-erp-message--failed' : 'goods-option-erp-message'}>{erp.message}</small>}
+              {erp?.message && <small role="status" className={erp.warning ? 'goods-option-erp-message goods-option-erp-message--failed' : 'goods-option-erp-message'}>{erp.message}</small>}
             </td>
             <td><input aria-label={`옵션 ${index + 1} ERP 코드`} aria-describedby="goods-option-external-identity-guidance" value={row.erpCode ?? ''} maxLength={120} placeholder="미설정" onChange={(event) => update(key, { erpCode: event.target.value })} /></td>
             <td><input aria-label={`옵션 ${index + 1} 바코드`} aria-describedby="goods-option-external-identity-guidance" value={row.barcode ?? ''} maxLength={120} placeholder="미설정" onChange={(event) => update(key, { barcode: event.target.value })} /></td>
@@ -236,6 +238,8 @@ function SingleStock({ row, basePrice, codePrefix, update }: {
   const key = goodsOptionRowKey(row);
   /* 옵션가는 옵션 없이 파는 상품에 보통 쓰지 않는다. 기존 값이 있을 때만 보이고 편집 중에는 사라지지 않는다. */
   const [extraVisible, setExtraVisible] = useState(false);
+  /* 사용여부도 같다. 중지된 기본 옵션만 남은 상품은 여기서 되돌린다. */
+  const [activeVisible, setActiveVisible] = useState(false);
   return <div className="goods-option-stock__grid">
     <AdminField inputId="goods-single-stock" label="재고수량">
       <span className="goods-amount-input">
@@ -253,11 +257,17 @@ function SingleStock({ row, basePrice, codePrefix, update }: {
       </span>
       <small className="goods-option-primary-table__sale">판매 {formatWon(basePrice + (Number.isFinite(row.extraPrice) ? row.extraPrice : 0))}</small>
     </AdminField>}
+    {(activeVisible || row.isActive === false) && <AdminField inputId="goods-single-active" label="기본 옵션 사용여부" hint="중지하면 고객이 구매할 수 없습니다. 주문 기록과 재고는 보존됩니다.">
+      <select id="goods-single-active" aria-describedby="goods-single-active-hint" value={row.isActive === false ? 'stopped' : 'active'}
+        onChange={(event) => { setActiveVisible(true); update(key, { isActive: event.target.value === 'active' }); }}>
+        <option value="active">사용</option><option value="stopped">중지</option>
+      </select>
+    </AdminField>}
   </div>;
 }
 
 export function GoodsOptionEditor({
-  rows, baseline, basePrice, basePriceValid = true, discountAmount = 0, error, axisValues, onRowsChange: setRows, codePrefix,
+  rows, baseline, basePrice, priceDraft, error, axisValues, onRowsChange: setRows, codePrefix,
   onErpItemSelect, onRegularPriceApply, erpNotice,
 }: GoodsOptionEditorProps) {
   const firstAttributes = rows[0]?.attributes ?? {};
@@ -278,12 +288,7 @@ export function GoodsOptionEditor({
   }
   function changeOptionUsage(next: OptionUsage) {
     if (next === 'off' && !single) {
-      const first = rows[0];
-      const removed = rows.length - 1;
-      const message = `옵션 사용을 설정안함으로 바꾸면 첫 옵션(${first?.name ?? ''})만 옵션값 없이 기본 옵션으로 남습니다. 관리코드·재고수량·ERP 정보는 유지됩니다.`
-        + (removed ? ` 나머지 옵션 ${removed}개는 옵션목록에서 빠지고, 주문·장바구니에 쓰인 옵션은 저장할 때 삭제 대신 보관됩니다.` : '')
-        + ' 계속할까요?';
-      if (!window.confirm(message)) return;
+      if (!window.confirm(goodsOptionCollapseNotice(rows))) return;
       setRows((current) => collapseGoodsOptionRows(current));
       setAxes(EMPTY_AXES);
     }
@@ -300,14 +305,17 @@ export function GoodsOptionEditor({
     setErpRows((current) => { if (!current[key]) return current; const next = { ...current }; delete next[key]; return next; });
   }
   function applyErpPrice(key: string, salePrice: number) {
-    const plan = planErpSalePrice({ salePrice, mode: single ? 'single' : 'multiple', basePrice: basePriceValid ? basePrice : null, discountAmount });
-    const record = (message: string, failed: boolean) => setErpRows((current) => current[key] ? { ...current, [key]: { ...current[key], message, failed } } : current);
+    const price = priceDraft ?? { regularPrice: String(basePrice), discountEnabled: false, discountValue: '', discountUnit: 'won' };
+    const row = rows.find((item) => goodsOptionRowKey(item) === key);
+    const plan = planErpSalePrice({ salePrice, mode: single ? 'single' : 'multiple', price, extraPrice: single ? row?.extraPrice : undefined });
+    const record = (message: string, warning: boolean) => setErpRows((current) => current[key] ? { ...current, [key]: { ...current[key], message, warning } } : current);
     if (!plan.ok) { record(plan.error, true); return; }
     if (plan.target === 'regularPrice') {
       if (!onRegularPriceApply) { record('판매가 칸에서 직접 입력해주세요.', true); return; }
       onRegularPriceApply(plan.value);
     } else update(key, { extraPrice: plan.value });
-    record(plan.message, false);
+    /* 적용했지만 결과 금액이 ERP 판매가와 다르면(남은 옵션가·맞지 않는 할인) 확인 색으로 알린다. */
+    record(plan.message, plan.attention);
   }
 
   return <div className="col admin-option-editor wc-admin-option-artwork" style={{ gap: 16 }} data-option-mode={single ? 'single' : 'multiple'}>

@@ -151,10 +151,24 @@ export function removeGoodsOptionRows(rows: readonly GoodsOptionRow[], keys: Rea
   return { ok: true, rows: next };
 }
 
-/** 옵션 사용 → 설정안함. 첫 행(기본 옵션 id·관리코드·재고·ERP 정보)을 남기고 옵션값을 지운다. */
+/**
+ * 옵션 사용 → 설정안함. 첫 행(기본 옵션 id·관리코드·재고·ERP 정보)을 남기고 옵션값을 지운다.
+ * 옵션 없이 파는 상품 화면에는 옵션별 사용여부 칸이 없으므로, 중지된 첫 옵션은 사용으로 되돌린다.
+ */
 export function collapseGoodsOptionRows(rows: readonly GoodsOptionRow[]): GoodsOptionRow[] {
   const [first] = rows;
-  return first ? [{ ...first, attributes: {} }] : [];
+  if (!first) return [];
+  return [first.isActive === false ? { ...first, attributes: {}, isActive: true } : { ...first, attributes: {} }];
+}
+
+/** 옵션 사용을 설정안함으로 바꾸기 전 확인 문구. 무엇이 남고 무엇이 빠지는지 알린다. */
+export function goodsOptionCollapseNotice(rows: readonly GoodsOptionRow[]): string {
+  const [first] = rows;
+  const removed = Math.max(0, rows.length - 1);
+  return `옵션 사용을 설정안함으로 바꾸면 첫 옵션(${first?.name ?? ''})만 옵션값 없이 기본 옵션으로 남습니다. 관리코드·재고수량·ERP 정보는 유지됩니다.`
+    + (first?.isActive === false ? ' 첫 옵션은 사용 중지 상태라 사용으로 바꿉니다. 판매를 멈추려면 기본 정보의 운영 상태를 판매 중지로 바꿔주세요.' : '')
+    + (removed ? ` 나머지 옵션 ${removed}개는 옵션목록에서 빠지고, 주문·장바구니에 쓰인 옵션은 저장할 때 삭제 대신 보관됩니다.` : '')
+    + ' 계속할까요?';
 }
 
 /** ERP 품목을 명시적으로 고르면 품명·품번을 덮어쓰고, 비어 있는 바코드만 채운다. */

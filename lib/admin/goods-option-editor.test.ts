@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  applyErpItemToGoodsOption, applyGoodsOptionBulkEdit, collapseGoodsOptionRows, generateGoodsOptionRows, goodsOptionRowKey, goodsOptionStockTotals,
+  applyErpItemToGoodsOption, applyGoodsOptionBulkEdit, collapseGoodsOptionRows, goodsOptionCollapseNotice, generateGoodsOptionRows, goodsOptionRowKey, goodsOptionStockTotals,
   initialGoodsOptionRows, isSingleGoodsOption, parseGoodsOptionBulkEdit, parseGoodsOptionRows, removeGoodsOptionRows, restoreGoodsOptionRows,
 } from './goods-option-editor';
 describe('goods option editing', () => {
@@ -88,6 +88,18 @@ describe('옵션목록 선택·일괄수정·재고 합계', () => {
     expect(removeGoodsOptionRows(rows, new Set(rows.map(goodsOptionRowKey)))).toMatchObject({ ok: false });
     expect(removeGoodsOptionRows(rows, new Set())).toMatchObject({ ok: false });
     expect(collapseGoodsOptionRows(rows)).toEqual([{ ...saved, attributes: {} }]);
+  });
+
+  /* 2026-10-07 리뷰: 옵션 미사용 화면에는 옵션목록의 사용여부 칸이 없어, 중지된 첫 옵션을 남기면 되돌릴 수 없었다. */
+  it('옵션 사용 해제는 남는 첫 옵션을 사용으로 바꾸고, 확인 문구에 그 사실과 빠지는 옵션 수를 적는다', () => {
+    expect(collapseGoodsOptionRows([stopped, saved])).toEqual([{ ...stopped, attributes: {}, isActive: true }]);
+    const stoppedNotice = goodsOptionCollapseNotice([stopped, saved, fresh]);
+    expect(stoppedNotice).toContain('첫 옵션(노랑)');
+    expect(stoppedNotice).toContain('사용 중지 상태라 사용으로 바꿉니다');
+    expect(stoppedNotice).toContain('나머지 옵션 2개');
+    const activeNotice = goodsOptionCollapseNotice([saved, fresh]);
+    expect(activeNotice).not.toContain('사용 중지');
+    expect(activeNotice).toContain('나머지 옵션 1개');
   });
 
   it('ERP 품목 선택은 품명·품번을 덮어쓰고 비어 있는 바코드만 채운다', () => {

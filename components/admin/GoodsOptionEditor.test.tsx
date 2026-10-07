@@ -40,8 +40,20 @@ describe('상품 옵션 ERP 식별자 입력', () => {
     expect(html).toContain('aria-label="기본 옵션명"');
     expect(html).toContain('GOOD-0001');
     expect(html).not.toContain('기본 옵션 옵션가');
+    expect(html).not.toContain('기본 옵션 사용여부');
     expect(html).not.toContain('aria-label="옵션목록 편집표"');
     for (const legacy of ['기준 판매가', '추가금액', '옵션 판매가', '할당 재고', '조합 생성']) expect(html).not.toContain(legacy);
+  });
+
+  /* 2026-10-07 리뷰: 중지된 기본 옵션만 남은 상품은 옵션 미사용 화면에서 사용여부를 되돌릴 칸이 없었다. */
+  it('사용 중지된 기본 옵션은 옵션 미사용 화면에서도 사용여부를 바꿀 수 있다', () => {
+    const html = renderToStaticMarkup(<GoodsOptionEditor onRowsChange={() => {}}
+      rows={[{ id: savedA, name: '기본 옵션', code: 'GOOD-0001', attributes: {}, extraPrice: 0, stockQty: 8, isActive: false }]}
+      baseline={[savedA]} basePrice={10000} />);
+    expect(html).toContain('for="goods-single-active">기본 옵션 사용여부</label>');
+    expect(html).toMatch(/<select id="goods-single-active"[^>]*>/);
+    expect(html).toContain('<option value="stopped" selected="">중지</option>');
+    expect(html).toContain('모든 옵션이 사용 중지되어 고객이 구매할 수 없습니다.');
   });
 
   it('옵션가가 남아 있는 기본 옵션은 그 금액과 판매 금액을 함께 보여준다', () => {

@@ -65,16 +65,48 @@ describe('판매가·할인 입력 변환', () => {
 
 describe('ERP 판매가 적용 계산', () => {
   it('옵션 미사용이면 판매가 칸에 넣고, 할인이 있으면 결과 할인가를 알린다', () => {
-    expect(planErpSalePrice({ salePrice: 12000, mode: 'single', basePrice: 0 })).toMatchObject({ ok: true, target: 'regularPrice', value: 12000 });
-    expect(planErpSalePrice({ salePrice: 12000, mode: 'single', basePrice: 9000, discountAmount: 1000 }))
-      .toMatchObject({ ok: true, target: 'regularPrice', value: 12000, message: expect.stringContaining('할인가는 11,000원') });
+    expect(planErpSalePrice({ salePrice: 12000, mode: 'single', price: draft({ regularPrice: '' }) }))
+      .toEqual({ ok: true, target: 'regularPrice', value: 12000, attention: false, message: '판매가에 ERP 판매가 12,000원을 넣었습니다.' });
+    expect(planErpSalePrice({ salePrice: 12000, mode: 'single', price: draft({ discountEnabled: true, discountValue: '1000' }) }))
+      .toMatchObject({ ok: true, target: 'regularPrice', value: 12000, attention: false, message: expect.stringContaining('할인가는 11,000원') });
+  });
+
+  /* 2026-10-07 리뷰: % 할인은 새 판매가로 다시 계산되므로 이전 할인 금액을 그대로 빼면 안내가 틀린다. */
+  it('% 할인은 새 판매가로 다시 계산한 할인가를 알린다', () => {
+    const plan = planErpSalePrice({ salePrice: 20000, mode: 'single', price: draft({ discountEnabled: true, discountValue: '10', discountUnit: 'percent' }) });
+    expect(plan).toMatchObject({ ok: true, value: 20000, attention: false });
+    if (!plan.ok) throw new Error();
+    expect(plan.message).toContain('10%(2,000원)');
+    expect(plan.message).toContain('할인가는 18,000원');
+    expect(plan.message).not.toContain('19,000원');
+  });
+
+  it('새 판매가에 맞지 않는 할인과 남아 있는 기본 옵션 옵션가는 확인이 필요하다고 알린다', () => {
+    const tooLarge = planErpSalePrice({ salePrice: 12000, mode: 'single', price: draft({ regularPrice: '20000', discountEnabled: true, discountValue: '15000' }) });
+    expect(tooLarge).toMatchObject({ ok: true, value: 12000, attention: true, message: expect.stringContaining('할인 칸을 확인해주세요') });
+    const extra = planErpSalePrice({ salePrice: 20000, mode: 'single', extraPrice: 1500, price: draft({ discountEnabled: true, discountValue: '10', discountUnit: 'percent' }) });
+    expect(extra).toMatchObject({ ok: true, value: 20000, attention: true });
+    if (!extra.ok) throw new Error();
+    expect(extra.message).toContain('기본 옵션 옵션가 1,500원');
+    expect(extra.message).toContain('19,500원');
   });
 
   it('옵션 사용 중이면 옵션가 = ERP 판매가 − 현재 판매 금액이고 음수는 적용하지 않는다', () => {
-    expect(planErpSalePrice({ salePrice: 13000, mode: 'multiple', basePrice: 10000 })).toMatchObject({ ok: true, target: 'extraPrice', value: 3000 });
-    expect(planErpSalePrice({ salePrice: 10000, mode: 'multiple', basePrice: 10000 })).toMatchObject({ ok: true, value: 0 });
-    expect(planErpSalePrice({ salePrice: 9000, mode: 'multiple', basePrice: 10000 })).toMatchObject({ ok: false, error: expect.stringContaining('낮아') });
-    expect(planErpSalePrice({ salePrice: 9000, mode: 'multiple', basePrice: null })).toMatchObject({ ok: false });
-    expect(planErpSalePrice({ salePrice: -1, mode: 'single', basePrice: 0 })).toMatchObject({ ok: false });
+    expect(planErpSalePrice({ salePrice: 13000, mode: 'multiple', price: draft() })).toMatchObject({ ok: true, target: 'extraPrice', value: 3000 });
+    expect(planErpSalePrice({ salePrice: 13000, mode: 'multiple', price: draft({ discountEnabled: true, discountValue: '10', discountUnit: 'percent' }) }))
+      .toMatchObject({ ok: true, target: 'extraPrice', value: 4000 });
+    expect(planErpSalePrice({ salePrice: 10000, mode: 'multiple', price: draft() })).toMatchObject({ ok: true, value: 0 });
+    expect(planErpSalePrice({ salePrice: 9000, mode: 'multiple', price: draft() })).toMatchObject({ ok: false, error: expect.stringContaining('낮아') });
+    expect(planErpSalePrice({ salePrice: 9000, mode: 'multiple', price: draft({ regularPrice: '1.5' }) })).toMatchObject({ ok: false });
+    expect(planErpSalePrice({ salePrice: 9000, mode: 'multiple', price: draft({ discountEnabled: true, discountValue: '0' }) })).toMatchObject({ ok: false });
+    expect(planErpSalePrice({ salePrice: -1, mode: 'single', price: draft() })).toMatchObject({ ok: false });
+  });
+
+  /* 2026-10-07 리뷰: 판매가가 비어 있으면 ERP 판매가 전액이 옵션가가 되어, 나중에 판매가를 넣으면 이중으로 더해진다. */
+  it('옵션 사용 중 판매가가 비었거나 0원이면 옵션가로 적용하지 않고 판매가를 먼저 입력하게 한다', () => {
+    for (const regularPrice of ['', '0']) {
+      expect(planErpSalePrice({ salePrice: 15000, mode: 'multiple', price: draft({ regularPrice }) }))
+        .toEqual({ ok: false, error: expect.stringContaining('판매가를 먼저 입력해주세요') });
+    }
   });
 });

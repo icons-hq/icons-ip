@@ -112,39 +112,70 @@ export function resolveGoodsPrice(draft: GoodsPriceDraft): GoodsPriceResolution 
 }
 
 export type ErpSalePricePlan =
-  | { ok: true; target: 'regularPrice'; value: number; message: string }
-  | { ok: true; target: 'extraPrice'; value: number; message: string }
+  /** attention: 적용은 했지만 결과 금액이 ERP 판매가와 달라 MD가 확인해야 한다. */
+  | { ok: true; target: 'regularPrice'; value: number; message: string; attention: boolean }
+  | { ok: true; target: 'extraPrice'; value: number; message: string; attention: boolean }
   | { ok: false; error: string };
 
+function appliedDiscountLabel(draft: GoodsPriceDraft, amount: number): string {
+  return draft.discountUnit === 'percent' ? `${draft.discountValue.trim()}%(${formatWon(amount)})` : formatWon(amount);
+}
+
 /**
- * ERP 판매가 적용 버튼(자동 적용하지 않는다).
- * - 옵션 미사용: 판매가 칸에 ERP 판매가를 넣는다.
- * - 옵션 사용: 그 옵션의 옵션가 = ERP 판매가 − 현재 판매 기준 금액(할인가 또는 판매가). 음수면 적용하지 않는다.
+ * ERP 판매가 적용 버튼(자동 적용하지 않는다). 안내 금액은 적용 뒤의 입력으로 다시 계산한다.
+ * - 옵션 미사용: 판매가 칸에 ERP 판매가를 넣는다. % 할인·남은 기본 옵션 옵션가도 반영해 결과를 알린다.
+ * - 옵션 사용: 그 옵션의 옵션가 = ERP 판매가 − 현재 판매 기준 금액(할인가 또는 판매가).
+ *   판매가가 비었거나 0원이면 ERP 판매가 전액이 옵션가가 되므로 적용하지 않는다. 음수도 적용하지 않는다.
  */
-export function planErpSalePrice({ salePrice, mode, basePrice, discountAmount: currentDiscount = 0 }: {
+export function planErpSalePrice({ salePrice, mode, price, extraPrice = 0 }: {
   salePrice: number;
   mode: 'single' | 'multiple';
-  /** 현재 판매 기준 금액. 판매가·할인 입력이 잘못되면 null */
-  basePrice: number | null;
-  /** 현재 적용 중인 할인 금액(원) */
-  discountAmount?: number;
+  /** 현재 판매가·할인 입력 */
+  price: GoodsPriceDraft;
+  /** 옵션 미사용: 기본 옵션에 남아 있는 옵션가(원) */
+  extraPrice?: number;
 }): ErpSalePricePlan {
   if (!Number.isSafeInteger(salePrice) || salePrice < 0 || salePrice > INT32_MAX) {
     return { ok: false, error: 'ERP 판매가를 확인할 수 없어 적용하지 않았습니다.' };
   }
   if (mode === 'single') {
-    const discounted = currentDiscount > 0 && currentDiscount < salePrice
-      ? ` 설정한 할인 ${formatWon(currentDiscount)}이 그대로 적용되어 할인가는 ${formatWon(salePrice - currentDiscount)}입니다.`
-      : '';
-    return { ok: true, target: 'regularPrice', value: salePrice, message: `판매가에 ERP 판매가 ${formatWon(salePrice)}을 넣었습니다.${discounted}` };
+    const next = resolveGoodsPrice({ ...price, regularPrice: String(salePrice) });
+    let message = `판매가에 ERP 판매가 ${formatWon(salePrice)}을 넣었습니다.`;
+    let attention = false;
+    let customerPrice = salePrice;
+    if (price.discountEnabled) {
+      if (next.discountError || next.salePrice === null) {
+        message += ' 설정한 할인을 새 판매가에 적용할 수 없습니다. 할인 칸을 확인해주세요.';
+        attention = true;
+      } else {
+        customerPrice = next.salePrice;
+        message += ` 설정한 할인 ${appliedDiscountLabel(price, next.discountAmount)}이 적용되어 할인가는 ${formatWon(next.salePrice)}입니다.`;
+      }
+    }
+    const extra = Number.isSafeInteger(extraPrice) && extraPrice > 0 ? extraPrice : 0;
+    if (extra) {
+      message += ` 기본 옵션 옵션가 ${formatWon(extra)}이 더해져 고객 판매 금액은 ${formatWon(customerPrice + extra)}입니다. ERP 판매가에 맞추려면 기본 옵션 옵션가를 0원으로 바꿔주세요.`;
+      attention = true;
+    }
+    return { ok: true, target: 'regularPrice', value: salePrice, message, attention };
   }
-  if (basePrice === null) return { ok: false, error: '판매가·할인 입력 오류를 먼저 고친 뒤 ERP 판매가를 적용해주세요.' };
-  const extraPrice = salePrice - basePrice;
-  if (extraPrice < 0) {
+  const current = resolveGoodsPrice(price);
+  if (current.regularPriceError || current.discountError || current.regularPrice === null || current.salePrice === null) {
+    return { ok: false, error: '판매가·할인 입력 오류를 먼저 고친 뒤 ERP 판매가를 적용해주세요.' };
+  }
+  if (current.regularPrice <= 0) {
+    return {
+      ok: false,
+      error: '판매가를 먼저 입력해주세요. 옵션가는 판매가에 더하는 금액이라, 판매가가 비어 있으면 ERP 판매가를 옵션가로 넣지 않습니다. 보통 옵션 중 가장 낮은 판매 금액을 판매가로 입력합니다.',
+    };
+  }
+  const basePrice = current.salePrice;
+  const optionPrice = salePrice - basePrice;
+  if (optionPrice < 0) {
     return {
       ok: false,
       error: `ERP 판매가 ${formatWon(salePrice)}이 현재 판매 금액 ${formatWon(basePrice)}보다 낮아 옵션가로 적용하지 않았습니다. 옵션가는 0원 이상이므로 판매가나 할인을 먼저 확인해주세요.`,
     };
   }
-  return { ok: true, target: 'extraPrice', value: extraPrice, message: `옵션가를 ${formatWon(extraPrice)}으로 맞춰 판매 ${formatWon(salePrice)}이 되었습니다.` };
+  return { ok: true, target: 'extraPrice', value: optionPrice, attention: false, message: `옵션가를 ${formatWon(optionPrice)}으로 맞춰 판매 ${formatWon(salePrice)}이 되었습니다.` };
 }
