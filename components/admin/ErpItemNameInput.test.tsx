@@ -206,9 +206,62 @@ describe('ERP 품명 입력 상호작용', () => {
     expect(options(tree).every((option) => option.props['aria-selected'] === false)).toBe(true);
     const enter = key('Enter');
     input(tree).props.onKeyDown?.(enter);
-    expect(enter.preventDefault).not.toHaveBeenCalled();
+    /* 목록이 열려 있으면 Enter가 상품 폼을 제출하지 않는다. 이전 입력의 제안은 고르지 않고 목록만 닫는다. */
+    expect(enter.preventDefault).toHaveBeenCalled();
     expect(onSelect).not.toHaveBeenCalled();
     expect(onChange).toHaveBeenLastCalledWith('키링 세트 B');
+    expect(input(render({ value: '키링 세트 B', onChange, onSelect })).props['aria-expanded']).toBe(false);
+  });
+
+  /* 2026-10-07 3차 리뷰: 강조 없이 열린 목록에서 Enter를 누르면 상품 폼 전체가 저장 제출됐다. */
+  it('강조 없이 열린 목록의 Enter는 폼 제출을 막고, 제안이 여럿이면 목록만 닫는다', async () => {
+    const onChange = vi.fn();
+    const onSelect = vi.fn();
+    input(render({ onChange, onSelect })).props.onChange?.({ target: { value: '키링' } });
+    await vi.advanceTimersByTimeAsync(250);
+    const tree = render({ value: '키링', onChange, onSelect });
+    expect(input(tree).props['aria-expanded']).toBe(true);
+    expect(input(tree).props['aria-activedescendant']).toBeUndefined();
+    const enter = key('Enter');
+    input(tree).props.onKeyDown?.(enter);
+    expect(enter.preventDefault).toHaveBeenCalled();
+    expect(onSelect).not.toHaveBeenCalled();
+    expect(input(render({ value: '키링', onChange, onSelect })).props['aria-expanded']).toBe(false);
+
+    /* 닫힌 목록의 Enter는 평범한 입력 칸처럼 통과시킨다. */
+    const closedEnter = key('Enter');
+    input(render({ value: '키링', onChange, onSelect })).props.onKeyDown?.(closedEnter);
+    expect(closedEnter.preventDefault).not.toHaveBeenCalled();
+  });
+
+  it('지금 입력의 제안이 하나뿐이면 강조 없이 Enter로 그 품목을 고른다', async () => {
+    hooks.search.mockResolvedValueOnce({ ok: true, items: [items[1]] });
+    const onChange = vi.fn();
+    const onSelect = vi.fn();
+    input(render({ onChange, onSelect })).props.onChange?.({ target: { value: '아크릴' } });
+    await vi.advanceTimersByTimeAsync(250);
+    const enter = key('Enter');
+    input(render({ value: '아크릴', onChange, onSelect })).props.onKeyDown?.(enter);
+    expect(enter.preventDefault).toHaveBeenCalled();
+    expect(onSelect).toHaveBeenCalledWith(items[1]);
+    expect(onChange).toHaveBeenLastCalledWith('아크릴 키링');
+  });
+
+  it('제안이 하나뿐이어도 그 뒤에 이어서 입력했으면 Enter로 고르지 않고 목록만 닫는다', async () => {
+    hooks.search.mockResolvedValueOnce({ ok: true, items: [items[1]] });
+    const onChange = vi.fn();
+    const onSelect = vi.fn();
+    input(render({ onChange, onSelect })).props.onChange?.({ target: { value: '아크릴' } });
+    await vi.advanceTimersByTimeAsync(250);
+    input(render({ value: '아크릴', onChange, onSelect })).props.onChange?.({ target: { value: '아크릴 스탠드' } });
+    const tree = render({ value: '아크릴 스탠드', onChange, onSelect });
+    expect(input(tree).props['aria-expanded']).toBe(true);
+    const enter = key('Enter');
+    input(tree).props.onKeyDown?.(enter);
+    expect(enter.preventDefault).toHaveBeenCalled();
+    expect(onSelect).not.toHaveBeenCalled();
+    expect(onChange).toHaveBeenLastCalledWith('아크릴 스탠드');
+    expect(input(render({ value: '아크릴 스탠드', onChange, onSelect })).props['aria-expanded']).toBe(false);
   });
 
   it('한글 조합 중 Enter는 제안 선택으로 가로채지 않는다', async () => {
