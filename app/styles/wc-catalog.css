@@ -1039,11 +1039,11 @@
 .wc-root .wc-goods-description blockquote { padding: 8px 16px; border-left: 3px solid var(--wc-line-control); }
 .wc-root .wc-goods-description a { color: var(--wc-ink); text-decoration: underline; text-underline-offset: 3px; }
 .wc-root .wc-goods-description img { display: block; max-width: 100%; width: auto; height: auto; margin: 12px auto; }
-/* 호스팅 상세페이지는 긴 이미지를 여러 장으로 잘라 이어 붙인다(2026-10-07 MD 요청) — 이어지는 이미지 사이,
-   이미지 바로 뒤 줄바꿈이 만드는 틈을 없앤다. 이미지는 블록이라 뒤따르는 <br>은 빈 줄만 만든다. */
-.wc-root .wc-goods-description img:has(+ img, + br) { margin-bottom: 0; }
-.wc-root .wc-goods-description :is(img, img + br) + img { margin-top: 0; }
-.wc-root .wc-goods-description img + br { display: none; }
+/* 호스팅 상세페이지는 긴 이미지를 여러 장으로 잘라 이어 붙인다(2026-10-07 MD 요청) — 이어지는 이미지 사이 틈을 없앤다.
+   이미지 바로 뒤 <br>이 만드는 빈 줄은 렌더 경계의 sanitizer(lib/goods-description.ts)가 지운다. CSS 형제 결합자는
+   사이의 글자를 건너뛰므로 <br>을 여기서 숨기면 "제품명<br>소재" 같은 글자 줄까지 붙는다. */
+.wc-root .wc-goods-description img:has(+ img) { margin-bottom: 0; }
+.wc-root .wc-goods-description img + img { margin-top: 0; }
 .wc-root .wc-goods-description figcaption { color: var(--wc-ink-tertiary); font-size: 12px; text-align: center; }
 .wc-root .wc-goods-description table { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; }
 .wc-root .wc-goods-description :is(th, td) { min-width: 80px; padding: 10px 12px; border: 1px solid var(--wc-hairline); text-align: left; vertical-align: top; }

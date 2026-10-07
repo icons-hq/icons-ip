@@ -29,13 +29,36 @@ describe('sanitizeGoodsDescription · 호스팅 이미지', () => {
     expect(result.warnings).toContain(GOODS_HTML_WARNINGS.insecureImage);
   });
 
+  /* 리뷰 재현: url.href로 다시 쓰면 한글 1자가 9자(%EC%83%81)가 되어 정리된 코드만 30,000자를 넘을 수 있었다. */
+  it('호스팅 주소는 적은 문자열 그대로 저장해 한글 파일명이 퍼센트 인코딩으로 길어지지 않는다', () => {
+    const result = sanitizeGoodsDescription('<img src="https://img.example.com/상세/상세01.jpg?v=2&w=860">');
+
+    expect(result.html).toBe('<img src="https://img.example.com/상세/상세01.jpg?v=2&amp;w=860" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" />');
+    expect(result.html).not.toContain('%EC');
+    expect(sanitizeGoodsDescription(result.html, { imagePaths: [], renderImages: true }).html).toBe(result.html);
+  });
+
+  it('경로의 퍼센트 인코딩·점 경로를 정규화하지 않아 다른 리소스를 가리키지 않는다', () => {
+    const result = sanitizeGoodsDescription('<img src="https://img.example.com/a/%2e%2e/b.jpg"><img src="https://img.example.com/a/../c.jpg">');
+
+    expect(result.html).toContain('src="https://img.example.com/a/%2e%2e/b.jpg"');
+    expect(result.html).toContain('src="https://img.example.com/a/../c.jpg"');
+  });
+
+  it('http는 스킴만 https로 바꾸고, 기본 포트 80 표기만 빼고 나머지 주소는 그대로 둔다', () => {
+    const result = sanitizeGoodsDescription('<img src="HTTP://img.example.com:80/상세.png"><img src="http://img.example.com:8080/b.png">');
+
+    expect(result.html).toContain('src="https://img.example.com/상세.png"');
+    expect(result.html).toContain('src="https://img.example.com:8080/b.png"');
+    expect(result.warnings).toContain(GOODS_HTML_WARNINGS.insecureImage);
+  });
+
   it.each([
     ['인증 정보', 'https://user:pass@img.example.com/a.png'],
     ['프로토콜 상대 경로', '//img.example.com/a.png'],
     ['사이트 상대 경로', '/generated/goods/g1.png'],
-    ['공백', 'https://img.example.com/a b.png'],
-    ['제어문자', 'https://img.example.com/a\u0007.png'],
     ['역슬래시', 'https:\\\\img.example.com\\a.png'],
+    ['슬래시가 빠진 주소', 'https:img.example.com/a.png'],
     ['data', 'data:image/png;base64,AAAA'],
     ['javascript', 'javascript:alert(1)'],
     ['ftp', 'ftp://img.example.com/a.png'],
@@ -44,6 +67,19 @@ describe('sanitizeGoodsDescription · 호스팅 이미지', () => {
 
     expect(result.html).toBe('<p>본문</p>');
     expect(result.warnings).toContain(GOODS_HTML_WARNINGS.unverifiedImage);
+  });
+
+  /* 리뷰 재현: 이미 https로 시작하는 주소가 공백 때문에 빠지면 일반 경고로는 MD가 이유를 알 수 없었다. */
+  it.each([
+    ['파일명 공백', 'https://img.example.com/상세 01.jpg'],
+    ['앞뒤 공백', ' https://img.example.com/a.jpg '],
+    ['줄바꿈', 'https://img.example.com/\na.jpg'],
+    ['제어문자', 'https://img.example.com/a\u0007.png'],
+  ])('%s — 호스팅 주소는 지금처럼 제거하되 공백 때문이라고 따로 알린다', (_label, src) => {
+    const result = sanitizeGoodsDescription(`<p>본문</p><img src="${src}">`);
+
+    expect(result.html).toBe('<p>본문</p>');
+    expect(result.warnings).toEqual([GOODS_HTML_WARNINGS.imageUrlWhitespace]);
   });
 
   it(`호스팅 이미지는 ${GOODS_HTML_EXTERNAL_IMAGE_MAX}장까지만 남기고 경고한다`, () => {
@@ -77,6 +113,17 @@ describe('sanitizeGoodsDescription · 저장소 이미지 규칙 유지', () => 
     const unowned = sanitizeGoodsDescription(saved.html, { imagePaths: [], renderImages: true }).html;
     expect(unowned).not.toContain('media.example.test');
     expect(unowned).toContain('src="https://img.example.com/a.png"');
+  });
+
+  /* 리뷰 재현: CSS `img + br`은 사이의 글자를 건너뛰어 "제품명: 쿠션<br>소재: 면"의 줄바꿈까지 숨겼다. */
+  it('공개 렌더는 이미지 바로 뒤의 <br>만 지우고, 글자 뒤 줄바꿈과 저장 원문은 그대로 둔다', () => {
+    const source = '<div><img src="https://img.example.com/1.jpg"><br>\n<img src="https://img.example.com/2.jpg"><br><br></div><p><img src="https://img.example.com/3.jpg">제품명: 쿠션<br>소재: 면</p><p><a href="https://shop.example.com"><img src="https://img.example.com/4.jpg"></a><br>안내</p>';
+    const saved = sanitizeGoodsDescription(source);
+    const rendered = sanitizeGoodsDescription(saved.html, { imagePaths: [], renderImages: true }).html;
+    const image = (n: number) => `<img src="https://img.example.com/${n}.jpg" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" />`;
+
+    expect(saved.html.match(/<br \/>/g)).toHaveLength(5);
+    expect(rendered).toBe(`<div>${image(1)}\n${image(2)}<br /></div><p>${image(3)}제품명: 쿠션<br />소재: 면</p><p><a href="https://shop.example.com" rel="noopener noreferrer">${image(4)}</a>안내</p>`);
   });
 
   it('레이아웃 래퍼는 속성 없이 블록 구조만 남기고 경고하지 않는다', () => {
