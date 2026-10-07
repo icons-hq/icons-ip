@@ -1240,3 +1240,21 @@
 .wc-admin .wc-pdp.is-embedded .wc-pdp-notice__table td {
   overflow-wrap: anywhere;
 }
+
+/* T4 ERP 품목 */
+/* ERP 품명 제안 목록은 옵션 표의 가로 스크롤 영역에 잘리지 않도록 화면 기준(fixed)으로 연다. 위치는 입력 칸에서 계산한다. */
+.wc-admin .admin-erp-item-combobox { position: relative; min-width: 0; }
+.wc-admin .admin-erp-item-combobox > input { width: 100%; }
+.wc-admin .admin-erp-item-combobox__list { position: fixed; z-index: 50; display: grid; margin: 0; padding: 4px 0; overflow-y: auto; list-style: none; border: 1px solid var(--wc-line-control); border-radius: var(--wc-radius-form); background: var(--wc-surface); box-shadow: var(--wc-shadow-popup); }
+.wc-admin .admin-erp-item-combobox__list[hidden] { display: none; }
+.wc-admin .admin-erp-item-combobox__option { display: grid; gap: 2px; min-height: 44px; padding: 8px 12px; color: var(--wc-ink); cursor: pointer; text-align: left; }
+.wc-admin .admin-erp-item-combobox__option:hover,
+.wc-admin .admin-erp-item-combobox__option[aria-selected='true'] { background: var(--wc-surface-grey); }
+.wc-admin .admin-erp-item-combobox__name { font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
+.wc-admin .admin-erp-item-combobox__meta { color: var(--wc-ink-sub); font-size: 12px; overflow-wrap: anywhere; }
+@media (forced-colors: active) {
+  .wc-admin .admin-erp-item-combobox__option[aria-selected='true'] { outline: 2px solid Highlight; outline-offset: -2px; }
+}
+@media print {
+  .wc-admin .admin-erp-item-combobox__list { display: none; }
+}
