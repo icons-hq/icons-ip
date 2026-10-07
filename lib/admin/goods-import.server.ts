@@ -4,6 +4,7 @@ import { createClient } from '@/lib/supabase/server';
 import { createServiceClient } from '@/lib/supabase/service';
 import { publicMediaUrl } from '@/lib/media';
 import {
+  countDroppedGoodsImportImages,
   exportGoodsWorkbookRows,
   partitionGoodsExports,
   type GoodsImportExisting,
@@ -250,6 +251,13 @@ export function goodsImportView(batch: GoodsImportBatch) {
       kind: group.kind,
       errors: group.errors,
       warnings: group.warnings,
+      // Rows left out of the failure workbook (an existing code from a Sabangnet sheet) are not re-uploadable.
+      retryable: group.source.length > 0,
+      // Read from the saved prepared images so the note survives retries and reloads.
+      skippedImages:
+        batch.results[index]?.status === 'success'
+          ? countDroppedGoodsImportImages(group, batch.prepared_images?.[index])
+          : 0,
       result: batch.results[index]
         ? {
             ...batch.results[index],

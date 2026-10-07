@@ -135,22 +135,22 @@ async function promoteImage(
 }
 /**
  * ICONS workbook groups fail as a product when an image cannot be verified.
- * Sabangnet groups are drafts: the failing image is left out and counted in `skipped`.
+ * Sabangnet groups are drafts: the failing image is left out and the saved prepared state
+ * records it, so the result screen counts it with countDroppedGoodsImportImages.
  */
 export async function prepareGoodsImportImages(
   batch: GoodsImportBatch,
   index: number,
   files: Map<string, Buffer>,
-): Promise<{ ready: true; skipped: number } | { ready: false; retryAfter: number }> {
+): Promise<{ ready: true } | { ready: false; retryAfter: number }> {
   const group = batch.plan[index];
-  if (!group?.target) return { ready: true, skipped: 0 };
+  if (!group?.target) return { ready: true };
   const patch: Record<string, unknown> = {
     image_path: group.target.image_path,
     gallery_paths: group.target.gallery_paths,
     detail_image_path: group.target.detail_image_path,
     ...batch.prepared_images[index],
   };
-  let skipped = 0;
   for (const image of group.images) {
     const current = image.field.startsWith('gallery_')
       ? (patch.gallery_paths as string[]).find(
@@ -170,10 +170,9 @@ export async function prepareGoodsImportImages(
       if (group.format !== 'sabangnet') throw error;
       dropImage(patch, image);
       await cachePreparedImages(batch, index, patch);
-      skipped += 1;
     }
   }
-  return { ready: true, skipped };
+  return { ready: true };
 }
 
 /** Private batch object for an image file or a preview-time download. */

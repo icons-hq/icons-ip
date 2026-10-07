@@ -278,17 +278,22 @@ describe('사방넷 상품 양식 흐름', () => {
     mocks.batch.mockResolvedValueOnce(uploading).mockResolvedValue({ ...uploading, state: 'ready' });
     const result = await previewSabangnetGoodsImport('batch', { targets, ipId: 'maple', brandIps: { constructor: 'maple' } });
     expect(result).toMatchObject({ ok: true, ignoredColumns: ['원가'] });
-    const plan = saved?.plan as { kind: string; format: string; errors: string[]; warnings: string[]; target: Record<string, unknown> | null; images: unknown[] }[];
+    const plan = saved?.plan as { kind: string; format: string; errors: string[]; warnings: string[]; target: Record<string, unknown> | null; images: unknown[]; source: unknown[] }[];
     expect(saved?.state).toBe('ready');
     expect(plan.map((group) => [group.kind, group.format])).toEqual([['new', 'sabangnet'], ['error', 'sabangnet']]);
     expect(plan[0].target).toMatchObject({ publish: false, ip_id: 'maple', code: 'MP-1' });
     expect(plan[0].warnings).toContain(SABANGNET_KC_WARNING);
     expect(plan[0].images).toEqual([{ field: 'image_path', kind: 'url', source: 'https://img.example.com/mug.jpg' }]);
     expect(plan[1].errors).toEqual([expect.stringContaining('이미 등록된 상품코드')]);
+    // 실패 행 파일로 ICONS 양식에 다시 올리면 기존 상품을 덮어쓰므로 그 행은 파일에 넣지 않는다.
+    expect(plan[1].errors[0]).toContain('실패 행 파일에 넣지 않습니다');
+    expect(plan[1].errors[0]).toContain('상품 목록에서 내보낸 엑셀');
+    expect(plan[1].source).toEqual([]);
+    expect(plan[0].source).toHaveLength(1);
     expect(mocks.prefetch).toHaveBeenCalledWith(expect.objectContaining({ id: 'batch' }), plan);
   });
 
-  it('미리 받은 이미지를 작업 파일에서 읽어 적용하고 뺀 이미지 수를 알려 준다', async () => {
+  it('미리 받은 이미지를 작업 파일에서 읽어 적용한다', async () => {
     const download = vi.fn(async () => ({ data: new Blob(['png']), error: null }));
     const batch = { id: 'batch', actor_id: 'staff', state: 'ready', results: {}, plan: [{
       kind: 'new', format: 'sabangnet', images: [{ kind: 'url', field: 'image_path', source: 'https://img.example.com/a.png', cached: 'remote:a' }],
@@ -296,9 +301,9 @@ describe('사방넷 상품 양식 흐름', () => {
     mocks.batch.mockResolvedValue(batch);
     mocks.acquire.mockResolvedValue(true);
     mocks.service.mockReturnValue({ storage: { from: () => ({ download }) } });
-    mocks.images.mockResolvedValue({ ready: true, skipped: 1 });
+    mocks.images.mockResolvedValue({ ready: true });
     mocks.client.mockResolvedValue({ rpc: vi.fn().mockResolvedValue({ data: { status: 'success' }, error: null }) });
-    expect(await commitNextGoodsImport('batch')).toMatchObject({ ok: true, skippedImages: { index: 0, count: 1 } });
+    expect(await commitNextGoodsImport('batch')).toMatchObject({ ok: true });
     expect(download).toHaveBeenCalledWith('staff/batch/images/remote:a');
     expect((mocks.images.mock.calls[0][2] as Map<string, Buffer>).has('remote:a')).toBe(true);
   });

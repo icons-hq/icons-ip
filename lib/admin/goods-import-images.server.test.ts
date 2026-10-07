@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   promote: vi.fn(),
   rpc: vi.fn(),
   upload: vi.fn(),
+  claims: vi.fn(),
 }));
 vi.mock('node:dns/promises', () => ({ lookup: mocks.lookup }));
 vi.mock('node:https', () => ({ request: mocks.request }));
@@ -20,10 +21,12 @@ vi.mock('@/lib/admin/artwork.server', () => ({
 vi.mock('@/lib/supabase/service', () => ({
   createServiceClient: () => {
     const claims = { select: () => claims, eq: () => claims, gte: () => claims, order: () => claims,
-      limit: async () => ({ data: [], error: null }) };
+      limit: mocks.claims };
     return { from: () => claims, rpc: mocks.rpc, storage: { from: () => ({ upload: mocks.upload }) } };
   },
 }));
+vi.mock('@/lib/supabase/server', () => ({ createClient: vi.fn() }));
+vi.mock('@/lib/auth/admin', () => ({ getCurrentAdminAuthState: vi.fn() }));
 import {
   fetchGoodsImportImage,
   goodsImportFilePath,
@@ -32,8 +35,8 @@ import {
   prefetchGoodsImportImages,
   prepareGoodsImportImages,
 } from './goods-import-images.server';
-import type { GoodsImportBatch } from './goods-import.server';
-import type { GoodsImportGroup } from './goods-workbook';
+import { goodsImportView, type GoodsImportBatch } from './goods-import.server';
+import { countDroppedGoodsImportImages, type GoodsImportGroup } from './goods-workbook';
 const PNG = Buffer.from([137, 80, 78, 71, 13, 10, 26, 10, 1, 2]);
 function response(
   status: number,
@@ -62,6 +65,17 @@ describe('import image source boundary', () => {
   beforeEach(() => {
     vi.clearAllMocks();
     mocks.lookup.mockResolvedValue([{ address: '8.8.8.8', family: 4 }]);
+  });
+  it('ICONS 양식 URL 이미지는 octet-stream 응답과 공백이 든 주소도 파일 서명으로 받는다', async () => {
+    response(200, { 'content-type': 'application/octet-stream' }, PNG);
+    await expect(fetchGoodsImportImage('https://example.test/a.png')).resolves.toEqual(PNG);
+    response(200, { 'content-type': 'binary/octet-stream' }, PNG);
+    await expect(fetchGoodsImportImage('https://bucket.s3.example.test/a')).resolves.toEqual(PNG);
+    response(200, { 'content-type': 'image/png' }, PNG);
+    await expect(fetchGoodsImportImage('https://example.test/상세 01.png')).resolves.toEqual(PNG);
+    expect(String(mocks.request.mock.calls[2][0])).toBe('https://example.test/%EC%83%81%EC%84%B8%2001.png');
+    response(200, { 'content-type': 'application/octet-stream' }, Buffer.from('<html></html>'));
+    await expect(fetchGoodsImportImage('https://example.test/a.png')).rejects.toThrow('JPEG·PNG·WebP');
   });
   it('denies local, metadata, private, mapped-private and multicast addresses', async () => {
     for (const ip of [
@@ -142,6 +156,7 @@ describe('사방넷 이미지 미리 받기와 초안 이미지 준비', () => {
     mocks.upload.mockResolvedValue({ error: null });
     mocks.rpc.mockResolvedValue({ error: null });
     mocks.claim.mockResolvedValue(true);
+    mocks.claims.mockResolvedValue({ data: [], error: null });
   });
 
   it('미리보기에서 URL 이미지를 비공개 작업 파일로 받아 두고 실패한 이미지는 경고와 함께 뺀다', async () => {
@@ -164,7 +179,7 @@ describe('사방넷 이미지 미리 받기와 초안 이미지 준비', () => {
     mocks.promote.mockResolvedValue({ imagePath: 'public-media/catalog/good/main.png' });
     const planned = group({ images: [{ field: 'image_path', kind: 'url', source: 'https://img.example.com/main.png', cached: 'remote:a' }],
       target: { image_path: 'import-image:image_path', gallery_paths: [], detail_image_path: null } });
-    await expect(prepareGoodsImportImages(batchWith([planned]), 0, new Map([['remote:a', PNG]]))).resolves.toEqual({ ready: true, skipped: 0 });
+    await expect(prepareGoodsImportImages(batchWith([planned]), 0, new Map([['remote:a', PNG]]))).resolves.toEqual({ ready: true });
     expect(mocks.request).not.toHaveBeenCalled();
     expect(mocks.rpc).toHaveBeenCalledWith('service_cache_goods_import_images', expect.objectContaining({
       target_images: expect.objectContaining({ image_path: 'public-media/catalog/good/main.png' }),
@@ -174,10 +189,45 @@ describe('사방넷 이미지 미리 받기와 초안 이미지 준비', () => {
   it('사방넷 초안은 검증하지 못한 이미지를 빼고 저장하고 ICONS 양식 상품은 실패로 남긴다', async () => {
     const planned = group({ images: [{ field: 'gallery_0', kind: 'url', source: 'https://private.example.com/sub.png' }],
       target: { image_path: null, gallery_paths: ['import-image:gallery_0'], detail_image_path: null } });
-    await expect(prepareGoodsImportImages(batchWith([planned]), 0, new Map())).resolves.toEqual({ ready: true, skipped: 1 });
+    await expect(prepareGoodsImportImages(batchWith([planned]), 0, new Map())).resolves.toEqual({ ready: true });
     expect(mocks.rpc).toHaveBeenCalledWith('service_cache_goods_import_images', expect.objectContaining({
       target_images: expect.objectContaining({ gallery_paths: [] }),
     }));
+    expect(countDroppedGoodsImportImages(planned, mocks.rpc.mock.calls[0][1].target_images)).toBe(1);
     await expect(prepareGoodsImportImages(batchWith([{ ...planned, format: undefined }]), 0, new Map())).rejects.toThrow('내부');
+  });
+
+  it('검증 대기로 이어서 처리해도 뺀 이미지 수를 저장된 준비 상태에서 다시 읽어 결과에 남긴다', async () => {
+    const planned = group({
+      images: [
+        { field: 'image_path', kind: 'url', source: 'https://img.example.com/main.png', cached: 'remote:main' },
+        { field: 'gallery_0', kind: 'url', source: 'https://img.example.com/sub.png', cached: 'remote:sub' },
+      ],
+    });
+    const batch = batchWith([planned]);
+    // service_cache_goods_import_images처럼 준비 상태를 작업 행에 합쳐 저장한다.
+    mocks.rpc.mockImplementation(async (_name: string, args: { target_index: number; target_images: Record<string, unknown> }) => {
+      batch.prepared_images[args.target_index] = { ...batch.prepared_images[args.target_index], ...args.target_images };
+      return { error: null };
+    });
+    const busy = Array.from({ length: 12 }, () => ({ processing_started_at: new Date().toISOString() }));
+    mocks.claims
+      .mockResolvedValueOnce({ data: [], error: null }) // 대표 이미지 차례
+      .mockResolvedValueOnce({ data: [], error: null }) // 대표 이미지 검증 실패 뒤 대기 확인
+      .mockResolvedValueOnce({ data: busy, error: null }); // 추가 이미지 차례: 분당 상한
+    mocks.promote.mockResolvedValueOnce(null).mockResolvedValueOnce({ imagePath: 'public-media/catalog/good/sub.png' });
+    const files = new Map([['remote:main', PNG], ['remote:sub', PNG]]);
+
+    await expect(prepareGoodsImportImages(batch, 0, files)).resolves.toMatchObject({ ready: false });
+    expect(batch.prepared_images[0]).toMatchObject({ image_path: null, gallery_paths: ['import-image:gallery_0'] });
+    await expect(prepareGoodsImportImages(batch, 0, files)).resolves.toEqual({ ready: true });
+    expect(batch.prepared_images[0]).toMatchObject({ image_path: null, gallery_paths: ['public-media/catalog/good/sub.png'] });
+
+    // 새로고침으로 다시 연 작업도 저장된 준비 상태로 같은 수를 보여 준다.
+    const view = goodsImportView({ ...batch, state: 'complete', results: { 0: { status: 'success', id: 'good' } } });
+    expect(view.groups[0].skippedImages).toBe(1);
+    expect(goodsImportView({ ...batch, results: {} }).groups[0].skippedImages).toBe(0);
+    expect(goodsImportView({ ...batch, plan: [{ ...planned, format: undefined }], results: { 0: { status: 'success' } } })
+      .groups[0].skippedImages).toBe(0);
   });
 });

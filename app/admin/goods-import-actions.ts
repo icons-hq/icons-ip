@@ -56,7 +56,7 @@ function safeError(error: unknown) {
 const SABANGNET_XLS_MESSAGE =
   'XLS(Excel 97-2003) 파일은 읽을 수 없습니다. 엑셀에서 “Excel 통합 문서(.xlsx)”로 저장해 다시 올려 주세요.';
 const SABANGNET_EXISTING_MESSAGE =
-  '이미 등록된 상품코드입니다. 사방넷 양식은 새 상품 초안만 만듭니다. 기존 상품은 ICONS 양식으로 내려받아 수정해 주세요.';
+  '이미 등록된 상품코드입니다. 사방넷 양식은 새 상품 초안만 만들어 이 행은 실패 행 파일에 넣지 않습니다. 기존 상품은 상품 목록에서 내보낸 엑셀로 수정해 주세요.';
 async function cleanupExpired() {
   const service = createServiceClient();
   const { data } = await service
@@ -244,7 +244,6 @@ export async function commitNextGoodsImport(id: string) {
       const index = batch.plan.findIndex((_, index) => !batch.results[index]);
       if (index < 0) return { ok: true as const, view: goodsImportView(batch) };
       const group = batch.plan[index];
-      let skippedImages = 0;
       if (
         group.kind !== 'error' &&
         group.kind !== 'unchanged' &&
@@ -278,7 +277,6 @@ export async function commitNextGoodsImport(id: string) {
               view: goodsImportView(await loadGoodsImportBatch(id, actorId)),
               retryAfter: images.retryAfter,
             };
-          skippedImages = images.skipped;
         } catch {
           // Missing verified images become a durable failed product through the same RPC.
         }
@@ -299,9 +297,6 @@ export async function commitNextGoodsImport(id: string) {
       return {
         ok: true as const,
         view: goodsImportView(await loadGoodsImportBatch(id, actorId)),
-        ...(skippedImages && saved.data?.status === 'success'
-          ? { skippedImages: { index, count: skippedImages } }
-          : {}),
       };
     } finally {
       await releaseGoodsImportWork(id, actorId, workToken);
@@ -408,6 +403,12 @@ export async function previewSabangnetGoodsImport(
         group.kind = 'error';
         group.target = null;
         group.errors.push(SABANGNET_EXISTING_MESSAGE);
+      }
+      // These rows hold Sabangnet values under a live product code; re-uploading them in the
+      // ICONS workbook would overwrite that product, so the failure workbook leaves them out.
+      if (group.errors.some((message) => message.includes(SABANGNET_EXISTING_MESSAGE))) {
+        group.source = [];
+        group.kcSource = [];
       }
       group.warnings = [
         ...new Set([...group.rows.flatMap((row) => converted.warnings.get(row) ?? []), ...group.warnings]),

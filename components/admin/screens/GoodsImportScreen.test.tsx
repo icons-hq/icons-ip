@@ -30,6 +30,8 @@ const group = {
   errors: [],
   warnings: ['공개 상품의 가격·재고가 변경됩니다.'],
   result: null,
+  skippedImages: 0,
+  retryable: true,
 };
 const view = {
   id: 'batch',
@@ -110,8 +112,37 @@ describe('사방넷 상품 양식 화면', () => {
     expect(html).toContain('검증한 1개 상품 초안 만들기');
     expect(html).toContain('사방넷 상품 파일');
     expect(html).toContain('열 확인');
-    expect(html).toContain('ICONS 양식으로 내려받습니다');
+    expect(html).toContain('실패 행은 ICONS 양식으로 내려받으며');
+    expect(html).toContain('이미 등록된 상품코드 행은 넣지 않습니다');
     expect(html).not.toContain('상품 XLSX');
+  });
+
+  it('다시 연 사방넷 작업도 저장된 결과로 뺀 이미지 수를 보여 준다', () => {
+    const html = renderToStaticMarkup(
+      <GoodsImportScreen
+        initialView={{
+          ...view, format: 'sabangnet', state: 'complete',
+          groups: [{ ...group, kind: 'new', warnings: [], skippedImages: 2, result: { status: 'success', id: 'good' } }],
+        }}
+      />,
+    );
+    expect(html).toContain('초안 저장 완료');
+    expect(html).toContain('이미지 2장은 확인하지 못해 빼고 저장했습니다');
+  });
+
+  it('이미 등록된 상품코드 오류만 있으면 실패 행 내려받기를 보이지 않는다', () => {
+    const existing = { ...group, kind: 'error' as const, warnings: [], errors: ['이미 등록된 상품코드입니다.'], retryable: false };
+    const only = renderToStaticMarkup(
+      <GoodsImportScreen initialView={{ ...view, format: 'sabangnet', groups: [existing] }} />,
+    );
+    expect(only).toContain('이미 등록된 상품코드입니다.');
+    expect(only).not.toContain('실패 행 내려받기');
+    const mixed = renderToStaticMarkup(
+      <GoodsImportScreen
+        initialView={{ ...view, format: 'sabangnet', groups: [existing, { ...group, index: 1, kind: 'error' as const, errors: ['상품명을 입력해주세요.'] }] }}
+      />,
+    );
+    expect(mixed).toContain('실패 행 내려받기');
   });
 
   it('열 연결 단계는 인식 상태·ICONS 항목 선택·필수 IP·브랜드별 IP 제안을 보여 준다', () => {

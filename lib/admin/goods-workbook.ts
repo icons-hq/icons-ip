@@ -171,6 +171,30 @@ export function dropGoodsImportImage(group: GoodsImportGroup, field: GoodsImport
       .filter((path) => path !== placeholder);
   else if (group.target[field] === placeholder) group.target[field] = null;
 }
+/**
+ * Images a Sabangnet draft left out while applying, read back from the durable prepared
+ * state (`admin_goods_imports.prepared_images[index]`) so the count survives verification
+ * waits and page reloads. Applying replaces a placeholder with a verified path in place;
+ * leaving one out saves a single field as null or removes the gallery entry.
+ */
+export function countDroppedGoodsImportImages(
+  group: Pick<GoodsImportGroup, 'format' | 'target'>,
+  prepared: Record<string, unknown> | undefined,
+) {
+  const target = group.target;
+  if (group.format !== 'sabangnet' || !target || !prepared) return 0;
+  let count = 0;
+  for (const field of ['image_path', 'detail_image_path'] as const)
+    if (
+      String(target[field] ?? '').startsWith('import-image:') &&
+      field in prepared &&
+      prepared[field] === null
+    )
+      count += 1;
+  if (Array.isArray(target.gallery_paths) && Array.isArray(prepared.gallery_paths))
+    count += Math.max(0, target.gallery_paths.length - prepared.gallery_paths.length);
+  return count;
+}
 const OPTION_KEYS = new Set<GoodsWorkbookKey>([
   'variantCode',
   'variantName',

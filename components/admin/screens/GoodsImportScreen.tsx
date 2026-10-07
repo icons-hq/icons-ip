@@ -236,7 +236,6 @@ export function GoodsImportScreen({
   const [ipId, setIpId] = useState('');
   const [brandIps, setBrandIps] = useState<Record<string, string>>({});
   const [ignoredColumns, setIgnoredColumns] = useState<string[] | null>(null);
-  const [imageNotes, setImageNotes] = useState<Record<number, number>>({});
   useEffect(
     () => () => {
       stop.current = true;
@@ -252,9 +251,12 @@ export function GoodsImportScreen({
   const unchanged =
     view?.groups.filter((group) => !group.result && group.kind === 'unchanged')
       .length ?? 0;
+  // Only rows the failure workbook contains; existing Sabangnet codes are left out of it.
   const failed =
     view?.groups.filter(
-      (group) => group.kind === 'error' || group.result?.status === 'failed',
+      (group) =>
+        group.retryable &&
+        (group.kind === 'error' || group.result?.status === 'failed'),
     ).length ?? 0;
   async function upload() {
     const file = workbook.current?.files?.[0];
@@ -423,10 +425,6 @@ export function GoodsImportScreen({
         if (!result.ok) throw new Error(result.error);
         current = result.view;
         setView(current);
-        if ('skippedImages' in result && result.skippedImages) {
-          const { index, count } = result.skippedImages;
-          setImageNotes((notes) => ({ ...notes, [index]: count }));
-        }
         if ('retryAfter' in result && result.retryAfter) {
           const until = Date.now() + result.retryAfter;
           while (Date.now() < until && !stop.current) {
@@ -659,8 +657,8 @@ export function GoodsImportScreen({
           </div>
           {view.format === 'sabangnet' ? (
             <p className="wc-admin-kit__hint">
-              이 작업은 24시간 동안 이어서 열 수 있습니다. 실패 행은 ICONS 양식으로 내려받습니다. 고친 뒤 ICONS
-              자체 양식으로 올려 주세요.
+              이 작업은 24시간 동안 이어서 열 수 있습니다. 실패 행은 ICONS 양식으로 내려받으며, 이미 등록된
+              상품코드 행은 넣지 않습니다. 고친 뒤 ICONS 자체 양식으로 올려 주세요.
             </p>
           ) : (
             <p className="wc-admin-kit__hint">
@@ -726,10 +724,10 @@ export function GoodsImportScreen({
                               : group.result.error}
                         </p>
                       ) : null}
-                      {group.result?.status === 'success' && imageNotes[group.index] ? (
+                      {group.result?.status === 'success' && group.skippedImages ? (
                         <p>
                           <AdminStatusBadge tone="warning">
-                            {`이미지 ${imageNotes[group.index]}장은 확인하지 못해 빼고 저장했습니다. 상품 편집에서 올려 주세요.`}
+                            {`이미지 ${group.skippedImages}장은 확인하지 못해 빼고 저장했습니다. 상품 편집에서 올려 주세요.`}
                           </AdminStatusBadge>
                         </p>
                       ) : null}
