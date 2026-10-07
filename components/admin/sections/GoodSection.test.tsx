@@ -146,12 +146,13 @@ describe('GoodSection', () => {
 
   it('저장 실패 후 HTML 원문·형식·업로드를 복구하고 제거 사유와 정리된 미리보기를 함께 보여준다', () => {
     const path = 'public-media/catalog/good/22222222-2222-4222-8222-222222222222.webp';
-    const html = renderGoodSection(good, { attempt: 2, values: { previousId: good.id, descriptionFormat: 'html', description: '<h2>보존 제목</h2><p style="color:red">본문</p><img src="https://external.test/a.png">', descriptionUploadPath: path, descriptionImageAlt: '입력한 대체 설명' } });
+    const html = renderGoodSection(good, { attempt: 2, values: { previousId: good.id, descriptionFormat: 'html', description: '<h2>보존 제목</h2><p style="color:red">본문</p><img src="https://external.test/a.png"><img src="/relative.png">', descriptionUploadPath: path, descriptionImageAlt: '입력한 대체 설명' } });
     expect(html).toContain('<option value="html" selected="">');
     expect(html).toContain('&lt;h2&gt;보존 제목&lt;/h2&gt;');
     expect(html).toContain('<h2>보존 제목</h2><p>본문</p>');
     expect(html).toContain('CSS·이벤트 등 지원하지 않는 속성은 제거됩니다.');
-    expect(html).toContain('외부 URL·검증되지 않은 이미지는 표시되지 않습니다.');
+    expect(html).toContain('주소를 확인할 수 없는 이미지는 제거됩니다.');
+    expect(html).toContain('<img src="https://external.test/a.png" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" />');
     expect(html).toContain(`value="${path}"`);
     expect(html).toContain('value="입력한 대체 설명"');
   });
