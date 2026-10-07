@@ -3,8 +3,9 @@ import {createClient} from '@/lib/supabase/server';
 import {getShippingCarrierRegistry} from '@/lib/orders/shipment.server';
 import {SHIPMENT_CONSOLE_PAGE_SIZE,type ShipmentConsoleData,type ShipmentConsoleFilters,type ShipmentConsoleSurface} from './shipment-dispatch';
 import {deliveryObject,parseShipmentDeliverySummary} from '@/lib/shipment-delivery';
-export async function getShipmentConsoleData(filters:ShipmentConsoleFilters,surface:ShipmentConsoleSurface):Promise<ShipmentConsoleData>{
- const client=await createClient();const pageSize=SHIPMENT_CONSOLE_PAGE_SIZE;
+/** `pageSize`는 목록 엑셀 다운로드 전용이다. 화면은 100건, RPC 상한은 1,000건이다. */
+export async function getShipmentConsoleData(filters:ShipmentConsoleFilters,surface:ShipmentConsoleSurface,options:{pageSize?:number}={}):Promise<ShipmentConsoleData>{
+ const client=await createClient();const pageSize=Math.min(Math.max(Math.trunc(options.pageSize??SHIPMENT_CONSOLE_PAGE_SIZE)||SHIPMENT_CONSOLE_PAGE_SIZE,1),1000);
  const [result,origins,carriers]=await Promise.all([
   client.rpc('admin_search_shipments',{p_tab:filters.tab,p_origin_id:filters.originId,p_query:filters.query||null,p_from:filters.from,p_to:filters.to,p_limit:pageSize,p_offset:(filters.page-1)*pageSize}),
   client.from('fulfillment_origins').select('id,name').order('code'),getShippingCarrierRegistry(),

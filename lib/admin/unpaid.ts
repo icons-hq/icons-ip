@@ -91,6 +91,22 @@ export function adminUnpaidHref(filters: Partial<AdminUnpaidFilters>) {
   return query ? `/admin/sales/unpaid?${query}` : '/admin/sales/unpaid';
 }
 
+/**
+ * attempt 상태를 운영자 문구로. `prepared`가 정상적인 입금 대기이고, 그 밖의
+ * 값은 확정이 중간에 멈춘 것이라 눈에 띄어야 한다. 화면과 목록 엑셀이 같은 말을 쓴다.
+ */
+const ATTEMPT_STATE_LABELS: Record<string, string> = {
+  prepared: '입금 대기',
+  confirming: '확정 처리중',
+  needs_review: '정합화 필요',
+  unknown: '정합화 필요',
+};
+
+export function adminUnpaidAttemptStateLabel(state: string | null) {
+  if (!state) return '원장 없음';
+  return ATTEMPT_STATE_LABELS[state] ?? state;
+}
+
 export type AdminUnpaidFormResult<T> =
   | { ok: true; value: T }
   | { ok: false; error: string };
