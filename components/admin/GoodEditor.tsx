@@ -28,7 +28,7 @@ import type { GoodsKcPresetTemplate } from '@/lib/admin/goods-notice-presets';
 import { useAdminLocalAutosave } from './useAdminLocalAutosave';
 import { AdminLocalDraftNotice } from './AdminLocalDraftNotice';
 import { goodFormValues } from '@/lib/admin/good-preview';
-import { GOODS_HTML_MAX_LENGTH, sanitizeGoodsDescription } from '@/lib/goods-description';
+import { GOODS_HTML_MAX_LENGTH, goodsHtmlCleanedLengthWarning, sanitizeGoodsDescription } from '@/lib/goods-description';
 import type { Ip } from '@/lib/data';
 import type { GoodDetailContent } from '@/lib/goods-detail';
 import { GOOD_BADGES, GOOD_TYPES, goodDisplayBadges } from '@/lib/goods-taxonomy';
@@ -36,7 +36,7 @@ import { GOODS_NOTICE_FIELDS, type GoodsNoticeInfo } from '@/lib/goods-notice';
 
 import { GoodDetailView } from '@/components/screens/GoodDetail';
 import { ProductCard } from '@/components/wc/ProductCard';
-import { GoodsImageGrid, GOODS_IMAGE_GUIDANCE_ID } from './GoodsImageGrid';
+import { GoodsImageGrid } from './GoodsImageGrid';
 import { GOODS_IMAGE_FIELD_NAMES } from '@/lib/admin/goods-image-grid';
 import { ArtworkUploadField } from './ArtworkUploadField';
 import { GoodIdentifierFields } from './GoodIdentifierFields';
@@ -241,7 +241,8 @@ function GoodEditorForm({ action, catalogIps, ipOptions, pending, selected, stat
   });
   const notice = Object.fromEntries(GOODS_NOTICE_FIELDS.map((field) => [field.key, initial[field.formName]])) as GoodsNoticeInfo;
   const htmlDescription = values.descriptionFormat === 'html';
-  const descriptionWarnings = htmlDescription ? sanitizeGoodsDescription(values.description ?? '').warnings : [];
+  const descriptionCheck = htmlDescription ? sanitizeGoodsDescription(values.description ?? '') : null;
+  const descriptionWarnings = descriptionCheck ? [...descriptionCheck.warnings, ...(descriptionCheck.html.length > GOODS_HTML_MAX_LENGTH ? [goodsHtmlCleanedLengthWarning(descriptionCheck.html.length)] : [])] : [];
   const errorCount = (key: string) => GOOD_EDITOR_SECTIONS.find((section) => section.key === key)?.fields.filter((field) => errors[field]).length ?? 0;
   return <>
     <GoodWorkspaceNavigation />
@@ -285,7 +286,7 @@ function GoodEditorForm({ action, catalogIps, ipOptions, pending, selected, stat
       <AdminSectionCard title="이미지와 상세 설명" requirement="대표 이미지 · 공개 필수 / 추가 이미지·상세페이지 · 선택" status={values.imagePath ? '대표 이미지 있음' : '대표 이미지 미입력'} summary={`추가 이미지 ${Array.from({ length: GOODS_GALLERY_MAX }, (_, i) => values[`galleryPath${i}`]).filter(Boolean).length}장 · ${values.description ? '상세페이지 작성됨' : '상세페이지 없음'}`} >
         <GoodsImageGrid errors={errors} initialPaths={GOODS_IMAGE_FIELD_NAMES.map((name) => initial[name])} initialUrls={GOODS_IMAGE_FIELD_NAMES.map((name) => imageUrls[name])} onPreviewChange={setImageUrl} />
         <p className="muted">상세페이지는 아래 &lsquo;상세페이지(상세 설명) 편집&rsquo;에서 텍스트나 HTML 소스로 작성합니다. &lsquo;긴 상세 이미지&rsquo;는 그 아래에 붙는 이미지 파일 1장입니다.</p>
-        <GoodOptionalFields title="상세페이지(상세 설명) 편집" summary={`${values.descriptionFormat === 'html' ? '상세페이지 HTML' : '일반 텍스트'} · ${values.description?.length || 0}자`} hasErrors={Boolean(errors.description || errors.descriptionFormat)}>
+        <GoodOptionalFields title="상세페이지(상세 설명) 편집" summary={descriptionCheck ? `상세페이지 HTML · 원문 ${(values.description?.length ?? 0).toLocaleString('ko-KR')}자 · 정리 후 ${descriptionCheck.html.length.toLocaleString('ko-KR')}자` : `일반 텍스트 · ${values.description?.length || 0}자`} hasErrors={Boolean(errors.description || errors.descriptionFormat)}>
         <SelectField defaultValue={initial.descriptionFormat} error={errors.descriptionFormat} label="상세 설명 형식" name="descriptionFormat"><option value="plain">일반 텍스트</option><option value="html">HTML 문서 (상세페이지 소스)</option></SelectField>
         <p className="muted">형식을 바꿔도 입력 원문은 유지됩니다. 일반 텍스트에서는 태그도 글자로 표시됩니다.</p>
         <div className="admin-goods-html-tools" hidden={!htmlDescription}>
@@ -300,7 +301,7 @@ function GoodEditorForm({ action, catalogIps, ipOptions, pending, selected, stat
         <TextArea defaultValue={initial.description} error={errors.description} label={htmlDescription ? '상세페이지 HTML (정리된 코드 포함 최대 30,000자)' : '상세 설명 (최대 2,000자)'} maxLength={htmlDescription ? GOODS_HTML_MAX_LENGTH : GOODS_DESCRIPTION_MAX_LENGTH} name="description" placeholder={htmlDescription ? '<h2>상품 특징</h2><p>상세 내용을 입력해주세요.</p>' : adminGoodsCopy('굿즈 구성과 특징을 짧게 설명해주세요.')} />
         {descriptionWarnings.length > 0 && <div className="admin-goods-html-review" role="status"><p>저장 전 확인: 입력 원문은 편집기에 남아 있으며 아래 미리보기의 결과가 저장됩니다.</p><ul>{descriptionWarnings.map((warning) => <li key={warning}>{warning}</li>)}</ul></div>}
         <fieldset className="admin-goods-html-tools" disabled={!htmlDescription} hidden={!htmlDescription}>
-          <ArtworkUploadField showGuidance={false} ariaDescribedBy={GOODS_IMAGE_GUIDANCE_ID} autoUpload allowRemove currentPath={initial.descriptionUploadPath || null} currentUrl={initial.descriptionUploadPath ? publicMediaUrl(initial.descriptionUploadPath) : null} fieldId="good-description-image" helpText="이미지 검증이 끝나면 대체 설명을 적고 설명에 넣기를 누릅니다. HTML 본문에는 최대 20장을 넣을 수 있습니다." kind="good" label="HTML 이미지 업로드" name="descriptionUploadPath" />
+          <ArtworkUploadField autoUpload allowRemove currentPath={initial.descriptionUploadPath || null} currentUrl={initial.descriptionUploadPath ? publicMediaUrl(initial.descriptionUploadPath) : null} fieldId="good-description-image" helpText="이미지 검증이 끝나면 대체 설명을 적고 설명에 넣기를 누릅니다. HTML 본문에는 최대 20장을 넣을 수 있습니다." kind="good" label="HTML 이미지 업로드" name="descriptionUploadPath" />
           <Field defaultValue={initial.descriptionImageAlt} label="HTML 이미지 대체 설명" name="descriptionImageAlt" maxLength={300} />
           <button className="btn btn-ghost" onClick={() => insertDescription()} type="button">업로드한 이미지를 설명에 넣기</button>
           <p className="muted">호스팅 이미지 주소(https://…)는 업로드 없이 HTML에 그대로 쓰면 됩니다. http 주소는 https로 바꿔 저장합니다. 호스팅하지 않은 이미지만 파일을 업로드한 후 넣어주세요. 아래 상품 미리보기에서 공개될 결과를 확인할 수 있습니다.</p>

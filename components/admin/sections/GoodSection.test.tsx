@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import type { AdminGoodRecord } from '@/lib/admin/catalog.server';
 import type { Ip } from '@/lib/data';
+import { sanitizeGoodsDescription } from '@/lib/goods-description';
 import { GOODS_NOTICE_FIELDS } from '@/lib/goods-notice';
 import { GOOD_BADGES, GOOD_TYPES } from '@/lib/goods-taxonomy';
 import { GoodSection } from './GoodSection';
@@ -310,7 +311,31 @@ describe('GoodSection', () => {
     expect(html).toContain('상세 이미지');
     /* 이미지 제약은 공유 업로드 계약(ADMIN_ARTWORK_ACCEPT)을 그대로 따른다. */
     expect(html.match(/accept="image\/jpeg,image\/png,image\/webp"/g)).toHaveLength(4);
-    expect(html.match(/최대 5MB · 가로·세로 최대 8192px/g)).toHaveLength(1);
+    /* 그리드 안내 1회 + HTML 이미지 업로드 자체 안내 1회 */
+    expect(html.match(/최대 5MB · 가로·세로 최대 8192px/g)).toHaveLength(2);
+  });
+
+  /* 리뷰 재현: HTML 이미지 업로드가 그리드의 1:1(1000×1000) 권장을 설명으로 읽었다 — 긴 세로 상세 이미지에는 틀린 안내다. */
+  it('HTML 이미지 업로드는 1:1 권장 대신 자기 파일 규격 안내만 설명으로 연결한다', () => {
+    const html = renderGoodSection(null);
+    const describedBy = (id: string) => html.match(new RegExp(`aria-describedby="(${id}[^"]*)"[^>]*class="admin-artwork-input"`))?.[1];
+
+    expect(describedBy('good-description-image')).toBe('good-description-image-artwork-help good-description-image-artwork-guidance');
+    expect(html).toContain('id="good-description-image-artwork-help"');
+    expect(html).not.toMatch(/aria-describedby="[^"]*goods-image-upload-guidance[^"]*"[^>]*class="admin-artwork-input"/);
+  });
+
+  /* 리뷰 재현: 요약이 원문 길이만 보여 줘 정리된 코드가 30,000자를 넘어 저장이 거부될 때 이유를 알 수 없었다. */
+  it('상세페이지 HTML 요약에 정리 후 길이를 함께 보여주고, 정리 결과가 상한을 넘으면 저장 전에 알린다', () => {
+    const images = Array.from({ length: 100 }, (_, index) => `<img src="https://img.example.com/${index}.jpg">`).join('');
+    const description = `<p>${'가'.repeat(25000)}</p>${images}`;
+    const html = renderGoodSection(good, { attempt: 1, values: { previousId: good.id, descriptionFormat: 'html', description } });
+    const cleaned = sanitizeGoodsDescription(description).html.length;
+
+    expect(description.length).toBeLessThanOrEqual(30000);
+    expect(cleaned).toBeGreaterThan(30000);
+    expect(html).toContain(`상세페이지 HTML · 원문 ${description.length.toLocaleString('ko-KR')}자 · 정리 후 ${cleaned.toLocaleString('ko-KR')}자`);
+    expect(html).toContain(`정리된 코드가 ${cleaned.toLocaleString('ko-KR')}자로 최대 30,000자를 넘어 저장할 수 없습니다.`);
   });
 
   it('prefills gallery slots in stored order and keeps the detail image', () => {
