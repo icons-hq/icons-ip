@@ -206,17 +206,25 @@ begin
 end;
 $$;
 
--- ERP 분류에 연결된 고객 카테고리 중 지금 상품에 연결할 수 있는 활성 말단만 제안한다.
-create function private.erp_category_target(p_erp_category text)
+-- 두 연결의 관계:
+-- · public.catalog_category_erp_mappings(고객 카테고리 화면, #474)는 카테고리 하나 → ERP 분류 코드·이름 하나다.
+--   카테고리 내보내기·ERP 활성화 근거에 쓰이는 정본 매핑이며 이 migration은 바꾸지 않는다.
+-- · public.erp_category_mappings(ERP 품목 화면)는 반입한 ERP 분류 원문 → 말단 하나이며, 옵션에서
+--   ERP 품목을 고를 때 카테고리를 제안하는 데만 쓴다.
+-- 새 연결이 없는 ERP 분류는 정본 매핑에서 ERP 분류 이름 또는 코드가 원문과 정확히 같은 활성 말단이
+-- 하나뿐일 때 그 말단을 제안한다. 후보가 둘 이상이면 추정하지 않는다.
+create function private.erp_category_legacy_target(p_erp_category text)
 returns uuid
 language sql
 stable
 set search_path = ''
 as $$
-  select mapping.category_id
-  from public.erp_category_mappings as mapping
-  join public.catalog_categories as category on category.id = mapping.category_id
-  where mapping.erp_category = p_erp_category
+  select case when pg_catalog.count(*) = 1 then (pg_catalog.array_agg(legacy.category_id))[1] end
+  from public.catalog_category_erp_mappings as legacy
+  join public.catalog_categories as category on category.id = legacy.category_id
+  where p_erp_category is not null
+    and (private.erp_item_text(legacy.erp_name, true) = p_erp_category
+      or private.erp_item_text(legacy.erp_code, true) = p_erp_category)
     and category.archived_at is null
     and not exists (
       select 1
@@ -224,6 +232,36 @@ as $$
       where child.parent_id = category.id
         and child.archived_at is null
     )
+$$;
+
+-- ERP 분류에 연결된 고객 카테고리 중 지금 상품에 연결할 수 있는 활성 말단만 제안한다.
+-- ERP 품목 화면의 새 연결이 있으면 그 연결만 따르고(보관·하위 생김이면 제안 없음), 없으면 정본 매핑을 본다.
+create function private.erp_category_target(p_erp_category text)
+returns uuid
+language sql
+stable
+set search_path = ''
+as $$
+  select case
+    when exists (
+      select 1
+      from public.erp_category_mappings as mapping
+      where mapping.erp_category = p_erp_category
+    ) then (
+      select mapping.category_id
+      from public.erp_category_mappings as mapping
+      join public.catalog_categories as category on category.id = mapping.category_id
+      where mapping.erp_category = p_erp_category
+        and category.archived_at is null
+        and not exists (
+          select 1
+          from public.catalog_categories as child
+          where child.parent_id = category.id
+            and child.archived_at is null
+        )
+    )
+    else private.erp_category_legacy_target(p_erp_category)
+  end
 $$;
 
 -- ---------------------------------------------------------------------------
@@ -487,12 +525,14 @@ end;
 $$;
 
 -- 반입된 서로 다른 ERP 분류·품목 수·현재 연결. 품목이 사라진 연결도 해제할 수 있게 함께 보여 준다.
+-- fallback_category_id는 새 연결이 없을 때 정본 매핑(catalog_category_erp_mappings)으로 제안하는 말단이다.
 create function public.admin_list_erp_categories()
 returns table (
   erp_category text,
   item_count bigint,
   category_id uuid,
-  updated_at timestamptz
+  updated_at timestamptz,
+  fallback_category_id uuid
 )
 language plpgsql
 stable
@@ -516,10 +556,76 @@ begin
       coalesce(counts.erp_category, mapping.erp_category),
       coalesce(counts.item_count, 0::bigint),
       mapping.category_id,
-      mapping.updated_at
+      mapping.updated_at,
+      private.erp_category_legacy_target(coalesce(counts.erp_category, mapping.erp_category))
     from counts
     full join public.erp_category_mappings as mapping on mapping.erp_category = counts.erp_category
     order by 1;
+end;
+$$;
+
+-- ---------------------------------------------------------------------------
+-- 삭제: 잘못 반입했거나 단종된 ERP 품목을 ERP 코드로 지운다. 한 번에 최대 500개.
+-- 지운 행의 값을 감사 기록에 남겨 근거와 되돌릴 자료를 보존한다. 상품·옵션에 이미 넣은
+-- ERP 코드·품명은 반입 품목과 연결돼 있지 않으므로 바뀌지 않는다. ERP 분류 연결도 그대로 둔다.
+-- ---------------------------------------------------------------------------
+create function public.admin_delete_erp_items(p_codes text[])
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_actor uuid := (select auth.uid());
+  v_requested integer;
+  v_deleted integer;
+  v_items jsonb;
+begin
+  if v_actor is null or not public.is_staff() then
+    raise insufficient_privilege using message = 'staff_required';
+  end if;
+  if p_codes is null
+     or pg_catalog.cardinality(p_codes) not between 1 and 500
+     or exists (select 1 from pg_catalog.unnest(p_codes) as requested(code) where requested.code is null) then
+    raise invalid_parameter_value using message = 'invalid_erp_item_codes';
+  end if;
+  select pg_catalog.count(distinct requested.code)::integer into v_requested
+  from pg_catalog.unnest(p_codes) as requested(code);
+
+  -- 반입과 같은 잠금으로 직렬화해 지우는 중인 코드가 동시에 다시 반입되며 섞이지 않게 한다.
+  perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('admin.erp_items.import', 0));
+
+  with deleted as (
+    delete from public.erp_items as item
+    where item.code = any(p_codes)
+    returning item.code, item.name, item.category, item.sale_price, item.barcode, item.imported_at, item.imported_by
+  )
+  select
+    pg_catalog.count(*)::integer,
+    coalesce(pg_catalog.jsonb_agg(pg_catalog.jsonb_build_object(
+      'code', deleted.code,
+      'name', deleted.name,
+      'category', deleted.category,
+      'sale_price', deleted.sale_price,
+      'barcode', deleted.barcode,
+      'imported_at', deleted.imported_at,
+      'imported_by', deleted.imported_by
+    ) order by deleted.code), '[]'::jsonb)
+  into v_deleted, v_items
+  from deleted;
+
+  if v_deleted > 0 then
+    insert into public.audit_log (actor_id, action, target, diff)
+    values (v_actor, 'admin.erp_items.deleted', 'erp_items', pg_catalog.jsonb_build_object(
+      'requested', v_requested,
+      'deleted', v_deleted,
+      'items', v_items));
+  end if;
+
+  return pg_catalog.jsonb_build_object(
+    'requested', v_requested,
+    'deleted', v_deleted,
+    'missing', v_requested - v_deleted);
 end;
 $$;
 
@@ -606,6 +712,7 @@ $$;
 
 revoke all on function private.erp_item_text(text, boolean),
   private.normalize_erp_item_row(jsonb),
+  private.erp_category_legacy_target(text),
   private.erp_category_target(text)
 from public, anon, authenticated, service_role;
 
@@ -613,12 +720,14 @@ revoke all on function public.admin_import_erp_items(jsonb),
   public.admin_search_erp_items(text, integer),
   public.admin_list_erp_items(text, integer, integer),
   public.admin_list_erp_categories(),
-  public.admin_set_erp_category_mapping(text, uuid)
+  public.admin_set_erp_category_mapping(text, uuid),
+  public.admin_delete_erp_items(text[])
 from public, anon, authenticated, service_role;
 
 grant execute on function public.admin_import_erp_items(jsonb),
   public.admin_search_erp_items(text, integer),
   public.admin_list_erp_items(text, integer, integer),
   public.admin_list_erp_categories(),
-  public.admin_set_erp_category_mapping(text, uuid)
+  public.admin_set_erp_category_mapping(text, uuid),
+  public.admin_delete_erp_items(text[])
 to authenticated;

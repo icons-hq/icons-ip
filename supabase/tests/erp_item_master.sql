@@ -1,8 +1,9 @@
 \set ON_ERROR_STOP on
 
--- MD 회의(2026-10-07) ⑦ ERP 품목 반입·검색·ERP 분류 연결.
+-- MD 회의(2026-10-07) ⑦ ERP 품목 반입·검색·ERP 분류 연결·삭제.
 -- 반입은 ERP 코드 기준 upsert이고, 선행 0을 보존하며, 잘못된 행은 사유와 함께 돌려준다.
--- 검색어의 와일드카드는 글자로만 다루고, 비스태프는 ACL과 함수 가드 양쪽에서 막힌다.
+-- 검색어의 와일드카드는 글자로만 다루고, 새 연결이 없으면 고객 카테고리의 정본 ERP 분류 매핑으로 제안한다.
+-- 삭제는 지운 행의 값을 감사 기록에 남기고, 비스태프는 ACL과 함수 가드 양쪽에서 막힌다.
 
 begin;
 
@@ -14,7 +15,19 @@ update public.profiles set role='staff' where id='00000000-0000-4000-8000-000000
 insert into public.catalog_categories(id,code,name,parent_id,depth) values
  ('00000000-0000-4000-8000-000000071110','erp-smoke-parent','ERP 검증 문구',null,1),
  ('00000000-0000-4000-8000-000000071111','erp-smoke-keyring','ERP 검증 키링','00000000-0000-4000-8000-000000071110',2),
- ('00000000-0000-4000-8000-000000071112','erp-smoke-archived','ERP 검증 보관','00000000-0000-4000-8000-000000071110',2);
+ ('00000000-0000-4000-8000-000000071112','erp-smoke-archived','ERP 검증 보관','00000000-0000-4000-8000-000000071110',2),
+ ('00000000-0000-4000-8000-000000071113','erp-smoke-photo','ERP 검증 포토카드','00000000-0000-4000-8000-000000071110',2),
+ ('00000000-0000-4000-8000-000000071114','erp-smoke-sticker','ERP 검증 스티커','00000000-0000-4000-8000-000000071110',2),
+ ('00000000-0000-4000-8000-000000071115','erp-smoke-goods-a','ERP 검증 굿즈 A','00000000-0000-4000-8000-000000071110',2),
+ ('00000000-0000-4000-8000-000000071116','erp-smoke-goods-b','ERP 검증 굿즈 B','00000000-0000-4000-8000-000000071110',2);
+
+-- 고객 카테고리 화면의 정본 ERP 분류 매핑(카테고리 → ERP 분류 코드·이름). 새 연결이 없을 때의 제안 근거다.
+insert into public.catalog_category_erp_mappings(category_id,erp_code,erp_name,source,verified_at,verified_by) values
+ ('00000000-0000-4000-8000-000000071113','ERP-PC','문구 > 포토카드','erp-smoke',now(),'00000000-0000-4000-8000-000000071101'),
+ ('00000000-0000-4000-8000-000000071114','ERP-STICKER','스티커','erp-smoke',now(),'00000000-0000-4000-8000-000000071101'),
+ ('00000000-0000-4000-8000-000000071115','ERP-GA','굿즈','erp-smoke',now(),'00000000-0000-4000-8000-000000071101'),
+ ('00000000-0000-4000-8000-000000071116','ERP-GB','굿즈','erp-smoke',now(),'00000000-0000-4000-8000-000000071101'),
+ ('00000000-0000-4000-8000-000000071112','ERP-ARCH','보관 분류','erp-smoke',now(),'00000000-0000-4000-8000-000000071101');
 update public.catalog_categories set archived_at=now() where id='00000000-0000-4000-8000-000000071112';
 
 -- 실행 권한은 인증 사용자에게만 열고, 테이블 직접 쓰기는 누구에게도 열지 않는다.
@@ -34,8 +47,12 @@ select 1/case when
   and not has_function_privilege('anon','public.admin_set_erp_category_mapping(text,uuid)','execute')
   and has_function_privilege('authenticated','public.admin_set_erp_category_mapping(text,uuid)','execute')
   and not has_function_privilege('service_role','public.admin_set_erp_category_mapping(text,uuid)','execute')
+  and not has_function_privilege('anon','public.admin_delete_erp_items(text[])','execute')
+  and has_function_privilege('authenticated','public.admin_delete_erp_items(text[])','execute')
+  and not has_function_privilege('service_role','public.admin_delete_erp_items(text[])','execute')
   and not has_function_privilege('authenticated','private.normalize_erp_item_row(jsonb)','execute')
   and not has_function_privilege('authenticated','private.erp_category_target(text)','execute')
+  and not has_function_privilege('authenticated','private.erp_category_legacy_target(text)','execute')
   and not has_function_privilege('authenticated','private.erp_item_text(text,boolean)','execute')
   and has_table_privilege('authenticated','public.erp_items','select')
   and not has_table_privilege('authenticated','public.erp_items','insert')
@@ -191,14 +208,80 @@ do $$ begin
   exception when invalid_parameter_value then null; end;
 end $$;
 
+-- 새 연결이 없으면 정본 ERP 분류 매핑에서 이름 또는 코드가 원문과 정확히 같은 활성 말단 하나를 제안한다.
+-- 후보가 둘 이상이거나, 보관된 카테고리이거나, 대소문자만 같으면 제안하지 않는다.
+select public.admin_import_erp_items(jsonb_build_array(
+  jsonb_build_object('code','FB-NAME','name','정본 이름 일치','category','문구 > 포토카드'),
+  jsonb_build_object('code','FB-CODE','name','정본 코드 일치','category','ERP-STICKER'),
+  jsonb_build_object('code','FB-TWO','name','정본 후보 둘','category','굿즈'),
+  jsonb_build_object('code','FB-ARCH','name','정본 보관 말단','category','보관 분류'),
+  jsonb_build_object('code','FB-NEAR','name','정본 대소문자 다름','category','erp-sticker')
+))->>'inserted' as fallback_inserted \gset
+select 1/case when :'fallback_inserted'='5'
+  and (select mapped_category_id from public.admin_search_erp_items('FB-NAME',8) limit 1)='00000000-0000-4000-8000-000000071113'
+  and (select mapped_category_id from public.admin_search_erp_items('FB-CODE',8) limit 1)='00000000-0000-4000-8000-000000071114'
+  and (select mapped_category_id from public.admin_search_erp_items('FB-TWO',8) limit 1) is null
+  and (select mapped_category_id from public.admin_search_erp_items('FB-ARCH',8) limit 1) is null
+  and (select mapped_category_id from public.admin_search_erp_items('FB-NEAR',8) limit 1) is null
+  and public.admin_list_erp_items('FB-NAME',0,20)->'items'->0->>'mapped_category_id'='00000000-0000-4000-8000-000000071113'
+  and (select category_id from public.admin_list_erp_categories() where erp_category='문구 > 포토카드') is null
+  and (select fallback_category_id from public.admin_list_erp_categories() where erp_category='문구 > 포토카드')='00000000-0000-4000-8000-000000071113'
+  and (select fallback_category_id from public.admin_list_erp_categories() where erp_category='굿즈') is null
+  and (select fallback_category_id from public.admin_list_erp_categories() where erp_category='보관 분류') is null
+then 1 else 0 end as assert_erp_legacy_mapping_fallback;
+
+-- 새 연결이 있으면 정본 매핑보다 새 연결을 따르고, 해제하면 다시 정본 매핑으로 제안한다.
+select public.admin_set_erp_category_mapping('문구 > 포토카드','00000000-0000-4000-8000-000000071111')->>'changed' as override_changed \gset
+select 1/case when :'override_changed'='true'
+  and (select mapped_category_id from public.admin_search_erp_items('FB-NAME',8) limit 1)='00000000-0000-4000-8000-000000071111'
+  and (select category_id from public.admin_list_erp_categories() where erp_category='문구 > 포토카드')='00000000-0000-4000-8000-000000071111'
+  and (select fallback_category_id from public.admin_list_erp_categories() where erp_category='문구 > 포토카드')='00000000-0000-4000-8000-000000071113'
+then 1 else 0 end as assert_erp_new_mapping_overrides_legacy;
+select public.admin_set_erp_category_mapping('문구 > 포토카드',null)->>'changed' as override_cleared \gset
+select 1/case when :'override_cleared'='true'
+  and (select mapped_category_id from public.admin_search_erp_items('FB-NAME',8) limit 1)='00000000-0000-4000-8000-000000071113'
+then 1 else 0 end as assert_erp_cleared_mapping_falls_back;
+
+-- 삭제: 요청한 코드 중 있는 행만 지우고 없는 코드는 missing으로 센다. 지운 행의 값은 감사 기록에 남는다.
+select public.admin_delete_erp_items(array['FB-TWO','FB-ARCH','FB-ARCH','NO-SUCH']) as delete_result \gset
+select public.admin_delete_erp_items(array['NO-SUCH'])->>'deleted' as delete_missing_deleted \gset
+select 1/case when
+  (:'delete_result'::jsonb->>'requested')::int=3
+  and (:'delete_result'::jsonb->>'deleted')::int=2
+  and (:'delete_result'::jsonb->>'missing')::int=1
+  and :'delete_missing_deleted'='0'
+  and not exists(select 1 from public.erp_items where code in ('FB-TWO','FB-ARCH'))
+  and (select count(*) from public.admin_search_erp_items('FB-',8))=3
+  and (select item_count from public.admin_list_erp_categories() where erp_category='굿즈') is null
+  and (select count(*) from public.audit_log where action='admin.erp_items.deleted'
+    and actor_id='00000000-0000-4000-8000-000000071101')=1
+  and (select diff from public.audit_log where action='admin.erp_items.deleted'
+    and actor_id='00000000-0000-4000-8000-000000071101') @> '{"requested":3,"deleted":2,"items":[{"code":"FB-ARCH","name":"정본 보관 말단","category":"보관 분류"},{"code":"FB-TWO","name":"정본 후보 둘","category":"굿즈"}]}'
+then 1 else 0 end as assert_erp_delete_items;
+
+do $$ begin
+  begin perform public.admin_delete_erp_items(array[]::text[]); raise exception 'empty delete accepted';
+  exception when invalid_parameter_value then null; end;
+  begin perform public.admin_delete_erp_items(null); raise exception 'null delete accepted';
+  exception when invalid_parameter_value then null; end;
+  begin perform public.admin_delete_erp_items(array['FB-NAME',null]); raise exception 'null code delete accepted';
+  exception when invalid_parameter_value then null; end;
+  begin
+    perform public.admin_delete_erp_items((select array_agg('L'||g) from generate_series(1,501) g));
+    raise exception 'oversized delete accepted';
+  exception when invalid_parameter_value then null; end;
+end $$;
+
 -- 반입은 호출마다, 연결 변경은 실제로 바뀐 경우만 감사 기록을 남긴다.
 select 1/case when
   (select count(*) from public.audit_log where action='admin.erp_items.imported'
-    and actor_id='00000000-0000-4000-8000-000000071101')=3
+    and actor_id='00000000-0000-4000-8000-000000071101')=4
   and (select (diff->>'inserted')::int from public.audit_log where action='admin.erp_items.imported'
     and actor_id='00000000-0000-4000-8000-000000071101' order by (diff->>'rows')::int desc limit 1)=4
   and (select count(*) from public.audit_log where action='admin.erp_items.category_mapping_updated'
     and actor_id='00000000-0000-4000-8000-000000071101' and target='erp_category_mappings:문구 > 키링')=2
+  and (select count(*) from public.audit_log where action='admin.erp_items.category_mapping_updated'
+    and actor_id='00000000-0000-4000-8000-000000071101' and target='erp_category_mappings:문구 > 포토카드')=2
 then 1 else 0 end as assert_erp_audit_log;
 
 -- 비스태프: 직접 조회는 RLS가 비우고, 모든 RPC는 함수 가드에서 거절한다.
@@ -217,6 +300,8 @@ do $$ begin
   begin perform public.admin_list_erp_categories(); raise exception 'member category list accepted';
   exception when insufficient_privilege then null; end;
   begin perform public.admin_set_erp_category_mapping('문구 > 키링','00000000-0000-4000-8000-000000071111'); raise exception 'member mapping accepted';
+  exception when insufficient_privilege then null; end;
+  begin perform public.admin_delete_erp_items(array['000123']); raise exception 'member delete accepted';
   exception when insufficient_privilege then null; end;
 end $$;
 
