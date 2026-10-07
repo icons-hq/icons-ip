@@ -14,11 +14,11 @@ values
   ('00000000-0000-4000-8000-00000000c503', 'authenticated', 'authenticated', 'list-export-suspended@example.test', now(), '{}', '{}', now(), now())
 on conflict (id) do nothing;
 
-insert into public.profiles (id, email, nickname, birth_date, consents, onboarded_at, role, suspended_at)
+insert into public.profiles (id, email, nickname, birth_date, consents, onboarded_at, role, suspended_at, suspension_reason)
 values
-  ('00000000-0000-4000-8000-00000000c501', 'list-export-staff@example.test', 'list_export_staff', '1990-01-01', '{"terms":true,"privacy":true}', now(), 'staff', null),
-  ('00000000-0000-4000-8000-00000000c502', 'list-export-buyer@example.test', 'list_export_buyer', '1990-01-01', '{"terms":true,"privacy":true}', now(), 'user', null),
-  ('00000000-0000-4000-8000-00000000c503', 'list-export-suspended@example.test', 'list_export_suspended', '1990-01-01', '{"terms":true,"privacy":true}', now(), 'staff', now())
+  ('00000000-0000-4000-8000-00000000c501', 'list-export-staff@example.test', 'list_export_staff', '1990-01-01', '{"terms":true,"privacy":true}', now(), 'staff', null, null),
+  ('00000000-0000-4000-8000-00000000c502', 'list-export-buyer@example.test', 'list_export_buyer', '1990-01-01', '{"terms":true,"privacy":true}', now(), 'user', null, null),
+  ('00000000-0000-4000-8000-00000000c503', 'list-export-suspended@example.test', 'list_export_suspended', '1990-01-01', '{"terms":true,"privacy":true}', now(), 'staff', now(), '목록 엑셀 감사 스모크')
 on conflict (id) do update set
   email = excluded.email,
   nickname = excluded.nickname,
@@ -26,7 +26,8 @@ on conflict (id) do update set
   consents = excluded.consents,
   onboarded_at = excluded.onboarded_at,
   role = excluded.role,
-  suspended_at = excluded.suspended_at;
+  suspended_at = excluded.suspended_at,
+  suspension_reason = excluded.suspension_reason;
 
 -- 실행 권한은 authenticated에만 있다. public·anon·service_role에는 열리지 않는다.
 select 1 / case when (
