@@ -19,6 +19,7 @@ describe('상품정보제공고시 프리셋 관리 화면', () => {
     expect(html).toContain('value="아크릴 기본"');
     expect(html).toContain('KC 모델 틀 포함');
     expect(html).toContain('합성 안내');
+    expect(html).toContain('해당 없음 고객 안내 (선택)');
     expect(html).toContain('name="kcTemplate"');
     expect(html).toContain('검토 완료 상태는 복사하지 않습니다');
     expect(html).toContain('value="아이콘스"');
