@@ -39,6 +39,9 @@ export function AdminListExportButton({ href, total }: { href: string; total: nu
   const [error, setError] = useState('');
   const hintId = useId();
   const overLimit = total > ADMIN_LIST_EXPORT_ROW_LIMIT;
+  const limit = ADMIN_LIST_EXPORT_ROW_LIMIT.toLocaleString('ko-KR');
+  /* 미입금 확인만 주문 한 건이 한 행이다. 나머지 화면은 상품 줄로 펼쳐 행이 건수보다 많을 수 있다. */
+  const expandsLines = new URLSearchParams(href.split('?')[1] ?? '').get('screen') !== 'unpaid';
 
   async function download() {
     if (pending || overLimit) return;
@@ -85,7 +88,9 @@ export function AdminListExportButton({ href, total }: { href: string; total: nu
       <span className="muted" id={hintId}>
         {overLimit
           ? adminListExportLimitMessage()
-          : `현재 검색 조건의 전체 ${total.toLocaleString('ko-KR')}건을 받습니다(최대 ${ADMIN_LIST_EXPORT_ROW_LIMIT.toLocaleString('ko-KR')}건). 개인정보가 담긴 파일이라 내려받은 기록이 남습니다.`}
+          : `현재 검색 조건의 전체 ${total.toLocaleString('ko-KR')}건을 받습니다(최대 ${limit}건). ${
+            expandsLines ? `한 행은 상품 한 줄이며 한 파일은 최대 ${limit}행입니다. ` : ''
+          }개인정보가 담긴 파일이라 내려받은 기록이 남습니다.`}
       </span>
       {message ? <span role="status">{message}</span> : null}
       {error ? <span className="wc-admin-kit__error" role="alert">{error}</span> : null}

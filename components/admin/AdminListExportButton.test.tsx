@@ -10,9 +10,15 @@ describe('목록 엑셀 다운로드 버튼', () => {
     expect(html).toContain('목록 엑셀 다운로드');
     expect(html).toContain('type="button"');
     expect(html).toContain('data-export-href="/api/admin/list-export?screen=orders&amp;status=paid"');
-    expect(html).toContain('현재 검색 조건의 전체 1,234건을 받습니다(최대 10,000건).');
+    expect(html).toContain('현재 검색 조건의 전체 1,234건을 받습니다(최대 10,000건). 한 행은 상품 한 줄이며 한 파일은 최대 10,000행입니다.');
     expect(html).toContain('내려받은 기록이 남습니다');
     expect(html).not.toContain('disabled=""');
+  });
+
+  it('미입금 확인은 주문 한 건이 한 행이라 행 펼침 안내를 붙이지 않는다', () => {
+    const html = renderToStaticMarkup(<AdminListExportButton href="/api/admin/list-export?screen=unpaid" total={3} />);
+    expect(html).toContain('전체 3건을 받습니다(최대 10,000건). 개인정보가 담긴 파일');
+    expect(html).not.toContain('상품 한 줄');
   });
 
   it('상한을 넘는 조건은 버튼을 끄고 조건을 좁히라고 안내한다', () => {

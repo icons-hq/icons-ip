@@ -109,8 +109,8 @@ export const CLAIMS_TOPIC: AdminGuideTopic = {
       id: 'list-export',
       heading: '요청 목록 엑셀 다운로드',
       paragraphs: [
-        `취소·반품·교환 관리 목록의 "${ADMIN_LIST_EXPORT_BUTTON_LABEL}"는 적용한 처리 상태·사유·접수일·검색어 조건의 전체 요청을 엑셀로 받습니다. 한 파일은 최대 ${ADMIN_LIST_EXPORT_ROW_LIMIT.toLocaleString('ko-KR')}건이며, 넘으면 조건을 좁혀 나누어 받습니다.`,
-        '한 행은 요청 주문의 굿즈 한 줄입니다. 반품·교환 파일에는 원래 주문의 수령인·연락처·주소와 운송장이 담기고, 취소 파일에는 배송지를 담지 않습니다. 회수 주소는 요청 상세에서 확인하며, 환급 기한은 내려받은 시각 기준입니다.',
+        `취소·반품·교환 관리 목록의 "${ADMIN_LIST_EXPORT_BUTTON_LABEL}"는 적용한 처리 상태·사유·접수일·검색어 조건의 전체 요청을 엑셀로 받습니다. 한 파일은 최대 ${ADMIN_LIST_EXPORT_ROW_LIMIT.toLocaleString('ko-KR')}건, 상품 줄로 펼친 엑셀 행 기준으로도 최대 ${ADMIN_LIST_EXPORT_ROW_LIMIT.toLocaleString('ko-KR')}행이며, 넘으면 조건을 좁혀 나누어 받습니다.`,
+        '한 행은 요청 주문의 상품 한 줄입니다. 반품·교환 파일에는 원래 주문의 수령인·연락처·주소와 운송장이 담기고, 취소 파일에는 배송지를 담지 않습니다. 회수 주소는 요청 상세에서 확인하며, 환급 기한은 내려받은 시각 기준입니다.',
       ],
       callouts: [
         {
