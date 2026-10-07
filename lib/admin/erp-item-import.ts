@@ -63,7 +63,6 @@ const SPACE_CHARS = ' \\t\\n\\r\\f\\v\\u00a0\\u1680\\u2000-\\u200a\\u2028\\u2029
 const EDGE_SPACE = new RegExp(`^[${SPACE_CHARS}]+|[${SPACE_CHARS}]+$`, 'g');
 const SPACE_RUN = new RegExp(`[${SPACE_CHARS}]+`, 'g');
 /* NUL은 Postgres 텍스트에 들어갈 수 없으므로 함께 거절한다. */
-// eslint-disable-next-line no-control-regex
 const CONTROL_CHARS = /[\u0000-\u001f\u007f-\u009f]/;
 const CONTROL_CHARS_ALL = new RegExp(CONTROL_CHARS.source, 'g');
 
