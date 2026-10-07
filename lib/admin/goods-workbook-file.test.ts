@@ -5,6 +5,8 @@ import { emptyGoodsKcWorkbookRow, GOODS_KC_WORKBOOK_SHEET } from './goods-kc-wor
 import {
   emptyGoodsWorkbookRow,
   GOODS_WORKBOOK_HEADERS,
+  GOODS_WORKBOOK_V3_VERSION,
+  GOODS_WORKBOOK_VERSION,
   planGoodsWorkbookImport,
 } from './goods-workbook';
 import { convertSabangnetRows, suggestSabangnetTargets } from './sabangnet-goods-format';
@@ -84,6 +86,35 @@ describe('real xlsx boundary', () => {
       Object.values(GOODS_WORKBOOK_HEADERS)[0],
     );
     expect((await parseGoodsWorkbook(bytes))[0].values).toEqual(values);
+  });
+  it('v4 양식은 갤러리 1~9 열을 상세 이미지 앞에 두고, 버전과 열 구성이 어긋나면 받지 않는다', async () => {
+    const bytes = await buildGoodsWorkbook([values]);
+    const book = new ExcelJS.Workbook();
+    await book.xlsx.load(bytes as never);
+    const sheet = book.getWorksheet('상품')!;
+    expect(sheet.getCell('A1').text).toBe(GOODS_WORKBOOK_VERSION);
+    expect(GOODS_WORKBOOK_VERSION).toBe('ICONS 상품 일괄 등록 v4');
+    const headers = (sheet.getRow(4).values as unknown[]).slice(1).map(String);
+    const start = headers.indexOf('갤러리 1 URL');
+    expect(headers.slice(start, start + 19)).toEqual([
+      ...Array.from({ length: 9 }, (_, index) => [`갤러리 ${index + 1} URL`, `갤러리 ${index + 1} 파일명`]).flat(),
+      '상세 이미지 URL',
+    ]);
+    // v3 표기에 v4 열(갤러리 9칸)을 붙인 파일은 열 순서가 v3와 다르므로 받지 않는다.
+    sheet.getCell('A1').value = GOODS_WORKBOOK_V3_VERSION;
+    book.getWorksheet(GOODS_KC_WORKBOOK_SHEET)!.getCell('A1').value = GOODS_WORKBOOK_V3_VERSION;
+    await expect(parseGoodsWorkbook(Buffer.from(await book.xlsx.writeBuffer()))).rejects.toThrow('양식');
+    // 상품 시트와 KC 검토 시트의 양식 버전은 같아야 한다.
+    sheet.getCell('A1').value = GOODS_WORKBOOK_VERSION;
+    await expect(parseGoodsWorkbookWithKc(Buffer.from(await book.xlsx.writeBuffer()))).rejects.toThrow('KC 검토 시트');
+  });
+  it('작성 안내 시트는 갤러리 9칸과 v3 양식의 갤러리 5~9 유지를 안내한다', async () => {
+    const book = new ExcelJS.Workbook();
+    await book.xlsx.load((await buildGoodsWorkbook([values])) as never);
+    const rows = book.getWorksheet('작성 안내')!.getSheetValues().filter(Boolean) as unknown[][];
+    const image = rows.find((row) => row[1] === '이미지');
+    expect(image?.[2]).toContain('대표·갤러리 9칸(추가 이미지 1~9)·상세 이미지마다');
+    expect(image?.[2]).toContain('갤러리 4칸짜리 v3 양식도 그대로 올릴 수 있으며, 이때 기존 상품의 갤러리 5~9는 저장된 이미지를 유지합니다.');
   });
   it('작성 안내 시트는 상세 HTML의 https 호스팅 이미지가 그대로 표시된다고 안내한다', async () => {
     const book = new ExcelJS.Workbook();

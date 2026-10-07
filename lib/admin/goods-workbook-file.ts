@@ -10,6 +10,7 @@ import {
   GOODS_WORKBOOK_KEYS,
   GOODS_WORKBOOK_ROW_LIMIT,
   GOODS_WORKBOOK_VERSION,
+  goodsWorkbookLayout,
   type GoodsWorkbookInputRow,
   type GoodsWorkbookKey,
   type GoodsWorkbookRow,
@@ -190,7 +191,7 @@ export async function buildGoodsWorkbook(
     ],
     [
       '이미지',
-      '대표·갤러리 4칸·상세 이미지마다 URL 또는 파일명 중 하나를 입력합니다. 파일명은 이미지 ZIP의 파일명과 정확히 같아야 합니다. JPEG/PNG/WebP만 가능합니다.',
+      '대표·갤러리 9칸(추가 이미지 1~9)·상세 이미지마다 URL 또는 파일명 중 하나를 입력합니다. 파일명은 이미지 ZIP의 파일명과 정확히 같아야 합니다. JPEG/PNG/WebP만 가능합니다. 갤러리 4칸짜리 v3 양식도 그대로 올릴 수 있으며, 이때 기존 상품의 갤러리 5~9는 저장된 이미지를 유지합니다.',
     ],
     [
       '이미지 크기',
@@ -317,10 +318,13 @@ export async function parseGoodsWorkbookWithKc(
     fileBytes: GOODS_WORKBOOK_BYTES_LIMIT,
   });
   const sheet = workbook.getWorksheet('상품');
+  const version = sheet?.getCell('A1').text ?? '';
+  // v4와 v3(갤러리 4칸) 양식을 읽는다. 열 이름·순서는 각 버전 그대로여야 한다.
+  const layout = goodsWorkbookLayout(version);
   if (
     !sheet ||
-    sheet.getCell('A1').text !== GOODS_WORKBOOK_VERSION ||
-    GOODS_WORKBOOK_KEYS.some(
+    !layout ||
+    layout.keys.some(
       (key, index) =>
         sheet.getCell(4, index + 1).text !== GOODS_WORKBOOK_HEADERS[key],
     )
@@ -331,7 +335,7 @@ export async function parseGoodsWorkbookWithKc(
     if (number < 5) return;
     const values = emptyGoodsWorkbookRow();
     const errors: string[] = [];
-    GOODS_WORKBOOK_KEYS.forEach((key, index) => {
+    layout.keys.forEach((key, index) => {
       const cell = readSafeWorkbookCell(
         row.getCell(index + 1),
         IDENTIFIER_KEYS.has(key),
@@ -341,7 +345,7 @@ export async function parseGoodsWorkbookWithKc(
         errors.push(`${GOODS_WORKBOOK_HEADERS[key]}: ${cell.error}`);
     });
     if (GOODS_WORKBOOK_KEYS.some((key) => values[key] !== '') || errors.length)
-      result.push({ row: number, values, errors });
+      result.push({ row: number, values, errors, ...(layout.layout ? { layout: layout.layout } : {}) });
   });
   if (result.length > 500)
     throw new Error(
@@ -352,7 +356,7 @@ export async function parseGoodsWorkbookWithKc(
   let kcRows: GoodsKcWorkbookInputRow[] | null = null;
   if (kcSheet) {
     const keys = Object.keys(GOODS_KC_WORKBOOK_HEADERS) as GoodsKcWorkbookKey[];
-    if (kcSheet.getCell('A1').text !== GOODS_WORKBOOK_VERSION || keys.some((key, index) => kcSheet.getCell(4, index + 1).text !== GOODS_KC_WORKBOOK_HEADERS[key]))
+    if (kcSheet.getCell('A1').text !== version || keys.some((key, index) => kcSheet.getCell(4, index + 1).text !== GOODS_KC_WORKBOOK_HEADERS[key]))
       throw new Error('KC 검토 시트의 열 이름과 순서를 유지해주세요.');
     kcRows = [];
     kcSheet.eachRow((row, number) => {

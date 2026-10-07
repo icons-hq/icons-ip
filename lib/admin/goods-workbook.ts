@@ -16,7 +16,9 @@ export const GOODS_WORKBOOK_BYTES_LIMIT = 2 * 1024 * 1024;
 export const GOODS_IMAGES_ZIP_BYTES_LIMIT = 50 * 1024 * 1024;
 export const GOODS_IMPORT_PATH = '/admin/catalog/goods/import';
 export const GOODS_IMPORT_BUCKET = 'admin-goods-imports';
-export const GOODS_WORKBOOK_VERSION = 'ICONS 상품 일괄 등록 v3';
+export const GOODS_WORKBOOK_VERSION = 'ICONS 상품 일괄 등록 v4';
+/** 추가 이미지 4칸(갤러리 1~4) 시절 양식. v4에서 갤러리 5~9 열만 빠진 순서다. 계속 올릴 수 있다. */
+export const GOODS_WORKBOOK_V3_VERSION = 'ICONS 상품 일괄 등록 v3';
 export const GOODS_WORKBOOK_HEADERS = {
   code: '상품코드',
   name: '상품명',
@@ -61,6 +63,16 @@ export const GOODS_WORKBOOK_HEADERS = {
   galleryFile2: '갤러리 3 파일명',
   galleryUrl3: '갤러리 4 URL',
   galleryFile3: '갤러리 4 파일명',
+  galleryUrl4: '갤러리 5 URL',
+  galleryFile4: '갤러리 5 파일명',
+  galleryUrl5: '갤러리 6 URL',
+  galleryFile5: '갤러리 6 파일명',
+  galleryUrl6: '갤러리 7 URL',
+  galleryFile6: '갤러리 7 파일명',
+  galleryUrl7: '갤러리 8 URL',
+  galleryFile7: '갤러리 8 파일명',
+  galleryUrl8: '갤러리 9 URL',
+  galleryFile8: '갤러리 9 파일명',
   detailImageUrl: '상세 이미지 URL',
   detailImageFile: '상세 이미지 파일명',
   nameEn: '영문 상품명',
@@ -97,10 +109,21 @@ export const GOODS_WORKBOOK_KEYS = Object.keys(
   GOODS_WORKBOOK_HEADERS,
 ) as GoodsWorkbookKey[];
 export type GoodsWorkbookRow = Record<GoodsWorkbookKey, string>;
+/** v3 양식에 없는 열 — 추가 이미지 5~9(갤러리 5~9). */
+const GOODS_WORKBOOK_V3_ABSENT = /^gallery(Url|File)[4-8]$/;
+/** 업로드한 상품 시트의 A1 버전에 맞는 열 순서. 모르는 버전이면 null이다. */
+export function goodsWorkbookLayout(version: string): { keys: readonly GoodsWorkbookKey[]; layout?: 'v3' } | null {
+  if (version === GOODS_WORKBOOK_VERSION) return { keys: GOODS_WORKBOOK_KEYS };
+  if (version === GOODS_WORKBOOK_V3_VERSION)
+    return { keys: GOODS_WORKBOOK_KEYS.filter((key) => !GOODS_WORKBOOK_V3_ABSENT.test(key)), layout: 'v3' };
+  return null;
+}
 export type GoodsWorkbookInputRow = {
   row: number;
   values: GoodsWorkbookRow;
   errors?: string[];
+  /** v3 양식에서 읽은 행. 기존 상품은 파일에 없는 추가 이미지 5~9를 저장된 값 그대로 둔다. */
+  layout?: 'v3';
 };
 export type GoodsImportVariant = {
   id: string;
@@ -225,8 +248,28 @@ const imagePairs = [
   ['galleryUrl1', 'galleryFile1', 'gallery_1'],
   ['galleryUrl2', 'galleryFile2', 'gallery_2'],
   ['galleryUrl3', 'galleryFile3', 'gallery_3'],
+  ['galleryUrl4', 'galleryFile4', 'gallery_4'],
+  ['galleryUrl5', 'galleryFile5', 'gallery_5'],
+  ['galleryUrl6', 'galleryFile6', 'gallery_6'],
+  ['galleryUrl7', 'galleryFile7', 'gallery_7'],
+  ['galleryUrl8', 'galleryFile8', 'gallery_8'],
   ['detailImageUrl', 'detailImageFile', 'detail_image_path'],
 ] as const;
+const galleryIndex = (field: string) => Number(field.slice('gallery_'.length));
+/** 저장된 추가 이미지를 내보내기와 같은 주소로 쓴다(다시 올려도 바뀌지 않은 이미지로 본다). */
+const savedGalleryReference = (good: Record<string, unknown>, index: number, mediaUrl: GoodsWorkbookContext['mediaUrl']) => {
+  const path = (good.gallery_paths as string[] | null)?.[index];
+  return path ? (mediaUrl(str(path)) ?? str(path)) : '';
+};
+/** v3 양식 행은 파일에 없는 갤러리 5~9 열을 기존 상품의 저장값으로 채운다. 빈칸으로 보면 추가 이미지 5~9가 지워진다. */
+function keepGalleryOutsideV3(source: GoodsWorkbookInputRow[], record: GoodsImportExisting | undefined, context: GoodsWorkbookContext) {
+  if (!record) return;
+  for (const row of source) {
+    if (row.layout !== 'v3') continue;
+    for (const [url, , field] of imagePairs)
+      if (GOODS_WORKBOOK_V3_ABSENT.test(url)) row.values[url] = savedGalleryReference(record.good, galleryIndex(field), context.mediaUrl);
+  }
+}
 export function emptyGoodsWorkbookRow(): GoodsWorkbookRow {
   return Object.fromEntries(
     GOODS_WORKBOOK_KEYS.map((key) => [key, '']),
@@ -298,9 +341,11 @@ export function exportGoodsWorkbookRows(
     descriptionFormat: good.description_format === 'html' ? 'html' : 'plain',
   };
   for (const [url, , field] of imagePairs) {
-    const path = field.startsWith('gallery_')
-      ? (good.gallery_paths as string[] | null)?.[Number(field.slice(-1))]
-      : good[field];
+    if (field.startsWith('gallery_')) {
+      base[url] = savedGalleryReference(good, galleryIndex(field), context.mediaUrl);
+      continue;
+    }
+    const path = good[field];
     base[url] = path ? (context.mediaUrl(str(path)) ?? str(path)) : '';
   }
   const variants = record.variants
@@ -386,12 +431,14 @@ export function planGoodsWorkbookImport(
     ]);
   }
   return [...grouped].map(([key, source]) => {
-    const first = noticeFromPreset(source[0].values, context);
-    const record = first.code
+    const sourceCode = source[0].values.code;
+    const record = sourceCode
       ? context.existing.find(
-          (item) => str(item.good.code).toUpperCase() === first.code,
+          (item) => str(item.good.code).toUpperCase() === sourceCode,
         )
       : undefined;
+    keepGalleryOutsideV3(source, record, context);
+    const first = noticeFromPreset(source[0].values, context);
     const errors = source.flatMap((row) =>
       (row.errors ?? []).map((error) => `${row.row}행: ${error}`),
     );
@@ -544,9 +591,7 @@ export function planGoodsWorkbookImport(
       const reference = first[file] || first[url];
       if (!reference) continue;
       const existingPath = field.startsWith('gallery_')
-        ? (record?.good.gallery_paths as string[] | null)?.[
-            Number(field.slice(-1))
-          ]
+        ? (record?.good.gallery_paths as string[] | null)?.[galleryIndex(field)]
         : record?.good[field];
       const unchanged =
         existingPath &&
