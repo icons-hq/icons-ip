@@ -295,85 +295,7 @@
   border-color: var(--wc-success);
 }
 
-.wc-admin .wc-admin-gallery-fields {
-  display: grid;
-  gap: 14px;
-  min-width: 0;
-  margin: 0;
-  padding: 14px;
-  border: 1px solid var(--wc-line-control);
-  border-radius: var(--wc-radius-form);
-}
-
-.wc-admin .wc-admin-gallery-fields > legend {
-  padding: 0 6px;
-  color: var(--wc-ink-tertiary);
-  font-size: 11px;
-}
-
-.wc-admin .wc-admin-gallery-fields__intro,
-.wc-admin .wc-admin-gallery-fields__guidance {
-  margin: 0;
-  color: var(--wc-ink-sub);
-  font-size: 12px;
-  line-height: 1.65;
-  overflow-wrap: anywhere;
-}
-
-.wc-admin .wc-admin-gallery-fields__guidance {
-  color: var(--wc-ink-tertiary);
-}
-
-.wc-admin .wc-admin-gallery-fields__slots {
-  display: grid;
-  gap: 12px;
-}
-
-.wc-admin .wc-admin-gallery-slot {
-  display: grid;
-  gap: 8px;
-  min-width: 0;
-  padding: 10px;
-  border: 1px solid var(--wc-hairline);
-  border-radius: var(--wc-radius-form);
-  background: var(--wc-surface-grey);
-}
-
-.wc-admin .wc-admin-gallery-slot__heading {
-  display: flex;
-  align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-}
-
-.wc-admin .wc-admin-gallery-slot__heading > div {
-  display: grid;
-  gap: 3px;
-  min-width: 0;
-}
-
-.wc-admin .wc-admin-gallery-slot__heading strong {
-  font-size: 13px;
-}
-
-.wc-admin .wc-admin-gallery-slot__heading span {
-  color: var(--wc-ink-tertiary);
-  font-size: 11px;
-}
-
-.wc-admin .wc-admin-gallery-slot__state {
-  flex: none;
-  color: var(--wc-success);
-  font-weight: 700;
-  white-space: nowrap;
-}
-
-.wc-admin .wc-admin-gallery-slot .wc-admin-artwork-upload-field {
-  border-color: var(--wc-hairline);
-  background: var(--wc-surface);
-}
-
-.wc-admin :is(.goods-option-single, .goods-option-axes, .goods-option-secondary, .wc-admin-gallery-fields, .wc-admin-artwork-upload-field) :focus-visible {
+.wc-admin :is(.goods-option-single, .goods-option-axes, .goods-option-secondary, .wc-admin-artwork-upload-field) :focus-visible {
   outline: 2px solid var(--wc-focus);
   outline-offset: 2px;
 }
@@ -450,14 +372,6 @@
   .wc-admin .goods-variants-primary-table .wc-admin-table td:nth-child(4)::before { content: '사용 상태'; }
   .wc-admin .goods-variants-primary-table .wc-admin-table td:nth-child(5)::before { content: '사용 설정'; }
 
-  .wc-admin .wc-admin-gallery-slot__heading {
-    flex-direction: column;
-    gap: 4px;
-  }
-
-  .wc-admin .wc-admin-gallery-slot__state {
-    align-self: flex-start;
-  }
 }
 
 @media (forced-colors: active) {

@@ -147,7 +147,7 @@ function goodsNoticeFailure(message: string): AdminCatalogActionState | null {
 /* 폼 검증을 우회해 RPC 까지 닿은 정가 오류를 운영자 언어로 옮긴다 (#326). */
 function compareAtPriceFailure(message: string): AdminCatalogActionState | null {
   return message.includes('goods_compare_at_price_invalid')
-    ? rpcFailure('소비자가는 기준 판매가보다 커야 해요')
+    ? rpcFailure('할인은 0원보다 크고 판매가보다 작아야 해요. 판매가와 할인을 확인해주세요.')
     : null;
 }
 
@@ -362,11 +362,11 @@ async function saveAdminGood(
 
   if (error) {
     if (/category_not_leaf|category_archived|category_not_found|invalid_good_category|invalid_additional_categories/.test(error.message)) return { errors: { form: '카테고리가 변경되었거나 연결할 수 없는 상태입니다. 대표·추가 분류의 활성 말단을 확인해주세요. 입력값은 유지됩니다.' } };
-    if (/goods_description_/.test(error.message)) return { errors: { description: '설명 형식과 길이, HTML 이미지 20장 제한을 확인해주세요. 입력한 원문은 유지됩니다.' } };
+    if (/goods_description_/.test(error.message)) return { errors: { description: '상세페이지 형식과 정리 후 길이, 업로드한 HTML 이미지 20장 제한을 확인해주세요. 입력한 원문은 유지됩니다.' } };
     if (/stock_changed|goods_options_changed/.test(error.message)) return { errors: { variants: '다른 작업에서 옵션이나 재고가 바뀌었습니다. 입력값은 유지됩니다. 최신 내용을 확인하고 다시 저장해주세요.' } };
     if (/goods_kc_reassessment_required|goods_kc_published_edit_requires_draft/.test(error.message)) return { errors: { form: '모델·옵션·고시정보 변경에는 KC 재검토가 필요합니다. 상품을 먼저 초안으로 전환한 뒤 수정해주세요.' } };
-    if (error.message.includes('goods_kc_')) return { errors: { form: 'KC 정보에서 실제 모델·옵션과 원본 근거를 확인하고 검토를 완료한 뒤 공개해주세요.' } };
-    if (error.message.includes('active_price_period_requires_reset')) return { errors: { price: '활성 기간 할인을 중지한 뒤 기준 판매가나 옵션 판매가를 변경해주세요.' } };
+    if (error.message.includes('goods_kc_')) return { errors: { form: "KC 정보에서 검토를 완료한 뒤 공개해주세요. KC 대상이 아니면 '상품 전체 KC 해당 없음'으로 바로 끝낼 수 있습니다." } };
+    if (error.message.includes('active_price_period_requires_reset')) return { errors: { price: '활성 기간 할인을 중지한 뒤 판매가·할인·옵션가를 변경해주세요.' } };
     if (/purchase_limit_not_configured|goods_order_quantity_activation|goods_member_quantity_activation/.test(error.message)) return { errors: { form: '주문당 최소·최대 수량과 회원 한도 수치를 입력한 뒤 해당 한도를 적용해주세요.' } };
     if (/invalid_goods_options/.test(error.message)) return { errors: { variants: '옵션 이름·코드·금액·재고를 확인해주세요.' } };
     if (/invalid_good_origin|fulfillment_origin_required|fulfillment_origin_inactive/.test(error.message)) return { errors: { originId: '공개하려면 활성 출고지를 선택해주세요.' } };

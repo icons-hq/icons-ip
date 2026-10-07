@@ -443,11 +443,11 @@ describe('admin catalog form normalization', () => {
 
     expect(normalizeAdminGoodForm(goodForm('22000'), context)).toEqual({
       ok: false,
-      errors: { compareAtPrice: '소비자가는 기준 판매가보다 커야 해요' },
+      errors: { compareAtPrice: '할인은 0원보다 크고 판매가보다 작아야 해요. 판매가와 할인을 확인해주세요.' },
     });
     expect(normalizeAdminGoodForm(goodForm('26000.5'), context)).toEqual({
       ok: false,
-      errors: { compareAtPrice: '소비자가는 0 이상의 정수여야 합니다.' },
+      errors: { compareAtPrice: '판매가와 할인은 0 이상의 원 단위 숫자로 입력해주세요.' },
     });
   });
 

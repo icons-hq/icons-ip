@@ -601,7 +601,7 @@ describe('admin catalog actions', () => {
     formData.set('compareAtPrice', '22000');
 
     await expect(upsertAdminGoodAction({}, formData)).resolves.toMatchObject({
-      errors: { compareAtPrice: '소비자가는 기준 판매가보다 커야 해요' },
+      errors: { compareAtPrice: '할인은 0원보다 크고 판매가보다 작아야 해요. 판매가와 할인을 확인해주세요.' },
     });
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
@@ -640,7 +640,7 @@ describe('admin catalog actions', () => {
     });
 
     await expect(upsertAdminGoodAction({}, goodForm())).resolves.toMatchObject({
-      errors: { form: '소비자가는 기준 판매가보다 커야 해요' },
+      errors: { form: '할인은 0원보다 크고 판매가보다 작아야 해요. 판매가와 할인을 확인해주세요.' },
     });
   });
 

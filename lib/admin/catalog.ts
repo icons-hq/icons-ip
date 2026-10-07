@@ -503,7 +503,7 @@ export function normalizeAdminGoodForm(
     formData,
     'compareAtPrice',
     errors,
-    '소비자가는 0 이상의 정수여야 합니다.',
+    '판매가와 할인은 0 이상의 원 단위 숫자로 입력해주세요.',
   );
   const notice = readGoodsNotice(formData, errors, requiresCompleteNotice);
   const showDiscountRate = formData.has('showDiscountRate') ? readString(formData, 'showDiscountRate') : undefined;
@@ -547,7 +547,7 @@ export function normalizeAdminGoodForm(
   /* 정가가 판매가 이하면 0%·음수 할인율이 나온다. RPC 도 goods_compare_at_price_invalid
      로 막지만, 운영자에게는 저장 실패가 아니라 그 칸의 에러로 보여야 고칠 수 있다. */
   if (compareAtPrice !== null && !errors.compareAtPrice && compareAtPrice <= price) {
-    errors.compareAtPrice = '소비자가는 기준 판매가보다 커야 해요';
+    errors.compareAtPrice = '할인은 0원보다 크고 판매가보다 작아야 해요. 판매가와 할인을 확인해주세요.';
   }
   if (descriptionFormat === 'plain' && description && description.length > GOODS_DESCRIPTION_MAX_LENGTH) {
     errors.description = '설명은 2,000자 이하로 입력해주세요.';
