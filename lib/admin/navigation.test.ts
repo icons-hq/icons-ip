@@ -7,6 +7,7 @@ import {
   legacyAdminSectionHref,
   visibleAdminNavGroups,
 } from './navigation';
+import { ERP_ITEMS_PATH } from './erp-items';
 
 describe('어드민 IA 정의', () => {
   it('화면 id와 경로가 서로 겹치지 않는다', () => {
@@ -39,6 +40,20 @@ describe('어드민 IA 정의', () => {
       const href = legacyAdminSectionHref(section) ?? '/admin';
       expect(readyHrefs.has(href)).toBe(true);
     }
+  });
+
+  /* MD 회의(2026-10-07) ⑦ — ERP 품목 반입은 고객 카테고리 바로 뒤, 상품 관리 대분류에 둔다. */
+  it('ERP 품목 화면이 상품 관리 대분류의 고객 카테고리 뒤에 붙어 있다', () => {
+    const catalog = ADMIN_NAV_GROUPS.find((group) => group.id === 'catalog');
+    const ids = catalog?.screens.map((screen) => screen.id) ?? [];
+
+    expect(catalog?.screens.find((screen) => screen.id === 'erp-items')).toMatchObject({
+      label: 'ERP 품목', href: ERP_ITEMS_PATH, status: 'ready',
+    });
+    expect(ids.indexOf('erp-items')).toBe(ids.indexOf('categories') + 1);
+    expect(adminScreenForPath('/admin/catalog/erp-items')?.id).toBe('erp-items');
+    expect(adminGroupForPath('/admin/catalog/erp-items')?.id).toBe('catalog');
+    expect(visibleAdminNavGroups('staff').flatMap((group) => group.screens).some((screen) => screen.id === 'erp-items')).toBe(true);
   });
 
   /* S8 화면 두 개(#330). 메뉴에 자리가 없으면 라우트만 있고 아무도 못 찾는다. */

@@ -6,10 +6,13 @@ import { GOODS_NOTICE_FIELDS } from '@/lib/goods-notice';
 import { GOOD_TYPES } from '@/lib/goods-taxonomy';
 import { BANK_TRANSFER_HOLD_HOURS } from '@/lib/payments/bank-transfer';
 import { MIN_PAYABLE_TOTAL } from '@/lib/coupons';
+import { ERP_ITEM_FILE_BYTES_LIMIT, ERP_ITEM_IMPORT_ROW_LIMIT } from '@/lib/admin/erp-item-import';
+import { ERP_ITEM_SUGGESTION_LIMIT } from '@/lib/admin/erp-items';
 import type { AdminGuideTopic } from '../types';
 
 /* 규격 수치는 검증 코드의 상수에서 파생한다 — 제한이 바뀌면 가이드가 따라온다. */
 const ARTWORK_MAX_MB = ADMIN_ARTWORK_MAX_BYTES / (1024 * 1024);
+const ERP_ITEM_FILE_KB = ERP_ITEM_FILE_BYTES_LIMIT / 1024;
 
 export const GOODS_SALES_TOPIC: AdminGuideTopic = {
   slug: 'goods-sales',
@@ -87,6 +90,37 @@ export const GOODS_SALES_TOPIC: AdminGuideTopic = {
         '프리셋을 수정하거나 삭제해도 기존 상품에 저장된 값은 바뀌지 않습니다.',
       ],
       screens: [{ href: '/admin/catalog/notice-presets' }],
+    },
+    {
+      id: 'erp-items',
+      heading: 'ERP 품목 반입과 카테고리 연결',
+      paragraphs: [
+        'ERP와 자동으로 연동되지 않습니다. ERP 품목 화면에 ERP 품목 생성 데이터(ERP 코드(품번)·ERP 품명·ERP 분류, 있으면 판매가·바코드)를 반입해 두면 상품 옵션의 ERP 품명 칸에서 품목을 제안합니다. 신제품이 생기면 다시 반입합니다.',
+      ],
+      steps: [
+        { text: `ERP 품목 생성 화면의 표를 머리글 행까지 엑셀에서 복사해 붙여넣거나 XLSX·CSV 파일(${ERP_ITEM_FILE_KB}KB 이하)을 고릅니다.`, screenHref: '/admin/catalog/erp-items' },
+        { text: '미리보기에서 머리글 행과 열마다 가져올 항목을 확인합니다. ERP 코드와 ERP 품명 열은 꼭 골라야 하고, 대·중·소분류 열을 함께 고르면 왼쪽부터 " > "로 이어 붙입니다.' },
+        { text: '반입을 누르면 ERP 코드 기준으로 추가·변경·같음·거부 건수가 나옵니다. 거부된 행은 사유를 보고 고친 뒤 다시 반입합니다.' },
+        { text: 'ERP 분류 ↔ 고객 카테고리 연결 표에서 분류마다 고객 카테고리 말단을 고르고 저장합니다. 이름이 같은 말단이 있으면 같은 이름으로 연결 버튼이 나옵니다.' },
+        { text: `상품 옵션의 ERP 품명 칸에 두 글자 이상 입력하면 반입한 품목을 최대 ${ERP_ITEM_SUGGESTION_LIMIT}개 제안합니다. 고른 품목의 ERP 코드·바코드·고객 카테고리·판매가는 제안 값이며 저장 전에 바꿀 수 있습니다.`, screenHref: '/admin/catalog/goods' },
+      ],
+      list: [
+        '같은 ERP 코드가 여러 행에 있으면 마지막 행으로 반입합니다. 선행 0이 있는 ERP 코드·바코드는 텍스트 그대로 보존하지만, 엑셀에서 숫자 형식으로 저장된 셀은 이미 0이 빠졌을 수 있어 미리보기가 경고합니다.',
+        '열을 고르지 않은 항목은 이미 반입된 값을 그대로 두고, 열을 골랐는데 칸이 비어 있으면 그 값을 비웁니다.',
+        '판매가는 쉼표·원 표기를 지우고 원 단위 숫자로 읽습니다. 수식 셀은 계산하지 않으므로 값으로 붙여넣어 저장한 뒤 올립니다.',
+        `한 번에 ${ERP_ITEM_IMPORT_ROW_LIMIT.toLocaleString('ko-KR')}행까지 반입합니다. 중간에 끊기면 같은 내용으로 다시 반입하면 되고, 이미 반영된 행은 같음으로 처리됩니다.`,
+        '반입과 ERP 분류 연결 변경은 감사 기록에 남습니다.',
+      ],
+      callouts: [
+        {
+          tone: 'info',
+          title: 'ERP 분류 연결은 저장된 상품의 카테고리를 바꾸지 않습니다',
+          body: [
+            '연결은 옵션에서 ERP 품목을 고를 때 카테고리 제안으로만 쓰입니다. 이미 저장한 상품의 고객 카테고리는 상품 편집에서 바꿉니다. 보관했거나 하위 카테고리가 생긴 분류는 제안하지 않습니다.',
+          ],
+        },
+      ],
+      screens: [{ href: '/admin/catalog/erp-items' }, { href: '/admin/catalog/categories' }],
     },
     {
       id: 'overview',
