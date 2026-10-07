@@ -76,9 +76,10 @@ function MappingRow({ row, options, categories, categoryErpMappings }: {
     </td>
     <td>
       <div className="admin-erp-items__save">
-        <button className="wc-admin-kit__button" type="button" disabled={pending || selected === saved} onClick={() => save(selected)}>
+        {/* 저장된 연결도 고른 카테고리도 없으면 할 일이 없으므로 버튼을 두지 않는다(제안 연결 저장 중에는 '저장 중'을 보인다). 연결 해제는 저장된 연결을 비웠을 때만 보인다. */}
+        {saved || selected || pending ? <button className="wc-admin-kit__button" type="button" disabled={pending || selected === saved} onClick={() => save(selected)}>
           {pending ? '저장 중' : selected ? '연결 저장' : '연결 해제'}
-        </button>
+        </button> : null}
         <span aria-live="polite" className={status?.tone === 'error' ? 'wc-admin-kit__error' : 'wc-admin-kit__hint'}>{status?.text ?? ''}</span>
       </div>
     </td>
