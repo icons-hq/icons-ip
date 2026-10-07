@@ -15,6 +15,7 @@ import {
 } from '@/lib/admin/erp-item-import';
 import {
   ERP_ITEMS_PATH,
+  ERP_ITEM_DELETE_LIMIT,
   ERP_ITEM_LIMITS,
   ERP_ITEM_SEARCH_MIN_LENGTH,
   ERP_ITEM_SEARCH_QUERY_MAX,
@@ -153,6 +154,48 @@ export async function importErpItemsAction(rowsValue: unknown): Promise<ErpItemI
   } catch (error) {
     unstable_rethrow(error);
     return { ok: false, error: 'ERP 품목을 반입하지 못했습니다. 같은 내용으로 다시 반입하면 이어서 반영됩니다.' };
+  }
+}
+
+export type ErpItemDeleteResult =
+  | { ok: true; deleted: number; missing: number; message: string }
+  | { ok: false; error: string };
+
+const DELETE_FAILED = 'ERP 품목을 지우지 못했습니다. 다시 시도해주세요.';
+
+/**
+ * 목록에서 고른 ERP 품목을 ERP 코드로 지운다(잘못 반입한 품목·단종 품목 정리).
+ * 코드는 목록의 키를 그대로 쓴다. 상품·옵션에 이미 넣은 ERP 코드·품명과 ERP 분류 연결은 바뀌지 않고,
+ * 지운 행의 값은 DB가 감사 기록에 남긴다.
+ */
+export async function deleteErpItemsAction(codesValue: unknown): Promise<ErpItemDeleteResult> {
+  try {
+    if (!await requireAdminActionAccess(ERP_ITEMS_PATH)) return { ok: false, error: STAFF_ONLY };
+    const codes = Array.isArray(codesValue) ? [...new Set(codesValue)] : [];
+    if (!codes.length || codes.length > ERP_ITEM_DELETE_LIMIT
+      || codes.some((code) => typeof code !== 'string' || !code || code.length > ERP_ITEM_LIMITS.code)) {
+      return { ok: false, error: `지울 ERP 품목을 다시 골라주세요. 한 번에 ${ERP_ITEM_DELETE_LIMIT.toLocaleString('ko-KR')}개까지 지울 수 있습니다.` };
+    }
+    const supabase = await createClient();
+    const { data, error } = await supabase.rpc('admin_delete_erp_items', { p_codes: codes as string[] });
+    if (error) {
+      const { code, descriptor } = rpcCode(error);
+      return { ok: false, error: isPermissionError(code, descriptor) ? STAFF_ONLY : DELETE_FAILED };
+    }
+    revalidatePath(ERP_ITEMS_PATH);
+    const result = data && typeof data === 'object' && !Array.isArray(data) ? data as Record<string, unknown> : {};
+    const deleted = count(result.deleted);
+    const missing = count(result.missing);
+    if (deleted === null || missing === null) return { ok: false, error: '삭제 결과를 확인하지 못했습니다. 목록을 새로고침해 확인해주세요.' };
+    return {
+      ok: true,
+      deleted,
+      missing,
+      message: `ERP 품목 ${deleted.toLocaleString('ko-KR')}건을 지웠습니다.${missing ? ` ${missing.toLocaleString('ko-KR')}건은 이미 지워진 품목입니다.` : ''}`,
+    };
+  } catch (error) {
+    unstable_rethrow(error);
+    return { ok: false, error: DELETE_FAILED };
   }
 }
 

@@ -1,9 +1,10 @@
 import Link from 'next/link';
 import { AdminPageHeader, AdminSectionCard } from '@/components/admin/console/AdminKit';
-import { ConsoleGrid, type ConsoleGridColumn } from '@/components/admin/console/ConsoleGrid';
+import type { ConsoleGridColumn } from '@/components/admin/console/ConsoleGrid';
 import { ConsolePagination } from '@/components/admin/console/ConsolePagination';
 import { ErpCategoryMappingPanel } from '@/components/admin/ErpCategoryMappingPanel';
 import { ErpItemImportPanel } from '@/components/admin/ErpItemImportPanel';
+import { ErpItemListGrid } from '@/components/admin/ErpItemListGrid';
 import { CATEGORY_PATH, categoryPath } from '@/lib/admin/category';
 import {
   ERP_ITEMS_PAGE_SIZE,
@@ -33,7 +34,7 @@ export function ErpItemsScreen({ data }: { data: ErpItemsWorkspaceData }) {
   };
   const rows = page.items.map((item) => ({
     id: item.code,
-    selectable: false,
+    selectLabel: `${item.code} ${item.name} 선택`,
     cells: [
       <span className="admin-erp-items__code" key="code">{item.code}</span>,
       item.name,
@@ -65,7 +66,7 @@ export function ErpItemsScreen({ data }: { data: ErpItemsWorkspaceData }) {
     <AdminSectionCard
       title="반입된 품목"
       id="erp-item-list"
-      summary={`총 ${page.total.toLocaleString('ko-KR')}건 · ERP 코드 순`}
+      summary={`총 ${page.total.toLocaleString('ko-KR')}건 · ERP 코드 순. 잘못 반입했거나 단종된 품목은 골라서 지웁니다.`}
     >
       <form action={ERP_ITEMS_PATH} className="admin-erp-items__search" role="search">
         <label htmlFor="erp-item-query">ERP 코드·품명 검색</label>
@@ -75,8 +76,7 @@ export function ErpItemsScreen({ data }: { data: ErpItemsWorkspaceData }) {
           {filters.query ? <Link href={ERP_ITEMS_PATH}>전체 품목 보기</Link> : null}
         </div>
       </form>
-      <ConsoleGrid
-        caption="반입된 ERP 품목"
+      <ErpItemListGrid
         columns={COLUMNS}
         rows={rows}
         emptyLabel={filters.query ? '조건에 맞는 ERP 품목이 없습니다.' : '아직 반입한 ERP 품목이 없습니다. 위에서 품목 생성 데이터를 반입해주세요.'}

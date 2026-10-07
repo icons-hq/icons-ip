@@ -10,6 +10,7 @@ vi.mock('next/navigation', () => ({
 }));
 
 import {
+  deleteErpItemsAction,
   importErpItemsAction,
   readErpItemFileAction,
   searchErpItemsAction,
@@ -186,5 +187,40 @@ describe('ERP 분류 연결', () => {
   ])('DB 거절 %s 를 안내 문구로 바꾼다', async (message, expected) => {
     mocks.rpc.mockResolvedValueOnce({ data: null, error: { code: 'P0001', message } });
     expect(await setErpCategoryMappingAction({ erpCategory: '문구', categoryId: CATEGORY_ID })).toEqual({ ok: false, error: expected });
+  });
+});
+
+describe('ERP 품목 삭제', () => {
+  it('미로그인·일반 회원·잘못된 선택은 DB에 닿지 않는다', async () => {
+    mocks.auth.mockResolvedValue(signedOut);
+    await expect(deleteErpItemsAction(['000123'])).rejects.toThrow(loginRedirect);
+    mocks.auth.mockResolvedValue(member);
+    expect(await deleteErpItemsAction(['000123'])).toEqual({ ok: false, error: 'ERP 품목은 운영자만 관리할 수 있습니다.' });
+    mocks.auth.mockResolvedValue(staff);
+    for (const value of [null, [], [''], [42], ['A'.repeat(121)], Array.from({ length: 501 }, (_, index) => `C${index}`)]) {
+      expect(await deleteErpItemsAction(value)).toMatchObject({ ok: false, error: expect.stringContaining('지울 ERP 품목') });
+    }
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it('고른 ERP 코드를 중복 없이 그대로 보내고, 지운 건수와 이미 없던 건수를 안내한다', async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: { requested: 2, deleted: 2, missing: 0 }, error: null });
+    expect(await deleteErpItemsAction(['000123', 'K-2', '000123'])).toEqual({ ok: true, deleted: 2, missing: 0, message: 'ERP 품목 2건을 지웠습니다.' });
+    expect(mocks.rpc).toHaveBeenLastCalledWith('admin_delete_erp_items', { p_codes: ['000123', 'K-2'] });
+    expect(mocks.revalidate).toHaveBeenCalledWith('/admin/catalog/erp-items');
+    mocks.rpc.mockResolvedValueOnce({ data: { requested: 2, deleted: 1, missing: 1 }, error: null });
+    expect(await deleteErpItemsAction([' 000123 ', 'GONE'])).toMatchObject({ ok: true, deleted: 1, missing: 1, message: 'ERP 품목 1건을 지웠습니다. 1건은 이미 지워진 품목입니다.' });
+    expect(mocks.rpc).toHaveBeenLastCalledWith('admin_delete_erp_items', { p_codes: [' 000123 ', 'GONE'] });
+  });
+
+  it('권한·결과 형식·연결 오류를 안내 문구로 바꾼다', async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: null, error: { code: '42501', message: 'staff_required' } });
+    expect(await deleteErpItemsAction(['A'])).toEqual({ ok: false, error: 'ERP 품목은 운영자만 관리할 수 있습니다.' });
+    mocks.rpc.mockResolvedValueOnce({ data: null, error: { code: 'P0001', message: 'private' } });
+    expect(await deleteErpItemsAction(['A'])).toEqual({ ok: false, error: 'ERP 품목을 지우지 못했습니다. 다시 시도해주세요.' });
+    mocks.rpc.mockResolvedValueOnce({ data: { deleted: 'x' }, error: null });
+    expect(await deleteErpItemsAction(['A'])).toEqual({ ok: false, error: '삭제 결과를 확인하지 못했습니다. 목록을 새로고침해 확인해주세요.' });
+    mocks.rpc.mockRejectedValueOnce(new Error('socket'));
+    expect(await deleteErpItemsAction(['A'])).toEqual({ ok: false, error: 'ERP 품목을 지우지 못했습니다. 다시 시도해주세요.' });
   });
 });

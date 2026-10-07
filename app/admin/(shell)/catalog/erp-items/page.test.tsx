@@ -13,7 +13,7 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ refresh: vi.fn() }),
 }));
 vi.mock('@/lib/admin/erp-items.server', () => ({ loadErpItemsWorkspace: mocks.load }));
-vi.mock('@/app/admin/erp-item-actions', () => ({ importErpItemsAction: vi.fn(), readErpItemFileAction: vi.fn(), setErpCategoryMappingAction: vi.fn() }));
+vi.mock('@/app/admin/erp-item-actions', () => ({ importErpItemsAction: vi.fn(), readErpItemFileAction: vi.fn(), setErpCategoryMappingAction: vi.fn(), deleteErpItemsAction: vi.fn() }));
 
 beforeEach(() => {
   mocks.auth = { isConfigured: true, user: { id: 'staff' }, isStaff: true, role: 'staff' };

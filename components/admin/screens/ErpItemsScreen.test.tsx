@@ -6,7 +6,7 @@ import { ErpItemsScreen } from './ErpItemsScreen';
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 vi.mock('@/app/admin/erp-item-actions', () => ({
-  importErpItemsAction: vi.fn(), readErpItemFileAction: vi.fn(), setErpCategoryMappingAction: vi.fn(), searchErpItemsAction: vi.fn(),
+  importErpItemsAction: vi.fn(), readErpItemFileAction: vi.fn(), setErpCategoryMappingAction: vi.fn(), searchErpItemsAction: vi.fn(), deleteErpItemsAction: vi.fn(),
 }));
 
 const node = (id: string, name: string, parentId: string | null, extra: Partial<AdminCategoryNode> = {}): AdminCategoryNode => ({
@@ -72,6 +72,8 @@ describe('ERP 품목 화면', () => {
     expect(html).toContain('연결 없음');
     expect(html).toContain('dateTime="2026-10-06T16:30:00Z">2026-10-07</time>');
     expect(html).toContain('총 51건');
+    expect(html).toContain('aria-label="000123 아크릴 키링 선택"');
+    expect(html).toContain('aria-label="전체 선택"');
     expect(html).toContain('action="/admin/catalog/erp-items"');
     expect(html).toContain('href="/admin/catalog/erp-items?page=2"');
   });
