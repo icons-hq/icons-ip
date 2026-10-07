@@ -734,10 +734,11 @@
   position: relative;
 }
 
-/* Swiper 없이 네이티브 scroll-snap 으로 넘긴다 — 자동재생도 화살표도 없다(R-04 §2). */
+/* Swiper 없이 네이티브 scroll-snap 으로 넘긴다 — 자동재생도 화살표도 없다(R-04 §2).
+   모바일·데스크톱 모두 1:1이고 이미지는 잘리지 않는다(2026-10-07 MD 요청, lib/goods-image.ts). */
 .wc-pdp-gallery__stage {
   display: flex;
-  aspect-ratio: 3 / 4;
+  aspect-ratio: 1 / 1;
   overflow-x: auto;
   scroll-snap-type: x mandatory;
   scrollbar-width: none;
@@ -759,7 +760,7 @@
   display: block;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
 }
 
 /* 도트는 이미지 바깥이 아니라 안쪽 하단에 앉는다(피치 16px = 8px 도트 + 8px 간격). */
@@ -806,10 +807,6 @@
 }
 
 @media (min-width: 990px) {
-  .wc-pdp-gallery__stage {
-    aspect-ratio: 1 / 1;
-  }
-
   /* 84×7 + 10×6 = 648 — 갤러리 폭(649)에 그대로 맞는다. 넘치면 가로 스크롤로 흘린다. */
   .wc-pdp-gallery__thumbs {
     display: flex;
@@ -843,7 +840,7 @@
     display: block;
     width: 100%;
     height: 100%;
-    object-fit: cover;
+    object-fit: contain;
   }
 }
 
@@ -1042,6 +1039,11 @@
 .wc-root .wc-goods-description blockquote { padding: 8px 16px; border-left: 3px solid var(--wc-line-control); }
 .wc-root .wc-goods-description a { color: var(--wc-ink); text-decoration: underline; text-underline-offset: 3px; }
 .wc-root .wc-goods-description img { display: block; max-width: 100%; width: auto; height: auto; margin: 12px auto; }
+/* 호스팅 상세페이지는 긴 이미지를 여러 장으로 잘라 이어 붙인다(2026-10-07 MD 요청) — 이어지는 이미지 사이 틈을 없앤다.
+   이미지 바로 뒤 <br>이 만드는 빈 줄은 렌더 경계의 sanitizer(lib/goods-description.ts)가 지운다. CSS 형제 결합자는
+   사이의 글자를 건너뛰므로 <br>을 여기서 숨기면 "제품명<br>소재" 같은 글자 줄까지 붙는다. */
+.wc-root .wc-goods-description img:has(+ img) { margin-bottom: 0; }
+.wc-root .wc-goods-description img + img { margin-top: 0; }
 .wc-root .wc-goods-description figcaption { color: var(--wc-ink-tertiary); font-size: 12px; text-align: center; }
 .wc-root .wc-goods-description table { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; }
 .wc-root .wc-goods-description :is(th, td) { min-width: 80px; padding: 10px 12px; border: 1px solid var(--wc-hairline); text-align: left; vertical-align: top; }
@@ -2004,7 +2006,7 @@
 .wc-cart__line-media {
   display: block;
   width: 80px;
-  aspect-ratio: 3 / 4;
+  aspect-ratio: 1 / 1;
   overflow: hidden;
   background-color: var(--wc-surface-grey-2);
 }
@@ -2013,7 +2015,7 @@
   display: block;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
 }
 
 /* 결제로 넘어갈 수 없는 라인은 흐리게 낮춘다 — 상태 문구(`__line-state`)가 이유를 말한다. */
@@ -2351,7 +2353,7 @@
 .wc-wishlist__media {
   display: block;
   width: 72px;
-  aspect-ratio: 3 / 4;
+  aspect-ratio: 1 / 1;
   overflow: hidden;
   background-color: var(--wc-surface-grey-2);
 }
@@ -2361,7 +2363,7 @@
   display: block;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
 }
 
 .wc-wishlist__info {

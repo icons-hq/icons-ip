@@ -150,7 +150,7 @@ describe('GoodDetail', () => {
     expect(html).not.toMatch(/window.attacked|javascript:|onclick=/);
   });
 
-  it('HTML 미리보기와 공개 결과가 같고 DB가 검증한 이미지 경로만 표시한다', () => {
+  it('HTML 미리보기와 공개 결과가 같고 DB가 검증한 저장소 경로와 https 호스팅 이미지만 표시한다', () => {
     vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://media.example.test');
     try {
       const path = 'public-media/catalog/good/22222222-2222-4222-8222-222222222222.webp';
@@ -161,7 +161,9 @@ describe('GoodDetail', () => {
       const descriptionHtml = (html: string) => html.match(/<div class="wc-goods-description">.*?<\/div>/s)?.[0];
       expect(descriptionHtml(previewHtml)).toBe(descriptionHtml(publicHtml));
       expect(publicHtml).toContain('src="https://media.example.test/storage/v1/object/public/public-media/catalog/good/22222222-2222-4222-8222-222222222222.webp"');
-      expect(publicHtml).not.toMatch(/onerror=|width="9000"|external.test/);
+      expect(publicHtml).not.toMatch(/onerror=|width="9000"/);
+      /* 2026-10-07 MD 요청: 판매처 공통 호스팅 이미지는 주소 그대로 보인다. */
+      expect(publicHtml).toContain('<img src="https://external.test/a.webp" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" />');
       expect(render({ description: raw, descriptionFormat: 'html', descriptionImagePaths: [] })).not.toContain('src="https://media.example.test/');
     } finally { vi.unstubAllEnvs(); }
   });

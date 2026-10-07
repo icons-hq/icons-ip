@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import type { AdminGoodRecord } from '@/lib/admin/catalog.server';
 import type { Ip } from '@/lib/data';
+import { sanitizeGoodsDescription } from '@/lib/goods-description';
 import { GOODS_NOTICE_FIELDS } from '@/lib/goods-notice';
 import { GOOD_BADGES, GOOD_TYPES } from '@/lib/goods-taxonomy';
 import { GoodSection } from './GoodSection';
@@ -146,12 +147,13 @@ describe('GoodSection', () => {
 
   it('저장 실패 후 HTML 원문·형식·업로드를 복구하고 제거 사유와 정리된 미리보기를 함께 보여준다', () => {
     const path = 'public-media/catalog/good/22222222-2222-4222-8222-222222222222.webp';
-    const html = renderGoodSection(good, { attempt: 2, values: { previousId: good.id, descriptionFormat: 'html', description: '<h2>보존 제목</h2><p style="color:red">본문</p><img src="https://external.test/a.png">', descriptionUploadPath: path, descriptionImageAlt: '입력한 대체 설명' } });
+    const html = renderGoodSection(good, { attempt: 2, values: { previousId: good.id, descriptionFormat: 'html', description: '<h2>보존 제목</h2><p style="color:red">본문</p><img src="https://external.test/a.png"><img src="/relative.png">', descriptionUploadPath: path, descriptionImageAlt: '입력한 대체 설명' } });
     expect(html).toContain('<option value="html" selected="">');
     expect(html).toContain('&lt;h2&gt;보존 제목&lt;/h2&gt;');
     expect(html).toContain('<h2>보존 제목</h2><p>본문</p>');
     expect(html).toContain('CSS·이벤트 등 지원하지 않는 속성은 제거됩니다.');
-    expect(html).toContain('외부 URL·검증되지 않은 이미지는 표시되지 않습니다.');
+    expect(html).toContain('주소를 확인할 수 없는 이미지는 제거됩니다.');
+    expect(html).toContain('<img src="https://external.test/a.png" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" />');
     expect(html).toContain(`value="${path}"`);
     expect(html).toContain('value="입력한 대체 설명"');
   });
@@ -164,7 +166,9 @@ describe('GoodSection', () => {
     expect(html).toContain('value="public-media/catalog/good/failed.webp"');
     expect(html).toContain('value="보존 옵션"');
     expect(html).toContain('value="-1"');
-    expect(html.match(/data-auto-upload="true"/g)).toHaveLength(7);
+    /* 대표·추가 이미지는 한 그리드(자리별 hidden input)이고, 상세 HTML 이미지·긴 상세 이미지만 별도 업로드 칸이다. */
+    expect(html.match(/data-auto-upload="true"/g)).toHaveLength(2);
+    expect(html.match(/class="wc-admin-image-tile wc-admin-artwork-upload-field"/g)).toHaveLength(2);
     expect(html).toContain('최근 저장된 상품에서 복사');
     expect(html).toContain('프리셋 찾기');
   });
@@ -289,20 +293,49 @@ describe('GoodSection', () => {
   });
 
   /* #172 — 설명·갤러리 4슬롯·상세 이미지가 같은 업로드 칸을 재사용한다. */
-  it('offers a description, four ordered gallery slots, and one detail image', () => {
+  /* 2026-10-07 MD 요청 — 대표 이미지·추가 이미지를 한 썸네일 그리드로, "슬롯"·잘림 예시 없이. */
+  it('offers one image grid for the main and additional images, a description, and one detail image', () => {
     const html = renderGoodSection(null);
 
     expect(html).toMatch(/<textarea[^>]*name="description"/);
-    expect(html).toContain('갤러리 (최대 4장)');
-    for (const slot of [0, 1, 2, 3]) {
-      expect(html).toContain(`name="galleryPath${slot}"`);
-      expect(html).toContain(`갤러리 ${slot + 1}`);
+    expect(html).toContain('상품 이미지 · 대표 이미지 1장 + 추가 이미지 최대 4장');
+    expect(html).toContain('1000×1000(1:1) 이미지를 권장합니다. 올린 원본 비율 그대로, 잘리지 않고 표시됩니다.');
+    for (const name of ['imagePath', 'galleryPath0', 'galleryPath1', 'galleryPath2', 'galleryPath3']) {
+      expect(html).toContain(`name="${name}"`);
     }
+    expect(html).toContain('aria-label="대표 이미지 추가"');
+    expect(html).toContain('aria-label="이미지 추가 (추가 이미지, 여러 장 선택 가능)"');
+    expect(html).not.toMatch(/슬롯|갤러리 \(최대|공개 화면 잘림 확인/);
+    expect(html).toContain('상세페이지(상세 설명) 편집');
     expect(html).toContain('name="detailImagePath"');
     expect(html).toContain('상세 이미지');
-    /* 이미지 제약은 공유 업로드 칸에서 그대로 따라온다. */
-    expect(html.match(/accept="image\/jpeg,image\/png,image\/webp"/g)).toHaveLength(7);
-    expect(html.match(/최대 5MB · 가로·세로 최대 8192px/g)).toHaveLength(1);
+    /* 이미지 제약은 공유 업로드 계약(ADMIN_ARTWORK_ACCEPT)을 그대로 따른다. */
+    expect(html.match(/accept="image\/jpeg,image\/png,image\/webp"/g)).toHaveLength(4);
+    /* 그리드 안내 1회 + HTML 이미지 업로드 자체 안내 1회 */
+    expect(html.match(/최대 5MB · 가로·세로 최대 8192px/g)).toHaveLength(2);
+  });
+
+  /* 리뷰 재현: HTML 이미지 업로드가 그리드의 1:1(1000×1000) 권장을 설명으로 읽었다 — 긴 세로 상세 이미지에는 틀린 안내다. */
+  it('HTML 이미지 업로드는 1:1 권장 대신 자기 파일 규격 안내만 설명으로 연결한다', () => {
+    const html = renderGoodSection(null);
+    const describedBy = (id: string) => html.match(new RegExp(`aria-describedby="(${id}[^"]*)"[^>]*class="admin-artwork-input"`))?.[1];
+
+    expect(describedBy('good-description-image')).toBe('good-description-image-artwork-help good-description-image-artwork-guidance');
+    expect(html).toContain('id="good-description-image-artwork-help"');
+    expect(html).not.toMatch(/aria-describedby="[^"]*goods-image-upload-guidance[^"]*"[^>]*class="admin-artwork-input"/);
+  });
+
+  /* 리뷰 재현: 요약이 원문 길이만 보여 줘 정리된 코드가 30,000자를 넘어 저장이 거부될 때 이유를 알 수 없었다. */
+  it('상세페이지 HTML 요약에 정리 후 길이를 함께 보여주고, 정리 결과가 상한을 넘으면 저장 전에 알린다', () => {
+    const images = Array.from({ length: 100 }, (_, index) => `<img src="https://img.example.com/${index}.jpg">`).join('');
+    const description = `<p>${'가'.repeat(25000)}</p>${images}`;
+    const html = renderGoodSection(good, { attempt: 1, values: { previousId: good.id, descriptionFormat: 'html', description } });
+    const cleaned = sanitizeGoodsDescription(description).html.length;
+
+    expect(description.length).toBeLessThanOrEqual(30000);
+    expect(cleaned).toBeGreaterThan(30000);
+    expect(html).toContain(`상세페이지 HTML · 원문 ${description.length.toLocaleString('ko-KR')}자 · 정리 후 ${cleaned.toLocaleString('ko-KR')}자`);
+    expect(html).toContain(`정리된 코드가 ${cleaned.toLocaleString('ko-KR')}자로 최대 30,000자를 넘어 저장할 수 없습니다.`);
   });
 
   it('prefills gallery slots in stored order and keeps the detail image', () => {

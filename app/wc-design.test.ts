@@ -247,6 +247,16 @@ describe('White Catalog catalog wiring', () => {
     expect(css).not.toMatch(/line-height:\s*(?:0?\.)\d+/);
   });
 
+  it('상세 HTML의 줄바꿈은 CSS로 숨기지 않고 이어지는 이미지 사이 틈만 없앤다', () => {
+    /* 2026-10-07 리뷰: `img + br { display: none }`은 사이의 글자 노드를 건너뛰어
+     * `<img>제품명<br>소재`의 글자 줄바꿈까지 숨겼다. 이미지 바로 뒤 <br>은 렌더 경계의 sanitizer가 지운다. */
+    const css = read('./styles/wc-catalog.css');
+    const selectors = postcss.parse(css).nodes.flatMap((node) => node.type === 'rule' ? node.selectors : []);
+
+    expect(selectors.filter((selector) => selector.includes('.wc-goods-description') && /\bbr\b/.test(selector))).toEqual([]);
+    expect(css).toMatch(/\.wc-goods-description img \+ img\s*\{\s*margin-top:\s*0;/);
+  });
+
   it('moves small accent text to the success ink while decoration keeps brand green', () => {
     /* S4 확정: brand-green은 흰 지면에서 2.3:1이라 소형 텍스트에 쓰면 AA를 못 넘는다.
      * 텍스트(배지·할인율·GNB 활성·추천 칩)만 --wc-success로 내리고,

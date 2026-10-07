@@ -361,7 +361,7 @@ export function ArtworkUploadField({
           </div>
         </div>
       </div>
-      {showCropGuide && <ArtworkCropGuide kind={kind} src={display.previewUrl} detailImage={name === 'detailImagePath'} />}
+      {showCropGuide && <ArtworkCropGuide kind={kind} src={display.previewUrl} />}
       <input name={name} readOnly type="hidden" value={display.imagePath} />
       {showPath && <div className="mono" style={{ color: 'var(--faint)', fontSize: 10, overflowWrap: 'anywhere' }}>
         현재 경로: {display.imagePath || '없음'}

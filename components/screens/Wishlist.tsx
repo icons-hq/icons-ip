@@ -6,6 +6,7 @@ import { MypageShell } from '@/components/wc/MypageShell';
 import { PriceBlock } from '@/components/wc/PriceBlock';
 import { WcButton } from '@/components/wc/WcButton';
 import type { CatalogSnapshot } from '@/lib/catalog';
+import { goodsImageBackground } from '@/lib/goods-image';
 import type { Good, Ip } from '@/lib/data';
 import type { WishlistEntry } from '@/lib/wishlist.server';
 
@@ -62,7 +63,7 @@ function WishlistRow({ line }: { line: WishlistLine }) {
   return (
     <li className="wc-wishlist__row">
       <Link aria-hidden className="wc-wishlist__media" href={`/shop/${good.id}`} tabIndex={-1}>
-        <span className="wc-wishlist__image" style={{ background: good.img }} />
+        <span className="wc-wishlist__image" style={{ background: goodsImageBackground(good.img) }} />
       </Link>
       <div className="wc-wishlist__info">
         {ip ? <p className="wc-wishlist__brand">{ip.title}</p> : null}

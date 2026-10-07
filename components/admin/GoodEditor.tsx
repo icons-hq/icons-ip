@@ -33,7 +33,7 @@ import type { GoodsKcPresetTemplate } from '@/lib/admin/goods-notice-presets';
 import { useAdminLocalAutosave } from './useAdminLocalAutosave';
 import { AdminLocalDraftNotice } from './AdminLocalDraftNotice';
 import { goodFormValues } from '@/lib/admin/good-preview';
-import { GOODS_HTML_MAX_LENGTH, sanitizeGoodsDescription } from '@/lib/goods-description';
+import { GOODS_HTML_MAX_LENGTH, goodsHtmlCleanedLengthWarning, sanitizeGoodsDescription } from '@/lib/goods-description';
 import type { Ip } from '@/lib/data';
 import type { GoodDetailContent } from '@/lib/goods-detail';
 import { GOOD_BADGES, GOOD_TYPES, goodDisplayBadges } from '@/lib/goods-taxonomy';
@@ -41,7 +41,8 @@ import { GOODS_NOTICE_FIELDS, type GoodsNoticeInfo } from '@/lib/goods-notice';
 
 import { GoodDetailView } from '@/components/screens/GoodDetail';
 import { ProductCard } from '@/components/wc/ProductCard';
-import { GoodsGalleryFields } from './GoodsGalleryFields';
+import { GoodsImageGrid } from './GoodsImageGrid';
+import { GOODS_IMAGE_FIELD_NAMES } from '@/lib/admin/goods-image-grid';
 import { ArtworkUploadField } from './ArtworkUploadField';
 import { GoodIdentifierFields } from './GoodIdentifierFields';
 import { GoodWorkspaceNavigation, GoodWorkspaceErrors, GoodOptionalFields, focusGoodWorkspaceTarget } from './GoodWorkspace';
@@ -256,7 +257,8 @@ function GoodEditorForm({ action, catalogIps, ipOptions, pending, selected, stat
   });
   const notice = Object.fromEntries(GOODS_NOTICE_FIELDS.map((field) => [field.key, initial[field.formName]])) as GoodsNoticeInfo;
   const htmlDescription = values.descriptionFormat === 'html';
-  const descriptionWarnings = htmlDescription ? sanitizeGoodsDescription(values.description ?? '').warnings : [];
+  const descriptionCheck = htmlDescription ? sanitizeGoodsDescription(values.description ?? '') : null;
+  const descriptionWarnings = descriptionCheck ? [...descriptionCheck.warnings, ...(descriptionCheck.html.length > GOODS_HTML_MAX_LENGTH ? [goodsHtmlCleanedLengthWarning(descriptionCheck.html.length)] : [])] : [];
   const errorCount = (key: string) => GOOD_EDITOR_SECTIONS.find((section) => section.key === key)?.fields.filter((field) => errors[field]).length ?? 0;
   return <>
     <GoodWorkspaceNavigation />
@@ -297,14 +299,14 @@ function GoodEditorForm({ action, catalogIps, ipOptions, pending, selected, stat
         <GoodIdentifierFields code={initial.code} defaultVariantCode={initial.defaultVariantCode ?? variants.find((v) => v.isDefault)?.code} hideVariantCode onCodeSuggestion={setSuggestedCode} errors={state.errors ?? {}} ipId={values.ipId} name={values.name} slug={initial.id} slugLocked={Boolean(selected?.firstPublishedAt)} />
         </GoodOptionalFields>
       </AdminSectionCard>
-      <AdminSectionCard title="이미지와 상세 설명" requirement="대표 이미지 · 공개 필수 / 갤러리·설명 · 선택" status={values.imagePath ? '대표 이미지 있음' : '대표 이미지 미입력'} summary={`갤러리 ${Array.from({ length: GOODS_GALLERY_MAX }, (_, i) => values[`galleryPath${i}`]).filter(Boolean).length}장 · ${values.description ? '상세 설명 작성됨' : '상세 설명 없음'}`} >
-        <ArtworkUploadField compact showPath={false} showGuidance={false} ariaDescribedBy="goods-gallery-upload-guidance" autoUpload currentPath={initial.imagePath || null} currentUrl={imageUrls.imagePath} fieldId="good-main" helpText="파일을 선택하면 바로 업로드됩니다. 상품 저장 후 공개 화면에 적용됩니다." kind="good" label="대표 이미지" onPreviewChange={(url) => setImageUrl('imagePath', url)} />
-        <ErrorText>{errors.imagePath}</ErrorText>
-        <GoodOptionalFields title="상세 설명 편집" summary={`${values.descriptionFormat === 'html' ? 'HTML' : '일반 텍스트'} · ${values.description?.length || 0}자`} hasErrors={Boolean(errors.description || errors.descriptionFormat)}>
-        <SelectField defaultValue={initial.descriptionFormat} error={errors.descriptionFormat} label="상세 설명 형식" name="descriptionFormat"><option value="plain">일반 텍스트</option><option value="html">HTML 문서</option></SelectField>
+      <AdminSectionCard title="이미지와 상세 설명" requirement="대표 이미지 · 공개 필수 / 추가 이미지·상세페이지 · 선택" status={values.imagePath ? '대표 이미지 있음' : '대표 이미지 미입력'} summary={`추가 이미지 ${Array.from({ length: GOODS_GALLERY_MAX }, (_, i) => values[`galleryPath${i}`]).filter(Boolean).length}장 · ${values.description ? '상세페이지 작성됨' : '상세페이지 없음'}`} >
+        <GoodsImageGrid errors={errors} initialPaths={GOODS_IMAGE_FIELD_NAMES.map((name) => initial[name])} initialUrls={GOODS_IMAGE_FIELD_NAMES.map((name) => imageUrls[name])} onPreviewChange={setImageUrl} />
+        <p className="muted">상세페이지는 아래 &lsquo;상세페이지(상세 설명) 편집&rsquo;에서 텍스트나 HTML 소스로 작성합니다. &lsquo;긴 상세 이미지&rsquo;는 그 아래에 붙는 이미지 파일 1장입니다.</p>
+        <GoodOptionalFields title="상세페이지(상세 설명) 편집" summary={descriptionCheck ? `상세페이지 HTML · 원문 ${(values.description?.length ?? 0).toLocaleString('ko-KR')}자 · 정리 후 ${descriptionCheck.html.length.toLocaleString('ko-KR')}자` : `일반 텍스트 · ${values.description?.length || 0}자`} hasErrors={Boolean(errors.description || errors.descriptionFormat)}>
+        <SelectField defaultValue={initial.descriptionFormat} error={errors.descriptionFormat} label="상세 설명 형식" name="descriptionFormat"><option value="plain">일반 텍스트</option><option value="html">HTML 문서 (상세페이지 소스)</option></SelectField>
         <p className="muted">형식을 바꿔도 입력 원문은 유지됩니다. 일반 텍스트에서는 태그도 글자로 표시됩니다.</p>
         <div className="admin-goods-html-tools" hidden={!htmlDescription}>
-          <p>제목·문단·목록·표·강조·링크와 업로드한 이미지를 지원합니다. 사이트 기본 서식으로 표시되며 CSS·스크립트·이벤트는 제거됩니다.</p>
+          <p>다른 판매처에 쓰는 상세페이지 HTML 소스를 그대로 붙여넣을 수 있습니다. https로 시작하는 호스팅 이미지 주소는 그대로 표시되므로 호스팅 이미지를 바꾸면 이 상세페이지에도 반영됩니다. 제목·문단·목록·표·강조·링크를 지원하며, 사이트 기본 서식으로 표시되고 CSS·스크립트·이벤트는 제거됩니다.</p>
           <div className="row">
             <button className="btn btn-ghost" onClick={() => insertDescription('<h2>제목</h2>\n')} type="button">제목 넣기</button>
             <button className="btn btn-ghost" onClick={() => insertDescription('<p>문단 내용</p>\n')} type="button">문단 넣기</button>
@@ -312,18 +314,17 @@ function GoodEditorForm({ action, catalogIps, ipOptions, pending, selected, stat
             <button className="btn btn-ghost" onClick={() => insertDescription('<table><caption>표 제목</caption><tbody><tr><th scope="row">항목</th><td>내용</td></tr></tbody></table>\n')} type="button">표 넣기</button>
           </div>
         </div>
-        <TextArea defaultValue={initial.description} error={errors.description} label={htmlDescription ? '상세 설명 HTML (정리된 코드 포함 최대 30,000자)' : '상세 설명 (최대 2,000자)'} maxLength={htmlDescription ? GOODS_HTML_MAX_LENGTH : GOODS_DESCRIPTION_MAX_LENGTH} name="description" placeholder={htmlDescription ? '<h2>상품 특징</h2><p>상세 내용을 입력해주세요.</p>' : adminGoodsCopy('굿즈 구성과 특징을 짧게 설명해주세요.')} />
+        <TextArea defaultValue={initial.description} error={errors.description} label={htmlDescription ? '상세페이지 HTML (정리된 코드 포함 최대 30,000자)' : '상세 설명 (최대 2,000자)'} maxLength={htmlDescription ? GOODS_HTML_MAX_LENGTH : GOODS_DESCRIPTION_MAX_LENGTH} name="description" placeholder={htmlDescription ? '<h2>상품 특징</h2><p>상세 내용을 입력해주세요.</p>' : adminGoodsCopy('굿즈 구성과 특징을 짧게 설명해주세요.')} />
         {descriptionWarnings.length > 0 && <div className="admin-goods-html-review" role="status"><p>저장 전 확인: 입력 원문은 편집기에 남아 있으며 아래 미리보기의 결과가 저장됩니다.</p><ul>{descriptionWarnings.map((warning) => <li key={warning}>{warning}</li>)}</ul></div>}
         <fieldset className="admin-goods-html-tools" disabled={!htmlDescription} hidden={!htmlDescription}>
-          <ArtworkUploadField showGuidance={false} ariaDescribedBy="goods-gallery-upload-guidance" autoUpload allowRemove currentPath={initial.descriptionUploadPath || null} currentUrl={initial.descriptionUploadPath ? publicMediaUrl(initial.descriptionUploadPath) : null} fieldId="good-description-image" helpText="이미지 검증이 끝나면 대체 설명을 적고 설명에 넣기를 누릅니다. HTML 본문에는 최대 20장을 넣을 수 있습니다." kind="good" label="HTML 이미지 업로드" name="descriptionUploadPath" />
+          <ArtworkUploadField autoUpload allowRemove currentPath={initial.descriptionUploadPath || null} currentUrl={initial.descriptionUploadPath ? publicMediaUrl(initial.descriptionUploadPath) : null} fieldId="good-description-image" helpText="이미지 검증이 끝나면 대체 설명을 적고 설명에 넣기를 누릅니다. HTML 본문에는 최대 20장을 넣을 수 있습니다." kind="good" label="HTML 이미지 업로드" name="descriptionUploadPath" />
           <Field defaultValue={initial.descriptionImageAlt} label="HTML 이미지 대체 설명" name="descriptionImageAlt" maxLength={300} />
           <button className="btn btn-ghost" onClick={() => insertDescription()} type="button">업로드한 이미지를 설명에 넣기</button>
-          <p className="muted">외부 이미지 URL은 표시되지 않습니다. 이미지 파일을 업로드한 후 넣어주세요. 아래 상품 미리보기에서 공개될 결과를 확인할 수 있습니다.</p>
+          <p className="muted">호스팅 이미지 주소(https://…)는 업로드 없이 HTML에 그대로 쓰면 됩니다. http 주소는 https로 바꿔 저장합니다. 호스팅하지 않은 이미지만 파일을 업로드한 후 넣어주세요. 아래 상품 미리보기에서 공개될 결과를 확인할 수 있습니다.</p>
         </fieldset>
         </GoodOptionalFields>
-        <GoodsGalleryFields galleryPaths={Array.from({ length: GOODS_GALLERY_MAX }, (_, i) => values[`galleryPath${i}`])} galleryUrls={Array.from({ length: GOODS_GALLERY_MAX }, (_, i) => imageUrls[`galleryPath${i}`] ?? '')} onPreviewChange={setImageUrl} state={state} />
         <GoodOptionalFields title="긴 상세 이미지 (선택)" summary={values.detailImagePath ? '이미지 연결됨' : '이미지 없음'} hasErrors={Boolean(errors.detailImagePath)}>
-        <ArtworkUploadField compact showPath={false} showGuidance={false} showCropGuide={false} autoUpload allowRemove currentPath={initial.detailImagePath || null} currentUrl={imageUrls.detailImagePath} fieldId="good-detail" helpText="상세페이지 아래에 원래 비율로 길게 표시되는 이미지 1장입니다." kind="good" label="상세 이미지" name="detailImagePath" onPreviewChange={(url) => setImageUrl('detailImagePath', url)} />
+        <ArtworkUploadField compact showPath={false} showGuidance={false} showCropGuide={false} autoUpload allowRemove currentPath={initial.detailImagePath || null} currentUrl={imageUrls.detailImagePath} fieldId="good-detail" helpText="상세페이지(상세 설명) 아래에 원래 비율로 붙는 이미지 파일 1장입니다. 호스팅 HTML로 상세페이지를 만들었다면 비워 두어도 됩니다." kind="good" label="상세 이미지" name="detailImagePath" onPreviewChange={(url) => setImageUrl('detailImagePath', url)} />
         <ErrorText>{errors.detailImagePath}</ErrorText>
         </GoodOptionalFields>
       </AdminSectionCard>

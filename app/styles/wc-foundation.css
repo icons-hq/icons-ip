@@ -247,9 +247,11 @@
   color: inherit;
 }
 
+/* 굿즈 이미지는 1:1 프레임에 원본 비율 그대로(잘림 없이) 놓는다 — 2026-10-07 MD 요청: 웹팀 썸네일
+   1000×1000 원본 유지. 축약값의 cover→contain 변환은 lib/goods-image.ts 가 맡는다. */
 .wc-product-card__media {
   position: relative;
-  aspect-ratio: 3 / 4;
+  aspect-ratio: 1 / 1;
   overflow: hidden;
   background: var(--wc-surface-grey-2);
 }
@@ -629,7 +631,7 @@
 }
 
 .wc-loading__media {
-  aspect-ratio: 3 / 4;
+  aspect-ratio: 1 / 1;
 }
 
 .wc-loading__line {

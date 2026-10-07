@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { goodsImageBackground } from '@/lib/goods-image';
 
 export interface PdpGalleryProps {
   /** 대표 이미지가 0번. 값은 대표 이미지와 같은 CSS background 규약이다. */
@@ -87,7 +88,7 @@ export function PdpGallery({ className, frames, goodName }: PdpGalleryProps) {
             aria-label={`${index + 1}번째 이미지`}
             className="wc-pdp-gallery__slide"
             role="group"
-            style={{ background: frame }}
+            style={{ background: goodsImageBackground(frame) }}
           />
         ))}
       </div>
@@ -113,7 +114,7 @@ export function PdpGallery({ className, frames, goodName }: PdpGalleryProps) {
                 aria-label={`${index + 1}번째 이미지 보기`}
                 className={`wc-pdp-gallery__thumb${index === active ? ' is-active' : ''}`}
                 onClick={() => goTo(index)}
-                style={{ background: frame }}
+                style={{ background: goodsImageBackground(frame) }}
                 type="button"
               />
             ))}
