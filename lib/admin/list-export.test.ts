@@ -102,3 +102,21 @@ describe('상한과 주소', () => {
     expect(listExportPeriodLabel('2026-10-01', null)).toBe('2026-10-01 ~ 종료 제한 없음');
   });
 });
+
+describe('사용 가이드 안내', () => {
+  it('주문·발송과 클레임 주제가 범위·상한·개인정보 취급을 안내하고 모든 다운로드 화면을 가리킨다', async () => {
+    const { ADMIN_GUIDE_TOPICS } = await import('./guide/topics');
+    const covered = new Set<string>();
+    for (const slug of ['orders-shipping', 'claims'] as const) {
+      const section = ADMIN_GUIDE_TOPICS[slug].sections.find((item) => item.id === 'list-export');
+      expect(section, slug).toBeDefined();
+      const text = [...(section!.paragraphs ?? []), ...(section!.callouts ?? []).flatMap((callout) => [callout.title, ...callout.body])].join('\n');
+      expect(text).toContain('목록 엑셀 다운로드');
+      expect(text).toContain('10,000건');
+      expect(text).toContain('개인정보');
+      expect(text).toContain('기록됩니다');
+      for (const screen of section!.screens ?? []) covered.add(screen.href);
+    }
+    for (const id of ADMIN_LIST_EXPORT_SCREEN_IDS) expect(covered.has(ADMIN_LIST_EXPORT_SCREENS[id].href), id).toBe(true);
+  });
+});
