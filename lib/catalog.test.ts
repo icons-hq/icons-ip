@@ -540,6 +540,37 @@ describe('getCatalogSnapshot', () => {
     mocks.isConfigured = false;
     mocks.client = null;
   });
+
+  /* 기준 판매가 10,800원·소비자가 12,000원. 옵션가는 할인하지 않으므로 목록 정가도 최저가 옵션의 옵션가를 더한다. */
+  it('derives the listed comparison price from the cheapest option and keeps the stored base prices', async () => {
+    const calculatedAt = '2026-10-08T00:00:00Z';
+    const variant = (id: string, price: number, sortOrder: number, period?: { effectivePrice: number }) => ({
+      id, name: id, code: id, price, stock_qty: 3, is_default: sortOrder === 0, attributes: {}, archived_at: null, sort_order: sortOrder,
+      pricing: period
+        ? { regularPrice: price, effectivePrice: period.effectivePrice, pricePeriodId: '00000000-0000-4000-8000-000000000101',
+          startsAt: '2026-10-01T00:00:00Z', endsAt: '2026-10-31T00:00:00Z', calculatedAt }
+        : { regularPrice: price, effectivePrice: price, pricePeriodId: null, startsAt: null, endsAt: null, calculatedAt },
+    });
+    const good = (id: string, goodsVariants: ReturnType<typeof variant>[]) => ({ id, ip_id: 'hwasan', name: id, type: '키링', price: 10800,
+      compare_at_price: 12000, stock: 'ok', stock_qty: 3, sale_restriction: 'none', goods_variants: goodsVariants });
+    mocks.isConfigured = true;
+    mocks.client = createSupabaseClient([], {
+      goods: [
+        good('with-base', [variant('base', 10800, 0), variant('large', 13800, 1)]),
+        good('extra-only', [variant('small', 11300, 0), variant('small-2', 11300, 1)]),
+        good('period', [variant('large', 13800, 0, { effectivePrice: 12000 })]),
+      ],
+    });
+
+    const goods = new Map((await getCatalogSnapshot()).goods.map((item) => [item.id, item]));
+
+    expect(goods.get('with-base')).toMatchObject({ price: 10800, priceMax: 13800, compareAtPrice: 12000, catalogPrice: 10800, catalogCompareAtPrice: 12000 });
+    expect(goods.get('extra-only')).toMatchObject({ price: 11300, priceMax: 11300, compareAtPrice: 12500 });
+    expect(goods.get('period')).toMatchObject({ price: 12000, priceMax: 12000, compareAtPrice: 13800, catalogCompareAtPrice: 12000 });
+
+    mocks.isConfigured = false;
+    mocks.client = null;
+  });
 });
 
 describe('getBinderCatalogOverlay', () => {

@@ -217,6 +217,18 @@ describe('GoodDetail', () => {
     expect(html).toContain('₩12,000');
   });
 
+  /* 소비자가 12,000원 → 할인가 10,800원에 옵션가 3,000원. 옵션가는 할인하지 않으므로 선택한 옵션의
+     정가는 15,000원이고, 할인 금액 1,200원만큼의 할인율(8%)을 보인다. */
+  it('옵션가가 붙은 옵션을 고르면 그 옵션의 정가와 실제 할인율을 보인다', () => {
+    const option = { id: '00000000-0000-4000-8000-000000000201', name: '대형', code: 'G13-L', price: 13800, stockQty: 3, isDefault: true, attributes: {} };
+    const html = render({ good: { ...good, price: 13800, priceMax: 13800, catalogPrice: 10800, catalogCompareAtPrice: 12000, compareAtPrice: 15000, options: [option] } });
+
+    expect(html).toContain('<s class="wc-price__original">₩15,000</s>');
+    expect(html).toContain('<span class="wc-price__rate">8%</span>');
+    expect(html).toContain('<span class="wc-price__amount">₩13,800</span>');
+    expect(html).toContain('>SALE<');
+  });
+
   it('갤러리를 scroll-snap 스테이지와 도트·썸네일로 그린다', () => {
     const html = render();
 

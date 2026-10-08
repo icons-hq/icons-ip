@@ -61,11 +61,13 @@ export interface Good {
   /**
    * 취소선으로 표기할 정가 (#326). 할인 중일 때만 값이 있고(price 초과 보장 —
    * DB CHECK), 할인이 아니면 null/부재. SALE 표기는 저장 배지가 아니라 이 값에서
-   * 파생된다.
+   * 파생된다. 옵션 가격이면 그 옵션의 정가다(`lib/goods-options` optionCompareAtPrice).
    */
   compareAtPrice?: number | null;
   showDiscountRate?: boolean;
-  /** Stored comparison amount, retained while a period uses its own regular option price. */
+  /** 저장된 기준 판매가(`goods.price`). `price`가 옵션 최저가로 바뀌어도 옵션 추가금액의 기준으로 남는다. */
+  catalogPrice?: number;
+  /** 저장된 소비자가(`goods.compare_at_price`). 옵션 정가는 여기에 옵션 추가금액을 더해 파생한다. */
   catalogCompareAtPrice?: number | null;
   badge: string | null;
   stock: Stock;

@@ -99,6 +99,7 @@ export function buildGoodPreview(input: GoodPreviewInput): GoodDetailContent {
       ip: trimmed(values, 'ipId'),
       type: trimmed(values, 'type') || '(유형 미입력)',
       price: basePrice,
+      catalogPrice: basePrice,
       ...(options ? { options, ...optionPriceRange(options) } : {}),
       badge: trimmed(values, 'badge') || null,
       stock: options && !options.some((option) => option.stockQty > 0) ? 'soldout' : STOCK_VALUES.has(stock) ? stock : 'ok',

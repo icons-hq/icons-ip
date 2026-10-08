@@ -6,6 +6,7 @@ import type { CartCouponState } from '@/lib/coupons.server';
 import type { Good } from '@/lib/data';
 import type { AddressShippingQuote } from '@/lib/shipping-regions';
 import type { CouponQuote } from '@/lib/coupon-targeting';
+import type { GoodsSalesQuoteLine } from '@/lib/goods-sales';
 import { Cart } from './Cart';
 
 const mocks = vi.hoisted(() => ({
@@ -15,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   mode: 'server' as 'server' | 'local',
   quote: null as AddressShippingQuote | null,
   quotePrices: new Map<string, number>(),
+  quotePeriods: new Map<string, Pick<GoodsSalesQuoteLine, 'regularPrice' | 'pricePeriodId' | 'startsAt' | 'endsAt'>>(),
   coupon: null as CouponQuote | null,
 }));
 
@@ -22,7 +24,7 @@ vi.mock('@/components/shop/useShippingQuote', () => ({
   useShippingQuote: () => ({quote:mocks.quote,sales:mocks.quote ? {
     calculatedAt:'2026-09-10T00:00:00Z', shipping:mocks.quote,
     subtotal:mocks.items.reduce((sum,item)=>sum+(mocks.quotePrices.get(item.variantId) ?? goods.find(good=>good.id===item.goodId)?.price??0)*item.qty,0),
-    lines:mocks.items.map(item=>({...item,regularPrice:mocks.quotePrices.get(item.variantId) ?? goods.find(good=>good.id===item.goodId)?.price??0,effectivePrice:mocks.quotePrices.get(item.variantId) ?? goods.find(good=>good.id===item.goodId)?.price??0,pricePeriodId:null,startsAt:null,endsAt:null,available:true})),
+    lines:mocks.items.map(item=>({...item,regularPrice:mocks.quotePrices.get(item.variantId) ?? goods.find(good=>good.id===item.goodId)?.price??0,effectivePrice:mocks.quotePrices.get(item.variantId) ?? goods.find(good=>good.id===item.goodId)?.price??0,pricePeriodId:null,startsAt:null,endsAt:null,...mocks.quotePeriods.get(item.variantId),available:true})),
     goods:[],paymentMethods:{card:true,bankTransfer:true},
     coupon:mocks.coupon,
   } : null,loading:!mocks.quote,error:null,refresh:vi.fn()}),
@@ -33,7 +35,7 @@ const gimpoGroup: AddressShippingQuote['groups'][number] = {originId:'gimpo',ori
   regionLabel: null, carrierCode: 'hanjin', feeUnit: null, unitCount: 0, destinationPostalCode: null, matchedAddressPrefix: null};
 const defaultQuote: AddressShippingQuote = {totalFee:3000,groups:[gimpoGroup],checkoutAllowed:true,finalTotalFee:3000,destination:null,nextChangeAt:null};
 mocks.quote = defaultQuote;
-beforeEach(() => { mocks.quote = defaultQuote; mocks.legacyItems = []; mocks.ready = true; mocks.quotePrices.clear(); mocks.coupon = null; });
+beforeEach(() => { mocks.quote = defaultQuote; mocks.legacyItems = []; mocks.ready = true; mocks.quotePrices.clear(); mocks.quotePeriods.clear(); mocks.coupon = null; });
 
 vi.mock('@/components/shell/CartProvider', () => ({
   useCart: () => ({
@@ -299,6 +301,29 @@ describe('origin quote and option lines', () => {
     const html=renderToStaticMarkup(<Cart catalog={{goods:[{...goods[0],options}],ips:[]}} couponState={emptyCouponState} />);
     expect(html).toContain('파랑');expect(html).toContain('빨강');
     expect(html).toContain('₩15,000');expect(html).toContain('₩27,000');
+  });
+  /* 소비자가 12,000원 → 할인가 10,800원. 옵션가는 할인하지 않으므로 줄마다 정가는 소비자가 + 옵션가이고,
+     기간 할인 중인 옵션만 그 옵션의 정상가와 비교한다. 결제 금액은 서버 견적 그대로다. */
+  it('옵션가가 다른 줄마다 그 옵션의 정가와 할인율을 보인다', () => {
+    const period = { pricePeriodId: '00000000-0000-4000-8000-000000000305', startsAt: '2026-10-01T00:00:00Z', endsAt: '2026-10-31T00:00:00Z' };
+    const options = [
+      { id: '00000000-0000-4000-8000-000000000301', name: '기본형', price: 10800 },
+      { id: '00000000-0000-4000-8000-000000000302', name: '추가 500원', price: 11300 },
+      { id: '00000000-0000-4000-8000-000000000303', name: '추가 3,000원', price: 13800 },
+      { id: '00000000-0000-4000-8000-000000000304', name: '기간 할인', price: 12000,
+        pricing: { regularPrice: 13800, effectivePrice: 12000, calculatedAt: '2026-10-08T00:00:00Z', ...period } },
+    ].map((option, index) => ({ ...option, code: `G13-${index}`, stockQty: 5, attributes: {}, isDefault: index === 0 }));
+    mocks.items = options.map(option => ({ goodId: 'g13', variantId: option.id, qty: 1 }));
+    mocks.quotePrices = new Map(options.map(option => [option.id, option.price]));
+    mocks.quotePeriods.set(options[3].id, { regularPrice: 13800, ...period });
+    const catalogGood = { ...goods[0], price: 10800, priceMax: 13800, catalogPrice: 10800, catalogCompareAtPrice: 12000, compareAtPrice: 12000, options };
+    const html = renderToStaticMarkup(<Cart catalog={{ goods: [catalogGood], ips: [] }} couponState={emptyCouponState} />);
+    const linePrice = (name: string) => html.split(`<p class="wc-cart__line-option">${name}</p>`)[1]?.split('wc-cart__line-controls')[0] ?? '';
+
+    expect(linePrice('기본형')).toMatch(/₩12,000<\/s>.*>10%<.*>₩10,800</);
+    expect(linePrice('추가 500원')).toMatch(/₩12,500<\/s>.*>10%<.*>₩11,300</);
+    expect(linePrice('추가 3,000원')).toMatch(/₩15,000<\/s>.*>8%<.*>₩13,800</);
+    expect(linePrice('기간 할인')).toMatch(/₩13,800<\/s>.*>13%<.*>₩12,000</);
   });
 });
 
