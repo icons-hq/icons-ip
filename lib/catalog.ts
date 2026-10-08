@@ -5,7 +5,7 @@ import { canViewCommunityPost, formatPostTime, type CommunityPostStatus } from '
 import { DATA, type Card, type FandomEvent, type Good, type Ip, type Stock, type Vertical } from '@/lib/data';
 import type { GoodDetailContent } from '@/lib/goods-detail';
 import { EMPTY_GOODS_NOTICE } from '@/lib/goods-notice';
-import { optionPriceRange } from '@/lib/goods-options';
+import { goodCompareAtPrice, optionPriceRange } from '@/lib/goods-options';
 import { parseGoodsVariantPricing } from '@/lib/goods-sales';
 import { parseGoodsVariantSupply } from '@/lib/goods-preorders';
 import { parseGoodsKcDisclosures } from '@/lib/goods-kc';
@@ -527,7 +527,7 @@ function toGood(row: GoodRow, imageUrlForPath: (path: string) => string): Good {
         stockQty: supply?.availableQty ?? option.stock_qty, isDefault: option.is_default, attributes: option.attributes,
         ...(pricing ? { pricing } : {}), ...(supply ? { supply } : {})}];
     });
-  const cheapestOption = options?.reduce<(typeof options)[number] | undefined>((lowest, option) => !lowest || option.price < lowest.price ? option : lowest, undefined);
+  const catalogPricing = { price: row.price, compareAtPrice: row.compare_at_price ?? null };
   const stockQty = options ? options.reduce((total, option) => total + option.stockQty, 0) : row.stock_qty ?? 0;
   return {
     id: row.id,
@@ -543,8 +543,9 @@ function toGood(row: GoodRow, imageUrlForPath: (path: string) => string): Good {
     ...(options?.length ? optionPriceRange(options) : {}),
     ...(options ? { options } : {}),
     originId: row.origin_id,
-    compareAtPrice: cheapestOption?.pricing?.pricePeriodId ? cheapestOption.pricing.regularPrice : row.compare_at_price ?? null,
-    catalogCompareAtPrice: row.compare_at_price ?? null,
+    compareAtPrice: goodCompareAtPrice(catalogPricing, options),
+    catalogPrice: catalogPricing.price,
+    catalogCompareAtPrice: catalogPricing.compareAtPrice,
     showDiscountRate: row.show_discount_rate ?? true,
     badge: row.badge,
     stock: stockQty <= 0 ? 'soldout' : toStock(row.stock),

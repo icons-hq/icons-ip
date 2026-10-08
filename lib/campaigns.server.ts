@@ -11,6 +11,7 @@ import {
   type CampaignSection,
   type CampaignSummary,
 } from '@/lib/campaigns';
+import { goodCompareAtPrice } from '@/lib/goods-options';
 import { imageBg, normalizePublicMediaPath, PUBLIC_MEDIA_BUCKET } from '@/lib/media';
 import { getSupabaseConfig } from '@/lib/supabase/config';
 import { createClient } from '@/lib/supabase/server';
@@ -223,13 +224,14 @@ async function loadSectionGoods(
   return new Map(((data ?? []) as unknown as GoodRow[]).filter((row) => row.ips?.published_at && !row.ips.archived_at).map((row) => {
     const imageUrl = toPublicUrl(row.image_path);
     const stockQty = row.stock_qty ?? 0;
-    const prices = row.goods_variants?.filter(option => option.archived_at === null).map(option => option.price) ?? [];
+    const options = row.goods_variants?.filter(option => option.archived_at === null) ?? [];
+    const prices = options.map(option => option.price);
     return [row.id, {
       id: row.id,
       name: row.name,
       price: prices.length ? Math.min(...prices) : row.price,
       priceMax: prices.length ? Math.max(...prices) : row.price,
-      compareAtPrice: row.compare_at_price ?? null,
+      compareAtPrice: goodCompareAtPrice({ price: row.price, compareAtPrice: row.compare_at_price ?? null }, options),
       showDiscountRate: row.show_discount_rate ?? true,
       badge: row.badge,
       soldOut: stockQty <= 0 || row.stock === 'soldout',

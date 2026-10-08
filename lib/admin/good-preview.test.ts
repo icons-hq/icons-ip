@@ -87,6 +87,7 @@ describe('어드민 굿즈 미리보기', () => {
       ip: 'hong-sil-quest',
       type: '아크릴 블록',
       price: 12000,
+      catalogPrice: 12000,
       badge: '신상',
       stock: 'low',
       stockQty: 8,

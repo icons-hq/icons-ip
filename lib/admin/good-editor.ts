@@ -2,6 +2,7 @@ import type { AdminGoodRecord } from './catalog.server';
 import type { AdminFormValuesState } from './form-state';
 import { preservedFormValues } from './form-state';
 import { GOODS_NOTICE_FIELDS } from '@/lib/goods-notice';
+import { goodCompareAtPrice } from '@/lib/goods-options';
 import { GOODS_GALLERY_MAX } from './catalog';
 import { DEFAULT_FULFILLMENT_ORIGIN_ID } from './fulfillment-origins';
 import { GOODS_CLAIM_POLICY_FIELDS } from './goods-claim-policy';
@@ -102,8 +103,10 @@ export function buildGoodEditorPreview({ values, imageUrls, selected, catalogIps
   } : null;
   const ip = catalogIps.find(ip => ip.id === values.ipId) ?? null;
   const preview = buildGoodPreview({ fallbackBg: selected?.bg ?? null, imageUrls, ip, stockQty: selected?.stockQty ?? 0, values, kcDisclosures:selected?.kcDisclosures });
+  const basePrice = preview.good.catalogPrice ?? preview.good.price;
   const compare = Number(values.compareAtPrice);
+  const compareAtPrice = Number.isInteger(compare) && compare > basePrice ? compare : null;
   const detail = { ...preview, good: { ...preview.good, showDiscountRate: values.showDiscountRate !== 'false',
-    compareAtPrice: Number.isInteger(compare) && compare > preview.good.price ? compare : null } };
+    catalogCompareAtPrice: compareAtPrice, compareAtPrice: goodCompareAtPrice({ price: basePrice, compareAtPrice }, preview.good.options) } };
   return { origin, ip, detail, shippingPolicy };
 }

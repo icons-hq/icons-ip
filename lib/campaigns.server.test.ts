@@ -199,6 +199,23 @@ describe('loadCampaignDetail', () => {
     const detail = await loadCampaignDetail('ip-state');
     expect(detail?.resolvedSections[0]).toMatchObject({ type: 'goods', goods: [{ id: 'live' }] });
   });
+  /* 옵션가는 할인하지 않는다 — 기준 옵션이 빠져 옵션가 3,000원 옵션만 남으면 정가도 소비자가 + 3,000원이다. */
+  it('옵션가가 붙은 옵션만 남은 굿즈 카드는 소비자가에 옵션가를 더한 정가와 비교한다', async () => {
+    mocks.tables.campaigns = {
+      data: { ...hubRow('option-price'), hero_image_path: null, sections: [{ type: 'goods', good_ids: ['option-price'] }] },
+      error: null,
+    };
+    mocks.tables.goods = {
+      data: [{
+        id: 'option-price', ips: { published_at: '2026-07-01', archived_at: null }, name: '옵션 굿즈', price: 10800, compare_at_price: 12000,
+        badge: null, stock: 'ok', stock_qty: 6, bg: null, image_path: null,
+        goods_variants: [{ price: 13800, archived_at: null }, { price: 13800, archived_at: null }, { price: 10800, archived_at: '2026-09-01T00:00:00Z' }],
+      }],
+      error: null,
+    };
+    const detail = await loadCampaignDetail('option-price');
+    expect(detail?.resolvedSections[0]).toMatchObject({ type: 'goods', goods: [{ price: 13800, priceMax: 13800, compareAtPrice: 15000 }] });
+  });
   it('supabase 미구성이면 null이다', async () => {
     mocks.configured = false;
 

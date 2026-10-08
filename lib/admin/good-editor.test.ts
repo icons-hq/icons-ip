@@ -29,7 +29,8 @@ it('restores failed option edits and their optimistic baseline into the same pre
   expect(draft.baseline).toEqual([optionId]);
   expect(JSON.parse(draft.values.variants)[0]).toMatchObject({ id: optionId, expectedStockQty: 7, stockQty: 4 });
   const preview = buildGoodEditorPreview({ values: draft.values, imageUrls: draft.imageUrls, selected: null, catalogIps: [], origins: [], shippingNoticeOptions: [] });
-  expect(preview.detail.good).toMatchObject({ price: 1500, compareAtPrice: 2000, stockQty: 4, options: [{ id: optionId, name: '수정 옵션' }] });
+  /* 옵션가 500원인 옵션의 정가는 소비자가 2,000원에 옵션가를 더한 2,500원이다. */
+  expect(preview.detail.good).toMatchObject({ price: 1500, compareAtPrice: 2500, catalogPrice: 1000, catalogCompareAtPrice: 2000, stockQty: 4, options: [{ id: optionId, name: '수정 옵션' }] });
   reopened.beginSubmission(); reopened.completeSubmission(true);
   expect(storage.getItem(reopened.key)).toBe(null);
 });
