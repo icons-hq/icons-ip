@@ -205,7 +205,7 @@ describe('상품 이미지 그리드 상호작용', () => {
     expect(focus).toHaveBeenCalled();
   });
 
-  it('여러 파일을 빈 추가 이미지 자리에 순서대로 올리고, 업로드가 끝나기 전에는 저장을 막는다', async () => {
+  it('여러 파일을 빈 추가 이미지 자리에 순서대로 올리고, 한 장씩 차례로 검증하며, 업로드가 끝나기 전에는 저장을 막는다', async () => {
     initial = slots('main', 'a');
     let finishFirst!: (value: { ok: true; imagePath: string }) => void;
     upload
@@ -214,15 +214,36 @@ describe('상품 이미지 그리드 상호작용', () => {
     chooseFiles('이미지 추가 (추가 이미지, 여러 장 선택 가능)', [file('first.png'), file('second.png')]);
     await settle();
 
-    expect(upload).toHaveBeenCalledTimes(2);
-    expect(hiddenValues()).toEqual(slots('main', 'a', '', 'second'));
+    // DB가 운영자별 동시 검증을 하나만 허용하므로, 첫 장이 끝나기 전에는 둘째 장을 올리지 않는다.
+    expect(upload).toHaveBeenCalledTimes(1);
+    expect(upload.mock.calls[0][0].file.name).toBe('first.png');
+    expect(hiddenValues()).toEqual(slots('main', 'a', '', ''));
     expect(previews.galleryPath1).toBe('blob:local-1');
-    expect(validity()).toEqual(['', '', '이미지 업로드가 끝난 뒤 저장해주세요.', '', '']);
+    expect(validity()).toEqual(['', '', '이미지 업로드가 끝난 뒤 저장해주세요.', '이미지 업로드가 끝난 뒤 저장해주세요.', '']);
 
     finishFirst({ ok: true, imagePath: path('first') });
     await settle();
+    await settle();
+    expect(upload).toHaveBeenCalledTimes(2);
+    expect(upload.mock.calls[1][0].file.name).toBe('second.png');
     expect(hiddenValues()).toEqual(slots('main', 'a', 'first', 'second'));
     expect(validity().every((message) => message === '')).toBe(true);
+  });
+
+  it('차례를 기다리던 이미지를 지우면 그 파일은 올리지 않는다', async () => {
+    initial = slots('main', 'a');
+    let finishFirst!: (value: { ok: true; imagePath: string }) => void;
+    upload.mockImplementationOnce(() => new Promise((resolve) => { finishFirst = resolve; }));
+    chooseFiles('이미지 추가 (추가 이미지, 여러 장 선택 가능)', [file('first.png'), file('queued.png')]);
+    await settle();
+    expect(upload).toHaveBeenCalledTimes(1);
+
+    byLabel('추가 이미지 3 삭제').onClick();
+    finishFirst({ ok: true, imagePath: path('first') });
+    await settle();
+    await settle();
+    expect(upload).toHaveBeenCalledTimes(1);
+    expect(hiddenValues()).toEqual(slots('main', 'a', 'first'));
   });
 
   it('업로드 중에 자리를 옮겨도 결과는 그 이미지를 따라간다', async () => {
@@ -230,6 +251,7 @@ describe('상품 이미지 그리드 상호작용', () => {
     let finish!: (value: { ok: true; imagePath: string }) => void;
     upload.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
     chooseFiles('이미지 추가 (추가 이미지, 여러 장 선택 가능)', [file('late.png')]);
+    await settle();
     byLabel('추가 이미지 2를 앞으로').onClick();
     finish({ ok: true, imagePath: path('late') });
     await settle();
@@ -265,6 +287,7 @@ describe('상품 이미지 그리드 상호작용', () => {
     let finish!: (value: { ok: true; imagePath: string }) => void;
     upload.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
     chooseFiles('이미지 추가 (추가 이미지, 여러 장 선택 가능)', [file('gone.png')]);
+    await settle();
     byLabel('추가 이미지 1 삭제').onClick();
     finish({ ok: true, imagePath: path('gone') });
     await settle();

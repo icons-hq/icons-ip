@@ -35,6 +35,7 @@ interface QueryRecord {
   eq: Array<[string, unknown]>;
   in: Array<[string, unknown[]]>;
   order: Array<[string, { ascending?: boolean } | undefined]>;
+  range?: [number, number];
 }
 
 function createClient(input: {
@@ -57,10 +58,15 @@ function createClient(input: {
     from(table: string) {
       const record: QueryRecord = { table, select: null, eq: [], in: [], order: [] };
       input.records.push(record);
-      const resolve = (): Result => ({
-        data: input.rows?.[table] ?? [],
-        error: input.errors?.[table] ? { message: input.errors[table] } : null,
-      });
+      // PostgREST처럼 응답은 max_rows(1,000)에서 잘리고, range를 주면 그 구간만 돌려준다.
+      const resolve = (): Result => {
+        const rows = input.rows?.[table] ?? [];
+        const [from, to] = record.range ?? [0, rows.length - 1];
+        return {
+          data: rows.slice(from, Math.min(to, from + 999) + 1),
+          error: input.errors?.[table] ? { message: input.errors[table] } : null,
+        };
+      };
       const query = {
         select(columns: string) {
           record.select = columns;
@@ -76,6 +82,10 @@ function createClient(input: {
         },
         order(column: string, options?: { ascending?: boolean }) {
           record.order.push([column, options]);
+          return query;
+        },
+        range(from: number, to: number) {
+          record.range = [from, to];
           return query;
         },
         then<TResult1 = Result, TResult2 = never>(
@@ -103,6 +113,31 @@ const filters: AdminOrderFilters = {
 describe('getAdminOrderRecords', () => {
   beforeEach(() => {
     mocks.client = null;
+  });
+
+  it('한 페이지 주문의 상품 줄이 API 상한 1,000줄을 넘어도 끝까지 읽는다', async () => {
+    const records: QueryRecord[] = [];
+    mocks.client = createClient({
+      records,
+      rpc: vi.fn(),
+      rpcRows: [{
+        id: ORDER_ID, user_id: USER_ID, buyer_name: 'bulk', buyer_email: null, status: 'paid', total: 1500, address: null,
+        created_at: '2026-07-14T06:00:00.000Z', updated_at: '2026-07-14T06:00:00.000Z', total_count: 1,
+      }],
+      rows: {
+        order_items: Array.from({ length: 1500 }, (_, index) => ({
+          id: `item-${String(index).padStart(4, '0')}`, order_id: ORDER_ID, qty: 1, unit_price: 1,
+          good_name_snapshot: `상품 ${index}`, good_type_snapshot: '키링',
+        })),
+        payment_summaries: [],
+      },
+    });
+
+    const result = await getAdminOrderRecords(filters);
+
+    expect(result.items[0].items).toHaveLength(1500);
+    expect(records.filter((record) => record.table === 'order_items').map((record) => record.range))
+      .toEqual([[0, 999], [1000, 1999]]);
   });
 
   it('filters and paginates in the staff-gated DB RPC, then joins only safe ledger fields', async () => {

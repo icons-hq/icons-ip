@@ -65,6 +65,9 @@ export function GoodsImageGrid({ errors = {}, initialPaths, initialUrls, onPrevi
   const controlRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const objectUrls = useRef(new Set<string>());
   const keyCounter = useRef(0);
+  // DB는 운영자별로 동시에 하나의 이미지 검증만 허용한다(service_begin_admin_artwork_verification).
+  // 여러 장을 한 번에 골라도 업로드·검증을 한 장씩 차례로 돌려 서로의 검증을 막지 않게 한다.
+  const uploadQueue = useRef<Promise<void>>(Promise.resolve());
   const dragRef = useRef<DragState | null>(null);
   const suppressClick = useRef(false);
   const pendingFocus = useRef<FocusTarget | null>(null);
@@ -99,12 +102,20 @@ export function GoodsImageGrid({ errors = {}, initialPaths, initialUrls, onPrevi
     if (message) setAnnouncement(message);
   }
 
+  function enqueueUpload(key: string, file: File) {
+    const run = uploadQueue.current.then(() => upload(key, file));
+    uploadQueue.current = run.catch(() => undefined);
+  }
+
   async function upload(key: string, file: File) {
+    // 차례를 기다리는 동안 삭제됐거나 다른 파일로 바뀐 타일은 올리지 않는다.
+    const waiting = slotsRef.current[findGoodsImagePosition(slotsRef.current, key)];
+    if (!waiting || waiting.file !== file) return;
     const result = await uploadAdminArtwork({ kind: 'good', file });
     const current = slotsRef.current;
     const position = findGoodsImagePosition(current, key);
-    // 업로드 중에 삭제한 이미지의 결과는 버린다. 검증만 된 claim은 정기 정리가 회수한다.
-    if (position < 0) return;
+    // 업로드 중에 삭제했거나 다시 교체한 이미지의 결과는 버린다. 검증만 된 claim은 정기 정리가 회수한다.
+    if (position < 0 || current[position]?.file !== file) return;
     const label = goodsImageLabel(position);
     if (result.ok) {
       const tile = current[position]!;
@@ -148,7 +159,7 @@ export function GoodsImageGrid({ errors = {}, initialPaths, initialUrls, onPrevi
       return;
     }
     commit(next, `${started.length}장 업로드를 시작했습니다.${messages.length ? ` ${messages.join(' ')}` : ''}`);
-    for (const tile of started) void upload(tile.key, tile.file!);
+    for (const tile of started) enqueueUpload(tile.key, tile.file!);
   }
 
   function replaceFile(position: number, file: File) {
@@ -165,7 +176,7 @@ export function GoodsImageGrid({ errors = {}, initialPaths, initialUrls, onPrevi
     if (!previous) releaseUrl(tile.url);
     commit(replaceGoodsImageTile(slotsRef.current, tile.key, (value) => ({ key: value.key, path: previous?.path ?? '', url, status: 'uploading', file, previous })),
       `${goodsImageLabel(position)} 교체 업로드를 시작했습니다.`);
-    void upload(tile.key, file);
+    enqueueUpload(tile.key, file);
   }
 
   function handleFiles(event: ChangeEvent<HTMLInputElement>, position: number) {
@@ -183,7 +194,7 @@ export function GoodsImageGrid({ errors = {}, initialPaths, initialUrls, onPrevi
     if (!tile?.file || tile.status !== 'failed') return;
     commit(replaceGoodsImageTile(slotsRef.current, tile.key, (value) => ({ ...value, status: 'uploading', error: undefined })),
       `${goodsImageLabel(position)} 업로드를 다시 시도합니다.`);
-    void upload(tile.key, tile.file);
+    enqueueUpload(tile.key, tile.file);
   }
 
   function remove(position: number) {

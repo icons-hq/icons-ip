@@ -48,6 +48,7 @@ const SHIPMENT_PAGE_SIZE = 1000;
 const CLAIM_PAGE_SIZE = 100;
 const ID_CHUNK = 100;
 const ITEM_ORDER_CHUNK = 50;
+const ITEM_PAGE_ROWS = 1000;
 const PAGE_CONCURRENCY = 4;
 
 export class AdminListExportLoadError extends Error {
@@ -196,15 +197,21 @@ async function claimOrders(claimType: OrderClaimType, orderIds: readonly string[
   const orders = new Map<string, ListExportClaimOrder>(ids.map((id) => [id, { items: [], contact: null, shipments: [] }]));
 
   await mapLimited(chunks(ids, ITEM_ORDER_CHUNK), PAGE_CONCURRENCY, async (chunk) => {
-    const { data, error } = await supabase
-      .from('order_items')
-      .select('id,order_id,good_name_snapshot,variant_name_snapshot,qty')
-      .in('order_id', chunk)
-      .order('id', { ascending: true });
-    if (error) throw new AdminListExportLoadError();
-    for (const row of (data ?? []) as { id: string; order_id: string; good_name_snapshot: string; variant_name_snapshot: string | null; qty: number }[]) {
-      const item: ListExportClaimItem = { id: row.id, name: row.good_name_snapshot, variantName: row.variant_name_snapshot ?? null, qty: row.qty };
-      orders.get(row.order_id)?.items.push(item);
+    /* 주문 50건의 상품 줄도 max_rows(1,000)를 넘을 수 있어 끝까지 페이지로 읽는다(조용한 잘림 방지). */
+    for (let start = 0; ; start += ITEM_PAGE_ROWS) {
+      const { data, error } = await supabase
+        .from('order_items')
+        .select('id,order_id,good_name_snapshot,variant_name_snapshot,qty')
+        .in('order_id', chunk)
+        .order('id', { ascending: true })
+        .range(start, start + ITEM_PAGE_ROWS - 1);
+      if (error) throw new AdminListExportLoadError();
+      const page = (data ?? []) as { id: string; order_id: string; good_name_snapshot: string; variant_name_snapshot: string | null; qty: number }[];
+      for (const row of page) {
+        const item: ListExportClaimItem = { id: row.id, name: row.good_name_snapshot, variantName: row.variant_name_snapshot ?? null, qty: row.qty };
+        orders.get(row.order_id)?.items.push(item);
+      }
+      if (page.length < ITEM_PAGE_ROWS) break;
     }
   });
 

@@ -51,6 +51,29 @@ interface SearchRow {
   total_count: number;
 }
 
+/* PostgREST max_rows(1,000)는 넘친 행을 오류 없이 자른다. 한 페이지의 주문 상품 줄이 그보다 많을 수 있어
+   (주문당 최대 1,000줄) 1,000행씩 끝까지 읽는다. 화면과 목록 엑셀이 같은 로더를 쓴다. */
+const ORDER_ITEM_PAGE_ROWS = 1000;
+
+async function loadOrderItemRows(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  orderIds: readonly string[],
+): Promise<{ data: ItemRow[] | null; error: { message: string } | null }> {
+  const rows: ItemRow[] = [];
+  for (let start = 0; ; start += ORDER_ITEM_PAGE_ROWS) {
+    const { data, error } = await supabase
+      .from('order_items')
+      .select('id,order_id,qty,unit_price,good_name_snapshot,good_type_snapshot,variant_id,variant_name_snapshot,variant_code_snapshot')
+      .in('order_id', [...orderIds])
+      .order('id', { ascending: true })
+      .range(start, start + ORDER_ITEM_PAGE_ROWS - 1);
+    if (error) return { data: null, error };
+    const page = (data ?? []) as ItemRow[];
+    rows.push(...page);
+    if (page.length < ORDER_ITEM_PAGE_ROWS) return { data: rows, error: null };
+  }
+}
+
 interface ItemRow {
   id: string;
   order_id: string;
@@ -209,11 +232,7 @@ export async function getAdminOrderRecords(
       .map((row) => row.id)
     : [];
   const [itemsResult, paymentsResult, recoveryAttemptsResult] = await Promise.all([
-    supabase
-      .from('order_items')
-      .select('id,order_id,qty,unit_price,good_name_snapshot,good_type_snapshot,variant_id,variant_name_snapshot,variant_code_snapshot')
-      .in('order_id', orderIds)
-      .order('id', { ascending: true }),
+    loadOrderItemRows(supabase, orderIds),
     supabase
       .from('payment_summaries')
       .select('id,ref_id,amount,status,created_at')

@@ -25,11 +25,12 @@ vi.mock('@/lib/supabase/server', () => ({
       select: () => ({
         in: (column: string, ids: string[]) => {
           mocks.inCalls.push({ table, column, ids });
-          const result = Promise.resolve({
-            data: (mocks.tables[table] ?? []).filter((row) => ids.includes((row as Record<string, string>)[column])),
-            error: null,
-          });
-          return Object.assign(result, { order: () => result });
+          const rows = (mocks.tables[table] ?? []).filter((row) => ids.includes((row as Record<string, string>)[column]));
+          const result = Promise.resolve({ data: rows, error: null });
+          // PostgREST처럼 range가 없으면 max_rows(1,000)에서 조용히 자른다.
+          const capped = Promise.resolve({ data: rows.slice(0, 1000), error: null });
+          const range = (from: number, to: number) => Promise.resolve({ data: rows.slice(from, Math.min(to, from + 999) + 1), error: null });
+          return Object.assign(result, { order: () => Object.assign(capped, { range }) });
         },
       }),
     }),
@@ -173,6 +174,21 @@ describe('화면별 로더 재사용', () => {
     expect(at('상품명')).toBe('키링');
     expect(at('수량')).toBe(3);
     expect(at('수취인')).toBe('수령');
+  });
+
+  it('주문 50건의 상품 줄이 1,000줄을 넘어도 잘리지 않고 모두 담는다', async () => {
+    mocks.claims.mockResolvedValue({
+      rows: [{ id: 'c1', reference: 1, orderId: ORDER_ID, claimType: 'return', stage: 'requested', reasonType: 'change_of_mind', buyerName: 'b',
+        buyerEmail: null, orderStatus: 'delivered', orderTotal: 1, requestedAt: '2026-10-07T00:00:00Z', collectedAt: null, completedAt: null,
+        refundMethod: null, handlerName: null }],
+      total: 1, claimType: 'return', counts: {}, filters: {}, pageSize: 100,
+    });
+    mocks.tables.order_items = Array.from({ length: 1500 }, (_, index) => ({
+      id: `i${String(index).padStart(4, '0')}`, order_id: ORDER_ID, good_name_snapshot: `상품 ${index}`, variant_name_snapshot: null, qty: 1,
+    }));
+    mocks.tables.orders = [{ id: ORDER_ID, address: null, payment_method: 'card' }];
+    const sheet = await loadAdminListExportSheet('claims-returns', { stage: 'all' }, new Date());
+    expect(sheet.rows).toHaveLength(1500);
   });
 
   it('취소 화면은 배송지·운송장을 읽지 않는다', async () => {
