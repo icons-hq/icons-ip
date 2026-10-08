@@ -216,6 +216,30 @@ describe('loadCampaignDetail', () => {
     const detail = await loadCampaignDetail('option-price');
     expect(detail?.resolvedSections[0]).toMatchObject({ type: 'goods', goods: [{ price: 13800, priceMax: 13800, compareAtPrice: 15000 }] });
   });
+  /* 카탈로그와 같은 가격 원천을 쓴다 — 기간 할인 중인 옵션은 할인가를 보이고 그 옵션의 정상가와 비교한다. */
+  it('기간 할인 중인 옵션 카드는 할인가와 그 옵션의 정상가를 보인다', async () => {
+    const calculatedAt = '2026-10-08T00:00:00Z';
+    mocks.tables.campaigns = {
+      data: { ...hubRow('period-price'), hero_image_path: null, sections: [{ type: 'goods', good_ids: ['period-price'] }] },
+      error: null,
+    };
+    mocks.tables.goods = {
+      data: [{
+        id: 'period-price', ips: { published_at: '2026-07-01', archived_at: null }, name: '기간 할인 굿즈', price: 10800, compare_at_price: 12000,
+        badge: null, stock: 'ok', stock_qty: 6, bg: null, image_path: null,
+        goods_variants: [
+          { price: 13800, archived_at: null, pricing: { regularPrice: 13800, effectivePrice: 12000, pricePeriodId: '00000000-0000-4000-8000-000000000401',
+            startsAt: '2026-10-01T00:00:00Z', endsAt: '2026-10-31T00:00:00Z', calculatedAt } },
+          { price: 15000, archived_at: null, pricing: { regularPrice: 15000, effectivePrice: 15000, pricePeriodId: null, startsAt: null, endsAt: null, calculatedAt } },
+          /* 가격을 확인할 수 없는 옵션은 카탈로그처럼 범위에서 뺀다. */
+          { price: 9000, archived_at: null, pricing: null },
+        ],
+      }],
+      error: null,
+    };
+    const detail = await loadCampaignDetail('period-price');
+    expect(detail?.resolvedSections[0]).toMatchObject({ type: 'goods', goods: [{ price: 12000, priceMax: 15000, compareAtPrice: 13800 }] });
+  });
   it('supabase 미구성이면 null이다', async () => {
     mocks.configured = false;
 
