@@ -7,6 +7,7 @@ import {
   normalizeKorpaySiteUrl,
 } from '../lib/payments/korpay-config.mjs';
 import { isTossKeyPairAligned, tossKeyMode } from '../lib/payments/toss-config.mjs';
+import { isSupabasePublishableKey, isSupabaseSecretKey } from '../lib/supabase/api-key-format.mjs';
 import { validateStagingBuildEnvironment } from './staging-environment.mjs';
 
 const VERCEL_TARGETS = new Set(['preview', 'production']);
@@ -46,6 +47,7 @@ export function validateVercelBuildEnvironment(environment) {
 
   const required = [
     'NEXT_PUBLIC_SUPABASE_URL',
+    'NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY',
     'AUTH_SIGNUP_RESEND_SECRET',
     'SUPABASE_SERVICE_ROLE_KEY',
   ];
@@ -59,13 +61,16 @@ export function validateVercelBuildEnvironment(environment) {
   }
   const missing = required.filter((name) => !isPresent(environment[name]));
 
-  if (!isPresent(environment.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY)
-    && !isPresent(environment.NEXT_PUBLIC_SUPABASE_ANON_KEY)) {
-    missing.push('NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY or NEXT_PUBLIC_SUPABASE_ANON_KEY');
-  }
-
   if (missing.length > 0) {
     throw new Error(`Missing Vercel ${target} environment: ${missing.join(', ')}`);
+  }
+
+  // legacy anon·service_role JWT는 Supabase 폐기 대상이다. 비활성화 뒤 런타임 장애가 되기 전에 빌드에서 막는다.
+  if (!isSupabasePublishableKey(environment.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY)) {
+    throw new Error(`Invalid Vercel ${target} NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: use a Supabase publishable key (sb_publishable_), not a legacy anon JWT`);
+  }
+  if (!isSupabaseSecretKey(environment.SUPABASE_SERVICE_ROLE_KEY)) {
+    throw new Error(`Invalid Vercel ${target} SUPABASE_SERVICE_ROLE_KEY: use a Supabase secret key (sb_secret_), not a legacy service_role JWT`);
   }
 
   const korpayOrderCheckoutEnabled = parseBooleanGate(

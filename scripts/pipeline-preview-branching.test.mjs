@@ -117,9 +117,9 @@ describe('Supabase preview branch workflow contract', () => {
     expect(prepare.run).toContain('--size micro');
     expect(prepare.run).not.toContain('--with-data');
     expect(prepare.run).not.toContain('--git-branch');
-    expect(prepare.run).toContain(
-      '.SUPABASE_PUBLISHABLE_KEY // .SUPABASE_ANON_KEY // empty',
-    );
+    expect(prepare.run).toContain("printf 'POSTGRES_URL=%s\\n' \"$postgres_url\"");
+    // API 키는 이 job에서 쓰지 않는다. legacy service_role JWT를 env로 흘리지 않는다.
+    expect(prepare.run).not.toMatch(/SERVICE_ROLE_KEY|ANON_KEY|PUBLISHABLE_KEY|api-keys/);
     expect(push.if).toContain("database_mode == 'isolated'");
     expect(push.run).toBe(
       'supabase db push --db-url "$POSTGRES_URL" --include-roles --include-seed --yes',
@@ -144,7 +144,16 @@ describe('Supabase preview branch workflow contract', () => {
     expect(load.run).toContain('supabase branches get "$expected_branch"');
     expect(load.run).toContain('SUPABASE_PREVIEW_PROJECT_ID');
     expect(load.run).toContain('SUPABASE_PRODUCTION_PROJECT_ID');
-    expect(load.run).toContain('.SUPABASE_PUBLISHABLE_KEY // .SUPABASE_ANON_KEY // empty');
+    // branches get은 secret 키를 마스킹하고 legacy JWT를 함께 준다. 새 키는 reveal 목록에서만 읽는다.
+    expect(load.run).toContain('supabase projects api-keys');
+    expect(load.run).toContain('--project-ref "$branch_project_ref"');
+    expect(load.run).toContain('--reveal');
+    expect(load.run).toContain('.type == $type and .name == "default" and .disabled != true');
+    expect(load.run).toContain('^sb_secret_[A-Za-z0-9_-]+$');
+    expect(load.run).toContain('^sb_publishable_[A-Za-z0-9_-]+$');
+    expect(load.run).toContain("printf 'SUPABASE_SERVICE_ROLE_KEY=%s\\n' \"$secret_key\"");
+    expect(load.run).not.toMatch(/\.SUPABASE_(SERVICE_ROLE|ANON|DEFAULT)_KEY/);
+    expect(load.run).toContain('"https://${branch_project_ref}.supabase.co"');
     expect(load.run).toContain("printf 'PROJECT_REF=%s\\n' \"$branch_project_ref\"");
     for (const name of [
       'NEXT_PUBLIC_SUPABASE_URL',

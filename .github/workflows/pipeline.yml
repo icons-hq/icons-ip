@@ -677,30 +677,19 @@ jobs:
             exit 1
           fi
 
+          # 이 job은 DB URL과 ref만 쓴다. API 키는 Vercel 배포 job이 배포 직전에 다시 읽는다.
           credentials="$(
             supabase branches get "$branch_name" \
               --project-ref "$SUPABASE_PREVIEW_PROJECT_ID" \
               --output json
           )"
-          for name in POSTGRES_URL SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY; do
-            value="$(jq -r --arg name "$name" '.[$name] // empty' <<<"$credentials")"
-            if [ -z "$value" ]; then
-              echo "::error title=Missing Supabase branch credential::$name is unavailable"
-              exit 1
-            fi
-            echo "::add-mask::$value"
-            printf '%s=%s\n' "$name" "$value" >> "$GITHUB_ENV"
-          done
-          public_key="$(
-            jq -r '.SUPABASE_PUBLISHABLE_KEY // .SUPABASE_ANON_KEY // empty' \
-              <<<"$credentials"
-          )"
-          if [ -z "$public_key" ]; then
-            echo "::error title=Missing Supabase branch credential::No publishable or anon key is available"
+          postgres_url="$(jq -r '.POSTGRES_URL // empty' <<<"$credentials")"
+          if [ -z "$postgres_url" ]; then
+            echo "::error title=Missing Supabase branch credential::POSTGRES_URL is unavailable"
             exit 1
           fi
-          echo "::add-mask::$public_key"
-          printf 'SUPABASE_PUBLISHABLE_KEY=%s\n' "$public_key" >> "$GITHUB_ENV"
+          echo "::add-mask::$postgres_url"
+          printf 'POSTGRES_URL=%s\n' "$postgres_url" >> "$GITHUB_ENV"
           printf 'PROJECT_REF=%s\n' "$branch_project_ref" >> "$GITHUB_ENV"
 
       # 실제 preview 호스트는 프로젝트 이름(`icons-ip`)이 아니라 배포 접두(`icons-`)를
@@ -881,28 +870,36 @@ jobs:
               --project-ref "$SUPABASE_PREVIEW_PROJECT_ID" \
               --output json
           )"
-          resolved_supabase_url=""
-          for name in SUPABASE_URL SUPABASE_SERVICE_ROLE_KEY; do
-            value="$(jq -r --arg name "$name" '.[$name] // empty' <<<"$credentials")"
-            if [ -z "$value" ]; then
-              echo "::error title=Missing Supabase deployment credential::$name is unavailable"
-              exit 1
-            fi
-            if [ "$name" = "SUPABASE_URL" ]; then
-              resolved_supabase_url="$value"
-            fi
-            echo "::add-mask::$value"
-            printf '%s=%s\n' "$name" "$value" >> "$GITHUB_ENV"
-          done
-          public_key="$(
-            jq -r '.SUPABASE_PUBLISHABLE_KEY // .SUPABASE_ANON_KEY // empty' \
-              <<<"$credentials"
-          )"
-          if [ -z "$public_key" ]; then
-            echo "::error title=Missing Supabase deployment credential::No publishable or anon key is available"
+          resolved_supabase_url="$(jq -r '.SUPABASE_URL // empty' <<<"$credentials")"
+          if [ "$resolved_supabase_url" != "https://${branch_project_ref}.supabase.co" ]; then
+            echo "::error title=Missing Supabase deployment credential::SUPABASE_URL does not match the selected branch"
             exit 1
           fi
+
+          # legacy anon·service_role JWT는 Supabase 폐기 대상이다. `branches get`은 secret
+          # 키를 마스킹하므로 선택한 branch ref의 API 키 목록을 reveal해서 새 키만 고른다.
+          api_keys="$(
+            supabase projects api-keys \
+              --project-ref "$branch_project_ref" \
+              --reveal \
+              --output json
+          )"
+          select_key='[.[] | select(.type == $type and .name == "default" and .disabled != true)][0].api_key // empty'
+          secret_key="$(jq -r --arg type secret "$select_key" <<<"$api_keys")"
+          public_key="$(jq -r --arg type publishable "$select_key" <<<"$api_keys")"
+          if [[ ! "$secret_key" =~ ^sb_secret_[A-Za-z0-9_-]+$ ]]; then
+            echo "::error title=Missing Supabase deployment credential::No revealed sb_secret_ key is available"
+            exit 1
+          fi
+          if [[ ! "$public_key" =~ ^sb_publishable_[A-Za-z0-9_-]+$ ]]; then
+            echo "::error title=Missing Supabase deployment credential::No sb_publishable_ key is available"
+            exit 1
+          fi
+          echo "::add-mask::$secret_key"
           echo "::add-mask::$public_key"
+          printf 'SUPABASE_URL=%s\n' "$resolved_supabase_url" >> "$GITHUB_ENV"
+          # 앱 env 이름은 유지한다. secret 키도 Postgres service_role 권한으로 해석된다.
+          printf 'SUPABASE_SERVICE_ROLE_KEY=%s\n' "$secret_key" >> "$GITHUB_ENV"
           printf 'SUPABASE_PUBLISHABLE_KEY=%s\n' "$public_key" >> "$GITHUB_ENV"
           printf 'PROJECT_REF=%s\n' "$branch_project_ref" >> "$GITHUB_ENV"
 
