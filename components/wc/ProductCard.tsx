@@ -2,6 +2,7 @@ import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { Badge } from '@/components/wc/Badge';
 import { PriceBlock } from '@/components/wc/PriceBlock';
+import { goodsImageBackground } from '@/lib/goods-image';
 
 export interface ProductCardProps {
   href: string;
@@ -50,7 +51,7 @@ export function ProductCard({
     <article className={`wc-product-card${className ? ` ${className}` : ''}`}>
       <div className="wc-product-card__media">
         <Link aria-hidden className="wc-product-card__media-link" href={href} tabIndex={-1}>
-          {image ?? <div className="wc-product-card__image" style={{ background: imageBackground }} />}
+          {image ?? <div className="wc-product-card__image" style={{ background: goodsImageBackground(imageBackground) }} />}
           {soldOut ? (
             <div className="wc-product-card__soldout"><span>SOLD OUT</span></div>
           ) : null}

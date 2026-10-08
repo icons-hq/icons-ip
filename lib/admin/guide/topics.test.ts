@@ -237,6 +237,9 @@ describe('어드민 가이드 인용·수치 정합', () => {
     expect(repoFile('app/admin/order-actions.ts')).toContain('BULK_CONFIRM_LIMIT = 100');
     /* 자동 거래확정 시점 — orders-shipping의 "8일이 지나면". */
     expect(repoFile('components/admin/screens/SettledScreen.tsx')).toContain('배송완료 8일 뒤');
+    /* 추가 이미지 상한 — goods-sales·주간 변경의 "추가 이미지 최대 9장"·"갤러리 1~9". */
+    expect(repoFile('lib/admin/catalog.ts')).toContain('GOODS_GALLERY_MAX = 9');
+    expect(repoFile('lib/admin/goods-workbook.ts')).toContain("galleryUrl8: '갤러리 9 URL'");
     /* 무통장 기한 연장 폭 — bank-transfer의 "24시간 연장". */
     expect(repoFile('app/admin/unpaid-actions.ts')).toContain('입금 기한을 24시간 연장했습니다.');
   });

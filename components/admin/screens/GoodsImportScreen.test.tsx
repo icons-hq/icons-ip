@@ -13,11 +13,14 @@ vi.mock('@/app/admin/goods-import-actions', () => ({
   commitNextGoodsImport: mocks.commit,
   previewGoodsImport: mocks.preview,
   prepareGoodsImport: mocks.prepare,
+  inspectSabangnetGoodsImport: vi.fn(),
+  previewSabangnetGoodsImport: vi.fn(),
 }));
 vi.mock('@/lib/supabase/client', () => ({
   createClient: () => ({ storage: { from: () => ({ upload: vi.fn() }) } }),
 }));
-import { GoodsImportScreen } from './GoodsImportScreen';
+import { GoodsImportScreen, SabangnetMappingStep } from './GoodsImportScreen';
+import { SABANGNET_GALLERY_LIMIT, suggestSabangnetTargets } from '@/lib/admin/sabangnet-goods-format';
 const group = {
   index: 0,
   code: 'G0001',
@@ -27,11 +30,14 @@ const group = {
   errors: [],
   warnings: ['공개 상품의 가격·재고가 변경됩니다.'],
   result: null,
+  skippedImages: 0,
+  retryable: true,
 };
 const view = {
   id: 'batch',
   fileName: 'goods.xlsx',
   state: 'ready' as const,
+  format: 'icons' as const,
   groups: [group],
 };
 describe('goods workbook confirmation screen', () => {
@@ -86,5 +92,98 @@ describe('goods workbook confirmation screen', () => {
     expect(html).toContain('mode=failures');
     expect(html).toContain('실패 행 내려받기');
     expect(html).toContain('상품 XLSX');
+  });
+});
+
+describe('사방넷 상품 양식 화면', () => {
+  it('양식 선택은 ICONS 자체 양식이 기본이고 사방넷 상품 양식을 고를 수 있다', () => {
+    const html = renderToStaticMarkup(<GoodsImportScreen />);
+    expect(html).toContain('ICONS 자체 양식');
+    expect(html).toContain('사방넷 상품 양식');
+    expect(html).toContain('상품 XLSX');
+    expect(html).not.toContain('열 확인');
+  });
+
+  it('사방넷 미리보기는 초안 만들기와 ICONS 양식 실패 행 안내를 보여 준다', () => {
+    const html = renderToStaticMarkup(
+      <GoodsImportScreen initialView={{ ...view, format: 'sabangnet', groups: [{ ...group, kind: 'new', warnings: [] }] }} />,
+    );
+    expect(html).toContain('3. 검증 결과 확인·초안 만들기');
+    expect(html).toContain('검증한 1개 상품 초안 만들기');
+    expect(html).toContain('사방넷 상품 파일');
+    expect(html).toContain('열 확인');
+    expect(html).toContain('실패 행은 ICONS 양식으로 내려받으며');
+    expect(html).toContain('이미 등록된 상품코드 행은 넣지 않습니다');
+    expect(html).not.toContain('상품 XLSX');
+  });
+
+  it('다시 연 사방넷 작업도 저장된 결과로 뺀 이미지 수를 보여 준다', () => {
+    const html = renderToStaticMarkup(
+      <GoodsImportScreen
+        initialView={{
+          ...view, format: 'sabangnet', state: 'complete',
+          groups: [{ ...group, kind: 'new', warnings: [], skippedImages: 2, result: { status: 'success', id: 'good' } }],
+        }}
+      />,
+    );
+    expect(html).toContain('초안 저장 완료');
+    expect(html).toContain('이미지 2장은 확인하지 못해 빼고 저장했습니다');
+  });
+
+  it('이미 등록된 상품코드 오류만 있으면 실패 행 내려받기를 보이지 않는다', () => {
+    const existing = { ...group, kind: 'error' as const, warnings: [], errors: ['이미 등록된 상품코드입니다.'], retryable: false };
+    const only = renderToStaticMarkup(
+      <GoodsImportScreen initialView={{ ...view, format: 'sabangnet', groups: [existing] }} />,
+    );
+    expect(only).toContain('이미 등록된 상품코드입니다.');
+    expect(only).not.toContain('실패 행 내려받기');
+    const mixed = renderToStaticMarkup(
+      <GoodsImportScreen
+        initialView={{ ...view, format: 'sabangnet', groups: [existing, { ...group, index: 1, kind: 'error' as const, errors: ['상품명을 입력해주세요.'] }] }}
+      />,
+    );
+    expect(mixed).toContain('실패 행 내려받기');
+  });
+
+  it('열 연결 단계는 인식 상태·ICONS 항목 선택·필수 IP·브랜드별 IP 제안을 보여 준다', () => {
+    const headers = ['상품명', '브랜드명', '소비자가', '사방넷 메모'];
+    const { targets, status } = suggestSabangnetTargets(headers);
+    const html = renderToStaticMarkup(
+      <SabangnetMappingStep
+        inspection={{
+          id: 'batch', fileName: 'sabangnet.xlsx', headerRow: 3, rowCount: 2,
+          columns: [
+            { header: '상품명', sample: '머그', values: ['머그', '키링'] },
+            { header: '브랜드명', sample: '메이플스토리', values: ['메이플스토리', '기타'] },
+            { header: '소비자가', sample: '18000', values: ['18000'] },
+            { header: '사방넷 메모', sample: '메모' },
+          ],
+          ips: [{ id: 'maple', title: '메이플스토리' }],
+        }}
+        targets={targets}
+        columnStates={status}
+        ipId=""
+        brandIps={{ 메이플스토리: 'maple' }}
+        busy={false}
+        onTarget={() => {}}
+        onIp={() => {}}
+        onBrandIp={() => {}}
+        onPreview={() => {}}
+      />,
+    );
+    expect(html).toContain('3행을 열 이름으로 읽었습니다');
+    expect(html).toContain('확인이 필요한 열 2개');
+    expect(html).toContain('연결 IP (필수)');
+    expect(html).toContain('required');
+    expect(html).toContain('자동 인식');
+    expect(html).toContain('추정 · 확인 필요');
+    expect(html).toContain('인식 못 함 · 직접 선택');
+    expect(html).toContain('사방넷 메모 열을 연결할 ICONS 항목');
+    expect(html).toContain('고시정보 · 제조사 / 수입사');
+    expect(html).toContain('메이플스토리 브랜드 상품을 연결할 IP');
+    expect(html).toContain('미리보기 만들기');
+    expect(html).not.toContain('슬롯');
+    /* 2026-10-07 QA: JSX 줄바꿈 뒤 숫자가 붙어 "추가 이미지9장으로"로 보였다. */
+    expect(html).toContain(`대표 이미지와 추가 이미지 ${SABANGNET_GALLERY_LIMIT}장으로 가져옵니다.`);
   });
 });

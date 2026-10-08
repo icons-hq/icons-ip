@@ -1,10 +1,12 @@
 import { ADMIN_DISPATCH_DELAY_DAYS } from '@/lib/admin/dispatch';
+import { ADMIN_LIST_EXPORT_BUTTON_LABEL, ADMIN_LIST_EXPORT_ROW_LIMIT } from '@/lib/admin/list-export';
 import { ADMIN_ORDER_STATUS_LABELS } from '@/lib/admin/orders';
 import { TRACKING_IMPORT_ROW_LIMIT, TRACKING_IMPORT_SAMPLE } from '@/lib/admin/tracking-import';
 import type { AdminGuideTopic } from '../types';
 
 /* 상태 표기는 주문 콘솔과 같은 진실원(ADMIN_ORDER_STATUS_LABELS)에서 파생한다. */
 const L = ADMIN_ORDER_STATUS_LABELS;
+const EXPORT_LIMIT = ADMIN_LIST_EXPORT_ROW_LIMIT.toLocaleString('ko-KR');
 
 export const ORDERS_SHIPPING_TOPIC: AdminGuideTopic = {
   slug: 'orders-shipping',
@@ -32,6 +34,31 @@ export const ORDERS_SHIPPING_TOPIC: AdminGuideTopic = {
         '상태 변경이나 운송장 수정은 상세의 "주문 처리"에서 기존 처리 패널로 이동합니다. 링크로 지정한 주문이 현재 목록에 없으면 다른 주문을 대신 열지 않고 지정 주문의 상세 링크를 보여줍니다.',
       ],
       screens: [{ href: '/admin/sales/orders' }],
+    },
+    {
+      id: 'list-export',
+      heading: '목록 엑셀 다운로드',
+      paragraphs: [
+        `주문 통합검색·미입금 확인·발주·발송 관리·배송현황 관리 목록의 "${ADMIN_LIST_EXPORT_BUTTON_LABEL}"는 검색해 적용한 조건의 전체 결과를 엑셀로 받습니다. 현재 페이지만이 아니라 모든 페이지가 담기며, 검색칸에 입력만 하고 검색하지 않은 값은 반영되지 않습니다.`,
+        `한 파일은 최대 ${EXPORT_LIMIT}건, 엑셀 행 기준으로도 최대 ${EXPORT_LIMIT}행까지 담습니다. 넘으면 파일 대신 조건을 좁혀 나누어 받으라는 안내가 나오므로 기간·상태·출고지를 좁혀 나누어 받습니다. 읽는 사이 다른 담당자의 처리로 목록이 바뀌면 일부만 담긴 파일을 만들지 않으니 잠시 후 다시 내려받습니다.`,
+        '주문 통합검색·발주·발송 관리·배송현황 관리는 한 행이 상품 한 줄이고, 미입금 확인은 한 행이 주문 한 건입니다. 상품 줄로 펼친 파일에서 결제금액·배송비는 주문·배송 단위 값이라 같은 주문의 행마다 반복되므로 더해서 합계를 내지 않습니다. 상품 금액 합계는 주문 통합검색 파일의 상품 금액 열로 냅니다. 둘째 시트 "내려받기 정보"에 화면·조건·내려받은 시각·건수가 적힙니다.',
+        '발주·발송 관리의 목록 엑셀은 확인용입니다. 창고에 전달하는 파일은 기존 출고지시 내보내기를 사용하며, 목록 엑셀을 받아도 출고지시 전달 기록은 바뀌지 않습니다. 미입금 확인 파일에는 주소·연락처를 담지 않습니다.',
+      ],
+      callouts: [
+        {
+          tone: 'warning',
+          title: '개인정보가 담긴 파일입니다',
+          body: [
+            '발주·발송 관리와 배송현황 관리 파일에는 수령인·연락처·주소가 담깁니다. 업무 목적 밖으로 공유하지 말고 확인이 끝나면 삭제합니다. 내려받을 때마다 담당자·시각·화면·조건·건수가 기록됩니다.',
+          ],
+        },
+      ],
+      screens: [
+        { href: '/admin/sales/orders' },
+        { href: '/admin/sales/unpaid' },
+        { href: '/admin/sales/dispatch' },
+        { href: '/admin/sales/shipping' },
+      ],
     },
     {
       id: 'ladder',
@@ -179,7 +206,7 @@ export const ORDERS_SHIPPING_TOPIC: AdminGuideTopic = {
       id: 'settled-export',
       heading: '거래확정 엑셀과 금액 대조',
       steps: [
-        { text: '거래확정 내역에서 날짜와 검색 조건을 정한 뒤 엑셀을 생성합니다.', screenHref: '/admin/sales/settled' },
+        { text: `거래확정 내역에서 날짜와 검색 조건을 정한 뒤 "${ADMIN_LIST_EXPORT_BUTTON_LABEL}"를 누릅니다. 보존 기록이 만들어지면 나타나는 "거래확정 엑셀 다운로드"로 파일을 받으며, 같은 링크로 보존된 기록을 다시 받습니다.`, screenHref: '/admin/sales/settled' },
         { text: '품목별 수량·판매액·배송비·할인·ERP 코드·ERP 품명·바코드와 주문 합계를 확인합니다. 파일은 생성 시점의 거래확정 기록을 고정합니다.' },
         { text: '누락 식별자·결제 시각·금액 차이는 파일의 확인 항목과 주문 원장에서 대조합니다. 모르는 값을 임의로 채우거나 파일 금액만으로 정산 완료를 판단하지 않습니다.' },
       ],

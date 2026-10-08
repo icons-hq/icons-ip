@@ -72,6 +72,8 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
     screens: [
       { id: 'goods', label: ADMIN_VOCABULARY.goods, href: '/admin/catalog/goods', status: 'ready' },
       { id: 'categories', label: '고객 카테고리', href: '/admin/catalog/categories', status: 'ready' },
+      /* ERP '품목 생성' 데이터 반입과 ERP 분류 ↔ 고객 카테고리 연결. 옵션 ERP 품명 제안의 원천이다. */
+      { id: 'erp-items', label: 'ERP 품목', href: '/admin/catalog/erp-items', status: 'ready' },
       { id: 'notice-presets', label: `${ADMIN_VOCABULARY.noticeInfo} 프리셋`, href: '/admin/catalog/notice-presets', status: 'ready' },
     ],
   },

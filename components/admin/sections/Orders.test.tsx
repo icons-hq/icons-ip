@@ -702,3 +702,16 @@ describe('OrdersSection', () => {
   expect(html).not.toContain(STATUS_ACTION_MARKERS['배송완료']);
   expect(html).toContain('배송 건별 배송완료 처리');
  });
+
+describe('주문 통합검색 목록 엑셀 다운로드', () => {
+  it('적용된 검색 조건 그대로의 다운로드 주소를 필터 옆에 둔다', () => {
+    const data = orderData();
+    data.filters = { ...data.filters, field: 'recipient', query: '배송 수취인', status: 'paid', from: '2026-10-01', page: 3 };
+    data.total = 57;
+    const html = renderToStaticMarkup(<OrdersSection data={data} />);
+    expect(html).toContain('목록 엑셀 다운로드');
+    expect(html).toContain('data-export-href="/api/admin/list-export?screen=orders&amp;status=paid&amp;from=2026-10-01&amp;query=%EB%B0%B0%EC%86%A1+%EC%88%98%EC%B7%A8%EC%9D%B8&amp;field=recipient"');
+    expect(html).toContain('전체 57건을 받습니다');
+    expect(html.indexOf('admin-order-filters')).toBeLessThan(html.indexOf('목록 엑셀 다운로드'));
+  });
+});

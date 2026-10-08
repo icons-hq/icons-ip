@@ -730,14 +730,18 @@
    PDP — 갤러리
    ------------------------------------------------------------------ */
 
-.wc-pdp-gallery {
+/* 도트의 기준 상자는 갤러리 전체가 아니라 메인 이미지(스테이지 + 도트)다. 데스크톱은 썸네일이
+   갤러리 높이에 더해지고 10장이면 두 줄이 되므로, 갤러리 전체를 기준으로 하면 도트가 썸네일 위로
+   내려앉는다(2026-10-07 QA). */
+.wc-pdp-gallery__viewport {
   position: relative;
 }
 
-/* Swiper 없이 네이티브 scroll-snap 으로 넘긴다 — 자동재생도 화살표도 없다(R-04 §2). */
+/* Swiper 없이 네이티브 scroll-snap 으로 넘긴다 — 자동재생도 화살표도 없다(R-04 §2).
+   모바일·데스크톱 모두 1:1이고 이미지는 잘리지 않는다(2026-10-07 MD 요청, lib/goods-image.ts). */
 .wc-pdp-gallery__stage {
   display: flex;
-  aspect-ratio: 3 / 4;
+  aspect-ratio: 1 / 1;
   overflow-x: auto;
   scroll-snap-type: x mandatory;
   scrollbar-width: none;
@@ -759,45 +763,74 @@
   display: block;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
 }
 
-/* 도트는 이미지 바깥이 아니라 안쪽 하단에 앉는다(피치 16px = 8px 도트 + 8px 간격). */
+/* 도트는 이미지 바깥이 아니라 안쪽 하단에 앉는다. 8px 점의 중심은 이미지 하단에서 28px 위다
+   (44px 터치 줄의 아래 끝 6px + 절반 22px). 줄의 빈 자리는 터치를 받지 않아 스와이프가 스테이지로 간다. */
 .wc-pdp-gallery__dots {
   position: absolute;
   left: 0;
   right: 0;
-  bottom: 24px;
+  bottom: 6px;
   display: flex;
   justify-content: center;
-  gap: 8px;
+  pointer-events: none;
 }
 
-/* 시각 지름은 8px 이지만 히트박스는 아이콘 컨트롤 최소 44px 규칙을 따른다. */
+/* 버튼 상자 24×44 가 곧 터치 영역이고 상자끼리 맞붙어 겹치지 않는다(피치 24px).
+   레퍼런스 피치 16px 에 44px 히트박스를 겹쳐 붙이면 뒤 점이 앞 점 중앙을 덮어 다음 이미지가
+   열렸다(2026-10-07 QA) — 최소 터치 대상 24px 를 지키는 의도적 편차다. 10장이어도 240px 다. */
 .wc-pdp-gallery__dot {
   position: relative;
-  width: 8px;
-  height: 8px;
+  flex: none;
+  width: 24px;
+  height: 44px;
   padding: 0;
   border: 0;
-  border-radius: 50%;
-  background: var(--wc-ink);
-  opacity: .3;
+  background: transparent;
   cursor: pointer;
+  pointer-events: auto;
 }
 
-.wc-pdp-gallery__dot::after {
+/* 보이는 점은 의사 요소가 그린다 — 버튼 상자보다 커지면 이웃 점의 터치 영역을 덮는다.
+   흐린 점은 opacity 대신 반투명 색으로 그린다. opacity 는 아래 포커스 링까지 30%로 흐린다. */
+.wc-pdp-gallery__dot::before {
   content: '';
   position: absolute;
   top: 50%;
   left: 50%;
-  width: 44px;
-  height: 44px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--wc-ink) 30%, transparent);
   transform: translate(-50%, -50%);
 }
 
-.wc-pdp-gallery__dot[aria-current='true'] {
-  opacity: 1;
+.wc-pdp-gallery__dot[aria-current='true']::before {
+  background: var(--wc-ink);
+}
+
+/* 포커스 링은 세로로 긴 터치 상자가 아니라 보이는 점을 감싼다. */
+.wc-root .wc-pdp-gallery__dot:focus-visible {
+  outline: none;
+}
+
+.wc-root .wc-pdp-gallery__dot:focus-visible::before {
+  outline: 2px solid var(--wc-focus);
+  outline-offset: 2px;
+}
+
+/* 강제 색상 모드는 배경색을 지면색으로 덮어 점이 사라진다 — 시스템 글자색으로 다시 그린다. */
+@media (forced-colors: active) {
+  .wc-pdp-gallery__dot::before {
+    forced-color-adjust: none;
+    background: CanvasText;
+  }
+
+  .wc-pdp-gallery__dot[aria-current='true']::before {
+    background: Highlight;
+  }
 }
 
 /* 썸네일 스트립은 모바일에서 숨긴다 — 도트와 스와이프가 이동 수단이다(R-04 §2). */
@@ -806,21 +839,13 @@
 }
 
 @media (min-width: 990px) {
-  .wc-pdp-gallery__stage {
-    aspect-ratio: 1 / 1;
-  }
-
-  /* 84×7 + 10×6 = 648 — 갤러리 폭(649)에 그대로 맞는다. 넘치면 가로 스크롤로 흘린다. */
+  /* 84×7 + 10×6 = 648 — 갤러리 폭(649)에 7개가 그대로 맞는다. 대표 1 + 추가 이미지 9 = 10장까지
+     올 수 있으므로(2026-10-07) 넘치면 숨은 가로 스크롤 대신 다음 줄로 내려 모든 썸네일이 보이게 한다. */
   .wc-pdp-gallery__thumbs {
     display: flex;
+    flex-wrap: wrap;
     gap: 10px;
     margin-top: 10px;
-    overflow-x: auto;
-    scrollbar-width: none;
-  }
-
-  .wc-pdp-gallery__thumbs::-webkit-scrollbar {
-    display: none;
   }
 
   /* 레퍼런스에는 활성 마커가 아예 없다(R-04 §10-2) — 보더 한 겹으로 결함을 메운다. */
@@ -843,7 +868,7 @@
     display: block;
     width: 100%;
     height: 100%;
-    object-fit: cover;
+    object-fit: contain;
   }
 }
 
@@ -1042,6 +1067,19 @@
 .wc-root .wc-goods-description blockquote { padding: 8px 16px; border-left: 3px solid var(--wc-line-control); }
 .wc-root .wc-goods-description a { color: var(--wc-ink); text-decoration: underline; text-underline-offset: 3px; }
 .wc-root .wc-goods-description img { display: block; max-width: 100%; width: auto; height: auto; margin: 12px auto; }
+/* 호스팅 상세페이지는 긴 이미지를 여러 장으로 잘라 이어 붙인다(2026-10-07 MD 요청) — 이어지는 이미지 사이 틈을 없앤다.
+   이미지 바로 뒤 <br>이 만드는 빈 줄은 렌더 경계의 sanitizer(lib/goods-description.ts)가 지운다. CSS 형제 결합자는
+   사이의 글자를 건너뛰므로 <br>을 여기서 숨기면 "제품명<br>소재" 같은 글자 줄까지 붙는다. */
+.wc-root .wc-goods-description img:has(+ img) { margin-bottom: 0; }
+.wc-root .wc-goods-description img + img { margin-top: 0; }
+/* 이미지마다 p·div 하나로 감싼 소스(`<p><img></p><p><img></p>`, `<div align=center><img></div>…`)도 같은 이음매로 붙인다.
+   :only-child는 글자 노드를 세지 않아 `<p>글자 <img></p>`도 래퍼로 잡히므로 래퍼 여백 전체가 아니라 이미지↔이미지
+   이음매만 지운다 — 글자 문단과 이미지 사이 간격은 그대로 남는다. */
+.wc-root .wc-goods-description img:has(+ :is(p, div) > img:only-child),
+.wc-root .wc-goods-description :is(p, div):has(> img:only-child):has(+ img, + :is(p, div) > img:only-child),
+.wc-root .wc-goods-description :is(p, div):has(> img:only-child):has(+ img, + :is(p, div) > img:only-child) > img { margin-bottom: 0; }
+.wc-root .wc-goods-description :is(p, div):has(> img:only-child) + img,
+.wc-root .wc-goods-description :is(img, :is(p, div):has(> img:only-child)) + :is(p, div) > img:only-child { margin-top: 0; }
 .wc-root .wc-goods-description figcaption { color: var(--wc-ink-tertiary); font-size: 12px; text-align: center; }
 .wc-root .wc-goods-description table { display: block; max-width: 100%; overflow-x: auto; border-collapse: collapse; }
 .wc-root .wc-goods-description :is(th, td) { min-width: 80px; padding: 10px 12px; border: 1px solid var(--wc-hairline); text-align: left; vertical-align: top; }
@@ -2004,7 +2042,7 @@
 .wc-cart__line-media {
   display: block;
   width: 80px;
-  aspect-ratio: 3 / 4;
+  aspect-ratio: 1 / 1;
   overflow: hidden;
   background-color: var(--wc-surface-grey-2);
 }
@@ -2013,7 +2051,7 @@
   display: block;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
 }
 
 /* 결제로 넘어갈 수 없는 라인은 흐리게 낮춘다 — 상태 문구(`__line-state`)가 이유를 말한다. */
@@ -2351,7 +2389,7 @@
 .wc-wishlist__media {
   display: block;
   width: 72px;
-  aspect-ratio: 3 / 4;
+  aspect-ratio: 1 / 1;
   overflow: hidden;
   background-color: var(--wc-surface-grey-2);
 }
@@ -2361,7 +2399,7 @@
   display: block;
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
 }
 
 .wc-wishlist__info {

@@ -53,6 +53,8 @@ import { formatKrwExact } from '../format';
 import { ADMIN_VOCABULARY } from '@/lib/admin/vocabulary';
 import { isParcelShipment } from '@/lib/admin/shipment-dispatch';
 import { DELIVERY_METHOD_LABELS, deliveryStatusLabel } from '@/lib/shipment-delivery';
+import { adminListExportHref } from '@/lib/admin/list-export';
+import { AdminListExportButton } from '@/components/admin/AdminListExportButton';
 
 /* 사다리 순서 그대로 둔다 — 드롭다운 순서가 운영자에게는 단계 순서다(#250).
    문구는 ADMIN_ORDER_STATUS_LABELS에서 가져온다. 여기에 다시 적으면 일괄 등록
@@ -759,6 +761,7 @@ export function OrdersSection({ data }: { data: AdminOrderConsoleData }) {
   return (
     <section className="admin-orders col">
       <OrderFilters filters={data.filters} />
+      <AdminListExportButton href={adminListExportHref('orders', adminOrdersHref(data.filters))} total={data.total} />
       <div className="admin-master-detail admin-order-master-detail">
         <aside className="admin-order-list card" aria-label="주문 목록">
           <div className="admin-order-list-heading">

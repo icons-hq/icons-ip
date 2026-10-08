@@ -5,7 +5,7 @@ import ExcelJS from 'exceljs';
 import JSZip from 'jszip';
 import sharp from 'sharp';
 
-const CURRENT_GOODS_WORKBOOK_VERSION = 'ICONS 상품 일괄 등록 v3';
+const CURRENT_GOODS_WORKBOOK_VERSION = 'ICONS 상품 일괄 등록 v4';
 
 /** Populate the actual downloaded template by header names, preserving its formatting. */
 export async function buildRehearsalWorkbooks({
@@ -27,7 +27,7 @@ export async function buildRehearsalWorkbooks({
     await workbook.xlsx.load(template);
     const sheet = workbook.getWorksheet('상품');
     if (!sheet || sheet.getCell('A1').text !== CURRENT_GOODS_WORKBOOK_VERSION)
-      throw new Error('Current goods v3 template required');
+      throw new Error('Current goods v4 template required');
     const headers = new Map();
     sheet.getRow(4).eachCell((cell, column) => headers.set(cell.text, column));
     const lastHeaderColumn = sheet.getColumn(Math.max(...headers.values())).letter;

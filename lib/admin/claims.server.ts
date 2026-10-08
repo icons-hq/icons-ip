@@ -98,21 +98,26 @@ function toRow(row: ClaimQueueRow): AdminClaimRow {
 export async function getAdminClaimConsoleData(
   claimType: OrderClaimType,
   filters: AdminClaimFilters,
+  /* 목록 엑셀 다운로드 전용: RPC 상한(100건) 안에서 페이지를 키우고 단계별 집계는 읽지 않는다. */
+  options: { pageSize?: number; includeCounts?: boolean } = {},
 ): Promise<AdminClaimConsoleData> {
+  const pageSize = Math.min(Math.max(Math.trunc(options.pageSize ?? ADMIN_CLAIM_PAGE_SIZE) || ADMIN_CLAIM_PAGE_SIZE, 1), 100);
   const supabase = await createClient();
 
   const [listResult, countResult] = await Promise.all([
     supabase.rpc('admin_search_order_claims', {
       p_claim_type: claimType,
       p_from: filters.from,
-      p_limit: ADMIN_CLAIM_PAGE_SIZE,
-      p_offset: (filters.page - 1) * ADMIN_CLAIM_PAGE_SIZE,
+      p_limit: pageSize,
+      p_offset: (filters.page - 1) * pageSize,
       p_query: filters.query || null,
       p_reason_type: filters.reasonType === 'all' ? null : filters.reasonType,
       p_stage: filters.stage === 'all' ? null : filters.stage,
       p_to: filters.to,
     }),
-    supabase.rpc('admin_order_claim_stage_counts', { p_claim_type: claimType }),
+    options.includeCounts === false
+      ? Promise.resolve({ data: [], error: null })
+      : supabase.rpc('admin_order_claim_stage_counts', { p_claim_type: claimType }),
   ]);
 
   if (listResult.error) {
@@ -133,7 +138,7 @@ export async function getAdminClaimConsoleData(
     claimType,
     counts,
     filters,
-    pageSize: ADMIN_CLAIM_PAGE_SIZE,
+    pageSize,
     rows: rows.map(toRow),
     total: rows.length ? toNumber(rows[0].total_count) : 0,
   };

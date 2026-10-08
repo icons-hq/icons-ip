@@ -218,3 +218,11 @@ describe('UnpaidScreen 입금 내역 큐', () => {
     expect(html).toContain('큐에서 내리기');
   });
 });
+
+describe('미입금 확인 목록 엑셀 다운로드', () => {
+  it('검색어만 담고 선택 주문·페이지는 버린다', () => {
+    const html = renderToStaticMarkup(<UnpaidScreen data={consoleData({ filters: { query: '9A3F', page: 3, selectedOrderId: '9a3f21c0-1111-4000-8000-000000000abc' } })} now={now} />);
+    expect(html).toContain('목록 엑셀 다운로드');
+    expect(html).toContain('data-export-href="/api/admin/list-export?screen=unpaid&amp;q=9A3F"');
+  });
+});

@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { AdminListExportButton } from '@/components/admin/AdminListExportButton';
 import { BankDepositQueue } from '@/components/admin/BankDepositQueue';
 import { UnpaidActionsPanel } from '@/components/admin/UnpaidActionsPanel';
 import {
@@ -8,7 +9,8 @@ import {
   type ConsoleGridColumn,
   type ConsoleGridRow,
 } from '@/components/admin/console';
-import { adminUnpaidHref, type AdminUnpaidConsoleData } from '@/lib/admin/unpaid';
+import { adminListExportHref } from '@/lib/admin/list-export';
+import { adminUnpaidAttemptStateLabel, adminUnpaidHref, type AdminUnpaidConsoleData } from '@/lib/admin/unpaid';
 import { krw } from '@/lib/format';
 import { formatOrderDateTime } from '@/lib/orders';
 import {
@@ -29,22 +31,6 @@ const COLUMNS: ConsoleGridColumn[] = [
   { key: 'state', label: '상태', width: '110px' },
   { key: 'total', label: '입금액', align: 'end', width: '110px' },
 ];
-
-/**
- * attempt 상태를 운영자 문구로. `prepared`가 정상적인 입금 대기이고, 그 밖의
- * 값은 확정이 중간에 멈춘 것이라 눈에 띄어야 한다.
- */
-const ATTEMPT_STATE_LABELS: Record<string, string> = {
-  prepared: '입금 대기',
-  confirming: '확정 처리중',
-  needs_review: '정합화 필요',
-  unknown: '정합화 필요',
-};
-
-function attemptStateLabel(state: string | null) {
-  if (!state) return '원장 없음';
-  return ATTEMPT_STATE_LABELS[state] ?? state;
-}
 
 /**
  * 미입금 확인 콘솔 — 수동 대조 (#256).
@@ -87,7 +73,7 @@ export function UnpaidScreen({
           className={row.attemptState === 'prepared' ? undefined : 'admin-badge admin-badge--warn'}
           key="state"
         >
-          {attemptStateLabel(row.attemptState)}
+          {adminUnpaidAttemptStateLabel(row.attemptState)}
         </span>,
         <span className="mono" key="total">{krw(row.total)}</span>,
       ],
@@ -105,6 +91,8 @@ export function UnpaidScreen({
         }}
         submitLabel="검색"
       />
+
+      <AdminListExportButton href={adminListExportHref('unpaid', adminUnpaidHref({ query: filters.query }))} total={total} />
 
       <ConsoleGrid
         caption="미입금 무통장 주문 목록"

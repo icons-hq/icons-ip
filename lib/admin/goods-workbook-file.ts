@@ -10,10 +10,19 @@ import {
   GOODS_WORKBOOK_KEYS,
   GOODS_WORKBOOK_ROW_LIMIT,
   GOODS_WORKBOOK_VERSION,
+  goodsWorkbookLayout,
   type GoodsWorkbookInputRow,
   type GoodsWorkbookKey,
   type GoodsWorkbookRow,
 } from './goods-workbook';
+import {
+  decodeSabangnetText,
+  detectSabangnetHeaderRow,
+  parseSabangnetCsv,
+  SABANGNET_COLUMN_LIMIT,
+  SABANGNET_HEADER_SCAN_ROWS,
+  type SabangnetSheetRow,
+} from './sabangnet-goods-format';
 const NUMERIC_KEYS = new Set<GoodsWorkbookKey>([
   'price',
   'compareAtPrice', 'claimReturnFee', 'claimReturnFreeShippingFee', 'claimExchangeFee',
@@ -183,7 +192,7 @@ export async function buildGoodsWorkbook(
     ],
     [
       '이미지',
-      '대표·갤러리 4칸·상세 이미지마다 URL 또는 파일명 중 하나를 입력합니다. 파일명은 이미지 ZIP의 파일명과 정확히 같아야 합니다. JPEG/PNG/WebP만 가능합니다.',
+      '대표·갤러리 9칸(추가 이미지 1~9)·상세 이미지마다 URL 또는 파일명 중 하나를 입력합니다. 파일명은 이미지 ZIP의 파일명과 정확히 같아야 합니다. JPEG/PNG/WebP만 가능합니다. 갤러리 4칸짜리 v3 양식도 그대로 올릴 수 있으며, 이때 기존 상품의 갤러리 5~9는 저장된 이미지를 유지합니다.',
     ],
     [
       '이미지 크기',
@@ -220,7 +229,7 @@ export async function buildGoodsWorkbook(
     ],
     [
       '상세 설명',
-      '상세 설명 형식은 plain(일반 텍스트) 또는 html입니다. HTML은 정리된 코드까지 30,000자이며 CSS·스크립트·외부 이미지는 제거됩니다. HTML 이미지는 상품 편집에서 검증 업로드하고 내보낸 경로를 유지해주세요.',
+      '상세 설명 형식은 plain(일반 텍스트) 또는 html입니다. HTML은 정리된 코드까지 30,000자입니다. https 호스팅 이미지 주소는 그대로 표시되고, CSS·스크립트와 확인할 수 없는 이미지는 제거됩니다. 상품 편집에서 업로드한 HTML 이미지는 내보낸 경로를 그대로 유지해주세요.',
     ],
     [
       '오류 처리',
@@ -310,10 +319,13 @@ export async function parseGoodsWorkbookWithKc(
     fileBytes: GOODS_WORKBOOK_BYTES_LIMIT,
   });
   const sheet = workbook.getWorksheet('상품');
+  const version = sheet?.getCell('A1').text ?? '';
+  // v4와 v3(갤러리 4칸) 양식을 읽는다. 열 이름·순서는 각 버전 그대로여야 한다.
+  const layout = goodsWorkbookLayout(version);
   if (
     !sheet ||
-    sheet.getCell('A1').text !== GOODS_WORKBOOK_VERSION ||
-    GOODS_WORKBOOK_KEYS.some(
+    !layout ||
+    layout.keys.some(
       (key, index) =>
         sheet.getCell(4, index + 1).text !== GOODS_WORKBOOK_HEADERS[key],
     )
@@ -324,7 +336,7 @@ export async function parseGoodsWorkbookWithKc(
     if (number < 5) return;
     const values = emptyGoodsWorkbookRow();
     const errors: string[] = [];
-    GOODS_WORKBOOK_KEYS.forEach((key, index) => {
+    layout.keys.forEach((key, index) => {
       const cell = readSafeWorkbookCell(
         row.getCell(index + 1),
         IDENTIFIER_KEYS.has(key),
@@ -334,7 +346,7 @@ export async function parseGoodsWorkbookWithKc(
         errors.push(`${GOODS_WORKBOOK_HEADERS[key]}: ${cell.error}`);
     });
     if (GOODS_WORKBOOK_KEYS.some((key) => values[key] !== '') || errors.length)
-      result.push({ row: number, values, errors });
+      result.push({ row: number, values, errors, ...(layout.layout ? { layout: layout.layout } : {}) });
   });
   if (result.length > 500)
     throw new Error(
@@ -345,7 +357,7 @@ export async function parseGoodsWorkbookWithKc(
   let kcRows: GoodsKcWorkbookInputRow[] | null = null;
   if (kcSheet) {
     const keys = Object.keys(GOODS_KC_WORKBOOK_HEADERS) as GoodsKcWorkbookKey[];
-    if (kcSheet.getCell('A1').text !== GOODS_WORKBOOK_VERSION || keys.some((key, index) => kcSheet.getCell(4, index + 1).text !== GOODS_KC_WORKBOOK_HEADERS[key]))
+    if (kcSheet.getCell('A1').text !== version || keys.some((key, index) => kcSheet.getCell(4, index + 1).text !== GOODS_KC_WORKBOOK_HEADERS[key]))
       throw new Error('KC 검토 시트의 열 이름과 순서를 유지해주세요.');
     kcRows = [];
     kcSheet.eachRow((row, number) => {
@@ -365,4 +377,95 @@ export async function parseGoodsWorkbookWithKc(
     if (orphans.length) throw new Error(orphans.join('\n'));
   }
   return { rows: result, kcRows };
+}
+
+export type SabangnetGoodsSheet = {
+  /** 1-based row number of the detected header row in the source file. */
+  headerRow: number;
+  headers: string[];
+  rows: SabangnetSheetRow[];
+};
+const SABANGNET_READ_ROWS = GOODS_WORKBOOK_ROW_LIMIT + SABANGNET_HEADER_SCAN_ROWS + 1;
+const TOO_MANY_SABANGNET_ROWS = `사방넷 상품은 파일당 ${GOODS_WORKBOOK_ROW_LIMIT}개까지 올릴 수 있습니다. 파일을 나누어 올려 주세요.`;
+const TOO_MANY_SABANGNET_COLUMNS = `사방넷 상품 파일의 열이 ${SABANGNET_COLUMN_LIMIT}개를 넘습니다. 쓰지 않는 열을 지운 뒤 다시 올려 주세요.`;
+/** Columns up to the header row's last named column; more than the limit is refused rather than cut silently. */
+function sabangnetHeaderWidth(cells: readonly string[]) {
+  let width = cells.length;
+  while (width && !cells[width - 1]?.trim()) width -= 1;
+  if (width > SABANGNET_COLUMN_LIMIT) throw new Error(TOO_MANY_SABANGNET_COLUMNS);
+  return width;
+}
+/**
+ * Reads only the cells that hold values, up to `width` columns. A style-only cell far to the right
+ * (e.g. XFD) makes sheet.columnCount 16,384; reading every row to that width ran out of memory.
+ */
+function readSabangnetRow(row: ExcelJS.Row, number: number, width: number): SabangnetSheetRow {
+  const cells: string[] = [];
+  const errors: Record<number, string> = {};
+  row.eachCell({ includeEmpty: false }, (excelCell, column) => {
+    if (column > width) return;
+    const cell = sabangnetCell(excelCell);
+    cells[column - 1] = cell.value;
+    if (cell.error) errors[column - 1] = cell.error;
+  });
+  return { row: number, cells: Array.from(cells, (value) => value ?? ''), ...(Object.keys(errors).length ? { errors } : {}) };
+}
+/** Reads a Sabangnet download (.xlsx or .csv) without trusting the file name: the bytes decide the format. */
+export async function readSabangnetGoodsSheet(bytes: Buffer): Promise<SabangnetGoodsSheet> {
+  if (!bytes.length || bytes.length > GOODS_WORKBOOK_BYTES_LIMIT)
+    throw new Error('사방넷 상품 파일은 2MB 이하로 올려 주세요. 파일을 나누어 올릴 수 있습니다.');
+  if (bytes.subarray(0, 8).equals(Buffer.from([0xd0, 0xcf, 0x11, 0xe0, 0xa1, 0xb1, 0x1a, 0xe1])))
+    throw new Error('XLS(Excel 97-2003) 파일은 읽을 수 없습니다. 엑셀에서 “Excel 통합 문서(.xlsx)”로 저장해 다시 올려 주세요.');
+  let rows: SabangnetSheetRow[] = [];
+  let index: number | null = null;
+  if (bytes.subarray(0, 4).equals(Buffer.from([0x50, 0x4b, 0x03, 0x04]))) {
+    const workbook = await loadSafeWorkbook(bytes, { fileBytes: GOODS_WORKBOOK_BYTES_LIMIT });
+    const sheets = workbook.worksheets.filter((sheet) => sheet.state !== 'hidden' && sheet.state !== 'veryHidden');
+    // 안내·코드표 시트가 앞에 있어도 열 이름 행이 있는 첫 시트를 읽는다.
+    for (const sheet of sheets) {
+      const head = Array.from({ length: SABANGNET_HEADER_SCAN_ROWS }, (_, offset) =>
+        readSabangnetRow(sheet.getRow(offset + 1), offset + 1, SABANGNET_COLUMN_LIMIT));
+      const headIndex = detectSabangnetHeaderRow(head);
+      if (headIndex === null) continue;
+      if (sheet.actualRowCount > SABANGNET_READ_ROWS) throw new Error(TOO_MANY_SABANGNET_ROWS);
+      let named = false;
+      sheet.getRow(head[headIndex].row).eachCell({ includeEmpty: false }, (cell, column) => {
+        if (column > SABANGNET_COLUMN_LIMIT && cell.text.trim()) named = true;
+      });
+      if (named) throw new Error(TOO_MANY_SABANGNET_COLUMNS);
+      const width = sabangnetHeaderWidth(head[headIndex].cells);
+      sheet.eachRow((row, number) => {
+        rows.push(readSabangnetRow(row, number, width));
+      });
+      index = rows.findIndex((row) => row.row === head[headIndex].row);
+      break;
+    }
+  } else {
+    const text = decodeSabangnetText(bytes);
+    if (/^\s*</.test(text) && /<(table|html)[\s>]/i.test(text.slice(0, 4096)))
+      throw new Error('웹 페이지 형식으로 저장된 파일입니다. 엑셀에서 열어 “Excel 통합 문서(.xlsx)”로 저장해 다시 올려 주세요.');
+    rows = parseSabangnetCsv(text);
+    if (rows.length > SABANGNET_READ_ROWS) throw new Error(TOO_MANY_SABANGNET_ROWS);
+    index = detectSabangnetHeaderRow(rows);
+  }
+  if (index === null || index < 0)
+    throw new Error('사방넷 상품 양식의 열 이름(상품명·판매가 등)을 찾지 못했습니다. 첫 10행 안에 열 이름 행이 있는지 확인해 주세요.');
+  const width = sabangnetHeaderWidth(rows[index].cells);
+  const headers = rows[index].cells.slice(0, width).map((cell) => cell.trim());
+  const data = rows
+    .slice(index + 1)
+    .map((row) => (row.cells.length > width ? { ...row, cells: row.cells.slice(0, width) } : row))
+    .filter((row) => row.cells.some((cell) => cell.trim()) || row.errors);
+  if (data.length > GOODS_WORKBOOK_ROW_LIMIT) throw new Error(TOO_MANY_SABANGNET_ROWS);
+  return { headerRow: rows[index].row, headers, rows: data };
+}
+/** Sabangnet exports carry numeric codes and dates as typed cells; formulas and cell errors stay rejected. */
+function sabangnetCell(cell: ExcelJS.Cell): { value: string; error?: string } {
+  const value = cell.value;
+  if (value instanceof Date) return { value: value.toISOString().slice(0, 10) };
+  if (value && typeof value === 'object' && 'hyperlink' in value) {
+    const text = cell.text.trim();
+    return { value: text || String(value.hyperlink ?? '') };
+  }
+  return readSafeWorkbookCell(cell, false);
 }

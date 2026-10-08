@@ -15,6 +15,8 @@ const ADMIN_COPY_EXCEPTIONS = [
   { file: 'app/admin/actions.ts', text: '연결할 굿즈를 찾을 수 없습니다.', reason: '카드팩 리워드 정책의 결제 자격 검증 오류다.' },
   { file: 'lib/admin/catalog.ts', text: '등록된 굿즈를 선택해주세요.', reason: '카드팩 리워드 정책의 결제 자격 검증 오류다.' },
   { file: 'lib/admin/catalog.ts', text: '선택한 IP의 굿즈만 지정할 수 있습니다.', reason: '카드팩 리워드 정책의 결제 자격 검증 오류다.' },
+  { file: 'lib/admin/sabangnet-goods-format.ts', text: '추가상품그룹코드', reason: '사방넷 상품 양식의 원본 열 이름이라 운영 어휘로 바꾸면 열을 인식하지 못한다.' },
+  { file: 'lib/admin/sabangnet-goods-format.ts', text: '추가 상품상세설명', reason: '사방넷 상품 양식의 원본 열 이름이라 운영 어휘로 바꾸면 열을 인식하지 못한다.' },
 ] as const;
 const PUBLIC_COPY_EXCEPTIONS = [
   { file: 'components/screens/GoodDetail.tsx', text: '전자상거래법에 따라 표시하는 상품정보제공고시 항목입니다.', reason: '상품정보제공고시는 법정 고시의 이름이므로 바꾸지 않는다.' },

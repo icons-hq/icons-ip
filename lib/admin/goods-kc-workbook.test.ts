@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { emptyGoodsKcModel, type AdminGoodsKc } from './goods-kc';
+import { emptyGoodsKcModel, goodsKcProductNotApplicableModel, type AdminGoodsKc } from './goods-kc';
 import { exportGoodsKcWorkbookRows, goodsKcWorkbookOrphanErrors, planGoodsKcWorkbookRows } from './goods-kc-workbook';
 const one = '00000000-0000-4000-8000-000000000001';
 const two = '00000000-0000-4000-8000-000000000002';
@@ -26,6 +26,17 @@ describe('KC 검토 시트 왕복과 원자 저장 계획', () => {
     expect(rows[1].values.variantCodes).toBe('0002');
     expect(planGoodsKcWorkbookRows(rows, context)).toEqual({ kind: 'keep', warnings: [] });
     expect(planGoodsKcWorkbookRows([...rows].reverse(), context)).toEqual({ kind: 'keep', warnings: [] });
+  });
+  it('상품 전체 해당 없음 검토는 빈 선택 칸 그대로 왕복하고 무변경 재업로드는 완료를 보존한다', () => {
+    const quick: AdminGoodsKc = { ...review, models: [goodsKcProductNotApplicableModel(review.variants)] };
+    const rows = exportGoodsKcWorkbookRows([{ goodCode: 'GOOD-001', review: quick }]).map((values, index) => ({ row: index + 5, values }));
+    expect(rows).toHaveLength(1);
+    expect(rows[0].values).toMatchObject({ family: '그 외', scheme: '해당 없음', variantCodes: '0001\n0002', modelName: '',
+      businessRole: '', businessName: '', basis: '', publicNote: '', reviewStatus: '검토 완료' });
+    expect(planGoodsKcWorkbookRows(rows, { ...context, existing: quick })).toEqual({ kind: 'keep', warnings: [] });
+    rows[0].values.publicNote = '합성 안내';
+    expect(planGoodsKcWorkbookRows(rows, { ...context, existing: quick, willBeDraft: true })).toMatchObject({ kind: 'save',
+      update: { models: [{ scheme: 'not_applicable', businessRole: '', publicNote: '합성 안내', variantCodes: ['0001', '0002'] }] } });
   });
   it('시트나 대상 행이 없으면 기존 정보를 지우지 않고 명시 초기화만 미검토로 저장한다', () => {
     expect(planGoodsKcWorkbookRows(null, context).kind).toBe('keep');

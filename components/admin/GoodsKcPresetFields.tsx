@@ -31,7 +31,7 @@ export function GoodsKcPresetFields({template,raw,error}:{template?:GoodsKcPrese
         <option value="">선택</option>{Object.entries(GOODS_KC_SCHEME_LABELS).filter(([value])=>draft.family&&goodsKcSchemeAllowed(draft.family as GoodsKcFamily,value as GoodsKcScheme))
           .map(([value,label])=><option key={value} value={value}>{label}</option>)}
       </select></label>
-      {draft.scheme==='not_applicable'?<label>해당 없음 안내 문구<textarea rows={3} maxLength={1000} value={draft.publicNote} onChange={event=>setDraft({...draft,publicNote:event.target.value})}/></label>:null}
+      {draft.scheme==='not_applicable'?<label>해당 없음 고객 안내 (선택)<textarea rows={3} maxLength={1000} value={draft.publicNote} onChange={event=>setDraft({...draft,publicNote:event.target.value})}/></label>:null}
     </>:null}
     <p>제품군·제도와 해당 없음 안내만 새 모델 초안으로 복사합니다. 옵션·인증번호·증빙·검토 완료 상태는 복사하지 않습니다.</p>
     {error?<p role="alert">{error}</p>:null}

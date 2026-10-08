@@ -1173,8 +1173,53 @@
 .wc-admin .wc-admin-artwork-guide__crops figure { margin: 0; min-width: 0; }
 .wc-admin .wc-admin-artwork-guide__frame { position: relative; overflow: hidden; background: var(--wc-surface-grey); border: 1px solid var(--wc-hairline); }
 .wc-admin .wc-admin-artwork-guide__frame img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; object-position: center; }
-.wc-admin .wc-admin-artwork-guide__frame img.is-original { position: static; height: auto; max-height: 320px; object-fit: contain; }
 .wc-admin .wc-admin-artwork-guide__crops figcaption { margin-top: 6px; font-size: 12px; }
+/* 상품 이미지 그리드 (2026-10-07 MD 요청) — 대표 이미지 + 추가 이미지 1:1 타일. 타일은 오류 이동 계약 때문에
+   .wc-admin-artwork-upload-field 경계를 함께 쓰므로 그 기본 여백을 3단계 선택자로 되돌린다. */
+.wc-admin .wc-admin-image-grid { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; min-width: 0; margin: 0; padding: 14px; border: 1px solid var(--wc-line-control); border-radius: var(--wc-radius-form); }
+.wc-admin .wc-admin-image-grid > legend { padding: 0 6px; color: var(--wc-ink-sub); font-size: 13px; font-weight: 600; }
+.wc-admin .wc-admin-image-grid__guidance { margin: 0; color: var(--wc-ink); font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
+.wc-admin .wc-admin-image-grid__intro { margin: 0; color: var(--wc-ink-tertiary); font-size: 12px; line-height: 1.6; }
+.wc-admin .wc-admin-image-grid__notice { margin: 0; color: var(--wc-danger); font-size: 12px; font-weight: 600; line-height: 1.5; }
+.wc-admin .wc-admin-image-grid__tiles { display: grid; grid-template-columns: repeat(auto-fill, minmax(96px, 1fr)); gap: 12px; max-width: 680px; margin: 0; padding: 0; list-style: none; }
+.wc-admin .wc-admin-image-grid .wc-admin-image-tile { position: relative; display: grid; align-content: start; gap: 6px; min-width: 0; padding: 0; }
+.wc-admin .wc-admin-image-tile__frame { position: relative; display: flex; align-items: center; justify-content: center; aspect-ratio: 1 / 1; overflow: hidden; border: 1px solid var(--wc-line-control); border-radius: var(--wc-radius-form); background: var(--wc-surface-grey-2); color: var(--wc-ink-tertiary); cursor: pointer; user-select: none; }
+.wc-admin .wc-admin-image-tile__frame img { width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
+/* 끌기는 손잡이에서만 시작한다(터치). 타일 본문은 세로 스크롤·확대를 막지 않는다. grab 커서는 마우스 끌기용이다. */
+.wc-admin .wc-admin-image-tile__frame[data-draggable] { cursor: grab; touch-action: pan-y pinch-zoom; }
+.wc-admin .wc-admin-image-tile[data-dragging] .wc-admin-image-tile__frame { cursor: grabbing; opacity: .55; }
+.wc-admin .wc-admin-image-tile__handle { position: absolute; top: 4px; left: 4px; z-index: 1; display: inline-flex; align-items: center; justify-content: center; width: 32px; height: 32px; padding: 0; border: 1px solid var(--wc-line-control); border-radius: var(--wc-radius-form); background: var(--wc-surface); color: var(--wc-ink); cursor: grab; touch-action: none; user-select: none; }
+.wc-admin .wc-admin-image-tile__handle svg { fill: currentColor; }
+.wc-admin .wc-admin-image-tile[data-dragging] .wc-admin-image-tile__handle { cursor: grabbing; }
+.wc-admin .wc-admin-image-tile[data-main] .wc-admin-image-tile__frame { border: 2px solid var(--wc-ink); }
+.wc-admin .wc-admin-image-tile:is([data-add-tile], [data-upload-state='empty']) .wc-admin-image-tile__frame { border-style: dashed; background: var(--wc-surface); }
+.wc-admin .wc-admin-image-tile[data-upload-state='uploading'] .wc-admin-image-tile__frame { border-color: var(--wc-info); cursor: progress; }
+.wc-admin .wc-admin-image-tile[data-upload-state='uploading'] .wc-admin-image-tile__frame img { opacity: .6; }
+.wc-admin .wc-admin-image-tile[data-upload-state='uploaded'] .wc-admin-image-tile__frame { border-color: var(--wc-success); }
+.wc-admin .wc-admin-image-tile:is([data-upload-state='failed'], [data-invalid]) .wc-admin-image-tile__frame { border-color: var(--wc-danger); }
+.wc-admin .wc-admin-image-tile[data-drop-target] .wc-admin-image-tile__frame { border: 2px dashed var(--wc-info); }
+.wc-admin .wc-admin-image-tile__frame:has(.wc-admin-image-tile__input:focus-visible) { outline: 2px solid var(--wc-focus); outline-offset: 2px; }
+.wc-admin .wc-admin-image-tile__input { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; opacity: 0; }
+.wc-admin .wc-admin-image-tile__placeholder { display: grid; justify-items: center; gap: 4px; padding: 8px; font-size: 12px; line-height: 1.4; text-align: center; }
+.wc-admin .wc-admin-image-tile__placeholder b { font-size: 24px; font-weight: 400; line-height: 1; }
+.wc-admin .wc-admin-image-tile__remove { position: absolute; top: 4px; right: 4px; z-index: 1; display: inline-flex; align-items: center; justify-content: center; width: 28px; height: 28px; padding: 0; border: 1px solid var(--wc-line-control); border-radius: 50%; background: var(--wc-surface); color: var(--wc-ink); font-size: 16px; line-height: 1; cursor: pointer; }
+.wc-admin .wc-admin-image-tile__caption { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 6px; font-size: 12px; line-height: 1.4; }
+.wc-admin .wc-admin-image-tile__caption strong { color: var(--wc-ink); font-size: 12px; }
+.wc-admin .wc-admin-image-tile__caption span { color: var(--wc-ink-tertiary); }
+.wc-admin .wc-admin-image-tile__caption [data-upload-status='uploaded'] { color: var(--wc-success); }
+.wc-admin .wc-admin-image-tile__caption [data-upload-status='failed'] { color: var(--wc-danger); }
+.wc-admin .wc-admin-image-tile__actions { display: flex; gap: 4px; }
+.wc-admin .wc-admin-image-tile__actions button:last-child { margin-left: auto; }
+.wc-admin .wc-admin-image-tile__actions button,
+.wc-admin .wc-admin-image-tile__retry { min-width: 28px; min-height: 28px; padding: 0 6px; border: 1px solid var(--wc-line-control); border-radius: var(--wc-radius-form); background: var(--wc-surface); color: var(--wc-ink); font: inherit; font-size: 12px; cursor: pointer; }
+.wc-admin .wc-admin-image-tile__actions button:disabled { color: var(--wc-ink-disabled); cursor: not-allowed; }
+.wc-admin .wc-admin-image-tile :is(.wc-admin-image-tile__handle, .wc-admin-image-tile__remove, .wc-admin-image-tile__actions button, .wc-admin-image-tile__retry):focus-visible { outline: 2px solid var(--wc-focus); outline-offset: 2px; }
+.wc-admin .wc-admin-image-tile__error { color: var(--wc-danger); font-size: 12px; font-weight: 600; line-height: 1.4; overflow-wrap: anywhere; }
+@media (forced-colors: active) {
+  .wc-admin .wc-admin-image-tile__frame { border: 1px solid CanvasText; }
+  .wc-admin .wc-admin-image-tile:is([data-main], [data-drop-target]) .wc-admin-image-tile__frame { border: 2px solid Highlight; }
+  .wc-admin .wc-admin-image-tile__frame:has(.wc-admin-image-tile__input:focus-visible) { outline: 2px solid Highlight; }
+}
 .wc-admin .wc-admin-kit__field input[type='color'] { padding: 4px; cursor: pointer; }
 @media (max-width: 900px) {
   .wc-admin .admin-master-detail > .wc-admin-kit__panel,
@@ -1192,6 +1237,7 @@
 .wc-admin .admin-good-workspace__nav a { font-size: 13px; text-decoration: underline; text-underline-offset: 4px; }
 .wc-admin .admin-good-workspace__form [id], .wc-admin .admin-good-workspace__form input, .wc-admin .admin-good-workspace__form select, .wc-admin .admin-good-workspace__form textarea { scroll-margin-block: 140px; }
 .wc-admin .admin-good-workspace__optional, .wc-admin .admin-good-workspace__operation { border: 1px solid var(--wc-hairline); border-radius: 2px; padding: 16px; }
+.wc-admin .admin-good-workspace__operation { scroll-margin-top: 96px; }
 .wc-admin .admin-good-workspace__optional summary, .wc-admin .admin-good-workspace__operation summary { cursor: pointer; font-weight: 600; line-height: 1.7; }
 .wc-admin .admin-good-workspace__optional summary span, .wc-admin .admin-good-workspace__operation summary span { display: block; color: var(--wc-ink-sub); font-size: 13px; font-weight: 400; }
 .wc-admin .admin-good-workspace__optional > div { margin-top: 16px; gap: 16px; }
@@ -1239,4 +1285,69 @@
 
 .wc-admin .wc-pdp.is-embedded .wc-pdp-notice__table td {
   overflow-wrap: anywhere;
+}
+
+/* T4 ERP 품목 */
+/* ERP 품명 제안 목록은 옵션 표의 가로 스크롤 영역에 잘리지 않도록 화면 기준(fixed)으로 연다. 위치는 입력 칸에서 계산한다. */
+.wc-admin .admin-erp-item-combobox { position: relative; min-width: 0; }
+.wc-admin .admin-erp-item-combobox > input { width: 100%; }
+.wc-admin .admin-erp-item-combobox__list { position: fixed; z-index: 50; display: grid; margin: 0; padding: 4px 0; overflow-y: auto; list-style: none; border: 1px solid var(--wc-line-control); border-radius: var(--wc-radius-form); background: var(--wc-surface); box-shadow: var(--wc-shadow-popup); }
+.wc-admin .admin-erp-item-combobox__list[hidden] { display: none; }
+.wc-admin .admin-erp-item-combobox__option { display: grid; gap: 2px; min-height: 44px; padding: 8px 12px; color: var(--wc-ink); cursor: pointer; text-align: left; }
+.wc-admin .admin-erp-item-combobox__option:hover,
+.wc-admin .admin-erp-item-combobox__option[aria-selected='true'] { background: var(--wc-surface-grey); }
+.wc-admin .admin-erp-item-combobox__name { font-size: 14px; font-weight: 600; overflow-wrap: anywhere; }
+.wc-admin .admin-erp-item-combobox__meta { color: var(--wc-ink-sub); font-size: 12px; overflow-wrap: anywhere; }
+@media (forced-colors: active) {
+  .wc-admin .admin-erp-item-combobox__option[aria-selected='true'] { outline: 2px solid Highlight; outline-offset: -2px; }
+}
+@media print {
+  .wc-admin .admin-erp-item-combobox__list { display: none; }
+}
+/* ERP 품목 화면: 반입(붙여넣기·파일) → 열 짝짓기 미리보기 → 결과, ERP 분류 연결 표, 품목 목록. */
+.wc-admin .admin-erp-items__sources { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 320px), 1fr)); gap: 20px 24px; }
+.wc-admin .admin-erp-items__sources textarea { min-height: 148px; font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 13px; }
+.wc-admin .admin-erp-items__feedback:empty { display: none; }
+.wc-admin .admin-erp-items__feedback p { margin: 0; font-size: 13px; }
+.wc-admin .admin-erp-items__result,
+.wc-admin .admin-erp-items__preview { display: grid; gap: 16px; min-width: 0; padding-top: 20px; border-top: 1px solid var(--wc-hairline); }
+.wc-admin .admin-erp-items__result > p { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; }
+.wc-admin .admin-erp-items__preview-header { display: grid; gap: 4px; }
+.wc-admin .admin-erp-items__preview-header h4 { margin: 0; color: var(--wc-ink); font: 700 15px/1.5 var(--wc-font); overflow-wrap: anywhere; }
+.wc-admin .admin-erp-items__header-row { max-width: 560px; }
+.wc-admin .admin-erp-items__table-scroll { min-width: 0; max-width: 100%; max-height: 520px; overflow: auto; border: 1px solid var(--wc-hairline); border-radius: var(--wc-radius-form); }
+.wc-admin .admin-erp-items__table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.wc-admin .admin-erp-items__table caption { padding: 10px 12px; color: var(--wc-ink-sub); font-size: 12px; text-align: left; caption-side: top; }
+.wc-admin .admin-erp-items__table :is(th, td) { padding: 10px 12px; border-top: 1px solid var(--wc-hairline); color: var(--wc-ink); text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+.wc-admin .admin-erp-items__table thead th { position: sticky; top: 0; z-index: 1; background: var(--wc-surface-grey); color: var(--wc-ink-sub); font-weight: 600; white-space: nowrap; }
+.wc-admin .admin-erp-items__table tbody th { font-weight: 600; }
+.wc-admin .admin-erp-items__table select { width: 100%; min-width: 180px; min-height: 40px; }
+.wc-admin .admin-erp-items__code { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-variant-numeric: tabular-nums; }
+.wc-admin .admin-erp-items__number { font-variant-numeric: tabular-nums; text-align: right; }
+.wc-admin .admin-erp-items__muted { color: var(--wc-ink-tertiary); }
+.wc-admin .admin-erp-items__warnings { display: grid; gap: 6px; margin: 0; padding: 12px 16px 12px 32px; border: 1px solid var(--wc-line-control); border-radius: var(--wc-radius-form); background: var(--wc-surface-grey); color: var(--wc-ink); font-size: 13px; line-height: 1.6; }
+.wc-admin .admin-erp-items__mapping { display: grid; gap: 16px; min-width: 0; }
+.wc-admin .admin-erp-items__mapping-filters { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; font-size: 13px; }
+.wc-admin .admin-erp-items__mapping-filters label { font-weight: 600; }
+.wc-admin .admin-erp-items__mapping-filters input[type='search'] { width: min(100%, 320px); min-height: 40px; }
+.wc-admin .admin-erp-items__check { display: inline-flex; align-items: center; gap: 6px; font-weight: 400; }
+.wc-admin .admin-erp-items__suggestion { margin-top: 8px; max-width: 100%; height: auto; min-height: 38px; white-space: normal; text-align: left; }
+.wc-admin .admin-erp-items__mapping-note { margin-top: 8px; font-size: 12px; }
+.wc-admin .admin-erp-items__mapping-warning { margin: 8px 0 0; padding: 8px 10px; border: 1px solid var(--wc-line-control); border-radius: var(--wc-radius-form); background: var(--wc-surface-grey); color: var(--wc-ink); font-size: 12px; line-height: 1.6; overflow-wrap: anywhere; }
+.wc-admin .admin-erp-items__save { display: grid; justify-items: start; gap: 6px; min-width: 120px; }
+.wc-admin .admin-erp-items__search { display: grid; gap: 8px; }
+.wc-admin .admin-erp-items__search label { font-size: 13px; font-weight: 600; }
+.wc-admin .admin-erp-items__search > div { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.wc-admin .admin-erp-items__search input { width: min(100%, 360px); min-height: 40px; }
+.wc-admin .admin-erp-items__search a { display: inline-flex; align-items: center; min-height: 40px; padding: 8px; text-decoration: underline; }
+@media (max-width: 600px) {
+  .wc-admin .admin-erp-items__table :is(th, td) { padding: 8px; }
+  .wc-admin .admin-erp-items__table select { min-width: 140px; }
+}
+@media (forced-colors: active) {
+  .wc-admin .admin-erp-items__warnings, .wc-admin .admin-erp-items__table-scroll, .wc-admin .admin-erp-items__mapping-warning { border: 2px solid; }
+}
+@media print {
+  .wc-admin .admin-erp-items__sources, .wc-admin .admin-erp-items__preview .wc-admin-kit__actions { display: none; }
+  .wc-admin .admin-erp-items__table-scroll { max-height: none; overflow: visible; }
 }

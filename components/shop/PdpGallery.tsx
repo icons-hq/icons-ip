@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
+import { goodsImageBackground } from '@/lib/goods-image';
 
 export interface PdpGalleryProps {
   /** 대표 이미지가 0번. 값은 대표 이미지와 같은 CSS background 규약이다. */
@@ -78,21 +79,23 @@ export function PdpGallery({ className, frames, goodName }: PdpGalleryProps) {
       aria-roledescription="carousel"
       className={`wc-pdp-gallery${className ? ` ${className}` : ''}`}
     >
-      <div ref={stageRef} className="wc-pdp-gallery__stage">
-        {frames.map((frame, index) => (
-          /* 아트웍에 옮길 텍스트가 없다 — 이름은 섹션 라벨이 갖는다. 배경 이미지라
-             alt 를 붙일 자리도 없어 목록 항목의 위치만 보조기기에 남긴다. */
-          <div
-            key={`${frame}-${index}`}
-            aria-label={`${index + 1}번째 이미지`}
-            className="wc-pdp-gallery__slide"
-            role="group"
-            style={{ background: frame }}
-          />
-        ))}
-      </div>
-      {multiple ? (
-        <>
+      {/* 도트의 기준 상자는 메인 이미지다 — 썸네일은 이 상자 밖에 둬야 데스크톱 썸네일 줄이
+          늘어도(10장이면 두 줄) 도트가 썸네일 위로 내려가지 않는다(2026-10-07 QA). */}
+      <div className="wc-pdp-gallery__viewport">
+        <div ref={stageRef} className="wc-pdp-gallery__stage">
+          {frames.map((frame, index) => (
+            /* 아트웍에 옮길 텍스트가 없다 — 이름은 섹션 라벨이 갖는다. 배경 이미지라
+               alt 를 붙일 자리도 없어 목록 항목의 위치만 보조기기에 남긴다. */
+            <div
+              key={`${frame}-${index}`}
+              aria-label={`${index + 1}번째 이미지`}
+              className="wc-pdp-gallery__slide"
+              role="group"
+              style={{ background: goodsImageBackground(frame) }}
+            />
+          ))}
+        </div>
+        {multiple ? (
           <div className="wc-pdp-gallery__dots">
             {frames.map((frame, index) => (
               <button
@@ -105,20 +108,22 @@ export function PdpGallery({ className, frames, goodName }: PdpGalleryProps) {
               />
             ))}
           </div>
-          <div className="wc-pdp-gallery__thumbs">
-            {frames.map((frame, index) => (
-              <button
-                key={`thumb-${frame}-${index}`}
-                aria-current={index === active ? 'true' : undefined}
-                aria-label={`${index + 1}번째 이미지 보기`}
-                className={`wc-pdp-gallery__thumb${index === active ? ' is-active' : ''}`}
-                onClick={() => goTo(index)}
-                style={{ background: frame }}
-                type="button"
-              />
-            ))}
-          </div>
-        </>
+        ) : null}
+      </div>
+      {multiple ? (
+        <div className="wc-pdp-gallery__thumbs">
+          {frames.map((frame, index) => (
+            <button
+              key={`thumb-${frame}-${index}`}
+              aria-current={index === active ? 'true' : undefined}
+              aria-label={`${index + 1}번째 이미지 보기`}
+              className={`wc-pdp-gallery__thumb${index === active ? ' is-active' : ''}`}
+              onClick={() => goTo(index)}
+              style={{ background: goodsImageBackground(frame) }}
+              type="button"
+            />
+          ))}
+        </div>
       ) : null}
     </section>
   );

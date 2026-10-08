@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
-  emptyGoodsKcModel, goodsKcReviewProblems, normalizeGoodsKcModels,
-  parseAdminGoodsKc, publicGoodsKcDisclosures, kcModelFromTemplate,
+  GOODS_KC_PUBLISH_BLOCKED_COPY, emptyGoodsKcModel, goodsKcEditorRefresh, goodsKcProductNotApplicableModel, goodsKcPublishBlockedMessage, goodsKcReviewProblems,
+  normalizeGoodsKcModels, parseAdminGoodsKc, parseGoodsKcSaveInput, publicGoodsKcDisclosures, kcModelFromTemplate,
 } from './goods-kc';
-import { parseGoodsKcDisclosures } from '@/lib/goods-kc';
+import { goodsKcDisclosureRows, goodsKcSchemeAllowed, parseGoodsKcDisclosures, type GoodsKcScheme } from '@/lib/goods-kc';
 
 const first = '00000000-0000-4000-8000-000000000001';
 const second = '00000000-0000-4000-8000-000000000002';
@@ -25,7 +25,7 @@ describe('모델별 KC 검토', () => {
   it('프리셋의 해당 없음 안내를 새 모델에만 채우고 근거와 옵션은 비워둔다', () => {
     const draft=kcModelFromTemplate('living','not_applicable','합성 해당 없음 안내')!;
     expect(draft).toEqual({...emptyGoodsKcModel(),family:'living',scheme:'not_applicable',publicNote:'합성 해당 없음 안내'});
-    expect(goodsKcReviewProblems([draft],variants).join(' ')).toContain('근거');
+    expect(goodsKcReviewProblems([draft],variants).join(' ')).toContain('적용 옵션');
     expect(publicGoodsKcDisclosures([draft],variants)).toEqual([]);
   });
   it('미검토 입력은 저장할 수 있지만 번호와 근거가 없으면 완료할 수 없다', () => {
@@ -47,13 +47,59 @@ describe('모델별 KC 검토', () => {
     expect(goodsKcReviewProblems([{ ...supplier, identifier: '혼동할 인증번호' }], variants.slice(0, 1)).join(' ')).toContain('번호');
   });
 
-  it('해당 없음은 모델·사업자·적용판단 근거와 고객 설명을 요구한다', () => {
-    const none = { ...model(), family: 'other' as const, scheme: 'not_applicable' as const, identifier: '',
-      publicNote: '합성 시험 자료이며 실제 판매 제품의 판정이 아님',
-      evidence: { ...model().evidence, certificate: '' } };
-    expect(goodsKcReviewProblems([none], variants.slice(0, 1))).toEqual([]);
-    expect(goodsKcReviewProblems([{ ...none, publicNote: '' }], variants.slice(0, 1)).length).toBeGreaterThan(0);
-    expect(goodsKcReviewProblems([{ ...none, evidence: { ...none.evidence, applicability: '' } }], variants.slice(0, 1)).length).toBeGreaterThan(0);
+  it('해당 없음은 제품군·제도·적용 옵션만 요구하고 나머지 칸은 선택이다', () => {
+    const minimal = { ...emptyGoodsKcModel(), family: 'other' as const, scheme: 'not_applicable' as const, variantIds: [first, second] };
+    expect(goodsKcReviewProblems([minimal], variants)).toEqual([]);
+    const detailed = { ...model(), family: 'other' as const, scheme: 'not_applicable' as const, identifier: '',
+      publicNote: '합성 시험 자료이며 실제 판매 제품의 판정이 아님', evidence: { ...model().evidence, certificate: '' } };
+    expect(goodsKcReviewProblems([detailed], variants.slice(0, 1))).toEqual([]);
+    expect(goodsKcReviewProblems([{ ...minimal, variantIds: [] }], variants).join(' ')).toContain('적용 옵션');
+    expect(goodsKcReviewProblems([{ ...minimal, variantIds: [first] }], variants).join(' ')).toContain('파랑');
+    expect(goodsKcReviewProblems([{ ...minimal, identifier: '혼동할 번호' }], variants).join(' ')).toContain('번호');
+    expect(normalizeGoodsKcModels([{ ...minimal, family: '' }])).toBeNull();
+    expect(goodsKcReviewProblems([{ ...minimal, scheme: '' }], variants).join(' ')).toContain('제품군');
+  });
+
+  it('같은 최소 입력은 KC 대상 제도에서 검토 완료할 수 없다', () => {
+    for (const scheme of ['safety_certification', 'safety_confirmation', 'supplier_conformity', 'safety_standard_compliance'] as GoodsKcScheme[]) {
+      expect(goodsKcSchemeAllowed('living', scheme)).toBe(true);
+      const subject = { ...emptyGoodsKcModel(), family: 'living' as const, scheme, variantIds: [first, second] };
+      expect(goodsKcReviewProblems([subject], variants).join(' '), scheme).toContain('사업자');
+      expect(goodsKcReviewProblems([subject], variants).join(' '), scheme).toContain('근거');
+    }
+  });
+
+  it('상품 전체 해당 없음은 사용 중인 옵션 전부를 모델 1개에 연결하고 바로 검토 완료할 수 있다', () => {
+    const stopped = { id: '00000000-0000-4000-8000-00000000000A', code: 'OPTION-03', name: '중지', active: false };
+    const quick = goodsKcProductNotApplicableModel([variants[1], stopped, variants[0]], '  합성 안내  ');
+    expect(quick).toEqual({ ...emptyGoodsKcModel(), family: 'other', scheme: 'not_applicable', publicNote: '합성 안내', variantIds: [first, second] });
+    expect(normalizeGoodsKcModels([quick])).toEqual([quick]);
+    expect(goodsKcReviewProblems([quick], [...variants, stopped])).toEqual([]);
+    expect(parseGoodsKcSaveInput({ models: [goodsKcProductNotApplicableModel(variants)], status: 'reviewed', expectedRevision: 3,
+      expectedContextFingerprint: 'a'.repeat(64), attested: true })?.status).toBe('reviewed');
+    expect(parseGoodsKcSaveInput({ models: [goodsKcProductNotApplicableModel(variants)], status: 'reviewed', expectedRevision: 3,
+      expectedContextFingerprint: 'a'.repeat(64), attested: false })).toBeNull();
+    const reviewed = { revision: 2, status: 'reviewed', models: [goodsKcProductNotApplicableModel(variants)], publishedAt: null,
+      archivedAt: null, reviewedAt: '2026-10-07T00:00:00Z', reviewerName: '합성 검토자', contextFingerprint: 'a'.repeat(64), variants, history: [] };
+    expect(parseAdminGoodsKc(reviewed)?.status).toBe('reviewed');
+  });
+
+  it('해당 없음 공개 고시는 빈 칸 없이 KC 인증 대상이 아님을 간결히 알린다', () => {
+    const [quick] = publicGoodsKcDisclosures([goodsKcProductNotApplicableModel(variants)], variants);
+    expect(quick).toMatchObject({ scheme: 'not_applicable', modelName: '', businessRole: '', publicNote: '' });
+    expect(parseGoodsKcDisclosures([quick])).toEqual([quick]);
+    expect(goodsKcDisclosureRows(quick, { sole: true })).toEqual([['KC 인증', 'KC 인증 대상이 아닌 상품입니다.']]);
+    // 다른 모델(KC 대상 제도 포함)과 함께 고지되면 상품 전체가 아니라 연결한 옵션만 해당 없음이다.
+    expect(goodsKcDisclosureRows({ ...quick, publicNote: '합성 고객 안내' })).toEqual([
+      ['KC 인증', '적용 옵션은 KC 인증 대상이 아닙니다.'], ['적용 옵션', '기본, 파랑'], ['안내', '합성 고객 안내']]);
+    const named = { ...quick, modelName: '합성 모델', businessRole: 'manufacturer' as const, businessName: '합성 제조자' };
+    expect(goodsKcDisclosureRows(named, { sole: true })).toEqual([
+      ['KC 인증', 'KC 인증 대상이 아닌 상품입니다.'], ['모델명', '합성 모델'], ['제조업자', '합성 제조자']]);
+    const [subject] = publicGoodsKcDisclosures([model()], variants.slice(0, 1));
+    expect(goodsKcDisclosureRows(subject, { sole: true }).map(([label]) => label)).toContain('적용 옵션');
+    expect(parseGoodsKcDisclosures([{ ...subject, businessRole: '' }])).toBeNull();
+    expect(parseGoodsKcDisclosures([{ ...subject, modelName: '' }])).toBeNull();
+    expect(parseGoodsKcDisclosures([{ ...quick, identifier: 'NA-NUMBER' }])).toBeNull();
   });
 
   it('각 활성 옵션의 명시된 모델 연결을 요구하고 다른 옵션이나 중복 연결을 거절한다', () => {
@@ -87,5 +133,59 @@ describe('모델별 KC 검토', () => {
     expect(parseAdminGoodsKc(raw)?.status).toBe('unreviewed');
     expect(parseAdminGoodsKc({ ...raw, status: 'reviewed' })).toBeNull();
     expect(parseAdminGoodsKc({ ...raw, contextFingerprint: '' })).toBeNull();
+  });
+});
+
+describe('저장 후 공개가 KC 때문에 막혀 초안으로 저장한 뒤의 안내', () => {
+  const reviewed = { status: 'reviewed' as const, revision: 1, history: [{ revision: 1, reason: 'review_completed' }] };
+  function invalidated(...reasons: string[]) {
+    return { status: 'unreviewed' as const, revision: 1 + reasons.length,
+      history: [...reasons.map((reason, index) => ({ revision: 1 + reasons.length - index, reason })), { revision: 1, reason: 'review_completed' }] };
+  }
+  it('이번 저장이 검토 완료를 무효화했으면 바뀐 KC 맥락을 원인으로 알리고 다시 검토하게 한다', () => {
+    expect(goodsKcPublishBlockedMessage(reviewed, invalidated('goods_context_changed'))).toBe(GOODS_KC_PUBLISH_BLOCKED_COPY.goods);
+    expect(GOODS_KC_PUBLISH_BLOCKED_COPY.goods).toBe("초안으로 저장했습니다. 상품명·유형·IP·고시정보가 바뀌어 KC를 다시 검토해야 공개할 수 있습니다. KC 정보에서 다시 검토(KC 대상이 아니면 '상품 전체 KC 해당 없음')한 뒤 공개해주세요.");
+    expect(goodsKcPublishBlockedMessage(reviewed, invalidated('variant_context_changed'))).toBe(GOODS_KC_PUBLISH_BLOCKED_COPY.options);
+    expect(goodsKcPublishBlockedMessage(reviewed, invalidated('variant_context_changed', 'goods_context_changed'))).toBe(GOODS_KC_PUBLISH_BLOCKED_COPY.goodsAndOptions);
+  });
+  it('검토가 원래 없거나 미검토였으면 무효화 원인을 지어내지 않고 검토 완료를 안내한다', () => {
+    const unreviewed = GOODS_KC_PUBLISH_BLOCKED_COPY.unreviewed;
+    expect(unreviewed).toBe("초안으로 저장했습니다. KC 정보에서 검토를 완료한 뒤 공개해주세요. KC 대상이 아니면 '상품 전체 KC 해당 없음'으로 바로 끝낼 수 있습니다.");
+    expect(goodsKcPublishBlockedMessage(null, { status: 'unreviewed', revision: null, history: [] })).toBe(unreviewed);
+    // 미검토 상태에서 맥락을 바꿔도 이벤트는 남지만, 검토 완료를 무효화한 것은 아니다.
+    expect(goodsKcPublishBlockedMessage({ status: 'unreviewed', revision: 2, history: [] }, invalidated('draft_saved', 'goods_context_changed'))).toBe(unreviewed);
+    // 저장 전 상태를 읽지 못했거나 저장 뒤 상태를 읽지 못하면 일반 안내로 돌아간다.
+    expect(goodsKcPublishBlockedMessage(null, invalidated('goods_context_changed'))).toBe(unreviewed);
+    expect(goodsKcPublishBlockedMessage(reviewed, null)).toBe(unreviewed);
+    // 검토 완료가 그대로인데 현재 상품과 맞지 않거나, 이번 저장이 아닌 이전 이벤트만 있으면 일반 안내다.
+    expect(goodsKcPublishBlockedMessage(reviewed, reviewed)).toBe(unreviewed);
+    expect(goodsKcPublishBlockedMessage({ ...reviewed, revision: 3 }, { status: 'unreviewed', revision: 3,
+      history: [{ revision: 3, reason: 'draft_saved' }, { revision: 2, reason: 'goods_context_changed' }] })).toBe(unreviewed);
+  });
+});
+
+describe('기본 상품 저장 뒤 KC 편집기 새로고침', () => {
+  const configuration = (revision: number, status: 'reviewed' | 'unreviewed', models = [goodsKcProductNotApplicableModel(variants)]) => ({
+    revision, status, models, contextFingerprint: 'a'.repeat(64), publishedAt: null, archivedAt: null,
+    reviewedAt: status === 'reviewed' ? '2026-10-07T00:00:00Z' : null, reviewerName: null, variants, history: [],
+  });
+
+  it('입력 중인 모델이 없으면 서버의 새 모델과 버전을 따르고, 검토가 다시 열렸음을 알린다', () => {
+    const before = configuration(1, 'reviewed');
+    const after = configuration(2, 'unreviewed');
+    expect(goodsKcEditorRefresh(before, after, before.models)).toEqual({ models: after.models, keptUnsavedInput: false, reopened: true });
+  });
+
+  it('저장하지 않은 KC 입력은 버전이 올라도 그대로 지킨다', () => {
+    const before = configuration(1, 'unreviewed', [model()]);
+    const typing = [{ ...model(), basis: '입력 중인 근거' }];
+    const after = configuration(2, 'unreviewed', [model()]);
+    expect(goodsKcEditorRefresh(before, after, typing)).toEqual({ models: typing, keptUnsavedInput: true, reopened: false });
+  });
+
+  it('버전이 같으면 입력을 지켜도 다시 열렸다고 알리지 않는다', () => {
+    const before = configuration(3, 'unreviewed', [model()]);
+    const typing = [{ ...model(), modelName: '바뀐 모델명' }];
+    expect(goodsKcEditorRefresh(before, { ...before }, typing)).toEqual({ models: typing, keptUnsavedInput: false, reopened: false });
   });
 });

@@ -51,6 +51,29 @@ interface SearchRow {
   total_count: number;
 }
 
+/* PostgREST max_rows(1,000)는 넘친 행을 오류 없이 자른다. 한 페이지의 주문 상품 줄이 그보다 많을 수 있어
+   (주문당 최대 1,000줄) 1,000행씩 끝까지 읽는다. 화면과 목록 엑셀이 같은 로더를 쓴다. */
+const ORDER_ITEM_PAGE_ROWS = 1000;
+
+async function loadOrderItemRows(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  orderIds: readonly string[],
+): Promise<{ data: ItemRow[] | null; error: { message: string } | null }> {
+  const rows: ItemRow[] = [];
+  for (let start = 0; ; start += ORDER_ITEM_PAGE_ROWS) {
+    const { data, error } = await supabase
+      .from('order_items')
+      .select('id,order_id,qty,unit_price,good_name_snapshot,good_type_snapshot,variant_id,variant_name_snapshot,variant_code_snapshot')
+      .in('order_id', [...orderIds])
+      .order('id', { ascending: true })
+      .range(start, start + ORDER_ITEM_PAGE_ROWS - 1);
+    if (error) return { data: null, error };
+    const page = (data ?? []) as ItemRow[];
+    rows.push(...page);
+    if (page.length < ORDER_ITEM_PAGE_ROWS) return { data: rows, error: null };
+  }
+}
+
 interface ItemRow {
   id: string;
   order_id: string;
@@ -170,10 +193,16 @@ function buyerName(value: string | null, userId: string) {
   return value?.trim() || `fan_${userId.slice(0, 6)}`;
 }
 
+/**
+ * `pageSize`는 목록 엑셀 다운로드가 전체 결과를 페이지 단위로 모을 때만 쓴다.
+ * 화면은 기본 20건을 유지하고, RPC 상한(100건)을 넘기지 않는다.
+ */
 export async function getAdminOrderRecords(
   filters: AdminOrderFilters,
   includeManualRecovery = false,
+  options: { pageSize?: number } = {},
 ): Promise<AdminOrderConsoleData> {
+  const pageSize = Math.min(Math.max(Math.trunc(options.pageSize ?? PAGE_SIZE) || PAGE_SIZE, 1), 100);
   const supabase = await createClient();
   /* 드롭다운과 배송조회 링크가 같은 레지스트리를 봐야 한다. 클라이언트 콘솔에는
      상수가 없으므로 목록 응답에 실어 보낸다(#251). */
@@ -181,8 +210,8 @@ export async function getAdminOrderRecords(
   const { data, error } = await supabase.rpc('admin_search_orders', {
     p_field: filters.field,
     p_from: filters.from,
-    p_limit: PAGE_SIZE,
-    p_offset: (filters.page - 1) * PAGE_SIZE,
+    p_limit: pageSize,
+    p_offset: (filters.page - 1) * pageSize,
     p_query: filters.query || null,
     p_status: filters.status === 'all' ? null : filters.status,
     p_to: filters.to,
@@ -191,7 +220,7 @@ export async function getAdminOrderRecords(
   if (error) throw new Error(`Failed to load admin orders: ${error.message}`);
   const rows = (data ?? []) as SearchRow[];
   if (!rows.length) {
-    return { carriers, filters, items: [], pageSize: PAGE_SIZE, total: 0 };
+    return { carriers, filters, items: [], pageSize, total: 0 };
   }
 
   const orderIds = rows.map((row) => row.id);
@@ -203,11 +232,7 @@ export async function getAdminOrderRecords(
       .map((row) => row.id)
     : [];
   const [itemsResult, paymentsResult, recoveryAttemptsResult] = await Promise.all([
-    supabase
-      .from('order_items')
-      .select('id,order_id,qty,unit_price,good_name_snapshot,good_type_snapshot,variant_id,variant_name_snapshot,variant_code_snapshot')
-      .in('order_id', orderIds)
-      .order('id', { ascending: true }),
+    loadOrderItemRows(supabase, orderIds),
     supabase
       .from('payment_summaries')
       .select('id,ref_id,amount,status,created_at')
@@ -361,7 +386,7 @@ export async function getAdminOrderRecords(
     carriers,
     filters,
     items,
-    pageSize: PAGE_SIZE,
+    pageSize,
     total: rows[0].total_count,
   };
 }

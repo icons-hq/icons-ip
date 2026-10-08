@@ -18,7 +18,7 @@ function saveError(message: string): string {
     return 'KC 정보를 변경하려면 상품을 먼저 비공개로 전환해주세요.';
   }
   if (message === 'goods_kc_review_incomplete' || message === 'goods_kc_attestation_required') {
-    return '모델별 필수 정보·원본 증빙·적용 옵션을 확인한 뒤 검토를 완료해주세요.';
+    return '사용 중인 옵션 연결과, KC 대상 제도는 모델별 필수 정보·원본 증빙을 확인한 뒤 검토를 완료해주세요.';
   }
   if (message === 'catalog_item_archived') return '보관된 상품은 복원한 뒤 KC 정보를 수정할 수 있습니다.';
   return 'KC 정보를 저장하지 못했습니다. 입력 내용을 확인한 뒤 다시 시도해주세요.';
@@ -59,7 +59,7 @@ export async function saveGoodsKcAction(goodIdValue: unknown, inputValue: unknow
     if (!configuration) return { ok: false, error: 'KC 저장 결과를 확인하지 못했습니다. 저장된 정보를 다시 불러와주세요.' };
     revalidateGoodsSurfaces();
     return { ok: true, configuration, message: input.status === 'reviewed'
-      ? '대상 모델·옵션과 근거를 결속해 KC 검토를 완료했습니다. 상품 공개는 별도로 진행해주세요.'
+      ? 'KC 검토를 완료했습니다. 상품 공개는 게시 상태에서 별도로 진행해주세요.'
       : 'KC 정보를 미검토 상태로 저장했습니다. 필수 정보와 실제 증빙을 확인한 뒤 검토를 완료해주세요.' };
   } catch (error) {
     unstable_rethrow(error);

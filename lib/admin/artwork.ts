@@ -4,6 +4,11 @@ export type AdminArtworkMimeType = 'image/jpeg' | 'image/png' | 'image/webp';
 export const ADMIN_ARTWORK_ACCEPT = 'image/jpeg,image/png,image/webp';
 export const ADMIN_ARTWORK_MAX_BYTES = 5 * 1024 * 1024;
 export const ADMIN_ARTWORK_MAX_DIMENSION = 8192;
+/**
+ * 운영자별 1분 동안 시작할 수 있는 아트워크 검증 수. DB service_begin_admin_artwork_verification의
+ * 남용 억제 창(20261007160000)과 같은 값이다 — 굿즈 폼 11칸(대표 1 + 추가 이미지 9 + 상세 1) × 2.
+ */
+export const ADMIN_ARTWORK_VERIFICATIONS_PER_MINUTE = 22;
 export const ADMIN_ARTWORK_ERROR =
   '이미지는 JPEG, PNG, WebP 형식의 5MB 이하, 가로·세로 8192px 이하 파일만 업로드할 수 있습니다.';
 

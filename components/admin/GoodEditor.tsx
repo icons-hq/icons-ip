@@ -11,7 +11,10 @@ import type { AdminGoodRecord } from '@/lib/admin/catalog.server';
 import type { AdminGoodsVariant } from '@/lib/admin/goods-variants';
 import type { FulfillmentOrigin } from '@/lib/admin/fulfillment-origins';
 import { goodEditorValues, createGoodEditorDraft, goodEditorFingerprint, buildGoodEditorPreview, GOOD_LOCAL_DRAFT_FIELDS, type GoodNoticeDefaults } from '@/lib/admin/good-editor';
-import { restoreGoodsOptionRows, type GoodsOptionRow } from '@/lib/admin/goods-option-editor';
+import { goodsOptionStockTotals, isSingleGoodsOption, restoreGoodsOptionRows, type GoodsOptionRow } from '@/lib/admin/goods-option-editor';
+import { formatWon, goodsPriceDraftFromValues, resolveGoodsPrice } from '@/lib/admin/goods-price-editor';
+import { planErpCategorySuggestion, type ErpCategorySuggestion } from '@/lib/admin/goods-erp-suggestion';
+import type { ErpItemMatch } from '@/lib/admin/erp-items';
 import { preservedFormValues } from '@/lib/admin/form-state';
 import { withLocalRecoveryValues } from '@/lib/admin/local-autosave';
 import { publicMediaUrl } from '@/lib/media';
@@ -22,13 +25,15 @@ import { GoodsShippingNoticeField } from './GoodsShippingNoticeField';
 import type { GoodShippingPolicy } from '@/lib/fulfillment';
 import { GoodsFulfillmentFields } from './GoodsFulfillmentFields';
 import { GoodsOptionEditor } from './GoodsOptionEditor';
+import { GoodsPriceFields } from './GoodsPriceFields';
+import { GoodsErpCategoryNotice } from './GoodsErpCategoryNotice';
 import { GoodsSalePolicyFields } from './GoodsSalePolicyFields';
 import { GoodNoticePicker } from './GoodNoticePicker';
 import type { GoodsKcPresetTemplate } from '@/lib/admin/goods-notice-presets';
 import { useAdminLocalAutosave } from './useAdminLocalAutosave';
 import { AdminLocalDraftNotice } from './AdminLocalDraftNotice';
 import { goodFormValues } from '@/lib/admin/good-preview';
-import { GOODS_HTML_MAX_LENGTH, sanitizeGoodsDescription } from '@/lib/goods-description';
+import { GOODS_HTML_MAX_LENGTH, goodsHtmlCleanedLengthWarning, sanitizeGoodsDescription } from '@/lib/goods-description';
 import type { Ip } from '@/lib/data';
 import type { GoodDetailContent } from '@/lib/goods-detail';
 import { GOOD_BADGES, GOOD_TYPES, goodDisplayBadges } from '@/lib/goods-taxonomy';
@@ -36,7 +41,8 @@ import { GOODS_NOTICE_FIELDS, type GoodsNoticeInfo } from '@/lib/goods-notice';
 
 import { GoodDetailView } from '@/components/screens/GoodDetail';
 import { ProductCard } from '@/components/wc/ProductCard';
-import { GoodsGalleryFields } from './GoodsGalleryFields';
+import { GoodsImageGrid } from './GoodsImageGrid';
+import { GOODS_IMAGE_FIELD_NAMES } from '@/lib/admin/goods-image-grid';
 import { ArtworkUploadField } from './ArtworkUploadField';
 import { GoodIdentifierFields } from './GoodIdentifierFields';
 import { GoodWorkspaceNavigation, GoodWorkspaceErrors, GoodOptionalFields, focusGoodWorkspaceTarget } from './GoodWorkspace';
@@ -182,6 +188,17 @@ function GoodEditorForm({ action, catalogIps, ipOptions, pending, selected, stat
     });
   }, []);
   const [imageUrls, setImageUrls] = useState(draft.imageUrls);
+  /* 판매가·할인은 화면 입력에서 저장 계약(price·compareAtPrice)을 한 번에 만든다. */
+  const [priceDraft, setPriceDraft] = useState(() => goodsPriceDraftFromValues(draft.values));
+  const priceResult = resolveGoodsPrice(priceDraft);
+  /* ERP 품목 선택이 비어 있는 대표 카테고리를 채울 수 있도록 대표 카테고리는 이 폼이 제어한다. */
+  const [categoryId, setCategoryId] = useState(initial.categoryId);
+  const [erpCategory, setErpCategory] = useState<ErpCategorySuggestion | null>(null);
+  function applyErpItem(item: ErpItemMatch) {
+    const suggestion = planErpCategorySuggestion(item, categoryId, categories);
+    if (suggestion?.kind === 'filled') setCategoryId(suggestion.categoryId);
+    setErpCategory(suggestion);
+  }
   function submit(event: FormEvent<HTMLFormElement>) {
     if (pending) { event.preventDefault(); return; }
     const changes = locked ? changedGoodLockedFields(lockedValues, goodFormValues(new FormData(event.currentTarget))) : [];
@@ -240,7 +257,8 @@ function GoodEditorForm({ action, catalogIps, ipOptions, pending, selected, stat
   });
   const notice = Object.fromEntries(GOODS_NOTICE_FIELDS.map((field) => [field.key, initial[field.formName]])) as GoodsNoticeInfo;
   const htmlDescription = values.descriptionFormat === 'html';
-  const descriptionWarnings = htmlDescription ? sanitizeGoodsDescription(values.description ?? '').warnings : [];
+  const descriptionCheck = htmlDescription ? sanitizeGoodsDescription(values.description ?? '') : null;
+  const descriptionWarnings = descriptionCheck ? [...descriptionCheck.warnings, ...(descriptionCheck.html.length > GOODS_HTML_MAX_LENGTH ? [goodsHtmlCleanedLengthWarning(descriptionCheck.html.length)] : [])] : [];
   const errorCount = (key: string) => GOOD_EDITOR_SECTIONS.find((section) => section.key === key)?.fields.filter((field) => errors[field]).length ?? 0;
   return <>
     <GoodWorkspaceNavigation />
@@ -251,13 +269,13 @@ function GoodEditorForm({ action, catalogIps, ipOptions, pending, selected, stat
       <input name="bg" type="hidden" value={selected?.bg ?? ''} />
       <GoodWorkspaceErrors errors={errors} />
       <AdminSectionCard title="기본 정보" id="good-section-basic" requirement="초안 필수 · 상품명, 연결 IP" status={values.name?.trim() && values.ipId ? '작성 완료' : '미입력'} errorCount={errorCount('basic')} summary={`${values.name || '상품명 미입력'} · ${ipOptions.find((ip) => ip.id === values.ipId)?.title || 'IP 미선택'}${dirty ? ' · 미저장 입력' : ''}`}>
-        <p><AdminStatusBadge>{selected?.archivedAt ? '보관' : selected?.publishedAt ? '공개' : '초안'}</AdminStatusBadge> · 초안은 상품명과 연결 IP만으로 저장할 수 있습니다. 공개는 유형·대표 이미지·고시정보·출고지·옵션·KC 검토를 별도로 확인합니다.</p>
+        <p><AdminStatusBadge>{selected?.archivedAt ? '보관' : selected?.publishedAt ? '공개' : '초안'}</AdminStatusBadge> · 초안은 상품명과 연결 IP만으로 저장할 수 있습니다. 공개는 유형·대표 이미지·고시정보·출고지·옵션·KC 검토를 별도로 확인합니다. KC 대상이 아니면 KC 정보에서 해당 없음으로 바로 검토합니다.</p>
         {locked && <div className="admin-good-workspace__lock"><strong>공개 중 잠금: 상품명·유형·연결 IP·제조자·제조국·소재·크기</strong><p>실제 모델과 검토 근거를 일치시키기 위한 잠금입니다. 초안으로 전환 후 수정하고 KC를 재검토해야 재공개할 수 있습니다.</p><a href="#good-operation-publish" onClick={(event) => { event.preventDefault(); focusGoodWorkspaceTarget('good-operation-publish'); }}>초안으로 전환 후 수정</a></div>}
         <div className="admin-form-grid">
           <SelectField defaultValue={initial.ipId} error={errors.ipId} label={locked ? "연결 IP · 공개 중 잠금" : "연결 IP (초안 필수)"} disabled={locked} name="ipId"><option value="">선택</option>{ipOptions.map((ip) => <option disabled={Boolean(ip.archivedAt && ip.id !== selected?.ipId)} key={ip.id} value={ip.id}>{ip.archivedAt ? `[보관] ${ip.title}` : ip.title}</option>)}</SelectField>
           {locked && <input type="hidden" name="ipId" value={values.ipId} />}
           <Field readOnly={locked} defaultValue={initial.name} error={errors.name} label={`${ADMIN_VOCABULARY.goods} 이름${locked ? ' · 공개 중 잠금' : ' (초안 필수)'}`} name="name" />
-          <CategoryAssignmentField categories={categories} value={initial.categoryId} error={errors.categoryId} additionalValue={initial.additionalCategoryIds} additionalError={errors.additionalCategoryIds} />
+          <CategoryAssignmentField categories={categories} value={initial.categoryId} primary={categoryId} onPrimaryChange={setCategoryId} error={errors.categoryId} additionalValue={initial.additionalCategoryIds} additionalError={errors.additionalCategoryIds} />
           <SelectField defaultValue={initial.type} error={errors.type} label={locked ? "유형 · 공개 중 잠금" : "유형 (공개 필수)"} disabled={locked} name="type"><option value="">선택</option>{GOOD_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}</SelectField>
           {locked && <input type="hidden" name="type" value={values.type} />}
           <SelectField defaultValue={initial.badge} error={errors.badge} label="배지" name="badge"><option value="">없음</option>{GOOD_BADGES.map((badge) => <option key={badge} value={badge}>{badge}</option>)}</SelectField>
@@ -281,14 +299,14 @@ function GoodEditorForm({ action, catalogIps, ipOptions, pending, selected, stat
         <GoodIdentifierFields code={initial.code} defaultVariantCode={initial.defaultVariantCode ?? variants.find((v) => v.isDefault)?.code} hideVariantCode onCodeSuggestion={setSuggestedCode} errors={state.errors ?? {}} ipId={values.ipId} name={values.name} slug={initial.id} slugLocked={Boolean(selected?.firstPublishedAt)} />
         </GoodOptionalFields>
       </AdminSectionCard>
-      <AdminSectionCard title="이미지와 상세 설명" requirement="대표 이미지 · 공개 필수 / 갤러리·설명 · 선택" status={values.imagePath ? '대표 이미지 있음' : '대표 이미지 미입력'} summary={`갤러리 ${Array.from({ length: GOODS_GALLERY_MAX }, (_, i) => values[`galleryPath${i}`]).filter(Boolean).length}장 · ${values.description ? '상세 설명 작성됨' : '상세 설명 없음'}`} >
-        <ArtworkUploadField compact showPath={false} showGuidance={false} ariaDescribedBy="goods-gallery-upload-guidance" autoUpload currentPath={initial.imagePath || null} currentUrl={imageUrls.imagePath} fieldId="good-main" helpText="파일을 선택하면 바로 업로드됩니다. 상품 저장 후 공개 화면에 적용됩니다." kind="good" label="대표 이미지" onPreviewChange={(url) => setImageUrl('imagePath', url)} />
-        <ErrorText>{errors.imagePath}</ErrorText>
-        <GoodOptionalFields title="상세 설명 편집" summary={`${values.descriptionFormat === 'html' ? 'HTML' : '일반 텍스트'} · ${values.description?.length || 0}자`} hasErrors={Boolean(errors.description || errors.descriptionFormat)}>
-        <SelectField defaultValue={initial.descriptionFormat} error={errors.descriptionFormat} label="상세 설명 형식" name="descriptionFormat"><option value="plain">일반 텍스트</option><option value="html">HTML 문서</option></SelectField>
+      <AdminSectionCard title="이미지와 상세 설명" requirement="대표 이미지 · 공개 필수 / 추가 이미지·상세페이지 · 선택" status={values.imagePath ? '대표 이미지 있음' : '대표 이미지 미입력'} summary={`추가 이미지 ${Array.from({ length: GOODS_GALLERY_MAX }, (_, i) => values[`galleryPath${i}`]).filter(Boolean).length}장 · ${values.description ? '상세페이지 작성됨' : '상세페이지 없음'}`} >
+        <GoodsImageGrid errors={errors} initialPaths={GOODS_IMAGE_FIELD_NAMES.map((name) => initial[name])} initialUrls={GOODS_IMAGE_FIELD_NAMES.map((name) => imageUrls[name])} onPreviewChange={setImageUrl} />
+        <p className="muted">상세페이지는 아래 &lsquo;상세페이지(상세 설명) 편집&rsquo;에서 텍스트나 HTML 소스로 작성합니다. &lsquo;긴 상세 이미지&rsquo;는 그 아래에 붙는 이미지 파일 1장입니다.</p>
+        <GoodOptionalFields title="상세페이지(상세 설명) 편집" summary={descriptionCheck ? `상세페이지 HTML · 원문 ${(values.description?.length ?? 0).toLocaleString('ko-KR')}자 · 정리 후 ${descriptionCheck.html.length.toLocaleString('ko-KR')}자` : `일반 텍스트 · ${values.description?.length || 0}자`} hasErrors={Boolean(errors.description || errors.descriptionFormat)}>
+        <SelectField defaultValue={initial.descriptionFormat} error={errors.descriptionFormat} label="상세 설명 형식" name="descriptionFormat"><option value="plain">일반 텍스트</option><option value="html">HTML 문서 (상세페이지 소스)</option></SelectField>
         <p className="muted">형식을 바꿔도 입력 원문은 유지됩니다. 일반 텍스트에서는 태그도 글자로 표시됩니다.</p>
         <div className="admin-goods-html-tools" hidden={!htmlDescription}>
-          <p>제목·문단·목록·표·강조·링크와 업로드한 이미지를 지원합니다. 사이트 기본 서식으로 표시되며 CSS·스크립트·이벤트는 제거됩니다.</p>
+          <p>다른 판매처에 쓰는 상세페이지 HTML 소스를 그대로 붙여넣을 수 있습니다. https로 시작하는 호스팅 이미지 주소는 그대로 표시되므로 호스팅 이미지를 바꾸면 이 상세페이지에도 반영됩니다. 제목·문단·목록·표·강조·링크를 지원하며, 사이트 기본 서식으로 표시되고 CSS·스크립트·이벤트는 제거됩니다.</p>
           <div className="row">
             <button className="btn btn-ghost" onClick={() => insertDescription('<h2>제목</h2>\n')} type="button">제목 넣기</button>
             <button className="btn btn-ghost" onClick={() => insertDescription('<p>문단 내용</p>\n')} type="button">문단 넣기</button>
@@ -296,49 +314,46 @@ function GoodEditorForm({ action, catalogIps, ipOptions, pending, selected, stat
             <button className="btn btn-ghost" onClick={() => insertDescription('<table><caption>표 제목</caption><tbody><tr><th scope="row">항목</th><td>내용</td></tr></tbody></table>\n')} type="button">표 넣기</button>
           </div>
         </div>
-        <TextArea defaultValue={initial.description} error={errors.description} label={htmlDescription ? '상세 설명 HTML (정리된 코드 포함 최대 30,000자)' : '상세 설명 (최대 2,000자)'} maxLength={htmlDescription ? GOODS_HTML_MAX_LENGTH : GOODS_DESCRIPTION_MAX_LENGTH} name="description" placeholder={htmlDescription ? '<h2>상품 특징</h2><p>상세 내용을 입력해주세요.</p>' : adminGoodsCopy('굿즈 구성과 특징을 짧게 설명해주세요.')} />
+        <TextArea defaultValue={initial.description} error={errors.description} label={htmlDescription ? '상세페이지 HTML (정리된 코드 포함 최대 30,000자)' : '상세 설명 (최대 2,000자)'} maxLength={htmlDescription ? GOODS_HTML_MAX_LENGTH : GOODS_DESCRIPTION_MAX_LENGTH} name="description" placeholder={htmlDescription ? '<h2>상품 특징</h2><p>상세 내용을 입력해주세요.</p>' : adminGoodsCopy('굿즈 구성과 특징을 짧게 설명해주세요.')} />
         {descriptionWarnings.length > 0 && <div className="admin-goods-html-review" role="status"><p>저장 전 확인: 입력 원문은 편집기에 남아 있으며 아래 미리보기의 결과가 저장됩니다.</p><ul>{descriptionWarnings.map((warning) => <li key={warning}>{warning}</li>)}</ul></div>}
         <fieldset className="admin-goods-html-tools" disabled={!htmlDescription} hidden={!htmlDescription}>
-          <ArtworkUploadField showGuidance={false} ariaDescribedBy="goods-gallery-upload-guidance" autoUpload allowRemove currentPath={initial.descriptionUploadPath || null} currentUrl={initial.descriptionUploadPath ? publicMediaUrl(initial.descriptionUploadPath) : null} fieldId="good-description-image" helpText="이미지 검증이 끝나면 대체 설명을 적고 설명에 넣기를 누릅니다. HTML 본문에는 최대 20장을 넣을 수 있습니다." kind="good" label="HTML 이미지 업로드" name="descriptionUploadPath" />
+          <ArtworkUploadField autoUpload allowRemove currentPath={initial.descriptionUploadPath || null} currentUrl={initial.descriptionUploadPath ? publicMediaUrl(initial.descriptionUploadPath) : null} fieldId="good-description-image" helpText="이미지 검증이 끝나면 대체 설명을 적고 설명에 넣기를 누릅니다. HTML 본문에는 최대 20장을 넣을 수 있습니다." kind="good" label="HTML 이미지 업로드" name="descriptionUploadPath" />
           <Field defaultValue={initial.descriptionImageAlt} label="HTML 이미지 대체 설명" name="descriptionImageAlt" maxLength={300} />
           <button className="btn btn-ghost" onClick={() => insertDescription()} type="button">업로드한 이미지를 설명에 넣기</button>
-          <p className="muted">외부 이미지 URL은 표시되지 않습니다. 이미지 파일을 업로드한 후 넣어주세요. 아래 상품 미리보기에서 공개될 결과를 확인할 수 있습니다.</p>
+          <p className="muted">호스팅 이미지 주소(https://…)는 업로드 없이 HTML에 그대로 쓰면 됩니다. http 주소는 https로 바꿔 저장합니다. 호스팅하지 않은 이미지만 파일을 업로드한 후 넣어주세요. 아래 상품 미리보기에서 공개될 결과를 확인할 수 있습니다.</p>
         </fieldset>
         </GoodOptionalFields>
-        <GoodsGalleryFields galleryPaths={Array.from({ length: GOODS_GALLERY_MAX }, (_, i) => values[`galleryPath${i}`])} galleryUrls={Array.from({ length: GOODS_GALLERY_MAX }, (_, i) => imageUrls[`galleryPath${i}`] ?? '')} onPreviewChange={setImageUrl} state={state} />
         <GoodOptionalFields title="긴 상세 이미지 (선택)" summary={values.detailImagePath ? '이미지 연결됨' : '이미지 없음'} hasErrors={Boolean(errors.detailImagePath)}>
-        <ArtworkUploadField compact showPath={false} showGuidance={false} showCropGuide={false} autoUpload allowRemove currentPath={initial.detailImagePath || null} currentUrl={imageUrls.detailImagePath} fieldId="good-detail" helpText="상세페이지 아래에 원래 비율로 길게 표시되는 이미지 1장입니다." kind="good" label="상세 이미지" name="detailImagePath" onPreviewChange={(url) => setImageUrl('detailImagePath', url)} />
+        <ArtworkUploadField compact showPath={false} showGuidance={false} showCropGuide={false} autoUpload allowRemove currentPath={initial.detailImagePath || null} currentUrl={imageUrls.detailImagePath} fieldId="good-detail" helpText="상세페이지(상세 설명) 아래에 원래 비율로 붙는 이미지 파일 1장입니다. 호스팅 HTML로 상세페이지를 만들었다면 비워 두어도 됩니다." kind="good" label="상세 이미지" name="detailImagePath" onPreviewChange={(url) => setImageUrl('detailImagePath', url)} />
         <ErrorText>{errors.detailImagePath}</ErrorText>
         </GoodOptionalFields>
       </AdminSectionCard>
-      <AdminSectionCard title="가격" id="good-section-price" requirement="기준가 + 옵션 추가금액" status="입력값 확인" errorCount={errorCount('price')} summary={`기준 판매가 ${Number(values.price || 0).toLocaleString('ko-KR')}원${dirty ? ' · 미저장 입력' : ''}`}>
-        <p>옵션 판매가는 기준 판매가에 옵션별 추가금액을 더한 금액입니다. 고객은 선택한 옵션 판매가로 구매합니다.</p>
-        <AdminFormGrid>
-          <Field defaultValue={initial.price} error={errors.price} label="기준 판매가" name="price" min={0} type="number" />
-          <Field defaultValue={initial.compareAtPrice} error={errors.compareAtPrice} label="소비자가 (비교용, 선택)" name="compareAtPrice" min={0} type="number" />
-          <SelectField defaultValue={initial.showDiscountRate} error={errors.showDiscountRate} label="할인율 표시" name="showDiscountRate">
-            <option value="true">표시</option><option value="false">숨김 · 판매가만 표시</option>
-          </SelectField>
-        </AdminFormGrid>
-        <p className="muted">할인율을 숨기면 정가 취소선과 할인율 없이 판매가만 표시합니다. 기간 할인·쿠폰·적립금과 실제 결제 금액은 그대로 적용됩니다.</p>
+      <AdminSectionCard title="판매가" id="good-section-price" requirement="판매가 → 할인(선택)" status={priceResult.regularPriceError || priceResult.discountError ? '입력 확인 필요' : '입력값 확인'} errorCount={errorCount('price')} summary={`판매가 ${priceResult.regularPrice ? formatWon(priceResult.regularPrice) : '미입력'}${priceDraft.discountEnabled ? priceResult.discountAmount > 0 && priceResult.salePrice !== null ? ` · 할인가 ${formatWon(priceResult.salePrice)}` : ' · 할인 입력 확인' : ' · 할인 없음'}${dirty ? ' · 미저장 입력' : ''}`}>
+        <GoodsPriceFields draft={priceDraft} onDraftChange={setPriceDraft} result={priceResult} errors={errors} showDiscountRate={initial.showDiscountRate} />
       </AdminSectionCard>
-      <AdminSectionCard title="옵션과 재고" id="good-section-variants" requirement="공개 필수 · 기본 옵션 1개부터" status="옵션 확인" errorCount={errorCount('variants')} summary="할당 재고는 ICONS 판매 수량입니다. 안전재고 기준은 경보이며 판매 수량에서 차감하지 않습니다."><GoodsOptionEditor onRowsChange={setRows} codePrefix={values.code || suggestedCode} rows={rows} baseline={baseline} basePrice={Number(values.price) || 0} error={errors.variants} axisValues={initial} /></AdminSectionCard>
+      <AdminSectionCard title="재고수량·옵션" id="good-section-variants" requirement="공개 필수 · 옵션 없이 팔면 재고수량만 입력" status="옵션 확인" errorCount={errorCount('variants')} summary={`${isSingleGoodsOption(rows) ? '옵션 없음 · 재고수량' : `옵션 ${rows.length.toLocaleString('ko-KR')}개 · 재고수량 합계`} ${goodsOptionStockTotals(rows).total.toLocaleString('ko-KR')}개`}>
+        <GoodsOptionEditor onRowsChange={setRows} codePrefix={values.code || suggestedCode} rows={rows} baseline={baseline} basePrice={priceResult.salePrice ?? 0}
+          priceDraft={priceDraft} error={errors.variants} axisValues={initial}
+          savedCodes={{ goodCode: selected?.code ?? null, options: variants }}
+          onErpItemSelect={applyErpItem} onRegularPriceApply={(price) => setPriceDraft((current) => ({ ...current, regularPrice: String(price) }))}
+          erpNotice={<GoodsErpCategoryNotice suggestion={erpCategory} currentCategoryId={categoryId} onReplace={setCategoryId} onReview={() => focusGoodWorkspaceTarget('good-section-basic', 'categoryId')} />} />
+      </AdminSectionCard>
       <AdminSectionCard title={ADMIN_VOCABULARY.noticeInfo} id="good-section-notice" requirement="공개 필수 · 초안에는 일부 저장 가능" status={GOODS_NOTICE_FIELDS.every((field) => values[field.formName]?.trim()) ? '입력 완료 · KC 별도 검토' : '미입력'} errorCount={errorCount('notice')} summary={`${GOODS_NOTICE_FIELDS.filter((field) => values[field.formName]?.trim()).length}/${GOODS_NOTICE_FIELDS.length}개 작성 · KC는 저장 후 검토`}>
         <GoodNoticePicker onApply={applyNotice} readOnly={locked||Boolean(selected?.archivedAt)} /><GoodsNoticeFields notice={notice} required={Boolean(selected?.publishedAt)} locked={locked} state={{ ...state, errors }} />
-        <p>{selected ? <a href="#good-operation-kc" onClick={(event) => { event.preventDefault(); focusGoodWorkspaceTarget('good-operation-kc'); }}>KC 검토 영역 열기</a> : '초안 저장 후 실제 상품에 KC 자료를 연결하고 검토할 수 있습니다.'}</p>
+        <p>{selected ? <><a href="#good-operation-kc" onClick={(event) => { event.preventDefault(); focusGoodWorkspaceTarget('good-operation-kc'); }}>KC 정보 열기</a> · KC 대상이 아니면 상품 전체 KC 해당 없음으로 바로 검토를 끝냅니다.</> : '초안 저장 후 KC 정보에서 검토합니다. KC 대상이 아니면 해당 없음 확인 한 번으로 끝납니다.'}</p>
       </AdminSectionCard>
       <AdminSectionCard title="배송 정보" id="good-section-shipping" requirement="출고지 · 공개 필수" status={values.originId ? '출고지 선택됨' : '미입력'} errorCount={errorCount('shipping')} summary={`${previewOrigin?.name || '출고지 확인 필요'} · ${values.shippingFeeType === 'policy' ? '출고지 정책' : values.shippingFeeType === 'free' ? '무료배송' : '개별 배송비'}`}><GoodsFulfillmentFields regionSummaries={regionSummaries} origins={origins} value={{ originId: initial.originId || null, shippingFeeType: initial.shippingFeeType as 'policy' | 'free' | 'individual', individualFee: Number(initial.individualFee) }} errors={errors} /><GoodsShippingNoticeField options={shippingNoticeOptions} value={initial.shippingNoticeTemplate} error={errors.shippingNoticeTemplate} /></AdminSectionCard>
       <GoodsClaimPolicyFields values={initial} errors={errors} />
       <GoodsSalePolicyFields values={initial} errors={errors} />
       <div className="admin-good-workspace__save" aria-label="기본 상품 저장">
-        <div><strong role="status">{pending ? '저장 중…' : Object.keys(errors).length ? '저장 실패 · 입력값 유지' : dirty ? '미저장 변경 있음' : state.message ? '기본 상품 저장 완료' : selected ? '서버 저장값과 동일' : '새 초안 · 아직 저장 전'}</strong>
+        <div><strong role="status">{pending ? '저장 중…' : Object.keys(errors).length ? '저장 실패 · 입력값 유지' : dirty ? '미저장 변경 있음' : state.kcPublishBlocked ? (selected?.publishedAt ? '서버 저장값과 동일' : '초안 저장 완료 · 공개 보류') : state.message ? '기본 상품 저장 완료' : selected ? '서버 저장값과 동일' : '새 초안 · 아직 저장 전'}</strong>
           <p>기본 상품·이미지·옵션·고시·배송·판매 조건만 저장합니다. KC·재고 조정·혜택은 각 영역에서 별도 저장합니다.</p>
           {dirty && <p>브라우저 복구 기록은 서버 저장이 아닙니다.</p>}
           {selected?.publishedAt && <p>저장하면 공개 중인 상품 화면에 반영됩니다.</p>}
         </div>
         <div className="row"><button className="btn btn-holo" disabled={pending || Boolean(selected?.archivedAt)} name="intent" value="save">{pending ? '저장 중…' : selected?.publishedAt ? '기본 상품 저장' : '초안으로 저장'}</button>{selected && !selected.publishedAt && !selected.archivedAt && <button className="btn btn-ghost" disabled={pending} name="intent" value="publish">저장 후 공개</button>}</div>
-        {!selected && <p>1. 초안 생성 → 2. KC 검토 → 3. 공개 요청</p>}
-        <ActionNotice state={state} />
+        {!selected?.publishedAt && !selected?.archivedAt && <p>1. 기본 정보·유형·고시정보·옵션까지 입력해 초안 저장 → 2. KC 검토 → 3. 공개. KC 검토 뒤 상품명·유형·IP·고시정보(제조자·제조국·소재·크기)나 옵션 구성을 바꾸면 KC를 다시 검토합니다.</p>}
+        {state.kcPublishBlocked ? (state.message && !selected?.publishedAt ? <div className="card" role="alert" style={{ color: 'var(--wc-warning)', padding: 12, borderRadius: 10, fontWeight: 700 }}>{state.message}{selected && <> <a href="#good-operation-kc" onClick={(event) => { event.preventDefault(); focusGoodWorkspaceTarget('good-operation-kc'); }}>KC 정보 열기</a></>}</div> : null) : <ActionNotice state={state} />}
       </div>
     </form>
     <GoodPreviewPanel detail={previewDetail} ip={previewIp} shippingPolicy={shippingPolicy} />

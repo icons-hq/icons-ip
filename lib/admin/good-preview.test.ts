@@ -47,8 +47,9 @@ describe('어드민 굿즈 미리보기', () => {
   });
   it('현재 HTML 입력을 저장 서버와 같은 문서/이미지 형식으로 미리본다', () => {
     const path = 'public-media/catalog/good/22222222-2222-4222-8222-222222222222.webp';
-    const preview = buildGoodPreview({ values: { ...values, descriptionFormat: 'html', description: `<h2>상세</h2><img src="${path}" alt="앞면"><img src="https://evil.test/x.png"><script>alert(1)</script>` }, imageUrls: {}, ip, fallbackBg: null, stockQty: 0 });
-    expect(preview).toMatchObject({ descriptionFormat: 'html', descriptionImagePaths: [path], description: `<h2>상세</h2><img src="${path}" alt="앞면" loading="lazy" decoding="async" />` });
+    const preview = buildGoodPreview({ values: { ...values, descriptionFormat: 'html', description: `<h2>상세</h2><img src="${path}" alt="앞면"><img src="https://img.example.com/x.png"><img src="/x.png"><script>alert(1)</script>` }, imageUrls: {}, ip, fallbackBg: null, stockQty: 0 });
+    /* 호스팅 이미지는 주소 그대로 보이되 저장소 소유 검증 목록(descriptionImagePaths)에는 들어가지 않는다. */
+    expect(preview).toMatchObject({ descriptionFormat: 'html', descriptionImagePaths: [path], description: `<h2>상세</h2><img src="${path}" alt="앞면" loading="lazy" decoding="async" /><img src="https://img.example.com/x.png" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" />` });
   });
   it('projects unsaved option prices, order and total inventory into the public preview', () => {
     const preview = buildGoodPreview({ values: { ...values, price: '1000', variants: JSON.stringify([

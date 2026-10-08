@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
+  GOODS_GALLERY_MAX,
   catalogContextFromSnapshot,
   normalizeAdminCardForm,
   normalizeAdminCardPoolForm,
@@ -443,9 +444,18 @@ describe('admin catalog form normalization', () => {
 
     expect(normalizeAdminGoodForm(goodForm('22000'), context)).toEqual({
       ok: false,
-      errors: { compareAtPrice: '소비자가는 기준 판매가보다 커야 해요' },
+      errors: { compareAtPrice: '할인은 0원보다 크고 판매가보다 작아야 해요. 판매가와 할인을 확인해주세요.' },
     });
     expect(normalizeAdminGoodForm(goodForm('26000.5'), context)).toEqual({
+      ok: false,
+      errors: { compareAtPrice: '판매가와 할인은 0 이상의 원 단위 숫자로 입력해주세요.' },
+    });
+    /* 상품 엑셀은 같은 검증을 쓰되 기준 판매가·소비자가 열 이름으로 알린다. */
+    expect(normalizeAdminGoodForm(goodForm('22000'), context, { copy: 'workbook' })).toEqual({
+      ok: false,
+      errors: { compareAtPrice: '소비자가는 기준 판매가보다 커야 합니다.' },
+    });
+    expect(normalizeAdminGoodForm(goodForm('26000.5'), context, { copy: 'workbook' })).toEqual({
       ok: false,
       errors: { compareAtPrice: '소비자가는 0 이상의 정수여야 합니다.' },
     });
@@ -500,6 +510,22 @@ describe('admin catalog form normalization', () => {
         detailImagePath: 'public-media/catalog/good/44444444-4444-4444-8444-444444444444.webp',
       },
     });
+  });
+
+  /* 2026-10-07 — 추가 이미지는 대표 이미지 외 9장(galleryPath0~8)까지 읽는다. 10번째 칸 이름은 읽지 않는다. */
+  it('reads up to nine additional images and ignores a tenth field', () => {
+    const formData = setGoodsNotice(new FormData());
+    formData.set('id', 'g13');
+    formData.set('ipId', 'hwasan');
+    formData.set('name', '아크릴 블록');
+    formData.set('type', '아크릴 블록');
+    formData.set('price', '12000');
+    formData.set('stock', 'ok');
+    const gallery = Array.from({ length: 10 }, (_, index) => `public-media/catalog/good/${String(index + 1).padStart(8, '0')}-0000-4000-8000-000000000000.webp`);
+    gallery.forEach((path, index) => formData.set(`galleryPath${index}`, path));
+
+    expect(GOODS_GALLERY_MAX).toBe(9);
+    expect(normalizeAdminGoodForm(formData, context)).toMatchObject({ ok: true, value: { galleryPaths: gallery.slice(0, 9) } });
   });
 
   it('rejects duplicated gallery images and an overlong description', () => {

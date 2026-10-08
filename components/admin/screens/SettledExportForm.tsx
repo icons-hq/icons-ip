@@ -1,8 +1,10 @@
 'use client';
 import { useActionState } from 'react';
 import { createSettledExportAction } from '@/app/admin/settled-export-actions';
+import { ADMIN_LIST_EXPORT_BUTTON_LABEL } from '@/lib/admin/list-export';
 import type { SettledExportFilters } from '@/lib/admin/settled-export';
 
+/* 버튼 이름·위치만 다른 목록과 맞춘다. 보존 기록을 만든 뒤 링크로 받는 기존 동선은 그대로다. */
 export function SettledExportForm({ filters, requestId }: { filters: SettledExportFilters; requestId: string }) {
   const [state, action, pending] = useActionState(createSettledExportAction, {});
   return <form action={action} className="admin-form-section">
@@ -10,8 +12,10 @@ export function SettledExportForm({ filters, requestId }: { filters: SettledExpo
     <input type="hidden" name="from" value={filters.from ?? ''} />
     <input type="hidden" name="to" value={filters.to ?? ''} />
     <input type="hidden" name="query" value={filters.query} />
-    <button className="btn sm" type="submit" disabled={pending}>{pending ? '엑셀 기록 생성 중…' : '현재 조건의 거래확정 엑셀 만들기'}</button>
-    <p className="muted">현재 조회 조건의 전체 페이지를 담습니다. 주문 1,000건·품목 10,000행까지 생성할 수 있으며, 생성한 기록은 이후 변경과 무관하게 유지됩니다.</p>
+    <div className="wc-admin-kit__actions admin-list-export">
+      <button className="btn btn-sm" type="submit" disabled={pending}>{pending ? '엑셀 기록 생성 중…' : ADMIN_LIST_EXPORT_BUTTON_LABEL}</button>
+      <span className="muted">현재 조회 조건의 전체 페이지를 담습니다. 주문 1,000건·품목 10,000행까지 생성할 수 있으며, 생성한 기록은 이후 변경과 무관하게 유지됩니다.</span>
+    </div>
     {state.error ? <p role="alert">{state.error}</p> : null}
     {state.receipt ? <p role="status">
       주문 {state.receipt.orderCount.toLocaleString('ko-KR')}건을 보존했습니다.{' '}

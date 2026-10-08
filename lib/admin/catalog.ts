@@ -184,8 +184,10 @@ const INTEGER_PATTERN = /^-?\d+$/;
 const INT32_MIN = -2147483648;
 const INT32_MAX = 2147483647;
 const STOCK_VALUES = new Set<Stock>(['low', 'ok', 'soldout']);
-/* 갤러리는 대표 이미지 외 최대 4장 (#172 · 계획 D6). DB check 제약과 같은 값이다. */
-export const GOODS_GALLERY_MAX = 4;
+/* 추가 이미지(갤러리)는 대표 이미지 외 최대 9장이다 — 스마트스토어와 같은 대표 1 + 추가 9
+ * (#172 · 계획 D6, 2026-10-07 MD 요청으로 4장에서 확대). DB check 제약 goods_gallery_paths_limit과
+ * admin_upsert_good 검사(20261007160000)와 같은 값이다. */
+export const GOODS_GALLERY_MAX = 9;
 export const GOODS_DESCRIPTION_MAX_LENGTH = 2000;
 export const GOODS_SEARCH_KEYWORDS_MAX_COUNT = 50;
 export const GOODS_SEARCH_KEYWORD_MAX_LENGTH = 80;
@@ -370,8 +372,8 @@ function readGoodsNotice(formData: FormData, errors: AdminFieldErrors, required 
 }
 
 /*
- * 갤러리는 번호가 붙은 슬롯 4칸이다 (#172). 운영자는 슬롯을 골라 순서를 정하고,
- * 비운 슬롯은 배열에서 빠진다 — 배열 인덱스가 그대로 노출 순서가 된다.
+ * 추가 이미지는 번호가 붙은 칸 GOODS_GALLERY_MAX개다 (#172). 운영자는 칸 순서로 노출 순서를 정하고,
+ * 비운 칸은 배열에서 빠진다 — 배열 인덱스가 그대로 노출 순서가 된다.
  */
 function readGoodsGalleryPaths(formData: FormData, errors: AdminFieldErrors): string[] {
   const paths: string[] = [];
@@ -479,10 +481,28 @@ export function normalizeAdminIpForm(
   };
 }
 
+/*
+ * 정가(compareAtPrice) 검증은 상품 편집기와 상품 엑셀이 함께 쓴다. 편집기는 판매가(할인 전)·할인 칸을,
+ * 엑셀은 기준 판매가·소비자가 열을 보여 주므로, 오류 문구도 운영자가 고칠 칸의 이름을 따른다.
+ */
+const COMPARE_AT_PRICE_COPY = {
+  editor: {
+    invalid: '판매가와 할인은 0 이상의 원 단위 숫자로 입력해주세요.',
+    notAbovePrice: '할인은 0원보다 크고 판매가보다 작아야 해요. 판매가와 할인을 확인해주세요.',
+  },
+  workbook: {
+    invalid: '소비자가는 0 이상의 정수여야 합니다.',
+    notAbovePrice: '소비자가는 기준 판매가보다 커야 합니다.',
+  },
+} as const;
+export type AdminGoodFormCopy = keyof typeof COMPARE_AT_PRICE_COPY;
+
 export function normalizeAdminGoodForm(
   formData: FormData,
   context: AdminCatalogContext,
+  options: { copy?: AdminGoodFormCopy } = {},
 ): AdminFormResult<AdminGoodFormValue> {
+  const priceCopy = COMPARE_AT_PRICE_COPY[options.copy ?? 'editor'];
   const errors: AdminFieldErrors = {};
   const publish = formData.get('intent') === 'publish' ? true : null;
   const requiresCompleteNotice = publish === true || formData.get('published') === 'true';
@@ -503,7 +523,7 @@ export function normalizeAdminGoodForm(
     formData,
     'compareAtPrice',
     errors,
-    '소비자가는 0 이상의 정수여야 합니다.',
+    priceCopy.invalid,
   );
   const notice = readGoodsNotice(formData, errors, requiresCompleteNotice);
   const showDiscountRate = formData.has('showDiscountRate') ? readString(formData, 'showDiscountRate') : undefined;
@@ -547,7 +567,7 @@ export function normalizeAdminGoodForm(
   /* 정가가 판매가 이하면 0%·음수 할인율이 나온다. RPC 도 goods_compare_at_price_invalid
      로 막지만, 운영자에게는 저장 실패가 아니라 그 칸의 에러로 보여야 고칠 수 있다. */
   if (compareAtPrice !== null && !errors.compareAtPrice && compareAtPrice <= price) {
-    errors.compareAtPrice = '소비자가는 기준 판매가보다 커야 해요';
+    errors.compareAtPrice = priceCopy.notAbovePrice;
   }
   if (descriptionFormat === 'plain' && description && description.length > GOODS_DESCRIPTION_MAX_LENGTH) {
     errors.description = '설명은 2,000자 이하로 입력해주세요.';

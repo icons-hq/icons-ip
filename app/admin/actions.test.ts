@@ -601,7 +601,7 @@ describe('admin catalog actions', () => {
     formData.set('compareAtPrice', '22000');
 
     await expect(upsertAdminGoodAction({}, formData)).resolves.toMatchObject({
-      errors: { compareAtPrice: '소비자가는 기준 판매가보다 커야 해요' },
+      errors: { compareAtPrice: '할인은 0원보다 크고 판매가보다 작아야 해요. 판매가와 할인을 확인해주세요.' },
     });
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
@@ -640,7 +640,7 @@ describe('admin catalog actions', () => {
     });
 
     await expect(upsertAdminGoodAction({}, goodForm())).resolves.toMatchObject({
-      errors: { form: '소비자가는 기준 판매가보다 커야 해요' },
+      errors: { form: '할인은 0원보다 크고 판매가보다 작아야 해요. 판매가와 할인을 확인해주세요.' },
     });
   });
 
@@ -1069,6 +1069,47 @@ describe('admin catalog actions', () => {
   ])('maps identifier rejection %s to its form field',async(message,field,copy)=>{
     mocks.rpc.mockResolvedValue({data:null,error:{message}});
     expect(await upsertAdminGoodAction({},goodForm())).toMatchObject({errors:{[field]:copy}});
+  });
+
+  /* 2026-10-07 3차 리뷰: 같은 ERP 품목을 두 옵션에 고르거나 맞바꾸면 전역 unique 위반이 원인 없는 일반 오류로 떨어졌다. */
+  describe('옵션 ERP 식별자 중복', () => {
+    const erpForm = () => {
+      const form = goodForm();
+      form.set('variants', JSON.stringify([
+        { name: '빨강', code: '', attributes: { 색상: '빨강' }, extraPrice: 0, stockQty: 1, erpCode: 'AB-000123', erpName: '아크릴 키링', barcode: '0880000000123', externalUpdatedAt: null },
+        { name: '파랑', code: '', attributes: { 색상: '파랑' }, extraPrice: 0, stockQty: 1, erpCode: null, erpName: null, barcode: null, externalUpdatedAt: null },
+      ]));
+      form.set('variantBaseline', '[]');
+      return form;
+    };
+    const GUIDANCE = '한 ERP 품목은 옵션 하나에만 연결할 수 있습니다. 다른 상품의 옵션이 쓰고 있으면 그 옵션에서 먼저 비우고, 두 옵션의 ERP 품목을 맞바꾸려면 한쪽을 비우고 저장한 뒤 다시 지정해주세요. 입력값은 유지됩니다.';
+
+    it.each([
+      [
+        'duplicate key value violates unique constraint "goods_variant_external_identity_erp_code_key"',
+        'Key (lower(erp_code))=(ab-000123) already exists.',
+        `이미 다른 옵션에 연결된 ERP 코드입니다. 확인할 옵션: 빨강(AB-000123). ${GUIDANCE}`,
+      ],
+      [
+        'duplicate key value violates unique constraint "goods_variant_external_identity_barcode_key"',
+        'Key (lower(barcode))=(0880000000123) already exists.',
+        `이미 다른 옵션에 연결된 바코드입니다. 확인할 옵션: 빨강(0880000000123). ${GUIDANCE}`,
+      ],
+      [
+        'duplicate key value violates unique constraint "goods_variant_external_identity_erp_code_key"',
+        undefined,
+        `이미 다른 옵션에 연결된 ERP 코드입니다. ${GUIDANCE}`,
+      ],
+    ])('%s 를 옵션 칸 오류로 옮겨 어느 옵션인지 알린다', async (message, details, copy) => {
+      mocks.rpc.mockResolvedValue({ data: null, error: { message, details, code: '23505' } });
+      const form = erpForm();
+      expect(await upsertAdminGoodAction({}, form)).toMatchObject({ errors: { variants: copy }, values: collectFormValues(form) });
+    });
+
+    it('다른 운영자가 먼저 바꾼 ERP 정보(PT409)는 최신 내용 확인 안내로 옮긴다', async () => {
+      mocks.rpc.mockResolvedValue({ data: null, error: { message: 'goods_variant_external_identity_changed', code: 'PT409' } });
+      expect(await upsertAdminGoodAction({}, erpForm())).toMatchObject({ errors: { variants: expect.stringContaining('다른 작업에서') } });
+    });
   });
 
   it.each([
@@ -1674,6 +1715,119 @@ describe('admin catalog actions', () => {
       await expect(setAdminUserRoleAction({}, roleForm('staff'))).resolves.toEqual({
         errors: { form: '정지된 계정에는 staff 또는 admin 역할을 부여할 수 없습니다.' },
       });
+    });
+  });
+
+  /* QA 결함 1: "저장 후 공개"는 한 RPC 트랜잭션 안에서 저장 → 공개 전환 순서로 진행되고,
+     KC 검토가 현재가 아니면 마지막 공개 전환이 goods_kc_review_required로 저장 전체를 되돌린다
+     (supabase/tests/goods_kc_publish_draft_fallback.sql). 입력을 잃지 않도록 같은 입력을
+     초안으로 다시 저장하고, 공개만 막힌 이유를 저장 전·후 KC 상태로 알린다. */
+  describe('저장 후 공개가 KC 검토에 막힐 때', () => {
+    const variantId = '00000000-0000-4000-8000-000000000501';
+    const naModel = { family: 'other', scheme: 'not_applicable', productCategory: '', modelName: '', businessRole: '',
+      businessName: '', identifier: '', publicNote: '', variantIds: [variantId], basis: '',
+      evidence: { applicability: '', certificate: '', testReport: '', declaration: '' } };
+    function kcRead(status: 'reviewed' | 'unreviewed', revision: number | null, history: { revision: number; reason: string; status?: string }[] = []) {
+      return { revision, status, models: revision === null ? [] : [naModel], contextFingerprint: 'a'.repeat(64),
+        publishedAt: null, archivedAt: null, reviewedAt: status === 'reviewed' ? '2026-10-07T01:00:00Z' : null,
+        reviewerName: status === 'reviewed' ? 'MD' : null, variants: [{ id: variantId, code: 'G100-01', name: '기본', active: true }],
+        history: history.map((entry) => ({ status: 'unreviewed', changedAt: '2026-10-07T01:00:00Z', actorName: 'MD', ...entry })) };
+    }
+    function publishForm() {
+      const form = goodForm();
+      form.set('previousId', 'g100');
+      form.set('intent', 'publish');
+      form.set('type', '키링');
+      form.set('imagePath', 'public-media/catalog/good/11111111-1111-4111-8111-111111111111.webp');
+      return form;
+    }
+    const blocked = { data: null, error: { message: 'goods_kc_review_required' } };
+    const originalKcError = "KC 정보에서 검토를 완료한 뒤 공개해주세요. KC 대상이 아니면 '상품 전체 KC 해당 없음'으로 바로 끝낼 수 있습니다.";
+
+    it('같은 입력을 초안으로 다시 저장하고, 이번 저장이 KC 검토를 무효화했으면 그 이유를 알린다', async () => {
+      mocks.rpc
+        .mockResolvedValueOnce(blocked)
+        .mockResolvedValueOnce({ data: kcRead('reviewed', 1, [{ revision: 1, reason: 'review_completed', status: 'reviewed' }]), error: null })
+        .mockResolvedValueOnce({ data: { id: 'g100' }, error: null })
+        .mockResolvedValueOnce({ data: kcRead('unreviewed', 2, [{ revision: 2, reason: 'goods_context_changed' },
+          { revision: 1, reason: 'review_completed', status: 'reviewed' }]), error: null });
+
+      await expect(upsertAdminGoodAction({}, publishForm())).resolves.toEqual({
+        message: "초안으로 저장했습니다. 상품명·유형·IP·고시정보가 바뀌어 KC를 다시 검토해야 공개할 수 있습니다. KC 정보에서 다시 검토(KC 대상이 아니면 '상품 전체 KC 해당 없음')한 뒤 공개해주세요.",
+        kcPublishBlocked: true,
+        savedGoodId: 'g100',
+        attempt: 1,
+      });
+      expect(mocks.rpc.mock.calls.map(([name]) => name)).toEqual(['admin_save_good', 'admin_read_goods_kc', 'admin_save_good', 'admin_read_goods_kc']);
+      const [first, retry] = [mocks.rpc.mock.calls[0][1].target_good, mocks.rpc.mock.calls[2][1].target_good];
+      // 첫 호출은 트랜잭션째 되돌려졌으므로 다시 저장은 부분 변경이 아니라 같은 전체 입력이고, 공개 전환만 뺀다.
+      expect(first).toMatchObject({ publish: true, type: '키링' });
+      expect(retry).toEqual({ ...first, publish: null });
+      expect(mocks.rpc.mock.calls[1][1]).toEqual({ p_good_id: 'g100' });
+      expect(mocks.rpc.mock.calls[3][1]).toEqual({ p_good_id: 'g100' });
+      expect(mocks.sendRestockAlertEmails).toHaveBeenCalledWith('g100');
+      expect(mocks.revalidatePath).toHaveBeenCalledWith('/shop/g100');
+    });
+
+    it('KC 검토가 원래 없던 초안은 무효화 이유 없이 검토 완료를 안내한다', async () => {
+      mocks.rpc
+        .mockResolvedValueOnce(blocked)
+        .mockResolvedValueOnce({ data: kcRead('unreviewed', null), error: null })
+        .mockResolvedValueOnce({ data: { id: 'g100' }, error: null })
+        .mockResolvedValueOnce({ data: kcRead('unreviewed', null), error: null });
+
+      await expect(upsertAdminGoodAction({}, publishForm())).resolves.toMatchObject({
+        message: "초안으로 저장했습니다. KC 정보에서 검토를 완료한 뒤 공개해주세요. KC 대상이 아니면 '상품 전체 KC 해당 없음'으로 바로 끝낼 수 있습니다.",
+        kcPublishBlocked: true,
+        savedGoodId: 'g100',
+      });
+    });
+
+    it('KC 상태를 읽지 못해도 초안 저장은 유지하고 일반 안내를 쓴다', async () => {
+      mocks.rpc
+        .mockResolvedValueOnce(blocked)
+        .mockRejectedValueOnce(new Error('network'))
+        .mockResolvedValueOnce({ data: { id: 'g100' }, error: null })
+        .mockResolvedValueOnce({ data: null, error: { message: 'staff required' } });
+
+      await expect(upsertAdminGoodAction({}, publishForm())).resolves.toMatchObject({
+        message: expect.stringContaining('초안으로 저장했습니다. KC 정보에서 검토를 완료한 뒤'),
+        kcPublishBlocked: true,
+        savedGoodId: 'g100',
+      });
+    });
+
+    it.each([
+      ['RPC 오류', { data: null, error: { message: 'stock_changed' } }],
+      ['연결 실패', new Error('network')],
+    ])('초안 다시 저장이 %s로 실패하면 아무것도 저장되지 않았으므로 원래 KC 오류와 입력을 그대로 돌려준다', async (_label, retry) => {
+      mocks.rpc.mockResolvedValueOnce(blocked).mockResolvedValueOnce({ data: kcRead('unreviewed', null), error: null });
+      if (retry instanceof Error) mocks.rpc.mockRejectedValueOnce(retry); else mocks.rpc.mockResolvedValueOnce(retry);
+      const form = publishForm();
+
+      await expect(upsertAdminGoodAction({}, form)).resolves.toEqual({
+        errors: { form: originalKcError },
+        values: collectFormValues(form),
+        attempt: 1,
+      });
+      expect(mocks.rpc).toHaveBeenCalledTimes(3);
+      expect(mocks.sendRestockAlertEmails).not.toHaveBeenCalled();
+      expect(mocks.revalidatePath).not.toHaveBeenCalled();
+    });
+
+    it('공개 요청이 아니거나 다른 KC 오류면 다시 저장하지 않는다', async () => {
+      const draft = publishForm();
+      draft.set('intent', 'save');
+      mocks.rpc.mockResolvedValueOnce(blocked);
+      await expect(upsertAdminGoodAction({}, draft)).resolves.toMatchObject({ errors: { form: originalKcError } });
+      expect(mocks.rpc).toHaveBeenCalledTimes(1);
+
+      mocks.rpc.mockReset();
+      mocks.rpc.mockResolvedValueOnce({ data: null, error: { message: 'goods_kc_reassessment_required' } });
+      await expect(upsertAdminGoodAction({}, publishForm())).resolves.toMatchObject({
+        errors: { form: '모델·옵션·고시정보 변경에는 KC 재검토가 필요합니다. 상품을 먼저 초안으로 전환한 뒤 수정해주세요.' },
+      });
+      expect(mocks.rpc).toHaveBeenCalledTimes(1);
     });
   });
 });

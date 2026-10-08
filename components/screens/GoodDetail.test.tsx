@@ -150,7 +150,7 @@ describe('GoodDetail', () => {
     expect(html).not.toMatch(/window.attacked|javascript:|onclick=/);
   });
 
-  it('HTML 미리보기와 공개 결과가 같고 DB가 검증한 이미지 경로만 표시한다', () => {
+  it('HTML 미리보기와 공개 결과가 같고 DB가 검증한 저장소 경로와 https 호스팅 이미지만 표시한다', () => {
     vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://media.example.test');
     try {
       const path = 'public-media/catalog/good/22222222-2222-4222-8222-222222222222.webp';
@@ -161,7 +161,9 @@ describe('GoodDetail', () => {
       const descriptionHtml = (html: string) => html.match(/<div class="wc-goods-description">.*?<\/div>/s)?.[0];
       expect(descriptionHtml(previewHtml)).toBe(descriptionHtml(publicHtml));
       expect(publicHtml).toContain('src="https://media.example.test/storage/v1/object/public/public-media/catalog/good/22222222-2222-4222-8222-222222222222.webp"');
-      expect(publicHtml).not.toMatch(/onerror=|width="9000"|external.test/);
+      expect(publicHtml).not.toMatch(/onerror=|width="9000"/);
+      /* 2026-10-07 MD 요청: 판매처 공통 호스팅 이미지는 주소 그대로 보인다. */
+      expect(publicHtml).toContain('<img src="https://external.test/a.webp" alt="" loading="lazy" decoding="async" referrerpolicy="no-referrer" />');
       expect(render({ description: raw, descriptionFormat: 'html', descriptionImagePaths: [] })).not.toContain('src="https://media.example.test/');
     } finally { vi.unstubAllEnvs(); }
   });
@@ -224,6 +226,44 @@ describe('GoodDetail', () => {
     expect(html).toContain('aria-label="1번째 이미지"');
     expect(html).toContain('aria-label="3번째 이미지"');
     expect(html).toContain('https://cdn.example/g13-1.webp');
+  });
+
+  /* 2026-10-07 — 대표 이미지 1장 + 추가 이미지 최대 9장 = 10장을 도트·썸네일 모두 끝까지 그린다. */
+  it('대표 이미지와 추가 이미지 9장을 10개 슬라이드·도트·썸네일로 그린다', () => {
+    const html = render({ gallery: Array.from({ length: 9 }, (_, index) => `url("https://cdn.example/g13-extra-${index + 1}.webp")`) });
+
+    expect(html.match(/class="wc-pdp-gallery__slide"/g)).toHaveLength(10);
+    expect(html.match(/class="wc-pdp-gallery__dot(?: is-active)?"/g)).toHaveLength(10);
+    expect(html.match(/class="wc-pdp-gallery__thumb(?: is-active)?"/g)).toHaveLength(10);
+    expect(html).toContain('aria-label="10번째 이미지 보기"');
+    expect(html).toContain('https://cdn.example/g13-extra-9.webp');
+  });
+
+  /* 2026-10-07 QA 6 — 도트의 기준 상자가 썸네일까지 품은 갤러리 전체라, 데스크톱에서 도트가
+   * 썸네일 줄(10장이면 둘째 줄) 위에 떴다. 도트는 메인 이미지(스테이지)와 같은 상자에 두고
+   * 썸네일은 그 상자 밖에 둬야 썸네일 줄 수와 무관하게 이미지 안쪽 하단에 남는다. */
+  it('도트는 메인 이미지 상자 안에, 썸네일은 그 상자 밖에 그린다', () => {
+    const html = render({ gallery: Array.from({ length: 9 }, (_, index) => `url("https://cdn.example/g13-extra-${index + 1}.webp")`) });
+    const open = html.indexOf('<div class="wc-pdp-gallery__viewport">');
+    expect(open).toBeGreaterThanOrEqual(0);
+
+    /* 열린 div를 짝이 맞는 닫는 태그까지 잘라 낸다(슬라이드는 div, 도트·썸네일은 button). */
+    let depth = 0;
+    let end = -1;
+    for (const match of html.slice(open).matchAll(/<div\b|<\/div>/g)) {
+      depth += match[0] === '</div>' ? -1 : 1;
+      if (depth === 0) {
+        end = open + (match.index ?? 0) + match[0].length;
+        break;
+      }
+    }
+    const viewport = html.slice(open, end);
+
+    expect(viewport).toContain('class="wc-pdp-gallery__stage"');
+    expect(viewport).toContain('class="wc-pdp-gallery__dots"');
+    expect(viewport.match(/class="wc-pdp-gallery__dot(?: is-active)?"/g)).toHaveLength(10);
+    expect(viewport).not.toContain('wc-pdp-gallery__thumb');
+    expect(html.indexOf('class="wc-pdp-gallery__thumbs"')).toBeGreaterThanOrEqual(end);
   });
 
   /* #172 완료 조건 — 갤러리가 비어도 대표 이미지로 정상 렌더된다. */

@@ -10,6 +10,7 @@ import { Slider } from '@/components/wc/Slider';
 import { TabPanels, type TabPanelDef } from '@/components/wc/TabPanels';
 import { COMMUNITY_ENABLED } from '@/lib/community-visibility';
 import { krw } from '@/lib/format';
+import { goodsImageBackground } from '@/lib/goods-image';
 import {
   withoutCardRewardCurations,
   withoutCommunityCurations,
@@ -112,7 +113,7 @@ function GoodsBandSection({ band }: { band: HomeGoodsBand }) {
             <div className="wc-band__list">
               {band.goods.map((good) => (
                 <Link key={good.id} className="wc-band__row" href={good.href}>
-                  <span aria-hidden className="wc-band__thumb" style={{ background: good.imageBg }} />
+                  <span aria-hidden className="wc-band__thumb" style={{ background: goodsImageBackground(good.imageBg) }} />
                   <div className="wc-band__row-text">
                     {good.brand ? <p className="wc-band__row-brand">{good.brand}</p> : null}
                     <p className="wc-band__row-name">{good.name}</p>

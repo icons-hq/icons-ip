@@ -18,7 +18,8 @@ export function focusGoodWorkspaceTarget(id: string, field?: string) {
   for (let element: HTMLElement | null = target; element; element = element.parentElement) {
     if (element instanceof HTMLDetailsElement) element.open = true;
   }
-  target.scrollIntoView({ block: 'center', behavior: 'instant' });
+  // 입력칸은 가운데로, 영역 자체(긴 KC 패널 등)는 머리(상태·주요 버튼)가 보이게 위쪽에 맞춘다.
+  target.scrollIntoView({ block: target === section ? 'start' : 'center', behavior: 'instant' });
   target.focus({ preventScroll: true });
 }
 

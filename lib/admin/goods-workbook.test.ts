@@ -1,13 +1,18 @@
+import ExcelJS from 'exceljs';
 import { describe, expect, it } from 'vitest';
-import { emptyGoodsKcWorkbookRow } from './goods-kc-workbook';
+import { emptyGoodsKcWorkbookRow, GOODS_KC_WORKBOOK_HEADERS, GOODS_KC_WORKBOOK_SHEET } from './goods-kc-workbook';
 import { buildGoodsWorkbook, parseGoodsWorkbookWithKc } from './goods-workbook-file';
 import {
   emptyGoodsWorkbookRow,
   exportGoodsWorkbookRows,
+  GOODS_WORKBOOK_HEADERS,
+  GOODS_WORKBOOK_KEYS,
+  GOODS_WORKBOOK_V3_VERSION,
   partitionGoodsExports,
   planGoodsWorkbookImport,
   type GoodsImportExisting,
   type GoodsWorkbookContext,
+  type GoodsWorkbookRow,
 } from './goods-workbook';
 const variantId = '00000000-0000-4000-8000-000000000001';
 const existing: GoodsImportExisting = {
@@ -78,6 +83,24 @@ const row = (
     ...values,
   },
 });
+/** 추가 이미지 4칸 시절 v3 양식 — v4에서 갤러리 5~9 열이 없는 순서 그대로 실제 XLSX로 만든다. */
+async function v3Workbook(rows: GoodsWorkbookRow[]) {
+  const keys = GOODS_WORKBOOK_KEYS.filter((key) => !/^gallery(Url|File)[4-8]$/.test(key));
+  expect(keys).toHaveLength(GOODS_WORKBOOK_KEYS.length - 10);
+  expect(keys.slice(keys.indexOf('galleryFile3'), keys.indexOf('galleryFile3') + 2)).toEqual(['galleryFile3', 'detailImageUrl']);
+  const book = new ExcelJS.Workbook();
+  const sheet = book.addWorksheet('상품');
+  sheet.getCell('A1').value = GOODS_WORKBOOK_V3_VERSION;
+  sheet.getRow(4).values = keys.map((key) => GOODS_WORKBOOK_HEADERS[key]);
+  rows.forEach((values, index) => {
+    sheet.getRow(index + 5).values = keys.map((key) => values[key] || null);
+  });
+  // v3 파일의 KC 검토 시트도 같은 v3 버전 표기를 쓴다.
+  const kc = book.addWorksheet(GOODS_KC_WORKBOOK_SHEET);
+  kc.getCell('A1').value = GOODS_WORKBOOK_V3_VERSION;
+  kc.getRow(4).values = Object.values(GOODS_KC_WORKBOOK_HEADERS);
+  return Buffer.from(await book.xlsx.writeBuffer());
+}
 describe('goods Excel planning', () => {
   it('대표·추가 카테고리를 XLSX로 왕복하고 추가 분류 공란은 명시 해제한다', async () => {
     const primary = '00000000-0000-4000-8000-000000051111';
@@ -261,6 +284,13 @@ describe('goods Excel planning', () => {
       },
     });
   });
+  it('소비자가 오류는 편집기의 판매가·할인 대신 엑셀 열 이름(기준 판매가·소비자가)으로 알린다', () => {
+    const [equal] = planGoodsWorkbookImport([row({ code: 'price-eq', price: '12000', compareAtPrice: '12000' })], context);
+    expect(equal.errors).toEqual(['소비자가는 기준 판매가보다 커야 합니다.']);
+    const [text] = planGoodsWorkbookImport([row({ code: 'price-text', price: '12000', compareAtPrice: '12,000원' })], context);
+    expect(text.errors).toEqual(['소비자가는 0 이상의 정수여야 합니다.']);
+    for (const group of [equal, text]) expect(group.errors.join()).not.toMatch(/할인/);
+  });
   it('keeps errors scoped to a complete product group and allows other products', () => {
     const groups = planGoodsWorkbookImport(
       [
@@ -345,6 +375,41 @@ describe('goods Excel planning', () => {
         context,
       ),
     ).toThrow('500행');
+  });
+  it('추가 이미지 9장을 v4 양식으로 왕복하고 9번째 칸만 바꾼 변경을 계획한다', async () => {
+    const gallery = Array.from({ length: 9 }, (_, index) => `public-media/catalog/good/gallery-${index + 1}.webp`);
+    const record = { ...existing, good: { ...existing.good, gallery_paths: gallery } };
+    const ctx = { ...context, existing: [record] };
+    const exported = exportGoodsWorkbookRows(record, ctx);
+    expect(exported[0]).toMatchObject({ galleryUrl0: `https://example.test/${gallery[0]}`, galleryUrl8: `https://example.test/${gallery[8]}` });
+    const parsed = await parseGoodsWorkbookWithKc(await buildGoodsWorkbook(exported));
+    expect(parsed.rows[0].values.galleryUrl8).toBe(`https://example.test/${gallery[8]}`);
+    expect(parsed.rows[0].layout).toBeUndefined();
+    expect(planGoodsWorkbookImport(parsed.rows, { ...ctx, kcRows: parsed.kcRows })[0]).toMatchObject({ kind: 'unchanged' });
+    const changed = planGoodsWorkbookImport([{ row: 5, values: { ...exported[0], galleryUrl8: 'https://img.example.com/new-9.png' } }], ctx)[0];
+    expect(changed).toMatchObject({ kind: 'update', target: { gallery_paths: [...gallery.slice(0, 8), 'import-image:gallery_8'] } });
+    expect(changed.images).toEqual([{ field: 'gallery_8', source: 'https://img.example.com/new-9.png', kind: 'url' }]);
+  });
+  it('갤러리 4칸 v3 양식도 올리고 기존 상품의 추가 이미지 5~9는 저장값을 유지한다', async () => {
+    const gallery = Array.from({ length: 9 }, (_, index) => `public-media/catalog/good/gallery-${index + 1}.webp`);
+    const record = { ...existing, good: { ...existing.good, gallery_paths: gallery } };
+    const ctx = { ...context, existing: [record] };
+    const exported = exportGoodsWorkbookRows(record, ctx)[0];
+    const parsed = await parseGoodsWorkbookWithKc(await v3Workbook([exported]));
+    expect(parsed.rows).toHaveLength(1);
+    expect(parsed.rows[0]).toMatchObject({ row: 5, layout: 'v3', values: { galleryUrl3: exported.galleryUrl3, galleryUrl4: '', galleryUrl8: '', detailImageUrl: exported.detailImageUrl } });
+    expect(parsed.rows[0].values.name).toBe('기존 상품');
+    // 파일에 없는 갤러리 5~9는 빈칸이 아니라 "그대로 둠"이다.
+    expect(planGoodsWorkbookImport(parsed.rows, { ...ctx, kcRows: parsed.kcRows })[0]).toMatchObject({ kind: 'unchanged' });
+    const removedFirst = { ...parsed.rows[0], values: { ...parsed.rows[0].values, galleryUrl0: '' } };
+    const plan = planGoodsWorkbookImport([removedFirst], ctx)[0];
+    expect(plan).toMatchObject({ kind: 'update', target: { gallery_paths: gallery.slice(1) }, images: [] });
+    // 실패 행 파일은 v4로 다시 만들어지므로 유지한 추가 이미지 5~9가 열에 그대로 남는다.
+    expect(plan.source[0].values.galleryUrl8).toBe(`https://example.test/${gallery[8]}`);
+    expect(removedFirst.values.galleryUrl8).toBe('');
+    // 새 상품은 v3 파일의 갤러리 1~4만 쓴다.
+    const fresh = planGoodsWorkbookImport([{ row: 6, layout: 'v3', values: { ...row().values, galleryUrl0: 'https://img.example.com/1.png' } }], ctx)[0];
+    expect(fresh).toMatchObject({ kind: 'new', target: { gallery_paths: ['import-image:gallery_0'] } });
   });
   it('never splits one product across export parts', () => {
     expect(
