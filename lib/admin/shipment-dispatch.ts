@@ -20,8 +20,10 @@ export interface ShipmentConsoleRow {
 }
 export interface ShipmentConsoleData {
  surface:ShipmentConsoleSurface;filters:ShipmentConsoleFilters;rows:ShipmentConsoleRow[];total:number;pageSize:number;
- counts:Record<ShipmentConsoleTab,number>;carriers:ShippingCarrierRegistry;origins:{id:string;name:string}[];
+ counts:Record<ShipmentConsoleTab,number>;carriers:ShippingCarrierRegistry;origins:ShipmentConsoleOrigin[];
 }
+/** 출고지 필터와 출고지별 출고지시 내려받기에 쓴다. 양식·사용 여부는 버튼 노출만 정한다. */
+export interface ShipmentConsoleOrigin {id:string;name:string;template?:string;active?:boolean}
 export interface ShipmentExportData {shipments:{id:string;updatedAt:string;originId:string;originName:string;shippingFee:number;template:string;columns:ShipmentExportColumn[];lines:import('./shipment-workbook').ShipmentExportLine[]}[]}
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const one=(value:string|string[]|undefined)=>typeof value==='string'?value.trim():'';
@@ -48,6 +50,7 @@ export function shipmentMutationError(code:string):string{
   invalid_tracking_row:'회신 행의 주문번호와 운송장번호를 확인해주세요.',
   invalid_warehouse_order_reference:'주문번호(쇼핑몰)에 ICONS 출고 파일의 전체 주문번호를 그대로 유지해주세요.',
   conflicting_shipment_tracking:'같은 주문에 서로 다른 운송장이 있습니다. 해당 주문의 모든 행을 함께 확인해주세요.',
+  shipment_tracking_conflict:'이미 다른 운송장으로 발송된 배송 건입니다. 회신 파일로 덮어쓰지 않습니다. 정정은 주문 통합검색의 운송장 수정에서 해주세요.',
  };
  if(warehouseErrors[code])return warehouseErrors[code];
  const known:Record<string,string>={shipment_reference_required:'배송 건이 여러 개이거나 번호가 겹칩니다. 전체 배송건번호로 등록해주세요.',shipment_not_found:'배송 건을 찾을 수 없습니다.',invalid_shipment_reference:'배송건번호 형식을 확인해주세요.',duplicate_shipment_reference:'앞선 행과 같은 배송 건입니다.',invalid_shipment_transition:'발주확인 또는 현재 배송 상태를 확인해주세요.',tracking_required:'택배사와 운송장번호가 필요합니다.',invalid_tracking_input:'운송장번호 형식을 확인해주세요.',inactive_shipping_carrier:'현재 사용 중인 택배사를 선택해주세요.',order_not_shipped:'발송된 배송 건만 운송장을 정정할 수 있습니다.','order cancellation in progress':'취소·반품·교환 처리가 진행 중입니다. 주문 상세를 확인해주세요.',delivery_method_evidence_required:'퀵·방문수령은 주문 상세의 인계·수령 확인에서 처리해주세요.',preorder_allocation_required:'예약 품목에 실제 입고 물량을 먼저 할당해주세요.'};

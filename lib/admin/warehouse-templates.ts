@@ -22,14 +22,27 @@ export const GIMPO_COLUMNS = [
   { key: 'shippingFee', header: '배송비(수집)', width: 14 },
   { key: 'trackingNumber', header: '운송장번호', width: 25 },
 ] as const;
+/**
+ * 서원(남양주) `260908_우체국 송장 입력 양식.xlsx`의 `송장양식` 시트. 7열의 헤더·순서·너비와
+ * 헤더 색(`fill`: 노랑=필수, 회색=선택, 초록=피킹)은 원본 그대로다. 원본에는 받는 분 이름 칸이
+ * 없지만 서원 회신(C3·C8)은 이름을 송장과 합배송 판정에 쓴다 — 7열은 건드리지 않고 오른쪽에
+ * 덧붙인다(`appended`). 서원 프로그램이 7열만 읽으면 덧붙인 열은 무시된다.
+ */
+export const SEOWON_SHEET_NAME = '송장양식';
 export const SEOWON_COLUMNS = [
-  { key: 'phone', header: '받는분전화번호', width: 19 },
-  { key: 'otherPhone', header: '받는분기타연락처', width: 21 },
-  { key: 'postalCode', header: '받는분우편번호', width: 19 },
-  { key: 'address', header: '받는분주소(전체,분할)', width: 60 },
-  { key: 'freightType', header: '운임Type', width: 12 },
-  { key: 'quantity', header: '수량', width: 8 },
-  { key: 'items', header: '품목명', width: 60 },
+  { key: 'phone', header: '받는분전화번호', width: 18.3984375, fill: 'required' },
+  { key: 'otherPhone', header: '받는분기타연락처', width: 21, fill: 'optional' },
+  { key: 'postalCode', header: '받는분우편번호', width: 18.3984375, fill: 'optional' },
+  { key: 'address', header: '받는분주소(전체,분할)', width: 83.3984375, fill: 'required' },
+  { key: 'freightType', header: '운임Type', width: 11.69921875, fill: 'optional' },
+  { key: 'quantity', header: '수량', width: 6.59765625, fill: 'picking' },
+  { key: 'items', header: '품목명', width: 62.5, fill: 'picking' },
+  { key: 'recipient', header: '받는분성명', width: 16, fill: 'optional', appended: true },
+  { key: 'deliveryNote', header: '배송메시지', width: 40, fill: 'optional', appended: true },
 ] as const;
+/** 회신 파일에서 송장번호 열로 인정하는 헤더. 공백은 비교 전에 지운다. */
+export const SEOWON_REPLY_TRACKING_HEADERS = ['송장번호', '운송장번호', '등기번호', '운송장', '송장', '택배송장번호', '우체국송장번호'] as const;
 export const GIMPO_EXPORT_HEADERS = GIMPO_COLUMNS.map(column => column.header);
 export const SEOWON_EXPORT_HEADERS = SEOWON_COLUMNS.map(column => column.header);
+/** 제공 원본의 7열. 회신 판별은 이 7개 헤더가 A~G에 그대로 있는지로 한다. */
+export const SEOWON_TEMPLATE_HEADERS = SEOWON_COLUMNS.filter(column => !('appended' in column)).map(column => column.header);
