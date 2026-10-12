@@ -71,7 +71,16 @@ async function reconcileApprovedRequest(requestId: string, actorId: string) {
   }
 }
 
-const REVIEW_REQUIRED = '결제 취소 상태를 확정하지 못했습니다. 운영 화면의 최신 상태에서 다시 확인해주세요.';
+/**
+ * 결제 취소를 확정하지 못한 결과(2026-10-12 브라우저 QA QA-10).
+ *
+ * 원인 코드를 그대로 싣는다. 런북·가이드의 조치는 코드별이라, 코드 없이 "다시 확인"만
+ * 말하면 운영자는 같은 버튼을 반복해 누른다. 같은 코드는 주문 패널의 취소 요청 영역과
+ * 취소 관리 요청 상세의 정합화 오류에도 남는다.
+ */
+function reviewRequiredMessage(code: string) {
+  return `결제 취소 상태를 확정하지 못했습니다(${code}). 주문과 재고는 그대로 유지됩니다. 코드별 조치는 어드민 가이드 "클레임 처리"에 있습니다. 원인을 확인한 뒤 이 주문 패널의 [${ADMIN_CANCELLATION_RECHECK_LABELS.needsReview}]으로 다시 시도해주세요.`;
+}
 const PAYMENT_RECONCILIATION_IN_PROGRESS = '결제 상태 처리가 아직 끝나지 않았습니다. 주문과 재고는 그대로 유지됩니다. 최신 상태를 확인한 뒤 다시 시도하고, 상태가 계속되면 관리자 결제 담당자에게 결제사 원장 확인을 요청해주세요.';
 
 /**
@@ -292,7 +301,7 @@ export async function approveAdminOrderCancellationAction(
 
   const result = await reconcileApprovedRequest(normalized.value.requestId, access.auth.user.id);
   revalidateOrderSurfaces();
-  if (!result.ok) return { errors: { form: REVIEW_REQUIRED } };
+  if (!result.ok) return { errors: { form: reviewRequiredMessage(result.code) } };
   if (result.status === 'in_progress') return { message: PAYMENT_RECONCILIATION_IN_PROGRESS };
   return { message: '청약철회를 완료했습니다.' };
 }
@@ -341,7 +350,7 @@ export async function reconcileAdminOrderCancellationAction(
 
   const result = await reconcileApprovedRequest(normalized.value.requestId, access.auth.user.id);
   revalidateOrderSurfaces();
-  if (!result.ok) return { errors: { form: REVIEW_REQUIRED } };
+  if (!result.ok) return { errors: { form: reviewRequiredMessage(result.code) } };
   if (result.status === 'in_progress') return { message: PAYMENT_RECONCILIATION_IN_PROGRESS };
   return { message: '결제 취소 상태를 정합화했습니다.' };
 }

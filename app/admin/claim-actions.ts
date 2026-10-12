@@ -51,6 +51,10 @@ const REFUND_FAILED = '환불 원장을 기록하지 못했습니다. 최신 상
 const RESHIP_FAILED = '재출고를 기록하지 못했습니다. 최신 상태를 확인해주세요.';
 const OPERATIONAL_FEE_FAILED = '운영 확인액을 기록하지 못했습니다. 최신 클레임을 다시 확인해주세요.';
 const FINALIZE_FAILED = '결제 취소 상태를 확정하지 못했습니다. 주문과 재고는 그대로 유지됩니다. 정합화 오류를 확인한 뒤 다시 시도해주세요.';
+/** 정합화 결과 코드가 있는 실패. 코드별 조치를 찾을 수 있게 그대로 싣는다(QA-10). */
+function finalizeFailed(code: string) {
+  return `결제 취소 상태를 확정하지 못했습니다(${code}). 주문과 재고는 그대로 유지됩니다. 정합화 오류의 코드별 조치를 확인한 뒤 다시 시도해주세요.`;
+}
 const IN_PROGRESS = '결제 상태 처리가 아직 끝나지 않았습니다. 주문과 재고는 그대로 유지됩니다.';
 const REFUND_METHOD_MISMATCH = '이 결제의 환불 수단과 다릅니다. 토스 결제는 결제사 취소(토스 전액 취소)로만 환불합니다. 화면을 새로고침한 뒤 다시 진행해주세요.';
 
@@ -395,7 +399,7 @@ async function finalizeClaimPayment(
       requestId: input.claimId,
       actorId: input.actorId,
     });
-    if (!result.ok) return { ok: false, error: FINALIZE_FAILED };
+    if (!result.ok) return { ok: false, error: finalizeFailed(result.code) };
     if (result.status === 'in_progress') return { ok: false, error: IN_PROGRESS };
     return { ok: true };
   } catch {

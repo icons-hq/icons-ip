@@ -873,6 +873,15 @@ function OrderDetail({
           {cancellationRequest.decisionNote ? (
             <p>처리 메모 · {cancellationRequest.decisionNote}</p>
           ) : null}
+          {/* 재시도 결과와 같은 원인 코드를 요청 영역에도 남긴다(QA-10). 결과 문구는 다른
+              주문을 처리하거나 새로고침하면 사라지지만 코드는 요청이 열려 있는 동안 남는다. */}
+          {cancellationRequest.lastErrorCode
+            && (cancellationRequest.status === 'needs_review' || cancellationRequest.status === 'processing') ? (
+            <p>
+              정합화 오류 · <code className="mono">{cancellationRequest.lastErrorCode}</code>
+              {' · 코드별 조치는 어드민 가이드 "클레임 처리"에 있습니다.'}
+            </p>
+          ) : null}
           {manualRecoveryAttempt ? (
             <>
               <h4 className="admin-order-korpay-title">Korpay 원장 확인 정보</h4>

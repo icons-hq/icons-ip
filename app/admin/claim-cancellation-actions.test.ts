@@ -189,6 +189,20 @@ describe('recordOrderClaimRefundAction — 환불 수단은 결제가 정한다'
     expect(state.message).toContain('토스 전액 취소를 확인하고');
   });
 
+  /* 2026-10-12 QA-10: 확정하지 못한 결과는 원인 코드를 싣는다. */
+  it('토스 환불 완료 확정이 결제 취소를 확정하지 못하면 원인 코드를 보여준다', async () => {
+    mocks.loadAdminClaimDetail.mockResolvedValue(detail({ provider: 'toss', stage: 'needs_review' }));
+    mocks.rpc.mockImplementation(async (name: string) => (
+      name === 'admin_goods_manual_recovery_attempts' ? { data: [], error: null } : { data: null, error: null }
+    ));
+    mocks.reconcileOrderCancellation.mockResolvedValue({ ok: false, code: 'provider_cancel_rejected' });
+
+    const state = await recordOrderClaimRefundAction({}, refundForm('completed', 'pg_cancel'));
+
+    expect(state.error).toContain('(provider_cancel_rejected)');
+    expect(mocks.rpc.mock.calls.map(([name]) => name)).not.toContain('admin_record_order_claim_refund');
+  });
+
   it('결제사 취소 뒤 원장 기록만 실패하면 "다시 환불하지 마세요"를 먼저 말한다', async () => {
     mocks.loadAdminClaimDetail.mockResolvedValue(detail({ provider: 'toss', stage: 'processing' }));
     mocks.rpc.mockImplementation(async (name: string) => {
