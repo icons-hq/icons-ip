@@ -7,6 +7,7 @@ import {
   normalizeCheckoutAddress,
   normalizeCheckoutPaymentMethod,
   type CheckoutAddress,
+  type CheckoutPaymentAttemptSnapshot,
   type CheckoutPaymentMethod,
 } from './checkout';
 import { createClient } from './supabase/server';
@@ -71,8 +72,17 @@ export interface CheckoutOrderSnapshot {
   paymentStatus: string | null;
   /** 주문 생성 시점에 고정된 결제수단 (#256). */
   paymentMethod: CheckoutPaymentMethod;
+  /**
+   * 이 주문의 결제 시도. service role 전용 원장에서 상태·만료·provider만 읽는다.
+   * 같은 주문으로 다시 결제할 수 있는지(재-prepare 가능 여부)를 화면이 판독하는 근거다.
+   */
+  paymentAttempt: CheckoutPaymentAttemptSnapshot | null;
+  /** 처리 중인 취소 요청(requested·processing·needs_review)이 있으면 DB가 결제를 막는다. */
+  hasActiveCancellationRequest: boolean;
   items: CheckoutOrderItem[];
 }
+
+const ACTIVE_CANCELLATION_REQUEST_STATUSES = ['requested', 'processing', 'needs_review'];
 
 export async function loadLatestCheckoutAddress(userId: string): Promise<CheckoutAddress | null> {
   const supabase = await createClient();
@@ -121,6 +131,7 @@ export async function loadCheckoutOrder(
     { data: itemData, error: itemError },
     { data: paymentData, error: paymentError },
     { data: attemptData, error: attemptError },
+    { data: requestData, error: requestError },
   ] = await Promise.all([
     supabase
       .from('order_items')
@@ -137,15 +148,21 @@ export async function loadCheckoutOrder(
       .maybeSingle<{ status: string }>(),
     paymentLedger
       .from('payment_attempts')
-      .select('state')
+      .select('state,expires_at,provider')
       .eq('user_id', userId)
       .eq('purpose', 'order')
       .eq('ref_id', orderId)
       .order('created_at', { ascending: false })
       .limit(1)
-      .maybeSingle<{ state: string }>(),
+      .maybeSingle<{ state: string; expires_at: string | null; provider: string }>(),
+    supabase
+      .from('order_cancellation_requests')
+      .select('status')
+      .eq('order_id', orderId)
+      .in('status', ACTIVE_CANCELLATION_REQUEST_STATUSES)
+      .limit(1),
   ]);
-  if (itemError || paymentError || attemptError) return null;
+  if (itemError || paymentError || attemptError || requestError) return null;
 
   const itemRows = (itemData ?? []) as OrderItemRow[];
 
@@ -165,6 +182,14 @@ export async function loadCheckoutOrder(
       || attemptData?.state === 'needs_review'
     ) ? 'pending' : paymentData?.status ?? null,
     paymentMethod: normalizeCheckoutPaymentMethod(orderData.payment_method) ?? 'card',
+    paymentAttempt: attemptData
+      ? {
+          state: attemptData.state,
+          expiresAt: attemptData.expires_at ?? null,
+          provider: attemptData.provider,
+        }
+      : null,
+    hasActiveCancellationRequest: ((requestData ?? []) as unknown[]).length > 0,
     shipments: await loadOrderShipments(supabase, [orderId], await getShippingCarrierRegistry()),
     items: itemRows.map((item) => ({
       id: item.id,

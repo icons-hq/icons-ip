@@ -38,7 +38,38 @@ export function normalizeCheckoutPaymentMethod(value: unknown): CheckoutPaymentM
   return value === 'card' || value === 'bank_transfer' ? value : null;
 }
 
-export type CheckoutOrderState = 'payable' | 'checking' | 'complete' | 'closed';
+export type CheckoutOrderState = 'payable' | 'payment_closed' | 'checking' | 'complete' | 'closed';
+
+/** 주문의 카드 결제 시도(payment_attempts) 중 화면 판독에 필요한 값만. */
+export interface CheckoutPaymentAttemptSnapshot {
+  readonly state: string;
+  readonly expiresAt: string | null;
+  readonly provider: string;
+}
+
+/**
+ * 주문은 아직 결제 대기(pending)인데 같은 주문으로 결제를 다시 시작할 수 없는 이유.
+ *
+ * 굿즈 주문당 결제 시도는 하나뿐이고(payment_attempts_one_goods_order_idx),
+ * `prepare_goods_payment_attempt`는 기존 시도가 만료 전 `prepared`일 때만 재사용한다.
+ * - `not_approved`: 승인 단계에서 거절·취소로 끝난 시도(declined·canceled). 청구 없이
+ *   끝났고 같은 주문으로는 다시 결제할 수 없다.
+ * - `attempt_expired`: 결제 준비 후 시도 유효 시간(최대 10분)이 지났다. 콜백도 거절되므로
+ *   승인 API가 불리지 않는다.
+ * - `cancellation_requested`: 처리 중인 취소 요청이 있어 DB가 결제를 막는다.
+ */
+export type CheckoutPaymentClosure = 'not_approved' | 'attempt_expired' | 'cancellation_requested';
+
+/** 닫힌 결제 화면에서 고객에게 줄 수 있는 정리 액션. */
+export type CheckoutReorderMode = 'cancel_then_reorder' | 'reorder';
+
+export interface CheckoutClosureInput {
+  readonly status: string;
+  readonly paymentMethod: CheckoutPaymentMethod;
+  readonly paymentStatus: string | null;
+  readonly paymentAttempt: CheckoutPaymentAttemptSnapshot | null;
+  readonly hasActiveCancellationRequest: boolean;
+}
 
 const ADDRESS_KEYS = new Set([
   'recipientName',
@@ -176,11 +207,32 @@ export function mapPlaceOrderError(message: unknown): PlaceOrderErrorCode {
   return 'unavailable';
 }
 
+/**
+ * 카드 주문의 결제가 닫힌 이유. 무통장 주문은 시도 TTL이 곧 입금 기한이라 주문 만료
+ * (`closed`)와 같은 축이므로 여기서 다루지 않는다.
+ */
+export function checkoutPaymentClosure(
+  order: Pick<CheckoutClosureInput, 'paymentMethod' | 'paymentAttempt' | 'hasActiveCancellationRequest'>,
+  now: number,
+): CheckoutPaymentClosure | null {
+  if (order.paymentMethod !== 'card') return null;
+  if (order.hasActiveCancellationRequest) return 'cancellation_requested';
+  const attempt = order.paymentAttempt;
+  if (!attempt) return null;
+  if (attempt.state === 'declined' || attempt.state === 'canceled') return 'not_approved';
+  if (
+    attempt.state === 'prepared'
+    && (!attempt.expiresAt || Date.parse(attempt.expiresAt) <= now)
+  ) return 'attempt_expired';
+  return null;
+}
+
 export function checkoutOrderState(
   orderStatus: string,
   paymentStatus: string | null,
   expiresAt: string | null,
   now: number = Date.now(),
+  closure: CheckoutPaymentClosure | null = null,
 ): CheckoutOrderState {
   // 결제가 끝난 뒤의 모든 사다리 단계는 "결제 완료"다(#250). 새 단계가 빠지면
   // 발주확인된 주문의 결제 화면이 만료된 주문처럼 닫혀 보인다.
@@ -190,5 +242,46 @@ export function checkoutOrderState(
   if (orderStatus !== 'pending') return 'closed';
   if (paymentStatus === 'pending' || paymentStatus === 'paid') return 'checking';
   if (!expiresAt || Date.parse(expiresAt) <= now) return 'closed';
+  if (closure) return 'payment_closed';
   return 'payable';
+}
+
+/**
+ * 결제가 닫힌 주문에 "취소하고 다시 주문하기"를 보일지.
+ *
+ * 취소 단계는 기존 고객 취소 경로(`/api/orders/[orderId]/cancel` → `request_order_claim`)를
+ * 그대로 쓴다. 그 RPC는 pending 주문에 미해결 시도(prepared·confirming·unknown·
+ * needs_review·approved)도 결제 원장 행도 없을 때만 즉시 취소하고 재고·쿠폰·적립금·
+ * 첫구매 예약을 같은 트랜잭션에서 돌려준다. 그 밖에는 청약철회 요청으로 접수돼 담당자
+ * 확인을 기다리므로, 즉시 취소가 확실한 경우에만 이 액션을 연다. 만료된 prepared 시도도
+ * 그 RPC에서는 미해결이라 여기서 제외된다 — 그 주문은 결제 기한 뒤 만료 sweep이 닫는다.
+ */
+export function checkoutReorderMode(
+  order: CheckoutClosureInput,
+  state: CheckoutOrderState,
+): CheckoutReorderMode | null {
+  if (order.paymentMethod !== 'card') return null;
+  if (order.status === 'canceled') return 'reorder';
+  if (
+    order.status !== 'pending'
+    || order.paymentStatus !== null
+    || order.hasActiveCancellationRequest
+    || (state !== 'payment_closed' && state !== 'closed')
+  ) return null;
+  const attempt = order.paymentAttempt;
+  if (attempt && attempt.state !== 'declined' && attempt.state !== 'canceled') return null;
+  return 'cancel_then_reorder';
+}
+
+/** 결제 기한 시각을 KST "HH:MM"으로. 서버·브라우저가 같은 값을 내도록 시간대를 고정한다. */
+export function checkoutDeadlineTimeLabel(value: string | null): string | null {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return new Intl.DateTimeFormat('ko-KR', {
+    timeZone: 'Asia/Seoul',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).format(date);
 }

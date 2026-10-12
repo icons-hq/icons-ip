@@ -25,6 +25,8 @@ const order: CheckoutOrderSnapshot = {
   paymentStatus: null,
   shipments: [],
   paymentMethod: 'card' as const,
+  paymentAttempt: null,
+  hasActiveCancellationRequest: false,
   items: [{
     id: 'item-1',
     variantId: '00000000-0000-4000-8000-000000000001', goodId: 'g13',
@@ -110,6 +112,64 @@ describe('CheckoutOrder 결제 실패 복귀 안내', () => {
     const html = renderToStaticMarkup(<CheckoutOrder order={order} />);
 
     expect(html).not.toContain('결제가 완료되지 않았어요');
+  });
+
+  /* 시도가 닫힌 주문에서 "같은 주문에서 다시 시도"는 지킬 수 없는 약속이다(UX-1). */
+  it('같은 주문으로 다시 결제할 수 없으면 재시도를 약속하지 않는다', () => {
+    const html = renderToStaticMarkup(
+      <CheckoutOrder
+        order={{ ...order, paymentAttempt: { state: 'declined', expiresAt: '2099-08-07T06:10:00.000Z', provider: 'toss' } }}
+        paymentFailCode="PAY_PROCESS_CANCELED"
+      />,
+    );
+
+    expect(html).toContain('결제를 직접 취소하셨어요.');
+    expect(html).not.toContain('같은 주문에서 다시 시도');
+  });
+});
+
+describe('CheckoutOrder 닫힌 결제 안내', () => {
+  it('승인 거절된 주문에는 결제 준비 버튼 대신 다시 결제할 수 없다는 안내를 띄운다', () => {
+    const html = renderToStaticMarkup(
+      <CheckoutOrder
+        order={{ ...order, paymentAttempt: { state: 'declined', expiresAt: '2099-08-07T06:10:00.000Z', provider: 'toss' } }}
+      />,
+    );
+
+    expect(html).toContain('이 주문은 다시 결제할 수 없어요');
+    expect(html).not.toContain('결제 준비하기');
+    expect(html).not.toContain('결제 환경을 준비 중');
+  });
+
+  it('처리 중인 취소 요청이 있으면 결제 대신 주문 상세로 안내한다', () => {
+    const html = renderToStaticMarkup(
+      <CheckoutOrder order={{ ...order, hasActiveCancellationRequest: true }} />,
+    );
+
+    expect(html).toContain('취소 요청을 처리하고 있어요');
+    expect(html).toContain(`href="/orders/${order.id}"`);
+    expect(html).not.toContain('결제 준비하기');
+  });
+
+  /* 웹훅·재정합 비밀이 없으면 확인은 자동으로 계속되지 않는다(UX-4). */
+  it('확인 중 화면은 자동 확인을 약속하지 않고 주문 상세와 1:1 문의로 잇는다', () => {
+    const html = renderToStaticMarkup(
+      <CheckoutOrder order={{ ...order, paymentStatus: 'pending' }} />,
+    );
+
+    expect(html).toContain('결제를 확인하고 있어요');
+    expect(html).not.toContain('확인은 계속됩니다');
+    expect(html).toContain(`href="/orders/${order.id}"`);
+    expect(html).toContain('href="/my/inquiries"');
+  });
+
+  it('취소된 카드 주문은 만료가 아니라 취소로 안내한다', () => {
+    const html = renderToStaticMarkup(
+      <CheckoutOrder order={{ ...order, status: 'canceled', expiresAt: null }} />,
+    );
+
+    expect(html).toContain('취소된 주문이에요');
+    expect(html).not.toContain('결제 가능한 시간이 지났어요');
   });
 });
 

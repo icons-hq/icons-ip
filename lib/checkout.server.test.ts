@@ -225,7 +225,7 @@ describe('loadCheckoutOrder', () => {
         paymentStatus: 'pending',
       });
       expect(serviceRecords.find((record) => record.table === 'payment_attempts')).toMatchObject({
-        select: 'state',
+        select: 'state,expires_at,provider',
         eq: [
           ['user_id', userId],
           ['purpose', 'order'],
@@ -234,4 +234,80 @@ describe('loadCheckoutOrder', () => {
       });
     },
   );
+
+  it('결제 시도 상태·만료·provider와 처리 중인 취소 요청을 스냅샷에 싣는다', async () => {
+    const orderId = '7ad4c967-3d48-44da-a665-64731ac33f62';
+    const userId = '1cc4d399-8e70-4f06-979d-8fb0f9c43fde';
+    const records: QueryRecord[] = [];
+    mocks.client = {
+      from(table: string) {
+        return createQuery(table, records, {
+          orders: [{
+            id: orderId,
+            user_id: userId,
+            status: 'pending',
+            total: 31000,
+            shipping_fee: 3000,
+            address: null,
+            expires_at: '2026-10-12T05:15:00.000Z',
+            created_at: '2026-10-12T05:00:00.000Z',
+          }],
+          order_items: [],
+          payment_summaries: [],
+          order_cancellation_requests: [{ order_id: orderId, status: 'requested' }],
+        });
+      },
+    };
+    mocks.serviceClient = {
+      from(table: string) {
+        return createQuery(table, [], {
+          payment_attempts: [{
+            user_id: userId,
+            purpose: 'order',
+            ref_id: orderId,
+            state: 'declined',
+            expires_at: '2026-10-12T05:10:00.000Z',
+            provider: 'toss',
+          }],
+        });
+      },
+    };
+
+    await expect(loadCheckoutOrder(userId, orderId)).resolves.toMatchObject({
+      paymentStatus: null,
+      paymentAttempt: { state: 'declined', expiresAt: '2026-10-12T05:10:00.000Z', provider: 'toss' },
+      hasActiveCancellationRequest: true,
+    });
+    expect(records.find((record) => record.table === 'order_cancellation_requests')).toMatchObject({
+      select: 'status',
+      eq: [['order_id', orderId]],
+    });
+  });
+
+  it('결제 시도와 취소 요청이 없으면 비워 둔다', async () => {
+    const orderId = '7ad4c967-3d48-44da-a665-64731ac33f62';
+    const userId = '1cc4d399-8e70-4f06-979d-8fb0f9c43fde';
+    mocks.client = {
+      from(table: string) {
+        return createQuery(table, [], {
+          orders: [{
+            id: orderId,
+            user_id: userId,
+            status: 'pending',
+            total: 31000,
+            shipping_fee: 3000,
+            address: null,
+            expires_at: '2026-10-12T05:15:00.000Z',
+            created_at: '2026-10-12T05:00:00.000Z',
+          }],
+        });
+      },
+    };
+    mocks.serviceClient = mocks.client;
+
+    await expect(loadCheckoutOrder(userId, orderId)).resolves.toMatchObject({
+      paymentAttempt: null,
+      hasActiveCancellationRequest: false,
+    });
+  });
 });

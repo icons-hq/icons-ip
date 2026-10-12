@@ -1,8 +1,12 @@
 import { describe, expect, it } from 'vitest';
 import {
   checkoutAddressErrors,
+  checkoutDeadlineTimeLabel,
   checkoutOrderName,
   checkoutOrderState,
+  checkoutPaymentClosure,
+  checkoutReorderMode,
+  type CheckoutClosureInput,
   mapPlaceOrderError,
   normalizeCheckoutAddress,
   normalizeCheckoutKey,
@@ -116,5 +120,113 @@ describe('checkoutOrderState', () => {
     expect(checkoutOrderState('done', 'paid', null, now)).toBe('complete');
     expect(checkoutOrderState('pending', null, '2026-07-14T04:59:59.000Z', now)).toBe('closed');
     expect(checkoutOrderState('canceled', 'canceled', null, now)).toBe('closed');
+  });
+});
+
+/*
+ * 굿즈 주문당 결제 시도는 하나이고 prepare는 만료 전 prepared 시도만 재사용한다.
+ * 승인 거절·시도 만료 뒤에도 "결제 준비하기"를 띄우면 누를 때마다 같은 실패만 돈다.
+ */
+describe('checkoutPaymentClosure', () => {
+  const now = Date.parse('2026-10-12T05:00:00.000Z');
+  const base = {
+    paymentMethod: 'card' as const,
+    paymentAttempt: null,
+    hasActiveCancellationRequest: false,
+  };
+
+  it('결제 시도가 없거나 아직 유효한 prepared 시도면 같은 주문으로 다시 결제할 수 있다', () => {
+    expect(checkoutPaymentClosure(base, now)).toBeNull();
+    expect(checkoutPaymentClosure({
+      ...base,
+      paymentAttempt: { state: 'prepared', expiresAt: '2026-10-12T05:00:01.000Z', provider: 'toss' },
+    }, now)).toBeNull();
+  });
+
+  it.each(['declined', 'canceled'])('%s 시도는 같은 주문 재결제를 닫는다', (state) => {
+    expect(checkoutPaymentClosure({
+      ...base,
+      paymentAttempt: { state, expiresAt: '2026-10-12T05:10:00.000Z', provider: 'toss' },
+    }, now)).toBe('not_approved');
+  });
+
+  it('유효 시간이 지난 prepared 시도는 결제를 닫는다', () => {
+    expect(checkoutPaymentClosure({
+      ...base,
+      paymentAttempt: { state: 'prepared', expiresAt: '2026-10-12T05:00:00.000Z', provider: 'toss' },
+    }, now)).toBe('attempt_expired');
+  });
+
+  it('처리 중인 취소 요청은 결제를 닫는다', () => {
+    expect(checkoutPaymentClosure({ ...base, hasActiveCancellationRequest: true }, now))
+      .toBe('cancellation_requested');
+  });
+
+  it('진행 중·모호한 시도는 닫힘이 아니라 확인 중 축이다', () => {
+    for (const state of ['confirming', 'unknown', 'needs_review', 'approved']) {
+      expect(checkoutPaymentClosure({
+        ...base,
+        paymentAttempt: { state, expiresAt: '2026-10-12T04:00:00.000Z', provider: 'toss' },
+      }, now)).toBeNull();
+    }
+  });
+
+  it('무통장 주문은 시도 만료가 곧 입금 기한이라 이 판정을 쓰지 않는다', () => {
+    expect(checkoutPaymentClosure({
+      ...base,
+      paymentMethod: 'bank_transfer',
+      paymentAttempt: { state: 'prepared', expiresAt: '2026-10-12T04:00:00.000Z', provider: 'bank_transfer' },
+    }, now)).toBeNull();
+  });
+
+  it('닫힌 결제는 결제 대기 주문을 payable 대신 payment_closed로 보낸다', () => {
+    expect(checkoutOrderState('pending', null, '2026-10-12T05:10:00.000Z', now, 'not_approved'))
+      .toBe('payment_closed');
+    expect(checkoutOrderState('pending', 'pending', '2026-10-12T05:10:00.000Z', now, 'not_approved'))
+      .toBe('checking');
+    expect(checkoutOrderState('pending', null, '2026-10-12T04:59:00.000Z', now, 'not_approved'))
+      .toBe('closed');
+  });
+});
+
+describe('checkoutReorderMode', () => {
+  const order: CheckoutClosureInput = {
+    status: 'pending',
+    paymentMethod: 'card',
+    paymentStatus: null,
+    paymentAttempt: { state: 'declined', expiresAt: '2026-10-12T05:10:00.000Z', provider: 'toss' },
+    hasActiveCancellationRequest: false,
+  };
+
+  it('승인 거절된 결제 대기 주문은 즉시 취소 뒤 다시 담을 수 있다', () => {
+    expect(checkoutReorderMode(order, 'payment_closed')).toBe('cancel_then_reorder');
+    expect(checkoutReorderMode({ ...order, paymentAttempt: null }, 'closed')).toBe('cancel_then_reorder');
+  });
+
+  it('고객 취소가 즉시 끝나지 않는 주문에는 액션을 열지 않는다', () => {
+    // prepared(만료 포함)·진행 중 시도는 request_order_claim이 미해결로 보고 요청만 접수한다.
+    for (const state of ['prepared', 'confirming', 'unknown', 'needs_review', 'approved']) {
+      expect(checkoutReorderMode({
+        ...order,
+        paymentAttempt: { state, expiresAt: '2026-10-12T04:00:00.000Z', provider: 'toss' },
+      }, 'payment_closed')).toBeNull();
+    }
+    expect(checkoutReorderMode({ ...order, paymentStatus: 'failed' }, 'payment_closed')).toBeNull();
+    expect(checkoutReorderMode({ ...order, hasActiveCancellationRequest: true }, 'payment_closed')).toBeNull();
+    expect(checkoutReorderMode({ ...order, paymentAttempt: null }, 'payable')).toBeNull();
+    expect(checkoutReorderMode({ ...order, paymentMethod: 'bank_transfer' }, 'payment_closed')).toBeNull();
+    expect(checkoutReorderMode({ ...order, status: 'paid' }, 'complete')).toBeNull();
+  });
+
+  it('이미 취소된 카드 주문은 취소 없이 다시 담기만 연다', () => {
+    expect(checkoutReorderMode({ ...order, status: 'canceled' }, 'closed')).toBe('reorder');
+  });
+});
+
+describe('checkoutDeadlineTimeLabel', () => {
+  it('결제 기한을 KST 시:분으로 고정해 서버·브라우저 렌더가 갈라지지 않게 한다', () => {
+    expect(checkoutDeadlineTimeLabel('2026-10-12T05:15:00.000Z')).toBe('14:15');
+    expect(checkoutDeadlineTimeLabel(null)).toBeNull();
+    expect(checkoutDeadlineTimeLabel('not-a-date')).toBeNull();
   });
 });
