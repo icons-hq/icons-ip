@@ -89,6 +89,41 @@ function PanelActionField({ kind }: { kind: ClaimPanelAction }) {
   return <input name={PANEL_ACTION_FIELD} type="hidden" value={kind} />;
 }
 
+/**
+ * 되돌릴 수 없는 처리의 확인(2026-10-12 브라우저 QA QA-6).
+ *
+ * 취소 승인과 환불 완료 확정은 누르는 순간 결제사 전액 취소·주문 취소·재고 복원까지
+ * 간다. 주문 콘솔의 청약철회 승인·운영자 전액 취소처럼 확인을 거친다. 문구는 누른 버튼의
+ * data-confirm이 먼저고, 없으면 양식의 data-confirm이다 — 한 양식의 [검토중으로 표시]는
+ * 묻지 않고 [승인…]만 묻는다. 취소하면 양식 action이 실행되지 않는다.
+ */
+export function confirmClaimPanelSubmit(
+  event: React.FormEvent<HTMLFormElement>,
+  confirm: (message: string) => boolean = (message) => window.confirm(message),
+) {
+  const submitter = (event.nativeEvent as SubmitEvent).submitter ?? null;
+  const message = submitter?.getAttribute('data-confirm') ?? event.currentTarget.getAttribute('data-confirm');
+  if (message && !confirm(message)) event.preventDefault();
+}
+
+/** 취소 승인 확인 문구. 결제마다 승인 뒤 일어나는 일이 다르다. */
+export function claimCancelApprovalConfirmation(paymentProvider: string | null) {
+  if (paymentProvider === 'toss') {
+    return '취소를 승인하고 토스 전액 취소를 발행할까요? 되돌릴 수 없고, 확인되면 주문 취소·재고 복원·카드팩 회수와 환불 원장 기록이 함께 끝납니다.';
+  }
+  if (paymentProvider === 'korpay') return '취소를 승인할까요? 승인 뒤 Korpay 취소 접수와 환불 완료 확정으로 진행합니다.';
+  if (paymentProvider === 'bank_transfer') return '취소를 승인할까요? 승인 뒤 환불계좌 송금 절차로 진행합니다.';
+  return '취소를 승인할까요? 결제 전 주문은 바로 주문이 취소되고 되돌릴 수 없습니다.';
+}
+
+/** 환불 완료 기록 확인 문구. 아직 종결되지 않은 클레임은 정합화(토스면 전액 취소 발행)가 먼저 돈다. */
+export function claimRefundCompletionConfirmation(finalizationPending: boolean, tossPayment: boolean) {
+  if (!finalizationPending) return '환불 완료를 원장에 기록할까요?';
+  return tossPayment
+    ? '토스 전액 취소를 발행하고 주문 취소·재고 복원·카드팩 회수를 확정할까요? 되돌릴 수 없습니다.'
+    : '결제사 원장에서 전액 취소를 확인했나요? 확정하면 주문 취소·재고 복원·카드팩 회수가 진행되고 되돌릴 수 없습니다.';
+}
+
 function Feedback({ state }: { state: AdminClaimActionState }) {
   return (
     <>
@@ -240,7 +275,10 @@ export function ClaimActionPanel({
         <Feedback state={result} />
       </div>
 
-      {collectionPolicy === 'origin' ? <section aria-label="출고지별 회수 확인">
+      {/* 회수가 없는 취소에는 회수 안내를 그리지 않는다(QA-9). 승인 버튼 옆의 "수거를
+          승인하면…"은 사실이 아니다 — 취소 승인은 결제 취소로 간다. 회수 대상이 기록된
+          예전 취소(발주확인 뒤 접수된 레거시 건)만 그린다. */}
+      {collectionPolicy === 'origin' && (claimType !== 'cancel' || collections.length > 0) ? <section aria-label="출고지별 회수 확인">
         <h4 style={{ margin: '8px 0' }}>출고지별 회수 확인</h4>
         <p style={{ fontSize: 13 }}>{collectionComplete
           ? '모든 출고지의 회수를 확인했습니다.'
@@ -252,7 +290,7 @@ export function ClaimActionPanel({
       </section> : collectionPolicy === null ? <p role="alert">회수 확인 기준을 불러오지 못했습니다. 새로고침한 뒤 다시 확인해주세요.</p> : null}
 
       {canReview || canApprove ? (
-        <form action={panelAction}>
+        <form action={panelAction} onSubmit={(event) => confirmClaimPanelSubmit(event)}>
           <PanelActionField kind="decision" />
           <input name="claimId" type="hidden" value={claimId} />
           <input name="claimType" type="hidden" value={claimType} />
@@ -271,6 +309,7 @@ export function ClaimActionPanel({
             {canApprove ? (
               <button
                 className="btn btn-sm"
+                data-confirm={claimType === 'cancel' ? claimCancelApprovalConfirmation(paymentProvider) : undefined}
                 disabled={pending}
                 name="decision"
                 type="submit"
@@ -384,7 +423,11 @@ export function ClaimActionPanel({
       ) : null}
 
       {canCompleteRefund ? (
-        <form action={panelAction}>
+        <form
+          action={panelAction}
+          data-confirm={claimRefundCompletionConfirmation(refundFinalizationPending, tossPayment)}
+          onSubmit={(event) => confirmClaimPanelSubmit(event)}
+        >
           <PanelActionField kind="refund" />
           <input name="claimId" type="hidden" value={claimId} />
           <input name="claimType" type="hidden" value={claimType} />

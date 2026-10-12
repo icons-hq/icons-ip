@@ -160,3 +160,72 @@ describe('runClaimPanelAction', () => {
     for (const action of Object.values(actions)) expect(action).not.toHaveBeenCalled();
   });
 });
+
+/*
+ * 되돌릴 수 없는 금전 처리는 확인을 거친다(2026-10-12 브라우저 QA QA-6). 회수가 없는
+ * 취소에는 회수 안내를 그리지 않는다(QA-9).
+ */
+describe('ClaimActionPanel 확인과 취소 안내', () => {
+  async function render(overrides: Partial<ClaimActionPanelProps>) {
+    const { ClaimActionPanel } = await import('./ClaimActionPanel');
+    return renderToStaticMarkup(<ClaimActionPanel {...props(overrides)} />);
+  }
+
+  it('토스 취소 승인 버튼은 전액 취소 발행 확인 문구를 갖고 검토중 표시는 묻지 않는다', async () => {
+    const html = await render({ stage: 'requested', paymentProvider: 'toss', collectionPolicy: 'origin' });
+
+    expect(html).toMatch(/data-confirm="취소를 승인하고 토스 전액 취소를 발행할까요\? 되돌릴 수 없고[^"]*"[^>]*value="approve"/);
+    expect(html).not.toMatch(/data-confirm="[^"]*"[^>]*value="review"/);
+  });
+
+  it('환불 완료 확정 양식은 토스 전액 취소 발행 확인 문구를 갖는다', async () => {
+    const html = await render({
+      stage: 'needs_review', paymentProvider: 'toss', collectionPolicy: 'origin', refundLedgerOpen: true,
+    });
+
+    expect(html).toContain('data-confirm="토스 전액 취소를 발행하고 주문 취소·재고 복원·카드팩 회수를 확정할까요? 되돌릴 수 없습니다."');
+    expect(html).toContain('환불 완료 확정 (토스 전액 취소 발행');
+  });
+
+  it('반품 승인은 금전 처리가 아니라 확인을 붙이지 않는다', async () => {
+    const html = await render({ claimType: 'return', stage: 'requested', paymentProvider: 'toss', collectionPolicy: 'origin' });
+
+    expect(html).toContain('승인하고 수거 시작');
+    expect(html).not.toContain('data-confirm');
+  });
+
+  it('회수가 없는 취소에는 출고지별 회수 안내를 그리지 않는다', async () => {
+    const html = await render({ stage: 'requested', paymentProvider: 'toss', collectionPolicy: 'origin', collections: [] });
+
+    expect(html).not.toContain('출고지별 회수 확인');
+    expect(html).not.toContain('수거를 승인하면');
+    expect(html).toContain('승인하고 토스 전액 취소');
+  });
+
+  it('반품에는 출고지별 회수 안내가 그대로 있다', async () => {
+    const html = await render({ claimType: 'return', stage: 'requested', collectionPolicy: 'origin', collectionComplete: false, collections: [] });
+
+    expect(html).toContain('출고지별 회수 확인');
+    expect(html).toContain('수거를 승인하면 출고지별 반송 주소와 상품이 표시됩니다.');
+  });
+
+  it('누른 버튼의 확인을 취소하면 양식 제출을 막고, 확인 문구가 없으면 묻지 않는다', async () => {
+    const { confirmClaimPanelSubmit } = await import('./ClaimActionPanel');
+    const submitter = { getAttribute: (name: string) => (name === 'data-confirm' ? '승인할까요?' : null) };
+    const form = { getAttribute: () => null };
+    const declined = { nativeEvent: { submitter }, currentTarget: form, preventDefault: vi.fn() };
+    const confirm = vi.fn(() => false);
+
+    confirmClaimPanelSubmit(declined as unknown as React.FormEvent<HTMLFormElement>, confirm);
+    expect(confirm).toHaveBeenCalledWith('승인할까요?');
+    expect(declined.preventDefault).toHaveBeenCalledOnce();
+
+    const plain = {
+      nativeEvent: { submitter: { getAttribute: () => null } }, currentTarget: form, preventDefault: vi.fn(),
+    };
+    const unused = vi.fn(() => false);
+    confirmClaimPanelSubmit(plain as unknown as React.FormEvent<HTMLFormElement>, unused);
+    expect(unused).not.toHaveBeenCalled();
+    expect(plain.preventDefault).not.toHaveBeenCalled();
+  });
+});
