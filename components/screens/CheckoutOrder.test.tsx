@@ -4,13 +4,15 @@ import type { CheckoutOrderSnapshot } from '@/lib/checkout.server';
 import type { PreparedCheckout } from '@/lib/payments/gateway';
 import {
   CheckoutOrder,
+  checkoutStatusCopy,
   effectiveGoodsCheckoutExpiry,
   preparedGoodsCheckoutUsable,
 } from './CheckoutOrder';
 
 vi.mock('next/navigation', () => ({
-  useRouter: () => ({ refresh: vi.fn() }),
+  useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }),
 }));
+vi.mock('@/app/checkout/reorder-actions', () => ({ restoreCanceledOrderToCartAction: vi.fn() }));
 
 const order: CheckoutOrderSnapshot = {
   id: '7ad4c967-3d48-44da-a665-64731ac33f62',
@@ -163,13 +165,43 @@ describe('CheckoutOrder 닫힌 결제 안내', () => {
     expect(html).toContain('href="/my/inquiries"');
   });
 
-  it('취소된 카드 주문은 만료가 아니라 취소로 안내한다', () => {
+  it('취소된 카드 주문은 만료가 아니라 취소로 안내하고 같은 굿즈를 다시 담게 한다', () => {
     const html = renderToStaticMarkup(
       <CheckoutOrder order={{ ...order, status: 'canceled', expiresAt: null }} />,
     );
 
     expect(html).toContain('취소된 주문이에요');
     expect(html).not.toContain('결제 가능한 시간이 지났어요');
+    expect(html).toContain('같은 굿즈 다시 담기');
+    expect(html).not.toContain('이 주문 취소하고 다시 주문하기');
+  });
+
+  it('승인 거절된 주문은 한 번에 취소하고 다시 주문하게 한다', () => {
+    const html = renderToStaticMarkup(
+      <CheckoutOrder
+        order={{ ...order, paymentAttempt: { state: 'declined', expiresAt: '2099-08-07T06:10:00.000Z', provider: 'toss' } }}
+      />,
+    );
+
+    expect(html).toContain('이 주문 취소하고 다시 주문하기');
+  });
+
+  /* 남은 prepared 시도가 있으면 고객 취소가 청약철회 요청으로 접수된다 — 즉시 정리를
+     약속하는 대신 만료 sweep을 기다리라고 안내한다. (시각에 기대는 상태라 정적 렌더
+     대신 문구 선택 함수로 본다.) */
+  it('결제 기한이 지난 주문은 즉시 취소 가능 여부에 맞춰 다음 일을 안내한다', () => {
+    const base = { state: 'closed' as const, closedCopy: null, isBankTransfer: false, orderStatus: 'pending' };
+    expect(checkoutStatusCopy({ ...base, reorderMode: null })?.body).toContain('몇 분 안에 자동으로 취소');
+    expect(checkoutStatusCopy({ ...base, reorderMode: 'cancel_then_reorder' })?.body).toContain('주문을 취소하면');
+  });
+
+  it('무통장 주문에는 카드 주문 정리 액션을 띄우지 않는다', () => {
+    const html = renderToStaticMarkup(
+      <CheckoutOrder order={{ ...order, paymentMethod: 'bank_transfer', status: 'canceled', expiresAt: null }} />,
+    );
+
+    expect(html).not.toContain('같은 굿즈 다시 담기');
+    expect(html).not.toContain('이 주문 취소하고 다시 주문하기');
   });
 });
 

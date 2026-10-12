@@ -9,12 +9,15 @@ import {
   prepareGoodsPaymentAction,
   type PrepareGoodsPaymentActionState,
 } from '@/app/checkout/actions';
+import { ReorderAction } from '@/components/checkout/ReorderAction';
 import { PreparedCheckoutAction } from '@/components/payments/PreparedCheckoutAction';
 import {
   checkoutDeadlineTimeLabel,
   checkoutOrderState,
   checkoutPaymentClosure,
+  checkoutReorderMode,
   type CheckoutPaymentClosure,
+  type CheckoutReorderMode,
 } from '@/lib/checkout';
 import type { CheckoutOrderSnapshot } from '@/lib/checkout.server';
 import { krw } from '@/lib/format';
@@ -81,18 +84,18 @@ function closedPaymentCopy(
   };
 }
 
-function checkoutStatusCopy({
+export function checkoutStatusCopy({
   state,
   closedCopy,
   isBankTransfer,
   orderStatus,
-  closedAwaitsSweep,
+  reorderMode,
 }: {
   state: ReturnType<typeof checkoutOrderState>;
   closedCopy: StatusCopy | null;
   isBankTransfer: boolean;
   orderStatus: string;
-  closedAwaitsSweep: boolean;
+  reorderMode: CheckoutReorderMode | null;
 }): StatusCopy | null {
   if (state === 'complete') return { title: '결제가 확인됐어요', body: '주문이 안전하게 접수됐습니다. 배송 진행은 주문 내역에서 이어서 확인할 수 있어요.' };
   /* 웹훅·재정합 설정과 무관하게 지킬 수 있는 말만 한다 — "닫아도 확인은 계속된다"는
@@ -106,9 +109,10 @@ function checkoutStatusCopy({
     if (orderStatus === 'canceled') {
       return { title: '취소된 주문이에요', body: '이 주문은 취소됐어요. 같은 굿즈를 다시 담아 새로 주문할 수 있어요.' };
     }
-    return closedAwaitsSweep
-      ? { title: '결제 가능한 시간이 지났어요', body: '이 주문으로는 더 이상 결제할 수 없어요. 주문은 몇 분 안에 자동으로 취소되고, 재고와 사용한 쿠폰·적립금이 돌아와요. 그다음 다시 주문해주세요.' }
-      : { title: '결제 가능한 시간이 지났어요', body: '이 주문으로는 더 이상 결제할 수 없어요. 주문을 취소하면 재고와 사용한 쿠폰·적립금이 바로 돌아와요. 같은 굿즈로 다시 주문해주세요.' };
+    /* 즉시 취소할 수 없는 주문(남은 prepared 시도 등)은 결제 기한 뒤 만료 sweep이 닫는다. */
+    return reorderMode
+      ? { title: '결제 가능한 시간이 지났어요', body: '이 주문으로는 더 이상 결제할 수 없어요. 주문을 취소하면 재고와 사용한 쿠폰·적립금이 바로 돌아와요. 같은 굿즈로 다시 주문해주세요.' }
+      : { title: '결제 가능한 시간이 지났어요', body: '이 주문으로는 더 이상 결제할 수 없어요. 주문은 몇 분 안에 자동으로 취소되고, 재고와 사용한 쿠폰·적립금이 돌아와요. 그다음 다시 주문해주세요.' };
   }
   if (isBankTransfer) return { title: '입금 정보를 확인하세요', body: '주문 금액과 입금자명을 확인하고 안내된 계좌로 기한 안에 입금해주세요.' };
   return null;
@@ -204,16 +208,16 @@ export function CheckoutOrder({
   }, [prepareState, router]);
 
   const isBankTransfer = order.paymentMethod === 'bank_transfer';
-  /* 결제 기한이 지난 카드 주문에 시도가 남아 있으면(prepared) 고객 취소도 담당자 확인으로
-     넘어가므로, 만료 sweep이 닫을 때까지 기다리라고 안내한다. */
-  const closedAwaitsSweep = order.status === 'pending' && order.paymentAttempt?.state === 'prepared';
+  /* 즉시 취소가 확실한 주문에만 "취소하고 다시 주문하기"를 연다. 남은 prepared 시도가
+     있으면 고객 취소도 담당자 확인으로 넘어가므로 만료 sweep을 기다리라고 안내한다. */
+  const reorderMode = checkoutReorderMode(order, state);
 
   const statusCopy = checkoutStatusCopy({
     state,
     closedCopy,
     isBankTransfer,
     orderStatus: order.status,
-    closedAwaitsSweep,
+    reorderMode,
   });
 
   return (
@@ -294,6 +298,7 @@ export function CheckoutOrder({
             <div className="checkout-state-panel checkout-state-panel--payment-closed" role="alert">
               <h2>{closedCopy.title}</h2>
               <p>{closedCopy.body}</p>
+              {reorderMode && <ReorderAction mode={reorderMode} orderId={order.id} />}
               <Link className="btn btn-ghost" href={`/orders/${order.id}`}>주문 상세 보기</Link>
             </div>
           ) : state === 'payable' ? (
@@ -324,7 +329,12 @@ export function CheckoutOrder({
                   <Link className="btn btn-ghost" href="/my/inquiries">1:1 문의</Link>
                 </>
               )}
-              {state === 'closed' && <Link className="btn btn-holo" href="/shop">굿즈 다시 담기</Link>}
+              {state === 'closed' && reorderMode && <ReorderAction mode={reorderMode} orderId={order.id} />}
+              {state === 'closed' && (
+                <Link className={reorderMode ? 'btn btn-ghost' : 'btn btn-holo'} href="/shop">
+                  {reorderMode ? '굿즈샵 둘러보기' : '굿즈 다시 담기'}
+                </Link>
+              )}
               {state === 'closed' && !isBankTransfer && (
                 <Link className="btn btn-ghost" href={`/orders/${order.id}`}>주문 상세 보기</Link>
               )}

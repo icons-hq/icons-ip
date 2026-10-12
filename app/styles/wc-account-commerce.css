@@ -2667,6 +2667,17 @@ a.wc-mypage__card:hover .wc-mypage__card-title {
   align-self: flex-start;
 }
 
+/* 닫힌 결제의 "취소하고 다시 주문하기" — 결과 안내와 다음 링크를 패널 흐름대로 쌓는다. */
+.wc-receipt .checkout-reorder {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.wc-receipt .checkout-reorder .btn {
+  align-self: flex-start;
+}
+
 .wc-receipt .checkout-state-mark {
   display: inline-flex;
   align-items: center;
