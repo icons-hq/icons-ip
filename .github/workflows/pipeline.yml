@@ -174,9 +174,12 @@ jobs:
           bash supabase/tests/goods_payment_expiry_claim_concurrency.sh
           run_sql_test supabase/tests/goods_payment_manual_recovery.sql
           bash supabase/tests/goods_payment_manual_recovery_concurrency.sh
+          bash supabase/tests/goods_payment_cancellation_refund_race_concurrency.sh
           run_sql_test supabase/tests/ticket_payment_provider_seam.sql
           bash supabase/tests/ticket_payment_provider_seam_concurrency.sh
           run_sql_test supabase/tests/order_cancellation.sql
+          run_sql_test supabase/tests/order_cancellation_system_reconcile.sql
+          run_sql_test supabase/tests/staff_order_cancellation.sql
           run_sql_test supabase/tests/order_withdrawal_deadline.sql
           run_sql_test supabase/tests/order_status_ladder.sql
           run_sql_test supabase/tests/admin_order_console.sql
