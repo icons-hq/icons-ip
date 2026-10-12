@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import {
   ReorderAction,
   ReorderOutcomeNotice,
+  reorderCanceledOrder,
   reorderNavigatesToCheckout,
   runReorder,
   type ReorderDependencies,
@@ -119,6 +120,23 @@ describe('runReorder', () => {
     expect(reorderNavigatesToCheckout(unavailable)).toBe(false);
   });
 
+  /* QA-3: 취소까지 마친 결과에서만 화면 위쪽 안내를 취소 사실로 바꾼다. */
+  it('취소 단계를 마친 결과만 주문 취소로 본다', () => {
+    const skipped = [{ name: '리바이 아크릴 스탠드', reason: 'unavailable' as const }];
+    for (const outcome of [
+      { kind: 'restored', reapply: null },
+      { kind: 'partial', skipped, reapply: null },
+      { kind: 'nothing_restored', skipped },
+      { kind: 'restore_failed' },
+    ] as const) {
+      expect(reorderCanceledOrder('cancel_then_reorder', outcome)).toBe(true);
+      expect(reorderCanceledOrder('reorder', outcome)).toBe(false);
+    }
+    for (const kind of ['cancel_requested', 'cancel_blocked', 'cancel_failed'] as const) {
+      expect(reorderCanceledOrder('cancel_then_reorder', { kind })).toBe(false);
+    }
+  });
+
   it('취소 뒤 담기가 실패하면 그 사실을 따로 알린다', async () => {
     await expect(runReorder(orderId, 'cancel_then_reorder', deps({
       restore: vi.fn().mockResolvedValue({ ok: false, error: 'failed' }),
@@ -178,6 +196,25 @@ describe('ReorderOutcomeNotice', () => {
     expect(html).toContain('장바구니에서 쿠폰 확인하기');
     expect(html).not.toContain('다시 골라주세요');
     expect(html.indexOf('href="/cart"')).toBeLessThan(html.indexOf('href="/checkout"'));
+  });
+
+  /* QA-3: 일부만 담긴 결과도 주문이 취소됐다는 사실을 먼저 말한다. */
+  it('취소하고 다시 주문하기에서 일부만 담겨도 주문 취소 사실을 먼저 말한다', () => {
+    const outcome = {
+      kind: 'partial' as const,
+      skipped: [{ name: '리바이 아크릴 스탠드', reason: 'unavailable' as const }],
+      reapply: { coupon: 'conditions_unmet' as const, storeCredit: 0 },
+    };
+    const canceled = renderToStaticMarkup(
+      <ReorderOutcomeNotice mode="cancel_then_reorder" orderId={orderId} outcome={outcome} />,
+    );
+    expect(canceled).toContain('주문은 취소됐어요. 일부 굿즈만 장바구니에 다시 담았어요. 담지 못한 굿즈: 리바이 아크릴 스탠드(지금 담을 수 없음)');
+
+    const reorderOnly = renderToStaticMarkup(
+      <ReorderOutcomeNotice mode="reorder" orderId={orderId} outcome={outcome} />,
+    );
+    expect(reorderOnly).not.toContain('주문은 취소됐어요');
+    expect(reorderOnly).toContain('일부 굿즈만 장바구니에 다시 담았어요');
   });
 
   it('다시 고를 수 없는 쿠폰은 장바구니에서 고르라고 하지 않고 주문서를 먼저 권한다', () => {

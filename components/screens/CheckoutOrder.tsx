@@ -80,6 +80,9 @@ export function CheckoutOrder({
   );
   const [pollAttempts, setPollAttempts] = useState(0);
   const [now, setNow] = useState<number | null>(null);
+  /* "이 주문 취소하고 다시 주문하기"가 주문 취소까지 마쳤는지. 다시 담은 결과를 남기려고
+     서버 상태를 새로 읽지 않으므로, 취소 전 안내가 남지 않게 이 값으로 문구를 바꾼다. */
+  const [reorderCanceled, setReorderCanceled] = useState(false);
   /* now는 마운트 뒤에 채워진다. 그 전(서버 렌더)에는 시간에 기대는 판정(시도 만료)을
      하지 않고, 시간과 무관한 판정(승인 거절·취소 요청)만 반영한다. */
   const closure = order.status === 'pending' ? checkoutPaymentClosure(order, now ?? 0) : null;
@@ -158,7 +161,9 @@ export function CheckoutOrder({
     isBankTransfer,
     orderStatus: order.status,
     reorderMode,
+    reorderCanceled,
   });
+  const markReorderCanceled = () => setReorderCanceled(true);
 
   return (
     <main className="wc-root wc-receipt checkout-page checkout-order-page">
@@ -236,9 +241,12 @@ export function CheckoutOrder({
             </>
           ) : activeClosure && closedCopy ? (
             <div className="checkout-state-panel checkout-state-panel--payment-closed" role="alert">
-              <h2>{closedCopy.title}</h2>
-              <p>{closedCopy.body}</p>
-              {reorderMode && <ReorderAction mode={reorderMode} orderId={order.id} />}
+              {/* 이 분기의 statusCopy는 closedCopy이고, 이 화면에서 주문을 취소한 뒤에는 취소 안내다. */}
+              <h2>{statusCopy?.title ?? closedCopy.title}</h2>
+              <p>{statusCopy?.body ?? closedCopy.body}</p>
+              {reorderMode && (
+                <ReorderAction mode={reorderMode} onCanceled={markReorderCanceled} orderId={order.id} />
+              )}
               <Link className="btn btn-ghost" href={`/orders/${order.id}`}>주문 상세 보기</Link>
             </div>
           ) : state === 'payable' ? (
@@ -272,7 +280,9 @@ export function CheckoutOrder({
                   <Link className="btn btn-ghost" href="/my/inquiries">1:1 문의</Link>
                 </>
               )}
-              {state === 'closed' && reorderMode && <ReorderAction mode={reorderMode} orderId={order.id} />}
+              {state === 'closed' && reorderMode && (
+                <ReorderAction mode={reorderMode} onCanceled={markReorderCanceled} orderId={order.id} />
+              )}
               {state === 'closed' && (
                 <Link className={reorderMode ? 'btn btn-ghost' : 'btn btn-holo'} href="/shop">
                   {reorderMode ? '굿즈샵 둘러보기' : '굿즈 다시 담기'}

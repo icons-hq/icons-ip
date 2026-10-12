@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { CheckoutPaymentReading } from './checkout';
 import {
+  checkoutStatusCopy,
   closedPaymentCopy,
   orderDetailCardPaymentNotice,
+  REORDER_CANCELED_COPY,
 } from './checkout-status-copy';
 
 const orderId = '585fa706-0000-4000-8000-000000000001';
@@ -21,6 +23,47 @@ function noticeText(notice: ReturnType<typeof orderDetailCardPaymentNotice>) {
     notice.banner?.link.label ?? '',
   ].join(' ');
 }
+
+/* QA-3: 결제 화면에서 "이 주문 취소하고 다시 주문하기"로 취소를 마친 뒤에도 위쪽 안내가
+   "이 주문을 취소하고 같은 굿즈로 다시 주문해주세요"로 남으면 이미 끝난 일을 다시 하라고 한다. */
+describe('checkoutStatusCopy — 이 화면에서 주문을 취소한 뒤', () => {
+  const declinedCopy = closedPaymentCopy('not_approved', { orderExpiresAt, provider: 'toss' });
+
+  it('닫힌 결제 안내를 취소 사실로 바꾼다', () => {
+    const copy = checkoutStatusCopy({
+      state: 'payment_closed',
+      closedCopy: declinedCopy,
+      isBankTransfer: false,
+      orderStatus: 'pending',
+      reorderMode: 'cancel_then_reorder',
+      reorderCanceled: true,
+    });
+
+    expect(copy).toEqual(REORDER_CANCELED_COPY);
+    expect(copy?.body).not.toContain('취소하고 같은 굿즈로 다시 주문해주세요');
+  });
+
+  it('결제 기한이 지난 주문의 안내도 취소 사실로 바꾼다', () => {
+    expect(checkoutStatusCopy({
+      state: 'closed',
+      closedCopy: null,
+      isBankTransfer: false,
+      orderStatus: 'pending',
+      reorderMode: 'cancel_then_reorder',
+      reorderCanceled: true,
+    })).toEqual(REORDER_CANCELED_COPY);
+  });
+
+  it('취소 전에는 닫힌 결제 안내를 그대로 둔다', () => {
+    expect(checkoutStatusCopy({
+      state: 'payment_closed',
+      closedCopy: declinedCopy,
+      isBankTransfer: false,
+      orderStatus: 'pending',
+      reorderMode: 'cancel_then_reorder',
+    })).toEqual(declinedCopy);
+  });
+});
 
 /* QA-2: 거절·시도 만료로 닫힌 결제대기 주문의 주문 상세가 '결제 상태를 확인하고 있어요'와
    '결제 상태 확인·이어가기'를 보이면 청구가 진행 중이고 이어갈 수 있는 것처럼 읽힌다. */

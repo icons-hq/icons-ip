@@ -48,6 +48,16 @@ export function closedPaymentCopy(
   };
 }
 
+/**
+ * "이 주문 취소하고 다시 주문하기"로 이 화면에서 주문을 취소한 뒤의 안내. 취소 전 안내
+ * ("이 주문을 취소하고 다시 주문해주세요")를 그대로 두면 이미 끝난 일을 다시 하라고 말한다.
+ * 다시 담은 결과(일부만 담김·담을 굿즈 없음 등)는 바로 아래 결과 안내가 말한다.
+ */
+export const REORDER_CANCELED_COPY: StatusCopy = {
+  title: '주문을 취소했어요',
+  body: '이 주문은 취소됐어요. 같은 굿즈를 장바구니에 다시 담은 결과는 아래에서 확인해주세요.',
+};
+
 /* 웹훅·재정합 설정과 무관하게 지킬 수 있는 말만 한다 — "닫아도 확인은 계속된다"는
    자동 재정합 경로가 열려 있을 때만 참이다. */
 const CHECKING_COPY: StatusCopy = {
@@ -69,12 +79,15 @@ export function checkoutStatusCopy({
   isBankTransfer,
   orderStatus,
   reorderMode,
+  reorderCanceled = false,
 }: {
   state: CheckoutOrderState;
   closedCopy: StatusCopy | null;
   isBankTransfer: boolean;
   orderStatus: string;
   reorderMode: CheckoutReorderMode | null;
+  /** 이 화면의 "취소하고 다시 주문하기"가 주문 취소까지 마쳤는지. */
+  reorderCanceled?: boolean;
 }): StatusCopy | null {
   if (state === 'complete') return { title: '결제가 확인됐어요', body: '주문이 안전하게 접수됐습니다. 배송 진행은 주문 내역에서 이어서 확인할 수 있어요.' };
   if (state === 'checking') return CHECKING_COPY;
@@ -86,6 +99,9 @@ export function checkoutStatusCopy({
       ? { title: '환불을 진행하고 있어요', body: '입금은 확인됐고, 취소 요청에 따라 환불을 진행하고 있어요. 진행 상태는 주문 상세에서 확인할 수 있어요.' }
       : { title: '결제 취소를 진행하고 있어요', body: '결제는 승인됐고, 취소 요청에 따라 결제 취소를 진행하고 있어요. 진행 상태는 주문 상세에서 확인할 수 있어요.' };
   }
+  /* 화면의 주문 스냅샷은 취소 전 그대로라(다시 담은 결과를 남기려고 새로 읽지 않는다)
+     닫힌 결제·기한 경과 안내보다 앞에서 본다. */
+  if (reorderCanceled && (state === 'payment_closed' || state === 'closed')) return REORDER_CANCELED_COPY;
   if (closedCopy) return closedCopy;
   if (state === 'closed') {
     if (isBankTransfer) {

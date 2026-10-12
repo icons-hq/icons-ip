@@ -108,6 +108,19 @@ export async function runReorder(
   return { kind: 'restored', reapply };
 }
 
+/**
+ * 이 액션이 주문을 취소까지 마쳤는지. 취소 단계가 끝난 뒤의 결과(담기 성공·일부·없음·실패)만
+ * 해당한다 — 화면 위쪽의 "이 주문을 취소하고…" 안내를 취소 사실로 바꾸는 근거다. 이미 취소된
+ * 주문의 다시 담기(`reorder`)는 처음부터 취소 안내를 보이고 있으므로 해당하지 않는다.
+ */
+export function reorderCanceledOrder(mode: CheckoutReorderMode, outcome: ReorderOutcome): boolean {
+  return mode === 'cancel_then_reorder'
+    && (outcome.kind === 'restored'
+      || outcome.kind === 'partial'
+      || outcome.kind === 'nothing_restored'
+      || outcome.kind === 'restore_failed');
+}
+
 /** 고객이 다시 챙길 것이 없을 때만 안내 없이 주문서로 넘긴다. */
 export function reorderNavigatesToCheckout(outcome: ReorderOutcome): boolean {
   return outcome.kind === 'restored' && outcome.reapply === null;
@@ -188,7 +201,7 @@ export function ReorderOutcomeNotice({
         </>
       ) : outcome.kind === 'partial' ? (
         <>
-          <p role="status">일부 굿즈만 장바구니에 다시 담았어요. 담지 못한 굿즈: {skippedSummary(outcome.skipped)}</p>
+          <p role="status">{canceledPrefix}일부 굿즈만 장바구니에 다시 담았어요. 담지 못한 굿즈: {skippedSummary(outcome.skipped)}</p>
           {outcome.reapply && <ReapplyNotice reapply={outcome.reapply} />}
           {benefitLinks(outcome.reapply)}
         </>
@@ -228,9 +241,11 @@ export function ReorderOutcomeNotice({
 interface ReorderActionProps {
   readonly orderId: string;
   readonly mode: CheckoutReorderMode;
+  /** 이 액션이 주문 취소까지 마쳤을 때. 화면이 취소 전 안내를 취소 사실로 바꾼다. */
+  readonly onCanceled?: () => void;
 }
 
-export function ReorderAction({ orderId, mode }: ReorderActionProps) {
+export function ReorderAction({ orderId, mode, onCanceled }: ReorderActionProps) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
   const [outcome, setOutcome] = useState<ReorderOutcome | null>(null);
@@ -239,6 +254,7 @@ export function ReorderAction({ orderId, mode }: ReorderActionProps) {
     setPending(true);
     setOutcome(null);
     const result = await runReorder(orderId, mode);
+    if (reorderCanceledOrder(mode, result)) onCanceled?.();
     if (reorderNavigatesToCheckout(result)) {
       router.push('/checkout');
       return;
