@@ -102,14 +102,18 @@ select set_config('request.jwt.claim.sub','',true);
 update public.goods set order_quantity_limit_enabled=true,min_order_qty=1,max_order_qty=2 where id='additional-extra';
 set local role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000048202',true);
-select pg_temp.expect_error($sql$select public.place_order('{"recipientName":"추가 검증","phone":"01012345678","postalCode":"00000","address1":"배송 금지 검증 주소"}'::jsonb,
+-- 브라우저 롤은 주문 생성 RPC를 직접 부르지 못한다(20261012100000). 앱처럼 service role 래퍼가 구매자 id를 넘긴다.
+set local role service_role;
+select pg_temp.expect_error($sql$select public.place_order('00000000-0000-4000-8000-000000048202'::uuid,'{"recipientName":"추가 검증","phone":"01012345678","postalCode":"00000","address1":"배송 금지 검증 주소"}'::jsonb,
  '00000000-0000-4000-8000-000000048220'::uuid,'card'::public.order_payment_method)$sql$,'order_quantity_above_maximum','23514');
+set local role authenticated;
 select public.set_cart_item_quantity('additional-extra',:'blue_variant',0);
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000048201',true);
 select public.admin_save_goods_additional('additional-base','{}',1);
 -- A removed selector link does not invalidate independent, ordinary cart lines.
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000048202',true);
-select public.place_order('{"recipientName":"추가 검증","phone":"01012345678","postalCode":"00000","address1":"배송 금지 검증 주소"}'::jsonb,
+set local role service_role;
+select public.place_order('00000000-0000-4000-8000-000000048202'::uuid,'{"recipientName":"추가 검증","phone":"01012345678","postalCode":"00000","address1":"배송 금지 검증 주소"}'::jsonb,
  '00000000-0000-4000-8000-000000048221'::uuid,'card'::public.order_payment_method) as order_id \gset
 reset role;
 select 1/case when (select count(*) from public.order_items where order_id=:'order_id')=2

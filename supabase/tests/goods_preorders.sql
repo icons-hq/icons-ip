@@ -99,7 +99,9 @@ reset role;
 set local role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000048503',true);
 select public.set_cart_item_quantity('preorder-supply',:'base_variant',2);
-select public.place_order('{"recipientName":"예약 검증","phone":"01012345678","postalCode":"00000","address1":"배송 금지 검증 주소"}'::jsonb,
+-- 브라우저 롤은 주문 생성 RPC를 직접 부르지 못한다(20261012100000). 앱처럼 service role 래퍼가 구매자 id를 넘긴다.
+set local role service_role;
+select public.place_order('00000000-0000-4000-8000-000000048503'::uuid,'{"recipientName":"예약 검증","phone":"01012345678","postalCode":"00000","address1":"배송 금지 검증 주소"}'::jsonb,
  '00000000-0000-4000-8000-000000048520'::uuid,'card'::public.order_payment_method) as canceled_order \gset
 reset role;
 select public.finalize_order_cancellation_with_provider_evidence(:'canceled_order'::uuid,'합성 미입고 취소','{}'::text[]);
@@ -116,7 +118,8 @@ select public.set_cart_item_quantity('preorder-separate',:'separate_variant',1);
 select public.quote_goods_sales(jsonb_build_array(jsonb_build_object('goodId','preorder-supply','variantId',:'base_variant','qty',2),
  jsonb_build_object('goodId','preorder-supply','variantId',:'later_variant','qty',1),jsonb_build_object('goodId','preorder-normal','variantId',:'normal_variant','qty',1),
  jsonb_build_object('goodId','preorder-separate','variantId',:'separate_variant','qty',1))) as mixed_quote \gset
-select public.place_order('{"recipientName":"예약 검증","phone":"01012345678","postalCode":"00000","address1":"배송 금지 검증 주소"}'::jsonb,
+set local role service_role;
+select public.place_order('00000000-0000-4000-8000-000000048503'::uuid,'{"recipientName":"예약 검증","phone":"01012345678","postalCode":"00000","address1":"배송 금지 검증 주소"}'::jsonb,
  '00000000-0000-4000-8000-000000048521'::uuid,'card'::public.order_payment_method) as mixed_order \gset
 reset role;
 select id as together_shipment from public.order_shipments where order_id=:'mixed_order' and origin_id='00000000-0000-4000-8000-000000048530' \gset
@@ -139,8 +142,10 @@ select 1/case when private.goods_preorder_remaining(:'base_policy')=1 and privat
 set local role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000048504',true);
 select public.merge_cart_items(jsonb_build_array(jsonb_build_object('good_id','preorder-supply','variant_id',:'base_variant','qty',2)));
-select pg_temp.expect_error($sql$select public.place_order('{"recipientName":"예약 검증","phone":"01012345678","postalCode":"00000","address1":"배송 금지 검증 주소"}'::jsonb,
+set local role service_role;
+select pg_temp.expect_error($sql$select public.place_order('00000000-0000-4000-8000-000000048504'::uuid,'{"recipientName":"예약 검증","phone":"01012345678","postalCode":"00000","address1":"배송 금지 검증 주소"}'::jsonb,
  '00000000-0000-4000-8000-000000048522'::uuid,'card'::public.order_payment_method)$sql$,'preorder_capacity_exceeded','23514');
+set local role authenticated;
 select public.set_cart_item_quantity('preorder-supply',:'base_variant',0);
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000048502',true);
 select public.admin_save_goods_preorder('preorder-supply',:'base_variant',:'base_policy','{"state":"stopped"}',2);
@@ -189,7 +194,8 @@ select public.admin_change_shipment_preorder_date(:'together_shipment',(now() at
 select pg_temp.expect_error(format('select public.admin_change_shipment_preorder_date(%L,%L,%L,%L)',:'together_shipment',
  ((now() at time zone 'Asia/Seoul')::date+13)::text,'TEST-ONLY 오래된 화면',:'expected_shipment_version'),'shipment_promise_changed','PT409');
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000048503',true);
-select public.place_order('{"recipientName":"예약 검증","phone":"01012345678","postalCode":"00000","address1":"배송 금지 검증 주소"}'::jsonb,
+set local role service_role;
+select public.place_order('00000000-0000-4000-8000-000000048503'::uuid,'{"recipientName":"예약 검증","phone":"01012345678","postalCode":"00000","address1":"배송 금지 검증 주소"}'::jsonb,
  '00000000-0000-4000-8000-000000048521'::uuid,'card'::public.order_payment_method);
 reset role;
 select 1/case when (select original_expected_ship_date=(now() at time zone 'Asia/Seoul')::date+10 and expected_ship_date=(now() at time zone 'Asia/Seoul')::date+12
@@ -210,7 +216,8 @@ select public.admin_update_shipment_status(:'together_shipment','shipping','hanj
 -- approved capacity remains consumed. Its repeated finalizer cannot restore twice.
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000048504',true);
 select public.set_cart_item_quantity('preorder-supply',:'later_variant',1);
-select public.place_order('{"recipientName":"예약 환불","phone":"01012345678","postalCode":"00000","address1":"배송 금지 검증 주소"}'::jsonb,
+set local role service_role;
+select public.place_order('00000000-0000-4000-8000-000000048504'::uuid,'{"recipientName":"예약 환불","phone":"01012345678","postalCode":"00000","address1":"배송 금지 검증 주소"}'::jsonb,
  '00000000-0000-4000-8000-000000048523'::uuid,'card'::public.order_payment_method) as refund_order \gset
 reset role;
 select id as refund_item from public.order_items where order_id=:'refund_order' \gset
