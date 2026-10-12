@@ -50,9 +50,11 @@ function cancellationRequest(
     claimType: 'cancel',
     stage: 'requested',
     reasonType: 'change_of_mind',
+    staffReasonCode: null,
     requestedAt: '2026-07-14T07:00:00.000Z',
     decidedAt: null,
     decisionNote: null,
+    lastErrorCode: null,
     ...overrides,
   };
 }
@@ -577,6 +579,26 @@ describe('OrdersSection', () => {
     expect(html).not.toContain('admin-order-reason--defect');
     expect(html).toContain('공급받은 날부터 7일');
     expect(html).toContain('반송비 이용자 부담');
+  });
+
+  /* 2026-10-12 QA-4: 운영자 전액 취소는 구매자 단순 변심이 아니다. 운영 사유를 적고
+     구매자 청약철회 기한을 붙이지 않는다. */
+  it('운영자 전액 취소 요청은 단순 변심 대신 운영 사유를 보여준다', () => {
+    const html = renderToStaticMarkup(<OrdersSection data={orderData({
+      cancellationRequest: cancellationRequest({
+        status: 'needs_review',
+        stage: 'needs_review',
+        reasonType: 'staff',
+        staffReasonCode: 'out_of_stock',
+      }),
+    })} />);
+
+    expect(html).toContain('운영자 전액 취소 · 품절·출고 불가');
+    expect(html).toContain('admin-order-reason--staff');
+    expect(html).toContain(`aria-label="주문 ${ORDER_ID.slice(0, 8)} 선택 · 운영자 전액 취소 · 품절·출고 불가"`);
+    expect(html).not.toContain('단순 변심');
+    expect(html).not.toContain('공급받은 날부터 7일');
+    expect(html).toContain('운영자가 시작한 발송 전 전액 취소');
   });
 
   it('청약철회 요청이 없는 주문은 사유 표시를 만들지 않는다', () => {

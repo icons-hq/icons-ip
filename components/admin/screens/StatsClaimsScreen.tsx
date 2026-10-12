@@ -95,10 +95,10 @@ export function StatsClaimsScreen({
         columns={REASON_COLUMNS}
         emptyLabel={`이 기간에 접수된 ${V.claimRequest}이 없습니다.`}
         rows={data.byReason.map((row) => ({
-          id: `${row.claimType}:${row.reasonType}`,
+          id: `${row.claimType}:${row.reasonType}:${row.staffReasonCode ?? ''}`,
           cells: [
             adminClaimTypeLabel(row.claimType),
-            adminClaimReasonLabel(row.reasonType),
+            adminClaimReasonLabel(row.reasonType, row.staffReasonCode ?? null),
             row.total.toLocaleString('ko-KR'),
           ],
         }))}

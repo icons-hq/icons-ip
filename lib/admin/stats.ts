@@ -1,4 +1,5 @@
 import { kstDay } from '@/lib/admin/kst';
+import { isOrderStaffCancellationReasonCode, orderStaffClaimReasonLabel } from '@/lib/orders/claims';
 
 /**
  * 통계 리포트 (#258) — 조회 전용.
@@ -129,6 +130,8 @@ export interface AdminClaimTypeRow {
 export interface AdminClaimReasonRow {
   claimType: string;
   reasonType: string;
+  /** 운영자 전액 취소(reasonType 'staff')의 운영 사유. 구매자 사유 행은 null이다. */
+  staffReasonCode?: string | null;
   total: number;
 }
 
@@ -189,7 +192,11 @@ export const ADMIN_CLAIM_REASON_LABELS: Record<string, string> = {
   defect: '하자·오배송',
 };
 
-export function adminClaimReasonLabel(reasonType: string) {
+/** 운영자 전액 취소는 구매자 단순 변심과 따로, 운영 사유별로 센다(2026-10-12 QA-4). */
+export function adminClaimReasonLabel(reasonType: string, staffReasonCode: string | null = null) {
+  if (reasonType === 'staff') {
+    return orderStaffClaimReasonLabel(isOrderStaffCancellationReasonCode(staffReasonCode) ? staffReasonCode : null);
+  }
   return ADMIN_CLAIM_REASON_LABELS[reasonType] ?? reasonType;
 }
 

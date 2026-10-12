@@ -28,7 +28,8 @@ export const ORDER_CANCELLATION_REQUEST_STATUSES = [
 export type OrderCancellationRequestStatus = (typeof ORDER_CANCELLATION_REQUEST_STATUSES)[number];
 
 // 청약철회 사유는 기한을 가른다(#189) — 단순 변심 7일, 하자·오배송 3개월.
-// DB의 order_cancellation_requests.reason_type check 제약과 같은 값이어야 한다.
+// 구매자가 고르는 값이다. DB reason_type check 제약은 여기에 운영자 전액 취소('staff',
+// ADR-0018)를 더한 것이다 — 전체 값은 lib/orders/claims ORDER_CLAIM_REASON_TYPES.
 export const ORDER_WITHDRAWAL_REASON_TYPES = ['change_of_mind', 'defect'] as const;
 export type OrderWithdrawalReasonType = (typeof ORDER_WITHDRAWAL_REASON_TYPES)[number];
 

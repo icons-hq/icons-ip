@@ -1,5 +1,4 @@
 'use client';
-import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 
 import Link from 'next/link';
 import { useActionState, useEffect, useRef, useState } from 'react';
@@ -36,13 +35,12 @@ import {
 import {
   formatOrderDateTime,
   ORDER_WITHDRAWAL_DEADLINE_LABELS,
-  ORDER_WITHDRAWAL_REASON_LABELS,
   orderReferenceLabel,
   orderStatusMeta,
   paymentStatusLabel,
   refundStatusLabel,
-  type OrderWithdrawalReasonType,
 } from '@/lib/orders';
+import { adminClaimReasonText } from '@/lib/admin/claims';
 import {
   isOpenOrderClaimStage,
   ORDER_CLAIM_STAGE_LABELS,
@@ -88,19 +86,30 @@ const GOODS_PAYMENT_ATTEMPT_STATE_LABELS: Record<
   needs_review: '운영 확인 필요',
 };
 
-/** 사유 배지. 하자·오배송은 기한과 배송비 부담이 달라 색으로도 구분한다. */
+/**
+ * 사유 배지. 하자·오배송은 기한과 배송비 부담이 달라 색으로도 구분한다. 운영자 전액
+ * 취소는 구매자 단순 변심과 섞지 않고 운영 사유를 적는다(2026-10-12 QA-4).
+ */
 function CancellationReasonBadge({
   className,
-  reasonType,
+  request,
 }: {
   className?: string;
-  reasonType: OrderWithdrawalReasonType;
+  request: Pick<AdminOrderCancellationRequestRecord, 'reasonType' | 'staffReasonCode'>;
 }) {
   return (
-    <span className={`${className ? `${className} ` : ''}admin-order-reason admin-order-reason--${reasonType}`}>
-      {adminGoodsCopy(ORDER_WITHDRAWAL_REASON_LABELS[reasonType])}
+    <span className={`${className ? `${className} ` : ''}admin-order-reason admin-order-reason--${request.reasonType}`}>
+      {adminClaimReasonText(request.reasonType, request.staffReasonCode)}
     </span>
   );
+}
+
+/** 목록 행 이름에 붙는 사유. 구매자 사유만 "청약철회"다. */
+function cancellationReasonAccessibleName(
+  request: Pick<AdminOrderCancellationRequestRecord, 'reasonType' | 'staffReasonCode'>,
+) {
+  const label = adminClaimReasonText(request.reasonType, request.staffReasonCode);
+  return request.reasonType === 'staff' ? label : `청약철회 ${label}`;
 }
 
 /** 처리가 남은 클레임. 종결된 요청까지 목록에 표시하면 미처리 건과 섞인다. */
@@ -730,6 +739,10 @@ function OrderDetail({
   const status = orderStatusMeta(order.status);
   const statusLabel = ADMIN_ORDER_STATUS_LABELS[order.status] ?? status.label;
   const cancellationRequest = order.cancellationRequest;
+  /* 기한·반송비 부담은 구매자 청약철회 사유에만 있다. 운영자 전액 취소에는 없다. */
+  const withdrawalReasonType = cancellationRequest && cancellationRequest.reasonType !== 'staff'
+    ? cancellationRequest.reasonType
+    : null;
   const canAdvanceOrderStatus = !cancellationRequest || cancellationRequest.status === 'rejected';
   /* 반송비 부담 주체는 실제로 물건이 나간 뒤에만 의미가 있다. 사다리가 늘어
      배송 이후 상태가 셋이 됐다(#250). */
@@ -841,14 +854,20 @@ function OrderDetail({
             </time>
           </div>
           <div className="admin-order-cancellation-reason">
-            <CancellationReasonBadge reasonType={cancellationRequest.reasonType} />
+            <CancellationReasonBadge request={cancellationRequest} />
             <small>
-              {ORDER_WITHDRAWAL_DEADLINE_LABELS[cancellationRequest.reasonType]}
-              {/* 반송은 배송이 시작된 주문에서만 일어난다. 미출고 건에 부담 주체를
-                  띄우면 존재하지 않는 사건을 판단 근거로 제시하게 된다. */}
-              {hasShipped
-                ? ` · ${ADMIN_WITHDRAWAL_RETURN_SHIPPING_LABELS[cancellationRequest.reasonType]}`
-                : ''}
+              {withdrawalReasonType
+                ? (
+                  <>
+                    {ORDER_WITHDRAWAL_DEADLINE_LABELS[withdrawalReasonType]}
+                    {/* 반송은 배송이 시작된 주문에서만 일어난다. 미출고 건에 부담 주체를
+                        띄우면 존재하지 않는 사건을 판단 근거로 제시하게 된다. */}
+                    {hasShipped
+                      ? ` · ${ADMIN_WITHDRAWAL_RETURN_SHIPPING_LABELS[withdrawalReasonType]}`
+                      : ''}
+                  </>
+                )
+                : '운영자가 시작한 발송 전 전액 취소 · 구매자 청약철회 기한과 무관'}
             </small>
           </div>
           {cancellationRequest.decisionNote ? (
@@ -1030,7 +1049,7 @@ export function OrdersSection({ data }: { data: AdminOrderConsoleData }) {
               /* aria-label이 행 내용을 덮어쓰므로 사유 배지를 이름에도 넣는다. 넣지
                  않으면 스크린리더 사용자에게만 사유가 사라진다. */
               aria-label={`주문 ${orderReferenceLabel(order.id)} 선택${
-                openRequest ? ` · 청약철회 ${adminGoodsCopy(ORDER_WITHDRAWAL_REASON_LABELS[openRequest.reasonType])}` : ''
+                openRequest ? ` · ${cancellationReasonAccessibleName(openRequest)}` : ''
               }`}
               className={selected?.id === order.id ? 'admin-order-row on' : 'admin-order-row'}
               href={adminOrdersHref(data.filters, { orderId: order.id })}
@@ -1047,7 +1066,7 @@ export function OrdersSection({ data }: { data: AdminOrderConsoleData }) {
               {openRequest ? (
                 <CancellationReasonBadge
                   className="admin-order-row-reason"
-                  reasonType={openRequest.reasonType}
+                  request={openRequest}
                 />
               ) : null}
             </Link>

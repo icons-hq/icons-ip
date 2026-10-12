@@ -1,7 +1,14 @@
 import { isUuid } from '@/lib/uuid';
 import type { ShipmentRecord } from '@/lib/orders/shipments';
 import type { OrderWithdrawalReasonType } from '@/lib/orders';
-import type { OrderClaimStage, OrderClaimType } from '@/lib/orders/claims';
+import {
+  ORDER_STAFF_CANCELLATION_REASON_CODES,
+  ORDER_STAFF_CANCELLATION_REASON_LABELS,
+  type OrderClaimReasonType,
+  type OrderClaimStage,
+  type OrderClaimType,
+  type OrderStaffCancellationReasonCode,
+} from '@/lib/orders/claims';
 import { adminSettledHref, normalizeAdminSettledFilters } from './settled';
 import { normalizeShipmentFilters, shipmentConsoleHref } from './shipment-dispatch';
 import { ADMIN_VOCABULARY } from './vocabulary';
@@ -159,10 +166,18 @@ export interface AdminOrderCancellationRequestRecord {
    */
   claimType: OrderClaimType;
   stage: OrderClaimStage;
-  reasonType: OrderWithdrawalReasonType;
+  /** 구매자 사유 또는 운영자 전액 취소('staff', ADR-0018). */
+  reasonType: OrderClaimReasonType;
+  /** 운영자 전액 취소의 운영 사유. 구매자 요청은 null이다. */
+  staffReasonCode: OrderStaffCancellationReasonCode | null;
   requestedAt: string;
   decidedAt: string | null;
   decisionNote: string | null;
+  /**
+   * 최근 정합화 오류 코드(order_cancellation_requests.last_error_code). 결제확인필요
+   * 요청의 원인을 주문 패널에서 바로 보고 런북의 코드별 조치를 찾게 한다(QA-10).
+   */
+  lastErrorCode: string | null;
 }
 
 /** 레거시 주문 콘솔이 직접 처리할 수 있는 클레임. 나머지는 클레임 콘솔의 몫이다. */
@@ -436,16 +451,15 @@ export const ADMIN_CANCELLATION_RECHECK_LABELS = {
 } as const;
 
 /**
- * 운영자 전액 취소 사유(ADR-0018). DB `admin_start_order_cancellation`의 허용 목록과
- * 같아야 한다 — 한쪽만 늘리면 고를 수 있는데 항상 거절되는 선택지가 생긴다.
+ * 운영자 전액 취소 사유(ADR-0018). 값과 표기는 lib/orders/claims의 한 목록에서 온다 —
+ * DB `admin_start_order_cancellation`의 허용 목록과 같아야 하고, 클레임 목록·상세·통계가
+ * 같은 표기로 운영 사유를 보여준다.
  */
-export const ADMIN_STAFF_CANCELLATION_REASONS = [
-  { value: 'out_of_stock', label: '품절·출고 불가' },
-  { value: 'customer_request', label: '고객 요청(CS 접수)' },
-  { value: 'test_payment_cleanup', label: '테스트 결제 정리' },
-  { value: 'other', label: '기타' },
-] as const;
-export type AdminStaffCancellationReason = (typeof ADMIN_STAFF_CANCELLATION_REASONS)[number]['value'];
+export const ADMIN_STAFF_CANCELLATION_REASONS = ORDER_STAFF_CANCELLATION_REASON_CODES.map((value) => ({
+  value,
+  label: ORDER_STAFF_CANCELLATION_REASON_LABELS[value],
+}));
+export type AdminStaffCancellationReason = OrderStaffCancellationReasonCode;
 const STAFF_CANCELLATION_REASON_SET = new Set<string>(ADMIN_STAFF_CANCELLATION_REASONS.map((reason) => reason.value));
 export const ADMIN_STAFF_CANCELLATION_NOTE_LIMIT = 500;
 

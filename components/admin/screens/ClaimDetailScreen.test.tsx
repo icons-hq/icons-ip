@@ -28,6 +28,9 @@ function detail(overrides: Partial<AdminClaimDetail> = {}): AdminClaimDetail {
       status: 'requested',
       reason: '단순 변심 반품',
       reasonType: 'change_of_mind',
+      origin: 'customer',
+      staffReasonCode: null,
+      staffNote: null,
       decisionNote: null,
       holdReason: null,
       heldAt: null,
@@ -147,6 +150,30 @@ describe('ClaimDetailScreen', () => {
     });
     expect(html).toContain('승인하고 토스 전액 취소');
     expect(html).toContain('승인하면 바로 토스 전액 취소를 발행하고 결제사 조회로 결과를 확인합니다.');
+  });
+
+  /* 2026-10-12 QA-4: 운영자 전액 취소의 헤더는 단순 변심이 아니라 운영 사유다. */
+  it('운영자 전액 취소는 헤더에 운영 사유를, 요청 내용에 운영 메모를 보여준다', () => {
+    const html = render({
+      payment: tossPayment,
+      claim: {
+        ...detail().claim,
+        claimType: 'cancel',
+        stage: 'needs_review',
+        status: 'needs_review',
+        reason: '운영자 전액 취소 · 테스트 결제 정리',
+        reasonType: 'staff',
+        origin: 'staff',
+        staffReasonCode: 'test_payment_cleanup',
+        staffNote: '심사 창 테스트 결제',
+        collectedAt: null,
+        collectingAt: null,
+      },
+    });
+    expect(html).toContain('결제확인필요 · 운영자 전액 취소 · 테스트 결제 정리');
+    expect(html).not.toContain('단순 변심');
+    expect(html).toContain('운영 메모');
+    expect(html).toContain('심사 창 테스트 결제');
   });
 
   it('Korpay처럼 수단이 정해지지 않은 결제는 운영자가 고른다', () => {

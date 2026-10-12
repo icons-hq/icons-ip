@@ -91,8 +91,8 @@ describe('주문 통합검색 목록 엑셀', () => {
         items: [],
         shipments: [],
         cancellationRequest: {
-          id: 'req', status: 'requested', claimType: 'return', stage: 'collecting', reasonType: 'defect',
-          requestedAt: '2026-10-06T00:00:00Z', decidedAt: null, decisionNote: null,
+          id: 'req', status: 'requested', claimType: 'return', stage: 'collecting', reasonType: 'defect', staffReasonCode: null,
+          requestedAt: '2026-10-06T00:00:00Z', decidedAt: null, decisionNote: null, lastErrorCode: null,
         },
       })],
       paymentMethods: new Map(),
@@ -177,7 +177,7 @@ describe('발주·발송/배송현황 목록 엑셀', () => {
 describe('취소·반품·교환 목록 엑셀', () => {
   const claim: AdminClaimRow = {
     id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', reference: 42, orderId: ORDER_ID, claimType: 'return', stage: 'collecting',
-    reasonType: 'defect', buyerName: 'maple_fan', buyerEmail: null, orderStatus: 'delivered', orderTotal: 45_000,
+    reasonType: 'defect', staffReasonCode: null, buyerName: 'maple_fan', buyerEmail: null, orderStatus: 'delivered', orderTotal: 45_000,
     requestedAt: '2026-10-06T00:00:00Z', collectedAt: null, completedAt: null, refundMethod: null, handlerName: null,
   };
   const orders = new Map([[ORDER_ID, {

@@ -1,13 +1,13 @@
 
 import { ShipmentDetails } from '@/components/shop/ShipmentDetails';
-import { ADMIN_VOCABULARY as V, adminGoodsCopy } from '@/lib/admin/vocabulary';
+import { ADMIN_VOCABULARY as V } from '@/lib/admin/vocabulary';
+import { adminClaimReasonText } from '@/lib/admin/claims';
 import Link from 'next/link';
 import type { AdminClaimDetail } from '@/lib/admin/claims.server';
 import { adminOrderSearchHref } from '@/lib/admin/orders';
 import { krw } from '@/lib/format';
 import {
   formatOrderDateTime,
-  ORDER_WITHDRAWAL_REASON_LABELS,
   orderReferenceLabel,
   refundStatusLabel,
 } from '@/lib/orders';
@@ -117,7 +117,7 @@ export function ClaimDetailScreen({
           <p className="muted" style={{ fontSize: 12.5, margin: '4px 0 0' }}>
             {ORDER_CLAIM_STAGE_LABELS[claim.stage]}
             {' · '}
-            {adminGoodsCopy(ORDER_WITHDRAWAL_REASON_LABELS[claim.reasonType])}
+            {adminClaimReasonText(claim.reasonType, claim.staffReasonCode)}
             {' · 접수 '}
             <time dateTime={claim.requestedAt}>{formatOrderDateTime(claim.requestedAt)}</time>
           </p>
@@ -176,6 +176,8 @@ export function ClaimDetailScreen({
         <div className="card">
           <h3 style={{ marginTop: 0 }}>요청 내용</h3>
           <p style={{ fontSize: 13 }}>{claim.reason}</p>
+          {/* 운영자 전액 취소의 메모는 운영 정보다. 구매자에게는 사유 문구만 알림으로 간다. */}
+          {claim.staffNote ? <Row label="운영 메모" value={claim.staffNote} /> : null}
           {claim.decisionNote ? <Row label="거부 사유" value={claim.decisionNote} /> : null}
           {claim.holdReason ? <Row label="보류 사유" value={claim.holdReason} /> : null}
           {claim.lastErrorCode ? (

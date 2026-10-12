@@ -39,6 +39,7 @@ function data(overrides: Partial<AdminClaimConsoleData> = {}): AdminClaimConsole
         claimType: 'return',
         stage: 'processing',
         reasonType: 'change_of_mind',
+        staffReasonCode: null,
         buyerName: 'maple_fan',
         buyerEmail: 'buyer@example.com',
         orderStatus: 'delivered',
@@ -57,6 +58,7 @@ function data(overrides: Partial<AdminClaimConsoleData> = {}): AdminClaimConsole
         claimType: 'return',
         stage: 'collecting',
         reasonType: 'defect',
+        staffReasonCode: null,
         buyerName: 'second_fan',
         buyerEmail: null,
         orderStatus: 'delivered',
@@ -85,6 +87,26 @@ describe('ClaimQueueScreen', () => {
     expect(html).toContain('@maple_fan');
     expect(html).toContain('단순 변심');
     expect(html).toContain('상품 하자·오배송');
+  });
+
+  /* 2026-10-12 QA-4: 운영자 전액 취소는 단순 변심이 아니라 운영 사유로 적고 거른다. */
+  it('운영자 전액 취소 행은 운영 사유를 적고 사유 필터에서 고를 수 있다', () => {
+    const base = data();
+    const html = renderToStaticMarkup(
+      <ClaimQueueScreen
+        data={data({
+          claimType: 'cancel',
+          rows: [{ ...base.rows[0], claimType: 'cancel', stage: 'needs_review', reasonType: 'staff', staffReasonCode: 'test_payment_cleanup' }],
+          total: 1,
+        })}
+        now={NOW}
+      />,
+    );
+
+    expect(html).toContain('운영자 전액 취소 · 테스트 결제 정리');
+    expect(html).not.toContain('<span>단순 변심</span>');
+    expect(html).toContain('<option value="staff:out_of_stock">운영자 전액 취소 · 품절·출고 불가</option>');
+    expect(html).toContain('<option value="staff">운영자 전액 취소 전체</option>');
   });
 
   /* SLA는 목록에서 가장 먼저 보는 값이다. 색만이 아니라 톤 속성으로 강조가 남아야 한다. */

@@ -114,6 +114,26 @@ describe('StatsClaimsScreen', () => {
     expect(html).toContain('10시간');
   });
 
+  /* 2026-10-12 QA-4: 운영자 전액 취소는 구매자 단순 변심과 따로, 운영 사유별로 센다. */
+  it('운영자 전액 취소를 운영 사유별 행으로 나눈다', () => {
+    const html = renderToStaticMarkup(
+      <StatsClaimsScreen
+        data={{
+          ...claims,
+          byReason: [
+            { claimType: 'cancel', reasonType: 'staff', staffReasonCode: 'out_of_stock', total: 2 },
+            { claimType: 'cancel', reasonType: 'staff', staffReasonCode: 'test_payment_cleanup', total: 1 },
+          ],
+        }}
+        filters={filters}
+      />,
+    );
+
+    expect(html).toContain('운영자 전액 취소 · 품절·출고 불가');
+    expect(html).toContain('운영자 전액 취소 · 테스트 결제 정리');
+    expect(html).not.toContain('단순 변심');
+  });
+
   /* 판매가 없던 기간의 클레임율은 0%가 아니라 값 없음이다. */
   it('클레임율 분모가 없으면 비율 대신 값 없음을 적는다', () => {
     const html = renderToStaticMarkup(

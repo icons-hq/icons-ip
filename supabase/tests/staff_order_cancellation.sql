@@ -12,6 +12,9 @@ begin;
 --   · 사유·메모·운영자·확인 여부가 요청과 감사 로그에 남고, 구매자에게 알린다
 --   · 고객 취소와 같은 원장 구조를 만들고 같은 완료 RPC로 재고·결제를 정확히 한 번 닫는다
 --   · 고객 직접 신청 정책(ADR-0017)은 바뀌지 않는다
+--   · 운영자 취소는 reason_type 'staff'로 남아 구매자 단순 변심과 갈리고, 운영 읽기
+--     RPC(클레임 목록·상세·주문 통합검색·통계)가 운영 사유와 정합화 오류 코드를 싣는다
+--     (브라우저 QA QA-4·QA-10)
 -- ============================================================================
 
 select 1 / case when (
@@ -187,6 +190,7 @@ select 1 / case when (
     and r.staff_note = '창고 재고 불일치로 출고 불가 확인'
     and r.warehouse_stop_confirmed
     and r.reason = '운영자 전액 취소 · 품절·출고 불가'
+    and r.reason_type = 'staff'
     and not r.collection_required
     and exists (select 1 from public.order_cancellation_claims c where c.order_id = r.order_id and c.previous_status = 'confirmed')
     and (select count(*) = 1 from public.refunds f where f.cancellation_request_id = r.id and f.status = 'requested')
@@ -211,6 +215,87 @@ select 1 / case when (
     and n.dedupe_key like 'claim:staff_cancel_started:%'
     and n.body like '판매자 사정(품절·출고 불가)%'
 ) then 1 else 0 end as assert_buyer_is_notified_of_staff_cancellation;
+
+-- 운영 화면은 운영자 취소를 구매자 단순 변심과 구분해 운영 사유로 보여준다(QA-4).
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-0000000c5d02', true);
+select 1 / case when (
+  exists (
+    select 1 from public.admin_search_order_claims('cancel', null, 'staff:out_of_stock', null, null, '61000000-0000-4000-8000-0000000c5d01', 20, 0) c
+    where c.id = :'staff_request_e' and c.reason_type = 'staff' and c.staff_reason_code = 'out_of_stock'
+  )
+  and exists (
+    select 1 from public.admin_search_order_claims('cancel', null, 'staff', null, null, '61000000-0000-4000-8000-0000000c5d01', 20, 0) c
+    where c.id = :'staff_request_e'
+  )
+  and not exists (
+    select 1 from public.admin_search_order_claims('cancel', null, 'change_of_mind', null, null, '61000000-0000-4000-8000-0000000c5d01', 20, 0)
+  )
+  and not exists (
+    select 1 from public.admin_search_order_claims('cancel', null, 'staff:test_payment_cleanup', null, null, '61000000-0000-4000-8000-0000000c5d01', 20, 0)
+  )
+  -- 구매자 하자 취소는 운영 사유 코드 없이 구매자 사유로 남는다.
+  and exists (
+    select 1 from public.admin_search_order_claims('cancel', null, 'defect', null, null, '61000000-0000-4000-8000-0000000c5d05', 20, 0) c
+    where c.staff_reason_code is null
+  )
+) then 1 else 0 end as assert_claim_list_separates_staff_reason;
+
+do $reason_filter_guard$
+declare rejected boolean := false;
+begin
+  begin
+    perform public.admin_search_order_claims('cancel', null, 'staff:refund_anyway', null, null, null, 20, 0);
+  exception when check_violation then rejected := true;
+  end;
+  if not rejected then raise exception 'unknown claim reason filter was accepted'; end if;
+end;
+$reason_filter_guard$;
+
+select 1 / case when (
+  select detail -> 'claim' ->> 'reasonType' = 'staff'
+    and detail -> 'claim' ->> 'origin' = 'staff'
+    and detail -> 'claim' ->> 'staffReasonCode' = 'out_of_stock'
+    and detail -> 'claim' ->> 'staffNote' = '창고 재고 불일치로 출고 불가 확인'
+  from (select public.admin_order_claim_detail(:'staff_request_e') as detail) as loaded
+) then 1 else 0 end as assert_claim_detail_carries_staff_reason;
+
+select 1 / case when exists (
+  select 1 from public.admin_search_orders(p_field := 'order', p_query := '61000000-0000-4000-8000-0000000c5d01') o
+  where o.cancellation_request_id = :'staff_request_e'
+    and o.cancellation_reason_type = 'staff'
+    and o.cancellation_staff_reason_code = 'out_of_stock'
+    and o.cancellation_last_error_code is null
+) then 1 else 0 end as assert_order_search_carries_staff_reason;
+
+select 1 / case when exists (
+  select 1
+  from jsonb_array_elements(public.admin_claims_report(now() - interval '1 day', now() + interval '1 day') -> 'byReason') as entry
+  where entry ->> 'claimType' = 'cancel'
+    and entry ->> 'reasonType' = 'staff'
+    and entry ->> 'staffReasonCode' = 'out_of_stock'
+    and (entry ->> 'total')::int >= 1
+) and exists (
+  select 1
+  from jsonb_array_elements(public.admin_claims_report(now() - interval '1 day', now() + interval '1 day') -> 'byReason') as entry
+  where entry ->> 'reasonType' = 'defect'
+    and entry -> 'staffReasonCode' = 'null'::jsonb
+) then 1 else 0 end as assert_claim_report_splits_staff_reasons;
+reset role;
+
+-- 구매자 발원 요청은 운영자 취소 사유를 가질 수 없다.
+do $customer_staff_reason_guard$
+declare rejected boolean := false;
+begin
+  begin
+    update public.order_cancellation_requests set reason_type = 'staff'
+    where order_id = '61000000-0000-4000-8000-0000000c5d05';
+  exception when check_violation then rejected := true;
+  end;
+  if not rejected then raise exception 'customer request accepted the staff reason type'; end if;
+end;
+$customer_staff_reason_guard$;
 
 -- 진행 중에는 다른 접수·발송이 끼어들지 못한다.
 set local role service_role;
@@ -273,6 +358,19 @@ select 1 / case when (
   from public.orders o join public.order_cancellation_requests r on r.order_id = o.id
   where r.id = :'staff_request_p'
 ) then 1 else 0 end as assert_failed_staff_cancellation_keeps_the_order;
+
+-- 주문 패널은 결제확인필요 요청의 정합화 오류 코드를 함께 받는다(QA-10).
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-0000000c5d02', true);
+select 1 / case when exists (
+  select 1 from public.admin_search_orders(p_field := 'order', p_query := '61000000-0000-4000-8000-0000000c5d02') o
+  where o.cancellation_request_id = :'staff_request_p'
+    and o.cancellation_request_status = 'needs_review'
+    and o.cancellation_staff_reason_code = 'test_payment_cleanup'
+    and o.cancellation_last_error_code = 'provider_unavailable'
+) then 1 else 0 end as assert_order_search_carries_reconciliation_error_code;
+reset role;
 
 set local role authenticated;
 select set_config('request.jwt.claim.role', 'authenticated', true);
