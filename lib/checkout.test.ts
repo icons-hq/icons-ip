@@ -100,6 +100,7 @@ describe('checkout copy and safe errors', () => {
     expect(mapPlaceOrderError('account_suspended')).toBe('account_suspended');
     expect(mapPlaceOrderError('coupon_min_subtotal')).toBe('coupon_rejected');
     expect(mapPlaceOrderError('coupon_expired')).toBe('coupon_rejected');
+    expect(mapPlaceOrderError('payment amount below provider minimum')).toBe('payment_below_minimum');
     expect(mapPlaceOrderError('sensitive database failure')).toBe('unavailable');
   });
 });

@@ -29,6 +29,7 @@ export type PlaceOrderErrorCode =
   | 'preorder_sale_not_open'
   | 'preorder_capacity_exceeded'
   | 'preorder_policy_not_configured'
+  | 'payment_below_minimum'
   | 'unavailable';
 
 /** 주문서에서 고르는 결제수단. DB `public.order_payment_method`와 같은 값. */
@@ -204,6 +205,9 @@ export function mapPlaceOrderError(message: unknown): PlaceOrderErrorCode {
   /* 적용해 둔 쿠폰이 주문 확정 시점 재검증에서 거부된 경우(만료·조건 미달 등).
      세부 사유는 카트가 안내한다 — 주문서는 카트로 돌아가라고만 말한다. */
   if (normalized.includes('coupon_')) return 'coupon_rejected';
+  /* orders_korpay_minimum_amount 트리거: 결제 대기 주문의 total이 최소 결제 금액(1,000원)
+     미만이면 거절한다. 다시 눌러도 같은 결과라 "잠시 후 다시 시도"로 두지 않는다. */
+  if (normalized.includes('payment amount below provider minimum')) return 'payment_below_minimum';
   return 'unavailable';
 }
 
