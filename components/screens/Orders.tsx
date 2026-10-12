@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { Icon } from '@/components/ui/Icon';
+import type { CheckoutPaymentResultFocus } from '@/lib/checkout';
 import { krw } from '@/lib/format';
 import {
   formatOrderDate,
@@ -8,41 +9,125 @@ import {
   type OrderListItem,
 } from '@/lib/orders';
 
-/** Korpay confirm 콜백(/api/payments/goods/confirm)이 /orders?payment=…로 붙이는 결과값. */
+/** 결제 confirm 콜백(/api/payments/goods/confirm…)이 /orders?payment=…로 붙이는 결과값. */
 export type OrdersPaymentResult = 'approved' | 'checking' | 'failed';
 
-const PAYMENT_RESULT_COPY: Record<OrdersPaymentResult, { title: string; body: string }> = {
+type BannerTone = OrdersPaymentResult;
+
+interface BannerLink {
+  readonly href: string;
+  readonly label: string;
+}
+
+interface BannerCopy {
+  readonly tone: BannerTone;
+  readonly title: string;
+  readonly body: string;
+  readonly link?: BannerLink;
+  /** 결제가 잡혔을 수 있는 상태에서만 고객센터 안내를 붙인다. */
+  readonly inquiry?: boolean;
+}
+
+/*
+ * 쿼리만 있고 원장에서 대상 주문을 못 찾았을 때의 기본 안내. 콜백 리다이렉트에는 주문
+ * 식별자가 없으므로 결제 대기 주문을 함께 보여 주고(page가 pending 포함으로 읽는다),
+ * 자동으로 확정된다고 약속하지 않는다 — 웹훅·재정합 경로가 열려 있지 않을 수 있다.
+ */
+const QUERY_BANNERS: Record<OrdersPaymentResult, BannerCopy> = {
   approved: {
+    tone: 'approved',
     title: '결제가 확인됐어요',
     body: '주문이 안전하게 접수됐습니다. 배송 진행은 아래 주문에서 이어서 확인할 수 있어요.',
   },
   checking: {
-    // 미확정 attempt는 자동 상태조회 없이 수동 CS·재무 절차로만 풀린다
-    // (docs/runbooks/korpay-production-rollout.md). 새로고침으로 해소된다고 약속하지 않는다.
+    tone: 'checking',
     title: '결제를 확인하고 있어요',
-    body: '결제사 승인 결과를 확인하고 있습니다. 확인이 끝나면 주문이 결제 완료로 표시돼요.',
+    body: '결제사 승인 결과를 아직 확정하지 못했어요. 결제 대기 주문이 있다면 아래 목록에서 상태를 확인할 수 있어요.',
+    inquiry: true,
   },
   failed: {
-    // 실패한 카드 주문은 목록에 나타나지 않고 상세에도 재시도 컨트롤이 없다.
-    // 갈 수 있는 길(재고 복원 후 재주문)만 안내한다.
+    tone: 'failed',
     title: '결제가 완료되지 않았어요',
-    body: '결제가 승인되지 않았습니다. 선점된 재고는 시간이 지나면 자동으로 복원되니, 굿즈샵에서 다시 담아 주문해주세요.',
+    body: '결제가 승인되지 않았습니다. 결제 대기 주문이 있다면 아래 목록에서 결제를 이어가거나 주문을 정리할 수 있어요.',
+    link: { href: '/shop', label: '굿즈샵 둘러보기' },
   },
 };
+
+/** 원장에서 읽은 실제 결과별 안내. 다음 행동은 그 주문의 결제 화면이 이어받는다. */
+function focusBanner(focus: CheckoutPaymentResultFocus): BannerCopy {
+  const checkoutLink = (label: string): BannerLink => ({ href: `/checkout/${focus.orderId}`, label });
+  switch (focus.outcome) {
+    case 'approved':
+      return {
+        tone: 'approved',
+        title: '결제가 확인됐어요',
+        body: '주문이 안전하게 접수됐습니다. 배송 진행은 주문 상세에서 이어서 확인할 수 있어요.',
+        link: { href: `/orders/${focus.orderId}`, label: '주문 상세 보기' },
+      };
+    case 'checking':
+      return {
+        tone: 'checking',
+        title: '결제를 확인하고 있어요',
+        body: '결제사 승인 결과를 아직 확정하지 못했어요. 결제 상태는 주문 결제 화면에서 다시 확인할 수 있어요.',
+        link: checkoutLink('결제 상태 보기'),
+        inquiry: true,
+      };
+    case 'not_approved':
+      return {
+        tone: 'failed',
+        title: '결제가 승인되지 않았어요',
+        body: '이 주문으로는 다시 결제할 수 없어요. 주문 결제 화면에서 이 주문을 취소하고 같은 굿즈로 다시 주문할 수 있어요.',
+        link: checkoutLink('주문 정리하고 다시 주문하기'),
+      };
+    case 'attempt_expired':
+      /* 토스는 인증 뒤 10분 안에 승인 API를 부르지 않으면 결제를 EXPIRED로 끝낸다(문서
+         127). 시도 유효 시간이 지난 콜백은 claim이 거절해 승인 API를 부르지 않는다. */
+      return {
+        tone: 'failed',
+        title: '결제 가능 시간이 지났어요',
+        body: '결제 준비 후 유효 시간이 지나 결제가 진행되지 않았어요. 청구된 금액은 없어요. 주문은 결제 기한이 지나면 몇 분 안에 자동으로 취소되고, 재고와 사용한 쿠폰·적립금이 돌아와요. 그다음 다시 주문해주세요.',
+        link: checkoutLink('주문 결제 화면 보기'),
+      };
+    case 'retryable':
+      return {
+        tone: 'failed',
+        title: '결제가 완료되지 않았어요',
+        body: '결제가 승인되지 않았어요. 결제 가능 시간 안에는 같은 주문에서 다시 시도할 수 있어요.',
+        link: checkoutLink('결제 이어가기'),
+      };
+    case 'canceled':
+      return {
+        tone: 'failed',
+        title: '주문이 취소됐어요',
+        body: '이 주문은 취소됐어요. 같은 굿즈를 다시 담아 새로 주문할 수 있어요.',
+        link: checkoutLink('같은 굿즈 다시 담기'),
+      };
+  }
+}
 
 export function Orders({
   orders,
   paymentResult,
+  paymentFocus = null,
 }: {
   orders: OrderListItem[];
   paymentResult?: OrdersPaymentResult;
+  /** 최근 결제 시도의 실제 결과. page가 원장에서 읽어 넘긴다. */
+  paymentFocus?: CheckoutPaymentResultFocus | null;
 }) {
-  // ?payment=는 클라이언트가 만들 수 있는 입력이다. "결제가 확인됐어요"는 DB가 결제
-  // 완료 국면 주문을 실제로 보여줄 때만 말한다 — 쿼리 단독으로는 승인 표시를 만들지 않는다.
+  // ?payment=는 클라이언트가 만들 수 있는 입력이다. 원장에서 읽은 결과가 있으면 그것으로
+  // 안내하고, 없을 때만 쿼리 기본 안내를 쓴다. "결제가 확인됐어요"는 DB가 결제 완료 국면
+  // 주문을 실제로 보여줄 때만 말한다 — 쿼리 단독으로는 승인 표시를 만들지 않는다.
   const hasPaidPhaseOrder = orders.some(
     (order) => order.status !== 'pending' && order.status !== 'canceled',
   );
-  const banner = paymentResult === 'approved' && !hasPaidPhaseOrder ? undefined : paymentResult;
+  const banner: BannerCopy | undefined = !paymentResult
+    ? undefined
+    : paymentFocus
+      ? focusBanner(paymentFocus)
+      : paymentResult === 'approved' && !hasPaidPhaseOrder
+        ? undefined
+        : QUERY_BANNERS[paymentResult];
 
   return (
     <main className="wc-root wc-receipt orders-page">
@@ -57,21 +142,21 @@ export function Orders({
         <div className="wrap">
           {banner && (
             <div
-              className={`orders-payment-banner orders-payment-banner--${banner}`}
-              role={banner === 'failed' ? 'alert' : 'status'}
+              className={`orders-payment-banner orders-payment-banner--${banner.tone}`}
+              role={banner.tone === 'failed' ? 'alert' : 'status'}
             >
-              <strong>{PAYMENT_RESULT_COPY[banner].title}</strong>
-              <p>{PAYMENT_RESULT_COPY[banner].body}</p>
-              {banner === 'checking' && (
+              <strong>{banner.title}</strong>
+              <p>{banner.body}</p>
+              {banner.link && (
                 <p>
-                  주문에 반영되지 않았거나 결제 금액이 빠져나갔다면 고객센터{' '}
-                  <Link href="/my/inquiries">1:1 문의</Link>로 알려주세요. 확인 후 처리 결과를
-                  안내드립니다.
+                  <Link href={banner.link.href}>{banner.link.label}</Link>
                 </p>
               )}
-              {banner === 'failed' && (
+              {banner.inquiry && (
                 <p>
-                  <Link href="/shop">굿즈샵 둘러보기</Link>
+                  확인이 늦어지거나 결제 금액이 빠져나갔다면 고객센터{' '}
+                  <Link href="/my/inquiries">1:1 문의</Link>로 알려주세요. 확인 후 처리 결과를
+                  안내드립니다.
                 </p>
               )}
             </div>

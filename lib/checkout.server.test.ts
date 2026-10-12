@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { loadCheckoutOrder } from './checkout.server';
+import { loadCheckoutOrder, loadLatestCardPaymentResultFocus } from './checkout.server';
 
 const mocks = vi.hoisted(() => ({
   client: null as unknown,
@@ -39,6 +39,7 @@ function createQuery(
       return query;
     },
     in() { return query; },
+    gte() { return query; },
     order() {
       return query;
     },
@@ -311,3 +312,63 @@ describe('loadCheckoutOrder', () => {
     });
   });
 });
+
+describe('loadLatestCardPaymentResultFocus', () => {
+  const orderId = '7ad4c967-3d48-44da-a665-64731ac33f62';
+  const userId = '1cc4d399-8e70-4f06-979d-8fb0f9c43fde';
+  const now = Date.parse('2026-10-12T05:20:00.000Z');
+
+  it('최근 토스 결제 시도와 본인 주문을 읽어 실제 결과를 고른다', async () => {
+    const serviceRecords: QueryRecord[] = [];
+    mocks.serviceClient = {
+      from(table: string) {
+        return createQuery(table, serviceRecords, {
+          payment_attempts: [{
+            user_id: userId,
+            purpose: 'order',
+            provider: 'toss',
+            ref_id: orderId,
+            state: 'prepared',
+            expires_at: '2026-10-12T05:10:00.000Z',
+          }],
+        });
+      },
+    };
+    const records: QueryRecord[] = [];
+    mocks.client = {
+      from(table: string) {
+        return createQuery(table, records, {
+          orders: [{ id: orderId, user_id: userId, status: 'pending' }],
+          payment_summaries: [],
+        });
+      },
+    };
+
+    await expect(loadLatestCardPaymentResultFocus(userId, now)).resolves.toEqual({
+      orderId,
+      outcome: 'attempt_expired',
+    });
+    expect(serviceRecords[0]).toMatchObject({
+      table: 'payment_attempts',
+      eq: [['user_id', userId], ['purpose', 'order'], ['provider', 'toss']],
+    });
+    expect(records.find((record) => record.table === 'orders')?.eq).toEqual([
+      ['id', orderId],
+      ['user_id', userId],
+    ]);
+  });
+
+  it('최근 결제 시도나 본인 주문이 없으면 쿼리 기본 안내에 맡긴다', async () => {
+    mocks.serviceClient = { from: (table: string) => createQuery(table, [], {}) };
+    mocks.client = { from: (table: string) => createQuery(table, [], {}) };
+    await expect(loadLatestCardPaymentResultFocus(userId, now)).resolves.toBeNull();
+
+    mocks.serviceClient = {
+      from: (table: string) => createQuery(table, [], {
+        payment_attempts: [{ user_id: userId, purpose: 'order', provider: 'toss', ref_id: orderId, state: 'declined', expires_at: null }],
+      }),
+    };
+    await expect(loadLatestCardPaymentResultFocus(userId, now)).resolves.toBeNull();
+  });
+});
+

@@ -64,4 +64,63 @@ describe('Orders', () => {
     expect(html).not.toContain('주문 상세에서 결제를 다시 시도');
     expect(html).toContain('아직 주문 내역이 없어요');
   });
+
+  /* 원장 결과가 있으면 쿼리보다 그것을 믿는다. 늦게 끝낸 인증은 checking으로 돌아오지만
+     실제로는 청구 없이 끝난 결제다(UX-2·AMT-5). */
+  describe('원장에서 읽은 결제 결과', () => {
+    const orderId = '22222222-2222-4222-8222-222222222222';
+
+    it('시도 만료는 확인 중이 아니라 청구 없음과 다시 주문으로 안내한다', () => {
+      const html = renderToStaticMarkup(
+        <Orders orders={[]} paymentResult="checking" paymentFocus={{ orderId, outcome: 'attempt_expired' }} />,
+      );
+
+      expect(html).toContain('결제 가능 시간이 지났어요');
+      expect(html).toContain('청구된 금액은 없어요');
+      expect(html).not.toContain('결제를 확인하고 있어요');
+      expect(html).toContain(`href="/checkout/${orderId}"`);
+    });
+
+    it('확인 중이면 자동 확정을 약속하지 않고 그 주문의 결제 화면과 1:1 문의로 잇는다', () => {
+      const html = renderToStaticMarkup(
+        <Orders orders={[]} paymentResult="checking" paymentFocus={{ orderId, outcome: 'checking' }} />,
+      );
+
+      expect(html).toContain('결제를 확인하고 있어요');
+      expect(html).not.toContain('확인이 끝나면');
+      expect(html).toContain(`href="/checkout/${orderId}"`);
+      expect(html).toContain('href="/my/inquiries"');
+    });
+
+    it('승인 거절은 그 주문을 정리하고 다시 주문하는 화면으로 보낸다', () => {
+      const html = renderToStaticMarkup(
+        <Orders orders={[]} paymentResult="failed" paymentFocus={{ orderId, outcome: 'not_approved' }} />,
+      );
+
+      expect(html).toContain('결제가 승인되지 않았어요');
+      expect(html).toContain('주문 정리하고 다시 주문하기');
+      expect(html).toContain('role="alert"');
+    });
+
+    it('아직 유효한 시도만 같은 주문 재시도를 안내한다', () => {
+      const retryable = renderToStaticMarkup(
+        <Orders orders={[]} paymentResult="failed" paymentFocus={{ orderId, outcome: 'retryable' }} />,
+      );
+      expect(retryable).toContain('같은 주문에서 다시 시도');
+
+      const closed = renderToStaticMarkup(
+        <Orders orders={[]} paymentResult="failed" paymentFocus={{ orderId, outcome: 'not_approved' }} />,
+      );
+      expect(closed).not.toContain('같은 주문에서 다시 시도');
+    });
+
+    it('쿼리가 checking이어도 원장이 결제 완료면 승인 안내와 주문 상세 링크를 보인다', () => {
+      const html = renderToStaticMarkup(
+        <Orders orders={[]} paymentResult="checking" paymentFocus={{ orderId, outcome: 'approved' }} />,
+      );
+
+      expect(html).toContain('결제가 확인됐어요');
+      expect(html).toContain(`href="/orders/${orderId}"`);
+    });
+  });
 });

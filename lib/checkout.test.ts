@@ -5,6 +5,7 @@ import {
   checkoutOrderName,
   checkoutOrderState,
   checkoutPaymentClosure,
+  checkoutPaymentResultOutcome,
   checkoutReorderMode,
   type CheckoutClosureInput,
   mapPlaceOrderError,
@@ -228,5 +229,41 @@ describe('checkoutDeadlineTimeLabel', () => {
     expect(checkoutDeadlineTimeLabel('2026-10-12T05:15:00.000Z')).toBe('14:15');
     expect(checkoutDeadlineTimeLabel(null)).toBeNull();
     expect(checkoutDeadlineTimeLabel('not-a-date')).toBeNull();
+  });
+});
+
+describe('checkoutPaymentResultOutcome', () => {
+  const now = Date.parse('2026-10-12T05:00:00.000Z');
+  const attempt = (state: string, expiresAt = '2026-10-12T05:05:00.000Z') => ({ state, expiresAt });
+
+  it('주문 상태가 결제 완료 국면이면 승인, 취소면 취소다', () => {
+    expect(checkoutPaymentResultOutcome({ orderStatus: 'paid', paymentStatus: 'paid', attempt: attempt('approved') }, now))
+      .toBe('approved');
+    expect(checkoutPaymentResultOutcome({ orderStatus: 'canceled', paymentStatus: null, attempt: attempt('canceled') }, now))
+      .toBe('canceled');
+  });
+
+  it('늦게 끝낸 인증(시도 만료)은 확인 중이 아니라 시도 만료다', () => {
+    expect(checkoutPaymentResultOutcome({
+      orderStatus: 'pending', paymentStatus: null, attempt: attempt('prepared', '2026-10-12T04:59:59.000Z'),
+    }, now)).toBe('attempt_expired');
+  });
+
+  it('유효한 prepared 시도는 같은 주문 재시도, 거절·취소 시도는 다시 결제 불가다', () => {
+    expect(checkoutPaymentResultOutcome({ orderStatus: 'pending', paymentStatus: null, attempt: attempt('prepared') }, now))
+      .toBe('retryable');
+    expect(checkoutPaymentResultOutcome({ orderStatus: 'pending', paymentStatus: null, attempt: attempt('declined') }, now))
+      .toBe('not_approved');
+    expect(checkoutPaymentResultOutcome({ orderStatus: 'pending', paymentStatus: null, attempt: attempt('canceled') }, now))
+      .toBe('not_approved');
+  });
+
+  it('결제가 잡혔을 수 있는 상태와 모르는 값은 확인 중으로 둔다', () => {
+    for (const state of ['confirming', 'unknown', 'needs_review', 'approved', 'something_new']) {
+      expect(checkoutPaymentResultOutcome({ orderStatus: 'pending', paymentStatus: null, attempt: attempt(state) }, now))
+        .toBe('checking');
+    }
+    expect(checkoutPaymentResultOutcome({ orderStatus: 'pending', paymentStatus: 'pending', attempt: attempt('declined') }, now))
+      .toBe('checking');
   });
 });

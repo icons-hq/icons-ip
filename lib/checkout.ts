@@ -273,6 +273,48 @@ export function checkoutReorderMode(
   return 'cancel_then_reorder';
 }
 
+/**
+ * 결제 콜백이 돌려보낸 `/orders?payment=…`의 실제 결과. 콜백 리다이렉트에는 주문
+ * 식별자가 없고 쿼리는 위조할 수 있으므로, 배너 문구는 쿼리가 아니라 구매자의 최근
+ * 결제 시도·주문 원장으로 고른다.
+ * - `attempt_expired`: 결제 준비 후 유효 시간이 지나 콜백이 와도 승인 API를 부르지
+ *   않았다(늦게 끝낸 인증). 청구 없이 끝났고 같은 주문으로는 결제할 수 없다.
+ * - `retryable`: 승인으로 이어지지 않았지만 시도가 아직 유효하다(같은 주문 재시도 가능).
+ */
+export type CheckoutPaymentResultOutcome =
+  | 'approved'
+  | 'checking'
+  | 'not_approved'
+  | 'attempt_expired'
+  | 'retryable'
+  | 'canceled';
+
+export interface CheckoutPaymentResultFocus {
+  readonly orderId: string;
+  readonly outcome: CheckoutPaymentResultOutcome;
+}
+
+export function checkoutPaymentResultOutcome(
+  input: {
+    readonly orderStatus: string;
+    readonly paymentStatus: string | null;
+    readonly attempt: Pick<CheckoutPaymentAttemptSnapshot, 'state' | 'expiresAt'>;
+  },
+  now: number,
+): CheckoutPaymentResultOutcome {
+  if (input.orderStatus === 'canceled') return 'canceled';
+  if (input.orderStatus !== 'pending') return 'approved';
+  if (input.paymentStatus === 'pending' || input.paymentStatus === 'paid') return 'checking';
+  const { state, expiresAt } = input.attempt;
+  if (state === 'declined' || state === 'canceled') return 'not_approved';
+  if (state === 'prepared') {
+    return !expiresAt || Date.parse(expiresAt) <= now ? 'attempt_expired' : 'retryable';
+  }
+  // confirming·unknown·needs_review·approved(주문 확정 전), 그리고 모르는 값은 확정하지
+  // 못한 결제로 본다 — 결제가 잡혔을 수 있는 쪽으로 안내해야 안전하다.
+  return 'checking';
+}
+
 /** 결제 기한 시각을 KST "HH:MM"으로. 서버·브라우저가 같은 값을 내도록 시간대를 고정한다. */
 export function checkoutDeadlineTimeLabel(value: string | null): string | null {
   if (!value) return null;

@@ -4,11 +4,13 @@ import { loadOrderShipments } from './orders/shipments.server';
 import { getShippingCarrierRegistry } from './orders/shipment.server';
 
 import {
+  checkoutPaymentResultOutcome,
   normalizeCheckoutAddress,
   normalizeCheckoutPaymentMethod,
   type CheckoutAddress,
   type CheckoutPaymentAttemptSnapshot,
   type CheckoutPaymentMethod,
+  type CheckoutPaymentResultFocus,
 } from './checkout';
 import { createClient } from './supabase/server';
 import { createServiceClient } from './supabase/service';
@@ -203,4 +205,69 @@ export async function loadCheckoutOrder(
       preorderExpectedShipDate: item.preorder_expected_ship_date ?? null,
     })),
   };
+}
+
+/** 결제 결과 화면이 "방금 돌아온 결제"로 볼 최근 창. 토스 결제창 30분을 넉넉히 덮는다. */
+const PAYMENT_RESULT_FOCUS_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * `/orders?payment=…` 배너가 가리킬 주문과 그 실제 결과.
+ *
+ * 토스 successUrl 콜백 라우트는 결과를 주문 식별자 없이 `approved|checking|failed`로만
+ * 돌려보내고, 늦게 끝낸 인증(시도 만료)이나 DB 오류도 `checking`으로 보낸다. 그래서
+ * 구매자의 가장 최근 토스 결제 시도와 그 주문을 원장에서 읽어 실제 상태로 안내한다.
+ * 결제 시도 원장은 service role 전용이고, 주문·결제 요약은 본인 RLS로 읽는다. 코페이
+ * 시도는 청구 여부 판단 근거(인증 후 승인 API 미호출 → 만료)를 확인하지 않았으므로
+ * 대상에서 빼고 쿼리 기반 기본 안내에 맡긴다.
+ */
+export async function loadLatestCardPaymentResultFocus(
+  userId: string,
+  now: number = Date.now(),
+): Promise<CheckoutPaymentResultFocus | null> {
+  try {
+    const { data: attempt, error: attemptError } = await createServiceClient()
+      .from('payment_attempts')
+      .select('ref_id,state,expires_at')
+      .eq('user_id', userId)
+      .eq('purpose', 'order')
+      .eq('provider', 'toss')
+      .gte('created_at', new Date(now - PAYMENT_RESULT_FOCUS_WINDOW_MS).toISOString())
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle<{ ref_id: string; state: string; expires_at: string | null }>();
+    if (attemptError || !attempt) return null;
+
+    const supabase = await createClient();
+    const [
+      { data: order, error: orderError },
+      { data: payment, error: paymentError },
+    ] = await Promise.all([
+      supabase
+        .from('orders')
+        .select('id,status')
+        .eq('id', attempt.ref_id)
+        .eq('user_id', userId)
+        .maybeSingle<{ id: string; status: string }>(),
+      supabase
+        .from('payment_summaries')
+        .select('status')
+        .eq('purpose', 'order')
+        .eq('ref_id', attempt.ref_id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle<{ status: string }>(),
+    ]);
+    if (orderError || paymentError || !order) return null;
+
+    return {
+      orderId: order.id,
+      outcome: checkoutPaymentResultOutcome({
+        orderStatus: order.status,
+        paymentStatus: payment?.status ?? null,
+        attempt: { state: attempt.state, expiresAt: attempt.expires_at },
+      }, now),
+    };
+  } catch {
+    return null;
+  }
 }
