@@ -36,10 +36,16 @@ export interface SystemCancellationState {
   requestId: string;
   requestStatus: ActiveRequestStatus;
   attemptState: string | null;
+  /**
+   * 토스가 아닌 결제(Korpay·무통장)가 걸려 있는가. 그 결제는 결제사 취소 API로 닫히지
+   * 않아 시스템이 돌리면 곧바로 결제확인필요가 되고, 운영자의 기존 수동 절차(Korpay
+   * 접수 양식, 무통장 계좌 송금 접수)가 막힌다. 시스템은 손대지 않는다.
+   */
+  manualProviderPayment: boolean;
 }
 
 export type SystemCancellationOutcome =
-  | { status: 'skipped'; reason: 'no_active_cancel' | 'awaiting_staff' | 'needs_review' }
+  | { status: 'skipped'; reason: 'no_active_cancel' | 'awaiting_staff' | 'needs_review' | 'manual_provider' }
   | { status: 'reconciled'; requestId: string; result: CancellationReconciliationResult }
   | { status: 'failed' };
 
@@ -86,10 +92,22 @@ function createDefaultDependencies(): SystemCancellationDependencies {
       if (attemptError) throw new Error('payment attempt lookup failed');
       const attempt = (attemptData ?? [])[0] as Record<string, unknown> | undefined;
 
+      const { data: paymentData, error: paymentError } = await service
+        .from('payments')
+        .select('provider,status')
+        .eq('purpose', 'order')
+        .eq('ref_id', orderId);
+      if (paymentError) throw new Error('payment lookup failed');
+      const manualProviderPayment = (paymentData ?? []).some((row) => {
+        const payment = row as Record<string, unknown>;
+        return payment.status !== 'failed' && payment.provider !== 'toss';
+      });
+
       return {
         requestId: request.id,
         requestStatus: request.status as ActiveRequestStatus,
         attemptState: typeof attempt?.state === 'string' ? attempt.state : null,
+        manualProviderPayment,
       };
     },
     reconcile(requestId) {
@@ -121,6 +139,7 @@ export async function issueApprovedOrderCancellation(
     for (;;) {
       const state = await dependencies.loadState(orderId);
       if (!state) return { status: 'skipped', reason: 'no_active_cancel' };
+      if (state.manualProviderPayment) return { status: 'skipped', reason: 'manual_provider' };
       if (state.requestStatus === 'processing') {
         const result = await dependencies.reconcile(state.requestId);
         if (!result.ok) {

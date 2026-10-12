@@ -111,6 +111,16 @@ describe('decideOrderClaimAction — 취소 승인', () => {
     expect(state.message).toContain('Korpay');
   });
 
+  it('무통장 입금 결제는 계좌 송금 절차를 가리지 않도록 자동 실행하지 않는다', async () => {
+    mocks.rpc.mockResolvedValue({ data: 'processing', error: null });
+    mocks.loadAdminClaimDetail.mockResolvedValue(detail({ provider: 'bank_transfer' }));
+
+    const state = await decideOrderClaimAction({}, decisionForm('approve'));
+
+    expect(mocks.reconcileOrderCancellation).not.toHaveBeenCalled();
+    expect(state.message).toContain('무통장 입금 결제');
+  });
+
   it('반품 승인(수거 시작)은 결제사 취소를 실행하지 않는다', async () => {
     mocks.rpc.mockResolvedValue({ data: 'collecting', error: null });
 

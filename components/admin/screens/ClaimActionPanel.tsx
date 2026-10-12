@@ -250,7 +250,9 @@ export function ClaimActionPanel({
                 ? '승인하면 바로 토스 전액 취소를 발행하고 결제사 조회로 결과를 확인합니다. 확인되면 주문 취소·재고 복원·카드팩 회수와 환불 원장 기록이 함께 끝납니다.'
                 : paymentProvider === 'korpay'
                   ? 'Korpay 결제는 승인 뒤 결제사 취소 접수 양식으로 접수하고 환불 완료를 확정합니다.'
-                  : '결제 전 주문은 승인하면 결제사 취소 없이 주문을 취소합니다.'}
+                  : paymentProvider === 'bank_transfer'
+                    ? '무통장 입금 결제는 승인 뒤 환불계좌 송금 절차로 진행합니다.'
+                    : '결제 전 주문은 승인하면 결제사 취소 없이 주문을 취소합니다.'}
             </p>
           ) : null}
           <Feedback state={decisionState} />

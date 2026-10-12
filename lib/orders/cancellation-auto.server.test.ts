@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   reconcileOrderCancellation: vi.fn(),
   request: null as Record<string, unknown> | null,
   attempts: [] as Array<Record<string, unknown>>,
+  payments: [] as Array<Record<string, unknown>>,
   filters: [] as Array<{ table: string; column: string; value: unknown }>,
 }));
 
@@ -32,6 +33,8 @@ vi.mock('../supabase/service', () => ({
         order: vi.fn(() => query),
         limit: vi.fn(async () => ({ data: mocks.attempts, error: null })),
         maybeSingle: vi.fn(async () => ({ data: mocks.request, error: null })),
+        // payments 조회는 마지막 eq에서 끝난다(thenable).
+        then: (resolve: (value: unknown) => void) => resolve({ data: table === 'payments' ? mocks.payments : [], error: null }),
       };
       return query;
     },
@@ -56,7 +59,7 @@ function dependencies(states: Array<SystemCancellationState | null>) {
 }
 
 function state(override: Partial<SystemCancellationState> = {}): SystemCancellationState {
-  return { requestId: REQUEST_ID, requestStatus: 'processing', attemptState: 'approved', ...override };
+  return { requestId: REQUEST_ID, requestStatus: 'processing', attemptState: 'approved', manualProviderPayment: false, ...override };
 }
 
 describe('issueApprovedOrderCancellation', () => {
@@ -72,6 +75,16 @@ describe('issueApprovedOrderCancellation', () => {
     });
     expect(deps.reconcile).toHaveBeenCalledWith(REQUEST_ID);
     expect(deps.sleep).not.toHaveBeenCalled();
+  });
+
+  it('Korpay·무통장 결제가 걸린 취소는 시스템이 돌리지 않는다(수동 절차를 막지 않는다)', async () => {
+    const deps = dependencies([state({ manualProviderPayment: true })]);
+
+    await expect(issueApprovedOrderCancellation(ORDER_ID, {}, deps)).resolves.toEqual({
+      status: 'skipped',
+      reason: 'manual_provider',
+    });
+    expect(deps.reconcile).not.toHaveBeenCalled();
   });
 
   it('활성 취소 요청이 없으면 아무것도 하지 않는다', async () => {
@@ -157,6 +170,7 @@ describe('issueApprovedOrderCancellation', () => {
     mocks.filters = [];
     mocks.request = { id: REQUEST_ID, status: 'processing', claim_type: 'cancel' };
     mocks.attempts = [{ state: 'approved' }];
+    mocks.payments = [{ provider: 'toss', status: 'paid' }, { provider: 'korpay', status: 'failed' }];
     mocks.reconcileOrderCancellation.mockResolvedValue({ ok: true, status: 'completed' });
 
     await expect(issueApprovedOrderCancellation(ORDER_ID)).resolves.toMatchObject({ status: 'reconciled' });
@@ -167,6 +181,15 @@ describe('issueApprovedOrderCancellation', () => {
       column: 'status',
       value: ['requested', 'processing', 'needs_review'],
     });
+  });
+
+  it('기본 의존성은 무통장 결제를 수동 결제로 읽어 건너뛴다', async () => {
+    mocks.request = { id: REQUEST_ID, status: 'processing', claim_type: 'cancel' };
+    mocks.attempts = [{ state: 'approved' }];
+    mocks.payments = [{ provider: 'bank_transfer', status: 'paid' }];
+
+    await expect(issueApprovedOrderCancellation(ORDER_ID)).resolves.toEqual({ status: 'skipped', reason: 'manual_provider' });
+    expect(mocks.reconcileOrderCancellation).not.toHaveBeenCalled();
   });
 
   it('반품·교환 요청은 시스템 경로가 닫지 않는다', async () => {

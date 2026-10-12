@@ -141,8 +141,9 @@ function readClaimType(formData: FormData): OrderClaimType | undefined {
  * 승인으로 processing이 된 취소 클레임의 결제사 취소를 바로 실행한다.
  *
  * 주문 콘솔의 청약철회 승인(approveAdminOrderCancellationAction)과 같은 동작이다.
- * Korpay는 취소 API가 없어 이메일 접수 → 수동 확인 seam이 정상 경로이므로 여기서
- * 돌리지 않는다(돌리면 곧바로 needs_review가 돼 접수 양식 절차를 가린다).
+ * Korpay는 취소 API가 없어 이메일 접수 → 수동 확인 seam이 정상 경로이고, 무통장은
+ * 계좌 송금 절차를 따르므로 여기서 돌리지 않는다(돌리면 곧바로 needs_review가 돼
+ * 접수 양식·계좌 송금 접수를 막는다).
  */
 async function issueApprovedClaimCancellation(
   claimId: string,
@@ -157,6 +158,9 @@ async function issueApprovedClaimCancellation(
   }
   if (provider === 'korpay') {
     return { message: '취소를 승인했습니다. Korpay 결제는 결제사 취소 접수 양식으로 접수한 뒤 환불 완료를 확정해주세요.' };
+  }
+  if (provider === 'bank_transfer') {
+    return { message: '취소를 승인했습니다. 무통장 입금 결제는 결제사 취소가 없어 환불계좌 송금 절차로 진행합니다.' };
   }
 
   let result: Awaited<ReturnType<typeof reconcileOrderCancellation>>;
