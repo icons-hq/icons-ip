@@ -8,6 +8,7 @@ import {
   recoverAdminGoodsPaymentAction,
   reconcileAdminOrderCancellationAction,
   rejectAdminOrderCancellationAction,
+  startAdminOrderCancellationAction,
   updateAdminOrderStatusAction,
   updateAdminOrderTrackingAction,
   type AdminOrderActionState,
@@ -16,8 +17,11 @@ import {
   ADMIN_ORDER_STATUSES,
   ADMIN_ORDER_SEARCH_FIELDS,
   ADMIN_ORDER_STATUS_LABELS,
+  ADMIN_STAFF_CANCELLATION_NOTE_LIMIT,
+  ADMIN_STAFF_CANCELLATION_REASONS,
   ADMIN_WITHDRAWAL_RETURN_SHIPPING_LABELS,
   adminOrderDetailHref,
+  adminStaffCancellationAvailability,
   adminOrdersHref,
   isKorpayManualRecoveryState,
   isLegacyDecidableCancellation,
@@ -397,6 +401,72 @@ function ReconcileCancellationForm({
   );
 }
 
+/**
+ * 운영자 전액 취소(ADR-0018).
+ *
+ * 발송 전 주문의 결제 전액을 바로 취소한다 — 누르면 DB가 사유와 함께 취소 요청을
+ * 열고 서버가 토스 전액 취소를 발행·확인한 뒤 주문·재고·쿠폰·적립금을 정리한다.
+ * 출고지시 파일이 나간 배송 건이 있으면 창고 출고 중단 확인을 체크해야 한다.
+ */
+function StaffCancellationForm({
+  orderId,
+  requiresWarehouseStop,
+}: {
+  orderId: string;
+  requiresWarehouseStop: boolean;
+}) {
+  const [state, action, pending] = useActionState(startAdminOrderCancellationAction, EMPTY_ACTION_STATE);
+  const confirmation = '이 주문 전체를 취소하고 결제 금액 전액을 결제사에서 취소할까요? 되돌릴 수 없고 구매자에게 취소 알림이 갑니다.';
+  const reasonId = `admin-order-staff-cancel-reason-${orderId}`;
+  const noteId = `admin-order-staff-cancel-note-${orderId}`;
+  const stopId = `admin-order-staff-cancel-stop-${orderId}`;
+
+  return (
+    <form
+      action={action}
+      aria-label="운영자 전액 취소"
+      className="admin-order-reject-form admin-order-staff-cancel-form"
+      data-confirm={confirmation}
+      onSubmit={(event) => confirmAction(event, confirmation)}
+    >
+      <input name="orderId" type="hidden" value={orderId} />
+      <label htmlFor={reasonId}>
+        운영자 전액 취소 사유
+        <select defaultValue="" disabled={pending} id={reasonId} name="reasonCode" required>
+          <option disabled value="">사유를 선택해주세요</option>
+          {ADMIN_STAFF_CANCELLATION_REASONS.map((reason) => (
+            <option key={reason.value} value={reason.value}>{reason.label}</option>
+          ))}
+        </select>
+      </label>
+      {state.errors?.reasonCode ? <span role="alert">{state.errors.reasonCode}</span> : null}
+      <label htmlFor={noteId}>메모 (기타는 필수 · 구매자에게 보이지 않습니다)</label>
+      <textarea
+        disabled={pending}
+        id={noteId}
+        maxLength={ADMIN_STAFF_CANCELLATION_NOTE_LIMIT}
+        name="note"
+        placeholder="예: 창고 실재고 0개 확인, 1:1 문의 #123 고객 취소 요청"
+        rows={2}
+      />
+      {state.errors?.note ? <span role="alert">{state.errors.note}</span> : null}
+      {requiresWarehouseStop ? (
+        <label htmlFor={stopId}>
+          <input disabled={pending} id={stopId} name="warehouseStopConfirmed" required type="checkbox" value="confirmed" />
+          {' '}출고지시 파일이 나간 배송 건이 있습니다. 창고에 출고 중단을 확인했습니다.
+        </label>
+      ) : null}
+      <small>
+        발송 전 주문의 결제 금액 전액을 바로 취소합니다. 품절·출고 불가, 1:1 문의로 받은 취소 요청, 라이브 전환 전 심사용 테스트 결제 정리에 씁니다.
+      </small>
+      <button className="btn btn-sm btn-ghost" disabled={pending} type="submit">
+        {pending ? '취소 처리 중' : '전액 취소 실행'}
+      </button>
+      <ActionFeedback state={state} />
+    </form>
+  );
+}
+
 function ManualKorpayCancellationForm({
   amount,
   attemptId,
@@ -538,6 +608,7 @@ function OrderDetail({
   const usesKorpayManualRecovery = manualRecoveryAttempt
     ? isKorpayManualRecoveryState(manualRecoveryAttempt.state)
     : false;
+  const staffCancellation = adminStaffCancellationAvailability(order);
 
   return (
     <article aria-labelledby="admin-order-detail-title" className="admin-order-detail card">
@@ -736,6 +807,12 @@ function OrderDetail({
                 }
               : undefined}
             request={cancellationRequest}
+          />
+        ) : null}
+        {staffCancellation.available ? (
+          <StaffCancellationForm
+            orderId={order.id}
+            requiresWarehouseStop={staffCancellation.requiresWarehouseStop}
           />
         ) : null}
         {manualRecoveryAttempt?.manualRecoveryAvailable ? (

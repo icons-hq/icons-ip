@@ -14,6 +14,7 @@ vi.mock('@/app/admin/order-actions', () => ({
   recoverAdminGoodsPaymentAction: vi.fn(),
   reconcileAdminOrderCancellationAction: vi.fn(),
   rejectAdminOrderCancellationAction: vi.fn(),
+  startAdminOrderCancellationAction: vi.fn(),
   updateAdminOrderStatusAction: vi.fn(),
   updateAdminOrderTrackingAction: vi.fn(),
 }));
@@ -127,6 +128,45 @@ function actionMarker(label: string) {
 }
 
 describe('OrdersSection', () => {
+  // ADR-0018: 발송 전 주문만 운영자 전액 취소를 시작할 수 있다. 출고지시가 나간
+  // 배송 건이 있으면 창고 출고 중단 확인을 함께 받는다.
+  describe('운영자 전액 취소', () => {
+    const readyShipment = (exportedAt: string | null) => shipmentFixture({
+      orderId: ORDER_ID, status: 'ready', carrier: null, carrierLabel: null, trackingNumber: null,
+      trackingUrl: null, shippedAt: null, exportedAt,
+    });
+
+    it('발송 전 paid 주문에 사유 선택과 함께 그리고 창고 확인은 묻지 않는다', () => {
+      const html = renderToStaticMarkup(<OrdersSection data={orderData({ shipments: [readyShipment(null)] })} />);
+      expect(html).toContain('aria-label="운영자 전액 취소"');
+      expect(html).toContain('<option value="test_payment_cleanup">테스트 결제 정리</option>');
+      expect(html).toContain('<option value="out_of_stock">품절·출고 불가</option>');
+      expect(html).not.toContain('name="warehouseStopConfirmed"');
+      expect(html).toContain('전액 취소 실행');
+    });
+
+    it('출고지시가 나간 발주확인 주문은 창고 출고 중단 확인을 필수로 받는다', () => {
+      const html = renderToStaticMarkup(<OrdersSection data={orderData({
+        status: 'confirmed', shipments: [readyShipment('2026-10-12T01:00:00Z')],
+      })} />);
+      expect(html).toContain('name="warehouseStopConfirmed"');
+      expect(html).toContain('창고에 출고 중단을 확인했습니다.');
+    });
+
+    it('발송된 배송 건이 있거나 진행 중인 요청이 있으면 그리지 않는다', () => {
+      const shipped = renderToStaticMarkup(<OrdersSection data={orderData({
+        status: 'confirmed', shipments: [shipmentFixture({ orderId: ORDER_ID, status: 'shipping' })],
+      })} />);
+      expect(shipped).not.toContain('aria-label="운영자 전액 취소"');
+      const pending = renderToStaticMarkup(<OrdersSection data={orderData({
+        shipments: [readyShipment(null)], cancellationRequest: cancellationRequest(),
+      })} />);
+      expect(pending).not.toContain('aria-label="운영자 전액 취소"');
+      const unpaid = renderToStaticMarkup(<OrdersSection data={orderData({ status: 'pending', shipments: [] })} />);
+      expect(unpaid).not.toContain('aria-label="운영자 전액 취소"');
+    });
+  });
+
   it('주문 대조 금액은 0원·경계값·큰 금액을 모두 원 단위로 보여주고 paid를 신규주문으로 표시한다', () => {
     const data = orderData({
       total: 42000,

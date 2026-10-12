@@ -53,6 +53,7 @@ const TIMELINE_LABELS: Record<string, string> = {
   'admin.order.cancellation_needs_review': '결제 취소 확인 필요',
   'system.order.cancellation_needs_review': '결제 취소 확인 필요 (자동)',
   'admin.order.cancellation_reconcile_started': '결제 취소 다시 확인',
+  'admin.order.staff_cancellation_started': '운영자 전액 취소 시작',
 };
 
 const PAYMENT_PROVIDER_LABELS: Record<string, string> = {

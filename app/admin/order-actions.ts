@@ -8,6 +8,7 @@ import {
   normalizeAdminGoodsManualRecoveryForm,
   normalizeAdminOrderStatusForm,
   normalizeAdminOrderTrackingForm,
+  normalizeAdminStaffCancellationForm,
   type AdminOrderFieldErrors,
   type AdminOrderFormStatus,
 } from '@/lib/admin/orders';
@@ -342,6 +343,75 @@ export async function reconcileAdminOrderCancellationAction(
   if (!result.ok) return { errors: { form: REVIEW_REQUIRED } };
   if (result.status === 'in_progress') return { message: PAYMENT_RECONCILIATION_IN_PROGRESS };
   return { message: '결제 취소 상태를 정합화했습니다.' };
+}
+
+/** DB가 던지는 운영자 전액 취소 거절 코드를 운영자 문구로 옮긴다. 원문은 노출하지 않는다. */
+function staffCancellationError(message: string | null | undefined) {
+  const value = message ?? '';
+  if (value.includes('warehouse_stop_confirmation_required')) {
+    return '출고지시 파일이 나간 배송 건이 있습니다. 창고에서 출고 중단을 확인한 뒤 확인란을 체크해주세요.';
+  }
+  if (value.includes('shipment_already_dispatched')) {
+    return '이미 발송된 배송 건이 있어 전액 취소할 수 없습니다. 배송 완료 뒤 반품으로 처리하거나 담당자에게 넘겨주세요.';
+  }
+  if (value.includes('order_not_staff_cancelable')) return '결제완료·발주확인 상태의 발송 전 주문만 전액 취소할 수 있습니다.';
+  if (value.includes('order_claim_in_progress')) {
+    return '이미 진행 중인 취소·반품·교환 요청이 있습니다. 취소·반품·교환 관리에서 그 요청을 처리해주세요.';
+  }
+  if (value.includes('payment_reconciliation_required')) return '결제 결과가 아직 확정되지 않았습니다. 결제 상태를 먼저 확인해주세요.';
+  if (value.includes('staff_cancellation_toss_only')) {
+    return '토스 결제 주문만 이 화면에서 전액 취소할 수 있습니다. Korpay·무통장 주문은 기존 수동 절차를 따릅니다.';
+  }
+  if (value.includes('invalid_staff_cancellation_note')) return '기타 사유는 메모를 5자 이상 입력해주세요(최대 500자).';
+  if (value.includes('invalid_staff_cancellation_reason')) return '취소 사유를 선택해주세요.';
+  if (value.includes('staff required')) return '관리자 권한이 필요합니다.';
+  if (value.includes('order_not_found')) return '주문을 찾을 수 없습니다.';
+  return '전액 취소를 시작하지 못했습니다. 최신 상태를 확인해주세요.';
+}
+
+/**
+ * 운영자가 시작하는 배송 전 전액 취소(ADR-0018).
+ *
+ * DB가 사유·운영자·창고 중단 확인과 함께 고객 취소와 같은 원장(요청·claim·환불
+ * intent)을 열면, 같은 오케스트레이터로 토스 전액 취소 → fresh 조회 검증 →
+ * finalizer까지 바로 실행한다. 고객 직접 신청 정책(ADR-0017)은 바꾸지 않는다 —
+ * 발주확인 뒤를 여는 것은 staff 발원 요청이 있는 주문뿐이다.
+ */
+export async function startAdminOrderCancellationAction(
+  _state: AdminOrderActionState,
+  formData: FormData,
+): Promise<AdminOrderActionState> {
+  const access = await requireStaffAction();
+  if (access.error || !access.auth?.user) return access.error ?? { errors: { form: '관리자 권한이 필요합니다.' } };
+
+  const normalized = normalizeAdminStaffCancellationForm(formData);
+  if (!normalized.ok) return { errors: normalized.errors };
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc('admin_start_order_cancellation', {
+    p_note: normalized.value.note,
+    p_order_id: normalized.value.orderId,
+    p_reason_code: normalized.value.reasonCode,
+    p_warehouse_stop_confirmed: normalized.value.warehouseStopConfirmed,
+  });
+  if (error) return { errors: { form: staffCancellationError(error.message) } };
+  if (typeof data !== 'string' || !UUID_PATTERN.test(data)) {
+    revalidateOrderSurfaces(normalized.value.orderId);
+    return { errors: { form: '전액 취소 요청을 확인하지 못했습니다. 취소 관리에서 최신 상태를 확인해주세요.' } };
+  }
+
+  const result = await reconcileApprovedRequest(data, access.auth.user.id);
+  revalidateOrderSurfaces(normalized.value.orderId);
+  revalidatePath('/admin/sales/claims/cancels');
+  if (!result.ok) {
+    return {
+      errors: {
+        form: `전액 취소를 시작했지만 결제 취소를 확정하지 못했습니다(${result.code}). 주문과 재고는 그대로 유지됩니다. 취소 관리에서 정합화 오류를 확인한 뒤 [처리 상태 확인]으로 다시 시도해주세요.`,
+      },
+    };
+  }
+  if (result.status === 'in_progress') return { message: PAYMENT_RECONCILIATION_IN_PROGRESS };
+  return { message: '토스 전액 취소를 확인하고 주문 취소를 마쳤습니다. 재고·쿠폰·적립금 복원과 카드팩 회수가 함께 확정됐고 구매자에게 알렸습니다.' };
 }
 
 export async function recoverAdminGoodsPaymentAction(

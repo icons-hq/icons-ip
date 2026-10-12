@@ -422,6 +422,77 @@ export function normalizeAdminCancellationDecisionForm(
   return { ok: true, value: { requestId } };
 }
 
+/**
+ * 운영자 전액 취소 사유(ADR-0018). DB `admin_start_order_cancellation`의 허용 목록과
+ * 같아야 한다 — 한쪽만 늘리면 고를 수 있는데 항상 거절되는 선택지가 생긴다.
+ */
+export const ADMIN_STAFF_CANCELLATION_REASONS = [
+  { value: 'out_of_stock', label: '품절·출고 불가' },
+  { value: 'customer_request', label: '고객 요청(CS 접수)' },
+  { value: 'test_payment_cleanup', label: '테스트 결제 정리' },
+  { value: 'other', label: '기타' },
+] as const;
+export type AdminStaffCancellationReason = (typeof ADMIN_STAFF_CANCELLATION_REASONS)[number]['value'];
+const STAFF_CANCELLATION_REASON_SET = new Set<string>(ADMIN_STAFF_CANCELLATION_REASONS.map((reason) => reason.value));
+export const ADMIN_STAFF_CANCELLATION_NOTE_LIMIT = 500;
+
+/**
+ * 운영자 전액 취소를 시작할 수 있는 주문인가(ADR-0018).
+ *
+ * 화면에 버튼을 그릴지만 정한다. 판정의 진실원은 DB가 주문·배송 건 잠금 아래에서
+ * 다시 하는 검사다(결제 수단·진행 중 결제 포함). 출고지시 파일이 나간 배송 건이
+ * 있으면 창고의 출고 중단 확인을 함께 받는다.
+ */
+export function adminStaffCancellationAvailability(
+  order: AdminOrderRecord,
+): { available: false } | { available: true; requiresWarehouseStop: boolean } {
+  if (order.status !== 'paid' && order.status !== 'confirmed') return { available: false };
+  const request = order.cancellationRequest;
+  if (request && request.stage !== 'completed' && request.stage !== 'rejected') return { available: false };
+  if (order.shipments.some((shipment) => (
+    (shipment.status !== 'ready' && shipment.status !== 'canceled')
+    || Boolean(shipment.shippedAt)
+    || Boolean(shipment.deliveredAt)
+  ))) {
+    return { available: false };
+  }
+  return {
+    available: true,
+    requiresWarehouseStop: order.shipments.some((shipment) => shipment.status === 'ready' && Boolean(shipment.exportedAt)),
+  };
+}
+
+export function normalizeAdminStaffCancellationForm(
+  formData: FormData,
+): AdminOrderFormResult<{
+  orderId: string;
+  reasonCode: AdminStaffCancellationReason;
+  note: string | null;
+  warehouseStopConfirmed: boolean;
+}> {
+  const orderId = readFormString(formData, 'orderId').toLowerCase();
+  const reasonCode = readFormString(formData, 'reasonCode');
+  const note = readFormString(formData, 'note');
+  const errors: AdminOrderFieldErrors = {};
+  if (!UUID_PATTERN.test(orderId)) errors.orderId = '주문을 찾을 수 없습니다.';
+  if (!STAFF_CANCELLATION_REASON_SET.has(reasonCode)) errors.reasonCode = '취소 사유를 선택해주세요.';
+  if (note.length > ADMIN_STAFF_CANCELLATION_NOTE_LIMIT) {
+    errors.note = `메모는 ${ADMIN_STAFF_CANCELLATION_NOTE_LIMIT}자 이내로 입력해주세요.`;
+  } else if (reasonCode === 'other' && note.length < 5) {
+    errors.note = '기타 사유는 메모를 5자 이상 입력해주세요.';
+  }
+  if (Object.keys(errors).length) return { ok: false, errors };
+  return {
+    ok: true,
+    value: {
+      orderId,
+      reasonCode: reasonCode as AdminStaffCancellationReason,
+      note: note.length ? note : null,
+      warehouseStopConfirmed: formData.get('warehouseStopConfirmed') === 'confirmed',
+    },
+  };
+}
+
 export function normalizeAdminGoodsManualRecoveryForm(
   formData: FormData,
 ): AdminOrderFormResult<{
