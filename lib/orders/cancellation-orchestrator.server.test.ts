@@ -433,7 +433,7 @@ describe('reconcileOrderCancellation', () => {
     expect(deps.completeRequest).not.toHaveBeenCalled();
   });
 
-  it('취소 거절(needs_review)은 provider_cancel_failed로, 모호(unknown)는 provider_unavailable로 격리한다', async () => {
+  it('취소 거절·모호 결과는 게이트웨이 사유 코드를 그대로 needs_review 사유로 남긴다', async () => {
     const rejected = dependencies({
       refundTossPayment: vi.fn(async () => approvedRefund({
         outcome: 'needs_review',
@@ -444,8 +444,13 @@ describe('reconcileOrderCancellation', () => {
     await expect(reconcileOrderCancellation(
       { requestId: REQUEST_ID, actorId: ACTOR_ID },
       rejected,
-    )).resolves.toEqual({ ok: false, code: 'provider_cancel_failed' });
+    )).resolves.toEqual({ ok: false, code: 'provider_cancel_rejected' });
     expect(rejected.completeRequest).not.toHaveBeenCalled();
+    expect(rejected.markNeedsReview).toHaveBeenCalledWith({
+      requestId: REQUEST_ID,
+      actorId: ACTOR_ID,
+      code: 'provider_cancel_rejected',
+    });
 
     const ambiguous = dependencies({
       refundTossPayment: vi.fn(async () => approvedRefund({
@@ -457,8 +462,111 @@ describe('reconcileOrderCancellation', () => {
     await expect(reconcileOrderCancellation(
       { requestId: REQUEST_ID, actorId: ACTOR_ID },
       ambiguous,
-    )).resolves.toEqual({ ok: false, code: 'provider_unavailable' });
+    )).resolves.toEqual({ ok: false, code: 'provider_cancel_ambiguous' });
     expect(ambiguous.completeRequest).not.toHaveBeenCalled();
+  });
+
+  it('상점 불일치·결제 대조 실패처럼 조치가 다른 사유를 하나로 뭉개지 않는다', async () => {
+    // 2026-10-12 통합 리뷰 INT-4 — 운영자는 이 코드로 런북의 조치를 고른다.
+    for (const reasonCode of [
+      'provider_merchant_mismatch',
+      'provider_identity_mismatch',
+      'provider_refund_request_invalid',
+      'provider_refund_amount_mismatch',
+      'provider_payment_not_found',
+      'provider_payment_not_refundable',
+      'provider_configuration_error',
+      'provider_cancellation_incomplete',
+    ]) {
+      const deps = dependencies({
+        refundTossPayment: vi.fn(async () => approvedRefund({
+          outcome: 'needs_review',
+          reasonCode,
+          refundedAmount: undefined,
+          evidence: { providerPaymentKey: PAYMENT_KEY, resultCode: 'DONE_merchant_mismatch' },
+        })),
+      });
+
+      await expect(reconcileOrderCancellation(
+        { requestId: REQUEST_ID, actorId: null },
+        deps,
+      ), reasonCode).resolves.toEqual({ ok: false, code: reasonCode });
+      expect(deps.markNeedsReview, reasonCode).toHaveBeenCalledWith({
+        requestId: REQUEST_ID,
+        actorId: null,
+        code: reasonCode,
+      });
+      expect(deps.completeRequest, reasonCode).not.toHaveBeenCalled();
+    }
+  });
+
+  it('사유 코드가 없거나 형식 밖이면 provider 원문을 옮기지 않고 대체 코드로 남긴다', async () => {
+    for (const [outcome, reasonCode, expected] of [
+      ['needs_review', undefined, 'provider_cancel_failed'],
+      ['needs_review', 'EXCEED_MAX_REFUND_AMOUNT', 'provider_cancel_failed'],
+      ['needs_review', 'cancel_rejected', 'provider_cancel_failed'],
+      ['needs_review', 'provider_', 'provider_cancel_failed'],
+      ['needs_review', `provider_${'x'.repeat(56)}`, 'provider_cancel_failed'],
+      ['declined', 'provider_Cancel Rejected', 'provider_cancel_failed'],
+      ['unknown', undefined, 'provider_unavailable'],
+      ['unknown', 'NETWORK_ERROR', 'provider_unavailable'],
+    ] as const) {
+      const deps = dependencies({
+        refundTossPayment: vi.fn(async () => approvedRefund({
+          outcome,
+          reasonCode,
+          refundedAmount: undefined,
+        })),
+      });
+
+      const label = `${outcome}:${String(reasonCode)}`;
+      await expect(reconcileOrderCancellation(
+        { requestId: REQUEST_ID, actorId: ACTOR_ID },
+        deps,
+      ), label).resolves.toEqual({ ok: false, code: expected });
+      expect(deps.markNeedsReview, label).toHaveBeenCalledWith({
+        requestId: REQUEST_ID,
+        actorId: ACTOR_ID,
+        code: expected,
+      });
+    }
+  });
+
+  it('default 경로는 보존한 사유 코드를 needs_review RPC에 그대로 싣는다', async () => {
+    defaultMocks.attempt = {
+      id: '44444444-4444-4444-8444-444444444444',
+      provider: 'toss',
+      purpose: 'order',
+      ref_id: ORDER_ID,
+      amount: 42000,
+      currency: 'KRW',
+      idempotency_key: 'attempt-idempotency-key',
+      provider_order_id: 'provider-order-id',
+      provider_product_code: 'provider-product-code',
+      expires_at: '2026-10-12T00:10:00.000Z',
+    };
+    defaultMocks.gatewayRefund.mockResolvedValue(approvedRefund({
+      outcome: 'needs_review',
+      reasonCode: 'provider_merchant_mismatch',
+      refundedAmount: undefined,
+      evidence: { providerPaymentKey: PAYMENT_KEY, resultCode: 'DONE_merchant_mismatch' },
+    }));
+
+    await expect(reconcileOrderCancellation({
+      requestId: REQUEST_ID,
+      actorId: ACTOR_ID,
+    })).resolves.toEqual({ ok: false, code: 'provider_merchant_mismatch' });
+
+    expect(defaultMocks.gatewayRefund).toHaveBeenCalledTimes(1);
+    expect(defaultMocks.rpc).toHaveBeenCalledWith('mark_order_cancellation_needs_review', {
+      p_request_id: REQUEST_ID,
+      p_actor_id: ACTOR_ID,
+      p_error_code: 'provider_merchant_mismatch',
+    });
+    expect(defaultMocks.rpc).not.toHaveBeenCalledWith(
+      'complete_order_cancellation_request',
+      expect.anything(),
+    );
   });
 
   it('approved여도 provider 증거 키가 로컬 원장 키와 다르면 완료 RPC를 부르지 않는다', async () => {

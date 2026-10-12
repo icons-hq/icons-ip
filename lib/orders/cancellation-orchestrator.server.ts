@@ -40,8 +40,21 @@ export interface CancellationReconciliationContext {
   }>;
 }
 
+/**
+ * 게이트웨이 refund가 needs_review·unknown 등으로 돌려준 사유 코드(`provider_*`).
+ *
+ * 그대로 needs_review 사유(`last_error_code`)와 감사 로그에 남긴다. 사유마다 운영
+ * 조치가 다르다 — 취소 거절은 원인 해소 뒤 수동 복구로 닫히지만, 상점(MID) 불일치·결제
+ * 대조 실패는 상점관리자에서 취소해도 다음 조회가 같은 결과라 닫히지 않는다
+ * (docs/runbooks/order-claim-intake.md "결제확인필요 재시도와 멱등키"). 게이트웨이가
+ * 정규화한 내부 코드만 담고 provider 원문 코드(evidence.resultCode)는 옮기지 않는다.
+ */
+export type ProviderRefundReviewCode = `provider_${string}`;
+
 /* provider_* 코드 일부는 더 이상 새로 기록되지 않지만, 과거 요청 행이 이미
- * 이 코드들을 담고 있어 DB 계약과 읽기 표면을 위해 유지한다. */
+ * 이 코드들을 담고 있어 DB 계약과 읽기 표면을 위해 유지한다.
+ * provider_cancel_failed는 2026-10-12부터 게이트웨이 사유 코드가 없거나 형식 밖일 때의
+ * 대체 코드다 — 그 전 행에는 모든 명시 거절이 이 코드로 남아 있다. */
 export type CancellationReconciliationCode =
   | 'request_not_found'
   | 'request_not_ready'
@@ -52,7 +65,8 @@ export type CancellationReconciliationCode =
   | 'provider_cancel_failed'
   | 'provider_cancellation_incomplete'
   | 'bank_transfer_refund_filed'
-  | 'local_finalize_failed';
+  | 'local_finalize_failed'
+  | ProviderRefundReviewCode;
 
 export type CancellationReconciliationResult =
   | { ok: true; status: 'completed' | 'already_completed' | 'in_progress' }
@@ -126,6 +140,32 @@ const PREFLIGHT_REJECTIONS = new Set([
   'staff required',
   'cancellation_request_not_found',
 ]);
+/*
+ * 보존할 게이트웨이 사유 코드의 형식. DB `last_error_code` 검사(`^[a-z0-9_]{1,64}$`)
+ * 안쪽이면서 `provider_` 접두가 붙은 내부 코드만 받는다 — 대문자 provider 원문 코드나
+ * 길이 밖 값은 DB가 거부해 needs_review 전이 자체가 실패하므로 대체 코드로 바꾼다.
+ */
+const PROVIDER_REFUND_REVIEW_CODE = /^provider_[a-z0-9_]{1,55}$/;
+
+/**
+ * 완료로 닫지 못한 refund 결과의 needs_review 사유.
+ *
+ * 게이트웨이 사유 코드를 그대로 쓴다. 사유가 없거나 형식 밖이면 종전 대체 코드로
+ * 남긴다 — 모호(unknown)는 provider_unavailable, 그 밖은 provider_cancel_failed.
+ * approved인데 금액이 맞지 않는 결과는 사유 코드가 '취소 확인'이라 옮기면 오해를
+ * 부르므로 대체 코드로 남긴다.
+ */
+function refundReviewCode(refund: RefundOutcome): CancellationReconciliationCode {
+  if (
+    refund.outcome !== 'approved'
+    && typeof refund.reasonCode === 'string'
+    && PROVIDER_REFUND_REVIEW_CODE.test(refund.reasonCode)
+  ) {
+    return refund.reasonCode as ProviderRefundReviewCode;
+  }
+  return refund.outcome === 'unknown' ? 'provider_unavailable' : 'provider_cancel_failed';
+}
+
 function createDefaultDependencies(): CancellationReconciliationDependencies {
   const service = createServiceClient();
 
@@ -451,13 +491,9 @@ export async function reconcileOrderCancellation(
       verifiedPaymentKeys.push(payment.paymentKey);
       continue;
     }
-    // 명시 거절(needs_review·declined)은 취소 실패로, 모호(unknown)는 provider
-    // 불가로 남긴다 — 어느 쪽도 돈이 걸린 판단을 추측으로 종결하지 않는다.
-    return markNeedsReview(
-      dependencies,
-      input,
-      refund.outcome === 'unknown' ? 'provider_unavailable' : 'provider_cancel_failed',
-    );
+    // 거절·모호 결과는 어느 쪽도 돈이 걸린 판단을 추측으로 종결하지 않는다. 사유는
+    // 게이트웨이 코드를 그대로 남긴다 — 운영자는 이 코드로 런북의 조치를 고른다.
+    return markNeedsReview(dependencies, input, refundReviewCode(refund));
   }
 
   try {
