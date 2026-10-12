@@ -82,10 +82,10 @@ describe('bulk tracking action', () => {
     expect(mocks.rpc).toHaveBeenCalledOnce(); expect(mocks.rpc.mock.calls[0][0]).toBe('admin_import_shipment_tracking_batch');
     expect(mocks.enqueue.mock.calls[0][0]).toHaveLength(1000);
   });
-  it('rejects 1001 rows and files over 256KB before shipment writes', async () => {
+  it('rejects 1001 rows and files over 768KB before shipment writes', async () => {
     const text = Array.from({ length: 1001 }, (_, i) => `${i.toString(16).padStart(8, '0')},hanjin,${String(10000000 + i)}`).join('\n');
     expect(await bulkRegisterAdminOrderTrackingAction({}, form(text))).toHaveProperty('errors.form');
-    const data = form('00000001,hanjin,12345678'); data.set('file', new File(['x'.repeat(256 * 1024 + 1)], 'tracking.csv'));
+    const data = form('00000001,hanjin,12345678'); data.set('file', new File(['x'.repeat(768 * 1024 + 1)], 'tracking.csv'));
     expect(await bulkRegisterAdminOrderTrackingAction({}, data)).toHaveProperty('errors.form');
     expect(mocks.rpc).not.toHaveBeenCalled(); expect(mocks.enqueue).not.toHaveBeenCalled();
   });
@@ -124,7 +124,7 @@ describe('bulk tracking action', () => {
       seowonRow('합성 키링_빨강', 2, '6012345678901'), seowonRow('합성 엽서_', 1, 6012345678901), seowonRow('없는 상품', 1, '6012345678999'),
     ]));
     expect(mocks.origins).toHaveBeenCalledWith('seowon_xlsx');
-    expect(mocks.rpc).toHaveBeenNthCalledWith(1, 'admin_origin_tracking_candidates', { target_origin_id: seowonOrigin, target_tracking_numbers: ['6012345678901', '6012345678999'] });
+    expect(mocks.rpc).toHaveBeenNthCalledWith(1, 'admin_origin_tracking_candidates', { target_origin_id: seowonOrigin, target_tracking_numbers: ['6012345678901', '6012345678999'], target_phones: ['01012345678'] });
     expect(mocks.rpc).toHaveBeenNthCalledWith(2, 'admin_import_shipment_tracking_batch', { target_rows: [
       { line: 2, reference: seowonShipment, carrier: 'epost', trackingNumber: '6012345678901' },
     ] });
@@ -141,6 +141,20 @@ describe('bulk tracking action', () => {
     expect(other.report?.failed).toEqual([{ line: 2, reference: '전화 끝 5678 · 합성 키링_빨강', reason: SEOWON_REPLY_REASONS.alreadyShipped }]);
     expect(mocks.rpc).toHaveBeenCalledTimes(2); expect(mocks.rpc).not.toHaveBeenCalledWith('admin_import_shipment_tracking_batch', expect.anything());
     expect(mocks.enqueue).not.toHaveBeenCalled();
+  });
+  it('서원 대조 후보가 잘렸으면 아무것도 등록하지 않는다', async () => {
+    mocks.rpc.mockResolvedValue({ error: null, data: { defaultCarrier: 'epost', truncated: true, usedTracking: [], shipments: [seowonCandidate()] } });
+    const result = await bulkRegisterAdminOrderTrackingAction({}, await seowonForm([seowonRow('합성 키링_빨강', 2, '6012345678901'), seowonRow('합성 엽서_', 1, '6012345678901')]));
+    expect(result.errors?.form).toContain('대조할 배송 건이 너무 많아');
+    expect(mocks.rpc).toHaveBeenCalledTimes(1); expect(mocks.enqueue).not.toHaveBeenCalled();
+  });
+  it('다른 운영자가 같은 서원 회신을 먼저 등록했으면 그대로 둔 건으로 센다', async () => {
+    mocks.rpc.mockImplementation(async (name: string, args: { target_rows?: { line: number; reference: string }[] }) => name === 'admin_origin_tracking_candidates'
+      ? { error: null, data: { defaultCarrier: 'epost', truncated: false, shipments: [seowonCandidate()], usedTracking: [] } }
+      : { error: null, data: args.target_rows!.map(row => ({ ...row, ok: true, dispatched: false, unchanged: true, orderId: seowonOrder, shipmentId: seowonShipment })) });
+    const result = await bulkRegisterAdminOrderTrackingAction({}, await seowonForm([seowonRow('합성 키링_빨강', 2, '6012345678901'), seowonRow('합성 엽서_', 1, '6012345678901')]));
+    expect(result.errors).toBeUndefined(); expect(result.message).toContain('새로 등록할 운송장이 없습니다');
+    expect(result.report?.unchanged).toBe(1); expect(mocks.enqueue).not.toHaveBeenCalled();
   });
   it('서원 회신에 송장번호 열이 없으면 파일 단계에서 멈춘다', async () => {
     const workbook=new ExcelJS.Workbook(),sheet=workbook.addWorksheet('송장양식');sheet.addRow([...SEOWON_EXPORT_HEADERS]);sheet.addRow(seowonRow('합성 엽서_',1,'').slice(0,9));

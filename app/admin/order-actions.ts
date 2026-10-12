@@ -450,14 +450,18 @@ async function registerSeowonReply(parsed: SeowonTrackingParseResult, requestedO
   let origin: { id: string; name: string };
   try { origin = await resolveReplyOrigin(supabase, 'seowon_xlsx', requestedOrigin); }
   catch (error) { return { errors: { form: error instanceof Error ? error.message : '출고지를 확인해주세요.' } }; }
+  // 후보는 회신에 나온 전화번호의 배송 건으로 좁힌다. 오류 줄의 배송 건도 함께 막아야 하므로 모든 줄의 번호를 쓴다.
   const waybills=[...new Set(parsed.rows.filter(row=>!row.error).map(row=>row.trackingNumber))];
-  const loaded=await supabase.rpc('admin_origin_tracking_candidates',{target_origin_id:origin.id,target_tracking_numbers:waybills});
+  const phones=[...new Set(parsed.rows.map(row=>row.phone.replace(/\D/g,'')).filter(Boolean))];
+  const loaded=await supabase.rpc('admin_origin_tracking_candidates',{target_origin_id:origin.id,target_tracking_numbers:waybills,target_phones:phones});
   const candidates=loaded.data as {defaultCarrier?:string|null;truncated?:boolean;shipments?:SeowonReplyCandidate[];usedTracking?:{trackingNumber:string;shipmentId:string}[]}|null;
   if(loaded.error||!candidates||!Array.isArray(candidates.shipments)||!Array.isArray(candidates.usedTracking))return {errors:{form:'남양주 배송 건을 불러오지 못했습니다. 잠시 후 같은 파일로 다시 시도해주세요.'}};
   if(!candidates.defaultCarrier)return {errors:{form:shipmentMutationError('warehouse_carrier_required')}};
+  // 일부 후보만으로 대조하면 빠진 같은 내용의 배송 건 대신 남은 건이 발송될 수 있다. 잘렸으면 아무것도 바꾸지 않는다.
+  if(candidates.truncated)return {errors:{form:'대조할 배송 건이 너무 많아 등록하지 않았습니다. 회신 파일을 나눠 올려주세요.'}};
   const match=matchSeowonReply(parsed.rows,candidates.shipments,candidates.usedTracking);
   const failed:AdminTrackingImportFailure[]=[...match.issues];const succeeded:string[]=[];
-  let queueWarning=false;
+  let queueWarning=false;let unchanged=match.unchanged.length;
   if(match.commands.length){
     const result=await supabase.rpc('admin_import_shipment_tracking_batch',{target_rows:match.commands.map(command=>({
       line:command.line,reference:command.shipmentId,carrier:candidates.defaultCarrier,trackingNumber:command.trackingNumber,
@@ -471,15 +475,13 @@ async function registerSeowonReply(parsed: SeowonTrackingParseResult, requestedO
     for(const command of match.commands){
       const outcome=outcomes.get(command.shipmentId),reference=command.shipmentId.slice(-8).toUpperCase();
       if(outcome?.ok&&outcome.dispatched!==false){succeeded.push(reference);deliveries.push({orderId:command.orderId,shipmentId:command.shipmentId});}
-      else if(!outcome?.ok)for(const line of command.lines)failed.push({line,reference,reason:shipmentMutationError(outcome?.error??'')});
+      else if(outcome?.ok)unchanged++; // 다른 운영자가 같은 회신을 먼저 등록했다.
+      else for(const line of command.lines)failed.push({line,reference,reason:shipmentMutationError(outcome?.error??'')});
     }
     queueWarning=await enqueueDispatched(deliveries);
     revalidateOrderSurfaces();
   }
-  const state=trackingImportResult(succeeded,failed,match.unchanged.length,queueWarning);
-  if(!candidates.truncated)return state;
-  const notice=' 대조 후보가 많아 최근 5,000건만 확인했습니다.';
-  return state.errors?.form?{...state,errors:{form:`${state.errors.form}${notice}`}}:{...state,message:`${state.message??''}${notice}`};
+  return trackingImportResult(succeeded,failed,unchanged,queueWarning);
 }
 
 /** The DB batch keeps per-row failures and commits each valid shipment once. */
@@ -493,7 +495,7 @@ export async function bulkRegisterAdminOrderTrackingAction(
   try {
     const file = formData.get('file');
     if (file instanceof File && file.size > 0) {
-      if (file.size > TRACKING_IMPORT_FILE_LIMIT_BYTES) return {errors:{form:'파일은 256KB 이하로 올려주세요. 운송장은 1,000줄까지 등록할 수 있습니다.'}};
+      if (file.size > TRACKING_IMPORT_FILE_LIMIT_BYTES) return {errors:{form:'파일은 768KB 이하로 올려주세요. 운송장은 1,000줄까지 등록할 수 있습니다.'}};
       if (/\.xlsx$/i.test(file.name)) parsed=await parseTrackingWorkbook(Buffer.from(await file.arrayBuffer()),carriers);
       else if (/\.(csv|tsv|txt)$/i.test(file.name)) {
         const text=await file.text();
@@ -503,7 +505,7 @@ export async function bulkRegisterAdminOrderTrackingAction(
       else return {errors:{form:'XLSX 또는 CSV·TSV 파일을 올려주세요.'}};
     } else {
       const text=String(formData.get('pasted')??'');
-      if(Buffer.byteLength(text,'utf8')>TRACKING_IMPORT_FILE_LIMIT_BYTES)return {errors:{form:'붙여넣기 내용은 256KB 이하로 나누어주세요.'}};
+      if(Buffer.byteLength(text,'utf8')>TRACKING_IMPORT_FILE_LIMIT_BYTES)return {errors:{form:'붙여넣기 내용은 768KB 이하로 나누어주세요.'}};
       parsed=parseTrackingImport(text,carriers);
     }
   } catch(error) { return {errors:{form:error instanceof Error?error.message:'운송장 파일을 읽지 못했습니다.'}}; }

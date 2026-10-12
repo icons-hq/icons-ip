@@ -4,7 +4,8 @@ import {loadSafeWorkbook,readSafeWorkbookCell} from './workbook-safety';
 import {parseTrackingImport,TRACKING_IMPORT_ROW_LIMIT,type TrackingImportParseResult} from './tracking-import';
 import {parseSeowonReply,parseWarehouseReply,type TrackingWorkbookParseResult} from './warehouse-templates.server';
 export type {TrackingWorkbookParseResult} from './warehouse-templates.server';
-export const TRACKING_IMPORT_FILE_LIMIT_BYTES=256*1024;
+// 서버 액션 본문 한도(1MB) 안에서, 김포·서원 출고지시(512KB 상한)에 운송장 열을 더한 회신을 받는다.
+export const TRACKING_IMPORT_FILE_LIMIT_BYTES=768*1024;
 export async function parseTrackingWorkbook(bytes:Buffer,carriers:ShippingCarrierRegistry):Promise<TrackingWorkbookParseResult>{
  const workbook=await loadSafeWorkbook(bytes,{fileBytes:TRACKING_IMPORT_FILE_LIMIT_BYTES,totalBytes:8*1024*1024,entryBytes:4*1024*1024});
  // 창고 원본 양식은 빈 Sheet1~Sheet5를 달고 오기도 한다. 내용이 있는 시트가 하나일 때만 읽는다.

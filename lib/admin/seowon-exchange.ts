@@ -65,9 +65,16 @@ export const SEOWON_REPLY_REASONS = {
   partial: '이 배송 건의 품목 가운데 회신에 없는 줄이 있습니다. 모두 출고했다면 내려받은 줄을 빠짐없이 올리고, 일부만 출고했다면 주문 통합검색에서 처리해주세요.',
   alreadyShipped: '이미 다른 운송장으로 발송된 배송 건입니다. 회신 파일로 덮어쓰지 않습니다. 정정은 주문 통합검색의 운송장 수정에서 해주세요.',
   trackingInUse: '이미 다른 배송 건에 등록된 송장번호입니다. 예전 회신을 다시 올린 것은 아닌지 확인해주세요. 정정은 주문 통합검색의 운송장 수정에서 해주세요.',
+  trackingSharedAcrossRecipients: '받는 분이 다른 배송 건에 같은 송장번호가 적혀 있습니다. 회신 파일의 송장번호를 확인해주세요.',
 } as const;
 
 const label = (row: RowIdentity) => `전화 끝 ${digits(row.phone).slice(-4) || '없음'} · ${squash(row.items).slice(0, 40) || '품목명 없음'}`;
+const recipientKey = (line: Pick<SeowonLine, 'phone' | 'address'>) => `${digits(line.phone)}\u001f${squash(line.address)}`;
+function countKeys(rows: readonly RowIdentity[]) {
+  const counts = new Map<string, number>();
+  for (const row of rows) counts.set(seowonRowKey(row), (counts.get(seowonRowKey(row)) ?? 0) + 1);
+  return counts;
+}
 const shortId = (id: string) => id.slice(-8).toUpperCase();
 function add(map: Map<string, Set<string>>, key: string, id: string) { map.set(key, (map.get(key) ?? new Set()).add(id)); }
 
@@ -120,9 +127,10 @@ export function matchSeowonReply(
     if (matched.some(row => row.error)) { for (const row of matched) issue(row, row.error ?? SEOWON_REPLY_REASONS.blockedSibling, shortId(id)); continue; }
     const tracking = new Set(matched.map(row => row.trackingNumber));
     if (tracking.size !== 1) { for (const row of matched) issue(row, SEOWON_REPLY_REASONS.conflictInFile, shortId(id)); continue; }
-    // 배송 건은 송장 하나로 통째로 발송처리된다. 회신에 빠진 품목이 있으면 일부 출고일 수 있어 멈춘다.
-    const replied = new Set(matched.map(seowonRowKey));
-    if (seowonExportRows(byId.get(id)!.lines).some(row => !replied.has(seowonRowKey(row)))) {
+    // 배송 건은 송장 하나로 통째로 발송처리된다. 회신에 빠진 품목 줄이 있으면 일부 출고일 수 있어 멈춘다.
+    // 같은 내용의 품목 줄이 여럿일 수 있으므로 줄의 개수로 비교한다.
+    const replied = countKeys([...new Map(matched.map(row => [row.line, row])).values()]);
+    if ([...countKeys(seowonExportRows(byId.get(id)!.lines))].some(([key, count]) => (replied.get(key) ?? 0) < count)) {
       for (const row of matched) issue(row, SEOWON_REPLY_REASONS.partial, shortId(id)); continue;
     }
     const trackingNumber = [...tracking][0];
@@ -131,8 +139,13 @@ export function matchSeowonReply(
     }
     commands.push({ line: lines[0], shipmentId: id, orderId: byId.get(id)!.orderId, trackingNumber, lines });
   }
+  // 한 송장(한 상자)은 받는 분 한 명에게 간다. 받는 분이 다른 배송 건에 같은 새 송장번호가 붙으면 모두 멈춘다.
+  const recipientsByWaybill = new Map<string, Set<string>>();
+  for (const command of commands) add(recipientsByWaybill, command.trackingNumber, recipientKey(byId.get(command.shipmentId)!.lines[0]));
+  const crossed = commands.filter(command => recipientsByWaybill.get(command.trackingNumber)!.size > 1);
+  for (const command of crossed) for (const row of assigned.get(command.shipmentId)!) issue(row, SEOWON_REPLY_REASONS.trackingSharedAcrossRecipients, shortId(command.shipmentId));
   return {
-    commands: commands.sort((a, b) => a.line - b.line),
+    commands: commands.filter(command => !crossed.includes(command)).sort((a, b) => a.line - b.line),
     unchanged: [...resent].map(([shipmentId, lines]) => ({ shipmentId, lines: [...new Set(lines)].sort((a, b) => a - b) })),
     issues: [...issues.values()].sort((a, b) => a.line - b.line || a.reason.localeCompare(b.reason)),
   };

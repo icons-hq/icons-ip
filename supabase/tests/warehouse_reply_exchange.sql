@@ -5,9 +5,11 @@ begin;
 -- 1) 남양주(서원) 출고지 시작값: 우체국택배 등록, 시드 상태의 남양주만 켠다.
 select 1 / case when exists(select 1 from public.shipping_carriers where code='epost' and label='우체국택배' and is_active
    and tracking_url_template='https://service.epost.go.kr/trace.RetrieveDomRigiTraceList.comm?sid1={trackingNumber}')
- and exists(select 1 from public.fulfillment_origins where id='00000000-0000-4000-8000-000000042202' and code='namyangju'
-   and default_carrier='epost' and is_active and base_fee=3000 and free_threshold=50000 and cutoff='10:00' and export_template='seowon_xlsx')
- then 1 else 0 end as assert_namyangju_starts_on_epost;
+ and exists(select 1 from public.fulfillment_origins namyangju join public.fulfillment_origins gimpo on gimpo.code='gimpo'
+   where namyangju.id='00000000-0000-4000-8000-000000042202' and namyangju.code='namyangju' and namyangju.default_carrier='epost'
+   and namyangju.is_active and namyangju.base_fee=gimpo.base_fee and namyangju.free_threshold is not distinct from gimpo.free_threshold
+   and namyangju.cutoff='10:00' and namyangju.export_template='seowon_xlsx')
+ then 1 else 0 end as assert_namyangju_starts_on_epost_with_gimpo_fee;
 
 insert into auth.users(id,aud,role,email,raw_app_meta_data,raw_user_meta_data,created_at,updated_at)
 values('00000000-0000-4000-8000-000000043101','authenticated','authenticated','warehouse-reply@example.test','{}','{}',now(),now());
@@ -44,7 +46,12 @@ select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000043101'
 
 -- 2) 대조 후보: 출고지시를 전달한 발송 대기 택배 건과 최근 45일 발송 건. 주문 당시 스냅샷 값을 그대로
 --    주고, 회신 송장번호가 기간과 관계없이 이미 쓰였는지(45일 넘은 4번 포함)도 돌려준다.
-select public.admin_origin_tracking_candidates('00000000-0000-4000-8000-000000042202',array['6012345000004','6012345000003','6012345999999']) as candidates \gset
+select public.admin_origin_tracking_candidates('00000000-0000-4000-8000-000000042202',array['6012345000004','6012345000003','6012345999999'],
+ array['01012340001','01012340002','01012340003','01012340004','01012340005','01012340006']) as candidates \gset
+-- 후보는 회신에 나온 전화번호의 배송 건으로 좁힌다.
+select 1 / case when jsonb_array_length(public.admin_origin_tracking_candidates('00000000-0000-4000-8000-000000042202','{}',array['01012340003'])->'shipments')=1
+ and jsonb_array_length(public.admin_origin_tracking_candidates('00000000-0000-4000-8000-000000042202','{}','{}')->'shipments')=0
+ then 1 else 0 end as assert_reply_candidates_filtered_by_phone;
 select 1 / case when :'candidates'::jsonb->>'defaultCarrier'='epost' and :'candidates'::jsonb->>'template'='seowon_xlsx'
  and :'candidates'::jsonb->>'truncated'='false'
  and (select array_agg(right(value->>'id',1) order by value->>'id') from jsonb_array_elements(:'candidates'::jsonb->'shipments'))=array['2','3']
@@ -58,7 +65,7 @@ select 1 / case when :'candidates'::jsonb->>'defaultCarrier'='epost' and :'candi
    jsonb_build_object('trackingNumber','6012345000004','shipmentId','61000000-0000-4000-8000-000000000004'))
  then 1 else 0 end as assert_reply_candidates_scope;
 do $$ begin
- perform public.admin_origin_tracking_candidates('00000000-0000-4000-8000-000000042202',(select array_agg(n::text) from generate_series(1,1001) n));
+ perform public.admin_origin_tracking_candidates('00000000-0000-4000-8000-000000042202',(select array_agg(n::text) from generate_series(1,1001) n),'{}');
  raise exception 'oversized waybill lookup accepted';
 exception when invalid_parameter_value then if sqlerrm<>'invalid_tracking_batch' then raise; end if; end $$;
 
@@ -120,7 +127,7 @@ reset role;
 update public.profiles set role='user' where id='00000000-0000-4000-8000-000000043101';
 set local role authenticated;
 do $$ begin
- perform public.admin_origin_tracking_candidates('00000000-0000-4000-8000-000000042202','{}');
+ perform public.admin_origin_tracking_candidates('00000000-0000-4000-8000-000000042202','{}','{}');
  raise exception 'customer read reply candidates';
 exception when insufficient_privilege then null; end $$;
 do $$ begin
@@ -128,9 +135,9 @@ do $$ begin
  raise exception 'customer read pending exports';
 exception when insufficient_privilege then null; end $$;
 reset role;
-select 1 / case when not has_function_privilege('anon','public.admin_origin_tracking_candidates(uuid,text[])','execute')
- and not has_function_privilege('service_role','public.admin_origin_tracking_candidates(uuid,text[])','execute')
- and has_function_privilege('authenticated','public.admin_origin_tracking_candidates(uuid,text[])','execute')
+select 1 / case when not has_function_privilege('anon','public.admin_origin_tracking_candidates(uuid,text[],text[])','execute')
+ and not has_function_privilege('service_role','public.admin_origin_tracking_candidates(uuid,text[],text[])','execute')
+ and has_function_privilege('authenticated','public.admin_origin_tracking_candidates(uuid,text[],text[])','execute')
  and not has_function_privilege('anon','public.admin_origin_pending_export_ids(uuid)','execute')
  and not has_function_privilege('service_role','public.admin_origin_pending_export_ids(uuid)','execute')
  and has_function_privilege('authenticated','public.admin_origin_pending_export_ids(uuid)','execute')

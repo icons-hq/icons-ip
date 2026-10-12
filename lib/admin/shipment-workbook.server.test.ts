@@ -119,9 +119,10 @@ describe('shipment workbook exchange', () => {
   });
   it('uses the same native profiles in CSV, retaining blanks and escaping formula-looking item names', async () => {
     const nativeShipment = { ...shipment, lines: [{ ...line, recipient: '합성 수취인', goodName: '=합성,상품', optionName: '파랑', deliveryNote: '문 앞' }] };
-    const seowon = await buildShipmentExport({ shipments: [{ ...nativeShipment, template: 'seowon_xlsx' }] }, 'csv');
-    expect(seowon.bytes.toString('utf8')).toBe('\uFEFF"받는분전화번호","받는분기타연락처","받는분우편번호","받는분주소(전체,분할)","운임Type","수량","품목명","받는분성명","배송메시지"\r\n'
-      + '"010-0123-4567","","00123","서울시, 상세주소","","2","\'=합성,상품_파랑","합성 수취인","문 앞"');
+    // 서원 송장양식은 XLSX 양식이고 회신도 XLSX로만 받으므로 CSV를 골라도 XLSX로 만든다.
+    const seowon = await buildShipmentExport({ shipments: [{ ...nativeShipment, template: 'seowon_xlsx' }] }, 'csv', '2026-10-12');
+    expect([seowon.extension, seowon.name]).toEqual(['xlsx', 'ICONS-출고지시-2026-10-12-김포.xlsx']);
+    expect((await loadXlsx(seowon.bytes)).worksheets[0].getCell('G2').value).toBe('=합성,상품_파랑');
     const gimpo = await buildShipmentExport({ shipments: [{ ...nativeShipment, template: 'wms_csv' }] }, 'csv');
     expect(gimpo.bytes.toString('utf8')).toBe('\uFEFF"상품명(확정)+옵션(수집)+수량(조합용)","상품명(확정)+옵션(확정)+수량(조합용)","수취인주소(1)","수취인명+쇼핑몰명(1)","수취인전화번호1","수취인전화번호2","배송메세지","주문번호(사방넷)","주문번호(쇼핑몰)","옵션별칭","상품명(확정)","옵션(수집)","옵션(확정)","공급단가","주문금액/수량","수량","EA(상품)","수취인우편번호(1)","수취인명","배송비(수집)","운송장번호"\r\n'
       + '"\'=합성,상품/파랑(2)","\' =합성,상품/파랑(2)","서울시, 상세주소","합성 수취인/ICONS/","01001234567","","문 앞","","00000000-0000-4000-8000-000000000002","","\'=합성,상품","파랑","파랑","","12500","2","","00123","합성 수취인","3000",""');
@@ -187,6 +188,9 @@ describe('shipment workbook exchange', () => {
   it('rejects invalid export data before producing a file', async () => {
     await expect(buildShipmentExport({ shipments: [{ ...shipment, lines: [] }] }, 'xlsx')).rejects.toThrow('상품 정보');
     await expect(buildShipmentExport({ shipments: [{ ...shipment, template: 'seowon_xlsx', lines: [{ ...line, qty: 0 }] }] }, 'xlsx')).rejects.toThrow('수량');
+    // 김포·서원 파일은 회신 업로드 한도(768KB)에 운송장 열을 더해도 들도록 512KB를 넘겨 만들지 않는다.
+    const noisy = Array.from({ length: 600 }, (_, i) => ({ ...line, address: `${i}-${Array.from({ length: 1200 }, (_, j) => String.fromCharCode(0xac00 + ((i * 7919 + j * 104729) % 11172))).join('')}` }));
+    await expect(buildShipmentExport({ shipments: [{ ...shipment, template: 'seowon_xlsx', lines: noisy }] }, 'xlsx')).rejects.toThrow('회신 업로드 한도');
     // 김포·서원 파일은 회신 업로드 한도(1,000줄)를 넘겨 만들지 않는다.
     const many = Array.from({ length: 1001 }, () => ({ ...line }));
     await expect(buildShipmentExport({ shipments: [{ ...shipment, template: 'seowon_xlsx', lines: many }] }, 'xlsx')).rejects.toThrow('1,000줄');

@@ -83,6 +83,7 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
     {tab==='new'?<button className="wc-admin-kit__button" disabled={pending||!ids.length} onClick={()=>run('confirm')}>선택 주문 {orderIds.length}건 발주확인</button>:tab==='transit'?
      <button className="wc-admin-kit__button" disabled={pending||!ids.length} onClick={()=>run('complete')}>선택 배송완료</button>:
      <><label>파일 형식 <select value={format} onChange={event=>setFormat(event.target.value as 'xlsx'|'csv')}><option value="xlsx">Excel (.xlsx)</option><option value="csv">CSV</option></select></label>
+     {origins.some(origin=>origin.template==='seowon_xlsx')?<span>남양주(서원)는 송장양식 XLSX로 받습니다.</span>:null}
      <button className="wc-admin-kit__button" disabled={pending||!exportEligible} onClick={()=>run('export')}>출고지시 내보내기</button></>}
     {tab==='delayed'?<button className="wc-admin-kit__button" disabled={pending||!ids.length} onClick={()=>setNoticeSelection([...ids])}>선택 주문 {orderIds.length}건 고객 지연 안내</button>:null}
     {pending?<span role="status">처리 중…</span>:null}

@@ -71,6 +71,17 @@ describe('서원 회신 대조', () => {
     expect(match.issues).toEqual([]);
     expect(match.commands.map(command => [command.shipmentId, command.lines])).toEqual([['a', [2, 3, 4]], ['b', [2, 4]]]);
   });
+  it('같은 내용의 품목 줄이 둘인 배송 건은 회신에도 두 줄이 있어야 발송처리한다', () => {
+    const doubled = candidate('a', { lines: [line, { ...line }] });
+    expect(matchSeowonReply([reply(2, 'T1')], [doubled]).issues.map(issue => issue.reason)).toEqual([SEOWON_REPLY_REASONS.partial]);
+    expect(matchSeowonReply([reply(2, 'T1'), reply(3, 'T1')], [doubled]).commands.map(command => command.lines)).toEqual([[2, 3]]);
+  });
+  it('받는 분이 다른 배송 건에 같은 새 송장번호가 적혀 있으면 모두 등록하지 않는다', () => {
+    const other = candidate('b', { lines: [{ ...line, phone: '01099998888', address: '부산광역시 해운대구 1' }] });
+    const match = matchSeowonReply([reply(2, 'T1'), reply(3, 'T1', { phone: '010-9999-8888', address: '부산광역시 해운대구 1' })], [candidate('a'), other]);
+    expect(match.commands).toEqual([]);
+    expect(match.issues.map(issue => [issue.line, issue.reason])).toEqual([[2, SEOWON_REPLY_REASONS.trackingSharedAcrossRecipients], [3, SEOWON_REPLY_REASONS.trackingSharedAcrossRecipients]]);
+  });
   it('기간과 관계없이 이미 다른 배송 건에 쓰인 송장번호는 새 배송 건에 붙이지 않는다', () => {
     const match = matchSeowonReply([reply(2, 'T1')], [candidate('new')], [{ trackingNumber: 'T1', shipmentId: 'old' }]);
     expect(match.commands).toEqual([]);

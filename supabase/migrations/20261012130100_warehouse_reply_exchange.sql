@@ -31,15 +31,18 @@ grant execute on function public.admin_import_shipment_tracking(text,text,text) 
 -- 2) 서원은 주문번호를 돌려주지 않는다(질문지 D4). 회신 줄은 내려받은 송장양식의 줄 내용으로
 --    배송 건을 찾으므로, 출고지의 대조 후보를 내보내기와 같은 스냅샷 값으로 읽는다: 출고지시를
 --    전달한(exported_at) 발송 대기 택배 배송 건과, 재업로드를 알아보기 위한 최근 45일 발송 건.
---    아직 전달하지 않은 발송 대기 건은 회신에 있을 수 없으므로 후보가 아니다. 회신의 송장번호가
---    기간과 관계없이 이미 다른 배송 건에 쓰였는지도 함께 돌려준다(예전 회신 재업로드 방지).
---    줄 규칙(전화 표기·품목명)은 앱의 서원 내보내기 한 곳에서만 만든다.
-create function public.admin_origin_tracking_candidates(target_origin_id uuid,target_tracking_numbers text[])
+--    아직 전달하지 않은 발송 대기 건은 회신에 있을 수 없으므로 후보가 아니다. 후보는 회신에 나온
+--    받는 분 전화번호(주문에는 숫자만 저장된다)의 배송 건으로 좁힌다. 회신의 송장번호가 기간과
+--    관계없이 이미 다른 배송 건에 쓰였는지도 함께 돌려준다(예전 회신 재업로드 방지). 후보가 5,000건을
+--    넘으면 `truncated`이고 앱은 아무것도 등록하지 않는다. 줄 규칙(전화 표기·품목명)은 앱의 서원
+--    내보내기 한 곳에서만 만든다.
+create function public.admin_origin_tracking_candidates(target_origin_id uuid,target_tracking_numbers text[],target_phones text[])
 returns jsonb language plpgsql stable security definer set search_path='' as $$
 declare origin public.fulfillment_origins;result jsonb;
 begin
  if (select auth.uid()) is null or not public.is_staff() then raise insufficient_privilege using message='staff required';end if;
- if target_tracking_numbers is null or cardinality(target_tracking_numbers)>1000 then
+ if target_tracking_numbers is null or cardinality(target_tracking_numbers)>1000
+   or target_phones is null or cardinality(target_phones)>1000 then
    raise invalid_parameter_value using message='invalid_tracking_batch';
  end if;
  select * into origin from public.fulfillment_origins where id=target_origin_id;
@@ -47,7 +50,7 @@ begin
  with candidates as (
   select s.id,s.order_id,s.status,s.carrier,s.tracking_number,o.address
   from public.order_shipments s join public.orders o on o.id=s.order_id
-  where s.origin_id=origin.id and s.delivery_method='parcel'
+  where s.origin_id=origin.id and s.delivery_method='parcel' and o.address->>'phone'=any(target_phones)
    and ((s.status='ready' and s.exported_at is not null and o.status in ('confirmed','shipping'))
      or (s.status in ('shipping','delivered') and o.status<>'canceled' and s.shipped_at>=now()-interval '45 days'))
   order by s.status<>'ready',s.shipped_at desc nulls first,s.id
@@ -69,8 +72,8 @@ begin
  into result;
  return result;
 end $$;
-revoke all on function public.admin_origin_tracking_candidates(uuid,text[]) from public,anon,authenticated,service_role;
-grant execute on function public.admin_origin_tracking_candidates(uuid,text[]) to authenticated;
+revoke all on function public.admin_origin_tracking_candidates(uuid,text[],text[]) from public,anon,authenticated,service_role;
+grant execute on function public.admin_origin_tracking_candidates(uuid,text[],text[]) to authenticated;
 
 -- 3) 출고지별 "새 출고지시 한 번에 내려받기". 목록은 100건씩 보이지만 출고지시는 출고지 단위로
 --    한 파일이어야 한다. 내보내기 RPC가 거절할 배송 건(취소 진행·예약 미할당·퀵/방문수령·이미
