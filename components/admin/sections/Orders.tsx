@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useActionState, useEffect, useRef, useState } from 'react';
+import { startTransition, useActionState, useEffect, useRef, useState } from 'react';
 import {
   approveAdminOrderCancellationAction,
   recoverAdminGoodsPaymentAction,
@@ -26,8 +26,10 @@ import {
   adminOrdersHref,
   isKorpayManualRecoveryState,
   isLegacyDecidableCancellation,
+  normalizeAdminStaffCancellationForm,
   type AdminOrderCancellationRequestRecord,
   type AdminOrderConsoleData,
+  type AdminOrderFieldErrors,
   type AdminOrderFilters,
   type AdminOrderFormStatus,
   type AdminOrderRecord,
@@ -178,18 +180,67 @@ export async function runOrderCancellationAction(
   return { ...result, intent, orderId };
 }
 
+type CancellationFormValidator = (formData: FormData) => AdminOrderFieldErrors | null;
+
 interface OrderCancellationConsole {
   state: OrderCancellationActionState;
+  /*
+   * React 양식 action. 제출은 아래 submit이 직접 보낸다 — 이 값은 하이드레이션 전
+   * 제출이 페이지 이동(입력값이 주소에 실린 GET)이 되지 않게 막는 서버 렌더 표식으로만 남는다.
+   */
   action: (formData: FormData) => void;
   pending: boolean;
   /** 확인 창을 통과해 보낸 마지막 취소 액션. "처리 중" 라벨을 그 양식에만 붙인다. */
   submitted: { intent: OrderCancellationIntent; orderId: string } | null;
+  /** 확인 창 전에 잡힌 입력 오류. 서버를 부르지 않았으므로 서버 결과와 따로 둔다. */
+  clientErrors: { intent: OrderCancellationIntent; orderId: string; errors: AdminOrderFieldErrors } | null;
   submit: (
     event: React.FormEvent<HTMLFormElement>,
     confirmation: string,
     intent: OrderCancellationIntent,
     orderId: string,
+    validate?: CancellationFormValidator,
   ) => void;
+}
+
+export type OrderCancellationSubmitPlan =
+  | { kind: 'invalid'; errors: AdminOrderFieldErrors }
+  | { kind: 'dismissed' }
+  | { kind: 'dispatch' };
+
+/**
+ * 취소 처리 양식 제출 순서(2026-10-12 브라우저 QA QA-5).
+ *
+ * 입력 검사가 확인 창보다 먼저다. "되돌릴 수 없다"를 승인받은 뒤에 입력 오류로 돌려보내면
+ * 운영자는 이미 실행했다고 믿는다. 확인을 통과하면 React 양식 action을 거치지 않고 직접
+ * 보낸다 — 양식 action은 끝나면 비제어 입력을 초기화해서, 서버가 거절해도 운영자가 고른
+ * 사유·메모가 비워진다.
+ */
+export function planOrderCancellationSubmit(
+  formData: FormData,
+  confirmation: string,
+  confirm: (message: string) => boolean,
+  validate?: CancellationFormValidator,
+): OrderCancellationSubmitPlan {
+  const errors = validate?.(formData) ?? null;
+  if (errors && Object.keys(errors).length) return { kind: 'invalid', errors };
+  return confirm(confirmation) ? { kind: 'dispatch' } : { kind: 'dismissed' };
+}
+
+/**
+ * 운영자 전액 취소 입력 검사. 서버 액션과 같은 규칙(normalizeAdminStaffCancellationForm)에
+ * 화면만 아는 조건 — 출고지시가 나간 배송 건의 창고 중단 확인 — 을 더한다.
+ */
+export function staffCancellationClientErrors(
+  formData: FormData,
+  requiresWarehouseStop: boolean,
+): AdminOrderFieldErrors | null {
+  const normalized = normalizeAdminStaffCancellationForm(formData);
+  const errors: AdminOrderFieldErrors = normalized.ok ? {} : { ...normalized.errors };
+  if (requiresWarehouseStop && formData.get('warehouseStopConfirmed') !== 'confirmed') {
+    errors.warehouseStopConfirmed = '창고에 출고 중단을 확인한 뒤 확인란을 체크해주세요.';
+  }
+  return Object.keys(errors).length ? errors : null;
 }
 
 /** 한 양식이 볼 결과 조각. 필드 오류는 그 양식이 보낸 결과일 때만 붙인다. */
@@ -198,9 +249,10 @@ function cancellationFormView(
   intent: OrderCancellationIntent,
   orderId: string,
 ) {
-  const { pending, state, submitted } = cancellation;
+  const { clientErrors, pending, state, submitted } = cancellation;
+  const local = clientErrors?.intent === intent && clientErrors.orderId === orderId ? clientErrors.errors : undefined;
   return {
-    errors: state.intent === intent && state.orderId === orderId ? state.errors : undefined,
+    errors: local ?? (state.intent === intent && state.orderId === orderId ? state.errors : undefined),
     pending,
     running: pending && submitted?.intent === intent && submitted.orderId === orderId,
   };
@@ -571,22 +623,39 @@ function StaffCancellationForm({
       aria-label="운영자 전액 취소"
       className="admin-order-reject-form admin-order-staff-cancel-form"
       data-confirm={confirmation}
-      onSubmit={(event) => cancellation.submit(event, confirmation, 'staffCancel', orderId)}
+      noValidate
+      onSubmit={(event) => cancellation.submit(
+        event,
+        confirmation,
+        'staffCancel',
+        orderId,
+        (formData) => staffCancellationClientErrors(formData, requiresWarehouseStop),
+      )}
     >
       <CancellationIntentFields intent="staffCancel" orderId={orderId} />
       <input name="orderId" type="hidden" value={orderId} />
       <label htmlFor={reasonId}>
         운영자 전액 취소 사유
-        <select defaultValue="" disabled={pending} id={reasonId} name="reasonCode" required>
+        <select
+          aria-describedby={errors?.reasonCode ? `${reasonId}-error` : undefined}
+          aria-invalid={errors?.reasonCode ? true : undefined}
+          defaultValue=""
+          disabled={pending}
+          id={reasonId}
+          name="reasonCode"
+          required
+        >
           <option disabled value="">사유를 선택해주세요</option>
           {ADMIN_STAFF_CANCELLATION_REASONS.map((reason) => (
             <option key={reason.value} value={reason.value}>{reason.label}</option>
           ))}
         </select>
       </label>
-      {errors?.reasonCode ? <span role="alert">{errors.reasonCode}</span> : null}
+      {errors?.reasonCode ? <span id={`${reasonId}-error`} role="alert">{errors.reasonCode}</span> : null}
       <label htmlFor={noteId}>메모 (기타는 필수 · 구매자에게 보이지 않습니다)</label>
       <textarea
+        aria-describedby={errors?.note ? `${noteId}-error` : undefined}
+        aria-invalid={errors?.note ? true : undefined}
         disabled={pending}
         id={noteId}
         maxLength={ADMIN_STAFF_CANCELLATION_NOTE_LIMIT}
@@ -594,12 +663,24 @@ function StaffCancellationForm({
         placeholder="예: 창고 실재고 0개 확인, 1:1 문의 #123 고객 취소 요청"
         rows={2}
       />
-      {errors?.note ? <span role="alert">{errors.note}</span> : null}
+      {errors?.note ? <span id={`${noteId}-error`} role="alert">{errors.note}</span> : null}
       {requiresWarehouseStop ? (
         <label htmlFor={stopId}>
-          <input disabled={pending} id={stopId} name="warehouseStopConfirmed" required type="checkbox" value="confirmed" />
+          <input
+            aria-describedby={errors?.warehouseStopConfirmed ? `${stopId}-error` : undefined}
+            aria-invalid={errors?.warehouseStopConfirmed ? true : undefined}
+            disabled={pending}
+            id={stopId}
+            name="warehouseStopConfirmed"
+            required
+            type="checkbox"
+            value="confirmed"
+          />
           {' '}출고지시 파일이 나간 배송 건이 있습니다. 창고에 출고 중단을 확인했습니다.
         </label>
+      ) : null}
+      {errors?.warehouseStopConfirmed ? (
+        <span id={`${stopId}-error`} role="alert">{errors.warehouseStopConfirmed}</span>
       ) : null}
       <small>
         발송 전 주문의 결제 금액 전액을 바로 취소합니다. 품절·출고 불가, 1:1 문의로 받은 취소 요청, 라이브 전환 전 심사용 테스트 결제 정리에 씁니다.
@@ -1017,14 +1098,26 @@ export function OrdersSection({ data }: { data: AdminOrderConsoleData }) {
     EMPTY_CANCELLATION_STATE,
   );
   const [submittedCancellation, setSubmittedCancellation] = useState<OrderCancellationConsole['submitted']>(null);
+  const [cancellationClientErrors, setCancellationClientErrors] = useState<OrderCancellationConsole['clientErrors']>(null);
   const cancellation: OrderCancellationConsole = {
     state: cancellationState,
     action: cancellationAction,
     pending: cancellationPending,
     submitted: submittedCancellation,
-    submit: (event, confirmation, intent, orderId) => {
-      confirmAction(event, confirmation);
-      if (!event.defaultPrevented) setSubmittedCancellation({ intent, orderId });
+    clientErrors: cancellationClientErrors,
+    submit: (event, confirmation, intent, orderId, validate) => {
+      /* 양식 action으로 보내지 않는다 — 끝나면 입력이 초기화된다(planOrderCancellationSubmit). */
+      event.preventDefault();
+      const formData = new FormData(event.currentTarget);
+      const plan = planOrderCancellationSubmit(formData, confirmation, (message) => window.confirm(message), validate);
+      if (plan.kind === 'invalid') {
+        setCancellationClientErrors({ intent, orderId, errors: plan.errors });
+        return;
+      }
+      if (plan.kind === 'dismissed') return;
+      setCancellationClientErrors(null);
+      setSubmittedCancellation({ intent, orderId });
+      startTransition(() => cancellationAction(formData));
     },
   };
   /* 상태 필터로 보던 목록에서는 방금 취소한 주문이 빠진다. 그 결과는 목록 위에 남긴다. */

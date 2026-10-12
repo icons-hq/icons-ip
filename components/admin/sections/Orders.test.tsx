@@ -962,3 +962,112 @@ describe('runOrderCancellationAction', () => {
     for (const action of Object.values(orderActions)) expect(action).not.toHaveBeenCalled();
   });
 });
+
+/*
+ * 운영자 전액 취소 양식 제출 순서(2026-10-12 브라우저 QA QA-5).
+ *
+ * 확인 창("되돌릴 수 없고 구매자에게 취소 알림이 갑니다")은 입력이 유효할 때만 뜬다.
+ * 확인을 통과한 제출은 React 양식 action을 거치지 않아 서버가 거절해도 사유·메모가
+ * 초기화되지 않는다 — 브라우저 상호작용은 서버 렌더 테스트로 재현할 수 없어 제출 계획과
+ * 입력 검사를 따로 고정한다.
+ */
+describe('운영자 전액 취소 제출 순서', () => {
+  const confirmation = '되돌릴 수 없습니다';
+
+  function staffForm(fields: Record<string, string>) {
+    const form = new FormData();
+    form.set('orderId', ORDER_ID);
+    for (const [key, value] of Object.entries(fields)) form.set(key, value);
+    return form;
+  }
+
+  it('기타 사유의 짧은 메모는 확인 창을 띄우지 않고 메모 오류를 돌려준다', async () => {
+    const { planOrderCancellationSubmit, staffCancellationClientErrors } = await import('./Orders');
+    const confirm = vi.fn(() => true);
+
+    const plan = planOrderCancellationSubmit(
+      staffForm({ reasonCode: 'other', note: '짧음' }),
+      confirmation,
+      confirm,
+      (form) => staffCancellationClientErrors(form, false),
+    );
+
+    expect(plan).toEqual({ kind: 'invalid', errors: { note: '기타 사유는 메모를 5자 이상 입력해주세요.' } });
+    expect(confirm).not.toHaveBeenCalled();
+  });
+
+  it('출고지시가 나간 주문은 창고 중단 확인 없이 확인 창으로 가지 않는다', async () => {
+    const { planOrderCancellationSubmit, staffCancellationClientErrors } = await import('./Orders');
+    const confirm = vi.fn(() => true);
+
+    const plan = planOrderCancellationSubmit(
+      staffForm({ reasonCode: 'out_of_stock', note: '' }),
+      confirmation,
+      confirm,
+      (form) => staffCancellationClientErrors(form, true),
+    );
+
+    expect(plan).toMatchObject({ kind: 'invalid', errors: { warehouseStopConfirmed: expect.stringContaining('창고') } });
+    expect(confirm).not.toHaveBeenCalled();
+    expect(staffCancellationClientErrors(staffForm({ reasonCode: '' }), false)).toEqual({ reasonCode: '취소 사유를 선택해주세요.' });
+  });
+
+  it('유효한 입력만 확인 창을 거쳐 보낸다', async () => {
+    const { planOrderCancellationSubmit, staffCancellationClientErrors } = await import('./Orders');
+    const validate = (form: FormData) => staffCancellationClientErrors(form, true);
+    const form = staffForm({ reasonCode: 'test_payment_cleanup', warehouseStopConfirmed: 'confirmed' });
+
+    const accepted = vi.fn(() => true);
+    expect(planOrderCancellationSubmit(form, confirmation, accepted, validate)).toEqual({ kind: 'dispatch' });
+    expect(accepted).toHaveBeenCalledWith(confirmation);
+
+    const declined = vi.fn(() => false);
+    expect(planOrderCancellationSubmit(form, confirmation, declined, validate)).toEqual({ kind: 'dismissed' });
+  });
+
+  it('검사기가 없는 양식은 확인 창만 거친다', async () => {
+    const { planOrderCancellationSubmit } = await import('./Orders');
+    const confirm = vi.fn(() => true);
+    expect(planOrderCancellationSubmit(new FormData(), confirmation, confirm)).toEqual({ kind: 'dispatch' });
+    expect(confirm).toHaveBeenCalledOnce();
+  });
+
+  it('양식은 브라우저 기본 검사 대신 같은 화면 오류로 사유·메모·창고 확인을 알린다', async () => {
+    vi.resetModules();
+    vi.doMock('react', async () => {
+      const actual = await vi.importActual<typeof import('react')>('react');
+      return {
+        ...actual,
+        useActionState: (fn: unknown, initial: unknown) => [
+          fn === orderActions.updateAdminOrderStatusAction || fn === orderActions.updateAdminOrderTrackingAction
+            ? initial
+            : {
+              intent: 'staffCancel',
+              orderId: ORDER_ID,
+              errors: { warehouseStopConfirmed: '창고에 출고 중단을 확인한 뒤 확인란을 체크해주세요.' },
+            },
+          () => {},
+          false,
+        ],
+      };
+    });
+    try {
+      const { OrdersSection: ErroredOrdersSection } = await import('./Orders');
+      const html = renderToStaticMarkup(<ErroredOrdersSection data={orderData({
+        status: 'confirmed',
+        shipments: [shipmentFixture({
+          orderId: ORDER_ID, status: 'ready', carrier: null, carrierLabel: null, trackingNumber: null,
+          trackingUrl: null, shippedAt: null, exportedAt: '2026-10-12T01:00:00Z',
+        })],
+      })} />);
+      const stopId = `admin-order-staff-cancel-stop-${ORDER_ID}`;
+
+      expect(html).toMatch(/aria-label="운영자 전액 취소"[^>]*novalidate=""/i);
+      expect(html).toContain(`id="${stopId}-error" role="alert"`);
+      expect(html).toContain(`aria-describedby="${stopId}-error"`);
+    } finally {
+      vi.doUnmock('react');
+      vi.resetModules();
+    }
+  });
+});
