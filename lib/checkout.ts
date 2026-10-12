@@ -284,6 +284,9 @@ export function checkoutReorderMode(
  * - `attempt_expired`: 결제 준비 후 유효 시간이 지나 콜백이 와도 승인 API를 부르지
  *   않았다(늦게 끝낸 인증). 청구 없이 끝났고 같은 주문으로는 결제할 수 없다.
  * - `retryable`: 승인으로 이어지지 않았지만 시도가 아직 유효하다(같은 주문 재시도 가능).
+ * - `cancellation_requested`: 처리 중인 취소 요청이 있어 DB가 결제를 막는다. 콜백이 와도
+ *   claim이 `goods_order_not_payable`로 거절해 승인 API를 부르지 않으므로, 같은 주문
+ *   재시도를 약속하지 않고 주문 상세의 취소 진행 상태로 안내한다.
  */
 export type CheckoutPaymentResultOutcome =
   | 'approved'
@@ -291,6 +294,7 @@ export type CheckoutPaymentResultOutcome =
   | 'not_approved'
   | 'attempt_expired'
   | 'retryable'
+  | 'cancellation_requested'
   | 'canceled';
 
 export interface CheckoutPaymentResultFocus {
@@ -303,6 +307,8 @@ export function checkoutPaymentResultOutcome(
     readonly orderStatus: string;
     readonly paymentStatus: string | null;
     readonly attempt: Pick<CheckoutPaymentAttemptSnapshot, 'state' | 'expiresAt'>;
+    /** 처리 중인 취소 요청(requested·processing·needs_review)이 있는지. */
+    readonly hasActiveCancellationRequest?: boolean;
   },
   now: number,
 ): CheckoutPaymentResultOutcome {
@@ -310,6 +316,10 @@ export function checkoutPaymentResultOutcome(
   if (input.orderStatus !== 'pending') return 'approved';
   if (input.paymentStatus === 'pending' || input.paymentStatus === 'paid') return 'checking';
   const { state, expiresAt } = input.attempt;
+  const closedBeforeApproval = state === 'prepared' || state === 'declined' || state === 'canceled';
+  /* 승인 API까지 가지 않은 시도에서만 취소 요청을 앞세운다. 결제가 잡혔을 수 있는 시도는
+     아래에서 확인 중으로 둔다 — 취소 요청이 있어도 승인과의 경합은 원장이 정리한다. */
+  if (closedBeforeApproval && input.hasActiveCancellationRequest) return 'cancellation_requested';
   if (state === 'declined' || state === 'canceled') return 'not_approved';
   if (state === 'prepared') {
     return !expiresAt || Date.parse(expiresAt) <= now ? 'attempt_expired' : 'retryable';

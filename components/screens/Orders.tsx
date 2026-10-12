@@ -95,6 +95,15 @@ function focusBanner(focus: CheckoutPaymentResultFocus): BannerCopy {
         body: '결제가 승인되지 않았어요. 결제 가능 시간 안에는 같은 주문에서 다시 시도할 수 있어요.',
         link: checkoutLink('결제 이어가기'),
       };
+    case 'cancellation_requested':
+      /* 취소 요청이 처리 중인 주문은 claim이 결제를 막아 승인 API를 부르지 않는다. 결제
+         화면도 같은 이유로 결제를 열지 않으므로 재시도를 약속하지 않는다. */
+      return {
+        tone: 'failed',
+        title: '취소 요청을 처리하고 있어요',
+        body: '이 주문에는 처리 중인 취소 요청이 있어 결제가 진행되지 않았어요. 청구된 금액은 없어요. 진행 상태는 주문 상세에서 확인할 수 있어요.',
+        link: { href: `/orders/${focus.orderId}`, label: '주문 상세 보기' },
+      };
     case 'canceled':
       return {
         tone: 'failed',
@@ -121,9 +130,16 @@ export function Orders({
   const hasPaidPhaseOrder = orders.some(
     (order) => order.status !== 'pending' && order.status !== 'canceled',
   );
+  /* 콜백 리다이렉트에는 주문 식별자가 없어 원장 결과가 다른 주문(나중에 준비만 해 둔
+     시도)을 짚을 수 있다. 승인 콜백으로 돌아왔고 DB에 결제 완료 국면 주문이 있으면, 그
+     다른 주문의 미결 상태로 방금 승인된 결제를 실패처럼 덮지 않는다. */
+  const focusContradictsApproval = paymentResult === 'approved'
+    && paymentFocus !== null
+    && paymentFocus.outcome !== 'approved'
+    && hasPaidPhaseOrder;
   const banner: BannerCopy | undefined = !paymentResult
     ? undefined
-    : paymentFocus
+    : paymentFocus && !focusContradictsApproval
       ? focusBanner(paymentFocus)
       : paymentResult === 'approved' && !hasPaidPhaseOrder
         ? undefined

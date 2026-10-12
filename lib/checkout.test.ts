@@ -259,6 +259,25 @@ describe('checkoutPaymentResultOutcome', () => {
       .toBe('not_approved');
   });
 
+  it('승인 전에 닫힌 시도에 처리 중인 취소 요청이 있으면 재시도 대신 취소 요청으로 안내한다', () => {
+    for (const state of ['prepared', 'declined', 'canceled']) {
+      expect(checkoutPaymentResultOutcome({
+        orderStatus: 'pending', paymentStatus: null, attempt: attempt(state), hasActiveCancellationRequest: true,
+      }, now)).toBe('cancellation_requested');
+    }
+    expect(checkoutPaymentResultOutcome({
+      orderStatus: 'pending', paymentStatus: null, attempt: attempt('prepared'), hasActiveCancellationRequest: false,
+    }, now)).toBe('retryable');
+  });
+
+  it('결제가 잡혔을 수 있는 시도는 취소 요청이 있어도 확인 중으로 둔다', () => {
+    for (const state of ['confirming', 'unknown', 'needs_review', 'approved']) {
+      expect(checkoutPaymentResultOutcome({
+        orderStatus: 'pending', paymentStatus: null, attempt: attempt(state), hasActiveCancellationRequest: true,
+      }, now)).toBe('checking');
+    }
+  });
+
   it('결제가 잡혔을 수 있는 상태와 모르는 값은 확인 중으로 둔다', () => {
     for (const state of ['confirming', 'unknown', 'needs_review', 'approved', 'something_new']) {
       expect(checkoutPaymentResultOutcome({ orderStatus: 'pending', paymentStatus: null, attempt: attempt(state) }, now))

@@ -215,9 +215,14 @@ const PAYMENT_RESULT_FOCUS_WINDOW_MS = 24 * 60 * 60 * 1000;
  *
  * 토스 successUrl 콜백 라우트는 결과를 주문 식별자 없이 `approved|checking|failed`로만
  * 돌려보내고, 늦게 끝낸 인증(시도 만료)이나 DB 오류도 `checking`으로 보낸다. 그래서
- * 구매자의 가장 최근 토스 결제 시도와 그 주문을 원장에서 읽어 실제 상태로 안내한다.
- * 결제 시도 원장은 service role 전용이고, 주문·결제 요약은 본인 RLS로 읽는다. 코페이
- * 시도는 청구 여부 판단 근거(인증 후 승인 API 미호출 → 만료)를 확인하지 않았으므로
+ * 구매자의 토스 결제 시도 중 가장 최근에 **바뀐** 시도와 그 주문을 원장에서 읽어 실제
+ * 상태로 안내한다. 만든 시각이 아니라 `updated_at`으로 고르는 이유: 결제창을 열어 둔 채
+ * 다른 주문을 새로 준비하면 만든 시각이 가장 늦은 시도는 그 다른 주문이다. 콜백이 처리한
+ * 시도는 claim·finalize가 행을 갱신하므로(trg_payment_attempts_updated) 방금 돌아온 결제가
+ * 가장 최근에 바뀐 시도가 된다. 그래도 콜백이 claim 전에 거절된 경우까지 주문을 정확히
+ * 짚지는 못한다 — 근본 해결은 콜백 리다이렉트가 주문을 싣는 것이다.
+ * 결제 시도 원장은 service role 전용이고, 주문·결제 요약·취소 요청은 본인 RLS로 읽는다.
+ * 코페이 시도는 청구 여부 판단 근거(인증 후 승인 API 미호출 → 만료)를 확인하지 않았으므로
  * 대상에서 빼고 쿼리 기반 기본 안내에 맡긴다.
  */
 export async function loadLatestCardPaymentResultFocus(
@@ -232,6 +237,7 @@ export async function loadLatestCardPaymentResultFocus(
       .eq('purpose', 'order')
       .eq('provider', 'toss')
       .gte('created_at', new Date(now - PAYMENT_RESULT_FOCUS_WINDOW_MS).toISOString())
+      .order('updated_at', { ascending: false })
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle<{ ref_id: string; state: string; expires_at: string | null }>();
@@ -241,6 +247,7 @@ export async function loadLatestCardPaymentResultFocus(
     const [
       { data: order, error: orderError },
       { data: payment, error: paymentError },
+      { data: requestData, error: requestError },
     ] = await Promise.all([
       supabase
         .from('orders')
@@ -256,8 +263,16 @@ export async function loadLatestCardPaymentResultFocus(
         .order('created_at', { ascending: false })
         .limit(1)
         .maybeSingle<{ status: string }>(),
+      /* claim은 처리 중인 취소 요청이 있으면 결제를 막는다(goods_order_not_payable).
+         그 주문에 재시도를 약속하지 않도록 함께 읽는다. 요청자는 언제나 주문 구매자다. */
+      supabase
+        .from('order_cancellation_requests')
+        .select('status')
+        .eq('order_id', attempt.ref_id)
+        .in('status', ACTIVE_CANCELLATION_REQUEST_STATUSES)
+        .limit(1),
     ]);
-    if (orderError || paymentError || !order) return null;
+    if (orderError || paymentError || requestError || !order) return null;
 
     return {
       orderId: order.id,
@@ -265,6 +280,7 @@ export async function loadLatestCardPaymentResultFocus(
         orderStatus: order.status,
         paymentStatus: payment?.status ?? null,
         attempt: { state: attempt.state, expiresAt: attempt.expires_at },
+        hasActiveCancellationRequest: ((requestData ?? []) as unknown[]).length > 0,
       }, now),
     };
   } catch {

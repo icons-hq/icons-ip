@@ -13,6 +13,8 @@ interface QueryRecord {
   table: string;
   select?: string;
   eq: [string, unknown][];
+  in?: [string, unknown[]][];
+  order?: [string, boolean][];
 }
 
 function createQuery(
@@ -26,6 +28,18 @@ function createQuery(
   const result = () => {
     let rows = rowsByTable[table] ?? [];
     for (const [column, value] of record.eq) rows = rows.filter((row) => row[column] === value);
+    for (const [column, values] of record.in ?? []) rows = rows.filter((row) => values.includes(row[column]));
+    const orderBy = record.order ?? [];
+    if (orderBy.length) {
+      rows = [...rows].sort((left, right) => {
+        for (const [column, ascending] of orderBy) {
+          const a = String(left[column] ?? '');
+          const b = String(right[column] ?? '');
+          if (a !== b) return (a < b ? -1 : 1) * (ascending ? 1 : -1);
+        }
+        return 0;
+      });
+    }
     return { data: rows, error: null };
   };
 
@@ -38,9 +52,13 @@ function createQuery(
       record.eq.push([column, value]);
       return query;
     },
-    in() { return query; },
+    in(column: string, values: unknown[]) {
+      record.in = [...(record.in ?? []), [column, values]];
+      return query;
+    },
     gte() { return query; },
-    order() {
+    order(column: string, options?: { ascending?: boolean }) {
+      record.order = [...(record.order ?? []), [column, options?.ascending ?? true]];
       return query;
     },
     limit() {
@@ -356,6 +374,84 @@ describe('loadLatestCardPaymentResultFocus', () => {
       ['id', orderId],
       ['user_id', userId],
     ]);
+  });
+
+  /* 결제창을 열어 둔 채 다른 주문을 새로 준비하면 만든 시각이 가장 늦은 시도는 그 다른
+     주문이다. 콜백이 방금 처리한 시도(갱신 시각이 가장 늦은 시도)를 짚어야 승인된 결제를
+     '결제가 완료되지 않았어요'로 덮지 않는다(E-2). */
+  it('만든 시각이 아니라 가장 최근에 바뀐 시도를 고른다', async () => {
+    const otherOrderId = '9e2f0c4b-5d1a-4c7e-8b3f-2a6d9e1c4b70';
+    const serviceRecords: QueryRecord[] = [];
+    mocks.serviceClient = {
+      from(table: string) {
+        return createQuery(table, serviceRecords, {
+          payment_attempts: [
+            {
+              user_id: userId, purpose: 'order', provider: 'toss', ref_id: orderId, state: 'approved',
+              expires_at: '2026-10-12T05:20:00.000Z',
+              created_at: '2026-10-12T05:10:00.000Z', updated_at: '2026-10-12T05:19:30.000Z',
+            },
+            {
+              user_id: userId, purpose: 'order', provider: 'toss', ref_id: otherOrderId, state: 'prepared',
+              expires_at: '2026-10-12T05:25:00.000Z',
+              created_at: '2026-10-12T05:15:00.000Z', updated_at: '2026-10-12T05:15:00.000Z',
+            },
+          ],
+        });
+      },
+    };
+    mocks.client = {
+      from(table: string) {
+        return createQuery(table, [], {
+          orders: [
+            { id: orderId, user_id: userId, status: 'paid' },
+            { id: otherOrderId, user_id: userId, status: 'pending' },
+          ],
+          payment_summaries: [{ purpose: 'order', ref_id: orderId, status: 'paid' }],
+        });
+      },
+    };
+
+    await expect(loadLatestCardPaymentResultFocus(userId, now)).resolves.toEqual({
+      orderId,
+      outcome: 'approved',
+    });
+    expect(serviceRecords[0]?.order?.[0]).toEqual(['updated_at', false]);
+  });
+
+  /* 처리 중인 취소 요청이 있으면 claim이 결제를 막는다. 그 주문에 '같은 주문에서 다시
+     시도'를 약속하면 결제 화면의 '결제를 진행할 수 없어요'와 모순된다(E-3). */
+  it('처리 중인 취소 요청을 함께 읽어 재시도를 약속하지 않는다', async () => {
+    mocks.serviceClient = {
+      from: (table: string) => createQuery(table, [], {
+        payment_attempts: [{
+          user_id: userId, purpose: 'order', provider: 'toss', ref_id: orderId, state: 'prepared',
+          expires_at: '2026-10-12T05:25:00.000Z',
+        }],
+      }),
+    };
+    const records: QueryRecord[] = [];
+    const rows: Record<string, Record<string, unknown>[]> = {
+      orders: [{ id: orderId, user_id: userId, status: 'pending' }],
+      payment_summaries: [],
+      order_cancellation_requests: [{ order_id: orderId, status: 'requested' }],
+    };
+    mocks.client = { from: (table: string) => createQuery(table, records, rows) };
+
+    await expect(loadLatestCardPaymentResultFocus(userId, now)).resolves.toEqual({
+      orderId,
+      outcome: 'cancellation_requested',
+    });
+    expect(records.find((record) => record.table === 'order_cancellation_requests')).toMatchObject({
+      eq: [['order_id', orderId]],
+      in: [['status', ['requested', 'processing', 'needs_review']]],
+    });
+
+    rows.order_cancellation_requests = [{ order_id: orderId, status: 'completed' }];
+    await expect(loadLatestCardPaymentResultFocus(userId, now)).resolves.toEqual({
+      orderId,
+      outcome: 'retryable',
+    });
   });
 
   it('최근 결제 시도나 본인 주문이 없으면 쿼리 기본 안내에 맡긴다', async () => {

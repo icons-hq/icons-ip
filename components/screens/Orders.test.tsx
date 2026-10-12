@@ -114,6 +114,38 @@ describe('Orders', () => {
       expect(closed).not.toContain('같은 주문에서 다시 시도');
     });
 
+    it('처리 중인 취소 요청이 있으면 재시도를 약속하지 않고 주문 상세로 잇는다', () => {
+      const html = renderToStaticMarkup(
+        <Orders orders={[]} paymentResult="checking" paymentFocus={{ orderId, outcome: 'cancellation_requested' }} />,
+      );
+
+      expect(html).toContain('취소 요청을 처리하고 있어요');
+      expect(html).not.toContain('같은 주문에서 다시 시도');
+      expect(html).not.toContain('결제 이어가기');
+      expect(html).toContain(`href="/orders/${orderId}"`);
+    });
+
+    /* 콜백 리다이렉트에는 주문이 없어 원장 결과가 나중에 준비만 해 둔 다른 주문을 짚을
+       수 있다. 승인 콜백을 그 주문의 미결 상태로 덮지 않는다(E-2). */
+    it('승인 콜백인데 원장 결과가 다른 미결 주문이면 결제 완료 주문이 있을 때 승인 안내를 지킨다', () => {
+      const html = renderToStaticMarkup(
+        <Orders orders={[orderItem()]} paymentResult="approved" paymentFocus={{ orderId, outcome: 'retryable' }} />,
+      );
+
+      expect(html).toContain('결제가 확인됐어요');
+      expect(html).not.toContain('결제가 완료되지 않았어요');
+      expect(html).not.toContain('결제 이어가기');
+    });
+
+    it('승인 콜백이라도 결제 완료 주문이 없으면 원장 결과를 따른다', () => {
+      const html = renderToStaticMarkup(
+        <Orders orders={[]} paymentResult="approved" paymentFocus={{ orderId, outcome: 'retryable' }} />,
+      );
+
+      expect(html).toContain('결제가 완료되지 않았어요');
+      expect(html).not.toContain('결제가 확인됐어요');
+    });
+
     it('쿼리가 checking이어도 원장이 결제 완료면 승인 안내와 주문 상세 링크를 보인다', () => {
       const html = renderToStaticMarkup(
         <Orders orders={[]} paymentResult="checking" paymentFocus={{ orderId, outcome: 'approved' }} />,
