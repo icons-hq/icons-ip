@@ -81,13 +81,13 @@ describe('runReorder', () => {
     const couponLost = await runReorder(orderId, 'cancel_then_reorder', deps({
       restore: vi.fn().mockResolvedValue({ ok: true, restoredLines: 2, skipped: [], coupon: 'not_restored', storeCreditUsed: 0 }),
     }));
-    expect(couponLost).toEqual({ kind: 'restored', reapply: { coupon: true, storeCredit: 0 } });
+    expect(couponLost).toEqual({ kind: 'restored', reapply: { coupon: 'reselect', storeCredit: 0 } });
     expect(reorderNavigatesToCheckout(couponLost)).toBe(false);
 
     const creditUsed = await runReorder(orderId, 'cancel_then_reorder', deps({
       restore: vi.fn().mockResolvedValue({ ok: true, restoredLines: 2, skipped: [], coupon: 'restored', storeCreditUsed: 2500 }),
     }));
-    expect(creditUsed).toEqual({ kind: 'restored', reapply: { coupon: false, storeCredit: 2500 } });
+    expect(creditUsed).toEqual({ kind: 'restored', reapply: { coupon: null, storeCredit: 2500 } });
     expect(reorderNavigatesToCheckout(creditUsed)).toBe(false);
 
     const couponBack = await runReorder(orderId, 'cancel_then_reorder', deps({
@@ -95,6 +95,28 @@ describe('runReorder', () => {
     }));
     expect(couponBack).toEqual({ kind: 'restored', reapply: null });
     expect(reorderNavigatesToCheckout(couponBack)).toBe(true);
+  });
+
+  /* 일부만 담긴 주문에서 쿠폰이 조건에 못 미치면, 주문서로 넘기는 순간 제출이 막힌다(E2-1).
+     다시 고를 수 없는 쿠폰은 안내만 하고 주문서로 자동 이동하지 않는다(E2-2). */
+  it('쿠폰이 조건 미달이거나 다시 고를 수 없으면 그 이유를 돌려주고 주문서로 자동 이동하지 않는다', async () => {
+    const skipped = [{ name: '홍실 키링 (파랑)', reason: 'sold_out' as const }];
+    const conditionsUnmet = await runReorder(orderId, 'cancel_then_reorder', deps({
+      restore: vi.fn().mockResolvedValue({ ok: true, restoredLines: 1, skipped, coupon: 'conditions_unmet', storeCreditUsed: 0 }),
+    }));
+    expect(conditionsUnmet).toEqual({ kind: 'partial', skipped, reapply: { coupon: 'conditions_unmet', storeCredit: 0 } });
+
+    const fullButUnmet = await runReorder(orderId, 'cancel_then_reorder', deps({
+      restore: vi.fn().mockResolvedValue({ ok: true, restoredLines: 2, skipped: [], coupon: 'conditions_unmet', storeCreditUsed: 0 }),
+    }));
+    expect(fullButUnmet).toEqual({ kind: 'restored', reapply: { coupon: 'conditions_unmet', storeCredit: 0 } });
+    expect(reorderNavigatesToCheckout(fullButUnmet)).toBe(false);
+
+    const unavailable = await runReorder(orderId, 'reorder', deps({
+      restore: vi.fn().mockResolvedValue({ ok: true, restoredLines: 2, skipped: [], coupon: 'unavailable', storeCreditUsed: 0 }),
+    }));
+    expect(unavailable).toEqual({ kind: 'restored', reapply: { coupon: 'unavailable', storeCredit: 0 } });
+    expect(reorderNavigatesToCheckout(unavailable)).toBe(false);
   });
 
   it('취소 뒤 담기가 실패하면 그 사실을 따로 알린다', async () => {
@@ -113,7 +135,7 @@ describe('ReorderOutcomeNotice', () => {
       <ReorderOutcomeNotice
         mode="cancel_then_reorder"
         orderId={orderId}
-        outcome={{ kind: 'restored', reapply: { coupon: true, storeCredit: 2500 } }}
+        outcome={{ kind: 'restored', reapply: { coupon: 'reselect', storeCredit: 2500 } }}
       />,
     );
 
@@ -128,13 +150,48 @@ describe('ReorderOutcomeNotice', () => {
       <ReorderOutcomeNotice
         mode="reorder"
         orderId={orderId}
-        outcome={{ kind: 'restored', reapply: { coupon: false, storeCredit: 1000 } }}
+        outcome={{ kind: 'restored', reapply: { coupon: null, storeCredit: 1000 } }}
       />,
     );
 
     expect(html).not.toContain('주문은 취소됐어요');
     expect(html).not.toContain('쿠폰');
     expect(html).toContain('적립금 1,000원은 주문서에서 다시 입력해주세요');
+    expect(html.indexOf('href="/checkout"')).toBeLessThan(html.indexOf('href="/cart"'));
+  });
+
+  it('일부만 담겨 쿠폰 조건에 못 미치면 사실대로 알리고 장바구니를 먼저 권한다', () => {
+    const html = renderToStaticMarkup(
+      <ReorderOutcomeNotice
+        mode="cancel_then_reorder"
+        orderId={orderId}
+        outcome={{
+          kind: 'partial',
+          skipped: [{ name: '홍실 키링 (파랑)', reason: 'sold_out' }],
+          reapply: { coupon: 'conditions_unmet', storeCredit: 0 },
+        }}
+      />,
+    );
+
+    expect(html).toContain('담지 못한 굿즈: 홍실 키링 (파랑)(품절)');
+    expect(html).toContain('지금 담긴 굿즈로는 사용 조건(최소 주문 금액 등)에 맞지 않아 할인되지 않아요');
+    expect(html).toContain('장바구니에서 쿠폰 확인하기');
+    expect(html).not.toContain('다시 골라주세요');
+    expect(html.indexOf('href="/cart"')).toBeLessThan(html.indexOf('href="/checkout"'));
+  });
+
+  it('다시 고를 수 없는 쿠폰은 장바구니에서 고르라고 하지 않고 주문서를 먼저 권한다', () => {
+    const html = renderToStaticMarkup(
+      <ReorderOutcomeNotice
+        mode="reorder"
+        orderId={orderId}
+        outcome={{ kind: 'restored', reapply: { coupon: 'unavailable', storeCredit: 0 } }}
+      />,
+    );
+
+    expect(html).toContain('만료·사용 완료·사용 중단 등으로 지금 쓸 수 없어 이번 주문에는 적용되지 않아요');
+    expect(html).not.toContain('다시 골라주세요');
+    expect(html).not.toContain('장바구니에서 쿠폰');
     expect(html.indexOf('href="/checkout"')).toBeLessThan(html.indexOf('href="/cart"'));
   });
 

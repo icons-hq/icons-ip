@@ -3,6 +3,8 @@
 import { isAccountSuspended, isOnboarded } from '@/lib/auth/onboarding';
 import { getCurrentAuthState } from '@/lib/auth/server';
 import { normalizeOrderReference } from '@/lib/checkout';
+import { parseShippingQuoteItems } from '@/lib/fulfillment';
+import { loadGoodsSalesQuote } from '@/lib/goods-sales.server';
 import { createClient } from '@/lib/supabase/server';
 
 /*
@@ -23,8 +25,12 @@ import { createClient } from '@/lib/supabase/server';
  * 쿠폰을 active로 되돌려도 새 주문서에는 쿠폰이 없다. 그 주문의 쿠폰 사용 원장
  * (`coupon_redemptions`, 취소로 released)에서 보유 쿠폰을 찾아 기존 RPC
  * `apply_cart_coupon`으로 다시 선택한다. 장바구니에 이미 다른 쿠폰이 선택돼 있으면
- * 고객의 새 선택을 덮지 않는다. 적립금은 주문서에서 매번 입력하는 값이라 다시 적용할
- * 상태가 없으므로, 원 주문의 사용액을 돌려줘 화면이 다시 입력하라고 안내하게 한다.
+ * 고객의 새 선택을 덮지 않는다. `apply_cart_coupon`은 최소 주문 금액 미달·대상 굿즈
+ * 없음도 선택으로 받아들이고, 그 선택은 주문서 제출을 막는다(판매 견적의 쿠폰 사유).
+ * 그래서 고른 뒤 장바구니·주문서가 쓰는 판매 견적으로 지금 장바구니에서 할인이
+ * 인정되는지 다시 읽고, 인정되지 않으면 이 액션이 만든 선택을 풀어 새 막힘을 만들지
+ * 않는다. 적립금은 주문서에서 매번 입력하는 값이라 다시 적용할 상태가 없으므로, 원
+ * 주문의 사용액을 돌려줘 화면이 다시 입력하라고 안내하게 한다.
  */
 
 /**
@@ -35,11 +41,17 @@ import { createClient } from '@/lib/supabase/server';
 export type RestoreOrderLineFailure = 'out_of_stock' | 'sold_out' | 'unavailable' | 'failed';
 
 /**
- * 원 주문 쿠폰의 재적용 결과. `none`은 쿠폰을 쓰지 않은 주문이고, `not_restored`는
- * 쿠폰을 썼지만 장바구니에 다시 선택하지 못했다(만료·다른 주문에 사용·이미 다른 쿠폰
- * 선택·조회 실패 등) — 고객이 장바구니에서 직접 골라야 한다.
+ * 원 주문 쿠폰의 재적용 결과.
+ * - `none`: 쿠폰을 쓰지 않은 주문.
+ * - `restored`: 장바구니에 다시 선택했고, 판매 견적이 지금 장바구니에서 할인을 인정했다.
+ * - `not_restored`: 다시 적용하지 못했지만 장바구니에서 해결할 수 있다(이미 다른 쿠폰
+ *   선택·진행 중인 다른 주문의 첫구매 혜택·조회 실패 등) — 고객이 장바구니에서 골라야 한다.
+ * - `conditions_unmet`: 쿠폰은 남아 있지만 지금 담긴 굿즈가 사용 조건(최소 주문 금액·
+ *   대상 굿즈·최소 결제액)에 맞지 않아 할인되지 않는다. 이 액션이 만든 선택은 풀었다.
+ * - `unavailable`: 만료·사용 완료·사용 중단·발급 대상 변경 등으로 다시 고를 수 없고,
+ *   장바구니에도 선택돼 있지 않다.
  */
-export type RestoreOrderCouponResult = 'none' | 'restored' | 'not_restored';
+export type RestoreOrderCouponResult = 'none' | 'restored' | 'not_restored' | 'conditions_unmet' | 'unavailable';
 
 export interface RestoreOrderSkippedLine {
   readonly name: string;
@@ -95,6 +107,12 @@ interface CartRow {
   qty: number;
 }
 
+interface CartQuoteRow {
+  good_id: string;
+  variant_id: string;
+  qty: number;
+}
+
 interface RestoreLine {
   goodId: string;
   variantId: string;
@@ -146,9 +164,84 @@ async function refineUnavailableLines(
   }
 }
 
+/** 지금 장바구니 굿즈로는 할인이 성립하지 않는 사유 — 굿즈를 더 담으면 풀린다. */
+const COUPON_CONDITION_REASONS = new Set(['coupon_min_subtotal', 'coupon_no_eligible_goods', 'coupon_no_discount']);
+/** 그 쿠폰을 다시 고를 수 없는 사유 — 장바구니 쿠폰 목록(active만)에서도 고를 수 없다. */
+const COUPON_UNUSABLE_REASONS = new Set([
+  'coupon_expired',
+  'coupon_already_used',
+  'coupon_not_found',
+  'coupon_not_owned',
+  'coupon_not_started',
+  'coupon_archived',
+  'coupon_exhausted',
+  'coupon_first_purchase_only',
+  'coupon_repeat_purchase_only',
+]);
+
+/**
+ * 쿠폰 판정 사유를 고객이 할 수 있는 다음 행동으로 나눈다. 첫구매 혜택을 잡은 다른 주문
+ * (`coupon_first_purchase_reserved|pending`)처럼 장바구니에서 풀 수 있는 사유와 알 수
+ * 없는 오류는 `not_restored`로 둔다.
+ */
+function couponReasonResult(reason: string): 'conditions_unmet' | 'unavailable' | 'not_restored' {
+  const normalized = reason.trim().toLowerCase();
+  if (COUPON_CONDITION_REASONS.has(normalized)) return 'conditions_unmet';
+  if (COUPON_UNUSABLE_REASONS.has(normalized)) return 'unavailable';
+  return 'not_restored';
+}
+
+type SelectedCouponVerdict =
+  | { readonly kind: 'usable' }
+  | { readonly kind: 'reason'; readonly reason: string }
+  | { readonly kind: 'unknown' };
+
+/**
+ * 지금 장바구니 전체로 판매 견적을 받아, 선택된 쿠폰이 할인으로 인정되는지 읽는다.
+ * 장바구니·주문서가 같은 견적(`quote_goods_sales_for_address`)의 `coupon.reason`으로
+ * 제출을 막으므로, 같은 판정을 근거로 삼는다. 읽지 못하면 `unknown`이다.
+ */
+async function verifySelectedCoupon(
+  supabase: ServerClient,
+  userId: string,
+  userCouponId: string,
+): Promise<SelectedCouponVerdict> {
+  try {
+    const { data, error } = await supabase
+      .from('cart_items')
+      .select('good_id,variant_id,qty')
+      .eq('user_id', userId);
+    if (error) return { kind: 'unknown' };
+    const items = parseShippingQuoteItems(
+      ((data ?? []) as CartQuoteRow[])
+        .filter((row) => row.qty > 0)
+        .map((row) => ({ goodId: row.good_id, variantId: row.variant_id, qty: row.qty })),
+    );
+    if (!items || items.length === 0) return { kind: 'unknown' };
+    const coupon = (await loadGoodsSalesQuote(items, null))?.coupon;
+    if (!coupon || coupon.userCouponId !== userCouponId) return { kind: 'unknown' };
+    return coupon.reason ? { kind: 'reason', reason: coupon.reason } : { kind: 'usable' };
+  } catch {
+    return { kind: 'unknown' };
+  }
+}
+
+/** 이 액션이 방금 만든 장바구니 쿠폰 선택을 푼다. 풀었으면 true. */
+async function releaseCouponSelection(supabase: ServerClient): Promise<boolean> {
+  try {
+    const { error } = await supabase.rpc('clear_cart_coupon');
+    return !error;
+  } catch {
+    return false;
+  }
+}
+
 /**
  * 원 주문의 쿠폰을 장바구니에 다시 선택한다. 다른 쿠폰이 이미 선택돼 있으면 덮지 않는다.
- * 쿠폰 조건(만료·사용됨·대상 굿즈)은 `apply_cart_coupon`이 다시 판정한다.
+ * 쿠폰 자체의 조건(만료·사용됨·발급 대상)은 `apply_cart_coupon`이, 지금 장바구니에서
+ * 할인이 성립하는지는 판매 견적이 다시 판정한다. 할인이 성립하지 않으면 이 액션이 만든
+ * 선택을 풀어, 쿠폰 때문에 주문서 제출이 막힌 채로 고객을 보내지 않는다. 고객이 이미 골라
+ * 둔 선택은 건드리지 않는다.
  */
 async function restoreOrderCoupon(
   supabase: ServerClient,
@@ -177,9 +270,22 @@ async function restoreOrderCoupon(
     if (redemptionError) return discounted ? 'not_restored' : 'none';
     if (!redemption) return discounted ? 'not_restored' : 'none';
     if (selectionError) return 'not_restored';
-    if (selection) return selection.user_coupon_id === redemption.user_coupon_id ? 'restored' : 'not_restored';
-    const { error } = await supabase.rpc('apply_cart_coupon', { p_user_coupon_id: redemption.user_coupon_id });
-    return error ? 'not_restored' : 'restored';
+
+    let selectedByAction = false;
+    if (selection) {
+      if (selection.user_coupon_id !== redemption.user_coupon_id) return 'not_restored';
+    } else {
+      const { error } = await supabase.rpc('apply_cart_coupon', { p_user_coupon_id: redemption.user_coupon_id });
+      if (error) return couponReasonResult(error.message);
+      selectedByAction = true;
+    }
+
+    const verdict = await verifySelectedCoupon(supabase, userId, redemption.user_coupon_id);
+    if (verdict.kind === 'usable') return 'restored';
+    const result = verdict.kind === 'reason' ? couponReasonResult(verdict.reason) : 'not_restored';
+    if (selectedByAction && await releaseCouponSelection(supabase)) return result;
+    /* 선택이 남아 있으면 주문서 제출이 막힌다 — 장바구니에서 풀도록 안내하는 결과만 쓴다. */
+    return result === 'unavailable' ? 'not_restored' : result;
   } catch {
     return 'not_restored';
   }

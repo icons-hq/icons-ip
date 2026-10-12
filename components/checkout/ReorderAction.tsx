@@ -6,6 +6,7 @@ import { useState } from 'react';
 import {
   restoreCanceledOrderToCartAction,
   type RestoreCanceledOrderToCartResult,
+  type RestoreOrderCouponResult,
   type RestoreOrderSkippedLine,
 } from '@/app/checkout/reorder-actions';
 import { submitOrderCancellation } from '@/components/orders/OrderCancellation';
@@ -20,21 +21,37 @@ import { krwAmountWords } from '@/lib/format';
  *    청약철회 요청으로 접수되면 장바구니를 건드리지 않고 그 사실만 알린다.
  * 2) DB가 취소를 확정한 주문만 서버 액션이 품목을 장바구니에 다시 담고, 원 주문의
  *    쿠폰을 장바구니에 다시 선택한다.
- * 3) 모두 담기고 다시 챙길 혜택이 없으면 주문서(/checkout)로 보낸다. 쿠폰을 다시 고르지
- *    못했거나 적립금을 쓴 주문이면 자동으로 넘기지 않고, 장바구니·주문서에서 다시
- *    적용하라고 안내한다 — 모르고 정가로 결제하지 않게 한다. 장바구니는 경로가 바뀌면
- *    서버에서 다시 동기화된다(CartProvider).
+ * 3) 모두 담기고 다시 챙길 혜택이 없으면 주문서(/checkout)로 보낸다. 쿠폰이 이번 주문에
+ *    할인되지 않거나 적립금을 쓴 주문이면 자동으로 넘기지 않고 사실대로 안내한다 — 모르고
+ *    정가로 결제하지 않게 한다. 쿠폰을 장바구니에서 해결할 수 있으면(다시 고르기·사용
+ *    조건 확인) 장바구니를 먼저 권하고, 다시 고를 수 없는 쿠폰(만료·사용 완료 등)이면
+ *    장바구니로 돌려보내지 않는다. 장바구니는 경로가 바뀌면 서버에서 다시 동기화된다
+ *    (CartProvider).
  */
 
 type CancelResult = Awaited<ReturnType<typeof submitOrderCancellation>>;
 
-/** 새 주문에서 고객이 직접 다시 적용해야 하는 원 주문의 혜택. */
+/**
+ * 원 주문 쿠폰에 대해 고객에게 알릴 것.
+ * - `reselect`: 다시 적용하지 못했다. 장바구니에서 다시 고를 수 있다.
+ * - `conditions_unmet`: 지금 담긴 굿즈가 사용 조건에 맞지 않아 할인되지 않는다.
+ * - `unavailable`: 만료·사용 완료 등으로 다시 고를 수 없다.
+ */
+export type ReorderCouponNotice = 'reselect' | 'conditions_unmet' | 'unavailable';
+
+/** 새 주문에서 고객이 직접 다시 챙겨야 하는 원 주문의 혜택. */
 export interface ReorderBenefitsToReapply {
-  /** 원 주문의 쿠폰을 장바구니에 다시 선택하지 못했다. */
-  readonly coupon: boolean;
+  /** 원 주문의 쿠폰이 이번 주문에 할인되지 않는 이유. 다시 적용됐거나 쓰지 않았으면 null. */
+  readonly coupon: ReorderCouponNotice | null;
   /** 원 주문에서 사용한 적립금(원). 주문서 입력은 비어 있다. */
   readonly storeCredit: number;
 }
+
+const COUPON_NOTICES: Partial<Record<RestoreOrderCouponResult, ReorderCouponNotice>> = {
+  not_restored: 'reselect',
+  conditions_unmet: 'conditions_unmet',
+  unavailable: 'unavailable',
+};
 
 export type ReorderOutcome =
   | { readonly kind: 'restored'; readonly reapply: ReorderBenefitsToReapply | null }
@@ -84,9 +101,9 @@ export async function runReorder(
   }
   if (!restored.ok) return { kind: 'restore_failed' };
   if (restored.restoredLines === 0) return { kind: 'nothing_restored', skipped: restored.skipped };
-  const couponToReapply = restored.coupon === 'not_restored';
+  const coupon = COUPON_NOTICES[restored.coupon] ?? null;
   const storeCredit = Math.max(0, restored.storeCreditUsed);
-  const reapply = couponToReapply || storeCredit > 0 ? { coupon: couponToReapply, storeCredit } : null;
+  const reapply = coupon || storeCredit > 0 ? { coupon, storeCredit } : null;
   if (restored.skipped.length > 0) return { kind: 'partial', skipped: restored.skipped, reapply };
   return { kind: 'restored', reapply };
 }
@@ -107,12 +124,22 @@ function skippedSummary(skipped: readonly RestoreOrderSkippedLine[]) {
   return skipped.map((line) => `${line.name}(${SKIP_REASON_LABELS[line.reason]})`).join(', ');
 }
 
+const COUPON_NOTICE_COPY: Record<ReorderCouponNotice, string> = {
+  reselect: '이전 주문에 쓴 쿠폰은 다시 적용되지 않았어요. 장바구니에서 쿠폰을 다시 골라주세요.',
+  conditions_unmet: '이전 주문에 쓴 쿠폰은 지금 담긴 굿즈로는 사용 조건(최소 주문 금액 등)에 맞지 않아 할인되지 않아요. 장바구니에서 굿즈와 쿠폰을 확인해주세요.',
+  unavailable: '이전 주문에 쓴 쿠폰은 만료·사용 완료·사용 중단 등으로 지금 쓸 수 없어 이번 주문에는 적용되지 않아요.',
+};
+
+/** 장바구니에서 해결할 수 있는 쿠폰 안내. 이때만 장바구니를 먼저 권한다. */
+const CART_FIRST_COUPON_LINKS: Partial<Record<ReorderCouponNotice, string>> = {
+  reselect: '장바구니에서 쿠폰 고르기',
+  conditions_unmet: '장바구니에서 쿠폰 확인하기',
+};
+
 function ReapplyNotice({ reapply }: { reapply: ReorderBenefitsToReapply }) {
   return (
     <>
-      {reapply.coupon && (
-        <p role="alert">이전 주문에 쓴 쿠폰은 다시 적용되지 않았어요. 장바구니에서 쿠폰을 다시 골라주세요.</p>
-      )}
+      {reapply.coupon && <p role="alert">{COUPON_NOTICE_COPY[reapply.coupon]}</p>}
       {reapply.storeCredit > 0 && (
         <p role="alert">이전 주문에 쓴 적립금 {krwAmountWords(reapply.storeCredit)}은 주문서에서 다시 입력해주세요.</p>
       )}
@@ -134,11 +161,13 @@ export function ReorderOutcomeNotice({
 }) {
   const label = mode === 'cancel_then_reorder' ? '이 주문 취소하고 다시 주문하기' : '같은 굿즈 다시 담기';
   const canceledPrefix = mode === 'cancel_then_reorder' ? '주문은 취소됐어요. ' : '';
-  /* 쿠폰을 다시 고르는 곳은 장바구니다 — 쿠폰이 빠졌으면 장바구니를 먼저 권한다. */
-  const benefitLinks = (reapply: ReorderBenefitsToReapply | null) => (
-    reapply?.coupon ? (
+  /* 쿠폰을 고르고 조건을 확인하는 곳은 장바구니다 — 장바구니에서 해결할 수 있는 쿠폰
+     안내일 때만 장바구니를 먼저 권한다. 다시 고를 수 없는 쿠폰은 주문서를 먼저 권한다. */
+  const benefitLinks = (reapply: ReorderBenefitsToReapply | null) => {
+    const cartFirst = reapply?.coupon ? CART_FIRST_COUPON_LINKS[reapply.coupon] : undefined;
+    return cartFirst ? (
       <>
-        <Link className="btn btn-holo" href="/cart">장바구니에서 쿠폰 고르기</Link>
+        <Link className="btn btn-holo" href="/cart">{cartFirst}</Link>
         <Link className="btn btn-ghost" href="/checkout">주문서로 가기</Link>
       </>
     ) : (
@@ -146,8 +175,8 @@ export function ReorderOutcomeNotice({
         <Link className="btn btn-holo" href="/checkout">주문서로 가기</Link>
         <Link className="btn btn-ghost" href="/cart">장바구니 보기</Link>
       </>
-    )
-  );
+    );
+  };
 
   return (
     <div className="checkout-reorder" aria-live="polite">
