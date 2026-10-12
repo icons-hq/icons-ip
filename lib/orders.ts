@@ -217,6 +217,51 @@ export function orderStatusMeta(status: OrderDetailStatus): OrderStatusPresentat
   return STATUS_PRESENTATION[status];
 }
 
+/**
+ * 주문 상세 상단 상태 카드(2026-10-12 브라우저 QA QA-8).
+ *
+ * 주문 상태는 취소가 끝날 때까지 결제완료·발주확인으로 남는다. 그 값만 보면 결제 취소가
+ * 도는 동안에도 "결제가 확인됐고 배송 준비를 시작합니다"라고 말해, 같은 화면의 취소 섹션
+ * ("결제 취소 확인 중")과 구매자 알림("주문 취소를 진행해요")과 어긋난다. 진행 중인 취소
+ * 클레임이 있으면 그 단계로 말한다. 상태 배지는 실제 주문 상태 그대로 둔다.
+ */
+export function orderDetailHeaderPresentation(
+  status: OrderDetailStatus,
+  cancellationRequest: Pick<OrderCancellationRequestSummary, 'claimType' | 'stage'> | null,
+): OrderStatusPresentation {
+  const base = STATUS_PRESENTATION[status];
+  if (status === 'canceled' || cancellationRequest?.claimType !== 'cancel') return base;
+  switch (cancellationRequest.stage) {
+    case 'processing':
+      return {
+        ...base,
+        title: '주문 취소를 진행하고 있어요',
+        body: '결제 취소를 처리하고 있습니다. 끝나면 알림을 보내드려요.',
+      };
+    case 'needs_review':
+      return {
+        ...base,
+        title: '주문 취소를 확인하고 있어요',
+        body: '결제 취소 결과를 확인하고 있습니다. 확인되면 알림을 보내드려요.',
+      };
+    case 'requested':
+    case 'in_review':
+    case 'collecting':
+    case 'collected':
+    case 'on_hold':
+      return {
+        ...base,
+        title: '주문 취소 요청을 접수했어요',
+        body: status === 'pending'
+          ? '결제 결과를 확인한 뒤 주문 취소를 마무리하고 알림을 보내드려요.'
+          : '요청을 확인하고 있습니다. 진행 상황은 알림으로 보내드려요.',
+      };
+    case 'completed':
+    case 'rejected':
+      return base;
+  }
+}
+
 export function refundStatusLabel(status: string): string {
   switch (status) {
     case 'requested':

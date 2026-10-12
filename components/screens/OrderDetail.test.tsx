@@ -183,3 +183,44 @@ describe('OrderDetail 무통장 입금 대기', () => {
   expect(html).toContain('김포 배송조회');
   expect(html).toContain('남양주 배송조회');
  });
+
+/* 2026-10-12 브라우저 QA QA-8: 결제 취소가 도는 결제완료 주문의 상단 카드는 "배송 준비를
+   시작합니다"가 아니라 취소 단계를 말한다. 상태 배지는 실제 주문 상태 그대로다. */
+describe('진행 중인 취소의 상단 상태 카드', () => {
+  const request = (stage: 'processing' | 'needs_review' | 'requested' | 'completed') => ({
+    id: '22222222-2222-4222-8222-222222222222',
+    status: stage,
+    claimType: 'cancel' as const,
+    stage,
+    reference: 12,
+    requestedAt: '2026-08-01T07:00:00.000Z',
+    decidedAt: null,
+    decisionNote: null,
+    reshipCarrier: null,
+    reshipTrackingNumber: null,
+  });
+
+  it.each([
+    ['needs_review', '주문 취소를 확인하고 있어요'],
+    ['processing', '주문 취소를 진행하고 있어요'],
+    ['requested', '주문 취소 요청을 접수했어요'],
+  ] as const)('%s 취소가 있는 결제완료 주문은 배송 준비를 약속하지 않는다', (stage, title) => {
+    const html = renderToStaticMarkup(<OrderDetail order={order({
+      status: 'paid', shipments: [], cancellationRequest: request(stage),
+    })} />);
+
+    expect(html).toContain(title);
+    expect(html).not.toContain('결제가 확인됐고 배송 준비를 시작합니다');
+    expect(html).toContain('order-status--paid');
+  });
+
+  it('취소가 끝났거나 없는 주문은 기존 상태 문구를 쓴다', () => {
+    const none = renderToStaticMarkup(<OrderDetail order={order({ status: 'paid', shipments: [] })} />);
+    expect(none).toContain('결제가 확인됐고 배송 준비를 시작합니다');
+
+    const done = renderToStaticMarkup(<OrderDetail order={order({
+      status: 'canceled', shipments: [], cancellationRequest: request('completed'),
+    })} />);
+    expect(done).toContain('취소된 주문이에요');
+  });
+});

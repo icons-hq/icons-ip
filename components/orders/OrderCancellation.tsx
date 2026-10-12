@@ -102,7 +102,7 @@ function requestPresentation(
         return {
           canCancel: false,
           heading: '주문 취소 요청 접수',
-          body: '결제 결과를 확인한 뒤 주문 취소를 마무리합니다. 결제가 완료되지 않으면 결제 기한이 지난 뒤 자동으로 취소되고 알림으로 알려드려요.',
+          body: '결제 결과를 확인한 뒤 주문 취소를 마무리합니다. 결제가 완료되지 않으면 결제 기한이 지난 뒤 자동으로 취소되고 알림을 보내드려요.',
           requestLabel: '결제 확인 대기',
           requestRequestedAt: request.requestedAt,
         };
