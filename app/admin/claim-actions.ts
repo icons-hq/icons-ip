@@ -138,16 +138,8 @@ function readClaimType(formData: FormData): OrderClaimType | undefined {
   return isOrderClaimType(value) ? value : undefined;
 }
 
-/**
- * 승인으로 processing이 된 취소 클레임의 결제사 취소를 바로 실행한다.
- *
- * 주문 콘솔의 청약철회 승인(approveAdminOrderCancellationAction)과 같은 동작이다.
- * Korpay는 취소 API가 없어 이메일 접수 → 수동 확인 seam이 정상 경로이고, 무통장은
- * 계좌 송금 절차를 따르므로 여기서 돌리지 않는다(돌리면 곧바로 needs_review가 돼
- * 접수 양식·계좌 송금 접수를 막는다).
- */
 /*
- * 재시도 안내는 그 상황에서 실제로 그려지는 버튼만 가리킨다(리뷰 C1-2).
+ * 재시도 안내는 그 상황에서 실제로 그려지는 버튼만 가리킨다.
  * - 결제 행이 있는 토스 결제: 승인이 환불 원장을 열어 요청 상세에 [환불 완료 확정]이
  *   그려진다.
  * - 결제 행이 없는 주문(결제창만 열렸거나 결제 결과 미확정): 환불 원장이 없어
@@ -158,6 +150,14 @@ function readClaimType(formData: FormData): OrderClaimType | undefined {
 const { processing: RECHECK_PROCESSING, needsReview: RECHECK_NEEDS_REVIEW } = ADMIN_CANCELLATION_RECHECK_LABELS;
 const ORDER_PANEL_RECHECK = `주문 통합검색에서 이 주문을 열어 [${RECHECK_NEEDS_REVIEW}](처리중이면 [${RECHECK_PROCESSING}])`;
 
+/**
+ * 승인으로 processing이 된 취소 클레임의 결제사 취소를 바로 실행한다.
+ *
+ * 주문 콘솔의 청약철회 승인(approveAdminOrderCancellationAction)과 같은 동작이다.
+ * Korpay는 취소 API가 없어 이메일 접수 → 수동 확인 seam이 정상 경로이고, 무통장은
+ * 계좌 송금 절차를 따르므로 여기서 돌리지 않는다(돌리면 곧바로 needs_review가 돼
+ * 접수 양식·계좌 송금 접수를 막는다).
+ */
 async function issueApprovedClaimCancellation(
   claimId: string,
   actorId: string,
