@@ -209,23 +209,23 @@ describe('ClaimActionPanel 확인과 취소 안내', () => {
     expect(html).toContain('수거를 승인하면 출고지별 반송 주소와 상품이 표시됩니다.');
   });
 
-  it('누른 버튼의 확인을 취소하면 양식 제출을 막고, 확인 문구가 없으면 묻지 않는다', async () => {
+  it('누른 버튼의 확인을 취소하면 보내지 않고, 확인 문구가 없으면 묻지 않고 보낸다', async () => {
     const { confirmClaimPanelSubmit } = await import('./ClaimActionPanel');
     const submitter = { getAttribute: (name: string) => (name === 'data-confirm' ? '승인할까요?' : null) };
     const form = { getAttribute: () => null };
     const declined = { nativeEvent: { submitter }, currentTarget: form, preventDefault: vi.fn() };
     const confirm = vi.fn(() => false);
 
-    confirmClaimPanelSubmit(declined as unknown as React.FormEvent<HTMLFormElement>, confirm);
+    expect(confirmClaimPanelSubmit(declined as unknown as React.FormEvent<HTMLFormElement>, confirm)).toBe(false);
     expect(confirm).toHaveBeenCalledWith('승인할까요?');
+    // 양식의 기본 제출(양식 action)은 늘 막는다. 보내는 쪽이 직접 보낸다.
     expect(declined.preventDefault).toHaveBeenCalledOnce();
 
     const plain = {
       nativeEvent: { submitter: { getAttribute: () => null } }, currentTarget: form, preventDefault: vi.fn(),
     };
     const unused = vi.fn(() => false);
-    confirmClaimPanelSubmit(plain as unknown as React.FormEvent<HTMLFormElement>, unused);
+    expect(confirmClaimPanelSubmit(plain as unknown as React.FormEvent<HTMLFormElement>, unused)).toBe(true);
     expect(unused).not.toHaveBeenCalled();
-    expect(plain.preventDefault).not.toHaveBeenCalled();
   });
 });

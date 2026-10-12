@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useActionState, useState } from 'react';
+import { startTransition, useActionState, useState } from 'react';
 import { ADMIN_CANCELLATION_RECHECK_LABELS, adminOrderSearchHref } from '@/lib/admin/orders';
 import { ADMIN_VOCABULARY as V, adminClaimCopy } from '@/lib/admin/vocabulary';
 import {
@@ -95,16 +95,27 @@ function PanelActionField({ kind }: { kind: ClaimPanelAction }) {
  * 취소 승인과 환불 완료 확정은 누르는 순간 결제사 전액 취소·주문 취소·재고 복원까지
  * 간다. 주문 콘솔의 청약철회 승인·운영자 전액 취소처럼 확인을 거친다. 문구는 누른 버튼의
  * data-confirm이 먼저고, 없으면 양식의 data-confirm이다 — 한 양식의 [검토중으로 표시]는
- * 묻지 않고 [승인…]만 묻는다. 취소하면 양식 action이 실행되지 않는다.
+ * 묻지 않고 [승인…]만 묻는다.
+ *
+ * 양식의 기본 제출은 늘 막고, 보낼지만 돌려준다. 보내는 쪽은 transition으로 직접 보낸다 —
+ * 양식 action 자리는 비워 둔다(ignoreUnconfirmedClaimSubmit).
  */
 export function confirmClaimPanelSubmit(
   event: React.FormEvent<HTMLFormElement>,
   confirm: (message: string) => boolean = (message) => window.confirm(message),
-) {
+): boolean {
+  event.preventDefault();
   const submitter = (event.nativeEvent as SubmitEvent).submitter ?? null;
   const message = submitter?.getAttribute('data-confirm') ?? event.currentTarget.getAttribute('data-confirm');
-  if (message && !confirm(message)) event.preventDefault();
+  return !message || confirm(message);
 }
+
+/*
+ * 확인이 필요한 양식의 React action 자리. 아무것도 보내지 않는다. 하이드레이션 전에 눌린
+ * 제출은 React가 담아 두었다가 이 action으로 재생하는데, 그 경로는 확인 창을 거치지 않는다 —
+ * 결제사 전액 취소가 확인 없이 나가지 않도록 버린다. 운영자는 화면이 준비된 뒤 다시 누른다.
+ */
+function ignoreUnconfirmedClaimSubmit() {}
 
 /** 취소 승인 확인 문구. 결제마다 승인 뒤 일어나는 일이 다르다. */
 export function claimCancelApprovalConfirmation(paymentProvider: string | null) {
@@ -218,6 +229,12 @@ export function ClaimActionPanel({
 }: ClaimActionPanelProps) {
   const [result, panelAction, pending] = useActionState(runClaimPanelAction, EMPTY_STATE);
   const [formCopied, setFormCopied] = useState(false);
+  /* 확인을 통과한 제출만 보낸다. 누른 버튼의 name·value(결정)를 함께 싣는다. */
+  const submitConfirmed = (event: React.FormEvent<HTMLFormElement>) => {
+    if (!confirmClaimPanelSubmit(event)) return;
+    const formData = new FormData(event.currentTarget, (event.nativeEvent as SubmitEvent).submitter ?? null);
+    startTransition(() => panelAction(formData));
+  };
 
   const next = orderClaimNextStages(claimType, stage);
   const canApprove = stage === 'requested' || stage === 'in_review';
@@ -290,7 +307,7 @@ export function ClaimActionPanel({
       </section> : collectionPolicy === null ? <p role="alert">회수 확인 기준을 불러오지 못했습니다. 새로고침한 뒤 다시 확인해주세요.</p> : null}
 
       {canReview || canApprove ? (
-        <form action={panelAction} onSubmit={(event) => confirmClaimPanelSubmit(event)}>
+        <form action={ignoreUnconfirmedClaimSubmit} onSubmit={submitConfirmed}>
           <PanelActionField kind="decision" />
           <input name="claimId" type="hidden" value={claimId} />
           <input name="claimType" type="hidden" value={claimType} />
@@ -424,9 +441,9 @@ export function ClaimActionPanel({
 
       {canCompleteRefund ? (
         <form
-          action={panelAction}
+          action={ignoreUnconfirmedClaimSubmit}
           data-confirm={claimRefundCompletionConfirmation(refundFinalizationPending, tossPayment)}
-          onSubmit={(event) => confirmClaimPanelSubmit(event)}
+          onSubmit={submitConfirmed}
         >
           <PanelActionField kind="refund" />
           <input name="claimId" type="hidden" value={claimId} />

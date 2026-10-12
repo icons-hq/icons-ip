@@ -182,13 +182,23 @@ export async function runOrderCancellationAction(
 
 type CancellationFormValidator = (formData: FormData) => AdminOrderFieldErrors | null;
 
+/*
+ * 취소 처리 양식의 React action 자리. 아무것도 보내지 않는다.
+ *
+ * 서버 렌더는 이 자리가 있어야 하이드레이션 전 제출을 페이지 이동(입력값이 주소에 실린
+ * GET)으로 보내지 않는다. 대신 React는 그 제출을 담아 두었다가 하이드레이션 뒤 이 action으로
+ * 재생하는데, 그 경로는 입력 검사와 확인 창을 거치지 않는다. 되돌릴 수 없는 결제 취소가
+ * 확인 없이 나가지 않도록 재생된 제출은 버린다 — 운영자는 화면이 준비된 뒤 다시 누른다.
+ */
+function ignoreUnconfirmedCancellationSubmit() {}
+
 interface OrderCancellationConsole {
   state: OrderCancellationActionState;
   /*
-   * React 양식 action. 제출은 아래 submit이 직접 보낸다 — 이 값은 하이드레이션 전
-   * 제출이 페이지 이동(입력값이 주소에 실린 GET)이 되지 않게 막는 서버 렌더 표식으로만 남는다.
+   * 양식의 React action 자리. 실제 전송은 아래 submit(검사 → 확인 → 전송)이 한다 —
+   * ignoreUnconfirmedCancellationSubmit 참고.
    */
-  action: (formData: FormData) => void;
+  action: () => void;
   pending: boolean;
   /** 확인 창을 통과해 보낸 마지막 취소 액션. "처리 중" 라벨을 그 양식에만 붙인다. */
   submitted: { intent: OrderCancellationIntent; orderId: string } | null;
@@ -1101,7 +1111,7 @@ export function OrdersSection({ data }: { data: AdminOrderConsoleData }) {
   const [cancellationClientErrors, setCancellationClientErrors] = useState<OrderCancellationConsole['clientErrors']>(null);
   const cancellation: OrderCancellationConsole = {
     state: cancellationState,
-    action: cancellationAction,
+    action: ignoreUnconfirmedCancellationSubmit,
     pending: cancellationPending,
     submitted: submittedCancellation,
     clientErrors: cancellationClientErrors,
