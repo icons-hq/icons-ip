@@ -166,6 +166,26 @@ describe('submitOrderCancellation', () => {
     expect(JSON.stringify(presentation)).not.toMatch(/paymentKey|raw|provider/i);
   });
 
+  /* 2026-10-12 QA-7: 결제 전 주문의 취소 요청은 담당자가 아니라 결제 결과가 닫는다. */
+  it('결제 전 주문의 접수된 취소는 담당자 검토가 아니라 결제 결과로 마무리된다고 말한다', () => {
+    const presentation = cancellationPresentation('pending', null, {
+      id: '22222222-2222-4222-8222-222222222222',
+      status: 'requested',
+      claimType: 'cancel',
+      stage: 'requested',
+      reference: 12,
+      requestedAt: '2026-07-14T07:30:00.000Z',
+      decidedAt: null,
+      decisionNote: null,
+      reshipCarrier: null,
+      reshipTrackingNumber: null,
+    });
+
+    expect(presentation).toMatchObject({ canCancel: false, requestLabel: '결제 확인 대기' });
+    expect(presentation.body).toContain('결제 기한이 지난 뒤 자동으로 취소');
+    expect(presentation.body).not.toContain('담당자');
+  });
+
   it('shows the rejected request history while allowing a paid order to submit again', () => {
     const rejectedRequest = {
       id: '22222222-2222-4222-8222-222222222222',

@@ -527,6 +527,37 @@ select 1 / case when (
   where order_record.id = '20000000-0000-4000-8000-000000002082'
 ) then 1 else 0 end as assert_expired_prepared_request_completes_and_restores_once;
 
+-- 구매자는 "담당자가 확인한 뒤 진행 상황을 알려드립니다"를 받았다. sweep이 담당자 없이
+-- 요청을 닫으면 결과를 알리고 결제 없는 종결로 감사한다(2026-10-12 QA-7).
+select 1 / case when (
+  select pg_catalog.count(*) = 1
+    and pg_catalog.bool_and(notification.title = '주문이 취소됐어요')
+    and pg_catalog.bool_and(notification.body = '결제 기한까지 결제가 완료되지 않아 결제 없이 주문을 취소했습니다.')
+    and pg_catalog.bool_and(notification.user_id = request.requested_by)
+  from public.order_cancellation_requests as request
+  join public.notifications as notification
+    on notification.source_type = 'order_claim'
+   and notification.source_id = request.id::text
+   and notification.dedupe_key like 'claim:completed:%'
+  where request.order_id = '20000000-0000-4000-8000-000000002082'
+) and (
+  select pg_catalog.count(*) = 1
+    and pg_catalog.bool_and(audit.actor_id is null)
+    and pg_catalog.bool_and(audit.diff ->> 'trigger' = 'checkout_expiry_sweep')
+    and pg_catalog.bool_and(audit.diff ->> 'attemptOutcome' = 'expired')
+  from public.audit_log as audit
+  where audit.target = 'order:20000000-0000-4000-8000-000000002082'
+    and audit.action = 'system.order.cancellation_completed'
+) then 1 else 0 end as assert_sweep_completed_request_notifies_buyer;
+
+-- 요청 없는 만료 주문에는 클레임 알림이 생기지 않는다.
+select 1 / case when not exists (
+  select 1
+  from public.notifications as notification
+  where notification.link_path = '/orders/20000000-0000-4000-8000-000000002079'
+    and notification.source_type = 'order_claim'
+) then 1 else 0 end as assert_sweep_without_request_sends_no_claim_notice;
+
 select 1 / case when (
   select pg_catalog.count(*) = 5
   from public.orders as order_record

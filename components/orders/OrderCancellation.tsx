@@ -89,9 +89,24 @@ type CancellationPresentation =
       refundCreatedAt?: string;
     });
 
-function requestPresentation(request: OrderCancellationRequestSummary): CancellationPresentation {
+function requestPresentation(
+  request: OrderCancellationRequestSummary,
+  orderStatus: OrderDetailStatus,
+): CancellationPresentation {
   switch (request.status) {
     case 'requested':
+      /* 결제가 끝나기 전에 접수된 취소는 담당자가 아니라 결제 결과가 닫는다 — 승인되면
+         자동 승인 후 결제 취소, 승인되지 않거나 결제 기한이 지나면 결제 없이 취소된다.
+         "담당자가 검토 중"이라고 하면 일어나지 않을 일을 기다리게 된다(2026-10-12 QA-7). */
+      if (orderStatus === 'pending') {
+        return {
+          canCancel: false,
+          heading: '주문 취소 요청 접수',
+          body: '결제 결과를 확인한 뒤 주문 취소를 마무리합니다. 결제가 완료되지 않으면 결제 기한이 지난 뒤 자동으로 취소되고 알림으로 알려드려요.',
+          requestLabel: '결제 확인 대기',
+          requestRequestedAt: request.requestedAt,
+        };
+      }
       return {
         canCancel: false,
         heading: '청약철회 요청 접수',
@@ -143,7 +158,7 @@ export function cancellationPresentation(
   options: { deliveredAt?: string | null; at?: Date; eligibility?: OrderClaimEligibility | null } = {},
 ): CancellationPresentation {
   if (cancellationRequest && cancellationRequest.status !== 'rejected') {
-    return requestPresentation(cancellationRequest);
+    return requestPresentation(cancellationRequest, status);
   }
   const priorRejection = cancellationRequest?.status === 'rejected'
     ? cancellationRequest
