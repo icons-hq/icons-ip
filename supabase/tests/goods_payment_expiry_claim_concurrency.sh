@@ -41,6 +41,10 @@ SQL
 
 cleanup_fixtures() {
   psql_exec -q <<SQL >/dev/null 2>&1 || true
+-- The buyer's own cancellation now audits the expired attempt it closed with
+-- the buyer as actor; that row references the profile deleted below.
+delete from public.notifications where user_id = '${user_id}'::uuid;
+delete from public.audit_log where target = 'order:${order_id}' or actor_id = '${user_id}'::uuid;
 delete from public.order_cancellation_requests where order_id = '${order_id}'::uuid;
 delete from public.payment_attempts where ref_id = '${order_id}'::uuid;
 delete from public.order_items where order_id = '${order_id}'::uuid;
