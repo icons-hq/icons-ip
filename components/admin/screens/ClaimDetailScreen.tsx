@@ -3,6 +3,7 @@ import { ShipmentDetails } from '@/components/shop/ShipmentDetails';
 import { ADMIN_VOCABULARY as V, adminGoodsCopy } from '@/lib/admin/vocabulary';
 import Link from 'next/link';
 import type { AdminClaimDetail } from '@/lib/admin/claims.server';
+import { adminOrderSearchHref } from '@/lib/admin/orders';
 import { krw } from '@/lib/format';
 import {
   formatOrderDateTime,
@@ -161,7 +162,7 @@ export function ClaimDetailScreen({
               </p>
               <Link
                 className="btn btn-sm btn-ghost"
-                href={`/admin/sales/orders?query=${encodeURIComponent(order.id)}`}
+                href={adminOrderSearchHref(order.id)}
                 style={{ marginTop: 10 }}
               >
                 주문 통합검색에서 열기
@@ -268,6 +269,7 @@ export function ClaimDetailScreen({
         </div>
         <div className="card">
           <ClaimActionPanel
+            key={claim.id}
             cancellationForm={cancellationForm}
             carriers={carriers}
             claimId={claim.id}

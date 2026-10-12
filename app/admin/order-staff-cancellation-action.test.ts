@@ -110,6 +110,16 @@ describe('startAdminOrderCancellationAction', () => {
     expect(state.message).toBeUndefined();
   });
 
+  it('결제 상태 처리가 끝나지 않으면 완료로 보고하지 않고 주문 패널의 재확인 버튼을 가리킨다', async () => {
+    mocks.reconcile.mockResolvedValue({ ok: true, status: 'in_progress' });
+
+    const state = await startAdminOrderCancellationAction({}, form());
+
+    expect(state.message).toContain('주문과 재고는 그대로 유지됩니다');
+    expect(state.message).toContain(`[${ADMIN_CANCELLATION_RECHECK_LABELS.processing}]`);
+    expect(state.message).not.toContain('마쳤습니다');
+  });
+
   it('기타 사유는 메모 없이 DB에 닿지 않는다', async () => {
     const state = await startAdminOrderCancellationAction({}, form({ reasonCode: 'other', note: '짧음' }));
 

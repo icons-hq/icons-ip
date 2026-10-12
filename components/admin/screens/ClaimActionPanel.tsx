@@ -1,6 +1,8 @@
 'use client';
 
+import Link from 'next/link';
 import { useActionState, useState } from 'react';
+import { ADMIN_CANCELLATION_RECHECK_LABELS, adminOrderSearchHref } from '@/lib/admin/orders';
 import { ADMIN_VOCABULARY as V, adminClaimCopy } from '@/lib/admin/vocabulary';
 import {
   decideOrderClaimAction,
@@ -46,9 +48,46 @@ import { ClaimOriginCollection } from './ClaimOriginCollection';
  * 토스 결제는 취소 승인과 [환불 완료 확정]이 토스 전액 취소를 직접 발행한다
  * (2026-10-12 점검 REF-2). 운영자가 결제사 원장에서 취소를 먼저 확인하는 순서가
  * 아니다. 환불 수단도 결제가 정한다 — 토스는 결제사 취소뿐이라 선택지를 그리지
- * 않는다(REF-8). */
+ * 않는다(REF-8).
+ *
+ * 처리 결과는 양식 안에 그리지 않는다(2차 재검토 C2-1). 서버 액션의 revalidatePath가
+ * 같은 응답에 새 화면을 실어 오므로, 승인으로 단계가 처리중·결제확인필요·처리완료로
+ * 바뀌는 순간 그 결과를 돌려준 양식은 사라진다 — 양식 안의 결과 문구도 함께 사라져
+ * 운영자는 실패 코드도 다음 할 일도 보지 못한다. 그래서 패널의 액션을 하나의
+ * useActionState로 묶고, 마지막 결과를 단계와 무관하게 늘 그려지는 "현재 단계" 아래에
+ * 한 번만 그린다. 묶인 액션은 한 번에 하나만 돈다 — 결제사 취소가 도는 동안 같은
+ * 클레임의 다른 처리를 누르지 못한다. */
 
 const EMPTY_STATE: AdminClaimActionState = {};
+
+const CLAIM_PANEL_ACTIONS = {
+  decision: decideOrderClaimAction,
+  collection: recordOrderClaimCollectionAction,
+  refund: recordOrderClaimRefundAction,
+  reship: recordOrderClaimReshipmentAction,
+} as const;
+type ClaimPanelAction = keyof typeof CLAIM_PANEL_ACTIONS;
+const PANEL_ACTION_FIELD = 'panelAction';
+
+function isClaimPanelAction(value: unknown): value is ClaimPanelAction {
+  return typeof value === 'string' && Object.prototype.hasOwnProperty.call(CLAIM_PANEL_ACTIONS, value);
+}
+
+/** 양식이 고른 서버 액션을 실행한다. 결과는 패널 수준 상태로 남는다. */
+export async function runClaimPanelAction(
+  _previous: AdminClaimActionState,
+  formData: FormData,
+): Promise<AdminClaimActionState> {
+  const kind = formData.get(PANEL_ACTION_FIELD);
+  if (!isClaimPanelAction(kind)) {
+    return { error: '처리할 작업을 확인하지 못했습니다. 새로고침한 뒤 다시 시도해주세요.' };
+  }
+  return CLAIM_PANEL_ACTIONS[kind](EMPTY_STATE, formData);
+}
+
+function PanelActionField({ kind }: { kind: ClaimPanelAction }) {
+  return <input name={PANEL_ACTION_FIELD} type="hidden" value={kind} />;
+}
 
 function Feedback({ state }: { state: AdminClaimActionState }) {
   return (
@@ -142,22 +181,7 @@ export function ClaimActionPanel({
   collectionComplete,
   collections,
 }: ClaimActionPanelProps) {
-  const [decisionState, decisionAction, decisionPending] = useActionState(
-    decideOrderClaimAction,
-    EMPTY_STATE,
-  );
-  const [collectionState, collectionAction, collectionPending] = useActionState(
-    recordOrderClaimCollectionAction,
-    EMPTY_STATE,
-  );
-  const [refundState, refundAction, refundPending] = useActionState(
-    recordOrderClaimRefundAction,
-    EMPTY_STATE,
-  );
-  const [reshipState, reshipAction, reshipPending] = useActionState(
-    recordOrderClaimReshipmentAction,
-    EMPTY_STATE,
-  );
+  const [result, panelAction, pending] = useActionState(runClaimPanelAction, EMPTY_STATE);
   const [formCopied, setFormCopied] = useState(false);
 
   const next = orderClaimNextStages(claimType, stage);
@@ -188,6 +212,16 @@ export function ClaimActionPanel({
   const refundLedgerMissing = claimType !== 'exchange'
     && refundStageReached
     && !refundLedgerOpen;
+  /* 원장 없는 취소(결제창만 열렸거나 결제 결과가 정해지기 전)는 [환불 완료 확정]이
+     그려지지 않고, 만료 sweep도 처리중 요청을 건너뛴다. 이 건을 닫는 버튼은 주문
+     통합검색 주문 패널의 재확인뿐이라 항상 보이는 이 문구가 그 버튼을 가리킨다. */
+  const orderPanelRecheckLabel = claimType === 'cancel'
+    ? stage === 'processing'
+      ? ADMIN_CANCELLATION_RECHECK_LABELS.processing
+      : stage === 'needs_review'
+        ? ADMIN_CANCELLATION_RECHECK_LABELS.needsReview
+        : null
+    : null;
   /* 이미 종결된 클레임에서는 정합화가 더 돌지 않는다. 남은 일은 원장 기록뿐이다. */
   const refundFinalizationPending = stage !== 'completed';
   const tossPayment = paymentProvider === 'toss';
@@ -202,6 +236,9 @@ export function ClaimActionPanel({
       <p className="muted" style={{ fontSize: 12.5, margin: 0 }}>
         현재 단계: {ORDER_CLAIM_STAGE_LABELS[stage]}
       </p>
+      <div aria-live="polite" className="admin-claim-action-result">
+        <Feedback state={result} />
+      </div>
 
       {collectionPolicy === 'origin' ? <section aria-label="출고지별 회수 확인">
         <h4 style={{ margin: '8px 0' }}>출고지별 회수 확인</h4>
@@ -215,14 +252,15 @@ export function ClaimActionPanel({
       </section> : collectionPolicy === null ? <p role="alert">회수 확인 기준을 불러오지 못했습니다. 새로고침한 뒤 다시 확인해주세요.</p> : null}
 
       {canReview || canApprove ? (
-        <form action={decisionAction}>
+        <form action={panelAction}>
+          <PanelActionField kind="decision" />
           <input name="claimId" type="hidden" value={claimId} />
           <input name="claimType" type="hidden" value={claimType} />
           <div className="row" style={{ gap: 8 }}>
             {canReview ? (
               <button
                 className="btn btn-sm btn-ghost"
-                disabled={decisionPending}
+                disabled={pending}
                 name="decision"
                 type="submit"
                 value="review"
@@ -233,7 +271,7 @@ export function ClaimActionPanel({
             {canApprove ? (
               <button
                 className="btn btn-sm"
-                disabled={decisionPending}
+                disabled={pending}
                 name="decision"
                 type="submit"
                 value="approve"
@@ -255,34 +293,33 @@ export function ClaimActionPanel({
                     : '결제 전 주문은 승인하면 결제사 취소 없이 주문을 취소합니다.'}
             </p>
           ) : null}
-          <Feedback state={decisionState} />
         </form>
       ) : null}
 
       {canResume ? (
-        <form action={decisionAction}>
+        <form action={panelAction}>
+          <PanelActionField kind="decision" />
           <input name="claimId" type="hidden" value={claimId} />
           <input name="claimType" type="hidden" value={claimType} />
           <input name="decision" type="hidden" value="resume" />
-          <button className="btn btn-sm" disabled={decisionPending} type="submit">
+          <button className="btn btn-sm" disabled={pending} type="submit">
             보류 해제
           </button>
-          <Feedback state={decisionState} />
         </form>
       ) : null}
 
       {canCollect ? (
-        <form action={collectionAction}>
+        <form action={panelAction}>
+          <PanelActionField kind="collection" />
           <input name="claimId" type="hidden" value={claimId} />
           <input name="claimType" type="hidden" value={claimType} />
           <input name="stage" type="hidden" value="collected" />
-          <button className="btn btn-sm" disabled={collectionPending} type="submit">
+          <button className="btn btn-sm" disabled={pending} type="submit">
             반송 {V.goods} 입고 확인
           </button>
           <p className="muted" style={{ fontSize: 12, margin: '6px 0 0' }}>
             입고 확인 시점부터 환급 SLA(영업일 3일)가 시작됩니다.
           </p>
-          <Feedback state={collectionState} />
         </form>
       ) : null}
 
@@ -318,7 +355,8 @@ export function ClaimActionPanel({
       ) : null}
 
       {canFileRefund ? (
-        <form action={refundAction}>
+        <form action={panelAction}>
+          <PanelActionField kind="refund" />
           <input name="claimId" type="hidden" value={claimId} />
           <input name="claimType" type="hidden" value={claimType} />
           <input name="orderId" type="hidden" value={orderId} />
@@ -334,7 +372,7 @@ export function ClaimActionPanel({
               type="text"
             />
           </label>
-          <button className="btn btn-sm" disabled={refundPending} type="submit">
+          <button className="btn btn-sm" disabled={pending} type="submit">
             {refundFiled ? '환불 접수 정보 갱신' : '환불 접수 완료로 기록'}
           </button>
           {tossPayment ? (
@@ -342,12 +380,12 @@ export function ClaimActionPanel({
               접수만 원장에 기록합니다. 토스 전액 취소는 아래 [환불 완료 확정]을 누를 때 발행됩니다.
             </p>
           ) : null}
-          <Feedback state={refundState} />
         </form>
       ) : null}
 
       {canCompleteRefund ? (
-        <form action={refundAction}>
+        <form action={panelAction}>
+          <PanelActionField kind="refund" />
           <input name="claimId" type="hidden" value={claimId} />
           <input name="claimType" type="hidden" value={claimType} />
           <input name="orderId" type="hidden" value={orderId} />
@@ -357,7 +395,7 @@ export function ClaimActionPanel({
             <span>상계·정산 메모 (선택)</span>
             <input id="claim-refund-complete-note" maxLength={300} name="note" type="text" />
           </label>
-          <button className="btn btn-sm" disabled={refundPending} type="submit">
+          <button className="btn btn-sm" disabled={pending} type="submit">
             {!refundFinalizationPending
               ? '환불 완료를 원장에 기록'
               : tossPayment
@@ -371,11 +409,18 @@ export function ClaimActionPanel({
                 ? '누르면 토스 전액 취소를 발행하고 결제사 조회로 결과를 확인합니다. 이미 취소된 결제면 확인만 합니다. 확인되지 않으면 주문과 재고는 그대로 유지되고 정합화 오류가 남습니다.'
                 : '결제사 원장에서 전액 취소를 확인한 뒤 눌러주세요. 확인되지 않으면 주문과 재고는 그대로 유지됩니다.'}
           </p>
-          <Feedback state={refundState} />
         </form>
       ) : null}
 
-      {refundLedgerMissing ? (
+      {refundLedgerMissing && orderPanelRecheckLabel ? (
+        <p className="muted" style={{ fontSize: 12.5, margin: 0 }}>
+          이 주문에는 환불 원장이 없어 [환불 완료 확정]을 쓸 수 없습니다. 결제 내역이
+          없는 주문(결제창만 열렸거나 결제 결과가 정해지기 전)의 취소는{' '}
+          <Link href={adminOrderSearchHref(orderId)}>주문 통합검색에서 이 주문을 열어</Link>
+          {' '}[{orderPanelRecheckLabel}]으로 닫습니다. Korpay 결제창 주문은 그 자리의
+          Korpay 버튼으로 처리합니다.
+        </p>
+      ) : refundLedgerMissing ? (
         <p className="muted" style={{ fontSize: 12.5, margin: 0 }}>
           이 주문에는 환불 원장이 없어 완료를 기록할 수 없습니다. 결제 내역을 먼저
           확인해주세요.
@@ -383,12 +428,13 @@ export function ClaimActionPanel({
       ) : null}
 
       {canReship ? (
-        <form action={reshipAction}>
+        <form action={panelAction}>
+          <PanelActionField kind="reship" />
           <input name="claimId" type="hidden" value={claimId} />
           <input name="claimType" type="hidden" value="exchange" />
           {reshipItems.map((item) => <label key={item.id} htmlFor={`claim-variant-${item.id}`}>
             <span>{item.name} · {item.qty}개 재출고 옵션</span>
-            <select id={`claim-variant-${item.id}`} name={`variant:${item.id}`} defaultValue={item.currentVariantId} disabled={reshipPending} required>
+            <select id={`claim-variant-${item.id}`} name={`variant:${item.id}`} defaultValue={item.currentVariantId} disabled={pending} required>
               {item.options.map((option) => <option key={option.id} value={option.id}>
                 {option.name} · {option.code} · 재고 {option.stockQty}개
               </option>)}
@@ -412,18 +458,18 @@ export function ClaimActionPanel({
               type="text"
             />
           </label>
-          <button className="btn btn-sm" disabled={reshipPending} type="submit">
+          <button className="btn btn-sm" disabled={pending} type="submit">
             재출고 등록하고 교환 종결
           </button>
           <p className="muted" style={{ fontSize: 12, margin: '6px 0 0' }}>
             회수한 옵션 재고를 되돌리고 선택한 옵션으로 주문 수량 전체를 재출고합니다. 결제 금액과 카드팩은 유지합니다.
           </p>
-          <Feedback state={reshipState} />
         </form>
       ) : null}
 
       {canHold ? (
-        <form action={decisionAction}>
+        <form action={panelAction}>
+          <PanelActionField kind="decision" />
           <input name="claimId" type="hidden" value={claimId} />
           <input name="claimType" type="hidden" value={claimType} />
           <input name="decision" type="hidden" value="hold" />
@@ -431,14 +477,15 @@ export function ClaimActionPanel({
             <span>보류 사유 (10~200자, 구매자에게 전달됩니다)</span>
             <input id="claim-hold-note" maxLength={200} name="note" type="text" />
           </label>
-          <button className="btn btn-sm btn-ghost" disabled={decisionPending} type="submit">
+          <button className="btn btn-sm btn-ghost" disabled={pending} type="submit">
             보류
           </button>
         </form>
       ) : null}
 
       {canReject ? (
-        <form action={decisionAction}>
+        <form action={panelAction}>
+          <PanelActionField kind="decision" />
           <input name="claimId" type="hidden" value={claimId} />
           <input name="claimType" type="hidden" value={claimType} />
           <input name="decision" type="hidden" value="reject" />
@@ -446,7 +493,7 @@ export function ClaimActionPanel({
             <span>거부 사유 (10~200자, 구매자에게 전달됩니다)</span>
             <input id="claim-reject-note" maxLength={200} name="note" type="text" />
           </label>
-          <button className="btn btn-sm btn-ghost" disabled={decisionPending} type="submit">
+          <button className="btn btn-sm btn-ghost" disabled={pending} type="submit">
             거부
           </button>
         </form>

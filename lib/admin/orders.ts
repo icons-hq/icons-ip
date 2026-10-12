@@ -583,6 +583,14 @@ export function adminOrderDetailHref(orderId: string, filters?: AdminOrderFilter
   return `${base}?back=${encodeURIComponent(adminOrdersHref(filters))}`;
 }
 
+/**
+ * 주문 통합검색에서 한 주문의 주문 패널을 여는 링크. 취소 재확인([처리 상태 확인]·
+ * [상태 다시 확인])과 운영자 전액 취소는 이 패널에만 있다("상세 열기" 새 탭 화면에는 없다).
+ */
+export function adminOrderSearchHref(orderId: string) {
+  return `/admin/sales/orders?query=${encodeURIComponent(orderId)}`;
+}
+
 /** 거래확정 목록처럼 주문 콘솔이 아닌 화면에서도 같은 상세 링크를 쓴다. */
 export function adminOrderDetailHrefFromBack(orderId: string, backHref?: string) {
   const base = `/admin/sales/orders/${orderId}`;

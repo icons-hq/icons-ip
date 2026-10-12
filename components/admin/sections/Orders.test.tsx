@@ -9,7 +9,7 @@ import type {
 } from '@/lib/admin/orders';
 import { OrdersSection } from './Orders';
 
-vi.mock('@/app/admin/order-actions', () => ({
+const orderActions = vi.hoisted(() => ({
   approveAdminOrderCancellationAction: vi.fn(),
   recoverAdminGoodsPaymentAction: vi.fn(),
   reconcileAdminOrderCancellationAction: vi.fn(),
@@ -18,6 +18,8 @@ vi.mock('@/app/admin/order-actions', () => ({
   updateAdminOrderStatusAction: vi.fn(),
   updateAdminOrderTrackingAction: vi.fn(),
 }));
+
+vi.mock('@/app/admin/order-actions', () => orderActions);
 
 const ORDER_ID = '11111111-1111-4111-8111-111111111111';
 const SHIPMENT_ID = '00000000-0000-4000-8000-000000044701';
@@ -717,7 +719,11 @@ describe('OrdersSection', () => {
       return {
         ...actual,
         useActionState: () => [
-          { errors: { operatorAttestation: '결제사 원장에서 전액 취소를 확인해야 합니다.' } },
+          {
+            intent: 'korpayRecovery',
+            orderId: ORDER_ID,
+            errors: { operatorAttestation: '결제사 원장에서 전액 취소를 확인해야 합니다.' },
+          },
           () => {},
           false,
         ],
@@ -777,5 +783,135 @@ describe('주문 통합검색 목록 엑셀 다운로드', () => {
     expect(html).toContain('data-export-href="/api/admin/list-export?screen=orders&amp;status=paid&amp;from=2026-10-01&amp;query=%EB%B0%B0%EC%86%A1+%EC%88%98%EC%B7%A8%EC%9D%B8&amp;field=recipient"');
     expect(html).toContain('전체 57건을 받습니다');
     expect(html.indexOf('admin-order-filters')).toBeLessThan(html.indexOf('목록 엑셀 다운로드'));
+  });
+});
+
+/*
+ * 취소 처리 결과는 결과 뒤의 화면에 남아야 한다(2차 재검토 C2-1).
+ *
+ * 서버 액션의 revalidatePath가 같은 응답에 새 주문 패널을 실어 온다. 운영자 전액 취소는
+ * 결과와 함께 요청이 생기거나 주문이 취소돼 그 양식이 사라지고, 상태 필터로 보던 목록에서는
+ * 주문 자체가 빠질 수 있다. 서버 렌더에서는 액션 결과를 재현할 수 없어 useActionState만
+ * 대체한다 — 운영자 전액 취소 액션이 돌려준 상태가 그 결과 뒤의 데이터로 그려진 화면에
+ * 보이는지를 본다.
+ */
+describe('주문 패널 취소 처리 결과', () => {
+  const failure = '전액 취소를 시작했지만 결제 취소를 확정하지 못했습니다(provider_rejected). 주문과 재고는 그대로 유지됩니다.';
+  const success = '토스 전액 취소를 확인하고 주문 취소를 마쳤습니다.';
+
+  async function renderAfterStaffCancellation(state: Record<string, unknown>, data: AdminOrderConsoleData) {
+    vi.resetModules();
+    vi.doMock('react', async () => {
+      const actual = await vi.importActual<typeof import('react')>('react');
+      const otherActions = new Set<unknown>([
+        orderActions.approveAdminOrderCancellationAction,
+        orderActions.recoverAdminGoodsPaymentAction,
+        orderActions.reconcileAdminOrderCancellationAction,
+        orderActions.rejectAdminOrderCancellationAction,
+        orderActions.updateAdminOrderStatusAction,
+        orderActions.updateAdminOrderTrackingAction,
+      ]);
+      return {
+        ...actual,
+        useActionState: (fn: unknown, initial: unknown) => [otherActions.has(fn) ? initial : state, () => {}, false],
+      };
+    });
+    try {
+      const { OrdersSection: ResultOrdersSection } = await import('./Orders');
+      return renderToStaticMarkup(<ResultOrdersSection data={data} />);
+    } finally {
+      vi.doUnmock('react');
+      vi.resetModules();
+    }
+  }
+
+  const occurrences = (html: string, text: string) => html.split(text).length - 1;
+
+  it('결제확인필요로 떨어져 양식이 사라져도 실패 코드와 재시도 안내가 주문 패널에 남는다', async () => {
+    const html = await renderAfterStaffCancellation(
+      { intent: 'staffCancel', orderId: ORDER_ID, errors: { form: failure } },
+      orderData({ cancellationRequest: cancellationRequest({ status: 'needs_review', stage: 'needs_review' }) }),
+    );
+
+    expect(html).not.toContain('aria-label="운영자 전액 취소"');
+    expect(html).toContain(failure);
+    expect(occurrences(html, failure)).toBe(1);
+    expect(html).toContain('상태 다시 확인');
+  });
+
+  it('토스 전액 취소로 주문이 취소돼도 성공 결과가 남는다', async () => {
+    const html = await renderAfterStaffCancellation(
+      { intent: 'staffCancel', orderId: ORDER_ID, message: success },
+      orderData({
+        status: 'canceled',
+        cancellationRequest: cancellationRequest({ status: 'completed', stage: 'completed' }),
+      }),
+    );
+
+    expect(html).not.toContain('aria-label="운영자 전액 취소"');
+    expect(html).toContain(success);
+  });
+
+  it('상태 필터 목록에서 빠진 주문의 결과는 목록 위에 주문번호와 주문 열기 링크로 남는다', async () => {
+    const data = orderData();
+    const otherId = '55555555-5555-4555-8555-555555555555';
+    data.items = [{ ...data.items[0], id: otherId, buyerName: 'other_fan' }];
+    data.filters = { ...data.filters, orderId: null, status: 'paid' };
+    const html = await renderAfterStaffCancellation({ intent: 'staffCancel', orderId: ORDER_ID, message: success }, data);
+
+    expect(html).toContain(success);
+    expect(html).toContain(ORDER_ID.replaceAll('-', '').slice(-8).toUpperCase());
+    expect(html).toContain(`href="/admin/sales/orders?query=${ORDER_ID}"`);
+  });
+
+  it('목록에 있지만 선택하지 않은 다른 주문의 결과는 지금 패널에 그리지 않는다', async () => {
+    const data = orderData();
+    const otherId = '55555555-5555-4555-8555-555555555555';
+    data.items = [data.items[0], { ...data.items[0], id: otherId, buyerName: 'other_fan' }];
+    const html = await renderAfterStaffCancellation({ intent: 'staffCancel', orderId: otherId, message: success }, data);
+
+    expect(html).not.toContain(success);
+  });
+
+  it('다른 액션의 필드 오류는 엉뚱한 양식에 붙이지 않는다', async () => {
+    const html = await renderAfterStaffCancellation(
+      { intent: 'staffCancel', orderId: ORDER_ID, errors: { reason: '거절 사유를 10자 이상 입력해주세요.' } },
+      orderData({ cancellationRequest: cancellationRequest() }),
+    );
+
+    expect(html).toContain('요청 거절');
+    expect(html).not.toContain('거절 사유를 10자 이상 입력해주세요.');
+  });
+});
+
+describe('runOrderCancellationAction', () => {
+  it('양식이 고른 취소 액션만 부르고 결과에 액션과 주문을 붙인다', async () => {
+    vi.clearAllMocks();
+    const { runOrderCancellationAction } = await import('./Orders');
+    orderActions.startAdminOrderCancellationAction.mockResolvedValue({ message: '완료' });
+    const form = new FormData();
+    form.set('cancellationIntent', 'staffCancel');
+    form.set('cancellationOrderId', ORDER_ID);
+
+    await expect(runOrderCancellationAction({}, form)).resolves.toEqual({
+      intent: 'staffCancel',
+      message: '완료',
+      orderId: ORDER_ID,
+    });
+    expect(orderActions.startAdminOrderCancellationAction).toHaveBeenCalledWith({}, form);
+    expect(orderActions.approveAdminOrderCancellationAction).not.toHaveBeenCalled();
+  });
+
+  it.each(['', 'toString', '__proto__', 'updateStatus'])('모르는 작업(%s)은 서버 액션을 부르지 않는다', async (intent) => {
+    vi.clearAllMocks();
+    const { runOrderCancellationAction } = await import('./Orders');
+    const form = new FormData();
+    form.set('cancellationIntent', intent);
+    form.set('cancellationOrderId', ORDER_ID);
+
+    const state = await runOrderCancellationAction({}, form);
+    expect(state.errors?.form).toContain('처리할 작업을 확인하지 못했습니다');
+    expect(state.orderId).toBe(ORDER_ID);
+    for (const action of Object.values(orderActions)) expect(action).not.toHaveBeenCalled();
   });
 });

@@ -2,7 +2,7 @@
 import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 
 import Link from 'next/link';
-import { useActionState, useEffect, useRef } from 'react';
+import { useActionState, useEffect, useRef, useState } from 'react';
 import {
   approveAdminOrderCancellationAction,
   recoverAdminGoodsPaymentAction,
@@ -22,6 +22,7 @@ import {
   ADMIN_STAFF_CANCELLATION_REASONS,
   ADMIN_WITHDRAWAL_RETURN_SHIPPING_LABELS,
   adminOrderDetailHref,
+  adminOrderSearchHref,
   adminStaffCancellationAvailability,
   adminOrdersHref,
   isKorpayManualRecoveryState,
@@ -117,6 +118,117 @@ function ActionFeedback({ state }: { state: AdminOrderActionState }) {
     <div aria-live="polite" className="admin-order-action-feedback">
       {state.errors?.form ? <span role="alert">{state.errors.form}</span> : null}
       {state.message ? <span role="status">{state.message}</span> : null}
+    </div>
+  );
+}
+
+/*
+ * 취소 처리 결과(2차 재검토 C2-1).
+ *
+ * 청약철회 승인·거절, 처리 상태 재확인, 운영자 전액 취소, Korpay 반영은 결과가 나오는
+ * 순간 그 양식을 그리던 조건(요청 단계·주문 상태)이 바뀐다. 서버 액션의 revalidatePath가
+ * 같은 응답에 새 주문 패널을 실어 오므로, 결과를 양식 안에 그리면 양식과 함께 사라진다 —
+ * 운영자는 결과 코드도 "주문과 재고는 그대로"도 재시도 위치도 보지 못한다. 상태 필터로
+ * 보던 목록에서는 주문 자체가 빠지기도 한다.
+ *
+ * 그래서 다섯 액션을 주문 콘솔 수준의 useActionState 하나로 묶고, 결과에 어느 주문의
+ * 어떤 액션인지 붙여 양식 밖에 그린다. 묶인 액션은 한 번에 하나만 돈다 — 결제사 취소가
+ * 도는 동안 다른 취소 처리를 누르지 못한다.
+ */
+const ORDER_CANCELLATION_ACTIONS = {
+  approve: approveAdminOrderCancellationAction,
+  reject: rejectAdminOrderCancellationAction,
+  reconcile: reconcileAdminOrderCancellationAction,
+  staffCancel: startAdminOrderCancellationAction,
+  korpayRecovery: recoverAdminGoodsPaymentAction,
+} as const;
+type OrderCancellationIntent = keyof typeof ORDER_CANCELLATION_ACTIONS;
+
+export interface OrderCancellationActionState extends AdminOrderActionState {
+  intent?: OrderCancellationIntent;
+  orderId?: string;
+}
+
+const EMPTY_CANCELLATION_STATE: OrderCancellationActionState = {};
+
+function isOrderCancellationIntent(value: unknown): value is OrderCancellationIntent {
+  return typeof value === 'string' && Object.prototype.hasOwnProperty.call(ORDER_CANCELLATION_ACTIONS, value);
+}
+
+/** 양식이 고른 취소 액션을 실행하고 결과에 액션과 주문을 붙인다. 주문 id는 표시 범위에만 쓴다. */
+export async function runOrderCancellationAction(
+  _previous: OrderCancellationActionState,
+  formData: FormData,
+): Promise<OrderCancellationActionState> {
+  const intent = formData.get('cancellationIntent');
+  const orderId = String(formData.get('cancellationOrderId') ?? '');
+  if (!isOrderCancellationIntent(intent)) {
+    return { errors: { form: '처리할 작업을 확인하지 못했습니다. 새로고침한 뒤 다시 시도해주세요.' }, orderId };
+  }
+  const result = await ORDER_CANCELLATION_ACTIONS[intent](EMPTY_ACTION_STATE, formData);
+  return { ...result, intent, orderId };
+}
+
+interface OrderCancellationConsole {
+  state: OrderCancellationActionState;
+  action: (formData: FormData) => void;
+  pending: boolean;
+  /** 확인 창을 통과해 보낸 마지막 취소 액션. "처리 중" 라벨을 그 양식에만 붙인다. */
+  submitted: { intent: OrderCancellationIntent; orderId: string } | null;
+  submit: (
+    event: React.FormEvent<HTMLFormElement>,
+    confirmation: string,
+    intent: OrderCancellationIntent,
+    orderId: string,
+  ) => void;
+}
+
+/** 한 양식이 볼 결과 조각. 필드 오류는 그 양식이 보낸 결과일 때만 붙인다. */
+function cancellationFormView(
+  cancellation: OrderCancellationConsole,
+  intent: OrderCancellationIntent,
+  orderId: string,
+) {
+  const { pending, state, submitted } = cancellation;
+  return {
+    errors: state.intent === intent && state.orderId === orderId ? state.errors : undefined,
+    pending,
+    running: pending && submitted?.intent === intent && submitted.orderId === orderId,
+  };
+}
+
+function CancellationIntentFields({ intent, orderId }: { intent: OrderCancellationIntent; orderId: string }) {
+  return (
+    <>
+      <input name="cancellationIntent" type="hidden" value={intent} />
+      <input name="cancellationOrderId" type="hidden" value={orderId} />
+    </>
+  );
+}
+
+function CancellationResultBody({ state }: { state: OrderCancellationActionState }) {
+  return (
+    <div className="admin-order-action-feedback">
+      {state.errors?.form ? <span role="alert">{state.errors.form}</span> : null}
+      {state.message ? <span role="status">{state.message}</span> : null}
+    </div>
+  );
+}
+
+function hasCancellationResult(state: OrderCancellationActionState) {
+  return Boolean(state.orderId && (state.errors?.form || state.message));
+}
+
+/** 주문 패널의 취소 처리 결과. 처리 버튼이 사라진 뒤에도 그 주문 패널에 남는다. */
+function OrderCancellationResult({ orderId, state }: { orderId: string; state: OrderCancellationActionState }) {
+  return (
+    <div aria-live="polite">
+      {state.orderId === orderId && hasCancellationResult(state) ? (
+        <section aria-label="취소 처리 결과" className="admin-order-cancellation-result">
+          <p>취소 처리 결과</p>
+          <CancellationResultBody state={state} />
+        </section>
+      ) : null}
     </div>
   );
 }
@@ -303,13 +415,17 @@ function UpdateTrackingForm({
 }
 
 function ApproveCancellationForm({
+  cancellation,
+  orderId,
   orderStatus,
   requestId,
 }: {
+  cancellation: OrderCancellationConsole;
+  orderId: string;
   orderStatus: AdminOrderRecord['status'];
   requestId: string;
 }) {
-  const [state, action, pending] = useActionState(approveAdminOrderCancellationAction, EMPTY_ACTION_STATE);
+  const { pending, running } = cancellationFormView(cancellation, 'approve', orderId);
   // 반품 입고 확인은 별도 상태가 아니라 승인 행위에 내포된다(D11). 배송이 나간 주문은
   // 승인 즉시 결제가 취소되고 재고가 복원되므로 확인 문구로 그 전제를 묻는다.
   const confirmation = orderStatus === 'shipping' || orderStatus === 'done'
@@ -318,35 +434,44 @@ function ApproveCancellationForm({
 
   return (
     <form
-      action={action}
+      action={cancellation.action}
       className="admin-order-action-form"
       data-confirm={confirmation}
-      onSubmit={(event) => confirmAction(event, confirmation)}
+      onSubmit={(event) => cancellation.submit(event, confirmation, 'approve', orderId)}
     >
+      <CancellationIntentFields intent="approve" orderId={orderId} />
       <input name="requestId" type="hidden" value={requestId} />
       <button className="btn btn-sm" disabled={pending} type="submit">
-        {pending ? '승인 중' : '청약철회 승인'}
+        {running ? '승인 중' : '청약철회 승인'}
       </button>
-      <ActionFeedback state={state} />
     </form>
   );
 }
 
-function RejectCancellationForm({ requestId }: { requestId: string }) {
-  const [state, action, pending] = useActionState(rejectAdminOrderCancellationAction, EMPTY_ACTION_STATE);
+function RejectCancellationForm({
+  cancellation,
+  orderId,
+  requestId,
+}: {
+  cancellation: OrderCancellationConsole;
+  orderId: string;
+  requestId: string;
+}) {
+  const { errors, pending, running } = cancellationFormView(cancellation, 'reject', orderId);
   const confirmation = '청약철회 요청을 거절할까요? 입력한 사유가 기록됩니다.';
 
   return (
     <form
-      action={action}
+      action={cancellation.action}
       className="admin-order-reject-form"
       data-confirm={confirmation}
-      onSubmit={(event) => confirmAction(event, confirmation)}
+      onSubmit={(event) => cancellation.submit(event, confirmation, 'reject', orderId)}
     >
+      <CancellationIntentFields intent="reject" orderId={orderId} />
       <input name="requestId" type="hidden" value={requestId} />
       <label htmlFor={`admin-order-reject-reason-${requestId}`}>거절 사유</label>
       <textarea
-        aria-describedby={state.errors?.reason ? `admin-order-reject-error-${requestId}` : undefined}
+        aria-describedby={errors?.reason ? `admin-order-reject-error-${requestId}` : undefined}
         disabled={pending}
         id={`admin-order-reject-reason-${requestId}`}
         maxLength={200}
@@ -356,21 +481,24 @@ function RejectCancellationForm({ requestId }: { requestId: string }) {
         required
         rows={3}
       />
-      {state.errors?.reason ? (
-        <span id={`admin-order-reject-error-${requestId}`} role="alert">{state.errors.reason}</span>
+      {errors?.reason ? (
+        <span id={`admin-order-reject-error-${requestId}`} role="alert">{errors.reason}</span>
       ) : null}
       <button className="btn btn-sm btn-ghost" disabled={pending} type="submit">
-        {pending ? '거절 중' : '요청 거절'}
+        {running ? '거절 중' : '요청 거절'}
       </button>
-      <ActionFeedback state={state} />
     </form>
   );
 }
 
 function ReconcileCancellationForm({
+  cancellation,
+  orderId,
   preparedKorpay,
   request,
 }: {
+  cancellation: OrderCancellationConsole;
+  orderId: string;
   preparedKorpay?: {
     amount: number;
     currency: string;
@@ -378,7 +506,7 @@ function ReconcileCancellationForm({
   };
   request: AdminOrderCancellationRequestRecord;
 }) {
-  const [state, action, pending] = useActionState(reconcileAdminOrderCancellationAction, EMPTY_ACTION_STATE);
+  const { pending, running } = cancellationFormView(cancellation, 'reconcile', orderId);
   const confirmation = preparedKorpay
     ? `Korpay 주문 ${preparedKorpay.providerOrderId} · ₩${preparedKorpay.amount.toLocaleString('ko-KR')} ${preparedKorpay.currency} 결제 세션의 만료를 확인할까요? 이미 만료됐다면 주문 취소와 재고 복원이 즉시 완료됩니다.`
     : '결제 취소 상태를 다시 확인할까요?';
@@ -390,16 +518,16 @@ function ReconcileCancellationForm({
 
   return (
     <form
-      action={action}
+      action={cancellation.action}
       className="admin-order-action-form"
       data-confirm={confirmation}
-      onSubmit={(event) => confirmAction(event, confirmation)}
+      onSubmit={(event) => cancellation.submit(event, confirmation, 'reconcile', orderId)}
     >
+      <CancellationIntentFields intent="reconcile" orderId={orderId} />
       <input name="requestId" type="hidden" value={request.id} />
       <button className="btn btn-sm" disabled={pending} type="submit">
-        {pending ? '확인 중' : label}
+        {running ? '확인 중' : label}
       </button>
-      <ActionFeedback state={state} />
     </form>
   );
 }
@@ -410,15 +538,19 @@ function ReconcileCancellationForm({
  * 발송 전 주문의 결제 전액을 바로 취소한다 — 누르면 DB가 사유와 함께 취소 요청을
  * 열고 서버가 토스 전액 취소를 발행·확인한 뒤 주문·재고·쿠폰·적립금을 정리한다.
  * 출고지시 파일이 나간 배송 건이 있으면 창고 출고 중단 확인을 체크해야 한다.
+ * 결과가 나오면 이 양식은 사라진다(요청이 생기거나 주문이 취소된다) — 결과는
+ * 주문 패널의 취소 처리 결과에 남는다.
  */
 function StaffCancellationForm({
+  cancellation,
   orderId,
   requiresWarehouseStop,
 }: {
+  cancellation: OrderCancellationConsole;
   orderId: string;
   requiresWarehouseStop: boolean;
 }) {
-  const [state, action, pending] = useActionState(startAdminOrderCancellationAction, EMPTY_ACTION_STATE);
+  const { errors, pending, running } = cancellationFormView(cancellation, 'staffCancel', orderId);
   const confirmation = '이 주문 전체를 취소하고 결제 금액 전액을 결제사에서 취소할까요? 되돌릴 수 없고 구매자에게 취소 알림이 갑니다.';
   const reasonId = `admin-order-staff-cancel-reason-${orderId}`;
   const noteId = `admin-order-staff-cancel-note-${orderId}`;
@@ -426,12 +558,13 @@ function StaffCancellationForm({
 
   return (
     <form
-      action={action}
+      action={cancellation.action}
       aria-label="운영자 전액 취소"
       className="admin-order-reject-form admin-order-staff-cancel-form"
       data-confirm={confirmation}
-      onSubmit={(event) => confirmAction(event, confirmation)}
+      onSubmit={(event) => cancellation.submit(event, confirmation, 'staffCancel', orderId)}
     >
+      <CancellationIntentFields intent="staffCancel" orderId={orderId} />
       <input name="orderId" type="hidden" value={orderId} />
       <label htmlFor={reasonId}>
         운영자 전액 취소 사유
@@ -442,7 +575,7 @@ function StaffCancellationForm({
           ))}
         </select>
       </label>
-      {state.errors?.reasonCode ? <span role="alert">{state.errors.reasonCode}</span> : null}
+      {errors?.reasonCode ? <span role="alert">{errors.reasonCode}</span> : null}
       <label htmlFor={noteId}>메모 (기타는 필수 · 구매자에게 보이지 않습니다)</label>
       <textarea
         disabled={pending}
@@ -452,7 +585,7 @@ function StaffCancellationForm({
         placeholder="예: 창고 실재고 0개 확인, 1:1 문의 #123 고객 취소 요청"
         rows={2}
       />
-      {state.errors?.note ? <span role="alert">{state.errors.note}</span> : null}
+      {errors?.note ? <span role="alert">{errors.note}</span> : null}
       {requiresWarehouseStop ? (
         <label htmlFor={stopId}>
           <input disabled={pending} id={stopId} name="warehouseStopConfirmed" required type="checkbox" value="confirmed" />
@@ -463,9 +596,8 @@ function StaffCancellationForm({
         발송 전 주문의 결제 금액 전액을 바로 취소합니다. 품절·출고 불가, 1:1 문의로 받은 취소 요청, 라이브 전환 전 심사용 테스트 결제 정리에 씁니다.
       </small>
       <button className="btn btn-sm btn-ghost" disabled={pending} type="submit">
-        {pending ? '취소 처리 중' : '전액 취소 실행'}
+        {running ? '취소 처리 중' : '전액 취소 실행'}
       </button>
-      <ActionFeedback state={state} />
     </form>
   );
 }
@@ -473,25 +605,26 @@ function StaffCancellationForm({
 function ManualKorpayCancellationForm({
   amount,
   attemptId,
+  cancellation,
   currency,
+  orderId,
   providerOrderId,
   requestId,
 }: {
   amount: number;
   attemptId: string;
+  cancellation: OrderCancellationConsole;
   currency: string;
+  orderId: string;
   providerOrderId: string;
   requestId: string;
 }) {
-  const [state, action, pending] = useActionState(
-    recoverAdminGoodsPaymentAction,
-    EMPTY_ACTION_STATE,
-  );
+  const { errors, pending, running } = cancellationFormView(cancellation, 'korpayRecovery', orderId);
   const attestationRef = useRef<HTMLInputElement>(null);
   const confirmation = `Korpay 주문 ${providerOrderId} · ₩${amount.toLocaleString('ko-KR')} ${currency}의 전액 취소 완료를 원장에서 확인했습니다. 반영하면 확인된 결제에는 환불 원장을 남기고, 주문 취소와 재고 복원을 즉시 완료합니다. 계속할까요?`;
   const attestationId = `admin-korpay-cancel-attestation-${attemptId}`;
   const attestationErrorId = `admin-korpay-cancel-attestation-error-${attemptId}`;
-  const attestationError = state.errors?.operatorAttestation;
+  const attestationError = errors?.operatorAttestation;
 
   useEffect(() => {
     if (attestationError) attestationRef.current?.focus();
@@ -499,11 +632,12 @@ function ManualKorpayCancellationForm({
 
   return (
     <form
-      action={action}
+      action={cancellation.action}
       className="admin-order-korpay-recovery-form"
       data-confirm={confirmation}
-      onSubmit={(event) => confirmAction(event, confirmation)}
+      onSubmit={(event) => cancellation.submit(event, confirmation, 'korpayRecovery', orderId)}
     >
+      <CancellationIntentFields intent="korpayRecovery" orderId={orderId} />
       <input name="attemptId" type="hidden" value={attemptId} />
       <input name="requestId" type="hidden" value={requestId} />
       <label htmlFor={attestationId}>
@@ -525,7 +659,7 @@ function ManualKorpayCancellationForm({
         disabled={pending}
         type="submit"
       >
-        {pending ? '반영 중' : 'Korpay 전액 취소 반영'}
+        {running ? '반영 중' : 'Korpay 전액 취소 반영'}
       </button>
       {attestationError ? (
         <span
@@ -536,7 +670,6 @@ function ManualKorpayCancellationForm({
           {attestationError}
         </span>
       ) : null}
-      <ActionFeedback state={state} />
     </form>
   );
 }
@@ -584,10 +717,12 @@ function OrderFilters({ filters }: { filters: AdminOrderFilters }) {
 }
 
 function OrderDetail({
+  cancellation,
   carriers,
   filters,
   order,
 }: {
+  cancellation: OrderCancellationConsole;
   carriers: ShippingCarrierRegistry;
   filters: AdminOrderFilters;
   order: AdminOrderRecord;
@@ -748,6 +883,8 @@ function OrderDetail({
         </section>
       ) : null}
 
+      <OrderCancellationResult orderId={order.id} state={cancellation.state} />
+
       <div className="admin-order-actions">
         {canAdvanceOrderStatus && order.status === 'paid' ? (
           <OrderStatusAction
@@ -784,8 +921,13 @@ function OrderDetail({
             것은 안내가 아니다. */}
         {cancellationRequest && isLegacyDecidableCancellation(cancellationRequest) ? (
           <>
-            <ApproveCancellationForm orderStatus={order.status} requestId={cancellationRequest.id} />
-            <RejectCancellationForm requestId={cancellationRequest.id} />
+            <ApproveCancellationForm
+              cancellation={cancellation}
+              orderId={order.id}
+              orderStatus={order.status}
+              requestId={cancellationRequest.id}
+            />
+            <RejectCancellationForm cancellation={cancellation} orderId={order.id} requestId={cancellationRequest.id} />
           </>
         ) : null}
         {cancellationRequest
@@ -802,6 +944,8 @@ function OrderDetail({
         {(cancellationRequest?.status === 'processing' || cancellationRequest?.status === 'needs_review')
           && !usesKorpayManualRecovery ? (
           <ReconcileCancellationForm
+            cancellation={cancellation}
+            orderId={order.id}
             preparedKorpay={manualRecoveryAttempt?.state === 'prepared'
               ? {
                   amount: manualRecoveryAttempt.amount,
@@ -814,6 +958,7 @@ function OrderDetail({
         ) : null}
         {staffCancellation.available ? (
           <StaffCancellationForm
+            cancellation={cancellation}
             orderId={order.id}
             requiresWarehouseStop={staffCancellation.requiresWarehouseStop}
           />
@@ -822,7 +967,9 @@ function OrderDetail({
           <ManualKorpayCancellationForm
             amount={manualRecoveryAttempt.amount}
             attemptId={manualRecoveryAttempt.attemptId}
+            cancellation={cancellation}
             currency={manualRecoveryAttempt.currency}
+            orderId={order.id}
             providerOrderId={manualRecoveryAttempt.providerOrderId}
             requestId={manualRecoveryAttempt.requestId}
           />
@@ -837,11 +984,38 @@ export function OrdersSection({ data }: { data: AdminOrderConsoleData }) {
     ? data.items.find((order) => order.id === data.filters.orderId) ?? null
     : data.items[0] ?? null;
   const totalPages = Math.max(1, Math.ceil(data.total / data.pageSize));
+  const [cancellationState, cancellationAction, cancellationPending] = useActionState(
+    runOrderCancellationAction,
+    EMPTY_CANCELLATION_STATE,
+  );
+  const [submittedCancellation, setSubmittedCancellation] = useState<OrderCancellationConsole['submitted']>(null);
+  const cancellation: OrderCancellationConsole = {
+    state: cancellationState,
+    action: cancellationAction,
+    pending: cancellationPending,
+    submitted: submittedCancellation,
+    submit: (event, confirmation, intent, orderId) => {
+      confirmAction(event, confirmation);
+      if (!event.defaultPrevented) setSubmittedCancellation({ intent, orderId });
+    },
+  };
+  /* 상태 필터로 보던 목록에서는 방금 취소한 주문이 빠진다. 그 결과는 목록 위에 남긴다. */
+  const resultOrderId = hasCancellationResult(cancellationState) ? cancellationState.orderId ?? null : null;
+  const resultOutsideList = resultOrderId && !data.items.some((order) => order.id === resultOrderId)
+    ? resultOrderId
+    : null;
 
   return (
     <section className="admin-orders col">
       <OrderFilters filters={data.filters} />
       <AdminListExportButton href={adminListExportHref('orders', adminOrdersHref(data.filters))} total={data.total} />
+      {resultOutsideList ? (
+        <section aria-label="취소 처리 결과" className="admin-order-cancellation-result">
+          <p>주문 {orderReferenceLabel(resultOutsideList)} 취소 처리 결과 · 지금 검색 조건의 목록에는 없는 주문입니다.</p>
+          <CancellationResultBody state={cancellationState} />
+          <Link className="btn btn-sm btn-ghost" href={adminOrderSearchHref(resultOutsideList)}>이 주문 열기</Link>
+        </section>
+      ) : null}
       <div className="admin-master-detail admin-order-master-detail">
         <aside className="admin-order-list card" aria-label="주문 목록">
           <div className="admin-order-list-heading">
@@ -904,7 +1078,15 @@ export function OrdersSection({ data }: { data: AdminOrderConsoleData }) {
             </nav>
           ) : null}
         </aside>
-        {selected ? <OrderDetail carriers={data.carriers} filters={data.filters} order={selected} /> : data.filters.orderId ? (
+        {selected ? (
+          <OrderDetail
+            cancellation={cancellation}
+            carriers={data.carriers}
+            filters={data.filters}
+            key={selected.id}
+            order={selected}
+          />
+        ) : data.filters.orderId ? (
           <div className="card col" role="status">
             <p>선택한 주문은 현재 목록에 없습니다.</p>
             <Link
