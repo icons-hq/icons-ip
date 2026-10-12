@@ -147,7 +147,8 @@ describe('submitOrderCancellation', () => {
     ['needs_review', '결제 취소 확인 중', '확인'],
     ['completed', '취소·환불 처리 완료', '완료'],
   ] as const)('shows safe %s request status without provider details', (requestStatus, heading, bodyWord) => {
-    const presentation = cancellationPresentation('paid', null, {
+    /* 결제완료 주문의 취소라 환불 원장이 있다. 원장 없는 완료는 아래에서 따로 본다. */
+    const presentation = cancellationPresentation('paid', { status: 'done', createdAt: '2026-07-14T07:35:00.000Z' }, {
       id: '22222222-2222-4222-8222-222222222222',
       status: requestStatus,
       /* 취소 패널은 취소 클레임만 그린다(#252). 반품·교환은 OrderClaimRequest가 맡는다. */
@@ -164,6 +165,40 @@ describe('submitOrderCancellation', () => {
     expect(presentation).toMatchObject({ canCancel: false, heading: expect.stringContaining(heading) });
     expect(presentation.body).toContain(bodyWord);
     expect(JSON.stringify(presentation)).not.toMatch(/paymentKey|raw|provider/i);
+  });
+
+  /* 2026-10-12 브라우저 QA R2-3: 결제 없이 닫힌 취소는 결제 취소를 완료했다고 말하지 않는다. */
+  it('환불 원장 없이 완료된 취소는 결제 없는 주문 취소 완료로 안내한다', () => {
+    const presentation = cancellationPresentation('canceled', null, {
+      id: '22222222-2222-4222-8222-222222222222',
+      status: 'completed',
+      claimType: 'cancel',
+      stage: 'completed',
+      reference: 12,
+      requestedAt: '2026-07-14T07:30:00.000Z',
+      decidedAt: null,
+      decisionNote: null,
+      reshipCarrier: null,
+      reshipTrackingNumber: null,
+    });
+
+    expect(presentation).toMatchObject({ canCancel: false, heading: '주문 취소 완료', requestLabel: '처리 완료' });
+    expect(presentation.body).toContain('주문 취소가 완료됐습니다');
+    expect(presentation.body).toContain('결제된 금액이 없어');
+    expect(presentation.body).not.toContain('결제 취소 처리가 완료');
+    expect(presentation.body).not.toContain('청약철회');
+  });
+
+  it('결제 대기 주문의 취소 안내는 결제 가능 시간이 남은 결제만 결과 확인을 기다린다고 말한다', () => {
+    const presentation = cancellationPresentation('pending', null, null, {
+      eligibility: { cancel: true, return: false, exchange: false },
+    });
+
+    expect(presentation).toMatchObject({ canCancel: true, heading: '결제 대기 주문 취소' });
+    expect(presentation.body).toContain('바로 취소');
+    expect(presentation.body).toContain('결제 가능 시간이 남은 결제');
+    expect(presentation.body).not.toContain('청약철회 요청으로 접수');
+    expect(presentation.canCancel && presentation.confirmBody).not.toContain('청약철회');
   });
 
   /* 2026-10-12 QA-7: 결제 전 주문의 취소 요청은 담당자가 아니라 결제 결과가 닫는다. */
