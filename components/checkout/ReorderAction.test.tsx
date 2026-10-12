@@ -1,6 +1,12 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
-import { ReorderAction, runReorder, type ReorderDependencies } from './ReorderAction';
+import {
+  ReorderAction,
+  ReorderOutcomeNotice,
+  reorderNavigatesToCheckout,
+  runReorder,
+  type ReorderDependencies,
+} from './ReorderAction';
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }),
@@ -14,7 +20,7 @@ const orderId = '7ad4c967-3d48-44da-a665-64731ac33f62';
 function deps(overrides: Partial<ReorderDependencies> = {}): ReorderDependencies {
   return {
     cancel: vi.fn().mockResolvedValue('canceled'),
-    restore: vi.fn().mockResolvedValue({ ok: true, restoredLines: 2, skipped: [] }),
+    restore: vi.fn().mockResolvedValue({ ok: true, restoredLines: 2, skipped: [], coupon: 'none', storeCreditUsed: 0 }),
     ...overrides,
   };
 }
@@ -23,7 +29,7 @@ describe('runReorder', () => {
   it('기존 고객 취소 경로로 취소한 뒤 품목을 다시 담는다', async () => {
     const dependencies = deps();
 
-    await expect(runReorder(orderId, 'cancel_then_reorder', dependencies)).resolves.toEqual({ kind: 'restored' });
+    await expect(runReorder(orderId, 'cancel_then_reorder', dependencies)).resolves.toEqual({ kind: 'restored', reapply: null });
     expect(dependencies.cancel).toHaveBeenCalledWith(orderId);
     expect(dependencies.restore).toHaveBeenCalledWith(orderId);
   });
@@ -31,13 +37,13 @@ describe('runReorder', () => {
   it('이미 취소된 주문(sweep이 먼저 닫음)도 다시 담는다', async () => {
     const dependencies = deps({ cancel: vi.fn().mockResolvedValue('already_canceled') });
 
-    await expect(runReorder(orderId, 'cancel_then_reorder', dependencies)).resolves.toEqual({ kind: 'restored' });
+    await expect(runReorder(orderId, 'cancel_then_reorder', dependencies)).resolves.toEqual({ kind: 'restored', reapply: null });
   });
 
   it('취소된 주문의 다시 담기는 취소를 부르지 않는다', async () => {
     const dependencies = deps();
 
-    await expect(runReorder(orderId, 'reorder', dependencies)).resolves.toEqual({ kind: 'restored' });
+    await expect(runReorder(orderId, 'reorder', dependencies)).resolves.toEqual({ kind: 'restored', reapply: null });
     expect(dependencies.cancel).not.toHaveBeenCalled();
   });
 
@@ -62,11 +68,33 @@ describe('runReorder', () => {
   it('품절·판매 중지로 일부만 담기면 담지 못한 굿즈를 돌려준다', async () => {
     const skipped = [{ name: '홍실 키링 (파랑)', reason: 'out_of_stock' as const }];
     await expect(runReorder(orderId, 'cancel_then_reorder', deps({
-      restore: vi.fn().mockResolvedValue({ ok: true, restoredLines: 1, skipped }),
-    }))).resolves.toEqual({ kind: 'partial', skipped });
+      restore: vi.fn().mockResolvedValue({ ok: true, restoredLines: 1, skipped, coupon: 'restored', storeCreditUsed: 0 }),
+    }))).resolves.toEqual({ kind: 'partial', skipped, reapply: null });
     await expect(runReorder(orderId, 'cancel_then_reorder', deps({
-      restore: vi.fn().mockResolvedValue({ ok: true, restoredLines: 0, skipped }),
+      restore: vi.fn().mockResolvedValue({ ok: true, restoredLines: 0, skipped, coupon: 'none', storeCreditUsed: 0 }),
     }))).resolves.toEqual({ kind: 'nothing_restored', skipped });
+  });
+
+  /* 쿠폰이 빠진 채 주문서로 넘기면 고객은 정가로 결제하고, 첫구매 쿠폰은 그 결제로 영영
+     쓸 수 없게 된다(E-1). */
+  it('쿠폰을 다시 고르지 못했거나 적립금을 쓴 주문은 다시 챙길 혜택을 돌려준다', async () => {
+    const couponLost = await runReorder(orderId, 'cancel_then_reorder', deps({
+      restore: vi.fn().mockResolvedValue({ ok: true, restoredLines: 2, skipped: [], coupon: 'not_restored', storeCreditUsed: 0 }),
+    }));
+    expect(couponLost).toEqual({ kind: 'restored', reapply: { coupon: true, storeCredit: 0 } });
+    expect(reorderNavigatesToCheckout(couponLost)).toBe(false);
+
+    const creditUsed = await runReorder(orderId, 'cancel_then_reorder', deps({
+      restore: vi.fn().mockResolvedValue({ ok: true, restoredLines: 2, skipped: [], coupon: 'restored', storeCreditUsed: 2500 }),
+    }));
+    expect(creditUsed).toEqual({ kind: 'restored', reapply: { coupon: false, storeCredit: 2500 } });
+    expect(reorderNavigatesToCheckout(creditUsed)).toBe(false);
+
+    const couponBack = await runReorder(orderId, 'cancel_then_reorder', deps({
+      restore: vi.fn().mockResolvedValue({ ok: true, restoredLines: 2, skipped: [], coupon: 'restored', storeCreditUsed: 0 }),
+    }));
+    expect(couponBack).toEqual({ kind: 'restored', reapply: null });
+    expect(reorderNavigatesToCheckout(couponBack)).toBe(true);
   });
 
   it('취소 뒤 담기가 실패하면 그 사실을 따로 알린다', async () => {
@@ -76,6 +104,58 @@ describe('runReorder', () => {
     await expect(runReorder(orderId, 'cancel_then_reorder', deps({
       restore: vi.fn().mockRejectedValue(new Error('network')),
     }))).resolves.toEqual({ kind: 'restore_failed' });
+  });
+});
+
+describe('ReorderOutcomeNotice', () => {
+  it('쿠폰이 빠졌으면 장바구니에서 다시 고르라고 안내하고 장바구니를 먼저 권한다', () => {
+    const html = renderToStaticMarkup(
+      <ReorderOutcomeNotice
+        mode="cancel_then_reorder"
+        orderId={orderId}
+        outcome={{ kind: 'restored', reapply: { coupon: true, storeCredit: 2500 } }}
+      />,
+    );
+
+    expect(html).toContain('주문은 취소됐어요. 굿즈를 장바구니에 다시 담았어요.');
+    expect(html).toContain('장바구니에서 쿠폰을 다시 골라주세요');
+    expect(html).toContain('적립금 2,500원은 주문서에서 다시 입력해주세요');
+    expect(html.indexOf('href="/cart"')).toBeLessThan(html.indexOf('href="/checkout"'));
+  });
+
+  it('적립금만 다시 입력하면 되면 주문서를 먼저 권한다', () => {
+    const html = renderToStaticMarkup(
+      <ReorderOutcomeNotice
+        mode="reorder"
+        orderId={orderId}
+        outcome={{ kind: 'restored', reapply: { coupon: false, storeCredit: 1000 } }}
+      />,
+    );
+
+    expect(html).not.toContain('주문은 취소됐어요');
+    expect(html).not.toContain('쿠폰');
+    expect(html).toContain('적립금 1,000원은 주문서에서 다시 입력해주세요');
+    expect(html.indexOf('href="/checkout"')).toBeLessThan(html.indexOf('href="/cart"'));
+  });
+
+  it('담지 못한 굿즈 사유를 사실 범위대로 적는다', () => {
+    const html = renderToStaticMarkup(
+      <ReorderOutcomeNotice
+        mode="cancel_then_reorder"
+        orderId={orderId}
+        outcome={{
+          kind: 'nothing_restored',
+          skipped: [
+            { name: '홍실 키링', reason: 'sold_out' },
+            { name: '홍실 쿠션', reason: 'unavailable' },
+          ],
+        }}
+      />,
+    );
+
+    expect(html).toContain('홍실 키링(품절)');
+    expect(html).toContain('홍실 쿠션(지금 담을 수 없음)');
+    expect(html).not.toContain('판매 중지');
   });
 });
 
