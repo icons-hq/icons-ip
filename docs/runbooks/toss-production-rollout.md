@@ -25,6 +25,22 @@ paymentKey, transactionKey, 승인번호, 원문 응답, 키 fingerprint는 문�
   취급 부담으로 배제했고, 키 형식 검증이 `test_sk_…` 계열을 거절한다.
 - 모든 토스 구현·절차는 공식문서를 **주문서형 v2 기준 최신판**으로 실조회해 근거를
   확보한다. 문서화되지 않은 endpoint·파라미터를 추측해 호출하지 않는다.
+  공식문서 ID는 바뀔 수 있으므로 경로를 함께 적는다(2026-10-12 MCP 기준): 8 결제 취소
+  `/guides/v2/cancel-payment`, 9 배포 체크리스트 `/guides/v2/deploy-checklist`, 17 결제수단 정책
+  `/guides/v2/get-started/payment-methods`, 24 결제 어드민 `/guides/v2/payment-widget/admin`,
+  41 웹훅 연결 `/guides/v2/webhook`, 59 에러 코드 `/reference/error-codes`, 121 API 키 접근 정책
+  `/reference/using-api/api-key-access-policy`, 122 API 키 `/reference/using-api/api-keys`,
+  123 인증·멱등키 `/reference/using-api/authorization`, 126 보안(인바운드 IP)
+  `/reference/using-api/security`, 127 웹훅 이벤트 `/reference/using-api/webhook-events`,
+  129 코어 API `/reference`.
+- **상점아이디(MID)**: 우리 국내 일반결제 MID는 **`iconsi0xvd`**다(2026-10-12 사용자 확인).
+  결제서비스와 MID는 1:1이라 브랜드페이·해외 간편결제를 계약하면 MID가 따로 발급된다(공식문서
+  24·122). 어댑터는 승인·조회·취소 응답의 `Payment.mId`가 허용 목록
+  (`lib/payments/toss-config.mjs`의 `TOSS_ALLOWED_MERCHANT_IDS`, 현재 `iconsi0xvd` 하나)에 있을
+  때만 그 결제로 attempt를 닫는다. 없거나 다르면 승인·취소 확정·실패 판정에 쓰지 않고
+  `needs_review`(reasonCode `provider_merchant_mismatch`, 증거 `resultCode`
+  `{status}_merchant_mismatch`)로 격리하며 그 결제를 취소하지 않는다. 새 결제서비스를 붙이려면
+  그 MID를 코드 리뷰로 목록에 더해 배포한다 — env로는 늘릴 수 없다.
 
 ## 전환 시퀀스와 현재 위치
 
@@ -56,6 +72,16 @@ paymentKey, transactionKey, 승인번호, 원문 응답, 키 fingerprint는 문�
 
 키 규칙:
 
+- 키는 개발자센터 [API 키 메뉴](https://developers.tosspayments.com/my/api-keys)에서 **상점아이디
+  `iconsi0xvd`를 선택해** 그 MID의 주문서형 연동 키를 쓴다(공식문서 122; 공식문서 9 배포
+  체크리스트도 "선택된 내 상점아이디(MID)"를 다시 확인하라고 한다). 문서에 박힌 공개 테스트 키
+  (`test_gck_docs_…`)나 다른 상점의 키로 승인된 결제는 MID가 달라 전부 `needs_review`가 된다.
+- **API 키 접근 정책(IP 제한)을 등록하지 않는다.** 공식문서 121은 시크릿 키에 허용 IP를 거는
+  정책을 권장하지만, 등록하면 허용 IP 밖 호출이 403 `API_KEY_ACCESS_DENIED`로 거부되고 Vercel
+  Functions의 아웃바운드 IP는 고정돼 있지 않다(이 저장소에 고정 egress 구성이 없다). 정책을 켜는
+  순간 승인·조회·취소가 전부 `provider_configuration_error`(`needs_review`)로 막혀 구매자는 인증까지
+  마치고도 "확인 중"에 머문다. 고정 egress IP 인프라를 먼저 확정하고 테스트 환경에서 실증한 뒤에만
+  별도 승인 범위로 검토한다.
 - 클라이언트/시크릿은 **같은 모드**여야 한다. 테스트 클라이언트 키로 띄운 결제를 라이브
   시크릿 키로 승인하는 반쪽 전환은 빌드와 런타임이 함께 막는다.
 - 클라이언트 키만 `NEXT_PUBLIC_`이다. 시크릿 키는 server-only 어댑터의 클로저 밖으로
@@ -74,16 +100,25 @@ paymentKey, transactionKey, 승인번호, 원문 응답, 키 fingerprint는 문�
 - Preview에서 `TOSS_*_CHECKOUT_ENABLED=true` 또는 `TOSS_*_CANARY_USER_ID` 존재.
 - gate 값이 `true`/`false`/미설정이 아닌 문자열, canary가 UUID v1–5 형식이 아닌 경우.
 
-빌드를 멈추지 않고 경고만 남기는 조합: Production에서 키 페어가 유효한 **테스트 모드**인데
-공개 gate가 열려 있는 경우 → `Toss public checkout gate is open on test-mode keys…`. 심사
-창(③)에서는 이 경고가 정상 상태의 표시이고, 심사가 끝난 뒤에도 남아 있으면 무과금 결제가
-`paid` 주문을 만들고 있다는 신호다.
+빌드를 멈추지 않고 경고만 남기는 조합:
+
+- Production에서 키 페어가 유효한 **테스트 모드**인데 공개 gate가 열려 있는 경우 →
+  `Toss public checkout gate is open on test-mode keys…`. 심사 창(③)에서는 이 경고가 정상 상태의
+  표시이고, 심사가 끝난 뒤에도 남아 있으면 무과금 결제가 `paid` 주문을 만들고 있다는 신호다.
+- Production 키가 **문서 공개 테스트 키**(`test_g*k_docs_…`)인 경우 → `Toss keys look like the
+  developer-docs public test keys…`. 그 결제는 우리 상점 결제내역·웹훅에 남지 않고, 런타임 MID
+  대조로 모든 결제가 `needs_review`가 된다. 심사 창 배포를 막지 않도록 빌드는 통과시키지만, 이
+  경고가 보이면 MID `iconsi0xvd`의 키로 교체한다.
+
+build readback 줄에는 키 값 없이 `Toss configured`·목적별 gate·canary boolean과 함께
+`Toss mode=test|live|none`, `Toss merchant=iconsi0xvd`, `docs public key=true|false`,
+`payment reconciliation secret configured=true|false`가 실린다.
 
 Vercel 환경변수의 추가·수정·삭제는 이미 생성된 deployment의 runtime을 바꾸지 않는다. 키,
 gate, canary를 바꿀 때마다 **GitHub Actions의 Production 배포 경로로 새 deployment**를 만들고,
 Ready 확인에서 끝내지 말고 배포한 exact Git SHA와 canonical production alias가 그 deployment를
-가리키는지, build readback의 Toss configured·목적별 gate·canary boolean이 의도와 같은지까지
-확인한다. 설정만 바뀐 재배포는 `workflow_dispatch`의 `production_redeploy=true`와 현재 main의
+가리키는지, build readback의 Toss configured·목적별 gate·canary boolean과 Toss mode·merchant·
+docs public key·reconciliation secret 값이 의도와 같은지까지 확인한다. 설정만 바뀐 재배포는 `workflow_dispatch`의 `production_redeploy=true`와 현재 main의
 exact SHA에서 성공한 `production_source_run_id`를 함께 쓴다.
 
 ## 결제 프로토콜
@@ -110,11 +145,12 @@ exact SHA에서 성공한 `production_source_run_id`를 함께 쓴다.
    재요청 ≤25초 + 조회 8초 ≈ 34초 + DB다(60초는 두 경로 모두에 DB·리다이렉트 여유가 있다;
    25+25+8을 직렬로 더한 59초는 성립하지 않는 경로다). 409(`IDEMPOTENT_REQUEST_PROCESSING`)는 같은
    `Idempotency-Key`로 1초 뒤 정확히 1회 재요청해 그 응답을 첫 응답과 같은 분기로 읽고,
-   재요청도 409면 조회로 간다(공식문서 122 — 키를 바꿔 재시도하지 않는다). 결정적 거절 코드
+   재요청도 409면 조회로 간다(공식문서 123 — 키를 바꿔 재시도하지 않는다). 결정적 거절 코드
    (`REJECT_CARD_PAYMENT` 포함)는 조회 없이 `declined`다. confirm이 모호하면(타임아웃·5xx·
-   `ALREADY_PROCESSED_PAYMENT`·표 밖 4xx) 즉시 실패로 단정하지 않고
-   `GET /v1/payments/orders/{orderId}`로 실상태를 확인해 분기한다 — 표 밖 4xx의 조회 404는
-   실패 확정(`declined`, 원 코드를 `resultCode`로 보존), 5xx의 404는 `unknown`, `EXPIRED`는
+   `ALREADY_PROCESSED_PAYMENT`·표 밖 4xx) 즉시 실패로 단정하지 않고 콜백 paymentKey로
+   `GET /v1/payments/{paymentKey}`(주문서형 시크릿 키에 명시된 조회, 공식문서 122)를 불러 실상태를
+   확인해 분기한다 — 응답이 그 키·이 주문이 아니면 `needs_review`, 표 밖 4xx 뒤 404는 실패
+   확정(`declined`, 원 코드를 `resultCode`로 보존), 5xx 뒤 404는 `unknown`, `ABORTED`·`EXPIRED`는
    `declined`다. 승인 200이 `WAITING_FOR_DEPOSIT`(가상계좌)이면 즉시 전액 취소한 뒤 `declined`로
    닫고, 취소가 성립하지 않으면 `needs_review`다 — 이 격리는 입금 전까지 유효하고, 입금 뒤
    `DONE`은 코드가 `approved`를 막아 `needs_review`에 남긴다(환불은 `refundReceiveAccount`가
@@ -123,15 +159,35 @@ exact SHA에서 성공한 `production_source_run_id`를 함께 쓴다.
    넘긴다. 사용자 브라우저는 provider 식별자가 없는 303 success·checking·failure 경로로
    이동한다.
 7. 웹훅(`PAYMENT_STATUS_CHANGED`)은 확정의 진실원이 아니라 재정합 트리거다. 서명이 없으므로
-   본문에서 orderId만 읽어 조회 API 기반 reconcile seam을 태우고, 반영은 전부 DB finalizer가
-   한다. 종결 attempt·미지 식별자는 200 no-op이고, 재정합이 이미 진행 중인 건은 200이 아니라
-   503으로 돌려 재전송이 다시 가져가게 한다.
+   본문에서 orderId(대상 attempt)와 paymentKey(조회 힌트)만 읽어 조회 API 기반 reconcile seam을
+   태우고, 반영은 전부 DB finalizer가 한다. 힌트는 `GET /v1/payments/{paymentKey}` 응답이 우리
+   상점(MID)·그 키·이 주문이고 상태가 `DONE`·`WAITING_FOR_DEPOSIT`·`CANCELED`·`PARTIAL_CANCELED`일
+   때만 판정에 쓴다. 그 밖(404·키/설정 거부·다른 주문·다른 상점·`READY`·`IN_PROGRESS`·`ABORTED`·
+   `EXPIRED`)은 힌트를 버리고 `GET /v1/payments/orders/{orderId}`로 판정한다 — 같은 주문번호로
+   결제창을 다시 띄우면 결제(paymentKey)가 새로 생기고 버려진 결제창은 `EXPIRED` 웹훅을 보내므로
+   (공식문서 127), 그 웹훅이 승인된 주문을 실패로 닫지 않게 하기 위해서다. 종결 attempt·미지
+   식별자는 200 no-op이고, 재정합이 이미 진행 중인 건은 200이 아니라 503으로 돌려 재전송이 다시
+   가져가게 한다.
 8. 취소는 `POST /v1/payments/{paymentKey}/cancel`을 `cancelAmount` 없이(=전액 취소) 호출하고,
    성공 판정은 취소 API 응답이 아니라 fresh 조회(`CANCELED`·`balanceAmount=0`·`totalAmount`
-   대조)로만 한다. 예외는 가상계좌 입금 전 취소(가드 `declineUnsupportedMethod`) 하나다 —
-   취소 응답 본문의 `CANCELED`로 판정한다(공식문서 127 "가상계좌 입금 전에 결제가 취소된
+   대조)로만 한다. 원장이 결제 키를 아는 굿즈 취소는 사전·사후 조회도
+   `GET /v1/payments/{paymentKey}`이고 응답의 키·주문·상점을 다시 대조한다(키가 없는 호출만
+   orderId 조회다). 예외는 가상계좌 입금 전 취소(가드 `declineUnsupportedMethod`) 하나다 —
+   취소 응답 본문의 `CANCELED`로 판정한다(공식문서 129 "가상계좌 입금 전에 결제가 취소된
    경우도 이 상태로 전환"; 입금 전이라 잔액이 없고, 웹훅 10초 예산 안에서 fresh 조회 1회를
-   더 쓰지 않기 위해서다). 200이 아니거나 본문이 `CANCELED`가 아니면 `needs_review`다.
+   더 쓰지 않기 위해서다). 200이 아니거나 본문이 우리 상점·이 결제의 `CANCELED`가 아니면
+   `needs_review`다.
+9. 상점(MID) 바인딩: 승인 200·재확인 조회·reconcile 조회·취소 응답·환불 조회의 `Payment.mId`가
+   `iconsi0xvd`가 아니거나 없으면 어떤 상태든(승인·취소·실패) 그 결제로 attempt를 닫지 않고
+   `needs_review`(`provider_merchant_mismatch`)로 격리한다. 다른 상점의 결제는 취소하지 않는다.
+10. 결제수단 허용 목록: `DONE`이 카드·간편결제가 아니면 `approved`로 확정하지 않는다. 계좌이체·
+    휴대폰·문화상품권·도서문화상품권·게임문화상품권은 승인 직후 전액 취소가 문서상 성립하므로
+    (공식문서 8·17 — 환불 계좌 불필요, 취소 기한 안) 즉시 전액 취소(멱등키
+    `cancel-method:{attemptId}`)하고 fresh paymentKey 조회로 전액 취소가 확인되면 `declined`
+    (`provider_method_not_allowed`, `resultCode` `CANCELED_method_not_allowed`)다. 확인되지 않거나
+    문서에 없는 수단·method 누락이면 취소 없이(또는 취소 미확인으로) `needs_review`
+    (`DONE_method_not_allowed`)다. 이 가드가 붙으면 confirm 최악 경로는 취소 8초 + 확인 조회 8초가
+    더해져 ≈ 50초 + DB로 여전히 60초 예산 안이다.
 
 ## 심사 트랙 (③④, [#394](https://github.com/icons-hq/icons-ip/issues/394))
 
@@ -141,19 +197,22 @@ exact SHA에서 성공한 `production_source_run_id`를 함께 쓴다.
 
    **상점 테스트 키와 문서 공개 테스트 키를 구분한다.** 주문서형·결제창형 연동 키는 토스
    전자결제 신청 이후에만 개발자센터에서 확인할 수 있고, 신청 전에 쓸 수 있는 것은 문서에
-   박혀 있는 공개 테스트 키(`test_gck_docs_…` 계열)뿐이다(공식문서 121·122). 공개 키로는
+   박혀 있는 공개 테스트 키(`test_gck_docs_…` 계열)뿐이다(공식문서 122·123). 공개 키로는
    결제 연동을 시연할 수 있어도 **결제내역과 웹훅이 우리 상점에 남지 않아** 3번의 실증이
-   성립하지 않는다. 상점 테스트 키가 아직 없으면 8번(전자결제 신청)을 먼저 밟는다.
+   성립하지 않고, 런타임 MID 대조로 모든 결제가 `needs_review`가 된다(빌드는 경고를 남긴다).
+   개발자센터 API 키 메뉴에서 **상점아이디 `iconsi0xvd`를 선택해** 그 MID의 테스트 키를
+   등록한다. 상점 테스트 키가 아직 없으면 8번(전자결제 신청)을 먼저 밟는다.
 2. (human) 개발자센터에 **웹훅 URL**(`https://iconsip.com/api/webhooks/tosspayments`)과
    이벤트를 등록한다. 구독 이벤트는 **`PAYMENT_STATUS_CHANGED`만**이다. 10초 안에 200을
    돌려주고, 200이 아니면 최대 7회(1·4·16·64·256·1024·4096분) 재전송된다는 전제로 멱등
-   처리한다.
+   처리한다. 웹훅은 상점아이디(MID)별로 설정·전송되므로(공식문서 41) **MID `iconsi0xvd`**를
+   선택한 상태에서 등록한다.
 
    등록과 함께 **인바운드 방화벽**을 확인한다([#390](https://github.com/icons-hq/icons-ip/issues/390)).
-   토스가 웹훅을 보내는 인바운드 IP 목록은 공식문서 124가 정본이다. Vercel은 기본적으로
+   토스가 웹훅을 보내는 인바운드 IP 목록은 공식문서 126(`/reference/using-api/security`)이 정본이다. Vercel은 기본적으로
    인바운드 IP를 차단하지 않아 별도 조치가 필요 없지만, Vercel Firewall/WAF 규칙을 켜 두었다면
    그 IP들이 허용되는지 규칙을 직접 본다. 반대로 우리가 토스로 나가는 승인·조회·취소 호출은
-   Vercel Functions에 아웃바운드 방화벽이 없으므로 문서 124의 아웃바운드 IP 허용 대상이 아니다.
+   Vercel Functions에 아웃바운드 방화벽이 없으므로 문서 126의 아웃바운드 IP 허용 대상이 아니다.
 
    **보류(2026-09-08, 사용자 확인)**: 전자결제 계약(8번)이 끝나기 전에는 개발자센터 웹훅 등록을
    할 수 없다. **계약이 완료되면 가장 먼저 이 단계를 수행**하고 3번의 "웹훅이 실제로 도착하는지"
@@ -171,34 +230,50 @@ exact SHA에서 성공한 `production_source_run_id`를 함께 쓴다.
    gate는 `false`로 둔 채 `TOSS_ORDER_CANARY_USER_ID`에 인증된 단일 사용자 UUID만 등록한 새
    Production deployment를 만들고(gate false · canary true readback), 그 사용자로 굿즈 결제를
    한 건 통과시킨다.
-   - **위젯 노출 결제수단이 카드·간편결제뿐인지** 토스 결제 어드민에서 확인한다(가상계좌·
-     상품권 등은 비노출). 코드 가드가 있다 — 승인 200·confirm 재확인 조회·reconcile 조회에서
-     `WAITING_FOR_DEPOSIT`(가상계좌)을 만나면 어댑터가 입금 전에 즉시 전액 취소(`cancelReason`만
-     싣는다 — 입금 전에는 환불할 금액이 없어 `refundReceiveAccount`가 필요 없고 전액 취소만
-     가능하다, 공식문서 127)하고 `declined`(`provider_method_not_allowed`)로 닫으며, 취소가
-     성립하지 않으면 `needs_review`로 격리해 운영자가 결제 어드민에서 취소한다. 그 전에
-     구매자가 입금해 `DONE`이 오면 코드가 `approved`를 막아 `needs_review`(`resultCode`
-     `DONE_virtual_account`)에 남기고, 그 환불은 `refundReceiveAccount`가 필요해 어댑터가
-     발행하지 않으므로 운영자가 결제 어드민에서 처리한다(운영 노트 참조). 가드가 막는
-     것은 원장 쪽이다(공개 gate는 5번): `PAYMENT_STATUS_CHANGED`는 가상계좌를 포함한 **모든 결제수단**에
-     발송되므로(공식문서 41; 문서 125는 두 이벤트를 모두 등록하면 가상계좌 상태 변경에 웹훅이
-     두 번 간다고 경고한다) 가드 없이는 구매자가 입금하는 순간 `DONE` 웹훅이 reconcile을
-     태워 에스크로(구매안전서비스) 계약 없는 가상계좌 판매가 성립하고, 그 환불은 취소 API가
-     `refundReceiveAccount`를 요구해 수동이 된다. 그래도 어드민 확인을 유지하는 이유는 가드가
-     없애지 못하는 것 — 가상계좌를 골랐다가 곧바로 결제 실패를 보는 구매자 경험과 취소에
-     실패한 `needs_review` 건의 운영 처리 — 를 없애는 것은 비노출뿐이기 때문이며, 공개
-     gate(4번)를 열기 전에 확인한다.
-   - **`GET /v1/payments/orders/{orderId}`가 200으로 응답하는지** 실키로 확인한다. 공식 API 키
-     문서의 주문서형(`gsk`) 허용 API 열거에 이 endpoint가 빠져 있어(코어 API 레퍼런스에는 키
-     제한이 없어 문서가 서로 모호하다) 실키 호출 전에는 미확인이고, reconcile·환불 판정은
-     전적으로 이 조회에 의존한다. 승인이 200 `DONE`으로 한 번에 끝나면 앱은 조회를 부르지
-     않으므로, 이 결제를 이어서 취소(클레임 승인)해 환불 경로의 fresh 조회를 태우거나 키를
-     노출하지 않는 방식으로 조회를 한 번 직접 호출해 확인한다. **401/403이나 키·설정 오류
-     코드로 거부되면 5번 gate를 열지 않는다**(반복 요청 제한 `FORBIDDEN_CONSECUTIVE_REQUEST`·
-     은행 서비스 시간 `NOT_AVAILABLE_BANK`의 일시 403은 키 오류가 아니라 잠시 뒤 다시
-     호출한다) — 그 상태에서는 웹훅 재전송이 전부 소진되고
-     환불이 전건 `needs_review`로 잘못 라벨링되므로, paymentKey 기반 조회 fallback 설계가
-     선행 과제가 된다.
+   - **위젯 노출 결제수단이 카드·간편결제뿐인지** 토스 결제 어드민에서 확인한다. 계좌이체·
+     퀵계좌이체·가상계좌·휴대폰·문화상품권·도서문화상품권·게임문화상품권이 **이름까지 하나씩
+     비노출**인지 본다. 이유: 계좌이체·가상계좌가 노출되면 주문서에 에스크로 선택란이 구매자
+     선택으로 자동으로 뜨는데 우리에게는 에스크로 상품 정보 전달·배송 등록·구매확정 연동이 없고,
+     계좌이체 환불 기한은 180일, 휴대폰 취소는 결제일 당월 말일까지다(공식문서 8·17). 코드 가드가
+     원장 쪽을 막는다(공개 gate는 5번):
+     - 가상계좌: 승인 200·confirm 재확인 조회·reconcile 조회에서 `WAITING_FOR_DEPOSIT`을 만나면
+       어댑터가 입금 전에 즉시 전액 취소(`cancelReason`만 싣는다 — 입금 전에는 환불할 금액이 없어
+       `refundReceiveAccount`가 필요 없고 전액 취소만 가능하다, 공식문서 129)하고 `declined`
+       (`provider_method_not_allowed`)로 닫으며, 취소가 성립하지 않으면 `needs_review`로 격리해
+       운영자가 결제 어드민에서 취소한다. 그 전에 구매자가 입금해 `DONE`이 오면 코드가 `approved`를
+       막아 `needs_review`(`resultCode` `DONE_virtual_account`)에 남기고, 그 환불은
+       `refundReceiveAccount`가 필요해 어댑터가 발행하지 않으므로 운영자가 결제 어드민에서
+       처리한다(운영 노트 참조). `PAYMENT_STATUS_CHANGED`는 가상계좌를 포함한 **모든 결제수단**에
+       발송되므로(공식문서 41; 문서 127은 두 이벤트를 모두 등록하면 가상계좌 상태 변경에 웹훅이
+       두 번 간다고 경고한다) 가드 없이는 구매자가 입금하는 순간 `DONE` 웹훅이 reconcile을 태워
+       에스크로(구매안전서비스) 계약 없는 가상계좌 판매가 성립한다.
+     - 그 밖의 허용 밖 수단: `DONE`이 카드·간편결제가 아니면 `approved`로 확정하지 않는다. 계좌이체·
+       휴대폰·상품권은 즉시 전액 취소(멱등키 `cancel-method:{attemptId}`) 뒤 fresh paymentKey 조회로
+       전액 취소가 확인되면 `declined`(`resultCode` `CANCELED_method_not_allowed`), 확인되지 않거나
+       문서에 없는 수단이면 `needs_review`(`DONE_method_not_allowed`)다(결제 프로토콜 10번·운영 노트).
+
+     그래도 어드민 확인을 유지하는 이유는 가드가 없애지 못하는 것 — 허용 밖 수단을 골랐다가 곧바로
+     결제 실패·자동 취소를 보는 구매자 경험과 취소에 실패한 `needs_review` 건의 운영 처리 — 를
+     없애는 것은 비노출뿐이기 때문이며, 공개 gate(5번)를 열기 전에 확인한다.
+   - **상점(MID) 바인딩**: canary 결제가 `approved`로 닫히면 Production 키가 MID `iconsi0xvd`의
+     키라는 실증이다. `needs_review`이고 증거 `resultCode`가 `DONE_merchant_mismatch`면 키가 다른
+     상점이거나 문서 공개 키다 — 키를 교체하기 전에는 5번 gate를 열지 않는다. 같은 배포의 build
+     readback도 `Toss merchant=iconsi0xvd`, `docs public key=false`여야 한다.
+   - **paymentKey 조회·취소 왕복**: 승인이 200 `DONE`으로 한 번에 끝나면 앱은 조회를 부르지
+     않으므로, 이 결제를 이어서 취소해 환불 경로를 태운다. 굿즈 취소는 원장 `payments.payment_key`로
+     `GET /v1/payments/{paymentKey}` → 전액 취소 → 같은 조회로 확인하므로(주문서형 시크릿 키에 명시된
+     조회, 공식문서 122) 이 왕복이 환불 완료로 닫히는지 본다. **401/403이나 키·설정 오류 코드로
+     거부되면 5번 gate를 열지 않는다**(반복 요청 제한 `FORBIDDEN_CONSECUTIVE_REQUEST`·은행 서비스
+     시간 `NOT_AVAILABLE_BANK`의 일시 403은 키 오류가 아니라 잠시 뒤 다시 호출한다).
+   - **`GET /v1/payments/orders/{orderId}`가 200으로 응답하는지**도 실키로 확인해 기록한다. 공식 API
+     키 문서의 주문서형(`gsk`) 허용 API 열거에 이 endpoint가 빠져 있어(코어 API 레퍼런스에는 키
+     제한이 없어 문서가 서로 모호하다) 실키 호출 전에는 미확인이다. 이 조회는 이제 **paymentKey를
+     모르는 재정합에만** 남는다 — 내부 reconcile 라우트(`/api/internal/payments/{goods,tickets}/reconcile`)와,
+     본문 paymentKey 힌트가 없거나 판정에 쓸 수 없는 웹훅(결제 프로토콜 7번). confirm 재확인·굿즈
+     환불은 paymentKey 조회만 쓴다. 키를 노출하지 않는 방식으로 조회를 한 번 직접 호출하거나 테스트
+     attempt 하나를 내부 reconcile 라우트로 지정해 확인한다. 거부되면 그 두 경로가
+     `needs_review`(`provider_configuration_error`)로 끝나 운영자 수동 대조가 늘어난다 — 결과를
+     남길 증거에 적는다.
    - **웹훅이 실제로 도착하는지** 개발자센터 전송 이력과 앱 응답 코드로 확인한다. 2번의 URL
      오타·방화벽 규칙은 여기서만 드러난다.
 
@@ -249,22 +324,30 @@ exact SHA에서 성공한 `production_source_run_id`를 함께 쓴다.
 
 ## 라이브 전환 (⑤, [#395](https://github.com/icons-hq/icons-ip/issues/395))
 
-1. (human) 라이브 키(`live_gck_…`/`live_gsk_…`)를 발급받아 Vercel Production의 두 변수를
-   **동시에** 교체한다. 한쪽만 바꾸면 모드 불일치로 게이트웨이가 unconfigured가 되고, 심사
-   창(③)에서 굿즈 gate가 이미 `true`이므로 그 조합은 다음 배포의 빌드를 곧바로 실패시킨다.
-   두 값을 한 번에 교체해 배포하고 같은 배포의 readback에서 모드를 확인한다.
+1. (human) **공개 gate를 먼저 닫고 라이브 키를 붙인다.** 심사 창(③)에서 굿즈 gate가 `true`인
+   채로 라이브 키만 교체해 배포하면, canary로 아무것도 실증하지 않은 상태에서 공개 사용자가
+   실과금 결제를 할 수 있는 창이 열린다. 그래서 **한 번의 Production 배포에 들어갈 변경 묶음**으로
+   ① `TOSS_ORDER_CHECKOUT_ENABLED=false` ② `TOSS_ORDER_CANARY_USER_ID`(인증된 단일 사용자 UUID)
+   ③ 개발자센터 API 키 메뉴에서 **상점아이디 `iconsi0xvd`를 선택해** 발급받은 라이브 키
+   (`live_gck_…`/`live_gsk_…`)로 두 변수 **동시** 교체 ④ `PAYMENT_RECONCILIATION_SECRET`(없으면
+   등록)을 함께 반영하고 새 deployment를 만든다. 키 한쪽만 바꾸면 모드 불일치로 게이트웨이가
+   unconfigured가 되고, canary가 설정돼 있으므로 그 조합은 빌드를 곧바로 실패시킨다. 같은 배포의
+   readback에서 `Toss configured=true`, `Toss mode=live`, `Toss merchant=iconsi0xvd`,
+   `docs public key=false`, `order checkout enabled=false`, `order canary configured=true`,
+   `payment reconciliation secret configured=true`를 확인한다. 테스트 모드 경고는 더 이상 나오지
+   않는다.
 2. (human/agent) 구 v1 키 계열(`test_sk_…`) 등 더 이상 참조되지 않는 토스 env가 Production·
    Preview 스코프에 남아 있으면 정리한다. 런타임은 형식으로 이미 거절하지만, 남겨 두면
    운영자가 현재 유효한 키를 오인한다.
-3. canary 선검증: 라이브 키가 붙은 상태에서 리허설을 한 명으로 가두기 위해
-   `TOSS_ORDER_CHECKOUT_ENABLED=false`로 되돌리고(심사 창에서 열어 둔 값이다)
-   `TOSS_ORDER_CANARY_USER_ID`만 등록한 새 Production deployment를 만들어, 그 목적의 gate는
-   false·canary만 true인지 readback한다. 실과금 직전에 목적·대상·사용자·금액·결제수단·취소
-   계획을 사용자에게 다시 보여 주고 명시 확인을 받는다. 과거의 구현 승인이나 키 등록 승인을
-   과금 승인으로 재사용하지 않는다.
+3. canary 선검증: 1번 배포로 공개 gate는 이미 닫혔고 리허설은 canary 한 명으로 갇혀 있다. 그
+   목적의 gate는 false·canary만 true인지 readback으로 다시 확인한다. 실과금 직전에 목적·대상·
+   사용자·금액·결제수단·취소 계획을 사용자에게 다시 보여 주고 명시 확인을 받는다. 과거의 구현
+   승인이나 키 등록 승인을 과금 승인으로 재사용하지 않는다.
 4. (human) 소액 실결제 → 취소 리허설을 **카드 1건 · 간편결제 1건** 수행하고, 웹훅 수신과
-   조회 재검증 동작을 확인한다. 리허설 전에 **위젯 노출 결제수단이 카드·간편결제뿐인지**
-   토스 결제 어드민에서 다시 확인한다(심사 트랙 3번과 같은 확인이며, 여기서부터는 실과금이라
+   조회 재검증 동작을 확인한다. 두 결제가 `approved`로 닫히면 라이브 키가 MID `iconsi0xvd`의
+   키라는 실증이고(`provider_merchant_mismatch`면 키를 다시 확인한다), 취소가 환불 완료로 닫히면
+   paymentKey 조회·취소 왕복이 라이브 키로 성립한다는 실증이다. 리허설 전에 **위젯 노출
+   결제수단이 카드·간편결제뿐인지** 토스 결제 어드민에서 다시 확인한다(심사 트랙 3번과 같은 확인이며, 여기서부터는 실과금이라
    결과가 무겁다). 가상계좌가 노출되면 승인 API 200이 `DONE`이 아니라 `WAITING_FOR_DEPOSIT`으로
    오고, 어댑터는 승인·재확인 조회·reconcile 조회 어디서 만나든 입금 전에 즉시 전액 취소해
    `declined`로 닫는다(취소가 성립하지 않으면 `needs_review` — 운영자가 어드민에서 취소한다.
@@ -298,7 +381,7 @@ exact SHA에서 성공한 `production_source_run_id`를 함께 쓴다.
   추측 종결하지 않았다는 뜻이므로 운영자가 원장을 직접 대조한다. 부분취소는 발행하지 않으므로
   잔여 balance가 보이면 그 자체가 이상 신호다. 취소 요청의 멱등키는 attempt에서 파생되므로
   같은 건을 다시 눌러도 값이 같고, 토스는 같은 멱등키에 대해 **첫 요청일로부터 15일간 첫
-  응답을 그대로 재생**한다(공식문서 122). 실패한 취소는 재시도한다고 결과가 달라지지 않으니
+  응답을 그대로 재생**한다(공식문서 123). 실패한 취소는 재시도한다고 결과가 달라지지 않으니
   원인을 먼저 해소한 뒤 다시 요청한다. 오류가 났다고 멱등키만 바꿔 다시 쏘는 것은 문서가
   위험하다고 경고하는 경로이며, 회차별 키 토큰 도입은 후속 이슈다.
 - **웹훅·재정합**: 개발자센터 전송 이력의 성공/실패와 앱 응답 코드를 대조한다. 200은 종결
@@ -310,12 +393,17 @@ exact SHA에서 성공한 `production_source_run_id`를 함께 쓴다.
   풀리지 않는 사람 몫이라 `needs_review`로 격리되고 웹훅에는 ack가 나간다 — 아래 미종결
   attempt 집계에서 `needs_review`가 갑자기 늘면 그것이 키 오류 신호다. 단 공식문서 59의 일시
   403(`FORBIDDEN_CONSECUTIVE_REQUEST` 반복 요청 제한·`NOT_AVAILABLE_BANK` 은행 서비스 시간)은
-  키 축이 아니라 `unknown`으로 남아 5xx·재전송을 받는다.
+  키 축이 아니라 `unknown`으로 남아 5xx·재전송을 받는다. `needs_review` 증거의 `resultCode`가
+  `*_merchant_mismatch`로 늘면 Production 키가 MID `iconsi0xvd`의 키가 아니라는 신호다(운영 노트).
+  웹훅 본문의 paymentKey는 조회 힌트로만 쓰이고, 판정에 쓸 수 없으면 orderId 조회로 넘어간다 —
+  orderId 조회가 거부되는 상점이면 그런 웹훅은 `needs_review`(`provider_configuration_error`)로 끝난다.
   가상계좌 웹훅(`WAITING_FOR_DEPOSIT`)은 조회 8초 + 취소 8초로 첫 전송이 토스의 10초 응답
   예산(공식문서 41 "10 초 이내로 200 응답")을 넘길 수 있어 전송 실패 1회·실패 메일이 기록될
   수 있다 — 핸들러는 완주해 `declined`로 종결하고, +1분 재전송은 종결 attempt라 200으로
   수렴한다(취소는 멱등키 `cancel-unsupported:{attemptId}`라 중복 발행이 없다). 가상계좌 건의
-  이 실패 기록 1회는 정상이며 돈에 영향이 없다.
+  이 실패 기록 1회는 정상이며 돈에 영향이 없다. 허용 밖 결제수단의 `DONE` 웹훅도 조회 8초 + 취소
+  8초 + 확인 조회 8초라 같은 이유로 첫 전송 실패가 1회 기록될 수 있다(멱등키
+  `cancel-method:{attemptId}`).
   콜백이 유실된 건의 만료 + 45분(결제창 30분 · 승인 10분 · 버퍼)은 **시한이 아니라
   `reconcile()`이 실행됐을 때의 판정 규칙**이다 — 그 시각을 지났고 조회가 404이면 실패로
   확정되지만, 시한 도달만으로 스스로 실행되지는 않는다. reconcile을 태우는 트리거는 ① 토스
@@ -363,9 +451,22 @@ exact SHA에서 성공한 `production_source_run_id`를 함께 쓴다.
   입금 전까지만 "돈이 움직이지 않은 상태"다 — `needs_review`는 웹훅·내부 reconcile의 재정합
   대상이라 구매자가 입금하면 `DONE` 조회가 다시 들어오는데, 코드가 `approved`를 막아
   `DONE_virtual_account`로 남긴다(주문은 `pending`·재고 점유 유지). 이 건은 이미 입금된 돈이
-  있으므로 취소 API가 `refundReceiveAccount`(환불 계좌)를 요구하고(공식문서 127) 어댑터는
+  있으므로 취소 API가 `refundReceiveAccount`(환불 계좌)를 요구하고(공식문서 129) 어댑터는
   그 값을 싣지 않는다 — 구매자에게 환불 계좌를 받아 결제 어드민에서 취소·환불한 뒤 주문을
   닫는다. 어느 상태든 이 건을 `approved`로 손대지 않는다(에스크로 계약 없는 가상계좌 판매).
+- **허용 밖 결제수단 `needs_review` 건(`provider_method_not_allowed`, `resultCode`
+  `DONE_method_not_allowed`)**: 계좌이체·휴대폰·상품권 등으로 승인됐는데 자동 취소가 확인되지 않은
+  건이다. 주문은 `pending`·재고 점유로 남는다. 이 건은 재정합 대상이라 다음 웹훅·내부 reconcile이
+  같은 멱등키로 취소를 다시 시도하고, 전액 취소가 조회되면 닫힌다. 그래도 남으면 운영자가 결제
+  어드민에서 전액 취소한 뒤 내부 reconcile 라우트로 그 attempt를 지정한다(휴대폰은 결제일 당월
+  말일까지만 취소된다 — 공식문서 17). 결제수단이 비어 있거나 문서에 없는 수단이면 코드는 취소하지
+  않으므로 운영자가 결제 어드민에서 결제를 확인해 처리한다. 어느 경우든 `approved`로 손대지 않는다.
+- **상점 불일치 `needs_review` 건(`provider_merchant_mismatch`, `resultCode`
+  `{status}_merchant_mismatch`)**: 응답의 `mId`가 `iconsi0xvd`가 아니거나 없다. 대개 Production
+  키가 다른 상점의 키이거나 문서 공개 키라는 뜻이다 — MID `iconsi0xvd`의 키로 교체해 재배포한다.
+  그 결제가 실과금이었다면 그 결제를 만든 MID의 상점관리자에서 취소·환불해야 한다(코드는 다른
+  상점의 결제를 취소하지 않는다). 브랜드페이·해외 간편결제처럼 새 결제서비스를 붙여 생긴
+  건이라면 그 MID를 허용 목록에 더하는 코드 변경이 먼저다.
 
 ## Rollback과 callback drain
 
@@ -401,13 +502,16 @@ deployment → exact SHA/canonical alias → boolean readback 순서를 반복�
 ## 남길 증거
 
 - 배포 exact SHA, PR, Actions run, Vercel deployment URL과 canonical production alias 대상
-- 환경별 변수 **이름·존재 여부·sensitive 여부·gate boolean**과 canonical `SITE_URL` 값만 담은 readback
+- 환경별 변수 **이름·존재 여부·sensitive 여부·gate boolean**과 canonical `SITE_URL` 값만 담은
+  readback, build readback의 `Toss mode`·`Toss merchant=iconsi0xvd`·`docs public key`·
+  `payment reconciliation secret configured`
 - 심사 제출·홈페이지 심사·카드사 심사의 접수 시각과 결과, 19금 공존 서면 확인 보관 위치
 - 약관 제11조·개인정보처리방침 제5조 결제대행사 고지 개정(심사 트랙 4번)의 시행일과 사전
   공지 여부
 - 공개 gate 개방 전 canary 실증(심사 트랙 3번)의 확인 시각과 결과 — 위젯 노출 결제수단이
-  카드·간편결제뿐이었는지, orderId 조회가 200이었는지, 웹훅이 도착했는지, 그 결제로 생긴
-  주문·attempt를 어디에 적어 뒀는지
+  카드·간편결제뿐이었는지(비노출 수단 이름별), canary 결제가 `approved`로 닫혔는지(MID 바인딩),
+  paymentKey 조회·취소 왕복이 닫혔는지, orderId 조회가 200이었는지, 웹훅이 도착했는지, 그
+  결제로 생긴 주문·attempt를 어디에 적어 뒀는지
 - 심사 창의 gate readback(굿즈 open · 티켓 closed · canary 없음)과 수반 위험 기록, 그 기간에
   생성된 무과금 주문·attempt 정리 결과
 - canary 직전 사용자 확인 시각과 승인된 목적·대상·사용자·금액·취소 계획
@@ -431,3 +535,13 @@ issue·PR·로그에도 복사하지 않는다.
 - 심사 요건(7번) 점검 2026-09-08: `/shop` 공개 상품 7개, 사이트 하단 상호·대표자·사업자등록번호·
   통신판매업 신고번호 표기 확인. 비회원 구매 요건은 미해결 — 검수팀에 테스트 계정 제공을 협의한다.
 - 무통장 입금은 `BANK_TRANSFER_*` 미설정(계좌 미확정 #255)으로 닫혀 있으며 이 개방과 무관하다.
+
+### 2026-10-12 상점아이디(MID) 바인딩 기록
+
+- 사용자 확인: 국내 일반결제 상점아이디는 `iconsi0xvd`다.
+- 코드: 어댑터의 MID 대조·paymentKey 조회 우선·결제수단 허용 목록, 웹훅 paymentKey 힌트, build
+  readback 확장(결제 프로토콜 7~10번, 빌드 가드 절). 이 배포부터 Production 키가 MID `iconsi0xvd`의
+  키가 아니면 모든 토스 결제가 `needs_review`(`provider_merchant_mismatch`)로 격리된다.
+- 미실증: 현재 Production에 물린 테스트 키가 MID `iconsi0xvd`의 상점 테스트 키인지(문서 공개 키면
+  배포 로그에 경고가 뜬다). 이 코드를 배포한 직후 readback의 `Toss merchant=iconsi0xvd`·
+  `docs public key=false`와 canary 또는 테스트 결제 1건의 `approved`로 확인하고 결과를 남긴다.
