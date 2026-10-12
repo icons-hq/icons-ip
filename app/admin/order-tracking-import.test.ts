@@ -118,13 +118,13 @@ describe('bulk tracking action', () => {
   });
   it('서원 회신은 출고지 후보를 읽어 줄 내용으로 배송 건을 찾고 배송 건마다 한 번 등록한다', async () => {
     mocks.rpc.mockImplementation(async (name: string, args: { target_rows?: { line: number; reference: string }[] }) => name === 'admin_origin_tracking_candidates'
-      ? { error: null, data: { defaultCarrier: 'epost', truncated: false, shipments: [seowonCandidate()] } }
+      ? { error: null, data: { defaultCarrier: 'epost', truncated: false, shipments: [seowonCandidate()], usedTracking: [] } }
       : { error: null, data: args.target_rows!.map(row => ({ ...row, ok: true, dispatched: true, orderId: seowonOrder, shipmentId: seowonShipment })) });
     const result = await bulkRegisterAdminOrderTrackingAction({}, await seowonForm([
-      seowonRow('합성 키링_빨강', 2, '6012345678901'), seowonRow('합성 엽서', 1, 6012345678901), seowonRow('없는 상품', 1, '6012345678999'),
+      seowonRow('합성 키링_빨강', 2, '6012345678901'), seowonRow('합성 엽서_', 1, 6012345678901), seowonRow('없는 상품', 1, '6012345678999'),
     ]));
     expect(mocks.origins).toHaveBeenCalledWith('seowon_xlsx');
-    expect(mocks.rpc).toHaveBeenNthCalledWith(1, 'admin_origin_tracking_candidates', { target_origin_id: seowonOrigin });
+    expect(mocks.rpc).toHaveBeenNthCalledWith(1, 'admin_origin_tracking_candidates', { target_origin_id: seowonOrigin, target_tracking_numbers: ['6012345678901', '6012345678999'] });
     expect(mocks.rpc).toHaveBeenNthCalledWith(2, 'admin_import_shipment_tracking_batch', { target_rows: [
       { line: 2, reference: seowonShipment, carrier: 'epost', trackingNumber: '6012345678901' },
     ] });
@@ -133,9 +133,9 @@ describe('bulk tracking action', () => {
     expect(mocks.enqueue).toHaveBeenCalledWith([{ orderId: seowonOrder, shipmentId: seowonShipment }]);
   });
   it('서원 회신을 다시 올리면 이미 같은 송장으로 발송된 배송 건은 그대로 두고 다른 송장은 덮어쓰지 않는다', async () => {
-    mocks.rpc.mockResolvedValue({ error: null, data: { defaultCarrier: 'epost', truncated: false,
+    mocks.rpc.mockResolvedValue({ error: null, data: { defaultCarrier: 'epost', truncated: false, usedTracking: [],
       shipments: [seowonCandidate({ status: 'shipping', carrier: 'epost', trackingNumber: '6012345678901' })] } });
-    const same = await bulkRegisterAdminOrderTrackingAction({}, await seowonForm([seowonRow('합성 키링_빨강', 2, '6012345678901'), seowonRow('합성 엽서', 1, '6012345678901')]));
+    const same = await bulkRegisterAdminOrderTrackingAction({}, await seowonForm([seowonRow('합성 키링_빨강', 2, '6012345678901'), seowonRow('합성 엽서_', 1, '6012345678901')]));
     expect(same.message).toContain('새로 등록할 운송장이 없습니다'); expect(same.report?.unchanged).toBe(1);
     const other = await bulkRegisterAdminOrderTrackingAction({}, await seowonForm([seowonRow('합성 키링_빨강', 2, '6012345678902')]));
     expect(other.report?.failed).toEqual([{ line: 2, reference: '전화 끝 5678 · 합성 키링_빨강', reason: SEOWON_REPLY_REASONS.alreadyShipped }]);
@@ -143,7 +143,7 @@ describe('bulk tracking action', () => {
     expect(mocks.enqueue).not.toHaveBeenCalled();
   });
   it('서원 회신에 송장번호 열이 없으면 파일 단계에서 멈춘다', async () => {
-    const workbook=new ExcelJS.Workbook(),sheet=workbook.addWorksheet('송장양식');sheet.addRow([...SEOWON_EXPORT_HEADERS]);sheet.addRow(seowonRow('합성 엽서',1,'').slice(0,9));
+    const workbook=new ExcelJS.Workbook(),sheet=workbook.addWorksheet('송장양식');sheet.addRow([...SEOWON_EXPORT_HEADERS]);sheet.addRow(seowonRow('합성 엽서_',1,'').slice(0,9));
     const data=new FormData();data.set('file',new File([await workbook.xlsx.writeBuffer() as ArrayBuffer],'seowon.xlsx'));
     expect((await bulkRegisterAdminOrderTrackingAction({}, data)).errors?.form).toContain('송장번호 열');
     expect(mocks.rpc).not.toHaveBeenCalled();

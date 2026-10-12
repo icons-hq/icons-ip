@@ -450,11 +450,12 @@ async function registerSeowonReply(parsed: SeowonTrackingParseResult, requestedO
   let origin: { id: string; name: string };
   try { origin = await resolveReplyOrigin(supabase, 'seowon_xlsx', requestedOrigin); }
   catch (error) { return { errors: { form: error instanceof Error ? error.message : '출고지를 확인해주세요.' } }; }
-  const loaded=await supabase.rpc('admin_origin_tracking_candidates',{target_origin_id:origin.id});
-  const candidates=loaded.data as {defaultCarrier?:string|null;truncated?:boolean;shipments?:SeowonReplyCandidate[]}|null;
-  if(loaded.error||!candidates||!Array.isArray(candidates.shipments))return {errors:{form:'남양주 배송 건을 불러오지 못했습니다. 잠시 후 같은 파일로 다시 시도해주세요.'}};
+  const waybills=[...new Set(parsed.rows.filter(row=>!row.error).map(row=>row.trackingNumber))];
+  const loaded=await supabase.rpc('admin_origin_tracking_candidates',{target_origin_id:origin.id,target_tracking_numbers:waybills});
+  const candidates=loaded.data as {defaultCarrier?:string|null;truncated?:boolean;shipments?:SeowonReplyCandidate[];usedTracking?:{trackingNumber:string;shipmentId:string}[]}|null;
+  if(loaded.error||!candidates||!Array.isArray(candidates.shipments)||!Array.isArray(candidates.usedTracking))return {errors:{form:'남양주 배송 건을 불러오지 못했습니다. 잠시 후 같은 파일로 다시 시도해주세요.'}};
   if(!candidates.defaultCarrier)return {errors:{form:shipmentMutationError('warehouse_carrier_required')}};
-  const match=matchSeowonReply(parsed.rows,candidates.shipments);
+  const match=matchSeowonReply(parsed.rows,candidates.shipments,candidates.usedTracking);
   const failed:AdminTrackingImportFailure[]=[...match.issues];const succeeded:string[]=[];
   let queueWarning=false;
   if(match.commands.length){
@@ -464,10 +465,11 @@ async function registerSeowonReply(parsed: SeowonTrackingParseResult, requestedO
     if(result.error?.message&&/^(inactive_shipping_carrier$|invalid_tracking_)/.test(result.error.message))
       return {errors:{form:shipmentMutationError(result.error.message)}};
     if(result.error||!Array.isArray(result.data)||result.data.length!==match.commands.length)return {errors:{form:'등록 결과를 확인하지 못했습니다. 최신 배송 상태를 확인하고 같은 파일로 다시 시도해주세요.'}};
-    const outcomes=new Map((result.data as TrackingBatchRow[]).map(row=>[row.line,row]));
+    // 합배송한 배송 건들은 같은 첫 줄을 공유하므로 결과는 줄이 아니라 배송 건으로 찾는다.
+    const outcomes=new Map((result.data as TrackingBatchRow[]).map(row=>[row.reference,row]));
     const deliveries:{orderId:string;shipmentId:string}[]=[];
     for(const command of match.commands){
-      const outcome=outcomes.get(command.line),reference=command.shipmentId.slice(-8).toUpperCase();
+      const outcome=outcomes.get(command.shipmentId),reference=command.shipmentId.slice(-8).toUpperCase();
       if(outcome?.ok&&outcome.dispatched!==false){succeeded.push(reference);deliveries.push({orderId:command.orderId,shipmentId:command.shipmentId});}
       else if(!outcome?.ok)for(const line of command.lines)failed.push({line,reference,reason:shipmentMutationError(outcome?.error??'')});
     }
@@ -475,7 +477,9 @@ async function registerSeowonReply(parsed: SeowonTrackingParseResult, requestedO
     revalidateOrderSurfaces();
   }
   const state=trackingImportResult(succeeded,failed,match.unchanged.length,queueWarning);
-  return candidates.truncated&&state.message?{...state,message:`${state.message} 대조 후보가 많아 최근 5,000건만 확인했습니다.`}:state;
+  if(!candidates.truncated)return state;
+  const notice=' 대조 후보가 많아 최근 5,000건만 확인했습니다.';
+  return state.errors?.form?{...state,errors:{form:`${state.errors.form}${notice}`}}:{...state,message:`${state.message??''}${notice}`};
 }
 
 /** The DB batch keeps per-row failures and commits each valid shipment once. */

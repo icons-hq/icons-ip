@@ -17,14 +17,14 @@ describe('서원 송장양식 행 규칙', () => {
     expect(['01012345678', '0111234567', '0212345678', '021234567', '0311234567', '07012345678', '050512345678', '15881234', '+82 10']
       .map(formatSeowonPhone)).toEqual(['010-1234-5678', '011-123-4567', '02-1234-5678', '02-123-4567', '031-123-4567', '070-1234-5678', '0505-1234-5678', '1588-1234', '8210']);
   });
-  it('품목명은 서원 회신 예시처럼 상품명_옵션명이고 단일 기본 옵션은 상품명만 쓴다', () => {
+  it('품목명은 서원 회신 예시처럼 상품명_옵션명이고 옵션이 없으면 원본처럼 상품명_으로 끝난다', () => {
     expect(seowonItemName(' 리락쿠마 고속충전 미니 보조배터리 10000 ', '리락쿠마 C타입')).toBe('리락쿠마 고속충전 미니 보조배터리 10000_리락쿠마 C타입');
-    expect(seowonItemName('합성 엽서', '')).toBe('합성 엽서');
+    expect(seowonItemName('합성 엽서', '')).toBe('합성 엽서_');
   });
   it('품목 하나가 한 행이고 줄바꿈·연속 공백을 한 칸으로 줄이며 5자리가 아닌 우편번호는 비운다', () => {
     expect(seowonExportRows([{ ...line, address: '서울  중구\n세종대로', deliveryNote: '문 앞\n부탁', postalCode: '123' }, { ...line, optionName: '', qty: 1 }])).toEqual([
       { phone: '010-1234-5678', otherPhone: '', postalCode: '', address: '서울 중구 세종대로', freightType: '', quantity: 2, items: '합성 키링_빨강', recipient: '합성 수취인', deliveryNote: '문 앞 부탁' },
-      { phone: '010-1234-5678', otherPhone: '', postalCode: '04524', address: line.address, freightType: '', quantity: 1, items: '합성 키링', recipient: '합성 수취인', deliveryNote: '' },
+      { phone: '010-1234-5678', otherPhone: '', postalCode: '04524', address: line.address, freightType: '', quantity: 1, items: '합성 키링_', recipient: '합성 수취인', deliveryNote: '' },
     ]);
   });
 });
@@ -32,7 +32,7 @@ describe('서원 송장양식 행 규칙', () => {
 describe('서원 회신 대조', () => {
   it('한 배송 건의 여러 줄은 송장 하나로 한 번만 등록하고 줄 내용이 다르면 넘겨짚지 않는다', () => {
     const shipment = candidate('a', { lines: [line, { ...line, goodName: '합성 엽서', optionName: '', qty: 1 }] });
-    const match = matchSeowonReply([reply(2, 'T1'), reply(3, 'T1', { items: '합성 엽서', quantity: 1 }), reply(4, 'T2', { quantity: 3 })], [shipment]);
+    const match = matchSeowonReply([reply(2, 'T1'), reply(3, 'T1', { items: '합성 엽서_', quantity: 1 }), reply(4, 'T2', { quantity: 3 })], [shipment]);
     expect(match.commands).toEqual([{ line: 2, shipmentId: 'a', orderId: 'order-a', trackingNumber: 'T1', lines: [2, 3] }]);
     expect(match.issues).toEqual([{ line: 4, reference: '전화 끝 5678 · 합성 키링_빨강', reason: SEOWON_REPLY_REASONS.notFound }]);
   });
@@ -47,19 +47,34 @@ describe('서원 회신 대조', () => {
   });
   it('같은 배송 건 줄의 송장번호가 다르거나 다른 줄에 오류가 있으면 그 배송 건 전체를 등록하지 않는다', () => {
     const shipment = candidate('a', { lines: [line, { ...line, goodName: '합성 엽서', optionName: '', qty: 1 }] });
-    const split = matchSeowonReply([reply(2, 'T1'), reply(3, 'T2', { items: '합성 엽서', quantity: 1 })], [shipment]);
+    const split = matchSeowonReply([reply(2, 'T1'), reply(3, 'T2', { items: '합성 엽서_', quantity: 1 })], [shipment]);
     expect(split.commands).toEqual([]);
     expect(split.issues.map(issue => [issue.line, issue.reason, issue.reference])).toEqual([[2, SEOWON_REPLY_REASONS.conflictInFile, 'A'], [3, SEOWON_REPLY_REASONS.conflictInFile, 'A']]);
-    const broken = matchSeowonReply([reply(2, 'T1'), reply(3, '', { items: '합성 엽서', quantity: 1, error: '송장번호가 비어 있습니다.' })], [shipment]);
+    const broken = matchSeowonReply([reply(2, 'T1'), reply(3, '', { items: '합성 엽서_', quantity: 1, error: '송장번호가 비어 있습니다.' })], [shipment]);
     expect(broken.commands).toEqual([]);
     expect(broken.issues.map(issue => [issue.line, issue.reason])).toEqual([[2, SEOWON_REPLY_REASONS.blockedSibling], [3, '송장번호가 비어 있습니다.']]);
   });
-  it('받는 분·품목이 같은 발송 대기 건은 서원이 합배송한 경우(송장 하나)만 함께 등록한다', () => {
+  it('받는 분·품목이 같은 발송 대기 건은 그 줄이 회신에 모두 있고 송장이 하나(합배송)일 때만 함께 등록한다', () => {
     const twins = [candidate('a'), candidate('b')];
     expect(matchSeowonReply([reply(2, 'T1'), reply(3, 'T1')], twins).commands.map(command => [command.shipmentId, command.trackingNumber])).toEqual([['a', 'T1'], ['b', 'T1']]);
     const separate = matchSeowonReply([reply(2, 'T1'), reply(3, 'T2')], twins);
     expect(separate.commands).toEqual([]);
     expect(separate.issues.map(issue => issue.reason)).toEqual([SEOWON_REPLY_REASONS.splitIdentical, SEOWON_REPLY_REASONS.splitIdentical]);
+    // 한 건의 줄만 회신됐으면 어느 배송 건인지 모르므로 둘 다 발송하지 않는다.
+    const single = matchSeowonReply([reply(2, 'T1')], twins);
+    expect(single.commands).toEqual([]);
+    expect(single.issues.map(issue => issue.reason)).toEqual([SEOWON_REPLY_REASONS.splitIdentical]);
+  });
+  it('합배송한 두 배송 건에 다른 품목이 더 있어도 각 배송 건의 줄이 모두 있으면 함께 등록한다', () => {
+    const bigger = candidate('a', { lines: [line, { ...line, goodName: '합성 엽서', optionName: '', qty: 1 }] });
+    const match = matchSeowonReply([reply(2, 'T1'), reply(3, 'T1', { items: '합성 엽서_', quantity: 1 }), reply(4, 'T1')], [bigger, candidate('b')]);
+    expect(match.issues).toEqual([]);
+    expect(match.commands.map(command => [command.shipmentId, command.lines])).toEqual([['a', [2, 3, 4]], ['b', [2, 4]]]);
+  });
+  it('기간과 관계없이 이미 다른 배송 건에 쓰인 송장번호는 새 배송 건에 붙이지 않는다', () => {
+    const match = matchSeowonReply([reply(2, 'T1')], [candidate('new')], [{ trackingNumber: 'T1', shipmentId: 'old' }]);
+    expect(match.commands).toEqual([]);
+    expect(match.issues).toEqual([{ line: 2, reference: 'NEW', reason: SEOWON_REPLY_REASONS.trackingInUse }]);
   });
   it('같은 회신을 다시 올리면 그대로 두고, 이미 발송된 건의 다른 송장은 덮어쓰지 않는다', () => {
     const shipped = candidate('a', { status: 'shipping', trackingNumber: 'T1' });

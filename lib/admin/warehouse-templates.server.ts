@@ -6,7 +6,7 @@ import {
 import type ExcelJS from 'exceljs';
 import type { ShipmentExportData } from './shipment-dispatch';
 import { parseShipmentExportColumns, shipmentExportCells } from './shipment-workbook';
-import type { TrackingImportParseResult } from './tracking-import';
+import { TRACKING_IMPORT_ROW_LIMIT, type TrackingImportParseResult } from './tracking-import';
 import { readSafeWorkbookCell } from './workbook-safety';
 import { seowonExportRows, type SeowonReplyRow } from './seowon-exchange';
 import { isTrackingNumber, normalizeTrackingNumber } from '@/lib/orders/shipment';
@@ -49,6 +49,10 @@ export function warehouseExportTable(shipments: Shipments) {
     if (shipment.template === 'seowon_xlsx' && shipment.lines.some(line => !Number.isSafeInteger(line.qty) || line.qty < 1)) {
       throw new Error('출고지시 수량 정보를 확인해주세요.');
     }
+  }
+  // 김포·서원 회신은 내려받은 파일에 운송장만 채워 올린다. 회신 한도(1,000줄)를 넘는 파일은 만들지 않는다.
+  if (first.template !== 'standard' && shipments.reduce((rows, shipment) => rows + shipment.lines.length, 0) > TRACKING_IMPORT_ROW_LIMIT) {
+    throw new Error(`한 출고지 파일은 품목 ${TRACKING_IMPORT_ROW_LIMIT.toLocaleString('ko-KR')}줄까지 만들 수 있습니다. 배송 건을 나눠서 내보내주세요.`);
   }
   if (first.template === 'seowon_xlsx') return {
     headers: SEOWON_EXPORT_HEADERS, widths: SEOWON_COLUMNS.map(column => column.width),

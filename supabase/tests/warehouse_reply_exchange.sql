@@ -42,22 +42,49 @@ values('51000000-0000-4000-8000-000000000005','00000000-0000-4000-8000-000000043
 set local role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000043101',true);
 
--- 2) 대조 후보: 발송 대기 택배 건 전부와 최근 45일 발송 건. 주문 당시 스냅샷 값을 그대로 준다.
-select public.admin_origin_tracking_candidates('00000000-0000-4000-8000-000000042202') as candidates \gset
+-- 2) 대조 후보: 출고지시를 전달한 발송 대기 택배 건과 최근 45일 발송 건. 주문 당시 스냅샷 값을 그대로
+--    주고, 회신 송장번호가 기간과 관계없이 이미 쓰였는지(45일 넘은 4번 포함)도 돌려준다.
+select public.admin_origin_tracking_candidates('00000000-0000-4000-8000-000000042202',array['6012345000004','6012345000003','6012345999999']) as candidates \gset
 select 1 / case when :'candidates'::jsonb->>'defaultCarrier'='epost' and :'candidates'::jsonb->>'template'='seowon_xlsx'
  and :'candidates'::jsonb->>'truncated'='false'
- and (select array_agg(right(value->>'id',1) order by value->>'id') from jsonb_array_elements(:'candidates'::jsonb->'shipments'))=array['1','2','3','5']
- and (select value#>>'{lines,0,phone}'='01012340001' and value#>>'{lines,0,address}'='서울특별시 중구 세종대로 110 101호'
+ and (select array_agg(right(value->>'id',1) order by value->>'id') from jsonb_array_elements(:'candidates'::jsonb->'shipments'))=array['2','3']
+ and (select value#>>'{lines,0,phone}'='01012340002' and value#>>'{lines,0,address}'='서울특별시 중구 세종대로 110 201호'
    and value#>>'{lines,0,goodName}'='주문 당시 키링' and value#>>'{lines,0,qty}'='2' and value->>'status'='ready'
-   from jsonb_array_elements(:'candidates'::jsonb->'shipments') where value->>'id' like '%1')
+   from jsonb_array_elements(:'candidates'::jsonb->'shipments') where value->>'id' like '%2')
  and (select value->>'trackingNumber'='6012345000003' and value->>'status'='shipping'
    from jsonb_array_elements(:'candidates'::jsonb->'shipments') where value->>'id' like '%3')
+ and :'candidates'::jsonb->'usedTracking'=jsonb_build_array(
+   jsonb_build_object('trackingNumber','6012345000003','shipmentId','61000000-0000-4000-8000-000000000003'),
+   jsonb_build_object('trackingNumber','6012345000004','shipmentId','61000000-0000-4000-8000-000000000004'))
  then 1 else 0 end as assert_reply_candidates_scope;
+do $$ begin
+ perform public.admin_origin_tracking_candidates('00000000-0000-4000-8000-000000042202',(select array_agg(n::text) from generate_series(1,1001) n));
+ raise exception 'oversized waybill lookup accepted';
+exception when invalid_parameter_value then if sqlerrm<>'invalid_tracking_batch' then raise; end if; end $$;
 
--- 3) 출고지별 새 출고지시: 전달 전·취소 요청 없음·발송 대기만.
+-- 3) 출고지별 새 출고지시: 전달 전·취소 요청 없음·발송 대기만, 품목 1,000줄까지.
 select 1 / case when public.admin_origin_pending_export_ids('00000000-0000-4000-8000-000000042202')
  =jsonb_build_object('ids',jsonb_build_array('61000000-0000-4000-8000-000000000001'),'total',1)
  then 1 else 0 end as assert_pending_export_excludes_exported_and_cancelling;
+reset role;
+insert into public.orders(id,user_id,status,total,shipping_fee,address,confirmed_at,created_at)
+select ('52000000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid,'00000000-0000-4000-8000-000000043101','confirmed',0,0,
+ '{"recipientName":"합성 대량","phone":"01000000000","postalCode":"04524","address1":"합성 주소"}',now(),now()+n*interval '1 second'
+from generate_series(1,3) n;
+insert into public.order_items(order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot)
+select ('52000000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid,good_id,id,1,1000,'주문 당시 키링','문구','warehouse-reply'
+from public.goods_variants cross join generate_series(1,3) n cross join generate_series(1,400) line where good_id='warehouse-reply' and is_default;
+insert into public.order_shipments(id,order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot)
+select ('62000000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid,('52000000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid,
+ '00000000-0000-4000-8000-000000042202','남양주',0,'{}' from generate_series(1,3) n;
+insert into public.order_shipment_items(order_id,shipment_id,order_item_id)
+select i.order_id,('62000000-0000-4000-8000-'||right(i.order_id::text,12))::uuid,i.id from public.order_items i where i.order_id::text like '52000000-%';
+set local role authenticated;
+-- 400줄 배송 건 셋 + 1줄 배송 건 하나: 앞의 1줄 + 400 + 400 = 801줄까지만 고르고 나머지 수는 총계로 알린다.
+select 1 / case when (select jsonb_array_length(value->'ids')=3 and value->>'total'='4'
+   and not (value->'ids') ? '62000000-0000-4000-8000-000000000003'
+   from (select public.admin_origin_pending_export_ids('00000000-0000-4000-8000-000000042202') value) pending)
+ then 1 else 0 end as assert_pending_export_caps_item_rows;
 
 -- 4) 일괄 등록은 발송 대기 건만 발송처리하고, 이미 발송된 건은 같은 값이면 그대로·다르면 거절한다.
 select public.admin_import_shipment_tracking('61000000-0000-4000-8000-000000000001','epost','6012345000011') as first \gset
@@ -93,7 +120,7 @@ reset role;
 update public.profiles set role='user' where id='00000000-0000-4000-8000-000000043101';
 set local role authenticated;
 do $$ begin
- perform public.admin_origin_tracking_candidates('00000000-0000-4000-8000-000000042202');
+ perform public.admin_origin_tracking_candidates('00000000-0000-4000-8000-000000042202','{}');
  raise exception 'customer read reply candidates';
 exception when insufficient_privilege then null; end $$;
 do $$ begin
@@ -101,9 +128,9 @@ do $$ begin
  raise exception 'customer read pending exports';
 exception when insufficient_privilege then null; end $$;
 reset role;
-select 1 / case when not has_function_privilege('anon','public.admin_origin_tracking_candidates(uuid)','execute')
- and not has_function_privilege('service_role','public.admin_origin_tracking_candidates(uuid)','execute')
- and has_function_privilege('authenticated','public.admin_origin_tracking_candidates(uuid)','execute')
+select 1 / case when not has_function_privilege('anon','public.admin_origin_tracking_candidates(uuid,text[])','execute')
+ and not has_function_privilege('service_role','public.admin_origin_tracking_candidates(uuid,text[])','execute')
+ and has_function_privilege('authenticated','public.admin_origin_tracking_candidates(uuid,text[])','execute')
  and not has_function_privilege('anon','public.admin_origin_pending_export_ids(uuid)','execute')
  and not has_function_privilege('service_role','public.admin_origin_pending_export_ids(uuid)','execute')
  and has_function_privilege('authenticated','public.admin_origin_pending_export_ids(uuid)','execute')

@@ -10,8 +10,9 @@ function selection(value:unknown):string[]|null {if(!Array.isArray(value)||!valu
 async function staff(){const auth=await getCurrentAdminAuthState();return auth.isConfigured&&auth.user&&auth.isStaff?auth:null;}
 function refresh(){revalidatePath('/admin/sales/dispatch');revalidatePath('/admin/sales/shipping');revalidatePath('/admin/sales/orders');revalidatePath('/orders');}
 type Client=Awaited<ReturnType<typeof createClient>>;
+type ExportResult={error:string;file?:undefined;message?:undefined}|{file:{base64:string;mime:string;name:string};message:string;error?:undefined};
 /** Build the warehouse files first; only a successfully built batch is recorded as handed over. */
-async function exportShipments(client:Client,keys:string[],format:'xlsx'|'csv',note=''){
+async function exportShipments(client:Client,keys:string[],format:'xlsx'|'csv',note=''):Promise<ExportResult>{
  const result=await client.rpc('admin_shipment_export',{target_ids:keys});
  if(result.error||!result.data)return {error:'발송 대기 상태와 취소 요청을 확인해주세요. 출고지시를 만들지 못했습니다.'};
  const data=result.data as ShipmentExportData;
@@ -24,13 +25,13 @@ async function exportShipments(client:Client,keys:string[],format:'xlsx'|'csv',n
    message:`${keys.length}건의 출고지시를 내려받았습니다.${file.extension==='zip'?' 출고지별 파일을 ZIP으로 묶었습니다. 각 파일을 해당 창고에 그대로 전달해주세요.':''}${note}`};
  }catch(error){return {error:error instanceof Error?error.message:'출고지시 파일을 만들지 못했습니다.'};}
 }
-export async function exportShipmentsAction(ids:unknown,format:'xlsx'|'csv'){
+export async function exportShipmentsAction(ids:unknown,format:'xlsx'|'csv'):Promise<ExportResult>{
  if(!await staff())return {error:'직원 권한이 필요합니다.'};const keys=selection(ids);
  if(!keys||!['xlsx','csv'].includes(format))return {error:'내보낼 배송 건을 1~1,000개 선택해주세요.'};
  return exportShipments(await createClient(),keys,format);
 }
-/** 한 출고지의 아직 전달하지 않은 발송 대기 건 전부(최대 1,000건)를 그 창고 양식 파일 하나로 받는다. */
-export async function exportPendingOriginShipmentsAction(originId:unknown,format:'xlsx'|'csv'){
+/** 한 출고지의 아직 전달하지 않은 발송 대기 건을 품목 1,000줄(회신 한도)까지 그 창고 양식 파일 하나로 받는다. */
+export async function exportPendingOriginShipmentsAction(originId:unknown,format:'xlsx'|'csv'):Promise<ExportResult>{
  if(!await staff())return {error:'직원 권한이 필요합니다.'};
  if(typeof originId!=='string'||!UUID.test(originId)||!['xlsx','csv'].includes(format))return {error:'출고지를 선택해주세요.'};
  const client=await createClient();

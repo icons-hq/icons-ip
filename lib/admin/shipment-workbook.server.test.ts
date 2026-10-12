@@ -53,7 +53,7 @@ describe('shipment workbook exchange', () => {
     expect(sheet.getRow(1).values).toEqual([undefined, '받는분전화번호', '받는분기타연락처', '받는분우편번호', '받는분주소(전체,분할)', '운임Type', '수량', '품목명', '받는분성명', '배송메시지']);
     expect(sheet.rowCount).toBe(3);
     expect(sheet.getRow(2).values).toEqual([undefined, '010-0123-4567', '', '00123', '서울시, 상세주소', '', 2, '합성 키링_빨강', '합성 수취인', '문 앞 부탁합니다']);
-    expect(sheet.getRow(3).values).toEqual([undefined, '010-0123-4567', '', '00123', '서울시, 상세주소', '', 1, '합성 엽서', '합성 수취인', '문 앞 부탁합니다']);
+    expect(sheet.getRow(3).values).toEqual([undefined, '010-0123-4567', '', '00123', '서울시, 상세주소', '', 1, '합성 엽서_', '합성 수취인', '문 앞 부탁합니다']);
     expect([1, 2, 3, 4, 5, 6, 7].map(column => sheet.getColumn(column).width)).toEqual([18.3984375, 21, 18.3984375, 83.3984375, 11.69921875, 6.59765625, 62.5]);
     const fill = (address: string) => (sheet.getCell(address).fill as ExcelJS.FillPattern).fgColor;
     expect(['A1', 'D1'].map(fill)).toEqual([{ argb: 'FFFFFF00' }, { argb: 'FFFFFF00' }]);
@@ -187,6 +187,10 @@ describe('shipment workbook exchange', () => {
   it('rejects invalid export data before producing a file', async () => {
     await expect(buildShipmentExport({ shipments: [{ ...shipment, lines: [] }] }, 'xlsx')).rejects.toThrow('상품 정보');
     await expect(buildShipmentExport({ shipments: [{ ...shipment, template: 'seowon_xlsx', lines: [{ ...line, qty: 0 }] }] }, 'xlsx')).rejects.toThrow('수량');
+    // 김포·서원 파일은 회신 업로드 한도(1,000줄)를 넘겨 만들지 않는다.
+    const many = Array.from({ length: 1001 }, () => ({ ...line }));
+    await expect(buildShipmentExport({ shipments: [{ ...shipment, template: 'seowon_xlsx', lines: many }] }, 'xlsx')).rejects.toThrow('1,000줄');
+    await expect(buildShipmentExport({ shipments: [{ ...shipment, template: 'wms_csv', lines: many }] }, 'csv')).rejects.toThrow('1,000줄');
     await expect(buildShipmentExport({ shipments: [{ ...shipment, columns: [] }] } as ShipmentExportData, 'xlsx')).rejects.toThrow('양식');
   });
 });

@@ -44,7 +44,8 @@ describe('배송 건 콘솔',()=>{
   const html=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,rows:[pickup]}}/>);
   expect(html).toContain('배송 방식');expect(html).toContain('방문수령 인계·수령 확인');
   expect(html).not.toContain(`aria-label="배송 건 ${row.id.slice(-8).toUpperCase()} 선택"`);
-  expect(html).not.toContain('엑셀 일괄 운송장 등록');expect(html).not.toContain('운송장 확인 필요');
+  // 회신 업로드는 파일로 출고지를 찾으므로 퀵·방문수령만 보이는 페이지에서도 연다.
+  expect(html).toContain('엑셀 일괄 운송장 등록');expect(html).not.toContain('운송장 확인 필요');
   expect(html).not.toContain('출고지시 내보내기');
   const transit=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,surface:'shipping',filters:{...base.filters,tab:'transit'},
    rows:[{...pickup,status:'shipping',delivery:shipmentDeliveryFixture({method:'quick',providerName:'실제 퀵 업체'})}]}}/>);

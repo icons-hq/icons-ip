@@ -88,7 +88,7 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
     {pending?<span role="status">처리 중…</span>:null}
    </div>:null}
    {exportOrigins.length?<div className="wc-admin-kit__actions" role="group" aria-label="출고지별 새 출고지시 내려받기" style={{padding:'0 12px 12px'}}>
-    <span>선택 없이 출고지별로 아직 전달하지 않은 발송 대기 건 전체(최대 1,000건)를 그 창고 양식 파일 하나로 받습니다.</span>
+    <span>선택 없이 출고지별로 아직 전달하지 않은 발송 대기 건을 그 창고 양식 파일 하나로 받습니다(품목 1,000줄까지, 남으면 다시 눌러 이어 받기).</span>
     {exportOrigins.map(origin=><button key={origin.id} type="button" className="wc-admin-kit__button" disabled={pending} onClick={()=>exportOrigin(origin)}>{origin.name} 새 출고지시 전체 내려받기</button>)}
    </div>:null}
   </ConsoleGrid>

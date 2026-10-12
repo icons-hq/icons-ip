@@ -6,21 +6,21 @@
 -- 시작하고, 이후 값은 어드민 출고지 설정이 소유한다.
 --
 -- 운영자가 이미 우체국 택배사를 다른 코드로 등록했거나 남양주를 직접 설정했다면(택배사 지정·
--- 배송비 변경·활성) 그 값을 덮어쓰지 않는다. 비활성 상태의 `epost`가 있으면 운영 판단으로 보고
--- 다시 켜지 않는다.
+-- 배송비 변경·활성) 그 값을 덮어쓰지 않는다. 우체국 택배사가 있지만 모두 비활성이면 운영 판단으로
+-- 보고 새로 만들거나 남양주를 켜지 않는다.
 do $$
 declare carrier_code text;
 begin
   select code into carrier_code from public.shipping_carriers
     where is_active and (code = 'epost' or label like '%우체국%')
     order by code <> 'epost', sort_order, code limit 1;
-  if carrier_code is null and not exists (select 1 from public.shipping_carriers where code = 'epost') then
+  if carrier_code is null then
+    if exists (select 1 from public.shipping_carriers where code = 'epost' or label like '%우체국%') then return; end if;
     insert into public.shipping_carriers (code, label, is_active, tracking_url_template, sort_order)
     values ('epost', '우체국택배', true,
       'https://service.epost.go.kr/trace.RetrieveDomRigiTraceList.comm?sid1={trackingNumber}', 20);
     carrier_code := 'epost';
   end if;
-  if carrier_code is null then return; end if;
   update public.fulfillment_origins
      set default_carrier = carrier_code, base_fee = 3000, free_threshold = 50000, cutoff = '10:00',
          is_active = true, updated_at = greatest(clock_timestamp(), updated_at + interval '1 microsecond')

@@ -29,21 +29,26 @@ revoke all on function public.admin_import_shipment_tracking(text,text,text) fro
 grant execute on function public.admin_import_shipment_tracking(text,text,text) to authenticated;
 
 -- 2) 서원은 주문번호를 돌려주지 않는다(질문지 D4). 회신 줄은 내려받은 송장양식의 줄 내용으로
---    배송 건을 찾으므로, 출고지의 대조 후보를 내보내기와 같은 스냅샷 값으로 읽는다: 발송 대기 택배
---    배송 건 전부와, 재업로드를 알아보기 위한 최근 45일 발송 건. 줄 규칙(전화 표기·품목명)은 앱의
---    서원 내보내기 한 곳에서만 만든다.
-create function public.admin_origin_tracking_candidates(target_origin_id uuid) returns jsonb
-language plpgsql stable security definer set search_path='' as $$
+--    배송 건을 찾으므로, 출고지의 대조 후보를 내보내기와 같은 스냅샷 값으로 읽는다: 출고지시를
+--    전달한(exported_at) 발송 대기 택배 배송 건과, 재업로드를 알아보기 위한 최근 45일 발송 건.
+--    아직 전달하지 않은 발송 대기 건은 회신에 있을 수 없으므로 후보가 아니다. 회신의 송장번호가
+--    기간과 관계없이 이미 다른 배송 건에 쓰였는지도 함께 돌려준다(예전 회신 재업로드 방지).
+--    줄 규칙(전화 표기·품목명)은 앱의 서원 내보내기 한 곳에서만 만든다.
+create function public.admin_origin_tracking_candidates(target_origin_id uuid,target_tracking_numbers text[])
+returns jsonb language plpgsql stable security definer set search_path='' as $$
 declare origin public.fulfillment_origins;result jsonb;
 begin
  if (select auth.uid()) is null or not public.is_staff() then raise insufficient_privilege using message='staff required';end if;
+ if target_tracking_numbers is null or cardinality(target_tracking_numbers)>1000 then
+   raise invalid_parameter_value using message='invalid_tracking_batch';
+ end if;
  select * into origin from public.fulfillment_origins where id=target_origin_id;
  if not found then raise no_data_found using message='warehouse_origin_not_found';end if;
  with candidates as (
   select s.id,s.order_id,s.status,s.carrier,s.tracking_number,o.address
   from public.order_shipments s join public.orders o on o.id=s.order_id
   where s.origin_id=origin.id and s.delivery_method='parcel'
-   and ((s.status='ready' and o.status in ('confirmed','shipping'))
+   and ((s.status='ready' and s.exported_at is not null and o.status in ('confirmed','shipping'))
      or (s.status in ('shipping','delivered') and o.status<>'canceled' and s.shipped_at>=now()-interval '45 days'))
   order by s.status<>'ready',s.shipped_at desc nulls first,s.id
   limit 5001
@@ -58,29 +63,40 @@ begin
        'goodName',i.good_name_snapshot,'optionName',coalesce(i.variant_name_snapshot,''),'qty',i.qty,
        'deliveryNote',coalesce(c.address->>'deliveryNote','')) order by i.id)
       from public.order_shipment_items link join public.order_items i on i.id=link.order_item_id
-      where link.shipment_id=c.id),'[]'))) from bounded c),'[]'))
+      where link.shipment_id=c.id),'[]'))) from bounded c),'[]'),
+   'usedTracking',coalesce((select jsonb_agg(jsonb_build_object('trackingNumber',s.tracking_number,'shipmentId',s.id) order by s.tracking_number,s.id)
+     from public.order_shipments s where s.carrier=origin.default_carrier and s.tracking_number=any(target_tracking_numbers)),'[]'))
  into result;
  return result;
 end $$;
-revoke all on function public.admin_origin_tracking_candidates(uuid) from public,anon,authenticated,service_role;
-grant execute on function public.admin_origin_tracking_candidates(uuid) to authenticated;
+revoke all on function public.admin_origin_tracking_candidates(uuid,text[]) from public,anon,authenticated,service_role;
+grant execute on function public.admin_origin_tracking_candidates(uuid,text[]) to authenticated;
 
 -- 3) 출고지별 "새 출고지시 한 번에 내려받기". 목록은 100건씩 보이지만 출고지시는 출고지 단위로
 --    한 파일이어야 한다. 내보내기 RPC가 거절할 배송 건(취소 진행·예약 미할당·퀵/방문수령·이미
---    전달)은 미리 뺀다. 한 번에 1,000건까지이고 나머지 수는 함께 알린다.
+--    전달)은 미리 뺀다. 김포·서원 파일은 품목 한 줄이 한 행이고 회신 업로드는 1,000줄까지라,
+--    한 번에 품목 1,000줄(배송 건 1,000건)까지만 고르고 나머지 수는 함께 알린다.
 create function public.admin_origin_pending_export_ids(target_origin_id uuid) returns jsonb
 language plpgsql stable security definer set search_path='' as $$
-declare eligible uuid[];
+declare result jsonb;
 begin
  if (select auth.uid()) is null or not public.is_staff() then raise insufficient_privilege using message='staff required';end if;
- select coalesce(array_agg(id order by created_at,id),'{}') into eligible from (
-  select s.id,s.created_at from public.order_shipments s join public.orders o on o.id=s.order_id
+ with pending as (
+  select s.id,s.created_at,(select count(*) from public.order_shipment_items link where link.shipment_id=s.id) line_count
+  from public.order_shipments s join public.orders o on o.id=s.order_id
   where s.origin_id=target_origin_id and s.status='ready' and s.exported_at is null and s.delivery_method='parcel'
    and o.status in ('confirmed','shipping') and private.shipment_preorder_allocation_ready(s.id)
    and not exists(select 1 from public.order_cancellation_requests r where r.order_id=o.id and r.status in ('requested','processing','needs_review'))
    and not exists(select 1 from public.order_cancellation_claims c where c.order_id=o.id)
- ) pending;
- return jsonb_build_object('ids',to_jsonb(eligible[1:1000]),'total',cardinality(eligible));
+ ), ordered as (
+  select id,created_at,sum(line_count) over(order by created_at,id) running_lines,row_number() over(order by created_at,id) position
+  from pending
+ )
+ select jsonb_build_object(
+   'ids',coalesce((select jsonb_agg(id order by created_at,id) from ordered where running_lines<=1000 and position<=1000),'[]'),
+   'total',(select count(*) from pending))
+ into result;
+ return result;
 end $$;
 revoke all on function public.admin_origin_pending_export_ids(uuid) from public,anon,authenticated,service_role;
 grant execute on function public.admin_origin_pending_export_ids(uuid) to authenticated;
