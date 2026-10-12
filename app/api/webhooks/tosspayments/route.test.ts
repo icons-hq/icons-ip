@@ -62,9 +62,12 @@ describe('POST /api/webhooks/tosspayments', () => {
 
     expect(result.status).toBe(200);
     expect(deps.loadAttempt).toHaveBeenCalledWith(PROVIDER_ORDER_ID);
+    // paymentKey는 판정이 아니라 조회 힌트로만 seam에 넘어간다 — 게이트웨이가 조회
+    // 응답이 attempt와 일치할 때만 쓴다.
     expect(deps.reconcileGoods).toHaveBeenCalledWith({
       attemptId: ATTEMPT_ID,
       caseRef: TRANSMISSION_ID,
+      providerPaymentKeyHint: PAYMENT_KEY,
     });
     expect(deps.reconcileTicket).not.toHaveBeenCalled();
     expect(await result.text()).not.toContain(PAYMENT_KEY);
@@ -88,6 +91,7 @@ describe('POST /api/webhooks/tosspayments', () => {
     expect(deps.reconcileTicket).toHaveBeenCalledWith({
       attemptId: ATTEMPT_ID,
       caseRef: TRANSMISSION_ID,
+      providerPaymentKeyHint: PAYMENT_KEY,
     });
     expect(deps.reconcileGoods).not.toHaveBeenCalled();
   });
@@ -289,6 +293,36 @@ describe('POST /api/webhooks/tosspayments', () => {
     expect(deps.reconcileGoods).toHaveBeenCalledWith({
       attemptId: ATTEMPT_ID,
       caseRef: 'webhook-11111111-2222-4333-8444-555555555555',
+      providerPaymentKeyHint: PAYMENT_KEY,
     });
+  });
+
+  it.each([
+    ['paymentKey 누락', { paymentKey: undefined }],
+    ['형식 밖 paymentKey(공백)', { paymentKey: 'has space' }],
+    ['형식 밖 paymentKey(200자 초과)', { paymentKey: 'k'.repeat(201) }],
+    ['문자열이 아닌 paymentKey', { paymentKey: 12345 }],
+  ])('%s면 힌트 없이 재정합한다 — 힌트는 선택이고 형식 밖 값은 조회에 쓰지 않는다', async (_label, override) => {
+    const { deps, post } = handler();
+
+    const result = await post(webhookRequest(
+      statusChangedBody(override),
+      { 'tosspayments-webhook-transmission-id': TRANSMISSION_ID },
+    ));
+
+    expect(result.status).toBe(200);
+    expect(deps.reconcileGoods).toHaveBeenCalledWith({
+      attemptId: ATTEMPT_ID,
+      caseRef: TRANSMISSION_ID,
+    });
+  });
+
+  it('힌트를 실어도 응답 본문에 paymentKey를 싣지 않는다', async () => {
+    const { post } = handler({ reconcileGoods: vi.fn(async () => ({ outcome: 'unknown' as const })) });
+
+    const result = await post(webhookRequest(statusChangedBody()));
+
+    expect(result.status).toBe(500);
+    expect(await result.text()).not.toContain(PAYMENT_KEY);
   });
 });

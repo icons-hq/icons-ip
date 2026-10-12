@@ -445,5 +445,38 @@ describe('GoodsPaymentCheckout', () => {
       await expect(checkout.reconcilePayment({ attemptId: ATTEMPT_ID, caseRef: 'short' }))
         .rejects.toBeInstanceOf(GoodsPaymentContractError);
     });
+
+    it.each([['webhook-payment-key-hint'], [undefined]])(
+      '웹훅 paymentKey 힌트(%s)는 게이트웨이 조회 힌트로만 넘기고, 없으면 힌트 인자 없이 부른다',
+      async (hint) => {
+        const repository = new MemoryGoodsPaymentAttemptRepository();
+        const gateway = new FakePaymentGateway({
+          prepare: [prepared()],
+          confirm: [outcome('unknown')],
+          reconcile: [outcome('approved', { reasonCode: 'provider_reconciled_approved' })],
+        });
+        const reconcileSpy = vi.spyOn(gateway, 'reconcile');
+        const checkout = createGoodsPaymentCheckout({
+          provider: 'korpay',
+          gateway,
+          repository,
+          createClaimToken: () => '40000000-0000-4000-8000-000000000205',
+        });
+        await checkout.prepare({ userId: USER_ID, orderId: ORDER_ID });
+        await checkout.confirm(CALLBACK);
+
+        const reconciled = await checkout.reconcilePayment({
+          attemptId: ATTEMPT_ID,
+          caseRef: CASE_REF,
+          ...(hint ? { providerPaymentKeyHint: hint } : {}),
+        });
+
+        expect(reconciled.outcome).toBe('approved');
+        expect(reconcileSpy).toHaveBeenCalledTimes(1);
+        const [attemptArg, ...rest] = reconcileSpy.mock.calls[0]!;
+        expect(attemptArg.id).toBe(ATTEMPT_ID);
+        expect(rest).toEqual(hint ? [{ providerPaymentKey: hint }] : []);
+      },
+    );
   });
 });

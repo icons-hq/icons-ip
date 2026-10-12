@@ -27,15 +27,22 @@ interface WebhookAttemptRow {
  */
 type WebhookReconcileResult = Pick<ConfirmOutcome, 'outcome'>;
 
+/**
+ * reconcile seam 입력. `providerPaymentKeyHint`는 서명 없는 본문의 paymentKey라 확정
+ * 근거가 아니다 — 게이트웨이가 paymentKey 조회 응답이 attempt(주문·상점 MID)와 일치할
+ * 때만 쓰고, 아니면 버리고 orderId 조회로 판정한다.
+ */
+interface WebhookReconcileInput {
+  readonly attemptId: string;
+  readonly caseRef: string;
+  readonly providerPaymentKeyHint?: string;
+}
+
 interface TossWebhookHandlerDependencies {
   readonly available: () => boolean;
   readonly loadAttempt: (providerOrderId: string) => Promise<WebhookAttemptRow | null>;
-  readonly reconcileGoods: (
-    input: { attemptId: string; caseRef: string },
-  ) => Promise<WebhookReconcileResult>;
-  readonly reconcileTicket: (
-    input: { attemptId: string; caseRef: string },
-  ) => Promise<WebhookReconcileResult>;
+  readonly reconcileGoods: (input: WebhookReconcileInput) => Promise<WebhookReconcileResult>;
+  readonly reconcileTicket: (input: WebhookReconcileInput) => Promise<WebhookReconcileResult>;
   readonly createCaseRefFallback?: () => string;
 }
 
@@ -47,10 +54,11 @@ function acknowledged() {
 
 /**
  * 토스 웹훅(같은 URL에 문서 기반 재작성 — #390). 웹훅은 확정의 진실원이 아니라
- * 재정합 트리거다: 본문에서 orderId만 읽어 해당 attempt를 조회 API 기반
- * reconcile seam에 태우고, 반영은 전부 DB 멱등 finalizer가 한다. 종결된
- * attempt에 대한 웹훅(중복 수신·상태 역전 신호)은 no-op 200이다 — 원장을
- * 웹훅으로 되돌리는 경로는 존재하지 않는다.
+ * 재정합 트리거다: 본문에서 orderId(대상 attempt)와 paymentKey(조회 힌트)만 읽어 해당
+ * attempt를 조회 API 기반 reconcile seam에 태우고, 반영은 전부 DB 멱등 finalizer가 한다.
+ * 종결된 attempt에 대한 웹훅(중복 수신·상태 역전 신호)은 no-op 200이다 — 원장을
+ * 웹훅으로 되돌리는 경로는 존재하지 않는다. 웹훅은 상점아이디(MID)별로 등록·전송되므로
+ * (공식문서 41 /guides/v2/webhook) 개발자센터에서 MID iconsi0xvd에 등록한다.
  */
 export function createTossWebhookHandler({
   available,
@@ -92,11 +100,18 @@ export function createTossWebhookHandler({
     const caseRef = tossWebhookCaseRef(request, createCaseRefFallback);
     if (!caseRef) return acknowledged();
 
+    const reconcileInput: WebhookReconcileInput = {
+      attemptId: attempt.id,
+      caseRef,
+      ...(parsed.providerPaymentKeyHint
+        ? { providerPaymentKeyHint: parsed.providerPaymentKeyHint }
+        : {}),
+    };
     let result: WebhookReconcileResult;
     try {
       result = attempt.purpose === 'order'
-        ? await reconcileGoods({ attemptId: attempt.id, caseRef })
-        : await reconcileTicket({ attemptId: attempt.id, caseRef });
+        ? await reconcileGoods(reconcileInput)
+        : await reconcileTicket(reconcileInput);
     } catch (error) {
       if (
         error instanceof GoodsPaymentReconciliationInProgressError
