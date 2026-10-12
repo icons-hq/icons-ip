@@ -342,8 +342,8 @@ async function markNeedsReview(
  *
  * 승인 직후 서버가 곧바로 부르는 것이 정상 경로다 — 고객 자동 승인은
  * cancellation-auto.server.ts가 시스템 actor(null)로, 클레임 콘솔·주문 콘솔 승인과
- * 운영자 전액 취소는 그 staff actor로 부른다. 운영자의 '처리 상태 확인'·'환불 완료
- * 확정'은 같은 함수를 다시 부르는 재시도 표면이다.
+ * 운영자 전액 취소는 그 staff actor로 부른다. 클레임 상세의 '환불 완료 확정'과 주문
+ * 패널의 '처리 상태 확인'·'상태 다시 확인'은 같은 함수를 다시 부르는 재시도 표면이다.
  */
 export async function reconcileOrderCancellation(
   input: { requestId: string; actorId: CancellationActorId },

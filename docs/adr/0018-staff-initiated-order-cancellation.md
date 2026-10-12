@@ -16,7 +16,7 @@
 
 ## 결정
 
-- staff는 사유와 함께 **모든 배송 건이 아직 발송 전인** 주문의 전액 취소를 시작할 수 있다. 감사 RPC `admin_start_order_cancellation(order, reason_code, note, warehouse_stop_confirmed)` 하나로만 연다. 화면은 주문 콘솔의 주문 상세다.
+- staff는 사유와 함께 **모든 배송 건이 아직 발송 전인** 주문의 전액 취소를 시작할 수 있다. 감사 RPC `admin_start_order_cancellation(order, reason_code, note, warehouse_stop_confirmed)` 하나로만 연다. 화면은 주문 통합검색(`/admin/sales/orders`)에서 주문을 선택하면 열리는 주문 패널이고, 양식은 아래 결제 조건과 같은 조건(실패가 아닌 결제가 모두 토스 결제완료)일 때만 그린다.
 - 허용 조건(DB가 주문·배송 건 잠금 아래에서 판정):
   - 주문 `paid` 또는 `confirmed`, 주문 발송·배송완료·거래확정 시각 없음
   - 모든 배송 건이 `ready`·`canceled`이고 발송·배송완료 시각 없음
