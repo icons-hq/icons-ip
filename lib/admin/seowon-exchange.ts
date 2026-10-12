@@ -60,6 +60,7 @@ export const SEOWON_REPLY_REASONS = {
   splitIdentical: '받는 분과 품목이 같은 배송 건이 여러 개인데 송장번호가 서로 다릅니다. 주문 통합검색에서 배송 건별로 등록해주세요.',
   conflictInFile: '같은 배송 건의 줄에 서로 다른 송장번호가 있습니다. 나눠 보낸 경우 대표 송장번호 하나로 맞춰 다시 올려주세요.',
   blockedSibling: '같은 배송 건의 다른 줄에 오류가 있습니다. 해당 배송 건의 모든 줄을 함께 고쳐주세요.',
+  partial: '이 배송 건의 품목 가운데 회신에 없는 줄이 있습니다. 모두 출고했다면 내려받은 줄을 빠짐없이 올리고, 일부만 출고했다면 주문 통합검색에서 처리해주세요.',
   alreadyShipped: '이미 다른 운송장으로 발송된 배송 건입니다. 회신 파일로 덮어쓰지 않습니다. 정정은 주문 통합검색의 운송장 수정에서 해주세요.',
 } as const;
 
@@ -103,6 +104,11 @@ export function matchSeowonReply(rows: readonly SeowonReplyRow[], candidates: re
     if (matched.some(row => row.error)) { for (const row of matched) issue(row, row.error ?? SEOWON_REPLY_REASONS.blockedSibling, shortId(id)); continue; }
     const tracking = new Set(matched.map(row => row.trackingNumber));
     if (tracking.size !== 1) { for (const row of matched) issue(row, SEOWON_REPLY_REASONS.conflictInFile, shortId(id)); continue; }
+    // 배송 건은 송장 하나로 통째로 발송처리된다. 회신에 빠진 품목이 있으면 일부 출고일 수 있어 멈춘다.
+    const replied = new Set(matched.map(seowonRowKey));
+    if (seowonExportRows(byId.get(id)!.lines).some(row => !replied.has(seowonRowKey(row)))) {
+      for (const row of matched) issue(row, SEOWON_REPLY_REASONS.partial, shortId(id)); continue;
+    }
     commands.push({ line: lines[0], shipmentId: id, orderId: byId.get(id)!.orderId, trackingNumber: [...tracking][0], lines });
   }
   return {

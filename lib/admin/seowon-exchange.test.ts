@@ -36,6 +36,12 @@ describe('서원 회신 대조', () => {
     expect(match.commands).toEqual([{ line: 2, shipmentId: 'a', orderId: 'order-a', trackingNumber: 'T1', lines: [2, 3] }]);
     expect(match.issues).toEqual([{ line: 4, reference: '전화 끝 5678 · 합성 키링_빨강', reason: SEOWON_REPLY_REASONS.notFound }]);
   });
+  it('배송 건의 품목 줄이 회신에 하나라도 빠지면 일부 출고일 수 있어 발송처리하지 않는다', () => {
+    const shipment = candidate('a', { lines: [line, { ...line, goodName: '합성 엽서', optionName: '', qty: 1 }] });
+    const match = matchSeowonReply([reply(2, 'T1')], [shipment]);
+    expect(match.commands).toEqual([]);
+    expect(match.issues).toEqual([{ line: 2, reference: 'A', reason: SEOWON_REPLY_REASONS.partial }]);
+  });
   it('우편번호를 비우거나 공백·하이픈이 달라도 같은 줄로 본다', () => {
     expect(matchSeowonReply([reply(2, 'T1', { phone: '01012345678', address: `  ${line.address.replace(/ /g, '  ')} ` })], [candidate('a')]).commands).toHaveLength(1);
   });
