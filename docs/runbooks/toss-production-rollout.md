@@ -95,7 +95,7 @@ paymentKey, transactionKey, 승인번호, 원문 응답, 키 fingerprint는 문�
   **`ticonsi0xvd`**), 베리언트 키 **`ICONS`**, 결제수단은 **카드·간편결제만**(공식문서 24 "새로운 결제
   UI 추가하기"). 테스트 모드와 라이브 모드는 결제 UI가 따로이므로 **각 모드에서 따로** 만든다 —
   테스트 모드 `ICONS`는 이 코드를 Production에 배포하기 전에, 라이브 모드 `ICONS`는 라이브 키를
-  붙이는 배포(라이브 전환 1번) 전에. 만든 뒤 이용서비스 위에 마우스를 올려 연결된 MID가 위 값인지
+  붙이는 배포(라이브 전환 3번) 전에. 만든 뒤 이용서비스 위에 마우스를 올려 연결된 MID가 위 값인지
   확인한다(공식문서 24). `DEFAULT`와 다른 서비스의 결제 UI(`ICONS_REVIEW` 등)는 건드리지 않는다.
   선후가 뒤집히면(결제 UI 없이 배포) 위젯이 렌더되지 않아 구매자는 결제 화면 실패 상태를 보고,
   결제 UI가 다른 MID에 연결돼 있으면 결제가 `needs_review`(`DONE_merchant_mismatch`)로 격리된다.
@@ -315,8 +315,8 @@ exact SHA에서 성공한 `production_source_run_id`를 함께 쓴다.
    - **웹훅이 실제로 도착하는지** 개발자센터 전송 이력과 앱 응답 코드로 확인한다. 2번의 URL
      오타·방화벽 규칙은 여기서만 드러난다.
 
-   확인이 끝나면 canary를 제거하고, 그 결제로 생긴 주문·attempt는 라이브 전환 6번(테스트 주문·
-   attempt 정리)과 같은 기준으로 회수 대상에 함께 적어 둔다.
+   확인이 끝나면 canary를 제거하고, 그 결제로 생긴 주문·attempt는 라이브 전환 2번(테스트 주문·
+   attempt 정리 — 라이브 키를 붙이기 전, 테스트 키로 한다)의 회수 대상에 함께 적어 둔다.
 4. (human) **약관·개인정보처리방침의 결제대행사 고지를 개정한다 — 3번의 canary 실증과
    함께 5번 공개 gate 개방의 하드 게이트다.** 라이브 법정 문서(`lib/legal/documents.ts`)의
    이용약관 제11조(지급방법)와 개인정보처리방침 제5조(처리 위탁) 수탁자 표는 신규 카드 결제
@@ -337,7 +337,9 @@ exact SHA에서 성공한 `production_source_run_id`를 함께 쓴다.
    **수반 위험(readback에 함께 적는다)**: 테스트 키 기간에는 공개 사용자 누구나 무과금
    가짜 `paid` 주문을 만들 수 있고, 그 주문이 발주 확인 큐·주문 확인 메일·재고 점유로
    그대로 유입된다. 감수 근거는 **첫 실판매 전**이라는 전제 하나뿐이며, 회수는 라이브
-   전환 6번(테스트 주문·attempt 정리)에서 한다. 심사가 끝난 뒤에는 이 상태를 남기지 않는다.
+   전환 2번(테스트 주문·attempt 정리)에서 한다. 라이브 키를 붙이면(라이브 전환 3번) 테스트 결제를
+   조회·취소할 수 없으므로 회수는 반드시 그 전에, 공개 gate를 닫은 뒤(라이브 전환 1번) 한다. 심사가
+   끝난 뒤에는 이 상태를 남기지 않는다.
 6. (agent/CI) 승인된 exact main SHA를 GitHub Actions Production 경로로 배포하고, canonical
    alias와 build readback(`Toss configured=true`, `order checkout enabled=true`,
    `ticket checkout enabled=false`, `order canary configured=false`,
@@ -362,28 +364,61 @@ exact SHA에서 성공한 `production_source_run_id`를 함께 쓴다.
 
 ## 라이브 전환 (⑤, [#395](https://github.com/icons-hq/icons-ip/issues/395))
 
-1. (human) **공개 gate를 먼저 닫고 라이브 키를 붙인다.** 심사 창(③)에서 굿즈 gate가 `true`인
-   채로 라이브 키만 교체해 배포하면, canary로 아무것도 실증하지 않은 상태에서 공개 사용자가
-   실과금 결제를 할 수 있는 창이 열린다. 그래서 **한 번의 Production 배포에 들어갈 변경 묶음**으로
-   ① `TOSS_ORDER_CHECKOUT_ENABLED=false` ② `TOSS_ORDER_CANARY_USER_ID`(인증된 단일 사용자 UUID)
-   ③ 개발자센터 API 키 메뉴의 계정 라이브 주문서형 키(`live_gck_…`/`live_gsk_…`)로 두 변수 **동시**
-   교체 ④ `PAYMENT_RECONCILIATION_SECRET`(없으면 등록)을 함께 반영하고 새 deployment를 만든다.
-   **이 배포보다 먼저** 결제 어드민 **라이브 모드**에 결제 UI `ICONS`(MID `iconsi0xvd`, 카드·
-   간편결제만)를 만들고 연결된 MID를 확인한다 — 테스트 모드의 `ICONS`는 라이브로 넘어오지 않는다.
-   키 한쪽만 바꾸면 모드 불일치로 게이트웨이가 unconfigured가 되고, canary가 설정돼 있으므로 그
-   조합은 빌드를 곧바로 실패시킨다. 같은 배포의 readback에서 `Toss configured=true`,
-   `Toss mode=live`, `Toss merchant=iconsi0xvd`, `Toss variant=ICONS`, `docs public key=false`,
-   `order checkout enabled=false`, `order canary configured=true`,
+순서를 정하는 제약은 둘이다. 공개 gate를 닫기 전에 키를 바꾸지 않는다(canary 실증 없는 실과금
+창). 그리고 **테스트 주문 정리는 라이브 키를 붙이기 전에 끝낸다** — 라이브 키 게이트웨이는 테스트
+결제를 정리하지 못한다. 테스트 결제내역은 개발자센터에, 라이브 결제내역은 상점관리자에 따로
+남는다(공식문서 11). 라이브 키 조회에 테스트 결제가 보이는지는 문서에 없으므로 두 경우를 모두
+막힌 것으로 본다 — 조회되지 않으면 404(`provider_payment_not_found`), 조회되더라도 MID가 라이브 MID
+`iconsi0xvd`가 아니라(`ticonsi0xvd`) `provider_merchant_mismatch`다. 어느 쪽이든 어댑터는 취소 API를
+부르지 않고 주문은 결제확인필요에 남는다([ADR-0018](../adr/0018-staff-initiated-order-cancellation.md)
+결과 절과 같은 기준).
+
+1. (human) **공개 gate를 먼저 닫는다. 키는 테스트 키 그대로 둔다.** `TOSS_ORDER_CHECKOUT_ENABLED=false`로
+   바꾸고(canary는 두지 않는다), `PAYMENT_RECONCILIATION_SECRET`이 없으면 함께 등록해 새 Production
+   deployment를 만든다. readback에서 `Toss mode=test`, `order checkout enabled=false`,
+   `order canary configured=false`, `payment reconciliation secret configured=true`를 확인한다. 이때부터
+   새 테스트 결제는 생기지 않는다. 이미 열린 결제창의 콜백·웹훅 재정합은 키가 그대로라 계속 닫힌다.
+   운영 확인 절의 미종결 attempt 집계(`prepared | confirming | unknown | needs_review`)를 보고
+   `confirming`·`unknown`은 굿즈 내부 reconcile 라우트로 건 지정 재정합한다(`prepared`는 만료 경로가
+   닫는다).
+2. (human) **테스트 주문·attempt를 정리한다. 테스트 키가 살아 있는 지금만 된다.** 대상은 테스트 키
+   기간(심사 창 ③ 5번 이후, canary 결제 포함)에 생긴 토스 결제 주문 중 아직 결제완료·발주확인인
+   것이다. 수단은 주문 통합검색(`/admin/sales/orders`)에서 주문을 선택해 여는 주문 패널의 **운영자
+   전액 취소**이고, 사유는 **테스트 결제 정리**다([ADR-0018](../adr/0018-staff-initiated-order-cancellation.md),
+   [클레임 런북](./order-claim-intake.md)의 "운영자 전액 취소" 절). 서버가 토스 전액 취소 → fresh
+   paymentKey 조회 → 주문 취소·재고·쿠폰·적립금 복원·카드팩 회수·환불 원장 기록을 한 경로로 닫는다.
+   그래서 주문이 발주 확인 큐와 재고 점유에서 함께 빠진다. SQL·service-role로 주문·결제 상태를 직접
+   바꾸지 않는다(원장 이력 보존).
+   - **MID 바인딩 이전 결제**(결제 UI `DEFAULT`·MID `tgsangwbzqu`로 승인된 2026-10-06 심사 창 주문
+     등)는 사전 조회가 `provider_merchant_mismatch`로 격리한다. 취소 API를 부르지 않으므로 주문은
+     결제확인필요(`provider_cancel_failed`)에 남는다. 결제 어드민 **테스트 모드**에서 그 결제를 전액
+     취소한 뒤 같은 주문 패널의 **상태 다시 확인**(또는 클레임 상세의 **환불 완료 확정**)을 누른다.
+     원장 paymentKey 조회가 같은 결제(키·주문)의 전액 취소를 확인하면 MID와 무관하게 환불 완료로
+     닫힌다(운영 노트).
+   - 운영자 전액 취소는 미종결 attempt가 걸린 주문과 이미 발송된 배송 건이 있는 주문에는 열리지
+     않는다. 앞의 것은 1번의 재정합으로 먼저 닫는다(재정합으로 닫히지 않는 `needs_review`는 운영
+     노트의 해당 항목을 따른다). 뒤의 것은 8번 readback에 주문과 사유를 적고 담당자에게 넘긴다.
+3. (human) **라이브 키를 붙인다. canary와 한 번의 배포로 한다.** 먼저 1번 readback의
+   `order checkout enabled=false`가 그대로인지 본다. 굿즈 gate가 `true`인 채 라이브 키만 교체하면
+   canary로 아무것도 실증하지 않은 상태에서 공개 사용자가 실과금 결제를 할 수 있는 창이 열린다.
+   **한 번의 Production 배포에 들어갈 변경 묶음**으로 ① `TOSS_ORDER_CANARY_USER_ID`(인증된 단일
+   사용자 UUID) ② 개발자센터 API 키 메뉴의 계정 라이브 주문서형 키(`live_gck_…`/`live_gsk_…`)로 두
+   변수 **동시** 교체를 반영하고 새 deployment를 만든다. **이 배포보다 먼저** 결제 어드민 **라이브
+   모드**에 결제 UI `ICONS`(MID `iconsi0xvd`, 카드·간편결제만)를 만들고 연결된 MID를 확인한다 —
+   테스트 모드의 `ICONS`는 라이브로 넘어오지 않는다. 키 한쪽만 바꾸면 모드 불일치로 게이트웨이가
+   unconfigured가 되고, canary가 설정돼 있으므로 그 조합은 빌드를 곧바로 실패시킨다. 같은 배포의
+   readback에서 `Toss configured=true`, `Toss mode=live`, `Toss merchant=iconsi0xvd`, `Toss variant=ICONS`,
+   `docs public key=false`, `order checkout enabled=false`, `order canary configured=true`,
    `payment reconciliation secret configured=true`를 확인한다. 테스트 모드 경고는 더 이상 나오지
    않는다.
-2. (human/agent) 구 v1 키 계열(`test_sk_…`) 등 더 이상 참조되지 않는 토스 env가 Production·
+4. (human/agent) 구 v1 키 계열(`test_sk_…`) 등 더 이상 참조되지 않는 토스 env가 Production·
    Preview 스코프에 남아 있으면 정리한다. 런타임은 형식으로 이미 거절하지만, 남겨 두면
    운영자가 현재 유효한 키를 오인한다.
-3. canary 선검증: 1번 배포로 공개 gate는 이미 닫혔고 리허설은 canary 한 명으로 갇혀 있다. 그
-   목적의 gate는 false·canary만 true인지 readback으로 다시 확인한다. 실과금 직전에 목적·대상·
+5. canary 선검증: 공개 gate는 1번에서 닫혔고, 3번 배포로 리허설은 canary 한 명으로 갇혀 있다.
+   그 목적의 gate는 false·canary만 true인지 readback으로 다시 확인한다. 실과금 직전에 목적·대상·
    사용자·금액·결제수단·취소 계획을 사용자에게 다시 보여 주고 명시 확인을 받는다. 과거의 구현
    승인이나 키 등록 승인을 과금 승인으로 재사용하지 않는다.
-4. (human) 소액 실결제 → 취소 리허설을 **카드 1건 · 간편결제 1건** 수행하고, 웹훅 수신과
+6. (human) 소액 실결제 → 취소 리허설을 **카드 1건 · 간편결제 1건** 수행하고, 웹훅 수신과
    조회 재검증 동작을 확인한다. 두 결제가 `approved`로 닫히면 라이브 모드 결제 UI `ICONS`가 MID
    `iconsi0xvd`에 연결돼 있다는 실증이고(`provider_merchant_mismatch`면 결제 어드민 라이브 모드에서
    `ICONS`에 연결된 MID를 확인한다), 취소가 환불 완료로 닫히면
@@ -398,14 +433,14 @@ exact SHA에서 성공한 `production_source_run_id`를 함께 쓴다.
    웹훅이 reconcile을 태워 주문이 `paid`로 종결되고 그 환불은 취소 API가 요구하는 환불 계좌
    정보를 어댑터가 싣지 않아 수동이 되는 것이었다. 실과금 리허설에서는 가드에 기대지 말고
    비노출을 먼저 확인한다.
-5. (human) `TOSS_ORDER_CHECKOUT_ENABLED=true`로 **굿즈만** 다시 공개하고 canary를 제거한다.
+7. (human) `TOSS_ORDER_CHECKOUT_ENABLED=true`로 **굿즈만** 다시 공개하고 canary를 제거한다.
    `TOSS_TICKET_CHECKOUT_ENABLED`는 공연·티켓 판매 일정이 확정될 때까지 `false`로 유지한다
    (2026-09-01 결정). 변경 뒤 새 Production deployment와 boolean readback까지 확인해야 적용된
    것으로 본다. 이 배포부터는 테스트 모드 경고가 더 이상 나오지 않는 것이 정상이다.
-6. (agent) 테스트 키 기간에 생성된 테스트 주문·attempt 상태를 원장 이력 보존 원칙 안에서
-   정리하고, 이 runbook에 readback을 기록한다. 심사 창(③ 5번)에서 공개 사용자가 만든 무과금
-   `paid` 주문이 여기 포함된다 — 발주 확인 큐에서 빼고 점유된 재고를 되돌린 결과까지 함께
-   적는다.
+8. (agent) **2번 정리 결과의 readback을 이 runbook에 기록한다.** 정리한 주문 수, 발주 확인 큐에서
+   빠졌는지, 점유 재고가 되돌아갔는지, 결제확인필요로 남은 건과 운영자 전액 취소가 열리지 않아 남은
+   건의 사유를 적는다. 3번 뒤에는 테스트 결제를 조회·취소할 수 없으므로 여기서 새로 정리하지 않는다.
+   3번 뒤에 발견된 테스트 주문은 시스템 경로로 닫히지 않으니 담당자에게 넘기고 그 사실도 적는다.
 
 완료 조건: 라이브 실결제·취소 왕복 검증 완료, 첫 판매(에픽 #319) 결제 준비 상태.
 
@@ -508,12 +543,20 @@ exact SHA에서 성공한 `production_source_run_id`를 함께 쓴다.
   어드민(해당 모드)에서 결제 UI `ICONS`의 이용서비스에 연결된 MID를 확인해 고친다 — 주문서형 키는
   계정 단위라 키 교체로는 풀리지 않는다(공식문서 122·24). 예외는 문서 공개 키(빌드 경고)뿐이고, 그때는
   계정 키로 교체해 재배포한다. 그 결제가 실과금이었다면 그 결제를 만든 MID의 상점관리자에서
-  취소·환불해야 한다(코드는 다른 상점의 결제를 취소하지 않는다). 브랜드페이·해외 간편결제처럼 새
+  취소·환불해야 한다(코드는 다른 상점의 결제를 취소하지 않는다). 취소한 결제에 걸린 주문 취소·
+  클레임은 **상태 다시 확인**·**환불 완료 확정**으로 원장이 닫힌다(아래 항목의 전액 취소 수렴). 브랜드페이·해외 간편결제처럼 새
   결제서비스를 붙여 생긴 건이라면 그 MID를 허용 목록에 더하는 코드 변경이 먼저다.
 - **MID 바인딩 이전 테스트 결제의 취소**: 이 코드 배포 전에 `DEFAULT` 결제 UI(MID `tgsangwbzqu`)로
-  승인된 테스트 결제(2026-10-06 심사 창 주문 등)는 앱 취소·클레임 승인이 사전 조회에서
-  `merchant_mismatch`로 격리돼(`needs_review`, 취소 API 미호출) `결제확인필요`에 남는다. 결제 어드민
-  테스트 모드에서 그 결제를 취소하고 원장은 운영자 경로로 닫는다(라이브 전환 6번의 정리 대상).
+  승인된 테스트 결제(2026-10-06 심사 창 주문 등)는 운영자 전액 취소·고객 취소·클레임 승인이 사전
+  조회에서 `merchant_mismatch`로 격리된다(`needs_review`, 취소 API 미호출). 주문은 `결제확인필요`
+  (`provider_cancel_failed`)에 남는다. 결제 어드민 **테스트 모드**에서 그 결제를 전액 취소한 뒤 주문
+  패널의 **상태 다시 확인**(또는 클레임 상세의 **환불 완료 확정**)을 다시 누른다. 원장
+  `payments.payment_key`로 조회한 응답이 그 키·그 주문의 전액 취소(잔액 0)면 어댑터가 MID와 무관하게
+  `approved`(`provider_already_fully_canceled`)로 수렴하고, 주문 취소·재고 복원·환불 원장이 함께
+  닫힌다. 이 수렴은 돈이 움직이지 않는 확인뿐이다 — MID가 다른 결제에 취소 API를 부르거나 `DONE`을
+  승인 근거로 쓰는 일은 여전히 없다. 원장 키 없이 orderId로 조회한 결과, 다른 키·다른 주문·부분취소·
+  잔액이 남은 응답에는 이 예외가 적용되지 않는다. 테스트 키가 살아 있을 때만 되므로 라이브 전환 2번
+  안에서 처리한다.
 
 ## Rollback과 callback drain
 
@@ -601,8 +644,10 @@ issue·PR·로그에도 복사하지 않는다.
 - 선후(필수): ① 결제 어드민 **테스트 모드**에 결제 UI `ICONS`(MID `ticonsi0xvd`, 카드·간편결제만)를
   만든다 → ② 이 코드를 배포하고 readback `Toss merchant=ticonsi0xvd`·`Toss variant=ICONS`·
   `docs public key=false`를 확인한다 → ③ canary 또는 테스트 결제 1건이 `approved`로 닫히는지
-  확인하고 결과를 남긴다(심사 트랙 3번). 라이브 모드 `ICONS`(MID `iconsi0xvd`)는 라이브 전환 1번
+  확인하고 결과를 남긴다(심사 트랙 3번). 라이브 모드 `ICONS`(MID `iconsi0xvd`)는 라이브 전환 3번
   배포 전에 만든다. ①보다 ②가 먼저면 위젯이 렌더되지 않고(공개 gate가 열린 심사 창이면 구매자 전원이
   결제 화면 실패 상태를 본다), `ICONS`가 다른 MID에 연결돼 있으면 결제가 `needs_review`로 격리된다.
 - 이 배포 이전에 `DEFAULT`(MID `tgsangwbzqu`)로 승인된 테스트 결제는 앱 취소가 `merchant_mismatch`로
-  격리되므로 결제 어드민 테스트 모드에서 취소하고 원장은 운영자 경로로 닫는다(운영 노트).
+  격리된다. 결제 어드민 테스트 모드에서 그 결제를 전액 취소한 뒤 주문 패널의 **상태 다시 확인**을
+  누르면 원장 paymentKey 조회가 그 전액 취소를 확인해 원장이 닫힌다(운영 노트). 라이브 키를 붙이기
+  전(라이브 전환 2번)에 한다.
