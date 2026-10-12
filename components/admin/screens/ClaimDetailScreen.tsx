@@ -36,6 +36,10 @@ import { ClaimReshipmentDelivery } from './ClaimReshipmentDelivery';
 
 const TIMELINE_LABELS: Record<string, string> = {
   'order.claim_auto_approved': '자동 승인 (발주확인 전 취소)',
+  /* 결제 가능 시간이 지난 결제 준비 건을 결제 없이 닫은 취소. 주문 상세 타임라인과 같은 이름이다. */
+  'order.prepared_goods_cancellation_completed': '결제 준비 건 취소 완료 (구매자 취소)',
+  'system.order.prepared_goods_cancellation_completed': '결제 준비 건 취소 완료 (자동)',
+  'admin.order.prepared_goods_cancellation_completed': '결제 준비 건 취소 완료',
   'admin.order.claim_in_review': '검토중으로 변경',
   'admin.order.claim_approved': '승인',
   'admin.order.claim_rejected': '거부',

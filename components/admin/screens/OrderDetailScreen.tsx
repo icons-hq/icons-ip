@@ -27,6 +27,7 @@ const ACTION_LABELS: Record<string, string> = {
   'admin.order.cancellation_completed': '취소 완료', 'admin.order.cancellation_needs_review': '취소 확인 필요',
   'system.order.cancellation_completed': '취소 완료 (자동)', 'system.order.cancellation_needs_review': '취소 확인 필요 (자동)',
   'system.order.prepared_goods_cancellation_completed': '결제 준비 건 취소 완료 (자동)',
+  'order.prepared_goods_cancellation_completed': '결제 준비 건 취소 완료 (구매자 취소)',
   'admin.order.staff_cancellation_started': '운영자 전액 취소 시작',
   'admin.order.cancellation_reconcile_started': '취소 대조 시작',
   'admin.order.prepared_goods_cancellation_completed': '결제 준비 건 취소 완료',

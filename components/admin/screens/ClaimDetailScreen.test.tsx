@@ -296,6 +296,22 @@ describe('ClaimDetailScreen', () => {
     expect(html).toContain('@cs_lead');
   });
 
+  /* 2026-10-12 QA-1: 결제 가능 시간이 지난 결제 대기 주문을 구매자가 취소하면 결제 준비 건이
+     결제 없이 닫힌다. 그 감사 행이 액션 코드 그대로 보이지 않게 이름을 붙인다. */
+  it('구매자 취소가 닫은 결제 준비 건을 타임라인에서 이름으로 보여준다', () => {
+    const html = render({
+      timeline: [{
+        action: 'order.prepared_goods_cancellation_completed',
+        createdAt: '2026-08-18T02:00:00.000Z',
+        actorName: 'buyer',
+        diff: { outcome: 'expired_no_capture', trigger: 'customer_cancel_request' },
+      }],
+    });
+
+    expect(html).toContain('결제 준비 건 취소 완료 (구매자 취소)');
+    expect(html).not.toContain('order.prepared_goods_cancellation_completed');
+  });
+
   it('부분 환불을 약속하지 않는다', () => {
     const html = render();
 
