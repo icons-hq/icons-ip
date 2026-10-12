@@ -101,6 +101,14 @@ export function checkoutStatusCopy({
   /* 웹훅·재정합 설정과 무관하게 지킬 수 있는 말만 한다 — "닫아도 확인은 계속된다"는
      자동 재정합 경로가 열려 있을 때만 참이다. */
   if (state === 'checking') return { title: '결제를 확인하고 있어요', body: '결제사 승인 결과를 아직 확정하지 못했어요. 확인이 늦어지거나 결제 금액이 빠져나갔다면 고객센터 1:1 문의로 알려주세요.' };
+  /* 승인을 기다리는 사이 접수된 취소 요청 때문에 승인된 결제를 취소하는 중이다
+     (20261012110100). 승인은 확정됐으므로 '확인 중'으로 말하지 않는다. 자동 결제 취소가
+     실패하면 요청이 담당자 확인으로 넘어가므로 끝나는 시점은 약속하지 않는다. */
+  if (state === 'refund_in_progress') {
+    return isBankTransfer
+      ? { title: '환불을 진행하고 있어요', body: '입금은 확인됐고, 취소 요청에 따라 환불을 진행하고 있어요. 진행 상태는 주문 상세에서 확인할 수 있어요.' }
+      : { title: '결제 취소를 진행하고 있어요', body: '결제는 승인됐고, 취소 요청에 따라 결제 취소를 진행하고 있어요. 진행 상태는 주문 상세에서 확인할 수 있어요.' };
+  }
   if (closedCopy) return closedCopy;
   if (state === 'closed') {
     if (isBankTransfer) {
@@ -154,7 +162,14 @@ export function CheckoutOrder({
   /* now는 마운트 뒤에 채워진다. 그 전(서버 렌더)에는 시간에 기대는 판정(시도 만료)을
      하지 않고, 시간과 무관한 판정(승인 거절·취소 요청)만 반영한다. */
   const closure = order.status === 'pending' ? checkoutPaymentClosure(order, now ?? 0) : null;
-  const state = checkoutOrderState(order.status, order.paymentStatus, order.expiresAt, now ?? 0, closure);
+  const state = checkoutOrderState(
+    order.status,
+    order.paymentStatus,
+    order.expiresAt,
+    now ?? 0,
+    closure,
+    order.hasActiveCancellationRequest,
+  );
   const effectiveExpiry = order.expiresAt
     ? effectiveGoodsCheckoutExpiry(order.expiresAt, prepareState.prepared?.expiresAt)
     : 0;
@@ -192,14 +207,18 @@ export function CheckoutOrder({
     };
   }, [state]);
 
+  /* 확인 중과 결제 취소 진행은 서버에서 곧 바뀌는 상태라 짧게 다시 읽는다. 문구는 이
+     폴링에 기대지 않는다 — 끝나는 시점을 약속하지 않는다. */
+  const pollsServerState = state === 'checking' || state === 'refund_in_progress';
+
   useEffect(() => {
-    if (state !== 'checking' || pollAttempts >= 15) return;
+    if (!pollsServerState || pollAttempts >= 15) return;
     const timer = window.setTimeout(() => {
       setPollAttempts((attempts) => attempts + 1);
       router.refresh();
     }, 2_000);
     return () => window.clearTimeout(timer);
-  }, [order.paymentStatus, order.status, pollAttempts, router, state]);
+  }, [order.paymentStatus, order.status, pollAttempts, pollsServerState, router]);
 
   /* 화면을 연 뒤 다른 탭·콜백이 결제를 닫았다면 prepare가 그 사실을 알려준다.
      서버 상태를 다시 읽어 닫힌 결제 안내로 바꾼다. */
@@ -317,11 +336,14 @@ export function CheckoutOrder({
             </div>
           ) : (
             <div className={`checkout-state-panel checkout-state-panel--${state}`} role="status">
-              <span className="checkout-state-mark" aria-hidden>{state === 'complete' ? '✓' : state === 'checking' ? '···' : '×'}</span>
+              <span className="checkout-state-mark" aria-hidden>{state === 'complete' ? '✓' : pollsServerState ? '···' : '×'}</span>
               <h2>{statusCopy?.title}</h2>
               <p>{statusCopy?.body}</p>
-              {state === 'checking' && pollAttempts >= 15 && (
+              {pollsServerState && pollAttempts >= 15 && (
                 <button className="btn btn-ghost" type="button" onClick={() => router.refresh()}>상태 다시 확인</button>
+              )}
+              {state === 'refund_in_progress' && (
+                <Link className="btn btn-holo" href={`/orders/${order.id}`}>주문 상세 보기</Link>
               )}
               {state === 'checking' && (
                 <>

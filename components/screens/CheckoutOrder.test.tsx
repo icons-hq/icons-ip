@@ -165,6 +165,46 @@ describe('CheckoutOrder 닫힌 결제 안내', () => {
     expect(html).toContain('href="/my/inquiries"');
   });
 
+  /* C race 케이스 A: 승인을 기다리는 사이 취소를 요청했다. finalizer가 결제 원장을 paid로
+     남기고 주문은 pending, 결제 기한은 비운 채 결제 취소를 시작한다. 30초 폴링 뒤에도
+     '승인 결과를 아직 확정하지 못했어요'에 머물면 사실과 다르다(INT-5). */
+  it('승인된 결제를 취소 요청에 따라 취소하는 중이면 결제 취소 진행으로 안내하고 주문 상세로 잇는다', () => {
+    const html = renderToStaticMarkup(
+      <CheckoutOrder
+        order={{
+          ...order,
+          expiresAt: null,
+          paymentStatus: 'paid',
+          paymentAttempt: { state: 'approved', expiresAt: '2099-08-07T06:10:00.000Z', provider: 'toss' },
+          hasActiveCancellationRequest: true,
+        }}
+      />,
+    );
+
+    expect(html).toContain('결제 취소를 진행하고 있어요');
+    expect(html).toContain('결제는 승인됐고, 취소 요청에 따라 결제 취소를 진행하고 있어요');
+    expect(html).not.toContain('결제를 확인하고 있어요');
+    expect(html).not.toContain('아직 확정하지 못했어요');
+    expect(html).not.toContain('취소 요청을 처리하고 있어요');
+    expect(html).toContain(`href="/orders/${order.id}"`);
+    expect(html).not.toContain('결제 준비하기');
+    expect(html).not.toContain('이 주문 취소하고 다시 주문하기');
+  });
+
+  it('무통장 주문의 결제 취소 진행은 입금 확인과 환불로 말한다', () => {
+    const copy = checkoutStatusCopy({
+      state: 'refund_in_progress',
+      closedCopy: null,
+      isBankTransfer: true,
+      orderStatus: 'pending',
+      reorderMode: null,
+    });
+
+    expect(copy?.title).toBe('환불을 진행하고 있어요');
+    expect(copy?.body).toContain('입금은 확인됐고');
+    expect(copy?.body).not.toContain('결제는 승인됐고');
+  });
+
   it('취소된 카드 주문은 만료가 아니라 취소로 안내하고 같은 굿즈를 다시 담게 한다', () => {
     const html = renderToStaticMarkup(
       <CheckoutOrder order={{ ...order, status: 'canceled', expiresAt: null }} />,

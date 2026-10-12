@@ -39,7 +39,19 @@ export function normalizeCheckoutPaymentMethod(value: unknown): CheckoutPaymentM
   return value === 'card' || value === 'bank_transfer' ? value : null;
 }
 
-export type CheckoutOrderState = 'payable' | 'payment_closed' | 'checking' | 'complete' | 'closed';
+/**
+ * 결제 화면이 판독하는 주문 상태.
+ * - `refund_in_progress`: 결제는 승인됐는데 승인 응답을 기다리는 사이 접수된 취소 요청이
+ *   처리 중이다. finalizer가 결제 원장을 paid로 남기고 주문은 pending으로 둔 채 결제 취소를
+ *   시작한다(20261012110100). 확인 중(`checking`)이 아니다 — 승인은 확정됐다.
+ */
+export type CheckoutOrderState =
+  | 'payable'
+  | 'payment_closed'
+  | 'checking'
+  | 'refund_in_progress'
+  | 'complete'
+  | 'closed';
 
 /** 주문의 카드 결제 시도(payment_attempts) 중 화면 판독에 필요한 값만. */
 export interface CheckoutPaymentAttemptSnapshot {
@@ -231,12 +243,28 @@ export function checkoutPaymentClosure(
   return null;
 }
 
+/**
+ * 승인과 구매자 취소 요청이 겹친 주문인지. 결제 원장은 paid인데 주문은 pending이고 처리 중인
+ * 취소 요청(requested·processing·needs_review)이 있다 — 승인은 확정됐고 그 결제를 취소하는
+ * 중이다. 자동 결제 취소가 실패해 요청이 needs_review로 넘어가도 사실은 같다.
+ */
+export function checkoutRefundInProgress(input: {
+  readonly orderStatus: string;
+  readonly paymentStatus: string | null;
+  readonly hasActiveCancellationRequest: boolean;
+}): boolean {
+  return input.orderStatus === 'pending'
+    && input.paymentStatus === 'paid'
+    && input.hasActiveCancellationRequest;
+}
+
 export function checkoutOrderState(
   orderStatus: string,
   paymentStatus: string | null,
   expiresAt: string | null,
   now: number = Date.now(),
   closure: CheckoutPaymentClosure | null = null,
+  hasActiveCancellationRequest = false,
 ): CheckoutOrderState {
   // 결제가 끝난 뒤의 모든 사다리 단계는 "결제 완료"다(#250). 새 단계가 빠지면
   // 발주확인된 주문의 결제 화면이 만료된 주문처럼 닫혀 보인다.
@@ -244,6 +272,10 @@ export function checkoutOrderState(
     return 'complete';
   }
   if (orderStatus !== 'pending') return 'closed';
+  /* finalizer가 주문 결제 기한(expires_at)을 비우므로 기한 판정보다 앞에서 본다. */
+  if (checkoutRefundInProgress({ orderStatus, paymentStatus, hasActiveCancellationRequest })) {
+    return 'refund_in_progress';
+  }
   if (paymentStatus === 'pending' || paymentStatus === 'paid') return 'checking';
   if (!expiresAt || Date.parse(expiresAt) <= now) return 'closed';
   if (closure) return 'payment_closed';
@@ -287,6 +319,9 @@ export function checkoutReorderMode(
  * - `cancellation_requested`: 처리 중인 취소 요청이 있어 DB가 결제를 막는다. 콜백이 와도
  *   claim이 `goods_order_not_payable`로 거절해 승인 API를 부르지 않으므로, 같은 주문
  *   재시도를 약속하지 않고 주문 상세의 취소 진행 상태로 안내한다.
+ * - `refund_in_progress`: 승인을 기다리는 사이 접수된 취소 요청 때문에 승인된 결제를 취소하는
+ *   중이다(`checkoutRefundInProgress`). 확인 중이 아니다 — 승인은 확정됐다.
+ * - `refunded`: 결제가 승인된 뒤 결제사 취소까지 끝나 주문이 취소됐다(결제 원장 refunded).
  */
 export type CheckoutPaymentResultOutcome =
   | 'approved'
@@ -295,7 +330,18 @@ export type CheckoutPaymentResultOutcome =
   | 'attempt_expired'
   | 'retryable'
   | 'cancellation_requested'
+  | 'refund_in_progress'
+  | 'refunded'
   | 'canceled';
+
+/**
+ * 방금 승인된 그 결제를 가리키는 결과인지. 콜백 리다이렉트에는 주문 식별자가 없어 원장
+ * 결과가 다른 주문을 짚을 수 있으므로 승인 콜백은 승인이 아닌 결과로 덮지 않는데, 이 결과들은
+ * 결제 승인이 원장에 남은 경우라 승인 콜백과 어긋나지 않는다.
+ */
+export function checkoutPaymentResultFollowsApproval(outcome: CheckoutPaymentResultOutcome): boolean {
+  return outcome === 'approved' || outcome === 'refund_in_progress' || outcome === 'refunded';
+}
 
 export interface CheckoutPaymentResultFocus {
   readonly orderId: string;
@@ -312,8 +358,15 @@ export function checkoutPaymentResultOutcome(
   },
   now: number,
 ): CheckoutPaymentResultOutcome {
-  if (input.orderStatus === 'canceled') return 'canceled';
+  if (input.orderStatus === 'canceled') {
+    return input.paymentStatus === 'refunded' ? 'refunded' : 'canceled';
+  }
   if (input.orderStatus !== 'pending') return 'approved';
+  if (checkoutRefundInProgress({
+    orderStatus: input.orderStatus,
+    paymentStatus: input.paymentStatus,
+    hasActiveCancellationRequest: input.hasActiveCancellationRequest ?? false,
+  })) return 'refund_in_progress';
   if (input.paymentStatus === 'pending' || input.paymentStatus === 'paid') return 'checking';
   const { state, expiresAt } = input.attempt;
   const closedBeforeApproval = state === 'prepared' || state === 'declined' || state === 'canceled';

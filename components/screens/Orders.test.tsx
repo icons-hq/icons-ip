@@ -146,6 +146,43 @@ describe('Orders', () => {
       expect(html).not.toContain('결제가 확인됐어요');
     });
 
+    /* 승인을 기다리는 사이 다른 탭에서 취소했다(C race 케이스 A). 콜백은 approved로 돌아오고
+       원장은 결제 paid·주문 pending·요청 processing이다. 승인은 확정됐고 결제 취소가 진행
+       중이다 — '승인 결과를 아직 확정하지 못했어요'는 사실과 다르다(INT-5). */
+    it('승인된 결제를 취소 요청에 따라 취소하는 중이면 확인 중이 아니라 결제 취소 진행으로 안내한다', () => {
+      const html = renderToStaticMarkup(
+        <Orders orders={[]} paymentResult="approved" paymentFocus={{ orderId, outcome: 'refund_in_progress' }} />,
+      );
+
+      expect(html).toContain('결제 취소를 진행하고 있어요');
+      expect(html).toContain('결제는 승인됐고, 취소 요청에 따라 결제 취소를 진행하고 있어요');
+      expect(html).not.toContain('결제를 확인하고 있어요');
+      expect(html).not.toContain('아직 확정하지 못했어요');
+      expect(html).not.toContain('결제가 확인됐어요');
+      expect(html).toContain(`href="/orders/${orderId}"`);
+      expect(html).toContain('주문 상세 보기');
+      expect(html).toContain('role="status"');
+    });
+
+    it('결제 완료 주문이 따로 있어도 결제 취소 진행 안내를 승인 안내로 덮지 않는다', () => {
+      const html = renderToStaticMarkup(
+        <Orders orders={[orderItem()]} paymentResult="approved" paymentFocus={{ orderId, outcome: 'refund_in_progress' }} />,
+      );
+
+      expect(html).toContain('결제 취소를 진행하고 있어요');
+      expect(html).not.toContain('결제가 확인됐어요');
+    });
+
+    it('결제사 취소까지 끝난 주문은 주문과 결제가 취소됐다고 안내하고 승인 안내로 덮지 않는다', () => {
+      const html = renderToStaticMarkup(
+        <Orders orders={[orderItem()]} paymentResult="approved" paymentFocus={{ orderId, outcome: 'refunded' }} />,
+      );
+
+      expect(html).toContain('주문과 결제가 취소됐어요');
+      expect(html).not.toContain('결제가 확인됐어요');
+      expect(html).toContain(`href="/orders/${orderId}"`);
+    });
+
     it('쿼리가 checking이어도 원장이 결제 완료면 승인 안내와 주문 상세 링크를 보인다', () => {
       const html = renderToStaticMarkup(
         <Orders orders={[]} paymentResult="checking" paymentFocus={{ orderId, outcome: 'approved' }} />,

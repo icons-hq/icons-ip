@@ -1,6 +1,9 @@
 import Link from 'next/link';
 import { Icon } from '@/components/ui/Icon';
-import type { CheckoutPaymentResultFocus } from '@/lib/checkout';
+import {
+  checkoutPaymentResultFollowsApproval,
+  type CheckoutPaymentResultFocus,
+} from '@/lib/checkout';
 import { krw } from '@/lib/format';
 import {
   formatOrderDate,
@@ -12,7 +15,8 @@ import {
 /** 결제 confirm 콜백(/api/payments/goods/confirm…)이 /orders?payment=…로 붙이는 결과값. */
 export type OrdersPaymentResult = 'approved' | 'checking' | 'failed';
 
-type BannerTone = OrdersPaymentResult;
+/** `neutral`은 강조 없는 기본 배너다 — 승인 확인도 실패도 아닌 진행 안내에 쓴다. */
+type BannerTone = OrdersPaymentResult | 'neutral';
 
 interface BannerLink {
   readonly href: string;
@@ -104,6 +108,23 @@ function focusBanner(focus: CheckoutPaymentResultFocus): BannerCopy {
         body: '이 주문에는 처리 중인 취소 요청이 있어 결제가 진행되지 않았어요. 청구된 금액은 없어요. 진행 상태는 주문 상세에서 확인할 수 있어요.',
         link: { href: `/orders/${focus.orderId}`, label: '주문 상세 보기' },
       };
+    case 'refund_in_progress':
+      /* 승인을 기다리는 사이 취소 요청이 접수됐다. finalizer가 결제 원장을 남기고 결제
+         취소를 시작한다(20261012110100) — 승인은 확정됐으므로 '확인 중'이 아니다. 진행
+         상태(자동 결제 취소, 실패 시 담당자 확인)는 주문 상세의 취소 패널이 보여준다. */
+      return {
+        tone: 'neutral',
+        title: '결제 취소를 진행하고 있어요',
+        body: '결제는 승인됐고, 취소 요청에 따라 결제 취소를 진행하고 있어요. 진행 상태는 주문 상세에서 확인할 수 있어요.',
+        link: { href: `/orders/${focus.orderId}`, label: '주문 상세 보기' },
+      };
+    case 'refunded':
+      return {
+        tone: 'neutral',
+        title: '주문과 결제가 취소됐어요',
+        body: '이 주문은 취소됐고 결제도 취소됐어요. 환불 상태는 주문 상세에서 확인할 수 있어요.',
+        link: { href: `/orders/${focus.orderId}`, label: '주문 상세 보기' },
+      };
     case 'canceled':
       return {
         tone: 'failed',
@@ -132,10 +153,11 @@ export function Orders({
   );
   /* 콜백 리다이렉트에는 주문 식별자가 없어 원장 결과가 다른 주문(나중에 준비만 해 둔
      시도)을 짚을 수 있다. 승인 콜백으로 돌아왔고 DB에 결제 완료 국면 주문이 있으면, 그
-     다른 주문의 미결 상태로 방금 승인된 결제를 실패처럼 덮지 않는다. */
+     다른 주문의 미결 상태로 방금 승인된 결제를 실패처럼 덮지 않는다. 승인된 결제를 취소
+     중이거나 취소한 결과는 방금 승인된 그 결제의 사실이라 덮지 않는다. */
   const focusContradictsApproval = paymentResult === 'approved'
     && paymentFocus !== null
-    && paymentFocus.outcome !== 'approved'
+    && !checkoutPaymentResultFollowsApproval(paymentFocus.outcome)
     && hasPaidPhaseOrder;
   const banner: BannerCopy | undefined = !paymentResult
     ? undefined

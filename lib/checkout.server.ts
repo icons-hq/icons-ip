@@ -264,7 +264,8 @@ export async function loadLatestCardPaymentResultFocus(
         .limit(1)
         .maybeSingle<{ status: string }>(),
       /* claim은 처리 중인 취소 요청이 있으면 결제를 막는다(goods_order_not_payable).
-         그 주문에 재시도를 약속하지 않도록 함께 읽는다. 요청자는 언제나 주문 구매자다. */
+         그 주문에 재시도를 약속하지 않도록 함께 읽는다. 승인과 겹친 취소(결제 원장 paid ·
+         주문 pending)도 이 요청으로 결제 취소 진행을 가린다. 요청자는 언제나 주문 구매자다. */
       supabase
         .from('order_cancellation_requests')
         .select('status')

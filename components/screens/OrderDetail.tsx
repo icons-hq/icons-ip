@@ -228,7 +228,10 @@ export function OrderDetail({
         </div>
       )}
 
-      {order.paymentMethod==='card' && order.status==='pending' && (
+      {/* 처리 중인 취소가 있으면 DB가 결제를 막고, 승인과 겹친 취소는 승인된 결제를 취소하는
+          중이다. "이어가기"·"주문 취소로 정리"는 둘 다 지킬 수 없으니 진행 상태는 아래 취소
+          패널에 맡긴다. */}
+      {order.paymentMethod==='card' && order.status==='pending' && !activeCancelClaim && (
         <div className="wrap"><div className="order-detail-deposit card">
           <div><strong>진행 중인 결제를 확인해주세요</strong><p>결제 화면에서 현재 상태를 확인할 수 있습니다. 진행하지 않을 주문은 주문 취소로 정리해주세요.</p></div>
           <Link className="btn btn-holo" href={`/checkout/${order.id}`}>결제 상태 확인·이어가기</Link>

@@ -47,6 +47,31 @@ describe('OrderDetail', () => {
     expect(html).toContain(`href="/checkout/${ORDER_ID}"`);
     expect(html).toContain('결제 상태 확인·이어가기');
   });
+  /* 처리 중인 취소가 있으면 DB가 결제를 막고, 승인과 겹친 취소는 승인된 결제를 취소하는
+     중이다(INT-5). 결제 이어가기·주문 취소로 정리 안내는 둘 다 사실과 다르다. */
+  it('처리 중인 취소가 있는 결제 대기 카드 주문에는 결제 이어가기 안내를 띄우지 않는다', () => {
+    const html = renderToStaticMarkup(<OrderDetail order={order({
+      status: 'pending',
+      payment: { amount: 30000, status: 'paid', createdAt: '2026-08-01T06:01:00.000Z' },
+      shipments: [],
+      cancellationRequest: {
+        id: 'claim-1',
+        status: 'processing',
+        claimType: 'cancel',
+        stage: 'processing',
+        reference: 12,
+        requestedAt: '2026-08-01T06:00:30.000Z',
+        decidedAt: '2026-08-01T06:01:00.000Z',
+        decisionNote: null,
+        reshipCarrier: null,
+        reshipTrackingNumber: null,
+      },
+    })} />);
+
+    expect(html).not.toContain('결제 상태 확인·이어가기');
+    expect(html).not.toContain('진행 중인 결제를 확인해주세요');
+    expect(html).toContain('결제 취소 처리 중');
+  });
   it('운송장이 등록되면 택배사·운송장번호와 배송조회 링크를 노출한다', () => {
     const html = renderToStaticMarkup(<OrderDetail order={order()} />);
 

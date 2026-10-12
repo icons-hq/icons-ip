@@ -5,7 +5,9 @@ import {
   checkoutOrderName,
   checkoutOrderState,
   checkoutPaymentClosure,
+  checkoutPaymentResultFollowsApproval,
   checkoutPaymentResultOutcome,
+  checkoutRefundInProgress,
   checkoutReorderMode,
   type CheckoutClosureInput,
   mapPlaceOrderError,
@@ -122,6 +124,33 @@ describe('checkoutOrderState', () => {
     expect(checkoutOrderState('done', 'paid', null, now)).toBe('complete');
     expect(checkoutOrderState('pending', null, '2026-07-14T04:59:59.000Z', now)).toBe('closed');
     expect(checkoutOrderState('canceled', 'canceled', null, now)).toBe('closed');
+  });
+
+  /* 승인과 취소 요청이 겹친 주문: finalizer가 결제 원장을 paid로 남기고 주문은 pending,
+     결제 기한은 비운 채 결제 취소를 시작한다(20261012110100). 승인은 확정됐으므로
+     '결제사 승인 결과를 아직 확정하지 못했어요'로 안내하면 사실과 다르다(INT-5). */
+  it('결제는 승인됐고 처리 중인 취소 요청이 있으면 확인 중이 아니라 결제 취소 진행이다', () => {
+    expect(checkoutOrderState('pending', 'paid', null, now, 'cancellation_requested', true))
+      .toBe('refund_in_progress');
+    expect(checkoutOrderState('pending', 'paid', '2026-07-14T04:00:00.000Z', now, null, true))
+      .toBe('refund_in_progress');
+    // 결제가 아직 확정되지 않은 시도는 취소 요청이 있어도 확인 중이다.
+    expect(checkoutOrderState('pending', 'pending', null, now, 'cancellation_requested', true))
+      .toBe('checking');
+    expect(checkoutOrderState('pending', 'paid', null, now, null, false)).toBe('checking');
+    expect(checkoutOrderState('canceled', 'refunded', null, now, null, true)).toBe('closed');
+  });
+});
+
+describe('checkoutRefundInProgress', () => {
+  it('결제 대기 주문의 결제 원장이 paid이고 처리 중인 취소 요청이 있을 때만 참이다', () => {
+    const base = { orderStatus: 'pending', paymentStatus: 'paid', hasActiveCancellationRequest: true };
+    expect(checkoutRefundInProgress(base)).toBe(true);
+    expect(checkoutRefundInProgress({ ...base, hasActiveCancellationRequest: false })).toBe(false);
+    expect(checkoutRefundInProgress({ ...base, paymentStatus: 'pending' })).toBe(false);
+    expect(checkoutRefundInProgress({ ...base, paymentStatus: null })).toBe(false);
+    expect(checkoutRefundInProgress({ ...base, orderStatus: 'paid' })).toBe(false);
+    expect(checkoutRefundInProgress({ ...base, orderStatus: 'canceled', paymentStatus: 'refunded' })).toBe(false);
   });
 });
 
@@ -242,6 +271,32 @@ describe('checkoutPaymentResultOutcome', () => {
       .toBe('approved');
     expect(checkoutPaymentResultOutcome({ orderStatus: 'canceled', paymentStatus: null, attempt: attempt('canceled') }, now))
       .toBe('canceled');
+  });
+
+  /* C race 스모크 케이스 A: 승인을 기다리는 사이 취소를 요청했다. 결제 원장은 paid, 주문은
+     pending, 요청은 processing(자동 결제 취소가 실패하면 needs_review)이다(INT-5). */
+  it('승인된 결제를 취소 요청에 따라 취소하는 중이면 확인 중이 아니라 결제 취소 진행이다', () => {
+    expect(checkoutPaymentResultOutcome({
+      orderStatus: 'pending', paymentStatus: 'paid', attempt: attempt('approved'), hasActiveCancellationRequest: true,
+    }, now)).toBe('refund_in_progress');
+    expect(checkoutPaymentResultOutcome({
+      orderStatus: 'pending', paymentStatus: 'paid', attempt: attempt('approved'), hasActiveCancellationRequest: false,
+    }, now)).toBe('checking');
+  });
+
+  it('승인 뒤 결제사 취소까지 끝나 취소된 주문은 결제 취소 완료로 구분한다', () => {
+    expect(checkoutPaymentResultOutcome({
+      orderStatus: 'canceled', paymentStatus: 'refunded', attempt: attempt('approved'),
+    }, now)).toBe('refunded');
+  });
+
+  it('승인 콜백과 어긋나지 않는 결과는 승인·결제 취소 진행·결제 취소 완료뿐이다', () => {
+    expect(checkoutPaymentResultFollowsApproval('approved')).toBe(true);
+    expect(checkoutPaymentResultFollowsApproval('refund_in_progress')).toBe(true);
+    expect(checkoutPaymentResultFollowsApproval('refunded')).toBe(true);
+    for (const outcome of ['checking', 'not_approved', 'attempt_expired', 'retryable', 'cancellation_requested', 'canceled'] as const) {
+      expect(checkoutPaymentResultFollowsApproval(outcome)).toBe(false);
+    }
   });
 
   it('늦게 끝낸 인증(시도 만료)은 확인 중이 아니라 시도 만료다', () => {

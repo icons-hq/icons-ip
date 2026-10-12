@@ -454,6 +454,45 @@ describe('loadLatestCardPaymentResultFocus', () => {
     });
   });
 
+  /* 승인을 기다리는 사이 취소를 요청했다(C race 케이스 A). finalizer가 결제 원장을 paid로
+     남기고 주문은 pending, 요청은 processing으로 둔다 — 자동 결제 취소가 실패하면
+     needs_review다. 확인 중이 아니라 결제 취소 진행이다(INT-5). */
+  it('승인된 결제와 처리 중인 취소 요청을 읽어 결제 취소 진행으로 고른다', async () => {
+    mocks.serviceClient = {
+      from: (table: string) => createQuery(table, [], {
+        payment_attempts: [{
+          user_id: userId, purpose: 'order', provider: 'toss', ref_id: orderId, state: 'approved',
+          expires_at: '2026-10-12T05:25:00.000Z',
+        }],
+      }),
+    };
+    const rows: Record<string, Record<string, unknown>[]> = {
+      orders: [{ id: orderId, user_id: userId, status: 'pending' }],
+      payment_summaries: [{ purpose: 'order', ref_id: orderId, status: 'paid' }],
+      order_cancellation_requests: [{ order_id: orderId, status: 'processing' }],
+    };
+    mocks.client = { from: (table: string) => createQuery(table, [], rows) };
+
+    await expect(loadLatestCardPaymentResultFocus(userId, now)).resolves.toEqual({
+      orderId,
+      outcome: 'refund_in_progress',
+    });
+
+    rows.order_cancellation_requests = [{ order_id: orderId, status: 'needs_review' }];
+    await expect(loadLatestCardPaymentResultFocus(userId, now)).resolves.toEqual({
+      orderId,
+      outcome: 'refund_in_progress',
+    });
+
+    rows.orders = [{ id: orderId, user_id: userId, status: 'canceled' }];
+    rows.payment_summaries = [{ purpose: 'order', ref_id: orderId, status: 'refunded' }];
+    rows.order_cancellation_requests = [{ order_id: orderId, status: 'completed' }];
+    await expect(loadLatestCardPaymentResultFocus(userId, now)).resolves.toEqual({
+      orderId,
+      outcome: 'refunded',
+    });
+  });
+
   it('최근 결제 시도나 본인 주문이 없으면 쿼리 기본 안내에 맡긴다', async () => {
     mocks.serviceClient = { from: (table: string) => createQuery(table, [], {}) };
     mocks.client = { from: (table: string) => createQuery(table, [], {}) };
