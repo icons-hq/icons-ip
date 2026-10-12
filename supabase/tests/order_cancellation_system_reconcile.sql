@@ -69,7 +69,9 @@ values
   ('51000000-0000-4000-8000-0000000c5c03', '00000000-0000-4000-8000-0000000c5c01', 'paid', 10000, '{}'::jsonb, null, null),
   -- R: 입고 확인된 반품 — 시스템은 닫을 수 없다
   ('51000000-0000-4000-8000-0000000c5c04', '00000000-0000-4000-8000-0000000c5c01', 'delivered', 10000, '{}'::jsonb,
-    now() - interval '3 days', now() - interval '1 day');
+    now() - interval '3 days', now() - interval '1 day'),
+  -- W: 무통장 입금 확인 주문 — 완료 RPC가 결제사 증거 없이 닫지 않는다(REF-4 런북 근거)
+  ('51000000-0000-4000-8000-0000000c5c05', '00000000-0000-4000-8000-0000000c5c01', 'paid', 10000, '{}'::jsonb, null, null);
 
 insert into public.order_items (order_id, good_id, qty, unit_price, good_name_snapshot, good_type_snapshot, good_ip_id_snapshot, variant_id)
 select o.id, 'sys-cancel-goods', 1, 10000, '시스템 취소 굿즈', '문구', 'sys-cancel-ip',
@@ -95,7 +97,8 @@ values
   ('52000000-0000-4000-8000-0000000c5c01', '00000000-0000-4000-8000-0000000c5c01', 'order', '51000000-0000-4000-8000-0000000c5c01', 10000, 'paid', 'pk_sys_cancel_a', 'idem_sys_cancel_a', 'toss'),
   ('52000000-0000-4000-8000-0000000c5c02', '00000000-0000-4000-8000-0000000c5c01', 'order', '51000000-0000-4000-8000-0000000c5c02', 10000, 'paid', 'pk_sys_cancel_b', 'idem_sys_cancel_b', 'toss'),
   ('52000000-0000-4000-8000-0000000c5c03', '00000000-0000-4000-8000-0000000c5c01', 'order', '51000000-0000-4000-8000-0000000c5c03', 10000, 'paid', 'pk_sys_cancel_c', 'idem_sys_cancel_c', 'toss'),
-  ('52000000-0000-4000-8000-0000000c5c04', '00000000-0000-4000-8000-0000000c5c01', 'order', '51000000-0000-4000-8000-0000000c5c04', 10000, 'paid', 'pk_sys_cancel_r', 'idem_sys_cancel_r', 'toss');
+  ('52000000-0000-4000-8000-0000000c5c04', '00000000-0000-4000-8000-0000000c5c01', 'order', '51000000-0000-4000-8000-0000000c5c04', 10000, 'paid', 'pk_sys_cancel_r', 'idem_sys_cancel_r', 'toss'),
+  ('52000000-0000-4000-8000-0000000c5c05', '00000000-0000-4000-8000-0000000c5c01', 'order', '51000000-0000-4000-8000-0000000c5c05', 10000, 'paid', 'bt_sys_cancel_w', 'idem_sys_cancel_w', 'bank_transfer');
 
 -- 입고까지 확인된 레거시 반품. 회수 스냅샷 없이 complete로 판정되는 legacy 정책을 쓴다.
 insert into public.order_cancellation_requests (
@@ -310,5 +313,37 @@ reset role;
 select 1 / case when (
   select status = 'delivered' from public.orders where id = '51000000-0000-4000-8000-0000000c5c04'
 ) then 1 else 0 end as assert_return_order_untouched_by_system_attempts;
+
+-- ---------------------------------------------------------------------------
+-- 무통장 결제 주문의 취소는 결제사 증거가 없어 완료되지 않는다(REF-4, #280)
+-- 런북(admin-store-settings)의 "계좌 설정 전 선행 조건"이 기대는 DB 계약이다.
+-- ---------------------------------------------------------------------------
+set local role service_role;
+select public.request_order_claim(
+  '51000000-0000-4000-8000-0000000c5c05', '00000000-0000-4000-8000-0000000c5c01',
+  'cancel', '사용자 주문 취소', 'change_of_mind'
+);
+do $bank_transfer_completion$
+declare rejected boolean := false;
+begin
+  begin
+    perform public.complete_order_cancellation_request(
+      (select id from public.order_cancellation_requests where order_id = '51000000-0000-4000-8000-0000000c5c05'),
+      array[]::text[],
+      '00000000-0000-4000-8000-0000000c5c02'
+    );
+  exception when others then
+    rejected := sqlerrm = 'provider cancellation required';
+  end;
+  if not rejected then raise exception 'bank transfer order completed without provider evidence'; end if;
+end;
+$bank_transfer_completion$;
+reset role;
+
+select 1 / case when (
+  select o.status = 'paid' and r.status = 'processing'
+  from public.orders o join public.order_cancellation_requests r on r.order_id = o.id
+  where o.id = '51000000-0000-4000-8000-0000000c5c05'
+) then 1 else 0 end as assert_bank_transfer_cancellation_stays_open;
 
 rollback;

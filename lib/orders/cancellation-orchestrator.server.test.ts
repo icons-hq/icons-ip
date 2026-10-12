@@ -146,7 +146,11 @@ describe('reconcileOrderCancellation', () => {
     );
   });
 
-  it('카드 원장 행이 없는 주문(무통장 등)은 provider 증거 없이 로컬 완료한다', async () => {
+  // 이 오케스트레이터는 카드 provider(toss·korpay) 행만 읽는다. 카드 행이 없으면 빈 증거로
+  // 완료 RPC를 부를 뿐, 완료 여부는 DB가 정한다 — 무통장 결제(paid)가 있는 주문은
+  // complete_order_cancellation_request가 "provider cancellation required"로 거절해
+  // 결제확인필요로 남는다(2026-10-12 점검 REF-4, #280). mock 통과를 무통장 종결로 읽지 말 것.
+  it('카드 provider 원장 행이 없으면 빈 증거로 완료 RPC를 요청한다(무통장 결제는 DB가 거절)', async () => {
     defaultMocks.payments = [];
 
     await expect(reconcileOrderCancellation({
