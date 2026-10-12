@@ -285,6 +285,7 @@ jobs:
           run_sql_test supabase/tests/shipment_export.sql
           run_sql_test supabase/tests/shipment_export_variant_code.sql
           run_sql_test supabase/tests/warehouse_native_tracking.sql
+          run_sql_test supabase/tests/warehouse_reply_exchange.sql
           run_sql_test supabase/tests/goods_excel_imports.sql
           run_sql_test supabase/tests/order_shipment_email_jobs.sql
           PSQL_BIN=psql PGHOST=127.0.0.1 PGPORT=54322 PGUSER=postgres PGPASSWORD=postgres PGDATABASE=postgres bash supabase/tests/option_stock_recovery_concurrency.sh

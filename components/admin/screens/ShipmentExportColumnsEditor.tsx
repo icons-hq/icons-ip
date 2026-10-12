@@ -12,9 +12,10 @@ export function ShipmentExportColumnsEditor({origin,canEdit}:{origin:Fulfillment
  function move(index:number,direction:number){const next=[...columns];[next[index],next[index+direction]]=[next[index+direction],next[index]];setColumns(next);}
  if(origin.exportTemplate!=='standard'){
   const gimpo=origin.exportTemplate==='wms_csv',headers=gimpo?GIMPO_EXPORT_HEADERS:SEOWON_EXPORT_HEADERS;
-  return <details style={{marginTop:24}}><summary>{gimpo?'김포 WMS 21열':'서원 우체국 7열'} 출고지시 양식</summary>
+  return <details style={{marginTop:24}}><summary>{gimpo?'김포 WMS 21열':'서원 우체국 송장양식'} 출고지시 양식</summary>
    <p>제공된 물류 양식의 헤더와 순서로 내려받습니다. 일반 양식의 컬럼 설정은 표준 양식을 선택할 때 적용됩니다.</p>
-   <p>{gimpo?'사방넷 주문번호·옵션별칭·공급단가·EA(상품)·두 번째 연락처는 빈칸입니다. 주문금액/수량은 주문 당시 할인 전 단가이며, 배송비는 배송 건의 첫 상품 행에만 표시합니다.':'기타연락처·운임Type·수량은 빈칸입니다. 배송 건마다 한 행을 만들고 상품별 수량은 품목명에 적습니다.'} 빈칸의 사용 기준은 물류 담당자와 확인해주세요.</p>
+   <p>{gimpo?'사방넷 주문번호·옵션별칭·공급단가·EA(상품)·두 번째 연락처는 빈칸입니다. 주문금액/수량은 주문 당시 할인 전 단가이며, 배송비는 배송 건의 첫 상품 행에만 표시합니다. 빈칸의 사용 기준은 물류 담당자와 확인해주세요.'
+    :'제공 원본과 같은 송장양식 시트 하나로, 앞 7열의 헤더·순서·색·너비가 원본 그대로입니다. 원본처럼 품목 하나가 한 행이고 수량은 숫자, 품목명은 "상품명_옵션명", 전화번호는 010-1234-5678 형식입니다. 같은 받는 분의 행은 서원 프로그램이 합배송합니다. 기타연락처·운임Type은 서원 회신대로 비워 둡니다. 원본에 없는 받는분성명·배송메시지는 오른쪽 두 열에 덧붙입니다. 송장번호 회신은 이 파일 오른쪽에 송장번호 열을 채워 운송장 일괄 등록에 그대로 올립니다.'}</p>
    <ol>{headers.map(header=><li key={header}>{header}</li>)}</ol>
   </details>;
  }

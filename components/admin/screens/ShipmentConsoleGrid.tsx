@@ -2,11 +2,16 @@
 import {useState,useTransition} from 'react';
 import {useRouter} from 'next/navigation';
 import {bulkConfirmAdminOrdersAction} from '@/app/admin/order-actions';
-import {completeShipmentsAction,exportShipmentsAction} from '@/app/admin/shipment-actions';
+import {completeShipmentsAction,exportPendingOriginShipmentsAction,exportShipmentsAction} from '@/app/admin/shipment-actions';
 import {ConsoleGrid,type ConsoleGridColumn,type ConsoleGridRow} from '@/components/admin/console';
-import {isParcelShipment,shipmentConsoleSelectable,type ShipmentConsoleRow,type ShipmentConsoleTab} from '@/lib/admin/shipment-dispatch';
+import {isParcelShipment,shipmentConsoleSelectable,type ShipmentConsoleOrigin,type ShipmentConsoleRow,type ShipmentConsoleTab} from '@/lib/admin/shipment-dispatch';
 import {OrderDelayNoticePanel} from './OrderDelayNoticePanel';
-export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,readyHref}:{rows:ShipmentConsoleRow[];columns:ConsoleGridColumn[];gridRows:ConsoleGridRow[];tab:ShipmentConsoleTab;currentHref:string;readyHref:string}){
+type ExportFile={base64:string;mime:string;name:string};
+function download(file:ExportFile){
+ const bytes=Uint8Array.from(atob(file.base64),c=>c.charCodeAt(0));const url=URL.createObjectURL(new Blob([bytes],{type:file.mime}));
+ const anchor=document.createElement('a');anchor.href=url;anchor.download=file.name;anchor.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
+}
+export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,readyHref,origins=[],originId=null}:{rows:ShipmentConsoleRow[];columns:ConsoleGridColumn[];gridRows:ConsoleGridRow[];tab:ShipmentConsoleTab;currentHref:string;readyHref:string;origins?:ShipmentConsoleOrigin[];originId?:string|null}){
  const [selected,setSelected]=useState<string[]>([]);const [pending,startTransition]=useTransition();const router=useRouter();
  const [confirmedSelection,setConfirmedSelection]=useState<{href:string;ids:string[]}|null>(null);
  const [message,setMessage]=useState('');const [error,setError]=useState('');const [format,setFormat]=useState<'xlsx'|'csv'>('xlsx');
@@ -22,10 +27,26 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
  const orderIds=[...new Set(rows.filter(row=>ids.includes(row.id)).map(row=>row.orderId))];
  const hasBatchActions=tab==='new'||tab==='delayed'||rows.some(isParcelShipment)||Boolean(retainedIds?.length);
  const exportEligible=ids.length>0&&ids.every(id=>{const row=rows.find(item=>item.id===id);return row?shipmentConsoleSelectable(row,tab):Boolean(retainedIds?.includes(id));});
+ // 출고지 단위 내려받기는 목록 페이지(100건)와 무관하게 아직 전달하지 않은 건 전부를 한 파일로 받는다.
+ const exportOrigins=tab==='ready'||tab==='delayed'?origins.filter(origin=>origin.active!==false&&(!originId||origin.id===originId)):[];
  function select(next:string[]){setConfirmedSelection(null);setSelected(next.filter(id=>selectableIds.has(id)));}
+ function exportOrigin(origin:ShipmentConsoleOrigin){
+  if(pending)return;
+  setMessage('');setError('');setFailures([]);
+  startTransition(async()=>{
+   try{
+    const result=await exportPendingOriginShipmentsAction(origin.id,format);
+    if(result.error)setError(result.error);else if(result.file){download(result.file);setMessage(result.message??'');}
+    router.refresh();
+   }catch{setError('처리 중 연결이 끊겼습니다. 최신 상태를 확인한 뒤 다시 시도해주세요.');}
+  });
+ }
  function run(kind:'confirm'|'export'|'complete'){
   if(!ids.length||pending)return;
   if(kind==='export'&&!exportEligible)return;
+  // 창고는 같은 출고지시를 두 번 받으면 걸러내지 못한다(서원 회신 C6). 다시 보낼 때는 확인을 받는다.
+  const resent=kind==='export'?rows.filter(row=>ids.includes(row.id)&&row.exportedAt).length:0;
+  if(resent&&!window.confirm(`이미 출고지시를 전달한 배송 건 ${resent}건이 포함돼 있습니다. 창고는 같은 건을 두 번 받으면 걸러내지 못해 중복 출고될 수 있습니다. 그래도 다시 내려받을까요?`))return;
   if(kind==='complete'&&!window.confirm('선택한 배송 건이 실제 도착했는지 확인했나요? 배송완료 시각부터 해당 배송 건의 철회 기간이 시작됩니다.'))return;
   setMessage('');setError('');setFailures([]);
   startTransition(async()=>{
@@ -47,8 +68,7 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
     }else{
      const result=await exportShipmentsAction(ids,format);
      if(result.error)setError(result.error);
-     else if(result.file){const bytes=Uint8Array.from(atob(result.file.base64),c=>c.charCodeAt(0));const url=URL.createObjectURL(new Blob([bytes],{type:result.file.mime}));
-      const anchor=document.createElement('a');anchor.href=url;anchor.download=result.file.name;anchor.click();setTimeout(()=>URL.revokeObjectURL(url),1000);setMessage(`${ids.length}건의 출고지시를 내려받았습니다.`);}
+     else if(result.file){download(result.file);setMessage(result.message??`${ids.length}건의 출고지시를 내려받았습니다.`);}
     }
     router.refresh();
    }catch{setError('처리 중 연결이 끊겼습니다. 최신 상태를 확인한 뒤 다시 시도해주세요.');}
@@ -66,6 +86,10 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
      <button className="wc-admin-kit__button" disabled={pending||!exportEligible} onClick={()=>run('export')}>출고지시 내보내기</button></>}
     {tab==='delayed'?<button className="wc-admin-kit__button" disabled={pending||!ids.length} onClick={()=>setNoticeSelection([...ids])}>선택 주문 {orderIds.length}건 고객 지연 안내</button>:null}
     {pending?<span role="status">처리 중…</span>:null}
+   </div>:null}
+   {exportOrigins.length?<div className="wc-admin-kit__actions" role="group" aria-label="출고지별 새 출고지시 내려받기" style={{padding:'0 12px 12px'}}>
+    <span>선택 없이 출고지별로 아직 전달하지 않은 발송 대기 건 전체(최대 1,000건)를 그 창고 양식 파일 하나로 받습니다.</span>
+    {exportOrigins.map(origin=><button key={origin.id} type="button" className="wc-admin-kit__button" disabled={pending} onClick={()=>exportOrigin(origin)}>{origin.name} 새 출고지시 전체 내려받기</button>)}
    </div>:null}
   </ConsoleGrid>
   {tab==='delayed'?<button className="wc-admin-kit__button" type="button" onClick={()=>setNoticeSelection([])}>고객 지연 안내 이력·결과</button>:null}
