@@ -80,6 +80,20 @@ describe('startAdminOrderCancellationAction', () => {
     expect(mocks.reconcile).not.toHaveBeenCalled();
   });
 
+  /* 2026-10-12 브라우저 QA R2-2: 양식을 연 뒤 출고지시가 나가면 열 때의 패널에는 확인란이
+     없다. 서버가 거절하면 주문 패널을 다시 그려 확인란이 나타나게 하고, 안 보이면
+     새로고침하라고 안내한다. */
+  it('서버가 거절하면 주문 패널을 최신 상태로 다시 그리고 확인란 위치를 안내한다', async () => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'warehouse_stop_confirmation_required' } });
+
+    const state = await startAdminOrderCancellationAction({}, form());
+
+    expect(mocks.revalidatePath).toHaveBeenCalledWith('/admin/sales/orders');
+    expect(mocks.revalidatePath).toHaveBeenCalledWith(`/orders/${ORDER_ID}`);
+    expect(state.errors?.form).toContain('창고 출고 중단 확인란');
+    expect(state.errors?.form).toContain('새로고침');
+  });
+
   it.each([
     ['shipment_already_dispatched', '이미 발송된 배송 건이 있어'],
     ['order_claim_in_progress', '이미 진행 중인 취소·반품·교환 요청'],

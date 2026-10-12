@@ -359,7 +359,7 @@ export async function reconcileAdminOrderCancellationAction(
 function staffCancellationError(message: string | null | undefined) {
   const value = message ?? '';
   if (value.includes('warehouse_stop_confirmation_required')) {
-    return '출고지시 파일이 나간 배송 건이 있습니다. 창고에서 출고 중단을 확인한 뒤 확인란을 체크해주세요.';
+    return '출고지시 파일이 나간 배송 건이 있습니다. 창고에서 출고 중단을 확인한 뒤 양식의 창고 출고 중단 확인란을 체크하고 다시 실행해주세요. 확인란이 보이지 않으면 새로고침해주세요.';
   }
   if (value.includes('shipment_already_dispatched')) {
     return '이미 발송된 배송 건이 있어 전액 취소할 수 없습니다. 배송 완료 뒤 반품으로 처리하거나 담당자에게 넘겨주세요.';
@@ -404,7 +404,14 @@ export async function startAdminOrderCancellationAction(
     p_reason_code: normalized.value.reasonCode,
     p_warehouse_stop_confirmed: normalized.value.warehouseStopConfirmed,
   });
-  if (error) return { errors: { form: staffCancellationError(error.message) } };
+  if (error) {
+    /* 양식을 연 뒤 출고지시·발주확인·다른 요청으로 주문이 바뀌어 DB가 거절했다. 주문 패널을
+       최신 상태로 다시 그려야 거절 문구가 가리키는 확인란·버튼이 화면에 있다 — 열 때의
+       패널에는 창고 출고 중단 확인란이 없었다(2026-10-12 브라우저 QA R2-2). */
+    revalidateOrderSurfaces(normalized.value.orderId);
+    revalidatePath('/admin/sales/orders');
+    return { errors: { form: staffCancellationError(error.message) } };
+  }
   if (typeof data !== 'string' || !UUID_PATTERN.test(data)) {
     revalidateOrderSurfaces(normalized.value.orderId);
     return { errors: { form: '전액 취소 요청을 확인하지 못했습니다. 취소 관리에서 최신 상태를 확인해주세요.' } };
