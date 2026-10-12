@@ -29,6 +29,8 @@ export interface OrderConfirmationEmailInput {
   itemsSubtotal: number;
   shippingFee: number;
   discountTotal?: number;
+  /** 주문에 사용한 적립금. 쿠폰 할인과 따로 적어야 굿즈 합계+배송비−할인이 총 결제금액과 맞는다. */
+  storeCreditTotal?: number;
   total: number;
   address: CheckoutAddress | null;
   orderUrl: string;
@@ -179,6 +181,7 @@ export function renderOrderConfirmationEmail(input: OrderConfirmationEmailInput)
     `굿즈 합계: ${krw(input.itemsSubtotal)}`,
     `배송비: ${shippingFeeLabel(input.shippingFee)}`,
     ...(input.discountTotal ? [`쿠폰 할인: −${krw(input.discountTotal)}`] : []),
+    ...(input.storeCreditTotal ? [`적립금 사용: −${krw(input.storeCreditTotal)}`] : []),
     `총 결제금액: ${krw(input.total)}`,
     '',
     '[배송지]',
@@ -204,6 +207,7 @@ export function renderOrderConfirmationEmail(input: OrderConfirmationEmailInput)
       ['굿즈 합계', krw(input.itemsSubtotal)],
       ['배송비', shippingFeeLabel(input.shippingFee)],
       ...(input.discountTotal ? [['쿠폰 할인', `−${krw(input.discountTotal)}`] as [string, string]] : []),
+      ...(input.storeCreditTotal ? [['적립금 사용', `−${krw(input.storeCreditTotal)}`] as [string, string]] : []),
       ['총 결제금액', krw(input.total)],
     ]),
     htmlSectionTitle('배송지'),
