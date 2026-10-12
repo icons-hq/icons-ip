@@ -4,12 +4,15 @@ import { loadOrderShipments } from './orders/shipments.server';
 import { getShippingCarrierRegistry } from './orders/shipment.server';
 
 import {
+  checkoutEffectivePaymentStatus,
   checkoutPaymentResultOutcome,
   normalizeCheckoutAddress,
   normalizeCheckoutPaymentMethod,
   type CheckoutAddress,
+  readCheckoutPayment,
   type CheckoutPaymentAttemptSnapshot,
   type CheckoutPaymentMethod,
+  type CheckoutPaymentReading,
   type CheckoutPaymentResultFocus,
 } from './checkout';
 import { createClient } from './supabase/server';
@@ -86,6 +89,31 @@ export interface CheckoutOrderSnapshot {
 
 const ACTIVE_CANCELLATION_REQUEST_STATUSES = ['requested', 'processing', 'needs_review'];
 
+interface PaymentAttemptRow {
+  state: string;
+  expires_at: string | null;
+  provider: string;
+}
+
+/** 주문의 가장 최근 결제 시도. 결제 시도 원장은 service role 전용이라 구매자 본인 것만 고른다. */
+function selectLatestOrderPaymentAttempt(userId: string, orderId: string) {
+  return createServiceClient()
+    .from('payment_attempts')
+    .select('state,expires_at,provider')
+    .eq('user_id', userId)
+    .eq('purpose', 'order')
+    .eq('ref_id', orderId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle<PaymentAttemptRow>();
+}
+
+function paymentAttemptSnapshot(row: PaymentAttemptRow | null): CheckoutPaymentAttemptSnapshot | null {
+  return row
+    ? { state: row.state, expiresAt: row.expires_at ?? null, provider: row.provider }
+    : null;
+}
+
 export async function loadLatestCheckoutAddress(userId: string): Promise<CheckoutAddress | null> {
   const supabase = await createClient();
   const { data, error } = await supabase
@@ -127,7 +155,6 @@ export async function loadCheckoutOrder(
     .eq('user_id', userId)
     .maybeSingle<OrderRow>();
   if (orderError || !orderData) return null;
-  const paymentLedger = createServiceClient();
 
   const [
     { data: itemData, error: itemError },
@@ -148,15 +175,7 @@ export async function loadCheckoutOrder(
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle<{ status: string }>(),
-    paymentLedger
-      .from('payment_attempts')
-      .select('state,expires_at,provider')
-      .eq('user_id', userId)
-      .eq('purpose', 'order')
-      .eq('ref_id', orderId)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle<{ state: string; expires_at: string | null; provider: string }>(),
+    selectLatestOrderPaymentAttempt(userId, orderId),
     supabase
       .from('order_cancellation_requests')
       .select('status')
@@ -178,19 +197,9 @@ export async function loadCheckoutOrder(
     address: normalizeCheckoutAddress(orderData.address),
     expiresAt: orderData.expires_at,
     createdAt: orderData.created_at,
-    paymentStatus: (
-      attemptData?.state === 'confirming'
-      || attemptData?.state === 'unknown'
-      || attemptData?.state === 'needs_review'
-    ) ? 'pending' : paymentData?.status ?? null,
+    paymentStatus: checkoutEffectivePaymentStatus(attemptData?.state, paymentData?.status ?? null),
     paymentMethod: normalizeCheckoutPaymentMethod(orderData.payment_method) ?? 'card',
-    paymentAttempt: attemptData
-      ? {
-          state: attemptData.state,
-          expiresAt: attemptData.expires_at ?? null,
-          provider: attemptData.provider,
-        }
-      : null,
+    paymentAttempt: paymentAttemptSnapshot(attemptData),
     hasActiveCancellationRequest: ((requestData ?? []) as unknown[]).length > 0,
     shipments: await loadOrderShipments(supabase, [orderId], await getShippingCarrierRegistry()),
     items: itemRows.map((item) => ({
@@ -205,6 +214,45 @@ export async function loadCheckoutOrder(
       preorderExpectedShipDate: item.preorder_expected_ship_date ?? null,
     })),
   };
+}
+
+/**
+ * 주문 상세가 결제 대기 카드 주문에 보일 결제 국면. 결제 화면(`/checkout/{orderId}`)과 같은
+ * 규칙(`readCheckoutPayment`)으로 읽는다 — 주문 상세만 "확인 중"·"이어가기"를 말하면 같은
+ * 주문이 화면마다 다르게 읽힌다. 주문·결제 요약·취소 요청은 주문 상세가 이미 본인 RLS로
+ * 읽었으므로 결제 시도만 원장에서 더 읽는다. 시도를 읽지 못하면 null — 화면은 상태를
+ * 단정하지 않는다.
+ */
+export async function loadPendingCardPaymentReading(
+  userId: string,
+  order: {
+    readonly id: string;
+    readonly status: string;
+    readonly paymentMethod: CheckoutPaymentMethod;
+    readonly expiresAt: string | null;
+    /** 결제 요약(payment_summaries)의 최근 상태. 행이 없으면 null. */
+    readonly ledgerPaymentStatus: string | null;
+    /** 최근 취소 요청의 상태. 없으면 null. */
+    readonly cancellationRequestStatus: string | null;
+  },
+  now: number = Date.now(),
+): Promise<CheckoutPaymentReading | null> {
+  if (order.status !== 'pending' || order.paymentMethod !== 'card') return null;
+  try {
+    const { data, error } = await selectLatestOrderPaymentAttempt(userId, order.id);
+    if (error) return null;
+    return readCheckoutPayment({
+      status: order.status,
+      paymentMethod: order.paymentMethod,
+      paymentStatus: checkoutEffectivePaymentStatus(data?.state, order.ledgerPaymentStatus),
+      paymentAttempt: paymentAttemptSnapshot(data),
+      hasActiveCancellationRequest: order.cancellationRequestStatus !== null
+        && ACTIVE_CANCELLATION_REQUEST_STATUSES.includes(order.cancellationRequestStatus),
+      expiresAt: order.expiresAt,
+    }, now);
+  } catch {
+    return null;
+  }
 }
 
 /** 결제 결과 화면이 "방금 돌아온 결제"로 볼 최근 창. 토스 결제창 30분을 넉넉히 덮는다. */

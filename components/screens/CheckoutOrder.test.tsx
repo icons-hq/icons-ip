@@ -2,9 +2,9 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import type { CheckoutOrderSnapshot } from '@/lib/checkout.server';
 import type { PreparedCheckout } from '@/lib/payments/gateway';
+import { checkoutStatusCopy } from '@/lib/checkout-status-copy';
 import {
   CheckoutOrder,
-  checkoutStatusCopy,
   effectiveGoodsCheckoutExpiry,
   preparedGoodsCheckoutUsable,
 } from './CheckoutOrder';

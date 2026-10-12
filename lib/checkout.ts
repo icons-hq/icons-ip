@@ -310,6 +310,51 @@ export function checkoutReorderMode(
 }
 
 /**
+ * 결제 원장보다 결제 시도가 앞선 경우를 반영한 결제 상태. 승인 API를 부른 뒤 아직
+ * 확정하지 못한 시도(confirming·unknown·needs_review)는 결제가 잡혔을 수 있으므로
+ * 원장에 행이 없어도 확인 중(`pending`)으로 본다.
+ */
+export function checkoutEffectivePaymentStatus(
+  attemptState: string | null | undefined,
+  ledgerStatus: string | null,
+): string | null {
+  return attemptState === 'confirming' || attemptState === 'unknown' || attemptState === 'needs_review'
+    ? 'pending'
+    : ledgerStatus;
+}
+
+/** 결제 화면과 주문 상세가 같은 규칙으로 읽는 카드 주문의 결제 국면. */
+export interface CheckoutPaymentReading {
+  readonly state: CheckoutOrderState;
+  /** `state`가 `payment_closed`일 때만 값이 있다. */
+  readonly closure: CheckoutPaymentClosure | null;
+  readonly reorderMode: CheckoutReorderMode | null;
+  /** 결제 시도의 provider. 시도가 없으면 null. */
+  readonly provider: string | null;
+}
+
+export function readCheckoutPayment(
+  order: CheckoutClosureInput & { readonly expiresAt: string | null },
+  now: number,
+): CheckoutPaymentReading {
+  const closure = order.status === 'pending' ? checkoutPaymentClosure(order, now) : null;
+  const state = checkoutOrderState(
+    order.status,
+    order.paymentStatus,
+    order.expiresAt,
+    now,
+    closure,
+    order.hasActiveCancellationRequest,
+  );
+  return {
+    state,
+    closure: state === 'payment_closed' ? closure : null,
+    reorderMode: checkoutReorderMode(order, state),
+    provider: order.paymentAttempt?.provider ?? null,
+  };
+}
+
+/**
  * 결제 콜백이 돌려보낸 `/orders?payment=…`의 실제 결과. 콜백 리다이렉트에는 주문
  * 식별자가 없고 쿼리는 위조할 수 있으므로, 배너 문구는 쿼리가 아니라 구매자의 최근
  * 결제 시도·주문 원장으로 고른다.

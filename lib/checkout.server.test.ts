@@ -1,5 +1,9 @@
 import { describe, expect, it, vi } from 'vitest';
-import { loadCheckoutOrder, loadLatestCardPaymentResultFocus } from './checkout.server';
+import {
+  loadCheckoutOrder,
+  loadLatestCardPaymentResultFocus,
+  loadPendingCardPaymentReading,
+} from './checkout.server';
 
 const mocks = vi.hoisted(() => ({
   client: null as unknown,
@@ -507,3 +511,81 @@ describe('loadLatestCardPaymentResultFocus', () => {
   });
 });
 
+/* 주문 상세가 결제 화면과 같은 결제 국면을 말하도록 결제 시도 원장을 더 읽는다(QA-2). */
+describe('loadPendingCardPaymentReading', () => {
+  const orderId = '1c8acc37-ad7c-463c-b5c6-567b83d6176b';
+  const userId = '1cc4d399-8e70-4f06-979d-8fb0f9c43fde';
+  const now = Date.parse('2026-10-12T05:12:00.000Z');
+  const order = {
+    id: orderId,
+    status: 'pending',
+    paymentMethod: 'card' as const,
+    expiresAt: '2026-10-12T05:15:00.000Z',
+    ledgerPaymentStatus: null,
+    cancellationRequestStatus: null,
+  };
+
+  it('승인 거절된 본인 결제 시도를 읽어 닫힌 결제로 판독한다', async () => {
+    const serviceRecords: QueryRecord[] = [];
+    mocks.serviceClient = {
+      from: (table: string) => createQuery(table, serviceRecords, {
+        payment_attempts: [{
+          user_id: userId,
+          purpose: 'order',
+          ref_id: orderId,
+          state: 'declined',
+          expires_at: '2026-10-12T05:10:00.000Z',
+          provider: 'toss',
+          created_at: '2026-10-12T05:00:00.000Z',
+        }],
+      }),
+    };
+
+    await expect(loadPendingCardPaymentReading(userId, order, now)).resolves.toEqual({
+      state: 'payment_closed',
+      closure: 'not_approved',
+      reorderMode: 'cancel_then_reorder',
+      provider: 'toss',
+    });
+    expect(serviceRecords[0]).toMatchObject({
+      table: 'payment_attempts',
+      eq: [['user_id', userId], ['purpose', 'order'], ['ref_id', orderId]],
+    });
+  });
+
+  it('처리 중인 취소 요청과 확인 중 시도를 결제 화면과 같이 반영한다', async () => {
+    mocks.serviceClient = {
+      from: (table: string) => createQuery(table, [], {
+        payment_attempts: [{ user_id: userId, purpose: 'order', ref_id: orderId, state: 'prepared', expires_at: '2026-10-12T05:20:00.000Z', provider: 'toss' }],
+      }),
+    };
+    await expect(loadPendingCardPaymentReading(userId, { ...order, cancellationRequestStatus: 'requested' }, now))
+      .resolves.toMatchObject({ state: 'payment_closed', closure: 'cancellation_requested' });
+    await expect(loadPendingCardPaymentReading(userId, { ...order, cancellationRequestStatus: 'completed' }, now))
+      .resolves.toMatchObject({ state: 'payable' });
+
+    mocks.serviceClient = {
+      from: (table: string) => createQuery(table, [], {
+        payment_attempts: [{ user_id: userId, purpose: 'order', ref_id: orderId, state: 'confirming', expires_at: null, provider: 'toss' }],
+      }),
+    };
+    await expect(loadPendingCardPaymentReading(userId, order, now)).resolves.toMatchObject({ state: 'checking' });
+  });
+
+  it('결제 대기 카드 주문이 아니면 원장을 읽지 않고, 읽지 못하면 단정하지 않는다', async () => {
+    const serviceRecords: QueryRecord[] = [];
+    mocks.serviceClient = { from: (table: string) => createQuery(table, serviceRecords, {}) };
+    await expect(loadPendingCardPaymentReading(userId, { ...order, status: 'paid' }, now)).resolves.toBeNull();
+    await expect(loadPendingCardPaymentReading(userId, { ...order, paymentMethod: 'bank_transfer' }, now)).resolves.toBeNull();
+    expect(serviceRecords).toHaveLength(0);
+
+    mocks.serviceClient = {
+      from: () => ({
+        select: () => ({ eq: () => ({ eq: () => ({ eq: () => ({ order: () => ({ limit: () => ({
+          maybeSingle: () => Promise.resolve({ data: null, error: { message: 'boom' } }),
+        }) }) }) }) }) }),
+      }),
+    };
+    await expect(loadPendingCardPaymentReading(userId, order, now)).resolves.toBeNull();
+  });
+});

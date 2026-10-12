@@ -12,13 +12,12 @@ import {
 import { ReorderAction } from '@/components/checkout/ReorderAction';
 import { PreparedCheckoutAction } from '@/components/payments/PreparedCheckoutAction';
 import {
-  checkoutDeadlineTimeLabel,
   checkoutOrderState,
   checkoutPaymentClosure,
   checkoutReorderMode,
   type CheckoutPaymentClosure,
-  type CheckoutReorderMode,
 } from '@/lib/checkout';
+import { checkoutStatusCopy, closedPaymentCopy } from '@/lib/checkout-status-copy';
 import type { CheckoutOrderSnapshot } from '@/lib/checkout.server';
 import { krw } from '@/lib/format';
 import {
@@ -47,84 +46,6 @@ const prepareErrorCopy: Record<NonNullable<PrepareGoodsPaymentActionState['error
   payment_closed: '이 주문으로는 다시 결제할 수 없어요. 주문 상태를 새로 불러오고 있어요.',
   payment_unavailable: '결제 환경을 준비 중입니다. 잠시 후 다시 시도해주세요.',
 };
-
-interface StatusCopy {
-  readonly title: string;
-  readonly body: string;
-}
-
-/**
- * 같은 주문으로 결제를 다시 시작할 수 없는 주문의 안내. "잠시 후 다시 시도"처럼
- * 반복해도 풀리지 않는 약속을 하지 않고, 실제로 일어나는 다음 일을 말한다.
- */
-function closedPaymentCopy(
-  closure: CheckoutPaymentClosure,
-  { orderExpiresAt, provider }: { orderExpiresAt: string | null; provider: string | null },
-): StatusCopy {
-  if (closure === 'not_approved') {
-    return {
-      title: '이 주문은 다시 결제할 수 없어요',
-      body: '결제가 승인되지 않았어요. 같은 주문으로는 다시 결제할 수 없으니 이 주문을 취소하고 같은 굿즈로 다시 주문해주세요. 취소하면 재고와 사용한 쿠폰·적립금이 바로 돌아와요.',
-    };
-  }
-  if (closure === 'cancellation_requested') {
-    return {
-      title: '취소 요청을 처리하고 있어요',
-      body: '이 주문에는 처리 중인 취소 요청이 있어 결제를 진행할 수 없어요. 진행 상태는 주문 상세에서 확인할 수 있어요.',
-    };
-  }
-  const deadline = checkoutDeadlineTimeLabel(orderExpiresAt);
-  /* 토스는 인증 뒤 10분 안에 승인 API를 부르지 않으면 결제가 EXPIRED로 끝난다(문서
-     127). 시간이 지난 시도는 콜백이 와도 claim이 거절해 승인 API를 부르지 않는다.
-     다른 provider는 같은 근거를 확인하지 않았으므로 청구 여부를 단정하지 않는다. */
-  const charge = provider === 'toss' ? ' 결제는 진행되지 않았고 청구된 금액은 없어요.' : '';
-  return {
-    title: '결제 가능 시간이 지났어요',
-    body: `결제 준비 후 유효 시간이 지나 이 주문으로는 결제할 수 없어요.${charge} 주문은 결제 기한${deadline ? `(${deadline})` : ''}이 지나면 몇 분 안에 자동으로 취소되고, 재고와 사용한 쿠폰·적립금이 돌아와요. 그다음 다시 주문해주세요.`,
-  };
-}
-
-export function checkoutStatusCopy({
-  state,
-  closedCopy,
-  isBankTransfer,
-  orderStatus,
-  reorderMode,
-}: {
-  state: ReturnType<typeof checkoutOrderState>;
-  closedCopy: StatusCopy | null;
-  isBankTransfer: boolean;
-  orderStatus: string;
-  reorderMode: CheckoutReorderMode | null;
-}): StatusCopy | null {
-  if (state === 'complete') return { title: '결제가 확인됐어요', body: '주문이 안전하게 접수됐습니다. 배송 진행은 주문 내역에서 이어서 확인할 수 있어요.' };
-  /* 웹훅·재정합 설정과 무관하게 지킬 수 있는 말만 한다 — "닫아도 확인은 계속된다"는
-     자동 재정합 경로가 열려 있을 때만 참이다. */
-  if (state === 'checking') return { title: '결제를 확인하고 있어요', body: '결제사 승인 결과를 아직 확정하지 못했어요. 확인이 늦어지거나 결제 금액이 빠져나갔다면 고객센터 1:1 문의로 알려주세요.' };
-  /* 승인을 기다리는 사이 접수된 취소 요청 때문에 승인된 결제를 취소하는 중이다
-     (20261012110100). 승인은 확정됐으므로 '확인 중'으로 말하지 않는다. 자동 결제 취소가
-     실패하면 요청이 담당자 확인으로 넘어가므로 끝나는 시점은 약속하지 않는다. */
-  if (state === 'refund_in_progress') {
-    return isBankTransfer
-      ? { title: '환불을 진행하고 있어요', body: '입금은 확인됐고, 취소 요청에 따라 환불을 진행하고 있어요. 진행 상태는 주문 상세에서 확인할 수 있어요.' }
-      : { title: '결제 취소를 진행하고 있어요', body: '결제는 승인됐고, 취소 요청에 따라 결제 취소를 진행하고 있어요. 진행 상태는 주문 상세에서 확인할 수 있어요.' };
-  }
-  if (closedCopy) return closedCopy;
-  if (state === 'closed') {
-    if (isBankTransfer) {
-      return { title: '입금 기한이 지났어요', body: '선점된 재고는 자동으로 복원됩니다. 기한이 지난 뒤 입금하셨다면 고객센터 문의로 알려주세요 — 주문은 되살아나지 않고 입금액을 반환해 드립니다.' };
-    }
-    if (orderStatus === 'canceled') {
-      return { title: '취소된 주문이에요', body: '이 주문은 취소됐어요. 같은 굿즈를 다시 담아 새로 주문할 수 있어요.' };
-    }
-    /* 즉시 취소할 수 없는 주문(남은 prepared 시도 등)은 결제 기한 뒤 만료 sweep이 닫는다. */
-    return reorderMode
-      ? { title: '결제 가능한 시간이 지났어요', body: '이 주문으로는 더 이상 결제할 수 없어요. 주문을 취소하면 재고와 사용한 쿠폰·적립금이 바로 돌아와요. 같은 굿즈로 다시 주문해주세요.' }
-      : { title: '결제 가능한 시간이 지났어요', body: '이 주문으로는 더 이상 결제할 수 없어요. 주문은 몇 분 안에 자동으로 취소되고, 재고와 사용한 쿠폰·적립금이 돌아와요. 그다음 다시 주문해주세요.' };
-  }
-  if (isBankTransfer) return { title: '입금 정보를 확인하세요', body: '주문 금액과 입금자명을 확인하고 안내된 계좌로 기한 안에 입금해주세요.' };
-  return null;
-}
 
 export function effectiveGoodsCheckoutExpiry(
   orderExpiresAt: string,

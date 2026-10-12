@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   checkoutAddressErrors,
   checkoutDeadlineTimeLabel,
+  checkoutEffectivePaymentStatus,
   checkoutOrderName,
   checkoutOrderState,
   checkoutPaymentClosure,
@@ -14,6 +15,7 @@ import {
   normalizeCheckoutAddress,
   normalizeCheckoutKey,
   normalizeOrderReference,
+  readCheckoutPayment,
 } from './checkout';
 
 describe('normalizeCheckoutAddress', () => {
@@ -251,6 +253,61 @@ describe('checkoutReorderMode', () => {
 
   it('이미 취소된 카드 주문은 취소 없이 다시 담기만 연다', () => {
     expect(checkoutReorderMode({ ...order, status: 'canceled' }, 'closed')).toBe('reorder');
+  });
+});
+
+/* 주문 상세가 결제 화면과 같은 규칙으로 결제 국면을 읽는다(QA-2). */
+describe('readCheckoutPayment', () => {
+  const now = Date.parse('2026-10-12T05:12:00.000Z');
+  const order = {
+    status: 'pending',
+    paymentMethod: 'card' as const,
+    paymentStatus: null,
+    paymentAttempt: null,
+    hasActiveCancellationRequest: false,
+    expiresAt: '2026-10-12T05:15:00.000Z',
+  };
+
+  it('승인 거절된 결제 대기 주문은 닫힌 결제이고 취소 뒤 다시 담을 수 있다', () => {
+    expect(readCheckoutPayment({
+      ...order,
+      paymentAttempt: { state: 'declined', expiresAt: '2026-10-12T05:10:00.000Z', provider: 'toss' },
+    }, now)).toEqual({
+      state: 'payment_closed',
+      closure: 'not_approved',
+      reorderMode: 'cancel_then_reorder',
+      provider: 'toss',
+    });
+  });
+
+  it('유효 시간이 지난 prepared 시도는 닫힌 결제이지만 즉시 취소 액션은 열지 않는다', () => {
+    expect(readCheckoutPayment({
+      ...order,
+      paymentAttempt: { state: 'prepared', expiresAt: '2026-10-12T05:11:00.000Z', provider: 'toss' },
+    }, now)).toEqual({ state: 'payment_closed', closure: 'attempt_expired', reorderMode: null, provider: 'toss' });
+  });
+
+  it('시도가 없거나 유효하면 결제할 수 있고, 확인 중 시도는 확인 중이다', () => {
+    expect(readCheckoutPayment(order, now)).toEqual({ state: 'payable', closure: null, reorderMode: null, provider: null });
+    expect(readCheckoutPayment({ ...order, paymentStatus: 'pending' }, now).state).toBe('checking');
+  });
+
+  it('결제 기한이 지난 주문은 닫힘 사유를 싣지 않는다', () => {
+    expect(readCheckoutPayment({
+      ...order,
+      expiresAt: '2026-10-12T05:00:00.000Z',
+      paymentAttempt: { state: 'declined', expiresAt: '2026-10-12T04:55:00.000Z', provider: 'toss' },
+    }, now)).toEqual({ state: 'closed', closure: null, reorderMode: 'cancel_then_reorder', provider: 'toss' });
+  });
+});
+
+describe('checkoutEffectivePaymentStatus', () => {
+  it('승인 API를 부른 뒤 확정하지 못한 시도는 원장 행이 없어도 확인 중이다', () => {
+    for (const state of ['confirming', 'unknown', 'needs_review']) {
+      expect(checkoutEffectivePaymentStatus(state, null)).toBe('pending');
+    }
+    expect(checkoutEffectivePaymentStatus('declined', null)).toBeNull();
+    expect(checkoutEffectivePaymentStatus(undefined, 'paid')).toBe('paid');
   });
 });
 
