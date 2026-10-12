@@ -115,7 +115,8 @@ describe('validateVercelBuildEnvironment', () => {
       korpayTicketCanaryConfigured: false,
       tossConfigured: false,
       tossMode: 'none',
-      tossMerchantIds: ['iconsi0xvd'],
+      tossMerchantIds: [],
+      tossVariantKey: 'ICONS',
       tossDocsPublicKey: false,
       tossOrderCheckoutEnabled: false,
       tossTicketCheckoutEnabled: false,
@@ -190,7 +191,8 @@ describe('validateVercelBuildEnvironment', () => {
       korpayTicketCanaryConfigured: false,
       tossConfigured: false,
       tossMode: 'none',
-      tossMerchantIds: ['iconsi0xvd'],
+      tossMerchantIds: [],
+      tossVariantKey: 'ICONS',
       tossDocsPublicKey: false,
       tossOrderCheckoutEnabled: false,
       tossTicketCheckoutEnabled: false,
@@ -282,7 +284,11 @@ describe('validateVercelBuildEnvironment', () => {
     expect(gateClosed).toMatchObject({ checked: true, tossConfigured: true, tossDocsPublicKey: true });
     expect(gateClosed.warnings).toHaveLength(1);
     expect(gateClosed.warnings[0]).toContain('developer-docs public test keys');
-    expect(gateClosed.warnings[0]).toContain('MID iconsi0xvd');
+    // 문서 공개 키는 테스트 키라 대조 MID는 테스트 모드 MID다.
+    expect(gateClosed.warnings[0]).toContain('MID ticonsi0xvd');
+    // 해결책은 계정의 상점 키로 교체하는 것이고, MID별 주문서형 키는 없다(공식문서 122).
+    expect(gateClosed.warnings[0]).toContain("account's own payment-widget keys");
+    expect(gateClosed.warnings[0]).not.toContain('keys issued for merchant');
     expect(gateClosed.warnings[0]).toContain('docs/runbooks/toss-production-rollout.md');
     expect(JSON.stringify(gateClosed)).not.toContain(docsKeys.TOSS_SECRET_KEY);
     expect(JSON.stringify(gateClosed)).not.toContain(docsKeys.NEXT_PUBLIC_TOSS_CLIENT_KEY);
@@ -308,6 +314,28 @@ describe('validateVercelBuildEnvironment', () => {
       .toMatchObject({ tossDocsPublicKey: false, warnings: [] });
   });
 
+  /*
+   * 허용 MID는 키 모드별이다 — 테스트 키 결제의 mId는 `t` + 라이브 MID(2026-10-12 결제
+   * 어드민 실측). 심사 창(테스트 키)에서 readback이 라이브 MID를 말하면 canary 결과와
+   * 대조할 값이 틀린다.
+   */
+  it('reads back the test-mode merchant (ticonsi0xvd) and the ICONS payment UI on test keys', () => {
+    const result = validateVercelBuildEnvironment(productionEnvironment({
+      NEXT_PUBLIC_TOSS_CLIENT_KEY: 'test_gck_iconsdocs00000000000001',
+      TOSS_SECRET_KEY: 'test_gsk_iconsdocs00000000000001',
+      TOSS_ORDER_CHECKOUT_ENABLED: 'true',
+    }));
+    expect(result).toMatchObject({
+      tossMode: 'test',
+      tossMerchantIds: ['ticonsi0xvd'],
+      tossVariantKey: 'ICONS',
+    });
+
+    const line = formatVercelBuildReadback(result, 'production');
+    expect(line).toContain('Toss mode=test, Toss merchant=ticonsi0xvd, Toss variant=ICONS, docs public key=false');
+    expect(line).not.toContain('test_gsk_iconsdocs00000000000001');
+  });
+
   it('reads back the Toss key mode, merchant, and reconciliation secret presence without values', () => {
     const secret = 'reconciliation_secret_value_0001';
     const result = validateVercelBuildEnvironment(productionEnvironment({
@@ -325,7 +353,7 @@ describe('validateVercelBuildEnvironment', () => {
     const line = formatVercelBuildReadback(result, 'production');
     expect(line).toContain('Vercel production environment verified; ');
     expect(line).toContain('Toss configured=true, order checkout enabled=true');
-    expect(line).toContain('Toss mode=live, Toss merchant=iconsi0xvd, docs public key=false');
+    expect(line).toContain('Toss mode=live, Toss merchant=iconsi0xvd, Toss variant=ICONS, docs public key=false');
     expect(line).toContain('payment reconciliation secret configured=true');
     expect(line).not.toContain(secret);
     expect(line).not.toContain('live_gsk_iconsdocs00000000000001');
@@ -336,7 +364,7 @@ describe('validateVercelBuildEnvironment', () => {
       'production',
     );
     expect(unconfigured).toContain('Toss configured=false');
-    expect(unconfigured).toContain('Toss mode=none');
+    expect(unconfigured).toContain('Toss mode=none, Toss merchant=none');
     expect(unconfigured).toContain('payment reconciliation secret configured=false');
   });
 
