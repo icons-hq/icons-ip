@@ -17,8 +17,9 @@ import { krwAmountWords } from '@/lib/format';
  * 결제가 닫힌 주문을 한 번에 정리하고 다시 주문하게 한다.
  *
  * 1) 취소는 기존 고객 취소 경로(/api/orders/[orderId]/cancel)를 그대로 쓴다. 이 버튼은
- *    즉시 취소가 확실한 주문(checkoutReorderMode)에만 보이지만, 그 사이 상태가 바뀌어
- *    청약철회 요청으로 접수되면 장바구니를 건드리지 않고 그 사실만 알린다.
+ *    즉시 취소가 확실한 주문(checkoutReorderMode)에만 보이지만, 그 사이 상태가 바뀌거나
+ *    화면과 DB의 시계가 어긋나 취소 요청으로 접수(`requested`)되면 장바구니를 건드리지 않고
+ *    그 사실만 알린다.
  * 2) DB가 취소를 확정한 주문만 서버 액션이 품목을 장바구니에 다시 담고, 원 주문의
  *    쿠폰을 장바구니에 다시 선택한다.
  * 3) 모두 담기고 다시 챙길 혜택이 없으면 주문서(/checkout)로 보낸다. 쿠폰이 이번 주문에
@@ -121,6 +122,14 @@ export function reorderCanceledOrder(mode: CheckoutReorderMode, outcome: Reorder
       || outcome.kind === 'restore_failed');
 }
 
+/**
+ * 취소가 즉시 끝나지 않고 취소 요청으로 접수된 결과인지(`requested`). 주문은 아직 살아 있고
+ * 장바구니는 그대로다 — 화면이 서버 상태를 다시 읽어도 그 사실을 위쪽 안내로 남기는 근거다.
+ */
+export function reorderCancellationRequested(outcome: ReorderOutcome): boolean {
+  return outcome.kind === 'cancel_requested';
+}
+
 /** 고객이 다시 챙길 것이 없을 때만 안내 없이 주문서로 넘긴다. */
 export function reorderNavigatesToCheckout(outcome: ReorderOutcome): boolean {
   return outcome.kind === 'restored' && outcome.reapply === null;
@@ -159,6 +168,12 @@ function ReapplyNotice({ reapply }: { reapply: ReorderBenefitsToReapply }) {
     </>
   );
 }
+
+/**
+ * 취소가 즉시 끝나지 않고 취소 요청으로 접수됐을 때. 주문은 아직 취소되지 않았고 장바구니도
+ * 그대로다. 끝나는 시점은 결제 결과에 달려 있어 약속하지 않는다.
+ */
+export const REORDER_CANCEL_REQUESTED_NOTICE = '주문이 바로 취소되지 않고 취소 요청으로 접수돼, 굿즈를 장바구니에 다시 담지 않았어요. 진행 상태는 주문 상세에서 확인해주세요.';
 
 /** 다시 담기 결과 안내. 주문서로 바로 넘기지 않는 모든 결과를 여기서 그린다. */
 export function ReorderOutcomeNotice({
@@ -215,7 +230,7 @@ export function ReorderOutcomeNotice({
         </>
       ) : outcome.kind === 'cancel_requested' ? (
         <>
-          <p role="status">취소 요청을 접수했어요. 처리 상태는 주문 상세에서 확인해주세요.</p>
+          <p role="status">{REORDER_CANCEL_REQUESTED_NOTICE}</p>
           <Link className="btn btn-holo" href={`/orders/${orderId}`}>주문 상세 보기</Link>
         </>
       ) : outcome.kind === 'cancel_blocked' ? (
@@ -243,9 +258,11 @@ interface ReorderActionProps {
   readonly mode: CheckoutReorderMode;
   /** 이 액션이 주문 취소까지 마쳤을 때. 화면이 취소 전 안내를 취소 사실로 바꾼다. */
   readonly onCanceled?: () => void;
+  /** 취소가 즉시 끝나지 않고 취소 요청으로 접수됐을 때. 화면을 다시 읽어도 사실이 남게 한다. */
+  readonly onRequested?: () => void;
 }
 
-export function ReorderAction({ orderId, mode, onCanceled }: ReorderActionProps) {
+export function ReorderAction({ orderId, mode, onCanceled, onRequested }: ReorderActionProps) {
   const router = useRouter();
   const [pending, setPending] = useState(false);
   const [outcome, setOutcome] = useState<ReorderOutcome | null>(null);
@@ -255,6 +272,7 @@ export function ReorderAction({ orderId, mode, onCanceled }: ReorderActionProps)
     setOutcome(null);
     const result = await runReorder(orderId, mode);
     if (reorderCanceledOrder(mode, result)) onCanceled?.();
+    if (reorderCancellationRequested(result)) onRequested?.();
     if (reorderNavigatesToCheckout(result)) {
       router.push('/checkout');
       return;

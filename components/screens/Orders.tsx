@@ -85,12 +85,13 @@ function focusBanner(focus: CheckoutPaymentResultFocus): BannerCopy {
       };
     case 'attempt_expired':
       /* 토스는 인증 뒤 10분 안에 승인 API를 부르지 않으면 결제를 EXPIRED로 끝낸다(문서
-         127). 시도 유효 시간이 지난 콜백은 claim이 거절해 승인 API를 부르지 않는다. */
+         127). 시도 유효 시간이 지난 콜백은 claim이 거절해 승인 API를 부르지 않는다. 그
+         주문은 승인 거절 주문처럼 결제 화면에서 취소하고 다시 주문한다(2026-10-12 QA-1). */
       return {
         tone: 'failed',
         title: '결제 가능 시간이 지났어요',
-        body: '결제 준비 후 유효 시간이 지나 결제가 진행되지 않았어요. 청구된 금액은 없어요. 주문은 결제 기한이 지나면 몇 분 안에 자동으로 취소되고, 재고와 사용한 쿠폰·적립금이 돌아와요. 그다음 다시 주문해주세요.',
-        link: checkoutLink('주문 결제 화면 보기'),
+        body: '결제 준비 후 유효 시간이 지나 결제가 진행되지 않았어요. 청구된 금액은 없어요. 이 주문으로는 다시 결제할 수 없어요. 주문 결제 화면에서 이 주문을 취소하고 같은 굿즈로 다시 주문할 수 있어요.',
+        link: checkoutLink('주문 정리하고 다시 주문하기'),
       };
     case 'retryable':
       return {

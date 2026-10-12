@@ -79,6 +79,11 @@ describe('Orders', () => {
       expect(html).toContain('청구된 금액은 없어요');
       expect(html).not.toContain('결제를 확인하고 있어요');
       expect(html).toContain(`href="/checkout/${orderId}"`);
+      /* 2026-10-12 QA-1: 거절 주문과 같은 정리 흐름 — 결제 기한 뒤 자동 취소를 기다리게
+         하지 않는다. */
+      expect(html).toContain('주문 정리하고 다시 주문하기');
+      expect(html).toContain('이 주문을 취소하고 같은 굿즈로 다시 주문할 수 있어요');
+      expect(html).not.toContain('몇 분 안에 자동으로 취소');
     });
 
     it('확인 중이면 자동 확정을 약속하지 않고 그 주문의 결제 화면과 1:1 문의로 잇는다', () => {

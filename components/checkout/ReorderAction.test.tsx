@@ -2,7 +2,9 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import {
   ReorderAction,
+  REORDER_CANCEL_REQUESTED_NOTICE,
   ReorderOutcomeNotice,
+  reorderCancellationRequested,
   reorderCanceledOrder,
   reorderNavigatesToCheckout,
   runReorder,
@@ -137,6 +139,15 @@ describe('runReorder', () => {
     }
   });
 
+  /* 2026-10-12 QA-1: 취소가 요청으로 접수된 결과만 화면 위쪽 안내를 접수 사실로 바꾼다. */
+  it('취소 요청으로 접수된 결과만 요청 접수로 본다', () => {
+    expect(reorderCancellationRequested({ kind: 'cancel_requested' })).toBe(true);
+    for (const kind of ['cancel_blocked', 'cancel_failed', 'restore_failed'] as const) {
+      expect(reorderCancellationRequested({ kind })).toBe(false);
+    }
+    expect(reorderCancellationRequested({ kind: 'restored', reapply: null })).toBe(false);
+  });
+
   it('취소 뒤 담기가 실패하면 그 사실을 따로 알린다', async () => {
     await expect(runReorder(orderId, 'cancel_then_reorder', deps({
       restore: vi.fn().mockResolvedValue({ ok: false, error: 'failed' }),
@@ -230,6 +241,20 @@ describe('ReorderOutcomeNotice', () => {
     expect(html).not.toContain('다시 골라주세요');
     expect(html).not.toContain('장바구니에서 쿠폰');
     expect(html.indexOf('href="/checkout"')).toBeLessThan(html.indexOf('href="/cart"'));
+  });
+
+  /* 2026-10-12 QA-1: 취소가 즉시 끝나지 않으면(경합·시계 차이) 취소됐다고 말하지 않고,
+     장바구니에 담지 않았다는 사실과 주문 상세로 잇는다. 끝나는 시점은 약속하지 않는다. */
+  it('취소가 요청으로 접수되면 취소 사실이 아니라 접수와 장바구니 미변경을 알린다', () => {
+    const html = renderToStaticMarkup(
+      <ReorderOutcomeNotice mode="cancel_then_reorder" orderId={orderId} outcome={{ kind: 'cancel_requested' }} />,
+    );
+
+    expect(html).toContain(REORDER_CANCEL_REQUESTED_NOTICE);
+    expect(html).toContain('장바구니에 다시 담지 않았어요');
+    expect(html).not.toContain('주문은 취소됐어요');
+    expect(html).not.toContain('담당자');
+    expect(html).toContain(`href="/orders/${orderId}"`);
   });
 
   it('담지 못한 굿즈 사유를 사실 범위대로 적는다', () => {

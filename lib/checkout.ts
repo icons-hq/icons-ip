@@ -283,18 +283,36 @@ export function checkoutOrderState(
 }
 
 /**
+ * 고객 취소가 결제와 겹칠 수 없는 시도인지. 승인 단계에서 끝난 시도(declined·canceled)와,
+ * 유효 시간(`expires_at`, 서버가 원장에서 읽은 값)이 지난 prepared 시도다. 시간이 지난
+ * prepared 시도는 콜백 claim도 재-prepare도 거절되므로(goods_payment_attempt_expired·
+ * goods_payment_attempt_not_preparable) 승인 API가 불릴 수 없다.
+ */
+function checkoutAttemptSettledBeforeApproval(
+  attempt: CheckoutPaymentAttemptSnapshot,
+  now: number,
+): boolean {
+  if (attempt.state === 'declined' || attempt.state === 'canceled') return true;
+  if (attempt.state !== 'prepared' || !attempt.expiresAt) return false;
+  const expiresAt = Date.parse(attempt.expiresAt);
+  return Number.isFinite(expiresAt) && expiresAt <= now;
+}
+
+/**
  * 결제가 닫힌 주문에 "취소하고 다시 주문하기"를 보일지.
  *
  * 취소 단계는 기존 고객 취소 경로(`/api/orders/[orderId]/cancel` → `request_order_claim`)를
- * 그대로 쓴다. 그 RPC는 pending 주문에 미해결 시도(prepared·confirming·unknown·
- * needs_review·approved)도 결제 원장 행도 없을 때만 즉시 취소하고 재고·쿠폰·적립금·
- * 첫구매 예약을 같은 트랜잭션에서 돌려준다. 그 밖에는 청약철회 요청으로 접수돼 담당자
- * 확인을 기다리므로, 즉시 취소가 확실한 경우에만 이 액션을 연다. 만료된 prepared 시도도
- * 그 RPC에서는 미해결이라 여기서 제외된다 — 그 주문은 결제 기한 뒤 만료 sweep이 닫는다.
+ * 그대로 쓴다. 그 RPC는 결제 원장 행이 없는 pending 주문에 결제와 겹칠 수 있는 시도
+ * (유효한 prepared·confirming·unknown·needs_review·approved)가 없을 때 즉시 취소하고
+ * 재고·쿠폰·적립금·첫구매 예약을 같은 트랜잭션에서 돌려준다. 유효 시간이 지난 prepared
+ * 시도만 남은 주문도 즉시 취소한다(2026-10-12 QA-1). 그 밖에는 취소 요청으로 접수되므로
+ * 즉시 취소가 확실한 경우에만 이 액션을 연다. 시각을 모르면(`now` 0) 시도 만료를
+ * 단정하지 않는다. 화면과 DB의 시계가 어긋나 요청으로 접수되면 액션이 그 사실을 알린다.
  */
 export function checkoutReorderMode(
   order: CheckoutClosureInput,
   state: CheckoutOrderState,
+  now: number,
 ): CheckoutReorderMode | null {
   if (order.paymentMethod !== 'card') return null;
   if (order.status === 'canceled') return 'reorder';
@@ -305,7 +323,7 @@ export function checkoutReorderMode(
     || (state !== 'payment_closed' && state !== 'closed')
   ) return null;
   const attempt = order.paymentAttempt;
-  if (attempt && attempt.state !== 'declined' && attempt.state !== 'canceled') return null;
+  if (attempt && !checkoutAttemptSettledBeforeApproval(attempt, now)) return null;
   return 'cancel_then_reorder';
 }
 
@@ -349,7 +367,7 @@ export function readCheckoutPayment(
   return {
     state,
     closure: state === 'payment_closed' ? closure : null,
-    reorderMode: checkoutReorderMode(order, state),
+    reorderMode: checkoutReorderMode(order, state, now),
     provider: order.paymentAttempt?.provider ?? null,
   };
 }

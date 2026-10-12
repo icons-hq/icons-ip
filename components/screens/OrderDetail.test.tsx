@@ -66,17 +66,33 @@ describe('OrderDetail', () => {
     expect(html).not.toContain('이어가기');
   });
 
-  it('결제 시도가 만료된 결제 대기 카드 주문은 청구 없이 자동 취소된다고 말하고 이어가기를 띄우지 않는다', () => {
+  /* 2026-10-12 QA-1: 결제 준비 후 유효 시간이 지난 주문도 거절 주문처럼 결제 화면의
+     "취소하고 다시 주문하기"로 즉시 정리한다. */
+  it('결제 시도가 만료된 결제 대기 카드 주문은 청구 없음을 말하고 거절 주문처럼 정리 액션으로 보낸다', () => {
     const html = renderToStaticMarkup(<OrderDetail
-      cardPayment={{ state: 'payment_closed', closure: 'attempt_expired', reorderMode: null, provider: 'toss' }}
+      cardPayment={{ state: 'payment_closed', closure: 'attempt_expired', reorderMode: 'cancel_then_reorder', provider: 'toss' }}
       order={order({ status: 'pending', payment: null, shipments: [], expiresAt: '2026-10-12T07:41:00.000Z' })}
     />);
 
     expect(html).toContain('결제 가능 시간이 지났어요');
     expect(html).toContain('청구된 금액은 없어요');
-    expect(html).toContain('결제 기한(16:41)');
+    expect(html).toContain('이 주문을 취소하고 같은 굿즈로 다시 주문해주세요');
+    expect(html).toContain('주문 정리하고 다시 주문하기');
+    expect(html).toContain(`href="/checkout/${ORDER_ID}"`);
+    expect(html).not.toContain('몇 분 안에 자동으로 취소');
     expect(html).not.toContain('결제 상태를 확인하고 있어요');
     expect(html).not.toContain('진행 중인 결제를 확인해주세요');
+    expect(html).not.toContain('이어가기');
+  });
+
+  it('즉시 취소가 확실하지 않은 시도 만료 주문은 결제 기한 뒤 자동 취소를 말하고 결제 화면으로 보내지 않는다', () => {
+    const html = renderToStaticMarkup(<OrderDetail
+      cardPayment={{ state: 'payment_closed', closure: 'attempt_expired', reorderMode: null, provider: 'toss' }}
+      order={order({ status: 'pending', payment: null, shipments: [], expiresAt: '2026-10-12T07:41:00.000Z' })}
+    />);
+
+    expect(html).toContain('결제 기한(16:41)');
+    expect(html).not.toContain('주문 정리하고 다시 주문하기');
     expect(html).not.toContain('이어가기');
   });
 

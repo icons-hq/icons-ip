@@ -226,13 +226,26 @@ describe('CheckoutOrder 닫힌 결제 안내', () => {
     expect(html).toContain('이 주문 취소하고 다시 주문하기');
   });
 
-  /* 남은 prepared 시도가 있으면 고객 취소가 청약철회 요청으로 접수된다 — 즉시 정리를
-     약속하는 대신 만료 sweep을 기다리라고 안내한다. (시각에 기대는 상태라 정적 렌더
-     대신 문구 선택 함수로 본다.) */
+  /* 즉시 취소가 확실하지 않은 주문(시도를 확인하지 못함 등)은 즉시 정리를 약속하는 대신
+     만료 sweep을 기다리라고 안내한다. (시각에 기대는 상태라 정적 렌더 대신 문구 선택
+     함수로 본다.) */
   it('결제 기한이 지난 주문은 즉시 취소 가능 여부에 맞춰 다음 일을 안내한다', () => {
     const base = { state: 'closed' as const, closedCopy: null, isBankTransfer: false, orderStatus: 'pending' };
     expect(checkoutStatusCopy({ ...base, reorderMode: null })?.body).toContain('몇 분 안에 자동으로 취소');
     expect(checkoutStatusCopy({ ...base, reorderMode: 'cancel_then_reorder' })?.body).toContain('주문을 취소하면');
+  });
+
+  /* 시도 만료는 시각에 기대는 판정이라 마운트 전(서버 렌더)에는 단정하지 않는다. 마운트
+     뒤 판정은 checkoutReorderMode·closedPaymentCopy 테스트가 본다. */
+  it('시각을 모르는 첫 렌더에서는 유효 시간이 지난 시도에도 정리 액션을 열지 않는다', () => {
+    const html = renderToStaticMarkup(
+      <CheckoutOrder
+        order={{ ...order, paymentAttempt: { state: 'prepared', expiresAt: '2026-08-07T06:10:00.000Z', provider: 'toss' } }}
+      />,
+    );
+
+    expect(html).toContain('결제 가능 시간을 확인하고 있어요');
+    expect(html).not.toContain('이 주문 취소하고 다시 주문하기');
   });
 
   it('무통장 주문에는 카드 주문 정리 액션을 띄우지 않는다', () => {

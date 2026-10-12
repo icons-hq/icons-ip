@@ -83,6 +83,9 @@ export function CheckoutOrder({
   /* "이 주문 취소하고 다시 주문하기"가 주문 취소까지 마쳤는지. 다시 담은 결과를 남기려고
      서버 상태를 새로 읽지 않으므로, 취소 전 안내가 남지 않게 이 값으로 문구를 바꾼다. */
   const [reorderCanceled, setReorderCanceled] = useState(false);
+  /* 그 취소가 즉시 끝나지 않고 취소 요청으로 접수됐는지. 서버 상태를 다시 읽으면 액션과
+     결과 안내가 사라지므로, 장바구니에 담지 않았다는 사실을 위쪽 안내로 남긴다. */
+  const [reorderRequested, setReorderRequested] = useState(false);
   /* now는 마운트 뒤에 채워진다. 그 전(서버 렌더)에는 시간에 기대는 판정(시도 만료)을
      하지 않고, 시간과 무관한 판정(승인 거절·취소 요청)만 반영한다. */
   const closure = order.status === 'pending' ? checkoutPaymentClosure(order, now ?? 0) : null;
@@ -108,10 +111,15 @@ export function CheckoutOrder({
   const activeClosure: CheckoutPaymentClosure | null = state === 'payment_closed'
     ? closure
     : state === 'payable' && preparedExpired ? 'attempt_expired' : null;
+  /* 즉시 취소가 확실한 주문에만 "취소하고 다시 주문하기"를 연다. 승인 거절과, 서버가 읽은
+     시도의 유효 시간(expires_at)이 지난 prepared 시도가 해당한다. 시각을 모르는 첫 렌더에서는
+     시도 만료를 단정하지 않는다. */
+  const reorderMode = checkoutReorderMode(order, state, now ?? 0);
   const closedCopy = activeClosure
     ? closedPaymentCopy(activeClosure, {
         orderExpiresAt: order.expiresAt,
         provider: prepareState.prepared?.provider ?? order.paymentAttempt?.provider ?? null,
+        reorderMode,
       })
     : null;
   /* 같은 주문으로 결제를 다시 준비할 수 있을 때만 failUrl 안내가 재시도를 약속한다.
@@ -150,10 +158,14 @@ export function CheckoutOrder({
     if (prepareState.error === 'payment_closed') router.refresh();
   }, [prepareState, router]);
 
+  /* 이 화면에서 준비한 결제가 유효 시간을 넘겼는데 처음 읽은 주문에는 그 시도가 없다.
+     "취소하고 다시 주문하기"는 서버가 읽은 시도의 유효 시간으로만 판정하므로, 한 번 다시
+     읽어 시도 만료 주문의 정리 액션을 연다. 다시 읽은 뒤에는 닫힌 결제라 반복되지 않는다. */
+  useEffect(() => {
+    if (preparedExpired && state === 'payable') router.refresh();
+  }, [preparedExpired, router, state]);
+
   const isBankTransfer = order.paymentMethod === 'bank_transfer';
-  /* 즉시 취소가 확실한 주문에만 "취소하고 다시 주문하기"를 연다. 남은 prepared 시도가
-     있으면 고객 취소도 담당자 확인으로 넘어가므로 만료 sweep을 기다리라고 안내한다. */
-  const reorderMode = checkoutReorderMode(order, state);
 
   const statusCopy = checkoutStatusCopy({
     state,
@@ -162,8 +174,10 @@ export function CheckoutOrder({
     orderStatus: order.status,
     reorderMode,
     reorderCanceled,
+    reorderRequested,
   });
   const markReorderCanceled = () => setReorderCanceled(true);
+  const markReorderRequested = () => setReorderRequested(true);
 
   return (
     <main className="wc-root wc-receipt checkout-page checkout-order-page">
@@ -245,7 +259,12 @@ export function CheckoutOrder({
               <h2>{statusCopy?.title ?? closedCopy.title}</h2>
               <p>{statusCopy?.body ?? closedCopy.body}</p>
               {reorderMode && (
-                <ReorderAction mode={reorderMode} onCanceled={markReorderCanceled} orderId={order.id} />
+                <ReorderAction
+                  mode={reorderMode}
+                  onCanceled={markReorderCanceled}
+                  onRequested={markReorderRequested}
+                  orderId={order.id}
+                />
               )}
               <Link className="btn btn-ghost" href={`/orders/${order.id}`}>주문 상세 보기</Link>
             </div>
@@ -281,7 +300,12 @@ export function CheckoutOrder({
                 </>
               )}
               {state === 'closed' && reorderMode && (
-                <ReorderAction mode={reorderMode} onCanceled={markReorderCanceled} orderId={order.id} />
+                <ReorderAction
+                  mode={reorderMode}
+                  onCanceled={markReorderCanceled}
+                  onRequested={markReorderRequested}
+                  orderId={order.id}
+                />
               )}
               {state === 'closed' && (
                 <Link className={reorderMode ? 'btn btn-ghost' : 'btn btn-holo'} href="/shop">
