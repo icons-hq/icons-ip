@@ -66,15 +66,15 @@ export interface TossWidgetDeps {
  * 구매자가 결제창을 닫은 USER_CANCEL은 오류가 아니라서 안내하지 않는다. 표 밖 코드는
  * 공통 문구로 덮어 SDK 원문이 화면에 새지 않게 한다.
  */
-const TOSS_REQUEST_ERROR_COPY: Record<string, string> = {
-  NOT_SELECTED_PAYMENT_METHOD: '결제수단을 선택해주세요.',
-  NEED_CARD_PAYMENT_DETAIL: '카드사와 할부 기간을 선택해주세요.',
-  NEED_AGREEMENT_WITH_REQUIRED_TERMS: '필수 약관에 동의해주세요.',
-  PROVIDER_STATUS_UNHEALTHY: '카드사·은행 등 결제 기관에 일시적인 문제가 있어요. 다른 결제수단을 선택해주세요.',
-  UNSUPPORTED_TEST_PHASE_PAYMENT_METHOD: '지금은 이 결제수단을 쓸 수 없어요. 다른 결제수단을 선택해주세요.',
-  INVALID_METHOD_TRANSACTION: '이미 결제 요청을 처리하고 있어요. 잠시 후 다시 시도해주세요.',
-  NETWORK_ERROR: '네트워크 연결을 확인한 뒤 다시 시도해주세요.',
-};
+const TOSS_REQUEST_ERROR_COPY = new Map<string, string>([
+  ['NOT_SELECTED_PAYMENT_METHOD', '결제수단을 선택해주세요.'],
+  ['NEED_CARD_PAYMENT_DETAIL', '카드사와 할부 기간을 선택해주세요.'],
+  ['NEED_AGREEMENT_WITH_REQUIRED_TERMS', '필수 약관에 동의해주세요.'],
+  ['PROVIDER_STATUS_UNHEALTHY', '카드사·은행 등 결제 기관에 일시적인 문제가 있어요. 다른 결제수단을 선택해주세요.'],
+  ['UNSUPPORTED_TEST_PHASE_PAYMENT_METHOD', '지금은 이 결제수단을 쓸 수 없어요. 다른 결제수단을 선택해주세요.'],
+  ['INVALID_METHOD_TRANSACTION', '이미 결제 요청을 처리하고 있어요. 잠시 후 다시 시도해주세요.'],
+  ['NETWORK_ERROR', '네트워크 연결을 확인한 뒤 다시 시도해주세요.'],
+]);
 const TOSS_REQUEST_ERROR_FALLBACK = '결제창을 열지 못했습니다. 잠시 후 다시 시도해주세요.';
 
 /** reject 값을 안내 문구로. 구매자 취소면 null(안내 없음). */
@@ -83,9 +83,8 @@ export function tossRequestPaymentErrorCopy(error: unknown): string | null {
     ? (error as { code?: unknown }).code
     : undefined;
   if (code === 'USER_CANCEL') return null;
-  return typeof code === 'string' && Object.hasOwn(TOSS_REQUEST_ERROR_COPY, code)
-    ? TOSS_REQUEST_ERROR_COPY[code]
-    : TOSS_REQUEST_ERROR_FALLBACK;
+  return (typeof code === 'string' ? TOSS_REQUEST_ERROR_COPY.get(code) : undefined)
+    ?? TOSS_REQUEST_ERROR_FALLBACK;
 }
 
 function isSafeRedirectUrl(value: string) {
