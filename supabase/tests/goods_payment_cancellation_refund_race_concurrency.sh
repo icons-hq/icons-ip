@@ -9,6 +9,9 @@ set -euo pipefail
 #   C. request first, then confirm decline → request closes without payment
 #   D. a pre-migration stuck row (declined attempt + requested request) is closed
 #      by the expiry sweep
+#   E. request first, then confirm canceled (payment window abandoned or a full
+#      provider cancel) → closes without payment and does not claim the payment
+#      was never approved
 # Every path restores stock, the coupon and the reserved store credit exactly once.
 #
 # Only this script's synthetic rows and application_name-tagged backends are
@@ -161,7 +164,8 @@ insert into public.coupons(code,name,discount_type,discount_value,min_subtotal,s
  ('RACE-REFUND-A','경합 A','fixed',1000,0,now()-interval '1 day','active'),
  ('RACE-REFUND-B','경합 B','fixed',1000,0,now()-interval '1 day','active'),
  ('RACE-REFUND-C','경합 C','fixed',1000,0,now()-interval '1 day','active'),
- ('RACE-REFUND-D','경합 D','fixed',1000,0,now()-interval '1 day','active');
+ ('RACE-REFUND-D','경합 D','fixed',1000,0,now()-interval '1 day','active'),
+ ('RACE-REFUND-E','경합 E','fixed',1000,0,now()-interval '1 day','active');
 select set_config('request.jwt.claim.sub','$admin',false);
 set role authenticated;
 select public.admin_adjust_store_credit('70000000-0000-4000-8000-000000011c01','$buyer',4000,now()+interval '20 days','취소 경합 합성 지급',0);
@@ -300,6 +304,8 @@ select o.status='canceled' and r.status='completed' and a.state='declined'
   and exists(select 1 from public.user_coupons u where u.user_id='$buyer' and u.coupon_code='RACE-REFUND-C' and u.status='active')
   and (select count(*)=1 from public.audit_log l where l.target='order:$order_c' and l.action='system.order.cancellation_completed'
        and l.actor_id is null and l.diff->>'attemptOutcome'='declined')
+  and (select count(*)=1 from public.notifications n where n.user_id='$buyer' and n.source_id=r.id::text
+       and n.dedupe_key like 'claim:completed:%' and n.body='결제가 승인되지 않아 결제 없이 주문을 취소했습니다.')
 from public.orders o join public.order_cancellation_requests r on r.order_id=o.id join public.payment_attempts a on a.ref_id=o.id
 where o.id='$order_c'"
 if [[ "$(credit_state)" != '4000/0' ]]; then echo "C did not release store credit exactly once: $(credit_state)" >&2; exit 1; fi
@@ -331,5 +337,31 @@ select o.status='canceled' and r.status='completed'
 from public.orders o join public.order_cancellation_requests r on r.order_id=o.id where o.id='$order_d'"
 if [[ "$(credit_state)" != '4000/0' ]]; then echo "D did not release store credit exactly once: $(credit_state)" >&2; exit 1; fi
 echo 'PASS=sweep-closes-pre-migration-declined-request'
+
+# ---------------------------------------------------------------------------
+# E. Request first, then confirm canceled. canceled covers both an abandoned
+#    payment window and a provider-confirmed full cancel of an approved charge,
+#    so the buyer notice must not say the payment was never approved.
+# ---------------------------------------------------------------------------
+read -r order_e attempt_e token_e < <(open_confirming_order e '80000000-0000-4000-8000-000000011c0e' '90000000-0000-4000-8000-000000011c0e' RACE-REFUND-E)
+[[ -n "${order_e:-}" && -n "${token_e:-}" ]] || { echo "fixture order e was not created" >&2; exit 1; }
+psql_exec -q >/dev/null <<SQL
+set role service_role;
+select public.request_order_claim('$order_e','$buyer','cancel','사용자 주문 취소','change_of_mind');
+select public.finalize_goods_payment_attempt('$attempt_e','$token_e','canceled',null,null,null,'PAY_PROCESS_CANCELED');
+SQL
+assert_sql 'E canceled closes the request without payment and with a neutral notice' "
+select o.status='canceled' and r.status='completed' and a.state='canceled'
+  and not exists(select 1 from public.payments where ref_id=o.id)
+  and (select stock_qty from public.goods_variants where good_id='$good' and is_default)=${stock_before}
+  and exists(select 1 from public.user_coupons u where u.user_id='$buyer' and u.coupon_code='RACE-REFUND-E' and u.status='active')
+  and (select count(*)=1 from public.audit_log l where l.target='order:$order_e' and l.action='system.order.cancellation_completed'
+       and l.actor_id is null and l.diff->>'attemptOutcome'='canceled')
+  and (select count(*)=1 from public.notifications n where n.user_id='$buyer' and n.source_id=r.id::text
+       and n.dedupe_key like 'claim:completed:%' and n.body='결제가 취소되어 주문을 취소했습니다.')
+from public.orders o join public.order_cancellation_requests r on r.order_id=o.id join public.payment_attempts a on a.ref_id=o.id
+where o.id='$order_e'"
+if [[ "$(credit_state)" != '4000/0' ]]; then echo "E did not release store credit exactly once: $(credit_state)" >&2; exit 1; fi
+echo 'PASS=request-wins-canceled-closes-request-with-neutral-notice'
 
 echo 'PASS: cancellation/confirm races converge and restore stock, coupon and credit once'

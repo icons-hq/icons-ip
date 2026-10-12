@@ -17,6 +17,12 @@
 --    주문이 무기한 pending으로 남았다. 이제 finalizer가 같은 임계 구역에서 결제 없이
 --    요청을 종결하고 주문 점유를 푼다. 이 migration 이전에 남은 행은 sweep이
 --    attempt가 결제 없이 끝났음을 확인한 경우에도 닫는다.
+--    Korpay 수동 복구(finalize_goods_manual_payment_recovery)가 attempt를 잡고 부른
+--    'canceled'는 예외다. 그 호출은 승인됐다가 결제사에서 취소된 결제일 수 있고,
+--    종결·감사(admin actor)는 수동 복구가 직접 남긴다. 여기서 먼저 닫으면 admin
+--    조치가 시스템 자동 완료로 기록되고 구매자에게 사실과 다른 안내가 나간다.
+--    'canceled'(결제창 이탈·결제사 전액 취소 확인)에는 승인 여부를 단정하지 않는
+--    문구를 쓴다.
 --
 -- Korpay(취소 API 없음)와 무통장(운영자 확인)의 승인 + 활성 요청은 종전처럼
 -- needs_review로 남긴다.
@@ -415,6 +421,10 @@ begin
    * 그 요청을 건너뛰어 주문·재고·쿠폰·적립금 점유가 무기한 남았다. 티켓 finalizer와
    * 같이 같은 order → request → attempt 임계 구역에서 닫는다. attempt를 먼저
    * 종결 상태로 적어야 미해결 결제 가드가 주문 취소를 막지 않는다.
+   *
+   * Korpay 수동 복구가 이 attempt를 잡고(같은 claim token) 부른 호출이면 건너뛴다.
+   * 수동 복구는 운영자가 결제사 원장에서 전액 취소를 확인한 건이라 승인됐던 결제일
+   * 수 있고, 주문 종결과 admin 감사는 수동 복구가 같은 트랜잭션에서 직접 남긴다.
    */
   if v_final_outcome in ('declined', 'canceled')
     and v_cancel_requested
@@ -425,6 +435,12 @@ begin
       where payment.purpose = 'order'
         and payment.ref_id = v_order.id
         and payment.status <> 'failed'
+    )
+    and not exists (
+      select 1
+      from private.goods_payment_manual_recovery_claims as manual_claim
+      where manual_claim.attempt_id = v_attempt.id
+        and manual_claim.claim_token = p_claim_token
     )
   then
     perform public.finalize_order_cancellation_with_provider_evidence(
@@ -456,11 +472,16 @@ begin
       )
     );
 
+    -- canceled는 결제창 이탈과 결제사 전액 취소 확인을 함께 뜻한다. 승인됐다가
+    -- 취소된 결제일 수 있으므로 "승인되지 않았다"고 단정하지 않는다.
     perform private.notify_order_claim(
       v_request.id,
       'completed',
       '주문이 취소됐어요',
-      '결제가 승인되지 않아 결제 없이 주문을 취소했습니다.'
+      case v_final_outcome
+        when 'declined' then '결제가 승인되지 않아 결제 없이 주문을 취소했습니다.'
+        else '결제가 취소되어 주문을 취소했습니다.'
+      end
     );
   end if;
 
