@@ -6,7 +6,12 @@ import {
   isKorpayUuid,
   normalizeKorpaySiteUrl,
 } from '../lib/payments/korpay-config.mjs';
-import { isTossKeyPairAligned, tossKeyMode } from '../lib/payments/toss-config.mjs';
+import {
+  TOSS_ALLOWED_MERCHANT_IDS,
+  isTossDocsPublicKey,
+  isTossKeyPairAligned,
+  tossKeyMode,
+} from '../lib/payments/toss-config.mjs';
 import { validateStagingBuildEnvironment } from './staging-environment.mjs';
 
 const VERCEL_TARGETS = new Set(['preview', 'production']);
@@ -187,15 +192,33 @@ export function validateVercelBuildEnvironment(environment) {
   // 없다. 그래서 막지 않고, 대신 빌드 로그에 눈에 띄게 남긴다. 이 상태가 심사
   // 뒤까지 남으면 무과금 결제가 paid 주문을 만든다.
   const warnings = [];
+  const tossMode = tossConfigured ? tossKeyMode(environment.TOSS_SECRET_KEY?.trim()) : 'none';
   if (
     tossConfigured
     && (tossOrderCheckoutEnabled || tossTicketCheckoutEnabled)
-    && tossKeyMode(environment.TOSS_SECRET_KEY?.trim()) === 'test'
+    && tossMode === 'test'
   ) {
     warnings.push(
       'Toss public checkout gate is open on test-mode keys. This is the review-window '
       + 'state only: paid orders can be created without a real charge. Live switchover '
       + 'steps: docs/runbooks/toss-production-rollout.md',
+    );
+  }
+  // 개발자센터 문서에 박힌 공개 테스트 키(`test_g*k_docs_…`)는 우리 상점(MID)의 키가
+  // 아니다. 그 결제는 우리 상점 결제내역·웹훅에 남지 않고, 런타임은 Payment.mId를 허용
+  // MID와 대조하므로 모든 결제가 needs_review가 된다. 심사 창 배포를 막지 않도록 빌드는
+  // 멈추지 않고 경고만 남긴다. 키 값은 출력하지 않는다.
+  const tossDocsPublicKey = target === 'production'
+    && (isTossDocsPublicKey(environment.NEXT_PUBLIC_TOSS_CLIENT_KEY)
+      || isTossDocsPublicKey(environment.TOSS_SECRET_KEY));
+  if (tossDocsPublicKey) {
+    warnings.push(
+      'Toss keys look like the developer-docs public test keys (test_g*k_docs_...). '
+      + 'Those payments are not recorded on our merchant and never reach our webhook, and '
+      + `the runtime merchant check (MID ${TOSS_ALLOWED_MERCHANT_IDS.join('|')}) sends every `
+      + 'payment to needs_review. Replace both keys with the keys issued for merchant '
+      + `${TOSS_ALLOWED_MERCHANT_IDS.join('|')} in the developer center API keys menu: `
+      + 'docs/runbooks/toss-production-rollout.md',
     );
   }
 
@@ -218,11 +241,36 @@ export function validateVercelBuildEnvironment(environment) {
     korpayOrderCanaryConfigured,
     korpayTicketCanaryConfigured,
     tossConfigured,
+    tossMode,
+    tossMerchantIds: [...TOSS_ALLOWED_MERCHANT_IDS],
+    tossDocsPublicKey,
     tossOrderCheckoutEnabled,
     tossTicketCheckoutEnabled,
     tossOrderCanaryConfigured,
     tossTicketCanaryConfigured,
   };
+}
+
+/**
+ * 배포 로그 readback 한 줄. 이름·boolean·키 모드·허용 MID(비밀 아님)만 싣고 키 값은
+ * 싣지 않는다 — 런북의 배포 확인 절이 이 줄을 대조한다.
+ */
+export function formatVercelBuildReadback(result, target) {
+  return `Vercel ${target} environment verified; `
+    + `Korpay configured=${result.korpayConfigured}, `
+    + `order checkout enabled=${result.korpayOrderCheckoutEnabled}, `
+    + `ticket checkout enabled=${result.korpayTicketCheckoutEnabled}, `
+    + `order canary configured=${result.korpayOrderCanaryConfigured}, `
+    + `ticket canary configured=${result.korpayTicketCanaryConfigured}; `
+    + `Toss configured=${result.tossConfigured}, `
+    + `order checkout enabled=${result.tossOrderCheckoutEnabled}, `
+    + `ticket checkout enabled=${result.tossTicketCheckoutEnabled}, `
+    + `order canary configured=${result.tossOrderCanaryConfigured}, `
+    + `ticket canary configured=${result.tossTicketCanaryConfigured}; `
+    + `Toss mode=${result.tossMode}, `
+    + `Toss merchant=${result.tossMerchantIds.join('|')}, `
+    + `docs public key=${result.tossDocsPublicKey}; `
+    + `payment reconciliation secret configured=${result.paymentReconciliationConfigured}`;
 }
 
 function main() {
@@ -241,19 +289,7 @@ function main() {
       console.log('Staging inherited test widget keys and isolated Preview target verified; checkout gates closed');
     }
 
-    console.log(
-      `Vercel ${process.env.VERCEL_ENV} environment verified; `
-      + `Korpay configured=${result.korpayConfigured}, `
-      + `order checkout enabled=${result.korpayOrderCheckoutEnabled}, `
-      + `ticket checkout enabled=${result.korpayTicketCheckoutEnabled}, `
-      + `order canary configured=${result.korpayOrderCanaryConfigured}, `
-      + `ticket canary configured=${result.korpayTicketCanaryConfigured}; `
-      + `Toss configured=${result.tossConfigured}, `
-      + `order checkout enabled=${result.tossOrderCheckoutEnabled}, `
-      + `ticket checkout enabled=${result.tossTicketCheckoutEnabled}, `
-      + `order canary configured=${result.tossOrderCanaryConfigured}, `
-      + `ticket canary configured=${result.tossTicketCanaryConfigured}`,
-    );
+    console.log(formatVercelBuildReadback(result, process.env.VERCEL_ENV));
   } catch (error) {
     console.error(error instanceof Error ? error.message : 'Invalid Vercel build environment');
     process.exitCode = 1;
