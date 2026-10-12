@@ -11,11 +11,13 @@ import type {
   RefundOutcome,
 } from './gateway';
 import {
+  TOSS_WIDGET_VARIANT_KEY,
   isTossAllowedMerchantId,
   isTossClientKey,
   isTossKeyPairAligned,
   isTossProviderOrderId,
   isTossSecretKey,
+  tossKeyMode,
 } from './toss-config.mjs';
 
 // 토스페이먼츠 v2 코어 API(공식문서 129, https://docs.tosspayments.com/reference). 주문서형
@@ -324,10 +326,11 @@ function isVirtualAccountPayment(payment: Record<string, unknown>) {
  * 싣는다(문서 129 /reference#payment-객체). 결제서비스와 MID는 1:1이고(문서 24), 문서에
  * 박힌 공개 테스트 키의 결제는 우리 상점이 아니다(문서 122) — 그런 결제를 승인·취소
  * 확정·실패 판정 근거로 쓰면 다른 상점의 원장으로 우리 주문을 닫게 된다. `mId`가 없거나
- * 허용 목록(toss-config.mjs) 밖이면 판정에 쓰지 않는다.
+ * 이 게이트웨이 키 모드의 허용 MID(toss-config.mjs — 라이브 `iconsi0xvd`, 테스트
+ * `ticonsi0xvd`) 밖이면 판정에 쓰지 않는다.
  */
-function merchantAllowed(payment: Record<string, unknown>) {
-  return isTossAllowedMerchantId(payment.mId);
+function merchantAllowed(payment: Record<string, unknown>, keyMode: 'live' | 'test') {
+  return isTossAllowedMerchantId(payment.mId, keyMode);
 }
 
 function paymentStatusLabel(payment: Record<string, unknown>) {
@@ -470,6 +473,12 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
   ) {
     return configurationError();
   }
+  // 허용 MID는 키 모드별이다(테스트 키 결제의 mId는 `t` + 라이브 MID). 키 쌍은 위에서 같은
+  // 모드로 검증됐으므로 시크릿 키의 모드가 이 게이트웨이의 모드다.
+  const secretKeyMode = tossKeyMode(secretKey);
+  if (secretKeyMode !== 'live' && secretKeyMode !== 'test') return configurationError();
+  // 아래 함수 선언(호이스팅)에서도 좁혀진 타입을 쓰도록 선언 타입으로 고정한다.
+  const keyMode: 'live' | 'test' = secretKeyMode;
   const fetchImpl = options.fetch ?? fetch;
   const now = options.now ?? (() => new Date());
   const confirmTimeoutMs = timeoutOption(options.confirmTimeoutMs, CONFIRM_TIMEOUT_MS);
@@ -646,7 +655,7 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
         cancelResult.status === 200
         && plainRecord(cancelResult.payload)
         && cancelResult.payload.status === 'CANCELED'
-        && merchantAllowed(cancelResult.payload)
+        && merchantAllowed(cancelResult.payload, keyMode)
         && cancelResult.payload.paymentKey === paymentKey
         && cancelResult.payload.orderId === attempt.providerOrderId
       ) {
@@ -711,7 +720,7 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
     const after = await inquireByPaymentKey(paymentKey);
     if (
       after.kind === 'ok'
-      && merchantAllowed(after.payment)
+      && merchantAllowed(after.payment, keyMode)
       && after.payment.paymentKey === paymentKey
       && paymentFullyCanceled(after.payment, attempt)
     ) {
@@ -748,7 +757,7 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
     reasonCode: 'provider_approved' | 'provider_approved_after_recheck' | 'provider_reconciled_approved',
     knownPaymentKey?: string,
   ): Promise<PaymentOperationOutcome> {
-    if (!merchantAllowed(payment)) {
+    if (!merchantAllowed(payment, keyMode)) {
       return merchantMismatchOutcome(attempt, payment, knownPaymentKey);
     }
     if (
@@ -794,7 +803,7 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
     approvedReason: 'provider_approved_after_recheck' | 'provider_reconciled_approved',
     lookupPaymentKey?: string,
   ): Promise<PaymentOperationOutcome> {
-    if (!merchantAllowed(payment)) {
+    if (!merchantAllowed(payment, keyMode)) {
       return merchantMismatchOutcome(attempt, payment, lookupPaymentKey);
     }
     if (
@@ -915,7 +924,7 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
     attempt: PaymentAttempt,
     hintedPaymentKey: string,
   ) {
-    return merchantAllowed(payment)
+    return merchantAllowed(payment, keyMode)
       && payment.paymentKey === hintedPaymentKey
       && payment.orderId === attempt.providerOrderId
       && (
@@ -965,6 +974,10 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
             // 내부 사용자 식별자를 provider에 보내지 않는다 — 위젯은 SDK의
             // ANONYMOUS 상수로 초기화한다(비회원 결제 계약).
             customerKey: 'ANONYMOUS',
+            // 결제의 MID는 결제 UI(variant)에 연결된 MID가 정한다(공식문서 24). 기본
+            // `DEFAULT`는 다른 서비스와 공유하는 MID라, MID iconsi0xvd에 연결한 ICONS 전용
+            // 결제 UI를 명시한다(toss-config.mjs TOSS_WIDGET_VARIANT_KEY).
+            variantKey: TOSS_WIDGET_VARIANT_KEY,
             orderId: attempt.providerOrderId,
             orderName: attempt.purpose === 'order' ? 'ICONS 굿즈 주문' : 'ICONS 티켓 주문',
             amount: attempt.amount,
@@ -1044,7 +1057,7 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
         if (
           plainRecord(payload)
           && (payload.status === 'DONE' || payload.status === 'WAITING_FOR_DEPOSIT')
-          && !merchantAllowed(payload)
+          && !merchantAllowed(payload, keyMode)
         ) {
           // 승인(또는 가상계좌 발급)이 우리 상점이 아닌 MID에서 성립했다 — 키가 다른
           // 상점·문서 공개 키다. 승인으로 확정하지도, 취소하지도 않는다.
@@ -1232,7 +1245,7 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
         }
         const payment = inquiry.payment;
         // 다른 상점의 결제는 취소하지 않고, 취소 확인 근거로도 쓰지 않는다.
-        if (!merchantAllowed(payment)) return { kind: 'merchant_mismatch', payment };
+        if (!merchantAllowed(payment, keyMode)) return { kind: 'merchant_mismatch', payment };
         if (
           ledgerPaymentKey !== undefined
           && (payment.paymentKey !== ledgerPaymentKey || payment.orderId !== attempt.providerOrderId)

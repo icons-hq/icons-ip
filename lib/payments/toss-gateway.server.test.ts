@@ -28,9 +28,13 @@ const TICKET_ATTEMPT: PaymentAttempt = {
 
 const PAYMENT_KEY = 'tviva20260901000000abcDEF123456789';
 
-// 우리 상점아이디(MID) — 어댑터는 이 값이 허용 목록(toss-config.mjs)에 있는 결제만
-// 판정 근거로 쓴다.
-const MERCHANT_ID = 'iconsi0xvd';
+// 우리 상점아이디(MID) — 어댑터는 키 모드에 맞는 허용 MID(toss-config.mjs)의 결제만 판정
+// 근거로 쓴다. 이 파일의 기본 게이트웨이는 테스트 키라 Payment.mId는 테스트 모드 MID
+// (`t` + 라이브 MID)다 — 2026-10-12 결제 어드민 실측(테스트 모드 MID에 `t` 접두사).
+const MERCHANT_ID = 'ticonsi0xvd';
+const LIVE_MERCHANT_ID = 'iconsi0xvd';
+const LIVE_CLIENT_KEY = 'live_gck_iconsdocs00000000000001';
+const LIVE_SECRET_KEY = 'live_gsk_iconsdocs00000000000001';
 
 function donePayment(overrides: Record<string, unknown> = {}) {
   return {
@@ -118,8 +122,13 @@ function hangingFetch(respond: (call: number) => Response | undefined = () => un
   return { fetchImpl: fetchImpl as unknown as typeof fetch, signals };
 }
 
-async function confirmInput(payloadOverrides: Record<string, unknown> = {}, attempt = ATTEMPT) {
-  const { gateway: prepareGateway } = gateway();
+async function confirmInput(
+  payloadOverrides: Record<string, unknown> = {},
+  attempt = ATTEMPT,
+  // callback nonce는 시크릿 키 HMAC 파생이라 확인할 게이트웨이와 같은 키로 만든다.
+  keys: { clientKey?: string; secretKey?: string } = {},
+) {
+  const { gateway: prepareGateway } = gateway(keys);
   const prepared = await prepareGateway.prepare(attempt);
   return {
     attempt,
@@ -162,6 +171,9 @@ describe('TossPayments v2 gateway', () => {
         provider: 'toss',
         clientKey: CLIENT_KEY,
         customerKey: 'ANONYMOUS',
+        // 결제의 MID를 정하는 ICONS 전용 결제 UI — 다른 서비스와 공유하는 DEFAULT로
+        // 떨어지지 않게 명시한다(toss-config.mjs TOSS_WIDGET_VARIANT_KEY).
+        variantKey: 'ICONS',
         orderId: ATTEMPT.providerOrderId,
         orderName: 'ICONS 굿즈 주문',
         amount: ATTEMPT.amount,
@@ -1608,6 +1620,69 @@ describe('TossPayments v2 gateway', () => {
     const FOREIGN_MID = 'tosspayments';
     const KEY_URL = `https://api.tosspayments.com/v1/payments/${PAYMENT_KEY}`;
     const ORDER_URL = `https://api.tosspayments.com/v1/payments/orders/${ATTEMPT.providerOrderId}`;
+
+    /*
+     * 허용 MID는 키 모드별이다 — 테스트 키 결제의 mId는 `ticonsi0xvd`, 라이브 키 결제는
+     * `iconsi0xvd`다(2026-10-12 결제 어드민 실측: 테스트 모드 MID에 `t` 접두사, 공식문서 248
+     * 테스트 응답 예시 MID `tvivarepublica2`). 모드를 가리지 않고 `iconsi0xvd` 하나로 대조하면
+     * 심사 창(테스트 키)의 모든 결제가 needs_review로 격리된다.
+     */
+    describe.each([
+      ['테스트 키', CLIENT_KEY, SECRET_KEY, MERCHANT_ID, LIVE_MERCHANT_ID],
+      ['라이브 키', LIVE_CLIENT_KEY, LIVE_SECRET_KEY, LIVE_MERCHANT_ID, MERCHANT_ID],
+    ])('%s 게이트웨이', (_label, clientKey, secretKey, ownMid, otherModeMid) => {
+      it(`승인 200 DONE의 mId가 ${ownMid}면 approved다`, async () => {
+        const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(200, donePayment({ mId: ownMid })));
+        const { gateway: tossGateway } = gateway({
+          fetch: fetchImpl as unknown as typeof fetch,
+          clientKey,
+          secretKey,
+        });
+
+        const outcome = await tossGateway.confirm(
+          await confirmInput({}, ATTEMPT, { clientKey, secretKey }),
+        );
+
+        expect(fetchImpl).toHaveBeenCalledTimes(1);
+        expect(outcome.outcome).toBe('approved');
+        expect(outcome.reasonCode).toBe('provider_approved');
+      });
+
+      it(`승인 200 DONE의 mId가 다른 모드의 ${otherModeMid}면 needs_review이고 취소하지 않는다`, async () => {
+        const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(200, donePayment({ mId: otherModeMid })));
+        const { gateway: tossGateway } = gateway({
+          fetch: fetchImpl as unknown as typeof fetch,
+          clientKey,
+          secretKey,
+        });
+
+        const outcome = await tossGateway.confirm(
+          await confirmInput({}, ATTEMPT, { clientKey, secretKey }),
+        );
+
+        expect(fetchImpl).toHaveBeenCalledTimes(1);
+        expect(outcome.outcome).toBe('needs_review');
+        expect(outcome.reasonCode).toBe('provider_merchant_mismatch');
+        expect(outcome.evidence).toEqual({
+          providerPaymentKey: PAYMENT_KEY,
+          resultCode: 'DONE_merchant_mismatch',
+        });
+      });
+
+      it(`reconcile 조회도 ${ownMid}만 판정에 쓴다`, async () => {
+        const own = vi.fn().mockResolvedValue(jsonResponse(200, donePayment({ mId: ownMid })));
+        const other = vi.fn().mockResolvedValue(jsonResponse(200, donePayment({ mId: otherModeMid })));
+
+        const approved = await gateway({ fetch: own as unknown as typeof fetch, clientKey, secretKey })
+          .gateway.reconcile(ATTEMPT);
+        const isolated = await gateway({ fetch: other as unknown as typeof fetch, clientKey, secretKey })
+          .gateway.reconcile(ATTEMPT);
+
+        expect(approved.outcome).toBe('approved');
+        expect(isolated.outcome).toBe('needs_review');
+        expect(isolated.reasonCode).toBe('provider_merchant_mismatch');
+      });
+    });
 
     it.each([
       ['다른 상점 MID', { mId: FOREIGN_MID }],

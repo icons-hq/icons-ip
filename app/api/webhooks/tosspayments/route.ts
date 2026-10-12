@@ -58,7 +58,8 @@ function acknowledged() {
  * attempt를 조회 API 기반 reconcile seam에 태우고, 반영은 전부 DB 멱등 finalizer가 한다.
  * 종결된 attempt에 대한 웹훅(중복 수신·상태 역전 신호)은 no-op 200이다 — 원장을
  * 웹훅으로 되돌리는 경로는 존재하지 않는다. 웹훅은 상점아이디(MID)별로 등록·전송되므로
- * (공식문서 41 /guides/v2/webhook) 개발자센터에서 MID iconsi0xvd에 등록한다.
+ * (공식문서 41 /guides/v2/webhook) 개발자센터에서 MID iconsi0xvd(테스트 모드 ticonsi0xvd)에
+ * 등록한다.
  */
 export function createTossWebhookHandler({
   available,
