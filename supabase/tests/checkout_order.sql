@@ -82,6 +82,31 @@ select 1 / case when not has_function_privilege('authenticated', 'public.place_o
   as assert_authenticated_cannot_place_order;
 select 1 / case when has_function_privilege('service_role', 'public.place_order(uuid,jsonb,uuid)', 'execute') then 1 else 0 end
   as assert_service_role_can_place_order;
+-- 결제수단을 받는 고객 진입 시그니처도 같은 경계다(20261012100000). 브라우저가 이 본문을
+-- 직접 부르면 서버 게이트(정지 계정·무통장 계좌·PG gate)를 건너뛰고 재고를 선점한다.
+-- 런타임 거부 호출 대신 선언적으로 단언한다(권한 없는 호출은 일부 이미지에서 백엔드를 죽였다).
+select 1 / case when not has_function_privilege('anon', 'public.place_order(jsonb,uuid,public.order_payment_method)', 'execute')
+  and not has_function_privilege('authenticated', 'public.place_order(jsonb,uuid,public.order_payment_method)', 'execute')
+  and not has_function_privilege('service_role', 'public.place_order(jsonb,uuid,public.order_payment_method)', 'execute')
+  then 1 else 0 end as assert_no_api_role_can_call_payment_method_place_order_body;
+select 1 / case when not has_function_privilege('anon', 'public.place_order(uuid,jsonb,uuid,public.order_payment_method)', 'execute')
+  and not has_function_privilege('authenticated', 'public.place_order(uuid,jsonb,uuid,public.order_payment_method)', 'execute')
+  and has_function_privilege('service_role', 'public.place_order(uuid,jsonb,uuid,public.order_payment_method)', 'execute')
+  then 1 else 0 end as assert_only_service_role_can_place_order_with_payment_method;
+select 1 / case when not has_function_privilege('anon', 'public.place_order_with_store_credits(uuid,jsonb,uuid,public.order_payment_method,bigint)', 'execute')
+  and not has_function_privilege('authenticated', 'public.place_order_with_store_credits(uuid,jsonb,uuid,public.order_payment_method,bigint)', 'execute')
+  and has_function_privilege('service_role', 'public.place_order_with_store_credits(uuid,jsonb,uuid,public.order_payment_method,bigint)', 'execute')
+  and not has_function_privilege('anon', 'public.place_order_with_store_credits(uuid,jsonb,uuid,public.order_payment_method,bigint,uuid)', 'execute')
+  and not has_function_privilege('authenticated', 'public.place_order_with_store_credits(uuid,jsonb,uuid,public.order_payment_method,bigint,uuid)', 'execute')
+  and has_function_privilege('service_role', 'public.place_order_with_store_credits(uuid,jsonb,uuid,public.order_payment_method,bigint,uuid)', 'execute')
+  then 1 else 0 end as assert_only_service_role_can_place_store_credit_orders;
+-- 이후 추가되는 주문 생성 오버로드·본문도 브라우저 롤에 열리면 여기서 걸린다.
+select 1 / case when not exists (
+    select 1 from pg_catalog.pg_proc p
+    where p.pronamespace in ('public'::regnamespace, 'private'::regnamespace) and p.proname ~ '^place_order'
+      and (has_function_privilege('anon', p.oid, 'execute')
+        or has_function_privilege('authenticated', p.oid, 'execute'))
+  ) then 1 else 0 end as assert_no_browser_role_can_execute_any_place_order;
 select 1 / case when not has_function_privilege('authenticated', 'public.cancel_order(uuid,text)', 'execute') then 1 else 0 end
   as assert_authenticated_cannot_cancel_without_provider;
 select 1 / case when has_function_privilege('service_role', 'public.cancel_order(uuid,text)', 'execute') then 1 else 0 end
