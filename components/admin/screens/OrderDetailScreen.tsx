@@ -25,6 +25,8 @@ const ACTION_LABELS: Record<string, string> = {
   'admin.order.dispatch_delay_cleared': '발송 지연 해제',
   'admin.order.cancellation_approved': '취소 승인', 'admin.order.cancellation_rejected': '취소 거부',
   'admin.order.cancellation_completed': '취소 완료', 'admin.order.cancellation_needs_review': '취소 확인 필요',
+  'system.order.cancellation_completed': '취소 완료 (자동)', 'system.order.cancellation_needs_review': '취소 확인 필요 (자동)',
+  'system.order.prepared_goods_cancellation_completed': '결제 준비 건 취소 완료 (자동)',
   'admin.order.cancellation_reconcile_started': '취소 대조 시작',
   'admin.order.prepared_goods_cancellation_completed': '결제 준비 건 취소 완료',
   'admin.order.bank_transfer_canceled': '무통장 주문 취소', 'admin.order.bank_transfer_confirmed': '무통장 입금 확인',

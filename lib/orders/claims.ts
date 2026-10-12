@@ -88,6 +88,21 @@ export function isOrderClaimRefundMethod(value: unknown): value is OrderClaimRef
     && (ORDER_CLAIM_REFUND_METHODS as readonly string[]).includes(value);
 }
 
+/**
+ * 결제 provider가 정하는 환불 수단. null이면 운영자가 고른다(Korpay·결제 없음).
+ *
+ * 토스 결제는 '환불 완료 확정'이 토스 전액 취소를 발행하므로 결제사 취소뿐이다 —
+ * 계좌 송금을 고를 수 있게 두면 취소가 나간 뒤 송금까지 해서 이중 환불이 된다
+ * (2026-10-12 점검 REF-8·REF-3). 무통장 입금 결제는 계좌 송금으로만 돌려준다.
+ */
+export function orderClaimRefundMethodForProvider(
+  provider: string | null,
+): OrderClaimRefundMethod | null {
+  if (provider === 'toss') return 'pg_cancel';
+  if (provider === 'bank_transfer') return 'bank_transfer';
+  return null;
+}
+
 export function orderClaimTypeForSlug(slug: unknown): OrderClaimType | null {
   return typeof slug === 'string' ? SLUG_TO_TYPE[slug] ?? null : null;
 }

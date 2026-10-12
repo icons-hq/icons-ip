@@ -115,6 +115,45 @@ function render(overrides: Partial<AdminClaimDetail> = {}, cancellationForm: str
 }
 
 describe('ClaimDetailScreen', () => {
+  // 2026-10-12 점검 REF-2·REF-8: 토스 결제의 [환불 완료 확정]은 토스 전액 취소를 직접
+  // 발행한다. "결제사 원장에서 먼저 확인하라"는 안내와 계좌 송금 선택지는 사실과 다르다.
+  const tossPayment = { ...detail().payment!, provider: 'toss' };
+  it('토스 결제의 환불 완료 확정은 결제사 취소를 발행한다고 안내하고 수단을 고르게 하지 않는다', () => {
+    const html = render({
+      payment: tossPayment,
+      claim: { ...detail().claim, stage: 'processing', status: 'processing' },
+      refund: { ...detail().refund!, method: null, filedAt: null },
+    });
+    expect(html).toContain('환불 완료 확정 (토스 전액 취소 발행 · 재고 복원 · 카드팩 회수)');
+    expect(html).toContain('누르면 토스 전액 취소를 발행하고 결제사 조회로 결과를 확인합니다.');
+    expect(html).not.toContain('결제사 원장에서 전액 취소를 확인한 뒤 눌러주세요');
+    expect(html).toContain('결제사 취소 (토스 전액 취소)');
+    expect(html).toContain('type="hidden" name="method" value="pg_cancel"');
+    expect(html).not.toContain('<option value="bank_transfer"');
+  });
+
+  it('토스 결제의 환불 접수는 접수만 기록하고 취소는 완료 확정에서 나간다고 알린다', () => {
+    const html = render({ payment: tossPayment, refund: { ...detail().refund!, method: null, filedAt: null } });
+    expect(html).toContain('환불 접수 완료로 기록');
+    expect(html).toContain('토스 전액 취소는 아래 [환불 완료 확정]을 누를 때 발행됩니다.');
+    expect(html).not.toContain('<option value="bank_transfer"');
+  });
+
+  it('토스 결제 취소 클레임의 승인 버튼은 승인과 동시에 전액 취소가 나간다고 말한다', () => {
+    const html = render({
+      payment: tossPayment,
+      claim: { ...detail().claim, claimType: 'cancel', stage: 'requested', collectedAt: null, collectingAt: null },
+      refund: null,
+    });
+    expect(html).toContain('승인하고 토스 전액 취소');
+    expect(html).toContain('승인하면 바로 토스 전액 취소를 발행하고 결제사 조회로 결과를 확인합니다.');
+  });
+
+  it('Korpay처럼 수단이 정해지지 않은 결제는 운영자가 고른다', () => {
+    const html = render({ refund: { ...detail().refund!, method: null } });
+    expect(html).toContain('<option value="bank_transfer"');
+  });
+
   it('교환 재출고 뒤에는 배송완료 근거를 별도로 확인하고 기록한 뒤 잠근다', () => {
     const exchanged = { ...detail().claim, claimType: 'exchange' as const, stage: 'completed' as const,
       reshipCarrier: 'hanjin', reshipTrackingNumber: 'QA4530000001', reshippedAt: '2026-09-09T00:00:00Z',

@@ -295,6 +295,29 @@ describe('reconcileOrderCancellation', () => {
     });
   });
 
+  // 고객 자동 승인은 누른 staff가 없다. 서버가 시스템 actor(null)로 같은 경로를 돌리고,
+  // DB가 그 null을 취소 유형에만 허용해 system.order.* 감사로 남긴다(20261012110000).
+  it('시스템 actor(null)는 모든 DB 단계에 그대로 null로 전달된다', async () => {
+    defaultMocks.attempt = {
+      id: '44444444-4444-4444-8444-444444444444',
+      provider: 'toss', purpose: 'order', ref_id: ORDER_ID, amount: 42000, currency: 'KRW',
+      idempotency_key: 'approved-order-attempt', provider_order_id: 'approved-order',
+      provider_product_code: 'goods', expires_at: '2026-09-01T00:00:00.000Z',
+    };
+
+    await expect(reconcileOrderCancellation({
+      requestId: REQUEST_ID, actorId: null,
+    })).resolves.toEqual({ ok: true, status: 'completed' });
+
+    const rpcCalls = defaultMocks.rpc.mock.calls as Array<[string, Record<string, unknown>]>;
+    expect(rpcCalls.map(([name]) => name)).toEqual([
+      'assert_order_cancellation_reconciliation_allowed',
+      'reconcile_expired_prepared_goods_cancellation',
+      'complete_order_cancellation_request',
+    ]);
+    for (const [, args] of rpcCalls) expect(args.p_actor_id).toBeNull();
+  });
+
   it('fresh prepared 세션은 in_progress로 유지하고 완료나 needs_review를 호출하지 않는다', async () => {
     const deps = dependencies({
       reconcileExpiredPreparedGoods: vi.fn(async () => 'in_progress' as const),

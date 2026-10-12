@@ -16,7 +16,12 @@ import {
 import { loadAdminClaimDetail } from '@/lib/admin/claims.server';
 import { withPreservedFormValues, type AdminFormValuesState } from '@/lib/admin/form-state';
 import { getCurrentAdminAuthState, type AdminRole } from '@/lib/auth/admin';
-import { isOrderClaimType, type OrderClaimType } from '@/lib/orders/claims';
+import {
+  isOrderClaimType,
+  orderClaimRefundMethodForProvider,
+  type OrderClaimRefundMethod,
+  type OrderClaimType,
+} from '@/lib/orders/claims';
 import { reconcileOrderCancellation } from '@/lib/orders/cancellation-orchestrator.server';
 import { recoverGoodsPaymentManually } from '@/lib/payments/goods-manual-recovery.server';
 import { createClient } from '@/lib/supabase/server';
@@ -27,7 +32,12 @@ import { createClient } from '@/lib/supabase/server';
  * finalize_order_cancellation_with_provider_evidence 한 곳에만 있고, 여기서는
  * 이미 있는 정합화 경로 — 취소 요청 오케스트레이터와 Korpay 수동 복구 seam —
  * 를 그대로 호출한 뒤 그 결과를 환불 원장에 적을 뿐이다. 두 번째 원장을 만들면
- * "환불은 완료인데 재고는 그대로"인 주문이 생긴다. */
+ * "환불은 완료인데 재고는 그대로"인 주문이 생긴다.
+ *
+ * 토스 결제의 취소 클레임은 승인하는 순간 오케스트레이터가 토스 전액 취소를 발행하고
+ * fresh 조회로 확인한다(2026-10-12 점검 REF-2). '환불 완료 확정'도 같은 경로를 다시
+ * 부른다 — 그 버튼이 결제사 취소를 발행하는 지점이지, 운영자가 결제사 원장에서 취소를
+ * 먼저 확인하는 버튼이 아니다. */
 
 export interface AdminClaimActionState extends AdminFormValuesState {
   error?: string;
@@ -39,11 +49,13 @@ const COLLECTION_FAILED = '수거 상태를 기록하지 못했습니다. 최신
 const REFUND_FAILED = '환불 원장을 기록하지 못했습니다. 최신 상태를 확인해주세요.';
 const RESHIP_FAILED = '재출고를 기록하지 못했습니다. 최신 상태를 확인해주세요.';
 const OPERATIONAL_FEE_FAILED = '운영 확인액을 기록하지 못했습니다. 최신 클레임을 다시 확인해주세요.';
-const FINALIZE_FAILED = '결제 취소 상태를 확정하지 못했습니다. 주문과 재고는 그대로 유지됩니다. 결제사 원장을 확인한 뒤 다시 시도해주세요.';
+const FINALIZE_FAILED = '결제 취소 상태를 확정하지 못했습니다. 주문과 재고는 그대로 유지됩니다. 정합화 오류를 확인한 뒤 다시 시도해주세요.';
+const IN_PROGRESS = '결제 상태 처리가 아직 끝나지 않았습니다. 주문과 재고는 그대로 유지됩니다.';
+const REFUND_METHOD_MISMATCH = '이 결제의 환불 수단과 다릅니다. 토스 결제는 결제사 취소(토스 전액 취소)로만 환불합니다. 화면을 새로고침한 뒤 다시 진행해주세요.';
 
 const DECISION_MESSAGES: Record<string, string> = {
   review: '검토중으로 표시했습니다.',
-  approve: '클레임을 승인했습니다.',
+  approve: '클레임을 승인하고 수거를 시작했습니다.',
   reject: '클레임을 거부했습니다.',
   hold: '클레임을 보류했습니다.',
   resume: '보류를 해제했습니다.',
@@ -125,23 +137,72 @@ function readClaimType(formData: FormData): OrderClaimType | undefined {
   return isOrderClaimType(value) ? value : undefined;
 }
 
+/**
+ * 승인으로 processing이 된 취소 클레임의 결제사 취소를 바로 실행한다.
+ *
+ * 주문 콘솔의 청약철회 승인(approveAdminOrderCancellationAction)과 같은 동작이다.
+ * Korpay는 취소 API가 없어 이메일 접수 → 수동 확인 seam이 정상 경로이므로 여기서
+ * 돌리지 않는다(돌리면 곧바로 needs_review가 돼 접수 양식 절차를 가린다).
+ */
+async function issueApprovedClaimCancellation(
+  claimId: string,
+  actorId: string,
+): Promise<AdminClaimActionState> {
+  let provider: string | null = null;
+  try {
+    const detail = await loadAdminClaimDetail(claimId);
+    provider = detail?.payment?.provider ?? null;
+  } catch {
+    return { error: '취소를 승인했지만 결제 정보를 다시 읽지 못했습니다. 주문과 재고는 그대로 유지됩니다. 새로고침한 뒤 [환불 완료 확정]으로 결제 취소를 진행해주세요.' };
+  }
+  if (provider === 'korpay') {
+    return { message: '취소를 승인했습니다. Korpay 결제는 결제사 취소 접수 양식으로 접수한 뒤 환불 완료를 확정해주세요.' };
+  }
+
+  let result: Awaited<ReturnType<typeof reconcileOrderCancellation>>;
+  try {
+    result = await reconcileOrderCancellation({ requestId: claimId, actorId });
+  } catch {
+    result = { ok: false, code: 'local_finalize_failed' };
+  }
+  if (!result.ok) {
+    return { error: `취소는 승인했지만 결제 취소를 확정하지 못했습니다(${result.code}). 주문과 재고는 그대로 유지됩니다. 정합화 오류를 확인한 뒤 [환불 완료 확정]으로 다시 시도해주세요.` };
+  }
+  if (result.status === 'in_progress') {
+    return { message: `취소를 승인했습니다. ${IN_PROGRESS} 잠시 뒤 [환불 완료 확정]으로 다시 확인해주세요.` };
+  }
+  return {
+    message: provider === 'toss'
+      ? '취소를 승인하고 토스 전액 취소까지 확인했습니다. 주문 취소·재고 복원·카드팩 회수와 환불 원장 기록이 함께 끝났습니다.'
+      : '취소를 승인하고 주문 취소를 마쳤습니다. 결제 전 주문이라 결제사 취소는 없었습니다.',
+  };
+}
+
 export async function decideOrderClaimAction(
   _state: AdminClaimActionState,
   formData: FormData,
 ): Promise<AdminClaimActionState> {
   const access = await requireStaffAction();
-  if (access.error) return access.error;
+  if (access.error || !access.userId) return access.error ?? { error: DECIDE_FAILED };
 
   const normalized = normalizeAdminClaimDecisionForm(formData);
   if (!normalized.ok) return { error: normalized.error };
 
   const supabase = await createClient();
-  const { error } = await supabase.rpc('admin_decide_order_claim', {
+  const { data, error } = await supabase.rpc('admin_decide_order_claim', {
     p_claim_id: normalized.value.claimId,
     p_decision: normalized.value.decision,
     p_note: normalized.value.note,
   });
   if (error) return { error: rpcErrorMessage(error.message, DECIDE_FAILED) };
+
+  /* 승인 결과 단계는 폼이 아니라 DB가 돌려준 값으로 읽는다. 취소는 회수할 물건이
+     없어 곧장 processing이 되고, 그 순간 결제사 취소를 발행한다. */
+  if (normalized.value.decision === 'approve' && data === 'processing') {
+    const issued = await issueApprovedClaimCancellation(normalized.value.claimId, access.userId);
+    revalidateClaimSurfaces(normalized.value.claimId, readClaimType(formData));
+    return issued;
+  }
 
   revalidateClaimSurfaces(normalized.value.claimId, readClaimType(formData));
   return { message: DECISION_MESSAGES[normalized.value.decision] ?? '클레임을 처리했습니다.' };
@@ -309,9 +370,7 @@ async function finalizeClaimPayment(
       actorId: input.actorId,
     });
     if (!result.ok) return { ok: false, error: FINALIZE_FAILED };
-    if (result.status === 'in_progress') {
-      return { ok: false, error: '결제 상태 처리가 아직 끝나지 않았습니다. 주문과 재고는 그대로 유지됩니다.' };
-    }
+    if (result.status === 'in_progress') return { ok: false, error: IN_PROGRESS };
     return { ok: true };
   } catch {
     return { ok: false, error: FINALIZE_FAILED };
@@ -331,26 +390,44 @@ export async function recordOrderClaimRefundAction(
   const supabase = await createClient();
   let finalizationRan = false;
 
+  /* 환불 수단은 폼이 아니라 결제에서 정한다(2026-10-12 점검 REF-8·REF-3).
+   *
+   * 토스 결제는 '환불 완료 확정'이 토스 전액 취소를 발행한다. 폼에서 계좌 송금을
+   * 고르면 취소는 이미 나간 뒤에 원장 기록만 실패하고, 그걸 보고 계좌로 또 보내면
+   * 이중 환불이 된다. 그래서 결제와 이미 기록된 수단에서 파생한 값과 폼 값이 다르면
+   * 결제사 호출 전에 거절한다. 단계·결제도 폼이 아니라 DB에서 읽는다. */
+  let current: Awaited<ReturnType<typeof loadAdminClaimDetail>>;
+  try {
+    current = await loadAdminClaimDetail(normalized.value.claimId);
+  } catch {
+    return { error: REFUND_FAILED };
+  }
+  if (!current) return { error: '클레임을 찾을 수 없습니다.' };
+
+  const derivedMethod: OrderClaimRefundMethod | null = current.refund?.method
+    ?? orderClaimRefundMethodForProvider(current.payment?.provider ?? null);
+  if (derivedMethod && derivedMethod !== normalized.value.method) {
+    return { error: REFUND_METHOD_MISMATCH };
+  }
+  const tossPayment = current.payment?.provider === 'toss';
+
   if (normalized.value.stage === 'completed') {
     const orderId = String(formData.get('orderId') ?? '');
-    if (!orderId) return { error: REFUND_FAILED };
+    if (!orderId || orderId.toLowerCase() !== current.claim.orderId.toLowerCase()) {
+      return { error: REFUND_FAILED };
+    }
 
     /* 이미 종결된 클레임에는 정합화를 다시 걸지 않는다.
      *
      * admin_begin_order_cancellation_reconcile은 completed 요청을
      * cancellation_request_not_reconcilable로 거절한다. 그래서 레거시 경로로
      * 완료된 건(재고 복원·카드팩 회수는 이미 끝났고 refunds.completed_at만 비어
-     * 있는 상태)에 이 액션을 걸면 원장 기록에 닿기도 전에 항상 실패했다. 단계는
-     * 폼이 아니라 DB에서 읽는다 — 클라이언트가 보낸 값으로 정합화를 건너뛸지
-     * 정하면 그 자체가 게이트 우회가 된다. */
-    const current = await loadAdminClaimDetail(normalized.value.claimId);
-    if (!current) return { error: '클레임을 찾을 수 없습니다.' };
-
+     * 있는 상태)에 이 액션을 걸면 원장 기록에 닿기도 전에 항상 실패했다. */
     if (current.claim.stage !== 'completed') {
       finalizationRan = true;
       const finalized = await finalizeClaimPayment(supabase, {
         claimId: normalized.value.claimId,
-        orderId,
+        orderId: current.claim.orderId,
         actorId: access.userId,
         isAdmin: access.role === 'admin',
       });
@@ -369,17 +446,33 @@ export async function recordOrderClaimRefundAction(
   });
   if (error) {
     revalidateClaimSurfaces(normalized.value.claimId, readClaimType(formData));
-    return { error: rpcErrorMessage(error.message, REFUND_FAILED) };
+    const reason = rpcErrorMessage(error.message, REFUND_FAILED);
+    /* 결제사 취소와 주문 정합화가 이미 끝난 뒤의 원장 기록 실패를 "환불 실패"로
+       보이면 운영자가 같은 돈을 다른 수단으로 다시 돌려준다. 끝난 일을 먼저 말한다. */
+    return {
+      error: finalizationRan
+        ? `${tossPayment ? '토스 전액 취소와 ' : ''}주문 취소·재고 복원·카드팩 회수는 이미 완료됐습니다. 환불 원장 기록만 실패했습니다 — 다시 환불하지 마세요. ${reason}`
+        : reason,
+    };
   }
 
   revalidateClaimSurfaces(normalized.value.claimId, readClaimType(formData));
-  if (normalized.value.stage === 'filed') return { message: '환불 접수를 기록했습니다.' };
+  if (normalized.value.stage === 'filed') {
+    return {
+      message: tossPayment
+        ? '환불 접수를 기록했습니다. 토스 전액 취소는 [환불 완료 확정]을 누를 때 발행됩니다.'
+        : '환불 접수를 기록했습니다.',
+    };
+  }
   /* 이미 종결된 클레임에는 재고 복원·카드팩 회수가 방금 일어나지 않았다. 문구가
      일어나지 않은 일을 보고하면 운영자가 그 주문을 다시 확인할 근거를 잃는다. */
+  if (!finalizationRan) {
+    return { message: '환불 완료를 원장에 기록했습니다. 주문 취소와 재고 복원은 이미 확정된 상태였습니다.' };
+  }
   return {
-    message: finalizationRan
-      ? '환불 완료를 기록했습니다. 재고 복원과 카드팩 회수가 함께 확정됐습니다.'
-      : '환불 완료를 원장에 기록했습니다. 주문 취소와 재고 복원은 이미 확정된 상태였습니다.',
+    message: tossPayment
+      ? '토스 전액 취소를 확인하고 환불 완료를 기록했습니다. 재고 복원과 카드팩 회수가 함께 확정됐습니다.'
+      : '환불 완료를 기록했습니다. 재고 복원과 카드팩 회수가 함께 확정됐습니다.',
   };
 }
 

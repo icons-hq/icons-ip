@@ -48,6 +48,11 @@ const TIMELINE_LABELS: Record<string, string> = {
   'admin.order.claim_reshipment_delivered': '교환품 배송완료 확인',
   'admin.order.cancellation_approved': '청약철회 승인 (레거시 경로)',
   'admin.order.cancellation_rejected': '청약철회 거절 (레거시 경로)',
+  'admin.order.cancellation_completed': '결제 취소 확인 · 주문 취소 완료',
+  'system.order.cancellation_completed': '결제 취소 확인 · 주문 취소 완료 (자동)',
+  'admin.order.cancellation_needs_review': '결제 취소 확인 필요',
+  'system.order.cancellation_needs_review': '결제 취소 확인 필요 (자동)',
+  'admin.order.cancellation_reconcile_started': '결제 취소 다시 확인',
 };
 
 const PAYMENT_PROVIDER_LABELS: Record<string, string> = {
@@ -271,6 +276,8 @@ export function ClaimDetailScreen({
             collections={claim.collections}
             heldFrom={claim.heldFrom}
             orderId={claim.orderId}
+            paymentProvider={payment?.provider ?? null}
+            recordedRefundMethod={refund?.method ?? null}
             refundCompleted={Boolean(refund?.completedAt)}
             refundFiled={Boolean(refund?.filedAt)}
             refundLedgerOpen={Boolean(refund)}

@@ -65,15 +65,23 @@ export type ExpiredPreparedGoodsReconciliation =
 
 export type CancellationReconciliationPreflight = 'allowed' | 'completed' | 'not_allowed';
 
+/**
+ * 정합화를 실행하는 주체. 문자열은 staff/admin 사용자 id, null은 시스템(서버 자동
+ * 발행)이다 — 고객이 연 자동 승인처럼 사람이 누르지 않은 취소를 서버가 바로 닫을 때만
+ * 쓴다. DB는 null actor를 취소(claim_type='cancel') 요청에만 허용하고 감사 로그를
+ * system.order.* 액션으로 남긴다(20261012110000).
+ */
+export type CancellationActorId = string | null;
+
 export interface CancellationReconciliationDependencies {
   loadContext(requestId: string): Promise<CancellationReconciliationContext | null>;
   preflightReconciliation(input: {
     requestId: string;
-    actorId: string;
+    actorId: CancellationActorId;
   }): Promise<CancellationReconciliationPreflight>;
   reconcileExpiredPreparedGoods(input: {
     requestId: string;
-    actorId: string;
+    actorId: CancellationActorId;
   }): Promise<ExpiredPreparedGoodsReconciliation>;
   /**
    * toss 유상 캡처의 전액 취소. 게이트웨이가 취소 API 발행 후 fresh 조회로
@@ -86,12 +94,12 @@ export interface CancellationReconciliationDependencies {
   }): Promise<RefundOutcome>;
   completeRequest(input: {
     requestId: string;
-    actorId: string;
+    actorId: CancellationActorId;
     verifiedPaymentKeys: string[];
   }): Promise<void>;
   markNeedsReview(input: {
     requestId: string;
-    actorId: string;
+    actorId: CancellationActorId;
     code: CancellationReconciliationCode;
   }): Promise<void>;
 }
@@ -312,7 +320,7 @@ function createDefaultDependencies(): CancellationReconciliationDependencies {
 
 async function markNeedsReview(
   dependencies: CancellationReconciliationDependencies,
-  input: { requestId: string; actorId: string },
+  input: { requestId: string; actorId: CancellationActorId },
   code: CancellationReconciliationCode,
 ): Promise<CancellationReconciliationResult> {
   try {
@@ -331,9 +339,14 @@ async function markNeedsReview(
  * 취소하고, 검증된 키만 완료 RPC에 넘긴다(#389). korpay 유상 캡처는 취소 API가
  * 없어 수동 복구 seam(goods-manual-recovery)이 정상 경로이므로 여기서는 수동
  * 검토로 승격한다. 실패·모호는 자동 종결하지 않는다.
+ *
+ * 승인 직후 서버가 곧바로 부르는 것이 정상 경로다 — 고객 자동 승인은
+ * cancellation-auto.server.ts가 시스템 actor(null)로, 클레임 콘솔·주문 콘솔 승인과
+ * 운영자 전액 취소는 그 staff actor로 부른다. 운영자의 '처리 상태 확인'·'환불 완료
+ * 확정'은 같은 함수를 다시 부르는 재시도 표면이다.
  */
 export async function reconcileOrderCancellation(
-  input: { requestId: string; actorId: string },
+  input: { requestId: string; actorId: CancellationActorId },
   providedDependencies?: CancellationReconciliationDependencies,
 ): Promise<CancellationReconciliationResult> {
   let dependencies: CancellationReconciliationDependencies;
