@@ -346,8 +346,10 @@ function validPaymentKey(value: unknown): string | undefined {
 /**
  * MID가 허용 목록 밖인 결제를 만났을 때의 격리. 어떤 상태든(승인·취소·실패) 그 결제를
  * 근거로 attempt를 닫지 않고, 취소도 발행하지 않는다 — 다른 상점의 결제를 취소하지 않기
- * 위해서다. resultCode는 비밀이 아닌 짧은 표지(`{status}_merchant_mismatch`)이고, 운영자가
- * 결제를 찾을 수 있게 결제 키를 증거로 남긴다(응답 키가 형식 밖이면 우리가 보낸 키).
+ * 위해서다. 유일한 예외는 환불의 원장 paymentKey 조회가 같은 결제의 전액 취소를 확인한
+ * 경우다(refund의 inquireForRefund — 돈이 움직이지 않는 수렴). resultCode는 비밀이 아닌 짧은
+ * 표지(`{status}_merchant_mismatch`)이고, 운영자가 결제를 찾을 수 있게 결제 키를 증거로
+ * 남긴다(응답 키가 형식 밖이면 우리가 보낸 키).
  */
 function merchantMismatchOutcome(
   attempt: PaymentAttempt,
@@ -1244,8 +1246,25 @@ export function createTossPaymentGateway(options: TossGatewayOptions): PaymentGa
           return { kind: 'configuration_error', code: inquiry.code };
         }
         const payment = inquiry.payment;
-        // 다른 상점의 결제는 취소하지 않고, 취소 확인 근거로도 쓰지 않는다.
-        if (!merchantAllowed(payment, keyMode)) return { kind: 'merchant_mismatch', payment };
+        // 다른 상점의 결제는 취소하지 않고, DONE 판정 근거로도 쓰지 않는다.
+        if (!merchantAllowed(payment, keyMode)) {
+          // 예외 하나: 원장이 아는 결제 키로 조회한 응답이 같은 결제(키·주문)이고 이미 전액
+          // 취소됐다면 MID와 무관하게 환불 완료로 수렴한다. 돈은 움직이지 않고(취소 API는
+          // MID 일치일 때만 부른다) 우리 원장이 confirm 때 기록한 그 결제가 취소됐다는 사실만
+          // 읽는다. 이 수렴이 없으면 MID 바인딩 이전 결제(결제 UI DEFAULT로 승인된 심사 창
+          // 테스트 결제 등)는 결제 어드민에서 취소해도 결제확인필요에서 나오지 못한다.
+          // mId 자체는 있어야 한다(최대 14자, 문서 129) — 스키마 밖 응답은 수렴 근거가 아니다.
+          if (
+            ledgerPaymentKey !== undefined
+            && safeString(payment.mId, 14)
+            && payment.paymentKey === ledgerPaymentKey
+            && payment.orderId === attempt.providerOrderId
+            && paymentFullyCanceled(payment, attempt)
+          ) {
+            return { kind: 'canceled', payment };
+          }
+          return { kind: 'merchant_mismatch', payment };
+        }
         if (
           ledgerPaymentKey !== undefined
           && (payment.paymentKey !== ledgerPaymentKey || payment.orderId !== attempt.providerOrderId)

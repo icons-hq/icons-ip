@@ -1799,6 +1799,115 @@ describe('TossPayments v2 gateway', () => {
       expect(outcome.refundedAmount).toBeUndefined();
     });
 
+    /*
+     * MID 바인딩 이전 결제(2026-10-06 심사 창 주문 — 결제 UI DEFAULT·MID `tgsangwbzqu`)의 원장
+     * 수렴. 앱은 그 결제를 취소하지 않으므로(위 테스트) 운영자가 결제 어드민에서 취소한 뒤 다시
+     * 확인한다. 그때 원장 paymentKey로 조회한 응답이 같은 결제(키·주문)의 전액 취소면 MID와
+     * 무관하게 환불 완료로 수렴해야 한다 — 그러지 않으면 그 주문은 결제확인필요에서 영영 나오지
+     * 못한다(통합 리뷰 INT-1).
+     */
+    describe('MID 불일치 결제의 전액 취소 수렴(원장 paymentKey 조회)', () => {
+      const PRE_BINDING_MID = 'tgsangwbzqu';
+
+      function ledgerRefund() {
+        return {
+          attempt: ATTEMPT,
+          idempotencyKey: `refund:${ATTEMPT.id}`,
+          amount: ATTEMPT.amount,
+          reason: 'ICONS 주문 취소',
+          providerPaymentKey: PAYMENT_KEY,
+        };
+      }
+
+      function fullyCanceled(overrides: Record<string, unknown> = {}) {
+        return donePayment({
+          mId: PRE_BINDING_MID,
+          status: 'CANCELED',
+          balanceAmount: 0,
+          cancels: [{
+            cancelAmount: ATTEMPT.amount,
+            cancelReason: '테스트 결제 정리',
+            canceledAt: '2026-10-12T10:00:00+09:00',
+            transactionKey: 'ND38Q0IGWUG7UC02G6G1GL1XJRG2BO5N',
+            cancelStatus: 'DONE',
+          }],
+          ...overrides,
+        });
+      }
+
+      it('결제 어드민에서 취소한 뒤 다시 확인하면 환불 완료로 수렴한다 — 취소 API는 어느 쪽도 부르지 않는다', async () => {
+        const fetchImpl = vi.fn()
+          .mockResolvedValueOnce(jsonResponse(200, donePayment({ mId: PRE_BINDING_MID })))
+          .mockResolvedValueOnce(jsonResponse(200, fullyCanceled()));
+        const { gateway: tossGateway } = gateway({ fetch: fetchImpl as unknown as typeof fetch });
+
+        const first = await tossGateway.refund(ledgerRefund());
+        expect(first.outcome).toBe('needs_review');
+        expect(first.reasonCode).toBe('provider_merchant_mismatch');
+        expect(first.evidence?.resultCode).toBe('DONE_merchant_mismatch');
+
+        const second = await tossGateway.refund(ledgerRefund());
+        expect(second.outcome).toBe('approved');
+        expect(second.reasonCode).toBe('provider_already_fully_canceled');
+        expect(second.refundedAmount).toBe(ATTEMPT.amount);
+        expect(second.evidence).toEqual({
+          providerPaymentKey: PAYMENT_KEY,
+          providerTransactionId: 'ND38Q0IGWUG7UC02G6G1GL1XJRG2BO5N',
+          resultCode: 'CANCELED',
+          approvedAt: '2026-10-12T01:00:00.000Z',
+        });
+
+        expect(fetchImpl).toHaveBeenCalledTimes(2);
+        for (const call of fetchImpl.mock.calls) {
+          expect(call[0]).toBe(KEY_URL);
+          expect(call[1].method).toBe('GET');
+        }
+      });
+
+      it.each([
+        ['응답 paymentKey가 원장 키와 다름', { paymentKey: 'tviva20260901000000zzzOTHER0000000' }],
+        ['응답 orderId가 attempt와 다름', { orderId: 'O0000000000000000000000000000000f' }],
+        ['부분취소(잔액 남음)', { status: 'PARTIAL_CANCELED', balanceAmount: 1_000 }],
+        ['CANCELED인데 잔액 남음', { balanceAmount: 1_000 }],
+        ['금액이 attempt와 다름', { totalAmount: ATTEMPT.amount + 1 }],
+        ['mId 누락', { mId: undefined }],
+      ])('%s이면 수렴하지 않고 격리한다', async (_label, override) => {
+        const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(200, fullyCanceled(override)));
+        const { gateway: tossGateway } = gateway({ fetch: fetchImpl as unknown as typeof fetch });
+
+        const outcome = await tossGateway.refund(ledgerRefund());
+
+        expect(fetchImpl).toHaveBeenCalledTimes(1);
+        expect(fetchImpl.mock.calls[0]![1].method).toBe('GET');
+        expect(outcome.outcome).toBe('needs_review');
+        expect(outcome.refundedAmount).toBeUndefined();
+      });
+
+      it('원장 paymentKey 없이 orderId로 조회한 전액 취소는 MID가 다르면 수렴 근거가 아니다', async () => {
+        const fetchImpl = vi.fn().mockResolvedValue(jsonResponse(200, fullyCanceled()));
+        const { gateway: tossGateway } = gateway({ fetch: fetchImpl as unknown as typeof fetch });
+        const outcome = await tossGateway.refund({ ...ledgerRefund(), providerPaymentKey: undefined });
+
+        expect(fetchImpl).toHaveBeenCalledTimes(1);
+        expect(fetchImpl.mock.calls[0]![0]).toBe(ORDER_URL);
+        expect(outcome.outcome).toBe('needs_review');
+        expect(outcome.reasonCode).toBe('provider_merchant_mismatch');
+        expect(outcome.refundedAmount).toBeUndefined();
+      });
+
+      it('결제 재정합(reconcile)은 이 예외를 쓰지 않는다 — 다른 상점 결제로 attempt를 닫지 않는다', async () => {
+        // 힌트 조회와 orderId 조회가 각각 본문을 읽으므로 호출마다 새 응답을 준다.
+        const fetchImpl = vi.fn(async () => jsonResponse(200, fullyCanceled()));
+        const { gateway: tossGateway } = gateway({ fetch: fetchImpl as unknown as typeof fetch });
+
+        const outcome = await tossGateway.reconcile(ATTEMPT, { providerPaymentKey: PAYMENT_KEY });
+
+        expect(fetchImpl).toHaveBeenCalledTimes(2);
+        expect(outcome.outcome).toBe('needs_review');
+        expect(outcome.reasonCode).toBe('provider_merchant_mismatch');
+      });
+    });
+
     it('환불 사후 조회가 다른 상점의 전액 취소면 환불 확정 근거로 쓰지 않는다', async () => {
       const fetchImpl = vi.fn()
         .mockResolvedValueOnce(jsonResponse(200, donePayment()))
