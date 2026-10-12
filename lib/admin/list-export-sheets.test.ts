@@ -34,7 +34,7 @@ function order(overrides: Partial<AdminOrderRecord> = {}): AdminOrderRecord {
       { id: 'item-1', variantId: 'v-1', variantName: '파랑', variantCode: '00123', name: '아크릴 키링', type: 'goods', qty: 2, unitPrice: 15_000 },
       { id: 'item-2', variantId: 'v-2', variantName: null, variantCode: null, name: '스티커', type: 'goods', qty: 1, unitPrice: 12_000 },
     ],
-    payments: [{ id: 'pay-1', amount: 45_000, status: 'paid', createdAt: '2026-10-06T15:11:00.000Z' }],
+    payments: [{ id: 'pay-1', provider: 'toss', amount: 45_000, status: 'paid', createdAt: '2026-10-06T15:11:00.000Z' }],
     refunds: [],
     cancellationRequest: null,
     manualRecoveryAttempt: null,

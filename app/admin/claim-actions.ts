@@ -14,6 +14,7 @@ import {
   normalizeAdminClaimReshipmentForm,
 } from '@/lib/admin/claims';
 import { loadAdminClaimDetail } from '@/lib/admin/claims.server';
+import { ADMIN_CANCELLATION_RECHECK_LABELS } from '@/lib/admin/orders';
 import { withPreservedFormValues, type AdminFormValuesState } from '@/lib/admin/form-state';
 import { getCurrentAdminAuthState, type AdminRole } from '@/lib/auth/admin';
 import {
@@ -145,6 +146,18 @@ function readClaimType(formData: FormData): OrderClaimType | undefined {
  * 계좌 송금 절차를 따르므로 여기서 돌리지 않는다(돌리면 곧바로 needs_review가 돼
  * 접수 양식·계좌 송금 접수를 막는다).
  */
+/*
+ * 재시도 안내는 그 상황에서 실제로 그려지는 버튼만 가리킨다(리뷰 C1-2).
+ * - 결제 행이 있는 토스 결제: 승인이 환불 원장을 열어 요청 상세에 [환불 완료 확정]이
+ *   그려진다.
+ * - 결제 행이 없는 주문(결제창만 열렸거나 결제 결과 미확정): 환불 원장이 없어
+ *   [환불 완료 확정]이 그려지지 않는다(ClaimActionPanel refundLedgerMissing). 만료
+ *   sweep도 처리중 요청을 건너뛰므로 주문 통합검색 주문 패널의 재확인 버튼만 이 건을
+ *   닫는다 — 이름은 요청 단계에 따라 다르다(ADMIN_CANCELLATION_RECHECK_LABELS).
+ */
+const { processing: RECHECK_PROCESSING, needsReview: RECHECK_NEEDS_REVIEW } = ADMIN_CANCELLATION_RECHECK_LABELS;
+const ORDER_PANEL_RECHECK = `주문 통합검색에서 이 주문을 열어 [${RECHECK_NEEDS_REVIEW}](처리중이면 [${RECHECK_PROCESSING}])`;
+
 async function issueApprovedClaimCancellation(
   claimId: string,
   actorId: string,
@@ -154,7 +167,7 @@ async function issueApprovedClaimCancellation(
     const detail = await loadAdminClaimDetail(claimId);
     provider = detail?.payment?.provider ?? null;
   } catch {
-    return { error: '취소를 승인했지만 결제 정보를 다시 읽지 못했습니다. 주문과 재고는 그대로 유지됩니다. 새로고침한 뒤 [환불 완료 확정]으로 결제 취소를 진행해주세요.' };
+    return { error: `취소를 승인했지만 결제 정보를 다시 읽지 못했습니다. 주문과 재고는 그대로 유지됩니다. 새로고침한 뒤 요청 상세의 [환불 완료 확정]으로 결제 취소를 진행해주세요. 그 버튼이 없으면 ${ORDER_PANEL_RECHECK}으로 진행합니다.` };
   }
   if (provider === 'korpay') {
     return { message: '취소를 승인했습니다. Korpay 결제는 결제사 취소 접수 양식으로 접수한 뒤 환불 완료를 확정해주세요.' };
@@ -169,11 +182,20 @@ async function issueApprovedClaimCancellation(
   } catch {
     result = { ok: false, code: 'local_finalize_failed' };
   }
+  const hasPayment = provider !== null;
   if (!result.ok) {
-    return { error: `취소는 승인했지만 결제 취소를 확정하지 못했습니다(${result.code}). 주문과 재고는 그대로 유지됩니다. 정합화 오류를 확인한 뒤 [환불 완료 확정]으로 다시 시도해주세요.` };
+    return {
+      error: hasPayment
+        ? `취소는 승인했지만 결제 취소를 확정하지 못했습니다(${result.code}). 주문과 재고는 그대로 유지됩니다. 정합화 오류를 확인한 뒤 [환불 완료 확정]으로 다시 시도해주세요.`
+        : `취소는 승인했지만 주문 취소를 확정하지 못했습니다(${result.code}). 주문과 재고는 그대로 유지됩니다. 결제 내역이 없는 주문이라 [환불 완료 확정]은 보이지 않습니다. 원인을 확인한 뒤 ${ORDER_PANEL_RECHECK}으로 다시 시도해주세요.`,
+    };
   }
   if (result.status === 'in_progress') {
-    return { message: `취소를 승인했습니다. ${IN_PROGRESS} 잠시 뒤 [환불 완료 확정]으로 다시 확인해주세요.` };
+    return {
+      message: hasPayment
+        ? `취소를 승인했습니다. ${IN_PROGRESS} 잠시 뒤 [환불 완료 확정]으로 다시 확인해주세요.`
+        : `취소를 승인했습니다. ${IN_PROGRESS} 결제 결과가 정해지기 전이라 환불 원장이 없어 [환불 완료 확정]은 보이지 않습니다. 잠시 뒤 주문 통합검색에서 이 주문을 열어 [${RECHECK_PROCESSING}]으로 다시 확인해주세요. Korpay 결제창 주문은 그 자리의 Korpay 버튼으로 처리합니다.`,
+    };
   }
   return {
     message: provider === 'toss'

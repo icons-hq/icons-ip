@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { decideOrderClaimAction, recordOrderClaimRefundAction } from './claim-actions';
+import { ADMIN_CANCELLATION_RECHECK_LABELS } from '@/lib/admin/orders';
 
 /*
  * 클레임 콘솔의 취소 승인·환불 확정이 실제 결제사 취소로 이어지는지(2026-10-12 점검
@@ -99,6 +100,36 @@ describe('decideOrderClaimAction — 취소 승인', () => {
 
     expect(state.error).toContain('provider_cancel_failed');
     expect(state.error).toContain('[환불 완료 확정]');
+  });
+
+  /*
+   * 결제 행이 없는 주문(결제창만 열린 pending)은 환불 원장이 없어 요청 상세에
+   * [환불 완료 확정]이 그려지지 않는다. 처리중 요청은 만료 sweep도 건너뛰므로 주문
+   * 통합검색 주문 패널의 재확인 버튼만 이 건을 닫는다 — 안내가 그 버튼을 가리켜야 한다.
+   */
+  it('결제 행이 없는 주문의 확인 중 결과는 [환불 완료 확정]이 아니라 주문 패널 재확인을 안내한다', async () => {
+    mocks.rpc.mockResolvedValue({ data: 'processing', error: null });
+    mocks.loadAdminClaimDetail.mockResolvedValue(detail({ provider: null }));
+    mocks.reconcileOrderCancellation.mockResolvedValue({ ok: true, status: 'in_progress' });
+
+    const state = await decideOrderClaimAction({}, decisionForm('approve'));
+
+    expect(mocks.reconcileOrderCancellation).toHaveBeenCalledWith({ requestId: CLAIM_ID, actorId: 'staff-1' });
+    expect(state.message).toContain('주문 통합검색');
+    expect(state.message).toContain(`[${ADMIN_CANCELLATION_RECHECK_LABELS.processing}]으로 다시 확인`);
+    expect(state.message).not.toContain('[환불 완료 확정]으로');
+  });
+
+  it('결제 행이 없는 주문의 실패는 결제확인필요의 주문 패널 버튼을 안내한다', async () => {
+    mocks.rpc.mockResolvedValue({ data: 'processing', error: null });
+    mocks.loadAdminClaimDetail.mockResolvedValue(detail({ provider: null }));
+    mocks.reconcileOrderCancellation.mockResolvedValue({ ok: false, code: 'local_finalize_failed' });
+
+    const state = await decideOrderClaimAction({}, decisionForm('approve'));
+
+    expect(state.error).toContain('local_finalize_failed');
+    expect(state.error).toContain(`[${ADMIN_CANCELLATION_RECHECK_LABELS.needsReview}]`);
+    expect(state.error).not.toContain('[환불 완료 확정]으로');
   });
 
   it('Korpay 결제는 접수 양식 절차를 가리지 않도록 자동 실행하지 않는다', async () => {

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { startAdminOrderCancellationAction } from './order-actions';
+import { ADMIN_CANCELLATION_RECHECK_LABELS } from '@/lib/admin/orders';
 
 /*
  * 운영자 전액 취소(ADR-0018, 2026-10-12 점검 OPS-8·OPS-5·REF-1).
@@ -101,7 +102,11 @@ describe('startAdminOrderCancellationAction', () => {
     const state = await startAdminOrderCancellationAction({}, form());
 
     expect(state.errors?.form).toContain('provider_cancel_failed');
-    expect(state.errors?.form).toContain('[처리 상태 확인]');
+    // 실패하면 요청은 결제확인필요가 된다. 그때 주문 패널 버튼은 [상태 다시 확인]이고,
+    // 취소 관리 요청 상세에는 [환불 완료 확정]이 그려진다 — 화면에 있는 버튼만 가리킨다.
+    expect(state.errors?.form).toContain(`[${ADMIN_CANCELLATION_RECHECK_LABELS.needsReview}]`);
+    expect(state.errors?.form).toContain('[환불 완료 확정]');
+    expect(state.errors?.form).not.toContain('[처리 상태 확인]으로');
     expect(state.message).toBeUndefined();
   });
 

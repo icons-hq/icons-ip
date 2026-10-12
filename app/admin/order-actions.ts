@@ -4,6 +4,7 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { normalizeAdminDispatchDelayForm } from '@/lib/admin/dispatch';
 import {
+  ADMIN_CANCELLATION_RECHECK_LABELS,
   normalizeAdminCancellationDecisionForm,
   normalizeAdminGoodsManualRecoveryForm,
   normalizeAdminOrderStatusForm,
@@ -406,7 +407,7 @@ export async function startAdminOrderCancellationAction(
   if (!result.ok) {
     return {
       errors: {
-        form: `전액 취소를 시작했지만 결제 취소를 확정하지 못했습니다(${result.code}). 주문과 재고는 그대로 유지됩니다. 취소 관리에서 정합화 오류를 확인한 뒤 [처리 상태 확인]으로 다시 시도해주세요.`,
+        form: `전액 취소를 시작했지만 결제 취소를 확정하지 못했습니다(${result.code}). 주문과 재고는 그대로 유지됩니다. 원인을 확인한 뒤 이 주문 패널의 [${ADMIN_CANCELLATION_RECHECK_LABELS.needsReview}](처리중이면 [${ADMIN_CANCELLATION_RECHECK_LABELS.processing}]) 또는 취소 관리 요청 상세의 [환불 완료 확정]으로 다시 시도해주세요.`,
       },
     };
   }

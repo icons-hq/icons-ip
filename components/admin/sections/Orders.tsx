@@ -14,6 +14,7 @@ import {
   type AdminOrderActionState,
 } from '@/app/admin/order-actions';
 import {
+  ADMIN_CANCELLATION_RECHECK_LABELS,
   ADMIN_ORDER_STATUSES,
   ADMIN_ORDER_SEARCH_FIELDS,
   ADMIN_ORDER_STATUS_LABELS,
@@ -382,8 +383,10 @@ function ReconcileCancellationForm({
     ? `Korpay 주문 ${preparedKorpay.providerOrderId} · ₩${preparedKorpay.amount.toLocaleString('ko-KR')} ${preparedKorpay.currency} 결제 세션의 만료를 확인할까요? 이미 만료됐다면 주문 취소와 재고 복원이 즉시 완료됩니다.`
     : '결제 취소 상태를 다시 확인할까요?';
   const label = preparedKorpay
-    ? 'Korpay 만료·취소 처리'
-    : request.status === 'processing' ? '처리 상태 확인' : '상태 다시 확인';
+    ? ADMIN_CANCELLATION_RECHECK_LABELS.preparedKorpay
+    : request.status === 'processing'
+      ? ADMIN_CANCELLATION_RECHECK_LABELS.processing
+      : ADMIN_CANCELLATION_RECHECK_LABELS.needsReview;
 
   return (
     <form

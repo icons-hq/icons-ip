@@ -94,6 +94,7 @@ function orderData(overrides: Partial<AdminOrderRecord> = {}): AdminOrderConsole
       }],
       payments: [{
         id: 'payment-1',
+        provider: 'toss',
         amount: 32000,
         status: 'paid',
         createdAt: '2026-07-14T06:01:00.000Z',
@@ -165,6 +166,28 @@ describe('OrdersSection', () => {
       const unpaid = renderToStaticMarkup(<OrdersSection data={orderData({ status: 'pending', shipments: [] })} />);
       expect(unpaid).not.toContain('aria-label="운영자 전액 취소"');
     });
+
+    // DB staff_cancellation_toss_only와 같은 조건 — 누르면 항상 거절되는 버튼을 그리지 않는다.
+    it('토스 결제완료가 아닌 결제가 걸린 주문에는 그리지 않는다', () => {
+      const payment = (provider: string, status = 'paid') => ({
+        id: `payment-${provider}-${status}`, provider, amount: 32000, status, createdAt: '2026-07-14T06:01:00.000Z',
+      });
+      for (const payments of [
+        [payment('korpay')],
+        [payment('bank_transfer')],
+        [payment('toss'), payment('korpay')],
+        [payment('toss', 'refunded')],
+        [payment('toss', 'failed')],
+        [],
+      ]) {
+        const html = renderToStaticMarkup(<OrdersSection data={orderData({ shipments: [readyShipment(null)], payments })} />);
+        expect(html, JSON.stringify(payments)).not.toContain('aria-label="운영자 전액 취소"');
+      }
+      const failedThenPaid = renderToStaticMarkup(<OrdersSection data={orderData({
+        shipments: [readyShipment(null)], payments: [payment('toss', 'failed'), payment('toss')],
+      })} />);
+      expect(failedThenPaid).toContain('aria-label="운영자 전액 취소"');
+    });
   });
 
   it('주문 대조 금액은 0원·경계값·큰 금액을 모두 원 단위로 보여주고 paid를 신규주문으로 표시한다', () => {
@@ -180,6 +203,7 @@ describe('OrdersSection', () => {
       }],
       payments: [{
         id: 'payment-1',
+        provider: 'toss',
         amount: 10000,
         status: 'paid',
         createdAt: '2026-07-14T06:01:00.000Z',

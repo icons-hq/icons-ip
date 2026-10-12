@@ -89,6 +89,7 @@ interface ItemRow {
 interface PaymentRow {
   id: string;
   ref_id: string;
+  provider: string | null;
   amount: number;
   status: string;
   created_at: string;
@@ -235,7 +236,7 @@ export async function getAdminOrderRecords(
     loadOrderItemRows(supabase, orderIds),
     supabase
       .from('payment_summaries')
-      .select('id,ref_id,amount,status,created_at')
+      .select('id,ref_id,provider,amount,status,created_at')
       .eq('purpose', 'order')
       .in('ref_id', orderIds)
       .order('created_at', { ascending: true })
@@ -358,6 +359,7 @@ export async function getAdminOrderRecords(
       })),
       payments: (paymentsByOrder.get(row.id) ?? []).map((payment) => ({
         id: payment.id,
+        provider: typeof payment.provider === 'string' ? payment.provider : null,
         amount: payment.amount,
         status: payment.status,
         createdAt: payment.created_at,

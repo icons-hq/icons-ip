@@ -123,6 +123,7 @@ export interface AdminOrderItemRecord {
 
 export interface AdminOrderPaymentRecord {
   id: string;
+  provider: string | null;
   amount: number;
   status: string;
   createdAt: string;
@@ -423,6 +424,18 @@ export function normalizeAdminCancellationDecisionForm(
 }
 
 /**
+ * 주문 통합검색 주문 패널의 결제 취소 재확인 버튼 이름(ReconcileCancellationForm).
+ *
+ * 같은 재정합 액션이지만 요청 단계에 따라 이름이 다르다. 서버 액션의 재시도 안내는
+ * 이 이름을 그대로 가리킨다 — 화면에 없는 버튼을 안내하지 않도록 한 곳에서 정한다.
+ */
+export const ADMIN_CANCELLATION_RECHECK_LABELS = {
+  processing: '처리 상태 확인',
+  needsReview: '상태 다시 확인',
+  preparedKorpay: 'Korpay 만료·취소 처리',
+} as const;
+
+/**
  * 운영자 전액 취소 사유(ADR-0018). DB `admin_start_order_cancellation`의 허용 목록과
  * 같아야 한다 — 한쪽만 늘리면 고를 수 있는데 항상 거절되는 선택지가 생긴다.
  */
@@ -440,13 +453,21 @@ export const ADMIN_STAFF_CANCELLATION_NOTE_LIMIT = 500;
  * 운영자 전액 취소를 시작할 수 있는 주문인가(ADR-0018).
  *
  * 화면에 버튼을 그릴지만 정한다. 판정의 진실원은 DB가 주문·배송 건 잠금 아래에서
- * 다시 하는 검사다(결제 수단·진행 중 결제 포함). 출고지시 파일이 나간 배송 건이
- * 있으면 창고의 출고 중단 확인을 함께 받는다.
+ * 다시 하는 검사다(진행 중 결제 포함). 결제 조건은 DB `admin_start_order_cancellation`의
+ * `staff_cancellation_toss_only`와 같게 맞춘다 — 실패가 아닌 결제가 하나 이상이고
+ * 모두 토스·결제완료일 때만 그린다. Korpay·무통장 주문에 버튼을 그리면 누를 때마다
+ * 거절되는 버튼이 된다. 출고지시 파일이 나간 배송 건이 있으면 창고의 출고 중단 확인을
+ * 함께 받는다.
  */
 export function adminStaffCancellationAvailability(
   order: AdminOrderRecord,
 ): { available: false } | { available: true; requiresWarehouseStop: boolean } {
   if (order.status !== 'paid' && order.status !== 'confirmed') return { available: false };
+  const livePayments = order.payments.filter((payment) => payment.status !== 'failed');
+  if (!livePayments.length) return { available: false };
+  if (livePayments.some((payment) => payment.provider !== 'toss' || payment.status !== 'paid')) {
+    return { available: false };
+  }
   const request = order.cancellationRequest;
   if (request && request.stage !== 'completed' && request.stage !== 'rejected') return { available: false };
   if (order.shipments.some((shipment) => (
