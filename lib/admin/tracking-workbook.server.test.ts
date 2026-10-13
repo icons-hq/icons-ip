@@ -1,7 +1,7 @@
 import {describe,expect,it,vi} from 'vitest';
 import ExcelJS from 'exceljs';
 import {parseTrackingWorkbook} from './tracking-workbook.server';
-import {GIMPO_EXPORT_HEADERS} from './warehouse-templates';
+import {GIMPO_EXPORT_HEADERS,SEOWON_EXPORT_HEADERS} from './warehouse-templates';
 vi.mock('server-only',()=>({}));
 const carriers=[{code:'hanjin',label:'한진택배',active:true,trackingUrlTemplate:'https://example.test/{trackingNumber}'}];
 async function bytes(rows:unknown[][]){const w=new ExcelJS.Workbook();w.addWorksheet('운송장').addRows(rows);return Buffer.from(await w.xlsx.writeBuffer());}
@@ -45,5 +45,32 @@ describe('김포 원본 운송장 회신',()=>{
   const row=warehouseRow();row[2]={formula:'1+1'};
   const parsed=await parseTrackingWorkbook(await bytes([[...GIMPO_EXPORT_HEADERS],row]),carriers);
   expect(parsed.rows).toEqual([]);expect(parsed.issues[0]).toEqual({line:2,reference:order,reason:'수식은 사용할 수 없습니다.'});
+ });
+});
+
+describe('남양주(서원) 송장양식 회신',()=>{
+ const seowon=(phone:unknown,quantity:unknown,tracking:unknown,items='합성 키링_빨강')=>[phone,'','04524','서울 중구 세종대로 110','',quantity,items,'합성 받는분','',tracking];
+ async function workbook(rows:unknown[][],extraSheets:unknown[][][]=[]){
+  const w=new ExcelJS.Workbook();w.addWorksheet('송장양식').addRows(rows);
+  extraSheets.forEach((sheet,i)=>w.addWorksheet(`Sheet${i+1}`).addRows(sheet));return Buffer.from(await w.xlsx.writeBuffer());
+ }
+ it('7열 헤더 뒤의 송장번호(동의어 포함) 열을 찾고 숫자로 저장된 13자리 번호·0이 빠진 휴대전화를 복원한다',async()=>{
+  const parsed=await parseTrackingWorkbook(await workbook([[...SEOWON_EXPORT_HEADERS,'등기 번호'],seowon(1012345678,2,6012345678901),seowon('010-1234-5678','1,000','6012-3456-78902')],[[],[]]),carriers);
+  expect(parsed).toMatchObject({kind:'seowon',issues:[]});
+  expect((parsed as {rows:unknown[]}).rows).toEqual([
+   {line:2,phone:'01012345678',address:'서울 중구 세종대로 110',items:'합성 키링_빨강',quantity:2,trackingNumber:'6012345678901'},
+   {line:3,phone:'010-1234-5678',address:'서울 중구 세종대로 110',items:'합성 키링_빨강',quantity:1000,trackingNumber:'6012345678902'},
+  ]);
+ });
+ it('빈 송장·자릿수가 유실될 수 있는 숫자 송장·잘못된 수량은 줄 오류로 남긴다',async()=>{
+  const parsed=await parseTrackingWorkbook(await workbook([[...SEOWON_EXPORT_HEADERS,'송장번호'],seowon('010-1','1',''),seowon('010-2','1',12345678),seowon('010-3','0','6012345678903'),seowon('010-4','1',{formula:'1+1'})]),carriers);
+  expect((parsed as {rows:{line:number;error?:string}[]}).rows.map(row=>[row.line,row.error])).toEqual([
+   [2,'송장번호가 비어 있습니다. 출고하지 않은 줄이면 해당 배송 건의 줄을 모두 빼고 올려주세요.'],
+   [3,'송장번호는 텍스트 형식으로 입력해주세요.'],[4,'수량은 1 이상의 숫자여야 합니다.'],[5,'수식은 사용할 수 없습니다.'],
+  ]);
+ });
+ it('송장번호 열이 없거나 내용이 있는 시트가 둘이면 파일 단계에서 거절한다',async()=>{
+  await expect(parseTrackingWorkbook(await workbook([[...SEOWON_EXPORT_HEADERS],seowon('010','1','6012345678901').slice(0,9)]),carriers)).rejects.toThrow('송장번호 열');
+  await expect(parseTrackingWorkbook(await workbook([[...SEOWON_EXPORT_HEADERS,'송장번호']],[[['다른 내용']]]),carriers)).rejects.toThrow('시트 하나');
  });
 });

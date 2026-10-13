@@ -5,8 +5,8 @@ import type {ShipmentConsoleData} from '@/lib/admin/shipment-dispatch';
 import {shipmentDeliveryFixture} from '@/lib/shipment-delivery.fixture';
 vi.mock('next/navigation',()=>({useRouter:()=>({refresh:vi.fn()}),usePathname:()=>'/admin/sales/dispatch'}));
 vi.mock('@/app/admin/order-actions',()=>({bulkConfirmAdminOrdersAction:vi.fn(),bulkRegisterAdminOrderTrackingAction:vi.fn(),saveAdminOrderDispatchDelayAction:vi.fn()}));
-vi.mock('@/app/admin/shipment-actions',()=>({completeShipmentsAction:vi.fn(),exportShipmentsAction:vi.fn()}));
-const base:ShipmentConsoleData={surface:'dispatch',filters:{tab:'ready',originId:null,query:'',from:null,to:null,page:1},rows:[],total:2,pageSize:100,counts:{new:0,ready:2,delayed:0,transit:0,delivered:0},carriers:[{code:'hanjin',label:'한진택배',active:true,trackingUrlTemplate:'https://example.test/{trackingNumber}'}],origins:[{id:'one',name:'김포'},{id:'two',name:'남양주'}]};
+vi.mock('@/app/admin/shipment-actions',()=>({completeShipmentsAction:vi.fn(),exportShipmentsAction:vi.fn(),exportPendingOriginShipmentsAction:vi.fn()}));
+const base:ShipmentConsoleData={surface:'dispatch',filters:{tab:'ready',originId:null,query:'',from:null,to:null,page:1},rows:[],total:2,pageSize:100,counts:{new:0,ready:2,delayed:0,transit:0,delivered:0},carriers:[{code:'hanjin',label:'한진택배',active:true,trackingUrlTemplate:'https://example.test/{trackingNumber}'}],origins:[{id:'one',name:'김포',template:'wms_csv',active:true},{id:'two',name:'남양주',template:'seowon_xlsx',active:true},{id:'three',name:'중지된 창고',template:'standard',active:false}]};
 const row={id:'60000000-0000-4000-8000-000000000001',orderId:'50000000-0000-4000-8000-000000000001',originId:'one',originName:'김포',status:'ready' as const,createdAt:'2026-09-08T00:00:00Z',confirmedAt:'2026-09-08T01:00:00Z',buyerName:'구매자',recipientName:'받는 분',total:30000,paymentMethod:'card',shippingFee:3000,carrier:null,trackingNumber:null,shippedAt:null,deliveredAt:null,exportedAt:null,updatedAt:'2026-09-08T00:00:00Z',delayReason:null,expectedShipDate:null,items:[{id:'item-1',name:'상품',variantName:'파랑',qty:2}]};
 describe('배송 건 콘솔',()=>{
  it('지연 탭은 예약 미할당·방문수령도 고객 안내 대상으로 선택하면서 기존 출고 실행은 막는다',()=>{
@@ -26,14 +26,26 @@ describe('배송 건 콘솔',()=>{
  });
  it('배송완료는 배송 건 선택으로 처리하고 개별 운송장 링크를 보여준다',()=>{
   const html=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,surface:'shipping',filters:{...base.filters,tab:'transit'},rows:[{...row,status:'shipping',carrier:'hanjin',trackingNumber:'12345678',shippedAt:'2026-09-08T02:00:00Z'}]}}/>);
-  expect(html).toContain('선택 배송완료');expect(html).toContain('https://example.test/12345678');expect(html).not.toContain('엑셀 일괄 운송장 등록');
+  expect(html).toContain('선택 배송완료');expect(html).toContain('https://example.test/12345678');
+  // 회신 재업로드·늦은 회신도 배송현황에서 바로 올린다. 출고지시 내려받기는 발주·발송에만 있다.
+  expect(html).toContain('엑셀 일괄 운송장 등록');expect(html).not.toContain('새 출고지시 전체 내려받기');
+ });
+ it('발송 대기·지연 탭은 사용 중 출고지마다 새 출고지시 전체 내려받기를, 출고지 필터에서는 그 출고지만 보여준다',()=>{
+  const all=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,rows:[row]}}/>);
+  expect(all).toContain('김포 새 출고지시 전체 내려받기');expect(all).toContain('남양주 새 출고지시 전체 내려받기');
+  expect(all).not.toContain('중지된 창고 새 출고지시');
+  const filtered=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,filters:{...base.filters,tab:'delayed',originId:'two'},rows:[row]}}/>);
+  expect(filtered).toContain('남양주 새 출고지시 전체 내려받기');expect(filtered).not.toContain('김포 새 출고지시 전체 내려받기');
+  const incoming=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,filters:{...base.filters,tab:'new'},rows:[row]}}/>);
+  expect(incoming).not.toContain('새 출고지시 전체 내려받기');expect(incoming).toContain('엑셀 일괄 운송장 등록');
  });
  it('퀵·방문수령은 목록에서 방식별 확인으로 연결하고 택배 일괄 선택에서 제외한다',()=>{
   const pickup={...row,delivery:shipmentDeliveryFixture()};
   const html=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,rows:[pickup]}}/>);
   expect(html).toContain('배송 방식');expect(html).toContain('방문수령 인계·수령 확인');
   expect(html).not.toContain(`aria-label="배송 건 ${row.id.slice(-8).toUpperCase()} 선택"`);
-  expect(html).not.toContain('엑셀 일괄 운송장 등록');expect(html).not.toContain('운송장 확인 필요');
+  // 회신 업로드는 파일로 출고지를 찾으므로 퀵·방문수령만 보이는 페이지에서도 연다.
+  expect(html).toContain('엑셀 일괄 운송장 등록');expect(html).not.toContain('운송장 확인 필요');
   expect(html).not.toContain('출고지시 내보내기');
   const transit=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,surface:'shipping',filters:{...base.filters,tab:'transit'},
    rows:[{...pickup,status:'shipping',delivery:shipmentDeliveryFixture({method:'quick',providerName:'실제 퀵 업체'})}]}}/>);
