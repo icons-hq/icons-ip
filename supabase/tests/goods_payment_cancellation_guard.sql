@@ -463,6 +463,14 @@ values (
   'requested'
 );
 
+-- 20261013110500부터 결제 가능 시간이 이미 지난 prepared 시도의 고객 취소는
+-- request_order_claim이 같은 잠금 아래에서 바로 닫는다(order_claim_expired_prepared_cancellation.sql).
+-- 여기서는 sweep이 닫는 경로를 본다 — 결제 가능 시간 안에 접수된 요청이 남고, 그 뒤
+-- 시도가 만료된 경우다. 그래서 2082는 접수할 때만 결제 가능 시간을 되돌린다.
+update public.payment_attempts
+set expires_at = pg_catalog.now() + interval '10 minutes'
+where id = '30000000-0000-4000-8000-000000002082';
+
 do $request_expiry_candidates$
 declare
   target_order uuid;
@@ -489,6 +497,23 @@ begin
   end loop;
 end;
 $request_expiry_candidates$;
+
+update public.payment_attempts
+set expires_at = pg_catalog.now() - interval '10 minutes'
+where id = '30000000-0000-4000-8000-000000002082';
+
+-- 결제가 끝나기 전 접수된 취소의 접수 알림은 담당자 검토를 약속하지 않는다(R2-1).
+select 1 / case when (
+  select pg_catalog.count(*) = 1
+    and pg_catalog.bool_and(notification.title = '취소 요청이 접수됐어요')
+    and pg_catalog.bool_and(notification.body not like '%담당자%')
+  from public.order_cancellation_requests as request
+  join public.notifications as notification
+    on notification.source_type = 'order_claim'
+   and notification.source_id = request.id::text
+   and notification.dedupe_key like 'claim:requested:%'
+  where request.order_id = '20000000-0000-4000-8000-000000002082'
+) then 1 else 0 end as assert_pending_request_notice_names_payment_result;
 
 select 1 / case when public.expire_stale_checkouts() = 2
   then 1 else 0 end as assert_expired_prepared_attempt_is_swept;
@@ -526,6 +551,37 @@ select 1 / case when (
     on good.id = 'goods-payment-cancel-guard-good'
   where order_record.id = '20000000-0000-4000-8000-000000002082'
 ) then 1 else 0 end as assert_expired_prepared_request_completes_and_restores_once;
+
+-- 구매자는 접수 때 결제 기한이 지나면 자동으로 취소되고 알림이 간다는 안내를 받았다.
+-- sweep이 요청을 닫으면 결과를 알리고 결제 없는 종결로 감사한다(2026-10-12 QA-7).
+select 1 / case when (
+  select pg_catalog.count(*) = 1
+    and pg_catalog.bool_and(notification.title = '주문이 취소됐어요')
+    and pg_catalog.bool_and(notification.body = '결제 기한까지 결제가 완료되지 않아 결제 없이 주문을 취소했습니다.')
+    and pg_catalog.bool_and(notification.user_id = request.requested_by)
+  from public.order_cancellation_requests as request
+  join public.notifications as notification
+    on notification.source_type = 'order_claim'
+   and notification.source_id = request.id::text
+   and notification.dedupe_key like 'claim:completed:%'
+  where request.order_id = '20000000-0000-4000-8000-000000002082'
+) and (
+  select pg_catalog.count(*) = 1
+    and pg_catalog.bool_and(audit.actor_id is null)
+    and pg_catalog.bool_and(audit.diff ->> 'trigger' = 'checkout_expiry_sweep')
+    and pg_catalog.bool_and(audit.diff ->> 'attemptOutcome' = 'expired')
+  from public.audit_log as audit
+  where audit.target = 'order:20000000-0000-4000-8000-000000002082'
+    and audit.action = 'system.order.cancellation_completed'
+) then 1 else 0 end as assert_sweep_completed_request_notifies_buyer;
+
+-- 요청 없는 만료 주문에는 클레임 알림이 생기지 않는다.
+select 1 / case when not exists (
+  select 1
+  from public.notifications as notification
+  where notification.link_path = '/orders/20000000-0000-4000-8000-000000002079'
+    and notification.source_type = 'order_claim'
+) then 1 else 0 end as assert_sweep_without_request_sends_no_claim_notice;
 
 select 1 / case when (
   select pg_catalog.count(*) = 5
