@@ -57,11 +57,12 @@ export function ShipmentConsoleScreen({data,registeredCount}:{data:ShipmentConso
    search={{value:filters.query,placeholder:'배송건번호 · 주문번호 · 구매자'}} />
   <AdminListExportButton href={adminListExportHref(surface,shipmentConsoleHref(surface,filters))} total={data.total}/>
   <ConsoleCountChips label="배송 처리 단계" chips={SHIPMENT_CONSOLE_TABS[surface].map(tab=>({active:tab.id===filters.tab,label:tab.label,count:data.counts[tab.id],href:shipmentConsoleHref(surface,filters,{tab:tab.id,page:1})}))}/>
-  {isDispatch&&filters.tab!=='new'&&(!rows.length||rows.some(isParcelShipment))?<details className="admin-shipment-import-disclosure">
+  {/* 창고 회신은 어느 탭·화면에서도 올린다. 출고지는 회신 파일의 양식으로 찾는다. */}
+  <details className="admin-shipment-import-disclosure">
    <summary>운송장 가져오기 · 창고 회신 등록</summary>
    <DispatchTrackingImportPanel carriers={carriers} originId={filters.originId} shippingHref={shipmentConsoleHref('shipping',filters,{tab:'transit',page:1})}/>
-  </details>:null}
-  <ShipmentConsoleGrid rows={rows} columns={columns} gridRows={gridRows} tab={filters.tab}
+  </details>
+  <ShipmentConsoleGrid rows={rows} columns={columns} gridRows={gridRows} tab={filters.tab} origins={isDispatch?origins:[]} originId={filters.originId}
    currentHref={shipmentConsoleHref(surface,filters)} readyHref={shipmentConsoleHref('dispatch',filters,{tab:'ready',page:1})}/>
   <ConsolePagination label="배송 건 페이지" page={filters.page} pageSize={data.pageSize} total={data.total} hrefForPage={page=>shipmentConsoleHref(surface,filters,{page})}/>
  </section>;

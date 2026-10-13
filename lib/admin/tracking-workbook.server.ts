@@ -2,17 +2,20 @@ import 'server-only';
 import type { ShippingCarrierRegistry } from '@/lib/orders/shipment';
 import {loadSafeWorkbook,readSafeWorkbookCell} from './workbook-safety';
 import {parseTrackingImport,TRACKING_IMPORT_ROW_LIMIT,type TrackingImportParseResult} from './tracking-import';
-import {parseWarehouseReply,type TrackingWorkbookParseResult} from './warehouse-templates.server';
+import {parseSeowonReply,parseWarehouseReply,type TrackingWorkbookParseResult} from './warehouse-templates.server';
 export type {TrackingWorkbookParseResult} from './warehouse-templates.server';
-export const TRACKING_IMPORT_FILE_LIMIT_BYTES=256*1024;
+// 서버 액션 본문 한도(1MB) 안에서, 김포·서원 출고지시(512KB 상한)에 운송장 열을 더한 회신을 받는다.
+export const TRACKING_IMPORT_FILE_LIMIT_BYTES=768*1024;
 export async function parseTrackingWorkbook(bytes:Buffer,carriers:ShippingCarrierRegistry):Promise<TrackingWorkbookParseResult>{
  const workbook=await loadSafeWorkbook(bytes,{fileBytes:TRACKING_IMPORT_FILE_LIMIT_BYTES,totalBytes:8*1024*1024,entryBytes:4*1024*1024});
- if(workbook.worksheets.length!==1)throw new Error('운송장 양식은 시트 하나로 올려주세요.');
- const sheet=workbook.worksheets[0];
+ // 창고 원본 양식은 빈 Sheet1~Sheet5를 달고 오기도 한다. 내용이 있는 시트가 하나일 때만 읽는다.
+ const filled=workbook.worksheets.filter(sheet=>sheet.actualRowCount>0);
+ if(filled.length!==1)throw new Error('운송장 양식은 내용이 있는 시트 하나로 올려주세요.');
+ const sheet=filled[0];
  if(sheet.rowCount>TRACKING_IMPORT_ROW_LIMIT+1)throw new Error('운송장은 한 번에 1,000줄까지 등록할 수 있습니다.');
- const nativeReply=parseWarehouseReply(sheet);
+ const nativeReply=parseWarehouseReply(sheet)??parseSeowonReply(sheet);
  if(nativeReply)return nativeReply;
- if(sheet.columnCount>3)throw new Error('배송건번호·택배사·운송장번호 세 컬럼만 올려주세요.');
+ if(sheet.columnCount>3)throw new Error('배송건번호·택배사·운송장번호 세 컬럼만 올려주세요. 김포 21열·남양주 송장양식 회신은 내려받은 헤더를 바꾸지 말고 올려주세요.');
  const issues:TrackingImportParseResult['issues']=[];const lines:string[]=[];
  for(let index=1;index<=sheet.rowCount;index++){
   const row=sheet.getRow(index);const cells=[1,2,3].map(column=>readSafeWorkbookCell(row.getCell(column),column!==2));
