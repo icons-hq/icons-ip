@@ -1,4 +1,4 @@
-import { ADMIN_VOCABULARY as V, adminGoodsCopy } from '@/lib/admin/vocabulary';
+import { ADMIN_VOCABULARY as V } from '@/lib/admin/vocabulary';
 import {
   ConsoleCountChips,
   ConsoleFilterPanel,
@@ -13,6 +13,7 @@ import {
   adminClaimBasePath,
   adminClaimDetailHref,
   adminClaimHref,
+  adminClaimReasonText,
   type AdminClaimConsoleData,
 } from '@/lib/admin/claims';
 import {
@@ -23,11 +24,7 @@ import {
   orderClaimSlaState,
   type OrderClaimStage,
 } from '@/lib/orders/claims';
-import {
-  formatOrderDateTime,
-  ORDER_WITHDRAWAL_REASON_LABELS,
-  orderReferenceLabel,
-} from '@/lib/orders';
+import { formatOrderDateTime, orderReferenceLabel } from '@/lib/orders';
 import { krw } from '@/lib/format';
 import { adminListExportClaimScreenId, adminListExportHref } from '@/lib/admin/list-export';
 import { AdminListExportButton } from '@/components/admin/AdminListExportButton';
@@ -108,7 +105,7 @@ export function ClaimQueueScreen({
         <span className="mono" key="reference">{orderClaimReferenceLabel(row.reference)}</span>,
         <span className="mono" key="order">{orderReferenceLabel(row.orderId)}</span>,
         <span key="type">{ORDER_CLAIM_TYPE_LABELS[row.claimType]}</span>,
-        <span key="reason">{adminGoodsCopy(ORDER_WITHDRAWAL_REASON_LABELS[row.reasonType])}</span>,
+        <span key="reason">{adminClaimReasonText(row.reasonType, row.staffReasonCode)}</span>,
         <span key="stage">{ORDER_CLAIM_STAGE_LABELS[row.stage]}</span>,
         <span key="buyer">
           @{row.buyerName}

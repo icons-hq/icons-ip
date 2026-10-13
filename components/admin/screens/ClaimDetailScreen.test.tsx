@@ -28,6 +28,9 @@ function detail(overrides: Partial<AdminClaimDetail> = {}): AdminClaimDetail {
       status: 'requested',
       reason: '단순 변심 반품',
       reasonType: 'change_of_mind',
+      origin: 'customer',
+      staffReasonCode: null,
+      staffNote: null,
       decisionNote: null,
       holdReason: null,
       heldAt: null,
@@ -115,6 +118,69 @@ function render(overrides: Partial<AdminClaimDetail> = {}, cancellationForm: str
 }
 
 describe('ClaimDetailScreen', () => {
+  // 2026-10-12 점검 REF-2·REF-8: 토스 결제의 [환불 완료 확정]은 토스 전액 취소를 직접
+  // 발행한다. "결제사 원장에서 먼저 확인하라"는 안내와 계좌 송금 선택지는 사실과 다르다.
+  const tossPayment = { ...detail().payment!, provider: 'toss' };
+  it('토스 결제의 환불 완료 확정은 결제사 취소를 발행한다고 안내하고 수단을 고르게 하지 않는다', () => {
+    const html = render({
+      payment: tossPayment,
+      claim: { ...detail().claim, stage: 'processing', status: 'processing' },
+      refund: { ...detail().refund!, method: null, filedAt: null },
+    });
+    expect(html).toContain('환불 완료 확정 (토스 전액 취소 발행 · 재고 복원 · 카드팩 회수)');
+    expect(html).toContain('누르면 토스 전액 취소를 발행하고 결제사 조회로 결과를 확인합니다.');
+    expect(html).not.toContain('결제사 원장에서 전액 취소를 확인한 뒤 눌러주세요');
+    expect(html).toContain('결제사 취소 (토스 전액 취소)');
+    expect(html).toContain('type="hidden" name="method" value="pg_cancel"');
+    expect(html).not.toContain('<option value="bank_transfer"');
+  });
+
+  it('토스 결제의 환불 접수는 접수만 기록하고 취소는 완료 확정에서 나간다고 알린다', () => {
+    const html = render({ payment: tossPayment, refund: { ...detail().refund!, method: null, filedAt: null } });
+    expect(html).toContain('환불 접수 완료로 기록');
+    expect(html).toContain('토스 전액 취소는 아래 [환불 완료 확정]을 누를 때 발행됩니다.');
+    expect(html).not.toContain('<option value="bank_transfer"');
+  });
+
+  it('토스 결제 취소 클레임의 승인 버튼은 승인과 동시에 전액 취소가 나간다고 말한다', () => {
+    const html = render({
+      payment: tossPayment,
+      claim: { ...detail().claim, claimType: 'cancel', stage: 'requested', collectedAt: null, collectingAt: null },
+      refund: null,
+    });
+    expect(html).toContain('승인하고 토스 전액 취소');
+    expect(html).toContain('승인하면 바로 토스 전액 취소를 발행하고 결제사 조회로 결과를 확인합니다.');
+  });
+
+  /* 2026-10-12 QA-4: 운영자 전액 취소의 헤더는 단순 변심이 아니라 운영 사유다. */
+  it('운영자 전액 취소는 헤더에 운영 사유를, 요청 내용에 운영 메모를 보여준다', () => {
+    const html = render({
+      payment: tossPayment,
+      claim: {
+        ...detail().claim,
+        claimType: 'cancel',
+        stage: 'needs_review',
+        status: 'needs_review',
+        reason: '운영자 전액 취소 · 테스트 결제 정리',
+        reasonType: 'staff',
+        origin: 'staff',
+        staffReasonCode: 'test_payment_cleanup',
+        staffNote: '심사 창 테스트 결제',
+        collectedAt: null,
+        collectingAt: null,
+      },
+    });
+    expect(html).toContain('결제확인필요 · 운영자 전액 취소 · 테스트 결제 정리');
+    expect(html).not.toContain('단순 변심');
+    expect(html).toContain('운영 메모');
+    expect(html).toContain('심사 창 테스트 결제');
+  });
+
+  it('Korpay처럼 수단이 정해지지 않은 결제는 운영자가 고른다', () => {
+    const html = render({ refund: { ...detail().refund!, method: null } });
+    expect(html).toContain('<option value="bank_transfer"');
+  });
+
   it('교환 재출고 뒤에는 배송완료 근거를 별도로 확인하고 기록한 뒤 잠근다', () => {
     const exchanged = { ...detail().claim, claimType: 'exchange' as const, stage: 'completed' as const,
       reshipCarrier: 'hanjin', reshipTrackingNumber: 'QA4530000001', reshippedAt: '2026-09-09T00:00:00Z',
@@ -228,6 +294,22 @@ describe('ClaimDetailScreen', () => {
 
     expect(html).toContain('승인');
     expect(html).toContain('@cs_lead');
+  });
+
+  /* 2026-10-12 QA-1: 결제 가능 시간이 지난 결제 대기 주문을 구매자가 취소하면 결제 준비 건이
+     결제 없이 닫힌다. 그 감사 행이 액션 코드 그대로 보이지 않게 이름을 붙인다. */
+  it('구매자 취소가 닫은 결제 준비 건을 타임라인에서 이름으로 보여준다', () => {
+    const html = render({
+      timeline: [{
+        action: 'order.prepared_goods_cancellation_completed',
+        createdAt: '2026-08-18T02:00:00.000Z',
+        actorName: 'buyer',
+        diff: { outcome: 'expired_no_capture', trigger: 'customer_cancel_request' },
+      }],
+    });
+
+    expect(html).toContain('결제 준비 건 취소 완료 (구매자 취소)');
+    expect(html).not.toContain('order.prepared_goods_cancellation_completed');
   });
 
   it('부분 환불을 약속하지 않는다', () => {

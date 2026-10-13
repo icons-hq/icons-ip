@@ -2,14 +2,17 @@ import type { ShipmentRecord } from '@/lib/orders/shipments';
 import 'server-only';
 
 import { createClient } from '@/lib/supabase/server';
-import { isOrderWithdrawalReasonType, type OrderWithdrawalReasonType } from '@/lib/orders';
 import {
+  isOrderClaimReasonType,
   isOrderClaimRefundMethod,
   isOrderClaimStage,
   isOrderClaimType,
+  isOrderStaffCancellationReasonCode,
+  type OrderClaimReasonType,
   type OrderClaimRefundMethod,
   type OrderClaimStage,
   type OrderClaimType,
+  type OrderStaffCancellationReasonCode,
 } from '@/lib/orders/claims';
 import {
   ADMIN_CLAIM_PAGE_SIZE,
@@ -34,6 +37,7 @@ interface ClaimQueueRow {
   claim_type: string;
   stage: string;
   reason_type: string;
+  staff_reason_code: string | null;
   buyer_id: string;
   buyer_name: string | null;
   buyer_email: string | null;
@@ -78,9 +82,10 @@ function toRow(row: ClaimQueueRow): AdminClaimRow {
     orderId: row.order_id,
     claimType: (isOrderClaimType(row.claim_type) ? row.claim_type : 'cancel') as OrderClaimType,
     stage: (isOrderClaimStage(row.stage) ? row.stage : 'requested') as OrderClaimStage,
-    reasonType: (isOrderWithdrawalReasonType(row.reason_type)
+    reasonType: (isOrderClaimReasonType(row.reason_type)
       ? row.reason_type
-      : 'change_of_mind') as OrderWithdrawalReasonType,
+      : 'change_of_mind') as OrderClaimReasonType,
+    staffReasonCode: isOrderStaffCancellationReasonCode(row.staff_reason_code) ? row.staff_reason_code : null,
     buyerName: adminClaimBuyerLabel(row.buyer_name, row.buyer_id),
     buyerEmail: row.buyer_email,
     orderStatus: row.order_status,
@@ -201,7 +206,12 @@ export interface AdminClaimDetail {
     stage: OrderClaimStage;
     status: string;
     reason: string;
-    reasonType: OrderWithdrawalReasonType;
+    reasonType: OrderClaimReasonType;
+    /** 요청 발원. 운영자 전액 취소(ADR-0018)면 'staff'다. */
+    origin: 'customer' | 'staff';
+    /** 운영자 전액 취소의 운영 사유와 메모. 구매자 요청은 null이다. 구매자에게 보이지 않는다. */
+    staffReasonCode: OrderStaffCancellationReasonCode | null;
+    staffNote: string | null;
     decisionNote: string | null;
     holdReason: string | null;
     heldAt: string | null;
@@ -291,9 +301,12 @@ export async function loadAdminClaimDetail(
       stage: (isOrderClaimStage(claim.stage) ? claim.stage : 'requested') as OrderClaimStage,
       status: String(claim.status ?? ''),
       reason: String(claim.reason ?? ''),
-      reasonType: (isOrderWithdrawalReasonType(String(claim.reasonType ?? ''))
+      reasonType: (isOrderClaimReasonType(claim.reasonType)
         ? claim.reasonType
-        : 'change_of_mind') as OrderWithdrawalReasonType,
+        : 'change_of_mind') as OrderClaimReasonType,
+      origin: claim.origin === 'staff' ? 'staff' : 'customer',
+      staffReasonCode: isOrderStaffCancellationReasonCode(claim.staffReasonCode) ? claim.staffReasonCode : null,
+      staffNote: text(claim.staffNote),
       decisionNote: text(claim.decisionNote),
       holdReason: text(claim.holdReason),
       heldAt: text(claim.heldAt),
