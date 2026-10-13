@@ -247,12 +247,20 @@ stage "프리뷰 API 키 복사"
 say "Vercel Preview의 안전한 baseline을 parent preview로 맞출 키 두 개입니다."
 note "CI 배포는 shared main 또는 isolated branch의 키를 API로 다시 읽어 이 값을 동적으로 덮습니다."
 open_url "${SUPABASE_DASHBOARD}/settings/api-keys"
-step "publishable key(브라우저에 노출되는 공개 키)를 복사합니다."
-ask PREVIEW_PUBLISHABLE_KEY "publishable key:"
+step "publishable key(sb_publishable_…, 브라우저에 노출되는 공개 키)를 복사합니다."
+ask PREVIEW_PUBLISHABLE_KEY "publishable key (sb_publishable_…):"
 step "secret key(sb_secret_…)를 Reveal한 뒤 복사합니다."
-note "legacy 'service_role' JWT도 동작하지만 새 프로젝트는 sb_secret_ 형식을 쓴다."
+note "legacy anon·service_role JWT는 2026년 말 폐기 대상이라 받지 않습니다(빌드 가드도 거부)."
 warn "이 키는 RLS를 우회합니다. 저장소·채팅·명령 인자에 남기지 마세요."
-ask_secret PREVIEW_SERVICE_ROLE_KEY "secret key (sb_secret_… 또는 service_role JWT):"
+ask_secret PREVIEW_SERVICE_ROLE_KEY "secret key (sb_secret_…):"
+if [[ -n "$PREVIEW_PUBLISHABLE_KEY" && ! "$PREVIEW_PUBLISHABLE_KEY" =~ ^sb_publishable_[A-Za-z0-9_-]+$ ]]; then
+  warn "sb_publishable_ 형식이 아니어서 버립니다 — legacy anon JWT는 쓰지 않습니다."
+  PREVIEW_PUBLISHABLE_KEY=""
+fi
+if [[ ! "$PREVIEW_SERVICE_ROLE_KEY" =~ ^sb_secret_[A-Za-z0-9_-]+$ ]]; then
+  warn "sb_secret_ 형식이 아니어서 버립니다 — legacy service_role JWT·마스킹된 값은 쓰지 않습니다."
+  PREVIEW_SERVICE_ROLE_KEY=""
+fi
 
 # ── 3 ─────────────────────────────────────────────────────────────────────
 stage "공유 service role key에서 Preview 스코프 떼어내기"
@@ -262,7 +270,10 @@ warn "이 단계만 대시보드에서 해야 합니다. CLI로 지우면 레코
 open_url "$VERCEL_ENV_URL"
 step "SUPABASE_SERVICE_ROLE_KEY 행을 Edit합니다."
 step "Environments에서 Preview 체크를 해제하고 Production만 남긴 뒤 Save합니다."
-if confirm "Preview 체크를 해제했습니까?"; then
+if [[ -z "$PREVIEW_SERVICE_ROLE_KEY" ]]; then
+  SKIPPED+=("Vercel Preview env SUPABASE_SERVICE_ROLE_KEY — 유효한 sb_secret_ 키로 다시 실행")
+  warn "secret key가 비어 있어 건너뜁니다."
+elif confirm "Preview 체크를 해제했습니까?"; then
   vercel_env SUPABASE_SERVICE_ROLE_KEY preview "$PREVIEW_SERVICE_ROLE_KEY"
 else
   SKIPPED+=("SUPABASE_SERVICE_ROLE_KEY Preview 분리 — 대시보드에서 Preview 해제 후 프리뷰 키를 새로 추가")

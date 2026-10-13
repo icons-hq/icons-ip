@@ -52,7 +52,7 @@ describe('staging release and preservation contract', () => {
       SUPABASE_PREVIEW_PROJECT_ID: 'abcdefghijklmnopqrst',
       SUPABASE_PRODUCTION_PROJECT_ID: 'bcdefghijklmnopqrstu',
       SUPABASE_URL: `https://${ref}.supabase.co`,
-      SUPABASE_PUBLISHABLE_KEY: 'test-public', SUPABASE_SERVICE_ROLE_KEY: 'test-private',
+      SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_test', SUPABASE_SERVICE_ROLE_KEY: 'sb_secret_test',
       POSTGRES_URL: `postgres://postgres.${ref}:test@pooler.supabase.com/postgres`,
     });
     const build = args.flatMap((value, index) => value === '--build-env' ? [args[index + 1]] : []);

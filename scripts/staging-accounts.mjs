@@ -4,7 +4,7 @@ import { pathToFileURL } from 'node:url';
 import { isAbsolute, relative, resolve } from 'node:path';
 import { createClient } from '@supabase/supabase-js';
 
-import { assertStagingBranch, invokeSupabase, stagingCredentials } from './staging-environment.mjs';
+import { assertStagingBranch, invokeSupabase, loadStagingCredentials } from './staging-environment.mjs';
 
 const MARKER = 'admin-ops-v1';
 export const STAGING_OPERATORS = Object.freeze([
@@ -94,9 +94,7 @@ async function main() {
   const branches = JSON.parse(invokeSupabase(['branches', 'list', '--project-ref', previewRef, '--output', 'json']));
   const branch = branches.find((entry) => entry.name === 'staging');
   const ref = assertStagingBranch(branch, { previewRef, productionRef });
-  const credentials = stagingCredentials(JSON.parse(invokeSupabase([
-    'branches', 'get', 'staging', '--project-ref', previewRef, '--output', 'json',
-  ])), ref);
+  const credentials = loadStagingCredentials({ previewRef, projectRef: ref });
   const passwords = await readOrCreateOperatorPasswords(process.env.STAGING_ACCOUNTS_FILE);
   const client = createClient(credentials.SUPABASE_URL, credentials.SUPABASE_SERVICE_ROLE_KEY,
     { auth: { persistSession: false, autoRefreshToken: false } });
