@@ -83,7 +83,7 @@ export type CancellationReconciliationPreflight = 'allowed' | 'completed' | 'not
  * 정합화를 실행하는 주체. 문자열은 staff/admin 사용자 id, null은 시스템(서버 자동
  * 발행)이다 — 고객이 연 자동 승인처럼 사람이 누르지 않은 취소를 서버가 바로 닫을 때만
  * 쓴다. DB는 null actor를 취소(claim_type='cancel') 요청에만 허용하고 감사 로그를
- * system.order.* 액션으로 남긴다(20261012110000).
+ * system.order.* 액션으로 남긴다(20261013110000).
  */
 export type CancellationActorId = string | null;
 

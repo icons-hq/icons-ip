@@ -16,7 +16,7 @@
 -- 티켓 분기는 finalize_ticket_cancellation_request가 종결을 맡으므로 바꾸지 않는다.
 --
 -- 함수 본문은 최신 정의를 복사해 위 차이만 넣었다:
---   expire_stale_checkouts ← 20261012110100:517
+--   expire_stale_checkouts ← 20261013110100:517
 -- ============================================================================
 
 create or replace function public.expire_stale_checkouts()

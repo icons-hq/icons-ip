@@ -494,7 +494,7 @@ echo "PASS=attempt-ttl-closes-action-before-inventory-release"
 
 # A cancellation request can win while the action is already expired. The
 # sweep uses SKIP LOCKED while that transaction owns the order. Since
-# 20261012110500 the request itself closes the expired prepared attempt under
+# 20261013110500 the request itself closes the expired prepared attempt under
 # its order -> attempt locks and completes at once (QA-1), so the next pass has
 # nothing left to close and stock is restored exactly once. The cron fence
 # spans from the stale reset to that next pass: a scheduled pass before the

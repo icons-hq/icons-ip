@@ -463,7 +463,7 @@ values (
   'requested'
 );
 
--- 20261012110500부터 결제 가능 시간이 이미 지난 prepared 시도의 고객 취소는
+-- 20261013110500부터 결제 가능 시간이 이미 지난 prepared 시도의 고객 취소는
 -- request_order_claim이 같은 잠금 아래에서 바로 닫는다(order_claim_expired_prepared_cancellation.sql).
 -- 여기서는 sweep이 닫는 경로를 본다 — 결제 가능 시간 안에 접수된 요청이 남고, 그 뒤
 -- 시도가 만료된 경우다. 그래서 2082는 접수할 때만 결제 가능 시간을 되돌린다.

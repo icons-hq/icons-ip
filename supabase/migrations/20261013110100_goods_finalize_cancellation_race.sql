@@ -9,7 +9,7 @@
 --    근거가 없고, 주문·재고·쿠폰·적립금 점유가 풀리지 않았다. 이제 토스 결제는
 --    티켓 finalizer(20260901100000:1696)처럼 결제 원장을 남기고 주문은 pending으로
 --    둔다(이행 부수효과 없음). 요청은 곧바로 승인(processing)하고 환불 원장을 열어
---    서버 오케스트레이터(20261012110000 시스템 actor)가 토스 전액 취소를 발행한다.
+--    서버 오케스트레이터(20261013110000 시스템 actor)가 토스 전액 취소를 발행한다.
 --    재고·쿠폰·적립금은 그 완료(finalize_order_cancellation_with_provider_evidence)의
 --    pending → canceled 전이에서 정확히 한 번 돌아온다.
 -- 2. 거절·이탈(declined·canceled)로 끝나면 finalizer가 요청을 건드리지 않았고, 만료

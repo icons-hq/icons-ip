@@ -606,7 +606,7 @@ select 1 / case when (
   where order_record.id = '20000000-0000-4000-8000-000000002081'
 ) then 1 else 0 end as assert_ambiguous_attempt_cancels_without_inventing_payment_history;
 
--- 수동 복구가 부른 finalize('canceled')는 결제 없는 종결 분기(20261012110100)를
+-- 수동 복구가 부른 finalize('canceled')는 결제 없는 종결 분기(20261013110100)를
 -- 타지 않는다. 승인됐다가 결제사에서 취소된 결제일 수 있으므로 시스템 자동 완료
 -- 감사와 "결제가 승인되지 않아" 알림을 남기지 않고, 종결 감사는 admin 하나뿐이다.
 select 1 / case when (

@@ -300,7 +300,7 @@ describe('reconcileOrderCancellation', () => {
   });
 
   // 고객 자동 승인은 누른 staff가 없다. 서버가 시스템 actor(null)로 같은 경로를 돌리고,
-  // DB가 그 null을 취소 유형에만 허용해 system.order.* 감사로 남긴다(20261012110000).
+  // DB가 그 null을 취소 유형에만 허용해 system.order.* 감사로 남긴다(20261013110000).
   it('시스템 actor(null)는 모든 DB 단계에 그대로 null로 전달된다', async () => {
     defaultMocks.attempt = {
       id: '44444444-4444-4444-8444-444444444444',
