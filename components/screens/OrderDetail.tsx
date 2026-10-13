@@ -20,6 +20,7 @@ import {
   formatOrderDate,
   formatOrderDateTime,
   ORDER_WITHDRAWAL_DEADLINE_LABELS,
+  orderDetailHeaderPresentation,
   orderReferenceLabel,
   orderStatusMeta,
   paymentStatusLabel,
@@ -184,7 +185,8 @@ export function OrderDetail({
   /** 배송완료 이상 주문의 굿즈별 리뷰 상태(#254). 그 전에는 빈 배열이다. */
   reviewTargets?: MyReviewTarget[];
 }) {
-  const status = orderStatusMeta(order.status);
+  /* 진행 중인 취소가 있으면 상단 카드도 취소 단계로 말한다(QA-8). */
+  const status = orderDetailHeaderPresentation(order.status, order.cancellationRequest);
   const date = formatOrderDate(order.createdAt);
   const at = now ?? new Date();
   const claimRequest = order.cancellationRequest;

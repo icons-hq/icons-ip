@@ -1,7 +1,14 @@
 import { isUuid } from '@/lib/uuid';
 import type { ShipmentRecord } from '@/lib/orders/shipments';
 import type { OrderWithdrawalReasonType } from '@/lib/orders';
-import type { OrderClaimStage, OrderClaimType } from '@/lib/orders/claims';
+import {
+  ORDER_STAFF_CANCELLATION_REASON_CODES,
+  ORDER_STAFF_CANCELLATION_REASON_LABELS,
+  type OrderClaimReasonType,
+  type OrderClaimStage,
+  type OrderClaimType,
+  type OrderStaffCancellationReasonCode,
+} from '@/lib/orders/claims';
 import { adminSettledHref, normalizeAdminSettledFilters } from './settled';
 import { normalizeShipmentFilters, shipmentConsoleHref } from './shipment-dispatch';
 import { ADMIN_VOCABULARY } from './vocabulary';
@@ -123,6 +130,7 @@ export interface AdminOrderItemRecord {
 
 export interface AdminOrderPaymentRecord {
   id: string;
+  provider: string | null;
   amount: number;
   status: string;
   createdAt: string;
@@ -158,10 +166,18 @@ export interface AdminOrderCancellationRequestRecord {
    */
   claimType: OrderClaimType;
   stage: OrderClaimStage;
-  reasonType: OrderWithdrawalReasonType;
+  /** 구매자 사유 또는 운영자 전액 취소('staff', ADR-0018). */
+  reasonType: OrderClaimReasonType;
+  /** 운영자 전액 취소의 운영 사유. 구매자 요청은 null이다. */
+  staffReasonCode: OrderStaffCancellationReasonCode | null;
   requestedAt: string;
   decidedAt: string | null;
   decisionNote: string | null;
+  /**
+   * 최근 정합화 오류 코드(order_cancellation_requests.last_error_code). 결제확인필요
+   * 요청의 원인을 주문 패널에서 바로 보고 런북의 코드별 조치를 찾게 한다(QA-10).
+   */
+  lastErrorCode: string | null;
 }
 
 /** 레거시 주문 콘솔이 직접 처리할 수 있는 클레임. 나머지는 클레임 콘솔의 몫이다. */
@@ -422,6 +438,96 @@ export function normalizeAdminCancellationDecisionForm(
   return { ok: true, value: { requestId } };
 }
 
+/**
+ * 주문 통합검색 주문 패널의 결제 취소 재확인 버튼 이름(ReconcileCancellationForm).
+ *
+ * 같은 재정합 액션이지만 요청 단계에 따라 이름이 다르다. 서버 액션의 재시도 안내는
+ * 이 이름을 그대로 가리킨다 — 화면에 없는 버튼을 안내하지 않도록 한 곳에서 정한다.
+ */
+export const ADMIN_CANCELLATION_RECHECK_LABELS = {
+  processing: '처리 상태 확인',
+  needsReview: '상태 다시 확인',
+  preparedKorpay: 'Korpay 만료·취소 처리',
+} as const;
+
+/**
+ * 운영자 전액 취소 사유(ADR-0018). 값과 표기는 lib/orders/claims의 한 목록에서 온다 —
+ * DB `admin_start_order_cancellation`의 허용 목록과 같아야 하고, 클레임 목록·상세·통계가
+ * 같은 표기로 운영 사유를 보여준다.
+ */
+export const ADMIN_STAFF_CANCELLATION_REASONS = ORDER_STAFF_CANCELLATION_REASON_CODES.map((value) => ({
+  value,
+  label: ORDER_STAFF_CANCELLATION_REASON_LABELS[value],
+}));
+export type AdminStaffCancellationReason = OrderStaffCancellationReasonCode;
+const STAFF_CANCELLATION_REASON_SET = new Set<string>(ADMIN_STAFF_CANCELLATION_REASONS.map((reason) => reason.value));
+export const ADMIN_STAFF_CANCELLATION_NOTE_LIMIT = 500;
+
+/**
+ * 운영자 전액 취소를 시작할 수 있는 주문인가(ADR-0018).
+ *
+ * 화면에 버튼을 그릴지만 정한다. 판정의 진실원은 DB가 주문·배송 건 잠금 아래에서
+ * 다시 하는 검사다(진행 중 결제 포함). 결제 조건은 DB `admin_start_order_cancellation`의
+ * `staff_cancellation_toss_only`와 같게 맞춘다 — 실패가 아닌 결제가 하나 이상이고
+ * 모두 토스·결제완료일 때만 그린다. Korpay·무통장 주문에 버튼을 그리면 누를 때마다
+ * 거절되는 버튼이 된다. 출고지시 파일이 나간 배송 건이 있으면 창고의 출고 중단 확인을
+ * 함께 받는다.
+ */
+export function adminStaffCancellationAvailability(
+  order: AdminOrderRecord,
+): { available: false } | { available: true; requiresWarehouseStop: boolean } {
+  if (order.status !== 'paid' && order.status !== 'confirmed') return { available: false };
+  const livePayments = order.payments.filter((payment) => payment.status !== 'failed');
+  if (!livePayments.length) return { available: false };
+  if (livePayments.some((payment) => payment.provider !== 'toss' || payment.status !== 'paid')) {
+    return { available: false };
+  }
+  const request = order.cancellationRequest;
+  if (request && request.stage !== 'completed' && request.stage !== 'rejected') return { available: false };
+  if (order.shipments.some((shipment) => (
+    (shipment.status !== 'ready' && shipment.status !== 'canceled')
+    || Boolean(shipment.shippedAt)
+    || Boolean(shipment.deliveredAt)
+  ))) {
+    return { available: false };
+  }
+  return {
+    available: true,
+    requiresWarehouseStop: order.shipments.some((shipment) => shipment.status === 'ready' && Boolean(shipment.exportedAt)),
+  };
+}
+
+export function normalizeAdminStaffCancellationForm(
+  formData: FormData,
+): AdminOrderFormResult<{
+  orderId: string;
+  reasonCode: AdminStaffCancellationReason;
+  note: string | null;
+  warehouseStopConfirmed: boolean;
+}> {
+  const orderId = readFormString(formData, 'orderId').toLowerCase();
+  const reasonCode = readFormString(formData, 'reasonCode');
+  const note = readFormString(formData, 'note');
+  const errors: AdminOrderFieldErrors = {};
+  if (!UUID_PATTERN.test(orderId)) errors.orderId = '주문을 찾을 수 없습니다.';
+  if (!STAFF_CANCELLATION_REASON_SET.has(reasonCode)) errors.reasonCode = '취소 사유를 선택해주세요.';
+  if (note.length > ADMIN_STAFF_CANCELLATION_NOTE_LIMIT) {
+    errors.note = `메모는 ${ADMIN_STAFF_CANCELLATION_NOTE_LIMIT}자 이내로 입력해주세요.`;
+  } else if (reasonCode === 'other' && note.length < 5) {
+    errors.note = '기타 사유는 메모를 5자 이상 입력해주세요.';
+  }
+  if (Object.keys(errors).length) return { ok: false, errors };
+  return {
+    ok: true,
+    value: {
+      orderId,
+      reasonCode: reasonCode as AdminStaffCancellationReason,
+      note: note.length ? note : null,
+      warehouseStopConfirmed: formData.get('warehouseStopConfirmed') === 'confirmed',
+    },
+  };
+}
+
 export function normalizeAdminGoodsManualRecoveryForm(
   formData: FormData,
 ): AdminOrderFormResult<{
@@ -489,6 +595,14 @@ export function adminOrderDetailHref(orderId: string, filters?: AdminOrderFilter
   const base = `/admin/sales/orders/${orderId}`;
   if (!filters) return base;
   return `${base}?back=${encodeURIComponent(adminOrdersHref(filters))}`;
+}
+
+/**
+ * 주문 통합검색에서 한 주문의 주문 패널을 여는 링크. 취소 재확인([처리 상태 확인]·
+ * [상태 다시 확인])과 운영자 전액 취소는 이 패널에만 있다("상세 열기" 새 탭 화면에는 없다).
+ */
+export function adminOrderSearchHref(orderId: string) {
+  return `/admin/sales/orders?query=${encodeURIComponent(orderId)}`;
 }
 
 /** 거래확정 목록처럼 주문 콘솔이 아닌 화면에서도 같은 상세 링크를 쓴다. */

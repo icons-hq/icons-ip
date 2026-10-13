@@ -4,10 +4,12 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { normalizeAdminDispatchDelayForm } from '@/lib/admin/dispatch';
 import {
+  ADMIN_CANCELLATION_RECHECK_LABELS,
   normalizeAdminCancellationDecisionForm,
   normalizeAdminGoodsManualRecoveryForm,
   normalizeAdminOrderStatusForm,
   normalizeAdminOrderTrackingForm,
+  normalizeAdminStaffCancellationForm,
   type AdminOrderFieldErrors,
   type AdminOrderFormStatus,
 } from '@/lib/admin/orders';
@@ -70,7 +72,16 @@ async function reconcileApprovedRequest(requestId: string, actorId: string) {
   }
 }
 
-const REVIEW_REQUIRED = '결제 취소 상태를 확정하지 못했습니다. 운영 화면의 최신 상태에서 다시 확인해주세요.';
+/**
+ * 결제 취소를 확정하지 못한 결과(2026-10-12 브라우저 QA QA-10).
+ *
+ * 원인 코드를 그대로 싣는다. 런북·가이드의 조치는 코드별이라, 코드 없이 "다시 확인"만
+ * 말하면 운영자는 같은 버튼을 반복해 누른다. 같은 코드는 주문 패널의 취소 요청 영역과
+ * 취소 관리 요청 상세의 정합화 오류에도 남는다.
+ */
+function reviewRequiredMessage(code: string) {
+  return `결제 취소 상태를 확정하지 못했습니다(${code}). 주문과 재고는 그대로 유지됩니다. 코드별 조치는 어드민 가이드 "클레임 처리"에 있습니다. 원인을 확인한 뒤 이 주문 패널의 [${ADMIN_CANCELLATION_RECHECK_LABELS.needsReview}]으로 다시 시도해주세요.`;
+}
 const PAYMENT_RECONCILIATION_IN_PROGRESS = '결제 상태 처리가 아직 끝나지 않았습니다. 주문과 재고는 그대로 유지됩니다. 최신 상태를 확인한 뒤 다시 시도하고, 상태가 계속되면 관리자 결제 담당자에게 결제사 원장 확인을 요청해주세요.';
 
 /**
@@ -291,7 +302,7 @@ export async function approveAdminOrderCancellationAction(
 
   const result = await reconcileApprovedRequest(normalized.value.requestId, access.auth.user.id);
   revalidateOrderSurfaces();
-  if (!result.ok) return { errors: { form: REVIEW_REQUIRED } };
+  if (!result.ok) return { errors: { form: reviewRequiredMessage(result.code) } };
   if (result.status === 'in_progress') return { message: PAYMENT_RECONCILIATION_IN_PROGRESS };
   return { message: '청약철회를 완료했습니다.' };
 }
@@ -340,9 +351,90 @@ export async function reconcileAdminOrderCancellationAction(
 
   const result = await reconcileApprovedRequest(normalized.value.requestId, access.auth.user.id);
   revalidateOrderSurfaces();
-  if (!result.ok) return { errors: { form: REVIEW_REQUIRED } };
+  if (!result.ok) return { errors: { form: reviewRequiredMessage(result.code) } };
   if (result.status === 'in_progress') return { message: PAYMENT_RECONCILIATION_IN_PROGRESS };
   return { message: '결제 취소 상태를 정합화했습니다.' };
+}
+
+/** DB가 던지는 운영자 전액 취소 거절 코드를 운영자 문구로 옮긴다. 원문은 노출하지 않는다. */
+function staffCancellationError(message: string | null | undefined) {
+  const value = message ?? '';
+  if (value.includes('warehouse_stop_confirmation_required')) {
+    return '출고지시 파일이 나간 배송 건이 있습니다. 창고에서 출고 중단을 확인한 뒤 양식의 창고 출고 중단 확인란을 체크하고 다시 실행해주세요. 확인란이 보이지 않으면 새로고침해주세요.';
+  }
+  if (value.includes('shipment_already_dispatched')) {
+    return '이미 발송된 배송 건이 있어 전액 취소할 수 없습니다. 배송 완료 뒤 반품으로 처리하거나 담당자에게 넘겨주세요.';
+  }
+  if (value.includes('order_not_staff_cancelable')) return '결제완료·발주확인 상태의 발송 전 주문만 전액 취소할 수 있습니다.';
+  if (value.includes('order_claim_in_progress')) {
+    return '이미 진행 중인 취소·반품·교환 요청이 있습니다. 취소·반품·교환 관리에서 그 요청을 처리해주세요.';
+  }
+  if (value.includes('payment_reconciliation_required')) return '결제 결과가 아직 확정되지 않았습니다. 결제 상태를 먼저 확인해주세요.';
+  if (value.includes('staff_cancellation_toss_only')) {
+    return '토스 결제 주문만 이 화면에서 전액 취소할 수 있습니다. Korpay·무통장 주문은 기존 수동 절차를 따릅니다.';
+  }
+  if (value.includes('invalid_staff_cancellation_note')) return '기타 사유는 메모를 5자 이상 입력해주세요(최대 500자).';
+  if (value.includes('invalid_staff_cancellation_reason')) return '취소 사유를 선택해주세요.';
+  if (value.includes('staff required')) return '관리자 권한이 필요합니다.';
+  if (value.includes('order_not_found')) return '주문을 찾을 수 없습니다.';
+  return '전액 취소를 시작하지 못했습니다. 최신 상태를 확인해주세요.';
+}
+
+/**
+ * 운영자가 시작하는 배송 전 전액 취소(ADR-0018).
+ *
+ * DB가 사유·운영자·창고 중단 확인과 함께 고객 취소와 같은 원장(요청·claim·환불
+ * intent)을 열면, 같은 오케스트레이터로 토스 전액 취소 → fresh 조회 검증 →
+ * finalizer까지 바로 실행한다. 고객 직접 신청 정책(ADR-0017)은 바꾸지 않는다 —
+ * 발주확인 뒤를 여는 것은 staff 발원 요청이 있는 주문뿐이다.
+ */
+export async function startAdminOrderCancellationAction(
+  _state: AdminOrderActionState,
+  formData: FormData,
+): Promise<AdminOrderActionState> {
+  const access = await requireStaffAction();
+  if (access.error || !access.auth?.user) return access.error ?? { errors: { form: '관리자 권한이 필요합니다.' } };
+
+  const normalized = normalizeAdminStaffCancellationForm(formData);
+  if (!normalized.ok) return { errors: normalized.errors };
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc('admin_start_order_cancellation', {
+    p_note: normalized.value.note,
+    p_order_id: normalized.value.orderId,
+    p_reason_code: normalized.value.reasonCode,
+    p_warehouse_stop_confirmed: normalized.value.warehouseStopConfirmed,
+  });
+  if (error) {
+    /* 양식을 연 뒤 출고지시·발주확인·다른 요청으로 주문이 바뀌어 DB가 거절했다. 주문 패널을
+       최신 상태로 다시 그려야 거절 문구가 가리키는 확인란·버튼이 화면에 있다 — 열 때의
+       패널에는 창고 출고 중단 확인란이 없었다(2026-10-12 브라우저 QA R2-2). */
+    revalidateOrderSurfaces(normalized.value.orderId);
+    revalidatePath('/admin/sales/orders');
+    return { errors: { form: staffCancellationError(error.message) } };
+  }
+  if (typeof data !== 'string' || !UUID_PATTERN.test(data)) {
+    revalidateOrderSurfaces(normalized.value.orderId);
+    return { errors: { form: '전액 취소 요청을 확인하지 못했습니다. 취소 관리에서 최신 상태를 확인해주세요.' } };
+  }
+
+  const result = await reconcileApprovedRequest(data, access.auth.user.id);
+  revalidateOrderSurfaces(normalized.value.orderId);
+  revalidatePath('/admin/sales/claims/cancels');
+  if (!result.ok) {
+    return {
+      errors: {
+        form: `전액 취소를 시작했지만 결제 취소를 확정하지 못했습니다(${result.code}). 주문과 재고는 그대로 유지됩니다. 원인을 확인한 뒤 이 주문 패널의 [${ADMIN_CANCELLATION_RECHECK_LABELS.needsReview}](처리중이면 [${ADMIN_CANCELLATION_RECHECK_LABELS.processing}]) 또는 취소 관리 요청 상세의 [환불 완료 확정]으로 다시 시도해주세요.`,
+      },
+    };
+  }
+  if (result.status === 'in_progress') {
+    /* 요청은 처리중으로 남고 주문 패널에 재확인 버튼이 그려진다. 결과 문구는 그 버튼을 가리킨다. */
+    return {
+      message: `전액 취소를 시작했지만 결제 상태 처리가 아직 끝나지 않았습니다. 주문과 재고는 그대로 유지됩니다. 잠시 뒤 이 주문 패널의 [${ADMIN_CANCELLATION_RECHECK_LABELS.processing}](결제확인필요면 [${ADMIN_CANCELLATION_RECHECK_LABELS.needsReview}])으로 결과를 확인해주세요.`,
+    };
+  }
+  return { message: '토스 전액 취소를 확인하고 주문 취소를 마쳤습니다. 재고·쿠폰·적립금 복원과 카드팩 회수가 함께 확정됐고 구매자에게 알렸습니다.' };
 }
 
 export async function recoverAdminGoodsPaymentAction(
