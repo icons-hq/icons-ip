@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { scheduleApprovedOrderCancellation } from '@/lib/orders/cancellation-auto.server';
 import {
   GoodsPaymentReconciliationInProgressError,
 } from '@/lib/payments/goods-checkout';
@@ -18,7 +19,20 @@ interface WebhookAttemptRow {
   readonly id: string;
   readonly purpose: 'order' | 'ticket';
   readonly state: string;
+  /**
+   * 굿즈 attempt면 주문 id(`payment_attempts.ref_id`, nullable 컬럼) — 승인 뒤 취소 예약의
+   * 대상이다. 없으면 예약하지 않는다(재정합 판정에는 쓰지 않는 값이라 5xx로 올리지 않는다).
+   */
+  readonly refId: string | null;
 }
+
+/*
+ * 응답 뒤(`after`) 결제사 취소 예약이 쓰는 예산. 웹훅 재정합(paymentKey 조회 + orderId 조회 +
+ * 허용 밖 수단 취소·확인 조회, 각 8초)에 더해, 승인 결과로 자동 승인된 취소의 토스 전액 취소
+ * (취소 8초 + 조회 8초×2) + DB가 같은 함수 시간 안에서 돈다(Next.js `after` — route의
+ * maxDuration 안에서 실행). 클레임 라우트와 같은 90초다.
+ */
+export const maxDuration = 90;
 
 /**
  * reconcile seam(goods·ticket checkout의 `reconcilePayment`)이 돌려주는 판정 중
@@ -43,6 +57,12 @@ interface TossWebhookHandlerDependencies {
   readonly loadAttempt: (providerOrderId: string) => Promise<WebhookAttemptRow | null>;
   readonly reconcileGoods: (input: WebhookReconcileInput) => Promise<WebhookReconcileResult>;
   readonly reconcileTicket: (input: WebhookReconcileInput) => Promise<WebhookReconcileResult>;
+  /**
+   * 굿즈 결제가 재정합으로 승인된 뒤, 그 주문에 승인(processing)된 취소가 있으면 결제사 전액
+   * 취소를 응답 뒤에 실행하도록 예약한다(`scheduleApprovedOrderCancellation`). 활성 취소가
+   * 없거나 Korpay·무통장이면 no-op이다.
+   */
+  readonly scheduleOrderCancellation: (orderId: string) => void;
   readonly createCaseRefFallback?: () => string;
 }
 
@@ -66,6 +86,7 @@ export function createTossWebhookHandler({
   loadAttempt,
   reconcileGoods,
   reconcileTicket,
+  scheduleOrderCancellation,
   createCaseRefFallback = randomUUID,
 }: TossWebhookHandlerDependencies) {
   return async function handleTossWebhook(request: Request) {
@@ -134,6 +155,22 @@ export function createTossWebhookHandler({
       return Response.json({ error: 'reconciliation_failed' }, { status: 500 });
     }
 
+    if (attempt.purpose === 'order' && result.outcome === 'approved' && attempt.refId) {
+      /*
+       * 승인 결과가 늦게 확정된 결제(confirm 시한 초과 → unknown → 웹훅 재정합)에 그 사이
+       * 접수된 취소가 있으면 finalizer가 요청을 자동 승인(processing)하고 구매자에게 "결제
+       * 취소 처리를 시작합니다"를 보낸다. 여기서 예약하지 않으면 결제사 취소를 발행하는 곳이
+       * 없어 카드 승인이 살아 있는 채 처리중으로 남는다. 예약은 응답 뒤에 돌아 10초 응답
+       * 예산과 ack에 영향이 없고, 예약 실패도 ack를 바꾸지 않는다(그 건은 운영자의 '환불 완료
+       * 확정'이 같은 경로로 닫는다).
+       */
+      try {
+        scheduleOrderCancellation(attempt.refId);
+      } catch {
+        console.error(`[webhooks/tosspayments] order cancellation scheduling failed (attempt:${attempt.id})`);
+      }
+    }
+
     if (result.outcome === 'unknown') {
       // 조회 API의 일시 실패(타임아웃·5xx·시한 내 404)는 throw가 아니라 unknown으로
       // resolve된다. 여기서 200을 주면 이 스택의 유일한 자동 재시도 경로를 스스로
@@ -151,7 +188,7 @@ async function loadTossAttempt(providerOrderId: string): Promise<WebhookAttemptR
   const service = createServiceClient();
   const { data, error } = await service
     .from('payment_attempts')
-    .select('id,purpose,state')
+    .select('id,purpose,state,ref_id')
     .eq('provider', 'toss')
     .eq('provider_order_id', providerOrderId)
     .maybeSingle();
@@ -170,7 +207,12 @@ async function loadTossAttempt(providerOrderId: string): Promise<WebhookAttemptR
     // 축으로 올려 5xx·재전송에 맡긴다.
     throw new Error('toss_webhook_attempt_row_invalid');
   }
-  return { id: row.id, purpose: row.purpose, state: row.state };
+  return {
+    id: row.id,
+    purpose: row.purpose,
+    state: row.state,
+    refId: typeof row.ref_id === 'string' ? row.ref_id : null,
+  };
 }
 
 export const POST = createTossWebhookHandler({
@@ -180,4 +222,5 @@ export const POST = createTossWebhookHandler({
   loadAttempt: loadTossAttempt,
   reconcileGoods: (input) => createRuntimeGoodsPaymentCheckout('toss').reconcilePayment(input),
   reconcileTicket: (input) => createRuntimeTicketPaymentCheckout('toss').reconcilePayment(input),
+  scheduleOrderCancellation: scheduleApprovedOrderCancellation,
 });

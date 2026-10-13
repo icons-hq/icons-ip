@@ -1,4 +1,5 @@
 import { timingSafeEqual } from 'node:crypto';
+import { scheduleApprovedOrderCancellation } from '@/lib/orders/cancellation-auto.server';
 import {
   GoodsPaymentContractError,
   GoodsPaymentReconciliationInProgressError,
@@ -11,8 +12,21 @@ const OPAQUE_SECRET = /^[A-Za-z0-9_-]{16,128}$/;
 const OPAQUE_AUDIT_REF = /^[A-Za-z0-9_-]{16,128}$/;
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
+/*
+ * 응답 뒤(`after`) 결제사 취소 예약이 쓰는 예산. 재정합(조회·허용 밖 수단 취소, 각 8초)에 더해
+ * 승인 결과로 자동 승인된 취소의 토스 전액 취소(취소 8초 + 조회 8초×2) + DB가 같은 함수 시간
+ * 안에서 돈다(Next.js `after` — route의 maxDuration 안에서 실행). 클레임 라우트와 같은 90초다.
+ */
+export const maxDuration = 90;
+
 type AttemptLookup =
-  | { readonly kind: 'ok'; readonly provider: unknown; readonly purpose: unknown }
+  | {
+    readonly kind: 'ok';
+    readonly provider: unknown;
+    readonly purpose: unknown;
+    /** 주문 id(`payment_attempts.ref_id`, nullable) — 승인 뒤 취소 예약의 대상. */
+    readonly refId: string | null;
+  }
   | { readonly kind: 'not_found' }
   | { readonly kind: 'failed' };
 
@@ -35,13 +49,18 @@ async function loadAttempt(attemptId: string): Promise<AttemptLookup> {
   try {
     const { data, error } = await createServiceClient()
       .from('payment_attempts')
-      .select('provider,purpose')
+      .select('provider,purpose,ref_id')
       .eq('id', attemptId)
       .maybeSingle();
     if (error) return { kind: 'failed' };
     if (!data) return { kind: 'not_found' };
     const row = data as Record<string, unknown>;
-    return { kind: 'ok', provider: row.provider, purpose: row.purpose };
+    return {
+      kind: 'ok',
+      provider: row.provider,
+      purpose: row.purpose,
+      refId: typeof row.ref_id === 'string' ? row.ref_id : null,
+    };
   } catch {
     // service role 미구성·전송 실패 — 내부 메시지는 응답에 싣지 않는다.
     return { kind: 'failed' };
@@ -124,6 +143,15 @@ export async function POST(request: Request) {
   try {
     const outcome = await createRuntimeGoodsPaymentCheckout('toss')
       .reconcilePayment({ attemptId, caseRef });
+    if (outcome.outcome === 'approved' && attempt.refId) {
+      // 결과 불명 attempt를 이 라우트로 닫았을 때, 그 사이 접수돼 finalizer가 자동 승인한 취소의
+      // 결제사 전액 취소를 응답 뒤에 발행한다(웹훅 라우트와 같은 규칙). 활성 취소가 없으면 no-op.
+      try {
+        scheduleApprovedOrderCancellation(attempt.refId);
+      } catch {
+        console.error(`[internal/payments/goods/reconcile] order cancellation scheduling failed (attempt:${attemptId})`);
+      }
+    }
     return response(
       { attemptId: outcome.attemptId, outcome: outcome.outcome },
       outcome.outcome === 'unknown' || outcome.outcome === 'needs_review' ? 202 : 200,
