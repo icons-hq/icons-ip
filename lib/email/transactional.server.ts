@@ -69,6 +69,7 @@ export type TransactionalEmailResult =
 interface OrderRow {
   shipping_fee: number | null;
   discount_total: number | null;
+  store_credit_total: number | null;
   id: string;
   user_id: string;
   status: string;
@@ -94,6 +95,7 @@ interface OrderEmailContext {
   itemsSubtotal: number;
   shippingFee: number;
   discountTotal: number;
+  storeCreditTotal: number;
   total: number;
   address: ReturnType<typeof normalizeCheckoutAddress>;
   shipments: ShipmentRecord[];
@@ -109,7 +111,7 @@ async function loadOrderEmailContext(
 ): Promise<OrderEmailContext | { skipped: string }> {
   const { data: orderData, error: orderError } = await service
     .from('orders')
-    .select('id,user_id,status,total,shipping_fee,discount_total,created_at,address')
+    .select('id,user_id,status,total,shipping_fee,discount_total,store_credit_total,created_at,address')
     .eq('id', orderId)
     .maybeSingle();
   if (orderError) throw new Error('order_email_load_failed');
@@ -157,6 +159,9 @@ async function loadOrderEmailContext(
     itemsSubtotal,
     shippingFee: order.shipping_fee ?? 0,
     discountTotal: order.discount_total ?? 0,
+    // orders.total = 굿즈 합계 + 배송비 − (쿠폰 할인 + 적립금). 서면 교부 메일의 금액 합이
+    // 맞으려면 적립금 사용액도 실어야 한다.
+    storeCreditTotal: order.store_credit_total ?? 0,
     total: order.total,
     address: normalizeCheckoutAddress(order.address),
     shipments: await loadOrderShipments(service, [orderId], carriers),

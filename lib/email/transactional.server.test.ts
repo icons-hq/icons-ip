@@ -163,6 +163,23 @@ describe('sendOrderConfirmationEmail', () => {
     expect(body).toContain('총 결제금액: ₩22,000');
   });
 
+  /* 전자상거래 계약내용 서면이다 — 적립금이 빠지면 굿즈 합계+배송비−할인이 총 결제금액과
+     맞지 않는다(UX-7). orders.total은 적립금까지 뺀 값이다. */
+  it('적립금 사용액을 쿠폰 할인과 따로 적어 금액 합계가 맞게 한다', async () => {
+    mocks.order = { ...mocks.order, total: 20_000, shipping_fee: 3000, discount_total: 0, store_credit_total: 3000 };
+    mocks.items = [{ good_name_snapshot: '홍실 아크릴 블록', qty: 2, unit_price: 10_000 }];
+
+    await sendOrderConfirmationEmail(ORDER_ID);
+
+    const { text, html } = mocks.send.mock.calls[0][0] as { text: string; html: string };
+    expect(text).toContain('굿즈 합계: ₩20,000');
+    expect(text).toContain('배송비: ₩3,000');
+    expect(text).toContain('적립금 사용: −₩3,000');
+    expect(text).toContain('총 결제금액: ₩20,000');
+    expect(text).not.toContain('쿠폰 할인');
+    expect(html).toContain('적립금 사용');
+  });
+
   it('이미 발송된 주문은 클레임에 실패하고 다시 보내지 않는다', async () => {
     mocks.rpc.mockImplementation(async (name: string) => (
       name === 'claim_email_delivery' ? { data: false, error: null } : { data: null, error: null }

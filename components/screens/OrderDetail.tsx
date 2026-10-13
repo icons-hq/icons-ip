@@ -12,6 +12,8 @@ import {
   reviewDaysRemaining,
 } from '@/lib/reviews';
 import { Icon } from '@/components/ui/Icon';
+import type { CheckoutPaymentReading } from '@/lib/checkout';
+import { orderDetailCardPaymentNotice } from '@/lib/checkout-status-copy';
 import { krw } from '@/lib/format';
 import { shippingFeeLabel } from '@/lib/shipping';
 import {
@@ -165,11 +167,17 @@ function WithdrawalDeadlineNotice({
 }
 
 export function OrderDetail({
+  cardPayment = null,
   cardRewardsEnabled = false,
   now,
   order,
   reviewTargets = [],
 }: {
+  /**
+   * 결제 대기 카드 주문의 결제 국면. 결제 화면과 같은 규칙으로 page가 원장에서 읽어 넘긴다.
+   * 없으면(읽지 못함) 결제 상태를 단정하지 않는다.
+   */
+  cardPayment?: CheckoutPaymentReading | null;
   cardRewardsEnabled?: boolean;
   /** 기한 계산 기준 시각. 테스트 주입용 — 비우면 렌더 시각을 쓴다. */
   now?: Date;
@@ -186,6 +194,12 @@ export function OrderDetail({
   const activeCancelClaim = Boolean(
     claimRequest && isCancelClaim && isOpenOrderClaimStage(claimRequest.stage),
   );
+  /* 결제 대기 카드 주문은 결제 화면과 같은 사실을 말한다. 승인 거절·시도 만료처럼 닫힌
+     결제를 '확인 중'으로 말하거나 이어갈 수 없는 결제를 '이어가기'로 안내하지 않는다. */
+  const cardNotice = order.paymentMethod === 'card' && order.status === 'pending'
+    ? orderDetailCardPaymentNotice(cardPayment, { orderId: order.id, orderExpiresAt: order.expiresAt })
+    : null;
+  const headerCopy = cardNotice?.header ?? status;
 
   return (
     <main className="wc-root wc-receipt order-detail-page">
@@ -197,8 +211,8 @@ export function OrderDetail({
           <div className="order-detail-status-row">
             <span className={`order-status order-status--${status.tone}`}>{status.label}</span>
           </div>
-          <h1 className="wc-receipt__title">{status.title}</h1>
-          <p className="wc-receipt__subcopy">{status.body}</p>
+          <h1 className="wc-receipt__title">{headerCopy.title}</h1>
+          <p className="wc-receipt__subcopy">{headerCopy.body}</p>
           <OrderLadder status={order.status} />
           <div className="order-detail-meta mono">
             <span>ORDER · {orderReferenceLabel(order.id)}</span>
@@ -230,10 +244,13 @@ export function OrderDetail({
         </div>
       )}
 
-      {order.paymentMethod==='card' && order.status==='pending' && (
+      {/* 다음 행동이 결제 화면에 있을 때만 그곳으로 보낸다. 처리 중인 취소가 있으면 DB가
+          결제를 막고, 승인과 겹친 취소는 승인된 결제를 취소하는 중이라 진행 상태는 아래 취소
+          패널에 맡긴다. */}
+      {cardNotice?.banner && !activeCancelClaim && (
         <div className="wrap"><div className="order-detail-deposit card">
-          <div><strong>진행 중인 결제를 확인해주세요</strong><p>결제 화면에서 현재 상태를 확인할 수 있습니다. 진행하지 않을 주문은 주문 취소로 정리해주세요.</p></div>
-          <Link className="btn btn-holo" href={`/checkout/${order.id}`}>결제 상태 확인·이어가기</Link>
+          <div><strong>{cardNotice.banner.title}</strong><p>{cardNotice.banner.body}</p></div>
+          <Link className="btn btn-holo" href={cardNotice.banner.link.href}>{cardNotice.banner.link.label}</Link>
         </div></div>
       )}
 

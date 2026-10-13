@@ -165,6 +165,17 @@ describe('Checkout 결제수단 게이트', () => {
     expect(submitButton(html)).toContain('disabled');
     expect(submitButton(render({ paymentAvailable: true, bankTransferAvailable: true, quote: null }))).toContain('disabled');
   });
+  /* DB 트리거가 1,000원 미만 결제 대기 주문을 거절한다. 제출 뒤 "잠시 후 다시 시도"로
+     보이면 고객은 같은 실패를 반복한다(AMT-7). */
+  it('굿즈 금액과 배송비 합이 최소 결제 금액 미만이면 제출 전에 사유를 안내하고 막는다', () => {
+    const free = { totalFee: 0, groups: [], checkoutAllowed: true, finalTotalFee: 0, destination: null, nextChangeAt: null };
+    const below = render({ paymentAvailable: true, bankTransferAvailable: true, quote: { subtotal: 900, shipping: free } });
+    expect(below).toContain('최소 결제 금액(₩1,000)보다 적어');
+    expect(submitButton(below)).toContain('disabled');
+
+    const atMinimum = render({ paymentAvailable: true, bankTransferAvailable: true, quote: { subtotal: 1000, shipping: free } });
+    expect(atMinimum).not.toContain('최소 결제 금액');
+  });
   it('카드 OFF·무통장 ON이면 무통장이 선택된 채 제출 버튼이 살아 있다', () => {
     const html = render({ paymentAvailable: false, bankTransferAvailable: true });
 

@@ -69,6 +69,8 @@ const checkoutOrder: CheckoutOrderSnapshot = {
   paymentStatus: null,
   shipments: [],
   paymentMethod: 'card' as const,
+  paymentAttempt: null,
+  hasActiveCancellationRequest: false,
   items: [],
 };
 
@@ -320,5 +322,51 @@ describe('prepareGoodsPaymentAction', () => {
       error: 'not_payable',
     });
     expect(mocks.prepare).not.toHaveBeenCalled();
+  });
+
+  /*
+   * 승인 거절·시도 만료 뒤의 prepare는 DB가 goods_payment_attempt_not_preparable로 막는다.
+   * 그 실패를 "결제 환경을 준비 중"으로 뭉개면 고객은 같은 실패를 반복한다.
+   */
+  it.each([
+    ['승인 거절', { paymentAttempt: { state: 'declined', expiresAt: '2099-08-13T10:05:00.000Z', provider: 'toss' } }],
+    ['시도 만료', { paymentAttempt: { state: 'prepared', expiresAt: '2000-01-01T00:00:00.000Z', provider: 'toss' } }],
+    ['취소 요청 처리 중', { hasActiveCancellationRequest: true }],
+  ])('%s 주문은 provider 호출 없이 payment_closed로 답한다', async (_label, patch) => {
+    mocks.loadOrder.mockResolvedValue({ ...checkoutOrder, ...patch });
+
+    await expect(prepareGoodsPaymentAction({}, formData())).resolves.toEqual({ error: 'payment_closed' });
+    expect(mocks.prepare).not.toHaveBeenCalled();
+  });
+
+  it('아직 유효한 prepared 시도는 같은 주문으로 다시 준비한다', async () => {
+    mocks.loadOrder.mockResolvedValue({
+      ...checkoutOrder,
+      paymentAttempt: { state: 'prepared', expiresAt: '2099-08-13T10:05:00.000Z', provider: 'toss' },
+    });
+
+    await expect(prepareGoodsPaymentAction({}, formData())).resolves.toEqual({ prepared });
+    expect(mocks.prepare).toHaveBeenCalledOnce();
+  });
+
+  it('prepare 실패 뒤 원장을 다시 읽어 닫힌 결제와 일시 장애를 나눈다', async () => {
+    mocks.prepare.mockRejectedValue(new Error('goods_payment_repository_failed'));
+    mocks.loadOrder
+      .mockResolvedValueOnce(checkoutOrder)
+      .mockResolvedValueOnce({
+        ...checkoutOrder,
+        paymentAttempt: { state: 'declined', expiresAt: '2099-08-13T10:05:00.000Z', provider: 'toss' },
+      });
+    await expect(prepareGoodsPaymentAction({}, formData())).resolves.toEqual({ error: 'payment_closed' });
+
+    mocks.loadOrder.mockReset();
+    mocks.loadOrder.mockResolvedValue(checkoutOrder);
+    await expect(prepareGoodsPaymentAction({}, formData())).resolves.toEqual({ error: 'payment_unavailable' });
+
+    mocks.loadOrder.mockReset();
+    mocks.loadOrder
+      .mockResolvedValueOnce(checkoutOrder)
+      .mockResolvedValueOnce({ ...checkoutOrder, status: 'canceled' });
+    await expect(prepareGoodsPaymentAction({}, formData())).resolves.toEqual({ error: 'not_payable' });
   });
 });
