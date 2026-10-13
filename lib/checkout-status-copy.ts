@@ -120,7 +120,7 @@ export function checkoutStatusCopy({
   if (state === 'complete') return { title: '결제가 확인됐어요', body: '주문이 안전하게 접수됐습니다. 배송 진행은 주문 내역에서 이어서 확인할 수 있어요.' };
   if (state === 'checking') return CHECKING_COPY;
   /* 승인을 기다리는 사이 접수된 취소 요청 때문에 승인된 결제를 취소하는 중이다
-     (20261012110100). 승인은 확정됐으므로 '확인 중'으로 말하지 않는다. 자동 결제 취소가
+     (20261013110100). 승인은 확정됐으므로 '확인 중'으로 말하지 않는다. 자동 결제 취소가
      실패하면 요청이 담당자 확인으로 넘어가므로 끝나는 시점은 약속하지 않는다. */
   if (state === 'refund_in_progress') {
     return isBankTransfer

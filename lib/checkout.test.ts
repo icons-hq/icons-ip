@@ -129,7 +129,7 @@ describe('checkoutOrderState', () => {
   });
 
   /* 승인과 취소 요청이 겹친 주문: finalizer가 결제 원장을 paid로 남기고 주문은 pending,
-     결제 기한은 비운 채 결제 취소를 시작한다(20261012110100). 승인은 확정됐으므로
+     결제 기한은 비운 채 결제 취소를 시작한다(20261013110100). 승인은 확정됐으므로
      '결제사 승인 결과를 아직 확정하지 못했어요'로 안내하면 사실과 다르다(INT-5). */
   it('결제는 승인됐고 처리 중인 취소 요청이 있으면 확인 중이 아니라 결제 취소 진행이다', () => {
     expect(checkoutOrderState('pending', 'paid', null, now, 'cancellation_requested', true))

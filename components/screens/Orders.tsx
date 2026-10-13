@@ -111,7 +111,7 @@ function focusBanner(focus: CheckoutPaymentResultFocus): BannerCopy {
       };
     case 'refund_in_progress':
       /* 승인을 기다리는 사이 취소 요청이 접수됐다. finalizer가 결제 원장을 남기고 결제
-         취소를 시작한다(20261012110100) — 승인은 확정됐으므로 '확인 중'이 아니다. 진행
+         취소를 시작한다(20261013110100) — 승인은 확정됐으므로 '확인 중'이 아니다. 진행
          상태(자동 결제 취소, 실패 시 담당자 확인)는 주문 상세의 취소 패널이 보여준다. */
       return {
         tone: 'neutral',

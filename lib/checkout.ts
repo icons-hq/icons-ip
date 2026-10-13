@@ -43,7 +43,7 @@ export function normalizeCheckoutPaymentMethod(value: unknown): CheckoutPaymentM
  * 결제 화면이 판독하는 주문 상태.
  * - `refund_in_progress`: 결제는 승인됐는데 승인 응답을 기다리는 사이 접수된 취소 요청이
  *   처리 중이다. finalizer가 결제 원장을 paid로 남기고 주문은 pending으로 둔 채 결제 취소를
- *   시작한다(20261012110100). 확인 중(`checking`)이 아니다 — 승인은 확정됐다.
+ *   시작한다(20261013110100). 확인 중(`checking`)이 아니다 — 승인은 확정됐다.
  */
 export type CheckoutOrderState =
   | 'payable'
