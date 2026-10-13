@@ -158,7 +158,7 @@ select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000047602'
 select public.set_cart_item_quantity('sales-policy-main',:'default_variant',1);
 select 1/case when public.quote_goods_sales(jsonb_build_array(jsonb_build_object('goodId','sales-policy-main','variantId',:'default_variant','qty',1)))
  #>>'{goods,0,reason}'='order_quantity_below_minimum' then 1 else 0 end as assert_cart_minimum_feedback;
--- 브라우저 롤은 주문 생성 RPC를 직접 부르지 못한다(20261012100000). 앱처럼 service role 래퍼가 구매자 id를 넘긴다.
+-- 브라우저 롤은 주문 생성 RPC를 직접 부르지 못한다(20261013100000). 앱처럼 service role 래퍼가 구매자 id를 넘긴다.
 set local role service_role;
 select pg_temp.expect_error($sql$select public.place_order('00000000-0000-4000-8000-000000047602'::uuid,'{"recipientName":"검증 구매자","phone":"01012345678","postalCode":"00000","address1":"배송 금지 검증 주소"}'::jsonb,
  '00000000-0000-4000-8000-000000047621'::uuid,'card'::public.order_payment_method)$sql$,'order_quantity_below_minimum','23514');

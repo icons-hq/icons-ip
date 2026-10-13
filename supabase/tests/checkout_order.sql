@@ -82,7 +82,7 @@ select 1 / case when not has_function_privilege('authenticated', 'public.place_o
   as assert_authenticated_cannot_place_order;
 select 1 / case when has_function_privilege('service_role', 'public.place_order(uuid,jsonb,uuid)', 'execute') then 1 else 0 end
   as assert_service_role_can_place_order;
--- 결제수단을 받는 고객 진입 시그니처도 같은 경계다(20261012100000). 브라우저가 이 본문을
+-- 결제수단을 받는 고객 진입 시그니처도 같은 경계다(20261013100000). 브라우저가 이 본문을
 -- 직접 부르면 서버 게이트(정지 계정·무통장 계좌·PG gate)를 건너뛰고 재고를 선점한다.
 -- 런타임 거부 호출 대신 선언적으로 단언한다(권한 없는 호출은 일부 이미지에서 백엔드를 죽였다).
 select 1 / case when not has_function_privilege('anon', 'public.place_order(jsonb,uuid,public.order_payment_method)', 'execute')

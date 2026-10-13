@@ -103,7 +103,7 @@ set local statement_timeout='15s';
 set local role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000048401',true);
 select public.set_cart_item_quantity('sales-quota-race-4273',(select id from public.goods_variants where good_id='sales-quota-race-4273' and is_default),2);
--- 브라우저 롤은 주문 생성 RPC를 직접 부르지 못한다(20261012100000). 앱처럼 service role 래퍼가 구매자 id를 넘긴다.
+-- 브라우저 롤은 주문 생성 RPC를 직접 부르지 못한다(20261013100000). 앱처럼 service role 래퍼가 구매자 id를 넘긴다.
 set local role service_role;
 select public.place_order('00000000-0000-4000-8000-000000048401'::uuid,'{"recipientName":"검증 구매자","phone":"01012345678","postalCode":"00000","address1":"배송 금지 검증 주소"}'::jsonb,
  '00000000-0000-4000-8000-000000048420'::uuid,'card'::public.order_payment_method);

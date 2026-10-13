@@ -141,7 +141,7 @@ set local deadlock_timeout='500ms';
 select id from public.goods where id='goods-clone-race-source' for update;
 \echo CLONE_A_CHECKOUT_HAS_SOURCE
 select pg_sleep(3);
--- 브라우저 롤은 주문 생성 RPC를 직접 부르지 못한다(20261012100000). 앱처럼 service role 래퍼가 구매자 id를 넘긴다.
+-- 브라우저 롤은 주문 생성 RPC를 직접 부르지 못한다(20261013100000). 앱처럼 service role 래퍼가 구매자 id를 넘긴다.
 set local role service_role;
 select public.place_order('00000000-0000-4000-8000-000000047911'::uuid,'{"recipientName":"합성 A","phone":"01000000000","postalCode":"00000","address1":"배송 금지 검증 주소"}'::jsonb,
  '00000000-0000-4000-8000-000000047931'::uuid,'card'::public.order_payment_method);

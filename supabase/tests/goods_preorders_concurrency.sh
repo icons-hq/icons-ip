@@ -145,7 +145,7 @@ preorder_wait_marker() {
 preorder_db >"$preorder_logs/capacity-a.log" 2>&1 <<'SQL' &
 begin;
 set local statement_timeout='15s';
--- 브라우저 롤은 주문 생성 RPC를 직접 부르지 못한다(20261012100000). 앱처럼 service role 래퍼가 구매자 id를 넘긴다.
+-- 브라우저 롤은 주문 생성 RPC를 직접 부르지 못한다(20261013100000). 앱처럼 service role 래퍼가 구매자 id를 넘긴다.
 set local role service_role;
 select public.place_order('00000000-0000-4000-8000-000000048601'::uuid,'{"recipientName":"예약 경쟁","phone":"01012345678","postalCode":"00000","address1":"배송 금지 검증 주소"}'::jsonb,
  '00000000-0000-4000-8000-000000048620'::uuid,'card'::public.order_payment_method);
