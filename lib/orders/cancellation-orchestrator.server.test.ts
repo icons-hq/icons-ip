@@ -293,7 +293,12 @@ describe('reconcileOrderCancellation', () => {
       requestId: REQUEST_ID, actorId: ACTOR_ID,
     })).resolves.toEqual({ ok: true, status: 'completed' });
 
-    expect(defaultMocks.gatewayRefund).toHaveBeenCalledWith(expect.objectContaining({ amount: 42000 }));
+    // 원장 결제 키를 게이트웨이에 싣는다 — 게이트웨이는 orderId 조회 대신 이 키로
+    // 조회·취소한다(주문서형 시크릿 키 허용 API).
+    expect(defaultMocks.gatewayRefund).toHaveBeenCalledWith(expect.objectContaining({
+      amount: 42000,
+      providerPaymentKey: PAYMENT_KEY,
+    }));
     expect(defaultMocks.rpc).toHaveBeenCalledWith('complete_order_cancellation_request', {
       p_request_id: REQUEST_ID, p_actor_id: ACTOR_ID, p_provider_payment_keys: [PAYMENT_KEY],
     });
@@ -378,6 +383,7 @@ describe('reconcileOrderCancellation', () => {
       paymentId: 'payment-1',
       amount: 42000,
       reason: 'ICONS 주문 취소',
+      paymentKey: PAYMENT_KEY,
     });
     expect(deps.completeRequest).toHaveBeenCalledWith({
       requestId: REQUEST_ID,
@@ -775,6 +781,7 @@ describe('reconcileOrderCancellation', () => {
       paymentId: 'payment-2',
       amount: 42000,
       reason: 'ICONS 주문 취소',
+      paymentKey: PAYMENT_KEY,
     });
     expect(deps.completeRequest).toHaveBeenCalledWith(
       expect.objectContaining({ verifiedPaymentKeys: [PAYMENT_KEY] }),

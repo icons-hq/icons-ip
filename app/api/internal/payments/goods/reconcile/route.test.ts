@@ -3,18 +3,24 @@ import {
   GoodsPaymentContractError,
   GoodsPaymentReconciliationInProgressError,
 } from '@/lib/payments/goods-checkout';
-import { POST } from './route';
+import { maxDuration, POST } from './route';
 
 const SECRET = 'goods-reconciliation-secret';
 const attemptId = '30000000-0000-4000-8000-000000000410';
 const PAYMENT_KEY = 'tviva20260901000000goodsKEY123456';
+const orderId = '40000000-0000-4000-8000-000000000410';
 const mocks = vi.hoisted(() => ({
   available: true,
   availabilityProvider: undefined as string | undefined,
   checkoutProvider: undefined as string | undefined,
   reconcile: vi.fn(),
-  /* reconcile(claim RPC) 전에 라우트가 읽는 attempt 행 — provider·purpose만. */
-  attemptRow: { provider: 'toss', purpose: 'order' } as Record<string, unknown> | null,
+  /* reconcile(claim RPC) 전에 라우트가 읽는 attempt 행 — provider·purpose·주문 id. */
+  attemptRow: {
+    provider: 'toss',
+    purpose: 'order',
+    ref_id: '40000000-0000-4000-8000-000000000410',
+  } as Record<string, unknown> | null,
+  scheduleApprovedOrderCancellation: vi.fn(),
   attemptLookupError: null as { code?: string; message: string } | null,
   serviceClientThrows: false,
   from: vi.fn(),
@@ -37,6 +43,9 @@ vi.mock('@/lib/payments/goods-checkout-availability', () => ({
     return mocks.available;
   },
   goodsCheckoutPaymentsEnabled: () => false,
+}));
+vi.mock('@/lib/orders/cancellation-auto.server', () => ({
+  scheduleApprovedOrderCancellation: mocks.scheduleApprovedOrderCancellation,
 }));
 vi.mock('@/lib/payments/goods-checkout.runtime.server', () => ({
   createRuntimeGoodsPaymentCheckout: (provider?: string) => {
@@ -80,7 +89,8 @@ describe('POST /api/internal/payments/goods/reconcile', () => {
       reasonCode: 'provider_reconciled_approved',
       evidence: { providerPaymentKey: PAYMENT_KEY, resultCode: 'DONE' },
     });
-    mocks.attemptRow = { provider: 'toss', purpose: 'order' };
+    mocks.attemptRow = { provider: 'toss', purpose: 'order', ref_id: orderId };
+    mocks.scheduleApprovedOrderCancellation.mockReset();
     mocks.attemptLookupError = null;
     mocks.serviceClientThrows = false;
     mocks.from.mockReset();
@@ -111,12 +121,12 @@ describe('POST /api/internal/payments/goods/reconcile', () => {
     expect(mocks.checkoutProvider).toBe('toss');
   });
 
-  it('reconcile(claim RPC) 전에 service role로 attempt의 provider·purpose만 읽는다', async () => {
+  it('reconcile(claim RPC) 전에 service role로 attempt의 provider·purpose·주문 id만 읽는다', async () => {
     await POST(request());
 
     expect(mocks.from).toHaveBeenCalledTimes(1);
     expect(mocks.from).toHaveBeenCalledWith('payment_attempts');
-    expect(mocks.select).toHaveBeenCalledWith('provider,purpose');
+    expect(mocks.select).toHaveBeenCalledWith('provider,purpose,ref_id');
     expect(mocks.eq).toHaveBeenCalledWith('id', attemptId);
     expect(mocks.maybeSingle).toHaveBeenCalledTimes(1);
     // 조회가 claim보다 먼저다 — 코페이 행을 선점하고 나서 거절하는 순서를 막는 이유.
@@ -277,5 +287,71 @@ describe('POST /api/internal/payments/goods/reconcile', () => {
     expect(failure.status).toBe(502);
     await expect(failure.json()).resolves.toEqual({ error: 'reconciliation_failed' });
     expect(failure.headers.get('cache-control')).toBe('no-store');
+  });
+  /*
+   * 결과 불명 attempt를 이 라우트로 승인 종결하면, 그 사이 접수된 취소는 finalizer가 자동
+   * 승인(processing)한다. 결제사 취소 예약이 없으면 카드 승인이 살아 있는 채 처리중으로 남는다
+   * (통합 리뷰 INT-3).
+   */
+  describe('승인 뒤 주문 취소 예약', () => {
+    it('maxDuration은 재정합 + 응답 뒤 결제사 취소 예산(90초)을 선언한다', () => {
+      expect(maxDuration).toBe(90);
+    });
+
+    it('approved로 닫으면 그 주문의 취소 예약을 건다', async () => {
+      const response = await POST(request());
+
+      expect(response.status).toBe(200);
+      expect(mocks.scheduleApprovedOrderCancellation).toHaveBeenCalledTimes(1);
+      expect(mocks.scheduleApprovedOrderCancellation).toHaveBeenCalledWith(orderId);
+      expect(mocks.reconcile.mock.invocationCallOrder[0]!)
+        .toBeLessThan(mocks.scheduleApprovedOrderCancellation.mock.invocationCallOrder[0]!);
+    });
+
+    it.each(['declined', 'canceled', 'needs_review', 'unknown'] as const)(
+      '%s면 예약하지 않는다',
+      async (outcome) => {
+        mocks.reconcile.mockResolvedValueOnce({ attemptId, provider: 'toss', outcome });
+
+        await POST(request());
+
+        expect(mocks.scheduleApprovedOrderCancellation).not.toHaveBeenCalled();
+      },
+    );
+
+    it('재정합 진행 중·실패·거절된 attempt는 예약하지 않는다', async () => {
+      mocks.reconcile.mockRejectedValueOnce(new GoodsPaymentReconciliationInProgressError());
+      await POST(request());
+      mocks.reconcile.mockRejectedValueOnce(new Error('provider down'));
+      await POST(request());
+      mocks.attemptRow = { provider: 'korpay', purpose: 'order', ref_id: orderId };
+      await POST(request());
+
+      expect(mocks.scheduleApprovedOrderCancellation).not.toHaveBeenCalled();
+    });
+
+    it('attempt에 주문 id가 없으면 예약하지 않는다', async () => {
+      mocks.attemptRow = { provider: 'toss', purpose: 'order', ref_id: null };
+
+      const response = await POST(request());
+
+      expect(response.status).toBe(200);
+      expect(mocks.scheduleApprovedOrderCancellation).not.toHaveBeenCalled();
+    });
+
+    it('예약이 실패해도 승인 종결 응답은 그대로다', async () => {
+      const errorLog = vi.spyOn(console, 'error').mockImplementation(() => {});
+      mocks.scheduleApprovedOrderCancellation.mockImplementationOnce(() => {
+        throw new Error('after unavailable');
+      });
+
+      const response = await POST(request());
+
+      expect(response.status).toBe(200);
+      await expect(response.json()).resolves.toEqual({ attemptId, outcome: 'approved' });
+      expect(errorLog).toHaveBeenCalledTimes(1);
+      expect(String(errorLog.mock.calls[0]![0])).not.toContain(PAYMENT_KEY);
+      errorLog.mockRestore();
+    });
   });
 });

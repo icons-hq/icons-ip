@@ -1,11 +1,18 @@
 import { describe, expect, it, vi } from 'vitest';
 import { GoodsPaymentReconciliationInProgressError } from '@/lib/payments/goods-checkout';
 import { TicketPaymentReconciliationInProgressError } from '@/lib/payments/ticket-checkout';
-import { createTossWebhookHandler } from './route';
+import { createTossWebhookHandler, maxDuration } from './route';
+
+// 라우트 모듈의 POST 조립이 실제 예약 함수를 끌어오지 않게 한다 — 핸들러 테스트는 주입한 mock만 본다.
+vi.mock('@/lib/orders/cancellation-auto.server', () => ({
+  scheduleApprovedOrderCancellation: vi.fn(),
+}));
 
 const PROVIDER_ORDER_ID = 'O30000000000040008000000000000390';
 const TICKET_PROVIDER_ORDER_ID = 'T30000000000040008000000000000390';
 const ATTEMPT_ID = '30000000-0000-4000-8000-000000000390';
+const ORDER_ID = '40000000-0000-4000-8000-000000000390';
+const RESERVATION_ID = '50000000-0000-4000-8000-000000000390';
 const TRANSMISSION_ID = 'whtrans_a01j70335nkqqeg0zwzz2r4py9z';
 const PAYMENT_KEY = 'webhook-payment-key-should-not-leak';
 
@@ -40,10 +47,12 @@ function handler(overrides: Partial<Parameters<typeof createTossWebhookHandler>[
     loadAttempt: vi.fn(async () => ({
       id: ATTEMPT_ID,
       purpose: 'order' as const,
+      refId: ORDER_ID,
       state: 'unknown',
     })),
     reconcileGoods: vi.fn(async () => ({ outcome: 'approved' as const })),
     reconcileTicket: vi.fn(async () => ({ outcome: 'approved' as const })),
+    scheduleOrderCancellation: vi.fn(),
     createCaseRefFallback: () => '11111111-2222-4333-8444-555555555555',
     ...overrides,
   };
@@ -62,9 +71,12 @@ describe('POST /api/webhooks/tosspayments', () => {
 
     expect(result.status).toBe(200);
     expect(deps.loadAttempt).toHaveBeenCalledWith(PROVIDER_ORDER_ID);
+    // paymentKey는 판정이 아니라 조회 힌트로만 seam에 넘어간다 — 게이트웨이가 조회
+    // 응답이 attempt와 일치할 때만 쓴다.
     expect(deps.reconcileGoods).toHaveBeenCalledWith({
       attemptId: ATTEMPT_ID,
       caseRef: TRANSMISSION_ID,
+      providerPaymentKeyHint: PAYMENT_KEY,
     });
     expect(deps.reconcileTicket).not.toHaveBeenCalled();
     expect(await result.text()).not.toContain(PAYMENT_KEY);
@@ -75,6 +87,7 @@ describe('POST /api/webhooks/tosspayments', () => {
       loadAttempt: vi.fn(async () => ({
         id: ATTEMPT_ID,
         purpose: 'ticket' as const,
+        refId: RESERVATION_ID,
         state: 'confirming',
       })),
     });
@@ -88,6 +101,7 @@ describe('POST /api/webhooks/tosspayments', () => {
     expect(deps.reconcileTicket).toHaveBeenCalledWith({
       attemptId: ATTEMPT_ID,
       caseRef: TRANSMISSION_ID,
+      providerPaymentKeyHint: PAYMENT_KEY,
     });
     expect(deps.reconcileGoods).not.toHaveBeenCalled();
   });
@@ -98,6 +112,7 @@ describe('POST /api/webhooks/tosspayments', () => {
         loadAttempt: vi.fn(async () => ({
           id: ATTEMPT_ID,
           purpose: 'order' as const,
+          refId: ORDER_ID,
           state,
         })),
       });
@@ -112,6 +127,7 @@ describe('POST /api/webhooks/tosspayments', () => {
       loadAttempt: vi.fn(async () => ({
         id: ATTEMPT_ID,
         purpose: 'order' as const,
+        refId: ORDER_ID,
         state: 'prepared',
       })),
     });
@@ -216,6 +232,7 @@ describe('POST /api/webhooks/tosspayments', () => {
       loadAttempt: vi.fn(async () => ({
         id: ATTEMPT_ID,
         purpose: 'ticket' as const,
+        refId: RESERVATION_ID,
         state: 'confirming',
       })),
       reconcileTicket: vi.fn(async () => {
@@ -261,6 +278,7 @@ describe('POST /api/webhooks/tosspayments', () => {
       loadAttempt: vi.fn(async () => ({
         id: ATTEMPT_ID,
         purpose: 'ticket' as const,
+        refId: RESERVATION_ID,
         state: 'needs_review',
       })),
     });
@@ -289,6 +307,117 @@ describe('POST /api/webhooks/tosspayments', () => {
     expect(deps.reconcileGoods).toHaveBeenCalledWith({
       attemptId: ATTEMPT_ID,
       caseRef: 'webhook-11111111-2222-4333-8444-555555555555',
+      providerPaymentKeyHint: PAYMENT_KEY,
+    });
+  });
+
+  it.each([
+    ['paymentKey 누락', { paymentKey: undefined }],
+    ['형식 밖 paymentKey(공백)', { paymentKey: 'has space' }],
+    ['형식 밖 paymentKey(200자 초과)', { paymentKey: 'k'.repeat(201) }],
+    ['문자열이 아닌 paymentKey', { paymentKey: 12345 }],
+  ])('%s면 힌트 없이 재정합한다 — 힌트는 선택이고 형식 밖 값은 조회에 쓰지 않는다', async (_label, override) => {
+    const { deps, post } = handler();
+
+    const result = await post(webhookRequest(
+      statusChangedBody(override),
+      { 'tosspayments-webhook-transmission-id': TRANSMISSION_ID },
+    ));
+
+    expect(result.status).toBe(200);
+    expect(deps.reconcileGoods).toHaveBeenCalledWith({
+      attemptId: ATTEMPT_ID,
+      caseRef: TRANSMISSION_ID,
+    });
+  });
+
+  it('힌트를 실어도 응답 본문에 paymentKey를 싣지 않는다', async () => {
+    const { post } = handler({ reconcileGoods: vi.fn(async () => ({ outcome: 'unknown' as const })) });
+
+    const result = await post(webhookRequest(statusChangedBody()));
+
+    expect(result.status).toBe(500);
+    expect(await result.text()).not.toContain(PAYMENT_KEY);
+  });
+  /*
+   * 승인 결과가 늦게 확정된 결제(confirm 시한 초과 → unknown → 웹훅 재정합) 사이에 접수된 취소는
+   * finalizer가 자동 승인(processing)한다. 결제사 취소를 발행하는 예약이 여기서 걸리지 않으면
+   * 카드 승인이 살아 있는 채 처리중으로 남는다(통합 리뷰 INT-3).
+   */
+  describe('승인 뒤 주문 취소 예약', () => {
+    it('maxDuration은 재정합 + 응답 뒤 결제사 취소 예산(90초)을 선언한다', () => {
+      expect(maxDuration).toBe(90);
+    });
+
+    it('굿즈 재정합이 approved면 그 주문의 취소 예약을 건다', async () => {
+      const { deps, post } = handler();
+
+      const result = await post(webhookRequest(statusChangedBody()));
+
+      expect(result.status).toBe(200);
+      expect(deps.scheduleOrderCancellation).toHaveBeenCalledTimes(1);
+      expect(deps.scheduleOrderCancellation).toHaveBeenCalledWith(ORDER_ID);
+      const reconcileOrder = vi.mocked(deps.reconcileGoods).mock.invocationCallOrder[0]!;
+      const scheduleOrder = vi.mocked(deps.scheduleOrderCancellation).mock.invocationCallOrder[0]!;
+      expect(reconcileOrder).toBeLessThan(scheduleOrder);
+    });
+
+    it.each(['declined', 'canceled', 'needs_review', 'unknown'] as const)(
+      '굿즈 재정합이 %s면 예약하지 않는다',
+      async (outcome) => {
+        const { deps, post } = handler({ reconcileGoods: vi.fn(async () => ({ outcome })) });
+
+        await post(webhookRequest(statusChangedBody()));
+
+        expect(deps.scheduleOrderCancellation).not.toHaveBeenCalled();
+      },
+    );
+
+    it('티켓 재정합은 approved여도 주문 취소 예약을 걸지 않는다', async () => {
+      const { deps, post } = handler({
+        loadAttempt: vi.fn(async () => ({
+          id: ATTEMPT_ID,
+          purpose: 'ticket' as const,
+          refId: RESERVATION_ID,
+          state: 'unknown',
+        })),
+      });
+
+      const result = await post(webhookRequest(statusChangedBody({ orderId: TICKET_PROVIDER_ORDER_ID })));
+
+      expect(result.status).toBe(200);
+      expect(deps.reconcileTicket).toHaveBeenCalledTimes(1);
+      expect(deps.scheduleOrderCancellation).not.toHaveBeenCalled();
+    });
+
+    it('attempt에 주문 id가 없으면 예약하지 않고 ack한다', async () => {
+      const { deps, post } = handler({
+        loadAttempt: vi.fn(async () => ({
+          id: ATTEMPT_ID,
+          purpose: 'order' as const,
+          refId: null,
+          state: 'unknown',
+        })),
+      });
+
+      const result = await post(webhookRequest(statusChangedBody()));
+
+      expect(result.status).toBe(200);
+      expect(deps.scheduleOrderCancellation).not.toHaveBeenCalled();
+    });
+
+    it('예약이 실패해도 ack는 바뀌지 않는다 — 승인은 이미 원장에 확정됐다', async () => {
+      const errorLog = vi.spyOn(console, 'error').mockImplementation(() => {});
+      const { post } = handler({
+        scheduleOrderCancellation: vi.fn(() => { throw new Error('after unavailable'); }),
+      });
+
+      const result = await post(webhookRequest(statusChangedBody()));
+
+      expect(result.status).toBe(200);
+      expect(errorLog).toHaveBeenCalledTimes(1);
+      expect(String(errorLog.mock.calls[0]![0])).not.toContain(PAYMENT_KEY);
+      errorLog.mockRestore();
     });
   });
 });

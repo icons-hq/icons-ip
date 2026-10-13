@@ -13,9 +13,10 @@ import {
 
 /**
  * 라우트 실행 예산(초). 최악 경로는 두 갈래다 — 토스 승인 POST가 25초 시한까지 가면
- * 409는 오지 않고 곧장 orderId 조회 8초로 가므로 ≤33초 + DB claim/finalize이고, 409(멱등
+ * 409는 오지 않고 곧장 paymentKey 조회 8초로 가므로 ≤33초 + DB claim/finalize이고, 409(멱등
  * 처리 중)는 처리 중인 중복 요청에 대한 즉시 응답이라 그 경로는 (즉시 409) + 대기 1초 +
- * 같은 키 재요청 ≤25초 + 조회 8초 ≈ 34초 + DB다. Next.js 16은 route 세그먼트의 named export
+ * 같은 키 재요청 ≤25초 + 조회 8초 ≈ 34초 + DB다. 승인된 결제가 허용 밖 결제수단이면
+ * 어댑터가 전액 취소 8초 + 확인 조회 8초를 더 써서 최악 ≈ 50초 + DB다. Next.js 16은 route 세그먼트의 named export
  * `maxDuration`을 빌드 출력에 싣고 배포 플랫폼이 그 값을 읽는다. Vercel Functions
  * duration 문서(2026-08-24판, fluid compute 기본): Hobby 기본·최대 300초, Pro 기본
  * 300초·최대 800초 — 60초는 모든 플랜에서 유효한 값이고 두 경로 모두에 DB·리다이렉트

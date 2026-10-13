@@ -105,6 +105,8 @@ export interface CancellationReconciliationDependencies {
     paymentId: string;
     amount: number;
     reason: string;
+    /** 원장 `payments.payment_key` — 게이트웨이가 이 키로 조회·취소한다. */
+    paymentKey: string;
   }): Promise<RefundOutcome>;
   completeRequest(input: {
     requestId: string;
@@ -277,7 +279,7 @@ function createDefaultDependencies(): CancellationReconciliationDependencies {
         payments,
       };
     },
-    async refundTossPayment({ paymentId, amount, reason }) {
+    async refundTossPayment({ paymentId, amount, reason, paymentKey }) {
       const { data, error } = await service
         .from('payment_attempts')
         .select('id,provider,purpose,ref_id,amount,currency,idempotency_key,provider_order_id,provider_product_code,expires_at')
@@ -320,6 +322,10 @@ function createDefaultDependencies(): CancellationReconciliationDependencies {
         idempotencyKey: `refund:${attempt.id}`,
         amount,
         reason,
+        // 원장 결제 키로 조회·취소한다 — paymentKey 조회는 주문서형 시크릿 키(gsk)에
+        // 명시된 조회이고 orderId 조회는 아니다(토스 공식문서 122). 게이트웨이가 조회
+        // 응답의 키·주문·상점(MID)을 다시 대조한다.
+        providerPaymentKey: paymentKey,
       });
     },
     async reconcileExpiredPreparedGoods({ requestId, actorId }) {
@@ -471,6 +477,7 @@ export async function reconcileOrderCancellation(
         paymentId: payment.id,
         amount: payment.amount,
         reason: 'ICONS 주문 취소',
+        paymentKey: payment.paymentKey,
       });
     } catch {
       return markNeedsReview(dependencies, input, 'provider_unavailable');

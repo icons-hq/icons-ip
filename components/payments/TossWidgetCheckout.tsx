@@ -9,7 +9,11 @@ import { useEffect, useMemo, useRef, useState } from 'react';
 // 키·주문번호 형식은 toss-config.mjs 하나만 본다 — 사본이 갈라지면 유효한 발급
 // 키나 주문번호가 브라우저에서 조용히 거절된다. gsk(시크릿) 키는 gck 판정에
 // 걸려 자동으로 거절된다 — 브라우저에 시크릿 키가 실리는 경로를 막는다.
-import { isTossClientKey, isTossProviderOrderId } from '@/lib/payments/toss-config.mjs';
+import {
+  TOSS_WIDGET_VARIANT_KEY,
+  isTossClientKey,
+  isTossProviderOrderId,
+} from '@/lib/payments/toss-config.mjs';
 
 export const TOSS_PAYMENT_METHODS_ID = 'toss-payment-methods';
 export const TOSS_AGREEMENT_ID = 'toss-agreement';
@@ -21,6 +25,7 @@ const TOSS_PAYLOAD_KEYS = new Set([
   'provider',
   'clientKey',
   'customerKey',
+  'variantKey',
   'orderId',
   'orderName',
   'amount',
@@ -35,6 +40,8 @@ export interface TossCheckoutPayload {
   readonly provider: 'toss';
   readonly clientKey: string;
   readonly customerKey: 'ANONYMOUS';
+  /** 결제 UI variantKey — 결제의 MID를 정한다(toss-config.mjs TOSS_WIDGET_VARIANT_KEY). */
+  readonly variantKey: string;
   readonly orderId: string;
   readonly orderName: string;
   readonly amount: number;
@@ -115,6 +122,7 @@ export function parseTossCheckoutPayload(payload: unknown): TossCheckoutPayload 
       provider,
       clientKey,
       customerKey,
+      variantKey,
       orderId,
       orderName,
       amount,
@@ -126,6 +134,9 @@ export function parseTossCheckoutPayload(payload: unknown): TossCheckoutPayload 
     if (provider !== 'toss') return null;
     if (typeof clientKey !== 'string' || !isTossClientKey(clientKey)) return null;
     if (customerKey !== 'ANONYMOUS') return null;
+    // 결제 UI가 빠지면 SDK 기본 DEFAULT(다른 서비스와 공유하는 MID)로 결제가 잡힌다 —
+    // 서버 상수와 다른 값은 조용히 넘기지 않고 payload째 버린다.
+    if (variantKey !== TOSS_WIDGET_VARIANT_KEY) return null;
     if (typeof orderId !== 'string' || !isTossProviderOrderId(orderId)) return null;
     if (
       typeof orderName !== 'string'
@@ -143,6 +154,7 @@ export function parseTossCheckoutPayload(payload: unknown): TossCheckoutPayload 
       provider,
       clientKey,
       customerKey,
+      variantKey,
       orderId,
       orderName,
       amount: amount as number,
@@ -171,10 +183,28 @@ export async function mountTossPaymentWidgets(
 
   await widgets.setAmount({ currency: payload.currency, value: payload.amount });
 
-  const [paymentMethodWidget, agreementWidget] = await Promise.all([
-    widgets.renderPaymentMethods({ selector: TOSS_PAYMENT_METHODS_SELECTOR }),
+  // 결제 UI는 MID를 정하는 variant를 명시한다. 결제 어드민에 그 variant가 없으면 SDK가
+  // InvalidVariantKeyError로 거부하고(SDK 2.8.1 타입 @throws), DEFAULT로 다시 그리지 않는다.
+  // 약관 UI의 variantKey는 결제 UI와 독립이라(공식문서 24 약관 설정) 기본 국문 약관을 쓴다.
+  const rendered = await Promise.allSettled([
+    widgets.renderPaymentMethods({
+      selector: TOSS_PAYMENT_METHODS_SELECTOR,
+      variantKey: payload.variantKey,
+    }),
     widgets.renderAgreement({ selector: TOSS_AGREEMENT_SELECTOR }),
   ]);
+  const [paymentMethodsResult, agreementResult] = rendered;
+  if (paymentMethodsResult.status === 'rejected' || agreementResult.status === 'rejected') {
+    // 한쪽만 그려진 채로 남기지 않는다 — 결제 버튼은 실패 상태로 잠긴다.
+    await Promise.allSettled(rendered.flatMap((result) => (
+      result.status === 'fulfilled' ? [result.value.destroy()] : []
+    )));
+    throw paymentMethodsResult.status === 'rejected'
+      ? paymentMethodsResult.reason
+      : (agreementResult as PromiseRejectedResult).reason;
+  }
+  const paymentMethodWidget = paymentMethodsResult.value;
+  const agreementWidget = agreementResult.value;
 
   // 2026-09-01 문서 테스트 키 실측: 필수 약관은 기본 동의(체크) 상태로 렌더되고
   // agreementStatusChange는 초기 상태를 통지하지 않는다(변경 시에만 발화). 초기
@@ -218,6 +248,8 @@ interface TossWidgetCheckoutProps {
 export function TossWidgetCheckout({ payload }: TossWidgetCheckoutProps) {
   const parsed = useMemo(() => parseTossCheckoutPayload(payload), [payload]);
   const clientKey = parsed?.clientKey ?? null;
+  // parse가 서버 상수 하나로 고정하므로 렌더 사이에 바뀌지 않는다 — mountKey 축이 아니다.
+  const variantKey = parsed?.variantKey ?? null;
   const orderId = parsed?.orderId ?? null;
   const orderName = parsed?.orderName ?? null;
   const currency = parsed?.currency ?? null;
@@ -250,6 +282,7 @@ export function TossWidgetCheckout({ payload }: TossWidgetCheckoutProps) {
   useEffect(() => {
     if (
       clientKey === null
+      || variantKey === null
       || orderId === null
       || orderName === null
       || currency === null
@@ -264,6 +297,7 @@ export function TossWidgetCheckout({ payload }: TossWidgetCheckoutProps) {
       provider: 'toss',
       clientKey,
       customerKey: 'ANONYMOUS',
+      variantKey,
       orderId,
       orderName,
       amount: amountRef.current,
@@ -294,7 +328,7 @@ export function TossWidgetCheckout({ payload }: TossWidgetCheckoutProps) {
       controllerRef.current = null;
       void controller?.destroy();
     };
-  }, [mountKey, clientKey, orderId, orderName, currency, successUrl, failUrl]);
+  }, [mountKey, clientKey, variantKey, orderId, orderName, currency, successUrl, failUrl]);
 
   useEffect(() => {
     amountRef.current = amount;
