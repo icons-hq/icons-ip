@@ -44,6 +44,8 @@ const order: CheckoutOrderSnapshot = {
   paymentStatus: null,
   shipments: [],
   paymentMethod: 'card' as const,
+  paymentAttempt: null,
+  hasActiveCancellationRequest: false,
   items: [],
 };
 

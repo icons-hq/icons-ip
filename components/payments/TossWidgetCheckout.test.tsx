@@ -7,6 +7,7 @@ import {
   TossWidgetCheckout,
   mountTossPaymentWidgets,
   parseTossCheckoutPayload,
+  tossRequestPaymentErrorCopy,
 } from './TossWidgetCheckout';
 
 const sdk = vi.hoisted(() => ({
@@ -269,3 +270,30 @@ describe('TossWidgetCheckout', () => {
     expect(sdk.loadTossPayments).not.toHaveBeenCalled();
   });
 });
+
+/*
+ * requestPayment reject를 한 문구로 뭉개면 결제수단 미선택·약관 미동의처럼 고객이 바로
+ * 고칠 수 있는 사유도 "잠시 후 다시 시도"로 보인다(UX-6). 코드는 토스 SDK 에러 코드
+ * 문서(44)의 주문서형 표를 따른다.
+ */
+describe('tossRequestPaymentErrorCopy', () => {
+  it('고객이 고칠 수 있는 사유는 그 사유대로 안내한다', () => {
+    expect(tossRequestPaymentErrorCopy({ code: 'NOT_SELECTED_PAYMENT_METHOD' })).toBe('결제수단을 선택해주세요.');
+    expect(tossRequestPaymentErrorCopy({ code: 'NEED_CARD_PAYMENT_DETAIL' })).toBe('카드사와 할부 기간을 선택해주세요.');
+    expect(tossRequestPaymentErrorCopy({ code: 'NEED_AGREEMENT_WITH_REQUIRED_TERMS' })).toBe('필수 약관에 동의해주세요.');
+    expect(tossRequestPaymentErrorCopy({ code: 'PROVIDER_STATUS_UNHEALTHY' })).toContain('다른 결제수단');
+  });
+
+  it('구매자가 결제창을 닫은 취소는 오류로 안내하지 않는다', () => {
+    expect(tossRequestPaymentErrorCopy({ code: 'USER_CANCEL' })).toBeNull();
+  });
+
+  it('표 밖 코드·코드 없는 값은 SDK 원문 없이 공통 문구로 덮는다', () => {
+    const fallback = '결제창을 열지 못했습니다. 잠시 후 다시 시도해주세요.';
+    expect(tossRequestPaymentErrorCopy({ code: 'UNKNOWN', message: '내부 원문' })).toBe(fallback);
+    expect(tossRequestPaymentErrorCopy({ code: 'toString' })).toBe(fallback);
+    expect(tossRequestPaymentErrorCopy(new Error('boom'))).toBe(fallback);
+    expect(tossRequestPaymentErrorCopy(undefined)).toBe(fallback);
+  });
+});
+

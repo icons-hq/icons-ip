@@ -42,10 +42,91 @@ function order(overrides: Partial<OrderDetailData> = {}): OrderDetailData {
 }
 
 describe('OrderDetail', () => {
-  it('결제 대기 카드 주문은 결제 상태 확인과 이어가기 화면으로 이동한다', () => {
-    const html=renderToStaticMarkup(<OrderDetail order={order({status:'pending',payment:null,shipments:[]})}/>);
+  it('결제할 수 있는 결제 대기 카드 주문은 결제 화면에서 결제를 이어가게 한다', () => {
+    const html=renderToStaticMarkup(<OrderDetail cardPayment={{ state: 'payable', closure: null, reorderMode: null, provider: 'toss' }} order={order({status:'pending',payment:null,shipments:[]})}/>);
+    expect(html).toContain('결제를 기다리고 있어요');
     expect(html).toContain(`href="/checkout/${ORDER_ID}"`);
-    expect(html).toContain('결제 상태 확인·이어가기');
+    expect(html).toContain('결제 이어가기');
+  });
+
+  /* QA-2: 거절·시도 만료로 닫힌 결제를 '확인 중'으로 말하면 청구가 진행 중인 것처럼 읽히고,
+     이어갈 수 없는 결제를 '이어가기'로 안내하게 된다. 결제 화면과 같은 사실을 말한다. */
+  it('승인 거절된 결제 대기 카드 주문은 다시 결제할 수 없다고 말하고 정리 액션으로 보낸다', () => {
+    const html = renderToStaticMarkup(<OrderDetail
+      cardPayment={{ state: 'payment_closed', closure: 'not_approved', reorderMode: 'cancel_then_reorder', provider: 'toss' }}
+      order={order({ status: 'pending', payment: null, shipments: [], expiresAt: '2026-08-01T06:15:00.000Z' })}
+    />);
+
+    expect(html).toContain('이 주문은 다시 결제할 수 없어요');
+    expect(html).toContain('주문 정리하고 다시 주문하기');
+    expect(html).toContain(`href="/checkout/${ORDER_ID}"`);
+    expect(html).not.toContain('결제 상태를 확인하고 있어요');
+    expect(html).not.toContain('승인 확인 중');
+    expect(html).not.toContain('진행 중인 결제를 확인해주세요');
+    expect(html).not.toContain('이어가기');
+  });
+
+  /* 2026-10-12 QA-1: 결제 준비 후 유효 시간이 지난 주문도 거절 주문처럼 결제 화면의
+     "취소하고 다시 주문하기"로 즉시 정리한다. */
+  it('결제 시도가 만료된 결제 대기 카드 주문은 청구 없음을 말하고 거절 주문처럼 정리 액션으로 보낸다', () => {
+    const html = renderToStaticMarkup(<OrderDetail
+      cardPayment={{ state: 'payment_closed', closure: 'attempt_expired', reorderMode: 'cancel_then_reorder', provider: 'toss' }}
+      order={order({ status: 'pending', payment: null, shipments: [], expiresAt: '2026-10-12T07:41:00.000Z' })}
+    />);
+
+    expect(html).toContain('결제 가능 시간이 지났어요');
+    expect(html).toContain('청구된 금액은 없어요');
+    expect(html).toContain('이 주문을 취소하고 같은 굿즈로 다시 주문해주세요');
+    expect(html).toContain('주문 정리하고 다시 주문하기');
+    expect(html).toContain(`href="/checkout/${ORDER_ID}"`);
+    expect(html).not.toContain('몇 분 안에 자동으로 취소');
+    expect(html).not.toContain('결제 상태를 확인하고 있어요');
+    expect(html).not.toContain('진행 중인 결제를 확인해주세요');
+    expect(html).not.toContain('이어가기');
+  });
+
+  it('즉시 취소가 확실하지 않은 시도 만료 주문은 결제 기한 뒤 자동 취소를 말하고 결제 화면으로 보내지 않는다', () => {
+    const html = renderToStaticMarkup(<OrderDetail
+      cardPayment={{ state: 'payment_closed', closure: 'attempt_expired', reorderMode: null, provider: 'toss' }}
+      order={order({ status: 'pending', payment: null, shipments: [], expiresAt: '2026-10-12T07:41:00.000Z' })}
+    />);
+
+    expect(html).toContain('결제 기한(16:41)');
+    expect(html).not.toContain('주문 정리하고 다시 주문하기');
+    expect(html).not.toContain('이어가기');
+  });
+
+  it('결제 국면을 읽지 못한 결제 대기 카드 주문은 상태를 단정하지 않고 결제 화면으로 잇는다', () => {
+    const html = renderToStaticMarkup(<OrderDetail order={order({ status: 'pending', payment: null, shipments: [] })} />);
+
+    expect(html).toContain('결제 화면 보기');
+    expect(html).not.toContain('결제 상태를 확인하고 있어요');
+    expect(html).not.toContain('이어가기');
+  });
+  /* 처리 중인 취소가 있으면 DB가 결제를 막고, 승인과 겹친 취소는 승인된 결제를 취소하는
+     중이다(INT-5). 결제 이어가기·주문 취소로 정리 안내는 둘 다 사실과 다르다. */
+  it('처리 중인 취소가 있는 결제 대기 카드 주문에는 결제 이어가기 안내를 띄우지 않는다', () => {
+    const html = renderToStaticMarkup(<OrderDetail order={order({
+      status: 'pending',
+      payment: { amount: 30000, status: 'paid', createdAt: '2026-08-01T06:01:00.000Z' },
+      shipments: [],
+      cancellationRequest: {
+        id: 'claim-1',
+        status: 'processing',
+        claimType: 'cancel',
+        stage: 'processing',
+        reference: 12,
+        requestedAt: '2026-08-01T06:00:30.000Z',
+        decidedAt: '2026-08-01T06:01:00.000Z',
+        decisionNote: null,
+        reshipCarrier: null,
+        reshipTrackingNumber: null,
+      },
+    })} />);
+
+    expect(html).not.toContain('결제 상태 확인·이어가기');
+    expect(html).not.toContain('진행 중인 결제를 확인해주세요');
+    expect(html).toContain('결제 취소 처리 중');
   });
   it('운송장이 등록되면 택배사·운송장번호와 배송조회 링크를 노출한다', () => {
     const html = renderToStaticMarkup(<OrderDetail order={order()} />);
