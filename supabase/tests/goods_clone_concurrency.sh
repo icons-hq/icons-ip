@@ -141,9 +141,9 @@ set local deadlock_timeout='500ms';
 select id from public.goods where id='goods-clone-race-source' for update;
 \echo CLONE_A_CHECKOUT_HAS_SOURCE
 select pg_sleep(3);
-set local role authenticated;
-select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000047911',true);
-select public.place_order('{"recipientName":"합성 A","phone":"01000000000","postalCode":"00000","address1":"배송 금지 검증 주소"}'::jsonb,
+-- 브라우저 롤은 주문 생성 RPC를 직접 부르지 못한다(20261013100000). 앱처럼 service role 래퍼가 구매자 id를 넘긴다.
+set local role service_role;
+select public.place_order('00000000-0000-4000-8000-000000047911'::uuid,'{"recipientName":"합성 A","phone":"01000000000","postalCode":"00000","address1":"배송 금지 검증 주소"}'::jsonb,
  '00000000-0000-4000-8000-000000047931'::uuid,'card'::public.order_payment_method);
 commit;
 SQL
@@ -181,9 +181,8 @@ select id from public.goods where id='goods-clone-race-first' for update;
 select id from public.ips where id='goods-clone-race' for share;
 \echo CLONE_B_CHECKOUT_HAS_FIRST_AND_IP
 select pg_sleep(4);
-set local role authenticated;
-select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000047912',true);
-select public.place_order('{"recipientName":"합성 B","phone":"01000000000","postalCode":"00000","address1":"배송 금지 검증 주소"}'::jsonb,
+set local role service_role;
+select public.place_order('00000000-0000-4000-8000-000000047912'::uuid,'{"recipientName":"합성 B","phone":"01000000000","postalCode":"00000","address1":"배송 금지 검증 주소"}'::jsonb,
  '00000000-0000-4000-8000-000000047932'::uuid,'card'::public.order_payment_method);
 commit;
 SQL
@@ -237,9 +236,8 @@ select id from public.goods where id='goods-clone-race-existing' for update;
 select id from public.ips where id='goods-clone-race' for share;
 \echo CLONE_C_CHECKOUT_HAS_TARGET_AND_IP
 select pg_sleep(4);
-set local role authenticated;
-select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000047913',true);
-select public.place_order('{"recipientName":"합성 C","phone":"01000000000","postalCode":"00000","address1":"배송 금지 검증 주소"}'::jsonb,
+set local role service_role;
+select public.place_order('00000000-0000-4000-8000-000000047913'::uuid,'{"recipientName":"합성 C","phone":"01000000000","postalCode":"00000","address1":"배송 금지 검증 주소"}'::jsonb,
  '00000000-0000-4000-8000-000000047933'::uuid,'card'::public.order_payment_method);
 commit;
 SQL
