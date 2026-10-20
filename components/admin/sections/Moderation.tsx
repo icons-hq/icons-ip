@@ -12,6 +12,7 @@ import type { AdminReportRecord } from '@/lib/admin/moderation.server';
 import type { CommunityReportStatus } from '@/lib/community';
 import { Icon } from '@/components/ui/Icon';
 import { InlineNotice } from '../fields';
+import { reportTargetLabels } from '@/lib/admin/moderation';
 
 const emptyState: AdminCatalogActionState = {};
 const reportStatuses: CommunityReportStatus[] = ['open', 'reviewing', 'resolved', 'dismissed'];
@@ -22,13 +23,6 @@ export function confirmCommunityCommentHide(event: FormEvent<HTMLFormElement>) {
   );
   if (!confirmed) event.preventDefault();
 }
-
-export const reportTargetLabels = {
-  post: '포스트',
-  comment: '댓글',
-  review: '리뷰',
-  user: '사용자',
-} as const;
 
 function ReportStatusForm({ report }: { report: AdminReportRecord }) {
   const [state, action, pending] = useActionState(updateCommunityReportStatusAction, emptyState);

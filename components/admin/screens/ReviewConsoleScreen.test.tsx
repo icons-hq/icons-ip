@@ -1,5 +1,8 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }));
+vi.mock('../ReviewExportDownloadButton', () => ({ ReviewExportDownloadButton: ({ accountId, href, total }: { accountId: string; href: string; total: number }) =>
+  <button data-export-account={accountId} data-export-href={href} data-export-total={total}>엑셀 다운로드</button> }));
 import { ReviewConsoleScreen } from './ReviewConsoleScreen';
 import {
   DEFAULT_ADMIN_REVIEW_FILTERS,
@@ -30,6 +33,7 @@ function row(overrides: Partial<AdminReviewRow> = {}): AdminReviewRow {
     body: '색이 사진과 달라서 아쉬웠어요',
     imageUrls: [],
     imageCount: 0,
+    helpfulCount: 3,
     status: 'visible',
     hiddenReason: null,
     hiddenAt: null,
@@ -60,16 +64,34 @@ function render(overrides: Partial<AdminReviewConsoleData> = {}) {
 }
 
 describe('ReviewConsoleScreen', () => {
-  /* 리뷰 운영에서 가장 급한 일은 낮은 별점을 먼저 읽는 것이다. 그 조건이 셀렉트
-     사이에 섞여 있으면 "찾아서 거는" 필터가 된다. */
-  it('저평점 필터를 필터 패널보다 위에 고정한다', () => {
+  it('다운로드는 서버에 적용된 조건 전체와 계정에 연결하고 페이지·상세 상태를 제외한다', () => {
+    const filters = { ...DEFAULT_ADMIN_REVIEW_FILTERS, page: 3, pageSize: 20, sort: 'helpful_desc' as const, photo: 'with' as const, reviewId: '55555555-5555-4555-8555-555555555555' };
+    const html = renderToStaticMarkup(<ReviewConsoleScreen data={data({ filters, total: 101 })} accountId="review-operator" initialDetail="other-review" now={NOW} />);
+    expect(html).toContain('data-export-account="review-operator"'); expect(html).toContain('data-export-total="101"');
+    const href = /data-export-href="([^"]+)"/.exec(html)![1].replaceAll('&amp;', '&');
+    const url = new URL(href, 'https://example.test'); expect(url.pathname).toBe('/api/admin/reviews/export');
+    expect(url.searchParams.get('sort')).toBe('helpful_desc'); expect(url.searchParams.get('photo')).toBe('with'); expect(url.searchParams.get('reviewId')).toBe(filters.reviewId);
+    for (const key of ['page', 'pageSize', 'detail', 'selected', 'accountId']) expect(url.searchParams.has(key)).toBe(false);
+  });
+  it.each(['good_name_asc', 'photo_count_desc'] as const)('정렬 %s 선택과 BEST 필터를 페이지 링크에 유지한다', (sort) => {
+    const html = render({ filters: { ...DEFAULT_ADMIN_REVIEW_FILTERS, sort, best: 'needs_review', query: '정렬 검증', field: 'good', page: 2 }, total: 41 });
+    expect(html).toContain('상품명순');
+    expect(html).toContain('첨부사진수순');
+    expect(html).toContain(`value="${sort}" selected=""`);
+    expect(html).toContain(`sort=${sort}`);
+    expect(html).toContain('best=needs_review');
+    expect(html).toContain('page=3');
+  });
+
+  it('검색을 먼저 배치하고 저평점 바로가기는 결과 목록 앞에 유지한다', () => {
     const html = render();
 
     const pinnedIndex = html.indexOf('admin-console-pinned-filter');
     const panelIndex = html.indexOf('admin-console-filters');
 
     expect(pinnedIndex).toBeGreaterThanOrEqual(0);
-    expect(pinnedIndex).toBeLessThan(panelIndex);
+    expect(panelIndex).toBeLessThan(pinnedIndex);
+    expect(pinnedIndex).toBeLessThan(html.indexOf('admin-console-grid-table'));
     expect(html).toContain('저평점 리뷰 3건');
     expect(html).toContain('저평점만 보기');
   });

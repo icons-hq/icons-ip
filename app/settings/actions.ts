@@ -25,6 +25,7 @@ import {
 } from '@/lib/profile.server';
 import { mergeMarketingConsent } from '@/lib/settings';
 import { createClient } from '@/lib/supabase/server';
+import { cleanupFencedGoodsAccount } from '@/lib/account-goods-cleanup.server';
 
 export interface SettingsActionState {
   errors?: {
@@ -137,9 +138,10 @@ export async function requestAccountDeletionAction(
     return { error: '탈퇴 신청 상태를 확인하지 못했습니다. 다시 시도해주세요.' };
   }
 
+  const cleaned = await cleanupFencedGoodsAccount(required.user.id);
   revalidatePath(SETTINGS_PATH);
   return {
-    message: '탈퇴 신청을 접수했어요. 계정은 아직 삭제되지 않았습니다.',
+    message: cleaned ? '탈퇴 신청을 접수했어요. 계정은 아직 삭제되지 않았습니다.' : '탈퇴 신청을 접수했어요. 계정은 아직 삭제되지 않았으며, 일부 임시 정보의 정리를 확인하고 있습니다.',
     status,
   };
 }

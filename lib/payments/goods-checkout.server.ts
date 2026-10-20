@@ -44,8 +44,8 @@ interface ClaimRow {
 const paymentOutcomeSet = new Set<PaymentOutcome>(PAYMENT_OUTCOMES);
 
 export class GoodsPaymentRepositoryError extends Error {
-  constructor() {
-    super('goods_payment_repository_failed');
+  constructor(readonly code: 'goods_sale_not_open' | 'goods_payment_repository_failed' = 'goods_payment_repository_failed') {
+    super(code);
     this.name = 'GoodsPaymentRepositoryError';
   }
 }
@@ -113,7 +113,7 @@ function parseClaim(value: unknown): GoodsPaymentAttemptClaim {
 
 async function rpc(client: RpcClient, name: string, args: Record<string, unknown>) {
   const { data, error } = await client.rpc(name, args);
-  if (error) throw new GoodsPaymentRepositoryError();
+  if (error) throw new GoodsPaymentRepositoryError(error.message === 'goods_sale_not_open' ? 'goods_sale_not_open' : undefined);
   return data;
 }
 
@@ -129,7 +129,11 @@ function evidenceArgs(evidence: PaymentProviderEvidence | undefined) {
   };
 }
 
-export function createGoodsPaymentAttemptRepository(client: RpcClient): GoodsPaymentAttemptRepository {
+export type GoodsReconciliationFinalizer = 'finalize_goods_payment_reconciliation' | 'service_finalize_subscription_payment_reconciliation';
+
+export function createGoodsPaymentAttemptRepository(client: RpcClient, options: {
+  readonly reconciliationFinalizer?: (attemptId: string) => Promise<GoodsReconciliationFinalizer>;
+} = {}): GoodsPaymentAttemptRepository {
   return {
     async prepareOrderAttempt({ userId, orderId, provider }) {
       return parseAttempt(await rpc(client, 'prepare_goods_payment_attempt', {
@@ -193,7 +197,12 @@ export function createGoodsPaymentAttemptRepository(client: RpcClient): GoodsPay
     },
 
     async finalizeOrderReconciliation(input: GoodsPaymentFinalization): Promise<ConfirmOutcome> {
-      const finalized = await rpc(client, 'finalize_goods_payment_reconciliation', {
+      const finalizer = options.reconciliationFinalizer
+        ? await options.reconciliationFinalizer(input.attemptId) : 'finalize_goods_payment_reconciliation';
+      if (finalizer !== 'finalize_goods_payment_reconciliation' && finalizer !== 'service_finalize_subscription_payment_reconciliation') {
+        throw new GoodsPaymentRepositoryError();
+      }
+      const finalized = await rpc(client, finalizer, {
         p_attempt_id: input.attemptId,
         p_claim_token: input.claimToken,
         p_outcome: input.outcome.outcome,

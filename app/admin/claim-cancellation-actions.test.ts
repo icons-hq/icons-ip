@@ -1,3 +1,4 @@
+import { legacyOperatorAccessFixture } from '@/lib/admin/access.test-fixtures';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { decideOrderClaimAction, recordOrderClaimRefundAction } from './claim-actions';
 import { ADMIN_CANCELLATION_RECHECK_LABELS } from '@/lib/admin/orders';
@@ -67,6 +68,7 @@ function refundForm(stage: 'filed' | 'completed', method: string) {
 beforeEach(() => {
   vi.resetAllMocks();
   mocks.getCurrentAdminAuthState.mockResolvedValue({
+    operatorAccess: legacyOperatorAccessFixture(),
     isConfigured: true,
     user: { id: 'staff-1' },
     role: 'staff',

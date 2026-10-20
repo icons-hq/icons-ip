@@ -26,7 +26,7 @@ function revalidate() {
 }
 export async function saveShippingRegionPolicyAction(id: unknown, revision: unknown, value: unknown): Promise<Result> {
   try {
-    const auth = await requireAdminActionAccess(SHIPPING_REGIONS_PATH, { adminOnly: true });
+    const auth = await requireAdminActionAccess(SHIPPING_REGIONS_PATH, { adminOnly: true, capability: 'platform.manage' });
     if (!auth) return { ok: false, error: '지역 배송 정책은 관리자(admin)만 변경할 수 있습니다.' };
     const input = parseShippingRegionPolicyInput(value);
     if (!input || !(id === null || (typeof id === 'string' && isUuid(id)))
@@ -41,7 +41,7 @@ export async function saveShippingRegionPolicyAction(id: unknown, revision: unkn
 }
 export async function setShippingRegionPolicyStatusAction(id: string, revision: number, status: 'active' | 'retired', attested: boolean): Promise<Result> {
   try {
-    const auth = await requireAdminActionAccess(SHIPPING_REGIONS_PATH, { adminOnly: true });
+    const auth = await requireAdminActionAccess(SHIPPING_REGIONS_PATH, { adminOnly: true, capability: 'platform.manage' });
     if (!auth) return { ok: false, error: '지역 배송 정책은 관리자(admin)만 변경할 수 있습니다.' };
     if (!isUuid(id) || !Number.isSafeInteger(revision) || revision < 1 || !['active', 'retired'].includes(status) || attested !== true) {
       return { ok: false, error: '저장된 정책과 원본 확인 항목을 확인해주세요.' };

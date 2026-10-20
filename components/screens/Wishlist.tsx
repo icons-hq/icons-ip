@@ -1,10 +1,17 @@
+'use client';
 import Link from 'next/link';
+import { useState } from 'react';
+import { useStorePresentation } from '@/components/shell/StorePresentationProvider';
 import { AddToCartButton } from '@/components/shop/AddToCartButton';
+import { GoodsSalePeriodRefresh } from '@/components/shop/GoodsSalePeriodRefresh';
+import { goodsSaleUnavailableLabel } from '@/lib/goods-sale-period';
 import { WishlistHeart } from '@/components/shop/WishlistHeart';
 import { EmptyState } from '@/components/wc/EmptyState';
 import { MypageShell } from '@/components/wc/MypageShell';
 import { PriceBlock } from '@/components/wc/PriceBlock';
 import { WcButton } from '@/components/wc/WcButton';
+import { Badge } from '@/components/wc/Badge';
+import { goodDisplayBadges } from '@/lib/goods-taxonomy';
 import type { CatalogSnapshot } from '@/lib/catalog';
 import { goodsImageBackground } from '@/lib/goods-image';
 import type { Good, Ip } from '@/lib/data';
@@ -42,6 +49,8 @@ function shopCta() {
 
 function WishlistRow({ line }: { line: WishlistLine }) {
   const { good, goodId, ip } = line;
+  const { listing } = useStorePresentation();
+  const [imageIndex, setImageIndex] = useState(0);
 
   if (!good) {
     return (
@@ -59,23 +68,30 @@ function WishlistRow({ line }: { line: WishlistLine }) {
   }
 
   const soldOut = good.stock === 'soldout' || good.stockQty <= 0;
+  const saleLabel = goodsSaleUnavailableLabel(good.salePeriod);
+  const gallery = listing.imageMode === 'gallery' ? [...new Set([good.img, ...(good.listingAppearance?.gallery ?? [])])].filter(Boolean).slice(0, 10) : [good.img];
+  const badges = goodDisplayBadges(good).filter(badge => listing.showTags || !['BEST', 'NEW'].includes(badge.toUpperCase()));
 
   return (
     <li className="wc-wishlist__row">
-      <Link aria-hidden className="wc-wishlist__media" href={`/shop/${good.id}`} tabIndex={-1}>
-        <span className="wc-wishlist__image" style={{ background: goodsImageBackground(good.img) }} />
-      </Link>
+      <div className="wc-wishlist__media" data-list-shape={listing.imageShape}><Link aria-hidden className="wc-wishlist__media-link" href={`/shop/${good.id}`} tabIndex={-1}>
+        <span className="wc-wishlist__image" style={{ background: goodsImageBackground(gallery[imageIndex % gallery.length]) }} />
+      </Link>{gallery.length > 1 ? <div className="wc-product-card__gallery" aria-label={`${good.name} 이미지 선택`}><button type="button" aria-label={`${good.name} 이전 이미지`} onClick={() => setImageIndex(index => (index + gallery.length - 1) % gallery.length)}>‹</button><span aria-live="polite">{imageIndex % gallery.length + 1} / {gallery.length}</span><button type="button" aria-label={`${good.name} 다음 이미지`} onClick={() => setImageIndex(index => (index + 1) % gallery.length)}>›</button></div> : null}</div>
       <div className="wc-wishlist__info">
+        {badges.length ? <div className="wc-product-card__badges">{badges.map(badge => <Badge key={badge}>{badge}</Badge>)}</div> : null}
         {ip ? <p className="wc-wishlist__brand">{ip.title}</p> : null}
         <p className="wc-wishlist__name">
           <Link className="wc-wishlist__name-link" href={`/shop/${good.id}`}>{good.name}</Link>
-          {soldOut ? <span className="wc-sr-only"> (품절)</span> : null}
+          {saleLabel || soldOut ? <span className="wc-sr-only"> ({saleLabel ?? '품절'})</span> : null}
         </p>
+        {listing.showColors && good.listingAppearance?.colors.length ? <ul className="wc-product-card__colors" aria-label="굿즈 색상">{good.listingAppearance.colors.map(chip => <li key={chip.label} title={chip.label}><span style={{ backgroundColor: chip.hex }} /><span className="wc-sr-only">{chip.label}</span></li>)}</ul> : null}
         <PriceBlock showDiscountRate={good.showDiscountRate} compareAtPrice={good.compareAtPrice} price={good.price} />
+        {saleLabel ? <p className="wc-wishlist__state">{saleLabel}</p> : null}
+        {listing.showDescription && good.listingAppearance?.description ? <p className="wc-product-card__description">{good.listingAppearance.description}</p> : null}
       </div>
       <div className="wc-wishlist__actions">
         <WishlistHeart goodId={good.id} initialWished />
-        <AddToCartButton good={good} />
+        {listing.showCart ? <AddToCartButton good={good} /> : null}
       </div>
     </li>
   );
@@ -92,6 +108,7 @@ export function Wishlist({ catalog, entries }: WishlistProps) {
 
   return (
     <MypageShell active="/my/wishlist">
+      <GoodsSalePeriodRefresh goods={catalog.goods} />
       <section aria-labelledby="wishlist-heading" className="wc-wishlist">
         <div className="wc-mypage__headbar">
           <h1 className="wc-mypage__headbar-title" id="wishlist-heading">위시리스트</h1>

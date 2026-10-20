@@ -7,7 +7,7 @@ import { join } from 'node:path';
 import { createServer } from 'node:http';
 import { chromium } from 'playwright-core';
 import { measureAdminLayout } from './admin-visual-qa-measure.mjs';
-import { browserExecutable, loadRunConfig, prepareOutputDirectory, runAdminVisualQa, startSnapshotServer } from './admin-visual-qa.mjs';
+import { browserExecutable, isLocalNextDevelopmentSocket, loadRunConfig, prepareOutputDirectory, runAdminVisualQa, startSnapshotServer } from './admin-visual-qa.mjs';
 
 // These are deliberately independent rendering examples, not copies of the
 // detector's arithmetic or string contracts. No live app/auth/DB is involved.
@@ -25,8 +25,42 @@ try {
   browser = await chromium.launch({ executablePath: await browserExecutable(), headless: true });
   const page = await browser.newPage({ viewport: { width: 390, height: 844 } });
   const measure = async (markup) => { await page.setContent(markup); return page.evaluate(measureAdminLayout, { heading: '검사 예제' }); };
+  await check('only the same loopback Next development socket is allowed', async () => {
+    assert.equal(isLocalNextDevelopmentSocket('ws://[::1]:4326/_next/hmr','http://[::1]:4326','live-read-only'),true);
+    for(const url of ['ws://example.test/_next/hmr','ws://[::1]:4327/_next/hmr','ws://[::1]:4326/realtime','wss://[::1]:4326/_next/hmr','ws://user:password@[::1]:4326/_next/hmr']) assert.equal(isLocalNextDevelopmentSocket(url,'http://[::1]:4326','live-read-only'),false);
+    assert.equal(isLocalNextDevelopmentSocket('ws://[::1]:4326/_next/hmr','http://[::1]:4326','captured-components'),false);
+  });
   await check('healthy Korean form passes and does not log input values', async () => {
     const result = await measure(html()); assert.deepEqual(result.findings, []); assert.equal(result.identity.headingMatched, true); assert.equal(JSON.stringify(result).includes('PRIVATE-SENTINEL'), false);
+  });
+
+  await check('desktop compact and normal field heights preserve the documented touch boundary', async () => {
+    await page.setViewportSize({width:1440,height:1000});
+    const compact = body.replace('class="field"','class="field admin-sales-filters"');
+    assert.ok(!(await measure(html('input{height:30px;min-height:30px}', '', compact))).findings.some(f=>f.code==='field-height'));
+    assert.ok((await measure(html('input{height:30px;min-height:30px}'))).findings.some(f=>f.code==='field-height'));
+    assert.ok(!(await measure(html('input{height:34px;min-height:34px}'))).findings.some(f=>f.code==='field-height'));
+    await page.setViewportSize({width:390,height:844});
+    assert.ok((await measure(html('input{height:34px;min-height:34px}'))).findings.some(f=>f.code==='field-height'&&f.minimumHeight===44));
+  });
+  await check('intrinsic native selection is readable without reserving a second arrow', async () => {
+    const select = '<select style="font-size:12px;padding:4px 9px;width:auto"><option>조회기준일 오래된순</option></select>';
+    const result=await measure(html('', '', body.replace('</main>',select+'</main>')));
+    assert.ok(!result.findings.some(f=>f.code==='control-text-clipped'));
+    assert.equal(await page.locator('body > div[aria-hidden=true]').count(),0);
+  });
+  await check('fixed opaque save bar occludes content but still detects collisions inside the bar', async () => {
+    const bar='<div class="admin-good-workspace__save" style="position:fixed;top:150px;left:0;width:390px;height:150px;background:rgb(255,255,255)"><button style="position:absolute;top:10px;left:16px">고정 저장</button></div>';
+    assert.ok(!(await measure(html('', '', body.replace('</main>',bar+'</main>')))).findings.some(f=>f.code==='control-collision'));
+    const collision=bar.replace('</div>','<button style="position:absolute;top:10px;left:16px">다른 저장</button></div>');
+    assert.ok((await measure(html('', '', body.replace('</main>',collision+'</main>')))).findings.some(f=>f.code==='control-collision'));
+  });
+  await check('opaque sticky story footer clips underlying content but not its own controls', async () => {
+    const content = '<div class="wc-admin"><main class="admin-content"><h1>검사 예제</h1><div style="height:1100px"><button style="position:absolute;top:780px;left:16px">본문 버튼</button></div><div class="admin-story-editor__footer" style="position:sticky;bottom:0;height:100px;background:rgb(255,255,255)"><button style="position:absolute;bottom:10px;left:16px">저장</button></div></main></div>';
+    const result = await measure(html('', '', content));
+    assert.ok(!result.findings.some(f => f.code === 'control-collision'));
+    const overlapping = content.replace('>저장</button>', '>저장</button><button style="position:absolute;bottom:10px;left:16px">미리보기</button>');
+    assert.ok((await measure(html('', '', overlapping))).findings.some(f => f.code === 'control-collision'));
   });
   await check('narrow text input is detected without page overflow', async () => {
     const result = await measure(html('input{width:44px}')); assert.ok(result.findings.some((finding) => finding.code === 'field-narrow')); assert.ok(!result.findings.some((finding) => finding.code === 'document-overflow'));
@@ -81,6 +115,25 @@ try {
   });
   await check('two separate overlapping actions are detected', async () => {
     const result = await measure(html('button{position:absolute;top:220px;left:16px}', '', body.replace('</main>', '<button type="button">상세 보기</button></main>'))); assert.ok(result.findings.some((finding) => finding.code === 'control-collision'));
+  });
+  await check('native modal excludes inert background collisions but preserves collisions inside the dialog', async () => {
+    const markup = '<button id="behind-modal" style="position:fixed;left:40px;top:100px">배경 버튼</button><dialog id="top-dialog" style="position:fixed;left:20px;top:80px;margin:0;width:300px;height:120px"><button id="modal-one" style="position:absolute;left:19px;top:19px">확인</button><button id="modal-two" style="position:absolute;left:150px;top:19px">닫기</button></dialog>';
+    const modal = await measure(html('', '<script>document.querySelector("dialog").showModal()</script>', body.replace('</main>', `${markup}</main>`)));
+    assert.ok(!modal.findings.some(finding => finding.code === 'control-collision'));
+    const internal = await measure(html('', '<script>document.querySelector("dialog").showModal()</script>', body.replace('</main>', `${markup.replace('left:150px', 'left:19px')}</main>`)));
+    assert.ok(internal.findings.some(finding => finding.code === 'control-collision' && finding.selector.includes('#modal-one') && finding.otherSelector.includes('#modal-two')));
+    const ordinary = await measure(html('', '<script>document.querySelector("dialog").show()</script>', body.replace('</main>', `${markup}</main>`)));
+    assert.ok(ordinary.findings.some(finding => finding.code === 'control-collision' && (finding.selector.includes('#behind-modal') || finding.otherSelector.includes('#behind-modal'))));
+  });
+  await check('opaque sticky modal header clips its own scrolled body while transparent and internal collisions remain', async () => {
+    const markup = '<dialog style="position:fixed;left:20px;top:80px;margin:0;padding:0;width:340px;height:200px;overflow:auto"><header class="admin-cs-dialog__header" style="position:sticky;top:0;height:70px;z-index:1;background:rgb(20,140,70)"><button id="header-close" style="position:absolute;top:0;left:16px">닫기</button></header><button id="body-under-header" style="position:absolute;top:20px;left:16px">본문 입력</button><div style="height:500px"></div></dialog>';
+    const script = '<script>document.querySelector("dialog").showModal()</script>';
+    const result = await measure(html('', script, body.replace('</main>', markup + '</main>')));
+    assert.ok(!result.findings.some(f => f.code === 'control-collision'));
+    const transparent = await measure(html('', script, body.replace('</main>', markup.replace('background:rgb(20,140,70)', 'background:transparent') + '</main>')));
+    assert.ok(transparent.findings.some(f => f.code === 'control-collision'));
+    const duplicate = markup.replace('</header>', '<button id="header-other" style="position:absolute;top:0;left:16px">다른 닫기</button></header>');
+    assert.ok((await measure(html('', script, body.replace('</main>', duplicate + '</main>')))).findings.some(f => f.code === 'control-collision' && f.selector.includes('#header-close') && f.otherSelector.includes('#header-other')));
   });
   await check('intentional table scrolling is recorded without false page overflow', async () => {
     const result = await measure(html('', '', body.replace('</main>', '<div class="table-scroll"><table><tr><th>상품명</th><th>상품코드</th><th>배송 상태</th></tr><tr><td>검수 상품</td><td>SKU-12345</td><td>배송 준비</td></tr></table></div></main>'))); assert.deepEqual(result.findings, []); assert.equal(result.intentionalScrollers.length, 1); assert.equal(result.intentionalScrollers[0].containsTable, true);

@@ -1,4 +1,5 @@
 'use client';
+import type { GoodsEditorOwnership } from '@/lib/admin/goods-group-common';
 
 import type { GoodShippingRegionSummary } from '@/lib/admin/good-shipping-summary';
 import type { AdminCategoryNode } from '@/lib/admin/category';
@@ -10,7 +11,7 @@ import { upsertAdminGoodAction, type AdminCatalogActionState } from '@/app/admin
 import type { AdminGoodsReadiness } from '@/lib/admin/goods-readiness';
 import { GoodSection } from '@/components/admin/sections/GoodSection';
 import type { AdminCatalogRecords } from '@/lib/admin/catalog.server';
-import type { FulfillmentOrigin } from '@/lib/admin/fulfillment-origins';
+import type { GoodsFulfillmentOrigin } from '@/lib/admin/fulfillment-origins';
 import type { GoodNoticeDefaults } from '@/lib/admin/good-editor';
 import type { AdminGoodsVariant } from '@/lib/admin/goods-variants';
 import type { CatalogSnapshot } from '@/lib/catalog';
@@ -34,7 +35,7 @@ export function GoodScreen(props: Parameters<typeof GoodScreenForm>[0]) {
 }
 
 function GoodScreenForm({
-  adjustmentId,
+  adjustmentId, ownership,
   catalogIps,
   ips,
   records,
@@ -44,9 +45,9 @@ function GoodScreenForm({
   initialSelectedId,
   hideRecordList=false,
   listHref='/admin/catalog/goods',
-  accountId='', origins=[], noticeDefaults, categories=[], shippingNoticeOptions=[], canManageCosts=false, cloneOperationId, readiness, regionSummaries = [],
+  accountId='', origins=[], noticeDefaults, categories=[], shippingNoticeOptions=[], canManageCosts=false, canReadOrders=true, canManageSales=true, canSearchErp=true, cloneOperationId, readiness, regionSummaries = [],
 }: {
-  adjustmentId: string;
+  adjustmentId: string; ownership?: GoodsEditorOwnership | null;
   catalogIps: CatalogSnapshot['ips'];
   ips: AdminCatalogRecords['ips'];
   records: AdminCatalogRecords['goods'];
@@ -56,8 +57,8 @@ function GoodScreenForm({
   initialSelectedId?: string;
   hideRecordList?: boolean;
   listHref?: string;
-  accountId?: string; origins?: FulfillmentOrigin[]; noticeDefaults?: GoodNoticeDefaults;
-  categories?: AdminCategoryNode[]; shippingNoticeOptions?: GoodsShippingNoticeOption[]; canManageCosts?: boolean; cloneOperationId?: string; readiness?: AdminGoodsReadiness | null; regionSummaries?: GoodShippingRegionSummary[];
+  accountId?: string; origins?: GoodsFulfillmentOrigin[]; noticeDefaults?: GoodNoticeDefaults;
+  categories?: AdminCategoryNode[]; shippingNoticeOptions?: GoodsShippingNoticeOption[]; canManageCosts?: boolean; canReadOrders?: boolean; canManageSales?: boolean; canSearchErp?: boolean; cloneOperationId?: string; readiness?: AdminGoodsReadiness | null; regionSummaries?: GoodShippingRegionSummary[];
 }) {
   const [state, action, pending] = useActionState(upsertAdminGoodAction, emptyState);
   const noticeState = useMemo(() => adminGoodsNotice(state), [state]);
@@ -78,9 +79,10 @@ function GoodScreenForm({
 
   return (
     <GoodSection
+      ownership={ownership}
       readiness={readiness} regionSummaries={regionSummaries}
       accountId={accountId} origins={origins} noticeDefaults={noticeDefaults}
-      categories={categories} shippingNoticeOptions={shippingNoticeOptions} canManageCosts={canManageCosts} cloneOperationId={cloneOperationId}
+      categories={categories} shippingNoticeOptions={shippingNoticeOptions} canManageCosts={canManageCosts} canReadOrders={canReadOrders} canManageSales={canManageSales} canSearchErp={canSearchErp} cloneOperationId={cloneOperationId}
       action={action}
       adjustmentId={adjustmentId}
       catalogIps={catalogIps}
@@ -93,7 +95,7 @@ function GoodScreenForm({
       variants={variants}
       initialIpId={initialIpId}
       initialQuery={initialQuery}
-      hideRecordList={hideRecordList}
+      hideRecordList={hideRecordList} listHref={listHref}
     />
   );
 }

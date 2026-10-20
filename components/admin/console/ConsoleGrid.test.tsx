@@ -14,6 +14,7 @@ const ROWS = [
 ];
 
 const sortHrefFor = (key: string, direction: string) => `/admin/orders?sort=${key}&dir=${direction}`;
+const tableMarkup = (html: string) => html.slice(html.indexOf('<table'), html.indexOf('</table>') + 8);
 
 describe('nextSortDirection', () => {
   it('같은 컬럼이면 방향을 뒤집고 다른 컬럼이면 기본 방향으로 간다', () => {
@@ -162,7 +163,7 @@ describe('ConsoleGrid 선택', () => {
       <ConsoleGrid caption="주문 목록" columns={COLUMNS} rows={ROWS} />,
     );
 
-    expect(html).not.toContain('type="checkbox"');
+    expect(tableMarkup(html)).not.toContain('type="checkbox"');
   });
 
   it('선택된 행을 체크 상태와 data-selected로 표시한다', () => {
@@ -178,7 +179,7 @@ describe('ConsoleGrid 선택', () => {
 
     expect(html).toContain('data-selected="true"');
     /* 한 행만 골랐으므로 전체선택은 아직 체크되지 않는다. */
-    expect(html.match(/checked=""/g)).toHaveLength(1);
+    expect(tableMarkup(html).match(/checked=""/g)).toHaveLength(1);
   });
 
   it('현재 페이지 행을 모두 고르면 전체선택 체크박스도 체크된다', () => {
@@ -193,7 +194,7 @@ describe('ConsoleGrid 선택', () => {
     );
 
     /* 전체선택 1 + 행 2 */
-    expect(html.match(/checked=""/g)).toHaveLength(3);
+    expect(tableMarkup(html).match(/checked=""/g)).toHaveLength(3);
   });
 
   /* 일괄 처리 대상이 아닌 행(이미 종결된 클레임 등)은 체크박스 자체를 주지 않는다. */
@@ -208,7 +209,7 @@ describe('ConsoleGrid 선택', () => {
     );
 
     /* 전체선택 1 + 선택 가능한 행 1 */
-    expect(html.match(/type="checkbox"/g)).toHaveLength(2);
+    expect(tableMarkup(html).match(/type="checkbox"/g)).toHaveLength(2);
   });
 
   /* hidden input 덕분에 그리드를 form으로 감싸기만 하면 server action이 선택을 받는다. */

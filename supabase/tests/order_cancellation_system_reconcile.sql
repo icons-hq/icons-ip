@@ -54,6 +54,8 @@ values
   ('00000000-0000-4000-8000-0000000c5c02', 'sys-cancel-staff@example.test', 'sys_cancel_staff', '2000-01-01',
     '{"terms":true,"privacy":true}'::jsonb, now(), 'staff'::public.user_role)
 on conflict (id) do update set role = excluded.role, nickname = excluded.nickname;
+-- A new test staff profile needs an explicit manager assignment.
+insert into private.operator_memberships(profile_id,manager_role) values('00000000-0000-4000-8000-0000000c5c02','primary');
 
 insert into public.ips (id, title, vertical_key) values ('sys-cancel-ip', '시스템 취소 IP', 'character');
 insert into public.goods (id, ip_id, name, type, price, stock, stock_qty)

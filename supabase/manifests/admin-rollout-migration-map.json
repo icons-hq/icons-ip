@@ -1,0 +1,1797 @@
+{
+  "productionBaseline": "081a3791c9a8499dc3fafd3e96955d931429951e",
+  "productionMigrationCount": 202,
+  "drafts": [
+    {
+      "sourceFile": "supabase/migrations/20261012081530_admin_sales_console_search.sql",
+      "sourceSha256": "310a07b9861dcd8695d072daac804143163fec9912120d70472acab75f1326dd",
+      "preparedSha256": "310a07b9861dcd8695d072daac804143163fec9912120d70472acab75f1326dd",
+      "releaseFile": "supabase/migrations/20261020085131_admin_sales_console_search.sql",
+      "releaseSha256": "ca8ee2da9cfc2e23ffd42f56c342e99d856c0254a80c8e971f965ba4faaadb88",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved.",
+      "integration": "Preserves current main cancellation, staff metadata, gift privacy, capability and shipment contracts; validated by the release SQL suite."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261012083352_admin_goods_console_filters.sql",
+      "sourceSha256": "ebe3e6d85d8a687fbd612bf2d939c246670fddc6954f2dc31a5b72d6f4264557",
+      "preparedSha256": "ebe3e6d85d8a687fbd612bf2d939c246670fddc6954f2dc31a5b72d6f4264557",
+      "releaseFile": "supabase/migrations/20261020085132_admin_goods_console_filters.sql",
+      "releaseSha256": "ebe3e6d85d8a687fbd612bf2d939c246670fddc6954f2dc31a5b72d6f4264557",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261012085932_goods_purchase_restrictions.sql",
+      "sourceSha256": "73540c56e1a56c0527ac9986d0a0957c52e19351d5a270f74f034f43308db2eb",
+      "preparedSha256": "73540c56e1a56c0527ac9986d0a0957c52e19351d5a270f74f034f43308db2eb",
+      "releaseFile": "supabase/migrations/20261020085133_goods_purchase_restrictions.sql",
+      "releaseSha256": "73540c56e1a56c0527ac9986d0a0957c52e19351d5a270f74f034f43308db2eb",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261012090238_admin_goods_announcements.sql",
+      "sourceSha256": "26cd2c9d230c8f61425f7a18f0458743177f4f38cc39ed61a9cba3ffd1172ab2",
+      "preparedSha256": "26cd2c9d230c8f61425f7a18f0458743177f4f38cc39ed61a9cba3ffd1172ab2",
+      "releaseFile": "supabase/migrations/20261020085134_admin_goods_announcements.sql",
+      "releaseSha256": "26cd2c9d230c8f61425f7a18f0458743177f4f38cc39ed61a9cba3ffd1172ab2",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261012092045_admin_coupon_console.sql",
+      "sourceSha256": "9936d89d9ea5dc0b8368392f3083ab05f9348ea62223c81c5dd20b39c4d646f1",
+      "preparedSha256": "9936d89d9ea5dc0b8368392f3083ab05f9348ea62223c81c5dd20b39c4d646f1",
+      "releaseFile": "supabase/migrations/20261020085135_admin_coupon_console.sql",
+      "releaseSha256": "9936d89d9ea5dc0b8368392f3083ab05f9348ea62223c81c5dd20b39c4d646f1",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261012092200_home_curation_latest_goods.sql",
+      "sourceSha256": "a85071037e7547d79db4e81e90a4db79684533c79a0cabc1ca8f008c16c79f7b",
+      "preparedSha256": "a85071037e7547d79db4e81e90a4db79684533c79a0cabc1ca8f008c16c79f7b",
+      "releaseFile": "supabase/migrations/20261020085136_home_curation_latest_goods.sql",
+      "releaseSha256": "a85071037e7547d79db4e81e90a4db79684533c79a0cabc1ca8f008c16c79f7b",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261012093921_admin_store_credit_batches.sql",
+      "sourceSha256": "ae56469d06d0837354dfc27a9764fde1c06c3eb7c810a61d3179ffbeb57bf393",
+      "preparedSha256": "ae56469d06d0837354dfc27a9764fde1c06c3eb7c810a61d3179ffbeb57bf393",
+      "releaseFile": "supabase/migrations/20261020085137_admin_store_credit_batches.sql",
+      "releaseSha256": "ae56469d06d0837354dfc27a9764fde1c06c3eb7c810a61d3179ffbeb57bf393",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261012094000_home_layout_order.sql",
+      "sourceSha256": "c4a2dc56e01102c8cd7eff938de0c42bb4abb4732b28216a692bef8b5e624a9e",
+      "preparedSha256": "c4a2dc56e01102c8cd7eff938de0c42bb4abb4732b28216a692bef8b5e624a9e",
+      "releaseFile": "supabase/migrations/20261020085139_home_layout_order.sql",
+      "releaseSha256": "c4a2dc56e01102c8cd7eff938de0c42bb4abb4732b28216a692bef8b5e624a9e",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261012095641_goods_custom_inputs.sql",
+      "sourceSha256": "159fbc2dc07f335311c6bf845a811db1390086e0e7b92ca341b420f11cd95289",
+      "preparedSha256": "159fbc2dc07f335311c6bf845a811db1390086e0e7b92ca341b420f11cd95289",
+      "releaseFile": "supabase/migrations/20261020085140_goods_custom_inputs.sql",
+      "releaseSha256": "159fbc2dc07f335311c6bf845a811db1390086e0e7b92ca341b420f11cd95289",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261012101000_admin_benefit_report.sql",
+      "sourceSha256": "b79bfbaf5d45ec955e4aca5662ecf08ea01cdaa2b21dcb2e5263d242d6e974a2",
+      "preparedSha256": "b79bfbaf5d45ec955e4aca5662ecf08ea01cdaa2b21dcb2e5263d242d6e974a2",
+      "releaseFile": "supabase/migrations/20261020085141_admin_benefit_report.sql",
+      "releaseSha256": "b79bfbaf5d45ec955e4aca5662ecf08ea01cdaa2b21dcb2e5263d242d6e974a2",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261012101105_home_sales_and_review_curations.sql",
+      "sourceSha256": "0fff7e72ecc32a73272ed9d3e14066df588ca39167d1754f9a98f764a8319215",
+      "preparedSha256": "0fff7e72ecc32a73272ed9d3e14066df588ca39167d1754f9a98f764a8319215",
+      "releaseFile": "supabase/migrations/20261020085142_home_sales_and_review_curations.sql",
+      "releaseSha256": "0fff7e72ecc32a73272ed9d3e14066df588ca39167d1754f9a98f764a8319215",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261012103000_admin_operations_dock.sql",
+      "sourceSha256": "2f94fb395d5f8f8cfed2f5bb30a0f854ab477a06781b8b4a8d48d236659fd9da",
+      "preparedSha256": "2f94fb395d5f8f8cfed2f5bb30a0f854ab477a06781b8b4a8d48d236659fd9da",
+      "releaseFile": "supabase/migrations/20261020085143_admin_operations_dock.sql",
+      "releaseSha256": "2f94fb395d5f8f8cfed2f5bb30a0f854ab477a06781b8b4a8d48d236659fd9da",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261012103642_admin_shipping_settings_templates.sql",
+      "sourceSha256": "6c3152f5955bac799377f71f58aaf29001c366515d9bf78f7ef7952e87b59092",
+      "preparedSha256": "6c3152f5955bac799377f71f58aaf29001c366515d9bf78f7ef7952e87b59092",
+      "releaseFile": "supabase/migrations/20261020085144_admin_shipping_settings_templates.sql",
+      "releaseSha256": "6c3152f5955bac799377f71f58aaf29001c366515d9bf78f7ef7952e87b59092",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261012103906_admin_cs_reply_tools.sql",
+      "sourceSha256": "040b025b7e660b68adce0bb3ea53c87cb248b97d37a7d1a2c7eec45dc40924e3",
+      "preparedSha256": "040b025b7e660b68adce0bb3ea53c87cb248b97d37a7d1a2c7eec45dc40924e3",
+      "releaseFile": "supabase/migrations/20261020085145_admin_cs_reply_tools.sql",
+      "releaseSha256": "040b025b7e660b68adce0bb3ea53c87cb248b97d37a7d1a2c7eec45dc40924e3",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261012110116_checkout_cart_snapshot.sql",
+      "sourceSha256": "2e1bcb459b3132b1dd0316c9c90ee9bc155a4b80fd7de8f50369d2a29a60c3c7",
+      "preparedSha256": "2e1bcb459b3132b1dd0316c9c90ee9bc155a4b80fd7de8f50369d2a29a60c3c7",
+      "releaseFile": "supabase/migrations/20261020085146_checkout_cart_snapshot.sql",
+      "releaseSha256": "2e1bcb459b3132b1dd0316c9c90ee9bc155a4b80fd7de8f50369d2a29a60c3c7",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261012110627_purchase_restriction_batches.sql",
+      "sourceSha256": "bdbcfd873fede61952873423e8d099d7f044cd37f314b3fb187c3d9d630058e7",
+      "preparedSha256": "bdbcfd873fede61952873423e8d099d7f044cd37f314b3fb187c3d9d630058e7",
+      "releaseFile": "supabase/migrations/20261020085147_purchase_restriction_batches.sql",
+      "releaseSha256": "bdbcfd873fede61952873423e8d099d7f044cd37f314b3fb187c3d9d630058e7",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261012110941_coupon_issue_schedule.sql",
+      "sourceSha256": "c857319698f3bf3131ad6ac2e0eb2bca459348cb2397a5e581e27f66cf42e250",
+      "preparedSha256": "c857319698f3bf3131ad6ac2e0eb2bca459348cb2397a5e581e27f66cf42e250",
+      "releaseFile": "supabase/migrations/20261020085148_coupon_issue_schedule.sql",
+      "releaseSha256": "c857319698f3bf3131ad6ac2e0eb2bca459348cb2397a5e581e27f66cf42e250",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261012111519_coupon_issue_legacy_compatibility.sql",
+      "sourceSha256": "8fed072746f1a7045112404ca7805e419d6fd1ee28642f34c3a333de023fc48a",
+      "preparedSha256": "c30a765b8a00f2388cd373950fb660c658ac6369b340ba797c87aeed2e744cf8",
+      "releaseFile": "supabase/migrations/20261020085149_coupon_issue_legacy_compatibility.sql",
+      "releaseSha256": "c30a765b8a00f2388cd373950fb660c658ac6369b340ba797c87aeed2e744cf8",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261012111713_store_branding_settings.sql",
+      "sourceSha256": "284130870294254759f7839595af916c427a5fa08008de3e153275c9ecb748cd",
+      "preparedSha256": "284130870294254759f7839595af916c427a5fa08008de3e153275c9ecb748cd",
+      "releaseFile": "supabase/migrations/20261020085151_store_branding_settings.sql",
+      "releaseSha256": "284130870294254759f7839595af916c427a5fa08008de3e153275c9ecb748cd",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261012112307_coupon_held_validity_snapshot.sql",
+      "sourceSha256": "3c19f7715bea7da39285884d01e79dc75548f65d0ac2f383d436ca858d3ea924",
+      "preparedSha256": "3c19f7715bea7da39285884d01e79dc75548f65d0ac2f383d436ca858d3ea924",
+      "releaseFile": "supabase/migrations/20261020085152_coupon_held_validity_snapshot.sql",
+      "releaseSha256": "3c19f7715bea7da39285884d01e79dc75548f65d0ac2f383d436ca858d3ea924",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013013158_admin_goods_photo_library.sql",
+      "sourceSha256": "77b2f430f6177d6bdb5139ace6ef2dc0f2aae3bf109db7b29a19b033ee0d72a1",
+      "preparedSha256": "77b2f430f6177d6bdb5139ace6ef2dc0f2aae3bf109db7b29a19b033ee0d72a1",
+      "releaseFile": "supabase/migrations/20261020085153_admin_goods_photo_library.sql",
+      "releaseSha256": "77b2f430f6177d6bdb5139ace6ef2dc0f2aae3bf109db7b29a19b033ee0d72a1",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013014336_admin_seller_claim_intake.sql",
+      "sourceSha256": "ddf4752749dfff45fb59eee981dba76d7a77e5baa98bf19008ab620f73c21d02",
+      "preparedSha256": "ddf4752749dfff45fb59eee981dba76d7a77e5baa98bf19008ab620f73c21d02",
+      "releaseFile": "supabase/migrations/20261020085154_admin_seller_claim_intake.sql",
+      "releaseSha256": "ddf4752749dfff45fb59eee981dba76d7a77e5baa98bf19008ab620f73c21d02",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013014412_admin_goods_photo_conflict_status.sql",
+      "sourceSha256": "9c780ac64875b7b5142f47f7f018da97af082f9c904e562d3baf07064925aada",
+      "preparedSha256": "a80a90a43b58fc4acd42137c0e2a3343a52ffd7c11338c22fb4eb7c9dfcd8141",
+      "releaseFile": "supabase/migrations/20261020085155_admin_goods_photo_conflict_status.sql",
+      "releaseSha256": "a80a90a43b58fc4acd42137c0e2a3343a52ffd7c11338c22fb4eb7c9dfcd8141",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013015402_admin_optimistic_conflicts_http409.sql",
+      "sourceSha256": "55df48bede407921e8b8c834219578ce120a1a347d0d39fef128edaf8baf6b82",
+      "preparedSha256": "55df48bede407921e8b8c834219578ce120a1a347d0d39fef128edaf8baf6b82",
+      "releaseFile": "supabase/migrations/20261020085156_admin_optimistic_conflicts_http409.sql",
+      "releaseSha256": "55df48bede407921e8b8c834219578ce120a1a347d0d39fef128edaf8baf6b82",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013015654_admin_review_insights.sql",
+      "sourceSha256": "703ae560df8cc4ea3d9408dc2219a7a57cd3572f0a84d343bc30fd7309a35225",
+      "preparedSha256": "703ae560df8cc4ea3d9408dc2219a7a57cd3572f0a84d343bc30fd7309a35225",
+      "releaseFile": "supabase/migrations/20261020085157_admin_review_insights.sql",
+      "releaseSha256": "703ae560df8cc4ea3d9408dc2219a7a57cd3572f0a84d343bc30fd7309a35225",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013020823_store_navigation_settings.sql",
+      "sourceSha256": "ef98386a1804b02e6bc8d555db14a65f9f00648f46eb416fab1db44e1f73c733",
+      "preparedSha256": "ef98386a1804b02e6bc8d555db14a65f9f00648f46eb416fab1db44e1f73c733",
+      "releaseFile": "supabase/migrations/20261020085158_store_navigation_settings.sql",
+      "releaseSha256": "ef98386a1804b02e6bc8d555db14a65f9f00648f46eb416fab1db44e1f73c733",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013021352_admin_review_insights_public_scope.sql",
+      "sourceSha256": "921526d8a526756963b70288da92eb42d911d75d838bd38a21f3269b98544230",
+      "preparedSha256": "921526d8a526756963b70288da92eb42d911d75d838bd38a21f3269b98544230",
+      "releaseFile": "supabase/migrations/20261020085159_admin_review_insights_public_scope.sql",
+      "releaseSha256": "921526d8a526756963b70288da92eb42d911d75d838bd38a21f3269b98544230",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013022004_goods_relations.sql",
+      "sourceSha256": "48aa64c3a1d3161a09add51576b8688b57daca5e03c5a054782db2ac5d6cd45e",
+      "preparedSha256": "48aa64c3a1d3161a09add51576b8688b57daca5e03c5a054782db2ac5d6cd45e",
+      "releaseFile": "supabase/migrations/20261020085200_goods_relations.sql",
+      "releaseSha256": "48aa64c3a1d3161a09add51576b8688b57daca5e03c5a054782db2ac5d6cd45e",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013022317_admin_goods_server_drafts.sql",
+      "sourceSha256": "7de268749c3eb4f53b134cf11f5f6cdd1e36af22fb8920062a125cc8352341d4",
+      "preparedSha256": "7de268749c3eb4f53b134cf11f5f6cdd1e36af22fb8920062a125cc8352341d4",
+      "releaseFile": "supabase/migrations/20261020085201_admin_goods_server_drafts.sql",
+      "releaseSha256": "7de268749c3eb4f53b134cf11f5f6cdd1e36af22fb8920062a125cc8352341d4",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013022712_admin_inquiry_reply_template_management.sql",
+      "sourceSha256": "ec954cff6ff577e429ea4adaabe597e63dbb162239fb96053671e673247e899d",
+      "preparedSha256": "ec954cff6ff577e429ea4adaabe597e63dbb162239fb96053671e673247e899d",
+      "releaseFile": "supabase/migrations/20261020085202_admin_inquiry_reply_template_management.sql",
+      "releaseSha256": "ec954cff6ff577e429ea4adaabe597e63dbb162239fb96053671e673247e899d",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013024027_goods_relations_draft_id_cascade.sql",
+      "sourceSha256": "46268ca0e76984a43881c8d5db33edbc235e63bf93f313370a88b9aba22bd8ec",
+      "preparedSha256": "46268ca0e76984a43881c8d5db33edbc235e63bf93f313370a88b9aba22bd8ec",
+      "releaseFile": "supabase/migrations/20261020085204_goods_relations_draft_id_cascade.sql",
+      "releaseSha256": "46268ca0e76984a43881c8d5db33edbc235e63bf93f313370a88b9aba22bd8ec",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013024656_home_product_mosaic.sql",
+      "sourceSha256": "cbc395b42af248a4c9f35b85e880bf8d39d15f7d3c6f1bf6345deea6427c7934",
+      "preparedSha256": "cbc395b42af248a4c9f35b85e880bf8d39d15f7d3c6f1bf6345deea6427c7934",
+      "releaseFile": "supabase/migrations/20261020085205_home_product_mosaic.sql",
+      "releaseSha256": "cbc395b42af248a4c9f35b85e880bf8d39d15f7d3c6f1bf6345deea6427c7934",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013024949_admin_goods_draft_recent_limit.sql",
+      "sourceSha256": "8806aa5a78fed5610e69daec613ed60e26f2088882e88a514c34c5849c72a860",
+      "preparedSha256": "8806aa5a78fed5610e69daec613ed60e26f2088882e88a514c34c5849c72a860",
+      "releaseFile": "supabase/migrations/20261020085206_admin_goods_draft_recent_limit.sql",
+      "releaseSha256": "8806aa5a78fed5610e69daec613ed60e26f2088882e88a514c34c5849c72a860",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013025719_admin_goods_draft_completion_lock.sql",
+      "sourceSha256": "721fd5c08d168c1652f872bfda0c8effd4fd31879a07bf45ca36bc8991fddc34",
+      "preparedSha256": "721fd5c08d168c1652f872bfda0c8effd4fd31879a07bf45ca36bc8991fddc34",
+      "releaseFile": "supabase/migrations/20261020085207_admin_goods_draft_completion_lock.sql",
+      "releaseSha256": "721fd5c08d168c1652f872bfda0c8effd4fd31879a07bf45ca36bc8991fddc34",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013030129_admin_loyalty_policy.sql",
+      "sourceSha256": "84024a8c6c20d2d722afa2da291d4fea5a4b77704ca1acca8fff3847c4ca7dcf",
+      "preparedSha256": "84024a8c6c20d2d722afa2da291d4fea5a4b77704ca1acca8fff3847c4ca7dcf",
+      "releaseFile": "supabase/migrations/20261020085208_admin_loyalty_policy.sql",
+      "releaseSha256": "84024a8c6c20d2d722afa2da291d4fea5a4b77704ca1acca8fff3847c4ca7dcf",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013032051_goods_dynamic_attributes.sql",
+      "sourceSha256": "59a0f127a5c79463494d10fe4efdfb5526234ed32f8c4b19e6707c92e67de492",
+      "preparedSha256": "59a0f127a5c79463494d10fe4efdfb5526234ed32f8c4b19e6707c92e67de492",
+      "releaseFile": "supabase/migrations/20261020085209_goods_dynamic_attributes.sql",
+      "releaseSha256": "59a0f127a5c79463494d10fe4efdfb5526234ed32f8c4b19e6707c92e67de492",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013032129_home_layout_mosaic_conflict_http409.sql",
+      "sourceSha256": "d7ef4c24f86e45625240c2e428a6dd5348cba3f57312516c6c8aa5537d49e529",
+      "preparedSha256": "d7ef4c24f86e45625240c2e428a6dd5348cba3f57312516c6c8aa5537d49e529",
+      "releaseFile": "supabase/migrations/20261020085210_home_layout_mosaic_conflict_http409.sql",
+      "releaseSha256": "d7ef4c24f86e45625240c2e428a6dd5348cba3f57312516c6c8aa5537d49e529",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013032335_admin_operator_directory.sql",
+      "sourceSha256": "2a7ca179491985bc3752f212345da1bd5b5447901b716d713c336bcfc66874e8",
+      "preparedSha256": "2a7ca179491985bc3752f212345da1bd5b5447901b716d713c336bcfc66874e8",
+      "releaseFile": "supabase/migrations/20261020085211_admin_operator_directory.sql",
+      "releaseSha256": "2a7ca179491985bc3752f212345da1bd5b5447901b716d713c336bcfc66874e8",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013033807_admin_policy_actor_lock_order.sql",
+      "sourceSha256": "8a3447353cb4e6a93def307571ec457153aa98ef37cd1c4d3c65fbfbb9e39bac",
+      "preparedSha256": "8a3447353cb4e6a93def307571ec457153aa98ef37cd1c4d3c65fbfbb9e39bac",
+      "releaseFile": "supabase/migrations/20261020085212_admin_policy_actor_lock_order.sql",
+      "releaseSha256": "8a3447353cb4e6a93def307571ec457153aa98ef37cd1c4d3c65fbfbb9e39bac",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013040906_operator_capability_core.sql",
+      "sourceSha256": "7134b493fc1d803c7d9af8623b3cce6db34a189e01041ffd9dece925ba1f0055",
+      "preparedSha256": "7134b493fc1d803c7d9af8623b3cce6db34a189e01041ffd9dece925ba1f0055",
+      "releaseFile": "supabase/migrations/20261020085213_operator_capability_core.sql",
+      "releaseSha256": "7134b493fc1d803c7d9af8623b3cce6db34a189e01041ffd9dece925ba1f0055",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013041017_operator_manager_lifecycle.sql",
+      "sourceSha256": "b10ab8ca5cb3c7a4006b6bf20e870c92c21a5821476e13dd9d8bc917b7c3b0f3",
+      "preparedSha256": "b10ab8ca5cb3c7a4006b6bf20e870c92c21a5821476e13dd9d8bc917b7c3b0f3",
+      "releaseFile": "supabase/migrations/20261020085214_operator_manager_lifecycle.sql",
+      "releaseSha256": "b10ab8ca5cb3c7a4006b6bf20e870c92c21a5821476e13dd9d8bc917b7c3b0f3",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013041156_operator_capability_guards.sql",
+      "sourceSha256": "a193af4d5eac17f10a1b35b430cf1301f0ee4c2102cb91464fe0c4a24d0478fe",
+      "preparedSha256": "a193af4d5eac17f10a1b35b430cf1301f0ee4c2102cb91464fe0c4a24d0478fe",
+      "releaseFile": "supabase/migrations/20261020085215_operator_capability_guards.sql",
+      "releaseSha256": "8a1fa0f38ced792632a5c16d062b551d6bfe70d8c2bbab7b2cef0f96d645d927",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved.",
+      "integration": "Preserves current main cancellation, staff metadata, gift privacy, capability and shipment contracts; validated by the release SQL suite."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013043241_operator_email_invitations.sql",
+      "sourceSha256": "927153931a2093061185ef96bae167df863b6a5583b5f100a2bc5e2def743f31",
+      "preparedSha256": "927153931a2093061185ef96bae167df863b6a5583b5f100a2bc5e2def743f31",
+      "releaseFile": "supabase/migrations/20261020085217_operator_email_invitations.sql",
+      "releaseSha256": "927153931a2093061185ef96bae167df863b6a5583b5f100a2bc5e2def743f31",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013045219_operator_capability_contract_coverage.sql",
+      "sourceSha256": "2c56bf3f44fdd58e9a954fa81158b73f3bf704895adbafd5791db858e950108b",
+      "preparedSha256": "2c56bf3f44fdd58e9a954fa81158b73f3bf704895adbafd5791db858e950108b",
+      "releaseFile": "supabase/migrations/20261020085218_operator_capability_contract_coverage.sql",
+      "releaseSha256": "2c56bf3f44fdd58e9a954fa81158b73f3bf704895adbafd5791db858e950108b",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013050017_operator_catalog_read_and_member_sanctions.sql",
+      "sourceSha256": "3c8e9b02000d6600c26106894994a93ee4b502565df9f182dba1d6c0c2adae6b",
+      "preparedSha256": "3c8e9b02000d6600c26106894994a93ee4b502565df9f182dba1d6c0c2adae6b",
+      "releaseFile": "supabase/migrations/20261020085219_operator_catalog_read_and_member_sanctions.sql",
+      "releaseSha256": "3c8e9b02000d6600c26106894994a93ee4b502565df9f182dba1d6c0c2adae6b",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013050708_shopping_stories.sql",
+      "sourceSha256": "d01208e6fbac9f800f5b719a3945840c19a786112865dec927ccab8d7d7b15cf",
+      "preparedSha256": "d01208e6fbac9f800f5b719a3945840c19a786112865dec927ccab8d7d7b15cf",
+      "releaseFile": "supabase/migrations/20261020085220_shopping_stories.sql",
+      "releaseSha256": "d01208e6fbac9f800f5b719a3945840c19a786112865dec927ccab8d7d7b15cf",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013051124_operator_member_moderation_context.sql",
+      "sourceSha256": "db1df8ba93354101eed47722c54839b0978335b60cf711701dd2071458db2d5e",
+      "preparedSha256": "db1df8ba93354101eed47722c54839b0978335b60cf711701dd2071458db2d5e",
+      "releaseFile": "supabase/migrations/20261020085221_operator_member_moderation_context.sql",
+      "releaseSha256": "db1df8ba93354101eed47722c54839b0978335b60cf711701dd2071458db2d5e",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013051932_operator_authentication_error_contract.sql",
+      "sourceSha256": "95aaf78c7475a82141dfdef442d8a4416bb430f248c2e6c07cd712bf84473d11",
+      "preparedSha256": "95aaf78c7475a82141dfdef442d8a4416bb430f248c2e6c07cd712bf84473d11",
+      "releaseFile": "supabase/migrations/20261020085222_operator_authentication_error_contract.sql",
+      "releaseSha256": "95aaf78c7475a82141dfdef442d8a4416bb430f248c2e6c07cd712bf84473d11",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013051941_operator_invitation_verified_email_lock.sql",
+      "sourceSha256": "18063c1215101ae1a441e3a270d835b38c2c74995f051d3b3af19a6b761802ea",
+      "preparedSha256": "18063c1215101ae1a441e3a270d835b38c2c74995f051d3b3af19a6b761802ea",
+      "releaseFile": "supabase/migrations/20261020085223_operator_invitation_verified_email_lock.sql",
+      "releaseSha256": "18063c1215101ae1a441e3a270d835b38c2c74995f051d3b3af19a6b761802ea",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013052314_operator_artwork_claim_guard.sql",
+      "sourceSha256": "1f6365b722f71393dda2cf1fcfa407fe5801565feac33422f211a514ce1b0f92",
+      "preparedSha256": "1f6365b722f71393dda2cf1fcfa407fe5801565feac33422f211a514ce1b0f92",
+      "releaseFile": "supabase/migrations/20261020085224_operator_artwork_claim_guard.sql",
+      "releaseSha256": "1f6365b722f71393dda2cf1fcfa407fe5801565feac33422f211a514ce1b0f92",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013053055_operator_rpc_metadata_coverage.sql",
+      "sourceSha256": "fc0de74e71feb4fb681f071ff515e06ce0d094a64c16336f02e88238e3564789",
+      "preparedSha256": "fc0de74e71feb4fb681f071ff515e06ce0d094a64c16336f02e88238e3564789",
+      "releaseFile": "supabase/migrations/20261020085225_operator_rpc_metadata_coverage.sql",
+      "releaseSha256": "fc0de74e71feb4fb681f071ff515e06ce0d094a64c16336f02e88238e3564789",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013053226_operator_member_loyalty_projection.sql",
+      "sourceSha256": "82ca4a0a8938e349c79ba7f24eae1bd6c2940ab9e870d548796820917287d68c",
+      "preparedSha256": "82ca4a0a8938e349c79ba7f24eae1bd6c2940ab9e870d548796820917287d68c",
+      "releaseFile": "supabase/migrations/20261020085226_operator_member_loyalty_projection.sql",
+      "releaseSha256": "82ca4a0a8938e349c79ba7f24eae1bd6c2940ab9e870d548796820917287d68c",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013053842_operator_preorder_draft_scope.sql",
+      "sourceSha256": "3f5868354f01f411c18222408fbde8210afe75a411d31b7af3c55381988ec997",
+      "preparedSha256": "3f5868354f01f411c18222408fbde8210afe75a411d31b7af3c55381988ec997",
+      "releaseFile": "supabase/migrations/20261020085227_operator_preorder_draft_scope.sql",
+      "releaseSha256": "3f5868354f01f411c18222408fbde8210afe75a411d31b7af3c55381988ec997",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013054011_story_navigation_and_home_layout.sql",
+      "sourceSha256": "850dcc74be89f4220f444a49606877bf4207478c262f1a23b2d1dda2604f7e72",
+      "preparedSha256": "850dcc74be89f4220f444a49606877bf4207478c262f1a23b2d1dda2604f7e72",
+      "releaseFile": "supabase/migrations/20261020085228_story_navigation_and_home_layout.sql",
+      "releaseSha256": "850dcc74be89f4220f444a49606877bf4207478c262f1a23b2d1dda2604f7e72",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013060000_marketing_links.sql",
+      "sourceSha256": "4809eb017b2c30e3057a05ec97847317f26669c5e6c683aea142ba90bae4dcff",
+      "preparedSha256": "4809eb017b2c30e3057a05ec97847317f26669c5e6c683aea142ba90bae4dcff",
+      "releaseFile": "supabase/migrations/20261020085230_marketing_links.sql",
+      "releaseSha256": "4809eb017b2c30e3057a05ec97847317f26669c5e6c683aea142ba90bae4dcff",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013060249_customer_target_segments.sql",
+      "sourceSha256": "68b2faccc2817bcb202f30170ba968f849286ca937b30344ef9ef81675a681e1",
+      "preparedSha256": "68b2faccc2817bcb202f30170ba968f849286ca937b30344ef9ef81675a681e1",
+      "releaseFile": "supabase/migrations/20261020085231_customer_target_segments.sql",
+      "releaseSha256": "68b2faccc2817bcb202f30170ba968f849286ca937b30344ef9ef81675a681e1",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013060638_shopping_story_goods_projection.sql",
+      "sourceSha256": "18b47169e088ce9e6602585b06e61ff0b6290319366431b6c518f0a3eb280c0a",
+      "preparedSha256": "18b47169e088ce9e6602585b06e61ff0b6290319366431b6c518f0a3eb280c0a",
+      "releaseFile": "supabase/migrations/20261020085232_shopping_story_goods_projection.sql",
+      "releaseSha256": "18b47169e088ce9e6602585b06e61ff0b6290319366431b6c518f0a3eb280c0a",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013061512_shopping_story_private_goods_supply.sql",
+      "sourceSha256": "15598b68767bf294f4ca00d84181f7e0d4a2cd9a170a6a704190c77dc15ccad0",
+      "preparedSha256": "15598b68767bf294f4ca00d84181f7e0d4a2cd9a170a6a704190c77dc15ccad0",
+      "releaseFile": "supabase/migrations/20261020085233_shopping_story_private_goods_supply.sql",
+      "releaseSha256": "15598b68767bf294f4ca00d84181f7e0d4a2cd9a170a6a704190c77dc15ccad0",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013063640_customer_segment_update_binding.sql",
+      "sourceSha256": "89d40e0e2336f32a74d5eff005936ea5ead5f264f865237843b8e53485c1d12e",
+      "preparedSha256": "89d40e0e2336f32a74d5eff005936ea5ead5f264f865237843b8e53485c1d12e",
+      "releaseFile": "supabase/migrations/20261020085234_customer_segment_update_binding.sql",
+      "releaseSha256": "89d40e0e2336f32a74d5eff005936ea5ead5f264f865237843b8e53485c1d12e",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013063726_store_presentation_settings.sql",
+      "sourceSha256": "c25c6cd38c69783adc59fa6fd5dfd7e289a1963e892d471fdbc9d4d25de1cdca",
+      "preparedSha256": "c25c6cd38c69783adc59fa6fd5dfd7e289a1963e892d471fdbc9d4d25de1cdca",
+      "releaseFile": "supabase/migrations/20261020085235_store_presentation_settings.sql",
+      "releaseSha256": "c25c6cd38c69783adc59fa6fd5dfd7e289a1963e892d471fdbc9d4d25de1cdca",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013064000_admin_seller_cancel_intake.sql",
+      "sourceSha256": "2ef7dd6d9a9f2988193a7e4c7cff7bf2145633f7bcfb514a6f79da63f50be6c1",
+      "preparedSha256": "2ef7dd6d9a9f2988193a7e4c7cff7bf2145633f7bcfb514a6f79da63f50be6c1",
+      "releaseFile": "supabase/migrations/20261020085236_admin_seller_cancel_intake.sql",
+      "releaseSha256": "2ef7dd6d9a9f2988193a7e4c7cff7bf2145633f7bcfb514a6f79da63f50be6c1",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013065000_shopping_story_goods_picker.sql",
+      "sourceSha256": "45c09194c4e4a42ab3eb34b2d2576580250e5a51cc6b8c6818290577ead1d2ee",
+      "preparedSha256": "45c09194c4e4a42ab3eb34b2d2576580250e5a51cc6b8c6818290577ead1d2ee",
+      "releaseFile": "supabase/migrations/20261020085237_shopping_story_goods_picker.sql",
+      "releaseSha256": "45c09194c4e4a42ab3eb34b2d2576580250e5a51cc6b8c6818290577ead1d2ee",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013070925_goods_relation_visual_compositions.sql",
+      "sourceSha256": "53a83b0e8b64415b762ffdc05f659373657bedcde5d8b90aa523f50075fc8d8b",
+      "preparedSha256": "53a83b0e8b64415b762ffdc05f659373657bedcde5d8b90aa523f50075fc8d8b",
+      "releaseFile": "supabase/migrations/20261020085238_goods_relation_visual_compositions.sql",
+      "releaseSha256": "53a83b0e8b64415b762ffdc05f659373657bedcde5d8b90aa523f50075fc8d8b",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013072605_goods_listing_description_format.sql",
+      "sourceSha256": "b7ca9025c116e92da2582c76d9984b09836228daf75ab93d88aeba0ea6f99763",
+      "preparedSha256": "b7ca9025c116e92da2582c76d9984b09836228daf75ab93d88aeba0ea6f99763",
+      "releaseFile": "supabase/migrations/20261020085239_goods_listing_description_format.sql",
+      "releaseSha256": "b7ca9025c116e92da2582c76d9984b09836228daf75ab93d88aeba0ea6f99763",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013074000_purchase_restriction_bulk_release.sql",
+      "sourceSha256": "c14474121bf24a0c55326a6c6edcd6f038bc258c88e3aa75e3a4354dcf69ae65",
+      "preparedSha256": "c14474121bf24a0c55326a6c6edcd6f038bc258c88e3aa75e3a4354dcf69ae65",
+      "releaseFile": "supabase/migrations/20261020085240_purchase_restriction_bulk_release.sql",
+      "releaseSha256": "c14474121bf24a0c55326a6c6edcd6f038bc258c88e3aa75e3a4354dcf69ae65",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013080906_marketing_in_app_campaigns.sql",
+      "sourceSha256": "a090a238eae25a9a5e4ada0d2d40113ce12a4258036fe1a311988520caabd787",
+      "preparedSha256": "a090a238eae25a9a5e4ada0d2d40113ce12a4258036fe1a311988520caabd787",
+      "releaseFile": "supabase/migrations/20261020085242_marketing_in_app_campaigns.sql",
+      "releaseSha256": "a090a238eae25a9a5e4ada0d2d40113ce12a4258036fe1a311988520caabd787",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013091430_product_detail_presentation.sql",
+      "sourceSha256": "5404d9e26d134cae3c9ba2d5ec2ea9d15c478e6c66df2a745bfa3b813ed0d3f7",
+      "preparedSha256": "5404d9e26d134cae3c9ba2d5ec2ea9d15c478e6c66df2a745bfa3b813ed0d3f7",
+      "releaseFile": "supabase/migrations/20261020085243_product_detail_presentation.sql",
+      "releaseSha256": "5404d9e26d134cae3c9ba2d5ec2ea9d15c478e6c66df2a745bfa3b813ed0d3f7",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013092000_admin_order_item_console.sql",
+      "sourceSha256": "175eecb0d69b3f68a1793a0019994a19e29849901550cf646313964a37fd82f1",
+      "preparedSha256": "175eecb0d69b3f68a1793a0019994a19e29849901550cf646313964a37fd82f1",
+      "releaseFile": "supabase/migrations/20261020085244_admin_order_item_console.sql",
+      "releaseSha256": "175eecb0d69b3f68a1793a0019994a19e29849901550cf646313964a37fd82f1",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013095620_review_events.sql",
+      "sourceSha256": "14857fb3c61f1664cb5d96d400a8928644c6b24482b827d2e7bbb7b138f796a4",
+      "preparedSha256": "14857fb3c61f1664cb5d96d400a8928644c6b24482b827d2e7bbb7b138f796a4",
+      "releaseFile": "supabase/migrations/20261020085245_review_events.sql",
+      "releaseSha256": "14857fb3c61f1664cb5d96d400a8928644c6b24482b827d2e7bbb7b138f796a4",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013100648_product_detail_banner_target_scope.sql",
+      "sourceSha256": "4d5bb1990406ce66aac74245efcda50090853a5a2b81208c453c8170e039e775",
+      "preparedSha256": "4d5bb1990406ce66aac74245efcda50090853a5a2b81208c453c8170e039e775",
+      "releaseFile": "supabase/migrations/20261020085246_product_detail_banner_target_scope.sql",
+      "releaseSha256": "4d5bb1990406ce66aac74245efcda50090853a5a2b81208c453c8170e039e775",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013101000_admin_order_address_changes.sql",
+      "sourceSha256": "640c20eb5e9ff131a450f1c2d86249fe94e1fe3f0520004cc48f25f58074d899",
+      "preparedSha256": "640c20eb5e9ff131a450f1c2d86249fe94e1fe3f0520004cc48f25f58074d899",
+      "releaseFile": "supabase/migrations/20261020085247_admin_order_address_changes.sql",
+      "releaseSha256": "640c20eb5e9ff131a450f1c2d86249fe94e1fe3f0520004cc48f25f58074d899",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013102146_seller_claim_intake_readback_binding.sql",
+      "sourceSha256": "6d87b10c77b94c7c037d47e0bca13e5ef5c5b286aa15f6b770f56dfd3eb67fc3",
+      "preparedSha256": "6d87b10c77b94c7c037d47e0bca13e5ef5c5b286aa15f6b770f56dfd3eb67fc3",
+      "releaseFile": "supabase/migrations/20261020085248_seller_claim_intake_readback_binding.sql",
+      "releaseSha256": "6d87b10c77b94c7c037d47e0bca13e5ef5c5b286aa15f6b770f56dfd3eb67fc3",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013104017_product_detail_experiences.sql",
+      "sourceSha256": "5d4d4eacca27785dd16b71c94a269aeb10f38f0c8cd63873803430c06f16e0e1",
+      "preparedSha256": "5d4d4eacca27785dd16b71c94a269aeb10f38f0c8cd63873803430c06f16e0e1",
+      "releaseFile": "supabase/migrations/20261020085249_product_detail_experiences.sql",
+      "releaseSha256": "5d4d4eacca27785dd16b71c94a269aeb10f38f0c8cd63873803430c06f16e0e1",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013104526_store_analytics_collection.sql",
+      "sourceSha256": "ed60717cfb173ab2f21911d2a6b36ccc3ef317ee974657a5d89eaf3db8bab8ad",
+      "preparedSha256": "ed60717cfb173ab2f21911d2a6b36ccc3ef317ee974657a5d89eaf3db8bab8ad",
+      "releaseFile": "supabase/migrations/20261020085250_store_analytics_collection.sql",
+      "releaseSha256": "ed60717cfb173ab2f21911d2a6b36ccc3ef317ee974657a5d89eaf3db8bab8ad",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013110000_order_claim_withdrawal.sql",
+      "sourceSha256": "57f2a2c3e0b9076af88ebe91199bd36a6dfa7447e66c837288308b1edf5b1cdb",
+      "preparedSha256": "57f2a2c3e0b9076af88ebe91199bd36a6dfa7447e66c837288308b1edf5b1cdb",
+      "releaseFile": "supabase/migrations/20261020085251_order_claim_withdrawal.sql",
+      "releaseSha256": "db52dcc0035a685739ddaf58e15a6bd4db3ee1127b20b9829c95490cc2459917",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved.",
+      "integration": "Preserves current main cancellation, staff metadata, gift privacy, capability and shipment contracts; validated by the release SQL suite."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013111824_product_detail_experience_read_guard.sql",
+      "sourceSha256": "ba9ba48f353785f4a795f07db07c3320ea4e0bc2e42483047226444be64798b3",
+      "preparedSha256": "ba9ba48f353785f4a795f07db07c3320ea4e0bc2e42483047226444be64798b3",
+      "releaseFile": "supabase/migrations/20261020085252_product_detail_experience_read_guard.sql",
+      "releaseSha256": "ba9ba48f353785f4a795f07db07c3320ea4e0bc2e42483047226444be64798b3",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013113540_product_detail_two_year_fallback.sql",
+      "sourceSha256": "1b6b6985ffd65dd11ed489925c3da3950ee0d589bd59e922bb0c78dc7b223939",
+      "preparedSha256": "1b6b6985ffd65dd11ed489925c3da3950ee0d589bd59e922bb0c78dc7b223939",
+      "releaseFile": "supabase/migrations/20261020085254_product_detail_two_year_fallback.sql",
+      "releaseSha256": "1b6b6985ffd65dd11ed489925c3da3950ee0d589bd59e922bb0c78dc7b223939",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013113647_review_event_exports.sql",
+      "sourceSha256": "90c16c1b46efb3577b95b4a1fcb52da11d712488366468274ea6e5841eff4cfc",
+      "preparedSha256": "90c16c1b46efb3577b95b4a1fcb52da11d712488366468274ea6e5841eff4cfc",
+      "releaseFile": "supabase/migrations/20261020085255_review_event_exports.sql",
+      "releaseSha256": "90c16c1b46efb3577b95b4a1fcb52da11d712488366468274ea6e5841eff4cfc",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013113930_store_analytics_report_labels.sql",
+      "sourceSha256": "c85696ac07f13aee5957d05e7ef129b81bcfef8c643a74cbfba60ef961953d9a",
+      "preparedSha256": "c85696ac07f13aee5957d05e7ef129b81bcfef8c643a74cbfba60ef961953d9a",
+      "releaseFile": "supabase/migrations/20261020085256_store_analytics_report_labels.sql",
+      "releaseSha256": "c85696ac07f13aee5957d05e7ef129b81bcfef8c643a74cbfba60ef961953d9a",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013115203_store_analytics_bank_transfer.sql",
+      "sourceSha256": "f0600364b50afb894910be35b97cf3122eaeffb3819e53f9c27d41b1992817a9",
+      "preparedSha256": "f0600364b50afb894910be35b97cf3122eaeffb3819e53f9c27d41b1992817a9",
+      "releaseFile": "supabase/migrations/20261020085257_store_analytics_bank_transfer.sql",
+      "releaseSha256": "f0600364b50afb894910be35b97cf3122eaeffb3819e53f9c27d41b1992817a9",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013115206_product_detail_experience_contract_refresh.sql",
+      "sourceSha256": "ad7c3074eac544eb90f9a095af5b63f21fd6134cada16f6bfc79775345ba7c7b",
+      "preparedSha256": "ad7c3074eac544eb90f9a095af5b63f21fd6134cada16f6bfc79775345ba7c7b",
+      "releaseFile": "supabase/migrations/20261020085258_product_detail_experience_contract_refresh.sql",
+      "releaseSha256": "ad7c3074eac544eb90f9a095af5b63f21fd6134cada16f6bfc79775345ba7c7b",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013115843_order_claim_type_conversion.sql",
+      "sourceSha256": "c1b614560d6f3b851431f862627c619873de7004bb814cddc5287c3af49f932f",
+      "preparedSha256": "c1b614560d6f3b851431f862627c619873de7004bb814cddc5287c3af49f932f",
+      "releaseFile": "supabase/migrations/20261020085259_order_claim_type_conversion.sql",
+      "releaseSha256": "c1b614560d6f3b851431f862627c619873de7004bb814cddc5287c3af49f932f",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013123530_order_claim_hold_operations.sql",
+      "sourceSha256": "a48a0c94e97353ed53ee382a87a709c1092e85261a95680a563df1f89f8535e6",
+      "preparedSha256": "a48a0c94e97353ed53ee382a87a709c1092e85261a95680a563df1f89f8535e6",
+      "releaseFile": "supabase/migrations/20261020085300_order_claim_hold_operations.sql",
+      "releaseSha256": "a48a0c94e97353ed53ee382a87a709c1092e85261a95680a563df1f89f8535e6",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013124406_goods_video_media.sql",
+      "sourceSha256": "3a8de4df7f8a2e2762707aeaa17a5a09094509507d55c04e7167e26a04fa136d",
+      "preparedSha256": "3a8de4df7f8a2e2762707aeaa17a5a09094509507d55c04e7167e26a04fa136d",
+      "releaseFile": "supabase/migrations/20261020085301_goods_video_media.sql",
+      "releaseSha256": "3a8de4df7f8a2e2762707aeaa17a5a09094509507d55c04e7167e26a04fa136d",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013125552_goods_sale_period.sql",
+      "sourceSha256": "4cd4d429d174d06eff2c46be761b0f45560876c221354552554ac92ee9b7ad6a",
+      "preparedSha256": "4cd4d429d174d06eff2c46be761b0f45560876c221354552554ac92ee9b7ad6a",
+      "releaseFile": "supabase/migrations/20261020085302_goods_sale_period.sql",
+      "releaseSha256": "4cd4d429d174d06eff2c46be761b0f45560876c221354552554ac92ee9b7ad6a",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013131503_goods_sale_period_story_projection.sql",
+      "sourceSha256": "c24849f4cf2ffa008ff2fe43b0762f5bf331455dea3b11f4ea6f84a02525293d",
+      "preparedSha256": "c24849f4cf2ffa008ff2fe43b0762f5bf331455dea3b11f4ea6f84a02525293d",
+      "releaseFile": "supabase/migrations/20261020085303_goods_sale_period_story_projection.sql",
+      "releaseSha256": "c24849f4cf2ffa008ff2fe43b0762f5bf331455dea3b11f4ea6f84a02525293d",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013132500_pg_settlement_ledger.sql",
+      "sourceSha256": "e2f74b0c3766598afdaffb3a41641c54d64e74a719df14fddd1d391b9a407b39",
+      "preparedSha256": "e2f74b0c3766598afdaffb3a41641c54d64e74a719df14fddd1d391b9a407b39",
+      "releaseFile": "supabase/migrations/20261020085304_pg_settlement_ledger.sql",
+      "releaseSha256": "e2f74b0c3766598afdaffb3a41641c54d64e74a719df14fddd1d391b9a407b39",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013133443_goods_clone_attributes.sql",
+      "sourceSha256": "de543f2fec2b59ac21d40ff75ba0f19426b421e9d9e4e381cf1dd83cf3a575e0",
+      "preparedSha256": "de543f2fec2b59ac21d40ff75ba0f19426b421e9d9e4e381cf1dd83cf3a575e0",
+      "releaseFile": "supabase/migrations/20261020085306_goods_clone_attributes.sql",
+      "releaseSha256": "de543f2fec2b59ac21d40ff75ba0f19426b421e9d9e4e381cf1dd83cf3a575e0",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013134144_goods_sale_period_contract_registry.sql",
+      "sourceSha256": "976ef2637b0a4db0b29096ca5c91da63029fdbdeb8cf69b7968beb9cdb797352",
+      "preparedSha256": "976ef2637b0a4db0b29096ca5c91da63029fdbdeb8cf69b7968beb9cdb797352",
+      "releaseFile": "supabase/migrations/20261020085307_goods_sale_period_contract_registry.sql",
+      "releaseSha256": "976ef2637b0a4db0b29096ca5c91da63029fdbdeb8cf69b7968beb9cdb797352",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013141311_review_best_selection.sql",
+      "sourceSha256": "1079608a2062a1c5714987a4f73c5117cb6690b232f72e02940da85076562ef4",
+      "preparedSha256": "1079608a2062a1c5714987a4f73c5117cb6690b232f72e02940da85076562ef4",
+      "releaseFile": "supabase/migrations/20261020085308_review_best_selection.sql",
+      "releaseSha256": "1079608a2062a1c5714987a4f73c5117cb6690b232f72e02940da85076562ef4",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013142711_shipment_delay_notice_filter.sql",
+      "sourceSha256": "ac7d37249b9cb6197843894e26b8c9d6a289300283f99882b4cdd659c04c6989",
+      "preparedSha256": "ac7d37249b9cb6197843894e26b8c9d6a289300283f99882b4cdd659c04c6989",
+      "releaseFile": "supabase/migrations/20261020085309_shipment_delay_notice_filter.sql",
+      "releaseSha256": "ac7d37249b9cb6197843894e26b8c9d6a289300283f99882b4cdd659c04c6989",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013144236_admin_review_sorting.sql",
+      "sourceSha256": "b5fa4cf4617d2b2f84c82a8724943c1438fe6c309cc8f7ebaef913cce8ccdc20",
+      "preparedSha256": "b5fa4cf4617d2b2f84c82a8724943c1438fe6c309cc8f7ebaef913cce8ccdc20",
+      "releaseFile": "supabase/migrations/20261020085310_admin_review_sorting.sql",
+      "releaseSha256": "b5fa4cf4617d2b2f84c82a8724943c1438fe6c309cc8f7ebaef913cce8ccdc20",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013145342_goods_benefit_content.sql",
+      "sourceSha256": "e023c690af31815ccdafb77601753be27f5720a01c6fb4cca91eade7c13a13f5",
+      "preparedSha256": "e023c690af31815ccdafb77601753be27f5720a01c6fb4cca91eade7c13a13f5",
+      "releaseFile": "supabase/migrations/20261020085311_goods_benefit_content.sql",
+      "releaseSha256": "e023c690af31815ccdafb77601753be27f5720a01c6fb4cca91eade7c13a13f5",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013153022_admin_sales_read_contract_gaps.sql",
+      "sourceSha256": "41273ea3a2128e081762e5ff7517ee21029b067e8358d1cfed7d5973f5aa178e",
+      "preparedSha256": "41273ea3a2128e081762e5ff7517ee21029b067e8358d1cfed7d5973f5aa178e",
+      "releaseFile": "supabase/migrations/20261020085312_admin_sales_read_contract_gaps.sql",
+      "releaseSha256": "ddb580db3b35cf75a78ff4caa90ba23d2de3eaac88dd97c434c65a8e9d04739d",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved.",
+      "integration": "Preserves current main cancellation, staff metadata, gift privacy, capability and shipment contracts; validated by the release SQL suite."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013153118_catalog_category_templates.sql",
+      "sourceSha256": "8e7523d1c4ee39956de70e2d0a27badab4ee41d04e9c83f8317b1588530558c6",
+      "preparedSha256": "8e7523d1c4ee39956de70e2d0a27badab4ee41d04e9c83f8317b1588530558c6",
+      "releaseFile": "supabase/migrations/20261020085313_catalog_category_templates.sql",
+      "releaseSha256": "8e7523d1c4ee39956de70e2d0a27badab4ee41d04e9c83f8317b1588530558c6",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013153626_goods_after_sales_content.sql",
+      "sourceSha256": "eb48f41ed693489bd855f0a263dfa5db569da7474ea91ac82ae8bbd426938f68",
+      "preparedSha256": "eb48f41ed693489bd855f0a263dfa5db569da7474ea91ac82ae8bbd426938f68",
+      "releaseFile": "supabase/migrations/20261020085314_goods_after_sales_content.sql",
+      "releaseSha256": "eb48f41ed693489bd855f0a263dfa5db569da7474ea91ac82ae8bbd426938f68",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013161933_admin_claim_detail_search.sql",
+      "sourceSha256": "e1ccaed87441edd19c07efc8200c61af55901b4645d7b88efc7b2102ae4f9a90",
+      "preparedSha256": "41f274b6fb385eb96040d6a01f9cc40894569aa45d6f3022166758d44b7d636c",
+      "releaseFile": "supabase/migrations/20261020085315_admin_claim_detail_search.sql",
+      "releaseSha256": "86291706ac32992dee8e58f0fb09207dcebad0fb766888d2b8d32aa1496f971d",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved.",
+      "integration": "Preserves current main cancellation, staff metadata, gift privacy, capability and shipment contracts; validated by the release SQL suite."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013162245_home_promotion_banner_settings.sql",
+      "sourceSha256": "1c9d6fb398aa866904ebf43edd980db87229288890ad16dcfe89fc88ab4aabab",
+      "preparedSha256": "1c9d6fb398aa866904ebf43edd980db87229288890ad16dcfe89fc88ab4aabab",
+      "releaseFile": "supabase/migrations/20261020085316_home_promotion_banner_settings.sql",
+      "releaseSha256": "1c9d6fb398aa866904ebf43edd980db87229288890ad16dcfe89fc88ab4aabab",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013170211_home_curation_conflict_response.sql",
+      "sourceSha256": "6951eedc96ca36b9a3768be81cbbcdb5e396703100bfbaa36cc54e70421fdcae",
+      "preparedSha256": "6951eedc96ca36b9a3768be81cbbcdb5e396703100bfbaa36cc54e70421fdcae",
+      "releaseFile": "supabase/migrations/20261020085318_home_curation_conflict_response.sql",
+      "releaseSha256": "6951eedc96ca36b9a3768be81cbbcdb5e396703100bfbaa36cc54e70421fdcae",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013170608_admin_customer_purchase_report.sql",
+      "sourceSha256": "659960aeb80ed7c8281c0e8dcf46315b902bd8b541110c6098cf8a49533f58ae",
+      "preparedSha256": "659960aeb80ed7c8281c0e8dcf46315b902bd8b541110c6098cf8a49533f58ae",
+      "releaseFile": "supabase/migrations/20261020085319_admin_customer_purchase_report.sql",
+      "releaseSha256": "659960aeb80ed7c8281c0e8dcf46315b902bd8b541110c6098cf8a49533f58ae",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013173138_home_free_product_collections.sql",
+      "sourceSha256": "d3b02d97d536d13560685e5fe12b8ee575eb367bc4576de5559539883f7f16a9",
+      "preparedSha256": "d3b02d97d536d13560685e5fe12b8ee575eb367bc4576de5559539883f7f16a9",
+      "releaseFile": "supabase/migrations/20261020085320_home_free_product_collections.sql",
+      "releaseSha256": "d3b02d97d536d13560685e5fe12b8ee575eb367bc4576de5559539883f7f16a9",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013173410_admin_customer_purchase_read_guard.sql",
+      "sourceSha256": "4efaf8bf4822feb94b050505ad8ea44a941068997958f99dbc60ec2970df30a9",
+      "preparedSha256": "4efaf8bf4822feb94b050505ad8ea44a941068997958f99dbc60ec2970df30a9",
+      "releaseFile": "supabase/migrations/20261020085321_admin_customer_purchase_read_guard.sql",
+      "releaseSha256": "4efaf8bf4822feb94b050505ad8ea44a941068997958f99dbc60ec2970df30a9",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013175522_admin_encrypted_export_audit.sql",
+      "sourceSha256": "d2ce0ed73ecf6528ef4ca846ffdfb2022e87d1f6d217755b24977e7b0cfe35bd",
+      "preparedSha256": "d2ce0ed73ecf6528ef4ca846ffdfb2022e87d1f6d217755b24977e7b0cfe35bd",
+      "releaseFile": "supabase/migrations/20261020085322_admin_encrypted_export_audit.sql",
+      "releaseSha256": "d2ce0ed73ecf6528ef4ca846ffdfb2022e87d1f6d217755b24977e7b0cfe35bd",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013183047_order_claim_reason_changes.sql",
+      "sourceSha256": "2c438d2a7e0efeb1b612f4faefdadd0f977c04a4cfdfe762669b4de543e7f9cb",
+      "preparedSha256": "2c438d2a7e0efeb1b612f4faefdadd0f977c04a4cfdfe762669b4de543e7f9cb",
+      "releaseFile": "supabase/migrations/20261020085323_order_claim_reason_changes.sql",
+      "releaseSha256": "2c438d2a7e0efeb1b612f4faefdadd0f977c04a4cfdfe762669b4de543e7f9cb",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013185219_home_banner_style_archive.sql",
+      "sourceSha256": "13e7a0f343888dc4149950f20a9168d3be86d413eb6473d3c7d569988f4319ad",
+      "preparedSha256": "13e7a0f343888dc4149950f20a9168d3be86d413eb6473d3c7d569988f4319ad",
+      "releaseFile": "supabase/migrations/20261020085324_home_banner_style_archive.sql",
+      "releaseSha256": "13e7a0f343888dc4149950f20a9168d3be86d413eb6473d3c7d569988f4319ad",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013185314_goods_size_charts.sql",
+      "sourceSha256": "1aa514ffe4f72616bde0f4b8f88f9c3fbb897db590afed2f1c224ed32ff7a65f",
+      "preparedSha256": "1aa514ffe4f72616bde0f4b8f88f9c3fbb897db590afed2f1c224ed32ff7a65f",
+      "releaseFile": "supabase/migrations/20261020085325_goods_size_charts.sql",
+      "releaseSha256": "1aa514ffe4f72616bde0f4b8f88f9c3fbb897db590afed2f1c224ed32ff7a65f",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013190937_store_profile_image.sql",
+      "sourceSha256": "b2e81b437712d85ef198382c87a628f647e42de61ffa0051166913b39a40bfdd",
+      "preparedSha256": "b2e81b437712d85ef198382c87a628f647e42de61ffa0051166913b39a40bfdd",
+      "releaseFile": "supabase/migrations/20261020085326_store_profile_image.sql",
+      "releaseSha256": "b2e81b437712d85ef198382c87a628f647e42de61ffa0051166913b39a40bfdd",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013192548_goods_announcement_period_popup.sql",
+      "sourceSha256": "b1817fcdcc2443ce3c29bc7090b4dcceb6b00a80c782ab1b69c7edc9831a2f3c",
+      "preparedSha256": "b1817fcdcc2443ce3c29bc7090b4dcceb6b00a80c782ab1b69c7edc9831a2f3c",
+      "releaseFile": "supabase/migrations/20261020085327_goods_announcement_period_popup.sql",
+      "releaseSha256": "b1817fcdcc2443ce3c29bc7090b4dcceb6b00a80c782ab1b69c7edc9831a2f3c",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013192715_cs_single_reply_cas.sql",
+      "sourceSha256": "7615b9e32c185f86ee1b8472953002c7dc21a436135b6275e0d43e0c9761ad8a",
+      "preparedSha256": "7615b9e32c185f86ee1b8472953002c7dc21a436135b6275e0d43e0c9761ad8a",
+      "releaseFile": "supabase/migrations/20261020085328_cs_single_reply_cas.sql",
+      "releaseSha256": "7615b9e32c185f86ee1b8472953002c7dc21a436135b6275e0d43e0c9761ad8a",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013195236_cs_reply_read_transaction_mode.sql",
+      "sourceSha256": "6c8fb4418ec30af5eb039068a7e569df07880e9ed1dcbe749c3ad8d597dca73b",
+      "preparedSha256": "6c8fb4418ec30af5eb039068a7e569df07880e9ed1dcbe749c3ad8d597dca73b",
+      "releaseFile": "supabase/migrations/20261020085329_cs_reply_read_transaction_mode.sql",
+      "releaseSha256": "6c8fb4418ec30af5eb039068a7e569df07880e9ed1dcbe749c3ad8d597dca73b",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013201745_goods_draft_optional_revision_restore.sql",
+      "sourceSha256": "433b35e96ef3f5c370def53403a004e53ebe0d5f50251895af82460a70f5e3ca",
+      "preparedSha256": "433b35e96ef3f5c370def53403a004e53ebe0d5f50251895af82460a70f5e3ca",
+      "releaseFile": "supabase/migrations/20261020085330_goods_draft_optional_revision_restore.sql",
+      "releaseSha256": "433b35e96ef3f5c370def53403a004e53ebe0d5f50251895af82460a70f5e3ca",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013211051_admin_benefit_issuances.sql",
+      "sourceSha256": "f7bd1b2b413852c0646ad985120aba0f5b2b9f7e00e9fed85dbf2abfc89db65c",
+      "preparedSha256": "f7bd1b2b413852c0646ad985120aba0f5b2b9f7e00e9fed85dbf2abfc89db65c",
+      "releaseFile": "supabase/migrations/20261020085332_admin_benefit_issuances.sql",
+      "releaseSha256": "f7bd1b2b413852c0646ad985120aba0f5b2b9f7e00e9fed85dbf2abfc89db65c",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013213136_admin_sales_goods_page.sql",
+      "sourceSha256": "81c36bd1c34a24a117737e7e4878487336decbf8de5e052a43f27e251be02676",
+      "preparedSha256": "81c36bd1c34a24a117737e7e4878487336decbf8de5e052a43f27e251be02676",
+      "releaseFile": "supabase/migrations/20261020085333_admin_sales_goods_page.sql",
+      "releaseSha256": "81c36bd1c34a24a117737e7e4878487336decbf8de5e052a43f27e251be02676",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013213409_goods_import_guidance.sql",
+      "sourceSha256": "6d650f45c00e6c7735b44d1af5e1b4b44328b567414b5ad6a6ef06907eb4398b",
+      "preparedSha256": "6d650f45c00e6c7735b44d1af5e1b4b44328b567414b5ad6a6ef06907eb4398b",
+      "releaseFile": "supabase/migrations/20261020085334_goods_import_guidance.sql",
+      "releaseSha256": "6d650f45c00e6c7735b44d1af5e1b4b44328b567414b5ad6a6ef06907eb4398b",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013215620_goods_import_guidance_reader_boundary.sql",
+      "sourceSha256": "507abb78728acf5d5b8fed3baf7d670c66ee8ed19dc11c04f6296b0a3ae28871",
+      "preparedSha256": "507abb78728acf5d5b8fed3baf7d670c66ee8ed19dc11c04f6296b0a3ae28871",
+      "releaseFile": "supabase/migrations/20261020085335_goods_import_guidance_reader_boundary.sql",
+      "releaseSha256": "507abb78728acf5d5b8fed3baf7d670c66ee8ed19dc11c04f6296b0a3ae28871",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013220354_admin_sales_hourly_report.sql",
+      "sourceSha256": "d3054e610916a5628aa4d71faed0999972c382a867b97c2320f0c7a0bd5f4376",
+      "preparedSha256": "d3054e610916a5628aa4d71faed0999972c382a867b97c2320f0c7a0bd5f4376",
+      "releaseFile": "supabase/migrations/20261020085336_admin_sales_hourly_report.sql",
+      "releaseSha256": "d3054e610916a5628aa4d71faed0999972c382a867b97c2320f0c7a0bd5f4376",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013225409_home_review_best_priority.sql",
+      "sourceSha256": "456677a68fbae7776c8aa5a26264cbee47e51a9b0bcf759dd306ac84c76dc196",
+      "preparedSha256": "456677a68fbae7776c8aa5a26264cbee47e51a9b0bcf759dd306ac84c76dc196",
+      "releaseFile": "supabase/migrations/20261020085337_home_review_best_priority.sql",
+      "releaseSha256": "456677a68fbae7776c8aa5a26264cbee47e51a9b0bcf759dd306ac84c76dc196",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013231339_category_display_compositions.sql",
+      "sourceSha256": "7171e144e49dab49d330c4ac72ca500f41a23e0a366b84a563208d72daf3f596",
+      "preparedSha256": "7171e144e49dab49d330c4ac72ca500f41a23e0a366b84a563208d72daf3f596",
+      "releaseFile": "supabase/migrations/20261020085338_category_display_compositions.sql",
+      "releaseSha256": "7171e144e49dab49d330c4ac72ca500f41a23e0a366b84a563208d72daf3f596",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261013233358_admin_body_templates.sql",
+      "sourceSha256": "ec605b961ebc6426c0711d88c50bbeec571a57bc0803ec6cbc8fc3919ade8266",
+      "preparedSha256": "ec605b961ebc6426c0711d88c50bbeec571a57bc0803ec6cbc8fc3919ade8266",
+      "releaseFile": "supabase/migrations/20261020085339_admin_body_templates.sql",
+      "releaseSha256": "ec605b961ebc6426c0711d88c50bbeec571a57bc0803ec6cbc8fc3919ade8266",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261014004950_goods_transaction_terms.sql",
+      "sourceSha256": "cd592aed41d0982f2c200fa7ec1c37aec224848adb0eb1a6eba136c8b557474d",
+      "preparedSha256": "cd592aed41d0982f2c200fa7ec1c37aec224848adb0eb1a6eba136c8b557474d",
+      "releaseFile": "supabase/migrations/20261020085340_goods_transaction_terms.sql",
+      "releaseSha256": "cd592aed41d0982f2c200fa7ec1c37aec224848adb0eb1a6eba136c8b557474d",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261014010252_goods_transaction_checkout.sql",
+      "sourceSha256": "b1f1175b5cc6f2302c5166dd941e4cecfe0b8fb26b8d000b505328ce28befc89",
+      "preparedSha256": "b1f1175b5cc6f2302c5166dd941e4cecfe0b8fb26b8d000b505328ce28befc89",
+      "releaseFile": "supabase/migrations/20261020085341_goods_transaction_checkout.sql",
+      "releaseSha256": "b1f1175b5cc6f2302c5166dd941e4cecfe0b8fb26b8d000b505328ce28befc89",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261014011000_gift_order_domain.sql",
+      "sourceSha256": "cfe0580ac04a628f3659862d6c86bfe77f7a0d0db0cb54f028869ef9bd87ee98",
+      "preparedSha256": "cfe0580ac04a628f3659862d6c86bfe77f7a0d0db0cb54f028869ef9bd87ee98",
+      "releaseFile": "supabase/migrations/20261020085342_gift_order_domain.sql",
+      "releaseSha256": "cfe0580ac04a628f3659862d6c86bfe77f7a0d0db0cb54f028869ef9bd87ee98",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261014011100_gift_order_transactions.sql",
+      "sourceSha256": "6ca10c562a2644af6dfe020d1ebc44b3c88822129afda766070e13c119ad1cbc",
+      "preparedSha256": "6ca10c562a2644af6dfe020d1ebc44b3c88822129afda766070e13c119ad1cbc",
+      "releaseFile": "supabase/migrations/20261020085343_gift_order_transactions.sql",
+      "releaseSha256": "6ca10c562a2644af6dfe020d1ebc44b3c88822129afda766070e13c119ad1cbc",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261014011200_gift_delivery_operations.sql",
+      "sourceSha256": "27201cc1954b482c2f49e985f7421796c8de66ed70519281317248f19e23d275",
+      "preparedSha256": "27201cc1954b482c2f49e985f7421796c8de66ed70519281317248f19e23d275",
+      "releaseFile": "supabase/migrations/20261020085345_gift_delivery_operations.sql",
+      "releaseSha256": "27201cc1954b482c2f49e985f7421796c8de66ed70519281317248f19e23d275",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261014011300_gift_claims_and_retention.sql",
+      "sourceSha256": "072b706a3890b00b3689929eb35abd3b9f79b1c82d385c1654c62627959d0173",
+      "preparedSha256": "072b706a3890b00b3689929eb35abd3b9f79b1c82d385c1654c62627959d0173",
+      "releaseFile": "supabase/migrations/20261020085346_gift_claims_and_retention.sql",
+      "releaseSha256": "072b706a3890b00b3689929eb35abd3b9f79b1c82d385c1654c62627959d0173",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261014011400_gift_order_operational_readers.sql",
+      "sourceSha256": "b282b68a68661c64dc9fb27acc0410247830ff7586431ba135cc14353c7e26c9",
+      "preparedSha256": "b282b68a68661c64dc9fb27acc0410247830ff7586431ba135cc14353c7e26c9",
+      "releaseFile": "supabase/migrations/20261020085347_gift_order_operational_readers.sql",
+      "releaseSha256": "b282b68a68661c64dc9fb27acc0410247830ff7586431ba135cc14353c7e26c9",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261014011500_gift_order_notification_audiences.sql",
+      "sourceSha256": "0e58702a25a7cbf404e5c0a5a55fee922e451b2d155cdf798e49ba1d651c448e",
+      "preparedSha256": "0e58702a25a7cbf404e5c0a5a55fee922e451b2d155cdf798e49ba1d651c448e",
+      "releaseFile": "supabase/migrations/20261020085348_gift_order_notification_audiences.sql",
+      "releaseSha256": "0e58702a25a7cbf404e5c0a5a55fee922e451b2d155cdf798e49ba1d651c448e",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261014011902_recurring_billing_and_goods_subscriptions.sql",
+      "sourceSha256": "55cb96dd2309643e72b2d4fb29ec3b8dd0f9590c466c7ad5e8110017321af7c9",
+      "preparedSha256": "55cb96dd2309643e72b2d4fb29ec3b8dd0f9590c466c7ad5e8110017321af7c9",
+      "releaseFile": "supabase/migrations/20261020085349_recurring_billing_and_goods_subscriptions.sql",
+      "releaseSha256": "55cb96dd2309643e72b2d4fb29ec3b8dd0f9590c466c7ad5e8110017321af7c9",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261014021107_goods_transaction_operations.sql",
+      "sourceSha256": "6178aa5195ee8330d2e62ad5dbcb37db9863699fb1a041fcaa03b040831a1bde",
+      "preparedSha256": "6178aa5195ee8330d2e62ad5dbcb37db9863699fb1a041fcaa03b040831a1bde",
+      "releaseFile": "supabase/migrations/20261020085350_goods_transaction_operations.sql",
+      "releaseSha256": "6178aa5195ee8330d2e62ad5dbcb37db9863699fb1a041fcaa03b040831a1bde",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261014024634_goods_subscription_operations_console.sql",
+      "sourceSha256": "00ea06547f04552ef3c30fcc1e9497519f7e8d5fc79ede675214874aa7c411df",
+      "preparedSha256": "00ea06547f04552ef3c30fcc1e9497519f7e8d5fc79ede675214874aa7c411df",
+      "releaseFile": "supabase/migrations/20261020085351_goods_subscription_operations_console.sql",
+      "releaseSha256": "00ea06547f04552ef3c30fcc1e9497519f7e8d5fc79ede675214874aa7c411df",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261014030556_goods_transaction_account_retention.sql",
+      "sourceSha256": "1f8ce3662e916c2af4e5d8b0e269ffefbd0728de5675115a176383a2aadf9c32",
+      "preparedSha256": "1f8ce3662e916c2af4e5d8b0e269ffefbd0728de5675115a176383a2aadf9c32",
+      "releaseFile": "supabase/migrations/20261020085352_goods_transaction_account_retention.sql",
+      "releaseSha256": "1f8ce3662e916c2af4e5d8b0e269ffefbd0728de5675115a176383a2aadf9c32",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261014032236_goods_transaction_settlement_profiles.sql",
+      "sourceSha256": "c7bb61d07e8556c4b22dfdabfade3053a80e44b21e685b2a25fa9423f0f7b9f6",
+      "preparedSha256": "c7bb61d07e8556c4b22dfdabfade3053a80e44b21e685b2a25fa9423f0f7b9f6",
+      "releaseFile": "supabase/migrations/20261020085353_goods_transaction_settlement_profiles.sql",
+      "releaseSha256": "c7bb61d07e8556c4b22dfdabfade3053a80e44b21e685b2a25fa9423f0f7b9f6",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261014032249_gift_delivery_owner_boundary.sql",
+      "sourceSha256": "dfd62134bdad8ef794180a4fdeb5ec8da7fc285495399e386b585351381515d3",
+      "preparedSha256": "dfd62134bdad8ef794180a4fdeb5ec8da7fc285495399e386b585351381515d3",
+      "releaseFile": "supabase/migrations/20261020085354_gift_delivery_owner_boundary.sql",
+      "releaseSha256": "dfd62134bdad8ef794180a4fdeb5ec8da7fc285495399e386b585351381515d3",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261014034238_goods_subscription_contract_retention.sql",
+      "sourceSha256": "db0b63f45ce577b4021a8c7e6c51735e1afaea07b5cf68144bcb6dfab815769d",
+      "preparedSha256": "db0b63f45ce577b4021a8c7e6c51735e1afaea07b5cf68144bcb6dfab815769d",
+      "releaseFile": "supabase/migrations/20261020085355_goods_subscription_contract_retention.sql",
+      "releaseSha256": "db0b63f45ce577b4021a8c7e6c51735e1afaea07b5cf68144bcb6dfab815769d",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261014041322_gift_operations_console.sql",
+      "sourceSha256": "32a535e87d11fb06718fc9c2dbe8b2d302281325f96bd5237dc9354ba9ca86ae",
+      "preparedSha256": "32a535e87d11fb06718fc9c2dbe8b2d302281325f96bd5237dc9354ba9ca86ae",
+      "releaseFile": "supabase/migrations/20261020085356_gift_operations_console.sql",
+      "releaseSha256": "32a535e87d11fb06718fc9c2dbe8b2d302281325f96bd5237dc9354ba9ca86ae",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261014042553_goods_order_readers_readonly_authorization.sql",
+      "sourceSha256": "7c73253e33e1d760b7f179ee36e0aac02398c91229b6942ba1708e0bf9619ea1",
+      "preparedSha256": "7c73253e33e1d760b7f179ee36e0aac02398c91229b6942ba1708e0bf9619ea1",
+      "releaseFile": "supabase/migrations/20261020085358_goods_order_readers_readonly_authorization.sql",
+      "releaseSha256": "7c73253e33e1d760b7f179ee36e0aac02398c91229b6942ba1708e0bf9619ea1",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261014043730_independent_category_display_tree.sql",
+      "sourceSha256": "01796c34a7afde62c13554cdfab84b42a96ca99add03424164b932ffa6d3d4ae",
+      "preparedSha256": "01796c34a7afde62c13554cdfab84b42a96ca99add03424164b932ffa6d3d4ae",
+      "releaseFile": "supabase/migrations/20261020085359_independent_category_display_tree.sql",
+      "releaseSha256": "01796c34a7afde62c13554cdfab84b42a96ca99add03424164b932ffa6d3d4ae",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261014045529_order_claim_refund_account_completion.sql",
+      "sourceSha256": "df1b70830fd4b1c1d572816fdcd4312faf4eb08cf785e5eae8ff24109459e0cb",
+      "preparedSha256": "df1b70830fd4b1c1d572816fdcd4312faf4eb08cf785e5eae8ff24109459e0cb",
+      "releaseFile": "supabase/migrations/20261020085400_order_claim_refund_account_completion.sql",
+      "releaseSha256": "df1b70830fd4b1c1d572816fdcd4312faf4eb08cf785e5eae8ff24109459e0cb",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261014054956_bank_transfer_refund_lifecycle.sql",
+      "sourceSha256": "1babb866b320bb612cb869c3639ca1cce42154b65027c25ac73af39f19926530",
+      "preparedSha256": "1babb866b320bb612cb869c3639ca1cce42154b65027c25ac73af39f19926530",
+      "releaseFile": "supabase/migrations/20261020085401_bank_transfer_refund_lifecycle.sql",
+      "releaseSha256": "1babb866b320bb612cb869c3639ca1cce42154b65027c25ac73af39f19926530",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261014061741_goods_aggregation_families.sql",
+      "sourceSha256": "79ba8f35f337f3688bc5d75aae324f08d732ec20ea9c065e92479830e7e7027a",
+      "preparedSha256": "79ba8f35f337f3688bc5d75aae324f08d732ec20ea9c065e92479830e7e7027a",
+      "releaseFile": "supabase/migrations/20261020085402_goods_aggregation_families.sql",
+      "releaseSha256": "79ba8f35f337f3688bc5d75aae324f08d732ec20ea9c065e92479830e7e7027a",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261014061931_goods_groups_and_variant_conversion.sql",
+      "sourceSha256": "7100e81a3706fb17c64543db04a6406ca7bc987bd2ab9047d57f536f0c9445f3",
+      "preparedSha256": "7100e81a3706fb17c64543db04a6406ca7bc987bd2ab9047d57f536f0c9445f3",
+      "releaseFile": "supabase/migrations/20261020085403_goods_groups_and_variant_conversion.sql",
+      "releaseSha256": "7100e81a3706fb17c64543db04a6406ca7bc987bd2ab9047d57f536f0c9445f3",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261014062545_group_claim_stock_successions.sql",
+      "sourceSha256": "e2376ceb8ff6dde5b70ec83660877dfa43f94ac0f4de8dca5455478b7b0f98fa",
+      "preparedSha256": "e2376ceb8ff6dde5b70ec83660877dfa43f94ac0f4de8dca5455478b7b0f98fa",
+      "releaseFile": "supabase/migrations/20261020085404_group_claim_stock_successions.sql",
+      "releaseSha256": "e2376ceb8ff6dde5b70ec83660877dfa43f94ac0f4de8dca5455478b7b0f98fa",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261014071135_goods_group_common_information.sql",
+      "sourceSha256": "8e85e0ab1e7ded71d8bbee8ef2761a5de2491d2c0651329ddacb9d2c14a396a5",
+      "preparedSha256": "8e85e0ab1e7ded71d8bbee8ef2761a5de2491d2c0651329ddacb9d2c14a396a5",
+      "releaseFile": "supabase/migrations/20261020085405_goods_group_common_information.sql",
+      "releaseSha256": "8e85e0ab1e7ded71d8bbee8ef2761a5de2491d2c0651329ddacb9d2c14a396a5",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261014092811_order_claim_contact_corrections.sql",
+      "sourceSha256": "4e6ac2cceb835bad6c717426209c2c68a6692a4b930cea48c0b4632a4879758a",
+      "preparedSha256": "4e6ac2cceb835bad6c717426209c2c68a6692a4b930cea48c0b4632a4879758a",
+      "releaseFile": "supabase/migrations/20261020085406_order_claim_contact_corrections.sql",
+      "releaseSha256": "4e6ac2cceb835bad6c717426209c2c68a6692a4b930cea48c0b4632a4879758a",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261014104425_shipping_settings_delivery_policies.sql",
+      "sourceSha256": "97b698ef3f287ad184198a1c4fc9531900ac0ab905585d748b7a76f710794d08",
+      "preparedSha256": "97b698ef3f287ad184198a1c4fc9531900ac0ab905585d748b7a76f710794d08",
+      "releaseFile": "supabase/migrations/20261020085407_shipping_settings_delivery_policies.sql",
+      "releaseSha256": "97b698ef3f287ad184198a1c4fc9531900ac0ab905585d748b7a76f710794d08",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261014121521_shipping_charge_groups.sql",
+      "sourceSha256": "b3985d9a2cdfc161874398a8951c8de817aaa4c70cf9b2d4e2b65a314f304c35",
+      "preparedSha256": "b3985d9a2cdfc161874398a8951c8de817aaa4c70cf9b2d4e2b65a314f304c35",
+      "releaseFile": "supabase/migrations/20261020085408_shipping_charge_groups.sql",
+      "releaseSha256": "b3985d9a2cdfc161874398a8951c8de817aaa4c70cf9b2d4e2b65a314f304c35",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261014122555_shipping_settings_charge_groups.sql",
+      "sourceSha256": "56529db8229920b032040afdc5a46bd02d1c7c63ad641a2fae318550c45c88f2",
+      "preparedSha256": "59887a3bd21e9e296a92218369f4ca7d8c20396a3300308799e70ae13f765bc1",
+      "releaseFile": "supabase/migrations/20261020085410_shipping_settings_charge_groups.sql",
+      "releaseSha256": "59887a3bd21e9e296a92218369f4ca7d8c20396a3300308799e70ae13f765bc1",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261015001607_shipping_charge_group_savings.sql",
+      "sourceSha256": "b44487010eaadccdb313e34301d3fa893d383b1655884eac5653daa9dd68d63a",
+      "preparedSha256": "b44487010eaadccdb313e34301d3fa893d383b1655884eac5653daa9dd68d63a",
+      "releaseFile": "supabase/migrations/20261020085411_shipping_charge_group_savings.sql",
+      "releaseSha256": "b44487010eaadccdb313e34301d3fa893d383b1655884eac5653daa9dd68d63a",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261015015611_goods_sales_precheckout.sql",
+      "sourceSha256": "b6172448115d0d1c1c4167fb9ea47d6be924987e60159019721bffd6daf41d4a",
+      "preparedSha256": "b6172448115d0d1c1c4167fb9ea47d6be924987e60159019721bffd6daf41d4a",
+      "releaseFile": "supabase/migrations/20261020085412_goods_sales_precheckout.sql",
+      "releaseSha256": "b6172448115d0d1c1c4167fb9ea47d6be924987e60159019721bffd6daf41d4a",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261015030552_goods_sales_family_policy_projection.sql",
+      "sourceSha256": "4af84724a779ea9440d21d89740d0ea02fc6abd971d6110d4b1146e8dd5dc5a5",
+      "preparedSha256": "4af84724a779ea9440d21d89740d0ea02fc6abd971d6110d4b1146e8dd5dc5a5",
+      "releaseFile": "supabase/migrations/20261020085413_goods_sales_family_policy_projection.sql",
+      "releaseSha256": "4af84724a779ea9440d21d89740d0ea02fc6abd971d6110d4b1146e8dd5dc5a5",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261015032322_review_helpful_votes.sql",
+      "sourceSha256": "8f68d02d32560fe8e4e84271b72ca2fd84e25191a7b3db872b79a0765dfa571d",
+      "preparedSha256": "8f68d02d32560fe8e4e84271b72ca2fd84e25191a7b3db872b79a0765dfa571d",
+      "releaseFile": "supabase/migrations/20261020085414_review_helpful_votes.sql",
+      "releaseSha256": "8f68d02d32560fe8e4e84271b72ca2fd84e25191a7b3db872b79a0765dfa571d",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261015035229_review_helpful_admin_owner_boundary.sql",
+      "sourceSha256": "677c747fd31245620493375bd9f23ff921f17d246e4e1da52aef5ea8c927b7f8",
+      "preparedSha256": "677c747fd31245620493375bd9f23ff921f17d246e4e1da52aef5ea8c927b7f8",
+      "releaseFile": "supabase/migrations/20261020085415_review_helpful_admin_owner_boundary.sql",
+      "releaseSha256": "677c747fd31245620493375bd9f23ff921f17d246e4e1da52aef5ea8c927b7f8",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261015044429_home_review_helpful_priority.sql",
+      "sourceSha256": "4caf95a723bd07d198d5d521bdc9d47fe91db5b18cf74d78018933d21f4ff8c8",
+      "preparedSha256": "4caf95a723bd07d198d5d521bdc9d47fe91db5b18cf74d78018933d21f4ff8c8",
+      "releaseFile": "supabase/migrations/20261020085416_home_review_helpful_priority.sql",
+      "releaseSha256": "4caf95a723bd07d198d5d521bdc9d47fe91db5b18cf74d78018933d21f4ff8c8",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261015051108_admin_review_encrypted_export.sql",
+      "sourceSha256": "8df7a91d07327510b2ae35e3c3114215bbc382026b79720467e2010f79e6e9e8",
+      "preparedSha256": "8df7a91d07327510b2ae35e3c3114215bbc382026b79720467e2010f79e6e9e8",
+      "releaseFile": "supabase/migrations/20261020085417_admin_review_encrypted_export.sql",
+      "releaseSha256": "8df7a91d07327510b2ae35e3c3114215bbc382026b79720467e2010f79e6e9e8",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261015052828_goods_other_compositions.sql",
+      "sourceSha256": "e57fd2b709f0b4627c44b41d5e9c02474845a61910abd812aea6e4bc0fd3134d",
+      "preparedSha256": "e57fd2b709f0b4627c44b41d5e9c02474845a61910abd812aea6e4bc0fd3134d",
+      "releaseFile": "supabase/migrations/20261020085418_goods_other_compositions.sql",
+      "releaseSha256": "e57fd2b709f0b4627c44b41d5e9c02474845a61910abd812aea6e4bc0fd3134d",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261015060814_inquiry_answer_satisfaction.sql",
+      "sourceSha256": "dd61e8a05da04ec241f666056506bcd6ca60426d69ecc166bb8d43a81084bad8",
+      "preparedSha256": "dd61e8a05da04ec241f666056506bcd6ca60426d69ecc166bb8d43a81084bad8",
+      "releaseFile": "supabase/migrations/20261020085419_inquiry_answer_satisfaction.sql",
+      "releaseSha256": "dd61e8a05da04ec241f666056506bcd6ca60426d69ecc166bb8d43a81084bad8",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261015060834_review_rating_history.sql",
+      "sourceSha256": "be541fa76c572e9340782f11af06eecea0f6b3277e026af21c8a944b274f51df",
+      "preparedSha256": "be541fa76c572e9340782f11af06eecea0f6b3277e026af21c8a944b274f51df",
+      "releaseFile": "supabase/migrations/20261020085421_review_rating_history.sql",
+      "releaseSha256": "be541fa76c572e9340782f11af06eecea0f6b3277e026af21c8a944b274f51df",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261015085517_operator_rpc_entry_guards.sql",
+      "sourceSha256": "bbda0f44bcc514a20d42740b245c7cd31a4a191d042a55db87424e25bb053661",
+      "preparedSha256": "bbda0f44bcc514a20d42740b245c7cd31a4a191d042a55db87424e25bb053661",
+      "releaseFile": "supabase/migrations/20261020085422_operator_rpc_entry_guards.sql",
+      "releaseSha256": "bbda0f44bcc514a20d42740b245c7cd31a4a191d042a55db87424e25bb053661",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261016030500_goods_group_console.sql",
+      "sourceSha256": "3d8643761f91d36f1740f64acedd55089ff7c201754668e858d18d0dec2126fa",
+      "preparedSha256": "3d8643761f91d36f1740f64acedd55089ff7c201754668e858d18d0dec2126fa",
+      "releaseFile": "supabase/migrations/20261020085423_goods_group_console.sql",
+      "releaseSha256": "3d8643761f91d36f1740f64acedd55089ff7c201754668e858d18d0dec2126fa",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261016031000_goods_group_console_filter_names.sql",
+      "sourceSha256": "defa9c7a463f038d674a6195fa15cbaab7b93d1094baa95bce2f1589d822a562",
+      "preparedSha256": "defa9c7a463f038d674a6195fa15cbaab7b93d1094baa95bce2f1589d822a562",
+      "releaseFile": "supabase/migrations/20261020085424_goods_group_console_filter_names.sql",
+      "releaseSha256": "defa9c7a463f038d674a6195fa15cbaab7b93d1094baa95bce2f1589d822a562",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261016031500_member_activity_consent.sql",
+      "sourceSha256": "706326ccc1cc26d907633a12144996c30e831d924500a15059a9f7d46f5693c9",
+      "preparedSha256": "706326ccc1cc26d907633a12144996c30e831d924500a15059a9f7d46f5693c9",
+      "releaseFile": "supabase/migrations/20261020085425_member_activity_consent.sql",
+      "releaseSha256": "706326ccc1cc26d907633a12144996c30e831d924500a15059a9f7d46f5693c9",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261016031600_member_activity_segments.sql",
+      "sourceSha256": "847cfdf086cfbf6d1592c32f714f3446428f0f3b2ebc315748430c253094dfae",
+      "preparedSha256": "847cfdf086cfbf6d1592c32f714f3446428f0f3b2ebc315748430c253094dfae",
+      "releaseFile": "supabase/migrations/20261020085426_member_activity_segments.sql",
+      "releaseSha256": "847cfdf086cfbf6d1592c32f714f3446428f0f3b2ebc315748430c253094dfae",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261016031700_member_activity_segment_filters.sql",
+      "sourceSha256": "c1df0f252fbb0e8f6d831be30a03faa9ba89595be0651df0eb14d752b5f80457",
+      "preparedSha256": "c1df0f252fbb0e8f6d831be30a03faa9ba89595be0651df0eb14d752b5f80457",
+      "releaseFile": "supabase/migrations/20261020085427_member_activity_segment_filters.sql",
+      "releaseSha256": "c1df0f252fbb0e8f6d831be30a03faa9ba89595be0651df0eb14d752b5f80457",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261016035000_customer_reward_policy.sql",
+      "sourceSha256": "bf5fab19ba66acc9cc650b73b9b3d3fda8943402028a837307daca8da9df21fd",
+      "preparedSha256": "bf5fab19ba66acc9cc650b73b9b3d3fda8943402028a837307daca8da9df21fd",
+      "releaseFile": "supabase/migrations/20261020085428_customer_reward_policy.sql",
+      "releaseSha256": "bf5fab19ba66acc9cc650b73b9b3d3fda8943402028a837307daca8da9df21fd",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261016035100_grade_reward_checkout_snapshot.sql",
+      "sourceSha256": "650e3872ead50fc546ed8fbffb768d447d2cd63c87e51d09bc5d2184e8544ca4",
+      "preparedSha256": "650e3872ead50fc546ed8fbffb768d447d2cd63c87e51d09bc5d2184e8544ca4",
+      "releaseFile": "supabase/migrations/20261020085429_grade_reward_checkout_snapshot.sql",
+      "releaseSha256": "650e3872ead50fc546ed8fbffb768d447d2cd63c87e51d09bc5d2184e8544ca4",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261016035200_review_best_rewards.sql",
+      "sourceSha256": "9c3fceffb904cfa4058b3cc2d50cbff0414ddd65acf0e79a8ca7b477a013cb4d",
+      "preparedSha256": "9c3fceffb904cfa4058b3cc2d50cbff0414ddd65acf0e79a8ca7b477a013cb4d",
+      "releaseFile": "supabase/migrations/20261020085430_review_best_rewards.sql",
+      "releaseSha256": "9c3fceffb904cfa4058b3cc2d50cbff0414ddd65acf0e79a8ca7b477a013cb4d",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261016042000_marketing_coupon_attachment.sql",
+      "sourceSha256": "d95e819cfde85705df9e38605cb768b4db43839d3b4d35da7e6357caf8a1ecc2",
+      "preparedSha256": "d95e819cfde85705df9e38605cb768b4db43839d3b4d35da7e6357caf8a1ecc2",
+      "releaseFile": "supabase/migrations/20261020085432_marketing_coupon_attachment.sql",
+      "releaseSha256": "d95e819cfde85705df9e38605cb768b4db43839d3b4d35da7e6357caf8a1ecc2",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261016042100_marketing_test_receipts.sql",
+      "sourceSha256": "4c94a4d717de6679a1ae18ff1e2679c24e2d936b4c4ed83a645b651ad4fdf507",
+      "preparedSha256": "4c94a4d717de6679a1ae18ff1e2679c24e2d936b4c4ed83a645b651ad4fdf507",
+      "releaseFile": "supabase/migrations/20261020085433_marketing_test_receipts.sql",
+      "releaseSha256": "4c94a4d717de6679a1ae18ff1e2679c24e2d936b4c4ed83a645b651ad4fdf507",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261016042200_marketing_test_image_references.sql",
+      "sourceSha256": "60a04aac0a9a0fd975ddc1e6a28105e681dec0c91f79789252d6408d442d3da0",
+      "preparedSha256": "60a04aac0a9a0fd975ddc1e6a28105e681dec0c91f79789252d6408d442d3da0",
+      "releaseFile": "supabase/migrations/20261020085434_marketing_test_image_references.sql",
+      "releaseSha256": "60a04aac0a9a0fd975ddc1e6a28105e681dec0c91f79789252d6408d442d3da0",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261016044000_coupon_target_issuance.sql",
+      "sourceSha256": "859ae5f0c8e5314855d088b194355781107cf31d11f54eb5ff55e7239db49bf8",
+      "preparedSha256": "859ae5f0c8e5314855d088b194355781107cf31d11f54eb5ff55e7239db49bf8",
+      "releaseFile": "supabase/migrations/20261020085435_coupon_target_issuance.sql",
+      "releaseSha256": "859ae5f0c8e5314855d088b194355781107cf31d11f54eb5ff55e7239db49bf8",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261016051000_purchase_confirmation.sql",
+      "sourceSha256": "0088e74ab8630c7ebcb9937b86c47e598de73adbcd0628ddd8522723936b4e0a",
+      "preparedSha256": "0088e74ab8630c7ebcb9937b86c47e598de73adbcd0628ddd8522723936b4e0a",
+      "releaseFile": "supabase/migrations/20261020085436_purchase_confirmation.sql",
+      "releaseSha256": "0088e74ab8630c7ebcb9937b86c47e598de73adbcd0628ddd8522723936b4e0a",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261016051100_purchase_confirmation_worker_locks.sql",
+      "sourceSha256": "fd386f797b2c5c591b9d27a0b8f309e62b94bc096d22412c56bbc7bfa9f7919e",
+      "preparedSha256": "fd386f797b2c5c591b9d27a0b8f309e62b94bc096d22412c56bbc7bfa9f7919e",
+      "releaseFile": "supabase/migrations/20261020085437_purchase_confirmation_worker_locks.sql",
+      "releaseSha256": "fd386f797b2c5c591b9d27a0b8f309e62b94bc096d22412c56bbc7bfa9f7919e",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261016051200_purchase_confirmation_subject_lock_mode.sql",
+      "sourceSha256": "99f1d34b563699861f8c480d02303aef67c2dfed0385bf03a04524482f512086",
+      "preparedSha256": "99f1d34b563699861f8c480d02303aef67c2dfed0385bf03a04524482f512086",
+      "releaseFile": "supabase/migrations/20261020085438_purchase_confirmation_subject_lock_mode.sql",
+      "releaseSha256": "99f1d34b563699861f8c480d02303aef67c2dfed0385bf03a04524482f512086",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261016054000_in_transit_claim_intake.sql",
+      "sourceSha256": "bdd87f92ac90e8f6f9191242093c315319b61f9e80b3881b263637d1d1a13b35",
+      "preparedSha256": "bdd87f92ac90e8f6f9191242093c315319b61f9e80b3881b263637d1d1a13b35",
+      "releaseFile": "supabase/migrations/20261020085439_in_transit_claim_intake.sql",
+      "releaseSha256": "bdd87f92ac90e8f6f9191242093c315319b61f9e80b3881b263637d1d1a13b35",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261016054100_replacement_delivery_quantity_integrity.sql",
+      "sourceSha256": "f74da2e8983df4995adb70cd1050bf4c53788bbbef7d4164d44af7cb56c11951",
+      "preparedSha256": "f74da2e8983df4995adb70cd1050bf4c53788bbbef7d4164d44af7cb56c11951",
+      "releaseFile": "supabase/migrations/20261020085440_replacement_delivery_quantity_integrity.sql",
+      "releaseSha256": "f74da2e8983df4995adb70cd1050bf4c53788bbbef7d4164d44af7cb56c11951",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261016061000_claim_full_address_changes.sql",
+      "sourceSha256": "984b71f9045c01f3b6db5f7f4ebec7e5e385e8c96c094c094c581184867cbfbd",
+      "preparedSha256": "984b71f9045c01f3b6db5f7f4ebec7e5e385e8c96c094c094c581184867cbfbd",
+      "releaseFile": "supabase/migrations/20261020085441_claim_full_address_changes.sql",
+      "releaseSha256": "984b71f9045c01f3b6db5f7f4ebec7e5e385e8c96c094c094c581184867cbfbd",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261016061100_claim_collection_corrections.sql",
+      "sourceSha256": "48ad48447f869e25b7bc9fe7e8ee8a5763488316a8be3898d47e7e041ff59cb9",
+      "preparedSha256": "48ad48447f869e25b7bc9fe7e8ee8a5763488316a8be3898d47e7e041ff59cb9",
+      "releaseFile": "supabase/migrations/20261020085443_claim_collection_corrections.sql",
+      "releaseSha256": "48ad48447f869e25b7bc9fe7e8ee8a5763488316a8be3898d47e7e041ff59cb9",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261016061200_claim_collection_carrier_labels.sql",
+      "sourceSha256": "49be322fb8a1d424fd315115975c857529ff818213a858698eb6c58e2a66faec",
+      "preparedSha256": "49be322fb8a1d424fd315115975c857529ff818213a858698eb6c58e2a66faec",
+      "releaseFile": "supabase/migrations/20261020085444_claim_collection_carrier_labels.sql",
+      "releaseSha256": "49be322fb8a1d424fd315115975c857529ff818213a858698eb6c58e2a66faec",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261016065000_claim_fee_invoices.sql",
+      "sourceSha256": "48cc60e2d528eaaa59d76d01e3dd0fd2eb46f3ba62dac78ba9ae1d629da28d34",
+      "preparedSha256": "48cc60e2d528eaaa59d76d01e3dd0fd2eb46f3ba62dac78ba9ae1d629da28d34",
+      "releaseFile": "supabase/migrations/20261020085445_claim_fee_invoices.sql",
+      "releaseSha256": "48cc60e2d528eaaa59d76d01e3dd0fd2eb46f3ba62dac78ba9ae1d629da28d34",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261016065100_claim_fee_history_retention.sql",
+      "sourceSha256": "b19f538d10f3a7df6e341475eae1bf3d97a627a549d744e99b55aeddf7f03e11",
+      "preparedSha256": "b19f538d10f3a7df6e341475eae1bf3d97a627a549d744e99b55aeddf7f03e11",
+      "releaseFile": "supabase/migrations/20261020085446_claim_fee_history_retention.sql",
+      "releaseSha256": "b19f538d10f3a7df6e341475eae1bf3d97a627a549d744e99b55aeddf7f03e11",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261016065200_claim_fee_function_ownership.sql",
+      "sourceSha256": "c1be83dcdcf40e3f17c555cb682a56185c709ef88b4149bd181662f7a077fd87",
+      "preparedSha256": "c1be83dcdcf40e3f17c555cb682a56185c709ef88b4149bd181662f7a077fd87",
+      "releaseFile": "supabase/migrations/20261020085447_claim_fee_function_ownership.sql",
+      "releaseSha256": "c1be83dcdcf40e3f17c555cb682a56185c709ef88b4149bd181662f7a077fd87",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261016065300_claim_fee_issue_availability.sql",
+      "sourceSha256": "5db261061d715fac6c3f31a6fb96d2c7cd811e07e89facd10d87ee64439461e7",
+      "preparedSha256": "5db261061d715fac6c3f31a6fb96d2c7cd811e07e89facd10d87ee64439461e7",
+      "releaseFile": "supabase/migrations/20261020085448_claim_fee_issue_availability.sql",
+      "releaseSha256": "5db261061d715fac6c3f31a6fb96d2c7cd811e07e89facd10d87ee64439461e7",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261016071000_combined_packing.sql",
+      "sourceSha256": "56ff460809b6c6e40eb9cb360709f4c713a5d32d0b1c481733f636d830db4476",
+      "preparedSha256": "56ff460809b6c6e40eb9cb360709f4c713a5d32d0b1c481733f636d830db4476",
+      "releaseFile": "supabase/migrations/20261020085449_combined_packing.sql",
+      "releaseSha256": "56ff460809b6c6e40eb9cb360709f4c713a5d32d0b1c481733f636d830db4476",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261016071100_combined_packing_projection.sql",
+      "sourceSha256": "1e5509fd48d3287393a3c2d38d0a945685de8ee84dfc71409975a5f9742b9f07",
+      "preparedSha256": "1e5509fd48d3287393a3c2d38d0a945685de8ee84dfc71409975a5f9742b9f07",
+      "releaseFile": "supabase/migrations/20261020085450_combined_packing_projection.sql",
+      "releaseSha256": "1e5509fd48d3287393a3c2d38d0a945685de8ee84dfc71409975a5f9742b9f07",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261016071200_combined_packing_delivery_notifications.sql",
+      "sourceSha256": "d52f11a4d190f71cca1d0e9e48e02583db45dffaf257c12ac0394fd0098985f2",
+      "preparedSha256": "d52f11a4d190f71cca1d0e9e48e02583db45dffaf257c12ac0394fd0098985f2",
+      "releaseFile": "supabase/migrations/20261020085451_combined_packing_delivery_notifications.sql",
+      "releaseSha256": "b92b8325f6bda319f658aaf56986e134be4be2ea5af340108e139fc4fb6e9adc",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved.",
+      "integration": "Preserves current main cancellation, staff metadata, gift privacy, capability and shipment contracts; validated by the release SQL suite."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261016071300_combined_packing_read_transaction.sql",
+      "sourceSha256": "b47624dc0fee7c37683d167be1a80611e7a3e05d1687fc5b64fed303db8c2ae6",
+      "preparedSha256": "b47624dc0fee7c37683d167be1a80611e7a3e05d1687fc5b64fed303db8c2ae6",
+      "releaseFile": "supabase/migrations/20261020085452_combined_packing_read_transaction.sql",
+      "releaseSha256": "b47624dc0fee7c37683d167be1a80611e7a3e05d1687fc5b64fed303db8c2ae6",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261016071400_combined_packing_completion_counts.sql",
+      "sourceSha256": "7a86bcffdf037c131f57ce2a55a2cb45b057c94a6f669669a7f6b15932c58b9d",
+      "preparedSha256": "7a86bcffdf037c131f57ce2a55a2cb45b057c94a6f669669a7f6b15932c58b9d",
+      "releaseFile": "supabase/migrations/20261020085453_combined_packing_completion_counts.sql",
+      "releaseSha256": "7a86bcffdf037c131f57ce2a55a2cb45b057c94a6f669669a7f6b15932c58b9d",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261016071500_combined_packing_source_integrity.sql",
+      "sourceSha256": "7fa9af54ed3ce4e12b1412db829d68a90a4e001a8cc905395cbe55d7482878a2",
+      "preparedSha256": "7fa9af54ed3ce4e12b1412db829d68a90a4e001a8cc905395cbe55d7482878a2",
+      "releaseFile": "supabase/migrations/20261020085455_combined_packing_source_integrity.sql",
+      "releaseSha256": "7fa9af54ed3ce4e12b1412db829d68a90a4e001a8cc905395cbe55d7482878a2",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261016075000_review_types.sql",
+      "sourceSha256": "0c15f77a721cb6e993a3a58c418fb60ef279b5a1fb16afa7f332acce559ff312",
+      "preparedSha256": "0c15f77a721cb6e993a3a58c418fb60ef279b5a1fb16afa7f332acce559ff312",
+      "releaseFile": "supabase/migrations/20261020085456_review_types.sql",
+      "releaseSha256": "0c15f77a721cb6e993a3a58c418fb60ef279b5a1fb16afa7f332acce559ff312",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261016075100_review_types_export.sql",
+      "sourceSha256": "5a9c41aeaa355ca16c1625e6bde5cc8a57cfdda221c7c190ec43613f0013a8c9",
+      "preparedSha256": "5a9c41aeaa355ca16c1625e6bde5cc8a57cfdda221c7c190ec43613f0013a8c9",
+      "releaseFile": "supabase/migrations/20261020085457_review_types_export.sql",
+      "releaseSha256": "5a9c41aeaa355ca16c1625e6bde5cc8a57cfdda221c7c190ec43613f0013a8c9",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261016075200_review_type_legacy_rights.sql",
+      "sourceSha256": "a54cd69f83b442d3d722a0b02980121016f7861d82a89b17b305829651838cab",
+      "preparedSha256": "a54cd69f83b442d3d722a0b02980121016f7861d82a89b17b305829651838cab",
+      "releaseFile": "supabase/migrations/20261020085458_review_type_legacy_rights.sql",
+      "releaseSha256": "a54cd69f83b442d3d722a0b02980121016f7861d82a89b17b305829651838cab",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261016075300_review_type_target_columns.sql",
+      "sourceSha256": "16bb47a26a3c45c94c39f79b89ffdb700997a470681928f0ac1e653fc17acaeb",
+      "preparedSha256": "16bb47a26a3c45c94c39f79b89ffdb700997a470681928f0ac1e653fc17acaeb",
+      "releaseFile": "supabase/migrations/20261020085459_review_type_target_columns.sql",
+      "releaseSha256": "16bb47a26a3c45c94c39f79b89ffdb700997a470681928f0ac1e653fc17acaeb",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261016075400_review_types_selected_cards.sql",
+      "sourceSha256": "9d1774ed53c36663e00e96be41ffe197a1922a87a342dc089f22c6af272fcd98",
+      "preparedSha256": "9d1774ed53c36663e00e96be41ffe197a1922a87a342dc089f22c6af272fcd98",
+      "releaseFile": "supabase/migrations/20261020085500_review_types_selected_cards.sql",
+      "releaseSha256": "9d1774ed53c36663e00e96be41ffe197a1922a87a342dc089f22c6af272fcd98",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261016080500_made_to_order_production.sql",
+      "sourceSha256": "1b80a6cae98591f75e5fba7d4de848d53f5bfe2ac14c18ff0e5bad28acc16d40",
+      "preparedSha256": "1b80a6cae98591f75e5fba7d4de848d53f5bfe2ac14c18ff0e5bad28acc16d40",
+      "releaseFile": "supabase/migrations/20261020085501_made_to_order_production.sql",
+      "releaseSha256": "1b80a6cae98591f75e5fba7d4de848d53f5bfe2ac14c18ff0e5bad28acc16d40",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261016080600_production_dispatch_retention.sql",
+      "sourceSha256": "1a31cd82d00472fe239cfe8f40b93ff1612b98596d79762aca8d33b331c13c87",
+      "preparedSha256": "1a31cd82d00472fe239cfe8f40b93ff1612b98596d79762aca8d33b331c13c87",
+      "releaseFile": "supabase/migrations/20261020085502_production_dispatch_retention.sql",
+      "releaseSha256": "1a31cd82d00472fe239cfe8f40b93ff1612b98596d79762aca8d33b331c13c87",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261016080700_production_record_time.sql",
+      "sourceSha256": "1f2544292123742d8f534581b5efdc26966f66b42766a4cd882b388b6b5dda9a",
+      "preparedSha256": "1f2544292123742d8f534581b5efdc26966f66b42766a4cd882b388b6b5dda9a",
+      "releaseFile": "supabase/migrations/20261020085503_production_record_time.sql",
+      "releaseSha256": "1f2544292123742d8f534581b5efdc26966f66b42766a4cd882b388b6b5dda9a",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261016085000_goods_fulfillment_settings.sql",
+      "sourceSha256": "d603ebe37d427d2a9c1a5c48e20502300ad25aac98286d37d682c9b301da592b",
+      "preparedSha256": "d603ebe37d427d2a9c1a5c48e20502300ad25aac98286d37d682c9b301da592b",
+      "releaseFile": "supabase/migrations/20261020085504_goods_fulfillment_settings.sql",
+      "releaseSha256": "d603ebe37d427d2a9c1a5c48e20502300ad25aac98286d37d682c9b301da592b",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261016085100_checkout_fulfillment_methods.sql",
+      "sourceSha256": "de1dcd45466dd58d780cfb31b0371cb1f3b6ac6ee77fcef21052e8b4cb18557c",
+      "preparedSha256": "de1dcd45466dd58d780cfb31b0371cb1f3b6ac6ee77fcef21052e8b4cb18557c",
+      "releaseFile": "supabase/migrations/20261020085505_checkout_fulfillment_methods.sql",
+      "releaseSha256": "de1dcd45466dd58d780cfb31b0371cb1f3b6ac6ee77fcef21052e8b4cb18557c",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261016085200_protected_digital_delivery.sql",
+      "sourceSha256": "5e7a37482ebd153ab8be7c6acada4abaa2ab6c002025c06f9b2b22cf00d0feed",
+      "preparedSha256": "5e7a37482ebd153ab8be7c6acada4abaa2ab6c002025c06f9b2b22cf00d0feed",
+      "releaseFile": "supabase/migrations/20261020085507_protected_digital_delivery.sql",
+      "releaseSha256": "5e7a37482ebd153ab8be7c6acada4abaa2ab6c002025c06f9b2b22cf00d0feed",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261016085300_coupon_combination_policy.sql",
+      "sourceSha256": "4bef95644442f74f017f88623fbe179f818bba6ae522e3e2b1d105169c2ff614",
+      "preparedSha256": "4bef95644442f74f017f88623fbe179f818bba6ae522e3e2b1d105169c2ff614",
+      "releaseFile": "supabase/migrations/20261020085508_coupon_combination_policy.sql",
+      "releaseSha256": "4bef95644442f74f017f88623fbe179f818bba6ae522e3e2b1d105169c2ff614",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261016085400_coupon_combination_checkout.sql",
+      "sourceSha256": "4afb7fe5aef22e32fb8de0b491335336845fc1b46c57e9eba5392c4848cac437",
+      "preparedSha256": "4afb7fe5aef22e32fb8de0b491335336845fc1b46c57e9eba5392c4848cac437",
+      "releaseFile": "supabase/migrations/20261020085509_coupon_combination_checkout.sql",
+      "releaseSha256": "4afb7fe5aef22e32fb8de0b491335336845fc1b46c57e9eba5392c4848cac437",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261016085500_coupon_policy_read_contract.sql",
+      "sourceSha256": "342f6b068db19afc05ea4447cef76ffa49a8a611e8caced6dd858a6ab52d4a5a",
+      "preparedSha256": "342f6b068db19afc05ea4447cef76ffa49a8a611e8caced6dd858a6ab52d4a5a",
+      "releaseFile": "supabase/migrations/20261020085510_coupon_policy_read_contract.sql",
+      "releaseSha256": "342f6b068db19afc05ea4447cef76ffa49a8a611e8caced6dd858a6ab52d4a5a",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261016085600_full_admin_operator_contracts.sql",
+      "sourceSha256": "ce154e196b26c12deb8af6470b424ef5008765395339ea463d22952ceff6c49a",
+      "preparedSha256": "ce154e196b26c12deb8af6470b424ef5008765395339ea463d22952ceff6c49a",
+      "releaseFile": "supabase/migrations/20261020085511_full_admin_operator_contracts.sql",
+      "releaseSha256": "26a8c21a0c1e76412b730f9467b26aa7cf1f28f114b2edb05445e1b5b1d3cbd3",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved.",
+      "integration": "Preserves current main cancellation, staff metadata, gift privacy, capability and shipment contracts; validated by the release SQL suite."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261016085700_coupon_fulfillment_retention.sql",
+      "sourceSha256": "b270c43cb68b94d70ffd589aa6493169bd6d03c4c75231fad5c170283730af79",
+      "preparedSha256": "b270c43cb68b94d70ffd589aa6493169bd6d03c4c75231fad5c170283730af79",
+      "releaseFile": "supabase/migrations/20261020085512_coupon_fulfillment_retention.sql",
+      "releaseSha256": "b270c43cb68b94d70ffd589aa6493169bd6d03c4c75231fad5c170283730af79",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261016085800_shipment_fulfillment_filters.sql",
+      "sourceSha256": "fb2b91705ed27b79c550a08fdde484b53e821d41810c8a5c4a194f41d3cb5d76",
+      "preparedSha256": "fb2b91705ed27b79c550a08fdde484b53e821d41810c8a5c4a194f41d3cb5d76",
+      "releaseFile": "supabase/migrations/20261020085513_shipment_fulfillment_filters.sql",
+      "releaseSha256": "fb2b91705ed27b79c550a08fdde484b53e821d41810c8a5c4a194f41d3cb5d76",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261016085900_admin_digital_delivery_records.sql",
+      "sourceSha256": "55cf6d17d74ef9595b7480038c6cb607b00387ffa82529fe7dd71eaa6ec1eae1",
+      "preparedSha256": "55cf6d17d74ef9595b7480038c6cb607b00387ffa82529fe7dd71eaa6ec1eae1",
+      "releaseFile": "supabase/migrations/20261020085514_admin_digital_delivery_records.sql",
+      "releaseSha256": "55cf6d17d74ef9595b7480038c6cb607b00387ffa82529fe7dd71eaa6ec1eae1",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261016090000_goods_list_bulk_operations.sql",
+      "sourceSha256": "cfe14806bff70f5cabd6fa7a55b60db980c909986a5feba5c5f823aa65ac5d79",
+      "preparedSha256": "cfe14806bff70f5cabd6fa7a55b60db980c909986a5feba5c5f823aa65ac5d79",
+      "releaseFile": "supabase/migrations/20261020085515_goods_list_bulk_operations.sql",
+      "releaseSha256": "cfe14806bff70f5cabd6fa7a55b60db980c909986a5feba5c5f823aa65ac5d79",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261016093000_coupon_category_targeting.sql",
+      "sourceSha256": "604a8e05883b593b5ee33be3903b4956970f209ae10a66b28199a7bdf3ae62da",
+      "preparedSha256": "604a8e05883b593b5ee33be3903b4956970f209ae10a66b28199a7bdf3ae62da",
+      "releaseFile": "supabase/migrations/20261020085516_coupon_category_targeting.sql",
+      "releaseSha256": "604a8e05883b593b5ee33be3903b4956970f209ae10a66b28199a7bdf3ae62da",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261016093100_coupon_target_report.sql",
+      "sourceSha256": "7b2fbb8adcce84954293344fee08795491b1459097aa943bfd17c991d7b09cc6",
+      "preparedSha256": "7b2fbb8adcce84954293344fee08795491b1459097aa943bfd17c991d7b09cc6",
+      "releaseFile": "supabase/migrations/20261020085517_coupon_target_report.sql",
+      "releaseSha256": "7b2fbb8adcce84954293344fee08795491b1459097aa943bfd17c991d7b09cc6",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261016094000_shipping_template_fulfillment.sql",
+      "sourceSha256": "1df678d4d1228e80efc8e75b49e5c1a44a6231a76b6dd3e6443e0824aa3b112d",
+      "preparedSha256": "1df678d4d1228e80efc8e75b49e5c1a44a6231a76b6dd3e6443e0824aa3b112d",
+      "releaseFile": "supabase/migrations/20261020085519_shipping_template_fulfillment.sql",
+      "releaseSha256": "1df678d4d1228e80efc8e75b49e5c1a44a6231a76b6dd3e6443e0824aa3b112d",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261016094100_shipping_fulfillment_operator_contracts.sql",
+      "sourceSha256": "db67df10c3bbf925849ebfd7efec4fc82ce32b9b83986da20e2a69e8dc408566",
+      "preparedSha256": "db67df10c3bbf925849ebfd7efec4fc82ce32b9b83986da20e2a69e8dc408566",
+      "releaseFile": "supabase/migrations/20261020085520_shipping_fulfillment_operator_contracts.sql",
+      "releaseSha256": "db67df10c3bbf925849ebfd7efec4fc82ce32b9b83986da20e2a69e8dc408566",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261019053808_customer_demographic_consent.sql",
+      "sourceSha256": "19c5b13d54dd5135d048d80a382d29a2befb70d2e9f68ec73de85c435045570d",
+      "preparedSha256": "19c5b13d54dd5135d048d80a382d29a2befb70d2e9f68ec73de85c435045570d",
+      "releaseFile": "supabase/migrations/20261020085521_customer_demographic_consent.sql",
+      "releaseSha256": "19c5b13d54dd5135d048d80a382d29a2befb70d2e9f68ec73de85c435045570d",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261019054528_digital_redownload_claim_policy.sql",
+      "sourceSha256": "ab48051b9317ba452eda532d9dac6b23b58ce1dc2a2b3747dbd9de890c3ad457",
+      "preparedSha256": "ab48051b9317ba452eda532d9dac6b23b58ce1dc2a2b3747dbd9de890c3ad457",
+      "releaseFile": "supabase/migrations/20261020085522_digital_redownload_claim_policy.sql",
+      "releaseSha256": "aeb8a8b0048468a44cc4ae108896955af2c7d6ed0c587175b42d37b940886192",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved.",
+      "integration": "Preserves current main cancellation, staff metadata, gift privacy, capability and shipment contracts; validated by the release SQL suite."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261019060048_customer_demographic_readonly_guard.sql",
+      "sourceSha256": "8ded97e5aaaa9de3d3540eb158d3fb14b622e1e2525dec7586dc885e85d41603",
+      "preparedSha256": "8ded97e5aaaa9de3d3540eb158d3fb14b622e1e2525dec7586dc885e85d41603",
+      "releaseFile": "supabase/migrations/20261020085523_customer_demographic_readonly_guard.sql",
+      "releaseSha256": "8ded97e5aaaa9de3d3540eb158d3fb14b622e1e2525dec7586dc885e85d41603",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261020005944_inquiry_chat_console.sql",
+      "sourceSha256": "c533b74dbc39e957205e1f4258223e3db84ca285698edcfc0894dd89e6fc45f6",
+      "preparedSha256": "c533b74dbc39e957205e1f4258223e3db84ca285698edcfc0894dd89e6fc45f6",
+      "releaseFile": "supabase/migrations/20261020085524_inquiry_chat_console.sql",
+      "releaseSha256": "c533b74dbc39e957205e1f4258223e3db84ca285698edcfc0894dd89e6fc45f6",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261020010540_smartstore_shipment_workbook.sql",
+      "sourceSha256": "0164d9936deeb42b8651d8f19d8b2bb7db32f622f51abf4a47b5fd815258074f",
+      "preparedSha256": "0164d9936deeb42b8651d8f19d8b2bb7db32f622f51abf4a47b5fd815258074f",
+      "releaseFile": "supabase/migrations/20261020085525_smartstore_shipment_workbook.sql",
+      "releaseSha256": "0164d9936deeb42b8651d8f19d8b2bb7db32f622f51abf4a47b5fd815258074f",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261020011348_inquiry_chat_tags_and_history.sql",
+      "sourceSha256": "a3507113769a1a8f7b5cc6eee872c0b3015a340c05a22a622f3cce33a108576b",
+      "preparedSha256": "a3507113769a1a8f7b5cc6eee872c0b3015a340c05a22a622f3cce33a108576b",
+      "releaseFile": "supabase/migrations/20261020085526_inquiry_chat_tags_and_history.sql",
+      "releaseSha256": "a3507113769a1a8f7b5cc6eee872c0b3015a340c05a22a622f3cce33a108576b",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261020011715_smartstore_tracking_identity_guard.sql",
+      "sourceSha256": "97993a2269181c6312f45b7d367b1ba1e6178150911f58345052b14158bb081b",
+      "preparedSha256": "97993a2269181c6312f45b7d367b1ba1e6178150911f58345052b14158bb081b",
+      "releaseFile": "supabase/migrations/20261020085527_smartstore_tracking_identity_guard.sql",
+      "releaseSha256": "97993a2269181c6312f45b7d367b1ba1e6178150911f58345052b14158bb081b",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261020013755_smartstore_shipment_export_locking.sql",
+      "sourceSha256": "3f2c6052ea831b715b791a4707a5185168b2b83b536a2a9d6116d5f382ad3a71",
+      "preparedSha256": "3f2c6052ea831b715b791a4707a5185168b2b83b536a2a9d6116d5f382ad3a71",
+      "releaseFile": "supabase/migrations/20261020085528_smartstore_shipment_export_locking.sql",
+      "releaseSha256": "3f2c6052ea831b715b791a4707a5185168b2b83b536a2a9d6116d5f382ad3a71",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261020021204_inquiry_chat_private_files.sql",
+      "sourceSha256": "ed86aa24b16e2d780fa1461d377ff094a9e614266977cf0e918dd4061c36d4ad",
+      "preparedSha256": "ed86aa24b16e2d780fa1461d377ff094a9e614266977cf0e918dd4061c36d4ad",
+      "releaseFile": "supabase/migrations/20261020085530_inquiry_chat_private_files.sql",
+      "releaseSha256": "ed86aa24b16e2d780fa1461d377ff094a9e614266977cf0e918dd4061c36d4ad",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261020023432_inquiry_file_filename_contract.sql",
+      "sourceSha256": "59670edff954c25cb1f30fb896fca38f9e1826ed2a23226e0eeac3a7af0ae502",
+      "preparedSha256": "59670edff954c25cb1f30fb896fca38f9e1826ed2a23226e0eeac3a7af0ae502",
+      "releaseFile": "supabase/migrations/20261020085531_inquiry_file_filename_contract.sql",
+      "releaseSha256": "59670edff954c25cb1f30fb896fca38f9e1826ed2a23226e0eeac3a7af0ae502",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    },
+    {
+      "sourceFile": "supabase/migrations/20261020023904_inquiry_file_session_lock_order.sql",
+      "sourceSha256": "0160c71d97feac7450b857928dec29148192ce371440e80f3560228e51361f95",
+      "preparedSha256": "0160c71d97feac7450b857928dec29148192ce371440e80f3560228e51361f95",
+      "releaseFile": "supabase/migrations/20261020085532_inquiry_file_session_lock_order.sql",
+      "releaseSha256": "0160c71d97feac7450b857928dec29148192ce371440e80f3560228e51361f95",
+      "reason": "Unpublished local draft rebased after the verified 202 Production migrations; original checkout preserved."
+    }
+  ],
+  "compatibility": [
+    {
+      "releaseFile": "supabase/migrations/20261020085611_release_main_admin_contracts.sql",
+      "releaseSha256": "510bf36a407ba702cf4e4b599af44c79d1617eaf2219cf5b8ab9446e24b591bb",
+      "reason": "Current main and cumulative admin contracts: authority, staff cancellation and Seowon packed tracking."
+    }
+  ]
+}

@@ -28,7 +28,13 @@ describe('White Catalog admin boundary (#433)', () => {
     });
     ast.walkDecls((decl) => {
       for (const match of decl.value.matchAll(/var\(\s*(--[\w-]+)/g)) expect(match[1]).toMatch(/^--wc-/);
-      expect(decl.value).not.toMatch(/#[\da-f]{3,8}\b|rgba?\(|hsla?\(/i);
+      // The seller-center palette belongs to the isolated admin token boundary.
+      // Components still consume variables so the public foundation cannot drift.
+      if (decl.prop.startsWith('--wc-')) {
+        expect(decl.parent?.type === 'rule' ? decl.parent.selector : '').toBe('.wc-admin');
+      } else {
+        expect(decl.value).not.toMatch(/#[\da-f]{3,8}\b|rgba?\(|hsla?\(/i);
+      }
     });
   });
 

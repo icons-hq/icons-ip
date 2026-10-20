@@ -1,3 +1,4 @@
+const { legacyOperatorAccessFixture } = await vi.hoisted(() => import('@/lib/admin/access.test-fixtures'));
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   adjustAdminStockAction,
@@ -24,12 +25,12 @@ const mocks = vi.hoisted(() => ({
     isConfigured: true,
     user: { id: 'staff-1', email: 'staff@icons.gg' },
     role: 'staff' as 'user' | 'staff' | 'admin',
-    isStaff: true,
+    isStaff: true, operatorAccess: legacyOperatorAccessFixture(),
   } as {
     isConfigured: boolean;
     user: { id: string; email: string | null } | null;
     role: 'user' | 'staff' | 'admin' | null;
-    isStaff: boolean;
+    isStaff: boolean; operatorAccess?: ReturnType<typeof legacyOperatorAccessFixture>;
   },
   catalog: null as CatalogSnapshot | null,
   getCurrentAdminAuthState: vi.fn(),
@@ -45,6 +46,10 @@ vi.mock('@/lib/auth/admin', () => ({
 }));
 vi.mock('@/lib/admin/catalog.server', () => ({
   getAdminCatalogRecords: mocks.getAdminCatalogRecords,
+}));
+vi.mock('@/lib/admin/goods-list.server', () => ({
+  // The two production projections share these test records without another broad loader call.
+  loadGoodsIpOptions: async () => (await mocks.getAdminCatalogRecords.mock.results.at(-1)?.value)?.ips ?? [],
 }));
 vi.mock('@/lib/catalog', () => ({
   getCatalogSnapshot: mocks.getCatalogSnapshot,
@@ -416,7 +421,7 @@ describe('admin catalog actions', () => {
       isConfigured: true,
       user: { id: 'staff-1', email: 'staff@icons.gg' },
       role: 'staff',
-      isStaff: true,
+      isStaff: true, operatorAccess: legacyOperatorAccessFixture(),
     };
     mocks.catalog = catalog;
     mocks.getCurrentAdminAuthState.mockReset();
@@ -1648,7 +1653,7 @@ describe('admin catalog actions', () => {
         isConfigured: true,
         user: { id: 'admin-1', email: 'admin@icons.gg' },
         role: 'admin',
-        isStaff: true,
+        isStaff: true, operatorAccess: legacyOperatorAccessFixture(),
       };
     }
 
@@ -1673,48 +1678,13 @@ describe('admin catalog actions', () => {
       expect(mocks.rpc).not.toHaveBeenCalled();
     });
 
-    it('returns validation errors before calling the role RPC', async () => {
+    it.each(['user', 'staff', 'admin', 'superadmin'])('retired raw role action never grants or revokes %s', async role => {
       asAdmin();
-      const formData = roleForm('superadmin');
-      formData.set('profileId', 'not-a-uuid');
-
-      const result = await setAdminUserRoleAction({}, formData);
-
-      expect(result.errors?.profileId).toBeTruthy();
-      expect(result.errors?.role).toBeTruthy();
+      await expect(setAdminUserRoleAction({}, roleForm(role))).resolves.toEqual({
+        errors: { form: '매니저 관리에서 매니저 권한을 변경해주세요.' },
+      });
       expect(mocks.rpc).not.toHaveBeenCalled();
-    });
-
-    it('grants a role through the audited RPC and refreshes the admin screen', async () => {
-      asAdmin();
-
-      await expect(setAdminUserRoleAction({}, roleForm('staff'))).resolves.toEqual({
-        message: '역할을 저장했습니다.',
-      });
-
-      expect(mocks.rpc).toHaveBeenCalledWith('admin_set_user_role', {
-        target_profile_id: targetProfileId,
-        target_role: 'staff',
-      });
-      expect(mocks.revalidatePath).toHaveBeenCalledWith('/admin');
-    });
-
-    it('maps self-change rejection from the RPC to a Korean message', async () => {
-      asAdmin();
-      mocks.rpc.mockResolvedValue({ data: null, error: { message: 'cannot_change_own_role' } });
-
-      await expect(setAdminUserRoleAction({}, roleForm('user'))).resolves.toEqual({
-        errors: { form: '본인 역할은 변경할 수 없습니다.' },
-      });
-    });
-
-    it('explains that a suspended account cannot receive a privileged role', async () => {
-      asAdmin();
-      mocks.rpc.mockResolvedValue({ data: null, error: { message: 'account_suspended' } });
-
-      await expect(setAdminUserRoleAction({}, roleForm('staff'))).resolves.toEqual({
-        errors: { form: '정지된 계정에는 staff 또는 admin 역할을 부여할 수 없습니다.' },
-      });
+      expect(mocks.revalidatePath).not.toHaveBeenCalled();
     });
   });
 
@@ -1829,5 +1799,40 @@ describe('admin catalog actions', () => {
       });
       expect(mocks.rpc).toHaveBeenCalledTimes(1);
     });
+  });
+});
+
+describe('상품 임시저장 완료 경로', () => {
+  it('상품 저장과 임시저장 소진을 같은 RPC로 보내고 충돌 입력을 보존한다', async () => {
+    const form=goodForm();
+    form.set('serverDraftId','76000000-0000-4000-8000-000000000020'); form.set('serverDraftRevision','4');
+    mocks.rpc.mockResolvedValueOnce({data:{id:'g100'},error:null});
+    expect(await upsertAdminGoodAction({},form)).toMatchObject({savedGoodId:'g100'});
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_save_good_from_draft',expect.objectContaining({p_draft_id:'76000000-0000-4000-8000-000000000020',p_draft_revision:4}));
+    mocks.rpc.mockResolvedValueOnce({data:null,error:{message:'goods_draft_changed'}});
+    const failed=await upsertAdminGoodAction({},form);
+    expect(failed.errors?.form).toContain('현재 입력은 유지');
+    expect(failed.values?.serverDraftRevision).toBe('4');
+  });
+  it('완료된 임시저장 재시도는 기존 상품으로 안내한다',async()=>{
+    const form=goodForm();form.set('serverDraftId','76000000-0000-4000-8000-000000000020');form.set('serverDraftRevision','4');
+    mocks.rpc.mockResolvedValueOnce({data:{id:'g100',draftAlreadyCompleted:true},error:null});
+    expect(await upsertAdminGoodAction({},form)).toMatchObject({savedGoodId:'g100',message:expect.stringContaining('이미 상품으로 등록')});
+  });
+});
+
+describe('일반 상품 판매기간 제출', () => {
+  it('한국시간과 CAS 리비전을 기존 상품 트랜잭션에 보내고 구버전 폼은 생략한다', async () => {
+    const form = goodForm();
+    await upsertAdminGoodAction({}, form);
+    expect(mocks.rpc.mock.calls.at(-1)?.[1].target_good).not.toHaveProperty('sale_period');
+    form.set('salePeriodEnabled', 'true'); form.set('saleStartsAt', '2026-10-13T00:00'); form.set('saleEndsAt', '2026-10-16T00:00'); form.set('salePeriodRevision', '4');
+    await upsertAdminGoodAction({}, form);
+    expect(mocks.rpc.mock.calls.at(-1)?.[1].target_good.sale_period).toEqual({ startsAt: '2026-10-12T15:00:00.000Z', endsAt: '2026-10-15T15:00:00.000Z', expectedRevision: 4 });
+  });
+  it.each(['goods_sale_period_changed', 'goods_sale_period_preorder_conflict'])('%s는 판매기간 오류와 미저장 입력을 보존한다', async message => {
+    const form = goodForm(); form.set('salePeriodEnabled', 'false'); form.set('salePeriodRevision', '3');
+    mocks.rpc.mockResolvedValue({ data: null, error: { message } });
+    expect(await upsertAdminGoodAction({}, form)).toMatchObject({ errors: { saleStartsAt: expect.any(String) }, values: { salePeriodEnabled: 'false', salePeriodRevision: '3' } });
   });
 });

@@ -1,0 +1,14 @@
+.wc-admin .admin-review-best { padding:20px 0; border-top:1px solid var(--wc-hairline); }
+.wc-admin .admin-review-best h3 { font-size:15px; margin:0 0 12px; }
+.wc-admin .admin-review-best h3 > span { margin-left:8px; font-size:12px; color:var(--wc-ink-sub); }
+.wc-admin .admin-review-best p,.wc-admin .admin-review-best-settings p { font-size:12px; line-height:1.7; }
+.wc-admin .admin-review-best label { display:block; margin:16px 0 8px; font-size:13px; }
+.wc-admin .admin-review-best textarea { display:block; width:100%; min-width:0; padding:10px; border:1px solid var(--wc-hairline); font:inherit; font-size:13px; resize:vertical; }
+.wc-admin .admin-review-best__actions,.wc-admin .admin-review-best__links { display:flex; flex-wrap:wrap; gap:10px; margin:16px 0; }
+.wc-admin .admin-review-best__reason { color:var(--wc-ink-sub); overflow-wrap:anywhere; }
+.wc-admin .admin-review-best-settings fieldset { border:0; padding:0; min-width:0; }
+.wc-admin .admin-review-best-settings legend { margin-bottom:16px; font-size:13px; }
+.wc-admin .admin-review-best-settings label { display:flex; align-items:center; gap:8px; font-size:14px; }
+.wc-admin .admin-review-best__save { display:flex; justify-content:flex-end; align-items:center; gap:16px; flex-wrap:wrap; margin-top:20px; padding:20px; background:var(--wc-surface); }
+.wc-admin .admin-review-best__save p { margin:0; }
+.wc-admin .admin-review-best [role="alert"],.wc-admin .admin-review-best-settings [role="alert"] { color:var(--wc-danger); }

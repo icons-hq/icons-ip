@@ -1,0 +1,4 @@
+import type { ClaimTypeContext, ClaimTypeRequest, ClaimTypeReceipt } from './claim-type-conversion';
+export const conversionRequest: ClaimTypeRequest = { id: '33333333-3333-4333-8333-333333333333', claimId: '22222222-2222-4222-8222-222222222222', revision: 2, toType: 'exchange', agreement: '고객 전화로 교환 및 배송비 합의', confirmed: true, refundAccount: null };
+export const conversionContext: ClaimTypeContext = { claimId: conversionRequest.claimId, orderId: '11111111-1111-4111-8111-111111111111', claimType: 'return', stage: 'collecting', revision: 2, allowed: true, blocker: null, bankRequired: false, savedAccount: null, history: [] };
+export const conversionReceipt: ClaimTypeReceipt = { id: conversionRequest.id, claimId: conversionRequest.claimId, orderId: conversionContext.orderId, revision: 2, fromType: 'return', toType: 'exchange', agreement: conversionRequest.agreement, createdAt: '2026-10-13T12:00:00Z', stage: 'collecting', accountSupplied: false };

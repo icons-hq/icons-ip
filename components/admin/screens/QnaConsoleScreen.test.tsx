@@ -1,5 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }));
 import {
   DEFAULT_ADMIN_PRODUCT_QUESTION_FILTERS,
   type AdminProductQuestionConsoleData,
@@ -50,14 +51,34 @@ function render(overrides: Partial<AdminProductQuestionConsoleData> = {}) {
 }
 
 describe('QnaConsoleScreen', () => {
-  /* 구매 전 질문은 답이 늦으면 그대로 이탈이 된다 — 미답변 건수가 다른 조건
-     사이에 섞여 있으면 "찾아서 거는" 필터가 된다. */
-  it('미답변 건수를 목록 맨 위에 고정한다', () => {
+  it('미답변 건수와 바로가기를 결과 영역에 보존한다', () => {
     const markup = render();
 
     expect(markup).toContain('admin-console-pinned-filter');
     expect(markup).toContain('답변 미등록 5건');
     expect(markup).toContain('미답변만 보기');
+  });
+
+  it('실제 문의 정보를 기본 목록형으로 보여주고 답변 진입점은 한 개만 렌더한다', () => {
+    const markup = render();
+    expect(markup).toContain('class="admin-cs-question-list"');
+    expect(markup).toContain('aria-pressed="true">목록형');
+    expect(markup).toContain('aria-pressed="false">표형');
+    expect(markup.match(/data-testid="action-/g)).toHaveLength(1);
+    expect(markup).not.toContain('<img');
+  });
+
+  it('공개 스토리지의 상품 이미지를 원격 최적화 설정 없이 표시한다', () => {
+    const image = 'https://fixture.supabase.co/storage/v1/object/public/media/goods/product.webp';
+    const markup = render({ rows: [row({ goodImageUrl: image })] });
+    expect(markup).toContain(`src="${image}"`);
+    expect(markup).not.toContain('/_next/image');
+  });
+
+  it('검색 조건이 없으면 접고 활성 조건이 있으면 처음부터 펼친다', () => {
+    expect(render()).not.toContain('class="admin-cs-search-disclosure" open=""');
+    expect(render({ filters: { ...DEFAULT_ADMIN_PRODUCT_QUESTION_FILTERS, query: '상품 질문' } })).toContain('class="admin-cs-search-disclosure" open=""');
+    expect(render({ filters: { ...DEFAULT_ADMIN_PRODUCT_QUESTION_FILTERS, status: 'unanswered' } })).toContain('class="admin-cs-search-disclosure" open=""');
   });
 
   it('미답변 필터가 걸려 있으면 해제 링크로 바뀐다', () => {

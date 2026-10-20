@@ -1,3 +1,4 @@
+const { legacyOperatorAccessFixture } = await vi.hoisted(() => import('@/lib/admin/access.test-fixtures'));
 import { describe, expect, it, vi } from 'vitest';
 
 /* 스태프 프리뷰 킬스위치 계약 — 상수 하나가 서버 게이트와 푸터 readback 을 함께 닫아야 한다.
@@ -8,7 +9,7 @@ vi.mock('./community-visibility', () => ({
   COMMUNITY_STAFF_PREVIEW_ENABLED: false,
 }));
 vi.mock('@/lib/auth/admin', () => ({
-  getCurrentAdminAuthState: async () => ({ isConfigured: true, user: null, role: 'admin', isStaff: true }),
+  getCurrentAdminAuthState: async () => ({ isConfigured: true, user: null, role: 'admin', isStaff: true, operatorAccess: legacyOperatorAccessFixture() }),
 }));
 vi.mock('@/lib/supabase/client', () => ({
   createClient: () => ({ rpc: async () => ({ data: true, error: null }) }),

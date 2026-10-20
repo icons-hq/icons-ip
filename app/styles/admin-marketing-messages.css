@@ -1,0 +1,61 @@
+  .wc-admin .wc-admin-marketing { display: grid; gap: 20px; min-width: 0; }
+  .wc-admin .wc-admin-marketing__notice, .wc-admin .wc-admin-marketing__confirm { padding: 18px 20px; border: 1px solid var(--wc-hairline); border-radius: 8px; background: var(--wc-surface); }
+  .wc-admin .wc-admin-marketing p { line-height: 1.7; }
+  .wc-admin .wc-admin-marketing__notice p, .wc-admin .wc-admin-marketing__hint { margin: 8px 0 0; color: var(--wc-ink-tertiary); font-size: 13px; }
+  .wc-admin .wc-admin-marketing__filters, .wc-admin .wc-admin-marketing__schedule-fields { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; }
+  .wc-admin .wc-admin-marketing label { display: grid; gap: 7px; font-size: 13px; }
+  .wc-admin .wc-admin-marketing input:not([type="radio"]), .wc-admin .wc-admin-marketing select, .wc-admin .wc-admin-marketing textarea { box-sizing: border-box; width: 100%; min-width: 0; border: 1px solid var(--wc-hairline); border-radius: 5px; padding: 10px 12px; background: var(--wc-surface); color: var(--wc-ink); font: inherit; }
+  .wc-admin .wc-admin-marketing input:focus-visible, .wc-admin .wc-admin-marketing select:focus-visible, .wc-admin .wc-admin-marketing textarea:focus-visible, .wc-admin .wc-admin-marketing button:focus-visible { outline: 2px solid var(--wc-ink); outline-offset: 3px; }
+  .wc-admin .wc-admin-marketing button:disabled { opacity: .5; cursor: not-allowed; }
+  .wc-admin .wc-admin-marketing__toolbar, .wc-admin .wc-admin-marketing__footer { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; padding: 16px 0; }
+  .wc-admin .wc-admin-marketing__footer { justify-content: flex-end; border-top: 1px solid var(--wc-hairline); margin-top: 20px; }
+  .wc-admin .wc-admin-marketing__table-wrap { overflow-x: auto; max-width: 100%; }
+  .wc-admin .wc-admin-marketing__table { width: 100%; border-collapse: collapse; min-width: 770px; font-size: 13px; text-align: left; }
+  .wc-admin .wc-admin-marketing__table th, .wc-admin .wc-admin-marketing__table td { padding: 13px 11px; border-bottom: 1px solid var(--wc-hairline); vertical-align: top; }
+  .wc-admin .wc-admin-marketing__table th { background: var(--wc-surface-grey); color: var(--wc-ink-tertiary); font-weight: 500; }
+  .wc-admin .wc-admin-marketing__table td > a { font-weight: 600; }
+  .wc-admin .wc-admin-marketing__table small { display: block; color: var(--wc-ink-tertiary); margin-top: 5px; }
+  .wc-admin .wc-admin-marketing__table td:last-child { min-width: 95px; }
+  .wc-admin .wc-admin-marketing__table td:last-child > * { display: block; margin-bottom: 7px; }
+  .wc-admin .wc-admin-marketing__table td button { border: 0; padding: 0; background: none; font: inherit; text-decoration: underline; cursor: pointer; }
+  .wc-admin .wc-admin-marketing__empty { text-align: center; padding: 48px 20px; color: var(--wc-ink-tertiary); }
+  .wc-admin .wc-admin-marketing__error { color: var(--wc-danger); background: var(--wc-surface); border: 1px solid var(--wc-danger); padding: 12px; border-radius: 5px; }
+  .wc-admin .wc-admin-marketing__steps { display: flex; list-style: none; padding: 0; margin: 0; border: 1px solid var(--wc-hairline); border-radius: 8px; overflow: hidden; }
+  .wc-admin .wc-admin-marketing__steps li { flex: 1; display: flex; align-items: center; justify-content: center; gap: 10px; padding: 17px 10px; background: var(--wc-surface); color: var(--wc-ink-tertiary); font-size: 14px; }
+  .wc-admin .wc-admin-marketing__steps li + li { border-left: 1px solid var(--wc-hairline); }
+  .wc-admin .wc-admin-marketing__steps li[aria-current] { background: var(--wc-ink); color: var(--wc-surface); }
+  .wc-admin .wc-admin-marketing__steps span { font-weight: 700; }
+  .wc-admin .wc-admin-marketing__editor-layout { display: grid; grid-template-columns: minmax(0, 1fr) 330px; gap: 22px; align-items: start; }
+  .wc-admin .wc-admin-marketing__editor-layout > div { display: grid; gap: 20px; min-width: 0; }
+  .wc-admin .wc-admin-marketing__fieldset { border: 0; padding: 0; margin: 0; display: grid; gap: 20px; min-width: 0; }
+  .wc-admin .wc-admin-marketing__field small, .wc-admin .wc-admin-marketing legend small { color: var(--wc-ink-tertiary); font-size: 12px; font-weight: 400; }
+  .wc-admin .wc-admin-marketing__templates, .wc-admin .wc-admin-marketing__schedule { margin: 0; padding: 12px 0; display: flex; flex-wrap: wrap; gap: 14px; border: 0; }
+  .wc-admin .wc-admin-marketing__templates label, .wc-admin .wc-admin-marketing__schedule label { display: flex; align-items: center; gap: 6px; border: 1px solid var(--wc-hairline); padding: 12px; border-radius: 5px; }
+  .wc-admin .wc-admin-marketing__picker-search { display: flex; gap: 10px; align-items: end; }
+  .wc-admin .wc-admin-marketing__picker-search label { flex: 1; min-width: 0; }
+  .wc-admin .wc-admin-marketing__choices { display: grid; gap: 6px; max-height: 370px; overflow-y: auto; margin-top: 12px; border: 1px solid var(--wc-hairline); padding: 12px; border-radius: 6px; }
+  .wc-admin .wc-admin-marketing__choices > button { text-align: left; padding: 12px; display: grid; gap: 6px; border: 1px solid var(--wc-hairline); border-radius: 5px; background: var(--wc-surface); cursor: pointer; }
+  .wc-admin .wc-admin-marketing__choices > button[aria-pressed="true"] { border-color: var(--wc-ink); background: var(--wc-surface-grey); }
+  .wc-admin .wc-admin-marketing__choices span, .wc-admin .wc-admin-marketing__choices small { color: var(--wc-ink-tertiary); }
+  .wc-admin .wc-admin-marketing__choices > div { display: flex; justify-content: space-between; padding-top: 10px; }
+  .wc-admin .wc-admin-marketing__selected-segment { display: grid; gap: 8px; border-left: 3px solid var(--wc-ink); padding: 14px 18px; background: var(--wc-surface-grey); }
+  .wc-admin .wc-admin-marketing__selected-segment ul { margin: 0; padding-left: 18px; font-size: 13px; line-height: 1.9; }
+  .wc-admin .wc-admin-marketing__selected-products { padding-left: 22px; }
+  .wc-admin .wc-admin-marketing__selected-products li { padding: 8px 0; }
+  .wc-admin .wc-admin-marketing__selected-products span { margin-right: 12px; }
+  .wc-admin .wc-admin-marketing__selected-products button { margin-left: 7px; }
+  .wc-admin .wc-admin-marketing__buttons-editor { display: grid; gap: 12px; border: 1px solid var(--wc-hairline); border-radius: 6px; padding: 15px; min-width: 0; }
+  .wc-admin .wc-admin-marketing__buttons-editor > div { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 2fr) auto; gap: 10px; align-items: end; }
+  .wc-admin .wc-admin-marketing__preview { position: sticky; top: 20px; min-width: 0; }
+  .wc-admin .wc-admin-marketing__preview > h2 { font-size: 15px; margin: 0 0 14px; }
+  .wc-admin .wc-admin-marketing__preview > p { font-size: 12px; color: var(--wc-ink-tertiary); }
+  .wc-admin .wc-admin-marketing__estimate { border: 1px solid var(--wc-hairline); border-radius: 6px; padding: 18px; display: grid; gap: 12px; }
+  .wc-admin .wc-admin-marketing__metrics { display: flex; gap: 12px; flex-wrap: wrap; margin: 16px 0; }
+  .wc-admin .wc-admin-marketing__metrics > div { display: grid; flex: 1; min-width: 100px; gap: 7px; border: 1px solid var(--wc-hairline); padding: 15px; border-radius: 6px; }
+  .wc-admin .wc-admin-marketing__metrics span { color: var(--wc-ink-tertiary); font-size: 12px; }
+  .wc-admin .wc-admin-marketing__metrics strong { font-size: 25px; }
+  .wc-admin .wc-admin-marketing__facts > div { display: grid; grid-template-columns: 110px 1fr; padding: 13px 0; gap: 15px; border-bottom: 1px solid var(--wc-hairline); }
+  .wc-admin .wc-admin-marketing__facts dt { color: var(--wc-ink-tertiary); font-size: 13px; }
+  .wc-admin .wc-admin-marketing__facts dd { margin: 0; overflow-wrap: anywhere; }
+  @media (max-width: 1150px) { .wc-admin .wc-admin-marketing__editor-layout { grid-template-columns: minmax(0, 1fr); } .wc-admin .wc-admin-marketing__preview { position: static; max-width: 480px; width: 100%; } }
+  @media (max-width: 600px) { .wc-admin .wc-admin-marketing__filters > label { flex: 1 1 130px; } .wc-admin .wc-admin-marketing__steps li { font-size: 12px; padding: 13px 7px; gap: 5px; } .wc-admin .wc-admin-marketing__picker-search { flex-wrap: wrap; } .wc-admin .wc-admin-marketing__picker-search label { flex-basis: 100%; } .wc-admin .wc-admin-marketing__buttons-editor > div { grid-template-columns: minmax(0, 1fr); } .wc-admin .wc-admin-marketing__schedule-fields > label { flex: 1 1 120px; } .wc-admin .wc-admin-marketing__facts > div { grid-template-columns: 1fr; gap: 6px; } }

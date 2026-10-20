@@ -33,6 +33,12 @@ export const FIXTURE_GOODS: AdminGoodSummary[] = names.map((name, index) => ({
   allowBankTransfer: true,
   saleRestriction: 'none',
   noticeComplete: index !== 4,
+  priceMin: 18000 + index * 3000,
+  priceMax: 24000 + index * 3000,
+  categoryName: index % 2 ? '패션잡화 > 문구' : '수집품 > 피규어',
+  createdAt: '2026-09-01T09:00:00Z',
+  updatedAt: '2026-10-12T06:00:00Z',
+  readiness: { state: index === 4 ? 'review_required' : 'ready', checkedAt: '2026-10-12T06:00:00Z', publication: index === 5 ? 'archived' : index % 3 === 0 ? 'draft' : 'published', operation: 'active', availableQty: index === 5 ? 0 : 42 + index * 9, publicReview: 'current', saleSettings: 'ready', reviewRequired: index === 4, reasons: [] },
 }));
 
 export const FIXTURE_OPTION_ROWS: GoodsOptionRow[] = [

@@ -2,14 +2,14 @@
 
 import { useEffect, useRef, useState, useTransition, type FormEvent } from 'react';
 import { readShipmentDeliveryAction, recordShipmentDeliveryAction, selectShipmentDeliveryMethodAction } from '@/app/admin/shipment-delivery-actions';
-import { DELIVERY_METHOD_LABELS, deliveryStatusLabel, type AdminShipmentDelivery, type DeliveryMethod, type DeliveryOperation } from '@/lib/shipment-delivery';
+import { DELIVERY_METHOD_LABELS, deliveryIsHandoff, deliveryStatusLabel, type AdminShipmentDelivery, type DeliveryMethod, type DeliveryOperation } from '@/lib/shipment-delivery';
 import { formatOrderDateTime } from '@/lib/orders';
 import { krw } from '@/lib/format';
 
-const HISTORY_LABELS: Record<string, string> = { method_selected: '배송 방식 변경', quick_handoff: '퀵 인계', quick_receive: '퀵 수령 완료', pickup_receive: '방문수령 완료' };
+const HISTORY_LABELS: Record<string, string> = { method_selected: '배송 방식 변경', quick_handoff: '퀵 인계', quick_receive: '퀵 수령 완료', pickup_receive: '방문수령 완료', direct_handoff: '직접배송 인계', direct_receive: '직접배송 수령 완료', freight_handoff: '화물배송 인계', freight_receive: '화물배송 수령 완료', none_receive: '직접전달 완료', digital_access: '디지털 파일 제공 시작' };
 const EVIDENCE_LABELS: Record<string, string> = {
   customerRequestReference: '고객 요청 근거', feeConsentReference: '기존 배송비 유지 동의', operatorName: '실제 인계·확인 담당자',
-  providerName: '퀵 업체', providerPhone: '퀵 연락처', handoffReference: '인계 참조', receiptReference: '수령 확인 근거',
+  providerName: '배송 업체·담당', providerPhone: '배송 연락처', handoffReference: '인계 참조', receiptReference: '수령 확인 근거',
 };
 
 function MethodSelection({ shipment, onSaved }: { shipment: AdminShipmentDelivery; onSaved: (message: string) => void }) {
@@ -34,7 +34,7 @@ function MethodSelection({ shipment, onSaved }: { shipment: AdminShipmentDeliver
     <fieldset disabled={pending} className="col" style={{ gap: 10, border: 0, margin: 0, padding: 0 }}>
       <legend className="sr-only">고객 요청에 따른 배송 방식 선택</legend>
       <label>변경할 배송 방식<select name="method" value={method} onChange={(event) => { setMethod(event.target.value as DeliveryMethod); setPolicyId(''); }}>
-        <option value="parcel">택배</option><option value="quick">퀵</option><option value="pickup">방문수령</option></select>
+        <option value="parcel">택배</option><option value="quick">퀵</option><option value="pickup">방문수령</option><option value="direct">직접배송</option><option value="freight">화물배송</option></select>
       </label>
       {method !== 'parcel' ? <label>확인한 운영 조건<select value={policyId} onChange={(event) => setPolicyId(event.target.value)} required>
         <option value="">활성 운영 조건을 선택해주세요</option>
@@ -53,7 +53,8 @@ function MethodSelection({ shipment, onSaved }: { shipment: AdminShipmentDeliver
 }
 
 function HandoffForm({ shipment, onSaved }: { shipment: AdminShipmentDelivery; onSaved: (message: string) => void }) {
-  const kind: DeliveryOperation = shipment.summary.method === 'pickup' ? 'pickup_receive' : shipment.status === 'ready' ? 'quick_handoff' : 'quick_receive';
+  const method = shipment.summary.method;
+  const kind = (method === 'pickup' || method === 'none' ? `${method}_receive` : `${method}_${shipment.status === 'ready' ? 'handoff' : 'receive'}`) as DeliveryOperation;
   const [occurredAt, setOccurredAt] = useState(''); const [error, setError] = useState<string | null>(null); const [pending, startTransition] = useTransition();
   const requestId = useRef<string | null>(null); const busy = useRef(false);
   function submit(event: FormEvent<HTMLFormElement>) {
@@ -72,12 +73,12 @@ function HandoffForm({ shipment, onSaved }: { shipment: AdminShipmentDelivery; o
     <fieldset disabled={pending || !shipment.preorderReady} className="col" style={{ gap: 10, border: 0, margin: 0, padding: 0 }}>
       <legend className="sr-only">실제 인계·수령 증거</legend>
       <label>실제 인계·확인 담당자<input name="operatorName" maxLength={100} required /></label>
-      <label>실제 {kind === 'quick_handoff' ? '인계' : '수령'} 시각 (한국)<input type="datetime-local" name="occurredAt" step="0.001" value={occurredAt}
+      <label>실제 {deliveryIsHandoff(kind) ? '인계' : '수령'} 시각 (한국)<input type="datetime-local" name="occurredAt" step="0.001" value={occurredAt}
         onChange={(event) => setOccurredAt(event.target.value)} required /></label>
       <button className="btn btn-ghost" type="button" onClick={() => setOccurredAt(new Date(Date.now() + 9 * 60 * 60 * 1000).toISOString().slice(0, 23))}>현재 시각 입력</button>
-      {kind === 'quick_handoff' ? <>
-        <label>실제 퀵 업체<input name="providerName" maxLength={100} required /></label>
-        <label>퀵 담당 연락처<input name="providerPhone" type="tel" maxLength={40} required /></label>
+      {deliveryIsHandoff(kind) ? <>
+        <label>실제 배송 업체·담당<input name="providerName" maxLength={100} required /></label>
+        <label>배송 담당 연락처<input name="providerPhone" type="tel" maxLength={40} required /></label>
         <label>실제 인계 참조·근거<textarea name="handoffReference" rows={2} maxLength={2000} required /></label>
       </> : <>
         <label>수령인 구분<select name="recipientKind" defaultValue="" required><option value="" disabled>수령인을 확인해주세요</option>
@@ -89,7 +90,7 @@ function HandoffForm({ shipment, onSaved }: { shipment: AdminShipmentDelivery; o
     </fieldset>
     {!shipment.preorderReady ? <p role="status">예약 품목에 실제 입고 물량을 먼저 할당해주세요.</p> : null}
     {error && <p role="alert">{error}</p>}
-    <button className="btn" type="submit" disabled={pending || !shipment.preorderReady}>{pending ? '확인 중…' : kind === 'quick_handoff' ? '퀵 인계 확인' : '수령 완료 확인'}</button>
+    <button className="btn" type="submit" disabled={pending || !shipment.preorderReady}>{pending ? '확인 중…' : deliveryIsHandoff(kind) ? '배송 인계 확인' : '수령 완료 확인'}</button>
   </form>;
 }
 
@@ -115,7 +116,7 @@ export function ShipmentDeliveryPanel({ shipmentId, orderId, originName }: { shi
       {shipment.summary.policy ? <p style={{ margin: 0, whiteSpace: 'pre-wrap' }}>저장된 인계 조건: {shipment.summary.policy.handoffLocation}<br />
         {shipment.summary.policy.handoffInstructions}<br />{shipment.summary.policy.completionInstructions}</p> : null}
       {shipment.canSelect ? <details><summary>고객 요청으로 방식 변경</summary><MethodSelection key={`select-${shipment.updatedAt}`} shipment={shipment} onSaved={saved} /></details>
-        : <small className="muted">결제가 확인되고 출고지시를 전달하기 전인 배송 준비 건만 방식을 변경할 수 있습니다.</small>}
+        : <small className="muted">배송없음·디지털 상품은 구매 시 확정한 제공 방식을 유지합니다. 배송 상품은 결제 확인 후 출고지시 전달 전까지 변경할 수 있습니다.</small>}
       {shipment.canTransition ? <HandoffForm key={`handoff-${shipment.updatedAt}`} shipment={shipment} onSaved={saved} /> : null}
       {shipment.history.length ? <details><summary>방식·인계 변경 이력 {shipment.history.length}건</summary>
         <ol className="col" style={{ gap: 12, paddingLeft: 20 }}>{shipment.history.map((row) => <li key={row.id}>

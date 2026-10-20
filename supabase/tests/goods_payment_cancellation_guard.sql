@@ -804,7 +804,7 @@ begin
     raise exception 'ordinary user actor was accepted';
   exception
     when insufficient_privilege then
-      if sqlerrm <> 'staff required' then
+      if sqlerrm not in ('staff required','operator_capability_required') then
         raise;
       end if;
   end;

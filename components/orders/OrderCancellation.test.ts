@@ -26,11 +26,23 @@ describe('WITHDRAWAL_REASON_LABELS', () => {
 });
 
 describe('발주확인 이후 직접 취소 차단', () => {
+  it.each(['processing', 'completed'] as const)('계좌 송금 대기는 기존 %s 요청 라벨보다 먼저 표시하고 재신청을 열지 않는다', status => {
+    const request = { id: '11111111-1111-4111-8111-111111111111', status, stage: status, claimType: 'cancel' as const, reference: 1,
+      requestedAt: '2026-10-14T01:00:00Z', decidedAt: null, decisionNote: null, reshipCarrier: null, reshipTrackingNumber: null, reshipDeliveredAt: null };
+    const refund = { status: 'awaiting_transfer', createdAt: '2026-10-14T02:00:00Z' };
+    const presentation = cancellationPresentation('canceled', refund, request);
+    expect(presentation).toMatchObject({ canCancel: false, heading: '환불 송금 대기', requestLabel: '송금 대기' });
+    const html = renderToStaticMarkup(createElement(OrderCancellation, { orderId: '11111111-1111-4111-8111-111111111111', status: 'canceled', refund, cancellationRequest: request, deliveredAt: null, eligibility: null }));
+    expect(html).toContain('결제자 계좌');
+    expect(html).not.toContain('취소·환불 처리 완료');
+    expect(html).not.toContain('order-cancellation-open');
+  });
   it.each(['confirmed', 'shipping', 'delivered', 'done'] as const)('%s 주문은 취소 버튼 대신 신청 기준을 안내한다', (status) => {
     const presentation = cancellationPresentation(status, null);
     expect(presentation.canCancel).toBe(false);
     expect(presentation.body).toContain('발주확인 전');
-    expect(presentation.body).toContain('모든 굿즈');
+    expect(presentation.body).toContain('배송 중부터');
+    expect(presentation.body).toContain('주문 전체');
     expect(presentation.body).not.toContain('주문이 취소됐습니다');
     const markup = renderToStaticMarkup(createElement(OrderCancellation, {
       deliveredAt: null, orderId: '11111111-1111-4111-8111-111111111111', status,
@@ -255,7 +267,7 @@ describe('submitOrderCancellation', () => {
     }));
     expect(markup).toContain('이전 요청 거절');
     expect(markup).toContain('요청 시각');
-    expect(markup).toContain('처리 시각');
+    expect(markup).toContain('승인·결정 시각');
     expect(markup).toContain('2026-07-14T08:00:00.000Z');
     expect(markup).toContain('다시 청약철회 요청');
 

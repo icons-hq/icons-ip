@@ -19,7 +19,10 @@ import type { InquiryThreadView } from '@/lib/inquiries.server';
 import { orderReferenceLabel } from '@/lib/orders';
 import { InquiryLiveUpdates } from './InquiryLiveUpdates';
 import { InquiryMessageBody } from './InquiryMessageBody';
+import { InquiryMessageFiles } from './InquiryMessageFiles';
 import { inquiryMessageAuthorLabel } from '@/lib/inquiries';
+import type { InquirySatisfactionLoad } from '@/lib/inquiry-satisfaction';
+import { InquirySatisfaction } from './InquirySatisfaction';
 
 /* 문의 스레드(#253).
  *
@@ -54,11 +57,12 @@ function MessageBubble({
           ))}
         </div>
       ) : null}
+      <InquiryMessageFiles files={message.files} messageId={message.id} />
     </li>
   );
 }
 
-export function InquiryThread({ inquiry }: { inquiry: InquiryThreadView }) {
+export function InquiryThread({ inquiry, satisfaction }: { inquiry: InquiryThreadView; satisfaction?: InquirySatisfactionLoad }) {
   const [state, action, pending] = useActionState(replyToInquiryAction, EMPTY_STATE);
   const closed = inquiry.status === 'closed';
 
@@ -81,6 +85,8 @@ export function InquiryThread({ inquiry }: { inquiry: InquiryThreadView }) {
             <MessageBubble key={message.id} message={message} />
           ))}
         </ul>
+
+        {satisfaction ? <InquirySatisfaction result={satisfaction} /> : null}
 
         {closed ? (
           <div className="wc-mypage__notice" role="status">

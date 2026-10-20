@@ -1,5 +1,6 @@
 'use client';
 
+import { GoodsCustomInputsSummary } from '@/components/shop/GoodsCustomInputs';
 import { ShipmentDetails } from '@/components/shop/ShipmentDetails';
 
 import Link from 'next/link';
@@ -28,6 +29,8 @@ import {
 import { paymentFailNoticeCopy } from '@/lib/payments/checkout-fail-copy';
 import type { PreparedCheckout } from '@/lib/payments/gateway';
 import { shippingFeeLabel } from '@/lib/shipping';
+import { GoodsTransactionSummary } from '@/components/checkout/GoodsTransactionSummary';
+import { transactionReceiptNames } from '@/lib/checkout-transaction';
 
 interface CheckoutOrderProps {
   order: CheckoutOrderSnapshot;
@@ -43,6 +46,7 @@ const prepareErrorCopy: Record<NonNullable<PrepareGoodsPaymentActionState['error
   auth_required: '로그인 상태를 다시 확인한 뒤 결제를 준비해주세요.',
   not_found: '이 주문을 확인할 수 없습니다.',
   not_payable: '이 주문은 더 이상 결제할 수 없습니다.',
+  goods_sale_not_open: '굿즈의 판매기간이 시작되지 않았거나 종료되어 결제할 수 없습니다.',
   payment_closed: '이 주문으로는 다시 결제할 수 없어요. 주문 상태를 새로 불러오고 있어요.',
   payment_unavailable: '결제 환경을 준비 중입니다. 잠시 후 다시 시도해주세요.',
 };
@@ -114,7 +118,7 @@ export function CheckoutOrder({
   /* 즉시 취소가 확실한 주문에만 "취소하고 다시 주문하기"를 연다. 승인 거절과, 서버가 읽은
      시도의 유효 시간(expires_at)이 지난 prepared 시도가 해당한다. 시각을 모르는 첫 렌더에서는
      시도 만료를 단정하지 않는다. */
-  const reorderMode = checkoutReorderMode(order, state, now ?? 0);
+  const reorderMode = order.giftId ? null : checkoutReorderMode(order, state, now ?? 0);
   const closedCopy = activeClosure
     ? closedPaymentCopy(activeClosure, {
         orderExpiresAt: order.expiresAt,
@@ -167,7 +171,7 @@ export function CheckoutOrder({
 
   const isBankTransfer = order.paymentMethod === 'bank_transfer';
 
-  const statusCopy = checkoutStatusCopy({
+  const baseStatusCopy = checkoutStatusCopy({
     state,
     closedCopy,
     isBankTransfer,
@@ -176,6 +180,10 @@ export function CheckoutOrder({
     reorderCanceled,
     reorderRequested,
   });
+  const statusCopy = order.giftId && (activeClosure || state === 'closed') && baseStatusCopy
+    ? { ...baseStatusCopy, body: '선물함에서 이 선물의 주문 상태와 취소 요청을 확인해주세요. 새 선물은 받는 분의 수락과 배송지 확인을 다시 거쳐야 합니다.' }
+    : baseStatusCopy;
+  const giftReturn = order.giftId ? <Link className="btn btn-holo" href={`/gifts/${encodeURIComponent(order.giftId)}`}>선물함에서 확인하기</Link> : null;
   const markReorderCanceled = () => setReorderCanceled(true);
   const markReorderRequested = () => setReorderRequested(true);
 
@@ -258,6 +266,7 @@ export function CheckoutOrder({
               {/* 이 분기의 statusCopy는 closedCopy이고, 이 화면에서 주문을 취소한 뒤에는 취소 안내다. */}
               <h2>{statusCopy?.title ?? closedCopy.title}</h2>
               <p>{statusCopy?.body ?? closedCopy.body}</p>
+              {giftReturn}
               {reorderMode && (
                 <ReorderAction
                   mode={reorderMode}
@@ -299,6 +308,7 @@ export function CheckoutOrder({
                   <Link className="btn btn-ghost" href="/my/inquiries">1:1 문의</Link>
                 </>
               )}
+              {state === 'closed' && giftReturn}
               {state === 'closed' && reorderMode && (
                 <ReorderAction
                   mode={reorderMode}
@@ -307,7 +317,7 @@ export function CheckoutOrder({
                   orderId={order.id}
                 />
               )}
-              {state === 'closed' && (
+              {state === 'closed' && !order.giftId && (
                 <Link className={reorderMode ? 'btn btn-ghost' : 'btn btn-holo'} href="/shop">
                   {reorderMode ? '굿즈샵 둘러보기' : '굿즈 다시 담기'}
                 </Link>
@@ -332,13 +342,13 @@ export function CheckoutOrder({
           </div>
           <div className="checkout-items">
             {order.items.map((item) => (
-              <div className="checkout-item" key={`${item.goodId}:${item.variantId ?? "default"}`}>
-                <div><span>{item.type}</span><strong>{item.name}</strong>{item.variantName ? <span>{item.variantName}</span> : null}</div>
+              <div className="checkout-item" key={item.id}>
+                <div><span>{item.type}</span><strong>{item.name}</strong>{item.variantName ? <span>{item.variantName}</span> : null}<GoodsCustomInputsSummary selection={item.customInputs} /></div>
                 <span className="mono">{item.qty} × {krw(item.unitPrice)}</span>
               </div>
             ))}
           </div>
-          <dl className="checkout-totals">
+          {order.transaction ? <GoodsTransactionSummary display={order.transaction} names={transactionReceiptNames(order.transaction, order.items)} /> : <dl className="checkout-totals">
             {/* total 은 할인·배송비가 이미 반영된 청구액이다 — 굿즈 금액은 둘을 되돌려 복원한다. */}
             <div><dt>굿즈 금액</dt><dd>{krw(order.total - order.shippingFee + order.discountTotal + order.storeCreditTotal)}</dd></div>
             {order.discountTotal > 0 && (
@@ -347,8 +357,8 @@ export function CheckoutOrder({
             {order.storeCreditTotal > 0 && <div><dt>적립금 사용</dt><dd>−{krw(order.storeCreditTotal)}</dd></div>}
             <div><dt>배송비</dt><dd>{shippingFeeLabel(order.shippingFee)}</dd></div>
             <div className="checkout-total"><dt>결제 금액</dt><dd>{krw(order.total)}</dd></div>
-          </dl>
-          <ShipmentDetails shipments={order.shipments} items={order.items} />
+          </dl>}
+          <ShipmentDetails shipments={order.shipments} items={order.items} transactionShipping={order.transaction?.shipping} />
           {order.address && (
             <div className="checkout-address-preview">
               <span>배송지</span>
@@ -357,6 +367,7 @@ export function CheckoutOrder({
               {order.address.deliveryNote && <small>{order.address.deliveryNote}</small>}
             </div>
           )}
+          {order.giftId && !order.address && <p>선물 받는 분이 입력한 주소로 배송됩니다. 주소와 연락처는 받는 분만 확인할 수 있어요.</p>}
         </aside>
       </div>
     </main>

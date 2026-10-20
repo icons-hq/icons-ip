@@ -25,6 +25,106 @@ function curationForm(entries: Record<string, string> = {}) {
 }
 
 describe('admin curation form normalization', () => {
+  it('preserves legacy style omission and saves only valid explicit banner styles', () => {
+    expect(normalizeAdminCurationForm(curationForm({ imageDim: '', textColor: '' }))).toMatchObject({ ok: true, value: { payload: null } });
+    expect(normalizeAdminCurationForm(curationForm({ imageDim: 'none', textColor: 'black' }))).toMatchObject({ ok: true, value: { payload: { image_dim: 'none', text_color: 'black' } } });
+    expect(normalizeAdminCurationForm(curationForm({ imageDim: 'gray', textColor: 'red' }))).toMatchObject({ ok: false, errors: { imageDim: expect.any(String), textColor: expect.any(String) } });
+  });
+  it('saves the free-product pool separately from design, crop and display count', () => {
+    const base = { kind: 'product_collection', title: '😀'.repeat(15), imagePath: '', linkPath: '', productLayout: 'list', productImageShape: 'portrait', productItemCount: '3', goodIds: 'g3, hidden, g2, g1' };
+    expect(normalizeAdminCurationForm(curationForm(base))).toMatchObject({ ok: true, value: { linkPath: null, imagePath: null, slot: null,
+      payload: { layout: 'list', image_shape: 'portrait', item_count: 3, good_ids: ['g3', 'hidden', 'g2', 'g1'] } } });
+    expect(normalizeAdminCurationForm(curationForm({ ...base, goodIds: '', productLayout: 'full_image', productItemCount: '1' })))
+      .toMatchObject({ ok: true, value: { payload: { good_ids: [], item_count: 1 } } });
+    for (const value of [{ productItemCount: '2' }, { productItemCount: '3e0' }, { productLayout: 'full_image', productItemCount: '12' },
+      { productImageShape: 'auto' }, { goodIds: 'g1,g1' }, { title: '😀'.repeat(16) }, { title: '제목\n줄' }, { imagePath: IMAGE_PATH }, { linkPath: '/shop' }]) {
+      expect(normalizeAdminCurationForm(curationForm({ ...base, ...value }))).toMatchObject({ ok: false });
+    }
+  });
+  it('프로모션 배너만 제목·내용과 링크를 비울 수 있다', () => {
+    expect(normalizeAdminCurationForm(curationForm({ title: '', subtitle: '', linkPath: '', altEnabled: 'on', altTitle: '', altContent: '' })))
+      .toMatchObject({ ok: true, value: { title: '', linkPath: null, payload: { alt_enabled: true } } });
+    expect(normalizeAdminCurationForm(curationForm({ kind: 'announcement', title: '', linkPath: '' })))
+      .toMatchObject({ ok: false, errors: { title: expect.any(String), linkPath: expect.any(String) } });
+    expect(normalizeAdminCurationForm(curationForm({ linkPath: '\n' }))).toMatchObject({ ok: false, errors: { linkPath: expect.any(String) } });
+  });
+
+  it('새 문구는 코드포인트 40·150자와 3줄을 제한하고 기존 긴 문구는 그대로 유지한다', () => {
+    expect(normalizeAdminCurationForm(curationForm({ title: '😀'.repeat(40), subtitle: '😀'.repeat(150) }))).toMatchObject({ ok: true });
+    expect(normalizeAdminCurationForm(curationForm({ title: '😀'.repeat(41), subtitle: '가'.repeat(151) }))).toMatchObject({ ok: false, errors: { title: expect.any(String), subtitle: expect.any(String) } });
+    expect(normalizeAdminCurationForm(curationForm({ subtitle: '1\n2\n3\n4' }))).toMatchObject({ ok: false, errors: { subtitle: expect.any(String) } });
+    expect(normalizeAdminCurationForm(curationForm({ title: '가'.repeat(120), originalTitle: '가'.repeat(120), subtitle: '나'.repeat(200), originalSubtitle: '나'.repeat(200) })))
+      .toMatchObject({ ok: true, value: { title: '가'.repeat(120), payload: { subtitle: '나'.repeat(200) } } });
+  });
+
+  it('대체텍스트는 화면 문구와 분리되며 해제하면 예전 입력을 저장하지 않는다', () => {
+    expect(normalizeAdminCurationForm(curationForm({ title: '화면 제목', subtitle: '화면 내용', altEnabled: 'on', altTitle: '  이미지 제목  ', altContent: '이미지 내용' })))
+      .toMatchObject({ ok: true, value: { title: '화면 제목', payload: { subtitle: '화면 내용', alt_enabled: true, alt_title: '이미지 제목', alt_content: '이미지 내용' } } });
+    expect(normalizeAdminCurationForm(curationForm({ altEnabled: 'off', altTitle: '오래된 제목', altContent: '오래된 설명' })))
+      .toMatchObject({ ok: true, value: { payload: { alt_enabled: false } } });
+    expect(normalizeAdminCurationForm(curationForm({ altEnabled: 'on', altTitle: '😀'.repeat(41), altContent: '😀'.repeat(151) })))
+      .toMatchObject({ ok: false, errors: { altTitle: expect.any(String), altContent: expect.any(String) } });
+  });
+
+  it('마이크로초를 포함한 저장 시각을 손실 없이 전달하고 잘못된 시각은 거절한다', () => {
+    const saved = '2026-10-14T02:00:00.123456+09:00';
+    expect(normalizeAdminCurationForm(curationForm({ expectedUpdatedAt: saved }))).toMatchObject({ ok: true, value: { expectedUpdatedAt: saved } });
+    expect(normalizeAdminCurationForm(curationForm({ expectedUpdatedAt: 'yesterday' }))).toMatchObject({ ok: false, errors: { expectedUpdatedAt: expect.any(String) } });
+  });
+
+  it('브라우저 FormData의 CRLF를 화면과 같은 LF 150자로 계산한다', () => {
+    const content = `${'가'.repeat(148)}\n나`;
+    expect(Array.from(content)).toHaveLength(150);
+    expect(normalizeAdminCurationForm(curationForm({ subtitle: content.replace('\n', '\r\n'), altEnabled: 'on', altContent: content.replace('\n', '\r\n') })))
+      .toMatchObject({ ok: true, value: { payload: { subtitle: content, alt_content: content } } });
+  });
+
+  it('FormData 줄바꿈 변환과 무관하게 변경하지 않은 긴 기존 문구의 원문을 유지한다', () => {
+    const old = `${'가'.repeat(195)}\r\n두줄`;
+    const result = normalizeAdminCurationForm(curationForm({ subtitle: old.replace('\r\n', '\n'), originalSubtitle: encodeURIComponent(old) }));
+    expect(result).toMatchObject({ ok: true, value: { payload: { subtitle: old } } });
+  });
+
+  it('roundtrips eight mosaic positions and rejects malformed or overlong configuration', () => {
+    const mosaic: { mosaic_title: string; mosaic_subtitle: string; slots: { good_id: string | null; image_path: string | null }[] } = { mosaic_title: '추천', mosaic_subtitle: '상품 모음', slots: Array.from({ length: 8 }, () => ({ good_id: null, image_path: null })) };
+    mosaic.slots[7] = { good_id: 'g1', image_path: IMAGE_PATH } as typeof mosaic.slots[0];
+    const form = (value: unknown) => curationForm({ kind: 'product_mosaic', title: '모자이크', imagePath: '', mosaic: JSON.stringify(value) });
+    expect(normalizeAdminCurationForm(form(mosaic))).toMatchObject({ ok: true, value: { payload: mosaic, slot: null, imagePath: null } });
+    for (const invalid of [{ ...mosaic, slots: [] }, { ...mosaic, mosaic_title: '가'.repeat(11) }, { ...mosaic, extra: true }]) {
+      expect(normalizeAdminCurationForm(form(invalid))).toMatchObject({ ok: false, errors: { mosaic: expect.any(String) } });
+    }
+    const overlongTitle = form(mosaic); overlongTitle.set('title', '가'.repeat(16));
+    expect(normalizeAdminCurationForm(overlongTitle)).toMatchObject({ ok: false, errors: { title: expect.any(String) } });
+  });
+
+  it('normalizes separate sales and review rules without carrying hidden stale product selections', () => {
+    expect(normalizeAdminCurationForm(curationForm({ kind: 'sales_best', title: '판매량 BEST', imagePath: '', salesExposure: 'all', salesPeriod: 'monthly', goodIds: 'g1' }))).toEqual({
+      ok: true, value: expect.objectContaining({ slot: null, payload: { exposure_mode: 'all', period: 'monthly' } }),
+    });
+    expect(normalizeAdminCurationForm(curationForm({ kind: 'review_best', title: '후기', imagePath: '', reviewSelectionMode: 'rating', goodIds: 'g1' }))).toEqual({
+      ok: true, value: expect.objectContaining({ payload: { selection_mode: 'rating' } }),
+    });
+    expect(normalizeAdminCurationForm(curationForm({ kind: 'review_best', title: '후기', imagePath: '', reviewSelectionMode: 'manual', goodIds: 'g3,g2,g1' }))).toEqual({
+      ok: true, value: expect.objectContaining({ payload: { selection_mode: 'manual', good_ids: ['g3', 'g2', 'g1'] } }),
+    });
+    expect(normalizeAdminCurationForm(curationForm({ kind: 'review_best', title: '후기', imagePath: '', reviewSelectionMode: 'manual', goodIds: 'g1,g1' }))).toMatchObject({ ok: false, errors: { goodIds: expect.any(String) } });
+    expect(normalizeAdminCurationForm(curationForm({ kind: 'sales_best', title: '가'.repeat(16), imagePath: '', salesExposure: 'all', salesPeriod: 'yearly' }))).toMatchObject({ ok: false, errors: { title: expect.any(String), salesPeriod: expect.any(String) } });
+  });
+
+  it('saves an automatic rule without leaking the previous manual selection', () => {
+    expect(normalizeAdminCurationForm(curationForm({ kind: 'best_tab', imagePath: '', slot: 'category', selectionMode: 'latest', itemCount: '6', goodIds: 'g1,g2' }))).toEqual({
+      ok: true, value: expect.objectContaining({ payload: { selection_mode: 'latest', item_count: 6 } }),
+    });
+    for (const itemCount of ['', '2', '11', '3.5', '3e0']) {
+      expect(normalizeAdminCurationForm(curationForm({ kind: 'best_tab', imagePath: '', slot: 'category', selectionMode: 'latest', itemCount }))).toEqual({
+        ok: false, errors: { itemCount: '최신 상품은 3개부터 10개까지 전시할 수 있습니다.' },
+      });
+    }
+    expect(normalizeAdminCurationForm(curationForm({ kind: 'best_tab', imagePath: '', slot: 'category', selectionMode: 'popular' }))).toEqual({
+      ok: false, errors: { selectionMode: '상품 선정 방식을 선택해주세요.' },
+    });
+  });
+
   it('normalizes UUIDs, text, artwork, ordering, and KST date-times', () => {
     expect(normalizeAdminCurationForm(curationForm({
       operationId: OPERATION_ID.toUpperCase(),
@@ -33,6 +133,7 @@ describe('admin curation form normalization', () => {
       ok: true,
       value: {
         operationId: OPERATION_ID,
+        expectedUpdatedAt: null,
         id: CURATION_ID,
         kind: 'hero',
         ipId: null,
@@ -117,7 +218,6 @@ describe('admin curation form normalization', () => {
     ['backslash', '/safe\\evil'],
     ['control character', '/safe\npath'],
     ['C1 control character', '/safe\u0085path'],
-    ['empty path', '   '],
     ['overlong path', `/${'a'.repeat(2048)}`],
   ])('rejects an unsafe internal link: %s', (_label, linkPath) => {
     expect(normalizeAdminCurationForm(curationForm({ linkPath }))).toEqual({
@@ -345,7 +445,7 @@ describe('admin curation form normalization', () => {
     }))).toEqual({
       ok: false,
       errors: {
-        subtitle: '히어로 부제는 1자 이상 200자 이하로 입력해주세요.',
+        subtitle: '내용은 150자 이하, 최대 3줄로 입력해주세요. 기존 내용은 그대로 유지할 수 있습니다.',
         mobileImagePath: '검증된 큐레이션 이미지를 사용해주세요.',
       },
     });

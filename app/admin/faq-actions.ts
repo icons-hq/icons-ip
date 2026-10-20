@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
+import { hasAdminCapability } from '@/lib/admin/access';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
 import { createClient } from '@/lib/supabase/server';
 import { ADMIN_FAQ_PATH, FAQ_ANSWER_MAX_LENGTH, FAQ_QUESTION_MAX_LENGTH } from '@/lib/faq';
@@ -19,7 +20,7 @@ const FIELDS = ['id', 'category', 'question', 'answer', 'sortOrder', 'published'
 async function staffAllowed() {
   const auth = await getCurrentAdminAuthState();
   if (!auth.isConfigured || !auth.user) redirect(`/login?next=${encodeURIComponent(ADMIN_FAQ_PATH)}`);
-  return auth.isStaff;
+  return auth.isStaff && hasAdminCapability(auth, 'cs.manage');
 }
 function invalidate() {
   revalidatePath(ADMIN_FAQ_PATH);

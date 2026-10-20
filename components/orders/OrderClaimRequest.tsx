@@ -8,12 +8,14 @@ import {
   ORDER_WITHDRAWAL_REASON_TYPES,
   type OrderCancellationRequestSummary,
   type OrderDetailStatus,
+  type OrderRefundSummary,
   type OrderWithdrawalReasonType,
 } from '@/lib/orders';
 import {
   ORDER_CLAIM_INTAKE_NOTICES,
   ORDER_CLAIM_STAGE_LABELS,
   ORDER_CLAIM_TYPE_LABELS,
+  isOpenOrderClaimStage,
   normalizeRefundAccount,
   orderClaimAvailability,
   orderClaimReferenceLabel,
@@ -24,8 +26,8 @@ import {
 /*
  * 반품·교환 접수와 클레임 진행 상태(#252).
  *
- * 취소(청약철회)는 기존 `OrderCancellation`이 계속 담당한다. 이 컴포넌트는 배송이
- * 끝난 뒤에만 열리는 두 유형을 받고, 유형과 무관하게 진행 중인 클레임의 단계를
+ * 취소(청약철회)는 기존 `OrderCancellation`이 계속 담당한다. 이 컴포넌트는 배송 중부터
+ * 열리는 두 유형을 받고, 유형과 무관하게 진행 중인 클레임의 단계를
  * 보여준다.
  *
  * 진행 안내는 반드시 `stage`에서 나온다. `status`는 레거시 투영이라 수거 중인
@@ -89,7 +91,10 @@ export async function submitOrderClaim(
 }
 
 /** 단계별 구매자 안내. 유형에 따라 다음에 할 일이 다르다. */
-export function claimStageNotice(claim: OrderCancellationRequestSummary): string {
+export function claimStageNotice(claim: OrderCancellationRequestSummary, refund: OrderRefundSummary | null = null): string {
+  if (claim.claimType !== 'exchange' && refund?.status === 'awaiting_transfer') {
+    return '주문 취소와 재고 복원이 끝났으며 결제자 계좌로 환불 송금을 준비하고 있습니다. 실제 송금이 확인되면 환불 완료로 표시됩니다.';
+  }
   const typeLabel = ORDER_CLAIM_TYPE_LABELS[claim.claimType];
   switch (claim.stage) {
     case 'requested':
@@ -119,6 +124,8 @@ export function claimStageNotice(claim: OrderCancellationRequestSummary): string
         : '환급 처리가 완료됐습니다.';
     case 'rejected':
       return `요청이 거절됐습니다. ${claim.decisionNote ?? '자세한 내용은 1:1 문의로 확인해주세요.'}`;
+    case 'withdrawn':
+      return '고객 요청으로 철회했습니다. 주문과 결제는 유지되며, 다시 신청할 때는 현재 진행 단계와 기한을 확인합니다.';
   }
 }
 
@@ -128,11 +135,13 @@ export function OrderClaimRequest({
   claim,
   eligibility,
   orderId,
+  refund = null,
   status,
 }: {
   claim: OrderCancellationRequestSummary | null;
   eligibility: OrderClaimEligibility | null;
   orderId: string;
+  refund?: OrderRefundSummary | null;
   status: OrderDetailStatus;
 }) {
   const router = useRouter();
@@ -144,13 +153,14 @@ export function OrderClaimRequest({
   const [accountHolder, setAccountHolder] = useState('');
   const [accountError, setAccountError] = useState<string | null>(null);
 
-  const activeClaim = claim && claim.stage !== 'rejected' && claim.stage !== 'completed'
+  const awaitingTransfer = claim?.claimType !== 'exchange' && refund?.status === 'awaiting_transfer';
+  const activeClaim = claim && isOpenOrderClaimStage(claim.stage)
     ? claim
     : null;
   /* 접수 가능 판정은 lib/orders/claims.ts 하나만 본다. 화면이 자기 규칙을 따로
      들고 있으면 DB가 거절하는 요청에 버튼이 열려 있게 된다. */
   const availability = orderClaimAvailability({
-    hasActiveClaim: Boolean(activeClaim),
+    hasActiveClaim: Boolean(activeClaim) || awaitingTransfer,
     orderStatus: status,
     eligibility,
   });
@@ -210,7 +220,7 @@ export function OrderClaimRequest({
           </div>
           <div>
             <dt>진행 상태</dt>
-            <dd>{ORDER_CLAIM_STAGE_LABELS[claim.stage]}</dd>
+            <dd>{awaitingTransfer ? '환불 송금 대기' : ORDER_CLAIM_STAGE_LABELS[claim.stage]}</dd>
           </div>
           <div>
             <dt>접수 시각</dt>
@@ -233,7 +243,7 @@ export function OrderClaimRequest({
         </dl>
       ) : null}
 
-      {claim ? <p className="order-cancellation-body">{claimStageNotice(claim)}</p> : null}
+      {claim ? <p className="order-cancellation-body">{claimStageNotice(claim, refund)}</p> : null}
 
       {canRequest ? (
         submission === 'form' ? (

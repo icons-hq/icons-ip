@@ -21,6 +21,7 @@ export const ORDER_CLAIM_STAGES = [
   'needs_review',
   'completed',
   'rejected',
+  'withdrawn',
 ] as const;
 export type OrderClaimStage = (typeof ORDER_CLAIM_STAGES)[number];
 
@@ -107,6 +108,7 @@ export const ORDER_CLAIM_STAGE_LABELS: Record<OrderClaimStage, string> = {
   needs_review: '결제확인필요',
   completed: '처리완료',
   rejected: '거부',
+  withdrawn: '요청 철회',
 };
 
 export const ORDER_CLAIM_REFUND_METHOD_LABELS: Record<OrderClaimRefundMethod, string> = {
@@ -282,7 +284,7 @@ export function orderClaimSlaState(
   },
   now: Date,
 ): OrderClaimSlaState {
-  if (input.stage === 'completed' || input.stage === 'rejected') {
+  if (!isOpenOrderClaimStage(input.stage)) {
     return { label: '종료', tone: 'muted', dueAt: null };
   }
   if (input.claimType === 'exchange') {
@@ -427,7 +429,7 @@ export interface OrderClaimAvailability {
 /**
  * 구매자가 지금 접수할 수 있는 클레임 유형.
  *
- * 취소는 발주확인 전, 반품·교환은 실제 모든 주문 수량 배송완료 후에 연다.
+ * 취소는 발주확인 전, 반품·교환은 실제 발송된 배송 중 주문부터 전체 수량을 대상으로 연다.
  * DB의 `request_order_claim`이 잠금 안에서 다시 판정하므로 여기 값은 안내용이다.
  */
 /** 소유자/직원 전용 RPC의 발주확인 이력·실제 배송 수량 판정. 접수 시 DB가 다시 검증한다. */
@@ -442,8 +444,8 @@ export function orderClaimAvailability(input: {
   hasActiveClaim: boolean;
   eligibility?: OrderClaimEligibility | null;
 }): OrderClaimAvailability[] {
-  const delivered = input.orderStatus === 'delivered' || input.orderStatus === 'done';
-  const cancelable = input.orderStatus === 'pending' || input.orderStatus === 'paid';
+  const claimableStage = ['shipping', 'delivered', 'done'].includes(input.orderStatus);
+  const cancelable = ['pending', 'paid', 'confirmed', 'shipping', 'delivered', 'done'].includes(input.orderStatus);
 
   return ORDER_CLAIM_TYPES.map((claimType) => {
     if (input.hasActiveClaim) {
@@ -461,21 +463,21 @@ export function orderClaimAvailability(input: {
       return {
         claimType,
         available,
-        blockedReason: available ? null : '주문 취소는 발주확인 전에만 신청할 수 있습니다.',
+        blockedReason: available ? null : '현재 주문의 제작·배송·파일 제공 상태에서는 직접 취소를 신청할 수 없습니다.',
       };
     }
-    const available = delivered && input.eligibility[claimType];
+    const available = claimableStage && input.eligibility[claimType];
     return {
       claimType,
       available,
-      blockedReason: available ? null : '주문의 모든 굿즈가 배송 완료된 뒤에 신청할 수 있습니다.',
+      blockedReason: available ? null : '배송 중 또는 배송완료 주문의 전체 수량을 확인한 뒤 신청할 수 있습니다.',
     };
   });
 }
 
 /** 유형별 접수 안내. 부분 환불을 약속하지 않는 문구를 한 곳에 모아 둔다. */
 export const ORDER_CLAIM_INTAKE_NOTICES: Record<OrderClaimType, string> = {
-  cancel: '취소는 발주확인 전에만 직접 신청할 수 있으며 주문 단위로 처리됩니다. 승인되면 최초 배송비를 포함한 결제금액 전액이 취소되고, 지급된 카드팩 중 개봉하지 않은 것은 회수됩니다.',
-  return: '주문의 모든 굿즈가 배송 완료된 뒤에 주문 전체 반품을 직접 신청할 수 있습니다. 일부 굿즈만 반품하는 처리는 제공하지 않습니다. 안내된 출고지별 반송지에서 모든 굿즈의 회수를 확인한 뒤 최초 배송비를 포함한 결제금액 전액을 환급합니다. 환급 기한은 반환받은 날부터 영업일 기준 3일 이내이며 담당자의 확인이 늦어져도 연장되지 않습니다.',
-  exchange: '주문의 모든 굿즈가 배송 완료된 뒤에 직접 신청할 수 있습니다. 안내된 출고지별 반송지에서 모든 굿즈의 회수를 확인한 뒤 같은 굿즈를 다시 보내드립니다. 결제는 유지되고 카드팩도 회수하지 않습니다.',
+  cancel: '일반 배송 상품은 발주확인 전에 직접 취소할 수 있습니다. 주문제작·배송없음·디지털 상품은 현재 이행 상태에 따라 주문 전체 취소 검토를 요청합니다. 일부 굿즈나 수량만 취소하는 처리는 제공하지 않습니다. 승인되면 최초 배송비를 포함한 결제금액 전액이 취소되고, 지급된 카드팩 중 개봉하지 않은 것은 회수됩니다.',
+  return: '배송 중부터 주문 전체 반품을 직접 신청할 수 있습니다. 일부 굿즈만 반품하는 처리는 제공하지 않습니다. 실물 상품은 안내된 출고지별 반송지에서 전체 회수를 확인하며, 디지털 상품은 제공 이력과 요청 사유를 검토합니다. 승인된 환불은 최초 선결제 배송비를 포함한 결제금액 전액으로 처리합니다. 환급 기한은 반환받은 날부터 영업일 기준 3일 이내이며 담당자의 확인이 늦어져도 연장되지 않습니다.',
+  exchange: '배송 중부터 주문 전체 교환을 직접 신청할 수 있습니다. 안내된 출고지별 반송지에서 모든 굿즈의 회수를 확인한 뒤 같은 굿즈를 다시 보내드립니다. 결제는 유지되고 카드팩도 회수하지 않습니다.',
 };

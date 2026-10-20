@@ -7,6 +7,7 @@ import { paymentProviderConfigured } from '@/lib/payments/runtime-gateway';
 import { createServiceClient, getServiceRoleConfig } from '@/lib/supabase/service';
 import { TicketPaymentReconciliationInProgressError } from '@/lib/payments/ticket-checkout';
 import { createRuntimeTicketPaymentCheckout } from '@/lib/payments/ticket-checkout.runtime.server';
+import { billingRecoveryConfigured } from '@/lib/subscriptions/payment-dispatch.server';
 import type { ConfirmOutcome } from '@/lib/payments/gateway';
 import {
   TossWebhookInvalidError,
@@ -160,7 +161,7 @@ async function loadTossAttempt(providerOrderId: string): Promise<WebhookAttemptR
 export const POST = createTossWebhookHandler({
   // 굿즈·티켓 공통 수신부라 purpose별 파사드 대신 판정 요소(service role +
   // toss 자격 증명)를 직접 조합한다.
-  available: () => getServiceRoleConfig().isConfigured && paymentProviderConfigured('toss'),
+  available: () => getServiceRoleConfig().isConfigured && (paymentProviderConfigured('toss') || billingRecoveryConfigured()),
   loadAttempt: loadTossAttempt,
   reconcileGoods: (input) => createRuntimeGoodsPaymentCheckout('toss').reconcilePayment(input),
   reconcileTicket: (input) => createRuntimeTicketPaymentCheckout('toss').reconcilePayment(input),

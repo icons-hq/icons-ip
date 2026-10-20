@@ -16,14 +16,23 @@ import type { GoodDetailContent } from '@/lib/goods-detail';
 import { goodsNoticeRows } from '@/lib/goods-notice';
 import { GoodsKcDisclosure } from '@/components/shop/GoodsKcDisclosure';
 import { GoodsDescription } from '@/components/shop/GoodsDescription';
+import { GoodRelatedProducts } from '@/components/shop/GoodRelatedProducts';
+import { GoodsGroupSelector } from '@/components/shop/GoodsGroupSelector';
 import { goodDisplayBadges } from '@/lib/goods-taxonomy';
 import { newInquiryHref } from '@/lib/inquiries';
 import { LEGAL_DOCUMENT_LABELS, legalDocumentHref } from '@/lib/legal/links';
 import { formatReviewAverage, reviewRatingLabel, type ReviewRatingSummary } from '@/lib/reviews';
 import { shippingPolicyDescription, type GoodShippingPolicy } from '@/lib/fulfillment';
+import type { DetailDiscovery } from '@/lib/product-detail-experiences';
+import { ProductShippingSavings } from '@/components/shop/ProductShippingSavings';
+import { ProductInterestShelf } from '@/components/shop/ProductInterestShelf';
+import { ProductShortclips } from '@/components/shop/ProductShortclips';
+import type { PublicGoodMedia } from '@/lib/goods-media';
 import { cartOptionGood } from '@/lib/goods-options';
 import { goodsShipDateLabel } from '@/lib/goods-preorders';
 import type { Good } from '@/lib/data';
+import { GoodSizeChart } from '@/components/shop/GoodSizeChart';
+import { goodsQuantityDeliveryLabel, goodsVolumeBoundary } from '@/lib/goods-transaction-presentation';
 
 /*
  * 굿즈 상세 (#173 → #326 White Catalog 재조판).
@@ -110,9 +119,10 @@ function ShippingGuide({ policy, goods }: { policy?: GoodShippingPolicy | null; 
     <section aria-labelledby="pdp-shipping-heading" className="wc-pdp-guide">
       <h2 className="wc-pdp-panel__title" id="pdp-shipping-heading">배송 안내</h2>
       <ul className="wc-pdp-guide__list">
-        <li>{policy ? shippingPolicyDescription(policy) : '배송 정책을 확인하지 못했습니다. 주문 전에 배송비를 확인해주세요.'}</li>
+        <li>{goods[0]?.transactionOffer?.delivery?.quantityTerms ? goodsQuantityDeliveryLabel(goods[0].transactionOffer.delivery.quantityTerms)
+          : policy ? shippingPolicyDescription(policy) : '배송 정책을 확인하지 못했습니다. 주문 전에 배송비를 확인해주세요.'}</li>
         {policy?.shippingNotice && <li style={{ whiteSpace: 'pre-wrap' }}>{policy.shippingNotice}</li>}
-        <li>출고지별 정책 적용 굿즈의 기간 할인 적용 후, 쿠폰·적립금 차감 전 소계로 무료배송 조건을 확인합니다. 다른 출고지의 배송비는 각각 더합니다.</li>
+        <li>출고지별 정책 적용 굿즈의 기간 할인 적용 후, 복수구매 할인·쿠폰·적립금 차감 전 소계로 무료배송 조건을 확인합니다. 수량별 배송비에는 별도 무료 기준이 적용되지 않으며 다른 출고지의 배송비는 각각 더합니다.</li>
         {/*
          * 출고 기한의 진실원은 배송·반품 정책(/legal/shipping 1. 배송 안내)이다. 여기서 더 짧은
          * 영업일 수를 따로 적으면 약관 제13조 3항이 손해배상 기준으로 삼는 "약정 배송기간"이
@@ -182,6 +192,18 @@ function InquiryEntry({ goodId }: { goodId: string }) {
 export interface GoodDetailViewProps {
   detail: GoodDetailContent;
   shippingPolicy?: GoodShippingPolicy | null;
+  announcements?: ReactNode;
+  promotionBanner?: ReactNode;
+  reviewEventBanner?: ReactNode;
+  reviewHighlights?: ReactNode;
+  otherCompositions?: ReactNode;
+  selectedReviews?: ReactNode;
+  automaticRecommendations?: ReactNode;
+  purchaseMessages?: ReactNode;
+  goodsBenefits?: ReactNode;
+  afterSales?: ReactNode;
+  discovery?: DetailDiscovery;
+  media?: PublicGoodMedia | null;
   /** 어드민 미리보기처럼 다른 화면 안에 놓일 때. 구매 패널·하트를 비활성으로 그린다. */
   embedded?: boolean;
   reviews?: ReactNode;
@@ -200,6 +222,18 @@ export interface GoodDetailViewProps {
 export function GoodDetailView({
   detail,
   shippingPolicy,
+  announcements,
+  promotionBanner,
+  reviewEventBanner,
+  reviewHighlights,
+  otherCompositions,
+  selectedReviews,
+  automaticRecommendations,
+  purchaseMessages,
+  goodsBenefits,
+  afterSales,
+  discovery,
+  media,
   embedded = false,
   engagement,
   qna,
@@ -219,8 +253,8 @@ export function GoodDetailView({
     additionalGoods: detail.additionalGoods ?? [],
     restockRequested: engagement?.restockRequested ?? false,
   });
-  const nextPriceChange = [good, ...(detail.additionalGoods ?? [])].flatMap((item) => item.options ?? []).reduce<number | null>((next, option) => {
-    return [option.pricing?.nextChangeAt, option.supply?.nextChangeAt].reduce<number | null>((earliest, changeAt) => {
+  const nextPriceChange = [good, ...(detail.additionalGoods ?? [])].reduce<number | null>((next, item) => {
+    return [goodsVolumeBoundary(item), item.salePeriod?.nextChangeAt, ...(item.options ?? []).flatMap(option => [option.pricing?.nextChangeAt, option.supply?.nextChangeAt])].reduce<number | null>((earliest, changeAt) => {
       const time = changeAt ? Date.parse(changeAt) : NaN;
       return Number.isFinite(time) ? Math.min(earliest ?? time, time) : earliest;
     }, next);
@@ -282,6 +316,7 @@ export function GoodDetailView({
           <NoticeTable detail={detail} />
           <GoodsKcDisclosure disclosures={detail.kcDisclosures ?? []} />
           <InquiryEntry goodId={good.id} />
+          {reviewEventBanner}
         </div>
       ),
     },
@@ -327,7 +362,7 @@ export function GoodDetailView({
     <Root className={`wc-root wc-pdp${embedded ? ' is-embedded' : ''}`}>
       <div className="wc-container">
         <div className="wc-pdp__layout">
-          <PdpGallery frames={frames} goodName={good.name} />
+          {promotionBanner && !embedded ? <div className="wc-pdp__gallery-column">{promotionBanner}<PdpGallery key={`${good.id}:${media?.settings.priority}:${media?.video?.id}:${media?.shortclip?.id}`} frames={frames} goodName={good.name} overlay={purchaseMessages} media={media} selectedReviews={selectedReviews} /></div> : <PdpGallery key={`${good.id}:${media?.settings.priority}:${media?.video?.id}:${media?.shortclip?.id}`} frames={frames} goodName={good.name} overlay={!embedded ? purchaseMessages : undefined} media={!embedded ? media : undefined} selectedReviews={!embedded ? selectedReviews : undefined} />}
           <div className="wc-pdp__info">
             {badges.length ? (
               <div className="wc-pdp__badges">
@@ -352,7 +387,10 @@ export function GoodDetailView({
                 initialWished={engagement?.wished ?? false}
               />
             </div>
+            {!embedded ? goodsBenefits : null}
+            {!embedded ? <GoodsGroupSelector group={detail.goodsGroup} /> : null}
             <GoodPurchasePanel purchase={purchase} />
+            {!embedded && discovery?.shippingSavings ? <a className="wc-pdp-shipping-shortcut" href="#pdp-shipping-savings">배송비 절약 굿즈 보기</a> : null}
             {ip ? (
               <div className="wc-pdp__brand">
                 <span className="wc-pdp__brand-name">{ip.title}</span>
@@ -363,6 +401,15 @@ export function GoodDetailView({
         </div>
       </div>
 
+      {!embedded && reviewHighlights ? <div className="wc-container">{reviewHighlights}</div> : null}
+      {!embedded && otherCompositions ? <div className="wc-container">{otherCompositions}</div> : null}
+      {announcements ? <div className="wc-container">{announcements}</div> : null}
+      {detail.attributes?.length ? <div className="wc-container"><section className="wc-pdp-notice" aria-labelledby="pdp-attributes-heading"><h2 className="wc-pdp-panel__title" id="pdp-attributes-heading">굿즈 정보</h2><div className="wc-pdp-notice__scroll"><table className="wc-pdp-notice__table"><caption className="sr-only">굿즈 속성</caption><tbody>{detail.attributes.map(row => <tr key={row.id}><th scope="row">{row.name}</th><td>{row.value}</td></tr>)}</tbody></table></div></section></div> : null}
+      {detail.sizeChart ? <div className="wc-container"><GoodSizeChart chart={detail.sizeChart} /></div> : null}
+      {!embedded && detail.relatedGoods ? <div className="wc-container"><GoodRelatedProducts data={detail.relatedGoods} /></div> : null}
+      {!embedded && automaticRecommendations ? <div className="wc-container">{automaticRecommendations}</div> : null}
+      {!embedded && discovery?.shippingSavings ? <div className="wc-container"><ProductShippingSavings goodId={good.id} option={purchase.selectedOption} quantity={purchase.quantity} /></div> : null}
+      {!embedded && media?.settings.shortclips && media.shortclip ? <div className="wc-container"><ProductShortclips clip={media.shortclip} fallbackBackground={good.img} /></div> : null}
       <div ref={tabsRef} className="wc-pdp-tabs">
         <div className="wc-container">
           <TabPanels
@@ -372,6 +419,10 @@ export function GoodDetailView({
           />
         </div>
       </div>
+
+      {!embedded && afterSales ? <div className="wc-container">{afterSales}</div> : null}
+
+      {!embedded && discovery?.interests ? <div className="wc-container"><ProductInterestShelf currentGoodId={good.id} /></div> : null}
 
       {/* 고정 바는 실제 상세 화면에만 둔다 — 어드민 미리보기에서 화면 하단을 덮으면
           미리보기가 아니라 콘솔을 가리는 바가 된다. */}
@@ -389,6 +440,18 @@ export function GoodDetailView({
 export function GoodDetail({
   detail,
   shippingPolicy,
+  announcements,
+  promotionBanner,
+  reviewEventBanner,
+  reviewHighlights,
+  otherCompositions,
+  selectedReviews,
+  automaticRecommendations,
+  purchaseMessages,
+  goodsBenefits,
+  afterSales,
+  discovery,
+  media,
   engagement,
   qna,
   qnaSummary,
@@ -397,6 +460,18 @@ export function GoodDetail({
 }: {
   detail: GoodDetailContent;
   shippingPolicy?: GoodShippingPolicy | null;
+  announcements?: ReactNode;
+  promotionBanner?: ReactNode;
+  reviewEventBanner?: ReactNode;
+  reviewHighlights?: ReactNode;
+  otherCompositions?: ReactNode;
+  selectedReviews?: ReactNode;
+  automaticRecommendations?: ReactNode;
+  purchaseMessages?: ReactNode;
+  goodsBenefits?: ReactNode;
+  afterSales?: ReactNode;
+  discovery?: DetailDiscovery;
+  media?: PublicGoodMedia | null;
   engagement?: { wished: boolean; restockRequested: boolean };
   qna?: ReactNode;
   qnaSummary?: { count: number };
@@ -407,6 +482,18 @@ export function GoodDetail({
     <GoodDetailView
       detail={detail}
       shippingPolicy={shippingPolicy}
+      announcements={announcements}
+      promotionBanner={promotionBanner}
+      reviewEventBanner={reviewEventBanner}
+      reviewHighlights={reviewHighlights}
+      otherCompositions={otherCompositions}
+      selectedReviews={selectedReviews}
+      automaticRecommendations={automaticRecommendations}
+      purchaseMessages={purchaseMessages}
+      goodsBenefits={goodsBenefits}
+      afterSales={afterSales}
+      discovery={discovery}
+      media={media}
       engagement={engagement}
       qna={qna}
       qnaSummary={qnaSummary}

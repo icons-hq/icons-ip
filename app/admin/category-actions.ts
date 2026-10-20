@@ -1,4 +1,5 @@
 'use server';
+import type { AdminCapability } from '@/lib/admin/access';
 
 import { revalidateGoodsSurfaces } from '@/lib/admin/revalidate-goods.server';
 
@@ -41,8 +42,8 @@ function operationId(formData: FormData): string {
   return isUuid(value) ? value : crypto.randomUUID();
 }
 
-async function requireCategoryStaff() {
-  const auth = await requireAdminActionAccess(CATEGORY_PATH);
+async function requireCategoryStaff(capability: AdminCapability = 'catalog.manage') {
+  const auth = await requireAdminActionAccess(CATEGORY_PATH, { capability });
   return auth ? { auth } : { error: '관리자 권한이 필요합니다.' };
 }
 
@@ -154,7 +155,7 @@ export async function saveAdminCategoryErpMappingAction(
   formData: FormData,
 ): Promise<AdminCategoryActionState> {
   let access: Awaited<ReturnType<typeof requireCategoryStaff>>;
-  try { access = await requireCategoryStaff(); } catch (error) { unstable_rethrow(error); return preserve(state, formData, { form: RETRY }); }
+  try { access = await requireCategoryStaff('platform.manage'); } catch (error) { unstable_rethrow(error); return preserve(state, formData, { form: RETRY }); }
   if ('error' in access) return preserve(state, formData, { form: access.error });
   const categoryId = typeof formData.get('categoryId') === 'string' ? String(formData.get('categoryId')).trim() : '';
   const erpCode = typeof formData.get('erpCode') === 'string' ? String(formData.get('erpCode')).trim() : '';
@@ -188,7 +189,7 @@ export async function setAdminCategoryActivationAction(
   formData: FormData,
 ): Promise<AdminCategoryActionState> {
   let access: Awaited<ReturnType<typeof requireCategoryStaff>>;
-  try { access = await requireCategoryStaff(); } catch (error) { unstable_rethrow(error); return preserve(state, formData, { form: RETRY }); }
+  try { access = await requireCategoryStaff('platform.manage'); } catch (error) { unstable_rethrow(error); return preserve(state, formData, { form: RETRY }); }
   if ('error' in access) return preserve(state, formData, { form: access.error });
   const customerEnabled = formData.get('customerEnabled') === 'on';
   const erpEnabled = formData.get('erpEnabled') === 'on';
@@ -254,7 +255,7 @@ export async function saveAdminCategoryTypeMigrationAction(
   formData: FormData,
 ): Promise<AdminCategoryActionState> {
   let access: Awaited<ReturnType<typeof requireCategoryStaff>>;
-  try { access = await requireCategoryStaff(); } catch (error) { unstable_rethrow(error); return preserve(state, formData, { form: RETRY }); }
+  try { access = await requireCategoryStaff('platform.manage'); } catch (error) { unstable_rethrow(error); return preserve(state, formData, { form: RETRY }); }
   if ('error' in access) return preserve(state, formData, { form: access.error });
   const type = typeof formData.get('type') === 'string' ? String(formData.get('type')).trim() : '';
   const categoryId = typeof formData.get('categoryId') === 'string' ? String(formData.get('categoryId')).trim() : '';

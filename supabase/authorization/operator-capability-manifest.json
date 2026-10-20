@@ -1,0 +1,2072 @@
+[
+  {
+    "guardKind": "manual",
+    "signature": "public.accept_operator_invitation(text,uuid)",
+    "capability": "operators.manage",
+    "legacyAdminOnly": true
+  },
+  {
+    "guardKind": "manual",
+    "signature": "public.admin_activate_operator_access(jsonb,bigint,uuid)",
+    "capability": "operators.manage",
+    "legacyAdminOnly": true
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_activate_shipping_notice_template(uuid,timestamp with time zone,text)",
+    "capability": "catalog.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_add_customer_note(uuid,text,uuid)",
+    "capability": "platform.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_add_inquiry_internal_note(uuid,text)",
+    "capability": "cs.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_add_order_note(uuid,text,uuid)",
+    "capability": "sales.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_adjust_loyalty_grade(uuid,public.loyalty_grade,text)",
+    "capability": "marketing.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_adjust_stock(uuid,text,uuid,integer,integer,text)",
+    "capability": "catalog.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_adjust_store_credit(uuid,uuid,bigint,timestamp with time zone,text,bigint)",
+    "capability": "marketing.manage",
+    "legacyAdminOnly": true
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_allocate_goods_preorders(text,uuid[],jsonb,text)",
+    "capability": "sales.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_answer_inquiry(uuid,text,text[])",
+    "capability": "cs.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_answer_product_question(uuid,text)",
+    "capability": "cs.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_apply_shipping_notice_template(text,uuid,timestamp with time zone)",
+    "capability": "catalog.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_apply_shipping_settings_template(uuid,uuid,integer,timestamp with time zone,jsonb)",
+    "capability": "catalog.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_apply_shipping_settings_template_v3(jsonb)",
+    "capability": "catalog.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_archive_card(text)",
+    "capability": "platform.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_archive_category(uuid,uuid,timestamp with time zone)",
+    "capability": "catalog.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_archive_cs_reply_template(uuid,boolean,integer)",
+    "capability": "cs.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_archive_customer_segments(jsonb,uuid)",
+    "capability": "marketing.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_archive_event(text)",
+    "capability": "platform.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_archive_good(text)",
+    "capability": "catalog.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_archive_ip(text)",
+    "capability": "platform.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_assign_good_category(uuid,text,uuid,timestamp with time zone)",
+    "capability": "catalog.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_bank_deposit_queue(public.bank_deposit_status,integer)",
+    "capability": "sales.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_begin_order_cancellation_reconcile(uuid)",
+    "capability": "sales.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_benefit_report(timestamp with time zone,timestamp with time zone,text,text,text,text,integer,integer)",
+    "capability": "marketing.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "manual",
+    "signature": "public.admin_cancel_operator_invitation(uuid,integer,bigint,uuid)",
+    "capability": "operators.manage",
+    "legacyAdminOnly": true
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_cancel_unpaid_bank_transfer_order(uuid,text)",
+    "capability": "sales.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_change_marketing_campaign(uuid,integer,uuid,text)",
+    "capability": "marketing.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "manual",
+    "signature": "public.admin_change_operator_role(uuid,text,integer,bigint,uuid)",
+    "capability": "operators.manage",
+    "legacyAdminOnly": true
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_change_order_address(uuid,uuid,integer,jsonb,text,boolean)",
+    "capability": "sales.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_change_shipment_preorder_date(uuid,date,text,timestamp with time zone)",
+    "capability": "sales.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_claims_report(timestamp with time zone,timestamp with time zone)",
+    "capability": "stats.read",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_clone_good(uuid,text,text,text,text)",
+    "capability": "catalog.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_close_inquiry(uuid)",
+    "capability": "cs.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_commit_goods_bulk(uuid,uuid,uuid)",
+    "capability": "catalog.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_commit_goods_import_group(uuid,integer)",
+    "capability": "catalog.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_complete_shipments(uuid[])",
+    "capability": "sales.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_confirm_bank_deposit(uuid,uuid,text)",
+    "capability": "sales.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_confirm_bank_transfer_deposit(uuid,text)",
+    "capability": "sales.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_coupon_target_categories(public.coupons)",
+    "capability": "marketing.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_coupon_target_goods(public.coupons)",
+    "capability": "marketing.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "manual",
+    "signature": "public.admin_create_operator_invitations(jsonb,bigint,uuid)",
+    "capability": "operators.manage",
+    "legacyAdminOnly": true
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_create_settled_export(uuid,jsonb)",
+    "capability": "sales.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_curation_target_options()",
+    "capability": "store.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "manual",
+    "signature": "public.admin_current_operator_access()",
+    "capability": "home",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_customer_detail(uuid,text,integer)",
+    "capability": "platform.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_customer_report(timestamp with time zone,timestamp with time zone)",
+    "capability": "stats.read",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_customer_segment_options(text,text,integer)",
+    "capability": "marketing.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_customer_segment_overview()",
+    "capability": "marketing.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_decide_order_cancellation(uuid,text,text)",
+    "capability": "sales.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_decide_order_claim(uuid,text,text)",
+    "capability": "sales.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_delete_erp_items(text[])",
+    "capability": "platform.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_delete_faq_entry(uuid,timestamp with time zone)",
+    "capability": "cs.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_delete_goods_notice_preset(uuid,timestamp with time zone)",
+    "capability": "catalog.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_delete_shopping_stories(uuid,jsonb)",
+    "capability": "store.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_enqueue_shipment_emails(jsonb)",
+    "capability": "sales.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_estimate_customer_segment(jsonb,uuid)",
+    "capability": "marketing.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_estimate_notification_recipients(text,text)",
+    "capability": "marketing.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_execute_purchase_restriction_batch(uuid,boolean)",
+    "capability": "sales.restrictions",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_execute_store_credit_batch(uuid)",
+    "capability": "marketing.manage",
+    "legacyAdminOnly": true
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_export_store_credit_console(text,text,date,date,text)",
+    "capability": "marketing.manage",
+    "legacyAdminOnly": true
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_extend_bank_transfer_deadline(uuid,text)",
+    "capability": "sales.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_find_goods_for_shipping_notice_template(uuid,text)",
+    "capability": "catalog.read",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_find_purchase_restriction_customer(text)",
+    "capability": "sales.restrictions",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_find_store_credit_customers(text)",
+    "capability": "marketing.manage",
+    "legacyAdminOnly": true
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_get_coupon_combination_policy()",
+    "capability": "marketing.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_get_customer_segment(uuid)",
+    "capability": "marketing.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_get_goods_announcement(uuid)",
+    "capability": "catalog.announcements",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_get_goods_attributes(uuid,text)",
+    "capability": "catalog.read",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_get_goods_draft(uuid)",
+    "capability": "catalog.read",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_get_goods_listing_colors(text)",
+    "capability": "catalog.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_get_goods_relation(uuid)",
+    "capability": "catalog.read",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_get_inquiry_reply_template_operation(uuid)",
+    "capability": "cs.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_get_loyalty_policy()",
+    "capability": "marketing.manage",
+    "legacyAdminOnly": true
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_get_marketing_campaign(uuid)",
+    "capability": "marketing.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_get_member_detail(uuid)",
+    "capability": "platform.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_get_order_address_change(uuid)",
+    "capability": "sales.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_get_order_delay_notice(uuid)",
+    "capability": "sales.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_get_product_detail_presentation()",
+    "capability": "store.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_get_purchase_restriction_batch(uuid)",
+    "capability": "sales.restrictions",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_get_purchase_restriction_release(uuid)",
+    "capability": "sales.restrictions",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_get_seller_claim_intake(uuid)",
+    "capability": "sales.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_get_shopping_story(uuid)",
+    "capability": "store.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_get_store_credit_batch(uuid)",
+    "capability": "marketing.manage",
+    "legacyAdminOnly": true
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_get_store_credit_history(uuid,integer)",
+    "capability": "marketing.manage",
+    "legacyAdminOnly": true
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_get_store_credit_policy()",
+    "capability": "marketing.manage",
+    "legacyAdminOnly": true
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_get_store_presentation()",
+    "capability": "store.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_goods_active_stock_qty(public.goods)",
+    "capability": "catalog.read",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_goods_console_export_candidates(text,text,text,text,uuid,text,jsonb)",
+    "capability": "catalog.read",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_goods_export_candidates(text,text,text,text)",
+    "capability": "catalog.read",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_goods_import_records(text[],text[])",
+    "capability": "catalog.read",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "manual",
+    "signature": "public.admin_goods_ip_options()",
+    "capability": "catalog.read",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_goods_low_stock_option_count(public.goods)",
+    "capability": "catalog.read",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_goods_manual_recovery_attempts(uuid[])",
+    "capability": "sales.manage",
+    "legacyAdminOnly": true
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_goods_origin_options()",
+    "capability": "catalog.read",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_goods_workspace_export_candidates(text,text,text,text,uuid,text)",
+    "capability": "catalog.read",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_grant_draw_tickets(uuid,uuid,uuid,integer,text)",
+    "capability": "platform.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_hide_community_comment(uuid,uuid)",
+    "capability": "platform.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_hide_community_post(uuid,uuid)",
+    "capability": "platform.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_ignore_bank_deposit(uuid,text)",
+    "capability": "sales.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_import_erp_items(jsonb)",
+    "capability": "platform.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_import_shipment_tracking(text,text,text)",
+    "capability": "sales.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_import_shipment_tracking_batch(jsonb)",
+    "capability": "sales.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_import_warehouse_tracking_batch(uuid,jsonb)",
+    "capability": "sales.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_inquiry_context(uuid)",
+    "capability": "cs.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_inquiry_status_counts()",
+    "capability": "cs.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_inquiry_workspace(uuid)",
+    "capability": "cs.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "manual",
+    "signature": "public.admin_issue_marketing_links(text,text[],uuid)",
+    "capability": "catalog.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_last_good_notice()",
+    "capability": "catalog.read",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_list_customer_segments(text,text,text,text,boolean,integer,integer)",
+    "capability": "marketing.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_list_delivery_policies(uuid)",
+    "capability": "sales.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_list_draw_ticket_grants(integer)",
+    "capability": "platform.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_list_erp_categories()",
+    "capability": "platform.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_list_erp_items(text,integer,integer)",
+    "capability": "platform.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_list_games()",
+    "capability": "platform.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_list_goods_announcements(text,text,text,text,date,date,integer,integer)",
+    "capability": "catalog.announcements",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_list_goods_drafts(text,boolean,integer)",
+    "capability": "catalog.read",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_list_goods_photos(text,boolean,integer)",
+    "capability": "catalog.read",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_list_goods_preorder_reservations(text,text,integer,integer)",
+    "capability": "sales.read",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_list_goods_preorders(text)",
+    "capability": "catalog.read",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_list_goods_price_periods(text)",
+    "capability": "catalog.read",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_list_goods_purchase_cost_history(text,uuid,integer)",
+    "capability": "platform.manage",
+    "legacyAdminOnly": true
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_list_goods_relations(text,text,text,integer,integer)",
+    "capability": "catalog.read",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_list_goods_variant_external_identities(text)",
+    "capability": "catalog.read",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_list_goods_variant_purchase_costs(text)",
+    "capability": "platform.manage",
+    "legacyAdminOnly": true
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_list_marketing_links(text,text,text,integer,integer)",
+    "capability": "marketing.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_list_notification_history(integer,integer)",
+    "capability": "marketing.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "manual",
+    "signature": "public.admin_list_operator_invitations(text,text,integer,integer)",
+    "capability": "operators.manage",
+    "legacyAdminOnly": true
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_list_order_delay_notices(uuid)",
+    "capability": "sales.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_list_reward_policies()",
+    "capability": "platform.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_list_shipment_promise_changes(uuid)",
+    "capability": "sales.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_list_shipping_region_policies()",
+    "capability": "catalog.read",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_list_shipping_settings_templates(text,text,integer)",
+    "capability": "catalog.read",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_list_shopping_stories(text,text,date,date,text,integer,integer)",
+    "capability": "store.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_mark_shipments_exported(jsonb)",
+    "capability": "sales.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_marketing_campaigns(text,text,integer,date,date)",
+    "capability": "marketing.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_marketing_product_options(text,integer)",
+    "capability": "marketing.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_member_moderation_context(uuid[])",
+    "capability": "platform.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_mutate_inquiry_reply_template(uuid,uuid,integer,text,jsonb)",
+    "capability": "cs.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "manual",
+    "signature": "public.admin_operation_alerts(text,text,timestamp with time zone,uuid,integer)",
+    "capability": "home",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "manual",
+    "signature": "public.admin_operation_tasks()",
+    "capability": "home",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_operations_contact_history(integer)",
+    "capability": "platform.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_operations_contacts()",
+    "capability": "platform.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "manual",
+    "signature": "public.admin_operator_customer_history(uuid,text,integer)",
+    "capability": "sales.read",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "manual",
+    "signature": "public.admin_operator_store_settings()",
+    "capability": "store.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_order_address_context(uuid)",
+    "capability": "sales.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_order_claim_detail(uuid)",
+    "capability": "sales.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_order_claim_stage_counts(text)",
+    "capability": "sales.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_order_claim_stage_counts_console(text,text,date,date,text,text,text)",
+    "capability": "sales.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_order_detail(uuid)",
+    "capability": "sales.read",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_prepare_order_delay_notice(uuid,uuid[],text,text,date)",
+    "capability": "sales.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_preview_goods_bulk(uuid,jsonb,uuid,uuid)",
+    "capability": "catalog.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_preview_purchase_restriction_batch(uuid,text,text[],text,text)",
+    "capability": "sales.restrictions",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_preview_shipping_settings_template(uuid,text[])",
+    "capability": "catalog.read",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_preview_shipping_settings_template_v3(uuid,text[],uuid,uuid)",
+    "capability": "catalog.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_preview_store_credit_batch(uuid,text[],bigint,timestamp with time zone,text,text)",
+    "capability": "marketing.manage",
+    "legacyAdminOnly": true
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_profile_signup_counts(timestamp with time zone,timestamp with time zone,timestamp with time zone)",
+    "capability": "stats.read",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_read_goods_additional(text)",
+    "capability": "catalog.read",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_read_goods_bulk(uuid,uuid,uuid,boolean)",
+    "capability": "catalog.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_read_goods_kc(text)",
+    "capability": "catalog.read",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_read_goods_readiness(text)",
+    "capability": "catalog.read",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_read_seller_claim_intake(uuid,jsonb,jsonb)",
+    "capability": "sales.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_read_settled_export(uuid)",
+    "capability": "sales.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_read_shipment_delivery(uuid)",
+    "capability": "sales.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_read_shipment_preorder_promise(uuid)",
+    "capability": "sales.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_reassign_inquiry(uuid,uuid,text)",
+    "capability": "cs.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_recalculate_loyalty_grade(uuid)",
+    "capability": "marketing.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "manual",
+    "signature": "public.admin_record_list_export(text,jsonb,integer,integer)",
+    "capability": "sales.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_record_order_claim_collection(uuid,text)",
+    "capability": "sales.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_record_order_claim_operational_fee(uuid,text,bigint,text,text,timestamp with time zone)",
+    "capability": "sales.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_record_order_claim_origin_collection(uuid,uuid,text)",
+    "capability": "sales.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_record_order_claim_refund(uuid,text,text,text)",
+    "capability": "sales.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_record_order_claim_reshipment(uuid,text,text)",
+    "capability": "sales.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_record_order_claim_reshipment(uuid,text,text,jsonb)",
+    "capability": "sales.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_record_order_claim_reshipment_delivery(uuid,text)",
+    "capability": "sales.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_record_shipment_delivery(uuid,text,jsonb,text,timestamp with time zone,uuid)",
+    "capability": "sales.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_register_purchase_restriction(uuid,uuid,text,text,uuid)",
+    "capability": "sales.restrictions",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "manual",
+    "signature": "public.admin_reissue_operator_invitation(uuid,jsonb,integer,bigint,uuid)",
+    "capability": "operators.manage",
+    "legacyAdminOnly": true
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_release_purchase_restriction(uuid,text)",
+    "capability": "sales.restrictions",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_release_purchase_restrictions(uuid,uuid[],text)",
+    "capability": "sales.restrictions",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_reply_reviews_batch(uuid,jsonb,text)",
+    "capability": "cs.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_reply_to_review(uuid,text)",
+    "capability": "cs.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_request_email_resend(text)",
+    "capability": "marketing.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_request_order_delay_notice(uuid)",
+    "capability": "sales.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_retry_order_delay_notice(uuid)",
+    "capability": "sales.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_review_console_counts()",
+    "capability": "cs.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_review_insights(text,text,text,integer,integer)",
+    "capability": "cs.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_review_reply_batch_result(uuid)",
+    "capability": "cs.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_sales_order_counts(date,date,text,text,text,text)",
+    "capability": "sales.read",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_sales_report(timestamp with time zone,timestamp with time zone,text)",
+    "capability": "stats.read",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_save_coupon_combination_policy(jsonb,bigint,uuid,uuid,uuid)",
+    "capability": "marketing.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_save_cs_reply_template(uuid,text,text,text,text,integer)",
+    "capability": "cs.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_save_customer_segment(uuid,integer,uuid,text,jsonb,uuid)",
+    "capability": "marketing.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_save_delivery_policy(uuid,text,uuid,jsonb,integer)",
+    "capability": "platform.manage",
+    "legacyAdminOnly": true
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_save_faq_entry(uuid,text,text,text,integer,boolean,timestamp with time zone)",
+    "capability": "cs.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_save_fulfillment_origin(uuid,jsonb,timestamp with time zone)",
+    "capability": "platform.manage",
+    "legacyAdminOnly": true
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_save_good(jsonb)",
+    "capability": "catalog.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_save_good_claim_policy(text,jsonb,timestamp with time zone)",
+    "capability": "catalog.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_save_good_from_draft(jsonb,uuid,integer)",
+    "capability": "catalog.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_save_goods_additional(text,text[],integer)",
+    "capability": "catalog.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_save_goods_announcement(uuid,integer,jsonb)",
+    "capability": "catalog.announcements",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_save_goods_attribute_schema(uuid,jsonb,integer,uuid)",
+    "capability": "platform.manage",
+    "legacyAdminOnly": true
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_save_goods_draft(uuid,jsonb,integer)",
+    "capability": "catalog.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_save_goods_kc(text,jsonb,text,integer,text,boolean)",
+    "capability": "catalog.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "manual",
+    "signature": "public.admin_save_goods_listing_colors(text,jsonb,bigint,uuid)",
+    "capability": "catalog.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_save_goods_notice_preset(uuid,text,jsonb,timestamp with time zone)",
+    "capability": "catalog.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_save_goods_photo(uuid,text,text,integer,boolean)",
+    "capability": "catalog.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_save_goods_preorder(text,uuid,uuid,jsonb,integer)",
+    "capability": "catalog.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_save_goods_price_period(text,uuid,uuid,jsonb,integer)",
+    "capability": "catalog.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_save_goods_relation(uuid,integer,jsonb)",
+    "capability": "catalog.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_save_goods_relation_composition(uuid,integer,uuid,jsonb)",
+    "capability": "catalog.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_save_goods_variant_external_identity(text,uuid,text,text,text,timestamp with time zone)",
+    "capability": "catalog.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_save_goods_variant_purchase_cost(text,uuid,integer,text,integer)",
+    "capability": "platform.manage",
+    "legacyAdminOnly": true
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_save_home_layout(uuid,bigint,jsonb)",
+    "capability": "store.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_save_loyalty_policy(jsonb,integer,uuid)",
+    "capability": "marketing.manage",
+    "legacyAdminOnly": true
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_save_marketing_campaign(uuid,integer,uuid,jsonb,boolean,uuid)",
+    "capability": "marketing.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_save_operations_contact(text,uuid,jsonb,timestamp with time zone)",
+    "capability": "platform.manage",
+    "legacyAdminOnly": true
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_save_origin_export_columns(uuid,jsonb,timestamp with time zone)",
+    "capability": "platform.manage",
+    "legacyAdminOnly": true
+  },
+  {
+    "guardKind": "manual",
+    "signature": "public.admin_save_product_detail_presentation(text,jsonb,bigint,uuid)",
+    "capability": "store.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_save_shipping_carrier(text,text,text,boolean,timestamp with time zone)",
+    "capability": "platform.manage",
+    "legacyAdminOnly": true
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_save_shipping_notice_template(uuid,text,integer,text,text,text,text,text,text,timestamp with time zone)",
+    "capability": "catalog.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_save_shipping_region_policy(uuid,jsonb,integer)",
+    "capability": "platform.manage",
+    "legacyAdminOnly": true
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_save_shipping_settings_template(uuid,integer,text,boolean,jsonb)",
+    "capability": "catalog.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_save_shipping_settings_template_v3(jsonb)",
+    "capability": "catalog.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_save_shopping_story(uuid,integer,uuid,jsonb)",
+    "capability": "store.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_save_store_branding(uuid,jsonb,timestamp with time zone)",
+    "capability": "store.manage",
+    "legacyAdminOnly": true
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_save_store_credit_policy(uuid,integer,jsonb)",
+    "capability": "marketing.manage",
+    "legacyAdminOnly": true
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_save_store_navigation(uuid,jsonb,timestamp with time zone)",
+    "capability": "store.manage",
+    "legacyAdminOnly": true
+  },
+  {
+    "guardKind": "manual",
+    "signature": "public.admin_save_store_presentation(text,jsonb,bigint,uuid)",
+    "capability": "store.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "manual",
+    "signature": "public.admin_save_store_settings(text,jsonb,timestamp with time zone)",
+    "capability": "seller.manage",
+    "legacyAdminOnly": true
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_search_coupon_categories(text,integer)",
+    "capability": "marketing.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_search_coupon_console(text,text,integer,integer,jsonb)",
+    "capability": "marketing.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_search_coupon_console_scheduled(text,text,integer,integer,jsonb)",
+    "capability": "marketing.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_search_coupon_console_v2(text,text,integer,integer,jsonb)",
+    "capability": "marketing.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_search_coupon_console_v3(text,text,integer,integer,jsonb)",
+    "capability": "marketing.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_search_coupons(text,text,integer,integer)",
+    "capability": "marketing.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_search_email_deliveries(text,integer,integer)",
+    "capability": "marketing.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_search_erp_items(text,integer)",
+    "capability": "platform.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_search_goods(text)",
+    "capability": "catalog.read",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_search_goods_additional(text,text)",
+    "capability": "catalog.read",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_search_goods_console(text,text,text,text,uuid,text,integer,integer,jsonb)",
+    "capability": "catalog.read",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_search_goods_for_announcement(text,integer)",
+    "capability": "catalog.announcements",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_search_goods_for_relation(text,integer)",
+    "capability": "catalog.read",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_search_goods_for_shipping_settings(text,integer)",
+    "capability": "catalog.read",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_search_goods_for_shipping_settings_v3(text,integer,uuid,uuid)",
+    "capability": "catalog.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_search_goods_workspace(text,text,text,text,uuid,text,integer,integer)",
+    "capability": "catalog.read",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_search_inquiries(text,text,date,date,text,text,integer,integer)",
+    "capability": "cs.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_search_members(text,integer,integer)",
+    "capability": "platform.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "manual",
+    "signature": "public.admin_search_operators(text,text,text,integer,integer)",
+    "capability": "operators.manage",
+    "legacyAdminOnly": true
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_search_order_claims(text,text,text,date,date,text,integer,integer)",
+    "capability": "sales.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_search_order_claims_console(text,text,text,date,date,text,integer,integer,text,text,text)",
+    "capability": "sales.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_search_order_items_console(text,date,date,text,integer,integer,text,text,text,text)",
+    "capability": "sales.read",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_search_orders(text,date,date,text,integer,integer,timestamp with time zone,text)",
+    "capability": "sales.read",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_search_orders_console(text,date,date,text,integer,integer,timestamp with time zone,text,text,text,text)",
+    "capability": "sales.read",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_search_purchase_restrictions(text,text,integer,integer)",
+    "capability": "sales.restrictions",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_search_reviews(uuid,date,date,integer,text,boolean,boolean,boolean,text,text,text,integer,integer)",
+    "capability": "cs.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_search_shipments(text,uuid,text,date,date,integer,integer)",
+    "capability": "sales.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_search_shipments_console(text,uuid,text,date,date,integer,integer,text,text,text,text,text)",
+    "capability": "sales.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_search_shopping_story_goods(text,integer)",
+    "capability": "store.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_search_shopping_story_goods_filtered(text,integer,jsonb)",
+    "capability": "store.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_search_store_credit_console(text,text,date,date,text,integer,integer)",
+    "capability": "marketing.manage",
+    "legacyAdminOnly": true
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_select_shipment_delivery_method(uuid,text,uuid,text,text,boolean,timestamp with time zone,uuid)",
+    "capability": "sales.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_seller_claim_intake_context(uuid)",
+    "capability": "sales.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_send_notification(uuid,text,text,text,text)",
+    "capability": "marketing.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_set_category_activation(uuid,boolean,boolean,jsonb)",
+    "capability": "platform.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_set_category_erp_mapping(uuid,uuid,text,text,text,timestamp with time zone)",
+    "capability": "platform.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_set_category_type_migration(uuid,text,uuid,text,text)",
+    "capability": "platform.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_set_coupon_status(text,integer,text)",
+    "capability": "marketing.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_set_customer_segment_favorite(uuid,boolean)",
+    "capability": "marketing.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_set_erp_category_mapping(text,uuid)",
+    "capability": "platform.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_set_good_bank_transfer(text,boolean)",
+    "capability": "catalog.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_set_good_published(text,boolean)",
+    "capability": "catalog.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_set_good_sale_restriction(text,public.goods_sale_restriction)",
+    "capability": "catalog.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_set_goods_draft_archived(uuid,integer,boolean)",
+    "capability": "catalog.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_set_goods_variant_active(text,uuid,boolean,timestamp with time zone,integer)",
+    "capability": "catalog.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_set_ip_directory(text,boolean,integer,text[],boolean)",
+    "capability": "platform.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_set_ip_published(text,boolean)",
+    "capability": "platform.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_set_operation_alert_badge(boolean)",
+    "capability": "home",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "manual",
+    "signature": "public.admin_set_operator_duty(uuid,text,integer,uuid)",
+    "capability": "operators.manage",
+    "legacyAdminOnly": true
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_set_pool_odds(uuid,uuid,numeric,numeric,numeric,numeric,numeric)",
+    "capability": "platform.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_set_product_question_visibility(uuid,boolean)",
+    "capability": "cs.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_set_review_status(uuid,text,text,uuid)",
+    "capability": "cs.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_set_shipping_region_policy_status(uuid,text,integer,boolean)",
+    "capability": "platform.manage",
+    "legacyAdminOnly": true
+  },
+  {
+    "guardKind": "retired",
+    "signature": "public.admin_set_user_role(uuid,public.user_role)",
+    "capability": "operators.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_shipment_export(uuid[])",
+    "capability": "sales.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_shipping_region_expiry_metadata(timestamp with time zone)",
+    "capability": "catalog.read",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "manual",
+    "signature": "public.admin_store_settings_history(integer)",
+    "capability": "seller.read",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_submit_seller_claim_intake(uuid,jsonb,jsonb)",
+    "capability": "sales.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_suggest_goods_identifiers(text,text)",
+    "capability": "catalog.read",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_suspend_user(uuid,text)",
+    "capability": "platform.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "manual",
+    "signature": "public.admin_transfer_operator_owner(uuid,integer,integer,bigint,uuid)",
+    "capability": "operators.transfer",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_unarchive_card(text)",
+    "capability": "platform.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_unarchive_category(uuid,uuid,timestamp with time zone)",
+    "capability": "catalog.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_unarchive_event(text)",
+    "capability": "platform.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_unarchive_good(text)",
+    "capability": "catalog.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_unarchive_ip(text)",
+    "capability": "platform.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_unpaid_bank_transfer_orders(text,integer,integer)",
+    "capability": "sales.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "read",
+    "signature": "public.admin_unpaid_bank_transfer_orders_console(text,integer,integer,text,text)",
+    "capability": "sales.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_unsuspend_user(uuid)",
+    "capability": "platform.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_update_ip_identity(text,text,text)",
+    "capability": "platform.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "manual",
+    "signature": "public.admin_update_operation_alerts(text,uuid[],timestamp with time zone,text,text)",
+    "capability": "home",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_update_order_status(uuid,public.order_status,text,text)",
+    "capability": "sales.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_update_order_tracking(uuid,text,text)",
+    "capability": "sales.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_update_report_status(uuid,public.report_status)",
+    "capability": "platform.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_update_shipment_status(uuid,text,text,text)",
+    "capability": "sales.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_update_shipment_tracking(uuid,text,text)",
+    "capability": "sales.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_upsert_campaign(text,text,text,text,text,timestamp with time zone,timestamp with time zone,text,text,text,integer,jsonb,text)",
+    "capability": "promotion.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_upsert_card(text,text,text,text,public.rarity,text,text,uuid,boolean,text)",
+    "capability": "platform.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_upsert_card_pool(uuid,uuid,text,text,timestamp with time zone,timestamp with time zone)",
+    "capability": "platform.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_upsert_category(uuid,uuid,text,text,uuid,integer,timestamp with time zone)",
+    "capability": "catalog.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_upsert_coin_exchange_offer(uuid,uuid,text,integer,integer,text)",
+    "capability": "platform.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_upsert_coupon(text,text,text,integer,integer,integer,timestamp with time zone,timestamp with time zone,integer,text,public.loyalty_grade,text)",
+    "capability": "marketing.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_upsert_coupon_scheduled(jsonb)",
+    "capability": "marketing.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_upsert_coupon_targeted(jsonb)",
+    "capability": "marketing.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_upsert_event(text,text,text,text,text,timestamp with time zone,timestamp with time zone,text,text,text,text,text)",
+    "capability": "platform.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_upsert_game(uuid,text,text,text,uuid,text,integer,timestamp with time zone,timestamp with time zone,boolean)",
+    "capability": "platform.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_upsert_good(text,text,text,text,integer,text,text,text,text,text,text,text,text,text,text,text,text,text[],text,text,integer,boolean)",
+    "capability": "catalog.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_upsert_home_curation(uuid,uuid,text,text,text,text,text,integer,timestamp with time zone,timestamp with time zone,boolean,text,jsonb)",
+    "capability": "store.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_upsert_ip(text,text,text,text,text,text,text,text,text,boolean,text,boolean)",
+    "capability": "platform.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_upsert_order_dispatch_delay(uuid,text,date)",
+    "capability": "sales.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_upsert_reward_policy(uuid,uuid,uuid,text,text,text,bigint,integer,boolean,timestamp with time zone,timestamp with time zone)",
+    "capability": "platform.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_upsert_ticket_type(uuid,uuid,text,text,integer,integer)",
+    "capability": "platform.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "write",
+    "signature": "public.admin_use_stock_supply(text,uuid,uuid,integer)",
+    "capability": "platform.manage",
+    "legacyAdminOnly": true
+  },
+  {
+    "guardKind": "service_start",
+    "signature": "public.assert_order_cancellation_reconciliation_allowed(uuid,uuid)",
+    "capability": "sales.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "mixed",
+    "signature": "public.can_stage_admin_artwork(text)",
+    "capability": "catalog.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "service_start",
+    "signature": "public.check_in_ticket(uuid,text)",
+    "capability": "platform.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "service_start",
+    "signature": "public.claim_goods_manual_payment_recovery(uuid,uuid,uuid,text,text,uuid)",
+    "capability": "sales.manage",
+    "legacyAdminOnly": true
+  },
+  {
+    "guardKind": "mixed",
+    "signature": "public.community_post_reaction_counts(uuid[],uuid[])",
+    "capability": "platform.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "service_finish",
+    "signature": "public.complete_order_cancellation_request(uuid,text[],uuid)",
+    "capability": "sales.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "service_finish",
+    "signature": "public.finalize_goods_manual_payment_recovery(uuid,uuid,uuid,text,text,uuid,boolean)",
+    "capability": "sales.manage",
+    "legacyAdminOnly": true
+  },
+  {
+    "guardKind": "manual",
+    "signature": "public.get_my_operator_invitation(text)",
+    "capability": "operators.manage",
+    "legacyAdminOnly": true
+  },
+  {
+    "guardKind": "mixed",
+    "signature": "public.goods_sale_available_qty(public.goods)",
+    "capability": "catalog.read",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "mixed",
+    "signature": "public.goods_variant_pricing(public.goods_variants)",
+    "capability": "catalog.read",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "mixed",
+    "signature": "public.inquiry_message_author_names(uuid)",
+    "capability": "cs.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "service_finish",
+    "signature": "public.mark_order_cancellation_needs_review(uuid,uuid,text)",
+    "capability": "sales.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "mixed",
+    "signature": "public.order_claim_eligibility(uuid)",
+    "capability": "sales.read",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "service_start",
+    "signature": "public.reconcile_expired_prepared_goods_cancellation(uuid,uuid)",
+    "capability": "sales.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "service_start",
+    "signature": "public.service_begin_admin_artwork_verification(uuid,text)",
+    "capability": "catalog.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "service_finish",
+    "signature": "public.service_finish_operator_invitation_email(uuid,uuid,text)",
+    "capability": "operators.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "service_start",
+    "signature": "public.service_prepare_admin_artwork_upload(uuid,text,text,text,integer,timestamp with time zone)",
+    "capability": "catalog.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "service_start",
+    "signature": "public.service_prepare_operator_invitation_email(uuid,uuid)",
+    "capability": "operators.manage",
+    "legacyAdminOnly": true
+  },
+  {
+    "guardKind": "service_start",
+    "signature": "public.service_verify_admin_artwork_upload(uuid,text,integer)",
+    "capability": "catalog.manage",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "mixed",
+    "signature": "public.shipment_delivery_summary(public.order_shipments)",
+    "capability": "sales.read",
+    "legacyAdminOnly": false
+  },
+  {
+    "guardKind": "mixed",
+    "signature": "public.shipment_preorder_ready(public.order_shipments)",
+    "capability": "sales.read",
+    "legacyAdminOnly": false
+  }
+]

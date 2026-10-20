@@ -1,4 +1,5 @@
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { transactionActor, transactionDisplay, transactionInput, transactionLineId, transactionOrder, transactionQuoteId } from '@/test/fixtures/cart-transaction';
 import {
   loadCheckoutOrder,
   loadLatestCardPaymentResultFocus,
@@ -8,15 +9,20 @@ import {
 const mocks = vi.hoisted(() => ({
   client: null as unknown,
   serviceClient: null as unknown,
+  gift: vi.fn(),
 }));
 
 vi.mock('./supabase/server', () => ({ createClient: () => mocks.client }));
 vi.mock('./supabase/service', () => ({ createServiceClient: () => mocks.serviceClient }));
+vi.mock('./gifts-order.server', () => ({ loadGiftCheckoutOrder: mocks.gift }));
+beforeEach(() => { mocks.gift.mockReset().mockResolvedValue({ kind: 'ordinary' }); });
 
 interface QueryRecord {
   table: string;
   select?: string;
   eq: [string, unknown][];
+  afterId?:string;
+  limit?:number;
   in?: [string, unknown[]][];
   order?: [string, boolean][];
 }
@@ -30,8 +36,9 @@ function createQuery(
   records.push(record);
 
   const result = () => {
-    let rows = rowsByTable[table] ?? [];
+    let rows = (rowsByTable[table] ?? []).map((row,index)=>table==='order_items'?{...row,id:row.id??String(index).padStart(12,'0')}:row);
     for (const [column, value] of record.eq) rows = rows.filter((row) => row[column] === value);
+    rows=rows.filter(row=>record.afterId===undefined||String(row.id)>record.afterId);
     for (const [column, values] of record.in ?? []) rows = rows.filter((row) => values.includes(row[column]));
     const orderBy = record.order ?? [];
     if (orderBy.length) {
@@ -44,7 +51,7 @@ function createQuery(
         return 0;
       });
     }
-    return { data: rows, error: null };
+    return { data: rows.slice(0, Math.min(record.limit ?? 1000, 1000)), error: null, count: rows.length };
   };
 
   const query = {
@@ -65,9 +72,8 @@ function createQuery(
       record.order = [...(record.order ?? []), [column, options?.ascending ?? true]];
       return query;
     },
-    limit() {
-      return query;
-    },
+    gt(_column:string,value:string){record.afterId=value;return query;},
+    limit(value:number) { record.limit=value;return query; },
     maybeSingle() {
       const { data, error } = result();
       return Promise.resolve({ data: data[0] ?? null, error });
@@ -143,7 +149,7 @@ describe('loadCheckoutOrder', () => {
       preorderExpectedShipDate: null,
     }]);
     expect(records.find((record) => record.table === 'order_items')?.select)
-      .toBe('id,good_id,qty,unit_price,good_name_snapshot,good_type_snapshot,variant_id,variant_name_snapshot,variant_code_snapshot,supply_source,preorder_expected_ship_date');
+      .toBe('id,good_id,qty,unit_price,good_name_snapshot,good_type_snapshot,variant_id,variant_name_snapshot,variant_code_snapshot,custom_inputs_snapshot,supply_source,preorder_expected_ship_date');
     expect(records.some((record) => record.table === 'goods')).toBe(false);
   });
 
@@ -588,4 +594,67 @@ describe('loadPendingCardPaymentReading', () => {
     };
     await expect(loadPendingCardPaymentReading(userId, order, now)).resolves.toBeNull();
   });
+});
+
+it('같은 옵션의 1001개 주문 문구를 결제 준비 화면에서 모두 읽는다',async()=>{
+  const records:QueryRecord[]=[];
+  const orderId='7ad4c967-3d48-44da-a665-64731ac33f62',userId='1cc4d399-8e70-4f06-979d-8fb0f9c43fde';
+  const rows:Record<string,Record<string,unknown>[]>={orders:[{id:orderId,user_id:userId,status:'pending',total:1001000,address:{},created_at:'2026-10-12T00:00:00Z',payment_method:'bank_transfer'}],
+    order_items:Array.from({length:1001},(_,index)=>({id:String(index).padStart(12,'0'),order_id:orderId,good_id:'g1',qty:1,unit_price:1000,good_name_snapshot:'각인 상품',good_type_snapshot:'문구',variant_id:'00000000-0000-4000-8000-000000000001',
+      custom_inputs_snapshot:{revision:1,fields:[{id:'00000000-0000-4000-8000-000000063311',name:'문구',value:`입력 ${index}`}]}}))};
+  mocks.client={from:(table:string)=>createQuery(table,records,rows)};mocks.serviceClient=mocks.client;
+  const result=await loadCheckoutOrder(userId,orderId);
+  expect(result?.items).toHaveLength(1001);
+  expect(result?.items.at(-1)?.customInputs?.fields[0].value).toBe('입력 1000');
+  expect(records.filter(record=>record.table==='order_items')).toHaveLength(3);
+});
+
+it('선물 전용 안전 조회 실패·권한 없음은 원본 주문 테이블로 우회하지 않는다', async () => {
+  const from = vi.fn(); mocks.client = { from }; mocks.serviceClient = { from };
+  mocks.gift.mockResolvedValueOnce({ kind: 'unavailable' });
+  expect(await loadCheckoutOrder(transactionActor, transactionOrder)).toBeNull();
+  mocks.gift.mockRejectedValueOnce(new Error('bad projection'));
+  expect(await loadCheckoutOrder(transactionActor, transactionOrder)).toBeNull(); expect(from).not.toHaveBeenCalled();
+  const safe = { id: transactionOrder, giftId: transactionQuoteId, address: null, paymentStatus: null, transaction: transactionDisplay };
+  const records: QueryRecord[] = [];
+  const rows = {
+    payment_attempts: [{ user_id: transactionActor, purpose: 'order', ref_id: transactionOrder, state: 'declined', provider: 'toss', expires_at: null }],
+    order_cancellation_requests: [{ order_id: transactionOrder, status: 'processing' }],
+  };
+  const giftClaim = vi.fn().mockResolvedValue({ data: { status: 'processing' }, error: null });
+  mocks.client = { rpc: giftClaim, from: vi.fn(() => { throw new Error('gift_raw_read_forbidden'); }) };
+  mocks.serviceClient = { from: (table: string) => createQuery(table, records, rows) };
+  mocks.gift.mockResolvedValueOnce({ kind: 'gift', order: safe });
+  expect(await loadCheckoutOrder(transactionActor, transactionOrder)).toMatchObject({ ...safe,
+    paymentAttempt: { state: 'declined', provider: 'toss', expiresAt: null }, hasActiveCancellationRequest: true });
+  expect(giftClaim).toHaveBeenCalledWith('get_my_gift_latest_claim', { p_order_id: transactionOrder });
+  expect(records.map(record => record.table)).toEqual(['payment_attempts']);
+  expect(records.find(record => record.table === 'payment_attempts')?.eq).toContainEqual(['user_id', transactionActor]);
+  giftClaim.mockResolvedValueOnce({ data: { status: 'unexpected' }, error: null });
+  mocks.gift.mockResolvedValueOnce({ kind: 'gift', order: safe });
+  expect(await loadCheckoutOrder(transactionActor, transactionOrder)).toBeNull();
+
+});
+
+it('신규 주문은 저장된 온라인·착불·할인·품목 원장과 일치하는 영수증만 보여준다', async () => {
+  const records: QueryRecord[] = [], totals = transactionDisplay.totals;
+  const rows: Record<string, Record<string, unknown>[]> = {
+    orders: [{ id: transactionOrder, user_id: transactionActor, status: 'pending', total: totals.onlineTotal, shipping_fee: totals.prepaidShippingTotal,
+      discount_total: totals.couponDiscountTotal, store_credit_total: totals.storeCreditTotal, volume_discount_total: totals.volumeDiscountTotal,
+      shipping_collect_total: totals.collectShippingTotal, calculation_version: 2, address: transactionInput.address, created_at: '2026-10-14T03:00:00Z' }],
+    order_items: [{ id: transactionLineId, order_id: transactionOrder, good_id: transactionInput.items[0].goodId, variant_id: transactionInput.items[0].variantId,
+      qty: 2, unit_price: 10000, good_name_snapshot: '굿즈', good_type_snapshot: '피규어' }],
+  };
+  const rpc = vi.fn().mockResolvedValue({ data: { orderId: transactionOrder, quoteId: transactionQuoteId, display: transactionDisplay }, error: null });
+  mocks.client = { from: (table: string) => createQuery(table, records, rows), rpc }; mocks.serviceClient = mocks.client;
+  expect(await loadCheckoutOrder(transactionActor, transactionOrder)).toMatchObject({ transaction: transactionDisplay, total: 16000 });
+  expect(rpc).toHaveBeenCalledWith('get_my_goods_transaction_receipt', { p_order_id: transactionOrder });
+  rows.order_items[0].good_id = 'renamed-product-code';
+  expect(await loadCheckoutOrder(transactionActor, transactionOrder)).toMatchObject({ transaction: transactionDisplay });
+  rows.orders[0].shipping_collect_total = 0;
+  expect(await loadCheckoutOrder(transactionActor, transactionOrder)).toBeNull();
+  rows.orders[0].shipping_collect_total = 3000; rows.order_items[0].qty = 3;
+  expect(await loadCheckoutOrder(transactionActor, transactionOrder)).toBeNull();
+  rows.order_items[0].qty = 2; rpc.mockResolvedValueOnce({ data: null, error: null });
+  expect(await loadCheckoutOrder(transactionActor, transactionOrder)).toBeNull();
 });

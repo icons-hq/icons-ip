@@ -11,6 +11,12 @@ import { ADMIN_QA_ROUTES, ADMIN_QA_VIEWPORTS } from './admin-visual-qa-manifest.
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const isInside = (parent, target) => { const part = relative(parent, target); return part === '' || (!part.startsWith(`..${process.platform === 'win32' ? '\\' : '/'}`) && part !== '..' && !isAbsolute(part)); };
 const loopback = (hostname) => ['127.0.0.1', 'localhost', '[::1]', '::1'].includes(hostname);
+export function isLocalNextDevelopmentSocket(url, origin, mode) {
+  const target = new URL(url), expected = new URL(origin);
+  return mode === 'live-read-only' && loopback(expected.hostname) && !target.username && !target.password
+    && target.protocol === expected.protocol.replace('http', 'ws') && target.hostname === expected.hostname
+    && target.port === expected.port && target.pathname === '/_next/hmr';
+}
 const hash = (value) => createHash('sha256').update(value).digest('hex');
 const safeError = (value) => String(value).replace(/(https?:\/\/[^\s?#]+)[?#][^\s]*/g, '$1?[redacted]').replace(/Bearer\s+\S+/gi, 'Bearer [redacted]').slice(0, 1200);
 
@@ -150,7 +156,7 @@ export async function runAdminVisualQa(config) {
     browser = await chromium.launch({ executablePath: await browserExecutable(), headless: true });
     for (const route of config.routes) for (const viewport of config.viewports) {
       const name = `${route.id}-${viewport.width}x${viewport.height}`;
-      const result = { id: route.id, path: route.path, sourcePath: config.mode === 'captured-components' ? route.sourcePath : route.path, actualUrl: null, mode: config.mode, viewport, status: 'error', findings: [], console: [], blockedRequests: [], failedResources: [] };
+      const result = { id: route.id, path: route.path, sourcePath: config.mode === 'captured-components' ? route.sourcePath : route.path, actualUrl: null, mode: config.mode, viewport, status: 'error', findings: [], console: [], blockedRequests: [], failedResources: [], developmentSockets: [] };
       let context;
       try {
         context = await browser.newContext({ viewport, deviceScaleFactor: 1, reducedMotion: 'reduce', serviceWorkers: 'block', javaScriptEnabled: config.mode !== 'captured-layout', storageState: config.storageState, acceptDownloads: false });
@@ -161,7 +167,14 @@ export async function runAdminVisualQa(config) {
           }
           await intercept.continue();
         });
-        if (typeof context.routeWebSocket === 'function') await context.routeWebSocket('**/*', (socket) => socket.close());
+        if (typeof context.routeWebSocket === 'function') await context.routeWebSocket('**/*', (socket) => {
+          // Next's installed development runtime waits for this connection
+          // before hydration. All application/remote sockets stay blocked.
+          if (isLocalNextDevelopmentSocket(socket.url(), config.origin, config.mode)) {
+            const url = new URL(socket.url()); result.developmentSockets.push(`${url.origin}${url.pathname}`);
+            socket.connectToServer();
+          } else socket.close();
+        });
         const page = await context.newPage(); page.setDefaultTimeout(config.timeout);
         page.on('pageerror', (error) => result.console.push({ level: 'pageerror', message: safeError(error.message) }));
         page.on('console', (message) => { if (['warning', 'error'].includes(message.type())) result.console.push({ level: message.type(), message: safeError(message.text()) }); });
@@ -182,6 +195,10 @@ export async function runAdminVisualQa(config) {
         while (await page.evaluate(() => document.fonts.status) !== 'loaded') {
           if (Date.now() >= fontDeadline) throw new Error('Fonts did not become ready within timeout.');
           await page.waitForTimeout(50);
+        }
+        if (config.mode !== 'captured-layout') {
+          await page.waitForLoadState('networkidle', { timeout: config.timeout });
+          await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
         }
         result.measurement = await page.evaluate(measureAdminLayout, route);
         result.findings.push(...result.measurement.findings);

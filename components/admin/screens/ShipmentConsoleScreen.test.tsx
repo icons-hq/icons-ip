@@ -9,6 +9,32 @@ vi.mock('@/app/admin/shipment-actions',()=>({completeShipmentsAction:vi.fn(),exp
 const base:ShipmentConsoleData={surface:'dispatch',filters:{tab:'ready',originId:null,query:'',from:null,to:null,page:1},rows:[],total:2,pageSize:100,counts:{new:0,ready:2,delayed:0,transit:0,delivered:0},carriers:[{code:'hanjin',label:'한진택배',active:true,trackingUrlTemplate:'https://example.test/{trackingNumber}'}],origins:[{id:'one',name:'김포',template:'wms_csv',active:true},{id:'two',name:'남양주',template:'seowon_xlsx',active:true},{id:'three',name:'중지된 창고',template:'standard',active:false}]};
 const row={id:'60000000-0000-4000-8000-000000000001',orderId:'50000000-0000-4000-8000-000000000001',originId:'one',originName:'김포',status:'ready' as const,createdAt:'2026-09-08T00:00:00Z',confirmedAt:'2026-09-08T01:00:00Z',buyerName:'구매자',recipientName:'받는 분',total:30000,paymentMethod:'card',shippingFee:3000,carrier:null,trackingNumber:null,shippedAt:null,deliveredAt:null,exportedAt:null,updatedAt:'2026-09-08T00:00:00Z',delayReason:null,expectedShipDate:null,items:[{id:'item-1',name:'상품',variantName:'파랑',qty:2}]};
 describe('배송 건 콘솔',()=>{
+ it('지원하는 모든 배송방법을 검색하고 다운로드 방식은 파일 제공 이력으로 연결한다',()=>{
+  const html=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,rows:[{...row,delivery:shipmentDeliveryFixture({method:'digital'})}]}}/>);
+  for(const method of ['parcel','quick','pickup','direct','freight','none','digital']) expect(html).toContain(`value="${method}"`);
+  expect(html).toContain('디지털 파일 제공 이력');expect(html).not.toContain('디지털 파일 다운로드 인계·수령 확인');
+ });
+ it.each(['dispatch','shipping'] as const)('구매자와 수취인을 각각 기본 열로 보여준다: %s',surface=>{
+  const html=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,surface,filters:{...base.filters,tab:surface==='dispatch'?'ready':'delivered'},
+   rows:[{...row,buyerName:'서로 다른 구매자',recipientName:'별도 수취인'}]}}/>);
+  expect(html).toContain('구매자명');expect(html).toContain('서로 다른 구매자');expect(html).toContain('별도 수취인');
+  expect(html).toContain('조회항목 설정');
+  const missing=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,surface,filters:{...base.filters,tab:surface==='dispatch'?'ready':'delivered'},
+   rows:[{...row,buyerName:'구매자만 확인',recipientName:null}]}}/>);
+  expect(missing).toContain('미기록');
+  expect((missing.match(/구매자만 확인/g)??[])).toHaveLength(1);
+ });
+ it('원본 안내여부 필터를 실제 채널 결과로 구분하고 검색 폼의 중복 hidden 값을 만들지 않는다',()=>{
+  const notice={status:'partial_failed' as const,noticeId:'11111111-1111-4111-8111-111111111111',requestedAt:'2026-10-13T10:00:00Z',inAppStatus:'sent' as const,emailStatus:'failed' as const,emailProviderState:'bounced'};
+  const html=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,filters:{...base.filters,delayNotice:'partial_failed'},rows:[{...row,delayNotice:notice}]}}/>);
+  expect(html).toContain('발송지연 안내여부');expect(html).toContain('지연 안내 결과');expect(html).toContain('앱 발송 · 이메일 실패');
+  expect(html).toContain('<option value="partial_failed" selected="">일부 채널 실패·제외</option>');
+  expect(html).toContain('delayNotice=partial_failed');expect(html).toContain('고객의 수신·열람을 뜻하지 않습니다');
+  const searchForm=html.slice(html.indexOf('class="admin-sales-filters"'),html.indexOf('</form>'));
+  expect((searchForm.match(/name="delayNotice"/g)??[])).toHaveLength(1);
+  const shipping=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,surface:'shipping',filters:{...base.filters,tab:'transit'}}}/>);
+  expect(shipping).not.toContain('name="delayNotice"');
+ });
  it('지연 탭은 예약 미할당·방문수령도 고객 안내 대상으로 선택하면서 기존 출고 실행은 막는다',()=>{
   const html=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,filters:{...base.filters,tab:'delayed'},rows:[{...row,preorderReady:false,delivery:shipmentDeliveryFixture()}]}}/>);
   expect(html).toContain(`aria-label="배송 건 ${row.id.slice(-8).toUpperCase()} 선택"`);

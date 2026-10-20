@@ -1,4 +1,5 @@
 'use server';
+import { canAccessAdminScreen } from '@/lib/admin/access';
 import { revalidatePath } from 'next/cache';
 import { redirect, unstable_rethrow } from 'next/navigation';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
@@ -13,7 +14,7 @@ export async function saveFulfillmentOriginAction(previous: FulfillmentActionSta
   try {
     const auth = await getCurrentAdminAuthState();
     if (!auth.user || !auth.isConfigured) redirect(`/login?next=${encodeURIComponent(FULFILLMENT_ORIGINS_PATH)}`);
-    if (!auth.isStaff || auth.role !== 'admin') return fail({ form: '출고지 설정 변경은 관리자(admin)만 할 수 있습니다.' });
+    if (!auth.isStaff || !canAccessAdminScreen(auth, null, { capability: 'platform.manage', adminOnly: true })) return fail({ form: '출고지 설정 변경은 관리자(admin)만 할 수 있습니다.' });
     const result = parseFulfillmentOriginInput(values);
     if (!result.ok) return fail(result.errors);
     if (values.id && (!/^[0-9a-f-]{36}$/i.test(values.id) || !values.updatedAt || Number.isNaN(Date.parse(values.updatedAt)))) return fail({ form: '최신 출고지 설정을 다시 열어주세요.' });

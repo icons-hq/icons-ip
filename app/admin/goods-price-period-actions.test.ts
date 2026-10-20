@@ -1,3 +1,4 @@
+const { legacyOperatorAccessFixture } = await vi.hoisted(() => import('@/lib/admin/access.test-fixtures'));
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({ auth: vi.fn(), rpc: vi.fn(), revalidatePath: vi.fn(), redirect: vi.fn() }));
 vi.mock('@/lib/auth/admin', () => ({ getCurrentAdminAuthState: mocks.auth }));
@@ -14,7 +15,7 @@ function form(period: Record<string, unknown>) {
 }
 beforeEach(() => {
   vi.resetAllMocks();
-  mocks.auth.mockResolvedValue({ isConfigured: true, user: { id: 'staff1' }, isStaff: true });
+  mocks.auth.mockResolvedValue({ isConfigured: true, user: { id: 'staff1' }, isStaff: true, operatorAccess: legacyOperatorAccessFixture() });
 });
 describe('admin price-period action', () => {
   it('keeps unconfigured draft values and maps activation to the staff SQL seam', async () => {

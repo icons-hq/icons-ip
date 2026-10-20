@@ -14,6 +14,7 @@ select 1 / case when exists(select 1 from public.shipping_carriers where code='e
 insert into auth.users(id,aud,role,email,raw_app_meta_data,raw_user_meta_data,created_at,updated_at)
 values('00000000-0000-4000-8000-000000043101','authenticated','authenticated','warehouse-reply@example.test','{}','{}',now(),now());
 update public.profiles set role='staff' where id='00000000-0000-4000-8000-000000043101';
+insert into private.operator_memberships(profile_id,manager_role) values('00000000-0000-4000-8000-000000043101','primary');
 insert into public.verticals(key,label,color) values('warehouse-reply','서원 회신','#000000');
 insert into public.ips(id,title,vertical_key) values('warehouse-reply','서원 회신','warehouse-reply');
 insert into public.goods(id,ip_id,name,type,price,origin_id) values
@@ -70,6 +71,17 @@ do $$ begin
 exception when invalid_parameter_value then if sqlerrm<>'invalid_tracking_batch' then raise; end if; end $$;
 
 -- 3) 출고지별 새 출고지시: 전달 전·취소 요청 없음·발송 대기만, 품목 1,000줄까지.
+-- A split shipment exports its allocated quantity, not the whole order item.
+reset role;
+savepoint allocated_reply_quantity;
+update public.order_shipment_items set qty=1 where shipment_id='61000000-0000-4000-8000-000000000002';
+set local role authenticated;
+select 1/case when public.admin_origin_tracking_candidates('00000000-0000-4000-8000-000000042202','{}',array['01012340002'])#>>'{shipments,0,lines,0,qty}'='1'
+ then 1 else 0 end as reply_uses_shipment_allocation_quantity;
+reset role;
+rollback to allocated_reply_quantity;
+set local role authenticated;
+
 select 1 / case when public.admin_origin_pending_export_ids('00000000-0000-4000-8000-000000042202')
  =jsonb_build_object('ids',jsonb_build_array('61000000-0000-4000-8000-000000000001'),'total',1)
  then 1 else 0 end as assert_pending_export_excludes_exported_and_cancelling;

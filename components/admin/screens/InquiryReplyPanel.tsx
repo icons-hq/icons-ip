@@ -1,14 +1,14 @@
 'use client';
 
-import { useActionState, useRef, useState } from 'react';
+import { useActionState, useRef } from 'react';
+import { useInquiryDraft } from '@/components/admin/useInquiryDraft';
+import { InquiryDraftNotice } from './InquiryDraftNotice';
 import {
   answerInquiryAction,
   closeInquiryAction,
-  deleteInquiryReplyTemplateAction,
-  saveInquiryReplyTemplateAction,
   type AdminInquiryActionState,
 } from '@/app/admin/inquiry-actions';
-import type { AdminInquiryReplyTemplate } from '@/lib/admin/inquiries.server';
+import { InquiryReplyTemplateTools } from './InquiryReplyTemplateTools';
 import {
   INQUIRY_IMAGE_ACCEPT,
   MAX_INQUIRY_BODY_LENGTH,
@@ -50,35 +50,22 @@ export function InquiryReplyPanel({
   category,
   closed,
   inquiryId,
-  templates,
+  accountId = '',
 }: {
   category: InquiryCategory;
   closed: boolean;
   inquiryId: string;
-  templates: AdminInquiryReplyTemplate[];
+  accountId?: string;
 }) {
   const [answerState, answerAction, answerPending] = useActionState(answerInquiryAction, EMPTY_STATE);
   const [closeState, closeAction, closePending] = useActionState(closeInquiryAction, EMPTY_STATE);
-  const [templateState, templateAction, templatePending] = useActionState(
-    saveInquiryReplyTemplateAction,
-    EMPTY_STATE,
-  );
-  const [deleteState, deleteAction] = useActionState(deleteInquiryReplyTemplateAction, EMPTY_STATE);
-  const [body, setBody] = useState('');
-  const [clearedKey, setClearedKey] = useState<string | null>(null);
-  const [templateFormOpen, setTemplateFormOpen] = useState(false);
+  const draft = useInquiryDraft(accountId, inquiryId, 'reply', answerState.resultKey);
+  const { body, change: setBody } = draft;
   const bodyRef = useRef<HTMLTextAreaElement>(null);
+  const busy = answerPending || closePending || !draft.ready || draft.blocked;
 
-  /* 발송에 성공하면 작성창을 비운다. 남겨 두면 운영자가 같은 답변을 한 번 더 보낸다.
-     effect가 아니라 렌더 중 조정이다 — 액션 결과에 맞춰 상태를 맞추는 일이라
-     한 번 더 렌더될 뿐 화면이 두 번 깜빡이지 않는다. */
-  if (answerState.resultKey && answerState.resultKey !== clearedKey) {
-    setClearedKey(answerState.resultKey);
-    setBody('');
-  }
-
-  function insertTemplate(templateBody: string) {
-    setBody((current) => (current.trim() ? `${current}\n\n${templateBody}` : templateBody));
+  function insertTemplate(nextBody: string) {
+    setBody(nextBody);
     bodyRef.current?.focus();
   }
 
@@ -97,46 +84,9 @@ export function InquiryReplyPanel({
     <section className="card col" style={{ gap: 14, padding: 18 }}>
       <div className="row" style={{ alignItems: 'center', gap: 8, justifyContent: 'space-between' }}>
         <strong>답변 작성</strong>
-        <button
-          className="btn btn-sm btn-ghost"
-          onClick={() => setTemplateFormOpen((open) => !open)}
-          type="button"
-        >
-          {templateFormOpen ? '템플릿 저장 닫기' : '현재 답변을 템플릿으로 저장'}
-        </button>
+        <InquiryReplyTemplateTools accountId={accountId} body={body} onInsert={insertTemplate} disabled={busy} />
       </div>
-
-      {templates.length ? (
-        <div className="col" style={{ gap: 6 }}>
-          <span className="muted" style={{ fontSize: 12 }}>답변 템플릿</span>
-          <div className="row" style={{ flexWrap: 'wrap', gap: 6, justifyContent: 'flex-start' }}>
-            {templates.map((template) => (
-              <span key={template.id} className="row" style={{ gap: 4 }}>
-                <button
-                  className="btn btn-sm btn-ghost"
-                  onClick={() => insertTemplate(template.body)}
-                  title={template.body}
-                  type="button"
-                >
-                  {template.title}
-                </button>
-                <form action={deleteAction}>
-                  <input name="inquiryId" type="hidden" value={inquiryId} />
-                  <input name="templateId" type="hidden" value={template.id} />
-                  <button
-                    aria-label={`${template.title} 템플릿 삭제`}
-                    className="btn btn-sm btn-ghost"
-                    type="submit"
-                  >
-                    ×
-                  </button>
-                </form>
-              </span>
-            ))}
-          </div>
-          <Feedback state={deleteState} />
-        </div>
-      ) : null}
+      <InquiryDraftNotice draft={draft} pending={busy} />
 
       <form action={answerAction} className="col" style={{ gap: 10 }}>
         <input name="category" type="hidden" value={category} />
@@ -144,6 +94,7 @@ export function InquiryReplyPanel({
         <label className="col" style={{ gap: 6 }}>
           <span className="muted" style={{ fontSize: 12 }}>답변 내용</span>
           <textarea
+            disabled={busy}
             maxLength={MAX_INQUIRY_BODY_LENGTH}
             name="body"
             onChange={(event) => setBody(event.target.value)}
@@ -157,35 +108,15 @@ export function InquiryReplyPanel({
           <span className="muted" style={{ fontSize: 12 }}>
             이미지 첨부 · 최대 {MAX_INQUIRY_IMAGES}장
           </span>
-          <input accept={INQUIRY_IMAGE_ACCEPT} multiple name="images" type="file" />
+          <input key={answerState.resultKey ?? 'initial'} disabled={busy} accept={INQUIRY_IMAGE_ACCEPT} multiple name="images" type="file" />
         </label>
         <div className="row" style={{ gap: 8, justifyContent: 'flex-end' }}>
-          <button className="btn" disabled={answerPending} type="submit">
+          <button className="btn" disabled={busy} type="submit">
             {answerPending ? '발송 중' : '답변 발송'}
           </button>
         </div>
         <Feedback state={answerState} />
       </form>
-
-      {templateFormOpen ? (
-        <form action={templateAction} className="col" style={{ gap: 8 }}>
-          <input name="inquiryId" type="hidden" value={inquiryId} />
-          <input name="templateBody" type="hidden" value={body} />
-          <label className="col" style={{ gap: 6 }}>
-            <span className="muted" style={{ fontSize: 12 }}>템플릿 이름</span>
-            <input maxLength={40} name="templateTitle" placeholder="예: 배송 지연 안내" type="text" />
-          </label>
-          <span className="muted" style={{ fontSize: 12 }}>
-            위 답변 입력창의 현재 내용을 그대로 저장합니다.
-          </span>
-          <div className="row" style={{ justifyContent: 'flex-end' }}>
-            <button className="btn btn-sm" disabled={templatePending} type="submit">
-              {templatePending ? '저장 중' : '템플릿 저장'}
-            </button>
-          </div>
-          <Feedback state={templateState} />
-        </form>
-      ) : null}
 
       <form action={closeAction} className="col" style={{ gap: 6 }}>
         <input name="inquiryId" type="hidden" value={inquiryId} />
@@ -193,7 +124,7 @@ export function InquiryReplyPanel({
           <span className="muted" style={{ fontSize: 12 }}>
             답변 후 7일 동안 추가 질문이 없으면 자동으로 종결됩니다.
           </span>
-          <button className="btn btn-sm btn-ghost" disabled={closePending} type="submit">
+          <button className="btn btn-sm btn-ghost" disabled={busy} type="submit">
             {closePending ? '종결 중' : '지금 종결'}
           </button>
         </div>

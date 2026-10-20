@@ -1,7 +1,7 @@
 'use client';
 
-import { useEffect, useRef, useState, type ChangeEvent, type KeyboardEvent, type MouseEvent, type PointerEvent } from 'react';
-import { ADMIN_ARTWORK_ACCEPT, ADMIN_ARTWORK_ERROR, normalizeAdminArtworkMetadata } from '@/lib/admin/artwork';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore, type ChangeEvent, type KeyboardEvent, type MouseEvent, type PointerEvent } from 'react';
+import { ADMIN_ARTWORK_ACCEPT, ADMIN_ARTWORK_ERROR, normalizeAdminArtworkMetadata, parseAdminArtworkPath } from '@/lib/admin/artwork';
 // 상대 경로는 ArtworkUploadField와 같은 모듈 지정자다 — 시각 fixture가 이 지정자로 합성 업로드를 끼운다.
 import { uploadAdminArtwork } from '../../lib/admin/artwork-upload.client';
 import { GOODS_GALLERY_MAX } from '@/lib/admin/catalog';
@@ -24,6 +24,14 @@ import {
 } from '@/lib/admin/goods-image-grid';
 import { COMMON_ARTWORK_GUIDANCE } from './ArtworkUploadField';
 import { ErrorText } from './fields';
+import { GoodsPhotoPicker } from './screens/GoodsPhotoLibraryScreen';
+import { normalizePublicMediaPath, publicMediaUrl } from '@/lib/media';
+import { createGoodsPhotoEditGuard, goodsPhotoEditTarget, type GoodsPhotoEditTicket } from '@/lib/admin/goods-photo-edit-guard';
+import { inquiryDraftSessionId } from '@/lib/admin/inquiry-drafts';
+import { INQUIRY_DRAFT_SIGN_OUT_EVENT } from '@/lib/admin/inquiry-draft-lifecycle';
+import { createClient } from '@/lib/supabase/client';
+import { getSupabaseConfig } from '@/lib/supabase/config';
+import { GoodsPhotoEditor } from './GoodsPhotoEditor';
 
 export const GOODS_IMAGE_GUIDANCE_ID = 'goods-image-upload-guidance';
 export const GOODS_IMAGE_RATIO_GUIDANCE = '1000×1000(1:1) 이미지를 권장합니다. 올린 원본 비율 그대로, 잘리지 않고 표시됩니다.';
@@ -49,16 +57,25 @@ const DRAG_THRESHOLD = 6;
  *   세로 스크롤을 허용하므로, 모바일에서 타일 위를 쓸어도 화면이 스크롤된다. 마우스는 스크롤과 겹치지
  *   않아 타일 본문에서도 끌 수 있다. 키보드는 손잡이·파일 입력에서 ←/→, 또는 ◀/▶ 버튼을 쓴다.
  */
-export function GoodsImageGrid({ errors = {}, initialPaths, initialUrls, onPreviewChange }: {
+export function GoodsImageGrid({ errors = {}, initialPaths, initialUrls, onPreviewChange, accountId = '', recordId = 'new', editingDisabled = false }: {
   errors?: Record<string, string | undefined>;
   /** 대표 이미지, 추가 이미지 1…N 순서. */
   initialPaths: readonly (string | null | undefined)[];
   initialUrls: readonly (string | null | undefined)[];
   onPreviewChange: (name: string, url: string | null) => void;
+  accountId?: string;
+  recordId?: string;
+  editingDisabled?: boolean;
 }) {
   const [slots, setSlots] = useState<Slots>(() => createGoodsImageSlots(initialPaths, initialUrls));
   const [announcement, setAnnouncement] = useState('');
   const [notice, setNotice] = useState('');
+  const [photoPicker, setPhotoPicker] = useState(false);
+  const [photoEdit, setPhotoEdit] = useState<GoodsPhotoEditTicket | null>(null);
+  const photoGuard = useMemo(() => createGoodsPhotoEditGuard(accountId, recordId), [accountId, recordId]);
+  const photoScope = useSyncExternalStore(photoGuard.subscribe, photoGuard.getSnapshot, photoGuard.getServerSnapshot);
+  const photoUploads = useRef(new Map<File, GoodsPhotoEditTicket>());
+  const mounted = useRef(false);
   const [drag, setDrag] = useState<{ from: number; over: number } | null>(null);
   const slotsRef = useRef<Slots>(slots);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
@@ -73,9 +90,24 @@ export function GoodsImageGrid({ errors = {}, initialPaths, initialUrls, onPrevi
   const pendingFocus = useRef<FocusTarget | null>(null);
   const galleryCount = goodsGalleryCount(slots);
 
+  useLayoutEffect(() => { photoGuard.setBusy(editingDisabled); }, [photoGuard, editingDisabled]);
   useEffect(() => {
+    photoGuard.activate();
+    const signOut = () => photoGuard.authenticate(null, null);
+    window.addEventListener(INQUIRY_DRAFT_SIGN_OUT_EVENT, signOut);
+    const subscription = accountId && getSupabaseConfig().isConfigured ? createClient().auth.onAuthStateChange((_event, session) => {
+      photoGuard.authenticate(session?.user.id ?? null, session ? inquiryDraftSessionId(session.access_token) : null);
+    }).data.subscription : null;
+    return () => { photoGuard.dispose(); subscription?.unsubscribe(); window.removeEventListener(INQUIRY_DRAFT_SIGN_OUT_EVENT, signOut); };
+  }, [photoGuard, accountId]);
+
+  useEffect(() => {
+    mounted.current = true;
     const urls = objectUrls.current;
+    const uploads = photoUploads.current;
     return () => {
+      mounted.current = false;
+      uploads.clear();
       for (const url of urls) URL.revokeObjectURL(url);
       urls.clear();
     };
@@ -108,10 +140,15 @@ export function GoodsImageGrid({ errors = {}, initialPaths, initialUrls, onPrevi
   }
 
   async function upload(key: string, file: File) {
+    if (!mounted.current) return;
     // 차례를 기다리는 동안 삭제됐거나 다른 파일로 바뀐 타일은 올리지 않는다.
     const waiting = slotsRef.current[findGoodsImagePosition(slotsRef.current, key)];
-    if (!waiting || waiting.file !== file) return;
-    const result = await uploadAdminArtwork({ kind: 'good', file });
+    if (!waiting || waiting.file !== file) { photoUploads.current.delete(file); return; }
+    const edit = photoUploads.current.get(file);
+    if (edit && !photoGuard.isCurrent(edit)) { photoUploads.current.delete(file); return; }
+    const result = await uploadAdminArtwork({ kind: 'good', file, ...(edit ? { expectedActorId: edit.actorId } : {}) });
+    photoUploads.current.delete(file);
+    if (!mounted.current || edit && !photoGuard.isCurrent(edit)) return;
     const current = slotsRef.current;
     const position = findGoodsImagePosition(current, key);
     // 업로드 중에 삭제했거나 다시 교체한 이미지의 결과는 버린다. 검증만 된 claim은 정기 정리가 회수한다.
@@ -121,7 +158,7 @@ export function GoodsImageGrid({ errors = {}, initialPaths, initialUrls, onPrevi
       const tile = current[position]!;
       releaseUrl(tile.previous?.url);
       commit(replaceGoodsImageTile(current, key, (value) => ({ key: value.key, path: result.imagePath, url: value.url, status: 'uploaded' })),
-        `${label} 업로드 완료 · 상품 저장 전입니다.`);
+        `${label}${edit ? ' 편집 이미지' : ''} 업로드 완료 · 상품 저장 전입니다.`);
       return;
     }
     commit(replaceGoodsImageTile(current, key, (value) => {
@@ -162,21 +199,44 @@ export function GoodsImageGrid({ errors = {}, initialPaths, initialUrls, onPrevi
     for (const tile of started) enqueueUpload(tile.key, tile.file!);
   }
 
-  function replaceFile(position: number, file: File) {
+  function replaceFile(position: number, file: File, photoEditing = false) {
     const tile = slotsRef.current[position];
-    if (!tile) return;
+    if (!tile) return false;
     const metadata = normalizeAdminArtworkMetadata({ kind: 'good', mimeType: file.type, size: file.size });
     if (!metadata.ok) {
       commit(replaceGoodsImageTile(slotsRef.current, tile.key, (value) => ({ ...value, error: metadata.error })), `${goodsImageLabel(position)}: ${metadata.error}`);
-      return;
+      return false;
     }
     const url = URL.createObjectURL(file);
     objectUrls.current.add(url);
     const previous = tile.status === 'saved' || tile.status === 'uploaded' ? { path: tile.path, url: tile.url, status: tile.status } : undefined;
     if (!previous) releaseUrl(tile.url);
-    commit(replaceGoodsImageTile(slotsRef.current, tile.key, (value) => ({ key: value.key, path: previous?.path ?? '', url, status: 'uploading', file, previous })),
+    commit(replaceGoodsImageTile(slotsRef.current, tile.key, (value) => ({ key: value.key, path: previous?.path ?? '', url, status: 'uploading', file, previous, ...(photoEditing ? { uploadSource: 'photo-edit' as const } : {}) })),
       `${goodsImageLabel(position)} 교체 업로드를 시작했습니다.`);
     enqueueUpload(tile.key, file);
+    return true;
+  }
+
+  function closePhotoEdit(ticket: GoodsPhotoEditTicket) {
+    setPhotoEdit(null);
+    requestAnimationFrame(() => { if (mounted.current) controlRefs.current[`edit-${ticket.tileKey}`]?.focus(); });
+  }
+  function applyPhotoEdit(ticket: GoodsPhotoEditTicket, file: File | null) {
+    const position = goodsPhotoEditTarget(slotsRef.current, ticket);
+    if (!photoGuard.canApply(ticket) || position < 0) {
+      setNotice('계정·상품 또는 원본 사진이 바뀌었거나 다른 저장이 진행 중입니다. 현재 화면을 다시 확인한 뒤 사진 편집을 시작해주세요.');
+      closePhotoEdit(ticket); return;
+    }
+    closePhotoEdit(ticket);
+    if (!file) { setAnnouncement('사진을 변경하지 않았습니다.'); return; }
+    photoUploads.current.set(file, ticket);
+    if (!replaceFile(position, file, true)) photoUploads.current.delete(file);
+  }
+  function cancelPhotoUpload(position: number) {
+    const tile = slotsRef.current[position];
+    if (!tile?.file || !tile.previous || !photoUploads.current.has(tile.file)) return;
+    photoUploads.current.delete(tile.file); releaseUrl(tile.url);
+    commit(replaceGoodsImageTile(slotsRef.current, tile.key, () => ({ key: tile.key, ...tile.previous! })), '사진 편집 업로드를 취소하고 원래 사진을 유지합니다.');
   }
 
   function handleFiles(event: ChangeEvent<HTMLInputElement>, position: number) {
@@ -375,6 +435,13 @@ export function GoodsImageGrid({ errors = {}, initialPaths, initialUrls, onPrevi
         </div>
       ) : null}
       {tile?.status === 'failed' && tile.file ? <button className="wc-admin-image-tile__retry" onClick={() => retry(position)} type="button">다시 시도</button> : null}
+      {accountId && tile && parseAdminArtworkPath(normalizePublicMediaPath(tile.path))?.kind === 'good' ? <button
+        type="button" className="wc-admin-image-tile__edit" aria-label={`${label} 사진 편집`}
+        disabled={editingDisabled || !photoScope.ready || photoScope.blocked || tile.status !== 'saved' && tile.status !== 'uploaded'}
+        ref={element => { controlRefs.current[`edit-${tile.key}`] = element; }}
+        onClick={() => { const ticket = photoGuard.capture(tile.key, tile.path); if (ticket) { setNotice(''); setPhotoEdit(ticket); } }}
+      >사진 편집</button> : null}
+      {tile?.file && tile.previous && tile.uploadSource === 'photo-edit' ? <button type="button" className="wc-admin-image-tile__retry" onClick={() => cancelPhotoUpload(position)}>편집 업로드 취소</button> : null}
       {tile?.error ? <span className="wc-admin-image-tile__error" id={tileErrorId} role="alert">{tile.error}</span> : null}
       <ErrorText id={errorId}>{formError}</ErrorText>
       <input name={name} readOnly type="hidden" value={tile?.path ?? ''} />
@@ -385,6 +452,18 @@ export function GoodsImageGrid({ errors = {}, initialPaths, initialUrls, onPrevi
     <legend>상품 이미지 · 대표 이미지 1장 + 추가 이미지 최대 {GOODS_GALLERY_MAX}장</legend>
     <p className="wc-admin-image-grid__guidance" id={GOODS_IMAGE_GUIDANCE_ID}>{GOODS_IMAGE_RATIO_GUIDANCE} 공통 파일 규격: {COMMON_ARTWORK_GUIDANCE}.</p>
     <p className="wc-admin-image-grid__intro">이미지를 누르면 다른 파일로 바꿉니다. 추가 이미지는 왼쪽 위 손잡이(⋮⋮)를 끌거나 ←·→ 키로 순서를 바꾸며(마우스는 이미지를 바로 끌어도 됩니다), 이 순서대로 상품 상세 상단 이미지에서 대표 이미지 다음에 표시됩니다. 파일은 고르는 즉시 업로드되며, 상품 저장 후 공개 화면에 반영됩니다.</p>
+    <button type="button" disabled={slots.every(Boolean)} onClick={() => setPhotoPicker(true)}>사진 보관함에서 선택</button>
+    {photoPicker ? <GoodsPhotoPicker onClose={() => setPhotoPicker(false)} onSelect={photo => {
+      const current = slotsRef.current;
+      const position = current.findIndex(tile => !tile);
+      if (position < 0) { setNotice('상품 이미지는 최대 10장입니다.'); setPhotoPicker(false); return; }
+      if (current.some(tile => tile?.path === photo.imagePath)) { setNotice('이미 선택한 사진입니다.'); setPhotoPicker(false); return; }
+      keyCounter.current += 1;
+      const next = [...current];
+      next[position] = { key: `library-${keyCounter.current}`, path: photo.imagePath, url: publicMediaUrl(photo.imagePath), status: 'uploaded' };
+      commit(next, `${goodsImageLabel(position)}에 보관함 사진을 선택했습니다. 상품 저장 전입니다.`);
+      setPhotoPicker(false);
+    }} /> : null}
     <ol className="wc-admin-image-grid__tiles">
       {Array.from({ length: GOODS_IMAGE_SLOT_COUNT }, (_, position) =>
         position === 0 || slots[position] || position === galleryCount + 1 ? renderTile(position) : null)}
@@ -393,6 +472,8 @@ export function GoodsImageGrid({ errors = {}, initialPaths, initialUrls, onPrevi
       ? null
       : <input key={`hidden-${position}`} name={GOODS_IMAGE_FIELD_NAMES[position]} readOnly type="hidden" value="" />)}
     {notice ? <p className="wc-admin-image-grid__notice" role="alert">{notice}</p> : null}
+    {photoScope.blocked ? <p className="wc-admin-image-grid__notice" role="alert">로그인 계정 또는 세션이 변경되어 사진 편집을 중단했습니다. 현재 계정에서 상품을 다시 열어주세요.</p> : null}
+    {photoEdit && photoGuard.isCurrent(photoEdit) ? <GoodsPhotoEditor sourcePath={photoEdit.sourcePath} onCancel={() => closePhotoEdit(photoEdit)} onApply={file => applyPhotoEdit(photoEdit, file)} /> : null}
     <p aria-atomic="true" aria-live="polite" className="wc-sr-only" role="status">{announcement}</p>
   </fieldset>;
 }

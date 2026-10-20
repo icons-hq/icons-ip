@@ -4,6 +4,7 @@ import { AdminOpenInquiryBadge } from '@/components/admin/AdminOpenInquiryBadge'
 import { AdminShell } from '@/components/admin/AdminShell';
 import { getAdminOpenInquiryCount } from '@/lib/admin/inquiries.server';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
+import { hasAdminCapability } from '@/lib/admin/access';
 
 export const metadata = {
   robots: { index: false, follow: false },
@@ -31,11 +32,11 @@ export default async function AdminShellLayout({ children }: { children: ReactNo
   /* 배지는 staff에게만 센다. 미인증 요청까지 집계를 부르면 반드시 실패할 RPC를
      모든 어드민 진입에서 한 번씩 때리게 된다. 집계 실패는 0으로 접히므로
      배지 하나 때문에 어드민 전체가 넘어지지는 않는다. */
-  const openInquiryCount = auth.isStaff ? await getAdminOpenInquiryCount() : 0;
+  const openInquiryCount = hasAdminCapability(auth, 'cs.manage') ? await getAdminOpenInquiryCount() : 0;
 
   return (
     <AdminShell
-      admin={{ id: auth.user?.id ?? '', email: auth.user?.email ?? null, role: auth.role ?? 'staff' }}
+      admin={{ id: auth.user?.id ?? '', email: auth.user?.email ?? null, role: auth.role ?? 'staff', operatorAccess: auth.operatorAccess }}
       badges={<AdminOpenInquiryBadge count={openInquiryCount} />}
     >
       {children}

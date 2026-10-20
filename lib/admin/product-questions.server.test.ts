@@ -1,4 +1,4 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { getAdminProductQuestionConsoleData } from './product-questions.server';
 
 const QUESTION_ROW = {
@@ -19,6 +19,7 @@ interface RecordedCall {
   head: boolean;
   filters: string[];
   range: [number, number] | null;
+  order: string[];
 }
 
 const mocks = vi.hoisted(() => ({
@@ -34,7 +35,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/lib/supabase/server', () => ({
   createClient: () => ({
     from: (table: string) => {
-      const call: RecordedCall = { table, select: '', head: false, filters: [], range: null };
+      const call: RecordedCall = { table, select: '', head: false, filters: [], range: null, order: [] };
       mocks.calls.push(call);
 
       const result = () => {
@@ -73,7 +74,11 @@ vi.mock('@/lib/supabase/server', () => ({
           call.filters.push(`in:${column}=${ids.join(',')}`);
           return query;
         },
-        order() {
+        gte(column: string, value: string) { call.filters.push(`gte:${column}=${value}`); return query; },
+        lt(column: string, value: string) { call.filters.push(`lt:${column}=${value}`); return query; },
+        ilike(column: string, value: string) { call.filters.push(`ilike:${column}=${value}`); return query; },
+        order(column: string, options: { ascending: boolean }) {
+          call.order.push(`${column}:${options.ascending ? 'asc' : 'desc'}`);
           return query;
         },
         range(from: number, to: number) {
@@ -97,6 +102,8 @@ function countCalls() {
   return mocks.calls.filter((call) => call.table === 'product_questions' && call.head);
 }
 
+afterEach(() => vi.unstubAllEnvs());
+
 beforeEach(() => {
   mocks.calls = [];
   mocks.questions = [QUESTION_ROW];
@@ -108,6 +115,21 @@ beforeEach(() => {
 });
 
 describe('getAdminProductQuestionConsoleData', () => {
+  it('등록된 상품 대표 이미지 경로만 공개 미디어 URL로 연결한다', async () => {
+    vi.stubEnv('NEXT_PUBLIC_SUPABASE_URL', 'https://fixture.supabase.co');
+    mocks.goods = [{ id: 'g13', name: '아크릴 블록', image_path: '/public-media/goods/g13/main.webp', bg: 'linear-gradient(red, blue)' }];
+    const data = await getAdminProductQuestionConsoleData({ status: 'all', page: 1 });
+    expect(data.rows[0].goodImageUrl).toBe('https://fixture.supabase.co/storage/v1/object/public/public-media/goods/g13/main.webp');
+    expect(mocks.calls.find(call => call.table === 'goods')?.filters).toEqual(['in:id=g13']);
+  });
+
+  it('이미지 없는 상품은 가짜 썸네일을 만들지 않고 기존 이미지 배경만 복구한다', async () => {
+    mocks.goods = [{ id: 'g13', name: '아크릴 블록', bg: 'linear-gradient(red, blue)' }];
+    expect((await getAdminProductQuestionConsoleData({ status: 'all', page: 1 })).rows[0].goodImageUrl).toBeNull();
+    mocks.goods = [{ id: 'g13', name: '아크릴 블록', bg: 'url("/generated/goods/g13.webp") center / cover no-repeat' }];
+    expect((await getAdminProductQuestionConsoleData({ status: 'all', page: 1 })).rows[0].goodImageUrl).toBe('/generated/goods/g13.webp');
+  });
+
   it('굿즈 이름과 작성자 닉네임을 붙여 행을 만든다', async () => {
     const data = await getAdminProductQuestionConsoleData({ status: 'all', page: 1 });
 
@@ -128,6 +150,19 @@ describe('getAdminProductQuestionConsoleData', () => {
     await getAdminProductQuestionConsoleData({ status: 'all', page: 2 });
 
     expect(listCall()?.range).toEqual([20, 39]);
+  });
+
+  it('상품명 검색·KST 날짜 범위·정렬을 서버 페이지 범위보다 먼저 적용한다', async () => {
+    await getAdminProductQuestionConsoleData({ status: 'all', page: 2, pageSize: 50, field: 'good', query: '키링', from: '2026-10-01', to: '2026-10-12', sort: 'oldest' });
+    expect(listCall()?.select).toContain('goods!inner(name)');
+    expect(listCall()?.filters).toEqual(['gte:created_at=2026-10-01T00:00:00+09:00', 'lt:created_at=2026-10-12T15:00:00.000Z', 'ilike:goods.name=%키링%']);
+    expect(listCall()?.order).toEqual(['created_at:asc', 'id:asc']);
+    expect(listCall()?.range).toEqual([50, 99]);
+  });
+
+  it('비정상 문의번호를 UUID 질의 오류로 보내지 않는다', async () => {
+    await getAdminProductQuestionConsoleData({ status: 'all', page: 1, field: 'id', query: 'invalid' });
+    expect(listCall()?.filters).toContain('eq:id=00000000-0000-0000-0000-000000000000');
   });
 
   /* 미답변 큐는 블라인드된 글을 뺀다 — 내려간 질문에 답을 다는 것은 큐가 시키는

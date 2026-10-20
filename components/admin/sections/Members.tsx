@@ -61,9 +61,8 @@ function MemberSuspensionControl({
   );
   const canModerate = canModerateAdminMember({
     actorId: actor.id,
-    actorRole: actor.role,
     memberId: member.id,
-    memberRole: member.role,
+    moderation: member.moderation,
   });
 
   if (!canModerate) {

@@ -1,3 +1,4 @@
+const { legacyOperatorAccessFixture } = await vi.hoisted(() => import('@/lib/admin/access.test-fixtures'));
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { getAdminCouponListData } from './coupons.server';
 import { normalizeAdminCouponFilters } from './coupons';
@@ -7,7 +8,7 @@ const mocks = vi.hoisted(() => ({
     isConfigured: true,
     user: { id: 'staff-1', email: 'staff@icons.gg' },
     role: 'staff' as const,
-    isStaff: true,
+    isStaff: true, operatorAccess: legacyOperatorAccessFixture(),
   },
   client: null as unknown,
 }));
@@ -76,7 +77,7 @@ beforeEach(() => {
     isConfigured: true,
     user: { id: 'staff-1', email: 'staff@icons.gg' },
     role: 'staff',
-    isStaff: true,
+    isStaff: true, operatorAccess: legacyOperatorAccessFixture(),
   };
 });
 
@@ -106,12 +107,12 @@ describe('admin coupon list server boundary', () => {
     expect(data.total).toBe(41);
     expect(calls).toContainEqual([
       'rpc',
-      'admin_search_coupons',
-      { p_query: 'AUTUMN', p_status: 'active', p_limit: 20, p_offset: 20 },
+      'admin_search_coupon_console_v3',
+      { p_query: 'AUTUMN', p_status: 'active', p_limit: 20, p_offset: 20, p_filters: { phase: 'all', discountType: 'all', segment: 'any', dateField: 'created', from: null, to: null, sort: 'created_desc' } },
     ]);
     expect(calls).toContainEqual([
       'select',
-      'code,name,discount_type,discount_value,max_discount_amount,min_subtotal,starts_at,ends_at,issue_limit,issued_count,status,grade_benefit,recipient_segment,goods_scope,target_good_ids,terms_revision,used_count,total_count,target_goods',
+      'code,name,discount_type,discount_value,max_discount_amount,min_subtotal,starts_at,ends_at,issue_limit,issued_count,status,grade_benefit,recipient_segment,goods_scope,target_good_ids,terms_revision,issue_starts_at,issue_ends_at,valid_days,benefit_kind,stackable,target_category_ids,issuance_mode,used_count,total_count,target_goods,target_categories',
     ]);
     expect(calls.filter(([kind]) => kind === 'from')).toHaveLength(0);
   });

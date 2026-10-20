@@ -33,9 +33,11 @@ import {
   type LegacyCartItem,
   type StoredCartItem,
 } from '@/lib/cart';
+import type { GoodsCustomInputSelection } from '@/lib/goods-custom-inputs';
 import { prepareCartAddition, type CartSelectionItem } from '@/lib/cart-additions';
 import { createClient } from '@/lib/supabase/client';
 import { getSupabaseConfig } from '@/lib/supabase/config';
+import { clearInquiryDraftsForSignOut } from '@/lib/admin/inquiry-draft-lifecycle';
 
 const STOCK_ERROR = '현재 재고보다 많이 담을 수 없습니다.';
 
@@ -50,9 +52,9 @@ interface CartCtx {
   removeLegacyItem: (goodId: string) => void;
   getQuantity: (goodId: string, variantId: string) => number;
   add: (goodId: string, stockQty: number, variantId: string) => Promise<void>;
-  setQuantity: (goodId: string, qty: number, stockQty: number, variantId: string) => Promise<void>;
+  setQuantity: (goodId: string, qty: number, stockQty: number, variantId: string, customInputs?: GoodsCustomInputSelection) => Promise<void>;
   addSelection: (baseGoodId: string, selection: readonly CartSelectionItem[]) => Promise<boolean>;
-  remove: (goodId: string, variantId: string) => Promise<void>;
+  remove: (goodId: string, variantId: string, customInputs?: GoodsCustomInputSelection) => Promise<void>;
   refresh: () => Promise<void>;
   resetForSignOut: () => void;
 }
@@ -207,15 +209,16 @@ export function CartProvider({ children }: { children: ReactNode }) {
     void sync();
   }, [pathname, sync]);
 
-  const setQuantity = useCallback(async (goodId: string, qty: number, stockQty: number, variantId: string) => {
+  const setQuantity = useCallback(async (goodId: string, qty: number, stockQty: number, variantId: string, customInputs?: GoodsCustomInputSelection) => {
     if (!ready || pendingRef.current) return;
-    if (qty > stockQty || (qty > 0 && stockQty <= 0)) {
+    const otherQty = itemsRef.current.filter(item => item.variantId === variantId && cartItemKey(item.goodId,item.variantId,item.customInputs) !== cartItemKey(goodId,variantId,customInputs)).reduce((sum,item)=>sum+item.qty,0);
+    if (qty > 0 && (qty+otherQty > stockQty || stockQty <= 0)) {
       setError(STOCK_ERROR);
       return;
     }
 
     const previous = itemsRef.current;
-    const next = setCartItemQuantity(previous, goodId, qty, variantId);
+    const next = setCartItemQuantity(previous, goodId, qty, variantId,customInputs);
     setError(null);
 
     if (modeRef.current === 'local') {
@@ -228,8 +231,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
     const operationVersion = operationVersionRef.current;
     try {
       const result = qty === 0
-        ? await deleteCartItemAction(goodId, variantId)
-        : await setCartItemQuantityAction(goodId, qty, variantId);
+        ? await deleteCartItemAction(goodId, variantId,customInputs)
+        : await setCartItemQuantityAction(goodId, qty, variantId,customInputs);
 
       if (operationVersion !== operationVersionRef.current) return;
 
@@ -264,7 +267,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   }, [keepAsLocal, ready, replaceItems, replaceMode, replacePending]);
 
   const add = useCallback(async (goodId: string, stockQty: number, variantId: string) => {
-    const currentQty = itemsRef.current.find((item) => cartItemKey(item.goodId, item.variantId) === cartItemKey(goodId, variantId))?.qty ?? 0;
+    const currentQty = itemsRef.current.find((item) => cartItemKey(item.goodId, item.variantId,item.customInputs) === cartItemKey(goodId, variantId))?.qty ?? 0;
     await setQuantity(goodId, currentQty + 1, stockQty, variantId);
   }, [setQuantity]);
 
@@ -316,8 +319,8 @@ export function CartProvider({ children }: { children: ReactNode }) {
     }
   }, [keepAsLocal, ready, replaceItems, replaceMode, replacePending]);
 
-  const remove = useCallback(async (goodId: string, variantId: string) => {
-    await setQuantity(goodId, 0, Number.MAX_SAFE_INTEGER, variantId);
+  const remove = useCallback(async (goodId: string, variantId: string,customInputs?: GoodsCustomInputSelection) => {
+    await setQuantity(goodId, 0, Number.MAX_SAFE_INTEGER, variantId,customInputs);
   }, [setQuantity]);
 
   const removeLegacyItem = useCallback((goodId: string) => {
@@ -330,6 +333,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const resetForSignOut = useCallback(() => {
+    clearInquiryDraftsForSignOut();
     const localItems = cartItemsAfterSignOut(modeRef.current, pendingLocalItemsRef.current);
     operationVersionRef.current += 1;
     syncQueuedRef.current = false;
@@ -354,7 +358,7 @@ export function CartProvider({ children }: { children: ReactNode }) {
     error,
     legacyItems,
     removeLegacyItem,
-    getQuantity: (goodId, variantId) => items.find((item) => cartItemKey(item.goodId, item.variantId) === cartItemKey(goodId, variantId))?.qty ?? 0,
+    getQuantity: (goodId, variantId) => items.filter(item=>item.goodId===goodId && item.variantId===variantId).reduce((sum,item)=>sum+item.qty,0),
     add,
     addSelection,
     setQuantity,

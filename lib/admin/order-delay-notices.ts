@@ -8,6 +8,7 @@ export type OrderDelayChannelStatus =
   | 'unknown'
   | 'suppressed';
 export interface OrderDelayNoticeTarget {
+  audience?: 'payer' | 'recipient';
   id: string;
   orderId: string;
   buyerName: string;
@@ -67,9 +68,9 @@ export const ORDER_DELAY_ERROR_LABELS: Record<string, string> = {
   provider_not_configured:
     '이메일 공급자 또는 발송 서명 설정이 준비되지 않았습니다.',
   delivery_disabled: '지연 안내 이메일 발송 설정이 꺼져 있습니다.',
-  recipient_missing: '구매자 이메일이 없거나 형식이 올바르지 않습니다.',
+  recipient_missing: '수신자 이메일이 없거나 형식이 올바르지 않습니다.',
   target_changed:
-    '주문·배송·구매자 또는 예정일이 변경되어 재확인이 필요합니다.',
+    '주문·배송·수신자 또는 예정일이 변경되어 재확인이 필요합니다.',
   delivery_in_progress: '기존 요청 결과를 확인하고 있습니다.',
   delivery_outcome_unknown:
     '같은 발송 요청으로 접수 결과를 확인합니다. 새 메시지를 발송하지 마세요.',
@@ -101,7 +102,7 @@ export function parseOrderDelayNotice(value: unknown): OrderDelayNotice | null {
     typeof value.emailEnabled !== 'boolean' ||
     !Array.isArray(value.targets) ||
     value.targets.length < 1 ||
-    value.targets.length > 100
+    value.targets.length > 200
   )
     return null;
   if (
@@ -113,6 +114,7 @@ export function parseOrderDelayNotice(value: unknown): OrderDelayNotice | null {
         typeof target.orderId === 'string' &&
         isUuid(target.orderId) &&
         typeof target.buyerName === 'string' &&
+        (target.audience === undefined || target.audience === 'payer' || target.audience === 'recipient') &&
         optionalString(target.recipientEmail) &&
         Array.isArray(target.shipmentIds) &&
         target.shipmentIds.length > 0 &&

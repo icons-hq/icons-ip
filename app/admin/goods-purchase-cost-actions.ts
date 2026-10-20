@@ -21,7 +21,7 @@ function goodId(value: unknown) {
 export async function listGoodsPurchaseCostsAction(goodIdValue: unknown): Promise<
   { ok: true; costs: AdminGoodsPurchaseCost[] } | Failure
 > {
-  if (!await requireAdminActionAccess('/admin/catalog/goods', { adminOnly: true })) return { ok: false, error: ADMIN_REQUIRED };
+  if (!await requireAdminActionAccess('/admin/catalog/goods', { adminOnly: true, capability: 'platform.manage' })) return { ok: false, error: ADMIN_REQUIRED };
   const id = goodId(goodIdValue);
   if (!id) return { ok: false, error: '상품을 다시 선택해주세요.' };
   try {
@@ -38,7 +38,7 @@ export async function listGoodsPurchaseCostsAction(goodIdValue: unknown): Promis
 export async function listGoodsPurchaseCostHistoryAction(goodIdValue: unknown, variantIdValue: unknown, beforeRevision?: number): Promise<
   { ok: true; history: PurchaseCostChange[]; hasMore: boolean } | Failure
 > {
-  if (!await requireAdminActionAccess('/admin/catalog/goods', { adminOnly: true })) return { ok: false, error: ADMIN_REQUIRED };
+  if (!await requireAdminActionAccess('/admin/catalog/goods', { adminOnly: true, capability: 'platform.manage' })) return { ok: false, error: ADMIN_REQUIRED };
   const id = goodId(goodIdValue);
   const variantId = typeof variantIdValue === 'string' ? variantIdValue : '';
   if (!id || !isUuid(variantId) || (beforeRevision !== undefined && (!Number.isSafeInteger(beforeRevision) || beforeRevision < 1 || beforeRevision > 2147483647))) {
@@ -59,7 +59,7 @@ export async function listGoodsPurchaseCostHistoryAction(goodIdValue: unknown, v
 }
 
 export async function saveGoodsPurchaseCostAction(formData: FormData): Promise<{ ok: true; message: string } | Failure> {
-  if (!await requireAdminActionAccess('/admin/catalog/goods', { adminOnly: true })) return { ok: false, error: ADMIN_REQUIRED };
+  if (!await requireAdminActionAccess('/admin/catalog/goods', { adminOnly: true, capability: 'platform.manage' })) return { ok: false, error: ADMIN_REQUIRED };
   const id = goodId(formData.get('goodId'));
   const variantId = String(formData.get('variantId') ?? '');
   const rawRevision = String(formData.get('expectedRevision') ?? '');

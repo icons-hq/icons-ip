@@ -1,3 +1,5 @@
+import { StatsComparison } from '@/components/admin/StatsComparison';
+import { adminSalesTrend } from '@/lib/admin/stats';
 import { StatsRangeTabs } from '@/components/admin/StatsRangeTabs';
 import { ConsoleGrid, type ConsoleGridColumn } from '@/components/admin/console';
 import {
@@ -26,13 +28,17 @@ const SIGNUP_COLUMNS: ConsoleGridColumn[] = [
 export function StatsCustomersScreen({
   data,
   filters,
+  comparison,
+  now = new Date(),
 }: {
   data: AdminCustomerReport;
   filters: AdminStatsFilters;
+  now?: Date;
+  comparison?: AdminCustomerReport | null;
 }) {
   return (
     <section className="admin-console admin-stats wc-admin-kit">
-      <StatsRangeTabs base="/admin/stats/customers" filters={filters} />
+      <StatsRangeTabs base="/admin/stats/customers" filters={filters} now={now} />
 
       <div className="admin-stats-summary">
         <div>
@@ -55,6 +61,11 @@ export function StatsCustomersScreen({
         </div>
       </div>
 
+      {comparison ? <StatsComparison filters={filters} now={now} rows={[
+        { label: '신규 가입', current: data.signupTotal, previous: comparison.signupTotal, unit: '명' },
+        { label: '구매 고객', current: data.buyerCount, previous: comparison.buyerCount, unit: '명' },
+        { label: '기간 내 재구매', current: data.repeatBuyerCount, previous: comparison.repeatBuyerCount, unit: '명' },
+      ]} /> : null}
       <h3>문의</h3>
       <div className="admin-stats-summary">
         <div>
@@ -118,11 +129,11 @@ export function StatsCustomersScreen({
         caption="신규 가입 추이"
         columns={SIGNUP_COLUMNS}
         emptyLabel="이 기간에 신규 가입이 없습니다."
-        rows={data.signups.map((row) => ({
+        rows={adminSalesTrend(data.signups.map(row => ({ date: row.date, orderCount: row.total, revenue: 0, averageOrderValue: 0 })), filters, now).map((row) => ({
           id: row.date,
           cells: [
             <span className="mono" key="date">{row.date}</span>,
-            row.total.toLocaleString('ko-KR'),
+            row.orderCount.toLocaleString('ko-KR'),
           ],
         }))}
       />

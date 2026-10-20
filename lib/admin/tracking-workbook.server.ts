@@ -1,18 +1,30 @@
 import 'server-only';
+import { WAREHOUSE_OPERATION_HEADERS } from './warehouse-templates';
 import type { ShippingCarrierRegistry } from '@/lib/orders/shipment';
 import {loadSafeWorkbook,readSafeWorkbookCell} from './workbook-safety';
 import {parseTrackingImport,TRACKING_IMPORT_ROW_LIMIT,type TrackingImportParseResult} from './tracking-import';
 import {parseSeowonReply,parseWarehouseReply,type TrackingWorkbookParseResult} from './warehouse-templates.server';
+import {parseSmartStoreReply} from './smartstore-tracking-workbook.server';
 export type {TrackingWorkbookParseResult} from './warehouse-templates.server';
-// 서버 액션 본문 한도(1MB) 안에서, 김포·서원 출고지시(512KB 상한)에 운송장 열을 더한 회신을 받는다.
-export const TRACKING_IMPORT_FILE_LIMIT_BYTES=768*1024;
+// A 74-column, 1,000-item reply with distinct UUIDs exceeds the legacy 256 KiB cap.
+export const TRACKING_IMPORT_FILE_LIMIT_BYTES=1024*1024;
+export const TRACKING_IMPORT_TEXT_LIMIT_BYTES=256*1024;
 export async function parseTrackingWorkbook(bytes:Buffer,carriers:ShippingCarrierRegistry):Promise<TrackingWorkbookParseResult>{
+ if(bytes.subarray(0,8).equals(Buffer.from('d0cf11e0a1b11ae1','hex')))throw new Error('암호화된 파일 또는 구형 Excel 형식입니다. Excel에서 암호를 해제하고 XLSX로 저장해주세요.');
  const workbook=await loadSafeWorkbook(bytes,{fileBytes:TRACKING_IMPORT_FILE_LIMIT_BYTES,totalBytes:8*1024*1024,entryBytes:4*1024*1024});
- // 창고 원본 양식은 빈 Sheet1~Sheet5를 달고 오기도 한다. 내용이 있는 시트가 하나일 때만 읽는다.
- const filled=workbook.worksheets.filter(sheet=>sheet.actualRowCount>0);
- if(filled.length!==1)throw new Error('운송장 양식은 내용이 있는 시트 하나로 올려주세요.');
- const sheet=filled[0];
+ const sheets=workbook.worksheets.filter(sheet=>sheet.name!=='배송 운영 안내'&&sheet.actualRowCount>0);
+ const supplement=workbook.getWorksheet('배송 운영 안내');
+ if(sheets.length!==1)throw new Error('운송장 양식은 내용이 있는 시트 하나로 올려주세요.');
+ if(supplement){
+  if(supplement.columnCount!==WAREHOUSE_OPERATION_HEADERS.length||supplement.rowCount>TRACKING_IMPORT_ROW_LIMIT+1
+   ||!WAREHOUSE_OPERATION_HEADERS.every((header,index)=>{const cell=readSafeWorkbookCell(supplement.getCell(1,index+1));return !cell.error&&cell.value===header;}))
+   throw new Error('배송 운영 안내 시트의 형식을 확인해주세요.');
+  supplement.eachRow(row=>row.eachCell(cell=>{if(readSafeWorkbookCell(cell).error)throw new Error('배송 운영 안내 시트에 허용되지 않는 셀이 있습니다.');}));
+ }
+ const sheet=sheets[0];
  if(sheet.rowCount>TRACKING_IMPORT_ROW_LIMIT+1)throw new Error('운송장은 한 번에 1,000줄까지 등록할 수 있습니다.');
+ const smartStoreReply=parseSmartStoreReply(sheet,carriers);
+ if(smartStoreReply)return smartStoreReply;
  const nativeReply=parseWarehouseReply(sheet)??parseSeowonReply(sheet);
  if(nativeReply)return nativeReply;
  if(sheet.columnCount>3)throw new Error('배송건번호·택배사·운송장번호 세 컬럼만 올려주세요. 김포 21열·남양주 송장양식 회신은 내려받은 헤더를 바꾸지 말고 올려주세요.');

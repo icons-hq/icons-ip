@@ -10,6 +10,7 @@ import type {
 import { OrdersSection } from './Orders';
 
 const orderActions = vi.hoisted(() => ({
+  bulkConfirmAdminOrdersAction: vi.fn(),
   approveAdminOrderCancellationAction: vi.fn(),
   recoverAdminGoodsPaymentAction: vi.fn(),
   reconcileAdminOrderCancellationAction: vi.fn(),
@@ -273,11 +274,11 @@ describe('OrdersSection', () => {
     data.filters = { ...data.filters, field: 'tracking' };
     const html = renderToStaticMarkup(<OrdersSection data={data} />);
 
-    expect(html).toContain('aria-label="주문 검색 대상"');
+    expect(html).toContain('aria-label="검색 유형"');
     expect(html).toContain('name="field"');
     expect(html).toContain('<option value="recipient">수취인</option>');
     expect(html).toContain('<option value="tracking" selected="">운송장번호</option>');
-    expect(html).toContain('placeholder="검색어 입력"');
+    expect(html).toContain('placeholder="검색어를 입력하세요"');
   });
 
   it('shows the related safe Korpay reference and exact provider-ledger attestation action', () => {
@@ -427,6 +428,32 @@ describe('OrdersSection', () => {
       hidden: ['발송처리', '배송완료', '청약철회 승인', '요청 거절', '상태 다시 확인', '취소·반품·교환 관리에서 처리'],
     },
     {
+      name: 'withdrawn cancellation on a paid order',
+      overrides: {
+        cancellationRequest: cancellationRequest({ stage: 'withdrawn', status: 'rejected' }),
+      },
+      visible: ['발주확인', '요청 철회', 'aria-label="운영자 전액 취소"'],
+      hidden: ['청약철회 승인', '요청 거절', '상태 다시 확인', '취소·반품·교환 관리에서 처리'],
+    },
+    {
+      name: 'withdrawn cancellation on a confirmed order',
+      overrides: {
+        status: 'confirmed' as const,
+        cancellationRequest: cancellationRequest({ stage: 'withdrawn', status: 'rejected' }),
+      },
+      visible: ['배송 건별 운송장 등록', '요청 철회', 'aria-label="운영자 전액 취소"'],
+      hidden: ['청약철회 승인', '요청 거절', '상태 다시 확인', '취소·반품·교환 관리에서 처리'],
+    },
+    {
+      name: 'withdrawn return on a shipping order',
+      overrides: {
+        status: 'shipping' as const,
+        cancellationRequest: cancellationRequest({ claimType: 'return', stage: 'withdrawn', status: 'rejected' }),
+      },
+      visible: ['배송 건별 배송완료 처리', '요청 철회'],
+      hidden: ['청약철회 승인', '요청 거절', '상태 다시 확인', '취소·반품·교환 관리에서 처리', 'aria-label="운영자 전액 취소"'],
+    },
+    {
       name: 'completed cancellation awaiting an order refresh',
       overrides: {
         cancellationRequest: cancellationRequest({
@@ -530,7 +557,7 @@ describe('OrdersSection', () => {
     expect(html).toContain('action="/admin/sales/orders"');
     expect(html).not.toContain('name="section"');
     expect(html).toContain(
-      'href="/admin/sales/orders?status=paid&amp;from=2026-07-01&amp;to=2026-07-14&amp;query=maple+fan&amp;page=2&amp;order=44444444-4444-4444-8444-444444444444"',
+      'href="/admin/sales/orders?status=paid&amp;from=2026-07-01&amp;to=2026-07-14&amp;query=maple+fan&amp;page=2&amp;order=44444444-4444-4444-8444-444444444444#sales-order-detail"',
     );
     expect(html).toContain(
       'href="/admin/sales/orders?status=paid&amp;from=2026-07-01&amp;to=2026-07-14&amp;query=maple+fan&amp;page=1"',
@@ -833,6 +860,12 @@ describe('주문 통합검색 목록 엑셀 다운로드', () => {
   });
 });
 
+it('query-only mode offers order search without any processing controls', () => {
+  const html = renderToStaticMarkup(<OrdersSection data={orderData({ status: 'paid' })} canManage={false} />);
+  expect(html).toContain('상세 보기');
+  for (const text of ['선택 주문 발주확인', '배송 건별 운송장 등록', '판매자 직접 반품·교환 접수', '결제·환불', 'href="/admin/sales/dispatch"']) expect(html).not.toContain(text);
+});
+
 /*
  * 취소 처리 결과는 결과 뒤의 화면에 남아야 한다(2차 재검토 C2-1).
  *
@@ -851,6 +884,7 @@ describe('주문 패널 취소 처리 결과', () => {
     vi.doMock('react', async () => {
       const actual = await vi.importActual<typeof import('react')>('react');
       const otherActions = new Set<unknown>([
+        orderActions.bulkConfirmAdminOrdersAction,
         orderActions.approveAdminOrderCancellationAction,
         orderActions.recoverAdminGoodsPaymentAction,
         orderActions.reconcileAdminOrderCancellationAction,
@@ -1039,7 +1073,7 @@ describe('운영자 전액 취소 제출 순서', () => {
       return {
         ...actual,
         useActionState: (fn: unknown, initial: unknown) => [
-          fn === orderActions.updateAdminOrderStatusAction || fn === orderActions.updateAdminOrderTrackingAction
+          fn === orderActions.bulkConfirmAdminOrdersAction || fn === orderActions.updateAdminOrderStatusAction || fn === orderActions.updateAdminOrderTrackingAction
             ? initial
             : {
               intent: 'staffCancel',

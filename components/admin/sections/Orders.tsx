@@ -1,9 +1,11 @@
 'use client';
+import { GoodsCustomInputsSummary } from '@/components/shop/GoodsCustomInputs';
 
 import Link from 'next/link';
 import { startTransition, useActionState, useEffect, useRef, useState } from 'react';
 import {
   approveAdminOrderCancellationAction,
+  bulkConfirmAdminOrdersAction,
   recoverAdminGoodsPaymentAction,
   reconcileAdminOrderCancellationAction,
   rejectAdminOrderCancellationAction,
@@ -61,6 +63,11 @@ import { isParcelShipment } from '@/lib/admin/shipment-dispatch';
 import { DELIVERY_METHOD_LABELS, deliveryStatusLabel } from '@/lib/shipment-delivery';
 import { adminListExportHref } from '@/lib/admin/list-export';
 import { AdminListExportButton } from '@/components/admin/AdminListExportButton';
+import { ConsoleGrid, ConsolePagination, type ConsoleGridColumn } from '@/components/admin/console';
+import { SALES_DATE_FIELDS } from '@/lib/admin/sales-list';
+import { SalesFilterField, SalesFilterPanel, SalesGuide, SalesResultsHeader, SalesSelect, SalesStatusSummary } from '@/components/admin/sales/SalesConsole';
+import { SellerClaimIntakeButton } from '@/components/admin/screens/SellerClaimIntakeForm';
+import { OrderViewTabs } from '@/components/admin/sales/OrderViewTabs';
 
 /* 사다리 순서 그대로 둔다 — 드롭다운 순서가 운영자에게는 단계 순서다(#250).
    문구는 ADMIN_ORDER_STATUS_LABELS에서 가져온다. 여기에 다시 적으면 일괄 등록
@@ -776,43 +783,17 @@ function ManualKorpayCancellationForm({
 
 function OrderFilters({ filters }: { filters: AdminOrderFilters }) {
   return (
-    <form action="/admin/sales/orders" className="admin-order-filters card" method="get">
-      <label>
-        <span>주문 검색</span>
-        <select aria-label="주문 검색 대상" defaultValue={filters.field} name="field">
-          {ADMIN_ORDER_SEARCH_FIELDS.map((field) => (
-            <option key={field.value} value={field.value}>{field.label}</option>
-          ))}
-        </select>
-        <input
-          aria-label="주문번호·구매자·수취인·운송장 검색"
-          defaultValue={filters.query}
-          name="query"
-          placeholder="검색어 입력"
-          type="search"
-        />
-      </label>
-      <label>
-        <span>상태</span>
-        <select aria-label="주문 상태" defaultValue={filters.status} name="status">
-          {STATUS_OPTIONS.map((option) => (
-            <option key={option.value} value={option.value}>{option.label}</option>
-          ))}
-        </select>
-      </label>
-      <label>
-        <span>시작일</span>
-        <input aria-label="주문 시작일" defaultValue={filters.from ?? ''} name="from" type="date" />
-      </label>
-      <label>
-        <span>종료일</span>
-        <input aria-label="주문 종료일" defaultValue={filters.to ?? ''} name="to" type="date" />
-      </label>
-      <div className="admin-order-filter-actions">
-        <button className="btn btn-sm" type="submit">검색</button>
-        <Link className="btn btn-sm btn-ghost" href="/admin/sales/orders?page=1">초기화</Link>
-      </div>
-    </form>
+    <SalesFilterPanel currentHref={adminOrdersHref(filters)} id="sales-orders"
+      date={{ from: filters.from, to: filters.to, field: filters.dateField ?? 'ordered', options: SALES_DATE_FIELDS }}
+      search={{ value: filters.query, field: filters.field, options: ADMIN_ORDER_SEARCH_FIELDS, placeholder: '검색어 입력' }}>
+      <SalesFilterField label="주문상태" htmlFor="sales-orders-status">
+        <SalesSelect id="sales-orders-status" name="status" value={filters.status} options={STATUS_OPTIONS} />
+      </SalesFilterField>
+      <SalesFilterField label="결제수단" htmlFor="sales-orders-payment">
+        <SalesSelect id="sales-orders-payment" name="paymentMethod" value={filters.paymentMethod ?? ''}
+          options={[{value:'',label:'전체'},{value:'card',label:'카드'},{value:'bank_transfer',label:'무통장 입금'}]} />
+      </SalesFilterField>
+    </SalesFilterPanel>
   );
 }
 
@@ -821,11 +802,13 @@ function OrderDetail({
   carriers,
   filters,
   order,
+  canManage,
 }: {
   cancellation: OrderCancellationConsole;
   carriers: ShippingCarrierRegistry;
   filters: AdminOrderFilters;
   order: AdminOrderRecord;
+  canManage: boolean;
 }) {
   const status = orderStatusMeta(order.status);
   const statusLabel = ADMIN_ORDER_STATUS_LABELS[order.status] ?? status.label;
@@ -887,7 +870,7 @@ function OrderDetail({
         <div className="admin-order-items">
           {order.items.map((item) => (
             <div className="admin-order-item" key={item.id}>
-              <div><strong>{item.name}</strong><span>{item.type}</span></div>
+              <div><strong>{item.name}</strong><span>{item.type}</span><GoodsCustomInputsSummary selection={item.customInputs} /></div>
               <span>{item.qty.toLocaleString('ko-KR')}개</span>
               <strong>{formatKrwExact(item.unitPrice * item.qty)}</strong>
             </div>
@@ -898,6 +881,7 @@ function OrderDetail({
       {order.address && (
         <section className="admin-order-detail-section" aria-labelledby="admin-order-address-title">
           <h3 id="admin-order-address-title">배송지</h3>
+          {order.addressNeedsReview && <p role="status">주문 당시 주소 형식 확인이 필요합니다. 배송 처리 전 원본 기록과 수령 주소를 확인해주세요.</p>}
           <address className="admin-order-address">
             <strong>{order.address.recipientName}</strong>
             <span>{order.address.phone}</span>
@@ -908,7 +892,7 @@ function OrderDetail({
         </section>
       )}
 
-      <section className="admin-order-detail-section" aria-labelledby="admin-order-payment-title">
+      {canManage ? <section className="admin-order-detail-section" aria-labelledby="admin-order-payment-title">
         <h3 id="admin-order-payment-title">결제·환불</h3>
         <div className="admin-order-ledger">
           {order.payments.map((payment) => (
@@ -927,9 +911,9 @@ function OrderDetail({
           ))}
           {!order.payments.length && !order.refunds.length ? <p className="muted">결제 기록이 없습니다.</p> : null}
         </div>
-      </section>
+      </section> : null}
 
-      {cancellationRequest ? (
+      {canManage && cancellationRequest ? (
         <section className="admin-order-cancellation" aria-labelledby="admin-order-cancellation-title">
           <div className="admin-order-cancellation-heading">
             <div>
@@ -1002,9 +986,10 @@ function OrderDetail({
         </section>
       ) : null}
 
-      <OrderCancellationResult orderId={order.id} state={cancellation.state} />
+      {canManage ? <OrderCancellationResult orderId={order.id} state={cancellation.state} /> : null}
 
-      <div className="admin-order-actions">
+      {canManage ? <div className="admin-order-actions">
+        {['shipping', 'delivered', 'done'].includes(order.status) && !openCancellationRequest(order) ? <SellerClaimIntakeButton orderId={order.id} /> : null}
         {canAdvanceOrderStatus && order.status === 'paid' ? (
           <OrderStatusAction
             carriers={carriers}
@@ -1051,8 +1036,7 @@ function OrderDetail({
         ) : null}
         {cancellationRequest
           && !isLegacyDecidableCancellation(cancellationRequest)
-          && cancellationRequest.stage !== 'completed'
-          && cancellationRequest.stage !== 'rejected' ? (
+          && isOpenOrderClaimStage(cancellationRequest.stage) ? (
           <Link
             className="btn btn-sm btn-ghost"
             href={`/admin/sales/claims/${ORDER_CLAIM_TYPE_SLUGS[cancellationRequest.claimType]}/${cancellationRequest.id}`}
@@ -1093,16 +1077,41 @@ function OrderDetail({
             requestId={manualRecoveryAttempt.requestId}
           />
         ) : null}
-      </div>
+      </div> : null}
     </article>
   );
 }
 
-export function OrdersSection({ data }: { data: AdminOrderConsoleData }) {
+export function OrdersSection({ data, canManage = true }: { data: AdminOrderConsoleData; canManage?: boolean }) {
+  const [selection, setSelection] = useState<string[]>([]);
+  const [bulkState, bulkAction, bulkPending] = useActionState(bulkConfirmAdminOrdersAction, EMPTY_ACTION_STATE);
   const selected = data.filters.orderId
     ? data.items.find((order) => order.id === data.filters.orderId) ?? null
     : data.items[0] ?? null;
-  const totalPages = Math.max(1, Math.ceil(data.total / data.pageSize));
+  const currentHref = adminOrdersHref(data.filters);
+  const eligible = new Set(data.items.filter((order) => canManage && order.status === 'paid' && !openCancellationRequest(order)).map((order) => order.id));
+  const selectedIds = selection.filter((id) => eligible.has(id));
+  const columns: ConsoleGridColumn[] = [
+    {key:'reference',label:'주문번호',width:'140px'}, {key:'status',label:'주문상태',width:'110px'},
+    {key:'ordered',label:'주문일시',width:'160px'}, {key:'buyer',label:'구매자명',width:'130px'},
+    {key:'recipient',label:'수취인명',width:'110px'}, {key:'items',label:'상품명 / 옵션',width:'300px'},
+    {key:'qty',label:'수량',width:'65px',align:'end'}, {key:'total',label:'결제금액',width:'120px',align:'end'},
+    {key:'claim',label:'취소·반품·교환',width:'140px'}, {key:'detail',label:canManage?'주문 처리':'주문 상세',width:'105px'},
+  ];
+  const rows = data.items.map((order) => {
+    const request = canManage ? openCancellationRequest(order) : null;
+    return {id:order.id,selectable:eligible.has(order.id),selectLabel:`주문 ${orderReferenceLabel(order.id)} 선택`,cells:[
+      <Link key="reference" className="mono" href={adminOrderDetailHref(order.id,data.filters)} target="_blank" rel="noopener noreferrer"
+        aria-label={`주문 ${orderReferenceLabel(order.id)} 상세 열기 (새 탭)`}>{orderReferenceLabel(order.id)}</Link>,
+      <span key="status" className={`order-status order-status--${order.status}`} title={order.status==='done'?ADMIN_VOCABULARY.settledHint:undefined}>{ADMIN_ORDER_STATUS_LABELS[order.status]}</span>,
+      <time key="created" dateTime={order.createdAt}>{formatOrderDateTime(order.createdAt)}</time>,
+      <span key="buyer">{order.buyerName}</span>, <span key="recipient">{order.address?.recipientName??'-'}</span>,
+      <ul key="items">{order.items.map(item=><li key={item.id}>{item.name}{item.variantName?` · ${item.variantName}`:''}<GoodsCustomInputsSummary selection={item.customInputs} /></li>)}</ul>,
+      order.items.reduce((qty,item)=>qty+item.qty,0), formatKrwExact(order.total),
+      request?<div key="claim"><Link href={`/admin/sales/claims/${ORDER_CLAIM_TYPE_SLUGS[request.claimType]}/${request.id}`}>{ORDER_CLAIM_TYPE_LABELS[request.claimType]} · {ORDER_CLAIM_STAGE_LABELS[request.stage]}</Link><br/><CancellationReasonBadge className="admin-order-row-reason" request={request}/></div>:'-',
+      <Link key="detail" aria-label={`주문 ${orderReferenceLabel(order.id)} 선택${request?` · ${cancellationReasonAccessibleName(request)}`:''}`} href={`${adminOrdersHref(data.filters,{orderId:order.id})}#sales-order-detail`}>{canManage ? '상세·처리' : '상세 보기'}</Link>,
+    ]};
+  });
   const [cancellationState, cancellationAction, cancellationPending] = useActionState(
     runOrderCancellationAction,
     EMPTY_CANCELLATION_STATE,
@@ -1137,87 +1146,45 @@ export function OrdersSection({ data }: { data: AdminOrderConsoleData }) {
     : null;
 
   return (
-    <section className="admin-orders col">
+    <section className="admin-orders admin-sales-console">
+      <OrderViewTabs filters={data.filters} view="orders" />
+      <SalesGuide title="주문 검색과 주문별 결제·배송·요청 내역을 확인할 수 있습니다.">
+        <p>{canManage ? '주문번호를 누르면 상세 정보를 새 탭으로 엽니다. 신규주문은 선택하여 발주확인할 수 있으며, 발송과 배송완료는 출고지별 배송건을 확인해 처리합니다.' : '주문번호를 누르면 주문과 배송 정보를 조회할 수 있습니다.'}</p>
+      </SalesGuide>
+      <SalesStatusSummary label="주문 처리 단계" items={STATUS_OPTIONS.map(option=>({label:option.label,active:data.filters.status===option.value,
+        count:option.value==='all'?(data.counts?Object.values(data.counts).reduce((sum,value)=>sum+value,0):undefined):data.counts?.[option.value],
+        href:adminOrdersHref(data.filters,{status:option.value,page:1,orderId:null})}))}/>
       <OrderFilters filters={data.filters} />
-      <AdminListExportButton href={adminListExportHref('orders', adminOrdersHref(data.filters))} total={data.total} />
-      {resultOutsideList ? (
+      {canManage && resultOutsideList ? (
         <section aria-label="취소 처리 결과" className="admin-order-cancellation-result">
           <p>주문 {orderReferenceLabel(resultOutsideList)} 취소 처리 결과 · 지금 검색 조건의 목록에는 없는 주문입니다.</p>
           <CancellationResultBody state={cancellationState} />
           <Link className="btn btn-sm btn-ghost" href={adminOrderSearchHref(resultOutsideList)}>이 주문 열기</Link>
         </section>
       ) : null}
-      <div className="admin-master-detail admin-order-master-detail">
-        <aside className="admin-order-list card" aria-label="주문 목록">
-          <div className="admin-order-list-heading">
-            <strong>주문 {data.total.toLocaleString('ko-KR')}건</strong>
-            <span className="faint mono">최근순</span>
-          </div>
-          {data.items.map((order) => {
-            const openRequest = openCancellationRequest(order);
-            return (
-            <Link
-              aria-current={selected?.id === order.id ? 'true' : undefined}
-              /* aria-label이 행 내용을 덮어쓰므로 사유 배지를 이름에도 넣는다. 넣지
-                 않으면 스크린리더 사용자에게만 사유가 사라진다. */
-              aria-label={`주문 ${orderReferenceLabel(order.id)} 선택${
-                openRequest ? ` · ${cancellationReasonAccessibleName(openRequest)}` : ''
-              }`}
-              className={selected?.id === order.id ? 'admin-order-row on' : 'admin-order-row'}
-              href={adminOrdersHref(data.filters, { orderId: order.id })}
-              key={order.id}
-            >
-              <span className={`order-status order-status--${order.status}`}
-                title={order.status === 'done' ? ADMIN_VOCABULARY.settledHint : undefined}
-            data-admin-tooltip={order.status === 'done' ? ADMIN_VOCABULARY.settledHint : undefined}
-                aria-label={order.status === 'done' ? `${ADMIN_VOCABULARY.settled}: ${ADMIN_VOCABULARY.settledHint}` : undefined}
-                tabIndex={order.status === 'done' ? 0 : undefined}>{ADMIN_ORDER_STATUS_LABELS[order.status] ?? orderStatusMeta(order.status).label}</span>
-              <strong>@{order.buyerName}</strong>
-              <span className="faint mono">{orderReferenceLabel(order.id)}</span>
-              <span className="admin-order-row-total">{formatKrwExact(order.total)}</span>
-              {openRequest ? (
-                <CancellationReasonBadge
-                  className="admin-order-row-reason"
-                  request={openRequest}
-                />
-              ) : null}
-            </Link>
-            );
-          })}
-          {!data.items.length ? <p className="muted">조건에 맞는 주문이 없습니다.</p> : null}
-          {totalPages > 1 ? (
-            <nav aria-label="주문 목록 페이지" className="admin-order-pagination">
-              {data.filters.page > 1 ? (
-                <Link
-                  aria-label="이전 페이지"
-                  className="btn btn-sm btn-ghost"
-                  href={adminOrdersHref(data.filters, { orderId: null, page: data.filters.page - 1 })}
-                >
-                  이전
-                </Link>
-              ) : <span />}
-              <span aria-live="polite">{data.filters.page} / {totalPages} 페이지</span>
-              {data.filters.page < totalPages ? (
-                <Link
-                  aria-label="다음 페이지"
-                  className="btn btn-sm btn-ghost"
-                  href={adminOrdersHref(data.filters, { orderId: null, page: data.filters.page + 1 })}
-                >
-                  다음
-                </Link>
-              ) : <span />}
-            </nav>
-          ) : null}
-        </aside>
-        {selected ? (
-          <OrderDetail
-            cancellation={cancellation}
-            carriers={data.carriers}
-            filters={data.filters}
-            key={selected.id}
-            order={selected}
-          />
-        ) : data.filters.orderId ? (
+      <div className="admin-sales-results">
+        <SalesResultsHeader currentHref={currentHref} total={data.total} pageSize={data.pageSize} sort={data.filters.sort??'newest'}>
+          <AdminListExportButton href={adminListExportHref('orders', currentHref)} total={data.total} />
+        </SalesResultsHeader>
+        <form action={bulkAction} onSubmit={(event)=>confirmAction(event,`선택한 신규주문 ${selectedIds.length}건을 발주확인할까요?`)}>
+          {selectedIds.map(id=><input key={id} type="hidden" name="orderIds" value={id}/>)}
+          <ConsoleGrid caption="주문 목록" preferencesKey="sales-orders" columns={columns} rows={rows} selectable={eligible.size>0}
+            selectedIds={selectedIds} onSelectionChange={setSelection} emptyLabel="조건에 맞는 주문이 없습니다.">
+            {canManage ? <div className="admin-sales-workbar">
+              <span className="admin-sales-selection">{selectedIds.length}건 선택</span>
+              <button type="submit" disabled={bulkPending||selectedIds.length===0}>{bulkPending?'처리 중…':'선택 주문 발주확인'}</button>
+              <Link href="/admin/sales/dispatch">발송관리</Link><Link href="/admin/sales/shipping">배송현황</Link>
+            </div> : null}
+          </ConsoleGrid>
+          <ActionFeedback state={bulkState}/>
+        </form>
+        <ConsolePagination label="주문 목록 페이지" page={data.filters.page} pageSize={data.pageSize} total={data.total}
+          hrefForPage={page=>adminOrdersHref(data.filters,{page,orderId:null})}/>
+      </div>
+        {selected ? <details id="sales-order-detail" className="admin-sales-detail-disclosure" open={Boolean(data.filters.orderId)} key={selected.id}>
+          <summary>주문 {orderReferenceLabel(selected.id)} {canManage ? '상세·처리' : '상세 보기'}</summary>
+          <OrderDetail cancellation={cancellation} carriers={data.carriers} filters={data.filters} order={selected} canManage={canManage} />
+        </details> : data.filters.orderId ? (
           <div className="card col" role="status">
             <p>선택한 주문은 현재 목록에 없습니다.</p>
             <Link
@@ -1229,7 +1196,6 @@ export function OrdersSection({ data }: { data: AdminOrderConsoleData }) {
             </Link>
           </div>
         ) : null}
-      </div>
     </section>
   );
 }

@@ -1,3 +1,4 @@
+import { configuredOperatorAccessFixture, legacyOperatorAccessFixture } from '@/lib/admin/access.test-fixtures';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import AdminCsInquiriesPage from './page';
 
@@ -15,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   },
   screen: vi.fn(() => null),
   inquiries: vi.fn(async () => ({ rows: [] })),
+  detail: vi.fn(async () => null),
   orders: vi.fn(async () => ({})),
 }));
 
@@ -23,10 +25,11 @@ vi.mock('@/components/admin/screens/InquiryQueueScreen', () => ({
 }));
 vi.mock('@/lib/admin/inquiries.server', () => ({
   getAdminInquiryConsoleData: mocks.inquiries,
+  loadAdminInquiryDetail: mocks.detail,
 }));
 vi.mock('@/lib/admin/orders.server', () => ({ getAdminOrderRecords: mocks.orders }));
 vi.mock('@/lib/auth/admin', () => ({
-  getCurrentAdminAuthState: vi.fn(async () => mocks.authState),
+  getCurrentAdminAuthState: vi.fn(async () => ({ ...mocks.authState, operatorAccess: 'operatorAccess' in mocks.authState && mocks.authState.operatorAccess || legacyOperatorAccessFixture() })),
 }));
 vi.mock('next/navigation', () => ({
   redirect: (path: string) => {
@@ -47,6 +50,7 @@ describe('AdminCsInquiriesPage', () => {
     };
     mocks.screen.mockClear();
     mocks.inquiries.mockClear();
+    mocks.detail.mockClear();
     mocks.orders.mockClear();
   });
 
@@ -90,5 +94,20 @@ describe('AdminCsInquiriesPage', () => {
     await AdminCsInquiriesPage({ searchParams: Promise.resolve({}) });
 
     expect(mocks.orders).not.toHaveBeenCalled();
+    expect(mocks.detail).not.toHaveBeenCalled();
+  });
+
+  it('정상 문의번호를 선택한 경우에만 상세를 함께 불러온다', async () => {
+    await AdminCsInquiriesPage({ searchParams: Promise.resolve({ inquiryId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', pageSize: '50' }) });
+    expect(mocks.detail).toHaveBeenCalledWith('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', { canReadOrders: true, canManageSales: true });
+    expect(mocks.inquiries).toHaveBeenCalledWith(expect.objectContaining({ pageSize: 50 }));
+    mocks.detail.mockClear();
+    await AdminCsInquiriesPage({ searchParams: Promise.resolve({ inquiryId: 'invalid' }) });
+    expect(mocks.detail).not.toHaveBeenCalled();
+  });
+  it('configured deputy can answer inquiries without loading order context', async () => {
+    Object.assign(mocks.authState, { operatorAccess: configuredOperatorAccessFixture('deputy') });
+    await AdminCsInquiriesPage({ searchParams: Promise.resolve({ inquiryId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' }) });
+    expect(mocks.detail).toHaveBeenCalledWith('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', { canReadOrders: false, canManageSales: false });
   });
 });

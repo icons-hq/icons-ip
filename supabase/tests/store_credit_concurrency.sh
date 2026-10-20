@@ -94,7 +94,7 @@ SQL
 psql_exec -q >"$credit_logs/spend-a" 2>&1 <<SQL &
 begin; set local statement_timeout='10s'; set local application_name='$credit_prefix-spend';
 select set_config('request.jwt.claim.sub','$credit_user',true); set local role authenticated;
-insert into public.cart_items(user_id,good_id,variant_id,qty) select '$credit_user','store-credit-race-good',id,1 from public.goods_variants where good_id='store-credit-race-good' and is_default;
+select public.set_cart_item_quantity('store-credit-race-good',id,1) from public.goods_variants where good_id='store-credit-race-good' and is_default;
 reset role; set local role service_role;
 select public.place_order_with_store_credits('$credit_user','{"recipientName":"동시성","phone":"01012345678","postalCode":"12345","address1":"합성주소"}','20000000-0000-4000-8000-000000004898','card',600);
 select pg_sleep(1); commit;
@@ -103,7 +103,7 @@ credit_pid_a=$!
 wait_for_sleep "$credit_prefix-spend"
 psql_exec -q >"$credit_logs/spend-b" 2>&1 <<SQL &
 begin; set local statement_timeout='10s'; select set_config('request.jwt.claim.sub','$credit_user',true); set local role authenticated;
-insert into public.cart_items(user_id,good_id,variant_id,qty) select '$credit_user','store-credit-race-good',id,1 from public.goods_variants where good_id='store-credit-race-good' and is_default;
+select public.set_cart_item_quantity('store-credit-race-good',id,1) from public.goods_variants where good_id='store-credit-race-good' and is_default;
 reset role; set local role service_role;
 select public.place_order_with_store_credits('$credit_user','{"recipientName":"동시성","phone":"01012345678","postalCode":"12345","address1":"합성주소"}','20000000-0000-4000-8000-000000004899','card',600); commit;
 SQL

@@ -317,9 +317,14 @@ describe('reconcileOrderCancellation', () => {
     expect(rpcCalls.map(([name]) => name)).toEqual([
       'assert_order_cancellation_reconciliation_allowed',
       'reconcile_expired_prepared_goods_cancellation',
+      'service_get_payment_gateway_binding',
       'complete_order_cancellation_request',
     ]);
-    for (const [, args] of rpcCalls) expect(args.p_actor_id).toBeNull();
+    for (const [name, args] of rpcCalls) {
+      if (name === 'service_get_payment_gateway_binding') {
+        expect(args).not.toHaveProperty('p_actor_id');
+      } else expect(args.p_actor_id).toBeNull();
+    }
   });
 
   it('fresh prepared 세션은 in_progress로 유지하고 완료나 needs_review를 호출하지 않는다', async () => {

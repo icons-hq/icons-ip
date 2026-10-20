@@ -13,7 +13,7 @@ export function CustomerSuspensionControl({ actor, customer }: { actor: { id: st
   const [suspendState, suspend, suspending] = useActionState(suspendAdminMemberAction, EMPTY);
   const [unsuspendState, unsuspend, unsuspending] = useActionState(unsuspendAdminMemberAction, EMPTY);
   const [reason, setReason] = useState('');
-  const allowed = canModerateAdminMember({ actorId: actor.id, actorRole: actor.role, memberId: customer.id, memberRole: customer.role });
+  const allowed = canModerateAdminMember({ actorId: actor.id, memberId: customer.id, moderation: customer.moderation });
   return <AdminSectionCard title="계정 상태">
     <p>{customer.suspendedAt ? '정지된 계정입니다.' : '이용 중인 계정입니다.'}</p>
     {customer.suspensionReason ? <p>내부 사유 · {customer.suspensionReason}</p> : null}

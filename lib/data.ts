@@ -43,6 +43,12 @@ export interface GoodOption {
   supply?: import('./goods-preorders').GoodsVariantSupply;
 }
 export interface Good {
+  /** undefined: legacy/mock catalog; null: terms could not be read safely. */
+  transactionOffer?: import('./goods-transaction-offers').GoodsTransactionOffer | null;
+  transactionCalculatedAt?: string;
+  salePeriod?: import('./goods-sale-period').GoodsSalePeriod;
+  listingAppearance?: import('./store-presentation').GoodsListingAppearance;
+  customInputs?: import('./goods-custom-inputs').GoodsCustomInputConfig;
   options?: GoodOption[];
   originId?: string;
   /** 운영자가 지정한 공통 추천 진열 순서. 비어 있으면 기존 결정적 순서를 쓴다. */

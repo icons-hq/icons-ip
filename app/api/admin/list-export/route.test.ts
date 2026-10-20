@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 
-const mocks = vi.hoisted(() => ({ guard: vi.fn(), load: vi.fn(), build: vi.fn(), record: vi.fn() }));
+const mocks = vi.hoisted(() => ({ guard: vi.fn(), load: vi.fn(), build: vi.fn(), record: vi.fn(), encrypt: vi.fn() }));
 vi.mock('@/lib/admin/guard.server', () => ({ requireAdminScreenAccess: mocks.guard }));
 vi.mock('@/lib/admin/list-export.server', () => ({ buildAdminListExportWorkbook: mocks.build }));
 vi.mock('@/lib/admin/list-export-data.server', async () => {
@@ -12,10 +12,12 @@ vi.mock('@/lib/admin/list-export-data.server', async () => {
   }
   return { AdminListExportAuditError, AdminListExportChangedError, loadAdminListExportSheet: mocks.load, recordAdminListExport: mocks.record };
 });
+vi.mock('@/lib/admin/encrypted-workbook.server', () => ({ encryptAdminWorkbook: mocks.encrypt }));
+vi.mock('@/lib/admin/encrypted-export-audit.server', () => ({ recordEncryptedListExport: mocks.record }));
 vi.mock('next/navigation', () => ({ unstable_rethrow: vi.fn() }));
 
-import { GET, maxDuration, runtime } from './route';
-import { AdminListExportLimitError } from '@/lib/admin/list-export';
+import { GET, POST, maxDuration, runtime } from './route';
+import { AdminListExportLimitError, adminListExportHref, type AdminListExportScreenId } from '@/lib/admin/list-export';
 import { AdminListExportAuditError, AdminListExportChangedError } from '@/lib/admin/list-export-data.server';
 
 const sheet = { screen: 'dispatch', rows: [['a'], ['b']], recordCount: 1, filters: { tab: 'ready' } };
@@ -26,24 +28,42 @@ beforeEach(() => {
   mocks.guard.mockResolvedValue({ user: { id: 'staff' } });
   mocks.load.mockResolvedValue(sheet);
   mocks.build.mockResolvedValue(Buffer.from('xlsx-bytes'));
+  mocks.encrypt.mockReturnValue({ bytes: Buffer.from('encrypted-xlsx'), sha256: 'a'.repeat(64) });
   mocks.record.mockResolvedValue('10000000-0000-4000-8000-00000000a501');
 });
 
 afterEach(() => { vi.useRealTimers(); });
 
 function request(query: string) {
-  return new Request(`https://example.test/api/admin/list-export?${query}`);
+  return new Request(`https://example.test/api/admin/list-export?${query}`, { method: 'POST', headers: { origin: 'https://example.test', 'content-type': 'application/json' }, body: JSON.stringify({ password: 'StrongTEST123!', passwordConfirmation: 'StrongTEST123!' }) });
 }
 
 describe('목록 엑셀 다운로드 라우트', () => {
+  it('GET은 평문 우회를 허용하지 않는다', async () => {
+    const response = await GET(); expect(response.status).toBe(405);
+    expect(mocks.load).not.toHaveBeenCalled(); expect(mocks.build).not.toHaveBeenCalled();
+  });
+  it('다른 origin과 비밀번호 URL은 생성과 감사 전에 거부한다', async () => {
+    const other = request('screen=orders'); other.headers.set('origin', 'https://evil.test');
+    expect((await POST(other)).status).toBe(403);
+    expect((await POST(request('screen=orders&password=NeverInUrl'))).status).toBe(400);
+    expect(mocks.load).not.toHaveBeenCalled(); expect(mocks.record).not.toHaveBeenCalled();
+  });
+  it('암호화 실패는 평문 응답과 감사로 진행하지 않는다', async () => {
+    mocks.encrypt.mockImplementation(() => { throw new Error('crypto failure'); });
+    const response = await POST(request('screen=orders'));
+    expect(response.status).toBe(500); expect(response.headers.get('content-type')).toContain('json');
+    expect(mocks.record).not.toHaveBeenCalled();
+  });
   it('화면 경로로 권한을 확인하고, 기록을 남긴 뒤 비공개 xlsx로 응답한다', async () => {
-    const response = await GET(request('screen=dispatch&tab=ready&query=%ED%99%8D&page=4'));
+    const response = await POST(request('screen=dispatch&tab=ready&query=%ED%99%8D&page=4'));
     expect(runtime).toBe('nodejs');
     expect(maxDuration).toBe(60);
     expect(mocks.guard).toHaveBeenCalledWith('/admin/sales/dispatch');
     expect(mocks.load).toHaveBeenCalledWith('dispatch', { screen: 'dispatch', tab: 'ready', query: '홍', page: '4' }, new Date('2026-10-07T06:04:00.000Z'));
-    expect(mocks.record).toHaveBeenCalledWith(sheet);
-    expect(mocks.build.mock.invocationCallOrder[0]).toBeLessThan(mocks.record.mock.invocationCallOrder[0]);
+    expect(mocks.record).toHaveBeenCalledWith('staff', sheet, 'a'.repeat(64));
+    expect(mocks.build.mock.invocationCallOrder[0]).toBeLessThan(mocks.encrypt.mock.invocationCallOrder[0]);
+    expect(mocks.encrypt.mock.invocationCallOrder[0]).toBeLessThan(mocks.record.mock.invocationCallOrder[0]);
     expect(response.status).toBe(200);
     expect(response.headers.get('content-type')).toContain('spreadsheetml.sheet');
     expect(response.headers.get('cache-control')).toBe('private, no-store');
@@ -53,23 +73,32 @@ describe('목록 엑셀 다운로드 라우트', () => {
     );
     expect(response.headers.get('x-icons-export-audit')).toBe('10000000-0000-4000-8000-00000000a501');
     expect(response.headers.get('x-icons-export-rows')).toBe('2');
-    expect(Buffer.from(await response.arrayBuffer()).toString()).toBe('xlsx-bytes');
+    expect(Buffer.from(await response.arrayBuffer()).toString()).toBe('encrypted-xlsx');
   });
 
   it('클레임 화면은 유형별 화면 경로로 권한을 확인한다', async () => {
-    await GET(request('screen=claims-returns&stage=open'));
+    await POST(request('screen=claims-returns&stage=open'));
     expect(mocks.guard).toHaveBeenCalledWith('/admin/sales/claims/returns');
   });
 
+  it.each(['orders', 'unpaid', 'dispatch', 'shipping', 'claims-returns'] as AdminListExportScreenId[])(
+    '%s 목록 수를 바꿔도 전체 목록 다운로드 요청은 허용된다', async screen => {
+      const href = adminListExportHref(screen, '/admin/sales/shipping?tab=transit&page=3&pageSize=50&sort=newest');
+      const response = await POST(request(href.split('?')[1]));
+      expect(response.status).toBe(200);
+      expect(mocks.load).toHaveBeenCalledWith(screen, { screen, tab: 'transit', sort: 'newest' }, expect.any(Date));
+    },
+  );
+
   it('권한 거절은 로더를 실행하지 않는다', async () => {
     mocks.guard.mockRejectedValue(new Error('NEXT_NOT_FOUND'));
-    await expect(GET(request('screen=orders'))).rejects.toThrow('NEXT_NOT_FOUND');
+    await expect(POST(request('screen=orders'))).rejects.toThrow('NEXT_NOT_FOUND');
     expect(mocks.load).not.toHaveBeenCalled();
     expect(mocks.record).not.toHaveBeenCalled();
   });
 
   it('모르는 화면은 권한 확인 뒤 400으로 거절한다', async () => {
-    const response = await GET(request('screen=settled'));
+    const response = await POST(request('screen=settled'));
     expect(mocks.guard).toHaveBeenCalledWith('/admin');
     expect(response.status).toBe(400);
     expect(await response.json()).toEqual({ error: '내려받을 화면을 확인해주세요.' });
@@ -78,7 +107,7 @@ describe('목록 엑셀 다운로드 라우트', () => {
 
   it('상한을 넘으면 파일과 기록 없이 조건을 좁히라는 400을 준다', async () => {
     mocks.load.mockRejectedValue(new AdminListExportLimitError(12_000));
-    const response = await GET(request('screen=orders'));
+    const response = await POST(request('screen=orders'));
     expect(response.status).toBe(400);
     expect(response.headers.get('cache-control')).toBe('private, no-store');
     expect(await response.json()).toEqual({ error: '한 번에 내려받을 수 있는 양을 넘었습니다. 조건을 좁혀 다시 내려받아 주세요(최대 10,000건).' });
@@ -88,14 +117,14 @@ describe('목록 엑셀 다운로드 라우트', () => {
 
   it('상품 줄로 펼친 행이 상한을 넘으면 행 기준 안내로 400을 준다', async () => {
     mocks.load.mockRejectedValue(new AdminListExportLimitError(12_000, 10_000, 'rows'));
-    const response = await GET(request('screen=orders'));
+    const response = await POST(request('screen=orders'));
     expect(response.status).toBe(400);
     expect((await response.json()).error).toBe('상품 한 줄을 한 행으로 펼치면 한 파일에 담을 수 있는 10,000행을 넘습니다. 기간·상태를 좁혀 나누어 받아 주세요.');
   });
 
   it('읽는 사이 목록이 바뀌면 파일과 기록 없이 409로 다시 받도록 안내한다', async () => {
     mocks.load.mockRejectedValue(new AdminListExportChangedError());
-    const response = await GET(request('screen=dispatch&tab=new'));
+    const response = await POST(request('screen=dispatch&tab=new'));
     expect(response.status).toBe(409);
     expect((await response.json()).error).toBe('목록이 바뀌는 중이라 파일을 만들지 않았습니다. 잠시 후 다시 내려받아 주세요.');
     expect(mocks.build).not.toHaveBeenCalled();
@@ -104,7 +133,7 @@ describe('목록 엑셀 다운로드 라우트', () => {
 
   it('감사 기록에 실패하면 파일을 내보내지 않는다', async () => {
     mocks.record.mockRejectedValue(new AdminListExportAuditError());
-    const response = await GET(request('screen=unpaid'));
+    const response = await POST(request('screen=unpaid'));
     expect(response.status).toBe(500);
     expect(response.headers.get('content-type')).toContain('application/json');
     expect((await response.json()).error).toContain('다운로드 기록을 남기지 못해');
@@ -112,7 +141,7 @@ describe('목록 엑셀 다운로드 라우트', () => {
 
   it('영문 내부 오류는 한국어 안내로 바꾼다', async () => {
     mocks.load.mockRejectedValue(new Error('Failed to load admin orders: boom'));
-    const response = await GET(request('screen=orders'));
+    const response = await POST(request('screen=orders'));
     expect(response.status).toBe(500);
     expect(await response.json()).toEqual({ error: '목록을 불러오지 못해 파일을 만들지 않았습니다. 잠시 후 다시 내려받아 주세요.' });
   });

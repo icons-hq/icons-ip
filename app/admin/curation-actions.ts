@@ -6,11 +6,13 @@ import {
   normalizeAdminCurationForm,
   type AdminCurationActionState,
 } from '@/lib/admin/curations';
+import { hasAdminCapability } from '@/lib/admin/access';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
 import { NOTICE_STRIP_CACHE_TAG } from '@/lib/notice-strip.server';
 import { createClient } from '@/lib/supabase/server';
 
 const SAVE_ERROR = '홈 큐레이션을 저장하지 못했습니다. 다시 시도해주세요.';
+const UNCERTAIN_ERROR = '저장 결과를 확인하지 못했습니다. 입력한 내용을 유지한 채 같은 요청 결과를 확인해주세요.';
 
 function loginPath() {
   return `/login?next=${encodeURIComponent('/admin')}`;
@@ -31,13 +33,13 @@ export async function upsertAdminCurationAction(
   }
   if (!auth.isConfigured) return { errors: { form: SAVE_ERROR } };
   if (!auth.user) redirect(loginPath());
-  if (!auth.isStaff) return { errors: { form: '관리자 권한이 필요합니다.' } };
+  if (!auth.isStaff || !hasAdminCapability(auth, 'store.manage')) return { errors: { form: '관리자 권한이 필요합니다.' } };
 
   const value = normalized.value;
   let error: unknown;
   try {
     const supabase = await createClient();
-    ({ error } = await supabase.rpc('admin_upsert_home_curation', {
+    ({ error } = await supabase.rpc('admin_save_home_curation', {
       target_operation_id: value.operationId,
       target_curation_id: value.id,
       target_kind: value.kind,
@@ -51,14 +53,31 @@ export async function upsertAdminCurationAction(
       target_enabled: value.enabled,
       target_slot: value.slot,
       target_payload: value.payload,
+      target_expected_updated_at: value.expectedUpdatedAt,
     }));
   } catch {
-    return { errors: { form: SAVE_ERROR } };
+    return { errors: { form: UNCERTAIN_ERROR }, uncertain: true };
   }
-  if (error) return { errors: { form: SAVE_ERROR } };
+  if (error) {
+    const message = typeof error === 'object' && error !== null && 'message' in error ? String(error.message) : '';
+    if (message.includes('mosaic_image_too_large')) return { errors: { mosaic: '모자이크 원본과 저장 이미지는 각각 900KB 이하여야 합니다. 더 작은 이미지로 등록해주세요.' } };
+    if (message.includes('home_mosaic_limit')) return { errors: { mosaic: '자유상품 모자이크는 최대 5개까지 등록할 수 있습니다. 기존 구성을 수정해주세요.' } };
+    if (message.includes('home_free_product_limit')) return { errors: { form: '리스트·풀이미지·모자이크는 비노출과 종료를 포함해 합계 5개까지 등록할 수 있습니다. 기존 구성을 수정해주세요.' } };
+    if (message.includes('curation_kind_change_not_allowed')) return { errors: { kind: '저장된 자유상품과 다른 종류의 구성은 서로 변환할 수 없습니다. 새 구성을 추가해주세요.' } };
+    if (message.includes('home_hero_limit')) return { errors: { form: '프로모션 배너는 비노출을 포함해 최대 10개까지 등록할 수 있습니다. 기존 배너를 수정해주세요.' } };
+    if (message.includes('curation_archived')) return { errors: { form: '삭제된 배너입니다. 입력은 유지합니다. 최신 목록을 불러오고 삭제한 배너에서 복구한 뒤 편집해주세요.' }, conflict: true };
+    if (message.includes('curation_conflict') || message.includes('operation_conflict')) return { errors: { form: '다른 저장이 먼저 반영되었습니다. 입력은 유지합니다. 최신 저장본을 불러온 뒤 다시 편집해주세요.' }, conflict: true };
+    if (message.includes('invalid_hero_title')) return { errors: { title: '변경한 제목은 40자 이하로 입력해주세요. 기존 제목은 그대로 유지할 수 있습니다.' } };
+    if (message.includes('invalid_hero_subtitle')) return { errors: { subtitle: '변경한 내용은 150자 이하, 최대 3줄로 입력해주세요.' } };
+    if (message.includes('invalid_hero_alt')) return { errors: { altTitle: '대체텍스트 제목 40자·내용 150자와 설정 여부를 확인해주세요.' } };
+    if (/forbidden|auth_required|operator_/.test(message)) return { errors: { form: '현재 스토어 관리 권한을 확인해주세요.' } };
+    if (/invalid_|unverified_artwork|curation_image_required|catalog_item_archived|curation_ip_not_found/.test(message)) return { errors: { form: SAVE_ERROR } };
+    return { errors: { form: UNCERTAIN_ERROR }, uncertain: true };
+  }
 
   revalidatePath('/');
   revalidatePath('/admin');
+  revalidatePath('/admin/display/curations');
   /*
    * 공지 스트립은 전역 셸이 unstable_cache 로 읽는다 — 경로 재검증만으로는 늦는다.
    * Next 16 의 revalidateTag 는 cacheLife 프로필을 요구하고 'max' 는 stale-while-

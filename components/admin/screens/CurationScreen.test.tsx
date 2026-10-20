@@ -49,7 +49,7 @@ function renderScreen() {
     operationId: '33333333-3333-4333-8333-333333333333',
     records: [record],
   });
-  return (tree.props.children as { type: unknown; props: Record<string, unknown> }[]).find((child) => child.type === mocks.curationSection)!;
+  return tree;
 }
 
 describe('CurationScreen', () => {

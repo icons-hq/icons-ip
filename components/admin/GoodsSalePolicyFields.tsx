@@ -1,11 +1,13 @@
 'use client';
 
 import { useState } from 'react';
-import { AdminFormGrid, AdminSectionCard } from './console/AdminKit';
+import { AdminFormGrid } from './console/AdminKit';
+import { GoodEditorSection } from './GoodWorkspace';
 import { Field, SelectField } from './fields';
 
-export function GoodsSalePolicyFields({ values, errors }: {
+export function GoodsSalePolicyFields({ values, errors, quantityReadOnly = false }: {
   values: Record<string, string>;
+  quantityReadOnly?: boolean;
   errors?: Record<string, string>;
 }) {
   const [orderLimit, setOrderLimit] = useState(values.orderQuantityLimitEnabled === 'true');
@@ -15,7 +17,7 @@ export function GoodsSalePolicyFields({ values, errors }: {
       <option value="true">{enabled}</option><option value="false">{disabled}</option>
     </SelectField>;
   }
-  return <AdminSectionCard title="결제·구매 조건" id="good-section-sale" requirement="선택 · 적용 시 수량 입력 필요" status={Object.keys(errors ?? {}).some((key) => ['minOrderQty', 'maxOrderQty', 'memberLifetimeQtyLimit'].includes(key)) ? '확인 필요' : '설정 확인'} summary={`주문당 제한 ${orderLimit ? '적용' : '미적용'} · 회원 누적 제한 ${memberLimit ? '적용' : '미적용'}`} >
+  return <GoodEditorSection defaultOpen={false} errorCount={Object.keys(errors ?? {}).filter(key => ['allowCardPayment', 'allowBankTransfer', 'saleRestriction', 'minOrderQty', 'maxOrderQty', 'memberLifetimeQtyLimit'].includes(key)).length} title="구매수량·결제 설정" id="good-section-sale" requirement="선택 · 적용 시 수량 입력 필요" status={Object.keys(errors ?? {}).some((key) => ['minOrderQty', 'maxOrderQty', 'memberLifetimeQtyLimit'].includes(key)) ? '확인 필요' : '설정 확인'} summary={`주문당 제한 ${orderLimit ? '적용' : '미적용'} · 회원 누적 제한 ${memberLimit ? '적용' : '미적용'}`} >
     <AdminFormGrid>
       {choice('allowCardPayment', '카드 결제', '허용', '받지 않음')}
       {choice('allowBankTransfer', '무통장 입금', '허용', '받지 않음')}
@@ -25,7 +27,7 @@ export function GoodsSalePolicyFields({ values, errors }: {
     </AdminFormGrid>
     <p>함께 주문한 모든 상품이 허용하는 결제수단만 사용할 수 있습니다. 두 수단을 모두 닫으면 새 주문을 받지 않습니다. 실제 결제는 결제사·계좌 준비 상태도 확인합니다.</p>
     <p>성인(19금) 상품은 성인인증을 도입하기 전까지 공개되지 않고 구매가 차단됩니다.</p>
-    <AdminFormGrid>
+    <fieldset disabled={quantityReadOnly} style={{ border: 0, padding: 0, margin: 0 }}><AdminFormGrid>
       {choice('orderQuantityLimitEnabled', '주문당 수량 제한', '적용', '사용 안 함')}
       <div hidden={!orderLimit && !errors?.minOrderQty && !errors?.maxOrderQty} className="admin-good-workspace__conditional">
       <Field name="minOrderQty" label="주문당 최소 수량" type="number" min={1} max={2147483647} defaultValue={values.minOrderQty} error={errors?.minOrderQty} />
@@ -38,7 +40,8 @@ export function GoodsSalePolicyFields({ values, errors }: {
       </div>
       {!memberLimit && <p>회원 누적 구매 제한 미적용 · 입력한 한도는 보존됩니다.</p>}
     </AdminFormGrid>
+    </fieldset>{quantityReadOnly ? ['orderQuantityLimitEnabled','minOrderQty','maxOrderQty','memberPurchaseLimitEnabled','memberLifetimeQtyLimit'].map(name => <input key={name} type="hidden" name={name} value={values[name] ?? ''} />) : null}
     <p>수량은 같은 상품의 모든 옵션을 합산합니다. 제한을 적용하려면 해당 수치를 모두 입력해주세요. 제한을 끄면 입력한 수치는 보존됩니다.</p>
     <p>회원 한도에는 과거 구매와 결제 대기 중인 주문도 포함합니다. 전액 취소·환불 처리가 완료된 주문 수량은 제외합니다.</p>
-  </AdminSectionCard>;
+  </GoodEditorSection>;
 }

@@ -19,7 +19,7 @@ function data(overrides: Partial<AdminClaimConsoleData> = {}): AdminClaimConsole
       processing: 0,
       needs_review: 0,
       completed: 0,
-      rejected: 0,
+      rejected: 0, withdrawn: 0,
     },
     filters: {
       from: null,
@@ -75,6 +75,24 @@ function data(overrides: Partial<AdminClaimConsoleData> = {}): AdminClaimConsole
 }
 
 describe('ClaimQueueScreen', () => {
+  it.each([['recipient', '수취인명'], ['item', '상품주문번호'], ['product', '상품번호']] as const)('%s 상세조건과 전체 주문 처리 경계를 표시한다', (field, label) => {
+    const source = data(); source.filters = { ...source.filters, field, query: '번호_%', page: 2 };
+    const html = renderToStaticMarkup(<ClaimQueueScreen data={source} now={NOW} />);
+    expect(html).toContain(`<option value="${field}" selected="">${label}</option>`);
+    expect(html).toContain(`field=${field}`);
+    expect(html).toContain(`field%3D${field}`);
+    expect(html).toContain('품목으로 찾아도 처리와 엑셀은 요청 주문 전체를 대상으로 합니다.');
+    expect(html).toContain('screen=claims-returns');
+  });
+
+  it('결제일 기간 검색을 목록·단계 링크·엑셀 주소에 함께 보존한다', () => {
+    const source = data(); source.filters = { ...source.filters, dateField: 'paid', from: '2026-10-02', to: '2026-10-02' };
+    const html = renderToStaticMarkup(<ClaimQueueScreen data={source} now={NOW} />);
+    expect(html).toContain('<option value="paid" selected="">결제일</option>');
+    expect(html).toContain('dateField=paid');
+    expect(html).toContain('dateField%3Dpaid');
+    expect(html).toContain('screen=claims-returns');
+  });
   it('이슈가 요구한 그리드 컬럼을 순서대로 보여준다', () => {
     const html = renderToStaticMarkup(<ClaimQueueScreen data={data()} now={NOW} />);
 
@@ -137,8 +155,8 @@ describe('ClaimQueueScreen', () => {
   it('0건 단계도 칩으로 남긴다', () => {
     const html = renderToStaticMarkup(<ClaimQueueScreen data={data()} now={NOW} />);
 
-    expect(html).toContain('처리완료 0건');
-    expect(html).toContain('보류 1건');
+    expect(html).toContain('반품완료 0건');
+    expect(html).toContain('반품보류 1건');
   });
 
   it('상세 링크가 목록 조건을 함께 들고 간다', () => {

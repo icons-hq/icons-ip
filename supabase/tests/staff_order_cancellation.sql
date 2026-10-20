@@ -48,6 +48,8 @@ values
   ('00000000-0000-4000-8000-0000000c5d02', 'staff-cancel-staff@example.test', 'staff_cancel_staff', '2000-01-01',
     '{"terms":true,"privacy":true}'::jsonb, now(), 'staff'::public.user_role)
 on conflict (id) do update set role = excluded.role, nickname = excluded.nickname;
+-- A new test staff profile needs an explicit manager assignment.
+insert into private.operator_memberships(profile_id,manager_role) values('00000000-0000-4000-8000-0000000c5d02','primary');
 
 insert into public.ips (id, title, vertical_key) values ('staff-cancel-ip', '운영자 취소 IP', 'character');
 insert into public.goods (id, ip_id, name, type, price, stock, stock_qty)
@@ -269,6 +271,34 @@ select 1 / case when exists (
     and o.cancellation_last_error_code is null
 ) then 1 else 0 end as assert_order_search_carries_staff_reason;
 
+-- The application and its spreadsheet export use the console readers.
+select 1/case when exists(
+ select 1 from public.admin_search_orders_console(p_field:='order',p_query:='61000000-0000-4000-8000-0000000c5d01') o
+ where o.cancellation_request_id=:'staff_request_e' and o.cancellation_reason_type='staff'
+  and o.cancellation_staff_reason_code='out_of_stock' and o.cancellation_last_error_code is null
+) and exists(
+ select 1 from public.admin_search_order_claims_console(p_claim_type:='cancel',p_reason_type:='staff',p_query:='61000000-0000-4000-8000-0000000c5d01') c
+ where c.id=:'staff_request_e' and c.staff_reason_code='out_of_stock'
+) then 1 else 0 end as console_readers_preserve_staff_reason_for_ui_and_export;
+
+select 1/case when exists(
+ select 1 from public.admin_search_order_claims_console(p_claim_type:='cancel',p_reason_type:='staff:out_of_stock',p_query:='61000000-0000-4000-8000-0000000c5d01') c where c.id=:'staff_request_e'
+) and not exists(
+ select 1 from public.admin_search_order_claims_console(p_claim_type:='cancel',p_reason_type:='staff:other',p_query:='61000000-0000-4000-8000-0000000c5d01')
+) and exists(
+ select 1 from public.admin_order_claim_stage_counts_console(p_claim_type:='cancel',p_reason_type:='staff:out_of_stock',p_query:='61000000-0000-4000-8000-0000000c5d01') c where c.stage='processing' and c.total=1
+) then 1 else 0 end as console_reason_code_filter_matches_list_and_stage_counts;
+do $console_reason_guard$
+declare rejected integer:=0;
+begin
+ begin perform public.admin_search_order_claims_console(p_reason_type:='staff:unknown',p_query:='no-matching-fixture');
+ exception when check_violation then rejected:=rejected+1;end;
+ begin perform public.admin_order_claim_stage_counts_console(p_reason_type:='staff:unknown',p_query:='no-matching-fixture');
+ exception when check_violation then rejected:=rejected+1;end;
+ if rejected<>2 then raise exception 'console reader accepted an unknown staff reason code';end if;
+end $console_reason_guard$;
+
+
 select 1 / case when exists (
   select 1
   from jsonb_array_elements(public.admin_claims_report(now() - interval '1 day', now() + interval '1 day') -> 'byReason') as entry
@@ -307,8 +337,17 @@ select 1 / case when public.request_order_claim(
 select 1 / case when public.assert_order_cancellation_reconciliation_allowed(:'staff_request_e', '00000000-0000-4000-8000-0000000c5d02') = 'allowed'
   then 1 else 0 end as assert_staff_request_passes_reconciliation_preflight;
 
+-- Authority can be revoked after the approved provider action starts. Its
+-- durable receipt permits this one finish, without granting another operation.
+reset role;
+update private.operator_memberships set manager_role='logistics' where profile_id='00000000-0000-4000-8000-0000000c5d02';
+select 1/case when not private.has_operator_capability('00000000-0000-4000-8000-0000000c5d02','sales.manage')
+ and exists(select 1 from private.operator_cancellation_authorizations where request_id=:'staff_request_e' and actor_id='00000000-0000-4000-8000-0000000c5d02')
+ then 1 else 0 end as staff_started_receipt_survives_permission_revocation;
+set local role service_role;
 select public.complete_order_cancellation_request(:'staff_request_e', array['pk_staff_cancel_e'], '00000000-0000-4000-8000-0000000c5d02');
 reset role;
+update private.operator_memberships set manager_role='primary' where profile_id='00000000-0000-4000-8000-0000000c5d02';
 
 select 1 / case when (
   select o.status = 'canceled' and r.status = 'completed' and p.status = 'refunded'
@@ -364,7 +403,7 @@ set local role authenticated;
 select set_config('request.jwt.claim.role', 'authenticated', true);
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-0000000c5d02', true);
 select 1 / case when exists (
-  select 1 from public.admin_search_orders(p_field := 'order', p_query := '61000000-0000-4000-8000-0000000c5d02') o
+  select 1 from public.admin_search_orders_console(p_field := 'order', p_query := '61000000-0000-4000-8000-0000000c5d02') o
   where o.cancellation_request_id = :'staff_request_p'
     and o.cancellation_request_status = 'needs_review'
     and o.cancellation_staff_reason_code = 'test_payment_cleanup'

@@ -1,5 +1,20 @@
 \set ON_ERROR_STOP on
 begin;
+
+-- Test-only access to the preserved physical engine. New dispatch through the
+-- old public RPC is sealed; contact-v2 and public denial are covered separately
+-- by order_claim_contact.sql. Keep the original JWT actor/capability checks.
+create function pg_temp.record_order_claim_reshipment_physical(p_claim uuid,p_carrier text,p_tracking text,p_items jsonb) returns text
+language sql security definer set search_path='' as $$
+ select private.record_order_claim_reshipment_physical(p_claim,p_carrier,p_tracking,p_items);
+$$;
+create function pg_temp.record_order_claim_reshipment_physical(p_claim uuid,p_carrier text,p_tracking text) returns text
+language sql security definer set search_path='' as $$
+ select private.record_order_claim_reshipment_physical(p_claim,p_carrier,p_tracking,'[]'::jsonb);
+$$;
+revoke all on function pg_temp.record_order_claim_reshipment_physical(uuid,text,text,jsonb),pg_temp.record_order_claim_reshipment_physical(uuid,text,text) from public,anon,authenticated,service_role;
+grant execute on function pg_temp.record_order_claim_reshipment_physical(uuid,text,text,jsonb),pg_temp.record_order_claim_reshipment_physical(uuid,text,text) to authenticated;
+
 select 1/case when has_function_privilege('authenticated','public.admin_record_order_claim_reshipment_delivery(uuid,text)','execute')
   and not has_function_privilege('anon','public.admin_record_order_claim_reshipment_delivery(uuid,text)','execute')
   and not has_function_privilege('service_role','public.admin_record_order_claim_reshipment_delivery(uuid,text)','execute')
@@ -10,7 +25,7 @@ select 1/case when has_function_privilege('authenticated','public.admin_record_o
   and not has_column_privilege('authenticated','public.order_cancellation_requests','reship_delivered_at','update')
   and not has_column_privilege('service_role','public.order_cancellation_requests','reship_delivered_at','update')
   then 1 else 0 end as assert_delivery_writer_and_sensitive_columns_sealed;
--- Synthetic full-order exchange, using public staff/owner RPCs. Rollback only;
+-- Synthetic full-order exchange: test shim for physical dispatch, public staff/owner RPCs for delivery. Rollback only;
 -- neither a payment provider nor an external delivery API is called.
 insert into auth.users(id,aud,role,email,raw_app_meta_data,raw_user_meta_data,created_at,updated_at) values
 ('45a10000-0000-4000-8000-000000000001','authenticated','authenticated','reship-delivery-staff@example.test','{}','{}',now(),now()),
@@ -50,7 +65,7 @@ do $$ declare claim_key uuid; begin
   exception when check_violation then if sqlerrm<>'claim_reshipment_not_dispatched' then raise; end if; end;
 end $$;
 select public.admin_record_order_claim_origin_collection(:'exchange_id','45a10000-0000-4000-8000-000000000051','실물 2개 입고 대조');
-select public.admin_record_order_claim_reshipment(:'exchange_id','hanjin','EX45A1000001','[]');
+select pg_temp.record_order_claim_reshipment_physical(:'exchange_id','hanjin','EX45A1000001','[]');
 select set_config('request.jwt.claim.sub','45a10000-0000-4000-8000-000000000002',true);
 select 1/case when public.order_claim_eligibility('45a10000-0000-4000-8000-000000000010')='{"cancel":false,"return":false,"exchange":false}' then 1 else 0 end as assert_in_transit_exchange_does_not_reuse_original_delivery;
 reset role;
@@ -61,7 +76,8 @@ create temp table frozen_before_delivery on commit drop as select
   (select jsonb_agg(to_jsonb(s) order by id) from public.order_shipments s where order_id='45a10000-0000-4000-8000-000000000010') as shipments,
   (select jsonb_agg(to_jsonb(p) order by id) from public.payments p where ref_id='45a10000-0000-4000-8000-000000000010') as payments,
   (select jsonb_agg(to_jsonb(v) order by id) from public.goods_variants v where good_id='claim-reship-delivery-test') as variants,
-  (select to_jsonb(c)-array['reship_delivered_at','reship_delivered_by','reship_delivery_evidence','updated_at'] from public.order_cancellation_requests c where id=:'exchange_id') as claim;
+  (select claim_revision from public.order_cancellation_requests c where id=:'exchange_id') as claim_revision,
+  (select to_jsonb(c)-array['reship_delivered_at','reship_delivered_by','reship_delivery_evidence','updated_at','claim_revision'] from public.order_cancellation_requests c where id=:'exchange_id') as claim;
 set local role authenticated;
 select set_config('request.jwt.claim.sub','45a10000-0000-4000-8000-000000000003',true);
 select 1/case when public.order_claim_eligibility('45a10000-0000-4000-8000-000000000010') is null
@@ -123,7 +139,8 @@ select 1/case when (select purchase from frozen_before_delivery)=(select to_json
   and (select shipments from frozen_before_delivery)=(select jsonb_agg(to_jsonb(s) order by id) from public.order_shipments s where order_id='45a10000-0000-4000-8000-000000000010')
   and (select payments from frozen_before_delivery)=(select jsonb_agg(to_jsonb(p) order by id) from public.payments p where ref_id='45a10000-0000-4000-8000-000000000010')
   and (select variants from frozen_before_delivery)=(select jsonb_agg(to_jsonb(v) order by id) from public.goods_variants v where good_id='claim-reship-delivery-test')
-  and (select claim from frozen_before_delivery)=(select to_jsonb(c)-array['reship_delivered_at','reship_delivered_by','reship_delivery_evidence','updated_at'] from public.order_cancellation_requests c where id=:'exchange_id')
+  and (select claim from frozen_before_delivery)=(select to_jsonb(c)-array['reship_delivered_at','reship_delivered_by','reship_delivery_evidence','updated_at','claim_revision'] from public.order_cancellation_requests c where id=:'exchange_id')
+  and (select claim_revision from public.order_cancellation_requests c where id=:'exchange_id')=(select claim_revision+1 from frozen_before_delivery)
   and not exists(select 1 from public.refunds where payment_id='45a10000-0000-4000-8000-000000000030')
   then 1 else 0 end as assert_confirmation_changes_no_order_prices_dates_money_or_stock;
 select 1/case when public.request_order_claim('45a10000-0000-4000-8000-000000000010','45a10000-0000-4000-8000-000000000002','return','교환품 전체 수령 뒤 반품','defect')='requested' then 1 else 0 end as assert_new_return_intake_after_actual_delivery;
@@ -143,7 +160,7 @@ set local role authenticated;
 select set_config('request.jwt.claim.sub','45a10000-0000-4000-8000-000000000001',true);
 select public.admin_decide_order_claim(:'second_exchange_id','approve',null);
 select public.admin_record_order_claim_origin_collection(:'second_exchange_id','45a10000-0000-4000-8000-000000000051','두 번째 교환 실물 2개 입고');
-select public.admin_record_order_claim_reshipment(:'second_exchange_id','hanjin','EX45A1000002','[]');
+select pg_temp.record_order_claim_reshipment_physical(:'second_exchange_id','hanjin','EX45A1000002','[]');
 select 1/case when (public.order_claim_eligibility('45a10000-0000-4000-8000-000000000010')->>'return')::boolean=false then 1 else 0 end as assert_second_exchange_needs_new_delivery_confirmation;
 select public.admin_record_order_claim_reshipment_delivery(:'second_exchange_id','두 번째 교환품 전체 수령 확인');
 select 1/case when (public.order_claim_eligibility('45a10000-0000-4000-8000-000000000010')->>'return')::boolean then 1 else 0 end as assert_all_exchange_receipts_reopen_intake;

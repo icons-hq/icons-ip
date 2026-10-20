@@ -6,6 +6,22 @@ import { COMMUNITY_ENABLED } from './community-visibility';
 import { publicIpHref, type PublicIpReference } from './ip-identity';
 
 export const AOUAD_POPUP_PATH = '/ip/aouad';
+export const MANAGER_INVITATION_PATH = '/manager-invitation';
+
+export const routes = {
+  gifts: () => '/gifts',
+  giftNew: () => '/gifts/new',
+  gift: (id: string) => `/gifts/${encodeURIComponent(id)}`,
+  giftReceive: () => '/gifts/receive',
+  giftReceiveSession: () => '/gifts/receive/session',
+  subscriptions: () => '/my/subscriptions',
+  subscriptionNew: (goodId?: string) => goodId ? `/my/subscriptions/new?goodId=${encodeURIComponent(goodId)}` : '/my/subscriptions/new',
+  subscription: (id: string) => `/my/subscriptions/${encodeURIComponent(id)}`,
+} as const;
+
+export function categoryDisplayHref(categoryId: string): string {
+  return `/shop?displayCategory=${encodeURIComponent(categoryId)}`;
+}
 
 export interface NavItem {
   id: string;
@@ -22,7 +38,7 @@ function visibleItems(items: NavItem[]): NavItem[] {
 }
 
 /* 데스크톱 GNB — 카탈로그 진입(NEW·BEST·카테고리)을 앞에 두고 그 뒤에 세계관 표면을 잇는다. */
-export const NAV_ITEMS: NavItem[] = visibleItems([
+export const STOREFRONT_MENU_ITEMS = [
   { id: 'new', label: 'NEW' },
   { id: 'best', label: 'BEST' },
   { id: 'shop', label: '카테고리' },
@@ -30,7 +46,9 @@ export const NAV_ITEMS: NavItem[] = visibleItems([
   { id: 'packs', label: '카드팩' },
   { id: 'events', label: '이벤트' },
   { id: 'community', label: '커뮤니티' },
-]);
+  { id: 'stories', label: '쇼핑스토리' },
+] as const satisfies readonly NavItem[];
+export const NAV_ITEMS: NavItem[] = visibleItems([...STOREFRONT_MENU_ITEMS]);
 
 /* 모바일 바텀 탭 5개 — 가운데가 홈이다.
    'menu'만 라우트가 없는 액션 탭이라 링크가 아니라 전체 메뉴 시트를 연다. */
@@ -61,13 +79,19 @@ const PATHS: Record<string, string> = {
   events: '/events',
   offlinePopups: '/offline-popups',
   community: '/community',
+  stories: '/stories',
+  reviewEvents: '/review-events',
+  interests: '/interests',
   exchange: '/exchange',
   market: '/market',
   search: '/search',
   login: '/login',
+  managerInvitation: MANAGER_INVITATION_PATH,
   cart: '/cart',
   checkout: '/checkout',
   orders: '/orders',
+  gifts: '/gifts',
+  subscriptions: '/my/subscriptions',
   tickets: '/tickets',
   my: '/my',
   wish: '/my/wishlist',
@@ -85,12 +109,13 @@ const PATHS: Record<string, string> = {
 /** 함정: 미등록 id는 '/'로 폴백한다. 오타 하나가 홈 링크로 둔갑해 조용히 통과하므로 새 항목은 반드시 PATHS에 등록한다. */
 export function hrefFor(route: string, param?: string | PublicIpReference | null): string {
   if (route === 'ip') return param ? publicIpHref(param) : '/ip';
+  if (route === 'reviewEvent') return typeof param === 'string' ? `/review-events/${encodeURIComponent(param)}` : '/review-events';
   return PATHS[route] ?? '/';
 }
 
 /** hrefFor가 실제 경로를 돌려주는 id인지 — '/' 폴백과 진짜 홈('/')을 구분한다. */
 function hasPath(route: string): boolean {
-  return route === 'ip' || route in PATHS;
+  return route === 'ip' || route === 'reviewEvent' || route in PATHS;
 }
 
 /** does the given prototype route-id correspond to the current pathname? */
@@ -120,6 +145,7 @@ export function activeNavId(pathname: string, items: NavItem[] = NAV_ITEMS): str
 
 export function isAuthShellPath(pathname: string): boolean {
   return pathname === '/login'
+    || pathname === MANAGER_INVITATION_PATH
     || pathname === '/update-password'
     || pathname === '/account-suspended';
 }

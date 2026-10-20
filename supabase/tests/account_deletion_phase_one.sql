@@ -587,6 +587,15 @@ select 1 / case when exists (
       'status', 'pending',
       'total', 11000,
       'shippingFee', 0,
+      'calculationVersion', 1,
+      'volumeDiscount', 0,
+      'couponDiscount', 0,
+      'storeCredits', 0,
+      'shippingCollectTotal', 0,
+      'shippingCouponDiscount', 0,
+      'couponApplications', '[]'::jsonb,
+      'shippingCharges', '[]'::jsonb,
+      'shippingCollect', '[]'::jsonb,
       'contractedAt', (select created_at from public.orders where id = '00000000-0000-4000-8000-000000001301'),
       'items', '[]'::jsonb
     )

@@ -1,3 +1,10 @@
+import Link from 'next/link';
+import { StatsSalesGoods } from './StatsSalesGoods';
+import { adminSalesHourlyHref } from '@/lib/admin/stats-hourly';
+import { adminSalesGoodsExportDisabledReason, type AdminSalesGoodsPage } from '@/lib/admin/stats-sales-goods';
+import { StatsComparison } from '@/components/admin/StatsComparison';
+import { StatsSalesTrend } from '@/components/admin/charts/StatsSalesTrend';
+import { adminSalesTrend } from '@/lib/admin/stats';
 import { StatsRangeTabs } from '@/components/admin/StatsRangeTabs';
 import { ConsoleGrid, type ConsoleGridColumn } from '@/components/admin/console';
 import {
@@ -14,13 +21,6 @@ const DAILY_COLUMNS: ConsoleGridColumn[] = [
   { key: 'orderCount', label: '주문수', align: 'end', width: '90px' },
   { key: 'revenue', label: '매출', align: 'end', width: '130px' },
   { key: 'aov', label: '객단가', align: 'end', width: '130px' },
-];
-
-const GOODS_COLUMNS: ConsoleGridColumn[] = [
-  { key: 'name', label: '상품' },
-  { key: 'ip', label: 'IP', width: '140px' },
-  { key: 'qty', label: '수량', align: 'end', width: '90px' },
-  { key: 'revenue', label: '금액', align: 'end', width: '130px' },
 ];
 
 const OCCURRENCE_COLUMNS: ConsoleGridColumn[] = [
@@ -49,27 +49,27 @@ const TICKET_COLUMNS: ConsoleGridColumn[] = [
 export function StatsSalesScreen({
   data,
   filters,
+  comparison,
+  goods,
+  comparisonGoodsTotal,
+  now = new Date(),
 }: {
   data: AdminSalesReport;
+  goods: AdminSalesGoodsPage;
+  comparisonGoodsTotal?: number;
   filters: AdminStatsFilters;
+  now?: Date;
+  comparison?: AdminSalesReport | null;
 }) {
+  const trend = adminSalesTrend(data.daily, filters, now);
+  const periodLabel = filters.bucket === 'week' ? '주별 매출' : filters.bucket === 'month' ? '월별 매출' : '일별 매출';
   const totalRevenue = data.daily.reduce((sum, row) => sum + row.revenue, 0);
   const totalOrders = data.daily.reduce((sum, row) => sum + row.orderCount, 0);
 
   return (
     <section className="admin-console admin-stats wc-admin-kit">
-      <StatsRangeTabs base="/admin/stats/sales" filters={filters} />
-
-      {/* IP 필터는 굿즈 순위만 좁힌다. 일별 매출까지 좁히면 두 숫자가 서로 다른
-          모집단을 말하게 된다. */}
-      <form action="/admin/stats/sales" className="admin-stats-filter" method="get">
-        <input name="days" type="hidden" value={filters.days} />
-        <label>
-          <span>IP 필터 (상품 순위)</span>
-          <input defaultValue={filters.ipId} maxLength={64} name="ip" placeholder="예: hwasan" />
-        </label>
-        <button className="btn btn-ghost">적용</button>
-      </form>
+      <nav className="admin-sales-stats-views" aria-label="판매분석 조회 종류"><Link aria-current="page" href="/admin/stats/sales">기간별 판매분석</Link><Link href={adminSalesHourlyHref({ ipId: filters.ipId })}>시간대별 현황</Link></nav>
+      <StatsRangeTabs base="/admin/stats/sales" filters={filters} now={now} exportDisabledReason={adminSalesGoodsExportDisabledReason(goods.totalCount, comparisonGoodsTotal)} />
 
       <div className="admin-stats-summary">
         <div><span>기간 매출</span><strong className="mono">{krw(totalRevenue)}</strong></div>
@@ -82,6 +82,11 @@ export function StatsSalesScreen({
         </div>
       </div>
 
+      {comparison ? <StatsComparison filters={filters} now={now} rows={[
+        { label: '매출', current: totalRevenue, previous: comparison.daily.reduce((sum, row) => sum + row.revenue, 0), unit: '원' },
+        { label: '주문수', current: totalOrders, previous: comparison.daily.reduce((sum, row) => sum + row.orderCount, 0), unit: '건' },
+      ]} /> : null}
+      <StatsSalesTrend rows={trend} />
       <h3>결제수단별 비중</h3>
       {data.paymentMethods.length === 0 ? (
         <p className="admin-note">이 기간에 확정된 주문이 없습니다.</p>
@@ -98,12 +103,12 @@ export function StatsSalesScreen({
         </ul>
       )}
 
-      <h3>일별 매출</h3>
+      <h3>{periodLabel}</h3>
       <ConsoleGrid
-        caption="일별 매출"
+        caption={periodLabel} preferencesKey="stats-sales-daily"
         columns={DAILY_COLUMNS}
         emptyLabel="이 기간에 확정된 주문이 없습니다."
-        rows={data.daily.map((row) => ({
+        rows={trend.map((row) => ({
           id: row.date,
           cells: [
             <span className="mono" key="date">{row.date}</span>,
@@ -114,21 +119,7 @@ export function StatsSalesScreen({
         }))}
       />
 
-      <h3>상품별 판매 순위{filters.ipId ? ` · ${filters.ipId}` : ''}</h3>
-      <ConsoleGrid
-        caption="상품별 판매 순위"
-        columns={GOODS_COLUMNS}
-        emptyLabel="이 기간에 판매된 상품이 없습니다."
-        rows={data.goods.map((row) => ({
-          id: row.goodId,
-          cells: [
-            row.name,
-            row.ipId,
-            row.qty.toLocaleString('ko-KR'),
-            <span className="mono" key="revenue">{krw(row.revenue)}</span>,
-          ],
-        }))}
-      />
+      <StatsSalesGoods report={goods} filters={filters} now={now} comparisonTotalCount={comparisonGoodsTotal} />
 
       <h3>티켓 매출 · 이벤트</h3>
       <ConsoleGrid

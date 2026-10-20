@@ -26,3 +26,22 @@ export function settledExportFixture(): SettledExportSnapshot {
     }],
   };
 }
+
+/** Same immutable three-line order, now with volume discount and external COD. */
+export function settledExportV2Fixture(): SettledExportSnapshot {
+  const snapshot = settledExportFixture();snapshot.schemaVersion = 2;const order = snapshot.orders[0];
+  order.calculationVersion = 2;order.volumeDiscount = 2000;order.shippingCollectTotal = 2250;
+  order.total = 30001;order.payments[0].amount = 30001;order.coupon!.eligibleSubtotal = 18002;
+  order.items.forEach((item, index) => {
+    const subtotal = item.unitPrice;const volumeDiscount = index < 2 ? 1000 : 0;const couponDiscount = [501, 500, 0][index];const storeCreditDiscount = [300, 300, 400][index];
+    item.allocation = { subtotal, volumeDiscount, netSubtotal: subtotal - volumeDiscount, couponDiscount, storeCreditDiscount,
+      paidGoodsTotal: subtotal - volumeDiscount - couponDiscount - storeCreditDiscount };
+  });
+  order.shipments.forEach((shipment, index) => { shipment.shippingCollectFee = index ? 2250 : 0;shipment.collectState = index ? 'collected' : null; });
+  order.shippingComponents = [
+    { id: 'comp-a', shipmentId: order.shipments[0].id, paymentMode: 'prepaid', baseFee: 3000, regionalFee: 0, totalFee: 3000 },
+    { id: 'comp-b', shipmentId: order.shipments[1].id, paymentMode: 'prepaid', baseFee: 2000, regionalFee: 0, totalFee: 2000 },
+    { id: 'comp-c', shipmentId: order.shipments[1].id, paymentMode: 'collect', baseFee: 2000, regionalFee: 250, totalFee: 2250 },
+  ];
+  return snapshot;
+}

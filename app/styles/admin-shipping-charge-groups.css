@@ -1,0 +1,74 @@
+.wc-admin .admin-shipping-charge-groups { display: grid; min-width: 0; gap: 16px; }
+.wc-admin .admin-shipping-charge-groups__heading { display: grid; min-width: 0; gap: 6px; }
+.wc-admin .admin-shipping-charge-groups__heading h2 { margin: 0; font-size: 18px; font-weight: 600; }
+.wc-admin :is(.admin-shipping-charge-groups__heading p, .admin-shipping-charge-groups__hint, .admin-shipping-charge-group-editor p, .admin-shipping-charge-group-field p) { margin: 0; font-size: 12px; line-height: 1.7; color: var(--wc-ink-sub); overflow-wrap: anywhere; }
+.wc-admin .admin-shipping-charge-groups__filters { display: grid; min-width: 0; grid-template-columns: minmax(140px, 1fr) minmax(140px, 1fr) minmax(220px, 2fr); gap: 14px 18px; padding: 20px; border: 1px solid var(--wc-hairline); background: var(--wc-surface); }
+.wc-admin :is(.admin-shipping-charge-groups__filters label, .admin-shipping-charge-group-editor label, .admin-shipping-charge-group-field label) { display: grid; min-width: 0; align-content: start; gap: 7px; font-size: 12px; font-weight: 600; }
+.wc-admin :is(.admin-shipping-charge-groups__filters, .admin-shipping-charge-group-editor, .admin-shipping-charge-group-field) :is(input:not([type='checkbox']):not([type='radio']), select, textarea) { box-sizing: border-box; width: 100%; min-width: 0; max-width: 100%; }
+.wc-admin :is(.admin-shipping-charge-groups__actions, .admin-shipping-charge-groups__pagination, .admin-shipping-charge-group-field__actions) { display: flex; min-width: 0; flex-wrap: wrap; align-items: center; gap: 8px; }
+.wc-admin .admin-shipping-charge-groups__filter-actions { grid-column: 1 / -1; display: flex; justify-content: center; gap: 8px; }
+.wc-admin .admin-shipping-charge-groups__results { min-width: 0; border: 1px solid var(--wc-hairline); background: var(--wc-surface); }
+.wc-admin .admin-shipping-charge-groups__result-heading { display: flex; min-width: 0; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; padding: 16px 20px; border-bottom: 1px solid var(--wc-hairline); }
+.wc-admin .admin-shipping-charge-groups__result-heading h3 { margin: 0; font-size: 14px; }
+.wc-admin .admin-shipping-charge-groups__result-heading h3 span { margin-left: 8px; color: var(--wc-ink-sub); font-size: 12px; font-weight: 400; }
+.wc-admin .admin-shipping-charge-groups__table { min-width: 0; max-width: 100%; overflow: auto; }
+.wc-admin .admin-shipping-charge-groups__table table { width: 100%; min-width: 740px; border-collapse: collapse; font-size: 12px; }
+.wc-admin .admin-shipping-charge-groups__table caption { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.wc-admin .admin-shipping-charge-groups__table th { background: var(--wc-surface-grey); font-weight: 600; }
+.wc-admin .admin-shipping-charge-groups__table :is(th, td) { padding: 12px 14px; border-bottom: 1px solid var(--wc-hairline); text-align: left; vertical-align: top; overflow-wrap: anywhere; }
+.wc-admin .admin-shipping-charge-groups__table button.btn { white-space: nowrap; }
+.wc-admin .admin-shipping-charge-groups__table small { display: block; margin-top: 4px; color: var(--wc-ink-sub); font-weight: 400; }
+.wc-admin .admin-shipping-charge-groups__badge { display: inline-flex; align-items: center; padding: 2px 6px; border: 1px solid var(--wc-hairline); background: var(--wc-surface-grey); color: var(--wc-ink-sub); font-size: 11px; font-weight: 600; }
+.wc-admin .admin-shipping-charge-groups__empty { margin: 0; padding: 32px 20px; color: var(--wc-ink-sub); font-size: 13px; text-align: center; }
+.wc-admin .admin-shipping-charge-groups__pagination { justify-content: center; padding: 16px; font-size: 12px; }
+.wc-admin .admin-shipping-charge-group-editor { display: grid; min-width: 0; gap: 16px; }
+.wc-admin .admin-shipping-charge-group-assignment { display: grid; min-width: 0; gap: 16px; }
+.wc-admin .admin-shipping-charge-group-assignment p { margin: 0; font-size: 12px; line-height: 1.7; overflow-wrap: anywhere; }
+.wc-admin .admin-shipping-charge-group-assignment label { display: grid; min-width: 0; gap: 7px; font-size: 12px; }
+.wc-admin .admin-shipping-charge-group-assignment :is(input:not([type='checkbox']), select) { width: 100%; min-width: 0; }
+.wc-admin .admin-shipping-charge-group-editor fieldset { display: grid; min-width: 0; gap: 14px; padding: 0; border: 0; margin: 0; }
+.wc-admin .admin-shipping-charge-group-editor__grid { display: grid; min-width: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.wc-admin .admin-shipping-charge-group-editor__full { grid-column: 1 / -1; }
+.wc-admin .admin-shipping-charge-group-editor .admin-shipping-charge-group-editor__check { display: flex; align-items: flex-start; gap: 8px; font-weight: 400; }
+.wc-admin .admin-shipping-charge-group-editor__check input { flex: none; margin-top: 3px; }
+.wc-admin .admin-shipping-charge-group-editor__radio-options { display: flex; flex-wrap: wrap; gap: 12px 20px; }
+.wc-admin .admin-shipping-charge-group-editor__radio-options label { display: flex; align-items: center; gap: 7px; }
+.wc-admin .admin-shipping-charge-group-editor__region { display: grid; min-width: 0; gap: 14px; padding: 16px; border: 1px solid var(--wc-hairline); background: var(--wc-surface); }
+.wc-admin .admin-shipping-charge-group-editor__region h3 { margin: 0; font-size: 14px; }
+.wc-admin .admin-shipping-charge-group-editor__tsv { font-family: var(--wc-font); font-size: 12px; line-height: 1.6; white-space: pre; overflow: auto; resize: vertical; }
+.wc-admin .admin-shipping-charge-group-editor__problems { margin: 0; padding-left: 20px; color: var(--wc-danger); font-size: 12px; line-height: 1.7; }
+.wc-admin .admin-shipping-charge-group-field { display: grid; min-width: 0; gap: 10px; }
+.wc-admin .admin-shipping-charge-group-field__search { display: flex; min-width: 0; align-items: end; gap: 8px; }
+.wc-admin .admin-shipping-charge-group-field__search label { flex: 1; }
+.wc-admin .admin-shipping-charge-group-field__choices { display: grid; min-width: 0; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.wc-admin .admin-shipping-charge-group-field__choice { display: grid; min-width: 0; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 12px; padding: 12px; border: 1px solid var(--wc-hairline); }
+.wc-admin .admin-shipping-charge-group-field__choice strong { font-size: 13px; overflow-wrap: anywhere; }
+.wc-admin .admin-shipping-charge-group-field__choice small { display: block; margin-top: 4px; font-size: 12px; color: var(--wc-ink-sub); overflow-wrap: anywhere; }
+.wc-admin :is(.admin-shipping-charge-group-summary, .admin-shipping-charge-groups__notice, .admin-shipping-charge-groups__recovery) { display: grid; min-width: 0; gap: 6px; padding: 14px; border: 1px solid var(--wc-hairline); background: var(--wc-surface-grey); font-size: 12px; line-height: 1.7; overflow-wrap: anywhere; }
+.wc-admin :is(.admin-shipping-charge-group-summary, .admin-shipping-charge-groups__notice, .admin-shipping-charge-groups__recovery) p { margin: 0; }
+.wc-admin .admin-shipping-charge-group-summary dl { display: grid; grid-template-columns: max-content minmax(0, 1fr); gap: 4px 12px; margin: 0; }
+.wc-admin .admin-shipping-charge-group-summary dd { margin: 0; }
+.wc-admin .admin-shipping-charge-group-summary dt { color: var(--wc-ink-sub); }
+.wc-admin .admin-shipping-charge-groups__error { margin: 0; color: var(--wc-danger); font-size: 12px; line-height: 1.7; overflow-wrap: anywhere; }
+.wc-admin .admin-shipping-charge-groups__muted { color: var(--wc-ink-sub); }
+@media (max-width: 760px) {
+  .wc-admin .admin-shipping-charge-groups__filters { grid-template-columns: repeat(2, minmax(0, 1fr)); padding: 16px; gap: 12px; }
+  .wc-admin .admin-shipping-charge-groups__filter-query { grid-column: 1 / -1; }
+}
+@media (max-width: 600px) {
+  .wc-admin .admin-shipping-charge-group-editor__grid { grid-template-columns: minmax(0, 1fr); }
+  .wc-admin .admin-shipping-charge-groups__result-heading { padding: 14px; }
+  .wc-admin .admin-shipping-charge-group-editor__region { padding: 12px; }
+  .wc-admin .admin-shipping-charge-group-field__search { flex-wrap: wrap; }
+  .wc-admin .admin-shipping-charge-group-field__search label { flex-basis: 100%; }
+  .wc-admin .admin-shipping-charge-groups__actions .btn { flex: 1 1 auto; }
+  .wc-admin .admin-shipping-charge-group-summary dl { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+  .wc-admin .admin-shipping-charge-group-summary dd { margin-bottom: 6px; }
+}
+@media (forced-colors: active) {
+  .wc-admin :is(.admin-shipping-charge-groups__filters, .admin-shipping-charge-groups__results, .admin-shipping-charge-groups__badge, .admin-shipping-charge-group-editor__region, .admin-shipping-charge-group-field__choice, .admin-shipping-charge-group-summary, .admin-shipping-charge-groups__notice, .admin-shipping-charge-groups__recovery) { border-color: CanvasText; }
+}
+@media print {
+  .wc-admin :is(.admin-shipping-charge-groups__filters, .admin-shipping-charge-groups__actions, .admin-shipping-charge-groups__pagination, .admin-shipping-charge-group-field__actions) { display: none; }
+  .wc-admin .admin-shipping-charge-groups__table { overflow: visible; }
+}

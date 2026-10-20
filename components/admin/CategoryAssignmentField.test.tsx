@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { expect, it } from 'vitest';
-import { CategoryAssignmentField, createPrimaryChangeAnnouncer } from './CategoryAssignmentField';
+import { CategoryAssignmentField, createPrimaryChangeAnnouncer, searchAssignableCategories } from './CategoryAssignmentField';
 const categories = [
   { id: 'primary', name: '문구', code: 'paper', parentId: null, depth: 1, childCount: 0, sortOrder: 0, archivedAt: null, updatedAt: '', assignedGoodCount: 1 },
   { id: 'extra', name: '신학기', code: 'school', parentId: null, depth: 1, childCount: 0, sortOrder: 0, archivedAt: '2026-09-01', updatedAt: '', assignedGoodCount: 1 },
@@ -22,6 +22,30 @@ it('상위에서 대표 카테고리를 제어하면 그 값을 선택하고 같
   expect(html).not.toContain('선물 추가 분류 해제');
   const uncontrolled = renderToStaticMarkup(<CategoryAssignmentField categories={active} value="primary" primary="gift" />);
   expect(uncontrolled).toMatch(/<option value="primary" selected="">/);
+});
+
+it('카테고리 검색은 이름·상위 경로·코드를 함께 찾고 말단과 활성 계층만 선택한다', () => {
+  const source = [
+    { ...categories[0], id: 'root', name: '문구', code: 'stationery', childCount: 2 },
+    { ...categories[0], id: 'note', name: '노트', code: 'note-a', parentId: 'root', depth: 2 },
+    { ...categories[0], id: 'pen', name: '펜', code: 'pen-b', parentId: 'root', depth: 2 },
+    { ...categories[0], id: 'old-root', name: '이전 문구', code: 'old-root', childCount: 1, archivedAt: '2026-10-20' },
+    { ...categories[0], id: 'old-note', name: '노트', code: 'old-note', parentId: 'old-root', depth: 2 },
+  ];
+  expect(searchAssignableCategories(source, '문구 노트').map(row => row.id)).toEqual(['note']);
+  expect(searchAssignableCategories(source, 'ＮＯＴＥ－Ａ').map(row => row.id)).toEqual(['note']);
+  expect(searchAssignableCategories(source, '문구').map(row => row.id)).toEqual(['note', 'pen']);
+  expect(searchAssignableCategories(source, '   ')).toEqual([]);
+});
+
+it('검색·선택·템플릿 진입을 제공하면서 폼의 대표 카테고리 값은 보존한다', () => {
+  const html = renderToStaticMarkup(<CategoryAssignmentField categories={categories} value="primary" />);
+  expect(html).toContain('카테고리명 검색');
+  expect(html).toContain('카테고리명 선택');
+  expect(html).toContain('카테고리 템플릿');
+  expect(html).toContain('name="categoryId"');
+  expect(html).toMatch(/<option value="primary" selected="">/);
+  expect(html).toContain('선택 해제');
 });
 
 /* 2026-10-07 리뷰: 'ERP 카테고리로 바꾸기'는 select의 change 이벤트 없이 값만 바꿔 브라우저 복구 기록·미리보기 관찰에 잡히지 않았다. */

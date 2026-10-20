@@ -1,0 +1,84 @@
+.wc-admin .admin-relation-editor { display: grid; gap: 20px; }
+.wc-admin .admin-relation-editor > fieldset { margin: 0; padding: 0; min-width: 0; border: 1px solid var(--wc-hairline); background: var(--wc-surface); }
+.wc-admin .admin-relation-editor > fieldset > legend { padding: 14px; font-weight: 600; }
+.wc-admin .admin-relation-field { display: grid; grid-template-columns: 150px minmax(0, 1fr); gap: 24px; padding: 22px 24px; border-top: 1px solid var(--wc-hairline); }
+.wc-admin .admin-relation-field > :first-child { font-size: 13px; font-weight: 600; }
+.wc-admin .admin-relation-field > div { min-width: 0; display: grid; gap: 12px; }
+.wc-admin .admin-relation-field p { margin: 0; font-size: 12px; line-height: 1.6; }
+.wc-admin .admin-relation-field small, .wc-admin .admin-relation-table small, .wc-admin .admin-relation-savebar small { display: block; color: var(--wc-ink-tertiary); font-size: 12px; overflow-wrap: anywhere; }
+.wc-admin .admin-relation-field input:not([type='radio']) { max-width: 100%; width: min(100%, 440px); }
+.wc-admin .admin-relation-field .admin-relation-inline, .wc-admin .admin-relation-toolbar { display: flex; align-items: center; flex-wrap: wrap; gap: 14px; }
+.wc-admin .admin-relation-inline > p { flex-basis: 100%; }
+.wc-admin .admin-relation-inline label { display: flex; align-items: center; gap: 6px; }
+.wc-admin .admin-relation-period { display: flex; flex-wrap: wrap; gap: 16px; }
+.wc-admin .admin-relation-period label { display: grid; gap: 6px; min-width: 0; font-size: 12px; }
+.wc-admin .admin-relation-table { overflow: auto; max-height: 510px; border: 1px solid var(--wc-hairline); }
+.wc-admin .admin-relation-table table { min-width: 720px; width: 100%; border-collapse: collapse; font-size: 12px; }
+.wc-admin .admin-relation-table caption { text-align: left; padding: 10px; }
+.wc-admin .admin-relation-table :is(th,td) { padding: 12px; text-align: left; vertical-align: middle; border-top: 1px solid var(--wc-hairline); }
+.wc-admin .admin-relation-table th { background: var(--wc-surface-grey); font-weight: 600; white-space: nowrap; }
+.wc-admin .admin-relation-table > p { padding: 20px; }
+.wc-admin .admin-relation-good { display: flex; align-items: center; gap: 12px; }
+.wc-admin .admin-relation-good img, .wc-admin .admin-relation-good__placeholder { width: 48px; height: 48px; flex: none; object-fit: contain; background: var(--wc-surface-grey); }
+.wc-admin .admin-relation-good__placeholder { display: grid; place-items: center; font-size: 10px; color: var(--wc-ink-tertiary); }
+.wc-admin .admin-relation-row-actions { display: flex; gap: 6px; white-space: nowrap; }
+.wc-admin .admin-relation-composition-label { min-width:180px; }
+.wc-admin .admin-relation-row-actions button, .wc-admin .admin-relation-picker__pages button { padding: 6px 9px; border: 1px solid var(--wc-line-control); background: var(--wc-surface); }
+.wc-admin .admin-relation-savebar { position: sticky; bottom: 0; z-index: 8; display: flex; justify-content: space-between; align-items: center; gap: 20px; padding: 16px 24px; border: 1px solid var(--wc-line-control); background: var(--wc-surface); }
+.wc-admin .admin-relation-savebar > div:last-child { display: flex; flex: none; gap: 8px; }
+.wc-admin .admin-relation-savebar p { margin: 0 0 6px; }
+.wc-admin .admin-goods-relations [role='alert'], .wc-admin .admin-relation-picker [role='alert'] { color: var(--wc-danger); }
+.wc-admin .admin-relation-savebar [role='status'] { color: var(--wc-success); }
+.wc-admin .admin-relation-picker { display: grid; gap: 16px; }
+.wc-admin .admin-relation-picker p { margin: 0; font-size: 13px; }
+.wc-admin .admin-relation-picker__search { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.wc-admin .admin-relation-picker__search input { flex: 1; min-width: 0; }
+.wc-admin .admin-relation-picker__pages, .wc-admin .admin-relation-picker__actions { display: flex; align-items: center; justify-content: center; gap: 12px; }
+.wc-admin .admin-relation-preview { display: grid; gap: 16px; font-size: 14px; line-height: 1.7; }
+.wc-admin .admin-relation-preview > .admin-relation-inline { display: flex; gap: 8px; }
+.wc-admin .admin-relation-preview > .admin-relation-inline button { min-height: 40px; padding: 8px 16px; border: 1px solid var(--wc-line-control); background: var(--wc-surface); }
+.wc-admin .admin-relation-preview > .admin-relation-inline button[aria-pressed='true'] { border-color: var(--wc-accent); color: var(--wc-accent); font-weight: 600; }
+.wc-admin .admin-relation-preview ul { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; padding: 0; list-style: none; }
+.wc-admin .admin-relation-preview li { padding: 18px; border: 1px solid var(--wc-hairline); }
+.wc-admin .admin-relation-preview li small { display:block; margin-top:6px; color:var(--wc-ink-sub); overflow-wrap:anywhere; }
+.wc-admin .admin-relation-preview__current { display:grid; gap:8px; max-width:440px; font-size:13px; }
+@media (max-width: 760px) { .wc-admin .admin-relation-savebar { bottom: 56px; } }
+@media (max-width: 749px) {
+  .wc-admin .admin-relation-field { grid-template-columns: minmax(0, 1fr); gap: 12px; padding: 18px 14px; }
+  .wc-admin .admin-relation-period { display: grid; grid-template-columns: minmax(0, 1fr); }
+  .wc-admin .admin-relation-savebar { align-items: stretch; flex-direction: column; padding: 14px; }
+  .wc-admin .admin-relation-savebar > div:last-child { justify-content: flex-end; }
+  .wc-admin .admin-relation-picker__search label { flex-basis: 100%; }
+}
+@media (forced-colors: active) {
+  .wc-admin .admin-relation-editor > fieldset, .wc-admin .admin-relation-savebar, .wc-admin .admin-relation-table { border-color: CanvasText; }
+}
+@media print { .wc-admin .admin-relation-savebar { position: static; } }
+.wc-admin .admin-relation-visual-editor { display: grid; gap: 14px; }
+.wc-admin .admin-relation-visual-editor > label { display: grid; gap: 8px; font-size: 13px; }
+.wc-admin .admin-relation-visual-editor textarea { width: 100%; max-width: 640px; padding: 10px; border: 1px solid var(--wc-line-control); border-radius: 2px; resize: vertical; }
+.wc-admin .admin-relation-visual-editor__workspace { display: grid; grid-template-columns: minmax(0, 1.3fr) minmax(240px, 1fr); gap: 22px; align-items: start; }
+.wc-admin .admin-relation-visual-editor__image { width: 100%; max-width: 640px; margin: 0 auto; }
+.wc-admin .admin-relation-visual-editor__image[data-kind='codi'] { max-width: 420px; }
+.wc-admin .admin-relation-visual-editor__points { min-width: 0; display: grid; gap: 12px; }
+.wc-admin .admin-relation-visual-editor__points h3 { margin: 0; font-size: 15px; }
+.wc-admin .admin-relation-point-row { display: grid; gap: 10px; padding: 12px; border: 1px solid var(--wc-hairline); background: var(--wc-surface); }
+.wc-admin .admin-relation-point-row[data-selected='true'] { border-color: var(--wc-accent); background: var(--wc-accent-tint); }
+.wc-admin .admin-relation-point-row strong { font-size: 12px; }
+.wc-admin .admin-relation-point-row > button { justify-self: start; border: 1px solid var(--wc-line-control); padding: 7px 10px; background: var(--wc-surface); font-size: 12px; }
+.wc-admin .admin-relation-point-row__coordinates { display: grid; grid-template-columns: repeat(2, minmax(0,1fr)); gap: 12px; }
+.wc-admin .admin-relation-point-row__coordinates label { display: grid; gap: 6px; font-size: 12px; }
+.wc-admin .admin-relation-point-row__coordinates input { min-width: 0; padding: 8px; }
+.wc-admin .admin-relation-visual-editor__empty { padding: 24px; border: 1px dashed var(--wc-line-control); color: var(--wc-ink-tertiary); }
+.wc-admin .admin-relation-preview__surface { display: grid; gap: 16px; width: 100%; max-width: 720px; margin: auto; }
+.wc-admin .admin-relation-preview__surface[data-mobile='true'] { width: 390px; max-width: 100%; }
+.wc-admin .admin-relation-preview__surface h3, .wc-admin .admin-relation-preview__surface p { margin: 0; }
+@media(max-width:1050px) { .wc-admin .admin-relation-visual-editor__workspace { grid-template-columns: minmax(0,1fr); } }
+.wc-admin .admin-goods-relations__export { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; min-width: 0; }
+.wc-admin .admin-goods-relations__export small { color: var(--wc-ink-sub); overflow-wrap: anywhere; }
+.wc-admin .admin-goods-relations__export p { width: 100%; margin: 0; overflow-wrap: anywhere; }
+@media (max-width: 749px) {
+  .wc-admin .admin-goods-relations .admin-cs-results__toolbar { flex-direction: column; align-items: stretch; }
+  .wc-admin .admin-goods-relations__export { align-items: flex-start; }
+  .wc-admin .admin-goods-relations__export small { width: 100%; }
+}

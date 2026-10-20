@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { COMMUNITY_ENABLED } from '@/lib/community-visibility';
 import { SUGGESTED_SEARCH_TERMS } from '@/lib/search-terms';
+import type { StorefrontNavigation } from '@/lib/store-navigation';
 import { Nav } from './Nav';
 import { MenuSheet } from './MenuSheet';
 import { SearchOverlay } from './SearchOverlay';
@@ -205,12 +206,11 @@ describe('White Catalog 전역 셸', () => {
     expect(html).toContain('data-condensed="false"');
   });
 
-  it('전체 메뉴 시트가 쇼핑·세계·내 활동·거래 그룹과 인증 액션을 담는다', () => {
+  it('전체 메뉴 시트가 스토어·내 활동·거래 그룹과 인증 액션을 담는다', () => {
     const html = renderToStaticMarkup(<MenuSheet cardRewardsEnabled onClose={vi.fn()} open />);
 
     expect(html).toContain('aria-label="전체 메뉴"');
-    expect(html).toContain('쇼핑');
-    expect(html).toContain('세계');
+    expect(html).toContain('스토어');
     expect(html).toContain('내 활동');
     expect(html).toContain('거래');
     expect(html).toContain('href="/orders"');
@@ -223,6 +223,30 @@ describe('White Catalog 전역 셸', () => {
     expect(
       renderToStaticMarkup(<MenuSheet cardRewardsEnabled={false} onClose={vi.fn()} open />),
     ).not.toContain('href="/packs"');
+  });
+
+  it('설정된 메뉴 순서와 이름을 PC·모바일·메뉴시트에서 공유하고 기능 게이트를 우선한다', () => {
+    const navigation: StorefrontNavigation = [
+      { id: 'events', label: '합성 행사' }, { id: 'best', label: '합성 인기' },
+      { id: 'shop', label: '합성 분류' }, { id: 'packs', label: '숨길 카드' }, { id: 'community', label: '숨길 커뮤니티' },
+    ];
+    mocks.cardRewardsEnabled = false;
+    const html = renderToStaticMarkup(<Nav navigation={navigation} />);
+    for (const label of ['주요 메뉴', '주요 메뉴 탭']) {
+      const section = html.slice(html.indexOf(`aria-label="${label}"`));
+      expect(section.indexOf('합성 행사')).toBeLessThan(section.indexOf('합성 인기'));
+      expect(section.indexOf('합성 인기')).toBeLessThan(section.indexOf('합성 분류'));
+    }
+    expect(html).not.toContain('href="/shop/new"');
+    expect(html).not.toContain('숨길 카드');
+    expect(html.includes('숨길 커뮤니티')).toBe(COMMUNITY_ENABLED);
+    const sheet = renderToStaticMarkup(<MenuSheet navigation={navigation} cardRewardsEnabled={false} onClose={vi.fn()} open />);
+    expect(sheet.indexOf('합성 행사')).toBeLessThan(sheet.indexOf('합성 인기'));
+    expect(sheet.indexOf('합성 인기')).toBeLessThan(sheet.indexOf('합성 분류'));
+    expect(sheet).not.toContain('href="/shop/new"');
+    expect(sheet).not.toContain('숨길 카드');
+    expect(sheet.includes('숨길 커뮤니티')).toBe(COMMUNITY_ENABLED);
+    expect(sheet).toContain('href="/orders"');
   });
 
   it('검색 오버레이는 열렸을 때만 통합 검색 다이얼로그를 세운다', () => {

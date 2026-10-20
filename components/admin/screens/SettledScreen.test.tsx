@@ -1,7 +1,9 @@
 import { renderToStaticMarkup } from 'react-dom/server';
+import { Children, isValidElement, type ReactElement, type ReactNode } from 'react';
 import { describe, expect, it } from 'vitest';
 import type { AdminSettledConsoleData } from '@/lib/admin/settled';
 import { SettledScreen } from './SettledScreen';
+import { SalesResultsHeader } from '@/components/admin/sales/SalesConsole';
 
 const ORDER_ID = '11111111-1111-4111-8111-111111111111';
 const NOW = new Date('2026-08-18T06:00:00.000Z');
@@ -24,6 +26,30 @@ function data(overrides: Partial<AdminSettledConsoleData> = {}): AdminSettledCon
 }
 
 describe('SettledScreen', () => {
+  it('조회 조건이 바뀌어도 정렬 폼과 다운로드 폼의 형제 키가 충돌하지 않는다', () => {
+    function elements(node: ReactNode): ReactElement<{ children?: ReactNode }>[] {
+      return Array.isArray(node) ? node.flatMap(elements) : isValidElement<{ children?: ReactNode }>(node)
+        ? [node, ...elements(node.props.children)] : [];
+    }
+    for (const field of ['recipient', 'product'] as const) {
+      const screen = SettledScreen({ data: data({ filters: { from: null, to: null, query: 'GAP1530', page: 1, field } }), exportRequestId: ORDER_ID, now: NOW });
+      const header = elements(screen).find(node => node.type === SalesResultsHeader) as ReactElement<Parameters<typeof SalesResultsHeader>[0]>;
+      const rendered = SalesResultsHeader(header.props);
+      const keys = Children.toArray(rendered.props.children).filter(isValidElement).map(child => child.key);
+      expect(new Set(keys).size).toBe(keys.length);
+    }
+  });
+  it('검색 대상 선택과 엑셀·페이지·상세 복귀가 같은 조건을 유지한다', () => {
+    const filters = { from: '2026-10-02', to: '2026-10-02', query: 'GAP1530', page: 2, field: 'recipient' as const };
+    const html = renderToStaticMarkup(<SettledScreen data={data({ filters, total: 21 })}
+      exportRequestId="10000000-0000-4000-8000-000000004951" now={NOW} />);
+    expect(html).toContain('<option value="recipient" selected="">수취인</option>');
+    expect(html).toContain('name="field" value="recipient"');
+    expect(html).toContain('field=recipient');
+    expect(html).toContain('field%3Drecipient');
+    const search = html.slice(html.indexOf('class="admin-sales-filters"'), html.indexOf('</form>'));
+    expect((search.match(/name="field"/g) ?? [])).toHaveLength(1);
+  });
   it('확정일과 하자 클레임 잔여 기한을 함께 보여준다', () => {
     const html = renderToStaticMarkup(<SettledScreen data={data()} now={NOW} />);
 
@@ -39,9 +65,9 @@ describe('SettledScreen', () => {
   it('거래확정이 클레임 종료가 아님을 화면에서 말한다', () => {
     const html = renderToStaticMarkup(<SettledScreen data={data()} now={NOW} />);
 
-    expect(html).toContain('공급받은 날부터 3개월');
-    expect(html).toContain('배송완료 8일 뒤 자동');
-    expect(html).toContain('에스크로의 구매확정과 구분합니다.');
+    expect(html).toContain('배송일과 사유별 신청 기한');
+    expect(html).toContain('자동 확정은 기본 꺼짐');
+    expect(html).toContain('판매대금 지급 완료나 반품·교환 권리의 소멸을 뜻하지 않습니다.');
   });
 
   it('3개월이 지난 주문은 기한 종료로 표기한다', () => {
@@ -88,7 +114,7 @@ describe('SettledScreen', () => {
       exportRequestId="10000000-0000-4000-8000-000000004951" now={NOW} />);
     expect(html).toContain('목록 엑셀 다운로드');
     /* 다른 주문·배송 목록처럼 필터 바로 아래, 안내 문단보다 앞에 둔다. */
-    expect(html.indexOf('목록 엑셀 다운로드')).toBeLessThan(html.indexOf('배송완료 8일 뒤'));
+    expect(html.indexOf('목록 엑셀 다운로드')).toBeLessThan(html.indexOf('자동 확정은 기본 꺼짐'));
     expect(html).toContain('현재 조회 조건의 전체 페이지');
     expect(html).toContain('name="from" value="2026-09-01"');
     expect(html).toContain('name="query" value="0000"');

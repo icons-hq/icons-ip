@@ -18,14 +18,14 @@ function LegendDot({ color, label }: { color: string; label: string }) {
   );
 }
 
-export function RevenueTrend({ data }: { data: AdminDailyRevenue[] }) {
+export function RevenueTrend({ data, days = 30 }: { data: AdminDailyRevenue[]; days?: number }) {
   const hasRevenue = data.some(day => day.goods !== 0 || day.tickets !== 0);
   return (
     <div className="card wc-admin-kit wc-admin-kit__card admin-overview-panel">
       <header className="admin-overview-panel__heading">
         <div>
           <h3 className="admin-overview-panel__title">매출 추이</h3>
-          <p className="admin-overview-panel__description">최근 30일 · 결제 완료 기준</p>
+          <p className="admin-overview-panel__description">최근 {days}일 · 결제 완료 기준</p>
         </div>
         <div className="admin-overview-legend">
           <LegendDot color="var(--wc-info)" label="상품" />
@@ -81,7 +81,7 @@ export function RevenueTrend({ data }: { data: AdminDailyRevenue[] }) {
           </AreaChart>
         </ResponsiveContainer>
       </div> : <div className="admin-revenue-empty" role="status">
-        <strong>최근 30일 결제 완료 매출이 없습니다.</strong>
+        <strong>최근 {days}일 결제 완료 매출이 없습니다.</strong>
         <p>결제가 완료되면 날짜별 매출이 여기에 표시됩니다.</p>
       </div>}
     </div>

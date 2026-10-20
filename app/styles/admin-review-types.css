@@ -1,0 +1,10 @@
+@layer components {
+ .wc-admin .admin-review-type-policy { margin-block: 12px; padding: 16px; }
+ .wc-admin .admin-review-type-policy > summary { cursor: pointer; font-weight: 700; }
+ .wc-admin .admin-review-type-policy p { font-size: 13px; line-height: 1.65; margin-block: 12px; }
+ .wc-admin .admin-review-type-policy fieldset { border: 1px solid var(--wc-line-control); padding: 16px; margin-block: 14px; min-width: 0; }
+ .wc-admin .admin-review-type-policy legend { font-size: 14px; padding-inline: 6px; }
+ .wc-admin .admin-review-type-policy__check { display: flex; align-items: flex-start; gap: 8px; margin-block: 12px; font-size: 13px; }
+ .wc-admin .admin-review-type-policy__check input { flex: none; margin-top: 3px; }
+ @media (max-width: 640px) { .wc-admin .admin-review-type-policy { padding: 12px; } .wc-admin .admin-review-type-policy fieldset { padding: 10px; } }
+}

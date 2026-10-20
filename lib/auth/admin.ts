@@ -3,6 +3,7 @@ import 'server-only';
 import { cache } from 'react';
 import { getSupabaseConfig } from '@/lib/supabase/config';
 import { createClient } from '@/lib/supabase/server';
+import { NO_OPERATOR_ACCESS, parseOperatorAccess, type OperatorAccess } from '@/lib/admin/access';
 
 export type AdminRole = 'user' | 'staff' | 'admin';
 
@@ -14,6 +15,7 @@ export interface CurrentAdminAuthState {
   } | null;
   role: AdminRole | null;
   isStaff: boolean;
+  operatorAccess?: OperatorAccess;
 }
 
 interface AdminProfileRow {
@@ -28,7 +30,7 @@ interface AdminProfileRow {
  */
 export const getCurrentAdminAuthState = cache(async (): Promise<CurrentAdminAuthState> => {
   if (!getSupabaseConfig().isConfigured) {
-    return { isConfigured: false, user: null, role: null, isStaff: false };
+    return { isConfigured: false, user: null, role: null, isStaff: false, operatorAccess: NO_OPERATOR_ACCESS };
   }
 
   const supabase = await createClient();
@@ -36,7 +38,7 @@ export const getCurrentAdminAuthState = cache(async (): Promise<CurrentAdminAuth
   const user = data.user;
 
   if (error || !user) {
-    return { isConfigured: true, user: null, role: null, isStaff: false };
+    return { isConfigured: true, user: null, role: null, isStaff: false, operatorAccess: NO_OPERATOR_ACCESS };
   }
 
   const { data: profile } = await supabase
@@ -45,6 +47,15 @@ export const getCurrentAdminAuthState = cache(async (): Promise<CurrentAdminAuth
     .eq('id', user.id)
     .maybeSingle<AdminProfileRow>();
   const role = profile?.role ?? null;
+  let operatorAccess = NO_OPERATOR_ACCESS;
+  if (profile && !profile.suspended_at && (role === 'staff' || role === 'admin')) {
+    try {
+      const access = await supabase.rpc('admin_current_operator_access');
+      if (!access.error) operatorAccess = parseOperatorAccess(access.data) ?? NO_OPERATOR_ACCESS;
+    } catch {
+      // An unavailable authority source never restores the old raw-role grant.
+    }
+  }
 
   return {
     isConfigured: true,
@@ -53,6 +64,7 @@ export const getCurrentAdminAuthState = cache(async (): Promise<CurrentAdminAuth
       email: user.email ?? null,
     },
     role,
-    isStaff: !profile?.suspended_at && (role === 'staff' || role === 'admin'),
+    isStaff: !profile?.suspended_at && operatorAccess.mode !== 'none' && operatorAccess.capabilities.includes('home'),
+    operatorAccess,
   };
 });

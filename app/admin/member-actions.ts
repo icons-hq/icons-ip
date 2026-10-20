@@ -11,6 +11,7 @@ import {
   type AdminMemberSummary,
 } from '@/lib/admin/members';
 import { getAdminMemberDetail, getAdminMemberSummaries } from '@/lib/admin/members.server';
+import { hasAdminCapability } from '@/lib/admin/access';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
 import { createClient } from '@/lib/supabase/server';
 
@@ -33,7 +34,7 @@ export interface AdminMemberMutationActionState {
 async function requireStaffAction(): Promise<AdminMemberMutationActionState | null> {
   const auth = await getCurrentAdminAuthState();
   if (!auth.isConfigured || !auth.user) redirect(`/login?next=${encodeURIComponent('/admin')}`);
-  if (!auth.isStaff) return { errors: { form: '관리자 권한이 필요합니다.' } };
+  if (!auth.isStaff || !hasAdminCapability(auth, 'platform.manage')) return { errors: { form: '관리자 권한이 필요합니다.' } };
   return null;
 }
 
@@ -86,6 +87,9 @@ export async function loadAdminMemberDetailAction(
 }
 
 function suspensionRpcError(message: string): string {
+  if (message.includes('operator_manager_change_required')) {
+    return '통합 매니저와 계정 주매니저는 먼저 매니저 관리에서 승계 또는 역할 변경을 진행해주세요.';
+  }
   if (message.includes('cannot_suspend_self') || message.includes('cannot_suspend_admin')) {
     return '본인 또는 admin 계정은 정지할 수 없습니다.';
   }

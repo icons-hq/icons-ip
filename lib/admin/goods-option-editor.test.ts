@@ -5,6 +5,17 @@ import {
   predictGoodsOptionCodes, selectErpItemForGoodsOption, type GoodsOptionRow,
 } from './goods-option-editor';
 describe('goods option editing', () => {
+  it('세 축을 조합하면서 같은 조합의 옵션 식별자·가격·재고를 보존한다', () => {
+    const existing = { id: '11111111-1111-4111-8111-111111111111', name: '빨강 / M / 기본', code: 'THREE-01', attributes: { 색상: '빨강', 사이즈: 'M', 구성: '기본' }, extraPrice: 500, stockQty: 7, expectedStockQty: 9 };
+    const result = generateGoodsOptionRows([{ name: '색상', values: '빨강,파랑' }, { name: '사이즈', values: 'M' }, { name: '구성', values: '기본,선물' }], [existing]);
+    expect(result.ok).toBe(true);
+    if (!result.ok) throw new Error();
+    expect(result.rows).toHaveLength(4); expect(result.rows[0]).toBe(existing);
+    expect(result.rows[3].attributes).toEqual({ 색상: '파랑', 사이즈: 'M', 구성: '선물' });
+    expect(parseGoodsOptionRows(JSON.stringify(result.rows), 1000)).toEqual(result);
+    expect(generateGoodsOptionRows(Array.from({ length: 4 }, (_, i) => ({ name: `축${i}`, values: 'A' })), [])).toMatchObject({ ok: false });
+    expect(parseGoodsOptionRows(JSON.stringify([{ ...existing, attributes: { ...existing.attributes, 네번째: '금지' } }]), 1000)).toMatchObject({ ok: false });
+  });
   it('generates two axes with additive prices while preserving an existing combination', () => {
     const existing = [{ id: '11111111-1111-4111-8111-111111111111', name: '빨강 / M', code: 'RED-M', attributes: { 색상: '빨강', 사이즈: 'M' }, extraPrice: 500, stockQty: 4, expectedStockQty: 4 }];
     expect(generateGoodsOptionRows([{ name: '색상', values: '빨강, 파랑' }, { name: '사이즈', values: 'M, L' }], existing)).toEqual({ ok: true, rows: [

@@ -2,6 +2,8 @@
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
+import { CategoryCodeFinder } from '../CategoryCodeFinder';
+import { CountryNamePicker } from '../CountryNameFinder';
 import {
   prepareGoodsImport,
   previewGoodsImport,
@@ -233,6 +235,8 @@ export function GoodsImportScreen({
   const router = useRouter();
   const [view, setView] = useState(initialView);
   const [busy, setBusy] = useState(false);
+  const [categoryFinder, setCategoryFinder] = useState(false);
+  const [countryFinder, setCountryFinder] = useState(false);
   const [status, setStatus] = useState('');
   const [error, setError] = useState(initialError ?? '');
   const workbook = useRef<HTMLInputElement>(null);
@@ -469,6 +473,8 @@ export function GoodsImportScreen({
         description="옵션마다 한 행을 작성합니다. 검증 결과를 확인한 뒤 상품별로 적용합니다."
         actions={
           <>
+            <button className="wc-admin-kit__button" type="button" onClick={() => setCategoryFinder(true)}>카테고리 찾기</button>
+            <button className="wc-admin-kit__button" type="button" onClick={() => setCountryFinder(true)}>제조국 찾기</button>
             <a
               className="wc-admin-kit__button"
               href="/api/admin/goods-workbook?mode=template"
@@ -481,6 +487,8 @@ export function GoodsImportScreen({
           </>
         }
       />
+      {categoryFinder ? <CategoryCodeFinder onClose={() => setCategoryFinder(false)} /> : null}
+      {countryFinder ? <CountryNamePicker mode="copy" onClose={() => setCountryFinder(false)} /> : null}
       <AdminSectionCard title="1. 파일 올리기">
         <AdminField
           label="양식"
@@ -534,8 +542,9 @@ export function GoodsImportScreen({
         ) : (
           <>
             <p className="wc-admin-kit__description">
-              XLSX 2MB · 최대 500행 · 이미지 ZIP 50MB. 상품코드가 같으면 기존 상품을
-              수정합니다. 옵션을 모두 포함해주세요.
+              XLSX 2MB · 상품·옵션 최대 500행 · 이미지 ZIP 50MB. 상품코드가 같으면 기존 상품을
+              수정합니다. 옵션을 모두 포함해주세요. 직접입력형 옵션은 별도 시트에서 편집하며 기존 항목 ID와 정의 버전을 유지합니다.
+              A/S·사이즈 안내도 별도 시트에서 편집하며 안내 버전을 유지합니다. 안내 시트나 상품 행을 빼면 기존 안내를 보존합니다.
             </p>
             <AdminField label="상품 XLSX" inputId="goods-workbook">
               <input
@@ -671,9 +680,10 @@ export function GoodsImportScreen({
               파일명을 사용했다면 원래 이미지 ZIP도 함께 올려주세요.
             </p>
           )}
-          <div style={{ overflowX: 'auto' }}>
-            <table className="admin-console-grid-table">
+          <div role="region" aria-label="상품 엑셀 결과 가로 스크롤" tabIndex={0} style={{ overflowX: 'auto' }}>
+            <table className="admin-console-grid-table" style={{ minWidth: 620, width: '100%', tableLayout: 'fixed' }}>
               <caption className="sr-only">상품 엑셀 행별 검증 결과</caption>
+              <colgroup><col style={{ width: 48 }} /><col style={{ width: 200 }} /><col style={{ width: 104 }} /><col /></colgroup>
               <thead>
                 <tr>
                   <th scope="col">행</th>

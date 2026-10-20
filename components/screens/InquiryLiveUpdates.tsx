@@ -23,7 +23,7 @@ export function InquiryLiveUpdates({ inquiryId, audience, clientFactory = create
         && change.author === (audience === 'staff' ? 'user' : 'staff')) {
         seen.add(change.messageId); setNewMessages((count) => count + 1);
       }
-    }, onReady: () => { setDisconnected(false); refresh(); }, onDisconnected: () => setDisconnected(true) });
+    }, onReady: () => { setDisconnected(false); refresh(); }, onDisconnected: () => setDisconnected(true), onResync: refresh });
     return () => { close(); clearTimeout(timer); };
   }, [audience, clientFactory, inquiryId, router]);
   return <div className="inquiry-live" aria-live="polite">

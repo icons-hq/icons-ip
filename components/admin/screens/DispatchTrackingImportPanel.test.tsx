@@ -18,6 +18,8 @@ describe('운송장 업로드 후속 동선', () => {
     expect(html).toContain('name="originId"');expect(html).toContain('value="selected-origin"');
     expect(html).toContain('김포');expect(html).toContain('21열');expect(html).toContain('주문번호(쇼핑몰)');
     expect(html).toContain('배송건번호 · 택배사코드 · 운송장번호');
+    expect(html).toContain('상품주문번호 · 배송방법 · 택배사 · 송장번호');
+    expect(html).toContain('암호를 해제');expect(html).toContain('발송처리');expect(html).toContain('1행을 삭제');
   });
 
   it('남양주(서원) 송장양식 회신 방법과 덮어쓰지 않는 정정 경로를 안내한다',()=>{
@@ -43,7 +45,7 @@ describe('운송장 업로드 후속 동선', () => {
     const html = renderToStaticMarkup(<DispatchTrackingImportPanel carriers={[]} shippingHref="/admin/sales/shipping?tab=transit&page=1&originId=warehouse" />);
     expect(html).toContain('배송현황에서 결과 확인');
     expect(html).toContain('href="/admin/sales/shipping?tab=transit&amp;page=1&amp;originId=warehouse"');
-    expect(html).toContain('실패 행 내려받기');expect(html).toContain('대상(배송건·주문·받는 분)');
+    expect(html).toContain('실패 행 내려받기');expect(html).toContain('대상(상품주문·배송건·주문·받는 분)');
     expect(html).toContain('00000002');
     expect(html).toContain('배송 건을 찾을 수 없습니다.');
   });

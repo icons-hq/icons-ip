@@ -96,3 +96,6 @@ export function normalizeAdminHideCommentForm(
     value: { commentId, reportId },
   };
 }
+export const reportTargetLabels = {
+  post: '포스트', comment: '댓글', review: '리뷰', user: '사용자',
+} as const;

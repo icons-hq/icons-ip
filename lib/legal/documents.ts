@@ -7,6 +7,7 @@ import {
 } from './links';
 import { socialLoginWords } from './social-login';
 import previousPublicDocuments from './archive/pre-2026-09-09.json';
+import { DEMOGRAPHIC_NOTICE } from '../customer-demographics';
 
 export { LEGAL_DOCUMENT_SLUGS, legalDocumentHref };
 export type { LegalDocumentSlug };
@@ -85,7 +86,7 @@ const EMAIL_PROCESSOR_LABEL = 'Resend';
  * 이전 공개 정책 본문은 개정 이력으로 남기며, 개인정보처리방침 시행일은 바꾸지 않는다. */
 export const LEGAL_EFFECTIVE_DATES: Record<LegalDocumentSlug, string> = {
   terms: '2026-09-09',
-  privacy: '2026-08-22',
+  privacy: '2026-10-19',
   shipping: '2026-09-09',
 };
 
@@ -188,7 +189,7 @@ const terms: LegalDocument = {
   summary: '굿즈 구매, 카드팩과 카드, 팝업 티켓, 커뮤니티 이용에 적용되는 회사와 이용자의 권리·의무를 정합니다.',
   effectiveDate: LEGAL_EFFECTIVE_DATES.terms,
   revisionChanges: [
-    '직접 취소는 발주확인 전, 직접 반품·교환은 주문한 굿즈 전체의 실제 배송 완료 뒤에 신청하는 기능 조건을 안내합니다.',
+    '직접 취소는 발주확인 전, 직접 반품·교환은 배송 중부터 주문 전체를 신청하는 기능 조건을 안내합니다.',
     '직접 신청을 이용할 수 없는 상태에서도 1:1 문의·고객지원으로 의사표시와 최초 접수 시각을 남겨 확인합니다. 기존 계약과 청약철회 권리·기한·환급 기준은 변경하지 않습니다.',
   ],
   previousVersion: previousPublicVersion('terms', CONTACT_WORDS),
@@ -374,8 +375,8 @@ const terms: LegalDocument = {
        * 밀면 이미 공개된 문서의 상호참조가 전부 어긋난다. */
       heading: '제16조의2 (반품과 교환)',
       paragraphs: [
-        '반품은 굿즈를 회수하고 대금을 환급하는 절차이며, 교환은 굿즈를 회수한 뒤 같은 굿즈를 다시 발송하는 절차입니다. 주문 상세의 직접 반품·교환 신청은 주문한 굿즈가 모두 실제 배송 완료된 뒤에 이용할 수 있습니다.',
-        '일부 굿즈만 받았거나 그 밖에 직접 신청을 이용할 수 없는 상태에서는 1:1 문의 또는 안내된 고객지원 연락처로 의사를 전할 수 있습니다. 회사는 의사표시와 최초 접수 시각, 받은 굿즈와 배송 사실을 확인하며, 직접 신청 기능의 조건이 제15조의 권리를 제한하지는 않습니다.',
+        '반품은 굿즈를 회수하고 대금을 환급하는 절차이며, 교환은 굿즈를 회수한 뒤 같은 굿즈를 다시 발송하는 절차입니다. 주문 상세의 직접 반품·교환 신청은 배송 중부터 주문 전체를 대상으로 이용할 수 있습니다. 환급·재배송은 출고지별 실물 회수를 모두 확인한 뒤 진행합니다.',
+        '그 밖에 직접 신청을 이용할 수 없는 상태에서는 1:1 문의 또는 안내된 고객지원 연락처로 의사를 전할 수 있습니다. 회사는 의사표시와 최초 접수 시각, 받은 굿즈와 배송 사실을 확인하며, 직접 신청 기능의 조건이 제15조의 권리를 제한하지는 않습니다.',
         '반품과 교환의 신청 기한은 제15조의 청약철회 기간을 준용합니다. 단순 변심은 굿즈를 공급받은 날부터 7일 이내, 굿즈의 하자나 오배송은 공급받은 날부터 3개월 이내입니다.',
         '회사는 신청을 확인한 뒤 반송 방법을 안내하고, 반송된 굿즈가 입고되면 상태를 확인합니다. 반품은 입고 확인일부터 3영업일 이내에 환급하고, 교환은 같은 굿즈를 새 운송장으로 발송합니다.',
         /* 교환은 재고 복원도 카드팩 회수도 하지 않는다. 주문이 살아 있고 같은 굿즈가
@@ -646,6 +647,17 @@ const privacy: LegalDocument = {
   ],
 };
 
+// Preserve the previous public body before appending the newly approved
+// optional collection notice. Live publication must follow the notice process
+// in article 13; this local implementation does not publish the revision.
+privacy.previousVersion = { effectiveDate: '2026-08-22', articles: structuredClone(privacy.articles) };
+privacy.revisionChanges = ['별도 선택 동의한 성별 정보의 수집 항목·목적·보관·철회와 10명 미만 집계 비공개 기준을 추가합니다.'];
+privacy.articles[0].table!.rows.push(['성별·연령 고객 통계 (선택)', '자가 입력 성별, 회원번호, 선택 동의 여부·시각·안내 버전. 연령대는 기존 생년월일로 계산', '설정에서 별도 선택 동의 후 저장한 경우']);
+privacy.articles.splice(2, 0, {
+  heading: '제2조의2 (성별 정보의 선택 수집·이용)',
+  paragraphs: [DEMOGRAPHIC_NOTICE.purpose, DEMOGRAPHIC_NOTICE.collected, DEMOGRAPHIC_NOTICE.retention, DEMOGRAPHIC_NOTICE.choice],
+});
+
 const shipping: LegalDocument = {
   slug: 'shipping',
   title: '배송·반품 정책',
@@ -690,7 +702,7 @@ const shipping: LegalDocument = {
       list: [
         '굿즈를 공급받은 날부터 7일 이내에 청약철회를 신청할 수 있습니다. 계약내용에 관한 서면을 받은 때가 굿즈를 공급받은 때보다 늦은 경우에는 그 서면을 받은 날부터 기산합니다.',
         '굿즈가 표시·광고 내용과 다르거나 계약내용과 다르게 이행된 경우에는 공급받은 날부터 3개월 이내, 그 사실을 안 날 또는 알 수 있었던 날부터 30일 이내에 신청할 수 있습니다.',
-        '주문 상세의 직접 취소 신청은 발주확인 전까지, 직접 반품·교환 신청은 주문한 굿즈가 모두 실제 배송 완료된 뒤에 이용할 수 있습니다. 발주확인은 회사가 주문을 확인하고 준비를 시작한 상태를 뜻합니다.',
+        '주문 상세의 직접 취소 신청은 발주확인 전까지, 직접 반품·교환 신청은 배송 중부터 주문 전체를 대상으로 이용할 수 있습니다. 발주확인은 회사가 주문을 확인하고 준비를 시작한 상태를 뜻합니다.',
         '직접 신청을 이용할 수 없는 상태에서도 청약철회 의사는 1:1 문의 또는 안내된 고객지원 연락처로 전할 수 있습니다. 회사는 의사표시와 접수 시각을 남기고 주문·배송 사실을 확인합니다. 직접 신청 기능의 조건이 위 청약철회 기간이나 관계 법령에 따른 권리를 제한하지는 않습니다.',
       ],
     },
@@ -724,7 +736,7 @@ const shipping: LegalDocument = {
     {
       heading: '6. 취소·반품·교환 절차',
       paragraphs: [
-        '주문 상세의 직접 신청에서는 발주확인 전 주문의 전체 취소, 주문한 굿즈가 모두 실제 배송 완료된 뒤의 전체 반품·교환을 신청할 수 있습니다. 발주확인 뒤나 일부 굿즈만 받은 상태에서 청약철회 의사를 전하려면 1:1 문의 또는 안내된 고객지원 연락처를 이용해 주세요.',
+        '주문 상세의 직접 신청에서는 발주확인 전 주문의 전체 취소, 배송 중부터 전체 반품·교환을 신청할 수 있습니다. 직접 신청을 이용할 수 없는 상태에서 청약철회 의사를 전하려면 1:1 문의 또는 안내된 고객지원 연락처를 이용해 주세요.',
         '발주확인 전 직접 취소는 주문과 결제 상태를 확인한 뒤 기존 결제수단의 취소·환급 절차에 따라 처리합니다. 이미 지급한 대금이 없는 주문에는 환급할 대금이 없습니다.',
         '문의로 의사를 전한 경우에는 회사가 원문과 최초 접수 시각, 배송·회수 상황을 확인하여 처리 방법을 안내합니다. 문의 접수만으로 환급이 승인되거나 출고가 자동으로 중단되는 것은 아닙니다.',
       ],

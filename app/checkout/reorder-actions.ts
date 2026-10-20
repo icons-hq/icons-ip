@@ -2,23 +2,29 @@
 
 import { isAccountSuspended, isOnboarded } from '@/lib/auth/onboarding';
 import { getCurrentAuthState } from '@/lib/auth/server';
-import { normalizeOrderReference } from '@/lib/checkout';
-import { parseShippingQuoteItems } from '@/lib/fulfillment';
+import { aggregateCartVariantQuantities, cartItemKey, normalizeCartItems, type CartItem } from '@/lib/cart';
+import { normalizeCheckoutAddress, normalizeOrderReference } from '@/lib/checkout';
+import { loadGoodsTransactionRuntimeMode } from '@/lib/checkout-transaction.server';
+import { loadGiftCheckoutOrder } from '@/lib/gifts-order.server';
+import { goodsCustomInputSummary, goodsCustomInputValues, readGoodsCustomInputSnapshot } from '@/lib/goods-custom-inputs';
 import { loadGoodsSalesQuote } from '@/lib/goods-sales.server';
+import { readCompleteIdPages } from '@/lib/supabase/complete-id-pages';
 import { createClient } from '@/lib/supabase/server';
+import { quoteCartTransactionAction } from './transaction-actions';
 
 /*
- * 취소된 굿즈 주문의 품목(굿즈·옵션·수량)을 장바구니에 다시 담는다.
+ * 취소된 일반 굿즈 주문의 품목(굿즈·옵션·직접입력값·수량)을 장바구니에 다시 담는다.
  *
  * 결제가 닫힌 주문을 "취소하고 다시 주문"하는 흐름의 두 번째 단계다. 취소는 기존 고객
  * 취소 경로(/api/orders/[orderId]/cancel)가 끝내고, 이 액션은 DB가 취소를 확정한
  * (`orders.status = 'canceled'`) 주문만 받는다 — 클라이언트가 "취소됐다"고 말하는 것을
  * 근거로 삼지 않는다.
  *
- * 담기는 장바구니 수량 RPC(`set_cart_item_quantity`)를 한 줄씩 그대로 쓴다. 게시·보관·
+ * 담기는 기존 `merge_cart_items`를 한 줄씩 쓴다. 직접입력값의 revision과 값을 전달해
+ * 현재 상품 설정으로 다시 검증하고, DB 잠금 안에서 현재 수량과 큰 값을 유지한다. 게시·보관·
  * 판매 제한·옵션 재고 검증이 그 RPC 안에 있으므로, 품절·판매 중지는 기존 규칙대로 그
  * 줄만 실패하고 나머지는 담긴다. 1인 구매 한도·쿠폰 조건은 주문서 견적과 주문 RPC가
- * 다시 판정한다. 이미 장바구니에 같은 옵션이 있으면 수량을 더하지 않고 둘 중 큰 값으로
+ * 다시 판정한다. 이미 장바구니에 같은 옵션과 직접입력값이 있으면 수량을 더하지 않고 둘 중 큰 값으로
  * 맞춘다(장바구니 병합과 같은 규칙) — 같은 주문을 두 번 복원해도 수량이 불어나지 않는다.
  *
  * 혜택: 주문 생성이 장바구니 쿠폰 선택을 소비하므로(place_order), 취소 트리거가 보유
@@ -38,7 +44,7 @@ import { createClient } from '@/lib/supabase/server';
  * `unavailable`은 그 밖에 지금 담을 수 없는 경우(비게시·보관·판매 제한·결제수단
  * 비활성·옵션 보관·옵션 식별자 없는 옛 주문)다.
  */
-export type RestoreOrderLineFailure = 'out_of_stock' | 'sold_out' | 'unavailable' | 'failed';
+export type RestoreOrderLineFailure = 'out_of_stock' | 'sold_out' | 'unavailable' | 'custom_inputs_changed' | 'failed';
 
 /**
  * 원 주문 쿠폰의 재적용 결과.
@@ -64,23 +70,28 @@ export type RestoreCanceledOrderToCartResult =
       readonly restoredLines: number;
       readonly skipped: readonly RestoreOrderSkippedLine[];
       readonly coupon: RestoreOrderCouponResult;
+      /** 복수·배송비 쿠폰은 주문서에서 다시 선택한다. 굿즈 쿠폰 1장은 장바구니 선택을 유지한다. */
+      readonly couponReselectAt?: 'checkout';
       /** 원 주문에서 사용한 적립금. 주문서 입력은 비어 있으므로 0보다 크면 다시 입력해야 한다. */
       readonly storeCreditUsed: number;
     }
   | {
       readonly ok: false;
-      readonly error: 'auth_required' | 'account_suspended' | 'not_found' | 'not_canceled' | 'failed';
+      readonly error: 'auth_required' | 'account_suspended' | 'not_found' | 'not_canceled' | 'gift_order' | 'failed';
     };
 
 interface OrderRow {
   id: string;
   status: string;
   discount_total: number | null;
+  shipping_coupon_discount_total?: number | null;
   store_credit_total: number | null;
+  address: unknown;
 }
 
 interface RedemptionRow {
   user_coupon_id: string;
+  benefit_kind: 'goods' | 'shipping';
 }
 
 interface CouponSelectionRow {
@@ -95,44 +106,61 @@ interface GoodsAvailabilityRow {
 }
 
 interface OrderItemRow {
+  id: string;
   good_id: string;
   variant_id: string | null;
   qty: number;
   good_name_snapshot: string;
   variant_name_snapshot: string | null;
+  custom_inputs_snapshot?: unknown;
 }
 
 interface CartRow {
-  variant_id: string;
-  qty: number;
-}
-
-interface CartQuoteRow {
+  id: string;
   good_id: string;
   variant_id: string;
   qty: number;
+  input_snapshot?: unknown;
 }
 
-interface RestoreLine {
-  goodId: string;
-  variantId: string;
-  qty: number;
+interface RestoreLine extends CartItem {
   name: string;
 }
 
-function lineName(item: OrderItemRow) {
-  return item.variant_name_snapshot
+function lineName(item: OrderItemRow, customInputs?: CartItem['customInputs']) {
+  const name = item.variant_name_snapshot
     ? `${item.good_name_snapshot} (${item.variant_name_snapshot})`
     : item.good_name_snapshot;
+  const inputSummary = goodsCustomInputSummary(customInputs).replaceAll('\n', ' / ');
+  return inputSummary ? `${name} / ${inputSummary}` : name;
 }
 
 function lineFailure(message: string): RestoreOrderLineFailure {
   if (message === 'out of stock') return 'out_of_stock';
   if (message === 'catalog_item_unavailable') return 'unavailable';
+  if (/goods_custom_inputs/.test(message)) return 'custom_inputs_changed';
   return 'failed';
 }
 
 type ServerClient = Awaited<ReturnType<typeof createClient>>;
+const MAX_CART_QUANTITY = 2_147_483_647;
+
+/** Read every identity before comparing quantities or verifying a coupon. */
+async function readCartItems(supabase: ServerClient, userId: string): Promise<CartItem[] | null> {
+  const { data, error } = await readCompleteIdPages<CartRow>((afterId, pageSize) => {
+    let query = supabase.from('cart_items')
+      .select('id,good_id,variant_id,qty,input_snapshot', { count: 'exact' })
+      .eq('user_id', userId).order('id', { ascending: true }).limit(pageSize);
+    if (afterId) query = query.gt('id', afterId);
+    return query;
+  });
+  if (error || !data || data.some(row => !Number.isSafeInteger(row.qty) || row.qty <= 0 || row.qty > MAX_CART_QUANTITY)) return null;
+  const items = normalizeCartItems(data.map(row => {
+    const customInputs = readGoodsCustomInputSnapshot(row.input_snapshot);
+    return { goodId: row.good_id, variantId: row.variant_id, qty: row.qty, ...(customInputs ? { customInputs } : {}) };
+  }));
+  return items.length === data.length ? items : null;
+}
 
 /**
  * `catalog_item_unavailable`은 품절·비게시·판매 제한·결제수단 비활성·옵션 보관을 한데
@@ -198,29 +226,36 @@ type SelectedCouponVerdict =
 
 /**
  * 지금 장바구니 전체로 판매 견적을 받아, 선택된 쿠폰이 할인으로 인정되는지 읽는다.
- * 장바구니·주문서가 같은 견적(`quote_goods_sales_for_address`)의 `coupon.reason`으로
- * 제출을 막으므로, 같은 판정을 근거로 삼는다. 읽지 못하면 `unknown`이다.
+ * 현재 주문서 런타임의 견적을 사용한다. 거래 견적에는 직접입력값을 포함한 장바구니
+ * 전체를 보내고, 기존 견적은 같은 옵션의 수량을 합산해 가격·쿠폰을 판정한다.
+ * 배송지나 설정 변경으로 판정하지 못하면 `unknown`이다.
  */
 async function verifySelectedCoupon(
   supabase: ServerClient,
   userId: string,
   userCouponId: string,
+  address: unknown,
 ): Promise<SelectedCouponVerdict> {
   try {
-    const { data, error } = await supabase
-      .from('cart_items')
-      .select('good_id,variant_id,qty')
-      .eq('user_id', userId);
-    if (error) return { kind: 'unknown' };
-    const items = parseShippingQuoteItems(
-      ((data ?? []) as CartQuoteRow[])
-        .filter((row) => row.qty > 0)
-        .map((row) => ({ goodId: row.good_id, variantId: row.variant_id, qty: row.qty })),
-    );
+    const items = await readCartItems(supabase, userId);
     if (!items || items.length === 0) return { kind: 'unknown' };
-    const coupon = (await loadGoodsSalesQuote(items, null))?.coupon;
+    const runtime = await loadGoodsTransactionRuntimeMode();
+    if (runtime === 'unavailable') return { kind: 'unknown' };
+    if (runtime === 'transaction') {
+      const result = await quoteCartTransactionAction({
+        expectedActorId: userId, items, address: normalizeCheckoutAddress(address) ?? { kind: 'none' },
+        deliveryChoices: {}, userCouponId, storeCreditAmount: 0,
+      });
+      if (!result.ok || result.quote.state !== 'quoted') return { kind: 'unknown' };
+      const { display } = result.quote;
+      if (display.userCouponId !== userCouponId) return { kind: 'unknown' };
+      return display.totals.couponDiscountTotal + (display.totals.shippingCouponDiscountTotal ?? 0) > 0
+        ? { kind: 'usable' } : { kind: 'reason', reason: 'coupon_no_discount' };
+    }
+    const coupon = (await loadGoodsSalesQuote(aggregateCartVariantQuantities(items), null))?.coupon;
     if (!coupon || coupon.userCouponId !== userCouponId) return { kind: 'unknown' };
-    return coupon.reason ? { kind: 'reason', reason: coupon.reason } : { kind: 'usable' };
+    return coupon.reason ? { kind: 'reason', reason: coupon.reason }
+      : coupon.discount > 0 ? { kind: 'usable' } : { kind: 'reason', reason: 'coupon_no_discount' };
   } catch {
     return { kind: 'unknown' };
   }
@@ -237,7 +272,8 @@ async function releaseCouponSelection(supabase: ServerClient): Promise<boolean> 
 }
 
 /**
- * 원 주문의 쿠폰을 장바구니에 다시 선택한다. 다른 쿠폰이 이미 선택돼 있으면 덮지 않는다.
+ * 원 주문의 굿즈 쿠폰 1장을 장바구니에 다시 선택한다. 다른 쿠폰이 이미 선택돼 있으면 덮지 않는다.
+ * 복수·배송비 쿠폰은 자동 선택하지 않고 주문서에서 다시 고르도록 안내한다.
  * 쿠폰 자체의 조건(만료·사용됨·발급 대상)은 `apply_cart_coupon`이, 지금 장바구니에서
  * 할인이 성립하는지는 판매 견적이 다시 판정한다. 할인이 성립하지 않으면 이 액션이 만든
  * 선택을 풀어, 쿠폰 때문에 주문서 제출이 막힌 채로 고객을 보내지 않는다. 고객이 이미 골라
@@ -247,28 +283,37 @@ async function restoreOrderCoupon(
   supabase: ServerClient,
   userId: string,
   order: OrderRow,
-): Promise<RestoreOrderCouponResult> {
-  const discounted = (order.discount_total ?? 0) > 0;
+): Promise<RestoreOrderCouponResult | 'checkout_not_restored'> {
+  const discounted = (order.discount_total ?? 0) + (order.shipping_coupon_discount_total ?? 0) > 0;
+  const unavailableResult = (order.shipping_coupon_discount_total ?? 0) > 0
+    ? 'checkout_not_restored' : discounted ? 'not_restored' : 'none';
   try {
-    const [{ data: redemption, error: redemptionError }, { data: selection, error: selectionError }] = await Promise.all([
+    const [{ data: redemptions, error: redemptionError, count }, { data: selection, error: selectionError }] = await Promise.all([
       supabase
         .from('coupon_redemptions')
-        .select('user_coupon_id')
+        .select('user_coupon_id,benefit_kind', { count: 'exact' })
         .eq('order_id', order.id)
         .eq('user_id', userId)
         .eq('status', 'released')
         .eq('release_reason', 'order_canceled')
         .order('applied_at', { ascending: false })
-        .limit(1)
-        .maybeSingle<RedemptionRow>(),
+        .limit(2),
       supabase
         .from('cart_coupon_selections')
         .select('user_coupon_id')
         .eq('user_id', userId)
         .maybeSingle<CouponSelectionRow>(),
     ]);
-    if (redemptionError) return discounted ? 'not_restored' : 'none';
-    if (!redemption) return discounted ? 'not_restored' : 'none';
+    if (redemptionError) return unavailableResult;
+    if (!Number.isSafeInteger(count) || count === null || count < 0) return unavailableResult;
+    // A cart stores one selected coupon. Restoring only one of an original
+    // combination must not report all benefits restored and auto-open checkout.
+    // The exact count also detects a response truncated to one row.
+    if (count > 1) return 'checkout_not_restored';
+    if (!Array.isArray(redemptions) || redemptions.length !== count) return unavailableResult;
+    const redemption = (redemptions as RedemptionRow[])[0];
+    if (!redemption) return unavailableResult;
+    if (redemption.benefit_kind === 'shipping') return 'checkout_not_restored';
     if (selectionError) return 'not_restored';
 
     let selectedByAction = false;
@@ -280,7 +325,7 @@ async function restoreOrderCoupon(
       selectedByAction = true;
     }
 
-    const verdict = await verifySelectedCoupon(supabase, userId, redemption.user_coupon_id);
+    const verdict = await verifySelectedCoupon(supabase, userId, redemption.user_coupon_id, order.address);
     if (verdict.kind === 'usable') return 'restored';
     const result = verdict.kind === 'reason' ? couponReasonResult(verdict.reason) : 'not_restored';
     if (selectedByAction && await releaseCouponSelection(supabase)) return result;
@@ -304,10 +349,16 @@ export async function restoreCanceledOrderToCartAction(
   if (isAccountSuspended(auth.profile)) return { ok: false, error: 'account_suspended' };
 
   try {
+    // Gift order RLS deliberately hides raw order rows from the payer. Resolve
+    // the privacy-safe projection before using the ordinary order query.
+    const gift = await loadGiftCheckoutOrder(auth.user.id, orderId);
+    if (gift.kind === 'gift') return { ok: false, error: 'gift_order' };
+    if (gift.kind !== 'ordinary') return { ok: false, error: 'failed' };
+
     const supabase = await createClient();
     const { data: orderData, error: orderError } = await supabase
       .from('orders')
-      .select('id,status,discount_total,store_credit_total')
+      .select('id,status,discount_total,shipping_coupon_discount_total,store_credit_total,address')
       .eq('id', orderId)
       .eq('user_id', auth.user.id)
       .maybeSingle<OrderRow>();
@@ -315,51 +366,63 @@ export async function restoreCanceledOrderToCartAction(
     if (!orderData) return { ok: false, error: 'not_found' };
     if (orderData.status !== 'canceled') return { ok: false, error: 'not_canceled' };
 
-    const [{ data: itemData, error: itemError }, { data: cartData, error: cartError }] = await Promise.all([
-      supabase
-        .from('order_items')
-        .select('good_id,variant_id,qty,good_name_snapshot,variant_name_snapshot')
-        .eq('order_id', orderId)
-        .order('id'),
-      supabase
-        .from('cart_items')
-        .select('variant_id,qty')
-        .eq('user_id', auth.user.id),
+    const [{ data: itemData, error: itemError }, cartItems] = await Promise.all([
+      readCompleteIdPages<OrderItemRow>((afterId, pageSize) => {
+        let query = supabase.from('order_items')
+          .select('id,good_id,variant_id,qty,good_name_snapshot,variant_name_snapshot,custom_inputs_snapshot', { count: 'exact' })
+          .eq('order_id', orderId).order('id', { ascending: true }).limit(pageSize);
+        if (afterId) query = query.gt('id', afterId);
+        return query;
+      }),
+      readCartItems(supabase, auth.user.id),
     ]);
-    if (itemError || cartError) return { ok: false, error: 'failed' };
+    if (itemError || !itemData || !cartItems) return { ok: false, error: 'failed' };
 
     const lines = new Map<string, RestoreLine>();
     const failures: { goodId: string; line: RestoreOrderSkippedLine }[] = [];
-    for (const item of (itemData ?? []) as OrderItemRow[]) {
+    for (const item of itemData) {
       // 옵션 도입 전 주문 품목은 옵션 식별자가 없어 같은 옵션을 다시 지목할 수 없다.
-      if (!item.variant_id || !Number.isSafeInteger(item.qty) || item.qty <= 0) {
+      if (!item.variant_id || !Number.isSafeInteger(item.qty) || item.qty <= 0 || item.qty > MAX_CART_QUANTITY) {
         failures.push({ goodId: item.good_id, line: { name: lineName(item), reason: 'unavailable' } });
         continue;
       }
-      const previous = lines.get(item.variant_id);
-      lines.set(item.variant_id, {
+      let customInputs: CartItem['customInputs'];
+      try {
+        customInputs = readGoodsCustomInputSnapshot(item.custom_inputs_snapshot) ?? undefined;
+      } catch {
+        failures.push({ goodId: item.good_id, line: { name: lineName(item), reason: 'custom_inputs_changed' } });
+        continue;
+      }
+      const key = cartItemKey(item.good_id, item.variant_id, customInputs);
+      const previous = lines.get(key);
+      const qty = (previous?.qty ?? 0) + item.qty;
+      if (!Number.isSafeInteger(qty) || qty > MAX_CART_QUANTITY) return { ok: false, error: 'failed' };
+      lines.set(key, {
         goodId: item.good_id,
         variantId: item.variant_id,
-        qty: (previous?.qty ?? 0) + item.qty,
-        name: previous?.name ?? lineName(item),
+        qty,
+        name: previous?.name ?? lineName(item, customInputs),
+        ...(customInputs ? { customInputs } : {}),
       });
     }
 
     const cartQuantities = new Map(
-      ((cartData ?? []) as CartRow[]).map((row) => [row.variant_id, row.qty]),
+      cartItems.map(item => [cartItemKey(item.goodId, item.variantId, item.customInputs), item.qty]),
     );
 
     let restoredLines = 0;
     for (const line of lines.values()) {
-      const current = cartQuantities.get(line.variantId) ?? 0;
-      if (current >= line.qty) {
-        restoredLines += 1;
-        continue;
-      }
-      const { error } = await supabase.rpc('set_cart_item_quantity', {
-        p_good_id: line.goodId,
-        p_variant_id: line.variantId,
-        p_qty: line.qty,
+      const current = cartQuantities.get(cartItemKey(line.goodId, line.variantId, line.customInputs)) ?? 0;
+      // Revalidate even when the quantity is already sufficient: an old input
+      // definition or a newly unavailable product must not be called restored.
+      const { error } = await supabase.rpc('merge_cart_items', {
+        p_items: [{
+          good_id: line.goodId,
+          variant_id: line.variantId,
+          qty: Math.max(current, line.qty),
+          input_revision: line.customInputs?.revision ?? 0,
+          input_values: goodsCustomInputValues(line.customInputs),
+        }],
       });
       if (error) {
         failures.push({ goodId: line.goodId, line: { name: line.name, reason: lineFailure(error.message) } });
@@ -371,8 +434,8 @@ export async function restoreCanceledOrderToCartAction(
     const skipped = await refineUnavailableLines(supabase, failures);
     /* 담긴 굿즈가 없으면 쿠폰을 빈 장바구니에 걸어 두지 않는다 — 보유 쿠폰은 이미
        active로 돌아와 있다. */
-    const hadCoupon = (orderData.discount_total ?? 0) > 0;
-    const coupon: RestoreOrderCouponResult = restoredLines > 0
+    const hadCoupon = (orderData.discount_total ?? 0) + (orderData.shipping_coupon_discount_total ?? 0) > 0;
+    const coupon = restoredLines > 0
       ? await restoreOrderCoupon(supabase, auth.user.id, orderData)
       : hadCoupon ? 'not_restored' : 'none';
 
@@ -380,7 +443,8 @@ export async function restoreCanceledOrderToCartAction(
       ok: true,
       restoredLines,
       skipped,
-      coupon,
+      coupon: coupon === 'checkout_not_restored' ? 'not_restored' : coupon,
+      ...(coupon === 'checkout_not_restored' ? { couponReselectAt: 'checkout' as const } : {}),
       storeCreditUsed: Math.max(0, orderData.store_credit_total ?? 0),
     };
   } catch {

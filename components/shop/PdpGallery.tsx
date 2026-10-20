@@ -1,13 +1,18 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { goodsImageBackground } from '@/lib/goods-image';
+import { buildGoodsGallerySlides, type PublicGoodMedia } from '@/lib/goods-media';
+import { GoodsVideoPlayer } from './GoodsVideoPlayer';
 
 export interface PdpGalleryProps {
   /** 대표 이미지가 0번. 값은 대표 이미지와 같은 CSS background 규약이다. */
   frames: string[];
   goodName: string;
   className?: string;
+  overlay?: ReactNode;
+  media?: PublicGoodMedia | null;
+  selectedReviews?: ReactNode;
 }
 
 /*
@@ -28,10 +33,11 @@ export function activeGalleryIndex(scrollLeft: number, slideWidth: number, count
   return Math.max(0, Math.min(count - 1, Math.round(scrollLeft / slideWidth)));
 }
 
-export function PdpGallery({ className, frames, goodName }: PdpGalleryProps) {
+export function PdpGallery({ className, frames, goodName, overlay, media, selectedReviews }: PdpGalleryProps) {
   const stageRef = useRef<HTMLDivElement>(null);
   const [active, setActive] = useState(0);
-  const multiple = frames.length > 1;
+  const slides = [...buildGoodsGallerySlides(frames, media), ...(selectedReviews ? [{ kind: 'reviews' as const, id: 'selected-reviews' }] : [])], multiple = slides.length > 1;
+  const kindLabel = (index: number) => slides[index]?.kind === 'video' ? '동영상' : slides[index]?.kind === 'shortclip' ? '숏클립' : slides[index]?.kind === 'reviews' ? 'BEST 리뷰' : '이미지';
 
   useEffect(() => {
     const stage = stageRef.current;
@@ -61,7 +67,7 @@ export function PdpGallery({ className, frames, goodName }: PdpGalleryProps) {
       stage.removeEventListener('scroll', onScroll);
       if (frame) cancelAnimationFrame(frame);
     };
-  }, [multiple]);
+  }, [multiple, slides.length]);
 
   const goTo = (index: number) => {
     const stage = stageRef.current;
@@ -78,30 +84,32 @@ export function PdpGallery({ className, frames, goodName }: PdpGalleryProps) {
       aria-label={`${goodName} 이미지`}
       aria-roledescription="carousel"
       className={`wc-pdp-gallery${className ? ` ${className}` : ''}`}
+      data-active-kind={slides[active]?.kind ?? 'image'}
     >
       {/* 도트의 기준 상자는 메인 이미지다 — 썸네일은 이 상자 밖에 둬야 데스크톱 썸네일 줄이
           늘어도(10장이면 두 줄) 도트가 썸네일 위로 내려가지 않는다(2026-10-07 QA). */}
       <div className="wc-pdp-gallery__viewport">
         <div ref={stageRef} className="wc-pdp-gallery__stage">
-          {frames.map((frame, index) => (
+          {slides.map((slide, index) => (
             /* 아트웍에 옮길 텍스트가 없다 — 이름은 섹션 라벨이 갖는다. 배경 이미지라
                alt 를 붙일 자리도 없어 목록 항목의 위치만 보조기기에 남긴다. */
             <div
-              key={`${frame}-${index}`}
-              aria-label={`${index + 1}번째 이미지`}
+              key={slide.id}
+              aria-label={`${index + 1}번째 ${kindLabel(index)}`}
               className="wc-pdp-gallery__slide"
               role="group"
-              style={{ background: goodsImageBackground(frame) }}
-            />
+              style={slide.kind === 'image' ? { background: goodsImageBackground(slide.frame) } : undefined}
+            >{slide.kind === 'reviews' ? selectedReviews : slide.kind !== 'image' ? <GoodsVideoPlayer key={slide.asset.id} asset={slide.asset} active={active === index} fallbackBackground={frames[0]} /> : null}</div>
           ))}
         </div>
+        {overlay ? <div className="wc-pdp-gallery__overlay">{overlay}</div> : null}
         {multiple ? (
           <div className="wc-pdp-gallery__dots">
-            {frames.map((frame, index) => (
+            {slides.map((slide, index) => (
               <button
-                key={`dot-${frame}-${index}`}
+                key={`dot-${slide.id}`}
                 aria-current={index === active ? 'true' : undefined}
-                aria-label={`${index + 1}번째 이미지`}
+                aria-label={`${index + 1}번째 ${kindLabel(index)}`}
                 className={`wc-pdp-gallery__dot${index === active ? ' is-active' : ''}`}
                 onClick={() => goTo(index)}
                 type="button"
@@ -112,16 +120,16 @@ export function PdpGallery({ className, frames, goodName }: PdpGalleryProps) {
       </div>
       {multiple ? (
         <div className="wc-pdp-gallery__thumbs">
-          {frames.map((frame, index) => (
+          {slides.map((slide, index) => (
             <button
-              key={`thumb-${frame}-${index}`}
+              key={`thumb-${slide.id}`}
               aria-current={index === active ? 'true' : undefined}
-              aria-label={`${index + 1}번째 이미지 보기`}
+              aria-label={`${index + 1}번째 ${kindLabel(index)} 보기`}
               className={`wc-pdp-gallery__thumb${index === active ? ' is-active' : ''}`}
               onClick={() => goTo(index)}
-              style={{ background: goodsImageBackground(frame) }}
+              style={{ background: goodsImageBackground(slide.kind === 'image' ? slide.frame : frames[0] ?? '') }}
               type="button"
-            />
+            >{slide.kind !== 'image' ? <span>{slide.kind === 'reviews' ? '' : '▶ '}{kindLabel(index)}</span> : null}</button>
           ))}
         </div>
       ) : null}

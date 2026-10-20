@@ -20,9 +20,9 @@ describe('AdminSidebar 2단 메뉴', () => {
   it('대분류 헤딩과 소분류 항목을 함께 보여준다', () => {
     const html = render();
 
-    expect(html).toContain('주문·배송');
-    expect(html).toContain('상품 관리');
-    expect(html).toContain('주문 통합검색');
+    expect(html).toContain('판매관리');
+    expect(html).toContain('상품관리');
+    expect(html).toContain('주문통합검색');
     expect(html).toContain('href="/admin/catalog/goods"');
   });
 
@@ -30,8 +30,8 @@ describe('AdminSidebar 2단 메뉴', () => {
   it('대분류를 정해진 순서로 세운다', () => {
     const html = render();
 
-    expect(html.indexOf('주문·배송')).toBeLessThan(html.indexOf('상품 관리'));
-    expect(html.indexOf('상품 관리')).toBeLessThan(html.indexOf('분석·설정'));
+    expect(html.indexOf('상품관리')).toBeLessThan(html.indexOf('판매관리'));
+    expect(html.indexOf('판매관리')).toBeLessThan(html.indexOf('데이터분석'));
   });
 
   it('현재 화면만 aria-current를 단다', () => {
@@ -40,6 +40,31 @@ describe('AdminSidebar 2단 메뉴', () => {
 
     expect(html).toContain('aria-current="page"');
     expect(html.match(/aria-current="page"/g)).toHaveLength(1);
+  });
+
+  it('홈 링크와 즐겨찾기를 검색 위 바로가기에 유지한다', () => {
+    const html = render();
+
+    expect(html.match(/aria-current="page"/g)).toHaveLength(1);
+    expect(html).toMatch(/aria-current="page"[^>]*data-admin-nav-screen="overview"/);
+    expect(html).toContain('aria-label="홈 즐겨찾기 추가"');
+    expect(html.indexOf('data-admin-nav-screen="overview"')).toBeLessThan(html.indexOf('aria-label="어드민 메뉴 검색"'));
+    expect(html).not.toContain('id="admin-nav-group-home"');
+  });
+
+  it('접기 제어는 메뉴 스크롤 영역 밖에서 상태를 알린다', () => {
+    const html = render();
+
+    expect(html.indexOf('aria-label="사이드바 접기"')).toBeGreaterThan(html.indexOf('</aside>'));
+    expect(html).toContain('aria-expanded="true" aria-controls="admin-mobile-navigation" aria-label="사이드바 접기"');
+  });
+
+  it('상품 일괄등록에서는 상위 상품 조회 메뉴를 동시에 활성화하지 않는다', () => {
+    mocks.pathname = '/admin/catalog/goods/import';
+    const html = render();
+
+    expect(html.match(/aria-current="page"/g)).toHaveLength(1);
+    expect(html).toMatch(/aria-current="page"[^>]*data-admin-nav-screen="goods-import"/);
   });
 
   /* /admin 은 모든 경로의 접두다. 접두 일치만 쓰면 개요가 항상 켜져 보인다. */

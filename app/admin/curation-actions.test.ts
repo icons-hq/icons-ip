@@ -1,3 +1,4 @@
+const { legacyOperatorAccessFixture } = await vi.hoisted(() => import('@/lib/admin/access.test-fixtures'));
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { upsertAdminCurationAction } from './curation-actions';
 
@@ -10,12 +11,12 @@ const mocks = vi.hoisted(() => ({
     isConfigured: true,
     user: { id: 'staff-1', email: 'staff@icons.test' },
     role: 'staff' as 'user' | 'staff' | 'admin',
-    isStaff: true,
+    isStaff: true, operatorAccess: legacyOperatorAccessFixture(),
   } as {
     isConfigured: boolean;
     user: { id: string; email: string | null } | null;
     role: 'user' | 'staff' | 'admin' | null;
-    isStaff: boolean;
+    isStaff: boolean; operatorAccess?: ReturnType<typeof legacyOperatorAccessFixture>;
   },
   createClient: vi.fn(),
   getCurrentAdminAuthState: vi.fn(),
@@ -59,7 +60,7 @@ describe('admin curation action', () => {
       isConfigured: true,
       user: { id: 'staff-1', email: 'staff@icons.test' },
       role: 'staff',
-      isStaff: true,
+      isStaff: true, operatorAccess: legacyOperatorAccessFixture(),
     };
     mocks.createClient.mockReset();
     mocks.getCurrentAdminAuthState.mockReset();
@@ -71,13 +72,32 @@ describe('admin curation action', () => {
     mocks.rpc.mockResolvedValue({ data: CURATION_ID, error: null });
   });
 
+  it('CAS 시각, 링크 없음, 대체텍스트를 손실 없이 RPC에 전달한다', async () => {
+    const version = '2026-10-14T01:02:03.123456+09:00';
+    await upsertAdminCurationAction({}, curationForm({ expectedUpdatedAt: version, title: '', linkPath: '', altEnabled: 'on', altTitle: '이미지', altContent: '설명' }));
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_save_home_curation', expect.objectContaining({ target_expected_updated_at: version,
+      target_title: '', target_link_path: null, target_payload: { alt_enabled: true, alt_title: '이미지', alt_content: '설명' } }));
+  });
+
+  it.each(['curation_conflict', 'operation_conflict', 'curation_archived'])('다른 저장이 반영된 %s는 자동 재시도 대신 충돌로 알린다', async message => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { message } });
+    expect(await upsertAdminCurationAction({}, curationForm())).toMatchObject({ conflict: true, errors: { form: expect.any(String) } });
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it.each(['home_hero_limit', 'home_free_product_limit', 'curation_kind_change_not_allowed', 'invalid_curation_product_collection', 'invalid_hero_alt', 'invalid_hero_style', 'invalid_hero_title', 'invalid_hero_subtitle', 'operator_capability_required'])('%s 거절은 확정된 실패로 처리한다', async message => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { message } });
+    const result = await upsertAdminCurationAction({}, curationForm());
+    expect(result.errors).toBeDefined(); expect(result.uncertain).not.toBe(true);
+  });
+
   it('passes the preserved operation UUID and only normalized target arguments to the upsert RPC', async () => {
     await expect(upsertAdminCurationAction({}, curationForm())).resolves.toEqual({
       message: '홈 큐레이션을 저장했습니다.',
     });
 
     expect(mocks.rpc).toHaveBeenCalledOnce();
-    expect(mocks.rpc).toHaveBeenCalledWith('admin_upsert_home_curation', {
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_save_home_curation', {
       target_operation_id: OPERATION_ID,
       target_curation_id: CURATION_ID,
       target_kind: 'hero',
@@ -91,8 +111,9 @@ describe('admin curation action', () => {
       target_enabled: true,
       target_slot: null,
       target_payload: null,
+      target_expected_updated_at: null,
     });
-    expect(mocks.revalidatePath.mock.calls).toEqual([['/'], ['/admin']]);
+    expect(mocks.revalidatePath.mock.calls).toEqual([['/'], ['/admin'], ['/admin/display/curations']]);
     expect(JSON.stringify(mocks.rpc.mock.calls)).not.toContain('notification');
   });
 
@@ -114,7 +135,7 @@ describe('admin curation action', () => {
       goodIds: 'g13, g14',
     }))).resolves.toEqual({ message: '홈 큐레이션을 저장했습니다.' });
 
-    expect(mocks.rpc).toHaveBeenCalledWith('admin_upsert_home_curation', expect.objectContaining({
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_save_home_curation', expect.objectContaining({
       target_kind: 'best_tab',
       target_image_path: null,
       target_slot: 'category',
@@ -171,9 +192,9 @@ describe('admin curation action', () => {
 
     const result = await upsertAdminCurationAction({}, curationForm());
 
-    expect(result).toEqual({
+    expect(result).toEqual(_label === 'auth read rejection' ? {
       errors: { form: '홈 큐레이션을 저장하지 못했습니다. 다시 시도해주세요.' },
-    });
+    } : { errors: { form: '저장 결과를 확인하지 못했습니다. 입력한 내용을 유지한 채 같은 요청 결과를 확인해주세요.' }, uncertain: true });
     expect(JSON.stringify(result)).not.toContain('private');
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
     expect(mocks.updateTag).not.toHaveBeenCalled();

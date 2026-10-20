@@ -1,7 +1,8 @@
+const { legacyOperatorAccessFixture } = await vi.hoisted(() => import('@/lib/admin/access.test-fixtures'));
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { suggestGoodsIdentifiersAction } from './goods-identifier-actions';
 
-const mocks=vi.hoisted(()=>({ auth:{isConfigured:true,user:{id:'staff'},isStaff:true},rpc:vi.fn(),createClient:vi.fn() }));
+const mocks=vi.hoisted(()=>({ auth:{isConfigured:true,user:{id:'staff'},isStaff: true, operatorAccess: legacyOperatorAccessFixture()},rpc:vi.fn(),createClient:vi.fn() }));
 vi.mock('@/lib/auth/admin',()=>({getCurrentAdminAuthState:async()=>mocks.auth}));
 vi.mock('@/lib/supabase/server',()=>({createClient:mocks.createClient}));
 beforeEach(()=>{

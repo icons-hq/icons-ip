@@ -1,0 +1,6 @@
+.wc-admin .admin-coupon-combinations { margin-block: 0 16px; border: 1px solid var(--wc-line-control); background: var(--wc-surface); padding: 16px; }
+.wc-admin .admin-coupon-combinations summary { cursor: pointer; font-weight: 700; }
+.wc-admin .admin-coupon-combinations p { line-height: 1.65; }
+.wc-admin .admin-coupon-combinations fieldset { display: grid; gap: 14px; border: 1px solid var(--wc-line-control); margin-block: 16px; padding: 16px; min-width: 0; }
+.wc-admin .admin-coupon-combinations label { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; }
+.wc-admin .admin-coupon-combinations input:not([type=checkbox]) { min-width: 0; width: min(100%, 520px); }

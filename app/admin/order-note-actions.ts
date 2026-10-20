@@ -1,5 +1,7 @@
 'use server';
 
+import { hasAdminCapability } from '@/lib/admin/access';
+
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
@@ -13,7 +15,7 @@ export async function addOrderNoteAction(_state: AdminOrderNoteState, formData: 
   const orderId = String(formData.get('orderId') ?? '');
   const auth = await getCurrentAdminAuthState();
   if (!auth.isConfigured || !auth.user) redirect(`/login?next=${encodeURIComponent(isOrderDetailId(orderId) ? `/admin/sales/orders/${orderId}` : '/admin/sales/orders')}`);
-  if (!auth.isStaff) return { error: '운영자 권한이 필요합니다.' };
+  if (!auth.isStaff || !hasAdminCapability(auth, 'sales.manage')) return { error: '운영자 권한이 필요합니다.' };
   const operationId = String(formData.get('operationId') ?? '');
   const body = String(formData.get('body') ?? '').trim();
   if (!isOrderDetailId(orderId) || !isOrderDetailId(operationId)) return { error: '주문 화면을 새로 열어 다시 시도해주세요.' };

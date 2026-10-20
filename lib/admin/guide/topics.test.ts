@@ -235,8 +235,8 @@ describe('어드민 가이드 인용·수치 정합', () => {
     expect(repoFile('lib/admin/roles.server.ts')).toContain('PROFILE_LIMIT = 50');
     /* 일괄 발주확인 상한 — orders-shipping의 "한 번에 100건". */
     expect(repoFile('app/admin/order-actions.ts')).toContain('BULK_CONFIRM_LIMIT = 100');
-    /* 자동 거래확정 시점 — orders-shipping의 "8일이 지나면". */
-    expect(repoFile('components/admin/screens/SettledScreen.tsx')).toContain('배송완료 8일 뒤');
+    /* 자동 확정은 운영자가 기간을 설정해 활성화한 뒤 적용한다. */
+    expect(repoFile('components/admin/screens/SettledScreen.tsx')).toContain('자동 확정은 기본 꺼짐');
     /* 추가 이미지 상한 — goods-sales·주간 변경의 "추가 이미지 최대 9장"·"갤러리 1~9". */
     expect(repoFile('lib/admin/catalog.ts')).toContain('GOODS_GALLERY_MAX = 9');
     expect(repoFile('lib/admin/goods-workbook.ts')).toContain("galleryUrl8: '갤러리 9 URL'");

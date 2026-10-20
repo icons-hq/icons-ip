@@ -1,5 +1,7 @@
 'use server';
 
+import { canAccessAdminScreen, hasAdminCapability } from '@/lib/admin/access';
+
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { normalizeAdminDispatchDelayForm } from '@/lib/admin/dispatch';
@@ -28,7 +30,7 @@ import { reconcileOrderCancellation } from '@/lib/orders/cancellation-orchestrat
 import { recoverGoodsPaymentManually } from '@/lib/payments/goods-manual-recovery.server';
 import { trackingImportCommand, type SeowonTrackingParseResult } from '@/lib/admin/warehouse-templates.server';
 import { matchSeowonReply, type SeowonReplyCandidate } from '@/lib/admin/seowon-exchange';
-import { parseTrackingWorkbook, TRACKING_IMPORT_FILE_LIMIT_BYTES, type TrackingWorkbookParseResult } from '@/lib/admin/tracking-workbook.server';
+import { parseTrackingWorkbook, TRACKING_IMPORT_FILE_LIMIT_BYTES, TRACKING_IMPORT_TEXT_LIMIT_BYTES, type TrackingWorkbookParseResult } from '@/lib/admin/tracking-workbook.server';
 import { shipmentMutationError } from '@/lib/admin/shipment-dispatch';
 import { enqueueOrderShippedEmails } from '@/lib/email/order-shipment-jobs.server';
 import { getShippingCarrierRegistry } from '@/lib/orders/shipment.server';
@@ -47,7 +49,7 @@ function loginPath() {
 async function requireStaffAction() {
   const auth = await getCurrentAdminAuthState();
   if (!auth.isConfigured || !auth.user) redirect(loginPath());
-  if (!auth.isStaff) {
+  if (!auth.isStaff || !hasAdminCapability(auth, 'sales.manage')) {
     return { auth: null, error: { errors: { form: '관리자 권한이 필요합니다.' } } as AdminOrderActionState };
   }
   return { auth, error: null };
@@ -267,8 +269,8 @@ export async function resendOrderEmailAction(
 
   // 운송장 값은 넘기지 않는다 — 발송 훅이 주문 행에서 읽는다.
   const delivery = parsed.template === 'order_confirmation'
-    ? await sendOrderConfirmationEmail(parsed.orderId)
-    : await sendOrderShippedEmail({ orderId: parsed.orderId, shipmentId: parsed.shipmentId });
+    ? await sendOrderConfirmationEmail(parsed.orderId, parsed.audience ?? 'payer')
+    : await sendOrderShippedEmail({ orderId: parsed.orderId, shipmentId: parsed.shipmentId, audience: parsed.audience ?? 'payer' });
 
   revalidatePath('/admin');
 
@@ -445,7 +447,7 @@ export async function recoverAdminGoodsPaymentAction(
   if (access.error || !access.auth?.user) {
     return access.error ?? { errors: { form: '관리자 권한이 필요합니다.' } };
   }
-  if (access.auth.role !== 'admin') {
+  if (!canAccessAdminScreen(access.auth, null, { capability: 'sales.manage', adminOnly: true })) {
     return { errors: { form: 'Korpay 수동 복구는 관리자 계정만 수행할 수 있습니다.' } };
   }
 
@@ -497,7 +499,7 @@ export interface AdminTrackingImportState {
 }
 
 const isSeowonReply = (parsed: TrackingWorkbookParseResult): parsed is SeowonTrackingParseResult => 'kind' in parsed && parsed.kind === 'seowon';
-type TrackingBatchRow = {line:number;reference:string;ok:boolean;error?:string;shipmentId?:string;orderId?:string;dispatched?:boolean;duplicate?:boolean};
+type TrackingBatchRow = {line:number;reference:string;ok:boolean;error?:string;shipmentId?:string;orderId?:string;dispatched?:boolean;duplicate?:boolean;packedShipments?:{orderId:string;shipmentId:string}[]};
 type ReplyTemplate = 'wms_csv' | 'seowon_xlsx';
 const REPLY_TEMPLATE_LABEL: Record<ReplyTemplate, string> = { wms_csv: '김포 WMS 21열', seowon_xlsx: '남양주(서원) 송장양식' };
 
@@ -555,10 +557,10 @@ async function registerSeowonReply(parsed: SeowonTrackingParseResult, requestedO
   const failed:AdminTrackingImportFailure[]=[...match.issues];const succeeded:string[]=[];
   let queueWarning=false;let unchanged=match.unchanged.length;
   if(match.commands.length){
-    const result=await supabase.rpc('admin_import_shipment_tracking_batch',{target_rows:match.commands.map(command=>({
+    const result=await supabase.rpc('admin_import_seowon_tracking_batch',{target_origin_id:origin.id,target_rows:match.commands.map(command=>({
       line:command.line,reference:command.shipmentId,carrier:candidates.defaultCarrier,trackingNumber:command.trackingNumber,
     }))});
-    if(result.error?.message&&/^(inactive_shipping_carrier$|invalid_tracking_)/.test(result.error.message))
+    if(result.error?.message&&/^(warehouse_|shipment_pack_|production_|inactive_shipping_carrier$|invalid_tracking_)/.test(result.error.message))
       return {errors:{form:shipmentMutationError(result.error.message)}};
     if(result.error||!Array.isArray(result.data)||result.data.length!==match.commands.length)return {errors:{form:'등록 결과를 확인하지 못했습니다. 최신 배송 상태를 확인하고 같은 파일로 다시 시도해주세요.'}};
     // 합배송한 배송 건들은 같은 첫 줄을 공유하므로 결과는 줄이 아니라 배송 건으로 찾는다.
@@ -566,11 +568,11 @@ async function registerSeowonReply(parsed: SeowonTrackingParseResult, requestedO
     const deliveries:{orderId:string;shipmentId:string}[]=[];
     for(const command of match.commands){
       const outcome=outcomes.get(command.shipmentId),reference=command.shipmentId.slice(-8).toUpperCase();
-      if(outcome?.ok&&outcome.dispatched!==false){succeeded.push(reference);deliveries.push({orderId:command.orderId,shipmentId:command.shipmentId});}
+      if(outcome?.ok&&outcome.dispatched!==false){succeeded.push(reference);deliveries.push(...(outcome.packedShipments??[{orderId:command.orderId,shipmentId:command.shipmentId}]));}
       else if(outcome?.ok)unchanged++; // 다른 운영자가 같은 회신을 먼저 등록했다.
       else for(const line of command.lines)failed.push({line,reference,reason:shipmentMutationError(outcome?.error??'')});
     }
-    queueWarning=await enqueueDispatched(deliveries);
+    queueWarning=await enqueueDispatched([...new Map(deliveries.map(row=>[row.shipmentId,row])).values()]);
     revalidateOrderSurfaces();
   }
   return trackingImportResult(succeeded,failed,unchanged,queueWarning);
@@ -587,17 +589,18 @@ export async function bulkRegisterAdminOrderTrackingAction(
   try {
     const file = formData.get('file');
     if (file instanceof File && file.size > 0) {
-      if (file.size > TRACKING_IMPORT_FILE_LIMIT_BYTES) return {errors:{form:'파일은 768KB 이하로 올려주세요. 운송장은 1,000줄까지 등록할 수 있습니다.'}};
-      if (/\.xlsx$/i.test(file.name)) parsed=await parseTrackingWorkbook(Buffer.from(await file.arrayBuffer()),carriers);
+      const workbook=/\.xlsx$/i.test(file.name);
+      if (file.size > (workbook?TRACKING_IMPORT_FILE_LIMIT_BYTES:TRACKING_IMPORT_TEXT_LIMIT_BYTES)) return {errors:{form:workbook?'XLSX 파일은 1MB 이하로 올려주세요. 운송장은 1,000줄까지 등록할 수 있습니다.':'CSV·TSV·텍스트 파일은 256KB 이하로 올려주세요. 운송장은 1,000줄까지 등록할 수 있습니다.'}};
+      if (workbook) parsed=await parseTrackingWorkbook(Buffer.from(await file.arrayBuffer()),carriers);
       else if (/\.(csv|tsv|txt)$/i.test(file.name)) {
         const text=await file.text();
-        if(/^﻿?"?받는분전화번호/.test(text))return {errors:{form:'남양주(서원) 송장양식 회신은 XLSX로 올려주세요.'}};
+        if(/^\uFEFF?"?받는분전화번호/.test(text))return {errors:{form:'남양주(서원) 송장양식 회신은 XLSX로 올려주세요.'}};
         parsed=parseTrackingImport(text,carriers);
       }
       else return {errors:{form:'XLSX 또는 CSV·TSV 파일을 올려주세요.'}};
     } else {
       const text=String(formData.get('pasted')??'');
-      if(Buffer.byteLength(text,'utf8')>TRACKING_IMPORT_FILE_LIMIT_BYTES)return {errors:{form:'붙여넣기 내용은 768KB 이하로 나누어주세요.'}};
+      if(Buffer.byteLength(text,'utf8')>TRACKING_IMPORT_TEXT_LIMIT_BYTES)return {errors:{form:'붙여넣기 내용은 256KB 이하로 나누어주세요.'}};
       parsed=parseTrackingImport(text,carriers);
     }
   } catch(error) { return {errors:{form:error instanceof Error?error.message:'운송장 파일을 읽지 못했습니다.'}}; }
@@ -609,7 +612,7 @@ export async function bulkRegisterAdminOrderTrackingAction(
   const supabase=await createClient();
   let command: ReturnType<typeof trackingImportCommand>;
   try {
-    const originId='kind' in parsed?(await resolveReplyOrigin(supabase,'wms_csv',requestedOrigin)).id:requestedOrigin;
+    const originId='kind' in parsed&&parsed.kind==='gimpo'?(await resolveReplyOrigin(supabase,'wms_csv',requestedOrigin)).id:requestedOrigin;
     command = trackingImportCommand(parsed, originId);
   }
   catch (error) { return { errors: { form: error instanceof Error ? error.message : '출고지를 확인해주세요.' } }; }
@@ -618,17 +621,18 @@ export async function bulkRegisterAdminOrderTrackingAction(
   let queueWarning=false;let unchanged=0;
   if(parsed.rows.length){
     const result=await supabase.rpc(command.name,command.args);
-    if(result.error?.message&&/^(warehouse_|inactive_shipping_carrier$|invalid_tracking_)/.test(result.error.message))
+    if(result.error?.message&&/^(warehouse_|shipment_pack_|inactive_shipping_carrier$|invalid_tracking_)/.test(result.error.message))
       return {errors:{form:shipmentMutationError(result.error.message)}};
-    if(result.error||!Array.isArray(result.data)||result.data.length!==parsed.rows.length)return {errors:{form:'등록 결과를 확인하지 못했습니다. 최신 배송 상태를 확인하고 같은 파일로 다시 시도해주세요.'}};
+    if(result.error||!Array.isArray(result.data)||result.data.length!==command.args.target_rows.length)return {errors:{form:'등록 결과를 확인하지 못했습니다. 최신 배송 상태를 확인하고 같은 파일로 다시 시도해주세요.'}};
     const rows=result.data as TrackingBatchRow[];
     for(const row of rows){
-      if(!row.ok)failed.push({line:row.line,reference:row.reference,reason:shipmentMutationError(row.error??'')});
+      if(!row.ok){if(!parsed.issues.some(issue=>issue.line===row.line))failed.push({line:row.line,reference:row.reference,reason:shipmentMutationError(row.error??'')});}
       else if(row.duplicate)continue;
       else if(row.dispatched===false)unchanged++;
       else succeeded.push(row.reference);
     }
-    queueWarning=await enqueueDispatched(rows.filter(row=>row.ok&&!row.duplicate&&row.dispatched!==false&&row.shipmentId&&row.orderId).map(row=>({orderId:row.orderId!,shipmentId:row.shipmentId!})));
+    const deliveryRows=rows.filter(row=>row.ok&&!row.duplicate&&row.dispatched!==false&&row.shipmentId&&row.orderId).flatMap(row=>row.packedShipments??[{orderId:row.orderId!,shipmentId:row.shipmentId!}]);
+    queueWarning=await enqueueDispatched([...new Map(deliveryRows.map(row=>[row.shipmentId,row])).values()]);
     revalidateOrderSurfaces();
   }
   return trackingImportResult(succeeded,failed,unchanged,queueWarning);

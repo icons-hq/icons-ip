@@ -177,12 +177,7 @@ set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000601', true);
 select set_config('request.jwt.claim.role', 'authenticated', true);
 
-insert into public.cart_items (user_id, good_id, qty, variant_id)
-values (
-  '00000000-0000-4000-8000-000000000601',
-  'order-history-good',
-  1,
-  (select id from public.goods_variants where good_id='order-history-good' and is_default));
+select public.set_cart_item_quantity('order-history-good',(select id from public.goods_variants where good_id='order-history-good' and is_default),1);
 
 set local role service_role;
 select public.place_order(

@@ -1,3 +1,4 @@
+const { legacyOperatorAccessFixture } = await vi.hoisted(() => import('@/lib/admin/access.test-fixtures'));
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import AdminDisplayCurationsPage from './page';
 
@@ -6,31 +7,41 @@ const mocks = vi.hoisted(() => ({
     isConfigured: true,
     user: { id: '11111111-1111-4111-8111-111111111111', email: 'staff@icons.gg' },
     role: 'staff',
-    isStaff: true,
+    isStaff: true, operatorAccess: legacyOperatorAccessFixture(),
   } as {
     isConfigured: boolean;
     user: { id: string; email: string | null } | null;
     role: 'user' | 'staff' | 'admin' | null;
-    isStaff: boolean;
+    isStaff: boolean; operatorAccess?: ReturnType<typeof legacyOperatorAccessFixture>;
   },
   curationScreen: vi.fn(() => null),
   curations: vi.fn(async () => [{ id: 'curation-1' }]),
   catalogRecords: vi.fn(async () => ({
     events: [{ id: 'e100', title: '성수 팝업', archivedAt: null }],
-    goods: [{ id: 'g13', name: '홍실 아크릴 블록', archivedAt: null }],
+    goods: [{ id: 'g13', title: '홍실 아크릴 블록', archivedAt: null }],
     ips: [{ id: 'ip-1', title: '홍실', archivedAt: '2026-07-01T00:00:00.000Z' }],
   })),
   notifications: vi.fn(async () => ({ audiences: [], history: [] })),
   orders: vi.fn(async () => ({})),
+  home: vi.fn(async () => ({
+    catalog: { goods: [], ips: [] },
+    curation: { hero: null, announcement: null, featuredIpIds: [], heroSlides: [], editorPicks: [], goodsBands: [], categoryBestTabs: [], popularTabs: [], benefitTiles: [] },
+  })),
+  homeLayout: vi.fn(async () => ({ blocks: null, revision: 0, updatedAt: '2026-07-15T00:00:00Z' })),
   randomUuid: vi.fn(),
 }));
 
 vi.mock('node:crypto', () => ({ randomUUID: mocks.randomUuid }));
 vi.mock('@/components/admin/screens/CurationScreen', () => ({ CurationScreen: mocks.curationScreen }));
 vi.mock('@/lib/admin/curations.server', () => ({ getAdminCurations: mocks.curations }));
-vi.mock('@/lib/admin/catalog.server', () => ({ getAdminCatalogRecords: mocks.catalogRecords }));
+vi.mock('@/lib/admin/curation-targets.server', () => ({ loadAdminCurationTargets: mocks.catalogRecords }));
 vi.mock('@/lib/admin/notifications.server', () => ({ getAdminNotificationConsoleData: mocks.notifications }));
 vi.mock('@/lib/admin/orders.server', () => ({ getAdminOrderRecords: mocks.orders }));
+vi.mock('@/lib/catalog', () => ({ getHomeSnapshot: mocks.home }));
+vi.mock('@/lib/admin/home-layout.server', () => ({ getAdminHomeLayout: mocks.homeLayout }));
+vi.mock('@/lib/card-rewards/gate.server', () => ({ readCardRewardsEnabled: vi.fn(async () => false) }));
+vi.mock('@/lib/notice-strip.server', () => ({ getActiveNoticeStrip: vi.fn(async () => null) }));
+vi.mock('@/lib/home-ranking.server', () => ({ loadHomeProductRankings: vi.fn(async () => ({ sales: { realtime: [], daily: [], weekly: [], monthly: [] }, reviewStatistics: [], salesAvailable: true, reviewsAvailable: true })) }));
 vi.mock('@/lib/auth/admin', () => ({
   getCurrentAdminAuthState: vi.fn(async () => mocks.authState),
 }));
@@ -51,17 +62,20 @@ describe('AdminDisplayCurationsPage', () => {
       isConfigured: true,
       user: { id: '11111111-1111-4111-8111-111111111111', email: 'staff@icons.gg' },
       role: 'staff',
-      isStaff: true,
+      isStaff: true, operatorAccess: legacyOperatorAccessFixture(),
     };
     mocks.curationScreen.mockClear();
     mocks.curations.mockClear();
     mocks.catalogRecords.mockClear();
     mocks.notifications.mockClear();
     mocks.orders.mockClear();
+    mocks.home.mockClear();
+    mocks.homeLayout.mockClear();
     mocks.randomUuid.mockReset();
     mocks.randomUuid
       .mockReturnValueOnce('22222222-2222-4222-8222-222222222222')
-      .mockReturnValueOnce('33333333-3333-4333-8333-333333333333');
+      .mockReturnValueOnce('33333333-3333-4333-8333-333333333333')
+      .mockReturnValueOnce('44444444-4444-4444-8444-444444444444');
   });
 
   afterEach(() => {
@@ -79,6 +93,8 @@ describe('AdminDisplayCurationsPage', () => {
     await expect(AdminDisplayCurationsPage()).rejects.toThrow('NEXT_NOT_FOUND');
     expect(mocks.curations).not.toHaveBeenCalled();
     expect(mocks.catalogRecords).not.toHaveBeenCalled();
+    expect(mocks.home).not.toHaveBeenCalled();
+    expect(mocks.homeLayout).not.toHaveBeenCalled();
   });
 
   it('큐레이션과 이동 대상 목록에 새 초안 식별자와 시각을 함께 내려보낸다', async () => {
@@ -90,6 +106,8 @@ describe('AdminDisplayCurationsPage', () => {
       draftActiveFrom: '2026-07-15T03:04:05.000Z',
       draftId: '22222222-2222-4222-8222-222222222222',
       operationId: '33333333-3333-4333-8333-333333333333',
+      homeLayoutOperationId: '44444444-4444-4444-8444-444444444444',
+      homeLayout: { blocks: null, revision: 0 },
     });
   });
 
@@ -107,8 +125,9 @@ describe('AdminDisplayCurationsPage', () => {
   it('쓰는 카탈로그 종류만 요청하고 다른 화면의 로더는 부르지 않는다', async () => {
     await AdminDisplayCurationsPage();
 
-    expect(mocks.catalogRecords).toHaveBeenCalledWith({ include: ['events', 'goods', 'ips'] });
+    expect(mocks.catalogRecords).toHaveBeenCalledWith();
     expect(mocks.notifications).not.toHaveBeenCalled();
     expect(mocks.orders).not.toHaveBeenCalled();
+    expect(mocks.home).toHaveBeenCalledOnce();
   });
 });

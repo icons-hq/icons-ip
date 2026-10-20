@@ -3,6 +3,8 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { useCardRewardsEnabled } from '@/components/shell/CardRewardAvailability';
+import { useSubscriptionMenuAvailable } from '@/components/subscriptions/SubscriptionMenuAvailability';
+import { useGiftMenuAvailable } from '@/components/gifts/GiftMenuAvailability';
 import type { LoyaltyGrade } from '@/lib/loyalty';
 
 /*
@@ -19,7 +21,7 @@ export interface MypageMenuItem {
   label: string;
   description: string;
   /** 카드 리워드 게이트(DB 소유)가 닫혀 있으면 숨긴다 — 현 /packs 노출 규칙과 동일. */
-  gated?: 'card-rewards';
+  gated?: 'card-rewards' | 'gifts' | 'subscriptions';
 }
 
 export interface MypageMenuGroup {
@@ -34,6 +36,8 @@ const MYPAGE_MENU_GROUPS: MypageMenuGroup[] = [
     title: '쇼핑 정보',
     items: [
       { href: '/orders', label: '주문 내역', description: '결제와 배송 상태, 주문 상세를 확인하세요.' },
+      { href: '/my/subscriptions', label: '정기구매', description: '정기구매 일정과 결제카드를 관리하세요.', gated: 'subscriptions' },
+      { href: '/gifts', label: '선물함', description: '보낸 선물과 받은 선물을 확인하세요.', gated: 'gifts' },
       { href: '/tickets', label: '내 티켓', description: '예매 상태와 현장 입장용 티켓을 확인하세요.' },
       { href: '/my/wishlist', label: '위시리스트', description: '하트로 담아둔 굿즈를 다시 확인하세요.' },
       { href: '/binder', label: '바인더', description: '내가 모은 디지털 카드 컬렉션을 펼쳐보세요.' },
@@ -66,10 +70,11 @@ const MYPAGE_MENU_GROUPS: MypageMenuGroup[] = [
 
 export function useMypageMenuGroups(): MypageMenuGroup[] {
   const cardRewardsEnabled = useCardRewardsEnabled();
-  if (cardRewardsEnabled) return MYPAGE_MENU_GROUPS;
+  const giftsEnabled = useGiftMenuAvailable();
+  const subscriptionsEnabled = useSubscriptionMenuAvailable();
   return MYPAGE_MENU_GROUPS.map((group) => ({
     ...group,
-    items: group.items.filter((item) => item.gated !== 'card-rewards'),
+    items: group.items.filter((item) => (!item.gated || item.gated === 'card-rewards' && cardRewardsEnabled || item.gated === 'gifts' && giftsEnabled || item.gated === 'subscriptions' && subscriptionsEnabled)),
   }));
 }
 

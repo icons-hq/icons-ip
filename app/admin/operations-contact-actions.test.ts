@@ -1,6 +1,7 @@
+const { legacyOperatorAccessFixture } = await vi.hoisted(() => import('@/lib/admin/access.test-fixtures'));
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
-  auth: { isConfigured: true, user: { id: 'admin' }, isStaff: true, role: 'admin' },
+  auth: { isConfigured: true, user: { id: 'admin' }, isStaff: true, operatorAccess: legacyOperatorAccessFixture(), role: 'admin' },
   rpc: vi.fn(), revalidatePath: vi.fn(),
 }));
 vi.mock('@/lib/auth/admin', () => ({ getCurrentAdminAuthState: async () => mocks.auth }));
@@ -19,13 +20,13 @@ function form(overrides: Record<string, string> = {}) {
   return data;
 }
 beforeEach(() => {
-  Object.assign(mocks.auth, { isConfigured: true, isStaff: true, role: 'admin' });
+  Object.assign(mocks.auth, { isConfigured: true, isStaff: true, operatorAccess: legacyOperatorAccessFixture(), role: 'admin' });
   mocks.rpc.mockReset().mockResolvedValue({ data: stamp, error: null });
   mocks.revalidatePath.mockClear();
 });
 
 describe('운영 담당자 저장 경계', () => {
-  it.each([{ role: 'staff', isStaff: true }, { role: 'admin', isStaff: false }])('비관리자 및 정지된 관리자의 DB 호출을 막는다: %j', async auth => {
+  it.each([{ role: 'staff', isStaff: true, operatorAccess: legacyOperatorAccessFixture() }, { role: 'admin', isStaff: false }])('비관리자 및 정지된 관리자의 DB 호출을 막는다: %j', async auth => {
     Object.assign(mocks.auth, auth);
     const result = await saveOperationsContactAction({}, form());
     expect(result.errors?.form).toContain('관리자');

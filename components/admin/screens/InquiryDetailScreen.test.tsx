@@ -17,9 +17,8 @@ vi.mock('@/app/admin/inquiry-actions', () => ({
   reassignInquiryAction: vi.fn(),
   addInquiryInternalNoteAction: vi.fn(),
   closeInquiryAction: vi.fn(),
-  deleteInquiryReplyTemplateAction: vi.fn(),
-  saveInquiryReplyTemplateAction: vi.fn(),
 }));
+vi.mock('@/app/admin/inquiry-reply-template-actions', () => ({ listInquiryReplyTemplatesAction: vi.fn(), mutateInquiryReplyTemplateAction: vi.fn(), readInquiryReplyTemplateAction: vi.fn(), readInquiryTemplateOperationAction: vi.fn() }));
 vi.mock('@/app/admin/customer-actions', () => ({ loadCustomerHistoryAction: vi.fn() }));
 
 const INQUIRY_ID = 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa';
@@ -82,7 +81,6 @@ function detail(overrides: Partial<AdminInquiryDetail> = {}): AdminInquiryDetail
       inquiryCount: 3,
       openInquiryCount: 1,
     },
-    templates: [{ id: 't1', title: '배송 지연 안내', body: '배송이 지연되어 죄송합니다.' }],
     staffOptions: [],
     notes: [],
     ...overrides,
@@ -96,6 +94,16 @@ function render(input = detail()) {
 }
 
 describe('InquiryDetailScreen', () => {
+  it('목록 아래 작업 영역에서도 답변 작성은 한 번만 렌더하고 문의·주문 근거를 보존한다', () => {
+    const html = renderToStaticMarkup(<InquiryDetailScreen embedded backHref="/admin/cs/inquiries" detail={detail()} now={NOW} />);
+    expect(html).toContain('고객문의 내용 보기');
+    expect(html).toContain('aria-label="판매자 답변 처리"');
+    expect(html.match(/<strong>답변 작성<\/strong>/g)).toHaveLength(1);
+    expect(html).toContain('주문한 지 일주일이 지났어요');
+    expect(html).toContain(`/admin/sales/orders/${ORDER_ID}`);
+    expect(html).not.toContain('<dialog');
+  });
+
   it('자동 안내가 있어도 답변자·담당자로 표시하지 않고 미답변 기한을 유지한다', () => {
     const html=render(detail({messages:[{id:'system',author:'system',authorName:null,body:'FAQ https://iconsip.com/help',imageUrls:[],createdAt:'2026-08-18T01:00:01Z'}]}));
     expect(html).toContain('자동 안내');
@@ -177,8 +185,14 @@ describe('InquiryDetailScreen', () => {
   it('미종결 문의에는 템플릿과 답변 발송·종결 버튼을 둔다', () => {
     const html = render();
 
-    expect(html).toContain('배송 지연 안내');
+    expect(html).toContain('답변 템플릿 불러오기');
     expect(html).toContain('답변 발송');
     expect(html).toContain('지금 종결');
   });
+});
+
+it('CS-only managers do not receive order or global customer entry points', () => {
+  const html = renderToStaticMarkup(<InquiryDetailScreen backHref="/admin/cs/inquiries" detail={detail()} now={NOW} canReadOrders={false} canManageSales={false} canViewCustomer={false} />);
+  expect(html).toContain('주문한 지 일주일이 지났어요');
+  for (const text of ['연결 주문', '주문 콘솔에서 열기', '고객 상세 열기', '고객 이력', '클레임 이력', ORDER_ID]) expect(html).not.toContain(text);
 });

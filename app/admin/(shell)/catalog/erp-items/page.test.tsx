@@ -1,9 +1,10 @@
+const { legacyOperatorAccessFixture } = await vi.hoisted(() => import('@/lib/admin/access.test-fixtures'));
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import Page from './page';
 
 const mocks = vi.hoisted(() => ({
-  auth: { isConfigured: true, user: { id: 'staff' }, isStaff: true, role: 'staff' } as Record<string, unknown>,
+  auth: { isConfigured: true, user: { id: 'staff' }, isStaff: true, operatorAccess: legacyOperatorAccessFixture(), role: 'staff' } as Record<string, unknown>,
   load: vi.fn(),
 }));
 vi.mock('@/lib/auth/admin', () => ({ getCurrentAdminAuthState: vi.fn(async () => mocks.auth) }));
@@ -16,7 +17,7 @@ vi.mock('@/lib/admin/erp-items.server', () => ({ loadErpItemsWorkspace: mocks.lo
 vi.mock('@/app/admin/erp-item-actions', () => ({ importErpItemsAction: vi.fn(), readErpItemFileAction: vi.fn(), setErpCategoryMappingAction: vi.fn(), deleteErpItemsAction: vi.fn() }));
 
 beforeEach(() => {
-  mocks.auth = { isConfigured: true, user: { id: 'staff' }, isStaff: true, role: 'staff' };
+  mocks.auth = { isConfigured: true, user: { id: 'staff' }, isStaff: true, operatorAccess: legacyOperatorAccessFixture(), role: 'staff' };
   mocks.load.mockReset().mockResolvedValue({
     filters: { query: '키링', page: 1 }, page: { total: 0, items: [] }, erpCategories: [], categories: [], categoryErpMappings: [],
   });

@@ -101,6 +101,7 @@ function createQuery(
   rows: Record<string, unknown>[],
   records: QueryRecord[],
   errorMessage?: string,
+  maximumRows = Number.POSITIVE_INFINITY,
 ) {
   const record: QueryRecord = { table, eq: [], gt: [], lte: [], is: [], in: [], not: [], or: [], order: [] };
   records.push(record);
@@ -197,9 +198,10 @@ function createQuery(
             return (options?.ascending === false ? -1 : 1) * left.localeCompare(right);
           });
         }
-        if (typeof record.limit === 'number') data = data.slice(0, record.limit);
+        const count = data.length;
+        data = data.slice(0, Math.min(record.limit ?? maximumRows, maximumRows));
         return Promise.resolve(
-          makeResult(record.selectOptions?.head ? null : data, record.selectOptions?.count ? data.length : undefined),
+          makeResult(record.selectOptions?.head ? null : data, record.selectOptions?.count ? count : undefined),
         ).then(onfulfilled, onrejected);
       } catch (error) {
         return Promise.reject(error).then(onfulfilled, onrejected);
@@ -266,6 +268,8 @@ function createSupabaseClient(
   overrides: Partial<SupabaseRows> = {},
   userId: string | null = 'viewer-1',
   errors: Partial<Record<keyof SupabaseRows, string>> = {},
+  layoutOrder: unknown = null,
+  maximumRows = Number.POSITIVE_INFINITY,
 ) {
   const rows: SupabaseRows = {
     ...defaultSupabaseRows(),
@@ -278,8 +282,9 @@ function createSupabaseClient(
       getUser: () => Promise.resolve({ data: { user: userId ? { id: userId } : null } }),
     },
     from(table: keyof SupabaseRows) {
-      return createQuery(table, rows[table] as unknown as Record<string, unknown>[], records, errors[table]);
+      return createQuery(table, rows[table] as unknown as Record<string, unknown>[], records, errors[table], maximumRows);
     },
+    rpc(name?: string): Promise<{ data: unknown; error: { message: string } | null }> { return Promise.resolve({ data: name === 'get_home_layout_order' ? layoutOrder : name === 'get_shopping_stories' ? { rows: [], total: 0, nextChangeAt: null } : null, error: null }); },
     storage: {
       from() {
         return {
@@ -326,6 +331,40 @@ describe('buildCatalogIpDetail', () => {
 });
 
 describe('getCatalogSnapshot', () => {
+  it('1,000건 밖의 그룹 목적지·IP·추가상품도 목록 첫 페이지와 독립적으로 상세를 조회한다', async () => {
+    mocks.isConfigured = true;
+    const records: QueryRecord[] = [], base = defaultSupabaseRows().ips[0];
+    const goods = Array.from({ length: 1002 }, (_, index) => ({ id: `goods-${String(index).padStart(4, '0')}`,
+      ip_id: 'zz-last-ip', name: `상품 ${index}`, type: '문구', price: 1000, stock: 'ok', stock_qty: 1,
+      sale_restriction: 'none', 'ips.published_at': '2026-09-01', additional_good_ids: index === 1000 ? ['goods-1001'] : [] }));
+    const client = createSupabaseClient(records, {
+      ips: [...Array.from({ length: 1000 }, (_, index) => ({ ...base, id: `ip-${index}`, fans_count: index + 1 })),
+        { ...base, id: 'zz-last-ip', public_slug: 'last-ip', fans_count: 0 }], goods,
+    }, null, {}, null, 1000);
+    const groupId = 'a6140000-0000-4000-8000-000000000001';
+    client.rpc = async name => ({ data: name === 'get_good_group' ? { id: groupId, name: '상품', optionNames: ['색상'],
+      currentGoodId: 'goods-1000', members: [{ goodId: 'goods-1000', values: ['빨강'], sortOrder: 0 },
+        { goodId: 'goods-1001', values: ['파랑'], sortOrder: 1 }] } : null, error: null });
+    mocks.client = client;
+    const detail = await getCatalogGoodDetail('goods-1000');
+    expect(detail?.good.id).toBe('goods-1000');
+    expect(detail?.ip).toMatchObject({ id: 'zz-last-ip', publicSlug: 'last-ip' });
+    expect(detail?.additionalGoods?.map(good => good.id)).toEqual(['goods-1001']);
+    expect(detail?.goodsGroup?.members.map(member => member.goodId)).toEqual(['goods-1000', 'goods-1001']);
+    expect(records.filter(record => record.table === 'goods').every(record => record.eq.length || record.in.length)).toBe(true);
+  });
+
+  it('직접 상세 조회도 비공개 상품·IP와 판매 제한을 통과시키지 않는다', async () => {
+    mocks.isConfigured = true;
+    const base = { id: 'hidden', ip_id: 'hwasan', name: '숨김', type: '문구', price: 1000, stock: 'ok', stock_qty: 1,
+      sale_restriction: 'none', 'ips.published_at': '2026-09-01' };
+    for (const hidden of [{ ...base, published_at: null }, { ...base, archived_at: '2026-10-01' },
+      { ...base, sale_restriction: 'adult' }, { ...base, 'ips.published_at': null }, { ...base, 'ips.archived_at': '2026-10-01' }]) {
+      mocks.client = createSupabaseClient([], { goods: [hidden] });
+      expect(await getCatalogGoodDetail('hidden')).toBeNull();
+    }
+  });
+
   it('carries the canonical slug through catalog, goods detail and home reads without exposing hidden IPs', async () => {
     mocks.isConfigured = true;
     const records: QueryRecord[] = [];
@@ -768,6 +807,60 @@ describe('getCatalogIpDetail', () => {
 });
 
 describe('getHomeSnapshot', () => {
+  it('filters archived banners even for a staff-visible table and projects explicit style options', async () => {
+    const records: QueryRecord[] = [];
+    mocks.isConfigured = true;
+    const base = { kind: 'hero', ip_id: null, title: '배너', image_path: 'public-media/catalog/curation/11111111-1111-4111-8111-111111111111.webp', link_path: '/shop', display_order: 0, active_from: '2020-01-01T00:00:00Z', active_to: null, enabled: true };
+    mocks.client = createSupabaseClient(records, { home_curations: [
+      { ...base, id: 'live', archived_at: null, payload: { image_dim: 'white', text_color: 'black' } },
+      { ...base, id: 'legacy', archived_at: null, payload: null },
+      { ...base, id: 'archived', archived_at: '2026-01-01', payload: null },
+    ] });
+    try {
+      const slides = (await getHomeSnapshot()).curation.heroSlides;
+      expect(slides.map(row => row.id)).toEqual(['legacy', 'live']);
+      expect(slides.find(row => row.id === 'live')).toMatchObject({ imageDim: 'white', textColor: 'black' });
+      expect(slides.find(row => row.id === 'legacy')).toMatchObject({ imageDim: undefined, textColor: undefined });
+      expect(records.find(row => row.table === 'home_curations')?.is).toContainEqual(['archived_at', null]);
+    } finally { mocks.isConfigured = false; mocks.client = null; }
+  });
+  it('이미지 전용·링크 없는 배너를 유지하고 기존 10개 초과 행은 정렬된 10개만 공개한다', async () => {
+    mocks.isConfigured = true;
+    mocks.client = createSupabaseClient([], { home_curations: Array.from({ length: 12 }, (_, index) => ({
+      id: `banner-${String(index).padStart(2, '0')}`, kind: 'hero', ip_id: null, title: index === 0 ? '' : `배너 ${index}`,
+      image_path: 'public-media/catalog/curation/11111111-1111-4111-8111-111111111111.webp', link_path: index === 0 ? null : '/shop',
+      display_order: index, active_from: '2020-01-01T00:00:00Z', active_to: null, enabled: true,
+      payload: index === 0 ? { alt_enabled: true, alt_title: '그림 속 제목', alt_content: '그림 속 설명' } : null,
+    })) });
+    try {
+      const result = (await getHomeSnapshot()).curation.heroSlides;
+      expect(result).toHaveLength(10);
+      expect(result.map(row => row.id)).toEqual(Array.from({ length: 10 }, (_, index) => `banner-${String(index).padStart(2, '0')}`));
+      expect(result[0]).toMatchObject({ title: '', href: null, imageAlt: '그림 속 제목 · 그림 속 설명' });
+    } finally { mocks.isConfigured = false; mocks.client = null; }
+  });
+
+  it('loads the latest three stories and preserves a future boundary even for an empty section', async () => {
+    mocks.isConfigured = true;
+    const rpc = vi.fn(async (name: string) => ({ data: name === 'get_shopping_stories'
+      ? { rows: [], total: 0, nextChangeAt: '2099-10-13T09:00:00Z' } : null, error: null }));
+    mocks.client = { ...createSupabaseClient([], {}, null), rpc };
+    try {
+      const result = await getHomeSnapshot();
+      expect(rpc).toHaveBeenCalledWith('get_shopping_stories', { p_limit: 3, p_offset: 0 });
+      expect(result.curation).toMatchObject({ shoppingStories: [], storiesNextChangeAt: '2099-10-13T09:00:00Z', shoppingStoriesUnavailable: false });
+    } finally { mocks.isConfigured = false; mocks.client = null; }
+  });
+
+  it('does not interpret a story lookup failure as a successful empty result', async () => {
+    mocks.isConfigured = true;
+    mocks.client = { ...createSupabaseClient([], {}, null), rpc: async (name: string) => ({ data: null,
+      error: name === 'get_shopping_stories' ? { message: 'unavailable' } : null }) };
+    try {
+      expect((await getHomeSnapshot()).curation.shoppingStoriesUnavailable).toBe(true);
+    } finally { mocks.isConfigured = false; mocks.client = null; }
+  });
+
   it('loads active home curation in deterministic order and scopes previews to curated IPs', async () => {
     const records: QueryRecord[] = [];
     mocks.isConfigured = true;
@@ -936,6 +1029,10 @@ describe('getHomeSnapshot', () => {
     const snapshot = await getHomeSnapshot();
 
     expect(snapshot.curation).toEqual({
+      layoutOrder: null,
+      shoppingStories: [],
+      storiesNextChangeAt: null,
+      shoppingStoriesUnavailable: false,
       hero: {
         id: '00000000-0000-0000-0000-000000000001',
         title: '여름 홈 히어로',
@@ -953,6 +1050,7 @@ describe('getHomeSnapshot', () => {
         id: '00000000-0000-0000-0000-000000000001',
         title: '여름 홈 히어로',
         subtitle: null,
+        imageAlt: '',
         imageUrl: 'https://cdn.example/catalog/curation/11111111-1111-4111-8111-111111111111.webp',
         mobileImageUrl: null,
         href: '/events/summer',
@@ -1030,6 +1128,10 @@ describe('getHomeSnapshot', () => {
     const snapshot = await getHomeSnapshot();
 
     expect(snapshot.curation).toEqual({
+      layoutOrder: null,
+      shoppingStories: [],
+      storiesNextChangeAt: null,
+      shoppingStoriesUnavailable: false,
       hero: null,
       announcement: null,
       featuredIpIds: [],
@@ -1279,6 +1381,38 @@ describe('getHomeSnapshot', () => {
     mocks.client = null;
   });
 
+  it('loads automatic tabs from the current public catalog and ignores invalid automatic rules', async () => {
+    const records: QueryRecord[] = [];
+    const base = {
+      kind: 'best_tab', ip_id: null, title: '신상품', image_path: null, link_path: '/shop',
+      display_order: 0, active_from: '2020-01-01T00:00:00.000Z', active_to: null, enabled: true, slot: 'category',
+    };
+    mocks.isConfigured = true;
+    mocks.client = createSupabaseClient(records, {
+      goods: [
+        { id: 'older', created_at: '2026-09-01' },
+        { id: 'new-a', created_at: '2026-10-01' },
+        { id: 'new-b', created_at: '2026-10-02' },
+        { id: 'draft', created_at: '2026-10-03', published_at: null },
+        { id: 'archived', created_at: '2026-10-04', archived_at: '2026-10-05' },
+      ].map((good) => ({ ip_id: 'hwasan', name: good.id, type: '키링', price: 1000, stock: 'ok', stock_qty: 1, sale_restriction: 'none', ...good })),
+      home_curations: [
+        { ...base, id: 'automatic', payload: { selection_mode: 'latest', item_count: 3 } },
+        { ...base, id: 'invalid', payload: { selection_mode: 'latest', item_count: 3, good_ids: ['older'] } },
+        { ...base, id: 'manual', slot: 'popular', payload: { good_ids: ['older', 'new-b'] } },
+      ],
+    });
+    try {
+      const snapshot = await getHomeSnapshot();
+      expect(snapshot.curation.categoryBestTabs.map((tab) => tab.id)).toEqual(['automatic']);
+      expect(snapshot.curation.categoryBestTabs[0].goods.map((good) => good.id)).toEqual(['new-b', 'new-a', 'older']);
+      expect(snapshot.curation.popularTabs[0].goods.map((good) => good.id)).toEqual(['older', 'new-b']);
+    } finally {
+      mocks.isConfigured = false;
+      mocks.client = null;
+    }
+  });
+
   it('assembles the S3 band kinds into view models and keeps the notice strip out of the home snapshot', async () => {
     const records: QueryRecord[] = [];
     mocks.isConfigured = true;
@@ -1413,6 +1547,7 @@ describe('getHomeSnapshot', () => {
       id: '00000000-0000-0000-0000-000000000021',
       title: '이중 아트웍 히어로',
       subtitle: 'SUMMER DROP',
+      imageAlt: '',
       imageUrl: 'https://cdn.example/catalog/curation/11111111-1111-4111-8111-111111111111.webp',
       mobileImageUrl: 'https://cdn.example/catalog/curation/22222222-2222-4222-8222-222222222222.webp',
       href: '/events/dual',
@@ -1458,6 +1593,85 @@ describe('getHomeSnapshot', () => {
     mocks.client = null;
   });
 
+  it('joins independent sales and review modules to published catalog cards and omits invalid saved rules', async () => {
+    const row = (id: string, kind: string, payload: unknown) => ({ id, kind, payload, title: id, ip_id: null, image_path: null,
+      link_path: '/shop', display_order: 0, active_from: '2020-01-01', active_to: null, enabled: true, slot: null });
+    const ids = ['rank-1', 'rank-2', 'rank-3', 'rank-4'];
+    const client = createSupabaseClient([], {
+      goods: [...ids, 'rank-draft'].map((id) => ({ id, ip_id: 'hwasan', name: id, type: '키링', price: 1000,
+        stock: 'ok', stock_qty: 1, published_at: id === 'rank-draft' ? null : '2026-09-01', archived_at: null, sale_restriction: 'none' })),
+      home_curations: [row('sales-module', 'sales_best', { exposure_mode: 'all', period: 'weekly' }),
+        row('reviews-module', 'review_best', { selection_mode: 'rating' }),
+        row('invalid-module', 'review_best', { selection_mode: 'rating', good_ids: ids })],
+    });
+    client.rpc = async (name) => ({ error: null, data: name === 'get_home_sales_rankings'
+      ? { realtime: ['rank-draft', 'rank-1'], daily: [], weekly: ['rank-2'], monthly: [] }
+      : name === 'get_home_review_candidates' ? [...ids, 'rank-draft'].map((goodId) => ({ goodId, ratingAverage: 4.5, reviewCount: 2,
+        recentReviewAt: '2026-10-11T00:00:00Z', representative: { id: `review-${goodId}`, rating: 5, body: '공개 리뷰 본문', authorName: '공개 사용자', createdAt: '2026-09-20T00:00:00Z' } })) : null });
+    mocks.isConfigured = true; mocks.client = client;
+    try {
+      const snapshot = await getHomeSnapshot();
+      expect(snapshot.curation.salesBestBands).toHaveLength(1);
+      expect(snapshot.curation.salesBestBands![0].tabs[0].goods.map((good) => good.id)).toEqual(['rank-1']);
+      expect(snapshot.curation.salesBestBands![0].defaultTabId).toBe('sales-module-weekly');
+      expect(snapshot.curation.reviewBestBands).toHaveLength(1);
+      expect(snapshot.curation.reviewBestBands![0].goods.map((good) => good.id)).toEqual(ids);
+      expect(snapshot.curation.reviewBestBands![0].goods[0].review.body).toBe('공개 리뷰 본문');
+    } finally { mocks.isConfigured = false; mocks.client = null; }
+  });
+
+  it('joins mosaic images to public products while preserving unavailable slot positions', async () => {
+    const imagePath = 'public-media/catalog/curation/00000000-0000-4000-8000-000000013511.png';
+    const slots = Array.from({ length: 8 }, (_, index) => ({ good_id: index === 0 ? 'mosaic-private' : index === 7 ? 'mosaic-live' : null, image_path: imagePath }));
+    const client = createSupabaseClient([], {
+      goods: ['mosaic-live', 'mosaic-private'].map(id => ({ id, ip_id: 'hwasan', name: id, type: '키링', price: 1000,
+        stock: 'soldout', stock_qty: 0, published_at: id === 'mosaic-private' ? null : '2026-09-01', archived_at: null, sale_restriction: 'none' })),
+      home_curations: [{ id: 'mosaic-id', kind: 'product_mosaic', title: '이미지 모음', ip_id: null, image_path: null, link_path: '/shop',
+        display_order: 0, active_from: '2020-01-01', active_to: null, enabled: true, slot: null,
+        payload: { mosaic_title: '추천', mosaic_subtitle: '상품 이미지', slots } }],
+    });
+    mocks.isConfigured = true; mocks.client = client;
+    try {
+      const snapshot = await getHomeSnapshot();
+      expect(snapshot.curation.mosaicBands).toHaveLength(1);
+      expect(snapshot.curation.mosaicBands![0].tiles).toHaveLength(8);
+      expect(snapshot.curation.mosaicBands![0].tiles[0]).toBeNull();
+      expect(snapshot.curation.mosaicBands![0].tiles[7]).toMatchObject({ good: { id: 'mosaic-live', soldOut: true }, imageUrl: expect.stringContaining('013511.png') });
+    } finally { mocks.isConfigured = false; mocks.client = null; }
+  });
+
+  it('loads free-product projections through the public RPC and never consumes the editable raw pool', async () => {
+    const id = '96900000-0000-4000-8000-000000000001';
+    const client = createSupabaseClient([], {
+      goods: ['free-a', 'free-b', 'free-hidden'].map(id => ({ id, ip_id: 'hwasan', name: id, type: '키링', price: 1000,
+        stock: 'soldout', stock_qty: 0, published_at: id === 'free-hidden' ? null : '2026-09-01', archived_at: null, sale_restriction: 'none' })),
+      home_curations: [{ id, kind: 'product_collection', title: '관리자 원문', ip_id: null, image_path: null, link_path: null,
+        display_order: 0, active_from: '2020-01-01', active_to: null, enabled: true, slot: null,
+        payload: { layout: 'list', image_shape: 'square', item_count: 3, good_ids: ['private-pool-secret', 'free-a'] } }],
+    });
+    const projection = { id, title: '공개 상품', payload: { layout: 'list', image_shape: 'landscape', item_count: 3, good_ids: ['free-hidden', 'free-b', 'free-a'] } };
+    client.rpc = vi.fn(async name => ({ error: null, data: name === 'get_home_product_collections'
+      ? [projection, { ...projection, id: 'bad-id' }, { ...projection, payload: { ...projection.payload, item_count: 100 } }]
+      : name === 'get_home_layout_order' ? [`products:${id}`] : null }));
+    mocks.isConfigured = true; mocks.client = client;
+    try {
+      const snapshot = await getHomeSnapshot();
+      expect(snapshot.curation.productCollections).toHaveLength(1);
+      expect(snapshot.curation.productCollections?.[0]).toMatchObject({ title: '공개 상품', layout: 'list', imageShape: 'landscape', goods: [{ id: 'free-b', soldOut: true }, { id: 'free-a' }] });
+      expect(JSON.stringify(snapshot.curation)).not.toContain('private-pool-secret');
+      expect(JSON.stringify(snapshot.curation)).not.toContain('free-hidden');
+      expect(client.rpc).toHaveBeenCalledWith('get_home_product_collections');
+    } finally { mocks.isConfigured = false; mocks.client = null; }
+  });
+
+  it('reports a failed free-product projection instead of treating it as an empty saved pool', async () => {
+    const client = createSupabaseClient([]);
+    client.rpc = async name => ({ data: null, error: name === 'get_home_product_collections' ? { message: 'projection unavailable' } : null });
+    mocks.isConfigured = true; mocks.client = client;
+    try { await expect(getHomeSnapshot()).rejects.toThrow('Failed to load home product collections: projection unavailable'); }
+    finally { mocks.isConfigured = false; mocks.client = null; }
+  });
+
   it('throws when the Supabase curation query fails instead of falling back to mock data', async () => {
     const records: QueryRecord[] = [];
     mocks.isConfigured = true;
@@ -1496,6 +1710,31 @@ describe('getHomeSnapshot', () => {
 
 
 describe('goods detail publication races', () => {
+  it('loads selected related cards with the shared option prices and public filters, preserving editorial order', async () => {
+    const records: QueryRecord[] = [];
+    const base = { ip_id: 'hwasan', type: '키링', price: 5000, stock: 'ok', stock_qty: 5, archived_at: null,
+      published_at: '2026-09-01', sale_restriction: 'none', 'ips.published_at': '2026-09-01', 'ips.archived_at': null,
+      description: null, image_path: null, bg: null, allow_bank_transfer: true };
+    const client = createSupabaseClient(records, { goods: [
+      { ...base, id: 'relation-main', name: '대표 상품' },
+      { ...base, id: 'relation-b', name: '첫 번째 상품', goods_variants: [{ id: 'option-b', name: '기본', code: 'B', price: 3500, stock_qty: 5, is_default: true, attributes: {}, archived_at: null, sort_order: 0 }] },
+      { ...base, id: 'relation-c', name: '두 번째 상품', allow_bank_transfer: false, allow_card_payment: false },
+      { ...base, id: 'relation-hidden', name: '제외 상품', sale_restriction: 'adult' },
+    ] });
+    client.rpc = async name => ({ data: name === 'get_good_relation_compositions' ? { groups: [{ id: '74000000-0000-4000-8000-000000000001', kind: 'together', title: '함께 구매', goodIds: ['relation-c', 'relation-b', 'relation-hidden'] }], nextChangeAt: null } : null, error: null });
+    mocks.isConfigured = true; mocks.client = client;
+    try {
+      const detail = await getCatalogGoodDetail('relation-main');
+      expect(detail?.relatedGoods?.groups[0].goods.map(good => [good.id, good.price])).toEqual([['relation-c', 5000], ['relation-b', 3500]]);
+      expect(detail?.relatedGoods?.groups[0].goods[0]).toMatchObject({ allowBankTransfer: false, allowCardPayment: false });
+      const selectedRead = records.find(record => record.table === 'goods' && record.in.some(([key]) => key === 'id'));
+      expect(selectedRead?.select?.split(',')).toContain('allow_card_payment');
+      expect(selectedRead?.selectOptions).toEqual({ count: 'exact' });
+      expect(selectedRead?.eq).toContainEqual(['sale_restriction', 'none']);
+      expect(selectedRead?.not).toContainEqual(['ips.published_at', 'is', null]);
+    } finally { mocks.isConfigured = false; mocks.client = null; }
+  });
+
   it.each(['good', 'ip'])('does not return a stale visible card after %s returns to draft', async (target) => {
     const records: QueryRecord[] = [];
     const good = { id: 'g-race', ip_id: 'hwasan', name: '판매 상품', type: '키링', price: 1000,

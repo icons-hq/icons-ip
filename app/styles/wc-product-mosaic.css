@@ -1,0 +1,30 @@
+@layer components {
+  .wc-product-mosaic { margin-block: 48px; }
+  .wc-product-mosaic > h2 { margin: 0 0 24px; font-size: 26px; font-weight: 700; letter-spacing: -0.04em; }
+  .wc-product-mosaic__surface { padding: 20px; background: #141414; color: #fff; }
+  .wc-product-mosaic__surface > header { margin-bottom: 18px; }
+  .wc-product-mosaic__surface h3 { margin: 0 0 6px; font-size: 20px; overflow-wrap: anywhere; }
+  .wc-product-mosaic__surface p { margin: 0; color: #dedede; font-size: 14px; overflow-wrap: anywhere; }
+  .wc-product-mosaic__scroll { overflow-x: auto; }
+  .wc-product-mosaic__scroll:focus-visible { outline: 2px solid currentColor; outline-offset: 3px; }
+  .wc-product-mosaic__grid { display: grid; grid-template-columns: repeat(7, minmax(0, 1fr)); grid-template-rows: repeat(2, minmax(0, 1fr)); gap: 8px; aspect-ratio: 7 / 2; padding: 0; margin: 0; list-style: none; }
+  .wc-product-mosaic__grid > li { position: relative; min-width: 0; overflow: hidden; background: #242424; }
+  .wc-product-mosaic__grid > li[data-slot='1'] { grid-area: 1 / 1 / 3 / 3; }
+  .wc-product-mosaic__grid > li[data-slot='2'] { grid-area: 1 / 3; }
+  .wc-product-mosaic__grid > li[data-slot='3'] { grid-area: 2 / 3; }
+  .wc-product-mosaic__grid > li[data-slot='4'] { grid-area: 1 / 4; }
+  .wc-product-mosaic__grid > li[data-slot='5'] { grid-area: 2 / 4; }
+  .wc-product-mosaic__grid > li[data-slot='6'] { grid-area: 1 / 5 / 3 / 7; }
+  .wc-product-mosaic__grid > li[data-slot='7'] { grid-area: 1 / 7; }
+  .wc-product-mosaic__grid > li[data-slot='8'] { grid-area: 2 / 7; }
+  .wc-product-mosaic__grid a { position: relative; display: block; height: 100%; color: #fff; }
+  .wc-product-mosaic__grid a:focus-visible { outline: 3px solid #fff; outline-offset: -4px; }
+  .wc-product-mosaic__grid img { display: block; width: 100%; height: 100%; object-fit: cover; }
+  .wc-product-mosaic__caption { position: absolute; inset: auto 0 0; padding: 20px 10px 10px; background: linear-gradient(transparent, rgb(0 0 0 / 85%)); font-size: 12px; line-height: 1.4; overflow-wrap: anywhere; }
+  .wc-product-mosaic__caption strong { display: block; font-size: 12px; }
+  @media (max-width: 767px) {
+    .wc-product-mosaic > h2 { font-size: 22px; margin-bottom: 18px; }
+    .wc-product-mosaic__surface { padding: 16px; }
+    .wc-product-mosaic__grid { width: calc((100% - 16px) / 3 * 7 + 48px); }
+  }
+}

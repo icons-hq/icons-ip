@@ -89,3 +89,12 @@ describe('account deletion public DTO', () => {
     });
   });
 });
+
+it.each([
+  ['active_received_gift', '/gifts'], ['active_shipping_collect', '/orders'], ['active_claim_fee', '/orders'], ['subscription_active', '/my/subscriptions'],
+  ['subscription_payment_pending', '/my/subscriptions'], ['billing_registration_pending', '/my/subscriptions'], ['billing_card_cleanup', '/my/subscriptions'],
+])('새 의무 %s는 지정된 고객 경로로만 안내한다', (code, path) => {
+  const payload = { status: 'blocked', phase: 'fenced', nextAction: path, blockers: [{ code, count: 1, path }] };
+  expect(normalizeAccountDeletionStatus(payload)).toEqual(payload);
+  expect(normalizeAccountDeletionStatus({ ...payload, blockers: [{ code, count: 1, path: '/settings' }] }).status).toBe('not_requested');
+});

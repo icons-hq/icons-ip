@@ -1,16 +1,31 @@
 /** ADR-0014: operator labels only. Domain code, public copy and card/ticket screens keep their vocabulary. */
 export const ADMIN_VOCABULARY = Object.freeze({
   goods: '상품',
-  goodsCode: '상품코드',
+  goodsCode: '판매자상품코드',
+  goodsNumber: '상품번호',
+  goodsList: '상품 조회/수정',
+  goodsGroups: '그룹상품 조회/수정',
+  goodsGroupsCreate: '그룹상품 등록',
+  goodsRegister: '상품 등록',
+  goodsImport: '상품 일괄등록',
   additionalGoods: '추가구성상품',
   option: '옵션',
   /* 상품 편집의 가격·재고 입력은 스마트스토어 용어를 쓴다. 저장 계약은 price=할인가, compareAtPrice=판매가(할인 시)다. */
   salePrice: '판매가',
+  instantDiscount: '즉시할인',
   discountedPrice: '할인가',
   optionPrice: '옵션가',
   stockQuantity: '재고수량',
   optionCode: '관리코드',
   noticeInfo: '상품정보제공고시',
+  saleStatus: '판매상태',
+  displayStatus: '전시상태',
+  productInquiry: '문의 관리',
+  customerInquiry: '고객문의 관리',
+  orderSearch: '주문통합검색',
+  unpaidOrders: '미결제 확인',
+  dispatch: '발주(주문)확인/발송관리',
+  shipping: '배송현황 관리',
   claims: '취소·반품·교환 관리',
   claimRequest: '취소·반품·교환 요청',
   claimNumber: '요청번호',
@@ -18,7 +33,7 @@ export const ADMIN_VOCABULARY = Object.freeze({
   claimRate: '요청률',
   confirmed: '발주확인',
   settled: '거래확정',
-  settledHint: '배송 완료 후 정해진 기간이 지나 거래가 종료된 상태입니다. 에스크로의 구매확정과 구분합니다.',
+  settledHint: '구매자 직접 확정 또는 설정된 자동 정책으로 거래가 확정된 상태입니다. 판매대금 지급 완료나 반품·교환 권리의 소멸을 뜻하지 않습니다.',
 });
 
 /** Adapt existing static goods-operation copy; never apply to user-entered names or card/ticket surfaces. */

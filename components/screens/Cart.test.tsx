@@ -6,7 +6,8 @@ import type { CartCouponState } from '@/lib/coupons.server';
 import type { Good } from '@/lib/data';
 import type { AddressShippingQuote } from '@/lib/shipping-regions';
 import type { CouponQuote } from '@/lib/coupon-targeting';
-import type { GoodsSalesQuoteLine } from '@/lib/goods-sales';
+import type { GoodsSalesPrecheckoutQuote, GoodsSalesQuoteLine } from '@/lib/goods-sales';
+import { goodsSalesPrecheckoutQuote } from '@/test/fixtures/goods-sales-precheckout';
 import { Cart } from './Cart';
 
 const mocks = vi.hoisted(() => ({
@@ -18,16 +19,28 @@ const mocks = vi.hoisted(() => ({
   quotePrices: new Map<string, number>(),
   quotePeriods: new Map<string, Pick<GoodsSalesQuoteLine, 'regularPrice' | 'pricePeriodId' | 'startsAt' | 'endsAt'>>(),
   coupon: null as CouponQuote | null,
+  precheckout: null as GoodsSalesPrecheckoutQuote | null,
+  precheckoutError: null as string | null,
+  legacyEnabled: false,
+  precheckoutEnabled: false,
 }));
 
 vi.mock('@/components/shop/useShippingQuote', () => ({
-  useShippingQuote: () => ({quote:mocks.quote,sales:mocks.quote ? {
+  useShippingQuote: (_items: readonly CartItem[], enabled: boolean) => {
+    mocks.legacyEnabled = enabled;
+    return {quote:enabled ? mocks.quote : null,sales:enabled && mocks.quote ? {
     calculatedAt:'2026-09-10T00:00:00Z', shipping:mocks.quote,
     subtotal:mocks.items.reduce((sum,item)=>sum+(mocks.quotePrices.get(item.variantId) ?? goods.find(good=>good.id===item.goodId)?.price??0)*item.qty,0),
     lines:mocks.items.map(item=>({...item,regularPrice:mocks.quotePrices.get(item.variantId) ?? goods.find(good=>good.id===item.goodId)?.price??0,effectivePrice:mocks.quotePrices.get(item.variantId) ?? goods.find(good=>good.id===item.goodId)?.price??0,pricePeriodId:null,startsAt:null,endsAt:null,...mocks.quotePeriods.get(item.variantId),available:true})),
     goods:[],paymentMethods:{card:true,bankTransfer:true},
     coupon:mocks.coupon,
-  } : null,loading:!mocks.quote,error:null,refresh:vi.fn()}),
+    } : null,loading:enabled && !mocks.quote,error:null,refresh:vi.fn()};
+  },
+  useGoodsSalesPrecheckoutQuote: (_items: readonly CartItem[], enabled: boolean) => {
+    mocks.precheckoutEnabled = enabled;
+    return { sales: enabled ? mocks.precheckout : null, loading: enabled && !mocks.precheckout && !mocks.precheckoutError,
+      error: enabled ? mocks.precheckoutError : null, refresh: vi.fn() };
+  },
 }));
 const gimpoGroup: AddressShippingQuote['groups'][number] = {originId:'gimpo',originCode:'GIMPO',originName:'김포',baseFee:3000,freeThreshold:50000,
   policySubtotal:12000,policyFee:3000,individualFee:0,totalFee:3000, regionMode: 'legacy_base_only', regionStatus: 'unconfigured',
@@ -35,7 +48,10 @@ const gimpoGroup: AddressShippingQuote['groups'][number] = {originId:'gimpo',ori
   regionLabel: null, carrierCode: 'hanjin', feeUnit: null, unitCount: 0, destinationPostalCode: null, matchedAddressPrefix: null};
 const defaultQuote: AddressShippingQuote = {totalFee:3000,groups:[gimpoGroup],checkoutAllowed:true,finalTotalFee:3000,destination:null,nextChangeAt:null};
 mocks.quote = defaultQuote;
-beforeEach(() => { mocks.quote = defaultQuote; mocks.legacyItems = []; mocks.ready = true; mocks.quotePrices.clear(); mocks.quotePeriods.clear(); mocks.coupon = null; });
+beforeEach(() => {
+  mocks.quote = defaultQuote; mocks.legacyItems = []; mocks.ready = true; mocks.quotePrices.clear(); mocks.quotePeriods.clear(); mocks.coupon = null;
+  mocks.precheckout = null; mocks.precheckoutError = null; mocks.legacyEnabled = false; mocks.precheckoutEnabled = false;
+});
 
 vi.mock('@/components/shell/CartProvider', () => ({
   useCart: () => ({
@@ -116,6 +132,66 @@ function render(items: CartItem[], couponState: CartCouponState = emptyCouponSta
   mocks.items = items;
   return renderToStaticMarkup(<Cart catalog={{ goods, ips: [] }} couponState={couponState} />);
 }
+
+function transactionPrecheckout(): GoodsSalesPrecheckoutQuote {
+  return { ...goodsSalesPrecheckoutQuote, subtotal: 8000,
+    lines: [{ ...goodsSalesPrecheckoutQuote.lines[0], goodId: 'g13', variantId: DEFAULT_VARIANT, qty: 1 }],
+    goods: [{ ...goodsSalesPrecheckoutQuote.goods[0], goodId: 'g13', qty: 1, minOrderQty: 1 }],
+  };
+}
+
+function renderTransaction(couponState: CartCouponState = emptyCouponState) {
+  mocks.items = [{ goodId: 'g13', variantId: DEFAULT_VARIANT, qty: 1 }];
+  return renderToStaticMarkup(<Cart catalog={{ goods, ips: [] }} couponState={couponState} transactionMode="transaction" />);
+}
+
+describe('transaction cart product conditions', () => {
+  it('uses only the product prequote and defers shipping, coupon and total amounts to checkout', () => {
+    mocks.precheckout = transactionPrecheckout();
+    const html = renderTransaction();
+    expect(mocks.precheckoutEnabled).toBe(true); expect(mocks.legacyEnabled).toBe(false);
+    expect(html).toContain('₩8,000'); expect(html).toContain('회원 추가 구매 가능 4개');
+    expect(html).toContain('배송지·선불/착불 선택 후 확정');
+    expect(html).toContain('주문서에서 할인·배송비 확인 후 표시');
+    expect(html).not.toContain('무료'); expect(html).not.toContain('₩3,000'); expect(html).not.toContain('김포 출고');
+    expect(html).toContain('href="/checkout"');
+  });
+  it('requires a current successful product quote before enabling checkout', () => {
+    let html = renderTransaction();
+    expect(html).toContain('현재 가격과 구매 조건을 확인하고 있어요.');
+    expect(html).not.toContain('href="/checkout"');
+    mocks.precheckoutError = '현재 가격과 구매 조건을 확인하지 못했습니다.';
+    html = renderTransaction();
+    expect(html).toContain(mocks.precheckoutError); expect(html).toContain('가격·구매 조건 다시 확인');
+    expect(html).not.toContain('href="/checkout"'); expect(html).not.toContain('가격·배송비 다시 확인');
+  });
+  it('blocks unavailable stock, member limits and incompatible payment conditions from the server', () => {
+    const valid = transactionPrecheckout();
+    const cases: [GoodsSalesPrecheckoutQuote, string][] = [
+      [{ ...valid, lines: [{ ...valid.lines[0], available: false }] }, '재고가 변경'],
+      [{ ...valid, goods: [{ ...valid.goods[0], reason: 'member_purchase_limit_exceeded' }] }, '회원 누적 구매 한도를 초과'],
+      [{ ...valid, paymentMethods: { card: false, bankTransfer: false } }, '공통 결제수단이 없어요'],
+    ];
+    for (const [quote, message] of cases) {
+      mocks.precheckout = quote;
+      const html = renderTransaction();
+      expect(html).toContain(message); expect(html).not.toContain('href="/checkout"');
+    }
+  });
+  it('keeps a selected coupon without comparing it with an intentionally absent coupon calculation', () => {
+    mocks.precheckout = transactionPrecheckout();
+    const html = renderTransaction({ selectedUserCouponId: fix5k.id, coupons: [fix5k] });
+    expect(html).toContain('5천원 할인'); expect(html).toContain('주문서에서 확인');
+    expect(html).not.toContain('다른 화면에서 선택한 쿠폰이 변경');
+    expect(html).not.toContain('최소 주문 금액 미달'); expect(html).toContain('href="/checkout"');
+  });
+  it('does not query either contract when runtime availability is unknown', () => {
+    mocks.items = [{ goodId: 'g13', variantId: DEFAULT_VARIANT, qty: 1 }];
+    const html = renderToStaticMarkup(<Cart catalog={{ goods, ips: [] }} couponState={emptyCouponState} transactionMode="unavailable" />);
+    expect(mocks.precheckoutEnabled).toBe(false); expect(mocks.legacyEnabled).toBe(false);
+    expect(html).toContain('주문 조건을 확인하지 못했습니다.'); expect(html).not.toContain('href="/checkout"');
+  });
+});
 
 describe('Cart 배송비 요약', () => {
   it('임계 미달이면 실제 배송비를 붙이고 남은 금액을 안내한다', () => {

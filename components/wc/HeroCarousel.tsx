@@ -131,26 +131,30 @@ export function HeroCarousel({ className, slides }: HeroCarouselProps) {
       <div className="wc-hero__viewport">
         {slides.map((slide, index) => {
           const active = index === activeIndex;
+          const content = <>
+            <picture className="wc-hero__media">
+              {slide.mobileImageUrl ? <source media="(max-width: 749px)" srcSet={slide.mobileImageUrl} /> : null}
+              <img alt={slide.imageAlt ?? ''} src={slide.imageUrl} />
+            </picture>
+            {slide.imageDim === 'white' || slide.imageDim === 'black' ? <span aria-hidden className="wc-hero__dim" data-tone={slide.imageDim} /> : null}
+            {!slide.imageDim && (slide.title || slide.subtitle) ? <span aria-hidden className="wc-hero__scrim" /> : null}
+            {slide.title || slide.subtitle ? <>
+            <span className="wc-hero__copy">
+              {slide.title ? <strong className="wc-hero__title">{slide.title}</strong> : null}
+              {slide.subtitle ? <span className="wc-hero__subtitle">{slide.subtitle}</span> : null}
+            </span>
+            </> : null}
+          </>;
           return (
             <div
               key={slide.id}
               aria-hidden={active ? undefined : true}
               className="wc-hero__slide"
               data-active={active ? 'true' : 'false'}
+              data-text-color={slide.textColor ?? 'white'}
             >
-              <Link className="wc-hero__link" href={slide.href} tabIndex={active ? undefined : -1}>
-                <picture className="wc-hero__media">
-                  {slide.mobileImageUrl ? (
-                    <source media="(max-width: 749px)" srcSet={slide.mobileImageUrl} />
-                  ) : null}
-                  <img alt="" src={slide.imageUrl} />
-                </picture>
-                <span aria-hidden className="wc-hero__scrim" />
-                <span className="wc-hero__copy">
-                  <strong className="wc-hero__title">{slide.title}</strong>
-                  {slide.subtitle ? <span className="wc-hero__subtitle">{slide.subtitle}</span> : null}
-                </span>
-              </Link>
+              {slide.href ? <Link aria-label={!slide.title && !slide.subtitle && !slide.imageAlt ? `프로모션 배너 ${index + 1} 보기` : undefined} className="wc-hero__link" href={slide.href} tabIndex={active ? undefined : -1}>{content}</Link>
+                : <div className="wc-hero__link">{content}</div>}
             </div>
           );
         })}
@@ -162,7 +166,7 @@ export function HeroCarousel({ className, slides }: HeroCarouselProps) {
               <button
                 key={slide.id}
                 aria-current={index === activeIndex ? 'true' : undefined}
-                aria-label={`${index + 1}번 슬라이드: ${slide.title}`}
+                aria-label={`${index + 1}번 슬라이드: ${slide.title || '프로모션 배너'}`}
                 className={`wc-hero__segment${index === activeIndex ? ' is-active' : ''}`}
                 onClick={() => goTo(index)}
                 type="button"

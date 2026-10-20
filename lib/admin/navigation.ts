@@ -7,6 +7,7 @@
  */
 
 import { ADMIN_VOCABULARY } from './vocabulary';
+import { canAccessAdminScreen, type OperatorAccess } from './access';
 
 /** 화면이 실제로 구현됐는지. `planned`는 메뉴에 자리만 두고 라우트가 없다. */
 export type AdminScreenStatus = 'ready' | 'planned';
@@ -33,60 +34,139 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
     label: '홈',
     icon: 'grid',
     screens: [
-      { id: 'overview', label: '개요', href: '/admin', status: 'ready' },
-    ],
-  },
-  {
-    id: 'sales',
-    label: '주문·배송',
-    icon: 'bag',
-    screens: [
-      { id: 'orders', label: '주문 통합검색', href: '/admin/sales/orders', status: 'ready' },
-      { id: 'unpaid', label: '미입금 확인', href: '/admin/sales/unpaid', status: 'ready' },
-      { id: 'dispatch', label: '발주·발송 관리', href: '/admin/sales/dispatch', status: 'ready' },
-      { id: 'shipping', label: '배송현황 관리', href: '/admin/sales/shipping', status: 'ready' },
-      { id: 'settled', label: '거래확정 내역', href: '/admin/sales/settled', status: 'ready' },
-      { id: 'claims-cancels', label: '취소 관리', href: '/admin/sales/claims/cancels', status: 'ready' },
-      { id: 'claims-returns', label: '반품 관리', href: '/admin/sales/claims/returns', status: 'ready' },
-      { id: 'claims-exchanges', label: '교환 관리', href: '/admin/sales/claims/exchanges', status: 'ready' },
-    ],
-  },
-  {
-    id: 'cs',
-    label: '고객 응대',
-    icon: 'chat',
-    screens: [
-      { id: 'inquiries', label: '1:1 문의', href: '/admin/cs/inquiries', status: 'ready' },
-      { id: 'faq', label: 'FAQ 관리', href: '/admin/cs/faq', status: 'ready' },
-      { id: 'qna', label: '상품 Q&A', href: '/admin/cs/qna', status: 'ready' },
-      { id: 'reviews', label: '리뷰 관리', href: '/admin/cs/reviews', status: 'ready' },
-      { id: 'moderation', label: '커뮤니티 모더레이션', href: '/admin/community/moderation', status: 'ready' },
-      { id: 'members', label: '회원', href: '/admin/community/members', status: 'ready' },
-      { id: 'roles', label: '역할', href: '/admin/community/roles', status: 'ready', adminOnly: true },
+      { id: 'overview', label: '홈', href: '/admin', status: 'ready' },
     ],
   },
   {
     id: 'catalog',
-    label: '상품 관리',
+    label: '상품관리',
     icon: 'shop',
     screens: [
-      { id: 'goods', label: ADMIN_VOCABULARY.goods, href: '/admin/catalog/goods', status: 'ready' },
-      { id: 'categories', label: '고객 카테고리', href: '/admin/catalog/categories', status: 'ready' },
-      /* ERP '품목 생성' 데이터 반입과 ERP 분류 ↔ 고객 카테고리 연결. 옵션 ERP 품명 제안의 원천이다. */
+      { id: 'goods', label: ADMIN_VOCABULARY.goodsList, href: '/admin/catalog/goods', status: 'ready' },
+      { id: 'goods-create', label: ADMIN_VOCABULARY.goodsRegister, href: '/admin/catalog/goods?create=1', status: 'ready' },
+      { id: 'goods-groups-create', label: ADMIN_VOCABULARY.goodsGroupsCreate, href: '/admin/catalog/groups/new?mode=assemble', status: 'ready' },
+      { id: 'goods-groups', label: ADMIN_VOCABULARY.goodsGroups, href: '/admin/catalog/groups', status: 'ready' },
+      { id: 'goods-import', label: ADMIN_VOCABULARY.goodsImport, href: '/admin/catalog/goods/import', status: 'ready' },
+      { id: 'fulfillment-origins', label: '배송정보 관리', href: '/admin/settings/origins', status: 'ready' },
+      { id: 'shipping-settings-templates', label: '배송정보 템플릿 관리', href: '/admin/settings/shipping-templates', status: 'ready' },
+      { id: 'shipping-notice-templates', label: '배송 안내 템플릿 관리', href: '/admin/settings/shipping-notices', status: 'ready' },
+      { id: 'notice-presets', label: `${ADMIN_VOCABULARY.noticeInfo} 템플릿 관리`, href: '/admin/catalog/notice-presets', status: 'ready' },
+      { id: 'goods-event-templates', label: '이벤트 템플릿 관리', href: '/admin/catalog/event-templates', status: 'ready' },
+      { id: 'category-templates', label: '카테고리 템플릿 관리', href: '/admin/catalog/category-templates', status: 'ready' },
+      { id: 'goods-after-sales-templates', label: 'A/S 템플릿 관리', href: '/admin/catalog/after-sales-templates', status: 'ready' },
+      { id: 'size-templates', label: '사이즈 템플릿 관리', href: '/admin/catalog/size-templates', status: 'ready' },
+      { id: 'categories', label: '카테고리 관리', href: '/admin/catalog/categories', status: 'ready' },
+      /* ERP 반입과 카테고리 연결은 ICONS 운영에 필요한 별도 메뉴로 유지한다. */
       { id: 'erp-items', label: 'ERP 품목', href: '/admin/catalog/erp-items', status: 'ready' },
-      { id: 'notice-presets', label: `${ADMIN_VOCABULARY.noticeInfo} 프리셋`, href: '/admin/catalog/notice-presets', status: 'ready' },
+      { id: 'announcements', label: '상품공지사항 관리', href: '/admin/catalog/announcements', status: 'ready' },
+      { id: 'goods-photos', label: '사진 보관함', href: '/admin/catalog/photos', status: 'ready' },
+      { id: 'related-goods', label: '연관상품 관리', href: '/admin/catalog/related-goods', status: 'ready' },
+      { id: 'goods-attributes', label: '상품속성 관리', href: '/admin/catalog/attributes', status: 'ready', adminOnly: true },
+      { id: 'shipping-regions', label: '지역별 추가배송비 관리', href: '/admin/settings/shipping-regions', status: 'ready' },
+      { id: 'shipping-carriers', label: '택배사 관리', href: '/admin/settings/carriers', status: 'ready' },
+    ],
+  },
+  {
+    id: 'sales',
+    label: '판매관리',
+    icon: 'bag',
+    screens: [
+      { id: 'orders', label: ADMIN_VOCABULARY.orderSearch, href: '/admin/sales/orders', status: 'ready' },
+      { id: 'gifts', label: '선물 수락 대기', href: '/admin/sales/gifts', status: 'ready' },
+      { id: 'subscriptions', label: '정기구매 관리', href: '/admin/sales/subscriptions', status: 'ready' },
+      { id: 'unpaid', label: ADMIN_VOCABULARY.unpaidOrders, href: '/admin/sales/unpaid', status: 'ready' },
+      { id: 'dispatch', label: ADMIN_VOCABULARY.dispatch, href: '/admin/sales/dispatch', status: 'ready' },
+      { id: 'shipping', label: ADMIN_VOCABULARY.shipping, href: '/admin/sales/shipping', status: 'ready' },
+      /* 거래확정과 PG 판매대금 지급은 별도 계약이다. */
+      { id: 'purchase-restrictions', label: '판매방해 고객관리', href: '/admin/sales/purchase-restrictions', status: 'ready' },
+      { id: 'settled', label: `${ADMIN_VOCABULARY.settled} 내역`, href: '/admin/sales/settled', status: 'ready' },
+      { id: 'claims-cancels', label: '취소 관리', href: '/admin/sales/claims/cancels', status: 'ready' },
+      { id: 'claims-returns', label: '반품 관리', href: '/admin/sales/claims/returns', status: 'ready' },
+      { id: 'claims-exchanges', label: '교환 관리', href: '/admin/sales/claims/exchanges', status: 'ready' },
+      { id: 'refund-transfers', label: '환불 송금 대기', href: '/admin/sales/claims/refund-transfers', status: 'ready', adminOnly: true },
+    ],
+  },
+  {
+    id: 'settlements',
+    label: '정산관리',
+    icon: 'card',
+    screens: [
+      { id: 'pg-settlements', label: '정산 내역 (일별/건별)', href: '/admin/settlements', status: 'ready', adminOnly: true },
+    ],
+  },
+  {
+    id: 'cs',
+    label: '문의/리뷰관리',
+    icon: 'chat',
+    screens: [
+      { id: 'qna', label: ADMIN_VOCABULARY.productInquiry, href: '/admin/cs/qna', status: 'ready' },
+      { id: 'inquiries', label: ADMIN_VOCABULARY.customerInquiry, href: '/admin/cs/inquiries', status: 'ready' },
+      { id: 'reviews', label: '리뷰 관리', href: '/admin/cs/reviews', status: 'ready' },
+      { id: 'review-events', label: '리뷰 이벤트', href: '/admin/cs/review-events', status: 'ready' },
+      { id: 'review-insights', label: '리뷰 인사이트', href: '/admin/cs/review-insights', status: 'ready' },
+      { id: 'inquiry-chat', label: '상담하기', href: '/admin/cs/chat', status: 'ready' },
+      { id: 'faq', label: 'FAQ 관리', href: '/admin/cs/faq', status: 'ready' },
+      { id: 'members', label: '회원 관리', href: '/admin/community/members', status: 'ready' },
+    ],
+  },
+  {
+    id: 'store',
+    label: '스토어관리',
+    icon: 'shop',
+    screens: [
+      { id: 'curations', label: '홈 전시 관리', href: '/admin/display/curations', status: 'ready' },
+      { id: 'category-display', label: '카테고리 전시 관리', href: '/admin/display/categories', status: 'ready' },
+      { id: 'product-detail-presentation', label: '상품 상세 구성', href: '/admin/display/detail', status: 'ready' },
+      { id: 'store-presentation', label: '스토어 전시 설정', href: '/admin/display/settings', status: 'ready' },
+      { id: 'shopping-stories', label: '쇼핑스토리', href: '/admin/display/stories', status: 'ready' },
     ],
   },
   {
     id: 'display',
-    label: '혜택·전시',
+    label: '혜택/마케팅',
     icon: 'star',
     screens: [
-      { id: 'coupons', label: '쿠폰 관리', href: '/admin/sales/coupons', status: 'ready' },
-      { id: 'curations', label: '홈 큐레이션', href: '/admin/display/curations', status: 'ready' },
-      { id: 'campaigns', label: '캠페인', href: '/admin/display/campaigns', status: 'ready' },
+      { id: 'coupon-register', label: '혜택 등록', href: '/admin/sales/coupons/new', status: 'ready' },
+      { id: 'coupons', label: '혜택 조회/수정', href: '/admin/sales/coupons', status: 'ready' },
+      { id: 'benefit-report', label: '혜택 리포트', href: '/admin/sales/benefit-report', status: 'ready' },
+      { id: 'marketing-messages', label: '고객 안내 메시지', href: '/admin/marketing/messages', status: 'ready' },
+      { id: 'marketing-links', label: '마케팅 링크', href: '/admin/marketing/links', status: 'ready' },
+      { id: 'customer-segments', label: '타겟 세그먼트', href: '/admin/marketing/segments', status: 'ready' },
+      { id: 'customer-grades', label: '고객등급 관리', href: '/admin/marketing/customer-grades', status: 'ready', adminOnly: true },
+      { id: 'store-credit-console', label: '적립금 지급관리', href: '/admin/sales/store-credits', status: 'ready', adminOnly: true },
+      { id: 'store-credits', label: '적립금 정책', href: '/admin/settings/store-credits', status: 'ready', adminOnly: true },
       { id: 'notifications', label: '공지 발송', href: '/admin/messaging/notifications', status: 'ready' },
       { id: 'emails', label: '메일 발송 이력', href: '/admin/messaging/emails', status: 'ready' },
+    ],
+  },
+  {
+    id: 'stats',
+    label: '데이터분석',
+    icon: 'trendUp',
+    screens: [
+      { id: 'stats-traffic', label: '방문·유입 분석', href: '/admin/stats/traffic', status: 'ready' },
+      { id: 'stats-marketing', label: '마케팅 링크 성과', href: '/admin/stats/marketing', status: 'ready' },
+      { id: 'stats-sales', label: '판매분석', href: '/admin/stats/sales', status: 'ready' },
+      { id: 'stats-claims', label: '취소/반품/교환 분석', href: '/admin/stats/claims', status: 'ready' },
+      { id: 'stats-customers', label: '고객분석', href: '/admin/stats/customers', status: 'ready' },
+    ],
+  },
+  {
+    id: 'promotion',
+    label: '프로모션',
+    icon: 'star',
+    screens: [
+      { id: 'campaigns', label: '캠페인 관리', href: '/admin/display/campaigns', status: 'ready' },
+    ],
+  },
+  {
+    id: 'seller',
+    label: '판매자 정보',
+    icon: 'grid',
+    screens: [
+      { id: 'store-settings', label: '판매자 정보 관리', href: '/admin/settings/store', status: 'ready' },
+      { id: 'roles', label: '매니저 관리', href: '/admin/community/roles', status: 'ready', adminOnly: true },
+      { id: 'operations-settings', label: '운영 준비', href: '/admin/settings/operations', status: 'ready' },
     ],
   },
   {
@@ -102,23 +182,7 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
       { id: 'games', label: '게임', href: '/admin/catalog/games', status: 'ready' },
       { id: 'events', label: '이벤트', href: '/admin/catalog/events', status: 'ready' },
       { id: 'ticket-types', label: '티켓 회차', href: '/admin/catalog/ticket-types', status: 'ready' },
-    ],
-  },
-  {
-    id: 'stats',
-    label: '분석·설정',
-    icon: 'trendUp',
-    screens: [
-      { id: 'stats-sales', label: '판매분석', href: '/admin/stats/sales', status: 'ready' },
-      { id: 'stats-claims', label: ADMIN_VOCABULARY.claims, href: '/admin/stats/claims', status: 'ready' },
-      { id: 'stats-customers', label: '고객현황', href: '/admin/stats/customers', status: 'ready' },
-      { id: 'operations-settings', label: '운영 준비', href: '/admin/settings/operations', status: 'ready' },
-      { id: 'store-credits', label: '적립금 정책', href: '/admin/settings/store-credits', status: 'ready', adminOnly: true },
-      { id: 'store-settings', label: '사업자·CS·결제·문의 설정', href: '/admin/settings/store', status: 'ready' },
-      { id: 'fulfillment-origins', label: '출고지·배송비', href: '/admin/settings/origins', status: 'ready' },
-      { id: 'shipping-regions', label: '지역 추가 배송비', href: '/admin/settings/shipping-regions', status: 'ready' },
-      { id: 'shipping-notice-templates', label: '배송정보 템플릿', href: '/admin/settings/shipping-notices', status: 'ready' },
-      { id: 'shipping-carriers', label: '택배사 관리', href: '/admin/settings/carriers', status: 'ready' },
+      { id: 'moderation', label: '커뮤니티 관리', href: '/admin/community/moderation', status: 'ready' },
     ],
   },
   {
@@ -135,8 +199,6 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
     label: '도움말',
     icon: 'spark',
     screens: [
-      /* 주제 상세(/admin/guide/<topic>)는 여기 올리지 않는다 — 최장 접두 일치로
-         헤더 제목·사이드바 active가 이 항목을 따라오고, 목차는 화면 안에서 푼다. */
       { id: 'guide', label: '사용 가이드', href: '/admin/guide', status: 'ready' },
     ],
   },
@@ -149,23 +211,30 @@ export const ADMIN_SCREENS: AdminScreen[] = ADMIN_NAV_GROUPS.flatMap((group) => 
  * `/admin`이 모든 경로의 접두라서 접두만으로 고르면 전부 개요로 떨어진다.
  */
 export function adminScreenForPath(pathname: string): AdminScreen | null {
-  const normalized = pathname.length > 1 && pathname.endsWith('/')
-    ? pathname.slice(0, -1)
-    : pathname;
+  const path = pathname.split(/[?#]/, 1)[0];
+  const normalized = path.length > 1 && path.endsWith('/') ? path.slice(0, -1) : path;
+
+  if (normalized === '/admin/catalog/goods') {
+    const query = new URLSearchParams(pathname.split('?')[1]?.split('#')[0]);
+    if (query.get('create') === '1') {
+      return ADMIN_SCREENS.find((screen) => screen.id === 'goods-create') ?? null;
+    }
+  }
 
   // 고객 상세는 회원 목록과 같은 메뉴·권한에 속한다.
   if (normalized.startsWith('/admin/customers/')) {
     return ADMIN_SCREENS.find((screen) => screen.id === 'members') ?? null;
   }
 
-  const exact = ADMIN_SCREENS.find((screen) => screen.href === normalized);
+  const exact = ADMIN_SCREENS.find((screen) => screen.href.split(/[?#]/, 1)[0] === normalized);
   if (exact) return exact;
 
   let best: AdminScreen | null = null;
   for (const screen of ADMIN_SCREENS) {
-    if (screen.href === '/admin') continue;
-    if (!normalized.startsWith(`${screen.href}/`)) continue;
-    if (!best || screen.href.length > best.href.length) best = screen;
+    const screenPath = screen.href.split(/[?#]/, 1)[0];
+    if (screenPath === '/admin') continue;
+    if (!normalized.startsWith(`${screenPath}/`)) continue;
+    if (!best || screenPath.length > best.href.split(/[?#]/, 1)[0].length) best = screen;
   }
   return best;
 }
@@ -196,6 +265,8 @@ const LEGACY_SECTION_HREFS: Record<string, string> = {
   event: '/admin/catalog/events',
   ticket: '/admin/catalog/ticket-types',
   curations: '/admin/display/curations',
+  'shopping-stories': '/admin/display/stories',
+  'marketing-links': '/admin/marketing/links',
   notifications: '/admin/messaging/notifications',
   emails: '/admin/messaging/emails',
   moderation: '/admin/community/moderation',
@@ -211,11 +282,13 @@ export function legacyAdminSectionHref(value: unknown): string | null {
 }
 
 /** 역할이 볼 수 있는 메뉴만 남긴다. `planned`는 자리 표시로 남겨 둔다. */
-export function visibleAdminNavGroups(role: string): AdminNavGroup[] {
+export function visibleAdminNavGroups(role: string, operatorAccess?: OperatorAccess): AdminNavGroup[] {
   return ADMIN_NAV_GROUPS
     .map((group) => ({
       ...group,
-      screens: group.screens.filter((screen) => !screen.adminOnly || role === 'admin'),
+      screens: group.screens.filter((screen) => operatorAccess
+        ? canAccessAdminScreen({ role, operatorAccess }, screen)
+        : !screen.adminOnly || role === 'admin'),
     }))
     .filter((group) => group.screens.length > 0);
 }

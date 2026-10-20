@@ -1,3 +1,4 @@
+import { hasAdminCapability } from '@/lib/admin/access';
 import { NextResponse } from 'next/server';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
 import {
@@ -77,7 +78,7 @@ export async function POST(request: Request) {
   }
   if (!auth.isConfigured) return errorResponse(503, 'not_configured');
   if (!auth.user) return errorResponse(401, 'auth_required');
-  if (!auth.isStaff) return errorResponse(404, 'not_found');
+  if (!auth.isStaff || !hasAdminCapability(auth, 'platform.manage')) return errorResponse(404, 'not_found');
 
   let body: unknown;
   try {

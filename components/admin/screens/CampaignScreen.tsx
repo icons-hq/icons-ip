@@ -19,16 +19,18 @@ export function CampaignScreen({
   offers,
   pools,
   records,
+  canManageOffers = true,
 }: {
   offers: AdminCoinExchangeOfferRecord[];
   pools: AdminCardPoolRecord[];
   records: AdminCampaignRecord[];
+  canManageOffers?: boolean;
 }) {
   const [state, action, pending] = useActionState(upsertAdminCampaignAction, emptyState);
   const { selected, select } = useSelectedRecord(records);
 
   return (
-    <><AdminPageHeader title="캠페인 운영" description="캠페인 노출과 무상 카드팩 교환처를 관리합니다." />
+    <><AdminPageHeader title="캠페인 운영" description={canManageOffers ? '캠페인 노출과 무상 카드팩 교환처를 관리합니다.' : '캠페인 노출과 콘텐츠를 관리합니다.'} />
     <div className="col" style={{ gap: 18 }}>
       <CampaignSection
         action={action}
@@ -38,7 +40,7 @@ export function CampaignScreen({
         selected={selected}
         state={state}
       />
-      <CoinExchangeOfferPanel offers={offers} pools={pools} />
+      {canManageOffers ? <CoinExchangeOfferPanel offers={offers} pools={pools} /> : null}
     </div></>
   );
 }

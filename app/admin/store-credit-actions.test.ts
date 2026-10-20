@@ -1,3 +1,4 @@
+const { legacyOperatorAccessFixture } = await vi.hoisted(() => import('@/lib/admin/access.test-fixtures'));
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({ auth: vi.fn(), rpc: vi.fn(), revalidate: vi.fn() }));
 vi.mock('@/lib/auth/admin', () => ({ getCurrentAdminAuthState: mocks.auth }));
@@ -7,11 +8,11 @@ import { adjustStoreCreditAction, saveStoreCreditPolicyAction } from './store-cr
 
 beforeEach(() => {
   vi.clearAllMocks();
-  mocks.auth.mockResolvedValue({ isConfigured: true, user: { id: '00000000-0000-4000-8000-000000004881' }, isStaff: true, role: 'admin' });
+  mocks.auth.mockResolvedValue({ isConfigured: true, user: { id: '00000000-0000-4000-8000-000000004881' }, isStaff: true, operatorAccess: legacyOperatorAccessFixture(), role: 'admin' });
 });
 describe('적립금 운영 Server Action', () => {
   it('일반 직원의 금액 조정을 권한 경계에서 거절한다', async () => {
-    mocks.auth.mockResolvedValue({ isConfigured: true, user: { id: 'staff' }, isStaff: true, role: 'staff' });
+    mocks.auth.mockResolvedValue({ isConfigured: true, user: { id: 'staff' }, isStaff: true, operatorAccess: legacyOperatorAccessFixture(), role: 'staff' });
     expect(await adjustStoreCreditAction({}, new FormData())).toMatchObject({ error: '관리자 권한이 필요합니다.' });
     expect(mocks.rpc).not.toHaveBeenCalled();
   });

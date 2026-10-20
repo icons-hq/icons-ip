@@ -43,7 +43,7 @@ export function GoodsPriceFields({ draft, onDraftChange, result, errors, showDis
     </AdminField>
 
     <fieldset className="goods-choice">
-      <legend>할인</legend>
+      <legend>{ADMIN_VOCABULARY.instantDiscount}</legend>
       <label><input type="radio" name="discountEnabled" value="true" checked={draft.discountEnabled} onChange={() => change({ discountEnabled: true })} />설정함</label>
       <label><input type="radio" name="discountEnabled" value="false" checked={!draft.discountEnabled} onChange={() => change({ discountEnabled: false })} />설정안함</label>
     </fieldset>

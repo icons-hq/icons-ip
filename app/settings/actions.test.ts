@@ -1,3 +1,4 @@
+vi.mock('@/lib/account-goods-cleanup.server', () => ({ cleanupFencedGoodsAccount: vi.fn(async () => true) }));
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   prepareProfileAvatarUploadAction,

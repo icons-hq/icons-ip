@@ -5,7 +5,6 @@ import type { MypageLoyaltySummary } from '@/components/wc/MypageShell';
 import { isOnboarded, onboardingPath } from '@/lib/auth/onboarding';
 import { getCurrentAuthState } from '@/lib/auth/server';
 import { loadLoyaltyStatus } from '@/lib/coupons.server';
-import { krwAmountWords } from '@/lib/format';
 import { loyaltyGradeLabel } from '@/lib/loyalty';
 import { getProfileAvatarPresentation } from '@/lib/profile-avatar.server';
 
@@ -33,9 +32,7 @@ export default async function Page() {
     ? {
       grade: loyaltyStatus.grade,
       label: loyaltyGradeLabel(loyaltyStatus.grade),
-      nextNote: loyaltyStatus.next
-        ? `${loyaltyGradeLabel(loyaltyStatus.next.grade)}까지 ${krwAmountWords(loyaltyStatus.next.remaining)} 남았어요.`
-        : '최고 등급이에요.',
+      nextNote: loyaltyStatus.nextNote,
     }
     : null;
 

@@ -36,7 +36,7 @@ select 1 / case when exists(select 1 from public.goods where id='minimal-draft' 
  and exists(select 1 from public.search_public_content('Minimal',20) where kind='good' and id='minimal-draft')
  and exists(select 1 from public.notifications where source_type='good' and source_id='minimal-draft' and type='drop_published')
  then 1 else 0 end as assert_published_good_visible_and_announced;
-insert into public.cart_items(user_id,good_id,qty, variant_id) values('00000000-0000-4000-8000-000000042101','minimal-draft',1, (select id from public.goods_variants where good_id='minimal-draft' and is_default));
+select public.set_cart_item_quantity('minimal-draft',(select id from public.goods_variants where good_id='minimal-draft' and is_default),1);
 reset role;
 set local role service_role;
 select public.place_order('00000000-0000-4000-8000-000000042101',
@@ -44,10 +44,11 @@ select public.place_order('00000000-0000-4000-8000-000000042101',
  '10000000-0000-4000-8000-000000042101','card') as order_id \gset
 reset role;
 set local role authenticated;
+-- Customer adds while public; checkout rechecks after the operator unpublishes.
+select public.set_cart_item_quantity('minimal-draft',(select id from public.goods_variants where good_id='minimal-draft' and is_default),1);
 select public.admin_set_good_published('minimal-draft',false);
 select 1 / case when not public.admin_set_good_published('minimal-draft',false) then 1 else 0 end as assert_unpublish_idempotent;
 select 1 / case when not exists(select 1 from public.search_public_content('Minimal',20) where kind='good') then 1 else 0 end as assert_unpublished_search_hidden;
-insert into public.cart_items(user_id,good_id,qty, variant_id) values('00000000-0000-4000-8000-000000042101','minimal-draft',1, (select id from public.goods_variants where good_id='minimal-draft' and is_default));
 reset role;
 set local role service_role;
 do $$ declare method public.order_payment_method; begin
@@ -96,5 +97,6 @@ select set_config('request.jwt.claim.sub','',true);
 do $$ begin
  perform public.admin_set_good_published('minimal-draft',true);
  raise exception 'anonymous publication accepted';
-exception when insufficient_privilege then null; end $$;
+exception when invalid_authorization_specification then
+ if sqlerrm<>'auth_required' then raise;end if;end $$;
 rollback;

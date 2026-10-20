@@ -1,3 +1,4 @@
+const { legacyOperatorAccessFixture } = await vi.hoisted(() => import('@/lib/admin/access.test-fixtures'));
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { replyToReviewAction, setReviewStatusAction } from './review-actions';
 
@@ -7,14 +8,14 @@ const REPORT_ID = '22222222-2222-4222-8222-222222222222';
 const mocks = vi.hoisted(() => ({
   adminState: {
     isConfigured: true,
-    user: { id: 'staff-1', email: 'staff@icons.gg' },
+    user: { id: '33333333-3333-4333-8333-333333333333', email: 'staff@icons.gg' },
     role: 'staff',
-    isStaff: true,
+    isStaff: true, operatorAccess: legacyOperatorAccessFixture(),
   } as {
     isConfigured: boolean;
     user: { id: string; email: string | null } | null;
     role: 'user' | 'staff' | 'admin' | null;
-    isStaff: boolean;
+    isStaff: boolean; operatorAccess?: ReturnType<typeof legacyOperatorAccessFixture>;
   },
   rpc: vi.fn(),
   revalidatePath: vi.fn(),
@@ -24,6 +25,7 @@ vi.mock('@/lib/auth/admin', () => ({ getCurrentAdminAuthState: () => mocks.admin
 vi.mock('@/lib/supabase/server', () => ({ createClient: () => ({ rpc: mocks.rpc }) }));
 vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock('next/navigation', () => ({
+  unstable_rethrow: vi.fn(),
   redirect: (path: string) => {
     throw new Error(`NEXT_REDIRECT:${path}`);
   },
@@ -31,6 +33,9 @@ vi.mock('next/navigation', () => ({
 
 function form(entries: Record<string, string>) {
   const formData = new FormData();
+  formData.set('operationId','44444444-4444-4444-8444-444444444444');
+  formData.set('accountId','33333333-3333-4333-8333-333333333333');
+  formData.set('expectedRevision','7');
   for (const [key, value] of Object.entries(entries)) formData.set(key, value);
   return formData;
 }
@@ -38,12 +43,16 @@ function form(entries: Record<string, string>) {
 beforeEach(() => {
   mocks.adminState = {
     isConfigured: true,
-    user: { id: 'staff-1', email: 'staff@icons.gg' },
+    user: { id: '33333333-3333-4333-8333-333333333333', email: 'staff@icons.gg' },
     role: 'staff',
-    isStaff: true,
+    isStaff: true, operatorAccess: legacyOperatorAccessFixture(),
   };
   mocks.rpc.mockReset();
-  mocks.rpc.mockResolvedValue({ data: null, error: null });
+  mocks.rpc.mockImplementation(async (name, args) => name === 'admin_save_cs_reply' ? { data: {
+    operationId: args.p_operation_id, accountId: args.p_actor_id, surface: args.p_surface, id: args.p_target_id,
+    body: args.p_body, expectedRevision: args.p_expected_revision, revision: String(BigInt(args.p_expected_revision)+BigInt(1)),
+    changed: true, savedAt: '2026-10-14T00:00:00Z',
+  }, error: null } : { data: null, error: null });
   mocks.revalidatePath.mockReset();
 });
 
@@ -54,12 +63,14 @@ describe('replyToReviewAction', () => {
       reply: '불편을 드려 죄송합니다. 교환을 도와드리겠습니다.',
     }));
 
-    expect(mocks.rpc).toHaveBeenCalledWith('admin_reply_to_review', {
-      target_reply: '불편을 드려 죄송합니다. 교환을 도와드리겠습니다.',
-      target_review_id: REVIEW_ID,
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_save_cs_reply', {
+      p_operation_id: '44444444-4444-4444-8444-444444444444', p_actor_id: '33333333-3333-4333-8333-333333333333', p_surface: 'review', p_expected_revision: '7',
+      p_body: '불편을 드려 죄송합니다. 교환을 도와드리겠습니다.',
+      p_target_id: REVIEW_ID,
     });
     expect(state.message).toBeTruthy();
     expect(state.resultKey).toBeTruthy();
+    expect(mocks.revalidatePath).toHaveBeenCalledWith('/shop/[goodId]', 'page');
   });
 
   it('비스태프는 RPC에 닿지 않는다', async () => {

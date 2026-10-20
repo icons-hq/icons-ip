@@ -1,4 +1,6 @@
 import 'server-only';
+import type { InquiryFile } from './inquiry-files';
+import { loadInquiryMessageFiles } from './inquiry-files.server';
 
 import { loadInquiryAuthorNames } from '@/lib/inquiry-authors.server';
 import { orderReferenceLabel } from '@/lib/orders';
@@ -27,6 +29,7 @@ export interface InquiryMessageView {
   authorName: string | null;
   body: string;
   imageUrls: string[];
+  files?: InquiryFile[];
   createdAt: string;
 }
 
@@ -68,6 +71,7 @@ interface MessageRow {
   author: string;
   body: string;
   image_paths: string[] | null;
+  file_ids?: string[];
   created_at: string;
 }
 
@@ -144,7 +148,7 @@ export async function loadMyInquiryThread(
 
   const { data: messageData, error: messageError } = await supabase
     .from('inquiry_messages')
-    .select('id,author,body,image_paths,created_at')
+    .select('id,author,body,image_paths,file_ids,created_at')
     .eq('inquiry_id', inquiryId)
     .order('created_at', { ascending: true })
     .order('id', { ascending: true });
@@ -152,9 +156,10 @@ export async function loadMyInquiryThread(
   if (messageError) throw new Error(`Failed to load inquiry messages: ${messageError.message}`);
 
   const rows = (messageData ?? []) as MessageRow[];
-  const [urls, authorNames] = await Promise.all([
+  const [urls, authorNames, files] = await Promise.all([
     signedImageUrls(supabase, [...new Set(rows.flatMap((row) => row.image_paths ?? []))]),
     loadInquiryAuthorNames(supabase, inquiryId),
+    rows.some(row => row.file_ids?.length) ? loadInquiryMessageFiles(supabase, inquiryId) : Promise.resolve(new Map<string, InquiryFile[]>()),
   ]);
 
   return {
@@ -168,6 +173,7 @@ export async function loadMyInquiryThread(
         .map((path) => urls.get(path))
         .filter((url): url is string => typeof url === 'string'),
       createdAt: row.created_at,
+      files: files.get(row.id) ?? [],
     })),
   };
 }

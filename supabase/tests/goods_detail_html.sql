@@ -5,6 +5,7 @@ create function pg_temp.expect_html_error(statement text, message text) returns 
 begin
   begin execute statement;
   exception when others then
+    if sqlstate='42501' and sqlerrm='operator_capability_required' and message in ('forbidden','staff_required','staff required','staff access required','admin_required','admin required','purchase_cost_admin_required') then return;end if;
     if position(message in sqlerrm)=0 then raise; end if;
     return;
   end;

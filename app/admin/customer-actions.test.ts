@@ -1,11 +1,12 @@
+import { configuredOperatorAccessFixture, legacyOperatorAccessFixture } from '@/lib/admin/access.test-fixtures';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { addCustomerNoteAction, loadCustomerHistoryAction } from './customer-actions';
 const mocks = vi.hoisted(() => ({
   auth: { isConfigured: true, user: { id: 'staff' }, isStaff: true }, rpc: vi.fn(), load: vi.fn(), revalidate: vi.fn(),
 }));
-vi.mock('@/lib/auth/admin', () => ({ getCurrentAdminAuthState: async () => mocks.auth }));
+vi.mock('@/lib/auth/admin', () => ({ getCurrentAdminAuthState: async () => ({ ...mocks.auth, operatorAccess: 'operatorAccess' in mocks.auth && mocks.auth.operatorAccess || legacyOperatorAccessFixture() }) }));
 vi.mock('@/lib/supabase/server', () => ({ createClient: async () => ({ rpc: mocks.rpc }) }));
-vi.mock('@/lib/admin/customer-detail.server', () => ({ getAdminCustomerDetail: mocks.load }));
+vi.mock('@/lib/admin/customer-detail.server', () => ({ getAdminCustomerHistory: mocks.load }));
 vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidate }));
 vi.mock('next/navigation', () => ({ redirect: (path: string) => { throw new Error(`redirect:${path}`); } }));
 const ID = '00000000-0000-4000-8000-000000004301';
@@ -44,4 +45,15 @@ describe('고객 작업', () => {
     expect(failed.resultKey).toBeUndefined();
     expect(JSON.stringify(failed)).not.toContain('private-database-error');
   });
+});
+
+it('configured influencer gets order history only; deputy gets neither customer order history nor notes', async () => {
+  Object.assign(mocks.auth, { operatorAccess: configuredOperatorAccessFixture('influencer') });
+  expect((await loadCustomerHistoryAction({}, form())).history?.items).toEqual([{ id: 'order-21' }]);
+  mocks.load.mockClear();
+  expect((await loadCustomerHistoryAction({}, form({ tab: 'claims' }))).error).toContain('권한');
+  expect((await addCustomerNoteAction({}, form())).error).toContain('권한');
+  Object.assign(mocks.auth, { operatorAccess: configuredOperatorAccessFixture('deputy') });
+  expect((await loadCustomerHistoryAction({}, form())).error).toContain('권한');
+  expect(mocks.load).not.toHaveBeenCalled(); expect(mocks.rpc).not.toHaveBeenCalled();
 });

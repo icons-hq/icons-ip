@@ -86,132 +86,21 @@ on conflict (id) do update set
   onboarded_at = excluded.onboarded_at,
   role = excluded.role;
 
--- ---------------------------------------------------------------------------
--- 일반 사용자는 역할을 변경할 수 없다
--- ---------------------------------------------------------------------------
+-- The two-argument system-role setter cannot express a manager capability.
+-- It stays sealed for every external API role; positive changes are covered by
+-- operator_manager_lifecycle.sql with revision and explicit manager roles.
+select 1 / case when not has_function_privilege('anon','public.admin_set_user_role(uuid,public.user_role)','execute')
+ and not has_function_privilege('authenticated','public.admin_set_user_role(uuid,public.user_role)','execute')
+ and not has_function_privilege('service_role','public.admin_set_user_role(uuid,public.user_role)','execute') then 1 else 0 end;
 set local role authenticated;
-select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000303', true);
-select set_config('request.jwt.claim.role', 'authenticated', true);
-
-do $$
-begin
-  begin
-    perform public.admin_set_user_role(
-      '00000000-0000-4000-8000-000000000302'::uuid,
-      'admin'::user_role
-    );
-  exception
-    when insufficient_privilege then
-      return;
-  end;
-  raise exception 'non-admin role change should be blocked';
-end;
-$$;
-
--- ---------------------------------------------------------------------------
--- staff도 역할을 변경할 수 없다 (admin 전용)
--- ---------------------------------------------------------------------------
-select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000302', true);
-select set_config('request.jwt.claim.role', 'authenticated', true);
-
-do $$
-begin
-  begin
-    perform public.admin_set_user_role(
-      '00000000-0000-4000-8000-000000000303'::uuid,
-      'staff'::user_role
-    );
-  exception
-    when insufficient_privilege then
-      return;
-  end;
-  raise exception 'staff role change should be blocked';
-end;
-$$;
-
--- ---------------------------------------------------------------------------
--- admin은 부여·회수 가능, 본인 변경은 거부, 감사 로그 기록
--- ---------------------------------------------------------------------------
-select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000301', true);
-select set_config('request.jwt.claim.role', 'authenticated', true);
-
-select public.admin_set_user_role(
-  '00000000-0000-4000-8000-000000000303'::uuid,
-  'staff'::user_role
-);
-
-select 1 / case when (
-  select member.role
-  from public.admin_search_members('role-fan@example.test') as member
-  where member.profile_id = '00000000-0000-4000-8000-000000000303'
-) = 'staff' then 1 else 0 end as assert_admin_can_grant_staff;
-
-select public.admin_set_user_role(
-  '00000000-0000-4000-8000-000000000303'::uuid,
-  'user'::user_role
-);
-
-select 1 / case when (
-  select member.role
-  from public.admin_search_members('role-fan@example.test') as member
-  where member.profile_id = '00000000-0000-4000-8000-000000000303'
-) = 'user' then 1 else 0 end as assert_admin_can_revoke_staff;
-
-do $$
-begin
-  begin
-    perform public.admin_set_user_role(
-      '00000000-0000-4000-8000-000000000301'::uuid,
-      'user'::user_role
-    );
-  exception
-    when others then
-      if sqlerrm = 'cannot_change_own_role' then
-        return;
-      end if;
-      raise;
-  end;
-  raise exception 'self role change should be rejected';
-end;
-$$;
-
-do $$
-begin
-  begin
-    perform public.admin_set_user_role(
-      '00000000-0000-4000-8000-000000000399'::uuid,
-      'staff'::user_role
-    );
-  exception
-    when others then
-      if sqlerrm = 'profile_not_found' then
-        return;
-      end if;
-      raise;
-  end;
-  raise exception 'unknown profile should be rejected';
-end;
-$$;
-
-select 1 / case when (
-  select count(*)
-  from public.audit_log
-  where actor_id = '00000000-0000-4000-8000-000000000301'
-    and action = 'admin_user_role_update'
-    and target = 'profile:00000000-0000-4000-8000-000000000303'
-) = 2 then 1 else 0 end as assert_role_changes_audited;
-
--- 동일 역할 재지정은 no-op (감사 로그가 늘지 않는다)
-select public.admin_set_user_role(
-  '00000000-0000-4000-8000-000000000303'::uuid,
-  'user'::user_role
-);
-
-select 1 / case when (
-  select count(*)
-  from public.audit_log
-  where actor_id = '00000000-0000-4000-8000-000000000301'
-    and action = 'admin_user_role_update'
-) = 2 then 1 else 0 end as assert_noop_not_audited;
-
+do $$ declare actor uuid;begin
+ foreach actor in array array['00000000-0000-4000-8000-000000000301'::uuid,'00000000-0000-4000-8000-000000000302'::uuid,'00000000-0000-4000-8000-000000000303'::uuid] loop
+  perform set_config('request.jwt.claim.sub',actor::text,true);
+  begin perform public.admin_set_user_role('00000000-0000-4000-8000-000000000303','admin');raise exception 'retired role setter reopened';
+  exception when insufficient_privilege then null;end;
+ end loop;
+end $$;
+reset role;
+select 1 / case when (select role from public.profiles where id='00000000-0000-4000-8000-000000000303')='user'
+ and not exists(select 1 from public.audit_log where actor_id in ('00000000-0000-4000-8000-000000000301','00000000-0000-4000-8000-000000000302','00000000-0000-4000-8000-000000000303') and action='admin_user_role_update') then 1 else 0 end;
 rollback;

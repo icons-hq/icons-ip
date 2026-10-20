@@ -1,25 +1,40 @@
+import { OrderDownloads } from '@/components/orders/OrderDownloads';
+import type { OrderDownloads as OrderDownloadsDocument } from '@/lib/order-downloads';
+import { OrderProductionStatus } from '@/components/orders/OrderProductionStatus';
+import type { OrderProduction } from '@/lib/order-production';
+import { REVIEW_KIND_LABELS, targetReviewDaysRemaining } from '@/lib/review-types';
 
+import { GoodsCustomInputsSummary } from '@/components/shop/GoodsCustomInputs';
 import { ShipmentDetails } from '@/components/shop/ShipmentDetails';
 import Link from 'next/link';
+import { ClaimWithdrawal } from '@/components/orders/ClaimWithdrawal';
+import { ClaimRefundAccount } from '@/components/orders/ClaimRefundAccount';
+import { ClaimContactHistory } from '@/components/claim-contact/ClaimContactHistory';
+import { ClaimCollectionPlan } from '@/components/orders/ClaimCollectionPlan';
+import { OrderClaimFees } from '@/components/orders/ClaimFeePanel';
 import { OrderCancellation } from '@/components/orders/OrderCancellation';
+import { OrderReshipmentHistory } from '@/components/orders/OrderReshipmentHistory';
 import { OrderClaimRequest } from '@/components/orders/OrderClaimRequest';
+import { PurchaseConfirmationPanel } from '@/components/orders/PurchaseConfirmationPanel';
 import { newInquiryHref } from '@/lib/inquiries';
 import type { MyReviewTarget } from '@/lib/reviews.server';
 import {
+  formatReviewDate,
   editReviewHref,
   newReviewHref,
-  REVIEW_WINDOW_DAYS,
-  reviewDaysRemaining,
 } from '@/lib/reviews';
 import { Icon } from '@/components/ui/Icon';
 import type { CheckoutPaymentReading } from '@/lib/checkout';
 import { orderDetailCardPaymentNotice } from '@/lib/checkout-status-copy';
 import { krw } from '@/lib/format';
 import { shippingFeeLabel } from '@/lib/shipping';
+import { GoodsTransactionSummary } from '@/components/checkout/GoodsTransactionSummary';
+import { transactionReceiptNames } from '@/lib/checkout-transaction';
 import {
   formatOrderDate,
   formatOrderDateTime,
   ORDER_WITHDRAWAL_DEADLINE_LABELS,
+  ORDER_WITHDRAWAL_REASON_LABELS,
   orderDetailHeaderPresentation,
   orderReferenceLabel,
   orderStatusMeta,
@@ -28,6 +43,9 @@ import {
   type OrderDetailStatus,
 } from '@/lib/orders';
 import { isOpenOrderClaimStage } from '@/lib/orders/claims';
+import { ORDER_CLAIM_TYPE_LABELS } from '@/lib/orders/claims';
+import type { ClaimTypeHistory } from '@/lib/orders/claim-type-conversion';
+import type { ClaimReasonHistory } from '@/lib/orders/claim-reason-change';
 import {
   orderWithdrawalDaysRemaining,
   orderWithdrawalDeadline,
@@ -40,20 +58,22 @@ import {
  */
 const ORDER_LADDER_STEPS = ['paid', 'confirmed', 'shipping', 'delivered', 'done'] as const;
 
-function OrderLadder({ status }: { status: OrderDetailStatus }) {
-  const currentIndex = (ORDER_LADDER_STEPS as readonly string[]).indexOf(status);
+function OrderLadder({ status, digitalOnly = false }: { status: OrderDetailStatus; digitalOnly?: boolean }) {
+  const steps = digitalOnly ? ['paid', 'delivered', 'done'] as const : ORDER_LADDER_STEPS;
+  const currentStatus = digitalOnly && (status === 'confirmed' || status === 'shipping') ? 'paid' : status;
+  const currentIndex = (steps as readonly string[]).indexOf(currentStatus);
   if (currentIndex < 0) return null;
 
   return (
     <ol aria-label="주문 진행 단계" className="order-detail-ladder">
-      {ORDER_LADDER_STEPS.map((step, index) => (
+      {steps.map((step, index) => (
         <li
           aria-current={index === currentIndex ? 'step' : undefined}
           className="order-detail-ladder-step"
           data-state={index < currentIndex ? 'done' : index === currentIndex ? 'current' : 'upcoming'}
           key={step}
         >
-          {orderStatusMeta(step).label}
+          {digitalOnly && step === 'delivered' ? '파일 제공 시작' : digitalOnly && step === 'done' ? '구매확정' : orderStatusMeta(step).label}
         </li>
       ))}
     </ol>
@@ -88,22 +108,22 @@ function OrderReviewEntry({
       </h3>
       <ul className="col" style={{ gap: 8, listStyle: 'none', margin: 0, padding: 0, width: '100%' }}>
         {targets.map((target) => {
-          const daysLeft = reviewDaysRemaining(target.deliveredAt, now);
+          const daysLeft = targetReviewDaysRemaining(target, now);
 
           return (
-            <li className="between" key={`${target.orderId}:${target.goodId}`} style={{ alignItems: 'center', gap: 10 }}>
-              <span style={{ fontSize: 13.5, minWidth: 0 }}>{target.goodName}</span>
+            <li className="between" key={`${target.orderId}:${target.goodId}:${target.kind ?? 'ordinary'}`} style={{ alignItems: 'center', gap: 10 }}>
+              <span style={{ fontSize: 13.5, minWidth: 0 }}>{target.goodName} · {REVIEW_KIND_LABELS[target.kind ?? 'ordinary']}</span>
               {target.review ? (
                 <Link className="btn btn-sm btn-ghost" href={editReviewHref(target.review.id)}>
                   내 리뷰 보기
                 </Link>
               ) : target.writable ? (
-                <Link className="btn btn-sm" href={newReviewHref(target.orderId, target.goodId)}>
+                <Link className="btn btn-sm" href={newReviewHref(target.orderId, target.goodId, target.kind)}>
                   리뷰 쓰기{daysLeft ? ` (${daysLeft}일 남음)` : ''}
                 </Link>
               ) : (
                 <span className="faint" style={{ fontSize: 12.5 }}>
-                  작성 기한(배송완료 후 {REVIEW_WINDOW_DAYS}일)이 지났습니다
+                  {target.opensAt && Date.parse(target.opensAt) > now.getTime() ? `${formatReviewDate(target.opensAt)}부터 작성 가능` : '현재 작성할 수 없습니다'}
                 </span>
               )}
             </li>
@@ -125,10 +145,12 @@ function WithdrawalDeadlineNotice({
   deliveredAt,
   now,
   status,
+  digitalOnly = false,
 }: {
   deliveredAt: string | null;
   now: Date;
   status: OrderDetailStatus;
+  digitalOnly?: boolean;
 }) {
   if (status === 'canceled') return null;
 
@@ -136,7 +158,7 @@ function WithdrawalDeadlineNotice({
     return (
       <p className="order-detail-withdrawal faint">
         단순 변심 청약철회 기한({ORDER_WITHDRAWAL_DEADLINE_LABELS.change_of_mind})은
-        {' '}배송이 완료된 날부터 시작됩니다.
+        {' '}{digitalOnly ? '파일 제공이 시작된 날부터 확인합니다.' : '배송이 완료된 날부터 시작됩니다.'}
       </p>
     );
   }
@@ -147,7 +169,7 @@ function WithdrawalDeadlineNotice({
 
   return (
     <p className="order-detail-withdrawal faint">
-      <span>배송완료 </span>
+      <span>{digitalOnly ? '파일 제공 시작 ' : '배송완료 '}</span>
       <time dateTime={deliveredAt}>{formatOrderDate(deliveredAt)}</time>
       <span> · </span>
       {daysLeft > 0 ? (
@@ -167,12 +189,18 @@ function WithdrawalDeadlineNotice({
 }
 
 export function OrderDetail({
+  viewerId,
   cardPayment = null,
   cardRewardsEnabled = false,
   now,
   order,
   reviewTargets = [],
+  production,
+  downloads,
+  claimTypeHistory = [],
+  claimReasonHistory = [],
 }: {
+  viewerId?: string;
   /**
    * 결제 대기 카드 주문의 결제 국면. 결제 화면과 같은 규칙으로 page가 원장에서 읽어 넘긴다.
    * 없으면(읽지 못함) 결제 상태를 단정하지 않는다.
@@ -184,11 +212,21 @@ export function OrderDetail({
   order: OrderDetailData;
   /** 배송완료 이상 주문의 굿즈별 리뷰 상태(#254). 그 전에는 빈 배열이다. */
   reviewTargets?: MyReviewTarget[];
+  production?: OrderProduction | null;
+  downloads?: OrderDownloadsDocument | null;
+  claimTypeHistory?: ClaimTypeHistory[] | null;
+  claimReasonHistory?: ClaimReasonHistory[] | null;
 }) {
-  /* 진행 중인 취소가 있으면 상단 카드도 취소 단계로 말한다(QA-8). */
-  const status = orderDetailHeaderPresentation(order.status, order.cancellationRequest);
   const date = formatOrderDate(order.createdAt);
   const at = now ?? new Date();
+  const hasPhysicalItems = order.items.some(item => order.transaction?.lines.find(line => line.lineId === item.id)?.fulfillment?.mode !== 'digital' && !downloads?.items.some(file => file.itemId === item.id));
+  const digitalOnly = order.items.length > 0 && !hasPhysicalItems;
+  const status = { ...orderDetailHeaderPresentation(order.status, order.cancellationRequest) };
+  if (digitalOnly && !(order.cancellationRequest?.claimType === 'cancel' && isOpenOrderClaimStage(order.cancellationRequest.stage)) && ['paid', 'confirmed', 'shipping', 'delivered', 'done'].includes(order.status)) {
+    status.label = order.status === 'delivered' ? '파일 제공 시작' : order.status === 'done' ? '구매확정' : '결제완료';
+    status.title = order.status === 'done' ? '구매확정된 디지털 주문이에요' : downloads?.items.some(item => item.available) ? '구매한 파일을 받을 수 있어요' : '파일 제공 상태를 확인해주세요';
+    status.body = '구매한 파일과 현재 제공 상태를 아래에서 확인할 수 있습니다. 파일에 문제가 있으면 이 주문의 문의 또는 취소 검토 요청을 이용해주세요.';
+  }
   const claimRequest = order.cancellationRequest;
   const isCancelClaim = claimRequest?.claimType === 'cancel';
   const activeCancelClaim = Boolean(
@@ -213,7 +251,7 @@ export function OrderDetail({
           </div>
           <h1 className="wc-receipt__title">{headerCopy.title}</h1>
           <p className="wc-receipt__subcopy">{headerCopy.body}</p>
-          <OrderLadder status={order.status} />
+          <OrderLadder status={order.status} digitalOnly={digitalOnly} />
           <div className="order-detail-meta mono">
             <span>ORDER · {orderReferenceLabel(order.id)}</span>
             <span aria-hidden>·</span>
@@ -263,11 +301,11 @@ export function OrderDetail({
 
           <div className="order-detail-items">
             {order.items.map((item) => (
-              <article className="order-detail-item" key={`${item.goodId}:${item.variantId ?? "default"}`}>
+              <article className="order-detail-item" key={item.id}>
                 <div className="order-detail-item-copy">
                   <span>{item.type}</span>
                   <h3>{item.name}</h3>
-                  {item.variantName ? <p>{item.variantName}</p> : null}
+                  {item.variantName ? <p>{item.variantName}</p> : null}<GoodsCustomInputsSummary selection={item.customInputs} />
                 </div>
                 <dl className="order-detail-item-numbers">
                   <div><dt>수량</dt><dd>{item.qty}개</dd></div>
@@ -278,12 +316,17 @@ export function OrderDetail({
             ))}
           </div>
 
+          <OrderReshipmentHistory receipts={order.reshipmentHistory ?? []} />
+
+          {production !== undefined ? <OrderProductionStatus document={production} /> : null}
+          {downloads !== undefined ? <OrderDownloads document={downloads} /> : null}
           <OrderReviewEntry now={at} targets={reviewTargets} />
 
           <WithdrawalDeadlineNotice
             deliveredAt={order.deliveredAt}
             now={at}
             status={order.status}
+            digitalOnly={digitalOnly}
           />
 
           {/* 취소(청약철회)와 반품·교환은 다른 절차이고 패널도 둘이다. 한 클레임을
@@ -305,14 +348,34 @@ export function OrderDetail({
           {/* 진행 중인 취소가 있으면 반품·교환 패널을 그리지 않는다. 어차피 접수할
               수 없고(주문당 활성 클레임 1건), 그리면 취소 클레임의 상태를 다시
               말하게 된다. 취소가 끝나거나 거절된 뒤에는 다시 연다. */}
+          {viewerId && ['delivered', 'done'].includes(order.status) ? <PurchaseConfirmationPanel key={order.id} orderId={order.id} actorId={viewerId} /> : null}
           {!activeCancelClaim ? (
             <OrderClaimRequest
               claim={isCancelClaim ? null : claimRequest}
+              refund={order.refund}
               eligibility={order.claimEligibility}
               orderId={order.id}
               status={order.status}
             />
           ) : null}
+
+          {claimRequest ? order.giftId ? <a href={`/gifts/${order.giftId}`}>선물 요청 관리</a> : <ClaimWithdrawal key={claimRequest.id} claimId={claimRequest.id} stage={claimRequest.stage} /> : null}
+          {viewerId && claimRequest && !order.giftId && order.paymentMethod === 'bank_transfer' && claimRequest.claimType !== 'exchange'
+            && isOpenOrderClaimStage(claimRequest.stage) ? <ClaimRefundAccount actorId={viewerId} orderId={order.id} claimId={claimRequest.id} /> : null}
+          {viewerId && hasPhysicalItems && claimRequest && (claimRequest.claimType === 'return' || claimRequest.claimType === 'exchange')
+            ? <><ClaimCollectionPlan actorId={viewerId} claimId={claimRequest.id} /><ClaimContactHistory key={`contact:${claimRequest.id}`} actorId={viewerId} orderId={order.id} claimId={claimRequest.id} /></> : null}
+          {viewerId ? <OrderClaimFees actorId={viewerId} orderId={order.id} /> : null}
+          {claimTypeHistory === null ? <p role="status">반품·교환 유형 변경 이력을 읽지 못했습니다. 잠시 후 새로고침해주세요.</p> : claimTypeHistory.length ? <section className="order-claim-type-history" aria-label="반품·교환 유형 변경 이력">
+            <h3>요청 유형 변경 이력</h3><ol>{claimTypeHistory.map(row => <li key={row.id}><time dateTime={row.createdAt}>{formatOrderDateTime(row.createdAt)}</time> · {ORDER_CLAIM_TYPE_LABELS[row.fromType]} → {ORDER_CLAIM_TYPE_LABELS[row.toType]} · 고객 합의 확인</li>)}</ol>
+          </section> : null}
+
+          {claimReasonHistory === null ? <p role="status">교환 사유 정정 이력을 읽지 못했습니다. 잠시 후 새로고침해주세요.</p> : claimReasonHistory.length ? <section className="order-claim-type-history" aria-label="교환 사유 정정 이력">
+            <h3>교환 사유 정정 이력</h3><p>최초 요청 내용과 정정된 내용을 함께 보관합니다. 원래 접수일은 유지됩니다.</p>
+            <ol>{claimReasonHistory.map(row => <li key={row.id}><time dateTime={row.createdAt}>{formatOrderDateTime(row.createdAt)}</time>
+              <p>최초 접수: {formatOrderDateTime(row.requestedAt)}</p>
+              <p>정정 전: {ORDER_WITHDRAWAL_REASON_LABELS[row.fromReasonType]} · {row.fromReason}</p><p>정정 후: {ORDER_WITHDRAWAL_REASON_LABELS[row.toReasonType]} · {row.toReason}</p>
+            </li>)}</ol>
+          </section> : null}
 
           {/* 직접 신청 조건 밖의 의사표시도 주문 맥락과 최초 문의 시각을 남긴다. */}
           <div className="order-detail-inquiry">
@@ -323,7 +386,7 @@ export function OrderDetail({
               이 주문 문의하기
             </Link>
             <span className="faint" style={{ fontSize: 12.5 }}>
-              직접 취소는 발주확인 전, 반품·교환은 모든 굿즈 배송 완료 후에 신청할 수 있습니다.
+              {downloads?.items.length ? '디지털 파일 제공 후에도 취소·환불 검토를 요청할 수 있습니다.' : production?.jobs.length ? '주문제작은 발송 전 취소 검토를 요청할 수 있고, 반품·교환은 배송 중부터 주문 전체로 신청할 수 있습니다.' : '직접 취소는 발주확인 전, 반품·교환은 배송 중부터 주문 전체로 신청할 수 있습니다.'}
               그 밖의 청약철회 의사표시는 이 주문의 1:1 문의 또는 고객센터로 알려주세요.
               주문 정보와 접수 시각이 함께 보존됩니다. 문의 접수만으로 환불이 승인되거나 출고가 중단되지는 않습니다.
             </span>
@@ -335,7 +398,7 @@ export function OrderDetail({
             <span className="checkout-step mono">RECEIPT</span>
             <h2>결제 금액</h2>
           </div>
-          <dl className="checkout-totals">
+          {order.transaction ? <GoodsTransactionSummary display={order.transaction} names={transactionReceiptNames(order.transaction, order.items)} /> : <dl className="checkout-totals">
             {/* total 은 할인·배송비가 이미 반영된 청구액이다 — 굿즈 금액은 둘을 되돌려 복원한다. */}
             <div><dt>굿즈 금액</dt><dd>{krw(order.total - order.shippingFee + order.discountTotal + order.storeCreditTotal)}</dd></div>
             {order.discountTotal > 0 && (
@@ -344,7 +407,7 @@ export function OrderDetail({
             {order.storeCreditTotal > 0 && <div><dt>적립금 사용</dt><dd>−{krw(order.storeCreditTotal)}</dd></div>}
             <div><dt>배송비</dt><dd>{shippingFeeLabel(order.shippingFee)}</dd></div>
             <div className="checkout-total"><dt>총 결제 금액</dt><dd>{krw(order.total)}</dd></div>
-          </dl>
+          </dl>}
 
           <section className="order-receipt-section" aria-labelledby="shipping-address-heading">
             <h3 id="shipping-address-heading">배송지</h3>
@@ -355,11 +418,11 @@ export function OrderDetail({
                 {order.address.deliveryNote && <small>{order.address.deliveryNote}</small>}
               </address>
             ) : (
-              <p>배송지 정보를 확인할 수 없습니다.</p>
+              <p>{order.giftId ? '선물 받는 분이 입력한 주소로 배송됩니다. 주소와 연락처는 받는 분만 확인할 수 있어요.' : order.shipments.length > 0 && order.shipments.every(shipment => shipment.delivery && ['pickup', 'none', 'digital'].includes(shipment.delivery.method)) ? '배송 주소가 필요하지 않은 수령 방식입니다.' : '배송지 정보를 확인할 수 없습니다.'}</p>
             )}
           </section>
 
-          <ShipmentDetails shipments={order.shipments} items={order.items} />
+          <ShipmentDetails shipments={order.shipments} items={order.items} transactionShipping={order.transaction?.shipping} />
 
           <section className="order-receipt-section" aria-labelledby="payment-summary-heading">
             <h3 id="payment-summary-heading">결제 정보</h3>

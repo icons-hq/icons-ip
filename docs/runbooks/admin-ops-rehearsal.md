@@ -1,5 +1,7 @@
 # 운영 콘솔 S1~S5 리허설
 
+이 문서의 `output/`·임시 경로는 내부에 보존한 로컬 검수 근거의 파일 참조이며, 해당 자료와 비공개 원본 캡처는 저장소에 첨부하지 않는다.
+
 정본: [ADR-0014](../adr/0014-admin-console-redesign.md), [스펙 #437](https://github.com/icons-hq/icons-ip/issues/437), [리허설 #434](https://github.com/icons-hq/icons-ip/issues/434). 환경·계정·배포 경계는 [staging.md](staging.md)를 따른다.
 
 **오픈 게이트는 실제 운영팀의 스테이징 수행 결과다.** 자동 테스트, SQL 시드 검증, 에이전트 브라우저 연습은 기술 검증으로 기록한다. 이를 운영팀 리허설 통과로 대체하지 않는다. 2026-09-09 현재 production DB·앱과 공개 정책·FAQ 게시, [고정 staging](https://icons-ip-staging.vercel.app/admin)의 첫 배포·DB·운영자 5명 로그인을 확인했다. main `abed200` / [Actions 34309609698](https://github.com/icons-hq/icons-ip/actions/runs/34309609698)에 결속하며, 다음 main의 연습값 보존은 [staging 절차](staging.md)에 따라 별도로 검증한다. 실제 운영팀 S1~S5 수행 기록은 아직 없다.
@@ -44,7 +46,7 @@ node scripts/admin-rehearsal-orders.mjs \
   --out /absolute/path/rehearsal-s3
 ```
 
-첫 명령은 현재 v4 양식의 30상품·60옵션으로 `goods-draft.xlsx`, 마지막 상품의 재고 두 칸을 잘못 넣은 `goods-draft-errors.xlsx`, 게시 상태 공개를 채운 준비 자료 `goods-publish.xlsx`, `goods-images.zip`을 만든다. `카드 허용=예`, `옵션 사용=사용` 등 현재 양식의 기본값을 명시한다. 대표 이미지는 코드로 만든 96px 합성 색상표이며 권리 확보된 판매 에셋으로 취급하지 않는다. 고시·연락처도 연습 표식의 가상 값이다. 원본 템플릿의 열 이름으로 입력하므로 실행 시점 양식과 맞지 않으면 중단한다. 새 상품의 KC 검토 시트는 비어 있으므로 `goods-publish.xlsx`를 미검토 상품의 즉시 공개 파일로 사용하지 않는다. 이 파일은 검토 후 게시 상태를 바꾸기 위한 값 준비 자료이며 승인·검토를 자동 발급하지 않는다. 바이너리는 Git에 넣지 않고 이 스크립트와 현재 다운로드 양식으로 재생성한다.
+첫 명령은 현재 v5 양식의 30상품·60옵션으로 `goods-draft.xlsx`, 마지막 상품의 재고 두 칸을 잘못 넣은 `goods-draft-errors.xlsx`, 게시 상태 공개를 채운 준비 자료 `goods-publish.xlsx`, `goods-images.zip`을 만든다. `카드 허용=예`, `옵션 사용=사용` 등 현재 양식의 기본값을 명시한다. 대표 이미지는 코드로 만든 96px 합성 색상표이며 권리 확보된 판매 에셋으로 취급하지 않는다. 고시·연락처도 연습 표식의 가상 값이다. 원본 템플릿의 열 이름으로 입력하므로 실행 시점 양식과 맞지 않으면 중단한다. 새 상품의 KC 검토 시트는 비어 있으므로 `goods-publish.xlsx`를 미검토 상품의 즉시 공개 파일로 사용하지 않는다. 이 파일은 검토 후 게시 상태를 바꾸기 위한 값 준비 자료이며 승인·검토를 자동 발급하지 않는다. 바이너리는 Git에 넣지 않고 이 스크립트와 현재 다운로드 양식으로 재생성한다.
 
 두 번째 명령은 `orders-100.sql`과 `orders-manifest.json`을 만든다. 제품 소유자/환경 담당자가 SQL을 검토한 뒤, `staging.md`의 검증된 격리 연결에서 `app.staging_seed_enabled=admin-ops-v1` 세션으로 실행한다. 같은 `run`은 기존 주문·옵션·배송비·상태·고객 수정값을 보존한다. 다음 리허설에 새 `paid` 100건이 필요하면 기존 상태를 초기화하지 말고 새 `run` 이름을 사용한다. 검색어는 manifest의 `query`다. 이 고객은 비밀번호 없는 합성 계정이고 운영자 계정과 분리된다.
 

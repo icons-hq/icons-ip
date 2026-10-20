@@ -1,8 +1,11 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { loadOrderDetail, loadOrders } from './orders.server';
 
-const mocks = vi.hoisted(() => ({ client: null as unknown }));
+const mocks = vi.hoisted(() => ({ client: null as unknown, gift: vi.fn(), giftList: vi.fn(), giftDetail: vi.fn() }));
 
+vi.mock('./gifts-order.server', () => ({ loadGiftCheckoutOrder: mocks.gift }));
+vi.mock('./gifts-order-detail.server', () => ({ loadGiftOrderList: mocks.giftList, loadGiftOrderDetail: mocks.giftDetail }));
+beforeEach(() => { mocks.gift.mockReset().mockResolvedValue({ kind: 'ordinary' }); mocks.giftList.mockReset().mockResolvedValue([]); mocks.giftDetail.mockReset(); });
 vi.mock('@/lib/supabase/server', () => ({ createClient: () => mocks.client }));
 /* 택배사 레지스트리는 DB(`public.shipping_carriers`)에서 온다(#251). 앱에 상수
    목록이 없으므로 테스트도 고정 레지스트리를 주입한다 — 여기서 확인하려는 것은
@@ -23,7 +26,7 @@ vi.mock('@/lib/orders/shipment.server', () => {
 
 
 type Row = Record<string, unknown>;
-type QueryResult = { data: Row[] | Row | null; error: { message: string } | null };
+type QueryResult = { data: Row[] | Row | null; error: { message: string } | null; count?:number|null };
 
 interface QueryRecord {
   table: string;
@@ -32,6 +35,7 @@ interface QueryRecord {
   in: [string, unknown[]][];
   order: [string, { ascending?: boolean } | undefined][];
   limit?: number;
+  afterId?:string;
   maybeSingle: boolean;
 }
 
@@ -57,7 +61,7 @@ function createQuery(table: string, options: ClientOptions) {
     const message = options.errors?.[table];
     if (message) return { data: null, error: { message } };
 
-    let rows = [...(options.rows[table] ?? [])];
+    let rows = (options.rows[table] ?? []).map((row,index)=>table==='order_items'?{...row,id:row.id??String(index).padStart(12,'0')}:row);
     for (const [column, value] of record.eq) rows = rows.filter((row) => row[column] === value);
     for (const [column, values] of record.in) rows = rows.filter((row) => values.includes(row[column]));
     for (const [column, settings] of record.order) {
@@ -66,9 +70,11 @@ function createQuery(table: string, options: ClientOptions) {
         return direction * String(left[column] ?? '').localeCompare(String(right[column] ?? ''));
       });
     }
-    if (record.limit !== undefined) rows = rows.slice(0, record.limit);
+    rows=rows.filter(row=>record.afterId===undefined||String(row.id)>record.afterId);
+    const count=rows.length;
+    rows=rows.slice(0,Math.min(record.limit??1000,1000));
 
-    return { data: record.maybeSingle ? rows[0] ?? null : rows, error: null };
+    return { data: record.maybeSingle ? rows[0] ?? null : rows, error: null, count };
   };
 
   const query = {
@@ -88,6 +94,7 @@ function createQuery(table: string, options: ClientOptions) {
       record.order.push([column, settings]);
       return query;
     },
+    gt(_column:string,value:string){record.afterId=value;return query;},
     limit(value: number) {
       record.limit = value;
       return query;
@@ -109,10 +116,9 @@ function createQuery(table: string, options: ClientOptions) {
 
 function createClient(options: ClientOptions) {
   return {
-    rpc: vi.fn().mockResolvedValue({
-      data: options.claimEligibility ?? null,
-      error: options.eligibilityError ? { message: 'unavailable' } : null,
-    }),
+    rpc: vi.fn().mockImplementation(async (name: string) => name === 'get_my_order_claim_reshipment_items'
+      ? { data: [], error: null }
+      : { data: options.claimEligibility ?? null, error: options.eligibilityError ? { message: 'unavailable' } : null }),
     from(table: string) {
       return createQuery(table, options);
     },
@@ -165,7 +171,7 @@ describe('loadOrders', () => {
       order: [['created_at', { ascending: false }], ['id', { ascending: false }]],
     });
     expect(records.find((record) => record.table === 'order_items')).toMatchObject({
-      select: 'order_id,qty,good_name_snapshot',
+      select: 'id,order_id,qty,good_name_snapshot',
       in: [['order_id', [orderId]]],
     });
   });
@@ -362,7 +368,7 @@ describe('loadOrderDetail', () => {
     expect(JSON.stringify(result)).not.toMatch(/must-not-leak|payment_key|idempotency_key|raw|last_error_code/);
 
     expect(records.find((record) => record.table === 'orders')).toMatchObject({
-      select: 'id,user_id,status,total,shipping_fee,discount_total,store_credit_total,address,created_at,delivered_at,payment_method,expires_at',
+      select: 'id,user_id,status,total,shipping_fee,discount_total,store_credit_total,address,created_at,delivered_at,payment_method,expires_at,calculation_version,volume_discount_total,shipping_collect_total',
       eq: [['id', orderId], ['user_id', userId]],
       in: [['status', ['pending', 'paid', 'confirmed', 'shipping', 'delivered', 'done', 'canceled']]],
       maybeSingle: true,
@@ -438,4 +444,16 @@ describe('loadOrderDetail', () => {
     await expect(loadOrderDetail(userId, orderId)).resolves.toBeNull();
     expect(records.map((record) => record.table)).toEqual(['orders']);
   });
+});
+
+it('1001행 주문을 고객 주문 상세와 주문 목록 수량 요약에서 모두 읽는다',async()=>{
+  const records:QueryRecord[]=[];
+  const rows={orders:[{id:orderId,user_id:userId,status:'paid',total:1001000,address:{},created_at:'2026-10-12T00:00:00Z',payment_method:'card'}],
+    order_items:Array.from({length:1001},(_,index)=>({id:String(index).padStart(12,'0'),order_id:orderId,good_id:'g1',qty:1,unit_price:1000,good_name_snapshot:'각인 상품',good_type_snapshot:'문구',variant_id:'00000000-0000-4000-8000-000000000001',
+      custom_inputs_snapshot:{revision:1,fields:[{id:'00000000-0000-4000-8000-000000063311',name:'문구',value:`입력 ${index}`}]}}))};
+  mocks.client=createClient({records,rows});
+  const detail=await loadOrderDetail(userId,orderId);
+  expect(detail?.items).toHaveLength(1001);
+  expect(detail?.items.at(-1)?.customInputs?.fields[0].value).toBe('입력 1000');
+  expect((await loadOrders(userId))[0]?.itemCount).toBe(1001);
 });

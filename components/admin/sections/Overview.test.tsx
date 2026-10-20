@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import type { AdminInsights } from '@/lib/admin/insights.server';
+import type { AdminWorkQueueData } from '@/lib/admin/work-queue';
 import { RecentOrders } from '../RecentOrders';
 import { OrderPipeline } from '../charts/OrderPipeline';
 import { OverviewSection } from './Overview';
@@ -24,6 +25,8 @@ describe('OverviewSection', () => {
 
     expect(html).toContain('30일 매출');
     expect(html).toContain('30일 신규 가입');
+    expect(html).toContain('href="/admin/guide">판매자센터 운영 가이드');
+    expect(html).not.toContain('업무 집계');
   });
 
   /*
@@ -37,6 +40,47 @@ describe('OverviewSection', () => {
     expect(html).toContain('href="/admin/stats/sales"');
     expect(html).toContain('href="/admin/stats/claims"');
     expect(html).toContain('href="/admin/stats/customers"');
+  });
+  it('집계 실패와 확인된 0건을 구분하고 리뷰 바로가기에 정확한 필터를 전달한다', () => {
+    const html = renderToStaticMarkup(<OverviewSection insights={null} reports={[]} summary={{
+      claims: { cancel: null, return: 0, exchange: 0 }, goods: { published: 0, soldout: null }, reviews: { total: 0, lowRating: 0, awaitingReply: 0 },
+    }} />);
+    expect(html).toContain('취소요청</span><strong>확인 필요');
+    expect(html).toContain('aria-label="반품요청 0건"');
+    expect(html).toContain('반품요청</span><strong>0</strong>');
+    expect(html).toContain('href="/admin/cs/reviews?low=1&amp;page=1"');
+    expect(html).toContain('href="/admin/cs/reviews?reply=without&amp;page=1"');
+  });
+
+  it('홈 배치를 바꾸어도 결제 지표의 의미와 모든 업무 바로가기를 보존한다', () => {
+    const workQueue: AdminWorkQueueData = {
+      checkedAt: '2026-10-16T00:00:00Z',
+      counts: {
+        orders: { state: 'ready', count: 3 },
+        ready: { state: 'ready', count: 7 },
+        delayed: { state: 'ready', count: 2 },
+        inquiries: { state: 'ready', count: 4 },
+        goods: { state: 'error', count: null },
+      },
+      goodsReasons: [],
+    };
+    const html = renderToStaticMarkup(<OverviewSection insights={insights} reports={[]} workQueue={workQueue} days={7} />);
+
+    expect(html).toContain('결제 현황');
+    expect(html).toContain('dateTime="2026-10-16T00:00:00Z"');
+    expect(html).toContain('업무 집계 10. 16. 09:00 기준');
+    expect(html).toContain('최근 7일 결제금액');
+    expect(html).toContain('₩690,000');
+    expect(html).not.toContain('정산예정');
+    expect(html).not.toContain('오늘정산');
+    expect(html).toContain('aria-label="발송 대기 7건"');
+    expect(html).toContain('aria-label="발송 지연 2건"');
+    expect(html).toContain('aria-label="미응답 문의 4건"');
+    expect(html).toContain('aria-label="상품 검토 대기 확인 필요"');
+    expect(html).toContain('href="/admin/sales/dispatch?tab=delayed');
+    expect(html).toContain('href="/admin/cs/inquiries?status=open');
+    expect(html).toContain('href="/admin/catalog/goods?');
+    expect(html).toContain('readiness=review_required');
   });
 
   it('매출이 없는 기간에는 임의의 숫자 축 대신 빈 상태를 표시한다', () => {

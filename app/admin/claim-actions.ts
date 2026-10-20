@@ -1,5 +1,7 @@
 'use server';
 
+import { canAccessAdminScreen, hasAdminCapability } from '@/lib/admin/access';
+
 import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import { revalidatePath } from 'next/cache';
 import { redirect, unstable_rethrow } from 'next/navigation';
@@ -16,7 +18,7 @@ import {
 import { loadAdminClaimDetail } from '@/lib/admin/claims.server';
 import { ADMIN_CANCELLATION_RECHECK_LABELS } from '@/lib/admin/orders';
 import { withPreservedFormValues, type AdminFormValuesState } from '@/lib/admin/form-state';
-import { getCurrentAdminAuthState, type AdminRole } from '@/lib/auth/admin';
+import { getCurrentAdminAuthState } from '@/lib/auth/admin';
 import {
   isOrderClaimType,
   orderClaimRefundMethodForProvider,
@@ -95,15 +97,18 @@ function rpcErrorMessage(message: string | null | undefined, fallback: string) {
     return '처리에 착수한 클레임은 거부할 수 없습니다. 결제 취소를 마치거나, 사람이 판단할 일이면 보류로 남겨주세요.';
   }
   if (value.includes('claim_refund_account_missing')) {
-    return '이 클레임에는 등록된 환불계좌가 없습니다. 계좌 송금 대신 결제사 취소로 접수하거나, 구매자에게 계좌를 먼저 받아주세요.';
+    return '등록된 환불계좌가 없습니다. 무통장 주문은 결제한 분이 주문 상세에서 환불계좌를 등록한 뒤 다시 진행해주세요. 선물 주문은 선물 요청 화면에서 등록합니다.';
   }
   if (value.includes('claim_not_decidable')) return '지금 단계에서는 처리할 수 없습니다. 최신 상태를 확인해주세요.';
   if (value.includes('claim_not_collectable')) return '수거 단계가 아닙니다. 최신 상태를 확인해주세요.';
   if (value.includes('claim_not_refundable')) return '환불을 접수할 수 있는 단계가 아닙니다.';
   if (value.includes('claim_not_reshippable')) return '입고 확인이 끝난 교환만 재출고할 수 있습니다.';
-  if (value.includes('reshipment_variant_unavailable')) return '선택한 재출고 옵션을 사용할 수 없습니다. 같은 상품의 판매 중인 옵션을 선택해주세요.';
-  if (value.includes('invalid reshipment items')) return '재출고할 주문 품목과 옵션을 확인해주세요.';
-  if (value.includes('reshipment_conflict')) return '이미 다른 운송장이나 옵션으로 재출고한 교환입니다. 처리 이력을 확인해주세요.';
+  if (value.includes('goods_group_retry')) return '상품 전환이나 재고 처리가 진행 중입니다. 최신 상태를 확인한 뒤 다시 시도해주세요.';
+  if (value.includes('physical_generation_already_restored')) return '이 회수 상품의 재고는 이미 복원됐습니다. 처리 이력을 확인해주세요.';
+  if (value.includes('reshipment_variant_unavailable')) return '선택한 재출고 상품을 사용할 수 없습니다. 최신 목록에서 같은 상품의 옵션이나 같은 그룹의 상품을 선택해주세요.';
+  if (value.includes('invalid reshipment items')) return '재출고할 주문 품목과 상품을 확인해주세요.';
+  if (value.includes('reshipment_conflict')) return '이미 다른 운송장이나 상품으로 재출고한 교환입니다. 처리 이력을 확인해주세요.';
+  if (value.includes('insufficient_or_overflowing_stock') || value.includes('stock_aggregate_overflow')) return '재고 수량을 적용할 수 없습니다. 최신 재고와 회수 수량을 확인해주세요.';
   if (value.includes('stock_out_of_range')) return '재출고할 옵션 재고가 부족합니다. 최신 옵션 수량을 확인해주세요.';
   if (value.includes('claim_not_held')) return '보류 상태가 아닙니다.';
   if (value.includes('claim_not_found')) return '클레임을 찾을 수 없습니다.';
@@ -114,14 +119,14 @@ function rpcErrorMessage(message: string | null | undefined, fallback: string) {
 }
 
 async function requireStaffAction(): Promise<
-  { error?: AdminClaimActionState; userId?: string; role?: AdminRole | null }
+  { error?: AdminClaimActionState; userId?: string; canManagePayments?: boolean }
 > {
   const auth = await getCurrentAdminAuthState();
   if (!auth.isConfigured || !auth.user) {
     redirect(`/login?next=${encodeURIComponent('/admin/sales/claims/cancels')}`);
   }
-  if (!auth.isStaff) return { error: { error: '관리자 권한이 필요합니다.' } };
-  return { userId: auth.user.id, role: auth.role };
+  if (!auth.isStaff || !hasAdminCapability(auth, 'sales.manage')) return { error: { error: '관리자 권한이 필요합니다.' } };
+  return { userId: auth.user.id, canManagePayments: canAccessAdminScreen(auth, null, { capability: 'sales.manage', adminOnly: true }) };
 }
 
 function revalidateClaimSurfaces(claimId: string, claimType?: OrderClaimType) {
@@ -217,6 +222,9 @@ export async function decideOrderClaimAction(
 
   const normalized = normalizeAdminClaimDecisionForm(formData);
   if (!normalized.ok) return { error: normalized.error };
+  if (normalized.value.decision === 'hold' || normalized.value.decision === 'resume') {
+    return { error: '보류·해제 화면을 다시 열어 최신 요청의 유형과 상태를 확인해주세요.' };
+  }
 
   const supabase = await createClient();
   const { data, error } = await supabase.rpc('admin_decide_order_claim', {
@@ -353,7 +361,7 @@ interface ManualRecoveryAttemptRow {
  */
 async function finalizeClaimPayment(
   supabase: Awaited<ReturnType<typeof createClient>>,
-  input: { claimId: string; orderId: string; actorId: string; isAdmin: boolean },
+  input: { claimId: string; orderId: string; actorId: string; canManagePayments: boolean },
 ): Promise<{ ok: true } | { ok: false; error: string }> {
   const { data, error } = await supabase.rpc('admin_goods_manual_recovery_attempts', {
     p_order_ids: [input.orderId],
@@ -365,11 +373,11 @@ async function finalizeClaimPayment(
   ));
 
   if (attempt) {
-    /* 수동 확인은 결제사 원장을 직접 본 admin만 할 수 있다(#208의 계약). */
-    if (!input.isAdmin) {
+    /* 현재 결제 관리 권한과 원장 확인을 요구한다. 미전환 환경의 admin 전용 제한도 유지한다. */
+    if (!input.canManagePayments) {
       return {
         ok: false,
-        error: 'Korpay 결제 취소 확인은 관리자 계정만 수행할 수 있습니다. 관리자에게 정합화를 요청해주세요.',
+        error: '코페이 결제 취소 확인 권한이 없습니다. 대표 또는 계정 주매니저에게 요청해주세요. 권한 전환 전에는 기존 관리자에게 요청해주세요.',
       };
     }
     try {
@@ -452,14 +460,23 @@ export async function recordOrderClaimRefundAction(
      * admin_begin_order_cancellation_reconcile은 completed 요청을
      * cancellation_request_not_reconcilable로 거절한다. 그래서 레거시 경로로
      * 완료된 건(재고 복원·카드팩 회수는 이미 끝났고 refunds.completed_at만 비어
-     * 있는 상태)에 이 액션을 걸면 원장 기록에 닿기도 전에 항상 실패했다. */
+     * 있는 상태)에 이 액션을 걸면 원장 기록에 닿기도 전에 항상 실패했다. 단계는
+     * 폼이 아니라 DB에서 읽는다 — 클라이언트가 보낸 값으로 정합화를 건너뛸지
+     * 정하면 그 자체가 게이트 우회가 된다. */
+    // Derive this gate from the durable payment, never from the submitted method.
+    // Bank refunds need cancellation evidence, an awaiting-transfer phase and a
+    // separate immutable transfer receipt; the card orchestrator cannot do it.
+    if (current.payment?.provider === 'bank_transfer') {
+      return { error: '무통장 환불 처리에서 취소 확정과 실제 송금 완료 증빙을 각각 기록해주세요.' };
+    }
+
     if (current.claim.stage !== 'completed') {
       finalizationRan = true;
       const finalized = await finalizeClaimPayment(supabase, {
         claimId: normalized.value.claimId,
         orderId: current.claim.orderId,
         actorId: access.userId,
-        isAdmin: access.role === 'admin',
+        canManagePayments: access.canManagePayments === true,
       });
       if (!finalized.ok) {
         revalidateClaimSurfaces(normalized.value.claimId, readClaimType(formData));

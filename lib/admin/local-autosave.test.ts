@@ -20,6 +20,34 @@ const data = (values: Record<string, string>) => Object.entries(values);
 afterEach(() => vi.useRealTimers());
 
 describe('admin local autosave', () => {
+  it('설정 조회만 하고 나가면 복구할 입력을 만들지 않고 실제 편집·명시 복구는 보존한다', () => {
+    const storage = memoryStorage();
+    const opened = createAdminLocalAutosave({ scope, fields, storage });
+    opened.capture(data({ title: '저장된 상품', synopsis: '조회로 채워진 값' }), { preserveRecovery: true }); opened.flush();
+    expect(createAdminLocalAutosave({ scope, fields, storage }).getSnapshot().recovery).toBeNull();
+    opened.capture(data({ title: '실제 수정한 상품' })); opened.flush();
+    const reopened = createAdminLocalAutosave({ scope, fields, storage }); reopened.restore();
+    reopened.capture(data({ title: '실제 수정한 상품', imagePath: 'verified.webp' }), { preserveRecovery: true }); reopened.flush();
+    expect(createAdminLocalAutosave({ scope, fields, storage }).getSnapshot().recovery?.values).toEqual({ title: '실제 수정한 상품', imagePath: 'verified.webp' });
+    reopened.discard(); reopened.capture(data({ title: '서버 초기값' }), { preserveRecovery: true }); reopened.flush();
+    expect(createAdminLocalAutosave({ scope, fields, storage }).getSnapshot().recovery).toBeNull();
+  });
+  it('비동기 hidden 초기화는 복구 후보를 덮지 않으며 명시 입력·적용 뒤에는 최신 전체 값을 보관한다', () => {
+    const storage = memoryStorage();
+    const original = createAdminLocalAutosave({ scope, fields, storage });
+    original.capture(data({ title: '복구할 상품', synopsis: '적용한 옵션 초안에 대응하는 입력' })); original.flush();
+    const reopened = createAdminLocalAutosave({ scope, fields, storage });
+    reopened.capture(data({ title: '서버 초기값', synopsis: '비동기 속성 초기화' }), { preserveRecovery: true }); reopened.flush();
+    expect(reopened.getSnapshot().recovery?.values.title).toBe('복구할 상품');
+    reopened.restore(); expect(reopened.getSnapshot().restoredValues?.title).toBe('복구할 상품');
+    reopened.capture(data({ title: '사용자가 적용한 최신 초안' })); reopened.flush();
+    reopened.capture(data({ title: '사용자가 적용한 최신 초안', imagePath: 'verified.webp' }), { preserveRecovery: true }); reopened.flush();
+    expect(createAdminLocalAutosave({ scope, fields, storage }).getSnapshot().recovery?.values).toEqual({ title: '사용자가 적용한 최신 초안', imagePath: 'verified.webp' });
+    const pending = createAdminLocalAutosave({ scope, fields, storage });
+    pending.capture(data({ title: '복구 대신 직접 편집' })); pending.flush();
+    expect(pending.getSnapshot().recovery).toBeNull();
+    expect(createAdminLocalAutosave({ scope, fields, storage }).getSnapshot().recovery?.values.title).toBe('복구 대신 직접 편집');
+  });
   it('recovers public goods notice contact and a full option list while still excluding account contacts', () => {
     const storage = memoryStorage();
     const goodsScope = { ...scope, formId: 'good' };

@@ -1,6 +1,9 @@
+import { normalizeAdminSalesGoodsPagination } from '@/lib/admin/stats-sales-goods';
+import { getAdminSalesGoodsPage } from '@/lib/admin/stats-sales-goods.server';
+import { StatsRangeTabs } from '@/components/admin/StatsRangeTabs';
 import { StatsSalesScreen } from '@/components/admin/screens/StatsSalesScreen';
 import { requireAdminScreenAccess } from '@/lib/admin/guard.server';
-import { normalizeAdminStatsFilters } from '@/lib/admin/stats';
+import { adminStatsComparisonFilters, normalizeAdminStatsFilters } from '@/lib/admin/stats';
 import { getAdminSalesReport } from '@/lib/admin/stats.server';
 
 export default async function AdminStatsSalesPage({
@@ -13,7 +16,15 @@ export default async function AdminStatsSalesPage({
   const query = await searchParams;
 
   const filters = normalizeAdminStatsFilters(query);
-  const data = await getAdminSalesReport(filters);
+  if (filters.rangeError) return <section className="admin-stats wc-admin-kit"><StatsRangeTabs base="/admin/stats/sales" filters={filters} /><p role="alert">{filters.rangeError}</p></section>;
+  const now = new Date();
+  const comparisonFilters = adminStatsComparisonFilters(filters, now);
+  const [data, comparison, goods, comparisonGoods] = await Promise.all([
+    getAdminSalesReport(filters, now),
+    comparisonFilters ? getAdminSalesReport(comparisonFilters, now) : null,
+    getAdminSalesGoodsPage(filters, normalizeAdminSalesGoodsPagination(query), now),
+    comparisonFilters ? getAdminSalesGoodsPage(comparisonFilters, { page: 1, pageSize: 20 }, now) : null,
+  ]);
 
-  return <StatsSalesScreen data={data} filters={filters} />;
+  return <StatsSalesScreen comparisonGoodsTotal={comparisonGoods?.totalCount} goods={goods} data={data} filters={filters} comparison={comparison} now={now} />;
 }

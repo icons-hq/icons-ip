@@ -1,3 +1,8 @@
+import { parseHomeMosaicPayload } from '@/lib/home-mosaic';
+import { HOME_REVIEW_MANUAL_LIMIT, isHomeSalesPeriod } from '@/lib/home-ranking';
+import { HOME_HERO_CONTENT_LIMIT, HOME_HERO_TITLE_LIMIT, isHomeHeroImageDim, isHomeHeroTextColor, normalizeHeroNewlines } from '@/lib/home-hero';
+import { HOME_PRODUCT_CANDIDATE_LIMIT, homeProductCountRange, isHomeProductCollectionTitle, isHomeProductImageShape, isHomeProductLayout } from '@/lib/home-product-collection';
+
 export type AdminCurationKind =
   | 'hero'
   | 'featured_ip'
@@ -6,16 +11,21 @@ export type AdminCurationKind =
   | 'editor_pick'
   | 'band_banner'
   | 'best_tab'
+  | 'sales_best'
+  | 'review_best'
+  | 'product_mosaic'
+  | 'product_collection'
   | 'benefit';
 
 export interface AdminCurationFormValue {
   operationId: string;
+  expectedUpdatedAt: string | null;
   id: string;
   kind: AdminCurationKind;
   ipId: string | null;
   title: string;
   imagePath: string | null;
-  linkPath: string;
+  linkPath: string | null;
   displayOrder: number;
   activeFrom: string;
   activeTo: string | null;
@@ -40,7 +50,22 @@ export type AdminCurationFieldErrors = Partial<Record<
   | 'description'
   | 'subcopy'
   | 'subtitle'
+  | 'altTitle'
+  | 'altContent'
+  | 'altEnabled'
+  | 'imageDim'
+  | 'textColor'
+  | 'expectedUpdatedAt'
   | 'goodIds'
+  | 'selectionMode'
+  | 'itemCount'
+  | 'salesExposure'
+  | 'salesPeriod'
+  | 'reviewSelectionMode'
+  | 'mosaic'
+  | 'productLayout'
+  | 'productImageShape'
+  | 'productItemCount'
   | 'mobileImagePath'
   | 'form',
   string
@@ -53,6 +78,8 @@ export type AdminCurationFormResult =
 export interface AdminCurationActionState {
   errors?: AdminCurationFieldErrors;
   message?: string;
+  uncertain?: boolean;
+  conflict?: boolean;
 }
 
 const CURATION_KINDS = new Set<AdminCurationKind>([
@@ -63,6 +90,10 @@ const CURATION_KINDS = new Set<AdminCurationKind>([
   'editor_pick',
   'band_banner',
   'best_tab',
+  'sales_best',
+  'review_best',
+  'product_mosaic',
+  'product_collection',
   'benefit',
 ]);
 /* 이미지 없이는 렌더할 수 없는 편성 — DB의 home_curations_image_required_check와 같은 목록이다. */
@@ -205,8 +236,8 @@ function readPayloadText(
 }
 
 /*
- * 연결 상품은 쉼표 구분 한 칸으로 받는다. 상품 선택기를 붙이는 대신 최소 입력을
- * 유지하되, RPC가 거절할 형식·개수는 여기서 먼저 막아 저장 실패를 폼 에러로 바꾼다.
+ * 상품 선택기의 순서 목록을 쉼표 구분 계약으로 받는다. RPC가 거절할 형식·개수는
+ * 여기서 먼저 막아 저장 실패를 폼 에러로 바꾼다.
  */
 function readGoodIds(
   formData: FormData,
@@ -257,7 +288,43 @@ function readCurationPayload(
   const payload: Record<string, unknown> = {};
 
   if (kind === 'hero') {
-    readPayloadText(formData, 'subtitle', errors, payload);
+    const imageDim = readString(formData, 'imageDim');
+    const textColor = readString(formData, 'textColor');
+    if (imageDim) {
+      if (isHomeHeroImageDim(imageDim)) payload.image_dim = imageDim;
+      else errors.imageDim = '이미지 딤 설정을 선택해주세요.';
+    }
+    if (textColor) {
+      if (isHomeHeroTextColor(textColor)) payload.text_color = textColor;
+      else errors.textColor = '텍스트 색상을 선택해주세요.';
+    }
+    const subtitle = normalizeHeroNewlines(readString(formData, 'subtitle'));
+    // Native FormData serializes textarea line breaks as CRLF. Encode the
+    // original hidden value so unchanged historical copy can keep its exact
+    // bytes while new copy uses the same LF count as the visible text area.
+    let originalSubtitle = '';
+    try { originalSubtitle = decodeURIComponent(readString(formData, 'originalSubtitle')); } catch { /* Invalid client metadata grants no legacy exception. */ }
+    const unchangedSubtitle = subtitle === normalizeHeroNewlines(originalSubtitle).trim();
+    if (characterLength(subtitle) > 200 || (!unchangedSubtitle
+      && (characterLength(subtitle) > HOME_HERO_CONTENT_LIMIT || subtitle.split('\n').length > 3))) {
+      errors.subtitle = '내용은 150자 이하, 최대 3줄로 입력해주세요. 기존 내용은 그대로 유지할 수 있습니다.';
+    }
+    if (subtitle) payload.subtitle = unchangedSubtitle ? originalSubtitle : subtitle;
+    if (formData.has('altEnabled')) {
+      const setting = readString(formData, 'altEnabled');
+      if (setting !== 'on' && setting !== 'off') errors.altEnabled = '대체텍스트 설정 여부를 선택해주세요.';
+      payload.alt_enabled = setting === 'on';
+      if (payload.alt_enabled) {
+        const title = readString(formData, 'altTitle');
+        const content = normalizeHeroNewlines(readString(formData, 'altContent'));
+        if (characterLength(title) > HOME_HERO_TITLE_LIMIT) errors.altTitle = '대체텍스트 제목은 40자 이하로 입력해주세요.';
+        if (characterLength(content) > HOME_HERO_CONTENT_LIMIT) errors.altContent = '대체텍스트 내용은 150자 이하로 입력해주세요.';
+        if (/[\u0000-\u001f\u007f]/.test(title)) errors.altTitle = '대체텍스트 제목에 제어 문자를 입력할 수 없습니다.';
+        if (/[\u0000-\u0009\u000b-\u001f\u007f]/.test(content)) errors.altContent = '대체텍스트 내용에는 줄바꿈 외의 제어 문자를 입력할 수 없습니다.';
+        if (title) payload.alt_title = title;
+        if (content) payload.alt_content = content;
+      }
+    }
     readMobileImagePath(formData, errors, payload);
   } else if (kind === 'notice_strip') {
     /* PC 비율 스트립은 모바일 폭에서 붕괴한다 — 히어로와 같은 모바일 아트웍을 나른다. */
@@ -269,7 +336,59 @@ function readCurationPayload(
     readPayloadText(formData, 'subcopy', errors, payload);
     readGoodIds(formData, 'band_banner', errors, payload);
   } else if (kind === 'best_tab') {
-    readGoodIds(formData, 'best_tab', errors, payload);
+    const selectionMode = readString(formData, 'selectionMode') || 'manual';
+    if (selectionMode === 'manual') readGoodIds(formData, 'best_tab', errors, payload);
+    else if (selectionMode === 'latest') {
+      const rawCount = readString(formData, 'itemCount');
+      const count = Number(rawCount);
+      if (!/^\d+$/.test(rawCount) || !Number.isInteger(count) || count < 3 || count > 10) {
+        errors.itemCount = '최신 상품은 3개부터 10개까지 전시할 수 있습니다.';
+      } else {
+        payload.selection_mode = 'latest';
+        payload.item_count = count;
+      }
+    } else errors.selectionMode = '상품 선정 방식을 선택해주세요.';
+  } else if (kind === 'sales_best') {
+    const exposure = readString(formData, 'salesExposure');
+    const period = readString(formData, 'salesPeriod');
+    if (exposure !== 'single' && exposure !== 'all') errors.salesExposure = '베스트 노출 방식을 선택해주세요.';
+    else payload.exposure_mode = exposure;
+    if (!isHomeSalesPeriod(period)) errors.salesPeriod = '베스트 집계기간을 선택해주세요.';
+    else payload.period = period;
+  } else if (kind === 'review_best') {
+    const selection = readString(formData, 'reviewSelectionMode');
+    if (selection !== 'rating' && selection !== 'manual') errors.reviewSelectionMode = '리뷰 상품 선정 방식을 선택해주세요.';
+    else {
+      payload.selection_mode = selection;
+      if (selection === 'manual') {
+        const goodIds = readString(formData, 'goodIds').split(',').map((id) => id.trim()).filter(Boolean);
+        if (goodIds.length > HOME_REVIEW_MANUAL_LIMIT || goodIds.some((id) => !GOOD_ID_PATTERN.test(id))
+          || new Set(goodIds).size !== goodIds.length) errors.goodIds = `중복 없는 상품을 최대 ${HOME_REVIEW_MANUAL_LIMIT}개 선택해주세요.`;
+        else payload.good_ids = goodIds;
+      }
+    }
+  } else if (kind === 'product_mosaic') {
+    try {
+      const mosaic = parseHomeMosaicPayload(JSON.parse(readString(formData, 'mosaic')));
+      if (!mosaic) errors.mosaic = '모자이크 제목 10자·부제 20자와 8개 상품/이미지 칸을 확인해주세요.';
+      else Object.assign(payload, mosaic);
+    } catch { errors.mosaic = '모자이크 구성을 확인해주세요.'; }
+  } else if (kind === 'product_collection') {
+    const layout = readString(formData, 'productLayout');
+    const shape = readString(formData, 'productImageShape');
+    const rawCount = readString(formData, 'productItemCount');
+    const count = Number(rawCount);
+    const ids = readString(formData, 'goodIds').split(',').map(id => id.trim()).filter(Boolean);
+    if (!isHomeProductLayout(layout)) errors.productLayout = '리스트형 또는 풀이미지형을 선택해주세요.';
+    if (!isHomeProductImageShape(shape)) errors.productImageShape = '상품 사진 비율을 선택해주세요.';
+    const [min, max] = homeProductCountRange(isHomeProductLayout(layout) ? layout : 'list');
+    if (!/^\d+$/.test(rawCount) || !Number.isInteger(count) || count < min || count > max) {
+      errors.productItemCount = `이 디자인은 ${min}개부터 ${max}개까지 전시할 수 있습니다.`;
+    }
+    if (ids.length > HOME_PRODUCT_CANDIDATE_LIMIT || ids.some(id => !GOOD_ID_PATTERN.test(id)) || new Set(ids).size !== ids.length) {
+      errors.goodIds = `중복 없는 상품을 최대 ${HOME_PRODUCT_CANDIDATE_LIMIT}개 선택해주세요.`;
+    }
+    Object.assign(payload, { layout, image_shape: shape, item_count: count, good_ids: ids });
   } else if (kind === 'benefit') {
     readPayloadText(formData, 'description', errors, payload);
   }
@@ -294,6 +413,9 @@ function readDateTime(
 export function normalizeAdminCurationForm(formData: FormData): AdminCurationFormResult {
   const errors: AdminCurationFieldErrors = {};
   const operationId = readUuid(formData, 'operationId', errors, '유효한 저장 요청이 아닙니다.');
+  const expectedUpdatedAt = readString(formData, 'expectedUpdatedAt') || null;
+  if (expectedUpdatedAt !== null && (!/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(?:\.\d{1,6})?(?:Z|[+-]\d\d:\d\d)$/.test(expectedUpdatedAt)
+    || Number.isNaN(Date.parse(expectedUpdatedAt)))) errors.expectedUpdatedAt = '저장본 정보를 확인하지 못했습니다. 새로고침해주세요.';
   const id = readUuid(formData, 'id', errors, '유효한 큐레이션 ID가 필요합니다.');
   const rawKind = readString(formData, 'kind');
   const kind = CURATION_KINDS.has(rawKind as AdminCurationKind)
@@ -311,9 +433,14 @@ export function normalizeAdminCurationForm(formData: FormData): AdminCurationFor
   }
 
   const title = readString(formData, 'title');
-  if (characterLength(title) < 1 || characterLength(title) > 120) {
-    errors.title = '제목은 1자 이상 120자 이하로 입력해주세요.';
+  const titleLimit = ['sales_best', 'review_best', 'product_mosaic', 'product_collection'].includes(kind ?? '') ? 15 : 120;
+  if (characterLength(title) < (kind === 'hero' ? 0 : 1) || characterLength(title) > titleLimit) {
+    errors.title = kind === 'hero' ? '제목은 40자 이하로 입력해주세요.' : `제목은 1자 이상 ${titleLimit}자 이하로 입력해주세요.`;
   }
+  if (kind === 'hero' && title !== readString(formData, 'originalTitle') && characterLength(title) > HOME_HERO_TITLE_LIMIT) {
+    errors.title = '제목은 40자 이하로 입력해주세요. 기존 제목은 그대로 유지할 수 있습니다.';
+  }
+  if (kind === 'product_collection' && !isHomeProductCollectionTitle(title)) errors.title = '제목은 제어 문자 없이 1자 이상 15자 이하로 입력해주세요.';
 
   const rawImagePath = readString(formData, 'imagePath');
   const imagePath = rawImagePath || null;
@@ -324,6 +451,7 @@ export function normalizeAdminCurationForm(formData: FormData): AdminCurationFor
   } else if (imagePath && !CURATION_IMAGE_PATTERN.test(imagePath)) {
     errors.imagePath = CURATION_IMAGE_ERROR;
   }
+  if (kind === 'product_collection' && imagePath) errors.imagePath = '자유상품은 선택한 상품의 대표이미지를 사용합니다.';
 
   const rawSlot = readString(formData, 'slot');
   let slot: string | null = null;
@@ -336,18 +464,20 @@ export function normalizeAdminCurationForm(formData: FormData): AdminCurationFor
 
   const rawLinkValue = formData.get('linkPath');
   const rawLinkPath = typeof rawLinkValue === 'string' ? rawLinkValue : '';
-  const linkPath = rawLinkPath.trim();
-  const decodedLinkPath = decodeInternalLink(linkPath);
-  if (
+  const trimmedLinkPath = rawLinkPath.trim();
+  const linkPath = (kind === 'hero' || kind === 'product_collection') && !trimmedLinkPath ? null : trimmedLinkPath;
+  const decodedLinkPath = decodeInternalLink(trimmedLinkPath);
+  if (AMBIGUOUS_LINK_CHARACTER_PATTERN.test(rawLinkPath) || (linkPath !== null && (
     characterLength(linkPath) < 1
     || characterLength(linkPath) > 2048
     || AMBIGUOUS_LINK_CHARACTER_PATTERN.test(rawLinkPath)
     || isUnsafeInternalLink(linkPath)
     || decodedLinkPath === null
     || isUnsafeInternalLink(decodedLinkPath)
-  ) {
+  ))) {
     errors.linkPath = '1~2048자의 안전한 내부 경로를 입력해주세요.';
   }
+  if (kind === 'product_collection' && linkPath !== null) errors.linkPath = '자유상품은 각 상품의 상세 화면으로 이동합니다.';
 
   const rawDisplayOrder = readString(formData, 'displayOrder');
   const displayOrder = Number(rawDisplayOrder);
@@ -371,6 +501,7 @@ export function normalizeAdminCurationForm(formData: FormData): AdminCurationFor
     ok: true,
     value: {
       operationId,
+      expectedUpdatedAt,
       id,
       kind,
       ipId,

@@ -31,13 +31,17 @@ export async function getAdminSettledOrders(
   filters: AdminSettledFilters,
 ): Promise<AdminSettledConsoleData> {
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc('admin_search_orders', {
+  const pageSize = Math.min(Math.max(Math.trunc(filters.pageSize ?? ADMIN_SETTLED_PAGE_SIZE) || ADMIN_SETTLED_PAGE_SIZE, 1), 100);
+  const { data, error } = await supabase.rpc('admin_search_orders_console', {
     p_from: filters.from,
-    p_limit: ADMIN_SETTLED_PAGE_SIZE,
-    p_offset: (filters.page - 1) * ADMIN_SETTLED_PAGE_SIZE,
+    p_limit: pageSize,
+    p_offset: (filters.page - 1) * pageSize,
     p_query: filters.query || null,
+    p_field: filters.field ?? 'all',
     p_status: 'done',
     p_to: filters.to,
+    p_date_field: filters.dateField ?? 'ordered',
+    p_sort: filters.sort ?? 'newest',
   });
 
   if (error) throw new Error(`Failed to load settled orders: ${error.message}`);
@@ -54,7 +58,7 @@ export async function getAdminSettledOrders(
 
   return {
     filters,
-    pageSize: ADMIN_SETTLED_PAGE_SIZE,
+    pageSize,
     rows: settled,
     total: rows[0]?.total_count ?? 0,
   };

@@ -15,11 +15,15 @@ import { loadCheckoutOrder, type CheckoutOrderSnapshot } from '@/lib/checkout.se
 import type { PreparedCheckout } from '@/lib/payments/gateway';
 import { bankTransferCheckoutEnabled } from '@/lib/payments/bank-transfer.server';
 import { goodsCheckoutPaymentsEnabled } from '@/lib/payments/goods-checkout-availability';
+import { GoodsPaymentRepositoryError } from '@/lib/payments/goods-checkout.server';
 import { createRuntimeGoodsPaymentCheckout } from '@/lib/payments/goods-checkout.runtime.server';
 import { deriveGoodsOrderProvider } from '@/lib/payments/goods-sale-restriction.server';
 import { createServiceClient } from '@/lib/supabase/service';
 import { normalizeStoreCreditAmount } from '@/lib/store-credits';
 import { couponErrorNeedsPendingOrder } from '@/lib/coupons';
+import { normalizeCartItems } from '@/lib/cart';
+import { bindStoreAnalyticsOrder } from '@/lib/store-analytics.server';
+import { goodsCustomInputValues } from '@/lib/goods-custom-inputs';
 
 type PlaceOrderActionError =
   | PlaceOrderErrorCode
@@ -39,7 +43,7 @@ export interface PrepareGoodsPaymentActionState {
    * 없다(승인 거절·결제 준비 시간 경과·처리 중인 취소 요청). "잠시 후 다시 시도"로
    * 안내하면 같은 실패만 반복되므로 결제 환경 문제(`payment_unavailable`)와 나눈다.
    */
-  readonly error?: 'auth_required' | 'not_found' | 'not_payable' | 'payment_closed' | 'payment_unavailable';
+  readonly error?: 'auth_required' | 'not_found' | 'not_payable' | 'goods_sale_not_open' | 'payment_closed' | 'payment_unavailable';
 }
 
 function orderStillPayable(order: CheckoutOrderSnapshot, now: number) {
@@ -101,7 +105,8 @@ export async function prepareGoodsPaymentAction(
     });
     if (Date.parse(prepared.expiresAt) <= Date.now()) return { error: 'payment_closed' };
     return { prepared };
-  } catch {
+  } catch (error) {
+    if (error instanceof GoodsPaymentRepositoryError && error.code === 'goods_sale_not_open') return { error: 'goods_sale_not_open' };
     return { error: await classifyPrepareFailure(auth.user.id, order.id) };
   }
 }
@@ -112,6 +117,7 @@ export async function placeOrderAction(
   paymentMethodValue: unknown = 'card',
   storeCreditAmountValue: unknown = 0,
   expectedUserCouponIdValue: unknown = undefined,
+  expectedCartValue?: unknown,
 ): Promise<PlaceOrderActionResult> {
   const auth = await getCurrentAuthState();
   if (!auth.isConfigured || !auth.user) return { ok: false, error: 'auth_required' };
@@ -133,6 +139,8 @@ export async function placeOrderAction(
   const expectedCouponId = expectedUserCouponIdValue === null || expectedUserCouponIdValue === undefined
     ? null : normalizeOrderReference(expectedUserCouponIdValue);
   if (expectedUserCouponIdValue != null && expectedCouponId === null) return { ok: false, error: 'invalid_request' };
+  const expectedCart=normalizeCartItems(expectedCartValue);
+  if(!Array.isArray(expectedCartValue)||expectedCart.length!==expectedCartValue.length) return {ok:false,error:'invalid_request'};
 
   // 수단별로 게이트가 다르다. 무통장에는 결제사가 없으므로 PG rollout gate가
   // 닫혀 있어도 열릴 수 있고, 반대로 계좌가 없으면 카드가 열려 있어도 닫힌다.
@@ -147,13 +155,14 @@ export async function placeOrderAction(
   let error: { message: string } | null;
   try {
     const service = createServiceClient();
-    const result = await service.rpc('place_order_with_store_credits', {
+    const result = await service.rpc('place_order_with_cart_snapshot', {
       p_user_id: auth.user.id,
       p_address: address,
       p_checkout_key: checkoutKey,
       p_payment_method: paymentMethod,
       p_store_credit_amount: storeCreditAmount,
-      ...(expectedUserCouponIdValue !== undefined ? { p_expected_user_coupon_id: expectedCouponId } : {}),
+      p_expected_user_coupon_id: expectedCouponId,
+      p_expected_cart:expectedCart.map(item=>({good_id:item.goodId,variant_id:item.variantId,qty:item.qty,input_revision:item.customInputs?.revision??0,input_values:goodsCustomInputValues(item.customInputs)})),
     });
     data = result.data;
     error = result.error;
@@ -165,7 +174,7 @@ export async function placeOrderAction(
     ...(couponErrorNeedsPendingOrder(error.message) ? { pendingOrder: true } : {}) };
 
   const orderId = normalizeOrderReference(data);
-  return orderId
-    ? { ok: true, orderId }
-    : { ok: false, error: 'unavailable' };
+  if (!orderId) return { ok: false, error: 'unavailable' };
+  await bindStoreAnalyticsOrder(orderId, auth.user.id);
+  return { ok: true, orderId };
 }

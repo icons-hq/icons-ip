@@ -53,7 +53,7 @@ export function OrderDelayNoticePanel({shipmentIds,onClose}:{shipmentIds:string[
    <button type="submit" className="wc-admin-kit__button wc-admin-kit__button--primary" disabled={pending||!body.trim()}>대상·고객 문구 미리보기</button>
   </form>:null}
   {notice?<>
-   <p><strong>{notice.requestedAt?'발송 요청 결과':'발송 전 미리보기'}</strong> · 주문 {notice.targets.length}건 · {notice.expectedShipDate?`발송 예정일 ${notice.expectedShipDate} 확정`:'발송 예정일 확인 중'}</p>
+   <p><strong>{notice.requestedAt?'발송 요청 결과':'발송 전 미리보기'}</strong> · 주문 {new Set(notice.targets.map(target=>target.orderId)).size}건 · 수신자 {notice.targets.length}명 · {notice.expectedShipDate?`발송 예정일 ${notice.expectedShipDate} 확정`:'발송 예정일 확인 중'}</p>
    <p className="muted">안내번호 {notice.id} · {formatOrderDateTime(notice.createdAt)}</p>
    {!emailReady?<p role="status" className="wc-admin-kit__error">{!notice.emailEnabled?'지연 안내 이메일 발송 설정이 꺼져 있습니다.': '이메일 공급자 또는 발송 서명 설정이 준비되지 않았습니다.'} 두 채널의 준비가 완료되어야 발송을 요청할 수 있습니다.</p>:null}
    {!notice.requestedAt&&notice.targets.some(target=>target.errorCode==='recipient_missing')?<p>이메일을 확인할 수 없는 주문은 이메일 발송에서 제외되며 앱 알림만 발행됩니다. 아래 수신자와 채널별 제외 사유를 확인해주세요.</p>:null}
@@ -61,7 +61,7 @@ export function OrderDelayNoticePanel({shipmentIds,onClose}:{shipmentIds:string[
    <div style={{overflowX:'auto'}}>
     <table className="admin-console-grid-table" style={{minWidth:720}}><caption>주문별 수신자·고객 문구·채널 결과</caption><thead><tr><th scope="col">주문·구매자</th><th scope="col">안내 대상·고객 문구</th><th scope="col">앱 알림</th><th scope="col">이메일</th></tr></thead>
      <tbody>{notice.targets.map(target=><tr key={target.id}>
-      <td>{orderReferenceLabel(target.orderId)}<br/>{target.buyerName}<br/><small>{target.recipientEmail||'구매자 이메일 없음'}</small></td>
+      <td>{orderReferenceLabel(target.orderId)}<br/>{target.buyerName} · {target.audience==='recipient'?'선물 받는 분':'구매자'}<br/><small>{target.recipientEmail||'수신자 이메일 없음'}</small></td>
       <td><ul>{target.shipmentLabels.map((label,index)=><li key={target.shipmentIds[index]}>{label}</li>)}</ul><p style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{target.messageBody}</p></td>
       <td>{ORDER_DELAY_STATUS_LABELS[target.inAppStatus]}</td>
       <td>{target.emailStatus==='sent'&&target.emailProviderState==='accepted'?'공급자 접수':ORDER_DELAY_STATUS_LABELS[target.emailStatus]}
@@ -75,7 +75,7 @@ export function OrderDelayNoticePanel({shipmentIds,onClose}:{shipmentIds:string[
    <p className="muted">이메일의 ‘공급자 접수’는 수신함 도착 확인과 다릅니다. 결과 불명은 같은 요청으로만 복구하며 이미 발송한 앱 알림·이메일은 다시 보내지 않습니다.</p>
    <div className="wc-admin-kit__actions">
     {!notice.requestedAt?<>
-     <button className="wc-admin-kit__button wc-admin-kit__button--primary" type="button" disabled={pending||!emailReady} onClick={()=>perform(()=>requestOrderDelayNoticeAction(notice.id))}>확인한 {notice.targets.length}개 주문에 앱 알림·이메일 발송 요청</button>
+     <button className="wc-admin-kit__button wc-admin-kit__button--primary" type="button" disabled={pending||!emailReady} onClick={()=>perform(()=>requestOrderDelayNoticeAction(notice.id))}>확인한 {notice.targets.length}명의 수신자에게 앱 알림·이메일 발송 요청</button>
      {shipmentIds.length?<button className="wc-admin-kit__button" type="button" disabled={pending} onClick={change}>새 미리보기 작성</button>:null}
     </>:notice.targets.some(target=>target.retryable)?<button className="wc-admin-kit__button" type="button" disabled={pending||!emailReady} onClick={()=>perform(()=>retryOrderDelayNoticeAction(notice.id))}>실패한 이메일만 재시도</button>:null}
     <button className="wc-admin-kit__button" type="button" disabled={pending} onClick={()=>perform(()=>readOrderDelayNoticeAction(notice.id))}>안내 결과 새로고침</button>

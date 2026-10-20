@@ -17,6 +17,8 @@ import {
   type CheckoutPaymentMethod,
 } from '@/lib/checkout';
 import { krw } from '@/lib/format';
+import { GoodsCustomInputsSummary } from '@/components/shop/GoodsCustomInputs';
+import { goodsCustomInputProblem } from '@/lib/goods-custom-inputs';
 import { cartItemKey } from '@/lib/cart';
 import { cartOptionGood, goodAtQuotedPrice, optionLabel } from '@/lib/goods-options';
 import { goodsPurchaseReasonMessage, goodsSalesQuoteProblem } from '@/lib/goods-sales';
@@ -36,6 +38,9 @@ const BELOW_MINIMUM_PAYMENT_COPY = `결제 금액이 최소 결제 금액(${krw(
 
 const actionErrors = {
   account_suspended: '정지된 계정은 새 주문을 만들 수 없어요.',
+  goods_custom_inputs_changed: '직접 입력 옵션 설정이 변경되었습니다. 장바구니에서 내용을 다시 확인해주세요.',
+  cart_changed: '장바구니가 변경되었습니다. 새로 불러온 전체 굿즈와 수량을 확인한 뒤 다시 주문해주세요.',
+  goods_purchase_restricted: '신규 굿즈 주문이 제한된 계정이에요. 자세한 내용은 고객센터에 문의해주세요.',
   invalid_address: '배송지 정보를 다시 확인해주세요.',
   invalid_request: '주문 요청을 다시 시작해주세요.',
   auth_required: '로그인이 만료됐어요. 다시 로그인해주세요.',
@@ -53,6 +58,7 @@ const actionErrors = {
   coupon_rejected: '적용한 쿠폰을 쓸 수 없게 됐어요. 장바구니에서 쿠폰을 확인해주세요.',
   store_credit_rejected: '적립금 잔액이나 사용 조건이 바뀌었어요. 사용 금액을 다시 확인해주세요.',
   checkout_changed: '이미 만든 주문과 요청 내용이 달라요. 내 주문에서 결제를 이어가거나 기존 주문을 취소한 뒤 다시 주문해주세요.',
+  goods_sale_not_open: '판매기간이 시작되지 않았거나 종료된 굿즈이 있어요. 장바구니를 확인해주세요.',
   preorder_sale_not_open: '예약 접수가 종료되거나 중지된 굿즈가 있어요. 장바구니를 확인해주세요.',
   preorder_capacity_exceeded: '예약 가능한 수량이 변경됐어요. 장바구니에서 수량을 다시 확인해주세요.',
   preorder_policy_not_configured: '굿즈의 예약 조건을 확인 중입니다. 잠시 후 다시 시도해주세요.',
@@ -152,8 +158,8 @@ export function Checkout({
   const shippingReady = shipping.quote?.checkoutAllowed === true && shipping.quote.finalTotalFee !== null;
   const couponDiscount = shipping.sales?.coupon?.discount ?? 0;
   const couponSelectionChanged = Boolean(shipping.sales && (shipping.sales.coupon?.userCouponId ?? null) !== (appliedCoupon?.id ?? null));
-  const unavailable = lines.some(({ good, qty }) => (
-    !good || good.stock === 'soldout' || good.stockQty < qty
+  const unavailable = lines.some(({ good, qty,customInputs }) => (
+    !good || Boolean(goodsCustomInputProblem(good.customInputs,customInputs)) || good.stock === 'soldout' || good.stockQty < qty
   ));
   /*
    * 한 굿즈라도 무통장을 막았으면 주문 전체가 막힌다 — 주문 단위로 선점 창이
@@ -225,13 +231,14 @@ export function Checkout({
     checkoutKey.current ??= crypto.randomUUID();
     let result: Awaited<ReturnType<typeof placeOrderAction>>;
     try {
-      result = await placeOrderAction(address, checkoutKey.current, selectedPaymentMethod, requestedStoreCredits, shipping.sales.coupon?.userCouponId ?? null);
+      result = await placeOrderAction(address, checkoutKey.current, selectedPaymentMethod, requestedStoreCredits, shipping.sales.coupon?.userCouponId ?? null, items);
     } catch {
       setSubmitError(actionErrors.unavailable);
       setSubmitting(false);
       return;
     }
     if (!result.ok) {
+      if(result.error==='cart_changed') await refresh();
       setSubmitError(result.pendingOrder ? '진행 중인 다른 주문을 완료하거나 취소한 뒤 다시 시도해주세요.' : actionErrors[result.error]);
       setPendingOrder(result.pendingOrder === true);
       shipping.refresh();
@@ -354,12 +361,14 @@ export function Checkout({
             <h2>주문 확인</h2>
           </div>
           <div className="checkout-items">
-            {lines.map(({ goodId, variantId, good, ip, qty, optionName, supply }) => (
-              <div className="checkout-item" key={cartItemKey(goodId, variantId)}>
+            {lines.map(({ goodId, variantId, good, ip, qty, optionName, supply,customInputs }) => (
+              <div className="checkout-item" key={cartItemKey(goodId, variantId,customInputs)}>
                 <div>
                   <span>{ip?.title ?? 'ICONS'} · {good?.type ?? '판매 종료'}</span>
                   <strong>{good?.name ?? goodId}</strong>
                   {optionName ? <span>{optionName}</span> : null}
+                  <GoodsCustomInputsSummary selection={customInputs} />
+                  {good && goodsCustomInputProblem(good.customInputs,customInputs) && <span>{goodsCustomInputProblem(good.customInputs,customInputs)}</span>}
                   {supply?.mode === 'preorder' ? <span>예약판매 · {goodsShipDateLabel(supply.expectedShipDate)}</span> : null}
                 </div>
                 <span className="mono">{qty} × {krw(good?.price ?? 0)}</span>

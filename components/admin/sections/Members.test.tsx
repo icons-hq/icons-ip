@@ -72,6 +72,7 @@ const detail: AdminMemberDetail = {
   ticketOrderCount: 3,
   submittedReportCount: 4,
   receivedReportCount: 5,
+  moderation: { managerRole: null, canModerate: true },
 };
 
 describe('MembersSection', () => {
@@ -118,8 +119,8 @@ describe('MembersSection', () => {
     expect(html).not.toContain('배송지');
   });
 
-  it('staff는 일반 사용자만 정지할 수 있고 admin은 staff도 해제할 수 있다', () => {
-    hooks.detailState = { member: { ...detail, role: 'staff', suspendedAt: '2026-07-17T00:00:00.000Z', suspensionReason: '내부 사유' } };
+  it('raw 역할 대신 DB가 내려준 제재 판단으로 버튼을 연다', () => {
+    hooks.detailState = { member: { ...detail, role: 'staff', moderation: { managerRole: 'primary', canModerate: false }, suspendedAt: '2026-07-17T00:00:00.000Z', suspensionReason: '내부 사유' } };
 
     const staffHtml = renderToStaticMarkup(
       <MembersSection actor={{ id: 'staff-a', role: 'staff' }} initialMembers={summaries} />,
@@ -127,6 +128,7 @@ describe('MembersSection', () => {
     expect(staffHtml).toContain('이 계정은 현재 권한으로 제재할 수 없습니다.');
     expect(staffHtml).not.toContain('정지 해제');
 
+    hooks.detailState.member = { ...hooks.detailState.member!, role: 'admin', moderation: { managerRole: 'deputy', canModerate: true } };
     const adminHtml = renderToStaticMarkup(
       <MembersSection actor={{ id: 'admin-a', role: 'admin' }} initialMembers={summaries} />,
     );

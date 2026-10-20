@@ -1,4 +1,6 @@
 import { adminGoodsCopy } from '@/lib/admin/vocabulary';
+import { customerServicePageSize } from './customer-service-list';
+import type { InquirySatisfactionSummary, InquirySatisfactionValue } from '../inquiry-satisfaction';
 import {
   ADMIN_INQUIRY_STATUS_LABELS,
   INQUIRY_CATEGORIES,
@@ -23,6 +25,11 @@ export const DEFAULT_ADMIN_INQUIRY_STATUS: AdminInquiryStatusFilter = 'open';
 export type AdminInquiryStatusFilter = InquiryStatus | 'all';
 export type AdminInquiryCategoryFilter = InquiryCategory | 'all';
 export type AdminInquirySearchField = 'all' | 'title' | 'buyer' | 'order';
+export type AdminInquirySatisfactionFilter = 'all' | 'satisfied' | 'dissatisfied' | 'unrated';
+export const ADMIN_INQUIRY_SATISFACTION_OPTIONS = [
+  { value: 'all', label: '전체' }, { value: 'satisfied', label: '만족' },
+  { value: 'dissatisfied', label: '불만족' }, { value: 'unrated', label: '미평가' },
+] as const;
 
 export const ADMIN_INQUIRY_SEARCH_FIELDS: { value: AdminInquirySearchField; label: string }[] = [
   { value: 'all', label: '전체' },
@@ -55,6 +62,8 @@ export interface AdminInquiryFilters {
   query: string;
   field: AdminInquirySearchField;
   page: number;
+  pageSize?: number;
+  satisfaction?: AdminInquirySatisfactionFilter;
 }
 
 export interface AdminInquiryRow {
@@ -76,6 +85,7 @@ export interface AdminInquiryRow {
   lastMessageAt: string;
   answeredAt: string | null;
   messageCount: number;
+  satisfaction?: InquirySatisfactionValue;
 }
 
 export interface AdminInquiryConsoleData {
@@ -85,6 +95,37 @@ export interface AdminInquiryConsoleData {
   total: number;
   /** 상태별 건수. 0건도 그대로 싣는다 — 감추면 집계 실패와 구분되지 않는다. */
   counts: Record<InquiryStatus, number>;
+  satisfactionSummary?: InquirySatisfactionSummary;
+}
+
+export interface AdminInquiryNavigation {
+  position: number | null;
+  total: number;
+  previousHref: string | null;
+  nextHref: string | null;
+}
+
+/** Use the current filtered page; an answered/removed record must not acquire a false position. */
+export async function adminInquiryNavigation(
+  inquiryId: string,
+  data: AdminInquiryConsoleData,
+  mode: 'preview' | 'detail',
+  adjacentId: (offset: number) => Promise<string | null>,
+): Promise<AdminInquiryNavigation> {
+  const index = data.rows.findIndex((row) => row.id === inquiryId);
+  if (index < 0) return { position: null, total: data.total, previousHref: null, nextHref: null };
+  const offset = (data.filters.page - 1) * data.pageSize;
+  const position = offset + index + 1;
+  const href = mode === 'preview' ? adminInquiryPreviewHref : adminInquiryDetailHref;
+  const [previous, next] = await Promise.all([
+    index > 0 ? data.rows[index - 1].id : offset > 0 ? adjacentId(offset - 1) : null,
+    index + 1 < data.rows.length ? data.rows[index + 1].id : position < data.total ? adjacentId(position) : null,
+  ]);
+  return {
+    position, total: data.total,
+    previousHref: previous && previous !== inquiryId ? href(previous, { ...data.filters, page: index > 0 ? data.filters.page : data.filters.page - 1 }) : null,
+    nextHref: next && next !== inquiryId ? href(next, { ...data.filters, page: index + 1 < data.rows.length ? data.filters.page : data.filters.page + 1 }) : null,
+  };
 }
 
 type SearchParamValue = string | string[] | undefined;
@@ -145,6 +186,9 @@ export function normalizeAdminInquiryFilters(
     query: rawQuery.length <= 100 ? rawQuery : '',
     field: SEARCH_FIELDS.has(rawField) ? rawField as AdminInquirySearchField : 'all',
     page: Number.isSafeInteger(rawPage) && rawPage > 0 ? rawPage : 1,
+    pageSize: customerServicePageSize(searchParams.pageSize),
+    satisfaction: ADMIN_INQUIRY_SATISFACTION_OPTIONS.some(option => option.value === singleParam(searchParams.satisfaction))
+      ? singleParam(searchParams.satisfaction) as AdminInquirySatisfactionFilter : 'all',
   };
 }
 
@@ -156,6 +200,7 @@ export function adminInquiryHref(
   const params = new URLSearchParams();
   params.set('status', next.status);
   if (next.category !== 'all') params.set('category', next.category);
+  if (next.satisfaction && next.satisfaction !== 'all') params.set('satisfaction', next.satisfaction);
   if (next.from) params.set('from', next.from);
   if (next.to) params.set('to', next.to);
   if (next.query) {
@@ -163,6 +208,7 @@ export function adminInquiryHref(
     if (next.field !== 'all') params.set('field', next.field);
   }
   params.set('page', String(next.page));
+  if (next.pageSize && next.pageSize !== ADMIN_INQUIRY_PAGE_SIZE) params.set('pageSize', String(next.pageSize));
   return `/admin/cs/inquiries?${params.toString()}`;
 }
 
@@ -175,7 +221,11 @@ export function adminInquiryDetailHref(inquiryId: string, filters?: AdminInquiry
     : `/admin/cs/inquiries/${inquiryId}`;
 }
 
-const BACK_PARAM_KEYS = ['status', 'category', 'from', 'to', 'query', 'field', 'page'] as const;
+const BACK_PARAM_KEYS = ['status', 'category', 'from', 'to', 'query', 'field', 'page', 'pageSize', 'satisfaction'] as const;
+
+export function adminInquiryPreviewHref(inquiryId: string, filters: AdminInquiryFilters) {
+  return `${adminInquiryHref(filters)}&${new URLSearchParams({ inquiryId })}`;
+}
 
 /**
  * `?back=`으로 돌아온 목록 조건.
@@ -195,6 +245,11 @@ export function adminInquiryBackHref(back: unknown) {
   }
 
   return adminInquiryHref(normalizeAdminInquiryFilters(known));
+}
+
+export function adminInquiryBackFilters(back: unknown): AdminInquiryFilters {
+  const href = adminInquiryBackHref(back);
+  return normalizeAdminInquiryFilters(Object.fromEntries(new URLSearchParams(href.split('?')[1] ?? '')));
 }
 
 /** 구매자 표기. 닉네임이 비면 주문 콘솔과 같은 fan_ 축약을 쓴다. */

@@ -1,3 +1,4 @@
+import { legacyOperatorAccessFixture } from '@/lib/admin/access.test-fixtures';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({ auth: vi.fn(), rpc: vi.fn(), revalidate: vi.fn() }));
 vi.mock('@/lib/auth/admin', () => ({ getCurrentAdminAuthState: mocks.auth }));
@@ -10,7 +11,7 @@ function form(reason = '공급 일정 재확인') {
   const data = new FormData(); data.set('shipmentId', shipmentId); data.set('expectedShipDate', '2099-10-01');
   data.set('updatedAt', '2099-09-10T00:00:00.123456Z'); data.set('reason', reason); return data;
 }
-beforeEach(() => { vi.resetAllMocks(); mocks.auth.mockResolvedValue({ isConfigured: true, user: { id: 'staff' }, isStaff: true }); });
+beforeEach(() => { vi.resetAllMocks(); mocks.auth.mockResolvedValue({ operatorAccess: legacyOperatorAccessFixture(), isConfigured: true, user: { id: 'staff' }, isStaff: true }); });
 describe('shipment promise changes', () => {
   it('preserves the exact observed timestamp and requires a recorded reason', async () => {
     expect(await changeShipmentPreorderDateAction(form(''))).toMatchObject({ ok: false });
@@ -22,7 +23,7 @@ describe('shipment promise changes', () => {
     });
   });
   it('rejects non-staff reads and changes and does not call the database', async () => {
-    mocks.auth.mockResolvedValue({ isConfigured: true, user: { id: 'customer' }, isStaff: false });
+    mocks.auth.mockResolvedValue({ operatorAccess: legacyOperatorAccessFixture(), isConfigured: true, user: { id: 'customer' }, isStaff: false });
     expect(await readShipmentPreorderPromiseAction(shipmentId)).toMatchObject({ ok: false });
     expect(await changeShipmentPreorderDateAction(form())).toMatchObject({ ok: false });
     expect(mocks.rpc).not.toHaveBeenCalled();

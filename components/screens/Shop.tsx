@@ -7,6 +7,7 @@ import { OverlayPortal } from '@/components/shell/OverlayPortal';
 import { useOverlayA11y } from '@/components/shell/useOverlayA11y';
 import { EmptyState } from '@/components/wc/EmptyState';
 import { ProductCard } from '@/components/wc/ProductCard';
+import { GoodsSalePeriodRefresh } from '@/components/shop/GoodsSalePeriodRefresh';
 import { SectionHeading } from '@/components/wc/SectionHeading';
 import { ViewMore } from '@/components/wc/ViewMore';
 import { WcButton } from '@/components/wc/WcButton';
@@ -41,6 +42,12 @@ export interface ShopProps {
   view: ShopView;
   query: ShopListQuery;
   result: ShopListResult;
+  title?: string;
+  onQueryChange?: (query: ShopListQuery) => void;
+  refreshScheduledContent?: boolean;
+  /** A same-origin embedded preview owns its overlay document. */
+  overlayContainer?: HTMLElement;
+  paging?: { loading: boolean; error?: string; hasMore?: boolean; onLoadMore: () => void; onReload?: () => void };
 }
 
 export interface ShopFilterDraft {
@@ -104,6 +111,7 @@ export function setDraftPriceRange(
 /** 컨트롤이 만들 다음 URL 의 쿼리 문자열. 뷰 기본 정렬은 싣지 않아 기본 상태 URL 이 깨끗하다. */
 export function shopQueryString(query: ShopListQuery): string {
   const params = new URLSearchParams();
+  if (query.displayCategory) params.set('displayCategory', query.displayCategory);
   for (const id of query.categories ?? []) params.append('category', id);
   for (const id of query.ips) params.append('ip', id);
   for (const type of query.types) params.append('type', type);
@@ -219,7 +227,7 @@ function PriceSlider({
   );
 }
 
-export function Shop({ query, result, view }: ShopProps) {
+export function Shop({ query, result, view, title, onQueryChange, paging, refreshScheduledContent = true, overlayContainer }: ShopProps) {
   const pathname = usePathname();
   const router = useRouter();
   const panelRef = useRef<HTMLDivElement>(null);
@@ -242,7 +250,7 @@ export function Shop({ query, result, view }: ShopProps) {
     : { min: query.priceMin, max: query.priceMax };
 
   const heading = VIEW_HEADINGS[view];
-  const headingNode = view === 'all'
+  const headingNode = title ? <SectionHeading as="h1" title={title} /> : view === 'all'
     ? <h1 className="wc-sr-only">{heading.title}</h1>
     : <SectionHeading as="h1" subcopy={heading.subcopy} title={heading.title} />;
 
@@ -251,6 +259,7 @@ export function Shop({ query, result, view }: ShopProps) {
     /* 같은 URL 로의 재진입은 서버 왕복만 만들고 목록은 그대로다 — 슬라이더를 만졌다 제자리에
        놓는 흔한 조작에서 특히 잘 발생한다. */
     if (qs === queryKey) return;
+    if (onQueryChange) { onQueryChange(next); return; }
     router.push(qs ? `${pathname}?${qs}` : pathname, { scroll: false });
   };
   const applyFilters = (next: ShopFilterDraft) => navigate({ ...query, ...next, categories: next.categories ?? [] });
@@ -264,7 +273,7 @@ export function Shop({ query, result, view }: ShopProps) {
           {headingNode}
           <div className="wc-collection__empty">
             <EmptyState
-              action={view === 'all' ? undefined : (
+              action={view === 'all' && !query.displayCategory ? undefined : (
                 <WcButton href="/shop" variant="primary">굿즈샵 둘러보기</WcButton>
               )}
               title="아직 준비 중이에요"
@@ -276,7 +285,7 @@ export function Shop({ query, result, view }: ShopProps) {
   }
 
   const brandByIpId = new Map(result.ipFacets.map((facet) => [facet.value, facet.label]));
-  const visibleGoods = result.goods.slice(0, visibleCount);
+  const visibleGoods = paging ? result.goods : result.goods.slice(0, visibleCount);
   const hasFilters = Boolean(query.categories?.length) || query.ips.length > 0
     || query.types.length > 0
     || query.priceMin !== null
@@ -286,6 +295,7 @@ export function Shop({ query, result, view }: ShopProps) {
 
   return (
     <div className="wc-root wc-collection">
+      {refreshScheduledContent ? <GoodsSalePeriodRefresh goods={result.goods} /> : null}
       <div className="wc-container">
         {headingNode}
         <div className="wc-collection__layout">
@@ -401,6 +411,7 @@ export function Shop({ query, result, view }: ShopProps) {
                   {visibleGoods.map((good) => (
                     <ProductCard
                       key={good.id}
+                      listSurface={view === 'best' ? 'best' : 'standard'} listingAppearance={good.listingAppearance} cartGood={good}
                       badges={goodDisplayBadges(good)}
                       brand={brandByIpId.get(good.ip)}
                       showDiscountRate={good.showDiscountRate} compareAtPrice={good.compareAtPrice}
@@ -408,13 +419,15 @@ export function Shop({ query, result, view }: ShopProps) {
                       imageBackground={good.img}
                       name={good.name}
                       price={good.price} priceMax={good.priceMax}
-                      soldOut={good.stock === 'soldout'}
+                      salePeriod={good.salePeriod} soldOut={good.stock === 'soldout'}
                     />
                   ))}
                 </div>
-                {visibleCount < result.filteredTotal ? (
+                {paging?.error ? <p role="alert">{paging.error}{paging.onReload ? <button type="button" onClick={paging.onReload}>목록 새로 불러오기</button> : null}</p> : null}
+                {(paging ? paging.hasMore ?? result.goods.length < result.filteredTotal : visibleCount < result.filteredTotal) ? (
                   <ViewMore
-                    onClick={() => setShown({ key: queryKey, count: visibleCount + SHOP_PAGE_SIZE })}
+                    loading={paging?.loading}
+                    onClick={paging?.onLoadMore ?? (() => setShown({ key: queryKey, count: visibleCount + SHOP_PAGE_SIZE }))}
                   />
                 ) : null}
               </>
@@ -426,7 +439,7 @@ export function Shop({ query, result, view }: ShopProps) {
       {/* 시트·딤은 #root 밖으로 포털한다 — 안에 두면 useOverlayA11y의 #root inert가 시트
           자신까지 얼리고, #root 스태킹 컨텍스트(z2)가 셸 헤더·탭바(z3) 아래로 딤을 깔아버린다. */}
       {sheetOpen ? (
-        <OverlayPortal>
+        <OverlayPortal container={overlayContainer}>
           <div aria-hidden className="wc-filter-sheet__dim" onClick={closeSheet} />
           <div
             ref={panelRef}

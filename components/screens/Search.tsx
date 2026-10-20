@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { Icon } from '@/components/ui/Icon';
 import { EmptyState } from '@/components/wc/EmptyState';
 import { ProductCard } from '@/components/wc/ProductCard';
+import { GoodsSalePeriodRefresh } from '@/components/shop/GoodsSalePeriodRefresh';
 import { SectionHeading } from '@/components/wc/SectionHeading';
 import { COMMUNITY_ENABLED } from '@/lib/community-visibility';
 import { publicIpHref } from '@/lib/ip-identity';
@@ -127,6 +128,7 @@ export function Search({ goodsResult, ips, query, snapshot }: SearchProps) {
 
   return (
     <div className="wc-root wc-search-results">
+      <GoodsSalePeriodRefresh goods={goodsResult.items} />
       <div className="wc-container">
         <h1 className="wc-search-results__heading">
           {hasQuery ? (
@@ -165,6 +167,7 @@ export function Search({ goodsResult, ips, query, snapshot }: SearchProps) {
               {goodsResult.items.map((good) => (
                 <ProductCard
                   key={good.id}
+                  listSurface="standard" listingAppearance={good.listingAppearance} cartGood={good}
                   badges={goodDisplayBadges(good)}
                   brand={ipTitleById.get(good.ip) ?? null}
                   showDiscountRate={good.showDiscountRate} compareAtPrice={good.compareAtPrice}
@@ -172,7 +175,7 @@ export function Search({ goodsResult, ips, query, snapshot }: SearchProps) {
                   imageBackground={good.img}
                   name={good.name}
                   price={good.price} priceMax={good.priceMax}
-                  soldOut={good.stock === 'soldout' || good.stockQty <= 0}
+                  salePeriod={good.salePeriod} soldOut={good.stock === 'soldout' || good.stockQty <= 0}
                 />
               ))}
             </div>

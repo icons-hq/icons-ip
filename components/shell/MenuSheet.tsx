@@ -5,22 +5,26 @@ import { useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { signOutAction } from '@/app/login/actions';
 import { nextPathWithSearch } from '@/lib/auth/onboarding';
-import { MENU_SHEET_GROUPS, hrefFor } from '@/lib/routes';
+import { hrefFor } from '@/lib/routes';
+import { DEFAULT_STOREFRONT_NAVIGATION, resolveStorefrontNavigation, storeMenuSheetGroups, type StorefrontNavigation } from '@/lib/store-navigation';
 import { Icon } from '@/components/ui/Icon';
+import { ProductInterestMenuLink } from '@/components/shop/ProductInterestShelf';
 import { useAuthPresence } from './AuthPresenceProvider';
 import { useCart } from './CartProvider';
 import { useOverlayA11y } from './useOverlayA11y';
 
 /* 모바일 전체 메뉴 시트. 바텀바의 '메뉴' 탭과 모바일 GNB의 '카테고리' 탭이 같은 시트를 연다.
-   그룹 제목과 항목은 lib/routes.ts의 MENU_SHEET_GROUPS 하나에서만 온다. */
+   스토어 그룹은 GNB와 같은 설정 순서, 내 활동/거래는 routes.ts의 고정 그룹을 사용한다. */
 export function MenuSheet({
   open,
   onClose,
   cardRewardsEnabled,
+  navigation = DEFAULT_STOREFRONT_NAVIGATION,
 }: {
   open: boolean;
   onClose: () => void;
   cardRewardsEnabled: boolean;
+  navigation?: StorefrontNavigation;
 }) {
   const router = useRouter();
   const { resetForSignOut } = useCart();
@@ -38,12 +42,7 @@ export function MenuSheet({
       nextPathWithSearch(window.location.pathname, new URLSearchParams(window.location.search)),
     )}`;
 
-  /* 카드 리워드가 꺼져 있으면 카드팩 항목을 빼고, 그래서 비어 버린 그룹은 제목째 지운다. */
-  const groups = cardRewardsEnabled
-    ? MENU_SHEET_GROUPS
-    : MENU_SHEET_GROUPS
-        .map((group) => ({ ...group, items: group.items.filter((item) => item.id !== 'packs') }))
-        .filter((group) => group.items.length > 0);
+  const groups = storeMenuSheetGroups(resolveStorefrontNavigation(navigation, cardRewardsEnabled));
 
   return (
     <>
@@ -67,6 +66,7 @@ export function MenuSheet({
               </ul>
             </section>
           ))}
+          <ProductInterestMenuLink className="wc-sheet__link" onNavigate={onClose} />
           <div className="wc-sheet__auth">
             {presence === 'unknown' && <span aria-hidden className="wc-sheet__auth-placeholder" />}
             {presence === 'signed-in' && (

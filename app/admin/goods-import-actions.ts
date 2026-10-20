@@ -1,5 +1,6 @@
 'use server';
 
+import { randomUUID } from 'node:crypto';
 import { revalidateGoodsSurfaces } from '@/lib/admin/revalidate-goods.server';
 import { unstable_rethrow } from 'next/navigation';
 import { revalidatePath } from 'next/cache';
@@ -161,7 +162,7 @@ export async function previewGoodsImport(id: string) {
     const batch = await loadGoodsImportBatch(id, actorId);
     if (batch.state !== 'uploading')
       return { ok: true as const, view: goodsImportView(batch) };
-    const { rows, kcRows } = await parseGoodsWorkbookWithKc(
+    const { rows, kcRows, customInputRows, afterSalesRows, sizeRows } = await parseGoodsWorkbookWithKc(
       await downloadSource(batch, 'workbook.xlsx', GOODS_WORKBOOK_BYTES_LIMIT),
     );
     const files = batch.has_images
@@ -183,6 +184,10 @@ export async function previewGoodsImport(id: string) {
     const plan = planGoodsWorkbookImport(rows, {
       ...context,
       kcRows,
+      customInputRows,
+      afterSalesRows,
+      sizeRows,
+      newCustomInputId: randomUUID,
       imageNames: [...files.keys()],
     });
     const service = createServiceClient();

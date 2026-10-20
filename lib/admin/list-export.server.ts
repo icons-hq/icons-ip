@@ -15,6 +15,9 @@ const FONT = '맑은 고딕';
 const NUMBER_FORMAT = '#,##0';
 const TEXT_FORMAT = '@';
 
+/** Other read-only consoles share the same typed-cell and privacy workbook contract. */
+export type ListExportWorkbookSheet = Omit<AdminListExportSheet, 'screen'> & { screenLabel: string };
+
 /**
  * 화면 목록을 확인용 .xlsx로 만든다.
  *
@@ -24,7 +27,7 @@ const TEXT_FORMAT = '@';
  * 수식 객체는 만들지 않는다 — 셀 값은 언제나 문자열·숫자·빈 칸 중 하나다.
  */
 export async function buildAdminListExportWorkbook(
-  sheet: AdminListExportSheet,
+  sheet: AdminListExportSheet | ListExportWorkbookSheet,
   generatedAt: Date,
 ): Promise<Buffer> {
   assertAdminListExportWithinLimit(sheet.rows.length, ADMIN_LIST_EXPORT_ROW_LIMIT, 'rows');
@@ -70,9 +73,8 @@ export async function buildAdminListExportWorkbook(
 
   const info = workbook.addWorksheet('내려받기 정보');
   info.columns = [{ width: 18 }, { width: 96 }];
-  const screen = ADMIN_LIST_EXPORT_SCREENS[sheet.screen];
   const lines: [string, string][] = [
-    ['화면', screen.label],
+    ['화면', 'screen' in sheet ? ADMIN_LIST_EXPORT_SCREENS[sheet.screen].label : sheet.screenLabel],
     ...sheet.conditions,
     ['내려받은 시각 (KST)', kstDateTimeText(generatedAt.toISOString())],
     ['건수', `${sheet.recordCount.toLocaleString('ko-KR')}건 · 엑셀 ${sheet.rows.length.toLocaleString('ko-KR')}행`],

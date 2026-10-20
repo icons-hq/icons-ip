@@ -6,6 +6,7 @@ import {
   normalizeAdminCouponForm,
 } from '@/lib/admin/coupons';
 import { withPreservedFormValues, type AdminFormValuesState } from '@/lib/admin/form-state';
+import { hasAdminCapability } from '@/lib/admin/access';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
 import { createClient } from '@/lib/supabase/server';
 
@@ -16,12 +17,14 @@ import { createClient } from '@/lib/supabase/server';
 export interface AdminCouponActionState extends AdminFormValuesState {
   errors?: Record<string, string> & { form?: string };
   message?: string;
+  savedCode?: string;
+  openTargetIssuance?: boolean;
 }
 
 async function requireStaffAction(): Promise<AdminCouponActionState | null> {
   const auth = await getCurrentAdminAuthState();
   if (!auth.isConfigured || !auth.user) redirect(`/login?next=${encodeURIComponent('/admin')}`);
-  if (!auth.isStaff) return { errors: { form: '관리자 권한이 필요합니다.' } };
+  if (!auth.isStaff || !hasAdminCapability(auth, 'marketing.manage')) return { errors: { form: '관리자 권한이 필요합니다.' } };
   return null;
 }
 
@@ -36,6 +39,9 @@ function couponWriteIntentFailure(message: string): AdminCouponActionState | nul
   if (message.includes('catalog_id_immutable')) {
     return { errors: { code: '등록된 코드는 변경할 수 없습니다.' } };
   }
+  if (message.includes('coupon_issued_benefit_immutable')) return { errors: { form: '발급된 쿠폰의 상품·배송비 할인 구분, 중복 사용 조건과 발급 방식은 바꿀 수 없습니다. 새 혜택으로 복사해주세요.' } };
+  if (message.includes('coupon_targeted_grade_exclusive')) return { errors: { gradeBenefit: '고객 지정 쿠폰은 등급 자동 발급과 함께 설정할 수 없습니다.' } };
+  if (message.includes('coupon_target_category_unavailable') || message.includes('coupon_category_scope_ready') || message.includes('coupon_category_changed')) return { errors: { targetCategoryIds: '할인 대상 카테고리의 설정과 현재 상태를 다시 확인해주세요.' } };
   if (message.includes('coupon_terms_changed')) return { errors: { form: '다른 작업에서 쿠폰 조건이 변경됐습니다. 목록을 새로고침한 뒤 다시 확인해주세요.' } };
   if (message.includes('coupon_target_good_unavailable') || message.includes('coupon_goods_scope_ready')) return { errors: { targetGoodIds: '할인 대상 상품의 설정과 현재 상태를 다시 확인해주세요.' } };
   return null;
@@ -62,8 +68,8 @@ async function saveAdminCoupon(formData: FormData): Promise<AdminCouponActionSta
   if (!result.ok) return { errors: result.errors };
 
   const supabase = await createClient();
-  const { error } = await supabase.rpc('admin_upsert_coupon_targeted', { target_payload: {
-    target_code: result.value.code,
+  const { error } = await supabase.rpc('admin_upsert_coupon_scheduled', { target_payload: {
+    target_code: result.value.code, target_benefit_kind: result.value.benefitKind, target_stackable: result.value.stackable,
     target_name: result.value.name,
     target_discount_type: result.value.discountType,
     target_discount_value: result.value.discountValue,
@@ -78,7 +84,12 @@ async function saveAdminCoupon(formData: FormData): Promise<AdminCouponActionSta
     target_recipient_segment: result.value.recipientSegment,
     target_goods_scope: result.value.goodsScope,
     target_good_ids: result.value.targetGoodIds,
+    target_category_ids: result.value.targetCategoryIds ?? [],
+    target_issuance_mode: result.value.issuanceMode ?? 'code',
     target_expected_revision: result.value.expectedRevision,
+    target_issue_starts_at: result.value.issueStartsAt,
+    target_issue_ends_at: result.value.issueEndsAt,
+    target_valid_days: result.value.validDays,
   } });
 
   if (error) {
@@ -90,5 +101,24 @@ async function saveAdminCoupon(formData: FormData): Promise<AdminCouponActionSta
   revalidatePath('/cart');
   revalidatePath('/checkout');
   revalidatePath('/my/coupons');
-  return { message: `${result.value.code} 쿠폰을 저장했습니다.` };
+  return { message: `${result.value.code} 쿠폰을 저장했습니다.`, savedCode: result.value.code,
+    ...(result.value.issuanceMode === 'targeted' && !result.value.previousCode ? { openTargetIssuance: true } : {}),
+  };
+}
+
+export async function setAdminCouponStatusAction(_state: AdminCouponActionState, formData: FormData): Promise<AdminCouponActionState> {
+  const authError = await requireStaffAction(); if (authError) return authError;
+  const code = String(formData.get('code') ?? '');
+  const revision = Number(formData.get('revision'));
+  const status = String(formData.get('status') ?? '');
+  if (!/^[A-Z0-9][A-Z0-9-]{2,23}$/.test(code) || !Number.isSafeInteger(revision) || revision < 1 || !['active', 'archived'].includes(status)) {
+    return { errors: { form: '쿠폰 상태와 버전을 확인해주세요.' } };
+  }
+  try {
+    const supabase = await createClient();
+    const { error } = await supabase.rpc('admin_set_coupon_status', { p_code: code, p_expected_revision: revision, p_status: status });
+    if (error) return couponWriteIntentFailure(error.message) ?? { errors: { form: '혜택 상태를 변경하지 못했습니다.' } };
+    revalidatePath('/admin/sales/coupons'); revalidatePath('/my/coupons'); revalidatePath('/cart'); revalidatePath('/checkout');
+    return { message: status === 'archived' ? '혜택을 중지했습니다.' : '혜택을 다시 적용했습니다.' };
+  } catch (error) { unstable_rethrow(error); return { errors: { form: '혜택 상태를 변경하지 못했습니다.' } }; }
 }

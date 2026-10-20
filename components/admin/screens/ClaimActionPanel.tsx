@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { startTransition, useActionState, useState } from 'react';
+import { startTransition, useActionState, useState, type ReactNode } from 'react';
 import { ADMIN_CANCELLATION_RECHECK_LABELS, adminOrderSearchHref } from '@/lib/admin/orders';
 import { ADMIN_VOCABULARY as V, adminClaimCopy } from '@/lib/admin/vocabulary';
 import {
@@ -25,6 +25,9 @@ import {
 import type { ShippingCarrierRegistry } from '@/lib/orders/shipment';
 import type { AdminClaimCollection, AdminClaimReshipItem } from '@/lib/admin/claims.server';
 import { ClaimOriginCollection } from './ClaimOriginCollection';
+import { ClaimHoldControl } from '@/components/admin/ClaimHoldControl';
+import { BankTransferRefund } from '@/components/admin/BankTransferRefund';
+import { ReturnClaimWorkspace } from './ReturnClaimWorkspace';
 
 /* 클레임 액션 패널(#252).
  *
@@ -186,6 +189,8 @@ function RefundMethodField({
 }
 
 export interface ClaimActionPanelProps {
+  actorId?: string;
+  bankTransfer?: boolean;
   claimId: string;
   claimType: OrderClaimType;
   orderId: string;
@@ -206,12 +211,16 @@ export interface ClaimActionPanelProps {
   reshipItems?: AdminClaimReshipItem[];
   collectionPolicy: 'origin' | 'legacy' | null;
   collectionComplete: boolean;
+  collectedAt?: string | null;
+  returnCollectionContact?: ReactNode;
+  returnRefundSummary?: ReactNode;
   collections: AdminClaimCollection[];
 }
 
 export function ClaimActionPanel({
+  actorId,
+  bankTransfer = false,
   cancellationForm,
-  carriers,
   claimId,
   claimType,
   heldFrom,
@@ -222,10 +231,12 @@ export function ClaimActionPanel({
   stage,
   paymentProvider,
   recordedRefundMethod,
-  reshipItems = [],
   collectionPolicy,
   collectionComplete,
   collections,
+  collectedAt = null,
+  returnCollectionContact,
+  returnRefundSummary,
 }: ClaimActionPanelProps) {
   const [result, panelAction, pending] = useActionState(runClaimPanelAction, EMPTY_STATE);
   const [formCopied, setFormCopied] = useState(false);
@@ -243,6 +254,7 @@ export function ClaimActionPanel({
   const canResume = stage === 'on_hold';
   const canReject = canRejectOrderClaim(stage, heldFrom);
   const collectionReady = collectionPolicy !== null && collectionComplete;
+  const cancellationWithoutCollection = claimType === 'cancel' && collectionPolicy !== null && collectionComplete && collections.length === 0;
   const canRecordOrigin = collectionPolicy === 'origin'
     && !collectionComplete && ['collecting', 'collected', 'processing', 'needs_review'].includes(stage);
   const canCollect = collectionPolicy === 'legacy' && claimType !== 'cancel' && stage === 'collecting';
@@ -280,24 +292,12 @@ export function ClaimActionPanel({
   /* 수단은 원장 기록 → 결제 provider 순으로 정해진다. 정해지지 않은 결제(Korpay)만
      운영자가 고른다. 서버 액션이 같은 규칙으로 다시 검사한다. */
   const fixedRefundMethod = recordedRefundMethod ?? orderClaimRefundMethodForProvider(paymentProvider);
-  const canReship = claimType === 'exchange' && stage === 'collected' && collectionReady;
+  if (stage === 'withdrawn' && claimType !== 'return') return <><h3>처리</h3><p>요청 철회로 처리가 종료됐습니다. 주문과 결제는 유지됩니다.</p></>;
 
-  return (
-    <div className="admin-claim-actions">
-      <h3 style={{ margin: 0 }}>처리</h3>
-      <p className="muted" style={{ fontSize: 12.5, margin: 0 }}>
-        현재 단계: {ORDER_CLAIM_STAGE_LABELS[stage]}
-      </p>
-      <div aria-live="polite" className="admin-claim-action-result">
-        <Feedback state={result} />
-      </div>
-
-      {/* 회수가 없는 취소에는 회수 안내를 그리지 않는다(QA-9). 승인 버튼 옆의 "수거를
-          승인하면…"은 사실이 아니다 — 취소 승인은 결제 취소로 간다. 회수 대상이 기록된
-          예전 취소(발주확인 뒤 접수된 레거시 건)만 그린다. */}
-      {collectionPolicy === 'origin' && (claimType !== 'cancel' || collections.length > 0) ? <section aria-label="출고지별 회수 확인">
+  const originCollection = <>
+    {cancellationWithoutCollection ? <p className="muted">상품 회수가 필요하지 않은 취소입니다.</p> : collectionPolicy === 'origin' ? <section aria-label="출고지별 회수 확인">
         <h4 style={{ margin: '8px 0' }}>출고지별 회수 확인</h4>
-        <p style={{ fontSize: 13 }}>{collectionComplete
+        <p style={{ fontSize: 13 }}>{collectionComplete && collections.length > 0
           ? '모든 출고지의 회수를 확인했습니다.'
           : '모든 출고지의 상품과 수량을 회수 확인한 뒤 환불·재출고를 진행합니다.'}</p>
         {collections.length ? collections.map((collection) => <ClaimOriginCollection
@@ -305,8 +305,10 @@ export function ClaimActionPanel({
           collection={collection} canRecord={canRecordOrigin} />)
           : <p className="muted">수거를 승인하면 출고지별 반송 주소와 상품이 표시됩니다.</p>}
       </section> : collectionPolicy === null ? <p role="alert">회수 확인 기준을 불러오지 못했습니다. 새로고침한 뒤 다시 확인해주세요.</p> : null}
+  </>;
 
-      {canReview || canApprove ? (
+  const decisionForm = <>
+    {canReview || canApprove ? (
         <form action={ignoreUnconfirmedClaimSubmit} onSubmit={submitConfirmed}>
           <PanelActionField kind="decision" />
           <input name="claimId" type="hidden" value={claimId} />
@@ -351,20 +353,14 @@ export function ClaimActionPanel({
           ) : null}
         </form>
       ) : null}
+  </>;
 
-      {canResume ? (
-        <form action={panelAction}>
-          <PanelActionField kind="decision" />
-          <input name="claimId" type="hidden" value={claimId} />
-          <input name="claimType" type="hidden" value={claimType} />
-          <input name="decision" type="hidden" value="resume" />
-          <button className="btn btn-sm" disabled={pending} type="submit">
-            보류 해제
-          </button>
-        </form>
-      ) : null}
+  const holdControl = <>
+    {canHold || canResume ? <ClaimHoldControl key={claimId} claimId={claimId} claimType={claimType} held={canResume} /> : null}
+  </>;
 
-      {canCollect ? (
+  const legacyCollection = <>
+    {canCollect ? (
         <form action={panelAction}>
           <PanelActionField kind="collection" />
           <input name="claimId" type="hidden" value={claimId} />
@@ -378,8 +374,10 @@ export function ClaimActionPanel({
           </p>
         </form>
       ) : null}
+  </>;
 
-      {cancellationForm && collectionReady ? (
+  const refundControls = <>
+    {cancellationForm && collectionReady ? (
         <section aria-labelledby="claim-cancellation-form-heading">
           <h4 id="claim-cancellation-form-heading" style={{ margin: '0 0 6px' }}>
             결제사 취소 접수 양식
@@ -410,7 +408,9 @@ export function ClaimActionPanel({
         </section>
       ) : null}
 
-      {canFileRefund ? (
+      {stage !== 'withdrawn' && bankTransfer && actorId && claimType !== 'exchange' ? <BankTransferRefund actorId={actorId} orderId={orderId} claimId={claimId} /> : null}
+
+      {canFileRefund && !bankTransfer ? (
         <form action={panelAction}>
           <PanelActionField kind="refund" />
           <input name="claimId" type="hidden" value={claimId} />
@@ -439,7 +439,7 @@ export function ClaimActionPanel({
         </form>
       ) : null}
 
-      {canCompleteRefund ? (
+      {canCompleteRefund && !bankTransfer ? (
         <form
           action={ignoreUnconfirmedClaimSubmit}
           data-confirm={claimRefundCompletionConfirmation(refundFinalizationPending, tossPayment)}
@@ -486,64 +486,10 @@ export function ClaimActionPanel({
           확인해주세요.
         </p>
       ) : null}
+  </>;
 
-      {canReship ? (
-        <form action={panelAction}>
-          <PanelActionField kind="reship" />
-          <input name="claimId" type="hidden" value={claimId} />
-          <input name="claimType" type="hidden" value="exchange" />
-          {reshipItems.map((item) => <label key={item.id} htmlFor={`claim-variant-${item.id}`}>
-            <span>{item.name} · {item.qty}개 재출고 옵션</span>
-            <select id={`claim-variant-${item.id}`} name={`variant:${item.id}`} defaultValue={item.currentVariantId} disabled={pending} required>
-              {item.options.map((option) => <option key={option.id} value={option.id}>
-                {option.name} · {option.code} · 재고 {option.stockQty}개
-              </option>)}
-            </select>
-          </label>)}
-          <label htmlFor="claim-reship-carrier">
-            <span>택배사</span>
-            <select id="claim-reship-carrier" name="carrier">
-              {carriers.filter((carrier) => carrier.active).map((carrier) => (
-                <option key={carrier.code} value={carrier.code}>{carrier.label}</option>
-              ))}
-            </select>
-          </label>
-          <label htmlFor="claim-reship-tracking">
-            <span>재출고 운송장번호</span>
-            <input
-              id="claim-reship-tracking"
-              maxLength={30}
-              name="trackingNumber"
-              placeholder="영문 대문자와 숫자 8~30자"
-              type="text"
-            />
-          </label>
-          <button className="btn btn-sm" disabled={pending} type="submit">
-            재출고 등록하고 교환 종결
-          </button>
-          <p className="muted" style={{ fontSize: 12, margin: '6px 0 0' }}>
-            회수한 옵션 재고를 되돌리고 선택한 옵션으로 주문 수량 전체를 재출고합니다. 결제 금액과 카드팩은 유지합니다.
-          </p>
-        </form>
-      ) : null}
-
-      {canHold ? (
-        <form action={panelAction}>
-          <PanelActionField kind="decision" />
-          <input name="claimId" type="hidden" value={claimId} />
-          <input name="claimType" type="hidden" value={claimType} />
-          <input name="decision" type="hidden" value="hold" />
-          <label htmlFor="claim-hold-note">
-            <span>보류 사유 (10~200자, 구매자에게 전달됩니다)</span>
-            <input id="claim-hold-note" maxLength={200} name="note" type="text" />
-          </label>
-          <button className="btn btn-sm btn-ghost" disabled={pending} type="submit">
-            보류
-          </button>
-        </form>
-      ) : null}
-
-      {canReject ? (
+  const rejectionForm = <>
+    {canReject ? (
         <form action={panelAction}>
           <PanelActionField kind="decision" />
           <input name="claimId" type="hidden" value={claimId} />
@@ -558,6 +504,34 @@ export function ClaimActionPanel({
           </button>
         </form>
       ) : null}
-    </div>
-  );
+  </>;
+
+  if (claimType === 'return') return <>
+    <div aria-live="polite" className="admin-claim-action-result"><Feedback state={result} /></div>
+    <ReturnClaimWorkspace
+    progress={{ stage, heldFrom, collectionPolicy, collectionComplete, collectedAt,
+      collectionCount: collections.length, collectedCount: collections.filter(item => item.collectedAt !== null).length,
+      refundLedgerOpen, refundFiled, refundCompleted }}
+    review={<>
+      <p>주문 전체의 상품·금액과 반품 사유를 먼저 확인해주세요.</p>
+      <div className="row" style={{ gap: 12 }}><a href="#claim-order">주문정보 보기</a><a href="#claim-request">요청·처리이력 보기</a></div>
+      {stage === 'withdrawn' ? <p>요청 철회로 처리가 종료됐습니다. 주문과 결제는 유지됩니다.</p> : decisionForm}
+    </>}
+    collection={<>{returnCollectionContact}{stage === 'withdrawn'
+      ? <p className="muted">철회된 요청의 회수 처리는 종료됐습니다.</p>
+      : <>{originCollection}{legacyCollection}</>}</>}
+    hold={<>{holdControl}<p className="muted">{stage === 'withdrawn' || stage === 'rejected' || stage === 'completed'
+      ? '종결된 요청은 보류하거나 보류를 해제할 수 없습니다.' : canResume
+      ? '보류를 해제한 뒤 돌아온 단계에서 회수·환불을 별도로 확인해주세요.'
+      : '추가 확인이 필요한 경우에만 보류합니다. 보류할 사유가 없으면 다음 작업을 진행하세요.'}</p></>}
+    refund={<>{returnRefundSummary}{stage !== 'withdrawn' ? refundControls : null}</>}
+    exception={canReject ? rejectionForm : null}
+  /></>;
+
+  return <div className="admin-claim-actions">
+    <h3 style={{ margin: 0 }}>처리</h3>
+    <p className="muted" style={{ fontSize: 12.5, margin: 0 }}>현재 단계: {ORDER_CLAIM_STAGE_LABELS[stage]}</p>
+    <div aria-live="polite" className="admin-claim-action-result"><Feedback state={result} /></div>
+    {originCollection}{decisionForm}{holdControl}{legacyCollection}{refundControls}{rejectionForm}
+  </div>;
 }

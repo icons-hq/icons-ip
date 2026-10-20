@@ -13,12 +13,15 @@ import {
   rejectAdminArtworkUpload,
   verifyAndPromoteAdminArtwork,
 } from '@/lib/admin/artwork.server';
+import { hasAdminCapability } from '@/lib/admin/access';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
 
 export interface PrepareAdminArtworkUploadInput {
   kind: unknown;
   mimeType: unknown;
   size: unknown;
+  /** Optional for existing callers; bound workflows must keep the starting actor. */
+  expectedActorId?: unknown;
 }
 
 export type PrepareAdminArtworkUploadResult =
@@ -38,6 +41,8 @@ export type VerifyAdminArtworkUploadResult =
   | { ok: false; error: string };
 
 const ADMIN_PERMISSION_ERROR = '관리자 권한이 필요합니다.';
+const ADMIN_ARTWORK_ACTOR_CHANGED_ERROR =
+  '로그인 계정이 변경되었습니다. 현재 계정에서 다시 시도해주세요.';
 const ADMIN_ARTWORK_PREPARE_ERROR =
   '이미지 업로드를 준비하지 못했습니다. 다시 시도해주세요.';
 const ADMIN_ARTWORK_VERIFY_ERROR =
@@ -80,8 +85,11 @@ export async function prepareAdminArtworkUploadAction(
     return { ok: false, error: ADMIN_ARTWORK_PREPARE_ERROR };
   }
 
+  if (input.expectedActorId !== undefined && input.expectedActorId !== auth.user?.id) {
+    return { ok: false, error: ADMIN_ARTWORK_ACTOR_CHANGED_ERROR };
+  }
   if (!auth.user) redirect(adminLoginPath());
-  if (!auth.isStaff) return { ok: false, error: ADMIN_PERMISSION_ERROR };
+  if (!auth.isStaff || !hasAdminCapability(auth, metadata.value.kind === 'good' ? 'catalog.manage' : metadata.value.kind === 'curation' ? 'store.manage' : 'platform.manage')) return { ok: false, error: ADMIN_PERMISSION_ERROR };
 
   let claimedPath: string | null = null;
   try {
@@ -130,8 +138,11 @@ export async function verifyAdminArtworkUploadAction(
     return { ok: false, error: ADMIN_ARTWORK_VERIFY_ERROR };
   }
 
+  if (input.expectedActorId !== undefined && input.expectedActorId !== auth.user?.id) {
+    return { ok: false, error: ADMIN_ARTWORK_ACTOR_CHANGED_ERROR };
+  }
   if (!auth.user) redirect(adminLoginPath());
-  if (!auth.isStaff) return { ok: false, error: ADMIN_PERMISSION_ERROR };
+  if (!auth.isStaff || !hasAdminCapability(auth, metadata.value.kind === 'good' ? 'catalog.manage' : metadata.value.kind === 'curation' ? 'store.manage' : 'platform.manage')) return { ok: false, error: ADMIN_PERMISSION_ERROR };
 
   try {
     const result = await verifyAndPromoteAdminArtwork({

@@ -50,13 +50,15 @@ export async function getAdminUnpaidOrders(
   /* 목록 엑셀 다운로드 전용: RPC 상한(200건) 안에서 페이지를 키우고 입금 큐는 읽지 않는다. */
   options: { pageSize?: number; includeDeposits?: boolean } = {},
 ): Promise<AdminUnpaidConsoleData> {
-  const pageSize = Math.min(Math.max(Math.trunc(options.pageSize ?? ADMIN_UNPAID_PAGE_SIZE) || ADMIN_UNPAID_PAGE_SIZE, 1), 200);
+  const pageSize = Math.min(Math.max(Math.trunc(options.pageSize ?? filters.pageSize ?? ADMIN_UNPAID_PAGE_SIZE) || ADMIN_UNPAID_PAGE_SIZE, 1), 200);
   const supabase = await createClient();
   const [{ data, error }, { data: depositData, error: depositError }] = await Promise.all([
-    supabase.rpc('admin_unpaid_bank_transfer_orders', {
+    supabase.rpc('admin_unpaid_bank_transfer_orders_console', {
       p_query: filters.query || null,
       p_limit: pageSize,
       p_offset: (filters.page - 1) * pageSize,
+      p_state: filters.state ?? null,
+      p_sort: filters.sort ?? 'oldest',
     }),
     options.includeDeposits === false
       ? Promise.resolve({ data: [], error: null })

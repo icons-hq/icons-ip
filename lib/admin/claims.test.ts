@@ -86,6 +86,23 @@ describe('클레임 콘솔 경로', () => {
 });
 
 describe('클레임 필터 정규화', () => {
+  it.each(['recipient', 'item', 'product'] as const)('새 상세조건 %s을 페이지·상세 복귀에도 보존한다', (field) => {
+    const query = '전체%_번호-AB12';
+    const result = normalizeAdminClaimFilters({ field, query: `  ${query}  `, dateField: 'paid', stage: 'all', page: '3' });
+    expect(result).toMatchObject({ field, query, dateField: 'paid', page: 3 });
+    const href = adminClaimHref('return', result);
+    const back = adminClaimDetailHref('return', CLAIM_ID, result).split('?back=')[1];
+    expect(adminClaimBackHref('return', decodeURIComponent(back))).toBe(href);
+    expect(new URL(href, 'https://icons.test').searchParams.get('field')).toBe(field);
+    expect(new URL(href, 'https://icons.test').searchParams.get('query')).toBe(query);
+  });
+
+  it('중복·알 수 없는 검색 대상은 전체로 처리하고 전체 기본값은 URL에 붙이지 않는다', () => {
+    for (const field of [['recipient', 'item'], 'recipientName', 'goodId', 'all']) {
+      expect(normalizeAdminClaimFilters({ field }).field).toBeUndefined();
+    }
+  });
+
   it('기본 필터는 미처리다', () => {
     expect(normalizeAdminClaimFilters({}).stage).toBe('open');
   });
@@ -164,7 +181,7 @@ describe('구매자 표기와 집계', () => {
       processing: 6,
       needs_review: 7,
       completed: 100,
-      rejected: 200,
+      rejected: 200, withdrawn: 0,
     })).toBe(28);
   });
 });

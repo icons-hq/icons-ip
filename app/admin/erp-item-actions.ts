@@ -24,6 +24,7 @@ import {
   parseErpItemMatch,
   type ErpItemMatch,
 } from '@/lib/admin/erp-items';
+import { hasAdminCapability } from '@/lib/admin/access';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
 import { createClient } from '@/lib/supabase/server';
 
@@ -49,7 +50,7 @@ export type ErpItemSearchResult = { ok: true; items: ErpItemMatch[] } | { ok: fa
 export async function searchErpItemsAction(queryValue: unknown): Promise<ErpItemSearchResult> {
   try {
     const auth = await getCurrentAdminAuthState();
-    if (!auth.isConfigured || !auth.user || !auth.isStaff) return { ok: false, error: STAFF_ONLY };
+    if (!auth.isConfigured || !auth.user || !auth.isStaff || !hasAdminCapability(auth, 'platform.manage')) return { ok: false, error: STAFF_ONLY };
     const query = typeof queryValue === 'string' ? normalizeErpText(queryValue, true).slice(0, ERP_ITEM_SEARCH_QUERY_MAX) : '';
     if (Array.from(query).length < ERP_ITEM_SEARCH_MIN_LENGTH) return { ok: true, items: [] };
     const supabase = await createClient();

@@ -141,6 +141,17 @@ function render(overrides: Partial<GoodDetailContent> = {}) {
 }
 
 describe('GoodDetail', () => {
+  it('다른 구성 슬롯은 리뷰 요약 바로 다음·상세 탭 앞에 표시하고 embedded에서는 숨긴다', () => {
+    const slots = { reviewHighlights: <p>review-highlight-marker</p>, otherCompositions: <p>other-composition-marker</p>, announcements: <p>announcement-marker</p> };
+    const html = renderToStaticMarkup(<GoodDetail detail={detail} {...slots} />);
+    expect(html.indexOf('review-highlight-marker')).toBeLessThan(html.indexOf('other-composition-marker'));
+    expect(html.indexOf('other-composition-marker')).toBeLessThan(html.indexOf('announcement-marker'));
+    expect(html.indexOf('other-composition-marker')).toBeLessThan(html.indexOf('class="wc-pdp-tabs"'));
+    const embedded = renderToStaticMarkup(<GoodDetailView detail={detail} embedded {...slots} />);
+    expect(embedded).not.toContain('other-composition-marker');
+    expect(embedded).not.toContain('review-highlight-marker');
+  });
+
   it('HTML 설명은 문서 요소를 표시하고 실행 코드와 유해 링크를 제거한다', () => {
     const html = render({ descriptionFormat: 'html', description: '<h2>구성품</h2><p>키링 <strong>2개</strong></p><ul><li>보관 안내</li></ul><table><tbody><tr><th>소재</th><td>아크릴</td></tr></tbody></table><script>window.attacked=1</script><a href="javascript:alert(1)" onclick="alert(2)">위험 링크</a><a href="https://iconsip.com/legal/shipping">배송 안내</a>' });
     expect(html).toContain('<h2>구성품</h2>');
@@ -300,6 +311,12 @@ describe('GoodDetail', () => {
   });
 
   /* R-04 §4 — 품절이면 CTA 자리만 재입고 알림으로 바뀌고 수량·합계는 남는다. */
+  it.each([['scheduled', '판매 시작 전'], ['ended', '판매 종료']] as const)('shows the sale period and prevents a misleading restock CTA for %s', (state, label) => {
+    const html = render({ good: { ...good, stock: 'soldout', stockQty: 0, salePeriod: { state, startsAt: '2026-10-14T00:00:00Z', endsAt: '2026-10-15T00:00:00Z', calculatedAt: '2026-10-13T00:00:00Z', nextChangeAt: null } } });
+    expect(html).toContain(`>${label}</button>`); expect(html).toContain(`>${label}</p>`); expect(html).not.toContain('재입고 알림 받기'); expect(html).not.toContain('>품절<'); expect(html).not.toContain('>구매하기<');
+    expect(html).toContain('>판매 상태</span>'); expect(html).not.toContain('옵션 선택 후 표시');
+    expect(html).toContain(`class="wc-buybar__buy" type="button" disabled="">${label}</button>`);
+  });
   it('품절이면 CTA가 재입고 알림으로 교체된다', () => {
     const html = render({ good: { ...good, stock: 'soldout', stockQty: 0 } });
 

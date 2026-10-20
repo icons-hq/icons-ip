@@ -3,7 +3,6 @@ import { AdminListExportButton } from '@/components/admin/AdminListExportButton'
 import { BankDepositQueue } from '@/components/admin/BankDepositQueue';
 import { UnpaidActionsPanel } from '@/components/admin/UnpaidActionsPanel';
 import {
-  ConsoleFilterPanel,
   ConsoleGrid,
   ConsolePagination,
   type ConsoleGridColumn,
@@ -11,6 +10,9 @@ import {
 } from '@/components/admin/console';
 import { adminListExportHref } from '@/lib/admin/list-export';
 import { adminUnpaidAttemptStateLabel, adminUnpaidHref, type AdminUnpaidConsoleData } from '@/lib/admin/unpaid';
+import { ADMIN_VOCABULARY } from '@/lib/admin/vocabulary';
+import { SALES_SORT_OPTIONS } from '@/lib/admin/sales-list';
+import { SalesFilterField, SalesFilterPanel, SalesGuide, SalesResultsHeader, SalesSelect } from '@/components/admin/sales/SalesConsole';
 import { krw } from '@/lib/format';
 import { formatOrderDateTime } from '@/lib/orders';
 import {
@@ -20,7 +22,7 @@ import {
 } from '@/lib/payments/bank-transfer';
 
 const COLUMNS: ConsoleGridColumn[] = [
-  { key: 'code', label: '주문코드', width: '110px' },
+  { key: 'code', label: '입금확인코드', width: '110px' },
   { key: 'buyer', label: '구매자', width: '130px' },
   /* 안내한 입금자명을 그대로 실어 둔다 — 통장 화면과 이 열을 나란히 두고 눈으로
      맞추는 것이 수동 대조의 실제 동작이다. */
@@ -51,6 +53,7 @@ export function UnpaidScreen({
 }) {
   const { deposits, filters, pageSize, rows, total } = data;
   const selected = rows.find((row) => row.id === filters.selectedOrderId) ?? null;
+  const currentHref = adminUnpaidHref(filters);
 
   const gridRows: ConsoleGridRow[] = rows.map((row) => {
     const imminent = bankTransferDeadlineImminent(row.expiresAt, now.getTime());
@@ -81,21 +84,22 @@ export function UnpaidScreen({
   });
 
   return (
-    <div className="admin-console wc-admin-kit">
-      <ConsoleFilterPanel
-        action="/admin/sales/unpaid"
-        search={{
-          value: filters.query,
-          name: 'q',
-          placeholder: '주문코드 · 주문 id · 구매자',
-        }}
-        submitLabel="검색"
-      />
-
-      <AdminListExportButton href={adminListExportHref('unpaid', adminUnpaidHref({ query: filters.query }))} total={total} />
-
+    <div className="admin-console admin-sales-console wc-admin-kit">
+      <SalesGuide title="미결제 무통장 주문의 입금 여부를 확인할 수 있습니다.">
+        <p>입금확인코드·안내된 입금자명·금액을 실제 입금 내역과 대조한 뒤 입금 확인을 처리합니다. 기한 연장과 취소는 주문을 선택해 처리합니다.</p>
+      </SalesGuide>
+      <SalesFilterPanel currentHref={currentHref} id="sales-unpaid" search={{ value: filters.query, name: 'q', placeholder: '입금확인코드 · 주문번호 · 구매자' }}>
+        <SalesFilterField label="결제상태" htmlFor="sales-unpaid-state"><SalesSelect id="sales-unpaid-state" name="state" value={filters.state ?? ''}
+          options={[{value:'',label:'전체'},{value:'prepared',label:'입금 대기'},{value:'confirming',label:'확정 처리중'},{value:'needs_review',label:'정합화 필요'},{value:'unknown',label:'결과 불명'},{value:'missing',label:'원장 없음'}]} /></SalesFilterField>
+      </SalesFilterPanel>
+      <div className="admin-sales-results">
+      <SalesResultsHeader currentHref={currentHref} total={total} pageSize={pageSize} sort={filters.sort ?? 'oldest'}
+        sortOptions={SALES_SORT_OPTIONS.map(option => option.value === 'oldest' ? {...option,label:'입금기한 임박순'} : option.value === 'newest' ? {...option,label:'입금기한 여유순'} : option)}>
+        <AdminListExportButton href={adminListExportHref('unpaid', currentHref)} total={total} />
+      </SalesResultsHeader>
       <ConsoleGrid
-        caption="미입금 무통장 주문 목록"
+        caption="미결제 무통장 주문 목록"
+        preferencesKey="sales-unpaid"
         columns={COLUMNS}
         emptyLabel="입금을 기다리는 무통장 주문이 없습니다."
         rows={gridRows}
@@ -103,16 +107,17 @@ export function UnpaidScreen({
 
       <ConsolePagination
         hrefForPage={(page: number) => adminUnpaidHref({ ...filters, page })}
-        label="미입금 확인 페이지"
+        label={`${ADMIN_VOCABULARY.unpaidOrders} 페이지`}
         page={filters.page}
         pageSize={pageSize}
         total={total}
       />
+      </div>
 
       {selected ? (
         <UnpaidActionsPanel order={selected} />
       ) : (
-        <p className="admin-note">
+        <p className="admin-sales-note">
           목록에서 주문을 고르면 입금 확인·기한 연장·즉시 취소를 처리할 수 있습니다.
         </p>
       )}

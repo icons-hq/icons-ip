@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { hasAdminCapability } from '@/lib/admin/access';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
 import { SECONDARY_MARKET_DEMO_ENABLED } from './secondary-market-demo';
 
@@ -8,6 +9,6 @@ import { SECONDARY_MARKET_DEMO_ENABLED } from './secondary-market-demo';
  * 노출용일 뿐이고, URL 을 직접 열어도 이 판정을 통과해야 시연이 보인다. */
 export async function canViewSecondaryMarketDemo(): Promise<boolean> {
   if (!SECONDARY_MARKET_DEMO_ENABLED) return false;
-  const { isStaff } = await getCurrentAdminAuthState();
-  return isStaff;
+  const auth = await getCurrentAdminAuthState();
+  return hasAdminCapability(auth, 'platform.manage');
 }

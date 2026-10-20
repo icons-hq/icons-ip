@@ -2,6 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import type { CheckoutOrderSnapshot } from '@/lib/checkout.server';
 import type { PreparedCheckout } from '@/lib/payments/gateway';
+import { transactionDisplay, transactionLineId } from '@/test/fixtures/cart-transaction';
 import { checkoutStatusCopy } from '@/lib/checkout-status-copy';
 import {
   CheckoutOrder,
@@ -40,6 +41,25 @@ const order: CheckoutOrderSnapshot = {
 };
 
 describe('CheckoutOrder 영수증', () => {
+  it.each(['pending', 'canceled'])('닫힌 선물 결제(%s)는 일반 장바구니 복원 대신 선물함으로 안내한다', status => {
+    const html = renderToStaticMarkup(<CheckoutOrder order={{ ...order, giftId: order.id, status,
+      paymentStatus: 'declined', paymentAttempt: { state: 'declined', provider: 'toss', expiresAt: null } }} />);
+    expect(html).toContain(`href="/gifts/${order.id}"`);
+    expect(html).toContain('받는 분의 수락과 배송지 확인');
+    expect(html).not.toContain('이 주문 취소하고 다시 주문하기');
+    expect(html).not.toContain('같은 굿즈 다시 담기');
+  });
+
+  it('상품 코드 변경 후에도 원 영수증의 복수할인과 착불을 별도 표시한다', () => {
+    const html = renderToStaticMarkup(<CheckoutOrder order={{ ...order, total: 16000, shippingFee: 0, discountTotal: 1000, storeCreditTotal: 1000, transaction: transactionDisplay,
+      items: [{ ...order.items[0], id: transactionLineId, goodId: 'renamed-good', qty: 2, unitPrice: 10000 }] }} />);
+    expect(html).toContain('온라인 결제금액</dt><dd>₩16,000'); expect(html).toContain('복수구매 할인'); expect(html).toContain('수령 시 별도');
+    expect(html).toContain('홍실 아크릴 블록 · 선결제 ₩0 · 착불 별도');
+  });
+  it('선물 주문의 주소 비공개를 조회 실패로 안내하지 않는다', () => {
+    const html = renderToStaticMarkup(<CheckoutOrder order={{ ...order, giftId: order.id }} />);
+    expect(html).toContain('주소와 연락처는 받는 분만 확인할 수 있어요.');
+  });
   it('서버 원장 금액에서 쿠폰과 적립금을 함께 복원해 굿즈 소계를 표시한다', () => {
     const html = renderToStaticMarkup(<CheckoutOrder order={{ ...order, total: 12500, discountTotal: 1000, storeCreditTotal: 1500 }} />);
     expect(html).toContain('₩12,000');

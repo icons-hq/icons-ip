@@ -1,7 +1,7 @@
 @layer components {
   .wc-admin .admin-store-settings { display: grid; gap: 24px; }
   .wc-admin .admin-store-settings form { display: grid; gap: 16px; }
-  .wc-admin .admin-store-settings nav { gap: 24px; padding-block: 16px; border-block: 1px solid var(--wc-line-control); }
+  .wc-admin .admin-store-settings > nav { gap: 24px; padding-block: 16px; border-block: 1px solid var(--wc-line-control); }
   .wc-admin .admin-store-settings nav [aria-current="page"] { font-weight: 700; text-decoration: underline; text-underline-offset: 6px; }
   .wc-admin .admin-store-settings__history { display: grid; gap: 16px; padding-inline-start: 24px; }
   .wc-admin .admin-store-settings__history table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 13px; }
@@ -10,4 +10,17 @@
   .wc-admin .admin-store-settings__auto-replies fieldset { display: grid; gap: 12px; min-width: 0; margin: 0; padding: 16px; border: 1px solid var(--wc-line-control); }
   .wc-admin .admin-store-settings__auto-replies legend { padding-inline: 6px; font-weight: 700; }
   .wc-admin .admin-store-settings__auto-replies textarea { width: 100%; resize: vertical; }
+  .wc-admin .admin-store-branding > fieldset { display: grid; gap: 20px; min-width: 0; margin: 0; padding: 20px; border: 1px solid var(--wc-line-control); }
+  .wc-admin .admin-store-branding > fieldset > legend { padding-inline: 6px; font-weight: 700; }
+  .wc-admin .admin-store-branding > section { min-width: 0; padding: 20px; border: 1px solid var(--wc-hairline); }
 }
+
+/* Field text controls fill the row; native visibility checkboxes keep their size. */
+.wc-admin .admin-store-branding label:has(> input[type='checkbox']) { display: inline-flex; align-items: center; gap: 8px; min-height: 36px; width: fit-content; }
+.wc-admin .admin-store-branding input[type='checkbox'] { flex: 0 0 16px; width: 16px; min-width: 16px; height: 16px; min-height: 16px; padding: 0; margin: 0; }
+.wc-admin .admin-store-settings .admin-cs-dialog:has(.admin-store-contact-help) { width: min(680px, calc(100vw - 20px)); }
+.wc-admin .admin-store-contact-help { display: grid; gap: 24px; line-height: 1.65; }
+.wc-admin .admin-store-contact-help section { display: grid; gap: 8px; }
+.wc-admin .admin-store-contact-help h3 { margin: 0; font-size: 15px; font-weight: 700; }
+.wc-admin .admin-store-contact-help p { margin: 0; }
+.wc-admin .admin-store-contact-help > .btn { min-width: 96px; justify-self: center; }

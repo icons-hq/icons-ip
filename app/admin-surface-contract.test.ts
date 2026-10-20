@@ -43,10 +43,10 @@ describe('complete admin WC cutover (#433)', () => {
   });
 
   it('scopes nested surface rules and resolves only WC tokens', () => {
-    const source = ['wc-admin-surfaces.css', 'admin-goods-worklist.css', 'wc-admin-option-artwork.css', 'admin-ux-521.css']
-      .map((file) => read(`./styles/${file}`)).join('\n');
+    const source = ['wc-admin-surfaces.css', 'admin-goods-worklist.css', 'wc-admin-option-artwork.css', 'admin-ux-521.css', 'admin-console-controls.css', 'admin-home.css', 'admin-sales-console.css', 'admin-customer-service.css', 'admin-review-insights.css', 'admin-stats-console.css', 'admin-store-analytics.css', 'admin-store-editor.css', 'admin-store-navigation.css', 'admin-shopping-stories.css', 'admin-marketing-links.css', 'admin-customer-segments.css', 'admin-store-presentation.css', 'admin-product-detail-presentation.css', 'admin-product-detail-experience.css', 'admin-goods-media.css', 'admin-pg-settlements.css', 'admin-goods-benefits.css', 'admin-category-templates.css', 'admin-goods-after-sales.css', 'admin-goods-size-chart.css', 'admin-review-best.css', 'admin-marketing-messages.css', 'admin-review-events.css', 'admin-goods-announcements.css', 'admin-photo-library.css', 'admin-goods-drafts.css', 'admin-goods-relations.css', 'admin-coupons.css', 'admin-loyalty-policy.css', 'admin-operator-directory.css', 'admin-goods-attributes.css', 'admin-store-credits.css', 'admin-operations-dock.css', 'admin-shipping-settings.css']
+      .concat('admin-country-finder.css', 'admin-photo-editor.css', "admin-coupon-combinations.css", "admin-coupon-issuance.css", "admin-order-production.css", "admin-review-types.css", "admin-goods-fulfillment.css", "admin-customer-rewards.css").map((file) => read(`./styles/${file}`)).join('\n');
     const ast = postcss.parse(source);
-    const foundation = postcss.parse(read('./styles/wc-foundation.css'));
+    const foundation = postcss.parse(`${read('./styles/wc-foundation.css')}\n${read('./styles/wc-admin.css')}`);
     const tokens = new Set<string>();
     foundation.walkDecls((decl) => { if (decl.prop.startsWith('--wc-')) tokens.add(decl.prop); });
     ast.walkRules((rule) => {

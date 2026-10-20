@@ -1,0 +1,11 @@
+.claim-collection-plan { display: grid; gap: 12px; min-width: 0; margin-block: 16px; }
+.claim-collection-plan h3, .claim-collection-plan p { margin: 0; line-height: 1.6; overflow-wrap: anywhere; }
+.claim-collection-plan > .btn { justify-self: start; }
+.claim-collection-plan__row { padding: 12px; border: 1px solid var(--wc-hairline); display: grid; gap: 8px; }
+.claim-collection-plan__row .btn { justify-self: start; }
+.claim-collection-plan fieldset { display: grid; gap: 12px; min-width: 0; padding: 12px; margin: 0 0 12px; border: 1px solid var(--wc-hairline); }
+.claim-collection-plan label { display: grid; gap: 6px; min-width: 0; }
+.claim-collection-plan input:not([type="checkbox"]), .claim-collection-plan select, .claim-collection-plan textarea { box-sizing: border-box; width: 100%; min-width: 0; min-height: 40px; border: 1px solid var(--wc-line-control); padding: 8px; font: inherit; color: var(--wc-ink); background: var(--wc-surface); }
+.claim-collection-plan .claim-collection-plan__check { display: flex; align-items: start; gap: 8px; }
+.claim-collection-plan__check input { margin-top: 4px; width: auto; flex: 0 0 auto; }
+.claim-collection-plan li { margin-block: 8px; overflow-wrap: anywhere; }

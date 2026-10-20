@@ -1,3 +1,5 @@
+import { isSameOriginRequest } from '@/lib/http/same-origin.server';
+import { loadGiftCheckoutOrder } from '@/lib/gifts-order.server';
 import { NextResponse } from 'next/server';
 import { normalizeOrderReference } from '@/lib/checkout';
 import { isOrderWithdrawalReasonType, type OrderWithdrawalReasonType } from '@/lib/orders';
@@ -29,8 +31,14 @@ interface OrderRow {
 // 사유를 생략한 요청은 기한이 가장 짧은 단순 변심으로 본다. 기본값이 관대한
 // 쪽이면 폼을 비우는 것만으로 3개월 기한을 얻는다.
 async function readReasonType(request: Request): Promise<OrderWithdrawalReasonType | null> {
-  const body: unknown = await request.json().catch(() => null);
-  if (!body || typeof body !== 'object') return 'change_of_mind';
+  const rawBody = await request.text().catch(() => null);
+  if (rawBody === null) return null;
+  if (!rawBody.trim()) return 'change_of_mind'; // Deployed legacy callers send no body.
+  let body: unknown;
+  try { body = JSON.parse(rawBody); } catch { return null; }
+  if (!body || typeof body !== 'object') return null;
+  // Unknown fields must not turn a partial-cancel request into a full cancel.
+  if (Array.isArray(body) || Object.keys(body).some((key) => key !== 'reasonType')) return null;
 
   const reasonType = (body as { reasonType?: unknown }).reasonType;
   if (reasonType === undefined || reasonType === null) return 'change_of_mind';
@@ -42,16 +50,6 @@ function errorJson(status: number, code: string) {
   return NextResponse.json({ error: { code } }, { status });
 }
 
-function isSameOriginRequest(request: Request) {
-  const origin = request.headers.get('origin');
-  if (!origin) return false;
-
-  try {
-    return new URL(origin).origin === new URL(request.url).origin;
-  } catch {
-    return false;
-  }
-}
 
 export async function POST(
   request: Request,
@@ -75,18 +73,16 @@ export async function POST(
   const user = userData.user;
   if (!user) return errorJson(401, 'auth_required');
 
-  const { data: orderData, error: orderError } = await supabase
-    .from('orders')
-    .select('id,user_id')
-    .eq('id', orderId)
-    .eq('user_id', user.id)
-    .maybeSingle<OrderRow>();
-
-  if (orderError) {
-    console.error('[orders/cancel] order lookup failed');
-    return errorJson(502, 'cancel_failed');
+  // The gift payer receives a redacted projection; raw order RLS is closed.
+  let giftOrder;
+  try { giftOrder = await loadGiftCheckoutOrder(user.id, orderId); }
+  catch { return errorJson(502, 'cancel_failed'); }
+  if (giftOrder.kind === 'unavailable') return errorJson(404, 'not_found');
+  if (giftOrder.kind === 'ordinary') {
+    const { data: orderData, error: orderError } = await supabase.from('orders').select('id,user_id').eq('id', orderId).eq('user_id', user.id).maybeSingle<OrderRow>();
+    if (orderError) return errorJson(502, 'cancel_failed');
+    if (!orderData) return errorJson(404, 'not_found');
   }
-  if (!orderData) return errorJson(404, 'not_found');
 
   const service = createServiceClient();
   const { data, error } = await service.rpc('request_order_cancellation', {

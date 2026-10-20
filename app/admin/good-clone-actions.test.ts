@@ -1,3 +1,4 @@
+const { legacyOperatorAccessFixture } = await vi.hoisted(() => import('@/lib/admin/access.test-fixtures'));
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { cloneAdminGoodAction } from './good-clone-actions';
 
@@ -19,7 +20,7 @@ function form(values: Record<string, string> = {}) {
 }
 
 beforeEach(() => {
-  mocks.auth.mockReset().mockResolvedValue({ isConfigured: true, user: { id: 'staff' }, isStaff: true });
+  mocks.auth.mockReset().mockResolvedValue({ isConfigured: true, user: { id: 'staff' }, isStaff: true, operatorAccess: legacyOperatorAccessFixture() });
   mocks.rpc.mockReset().mockResolvedValue({ data: { id: 'copy-good', code: 'COPY-0001', sourceGoodId: 'source-good', operationId: '00000000-0000-4000-8000-000000047901' }, error: null });
   mocks.createClient.mockReset().mockReturnValue({ rpc: mocks.rpc });
   mocks.revalidatePath.mockReset();
@@ -55,4 +56,9 @@ describe('cloneAdminGoodAction', () => {
     expect(result.savedGood).toBeUndefined();
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
+});
+
+it('필수속성 변경으로 복사할 수 없으면 원본 수정 안내와 복사 입력을 보존한다', async () => {
+  mocks.rpc.mockResolvedValue({ data: null, error: { message: 'goods_attribute_required' } });
+  expect(await cloneAdminGoodAction({}, form({ newName: '보존할 복사명' }))).toMatchObject({ errors: { form: expect.stringContaining('원본 상품에서 필수값') }, values: { newName: '보존할 복사명' } });
 });

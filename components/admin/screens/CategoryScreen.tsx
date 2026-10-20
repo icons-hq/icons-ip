@@ -3,9 +3,11 @@
 import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import { useActionState } from 'react';
 import Link from 'next/link';
+import { MarketingLinkIssuer } from '../marketing/MarketingLinkIssuer';
 import { AdminPageHeader, AdminSectionCard, AdminStatusBadge } from '../console/AdminKit';
 import { CategoryAssignmentField } from '../CategoryAssignmentField';
 import { CategoryTree } from '../CategoryTree';
+import { AdminSelect } from '../console/AdminSelect';
 import {
   assignAdminGoodCategoryAction,
   archiveAdminCategoryAction,
@@ -37,7 +39,7 @@ function CategoryForm({ category, categories }: { category?: AdminCategoryNode; 
     <input name="operationId" type="hidden" value="" />
     <label className="col" style={{ gap: 5 }}>코드<input className="admin-field-control" defaultValue={category?.code ?? ''} maxLength={80} name="code" required /></label>
     <label className="col" style={{ gap: 5 }}>이름<input className="admin-field-control" defaultValue={category?.name ?? ''} maxLength={120} name="name" required /></label>
-    <label className="col" style={{ gap: 5 }}>부모<select className="admin-field-control" defaultValue={category?.parentId ?? ''} name="parentId"><option value="">최상위</option>{options.map((option) => <option key={option.id} value={option.id}>{'　'.repeat(Math.max(0, option.depth - 1))}{option.name} ({option.code})</option>)}</select></label>
+    <label className="col" style={{ gap: 5 }}>부모<AdminSelect className="admin-field-control" defaultValue={category?.parentId ?? ''} name="parentId"><option value="">최상위</option>{options.map((option) => <option key={option.id} value={option.id}>{'　'.repeat(Math.max(0, option.depth - 1))}{option.name} ({option.code})</option>)}</AdminSelect></label>
     <label className="col" style={{ gap: 5 }}>순서<input className="admin-field-control" defaultValue={category?.sortOrder ?? 0} min={0} name="sortOrder" type="number" /></label>
     {state.errors?.form ? <p role="alert" style={{ color: 'var(--pink)', margin: 0 }}>{state.errors.form}</p> : null}
     {state.message ? <p role="status" style={{ color: 'var(--mint)', margin: 0 }}>{state.message}</p> : null}
@@ -97,9 +99,9 @@ function MigrationForm({ types, categories }: { types: string[]; categories: Adm
   const [state, action, pending] = useActionState(saveAdminCategoryTypeMigrationAction, EMPTY);
   return <form action={action} className="card col" style={{ gap: 8, padding: 14 }}>
     <input name="operationId" type="hidden" value="" />
-    <label className="col" style={{ gap: 5 }}>기존 type<select className="admin-field-control" name="type"><option value="">선택</option>{types.map((type) => <option key={type} value={type}>{type}</option>)}</select></label>
-    <label className="col" style={{ gap: 5 }}>제안 category<select className="admin-field-control" name="categoryId"><option value="">미설정</option>{categories.filter((category) => !category.archivedAt && category.childCount === 0).map((category) => <option key={category.id} value={category.id}>{category.name} ({category.code})</option>)}</select></label>
-    <label className="col" style={{ gap: 5 }}>상태<select className="admin-field-control" defaultValue="suggested" name="status"><option value="suggested">제안</option><option value="confirmed">운영 확인</option><option value="rejected">보류</option></select></label>
+    <label className="col" style={{ gap: 5 }}>기존 type<AdminSelect className="admin-field-control" name="type"><option value="">선택</option>{types.map((type) => <option key={type} value={type}>{type}</option>)}</AdminSelect></label>
+    <label className="col" style={{ gap: 5 }}>제안 category<AdminSelect className="admin-field-control" name="categoryId"><option value="">미설정</option>{categories.filter((category) => !category.archivedAt && category.childCount === 0).map((category) => <option key={category.id} value={category.id}>{category.name} ({category.code})</option>)}</AdminSelect></label>
+    <label className="col" style={{ gap: 5 }}>상태<AdminSelect className="admin-field-control" defaultValue="suggested" name="status"><option value="suggested">제안</option><option value="confirmed">운영 확인</option><option value="rejected">보류</option></AdminSelect></label>
     <label className="col" style={{ gap: 5 }}>메모<textarea className="admin-field-control" name="note" rows={2} /></label>
     {state.errors?.form ? <p role="alert" style={{ color: 'var(--pink)', margin: 0 }}>{state.errors.form}</p> : null}
     <button className="wc-admin-kit__button" disabled={pending} type="submit">{pending ? '저장 중' : '이관 메모 저장'}</button>
@@ -119,18 +121,18 @@ function AssignmentForm({ categories }: { categories: AdminCategoryNode[] }) {
   </form>;
 }
 
-export function CategoryScreen({ data, legacyTypes = [] }: { data: { categories: AdminCategoryNode[]; mappings: AdminCategoryErpMapping[]; migrations: AdminCategoryMigration[]; activation: AdminCategoryActivation }; legacyTypes?: string[] }) {
+export function CategoryScreen({ data, legacyTypes = [], canManagePlatform = true }: { data: { categories: AdminCategoryNode[]; mappings: AdminCategoryErpMapping[]; migrations: AdminCategoryMigration[]; activation: AdminCategoryActivation }; legacyTypes?: string[]; canManagePlatform?: boolean }) {
   const activeLeaves = data.categories.filter((category) => !category.archivedAt && category.childCount === 0);
   const mappings = new Map(data.mappings.map((mapping) => [mapping.categoryId, mapping]));
   return <section className="wc-admin-kit wc-admin-kit__screen">
-    <AdminPageHeader title="고객 카테고리" description="최대 4단계 트리와 상품의 대표·추가 말단 분류를 관리합니다. 기존 유형과 미분류 상품은 계속 유지됩니다." actions={<Link className="wc-admin-kit__button" href={categoryExportHref()}>분류·ERP CSV</Link>} />
-    <AdminSectionCard title="활성화 상태"><AdminStatusBadge tone={data.activation.customerEnabled ? 'success' : 'neutral'}>{categoryActivationLabel(data.activation)}</AdminStatusBadge><ActivationForm activation={data.activation} /></AdminSectionCard>
+    <AdminPageHeader title="고객 카테고리" description="최대 4단계 트리와 상품의 대표·추가 말단 분류를 관리합니다. 기존 유형과 미분류 상품은 계속 유지됩니다." actions={<Link className="wc-admin-kit__button" href={categoryExportHref()}>{canManagePlatform ? '분류·ERP CSV' : '분류 CSV'}</Link>} />
+    {canManagePlatform ? <AdminSectionCard title="활성화 상태"><AdminStatusBadge tone={data.activation.customerEnabled ? 'success' : 'neutral'}>{categoryActivationLabel(data.activation)}</AdminStatusBadge><ActivationForm activation={data.activation} /></AdminSectionCard> : null}
     <div className="admin-master-detail">
       <AdminSectionCard title={`카테고리 트리 ${data.categories.length}개`}><CategoryTree categories={data.categories} /></AdminSectionCard>
-      <div className="col" style={{ gap: 16 }}><AdminSectionCard title="새 카테고리"><CategoryForm categories={data.categories} /></AdminSectionCard>{data.categories.map((category) => <AdminSectionCard key={category.id} title={`${category.name} · ${category.code}`}><CategoryForm category={category} categories={data.categories} /><ArchiveForm category={category} /></AdminSectionCard>)}</div>
+      <div className="col" style={{ gap: 16 }}><AdminSectionCard title="새 카테고리"><CategoryForm categories={data.categories} /></AdminSectionCard>{data.categories.map((category) => <AdminSectionCard key={category.id} title={`${category.name} · ${category.code}`}><CategoryForm category={category} categories={data.categories} /><ArchiveForm category={category} /><MarketingLinkIssuer source="category" targetIds={[category.id]} /></AdminSectionCard>)}</div>
     </div>
-    <AdminSectionCard title={`ERP 분류 매핑 ${activeLeaves.length}개 말단`}><p className="muted">실제 ERP 코드·품명·출처·검증 시각이 없는 매핑은 활성화하지 않습니다. 미매핑은 export에서 미설정으로 표시합니다.</p>{activeLeaves.map((category) => <MappingForm category={category} key={category.id} mapping={mappings.get(category.id)} />)}</AdminSectionCard>
-    <AdminSectionCard title="기존 8종 이관 메모"><p className="muted">유사 이름으로 자동 이관하지 않습니다. 확인된 항목만 선택적으로 기록하며, 전체 category 기능의 활성화 조건은 아닙니다.</p><MigrationForm categories={data.categories} types={legacyTypes} />{data.migrations.length ? <ul>{data.migrations.map((migration) => <li key={migration.type}>{migration.type} · {migration.status} · {migration.categoryId ?? '미설정'}</li>)}</ul> : null}</AdminSectionCard>
+    {canManagePlatform ? <AdminSectionCard title={`ERP 분류 매핑 ${activeLeaves.length}개 말단`}><p className="muted">실제 ERP 코드·품명·출처·검증 시각이 없는 매핑은 활성화하지 않습니다. 미매핑은 export에서 미설정으로 표시합니다.</p>{activeLeaves.map((category) => <MappingForm category={category} key={category.id} mapping={mappings.get(category.id)} />)}</AdminSectionCard> : null}
+    {canManagePlatform ? <AdminSectionCard title="기존 8종 이관 메모"><p className="muted">유사 이름으로 자동 이관하지 않습니다. 확인된 항목만 선택적으로 기록하며, 전체 category 기능의 활성화 조건은 아닙니다.</p><MigrationForm categories={data.categories} types={legacyTypes} />{data.migrations.length ? <ul>{data.migrations.map((migration) => <li key={migration.type}>{migration.type} · {migration.status} · {migration.categoryId ?? '미설정'}</li>)}</ul> : null}</AdminSectionCard> : null}
     <AdminSectionCard title={adminGoodsCopy("굿즈 기본 카테고리 적용")}><p className="muted">대표 분류 하나를 바로 변경합니다. 추가 분류는 상품 편집에서 확인하고 저장하며 ERP는 대표 분류를 사용합니다.</p><AssignmentForm categories={data.categories} /></AdminSectionCard>
   </section>;
 }

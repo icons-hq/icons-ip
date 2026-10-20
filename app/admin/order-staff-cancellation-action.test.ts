@@ -1,3 +1,4 @@
+import { legacyOperatorAccessFixture } from '@/lib/admin/access.test-fixtures';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { startAdminOrderCancellationAction } from './order-actions';
 import { ADMIN_CANCELLATION_RECHECK_LABELS } from '@/lib/admin/orders';
@@ -17,7 +18,8 @@ const mocks = vi.hoisted(() => ({
     user: { id: 'staff-1', email: 'staff@icons.gg' },
     role: 'staff',
     isStaff: true,
-  } as { isConfigured: boolean; user: { id: string; email: string | null } | null; role: string | null; isStaff: boolean },
+    operatorAccess: undefined,
+  } as { isConfigured: boolean; user: { id: string; email: string | null } | null; role: string | null; isStaff: boolean; operatorAccess?: ReturnType<typeof legacyOperatorAccessFixture> },
   rpc: vi.fn(),
   reconcile: vi.fn(),
   revalidatePath: vi.fn(),
@@ -48,7 +50,7 @@ function form(fields: Record<string, string> = {}) {
 
 describe('startAdminOrderCancellationAction', () => {
   beforeEach(() => {
-    mocks.adminState = { isConfigured: true, user: { id: 'staff-1', email: 'staff@icons.gg' }, role: 'staff', isStaff: true };
+    mocks.adminState = { isConfigured: true, user: { id: 'staff-1', email: 'staff@icons.gg' }, role: 'staff', isStaff: true, operatorAccess: legacyOperatorAccessFixture() };
     mocks.rpc.mockReset();
     mocks.rpc.mockResolvedValue({ data: REQUEST_ID, error: null });
     mocks.reconcile.mockReset();
@@ -146,6 +148,12 @@ describe('startAdminOrderCancellationAction', () => {
 
     expect(state.errors).toMatchObject({ reasonCode: '취소 사유를 선택해주세요.', orderId: '주문을 찾을 수 없습니다.' });
     expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it('staff role alone cannot start cancellation without sales.manage', async()=>{
+    mocks.adminState.operatorAccess=undefined;
+    expect(await startAdminOrderCancellationAction({},form())).toEqual({errors:{form:'관리자 권한이 필요합니다.'}});
+    expect(mocks.rpc).not.toHaveBeenCalled();expect(mocks.reconcile).not.toHaveBeenCalled();
   });
 
   it('비staff는 DB 게이트 전에 차단한다', async () => {

@@ -32,6 +32,7 @@ function deliveryOutcome(result: TransactionalEmailResult): DeliveryOutcome {
   if (result.status === 'sent') return { outcome: 'sent', error_code: null };
   if (result.status === 'skipped') {
     if (result.reason === 'already_delivered') return { outcome: 'already_delivered', error_code: null };
+    if (result.reason === 'delivery_in_progress') return { outcome: 'retry', error_code: 'delivery_in_progress' };
     if (result.reason === 'recipient_missing') return { outcome: 'review', error_code: 'recipient_missing' };
     return { outcome: 'review', error_code: 'shipment_unavailable' };
   }

@@ -1,0 +1,17 @@
+{
+  "application": [
+    "app/my/inquiries/[inquiryId]/page.tsx",
+    "app/my/inquiries/satisfaction-actions.ts",
+    "components/screens/InquiryThread.tsx",
+    "components/screens/InquirySatisfaction.tsx",
+    "lib/inquiry-satisfaction.ts",
+    "lib/inquiry-satisfaction.server.ts",
+    "lib/admin/inquiries.ts",
+    "lib/admin/inquiries.server.ts",
+    "components/admin/screens/InquiryQueueScreen.tsx",
+    "components/admin/screens/InquiryDetailScreen.tsx",
+    "components/admin/screens/InquirySatisfactionContext.tsx",
+    "app/styles/wc-account-commerce.css",
+    "app/styles/wc-admin-surfaces.css"
+  ]
+}

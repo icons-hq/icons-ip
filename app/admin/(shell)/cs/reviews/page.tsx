@@ -12,10 +12,10 @@ export default async function AdminCsReviewsPage({
    * 게이트를 로더보다 먼저 부른다. layout에도 같은 게이트가 있지만 Next.js는
    * layout과 page를 병렬로 렌더하므로 layout의 redirect가 리뷰 조회를 막지 못한다.
    */
-  await requireAdminScreenAccess('/admin/cs/reviews');
+  const auth=await requireAdminScreenAccess('/admin/cs/reviews');
   const query = await searchParams;
 
   const data = await getAdminReviewConsoleData(normalizeAdminReviewFilters(query));
 
-  return <ReviewConsoleScreen data={data} />;
+  return <ReviewConsoleScreen data={data} accountId={auth.user.id} initialDetail={typeof query.detail==='string'?query.detail:null} />;
 }

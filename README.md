@@ -1,8 +1,12 @@
 # ICONS
 
-ICONS는 서브컬처 팬덤을 위한 슈퍼앱 프로토타입이다. 공식 라이선스 **굿즈** 커머스, 수집형 디지털 **카드**(무료 리워드), 오프라인 팝업 티케팅, 캠페인·커뮤니티, IP 허브를 하나의 "White Catalog" 경험(루트 `DESIGN.md`, ADR-0011)으로 묶는다. 어드민 콘솔에는 이전 세대 스타일이 남아 있다.
+이 문서의 `output/`·임시 경로는 내부에 보존한 로컬 검수 근거의 파일 참조이며, 해당 자료와 비공개 원본 캡처는 저장소에 첨부하지 않는다.
+
+ICONS는 서브컬처 팬덤을 위한 슈퍼앱 프로토타입이다. 공식 라이선스 **굿즈** 커머스, 수집형 디지털 **카드**(무료 리워드), 오프라인 팝업 티케팅, 캠페인·커뮤니티, IP 허브를 하나의 "White Catalog" 경험(루트 `DESIGN.md`, ADR-0011)으로 묶는다. 어드민은 별도 업무 콘솔로 구성하며 운영 기능과 화면의 원본 대조를 진행 중이다.
 
 ## 현재 상태
+
+누적 어드민 변경의 운영 기준·DRAFT 경로 매핑·기존 결제/출고 호환·DB→앱→shared Preview 적용 순서는 [어드민 통합 배포 런북](docs/runbooks/smartstore-admin-rollout.md)을 따른다. 과거 로컬 QA와 이번 릴리스의 실제 배포 결과는 구분해 기록한다.
 
 - Next.js 16, React 19, Tailwind v4 기반 App Router 프로젝트다.
 - Claude Design 핸드오프를 옮긴 시각적 프로토타입에서 출발했다.
@@ -12,12 +16,20 @@ ICONS는 서브컬처 팬덤을 위한 슈퍼앱 프로토타입이다. 공식 �
 - 커뮤니티 공개 피드는 Supabase `posts`/`public_profiles`와 최근 7일 visible 포스트의 트렌딩 태그를 읽는다. 포스트·댓글 Server Action과 RPC는 연결돼 있지만 생성·수정과 community 이미지 upload는 DB·Storage gate에서 기본 OFF다. 운영·법률 준비를 증명한 별도 migration 전까지 공개 읽기·좋아요·신고·차단·본인 삭제·운영자 숨김만 유지한다.
 - 디지털 카드 리워드는 DB 전역 gate에서 기본 OFF다. 법무·운영 승인을 반영한 별도 migration 전까지 카드팩·게임 공개 표면과 신규 발급·개봉·운영 활성화를 차단하고, 기존 보유 카드 바인더만 읽기 전용으로 유지한다.
 - 검색은 Supabase 환경변수가 있으면 Postgres `search_public_content` RPC로 IP, 굿즈, 카드, visible 포스트, 태그를 그룹 검색하고, 로컬 fallback에서는 mock 데이터를 사용한다.
-- `/admin`은 staff/admin 게이트, 카탈로그 CRUD·보관/복원·아트워크 업로드, 카드풀 운영 기간·등급별 발급 확률·카드 풀 바인딩, 뽑기권 발급 정책, 카드 보상형 참여형 게임 등록·운영과 PII-free 플레이 집계, 감사 로그, 커뮤니티 신고 상태 변경과 포스트 숨김 처리 경로에 연결되어 있다. 기존 게임 `goods` variant는 운영 콘솔에서 읽기 전용이고, mock 연출은 실제 경품·구매권을 만들지 않으며 신규 실물 판매에 쓰지 않는다.
+- `/admin`은 통합 매니저·계정 주매니저·계정 부매니저·인플루언서·대행사·물류출고관리의 현재 DB 권한으로 메뉴·조회·변경을 제한한다. 상품·주문·문의·전시·마케팅·분석과 IP·카드·게임 운영을 각각 검사하며, 기존 `profiles.role` 값만으로 접근을 허용하지 않는다. 기존 게임 `goods` variant는 운영 콘솔에서 읽기 전용이고, mock 연출은 실제 경품·구매권을 만들지 않으며 신규 실물 판매에 쓰지 않는다.
 - Google, Kakao, Apple 버튼은 Supabase 관리형 OAuth Server Action에 연결되어 있고 production Supabase provider도 모두 활성화되어 있다. Google은 production 공개 상태이며 Apple App ID·Services ID·callback·서명 키 구성이 완료됐다. Kakao는 `(주) 아이콘스` 비즈 앱, 로그인용 client secret, `account_email` 필수 동의·계정 정보 수집까지 설정했고 Supabase의 이메일 없는 사용자 허용은 꺼져 있다. 코드가 production에 배포된 뒤 controlled login smoke가 남아 있다.
 - 굿즈와 티켓 checkout은 provider-neutral attempt/claim/finalizer와 `PaymentGateway` 경계 위에서 **토스페이먼츠 주문서형 v2**를 기본 provider로 쓴다(prepare→위젯 SDK→경로 세그먼트 nonce callback→서버 승인, ADR-0013). **판매 제한 상품**(성인(19금))이 담긴 주문만 서버가 주문 단위로 코페이를 파생하며 관리자가 PG를 고르지 않는다. 목적별 rollout gate의 기본값은 OFF이고 토스 gate 둘과 canary 둘은 모두 닫혀 있다 — 개방은 심사 트랙(`docs/runbooks/toss-production-rollout.md`)을 따른다. 2026-08-18 공개 ON으로 열어 둔 코페이 굿즈 gate는 폐쇄 실행 대기다.
 - 범용 온라인 팝업 운영 레이어와 Expo webview 호스트는 현 로드맵에 없다. 19+ 꽝 없는 유한 실물 쿠지는 기존 카드·게임과 분리된 `prize_sale`로 설계하며 [#212](https://github.com/icons-hq/icons-ip/issues/212)·[#213](https://github.com/icons-hq/icons-ip/issues/213)이 별도 추적한다.
 
 운영자는 [설정 런북](./docs/runbooks/admin-store-settings.md)에서 사업자·CS, 무통장 계좌 표시값과 택배사 변경 절차를 확인할 수 있습니다.
+
+관리자 기능의 현재 작업 트리 상태와 격리 검증은 [스마트스토어 조사·구현 대조](docs/research/smartstore-admin/README.md)를 따른다. 쇼핑스토리, 마케팅 링크·세그먼트·인앱 예약, 방문·결제 귀속, 상품상세 표시와 선정 BEST, 클레임 철회·전환·보류, PG 정산 수집 원장, 상품 안내·이벤트 템플릿, 옵션 불러오기와 카테고리·제조국 찾기는 각각의 검증 문서에 범위가 기록돼 있다. [홈 BEST 대표 후기 우선](docs/research/smartstore-admin/home-review-best-priority-implementation-qa.md)은 유효한 선정 후기를 먼저 표시하며 상품 선정·평균·개수를 유지한다. [판매·클레임·고객현황의 전년 비교](docs/research/smartstore-admin/stats-year-comparison.md)는 기존 기간·산식을 유지하며 화면과 엑셀에 같은 비교 날짜를 적용한다. [상품 엑셀 v7](docs/research/smartstore-admin/goods-guidance-workbook.md)은 A/S·사이즈 안내를 상품별로 함께 저장하며 생략·동시 변경·실패 재시도를 검증했다. [상품 사진 편집](docs/research/smartstore-admin/product-photo-editor-implementation-qa.md)은 공유 원본을 보존하며 새 이미지 업로드와 상품 저장으로 반영한다. 남은 일반 기능과 정책 결정이 필요한 신규 거래 구조가 있으며, 개별 로컬 검증을 전체 이식 완료나 운영 배포로 보지 않는다.
+
+[배송정보 템플릿](docs/research/smartstore-admin/shipping-template-parity.md)은 기존 수량별·착불 정책 유지와 명시적 복사·비활성화, 합산군 원상품의 운임 공유, 적용 충돌·응답 유실 복구까지 구현하고 로컬 DB·실제 PC/390px 화면·검증 자원 정리를 완료했다. 통합 결과 (`output/shipping-settings-integration-20261014/combined-result.json`)는 빈 DB의 338개 migration 순서 적용과 실행기 오류 복구 근거를 포함한다. 운영·Preview 환경에는 적용하지 않았다.
+
+[배송비 묶음그룹 후속 보정](docs/research/smartstore-admin/shipping-charge-groups-parity.md)은 장바구니 사전 조회의 합산군 수량·회원 한도 표시를 원상품 정책과 맞췄다. 343 migration의 SQL100개·실제 응답9종→장바구니 렌더링11개와 로컬 OWN275/FRESH308/CANON343 적용을 확인했으며, 새 브라우저 검증과 별도 레거시 `quote_goods_sales` 표시 경로 변경은 하지 않았다.
+
+매니저 권한 전환과 이메일 초대는 [매니저 운영 런북](./docs/runbooks/operator-access.md)을 따른다. 전환 전 호환 권한은 migration 시점의 기존 운영자에게만 적용되며, 신규 raw staff/admin 계정은 자동으로 운영자가 되지 않는다. 최초 전환에서는 통합 매니저와 기존 운영자 전원의 역할 또는 회수를 명시한다. 로컬 구현·검증과 운영 환경의 전환 실행은 별개다.
 
 ## 빠른 시작
 
@@ -27,7 +39,7 @@ cp .env.local.example .env.local # 선택: Supabase를 연결할 때만 값 입�
 npm run dev
 ```
 
-브라우저에서 [http://localhost:3000](http://localhost:3000)을 연다.
+브라우저에서 `http://localhost:3000`을 연다.
 
 Supabase 환경변수를 입력하지 않아도 로컬 개발 앱은 mock 데이터로 실행된다.
 
@@ -92,12 +104,19 @@ KORPAY_TICKET_CANARY_USER_ID=
 - `PAYMENT_RECONCILIATION_SECRET`: 검토된 단일 결제·환급 건을 명시적으로 재조회하는 내부 route(티켓 `/api/internal/payments/tickets/reconcile` — `operation: payment | refund`, 굿즈 `/api/internal/payments/goods/reconcile` — 환불 reconcile seam이 없어 `operation: payment`만) 전용 bearer secret. `CRON_SECRET`과 공유하지 않는다. #206 dark deploy에서는 미설정이 정상이며 route가 401로 닫힌다. 활성화 시 별도 승인 절차로 Production에만 16~128자의 URL-safe 랜덤 값을 두고 Preview/CI에는 넣지 않는다. 요청은 이메일 등 PII가 아닌 opaque URL-safe `caseRef`만 받으며 actor는 서버가 `payment_reconciliation_service_v1`으로 고정한다.
 - `NEXT_PUBLIC_TOSS_CLIENT_KEY`·`TOSS_SECRET_KEY`: 토스페이먼츠 주문서형 v2 위젯 키 쌍이다. 형식은 `(test|live)_gck_…`/`(test|live)_gsk_…`이고 **두 키의 모드가 같아야 한다** — 테스트 클라이언트 키로 띄운 결제를 라이브 시크릿 키로 승인하는 반쪽 전환을 빌드와 런타임이 함께 막는다. API 개별연동 `test_sk_…` 계열은 형식에서 거절한다. 클라이언트 키만 `NEXT_PUBLIC_`이고 시크릿 키는 server-only 모듈 밖으로 나가지 않는다. Vercel Production에만 sensitive 값으로 두고, 심사 기간에는 테스트 키가 물린다.
 - `TOSS_ORDER_CHECKOUT_ENABLED`·`TOSS_TICKET_CHECKOUT_ENABLED`: 신규 굿즈·티켓 토스 provider session을 목적별로 여는 정확한 `true`/`false` gate다. 기본값은 `false`이고 개방은 [`docs/runbooks/toss-production-rollout.md`](./docs/runbooks/toss-production-rollout.md)의 심사 트랙을 따른다. gate를 내려도 이미 durable하게 준비된 known order+nonce callback은 계속 drain한다.
+- `TOSS_SETTLEMENT_SYNC_ENABLED`·`TOSS_SETTLEMENT_MID`: 정산 조회 연결의 선택 설정이다. 기본 OFF이며 활성화하려면 계약 MID와 기존 토스 키 쌍의 모드·범위가 일치해야 한다. 실거래 연결은 Production에서만 허용하고, Preview/로컬에는 실키를 복제하지 않는다. `/admin/settlements`의 저장된 완료 자료는 연결 OFF에서도 조회·내보내기 가능하다. 실제 PG 수집·계좌 대사와 활성화는 [정산 런북](./docs/runbooks/pg-settlement-reconciliation.md)을 따른다.
 - `TOSS_ORDER_CANARY_USER_ID`·`TOSS_TICKET_CANARY_USER_ID`: public gate가 `false`인 동안 목적별로 인증된 단일 UUID actor만 허용하는 선택적 Production canary allowlist다. 기본값은 미설정이고 Preview/CI에는 두지 않는다.
 - `KORPAY_MID`·`KORPAY_KEY`: 판매 제한 상품 전용 PG인 코페이의 운영 자격 증명이다. Vercel Production에만 sensitive 값으로 두고 Preview/CI에는 만들지 않는다. 두 변수 모두 서버 환경변수이며 `NEXT_PUBLIC_` 접두사를 쓰지 않는다. MKEY인 `KORPAY_KEY`는 브라우저로 보내지 않는다. `KORPAY_MID`는 정적 클라이언트 설정이 아니라 서버가 hash를 포함해 만든 일회성 SDK payload의 provider 필드로만 전달한다.
 - `KORPAY_ORDER_CHECKOUT_ENABLED`·`KORPAY_TICKET_CHECKOUT_ENABLED`: 신규 굿즈·티켓 코페이 provider session을 목적별로 여는 정확한 `true`/`false` gate다. 기본값은 `false`이고, 기본 PG 지위가 토스로 넘어간 뒤에는 판매 제한 상품 트랙에서 재개방될 때까지 닫아 둔다. gate를 내려도 이미 durable하게 준비된 known order+nonce callback은 계속 drain한다.
 - `KORPAY_ORDER_CANARY_USER_ID`·`KORPAY_TICKET_CANARY_USER_ID`: public gate가 `false`인 동안 목적별로 인증된 단일 UUID actor만 허용하는 선택적 Production canary allowlist다. 기본값은 미설정이고 Preview/CI에는 두지 않는다. 현재 provision됐다고 가정하지 않는다.
 
 #191 코드는 dark deploy 상태다. DB gate는 기본 OFF이고 Supabase Send Email Hook도 사람이 운영 증거를 확인하기 전에는 활성화하지 않는다. 기존 Supabase custom SMTP와 주문 메일 경로는 실제 Auth 흐름 canary와 direct SMTP 0 증거가 끝날 때까지 유지한다. 상세 순서는 [`docs/transactional-email.md`](./docs/transactional-email.md)에 있다.
+
+### 굿즈 거래 확장 개발
+
+일반 주문·선물·정기배송은 [공통 확정 견적과 원주문 복구](docs/research/smartstore-admin/goods-transaction-module-proposal.md)를 공유한다. 복수구매 할인, 수량 운임과 별도 착불 원장은 DB 계산 버전 2로 보존한다. [ADR-0021](docs/adr/0021-goods-transaction-sources.md)의 원본/당사자/결제 연결 경계를 유지하며, 각 새 DB runtime 스위치는 기본 OFF다.
+
+정기배송은 주문서형 결제 키와 분리한 서버 전용 빌링 프로필·암호화 키를 사용한다. 설정 형식, 키 교체·복구, 90초 cron, 로컬 durable Fake와 남은 실제 계약 조건은 [정기배송·자동결제 런북](docs/runbooks/goods-subscription-billing.md)을 따른다. 합성 검증에서는 별도 로컬 DB와 HTTP loopback 앱만 사용하며 운영 자격 증명을 복제하지 않는다. 로컬 검증 성공으로 클라우드 스위치나 스케줄러를 활성화하지 않는다.
 
 ### Production 결제 활성화 경계
 
@@ -184,6 +203,10 @@ npm run hong-sil:download # 홍실퀘스트 신규·누락 이미지 다운로�
 효산의 기억 브라우저 스모크는 `npx supabase start`로 로컬 Auth·Data API를 실행한 뒤 사용한다. 스크립트가 로컬 호스트를 확인하고 같은 공개 Supabase 값으로 production build를 새로 만든 다음 임시 인증 사용자를 생성한다. short-landscape 로그인 게이트·로컬 Supabase 브라우저 연결·게임 부트·종료 후 루프 정지·재진입·reduced-motion을 검증한 뒤 사용자를 삭제한다. 굿즈 결제 local integration도 전체 로컬 Supabase 스택이 실행 중일 때만 실행한다. DB만 띄우는 CI smoke는 동일한 public seam의 Vitest와 SQL·경합 테스트를 각각 실행하고, 이 full-stack 명령은 로컬 E2E 증거로 분리한다.
 
 어드민의 화면별·폭별 시각 검수와 인증된 읽기 전용 실행은 [어드민 시각 QA runbook](docs/runbooks/admin-visual-qa.md)을 따른다. PNG와 운영 데이터가 담긴 검수 결과는 저장소 밖에 보관한다.
+
+운영자 권한 SQL 검증은 [`operator_capability_coverage.sql`](supabase/tests/operator_capability_coverage.sql)과 [`operator_capability_guards.sql`](supabase/tests/operator_capability_guards.sql)을 기준으로 한다. 신규 `profiles.role=staff/admin`만으로는 운영자 권한이 생기지 않는다. 새 권한 테스트는 `private.operator_memberships`에 명시적인 역할 fixture를 만들고 rollback하며, 기존 3단계 역할을 전제로 한 회귀 묶음은 [`with-legacy-operator-fixtures.mjs`](scripts/with-legacy-operator-fixtures.mjs)가 확인한 GitHub Actions DB 또는 `icons-ip-smartstore-fresh-YYYYMMDD` 격리 DB에서만 실행한다. `OPERATOR_LEGACY_FIXTURE_TEST_SCOPE=1`과 정확한 project/container를 지정해야 하며, wrapper는 성공·실패 후 임시 trigger와 lease를 제거한다. 브라우저 QA·운영 DB에는 이 helper를 설치하지 않는다. CI는 helper 설치 전후에 권한 검증을 다시 실행하고, 초대 동시성 검증은 원본을 복제한 일회용 DB에서 실행한 뒤 복제본을 삭제한다.
+
+권한에 영향을 주는 RPC를 추가·변경할 때는 최종 함수 정의와 ACL을 설정한 뒤 `private.register_operator_rpc_contract`를 호출한다. 권한 helper와 RLS 변경은 각각 `private.register_operator_internal_contract`, `private.register_operator_policy_contract`로 검증 계약을 갱신한다. CI는 미등록 경로, 함수 본문·실행 속성·ACL 또는 정책의 예상하지 않은 변경을 거절한다.
 
 ### 홍실퀘스트 이미지 다운로더
 
@@ -346,7 +369,7 @@ curl -s "$PREVIEW_URL" | grep -o '/_next/static/chunks/[^"]*\.js' | sort -u | wh
 
 - 공개 브라우징이 기본이다. IP, 굿즈, 카드, 이벤트, 커뮤니티 읽기는 로그인 없이 접근 가능해야 한다.
 - 보호 액션은 구매, 카드팩 개봉, 게임 플레이, 예매, 작성, 팔로우 시점에 로그인 게이트를 둔다.
-- `/exchange`와 `/market`은 v2 전까지 프로토타입/플레이스홀더로 유지한다. 예외는 스태프 전용 mock 시연 하나다 — 로그인한 staff/admin에게만 같은 라우트가 시연 화면을 렌더하고 푸터에 진입점이 열리며, `lib/secondary-market-demo.ts`의 스위치 한 줄로 함께 닫힌다. 실거래 배선이 아니다.
+- `/exchange`와 `/market`은 v2 전까지 프로토타입/플레이스홀더로 유지한다. 예외인 스태프 mock 시연은 현재 `platform.manage` 권한이 있는 계정에만 같은 라우트와 푸터 진입점이 열리며, `lib/secondary-market-demo.ts`의 스위치 한 줄로 함께 닫힌다. 실거래 배선이 아니다.
 - 지우학 온라인 팝업 프레젠테이션은 비로그인 공개이며 `/ip`의 카드와 `/ip/aouad` 직접 링크로 들어간다. 페이지와 전용 에셋은 같은 공개 게이트를 사용하고, 회수는 `lib/aouad-popup.ts`의 상수 변경과 배포가 필요하다. 전용 서버 게이트와 로컬 QA, 시연 초기화, 배포 확인은 [운영 가이드](./docs/runbooks/aouad-executive-demo.md)에 정리한다. 화면의 주문·결제·예약·리워드는 브라우저 시연이며 실제 거래를 만들지 않는다.
 - 돈, 재고, 카드 발급 RNG, 뽑기권 발급·개봉, 유한 실물 경품 배정, 티켓 검표는 클라이언트 상태에 맡기지 않는다. Supabase Postgres RPC, RLS, 행 잠금, 멱등 처리를 기준으로 구현한다.
 - 결제 확정은 provider-neutral `PaymentGateway.confirm/reconcile` 결과와 DB finalizer를 진실원으로 삼는다. 토스 경로는 조회 API 재검증과 웹훅 트리거 재정합을 함께 쓰고, 어느 경로도 클라이언트 성공 콜백이나 웹훅 payload만으로 주문·티켓을 확정하지 않는다.

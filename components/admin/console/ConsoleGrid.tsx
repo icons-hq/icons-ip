@@ -2,6 +2,8 @@
 
 import Link from 'next/link';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useGridPreferences } from './AdminPreferences';
+import { ConsoleGridSettings } from './ConsoleGridSettings';
 
 export type ConsoleSortDirection = 'asc' | 'desc';
 
@@ -20,6 +22,9 @@ export interface ConsoleGridColumn {
   sortable?: boolean;
   /** 고정 폭. `<col>`에 그대로 들어간다. 예: `'120px'`, `'12%'`. */
   width?: string;
+  /** 조회항목 설정에서도 항상 표시한다. 첫 번째 식별 열은 자동으로 필수다. */
+  required?: boolean;
+  defaultVisible?: boolean;
   /**
    * 정렬 링크 href를 미리 계산해 넘기는 통로. 서버 컴포넌트에서 그리드를 쓸 때 사용한다
    * (함수 prop은 서버 → 클라이언트 경계를 넘지 못한다).
@@ -69,6 +74,10 @@ export interface ConsoleGridProps {
   /** 표 위에 붙일 슬롯. 일괄 액션 바를 여기에 넣는다. */
   children?: ReactNode;
   className?: string;
+  /** 계정별 조회항목 설정의 안정된 키. 생략하면 caption을 쓴다. */
+  preferencesKey?: string;
+  /** 간단한 보조 표에는 조회항목 설정을 생략할 수 있다. */
+  configurable?: boolean;
 }
 
 /**
@@ -119,9 +128,11 @@ export function ConsoleGrid({
   children,
   className,
   columns,
+  configurable = true,
   defaultSelectedIds,
   emptyLabel = '조건에 맞는 항목이 없습니다.',
   onSelectionChange,
+  preferencesKey,
   rows,
   selectable = false,
   selectedIds,
@@ -133,6 +144,33 @@ export function ConsoleGrid({
   const selection = selectedIds ?? internalSelection;
   const selected = new Set(selection);
   const selectAllRef = useRef<HTMLInputElement>(null);
+  const tableRef = useRef<HTMLTableElement>(null);
+  const { preferences, save } = useGridPreferences(preferencesKey ?? caption, columns);
+  const indexes = configurable
+    ? preferences.order.filter((key) => !preferences.hidden.includes(key)).map((key) => columns.findIndex((column) => column.key === key))
+    : columns.map((_, index) => index);
+  const visibleColumns = indexes.map((index) => columns[index]);
+  const frozenCount = configurable ? preferences.frozenCount : 0;
+  const [columnWidths, setColumnWidths] = useState<number[]>([]);
+  const layoutKey = visibleColumns.map((column) => column.key).join('|');
+
+  useEffect(() => {
+    if (!frozenCount || !tableRef.current) return;
+    const table = tableRef.current;
+    const measure = () => {
+      const widths = Array.from(table.tHead?.rows[0]?.cells ?? []).map((cell) => cell.getBoundingClientRect().width);
+      setColumnWidths((previous) => previous.length === widths.length && previous.every((width, index) => width === widths[index]) ? previous : widths);
+    };
+    const observer = new ResizeObserver(measure);
+    observer.observe(table);
+    for (const cell of Array.from(table.tHead?.rows[0]?.cells ?? [])) observer.observe(cell);
+    return () => observer.disconnect();
+  }, [frozenCount, layoutKey, selectable]);
+
+  function frozenStyle(index: number) {
+    if (!frozenCount || index >= frozenCount + (selectable ? 1 : 0)) return undefined;
+    return { left: columnWidths.slice(0, index).reduce((total, width) => total + width, 0) };
+  }
 
   const selectableIds = rows.filter((row) => row.selectable !== false).map((row) => row.id);
   const selectedOnPage = selectableIds.filter((id) => selected.has(id));
@@ -170,19 +208,20 @@ export function ConsoleGrid({
     commit(selection.filter((id) => !pageIds.has(id)));
   }
 
-  const columnCount = columns.length + (selectable ? 1 : 0);
-  const hasWidths = columns.some((column) => column.width);
+  const columnCount = visibleColumns.length + (selectable ? 1 : 0);
+  const hasWidths = visibleColumns.some((column) => column.width);
 
   return (
     <div className={`${className ? `${className} ` : ''}admin-console-grid`}>
       {children}
-      <div className="admin-console-grid-scroll">
-        <table className="admin-console-grid-table">
+      {configurable ? <ConsoleGridSettings columns={columns} preferences={preferences} onSave={save} /> : null}
+      <div className="admin-console-grid-scroll" role="region" aria-label={`${caption} 가로 스크롤`} tabIndex={0}>
+        <table className="admin-console-grid-table" ref={tableRef}>
           <caption className="admin-console-grid-caption">{caption}</caption>
           {hasWidths ? (
             <colgroup>
               {selectable ? <col className="admin-console-grid-check-col" /> : null}
-              {columns.map((column) => (
+              {visibleColumns.map((column) => (
                 <col key={column.key} style={column.width ? { width: column.width } : undefined} />
               ))}
             </colgroup>
@@ -190,7 +229,7 @@ export function ConsoleGrid({
           <thead>
             <tr>
               {selectable ? (
-                <th className="admin-console-grid-check" scope="col">
+                <th className="admin-console-grid-check" data-frozen={frozenCount > 0 || undefined} style={frozenStyle(0)} scope="col">
                   <input
                     aria-label="전체 선택"
                     checked={allSelected}
@@ -201,7 +240,7 @@ export function ConsoleGrid({
                   />
                 </th>
               ) : null}
-              {columns.map((column) => {
+              {visibleColumns.map((column, displayIndex) => {
                 const active = sort?.key === column.key;
                 const direction = nextSortDirection(sort, column.key, column.defaultDirection);
                 const href = column.sortable
@@ -216,6 +255,8 @@ export function ConsoleGrid({
                         : 'none'
                       : undefined}
                     data-align={column.align ?? 'start'}
+                    data-frozen={displayIndex < frozenCount || undefined}
+                    style={frozenStyle(displayIndex + (selectable ? 1 : 0))}
                     key={column.key}
                     scope="col"
                   >
@@ -251,7 +292,7 @@ export function ConsoleGrid({
               return (
                 <tr data-selected={rowSelected ? 'true' : undefined} key={row.id}>
                   {selectable ? (
-                    <td className="admin-console-grid-check">
+                    <td className="admin-console-grid-check" data-frozen={frozenCount > 0 || undefined} style={frozenStyle(0)}>
                       {rowSelectable ? (
                         <input
                           aria-label={row.selectLabel ?? `${row.id} 선택`}
@@ -263,11 +304,14 @@ export function ConsoleGrid({
                       ) : null}
                     </td>
                   ) : null}
-                  {row.cells.map((cell, index) => {
+                  {indexes.map((index, displayIndex) => {
+                    const cell = row.cells[index];
                     const column = columns[index];
                     return (
                       <td
                         data-align={column?.align ?? 'start'}
+                        data-frozen={displayIndex < frozenCount || undefined}
+                        style={frozenStyle(displayIndex + (selectable ? 1 : 0))}
                         key={column?.key ?? `cell-${index}`}
                       >
                         {/* 표에서는 행 전체를 링크로 만들 수 없다. 첫 셀만 상세 링크가 된다. */}

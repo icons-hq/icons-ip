@@ -38,9 +38,11 @@ const sales: AdminSalesReport = {
   ],
 };
 
+const goodsPage = { rows: sales.goods.map((row, index) => ({ ...row, rank: index + 1 })), totalCount: sales.goods.length, page: 1, pageSize: 20, asOf: '2026-10-14T00:00:00Z' };
+
 describe('StatsSalesScreen', () => {
   it('기간 합계와 객단가를 요약으로 먼저 보여준다', () => {
-    const html = renderToStaticMarkup(<StatsSalesScreen data={sales} filters={filters} />);
+    const html = renderToStaticMarkup(<StatsSalesScreen goods={goodsPage} data={sales} filters={filters} />);
 
     expect(html).toContain('69,000');
     expect(html).toContain('23,000');
@@ -48,7 +50,7 @@ describe('StatsSalesScreen', () => {
 
   /* 무통장 도입(#256) 뒤 재고 선점 시간의 실제 비용을 보여 주는 유일한 자리다. */
   it('카드와 무통장을 이름과 구성비로 가른다', () => {
-    const html = renderToStaticMarkup(<StatsSalesScreen data={sales} filters={filters} />);
+    const html = renderToStaticMarkup(<StatsSalesScreen goods={goodsPage} data={sales} filters={filters} />);
 
     expect(html).toContain('신용·체크카드');
     expect(html).toContain('무통장 입금');
@@ -58,7 +60,7 @@ describe('StatsSalesScreen', () => {
 
   /* 굿즈는 재고·배송 축, 티켓은 이벤트 축이다. 합치면 무엇이 늘었는지 못 읽는다. */
   it('굿즈 순위와 티켓 매출을 나눠 그린다', () => {
-    const html = renderToStaticMarkup(<StatsSalesScreen data={sales} filters={filters} />);
+    const html = renderToStaticMarkup(<StatsSalesScreen goods={goodsPage} data={sales} filters={filters} />);
 
     expect(html).toContain('상품별 판매 순위');
     expect(html).toContain('티켓 매출 · 이벤트');
@@ -70,15 +72,21 @@ describe('StatsSalesScreen', () => {
 
   /* IP 필터가 URL에만 있으면 운영자가 쓸 수 없다. */
   it('굿즈 순위용 IP 필터 컨트롤을 노출한다', () => {
-    const html = renderToStaticMarkup(<StatsSalesScreen data={sales} filters={filters} />);
+    const html = renderToStaticMarkup(<StatsSalesScreen goods={goodsPage} data={sales} filters={filters} />);
 
     expect(html).toContain('name="ip"');
     expect(html).toContain('IP 필터');
   });
 
+  it('비교기간 상한 초과는 상단과 상품 영역의 엑셀 링크를 모두 대체한다', () => {
+    const html = renderToStaticMarkup(<StatsSalesScreen goods={goodsPage} comparisonGoodsTotal={10001} data={sales} filters={{ ...filters, comparisonMode: 'year' }} />);
+    expect(html).not.toContain('/api/admin/stats-workbook');
+    expect(html.match(/비교기간 상품이 10,000개를 초과/g)).toHaveLength(2);
+  });
+
   it('데이터가 없어도 빈 상태를 말한다', () => {
     const html = renderToStaticMarkup(
-      <StatsSalesScreen
+      <StatsSalesScreen goods={{ ...goodsPage, rows: [], totalCount: 0 }}
         data={{ daily: [], paymentMethods: [], goods: [], tickets: [], ticketOccurrences: [] }}
         filters={filters}
       />,
@@ -93,8 +101,8 @@ const claims: AdminClaimsReport = {
   orderCount: 3,
   claimCount: 2,
   byType: [
-    { claimType: 'cancel', total: 1, completed: 1, rejected: 0, open: 0, ratePerMille: 333.3 },
-    { claimType: 'return', total: 1, completed: 0, rejected: 0, open: 1, ratePerMille: 333.3 },
+    { claimType: 'cancel', total: 1, completed: 1, rejected: 0, withdrawn: 0, open: 0, ratePerMille: 333.3 },
+    { claimType: 'return', total: 1, completed: 0, rejected: 0, withdrawn: 0, open: 1, ratePerMille: 333.3 },
   ],
   byReason: [
     { claimType: 'cancel', reasonType: 'change_of_mind', total: 1 },
@@ -141,7 +149,7 @@ describe('StatsClaimsScreen', () => {
         data={{
           ...claims,
           orderCount: 0,
-          byType: [{ claimType: 'cancel', total: 1, completed: 0, rejected: 0, open: 1, ratePerMille: null }],
+          byType: [{ claimType: 'cancel', total: 1, completed: 0, rejected: 0, withdrawn: 0, open: 1, ratePerMille: null }],
           refunds: { completedCount: 0, averageHours: null, within72h: 0 },
         }}
         filters={filters}

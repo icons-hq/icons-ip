@@ -23,7 +23,7 @@ select jsonb_build_array(jsonb_build_object('id',id,'updatedAt',updated_at)) as 
 select public.admin_mark_shipments_exported(:'versions');
 select 1 / case when (select exported_at is not null and exported_by='00000000-0000-4000-8000-000000042970' from public.order_shipments where id='00000000-0000-4000-8000-000000042973') then 1 else 0 end as assert_export_marked_after_generation;
 select set_config('test.shipment_export_versions',:'versions',true);
-do $$begin perform public.admin_mark_shipments_exported(current_setting('test.shipment_export_versions')::jsonb);raise exception 'stale export marked';exception when serialization_failure then null;end$$;
+do $$begin perform public.admin_mark_shipments_exported(current_setting('test.shipment_export_versions')::jsonb);raise exception 'stale export marked';exception when sqlstate 'PT409' then null;end$$;
 do $$begin perform public.admin_save_origin_export_columns('00000000-0000-4000-8000-000000042201','[]',now());raise exception 'staff settings write accepted';exception when insufficient_privilege then null;end$$;
 select public.admin_update_shipment_status('00000000-0000-4000-8000-000000042973','shipping','hanjin','1234567890');
 do $$begin perform public.admin_shipment_export(array['00000000-0000-4000-8000-000000042973'::uuid]);raise exception 'shipped exported as ready';exception when check_violation then if sqlerrm<>'shipment_not_ready' then raise;end if;end$$;

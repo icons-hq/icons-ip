@@ -1,4 +1,4 @@
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { observeInquiryChanges, type InquiryRealtimeClient } from './inquiry-realtime';
 
 function transport() {
@@ -9,10 +9,20 @@ function transport() {
     subscribe: (callback: typeof status) => { status = callback; return channel; },
   };
   const removeChannel = vi.fn();
-  return { handlers, joined: () => status('SUBSCRIBED'), ready: () => handlers.find((handler) => handler.type === 'system')?.callback({ extension: 'postgres_changes', status: 'ok' }), removeChannel,
+  return { handlers, disconnected: () => status('CHANNEL_ERROR'), joined: () => status('SUBSCRIBED'), ready: () => handlers.find((handler) => handler.type === 'system')?.callback({ extension: 'postgres_changes', status: 'ok' }), removeChannel,
     client: { channel: () => channel, removeChannel } as unknown as InquiryRealtimeClient };
 }
 describe('실시간 문의 화면 구독', () => {
+  afterEach(() => vi.useRealTimers());
+  it('첫 DB 구독이 지연되거나 연결이 끊긴 동안만 인증 로더의 재동기화를 요청한다', () => {
+    vi.useFakeTimers();
+    const test = transport(); const resync = vi.fn();
+    const close = observeInquiryChanges(test.client, { onChange: vi.fn(), onResync: resync });
+    test.joined(); vi.advanceTimersByTime(5000); expect(resync).toHaveBeenCalledTimes(1);
+    test.ready(); vi.advanceTimersByTime(15000); expect(resync).toHaveBeenCalledTimes(1);
+    test.disconnected(); vi.advanceTimersByTime(5000); expect(resync).toHaveBeenCalledTimes(2);
+    close(); vi.advanceTimersByTime(15000); expect(resync).toHaveBeenCalledTimes(2);
+  });
   it('자동 안내 이벤트를 고객·staff 답글로 바꾸지 않는다', () => {
     const test=transport();const changed=vi.fn();
     observeInquiryChanges(test.client,{inquiryId:'thread-a',onChange:changed});

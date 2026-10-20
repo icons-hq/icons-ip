@@ -8,7 +8,7 @@ import { fetchStaffPreviewVisible } from '@/lib/staff-preview.client';
 import { useAuthPresence, type AuthPresence } from './AuthPresenceProvider';
 
 /* 스태프 전용 진입점 가시성 — 푸터와 온라인 팝업 디렉토리가 읽는다. 세컨더리 마켓 mock,
- * 커뮤니티와 AOUAD 프레젠테이션은 같은 `is_staff` readback 한 번을 공유하고 각자의
+ * 커뮤니티와 AOUAD 프레젠테이션은 같은 `platform.manage` 권한 조회 한 번을 공유하고 각자의
  * 공개·킬스위치를 적용한다. presence·pathname 리듬은 기능들이 공유해야 하므로 provider 하나에
  * 모아 둔다 — 복사본이 갈라지면 한쪽만 강등된 세션에 진입점을 남기는 사고가 난다.
  *

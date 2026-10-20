@@ -6,6 +6,8 @@ import { sanitizeGoodsDescription } from '@/lib/goods-description';
 import { GOODS_NOTICE_FIELDS } from '@/lib/goods-notice';
 import { GOOD_BADGES, GOOD_TYPES } from '@/lib/goods-taxonomy';
 import { GoodSection } from './GoodSection';
+import { commonTestOwnership } from '@/lib/admin/goods-group-common.test-fixtures';
+import { parseGoodsEditorOwnership } from '@/lib/admin/goods-group-common';
 import { GoodsKcTemplateProvider } from '../useGoodsKcTemplate';
 
 vi.mock('@/app/admin/actions', () => ({
@@ -102,7 +104,7 @@ const good: AdminGoodRecord = {
 function renderGoodSection(
   selected: AdminGoodRecord | null,
   state: Parameters<typeof GoodSection>[0]['state'] = {},
-  options: Pick<Parameters<typeof GoodSection>[0],'initialQuery'|'initialIpId'|'variants'> = {},
+  options: Pick<Parameters<typeof GoodSection>[0],'initialQuery'|'initialIpId'|'variants'|'canSearchErp'|'ownership'> = {},
 ) {
   return renderToStaticMarkup(
     <GoodsKcTemplateProvider selectionKey={selected ? `good:${selected.id}` : 'create:any'}>
@@ -123,6 +125,27 @@ function renderGoodSection(
 }
 
 describe('GoodSection', () => {
+  it('그룹 공통정보·옵션 구조와 합산 조건은 잠그고 개별 가격·재고·사진·결제는 유지한다', () => {
+    const selected = { ...good, id: 'group-child', publishedAt: null };
+    const ownership = parseGoodsEditorOwnership(commonTestOwnership)!;
+    const html = renderGoodSection(selected, { values: { previousId: selected.id, name: '이전 브라우저 이름', description: '이전 공통 설명' } }, { ownership });
+    expect(html).toContain('공통정보 편집'); expect(html).toContain('합산 기준 상품');
+    expect(html).toContain('groupCommon='); expect(html).not.toContain('이전 브라우저 이름'); expect(html).not.toContain('이전 공통 설명');
+    expect(html).toMatch(/readOnly=""[^>]*name="name"|name="name"[^>]*readOnly=""/);
+    expect(html).toMatch(/readOnly=""[^>]*aria-label="기본 옵션명"|aria-label="기본 옵션명"[^>]*readOnly=""/);
+    expect(html).toContain('disabled="" class="goods-choice goods-option-usage"');
+    expect(html).not.toContain('다른 상품 옵션 불러오기'); expect(html).not.toContain('id="good-operation-variants"');
+    expect(html).not.toContain('id="good-operation-after-sales"'); expect(html).not.toContain('id="good-operation-size-chart"');
+    expect(html).toContain('id="goods-single-stock"'); expect(html).toContain('name="allowCardPayment"'); expect(html).toContain('id="good-section-images"');
+    for (const name of ['categoryId','additionalCategoryIds','description','descriptionFormat','originId','shippingFeeType','individualFee','orderQuantityLimitEnabled','memberLifetimeQtyLimit']) expect(html).toContain(`type="hidden" name="${name}"`);
+  });
+
+  it('플랫폼 관리 권한이 없는 상품 매니저에게 IP 운영 화면 링크를 노출하지 않는다', () => {
+    expect(renderGoodSection(good)).toContain('/admin/catalog/ips/hwasan');
+    const html = renderGoodSection(good, {}, { canSearchErp: false });
+    expect(html).not.toContain('/admin/catalog/ips/hwasan');
+    expect(html).toContain('name="ipId"');
+  });
   it('keeps the task order and error links in the same authoring sequence', () => {
     const html = renderGoodSection(null, { errors: { maxOrderQty: '수량 오류', originId: '배송 오류', noticeMaker: '고시 오류', variants: '옵션 오류', price: '가격 오류', name: '이름 오류' } });
     const sections = ['basic', 'price', 'variants', 'notice', 'shipping', 'sale'];
@@ -159,8 +182,8 @@ describe('GoodSection', () => {
   });
   it('renders kit sections and restores failed uploaded paths, notice and invalid option values', () => {
     const html = renderGoodSection(null, { attempt: 1, values: { previousId: '', name: '실패 뒤 상품', noticeAsContact: '복사된 연락처', imagePath: 'public-media/catalog/good/failed.webp', variants: '[{"name":"보존 옵션","code":"MANUAL","attributes":{},"extraPrice":-1,"stockQty":5}]' } });
-    expect(html).toContain('aria-label="기본 정보"');
-    expect(html).toContain('aria-label="배송 정보"');
+    expect(html).toContain('aria-label="상품명"');
+    expect(html).toContain('aria-label="배송"');
     expect(html).toContain('value="실패 뒤 상품"');
     expect(html).toContain('value="복사된 연락처"');
     expect(html).toContain('value="public-media/catalog/good/failed.webp"');
@@ -204,7 +227,7 @@ describe('GoodSection', () => {
   });
   it('초안 저장은 브라우저 고시 필수 검증에 막히지 않고 공개 이미지 오류를 표시한다', () => {
     const html = renderGoodSection(null, { errors: { imagePath: '대표 이미지를 업로드한 뒤 공개해주세요.' } });
-    expect(html).toContain('초안으로 저장');
+    expect(html).toContain('저장하기');
     expect(html).toContain('저장 후 공개');
     expect(html).toContain('대표 이미지를 업로드한 뒤 공개해주세요.');
     const noticeInputs = html.match(/<input[^>]*name="notice[^"]*"[^>]*>/g) ?? [];
@@ -268,7 +291,7 @@ describe('GoodSection', () => {
   it('keeps the stored sale restriction in the same goods form as payment methods', () => {
     const html = renderGoodSection({ ...good, saleRestriction: 'adult' });
 
-    expect(html).toContain('결제·구매 조건');
+    expect(html).toContain('구매수량·결제 설정');
     expect(html).toContain('name="saleRestriction"');
     expect(html).toContain('name="allowCardPayment"');
     expect(html).toContain('성인(19금)');
@@ -336,7 +359,7 @@ describe('GoodSection', () => {
     expect(html).toContain('aria-label="대표 이미지 추가"');
     expect(html).toContain('aria-label="이미지 추가 (추가 이미지, 여러 장 선택 가능)"');
     expect(html).not.toMatch(/슬롯|갤러리 \(최대|공개 화면 잘림 확인/);
-    expect(html).toContain('상세페이지(상세 설명) 편집');
+    expect(html).toContain('상세설명 편집');
     expect(html).toContain('name="detailImagePath"');
     expect(html).toContain('상세 이미지');
     /* 이미지 제약은 공유 업로드 계약(ADMIN_ARTWORK_ACCEPT)을 그대로 따른다. */
@@ -411,7 +434,7 @@ describe('GoodSection', () => {
   it('저장된 정가·판매가를 판매가·할인으로 열고 같은 저장 값을 hidden 입력으로 보낸다', () => {
     const html = renderGoodSection(good);
     const card = html.slice(html.indexOf('id="good-section-price"'), html.indexOf('id="good-section-variants"'));
-    expect(card).toContain('<h3>판매가</h3>');
+    expect(card).toContain('class="admin-good-section__title">판매가');
     expect(card).toMatch(/<input[^>]*name="regularPrice"[^>]*value="26000"/);
     expect(card).toMatch(/<input type="radio" name="discountEnabled" checked="" value="true"\/>설정함/);
     expect(card).toMatch(/<input[^>]*name="discountValue"[^>]*value="4000"/);
@@ -447,11 +470,13 @@ describe('GoodSection', () => {
   it('재고수량·옵션 카드는 옵션 없는 상품의 재고수량을 먼저 보여준다', () => {
     const html = renderGoodSection(good);
     const card = html.slice(html.indexOf('id="good-section-variants"'), html.indexOf('id="good-section-notice"'));
-    expect(card).toContain('<h3>재고수량·옵션</h3>');
+    expect(card).toContain('class="admin-good-section__title">재고수량 / 옵션');
     expect(card).toContain('옵션 없음 · 재고수량 12개');
     expect(card.indexOf('for="goods-single-stock">재고수량')).toBeLessThan(card.indexOf('<legend>옵션</legend>'));
-    expect(html).toContain('2. 판매가');
-    expect(html).toContain('3. 재고수량·옵션');
+    expect(html).toContain('2. 상품속성');
+    expect(html).toContain('4. 판매가');
+    expect(html).toContain('5. 판매기간');
+    expect(html).toContain('6. 재고수량·옵션');
   });
 
   /* #326 — 유형·배지는 자유 입력이 아니라 표준 값 select 다(DB CHECK 와 같은 목록). */

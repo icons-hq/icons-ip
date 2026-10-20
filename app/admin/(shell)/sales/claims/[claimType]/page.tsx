@@ -4,6 +4,9 @@ import { adminClaimBasePath, normalizeAdminClaimFilters } from '@/lib/admin/clai
 import { getAdminClaimConsoleData } from '@/lib/admin/claims.server';
 import { requireAdminScreenAccess } from '@/lib/admin/guard.server';
 import { orderClaimTypeForSlug } from '@/lib/orders/claims';
+import { canAccessAdminScreen } from '@/lib/admin/access';
+import { adminScreenForPath } from '@/lib/admin/navigation';
+import { REFUND_TRANSFERS_PATH } from '@/lib/admin/refund-transfers';
 
 /*
  * 취소·반품·교환 3화면(#252).
@@ -23,7 +26,7 @@ export default async function AdminSalesClaimsPage({
 
   /* 게이트를 로더보다 먼저 부른다. layout에도 같은 게이트가 있지만 Next.js는
      layout과 page를 병렬로 렌더하므로 layout의 redirect가 클레임 조회를 막지 못한다. */
-  await requireAdminScreenAccess(adminClaimBasePath(claimType));
+  const auth = await requireAdminScreenAccess(adminClaimBasePath(claimType));
   const query = await searchParams;
 
   const data = await getAdminClaimConsoleData(
@@ -31,5 +34,5 @@ export default async function AdminSalesClaimsPage({
     normalizeAdminClaimFilters(query),
   );
 
-  return <ClaimQueueScreen data={data} />;
+  return <ClaimQueueScreen data={data} canViewRefundTransfers={canAccessAdminScreen(auth, adminScreenForPath(REFUND_TRANSFERS_PATH))} />;
 }

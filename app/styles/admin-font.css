@@ -1,0 +1,13 @@
+/* Pretendard 1.3.9, unmodified upstream font. See docs/licenses/pretendard-source.json. */
+@font-face {
+  font-family: 'ICONS Admin Pretendard';
+  font-style: normal;
+  font-weight: 45 920;
+  font-display: swap;
+  src: url('/fonts/admin/PretendardVariable.woff2') format('woff2');
+}
+
+.wc-admin {
+  --wc-font: 'ICONS Admin Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Segoe UI', sans-serif;
+  font-family: var(--wc-font);
+}

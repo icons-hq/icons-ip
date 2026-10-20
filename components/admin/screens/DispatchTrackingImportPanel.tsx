@@ -42,10 +42,12 @@ export function DispatchTrackingImportPanel({ carriers, originId, shippingHref =
       <h2>엑셀 일괄 운송장 등록</h2>
 
       <p className="muted">
-        컬럼은 <strong>배송건번호 · 택배사코드 · 운송장번호</strong> 순서입니다.
-        XLSX 파일을 올리거나 엑셀의 세 칸을 복사해 붙여넣어주세요. 단일 배송 주문은 주문번호도 사용할 수 있습니다.
+        스마트스토어 양식은 <strong>상품주문번호 · 배송방법 · 택배사 · 송장번호</strong> 네 열을 사용합니다.
+        내려받은 파일의 암호를 해제하고 안내가 있는 1행을 삭제한 뒤, 시트명을 <strong>발송처리</strong>로 저장해 올려주세요. 열의 순서는 바꿔도 됩니다.
         한 번에 {TRACKING_IMPORT_ROW_LIMIT.toLocaleString('ko-KR')}건까지 처리합니다.
       </p>
+      <p className="muted">상품주문번호는 ICONS 파일의 전체 번호를 유지해주세요. 배송방법은 택배,등기,소포이며 퀵·방문수령·직접전달은 주문 상세에서 처리합니다.</p>
+      <p className="muted">기존 <strong>배송건번호 · 택배사코드 · 운송장번호</strong> 세 칸 XLSX·CSV·붙여넣기도 지원합니다. 단일 배송 주문은 주문번호도 사용할 수 있습니다.</p>
       <p className="muted">
         택배사코드: {activeCodes.length
           ? activeCodes.map((carrier) => `${carrier.code}(${carrier.label})`).join(' · ')
@@ -70,6 +72,7 @@ export function DispatchTrackingImportPanel({ carriers, originId, shippingHref =
         이미 발송된 배송 건의 운송장은 덮어쓰지 않습니다. 같은 회신을 다시 올리면 그대로 두고, 번호가 다르면 실패로 알려드립니다.
         정정은 주문 통합검색의 운송장 수정에서 합니다.
       </p>
+      <p className="muted">합포장은 한 배송 건의 송장을 등록해도 묶음 전체에 적용됩니다. 같은 합포장에 서로 다른 송장이나 오류 행이 있으면 먼저 파일을 수정해주세요. 남양주 원형 회신은 합포장에 포함된 모든 배송 건의 품목 줄을 빠짐없이 올려야 합니다.</p>
       {/* WMS 이중 입력 주의(#177). 어드민을 운송장 진실원으로 선언하지 않는다. */}
       <p className="muted">
         창고 WMS가 발행한 운송장을 옮겨 적는 운영 기록입니다. 값이 어긋나면 WMS가 기준입니다.
@@ -89,6 +92,7 @@ export function DispatchTrackingImportPanel({ carriers, originId, shippingHref =
           rows={6}
         />
         <label htmlFor="admin-dispatch-import-file">또는 XLSX·CSV 파일</label>
+        <p className="muted">XLSX는 1MB, CSV·TSV·텍스트와 붙여넣기는 256KB까지 등록합니다.</p>
         <input
           accept=".xlsx,.csv,.tsv,.txt,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,text/plain"
           disabled={pending}
@@ -118,7 +122,7 @@ export function DispatchTrackingImportPanel({ carriers, originId, shippingHref =
           <thead>
             <tr>
               <th scope="col">줄</th>
-              <th scope="col">대상(배송건·주문·받는 분)</th>
+              <th scope="col">대상(상품주문·배송건·주문·받는 분)</th>
               <th scope="col">사유</th>
             </tr>
           </thead>

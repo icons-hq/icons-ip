@@ -24,4 +24,14 @@ describe('non-parcel customer shipment display', () => {
     const html = renderToStaticMarkup(<ShipmentDetails shipments={[shipmentFixture({ delivery: null })]} />);
     expect(html).toContain('확인 필요'); expect(html).not.toContain('운송장번호'); expect(html).not.toContain('배송조회');
   });
+  it('labels charge-group members with the names saved on order items', () => {
+    const shipment = shipmentFixture({ chargeDetails: { version: 1, unassignedBaseFee: 0, originRegionalFee: 0, originRegionFeeUnit: null,
+      groups: [{ groupId: '00000000-0000-4000-8000-000000000001', revision: 1, mode: 'min', quantity: 2, subtotal: 20000,
+        baseFee: 3000, regionalFee: 0, regionMode: 'inherit', goodIds: ['keyring', 'doll'] }] } });
+    const html = renderToStaticMarkup(<ShipmentDetails shipments={[shipment]} items={[
+      { id: 'line-1', goodId: 'keyring', name: '주문 당시 키링', qty: 1 }, { id: 'line-2', goodId: 'doll', name: '주문 당시 인형', qty: 1 },
+    ]} />);
+    expect(html).toContain('주문 당시 키링 · 주문 당시 인형');
+    expect(html).not.toContain('굿즈 1');
+  });
 });

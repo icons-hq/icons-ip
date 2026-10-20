@@ -1,5 +1,6 @@
 'use server';
 
+import { isReviewKind } from '@/lib/review-types';
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { requireActiveUser } from '@/lib/participation-gate.server';
@@ -17,7 +18,7 @@ import { createClient } from '@/lib/supabase/server';
  * 판정한다. 여기서는 사진 업로드와 오류 문구 변환만 한다 — 자격 검사를 화면 근처로
  * 옮기면 새 진입점을 만드는 사람이 검사 하나를 빠뜨린다.
  *
- * 리뷰 작성에는 보상이 없다(v1 확정). 그래서 이 파일에는 적립 호출이 없다. */
+ * 리뷰 유형별 보상 자격과 선정·지급은 DB의 별도 정책/원장에서 판정한다. */
 
 const USER_UPLOADS_BUCKET = 'user-uploads';
 const REVIEWS_PATH = '/my/reviews';
@@ -48,6 +49,8 @@ function rpcErrorMessage(message: string | null | undefined, fallback: string): 
   if (value.includes('review_order_not_found')) {
     return { form: '주문을 찾을 수 없습니다.' };
   }
+  if (value.includes('review_month_window_closed')) return { form: '한달사용 리뷰 작성 기간이 아니거나 사용이 중지됐습니다. 내 리뷰에서 현재 기한을 확인해주세요.' };
+  if (value.includes('review_purchase_ineligible')) return { form: '현재 구매 상태로는 리뷰를 작성하거나 수정할 수 없습니다.' };
   if (value.includes('review_window_closed')) {
     return { form: '작성 기한이 지났습니다. 리뷰는 배송완료 후 90일까지 남기거나 고칠 수 있습니다.' };
   }
@@ -119,6 +122,8 @@ export async function createReviewAction(
 ): Promise<ReviewActionState> {
   const user = await requireActiveUser(REVIEWS_PATH);
 
+  const kind = formData.get('kind') ?? 'ordinary';
+  if (!isReviewKind(kind)) return { errors: { form: '리뷰 구분을 확인해주세요.' } };
   const normalized = normalizeReviewCreateForm(formData);
   if (!normalized.ok) return { errors: normalized.errors };
 
@@ -126,7 +131,8 @@ export async function createReviewAction(
   const uploaded = await uploadReviewImages(supabase, user.id, normalized.value.images);
   if (!uploaded.ok) return { errors: { images: UPLOAD_FAILED } };
 
-  const { error } = await supabase.rpc('create_good_review', {
+  const { error } = await supabase.rpc('create_good_review_v2', {
+    target_kind: kind,
     target_body: normalized.value.body,
     target_good_id: normalized.value.goodId,
     target_image_paths: uploaded.paths,
@@ -143,6 +149,8 @@ export async function createReviewAction(
 
   revalidatePath(REVIEWS_PATH);
   revalidatePath(`/shop/${normalized.value.goodId}`);
+  revalidatePath('/admin/cs/review-events');
+  revalidatePath('/admin/cs/review-events/[eventId]', 'page');
   redirect(REVIEWS_PATH);
 }
 
@@ -184,6 +192,8 @@ export async function updateReviewAction(
 
   revalidatePath(REVIEWS_PATH);
   revalidatePath(next);
+  revalidatePath('/admin/cs/review-events/[eventId]', 'page');
+  revalidatePath('/review-events/[eventId]', 'page');
   return {
     message: '리뷰를 수정했습니다.',
     resultKey: crypto.randomUUID(),
@@ -223,5 +233,11 @@ export async function deleteReviewAction(formData: FormData) {
   const goodId = formData.get('goodId');
   if (typeof goodId === 'string' && goodId.trim()) revalidatePath(`/shop/${goodId.trim()}`);
   revalidatePath(REVIEWS_PATH);
+  revalidatePath('/my/store-credits');
+  revalidatePath('/admin/sales/store-credits');
+  revalidatePath('/admin/cs/review-events');
+  revalidatePath('/admin/cs/review-events/[eventId]', 'page');
+  revalidatePath('/review-events/[eventId]', 'page');
+  revalidatePath('/');
   redirect(REVIEWS_PATH);
 }

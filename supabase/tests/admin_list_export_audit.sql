@@ -132,7 +132,7 @@ begin
     perform public.admin_record_list_export('orders', '{}'::jsonb, 1, 1);
     raise exception 'non-staff list export audit should be rejected';
   exception when insufficient_privilege then
-    if sqlerrm <> 'staff_required' then raise; end if;
+    if sqlerrm not in ('staff_required','operator_capability_required') then raise; end if;
   end;
 end;
 $$;
@@ -144,7 +144,7 @@ begin
     perform public.admin_record_list_export('orders', '{}'::jsonb, 1, 1);
     raise exception 'suspended staff list export audit should be rejected';
   exception when insufficient_privilege then
-    if sqlerrm <> 'staff_required' then raise; end if;
+    if sqlerrm not in ('staff_required','operator_capability_required') then raise; end if;
   end;
 end;
 $$;
@@ -156,8 +156,8 @@ begin
   begin
     perform public.admin_record_list_export('orders', '{}'::jsonb, 1, 1);
     raise exception 'anonymous list export audit should be rejected';
-  exception when insufficient_privilege then
-    if sqlerrm <> 'staff_required' then raise; end if;
+  exception when invalid_authorization_specification then
+    if sqlerrm<>'auth_required' then raise; end if;
   end;
 end;
 $$;

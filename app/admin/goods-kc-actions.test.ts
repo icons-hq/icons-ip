@@ -1,3 +1,4 @@
+const { legacyOperatorAccessFixture } = await vi.hoisted(() => import('@/lib/admin/access.test-fixtures'));
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { emptyGoodsKcModel, goodsKcProductNotApplicableModel } from '@/lib/admin/goods-kc';
 const mocks = vi.hoisted(() => ({ auth: vi.fn(), rpc: vi.fn(), revalidate: vi.fn() }));
@@ -14,7 +15,7 @@ const input = { models: [emptyGoodsKcModel()], status: 'unreviewed', expectedRev
   expectedContextFingerprint: contextFingerprint, attested: false };
 beforeEach(() => {
   vi.resetAllMocks();
-  mocks.auth.mockResolvedValue({ isConfigured: true, user: { id: 'staff' }, isStaff: true });
+  mocks.auth.mockResolvedValue({ isConfigured: true, user: { id: 'staff' }, isStaff: true, operatorAccess: legacyOperatorAccessFixture() });
 });
 describe('KC 조회·저장 서버 경계', () => {
   it('일반 회원과 미인증은 내부 검토를 조회하거나 저장하지 못한다', async () => {

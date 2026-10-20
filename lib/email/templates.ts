@@ -1,6 +1,7 @@
 import type { CheckoutAddress } from '../checkout';
 import { krw } from '../format';
 import { formatOrderDateTime, LEGAL_WITHDRAWAL_NOTICE, orderReferenceLabel } from '../orders';
+import type { GoodsTransactionDisplay } from '../goods-transaction';
 
 /* 트랜잭션 이메일 본문(#180). 순수 함수다 — 네트워크·DB·env를 모르고 입력만 받는다.
  *
@@ -23,6 +24,8 @@ export interface RenderedEmail {
 }
 
 export interface OrderConfirmationEmailInput {
+  transaction?: GoodsTransactionDisplay;
+  giftDelivery?: boolean;
   orderId: string;
   orderedAt: string;
   items: OrderEmailItem[];
@@ -37,6 +40,7 @@ export interface OrderConfirmationEmailInput {
 }
 
 export interface OrderShippedEmailInput {
+  giftDelivery?: boolean;
   orderId: string;
   shipmentId: string;
   originName: string;
@@ -54,6 +58,7 @@ const MUTED = '#6B6685';
 const LINE = '#E4E1F0';
 const ADDRESS_FALLBACK = '배송지 정보를 확인할 수 없습니다. 주문 상세에서 확인해주세요.';
 const TRACKING_FALLBACK = '운송장 정보가 등록되면 주문 상세에서 배송 조회를 할 수 있습니다.';
+const GIFT_DELIVERY_PRIVATE = '선물 받는 분이 입력한 주소로 배송됩니다. 받는 분의 주소·연락처·운송장 정보는 구매자에게 공개되지 않습니다.';
 
 export function escapeHtml(value: string): string {
   return value
@@ -168,6 +173,22 @@ export function renderOrderConfirmationEmail(input: OrderConfirmationEmailInput)
   const reference = orderReferenceLabel(input.orderId);
   const orderedAt = formatOrderDateTime(input.orderedAt);
   const subject = `[ICONS] 주문이 접수됐어요 (주문번호 ${reference})`;
+  const totals = input.transaction?.totals;
+  const amountRows: [string, string][] = totals ? [
+    ['굿즈 합계', krw(totals.subtotal)], ['복수구매 할인', `−${krw(totals.volumeDiscountTotal)}`],
+    ['쿠폰 할인', `−${krw(totals.couponDiscountTotal)}`], ['적립금 사용', `−${krw(totals.storeCreditTotal)}`],
+    ['선불 배송비', krw(totals.prepaidShippingTotal)], ['온라인 결제금액', krw(totals.onlineTotal)],
+    ...(totals.collectShippingTotal > 0 ? [['착불 배송비 · 수령 시 별도', krw(totals.collectShippingTotal)], ['총 부담금액', krw(totals.customerTotal)]] as [string, string][] : []),
+  ] : [
+    ['굿즈 합계', krw(input.itemsSubtotal)], ['배송비', shippingFeeLabel(input.shippingFee)],
+    ...(input.discountTotal ? [['쿠폰 할인', `−${krw(input.discountTotal)}`] as [string, string]] : []),
+    ...(input.storeCreditTotal ? [['적립금 사용', `−${krw(input.storeCreditTotal)}`] as [string, string]] : []),
+    ['총 결제금액', krw(input.total)],
+  ];
+  const collectLines = input.transaction?.shipping.flatMap(group => group.collector ? [
+    `착불 수납 주체: ${group.collector.name} · ${group.collector.method}`, group.collector.instructions,
+    `착불 배송비 환급 문의: ${group.collector.refundContact}`,
+  ] : []) ?? [];
 
   const text = textBlock([
     'ICONS 주문이 접수됐어요.',
@@ -178,14 +199,11 @@ export function renderOrderConfirmationEmail(input: OrderConfirmationEmailInput)
     '[주문 굿즈]',
     ...input.items.map(itemLine),
     '',
-    `굿즈 합계: ${krw(input.itemsSubtotal)}`,
-    `배송비: ${shippingFeeLabel(input.shippingFee)}`,
-    ...(input.discountTotal ? [`쿠폰 할인: −${krw(input.discountTotal)}`] : []),
-    ...(input.storeCreditTotal ? [`적립금 사용: −${krw(input.storeCreditTotal)}`] : []),
-    `총 결제금액: ${krw(input.total)}`,
+    ...amountRows.map(([label, value]) => `${label}: ${value}`),
+    ...collectLines,
     '',
     '[배송지]',
-    ...addressLines(input.address),
+    ...(input.giftDelivery ? [GIFT_DELIVERY_PRIVATE] : addressLines(input.address)),
     '',
     '[청약철회 안내]',
     LEGAL_WITHDRAWAL_NOTICE,
@@ -203,15 +221,10 @@ export function renderOrderConfirmationEmail(input: OrderConfirmationEmailInput)
     ]),
     htmlSectionTitle('주문 굿즈'),
     htmlItemRows(input.items),
-    htmlDefinitionRows([
-      ['굿즈 합계', krw(input.itemsSubtotal)],
-      ['배송비', shippingFeeLabel(input.shippingFee)],
-      ...(input.discountTotal ? [['쿠폰 할인', `−${krw(input.discountTotal)}`] as [string, string]] : []),
-      ...(input.storeCreditTotal ? [['적립금 사용', `−${krw(input.storeCreditTotal)}`] as [string, string]] : []),
-      ['총 결제금액', krw(input.total)],
-    ]),
+    htmlDefinitionRows(amountRows),
+    ...collectLines.map(line => htmlParagraph(line)),
     htmlSectionTitle('배송지'),
-    htmlAddress(input.address),
+    input.giftDelivery ? htmlParagraph(GIFT_DELIVERY_PRIVATE) : htmlAddress(input.address),
     htmlSectionTitle('청약철회 안내'),
     htmlParagraph(LEGAL_WITHDRAWAL_NOTICE, INK),
     htmlButton(input.orderUrl, '주문 상세 보기'),
@@ -223,9 +236,9 @@ export function renderOrderConfirmationEmail(input: OrderConfirmationEmailInput)
 export function renderOrderShippedEmail(input: OrderShippedEmailInput): RenderedEmail {
   const reference = orderReferenceLabel(input.orderId);
   const subject = `[ICONS] ${input.originName} 굿즈가 배송을 시작했어요 (주문번호 ${reference})`;
-  const carrierName = input.carrierName?.trim() || null;
-  const trackingNumber = input.trackingNumber?.trim() || null;
-  const trackingUrl = safeLinkUrl(input.trackingUrl);
+  const carrierName = input.giftDelivery ? null : input.carrierName?.trim() || null;
+  const trackingNumber = input.giftDelivery ? null : input.trackingNumber?.trim() || null;
+  const trackingUrl = input.giftDelivery ? null : safeLinkUrl(input.trackingUrl);
   const hasTracking = Boolean(carrierName || trackingNumber);
 
   const trackingRows: [string, string][] = [
@@ -245,13 +258,13 @@ export function renderOrderShippedEmail(input: OrderShippedEmailInput): Rendered
     ...(carrierName ? [`택배사: ${carrierName}`] : []),
     ...(trackingNumber ? [`운송장번호: ${trackingNumber}`] : []),
     ...(trackingUrl ? [`배송 조회: ${trackingUrl}`] : []),
-    ...(hasTracking ? [] : [TRACKING_FALLBACK]),
+    ...(hasTracking || input.giftDelivery ? [] : [TRACKING_FALLBACK]),
     '',
     '[이번 배송 굿즈]',
     ...input.items.map(itemLine),
     '',
     '[배송지]',
-    ...addressLines(input.address),
+    ...(input.giftDelivery ? [GIFT_DELIVERY_PRIVATE] : addressLines(input.address)),
     '',
     `주문 상세: ${input.orderUrl}`,
   ]);
@@ -261,16 +274,41 @@ export function renderOrderShippedEmail(input: OrderShippedEmailInput): Rendered
     htmlParagraph('아래 굿즈가 배송지로 이동하고 있습니다. 다른 배송 건은 주문 상세에서 확인해주세요.'),
     htmlSectionTitle('배송 정보'),
     htmlDefinitionRows(trackingRows),
-    ...(hasTracking ? [] : [htmlParagraph(TRACKING_FALLBACK)]),
+    ...(hasTracking || input.giftDelivery ? [] : [htmlParagraph(TRACKING_FALLBACK)]),
     ...(trackingUrl ? [htmlButton(trackingUrl, '배송 조회하기')] : []),
     htmlSectionTitle('이번 배송 굿즈'),
     htmlItemRows(input.items),
     htmlSectionTitle('배송지'),
-    htmlAddress(input.address),
+    input.giftDelivery ? htmlParagraph(GIFT_DELIVERY_PRIVATE) : htmlAddress(input.address),
     htmlButton(input.orderUrl, '주문 상세 보기'),
   ].join(''));
 
   return { subject, text, html };
+}
+
+export interface GiftRecipientEmailInput {
+  orderId: string;
+  stage: 'confirmation' | 'shipped';
+  items: { name: string; variantName?: string | null; qty: number }[];
+  address: CheckoutAddress;
+  giftUrl: string;
+  carrierName?: string | null;
+  trackingNumber?: string | null;
+  trackingUrl?: string | null;
+}
+/** Recipient messages accept no money, payment, coupon or sender fields. */
+export function renderGiftRecipientEmail(input: GiftRecipientEmailInput): RenderedEmail {
+  const reference = orderReferenceLabel(input.orderId), shipped = input.stage === 'shipped';
+  const title = shipped ? '받을 선물의 배송이 시작됐어요' : '받을 선물이 주문됐어요';
+  const itemLines = input.items.map(item => `${item.name}${item.variantName ? ` · ${item.variantName}` : ''} × ${item.qty}`);
+  const trackingUrl = shipped ? safeLinkUrl(input.trackingUrl) : null;
+  const tracking = shipped ? [input.carrierName ? `택배사: ${input.carrierName}` : '', input.trackingNumber ? `운송장번호: ${input.trackingNumber}` : ''].filter(Boolean) : [];
+  const text = textBlock([title, '', '[받을 선물]', ...itemLines, '', '[배송지]', ...addressLines(input.address), ...tracking,
+    ...(trackingUrl ? [`배송 조회: ${trackingUrl}`] : []), '', `선물함: ${input.giftUrl}`]);
+  const html = htmlDocument(reference, [htmlHeading(title), htmlSectionTitle('받을 선물'), ...itemLines.map(line => htmlParagraph(line, INK)),
+    htmlSectionTitle('배송지'), htmlAddress(input.address), ...tracking.map(line => htmlParagraph(line)),
+    ...(trackingUrl ? [htmlButton(trackingUrl, '배송 조회하기')] : []), htmlButton(input.giftUrl, '선물함 보기')].join(''), '선물 주문번호');
+  return { subject: `[ICONS] ${title}`, text, html };
 }
 
 export interface InquiryAnsweredEmailInput {

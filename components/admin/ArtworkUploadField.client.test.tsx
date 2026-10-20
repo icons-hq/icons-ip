@@ -40,11 +40,12 @@ vi.mock('react', async () => {
 
 vi.mock('../../lib/admin/artwork-upload.client', () => ({ uploadAdminArtwork: vi.fn() }));
 
-function renderField() {
+function renderField(maxFileSizeBytes?: number) {
   hooks.refIndex = 0;
   hooks.stateIndex = 0;
   return ArtworkUploadField({
     allowRemove: true,
+    maxFileSizeBytes,
     currentPath: 'public-media/catalog/curation/123e4567-e89b-42d3-a456-426614174000.webp',
     currentUrl: 'https://cdn.example/catalog/curation/current.webp',
     kind: 'curation',
@@ -76,6 +77,18 @@ describe('ArtworkUploadField removal interaction', () => {
   beforeEach(() => {
     hooks.refs = [];
     hooks.state = [];
+  });
+
+  it('rejects a mosaic file over 900KB without changing its committed image', () => {
+    const initial = renderField(900 * 1024);
+    const input = findElement(initial, element => element.type === 'input' && (element.props as { type?: string }).type === 'file');
+    const target = { files: [{ size: 900 * 1024 + 1, type: 'image/png' }], value: 'oversize.png', setCustomValidity: vi.fn() };
+    (input!.props as { onChange: (event: unknown) => void }).onChange({ currentTarget: target });
+    const result = renderField(900 * 1024);
+    expect(target.value).toBe('');
+    const imagePath = findElement(result, element => element.type === 'input' && (element.props as { name?: string }).name === 'imagePath');
+    expect((imagePath!.props as { value: string }).value).toContain('123e4567');
+    expect(findElements(result, () => true).some(element => (element.props as { children?: unknown }).children === '이미지는 최대 900KB까지 등록할 수 있습니다.')).toBe(true);
   });
 
   it('submits one empty imagePath after the operator selects image removal', () => {

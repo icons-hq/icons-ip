@@ -21,6 +21,7 @@ function data(overrides: Partial<AdminInquiryConsoleData> = {}): AdminInquiryCon
     },
     pageSize: 20,
     total: 2,
+    satisfactionSummary: { satisfied: 3, dissatisfied: 1, unrated: 6 },
     rows: [
       {
         id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa',
@@ -68,6 +69,23 @@ function data(overrides: Partial<AdminInquiryConsoleData> = {}): AdminInquiryCon
 }
 
 describe('InquiryQueueScreen', () => {
+  it('검색과 목록을 앞에 두고 상태별 집계·만족도·문의 바로가기를 보존한다', () => {
+    const html = renderToStaticMarkup(<InquiryQueueScreen data={data()} now={NOW} />);
+    expect(html.indexOf('admin-console-filters')).toBeLessThan(html.indexOf('admin-console-grid-table'));
+    expect(html.indexOf('admin-console-grid-table')).toBeLessThan(html.indexOf('답변 만족도 요약'));
+    expect(html).toContain('문의·리뷰 관리');
+    expect(html).toContain('aria-live="polite"');
+    expect(html).toContain('미답변 2건');
+    expect(html).toContain('평가 응답 중 만족 비율 75%');
+  });
+  it('만족도 필터와 평가 응답 분모를 표시하고 미평가를 0점으로 계산하지 않는다', () => {
+    const html = renderToStaticMarkup(<InquiryQueueScreen data={data()} now={NOW} />);
+    expect(html).toContain('name="satisfaction"');
+    expect(html).toContain('평가 응답 중 만족 비율 75%');
+    expect(html).toContain('만족도 선택을 제외한 현재 조회 조건');
+    const empty = renderToStaticMarkup(<InquiryQueueScreen data={data({ satisfactionSummary: { satisfied: 0, dissatisfied: 0, unrated: 10 } })} now={NOW} />);
+    expect(empty).toContain('평가 응답 중 만족 비율 —'); expect(empty).toContain('평가 응답 없음');
+  });
   it.each([
     ['2026-09-06T00:00:00.001Z', 'open', false],
     ['2026-09-06T00:00:00.000Z', 'open', true],

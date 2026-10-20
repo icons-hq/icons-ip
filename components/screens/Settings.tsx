@@ -13,6 +13,8 @@ import {
   type SettingsActionState,
 } from '@/app/settings/actions';
 import { AccountDeletionPanel } from '@/components/account/AccountDeletionPanel';
+import { MemberActivityConsent } from '@/components/account/MemberActivityConsent';
+import { CustomerDemographicConsent } from '@/components/account/CustomerDemographicConsent';
 import { MypageShell } from '@/components/wc/MypageShell';
 import { WcButton } from '@/components/wc/WcButton';
 import type { AccountDeletionPresentation } from '@/lib/account-deletion';
@@ -183,6 +185,8 @@ export function Settings({
         </WcButton>
       </form>
 
+      <MemberActivityConsent />
+      <CustomerDemographicConsent />
       <form action={marketingAction} className="wc-mypage__form">
         <h2 className="wc-mypage__subtitle">약관 동의</h2>
         <ul className="wc-auth__agree">

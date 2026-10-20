@@ -4,6 +4,7 @@ import type { Good } from '@/lib/data';
 import { useCart } from '@/components/shell/CartProvider';
 import { goodsPurchaseConditionProblem, initialGoodOption } from '@/lib/goods-options';
 import Link from 'next/link';
+import { goodsSaleUnavailableLabel } from '@/lib/goods-sale-period';
 
 /*
  * 담기 버튼 (#173). 굿즈샵 목록 카드와 상세페이지가 같은 재고·수량 제약을
@@ -17,6 +18,7 @@ export function AddToCartButton({ good, variant = 'card' }: { good: Good; varian
   const sold = good.stock === 'soldout' || stockQty <= 0;
   const atStockLimit = quantity >= stockQty;
   const detail = variant === 'detail';
+  const saleLabel = goodsSaleUnavailableLabel(good.salePeriod);
   const label = sold
     ? '품절'
     : !ready
@@ -37,12 +39,12 @@ export function AddToCartButton({ good, variant = 'card' }: { good: Good; varian
             ? `${good.name}, 장바구니 ${quantity}개, 한 개 더 담기`
             : `${good.name} 장바구니에 한 개 담기`;
 
-  if ((good.options?.length ?? 0) > 1) return <Link className="wc-btn shop-cart-button" href={`/shop/${good.id}`}>옵션 선택</Link>;
+  if (!saleLabel && (good.customInputs?.enabled || (good.options?.length ?? 0) > 1 || (good.orderQuantityLimitEnabled && (good.minOrderQty ?? 1) > 1))) return <Link className="wc-btn shop-cart-button" href={`/shop/${good.id}`}>{(good.orderQuantityLimitEnabled && (good.minOrderQty ?? 1) > 1) ? '수량 선택' : '옵션 선택'}</Link>;
   return (
     <button
       aria-label={conditionProblem ? `${good.name} ${conditionProblem}` : ariaLabel}
       className="shop-cart-button"
-      disabled={sold || Boolean(conditionProblem) || atStockLimit || !ready || pending}
+      disabled={sold || Boolean(saleLabel) || Boolean(conditionProblem) || atStockLimit || !ready || pending}
       onClick={() => { if (option) void add(good.id, option.stockQty, option.id); }}
       type="button"
       style={{
@@ -61,7 +63,7 @@ export function AddToCartButton({ good, variant = 'card' }: { good: Good; varian
         transition: 'transform .18s ease, background .25s ease',
       }}
     >
-      {conditionProblem ? '판매 준비 중' : label}
+      {saleLabel ?? (conditionProblem ? '판매 준비 중' : label)}
     </button>
   );
 }

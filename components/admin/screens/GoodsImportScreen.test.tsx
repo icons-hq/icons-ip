@@ -42,6 +42,11 @@ const view = {
 };
 describe('goods workbook confirmation screen', () => {
   beforeEach(() => vi.clearAllMocks());
+  it('제조국 이름 찾기를 파일 업로드·적용과 별도 버튼으로 제공한다', () => {
+    const html = renderToStaticMarkup(<GoodsImportScreen />);
+    expect(html).toContain('제조국 찾기');
+    expect(mocks.prepare).not.toHaveBeenCalled(); expect(mocks.commit).not.toHaveBeenCalled();
+  });
   it('finishes unchanged groups without suggesting product changes', () => {
     const html = renderToStaticMarkup(
       <GoodsImportScreen
@@ -60,6 +65,7 @@ describe('goods workbook confirmation screen', () => {
     expect(html).toContain('공개 상품의 가격·재고가 변경됩니다.');
     expect(mocks.commit).not.toHaveBeenCalled();
     expect(html).toContain('검증한 1개 상품 적용');
+    expect(html).toContain('role="region" aria-label="상품 엑셀 결과 가로 스크롤" tabindex="0"');
   });
   it('reports completed results without exposing a second save button', () => {
     const html = renderToStaticMarkup(

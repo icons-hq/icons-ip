@@ -100,6 +100,17 @@ describe('runReorder', () => {
     expect(reorderNavigatesToCheckout(couponBack)).toBe(true);
   });
 
+  it('복수 쿠폰의 재선택 안내가 있으면 주문서로 자동 이동하지 않는다', async () => {
+    const outcome = await runReorder(orderId, 'reorder', deps({
+      restore: vi.fn().mockResolvedValue({
+        ok: true, restoredLines: 2, skipped: [], coupon: 'not_restored',
+        couponReselectAt: 'checkout', storeCreditUsed: 0,
+      }),
+    }));
+    expect(outcome).toEqual({ kind: 'restored', reapply: { coupon: 'reselect_checkout', storeCredit: 0 } });
+    expect(reorderNavigatesToCheckout(outcome)).toBe(false);
+  });
+
   /* 일부만 담긴 주문에서 쿠폰이 조건에 못 미치면, 주문서로 넘기는 순간 제출이 막힌다(E2-1).
      다시 고를 수 없는 쿠폰은 안내만 하고 주문서로 자동 이동하지 않는다(E2-2). */
   it('쿠폰이 조건 미달이거나 다시 고를 수 없으면 그 이유를 돌려주고 주문서로 자동 이동하지 않는다', async () => {
@@ -156,9 +167,47 @@ describe('runReorder', () => {
       restore: vi.fn().mockRejectedValue(new Error('network')),
     }))).resolves.toEqual({ kind: 'restore_failed' });
   });
+
+  it('선물 주문의 일반 복원 차단은 선물 안내로 남기고 주문서로 이동하지 않는다', async () => {
+    const result = await runReorder(orderId, 'reorder', deps({
+      restore: vi.fn().mockResolvedValue({ ok: false, error: 'gift_order' }),
+    }));
+    expect(result).toEqual({ kind: 'gift_order' });
+    expect(reorderNavigatesToCheckout(result)).toBe(false);
+  });
 });
 
 describe('ReorderOutcomeNotice', () => {
+  it('복수 쿠폰은 실제 선택 UI가 있는 주문서로 안내한다', () => {
+    const html = renderToStaticMarkup(
+      <ReorderOutcomeNotice mode="reorder" orderId={orderId}
+        outcome={{ kind: 'restored', reapply: { coupon: 'reselect_checkout', storeCredit: 0 } }} />,
+    );
+    expect(html).toContain('주문서에서 사용할 쿠폰을 다시 골라주세요.');
+    expect(html).toContain('href="/checkout">주문서에서 쿠폰 다시 고르기</a>');
+    expect(html).not.toContain('장바구니에서 쿠폰 고르기');
+  });
+
+  it('선물 주문은 선물함으로 안내한다', () => {
+    const html = renderToStaticMarkup(
+      <ReorderOutcomeNotice mode="reorder" orderId={orderId} outcome={{ kind: 'gift_order' }} />,
+    );
+    expect(html).toContain('선물 주문은 일반 장바구니로 복원할 수 없어요');
+    expect(html).toContain('href="/gifts"');
+    expect(html).not.toContain('href="/checkout"');
+  });
+
+  it('입력 설정이 달라진 품목의 값과 다시 입력할 곳을 안내한다', () => {
+    const html = renderToStaticMarkup(
+      <ReorderOutcomeNotice mode="reorder" orderId={orderId} outcome={{
+        kind: 'partial', skipped: [{ name: '키링 / 각인 문구: ALPHA', reason: 'custom_inputs_changed' }], reapply: null,
+      }} />,
+    );
+    expect(html).toContain('키링 / 각인 문구: ALPHA(직접입력형 옵션 확인 필요)');
+    expect(html).toContain('해당 굿즈에서 내용을 확인하고 다시 담아주세요');
+    expect(html).toContain('href="/shop"');
+  });
+
   it('쿠폰이 빠졌으면 장바구니에서 다시 고르라고 안내하고 장바구니를 먼저 권한다', () => {
     const html = renderToStaticMarkup(
       <ReorderOutcomeNotice

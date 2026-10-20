@@ -194,8 +194,7 @@ open_confirming_order() {
 select set_config('request.jwt.claim.sub','$buyer',false);
 set role authenticated;
 select public.apply_cart_coupon_code('${coupon_code}');
-insert into public.cart_items(user_id,good_id,variant_id,qty)
-select '$buyer','$good',id,1 from public.goods_variants where good_id='$good' and is_default;
+select public.set_cart_item_quantity('$good',(select id from public.goods_variants where good_id='$good' and is_default),1);
 select user_coupon_id as coupon_id from public.cart_coupon_selections where user_id='$buyer' \gset
 reset role;
 set role service_role;

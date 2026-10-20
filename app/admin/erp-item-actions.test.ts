@@ -1,3 +1,4 @@
+const { legacyOperatorAccessFixture } = await vi.hoisted(() => import('@/lib/admin/access.test-fixtures'));
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({ auth: vi.fn(), client: vi.fn(), rpc: vi.fn(), range: vi.fn(), revalidate: vi.fn() }));
@@ -17,7 +18,7 @@ import {
   setErpCategoryMappingAction,
 } from './erp-item-actions';
 
-const staff = { isConfigured: true, user: { id: 'staff', email: null }, role: 'staff', isStaff: true };
+const staff = { isConfigured: true, user: { id: 'staff', email: null }, role: 'staff', isStaff: true, operatorAccess: legacyOperatorAccessFixture() };
 const member = { isConfigured: true, user: { id: 'member', email: null }, role: 'user', isStaff: false };
 const signedOut = { isConfigured: true, user: null, role: null, isStaff: false };
 const CATEGORY_ID = '00000000-0000-4000-8000-000000071111';

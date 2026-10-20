@@ -14,6 +14,7 @@ import {
 import { adminListExportClaimScreenId, type AdminListExportSheet } from './list-export';
 
 const ORDER_ID = '11111111-1111-4111-8111-111111111111';
+const CUSTOM_INPUTS = {revision:1,fields:[{id:'22222222-2222-4222-8222-222222222222',name:'각인 문구',value:'합성 문구'}]};
 
 function cells(sheet: AdminListExportSheet, rowIndex = 0) {
   return Object.fromEntries(sheet.columns.map((column, index) => [column.header, sheet.rows[rowIndex]?.[index]]));
@@ -31,7 +32,7 @@ function order(overrides: Partial<AdminOrderRecord> = {}): AdminOrderRecord {
     createdAt: '2026-10-06T15:10:00.000Z',
     updatedAt: '2026-10-06T15:10:00.000Z',
     items: [
-      { id: 'item-1', variantId: 'v-1', variantName: '파랑', variantCode: '00123', name: '아크릴 키링', type: 'goods', qty: 2, unitPrice: 15_000 },
+      { id: 'item-1', variantId: 'v-1', variantName: '파랑', variantCode: '00123', name: '아크릴 키링', type: 'goods', qty: 2, unitPrice: 15_000, customInputs:CUSTOM_INPUTS },
       { id: 'item-2', variantId: 'v-2', variantName: null, variantCode: null, name: '스티커', type: 'goods', qty: 1, unitPrice: 12_000 },
     ],
     payments: [{ id: 'pay-1', provider: 'toss', amount: 45_000, status: 'paid', createdAt: '2026-10-06T15:11:00.000Z' }],
@@ -64,6 +65,7 @@ describe('주문 통합검색 목록 엑셀', () => {
       결제금액: 45_000,
       상품명: '아크릴 키링',
       옵션: '파랑',
+      '직접 입력 옵션':'각인 문구: 합성 문구',
       옵션코드: '00123',
       수량: 2,
       판매가: 15_000,
@@ -114,7 +116,7 @@ describe('미입금 확인 목록 엑셀', () => {
       filters: { query: '', page: 2, selectedOrderId: null },
     });
     expect(cells(sheet)).toMatchObject({
-      주문코드: '9A3F21C0', '안내된 입금자명': '홍길동9A3F21C0', 주문일시: '2026-08-17 18:00', '입금 기한': '2026-08-18 11:00',
+      입금확인코드: '9A3F21C0', '안내된 입금자명': '홍길동9A3F21C0', 주문일시: '2026-08-17 18:00', '입금 기한': '2026-08-18 11:00',
       '기한 연장': null, 상태: '입금 대기', 입금액: 23_000,
     });
     expect(sheet.columns.map((column) => column.header)).not.toEqual(expect.arrayContaining(['연락처', '주소']));
@@ -128,7 +130,7 @@ describe('발주·발송/배송현황 목록 엑셀', () => {
     createdAt: '2026-09-08T00:00:00Z', confirmedAt: '2026-09-08T01:00:00Z', buyerName: '구매자', recipientName: '받는 분',
     total: 30_000, paymentMethod: 'card', shippingFee: 3_000, carrier: 'hanjin', trackingNumber: null, shippedAt: null,
     deliveredAt: null, exportedAt: '2026-09-08T02:00:00Z', updatedAt: '2026-09-08T00:00:00Z', delayReason: '입고 지연',
-    expectedShipDate: '2026-09-12', items: [{ id: 'i1', name: '상품', variantName: '파랑', qty: 2 }, { id: 'i2', name: '스티커', variantName: null, qty: 1 }],
+    expectedShipDate: '2026-09-12', items: [{ id: 'i1', name: '상품', variantName: '파랑', qty: 2, customInputs:CUSTOM_INPUTS }, { id: 'i2', name: '스티커', variantName: null, qty: 1 }],
   };
   const carriers = [{ code: 'hanjin', label: '한진택배', active: true, trackingUrlTemplate: 'https://example.test/{trackingNumber}' }];
 
@@ -139,13 +141,14 @@ describe('발주·발송/배송현황 목록 엑셀', () => {
       contacts, origins: [{ id: 'one', name: '김포' }], carriers,
     });
     expect(sheet.screen).toBe('dispatch');
-    expect(sheet.title).toBe('발주·발송 관리 - 발송 대기');
+    expect(sheet.title).toBe('발주(주문)확인/발송관리 - 발송 대기');
     expect(sheet.rows).toHaveLength(2);
     expect(sheet.recordCount).toBe(1);
     expect(cells(sheet)).toMatchObject({
       배송건번호: '000000AA', 주문번호: '11111111', 출고지: '김포', '배송 방식': '택배', '배송 상태': '배송 준비',
       수취인: '받는 분', 연락처: '01000000001', 우편번호: '01234', 주소: '서울 101호', 배송메시지: '문 앞',
       상품명: '상품', 옵션: '파랑', 수량: 2, 결제금액: 30_000, 결제수단: '카드', 배송비: 3_000, 택배사: '한진택배',
+      '직접 입력 옵션':'각인 문구: 합성 문구',
       '출고지시 전달일시': '2026-09-08 11:00',
     });
     expect(sheet.columns.find((column) => column.header === '연락처')?.kind).toBe('code');
@@ -181,7 +184,7 @@ describe('취소·반품·교환 목록 엑셀', () => {
     requestedAt: '2026-10-06T00:00:00Z', collectedAt: null, completedAt: null, refundMethod: null, handlerName: null,
   };
   const orders = new Map([[ORDER_ID, {
-    items: [{ id: 'item-1', name: '아크릴 키링', variantName: '파랑', qty: 2 }],
+    items: [{ id: 'item-1', name: '아크릴 키링', variantName: '파랑', qty: 2, customInputs:CUSTOM_INPUTS }],
     contact: listExportContact({ recipientName: '김수취', phone: '01012345678', postalCode: '04524', address1: '서울' }),
     shipments: [shipmentFixture({ orderId: ORDER_ID, orderItemIds: ['item-1'] })],
   }]]);
@@ -194,6 +197,7 @@ describe('취소·반품·교환 목록 엑셀', () => {
       요청번호: 'C00042', 주문번호: '11111111', 유형: '반품', 사유: '상품 하자·오배송', '처리 상태': '수거중',
       접수일시: '2026-10-06 09:00', '환급 기한': '입고 전', '환불 수단': '미접수', 처리자: '미배정',
       상품명: '아크릴 키링', 수량: 2, 수취인: '김수취', 연락처: '01012345678', 우편번호: '04524', 운송장번호: '123456789012',
+      '직접 입력 옵션':'각인 문구: 합성 문구',
     });
     expect(sheet.conditions).toContainEqual(['처리 상태', '미처리 전체']);
   });
@@ -215,4 +219,14 @@ describe('배송지 칸 읽기', () => {
     expect(listExportContact({})).toBeNull();
     expect(listExportContact([])).toBeNull();
   });
+});
+
+it('exports immutable volume/coupon/credit allocation while keeping COD outside the payment amount', async () => {
+  const { transactionDisplay, transactionLineId, transactionInput } = await import('@/test/fixtures/cart-transaction');
+  const sheet = ordersListExportSheet({ records: [order({ isGift: true, transaction: transactionDisplay, total: 16000,
+    items: [{ id: transactionLineId, variantId: transactionInput.items[0].variantId!, variantName: null, name: '이름이 변경된 상품', type: 'goods', qty: 2, unitPrice: 10000 }] })],
+    paymentMethods: new Map(), filters: { field: 'all', query: '', status: 'all', from: null, to: null, page: 1, orderId: null } });
+  expect(cells(sheet)).toMatchObject({ 결제금액: 16000, '착불 배송비(주문)': 3000, '선불 배송비(주문)': 0,
+    '복수구매 할인(주문)': 2000, '복수구매 할인(품목)': 2000, '쿠폰 할인(품목)': 1000, '적립금 사용(품목)': 1000, '품목 실결제액(배송비 제외)': 16000,
+    '선물 주문': '선물 · 수령인용 가격표 제외' });
 });

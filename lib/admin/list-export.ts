@@ -8,6 +8,7 @@
  * 클라이언트 버튼도 이 모듈의 주소 헬퍼를 쓰므로 서버 전용 의존을 두지 않는다.
  */
 import { ORDER_CLAIM_TYPE_SLUGS, type OrderClaimType } from '@/lib/orders/claims';
+import { ADMIN_VOCABULARY } from './vocabulary';
 
 /** 한 파일에 담는 최대 행 수. 화면 조건의 결과 건수와 엑셀 행 수 양쪽에 적용한다. */
 export const ADMIN_LIST_EXPORT_ROW_LIMIT = 10_000;
@@ -40,9 +41,9 @@ export interface AdminListExportScreen {
 }
 
 export const ADMIN_LIST_EXPORT_SCREENS: Record<AdminListExportScreenId, AdminListExportScreen> = {
-  orders: { id: 'orders', label: '주문 통합검색', href: '/admin/sales/orders', fileLabel: '주문통합검색', asciiLabel: 'orders' },
-  unpaid: { id: 'unpaid', label: '미입금 확인', href: '/admin/sales/unpaid', fileLabel: '미입금확인', asciiLabel: 'unpaid' },
-  dispatch: { id: 'dispatch', label: '발주·발송 관리', href: '/admin/sales/dispatch', fileLabel: '발주발송', asciiLabel: 'dispatch' },
+  orders: { id: 'orders', label: ADMIN_VOCABULARY.orderSearch, href: '/admin/sales/orders', fileLabel: '주문통합검색', asciiLabel: 'orders' },
+  unpaid: { id: 'unpaid', label: ADMIN_VOCABULARY.unpaidOrders, href: '/admin/sales/unpaid', fileLabel: '미결제확인', asciiLabel: 'unpaid' },
+  dispatch: { id: 'dispatch', label: ADMIN_VOCABULARY.dispatch, href: '/admin/sales/dispatch', fileLabel: '발주발송', asciiLabel: 'dispatch' },
   shipping: { id: 'shipping', label: '배송현황 관리', href: '/admin/sales/shipping', fileLabel: '배송현황', asciiLabel: 'shipping' },
   'claims-cancels': { id: 'claims-cancels', label: '취소 관리', href: '/admin/sales/claims/cancels', fileLabel: '취소관리', asciiLabel: 'claims-cancels' },
   'claims-returns': { id: 'claims-returns', label: '반품 관리', href: '/admin/sales/claims/returns', fileLabel: '반품관리', asciiLabel: 'claims-returns' },
@@ -212,11 +213,11 @@ export function listExportSheetName(value: string) {
   return name.replace(/^'+|'+$/g, '') || '목록';
 }
 
-const DROPPED_PARAMS = new Set(['page', 'order', 'back', 'screen', 'registered']);
+const DROPPED_PARAMS = new Set(['page', 'pageSize', 'order', 'back', 'screen', 'registered']);
 
 /**
  * 화면 목록 주소(정규화된 필터가 담긴 href)를 다운로드 주소로 바꾼다.
- * 페이지·선택 주문처럼 목록 범위와 무관한 값은 버린다 — 파일은 전체 페이지를 담는다.
+ * 페이지·목록 수·선택 주문처럼 목록 범위와 무관한 값은 버린다 — 파일은 전체 페이지를 담는다.
  */
 export function adminListExportHref(screen: AdminListExportScreenId, listHref: string) {
   const query = listHref.includes('?') ? listHref.slice(listHref.indexOf('?') + 1) : '';

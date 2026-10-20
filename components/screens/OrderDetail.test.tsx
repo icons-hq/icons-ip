@@ -1,8 +1,12 @@
+import { orderReshipmentReceipt } from '@/test/fixtures/order-reshipment';
 import { shipmentFixture } from '@/lib/orders/shipments.fixture';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import type { OrderDetail as OrderDetailData } from '@/lib/orders';
 import { OrderDetail } from './OrderDetail';
+import { reasonReceipt } from '@/lib/orders/claim-reason-change.fixture';
+import { parseClaimReasonHistory } from '@/lib/orders/claim-reason-change';
+import { transactionDisplay, transactionLineId } from '@/test/fixtures/cart-transaction';
 
 vi.mock('next/navigation', () => ({
   useRouter: () => ({ refresh: () => undefined }),
@@ -42,6 +46,26 @@ function order(overrides: Partial<OrderDetailData> = {}): OrderDetailData {
 }
 
 describe('OrderDetail', () => {
+  it('keeps the original purchase and actual exchange product in separate labeled sections', () => {
+    const html = renderToStaticMarkup(<OrderDetail order={order({ reshipmentHistory: [orderReshipmentReceipt] })} />);
+    expect(html).toContain('주문한 굿즈'); expect(html).toContain('홍실 아크릴 블록');
+    expect(html).toContain('교환으로 받은 굿즈'); expect(html).toContain('교환 출고 파랑 상품');
+    expect(html).not.toContain('REPLACEMENT-BLUE');
+  });
+
+  it('주문 내역에서도 온라인 결제금액과 착불·복수할인 원영수증을 유지한다', () => {
+    const value = order({ transaction: transactionDisplay, total: 16000, shippingFee: 0, discountTotal: 1000, storeCreditTotal: 1000, giftId: ORDER_ID, address: null,
+      items: [{ ...order().items[0], id: transactionLineId, goodId: 'renamed-good', qty: 2, unitPrice: 10000 }], shipments: [] });
+    const html = renderToStaticMarkup(<OrderDetail order={value} />);
+    expect(html).toContain('온라인 결제금액</dt><dd>₩16,000'); expect(html).toContain('총 부담금액</dt><dd>₩19,000');
+    expect(html).toContain('홍실 아크릴 블록 · 선결제 ₩0 · 착불 별도 ₩3,000'); expect(html).toContain('주소와 연락처는 받는 분만'); expect(html).not.toContain('배송지 정보를 확인할 수 없습니다.');
+  });
+  it('교환 사유의 정정 전후와 원접수를 표시하고 내부 협의 근거는 노출하지 않는다', () => {
+    const html = renderToStaticMarkup(<OrderDetail order={order()} claimReasonHistory={parseClaimReasonHistory([reasonReceipt])} />);
+    expect(html).toContain('교환 사유 정정 이력'); expect(html).toContain('최초 접수:');
+    expect(html).toContain(reasonReceipt.fromReason); expect(html).toContain(reasonReceipt.toReason);
+    expect(html).not.toContain(reasonReceipt.agreement); expect(html).not.toContain(reasonReceipt.actorId);
+  });
   it('결제할 수 있는 결제 대기 카드 주문은 결제 화면에서 결제를 이어가게 한다', () => {
     const html=renderToStaticMarkup(<OrderDetail cardPayment={{ state: 'payable', closure: null, reorderMode: null, provider: 'toss' }} order={order({status:'pending',payment:null,shipments:[]})}/>);
     expect(html).toContain('결제를 기다리고 있어요');

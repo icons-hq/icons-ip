@@ -213,7 +213,7 @@ export function normalizeInquiryReplyForm(formData: FormData): InquiryReplyFormR
   const errors: InquiryFormErrors = {};
 
   if (!inquiryId) errors.form = '문의를 찾을 수 없습니다.';
-  if (!body) errors.body = '추가 문의 내용을 입력해주세요.';
+  if (!body && !images.length) errors.body = '추가 문의 내용을 입력하거나 이미지를 첨부해주세요.';
   else if (body.length > MAX_INQUIRY_BODY_LENGTH) {
     errors.body = `문의 내용은 ${MAX_INQUIRY_BODY_LENGTH}자 이내로 입력해주세요.`;
   }

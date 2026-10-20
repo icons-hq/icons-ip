@@ -9,7 +9,6 @@ import { COMMUNITY_ENABLED } from '@/lib/community-visibility';
 import { isCardRewardDestination, isCommunityDestination, type NoticeStrip } from '@/lib/home-catalog';
 import {
   CATEGORY_MEGA_GROUPS,
-  NAV_ITEMS,
   UTIL_ITEMS,
   activeNavId,
   hrefFor,
@@ -26,6 +25,12 @@ import { useCart } from './CartProvider';
 import { MenuSheet } from './MenuSheet';
 import { loadUnreadNotificationCount, notificationNavigationKey } from './notification-count';
 import { SearchOverlay } from './SearchOverlay';
+import { StoreBrandLogo } from './StoreBranding';
+import { DEFAULT_STOREFRONT_BRANDING, type StorefrontBranding } from '@/lib/store-branding';
+import { useStorePresentation } from './StorePresentationProvider';
+import { storeThemeForeground } from '@/lib/store-presentation';
+import type { CSSProperties } from 'react';
+import { configuredNavigationGroups, DEFAULT_STOREFRONT_NAVIGATION, resolveStorefrontNavigation, type StorefrontNavigation } from '@/lib/store-navigation';
 
 /** 검색 오버레이와 전체 메뉴 시트는 동시에 열리지 않는다 — 하나의 상태로 다룬다. */
 type OverlayKind = 'none' | 'search' | 'sheet';
@@ -71,32 +76,29 @@ function useHeaderCondensed(
   return condensed;
 }
 
-/** 카드 리워드 게이트가 꺼지면 packs 항목을 지우고, 그 결과 비어 버린 그룹은 그룹째 렌더하지 않는다. */
-function gatedGroups(groups: NavGroup[], cardRewardsEnabled: boolean): NavGroup[] {
-  if (cardRewardsEnabled) return groups;
-  return groups
-    .map((group) => ({ ...group, items: group.items.filter((item) => item.id !== 'packs') }))
-    .filter((group) => group.items.length > 0);
-}
-
-export function Nav({ noticeStrip = null }: { noticeStrip?: NoticeStrip | null }) {
+export function Nav({ noticeStrip = null, branding = DEFAULT_STOREFRONT_BRANDING, navigation = DEFAULT_STOREFRONT_NAVIGATION }: { noticeStrip?: NoticeStrip | null; branding?: StorefrontBranding; navigation?: StorefrontNavigation }) {
   const pathname = usePathname();
   const cardRewardsEnabled = useCardRewardsEnabled();
   // 게임은 자기완결 번들, 어드민은 자체 작업대, 인증은 집중형 셸을 사용한다.
   if (isStandaloneShellPath(pathname)) return null;
-  return <WcChrome cardRewardsEnabled={cardRewardsEnabled} noticeStrip={noticeStrip} pathname={pathname} />;
+  return <WcChrome cardRewardsEnabled={cardRewardsEnabled} noticeStrip={noticeStrip} pathname={pathname} branding={branding} navigation={navigation} />;
 }
 
 function WcChrome({
   cardRewardsEnabled,
   noticeStrip,
   pathname,
+  branding,
+  navigation,
 }: {
   cardRewardsEnabled: boolean;
   noticeStrip: NoticeStrip | null;
   pathname: string;
+  branding: StorefrontBranding;
+  navigation: StorefrontNavigation;
 }) {
   const { count } = useCart();
+  const { common } = useStorePresentation();
   const topSentinelRef = useRef<HTMLDivElement>(null);
   const headerSentinelRef = useRef<HTMLDivElement>(null);
   const condensed = useHeaderCondensed(topSentinelRef, headerSentinelRef);
@@ -110,13 +112,11 @@ function WcChrome({
   const sheetOpen = overlay.pathname === pathname && overlay.kind === 'sheet';
   const closeOverlay = () => setOverlay({ kind: 'none', pathname });
 
-  const navItems = cardRewardsEnabled
-    ? NAV_ITEMS
-    : NAV_ITEMS.filter((item) => item.id !== 'packs');
+  const navItems = resolveStorefrontNavigation(navigation, cardRewardsEnabled);
   /* 활성 항목은 반드시 여기 한 곳에서만 고른다. 항목별로 isActive를 부르면
      '/shop/new'에서 카테고리(/shop)와 NEW가 동시에 활성으로 보인다. */
   const activeId = activeNavId(pathname, navItems);
-  const megaGroups = gatedGroups(CATEGORY_MEGA_GROUPS, cardRewardsEnabled);
+  const megaGroups = configuredNavigationGroups(CATEGORY_MEGA_GROUPS, navItems);
 
   return (
     <div className="wc-root wc-chrome">
@@ -156,10 +156,10 @@ function WcChrome({
 
       {/* 축약 판정 센티널 — 뷰포트를 벗어나는 순간이 헤더가 top:0에 붙는 순간이다. */}
       <div ref={headerSentinelRef} aria-hidden className="wc-header-sentinel" />
-      <header className="wc-header" data-condensed={condensed ? 'true' : 'false'}>
+      <header className="wc-header" data-condensed={condensed ? 'true' : 'false'} data-store-header={common.headerStyle} style={{ '--store-theme': common.themeColor, '--store-theme-ink': storeThemeForeground(common.themeColor) } as CSSProperties}>
         <div className="wc-header__bar">
           <div className="wc-container wc-header__bar-inner">
-            <Link aria-label="ICONS 홈" className="wc-logo" href="/">ICONS</Link>
+            <Link aria-label={`${branding.displayName} 홈`} className="wc-logo" href="/"><StoreBrandLogo branding={branding} /></Link>
 
             <div className="wc-header__icons">
               <button
@@ -205,6 +205,7 @@ function WcChrome({
                       aria-current={activeId === item.id ? 'page' : undefined}
                       className={`wc-gnb__link${activeId === item.id ? ' is-active' : ''}`}
                       href={hrefFor(item.id)}
+                      title={item.label}
                     >
                       <span className="wc-gnb__label">{item.label}</span>
                     </Link>
@@ -249,7 +250,7 @@ function WcChrome({
         <SearchOverlay open={searchOpen} onClose={closeOverlay} />
       </header>
 
-      <MenuSheet open={sheetOpen} onClose={closeOverlay} cardRewardsEnabled={cardRewardsEnabled} />
+      <MenuSheet open={sheetOpen} onClose={closeOverlay} cardRewardsEnabled={cardRewardsEnabled} navigation={navigation} />
       <BottomTabBar menuOpen={sheetOpen} onMenuOpen={() => setOverlay({ kind: 'sheet', pathname })} />
     </div>
   );
@@ -309,6 +310,7 @@ function CategoryMegaItem({
         aria-expanded={megaOpen}
         className={`wc-gnb__link${active ? ' is-active' : ''}`}
         href={hrefFor('shop')}
+        title={label}
       >
         <span className="wc-gnb__label">{label}</span>
       </Link>

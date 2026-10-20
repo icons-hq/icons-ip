@@ -62,6 +62,7 @@ export function createAdminLocalAutosave({
   let timer: ReturnType<typeof setTimeout> | undefined;
   let pending: Record<string, string> | null = null;
   let submitting = false;
+  let edited = false;
 
   function update(change: Partial<AdminLocalAutosaveSnapshot>) {
     snapshot = { ...snapshot, ...change };
@@ -140,6 +141,7 @@ export function createAdminLocalAutosave({
   function discard() {
     clearTimeout(timer);
     pending = null;
+    edited = false;
     removeStored();
     update({ recovery: null, restoredValues: null, revision: snapshot.revision + Number(snapshot.restoredValues !== null) });
   }
@@ -151,9 +153,12 @@ export function createAdminLocalAutosave({
       listeners.add(listener);
       return () => { listeners.delete(listener); };
     },
-    capture(entries: Iterable<readonly [string, unknown]>) {
+    capture(entries: Iterable<readonly [string, unknown]>, options: { preserveRecovery?: boolean } = {}) {
+      // Async field initialization is not an edit. It must not replace a pending recovery offer with server defaults.
+      if (options.preserveRecovery && (snapshot.recovery || !edited)) return;
       pending = pickValues(entries);
       if (!Object.keys(pending).length) { pending = null; return; }
+      edited = true;
       // Starting a new edit dismisses an older recovery offer; it never replaces the current inputs.
       if (snapshot.recovery) update({ recovery: null });
       clearTimeout(timer);
@@ -162,6 +167,7 @@ export function createAdminLocalAutosave({
     flush,
     restore() {
       const draft = read();
+      edited = Boolean(draft);
       update({ recovery: null, restoredValues: draft?.values ?? null, revision: snapshot.revision + 1 });
     },
     discard,

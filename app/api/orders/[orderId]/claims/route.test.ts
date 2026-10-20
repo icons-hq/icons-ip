@@ -11,6 +11,8 @@ const mocks = vi.hoisted(() => ({
   scheduleApprovedOrderCancellation: vi.fn(),
 }));
 
+vi.mock('@/lib/gifts-order.server', () => ({ loadGiftCheckoutOrder: async () => ({ kind: 'ordinary' }) }));
+
 vi.mock('@/lib/supabase/config', () => ({
   getSupabaseConfig: () => ({ isConfigured: true }),
 }));
@@ -38,7 +40,7 @@ vi.mock('@/lib/orders/cancellation-auto.server', () => ({
 function request(body: Record<string, unknown>) {
   return new Request(`https://icons.local/api/orders/${ORDER_UUID}/claims`, {
     method: 'POST',
-    headers: { Origin: 'https://icons.local', 'content-type': 'application/json' },
+    headers: { host: 'icons.local', Origin: 'https://icons.local', 'content-type': 'application/json' },
     body: JSON.stringify(body),
   });
 }

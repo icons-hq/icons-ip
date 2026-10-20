@@ -1,3 +1,4 @@
+const { legacyOperatorAccessFixture } = await vi.hoisted(() => import('@/lib/admin/access.test-fixtures'));
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   answerProductQuestionAction,
@@ -9,14 +10,14 @@ const QUESTION_ID = '55555555-5555-4555-8555-555555555555';
 const mocks = vi.hoisted(() => ({
   adminState: {
     isConfigured: true,
-    user: { id: 'staff-1', email: 'staff@icons.gg' },
+    user: { id: '33333333-3333-4333-8333-333333333333', email: 'staff@icons.gg' },
     role: 'staff',
-    isStaff: true,
+    isStaff: true, operatorAccess: legacyOperatorAccessFixture(),
   } as {
     isConfigured: boolean;
     user: { id: string; email: string | null } | null;
     role: 'user' | 'staff' | 'admin' | null;
-    isStaff: boolean;
+    isStaff: boolean; operatorAccess?: ReturnType<typeof legacyOperatorAccessFixture>;
   },
   rpc: vi.fn(),
   revalidatePath: vi.fn(),
@@ -26,6 +27,7 @@ vi.mock('@/lib/auth/admin', () => ({ getCurrentAdminAuthState: () => mocks.admin
 vi.mock('@/lib/supabase/server', () => ({ createClient: () => ({ rpc: mocks.rpc }) }));
 vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidatePath }));
 vi.mock('next/navigation', () => ({
+  unstable_rethrow: vi.fn(),
   redirect: (path: string) => {
     throw new Error(`NEXT_REDIRECT:${path}`);
   },
@@ -33,6 +35,9 @@ vi.mock('next/navigation', () => ({
 
 function form(entries: Record<string, string>) {
   const formData = new FormData();
+  formData.set('operationId','44444444-4444-4444-8444-444444444444');
+  formData.set('accountId','33333333-3333-4333-8333-333333333333');
+  formData.set('expectedRevision','7');
   for (const [key, value] of Object.entries(entries)) formData.set(key, value);
   return formData;
 }
@@ -40,12 +45,16 @@ function form(entries: Record<string, string>) {
 beforeEach(() => {
   mocks.adminState = {
     isConfigured: true,
-    user: { id: 'staff-1', email: 'staff@icons.gg' },
+    user: { id: '33333333-3333-4333-8333-333333333333', email: 'staff@icons.gg' },
     role: 'staff',
-    isStaff: true,
+    isStaff: true, operatorAccess: legacyOperatorAccessFixture(),
   };
   mocks.rpc.mockReset();
-  mocks.rpc.mockResolvedValue({ data: null, error: null });
+  mocks.rpc.mockImplementation(async (name, args) => name === 'admin_save_cs_reply' ? { data: {
+    operationId: args.p_operation_id, accountId: args.p_actor_id, surface: args.p_surface, id: args.p_target_id,
+    body: args.p_body, expectedRevision: args.p_expected_revision, revision: String(BigInt(args.p_expected_revision)+BigInt(1)),
+    changed: true, savedAt: '2026-10-14T00:00:00Z',
+  }, error: null } : { data: null, error: null });
   mocks.revalidatePath.mockReset();
 });
 
@@ -56,9 +65,10 @@ describe('answerProductQuestionAction', () => {
       answer: '235mm 까지 나옵니다.',
     }));
 
-    expect(mocks.rpc).toHaveBeenCalledWith('admin_answer_product_question', {
-      target_answer_body: '235mm 까지 나옵니다.',
-      target_question_id: QUESTION_ID,
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_save_cs_reply', {
+      p_operation_id: '44444444-4444-4444-8444-444444444444', p_actor_id: '33333333-3333-4333-8333-333333333333', p_surface: 'product_question', p_expected_revision: '7',
+      p_body: '235mm 까지 나옵니다.',
+      p_target_id: QUESTION_ID,
     });
     expect(state.message).toBeTruthy();
     expect(state.resultKey).toBeTruthy();
@@ -114,7 +124,7 @@ describe('answerProductQuestionAction', () => {
   /* 작성자가 지운 질문은 행이 없다. 일반 실패로 접으면 운영자가 같은 답변을
      계속 다시 시도한다. */
   it('사라진 질문은 이유를 그대로 옮긴다', async () => {
-    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'question_not_found' } });
+    mocks.rpc.mockResolvedValue({ data: null, error: { code: 'P0002', message: 'cs_reply_target_not_found' } });
 
     const state = await answerProductQuestionAction({}, form({
       questionId: QUESTION_ID,
@@ -144,7 +154,7 @@ describe('answerProductQuestionAction', () => {
       answer: '답변',
     }));
 
-    expect(state.errors?.form).toContain('저장하지 못했습니다');
+    expect(state.errors?.form).toContain('저장 결과를 확인하지 못했습니다');
   });
 });
 
