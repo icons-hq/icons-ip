@@ -87,6 +87,8 @@ export interface GoodsPaymentCheckout {
   reconcilePayment(input: {
     readonly attemptId: string;
     readonly caseRef: string;
+    /** 웹훅 본문의 미검증 paymentKey — 게이트웨이 조회 힌트로만 넘긴다. */
+    readonly providerPaymentKeyHint?: string;
   }): Promise<ConfirmOutcome>;
 }
 
@@ -249,7 +251,7 @@ export function createGoodsPaymentCheckout({
       return finalized;
     },
 
-    async reconcilePayment({ attemptId, caseRef }) {
+    async reconcilePayment({ attemptId, caseRef, providerPaymentKeyHint }) {
       if (
         typeof attemptId !== 'string'
         || !/^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(attemptId)
@@ -278,7 +280,10 @@ export function createGoodsPaymentCheckout({
 
       let providerOutcome: ConfirmOutcome;
       try {
-        providerOutcome = await gateway.reconcile(claim.attempt);
+        // 힌트는 조회 대상을 좁힐 뿐 확정 근거가 아니다 — 판정은 게이트웨이 조회가 한다.
+        providerOutcome = typeof providerPaymentKeyHint === 'string' && providerPaymentKeyHint
+          ? await gateway.reconcile(claim.attempt, { providerPaymentKey: providerPaymentKeyHint })
+          : await gateway.reconcile(claim.attempt);
       } catch {
         providerOutcome = {
           attemptId: claim.attempt.id,
