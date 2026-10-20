@@ -21,7 +21,7 @@ function form() {
 beforeEach(() => {
   vi.resetAllMocks();
   mocks.createClient.mockResolvedValue({ rpc: mocks.rpc });
-  mocks.detail.mockResolvedValue({ claim: { stage: 'approved' } });
+  mocks.detail.mockResolvedValue({ claim: { id: CLAIM_ID, orderId: 'order-1', stage: 'approved' }, payment: { provider: 'korpay' }, refund: { method: null } });
   mocks.rpc.mockImplementation(async (name: string) => ({ error: null, data: name === 'admin_goods_manual_recovery_attempts'
     ? [{ request_id: CLAIM_ID, manual_recovery_available: true, attempt_id: 'attempt-1' }] : null }));
   mocks.recover.mockResolvedValue({ outcome: 'provider_cancel_confirmed' });

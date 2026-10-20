@@ -23,7 +23,7 @@ from helpers.review_helpful_contract import quote, snapshot, sql
 
 ROOT = Path(__file__).resolve().parents[2]
 TESTS = ROOT / 'supabase/tests'
-REQUIRED_VERSION = '20261015035229'
+REQUIRED_VERSION = '20261020085415'
 ADMIN = 'public.admin_search_reviews_helpful(uuid,date,date,integer,text,boolean,boolean,boolean,text,text,text,integer,integer,text)'
 PREDECESSOR = 'public.admin_search_reviews_best(uuid,date,date,integer,text,boolean,boolean,boolean,text,text,text,integer,integer,text)'
 

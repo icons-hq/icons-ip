@@ -28,6 +28,56 @@ export type OrderClaimStage = (typeof ORDER_CLAIM_STAGES)[number];
 export const ORDER_CLAIM_REFUND_METHODS = ['pg_cancel', 'bank_transfer'] as const;
 export type OrderClaimRefundMethod = (typeof ORDER_CLAIM_REFUND_METHODS)[number];
 
+/**
+ * 클레임 사유 구분 — DB `order_cancellation_requests.reason_type` check 제약 전체.
+ *
+ * 구매자 청약철회 사유(`lib/orders` ORDER_WITHDRAWAL_REASON_TYPES: 단순 변심·하자)에
+ * 운영자 전액 취소(`staff`, ADR-0018)를 더한 값이다. `staff`는 기한·반송비 부담을
+ * 가르는 구매자 사유가 아니다 — 운영 화면은 운영 사유(staff_reason_code)를 함께 보여준다
+ * (2026-10-12 브라우저 QA QA-4). 구매자 신청은 계속 구매자 사유 두 값만 받는다.
+ */
+export const ORDER_CLAIM_REASON_TYPES = ['change_of_mind', 'defect', 'staff'] as const;
+export type OrderClaimReasonType = (typeof ORDER_CLAIM_REASON_TYPES)[number];
+
+/**
+ * 운영자 전액 취소 사유(ADR-0018). DB `admin_start_order_cancellation`의 허용 목록·
+ * `order_cancellation_requests_staff_origin_shape` 제약과 같아야 한다 — 한쪽만 늘리면
+ * 고를 수 있는데 항상 거절되는 선택지가 생긴다.
+ */
+export const ORDER_STAFF_CANCELLATION_REASON_CODES = [
+  'out_of_stock',
+  'customer_request',
+  'test_payment_cleanup',
+  'other',
+] as const;
+export type OrderStaffCancellationReasonCode = (typeof ORDER_STAFF_CANCELLATION_REASON_CODES)[number];
+
+export const ORDER_STAFF_CANCELLATION_REASON_LABELS: Record<OrderStaffCancellationReasonCode, string> = {
+  out_of_stock: '품절·출고 불가',
+  customer_request: '고객 요청(CS 접수)',
+  test_payment_cleanup: '테스트 결제 정리',
+  other: '기타',
+};
+
+/** 운영자 전액 취소의 사유 구분 표기. 운영 사유는 뒤에 붙는다. */
+export const ORDER_STAFF_CLAIM_REASON_LABEL = '운영자 전액 취소';
+
+export function isOrderClaimReasonType(value: unknown): value is OrderClaimReasonType {
+  return typeof value === 'string' && (ORDER_CLAIM_REASON_TYPES as readonly string[]).includes(value);
+}
+
+export function isOrderStaffCancellationReasonCode(value: unknown): value is OrderStaffCancellationReasonCode {
+  return typeof value === 'string'
+    && (ORDER_STAFF_CANCELLATION_REASON_CODES as readonly string[]).includes(value);
+}
+
+/** 운영자 전액 취소 표기. 사유 코드를 모르면 구분만 적는다. */
+export function orderStaffClaimReasonLabel(staffReasonCode: OrderStaffCancellationReasonCode | null) {
+  return staffReasonCode
+    ? `${ORDER_STAFF_CLAIM_REASON_LABEL} · ${ORDER_STAFF_CANCELLATION_REASON_LABELS[staffReasonCode]}`
+    : ORDER_STAFF_CLAIM_REASON_LABEL;
+}
+
 export const ORDER_CLAIM_TYPE_LABELS: Record<OrderClaimType, string> = {
   cancel: '취소',
   return: '반품',
@@ -88,6 +138,21 @@ export function isOrderClaimStage(value: unknown): value is OrderClaimStage {
 export function isOrderClaimRefundMethod(value: unknown): value is OrderClaimRefundMethod {
   return typeof value === 'string'
     && (ORDER_CLAIM_REFUND_METHODS as readonly string[]).includes(value);
+}
+
+/**
+ * 결제 provider가 정하는 환불 수단. null이면 운영자가 고른다(Korpay·결제 없음).
+ *
+ * 토스 결제는 '환불 완료 확정'이 토스 전액 취소를 발행하므로 결제사 취소뿐이다 —
+ * 계좌 송금을 고를 수 있게 두면 취소가 나간 뒤 송금까지 해서 이중 환불이 된다
+ * (2026-10-12 점검 REF-8·REF-3). 무통장 입금 결제는 계좌 송금으로만 돌려준다.
+ */
+export function orderClaimRefundMethodForProvider(
+  provider: string | null,
+): OrderClaimRefundMethod | null {
+  if (provider === 'toss') return 'pg_cancel';
+  if (provider === 'bank_transfer') return 'bank_transfer';
+  return null;
 }
 
 export function orderClaimTypeForSlug(slug: unknown): OrderClaimType | null {

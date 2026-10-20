@@ -74,11 +74,11 @@ export type TransactionalEmailResult =
 
 interface OrderRow {
   calculation_version: number;
-  store_credit_total: number | null;
   volume_discount_total: number | null;
   shipping_collect_total: number | null;
   shipping_fee: number | null;
   discount_total: number | null;
+  store_credit_total: number | null;
   id: string;
   user_id: string;
   status: string;
@@ -100,7 +100,6 @@ interface OrderEmailContext {
   giftRecipient: string | null;
   giftDelivery: boolean;
   transaction?: GoodsTransactionDisplay;
-  storeCreditTotal: number;
   orderId: string;
   orderStatus: string;
   orderedAt: string;
@@ -108,6 +107,7 @@ interface OrderEmailContext {
   itemsSubtotal: number;
   shippingFee: number;
   discountTotal: number;
+  storeCreditTotal: number;
   total: number;
   address: CheckoutAddress | null;
   shipments: ShipmentRecord[];
@@ -179,7 +179,6 @@ async function loadOrderEmailContext(
   return {
     recipient, giftRecipient, giftDelivery: delivery.isGift,
     ...(receipt ? { transaction: receipt.display } : {}),
-    storeCreditTotal: order.store_credit_total ?? 0,
     orderId: order.id,
     orderStatus: order.status,
     orderedAt: order.created_at,
@@ -187,6 +186,9 @@ async function loadOrderEmailContext(
     itemsSubtotal,
     shippingFee: order.shipping_fee ?? 0,
     discountTotal: order.discount_total ?? 0,
+    // orders.total = 굿즈 합계 + 배송비 − (쿠폰 할인 + 적립금). 서면 교부 메일의 금액 합이
+    // 맞으려면 적립금 사용액도 실어야 한다.
+    storeCreditTotal: order.store_credit_total ?? 0,
     total: order.total,
     address: delivery.address,
     shipments: await loadOrderShipments(service, [orderId], carriers),

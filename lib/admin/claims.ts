@@ -4,10 +4,16 @@ import {
   ORDER_CLAIM_STAGE_LABELS,
   ORDER_CLAIM_STAGES,
   ORDER_CLAIM_TYPE_SLUGS,
+  ORDER_STAFF_CANCELLATION_REASON_CODES,
+  ORDER_STAFF_CANCELLATION_REASON_LABELS,
+  ORDER_STAFF_CLAIM_REASON_LABEL,
   isOpenOrderClaimStage,
+  orderStaffClaimReasonLabel,
+  type OrderClaimReasonType,
   type OrderClaimRefundMethod,
   type OrderClaimStage,
   type OrderClaimType,
+  type OrderStaffCancellationReasonCode,
 } from '@/lib/orders/claims';
 import {
   ORDER_WITHDRAWAL_REASON_LABELS,
@@ -26,7 +32,30 @@ import {
 export const ADMIN_CLAIM_PAGE_SIZE = 20;
 
 export type AdminClaimStageFilter = OrderClaimStage | 'all' | 'open';
-export type AdminClaimReasonFilter = OrderWithdrawalReasonType | 'all';
+/**
+ * 사유 필터. 구매자 사유, 운영자 전액 취소 전체(`staff`), 운영자 전액 취소의 운영 사유 하나
+ * (`staff:<사유 코드>`). DB `admin_search_order_claims`의 p_reason_type이 같은 값을 받는다.
+ */
+export type AdminClaimReasonFilter =
+  | OrderWithdrawalReasonType
+  | 'staff'
+  | `staff:${OrderStaffCancellationReasonCode}`
+  | 'all';
+
+/**
+ * 운영 화면의 클레임 사유 표기(2026-10-12 브라우저 QA QA-4).
+ *
+ * 운영자 전액 취소는 구매자 단순 변심과 섞지 않고 "운영자 전액 취소 · 품절·출고 불가"처럼
+ * 운영 사유까지 적는다. 구매자 사유는 어드민 어휘(굿즈→상품)로 옮긴다.
+ */
+export function adminClaimReasonText(
+  reasonType: OrderClaimReasonType,
+  staffReasonCode: OrderStaffCancellationReasonCode | null = null,
+) {
+  return reasonType === 'staff'
+    ? orderStaffClaimReasonLabel(staffReasonCode)
+    : adminGoodsCopy(ORDER_WITHDRAWAL_REASON_LABELS[reasonType]);
+}
 
 /** 기본 필터는 미처리다. 이 화면의 존재 이유가 "지금 처리할 것"이기 때문이다. */
 export const DEFAULT_ADMIN_CLAIM_STAGE: AdminClaimStageFilter = 'open';
@@ -64,6 +93,11 @@ export const ADMIN_CLAIM_REASON_OPTIONS: { value: AdminClaimReasonFilter; label:
     value: reasonType as AdminClaimReasonFilter,
     label: adminGoodsCopy(ORDER_WITHDRAWAL_REASON_LABELS[reasonType]),
   })),
+  { value: 'staff', label: `${ORDER_STAFF_CLAIM_REASON_LABEL} 전체` },
+  ...ORDER_STAFF_CANCELLATION_REASON_CODES.map((code) => ({
+    value: `staff:${code}` as AdminClaimReasonFilter,
+    label: `${ORDER_STAFF_CLAIM_REASON_LABEL} · ${ORDER_STAFF_CANCELLATION_REASON_LABELS[code]}`,
+  })),
 ];
 
 export const ADMIN_CLAIM_SEARCH_FIELDS = [
@@ -100,7 +134,9 @@ export interface AdminClaimRow {
   orderId: string;
   claimType: OrderClaimType;
   stage: OrderClaimStage;
-  reasonType: OrderWithdrawalReasonType;
+  reasonType: OrderClaimReasonType;
+  /** 운영자 전액 취소의 운영 사유. 구매자 사유 요청은 null이다. */
+  staffReasonCode: OrderStaffCancellationReasonCode | null;
   buyerName: string;
   buyerEmail: string | null;
   orderStatus: string;
@@ -126,7 +162,7 @@ type SearchParamValue = string | string[] | undefined;
 
 const DATE_PATTERN = /^(\d{4})-(\d{2})-(\d{2})$/;
 const STAGE_FILTERS = new Set<string>(['all', 'open', ...ORDER_CLAIM_STAGES]);
-const REASON_FILTERS = new Set<string>(['all', ...ORDER_WITHDRAWAL_REASON_TYPES]);
+const REASON_FILTERS = new Set<string>(ADMIN_CLAIM_REASON_OPTIONS.map((option) => option.value));
 
 function singleParam(value: SearchParamValue) {
   return typeof value === 'string' ? value : '';

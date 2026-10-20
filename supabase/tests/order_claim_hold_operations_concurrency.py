@@ -78,7 +78,7 @@ def race(label, first, second, expected_error=None):
 
 root = Path(__file__).resolve().parents[1]
 if sql("select to_regprocedure('public.admin_change_order_claim_hold(uuid,uuid,integer,text,text,text,uuid)') is null;") == 't':
-    sql((root / 'migrations/20261013123530_order_claim_hold_operations.sql').read_text())
+    sql((root / 'migrations/20261020085300_order_claim_hold_operations.sql').read_text())
 fixture = Path(__file__).with_name('order_claim_hold_operations.sql').read_text()
 fixture = fixture[fixture.index('create function pg_temp.hold_id'):fixture.index('create temp table hold_order_before')]
 fixture = fixture.replace('generate_series(1,12)', 'generate_series(1,22)')

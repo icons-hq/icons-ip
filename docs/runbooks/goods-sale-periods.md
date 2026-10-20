@@ -1,5 +1,7 @@
 # 일반 굿즈 판매기간
 
+이 문서의 `output/`·임시 경로는 내부에 보존한 로컬 검수 근거의 파일 참조이며, 해당 자료와 비공개 원본 캡처는 저장소에 첨부하지 않는다.
+
 일반재고 굿즈의 판매 시작·종료를 상품 편집의 **판매기간**에서 설정한다. 기본은 `설정안함`이다. 할인 기간, 수동 판매 중지, 공개 여부와 별개이며 예약판매 옵션은 자체 예약 접수 기간을 사용한다.
 
 ## 운영 계약
@@ -20,7 +22,7 @@
 
 ## 원본 근거와 차이
 
-2026-10-13 스마트스토어 등록 화면에서 일반 판매기간의 설정함/설정안함, 3·5·7·15·30·60·90·120일, 별도 전시상태를 확인했다. 3일은 `2026.10.13 00:00`–`2026.10.15 23:59`로 표시됐다. 예약구매일 때 이 일반 판매기간 영역은 표시 대상에서 제외됐다. [원본 화면](../../output/goods-sale-period-qa-20261013/source-period-3-days.png), [원본 DOM](../../output/goods-sale-period-qa-20261013/source-period-dom.txt).
+2026-10-13 스마트스토어 등록 화면에서 일반 판매기간의 설정함/설정안함, 3·5·7·15·30·60·90·120일, 별도 전시상태를 확인했다. 3일은 `2026.10.13 00:00`–`2026.10.15 23:59`로 표시됐다. 예약구매일 때 이 일반 판매기간 영역은 표시 대상에서 제외됐다. 원본 화면 (`output/goods-sale-period-qa-20261013/source-period-3-days.png`), 원본 DOM (`output/goods-sale-period-qa-20261013/source-period-dom.txt`).
 
 [스마트스토어 공식 도움말](https://help.sell.smartstore.naver.com/faq/content.help?faqId=12503)은 기간 종료 후 구매 불가와 재판매 시 설정안함 저장을 안내한다. 원본 상품의 저장·등록과 실제 공개 경계 전환은 실행하지 않았다. ICONS는 분 단위 시각 입력을 제공하고 마지막 날 전체를 포함하기 위해 종료를 다음 날 00:00의 제외 경계로 저장한다. 공개 탐색 유지와 이미 승인된 결제 보존은 ICONS의 별도 계약이다.
 
@@ -28,6 +30,6 @@
 
 - `supabase/tests/goods_sale_period.sql`: 구버전 보존·CAS·복사 초기화·예약판매 양방향 충돌·시작 포함/종료 제외·공개 탐색·견적·멱등 주문·종료 후 결제 재정합화·신규 prepare/claim 거부·권한 봉인.
 - `supabase/tests/goods_sale_period_concurrency.sh`: 명시적으로 선택한 로컬 DB의 폐기용 복제본에서 카트·주문·prepare·claim 잠금 대기 중 종료, 다중 상품 공통 시각, 주문 품목 생성 뒤 최종 검사, 기간 CAS와 예약판매 양방향 경합 9종을 실행하고 DB를 정리한다.
-- 실제 관리자 UI: 3일 설정 → 개인 임시저장 → 신규 상품 저장 → 재조회, 5일/15일 두 탭 저장 충돌과 입력 보존, 390px. [저장값](../../output/goods-sale-period-qa-20261013/product-save-readback.json), [충돌 readback](../../output/goods-sale-period-qa-20261013/stale-tab-readback.json), [충돌 화면](../../output/goods-sale-period-qa-20261013/admin-stale-period-preserved.png), [390px](../../output/goods-sale-period-qa-20261013/admin-period-mobile-390.png).
-- 실제 공개 UI: 상세 390px과 검색 목록에서 수동 새로고침 없이 시작 전 → 구매 가능 → 판매 종료로 전환했다. 종료 후 고정 구매바 문구·대비를 확인했고, 검증 후 해당 합성 상품은 기간 없음·재고10으로 복원했다. [자동 경계 readback](../../output/smartstore-reference-20261012/verification-goods-sale-period-public/automatic-boundary-readbacks.json), [수락 화면·해시](../../output/smartstore-reference-20261012/verification-goods-sale-period-public/screenshots.json), [최종 DB](../../output/smartstore-reference-20261012/verification-goods-sale-period-public/final-database-readback.json).
+- 실제 관리자 UI: 3일 설정 → 개인 임시저장 → 신규 상품 저장 → 재조회, 5일/15일 두 탭 저장 충돌과 입력 보존, 390px. 저장값 (`output/goods-sale-period-qa-20261013/product-save-readback.json`), 충돌 readback (`output/goods-sale-period-qa-20261013/stale-tab-readback.json`), 충돌 화면 (`output/goods-sale-period-qa-20261013/admin-stale-period-preserved.png`), 390px (`output/goods-sale-period-qa-20261013/admin-period-mobile-390.png`).
+- 실제 공개 UI: 상세 390px과 검색 목록에서 수동 새로고침 없이 시작 전 → 구매 가능 → 판매 종료로 전환했다. 종료 후 고정 구매바 문구·대비를 확인했고, 검증 후 해당 합성 상품은 기간 없음·재고10으로 복원했다. 자동 경계 readback (`output/smartstore-reference-20261012/verification-goods-sale-period-public/automatic-boundary-readbacks.json`), 수락 화면·해시 (`output/smartstore-reference-20261012/verification-goods-sale-period-public/screenshots.json`), 최종 DB (`output/smartstore-reference-20261012/verification-goods-sale-period-public/final-database-readback.json`).
 - 모든 DB 적용·저장·구매 경계 검증은 격리된 로컬 합성 데이터에서 수행했다. 운영/Preview 반영과 실제 결제·외부 메시지 전송은 실행하지 않았다.

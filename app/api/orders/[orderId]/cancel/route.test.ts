@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { POST } from './route';
+import { maxDuration, POST } from './route';
 
 const ORDER_UUID = 'b2f8a1c4-3d5e-4f6a-8b7c-9d0e1f2a3b4c';
 const USER_ID = 'user-1';
@@ -17,6 +17,11 @@ const mocks = vi.hoisted(() => ({
   orderError: null as { message: string } | null,
   orderEq: vi.fn(),
   rpc: vi.fn(),
+  scheduleApprovedOrderCancellation: vi.fn(),
+}));
+
+vi.mock('@/lib/orders/cancellation-auto.server', () => ({
+  scheduleApprovedOrderCancellation: mocks.scheduleApprovedOrderCancellation,
 }));
 
 vi.mock('@/lib/gifts-order.server', () => ({ loadGiftCheckoutOrder: mocks.giftOrder }));
@@ -68,7 +73,34 @@ describe('POST /api/orders/[orderId]/cancel', () => {
     mocks.orderEq.mockReset();
     mocks.rpc.mockReset();
     mocks.rpc.mockResolvedValue({ data: 'requested', error: null });
+    mocks.scheduleApprovedOrderCancellation.mockReset();
   });
+
+  it('maxDuration은 응답 뒤 결제사 취소 대기·발행 예산(90초)을 선언한다', () => {
+    expect(maxDuration).toBe(90);
+  });
+
+  // request_order_cancellation은 자동 승인을 requested로 접어 돌려준다. 접수 뒤
+  // 결제사 전액 취소를 이어서 실행하는 경로가 예약되지 않으면 고객은 "결제 취소
+  // 처리를 시작합니다"만 받고 카드 승인이 그대로 남는다(2026-10-12 점검 REF-2).
+  it('접수(requested)되면 응답 뒤 결제사 취소 경로를 예약한다', async () => {
+    const response = await POST(request(), context());
+
+    expect(response.status).toBe(202);
+    expect(mocks.scheduleApprovedOrderCancellation).toHaveBeenCalledTimes(1);
+    expect(mocks.scheduleApprovedOrderCancellation).toHaveBeenCalledWith(ORDER_UUID);
+  });
+
+  it.each(['already_requested', 'completed', 'already_canceled', 'not_cancelable', 'deadline_expired'])(
+    '%s 결과는 결제사 취소 경로를 다시 예약하지 않는다',
+    async (result) => {
+      mocks.rpc.mockResolvedValue({ data: result, error: null });
+
+      await POST(request(), context());
+
+      expect(mocks.scheduleApprovedOrderCancellation).not.toHaveBeenCalled();
+    },
+  );
 
   it('RouteContext params를 await하고 canonical UUID와 본인 user_id로 조회한다', async () => {
     const response = await POST(request(), context(ORDER_UUID.toUpperCase()));

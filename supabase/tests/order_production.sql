@@ -69,6 +69,8 @@ select pg_temp.production_actor(1);set local role authenticated;
 select public.admin_update_order_status(:'order_id','confirmed',null,null);
 select pg_temp.transaction_expect_error(format('select public.admin_update_shipment_status(%L,%L,%L,%L)',:'shipment_id','shipping','hanjin','TESTPROD1234'),'production_incomplete');
 select pg_temp.transaction_expect_error(format('select public.admin_shipment_export(array[%L::uuid])',:'shipment_id'),'production_incomplete');
+select 1/case when not (public.admin_origin_pending_export_ids((select origin_id from public.order_shipments where id=:'shipment_id'))->'ids' ? :'shipment_id')
+ then 1 else 0 end as unfinished_production_is_not_selected_for_batch_export;
 select public.admin_change_order_production(:'job_id','start',1,'c7160805-0000-4002-8000-000000000020','c7160805-0000-4000-8000-000000000001','c7160805-0000-4000-9000-000000000001','TEST 실제 제작 시작') as started \gset
 select 1/case when public.admin_change_order_production(:'job_id','start',1,'c7160805-0000-4002-8000-000000000020','c7160805-0000-4000-8000-000000000001','c7160805-0000-4000-9000-000000000001','TEST 실제 제작 시작')=:'started'::jsonb then 1 else 0 end as start_frozen_replay;
 select pg_temp.transaction_expect_error(format('select public.admin_change_order_production(%L,%L,1,gen_random_uuid(),%L,%L,%L)',:'job_id','complete','c7160805-0000-4000-8000-000000000001','c7160805-0000-4000-9000-000000000001','TEST 오래된 상태'),'production_changed');

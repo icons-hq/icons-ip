@@ -12,7 +12,7 @@ export async function getShipmentConsoleData(filters:ShipmentConsoleFilters,surf
  const [result,origins,carriers]=await Promise.all([
   client.rpc(surface==='dispatch'?'admin_search_shipments_notice_console':'admin_search_shipments_console',{p_tab:filters.tab,p_origin_id:filters.originId,p_query:filters.query||null,p_from:filters.from,p_to:filters.to,p_limit:pageSize,p_offset:(filters.page-1)*pageSize,
    p_field:filters.field??'all',p_date_field:filters.dateField??'ordered',p_method:filters.method??null,p_payment_method:filters.paymentMethod??null,p_sort:filters.sort??'oldest',...(surface==='dispatch'?{p_delay_notice_status:filters.delayNotice??null}:{})}),
-  client.from('fulfillment_origins').select('id,name').order('code'),getShippingCarrierRegistry(),
+  client.from('fulfillment_origins').select('id,name,export_template,is_active').order('code'),getShippingCarrierRegistry(),
  ]);
  if(result.error||origins.error||!result.data)throw new Error('배송 건 목록을 불러오지 못했습니다.');
  if(!deliveryObject(result.data)||!Array.isArray(result.data.rows))throw new Error('배송 건 목록을 불러오지 못했습니다.');
@@ -34,5 +34,7 @@ export async function getShipmentConsoleData(filters:ShipmentConsoleFilters,surf
   if(!delayNotice)throw new Error('지연 안내 상태를 확인하지 못했습니다. 목록을 새로고침해주세요.');
   return {...row,delivery,delayNotice,pack,production:productionSummary};
  });
- return {...result.data,rows,surface,filters,pageSize,origins:origins.data??[],carriers} as ShipmentConsoleData;
+ const originRows=(origins.data??[]) as {id:string;name:string;export_template?:string;is_active?:boolean}[];
+ return {...result.data,rows,surface,filters,pageSize,carriers,
+  origins:originRows.map(origin=>({id:origin.id,name:origin.name,template:origin.export_template,active:origin.is_active}))} as ShipmentConsoleData;
 }

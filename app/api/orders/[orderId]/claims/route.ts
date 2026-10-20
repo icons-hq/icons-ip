@@ -3,6 +3,7 @@ import { loadGiftCheckoutOrder } from '@/lib/gifts-order.server';
 import { NextResponse } from 'next/server';
 import { normalizeOrderReference } from '@/lib/checkout';
 import { isOrderWithdrawalReasonType, type OrderWithdrawalReasonType } from '@/lib/orders';
+import { scheduleApprovedOrderCancellation } from '@/lib/orders/cancellation-auto.server';
 import { isOrderClaimType, normalizeRefundAccount, type OrderClaimType } from '@/lib/orders/claims';
 import { getSupabaseConfig } from '@/lib/supabase/config';
 import { createClient } from '@/lib/supabase/server';
@@ -18,7 +19,14 @@ import { createServiceClient, getServiceRoleConfig } from '@/lib/supabase/servic
  *
  * 환불계좌는 요청 본문으로 받아 service_role RPC로 바로 넘긴다. 앱은 값을 저장하지
  * 않고 로그에도 남기지 않는다.
+ *
+ * 취소가 접수되면 응답을 보낸 뒤 서버가 결제사 전액 취소까지 이어서 실행한다
+ * (scheduleApprovedOrderCancellation). 자동 승인된 취소는 곧바로, 결제 승인 확인 중에
+ * 접수된 취소는 finalizer 판정을 기다렸다가 처리한다. 판정은 전부 DB가 다시 한다.
  */
+
+/* 대기 창 40초 + 결제사 취소·조회(8초×3) + DB. after()는 이 예산 안에서 실행된다. */
+export const maxDuration = 90;
 
 const CLAIM_REASONS: Record<OrderClaimType, Record<OrderWithdrawalReasonType, string>> = {
   cancel: {
@@ -129,9 +137,13 @@ export async function POST(
   if (data === 'already_requested') return NextResponse.json({ status: 'requested' });
   if (data === 'completed') return NextResponse.json({ status: 'canceled' });
   if (data === 'auto_approved') {
+    scheduleApprovedOrderCancellation(orderId);
     return NextResponse.json({ status: 'auto_approved' }, { status: 202 });
   }
-  if (data === 'requested') return NextResponse.json({ status: 'requested' }, { status: 202 });
+  if (data === 'requested') {
+    if (claimType === 'cancel') scheduleApprovedOrderCancellation(orderId);
+    return NextResponse.json({ status: 'requested' }, { status: 202 });
+  }
 
   console.error('[orders/claims] unexpected claim request result');
   return errorJson(502, 'claim_failed');

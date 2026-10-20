@@ -58,7 +58,7 @@ docker exec -i "$test_container_id" psql -X -U supabase_admin -d postgres -v ON_
 do $$
 begin
   if (select count(*) from supabase_migrations.schema_migrations where version in
-    ('20261014004950','20261014010252','20261014011902','20261014024634','20261014034238')) <> 5 then
+    ('20261020085340','20261020085341','20261020085349','20261020085351','20261020085355')) <> 5 then
     raise exception 'Apply all goods transaction and subscription migrations before running isolated tests';
   end if;
   if to_regclass('private.goods_transaction_runtime') is null

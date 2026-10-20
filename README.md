@@ -1,8 +1,12 @@
 # ICONS
 
+이 문서의 `output/`·임시 경로는 내부에 보존한 로컬 검수 근거의 파일 참조이며, 해당 자료와 비공개 원본 캡처는 저장소에 첨부하지 않는다.
+
 ICONS는 서브컬처 팬덤을 위한 슈퍼앱 프로토타입이다. 공식 라이선스 **굿즈** 커머스, 수집형 디지털 **카드**(무료 리워드), 오프라인 팝업 티케팅, 캠페인·커뮤니티, IP 허브를 하나의 "White Catalog" 경험(루트 `DESIGN.md`, ADR-0011)으로 묶는다. 어드민은 별도 업무 콘솔로 구성하며 운영 기능과 화면의 원본 대조를 진행 중이다.
 
 ## 현재 상태
+
+누적 어드민 변경의 운영 기준·DRAFT 경로 매핑·기존 결제/출고 호환·DB→앱→shared Preview 적용 순서는 [어드민 통합 배포 런북](docs/runbooks/smartstore-admin-rollout.md)을 따른다. 과거 로컬 QA와 이번 릴리스의 실제 배포 결과는 구분해 기록한다.
 
 - Next.js 16, React 19, Tailwind v4 기반 App Router 프로젝트다.
 - Claude Design 핸드오프를 옮긴 시각적 프로토타입에서 출발했다.
@@ -21,7 +25,7 @@ ICONS는 서브컬처 팬덤을 위한 슈퍼앱 프로토타입이다. 공식 �
 
 관리자 기능의 현재 작업 트리 상태와 격리 검증은 [스마트스토어 조사·구현 대조](docs/research/smartstore-admin/README.md)를 따른다. 쇼핑스토리, 마케팅 링크·세그먼트·인앱 예약, 방문·결제 귀속, 상품상세 표시와 선정 BEST, 클레임 철회·전환·보류, PG 정산 수집 원장, 상품 안내·이벤트 템플릿, 옵션 불러오기와 카테고리·제조국 찾기는 각각의 검증 문서에 범위가 기록돼 있다. [홈 BEST 대표 후기 우선](docs/research/smartstore-admin/home-review-best-priority-implementation-qa.md)은 유효한 선정 후기를 먼저 표시하며 상품 선정·평균·개수를 유지한다. [판매·클레임·고객현황의 전년 비교](docs/research/smartstore-admin/stats-year-comparison.md)는 기존 기간·산식을 유지하며 화면과 엑셀에 같은 비교 날짜를 적용한다. [상품 엑셀 v7](docs/research/smartstore-admin/goods-guidance-workbook.md)은 A/S·사이즈 안내를 상품별로 함께 저장하며 생략·동시 변경·실패 재시도를 검증했다. [상품 사진 편집](docs/research/smartstore-admin/product-photo-editor-implementation-qa.md)은 공유 원본을 보존하며 새 이미지 업로드와 상품 저장으로 반영한다. 남은 일반 기능과 정책 결정이 필요한 신규 거래 구조가 있으며, 개별 로컬 검증을 전체 이식 완료나 운영 배포로 보지 않는다.
 
-[배송정보 템플릿](docs/research/smartstore-admin/shipping-template-parity.md)은 기존 수량별·착불 정책 유지와 명시적 복사·비활성화, 합산군 원상품의 운임 공유, 적용 충돌·응답 유실 복구까지 구현하고 로컬 DB·실제 PC/390px 화면·검증 자원 정리를 완료했다. [통합 결과](output/shipping-settings-integration-20261014/combined-result.json)는 빈 DB의 338개 migration 순서 적용과 실행기 오류 복구 근거를 포함한다. 운영·Preview 환경에는 적용하지 않았다.
+[배송정보 템플릿](docs/research/smartstore-admin/shipping-template-parity.md)은 기존 수량별·착불 정책 유지와 명시적 복사·비활성화, 합산군 원상품의 운임 공유, 적용 충돌·응답 유실 복구까지 구현하고 로컬 DB·실제 PC/390px 화면·검증 자원 정리를 완료했다. 통합 결과 (`output/shipping-settings-integration-20261014/combined-result.json`)는 빈 DB의 338개 migration 순서 적용과 실행기 오류 복구 근거를 포함한다. 운영·Preview 환경에는 적용하지 않았다.
 
 [배송비 묶음그룹 후속 보정](docs/research/smartstore-admin/shipping-charge-groups-parity.md)은 장바구니 사전 조회의 합산군 수량·회원 한도 표시를 원상품 정책과 맞췄다. 343 migration의 SQL100개·실제 응답9종→장바구니 렌더링11개와 로컬 OWN275/FRESH308/CANON343 적용을 확인했으며, 새 브라우저 검증과 별도 레거시 `quote_goods_sales` 표시 경로 변경은 하지 않았다.
 
@@ -35,7 +39,7 @@ cp .env.local.example .env.local # 선택: Supabase를 연결할 때만 값 입�
 npm run dev
 ```
 
-브라우저에서 [http://localhost:3000](http://localhost:3000)을 연다.
+브라우저에서 `http://localhost:3000`을 연다.
 
 Supabase 환경변수를 입력하지 않아도 로컬 개발 앱은 mock 데이터로 실행된다.
 
@@ -110,7 +114,7 @@ KORPAY_TICKET_CANARY_USER_ID=
 
 ### 굿즈 거래 확장 개발
 
-일반 주문·선물·정기배송은 [공통 확정 견적과 원주문 복구](docs/research/smartstore-admin/goods-transaction-module-proposal.md)를 공유한다. 복수구매 할인, 수량 운임과 별도 착불 원장은 DB 계산 버전 2로 보존한다. [ADR-0020](docs/adr/0020-goods-transaction-sources.md)의 원본/당사자/결제 연결 경계를 유지하며, 각 새 DB runtime 스위치는 기본 OFF다.
+일반 주문·선물·정기배송은 [공통 확정 견적과 원주문 복구](docs/research/smartstore-admin/goods-transaction-module-proposal.md)를 공유한다. 복수구매 할인, 수량 운임과 별도 착불 원장은 DB 계산 버전 2로 보존한다. [ADR-0021](docs/adr/0021-goods-transaction-sources.md)의 원본/당사자/결제 연결 경계를 유지하며, 각 새 DB runtime 스위치는 기본 OFF다.
 
 정기배송은 주문서형 결제 키와 분리한 서버 전용 빌링 프로필·암호화 키를 사용한다. 설정 형식, 키 교체·복구, 90초 cron, 로컬 durable Fake와 남은 실제 계약 조건은 [정기배송·자동결제 런북](docs/runbooks/goods-subscription-billing.md)을 따른다. 합성 검증에서는 별도 로컬 DB와 HTTP loopback 앱만 사용하며 운영 자격 증명을 복제하지 않는다. 로컬 검증 성공으로 클라우드 스위치나 스케줄러를 활성화하지 않는다.
 

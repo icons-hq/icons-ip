@@ -1,10 +1,12 @@
 # 매니저 권한 전환과 이메일 초대
 
-정본 결정은 [ADR-0019](../adr/0019-store-manager-capabilities.md), 업무별 권한은 `lib/admin/access.ts`와 `private.operator_role_capabilities()`를 따른다. 운영 배포·DB 적용·최초 역할 활성화는 명시적으로 승인된 범위에서 수행한다.
+정본 결정은 [ADR-0020](../adr/0020-store-manager-capabilities.md), 업무별 권한은 `lib/admin/access.ts`와 `private.operator_role_capabilities()`를 따른다. 운영 배포·DB 적용·최초 역할 활성화는 명시적으로 승인된 범위에서 수행한다.
 
 ## 최초 전환
 
-1. 앱과 `20261013040906` 이후 권한·lifecycle·초대 migration을 같은 배포 범위로 준비한다. migration 자체는 전역 역할 설정을 활성화하지 않는다.
+DB·앱과 기존 운영자의 호환 상태를 확인하는 전체 배포 순서는 [어드민 통합 배포 런북](smartstore-admin-rollout.md)을 따른다.
+
+1. 앱과 [권한 core](../../supabase/migrations/20261020085213_operator_capability_core.sql) 이후 권한·lifecycle·초대 migration을 같은 배포 범위로 준비한다. 원본 경로·해시는 [배포 매핑](../../supabase/manifests/admin-rollout-migration-map.json)으로 대조한다. migration 자체는 전역 역할 설정을 활성화하지 않는다.
 2. 기존 관리자가 판매자 정보 → 매니저 관리에서 모든 기존 운영자를 확인한다. migration 시점의 운영자 명단만 전환 전 호환 권한을 유지하며 이후 raw `staff/admin`을 추가해도 자동 권한은 생기지 않는다.
 3. 이용 중인 기존 관리자 한 명을 통합 매니저로 **명시적으로 선택**한다. 나머지 모든 운영자는 역할 또는 권한 회수를 지정한다. 설정하는 본인은 통합 매니저 또는 계정 주매니저로 남겨야 하며 정지 계정은 회수한다.
 4. 확인 후 역할 적용을 실행하고 목록·본인 역할·각 역할의 접근 범위를 다시 읽는다. 명시적으로 지정한 역할은 전역 활성화 전에도 즉시 제한되며, 활성화 후 역할 없는 계정의 어드민 접근은 차단된다.

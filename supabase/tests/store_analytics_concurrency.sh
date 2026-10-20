@@ -37,6 +37,6 @@ docker cp "$test_dir/restore.list" "$test_container:/tmp/$test_database.list" >/
 docker exec -i "$test_container" pg_restore -U supabase_admin -d "$test_database" --exit-on-error -L "/tmp/$test_database.list" < "$test_dir/base.dump"
 docker exec "$test_container" rm "/tmp/$test_database.list"
 if [ "$(docker exec "$test_container" psql -X -U postgres -d "$test_database" -Atc "select to_regclass('private.store_analytics_settings') is not null")" = "f" ]; then
-  docker exec -i "$test_container" psql -X -U postgres -d "$test_database" -v ON_ERROR_STOP=1 < "$test_script_dir/../migrations/20261013104526_store_analytics_collection.sql" >/dev/null
+  docker exec -i "$test_container" psql -X -U postgres -d "$test_database" -v ON_ERROR_STOP=1 < "$test_script_dir/../migrations/20261020085250_store_analytics_collection.sql" >/dev/null
 fi
 SUPABASE_DB_CONTAINER="$test_container" PGDATABASE="$test_database" python3 "$test_script_dir/store_analytics_concurrency.py"

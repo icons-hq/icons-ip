@@ -1,5 +1,7 @@
 # 운영 콘솔 S1~S5 리허설
 
+이 문서의 `output/`·임시 경로는 내부에 보존한 로컬 검수 근거의 파일 참조이며, 해당 자료와 비공개 원본 캡처는 저장소에 첨부하지 않는다.
+
 정본: [ADR-0014](../adr/0014-admin-console-redesign.md), [스펙 #437](https://github.com/icons-hq/icons-ip/issues/437), [리허설 #434](https://github.com/icons-hq/icons-ip/issues/434). 환경·계정·배포 경계는 [staging.md](staging.md)를 따른다.
 
 **오픈 게이트는 실제 운영팀의 스테이징 수행 결과다.** 자동 테스트, SQL 시드 검증, 에이전트 브라우저 연습은 기술 검증으로 기록한다. 이를 운영팀 리허설 통과로 대체하지 않는다. 2026-09-09 현재 production DB·앱과 공개 정책·FAQ 게시, [고정 staging](https://icons-ip-staging.vercel.app/admin)의 첫 배포·DB·운영자 5명 로그인을 확인했다. main `abed200` / [Actions 34309609698](https://github.com/icons-hq/icons-ip/actions/runs/34309609698)에 결속하며, 다음 main의 연습값 보존은 [staging 절차](staging.md)에 따라 별도로 검증한다. 실제 운영팀 S1~S5 수행 기록은 아직 없다.

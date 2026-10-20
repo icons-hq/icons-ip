@@ -1,5 +1,7 @@
 # 문의 실시간 연결 검증
 
+migration 파일 경로는 [배포 매핑](../../supabase/manifests/admin-rollout-migration-map.json)을 반영했다. 아래 과거 검증·적용 기록은 당시 원본 DRAFT 기준이며 이번 운영 배포의 성공을 뜻하지 않는다.
+
 #432의 실시간 표면은 기존 문의 원장과 서버 액션을 사용한다. 고객 위젯은 FAQ를 먼저 보여주고 로그인한 고객에게 내 문의·새 문의를 제공한다. `/my/inquiries/[inquiryId]`와 어드민 문의 목록·상세, `/admin/cs/chat` 상담하기 화면도 변경을 구독한다. 위젯 오버레이는 `OverlayPortal`로 `body` 아래에 렌더한다.
 
 ## 데이터와 권한
@@ -53,11 +55,11 @@ node supabase/tests/inquiry_realtime_delivery.mjs
 
 앱 코드와 다음 migration을 함께 적용해야 한다. 누락/유효하지 않은 RPC 응답은 정상 빈 상담함으로 표시하지 않고 조회 실패로 처리한다. 운영 환경 적용은 별도 승인 범위다.
 
-- `20261020005944_inquiry_chat_console.sql`: 상담 목록·운영자별 읽음 원장과 RPC.
-- `20261020011348_inquiry_chat_tags_and_history.sql`: 태그·태그 검색·같은 고객의 이전 대화.
-- `20261020021204_inquiry_chat_private_files.sql`: 비공개 첨부·파일 보관함·멱등 발송, 실제 사진이 있는 빈 본문 허용.
-- `20261020023432_inquiry_file_filename_contract.sql`: 다운로드 파일명과 검증된 MIME의 확장자 일치 제약.
-- `20261020023904_inquiry_file_session_lock_order.sql`: 권한 회수와 같은 계정 작업→프로필 잠금 순서로 세션검사 교착 방지.
+- `20261020085524_inquiry_chat_console.sql`: 상담 목록·운영자별 읽음 원장과 RPC.
+- `20261020085526_inquiry_chat_tags_and_history.sql`: 태그·태그 검색·같은 고객의 이전 대화.
+- `20261020085530_inquiry_chat_private_files.sql`: 비공개 첨부·파일 보관함·멱등 발송, 실제 사진이 있는 빈 본문 허용.
+- `20261020085531_inquiry_file_filename_contract.sql`: 다운로드 파일명과 검증된 MIME의 확장자 일치 제약.
+- `20261020085532_inquiry_file_session_lock_order.sql`: 권한 회수와 같은 계정 작업→프로필 잠금 순서로 세션검사 교착 방지.
 
 추가 SQL 회귀는 격리 DB에서 `supabase/tests/inquiry_chat_console.sql`을 실행한다. 실제 역할로 필터/정렬/페이지, 읽음 분리, 미표시 메시지 보존, 태그 멱등/제한/감사, 접근 권한과 최소 ACL을 확인하고 합성 fixture를 전부 롤백한다. 브라우저에서는 합성 고객 새 문의→운영자 실시간 수신/읽음→사진·문구 답변→고객 실시간 수신→담당자/메모/태그→상담완료와 새로고침 후 저장 상태를 확인한다. 태그 전송을 실패시켜 입력 보존과 재시도도 확인한다.
 

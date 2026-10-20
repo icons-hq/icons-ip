@@ -193,6 +193,7 @@ describe('getAdminOrderRecords', () => {
         payment_summaries: [{
           id: 'payment-1',
           ref_id: ORDER_ID,
+          provider: 'toss',
           amount: 32000,
           status: 'paid',
           created_at: '2026-07-14T06:01:00.000Z',
@@ -234,7 +235,7 @@ describe('getAdminOrderRecords', () => {
         status: 'paid',
         total: 32000,
         items: [{ id: 'item-1', name: '화산강림 아크릴 스탠드', type: '아크릴 스탠드', qty: 1, unitPrice: 32000 }],
-        payments: [{ id: 'payment-1', amount: 32000, status: 'paid', createdAt: '2026-07-14T06:01:00.000Z' }],
+        payments: [{ id: 'payment-1', provider: 'toss', amount: 32000, status: 'paid', createdAt: '2026-07-14T06:01:00.000Z' }],
         refunds: [{ id: 'refund-1', amount: 32000, status: 'requested', createdAt: '2026-07-14T07:00:00.000Z' }],
         cancellationRequest: {
           id: '33333333-3333-4333-8333-333333333333',
@@ -259,7 +260,7 @@ describe('getAdminOrderRecords', () => {
     // 서술 reason은 여전히 새면 안 된다. 키 이름으로 정확히 구분한다.
     expect(JSON.stringify(result)).not.toMatch(/must-not-leak|payment_key|"raw"|"reason"/);
     expect(records.find((record) => record.table === 'payment_summaries')?.select).toBe(
-      'id,ref_id,amount,status,created_at',
+      'id,ref_id,provider,amount,status,created_at',
     );
     expect(records.find((record) => record.table === 'refunds')?.select).toBe(
       'id,payment_id,amount,status,created_at',
@@ -504,6 +505,57 @@ describe('getAdminOrderRecords', () => {
     await expect(getAdminOrderRecords(filters)).rejects.toThrow(
       'unsupported cancellation reason type',
     );
+  });
+
+  /* 2026-10-12 QA-4·QA-10: 운영자 전액 취소는 운영 사유를, 결제확인필요 요청은 정합화
+     오류 코드를 함께 싣는다. 운영 사유는 운영자 취소에만 있다 — 짝이 어긋나면 fail closed. */
+  function staffRow(overrides: Record<string, unknown>) {
+    return {
+      id: ORDER_ID,
+      user_id: USER_ID,
+      buyer_name: 'fan',
+      buyer_email: null,
+      status: 'paid',
+      total: 1,
+      address: null,
+      created_at: '2026-07-14T06:00:00.000Z',
+      updated_at: '2026-07-14T06:00:00.000Z',
+      cancellation_request_id: '33333333-3333-4333-8333-333333333333',
+      cancellation_request_status: 'needs_review',
+      cancellation_claim_type: 'cancel',
+      cancellation_stage: 'needs_review',
+      cancellation_reason_type: 'staff',
+      cancellation_staff_reason_code: 'test_payment_cleanup',
+      cancellation_last_error_code: 'provider_unavailable',
+      cancellation_requested_at: '2026-07-14T07:00:00.000Z',
+      cancellation_decided_at: '2026-07-14T07:00:00.000Z',
+      cancellation_decision_note: null,
+      total_count: 1,
+      ...overrides,
+    };
+  }
+
+  it('운영자 전액 취소의 운영 사유와 정합화 오류 코드를 싣는다', async () => {
+    mocks.client = createClient({ records: [], rpc: vi.fn(), rpcRows: [staffRow({})] });
+
+    const result = await getAdminOrderRecords(filters);
+    expect(result.items[0].cancellationRequest).toMatchObject({
+      reasonType: 'staff',
+      staffReasonCode: 'test_payment_cleanup',
+      lastErrorCode: 'provider_unavailable',
+    });
+  });
+
+  it('운영 사유 짝이 어긋나면 fail closed다', async () => {
+    mocks.client = createClient({
+      records: [], rpc: vi.fn(), rpcRows: [staffRow({ cancellation_staff_reason_code: null })],
+    });
+    await expect(getAdminOrderRecords(filters)).rejects.toThrow('unsupported staff cancellation reason');
+
+    mocks.client = createClient({
+      records: [], rpc: vi.fn(), rpcRows: [staffRow({ cancellation_reason_type: 'change_of_mind' })],
+    });
+    await expect(getAdminOrderRecords(filters)).rejects.toThrow('unexpected staff cancellation reason');
   });
 });
 

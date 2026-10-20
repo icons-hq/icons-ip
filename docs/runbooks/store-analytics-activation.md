@@ -1,6 +1,8 @@
 # 방문 통계 활성화와 보존 점검
 
-정본 구현은 `20261013104526_store_analytics_collection.sql`, 측정 정의는 [방문·유입·마케팅 링크 성과 계약](../research/smartstore-admin/traffic-attribution-parity.md)이다.
+migration 파일 경로는 [배포 매핑](../../supabase/manifests/admin-rollout-migration-map.json)을 반영했다. 아래 과거 검증·적용 기록은 당시 원본 DRAFT 기준이며 이번 운영 배포의 성공을 뜻하지 않는다.
+
+정본 구현은 `20261020085250_store_analytics_collection.sql`, 측정 정의는 [방문·유입·마케팅 링크 성과 계약](../research/smartstore-admin/traffic-attribution-parity.md)이다.
 
 ## 발행 전 상태
 

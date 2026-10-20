@@ -50,6 +50,18 @@ function shippedInput(overrides: Partial<Parameters<typeof renderOrderShippedEma
 }
 
 describe('renderOrderConfirmationEmail', () => {
+  it('적립금을 쓰지 않은 주문에는 적립금 줄을 넣지 않는다', () => {
+    const email = renderOrderConfirmationEmail(confirmationInput());
+    expect(email.text).not.toContain('적립금 사용');
+  });
+
+  it('적립금 사용액을 텍스트·HTML 양쪽에 차감으로 적는다', () => {
+    const email = renderOrderConfirmationEmail(confirmationInput({ storeCreditTotal: 1500 }));
+    expect(email.text).toContain('적립금 사용: −₩1,500');
+    expect(email.html).toContain('적립금 사용');
+    expect(email.html).toContain('−₩1,500');
+  });
+
   it('제목과 본문에 주문번호 뒤 8자리를 넣는다', () => {
     const email = renderOrderConfirmationEmail(confirmationInput());
 

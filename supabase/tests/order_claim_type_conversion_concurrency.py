@@ -105,7 +105,7 @@ def race(label, first, second, expected_error=None):
 
 root = Path(__file__).resolve().parents[1]
 if sql("select to_regprocedure('public.admin_convert_order_claim_type(uuid,uuid,integer,text,text,boolean,jsonb)') is null;") == 't':
-    sql((root / 'migrations/20261013115843_order_claim_type_conversion.sql').read_text())
+    sql((root / 'migrations/20261020085259_order_claim_type_conversion.sql').read_text())
 fixture = Path(__file__).with_name('order_claim_type_conversion.sql').read_text()
 fixture = fixture[fixture.index('create function pg_temp.convert_id'):fixture.index('create temp table conversion_order_before')]
 fixture = fixture.replace('generate_series(1,12)', 'generate_series(1,23)')

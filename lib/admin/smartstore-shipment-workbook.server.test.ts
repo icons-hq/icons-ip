@@ -84,6 +84,7 @@ describe('2026-10-20 Smart Store dispatch workbook', () => {
     value(sheet, '송장번호', 2).value = '001234567890';
     const parsed = await parseTrackingWorkbook(Buffer.from(await book.xlsx.writeBuffer()), carriers);
     expect(parsed.issues).toEqual([]);
+    if (!('kind' in parsed) || parsed.kind !== 'smartstore') throw new Error('Expected Smart Store tracking reply');
     expect(trackingImportCommand(parsed, '')).toEqual({ name: 'admin_import_item_tracking_batch', args: { target_rows: [{ line: 2, reference: detail.itemId, carrier: 'hanjin', trackingNumber: '001234567890' }] } });
   });
   it('accepts a full 1,000-order reply whose real UUIDs and distinct addresses exceed the old 256 KiB limit', async () => {

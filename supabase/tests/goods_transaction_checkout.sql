@@ -64,7 +64,9 @@ select public.apply_cart_coupon_code('TRANSACTION10P') as held_coupon \gset
 select jsonb_agg(jsonb_build_object('good_id',good_id,'variant_id',variant_id,'qty',qty,'input_revision',input_revision,'input_values',input_values)) as expected_cart
  from public.cart_items where user_id='bb140000-0000-4000-8000-000000000002' \gset
 select '{"recipientName":"TEST 수취인","phone":"01000000000","postalCode":"12345","address1":"TEST 합성 주소"}' as address \gset
-select pg_temp.transaction_expect_error(format('select public.place_order(%L::jsonb,%L::uuid,%L::public.order_payment_method)',:'address','bb140000-0000-4000-8000-000000000030','card'),'checkout_contract_upgrade_required');
+set local role service_role;
+select pg_temp.transaction_expect_error(format('select public.place_order(%L::uuid,%L::jsonb,%L::uuid,%L::public.order_payment_method)','bb140000-0000-4000-8000-000000000002',:'address','bb140000-0000-4000-8000-000000000030','card'),'checkout_contract_upgrade_required');
+set local role authenticated;
 reset role;
 set local role service_role;
 select public.quote_cart_goods_transaction('bb140000-0000-4000-8000-000000000002',:'expected_cart',null,'{}',:'held_coupon',2000) as blocked \gset

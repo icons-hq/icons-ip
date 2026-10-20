@@ -3,14 +3,15 @@ import { ClaimFeePanel } from '@/components/orders/ClaimFeePanel';
 
 import { GoodsCustomInputsSummary } from '@/components/shop/GoodsCustomInputs';
 import { ShipmentDetails } from '@/components/shop/ShipmentDetails';
-import { ADMIN_VOCABULARY as V, adminGoodsCopy } from '@/lib/admin/vocabulary';
+import { ADMIN_VOCABULARY as V } from '@/lib/admin/vocabulary';
+import { adminClaimReasonText } from '@/lib/admin/claims';
 import Link from 'next/link';
 import type { AdminClaimDetail } from '@/lib/admin/claims.server';
 import { adminClaimStageLabel } from '@/lib/admin/claims';
+import { adminOrderSearchHref } from '@/lib/admin/orders';
 import { krw } from '@/lib/format';
 import {
   formatOrderDateTime,
-  ORDER_WITHDRAWAL_REASON_LABELS,
   orderReferenceLabel,
   refundStatusLabel,
 } from '@/lib/orders';
@@ -52,6 +53,10 @@ const TIMELINE_LABELS: Record<string, string> = {
   'admin.order.bank_refund_complete_transfer': '실제 송금 완료 확인',
   'admin.order.bank_refund_account_viewed': '송금 목적 환불계좌 열람',
   'order.claim_auto_approved': '자동 승인 (발주확인 전 취소)',
+  /* 결제 가능 시간이 지난 결제 준비 건을 결제 없이 닫은 취소. 주문 상세 타임라인과 같은 이름이다. */
+  'order.prepared_goods_cancellation_completed': '결제 준비 건 취소 완료 (구매자 취소)',
+  'system.order.prepared_goods_cancellation_completed': '결제 준비 건 취소 완료 (자동)',
+  'admin.order.prepared_goods_cancellation_completed': '결제 준비 건 취소 완료',
   'admin.order.claim_in_review': '검토중으로 변경',
   'admin.order.claim_approved': '승인',
   'admin.order.claim_rejected': '거부',
@@ -69,13 +74,18 @@ const TIMELINE_LABELS: Record<string, string> = {
   'admin.order.claim_fee_refund': '배송비 실제 반환 완료',
   'admin.order.claim_refund_filed': '환불 접수',
   'admin.order.claim_refund_completed': '환불 완료',
-  'admin.order.cancellation_completed': '취소 완료',
   'admin.order.claim_reshipped': '교환 재출고',
   'admin.order.claim_reshipment_delivered': '교환품 배송완료 확인',
   'admin.order.claim_type_changed': '반품·교환 유형 전환',
   'admin.order.claim_reason_changed': '교환 사유 정정',
   'admin.order.cancellation_approved': '청약철회 승인 (레거시 경로)',
   'admin.order.cancellation_rejected': '청약철회 거절 (레거시 경로)',
+  'admin.order.cancellation_completed': '결제 취소 확인 · 주문 취소 완료',
+  'system.order.cancellation_completed': '결제 취소 확인 · 주문 취소 완료 (자동)',
+  'admin.order.cancellation_needs_review': '결제 취소 확인 필요',
+  'system.order.cancellation_needs_review': '결제 취소 확인 필요 (자동)',
+  'admin.order.cancellation_reconcile_started': '결제 취소 다시 확인',
+  'admin.order.staff_cancellation_started': '운영자 전액 취소 시작',
 };
 
 const PAYMENT_PROVIDER_LABELS: Record<string, string> = {
@@ -207,7 +217,7 @@ export function ClaimDetailScreen({
           <p>
             {adminClaimStageLabel(claim.claimType, claim.stage)}
             {' · '}
-            {adminGoodsCopy(ORDER_WITHDRAWAL_REASON_LABELS[claim.reasonType])}
+            {adminClaimReasonText(claim.reasonType, claim.staffReasonCode)}
             {' · 접수 '}
             <time dateTime={claim.requestedAt}>{formatOrderDateTime(claim.requestedAt)}</time>
           </p>
@@ -259,7 +269,7 @@ export function ClaimDetailScreen({
               </p>
               <Link
                 className="btn btn-sm btn-ghost"
-                href={`/admin/sales/orders?query=${encodeURIComponent(order.id)}`}
+                href={adminOrderSearchHref(order.id)}
                 style={{ marginTop: 10 }}
               >
                 주문 통합검색에서 열기
@@ -273,6 +283,7 @@ export function ClaimDetailScreen({
         <div className="card" id="claim-request">
           <h3 style={{ marginTop: 0 }}>요청 내용</h3>
           <p style={{ fontSize: 13 }}>{claim.reason}</p>
+          {claim.staffNote ? <Row label="운영 메모" value={claim.staffNote} /> : null}
           {detail.sellerIntake ? <SellerClaimIntakeEvidence intake={detail.sellerIntake} /> : null}
           {claim.decisionNote ? <Row label="거부 사유" value={claim.decisionNote} /> : null}
           {claim.holdReason ? <Row label="보류 사유" value={claim.holdReason} /> : null}
@@ -312,6 +323,7 @@ export function ClaimDetailScreen({
           <ClaimActionPanel
             actorId={actorId}
             bankTransfer={payment?.provider === 'bank_transfer'}
+            key={claim.id}
             cancellationForm={cancellationForm}
             carriers={carriers}
             claimId={claim.id}
@@ -324,6 +336,8 @@ export function ClaimDetailScreen({
             collections={claim.collections}
             heldFrom={claim.heldFrom}
             orderId={claim.orderId}
+            paymentProvider={payment?.provider ?? null}
+            recordedRefundMethod={refund?.method ?? null}
             refundCompleted={Boolean(refund?.completedAt)}
             refundFiled={Boolean(refund?.filedAt)}
             refundLedgerOpen={Boolean(refund)}

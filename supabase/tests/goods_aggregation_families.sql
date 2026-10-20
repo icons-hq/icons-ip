@@ -54,7 +54,9 @@ reset role;
 set local role authenticated;
 select set_config('request.jwt.claim.sub','bc140000-0000-4000-8000-000000000002',true);
 select public.set_cart_item_quantity('aggregation-root',:'variant_a',2);
-select pg_temp.aggregation_expect_error('select public.place_order(''{"recipientName":"TEST 수취인","phone":"01000000000","postalCode":"12345","address1":"TEST 합성 주소"}''::jsonb,''bc140000-0000-4000-8000-000000000019'',''card'')','checkout_contract_upgrade_required');
+set local role service_role;
+select pg_temp.aggregation_expect_error('select public.place_order(''bc140000-0000-4000-8000-000000000002''::uuid,''{"recipientName":"TEST 수취인","phone":"01000000000","postalCode":"12345","address1":"TEST 합성 주소"}''::jsonb,''bc140000-0000-4000-8000-000000000019'',''card'')','checkout_contract_upgrade_required');
+set local role authenticated;
 reset role;
 select 1/case when not exists(select 1 from public.orders where user_id='bc140000-0000-4000-8000-000000000002')
  and (select stock_qty=100 from public.goods_variants where id=:'variant_a') then 1 else 0 end as assert_runtime_off_no_active_terms_legacy_atomicity;
@@ -97,7 +99,9 @@ select public.apply_cart_coupon_code('AGGREGATION10') as held_coupon \gset
 select jsonb_agg(jsonb_build_object('good_id',good_id,'variant_id',variant_id,'qty',qty,'input_revision',input_revision,'input_values',input_values)) as expected_cart
  from public.cart_items where user_id='bc140000-0000-4000-8000-000000000002' \gset
 select '{"recipientName":"TEST 수취인","phone":"01000000000","postalCode":"12345","address1":"TEST 합성 주소"}' as address \gset
-select pg_temp.aggregation_expect_error(format('select public.place_order(%L::jsonb,%L::uuid,%L::public.order_payment_method)',:'address','bc140000-0000-4000-8000-000000000030','card'),'checkout_contract_upgrade_required');
+set local role service_role;
+select pg_temp.aggregation_expect_error(format('select public.place_order(%L::uuid,%L::jsonb,%L::uuid,%L::public.order_payment_method)','bc140000-0000-4000-8000-000000000002',:'address','bc140000-0000-4000-8000-000000000030','card'),'checkout_contract_upgrade_required');
+set local role authenticated;
 reset role;
 set local role service_role;
 select public.quote_cart_goods_transaction('bc140000-0000-4000-8000-000000000002',:'expected_cart',:'address','{}',:'held_coupon',0) as quote \gset

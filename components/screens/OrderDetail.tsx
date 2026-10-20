@@ -24,6 +24,8 @@ import {
   newReviewHref,
 } from '@/lib/reviews';
 import { Icon } from '@/components/ui/Icon';
+import type { CheckoutPaymentReading } from '@/lib/checkout';
+import { orderDetailCardPaymentNotice } from '@/lib/checkout-status-copy';
 import { krw } from '@/lib/format';
 import { shippingFeeLabel } from '@/lib/shipping';
 import { GoodsTransactionSummary } from '@/components/checkout/GoodsTransactionSummary';
@@ -33,6 +35,7 @@ import {
   formatOrderDateTime,
   ORDER_WITHDRAWAL_DEADLINE_LABELS,
   ORDER_WITHDRAWAL_REASON_LABELS,
+  orderDetailHeaderPresentation,
   orderReferenceLabel,
   orderStatusMeta,
   paymentStatusLabel,
@@ -187,6 +190,7 @@ function WithdrawalDeadlineNotice({
 
 export function OrderDetail({
   viewerId,
+  cardPayment = null,
   cardRewardsEnabled = false,
   now,
   order,
@@ -197,6 +201,11 @@ export function OrderDetail({
   claimReasonHistory = [],
 }: {
   viewerId?: string;
+  /**
+   * 결제 대기 카드 주문의 결제 국면. 결제 화면과 같은 규칙으로 page가 원장에서 읽어 넘긴다.
+   * 없으면(읽지 못함) 결제 상태를 단정하지 않는다.
+   */
+  cardPayment?: CheckoutPaymentReading | null;
   cardRewardsEnabled?: boolean;
   /** 기한 계산 기준 시각. 테스트 주입용 — 비우면 렌더 시각을 쓴다. */
   now?: Date;
@@ -212,8 +221,8 @@ export function OrderDetail({
   const at = now ?? new Date();
   const hasPhysicalItems = order.items.some(item => order.transaction?.lines.find(line => line.lineId === item.id)?.fulfillment?.mode !== 'digital' && !downloads?.items.some(file => file.itemId === item.id));
   const digitalOnly = order.items.length > 0 && !hasPhysicalItems;
-  const status = { ...orderStatusMeta(order.status) };
-  if (digitalOnly && ['paid', 'confirmed', 'shipping', 'delivered', 'done'].includes(order.status)) {
+  const status = { ...orderDetailHeaderPresentation(order.status, order.cancellationRequest) };
+  if (digitalOnly && !(order.cancellationRequest?.claimType === 'cancel' && isOpenOrderClaimStage(order.cancellationRequest.stage)) && ['paid', 'confirmed', 'shipping', 'delivered', 'done'].includes(order.status)) {
     status.label = order.status === 'delivered' ? '파일 제공 시작' : order.status === 'done' ? '구매확정' : '결제완료';
     status.title = order.status === 'done' ? '구매확정된 디지털 주문이에요' : downloads?.items.some(item => item.available) ? '구매한 파일을 받을 수 있어요' : '파일 제공 상태를 확인해주세요';
     status.body = '구매한 파일과 현재 제공 상태를 아래에서 확인할 수 있습니다. 파일에 문제가 있으면 이 주문의 문의 또는 취소 검토 요청을 이용해주세요.';
@@ -223,6 +232,12 @@ export function OrderDetail({
   const activeCancelClaim = Boolean(
     claimRequest && isCancelClaim && isOpenOrderClaimStage(claimRequest.stage),
   );
+  /* 결제 대기 카드 주문은 결제 화면과 같은 사실을 말한다. 승인 거절·시도 만료처럼 닫힌
+     결제를 '확인 중'으로 말하거나 이어갈 수 없는 결제를 '이어가기'로 안내하지 않는다. */
+  const cardNotice = order.paymentMethod === 'card' && order.status === 'pending'
+    ? orderDetailCardPaymentNotice(cardPayment, { orderId: order.id, orderExpiresAt: order.expiresAt })
+    : null;
+  const headerCopy = cardNotice?.header ?? status;
 
   return (
     <main className="wc-root wc-receipt order-detail-page">
@@ -234,8 +249,8 @@ export function OrderDetail({
           <div className="order-detail-status-row">
             <span className={`order-status order-status--${status.tone}`}>{status.label}</span>
           </div>
-          <h1 className="wc-receipt__title">{status.title}</h1>
-          <p className="wc-receipt__subcopy">{status.body}</p>
+          <h1 className="wc-receipt__title">{headerCopy.title}</h1>
+          <p className="wc-receipt__subcopy">{headerCopy.body}</p>
           <OrderLadder status={order.status} digitalOnly={digitalOnly} />
           <div className="order-detail-meta mono">
             <span>ORDER · {orderReferenceLabel(order.id)}</span>
@@ -267,10 +282,13 @@ export function OrderDetail({
         </div>
       )}
 
-      {order.paymentMethod==='card' && order.status==='pending' && (
+      {/* 다음 행동이 결제 화면에 있을 때만 그곳으로 보낸다. 처리 중인 취소가 있으면 DB가
+          결제를 막고, 승인과 겹친 취소는 승인된 결제를 취소하는 중이라 진행 상태는 아래 취소
+          패널에 맡긴다. */}
+      {cardNotice?.banner && !activeCancelClaim && (
         <div className="wrap"><div className="order-detail-deposit card">
-          <div><strong>진행 중인 결제를 확인해주세요</strong><p>결제 화면에서 현재 상태를 확인할 수 있습니다. 진행하지 않을 주문은 주문 취소로 정리해주세요.</p></div>
-          <Link className="btn btn-holo" href={`/checkout/${order.id}`}>결제 상태 확인·이어가기</Link>
+          <div><strong>{cardNotice.banner.title}</strong><p>{cardNotice.banner.body}</p></div>
+          <Link className="btn btn-holo" href={cardNotice.banner.link.href}>{cardNotice.banner.link.label}</Link>
         </div></div>
       )}
 

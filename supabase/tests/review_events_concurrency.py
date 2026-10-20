@@ -65,7 +65,7 @@ def race(label, first, second, expected_error=None):
 
 root = Path(__file__).resolve().parents[1]
 if sql("select to_regprocedure('public.admin_publish_review_event(uuid,integer,uuid)') is null;") == 't':
-    sql((root / 'migrations/20261013095620_review_events.sql').read_text())
+    sql((root / 'migrations/20261020085245_review_events.sql').read_text())
 fixture = Path(__file__).with_name('review_events.sql').read_text()
 base = fixture[fixture.index('create function pg_temp.review_event_error'):fixture.index("select public.admin_save_review_event('92000000-0000-4000-8000-000000000101'")].replace('delete from private.operator_memberships;', 'delete from private.operator_memberships where true;')
 helper = fixture[fixture.index('create function pg_temp.review_event_order'):fixture.index('select pg_temp.review_event_order(1,8')]

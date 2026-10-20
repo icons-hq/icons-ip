@@ -89,9 +89,25 @@ type CancellationPresentation =
       refundCreatedAt?: string;
     });
 
-function requestPresentation(request: OrderCancellationRequestSummary): CancellationPresentation {
+function requestPresentation(
+  request: OrderCancellationRequestSummary,
+  orderStatus: OrderDetailStatus,
+  refund: OrderRefundSummary | null,
+): CancellationPresentation {
   switch (request.status) {
     case 'requested':
+      /* 결제가 끝나기 전에 접수된 취소는 담당자가 아니라 결제 결과가 닫는다 — 승인되면
+         자동 승인 후 결제 취소, 승인되지 않거나 결제 기한이 지나면 결제 없이 취소된다.
+         "담당자가 검토 중"이라고 하면 일어나지 않을 일을 기다리게 된다(2026-10-12 QA-7). */
+      if (orderStatus === 'pending') {
+        return {
+          canCancel: false,
+          heading: '주문 취소 요청 접수',
+          body: '결제 결과를 확인한 뒤 주문 취소를 마무리합니다. 결제가 완료되지 않으면 결제 기한이 지난 뒤 자동으로 취소되고 알림을 보내드려요.',
+          requestLabel: '결제 확인 대기',
+          requestRequestedAt: request.requestedAt,
+        };
+      }
       return {
         canCancel: false,
         heading: '청약철회 요청 접수',
@@ -125,6 +141,19 @@ function requestPresentation(request: OrderCancellationRequestSummary): Cancella
         ...(request.decidedAt ? { requestDecidedAt: request.decidedAt } : {}),
       };
     case 'completed':
+      /* 환불 원장이 없는 완료는 결제된 금액 없이 닫힌 취소다 — 결제 대기 주문의 즉시 취소,
+         결제 기한·승인 거절로 결제 없이 닫힌 요청. "결제 취소 처리가 완료"라고 하면 없던
+         결제를 취소했다고 말하게 된다(2026-10-12 브라우저 QA R2-3). */
+      if (!refund) {
+        return {
+          canCancel: false,
+          heading: '주문 취소 완료',
+          body: '주문 취소가 완료됐습니다. 결제된 금액이 없어 결제 취소나 환불은 없습니다.',
+          requestLabel: '처리 완료',
+          requestRequestedAt: request.requestedAt,
+          ...(request.decidedAt ? { requestDecidedAt: request.decidedAt } : {}),
+        };
+      }
       return {
         canCancel: false,
         heading: '취소·환불 처리 완료',
@@ -152,7 +181,7 @@ export function cancellationPresentation(
     };
   }
   if (cancellationRequest && cancellationRequest.status !== 'rejected') {
-    return requestPresentation(cancellationRequest);
+    return requestPresentation(cancellationRequest, status, refund);
   }
   const priorClosedRequest = cancellationRequest?.status === 'rejected'
     ? cancellationRequest
@@ -181,10 +210,10 @@ export function cancellationPresentation(
       heading: priorClosedRequest ? '주문 취소 재요청' : '결제 대기 주문 취소',
       body: priorClosedRequest
         ? `${closedNotice} ${priorClosedRequest.decisionNote ? `${priorClosedRequest.decisionNote} ` : ''}주문 상태가 바뀌지 않았다면 다시 요청할 수 있습니다.`
-        : '결제 내역이 없는 주문은 즉시 취소됩니다. 결제 시도가 확인되면 청약철회 요청으로 접수해 안전하게 확인합니다.',
+        : '결제 내역이 없는 주문은 바로 취소됩니다. 결제 가능 시간이 남은 결제가 있으면 결제 결과를 확인한 뒤 취소를 마무리합니다.',
       actionLabel: priorClosedRequest ? '다시 주문 취소 요청' : '주문 취소',
       confirmTitle: '이 주문을 취소할까요?',
-      confirmBody: '결제 내역이 없으면 즉시 취소하고, 내역이 있으면 청약철회 요청으로 접수합니다.',
+      confirmBody: '결제 내역이 없으면 바로 취소하고, 결제 가능 시간이 남은 결제가 있으면 결제 결과를 확인한 뒤 마무리합니다.',
       ...(priorClosedRequest ? {
         requestLabel: closedLabel,
         requestRequestedAt: priorClosedRequest.requestedAt,
@@ -338,7 +367,7 @@ export function OrderCancellation({
           ) : submission === 'success' ? (
             <p className="order-cancellation-feedback order-cancellation-feedback--success" role="status">주문 취소 처리를 완료했습니다. 최신 상태를 불러오고 있어요.</p>
           ) : submission === 'requested' ? (
-            <p className="order-cancellation-feedback order-cancellation-feedback--success" role="status">청약철회 요청을 접수했습니다. 최신 상태를 불러오고 있어요.</p>
+            <p className="order-cancellation-feedback order-cancellation-feedback--success" role="status">{status === 'pending' ? '주문 취소 요청' : '청약철회 요청'}을 접수했습니다. 최신 상태를 불러오고 있어요.</p>
           ) : submission === 'expired' ? (
             <p className="order-cancellation-feedback order-cancellation-feedback--error" role="alert">{DEADLINE_EXPIRED_MESSAGE}</p>
           ) : submission === 'blocked' ? (

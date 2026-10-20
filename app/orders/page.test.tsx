@@ -2,11 +2,13 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { OrderListItem } from '@/lib/orders';
 import type { OrdersPaymentResult } from '@/components/screens/Orders';
+import type { CheckoutPaymentResultFocus } from '@/lib/checkout';
 import Page from './page';
 
 const mocks = vi.hoisted(() => ({
   auth: null as unknown,
   loadOrders: vi.fn(),
+  loadFocus: vi.fn(),
   onboarded: true,
 }));
 
@@ -19,9 +21,18 @@ vi.mock('@/lib/auth/onboarding', () => ({
   onboardingPath: (next: string) => `/onboarding?next=${encodeURIComponent(next)}`,
 }));
 vi.mock('@/lib/orders.server', () => ({ loadOrders: mocks.loadOrders }));
+vi.mock('@/lib/checkout.server', () => ({ loadLatestCardPaymentResultFocus: mocks.loadFocus }));
 vi.mock('@/components/screens/Orders', () => ({
-  Orders: ({ orders, paymentResult }: { orders: OrderListItem[]; paymentResult?: OrdersPaymentResult }) => (
-    <div data-orders={orders.length} data-payment-result={paymentResult ?? 'none'} />
+  Orders: ({ orders, paymentResult, paymentFocus }: {
+    orders: OrderListItem[];
+    paymentResult?: OrdersPaymentResult;
+    paymentFocus?: CheckoutPaymentResultFocus | null;
+  }) => (
+    <div
+      data-orders={orders.length}
+      data-payment-result={paymentResult ?? 'none'}
+      data-focus={paymentFocus ? `${paymentFocus.orderId}:${paymentFocus.outcome}` : 'none'}
+    />
   ),
 }));
 
@@ -40,6 +51,8 @@ describe('/orders', () => {
     mocks.onboarded = true;
     mocks.loadOrders.mockReset();
     mocks.loadOrders.mockResolvedValue([]);
+    mocks.loadFocus.mockReset();
+    mocks.loadFocus.mockResolvedValue(null);
   });
 
   it('payment 쿼리의 결제 결과를 Orders에 전달한다', async () => {
@@ -48,6 +61,24 @@ describe('/orders', () => {
       expect(html).toContain(`data-payment-result="${result}"`);
     }
     expect(mocks.loadOrders).toHaveBeenCalledWith(userId);
+  });
+
+  /* 콜백 리다이렉트에는 주문 식별자가 없다 — 확정되지 않은 결과에서는 결제 대기 주문을
+     함께 읽고, 배너는 최근 결제 시도의 원장 상태로 고른다(UX-2·UX-3). */
+  it('확정되지 않은 결제 결과는 결제 대기 주문과 최근 결제 시도의 실제 결과를 함께 읽는다', async () => {
+    const orderId = '20000000-0000-4000-8000-000000000206';
+    mocks.loadFocus.mockResolvedValue({ orderId, outcome: 'attempt_expired' });
+
+    const html = renderToStaticMarkup(await render('checking'));
+
+    expect(mocks.loadOrders).toHaveBeenCalledWith(userId, { includePending: true });
+    expect(mocks.loadFocus).toHaveBeenCalledWith(userId);
+    expect(html).toContain(`data-focus="${orderId}:attempt_expired"`);
+  });
+
+  it('결제 결과 쿼리가 없으면 결제 시도 원장을 읽지 않는다', async () => {
+    renderToStaticMarkup(await render(undefined));
+    expect(mocks.loadFocus).not.toHaveBeenCalled();
   });
 
   it('복구 링크에서 결제 대기 주문을 포함하고 로그인 복귀에도 선택을 보존한다', async () => {

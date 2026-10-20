@@ -21,8 +21,8 @@ TEST_FILES = ["gift_order_domain.sql", "gift_order_transactions.sql", "gift_orde
               "gift_order_legacy.py", "gift_order_test_support.py", "order_claims.sql", "order_claim_withdrawal.sql",
               "order_claim_reason_changes.sql", "order_claim_type_conversion.sql", "admin_order_address_changes.sql",
               "gift_operations_console.sql"]
-REQUIRED_VERSIONS = ["20261014004950", "20261014010252", "20261014011000", "20261014011100", "20261014011200",
-                     "20261014011300", "20261014011400", "20261014011500", "20261014032249", "20261014041322"]
+REQUIRED_VERSIONS = ["20261020085340", "20261020085341", "20261020085342", "20261020085343", "20261020085345",
+                     "20261020085346", "20261020085347", "20261020085348", "20261020085354", "20261020085356"]
 
 
 class InterruptedRun(Exception):

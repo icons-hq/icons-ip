@@ -1,10 +1,12 @@
 # PG 정산 조회·대조 운영 절차
 
+migration 파일 경로는 [배포 매핑](../../supabase/manifests/admin-rollout-migration-map.json)을 반영했다. 아래 과거 검증·적용 기록은 당시 원본 DRAFT 기준이며 이번 운영 배포의 성공을 뜻하지 않는다.
+
 2026-10-14 구현 기준. 로컬 합성 검증을 완료했으며 실제 PG 연결·운영 적용은 수행하지 않았다. 이 절차의 설정 변경과 운영 수집은 명시적인 운영 승인 범위에서 실행한다.
 
 ## 연결 전 확인
 
-1. 앱과 `20261013132500_pg_settlement_ledger.sql`, 정기결제 기반 및 `20261014032236_goods_transaction_settlement_profiles.sql`을 같은 배포 범위로 준비한다. migration은 격리 DB에서 검증하며 기존 개발 DB를 reset하지 않는다.
+1. 앱과 `20261020085304_pg_settlement_ledger.sql`, 정기결제 기반 및 `20261020085353_goods_transaction_settlement_profiles.sql`을 같은 배포 범위로 준비한다. migration은 격리 DB에서 검증하며 기존 개발 DB를 reset하지 않는다.
 2. 통합·계정 주매니저의 현재 `sales.manage` 권한을 확인한다. 전환 전 호환 모드에서는 기존 admin 전용이다. 부매니저·운영자에게 메뉴나 엑셀 URL만으로 접근을 열지 않는다.
 3. 실제 토스 계약 계정의 MID, 기존 `TOSS_SECRET_KEY`와 `NEXT_PUBLIC_TOSS_CLIENT_KEY`의 같은 모드, 정산 GET 조회 권한을 확인한다. 일반 결제는 기존 주문서형 키를 재사용하고, 정기결제는 저장된 billing profile·MID·환경에 정확히 대응하는 현재 키로 조회한다. 각 계약 계정에서 정산 조회가 허용되는지는 실제 확인이 필요하다. 다른 키를 임의 발급하거나 Preview/로컬에 실키를 복제하지 않는다.
 4. 승인된 환경에서만 `TOSS_SETTLEMENT_MID`를 등록하고 `TOSS_SETTLEMENT_SYNC_ENABLED=true`로 켠다. 미설정/`false`는 비활성이며 앱 빌드의 필수 변수가 아니다. live 모드는 `VERCEL_ENV=production`에서만 연결된다. 키·MID·인증 헤더·scope 지문을 문서, 로그, 브라우저나 파일에 남기지 않는다.

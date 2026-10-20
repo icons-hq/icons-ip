@@ -35,7 +35,7 @@ function order(overrides: Partial<AdminOrderRecord> = {}): AdminOrderRecord {
       { id: 'item-1', variantId: 'v-1', variantName: '파랑', variantCode: '00123', name: '아크릴 키링', type: 'goods', qty: 2, unitPrice: 15_000, customInputs:CUSTOM_INPUTS },
       { id: 'item-2', variantId: 'v-2', variantName: null, variantCode: null, name: '스티커', type: 'goods', qty: 1, unitPrice: 12_000 },
     ],
-    payments: [{ id: 'pay-1', amount: 45_000, status: 'paid', createdAt: '2026-10-06T15:11:00.000Z' }],
+    payments: [{ id: 'pay-1', provider: 'toss', amount: 45_000, status: 'paid', createdAt: '2026-10-06T15:11:00.000Z' }],
     refunds: [],
     cancellationRequest: null,
     manualRecoveryAttempt: null,
@@ -93,8 +93,8 @@ describe('주문 통합검색 목록 엑셀', () => {
         items: [],
         shipments: [],
         cancellationRequest: {
-          id: 'req', status: 'requested', claimType: 'return', stage: 'collecting', reasonType: 'defect',
-          requestedAt: '2026-10-06T00:00:00Z', decidedAt: null, decisionNote: null,
+          id: 'req', status: 'requested', claimType: 'return', stage: 'collecting', reasonType: 'defect', staffReasonCode: null,
+          requestedAt: '2026-10-06T00:00:00Z', decidedAt: null, decisionNote: null, lastErrorCode: null,
         },
       })],
       paymentMethods: new Map(),
@@ -180,7 +180,7 @@ describe('발주·발송/배송현황 목록 엑셀', () => {
 describe('취소·반품·교환 목록 엑셀', () => {
   const claim: AdminClaimRow = {
     id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', reference: 42, orderId: ORDER_ID, claimType: 'return', stage: 'collecting',
-    reasonType: 'defect', buyerName: 'maple_fan', buyerEmail: null, orderStatus: 'delivered', orderTotal: 45_000,
+    reasonType: 'defect', staffReasonCode: null, buyerName: 'maple_fan', buyerEmail: null, orderStatus: 'delivered', orderTotal: 45_000,
     requestedAt: '2026-10-06T00:00:00Z', collectedAt: null, completedAt: null, refundMethod: null, handlerName: null,
   };
   const orders = new Map([[ORDER_ID, {

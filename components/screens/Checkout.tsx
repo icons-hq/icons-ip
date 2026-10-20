@@ -22,7 +22,7 @@ import { goodsCustomInputProblem } from '@/lib/goods-custom-inputs';
 import { cartItemKey } from '@/lib/cart';
 import { cartOptionGood, goodAtQuotedPrice, optionLabel } from '@/lib/goods-options';
 import { goodsPurchaseReasonMessage, goodsSalesQuoteProblem } from '@/lib/goods-sales';
-import { couponErrorNeedsPendingOrder, type UserCouponSummary } from '@/lib/coupons';
+import { couponErrorNeedsPendingOrder, MIN_PAYABLE_TOTAL, type UserCouponSummary } from '@/lib/coupons';
 import { normalizeStoreCreditAmount } from '@/lib/store-credits';
 import { goodsShipDateLabel } from '@/lib/goods-preorders';
 import { paymentFailNoticeCopy } from '@/lib/payments/checkout-fail-copy';
@@ -31,6 +31,10 @@ import { shippingFeeLabel } from '@/lib/shipping';
 import { useShippingQuote } from '@/components/shop/useShippingQuote';
 import { ShippingGroupSummary } from '@/components/shop/ShippingGroupSummary';
 import { parseShippingDestination } from '@/lib/shipping-regions';
+
+/* 결제 대기 주문의 최소 결제 금액. DB 트리거(orders_korpay_minimum_amount)가 같은 값으로
+   막는다 — 쿠폰·적립금은 그 아래로 깎지 않으므로 굿즈 금액+배송비가 기준이다. */
+const BELOW_MINIMUM_PAYMENT_COPY = `결제 금액이 최소 결제 금액(${krw(MIN_PAYABLE_TOTAL)})보다 적어 주문할 수 없어요. 굿즈를 더 담아주세요.`;
 
 const actionErrors = {
   account_suspended: '정지된 계정은 새 주문을 만들 수 없어요.',
@@ -59,6 +63,7 @@ const actionErrors = {
   preorder_capacity_exceeded: '예약 가능한 수량이 변경됐어요. 장바구니에서 수량을 다시 확인해주세요.',
   preorder_policy_not_configured: '굿즈의 예약 조건을 확인 중입니다. 잠시 후 다시 시도해주세요.',
   shipping_region_unresolved: '배송지의 배송 가능 여부와 배송비가 변경되었습니다. 배송지와 최신 배송비를 다시 확인해주세요.',
+  payment_below_minimum: BELOW_MINIMUM_PAYMENT_COPY,
   unavailable: '주문을 만들지 못했어요. 잠시 후 다시 시도해주세요.',
 } as const;
 
@@ -162,7 +167,13 @@ export function Checkout({
    * 판단을 한다(여기 판단은 UI 안내일 뿐 게이트가 아니다).
    */
   const bankTransferBlockedByCart = lines.some(({ good }) => good?.allowBankTransfer === false);
-  const purchaseProblem = shipping.sales ? goodsSalesQuoteProblem(shipping.sales) : null;
+  /* 쿠폰·적립금은 최소 결제 금액 아래로 깎지 않으므로, 굿즈 금액+배송비가 그 아래면 주문
+     생성이 DB에서 거절된다. 견적이 확정된 뒤에만 판정해 제출 전에 막는다. */
+  const belowMinimumPayment = shippingReady && Boolean(shipping.sales)
+    && subtotal + (shipping.quote?.finalTotalFee ?? shippingFee) < MIN_PAYABLE_TOTAL;
+  const purchaseProblem = shipping.sales
+    ? goodsSalesQuoteProblem(shipping.sales) ?? (belowMinimumPayment ? BELOW_MINIMUM_PAYMENT_COPY : null)
+    : null;
   const cardSelectable = paymentAvailable && shipping.sales?.paymentMethods.card === true;
   const bankTransferSelectable = bankTransferAvailable && !bankTransferBlockedByCart && shipping.sales?.paymentMethods.bankTransfer === true;
   const selectedPaymentMethod = checkoutMethodAvailable(paymentMethod, { card: cardSelectable, bankTransfer: bankTransferSelectable })

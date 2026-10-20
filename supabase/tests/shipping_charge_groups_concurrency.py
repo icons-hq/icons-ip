@@ -242,7 +242,7 @@ def place_body(selection, quoted, checkout_number):
 def run():
     clone = OwnedClone()
     try:
-        assert clone.sql("begin read only;select count(*) from supabase_migrations.schema_migrations where version in('20261014121521','20261014122555','20261015001607');rollback;") == '3'
+        assert clone.sql("begin read only;select count(*) from supabase_migrations.schema_migrations where version in('20261020085408','20261020085410','20261020085411');rollback;") == '3'
         assert clone.sql('begin read only;select count(*) from auth.users where id=' + quote(ACTOR) + ';rollback;') == '0'
         tests = Path(__file__).resolve().parent
         fixture_source = (tests / 'shipping_charge_groups.sql').read_text()

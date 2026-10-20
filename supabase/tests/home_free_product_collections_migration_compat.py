@@ -9,7 +9,7 @@ database = os.environ['PGDATABASE']
 if not database.startswith('icons_home_products_concurrency_'):
     raise SystemExit('Use the disposable free-product wrapper')
 migration = Path(sys.argv[1]).resolve()
-if migration.name != '20261013173138_home_free_product_collections.sql':
+if migration.name != '20261020085320_home_free_product_collections.sql':
     raise SystemExit('Expected the free-product draft migration')
 setup = r"""
 \set ON_ERROR_STOP on

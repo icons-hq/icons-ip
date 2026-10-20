@@ -73,7 +73,7 @@ def race(label, first, second, expected_error=None):
 
 root = Path(__file__).resolve().parents[1]
 if sql("select to_regprocedure('public.admin_withdraw_order_claim(uuid,uuid,integer,text,boolean)') is null;") == 't':
-    sql((root / 'migrations/20261013110000_order_claim_withdrawal.sql').read_text())
+    sql((root / 'migrations/20261020085251_order_claim_withdrawal.sql').read_text())
 fixture = Path(__file__).with_name('order_claim_withdrawal.sql').read_text()
 fixture = fixture[fixture.index('create function pg_temp.withdraw_id'):fixture.index('create temp table withdrawal_before')]
 fixture = fixture.replace('generate_series(1,12)', 'generate_series(1,22)')

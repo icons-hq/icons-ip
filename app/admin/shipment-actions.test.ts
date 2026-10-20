@@ -1,6 +1,6 @@
 import { legacyOperatorAccessFixture } from '@/lib/admin/access.test-fixtures';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { completeShipmentsAction, exportShipmentsAction, saveShipmentExportColumnsAction } from './shipment-actions';
+import { completeShipmentsAction, exportPendingOriginShipmentsAction, exportShipmentsAction, saveShipmentExportColumnsAction } from './shipment-actions';
 import { DEFAULT_SHIPMENT_EXPORT_COLUMNS } from '@/lib/admin/shipment-workbook';
 
 const ID = '00000000-0000-4000-8000-000000000001';
@@ -18,7 +18,7 @@ beforeEach(() => {
   mocks.auth.mockResolvedValue({ operatorAccess: legacyOperatorAccessFixture(), isConfigured: true, user: { id: 'staff' }, isStaff: true, role: 'staff' });
   mocks.rpc.mockImplementation(async (name: string) => ({ error: null, data: name === 'admin_shipment_export' || name === 'admin_smartstore_shipment_export'
     ? { shipments: [{ id: ID, updatedAt: STAMP }] } : 1 }));
-  mocks.build.mockResolvedValue({ bytes: Buffer.from('workbook'), mime: 'test/workbook', extension: 'xlsx' });
+  mocks.build.mockResolvedValue({ bytes: Buffer.from('workbook'), mime: 'test/workbook', extension: 'xlsx', name: 'ICONS-출고지시-2026-10-12-남양주.xlsx' });
   mocks.encrypt.mockReturnValue({ bytes: Buffer.from('encrypted-workbook'), sha256: 'a'.repeat(64) });
 });
 
@@ -61,6 +61,39 @@ describe('shipment action boundaries', () => {
       : { data: null, error: { message: 'shipment_changed' } });
     expect(await exportShipmentsAction([ID], 'xlsx', 'smartstore', credentials)).toEqual({ error: '배송 상태가 변경되었습니다. 목록을 새로고침한 뒤 다시 내보내주세요.' });
     expect(mocks.refresh).not.toHaveBeenCalled();
+  });
+  it('names the downloaded file after the built warehouse file and explains a multi-warehouse ZIP', async () => {
+    expect(await exportShipmentsAction([ID], 'xlsx', 'warehouse')).toMatchObject({ file: { name: 'ICONS-출고지시-2026-10-12-남양주.xlsx' }, message: '1건의 출고지시를 내려받았습니다.' });
+    mocks.build.mockResolvedValue({ bytes: Buffer.from('zip'), mime: 'application/zip', extension: 'zip', name: 'ICONS-출고지시-2026-10-12-출고지별.zip' });
+    mocks.rpc.mockImplementation(async (name:string)=>({error:null,data:name==='admin_shipment_export'?{shipments:[{id:ID,updatedAt:STAMP,originId:'first'},{id:SECOND,updatedAt:STAMP,originId:'second'}]}:2}));
+    expect((await exportShipmentsAction([ID,SECOND], 'xlsx', 'warehouse')).message).toContain('출고지별 파일을 ZIP으로 묶었습니다.');
+  });
+  it('exports every not-yet-handed-over shipment of one warehouse and reports what is left beyond 1,000', async () => {
+    mocks.rpc.mockImplementation(async (name: string) => ({ error: null, data: name === 'admin_origin_pending_export_ids' ? { ids: [ID], total: 1201 }
+      : name === 'admin_shipment_export' ? { shipments: [{ id: ID, updatedAt: STAMP }] } : 1 }));
+    const result = await exportPendingOriginShipmentsAction(SECOND, 'xlsx', 'warehouse');
+    expect(mocks.rpc.mock.calls.map(([name]) => name)).toEqual(['admin_origin_pending_export_ids', 'admin_shipment_export', 'admin_mark_shipments_exported']);
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_origin_pending_export_ids', { target_origin_id: SECOND });
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_shipment_export', { p_ids: [ID] });
+    expect(result).toMatchObject({ file: { name: 'ICONS-출고지시-2026-10-12-남양주.xlsx' } });
+    expect(result.message).toContain('남은 1,200건');
+  });
+  it('uses encrypted SmartStore by default for a whole origin and checks the password before reading IDs',async()=>{
+    expect(await exportPendingOriginShipmentsAction(SECOND,'xlsx')).toHaveProperty('error');
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    mocks.rpc.mockImplementation(async (name:string)=>({error:null,data:name==='admin_origin_pending_export_ids'?{ids:[ID],total:1}:name==='admin_smartstore_shipment_export'?{shipments:[{id:ID,updatedAt:STAMP}]}:1}));
+    const result=await exportPendingOriginShipmentsAction(SECOND,'xlsx',undefined,credentials);
+    expect(result.file?.encryption).toBe('ECMA-376-Agile');
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_smartstore_shipment_export',{p_ids:[ID]});
+    expect(mocks.build).toHaveBeenCalledWith({shipments:[{id:ID,updatedAt:STAMP}]},'xlsx','smartstore');
+  });
+  it('does not build a file when a warehouse has nothing new to hand over', async () => {
+    mocks.rpc.mockResolvedValue({ error: null, data: { ids: [], total: 0 } });
+    expect((await exportPendingOriginShipmentsAction(SECOND, 'xlsx', 'warehouse')).error).toContain('아직 전달하지 않은 발송 대기 배송 건이 없습니다');
+    expect(await exportPendingOriginShipmentsAction('not-a-uuid', 'xlsx')).toEqual({ error: '출고지를 선택해주세요.' });
+    expect(mocks.build).not.toHaveBeenCalled();
+    mocks.auth.mockResolvedValue({ isConfigured: true, user: { id: 'buyer' }, isStaff: false });
+    expect(await exportPendingOriginShipmentsAction(SECOND, 'xlsx', 'warehouse')).toEqual({ error: '직원 권한이 필요합니다.' });
   });
   it('keeps successful completions and reports failed shipment IDs', async () => {
     mocks.rpc.mockResolvedValue({ data: [{ id: ID, ok: true }, { id: SECOND, ok: false, error: 'invalid_shipment_transition' }], error: null });

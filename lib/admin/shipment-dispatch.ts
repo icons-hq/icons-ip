@@ -36,10 +36,12 @@ export interface ShipmentConsoleRow {
 }
 export interface ShipmentConsoleData {
  surface:ShipmentConsoleSurface;filters:ShipmentConsoleFilters;rows:ShipmentConsoleRow[];total:number;pageSize:number;
- counts:Record<ShipmentConsoleTab,number>;carriers:ShippingCarrierRegistry;origins:{id:string;name:string}[];
+ counts:Record<ShipmentConsoleTab,number>;carriers:ShippingCarrierRegistry;origins:ShipmentConsoleOrigin[];
  delayNoticeFingerprint?:string;
 }
 export interface ShipmentExportData {shipments:{id:string;updatedAt:string;originId:string;originName:string;shippingFee:number;shippingCollectFee?:number;pack?:import('./shipment-packs').ShipmentPackSummary|null;isGift?:boolean;collector?:import('@/lib/goods-transaction').GoodsTransactionCollector|null;template:string;columns:ShipmentExportColumn[];lines:import('./shipment-workbook').ShipmentExportLine[]}[]}
+/** 양식·사용 여부는 출고지별 내려받기 버튼의 표시 기준입니다. */
+export interface ShipmentConsoleOrigin {id:string;name:string;template?:string;active?:boolean}
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const one=(value:string|string[]|undefined)=>typeof value==='string'?value.trim():'';
 function date(value:string){if(!/^\d{4}-\d{2}-\d{2}$/.test(value))return null;const d=new Date(value+'T00:00:00Z');return !Number.isNaN(d.valueOf())&&d.toISOString().slice(0,10)===value?value:null;}
@@ -81,6 +83,7 @@ export function shipmentMutationError(code:string):string{
   shipment_item_export_mismatch:'상품주문과 배송 품목이 일치하지 않습니다. 목록을 새로고침해주세요.',
   shipment_price_allocation_missing:'주문 당시 금액 배분 기록을 확인하지 못했습니다. 주문 상세를 확인해주세요.',
   conflicting_shipment_tracking:'같은 주문에 서로 다른 운송장이 있습니다. 해당 주문의 모든 행을 함께 확인해주세요.',
+  shipment_tracking_conflict:'이미 다른 운송장으로 발송된 배송 건입니다. 회신 파일로 덮어쓰지 않습니다. 정정은 주문 통합검색의 운송장 수정에서 해주세요.',
  };
  if(warehouseErrors[code])return warehouseErrors[code];
  if(code.startsWith('production_'))return productionError(undefined,code);

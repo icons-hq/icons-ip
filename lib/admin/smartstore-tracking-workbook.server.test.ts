@@ -17,6 +17,7 @@ describe('Smart Store four-column tracking replies', () => {
   it('accepts reordered required columns and registered carrier names without guessing shipment IDs', async () => {
     const parsed = await parseTrackingWorkbook(await bytes([['001234567890', item, '택배, 등기, 소포', '한진택배']]), carriers);
     expect(parsed.issues).toEqual([]);
+    if (!('kind' in parsed) || parsed.kind !== 'smartstore') throw new Error('Expected Smart Store tracking reply');
     expect(trackingImportCommand(parsed, '')).toEqual({ name: 'admin_import_item_tracking_batch', args: { target_rows: [
       { line: 2, reference: item, carrier: 'hanjin', trackingNumber: '001234567890' },
     ] } });
@@ -24,6 +25,7 @@ describe('Smart Store four-column tracking replies', () => {
   it('retains invalid item siblings and original file order in the atomic batch command', async () => {
     const parsed = await parseTrackingWorkbook(await bytes([[1234567890, item, '택배,등기,소포', 'hanjin'], ['001234567890', other, '택배,등기,소포', 'hanjin']]), carriers);
     expect(parsed.rows).toHaveLength(1); expect(parsed.issues[0]).toMatchObject({ line: 2, reference: item });
+    if (!('kind' in parsed) || parsed.kind !== 'smartstore') throw new Error('Expected Smart Store tracking reply');
     expect(trackingImportCommand(parsed, '').args.target_rows).toEqual([
       { line: 2, reference: item, carrier: '', trackingNumber: '' },
       { line: 3, reference: other, carrier: 'hanjin', trackingNumber: '001234567890' },

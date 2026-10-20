@@ -19,7 +19,7 @@ def checked_scope(environment: dict[str, str] | None = None) -> str:
 
 
 def inspect_source(name: str, scope: str) -> dict:
-    if not re.fullmatch(r"supabase_db_icons-ip(?:-[a-z0-9]+)*", name):
+    if not re.fullmatch(r"supabase_db_(?:icons-ip(?:-[a-z0-9]+)*|icons-admin-release-[a-f0-9]{8})", name):
         raise ValueError("Select an exact local ICONS IP Supabase container name")
     project = name.removeprefix("supabase_db_")
     if scope == "ci" and project != "icons-ip":

@@ -25,7 +25,7 @@ const CLAIM_ROWS: AdminClaimRow[] = Array.from({ length: 4 }, (_, index) => ({
   id: `00000000-0000-4000-8000-00000008400${index + 1}`,
   reference: 1004 - index, orderId: `00000000-0000-4000-8000-00000008100${index + 1}`,
   claimType: 'return', stage: (['requested', 'collecting', 'on_hold', 'processing'] as const)[index],
-  reasonType: index % 2 ? 'defect' : 'change_of_mind', buyerName: `합성구매자 ${index + 1}`, buyerEmail: null,
+  reasonType: index % 2 ? 'defect' : 'change_of_mind', staffReasonCode: null, buyerName: `합성구매자 ${index + 1}`, buyerEmail: null,
   orderStatus: 'delivered', orderTotal: 24000 + index * 12000,
   requestedAt: `2026-10-${15 - index}T02:00:00Z`,
   collectedAt: index === 3 ? '2026-10-12T02:00:00Z' : null, completedAt: null,

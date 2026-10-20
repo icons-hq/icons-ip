@@ -1,5 +1,7 @@
 # 정기배송·자동결제 운영
 
+migration 파일 경로는 [배포 매핑](../../supabase/manifests/admin-rollout-migration-map.json)을 반영했다. 아래 과거 검증·적용 기록은 당시 원본 DRAFT 기준이며 이번 운영 배포의 성공을 뜻하지 않는다.
+
 2026-10-14. 정기배송은 상품의 반복 구매이며 회차별로 기존 상품 주문을 생성한다. 재입고 알림과 별개다. 첫 회차의 명시적 쿠폰·적립금만 적용하고 이후 회차는 쿠폰·적립금 0으로 계산한다. [거래 설계](../research/smartstore-admin/subscription-transaction-proposal.md)와 [공통 주문 계약](../research/smartstore-admin/goods-transaction-module-proposal.md)을 함께 참조한다.
 
 ## 구현과 공개 범위
@@ -49,7 +51,7 @@ provider callback의 authKey/customerKey가 포함된 query를 애플리케이�
 
 수납 안내의 자유문구와 연락처는 복사하지 않는다. 안내 원문의 hash와 해당 terms 작성 전에 존재하면서 같은 공개 조건을 담은 불변 수납계약 version ID 목록을 남긴다. 동일 조건의 여러 version이 있을 수 있으므로 이 목록을 최초 발급 version 한 개를 알아낸 증거로 해석하지 않는다. 원 결제의 실제 수납계약 version은 기존 주문 배송 원장에 별도로 남는다.
 
-`20261014034238_goods_subscription_contract_retention.sql`까지 설치한 뒤 계정 정리 cron을 시작해야 한다. `11902` 초기 helper만 적용한 상태로 정리를 실행하면 계약 증거가 부족하다. 검증 결과는 [QA 행렬](../research/smartstore-admin/subscription-qa-matrix.md)에 기록한다.
+`20261020085355_goods_subscription_contract_retention.sql`까지 설치한 뒤 계정 정리 cron을 시작해야 한다. `11902` 초기 helper만 적용한 상태로 정리를 실행하면 계약 증거가 부족하다. 검증 결과는 [QA 행렬](../research/smartstore-admin/subscription-qa-matrix.md)에 기록한다.
 
 ## 운영 조회·내려받기
 

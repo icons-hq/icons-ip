@@ -9,7 +9,7 @@ database = os.environ['PGDATABASE']
 if not database.startswith('icons_home_banner_concurrency_'):
     raise SystemExit('Use the disposable banner wrapper')
 migration = Path(sys.argv[1]).resolve()
-if migration.name != '20261013162245_home_promotion_banner_settings.sql':
+if migration.name != '20261020085316_home_promotion_banner_settings.sql':
     raise SystemExit('Expected the reviewed banner migration')
 setup = r"""
 \set ON_ERROR_STOP on

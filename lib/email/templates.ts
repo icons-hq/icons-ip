@@ -26,13 +26,14 @@ export interface RenderedEmail {
 export interface OrderConfirmationEmailInput {
   transaction?: GoodsTransactionDisplay;
   giftDelivery?: boolean;
-  storeCreditTotal?: number;
   orderId: string;
   orderedAt: string;
   items: OrderEmailItem[];
   itemsSubtotal: number;
   shippingFee: number;
   discountTotal?: number;
+  /** 주문에 사용한 적립금. 쿠폰 할인과 따로 적어야 굿즈 합계+배송비−할인이 총 결제금액과 맞는다. */
+  storeCreditTotal?: number;
   total: number;
   address: CheckoutAddress | null;
   orderUrl: string;

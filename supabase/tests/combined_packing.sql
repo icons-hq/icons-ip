@@ -101,6 +101,8 @@ savepoint claim_race;
 insert into public.order_cancellation_requests(order_id,requested_by,reason,reason_type,claim_type,stage) values('bf160000-0000-4001-8000-000000000002','bf160000-0000-4000-8000-000000000002','TEST new cancellation','change_of_mind','cancel','requested');
 set local role authenticated;
 select pg_temp.transaction_expect_error(format('select public.admin_update_shipment_status(%L,%L,%L,%L)',:'sid1','shipping','hanjin','TESTPACK1111'),'shipment_pack_ineligible');
+select 1/case when not (public.admin_origin_pending_export_ids('bf160000-0000-4000-8000-000000000010')->'ids' ?| array[:'sid1',:'sid2'])
+ then 1 else 0 end as blocked_sibling_excludes_the_whole_pack_from_batch_export;
 reset role;
 rollback to claim_race;
 -- Address changes invalidate the package identity, not the original order price.
@@ -114,7 +116,24 @@ select public.admin_shipment_export(:'ids') as export \gset
 select public.admin_mark_shipments_exported((select jsonb_agg(jsonb_build_object('id',value->'id','updatedAt',value->'updatedAt')) from jsonb_array_elements(:'export'::jsonb->'shipments')));
 select public.admin_get_shipment_packs(:'ids') as packed \gset
 select pg_temp.transaction_expect_error(format('select public.admin_change_shipment_pack(%L,%L,%L,%L,gen_random_uuid(),%L,%L)',:'ids','release',:'packed'::jsonb->>'version','TEST already exported','bf160000-0000-4000-8000-000000000001','bf160000-0000-4000-9000-000000000001'),'shipment_pack_release_blocked');
-select public.admin_import_shipment_tracking_batch(jsonb_build_array(jsonb_build_object('line',1,'reference',:'sid1','carrier','hanjin','trackingNumber','TESTPACK1111'),jsonb_build_object('line',2,'reference',:'sid2','carrier','hanjin','trackingNumber','TESTPACK1111'))) as imported \gset
+reset role;
+update public.fulfillment_origins set export_template='seowon_xlsx' where id='bf160000-0000-4000-8000-000000000010';
+set local role authenticated;
+select pg_temp.transaction_expect_error(format('select public.admin_import_seowon_tracking_batch(%L,%L)',
+ 'bf160000-0000-4000-8000-000000000010',jsonb_build_array(jsonb_build_object('line',1,'reference',:'sid1','carrier','hanjin','trackingNumber','TESTPACK1111'))),
+ 'shipment_pack_selection_required');
+select 1/case when (select bool_and(status='ready' and tracking_number is null) from public.order_shipments where id=any(:'ids')) then 1 else 0 end as incomplete_reply_changes_nothing;
+select pg_temp.transaction_expect_error(format('select public.admin_import_seowon_tracking_batch(%L,%L)',
+ 'bf160000-0000-4000-8000-000000000010',jsonb_build_array(jsonb_build_object('line',1,'reference',:'sid1','carrier','hanjin','trackingNumber','TESTPACK1111'),
+ jsonb_build_object('line',2,'reference',:'sid2','carrier','hanjin','trackingNumber','TESTPACK2222'))),'shipment_pack_tracking_conflict');
+select public.admin_import_seowon_tracking_batch('bf160000-0000-4000-8000-000000000010',jsonb_build_array(jsonb_build_object('line',1,'reference',:'sid1','carrier','hanjin','trackingNumber','TESTPACK1111'),jsonb_build_object('line',2,'reference',:'sid2','carrier','hanjin','trackingNumber','TESTPACK1111'))) as imported \gset
+select 1/case when :'imported'::jsonb#>>'{0,dispatched}'='true' and :'imported'::jsonb#>>'{1,unchanged}'='true'
+ then 1 else 0 end as pack_dispatch_is_once_even_with_every_member_in_reply;
+select public.admin_import_seowon_tracking_batch('bf160000-0000-4000-8000-000000000010',jsonb_build_array(jsonb_build_object('line',1,'reference',:'sid1','carrier','hanjin','trackingNumber','TESTPACK1111'),jsonb_build_object('line',2,'reference',:'sid2','carrier','hanjin','trackingNumber','TESTPACK1111'))) as replay \gset
+select 1/case when (select bool_and(value->>'unchanged'='true' and value->>'dispatched'='false') from jsonb_array_elements(:'replay'::jsonb)) then 1 else 0 end as repeated_reply_has_no_new_dispatch;
+select pg_temp.transaction_expect_error(format('select public.admin_import_seowon_tracking_batch(%L,%L)',
+ 'bf160000-0000-4000-8000-000000000010',jsonb_build_array(jsonb_build_object('line',1,'reference',:'sid1','carrier','hanjin','trackingNumber','TESTPACK2222'),
+ jsonb_build_object('line',2,'reference',:'sid2','carrier','hanjin','trackingNumber','TESTPACK2222'))),'shipment_tracking_conflict');
 select 1/case when jsonb_array_length(:'imported'::jsonb#>'{0,packedShipments}')=2 then 1 else 0 end as each_original_order_notification;
 select public.admin_update_shipment_status(:'sid1','shipping','hanjin','TESTPACK1111');
 reset role;

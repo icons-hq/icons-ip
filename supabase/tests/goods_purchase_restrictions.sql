@@ -49,10 +49,13 @@ do $$begin
  begin perform public.admin_search_purchase_restrictions();raise exception 'customer list bypass';exception when insufficient_privilege then null;end;
  begin perform public.admin_release_purchase_restriction('76000000-0000-4000-8000-000000061302','자가 해제');raise exception 'customer release bypass';exception when insufficient_privilege then null;end;
  begin perform public.admin_register_purchase_restriction('76000000-0000-4000-8000-000000061305','00000000-0000-4000-8000-000000061303','other','타인 등록');raise exception 'customer register bypass';exception when insufficient_privilege then null;end;
- begin perform public.place_order('{"recipientName":"합성 수취인","phone":"01000000000","postalCode":"12345","address1":"합성 주소"}'::jsonb, '78000000-0000-4000-8000-000000061302'::uuid,'card'::public.order_payment_method);raise exception 'blocked buyer created order';
+end$$;
+set local role service_role;
+do $$begin
+ begin perform public.place_order('00000000-0000-4000-8000-000000061302'::uuid,'{"recipientName":"합성 수취인","phone":"01000000000","postalCode":"12345","address1":"합성 주소"}'::jsonb, '78000000-0000-4000-8000-000000061302'::uuid,'card'::public.order_payment_method);raise exception 'blocked buyer created order';
  exception when check_violation then if sqlerrm<>'goods_purchase_restricted' then raise;end if;end;
 end$$;
-select 1/case when public.place_order('{"recipientName":"합성 수취인","phone":"01000000000","postalCode":"12345","address1":"합성 주소"}'::jsonb,'78000000-0000-4000-8000-000000061301'::uuid,'card'::public.order_payment_method)=current_setting('test.restriction_order')::uuid then 1 else 0 end as existing_checkout_replay_is_not_a_new_purchase;
+select 1/case when public.place_order('00000000-0000-4000-8000-000000061302'::uuid,'{"recipientName":"합성 수취인","phone":"01000000000","postalCode":"12345","address1":"합성 주소"}'::jsonb,'78000000-0000-4000-8000-000000061301'::uuid,'card'::public.order_payment_method)=current_setting('test.restriction_order')::uuid then 1 else 0 end as existing_checkout_replay_is_not_a_new_purchase;
 reset role;
 do $$begin
  begin insert into public.orders(user_id,status,total,address) values('00000000-0000-4000-8000-000000061302','pending',0,'{}');raise exception 'direct insert bypass';

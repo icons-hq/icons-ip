@@ -6,10 +6,12 @@ import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { normalizeAdminDispatchDelayForm } from '@/lib/admin/dispatch';
 import {
+  ADMIN_CANCELLATION_RECHECK_LABELS,
   normalizeAdminCancellationDecisionForm,
   normalizeAdminGoodsManualRecoveryForm,
   normalizeAdminOrderStatusForm,
   normalizeAdminOrderTrackingForm,
+  normalizeAdminStaffCancellationForm,
   type AdminOrderFieldErrors,
   type AdminOrderFormStatus,
 } from '@/lib/admin/orders';
@@ -26,7 +28,8 @@ import {
 import { orderReferenceLabel } from '@/lib/orders';
 import { reconcileOrderCancellation } from '@/lib/orders/cancellation-orchestrator.server';
 import { recoverGoodsPaymentManually } from '@/lib/payments/goods-manual-recovery.server';
-import { trackingImportCommand } from '@/lib/admin/warehouse-templates.server';
+import { trackingImportCommand, type SeowonTrackingParseResult } from '@/lib/admin/warehouse-templates.server';
+import { matchSeowonReply, type SeowonReplyCandidate } from '@/lib/admin/seowon-exchange';
 import { parseTrackingWorkbook, TRACKING_IMPORT_FILE_LIMIT_BYTES, TRACKING_IMPORT_TEXT_LIMIT_BYTES, type TrackingWorkbookParseResult } from '@/lib/admin/tracking-workbook.server';
 import { shipmentMutationError } from '@/lib/admin/shipment-dispatch';
 import { enqueueOrderShippedEmails } from '@/lib/email/order-shipment-jobs.server';
@@ -71,7 +74,16 @@ async function reconcileApprovedRequest(requestId: string, actorId: string) {
   }
 }
 
-const REVIEW_REQUIRED = '결제 취소 상태를 확정하지 못했습니다. 운영 화면의 최신 상태에서 다시 확인해주세요.';
+/**
+ * 결제 취소를 확정하지 못한 결과(2026-10-12 브라우저 QA QA-10).
+ *
+ * 원인 코드를 그대로 싣는다. 런북·가이드의 조치는 코드별이라, 코드 없이 "다시 확인"만
+ * 말하면 운영자는 같은 버튼을 반복해 누른다. 같은 코드는 주문 패널의 취소 요청 영역과
+ * 취소 관리 요청 상세의 정합화 오류에도 남는다.
+ */
+function reviewRequiredMessage(code: string) {
+  return `결제 취소 상태를 확정하지 못했습니다(${code}). 주문과 재고는 그대로 유지됩니다. 코드별 조치는 어드민 가이드 "클레임 처리"에 있습니다. 원인을 확인한 뒤 이 주문 패널의 [${ADMIN_CANCELLATION_RECHECK_LABELS.needsReview}]으로 다시 시도해주세요.`;
+}
 const PAYMENT_RECONCILIATION_IN_PROGRESS = '결제 상태 처리가 아직 끝나지 않았습니다. 주문과 재고는 그대로 유지됩니다. 최신 상태를 확인한 뒤 다시 시도하고, 상태가 계속되면 관리자 결제 담당자에게 결제사 원장 확인을 요청해주세요.';
 
 /**
@@ -292,7 +304,7 @@ export async function approveAdminOrderCancellationAction(
 
   const result = await reconcileApprovedRequest(normalized.value.requestId, access.auth.user.id);
   revalidateOrderSurfaces();
-  if (!result.ok) return { errors: { form: REVIEW_REQUIRED } };
+  if (!result.ok) return { errors: { form: reviewRequiredMessage(result.code) } };
   if (result.status === 'in_progress') return { message: PAYMENT_RECONCILIATION_IN_PROGRESS };
   return { message: '청약철회를 완료했습니다.' };
 }
@@ -341,9 +353,90 @@ export async function reconcileAdminOrderCancellationAction(
 
   const result = await reconcileApprovedRequest(normalized.value.requestId, access.auth.user.id);
   revalidateOrderSurfaces();
-  if (!result.ok) return { errors: { form: REVIEW_REQUIRED } };
+  if (!result.ok) return { errors: { form: reviewRequiredMessage(result.code) } };
   if (result.status === 'in_progress') return { message: PAYMENT_RECONCILIATION_IN_PROGRESS };
   return { message: '결제 취소 상태를 정합화했습니다.' };
+}
+
+/** DB가 던지는 운영자 전액 취소 거절 코드를 운영자 문구로 옮긴다. 원문은 노출하지 않는다. */
+function staffCancellationError(message: string | null | undefined) {
+  const value = message ?? '';
+  if (value.includes('warehouse_stop_confirmation_required')) {
+    return '출고지시 파일이 나간 배송 건이 있습니다. 창고에서 출고 중단을 확인한 뒤 양식의 창고 출고 중단 확인란을 체크하고 다시 실행해주세요. 확인란이 보이지 않으면 새로고침해주세요.';
+  }
+  if (value.includes('shipment_already_dispatched')) {
+    return '이미 발송된 배송 건이 있어 전액 취소할 수 없습니다. 배송 완료 뒤 반품으로 처리하거나 담당자에게 넘겨주세요.';
+  }
+  if (value.includes('order_not_staff_cancelable')) return '결제완료·발주확인 상태의 발송 전 주문만 전액 취소할 수 있습니다.';
+  if (value.includes('order_claim_in_progress')) {
+    return '이미 진행 중인 취소·반품·교환 요청이 있습니다. 취소·반품·교환 관리에서 그 요청을 처리해주세요.';
+  }
+  if (value.includes('payment_reconciliation_required')) return '결제 결과가 아직 확정되지 않았습니다. 결제 상태를 먼저 확인해주세요.';
+  if (value.includes('staff_cancellation_toss_only')) {
+    return '토스 결제 주문만 이 화면에서 전액 취소할 수 있습니다. Korpay·무통장 주문은 기존 수동 절차를 따릅니다.';
+  }
+  if (value.includes('invalid_staff_cancellation_note')) return '기타 사유는 메모를 5자 이상 입력해주세요(최대 500자).';
+  if (value.includes('invalid_staff_cancellation_reason')) return '취소 사유를 선택해주세요.';
+  if (value.includes('staff required')) return '관리자 권한이 필요합니다.';
+  if (value.includes('order_not_found')) return '주문을 찾을 수 없습니다.';
+  return '전액 취소를 시작하지 못했습니다. 최신 상태를 확인해주세요.';
+}
+
+/**
+ * 운영자가 시작하는 배송 전 전액 취소(ADR-0018).
+ *
+ * DB가 사유·운영자·창고 중단 확인과 함께 고객 취소와 같은 원장(요청·claim·환불
+ * intent)을 열면, 같은 오케스트레이터로 토스 전액 취소 → fresh 조회 검증 →
+ * finalizer까지 바로 실행한다. 고객 직접 신청 정책(ADR-0017)은 바꾸지 않는다 —
+ * 발주확인 뒤를 여는 것은 staff 발원 요청이 있는 주문뿐이다.
+ */
+export async function startAdminOrderCancellationAction(
+  _state: AdminOrderActionState,
+  formData: FormData,
+): Promise<AdminOrderActionState> {
+  const access = await requireStaffAction();
+  if (access.error || !access.auth?.user) return access.error ?? { errors: { form: '관리자 권한이 필요합니다.' } };
+
+  const normalized = normalizeAdminStaffCancellationForm(formData);
+  if (!normalized.ok) return { errors: normalized.errors };
+
+  const supabase = await createClient();
+  const { data, error } = await supabase.rpc('admin_start_order_cancellation', {
+    p_note: normalized.value.note,
+    p_order_id: normalized.value.orderId,
+    p_reason_code: normalized.value.reasonCode,
+    p_warehouse_stop_confirmed: normalized.value.warehouseStopConfirmed,
+  });
+  if (error) {
+    /* 양식을 연 뒤 출고지시·발주확인·다른 요청으로 주문이 바뀌어 DB가 거절했다. 주문 패널을
+       최신 상태로 다시 그려야 거절 문구가 가리키는 확인란·버튼이 화면에 있다 — 열 때의
+       패널에는 창고 출고 중단 확인란이 없었다(2026-10-12 브라우저 QA R2-2). */
+    revalidateOrderSurfaces(normalized.value.orderId);
+    revalidatePath('/admin/sales/orders');
+    return { errors: { form: staffCancellationError(error.message) } };
+  }
+  if (typeof data !== 'string' || !UUID_PATTERN.test(data)) {
+    revalidateOrderSurfaces(normalized.value.orderId);
+    return { errors: { form: '전액 취소 요청을 확인하지 못했습니다. 취소 관리에서 최신 상태를 확인해주세요.' } };
+  }
+
+  const result = await reconcileApprovedRequest(data, access.auth.user.id);
+  revalidateOrderSurfaces(normalized.value.orderId);
+  revalidatePath('/admin/sales/claims/cancels');
+  if (!result.ok) {
+    return {
+      errors: {
+        form: `전액 취소를 시작했지만 결제 취소를 확정하지 못했습니다(${result.code}). 주문과 재고는 그대로 유지됩니다. 원인을 확인한 뒤 이 주문 패널의 [${ADMIN_CANCELLATION_RECHECK_LABELS.needsReview}](처리중이면 [${ADMIN_CANCELLATION_RECHECK_LABELS.processing}]) 또는 취소 관리 요청 상세의 [환불 완료 확정]으로 다시 시도해주세요.`,
+      },
+    };
+  }
+  if (result.status === 'in_progress') {
+    /* 요청은 처리중으로 남고 주문 패널에 재확인 버튼이 그려진다. 결과 문구는 그 버튼을 가리킨다. */
+    return {
+      message: `전액 취소를 시작했지만 결제 상태 처리가 아직 끝나지 않았습니다. 주문과 재고는 그대로 유지됩니다. 잠시 뒤 이 주문 패널의 [${ADMIN_CANCELLATION_RECHECK_LABELS.processing}](결제확인필요면 [${ADMIN_CANCELLATION_RECHECK_LABELS.needsReview}])으로 결과를 확인해주세요.`,
+    };
+  }
+  return { message: '토스 전액 취소를 확인하고 주문 취소를 마쳤습니다. 재고·쿠폰·적립금 복원과 카드팩 회수가 함께 확정됐고 구매자에게 알렸습니다.' };
 }
 
 export async function recoverAdminGoodsPaymentAction(
@@ -400,7 +493,89 @@ export interface AdminTrackingImportState {
   report?: {
     succeeded: string[];
     failed: AdminTrackingImportFailure[];
+    /** 같은 운송장으로 이미 발송된 배송 건 수(같은 회신을 다시 올린 경우). 아무것도 바꾸지 않았다. */
+    unchanged?: number;
   };
+}
+
+const isSeowonReply = (parsed: TrackingWorkbookParseResult): parsed is SeowonTrackingParseResult => 'kind' in parsed && parsed.kind === 'seowon';
+type TrackingBatchRow = {line:number;reference:string;ok:boolean;error?:string;shipmentId?:string;orderId?:string;dispatched?:boolean;duplicate?:boolean;packedShipments?:{orderId:string;shipmentId:string}[]};
+type ReplyTemplate = 'wms_csv' | 'seowon_xlsx';
+const REPLY_TEMPLATE_LABEL: Record<ReplyTemplate, string> = { wms_csv: '김포 WMS 21열', seowon_xlsx: '남양주(서원) 송장양식' };
+
+/**
+ * 창고 회신을 보낸 출고지. 목록에서 고른 출고지가 그 양식이면 그것을, 아니면 그 양식을 쓰는
+ * 사용 중 출고지가 하나뿐일 때 그것을 쓴다 — 회신은 어느 탭·필터에서 올려도 된다.
+ */
+async function resolveReplyOrigin(supabase: Awaited<ReturnType<typeof createClient>>, template: ReplyTemplate, requested: string) {
+  const { data, error } = await supabase.from('fulfillment_origins').select('id,name').eq('export_template', template).eq('is_active', true);
+  if (error || !data) throw new Error('출고지 설정을 불러오지 못했습니다. 잠시 후 다시 시도해주세요.');
+  const origin = data.find(row => row.id === requested.toLowerCase()) ?? (data.length === 1 ? data[0] : null);
+  if (origin) return origin as { id: string; name: string };
+  throw new Error(data.length
+    ? `${REPLY_TEMPLATE_LABEL[template]} 양식을 쓰는 출고지가 여러 곳입니다. 목록 위에서 회신을 보낸 출고지를 선택한 뒤 올려주세요.`
+    : `${REPLY_TEMPLATE_LABEL[template]} 양식을 쓰는 사용 중인 출고지가 없습니다. 출고지 설정을 확인해주세요.`);
+}
+
+function trackingImportResult(succeeded: string[], failed: AdminTrackingImportFailure[], unchanged: number, queueWarning: boolean): AdminTrackingImportState {
+  failed.sort((a,b)=>a.line-b.line);
+  const report={failed,succeeded,...(unchanged?{unchanged}:{})};
+  const skipped=unchanged?` 같은 운송장으로 이미 발송된 ${unchanged}건은 그대로 두었습니다.`:'';
+  if(!succeeded.length){
+    if(unchanged&&!failed.length)return {message:`새로 등록할 운송장이 없습니다.${skipped}`,report};
+    return {errors:{form:`${failed.length}건을 등록하지 못했습니다. 행별 사유를 확인해주세요.${skipped}`},report};
+  }
+  return {message:`${succeeded.length}건의 운송장을 등록했습니다.${skipped}${failed.length?` 실패 ${failed.length}건은 행별 사유를 확인해주세요.`:''}${queueWarning?' 배송 메일 대기열 확인이 필요합니다. 발송 이력에서 확인해주세요.':''}`,report,...(queueWarning?{queueWarning:true}:{})};
+}
+
+async function enqueueDispatched(deliveries: { orderId: string; shipmentId: string }[]) {
+  if (!deliveries.length) return false;
+  try { await enqueueOrderShippedEmails(deliveries); return false; } catch { return true; }
+}
+
+/**
+ * 남양주(서원) 회신: 내려받은 송장양식 줄에 송장번호만 채운 파일. 서원은 주문번호를 돌려주지 않아
+ * 출고지의 대조 후보와 줄 내용으로 배송 건을 찾은 뒤, 배송 건마다 한 번 기존 일괄 등록 RPC로 보낸다.
+ */
+async function registerSeowonReply(parsed: SeowonTrackingParseResult, requestedOrigin: string): Promise<AdminTrackingImportState> {
+  if(!parsed.rows.length)return {errors:{form:'등록할 운송장을 붙여넣거나 파일을 선택해주세요.'}};
+  if(parsed.rows.length>TRACKING_IMPORT_ROW_LIMIT)return {errors:{form:'운송장은 한 번에 1,000줄까지 등록할 수 있습니다.'}};
+  const supabase=await createClient();
+  let origin: { id: string; name: string };
+  try { origin = await resolveReplyOrigin(supabase, 'seowon_xlsx', requestedOrigin); }
+  catch (error) { return { errors: { form: error instanceof Error ? error.message : '출고지를 확인해주세요.' } }; }
+  // 후보는 회신에 나온 전화번호의 배송 건으로 좁힌다. 오류 줄의 배송 건도 함께 막아야 하므로 모든 줄의 번호를 쓴다.
+  const waybills=[...new Set(parsed.rows.filter(row=>!row.error).map(row=>row.trackingNumber))];
+  const phones=[...new Set(parsed.rows.map(row=>row.phone.replace(/\D/g,'')).filter(Boolean))];
+  const loaded=await supabase.rpc('admin_origin_tracking_candidates',{target_origin_id:origin.id,target_tracking_numbers:waybills,target_phones:phones});
+  const candidates=loaded.data as {defaultCarrier?:string|null;truncated?:boolean;shipments?:SeowonReplyCandidate[];usedTracking?:{trackingNumber:string;shipmentId:string}[]}|null;
+  if(loaded.error||!candidates||!Array.isArray(candidates.shipments)||!Array.isArray(candidates.usedTracking))return {errors:{form:'남양주 배송 건을 불러오지 못했습니다. 잠시 후 같은 파일로 다시 시도해주세요.'}};
+  if(!candidates.defaultCarrier)return {errors:{form:shipmentMutationError('warehouse_carrier_required')}};
+  // 일부 후보만으로 대조하면 빠진 같은 내용의 배송 건 대신 남은 건이 발송될 수 있다. 잘렸으면 아무것도 바꾸지 않는다.
+  if(candidates.truncated)return {errors:{form:'대조할 배송 건이 너무 많아 등록하지 않았습니다. 회신 파일을 나눠 올려주세요.'}};
+  const match=matchSeowonReply(parsed.rows,candidates.shipments,candidates.usedTracking);
+  const failed:AdminTrackingImportFailure[]=[...match.issues];const succeeded:string[]=[];
+  let queueWarning=false;let unchanged=match.unchanged.length;
+  if(match.commands.length){
+    const result=await supabase.rpc('admin_import_seowon_tracking_batch',{target_origin_id:origin.id,target_rows:match.commands.map(command=>({
+      line:command.line,reference:command.shipmentId,carrier:candidates.defaultCarrier,trackingNumber:command.trackingNumber,
+    }))});
+    if(result.error?.message&&/^(warehouse_|shipment_pack_|production_|inactive_shipping_carrier$|invalid_tracking_)/.test(result.error.message))
+      return {errors:{form:shipmentMutationError(result.error.message)}};
+    if(result.error||!Array.isArray(result.data)||result.data.length!==match.commands.length)return {errors:{form:'등록 결과를 확인하지 못했습니다. 최신 배송 상태를 확인하고 같은 파일로 다시 시도해주세요.'}};
+    // 합배송한 배송 건들은 같은 첫 줄을 공유하므로 결과는 줄이 아니라 배송 건으로 찾는다.
+    const outcomes=new Map((result.data as TrackingBatchRow[]).map(row=>[row.reference,row]));
+    const deliveries:{orderId:string;shipmentId:string}[]=[];
+    for(const command of match.commands){
+      const outcome=outcomes.get(command.shipmentId),reference=command.shipmentId.slice(-8).toUpperCase();
+      if(outcome?.ok&&outcome.dispatched!==false){succeeded.push(reference);deliveries.push(...(outcome.packedShipments??[{orderId:command.orderId,shipmentId:command.shipmentId}]));}
+      else if(outcome?.ok)unchanged++; // 다른 운영자가 같은 회신을 먼저 등록했다.
+      else for(const line of command.lines)failed.push({line,reference,reason:shipmentMutationError(outcome?.error??'')});
+    }
+    queueWarning=await enqueueDispatched([...new Map(deliveries.map(row=>[row.shipmentId,row])).values()]);
+    revalidateOrderSurfaces();
+  }
+  return trackingImportResult(succeeded,failed,unchanged,queueWarning);
 }
 
 /** The DB batch keeps per-row failures and commits each valid shipment once. */
@@ -417,7 +592,11 @@ export async function bulkRegisterAdminOrderTrackingAction(
       const workbook=/\.xlsx$/i.test(file.name);
       if (file.size > (workbook?TRACKING_IMPORT_FILE_LIMIT_BYTES:TRACKING_IMPORT_TEXT_LIMIT_BYTES)) return {errors:{form:workbook?'XLSX 파일은 1MB 이하로 올려주세요. 운송장은 1,000줄까지 등록할 수 있습니다.':'CSV·TSV·텍스트 파일은 256KB 이하로 올려주세요. 운송장은 1,000줄까지 등록할 수 있습니다.'}};
       if (workbook) parsed=await parseTrackingWorkbook(Buffer.from(await file.arrayBuffer()),carriers);
-      else if (/\.(csv|tsv|txt)$/i.test(file.name)) parsed=parseTrackingImport(await file.text(),carriers);
+      else if (/\.(csv|tsv|txt)$/i.test(file.name)) {
+        const text=await file.text();
+        if(/^\uFEFF?"?받는분전화번호/.test(text))return {errors:{form:'남양주(서원) 송장양식 회신은 XLSX로 올려주세요.'}};
+        parsed=parseTrackingImport(text,carriers);
+      }
       else return {errors:{form:'XLSX 또는 CSV·TSV 파일을 올려주세요.'}};
     } else {
       const text=String(formData.get('pasted')??'');
@@ -425,32 +604,38 @@ export async function bulkRegisterAdminOrderTrackingAction(
       parsed=parseTrackingImport(text,carriers);
     }
   } catch(error) { return {errors:{form:error instanceof Error?error.message:'운송장 파일을 읽지 못했습니다.'}}; }
-  let command: ReturnType<typeof trackingImportCommand>;
-  try { command = trackingImportCommand(parsed, String(formData.get('originId') ?? '')); }
-  catch (error) { return { errors: { form: error instanceof Error ? error.message : '출고지를 확인해주세요.' } }; }
+  const requestedOrigin=String(formData.get('originId')??'');
+  if(isSeowonReply(parsed))return registerSeowonReply(parsed,requestedOrigin);
   const count=parsed.rows.length+parsed.issues.length;
   if(!count)return {errors:{form:'등록할 운송장을 붙여넣거나 파일을 선택해주세요.'}};
   if(count>TRACKING_IMPORT_ROW_LIMIT)return {errors:{form:'운송장은 한 번에 1,000줄까지 등록할 수 있습니다.'}};
+  const supabase=await createClient();
+  let command: ReturnType<typeof trackingImportCommand>;
+  try {
+    const originId='kind' in parsed&&parsed.kind==='gimpo'?(await resolveReplyOrigin(supabase,'wms_csv',requestedOrigin)).id:requestedOrigin;
+    command = trackingImportCommand(parsed, originId);
+  }
+  catch (error) { return { errors: { form: error instanceof Error ? error.message : '출고지를 확인해주세요.' } }; }
   const failed:AdminTrackingImportFailure[]=[...parsed.issues];
   const succeeded:string[]=[];
-  let queueWarning=false;
+  let queueWarning=false;let unchanged=0;
   if(parsed.rows.length){
-    const supabase=await createClient();
     const result=await supabase.rpc(command.name,command.args);
     if(result.error?.message&&/^(warehouse_|shipment_pack_|inactive_shipping_carrier$|invalid_tracking_)/.test(result.error.message))
       return {errors:{form:shipmentMutationError(result.error.message)}};
     if(result.error||!Array.isArray(result.data)||result.data.length!==command.args.target_rows.length)return {errors:{form:'등록 결과를 확인하지 못했습니다. 최신 배송 상태를 확인하고 같은 파일로 다시 시도해주세요.'}};
-    const rows=result.data as {line:number;reference:string;ok:boolean;error?:string;shipmentId?:string;orderId?:string;dispatched?:boolean;duplicate?:boolean;packedShipments?:{orderId:string;shipmentId:string}[]}[];
-    for(const row of rows){if(row.ok){if(!row.duplicate)succeeded.push(row.reference);}else if(!parsed.issues.some(issue=>issue.line===row.line))failed.push({line:row.line,reference:row.reference,reason:shipmentMutationError(row.error??'')});}
-    const deliveryRows=rows.filter(row=>row.ok&&!row.duplicate&&row.shipmentId&&row.orderId).flatMap(row=>row.packedShipments??[{orderId:row.orderId!,shipmentId:row.shipmentId!}]);
-    const deliveries=[...new Map(deliveryRows.map(row=>[row.shipmentId,row])).values()];
-    if(deliveries.length){try{await enqueueOrderShippedEmails(deliveries);}catch{queueWarning=true;}}
+    const rows=result.data as TrackingBatchRow[];
+    for(const row of rows){
+      if(!row.ok){if(!parsed.issues.some(issue=>issue.line===row.line))failed.push({line:row.line,reference:row.reference,reason:shipmentMutationError(row.error??'')});}
+      else if(row.duplicate)continue;
+      else if(row.dispatched===false)unchanged++;
+      else succeeded.push(row.reference);
+    }
+    const deliveryRows=rows.filter(row=>row.ok&&!row.duplicate&&row.dispatched!==false&&row.shipmentId&&row.orderId).flatMap(row=>row.packedShipments??[{orderId:row.orderId!,shipmentId:row.shipmentId!}]);
+    queueWarning=await enqueueDispatched([...new Map(deliveryRows.map(row=>[row.shipmentId,row])).values()]);
     revalidateOrderSurfaces();
   }
-  failed.sort((a,b)=>a.line-b.line);
-  const report={failed,succeeded};
-  if(!succeeded.length)return {errors:{form:`${failed.length}건을 등록하지 못했습니다. 행별 사유를 확인해주세요.`},report};
-  return {message:`${succeeded.length}건의 운송장을 등록했습니다.${failed.length?` 실패 ${failed.length}건은 행별 사유를 확인해주세요.`:''}${queueWarning?' 배송 메일 대기열 확인이 필요합니다. 발송 이력에서 확인해주세요.':''}`,report,...(queueWarning?{queueWarning:true}:{})};
+  return trackingImportResult(succeeded,failed,unchanged,queueWarning);
 }
 
 /**

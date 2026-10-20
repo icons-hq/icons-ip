@@ -1,17 +1,17 @@
 import { Children, isValidElement, type ReactElement, type ReactNode } from 'react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import type { ShipmentConsoleRow } from '@/lib/admin/shipment-dispatch';
-const mocks = vi.hoisted(() => ({ complete: vi.fn(), export: vi.fn(), refresh: vi.fn(), states: [] as unknown[], index: 0, work: [] as Promise<void>[] }));
+const mocks = vi.hoisted(() => ({ complete: vi.fn(), export: vi.fn(), exportOrigin: vi.fn(), refresh: vi.fn(), states: [] as unknown[], index: 0, work: [] as Promise<void>[] }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: mocks.refresh, push: vi.fn() }) }));
 vi.mock('@/app/admin/order-actions', () => ({ bulkConfirmAdminOrdersAction: vi.fn() }));
-vi.mock('@/app/admin/shipment-actions', () => ({ completeShipmentsAction: mocks.complete, exportShipmentsAction: mocks.export }));
+vi.mock('@/app/admin/shipment-actions', () => ({ completeShipmentsAction: mocks.complete, exportShipmentsAction: mocks.export, exportPendingOriginShipmentsAction: mocks.exportOrigin }));
 vi.mock('./ShipmentPackPanel', () => ({ ShipmentPackPanel: () => null }));
 vi.mock('./OrderDelayNoticePanel', () => ({ OrderDelayNoticePanel: () => null }));
 vi.mock('react', async () => ({
   ...await vi.importActual<typeof import('react')>('react'),
   useState: (initial: unknown) => {
     const index = mocks.index++;
-    if (!(index in mocks.states)) mocks.states[index] = initial;
+    if (!(index in mocks.states)) mocks.states[index] = typeof initial === 'function' ? initial() : initial;
     return [mocks.states[index], (next: unknown) => { mocks.states[index] = typeof next === 'function' ? next(mocks.states[index]) : next; }];
   },
   useTransition: () => [false, (work: () => Promise<void>) => { mocks.work.push(work()); }],
@@ -80,4 +80,34 @@ it('김포·남양주에 스마트스토어 양식을 기본으로 보내고 기
   (layout.props.onChange as (event: unknown) => void)({ target: { value: 'warehouse' } });
   exportFile(); await Promise.all(mocks.work);
   expect(mocks.export).toHaveBeenLastCalledWith([ids[0]], 'xlsx', 'warehouse', undefined);
+});
+
+it('출고지 전체 다운로드도 기본 74열 암호화와 선택한 창고 양식을 따른다',async()=>{
+ const origin={id:'00000000-0000-4000-8000-000000042202',name:'남양주',template:'seowon_xlsx',active:true};
+ const readyProps={...props,tab:'ready' as const,rows:[],origins:[origin]};
+ function ready(){mocks.index=0;return ShipmentConsoleGrid(readyProps);}
+ function clickOrigin(){const target=nodes(ready()).find(node=>node.type==='button'&&text(node.props.children as ReactNode)==='남양주 새 출고지시 전체 내려받기')!;(target.props.onClick as ()=>void)();}
+ mocks.exportOrigin.mockResolvedValue({error:'합성 재시도 안내'});
+ expect(nodes(ready()).find(node=>node.type==='select')!.props.value).toBe('smartstore');
+ clickOrigin();expect(mocks.exportOrigin).not.toHaveBeenCalled();expect(text(ready())).toContain('남양주의 아직 전달하지 않은 발송 대기 건');
+ const input=new FormData();input.set('password','Shipment-Test-1234');input.set('passwordConfirmation','Shipment-Test-1234');
+ vi.stubGlobal('FormData',vi.fn(function(){return input;}));
+ const form=nodes(ready()).find(node=>node.type==='form')!,reset=vi.fn();
+ (form.props.onSubmit as (event:unknown)=>void)({preventDefault:vi.fn(),currentTarget:{reset}});await Promise.all(mocks.work);
+ expect(mocks.exportOrigin).toHaveBeenCalledWith(origin.id,'xlsx','smartstore',{password:'Shipment-Test-1234',passwordConfirmation:'Shipment-Test-1234'});
+ expect(mocks.export).not.toHaveBeenCalled();expect(reset).toHaveBeenCalledOnce();expect(input.has('password')).toBe(false);
+ expect(text(ready())).toContain('합성 재시도 안내');expect(text(ready())).toContain('비밀번호 확인');
+ const cancel=nodes(ready()).find(node=>node.type==='button'&&text(node.props.children as ReactNode)==='취소')!;(cancel.props.onClick as ()=>void)();
+ const layout=nodes(ready()).find(node=>node.type==='select')!;(layout.props.onChange as (event:unknown)=>void)({target:{value:'warehouse'}});
+ clickOrigin();await Promise.all(mocks.work);
+ expect(mocks.exportOrigin).toHaveBeenLastCalledWith(origin.id,'xlsx','warehouse',undefined);
+});
+it('이미 전달한 선택 건은 중복 출고 경고를 확인해야 다운로드 단계로 간다',()=>{
+ const readyProps={...props,tab:'ready' as const,rows:[{...row,status:'ready' as const,exportedAt:'2026-10-20T00:00:00Z'}]};
+ function ready(){mocks.index=0;return ShipmentConsoleGrid(readyProps);}
+ const confirm=vi.fn(()=>false);vi.stubGlobal('window',{confirm});
+ const grid=nodes(ready()).find(node=>node.type===ConsoleGrid)!;(grid.props.onSelectionChange as (ids:string[])=>void)([ids[0]]);
+ const trigger=nodes(ready()).find(node=>node.type==='button'&&text(node.props.children as ReactNode)==='출고지시 내보내기')!;
+ (trigger.props.onClick as ()=>void)();expect(confirm).toHaveBeenCalledOnce();expect(text(ready())).not.toContain('비밀번호 확인');expect(mocks.export).not.toHaveBeenCalled();
+ confirm.mockReturnValue(true);(trigger.props.onClick as ()=>void)();expect(text(ready())).toContain('비밀번호 확인');
 });

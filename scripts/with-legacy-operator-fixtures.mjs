@@ -22,7 +22,7 @@ const allowedClone = isClone && /^icons_(?:goods_transaction_[a-f0-9]{32}|gift_s
   && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(cloneLease ?? '')
   && /^[a-z0-9][a-z0-9-]{0,100}$/.test(project ?? '');
 const allowedCi = project === 'icons-ip' && process.env.CI === 'true' && process.env.GITHUB_ACTIONS === 'true';
-const allowedFresh = /^icons-ip-smartstore-fresh-[0-9]{8}$/.test(project ?? '');
+const allowedFresh = /^(?:icons-ip-smartstore-fresh-[0-9]{8}|icons-admin-release-[a-f0-9]{8})$/.test(project ?? '');
 if (process.env.OPERATOR_LEGACY_FIXTURE_TEST_SCOPE !== '1' || (isClone ? !allowedClone : (!allowedCi && !allowedFresh) || cloneLease !== undefined)
   || container !== `supabase_db_${project}`) {
   throw new Error('Refusing legacy fixture installation outside an explicit local FRESH/GitHub Actions database. Browser QA and production are excluded.');

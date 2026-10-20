@@ -143,7 +143,7 @@ def race(label, first, second, expected_error=None):
 
 root = Path(__file__).resolve().parents[1]
 if sql("select to_regprocedure('public.admin_change_order_claim_reason(uuid,uuid,integer,uuid,text,text,text,boolean,boolean)') is null;") == 't':
-    sql((root / 'migrations/20261013183047_order_claim_reason_changes.sql').read_text())
+    sql((root / 'migrations/20261020085323_order_claim_reason_changes.sql').read_text())
 fixture = Path(__file__).with_name('order_claim_reason_changes.sql').read_text()
 fixture = fixture[fixture.index('create function pg_temp.reason_id'):fixture.index('-- FIXTURE END:')]
 fixture = fixture.replace('generate_series(1,28)', 'generate_series(1,53)')

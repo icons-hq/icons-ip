@@ -6,7 +6,7 @@ import { goodsCustomInputSummary, type GoodsCustomInputSelection } from '@/lib/g
  * 요청 목록은 상품 한 줄을 한 행으로 펼친다(스마트스토어 주문 엑셀과 같은 단위).
  * 주문 단위 금액은 행마다 반복되므로 안내 시트에 합계를 내는 열을 밝힌다.
  */
-import { adminGoodsCopy, ADMIN_VOCABULARY as V } from './vocabulary';
+import { ADMIN_VOCABULARY as V } from './vocabulary';
 import { SALES_DATE_FIELDS, SALES_SORT_OPTIONS } from './sales-list';
 import { shipmentDelayNoticeLabel } from './shipment-delay-notice';
 import { ORDER_DELAY_STATUS_LABELS } from './order-delay-notices';
@@ -28,6 +28,7 @@ import {
   ADMIN_CLAIM_STAGE_OPTIONS,
   ADMIN_CLAIM_DATE_FIELDS,
   ADMIN_CLAIM_SEARCH_FIELDS,
+  adminClaimReasonText,
   type AdminClaimFilters,
   type AdminClaimRow,
 } from './claims';
@@ -42,7 +43,7 @@ import {
   type ListExportCellValue,
   type ListExportColumn,
 } from './list-export';
-import { ORDER_WITHDRAWAL_REASON_LABELS, orderReferenceLabel, paymentStatusLabel } from '@/lib/orders';
+import { orderReferenceLabel, paymentStatusLabel } from '@/lib/orders';
 import {
   ORDER_CLAIM_REFUND_METHOD_LABELS,
   ORDER_CLAIM_STAGE_LABELS,
@@ -418,7 +419,7 @@ export function claimsListExportSheet(input: {
     column('주문번호', 'code', 12, ({ claim }) => orderReferenceLabel(claim.orderId)),
     column('전체 주문번호', 'code', 38, ({ claim }) => claim.orderId),
     column('유형', 'text', 8, ({ claim }) => ORDER_CLAIM_TYPE_LABELS[claim.claimType]),
-    column('사유', 'text', 16, ({ claim }) => adminGoodsCopy(ORDER_WITHDRAWAL_REASON_LABELS[claim.reasonType])),
+    column('사유', 'text', 20, ({ claim }) => adminClaimReasonText(claim.reasonType, claim.staffReasonCode)),
     column(V.claimStatus, 'text', 12, ({ claim }) => ORDER_CLAIM_STAGE_LABELS[claim.stage]),
     column('구매자', 'text', 16, ({ claim }) => claim.buyerName),
     column('이메일', 'text', 26, ({ claim }) => blank(claim.buyerEmail)),

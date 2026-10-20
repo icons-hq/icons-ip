@@ -3,6 +3,11 @@
 - Status: accepted (2026-09-09)
 - Supersedes: [ADR-0016의 2026-09-08 클레임 지원 범위](./0016-fulfillment-origins-and-shipments.md#현재-클레임-지원-범위와-한계-2026-09-08)
 - 관련: [정본 #437](https://github.com/icons-hq/icons-ip/issues/437), [#453](https://github.com/icons-hq/icons-ip/issues/453), [PR #407의 혼합 출고지 리뷰](https://github.com/icons-hq/icons-ip/pull/407#discussion_r3946457427)
+- 보완: 발주확인 뒤 첫 발송 전의 운영자 처리 경로는 [ADR-0018](./0018-staff-initiated-order-cancellation.md)(운영자 전액 취소)을 따른다. 이 문서의 직접 신청 경계는 바뀌지 않는다.
+
+## 후속 적용
+
+2026-10-16 승인된 [배송 중 반품·교환 접수](../research/smartstore-admin/in-transit-claims.md)는 아래 9월 결정 중 직접 접수 시점을 확장한다. 주문 전체 배정과 실제 발송 근거를 확인하고, 전액 처리·전체 회수 확인·기존 기한·금융 원장의 경계는 유지한다. 아래 내용은 당시 결정 이력이며 현재 절차는 [클레임 런북](../runbooks/order-claim-intake.md)을 따른다.
 
 ## 맥락
 

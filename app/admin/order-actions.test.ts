@@ -402,8 +402,18 @@ describe('admin order actions', () => {
     mocks.reconcile.mockResolvedValue({ ok: false, code: 'provider_unreachable' });
 
     await expect(approveAdminOrderCancellationAction({}, requestForm())).resolves.toEqual({
-      errors: { form: '결제 취소 상태를 확정하지 못했습니다. 운영 화면의 최신 상태에서 다시 확인해주세요.' },
+      errors: { form: '결제 취소 상태를 확정하지 못했습니다(provider_unreachable). 주문과 재고는 그대로 유지됩니다. 코드별 조치는 어드민 가이드 "클레임 처리"에 있습니다. 원인을 확인한 뒤 이 주문 패널의 [상태 다시 확인]으로 다시 시도해주세요.' },
     });
+  });
+
+  /* 2026-10-12 QA-10: 재시도 결과도 처음 실행처럼 원인 코드를 보여준다. */
+  it('재정합화가 확정하지 못하면 원인 코드를 결과에 싣는다', async () => {
+    mocks.reconcile.mockResolvedValue({ ok: false, code: 'provider_unavailable' });
+
+    const result = await reconcileAdminOrderCancellationAction({}, requestForm());
+
+    expect(result.errors?.form).toContain('(provider_unavailable)');
+    expect(result.errors?.form).toContain('[상태 다시 확인]');
   });
 
   it('진행 중인 결제 상태는 완료로 거짓 보고하지 않고 주문·재고 보존을 안내한다', async () => {

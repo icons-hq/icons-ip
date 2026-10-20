@@ -6,6 +6,8 @@ import {
   adminClaimDetailHref,
   adminClaimHref,
   adminClaimOpenCount,
+  adminClaimReasonText,
+  ADMIN_CLAIM_REASON_OPTIONS,
   normalizeAdminClaimCollectionForm,
   normalizeAdminClaimOriginCollectionForm,
   normalizeAdminClaimOperationalFeeForm,
@@ -127,6 +129,35 @@ describe('클레임 필터 정규화', () => {
   it('필터가 URL에 남는다', () => {
     expect(adminClaimHref('cancel', filters({ reasonType: 'defect', query: 'A1B2' })))
       .toBe('/admin/sales/claims/cancels?stage=open&reasonType=defect&query=A1B2&page=1');
+  });
+
+  /* 2026-10-12 QA-4: 운영자 전액 취소를 구매자 단순 변심과 따로, 운영 사유로 거른다. */
+  it('운영자 전액 취소 전체와 운영 사유 하나로 거를 수 있다', () => {
+    expect(normalizeAdminClaimFilters({ reasonType: 'staff' }).reasonType).toBe('staff');
+    expect(normalizeAdminClaimFilters({ reasonType: 'staff:test_payment_cleanup' }).reasonType)
+      .toBe('staff:test_payment_cleanup');
+    expect(normalizeAdminClaimFilters({ reasonType: 'staff:refund_anyway' }).reasonType).toBe('all');
+    expect(adminClaimHref('cancel', filters({ reasonType: 'staff:out_of_stock' })))
+      .toBe('/admin/sales/claims/cancels?stage=open&reasonType=staff%3Aout_of_stock&page=1');
+    expect(ADMIN_CLAIM_REASON_OPTIONS.map((option) => option.label)).toEqual([
+      '전체',
+      '단순 변심',
+      '상품 하자·오배송',
+      '운영자 전액 취소 전체',
+      '운영자 전액 취소 · 품절·출고 불가',
+      '운영자 전액 취소 · 고객 요청(CS 접수)',
+      '운영자 전액 취소 · 테스트 결제 정리',
+      '운영자 전액 취소 · 기타',
+    ]);
+  });
+});
+
+describe('클레임 사유 표기', () => {
+  it('운영자 전액 취소는 단순 변심이 아니라 운영 사유로 적는다', () => {
+    expect(adminClaimReasonText('staff', 'test_payment_cleanup')).toBe('운영자 전액 취소 · 테스트 결제 정리');
+    expect(adminClaimReasonText('staff', null)).toBe('운영자 전액 취소');
+    expect(adminClaimReasonText('change_of_mind')).toBe('단순 변심');
+    expect(adminClaimReasonText('defect')).toBe('상품 하자·오배송');
   });
 });
 

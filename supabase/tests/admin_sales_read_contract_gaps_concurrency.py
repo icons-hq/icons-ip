@@ -23,7 +23,7 @@ def sql(statement):
 
 
 if sql("select to_regprocedure('private.collect_settled_export_for_search(date,date,text,text,text)') is null;") == 't':
-    sql((root / 'migrations/20261013153022_admin_sales_read_contract_gaps.sql').read_text())
+    sql((root / 'migrations/20261020085312_admin_sales_read_contract_gaps.sql').read_text())
 result = subprocess.run(command + ['-f', '-'], input=Path(__file__).with_name('admin_sales_read_contract_gaps.sql').read_text(), text=True, capture_output=True)
 if result.returncode:
     print(result.stdout[-6000:])

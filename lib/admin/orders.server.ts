@@ -3,12 +3,15 @@ import { readGoodsCustomInputSnapshot } from '@/lib/goods-custom-inputs';
 
 import { loadAdminOrderDeliveries } from '@/lib/order-delivery.server';
 import { loadAdminOrderTransactions } from '@/lib/order-transactions.server';
-import { isOrderWithdrawalReasonType, type OrderWithdrawalReasonType } from '@/lib/orders';
 import {
+  isOrderClaimReasonType,
   isOrderClaimStage,
   isOrderClaimType,
+  isOrderStaffCancellationReasonCode,
+  type OrderClaimReasonType,
   type OrderClaimStage,
   type OrderClaimType,
+  type OrderStaffCancellationReasonCode,
 } from '@/lib/orders/claims';
 import { loadOrderShipments } from '@/lib/orders/shipments.server';
 import { getShippingCarrierRegistry } from '@/lib/orders/shipment.server';
@@ -50,6 +53,8 @@ interface SearchRow {
   cancellation_decision_note: string | null;
   cancellation_claim_type: string | null;
   cancellation_stage: string | null;
+  cancellation_staff_reason_code: string | null;
+  cancellation_last_error_code: string | null;
   total_count: number;
 }
 
@@ -92,6 +97,7 @@ interface ItemRow {
 interface PaymentRow {
   id: string;
   ref_id: string;
+  provider: string | null;
   amount: number;
   status: string;
   created_at: string;
@@ -185,9 +191,24 @@ function requireClaimStage(value: string): OrderClaimStage {
 
 // 사유 구분은 기한과 반품 배송비 부담 주체를 가른다. 모르는 값을 기본값으로 접으면
 // 운영자가 틀린 근거로 승인한다.
-function requireReasonType(value: string): OrderWithdrawalReasonType {
-  if (!isOrderWithdrawalReasonType(value)) {
+function requireReasonType(value: string): OrderClaimReasonType {
+  if (!isOrderClaimReasonType(value)) {
     throw new Error('Failed to load admin orders: unsupported cancellation reason type');
+  }
+  return value;
+}
+
+// 운영자 전액 취소(reason_type 'staff')만 운영 사유를 갖는다. DB 제약과 같은 짝이다.
+function requireStaffReasonCode(
+  reasonType: OrderClaimReasonType,
+  value: string | null,
+): OrderStaffCancellationReasonCode | null {
+  if (reasonType !== 'staff') {
+    if (value !== null) throw new Error('Failed to load admin orders: unexpected staff cancellation reason');
+    return null;
+  }
+  if (!isOrderStaffCancellationReasonCode(value)) {
+    throw new Error('Failed to load admin orders: unsupported staff cancellation reason');
   }
   return value;
 }
@@ -254,7 +275,7 @@ export async function getAdminOrderRecords(
     loadOrderItemRows(supabase, orderIds),
     canManage ? supabase
       .from('payment_summaries')
-      .select('id,ref_id,amount,status,created_at')
+      .select('id,ref_id,provider,amount,status,created_at')
       .eq('purpose', 'order')
       .in('ref_id', orderIds)
       .order('created_at', { ascending: true })
@@ -338,16 +359,21 @@ export async function getAdminOrderRecords(
       || transaction.lines.some(line => !orderItems.some(item => item.id === line.lineId && item.variant_id === line.variantId && item.qty === line.qty && item.unit_price === line.unitPrice)))) {
       throw new Error('Failed to load admin order transaction: snapshot mismatch');
     }
-    const cancellationRequest = canManage && row.cancellation_request_id
+    const reasonType = canManage && row.cancellation_request_id
+      ? requireReasonType(row.cancellation_reason_type ?? '')
+      : null;
+    const cancellationRequest = canManage && row.cancellation_request_id && reasonType
       ? {
           id: row.cancellation_request_id,
           status: requireRequestStatus(row.cancellation_request_status ?? ''),
           claimType: requireClaimType(row.cancellation_claim_type ?? ''),
           stage: requireClaimStage(row.cancellation_stage ?? ''),
-          reasonType: requireReasonType(row.cancellation_reason_type ?? ''),
+          reasonType,
+          staffReasonCode: requireStaffReasonCode(reasonType, row.cancellation_staff_reason_code ?? null),
           requestedAt: row.cancellation_requested_at ?? '',
           decidedAt: row.cancellation_decided_at,
           decisionNote: row.cancellation_decision_note,
+          lastErrorCode: row.cancellation_last_error_code?.trim() || null,
         }
       : null;
 
@@ -388,6 +414,7 @@ export async function getAdminOrderRecords(
       })),
       payments: (paymentsByOrder.get(row.id) ?? []).map((payment) => ({
         id: payment.id,
+        provider: typeof payment.provider === 'string' ? payment.provider : null,
         amount: payment.amount,
         status: payment.status,
         createdAt: payment.created_at,

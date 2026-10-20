@@ -44,7 +44,15 @@ create function pg_temp.sc_lines(ids text[],quantities integer[] default null,pr
 $$;
 create function pg_temp.sc_calculate(ids text[],quantities integer[] default null,prices bigint[] default null,choices jsonb default '{}',
  destination jsonb default '{"postalCode":"12345","address1":"TEST 합성주소"}') returns jsonb language sql stable as $$
- select private.calculate_goods_transaction_shipping(pg_temp.sc_lines(ids,quantities,prices),destination,choices,statement_timestamp());
+ -- Compare the shipping-group contract while retaining every amount, source
+ -- and allocation field. Fulfillment adds these separately tested annotations.
+ select jsonb_object_agg(entry.key,case when entry.key in('rawGroups','displayGroups') then
+  (select coalesce(jsonb_agg(g.value-array['deliveryMethod','deliveryPolicy']||
+   case when g.value ? 'components' then jsonb_build_object('components',
+    (select coalesce(jsonb_agg(component.value-'installationFee' order by component.n),'[]')
+     from jsonb_array_elements(g.value->'components') with ordinality component(value,n))) else '{}'::jsonb end order by g.n),'[]')
+   from jsonb_array_elements(entry.value) with ordinality g(value,n)) else entry.value end)
+ from jsonb_each(private.calculate_goods_transaction_shipping(pg_temp.sc_lines(ids,quantities,prices),destination,choices,statement_timestamp())) entry;
 $$;
 create function pg_temp.sc_delivery(terms jsonb,mode text default 'prepaid') returns jsonb language sql immutable as $$
  select jsonb_build_object('status','active','paymentMode',mode,'quantityTerms',terms,'draftValues','{}'::jsonb);
@@ -136,8 +144,17 @@ select pg_temp.sc_assert(:'clear_originless'::jsonb->>'canAssign'='true' and :'c
 select public.admin_assign_shipping_charge_group(pg_temp.sc_apply(306,:'clear_originless')) as clear_originless_result \gset
 select pg_temp.sc_assert(:'clear_originless_result'::jsonb#>>'{goods,0,assignmentRevision}'='0','originless no-op clear does not invent an assignment head');
 reset role;
-select pg_temp.sc_assert(pg_temp.sc_calculate(array['sc-good-001','sc-good-002'],array[2,2])=
- private.calculate_shipping_charge_groups_legacy(pg_temp.sc_lines(array['sc-good-001','sc-good-002'],array[2,2]),'{"postalCode":"12345","address1":"TEST 합성주소"}','{}',statement_timestamp()),'unassigned full calculator delegates exactly to the preserved legacy result');
+-- Fulfillment adds explicit parcel/installation metadata after this grouping
+-- layer. The group computation and final monetary totals retain the legacy result.
+with quoted as (
+ select private.calculate_goods_transaction_shipping(pg_temp.sc_lines(array['sc-good-001','sc-good-002'],array[2,2]),'{"postalCode":"12345","address1":"TEST 합성주소"}','{}',statement_timestamp()) actual,
+ private.calculate_shipping_before_fulfillment(pg_temp.sc_lines(array['sc-good-001','sc-good-002'],array[2,2]),'{"postalCode":"12345","address1":"TEST 합성주소"}','{}',statement_timestamp()) grouped,
+ private.calculate_shipping_charge_groups_legacy(pg_temp.sc_lines(array['sc-good-001','sc-good-002'],array[2,2]),'{"postalCode":"12345","address1":"TEST 합성주소"}','{}',statement_timestamp()) legacy
+)
+select pg_temp.sc_assert(grouped=legacy and actual-array['rawGroups','displayGroups']=legacy-array['rawGroups','displayGroups']
+ and not exists(select 1 from jsonb_array_elements(actual->'rawGroups') g where g->>'deliveryMethod'<>'parcel' or g->'deliveryPolicy'<>'null'::jsonb
+  or exists(select 1 from jsonb_array_elements(g->'components') c where (c->>'installationFee')::numeric<>0)),
+ 'unassigned group calculation and final totals preserve legacy with explicit parcel metadata') from quoted;
 set local role authenticated;
 select public.admin_preview_shipping_charge_group_assignment(pg_temp.sc_id(201),array['sc-good-001','sc-good-002'],pg_temp.sc_id(1),pg_temp.sc_id(11)) as assignment_preview \gset
 select pg_temp.sc_apply(307,:'assignment_preview') as assignment_request \gset
@@ -427,7 +444,9 @@ select public.set_cart_item_quantity('sc-good-002',:'variant_b',2);
 select jsonb_agg(jsonb_build_object('good_id',good_id,'variant_id',variant_id,'qty',qty,'input_revision',input_revision,'input_values',input_values) order by good_id) as cart_selection
  from public.cart_items where user_id=pg_temp.sc_id(3) \gset
 select '{"recipientName":"TEST 수취인","phone":"01000000000","postalCode":"12345","address1":"TEST 합성주소"}' as transaction_address \gset
-select pg_temp.sc_error(format('select public.place_order(%L::jsonb,%L::uuid,%L::public.order_payment_method)',:'transaction_address',pg_temp.sc_id(601),'card'),'checkout_contract_upgrade_required');
+set local role service_role;
+select pg_temp.sc_error(format('select public.place_order(%L::uuid,%L::jsonb,%L::uuid,%L::public.order_payment_method)',pg_temp.sc_id(3),:'transaction_address',pg_temp.sc_id(601),'card'),'checkout_contract_upgrade_required');
+set local role authenticated;
 reset role;
 set local role service_role;
 select public.quote_cart_goods_transaction(pg_temp.sc_id(3),:'cart_selection',:'transaction_address','{"sc-good-002":"collect"}',null,0) as quote_before_change \gset

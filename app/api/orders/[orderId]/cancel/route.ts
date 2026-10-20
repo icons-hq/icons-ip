@@ -3,6 +3,7 @@ import { loadGiftCheckoutOrder } from '@/lib/gifts-order.server';
 import { NextResponse } from 'next/server';
 import { normalizeOrderReference } from '@/lib/checkout';
 import { isOrderWithdrawalReasonType, type OrderWithdrawalReasonType } from '@/lib/orders';
+import { scheduleApprovedOrderCancellation } from '@/lib/orders/cancellation-auto.server';
 import { getSupabaseConfig } from '@/lib/supabase/config';
 import { createClient } from '@/lib/supabase/server';
 import { createServiceClient, getServiceRoleConfig } from '@/lib/supabase/service';
@@ -13,6 +14,14 @@ const CANCEL_REASONS: Record<OrderWithdrawalReasonType, string> = {
   change_of_mind: '사용자 주문 취소',
   defect: '상품 하자·오배송',
 };
+
+/*
+ * request_order_cancellation은 자동 승인을 'requested'로 접어 돌려준다(레거시 응답 계약).
+ * 그래서 이 라우트는 승인 여부를 묻지 않고 접수 뒤 서버 경로를 예약한다 — 승인된
+ * 취소면 결제사 전액 취소를 실행하고, 아니면 아무것도 하지 않는다(DB가 다시 판정).
+ * 대기 창 40초 + 결제사 취소·조회(8초×3) + DB를 덮는 예산이다.
+ */
+export const maxDuration = 90;
 
 interface OrderRow {
   id: string;
@@ -93,6 +102,7 @@ export async function POST(
   if (data === 'completed') return NextResponse.json({ status: 'canceled' });
   if (data === 'already_canceled') return NextResponse.json({ status: 'already_canceled' });
   if (data === 'requested') {
+    scheduleApprovedOrderCancellation(orderId);
     return NextResponse.json({ status: 'requested' }, { status: 202 });
   }
   if (data === 'already_requested') return NextResponse.json({ status: 'requested' });

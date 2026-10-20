@@ -9,7 +9,7 @@ import { createClient } from './supabase/server';
 import { isUuid } from './uuid';
 
 export type GiftCheckoutOrderResult = { kind: 'ordinary' } | { kind: 'unavailable' }
-  | { kind: 'gift'; order: CheckoutOrderSnapshot & { giftId: string; deliveredAt: string | null; transaction: NonNullable<ReturnType<typeof parseCheckoutTransactionReceipt>>['display'] } };
+  | { kind: 'gift'; order: Omit<CheckoutOrderSnapshot, 'paymentAttempt' | 'hasActiveCancellationRequest'> & { giftId: string; deliveredAt: string | null; transaction: NonNullable<ReturnType<typeof parseCheckoutTransactionReceipt>>['display'] } };
 const text = (v: unknown, max = 300): v is string => typeof v === 'string' && v.length <= max && !/[\u0000-\u001f\u007f]/.test(v);
 const nullableText = (v: unknown): v is string | null => v === null || text(v);
 const nullableInstant = (v: unknown): v is string | null => v === null || transactionInstant(v);

@@ -23,7 +23,7 @@ def sql(statement):
 
 
 if sql("select to_regprocedure('public.admin_get_pg_settlement_report(jsonb)') is null;") == 't':
-    sql((root / 'migrations/20261013132500_pg_settlement_ledger.sql').read_text())
+    sql((root / 'migrations/20261020085304_pg_settlement_ledger.sql').read_text())
 result = subprocess.run(command, input=Path(__file__).with_name('pg_settlement_ledger.sql').read_text(), text=True, capture_output=True)
 if result.returncode:
     print(result.stdout[-6000:])

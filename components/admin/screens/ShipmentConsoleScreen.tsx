@@ -79,11 +79,11 @@ export function ShipmentConsoleScreen({data,registeredCount,actorId}:{data:Shipm
   <SalesResultsHeader currentHref={currentHref} total={data.total} pageSize={data.pageSize} pageSizes={SHIPMENT_PAGE_SIZES} sort={filters.sort??'oldest'} unit="개 배송 건">
    <AdminListExportButton href={adminListExportHref(surface,currentHref)} total={data.total}/>
   </SalesResultsHeader>
-  {isDispatch&&filters.tab!=='new'&&(!rows.length||rows.some(isParcelShipment))?<details className="admin-shipment-import-disclosure">
+  <details className="admin-shipment-import-disclosure">
    <summary>운송장 가져오기 · 창고 회신 등록</summary>
    <DispatchTrackingImportPanel carriers={carriers} originId={filters.originId} shippingHref={shipmentConsoleHref('shipping',filters,{tab:'transit',page:1})}/>
-  </details>:null}
-  <ShipmentConsoleGrid actorId={actorId} rows={rows} columns={columns} gridRows={gridRows} tab={filters.tab}
+  </details>
+  <ShipmentConsoleGrid actorId={actorId} rows={rows} columns={columns} gridRows={gridRows} tab={filters.tab} origins={isDispatch?origins:[]} originId={filters.originId}
    currentHref={shipmentConsoleHref(surface,filters)} readyHref={shipmentConsoleHref('dispatch',filters,{tab:'ready',page:1})}/>
   <ConsolePagination label="배송 건 페이지" page={filters.page} pageSize={data.pageSize} total={data.total} hrefForPage={page=>shipmentConsoleHref(surface,filters,{page})}/>
   </div>

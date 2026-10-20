@@ -67,7 +67,7 @@ def race(label, first, second, expected_error=None):
 
 root = Path(__file__).resolve().parents[1]
 if sql("select to_regprocedure('public.admin_order_address_context(uuid)') is null;") == 't':
-    sql((root / 'migrations/20261013101000_admin_order_address_changes.sql').read_text())
+    sql((root / 'migrations/20261020085247_admin_order_address_changes.sql').read_text())
 fixture = Path(__file__).with_name('admin_order_address_changes.sql').read_text()
 fixture = fixture[fixture.index('create function pg_temp.address_id'):fixture.index('create temp table address_before')]
 sql('begin;create schema address_test;grant usage on schema address_test to authenticated;' + fixture.replace('pg_temp.', 'address_test.') + 'commit;')

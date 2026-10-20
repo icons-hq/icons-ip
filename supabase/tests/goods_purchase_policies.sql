@@ -159,15 +159,22 @@ select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000047602'
 select public.set_cart_item_quantity('sales-policy-main',:'default_variant',1);
 select 1/case when public.quote_goods_sales(jsonb_build_array(jsonb_build_object('goodId','sales-policy-main','variantId',:'default_variant','qty',1)))
  #>>'{goods,0,reason}'='order_quantity_below_minimum' then 1 else 0 end as assert_cart_minimum_feedback;
-select pg_temp.expect_error($sql$select public.place_order('{"recipientName":"검증 구매자","phone":"01012345678","postalCode":"00000","address1":"배송 금지 검증 주소"}'::jsonb,
+-- 브라우저 롤은 주문 생성 RPC를 직접 부르지 못한다(20261013100000). 앱처럼 service role 래퍼가 구매자 id를 넘긴다.
+set local role service_role;
+select pg_temp.expect_error($sql$select public.place_order('00000000-0000-4000-8000-000000047602'::uuid,'{"recipientName":"검증 구매자","phone":"01012345678","postalCode":"00000","address1":"배송 금지 검증 주소"}'::jsonb,
  '00000000-0000-4000-8000-000000047621'::uuid,'card'::public.order_payment_method)$sql$,'order_quantity_below_minimum','23514');
+set local role authenticated;
 select public.set_cart_item_quantity('sales-policy-main',:'default_variant',3);
 select public.set_cart_item_quantity('sales-policy-main',:'other_variant',2);
-select pg_temp.expect_error($sql$select public.place_order('{"recipientName":"검증 구매자","phone":"01012345678","postalCode":"00000","address1":"배송 금지 검증 주소"}'::jsonb,
+set local role service_role;
+select pg_temp.expect_error($sql$select public.place_order('00000000-0000-4000-8000-000000047602'::uuid,'{"recipientName":"검증 구매자","phone":"01012345678","postalCode":"00000","address1":"배송 금지 검증 주소"}'::jsonb,
  '00000000-0000-4000-8000-000000047622'::uuid,'card'::public.order_payment_method)$sql$,'order_quantity_above_maximum','23514');
+set local role authenticated;
 select public.set_cart_item_quantity('sales-policy-main',:'other_variant',1);
-select pg_temp.expect_error($sql$select public.place_order('{"recipientName":"검증 구매자","phone":"01012345678","postalCode":"00000","address1":"배송 금지 검증 주소"}'::jsonb,
+set local role service_role;
+select pg_temp.expect_error($sql$select public.place_order('00000000-0000-4000-8000-000000047602'::uuid,'{"recipientName":"검증 구매자","phone":"01012345678","postalCode":"00000","address1":"배송 금지 검증 주소"}'::jsonb,
  '00000000-0000-4000-8000-000000047623'::uuid,'card'::public.order_payment_method)$sql$,'member_purchase_limit_exceeded','23514');
+set local role authenticated;
 select 1/case when public.quote_goods_sales(jsonb_build_array(jsonb_build_object('goodId','sales-policy-main','variantId',:'default_variant','qty',4)))
  #>>'{goods,0,memberReservedQty}'='2' then 1 else 0 end as assert_orders_before_activation_are_included;
 
@@ -177,14 +184,17 @@ select 1/case when public.quote_goods_sales(jsonb_build_array(
  jsonb_build_object('goodId','sales-policy-main','variantId',:'default_variant','qty',2),
  jsonb_build_object('goodId','sales-policy-bank','variantId',:'bank_variant','qty',1)))
  ->'paymentMethods'='{"card":false,"bankTransfer":false}'::jsonb then 1 else 0 end as assert_mixed_payment_intersection_is_empty;
-select pg_temp.expect_error($sql$select public.place_order('{"recipientName":"검증 구매자","phone":"01012345678","postalCode":"00000","address1":"배송 금지 검증 주소"}'::jsonb,
+set local role service_role;
+select pg_temp.expect_error($sql$select public.place_order('00000000-0000-4000-8000-000000047602'::uuid,'{"recipientName":"검증 구매자","phone":"01012345678","postalCode":"00000","address1":"배송 금지 검증 주소"}'::jsonb,
  '00000000-0000-4000-8000-000000047624'::uuid,'card'::public.order_payment_method)$sql$,'card payment blocked','23514');
-select pg_temp.expect_error($sql$select public.place_order('{"recipientName":"검증 구매자","phone":"01012345678","postalCode":"00000","address1":"배송 금지 검증 주소"}'::jsonb,
+select pg_temp.expect_error($sql$select public.place_order('00000000-0000-4000-8000-000000047602'::uuid,'{"recipientName":"검증 구매자","phone":"01012345678","postalCode":"00000","address1":"배송 금지 검증 주소"}'::jsonb,
  '00000000-0000-4000-8000-000000047625'::uuid,'bank_transfer'::public.order_payment_method)$sql$,'bank transfer blocked','23514');
+set local role authenticated;
 select public.set_cart_item_quantity('sales-policy-bank',:'bank_variant',0);
-select public.place_order('{"recipientName":"검증 구매자","phone":"01012345678","postalCode":"00000","address1":"배송 금지 검증 주소"}'::jsonb,
+set local role service_role;
+select public.place_order('00000000-0000-4000-8000-000000047602'::uuid,'{"recipientName":"검증 구매자","phone":"01012345678","postalCode":"00000","address1":"배송 금지 검증 주소"}'::jsonb,
  '00000000-0000-4000-8000-000000047626'::uuid,'card'::public.order_payment_method) as second_order \gset
-select 1/case when public.place_order('{"recipientName":"검증 구매자","phone":"01012345678","postalCode":"00000","address1":"배송 금지 검증 주소"}'::jsonb,
+select 1/case when public.place_order('00000000-0000-4000-8000-000000047602'::uuid,'{"recipientName":"검증 구매자","phone":"01012345678","postalCode":"00000","address1":"배송 금지 검증 주소"}'::jsonb,
  '00000000-0000-4000-8000-000000047626'::uuid,'card'::public.order_payment_method)=:'second_order'::uuid then 1 else 0 end as assert_checkout_retry_does_not_reserve_twice;
 reset role;
 select 1/case when private.member_goods_reserved_qty('00000000-0000-4000-8000-000000047602','sales-policy-main')=5
@@ -240,7 +250,8 @@ select public.set_cart_item_quantity('sales-policy-main',:'default_variant',2);
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000047601',true);
 select public.admin_save_good(pg_temp.good_payload('sales-policy-main')||'{"sale_restriction":"adult"}');
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000047602',true);
-select pg_temp.expect_error($sql$select public.place_order('{"recipientName":"검증 구매자","phone":"01012345678","postalCode":"00000","address1":"배송 금지 검증 주소"}'::jsonb,
+set local role service_role;
+select pg_temp.expect_error($sql$select public.place_order('00000000-0000-4000-8000-000000047602'::uuid,'{"recipientName":"검증 구매자","phone":"01012345678","postalCode":"00000","address1":"배송 금지 검증 주소"}'::jsonb,
  '00000000-0000-4000-8000-000000047627'::uuid,'card'::public.order_payment_method)$sql$,'restricted good blocked','23514');
 reset role;
 select 1/case when (select count(*) from public.orders where user_id='00000000-0000-4000-8000-000000047602')=2

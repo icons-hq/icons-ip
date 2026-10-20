@@ -38,9 +38,14 @@ bash supabase/tests/goods_payment_cancellation_guard_concurrency.sh
 bash supabase/tests/goods_payment_expiry_claim_concurrency.sh
 run_sql_test supabase/tests/goods_payment_manual_recovery.sql
 bash supabase/tests/goods_payment_manual_recovery_concurrency.sh
+bash supabase/tests/goods_payment_cancellation_refund_race_concurrency.sh
+bash supabase/tests/goods_payment_expired_prepared_cancel_concurrency.sh
 run_sql_test supabase/tests/ticket_payment_provider_seam.sql
 bash supabase/tests/ticket_payment_provider_seam_concurrency.sh
 run_sql_test supabase/tests/order_cancellation.sql
+run_sql_test supabase/tests/order_cancellation_system_reconcile.sql
+run_sql_test supabase/tests/staff_order_cancellation.sql
+run_sql_test supabase/tests/order_claim_expired_prepared_cancellation.sql
 run_sql_test supabase/tests/order_withdrawal_deadline.sql
 run_sql_test supabase/tests/order_status_ladder.sql
 run_sql_test supabase/tests/admin_order_console.sql
@@ -149,6 +154,7 @@ run_sql_test supabase/tests/shipment_dispatch_workspace.sql
 run_sql_test supabase/tests/shipment_export.sql
 run_sql_test supabase/tests/shipment_export_variant_code.sql
 run_sql_test supabase/tests/warehouse_native_tracking.sql
+run_sql_test supabase/tests/warehouse_reply_exchange.sql
 run_sql_test supabase/tests/goods_excel_imports.sql
 run_sql_test supabase/tests/order_shipment_email_jobs.sql
 PSQL_BIN=psql PGHOST=127.0.0.1 PGPORT="$db_port" PGUSER=postgres PGPASSWORD=postgres PGDATABASE=postgres bash supabase/tests/option_stock_recovery_concurrency.sh

@@ -15,7 +15,7 @@ test_container="$(python3 - "$test_container_name" "$@" <<'PYIDENTITY'
 import json,re,subprocess,sys
 from pathlib import Path
 name=sys.argv[1]
-if not re.fullmatch(r'supabase_db_icons-ip(?:-[a-z0-9]+)*',name):raise SystemExit('Expected an exact local ICONS IP Supabase container name')
+if not re.fullmatch(r'supabase_db_(?:icons-ip(?:-[a-z0-9]+)*|icons-admin-release-[a-f0-9]{8})',name):raise SystemExit('Expected an exact local ICONS IP Supabase container name')
 seen=set();migration_dir=(Path.cwd()/'supabase/migrations').resolve()
 for value in sys.argv[2:]:
  path=Path(value)
@@ -65,7 +65,7 @@ trap 'exit 143' TERM
 source_history="$(source_ledger_sha)"
 if [[ $# -eq 0 ]]; then
  docker exec "$test_container" psql -X -U postgres -d postgres -qAt -v ON_ERROR_STOP=1 \
-  -c "begin read only; select 1 / case when not exists(select 1 from unnest(array['20261014041322','20261014042553','20261014045529','20261014054956','20261014061741','20261014061931','20261014062545','20261014071135','20261014092811']) required(version) where not exists(select 1 from supabase_migrations.schema_migrations applied where applied.version=required.version)) then 1 else 0 end as assert_current_financial_chain_applied; rollback;"
+  -c "begin read only; select 1 / case when not exists(select 1 from unnest(array['20261020085356','20261020085358','20261020085400','20261020085401','20261020085402','20261020085403','20261020085404','20261020085405','20261020085406']) required(version) where not exists(select 1 from supabase_migrations.schema_migrations applied where applied.version=required.version)) then 1 else 0 end as assert_current_financial_chain_applied; rollback;"
 fi
 docker exec "$test_container" pg_dump -U postgres -d postgres -Fc > "$test_dir/base.dump"
 docker exec -i "$test_container" pg_restore -l < "$test_dir/base.dump" > "$test_dir/restore.list"

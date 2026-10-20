@@ -5,14 +5,22 @@ import type { ShipmentRecord } from './orders/shipments';
 import { loadOrderShipments } from './orders/shipments.server';
 import { getShippingCarrierRegistry } from './orders/shipment.server';
 import { loadGiftCheckoutOrder } from './gifts-order.server';
+import { isOrderCancellationRequestStatus } from './orders';
+import { transactionRecord } from './goods-transaction-values';
 import { parseCheckoutTransactionReceipt } from './checkout-transaction';
 import type { GoodsTransactionDisplay } from './goods-transaction';
 
 import {
+  checkoutEffectivePaymentStatus,
+  checkoutPaymentResultOutcome,
   normalizeCheckoutAddress,
   normalizeCheckoutPaymentMethod,
   type CheckoutAddress,
+  readCheckoutPayment,
+  type CheckoutPaymentAttemptSnapshot,
   type CheckoutPaymentMethod,
+  type CheckoutPaymentReading,
+  type CheckoutPaymentResultFocus,
 } from './checkout';
 import { createClient } from './supabase/server';
 import { createServiceClient } from './supabase/service';
@@ -83,7 +91,41 @@ export interface CheckoutOrderSnapshot {
   paymentStatus: string | null;
   /** 주문 생성 시점에 고정된 결제수단 (#256). */
   paymentMethod: CheckoutPaymentMethod;
+  /**
+   * 이 주문의 결제 시도. service role 전용 원장에서 상태·만료·provider만 읽는다.
+   * 같은 주문으로 다시 결제할 수 있는지(재-prepare 가능 여부)를 화면이 판독하는 근거다.
+   */
+  paymentAttempt: CheckoutPaymentAttemptSnapshot | null;
+  /** 처리 중인 취소 요청(requested·processing·needs_review)이 있으면 DB가 결제를 막는다. */
+  hasActiveCancellationRequest: boolean;
   items: CheckoutOrderItem[];
+}
+
+const ACTIVE_CANCELLATION_REQUEST_STATUSES = ['requested', 'processing', 'needs_review'];
+
+interface PaymentAttemptRow {
+  state: string;
+  expires_at: string | null;
+  provider: string;
+}
+
+/** 주문의 가장 최근 결제 시도. 결제 시도 원장은 service role 전용이라 구매자 본인 것만 고른다. */
+function selectLatestOrderPaymentAttempt(userId: string, orderId: string) {
+  return createServiceClient()
+    .from('payment_attempts')
+    .select('state,expires_at,provider')
+    .eq('user_id', userId)
+    .eq('purpose', 'order')
+    .eq('ref_id', orderId)
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .maybeSingle<PaymentAttemptRow>();
+}
+
+function paymentAttemptSnapshot(row: PaymentAttemptRow | null): CheckoutPaymentAttemptSnapshot | null {
+  return row
+    ? { state: row.state, expiresAt: row.expires_at ?? null, provider: row.provider }
+    : null;
 }
 
 export async function loadLatestCheckoutAddress(userId: string): Promise<CheckoutAddress | null> {
@@ -121,7 +163,19 @@ export async function loadCheckoutOrder(
 ): Promise<CheckoutOrderSnapshot | null> {
   try {
     const gift = await loadGiftCheckoutOrder(userId, orderId);
-    if (gift.kind === 'gift') return gift.order;
+    if (gift.kind === 'gift') {
+      // The gift projection has already verified the payer and removes recipient details.
+      // Add only current payment state; never read the ordinary order/address projection.
+      const client = await createClient();
+      const [{ data: attempt, error: attemptError }, { data: claim, error: requestError }] = await Promise.all([
+        selectLatestOrderPaymentAttempt(userId, orderId),
+        client.rpc('get_my_gift_latest_claim', { p_order_id: orderId }),
+      ]);
+      if (attemptError || requestError || (claim !== null && (!transactionRecord(claim) || typeof claim.status !== 'string' || !isOrderCancellationRequestStatus(claim.status)))) return null;
+      return { ...gift.order, paymentAttempt: paymentAttemptSnapshot(attempt),
+        paymentStatus: checkoutEffectivePaymentStatus(attempt?.state, gift.order.paymentStatus),
+        hasActiveCancellationRequest: claim !== null && ACTIVE_CANCELLATION_REQUEST_STATUSES.includes(claim.status as string) };
+    }
     if (gift.kind !== 'ordinary') return null;
   } catch { return null; }
   const supabase = await createClient();
@@ -132,13 +186,13 @@ export async function loadCheckoutOrder(
     .eq('user_id', userId)
     .maybeSingle<OrderRow>();
   if (orderError || !orderData) return null;
-  const paymentLedger = createServiceClient();
 
   const [
     { data: itemData, error: itemError },
     { data: paymentData, error: paymentError },
     { data: attemptData, error: attemptError },
     receiptResult,
+    { data: requestData, error: requestError },
   ] = await Promise.all([
     readCompleteIdPages<OrderItemRow>((afterId,pageSize)=>{
       let query=supabase.from('order_items')
@@ -155,18 +209,16 @@ export async function loadCheckoutOrder(
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle<{ status: string }>(),
-    paymentLedger
-      .from('payment_attempts')
-      .select('state')
-      .eq('user_id', userId)
-      .eq('purpose', 'order')
-      .eq('ref_id', orderId)
-      .order('created_at', { ascending: false })
-      .limit(1)
-      .maybeSingle<{ state: string }>(),
+    selectLatestOrderPaymentAttempt(userId, orderId),
     orderData.calculation_version === 2 ? supabase.rpc('get_my_goods_transaction_receipt', { p_order_id: orderId }) : Promise.resolve({ data: null, error: null }),
+    supabase
+      .from('order_cancellation_requests')
+      .select('status')
+      .eq('order_id', orderId)
+      .in('status', ACTIVE_CANCELLATION_REQUEST_STATUSES)
+      .limit(1),
   ]);
-  if (itemError || paymentError || attemptError) return null;
+  if (itemError || paymentError || attemptError || requestError) return null;
 
   const itemRows = (itemData ?? []) as OrderItemRow[];
   const receipt = orderData.calculation_version === 2 ? parseCheckoutTransactionReceipt(receiptResult.data) : null;
@@ -187,12 +239,10 @@ export async function loadCheckoutOrder(
     address: normalizeCheckoutAddress(orderData.address),
     expiresAt: orderData.expires_at,
     createdAt: orderData.created_at,
-    paymentStatus: (
-      attemptData?.state === 'confirming'
-      || attemptData?.state === 'unknown'
-      || attemptData?.state === 'needs_review'
-    ) ? 'pending' : paymentData?.status ?? null,
+    paymentStatus: checkoutEffectivePaymentStatus(attemptData?.state, paymentData?.status ?? null),
     paymentMethod: normalizeCheckoutPaymentMethod(orderData.payment_method) ?? 'card',
+    paymentAttempt: paymentAttemptSnapshot(attemptData),
+    hasActiveCancellationRequest: ((requestData ?? []) as unknown[]).length > 0,
     shipments: await loadOrderShipments(supabase, [orderId], await getShippingCarrierRegistry()),
     items: itemRows.map((item) => ({
       id: item.id,
@@ -207,4 +257,125 @@ export async function loadCheckoutOrder(
       preorderExpectedShipDate: item.preorder_expected_ship_date ?? null,
     })),
   };
+}
+
+/**
+ * 주문 상세가 결제 대기 카드 주문에 보일 결제 국면. 결제 화면(`/checkout/{orderId}`)과 같은
+ * 규칙(`readCheckoutPayment`)으로 읽는다 — 주문 상세만 "확인 중"·"이어가기"를 말하면 같은
+ * 주문이 화면마다 다르게 읽힌다. 주문·결제 요약·취소 요청은 주문 상세가 이미 본인 RLS로
+ * 읽었으므로 결제 시도만 원장에서 더 읽는다. 시도를 읽지 못하면 null — 화면은 상태를
+ * 단정하지 않는다.
+ */
+export async function loadPendingCardPaymentReading(
+  userId: string,
+  order: {
+    readonly id: string;
+    readonly status: string;
+    readonly paymentMethod: CheckoutPaymentMethod;
+    readonly expiresAt: string | null;
+    /** 결제 요약(payment_summaries)의 최근 상태. 행이 없으면 null. */
+    readonly ledgerPaymentStatus: string | null;
+    /** 최근 취소 요청의 상태. 없으면 null. */
+    readonly cancellationRequestStatus: string | null;
+  },
+  now: number = Date.now(),
+): Promise<CheckoutPaymentReading | null> {
+  if (order.status !== 'pending' || order.paymentMethod !== 'card') return null;
+  try {
+    const { data, error } = await selectLatestOrderPaymentAttempt(userId, order.id);
+    if (error) return null;
+    return readCheckoutPayment({
+      status: order.status,
+      paymentMethod: order.paymentMethod,
+      paymentStatus: checkoutEffectivePaymentStatus(data?.state, order.ledgerPaymentStatus),
+      paymentAttempt: paymentAttemptSnapshot(data),
+      hasActiveCancellationRequest: order.cancellationRequestStatus !== null
+        && ACTIVE_CANCELLATION_REQUEST_STATUSES.includes(order.cancellationRequestStatus),
+      expiresAt: order.expiresAt,
+    }, now);
+  } catch {
+    return null;
+  }
+}
+
+/** 결제 결과 화면이 "방금 돌아온 결제"로 볼 최근 창. 토스 결제창 30분을 넉넉히 덮는다. */
+const PAYMENT_RESULT_FOCUS_WINDOW_MS = 24 * 60 * 60 * 1000;
+
+/**
+ * `/orders?payment=…` 배너가 가리킬 주문과 그 실제 결과.
+ *
+ * 토스 successUrl 콜백 라우트는 결과를 주문 식별자 없이 `approved|checking|failed`로만
+ * 돌려보내고, 늦게 끝낸 인증(시도 만료)이나 DB 오류도 `checking`으로 보낸다. 그래서
+ * 구매자의 토스 결제 시도 중 가장 최근에 **바뀐** 시도와 그 주문을 원장에서 읽어 실제
+ * 상태로 안내한다. 만든 시각이 아니라 `updated_at`으로 고르는 이유: 결제창을 열어 둔 채
+ * 다른 주문을 새로 준비하면 만든 시각이 가장 늦은 시도는 그 다른 주문이다. 콜백이 처리한
+ * 시도는 claim·finalize가 행을 갱신하므로(trg_payment_attempts_updated) 방금 돌아온 결제가
+ * 가장 최근에 바뀐 시도가 된다. 그래도 콜백이 claim 전에 거절된 경우까지 주문을 정확히
+ * 짚지는 못한다 — 근본 해결은 콜백 리다이렉트가 주문을 싣는 것이다.
+ * 결제 시도 원장은 service role 전용이고, 주문·결제 요약·취소 요청은 본인 RLS로 읽는다.
+ * 코페이 시도는 청구 여부 판단 근거(인증 후 승인 API 미호출 → 만료)를 확인하지 않았으므로
+ * 대상에서 빼고 쿼리 기반 기본 안내에 맡긴다.
+ */
+export async function loadLatestCardPaymentResultFocus(
+  userId: string,
+  now: number = Date.now(),
+): Promise<CheckoutPaymentResultFocus | null> {
+  try {
+    const { data: attempt, error: attemptError } = await createServiceClient()
+      .from('payment_attempts')
+      .select('ref_id,state,expires_at')
+      .eq('user_id', userId)
+      .eq('purpose', 'order')
+      .eq('provider', 'toss')
+      .gte('created_at', new Date(now - PAYMENT_RESULT_FOCUS_WINDOW_MS).toISOString())
+      .order('updated_at', { ascending: false })
+      .order('created_at', { ascending: false })
+      .limit(1)
+      .maybeSingle<{ ref_id: string; state: string; expires_at: string | null }>();
+    if (attemptError || !attempt) return null;
+
+    const supabase = await createClient();
+    const [
+      { data: order, error: orderError },
+      { data: payment, error: paymentError },
+      { data: requestData, error: requestError },
+    ] = await Promise.all([
+      supabase
+        .from('orders')
+        .select('id,status')
+        .eq('id', attempt.ref_id)
+        .eq('user_id', userId)
+        .maybeSingle<{ id: string; status: string }>(),
+      supabase
+        .from('payment_summaries')
+        .select('status')
+        .eq('purpose', 'order')
+        .eq('ref_id', attempt.ref_id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle<{ status: string }>(),
+      /* claim은 처리 중인 취소 요청이 있으면 결제를 막는다(goods_order_not_payable).
+         그 주문에 재시도를 약속하지 않도록 함께 읽는다. 승인과 겹친 취소(결제 원장 paid ·
+         주문 pending)도 이 요청으로 결제 취소 진행을 가린다. 요청자는 언제나 주문 구매자다. */
+      supabase
+        .from('order_cancellation_requests')
+        .select('status')
+        .eq('order_id', attempt.ref_id)
+        .in('status', ACTIVE_CANCELLATION_REQUEST_STATUSES)
+        .limit(1),
+    ]);
+    if (orderError || paymentError || requestError || !order) return null;
+
+    return {
+      orderId: order.id,
+      outcome: checkoutPaymentResultOutcome({
+        orderStatus: order.status,
+        paymentStatus: payment?.status ?? null,
+        attempt: { state: attempt.state, expiresAt: attempt.expires_at },
+        hasActiveCancellationRequest: ((requestData ?? []) as unknown[]).length > 0,
+      }, now),
+    };
+  } catch {
+    return null;
+  }
 }

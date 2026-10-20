@@ -3,6 +3,7 @@
 import { isAccountSuspended, isOnboarded } from '@/lib/auth/onboarding';
 import { getCurrentAuthState } from '@/lib/auth/server';
 import {
+  checkoutPaymentClosure,
   mapPlaceOrderError,
   normalizeCheckoutAddress,
   normalizeCheckoutKey,
@@ -10,7 +11,7 @@ import {
   normalizeOrderReference,
   type PlaceOrderErrorCode,
 } from '@/lib/checkout';
-import { loadCheckoutOrder } from '@/lib/checkout.server';
+import { loadCheckoutOrder, type CheckoutOrderSnapshot } from '@/lib/checkout.server';
 import type { PreparedCheckout } from '@/lib/payments/gateway';
 import { bankTransferCheckoutEnabled } from '@/lib/payments/bank-transfer.server';
 import { goodsCheckoutPaymentsEnabled } from '@/lib/payments/goods-checkout-availability';
@@ -37,7 +38,38 @@ export type PlaceOrderActionResult =
 
 export interface PrepareGoodsPaymentActionState {
   readonly prepared?: PreparedCheckout;
-  readonly error?: 'auth_required' | 'not_found' | 'not_payable' | 'goods_sale_not_open' | 'payment_unavailable';
+  /**
+   * `payment_closed`: 주문은 아직 결제 대기지만 같은 주문으로 결제를 다시 시작할 수
+   * 없다(승인 거절·결제 준비 시간 경과·처리 중인 취소 요청). "잠시 후 다시 시도"로
+   * 안내하면 같은 실패만 반복되므로 결제 환경 문제(`payment_unavailable`)와 나눈다.
+   */
+  readonly error?: 'auth_required' | 'not_found' | 'not_payable' | 'goods_sale_not_open' | 'payment_closed' | 'payment_unavailable';
+}
+
+function orderStillPayable(order: CheckoutOrderSnapshot, now: number) {
+  return order.status === 'pending'
+    && order.paymentStatus === null
+    && Boolean(order.expiresAt)
+    && Date.parse(order.expiresAt as string) > now;
+}
+
+/**
+ * prepare RPC가 실패한 뒤 원장을 다시 읽어 실패를 분류한다. 저장소 오류는 DB 사유를
+ * 싣지 않으므로(provider·DB 원문 비노출) 사유를 문자열에서 추측하지 않고 상태로 판독한다.
+ */
+async function classifyPrepareFailure(
+  userId: string,
+  orderId: string,
+): Promise<NonNullable<PrepareGoodsPaymentActionState['error']>> {
+  try {
+    const order = await loadCheckoutOrder(userId, orderId);
+    if (!order) return 'not_found';
+    const now = Date.now();
+    if (!orderStillPayable(order, now)) return 'not_payable';
+    return checkoutPaymentClosure(order, now) ? 'payment_closed' : 'payment_unavailable';
+  } catch {
+    return 'payment_unavailable';
+  }
 }
 
 export async function prepareGoodsPaymentAction(
@@ -56,12 +88,8 @@ export async function prepareGoodsPaymentAction(
 
   const order = await loadCheckoutOrder(auth.user.id, orderId);
   if (!order) return { error: 'not_found' };
-  if (
-    order.status !== 'pending'
-    || order.paymentStatus !== null
-    || !order.expiresAt
-    || Date.parse(order.expiresAt) <= Date.now()
-  ) return { error: 'not_payable' };
+  if (!orderStillPayable(order, Date.now())) return { error: 'not_payable' };
+  if (checkoutPaymentClosure(order, Date.now())) return { error: 'payment_closed' };
 
   try {
     /* 카드 provider는 주문의 판매 제한 여부에서 파생된다(#392). gate도 파생된
@@ -75,11 +103,11 @@ export async function prepareGoodsPaymentAction(
       userId: auth.user.id,
       orderId: order.id,
     });
-    if (Date.parse(prepared.expiresAt) <= Date.now()) return { error: 'not_payable' };
+    if (Date.parse(prepared.expiresAt) <= Date.now()) return { error: 'payment_closed' };
     return { prepared };
   } catch (error) {
     if (error instanceof GoodsPaymentRepositoryError && error.code === 'goods_sale_not_open') return { error: 'goods_sale_not_open' };
-    return { error: 'payment_unavailable' };
+    return { error: await classifyPrepareFailure(auth.user.id, order.id) };
   }
 }
 

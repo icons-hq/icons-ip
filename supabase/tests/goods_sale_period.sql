@@ -51,7 +51,9 @@ select 1/case when (select available_qty from private.resolve_goods_variant_supp
 set local role authenticated;
 select set_config('request.jwt.claim.sub','a5e06400-0000-4000-8000-000000000002',true);
 select public.set_cart_item_quantity('sale-period-good',:'variant',1);
-select public.place_order('{"recipientName":"합성 수취인","phone":"01000000000","postalCode":"12345","address1":"합성 주소"}'::jsonb,'a5e06400-0000-4000-8000-000000000021'::uuid,'card') as order_id \gset
+set local role service_role;
+select public.place_order('a5e06400-0000-4000-8000-000000000002'::uuid,'{"recipientName":"합성 수취인","phone":"01000000000","postalCode":"12345","address1":"합성 주소"}'::jsonb,'a5e06400-0000-4000-8000-000000000021'::uuid,'card') as order_id \gset
+set local role authenticated;
 reset role;
 select public.prepare_goods_payment_attempt('a5e06400-0000-4000-8000-000000000002',:'order_id','toss')->>'id' as attempt_id \gset
 select public.bind_goods_payment_callback_nonce(:'attempt_id',repeat('e',64));
@@ -68,7 +70,9 @@ set local role authenticated;
 select set_config('request.jwt.claim.sub','a5e06400-0000-4000-8000-000000000002',true);
 select 1/case when not (public.quote_goods_sales(jsonb_build_array(jsonb_build_object('goodId','sale-period-good','variantId',:'variant','qty',1)))#>>'{lines,0,available}')::boolean then 1 else 0 end as assert_quote_closes_ended_good;
 select pg_temp.expect_period_error(format('select public.set_cart_item_quantity(%L,%L,1)','sale-period-good',:'variant'),'out of stock');
-select 1/case when public.place_order('{"recipientName":"합성 수취인","phone":"01000000000","postalCode":"12345","address1":"합성 주소"}'::jsonb,'a5e06400-0000-4000-8000-000000000021'::uuid,'card')=:'order_id'::uuid then 1 else 0 end as assert_ended_idempotent_checkout_replay;
+set local role service_role;
+select 1/case when public.place_order('a5e06400-0000-4000-8000-000000000002'::uuid,'{"recipientName":"합성 수취인","phone":"01000000000","postalCode":"12345","address1":"합성 주소"}'::jsonb,'a5e06400-0000-4000-8000-000000000021'::uuid,'card')=:'order_id'::uuid then 1 else 0 end as assert_ended_idempotent_checkout_replay;
+set local role authenticated;
 reset role;
 select 1/case when public.finalize_goods_payment_attempt(:'attempt_id','a5e06400-0000-4000-8000-000000000031','unknown')='unknown' then 1 else 0 end as assert_existing_claim_can_record_unknown_after_end;
 select public.claim_goods_payment_reconciliation(:'attempt_id','a5e06400-0000-4000-8000-000000000032','case_sale_period_expired');
@@ -79,7 +83,9 @@ select 1/case when public.claim_goods_payment_attempt('toss',:'provider_order_id
 update public.goods set sale_starts_at=now()-interval '1 hour',sale_ends_at=now()+interval '1 hour' where id='sale-period-good';
 set local role authenticated;
 select public.set_cart_item_quantity('sale-period-good',:'variant',1);
-select public.place_order('{"recipientName":"합성 수취인","phone":"01000000000","postalCode":"12345","address1":"합성 주소"}'::jsonb,'a5e06400-0000-4000-8000-000000000022'::uuid,'card') as unpaid_order \gset
+set local role service_role;
+select public.place_order('a5e06400-0000-4000-8000-000000000002'::uuid,'{"recipientName":"합성 수취인","phone":"01000000000","postalCode":"12345","address1":"합성 주소"}'::jsonb,'a5e06400-0000-4000-8000-000000000022'::uuid,'card') as unpaid_order \gset
+set local role authenticated;
 reset role;
 select public.prepare_goods_payment_attempt('a5e06400-0000-4000-8000-000000000002',:'unpaid_order','toss')->>'id' as unpaid_attempt \gset
 select public.bind_goods_payment_callback_nonce(:'unpaid_attempt',repeat('f',64));
@@ -96,7 +102,9 @@ update public.goods set sale_starts_at=now()-interval '1 hour',sale_ends_at=now(
 set local role authenticated;
 select set_config('request.jwt.claim.sub','a5e06400-0000-4000-8000-000000000002',true);
 select public.set_cart_item_quantity('sale-period-good',:'variant',1);
-select public.place_order('{"recipientName":"합성 수취인","phone":"01000000000","postalCode":"12345","address1":"합성 주소"}'::jsonb,'a5e06400-0000-4000-8000-000000000023'::uuid,'bank_transfer') as bank_order \gset
+set local role service_role;
+select public.place_order('a5e06400-0000-4000-8000-000000000002'::uuid,'{"recipientName":"합성 수취인","phone":"01000000000","postalCode":"12345","address1":"합성 주소"}'::jsonb,'a5e06400-0000-4000-8000-000000000023'::uuid,'bank_transfer') as bank_order \gset
+set local role authenticated;
 reset role;
 update public.goods set sale_starts_at=now()-interval '2 hours',sale_ends_at=now()-interval '1 hour' where id='sale-period-good';
 set local role authenticated;

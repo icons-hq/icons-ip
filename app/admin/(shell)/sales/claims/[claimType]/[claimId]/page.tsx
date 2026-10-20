@@ -14,6 +14,10 @@ import {
 } from '@/lib/orders/claims';
 import { getShippingCarrierRegistry } from '@/lib/orders/shipment.server';
 
+/* 이 화면의 서버 액션은 결제사 취소를 바로 발행하고 결과를 조회로 확인한다
+   (사전 조회·취소·사후 조회 각 8초 + DB). 페이지 단위 maxDuration이 액션 예산이다. */
+export const maxDuration = 60;
+
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 export default async function AdminSalesClaimDetailPage({

@@ -267,6 +267,7 @@ jobs:
       - name: Verify manager boundaries after legacy fixtures
         if: always()
         run: |
+          docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/release_main_admin_contracts.sql
           docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/operator_capability_coverage.sql
           docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/operator_capability_guards.sql
 

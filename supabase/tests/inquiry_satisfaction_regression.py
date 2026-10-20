@@ -22,7 +22,7 @@ from helpers.review_helpful_contract import quote, snapshot, sql
 
 ROOT = Path(__file__).resolve().parents[2]
 TESTS = ROOT / 'supabase/tests'
-REQUIRED_VERSION = '20261015052828'
+REQUIRED_VERSION = '20261020085418'
 ADMIN = 'public.admin_inquiry_satisfaction_console(text,text,date,date,text,text,integer,integer,text)'
 PREDECESSOR = 'public.admin_search_inquiries(text,text,date,date,text,text,integer,integer)'
 TARGETS = {

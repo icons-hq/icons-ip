@@ -76,6 +76,16 @@ select 1/case when jsonb_array_length(:'input_export'::jsonb#>'{shipments,0,line
  and exists(select 1 from jsonb_array_elements(:'input_export'::jsonb#>'{shipments,0,lines}') line where line->>'optionName' like '%각인 문구: 첫 번째 문구%' and line->>'optionName' like '%이니셜: AB%')
  and exists(select 1 from jsonb_array_elements(:'input_export'::jsonb#>'{shipments,0,lines}') line where line->>'optionName' like '%각인 문구: 두 번째 문구%' and line->>'optionName' like '%이니셜: CD%')
  then 1 else 0 end as assert_warehouse_export_keeps_distinct_input_values;
+reset role;
+update public.order_shipments set exported_at=clock_timestamp() where order_id=:'order_id';
+set local role authenticated;
+select public.admin_origin_tracking_candidates('00000000-0000-4000-8000-000000063301','{}',
+ array[(select address->>'phone' from public.orders where id=:'order_id')]) as input_candidates \gset
+select 1/case when
+ (select jsonb_agg(line->>'optionName' order by line->>'optionName') from jsonb_array_elements(:'input_candidates'::jsonb#>'{shipments,0,lines}') line)
+ =(select jsonb_agg(line->>'optionName' order by line->>'optionName') from jsonb_array_elements(:'input_export'::jsonb#>'{shipments,0,lines}') line)
+ then 1 else 0 end as reply_candidate_preserves_the_exported_custom_input_option_text;
+
 rollback to savepoint export_projection;
 set local role service_role;
 select public.cancel_order(:'order_id','합성 주문 전체 취소');
@@ -92,9 +102,11 @@ select set_config('request.jwt.claim.sub','',true);
 update public.goods set custom_input_fields=jsonb_set(custom_input_fields,'{0,name}','"새 각인 문구"') where id='custom-inputs-good';
 set local role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000063302',true);
+set local role service_role;
 do $$begin
- begin perform public.place_order('{"recipientName":"합성 수취인","phone":"01000000000","postalCode":"12345","address1":"합성 주소"}'::jsonb,'00000000-0000-4000-8000-000000063322'::uuid,'card'::public.order_payment_method);raise exception 'stale definition ordered';exception when check_violation then if sqlerrm<>'goods_custom_inputs_changed' then raise;end if;end;
+ begin perform public.place_order('00000000-0000-4000-8000-000000063302'::uuid,'{"recipientName":"합성 수취인","phone":"01000000000","postalCode":"12345","address1":"합성 주소"}'::jsonb,'00000000-0000-4000-8000-000000063322'::uuid,'card'::public.order_payment_method);raise exception 'stale definition ordered';exception when check_violation then if sqlerrm<>'goods_custom_inputs_changed' then raise;end if;end;
 end$$;
+set local role authenticated;
 select 1/case when (select count(*) from public.cart_items)=1 then 1 else 0 end as assert_stale_checkout_failure_keeps_cart;
 select public.set_cart_item_quantity_with_inputs('custom-inputs-good',:'variant_id',0,1,:'inputs_a');
 select 1/case when (select count(*) from public.cart_items)=0 then 1 else 0 end as assert_obsolete_input_line_can_be_removed;
