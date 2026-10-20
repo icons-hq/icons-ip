@@ -333,6 +333,7 @@ describe('restoreCanceledOrderToCartAction', () => {
         order_id: orderId,
         user_id: userId,
         user_coupon_id: userCouponId,
+        benefit_kind: 'goods',
         status: 'released',
         release_reason: 'order_canceled',
       }];
@@ -356,6 +357,57 @@ describe('restoreCanceledOrderToCartAction', () => {
         ['status', 'released'],
         ['release_reason', 'order_canceled'],
       ]);
+    });
+
+    it('복수 쿠폰은 일부만 자동 복원하지 않고 기존 선택을 보존한 채 주문서 재선택으로 안내한다', async () => {
+      mocks.rows.orders[0].discount_total = 5000;
+      mocks.rows.coupon_redemptions.push({
+        order_id: orderId, user_id: userId, user_coupon_id: otherUserCouponId,
+        status: 'released', release_reason: 'order_canceled', benefit_kind: 'goods',
+      });
+      const selection = [{ user_id: userId, user_coupon_id: otherUserCouponId }];
+      mocks.rows.cart_coupon_selections = selection;
+      // PostgREST가 요청한 두 행 대신 한 행만 반환해도 exact count는 2다.
+      mocks.pageCap = 1;
+
+      await expect(restoreCanceledOrderToCartAction(orderId)).resolves.toMatchObject({
+        ok: true, restoredLines: 2, skipped: [],
+        coupon: 'not_restored', couponReselectAt: 'checkout',
+      });
+      expect(mocks.rows.cart_coupon_selections).toEqual(selection);
+      expect(rpcCalls('apply_cart_coupon')).toEqual([]);
+      expect(rpcCalls('clear_cart_coupon')).toEqual([]);
+      expect(mocks.quote).not.toHaveBeenCalled();
+      expect(mocks.transactionQuote).not.toHaveBeenCalled();
+    });
+
+    it('쿠폰 사용 원장의 정확한 건수를 읽지 못하면 단일 자동 복원으로 처리하지 않는다', async () => {
+      mocks.missingCounts.add('coupon_redemptions');
+      await expect(restoreCanceledOrderToCartAction(orderId)).resolves.toMatchObject({
+        ok: true, coupon: 'not_restored',
+      });
+      expect(rpcCalls('apply_cart_coupon')).toEqual([]);
+    });
+
+    it('배송비 쿠폰만 쓴 주문도 원장 조회에 실패하면 혜택 미복원을 알린다', async () => {
+      mocks.rows.orders[0].discount_total = 0;
+      mocks.rows.orders[0].shipping_coupon_discount_total = 2000;
+      mocks.failingTables.add('coupon_redemptions');
+      await expect(restoreCanceledOrderToCartAction(orderId)).resolves.toMatchObject({
+        ok: true, coupon: 'not_restored', couponReselectAt: 'checkout',
+      });
+    });
+
+    it('배송비 쿠폰 1장은 장바구니 단일 쿠폰에 넣지 않고 주문서에서 다시 고르게 한다', async () => {
+      mocks.rows.orders[0].discount_total = 0;
+      mocks.rows.orders[0].shipping_coupon_discount_total = 2000;
+      mocks.rows.coupon_redemptions[0].benefit_kind = 'shipping';
+      await expect(restoreCanceledOrderToCartAction(orderId)).resolves.toMatchObject({
+        ok: true, coupon: 'not_restored', couponReselectAt: 'checkout',
+      });
+      expect(rpcCalls('apply_cart_coupon')).toEqual([]);
+      expect(rpcCalls('clear_cart_coupon')).toEqual([]);
+      expect(mocks.transactionQuote).not.toHaveBeenCalled();
     });
 
     it('다시 고른 쿠폰이 지금 장바구니에서 할인으로 인정되는지 판매 견적으로 확인한다', async () => {

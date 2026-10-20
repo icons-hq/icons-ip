@@ -45,7 +45,7 @@ cleanup() {
  local result=$?
  trap - EXIT INT TERM
  if "$test_created"; then
-  if ! docker exec "$test_container" dropdb -U postgres --force "$test_database"; then
+  if ! docker exec "$test_container" dropdb -U supabase_admin --force "$test_database"; then
    echo "Failed to clean disposable database: $test_database" >&2; result=1
   fi
  fi

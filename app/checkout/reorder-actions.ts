@@ -70,6 +70,8 @@ export type RestoreCanceledOrderToCartResult =
       readonly restoredLines: number;
       readonly skipped: readonly RestoreOrderSkippedLine[];
       readonly coupon: RestoreOrderCouponResult;
+      /** 복수·배송비 쿠폰은 주문서에서 다시 선택한다. 굿즈 쿠폰 1장은 장바구니 선택을 유지한다. */
+      readonly couponReselectAt?: 'checkout';
       /** 원 주문에서 사용한 적립금. 주문서 입력은 비어 있으므로 0보다 크면 다시 입력해야 한다. */
       readonly storeCreditUsed: number;
     }
@@ -82,12 +84,14 @@ interface OrderRow {
   id: string;
   status: string;
   discount_total: number | null;
+  shipping_coupon_discount_total?: number | null;
   store_credit_total: number | null;
   address: unknown;
 }
 
 interface RedemptionRow {
   user_coupon_id: string;
+  benefit_kind: 'goods' | 'shipping';
 }
 
 interface CouponSelectionRow {
@@ -268,7 +272,8 @@ async function releaseCouponSelection(supabase: ServerClient): Promise<boolean> 
 }
 
 /**
- * 원 주문의 쿠폰을 장바구니에 다시 선택한다. 다른 쿠폰이 이미 선택돼 있으면 덮지 않는다.
+ * 원 주문의 굿즈 쿠폰 1장을 장바구니에 다시 선택한다. 다른 쿠폰이 이미 선택돼 있으면 덮지 않는다.
+ * 복수·배송비 쿠폰은 자동 선택하지 않고 주문서에서 다시 고르도록 안내한다.
  * 쿠폰 자체의 조건(만료·사용됨·발급 대상)은 `apply_cart_coupon`이, 지금 장바구니에서
  * 할인이 성립하는지는 판매 견적이 다시 판정한다. 할인이 성립하지 않으면 이 액션이 만든
  * 선택을 풀어, 쿠폰 때문에 주문서 제출이 막힌 채로 고객을 보내지 않는다. 고객이 이미 골라
@@ -278,28 +283,37 @@ async function restoreOrderCoupon(
   supabase: ServerClient,
   userId: string,
   order: OrderRow,
-): Promise<RestoreOrderCouponResult> {
-  const discounted = (order.discount_total ?? 0) > 0;
+): Promise<RestoreOrderCouponResult | 'checkout_not_restored'> {
+  const discounted = (order.discount_total ?? 0) + (order.shipping_coupon_discount_total ?? 0) > 0;
+  const unavailableResult = (order.shipping_coupon_discount_total ?? 0) > 0
+    ? 'checkout_not_restored' : discounted ? 'not_restored' : 'none';
   try {
-    const [{ data: redemption, error: redemptionError }, { data: selection, error: selectionError }] = await Promise.all([
+    const [{ data: redemptions, error: redemptionError, count }, { data: selection, error: selectionError }] = await Promise.all([
       supabase
         .from('coupon_redemptions')
-        .select('user_coupon_id')
+        .select('user_coupon_id,benefit_kind', { count: 'exact' })
         .eq('order_id', order.id)
         .eq('user_id', userId)
         .eq('status', 'released')
         .eq('release_reason', 'order_canceled')
         .order('applied_at', { ascending: false })
-        .limit(1)
-        .maybeSingle<RedemptionRow>(),
+        .limit(2),
       supabase
         .from('cart_coupon_selections')
         .select('user_coupon_id')
         .eq('user_id', userId)
         .maybeSingle<CouponSelectionRow>(),
     ]);
-    if (redemptionError) return discounted ? 'not_restored' : 'none';
-    if (!redemption) return discounted ? 'not_restored' : 'none';
+    if (redemptionError) return unavailableResult;
+    if (!Number.isSafeInteger(count) || count === null || count < 0) return unavailableResult;
+    // A cart stores one selected coupon. Restoring only one of an original
+    // combination must not report all benefits restored and auto-open checkout.
+    // The exact count also detects a response truncated to one row.
+    if (count > 1) return 'checkout_not_restored';
+    if (!Array.isArray(redemptions) || redemptions.length !== count) return unavailableResult;
+    const redemption = (redemptions as RedemptionRow[])[0];
+    if (!redemption) return unavailableResult;
+    if (redemption.benefit_kind === 'shipping') return 'checkout_not_restored';
     if (selectionError) return 'not_restored';
 
     let selectedByAction = false;
@@ -344,7 +358,7 @@ export async function restoreCanceledOrderToCartAction(
     const supabase = await createClient();
     const { data: orderData, error: orderError } = await supabase
       .from('orders')
-      .select('id,status,discount_total,store_credit_total,address')
+      .select('id,status,discount_total,shipping_coupon_discount_total,store_credit_total,address')
       .eq('id', orderId)
       .eq('user_id', auth.user.id)
       .maybeSingle<OrderRow>();
@@ -420,8 +434,8 @@ export async function restoreCanceledOrderToCartAction(
     const skipped = await refineUnavailableLines(supabase, failures);
     /* 담긴 굿즈가 없으면 쿠폰을 빈 장바구니에 걸어 두지 않는다 — 보유 쿠폰은 이미
        active로 돌아와 있다. */
-    const hadCoupon = (orderData.discount_total ?? 0) > 0;
-    const coupon: RestoreOrderCouponResult = restoredLines > 0
+    const hadCoupon = (orderData.discount_total ?? 0) + (orderData.shipping_coupon_discount_total ?? 0) > 0;
+    const coupon = restoredLines > 0
       ? await restoreOrderCoupon(supabase, auth.user.id, orderData)
       : hadCoupon ? 'not_restored' : 'none';
 
@@ -429,7 +443,8 @@ export async function restoreCanceledOrderToCartAction(
       ok: true,
       restoredLines,
       skipped,
-      coupon,
+      coupon: coupon === 'checkout_not_restored' ? 'not_restored' : coupon,
+      ...(coupon === 'checkout_not_restored' ? { couponReselectAt: 'checkout' as const } : {}),
       storeCreditUsed: Math.max(0, orderData.store_credit_total ?? 0),
     };
   } catch {

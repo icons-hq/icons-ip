@@ -3,7 +3,7 @@ set -euo pipefail
 container="${SUPABASE_DB_CONTAINER:-}"
 project="${container#supabase_db_}"
 if [[ "${OPERATOR_CAPABILITY_TEST_SCOPE:-}" != 1 ]] || [[ "$container" != "supabase_db_$project" ]] || \
-  ! { [[ "$project" =~ ^icons-ip-smartstore-fresh-[0-9]{8}$ ]] || [[ "$project" == icons-ip && "${CI:-}" == true && "${GITHUB_ACTIONS:-}" == true ]]; }; then
+  ! { [[ "$project" =~ ^icons-ip-smartstore-fresh-[0-9]{8}$ ]] || [[ "$project" =~ ^icons-admin-release-[a-f0-9]{8}$ ]] || [[ "$project" == icons-ip && "${CI:-}" == true && "${GITHUB_ACTIONS:-}" == true ]]; }; then
   echo 'Refusing operator concurrency fixtures outside explicit local FRESH/GitHub Actions scope' >&2; exit 1
 fi
 [[ "$(docker inspect --format '{{ index .Config.Labels "com.supabase.cli.project" }}' "$container")" == "$project" ]] || exit 1

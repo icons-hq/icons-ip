@@ -38,7 +38,7 @@ type CancelResult = Awaited<ReturnType<typeof submitOrderCancellation>>;
  * - `conditions_unmet`: 지금 담긴 굿즈가 사용 조건에 맞지 않아 할인되지 않는다.
  * - `unavailable`: 만료·사용 완료 등으로 다시 고를 수 없다.
  */
-export type ReorderCouponNotice = 'reselect' | 'conditions_unmet' | 'unavailable';
+export type ReorderCouponNotice = 'reselect' | 'reselect_checkout' | 'conditions_unmet' | 'unavailable';
 
 /** 새 주문에서 고객이 직접 다시 챙겨야 하는 원 주문의 혜택. */
 export interface ReorderBenefitsToReapply {
@@ -103,7 +103,8 @@ export async function runReorder(
   }
   if (!restored.ok) return { kind: restored.error === 'gift_order' ? 'gift_order' : 'restore_failed' };
   if (restored.restoredLines === 0) return { kind: 'nothing_restored', skipped: restored.skipped };
-  const coupon = COUPON_NOTICES[restored.coupon] ?? null;
+  const coupon = restored.coupon === 'not_restored' && restored.couponReselectAt === 'checkout'
+    ? 'reselect_checkout' : COUPON_NOTICES[restored.coupon] ?? null;
   const storeCredit = Math.max(0, restored.storeCreditUsed);
   const reapply = coupon || storeCredit > 0 ? { coupon, storeCredit } : null;
   if (restored.skipped.length > 0) return { kind: 'partial', skipped: restored.skipped, reapply };
@@ -151,6 +152,7 @@ function skippedSummary(skipped: readonly RestoreOrderSkippedLine[]) {
 
 const COUPON_NOTICE_COPY: Record<ReorderCouponNotice, string> = {
   reselect: '이전 주문에 쓴 쿠폰은 다시 적용되지 않았어요. 장바구니에서 쿠폰을 다시 골라주세요.',
+  reselect_checkout: '이전 주문에 쓴 쿠폰은 자동으로 다시 적용하지 않았어요. 주문서에서 사용할 쿠폰을 다시 골라주세요.',
   conditions_unmet: '이전 주문에 쓴 쿠폰은 지금 담긴 굿즈로는 사용 조건(최소 주문 금액 등)에 맞지 않아 할인되지 않아요. 장바구니에서 굿즈와 쿠폰을 확인해주세요.',
   unavailable: '이전 주문에 쓴 쿠폰은 만료·사용 완료·사용 중단 등으로 지금 쓸 수 없어 이번 주문에는 적용되지 않아요.',
 };
@@ -195,6 +197,12 @@ export function ReorderOutcomeNotice({
   /* 쿠폰을 고르고 조건을 확인하는 곳은 장바구니다 — 장바구니에서 해결할 수 있는 쿠폰
      안내일 때만 장바구니를 먼저 권한다. 다시 고를 수 없는 쿠폰은 주문서를 먼저 권한다. */
   const benefitLinks = (reapply: ReorderBenefitsToReapply | null) => {
+    if (reapply?.coupon === 'reselect_checkout') return (
+      <>
+        <Link className="btn btn-holo" href="/checkout">주문서에서 쿠폰 다시 고르기</Link>
+        <Link className="btn btn-ghost" href="/cart">장바구니 보기</Link>
+      </>
+    );
     const cartFirst = reapply?.coupon ? CART_FIRST_COUPON_LINKS[reapply.coupon] : undefined;
     return cartFirst ? (
       <>

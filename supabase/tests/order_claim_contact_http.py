@@ -20,7 +20,7 @@ def sql(body):
  return r.stdout.strip()
 identity=json.loads(subprocess.check_output(['docker','inspect',cid],text=True))[0]
 assert identity['Id']==cid and identity['State']['Running']
-assert re.fullmatch(r'/supabase_db_icons-ip(?:-[a-z0-9]+)*',identity['Name'])
+assert re.fullmatch(r'/supabase_db_(?:icons-ip(?:-[a-z0-9]+)*|icons-admin-release-[a-f0-9]{8})',identity['Name'])
 assert identity['Config']['Labels']['com.supabase.cli.project']==identity['Name'].removeprefix('/supabase_db_')
 lease=json.loads(sql('begin read only;select to_jsonb(i) from private.operator_fixture_clone_identity i where singleton;commit;').splitlines()[-1])
 assert lease['container_id']==cid and lease['source_database']=='postgres' and lease['lease'].replace('-','')==db[-32:]

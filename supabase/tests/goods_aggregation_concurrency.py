@@ -29,7 +29,10 @@ def finish(proc):
  if proc.returncode:raise RuntimeError(error)
  return output.strip()
 root=Path(__file__).parent
-fixture=(root/'goods_aggregation_families.sql').read_text().split('set local role service_role;')[0]
+fixture_source=(root/'goods_aggregation_families.sql').read_text()
+quote_boundary="set local role service_role;\nselect public.quote_cart_goods_transaction('bc140000-0000-4000-8000-000000000002',"
+assert fixture_source.count(quote_boundary)==1
+fixture=fixture_source.split(quote_boundary,1)[0]
 fixture=fixture.replace('pg_temp.','goods_aggregation_race.').replace('begin;','',1)
 kc=(root/'helpers/goods_kc_fixture.sql').read_text().replace('pg_temp.','goods_aggregation_race.')
 sql('begin;create schema goods_aggregation_race;grant usage on schema goods_aggregation_race to authenticated,service_role;'+kc+fixture+"reset role;update private.operator_memberships set manager_role='owner' where profile_id='bc140000-0000-4000-8000-000000000001' and not exists(select 1 from private.operator_memberships where manager_role='owner');commit;")
@@ -37,6 +40,7 @@ sql('begin;create schema goods_aggregation_race;grant usage on schema goods_aggr
 # requires checkout to lock it, so a selected-goods-only lock implementation fails.
 sql(f"delete from public.cart_items where user_id='{buyer}' and good_id='aggregation-root';update public.cart_items set qty=2 where user_id='{buyer}' and good_id='aggregation-child';")
 expected=sql(f"select jsonb_agg(jsonb_build_object('good_id',good_id,'variant_id',variant_id,'qty',qty,'input_revision',input_revision,'input_values',input_values)) from public.cart_items where user_id='{buyer}';")
+assert json.loads(expected), 'Expected the complete aggregation cart fixture'
 held=sql(f"select user_coupon_id from public.cart_coupon_selections where user_id='{buyer}';")
 address='{"recipientName":"TEST 수취인","phone":"01000000000","postalCode":"12345","address1":"TEST 합성 주소"}'
 quote=f"set local role service_role;select public.quote_cart_goods_transaction('{buyer}',{literal(expected)},{literal(address)},'{{}}','{held}',0);"

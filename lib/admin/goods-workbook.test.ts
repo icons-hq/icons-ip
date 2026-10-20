@@ -202,25 +202,25 @@ describe('goods Excel planning', () => {
     expect(record.good.description).toBe(description);
     expect(record.good.description_image_paths).toEqual([path]);
   });
-  it('plain 줄바꿈과 여러 키워드는 왕복하며 0·공란·실제 문구와 이미지 변경은 계속 구분한다', async () => {
+  // Each case performs a real XLSX encode/decode. Give each independent case the
+  // normal test deadline so CI CPU contention does not combine eight roundtrips.
+  it.each([
+    { label: '키워드 줄바꿈', edits: { searchKeywords: '0\r\n키링\r\n스티커' }, expected: { kind: 'unchanged', target: null } },
+    { label: '설명 줄바꿈', edits: { description: '0\r\n수정한 설명\r\n\r\n마지막 설명' }, expected: { kind: 'update', target: { description: '0\n수정한 설명\n\n마지막 설명' } } },
+    { label: '진열 순서 공란', edits: { displayOrder: '' }, expected: { kind: 'update', target: { display_order: null } } },
+    { label: '문자열 0', edits: { description: '0' }, expected: { kind: 'update', target: { description: '0' } } },
+    { label: '설명 공란', edits: { description: '' }, expected: { kind: 'update', target: { description: null } } },
+    { label: '변경한 키워드', edits: { searchKeywords: '0\r\n다른 키워드' }, expected: { kind: 'update', target: { search_keywords: ['0', '다른 키워드'] } } },
+    { label: 'ERP 선행 0', edits: { erpCode: '00000124' }, expected: { kind: 'update', target: { variants: [{ erpCode: '00000124' }] } } },
+    { label: '변경한 이미지', edits: { descriptionFormat: 'html', description: '<p>새 HTML</p>\r\n<img src="public-media/catalog/good/33333333-3333-4333-8333-333333333333.webp" alt="새 이미지">' }, expected: { kind: 'update', target: { description_format: 'html', description_image_paths: ['public-media/catalog/good/33333333-3333-4333-8333-333333333333.webp'] } } },
+  ])('plain 엑셀 왕복에서 $label 값을 보존하고 구분한다', async ({ edits, expected }) => {
     const description = '0\r\n첫 설명\r\n\r\n마지막 설명';
     const record = { ...existing, good: { ...existing.good, description, description_format: 'plain', search_keywords: ['0', '키링', '스티커'], display_order: 0 },
       variants: [{ ...existing.variants[0], erp_code: '00000123' }] };
     const ctx = { ...context, existing: [record] };
     const exported = exportGoodsWorkbookRows(record, ctx);
-    const parsePlan = async (edits: Partial<typeof exported[number]>) => {
-      const parsed = await parseGoodsWorkbookWithKc(await buildGoodsWorkbook([{ ...exported[0], ...edits }]));
-      return planGoodsWorkbookImport(parsed.rows, { ...ctx, kcRows: parsed.kcRows })[0];
-    };
-    expect(await parsePlan({ searchKeywords: '0\r\n키링\r\n스티커' })).toMatchObject({ kind: 'unchanged', target: null });
-    expect(await parsePlan({ description: '0\r\n수정한 설명\r\n\r\n마지막 설명' })).toMatchObject({ kind: 'update', target: { description: '0\n수정한 설명\n\n마지막 설명' } });
-    expect(await parsePlan({ displayOrder: '' })).toMatchObject({ kind: 'update', target: { display_order: null } });
-    expect(await parsePlan({ description: '0' })).toMatchObject({ kind: 'update', target: { description: '0' } });
-    expect(await parsePlan({ description: '' })).toMatchObject({ kind: 'update', target: { description: null } });
-    expect(await parsePlan({ searchKeywords: '0\r\n다른 키워드' })).toMatchObject({ kind: 'update', target: { search_keywords: ['0', '다른 키워드'] } });
-    expect(await parsePlan({ erpCode: '00000124' })).toMatchObject({ kind: 'update', target: { variants: [{ erpCode: '00000124' }] } });
-    const imagePath = 'public-media/catalog/good/33333333-3333-4333-8333-333333333333.webp';
-    expect(await parsePlan({ descriptionFormat: 'html', description: `<p>새 HTML</p>\r\n<img src="${imagePath}" alt="새 이미지">` })).toMatchObject({ kind: 'update', target: { description_format: 'html', description_image_paths: [imagePath] } });
+    const parsed = await parseGoodsWorkbookWithKc(await buildGoodsWorkbook([{ ...exported[0], ...edits }]));
+    expect(planGoodsWorkbookImport(parsed.rows, { ...ctx, kcRows: parsed.kcRows })[0]).toMatchObject(expected);
     expect(record.good.description).toBe(description);
     expect(record.good.display_order).toBe(0);
     expect(record.variants[0].erp_code).toBe('00000123');
