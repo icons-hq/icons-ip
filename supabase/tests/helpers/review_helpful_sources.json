@@ -1,6 +1,7 @@
 {
   "application": [
     "lib/review-helpful.ts",
+    "lib/review-types.ts",
     "lib/review-helpful.test.ts",
     "app/shop/review-helpful-actions.ts",
     "app/shop/review-helpful-actions.test.ts",

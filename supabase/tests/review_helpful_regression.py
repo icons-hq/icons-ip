@@ -59,7 +59,7 @@ def main():
     check(meta['Name'] == '/' + args.container and meta['State']['Running'] and re.fullmatch('[0-9a-f]{64}', cid), 'Container identity mismatch')
     check(meta['Config']['Labels']['com.supabase.cli.project'] == args.container.removeprefix('supabase_db_'), 'Supabase project mismatch')
     source_paths = json.loads((TESTS / 'helpers/review_helpful_sources.json').read_text())
-    check(len(source_paths['application']) == 18 and len(source_paths['supporting']) == 5, 'Reviewed application/support source set changed')
+    check(len(source_paths['application']) == 19 and len(source_paths['supporting']) == 5, 'Reviewed application/support source set changed')
     application_files = {path: sha(ROOT / path) for path in source_paths['application'] + source_paths['supporting']}
     migration_files = {path.name: sha(path) for path in (ROOT / 'supabase/migrations').glob('*.sql')}
     test_paths = [Path(__file__), TESTS / 'helpers/goods_kc_fixture.sql', TESTS / 'helpers/review_helpful_fixture.sql',
@@ -78,7 +78,8 @@ def main():
     write(temporary / 'owner.json', identity)
     remote = '/tmp/' + db + '.list'
     report = dict(status='RUNNING', scope=args.scope, **identity, sourceDatabaseWrites=0, namedApplied=False,
-        applicationSourceFiles=application_files, applicationSourceCount=18, supportingSourceCount=5,
+        applicationSourceFiles=application_files, applicationSourceCount=len(source_paths['application']),
+        supportingSourceCount=len(source_paths['supporting']),
         migrationSourceFiles=migration_files, testSources={str(path.relative_to(ROOT)): hashlib.sha256(body).hexdigest() for path, body in frozen.items()}, cleanupErrors=[])
     source = None
     creation_attempted = False
@@ -167,7 +168,10 @@ def main():
         output_sql = run('begin;\n' + kc + '\n' + fixture + '\n' + frozen[TESTS / 'review_helpful.sql'].decode(), 'focused-sql')
         check(snapshot(cid, db) == baseline, 'Functional fixture did not roll back exactly')
         captures = [json.loads(line.removeprefix('REVIEW_HELPFUL_DTO:')) for line in output_sql.splitlines() if line.startswith('REVIEW_HELPFUL_DTO:')]
-        check(len(captures) == 6, 'Actual SQL DTO capture set changed')
+        check(sorted(row['kind'] for row in captures) == sorted([
+            'marked', 'admin', 'authenticated', 'guest', 'suspended', 'expired',
+            'typed_authenticated', 'typed_guest', 'typed_suspended', 'typed_expired',
+        ]), 'Actual v2/v3 SQL DTO capture set changed')
         write(output / 'actual-dto.json', captures)
         run('begin;\n' + kc + '\n' + frozen[TESTS / 'review_helpful_admin_owner.sql'].decode(), 'authenticated-admin')
         check(snapshot(cid, db) == baseline, 'Authenticated admin fixture did not roll back exactly')
@@ -185,7 +189,8 @@ def main():
         write(output / 'concurrency.json', race_result)
         report.update(focusedSql='PASS', sqlAssertions=(output / 'focused-sql.log').read_text().count('NOTICE:  PASS '),
             authenticatedAdmin='PASS', authenticatedAdminAssertions=(output / 'authenticated-admin.log').read_text().count('NOTICE:  PASS '),
-            actualSqlDtoBridge='PASS', actualDtoCaptures=6, concurrencyCases=len(race_result['cases']),
+            actualSqlDtoBridge='PASS', actualDtoCaptures=len(captures), actualV2PageCaptures=4, actualV3PageCaptures=4,
+            concurrencyCases=len(race_result['cases']),
             fixtureRollback='PASS', coverage='PASS', existingHelperOwnersAndAclsPreserved=True)
         passed = True
     except BaseException as error:
