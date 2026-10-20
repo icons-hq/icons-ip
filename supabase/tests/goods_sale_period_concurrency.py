@@ -24,6 +24,14 @@ def sql(statement):
     return result.stdout.strip()
 
 
+assert sql("""
+select not has_function_privilege('authenticated','public.place_order(jsonb,uuid,public.order_payment_method)','execute')
+ and not has_function_privilege('service_role','public.place_order(jsonb,uuid,public.order_payment_method)','execute')
+ and not has_function_privilege('authenticated','public.place_order(uuid,jsonb,uuid,public.order_payment_method)','execute')
+ and has_function_privilege('service_role','public.place_order(uuid,jsonb,uuid,public.order_payment_method)','execute');
+""") == 't', 'Checkout must retain the sealed legacy and server-only current ACLs'
+
+
 def auth(user=buyer):
     return f"select set_config('request.jwt.claim.sub','{user}',true);set local role authenticated;"
 
@@ -105,12 +113,12 @@ def clear_cart():
 
 
 def place(n):
-    return f"select public.place_order('{address}'::jsonb,'{key(n)}'::uuid,'card'::public.order_payment_method);"
+    return f"select public.place_order('{buyer}'::uuid,'{address}'::jsonb,'{key(n)}'::uuid,'card'::public.order_payment_method);"
 
 
 def create_order(n, mixed=False):
     open_goods(); clear_cart()
-    sql('begin;' + auth() + cart() + (cart('sale-period-clone') if mixed else '') + place(n) + 'commit;')
+    sql('begin;' + auth() + cart() + (cart('sale-period-clone') if mixed else '') + service() + place(n) + 'commit;')
     return sql(f"select id from public.orders where user_id='{buyer}' and checkout_key='{key(n)}';")
 
 
@@ -122,7 +130,7 @@ open_goods(); soon()
 race('cart-time', hold(), auth() + cart(), 'goods_sale_not_open')
 assert sql(f"select count(*) from public.cart_items where user_id='{buyer}';") == '0'
 open_goods(); sql('begin;' + auth() + cart() + 'commit;'); soon()
-race('checkout-time', hold(), auth() + place(101), 'goods_sale_not_open')
+race('checkout-time', hold(), service() + place(101), 'goods_sale_not_open')
 assert sql(f"select count(*) from public.orders where checkout_key='{key(101)}';") == '0'
 assert sql(f"select count(*) from public.cart_items where user_id='{buyer}';") == '1'
 assert sql(f"select stock_qty from public.goods_variants where id='{variant}';") == '20'
@@ -151,7 +159,7 @@ sql("""create function private.test_sale_period_final_wait() returns trigger lan
 create trigger test_sale_period_final_wait before update of total on public.orders for each row execute function private.test_sale_period_final_wait();""")
 open_goods(); clear_cart(); sql('begin;' + auth() + cart() + 'commit;'); soon()
 stock_before = sql(f"select stock_qty from public.goods_variants where id='{variant}';")
-race('checkout-final-clock', 'select pg_advisory_xact_lock(6400105);', auth() + place(105), 'goods_sale_not_open')
+race('checkout-final-clock', 'select pg_advisory_xact_lock(6400105);', service() + place(105), 'goods_sale_not_open')
 assert sql(f"select count(*) from public.orders where checkout_key='{key(105)}';") == '0'
 assert sql(f"select stock_qty from public.goods_variants where id='{variant}';") == stock_before
 assert sql(f"select count(*) from public.cart_items where user_id='{buyer}';") == '1'
