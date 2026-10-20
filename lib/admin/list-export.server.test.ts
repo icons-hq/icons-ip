@@ -71,7 +71,7 @@ describe('목록 엑셀 워크북', () => {
       const key = String(row.getCell(1).value);
       lines.set(key, [...(lines.get(key) ?? []), String(row.getCell(2).value)]);
     });
-    expect(lines.get('화면')).toEqual(['발주·발송 관리']);
+    expect(lines.get('화면')).toEqual(['발주(주문)확인/발송관리']);
     expect(lines.get('탭')).toEqual(['발송 대기']);
     expect(lines.get('내려받은 시각 (KST)')).toEqual(['2026-10-07 15:04']);
     expect(lines.get('건수')).toEqual(['2건 · 엑셀 2행']);

@@ -13,12 +13,14 @@ export function MetricCard({
   icon,
   label,
   value,
+  comparisonDays = 30,
 }: {
   change: string;
   changeType: MetricChangeType;
   icon: string;
   label: string;
   value: string;
+  comparisonDays?: number;
 }) {
   return (
     <div className="card admin-metric wc-admin-kit wc-admin-kit__card">
@@ -37,7 +39,7 @@ export function MetricCard({
         <span
           className="admin-metric__change"
           style={{ color: CHANGE_COLORS[changeType] }}
-          title="이전 30일 대비"
+          title={`이전 ${comparisonDays}일 대비`}
         >
           {changeType !== 'neutral' && <Icon name={changeType === 'positive' ? 'trendUp' : 'trendDown'} size={13} />}
           {change}

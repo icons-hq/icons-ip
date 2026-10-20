@@ -155,6 +155,8 @@ describe('verifyAndPromoteAdminArtwork', () => {
     expect(mocks.rpc).toHaveBeenCalledWith('service_verify_admin_artwork_upload', {
       p_actor_id: ACTOR_ID,
       p_final_size: NORMALIZED_BYTES.byteLength,
+      p_final_width: 1,
+      p_final_height: 1,
       p_path: PATH,
     });
     expect(mocks.rpc).toHaveBeenCalledWith('service_begin_admin_artwork_verification', {

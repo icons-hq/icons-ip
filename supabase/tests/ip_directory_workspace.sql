@@ -30,7 +30,7 @@ do $$ begin
   begin
     perform public.admin_set_ip_directory('ip-workspace-2',true,1,(select ids from prior_ip_order),false);
     raise exception 'stale order accepted';
-  exception when serialization_failure then null; end;
+  exception when sqlstate 'PT409' then null; end;
 end $$;
 do $$ declare n integer; begin
   for n in 2..5 loop

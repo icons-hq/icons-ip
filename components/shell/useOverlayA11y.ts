@@ -32,8 +32,9 @@ export function useOverlayA11y({
 
   useEffect(() => {
     if (!open) return;
-    const previousOverflow = document.body.style.overflow;
-    const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const ownerDocument = panelRef.current?.ownerDocument ?? document;
+    const previousOverflow = ownerDocument.body.style.overflow;
+    const previousFocus = ownerDocument.activeElement as HTMLElement | null;
     /* 다이얼로그 밖 상호작용 표면 전부를 inert로 덮는다 — 본문·푸터만 덮으면
        유틸바·헤더 컨트롤·탭바가 접근성 트리에 남아 모달인데 밖을 조작할 수 있게 된다.
        검색 패널은 .wc-header "안"에 있으므로 헤더 전체가 아니라 형제 행들만 개별로 덮는다.
@@ -42,13 +43,13 @@ export function useOverlayA11y({
        못하므로, #root 안 화면의 오버레이는 OverlayPortal로 밖에 두는 것이 정상 경로다. */
     const panel = panelRef.current;
     const backgroundElements = [
-      document.getElementById('root'),
-      ...document.querySelectorAll<HTMLElement>(
+      ownerDocument.getElementById('root'),
+      ...ownerDocument.querySelectorAll<HTMLElement>(
         '.wc-footer, .wc-utilbar, .wc-header__bar, .wc-gnb-wrap, .wc-tabbar',
       ),
     ].filter((element): element is HTMLElement => element !== null && !element.contains(panel));
     const previousInert = backgroundElements.map((element) => element.inert);
-    document.body.style.overflow = 'hidden';
+    ownerDocument.body.style.setProperty('overflow', 'hidden');
     backgroundElements.forEach((element) => {
       element.inert = true;
     });
@@ -71,23 +72,23 @@ export function useOverlayA11y({
       if (items.length === 0) return;
       const first = items[0];
       const last = items[items.length - 1];
-      if (event.shiftKey && document.activeElement === first) {
+      if (event.shiftKey && ownerDocument.activeElement === first) {
         event.preventDefault();
         last.focus();
-      } else if (!event.shiftKey && document.activeElement === last) {
+      } else if (!event.shiftKey && ownerDocument.activeElement === last) {
         event.preventDefault();
         first.focus();
       }
     };
 
-    document.addEventListener('keydown', onKeyDown);
+    ownerDocument.addEventListener('keydown', onKeyDown);
     return () => {
-      document.body.style.overflow = previousOverflow;
-      document.removeEventListener('keydown', onKeyDown);
+      ownerDocument.body.style.setProperty('overflow', previousOverflow);
+      ownerDocument.removeEventListener('keydown', onKeyDown);
       backgroundElements.forEach((element, index) => {
         element.inert = previousInert[index];
       });
-      previousFocus?.focus();
+      previousFocus?.focus?.();
     };
   }, [initialFocusRef, open, panelRef]);
 }

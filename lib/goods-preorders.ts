@@ -31,7 +31,7 @@ export function parseGoodsVariantSupply(value: unknown): GoodsVariantSupply | nu
       || Date.parse(value.nextChangeAt) <= Date.parse(value.calculatedAt)))) return null;
   if (value.mode === 'stock') {
     if (value.state !== 'stock' || value.policyId !== null || value.policyRevision !== null
-      || value.startsAt !== null || value.endsAt !== null || value.expectedShipDate !== null || value.nextChangeAt !== null) return null;
+      || value.startsAt !== null || value.endsAt !== null || value.expectedShipDate !== null) return null;
   } else {
     if (typeof value.policyId !== 'string' || !isUuid(value.policyId) || !integer(value.policyRevision, 1)
       || !instant(value.startsAt) || !instant(value.endsAt) || Date.parse(value.startsAt) >= Date.parse(value.endsAt)

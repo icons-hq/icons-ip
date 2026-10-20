@@ -5,6 +5,7 @@ import type { OrderClaimStage, OrderClaimType } from '@/lib/orders/claims';
 import { adminSettledHref, normalizeAdminSettledFilters } from './settled';
 import { normalizeShipmentFilters, shipmentConsoleHref } from './shipment-dispatch';
 import { ADMIN_VOCABULARY } from './vocabulary';
+import { appendSalesListOptions, normalizeSalesListOptions, salesDateField, salesPage, salesParam, SALES_ORDER_SEARCH_FIELDS, type SalesDateField, type SalesListOptions, type SalesOrderSearchField } from './sales-list';
 import {
   isSelectableShippingCarrier,
   isTrackingNumber,
@@ -27,22 +28,8 @@ export type AdminOrderStatus = (typeof ADMIN_ORDER_STATUSES)[number];
 export type AdminOrderStatusFilter = AdminOrderStatus | 'all';
 
 /** 주문 통합검색에서 검색할 원장을 고른다. 기본값은 기존 전체 검색이다. */
-export type AdminOrderSearchField =
-  | 'all'
-  | 'order'
-  | 'nickname'
-  | 'email'
-  | 'recipient'
-  | 'tracking';
-
-export const ADMIN_ORDER_SEARCH_FIELDS: { value: AdminOrderSearchField; label: string }[] = [
-  { value: 'all', label: '전체' },
-  { value: 'order', label: '주문번호' },
-  { value: 'nickname', label: '닉네임' },
-  { value: 'email', label: '이메일' },
-  { value: 'recipient', label: '수취인' },
-  { value: 'tracking', label: '운송장번호' },
-];
+export type AdminOrderSearchField = SalesOrderSearchField;
+export const ADMIN_ORDER_SEARCH_FIELDS = SALES_ORDER_SEARCH_FIELDS;
 
 /**
  * 상태 표기의 단일 진실원.
@@ -91,7 +78,7 @@ export const ORDER_CANCELLATION_REQUEST_STATUSES = [
 ] as const;
 export type OrderCancellationRequestStatus = (typeof ORDER_CANCELLATION_REQUEST_STATUSES)[number];
 
-export interface AdminOrderFilters {
+export interface AdminOrderFilters extends SalesListOptions {
   from: string | null;
   orderId: string | null;
   page: number;
@@ -99,6 +86,8 @@ export interface AdminOrderFilters {
   field: AdminOrderSearchField;
   status: AdminOrderStatusFilter;
   to: string | null;
+  dateField?: SalesDateField;
+  paymentMethod?: 'card' | 'bank_transfer';
 }
 
 export interface AdminOrderAddress {
@@ -113,6 +102,7 @@ export interface AdminOrderAddress {
 export interface AdminOrderItemRecord {
   variantId: string;
   variantName?: string | null;
+  customInputs?: import('@/lib/goods-custom-inputs').GoodsCustomInputSelection | null;
   variantCode?: string | null;
   id: string;
   name: string;
@@ -182,6 +172,8 @@ export const ADMIN_WITHDRAWAL_RETURN_SHIPPING_LABELS: Record<OrderWithdrawalReas
 };
 
 export interface AdminOrderRecord {
+  isGift?: boolean;
+  transaction?: import('@/lib/goods-transaction').GoodsTransactionDisplay;
   id: string;
   userId: string;
   buyerName: string;
@@ -189,6 +181,7 @@ export interface AdminOrderRecord {
   status: AdminOrderStatus;
   total: number;
   address: AdminOrderAddress | null;
+  addressNeedsReview?: boolean;
   createdAt: string;
   updatedAt: string;
   items: AdminOrderItemRecord[];
@@ -210,6 +203,7 @@ export interface AdminOrderConsoleData {
    * 다시 두면 레지스트리와 갈라진다.
    */
   carriers: ShippingCarrierRegistry;
+  counts?: Record<AdminOrderStatus, number>;
 }
 
 export type AdminOrderFieldErrors = Record<string, string>;
@@ -228,7 +222,7 @@ const SEARCH_FIELDS = new Set<string>(ADMIN_ORDER_SEARCH_FIELDS.map((field) => f
  * 어드민 상태 폼이 직접 밀 수 있는 전이 대상(#250).
  *
  * `admin_update_order_status`가 받는 값과 같아야 한다 — `paid`는 결제 웹훅이,
- * `done`은 자동 거래확정 잡이, `canceled`는 청약철회 경로가 각각 소유하므로
+ * `done`은 구매자 확정·자동 정책 경로가, `canceled`는 청약철회 경로가 각각 소유하므로
  * 운영자 폼이 손댈 수 있는 것은 사다리 중간 세 칸뿐이다.
  */
 const SHIPPING_STATUS_SET = new Set<string>(['confirmed', 'shipping', 'delivered']);
@@ -273,8 +267,8 @@ export function normalizeAdminOrderFilters(searchParams: AdminOrderSearchParams)
     to = null;
   }
 
-  const rawPage = Number(singleParam(searchParams.page));
-  const page = Number.isSafeInteger(rawPage) && rawPage > 0 ? rawPage : 1;
+  const listOptions = normalizeSalesListOptions(searchParams);
+  const page = salesPage(searchParams.page, listOptions.pageSize ?? 20);
   const rawQuery = singleParam(searchParams.query).trim();
   const query = rawQuery.length <= 100 ? rawQuery : '';
   const rawField = singleParam(searchParams.field);
@@ -282,6 +276,10 @@ export function normalizeAdminOrderFilters(searchParams: AdminOrderSearchParams)
   const status = ORDER_STATUS_SET.has(rawStatus) ? rawStatus as AdminOrderStatus : 'all';
 
   return {
+    ...listOptions,
+    ...(salesDateField(searchParams) ? { dateField: salesDateField(searchParams) } : {}),
+    ...(['card', 'bank_transfer'].includes(salesParam(searchParams, 'paymentMethod'))
+      ? { paymentMethod: salesParam(searchParams, 'paymentMethod') as 'card' | 'bank_transfer' } : {}),
     field: SEARCH_FIELDS.has(rawField) ? rawField as AdminOrderSearchField : 'all',
     from,
     orderId: normalizedUuid(searchParams.order),
@@ -463,10 +461,13 @@ export function normalizeAdminGoodsManualRecoveryForm(
  */
 export function adminOrdersHref(
   filters: AdminOrderFilters,
-  overrides: Partial<Pick<AdminOrderFilters, 'orderId' | 'page'>> = {},
+  overrides: Partial<AdminOrderFilters> = {},
 ) {
   const next = { ...filters, ...overrides };
   const params = new URLSearchParams();
+  appendSalesListOptions(params, next);
+  if (next.dateField) params.set('dateField', next.dateField);
+  if (next.paymentMethod) params.set('paymentMethod', next.paymentMethod);
   if (next.status !== 'all') params.set('status', next.status);
   if (next.from) params.set('from', next.from);
   if (next.to) params.set('to', next.to);
@@ -497,9 +498,9 @@ export function adminOrderDetailHrefFromBack(orderId: string, backHref?: string)
   return backHref ? `${base}?back=${encodeURIComponent(backHref)}` : base;
 }
 
-const ORDER_DETAIL_BACK_FIELDS = ['status', 'from', 'to', 'query', 'field', 'page', 'order'] as const;
-const SETTLED_DETAIL_BACK_FIELDS = ['from', 'to', 'query', 'page'] as const;
-const SHIPMENT_DETAIL_BACK_FIELDS = ['tab', 'originId', 'from', 'to', 'query', 'page'] as const;
+const ORDER_DETAIL_BACK_FIELDS = ['status', 'from', 'to', 'query', 'field', 'page', 'order', 'dateField', 'paymentMethod', 'sort', 'pageSize'] as const;
+const SETTLED_DETAIL_BACK_FIELDS = ['from', 'to', 'query', 'field', 'page', 'dateField', 'sort', 'pageSize'] as const;
+const SHIPMENT_DETAIL_BACK_FIELDS = ['tab', 'originId', 'from', 'to', 'query', 'page', 'field', 'dateField', 'method', 'paymentMethod', 'sort', 'pageSize', 'delayNotice'] as const;
 const ADMIN_BACK_ORIGIN = 'https://icons-admin.invalid';
 
 /**
@@ -523,7 +524,15 @@ export function adminOrderBackHref(back: unknown) {
       const value = source.searchParams.get(key);
       if (value) known[key] = value;
     }
-    return adminOrdersHref(normalizeAdminOrderFilters(known));
+    const normalized = adminOrdersHref(normalizeAdminOrderFilters(known));
+    if (source.searchParams.get('view') === 'items') {
+      const items = new URL(normalized, ADMIN_BACK_ORIGIN);
+      items.searchParams.set('view', 'items');
+      items.searchParams.delete('order');
+      if (known.field === 'item') items.searchParams.set('field', 'item');
+      return items.pathname + items.search;
+    }
+    return normalized;
   }
 
   if (source.pathname === '/admin/sales/settled') {

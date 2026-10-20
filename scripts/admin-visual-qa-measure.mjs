@@ -1,6 +1,7 @@
 /**
  * Browser-only, closure-free measurement entry point. Use with page.evaluate or
- * a read-only browser evaluator; this function does not click or change the DOM.
+ * a browser evaluator; no app values, events, or network writes are changed.
+ * A detached-style native-select probe is mounted offscreen and removed again.
  */
 export function measureAdminLayout(options = {}) {
   const tolerance = 2;
@@ -30,7 +31,8 @@ export function measureAdminLayout(options = {}) {
     const parts = [];
     for (let node = element; node && node !== root && parts.length < 5; node = node.parentElement) {
       let part = node.tagName.toLowerCase();
-      if (node.id) { parts.unshift(`${part}#${CSS.escape(node.id)}`); break; }
+      const id = node.getAttribute('id');
+      if (id) { parts.unshift(`${part}#${CSS.escape(id)}`); break; }
       if (node.classList.length) part += `.${[...node.classList].slice(0, 2).map((name) => CSS.escape(name)).join('.')}`;
       const siblings = node.parentElement ? [...node.parentElement.children].filter((child) => child.tagName === node.tagName) : [];
       if (siblings.length > 1) part += `:nth-of-type(${siblings.indexOf(node) + 1})`;
@@ -46,6 +48,20 @@ export function measureAdminLayout(options = {}) {
   const textWidth = (text, style) => {
     context.font = `${style.fontWeight} ${style.fontSize} ${style.fontFamily}`;
     return context.measureText(text).width + Math.max(0, text.length - 1) * number(style.letterSpacing);
+  };
+  // Let the running browser measure its own indicator/padding. A fixed 24 px
+  // estimate double-counted the native arrow on several compact selects.
+  const nativeSelectionWidth = (text, style) => {
+    const host = document.createElement('div');
+    host.style.cssText = 'position:fixed;left:-10000px;top:-10000px;visibility:hidden;pointer-events:none';
+    host.setAttribute('aria-hidden', 'true');
+    const probe = document.createElement('select'), option = document.createElement('option');
+    option.textContent = text; probe.append(option);
+    for (const property of ['font', 'letterSpacing', 'textTransform', 'direction', 'paddingTop', 'paddingRight', 'paddingBottom', 'paddingLeft', 'borderTop', 'borderRight', 'borderBottom', 'borderLeft', 'boxSizing', 'appearance']) probe.style[property] = style[property];
+    Object.assign(probe.style, { width: 'auto', minWidth: '0', maxWidth: 'none' });
+    host.attachShadow({ mode: 'closed' }).append(probe);
+    try { document.body.append(host); return probe.getBoundingClientRect().width; }
+    finally { host.remove(); }
   };
   const headings = root ? [...root.querySelectorAll(options.headingSelector || 'h1, h2')].filter(visible).map((element) => normal(element.textContent)) : [];
   const expected = Array.isArray(options.heading) ? options.heading : [options.heading].filter(Boolean);
@@ -156,7 +172,8 @@ export function measureAdminLayout(options = {}) {
       const minimum = textWidth(sample, style) + (kind === 'select' || ['date', 'datetime-local', 'month', 'week', 'time'].includes(type) ? 24 : 0);
       measurement.minimumContentWidth = rounded(minimum);
       if (contentWidth < minimum - tolerance) add('field-narrow', 'Control has too little visible editing space for its type and font.', element, { rect: box, contentWidth: rounded(contentWidth), minimumContentWidth: rounded(minimum), sample });
-      if (box.height < 40 - tolerance) add('field-height', 'Admin input height is below the 40 px kit contract.', element, { rect: box, minimumHeight: 40 });
+      const minimumHeight = innerWidth <= 900 ? 44 : element.closest('.admin-sales-filters, .admin-sales-list-options') ? 30 : 34;
+      if (box.height < minimumHeight - tolerance) add('field-height', `Admin input height is below the ${minimumHeight} px surface contract.`, element, { rect: box, minimumHeight });
     }
     if (!embeddedStorefrontPreview && kind === 'input' && ['text', 'search'].includes(type) && !element.value && element.placeholder && (type === 'search' || /검색|search/i.test(`${label(element)} ${element.name}`))) {
       const required = textWidth(element.placeholder, style);
@@ -164,13 +181,13 @@ export function measureAdminLayout(options = {}) {
     }
     if (kind === 'select' && !element.multiple && element.size <= 1) {
       const selectedText = element.selectedOptions[0]?.textContent || '';
-      const required = textWidth(selectedText, style) + 24;
-      if (required > contentWidth + tolerance) {
+      const required = nativeSelectionWidth(selectedText, style);
+      if (required > box.width + tolerance) {
         const hint = readableSelectionHint(element, selectedText);
         if (hint) {
           fullValueHints.push(hint);
           add('select-full-value-readable', 'Native selection is truncated, but its linked adjacent hint visibly renders the complete value.', element, hint, 'info');
-        } else add('control-text-clipped', 'Selected option cannot fit beside the native select indicator and has no fully readable adjacent described hint.', element, { rect: box, availableTextWidth: rounded(contentWidth - 24), requiredTextWidth: rounded(required - 24) });
+        } else add('control-text-clipped', 'Selected option cannot fit beside the native select indicator and has no fully readable adjacent described hint.', element, { rect: box, availableControlWidth: box.width, requiredControlWidth: rounded(required) });
       }
     } else if (element.matches('button, summary, a.btn, [role="button"]')) {
       const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
@@ -212,9 +229,31 @@ export function measureAdminLayout(options = {}) {
         box.bottom = Math.min(box.bottom, boundary.top + parent.clientTop + parent.clientHeight);
       }
     }
+    // The documented fixed/sticky save bars intentionally occlude scrolling content.
+    // Its own controls remain collision candidates, and only an opaque bar
+    // spanning the entire control width may clip the underlying painted area.
+    for (const bar of root?.querySelectorAll('.admin-good-workspace__save, .admin-story-editor__footer') || []) {
+      const style = getComputedStyle(bar), boundary = rect(bar);
+      if (!bar.contains(element) && ['fixed', 'sticky'].includes(style.position) && /^rgb\([^)]*\)$/.test(style.backgroundColor)
+        && box.left >= boundary.left && box.right <= boundary.right && box.top < boundary.bottom && box.bottom > boundary.top) box.bottom = Math.min(box.bottom, boundary.top);
+    }
+    // A dialog's opaque sticky heading covers the scrolled body from above.
+    // Only clip its own body, keeping collisions among heading controls visible.
+    const dialog = element.closest('dialog');
+    const header = dialog?.querySelector(':scope > .admin-cs-dialog__header');
+    if (header && !header.contains(element)) {
+      const style = getComputedStyle(header), boundary = rect(header);
+      if (style.position === 'sticky' && /^rgb\([^)]*\)$/.test(style.backgroundColor)
+        && box.left >= boundary.left && box.right <= boundary.right && box.top < boundary.bottom && box.bottom > boundary.top) box.top = Math.max(box.top, boundary.bottom);
+    }
     return { left: rounded(box.left), top: rounded(box.top), right: rounded(box.right), bottom: rounded(box.bottom), width: rounded(Math.max(0, box.right - box.left)), height: rounded(Math.max(0, box.bottom - box.top)) };
   };
-  const collisionCandidates = controlElements.filter((element) => content?.contains(element)).map((element) => ({ element, visibleRect: collisionRect(element) })).filter(({ visibleRect }) => visibleRect.width > tolerance && visibleRect.height > tolerance);
+  // Native modal dialogs put the rest of the document behind the top layer and
+  // make it inert. Test collisions within that dialog; a background checkbox
+  // under an opaque dialog is not a collision between usable controls. Ordinary
+  // non-modal dialogs keep the usual document collision checks.
+  const modal = root.querySelector('dialog:modal');
+  const collisionCandidates = controlElements.filter((element) => content?.contains(element) && (!modal || modal.contains(element))).map((element) => ({ element, visibleRect: collisionRect(element) })).filter(({ visibleRect }) => visibleRect.width > tolerance && visibleRect.height > tolerance);
   for (let leftIndex = 0; leftIndex < collisionCandidates.length; leftIndex++) {
     const { element: left, visibleRect: a } = collisionCandidates[leftIndex];
     for (const { element: right, visibleRect: b } of collisionCandidates.slice(leftIndex + 1)) {

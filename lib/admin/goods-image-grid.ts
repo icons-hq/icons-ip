@@ -27,6 +27,8 @@ export interface GoodsImageTile<F = unknown> {
   error?: string;
   /** 실패한 새 업로드를 다시 시도할 파일. */
   file?: F;
+  /** Ephemeral upload origin; never included in submitted product paths. */
+  uploadSource?: 'photo-edit';
   /** 교체 업로드 중인 원래 이미지. 실패하면 이 값으로 되돌린다. */
   previous?: { path: string; url: string | null; status: 'saved' | 'uploaded' };
 }

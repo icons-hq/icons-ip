@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { settledExportFixture } from '@/test/fixtures/settled-export';
+import { settledExportFixture, settledExportV2Fixture } from '@/test/fixtures/settled-export';
 import { allocateSettledAmount, buildSettledExportModel, parseSettledExportFilters, parseSettledExportSnapshot } from './settled-export';
 
 describe('거래확정 금액과 출처', () => {
@@ -69,5 +69,38 @@ describe('거래확정 금액과 출처', () => {
     expect(parseSettledExportFilters({ query: ['one', 'two'] })).toBeNull();
     expect(parseSettledExportFilters({ query: 'x'.repeat(101) })).toBeNull();
     expect(parseSettledExportFilters({ from: '2026-09-01', to: '2026-09-10', query: ' 0000 ' })).toEqual({ from: '2026-09-01', to: '2026-09-10', query: '0000' });
+  });
+  it('검색 대상을 영수증에 보존하고 잘못된 대상을 전체 검색으로 넓히지 않는다', () => {
+    expect(parseSettledExportFilters({ field: 'recipient', query: 'GAP1530' }))
+      .toEqual({ from: null, to: null, field: 'recipient', query: 'GAP1530' });
+    expect(parseSettledExportFilters({ field: 'all', query: 'GAP1530' }))
+      .toEqual({ from: null, to: null, query: 'GAP1530' });
+    for (const field of ['not_supported', ' recipient ', ['recipient', 'all'], 1]) {
+      expect(parseSettledExportFilters({ field, query: 'GAP1530' })).toBeNull();
+    }
+    const source = settledExportFixture(); source.filters.field = 'tracking';
+    expect(parseSettledExportSnapshot(source).filters.field).toBe('tracking');
+  });
+});
+
+
+describe('거래확정 v2 고정 원장', () => {
+  it('상품코드 변경·쿠폰 대상 변경 후에도 저장된 배분만 사용한다', () => {
+    const snapshot = settledExportV2Fixture();snapshot.orders[0].items[0].goodId = 'renamed-good';snapshot.orders[0].coupon = null;
+    const model = buildSettledExportModel(parseSettledExportSnapshot(snapshot));
+    expect(model.lines.map(line => line.volumeDiscount)).toEqual([1000, 1000, 0]);
+    expect(model.lines.map(line => line.couponAmount)).toEqual([501, 500, 0]);
+    expect(model.lines.map(line => line.creditAmount)).toEqual([300, 300, 400]);
+    expect(model.lines.map(line => line.productDiscount)).toEqual([0, 1999, 1000]);
+    expect(model.orders[0]).toMatchObject({ beforeCouponAmount: 27002, volumeDiscount: 2000, detailTotal: 30001, paymentAmount: 30001, shippingCollectTotal: 2250, detailShippingCollect: 2250, collectDifference: 0 });
+  });
+  it('누락·중복·원장 합계 불일치를 현재 정책으로 재계산하지 않는다', () => {
+    for (const mutate of [
+      (s: ReturnType<typeof settledExportV2Fixture>) => { s.orders[0].items[0].allocation = null; },
+      (s: ReturnType<typeof settledExportV2Fixture>) => { s.orders[0].items[0].allocation!.volumeDiscount++; },
+      (s: ReturnType<typeof settledExportV2Fixture>) => { s.orders[0].volumeDiscount!++; },
+      (s: ReturnType<typeof settledExportV2Fixture>) => { s.orders[0].shipments[1].shippingCollectFee!++; },
+      (s: ReturnType<typeof settledExportV2Fixture>) => { s.orders[0].shippingComponents!.push({ ...s.orders[0].shippingComponents![0] }); },
+    ]) { const snapshot = settledExportV2Fixture();mutate(snapshot);expect(() => buildSettledExportModel(parseSettledExportSnapshot(snapshot))).toThrow(); }
   });
 });

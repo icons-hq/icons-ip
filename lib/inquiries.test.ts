@@ -223,3 +223,13 @@ describe('표기 헬퍼', () => {
       .toBe(`/my/inquiries/new?category=order&orderId=${ORDER_ID}`);
   });
 });
+
+
+describe('사진 단독 추가 문의', () => {
+  it('본문은 실제 선택한 허용 사진이 있을 때만 비워둘 수 있다', () => {
+    const empty = form({ inquiryId: INQUIRY_ID, body: '' });
+    expect(normalizeInquiryReplyForm(empty).ok).toBe(false);
+    empty.append('images', imageFile());
+    expect(normalizeInquiryReplyForm(empty)).toMatchObject({ ok: true, value: { body: '', images: [expect.any(File)] } });
+  });
+});

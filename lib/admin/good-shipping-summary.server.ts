@@ -1,10 +1,10 @@
 import 'server-only';
 import { loadAdminShippingRegionPolicies } from './shipping-regions.server';
-import type { FulfillmentOrigin } from './fulfillment-origins';
+import type { GoodsFulfillmentOrigin } from './fulfillment-origins';
 import type { GoodShippingRegionSummary } from './good-shipping-summary';
 
 /** Summarize saved configuration; checkout alone calculates destination fees. */
-export async function loadGoodShippingRegionSummaries(origins: FulfillmentOrigin[]): Promise<GoodShippingRegionSummary[]> {
+export async function loadGoodShippingRegionSummaries(origins: GoodsFulfillmentOrigin[]): Promise<GoodShippingRegionSummary[]> {
   const now = Date.now();
   const checkedAt = new Date(now).toISOString();
   try {

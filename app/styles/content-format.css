@@ -1,0 +1,64 @@
+/* Closed HTML document formats, shared by product detail and shopping stories. */
+.wc-root :is(.wc-goods-description, .wc-shopping-story__body) [data-icons-align="left"] { text-align: left; }
+.wc-root :is(.wc-goods-description, .wc-shopping-story__body) [data-icons-align="center"] { text-align: center; }
+.wc-root :is(.wc-goods-description, .wc-shopping-story__body) [data-icons-align="right"] { text-align: right; }
+.wc-root :is(.wc-goods-description, .wc-shopping-story__body) [data-icons-size="12"] { font-size: 12px; }
+.wc-root :is(.wc-goods-description, .wc-shopping-story__body) [data-icons-size="14"] { font-size: 14px; }
+.wc-root :is(.wc-goods-description, .wc-shopping-story__body) [data-icons-size="16"] { font-size: 16px; }
+.wc-root :is(.wc-goods-description, .wc-shopping-story__body) [data-icons-size="20"] { font-size: 20px; }
+.wc-root :is(.wc-goods-description, .wc-shopping-story__body) [data-icons-size="24"] { font-size: 24px; }
+.wc-root :is(.wc-goods-description, .wc-shopping-story__body) [data-icons-size="32"] { font-size: 32px; }
+.wc-root :is(.wc-goods-description, .wc-shopping-story__body) [data-icons-size="40"] { font-size: 40px; }
+.wc-root :is(.wc-goods-description, .wc-shopping-story__body) blockquote[data-icons-quote] {
+  position: relative; margin: 28px 0; padding: 20px 24px; color: var(--wc-ink); background: none;
+  border: 0; overflow-wrap: anywhere;
+}
+.wc-root :is(.wc-goods-description, .wc-shopping-story__body) blockquote[data-icons-quote] > :last-child { margin-bottom: 0; }
+.wc-root :is(.wc-goods-description, .wc-shopping-story__body) blockquote[data-icons-quote="line"] { border-left: 3px solid var(--wc-line-control); }
+.wc-root :is(.wc-goods-description, .wc-shopping-story__body) blockquote[data-icons-quote="quotes"] { padding-top: 42px; padding-bottom: 42px; text-align: center; }
+.wc-root :is(.wc-goods-description, .wc-shopping-story__body) blockquote[data-icons-quote="quotes"]::before,
+.wc-root :is(.wc-goods-description, .wc-shopping-story__body) blockquote[data-icons-quote="quotes"]::after {
+  position: absolute; left: calc(50% - 10px); font: 36px/1 Georgia, serif; color: var(--wc-ink-tertiary);
+}
+.wc-root :is(.wc-goods-description, .wc-shopping-story__body) blockquote[data-icons-quote="quotes"]::before { content: '“'; top: 6px; }
+.wc-root :is(.wc-goods-description, .wc-shopping-story__body) blockquote[data-icons-quote="quotes"]::after { content: '”'; bottom: 0; }
+.wc-root :is(.wc-goods-description, .wc-shopping-story__body) blockquote[data-icons-quote="bubble"],
+.wc-root :is(.wc-goods-description, .wc-shopping-story__body) blockquote[data-icons-quote="note"] { border: 1px solid var(--wc-line-control); }
+.wc-root :is(.wc-goods-description, .wc-shopping-story__body) blockquote[data-icons-quote="bubble"]::after {
+  content: ''; position: absolute; bottom: -7px; left: 26px; width: 12px; height: 12px;
+  border-right: 1px solid var(--wc-line-control); border-bottom: 1px solid var(--wc-line-control);
+  background: var(--wc-surface); transform: rotate(45deg);
+}
+.wc-root :is(.wc-goods-description, .wc-shopping-story__body) blockquote[data-icons-quote="note"] { background: var(--wc-surface-grey); border-bottom-width: 3px; }
+.wc-root :is(.wc-goods-description, .wc-shopping-story__body) blockquote[data-icons-quote="frame"]::before,
+.wc-root :is(.wc-goods-description, .wc-shopping-story__body) blockquote[data-icons-quote="frame"]::after {
+  content: ''; position: absolute; width: 20px; height: 20px; border-color: var(--wc-line-control); border-style: solid;
+}
+.wc-root :is(.wc-goods-description, .wc-shopping-story__body) blockquote[data-icons-quote="frame"]::before { left: 0; top: 0; border-width: 2px 0 0 2px; }
+.wc-root :is(.wc-goods-description, .wc-shopping-story__body) blockquote[data-icons-quote="frame"]::after { right: 0; bottom: 0; border-width: 0 2px 2px 0; }
+.wc-root :is(.wc-goods-description, .wc-shopping-story__body) hr[data-icons-divider] { position: relative; border: 0; border-top: 1px solid var(--wc-line-control); margin: 32px auto; width: 100%; overflow: visible; }
+.wc-root :is(.wc-goods-description, .wc-shopping-story__body) hr[data-icons-divider="short"] { width: 45%; }
+.wc-root :is(.wc-goods-description, .wc-shopping-story__body) hr[data-icons-divider="bold"] { width: 40px; border-top-width: 3px; }
+.wc-root :is(.wc-goods-description, .wc-shopping-story__body) hr[data-icons-divider="chevron"],
+.wc-root :is(.wc-goods-description, .wc-shopping-story__body) hr[data-icons-divider="diamond"] { width: 70%; }
+.wc-root :is(.wc-goods-description, .wc-shopping-story__body) hr[data-icons-divider="chevron"]::after,
+.wc-root :is(.wc-goods-description, .wc-shopping-story__body) hr[data-icons-divider="diamond"]::after {
+  content: ''; position: absolute; width: 8px; height: 8px; left: calc(50% - 4px); top: -5px;
+  background: var(--wc-surface); border: 1px solid var(--wc-line-control); transform: rotate(45deg);
+}
+.wc-root :is(.wc-goods-description, .wc-shopping-story__body) hr[data-icons-divider="chevron"]::after { border-top-color: transparent; border-left-color: transparent; }
+.wc-root :is(.wc-goods-description, .wc-shopping-story__body) hr[data-icons-divider="dots"] { width: 40px; border-top: 3px dotted var(--wc-line-control); }
+.wc-root :is(.wc-goods-description, .wc-shopping-story__body) hr[data-icons-divider="slash"],
+.wc-root :is(.wc-goods-description, .wc-shopping-story__body) hr[data-icons-divider="vertical"] { width: 1px; height: 20px; border-top: 0; border-left: 1px solid var(--wc-line-control); }
+.wc-root :is(.wc-goods-description, .wc-shopping-story__body) hr[data-icons-divider="slash"] { transform: rotate(40deg); }
+.wc-root :is(.wc-goods-description, .wc-shopping-story__body) blockquote[data-icons-quote][data-icons-align="left"] { text-align: left; }
+.wc-root :is(.wc-goods-description, .wc-shopping-story__body) blockquote[data-icons-quote][data-icons-align="center"] { text-align: center; }
+.wc-root :is(.wc-goods-description, .wc-shopping-story__body) blockquote[data-icons-quote][data-icons-align="right"] { text-align: right; }
+@media (forced-colors: active) {
+  .wc-root :is(.wc-goods-description, .wc-shopping-story__body) :is(blockquote[data-icons-quote], hr[data-icons-divider]),
+  .wc-root :is(.wc-goods-description, .wc-shopping-story__body) :is(blockquote[data-icons-quote], hr[data-icons-divider])::before,
+  .wc-root :is(.wc-goods-description, .wc-shopping-story__body) :is(blockquote[data-icons-quote], hr[data-icons-divider])::after { border-color: CanvasText; color: CanvasText; background: Canvas; }
+}
+@media print {
+  .wc-root :is(.wc-goods-description, .wc-shopping-story__body) blockquote[data-icons-quote] { break-inside: avoid; }
+}

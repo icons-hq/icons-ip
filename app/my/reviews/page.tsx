@@ -4,6 +4,7 @@ import { MyReviews } from '@/components/screens/MyReviews';
 import { isOnboarded, onboardingPath } from '@/lib/auth/onboarding';
 import { getCurrentAuthState } from '@/lib/auth/server';
 import { loadMyReviewTargets } from '@/lib/reviews.server';
+import { loadGoodsReviewEvents, loadMyReviewEventEntries } from '@/lib/review-events.server';
 
 export const metadata: Metadata = {
   title: '내 리뷰 — ICONS',
@@ -18,6 +19,6 @@ export default async function Page() {
   if (!isOnboarded(auth.profile, auth.user.email)) redirect(onboardingPath('/my/reviews'));
 
   const targets = await loadMyReviewTargets();
-
-  return <MyReviews targets={targets} />;
+  const [events, entries] = await Promise.all([loadGoodsReviewEvents(targets.filter(target => target.writable).map(target => target.goodId)), loadMyReviewEventEntries(targets.flatMap(target => target.review ? [target.review.id] : []))]);
+  return <MyReviews targets={targets} reviewEvents={events} eventEntries={entries} />;
 }

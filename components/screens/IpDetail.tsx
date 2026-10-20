@@ -10,6 +10,7 @@ import { useFormStatus } from 'react-dom';
 import { setIpNotificationPreferencesAction, toggleIpFollowAction } from '@/app/ip/actions';
 import { EmptyState } from '@/components/wc/EmptyState';
 import { ProductCard } from '@/components/wc/ProductCard';
+import { GoodsSalePeriodRefresh } from '@/components/shop/GoodsSalePeriodRefresh';
 import { SectionHeading } from '@/components/wc/SectionHeading';
 import type { CatalogIpDetail } from '@/lib/catalog';
 import { COMMUNITY_ENABLED } from '@/lib/community-visibility';
@@ -159,6 +160,7 @@ export function IpDetail({
 
   return (
     <div className="wc-root wc-iphall">
+      <GoodsSalePeriodRefresh goods={goods} />
       <section
         className="wc-iphall__banner"
         style={{ background: ip.bg, backgroundSize: 'cover', backgroundPosition: 'center' }}
@@ -242,6 +244,7 @@ export function IpDetail({
               {visibleGoods.map((good) => (
                 <ProductCard
                   key={good.id}
+                  listSurface="standard" listingAppearance={good.listingAppearance} cartGood={good}
                   badges={goodDisplayBadges(good)}
                   brand={ip.title}
                   showDiscountRate={good.showDiscountRate} compareAtPrice={good.compareAtPrice}
@@ -249,7 +252,7 @@ export function IpDetail({
                   imageBackground={good.img}
                   name={good.name}
                   price={good.price} priceMax={good.priceMax}
-                  soldOut={good.stock === 'soldout'}
+                  salePeriod={good.salePeriod} soldOut={good.stock === 'soldout'}
                 />
               ))}
             </div>

@@ -4,6 +4,7 @@ import { CampaignAnchorNav } from '@/components/campaign/CampaignAnchorNav';
 import { ExchangePanel } from '@/components/campaign/ExchangePanel';
 import { EmptyState } from '@/components/wc/EmptyState';
 import { ProductCard } from '@/components/wc/ProductCard';
+import { GoodsSalePeriodRefresh } from '@/components/shop/GoodsSalePeriodRefresh';
 import {
   campaignAnchors,
   campaignKindLabel,
@@ -133,7 +134,7 @@ function SectionBody({
               key={good.id}
               name={good.name}
               price={good.price} priceMax={good.priceMax}
-              soldOut={good.soldOut}
+              salePeriod={good.salePeriod} soldOut={good.soldOut}
             />
           ))}
         </div>
@@ -200,6 +201,7 @@ export function CampaignLanding({
 
   return (
     <div className="wc-root wc-campaign">
+      <GoodsSalePeriodRefresh goods={campaign.resolvedSections.flatMap(section => section.type === 'goods' ? section.goods : [])} />
       <CampaignAnchorNav
         anchors={anchors}
         balance={signedIn ? context.balance : null}

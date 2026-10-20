@@ -35,7 +35,7 @@ export function StoreCreditPolicyForm({ policy, operationId }: { policy: StoreCr
         </select>
       </AdminField>
     </AdminFormGrid>
-    <p>{adminGoodsCopy("쿠폰 1장을 적용한 뒤 남은 굿즈 금액에 적립금을 사용합니다. 배송비 사용은 제외하고 기존 최소 유상 결제액을 유지합니다. 현금 청구·환불액 차감은 발생하지 않습니다.")}</p>
+    <p>{adminGoodsCopy("상품 쿠폰을 순서대로 적용한 뒤 남은 굿즈 금액에 적립금을 사용합니다. 배송비 사용은 제외하고 기존 최소 유상 결제액을 유지합니다. 현금 청구·환불액 차감은 발생하지 않습니다.")}</p>
     <AdminField label="정책 승인 근거" inputId="credit-evidence"><textarea id="credit-evidence" name="evidence" maxLength={2000} rows={4} value={values.evidence} onChange={event => set('evidence', event.target.value)} /></AdminField>
     <label><input type="checkbox" name="enabled" checked={values.enabled === 'true'} onChange={event => set('enabled', String(event.target.checked))} /> 적립금 지급과 주문 사용 활성화</label>
     <p>비활성화해도 기존 주문에 약속한 적립과 사용분 복원, 기존 원장은 보존됩니다.</p>

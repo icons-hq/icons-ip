@@ -1,10 +1,10 @@
+const { legacyOperatorAccessFixture } = await vi.hoisted(() => import('@/lib/admin/access.test-fixtures'));
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   answerInquiryAction,
   reassignInquiryAction,
   addInquiryInternalNoteAction,
   closeInquiryAction,
-  saveInquiryReplyTemplateAction,
 } from './inquiry-actions';
 
 const INQUIRY_ID = '11111111-1111-4111-8111-111111111111';
@@ -15,12 +15,12 @@ const mocks = vi.hoisted(() => ({
     isConfigured: true,
     user: { id: 'staff-1', email: 'staff@icons.gg' },
     role: 'staff',
-    isStaff: true,
+    isStaff: true, operatorAccess: legacyOperatorAccessFixture(),
   } as {
     isConfigured: boolean;
     user: { id: string; email: string | null } | null;
     role: 'user' | 'staff' | 'admin' | null;
-    isStaff: boolean;
+    isStaff: boolean; operatorAccess?: ReturnType<typeof legacyOperatorAccessFixture>;
   },
   rpc: vi.fn(),
   upload: vi.fn(),
@@ -58,7 +58,7 @@ beforeEach(() => {
     isConfigured: true,
     user: { id: 'staff-1', email: 'staff@icons.gg' },
     role: 'staff',
-    isStaff: true,
+    isStaff: true, operatorAccess: legacyOperatorAccessFixture(),
   };
   mocks.rpc.mockReset();
   mocks.rpc.mockResolvedValue({
@@ -164,36 +164,6 @@ describe('closeInquiryAction', () => {
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/admin/cs/inquiries');
   });
 });
-
-describe('saveInquiryReplyTemplateAction', () => {
-  it('이름이나 본문이 비면 저장하지 않는다', async () => {
-    const formData = new FormData();
-    formData.set('templateTitle', '');
-    formData.set('templateBody', '내용');
-
-    const state = await saveInquiryReplyTemplateAction({}, formData);
-
-    expect(state.errors?.form).toBeTruthy();
-    expect(mocks.rpc).not.toHaveBeenCalled();
-  });
-
-  it('새 템플릿은 id 없이 저장한다', async () => {
-    mocks.rpc.mockResolvedValue({ data: null, error: null });
-
-    const formData = new FormData();
-    formData.set('templateTitle', '배송 지연 안내');
-    formData.set('templateBody', '배송이 지연되어 죄송합니다.');
-    const state = await saveInquiryReplyTemplateAction({}, formData);
-
-    expect(mocks.rpc).toHaveBeenCalledWith('admin_upsert_inquiry_reply_template', {
-      target_body: '배송이 지연되어 죄송합니다.',
-      target_template_id: null,
-      target_title: '배송 지연 안내',
-    });
-    expect(state.message).toBe('답변 템플릿을 저장했습니다.');
-  });
-});
-
 
 describe('문의 담당자와 내부 메모', () => {
   it('재배정 사유와 담당자만 audited RPC에 보내고 고객 알림은 발송하지 않는다', async () => {

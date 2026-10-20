@@ -8,6 +8,10 @@ import {
   parseGoodsWorkbookWithKc,
 } from '../lib/admin/goods-workbook-file';
 import { planGoodsWorkbookImport } from '../lib/admin/goods-workbook';
+import { GOODS_WORKBOOK_VERSION } from '../lib/admin/goods-workbook';
+import { GOODS_KC_WORKBOOK_HEADERS, GOODS_KC_WORKBOOK_SHEET } from '../lib/admin/goods-kc-workbook';
+import { GOODS_CUSTOM_INPUT_WORKBOOK_HEADERS, GOODS_CUSTOM_INPUT_WORKBOOK_SHEET } from '../lib/admin/goods-custom-input-workbook';
+import { GOODS_AFTER_SALES_WORKBOOK_HEADERS, GOODS_AFTER_SALES_WORKBOOK_SHEET, GOODS_SIZE_WORKBOOK_HEADERS, GOODS_SIZE_WORKBOOK_SHEET } from '../lib/admin/goods-guidance-workbook';
 describe('reproducible rehearsal fixtures', () => {
   it('isolates run identities and emits 100 insert-only orders behind the staging guard', () => {
     const result = buildRehearsalOrdersSql({ run: 'qa-20260908' });
@@ -32,6 +36,16 @@ describe('reproducible rehearsal fixtures', () => {
     const generatedWorkbook = new ExcelJS.Workbook();
     await generatedWorkbook.xlsx.load(files['goods-draft.xlsx']);
     const generatedSheet = generatedWorkbook.getWorksheet('상품');
+    expect(generatedSheet.getCell('A1').text).toBe(GOODS_WORKBOOK_VERSION);
+    for (const [name, headers] of [[GOODS_KC_WORKBOOK_SHEET, GOODS_KC_WORKBOOK_HEADERS], [GOODS_CUSTOM_INPUT_WORKBOOK_SHEET, GOODS_CUSTOM_INPUT_WORKBOOK_HEADERS],
+      [GOODS_AFTER_SALES_WORKBOOK_SHEET, GOODS_AFTER_SALES_WORKBOOK_HEADERS], [GOODS_SIZE_WORKBOOK_SHEET, GOODS_SIZE_WORKBOOK_HEADERS]]) {
+      const sheet = generatedWorkbook.getWorksheet(name);
+      expect(sheet.getCell('A1').text).toBe(GOODS_WORKBOOK_VERSION);
+      expect(sheet.getRow(4).values).toEqual([undefined, ...Object.values(headers)]);
+      expect(sheet.views[0]).toMatchObject({ state: 'frozen', ySplit: 4 });
+    }
+    expect((await parseGoodsWorkbookWithKc(files['goods-draft.xlsx'])).customInputRows).toEqual([]);
+    expect(await parseGoodsWorkbookWithKc(files['goods-draft.xlsx'])).toMatchObject({ afterSalesRows: [], sizeRows: [] });
     expect(generatedSheet?.autoFilter).toBe(`A4:${generatedSheet?.getColumn(generatedSheet.getRow(4).cellCount).letter}64`);
     const draft = await parseGoodsWorkbook(files['goods-draft.xlsx']);
     expect(draft).toHaveLength(60);

@@ -23,7 +23,7 @@ export async function setGoodBankTransferAction(
   _state: AdminGoodBankTransferActionState,
   formData: FormData,
 ): Promise<AdminGoodBankTransferActionState> {
-  const auth = await requireAdminActionAccess('/admin');
+  const auth = await requireAdminActionAccess('/admin/catalog/goods');
   if (!auth) return { error: '관리자 권한이 필요합니다.' };
 
   const id = String(formData.get('id') ?? '').trim();

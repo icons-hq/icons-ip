@@ -68,10 +68,13 @@ function excepted(copy: CopyLiteral, exceptions: readonly { file: string; text?:
 
 const PUBLIC_SOURCES = [
   'components/shop', 'components/orders', 'app/cart', 'app/checkout', 'app/orders', 'app/shop', 'app/my',
-  'app/help', 'components/campaign', 'app/events/participation-actions.ts',
+  'app/help', 'components/reviews', 'app/review-events', 'components/screens/ReviewEvents.tsx', 'components/campaign', 'app/events/participation-actions.ts',
   ...['GoodDetail', 'Cart', 'Checkout', 'CheckoutOrder', 'OrderDetail', 'Orders', 'MyPage', 'MyQuestions', 'MyReviews',
     'MyCoupons', 'MyStoreCredits', 'Wishlist', 'Inquiries', 'Notifications', 'Home', 'CampaignLanding'].map(name => `components/screens/${name}.tsx`),
   'components/wc/MypageShell.tsx', 'components/wc/ProductCard.tsx', 'components/shell/CartProvider.tsx',
+  'app/gifts', 'components/gifts', 'components/screens/gifts', 'components/subscriptions', 'components/screens/subscriptions',
+  'components/checkout/GoodsTransactionSummary.tsx', 'components/screens/GoodsTransactionCheckout.tsx',
+  'lib/gifts.ts', 'lib/checkout-transaction.ts', 'lib/goods-transaction-presentation.ts', 'lib/subscriptions/customer.ts', 'lib/subscriptions/model.ts',
   ...['checkout', 'fulfillment', 'shipping', 'product-questions', 'inquiries', 'cart', 'goods-sales', 'goods-options', 'goods-claim-policy', 'orders', 'notifications'].map(name => `lib/${name}.ts`),
 ];
 const CARD_PACK_EXCHANGE_SOURCES = ['components/campaign/ExchangePanel.tsx', 'app/events/participation-actions.ts'];

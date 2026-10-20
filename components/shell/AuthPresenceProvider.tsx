@@ -4,6 +4,7 @@ import { createContext, useContext, useEffect, useState } from 'react';
 import { usePathname } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { getSupabaseConfig } from '@/lib/supabase/config';
+import { clearInquiryDraftsInThisTab, observeInquiryDraftSignOut } from '@/lib/admin/inquiry-draft-lifecycle';
 
 export type AuthPresence = 'unknown' | 'signed-in' | 'signed-out';
 
@@ -42,11 +43,15 @@ export function AuthPresenceProvider({ children }: { children: React.ReactNode }
   const [presence, setPresence] = useState<AuthPresence>(() =>
     getSupabaseConfig().isConfigured ? 'unknown' : 'signed-out',
   );
+  useEffect(() => observeInquiryDraftSignOut(), []);
 
   useEffect(() => {
     if (!getSupabaseConfig().isConfigured) return;
 
-    return observeAuthPresence(createClient(), setPresence);
+    return observeAuthPresence(createClient(), (next) => {
+      if (next === 'signed-out') clearInquiryDraftsInThisTab();
+      setPresence(next);
+    });
   }, [pathname]);
 
   return (

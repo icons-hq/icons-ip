@@ -18,6 +18,8 @@ describe('운송장 업로드 후속 동선', () => {
     expect(html).toContain('name="originId"');expect(html).toContain('value="selected-origin"');
     expect(html).toContain('김포');expect(html).toContain('21열');expect(html).toContain('주문번호(쇼핑몰)');
     expect(html).toContain('배송건번호 · 택배사코드 · 운송장번호');
+    expect(html).toContain('상품주문번호 · 배송방법 · 택배사 · 송장번호');
+    expect(html).toContain('암호를 해제');expect(html).toContain('발송처리');expect(html).toContain('1행을 삭제');
   });
 
   it('목록에서는 접혀 있고 작업을 펼치면 파일 선택과 등록을 제공한다', () => {

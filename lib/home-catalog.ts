@@ -1,5 +1,11 @@
 import type { CatalogPostPreview, CatalogSnapshot } from './catalog';
 import type { Card, FandomEvent, Good, Ip } from './data';
+import type { HomeBlockKey } from './home-layout';
+import type { HomeMosaicBand } from './home-mosaic';
+import type { HomeProductCollectionBand } from './home-product-collection';
+import type { HomeReviewBestBand, HomeSalesBestBand } from './home-ranking';
+import type { PublicShoppingStorySummary } from './shopping-stories';
+import type { HomeHeroImageDim, HomeHeroTextColor } from './home-hero';
 
 export const MAX_HOME_PICKER_IPS = 5;
 
@@ -77,7 +83,7 @@ export function isCardRewardDestination(href: string): boolean {
 export function withoutCardRewardCurations(curation: HomeCurationSnapshot): HomeCurationSnapshot {
   return {
     ...curation,
-    heroSlides: curation.heroSlides.filter((slide) => !isCardRewardDestination(slide.href)),
+    heroSlides: curation.heroSlides.filter((slide) => slide.href === null || !isCardRewardDestination(slide.href)),
     editorPicks: curation.editorPicks.filter((pick) => !isCardRewardDestination(pick.href)),
     goodsBands: curation.goodsBands.filter((band) => !isCardRewardDestination(band.href)),
     benefitTiles: [],
@@ -100,7 +106,7 @@ export function isCommunityDestination(href: string): boolean {
 export function withoutCommunityCurations(curation: HomeCurationSnapshot): HomeCurationSnapshot {
   return {
     ...curation,
-    heroSlides: curation.heroSlides.filter((slide) => !isCommunityDestination(slide.href)),
+    heroSlides: curation.heroSlides.filter((slide) => slide.href === null || !isCommunityDestination(slide.href)),
     editorPicks: curation.editorPicks.filter((pick) => !isCommunityDestination(pick.href)),
     goodsBands: curation.goodsBands.filter((band) => !isCommunityDestination(band.href)),
   };
@@ -112,7 +118,10 @@ export interface HomeHeroSlide {
   subtitle: string | null;
   imageUrl: string;
   mobileImageUrl: string | null;
-  href: string;
+  href: string | null;
+  imageAlt?: string;
+  imageDim?: HomeHeroImageDim;
+  textColor?: HomeHeroTextColor;
 }
 
 export interface HomeEditorPick {
@@ -127,6 +136,7 @@ export interface HomeEditorPick {
 /* 홈 밴드가 그리는 상품 카드 뷰모델 — 서버에서 카탈로그와 조인을 끝내 내려보낸다.
    존재하지 않는 굿즈 id 는 서버 resolve 단계에서 걸러지므로 화면은 목록만 그린다. */
 export interface HomeGoodsCard {
+  salePeriod?: Good['salePeriod'];
   priceMax?: number;
   id: string;
   name: string;
@@ -161,6 +171,14 @@ export interface HomeBenefitTile {
 }
 
 export interface HomeCurationSnapshot {
+  shoppingStories?: PublicShoppingStorySummary[];
+  storiesNextChangeAt?: string | null;
+  shoppingStoriesUnavailable?: boolean;
+  mosaicBands?: HomeMosaicBand[];
+  productCollections?: HomeProductCollectionBand[];
+  layoutOrder?: HomeBlockKey[] | null;
+  salesBestBands?: HomeSalesBestBand[];
+  reviewBestBands?: HomeReviewBestBand[];
   hero: HomeBanner | null;
   announcement: HomeBanner | null;
   featuredIpIds: string[];
@@ -174,6 +192,41 @@ export interface HomeCurationSnapshot {
 
 export const HOME_GOODS_BAND_LIMIT = 4;
 export const HOME_BEST_TAB_GOODS_LIMIT = 12;
+export const HOME_LATEST_GOODS_MIN = 3;
+export const HOME_LATEST_GOODS_MAX = 10;
+
+export type HomeGoodsSelection =
+  | { mode: 'manual'; goodIds: string[] }
+  | { mode: 'latest'; count: number };
+
+/** Old good_ids records stay manual; malformed automatic rules are never guessed. */
+export function readHomeGoodsSelection(payload: Record<string, unknown> | null): HomeGoodsSelection | null {
+  if (payload?.selection_mode === 'latest') {
+    const count = payload.item_count;
+    if (typeof count !== 'number' || !Number.isInteger(count)
+      || count < HOME_LATEST_GOODS_MIN || count > HOME_LATEST_GOODS_MAX
+      || 'good_ids' in payload) return null;
+    return { mode: 'latest', count };
+  }
+  if (payload && ('selection_mode' in payload || 'item_count' in payload)) return null;
+  const ids = payload?.good_ids;
+  return { mode: 'manual', goodIds: Array.isArray(ids) ? ids.filter(
+    (id): id is string => typeof id === 'string' && /^[A-Za-z0-9_-]{1,64}$/.test(id),
+  ) : [] };
+}
+
+/** Only the public catalog is eligible. Undated mock/legacy rows cannot claim to be newest. */
+export function resolveHomeLatestGoodsCards(
+  catalog: Pick<CatalogSnapshot, 'ips' | 'goods'>,
+  count: number,
+): HomeGoodsCard[] {
+  if (!Number.isInteger(count) || count < HOME_LATEST_GOODS_MIN || count > HOME_LATEST_GOODS_MAX) return [];
+  const latest = catalog.goods.flatMap((good) => {
+    const createdAt = Date.parse(good.createdAt ?? '');
+    return Number.isFinite(createdAt) ? [{ id: good.id, createdAt }] : [];
+  }).sort((a, b) => b.createdAt - a.createdAt || a.id.localeCompare(b.id, 'en'));
+  return resolveHomeGoodsCards(catalog, latest.map((good) => good.id), count);
+}
 
 /** 큐레이션이 참조한 굿즈 id 목록을 카드 뷰모델로 바꾼다 — 없는 id·중복은 버리고 순서를 지킨다. */
 export function resolveHomeGoodsCards(
@@ -201,6 +254,7 @@ export function resolveHomeGoodsCards(
       imageBg: good.img,
       href: `/shop/${good.id}`,
       soldOut: good.stock === 'soldout',
+      ...(good.salePeriod ? { salePeriod: good.salePeriod } : {}),
     });
     if (cards.length === limit) break;
   }

@@ -42,10 +42,12 @@ export function DispatchTrackingImportPanel({ carriers, originId, shippingHref =
       <h2>엑셀 일괄 운송장 등록</h2>
 
       <p className="muted">
-        컬럼은 <strong>배송건번호 · 택배사코드 · 운송장번호</strong> 순서입니다.
-        XLSX 파일을 올리거나 엑셀의 세 칸을 복사해 붙여넣어주세요. 단일 배송 주문은 주문번호도 사용할 수 있습니다.
+        스마트스토어 양식은 <strong>상품주문번호 · 배송방법 · 택배사 · 송장번호</strong> 네 열을 사용합니다.
+        내려받은 파일의 암호를 해제하고 안내가 있는 1행을 삭제한 뒤, 시트명을 <strong>발송처리</strong>로 저장해 올려주세요. 열의 순서는 바꿔도 됩니다.
         한 번에 {TRACKING_IMPORT_ROW_LIMIT.toLocaleString('ko-KR')}건까지 처리합니다.
       </p>
+      <p className="muted">상품주문번호는 ICONS 파일의 전체 번호를 유지해주세요. 배송방법은 택배,등기,소포이며 퀵·방문수령·직접전달은 주문 상세에서 처리합니다.</p>
+      <p className="muted">기존 <strong>배송건번호 · 택배사코드 · 운송장번호</strong> 세 칸 XLSX·CSV·붙여넣기도 지원합니다. 단일 배송 주문은 주문번호도 사용할 수 있습니다.</p>
       <p className="muted">
         택배사코드: {activeCodes.length
           ? activeCodes.map((carrier) => `${carrier.code}(${carrier.label})`).join(' · ')
@@ -57,6 +59,7 @@ export function DispatchTrackingImportPanel({ carriers, originId, shippingHref =
         같은 주문의 여러 상품 행은 한 배송 건으로 합치며, 서로 다른 운송장이 있으면 해당 주문 전체를 등록하지 않습니다.
         서원 양식에는 회신용 주문번호·운송장 열이 없으므로 위 세 칸 양식으로 등록해주세요.
       </p>
+      <p className="muted">합포장은 한 배송 건의 송장을 등록해도 묶음 전체에 적용됩니다. 같은 합포장에 서로 다른 송장이나 오류 행이 있으면 먼저 파일을 수정해주세요.</p>
       {/* WMS 이중 입력 주의(#177). 어드민을 운송장 진실원으로 선언하지 않는다. */}
       <p className="muted">
         창고 WMS가 발행한 운송장을 옮겨 적는 운영 기록입니다. 값이 어긋나면 WMS가 기준입니다.
@@ -76,6 +79,7 @@ export function DispatchTrackingImportPanel({ carriers, originId, shippingHref =
           rows={6}
         />
         <label htmlFor="admin-dispatch-import-file">또는 XLSX·CSV 파일</label>
+        <p className="muted">XLSX는 1MB, CSV·TSV·텍스트와 붙여넣기는 256KB까지 등록합니다.</p>
         <input
           accept=".xlsx,.csv,.tsv,.txt,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,text/plain"
           disabled={pending}
@@ -99,13 +103,13 @@ export function DispatchTrackingImportPanel({ carriers, originId, shippingHref =
 
       {state.report && state.report.failed.length > 0 ? (
         <div>
-        <a className="wc-admin-kit__button" download="운송장-실패행.csv" href={`data:text/csv;charset=utf-8,${encodeURIComponent("\uFEFF"+[["줄","배송건번호","사유"],...state.report.failed.map(row=>[String(row.line),row.reference,row.reason])].map(row=>row.map(cell=>`"${(/^[\s]*[=+\-@]/.test(cell)?"'":"")+cell.replaceAll('"','""')}"`).join(',')).join('\r\n'))}`}>실패 행 내려받기</a>
+        <a className="wc-admin-kit__button" download="운송장-실패행.csv" href={`data:text/csv;charset=utf-8,${encodeURIComponent("\uFEFF"+[["줄","입력한 주문·배송번호","사유"],...state.report.failed.map(row=>[String(row.line),row.reference,row.reason])].map(row=>row.map(cell=>`"${(/^[\s]*[=+\-@]/.test(cell)?"'":"")+cell.replaceAll('"','""')}"`).join(',')).join('\r\n'))}`}>실패 행 내려받기</a>
         <table className="admin-console-import-report">
           <caption>등록하지 못한 줄</caption>
           <thead>
             <tr>
               <th scope="col">줄</th>
-              <th scope="col">배송건번호</th>
+              <th scope="col">입력한 주문·배송번호</th>
               <th scope="col">사유</th>
             </tr>
           </thead>

@@ -1,4 +1,5 @@
 import { adminGoodsCopy } from '@/lib/admin/vocabulary';
+import { appendSalesListOptions, normalizeSalesListOptions, salesPage, salesParam, type SalesListOptions } from './sales-list';
 import {
   ORDER_CLAIM_STAGE_LABELS,
   ORDER_CLAIM_STAGES,
@@ -39,6 +40,24 @@ export const ADMIN_CLAIM_STAGE_OPTIONS: { value: AdminClaimStageFilter; label: s
   })),
 ];
 
+/** Keep the provider-review stage distinct from an operator hold and buyer withdrawal. */
+export function adminClaimStageLabel(type: OrderClaimType, stage: OrderClaimStage) {
+  const typeLabel = type === 'cancel' ? '취소' : type === 'return' ? '반품' : '교환';
+  if (stage === 'requested') return `${typeLabel}요청`;
+  if (stage === 'in_review') return `${typeLabel} 검토중`;
+  if (stage === 'collecting') return '수거중';
+  if (stage === 'collected') return '수거완료';
+  if (stage === 'on_hold') return `${typeLabel}보류`;
+  if (stage === 'completed') return type === 'exchange' ? '재배송 처리완료' : `${typeLabel}완료`;
+  if (stage === 'rejected') return `${typeLabel}거부`;
+  if (stage === 'withdrawn') return `${typeLabel}철회`;
+  return ORDER_CLAIM_STAGE_LABELS[stage];
+}
+export function adminClaimStageOptions(type: OrderClaimType) {
+  return ADMIN_CLAIM_STAGE_OPTIONS.filter((option) => type !== 'cancel' || !['collecting', 'collected'].includes(option.value))
+    .map((option) => ({ ...option, label: option.value === 'all' || option.value === 'open' ? option.label : adminClaimStageLabel(type, option.value) }));
+}
+
 export const ADMIN_CLAIM_REASON_OPTIONS: { value: AdminClaimReasonFilter; label: string }[] = [
   { value: 'all', label: '전체' },
   ...ORDER_WITHDRAWAL_REASON_TYPES.map((reasonType) => ({
@@ -51,15 +70,28 @@ export const ADMIN_CLAIM_SEARCH_FIELDS = [
   { value: 'all', label: '전체' },
   { value: 'order', label: '주문·클레임번호' },
   { value: 'buyer', label: '구매자' },
-];
+  { value: 'email', label: '구매자 이메일' },
+  { value: 'recipient', label: '수취인명' },
+  { value: 'item', label: '상품주문번호' },
+  { value: 'product', label: '상품번호' },
+] as const;
+export type AdminClaimSearchField = (typeof ADMIN_CLAIM_SEARCH_FIELDS)[number]['value'];
+export const ADMIN_CLAIM_DATE_FIELDS = [
+  { value: 'requested', label: '요청일' },
+  { value: 'paid', label: '결제일' },
+  { value: 'collected', label: '수거완료일' },
+  { value: 'completed', label: '처리완료일' },
+] as const;
 
-export interface AdminClaimFilters {
+export interface AdminClaimFilters extends SalesListOptions {
   stage: AdminClaimStageFilter;
   reasonType: AdminClaimReasonFilter;
   from: string | null;
   to: string | null;
   query: string;
   page: number;
+  field?: Exclude<AdminClaimSearchField, 'all'>;
+  dateField?: 'paid' | 'collected' | 'completed';
 }
 
 export interface AdminClaimRow {
@@ -132,9 +164,15 @@ export function normalizeAdminClaimFilters(
   const rawStage = singleParam(searchParams.stage);
   const rawReason = singleParam(searchParams.reasonType);
   const rawQuery = singleParam(searchParams.query).trim();
-  const rawPage = Number(singleParam(searchParams.page));
+  const listOptions = normalizeSalesListOptions(searchParams);
+  const field = salesParam(searchParams, 'field');
 
   return {
+    ...listOptions,
+    ...(field !== 'all' && ADMIN_CLAIM_SEARCH_FIELDS.some(option => option.value === field)
+      ? { field: field as AdminClaimFilters['field'] } : {}),
+    ...(['paid', 'collected', 'completed'].includes(salesParam(searchParams, 'dateField'))
+      ? { dateField: salesParam(searchParams, 'dateField') as AdminClaimFilters['dateField'] } : {}),
     stage: STAGE_FILTERS.has(rawStage)
       ? rawStage as AdminClaimStageFilter
       : DEFAULT_ADMIN_CLAIM_STAGE,
@@ -142,7 +180,7 @@ export function normalizeAdminClaimFilters(
     from,
     to,
     query: rawQuery.length <= 100 ? rawQuery : '',
-    page: Number.isSafeInteger(rawPage) && rawPage > 0 ? rawPage : 1,
+    page: salesPage(searchParams.page, listOptions.pageSize ?? ADMIN_CLAIM_PAGE_SIZE),
   };
 }
 
@@ -157,6 +195,9 @@ export function adminClaimHref(
 ) {
   const next = { ...filters, ...overrides };
   const params = new URLSearchParams();
+  appendSalesListOptions(params, next);
+  if (next.field) params.set('field', next.field);
+  if (next.dateField) params.set('dateField', next.dateField);
   params.set('stage', next.stage);
   if (next.reasonType !== 'all') params.set('reasonType', next.reasonType);
   if (next.from) params.set('from', next.from);
@@ -178,7 +219,7 @@ export function adminClaimDetailHref(
   return back ? `${base}?back=${encodeURIComponent(back)}` : base;
 }
 
-const BACK_PARAM_KEYS = ['stage', 'reasonType', 'from', 'to', 'query', 'page'] as const;
+const BACK_PARAM_KEYS = ['stage', 'reasonType', 'from', 'to', 'query', 'page', 'field', 'dateField', 'sort', 'pageSize'] as const;
 
 /**
  * `?back=`으로 돌아온 목록 조건.

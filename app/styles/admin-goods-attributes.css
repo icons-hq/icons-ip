@@ -1,0 +1,35 @@
+/* Product attribute definitions and values; independent of SKU options and legal notices. */
+.wc-admin .admin-attributes { min-width: 0; }
+.wc-admin .admin-attributes p { line-height: 1.65; }
+.wc-admin .admin-attributes__toolbar { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px; margin: 16px 0; }
+.wc-admin .admin-attributes label { display: grid; gap: 6px; min-width: 0; font-size: 13px; }
+.wc-admin .admin-attributes :is(input:not([type='checkbox']),select) { min-width: 0; width: 100%; min-height: 40px; padding: 8px 10px; border: 1px solid var(--wc-line-control); color: var(--wc-ink); background: var(--wc-surface); }
+.wc-admin .admin-attributes__toolbar > label { min-width: min(280px,100%); flex: 1; }
+.wc-admin .admin-attributes__fields { border: 0; padding: 0; margin: 0 0 20px; display: grid; gap: 16px; }
+.wc-admin .admin-attributes__definition { padding: 20px; background: var(--wc-surface); border: 1px solid var(--wc-hairline); }
+.wc-admin .admin-attributes__definition h3 { margin: 0 0 16px; font-size: 15px; }
+.wc-admin .admin-attributes__grid { display: grid; grid-template-columns: 2fr 1fr 1fr 1fr; align-items: end; gap: 16px; }
+.wc-admin .admin-attributes__grid label:has(input[type='checkbox']) { display: flex; align-items: center; min-height: 40px; }
+.wc-admin .admin-attributes small { display: block; overflow-wrap: anywhere; color: var(--wc-ink-tertiary); margin-top: 8px; }
+.wc-admin .admin-attributes__choices { display: grid; gap: 8px; margin-top: 20px; max-width: 540px; }
+.wc-admin .admin-attributes__choices > div { display: flex; gap: 8px; }
+.wc-admin .admin-attributes__choices button { flex: none; }
+.wc-admin .admin-attributes__comparison,.wc-admin .admin-attributes__retained { border: 1px solid var(--wc-line-control); background: var(--wc-surface-grey); padding: 16px; margin: 16px 0; }
+.wc-admin .admin-attributes__retained > div { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; padding: 12px 0; border-top: 1px solid var(--wc-hairline); overflow-wrap: anywhere; }
+.wc-admin .admin-attributes__value-fields { display: grid; gap: 20px; margin-top: 20px; }
+.wc-admin .admin-attributes__value { display: grid; grid-template-columns: 170px minmax(0,1fr); align-items: start; gap: 10px 20px; }
+.wc-admin .admin-attributes__value > fieldset { display: flex; flex-wrap: wrap; gap: 14px; margin: 0; border: 0; padding: 8px 0; }
+.wc-admin .admin-attributes__value > fieldset label { display: flex; align-items: center; }
+.wc-admin .admin-attributes__value > small { grid-column: 2; }
+.wc-admin .admin-attributes [role='alert'] { color: var(--wc-danger); }
+.wc-admin .admin-attributes [role='status'] { color: var(--wc-success); }
+@media(max-width:760px) {
+  .wc-admin .admin-attributes__grid,.wc-admin .admin-attributes__value { grid-template-columns: minmax(0,1fr); }
+  .wc-admin .admin-attributes__value > small { grid-column: 1; }
+  .wc-admin .admin-attributes__definition { padding: 14px; }
+  .wc-admin .admin-attributes__toolbar > label { min-width: 0; flex-basis: 100%; }
+  .wc-admin .admin-attributes__comparison button { margin-top: 8px; }
+}
+@media(forced-colors:active) { .wc-admin .admin-attributes :is(input,select,.admin-attributes__definition,.admin-attributes__retained,.admin-attributes__comparison) { border-color: CanvasText; } }
+
+@media (max-width: 900px) { .wc-admin .admin-attributes :is(input:not([type='checkbox']),select) { min-height: 44px; } }

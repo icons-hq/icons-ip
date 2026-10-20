@@ -1,10 +1,45 @@
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }));
 import { GoodsListScreen } from './GoodsListScreen';
+import { GoodsListFiltersForm } from './GoodsListFiltersForm';
 import { GOODS_READINESS_REASONS, unknownGoodsReadiness } from '@/lib/admin/goods-readiness';
 import { normalizeGoodsListFilters } from '@/lib/admin/goods-list';
 
 describe('goods list screen', () => {
+  it('shows server status counts independently of the filtered total and exposes real list controls', () => {
+    const html = renderToStaticMarkup(<GoodsListScreen data={{ filters: normalizeGoodsListFilters({ status: 'draft', from: '2026-10-01', pageSize: '50', image: 'without' }), goods: [], ips: [], total: 3, pageSize: 50, counts: { all: 20, active: 15, draft: 3, published: 12, archived: 5 } }} />);
+    expect(html).toContain('상품등록일');
+    expect(html).toContain('상품수정일');
+    expect(html).toContain('name="from"');
+    expect(html).toContain('name="originId"');
+    expect(html).toContain('name="image"');
+    expect(html).toContain('aria-label="상품 목록수"');
+    expect(html).toContain('전시중<strong>12');
+    expect(html).toContain('전체<strong>20');
+    expect(html).toContain('상품목록 <span>(총 <strong>3</strong>개)');
+    expect(html).not.toContain('wc-admin-kit__page-header');
+    expect(html).toContain('create=1');
+    expect(html).toContain('상품 일괄등록·수정');
+    expect(html).toContain('href="/admin/catalog/groups">그룹상품 조회/수정</a>');
+    expect(html).toContain('from=2026-10-01');
+  });
+  it('상세 조건을 하단 검색 동작 앞에 유지하고 지정된 조건이 있으면 펼친다', () => {
+    const render = (values: Record<string, string>) => renderToStaticMarkup(<GoodsListFiltersForm data={{
+      filters: normalizeGoodsListFilters(values), goods: [], ips: [], total: 0,
+      origins: [{ id: '11111111-1111-4111-8111-111111111111', name: '기본 출고지', active: true }],
+    }} />);
+    const active = render({ image: 'without', payment: 'bank', saleType: 'preorder', restriction: 'adult', originId: '11111111-1111-4111-8111-111111111111' });
+    expect(active).toContain('class="admin-goods-search__advanced" open=""');
+    expect(active).toContain('value="without" selected=""');
+    expect(active).toContain('value="bank" selected=""');
+    expect(active).toContain('value="preorder" selected=""');
+    expect(active).toContain('value="adult" selected=""');
+    expect(active).toContain('value="11111111-1111-4111-8111-111111111111" selected=""');
+    expect(active.indexOf('name="image"')).toBeLessThan(active.indexOf('type="submit"'));
+    expect(active).toContain('href="/admin/catalog/goods">초기화');
+    expect(render({})).not.toContain('class="admin-goods-search__advanced" open=""');
+  });
   it('빈 상품 목록에서도 지역 배송 정책 만료를 알린다', () => {
     const html = renderToStaticMarkup(<GoodsListScreen data={{ filters: normalizeGoodsListFilters({}), goods: [], ips: [], total: 0 }}
       shippingRegionExpiry={{ warnings: [{ originName: "김포", carrierLabel: "한진택배", id: 'policy', name: '지역 정책', version: 1, endsAt: '2026-09-27T00:00:00Z', status: 'expired' }] }} />);
@@ -19,12 +54,13 @@ describe('goods list screen', () => {
     }}/>);
     expect(html).toContain('admin-console-grid-table');
     expect(html).toContain('상품코드'); expect(html).toContain('상품명');
-    expect(html).toContain('ERP 코드·ERP 품명·바코드');
+    expect(html).toContain('ERP 코드·품명');
+    expect(html).toContain('바코드');
     expect(html).toContain('name="categoryId"'); expect(html).toContain('name="readiness"');
     expect(html).toContain('name="q"'); expect(html).toContain('name="ipId"');
     expect(html).toContain('name="status"'); expect(html).toContain('name="stock"');
     expect(html).toContain('goodId=g100'); expect(html).toContain('page=3');
-    expect(html).toContain('초안'); expect(html).toContain('품절');
+    expect(html).toContain('임시저장'); expect(html).toContain('품절');
     expect(html).toContain('1,000');
   });
   it('모든 옵션을 중지한 상품은 재고 10개를 보존하면서 판매 불가와 부족 경보를 표시한다', () => {

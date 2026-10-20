@@ -8,9 +8,18 @@ import { QuantityStepper } from '@/components/wc/QuantityStepper';
 import { WcButton } from '@/components/wc/WcButton';
 import type { Good, GoodOption } from '@/lib/data';
 import { goodsPurchaseConditionProblem, initialGoodOption, optionLabel } from '@/lib/goods-options';
+import { goodsAggregationUnavailableLabel } from '@/lib/goods-aggregation';
+import { prepareGoodsCustomInputSelection } from '@/lib/goods-custom-inputs';
+import { GoodsCustomInputsFields } from './GoodsCustomInputs';
 import { krw } from '@/lib/format';
 import { STOCK_LABEL } from '@/lib/goods-display';
 import { goodsShipDateLabel, preorderSupplyLabel, preorderUnavailableLabel } from '@/lib/goods-preorders';
+import { goodsSaleUnavailableLabel } from '@/lib/goods-sale-period';
+import { goodsPurchaseVolumePreview } from '@/lib/goods-transaction-presentation';
+import { GoodsTransactionTerms } from './GoodsTransactionTerms';
+import { FULFILLMENT_METHOD_LABELS } from '@/lib/goods-fulfillment';
+import { GiftPurchaseEntry } from '@/components/gifts/GiftPurchaseEntry';
+import { SubscriptionPurchaseEntry } from '@/components/subscriptions/SubscriptionPurchaseEntry';
 
 /*
  * 굿즈 상세의 구매 블록 (R-04 §3.6~3.8 · DESIGN `pdp-buybox`·`cta-pair`·`restock-cta`).
@@ -20,7 +29,7 @@ import { goodsShipDateLabel, preorderSupplyLabel, preorderUnavailableLabel } fro
  * 두 표면이 각자 수량을 들면 아래 바로 산 개수와 위에서 고른 개수가 갈린다.
  *
  * 금액·재고의 최종 판정은 언제나 서버다. 여기 계산은 "지금 담으면 얼마인가"를
- * 미리 보여 주기 위한 표시용 파생이고, 본품과 추가상품은 한 번의 카트
+ * 미리 보여 주기 위한 표시용 파생이고, 본품과 추가굿즈는 한 번의 카트
  * 반영을 거쳐 기존 place_order의 가격·수량·재고 판정을 통과한다.
  */
 
@@ -29,6 +38,11 @@ export const CART_ADDED_STATUS = '장바구니에 담았어요.';
 /** 품절 판정은 재고 수량이 아니라 판매 상태다 — 운영자가 내린 굿즈는 수량과 무관하다. */
 export function isGoodSoldOut(good: Pick<Good, 'stock'>) {
   return good.stock === 'soldout';
+}
+
+function optionAvailabilitySuffix(good: Good, option: GoodOption) {
+  const label = goodsSaleUnavailableLabel(good.salePeriod) ?? preorderSupplyLabel(option.supply) ?? (option.stockQty <= 0 ? '품절' : null);
+  return label ? ` · ${label}` : '';
 }
 
 /** 실시간 합계. 소수·음수 수량은 표시 단계에서 걸러 0 이하로 내려가지 않게 한다. */
@@ -103,6 +117,7 @@ export interface GoodPurchaseController {
   quantity: number;
   setQuantity: (next: number) => void;
   subtotal: number;
+  volumeDiscountTotal?: number;
   soldOut: boolean;
   restockRequested: boolean;
   disabled: boolean;
@@ -114,6 +129,8 @@ export interface GoodPurchaseController {
   toggleAdditional?: (goodId: string, selected: boolean) => void;
   selectAdditionalOption?: (goodId: string, variantId: string) => void;
   setAdditionalQuantity?: (goodId: string, quantity: number) => void;
+  customInputValues?: Record<string,Record<string,string>>;
+  setCustomInputValue?: (goodId:string,fieldId:string,value:string)=>void;
   cartError?: boolean;
   refreshCart?: () => void;
   busy?: boolean;
@@ -144,6 +161,7 @@ export function useGoodPurchase({
   const router = useRouter();
   const cart = useCart();
   const [quantity, setQuantityState] = useState(1);
+  const [customInputValues,setCustomInputValues] = useState<Record<string,Record<string,string>>>({});
   const [selectedId, setSelectedId] = useState(() => initialGoodOption(good)?.id);
   const selectedOption = good.options?.find(option => option.id === selectedId && option.stockQty > 0)
     ?? (selectedId === undefined ? initialGoodOption(good) : undefined);
@@ -203,16 +221,24 @@ export function useGoodPurchase({
 
   const commit = async () => {
     if (!selectedOption || selectionRequired || committingRef.current) return false;
+    const selections = new Map(selectedGoods.map(item=>[item.id,prepareGoodsCustomInputSelection(item.customInputs,customInputValues[item.id] ?? {})]));
+    for (const item of selectedGoods) {
+      const prepared=selections.get(item.id)!;
+      if (!prepared.ok) {setStatus(`${item.name}: ${prepared.error}`);return false;}
+    }
+    const inputsFor=(id:string)=>{const prepared=selections.get(id)!;return prepared.ok && prepared.selection ? {customInputs:prepared.selection} : {};};
     committingRef.current = true;
     try {
       return await cart.addSelection(good.id, [
-        { goodId: good.id, variantId: selectedOption.id, qty: quantity, stockQty },
+        { goodId: good.id, variantId: selectedOption.id, qty: quantity, stockQty, ...inputsFor(good.id) },
         ...chosenAdditions.map((choice) => ({ goodId: choice.goodId, variantId: choice.selectedOption!.id,
-          qty: choice.quantity, stockQty: choice.selectedOption!.stockQty })),
+          qty: choice.quantity, stockQty: choice.selectedOption!.stockQty, ...inputsFor(choice.goodId) })),
       ]);
     } finally { committingRef.current = false; }
   };
 
+  const volumePreview = selectionRequired ? null : goodsPurchaseVolumePreview([{ good, option: selectedOption, quantity },
+    ...chosenAdditions.flatMap(choice => choice.good ? [{ good: choice.good, option: choice.selectedOption, quantity: choice.quantity }] : [])]);
   return {
     good,
     selectedOption,
@@ -226,8 +252,9 @@ export function useGoodPurchase({
       setStatus(null);
       setQuantityState(next);
     },
-    subtotal: selectionRequired ? 0 : purchaseSubtotal(selectedOption?.price ?? good.price, quantity)
-      + chosenAdditions.reduce((sum, choice) => sum + purchaseSubtotal(choice.selectedOption?.price ?? 0, choice.quantity), 0),
+    subtotal: selectionRequired ? 0 : volumePreview?.netSubtotal
+      ?? (purchaseSubtotal(selectedOption?.price ?? good.price, quantity) + chosenAdditions.reduce((sum, choice) => sum + purchaseSubtotal(choice.selectedOption?.price ?? 0, choice.quantity), 0)),
+    volumeDiscountTotal: volumePreview?.volumeDiscountTotal,
     soldOut,
     restockRequested,
     disabled,
@@ -235,6 +262,8 @@ export function useGoodPurchase({
     /* 카트가 낸 오류가 먼저다 — 담기에 실패한 화면에 "담았어요"가 남으면 안 된다. */
     message: conditionProblem ?? cart.error ?? status,
     additionalChoices,
+    customInputValues,
+    setCustomInputValue:(goodId,fieldId,value)=>{setStatus(null);setCustomInputValues(current=>({...current,[goodId]:{...current[goodId],[fieldId]:value}}));},
     toggleAdditional: (goodId, selected) => {
       setStatus(null);
       if (!selected) { setAdditionalSelections((items) => items.filter((item) => item.goodId !== goodId)); return; }
@@ -254,7 +283,7 @@ export function useGoodPurchase({
     },
     cartError: Boolean(cart.error),
     busy: cart.pending,
-    unavailableLabel: preorderUnavailableLabel(good.options, soldOut),
+    unavailableLabel: goodsAggregationUnavailableLabel(good) ?? goodsSaleUnavailableLabel(good.salePeriod) ?? preorderUnavailableLabel(good.options, soldOut),
     refreshCart: () => { setStatus(null); void cart.refresh(); },
     addToCart: () => {
       if (inert) return;
@@ -302,12 +331,13 @@ function AdditionalChoices({ purchase }: { purchase: GoodPurchaseController }) {
           <select value={choice.selectedOption?.id ?? ''} onChange={(event) => purchase.selectAdditionalOption?.(choice.goodId, event.target.value)}>
             <option value="" disabled>옵션을 선택해주세요</option>
             {choice.good.options?.map((option) => <option key={option.id} value={option.id} disabled={option.stockQty <= 0}>
-              {option.name} · {krw(option.price)}{preorderSupplyLabel(option.supply) ? ` · ${preorderSupplyLabel(option.supply)}` : option.stockQty <= 0 ? ' · 품절' : ''}
+              {option.name} · {krw(option.price)}{optionAvailabilitySuffix(choice.good!, option)}
             </option>)}
           </select>
         </label> : optionLabel(choice.selectedOption, 1) ? <p className="wc-buy-panel__state">{choice.selectedOption?.name}</p> : null}
         {!choice.selectedOption && (choice.good.options?.length ?? 0) <= 1 ? <p className="wc-buy-panel__state">현재 구매할 수 없는 옵션입니다. 추가 선택을 해제해주세요.</p> : null}
         {choice.selectedOption?.supply?.mode === 'preorder' ? <p className="wc-buy-panel__state">예약판매 · {goodsShipDateLabel(choice.selectedOption.supply.expectedShipDate)}</p> : null}
+        <GoodsCustomInputsFields goodId={choice.goodId} config={choice.good.customInputs} values={purchase.customInputValues?.[choice.goodId]} disabled={purchase.disabled || purchase.busy} onChange={(id,value)=>purchase.setCustomInputValue?.(choice.goodId,id,value)} />
         <div className="wc-buy-panel__row">
           <span>추가 수량</span>
           <QuantityStepper label={`${choice.name} 추가 수량`} max={Math.max(1, choice.selectedOption?.stockQty ?? 1)}
@@ -328,7 +358,7 @@ export function GoodPurchasePanel({ purchase }: { purchase: GoodPurchaseControll
   return (
     <div className="wc-buy-panel">
       {stockLabel ? <p className="wc-buy-panel__state">{stockLabel}</p> : null}
-      {good.orderQuantityLimitEnabled && good.minOrderQty && good.maxOrderQty ? <p className="wc-buy-panel__state">같은 굿즈의 옵션을 합산하여 주문당 {good.minOrderQty.toLocaleString('ko-KR')}–{good.maxOrderQty.toLocaleString('ko-KR')}개 구매할 수 있습니다.</p> : null}
+      {good.orderQuantityLimitEnabled && good.minOrderQty && good.maxOrderQty ? <p className="wc-buy-panel__state">{good.transactionOffer?.aggregation ? '같은 굿즈에서 나뉜 항목을' : '같은 굿즈의 옵션을'} 합산하여 주문당 {good.minOrderQty.toLocaleString('ko-KR')}–{good.maxOrderQty.toLocaleString('ko-KR')}개 구매할 수 있습니다.</p> : null}
       {good.memberPurchaseLimitEnabled && good.memberLifetimeQtyLimit ? <p className="wc-buy-panel__state">회원 누적 최대 {good.memberLifetimeQtyLimit.toLocaleString('ko-KR')}개 · 결제 대기 주문 포함</p> : null}
       {(good.options?.length ?? 0) > 1 ? (
         <label className="wc-buy-panel__option">
@@ -337,13 +367,14 @@ export function GoodPurchasePanel({ purchase }: { purchase: GoodPurchaseControll
             <option value="" disabled>옵션을 선택해주세요</option>
             {good.options!.map(option => (
               <option key={option.id} value={option.id} disabled={option.stockQty <= 0}>
-                {`${option.name} · ${krw(option.price)}${preorderSupplyLabel(option.supply) ? ` · ${preorderSupplyLabel(option.supply)}` : option.stockQty <= 0 ? ' · 품절' : ''}`}
+                {`${option.name} · ${krw(option.price)}${optionAvailabilitySuffix(good, option)}`}
               </option>
             ))}
           </select>
         </label>
       ) : singleOptionLabel ? <p className="wc-buy-panel__option">{singleOptionLabel}</p> : null}
       {displayOption?.supply?.mode === 'preorder' ? <p className="wc-buy-panel__state">예약판매 · 주문 시 결제 · {goodsShipDateLabel(displayOption.supply.expectedShipDate)}</p> : null}
+      <GoodsCustomInputsFields goodId={good.id} config={good.customInputs} values={purchase.customInputValues?.[good.id]} disabled={disabled || purchase.busy} onChange={(id,value)=>purchase.setCustomInputValue?.(good.id,id,value)} />
       <div className="wc-buy-panel__row" inert={purchase.busy || undefined}>
         <span className="wc-buy-panel__label">수량</span>
         {/* 재고가 0인데 판매중인 데이터는 없다. 그래도 max 0 이면 스테퍼가 0에 잠겨
@@ -351,10 +382,16 @@ export function GoodPurchasePanel({ purchase }: { purchase: GoodPurchaseControll
         <QuantityStepper max={Math.max(1, selectedOption?.stockQty ?? (good.options ? 0 : good.stockQty))} onChange={setQuantity} value={quantity} />
       </div>
       <AdditionalChoices purchase={purchase} />
+      <GoodsTransactionTerms good={good} quantity={quantity} />
+      {(purchase.additionalChoices ?? []).filter(choice => choice.selected && choice.good).map(choice => <GoodsTransactionTerms key={choice.goodId} good={choice.good!} quantity={choice.quantity} />)}
+      {purchase.volumeDiscountTotal ? <p className="wc-buy-panel__state">선택 굿즈 복수구매 할인 예상 −{krw(purchase.volumeDiscountTotal)}</p> : null}
       <div className="wc-buy-panel__total">
-        <span className="wc-buy-panel__total-label">총 금액</span>
-        <strong className="wc-buy-panel__total-amount">{selectionRequired ? '옵션 선택 후 표시' : krw(subtotal)}</strong>
+        <span className="wc-buy-panel__total-label">{purchase.unavailableLabel ? '판매 상태' : good.transactionOffer ? '예상 굿즈 금액' : '총 금액'}</span>
+        <strong className="wc-buy-panel__total-amount">{purchase.unavailableLabel ?? (selectionRequired ? '옵션 선택 후 표시' : krw(subtotal))}</strong>
       </div>
+      {good.transactionOffer?.fulfillment ? <div className="wc-buy-panel__state"><p>제공 방식: {good.transactionOffer.fulfillment.methods.map(m => FULFILLMENT_METHOD_LABELS[m.method]).join(' · ')}</p>
+        <p>{good.transactionOffer.fulfillment.publicNote}</p>{good.transactionOffer.fulfillment.mode === 'digital' ? <p>결제한 계정에서 구매한 파일을 받습니다. 파일 제공 후 취소 요청은 담당자가 검토합니다. 디지털 굿즈의 선물하기는 제공하지 않습니다.</p> : null}</div> : null}
+      {good.transactionOffer ? <p className="wc-buy-panel__state">현재 선택한 굿즈 기준입니다. 장바구니 수량·쿠폰·적립금·배송비를 반영한 결제 금액은 주문서에서 확인해주세요.</p> : null}
       {purchase.unavailableLabel ? <WcButton disabled variant="primary">{purchase.unavailableLabel}</WcButton> : soldOut ? (
         <RestockCta disabled={disabled} goodId={good.id} initialRequested={restockRequested} />
       ) : (
@@ -367,6 +404,7 @@ export function GoodPurchasePanel({ purchase }: { purchase: GoodPurchaseControll
           </WcButton>
         </div>
       )}
+      {!disabled ? <div className="wc-buy-panel__other-purchases"><SubscriptionPurchaseEntry goodId={good.id} />{good.transactionOffer?.fulfillment?.mode !== 'digital' ? <GiftPurchaseEntry /> : null}</div> : null}
       {/* 서버 확인 전에는 "완료"라고 하지 않는다(DESIGN §9) — 카트 저장이 끝난 뒤에만 채운다. */}
       <p aria-atomic="true" aria-live="polite" className="wc-buy-panel__status" role="status">
         {message ?? ''}
@@ -393,7 +431,7 @@ export function GoodBuyBars({
 }) {
   const { disabled, good, inert, restockRequested, soldOut } = purchase;
 
-  const actions = purchase.unavailableLabel ? <button className="wc-buybar__restock" type="button" disabled>{purchase.unavailableLabel}</button> : soldOut ? (
+  const actions = purchase.unavailableLabel ? <button className="wc-buybar__buy" type="button" disabled>{purchase.unavailableLabel}</button> : soldOut ? (
     <RestockCta className="wc-buybar__restock" disabled={disabled} goodId={good.id} initialRequested={restockRequested} />
   ) : (
     <>
@@ -423,7 +461,7 @@ export function GoodBuyBars({
       {/* hidden 과 클래스를 함께 둔다 — 보조기기에서 사라지는 것과 화면에서 사라지는 것이
           같은 시점이어야 한다. */}
       <div className={`wc-buybar-mini${miniVisible ? ' is-visible' : ''}`} hidden={!miniVisible}>
-        {purchase.unavailableLabel ? <button className="wc-buybar-mini__restock" type="button" disabled>{purchase.unavailableLabel}</button> : soldOut ? (
+        {purchase.unavailableLabel ? <button className="wc-buybar-mini__buy" type="button" disabled>{purchase.unavailableLabel}</button> : soldOut ? (
           <RestockCta className="wc-buybar-mini__restock" disabled={disabled} goodId={good.id} initialRequested={restockRequested} />
         ) : (
           <>

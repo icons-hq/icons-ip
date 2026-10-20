@@ -22,7 +22,7 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock('../supabase/service', () => ({
-  createServiceClient: () => ({ rpc: vi.fn() }),
+  createServiceClient: () => ({ rpc: vi.fn(async () => ({ data: null, error: null })) }),
 }));
 vi.mock('./runtime-gateway', () => ({
   getPaymentGateway: mocks.getPaymentGateway,

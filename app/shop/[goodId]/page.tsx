@@ -1,9 +1,16 @@
+import { loadPublicGoodsAfterSales } from '@/lib/goods-after-sales.server';
+import { GoodAfterSalesContent } from '@/components/shop/GoodAfterSalesContent';
+import { loadPublicGoodsSizeChart } from '@/lib/goods-size-chart.server';
+import { loadPublicGoodsBenefits } from '@/lib/goods-benefits.server';
+import { GoodsBenefitContent } from '@/components/wc/GoodsBenefitContent';
 import type { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import { cache } from 'react';
 import { GoodDetail } from '@/components/screens/GoodDetail';
 import { GoodQna } from '@/components/shop/GoodQna';
 import { GoodReviews } from '@/components/shop/GoodReviews';
+import { GoodAnnouncements } from '@/components/shop/GoodAnnouncements';
+import { loadGoodAnnouncements } from '@/lib/good-announcements.server';
 import { getCatalogGoodDetail } from '@/lib/catalog';
 import { normalizeGoodQuestionOptions } from '@/lib/product-questions';
 import { loadGoodQuestions } from '@/lib/product-questions.server';
@@ -11,6 +18,19 @@ import { normalizeGoodReviewOptions } from '@/lib/reviews';
 import { loadGoodReviewSection } from '@/lib/reviews.server';
 import { loadGoodShippingPolicy } from '@/lib/fulfillment.server';
 import { getGoodEngagement } from '@/lib/wishlist.server';
+import { loadPublicDetailPresentation } from '@/lib/product-detail-presentation.server';
+import { ProductDetailBanner, ProductDetailReviewSummary, ProductDetailRecommendations, detailPresentationNextChange } from '@/components/shop/ProductDetailPresentation';
+import { ProductDetailRefresh } from '@/components/shop/ProductDetailRefresh';
+import { loadGoodsReviewEvents } from '@/lib/review-events.server';
+import { ReviewEventBanner } from '@/components/reviews/ReviewEventBanner';
+import { loadPublicDetailExperience } from '@/lib/product-detail-experiences.server';
+import { ProductPurchaseMessages } from '@/components/shop/ProductPurchaseMessages';
+import { loadPublicGoodMedia } from '@/lib/goods-media.server';
+import { loadSelectedReviewCards } from '@/lib/review-best.server';
+import { GalleryBestReviews } from '@/components/shop/GalleryBestReviews';
+import { GoodOtherCompositions } from '@/components/shop/GoodOtherCompositions';
+import { loadGoodOtherCompositions } from '@/lib/good-other-compositions.server';
+import { goodOtherCompositionsNextChange } from '@/lib/good-other-compositions';
 
 type PageProps = {
   params: Promise<{ goodId: string }>;
@@ -51,24 +71,50 @@ export default async function Page({ params, searchParams }: PageProps) {
   const reviewOptions = normalizeGoodReviewOptions(resolvedSearchParams);
   const questionOptions = normalizeGoodQuestionOptions(resolvedSearchParams);
 
-  const [detail, reviewSection, questionSection, engagement, shippingPolicy] = await Promise.all([
+  const [detail, reviewSection, questionSection, engagement, shippingPolicy, announcements, presentation, reviewEvents, experience, media, selectedReviews, goodsBenefits, afterSales, sizeChart, otherCompositions] = await Promise.all([
     loadGoodDetail(goodId),
     loadGoodReviewSection(goodId, reviewOptions),
     loadGoodQuestions(goodId, questionOptions),
     getGoodEngagement(goodId),
     loadGoodShippingPolicy(goodId),
+    loadGoodAnnouncements(goodId),
+    loadPublicDetailPresentation(goodId),
+    loadGoodsReviewEvents([goodId]),
+    loadPublicDetailExperience(goodId),
+    loadPublicGoodMedia(goodId),
+    loadSelectedReviewCards(goodId),
+    loadPublicGoodsBenefits(goodId),
+    loadPublicGoodsAfterSales(goodId),
+    loadPublicGoodsSizeChart(goodId),
+    loadGoodOtherCompositions(goodId),
   ]);
   if (!detail) notFound();
+  const event = reviewEvents.rows.find(row => row.goodId === goodId)?.event;
+  const boundaries = [detailPresentationNextChange(presentation), reviewEvents.nextChangeAt, experience?.nextChangeAt, goodOtherCompositionsNextChange(otherCompositions)]
+    .flatMap(value => value && Number.isFinite(Date.parse(value)) ? [Date.parse(value)] : []);
+  const nextChangeAt = boundaries.length ? new Date(Math.min(...boundaries)).toISOString() : null;
 
   return (
-    <GoodDetail
-      detail={detail}
+    <><ProductDetailRefresh nextChangeAt={nextChangeAt} /><GoodDetail
+      detail={{ ...detail, sizeChart }}
       shippingPolicy={shippingPolicy}
+      announcements={<GoodAnnouncements data={announcements} />}
+      promotionBanner={presentation?.banner ? <ProductDetailBanner data={presentation} /> : undefined}
+      reviewEventBanner={event ? <ReviewEventBanner event={event} /> : undefined}
+      reviewHighlights={<ProductDetailReviewSummary goodId={goodId} data={presentation} />}
+      otherCompositions={<GoodOtherCompositions data={otherCompositions} />}
+      selectedReviews={selectedReviews.length === 3 ? <GalleryBestReviews goodId={goodId} cards={selectedReviews} /> : undefined}
+      automaticRecommendations={<ProductDetailRecommendations data={presentation} manual={detail.relatedGoods} />}
+      purchaseMessages={experience?.messages.length ? <ProductPurchaseMessages messages={experience.messages} /> : undefined}
+      discovery={experience?.discovery}
+      media={media}
+      goodsBenefits={<GoodsBenefitContent value={goodsBenefits} />}
+      afterSales={<GoodAfterSalesContent value={afterSales} />}
       engagement={engagement}
       qna={<GoodQna goodId={goodId} section={questionSection} />}
       qnaSummary={{ count: questionSection.count }}
-      reviewSummary={reviewSection.summary}
+      reviewSummary={reviewSection.unavailable ? undefined : reviewSection.summary}
       reviews={<GoodReviews goodId={goodId} section={reviewSection} />}
-    />
+    /></>
   );
 }

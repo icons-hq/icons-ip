@@ -1,6 +1,11 @@
 import 'server-only';
 import ExcelJS from 'exceljs';
 import { loadSafeWorkbook, readSafeWorkbookCell } from './workbook-safety';
+import { addGoodsCustomInputWorksheet, readGoodsCustomInputWorksheet } from './goods-custom-input-workbook-file';
+import type { GoodsCustomInputWorkbookInputRow, GoodsCustomInputWorkbookRow } from './goods-custom-input-workbook';
+import { addGoodsGuidanceWorksheets, readGoodsGuidanceWorksheets } from './goods-guidance-workbook-file';
+import type { GoodsAfterSalesWorkbookInputRow, GoodsAfterSalesWorkbookRow, GoodsSizeWorkbookInputRow, GoodsSizeWorkbookRow } from './goods-guidance-workbook';
+import { readBoundedZip } from './bounded-zip.server';
 import { GOODS_KC_WORKBOOK_HEADERS, GOODS_KC_WORKBOOK_SHEET, emptyGoodsKcWorkbookRow,
   goodsKcWorkbookOrphanErrors, type GoodsKcWorkbookInputRow, type GoodsKcWorkbookKey, type GoodsKcWorkbookRow } from './goods-kc-workbook';
 import {
@@ -63,6 +68,9 @@ export async function buildGoodsWorkbook(
   rows: GoodsWorkbookRow[],
   errors?: string[],
   kcRows: GoodsKcWorkbookRow[] = [],
+  customInputRows: GoodsCustomInputWorkbookRow[] = [],
+  afterSalesRows: GoodsAfterSalesWorkbookRow[] = [],
+  sizeRows: GoodsSizeWorkbookRow[] = [],
 ): Promise<Buffer> {
   if (rows.length > GOODS_WORKBOOK_ROW_LIMIT)
     throw new Error('파일당 최대 500행입니다. 페이지를 나누어 내려받아주세요.');
@@ -157,12 +165,17 @@ export async function buildGoodsWorkbook(
         };
   if (errors) sheet.getColumn(headers.length).width = 55;
   addGoodsKcWorksheet(workbook, kcRows);
+  addGoodsCustomInputWorksheet(workbook, GOODS_WORKBOOK_VERSION, customInputRows);
+  addGoodsGuidanceWorksheets(workbook, GOODS_WORKBOOK_VERSION, afterSalesRows, sizeRows);
   const guide = workbook.addWorksheet('작성 안내', {
     views: [{ showGridLines: false }],
   });
   guide.columns = [{ width: 24 }, { width: 115 }];
   const notes = [
     ['ICONS 상품 일괄 등록', ''],
+    ['A/S 안내', '별도 시트에 상품당 한 행을 입력합니다. 편집은 전화번호와 안내가 필수이며, 전체 해제는 전화번호·안내·특이사항을 모두 비웁니다. 안내 버전은 그대로 둡니다. 상품 고시정보와 원본 템플릿은 바뀌지 않습니다.'],
+    ['사이즈 안내', '측정 항목마다 한 행을 입력하며 같은 상품의 표시·단위·안내·버전·사이즈 이름은 동일하게 입력합니다. 사이즈와 치수는 1번부터 같은 순서로 최대 10개입니다. cm/mm 단위의 수치는 자동 변환하지 않습니다.'],
+    ['안내 시트 보존과 적용', '시트 또는 상품 행을 생략하면 기존 안내를 유지합니다. 사이즈 표시 중지는 저장된 표를 보존합니다. 상품·A/S·사이즈는 상품별로 함께 저장되며 하나라도 충돌하면 해당 상품의 변경을 모두 취소합니다. 새 자동코드는 초안 저장 후 다시 내보내세요.'],
     ['할인율 표시', '예(기본값) 또는 아니오를 선택합니다. 공란은 예로 적용합니다. 아니오는 정가 취소선과 할인율만 숨기며 판매가·기간 할인·쿠폰·적립금 계산은 바꾸지 않습니다.'],
     ['고객 카테고리 코드 / 추가 카테고리 코드', '고객 카테고리 코드는 대표 말단 1개입니다. 추가 카테고리 코드는 줄바꿈 또는 쉼표로 구분하며 공란은 추가 분류 전체 해제입니다. 대표·추가 분류 모두 관리자 검색에 쓰고, ERP·공개 분류는 대표 카테고리와 기존 활성화 조건을 따릅니다.'],
     ['KC 검토', '별도 KC 검토 시트에 모델마다 한 행을 입력합니다. 적용 옵션코드는 줄바꿈으로 구분합니다. 검토 상태·버전은 바꾸지 마세요. 시트 또는 상품 행을 없애도 기존 KC 정보는 유지합니다.'],
@@ -170,6 +183,11 @@ export async function buildGoodsWorkbook(
     ['영문 상품명', '선택 항목입니다. 공개 상세와 미리보기에 표시하며 공란으로 저장하면 기존 영문명을 지웁니다.'],
     ['안전재고 기준', '옵션 할당 재고가 기준 이하이면 경고합니다. 판매 수량을 차감하지 않습니다. 공란은 경보 미설정, 0은 수량 0일 때 경고합니다.'],
     ['옵션 사용', '사용 또는 중지를 입력합니다. 사용 중지해도 재고와 주문 기록은 보존됩니다. 사용 중인 옵션과 기본 옵션을 내보내며, 그 밖의 중지 옵션은 상품 편집의 옵션 목록에서 복원합니다.'],
+    ['옵션 축', '옵션 축과 값은 최대 3개, 한 상품의 조합은 최대 100개입니다. v3·v4·v5 양식도 읽을 수 있지만 이미 3축인 상품은 축 소실을 막기 위해 v5 이상 양식이 필요합니다.'],
+    ['직접입력형 옵션', '별도 시트에 항목마다 한 행을 입력합니다. 상품 시트와 같은 상품코드가 필요합니다. 자동코드를 만들 새 상품은 먼저 초안 저장 후 다시 내려받으세요. v3·v4·v5 또는 직접입력 시트/상품 행이 없는 파일은 기존 정의를 유지합니다.'],
+    ['직접입력형 ID·버전', '내려받은 기존 항목 ID와 정의 버전은 바꾸지 않습니다. 기존 항목을 모두 포함하고, 새 항목만 ID를 비웁니다. 새 상품의 정의 버전은 0입니다. 이름은 최대 25자, 최종 항목은 최대 5개입니다. 같은 상품의 행 순서가 표시 순서입니다.'],
+    ['직접입력형 중지·삭제', '전체 사용 아니오는 항목을 보존하고 고객 입력을 끕니다. 항목 처리는 사용·중지·삭제입니다. 행을 지워서 기존 항목을 삭제할 수 없습니다. 삭제 후 최종 5개까지이며 기존 5개와 새 5개를 함께 편집할 수 있습니다.'],
+    ['직접입력형 전체 해제', '모두 지우려면 상품당 한 행에서 변경 방식 전체 해제, 전체 사용 아니오를 선택하고 항목 ID·항목명·항목 처리를 비웁니다. 기존 주문 문구는 보존되고 장바구니 입력은 다시 확인해야 합니다.'],
     [
       '입력 단위',
       '옵션마다 한 행입니다. 같은 상품의 상품코드·이름·IP·배송·고시정보·이미지는 똑같이 반복해주세요.',
@@ -204,7 +222,7 @@ export async function buildGoodsWorkbook(
     ],
     [
       '옵션 구성',
-      '옵션 축은 최대 2개이며 조합은 서로 달라야 합니다. 옵션이 없는 상품은 기본 옵션 한 행만 입력하세요.',
+      '옵션 축은 최대 3개이며 조합은 서로 달라야 합니다. 옵션이 없는 상품은 기본 옵션 한 행만 입력하세요.',
     ],
     [
       'ERP와 바코드',
@@ -260,6 +278,11 @@ export async function buildGoodsWorkbook(
   });
   const bytes = Buffer.from(await workbook.xlsx.writeBuffer());
   if (bytes.length > GOODS_WORKBOOK_BYTES_LIMIT) throw new Error('상품 설명·KC 근거를 포함한 파일이 2MB를 초과합니다. 상품 필터를 좁혀 나누어 내려받아주세요.');
+  try {
+    await readBoundedZip(bytes, { entries: 200, totalBytes: 20 * 1024 * 1024, entryBytes: 10 * 1024 * 1024 });
+  } catch {
+    throw new Error('상품·안내 내용이 읽기 상한을 초과합니다. 상품 필터를 좁혀 나누어 내려받아주세요.');
+  }
   return bytes;
 }
 function addGoodsKcWorksheet(workbook: ExcelJS.Workbook, rows: GoodsKcWorkbookRow[]) {
@@ -301,6 +324,8 @@ function OPTION_HEADER(key: GoodsWorkbookKey) {
     'value1',
     'axis2',
     'value2',
+    'axis3',
+    'value3',
     'variantPrice',
     'stockQty',
   ].includes(key);
@@ -312,7 +337,8 @@ export async function parseGoodsWorkbook(
 }
 export async function parseGoodsWorkbookWithKc(
   bytes: Buffer,
-): Promise<{ rows: GoodsWorkbookInputRow[]; kcRows: GoodsKcWorkbookInputRow[] | null }> {
+): Promise<{ rows: GoodsWorkbookInputRow[]; kcRows: GoodsKcWorkbookInputRow[] | null; customInputRows: GoodsCustomInputWorkbookInputRow[] | null;
+  afterSalesRows: GoodsAfterSalesWorkbookInputRow[] | null; sizeRows: GoodsSizeWorkbookInputRow[] | null }> {
   if (!bytes.length || bytes.length > GOODS_WORKBOOK_BYTES_LIMIT)
     throw new Error('XLSX 양식은 2MB 이하로 올려주세요.');
   const workbook = await loadSafeWorkbook(bytes, {
@@ -320,7 +346,7 @@ export async function parseGoodsWorkbookWithKc(
   });
   const sheet = workbook.getWorksheet('상품');
   const version = sheet?.getCell('A1').text ?? '';
-  // v4와 v3(갤러리 4칸) 양식을 읽는다. 열 이름·순서는 각 버전 그대로여야 한다.
+  // v7와 구형 v6/v5/v4/v3를 읽는다. 열 이름·순서는 각 버전 그대로여야 한다.
   const layout = goodsWorkbookLayout(version);
   if (
     !sheet ||
@@ -376,7 +402,9 @@ export async function parseGoodsWorkbookWithKc(
     const orphans = goodsKcWorkbookOrphanErrors(kcRows, result.map(row => row.values.code.trim().toUpperCase()));
     if (orphans.length) throw new Error(orphans.join('\n'));
   }
-  return { rows: result, kcRows };
+  const customInputRows = readGoodsCustomInputWorksheet(workbook, version, GOODS_WORKBOOK_VERSION, result.map(row => row.values.code));
+  return { rows: result, kcRows, customInputRows,
+    ...readGoodsGuidanceWorksheets(workbook, version, GOODS_WORKBOOK_VERSION, result.map(row => row.values.code)) };
 }
 
 export type SabangnetGoodsSheet = {

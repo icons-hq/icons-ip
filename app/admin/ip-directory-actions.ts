@@ -2,6 +2,7 @@
 
 import { revalidatePath } from 'next/cache';
 import { redirect, unstable_rethrow } from 'next/navigation';
+import { hasAdminCapability } from '@/lib/admin/access';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
 import { createClient } from '@/lib/supabase/server';
 import { withPreservedFormValues, type AdminFormValuesState } from '@/lib/admin/form-state';
@@ -15,7 +16,7 @@ export async function saveIpDirectoryAction(previous: IpDirectoryActionState, da
   try {
     const auth = await getCurrentAdminAuthState();
     if (!auth.isConfigured || !auth.user) redirect(`/login?next=${encodeURIComponent(IP_INDEX_PATH)}`);
-    if (!auth.isStaff) return fail('관리자 권한이 필요합니다.');
+    if (!auth.isStaff || !hasAdminCapability(auth, 'platform.manage')) return fail('관리자 권한이 필요합니다.');
     const id = String(data.get('id') ?? '');
     const expectedFeatured = data.get('expectedFeatured');
     let order: unknown;

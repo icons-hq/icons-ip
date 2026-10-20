@@ -222,7 +222,7 @@ begin
     );
   exception
     when insufficient_privilege then
-      if sqlerrm = 'forbidden' then return; end if;
+      if sqlerrm in ('forbidden','operator_capability_required') then return; end if;
       raise;
   end;
   raise exception 'non-staff game upsert should be rejected';
@@ -235,7 +235,7 @@ begin
     perform public.admin_list_games();
   exception
     when insufficient_privilege then
-      if sqlerrm = 'forbidden' then return; end if;
+      if sqlerrm in ('forbidden','operator_capability_required') then return; end if;
       raise;
   end;
   raise exception 'non-staff game list should be rejected';

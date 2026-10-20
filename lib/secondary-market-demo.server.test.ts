@@ -1,9 +1,10 @@
+import { legacyOperatorAccessFixture } from '@/lib/admin/access.test-fixtures';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({ isStaff: false }));
 
 vi.mock('@/lib/auth/admin', () => ({
-  getCurrentAdminAuthState: async () => ({ isConfigured: true, user: null, role: null, isStaff: mocks.isStaff }),
+  getCurrentAdminAuthState: async () => ({ isConfigured: true, user: null, role: null, isStaff: mocks.isStaff, operatorAccess: legacyOperatorAccessFixture() }),
 }));
 
 import { canViewSecondaryMarketDemo } from './secondary-market-demo.server';

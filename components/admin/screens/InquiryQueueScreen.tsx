@@ -1,3 +1,5 @@
+import { CustomerServiceTabs, CustomerServiceResultsHeader } from './CustomerServiceListParts';
+import { CUSTOMER_SERVICE_PAGE_SIZES } from '@/lib/admin/customer-service-list';
 import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import Link from 'next/link';
 import { InquiryLiveUpdates } from '@/components/screens/InquiryLiveUpdates';
@@ -13,8 +15,10 @@ import {
   ADMIN_INQUIRY_CATEGORY_OPTIONS,
   ADMIN_INQUIRY_SEARCH_FIELDS,
   ADMIN_INQUIRY_STATUS_OPTIONS,
+  ADMIN_INQUIRY_SATISFACTION_OPTIONS,
   adminInquiryDetailHref,
   adminInquiryHref,
+  adminInquiryPreviewHref,
   isAdminInquiryOverdue,
   type AdminInquiryConsoleData,
 } from '@/lib/admin/inquiries';
@@ -28,6 +32,7 @@ import {
   INQUIRY_STATUSES,
 } from '@/lib/inquiries';
 import { orderReferenceLabel } from '@/lib/orders';
+import { INQUIRY_SATISFACTION_LABELS, inquirySatisfactionPercent } from '@/lib/inquiry-satisfaction';
 
 /* 어드민 1:1 문의 큐(#253).
  *
@@ -40,13 +45,15 @@ import { orderReferenceLabel } from '@/lib/orders';
 const COLUMNS: ConsoleGridColumn[] = [
   { key: 'reference', label: '문의번호', width: '92px' },
   { key: 'category', label: '유형', width: '110px' },
-  { key: 'title', label: '제목' },
+  { key: 'title', label: '제목', width: '320px' },
   { key: 'buyer', label: '구매자', width: '130px' },
   { key: 'order', label: '연결 주문', width: '110px' },
   { key: 'status', label: '상태', width: '90px' },
+  { key: 'satisfaction', label: '답변 만족도', width: '110px' },
   { key: 'times', label: '접수 · 최근', width: '160px' },
   { key: 'sla', label: '1차 답변 기한', align: 'end', width: '130px' },
   { key: 'handler', label: '담당자', width: '110px' },
+  { key: 'action', label: '처리', width: '120px' },
 ];
 
 const CHIP_TONES = {
@@ -64,6 +71,7 @@ export function InquiryQueueScreen({
   now?: Date;
 }) {
   const { counts, filters, pageSize, rows, total } = data;
+  const satisfactionPercent = data.satisfactionSummary ? inquirySatisfactionPercent(data.satisfactionSummary) : null;
 
   const rowsForGrid: ConsoleGridRow[] = rows.map((row) => {
     const sla = inquirySlaState(
@@ -77,8 +85,8 @@ export function InquiryQueueScreen({
       cells: [
         <span className="mono" key="reference">{inquiryReferenceLabel(row.reference)}</span>,
         <span key="category">{adminGoodsCopy(INQUIRY_CATEGORY_LABELS[row.category])}</span>,
-        <span key="title">
-          {row.title}
+        <span className="admin-cs-inquiry-title" key="title">
+          <Link href={adminInquiryPreviewHref(row.id, filters)} scroll={false}>{row.title}</Link>
           {isAdminInquiryOverdue(row, now) ? <span data-sla-tone="danger"> · 미답변 24시간 경과</span> : null}
           {row.messageCount > 1 ? (
             <span className="muted"> · {row.messageCount}건</span>
@@ -91,6 +99,7 @@ export function InquiryQueueScreen({
           <span className="muted" key="order">-</span>
         ),
         <span key="status">{ADMIN_INQUIRY_STATUS_LABELS[row.status]}</span>,
+        <span key="satisfaction">{row.satisfaction === undefined ? '확인 불가' : INQUIRY_SATISFACTION_LABELS[row.satisfaction ?? 'unrated']}</span>,
         <span key="times">
           <time dateTime={row.createdAt}>{formatInquiryDateTime(row.createdAt)}</time>
           <br />
@@ -101,13 +110,13 @@ export function InquiryQueueScreen({
         row.assigneeName
           ? <span key="handler">@{row.assigneeName}</span>
           : <span className="muted" key="handler">미배정</span>,
+        <Link className="admin-cs-open" href={adminInquiryPreviewHref(row.id, filters)} key="action" scroll={false}>답변처리</Link>,
       ],
     };
   });
 
   return (
-    <section className="admin-console">
-      <InquiryLiveUpdates audience="staff" />
+    <section className="admin-console wc-admin-kit admin-cs-console admin-cs-console--inquiries">
       <ConsoleFilterPanel
         action="/admin/cs/inquiries"
         dateRange={{
@@ -121,6 +130,7 @@ export function InquiryQueueScreen({
           to: filters.to,
         }}
         now={now}
+        hiddenFields={{ pageSize: String(pageSize) }}
         resetHref={adminInquiryHref({
           category: 'all',
           field: 'all',
@@ -129,6 +139,7 @@ export function InquiryQueueScreen({
           query: '',
           status: 'open',
           to: null,
+          satisfaction: 'all',
         })}
         search={{
           fields: ADMIN_INQUIRY_SEARCH_FIELDS,
@@ -149,21 +160,22 @@ export function InquiryQueueScreen({
             ))}
           </select>
         </div>
+        <div className="admin-console-filter-field">
+          <label className="admin-console-filter-label" htmlFor="admin-inquiry-satisfaction">답변 만족도</label>
+          <select defaultValue={filters.satisfaction ?? 'all'} id="admin-inquiry-satisfaction" name="satisfaction">
+            {ADMIN_INQUIRY_SATISFACTION_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
+          </select>
+        </div>
       </ConsoleFilterPanel>
 
-      <ConsoleCountChips
-        chips={INQUIRY_STATUSES.map((status) => ({
-          active: filters.status === status,
-          count: counts[status] ?? 0,
-          href: adminInquiryHref(filters, { page: 1, status }),
-          label: ADMIN_INQUIRY_STATUS_LABELS[status],
-          tone: CHIP_TONES[status],
-        }))}
-        label="상태별 건수"
-      />
 
+
+      <section className="admin-cs-results" aria-label="고객문의 목록">
+      <CustomerServiceResultsHeader title="고객문의 목록" total={total} pageSize={pageSize} pageSizeOptions={CUSTOMER_SERVICE_PAGE_SIZES.map(size => ({ value: String(size), label: `${size}개씩`, href: adminInquiryHref(filters, { pageSize: size, page: 1 }) }))}></CustomerServiceResultsHeader>
+      <div className="admin-cs-results__toolbar">문의 제목 또는 답변처리를 눌러 문의와 연결 주문을 함께 확인할 수 있습니다.</div>
       <ConsoleGrid
         caption="1:1 문의 목록"
+        preferencesKey="cs-inquiries"
         columns={COLUMNS}
         emptyLabel="조건에 맞는 문의가 없습니다."
         rows={rowsForGrid}
@@ -176,8 +188,32 @@ export function InquiryQueueScreen({
         pageSize={pageSize}
         total={total}
       />
+      <div className="admin-cs-results__context">
+      <CustomerServiceTabs active="inquiries" />
+      <InquiryLiveUpdates audience="staff" />
+      <ConsoleCountChips
+        chips={INQUIRY_STATUSES.map((status) => ({
+          active: filters.status === status,
+          count: counts[status] ?? 0,
+          href: adminInquiryHref(filters, { page: 1, status }),
+          label: ADMIN_INQUIRY_STATUS_LABELS[status],
+          tone: CHIP_TONES[status],
+        }))}
+        label="상태별 건수"
+      />
 
-      <p className="muted" style={{ fontSize: 12.5, margin: 0 }}>
+      <section className="admin-cs-satisfaction-summary" aria-label="답변 만족도 요약">
+        {data.satisfactionSummary ? <>
+          <strong>평가 응답 중 만족 비율 {satisfactionPercent === null ? '—' : `${satisfactionPercent.toLocaleString('ko-KR')}%`}</strong>
+          <span>만족 {data.satisfactionSummary.satisfied.toLocaleString('ko-KR')} · 불만족 {data.satisfactionSummary.dissatisfied.toLocaleString('ko-KR')} · 미평가 {data.satisfactionSummary.unrated.toLocaleString('ko-KR')}</span>
+          <small>{satisfactionPercent === null ? '평가 응답 없음 · ' : ''}만족도 선택을 제외한 현재 조회 조건 기준입니다. 만족·불만족 응답만 비율에 포함합니다.</small>
+        </> : <p role="alert">만족도 요약을 불러오지 못했습니다.</p>}
+      </section>
+
+      </div>
+      </section>
+
+      <p className="admin-cs-help">
         미답변 24시간 배지는 주말을 포함한 실제 대기 시간이며 오래 기다린 문의부터 정렬합니다. 1차 답변 목표는 영업일 기준 24시간입니다. 답변 후 7일 동안 추가 질문이 없으면 문의는 자동으로
         종결됩니다. 취소·반품·교환을 실제로 처리하려면{' '}
         <Link href="/admin/sales/orders">주문 통합검색</Link>에서 해당 주문의 클레임 경로를 이용하세요.

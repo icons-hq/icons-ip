@@ -1,4 +1,4 @@
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import { ClaimDetailScreen } from '@/components/admin/screens/ClaimDetailScreen';
 import {
   adminClaimBackHref,
@@ -24,7 +24,7 @@ export default async function AdminSalesClaimDetailPage({
   const claimType = orderClaimTypeForSlug(slug);
   if (!claimType) notFound();
 
-  await requireAdminScreenAccess(adminClaimBasePath(claimType));
+  const access = await requireAdminScreenAccess(adminClaimBasePath(claimType));
 
   const claimId = rawClaimId.toLowerCase();
   if (!UUID_PATTERN.test(claimId)) notFound();
@@ -35,9 +35,8 @@ export default async function AdminSalesClaimDetailPage({
     getShippingCarrierRegistry(),
   ]);
   if (!detail) notFound();
-  /* 목록 세그먼트와 실제 클레임 유형이 다르면 뒤로가기와 액션이 엉뚱한 큐를
-     가리킨다. 유형이 맞는 화면에서만 연다. */
-  if (detail.claim.claimType !== claimType) notFound();
+  /* 유형 전환 전의 링크도 현재 요청의 큐로 연결한다. */
+  if (detail.claim.claimType !== claimType) redirect(`${adminClaimBasePath(detail.claim.claimType)}/${claimId}`);
 
   /* 코페이 취소 접수는 API가 아니라 이메일이다(#208). 결제가 코페이일 때만
      양식을 만든다 — 상호명이 비어 있으면 지어내지 않고 "확인 필요"로 남긴다. */
@@ -54,6 +53,7 @@ export default async function AdminSalesClaimDetailPage({
 
   return (
     <ClaimDetailScreen
+      actorId={access.user.id}
       backHref={adminClaimBackHref(claimType, query.back)}
       cancellationForm={cancellationForm}
       carriers={carriers}

@@ -12,6 +12,9 @@ export type CheckoutAddressErrors = Partial<Record<CheckoutAddressField, string>
 
 export type PlaceOrderErrorCode =
   | 'account_suspended'
+  | 'goods_purchase_restricted'
+  | 'goods_custom_inputs_changed'
+  | 'cart_changed'
   | 'empty_cart'
   | 'out_of_stock'
   | 'invalid_address'
@@ -26,6 +29,7 @@ export type PlaceOrderErrorCode =
   | 'store_credit_rejected'
   | 'checkout_changed'
   | 'shipping_region_unresolved'
+  | 'goods_sale_not_open'
   | 'preorder_sale_not_open'
   | 'preorder_capacity_exceeded'
   | 'preorder_policy_not_configured'
@@ -151,13 +155,16 @@ export function checkoutOrderName(itemNames: readonly string[]) {
 
 export function mapPlaceOrderError(message: unknown): PlaceOrderErrorCode {
   const normalized = typeof message === 'string' ? message.toLowerCase() : '';
+  if (/cart_snapshot_changed/.test(normalized)) return 'cart_changed';
+  if (/goods_custom_inputs|invalid_goods_custom_inputs/.test(normalized)) return 'goods_custom_inputs_changed';
+  if (normalized.includes('goods_purchase_restricted')) return 'goods_purchase_restricted';
   if (normalized.includes('account_suspended')) return 'account_suspended';
   if (normalized.includes('checkout key conflict') || normalized.includes('coupon_selection_changed')) {
     return 'checkout_changed';
   }
   if (normalized.includes('shipping_region_')) return 'shipping_region_unresolved';
   if (normalized.includes('store_credit_')) return 'store_credit_rejected';
-  for (const code of ['preorder_sale_not_open', 'preorder_capacity_exceeded', 'preorder_policy_not_configured'] as const) {
+  for (const code of ['goods_sale_not_open', 'preorder_sale_not_open', 'preorder_capacity_exceeded', 'preorder_policy_not_configured'] as const) {
     if (normalized.includes(code)) return code;
   }
   if (normalized.includes('cart empty')) return 'empty_cart';

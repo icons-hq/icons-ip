@@ -1,5 +1,7 @@
 import { describe, expect, it } from 'vitest';
-import { parseGoodsSalesQuote, goodsSalesQuoteProblem } from './goods-sales';
+import { parseGoodsSalesQuote, parseGoodsSalesPrecheckoutQuote, goodsSalesQuoteProblem } from './goods-sales';
+import { goodsSalesPrecheckoutQuote as precheckout } from '@/test/fixtures/goods-sales-precheckout';
+import { parseAddressGoodsSalesQuote } from './shipping-regions';
 
 const quote = {
   calculatedAt: '2026-09-10T12:00:00Z', subtotal: 16000,
@@ -46,5 +48,39 @@ describe('authoritative goods sales quote', () => {
     const blocked = parseGoodsSalesQuote({ ...quote, coupon: { ...coupon, discount: 0, reason: 'coupon_first_purchase_only' } });
     expect(blocked).not.toBeNull();
     expect(goodsSalesQuoteProblem(blocked!)).toContain('쿠폰');
+  });
+});
+
+describe('precheckout product conditions', () => {
+  it('keeps product prices, supply and member conditions while shipping remains unquoted', () => {
+    expect(parseGoodsSalesPrecheckoutQuote(precheckout)).toEqual(precheckout);
+    expect(goodsSalesQuoteProblem(precheckout)).toBeNull();
+    const preorder = { ...precheckout, lines: [{ ...precheckout.lines[0], supply: {
+      ...precheckout.lines[0].supply, mode: 'preorder', state: 'open',
+      policyId: '00000000-0000-4000-8000-000000000003', policyRevision: 1,
+      startsAt: '2026-10-14T00:00:00Z', endsAt: '2026-10-16T00:00:00Z', expectedShipDate: '2026-10-20',
+    } }] };
+    expect(parseGoodsSalesPrecheckoutQuote(preorder)).toEqual(preorder);
+  });
+  it('rejects coupon or shipping amounts and never weakens a legacy shipping parser', () => {
+    for (const shipping of [null, quote.shipping, { status: 'checkout_required', totalFee: 0 },
+      { status: 'checkout_required', groups: [] }, { status: 'checkout_required', finalTotalFee: 0 },
+      { status: 'quoted' }]) {
+      expect(parseGoodsSalesPrecheckoutQuote({ ...precheckout, shipping })).toBeNull();
+    }
+    expect(parseGoodsSalesPrecheckoutQuote({ ...precheckout, coupon: null })).toBeNull();
+    expect(parseGoodsSalesPrecheckoutQuote({ ...precheckout, coupon: { discount: 0 } })).toBeNull();
+    expect(parseGoodsSalesQuote(precheckout)).toBeNull();
+    expect(parseAddressGoodsSalesQuote(precheckout)).toBeNull();
+  });
+  it('retains monetary, aggregated quantity, supply and product refresh validation', () => {
+    const invalid = [
+      { ...precheckout, subtotal: 16001 },
+      { ...precheckout, goods: [{ ...precheckout.goods[0], qty: 1 }] },
+      { ...precheckout, goods: [{ ...precheckout.goods[0], memberRemainingQty: 5 }] },
+      { ...precheckout, lines: [{ ...precheckout.lines[0], supply: { ...precheckout.lines[0].supply, availableQty: 1 } }] },
+      { ...precheckout, nextChangeAt: precheckout.calculatedAt },
+    ];
+    for (const value of invalid) expect(parseGoodsSalesPrecheckoutQuote(value)).toBeNull();
   });
 });

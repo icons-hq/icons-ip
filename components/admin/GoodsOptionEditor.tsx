@@ -5,12 +5,15 @@ import type { ErpItemMatch } from '@/lib/admin/erp-items';
 import {
   applyErpItemToGoodsOption, applyGoodsOptionBulkEdit, collapseGoodsOptionRows, generateGoodsOptionRows, goodsOptionCollapseNotice, goodsOptionRowKey,
   goodsOptionStockTotals, isSingleGoodsOption, parseGoodsOptionBulkEdit, predictGoodsOptionCodes, removeGoodsOptionRows, selectErpItemForGoodsOption,
+  GOODS_OPTION_AXIS_LIMIT, GOODS_OPTION_ROW_LIMIT,
   type GoodsOptionAxis, type GoodsOptionBulkInput, type GoodsOptionRow, type GoodsOptionSavedCodes,
 } from '@/lib/admin/goods-option-editor';
 import { formatWon, planErpSalePrice, type GoodsPriceDraft } from '@/lib/admin/goods-price-editor';
 import { ADMIN_VOCABULARY } from '@/lib/admin/vocabulary';
 import { AdminField } from './console/AdminKit';
 import { ErpItemNameInput } from './ErpItemNameInput';
+import { GoodsOptionImportPicker } from './GoodsOptionImportDialog';
+import type { GoodsOptionImportContext } from '@/lib/admin/goods-option-import';
 
 type GoodsOptionEditorProps = {
   rows: GoodsOptionRow[];
@@ -38,6 +41,9 @@ type GoodsOptionEditorProps = {
   onRegularPriceApply?: (price: number) => void;
   /** 옵션 상세 정보 표 아래에 보이는 ERP 카테고리 안내 */
   erpNotice?: ReactNode;
+  canSearchErp?: boolean;
+  structureLocked?: boolean;
+  optionImport?: GoodsOptionImportContext & { categories: { id: string; name: string }[]; onApplied: () => void };
 };
 
 /**
@@ -47,7 +53,7 @@ type GoodsOptionEditorProps = {
 type ErpRowState = { item?: ErpItemMatch; message?: string; warning?: boolean };
 type OptionUsage = 'on' | 'off';
 
-const EMPTY_AXES: GoodsOptionAxis[] = [{ name: '', values: '' }, { name: '', values: '' }];
+const EMPTY_AXES: GoodsOptionAxis[] = Array.from({ length: GOODS_OPTION_AXIS_LIMIT }, () => ({ name: '', values: '' }));
 const EMPTY_BULK: GoodsOptionBulkInput = { extraPrice: '', stockQty: '', isActive: '' };
 const STOCK_GUIDANCE = 'ICONS에서 판매할 수량이며 주문하면 차감됩니다. 안전재고는 부족 알림 기준입니다.';
 const AUTO_CODE = '저장 시 자동 생성';
@@ -56,7 +62,7 @@ function wholeNumber(raw: string): number {
   return raw === '' ? 0 : Number(raw);
 }
 
-function OptionDetailTable({ rows, single, update, erpRows, onErpChange, onErpSelect, onErpPrice, notice }: {
+function OptionDetailTable({ rows, single, update, erpRows, onErpChange, onErpSelect, onErpPrice, notice, canSearchErp, structureLocked }: {
   rows: GoodsOptionRow[];
   single: boolean;
   update: (key: string, changes: Partial<GoodsOptionRow>) => void;
@@ -65,6 +71,8 @@ function OptionDetailTable({ rows, single, update, erpRows, onErpChange, onErpSe
   onErpSelect: (key: string, item: ErpItemMatch) => void;
   onErpPrice: (key: string, salePrice: number) => void;
   notice?: ReactNode;
+  canSearchErp: boolean;
+  structureLocked?: boolean;
 }) {
   return <details className="goods-option-secondary">
     <summary>옵션 상세 정보 · ERP 품명·ERP 코드·바코드·안전재고</summary>
@@ -87,11 +95,11 @@ function OptionDetailTable({ rows, single, update, erpRows, onErpChange, onErpSe
           const erpSalePrice = erp?.item?.salePrice ?? null;
           return <tr key={key} data-variant-id={row.id ?? undefined}>
             <td>{single
-              ? <input aria-label="기본 옵션명" value={row.name} maxLength={200} onChange={(event) => update(key, { name: event.target.value })} />
+              ? <input readOnly={structureLocked} aria-label="기본 옵션명" value={row.name} maxLength={200} onChange={(event) => update(key, { name: event.target.value })} />
               : row.name || `옵션 ${index + 1}`}</td>
             <td>
-              <ErpItemNameInput value={row.erpName ?? ''} onChange={(value) => onErpChange(key, value)} onSelect={(item) => onErpSelect(key, item)}
-                ariaLabel={`옵션 ${index + 1} ERP 품명`} ariaDescribedBy="goods-option-external-identity-guidance" maxLength={200} placeholder="미설정" />
+              {canSearchErp ? <ErpItemNameInput value={row.erpName ?? ''} onChange={(value) => onErpChange(key, value)} onSelect={(item) => onErpSelect(key, item)}
+                ariaLabel={`옵션 ${index + 1} ERP 품명`} ariaDescribedBy="goods-option-external-identity-guidance" maxLength={200} placeholder="미설정" /> : <input aria-label={`옵션 ${index + 1} ERP 품명`} value={row.erpName ?? ''} onChange={event => onErpChange(key, event.target.value)} maxLength={200} placeholder="미설정" />}
               {erpSalePrice !== null && <button type="button" className="btn btn-ghost goods-option-erp-price" onClick={() => onErpPrice(key, erpSalePrice)}>
                 ERP 판매가 {formatWon(erpSalePrice)} 적용
               </button>}
@@ -122,14 +130,14 @@ function OptionInputs({ axes, rows, hidden, setAxes, setRows }: {
   return <section className="goods-option-inputs" aria-labelledby="goods-option-inputs-title" hidden={hidden}>
     <div className="goods-option-inputs__heading">
       <h5 id="goods-option-inputs-title">옵션 입력</h5>
-      <span>옵션명 최대 2개 · 옵션 최대 100개</span>
+      <span>옵션명 최대 {GOODS_OPTION_AXIS_LIMIT}개 · 옵션 최대 {GOODS_OPTION_ROW_LIMIT}개</span>
     </div>
     {axes.map((axis, index) => <div className="goods-option-inputs__row" key={index}>
-      <AdminField inputId={`option-axis-${index}`} label={`옵션명${index ? ' 2 (선택)' : ' 1'}`}>
-        <input id={`option-axis-${index}`} name={`optionAxisName${index}`} value={axis.name} maxLength={40} placeholder={index ? '예: 사이즈' : '예: 색상'} onChange={(event) => setAxes((old) => old.map((item, i) => i === index ? { ...item, name: event.target.value } : item))} />
+      <AdminField inputId={`option-axis-${index}`} label={`옵션명 ${index + 1}${index ? ' (선택)' : ''}`}>
+        <input id={`option-axis-${index}`} name={`optionAxisName${index}`} value={axis.name} maxLength={40} placeholder={['예: 색상', '예: 사이즈', '예: 구성'][index]} onChange={(event) => setAxes((old) => old.map((item, i) => i === index ? { ...item, name: event.target.value } : item))} />
       </AdminField>
-      <AdminField inputId={`option-values-${index}`} label={`옵션값${index ? ' 2' : ' 1'} (쉼표로 구분)`}>
-        <input id={`option-values-${index}`} name={`optionAxisValues${index}`} value={axis.values} placeholder={index ? '예: S, M, L' : '예: 빨강, 파랑'} onChange={(event) => setAxes((old) => old.map((item, i) => i === index ? { ...item, values: event.target.value } : item))} />
+      <AdminField inputId={`option-values-${index}`} label={`옵션값 ${index + 1} (쉼표로 구분)`}>
+        <input id={`option-values-${index}`} name={`optionAxisValues${index}`} value={axis.values} placeholder={['예: 빨강, 파랑', '예: S, M, L', '예: 기본, 선물포장'][index]} onChange={(event) => setAxes((old) => old.map((item, i) => i === index ? { ...item, values: event.target.value } : item))} />
       </AdminField>
     </div>)}
     <p className="wc-admin-option-artwork__secondary-hint">
@@ -240,8 +248,9 @@ function OptionList({ rows, basePrice, predictedCodes, update, setRows }: {
   </section>;
 }
 
-function SingleStock({ row, basePrice, predictedCode, update }: {
+function SingleStock({ row, basePrice, predictedCode, update, structureLocked }: {
   row: GoodsOptionRow;
+  structureLocked?: boolean;
   basePrice: number;
   predictedCode: string | null;
   update: (key: string, changes: Partial<GoodsOptionRow>) => void;
@@ -269,7 +278,7 @@ function SingleStock({ row, basePrice, predictedCode, update }: {
       <small className="goods-option-primary-table__sale">판매 {formatWon(basePrice + (Number.isFinite(row.extraPrice) ? row.extraPrice : 0))}</small>
     </AdminField>}
     {(activeVisible || row.isActive === false) && <AdminField inputId="goods-single-active" label="기본 옵션 사용여부" hint="중지하면 고객이 구매할 수 없습니다. 주문 기록과 재고는 보존됩니다.">
-      <select id="goods-single-active" aria-describedby="goods-single-active-hint" value={row.isActive === false ? 'stopped' : 'active'}
+      <select disabled={structureLocked} id="goods-single-active" aria-describedby="goods-single-active-hint" value={row.isActive === false ? 'stopped' : 'active'}
         onChange={(event) => { setActiveVisible(true); update(key, { isActive: event.target.value === 'active' }); }}>
         <option value="active">사용</option><option value="stopped">중지</option>
       </select>
@@ -279,17 +288,20 @@ function SingleStock({ row, basePrice, predictedCode, update }: {
 
 export function GoodsOptionEditor({
   rows, baseline, basePrice, priceDraft, error, axisValues, onRowsChange: setRows, codePrefix, savedCodes,
-  onErpItemSelect, onRegularPriceApply, erpNotice,
+  onErpItemSelect, onRegularPriceApply, erpNotice, canSearchErp = true, optionImport, structureLocked = false,
 }: GoodsOptionEditorProps) {
   const firstAttributes = rows[0]?.attributes ?? {};
   const initialAxes = Object.keys(firstAttributes).map((name) => ({ name, values: [...new Set(rows.map((row) => row.attributes[name]))].join(', ') }));
-  const [axes, setAxes] = useState<GoodsOptionAxis[]>(() => [0, 1].map((i) => ({ name: axisValues?.[`optionAxisName${i}`] ?? initialAxes[i]?.name ?? '', values: axisValues?.[`optionAxisValues${i}`] ?? initialAxes[i]?.values ?? '' })));
+  const [axes, setAxes] = useState<GoodsOptionAxis[]>(() => Array.from({ length: GOODS_OPTION_AXIS_LIMIT }, (_, i) => ({ name: axisValues?.[`optionAxisName${i}`] ?? initialAxes[i]?.name ?? '', values: axisValues?.[`optionAxisValues${i}`] ?? initialAxes[i]?.values ?? '' })));
   const single = isSingleGoodsOption(rows);
   const [optionUsage, setOptionUsage] = useState<OptionUsage>(() => {
     if (axisValues?.optionUsage === 'on' || axisValues?.optionUsage === 'off') return axisValues.optionUsage;
     return !single || axes.some((axis) => axis.name.trim() || axis.values.trim()) ? 'on' : 'off';
   });
   const [erpRows, setErpRows] = useState<Record<string, ErpRowState>>({});
+  const [importOpen, setImportOpen] = useState(false), [importMessage, setImportMessage] = useState('');
+  const importFingerprint = JSON.stringify({ rows, baseline, basePrice, priceDraft, axes, optionUsage, accountId: optionImport?.accountId,
+    target: optionImport?.target, databaseVersion: optionImport?.databaseVersion, blockedReason: optionImport?.blockedReason, pending: optionImport?.pending });
   const optionsEnabled = !single || optionUsage === 'on';
   const singleRow = single ? rows[0] : undefined;
   const stock = goodsOptionStockTotals(rows);
@@ -342,7 +354,7 @@ export function GoodsOptionEditor({
 
   return <div className="col admin-option-editor wc-admin-option-artwork" style={{ gap: 16 }} data-option-mode={single ? 'single' : 'multiple'}>
     <section className="goods-option-stock" aria-label="재고수량">
-      {singleRow ? <SingleStock row={singleRow} basePrice={basePrice} predictedCode={predictedCodes[0] ?? null} update={update} />
+      {singleRow ? <SingleStock structureLocked={structureLocked} row={singleRow} basePrice={basePrice} predictedCode={predictedCodes[0] ?? null} update={update} />
         : <p className="goods-option-stock__total">
           <span>옵션 재고수량 합계</span><strong>{stock.total.toLocaleString('ko-KR')}개</strong>
           {stock.active !== stock.total && <small>사용 중 옵션 {stock.active.toLocaleString('ko-KR')}개</small>}
@@ -352,20 +364,33 @@ export function GoodsOptionEditor({
       {singleRow?.lowStockThreshold != null && singleRow.stockQty <= singleRow.lowStockThreshold && <p className="goods-option-single__warning" role="status">재고 부족 · 안전재고 기준 {singleRow.lowStockThreshold.toLocaleString('ko-KR')}개 이하</p>}
     </section>
 
-    <fieldset className="goods-choice goods-option-usage">
+    <fieldset disabled={structureLocked} className="goods-choice goods-option-usage">
       <legend>옵션</legend>
       <label><input type="radio" name="optionUsage" value="on" checked={optionsEnabled} onChange={() => changeOptionUsage('on')} />설정함</label>
       <label><input type="radio" name="optionUsage" value="off" checked={!optionsEnabled} onChange={() => changeOptionUsage('off')} />설정안함</label>
       <span className="goods-choice__hint">색상·사이즈처럼 고객이 골라 사는 상품이면 설정합니다. 설정안함은 옵션 선택 없이 판매합니다.</span>
     </fieldset>
 
-    <OptionInputs axes={axes} rows={rows} hidden={!optionsEnabled} setAxes={setAxes} setRows={setRows} />
+    {!structureLocked && optionImport && <div className="goods-option-import__entry">
+      <button type="button" className="btn btn-ghost" disabled={optionImport.pending || Boolean(optionImport.blockedReason)} onClick={() => { setImportMessage(''); setImportOpen(true); }}>다른 상품 옵션 불러오기</button>
+      {optionImport.blockedReason && <p className="muted">{optionImport.blockedReason}</p>}
+      {importMessage && <p role="status">{importMessage}</p>}
+    </div>}
+    {importOpen && optionImport && <GoodsOptionImportPicker context={optionImport} categories={optionImport.categories} currentRows={rows} basePrice={basePrice} fingerprint={importFingerprint}
+      onClose={() => setImportOpen(false)} onApply={(plan, expected) => {
+        if (optionImport.pending || optionImport.blockedReason || expected !== importFingerprint) return false;
+        setRows(plan.rows); setAxes(Array.from({ length: GOODS_OPTION_AXIS_LIMIT }, (_, index) => plan.axes[index] ?? { name: '', values: '' }));
+        setOptionUsage('on'); setErpRows({}); setImportMessage(`옵션 초안을 적용했습니다. 새 옵션 ${plan.added}개는 재고 0이며 상품을 저장해야 반영됩니다.`);
+        optionImport.onApplied(); return true;
+      }} />}
+
+    <fieldset disabled={structureLocked} style={{ border: 0, margin: 0, padding: 0, minWidth: 0 }}><OptionInputs axes={axes} rows={rows} hidden={!optionsEnabled} setAxes={setAxes} setRows={setRows} />
     {optionsEnabled && (single
       ? <p className="goods-option-list__empty" role="status">옵션목록 (총 0개) · 옵션명과 옵션값을 입력하고 옵션목록으로 적용을 누르세요. 적용 전에는 옵션 없이 판매하는 상품으로 저장됩니다.</p>
-      : <OptionList rows={rows} basePrice={basePrice} predictedCodes={predictedCodes} update={update} setRows={setRows} />)}
+      : <OptionList rows={rows} basePrice={basePrice} predictedCodes={predictedCodes} update={update} setRows={setRows} />)}</fieldset>
 
     <OptionDetailTable rows={rows} single={single} update={update} erpRows={erpRows} onErpChange={changeErpName}
-      onErpSelect={selectErp} onErpPrice={applyErpPrice} notice={erpNotice} />
+      onErpSelect={selectErp} onErpPrice={applyErpPrice} notice={erpNotice} canSearchErp={canSearchErp} structureLocked={structureLocked} />
     {error && <p role="alert">{error}</p>}
     {rows.every((row) => row.isActive === false) && <p role="status">모든 옵션이 사용 중지되어 고객이 구매할 수 없습니다.</p>}
     <input type="hidden" name="variants" value={JSON.stringify(rows)} readOnly />

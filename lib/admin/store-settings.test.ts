@@ -1,6 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { mergeBusinessInfo, parseStoreSettingsInput, parseCarrierInput,storeSettingsHistoryRows } from './store-settings';
 import type { BusinessInfo } from '@/lib/legal/business-info';
+import { DEFAULT_STORE_BRANDING } from '@/lib/store-branding';
+import { DEFAULT_STORE_NAVIGATION } from '@/lib/store-navigation';
 
 const business: BusinessInfo = { companyName:'회사',representative:'대표',registrationNumber:'123',mailOrderNumber:'신고',address:'주소',phone:'02-000-0000',email:'cs@example.test',hostingProvider:'호스팅' };
 describe('운영 설정 입력 계약', () => {
@@ -30,4 +32,23 @@ describe('운영 설정 입력 계약', () => {
 it('설정 이력은 변경된 항목만 운영 라벨로 보여준다',()=>{
   expect(storeSettingsHistoryRows({id:'audit',actorName:'관리자',action:'saved',target:'store',createdAt:'now',diff:{before:{phone:'old',email:'same',updated_at:'old'},after:{phone:'new',email:'same',updated_at:'new'}}}))
     .toEqual([{key:'phone',label:'전화',before:'old',after:'new'}]);
+});
+
+it('브랜드 이력은 로고 방식과 SNS 변경을 개별 항목으로 표시한다',()=>{
+  const before=DEFAULT_STORE_BRANDING;
+  const after={...before,logoMode:'image',socials:{...before.socials,instagram:{enabled:true,url:'https://instagram.com/shop/'}}};
+  expect(storeSettingsHistoryRows({id:'audit',actorName:'관리자',action:'saved',target:'store_settings:branding',createdAt:'now',diff:{before,after}})).toEqual([
+    {key:'logoMode',label:'로고 표시 방식',before:'텍스트',after:'이미지'},
+    {key:'instagram.enabled',label:'인스타그램 · 노출',before:'비활성',after:'사용'},
+    {key:'instagram.url',label:'인스타그램 · 주소',before:'',after:'https://instagram.com/shop/'},
+  ]);
+});
+
+it('공개 메뉴 이력은 순서·이름·노출 변경을 구분한다',()=>{
+  const before=DEFAULT_STORE_NAVIGATION;
+  const after=[...before].reverse().map(item=>item.id==='new'?{...item,label:'신상품',visible:false}:item);
+  const rows=storeSettingsHistoryRows({id:'audit',actorName:'관리자',action:'saved',target:'store_settings:navigation',createdAt:'now',diff:{before,after}});
+  expect(rows).toContainEqual({key:'new.order',label:'NEW · 순서',before:'1',after:'8'});
+  expect(rows).toContainEqual({key:'new.label',label:'NEW · 메뉴명',before:'NEW',after:'신상품'});
+  expect(rows).toContainEqual({key:'new.visible',label:'NEW · 노출',before:'사용',after:'비활성'});
 });

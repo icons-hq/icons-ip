@@ -1,6 +1,8 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
+  // Financial requests are capped at 2 MiB before dispatch; leave room for Action framing.
+  experimental: { serverActions: { bodySizeLimit: '3mb' } },
   // 시연 미디어는 public으로 복사하지 않고 권한을 검사하는 단일 함수에만 포함한다.
   outputFileTracingIncludes: {
     '/ip-popups/aouad/\\[...asset\\]': ['./private/ip-popups/aouad/**/*'],

@@ -1,0 +1,12 @@
+@layer components {
+ .wc-admin .admin-order-production { min-width: 0; padding: 16px; }
+ .wc-admin .admin-order-production h2 { margin: 0 0 12px; font-size: 17px; }
+ .wc-admin .admin-order-production p { font-size: 13px; line-height: 1.65; margin-block: 10px; }
+ .wc-admin .admin-order-production fieldset { min-width: 0; border: 1px solid var(--wc-line-control); padding: 14px; margin-block: 14px; }
+ .wc-admin .admin-order-production form label { display: grid; gap: 6px; margin-block: 12px; font-size: 13px; }
+ .wc-admin .admin-order-production form .admin-order-production__check { display: flex; align-items: flex-start; gap: 8px; }
+ .wc-admin .admin-order-production__check input { flex: none; margin-top: 3px; }
+ .wc-admin .admin-order-production__jobs { list-style: none; padding: 0; display: grid; gap: 10px; }
+ .wc-admin .admin-order-production__jobs > li { padding: 12px; border: 1px solid var(--wc-line-control); overflow-wrap: anywhere; }
+ @media(max-width:640px) { .wc-admin .admin-order-production { padding: 12px; } .wc-admin .admin-order-production fieldset { padding: 10px; } }
+}

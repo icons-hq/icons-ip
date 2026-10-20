@@ -1,5 +1,6 @@
 import 'server-only';
 
+import { hasAdminCapability } from '@/lib/admin/access';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
 import { COMMUNITY_ENABLED, COMMUNITY_STAFF_PREVIEW_ENABLED } from './community-visibility';
 
@@ -10,6 +11,6 @@ import { COMMUNITY_ENABLED, COMMUNITY_STAFF_PREVIEW_ENABLED } from './community-
 export async function canViewCommunity(): Promise<boolean> {
   if (COMMUNITY_ENABLED) return true;
   if (!COMMUNITY_STAFF_PREVIEW_ENABLED) return false;
-  const { isStaff } = await getCurrentAdminAuthState();
-  return isStaff;
+  const auth = await getCurrentAdminAuthState();
+  return hasAdminCapability(auth, 'platform.manage');
 }

@@ -43,8 +43,9 @@ export function isEmailDeliveryStatus(value: string): value is EmailDeliveryStat
   return (EMAIL_DELIVERY_STATUSES as readonly string[]).includes(value);
 }
 
-export function orderEmailDedupeKey(template: OrderEmailTemplateName, orderId: string): string {
-  return `${template}:${orderId}`;
+export type OrderEmailAudience = 'payer' | 'recipient';
+export function orderEmailDedupeKey(template: OrderEmailTemplateName, orderId: string, audience: OrderEmailAudience = 'payer'): string {
+  return `${template}:${orderId}${audience === 'recipient' ? ':recipient' : ''}`;
 }
 
 /**
@@ -75,18 +76,22 @@ export function restockAlertEmailDedupeKey(alertId: string, notifiedAtIso: strin
  * 형식을 벗어난 키는 null이다 — 재발송 대상이 아닌 행(미래에 추가될 다른 템플릿 등)을
  * 주문 메일로 오인해 엉뚱한 주문에 메일을 보내지 않게 한다.
  */
-export function shipmentEmailDedupeKey(orderId: string, shipmentId: string): string {
-  return `order_shipped:${orderId}:${shipmentId}`;
+export function shipmentEmailDedupeKey(orderId: string, shipmentId: string, audience: OrderEmailAudience = 'payer'): string {
+  return `order_shipped:${orderId}:${shipmentId}${audience === 'recipient' ? ':recipient' : ''}`;
 }
 
 /** Legacy two-part keys are readable; every new shipping email includes its shipment. */
 export function parseOrderEmailDedupeKey(
   value: string,
-): { template: OrderEmailTemplateName; orderId: string; shipmentId?: string } | null {
-  const [template, rawOrderId, rawShipmentId, ...extra] = value.split(':');
+): { template: OrderEmailTemplateName; orderId: string; shipmentId?: string; audience?: 'recipient' } | null {
+  const parts = value.split(':');
+  const recipient = parts.at(-1) === 'recipient';
+  if (recipient) parts.pop();
+  const [template, rawOrderId, rawShipmentId, ...extra] = parts;
   const orderId = rawOrderId?.toLowerCase() ?? '';
   const shipmentId = rawShipmentId?.toLowerCase();
   if (!isOrderEmailTemplateName(template) || !UUID_PATTERN.test(orderId ?? '') || extra.length) return null;
   if (shipmentId !== undefined && (template !== 'order_shipped' || !UUID_PATTERN.test(shipmentId))) return null;
-  return { template, orderId, ...(shipmentId ? { shipmentId } : {}) };
+  if (recipient && template === 'order_shipped' && !shipmentId) return null;
+  return { template, orderId, ...(shipmentId ? { shipmentId } : {}), ...(recipient ? { audience: 'recipient' } as const : {}) };
 }

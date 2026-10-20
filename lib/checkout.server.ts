@@ -1,7 +1,12 @@
 import 'server-only';
+import { readCompleteIdPages } from '@/lib/supabase/complete-id-pages';
+import { readGoodsCustomInputSnapshot } from '@/lib/goods-custom-inputs';
 import type { ShipmentRecord } from './orders/shipments';
 import { loadOrderShipments } from './orders/shipments.server';
 import { getShippingCarrierRegistry } from './orders/shipment.server';
+import { loadGiftCheckoutOrder } from './gifts-order.server';
+import { parseCheckoutTransactionReceipt } from './checkout-transaction';
+import type { GoodsTransactionDisplay } from './goods-transaction';
 
 import {
   normalizeCheckoutAddress,
@@ -24,6 +29,9 @@ interface OrderRow {
   expires_at: string | null;
   created_at: string;
   payment_method: string | null;
+  calculation_version?: number;
+  volume_discount_total?: number;
+  shipping_collect_total?: number;
 }
 
 interface OrderItemRow {
@@ -35,6 +43,7 @@ interface OrderItemRow {
   good_type_snapshot: string;
   variant_id: string;
   variant_name_snapshot?: string | null;
+  custom_inputs_snapshot?: unknown;
   variant_code_snapshot?: string | null;
   supply_source?: 'stock' | 'preorder';
   preorder_expected_ship_date?: string | null;
@@ -44,6 +53,7 @@ export interface CheckoutOrderItem {
   id: string;
   variantId: string;
   variantName?: string | null;
+  customInputs?: import('@/lib/goods-custom-inputs').GoodsCustomInputSelection | null;
   variantCode?: string | null;
   goodId: string;
   name: string;
@@ -55,6 +65,8 @@ export interface CheckoutOrderItem {
 }
 
 export interface CheckoutOrderSnapshot {
+  giftId?: string;
+  transaction?: GoodsTransactionDisplay;
   shipments: ShipmentRecord[];
   id: string;
   status: string;
@@ -107,10 +119,15 @@ export async function loadCheckoutOrder(
   userId: string,
   orderId: string,
 ): Promise<CheckoutOrderSnapshot | null> {
+  try {
+    const gift = await loadGiftCheckoutOrder(userId, orderId);
+    if (gift.kind === 'gift') return gift.order;
+    if (gift.kind !== 'ordinary') return null;
+  } catch { return null; }
   const supabase = await createClient();
   const { data: orderData, error: orderError } = await supabase
     .from('orders')
-    .select('id,user_id,status,total,shipping_fee,discount_total,store_credit_total,address,expires_at,created_at,payment_method')
+    .select('id,user_id,status,total,shipping_fee,discount_total,store_credit_total,address,expires_at,created_at,payment_method,calculation_version,volume_discount_total,shipping_collect_total')
     .eq('id', orderId)
     .eq('user_id', userId)
     .maybeSingle<OrderRow>();
@@ -121,12 +138,15 @@ export async function loadCheckoutOrder(
     { data: itemData, error: itemError },
     { data: paymentData, error: paymentError },
     { data: attemptData, error: attemptError },
+    receiptResult,
   ] = await Promise.all([
-    supabase
-      .from('order_items')
-      .select('id,good_id,qty,unit_price,good_name_snapshot,good_type_snapshot,variant_id,variant_name_snapshot,variant_code_snapshot,supply_source,preorder_expected_ship_date')
-      .eq('order_id', orderId)
-      .order('id'),
+    readCompleteIdPages<OrderItemRow>((afterId,pageSize)=>{
+      let query=supabase.from('order_items')
+        .select('id,good_id,qty,unit_price,good_name_snapshot,good_type_snapshot,variant_id,variant_name_snapshot,variant_code_snapshot,custom_inputs_snapshot,supply_source,preorder_expected_ship_date',{count:'exact'})
+        .eq('order_id',orderId).order('id',{ascending:true}).limit(pageSize);
+      if(afterId)query=query.gt('id',afterId);
+      return query;
+    }),
     supabase
       .from('payment_summaries')
       .select('status')
@@ -144,12 +164,20 @@ export async function loadCheckoutOrder(
       .order('created_at', { ascending: false })
       .limit(1)
       .maybeSingle<{ state: string }>(),
+    orderData.calculation_version === 2 ? supabase.rpc('get_my_goods_transaction_receipt', { p_order_id: orderId }) : Promise.resolve({ data: null, error: null }),
   ]);
   if (itemError || paymentError || attemptError) return null;
 
   const itemRows = (itemData ?? []) as OrderItemRow[];
+  const receipt = orderData.calculation_version === 2 ? parseCheckoutTransactionReceipt(receiptResult.data) : null;
+  if (orderData.calculation_version === 2 && (receiptResult.error || !receipt || receipt.orderId !== orderId
+    || receipt.display.totals.onlineTotal !== orderData.total || receipt.display.totals.prepaidShippingTotal !== (orderData.shipping_fee ?? 0)
+    || receipt.display.totals.volumeDiscountTotal !== orderData.volume_discount_total || receipt.display.totals.collectShippingTotal !== orderData.shipping_collect_total
+    || receipt.display.totals.couponDiscountTotal !== (orderData.discount_total ?? 0) || receipt.display.totals.storeCreditTotal !== (orderData.store_credit_total ?? 0)
+    || receipt.display.lines.length !== itemRows.length || receipt.display.lines.some(line => !itemRows.some(item => item.id === line.lineId && item.variant_id === line.variantId && item.qty === line.qty && item.unit_price === line.unitPrice)))) return null;
 
   return {
+    ...(receipt ? { transaction: receipt.display } : {}),
     id: orderData.id,
     status: orderData.status,
     total: orderData.total,
@@ -170,6 +198,7 @@ export async function loadCheckoutOrder(
       id: item.id,
       goodId: item.good_id,
       name: item.good_name_snapshot,
+      ...(item.custom_inputs_snapshot == null ? {} : {customInputs:readGoodsCustomInputSnapshot(item.custom_inputs_snapshot)}),
       variantId: item.variant_id, variantName: item.variant_name_snapshot ?? null, variantCode: item.variant_code_snapshot ?? null,
       type: item.good_type_snapshot,
       qty: item.qty,

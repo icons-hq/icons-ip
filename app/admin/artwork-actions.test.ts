@@ -1,3 +1,4 @@
+const { legacyOperatorAccessFixture } = await vi.hoisted(() => import('@/lib/admin/access.test-fixtures'));
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   cancelAdminArtworkUploadAction,
@@ -8,18 +9,19 @@ import { ADMIN_ARTWORK_ERROR, ADMIN_ARTWORK_MAX_BYTES } from '@/lib/admin/artwor
 
 const UUID = '123e4567-e89b-42d3-a456-426614174000';
 const OBJECT_PATH = `catalog/ip/${UUID}.png`;
+const ACTOR_CHANGED_ERROR = '로그인 계정이 변경되었습니다. 현재 계정에서 다시 시도해주세요.';
 
 const mocks = vi.hoisted(() => ({
   adminState: {
     isConfigured: true,
     user: { id: 'staff-1', email: 'staff@icons.test' },
     role: 'staff' as 'user' | 'staff' | 'admin',
-    isStaff: true,
+    isStaff: true, operatorAccess: legacyOperatorAccessFixture(),
   } as {
     isConfigured: boolean;
     user: { id: string; email: string | null } | null;
     role: 'user' | 'staff' | 'admin' | null;
-    isStaff: boolean;
+    isStaff: boolean; operatorAccess?: ReturnType<typeof legacyOperatorAccessFixture>;
   },
   cancelUpload: vi.fn(),
   cleanupExpired: vi.fn(),
@@ -51,7 +53,7 @@ beforeEach(() => {
     isConfigured: true,
     user: { id: 'staff-1', email: 'staff@icons.test' },
     role: 'staff',
-    isStaff: true,
+    isStaff: true, operatorAccess: legacyOperatorAccessFixture(),
   };
   vi.clearAllMocks();
 
@@ -133,6 +135,40 @@ describe('prepareAdminArtworkUploadAction', () => {
     expect(mocks.createClaim.mock.invocationCallOrder[0]).toBeLessThan(
       mocks.cleanupExpired.mock.invocationCallOrder[0],
     );
+  });
+
+  it.each(['staff-1', undefined])('accepts the current or omitted expected actor (%s)', async expectedActorId => {
+    await expect(prepareAdminArtworkUploadAction({
+      kind: 'ip', mimeType: 'image/png', size: 8, expectedActorId,
+    })).resolves.toEqual({ ok: true, path: OBJECT_PATH });
+    expect(mocks.createClaim).toHaveBeenCalledWith(expect.objectContaining({ actorId: 'staff-1' }));
+  });
+
+  it.each(['staff-2', null, '', ' staff-1 ', 123, {}, ['staff-1']])('rejects a mismatched or malformed expected actor before claims (%j)', async expectedActorId => {
+    await expect(prepareAdminArtworkUploadAction({
+      kind: 'ip', mimeType: 'image/png', size: 8, expectedActorId,
+    })).resolves.toEqual({ ok: false, error: ACTOR_CHANGED_ERROR });
+    expect(mocks.createClaim).not.toHaveBeenCalled();
+    expect(mocks.cleanupExpired).not.toHaveBeenCalled();
+    expect(mocks.rejectUpload).not.toHaveBeenCalled();
+    expect(globalThis.crypto.randomUUID).not.toHaveBeenCalled();
+  });
+
+  it('fails a bound request after sign-out without redirecting or preparing a claim', async () => {
+    mocks.adminState = { isConfigured: true, user: null, role: null, isStaff: false };
+    await expect(prepareAdminArtworkUploadAction({
+      kind: 'ip', mimeType: 'image/png', size: 8, expectedActorId: 'staff-1',
+    })).resolves.toEqual({ ok: false, error: ACTOR_CHANGED_ERROR });
+    expect(mocks.createClaim).not.toHaveBeenCalled();
+    expect(mocks.cleanupExpired).not.toHaveBeenCalled();
+  });
+
+  it('still requires permission when the expected actor matches', async () => {
+    mocks.adminState.isStaff = false;
+    await expect(prepareAdminArtworkUploadAction({
+      kind: 'ip', mimeType: 'image/png', size: 8, expectedActorId: 'staff-1',
+    })).resolves.toEqual({ ok: false, error: '관리자 권한이 필요합니다.' });
+    expect(mocks.createClaim).not.toHaveBeenCalled();
   });
 
   it('prepares curation artwork under the dedicated path contract', async () => {
@@ -278,6 +314,40 @@ describe('verifyAdminArtworkUploadAction', () => {
       actorId: 'staff-1',
       ...validInput,
     });
+  });
+
+  it.each(['staff-1', undefined])('accepts the current or omitted expected actor (%s)', async expectedActorId => {
+    await expect(verifyAdminArtworkUploadAction({ ...validInput, expectedActorId })).resolves.toEqual({
+      ok: true, imagePath: `public-media/${OBJECT_PATH}`,
+    });
+    expect(mocks.verifyAndPromote).toHaveBeenCalledWith({ actorId: 'staff-1', ...validInput });
+  });
+
+  it.each(['staff-2', null, '', ' staff-1 ', 123, {}, ['staff-1']])('rejects a mismatched or malformed expected actor before promotion (%j)', async expectedActorId => {
+    await expect(verifyAdminArtworkUploadAction({ ...validInput, expectedActorId })).resolves.toEqual({
+      ok: false, error: ACTOR_CHANGED_ERROR,
+    });
+    expect(mocks.verifyAndPromote).not.toHaveBeenCalled();
+  });
+
+  it.each(['account switch', 'sign-out'])('rejects %s between prepare and verify', async change => {
+    const input = { ...validInput, expectedActorId: 'staff-1' };
+    await expect(prepareAdminArtworkUploadAction(input)).resolves.toEqual({ ok: true, path: OBJECT_PATH });
+    mocks.adminState = change === 'sign-out'
+      ? { isConfigured: true, user: null, role: null, isStaff: false }
+      : { ...mocks.adminState, user: { id: 'staff-2', email: 'other@icons.test' } };
+
+    await expect(verifyAdminArtworkUploadAction(input)).resolves.toEqual({ ok: false, error: ACTOR_CHANGED_ERROR });
+    expect(mocks.createClaim).toHaveBeenCalledExactlyOnceWith({ actorId: 'staff-1', ...validInput });
+    expect(mocks.verifyAndPromote).not.toHaveBeenCalled();
+  });
+
+  it('still requires permission when the expected verifier matches', async () => {
+    mocks.adminState.isStaff = false;
+    await expect(verifyAdminArtworkUploadAction({ ...validInput, expectedActorId: 'staff-1' })).resolves.toEqual({
+      ok: false, error: '관리자 권한이 필요합니다.',
+    });
+    expect(mocks.verifyAndPromote).not.toHaveBeenCalled();
   });
 
   it.each([

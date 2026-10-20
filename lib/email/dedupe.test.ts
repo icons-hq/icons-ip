@@ -115,3 +115,14 @@ it('같은 주문의 배송 건마다 별도 멱등 키를 쓰고 재발송 대�
  expect(parseOrderEmailDedupeKey(`order_confirmation:${ORDER_ID}:${first}`)).toBeNull();
  expect(parseOrderEmailDedupeKey(`ORDER_SHIPPED:${ORDER_ID}:${first}`)).toBeNull();
 });
+
+
+it('recipient keys preserve the audience without accepting ambiguous shipment references', async () => {
+  const { shipmentEmailDedupeKey } = await import('./dedupe');
+  expect(parseOrderEmailDedupeKey(orderEmailDedupeKey('order_confirmation', ORDER_ID, 'recipient')))
+    .toEqual({ template: 'order_confirmation', orderId: ORDER_ID, audience: 'recipient' });
+  expect(parseOrderEmailDedupeKey(shipmentEmailDedupeKey(ORDER_ID, ORDER_ID, 'recipient')))
+    .toEqual({ template: 'order_shipped', orderId: ORDER_ID, shipmentId: ORDER_ID, audience: 'recipient' });
+  expect(parseOrderEmailDedupeKey(`order_shipped:${ORDER_ID}:recipient`)).toBeNull();
+  expect(parseOrderEmailDedupeKey(`order_confirmation:${ORDER_ID}:recipient:recipient`)).toBeNull();
+});

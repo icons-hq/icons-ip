@@ -1,0 +1,52 @@
+/* 전역 적립금 지급관리 및 원장 화면. 공통 콘솔 스타일은 덮어쓰지 않는다. */
+.wc-admin .admin-store-credit-console .admin-credit-tabs{display:flex;flex-wrap:wrap;gap:0;border-bottom:1px solid var(--wc-hairline);background:var(--wc-surface)}
+.wc-admin .admin-store-credit-console .admin-credit-tabs a{padding:14px 24px;border-bottom:2px solid transparent;font-size:13px;font-weight:600}
+.wc-admin .admin-store-credit-console .admin-credit-tabs a[aria-current=page]{border-bottom-color:var(--wc-ink);color:var(--wc-ink)}
+.wc-admin .admin-credit-register{border:1px solid var(--wc-hairline);background:var(--wc-surface);padding:18px 24px}
+.wc-admin .admin-credit-register>summary{cursor:pointer;font-weight:700;font-size:14px;list-style-position:inside}
+.wc-admin .admin-credit-register fieldset{border:0;padding:16px 0;margin:0;min-width:0}
+.wc-admin .admin-credit-register legend{font-weight:700;padding-top:16px}
+.wc-admin .admin-credit-form-row{display:grid;grid-template-columns:140px minmax(0,1fr);min-height:54px;border-bottom:1px solid var(--wc-hairline);font-size:13px;align-items:start;gap:18px;padding:12px 0}
+.wc-admin .admin-credit-form-row>span:first-child{font-weight:600;padding-top:7px}
+.wc-admin .admin-credit-form-row>label:first-child{font-weight:600;padding-top:7px}
+.wc-admin .admin-credit-form-row input[type=number]{width:200px}
+.wc-admin .admin-credit-form-row input[type=datetime-local]{width:270px}
+.wc-admin .admin-credit-inline>input{width:400px;max-width:100%}
+.wc-admin .admin-credit-form-row>div{min-width:0}
+.wc-admin .admin-credit-form-row input:not([type=radio]):not([type=file]),.wc-admin .admin-credit-form-row textarea{max-width:100%;border:1px solid var(--wc-hairline);border-radius:2px;padding:8px 10px;background:var(--wc-surface);color:var(--wc-ink)}
+.wc-admin .admin-credit-form-row textarea{display:block;width:100%;resize:vertical;margin-top:8px;font-family:inherit}
+.wc-admin .admin-credit-form-row input[type=radio],.wc-admin .admin-credit-confirm input{margin-right:7px}
+.wc-admin .admin-credit-form-row label+label{margin-left:20px}
+.wc-admin .admin-credit-form-row small,.wc-admin .admin-credit-customers small{display:block;font-size:12px;color:var(--wc-ink-tertiary);line-height:1.6;margin-top:7px;overflow-wrap:anywhere}
+.wc-admin .admin-credit-presets,.wc-admin .admin-credit-inline{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-top:8px}
+.wc-admin .admin-credit-register button,.wc-admin .admin-credit-inspect button{border:1px solid var(--wc-hairline);background:var(--wc-surface);padding:7px 13px;font-size:12px;border-radius:2px;cursor:pointer}
+.wc-admin .admin-credit-register button:disabled,.wc-admin .admin-credit-inspect button:disabled{opacity:.45;cursor:default}
+.wc-admin .admin-credit-form-actions{text-align:center;margin-top:20px}
+.wc-admin .admin-credit-form-actions button,.wc-admin .admin-credit-confirm>button:first-of-type{background:var(--wc-ink);color:var(--wc-surface);border-color:var(--wc-ink);padding:9px 26px}
+.wc-admin .admin-credit-file{font-size:12px;display:flex;flex-wrap:wrap;gap:8px;align-items:center}
+.wc-admin .admin-credit-customers{list-style:none;margin:10px 0;padding:0;max-height:250px;overflow:auto}
+.wc-admin .admin-credit-customers li{display:flex;justify-content:space-between;gap:10px;padding:8px;border-bottom:1px solid var(--wc-hairline)}
+.wc-admin .admin-credit-preview{padding:18px;background:var(--wc-surface-grey);border:1px solid var(--wc-hairline);margin:18px 0;font-size:12px;white-space:normal}
+.wc-admin .admin-credit-preview h3{margin:0 0 14px;font-size:15px}
+.wc-admin .admin-credit-totals{display:grid;grid-template-columns:repeat(5,minmax(100px,1fr));gap:14px;border-bottom:1px solid var(--wc-hairline);padding-bottom:16px}
+.wc-admin .admin-credit-totals strong{display:block;font-size:17px;margin-top:7px;font-variant-numeric:tabular-nums}
+.wc-admin .admin-credit-table-scroll{max-height:330px;overflow:auto;margin-top:10px}
+.wc-admin .admin-credit-table-scroll table{width:100%;min-width:650px;border-collapse:collapse}
+.wc-admin .admin-credit-table-scroll th,.wc-admin .admin-credit-table-scroll td{padding:8px;text-align:left;border:1px solid var(--wc-hairline)}
+.wc-admin .admin-credit-confirm{display:flex;flex-wrap:wrap;gap:12px;align-items:center;font-size:13px}
+.wc-admin .admin-credit-confirm label{flex-basis:100%;line-height:1.8}
+.wc-admin .admin-credit-inspect{position:relative;white-space:normal}
+.wc-admin .admin-credit-inspect>summary{cursor:pointer;font-size:12px}
+.wc-admin .admin-credit-inspect .admin-credit-preview{min-width:240px;padding:10px}
+.wc-admin .admin-credit-inspect .admin-credit-totals{grid-template-columns:1fr;gap:6px}
+.wc-admin .admin-credit-inspect .admin-credit-totals strong{display:inline;margin-left:8px;font-size:13px}
+.wc-admin .admin-credit-export{display:flex;flex-wrap:wrap;align-items:center;justify-content:space-between;gap:10px;padding:12px 16px;border-bottom:1px solid var(--wc-hairline);font-size:12px}
+.wc-admin .admin-credit-export label{display:flex;align-items:center;gap:7px;flex:1 1 240px}
+.wc-admin .admin-credit-export button{border:1px solid var(--wc-line-control);padding:7px 12px;background:var(--wc-surface)}
+@media(max-width:700px){.wc-admin .admin-credit-register{padding:14px}
+.wc-admin .admin-credit-form-row{grid-template-columns:1fr;gap:8px}
+.wc-admin .admin-credit-totals{grid-template-columns:repeat(2,minmax(0,1fr))}
+.wc-admin .admin-credit-register input[type=file]{max-width:100%}
+.wc-admin .admin-credit-form-row label+label{margin-left:0}
+.wc-admin .admin-credit-form-row>div>label{display:block;margin:6px 0}}
+@media(forced-colors:active){.wc-admin .admin-credit-register button,.wc-admin .admin-credit-tabs a[aria-current=page],.wc-admin .admin-credit-preview{border-color:ButtonText}}

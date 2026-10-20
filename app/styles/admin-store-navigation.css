@@ -1,0 +1,29 @@
+@layer components {
+  .wc-admin .admin-store-navigation > fieldset { display: grid; min-width: 0; margin: 0; padding: 20px; gap: 16px; border: 1px solid var(--wc-line-control); }
+  .wc-admin .admin-store-navigation > fieldset > legend { padding-inline: 6px; font-weight: 700; }
+  .wc-admin .admin-store-navigation__items { display: grid; min-width: 0; margin: 0; padding: 0; list-style: none; }
+  .wc-admin .admin-store-navigation__items > li { display: grid; grid-template-columns: 28px minmax(180px, 1fr) minmax(170px, 220px) auto; gap: 16px; align-items: center; padding: 16px 0; border-bottom: 1px solid var(--wc-hairline); }
+  .wc-admin .admin-store-navigation__number { color: var(--wc-ink-tertiary); font-weight: 700; }
+  .wc-admin .admin-store-navigation__name { display: grid; gap: 6px; min-width: 0; }
+  .wc-admin .admin-store-navigation__name > label { font-weight: 600; }
+  .wc-admin .admin-store-navigation__name > small { overflow-wrap: anywhere; color: var(--wc-ink-sub); }
+  .wc-admin .admin-store-navigation__move { display: flex; gap: 6px; }
+  .wc-admin .admin-store-navigation__preview { display: grid; gap: 16px; min-width: 0; padding: 20px; border: 1px solid var(--wc-hairline); }
+  .wc-admin .admin-store-navigation__preview-heading { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 12px; align-items: center; }
+  .wc-admin .admin-store-navigation__preview-heading h3 { margin: 0; font-size: 16px; }
+  .wc-admin .admin-store-navigation__preview-frame { width: 100%; min-width: 0; border: 1px solid var(--wc-line-control); background: var(--wc-surface); }
+  .wc-admin .admin-store-navigation__preview-frame[data-device='mobile'] { width: min(100%, 390px); }
+  .wc-admin .admin-store-navigation__preview-brand { padding: 20px; text-align: center; font-size: 20px; font-weight: 700; border-bottom: 1px solid var(--wc-hairline); }
+  .wc-admin .admin-store-navigation__preview-frame nav { overflow-x: auto; }
+  .wc-admin .admin-store-navigation__preview-frame ol { display: flex; width: max-content; min-width: 100%; justify-content: center; align-items: center; gap: 24px; margin: 0; padding: 16px 20px; list-style: none; }
+  .wc-admin .admin-store-navigation__preview-frame li { flex: none; font-size: 14px; white-space: nowrap; }
+  .wc-admin .admin-store-navigation__preview-frame[data-device='mobile'] ol { justify-content: flex-start; }
+  @media (max-width: 900px) {
+    .wc-admin .admin-store-navigation__items > li { grid-template-columns: 24px minmax(0, 1fr); gap: 12px; align-items: start; }
+    .wc-admin .admin-store-navigation__visibility, .wc-admin .admin-store-navigation__move { grid-column: 2; }
+    .wc-admin .admin-store-navigation > fieldset, .wc-admin .admin-store-navigation__preview { padding: 12px; }
+  }
+}
+/* Native checkboxes must not inherit full-width text-field geometry. */
+.wc-admin .admin-store-navigation__visibility { display: inline-flex; width: fit-content; min-height: 36px; align-items: center; gap: 8px; }
+.wc-admin .admin-store-navigation input[type='checkbox'] { flex: 0 0 16px; width: 16px; min-width: 16px; height: 16px; min-height: 16px; margin: 0; padding: 0; }

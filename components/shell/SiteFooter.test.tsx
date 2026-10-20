@@ -29,6 +29,14 @@ beforeEach(() => {
 });
 
 describe('SiteFooter 법정 고지 링크', () => {
+  it('renders the public brand and social links while retaining business disclosures', () => {
+    const html = renderToStaticMarkup(<SiteFooter branding={{ displayName: '검증 스토어', logoUrl: null, mobileLogoUrl: null, introduction: '스토어 소개', socials: [{ platform: 'instagram', url: 'https://www.instagram.com/example/' }] }} />);
+    expect(html).toContain('검증 스토어 홈');
+    expect(html).toContain('스토어 소개');
+    expect(html).toContain('href="https://www.instagram.com/example/"');
+    expect(html).toContain(`${BUSINESS_INFO.companyName} 사업자 정보`);
+    expect(html).toContain('href="/legal/privacy"');
+  });
   it('이용약관·개인정보처리방침을 실제 링크로 건다', () => {
     const html = render();
 
@@ -126,7 +134,7 @@ describe('SiteFooter White Catalog 진입점', () => {
 it("현재 설정값을 푸터에 반영하고 비운 전화는 숨긴다",()=>{ const html=renderToStaticMarkup(<SiteFooter businessInfo={{...BUSINESS_INFO,companyName:"설정회사",phone:"",email:"new@example.test"}}/>);expect(html).toContain("설정회사 사업자 정보");expect(html).toContain("new@example.test");expect(html).not.toContain(BUSINESS_INFO.phone); });
 
 describe('SiteFooter 세컨더리 마켓 시연 진입점', () => {
-  /* 시연은 로그인한 staff/admin 의 is_staff readback 이 참일 때만 존재한다. 공개 푸터·SSR 결과에
+  /* 시연은 로그인 계정의 ICONS 운영 권한 조회가 참일 때만 존재한다. 공개 푸터·SSR 결과에
    * 진입점이 남으면 PG 계약 문제로 내린 C2C 표면이 다시 공개로 새는 셈이다. */
   it('기본(비로그인·일반 회원·readback 전)에는 시연 블록이 마크업에 없다', () => {
     const html = render();
@@ -152,7 +160,7 @@ describe('SiteFooter 세컨더리 마켓 시연 진입점', () => {
 
 describe('SiteFooter 커뮤니티 스태프 프리뷰 진입점', () => {
   /* 커뮤니티는 임시 비공개다 — 공개 푸터·SSR 결과에 링크가 남으면 비공개가 무너진다.
-   * 진입점은 로그인한 staff/admin 의 is_staff readback 이 참일 때만 존재한다. */
+   * 진입점은 로그인 계정의 ICONS 운영 권한 조회가 참일 때만 존재한다. */
   it('기본(비로그인·일반 회원·readback 전)에는 커뮤니티 링크가 마크업에 없다', () => {
     const html = render();
 

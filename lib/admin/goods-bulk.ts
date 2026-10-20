@@ -1,0 +1,93 @@
+import { isUuid } from '@/lib/uuid';
+import { transactionExactKeys as exact, transactionInstant as instant, transactionInteger as integer, transactionRecord as record } from '@/lib/goods-transaction-values';
+import { validGoodsGroupGoodId } from './goods-groups';
+
+export const GOODS_BULK_COMMANDS = ['publish', 'unpublish', 'start', 'stop', 'archive', 'restore', 'price', 'discount', 'discount_stop', 'period', 'dissolve'] as const;
+export type GoodsBulkCommand = typeof GOODS_BULK_COMMANDS[number];
+export type GoodsBulkKind = 'goods' | 'groups';
+export interface GoodsBulkRequest { kind: GoodsBulkKind; ids: string[]; command: GoodsBulkCommand; values: Record<string, string | number | null> }
+export interface GoodsBulkGood { id: string; name: string; code: string | null; price: number; nextPrice: number; priceMin: number | null; priceMax: number | null; nextMin: number | null; nextMax: number | null; published: boolean; archived: boolean; stopped: boolean }
+export interface GoodsBulkPreview { state: 'ready'; operationId: string; request: GoodsBulkRequest; groups: { id: string; name: string; revision: number }[]; goods: GoodsBulkGood[]; expiresAt: string }
+export interface GoodsBulkReceipt { state: 'completed' | 'rejected' | 'unresolved' | 'sealed'; operationId: string; goodsCount: number; groupsCount: number; error: string | null }
+export const GOODS_BULK_LABELS: Record<GoodsBulkCommand, string> = { publish: '전시중으로 변경', unpublish: '전시 중지', start: '판매 재개', stop: '판매 중지', archive: '선택 보관', restore: '선택 복원', price: '판매가 변경', discount: '즉시할인 등록', discount_stop: '기간 할인 중지', period: '판매기간 변경', dissolve: '그룹 해제' };
+
+export function parseGoodsBulkRequest(value: unknown): GoodsBulkRequest | null {
+  if (!record(value) || !exact(value, ['kind', 'ids', 'command', 'values']) || !['goods', 'groups'].includes(String(value.kind))
+    || !GOODS_BULK_COMMANDS.includes(value.command as GoodsBulkCommand) || !Array.isArray(value.ids) || value.ids.length < 1 || value.ids.length > 100
+    || value.ids.some(id => value.kind === 'goods' ? !validGoodsGroupGoodId(id) : !isUuid(id)) || new Set(value.ids).size !== value.ids.length
+    || value.command === 'dissolve' && value.kind !== 'groups' || !record(value.values)) return null;
+  const v = value.values, command = value.command as GoodsBulkCommand;
+  if (command === 'price' || command === 'discount') {
+    if (!integer(v.value, 1, 2_147_483_647) || typeof v.mode !== 'string'
+      || (command === 'price' ? !exact(v, ['mode', 'value']) || !['set', 'increase', 'decrease', 'percent_increase', 'percent_decrease'].includes(v.mode)
+        : !exact(v, ['mode', 'value', 'startsAt', 'endsAt']) || !['amount', 'rate'].includes(v.mode))
+      || ['percent_decrease', 'rate'].includes(v.mode) && v.value >= 100 || v.mode === 'percent_increase' && v.value > 1000) return null;
+  } else if (command !== 'period' && !exact(v, [])) return null;
+  if (command === 'period' || command === 'discount') {
+    if (command === 'period' && !exact(v, ['startsAt', 'endsAt'])) return null;
+    const unlimited = command === 'period' && v.startsAt === null && v.endsAt === null;
+    if (!unlimited && (!instant(v.startsAt) || !instant(v.endsAt) || Date.parse(v.startsAt) >= Date.parse(v.endsAt))) return null;
+  }
+  return { kind: value.kind as GoodsBulkKind, ids: [...value.ids] as string[], command, values: { ...v } as GoodsBulkRequest['values'] };
+}
+function boundedText(value: unknown, max: number): value is string { return typeof value === 'string' && value.length > 0 && [...value].length <= max; }
+const money = (value: unknown) => integer(value, 0, 2_147_483_647);
+export function parseGoodsBulkPreview(value: unknown, expectedId: string, request: GoodsBulkRequest): GoodsBulkPreview | null {
+  if (!record(value) || !exact(value, ['state', 'operationId', 'request', 'groups', 'goods', 'expiresAt']) || value.state !== 'ready' || value.operationId !== expectedId || !isUuid(expectedId)
+    || !instant(value.expiresAt) || !Array.isArray(value.groups) || value.groups.length > 100 || !Array.isArray(value.goods) || value.goods.length < 1 || value.goods.length > 100) return null;
+  const received = parseGoodsBulkRequest(value.request);
+  if (!received || received.kind !== request.kind || received.command !== request.command || JSON.stringify([...received.ids].sort()) !== JSON.stringify([...request.ids].sort())
+    || Object.keys(request.values).length !== Object.keys(received.values).length || Object.entries(request.values).some(([key, val]) => received.values[key] !== val)) return null;
+  const groupIds = new Set<string>(), goodIds = new Set<string>();
+  for (const row of value.groups) {
+    if (!record(row) || !exact(row, ['id', 'name', 'revision']) || !isUuid(row.id) || groupIds.has(row.id) || !boundedText(row.name, 40) || !integer(row.revision, 1)) return null;
+    groupIds.add(row.id);
+  }
+  for (const row of value.goods) {
+    if (!record(row) || !exact(row, ['id', 'name', 'code', 'price', 'nextPrice', 'priceMin', 'priceMax', 'nextMin', 'nextMax', 'published', 'archived', 'stopped'])
+      || !validGoodsGroupGoodId(row.id) || goodIds.has(row.id) || !boundedText(row.name, 200) || row.code !== null && !boundedText(row.code, 120)
+      || !money(row.price) || !money(row.nextPrice) || ['published', 'archived', 'stopped'].some(key => typeof row[key] !== 'boolean')) return null;
+    for (const [min, max] of [['priceMin', 'priceMax'], ['nextMin', 'nextMax']]) {
+      if (row[min] === null && row[max] === null) continue;
+      if (!money(row[min]) || !money(row[max]) || Number(row[min]) > Number(row[max])) return null;
+    }
+    goodIds.add(row.id);
+  }
+  if (request.kind === 'goods' ? groupIds.size !== 0 || goodIds.size !== request.ids.length || request.ids.some(id => !goodIds.has(id))
+    : groupIds.size !== request.ids.length || request.ids.some(id => !groupIds.has(id))) return null;
+  return value as unknown as GoodsBulkPreview;
+}
+export function parseGoodsBulkReceipt(value: unknown, expectedId: string): GoodsBulkReceipt | null {
+  if (!record(value) || !exact(value, ['state', 'operationId', 'goodsCount', 'groupsCount', 'error']) || value.operationId !== expectedId || !isUuid(expectedId)
+    || !['completed', 'rejected', 'unresolved', 'sealed'].includes(String(value.state)) || !integer(value.goodsCount, 0, 100) || !integer(value.groupsCount, 0, 100)
+    || (value.state === 'completed' ? value.goodsCount < 1 || value.error !== null : value.goodsCount !== 0 || value.groupsCount !== 0)
+    || (value.state === 'rejected' ? typeof value.error !== 'string' || !/^[a-z][a-z0-9_]{0,100}$/.test(value.error) : value.error !== null)) return null;
+  return value as unknown as GoodsBulkReceipt;
+}
+export function goodsBulkError(code: string | null): string {
+  const messages: Record<string, string> = {
+    goods_bulk_changed: '비교 이후 상품·옵션·재고가 변경되었습니다. 최신 내용으로 다시 확인해주세요.',
+    goods_bulk_busy: '다른 작업이 진행 중입니다. 최신 내용으로 다시 확인해주세요.',
+    goods_bulk_preview_expired: '비교 결과의 15분 유효기간이 지났습니다. 다시 확인해주세요.',
+    goods_bulk_target_limit: '한 번에 개별 상품 100개까지 변경할 수 있습니다. 그룹 선택 수를 줄여주세요.',
+    goods_bulk_group_unavailable: '선택한 그룹이 변경되거나 해제되었습니다. 목록을 새로고침해주세요.',
+    goods_bulk_price_invalid: '변경할 판매가·할인가가 허용 범위를 벗어납니다. 금액과 옵션 가격을 확인해주세요.',
+    goods_compare_at_price_invalid: '새 판매가가 표시용 정가 이상입니다. 해당 상품의 정가를 먼저 확인해주세요.',
+    price_period_overlap: '시간이 겹치는 활성 할인이 있습니다. 기존 할인을 중지하거나 기간을 변경해주세요.',
+    goods_sale_period_preorder_conflict: '예약판매 중인 상품은 일반 판매기간을 설정할 수 없습니다.',
+    good_has_stock: '할당 재고가 남아 있는 상품은 보관할 수 없습니다. 재고를 확인해주세요.',
+    good_archived: '보관된 상품이 포함되어 있습니다. 복원한 뒤 변경해주세요.',
+    goods_kc_review_required: '공개 전 KC 검토가 필요한 상품이 있습니다. 해당 상품을 확인해주세요.',
+    goods_notice_required: '공개에 필요한 상품정보제공고시를 먼저 입력해주세요.',
+    goods_group_auth_changed: '로그인 계정 또는 세션이 변경되었습니다. 화면을 다시 열어주세요.',
+    operator_capability_required: '상품 관리 권한이 필요합니다.',
+  };
+  return messages[code ?? ''] ?? '일괄 변경을 적용하지 않았습니다. 상품의 판매 준비·현재 상태와 입력값을 확인해주세요.';
+}
+
+export function goodsBulkShippingHref(ids: string[]) { return `/admin/settings/shipping-templates?goods=${encodeURIComponent(ids.join(','))}`; }
+export function parseGoodsBulkShippingIds(value: unknown): string[] {
+  if (typeof value !== 'string') return [];
+  const ids = value.split(',');
+  return ids.length <= 100 && ids.every(validGoodsGroupGoodId) && new Set(ids).size === ids.length ? ids : [];
+}

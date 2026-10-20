@@ -1,11 +1,29 @@
 import { expect, it } from 'vitest';
 import { goodEditorValues, createGoodEditorDraft, buildGoodEditorPreview, GOOD_LOCAL_DRAFT_FIELDS } from './good-editor';
 import { createAdminLocalAutosave, withLocalRecoveryValues } from './local-autosave';
+it('미저장 직접입력형 항목을 상품 미리보기에 전달하고 제출 리비전은 보존한다', () => {
+  const customInputs=JSON.stringify({enabled:true,fields:[{id:'11111111-1111-4111-8111-111111111111',name:' 각인 문구 ',active:true}]});
+  const values=goodEditorValues(null,{values:{previousId:'',customInputs,customInputsExpectedRevision:'0'}});
+  const preview=buildGoodEditorPreview({values,imageUrls:{},selected:null,catalogIps:[],origins:[],shippingNoticeOptions:[]});
+  expect(preview.detail.good.customInputs).toEqual({enabled:true,revision:1,fields:[{id:'11111111-1111-4111-8111-111111111111',name:'각인 문구',active:true}]});
+  expect(values.customInputsExpectedRevision).toBe('0');
+});
 it('추가 분류는 저장 실패와 브라우저 복구에서도 보존한다', () => {
   const ids = '["00000000-0000-4000-8000-000000051121"]';
   expect(GOOD_LOCAL_DRAFT_FIELDS).toContain('additionalCategoryIds');
   expect(goodEditorValues(null, {})).toHaveProperty('additionalCategoryIds', '[]');
   expect(goodEditorValues(null, { values: { previousId: '', additionalCategoryIds: ids } })).toHaveProperty('additionalCategoryIds', ids);
+});
+it('세 번째 옵션 축을 브라우저 복구에서 다시 읽고 옵션 영역 오류로 연결한다', async () => {
+  const records = new Map<string, string>();
+  const storage = { getItem: (key: string) => records.get(key) ?? null, setItem: (key: string, value: string) => records.set(key, value), removeItem: (key: string) => records.delete(key) };
+  const scope = { accountId: 'operator', formId: 'good', recordId: null };
+  const current = createAdminLocalAutosave({ scope, storage, fields: GOOD_LOCAL_DRAFT_FIELDS });
+  current.capture([['optionAxisName2', '포장'], ['optionAxisValues2', '기본, 선물']]); current.flush();
+  const reopened = createAdminLocalAutosave({ scope, storage, fields: GOOD_LOCAL_DRAFT_FIELDS }); reopened.restore();
+  expect(goodEditorValues(null, withLocalRecoveryValues({}, null, reopened.getSnapshot().restoredValues))).toMatchObject({ optionAxisName2: '포장', optionAxisValues2: '기본, 선물' });
+  const { goodFieldSection } = await import('./good-workspace');
+  expect(goodFieldSection('optionAxisName2').key).toBe('variants'); expect(goodFieldSection('optionAxisValues2').key).toBe('variants');
 });
 it('defaults discount display on and carries a recovered off setting into the public preview', () => {
   expect(goodEditorValues(null, {})).toHaveProperty('showDiscountRate', 'true');

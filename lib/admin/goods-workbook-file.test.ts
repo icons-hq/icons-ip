@@ -2,14 +2,17 @@ import ExcelJS from 'exceljs';
 import { describe, expect, it } from 'vitest';
 import { buildGoodsWorkbook, parseGoodsWorkbook, parseGoodsWorkbookWithKc, readSabangnetGoodsSheet } from './goods-workbook-file';
 import { emptyGoodsKcWorkbookRow, GOODS_KC_WORKBOOK_SHEET } from './goods-kc-workbook';
+import { emptyGoodsCustomInputWorkbookRow, GOODS_CUSTOM_INPUT_WORKBOOK_HEADERS, GOODS_CUSTOM_INPUT_WORKBOOK_SHEET } from './goods-custom-input-workbook';
 import {
   emptyGoodsWorkbookRow,
   GOODS_WORKBOOK_HEADERS,
   GOODS_WORKBOOK_V3_VERSION,
+  GOODS_WORKBOOK_V5_VERSION,
   GOODS_WORKBOOK_VERSION,
   planGoodsWorkbookImport,
 } from './goods-workbook';
 import { convertSabangnetRows, suggestSabangnetTargets } from './sabangnet-goods-format';
+import { GOODS_AFTER_SALES_WORKBOOK_SHEET, GOODS_SIZE_WORKBOOK_SHEET } from './goods-guidance-workbook';
 const values = {
   ...emptyGoodsWorkbookRow(),
   code: '00001',
@@ -87,26 +90,70 @@ describe('real xlsx boundary', () => {
     );
     expect((await parseGoodsWorkbook(bytes))[0].values).toEqual(values);
   });
-  it('v4 양식은 갤러리 1~9 열을 상세 이미지 앞에 두고, 버전과 열 구성이 어긋나면 받지 않는다', async () => {
+  it('v7 양식은 세 번째 옵션 축과 갤러리 1~9 열을 유지하고, 버전과 열 구성이 어긋나면 받지 않는다', async () => {
     const bytes = await buildGoodsWorkbook([values]);
     const book = new ExcelJS.Workbook();
     await book.xlsx.load(bytes as never);
     const sheet = book.getWorksheet('상품')!;
     expect(sheet.getCell('A1').text).toBe(GOODS_WORKBOOK_VERSION);
-    expect(GOODS_WORKBOOK_VERSION).toBe('ICONS 상품 일괄 등록 v4');
+    expect(GOODS_WORKBOOK_VERSION).toBe('ICONS 상품 일괄 등록 v7');
     const headers = (sheet.getRow(4).values as unknown[]).slice(1).map(String);
+    expect(headers.slice(headers.indexOf('옵션 축 1'), headers.indexOf('옵션 축 1') + 6)).toEqual(['옵션 축 1', '옵션 값 1', '옵션 축 2', '옵션 값 2', '옵션 축 3', '옵션 값 3']);
     const start = headers.indexOf('갤러리 1 URL');
     expect(headers.slice(start, start + 19)).toEqual([
       ...Array.from({ length: 9 }, (_, index) => [`갤러리 ${index + 1} URL`, `갤러리 ${index + 1} 파일명`]).flat(),
       '상세 이미지 URL',
     ]);
-    // v3 표기에 v4 열(갤러리 9칸)을 붙인 파일은 열 순서가 v3와 다르므로 받지 않는다.
+    // v3 표기에 v5 열을 붙인 파일은 열 순서가 v3와 다르므로 받지 않는다.
     sheet.getCell('A1').value = GOODS_WORKBOOK_V3_VERSION;
     book.getWorksheet(GOODS_KC_WORKBOOK_SHEET)!.getCell('A1').value = GOODS_WORKBOOK_V3_VERSION;
     await expect(parseGoodsWorkbook(Buffer.from(await book.xlsx.writeBuffer()))).rejects.toThrow('양식');
     // 상품 시트와 KC 검토 시트의 양식 버전은 같아야 한다.
     sheet.getCell('A1').value = GOODS_WORKBOOK_VERSION;
     await expect(parseGoodsWorkbookWithKc(Buffer.from(await book.xlsx.writeBuffer()))).rejects.toThrow('KC 검토 시트');
+  });
+  it('직접입력형 시트의 선행 0 코드·ID·버전·중지 상태를 실제 파일로 왕복한다', async () => {
+    const custom = { ...emptyGoodsCustomInputWorkbookRow(), goodCode: values.code, mode: '편집', enabled: '아니오',
+      fieldId: '00000000-0000-4000-8000-000000010001', name: 'TEST 문구', action: '중지', revision: '7' };
+    const bytes = await buildGoodsWorkbook([values], undefined, [], [custom]);
+    expect(await parseGoodsWorkbookWithKc(bytes)).toMatchObject({ customInputRows: [{ row: 5, values: custom, errors: [] }] });
+    const book = new ExcelJS.Workbook(); await book.xlsx.load(bytes as never);
+    const sheet = book.getWorksheet(GOODS_CUSTOM_INPUT_WORKBOOK_SHEET)!;
+    expect(sheet.getRow(4).values).toEqual([undefined, ...Object.values(GOODS_CUSTOM_INPUT_WORKBOOK_HEADERS)]);
+    expect(sheet.getCell('A5').value).toBe('00001');
+    expect(sheet.getCell('G5').value).toBe('7');
+    expect(sheet.views[0]).toMatchObject({ state: 'frozen', xSplit: 1, ySplit: 4 });
+    sheet.getCell('E5').value = { formula: '1+1', result: 2 };
+    const parsed = await parseGoodsWorkbookWithKc(Buffer.from(await book.xlsx.writeBuffer()));
+    expect(parsed.customInputRows?.[0].errors?.join()).toContain('수식');
+    sheet.getCell('A5').value = 1;
+    await expect(parseGoodsWorkbookWithKc(Buffer.from(await book.xlsx.writeBuffer()))).rejects.toThrow('같은 상품코드');
+  });
+  it('시트 누락과 기존 v5 파일은 보존하고, 구버전에 새 시트를 붙이거나 열·버전을 바꾸면 거절한다', async () => {
+    const book = new ExcelJS.Workbook(); await book.xlsx.load((await buildGoodsWorkbook([values])) as never);
+    book.getWorksheet('상품')!.getCell('A1').value = GOODS_WORKBOOK_V5_VERSION;
+    book.getWorksheet(GOODS_KC_WORKBOOK_SHEET)!.getCell('A1').value = GOODS_WORKBOOK_V5_VERSION;
+    await expect(parseGoodsWorkbookWithKc(Buffer.from(await book.xlsx.writeBuffer()))).rejects.toThrow('v6');
+    book.removeWorksheet(GOODS_CUSTOM_INPUT_WORKBOOK_SHEET);
+    book.removeWorksheet(GOODS_AFTER_SALES_WORKBOOK_SHEET);
+    book.removeWorksheet(GOODS_SIZE_WORKBOOK_SHEET);
+    expect(await parseGoodsWorkbookWithKc(Buffer.from(await book.xlsx.writeBuffer()))).toMatchObject({ rows: [{ values }], customInputRows: null });
+    const current = new ExcelJS.Workbook(); await current.xlsx.load((await buildGoodsWorkbook([values])) as never);
+    current.getWorksheet(GOODS_CUSTOM_INPUT_WORKBOOK_SHEET)!.getCell('D4').value = '잘못된 ID 열';
+    await expect(parseGoodsWorkbookWithKc(Buffer.from(await current.xlsx.writeBuffer()))).rejects.toThrow('열 이름');
+    current.removeWorksheet(GOODS_CUSTOM_INPUT_WORKBOOK_SHEET);
+    expect((await parseGoodsWorkbookWithKc(Buffer.from(await current.xlsx.writeBuffer()))).customInputRows).toBeNull();
+  });
+  it('숫자 상품코드와 숫자 항목 ID는 같은 값처럼 보여도 오류로 남기며 5,000행을 제한한다', async () => {
+    const product = { ...values, code: '123' };
+    const custom = { ...emptyGoodsCustomInputWorkbookRow(), goodCode: '123', mode: '편집', enabled: '예', name: 'TEST 문구', action: '사용', revision: '0' };
+    const book = new ExcelJS.Workbook(); await book.xlsx.load((await buildGoodsWorkbook([product], undefined, [], [custom])) as never);
+    book.getWorksheet(GOODS_CUSTOM_INPUT_WORKBOOK_SHEET)!.getCell('A5').value = 123;
+    book.getWorksheet(GOODS_CUSTOM_INPUT_WORKBOOK_SHEET)!.getCell('D5').value = 42;
+    expect((await parseGoodsWorkbookWithKc(Buffer.from(await book.xlsx.writeBuffer()))).customInputRows?.[0].errors).toEqual([
+      '상품코드: 코드는 숫자 대신 텍스트 형식으로 입력해주세요.', '항목 ID: 코드는 숫자 대신 텍스트 형식으로 입력해주세요.',
+    ]);
+    await expect(buildGoodsWorkbook([product], undefined, [], Array.from({ length: 5001 }, () => custom))).rejects.toThrow('5,000');
   });
   it('작성 안내 시트는 갤러리 9칸과 v3 양식의 갤러리 5~9 유지를 안내한다', async () => {
     const book = new ExcelJS.Workbook();

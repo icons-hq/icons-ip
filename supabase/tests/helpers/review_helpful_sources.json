@@ -1,0 +1,29 @@
+{
+  "application": [
+    "lib/review-helpful.ts",
+    "lib/review-helpful.test.ts",
+    "app/shop/review-helpful-actions.ts",
+    "app/shop/review-helpful-actions.test.ts",
+    "components/shop/ReviewHelpfulButton.tsx",
+    "components/shop/ReviewHelpfulButton.client.test.tsx",
+    "components/shop/GoodReviews.tsx",
+    "components/shop/GoodReviews.test.tsx",
+    "lib/reviews.ts",
+    "lib/reviews.server.ts",
+    "lib/reviews.server.test.ts",
+    "lib/admin/reviews.ts",
+    "lib/admin/reviews.server.ts",
+    "lib/admin/reviews.server.test.ts",
+    "components/admin/screens/ReviewConsoleScreen.tsx",
+    "components/admin/screens/ReviewConsoleScreen.test.tsx",
+    "components/admin/screens/ReviewActionPanel.tsx",
+    "app/styles/wc-catalog.css"
+  ],
+  "supporting": [
+    "lib/goods-group-reviews.ts",
+    "lib/goods-transaction-values.ts",
+    "lib/uuid.ts",
+    "lib/participation-gate.server.ts",
+    "lib/auth/onboarding.ts"
+  ]
+}

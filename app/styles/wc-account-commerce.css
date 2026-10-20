@@ -4108,3 +4108,72 @@ a.wc-mypage__card:hover .wc-mypage__card-title {
 .wc-receipt .wc-shipment-details .order-payment-summary dt { flex: 0 0 96px; }
 .wc-receipt .wc-shipment-details .order-payment-summary dd { min-width: 0; overflow-wrap: anywhere; text-align: right; }
 .wc-receipt .wc-shipment-details ul { margin: 12px 0; padding-left: 20px; font-size: 13px; }
+
+/* Coupon issuance has its own period and can precede the first usable day. */
+.wc-coupon-claim { margin: 0 0 24px; padding: 20px; border: 1px solid var(--wc-hairline); background: var(--wc-surface); }
+.wc-coupon-claim > label { display: block; margin-bottom: 12px; font-size: 13px; font-weight: 600; }
+.wc-coupon-claim > div { display: flex; gap: 8px; }
+.wc-coupon-claim input { min-width: 0; flex: 1; min-height: 44px; padding: 10px 12px; border: 1px solid var(--wc-line-control); background: var(--wc-surface); color: var(--wc-ink); font: inherit; }
+.wc-coupon-claim button { flex: none; min-width: 76px; min-height: 44px; padding: 10px 16px; border: 1px solid var(--wc-ink); background: var(--wc-ink); color: var(--wc-surface); font: inherit; cursor: pointer; }
+.wc-coupon-claim button:disabled { opacity: .5; cursor: wait; }
+.wc-coupon-claim p { margin: 10px 0 0; color: var(--wc-ink-sub); font-size: 12px; line-height: 1.7; }
+.wc-coupon-claim p[role='alert'] { color: var(--wc-danger); }
+
+.wc-receipt .claim-withdrawal-entry { margin-top: 16px; }
+.wc-receipt .order-claim-type-history { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--wc-line-control); overflow-wrap: anywhere; }
+.wc-receipt .order-claim-type-history h3 { margin: 0 0 10px; font-size: 14px; font-weight: 700; }
+.wc-receipt .order-claim-type-history ol { display: grid; gap: 8px; margin: 0; padding-left: 18px; font-size: 13px; line-height: 1.65; }
+.wc-receipt .claim-withdrawal { display: grid; gap: 12px; padding: 18px; margin-top: 16px; border: 1px solid var(--wc-line-control); border-radius: var(--wc-radius-form); background: var(--wc-surface-grey); overflow-wrap: anywhere; }
+.wc-receipt .claim-withdrawal h3, .wc-receipt .claim-withdrawal p { margin: 0; line-height: 1.6; }
+.wc-receipt .claim-withdrawal form, .wc-receipt .claim-withdrawal fieldset { display: grid; gap: 14px; min-width: 0; }
+.wc-receipt .claim-withdrawal fieldset { border: 0; padding: 0; margin: 0; }
+.wc-receipt .claim-withdrawal legend { padding: 0 0 8px; font-weight: 700; }
+.wc-receipt .claim-withdrawal label { display: grid; gap: 8px; line-height: 1.65; font-size: 13px; }
+.wc-receipt .claim-withdrawal input:not([type=checkbox]) { width: 100%; min-width: 0; min-height: 42px; padding: 9px 12px; border: 1px solid var(--wc-line-control); border-radius: var(--wc-radius-form); background: var(--wc-surface); color: var(--wc-ink); }
+.wc-receipt .claim-withdrawal .claim-withdrawal__agreement { display: flex; align-items: flex-start; gap: 8px; }
+.wc-receipt .claim-withdrawal__agreement input { flex: 0 0 auto; margin-top: 5px; }
+.wc-receipt .claim-withdrawal__actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.wc-receipt .claim-withdrawal [role=alert] { color: var(--wc-danger); }
+
+/* The transaction receipt keeps online payment and collection on delivery separate. */
+.wc-receipt .checkout-transaction-fields { min-width: 0; margin: 0; padding: 0; border: 0; }
+.wc-receipt .checkout-transaction-choice { display: grid; gap: 8px; margin-top: 20px; font-size: 14px; line-height: 1.6; }
+.wc-receipt .checkout-transaction-choice input,
+.wc-receipt .checkout-transaction-choice select { width: 100%; min-width: 0; min-height: 44px; padding: 10px 12px; border: 1px solid var(--wc-line-control); border-radius: var(--wc-radius-form); background: var(--wc-surface); color: var(--wc-ink); font: inherit; }
+.wc-receipt .checkout-transaction-choice select { text-overflow: ellipsis; }
+.wc-receipt .checkout-collect-notice { padding: 12px; border: 1px solid var(--wc-hairline); background: var(--wc-surface-grey); font-size: 13px; line-height: 1.7; overflow-wrap: anywhere; }
+.wc-receipt .checkout-collect-notice p { margin: 0 0 6px; }
+.wc-receipt .checkout-collect-notice p:last-child { margin-bottom: 0; }
+
+/* Shared by confirmed checkout amounts and customer/admin shipment receipts. */
+.wc-shipping-charge-details { margin: 16px 0; padding: 12px 16px; border: 1px solid var(--wc-hairline); min-width: 0; font-size: 13px; line-height: 1.7; overflow-wrap: anywhere; }
+.wc-shipping-charge-details > summary { cursor: pointer; font-weight: 700; }
+.wc-shipping-charge-details p { margin: 8px 0; }
+.wc-shipping-charge-details ol { margin: 12px 0; padding-inline-start: 20px; }
+.wc-shipping-charge-details li { margin-top: 12px; }
+.wc-shipping-charge-details h4 { margin: 0; font-size: 14px; }
+.wc-shipping-charge-details dl { margin: 8px 0; display: grid; gap: 6px; }
+.wc-shipping-charge-details dl > div { display: grid; grid-template-columns: minmax(100px, 1fr) minmax(0, 1.3fr); gap: 12px; }
+.wc-shipping-charge-details dt, .wc-shipping-charge-details dd { margin: 0; }
+@media print { .wc-shipping-charge-details > * { display: block; } }
+
+/* Customer-owned answer evaluation; conversation state and reply form are independent. */
+.wc-inquiry-satisfaction { margin-block: 20px; min-width: 0; overflow-wrap: anywhere; }
+.wc-inquiry-satisfaction p { margin: 0; }
+.wc-inquiry-satisfaction fieldset { display: flex; flex-wrap: wrap; gap: 12px; padding: 0; border: 0; }
+.wc-inquiry-satisfaction legend { margin-bottom: 8px; }
+.wc-inquiry-satisfaction label { display: inline-flex; align-items: center; gap: 6px; min-height: 44px; cursor: pointer; }
+.wc-inquiry-satisfaction input { accent-color: var(--wc-ink); }
+.wc-inquiry-satisfaction .wc-mypage__form-actions { flex-wrap: wrap; }
+.wc-inquiry-satisfaction button { min-height: 44px; }
+.wc-inquiry-satisfaction small { color: var(--wc-ink-sub); line-height: 1.6; }
+
+/* Authenticated message attachments retain their own download controls. */
+.wc-thread__list .inquiry-message-files,
+.wc-inquiry-widget__messages .inquiry-message-files { list-style: none; padding: 0; display: grid; gap: 8px; }
+.wc-thread__list .inquiry-message-files > li,
+.wc-inquiry-widget__messages .inquiry-message-files > li { display: grid; gap: 4px; min-width: 0; max-width: 100%; }
+.wc-thread__list .inquiry-message-files a,
+.wc-inquiry-widget__messages .inquiry-message-files a { overflow-wrap: anywhere; }
+.wc-thread__list .inquiry-message-files img,
+.wc-inquiry-widget__messages .inquiry-message-files img { display: block; max-width: 100%; max-height: 240px; object-fit: contain; }

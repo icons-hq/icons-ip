@@ -12,7 +12,7 @@ const INPUT_LINKS = [
   { label: '출고지·배송비·반품 주소', description: '출고지별 기본료·무료배송 기준·반품지', href: '/admin/settings/origins' },
   { label: '지역 추가 배송비', description: '제주·도서산간 지역표와 계약 추가료', href: '/admin/settings/shipping-regions' },
   { label: '택배사', description: '계약 택배사와 배송조회 주소', href: '/admin/settings/carriers' },
-  { label: '배송·반품 안내', description: '상품에 적용할 배송정보 템플릿', href: '/admin/settings/shipping-notices' },
+  { label: '배송·반품 안내', description: '상품에 적용할 배송 안내 템플릿', href: '/admin/settings/shipping-notices' },
   { label: '상품·ERP·매입단가·KC', description: '상품을 선택해 옵션 정보와 증빙을 입력', href: '/admin/catalog/goods' },
   { label: '카테고리·ERP 분류', description: '고객 카테고리와 ERP 분류 매핑', href: '/admin/catalog/categories' },
   { label: '쿠폰', description: '지급·사용 조건과 적용 상품', href: '/admin/sales/coupons' },

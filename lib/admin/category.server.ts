@@ -119,13 +119,13 @@ function toNode(row: CategoryRow, childCount: number, assignedGoodCount: number)
   };
 }
 
-export async function loadAdminCategoryWorkspace(): Promise<AdminCategoryWorkspaceData> {
+export async function loadAdminCategoryWorkspace(includePlatform = true): Promise<AdminCategoryWorkspaceData> {
   const supabase = await createClient();
   const [categoriesResult, mappingsResult, migrationsResult, activationResult, goodsResult, additionalResult] = await Promise.all([
     readAllRows<CategoryRow>(supabase.from('catalog_categories').select('id,code,name,parent_id,depth,sort_order,archived_at,updated_at').order('sort_order').order('code')),
-    readAllRows<MappingRow>(supabase.from('catalog_category_erp_mappings').select('category_id,erp_code,erp_name,source,verified_at,verified_by').order('category_id')),
-    readAllRows<MigrationRow>(supabase.from('goods_type_category_migrations').select('type,category_id,status,note,updated_at').order('type')),
-    supabase.from('category_activation_control').select('id,customer_enabled,erp_enabled,evidence,updated_at').eq('id', 'catalog').maybeSingle(),
+    includePlatform ? readAllRows<MappingRow>(supabase.from('catalog_category_erp_mappings').select('category_id,erp_code,erp_name,source,verified_at,verified_by').order('category_id')) : Promise.resolve({ data: [] as MappingRow[], error: null }),
+    includePlatform ? readAllRows<MigrationRow>(supabase.from('goods_type_category_migrations').select('type,category_id,status,note,updated_at').order('type')) : Promise.resolve({ data: [] as MigrationRow[], error: null }),
+    includePlatform ? supabase.from('category_activation_control').select('id,customer_enabled,erp_enabled,evidence,updated_at').eq('id', 'catalog').maybeSingle() : Promise.resolve({ data: null, error: null }),
     readAllRows<GoodCategoryRow>(supabase.from('goods').select('id,category_id').order('id')),
     readAllRows<{ good_id: string; category_id: string }>(supabase.from('goods_additional_categories').select('good_id,category_id').order('good_id').order('category_id')),
   ]);
@@ -166,8 +166,8 @@ export async function loadAdminCategoryWorkspace(): Promise<AdminCategoryWorkspa
   };
 }
 
-export async function loadAdminCategoryExportRows() {
-  const workspace = await loadAdminCategoryWorkspace();
+export async function loadAdminCategoryExportRows(includePlatform = true) {
+  const workspace = await loadAdminCategoryWorkspace(includePlatform);
   const mappings = new Map(workspace.mappings.map((mapping) => [mapping.categoryId, mapping]));
   return workspace.categories.map((category) => {
     const mapping = mappings.get(category.id);
@@ -178,10 +178,8 @@ export async function loadAdminCategoryExportRows() {
       depth: category.depth,
       status: category.archivedAt ? '보관' : '사용',
       assignedGoods: category.assignedGoodCount,
-      erpCode: mapping?.erpCode ?? '미설정',
-      erpName: mapping?.erpName ?? '미설정',
-      erpSource: mapping?.source ?? '미설정',
-      erpVerifiedAt: mapping?.verifiedAt ?? '미설정',
+      ...(includePlatform ? { erpCode: mapping?.erpCode ?? '미설정', erpName: mapping?.erpName ?? '미설정',
+        erpSource: mapping?.source ?? '미설정', erpVerifiedAt: mapping?.verifiedAt ?? '미설정' } : {}),
     };
   });
 }
@@ -191,4 +189,15 @@ export async function loadAdminCategoryAssignmentOptions() {
   return workspace.categories
     .filter((category) => !category.archivedAt && category.childCount === 0)
     .sort((left, right) => left.depth - right.depth || left.sortOrder - right.sortOrder || left.name.localeCompare(right.name, 'ko'));
+}
+
+/** Product selection needs the category tree, not ERP mappings or activation evidence. */
+export async function loadGoodsCategoryOptions() {
+  const client = await createClient();
+  const result = await readAllRows<CategoryRow>(client.from('catalog_categories')
+    .select('id,code,name,parent_id,depth,sort_order,archived_at,updated_at').order('sort_order').order('code'));
+  if (result.error) throw new Error('상품 카테고리 선택지를 불러오지 못했습니다.');
+  const children = new Map<string, number>();
+  for (const row of result.data) if (row.parent_id && !row.archived_at) children.set(row.parent_id, (children.get(row.parent_id) ?? 0) + 1);
+  return result.data.map(row => toNode(row, children.get(row.id) ?? 0, 0));
 }

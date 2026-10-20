@@ -42,6 +42,7 @@ describe('order presentation helpers', () => {
 
   it.each([
     ['requested', '환불 요청 접수'],
+    ['awaiting_transfer', '환불 송금 대기'],
     ['done', '환불 완료'],
     ['failed', '환불 확인 필요'],
     ['unknown', '환불 처리 확인 필요'],

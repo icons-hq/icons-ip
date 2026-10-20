@@ -9,6 +9,13 @@ const fixtureRoot = resolve(scriptDirectory, 'admin-visual-fixture');
 const repoRoot = resolve(scriptDirectory, '..');
 const host = '127.0.0.1';
 const port = 4319;
+const fixtureStaticAssets = new Map([
+  ['/fonts/admin/PretendardVariable.woff2', { file: resolve(repoRoot, 'public/fonts/admin/PretendardVariable.woff2'), type: 'font/woff2' }],
+  ['/generated/goods/g13.webp', { file: resolve(repoRoot, 'public/generated/goods/g13.webp'), type: 'image/webp' }],
+  ...['sales', 'claims', 'goods', 'reviews'].map(name => [`/admin/seller-icons/${name}.svg`, {
+    file: resolve(repoRoot, `public/admin/seller-icons/${name}.svg`), type: 'image/svg+xml',
+  }]),
+]);
 const replayAssetTypes = new Map([
   ['.avif', 'image/avif'], ['.css', 'text/css'], ['.gif', 'image/gif'],
   ['.jpeg', 'image/jpeg'], ['.jpg', 'image/jpeg'], ['.png', 'image/png'],
@@ -97,6 +104,20 @@ const blockExternalBoundary = () => ({
     server.middlewares.use(async (request, response, next) => {
       const requestUrl = new URL(request.url || '/', `http://${host}:${port}`);
       const pathname = requestUrl.pathname;
+      if (pathname.startsWith('/fonts/') || pathname.startsWith('/admin/seller-icons/') || pathname.startsWith('/generated/')) {
+        const asset = fixtureStaticAssets.get(pathname);
+        if (!asset) { response.statusCode = 404; response.end(); return; }
+        if (!['GET', 'HEAD'].includes(request.method || 'GET')) { response.statusCode = 405; response.end(); return; }
+        try {
+          const bytes = await readFile(asset.file);
+          response.statusCode = 200;
+          response.setHeader('Content-Type', asset.type);
+          response.setHeader('Content-Length', bytes.length);
+          response.setHeader('Cache-Control', 'no-store');
+          response.end(request.method === 'HEAD' ? undefined : bytes);
+        } catch { response.statusCode = 404; response.end(); }
+        return;
+      }
       if (pathname.startsWith('/api') || pathname.startsWith('/auth')) {
         response.statusCode = 503;
         response.setHeader('Content-Type', 'application/json');
@@ -148,18 +169,33 @@ const server = await createServer({
   envDir: fixtureRoot,
   plugins: [blockExternalBoundary()],
   root: fixtureRoot,
+  publicDir: false,
   resolve: {
     alias: [
       { find: 'next/image', replacement: `${fixtureRoot}/next-image.tsx` },
       { find: 'next/link', replacement: `${fixtureRoot}/next-link.tsx` },
       { find: 'next/navigation', replacement: `${fixtureRoot}/next-navigation.ts` },
+      { find: /^(?:.*\/)?supabase\/(?:client|config)$/, replacement: `${fixtureRoot}/supabase-boundary.ts` },
+      { find: /^@\/app\/admin\/(operations-dock|purchase-restriction-batch|cs-reply|goods-photo-library|goods-draft)-actions$/, replacement: `${fixtureRoot}/console-action-boundary.ts` },
+      { find: /^@\/app\/admin\/(goods-option-import|goods-attribute|purchase-restriction-release|cs-draft|store-branding|store-navigation|marketing-link|category-template|body-template|review-best|curation-archive|order)-actions$/, replacement: `${fixtureRoot}/console-action-boundary.ts` },
+      { find: /^@\/app\/admin\/(customer-reward|marketing-attachment|purchase-confirmation|shipment-pack|review-type-policy|production)-actions$/, replacement: `${fixtureRoot}/console-action-boundary.ts` },
+      { find: /^@\/app\/admin\/(goods-bulk|goods-group)-actions$/, replacement: `${fixtureRoot}/console-action-boundary.ts` },
+      { find: /^@\/app\/orders\/(purchase-confirmation|claim-collection|claim-fee)-actions$/, replacement: `${fixtureRoot}/console-action-boundary.ts` },
+      { find: /^@\/app\/admin\/purchase-restriction-actions$/, replacement: `${fixtureRoot}/purchase-restriction-actions.ts` },
+      { find: /^@\/app\/admin\/goods-announcement-actions$/, replacement: `${fixtureRoot}/announcement-actions.ts` },
+      { find: /^@\/app\/admin\/(coupon|coupon-target)-actions$/, replacement: `${fixtureRoot}/coupon-actions.ts` },
+      { find: /^@\/app\/admin\/home-layout-actions$/, replacement: `${fixtureRoot}/store-actions.ts` },
+      { find: /^@\/app\/admin\/curation-actions$/, replacement: `${fixtureRoot}/store-actions.ts` },
       { find: /^@\/app\/login\/actions$/, replacement: `${fixtureRoot}/login-actions.ts` },
       { find: /^\.\.\/\.\.\/lib\/admin\/artwork-upload\.client$/, replacement: `${fixtureRoot}/artwork-upload.ts` },
       { find: /^@\/app\/admin\/(goods-identifier|good-notice|artwork)-actions$/, replacement: `${fixtureRoot}/editor-actions.ts` },
       { find: /^@\/app\/admin\/store-settings-actions$/, replacement: `${fixtureRoot}/store-settings-actions.ts` },
+      { find: /^@\/app\/admin\/(qna|review|inquiry|customer|inquiry-reply-template)-actions$/, replacement: `${fixtureRoot}/cs-actions.ts` },
+      { find: /^@\/app\/shipments\/receipt-actions$/, replacement: `${fixtureRoot}/cs-actions.ts` },
       { find: /^@\/app\/admin\/(goods-kc|goods-notice-preset)-actions$/, replacement: `${fixtureRoot}/kc-actions.ts` },
       { find: /^@\/app\/admin\/erp-item-actions$/, replacement: `${fixtureRoot}/erp-item-actions.ts` },
       { find: /^@\/app\/shop\/actions$/, replacement: `${fixtureRoot}/editor-actions.ts` },
+      { find: /^@\/app\/shop\/experience-actions$/, replacement: `${fixtureRoot}/experience-actions.ts` },
       { find: /^@\/components\/shell\/CartProvider$/, replacement: `${fixtureRoot}/cart.ts` },
       { find: /^@\//, replacement: `${repoRoot}/` },
     ],

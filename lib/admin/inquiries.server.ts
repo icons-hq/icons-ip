@@ -1,9 +1,15 @@
 import type { ShipmentRecord } from '@/lib/orders/shipments';
 import 'server-only';
+import type { InquiryFile } from '@/lib/inquiry-files';
+import { loadInquiryMessageFiles } from '@/lib/inquiry-files.server';
 import { inquiryMessageAuthor, type InquiryMessageAuthor } from '@/lib/inquiries';
 
 import { loadInquiryAuthorNames } from '@/lib/inquiry-authors.server';
 import { createClient } from '@/lib/supabase/server';
+import { customerServicePageSize } from './customer-service-list';
+import { parseAdminInquirySatisfactionDetail, parseInquirySatisfactionSummary, type AdminInquirySatisfactionDetail, type InquirySatisfactionValue } from '@/lib/inquiry-satisfaction';
+import { transactionExactKeys, transactionInstant, transactionInteger, transactionRecord } from '@/lib/goods-transaction-values';
+import { isUuid } from '@/lib/uuid';
 import {
   isInquiryCategory,
   isInquiryStatus,
@@ -11,8 +17,8 @@ import {
   type InquiryStatus,
 } from '@/lib/inquiries';
 import {
-  ADMIN_INQUIRY_PAGE_SIZE,
   adminInquiryBuyerLabel,
+  adminInquiryNavigation,
   type AdminInquiryConsoleData,
   type AdminInquiryFilters,
   type AdminInquiryRow,
@@ -49,7 +55,42 @@ interface QueueRow {
   answered_at: string | null;
   closed_at: string | null;
   message_count: number | string;
-  total_count: number | string;
+  satisfaction: InquirySatisfactionValue;
+}
+
+/** A missing/malformed new reader is a load error, never an empty/unrated page. */
+function parseConsole(value: unknown) {
+  if (!transactionRecord(value) || !transactionExactKeys(value, ['rows', 'total', 'summary']) || !Array.isArray(value.rows) || !transactionInteger(value.total)) throw new Error('Invalid inquiry satisfaction console');
+  const summary = parseInquirySatisfactionSummary(value.summary);
+  if (!summary || summary.satisfied + summary.dissatisfied + summary.unrated < value.total || value.rows.length > 100 || value.rows.length > value.total
+    || value.rows.some(row => !transactionRecord(row) || !transactionExactKeys(row, ['id', 'reference', 'category', 'title', 'status', 'user_id',
+      'buyer_name', 'buyer_email', 'order_id', 'good_id', 'good_name', 'handled_by', 'handler_name', 'created_at', 'last_message_at', 'answered_at',
+      'closed_at', 'message_count', 'assignee_id', 'assignee_name', 'waiting_since', 'satisfaction'])
+    || !isUuid(row.id) || !isUuid(row.user_id) || !transactionInteger(row.reference, 1) || !transactionInteger(row.message_count)
+    || typeof row.title !== 'string' || !isInquiryStatus(row.status) || !isInquiryCategory(row.category)
+    || ['buyer_name', 'buyer_email', 'good_id', 'good_name', 'handler_name', 'assignee_name'].some(key => row[key] !== null && typeof row[key] !== 'string')
+    || ['order_id', 'handled_by', 'assignee_id'].some(key => row[key] !== null && !isUuid(row[key]))
+    || !transactionInstant(row.created_at) || !transactionInstant(row.last_message_at)
+    || ['answered_at', 'closed_at', 'waiting_since'].some(key => row[key] !== null && !transactionInstant(row[key]))
+    || !(row.satisfaction === null || row.satisfaction === 'satisfied' || row.satisfaction === 'dissatisfied')))
+    throw new Error('Invalid inquiry satisfaction console');
+  return { rows: value.rows as QueueRow[], total: value.total, summary };
+}
+
+/** Boundary lookups use the same search RPC and stable SLA ordering as the visible queue. */
+export async function getAdminInquiryNavigation(inquiryId: string, data: AdminInquiryConsoleData, mode: 'preview' | 'detail') {
+  const supabase = await createClient();
+  return adminInquiryNavigation(inquiryId, data, mode, async (offset) => {
+    const { data: adjacent, error } = await supabase.rpc('admin_inquiry_satisfaction_console', {
+      p_category: data.filters.category === 'all' ? null : data.filters.category,
+      p_field: data.filters.field, p_from: data.filters.from, p_to: data.filters.to,
+      p_query: data.filters.query || null, p_status: data.filters.status === 'all' ? null : data.filters.status,
+      p_limit: 1, p_offset: offset,
+      p_satisfaction: data.filters.satisfaction ?? 'all',
+    });
+    if (error) throw new Error(`Failed to load inquiry navigation: ${error.message}`);
+    return parseConsole(adjacent).rows[0]?.id ?? null;
+  });
 }
 
 /** admin_inquiry_status_counts의 행. OUT 파라미터 이름이 `count`면 plpgsql이
@@ -84,6 +125,7 @@ function toRow(row: QueueRow): AdminInquiryRow {
     lastMessageAt: row.last_message_at,
     answeredAt: row.answered_at,
     messageCount: toNumber(row.message_count),
+    satisfaction: row.satisfaction,
   };
 }
 
@@ -91,17 +133,19 @@ export async function getAdminInquiryConsoleData(
   filters: AdminInquiryFilters,
 ): Promise<AdminInquiryConsoleData> {
   const supabase = await createClient();
+  const pageSize = customerServicePageSize(filters.pageSize);
 
   const [listResult, countResult] = await Promise.all([
-    supabase.rpc('admin_search_inquiries', {
+    supabase.rpc('admin_inquiry_satisfaction_console', {
       p_category: filters.category === 'all' ? null : filters.category,
       p_field: filters.field,
       p_from: filters.from,
-      p_limit: ADMIN_INQUIRY_PAGE_SIZE,
-      p_offset: (filters.page - 1) * ADMIN_INQUIRY_PAGE_SIZE,
+      p_limit: pageSize,
+      p_offset: (filters.page - 1) * pageSize,
       p_query: filters.query || null,
       p_status: filters.status === 'all' ? null : filters.status,
       p_to: filters.to,
+      p_satisfaction: filters.satisfaction ?? 'all',
     }),
     supabase.rpc('admin_inquiry_status_counts'),
   ]);
@@ -118,14 +162,15 @@ export async function getAdminInquiryConsoleData(
     if (isInquiryStatus(entry.status)) counts[entry.status] = toNumber(entry.total);
   }
 
-  const rows = (listResult.data ?? []) as QueueRow[];
+  const list = parseConsole(listResult.data);
 
   return {
     counts,
     filters,
-    pageSize: ADMIN_INQUIRY_PAGE_SIZE,
-    rows: rows.map(toRow),
-    total: rows.length ? toNumber(rows[0].total_count) : 0,
+    pageSize,
+    rows: list.rows.map(toRow),
+    total: list.total,
+    satisfactionSummary: list.summary,
   };
 }
 
@@ -145,6 +190,7 @@ export interface AdminInquiryMessage {
   authorName: string | null;
   body: string;
   imageUrls: string[];
+  files?: InquiryFile[];
   createdAt: string;
 }
 
@@ -170,7 +216,7 @@ export interface AdminInquiryBuyerContext {
   nickname: string | null;
   email: string | null;
   suspendedAt: string | null;
-  orderCount: number;
+  orderCount: number | null;
   inquiryCount: number;
   openInquiryCount: number;
 }
@@ -180,9 +226,9 @@ export interface AdminInquiryDetail {
   messages: AdminInquiryMessage[];
   order: AdminInquiryOrderContext | null;
   buyer: AdminInquiryBuyerContext;
-  templates: AdminInquiryReplyTemplate[];
   staffOptions: AdminInquiryStaffOption[];
   notes: AdminInquiryInternalNote[];
+  satisfaction?: { ok: true; value: AdminInquirySatisfactionDetail } | { ok: false };
 }
 
 export interface AdminInquiryStaffOption {
@@ -195,12 +241,6 @@ export interface AdminInquiryInternalNote {
   authorName: string;
   body: string;
   createdAt: string;
-}
-
-export interface AdminInquiryReplyTemplate {
-  id: string;
-  title: string;
-  body: string;
 }
 
 interface ThreadRow {
@@ -223,6 +263,7 @@ interface MessageRow {
   author: string;
   body: string;
   image_paths: string[] | null;
+  file_ids?: string[];
   created_at: string;
 }
 
@@ -238,20 +279,9 @@ async function signedImageUrls(supabase: SupabaseServerClient, paths: string[]) 
   return new Map(entries.filter((entry): entry is [string, string] => entry !== null));
 }
 
-export async function loadAdminInquiryReplyTemplates(): Promise<AdminInquiryReplyTemplate[]> {
-  const supabase = await createClient();
-  const { data, error } = await supabase
-    .from('inquiry_reply_templates')
-    .select('id,title,body')
-    .order('title', { ascending: true })
-    .limit(50);
-
-  if (error) return [];
-  return (data ?? []) as AdminInquiryReplyTemplate[];
-}
-
 export async function loadAdminInquiryDetail(
   inquiryId: string,
+  access: { canReadOrders: boolean; canManageSales: boolean } = { canReadOrders: true, canManageSales: true },
 ): Promise<AdminInquiryDetail | null> {
   const supabase = await createClient();
 
@@ -269,10 +299,10 @@ export async function loadAdminInquiryDetail(
   if (threadError) throw new Error(`Failed to load inquiry: ${threadError.message}`);
   if (!threadData) return null;
 
-  const [messageResult, contextResult, workspaceResult, goodResult, templates, authorNames] = await Promise.all([
+  const [messageResult, contextResult, workspaceResult, goodResult, authorNames, satisfaction] = await Promise.all([
     supabase
       .from('inquiry_messages')
-      .select('id,author,body,image_paths,created_at')
+      .select('id,author,body,image_paths,file_ids,created_at')
       .eq('inquiry_id', inquiryId)
       .order('created_at', { ascending: true })
       .order('id', { ascending: true }),
@@ -281,8 +311,14 @@ export async function loadAdminInquiryDetail(
     threadData.good_id
       ? supabase.from('goods').select('name').eq('id', threadData.good_id).maybeSingle<{ name: string }>()
       : Promise.resolve({ data: null, error: null }),
-    loadAdminInquiryReplyTemplates(),
     loadInquiryAuthorNames(supabase, inquiryId),
+    (async () => {
+      try {
+        const { data, error } = await supabase.rpc('admin_inquiry_satisfaction_detail', { p_inquiry_id: inquiryId });
+        const parsed = !error && parseAdminInquirySatisfactionDetail(data);
+        return parsed && parsed.current.inquiryId === inquiryId ? { ok: true as const, value: parsed } : { ok: false as const };
+      } catch { return { ok: false as const }; }
+    })(),
   ]);
 
   if (messageResult.error) {
@@ -299,6 +335,7 @@ export async function loadAdminInquiryDetail(
   };
 
   const messageRows = (messageResult.data ?? []) as MessageRow[];
+  const files = messageRows.some(message => message.file_ids?.length) ? await loadInquiryMessageFiles(supabase, inquiryId) : new Map<string, InquiryFile[]>();
   const urls = await signedImageUrls(
     supabase,
     [...new Set(messageRows.flatMap((message) => message.image_paths ?? []))],
@@ -327,7 +364,7 @@ export async function loadAdminInquiryDetail(
       status: (isInquiryStatus(threadData.status) ? threadData.status : 'open') as InquiryStatus,
       buyerName: adminInquiryBuyerLabel(buyer.nickname, threadData.user_id),
       buyerEmail: buyer.email,
-      orderId: threadData.order_id,
+      orderId: access.canReadOrders ? threadData.order_id : null,
       goodId: threadData.good_id,
       goodName: goodResult.data?.name ?? null,
       handlerName: null,
@@ -350,11 +387,12 @@ export async function loadAdminInquiryDetail(
         .map((path) => urls.get(path))
         .filter((url): url is string => typeof url === 'string'),
       createdAt: message.created_at,
+      files: files.get(message.id) ?? [],
     })),
-    order: context.order ?? null,
-    buyer,
-    templates,
+    order: access.canReadOrders && context.order ? { ...context.order, ...(access.canManageSales ? {} : { payment: null, claims: [] }) } : null,
+    buyer: { ...buyer, orderCount: access.canReadOrders ? buyer.orderCount : null },
     staffOptions: workspace.staffOptions,
     notes: workspace.notes,
+    satisfaction,
   };
 }

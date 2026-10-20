@@ -5,7 +5,9 @@ import type { AdminOrderFilters } from './orders';
 const ORDER_ID = '11111111-1111-4111-8111-111111111111';
 const USER_ID = '22222222-2222-4222-8222-222222222222';
 
-const mocks = vi.hoisted(() => ({ client: null as unknown }));
+const mocks = vi.hoisted(() => ({ client: null as unknown, deliveryRows: [] as Record<string, unknown>[] }));
+vi.mock('@/lib/order-delivery.server', () => ({ loadAdminOrderDeliveries: async (ids: string[]) => new Map(ids.map(id => [id, { orderId: id, address: mocks.deliveryRows.find(row => row.id === id)?.address ?? null, isGift: false }])) }));
+vi.mock('@/lib/order-transactions.server', () => ({ loadAdminOrderTransactions: async (ids: string[]) => new Map(ids.map(id => [id, null])) }));
 
 vi.mock('@/lib/supabase/server', () => ({ createClient: () => mocks.client }));
 /* 택배사 레지스트리는 DB(`public.shipping_carriers`)에서 온다(#251). 앱에 상수
@@ -42,15 +44,17 @@ function createClient(input: {
   rpcRows?: Row[];
   rpcError?: string;
   rpcRowsByName?: Record<string, Row[]>;
+  rpcCounts?: Record<string, number>;
   rpcErrorsByName?: Record<string, string>;
   rows?: Record<string, Row[]>;
   errors?: Record<string, string>;
   records: QueryRecord[];
   rpc: ReturnType<typeof vi.fn>;
 }) {
+  mocks.deliveryRows = input.rpcRowsByName?.admin_search_orders_console ?? input.rpcRows ?? [];
   return {
     rpc: input.rpc.mockImplementation(async (name: string) => ({
-      data: input.rpcRowsByName?.[name] ?? input.rpcRows ?? [],
+      data: name === 'admin_sales_order_counts' ? input.rpcCounts ?? { pending: 0, paid: 0, confirmed: 0, shipping: 0, delivered: 0, done: 0, canceled: 0 } : input.rpcRowsByName?.[name] ?? input.rpcRows ?? [],
       error: input.rpcErrorsByName?.[name]
         ? { message: input.rpcErrorsByName[name] }
         : input.rpcError ? { message: input.rpcError } : null,
@@ -208,7 +212,7 @@ describe('getAdminOrderRecords', () => {
 
     const result = await getAdminOrderRecords(filters);
 
-    expect(rpc).toHaveBeenCalledWith('admin_search_orders', {
+    expect(rpc).toHaveBeenCalledWith('admin_search_orders_console', {
       p_field: 'all',
       p_from: '2026-07-01',
       p_limit: 20,
@@ -216,6 +220,7 @@ describe('getAdminOrderRecords', () => {
       p_query: 'fan@example.test',
       p_status: 'paid',
       p_to: '2026-07-14',
+      p_date_field: 'ordered', p_payment_method: null, p_sort: 'newest',
     });
     expect(result).toMatchObject({
       filters,
@@ -280,6 +285,7 @@ describe('getAdminOrderRecords', () => {
       items: [],
       pageSize: 20,
       total: 0,
+      counts: { pending: 0, paid: 0, confirmed: 0, shipping: 0, delivered: 0, done: 0, canceled: 0 },
     });
     expect(records).toEqual([]);
   });
@@ -290,7 +296,7 @@ describe('getAdminOrderRecords', () => {
 
     await getAdminOrderRecords({ ...filters, field: 'tracking', page: 1 });
 
-    expect(rpc).toHaveBeenCalledWith('admin_search_orders', expect.objectContaining({
+    expect(rpc).toHaveBeenCalledWith('admin_search_orders_console', expect.objectContaining({
       p_field: 'tracking',
     }));
   });
@@ -303,7 +309,7 @@ describe('getAdminOrderRecords', () => {
       records,
       rpc,
       rpcRowsByName: {
-        admin_search_orders: [{
+        admin_search_orders_console: [{
           id: ORDER_ID,
           user_id: USER_ID,
           buyer_name: 'maple_fan',
@@ -366,7 +372,7 @@ describe('getAdminOrderRecords', () => {
       records: [],
       rpc: vi.fn(),
       rpcRowsByName: {
-        admin_search_orders: [{
+        admin_search_orders_console: [{
           id: ORDER_ID,
           user_id: USER_ID,
           buyer_name: 'maple_fan',
@@ -499,4 +505,16 @@ describe('getAdminOrderRecords', () => {
       'unsupported cancellation reason type',
     );
   });
+});
+
+it('read-only order search skips payment/refund queries and cancellation operating detail', async () => {
+  const records: QueryRecord[] = []; const rpc = vi.fn();
+  mocks.client = createClient({ records, rpc, rpcRows: [{ id: ORDER_ID, user_id: USER_ID, buyer_name: 'reader', buyer_email: null,
+    status: 'paid', total: 100, address: null, created_at: '2026-10-13', updated_at: '2026-10-13', total_count: 1,
+    cancellation_request_id: 'must-not-project', cancellation_decision_note: 'private-note' }], rows: { order_items: [] } });
+  const result = await getAdminOrderRecords(filters, true, { canManage: false });
+  expect(records.some(row => ['payment_summaries', 'refunds'].includes(row.table))).toBe(false);
+  expect(rpc).not.toHaveBeenCalledWith('admin_goods_manual_recovery_attempts', expect.anything());
+  expect(result.items[0]).toMatchObject({ payments: [], refunds: [], cancellationRequest: null, manualRecoveryAttempt: null });
+  expect(JSON.stringify(result)).not.toContain('private-note');
 });

@@ -1,7 +1,11 @@
 import 'server-only';
 import { emailSiteUrl as siteUrl } from './site-url';
 
-import { normalizeCheckoutAddress } from '../checkout';
+import type { CheckoutAddress } from '../checkout';
+import type { GoodsTransactionDisplay } from '../goods-transaction';
+import { loadOrderDeliveryForService } from '../order-delivery.server';
+import { loadServiceOrderTransaction } from '../order-transactions.server';
+import { readCompleteIdPages } from '../supabase/complete-id-pages';
 import type { ShipmentRecord } from '../orders/shipments';
 import { loadOrderShipments } from '../orders/shipments.server';
 import { loadShippingCarrierRegistry } from '../orders/shipment.server';
@@ -13,12 +17,14 @@ import {
   restockAlertEmailDedupeKey,
   type EmailTemplateName,
   type OrderEmailTemplateName,
+  type OrderEmailAudience,
 } from './dedupe';
 import { sendTransactionalEmail } from './provider.server';
 import {
   renderInquiryAnsweredEmail,
   renderOrderConfirmationEmail,
   renderOrderShippedEmail,
+  renderGiftRecipientEmail,
   renderRestockAlertEmail,
   type OrderEmailItem,
   type RenderedEmail,
@@ -28,7 +34,7 @@ import {
  *
  * 어느 진입점에서 불러도 절대 throw하지 않는다. 확인 메일은 토스 웹훅 경로에서 불리는데,
  * 여기서 던지면 웹훅이 500으로 떨어지고 토스가 결제 확정을 재전송한다 — 메일 문제로
- * 주문 상태를 흔드는 셈이다. 결제 확정의 진실원은 웹훅이고 메일은 그 뒤의 부수효과다.
+ * 주문 상태를 흔드는 셈이다. 결제는 검증된 provider 증거와 DB finalizer가 확정하고 메일은 그 뒤의 부수효과다.
  *
  * 멱등은 email_deliveries 클레임이 담당한다(claim_email_delivery). 웹훅이 7번 재전송돼도
  * 확인 메일은 1통이다.
@@ -67,6 +73,10 @@ export type TransactionalEmailResult =
   | { status: 'failed'; error: string };
 
 interface OrderRow {
+  calculation_version: number;
+  store_credit_total: number | null;
+  volume_discount_total: number | null;
+  shipping_collect_total: number | null;
   shipping_fee: number | null;
   discount_total: number | null;
   id: string;
@@ -74,11 +84,11 @@ interface OrderRow {
   status: string;
   total: number;
   created_at: string;
-  address: unknown;
 }
 
 interface OrderItemRow {
   id: string;
+  variant_id: string;
   good_name_snapshot: string;
   variant_name_snapshot?: string | null;
   qty: number;
@@ -86,7 +96,11 @@ interface OrderItemRow {
 }
 
 interface OrderEmailContext {
-  recipient: string;
+  recipient: string | null;
+  giftRecipient: string | null;
+  giftDelivery: boolean;
+  transaction?: GoodsTransactionDisplay;
+  storeCreditTotal: number;
   orderId: string;
   orderStatus: string;
   orderedAt: string;
@@ -95,7 +109,7 @@ interface OrderEmailContext {
   shippingFee: number;
   discountTotal: number;
   total: number;
-  address: ReturnType<typeof normalizeCheckoutAddress>;
+  address: CheckoutAddress | null;
   shipments: ShipmentRecord[];
   orderUrl: string;
 }
@@ -109,32 +123,46 @@ async function loadOrderEmailContext(
 ): Promise<OrderEmailContext | { skipped: string }> {
   const { data: orderData, error: orderError } = await service
     .from('orders')
-    .select('id,user_id,status,total,shipping_fee,discount_total,created_at,address')
+    .select('id,user_id,status,total,shipping_fee,discount_total,store_credit_total,volume_discount_total,shipping_collect_total,calculation_version,created_at')
     .eq('id', orderId)
     .maybeSingle();
   if (orderError) throw new Error('order_email_load_failed');
   const order = orderData as OrderRow | null;
   if (!order) return { skipped: 'order_missing' };
 
-  const { data: itemData, error: itemError } = await service
-    .from('order_items')
-    .select('id,good_name_snapshot,variant_name_snapshot,qty,unit_price')
-    .eq('order_id', orderId)
-    .order('id', { ascending: true });
+  const { data: itemData, error: itemError } = await readCompleteIdPages<OrderItemRow>((after, size) => {
+    let query = service.from('order_items')
+      .select('id,variant_id,good_name_snapshot,variant_name_snapshot,qty,unit_price', { count: 'exact' })
+      .eq('order_id', orderId).order('id', { ascending: true }).limit(size);
+    if (after) query = query.gt('id', after);
+    return query;
+  });
   if (itemError) throw new Error('order_email_items_load_failed');
-
-  const { data: profileData, error: profileError } = await service
-    .from('profiles')
-    .select('email')
-    .eq('id', order.user_id)
-    .maybeSingle();
-  if (profileError) throw new Error('order_email_recipient_load_failed');
-
-  const recipient = (profileData as { email?: unknown } | null)?.email;
-  if (typeof recipient !== 'string' || !recipient.includes('@')) {
-    return { skipped: 'recipient_missing' };
+  const [delivery, receipt] = await Promise.all([
+    loadOrderDeliveryForService(orderId), loadServiceOrderTransaction(orderId),
+  ]);
+  if (!delivery || delivery.senderId !== order.user_id) throw new Error('order_email_delivery_context_invalid');
+  if ((order.calculation_version === 2) !== Boolean(receipt)) throw new Error('order_email_transaction_missing');
+  if (receipt) {
+    const totals = receipt.display.totals;
+    if (totals.onlineTotal !== order.total || totals.prepaidShippingTotal !== order.shipping_fee
+      || totals.collectShippingTotal !== order.shipping_collect_total || totals.volumeDiscountTotal !== order.volume_discount_total
+      || totals.couponDiscountTotal !== order.discount_total || totals.storeCreditTotal !== order.store_credit_total
+      || receipt.display.lines.length !== itemData?.length
+      || itemData?.some(row => !receipt.display.lines.some(line => line.lineId === row.id
+        && line.variantId === row.variant_id && line.qty === row.qty && line.unitPrice === row.unit_price))) {
+      throw new Error('order_email_transaction_mismatch');
+    }
   }
-
+  async function emailFor(userId: string): Promise<string | null> {
+    const { data, error } = await service.from('profiles').select('email').eq('id', userId).maybeSingle();
+    if (error) throw new Error('order_email_recipient_load_failed');
+    const email = (data as { email?: unknown } | null)?.email;
+    return typeof email === 'string' && email.includes('@') ? email : null;
+  }
+  const [recipient, giftRecipient] = await Promise.all([
+    emailFor(order.user_id), delivery.isGift ? emailFor(delivery.recipientId) : Promise.resolve(null),
+  ]);
   /* 웹훅 경로라 쿠키 클라이언트를 만들 수 없다. 레지스트리는 공개 읽기 테이블이므로
      이미 들고 있는 service 클라이언트로 그대로 읽는다(#251). */
   const carriers = await loadShippingCarrierRegistry(service);
@@ -149,7 +177,9 @@ async function loadOrderEmailContext(
   const itemsSubtotal = items.reduce((sum, item) => sum + item.qty * item.unitPrice, 0);
 
   return {
-    recipient,
+    recipient, giftRecipient, giftDelivery: delivery.isGift,
+    ...(receipt ? { transaction: receipt.display } : {}),
+    storeCreditTotal: order.store_credit_total ?? 0,
     orderId: order.id,
     orderStatus: order.status,
     orderedAt: order.created_at,
@@ -158,7 +188,7 @@ async function loadOrderEmailContext(
     shippingFee: order.shipping_fee ?? 0,
     discountTotal: order.discount_total ?? 0,
     total: order.total,
-    address: normalizeCheckoutAddress(order.address),
+    address: delivery.address,
     shipments: await loadOrderShipments(service, [orderId], carriers),
     orderUrl: `${siteUrl()}/orders/${order.id}`,
   };
@@ -200,7 +230,13 @@ async function deliver(
     target_subject: input.rendered.subject,
   });
   if (claimError) throw new Error('order_email_claim_failed');
-  if (claimed !== true) return { status: 'skipped', reason: 'already_delivered' };
+  if (claimed !== true) {
+    const { data, error } = await service.from('email_deliveries').select('status')
+      .eq('dedupe_key', input.dedupeKey).maybeSingle();
+    if (!error && data?.status === 'sent') return { status: 'skipped', reason: 'already_delivered' };
+    if (!error && data?.status === 'pending') return { status: 'skipped', reason: 'delivery_in_progress' };
+    return { status: 'failed', error: 'delivery_outcome_unknown' };
+  }
 
   const outcome = await sendTransactionalEmail({
     to: input.recipient,
@@ -224,6 +260,7 @@ async function deliver(
   });
   if (completeError) {
     console.error('[email] delivery_record_failed');
+    return { status: 'failed', error: 'delivery_record_failed' };
   }
 
   return failure ? { status: 'failed', error: failure } : { status: 'sent' };
@@ -269,30 +306,53 @@ async function safely(
   }
 }
 
-/** 주문 확정(웹훅) 확인 메일. 전자상거래법상 계약내용 서면 교부 경로다(L4). */
-export function sendOrderConfirmationEmail(orderId: string): Promise<TransactionalEmailResult> {
+/** A retry targets only the failed audience; ordinary hooks attempt both gift parties. */
+async function deliverOrderAudiences(
+  context: OrderEmailContext,
+  audience: OrderEmailAudience | undefined,
+  send: (audience: OrderEmailAudience, email: string) => Promise<TransactionalEmailResult>,
+): Promise<TransactionalEmailResult> {
+  const targets: OrderEmailAudience[] = audience ? [audience] : context.giftDelivery ? ['payer', 'recipient'] : ['payer'];
+  const results: TransactionalEmailResult[] = [];
+  // Sequential delivery preserves the worker's five-provider-call concurrency bound.
+  for (const target of targets) {
+    const email = target === 'payer' ? context.recipient : context.giftRecipient;
+    results.push(!email ? { status: 'skipped', reason: 'recipient_missing' }
+      : await safely(`order ${target}`, `order:${context.orderId}`, () => send(target, email)));
+  }
+  const failures = results.filter((r): r is Extract<TransactionalEmailResult, { status: 'failed' }> => r.status === 'failed');
+  // Uncertain acceptance must outrank a known retryable rejection on the other audience.
+  const unknown = failures.find(r => !/^(?:provider_http_(?:429|5[0-9]{2})|provider_not_configured)$/.test(r.error));
+  if (unknown || failures[0]) return unknown ?? failures[0];
+  const blocked = results.find(r => r.status === 'skipped' && r.reason !== 'already_delivered');
+  if (blocked) return blocked;
+  return results.some(r => r.status === 'sent') ? { status: 'sent' } : { status: 'skipped', reason: 'already_delivered' };
+}
+
+/** Confirmed payment sends the payer the contractual receipt and a separate recipient notice. */
+export function sendOrderConfirmationEmail(orderId: string, audience?: OrderEmailAudience): Promise<TransactionalEmailResult> {
   return safely('order confirmation', `order:${orderId}`, async () => {
     const blocked = guardedEnvironment();
     if (blocked) return blocked;
-
     const service = createServiceClient();
     const context = await prepareOrderEmail(service, 'order_confirmation', orderId);
     if ('skipped' in context) return { status: 'skipped', reason: context.skipped };
-
-    return deliver(service, {
-      dedupeKey: orderEmailDedupeKey('order_confirmation', orderId),
-      template: 'order_confirmation',
-      recipient: context.recipient,
-      rendered: renderOrderConfirmationEmail(context),
-    });
+    return deliverOrderAudiences(context, audience, (target, email) => deliver(service, {
+      dedupeKey: orderEmailDedupeKey('order_confirmation', orderId, target),
+      template: 'order_confirmation', recipient: email,
+      rendered: target === 'payer' ? renderOrderConfirmationEmail({ ...context, address: context.giftDelivery ? null : context.address })
+        : renderGiftRecipientEmail({ orderId, stage: 'confirmation', items: context.items.map(({ name, variantName, qty }) => ({ name, variantName, qty })),
+          address: context.address!, giftUrl: `${siteUrl()}/gifts` }),
+    }));
   });
 }
 
-/** Shipment ID chooses both the frozen items and the per-shipment dedupe key. */
+/** Shipment ID chooses both the frozen items and the per-audience dedupe key. */
 export function sendOrderShippedEmail(input: {
   orderId: string;
   /** Only legacy resends may omit this, and only for a single shipment order. */
   shipmentId?: string;
+  audience?: OrderEmailAudience;
 }): Promise<TransactionalEmailResult> {
   return safely('order shipped', `order:${input.orderId}`, async () => {
     const blocked = guardedEnvironment();
@@ -307,17 +367,20 @@ export function sendOrderShippedEmail(input: {
     if (!['shipping','delivered'].includes(shipment.status)) return { status: 'skipped', reason: 'shipment_status_mismatch' };
     const items = context.items.filter(item => shipment.orderItemIds.includes(item.id));
     if (!items.length) return { status: 'skipped', reason: 'shipment_items_missing' };
-    return deliver(service, {
-      dedupeKey: shipmentEmailDedupeKey(input.orderId,shipment.id),
-      template: 'order_shipped',
-      recipient: context.recipient,
-      rendered: renderOrderShippedEmail({
-        orderId: context.orderId, shipmentId: shipment.id, originName: shipment.originName,
-        items, address: context.address,
-        carrierName: shipment.carrierLabel, trackingNumber: shipment.trackingNumber,
-        trackingUrl: shipment.trackingUrl, orderUrl: context.orderUrl,
-      }),
-    });
+    return deliverOrderAudiences(context, input.audience, (target, email) => deliver(service, {
+      dedupeKey: shipmentEmailDedupeKey(input.orderId, shipment.id, target),
+      template: 'order_shipped', recipient: email,
+      rendered: target === 'payer' ? renderOrderShippedEmail({
+        orderId: context.orderId, shipmentId: shipment.id, originName: shipment.originName, giftDelivery: context.giftDelivery,
+        items, address: context.giftDelivery ? null : context.address,
+        carrierName: context.giftDelivery ? null : shipment.carrierLabel,
+        trackingNumber: context.giftDelivery ? null : shipment.trackingNumber,
+        trackingUrl: context.giftDelivery ? null : shipment.trackingUrl, orderUrl: context.orderUrl,
+      }) : renderGiftRecipientEmail({ orderId: context.orderId, stage: 'shipped',
+        items: items.map(({ name, variantName, qty }) => ({ name, variantName, qty })),
+        address: context.address!, giftUrl: `${siteUrl()}/gifts`, carrierName: shipment.carrierLabel,
+        trackingNumber: shipment.trackingNumber, trackingUrl: shipment.trackingUrl }),
+    }));
   });
 }
 

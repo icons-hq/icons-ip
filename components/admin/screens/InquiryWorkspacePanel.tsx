@@ -8,6 +8,8 @@ import {
 } from '@/app/admin/inquiry-actions';
 import type { AdminInquiryInternalNote, AdminInquiryStaffOption } from '@/lib/admin/inquiries.server';
 import { formatInquiryDateTime, MAX_INQUIRY_BODY_LENGTH } from '@/lib/inquiries';
+import { useInquiryDraft } from '@/components/admin/useInquiryDraft';
+import { InquiryDraftNotice } from './InquiryDraftNotice';
 
 const EMPTY_STATE: AdminInquiryActionState = {};
 
@@ -63,17 +65,15 @@ export function InquiryAssignmentPanel({ inquiryId, assigneeId, assigneeName, st
   </section>;
 }
 
-export function InquiryInternalNotesPanel({ inquiryId, notes }: {
+export function InquiryInternalNotesPanel({ inquiryId, notes, accountId = '' }: {
   inquiryId: string;
   notes: AdminInquiryInternalNote[];
+  accountId?: string;
 }) {
   const [state, action, pending] = useActionState(addInquiryInternalNoteAction, EMPTY_STATE);
-  const [body, setBody] = useState('');
-  const [clearedKey, setClearedKey] = useState<string | null>(null);
-  if (state.resultKey && state.resultKey !== clearedKey) {
-    setClearedKey(state.resultKey);
-    setBody('');
-  }
+  const draft = useInquiryDraft(accountId, inquiryId, 'note', state.resultKey);
+  const { body, change: setBody } = draft;
+  const busy = pending || !draft.ready || draft.blocked;
   return <section aria-label="내부 메모" className="card col" style={{ gap: 10, padding: 16 }}>
     <strong>내부 메모 · 고객 비노출</strong>
     <p className="muted" style={{ fontSize: 12, margin: 0 }}>운영팀만 볼 수 있습니다. 고객 답변과 알림으로 전달되지 않습니다.</p>
@@ -83,14 +83,15 @@ export function InquiryInternalNotesPanel({ inquiryId, notes }: {
         <p style={{ margin: 0, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{note.body}</p>
       </li>)}
     </ol> : <span className="muted">등록된 내부 메모가 없습니다.</span>}
+    <InquiryDraftNotice draft={draft} pending={busy} />
     <form action={action} className="col" style={{ gap: 8 }}>
       <input name="inquiryId" type="hidden" value={inquiryId} />
       <label className="col" style={{ gap: 4 }}>
         내부 메모 내용
-        <textarea maxLength={MAX_INQUIRY_BODY_LENGTH} name="body" onChange={(event) => setBody(event.target.value)} required rows={4} value={body} />
+        <textarea disabled={busy} maxLength={MAX_INQUIRY_BODY_LENGTH} name="body" onChange={(event) => setBody(event.target.value)} required rows={4} value={body} />
       </label>
       <Feedback state={state} />
-      <button className="btn btn-sm" disabled={pending} type="submit">{pending ? '저장 중' : '내부 메모 저장'}</button>
+      <button className="btn btn-sm" disabled={busy} type="submit">{pending ? '저장 중' : '내부 메모 저장'}</button>
     </form>
   </section>;
 }

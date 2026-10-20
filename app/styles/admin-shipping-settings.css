@@ -1,0 +1,54 @@
+.wc-admin .admin-shipping-settings { display: grid; min-width: 0; gap: 16px; }
+.wc-admin .admin-shipping-settings__links { display: flex; flex-wrap: wrap; gap: 16px; font-size: 12px; color: var(--wc-ink-sub); }
+.wc-admin .admin-shipping-settings__filters { display: flex; flex-wrap: wrap; align-items: end; gap: 16px; padding: 20px; border: 1px solid var(--wc-hairline); background: var(--wc-surface); }
+.wc-admin .admin-shipping-settings :is(label, .admin-shipping-settings__editor label) { display: grid; min-width: 0; gap: 8px; font-size: 12px; font-weight: 600; }
+.wc-admin .admin-shipping-settings__filters label:first-child { flex: 1 1 280px; }
+.wc-admin .admin-shipping-settings__results { min-width: 0; border: 1px solid var(--wc-hairline); background: var(--wc-surface); }
+.wc-admin .admin-shipping-settings__result-heading { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 12px; padding: 16px 20px; border-bottom: 1px solid var(--wc-hairline); font-size: 12px; color: var(--wc-ink-sub); }
+.wc-admin .admin-shipping-settings__result-heading h2 { margin: 0; font-size: 15px; color: var(--wc-ink); }
+.wc-admin .admin-shipping-settings__result-heading h2 span { margin-left: 12px; font-size: 12px; font-weight: 400; }
+.wc-admin .admin-shipping-settings__table { min-width: 0; max-width: 100%; max-height: 460px; overflow: auto; }
+.wc-admin .admin-shipping-settings__table table { width: 100%; min-width: 680px; border-collapse: collapse; font-size: 12px; }
+.wc-admin .admin-shipping-settings__table caption { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.wc-admin .admin-shipping-settings__table th { background: var(--wc-surface-grey); font-weight: 600; }
+.wc-admin .admin-shipping-settings__table :is(th, td) { padding: 12px 14px; border-bottom: 1px solid var(--wc-hairline); text-align: left; vertical-align: top; }
+.wc-admin .admin-shipping-settings__table small { display: block; margin-top: 4px; color: var(--wc-ink-sub); font-weight: 400; overflow-wrap: anywhere; }
+.wc-admin :is(.admin-shipping-settings__row-actions, .admin-shipping-settings__actions, .admin-shipping-settings__pagination) { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.wc-admin .admin-shipping-settings__row-actions { flex-wrap: nowrap; }
+.wc-admin .admin-shipping-settings__empty { padding: 36px 20px; text-align: center; color: var(--wc-ink-sub); }
+.wc-admin :is(.admin-shipping-settings__hint, .admin-shipping-settings__editor p, .admin-shipping-settings__apply p) { margin: 0; font-size: 12px; line-height: 1.7; color: var(--wc-ink-sub); }
+.wc-admin :is(.admin-shipping-settings__editor, .admin-shipping-settings__apply) { display: grid; min-width: 0; gap: 16px; }
+.wc-admin .admin-shipping-settings__editor fieldset { display: grid; min-width: 0; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px 20px; padding: 0; border: 0; }
+.wc-admin .admin-shipping-settings__editor label { display: grid; min-width: 0; gap: 8px; font-size: 12px; font-weight: 600; }
+.wc-admin .admin-shipping-settings__editor small { color: var(--wc-ink-sub); font-weight: 400; line-height: 1.6; }
+.wc-admin :is(.admin-shipping-settings__origin, .admin-shipping-settings__full) { grid-column: 1 / -1; }
+.wc-admin .admin-shipping-settings__origin { display: grid; gap: 6px; padding: 14px; border: 1px solid var(--wc-hairline); background: var(--wc-surface-grey); font-size: 12px; }
+.wc-admin .admin-shipping-settings__picker-search { display: flex; align-items: end; gap: 10px; }
+.wc-admin .admin-shipping-settings__picker-search label { display: grid; min-width: 0; flex: 1; gap: 8px; font-size: 12px; }
+.wc-admin .admin-shipping-settings__selected { display: flex; max-height: 120px; flex-wrap: wrap; gap: 6px; overflow: auto; }
+.wc-admin .admin-shipping-settings__selected button { padding: 6px 10px; border: 1px solid var(--wc-hairline); background: var(--wc-surface); font-size: 11px; }
+.wc-admin .admin-shipping-settings__policy-summary { display: grid; min-width: 240px; gap: 4px; margin: 0; font-size: 11px; line-height: 1.6; }
+.wc-admin .admin-shipping-settings__policy-summary dt { font-weight: 600; }
+.wc-admin .admin-shipping-settings__policy-summary dd { margin: 0 0 6px; overflow-wrap: anywhere; white-space: pre-wrap; }
+.wc-admin .admin-shipping-settings__error { color: var(--wc-danger); font-size: 12px; }
+.wc-admin .admin-shipping-settings__message { margin: 0; padding: 12px 16px; border: 1px solid var(--wc-hairline); background: var(--wc-surface); font-size: 13px; }
+@media (max-width: 600px) {
+  .wc-admin .admin-shipping-settings__editor fieldset { grid-template-columns: minmax(0, 1fr); }
+  .wc-admin .admin-shipping-settings__filters { gap: 12px; padding: 14px; }
+  .wc-admin .admin-shipping-settings__actions .btn { flex: 1 1 auto; }
+}
+@media (forced-colors: active) {
+  .wc-admin :is(.admin-shipping-settings__results, .admin-shipping-settings__origin, .admin-shipping-settings__filters) { border-color: CanvasText; }
+}
+
+.wc-admin .admin-shipping-settings__fulfillment { display: grid; gap: 14px; border-top: 1px solid var(--wc-hairline); padding-top: 18px; }
+.wc-admin .admin-shipping-settings__fulfillment-method { display: grid; gap: 12px; padding: 14px; border: 1px solid var(--wc-hairline); }
+.wc-admin .admin-shipping-settings__editor label.admin-shipping-settings__check { display: flex; flex-direction: row; align-items: center; gap: 8px; min-height: 32px; }
+.wc-admin .admin-shipping-settings__check input[type='checkbox'] { flex: 0 0 18px; width: 18px; height: 18px; min-height: 18px; padding: 0; margin: 0; }
+.wc-admin .admin-shipping-settings .admin-cs-dialog { scroll-padding-top: 76px; }
+.wc-admin .admin-shipping-settings__fulfillment-prices { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); align-items: end; gap: 12px; }
+@media (max-width: 600px) {
+  .wc-admin .admin-shipping-settings__fulfillment-prices { grid-template-columns: minmax(0, 1fr); }
+  .wc-admin .admin-shipping-settings__editor label.admin-shipping-settings__check { min-height: 44px; }
+}
+@media (forced-colors: active) { .wc-admin :is(.admin-shipping-settings__fulfillment, .admin-shipping-settings__fulfillment-method) { border-color: CanvasText; } }

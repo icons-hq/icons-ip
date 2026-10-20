@@ -434,7 +434,7 @@ begin
         using rpc_call.target_id;
     exception
       when insufficient_privilege then
-        if sqlerrm = 'forbidden' then
+        if sqlerrm in ('forbidden','operator_capability_required') then
           continue;
         end if;
         raise;

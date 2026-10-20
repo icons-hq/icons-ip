@@ -1,12 +1,17 @@
 import 'server-only';
+import { readGoodsCustomInputSnapshot } from '@/lib/goods-custom-inputs';
 
 import { createClient } from '@/lib/supabase/server';
+import { loadAdminOrderDeliveries } from '@/lib/order-delivery.server';
 import { getShippingCarrierRegistry } from '@/lib/orders/shipment.server';
 import { loadOrderShipments } from '@/lib/orders/shipments.server';
 import type { ShipmentRecord } from '@/lib/orders/shipments';
 import type { OrderClaimType } from '@/lib/orders/claims';
 import { normalizeAdminOrderFilters } from './orders';
 import { getAdminOrderRecords } from './orders.server';
+import { normalizeAdminOrderItemFilters } from './order-items';
+import { getAdminOrderItemData } from './order-items.server';
+import { orderItemsExportSheet } from './order-items-export';
 import { normalizeAdminUnpaidFilters } from './unpaid';
 import { getAdminUnpaidOrders } from './unpaid.server';
 import { normalizeShipmentFilters, type ShipmentConsoleData } from './shipment-dispatch';
@@ -134,21 +139,36 @@ async function orderContacts(orderIds: readonly string[]) {
   const supabase = await createClient();
   const contacts = new Map<string, { contact: ListExportContact | null; paymentMethod: string | null }>();
   await mapLimited(chunks([...new Set(orderIds)], ID_CHUNK), PAGE_CONCURRENCY, async (ids) => {
-    const { data, error } = await supabase.from('orders').select('id,address,payment_method').in('id', ids);
+    const [{ data, error }, deliveries] = await Promise.all([
+      supabase.from('orders').select('id,payment_method').in('id', ids), loadAdminOrderDeliveries(ids),
+    ]);
     if (error) throw new AdminListExportLoadError();
-    for (const row of (data ?? []) as { id: string; address: unknown; payment_method: string | null }[]) {
-      contacts.set(row.id, { contact: listExportContact(row.address), paymentMethod: row.payment_method });
+    for (const row of (data ?? []) as { id: string; payment_method: string | null }[]) {
+      const delivery = deliveries.get(row.id); if (!delivery) throw new AdminListExportLoadError();
+      contacts.set(row.id, { contact: listExportContact(delivery.address), paymentMethod: row.payment_method });
     }
+    if (ids.some(id => !contacts.has(id))) throw new AdminListExportLoadError();
   });
   return contacts;
 }
 
 async function ordersSheet(params: SearchParams) {
+  if (params.view === 'items') {
+    const filters = normalizeAdminOrderItemFilters(params);
+    let fingerprint: string | undefined;
+    const rows = await collectAdminListExportPages(500, async page => {
+      const data = await getAdminOrderItemData({ ...filters, page }, 500);
+      if (fingerprint !== undefined && fingerprint !== data.fingerprint) throw new AdminListExportChangedError();
+      fingerprint = data.fingerprint;
+      return { items: data.rows, total: data.total };
+    }, row => row.id);
+    return orderItemsExportSheet(rows, filters, fingerprint ?? '');
+  }
   const filters = { ...normalizeAdminOrderFilters(params), orderId: null };
   const records = await collectAdminListExportPages(
     ORDER_PAGE_SIZE,
     async (page) => {
-      const data = await getAdminOrderRecords({ ...filters, page }, false, { pageSize: ORDER_PAGE_SIZE });
+      const data = await getAdminOrderRecords({ ...filters, page }, false, { pageSize: ORDER_PAGE_SIZE, includeCounts: false });
       return { items: data.items, total: data.total };
     },
     (record) => record.id,
@@ -175,10 +195,18 @@ async function unpaidSheet(params: SearchParams) {
 async function shipmentsSheet(surface: 'dispatch' | 'shipping', params: SearchParams) {
   const filters = normalizeShipmentFilters(params, surface);
   const meta: { value: Pick<ShipmentConsoleData, 'origins' | 'carriers'> | null } = { value: null };
+  let noticeFingerprint: string | undefined;
+  const verifyNoticeFingerprint = (data: ShipmentConsoleData) => {
+    if (surface !== 'dispatch') return;
+    if (!data.delayNoticeFingerprint || !/^[a-f0-9]{64}$/.test(data.delayNoticeFingerprint)) throw new AdminListExportLoadError();
+    if (noticeFingerprint !== undefined && data.delayNoticeFingerprint !== noticeFingerprint) throw new AdminListExportChangedError();
+    noticeFingerprint = data.delayNoticeFingerprint;
+  };
   const rows = await collectAdminListExportPages(
     SHIPMENT_PAGE_SIZE,
     async (page) => {
       const data = await getShipmentConsoleData({ ...filters, page }, surface, { pageSize: SHIPMENT_PAGE_SIZE });
+      verifyNoticeFingerprint(data);
       meta.value ??= { origins: data.origins, carriers: data.carriers };
       return { items: data.rows, total: data.total };
     },
@@ -186,6 +214,9 @@ async function shipmentsSheet(surface: 'dispatch' | 'shipping', params: SearchPa
     (row) => row.items.length,
   );
   const extras = await orderContacts(rows.map((row) => row.orderId));
+  // Recheck the entire result set, including rows outside the first page, after
+  // collecting contacts. A channel callback may change results without changing counts.
+  if (surface === 'dispatch') verifyNoticeFingerprint(await getShipmentConsoleData({ ...filters, page: 1 }, surface, { pageSize: 1 }));
   const contacts = new Map([...extras].map(([id, value]) => [id, value.contact]));
   const { origins, carriers } = meta.value ?? { origins: [], carriers: [] };
   return shipmentsListExportSheet({ surface, rows, filters, contacts, origins, carriers });
@@ -201,14 +232,14 @@ async function claimOrders(claimType: OrderClaimType, orderIds: readonly string[
     for (let start = 0; ; start += ITEM_PAGE_ROWS) {
       const { data, error } = await supabase
         .from('order_items')
-        .select('id,order_id,good_name_snapshot,variant_name_snapshot,qty')
+        .select('id,order_id,good_name_snapshot,variant_name_snapshot,custom_inputs_snapshot,qty')
         .in('order_id', chunk)
         .order('id', { ascending: true })
         .range(start, start + ITEM_PAGE_ROWS - 1);
       if (error) throw new AdminListExportLoadError();
-      const page = (data ?? []) as { id: string; order_id: string; good_name_snapshot: string; variant_name_snapshot: string | null; qty: number }[];
+      const page = (data ?? []) as { id: string; order_id: string; good_name_snapshot: string; variant_name_snapshot: string | null; custom_inputs_snapshot?:unknown; qty: number }[];
       for (const row of page) {
-        const item: ListExportClaimItem = { id: row.id, name: row.good_name_snapshot, variantName: row.variant_name_snapshot ?? null, qty: row.qty };
+        const item: ListExportClaimItem = { id: row.id, name: row.good_name_snapshot, variantName: row.variant_name_snapshot ?? null, customInputs:readGoodsCustomInputSnapshot(row.custom_inputs_snapshot),qty: row.qty };
         orders.get(row.order_id)?.items.push(item);
       }
       if (page.length < ITEM_PAGE_ROWS) break;

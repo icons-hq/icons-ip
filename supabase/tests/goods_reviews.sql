@@ -454,8 +454,8 @@ set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000000952', true);
 
 -- 답글은 공개 표시이고 첫 등록에서만 알린다.
-select public.admin_reply_to_review(:'review_b_id', '색상 차이로 불편을 드려 죄송합니다. 교환을 도와드리겠습니다.');
-select public.admin_reply_to_review(:'review_b_id', '색상 차이로 불편을 드려 죄송합니다. 반품·교환 안내를 드렸습니다.');
+select public.admin_save_cs_reply(gen_random_uuid(),auth.uid(),'review',:'review_b_id','색상 차이로 불편을 드려 죄송합니다. 교환을 도와드리겠습니다.',(select reply_source_revision from public.reviews where id=:'review_b_id'));
+select public.admin_save_cs_reply(gen_random_uuid(),auth.uid(),'review',:'review_b_id','색상 차이로 불편을 드려 죄송합니다. 반품·교환 안내를 드렸습니다.',(select reply_source_revision from public.reviews where id=:'review_b_id'));
 
 select 1 / case when (
   select admin_reply_at is not null

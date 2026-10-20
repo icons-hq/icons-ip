@@ -16,12 +16,32 @@ authority:
   target-code:
     foundation: app/styles/wc-foundation.css
     chrome: app/styles/wc-chrome.css
+    store-branding: app/styles/wc-store-branding.css
     home: app/styles/wc-home.css
+    product-mosaic: app/styles/wc-product-mosaic.css
+    product-collection: app/styles/wc-product-collection.css
+    shopping-stories: app/styles/wc-shopping-stories.css
     catalog: app/styles/wc-catalog.css
+    document-formatting: app/styles/content-format.css # 상품 상세·스토리의 허용된 본문 서식만 공유
+    good-relation-visual: app/styles/wc-good-relation-visual.css
+    store-presentation: app/styles/store-presentation.css
+    product-detail-presentation: app/styles/product-detail-presentation.css
+    product-detail-experience: app/styles/product-detail-experience.css
+    goods-media: app/styles/goods-media.css
+    goods-review-best: app/styles/goods-review-best.css
+    goods-benefits: app/styles/goods-benefits.css
+    goods-after-sales: app/styles/goods-after-sales.css
+    goods-size-chart: app/styles/wc-goods-size-chart.css
+    review-events: app/styles/wc-review-events.css
+    marketing-message: app/styles/marketing-message.css
+    claim-collection-plan: app/styles/claim-collection-plan.css
+    claim-fees: app/styles/claim-fees.css
+    purchase-confirmation: app/styles/purchase-confirmation.css
     discovery: app/styles/wc-discovery.css
     account-commerce: app/styles/wc-account-commerce.css
     campaign: app/styles/wc-campaign.css
   admin:
+    typography: app/styles/admin-font.css  # 어드민 전용 로컬 Pretendard 1.3.9
     shell-and-kit: app/styles/wc-admin.css
     surfaces: app/styles/wc-admin-surfaces.css
     boundary: .wc-admin
@@ -189,6 +209,7 @@ layout:
 ```
 
 - 굿즈 이미지(상품 카드·목록·장바구니·위시·상세 갤러리) 비율은 **1:1 정사각으로 통일**하고, 원본은 `contain`으로 잘리지 않게 가운데 놓는다(여백은 중립 회색 — 기존 카탈로그 `bg`의 gradient 대체 레이어는 이미지가 있으면 그리지 않는다, `lib/goods-image.ts`). 2026-10-07 MD 요청: 웹팀 썸네일 1000×1000 원본 유지(이전 3:4 세로형·가운데 크롭을 대체, R-스펙 00 §재현 원칙의 의도적 편차). 카드 아트·IP 배너·이벤트 포스터의 비율은 별개다.
+- 홈 자유상품 진열은 운영자가 정사각(1:1)·세로(4:5)·가로(5:4)를 명시적으로 고르는 별도 표면이다. 이 진열의 이미지에만 가운데 `cover` 크롭을 적용하며, 일반 상품 카드·목록·상세 갤러리의 1:1 `contain`은 유지한다. 적용 범위는 `wc-product-collection.css`와 전용 렌더러이며 [진열 계약](docs/research/smartstore-admin/home-free-products-contract.md)을 따른다.
 - 섹션 공통 마진 없음 — 각 섹션이 자체 상하 패딩을 가진다(표면별 수치는 R-스펙 02~06).
 
 ## 5. 형태·선·깊이·모션
@@ -297,7 +318,7 @@ z-index: { chrome: "3–4", panel: "10–100", overlay: "999+", toast-modal: "99
 | 커뮤니티 | `/community` | `content-card` 문법 재조판 | 작성·좋아요·신고 계약 유지 |
 | 검색 | `/search` + 오버레이 | `search-overlay`+결과 그리드+숫자 페이지네이션 | `getSearchSnapshot`·URL 상태 유지 |
 | 카트 | `/cart` | `mini-checkout-cart`(쿠폰 select는 B1에서 활성) | local/DB 병합·수량 계약 유지 |
-| 체크아웃·주문·티켓 | `/checkout*`, `/orders*`, `/tickets*`, `/ticket-checkout*` | 흰 종이형 영수증·상태 타임라인, 크롬만 교체 | **결제 플로우·금액 확정·콜백 처리 동결** |
+| 체크아웃·주문·티켓 | `/checkout*`, `/orders*`, `/tickets*`, `/ticket-checkout*` | 흰 종이형 영수증·상태 타임라인 | 스타일 변경만으로 결제 계약을 바꾸지 않는다. 2026-10-14 승인된 [공통 거래 모델](docs/research/smartstore-admin/goods-transaction-module-proposal.md)의 굿즈 주문서는 별도 서버 견적·복구 계약을 따른다. 티켓·콜백의 기존 계약은 유지한다. |
 | 인증 | `/login` 등 | `flat-auth-form` | OAuth·recovery·필드 계약 유지 |
 | 마이 | `/my` 이하 전부 | `mypage-shell`+위시리스트·쿠폰함(B1)·Q&A 내역(B3) | 기존 조회·설정 계약 유지 |
 | 법적·문서 | `/legal/*` | `document-page` — **재조판 대기**, 구 조판을 legal-doc으로 격리 유지 | 정적 파라미터 유지 |
@@ -363,33 +384,50 @@ protected-boundaries:
 
 구현 단계·PR 구조·티켓 분해는 [docs/research/linefriends-square/09-implementation-plan.md](docs/research/linefriends-square/09-implementation-plan.md)가 정본이다. 완료 조건: 각 표면이 §8 플레이북과 R-스펙 수치를 만족하고, §11 계약 테스트가 통과하며, `npm run lint`·`npm run build`·`npm run test` 통과 + preview 검수 후 일괄 전환한다. S1~S9 구현은 통합 브랜치에서 끝났고, 남은 단계는 main 일괄 전환이다.
 
-## 어드민 콘솔 (ADR-0014)
+## 어드민 콘솔 (ADR-0014 · 판매자센터 표면 확장)
 
 - 범위: 셸·2단 IA·audited RPC·원장·테스트는 유지한다. 재설계 대상은 워크플로 표면 — 폼·목록·상세·설정.
 - 다섯 패턴이 합격 기준이다: 모든 자원에 전용 상세 페이지와 타임라인 / 모든 목록에 검색·필터·페이지·일괄 액션 / 초안→공개→보관 게시 상태와 실패에 살아남는 폼 / 설정 섹션(코드 상수→DB 설정) / 엑셀 가져오기·내보내기.
-- 토큰: `app/styles/wc-foundation.css`를 그대로 쓴다. `wc-admin.css`와 `wc-admin-surfaces.css`의 모든 규칙은 `.wc-admin`으로 시작하고, 색·폰트·모션 값은 `--wc-*`만 참조한다. 공개 `wc-*` 스타일시트에는 관리자 셀렉터를 넣지 않는다. CSS 역할을 바꾸면 중첩 media·forced-colors·print 규칙과 실제 JSX 소비자를 함께 확인한다.
-- 라벨 어휘: 운영팀 어휘(상품·상품코드·옵션). 카드·카드팩·티켓은 어드민 안에서도 "상품"이라 부르지 않는다(`CONTEXT.md` Flagged ambiguities).
+- 토큰: 공개 화면은 `app/styles/wc-foundation.css`를 유지하고, 어드민은 `wc-admin.css`의 `.wc-admin`에서 판매자센터 테마 값을 재정의한다. 아래의 2026-10-16 어드민 규율이 공개 지면·색·크기 규율보다 우선한다. `wc-admin.css`와 `wc-admin-surfaces.css`의 모든 규칙은 `.wc-admin`으로 시작하고, 색·폰트·모션 값은 `--wc-*`만 참조한다. 공개 `wc-*` 스타일시트에는 관리자 셀렉터를 넣지 않는다. CSS 역할을 바꾸면 중첩 media·forced-colors·print 규칙과 실제 JSX 소비자를 함께 확인한다.
+- 라벨 어휘: 스마트스토어의 업무 어휘(상품 조회/수정·상품 등록·판매자상품코드·상품번호·관리코드·옵션)를 기준으로 한다. 카드·카드팩·티켓은 어드민 안에서도 "상품"이라 부르지 않는다(`CONTEXT.md` Flagged ambiguities).
 - 운영 합격 시나리오 S1~S5(일괄 등록 30종·입력값 소실 0·주문 100건 발송 클릭 10회 이내·이동 없는 문의 응대·배포 없는 설정 변경)는 ADR-0014에 기록돼 있다.
+
+### 판매자센터 기준 (2026-10-16)
+
+원본 조사 정본은 `docs/research/smartstore-admin/`의 기능 대응 문서와 로컬 증거 manifest다. 전체 화면의 색·간격·표 밀도와 업무 흐름을 기준으로 삼으며, 네이버 전용 서비스 연결·계약·브랜딩은 ICONS 기능으로 가장하지 않는다. 취소·반품은 ICONS의 확정된 주문 전체·전액 정책을 유지한다.
+
+- 상단 `#2d3539`, 좌측 `#475161`(프로필 `#414b5a`·하위 메뉴 `#414958`·검색 `#39404c`·선택 `#292f38`), 캔버스 `#edf0f5`, 패널 흰색, 본문 `#4d5159`. 검색·확정 배경은 원본 전통 콘솔 실측 `#00c73c`, 테두리 `#00ae34`. 판매 기간의 선택 글자·요약과 상품 설정 선택 라벨에는 대비 보정 토큰 `--wc-admin-success-aa: #147d3f`를 한정 적용한다. 사진의 색 프로파일 대신 computed style을 기준으로 한다. 관리자 전용 토큰 선언 외에는 직접 색을 쓰지 않는다.
+- 어드민 서체는 `admin-font.css`의 로컬 Pretendard 1.3.9다. 홈 판매·클레임·상품·리뷰의 일반 SVG 아이콘 4개는 `public/admin/seller-icons/`에서 관리하고 출처·SHA-256은 같은 폴더의 `source.json`을 따른다. 판매자 프로필·네이버 로고·제공자 전용 서비스 표식은 포함하지 않는다.
+- 표의 조회항목 설정은 열 표시·순서·왼쪽 0~4열 고정을 지원한다. 식별/필수 열은 숨기지 못하며 설정은 관리자 계정과 표 키별로 해당 브라우저에 저장한다. 서버 정렬·선택 행·내보내기 계약과는 별개다.
+- 추가 표면 소유권: `admin-console-controls.css`(조회항목 설정), `admin-home.css`(홈), `admin-sales-console.css`(판매 검색·목록), `admin-customer-service.css`(문의·리뷰), `admin-review-insights.css`(리뷰 분석), `admin-review-events.css`(리뷰 이벤트 목록·조건·선정·지급), `admin-stats-console.css`(통계 기간·비교·차트), `admin-customer-demographics.css`(선택 성별·연령 집계 차트·보호 표), `admin-store-analytics.css`(동의 기반 방문·유입·전환 분석), `admin-store-editor.css`(전시 편집기), `admin-coupons.css`(혜택 등록·조회·리포트), `admin-loyalty-policy.css`(고객등급 조건·혜택 연결), `admin-operator-directory.css`(운영자 목록·담당업무), `admin-store-credits.css`(적립금 지급·원장), `admin-goods-announcements.css`(상품공지사항), `admin-photo-library.css`(사진 보관함·선택창), `admin-photo-editor.css`(상품 사진 편집 대화상자·그리드 편집 버튼), `admin-goods-drafts.css`(등록 임시저장함), `admin-good-copy-picker.css`(신규 등록의 기존 상품 선택·복사 진입), `admin-goods-relations.css`(연관상품 편성), `admin-goods-attributes.css`(카테고리 속성 정의·상품별 속성), `admin-store-navigation.css`(공개 메뉴 편집·미리보기), `admin-shopping-stories.css`(스토리 목록·본문·관련상품 편집), `admin-marketing-links.css`(고정 링크 발급·조회·복사), `admin-customer-segments.css`(타겟 조건·추정·즐겨찾기·월별 추이), `admin-store-presentation.css`(공통 테마·홈 검색 배너·상품목록 표시 정책), `admin-product-detail-presentation.css`(상세 배너·리뷰 강조·자동 추천 설정), `admin-product-detail-experience.css`(상세 구매 안내·관심 모음·배송비 후보 설정), `admin-goods-media.css`(상품 동영상·숏클립 등록·교체·우선순위), `admin-pg-settlements.css`(PG 정산 수집·일별/건별·수수료 조회), `admin-goods-benefits.css`(상품 사은품·이벤트 안내와 문구 템플릿), `admin-category-templates.css`(카테고리 템플릿 목록·단계 선택·불러오기·상품 엑셀 코드 찾기), `admin-goods-after-sales.css`(상품 A/S·특이사항 및 템플릿), `admin-goods-size-chart.css`(상품 사이즈표 편집·템플릿), `admin-review-best.css`(BEST 리뷰 선정·해제·노출 설정), `admin-marketing-messages.css`(고객 안내 메시지 작성·예약·발송 결과), `admin-shipping-settings.css`(배송정보 템플릿), `admin-shipping-charge-groups.css`(배송비 묶음그룹 목록·편집·선택·배정), `admin-operations-dock.css`(우측 알림·할 일·문맥 도움말). 모두 `.wc-admin` 경계를 유지하며 공개 홈 미리보기는 격리된 iframe 안에서 공개 CSS를 사용한다.
+- 업무 도구는 데스크톱 우측 72px 레일과 독립 스크롤 패널을 사용한다. 레일 버튼은 너비 40px·최소 높이 70px이며 패널은 레일 왼쪽에 열린다. 760px 이하에서는 좌측 56px 메뉴를 제외한 높이 56px 하단 도구 막대로 이동하고 본문 아래에 64px 여백을 둔다. 닫기/Escape는 진입 버튼으로 포커스를 돌린다. 알림 읽음/숨김·새 알림 건수 표시는 운영자 계정별이며, 데이터 로딩 실패 때 이전 조회조건의 전체 작업을 활성화하지 않는다.
+- 전시 편집기는 구성 목록·설정 패널·실제 공개 홈 미리보기를 나눈다. 390px 모바일·1212px PC 미리보기를 지원하며 미리보기 크기/축척만 실측 기하값으로 적용한다. 편집값은 저장 전 초안이며 공개 적용 완료는 서버 저장과 재조회로 확인한다.
 
 ### 컴포넌트 키트 anatomy (#409)
 
 상품 작성 워크스페이스(#521)의 섹션 제목·필수 조건·현재 값·작성 상태·오류 수는 `AdminSectionCard`의 선택적 입력이다. 업무 모듈이 판정하며 공통 키트는 도메인 검증을 소유하지 않는다. 상품 폼은 `wc-admin-surfaces.css`, 목록·업무 대기는 `admin-goods-worklist.css`, 옵션·이미지는 `wc-admin-option-artwork.css`, 업무별 메뉴·발송 안내는 `admin-ux-521.css`가 소유하며 모두 `.wc-admin`과 White Catalog 토큰 경계를 유지한다. 기본 저장과 독립 작업의 저장 범위를 구분하고 접힘으로 입력을 제거하지 않는다.
 
+상품 등록·수정의 판매자센터형 아코디언과 고정 저장바는 `wc-admin-option-artwork.css`가 소유한다. 데스크톱 섹션 머리는 최소 74px·펼침 표시 34px, 본문 패딩은 20px 35px, 라벨 열은 180px다. 저장바는 사이드바 오른쪽부터 우측 도구 레일 앞(`right: 72px`)까지 놓인다. 600px 이하에서는 라벨과 입력을 한 열로 배치한다. 상품 조회의 상세검색은 네이티브 `details`를 사용하고 펼침 버튼은 검색·초기화가 있는 하단 영역 오른쪽에 둔다. 상품 문의도 네이티브 검색 조건 펼침과 목록형/표형 전환을 제공하며 기본은 목록형이다. 문의 조건이 있으면 검색을 펼치고, 목록형은 현재 상품의 대표 이미지와 행 안 답변을 제공한다. 이미지가 없으면 가짜 썸네일을 만들지 않는다. 표형의 열 설정·기존 상세 대화상자는 유지한다. 고객문의는 목록 아래에 선택한 문의의 내용과 판매자 답변을 좌우로 배치하고 900px 이하에서는 한 열로 전환한다. 기존 조회·초안·권한·저장 액션은 공유하며 미선택 상태에는 선택 안내를 표시한다.
+
+국가·지역명 검색, 국내 시·도/시·군·구 선택과 고시 원산지 도움 버튼은 `admin-country-finder.css`가 소유한다. 상품 폼 바깥의 `.wc-root.wc-admin` portal에서도 같은 토큰·모바일·고대비 경계를 유지한다.
+
+상담하기(`/admin/cs/chat`)의 대화 목록·대화/입력창·상담정보 배치는 `admin-inquiry-chat.css`가 소유한다. 1200px 초과에서는 목록 286px·상담정보 288px 사이에 대화를 배치하고, 900px 이하에서는 목록과 선택한 대화를 전환하며 상담정보를 아래에서 확인한다. 전용 셸은 화면 높이에 맞춰 입력창을 유지하고 일반 페이지 제목을 시각적으로 숨기되 접근 가능한 제목은 보존한다. 우측·모바일 도구막대의 상담하기 링크는 `admin-operations-dock.css`가 소유하며 기존 CS 권한을 따른다.
+
 전용 레이어는 `wc-admin-surfaces.css`(표면 배치)와 `wc-admin.css`(셸·공통 키트)다. `wc-foundation.css` → `wc-admin-surfaces.css` → `wc-admin.css` 순서로 임포트한다. 셸 루트는 `admin-shell wc-root wc-admin`, 독립 검표 루트는 `check-in-shell wc-root wc-admin`이다. 공통 Field·TextArea·SelectField는 AdminField의 label/입력/오류 구조를 쓰고, RecordList는 AdminSidePanel을 쓴다.
 
-어드민 전용 CSS는 `!important` 없이 공통 키트 → 표면별 선택자 → 미디어 상태의 우선순위를 명시한다. 입력은 기본 44px·14px이며, 테마와 반응형에서 바뀌는 색·테두리·배치 값은 JSX 인라인 스타일로 고정하지 않는다. 긴 선택값 도움말은 `wc-admin-kit__select-hint`가 소유한다. 고대비·모션 감소·인쇄 규칙도 같은 우선순위 안에서 검증한다.
+어드민 전용 CSS는 `!important` 없이 공통 키트 → 표면별 선택자 → 미디어 상태의 우선순위를 명시한다. 입력은 데스크톱 기본 34px·13px, 판매 목록의 압축 검색 조건·목록 옵션은 30px·12px, 검색·확정은 40px·14px, 터치 구간은 44px이며, 테마와 반응형에서 바뀌는 색·테두리·배치 값은 JSX 인라인 스타일로 고정하지 않는다. 긴 선택값 도움말은 `wc-admin-kit__select-hint`가 소유한다. 고대비·모션 감소·인쇄 규칙도 같은 우선순위 안에서 검증한다.
 
-자체 레이아웃이 없는 화면 최상위 `section.wc-admin-kit`은 `wc-admin-kit__screen`을 함께 사용해 직접 자식 사이 20px 간격과 `min-width: 0`을 보장한다. 직접 자식인 페이지 헤더·설명·필터는 자체 margin 대신 화면 간격을 사용하며, 내부 `wc-admin-kit` 배지·필드·카드의 배치는 이 규칙에 포함하지 않는다.
+자체 레이아웃이 없는 화면 최상위 `section.wc-admin-kit`은 `wc-admin-kit__screen`을 함께 사용해 직접 자식 사이 12px 간격과 `min-width: 0`을 보장한다. 직접 자식인 페이지 헤더·설명·필터는 자체 margin 대신 화면 간격을 사용하며, 내부 `wc-admin-kit` 배지·필드·카드의 배치는 이 규칙에 포함하지 않는다.
 
-개요는 `wc-admin-surfaces.css`의 `.admin-overview`가 구역 사이 32px, 성과 통계 내부 24px(600px 이하 16px)를 소유한다. 카드 높이는 콘텐츠로 결정하며 차트를 이웃 카드 높이에 강제로 늘리지 않는다. 성과 구역 제목은 20px, 카드 제목은 16px, 설명은 13px다. 본문·기존 폼·주문 필터의 기본 배치와 반응형·인쇄 규칙은 같은 파일의 정본 블록에서 관리한다. 표면별 파일은 공통 키트 뒤에 임포트한다.
+홈은 `admin-home.css`가 최소 60px 공지 행과 판매진행·처리대기·상품·리뷰 패널, 12px 구역 간격, 1/7/30일 성과 구역을 소유한다. 1200px 이상에서 요약은 6열이며 첫 행은 4:2, 나머지는 3:3으로 나눈다. 판매·클레임·처리대기 패널은 최소 278px, 상품·리뷰는 최소 244px다. 패널 머리는 최소 64px·제목 18px·아이콘 32px이며 성과 구역 제목도 18px다. 600px 이하에서는 한 열로 바꾸고 패널 최소 높이를 해제한다. 기존 개요 하위 패널의 기본 배치는 `wc-admin-surfaces.css`가 유지하며 차트를 이웃 카드 높이에 강제로 늘리지 않는다. 본문·기존 폼·주문 필터의 기본 배치와 반응형·인쇄 규칙은 같은 파일의 정본 블록에서 관리한다. 표면별 파일은 공통 키트 뒤에 임포트한다.
 
 | 요소 | 구조와 규율 |
 |---|---|
-| 셸 | 사이드바 248px(접힘 72px), 900px 이하 아이콘 내비게이션(600px 이하 56px). 헤더 최소 72px, 본문 최대폭 1488px. 각 링크에 접근성 이름·현재 페이지 표시. |
-| 페이지 헤더 | `AdminPageHeader`: h2 제목 20px/700, 설명 14px/1.7, 우측 액션 8px 간격. 헤더 아래 24px. |
-| 섹션 카드 | `AdminSectionCard`: section + h3, 흰 지면·hairline·2px 모서리, 패딩 24px(600px 이하 16px, 400px 이하 12px). 헤더 안 제목·필수 조건·상태·요약 사이 8px, 본문 직접 자식 사이 20px. |
-| 데이터 표 | 기존 `ConsoleGrid`를 `wc-admin-kit` 안에서 사용. caption·정렬 링크·행 선택 계약 유지, 본문 13px·셀 패딩 12px 16px, 숫자 우측 정렬. 상품명·상태·편집 입력의 최소폭을 확보하고 많은 열은 표 안에서 가로 스크롤한다. |
-| 폼 | `AdminFormGrid`: 최대 2열, 필드별 260px 공간이 없으면 컨테이너 너비에 따라 1열(600px 이하 항상 1열). 행 간격 20px·열 24px. `AdminField`: label→입력→도움말→오류, 도움말 13px/1.65. 컨트롤 최소 40px, 오류는 aria-invalid와 error id를 연결. |
+| 셸 | 사이드바 210px(접힘 64px), 900px 이하 56px 내비게이션. 상단 55px, 제목 행 최소 60px, 본문 패딩 12px 24px(900px 이하 16px, 400px 이하 12px). 본문은 우측 도구 레일을 제외한 남은 너비를 사용한다. 각 링크에 접근성 이름·현재 페이지 표시. |
+| 페이지 헤더 | `AdminPageHeader`: h2 제목 18px/500, 설명 13px/1.7, 우측 액션 8px 간격. 기본 하단 여백 24px이며 `wc-admin-kit__screen` 직접 자식이면 화면 간격 12px를 따른다. |
+| 섹션 카드 | `AdminSectionCard`: section + h3, 흰 지면·hairline·각진 모서리, 패딩 20px 30px(600px 이하 16px, 400px 이하 12px). 헤더 안 제목·필수 조건·상태·요약 사이 8px, 본문 직접 자식 사이 20px. |
+| 데이터 표 | 기존 `ConsoleGrid`를 `wc-admin-kit` 안에서 사용. caption·정렬 링크·행 선택 계약 유지, 본문 13px·기본 셀 패딩 10px 12px, 숫자 우측 정렬. 상품명·상태·편집 입력의 최소폭을 확보하고 많은 열은 표 안에서 가로 스크롤한다. |
+| 폼 | `AdminFormGrid`: 최대 2열, 필드별 260px 공간이 없으면 컨테이너 너비에 따라 1열(600px 이하 항상 1열). 행 간격 20px·열 24px. `AdminField`: label→입력→도움말→오류, 도움말 13px/1.65. 컨트롤 기본 34px(터치 44px), 오류는 aria-invalid와 error id를 연결. |
 | 검색·필터 | 기간·상태·검색의 용도에 따라 폭을 배분하고 공간이 부족하면 다음 줄로 이동한다. 검색 대상 안내는 입력칸 밖에 표시하며 GET 파라미터 계약은 유지한다. |
 | 긴 선택값 | 공통 `SelectField`와 필터 선택기는 네이티브 select를 유지한다. `AdminSelect`가 실제 잘림을 감지한 경우에만 전체 선택값을 아래에 13px 도움말로 표시하고 `aria-describedby`로 연결한다. |
 | 상태 배지 | `AdminStatusBadge`: 12px/600, 텍스트로 상태 명시. neutral·success·warning·danger의 의미색은 WC 토큰. |
@@ -397,3 +435,9 @@ protected-boundaries:
 | 사이드 패널 | `AdminSidePanel`: 제목·닫기 링크/액션·내용. 흐름 안의 aside로 본문 접근 유지, modal로 선언하지 않는다. |
 
 키트는 `components/admin/console/AdminKit.tsx`에서 직접 가져온다. 공개 보존 표면 3곳의 바탕·폰트·입력·한글 줄바꿈은 각 격리 CSS 안에 정의한다. 카드 foil은 `lib/rarity.ts`의 카드 물성 상수이며 페이지 테마 변수에 의존하지 않는다.
+
+- `wc-product-mosaic.css`는 공개 홈의 상품 모자이크와 격리된 공개 미리보기만 소유한다. 관리자 폼의 제어 스타일은 `admin-store-editor.css`에 둔다.
+- `wc-product-collection.css`는 공개 홈 자유상품의 리스트·풀이미지 열 수와 구성별 썸네일 비율만 소유한다. 기존 BEST 탭·모자이크·일반 상품목록의 전역 카드 스타일은 변경하지 않는다.
+- 카테고리 전시는 `admin-category-display.css`의 관리자 편집·선택·격리 미리보기와 `wc-category-display.css`의 공개 탐색·영상 간격으로 분리한다. 배너·추천상품·상품목록은 기존 공개 렌더러를 사용하며 상품 카테고리·홈 배치의 스타일 소유권을 바꾸지 않는다.
+
+- `store-analytics.css`는 공개 표면의 선택적 방문 분석 동의 배너·설정 대화상자만 소유한다. 주문 영수증의 요청 철회·유형 변경 이력은 `wc-account-commerce.css`, 관리자 요청 철회·반품교환 전환은 `admin-sales-console.css`에서 각각 표면 경계를 유지한다.

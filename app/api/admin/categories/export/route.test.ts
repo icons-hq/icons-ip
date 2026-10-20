@@ -1,3 +1,4 @@
+import { configuredOperatorAccessFixture, legacyOperatorAccessFixture } from '@/lib/admin/access.test-fixtures';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => ({ guard: vi.fn(), rows: vi.fn() }));
@@ -10,7 +11,7 @@ import { GET } from './route';
 describe('admin category export', () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mocks.guard.mockResolvedValue({ user: { id: 'staff' } });
+    mocks.guard.mockResolvedValue({ user: { id: 'staff' }, role: 'staff', operatorAccess: legacyOperatorAccessFixture('staff') });
     mocks.rows.mockResolvedValue([{
       code: 'life', name: '생활', path: '생활', depth: 1, status: '사용', assignedGoods: 2,
       erpCode: 'ERP-01', erpName: '문구', erpSource: '실제 ERP 표', erpVerifiedAt: '2026-09-10T00:00:00Z',
@@ -38,4 +39,14 @@ describe('admin category export', () => {
     expect(csv).toContain('"미설정"');
     expect(csv).toContain('"\'=위험"');
   });
+});
+
+it('configured deputy exports only category columns, even if an adapter returns extra ERP fields', async () => {
+  mocks.guard.mockResolvedValue({ user: { id: 'deputy' }, role: 'staff', operatorAccess: configuredOperatorAccessFixture('deputy') });
+  const response = await GET();
+  expect(mocks.rows).toHaveBeenCalledWith(false);
+  expect(response.headers.get('content-disposition')).toContain('icons-category.csv');
+  const csv = await response.text();
+  expect(csv).toContain('고객 카테고리 코드');
+  expect(csv).not.toContain('ERP');
 });

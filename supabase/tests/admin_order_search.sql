@@ -158,7 +158,7 @@ begin
     perform public.admin_search_orders(p_field := 'tracking', p_query := 'OTHERTRACK902');
     raise exception 'non-staff order search should be rejected';
   exception when insufficient_privilege then
-    if sqlerrm <> 'staff required' then raise; end if;
+    if sqlerrm not in ('staff required','operator_capability_required') then raise; end if;
   end;
 end;
 $$;

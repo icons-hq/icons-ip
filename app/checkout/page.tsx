@@ -1,3 +1,4 @@
+import { loadCouponCombinationPolicy } from '@/lib/coupon-combinations.server';
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { Checkout } from '@/components/screens/Checkout';
@@ -8,6 +9,9 @@ import { loadLatestCheckoutAddress, loadLatestPendingCheckoutOrderId } from '@/l
 import { loadCartCouponState } from '@/lib/coupons.server';
 import { bankTransferCheckoutEnabled } from '@/lib/payments/bank-transfer.server';
 import { goodsCheckoutPaymentsEnabled } from '@/lib/payments/goods-checkout-availability';
+import { loadGoodsTransactionRuntimeMode } from '@/lib/checkout-transaction.server';
+import { GoodsTransactionCheckout } from '@/components/screens/GoodsTransactionCheckout';
+import Link from 'next/link';
 
 export const metadata: Metadata = {
   title: '체크아웃 — ICONS',
@@ -31,17 +35,24 @@ export default async function Page({ searchParams }: PageProps) {
     ? rawFailCode
     : null;
 
-  const [catalog, latestAddress, resumeOrderId, couponState] = await Promise.all([
+  const [catalog, latestAddress, resumeOrderId, couponState, transactionMode, couponPolicy] = await Promise.all([
     getCatalogSnapshot(),
     loadLatestCheckoutAddress(auth.user.id),
     loadLatestPendingCheckoutOrderId(auth.user.id),
     loadCartCouponState(),
+    loadGoodsTransactionRuntimeMode(),
+    loadCouponCombinationPolicy(),
   ]);
 
   /* 확정은 place_order 가 한다 — 주문서는 카트에 적용해 둔 선택을 미리 보여줄 뿐이다. */
   const appliedCoupon = couponState.coupons.find(
     (held) => held.id === couponState.selectedUserCouponId,
   ) ?? null;
+
+  if (transactionMode === 'unavailable') return <main className="wc-root checkout-page"><div className="wrap card"><h1>주문 조건을 확인하지 못했어요</h1><p>잠시 후 다시 확인해주세요.</p><Link href="/cart">장바구니로 돌아가기</Link></div></main>;
+  if (transactionMode === 'transaction') return <GoodsTransactionCheckout key={auth.user.id} accountId={auth.user.id} catalog={{ goods: catalog.goods, ips: catalog.ips }} latestAddress={latestAddress}
+    resumeOrderId={resumeOrderId} paymentAvailable={goodsCheckoutPaymentsEnabled(auth.user.id)} bankTransferAvailable={await bankTransferCheckoutEnabled()}
+    userCouponId={couponState.selectedUserCouponId} coupons={couponState.coupons} couponPolicy={couponPolicy} paymentFailCode={paymentFailCode} />;
 
   return (
     <Checkout

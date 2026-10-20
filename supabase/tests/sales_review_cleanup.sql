@@ -100,7 +100,10 @@ select 1/case when exists(select 1 from public.admin_find_goods_for_shipping_not
  then 1 else 0 end as assert_empty_search_behavior_is_preserved;
 
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000050502',true);
-select 1/case when not exists(select 1 from public.admin_find_goods_for_shipping_notice_template(null,'')) then 1 else 0 end as assert_member_cannot_search_drafts;
+do $$ begin
+ begin perform public.admin_find_goods_for_shipping_notice_template(null,'');raise exception 'member draft search allowed';
+ exception when insufficient_privilege then if sqlerrm<>'operator_capability_required' then raise;end if;end;
+end $$;
 do $$ begin
   begin
     perform public.admin_search_goods_additional('review-cleanup-policy','검증');

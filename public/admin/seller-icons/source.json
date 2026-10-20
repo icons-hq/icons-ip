@@ -1,0 +1,27 @@
+{
+  "source": "https://sell.smartstore.naver.com/#/home/dashboard",
+  "capturedAt": "2026-10-16",
+  "capture": "Rendered inline SVG from the user-requested Smart Store dashboard. Generic UI pictograms only; no NAVER branding, seller profile, customer data, or provider service marks.",
+  "assets": [
+    {
+      "file": "sales.svg",
+      "sourceTitle": "판매 관리",
+      "sha256": "998a49497902c3ad6c85c6a821c6bb5aae000e6565932f83beb786b54589949e"
+    },
+    {
+      "file": "claims.svg",
+      "sourceTitle": "취소 · 반품 · 교환",
+      "sha256": "b494fc2dd96eccd728266e1e2aba2729b7504def3858c88b0f0ddf66dde872df"
+    },
+    {
+      "file": "goods.svg",
+      "sourceTitle": "상품 관리",
+      "sha256": "ccc8e9085b43b8c6e22a3a42a6b93416cfabaad61d12bf4b84c79e9c974654fe"
+    },
+    {
+      "file": "reviews.svg",
+      "sourceTitle": "리뷰 현황",
+      "sha256": "f6a194730e103a0537be2450c58b78fdc3aa9a59a0873c885f222f5fdd315f92"
+    }
+  ]
+}

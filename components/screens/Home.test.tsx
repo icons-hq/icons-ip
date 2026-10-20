@@ -70,10 +70,59 @@ const fullCuration: HomeCurationSnapshot = {
   ],
 };
 
+describe('home sale-period state', () => {
+  it('retains scheduled goods in tab cards and compact rows without a sold-out label', () => {
+    const item = good('scheduled', { soldOut: true, salePeriod: { state: 'scheduled', startsAt: '2026-10-14T00:00:00Z', endsAt: '2026-10-15T00:00:00Z', calculatedAt: '2026-10-13T00:00:00Z', nextChangeAt: '2026-10-14T00:00:00Z' } });
+    const html = renderToStaticMarkup(<Home cardRewardsEnabled curation={{ ...emptyCuration, categoryBestTabs: [{ id: 'one', label: '추천', goods: [item] }], goodsBands: [{ id: 'band', title: '선별 굿즈', subcopy: null, imageUrl: '/band.png', href: '/shop', goods: [item] }] }} refreshScheduledContent={false} />);
+    expect(html).toContain('href="/shop/scheduled"'); expect(html).toContain('<span class="wc-band__row-soldout">판매 시작 전</span>'); expect(html).not.toContain('SOLD OUT'); expect(html).not.toContain('품절');
+  });
+});
+
 const render = (curation: HomeCurationSnapshot, cardRewardsEnabled = true) =>
   renderToStaticMarkup(<Home cardRewardsEnabled={cardRewardsEnabled} curation={curation} />);
 
 describe('Home empty curation', () => {
+  it('positions free-product collections without merging BEST tabs and hides empty or disabled regions', () => {
+    const band = { id: 'free', title: '새 자유상품', layout: 'list' as const, imageShape: 'square' as const, goods: [good('free-good')] };
+    const curation = { ...fullCuration, productCollections: [band], layoutOrder: ['products:free', 'category_best'] as const };
+    const html = render({ ...curation, layoutOrder: [...curation.layoutOrder] });
+    expect(html.indexOf('home-products-free-heading')).toBeLessThan(html.indexOf('home-best-heading'));
+    expect(html).toContain('href="/shop/free-good"');
+    expect(render({ ...curation, layoutOrder: ['category_best'] })).not.toContain('home-products-free-heading');
+    expect(render({ ...curation, layoutOrder: [...curation.layoutOrder], productCollections: [{ ...band, goods: [] }] })).not.toContain('새 자유상품');
+  });
+  it('places at most three current stories in the configured slot and honors hiding', () => {
+    const stories = Array.from({ length: 4 }, (_, index) => ({ id: `story-${index}`, reference: index + 1,
+      title: `스토리 ${index}`, description: '현재 공개 소개', imageUrl: null,
+      createdAt: '2026-10-13T00:00:00Z', startsAt: null, endsAt: null }));
+    const curation = { ...fullCuration, shoppingStories: stories, layoutOrder: ['stories', 'popular'] as const };
+    const html = render({ ...curation, layoutOrder: [...curation.layoutOrder] });
+    expect(html).toContain('스토리 0');
+    expect(html).toContain('스토리 2');
+    expect(html).not.toContain('스토리 3');
+    expect(html.indexOf('home-shopping-stories-title')).toBeLessThan(html.indexOf('home-popular-heading'));
+    expect(render({ ...curation, layoutOrder: ['popular'] })).not.toContain('스토리 0');
+  });
+
+  it('keeps story lookup failures distinct from an empty story section', () => {
+    expect(render({ ...emptyCuration, shoppingStoriesUnavailable: true })).toContain('스토어 소식을 불러오지 못했어요');
+    expect(render({ ...emptyCuration, shoppingStories: [] })).not.toContain('home-shopping-stories-title');
+  });
+  it('renders configured global order without reviving hidden or missing sections', () => {
+    const html = render({ ...fullCuration, layoutOrder: ['popular', 'band:b1', 'hero'] });
+    expect(html.indexOf('home-popular-heading')).toBeLessThan(html.indexOf('home-band-b1-heading'));
+    expect(html.indexOf('home-band-b1-heading')).toBeLessThan(html.indexOf('대표 큐레이션'));
+    expect(html).not.toContain('home-picks-heading');
+    expect(html).not.toContain('home-best-heading');
+    expect(html).not.toContain('home-benefit-heading');
+  });
+
+  it('all-hidden layout uses the real empty state and content gates still apply', () => {
+    expect(render({ ...fullCuration, layoutOrder: [] })).toContain('홈을 준비하고 있어요');
+    expect(render({ ...fullCuration, layoutOrder: ['benefits'] }, false)).toContain('홈을 준비하고 있어요');
+    expect(render({ ...fullCuration, layoutOrder: ['band:missing'] })).toContain('홈을 준비하고 있어요');
+  });
+
   /* 큐레이션이 비면 가짜 콘텐츠로 채우지 않는다 — 원인과 다음 행동 하나만 남긴다(DESIGN §7·§9). */
   it('falls back to one explicit empty state with a single next step', () => {
     const html = render(emptyCuration);
@@ -105,6 +154,33 @@ describe('Home empty curation', () => {
 });
 
 describe('Home bands', () => {
+  it('keeps all sales periods and the selected empty default without removing manual category tabs', () => {
+    const html = render({ ...fullCuration, salesBestBands: [{ id: 'sales-a', title: '판매량 BEST', defaultTabId: 'weekly', tabs: [
+      { id: 'realtime', label: '실시간', goods: [good('g-paid')] },
+      { id: 'daily', label: '일간', goods: [] },
+      { id: 'weekly', label: '주간', goods: [] },
+      { id: 'monthly', label: '월간', goods: [] },
+    ] }] });
+    expect(html).toContain('home-best-tab-keyring');
+    expect(html).toContain('aria-selected="true" class="wc-tabs__tab active" id="home-sales-sales-a-tab-weekly"');
+    expect(html).toContain('home-sales-sales-a-tab-monthly');
+    expect(html).toContain('해당 기간에 집계된 굿즈가 없어요.');
+  });
+
+  it('renders public review content with escaped text and removes the entire module below four goods', () => {
+    const reviewGoods = ['r1', 'r2', 'r3', 'r4'].map((id) => ({ ...good(id), ratingAverage: 4.5, reviewCount: 12,
+      review: { id: `review-${id}`, rating: 5, body: '<script>공개 후기</script>', authorName: '공개 닉네임', createdAt: '2026-10-01T00:00:00Z' },
+    }));
+    const html = render({ ...emptyCuration, reviewBestBands: [{ id: 'review-a', title: '베스트리뷰', goods: reviewGoods }] });
+    expect(html).toContain('home-reviews-review-a-heading');
+    expect(html).toContain('href="/shop/r1?reviewPage=1#reviews"');
+    expect(html).toContain('&lt;script&gt;공개 후기&lt;/script&gt;');
+    expect(html).toContain('공개 닉네임');
+    expect(html).toContain('리뷰 12');
+    expect(render({ ...emptyCuration, reviewBestBands: [{ id: 'review-a', title: '베스트리뷰', goods: reviewGoods.slice(0, 3) }] })).toContain('홈을 준비하고 있어요');
+    expect(render({ ...fullCuration, reviewBestBands: [{ id: 'review-a', title: '베스트리뷰', goods: reviewGoods }], layoutOrder: ['popular'] })).not.toContain('home-reviews-review-a-heading');
+  });
+
   it('renders the hero carousel from the curated slides', () => {
     const html = render(fullCuration);
 

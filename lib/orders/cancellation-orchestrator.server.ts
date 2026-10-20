@@ -3,6 +3,7 @@ import 'server-only';
 import type { PaymentAttempt, RefundOutcome } from '../payments/gateway';
 import { getPaymentGateway, type PaymentCheckoutProvider } from '../payments/runtime-gateway';
 import { createServiceClient } from '../supabase/service';
+import { createRuntimeAttemptPaymentGateway } from '../subscriptions/payment-dispatch.server';
 
 export type CancellationRequestStatus =
   | 'requested'
@@ -267,7 +268,7 @@ function createDefaultDependencies(): CancellationReconciliationDependencies {
         providerProductCode: row.provider_product_code,
         expiresAt: row.expires_at,
       };
-      return getPaymentGateway('toss').refund({
+      return createRuntimeAttemptPaymentGateway(service, 'toss', getPaymentGateway('toss')).refund({
         attempt,
         idempotencyKey: `refund:${attempt.id}`,
         amount,

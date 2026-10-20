@@ -61,15 +61,18 @@ Phase 1 schema는 기본 OFF이며, 거래 lookup 연락처 HMAC/key version, le
 
 ## 5. 분리 보존 매트릭스
 
+2026-10-14 구현 범위: 신규 반품·교환 연락처 계획·변경 이력·최종 재출고 목적지에는 별도 필드 암호화, 목적 종료 판정, 유한 보존 예외, 기한 도달 시 읽기 차단과 실제 파기 경로를 추가했다. 이 운영 목적의 이름·전화·주소·내부 합의는 같은 파기 범위이며 장기 거래 snapshot에 복사하지 않는다. 전화는 신규 회수·교환 연락처의 운영 목적에 한정해 같은 기한까지 암호화 보관하며 법정 장기 거래 snapshot에는 포함하지 않는다. 배송메모는 새 계획에 추가하지 않는다. 새 세 저장소의 local 검증과 기존 원주문/대리접수 사본, 전체 탈퇴 worker·백업 replay 완료는 구분한다([연락처 inventory와 절차](runbooks/claim-contact-corrections.md)). 운영 활성화와 이 문서 전체의 공개 시행은 아직 실행하지 않았다.
+
 | 분류 | 최소 보존 필드 | 기산점·기간 | 접근 역할 | 제외·파기 |
 |---|---|---|---|---|
 | 계약·청약철회 | order ref, 상태·합계·배송비, 상품명/type/IP snapshot, 수량·단가, 계약·청약철회·결정 시각과 정규화 유형 | 각 기록 생성일부터 5년 | 분쟁 담당자; 목적별 service RPC | checkout key, 자유서술 reason·note, 오류 상세 제외 |
 | 대금결제·재화 공급 | provider, provider-neutral payment/order ref, 금액·통화·상태·승인/환급/공급 시각, carrier와 opaque tracking ref | 각 결제·환급·공급 기록 생성일부터 5년 | 재무·CS 분리 역할; 목적별 service RPC | payment key, raw provider payload, idempotency secret, 전체 주소 제외 |
+| 상품 이행·디지털 제공 | 주문/품목 ref, 제공 방식·선결제 비용, 구매 당시 파일 ID·형식·크기·해시와 제공 시각 | 기존 계약·공급 기록의 5년 보존 기준을 재사용 | 분쟁 담당자; 목적별 service RPC | 파일명·비공개 Storage 경로·로그인 세션·자유서술·고객 원식별자는 복제하지 않음 |
 | 티켓 계약·공급 | event/order ref, 회차·ticket type·단가·수량 snapshot, 상태, 계약·검표·취소·환급 시각과 금액 | 각 기록 생성일부터 5년 | 티켓 분쟁 담당자; 목적별 service RPC | QR token, reservation key, staff 원식별자, 자유서술 제외 |
 | 탈퇴 후 거래 lookup | 거래 시점 정규화 이메일·전화의 purpose-separated keyed HMAC, key version, 거래 ref | 연결된 거래 record와 같은 기간 | 전용 권리행사 verifier | 원문 연락처·프로필·DOB를 보존하지 않음 |
 | 소비자 불만·분쟁 | case ID, 정규화 category, 거래 ref, 접수·조치·결과 시각과 최소 증거 hash | 각 처리기록 생성일부터 3년 | 배정 CS와 승인된 법무 reviewer | 모든 신고·운영 메모 일괄 복제 금지 |
 | 표시·광고 | 실제 노출한 고시·가격·조건의 version/hash와 노출 시각 | 각 노출 기록 6개월 | 상품·법무 reviewer | 회원과 연결하지 않음 |
-| 배송 운영 개인정보 | 발송·반품에 필요한 수령인명·우편번호·실사용 주소를 필드별 암호화 | 배송 완료·반품·분쟁 종료 중 늦은 시각부터 30일 이내 | fulfillment 최소 역할 | 전화·배송메모 제외; 명시적 legal hold 외 연장 금지 |
+| 배송 운영 개인정보 | 발송·반품에 필요한 수령인명·우편번호·실사용 주소, 신규 회수·교환 연락처 계획의 전화는 필드별 암호화 | 배송 완료·반품·분쟁 종료 중 늦은 시각부터 30일 이내 | fulfillment 최소 역할 | 배송메모 제외; 전화·주소 원문은 법정 장기 거래 snapshot에 복제하지 않음; 명시적 legal hold 외 연장 금지 |
 | 커뮤니티 일반 신고 | case ID, category, content ref/hash, 당사자 keyed ref, 접수·조치·통지·이의 시각과 결과 | 최종 조치·이의 종료부터 90일 내부 상한 | 배정 staff의 redacted view | 자유서술·원본 첨부는 30일 안에 최소화 |
 | 법정 권리 사건 | case ID, 권리 유형, content ref/hash, 서류 검증 결과, 중단·통지·재개·종료 시각 | 사건별 법적 근거·승인된 `retain_until`; 종료 후 불필요 PII 즉시 파기 | 사건별 reviewer; 반출 별도 승인 | 일반 신고라는 이유로 자동 장기보존 금지 |
 

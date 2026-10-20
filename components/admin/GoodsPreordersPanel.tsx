@@ -111,7 +111,7 @@ function PreorderReceipt({ policy, variant, canActivate, onSaved }: {
   </div>;
 }
 
-function ReservationSelection({ goodId, page, onSaved }: { goodId: string; page: AdminPreorderReservationPage; onSaved: (message: string) => void }) {
+function ReservationSelection({ goodId, page, onSaved, canAllocate }: { goodId: string; page: AdminPreorderReservationPage; canAllocate: boolean; onSaved: (message: string) => void }) {
   const [selected, setSelected] = useState<string[]>([]);
   const [receipt, setReceipt] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -137,18 +137,18 @@ function ReservationSelection({ goodId, page, onSaved }: { goodId: string; page:
     {page.items.length === 0 ? <p className="muted">해당 상태의 예약 주문이 없습니다.</p> : <ul style={{ listStyle: 'none', padding: 0, margin: 0, display: 'grid', gap: 12 }}>
       {page.items.map((item) => <li key={item.orderItemId} style={{ borderBottom: '1px solid var(--line)', paddingBottom: 12 }}>
         <label className="row" style={{ gap: 8, alignItems: 'flex-start' }}>
-          {item.state === 'reserved' && <input type="checkbox" checked={selected.includes(item.orderItemId)}
+          {canAllocate && item.state === 'reserved' && <input type="checkbox" checked={selected.includes(item.orderItemId)}
             disabled={pending || !['paid', 'confirmed', 'shipping'].includes(item.orderStatus)}
             onChange={(event) => setSelected((current) => event.target.checked ? [...current, item.orderItemId] : current.filter((id) => id !== item.orderItemId))} />}
           <span>{item.variantName ?? '기본 옵션'} · {item.qty.toLocaleString('ko-KR')}개 · {status[item.state]}{item.orderStatus === 'pending' ? ' · 결제 대기' : ''}</span>
         </label>
         <a href={`/admin/sales/orders/${item.orderId}`} style={{ fontSize: 12, overflowWrap: 'anywhere' }}>주문 {item.orderId}</a>
         <small className="muted" style={{ display: 'block', marginTop: 4 }}>{goodsShipDateLabel(item.expectedShipDate)} · 현재 실제 옵션 재고 {item.physicalStockQty.toLocaleString('ko-KR')}개</small>
-        {item.allocationReference && <small className="muted" style={{ display: 'block', overflowWrap: 'anywhere' }}>입고 근거: {item.allocationReference}</small>}
-        {item.releaseReason && <small className="muted" style={{ display: 'block' }}>취소·환불 기록: {item.releaseReason}</small>}
+        {canAllocate && item.allocationReference && <small className="muted" style={{ display: 'block', overflowWrap: 'anywhere' }}>입고 근거: {item.allocationReference}</small>}
+        {canAllocate && item.releaseReason && <small className="muted" style={{ display: 'block' }}>취소·환불 기록: {item.releaseReason}</small>}
       </li>)}
     </ul>}
-    {page.items.some((item) => item.state === 'reserved') && <>
+    {canAllocate && page.items.some((item) => item.state === 'reserved') && <>
       <p className="muted" style={{ fontSize: 12, lineHeight: 1.6, margin: 0 }}>입고를 확인하고 옵션 재고에 실제 수량을 반영한 뒤, 결제가 확인된 예약 주문을 선택해주세요.
         선택한 품목 수량만 실제 옵션 재고에서 예약 주문으로 할당합니다.</p>
       {totals.size > 0 && <ul style={{ margin: 0, paddingLeft: 20 }}>{[...totals.entries()].map(([id, total]) => <li key={id}>
@@ -165,7 +165,7 @@ function ReservationSelection({ goodId, page, onSaved }: { goodId: string; page:
   </form>;
 }
 
-function PreorderReservations({ goodId, revision, onSaved }: { goodId: string; revision: number; onSaved: (message: string) => void }) {
+function PreorderReservations({ goodId, revision, onSaved, canAllocate }: { goodId: string; revision: number; canAllocate: boolean; onSaved: (message: string) => void }) {
   const [state, setState] = useState('reserved');
   const [pageNumber, setPageNumber] = useState(1);
   const [refresh, setRefresh] = useState(0);
@@ -180,7 +180,7 @@ function PreorderReservations({ goodId, revision, onSaved }: { goodId: string; r
   }, [goodId, key, pageNumber, state]);
   const visible = loaded?.key === key ? loaded : null;
   return <div className="col" style={{ gap: 12 }}>
-    <h3 style={{ margin: 0, fontSize: 16 }}>예약 주문·입고 할당</h3>
+    <h3 style={{ margin: 0, fontSize: 16 }}>{canAllocate ? '예약 주문·입고 할당' : '예약 주문'}</h3>
     <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
       <label>예약 상태 <select value={state} onChange={(event) => { setState(event.target.value); setPageNumber(1); }}>
         <option value="reserved">미할당 예약</option><option value="allocated">실물 할당 완료</option><option value="released">입고 전 취소</option><option value="returned">입고 후 환불</option>
@@ -189,7 +189,7 @@ function PreorderReservations({ goodId, revision, onSaved }: { goodId: string; r
     </div>
     {!visible ? <p role="status">예약 주문을 불러오는 중입니다…</p> : visible.error ? <p role="alert">{visible.error}</p> : visible.reservations ? <>
       <small className="muted">총 {visible.reservations.total.toLocaleString('ko-KR')}품목 · {pageNumber}페이지</small>
-      <ReservationSelection key={key} goodId={goodId} page={visible.reservations} onSaved={(message) => { setPageNumber(1); onSaved(message); }} />
+      <ReservationSelection key={key} canAllocate={canAllocate} goodId={goodId} page={visible.reservations} onSaved={(message) => { setPageNumber(1); onSaved(message); }} />
       <div className="row" style={{ gap: 8 }}>
         <button className="btn btn-ghost" type="button" disabled={pageNumber === 1} onClick={() => setPageNumber((page) => page - 1)}>이전</button>
         <button className="btn btn-ghost" type="button" disabled={!visible.reservations.hasMore} onClick={() => setPageNumber((page) => page + 1)}>다음</button>
@@ -199,8 +199,8 @@ function PreorderReservations({ goodId, revision, onSaved }: { goodId: string; r
 }
 
 /** Independent product operations panel; keep it outside GoodSection's form. */
-export function GoodsPreordersPanel({ goodId, variants, canActivate = false }: {
-  goodId: string; variants: AdminGoodsVariant[]; canActivate?: boolean;
+export function GoodsPreordersPanel({ goodId, variants, canActivate = false, canReadOrders = true, canAllocate = true }: {
+  goodId: string; variants: AdminGoodsVariant[]; canActivate?: boolean; canReadOrders?: boolean; canAllocate?: boolean;
 }) {
   const [refresh, setRefresh] = useState(0);
   const [notice, setNotice] = useState<{ goodId: string; message: string } | null>(null);
@@ -231,7 +231,7 @@ export function GoodsPreordersPanel({ goodId, variants, canActivate = false }: {
         </details> : <PreorderReceipt policy={policy} variant={selectedVariants.find((variant) => variant.id === policy.variantId)} canActivate={canActivate} onSaved={saved} />}
       </div>)}
       <details><summary>새 예약 조건</summary><PreorderEditor key={key} goodId={goodId} variants={selectedVariants} canActivate={canActivate} onSaved={saved} /></details>
-      <PreorderReservations goodId={goodId} revision={refresh} onSaved={saved} />
+      {canReadOrders ? <PreorderReservations goodId={goodId} revision={refresh} onSaved={saved} canAllocate={canAllocate} /> : null}
     </>}
     <button className="btn btn-ghost" type="button" onClick={reload}>저장된 예약 조건 새로고침</button>
   </section>;

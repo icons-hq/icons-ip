@@ -62,6 +62,7 @@ function rpcErrorMessage(error: { code?: unknown; message?: unknown }): string {
   if (descriptor.includes('goods_clone_operation_conflict') || descriptor.includes('operation_conflict')) return '같은 복사 요청 ID가 다른 내용으로 사용되었습니다. 새로고침 후 다시 시도해주세요.';
   if (descriptor.includes('goods_clone_source_changed') || descriptor.includes('goods_changed')) return adminGoodsCopy('원본 굿즈가 변경되었습니다. 최신 원본을 다시 확인해주세요.');
   if (descriptor.includes('goods_clone_source_busy')) return '같은 IP의 주문이나 상품 변경을 처리 중입니다. 입력값을 유지했으니 잠시 후 다시 복사해주세요.';
+  if (/goods_attribute_required|invalid_goods_attribute_value/.test(descriptor)) return '원본 상품의 속성이 현재 카테고리 정의와 맞지 않습니다. 원본 상품에서 필수값·선택값을 확인하고 저장한 뒤 복사해주세요.';
   if (descriptor.includes('category_archived') || descriptor.includes('category_not_leaf')) return '원본 카테고리를 새 상품에 연결할 수 없어 미분류 초안으로 복사해주세요.';
   if (descriptor.includes('forbidden') || code === '42501' || code === '28000') return '관리자 권한이 필요합니다.';
   return adminGoodsCopy('굿즈를 복사하지 못했습니다. 입력값은 유지됩니다.');

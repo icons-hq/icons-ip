@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   getHomeSnapshot: vi.fn(),
 }));
 
+vi.mock('@/lib/goods-announcement-popup.server', () => ({ loadHomeAnnouncementPopup: async () => ({ item: null, nextChangeAt: null }) }));
 vi.mock('@/components/screens/Home', () => ({ Home: () => null }));
 vi.mock('@/lib/catalog', () => ({ getHomeSnapshot: mocks.getHomeSnapshot }));
 vi.mock('@/lib/card-rewards/gate.server', () => ({

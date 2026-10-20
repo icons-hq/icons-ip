@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import { Icon } from '@/components/ui/Icon';
+import { MANAGER_ROLE_LABELS, type OperatorAccess } from '@/lib/admin/access';
 import {
   adminGroupForPath,
   adminScreenForPath,
@@ -29,8 +30,7 @@ const MOBILE_DRAWER_FOCUSABLE_SELECTOR = [
 ].join(',');
 
 function isScreenActive(screen: AdminScreen, pathname: string): boolean {
-  if (screen.href === '/admin') return pathname === '/admin';
-  return pathname === screen.href || pathname.startsWith(`${screen.href}/`);
+  return adminScreenForPath(pathname)?.id === screen.id;
 }
 
 function useAdminNavigationPreferences(
@@ -151,23 +151,28 @@ function screensForQuery(group: AdminNavGroup, query: string) {
 
 export function AdminSidebar({
   accountId,
+  currentPath,
   collapsed,
   onCollapsedChange,
   role,
+  operatorAccess,
 }: {
   /** 계정별 로컬 메뉴 설정의 경계. 인증되지 않은 테스트·초기 셸은 role로 대체한다. */
   accountId?: string;
+  currentPath?: string;
   collapsed: boolean;
   onCollapsedChange: (collapsed: boolean) => void;
   role: string;
+  operatorAccess?: OperatorAccess;
 }) {
-  const pathname = usePathname();
+  const basePathname = usePathname();
+  const pathname = currentPath ?? basePathname;
   const [mobileOpen, setMobileOpen] = useState(false);
   const mobileTriggerRef = useRef<HTMLButtonElement>(null);
   const mobileSearchRef = useRef<HTMLInputElement>(null);
   const mobileDrawerRef = useRef<HTMLElement>(null);
   const wasMobileOpen = useRef(false);
-  const groups = useMemo(() => visibleAdminNavGroups(role), [role]);
+  const groups = useMemo(() => visibleAdminNavGroups(role, operatorAccess), [role, operatorAccess]);
   const [query, setQuery] = useState('');
   const normalizedQuery = query.trim().toLocaleLowerCase('ko-KR');
   const activeScreen = adminScreenForPath(pathname);
@@ -212,6 +217,7 @@ export function AdminSidebar({
   const favoriteItems = groups.flatMap((group) => group.screens
     .filter((screen) => screen.status === 'ready' && favoriteIds.has(screen.id))
     .map((screen) => ({ group, screen })));
+  const homeGroup = groups.find((group) => group.id === 'home');
 
   function toggleFavorite(screenId: string) {
     update((current) => ({
@@ -294,21 +300,34 @@ export function AdminSidebar({
         <span aria-hidden="true" className="admin-mobile-nav-trigger__line" />
         <span aria-hidden="true" className="admin-mobile-nav-trigger__line" />
       </button>
-      <Link aria-label="ICONS Admin 홈" className="wc-admin__brand" href="/admin">
-        <span className="wc-admin__brand-dot" />
-        <span className="wc-admin__nav-label">
-          ICONS <span className="wc-admin__brand-caption">Admin</span>
+      <Link aria-label="ICONS 판매자센터 홈" className="wc-admin__brand" href="/admin">
+        <span aria-hidden="true" className="wc-admin__store-mark">ICONS</span>
+        <span className="wc-admin__nav-label wc-admin__store-profile">
+          <strong>ICONS</strong>
+          <span className="wc-admin__brand-caption">{operatorAccess?.managerRole ? MANAGER_ROLE_LABELS[operatorAccess.managerRole] : role === 'admin' ? '관리자' : '스토어 매니저'}</span>
         </span>
       </Link>
       <nav aria-label="관리자 메뉴" className="wc-admin__nav" id="admin-mobile-navigation">
         <div className="admin-nav-tools">
+          {homeGroup ? <div className="admin-nav-current">
+            {homeGroup.screens.map((screen) => <AdminNavItem
+              favorite={favoriteIds.has(screen.id)}
+              group={homeGroup}
+              key={screen.id}
+              onToggleFavorite={toggleFavorite}
+              onNavigate={handleMobileClose}
+              pathname={pathname}
+              screen={screen}
+            />)}
+          </div> : null}
+          <p className="sr-only" aria-live="polite">현재 위치 · {activeGroup?.label ?? '어드민'}{activeScreen ? ` / ${activeScreen.label}` : ''}</p>
           <label className="admin-nav-search">
             <Icon name="search" size={17} />
             <span className="sr-only">어드민 메뉴 검색</span>
             <input
               aria-label="어드민 메뉴 검색"
               onChange={(event) => setQuery(event.target.value)}
-              placeholder="메뉴 검색"
+              placeholder="메뉴를 검색해주세요."
               ref={mobileSearchRef}
               type="search"
               value={query}
@@ -317,9 +336,6 @@ export function AdminSidebar({
               <button aria-label="메뉴 검색어 지우기" onClick={() => setQuery('')} type="button">×</button>
             ) : null}
           </label>
-          <p className="admin-nav-current" aria-live="polite">
-            현재 위치 · {activeGroup?.label ?? '어드민'}{activeScreen ? ` / ${activeScreen.label}` : ''}
-          </p>
         </div>
 
         {favoriteItems.length ? (
@@ -341,8 +357,10 @@ export function AdminSidebar({
         ) : null}
 
         {visibleGroups.map((group) => {
-          const isExpanded = group.id === 'home'
-            || collapsed
+          if (group.id === 'home') {
+            return null;
+          }
+          const isExpanded = collapsed
             || normalizedQuery.length > 0
             || activeGroup?.id === group.id
             || !preferences.collapsedGroupIds.includes(group.id);
@@ -361,7 +379,9 @@ export function AdminSidebar({
                 type="button"
               >
                 <span>{group.label}</span>
-                <span aria-hidden="true">{isExpanded ? '−' : '+'}</span>
+                <span aria-hidden="true" className={isExpanded ? 'admin-nav-group-chevron on' : 'admin-nav-group-chevron'}>
+                  <Icon name="chevronRight" size={14} />
+                </span>
               </button>
               <div hidden={!isExpanded} id={groupPanelId}>
                 {group.screens.map((screen) => (
@@ -386,19 +406,19 @@ export function AdminSidebar({
           <Icon name="arrow" size={18} style={{ transform: 'rotate(180deg)' }} />
           <span className="wc-admin__nav-label">사이트로 돌아가기</span>
         </Link>
-        <button
-          aria-expanded={!collapsed}
-          aria-label={collapsed ? '사이드바 펼치기' : '사이드바 접기'}
-          className="wc-admin__nav-item wc-admin__collapse-btn"
-          onClick={() => onCollapsedChange(!collapsed)}
-          title={collapsed ? '펼치기' : '접기'}
-          type="button"
-        >
-          <Icon name={collapsed ? 'chevronRight' : 'chevronLeft'} size={18} />
-          <span className="wc-admin__nav-label">접기</span>
-        </button>
       </div>
     </aside>
+    <button
+      aria-expanded={!collapsed}
+      aria-controls="admin-mobile-navigation"
+      aria-label={collapsed ? '사이드바 펼치기' : '사이드바 접기'}
+      className="wc-admin__collapse-btn"
+      onClick={() => onCollapsedChange(!collapsed)}
+      title={collapsed ? '펼치기' : '접기'}
+      type="button"
+    >
+      <Icon name={collapsed ? 'chevronRight' : 'chevronLeft'} size={14} />
+    </button>
     </>
   );
 }

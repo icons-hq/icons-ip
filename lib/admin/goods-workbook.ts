@@ -10,14 +10,24 @@ import { parsePurchaseCostInput, type PurchaseTaxBasis } from './goods-purchase-
 import { goodSaveFields } from './good-save';
 import type { AdminGoodsKc } from './goods-kc';
 import { goodsKcWorkbookOrphanErrors, planGoodsKcWorkbookRows, type GoodsKcWorkbookInputRow } from './goods-kc-workbook';
+import { goodsCustomInputWorkbookConfig, goodsCustomInputWorkbookOrphanErrors, planGoodsCustomInputWorkbookRows,
+  type GoodsCustomInputWorkbookInputRow } from './goods-custom-input-workbook';
+import type { GoodsAfterSalesSnapshot } from '@/lib/goods-after-sales';
+import type { GoodsSizeChartSnapshot } from '@/lib/goods-size-chart';
+import { goodsGuidanceOrphanErrors, planGoodsAfterSalesWorkbook, planGoodsSizeWorkbook,
+  GOODS_AFTER_SALES_WORKBOOK_SHEET, GOODS_SIZE_WORKBOOK_SHEET,
+  type GoodsAfterSalesWorkbookInputRow, type GoodsSizeWorkbookInputRow, type GoodsImportGuidance } from './goods-guidance-workbook';
 
 export const GOODS_WORKBOOK_ROW_LIMIT = 500;
 export const GOODS_WORKBOOK_BYTES_LIMIT = 2 * 1024 * 1024;
 export const GOODS_IMAGES_ZIP_BYTES_LIMIT = 50 * 1024 * 1024;
 export const GOODS_IMPORT_PATH = '/admin/catalog/goods/import';
 export const GOODS_IMPORT_BUCKET = 'admin-goods-imports';
-export const GOODS_WORKBOOK_VERSION = 'ICONS 상품 일괄 등록 v4';
-/** 추가 이미지 4칸(갤러리 1~4) 시절 양식. v4에서 갤러리 5~9 열만 빠진 순서다. 계속 올릴 수 있다. */
+export const GOODS_WORKBOOK_VERSION = 'ICONS 상품 일괄 등록 v7';
+export const GOODS_WORKBOOK_V6_VERSION = 'ICONS 상품 일괄 등록 v6';
+export const GOODS_WORKBOOK_V5_VERSION = 'ICONS 상품 일괄 등록 v5';
+/** v4는 옵션 축/값 3이 없고, v3는 갤러리 5~9도 없다. 구형 양식의 열 순서를 유지해 읽는다. */
+export const GOODS_WORKBOOK_V4_VERSION = 'ICONS 상품 일괄 등록 v4';
 export const GOODS_WORKBOOK_V3_VERSION = 'ICONS 상품 일괄 등록 v3';
 export const GOODS_WORKBOOK_HEADERS = {
   code: '상품코드',
@@ -42,6 +52,8 @@ export const GOODS_WORKBOOK_HEADERS = {
   value1: '옵션 값 1',
   axis2: '옵션 축 2',
   value2: '옵션 값 2',
+  axis3: '옵션 축 3',
+  value3: '옵션 값 3',
   variantPrice: '옵션 판매가',
   stockQty: '옵션 재고',
   preset: '고시 프리셋',
@@ -112,18 +124,20 @@ export type GoodsWorkbookRow = Record<GoodsWorkbookKey, string>;
 /** v3 양식에 없는 열 — 추가 이미지 5~9(갤러리 5~9). */
 const GOODS_WORKBOOK_V3_ABSENT = /^gallery(Url|File)[4-8]$/;
 /** 업로드한 상품 시트의 A1 버전에 맞는 열 순서. 모르는 버전이면 null이다. */
-export function goodsWorkbookLayout(version: string): { keys: readonly GoodsWorkbookKey[]; layout?: 'v3' } | null {
-  if (version === GOODS_WORKBOOK_VERSION) return { keys: GOODS_WORKBOOK_KEYS };
+export function goodsWorkbookLayout(version: string): { keys: readonly GoodsWorkbookKey[]; layout?: 'v3' | 'v4' } | null {
+  if ([GOODS_WORKBOOK_VERSION, GOODS_WORKBOOK_V6_VERSION, GOODS_WORKBOOK_V5_VERSION].includes(version)) return { keys: GOODS_WORKBOOK_KEYS };
+  const oldOptionKeys = GOODS_WORKBOOK_KEYS.filter(key => key !== 'axis3' && key !== 'value3');
+  if (version === GOODS_WORKBOOK_V4_VERSION) return { keys: oldOptionKeys, layout: 'v4' };
   if (version === GOODS_WORKBOOK_V3_VERSION)
-    return { keys: GOODS_WORKBOOK_KEYS.filter((key) => !GOODS_WORKBOOK_V3_ABSENT.test(key)), layout: 'v3' };
+    return { keys: oldOptionKeys.filter((key) => !GOODS_WORKBOOK_V3_ABSENT.test(key)), layout: 'v3' };
   return null;
 }
 export type GoodsWorkbookInputRow = {
   row: number;
   values: GoodsWorkbookRow;
   errors?: string[];
-  /** v3 양식에서 읽은 행. 기존 상품은 파일에 없는 추가 이미지 5~9를 저장된 값 그대로 둔다. */
-  layout?: 'v3';
+  /** 구형 양식에서 읽은 행. v3의 갤러리 5~9는 보존하고, 3축 상품은 최신 양식을 요구한다. */
+  layout?: 'v3' | 'v4';
 };
 export type GoodsImportVariant = {
   id: string;
@@ -149,6 +163,8 @@ export type GoodsImportExisting = {
   variants: GoodsImportVariant[];
   fingerprint: string;
   kcReview?: AdminGoodsKc | null;
+  afterSales?: GoodsAfterSalesSnapshot | null;
+  sizeChart?: GoodsSizeChartSnapshot | null;
 };
 export type GoodsWorkbookContext = {
   existing: GoodsImportExisting[];
@@ -159,6 +175,11 @@ export type GoodsWorkbookContext = {
   categories?: { id: string; code: string; archived_at: string | null }[];
   imageNames?: string[];
   kcRows?: GoodsKcWorkbookInputRow[] | null;
+  customInputRows?: GoodsCustomInputWorkbookInputRow[] | null;
+  afterSalesRows?: GoodsAfterSalesWorkbookInputRow[] | null;
+  sizeRows?: GoodsSizeWorkbookInputRow[] | null;
+  /** Supplied only by the server while preparing a durable import plan. */
+  newCustomInputId?: () => string;
   mediaUrl: (path: string) => string | null;
 };
 export type GoodsImportImage = {
@@ -181,6 +202,11 @@ export type GoodsImportGroup = {
   fingerprint: string | null;
   images: GoodsImportImage[];
   kcSource?: GoodsKcWorkbookInputRow[];
+  customInputSource?: GoodsCustomInputWorkbookInputRow[];
+  afterSalesSource?: GoodsAfterSalesWorkbookInputRow[];
+  sizeSource?: GoodsSizeWorkbookInputRow[];
+  guidance?: GoodsImportGuidance;
+  guidanceOnly?: true;
   /** Set for groups converted from a Sabangnet sheet: drafts only, and an image that fails is left out. */
   format?: 'sabangnet';
 };
@@ -225,6 +251,8 @@ const OPTION_KEYS = new Set<GoodsWorkbookKey>([
   'value1',
   'axis2',
   'value2',
+  'axis3',
+  'value3',
   'variantPrice',
   'stockQty',
   'lowStockThreshold',
@@ -366,6 +394,8 @@ export function exportGoodsWorkbookRows(
       value1: attributes[0]?.[1] ?? '',
       axis2: attributes[1]?.[0] ?? '',
       value2: attributes[1]?.[1] ?? '',
+      axis3: attributes[2]?.[0] ?? '',
+      value3: attributes[2]?.[1] ?? '',
       variantPrice: str(variant?.price ?? good.price),
       stockQty: str(variant?.stock_qty ?? 0),
       lowStockThreshold: str(variant?.low_stock_threshold),
@@ -419,6 +449,13 @@ export function planGoodsWorkbookImport(
     );
   const kcOrphans = goodsKcWorkbookOrphanErrors(context.kcRows ?? [], rows.map(row => row.values.code.trim().toUpperCase()));
   if (kcOrphans.length) throw new Error(kcOrphans.join('\n'));
+  const customInputOrphans = goodsCustomInputWorkbookOrphanErrors(context.customInputRows ?? [], rows.map(row => row.values.code));
+  if (customInputOrphans.length) throw new Error(customInputOrphans.join('\n'));
+  const guidanceOrphans = [
+    ...goodsGuidanceOrphanErrors(context.afterSalesRows ?? [], rows.map(row => row.values.code), GOODS_AFTER_SALES_WORKBOOK_SHEET),
+    ...goodsGuidanceOrphanErrors(context.sizeRows ?? [], rows.map(row => row.values.code), GOODS_SIZE_WORKBOOK_SHEET),
+  ];
+  if (guidanceOrphans.length) throw new Error(guidanceOrphans.join('\n'));
   const grouped = new Map<string, GoodsWorkbookInputRow[]>();
   for (const row of rows) {
     const code = row.values.code.trim().toUpperCase();
@@ -455,7 +492,12 @@ export function planGoodsWorkbookImport(
       fingerprint: record?.fingerprint ?? null,
       images: [],
       kcSource: (context.kcRows ?? []).filter(row => row.values.goodCode.trim() === first.code),
+      customInputSource: (context.customInputRows ?? []).filter(row => row.values.goodCode.trim().toUpperCase() === first.code),
+      afterSalesSource: (context.afterSalesRows ?? []).filter(row => row.values.goodCode.trim().toUpperCase() === first.code),
+      sizeSource: (context.sizeRows ?? []).filter(row => row.values.goodCode.trim().toUpperCase() === first.code),
     };
+    if (record?.variants.some(variant => (!variant.archived_at || variant.is_default) && Object.keys(variant.attributes).length > 2)
+      && source.some(row => row.layout === 'v3' || row.layout === 'v4')) errors.push('3축 옵션 상품은 최신 v7 양식으로 다시 내려받아 수정해주세요. 구형 양식에는 세 번째 옵션 축이 없어 적용할 수 없습니다.');
     if (!['', '예'].includes(first.kcReset)) errors.push('KC 초기화는 비워두거나 예를 선택해주세요.');
     const kcPlan = planGoodsKcWorkbookRows(context.kcRows, {
       goodCode: first.code, existing: record?.kcReview ?? null,
@@ -464,6 +506,23 @@ export function planGoodsWorkbookImport(
     });
     group.warnings.push(...kcPlan.warnings);
     if (kcPlan.kind === 'error') errors.push(...kcPlan.errors);
+    const customInputPlan = planGoodsCustomInputWorkbookRows(context.customInputRows, {
+      goodCode: first.code,
+      existing: record ? goodsCustomInputWorkbookConfig(record.good) : null,
+      newFieldId: context.newCustomInputId,
+    });
+    group.warnings.push(...customInputPlan.warnings);
+    if (customInputPlan.kind === 'error') errors.push(...customInputPlan.errors);
+    const afterSalesPlan = planGoodsAfterSalesWorkbook(context.afterSalesRows, first.code, record?.afterSales ?? null);
+    const sizePlan = planGoodsSizeWorkbook(context.sizeRows, first.code, record?.sizeChart ?? null);
+    for (const plan of [afterSalesPlan, sizePlan]) {
+      group.warnings.push(...plan.warnings);
+      if (plan.kind === 'error') errors.push(...plan.errors);
+    }
+    if (afterSalesPlan.kind === 'save' || sizePlan.kind === 'save') group.guidance = {
+      ...(afterSalesPlan.kind === 'save' ? { afterSales: afterSalesPlan.change } : {}),
+      ...(sizePlan.kind === 'save' ? { sizeChart: sizePlan.change } : {}),
+    };
     for (const row of source) {
       const current = noticeFromPreset(row.values, context);
       if (
@@ -478,7 +537,7 @@ export function planGoodsWorkbookImport(
         errors.push(`${row.row}행: 같은 상품의 상품 정보가 서로 다릅니다.`);
     }
     // Legacy values outside today's editing rules still survive an untouched export.
-    if (record && !errors.length && kcPlan.kind === 'keep') {
+    if (record && !errors.length && kcPlan.kind === 'keep' && customInputPlan.kind === 'keep') {
       const exported = exportGoodsWorkbookRows(record, context);
       if (
         exported.length === source.length &&
@@ -486,8 +545,15 @@ export function planGoodsWorkbookImport(
           (row, index) => canonical(row) === canonical(source[index].values),
         )
       ) {
-        group.kind = 'unchanged';
-        return group;
+        if (!group.guidance) {
+          group.kind = 'unchanged';
+          return group;
+        }
+        if (!record.good.archived_at) {
+          group.guidanceOnly = true;
+          group.target = { previous_id: str(record.good.id), code: str(record.good.code) };
+          return group;
+        }
       }
     }
     if (record?.good.archived_at)
@@ -647,11 +713,11 @@ export function planGoodsWorkbookImport(
           variant.code.toUpperCase() === value.variantCode.toUpperCase(),
       );
       const attributes: Record<string, string> = Object.create(null);
-      if (value.axis1 || value.value1) attributes[value.axis1] = value.value1;
-      if (value.axis2 || value.value2) {
-        if (Object.hasOwn(attributes, value.axis2))
+      for (const [axis, optionValue] of [[value.axis1, value.value1], [value.axis2, value.value2], [value.axis3, value.value3]]) {
+        if (!axis && !optionValue) continue;
+        if (Object.hasOwn(attributes, axis))
           errors.push(`${row.row}행: 옵션 축 이름이 중복됩니다.`);
-        attributes[value.axis2] = value.value2;
+        attributes[axis] = optionValue;
       }
       if (
         !integer(value.variantPrice || first.price || '0') ||
@@ -727,6 +793,8 @@ export function planGoodsWorkbookImport(
     if (value.descriptionFormat === 'html') group.warnings.push(...sanitizeGoodsDescription(first.description).warnings);
     group.target = {
       ...(kcPlan.kind === 'save' ? { kc_update: kcPlan.update } : {}),
+      ...(customInputPlan.kind === 'save' ? { custom_inputs: customInputPlan.config,
+        custom_inputs_expected_revision: customInputPlan.expectedRevision } : {}),
       ...goodSaveFields({
         ...value,
         // Workbook blanks are explicit replacements; the manual form can omit keys.

@@ -19,6 +19,8 @@ cleanup() {
   if ! psql_exec -q <<SQL >"${shipment_logs}/cleanup.log" 2>&1
 select pg_terminate_backend(pid) from pg_stat_activity where application_name like '${shipment_run}-%' and pid<>pg_backend_pid();
 delete from public.audit_log where actor_id='${shipment_user}';
+delete from private.purchase_confirmation_events where order_id='${shipment_order}';
+delete from private.order_purchase_confirmations where order_id='${shipment_order}';
 delete from public.orders where id='${shipment_order}';
 delete from auth.users where id='${shipment_user}';
 SQL

@@ -1,3 +1,4 @@
+import { legacyOperatorAccessFixture } from '@/lib/admin/access.test-fixtures';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({ auth: vi.fn(), rpc: vi.fn(), revalidate: vi.fn() }));
 vi.mock('@/lib/auth/admin', () => ({ getCurrentAdminAuthState: mocks.auth }));
@@ -13,7 +14,7 @@ function receipt() {
     operatorName: '인계 담당', occurredAt: '2026-09-10T18:30', recipientKind: 'self', receiptReference: '수령 기록 1', receiptCode: '1234-ABCD-5678' })) form.set(key, value);
   return form;
 }
-beforeEach(() => { vi.resetAllMocks(); mocks.auth.mockResolvedValue({ isConfigured: true, user: { id: 'staff' }, role: 'staff', isStaff: true }); });
+beforeEach(() => { vi.resetAllMocks(); mocks.auth.mockResolvedValue({ operatorAccess: legacyOperatorAccessFixture(), isConfigured: true, user: { id: 'staff' }, role: 'staff', isStaff: true }); });
 describe('delivery method server actions', () => {
   it('requires admin for operating policy changes but allows staff receipt evidence', async () => {
     expect(await saveDeliveryPolicyAction(new FormData())).toMatchObject({ ok: false }); expect(mocks.rpc).not.toHaveBeenCalled();
@@ -39,7 +40,7 @@ describe('delivery method server actions', () => {
     expect(mocks.revalidate).not.toHaveBeenCalled();
   });
   it('rejects non-staff before touching an order', async () => {
-    mocks.auth.mockResolvedValue({ isConfigured: true, user: { id: 'customer' }, isStaff: false });
+    mocks.auth.mockResolvedValue({ operatorAccess: legacyOperatorAccessFixture(), isConfigured: true, user: { id: 'customer' }, isStaff: false });
     expect(await recordShipmentDeliveryAction(receipt())).toMatchObject({ ok: false }); expect(mocks.rpc).not.toHaveBeenCalled();
   });
 });

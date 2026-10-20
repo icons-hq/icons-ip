@@ -1,0 +1,10 @@
+.wc-admin .admin-goods-fulfillment { display: grid; gap: 16px; }
+.wc-admin .admin-goods-fulfillment form, .wc-admin .admin-goods-fulfillment fieldset { display: grid; gap: 16px; min-width: 0; }
+.wc-admin .admin-goods-fulfillment fieldset { border: 1px solid var(--wc-line-control); padding: 16px; }
+.wc-admin .admin-goods-fulfillment label { display: grid; gap: 7px; }
+.wc-admin .admin-goods-fulfillment .admin-goods-fulfillment__check { display: flex; gap: 8px; align-items: center; }
+.wc-admin .admin-goods-fulfillment input:not([type="checkbox"]), .wc-admin .admin-goods-fulfillment select { width: 100%; min-width: 0; }
+.wc-admin .admin-goods-fulfillment__methods { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 16px; }
+.wc-admin .admin-goods-fulfillment__method { border: 1px solid var(--wc-line-control); padding: 12px; display: grid; align-content: start; gap: 12px; }
+.wc-admin .admin-goods-fulfillment li { overflow-wrap: anywhere; margin-block: 8px; }
+@media(max-width: 640px) { .wc-admin .admin-goods-fulfillment__methods { grid-template-columns: 1fr; } .wc-admin .admin-goods-fulfillment fieldset { padding: 10px; } }

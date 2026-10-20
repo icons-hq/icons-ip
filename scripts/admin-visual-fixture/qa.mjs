@@ -16,6 +16,14 @@ function assert(condition, message) {
   if (!condition) throw new Error(message);
 }
 
+async function searchForm(page) {
+  const form = page.locator('form[aria-label="상품 검색 조건"], form.admin-console-filters').first();
+  await form.waitFor({ state: 'attached' });
+  const collapsed = form.locator('xpath=ancestor::details[not(@open)][1]');
+  if (await collapsed.count()) await collapsed.locator(':scope > summary').click();
+  return form;
+}
+
 async function evaluateMeasure(page, heading) {
   const fn = `(${measureAdminLayout.toString()})`;
   return page.evaluate(({ source, expected }) => (0, eval)(source)({ heading: expected }), {
@@ -120,9 +128,10 @@ async function run() {
       if (message.type() === 'error') errors.push(`console:${message.text()}`);
     });
 
-    const goods = await navigate(page, '/?view=goods', '상품 목록');
-    await page.locator('input[name="q"]').fill('운영자 화면 수평 스크롤');
-    await page.locator('form.admin-console-filters button[type="submit"]').click();
+    const goods = await navigate(page, '/?view=goods', '상품 조회/수정');
+    const goodsSearch = await searchForm(page);
+    await goodsSearch.locator('input[name="q"]').fill('운영자 화면 수평 스크롤');
+    await goodsSearch.locator('button[type="submit"]').click();
     await page.waitForLoadState('networkidle');
     assert(new URL(page.url()).pathname === '/admin/catalog/goods', 'goods GET did not preserve route');
     assert(new URL(page.url()).searchParams.get('q') === '운영자 화면 수평 스크롤', 'goods GET query was lost');
@@ -131,8 +140,9 @@ async function run() {
     await page.screenshot({ path: `${output}/goods-filter-get.png`, fullPage: false });
 
     const dateFilter = await navigate(page, '/?view=filter-date', '주문 통합검색 filter fixture');
+    const dateSearch = await searchForm(page);
     await page.locator('#fixture-date-filter-query').fill('배송 완료 후 거래확정 대기 상태를 찾는 긴 검색어');
-    await page.locator('form.admin-console-filters button[type="submit"]').click();
+    await dateSearch.locator('button[type="submit"]').click();
     await page.waitForLoadState('networkidle');
     assert(new URL(page.url()).pathname === '/admin/sales/orders', 'date filter GET did not preserve route');
     assert(new URL(page.url()).searchParams.get('q')?.startsWith('배송 완료 후'), 'date filter query was lost');
@@ -192,7 +202,7 @@ async function run() {
     if (keyboardValue !== 'order') await searchType.selectOption('order');
     assert(await searchType.inputValue() === 'order', 'keyboard select did not preserve order selection');
     await page.locator('#fixture-date-filter-query').fill('키보드 선택 후 GET 보존을 확인하는 긴 검색어');
-    await page.locator('form.admin-console-filters button[type="submit"]').click();
+    await (await searchForm(page)).locator('button[type="submit"]').click();
     await page.waitForLoadState('networkidle');
     const keyboardUrl = new URL(page.url());
     assert(keyboardUrl.pathname === '/admin/sales/orders', 'keyboard select GET route was not preserved');

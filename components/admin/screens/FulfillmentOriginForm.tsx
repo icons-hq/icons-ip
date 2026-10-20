@@ -39,7 +39,7 @@ export function FulfillmentOriginForm({ origin, carriers, canEdit }: { origin?: 
         {input('freeThreshold', '무료 배송 기준 (원)', 'number', '기간 할인 후, 쿠폰·적립금 차감 전 정책 적용 상품 소계 기준입니다. 비우면 금액별 무료배송을 적용하지 않습니다.')}
         {input('returnAddress', '반품 주소')}
         {input('cutoff', '출고 마감 시각 (한국 시간)', 'time')}
-        <AdminField inputId={`${prefix}-template`} label="출고지시 양식" error={state.errors?.exportTemplate}>
+        <AdminField inputId={`${prefix}-template`} label="기존 창고 출고지시 양식" hint="발주·발송 관리에서 기존 창고 양식을 선택할 때 사용합니다. 기본 스마트스토어 74열 양식에는 적용되지 않습니다." error={state.errors?.exportTemplate}>
           <select id={`${prefix}-template`} name="exportTemplate" defaultValue={field('exportTemplate')} aria-invalid={Boolean(state.errors?.exportTemplate)} aria-describedby={state.errors?.exportTemplate ? `${prefix}-template-error` : undefined}>
             <option value="standard">표준 양식</option><option value="wms_csv">김포 WMS 21열</option><option value="seowon_xlsx">서원 우체국 7열</option>
           </select>

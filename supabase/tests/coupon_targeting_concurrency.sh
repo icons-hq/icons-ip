@@ -83,7 +83,7 @@ wait_for_sleep() {
 
 psql_exec -q >"$coupon_logs/order-a" 2>&1 <<SQL &
 begin; set local statement_timeout='10s'; set local application_name='$coupon_prefix-order'; select set_config('request.jwt.claim.sub','$coupon_user',true); set local role authenticated;
-insert into public.cart_items(user_id,good_id,variant_id,qty) select '$coupon_user','coupon-target-race-one',id,1 from public.goods_variants where good_id='coupon-target-race-one' and is_default;
+select public.set_cart_item_quantity('coupon-target-race-one',id,1) from public.goods_variants where good_id='coupon-target-race-one' and is_default;
 reset role; set local role service_role;
 select public.place_order_with_store_credits('$coupon_user','{"recipientName":"쿠폰 동시성","phone":"01012345678","postalCode":"12345","address1":"합성 주소"}','10000000-0000-4000-8000-000000004878','card',0);
 select pg_sleep(1); commit;
@@ -92,7 +92,7 @@ coupon_pid_a=$!
 wait_for_sleep
 psql_exec -q >"$coupon_logs/order-b" 2>&1 <<SQL &
 begin; set local statement_timeout='10s'; select set_config('request.jwt.claim.sub','$coupon_user',true); set local role authenticated;
-insert into public.cart_items(user_id,good_id,variant_id,qty) select '$coupon_user','coupon-target-race-one',id,1 from public.goods_variants where good_id='coupon-target-race-one' and is_default;
+select public.set_cart_item_quantity('coupon-target-race-one',id,1) from public.goods_variants where good_id='coupon-target-race-one' and is_default;
 reset role; set local role service_role;
 select public.place_order_with_store_credits('$coupon_user','{"recipientName":"쿠폰 동시성","phone":"01012345678","postalCode":"12345","address1":"합성 주소"}','10000000-0000-4000-8000-000000004879','card',0); commit;
 SQL
@@ -118,7 +118,7 @@ set role service_role;
 select public.request_order_cancellation((select id from public.orders where checkout_key='10000000-0000-4000-8000-000000004878'),'$coupon_user','첫구매 선점 해제','change_of_mind');
 reset role; select set_config('request.jwt.claim.sub','$coupon_user',false); set role authenticated;
 select public.apply_cart_coupon_code('TARGET-RACE-TWO');
-insert into public.cart_items(user_id,good_id,variant_id,qty) select '$coupon_user','coupon-target-race-one',id,1 from public.goods_variants where good_id='coupon-target-race-one' and is_default;
+select public.set_cart_item_quantity('coupon-target-race-one',id,1) from public.goods_variants where good_id='coupon-target-race-one' and is_default;
 reset role; set role service_role;
 select public.place_order_with_store_credits('$coupon_user','{"recipientName":"쿠폰 동시성","phone":"01012345678","postalCode":"12345","address1":"합성 주소"}','10000000-0000-4000-8000-000000004877','card',0);
 reset role;

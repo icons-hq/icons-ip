@@ -89,9 +89,9 @@ describe('상한과 주소', () => {
     expect(adminListExportLimitMessage()).toBe('한 번에 내려받을 수 있는 양을 넘었습니다. 조건을 좁혀 다시 내려받아 주세요(최대 10,000건).');
   });
 
-  it('목록 주소의 필터만 옮기고 페이지·선택 주문은 버린다', () => {
-    expect(adminListExportHref('orders', '/admin/sales/orders?status=paid&from=2026-10-01&query=%ED%99%8D&field=recipient&page=3&order=abc'))
-      .toBe('/api/admin/list-export?screen=orders&status=paid&from=2026-10-01&query=%ED%99%8D&field=recipient');
+  it('목록 주소의 필터·정렬만 옮기고 페이지·목록 수·선택 주문은 버린다', () => {
+    expect(adminListExportHref('orders', '/admin/sales/orders?status=paid&from=2026-10-01&query=%ED%99%8D&field=recipient&page=3&pageSize=50&order=abc&sort=oldest'))
+      .toBe('/api/admin/list-export?screen=orders&status=paid&from=2026-10-01&query=%ED%99%8D&field=recipient&sort=oldest');
     expect(adminListExportHref('unpaid', '/admin/sales/unpaid')).toBe('/api/admin/list-export?screen=unpaid');
     expect(adminListExportHref('claims-returns', '/admin/sales/claims/returns?stage=open&page=1&screen=orders'))
       .toBe('/api/admin/list-export?screen=claims-returns&stage=open');

@@ -2,6 +2,7 @@
 
 import { revalidateGoodsSurfaces } from '@/lib/admin/revalidate-goods.server';
 
+import { canAccessAdminScreen } from '@/lib/admin/access';
 import { isUuid } from '@/lib/uuid';
 
 import { revalidatePath } from 'next/cache';
@@ -20,7 +21,7 @@ function record(value: unknown): value is Record<string, unknown> { return typeo
 function id(value: unknown) { const key = typeof value === 'string' ? value.trim() : ''; return key && key.length <= 200 ? key : null; }
 function integer(value: unknown, minimum = 0): value is number { return typeof value === 'number' && Number.isInteger(value) && value >= minimum && value <= 2147483647; }
 export async function listGoodsPreordersAction(goodIdValue: unknown): Promise<{ ok: true; policies: AdminGoodsPreorder[] } | Failure> {
-  if (!await requireAdminActionAccess('/admin/catalog/goods')) return { ok: false, error: STAFF_REQUIRED };
+  if (!await requireAdminActionAccess('/admin/catalog/goods', { capability: 'catalog.manage' })) return { ok: false, error: STAFF_REQUIRED };
   const goodId = id(goodIdValue);
   if (!goodId) return { ok: false, error: '상품을 다시 선택해주세요.' };
   try {
@@ -31,7 +32,7 @@ export async function listGoodsPreordersAction(goodIdValue: unknown): Promise<{ 
   } catch (error) { unstable_rethrow(error); return { ok: false, error: '예약 조건을 불러오지 못했습니다.' }; }
 }
 export async function saveGoodsPreorderAction(formData: FormData): Promise<Saved | Failure> {
-  const auth = await requireAdminActionAccess('/admin/catalog/goods');
+  const auth = await requireAdminActionAccess('/admin/catalog/goods', { capability: 'catalog.manage' });
   if (!auth) return { ok: false, error: STAFF_REQUIRED };
   const goodId = id(formData.get('goodId'));
   const variantId = formData.get('variantId');
@@ -46,7 +47,7 @@ export async function saveGoodsPreorderAction(formData: FormData): Promise<Saved
     || (policyId === null) !== (revision === null)) {
     return { ok: false, error: '승인 물량·접수 기간·발송 예정일·승인 근거와 저장된 조건을 확인해주세요.' };
   }
-  if (policy.state === 'active' && auth.role !== 'admin') return { ok: false, error: preorderMutationError('preorder_admin_required') };
+  if (policy.state === 'active' && !canAccessAdminScreen(auth, null, { capability: 'platform.manage', adminOnly: true })) return { ok: false, error: preorderMutationError('preorder_admin_required') };
   try {
     const client = await createClient();
     const { data, error } = await client.rpc('admin_save_goods_preorder', {
@@ -62,8 +63,8 @@ export async function saveGoodsPreorderAction(formData: FormData): Promise<Saved
   } catch (error) { unstable_rethrow(error); return { ok: false, error: '예약 조건을 저장하지 못했습니다.' }; }
 }
 export async function switchToStockSupplyAction(goodIdValue: unknown, variantId: unknown, policyId: unknown, revision: unknown): Promise<Saved | Failure> {
-  const auth = await requireAdminActionAccess('/admin/catalog/goods');
-  if (!auth || auth.role !== 'admin') return { ok: false, error: preorderMutationError('preorder_admin_required') };
+  const auth = await requireAdminActionAccess('/admin/catalog/goods', { capability: 'catalog.manage' });
+  if (!auth || !canAccessAdminScreen(auth, null, { capability: 'platform.manage', adminOnly: true })) return { ok: false, error: preorderMutationError('preorder_admin_required') };
   const goodId = id(goodIdValue);
   if (!goodId || !isUuid(variantId) || !isUuid(policyId) || !integer(revision, 1)) return { ok: false, error: '현재 선택된 예약 조건을 다시 확인해주세요.' };
   try {
@@ -79,7 +80,7 @@ export async function switchToStockSupplyAction(goodIdValue: unknown, variantId:
 }
 export async function listGoodsPreorderReservationsAction(goodIdValue: unknown, state: string | null = 'reserved', page = 1):
   Promise<{ ok: true; reservations: AdminPreorderReservationPage } | Failure> {
-  if (!await requireAdminActionAccess('/admin/catalog/goods')) return { ok: false, error: STAFF_REQUIRED };
+  if (!await requireAdminActionAccess('/admin/catalog/goods', { capability: 'sales.read' })) return { ok: false, error: STAFF_REQUIRED };
   const goodId = id(goodIdValue);
   if (!goodId || (state !== null && !['reserved', 'allocated', 'released', 'returned'].includes(state)) || !integer(page, 1) || page > 21474836) {
     return { ok: false, error: '예약 주문 조회 범위를 확인해주세요.' };
@@ -92,7 +93,7 @@ export async function listGoodsPreorderReservationsAction(goodIdValue: unknown, 
   } catch (error) { unstable_rethrow(error); return { ok: false, error: '예약 주문을 불러오지 못했습니다.' }; }
 }
 export async function allocateGoodsPreordersAction(goodIdValue: unknown, selection: unknown, receiptReference: unknown): Promise<Saved | Failure> {
-  if (!await requireAdminActionAccess('/admin/catalog/goods')) return { ok: false, error: STAFF_REQUIRED };
+  if (!await requireAdminActionAccess('/admin/catalog/goods', { capability: 'sales.manage' })) return { ok: false, error: STAFF_REQUIRED };
   const goodId = id(goodIdValue);
   const receipt = typeof receiptReference === 'string' ? receiptReference.trim() : '';
   if (!goodId || !receipt || receipt.length > 2000 || !record(selection) || !Array.isArray(selection.orderItemIds)

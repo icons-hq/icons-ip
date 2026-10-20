@@ -2,24 +2,17 @@ import {
   orderWithdrawalDaysRemaining,
   orderWithdrawalDeadline,
 } from '@/lib/orders/withdrawal';
+import { appendSalesListOptions, normalizeSalesListOptions, salesDateField, salesPage, salesParam, SALES_ORDER_SEARCH_FIELDS, type SalesDateField, type SalesListOptions, type SalesOrderSearchField } from './sales-list';
 
-/**
- * 거래확정 내역 콘솔(#250).
- *
- * `done`은 "클레임 불가"가 아니다. 변심 청약철회 창(공급받은 날부터 7일)이 닫혔다는
- * 뜻일 뿐이고, 하자·오배송은 공급받은 날부터 3개월 남아 있다. 그래서 이 화면은
- * 확정일과 함께 **하자 클레임 잔여 기한**을 함께 보여준다 — 운영자가 "확정됐으니
- * 끝난 주문"으로 읽고 반품 문의를 되돌려 보내지 않게 하는 것이 이 컬럼의 목적이다.
- *
- * 기한의 기산점은 `done_at`이 아니라 `delivered_at`이다. 확정일은 자동 잡이 찍은
- * 운영 시각이고, 법정 기산점은 재화를 공급받은 날이다(#189).
- */
+/** 구매확정 이력과 배송일 기준의 별도 반품·교환 자격을 조회한다. */
 
-export interface AdminSettledFilters {
+export interface AdminSettledFilters extends SalesListOptions {
   from: string | null;
   to: string | null;
   query: string;
   page: number;
+  dateField?: SalesDateField;
+  field?: Exclude<SalesOrderSearchField, 'all'>;
 }
 
 export interface AdminSettledOrderRow {
@@ -117,14 +110,19 @@ export function normalizeAdminSettledFilters(
     to = null;
   }
 
-  const rawPage = Number(singleParam(searchParams.page));
+  const listOptions = normalizeSalesListOptions(searchParams);
   const rawQuery = singleParam(searchParams.query).trim();
+  const field = salesParam(searchParams, 'field');
 
   return {
+    ...listOptions,
+    ...(salesDateField(searchParams) ? { dateField: salesDateField(searchParams) } : {}),
+    ...(field !== 'all' && SALES_ORDER_SEARCH_FIELDS.some(option => option.value === field)
+      ? { field: field as AdminSettledFilters['field'] } : {}),
     from,
     to,
     query: rawQuery.length <= 100 ? rawQuery : '',
-    page: Number.isSafeInteger(rawPage) && rawPage > 0 ? rawPage : 1,
+    page: salesPage(searchParams.page, listOptions.pageSize ?? ADMIN_SETTLED_PAGE_SIZE),
   };
 }
 
@@ -134,6 +132,9 @@ export function adminSettledHref(
 ) {
   const next = { ...filters, ...overrides };
   const params = new URLSearchParams();
+  appendSalesListOptions(params, next);
+  if (next.dateField) params.set('dateField', next.dateField);
+  if (next.field) params.set('field', next.field);
   if (next.from) params.set('from', next.from);
   if (next.to) params.set('to', next.to);
   if (next.query) params.set('query', next.query);

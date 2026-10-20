@@ -31,6 +31,8 @@ export const SHOP_DEFAULT_SORT: Record<ShopView, ShopSort> = {
 };
 
 export interface ShopListQuery {
+  /** A separate editorial destination; it never changes the legacy category filter. */
+  displayCategory?: string;
   ips: string[];
   categories?: string[];
   types: string[];

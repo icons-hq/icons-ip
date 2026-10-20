@@ -24,6 +24,27 @@ describe('어드민 IA 정의', () => {
     }
   });
 
+  it('상품 등록 쿼리는 별도 메뉴로 연결하고 목록 필터와 수정은 목록 메뉴를 유지한다', () => {
+    expect(adminScreenForPath('/admin/catalog/goods?status=draft&create=1')?.id).toBe('goods-create');
+    expect(adminGroupForPath('/admin/catalog/goods?create=1')?.id).toBe('catalog');
+    expect(adminScreenForPath('/admin/catalog/goods?create=0')?.id).toBe('goods');
+    expect(adminScreenForPath('/admin/catalog/goods?goodId=good-a')?.id).toBe('goods');
+    expect(adminScreenForPath('/admin/catalog/goods/import?create=1')?.id).toBe('goods-import');
+  });
+
+  it('그룹상품 목록과 전환 화면은 상품관리 메뉴에 연결된다', () => {
+    expect(adminScreenForPath('/admin/catalog/groups?id=group-id')).toMatchObject({ id: 'goods-groups', label: '그룹상품 조회/수정', status: 'ready' });
+    expect(adminScreenForPath('/admin/catalog/groups/new?mode=assemble')).toMatchObject({ id: 'goods-groups-create', label: '그룹상품 등록', status: 'ready' });
+    expect(adminScreenForPath('/admin/catalog/groups/new')?.id).toBe('goods-groups-create');
+    expect(adminGroupForPath('/admin/catalog/groups/new')?.id).toBe('catalog');
+  });
+
+  it('상담하기는 문의 관리와 구분되는 실시간 상담 화면으로 연결된다', () => {
+    expect(adminScreenForPath('/admin/cs/chat?inquiry=case-a')).toMatchObject({ id: 'inquiry-chat', label: '상담하기', status: 'ready' });
+    expect(adminGroupForPath('/admin/cs/chat')?.id).toBe('cs');
+    expect(adminScreenForPath('/admin/cs/inquiries/case-a')?.id).toBe('inquiries');
+  });
+
   /* 기존 17개 섹션이 하나도 빠지지 않고 새 IA에 자리를 잡아야 한다.
    * 하나라도 빠지면 그 화면은 메뉴에서 사라진 채 라우트만 남는다. */
   it('기존 섹션 17개가 전부 ready 화면으로 재배치돼 있다', () => {
@@ -63,7 +84,7 @@ describe('어드민 IA 정의', () => {
 
     expect(campaigns).toMatchObject({ href: '/admin/display/campaigns', status: 'ready' });
     expect(qna).toMatchObject({ href: '/admin/cs/qna', status: 'ready' });
-    expect(adminGroupForPath('/admin/display/campaigns')?.id).toBe('display');
+    expect(adminGroupForPath('/admin/display/campaigns')?.id).toBe('promotion');
     expect(adminGroupForPath('/admin/cs/qna')?.id).toBe('cs');
   });
 });
@@ -93,7 +114,7 @@ describe('adminScreenForPath', () => {
 
   it('화면이 속한 대분류를 찾는다', () => {
     expect(adminGroupForPath('/admin/catalog/pools')?.label).toBe('IP·콘텐츠 운영');
-    expect(adminGroupForPath('/admin/community/roles')?.label).toBe('고객 응대');
+    expect(adminGroupForPath('/admin/community/roles')?.label).toBe('판매자 정보');
   });
 });
 

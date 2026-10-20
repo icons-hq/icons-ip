@@ -1,4 +1,6 @@
 import { isLoyaltyGrade } from '@/lib/loyalty';
+import { isUuid } from '@/lib/uuid';
+import type { ManagerRole } from './access';
 export type AdminMemberRole = 'user' | 'staff' | 'admin';
 
 export interface AdminMemberSummary {
@@ -29,13 +31,14 @@ export interface AdminMemberDetail {
   ticketOrderCount: number;
   submittedReportCount: number;
   receivedReportCount: number;
+  /** Current DB decision; absence never grants an action. */
+  moderation?: { managerRole: ManagerRole | null; canModerate: boolean };
 }
 
 export type AdminMemberFormResult<T> =
   | { ok: true; value: T }
   | { ok: false; errors: Record<string, string> };
 
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 const MEMBER_ROLES = new Set<AdminMemberRole>(['user', 'staff', 'admin']);
 
 function readString(formData: FormData, key: string) {
@@ -57,8 +60,8 @@ export function normalizeAdminMemberDetailForm(
   formData: FormData,
 ): AdminMemberFormResult<{ profileId: string }> {
   const profileId = readString(formData, 'profileId');
-  return UUID_PATTERN.test(profileId)
-    ? { ok: true, value: { profileId } }
+  return isUuid(profileId)
+    ? { ok: true, value: { profileId: profileId.toLowerCase() } }
     : { ok: false, errors: { profileId: '회원을 찾을 수 없습니다.' } };
 }
 
@@ -111,12 +114,10 @@ export function normalizeAdminMemberLoyaltyForm(
 
 export function canModerateAdminMember(input: {
   actorId: string;
-  actorRole: AdminMemberRole;
   memberId: string;
-  memberRole: AdminMemberRole;
+  moderation: AdminMemberDetail['moderation'];
 }) {
-  if (input.actorId === input.memberId || input.memberRole === 'admin') return false;
-  return input.actorRole === 'admin' || (input.actorRole === 'staff' && input.memberRole === 'user');
+  return input.actorId !== input.memberId && input.moderation?.canModerate === true;
 }
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -145,7 +146,7 @@ export function parseAdminMemberSummary(value: unknown): AdminMemberSummary | nu
   const createdAt = requiredString(value.created_at);
   const suspendedAt = optionalString(value.suspended_at);
 
-  if (!id || !UUID_PATTERN.test(id) || !nickname || !maskedEmail || !createdAt) return null;
+  if (!id || !isUuid(id) || !nickname || !maskedEmail || !createdAt) return null;
   if (typeof role !== 'string' || !MEMBER_ROLES.has(role as AdminMemberRole)) return null;
   if (value.suspended_at !== null && !suspendedAt) return null;
 
@@ -176,7 +177,7 @@ export function parseAdminMemberDetail(value: unknown): AdminMemberDetail | null
 
   if (
     !id
-    || !UUID_PATTERN.test(id)
+    || !isUuid(id)
     || !nickname
     || !email
     || typeof role !== 'string'
@@ -197,7 +198,7 @@ export function parseAdminMemberDetail(value: unknown): AdminMemberDetail | null
     email,
     role: role as AdminMemberRole,
     createdAt,
-    /* RPC 결과에는 없다 — getAdminMemberDetail 이 profiles 에서 병합해 덮어쓴다. */
+    /* 기존 상세 반환형에는 없다 — getAdminMemberDetail이 최소 권한 projection의 실제 등급으로 덮어쓴다. */
     loyaltyGrade: 'welcome',
     consents: {
       terms: consents.terms === true,

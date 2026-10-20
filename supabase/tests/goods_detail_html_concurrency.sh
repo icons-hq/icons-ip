@@ -27,17 +27,17 @@ begin;
 set local statement_timeout='20s';
 select set_config('request.jwt.claim.sub','',true);
 do $$ begin
-  if exists(select 1 from auth.users where id='00000000-0000-4000-8000-000000478111' and raw_app_meta_data->>'testFixture' is distinct from 'goods-html-race')
+  if exists(select 1 from auth.users where id in ('00000000-0000-4000-8000-000000478111','00000000-0000-4000-8000-000000478115') and raw_app_meta_data->>'testFixture' is distinct from 'goods-html-race')
     or exists(select 1 from public.goods where id in ('goods-html-race-source','goods-html-race-copy') and ip_id is distinct from 'goods-html-race')
     or exists(select 1 from public.catalog_categories where id='00000000-0000-4000-8000-000000478112' and code<>'goods-html-race')
   then raise exception 'Refusing to clean up data outside the HTML concurrency fixture'; end if;
 end $$;
-delete from public.audit_log where actor_id='00000000-0000-4000-8000-000000478111' or target in ('goods:goods-html-race-source','goods:goods-html-race-copy');
+delete from public.audit_log where actor_id in ('00000000-0000-4000-8000-000000478111','00000000-0000-4000-8000-000000478115') or target in ('goods:goods-html-race-source','goods:goods-html-race-copy');
 delete from public.goods where id in ('goods-html-race-source','goods-html-race-copy');
 delete from public.catalog_categories where id='00000000-0000-4000-8000-000000478112';
 delete from public.ips where id='goods-html-race';
 delete from public.verticals where key='goods-html-race';
-delete from auth.users where id='00000000-0000-4000-8000-000000478111';
+delete from auth.users where id in ('00000000-0000-4000-8000-000000478111','00000000-0000-4000-8000-000000478115');
 commit;
 SQL
     then html_status=1; printf 'Owned fixture cleanup failed: %s/cleanup.log\n' "$html_test_logs" >&2; fi
@@ -56,7 +56,7 @@ begin;
 set local statement_timeout='20s';
 select set_config('request.jwt.claim.sub','',true);
 do $$ begin
-  if exists(select 1 from auth.users where id='00000000-0000-4000-8000-000000478111')
+  if exists(select 1 from auth.users where id in ('00000000-0000-4000-8000-000000478111','00000000-0000-4000-8000-000000478115'))
     or exists(select 1 from public.goods where id in ('goods-html-race-source','goods-html-race-copy'))
     or exists(select 1 from public.ips where id='goods-html-race')
     or exists(select 1 from public.verticals where key='goods-html-race')
@@ -64,8 +64,9 @@ do $$ begin
   then raise exception 'HTML race fixture already exists; no overwrite or cleanup attempted'; end if;
 end $$;
 insert into auth.users(id,aud,role,email,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at)
- values('00000000-0000-4000-8000-000000478111','authenticated','authenticated','goods-html-race@example.test',now(),'{"testFixture":"goods-html-race"}','{}',now(),now());
-update public.profiles set role='staff',nickname='HTML경합검증' where id='00000000-0000-4000-8000-000000478111';
+ values('00000000-0000-4000-8000-000000478111','authenticated','authenticated','goods-html-race@example.test',now(),'{"testFixture":"goods-html-race"}','{}',now(),now()),
+ ('00000000-0000-4000-8000-000000478115','authenticated','authenticated','goods-html-race-editor@example.test',now(),'{"testFixture":"goods-html-race"}','{}',now(),now());
+update public.profiles set role='staff',nickname='HTML경합검증'||right(id::text,3) where id in ('00000000-0000-4000-8000-000000478111','00000000-0000-4000-8000-000000478115');
 insert into public.verticals(key,label,color) values('goods-html-race','HTML 경합 검증','#000000');
 insert into public.ips(id,title,vertical_key) values('goods-html-race','HTML 경합 검증','goods-html-race');
 insert into public.catalog_categories(id,code,name,sort_order) values('00000000-0000-4000-8000-000000478112','goods-html-race','HTML 경합 분류',1);
@@ -85,7 +86,8 @@ html_wait_marker() {
   return 1
 }
 
-# Session A takes the real clone/category prefix lock. It advances only after
+# Distinct operators keep this a catalog-lock race despite actor serialization.
+# Session A takes the actor fence, then the real clone/category prefix lock. It advances only after
 # session B is blocked on that exact lock, avoiding a sleep-based race guess.
 for html_case in clone category; do
   html_db -v race_case="$html_case" >"$html_test_logs/$html_case-owner.log" 2>&1 <<'SQL' &
@@ -93,6 +95,7 @@ begin;
 set local statement_timeout='15s';
 set local deadlock_timeout='500ms';
 select set_config('test.html_race_case',:'race_case',true);
+select private.lock_operator_subjects(array['00000000-0000-4000-8000-000000478111'::uuid]);
 select private.lock_catalog_category_tree();
 \echo HTML_TREE_LOCKED
 do $$ declare attempt integer; begin
@@ -126,7 +129,7 @@ set local statement_timeout='15s';
 set local deadlock_timeout='500ms';
 select set_config('application_name','goods-html-race-save-'||:'race_case',true);
 set local role authenticated;
-select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000478111',true);
+select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000478115',true);
 select public.admin_save_good(jsonb_build_object('id','goods-html-race-source','previous_id','goods-html-race-source',
  'ip_id','goods-html-race','name','HTML 경합 상품','type','문구','price',1000,'stock','ok',
  'category_id',case when :'race_case'='category' then '00000000-0000-4000-8000-000000478112' else null end,

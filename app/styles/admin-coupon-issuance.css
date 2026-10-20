@@ -1,0 +1,18 @@
+.wc-admin .admin-coupon-issuance { display: grid; gap: 16px; }
+.wc-admin .admin-coupon-issuance fieldset { border: 0; padding: 0; margin: 0 0 18px; min-width: 0; }
+.wc-admin .admin-coupon-issuance__modes { display: flex; gap: 24px; margin: 16px 0; }
+.wc-admin .admin-coupon-issuance__modes label { display: flex; align-items: center; gap: 6px; }
+.wc-admin .admin-coupon-issuance__customers { list-style: none; padding: 0; display: grid; gap: 8px; }
+.wc-admin .admin-coupon-issuance__customers li { display: flex; justify-content: space-between; gap: 12px; align-items: center; }
+.wc-admin .admin-coupon-issuance__table { max-width: 100%; overflow: auto; margin: 20px 0; }
+.wc-admin .admin-coupon-issuance__table table { border-collapse: collapse; min-width: 800px; width: 100%; font-size: 12px; }
+.wc-admin .admin-coupon-issuance__table th, .wc-admin .admin-coupon-issuance__table td { padding: 12px; border: 1px solid var(--wc-line-control); text-align: left; }
+.wc-admin .admin-coupon-issuance__table th { background: var(--wc-surface-grey); }
+.wc-admin .admin-coupon-issuance .wc-admin-kit__card > p { margin: 12px 0; overflow-wrap: anywhere; line-height: 1.7; }
+.wc-admin .admin-coupon-issuance .wc-admin-kit__card > button { margin: 10px 8px 0 0; }
+.wc-admin .admin-coupon-issuance .wc-admin-kit__card { gap: 12px; }
+.wc-admin .admin-coupon-issuance .wc-admin-kit__card > button { justify-self: start; width: auto; min-width: 140px; }
+.wc-admin .admin-coupon-issuance .admin-coupon-issuance__confirm { display: flex; gap: 8px; align-items: center; }
+.wc-admin .admin-coupon-issuance input[type="checkbox"] { width: 16px; height: 16px; padding: 0; flex: 0 0 16px; }
+.wc-admin .admin-coupon-issuance .wc-admin-marketing__metrics { display: grid; grid-template-columns: repeat(4,minmax(0,1fr)); margin: 0; }
+@media (max-width: 760px) { .wc-admin .admin-coupon-issuance__customers li { align-items: flex-start; flex-direction: column; } .wc-admin .admin-coupon-issuance .wc-admin-marketing__metrics { grid-template-columns: repeat(2,minmax(0,1fr)); } }

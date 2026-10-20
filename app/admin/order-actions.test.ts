@@ -1,3 +1,4 @@
+import { configuredOperatorAccessFixture, legacyOperatorAccessFixture } from '@/lib/admin/access.test-fixtures';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   approveAdminOrderCancellationAction,
@@ -58,7 +59,7 @@ vi.mock('@/lib/email/transactional.server', () => ({
 }));
 
 vi.mock('@/lib/auth/admin', () => ({
-  getCurrentAdminAuthState: () => mocks.adminState,
+  getCurrentAdminAuthState: () => ({ ...mocks.adminState, operatorAccess: 'operatorAccess' in mocks.adminState && mocks.adminState.operatorAccess || legacyOperatorAccessFixture() }),
 }));
 vi.mock('@/lib/orders/cancellation-orchestrator.server', () => ({
   reconcileOrderCancellation: mocks.reconcile,
@@ -121,6 +122,16 @@ describe('admin order actions', () => {
     mocks.sendShippedEmail.mockResolvedValue({ status: 'sent' });
     mocks.sendConfirmationEmail.mockReset();
     mocks.sendConfirmationEmail.mockResolvedValue({ status: 'sent' });
+  });
+
+  it.each(['influencer', 'deputy', 'agency', 'logistics'] as const)('configured %s cannot dispatch, cancel, or resend order mail', async role => {
+    Object.assign(mocks.adminState, { operatorAccess: configuredOperatorAccessFixture(role) });
+    expect((await updateAdminOrderStatusAction({}, new FormData())).errors?.form).toContain('권한');
+    expect((await approveAdminOrderCancellationAction({}, requestForm())).errors?.form).toContain('권한');
+    expect((await updateAdminOrderTrackingAction({}, trackingForm())).errors?.form).toContain('권한');
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(mocks.reconcile).not.toHaveBeenCalled();
+    expect(mocks.sendShippedEmail).not.toHaveBeenCalled();
   });
 
   it('배송 시작 전이에서만 배송 시작 메일 훅을 부른다', async () => {
@@ -297,7 +308,7 @@ describe('admin order actions', () => {
       expect(mocks.rpc).toHaveBeenCalledWith('admin_request_email_resend', {
         p_dedupe_key: `order_confirmation:${ORDER_ID}`,
       });
-      expect(mocks.sendConfirmationEmail).toHaveBeenCalledWith(ORDER_ID);
+      expect(mocks.sendConfirmationEmail).toHaveBeenCalledWith(ORDER_ID, 'payer');
       expect(mocks.sendShippedEmail).not.toHaveBeenCalled();
     });
 
@@ -306,7 +317,7 @@ describe('admin order actions', () => {
         resendOrderEmailAction({}, resendForm(`order_shipped:${ORDER_ID}`)),
       ).resolves.toEqual({ message: '메일을 다시 보냈습니다.' });
 
-      expect(mocks.sendShippedEmail).toHaveBeenCalledWith({ orderId: ORDER_ID });
+      expect(mocks.sendShippedEmail).toHaveBeenCalledWith({ orderId: ORDER_ID, shipmentId: undefined, audience: 'payer' });
       expect(mocks.sendConfirmationEmail).not.toHaveBeenCalled();
     });
 

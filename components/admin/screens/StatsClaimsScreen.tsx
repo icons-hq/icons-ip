@@ -1,4 +1,5 @@
 import { ADMIN_VOCABULARY as V } from '@/lib/admin/vocabulary';
+import { StatsComparison } from '@/components/admin/StatsComparison';
 import { StatsRangeTabs } from '@/components/admin/StatsRangeTabs';
 import { ConsoleGrid, type ConsoleGridColumn } from '@/components/admin/console';
 import {
@@ -13,6 +14,7 @@ const TYPE_COLUMNS: ConsoleGridColumn[] = [
   { key: 'total', label: '접수', align: 'end', width: '90px' },
   { key: 'completed', label: '완료', align: 'end', width: '90px' },
   { key: 'rejected', label: '거절', align: 'end', width: '90px' },
+  { key: 'withdrawn', label: '요청 철회', align: 'end', width: '100px' },
   { key: 'open', label: '진행중', align: 'end', width: '90px' },
   { key: 'rate', label: '주문 1000건당', align: 'end', width: '130px' },
 ];
@@ -36,13 +38,17 @@ const REASON_COLUMNS: ConsoleGridColumn[] = [
 export function StatsClaimsScreen({
   data,
   filters,
+  comparison,
+  now = new Date(),
 }: {
   data: AdminClaimsReport;
   filters: AdminStatsFilters;
+  now?: Date;
+  comparison?: AdminClaimsReport | null;
 }) {
   return (
     <section className="admin-console admin-stats wc-admin-kit">
-      <StatsRangeTabs base="/admin/stats/claims" filters={filters} />
+      <StatsRangeTabs base="/admin/stats/claims" filters={filters} now={now} />
 
       <div className="admin-stats-summary">
         <div>
@@ -69,6 +75,10 @@ export function StatsClaimsScreen({
         </div>
       </div>
 
+      {comparison ? <StatsComparison filters={filters} now={now} rows={[
+        { label: '클레임 접수', current: data.claimCount, previous: comparison.claimCount, unit: '건' },
+        { label: '환불 완료', current: data.refunds.completedCount, previous: comparison.refunds.completedCount, unit: '건' },
+      ]} /> : null}
       <h3>유형별 접수와 {V.claimRate}</h3>
       <ConsoleGrid
         caption={`유형별 ${V.claimRequest}`}
@@ -81,6 +91,7 @@ export function StatsClaimsScreen({
             row.total.toLocaleString('ko-KR'),
             row.completed.toLocaleString('ko-KR'),
             row.rejected.toLocaleString('ko-KR'),
+            row.withdrawn.toLocaleString('ko-KR'),
             row.open.toLocaleString('ko-KR'),
             <span className="mono" key="rate">
               {row.ratePerMille === null ? '—' : row.ratePerMille.toFixed(1)}

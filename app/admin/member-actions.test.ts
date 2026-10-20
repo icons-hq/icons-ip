@@ -1,3 +1,4 @@
+const { legacyOperatorAccessFixture } = await vi.hoisted(() => import('@/lib/admin/access.test-fixtures'));
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import {
   loadAdminMemberDetailAction,
@@ -21,12 +22,12 @@ const mocks = vi.hoisted(() => ({
     isConfigured: true,
     user: { id: 'staff-1', email: 'staff@icons.gg' },
     role: 'staff' as 'user' | 'staff' | 'admin',
-    isStaff: true,
+    isStaff: true, operatorAccess: legacyOperatorAccessFixture(),
   } as {
     isConfigured: boolean;
     user: { id: string; email: string | null } | null;
     role: 'user' | 'staff' | 'admin' | null;
-    isStaff: boolean;
+    isStaff: boolean; operatorAccess?: ReturnType<typeof legacyOperatorAccessFixture>;
   },
   getDetail: vi.fn(),
   getSummaries: vi.fn(),
@@ -60,7 +61,7 @@ describe('admin member actions', () => {
       isConfigured: true,
       user: { id: 'staff-1', email: 'staff@icons.gg' },
       role: 'staff',
-      isStaff: true,
+      isStaff: true, operatorAccess: legacyOperatorAccessFixture(),
     };
     mocks.getDetail.mockReset();
     mocks.getSummaries.mockReset();
@@ -129,6 +130,14 @@ describe('admin member actions', () => {
     mocks.rpc.mockResolvedValueOnce({ data: null, error: { message: 'cannot_suspend_admin: private detail' } });
     await expect(suspendAdminMemberAction({}, form())).resolves.toEqual({
       errors: { form: '본인 또는 admin 계정은 정지할 수 없습니다.' },
+    });
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it('통합/주매니저 제재는 역할 변경을 먼저 안내한다', async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: null, error: { message: 'operator_manager_change_required' } });
+    await expect(suspendAdminMemberAction({}, form())).resolves.toEqual({
+      errors: { form: '통합 매니저와 계정 주매니저는 먼저 매니저 관리에서 승계 또는 역할 변경을 진행해주세요.' },
     });
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });

@@ -283,3 +283,11 @@ describe('renderRestockAlertEmail (#326)', () => {
     }
   `);
  });
+
+it('defensively suppresses recipient PII and tracking even when a gift payer caller passes them', () => {
+  const confirmation = renderOrderConfirmationEmail(confirmationInput({ giftDelivery: true }));
+  expect(confirmation.text).not.toContain('010-'); expect(confirmation.html).not.toContain('010-');
+  const shipping = renderOrderShippedEmail(shippedInput({ giftDelivery: true, trackingNumber: '987654321000', trackingUrl: 'https://private-tracking.test/track' }));
+  expect(shipping.text).not.toContain('987654321000'); expect(shipping.html).not.toContain('private-tracking.test');
+  expect(shipping.text).toContain('구매자에게 공개되지 않습니다');
+});

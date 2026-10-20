@@ -241,12 +241,15 @@ describe('구매자 접수 가능 여부', () => {
       .every((entry) => !entry.available)).toBe(true);
   });
 
-  it('반품·교환은 배송 완료 이후에만 열린다', () => {
+  it('배송 중부터 서버가 전체 수량 자격을 확인한 주문만 접수한다', () => {
     const shipping = orderClaimAvailability({ orderStatus: 'shipping', hasActiveClaim: false,
       eligibility: { cancel: false, return: false, exchange: false } });
     expect(shipping.find((entry) => entry.claimType === 'return')?.available).toBe(false);
     expect(shipping.find((entry) => entry.claimType === 'exchange')?.available).toBe(false);
     expect(shipping.find((entry) => entry.claimType === 'cancel')?.available).toBe(false);
+
+    const eligibleTransit = orderClaimAvailability({ orderStatus: 'shipping', hasActiveClaim: false, eligibility: { cancel: false, return: true, exchange: true } });
+    expect(eligibleTransit.filter(entry => entry.claimType !== 'cancel').every(entry => entry.available)).toBe(true);
 
     const delivered = orderClaimAvailability({ orderStatus: 'delivered', hasActiveClaim: false,
       eligibility: { cancel: false, return: true, exchange: true } });
@@ -255,9 +258,9 @@ describe('구매자 접수 가능 여부', () => {
   });
 
   it.each([
-    ['pending', true], ['paid', true], ['confirmed', false], ['shipping', false],
-    ['delivered', false], ['done', false], ['canceled', false],
-  ] as const)('취소 접수는 발주확인 전 주문만 허용한다: %s', (orderStatus, expected) => {
+    ['pending', true], ['paid', true], ['confirmed', true], ['shipping', true],
+    ['delivered', true], ['done', true], ['canceled', false],
+  ] as const)('DB가 판정한 제작·제공 전후 취소 가능 여부를 따른다: %s', (orderStatus, expected) => {
     const cancel = orderClaimAvailability({ orderStatus, hasActiveClaim: false,
       eligibility: { cancel: true, return: true, exchange: true } })
       .find((entry) => entry.claimType === 'cancel');

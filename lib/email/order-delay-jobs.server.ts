@@ -9,6 +9,7 @@ import { emailSiteUrl } from './site-url';
 
 export interface OrderDelayEmailJob {
   id: string;
+  audience?: 'payer' | 'recipient';
   claimToken: string;
   orderId: string;
   recipient: string;
@@ -168,7 +169,7 @@ export async function processOrderDelayEmails(
               result.stale++;
               return;
             }
-            const orderUrl = `${siteUrl}/orders/${job.orderId}`;
+            const orderUrl = job.audience === 'recipient' ? `${siteUrl}/gifts` : `${siteUrl}/orders/${job.orderId}`;
             const text = `주문 ${orderReferenceLabel(job.orderId)}\n안내 대상 배송 건: ${job.shipmentLabels.join(', ')}\n\n${job.body}\n\n주문 확인: ${orderUrl}`;
             delivery = outcome(
               await dependencies.dispatcher.dispatch({

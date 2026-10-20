@@ -102,9 +102,12 @@ describe('법정 문서 레지스트리', () => {
     expect(source(), '문서 셋이 시행일 상수 하나를 공유하면 개정 이력을 만들 수 없다').not.toMatch(/const EFFECTIVE_DATE\b/);
   });
 
-  it('승인된 2026-09-09 신청 안내 개정은 두 문서에만 적용한다', () => {
+  it('신청 안내와 승인된 선택 성별 수집의 개정일을 문서별로 보존한다', () => {
     expect(LEGAL_DOCUMENTS.terms.effectiveDate).toBe('2026-09-09');
-    expect(LEGAL_DOCUMENTS.privacy.effectiveDate).toBe('2026-08-22');
+    expect(LEGAL_DOCUMENTS.privacy.effectiveDate).toBe('2026-10-19');
+    expect(LEGAL_DOCUMENTS.privacy.previousVersion?.effectiveDate).toBe('2026-08-22');
+    expect(JSON.stringify(LEGAL_DOCUMENTS.privacy.previousVersion)).not.toContain('성별 정보의 선택');
+    expect(JSON.stringify(LEGAL_DOCUMENTS.privacy.articles)).toContain('10명 이상');
     expect(LEGAL_DOCUMENTS.shipping.effectiveDate).toBe('2026-09-09');
 
     for (const document of documents) {
@@ -167,7 +170,7 @@ describe('법정 문서 레지스트리', () => {
   });
 });
 
-describe('승인된 A 정책의 직접 신청과 고객지원 안내', () => {
+describe('승인된 배송 중 접수 정책과 고객지원 안내', () => {
   it.each([
     { phone: '', email: '' },
     { phone: '000-0000-0000', email: 'policy@example.test' },
@@ -175,7 +178,7 @@ describe('승인된 A 정책의 직접 신청과 고객지원 안내', () => {
     const shipping = getLegalDocument('shipping', { ...BUSINESS_INFO, ...contact })!;
     const text = plainText(shipping);
     expect(text).toContain('직접 취소 신청은 발주확인 전까지');
-    expect(text).toContain('모두 실제 배송 완료된 뒤');
+    expect(text).toContain('배송 중부터 주문 전체');
     expect(text).toContain('의사표시와 최초 접수 시각');
     expect(text).toContain('1:1 문의(/my/inquiries)');
     expect(text).toContain('문의 접수만으로 환급이 승인되거나');
@@ -192,7 +195,7 @@ describe('승인된 A 정책의 직접 신청과 고객지원 안내', () => {
     const shipping = LEGAL_DOCUMENTS.shipping;
     expect(terms.previousVersion?.effectiveDate).toBe('2026-08-22');
     expect(shipping.previousVersion?.effectiveDate).toBe('2026-08-21');
-    expect(LEGAL_DOCUMENTS.privacy.previousVersion).toBeUndefined();
+    expect(LEGAL_DOCUMENTS.privacy.previousVersion?.effectiveDate).toBe('2026-08-22');
     for (const [document, headings] of [
       [terms, ['제3조 (약관의 명시와 개정)', '제4조 (서비스의 제공과 변경)', '제15조 (청약철회 등)', '제16조 (청약철회 등의 효과)']],
       [shipping, ['4. 청약철회가 제한되는 경우', '7. 환급 계좌', '8. 환급', '9. 하자·오배송 시 재발송']],

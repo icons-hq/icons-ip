@@ -28,17 +28,22 @@ import {
 import type { CartCouponState } from '@/lib/coupons.server';
 import type { Good, Ip } from '@/lib/data';
 import { krw } from '@/lib/format';
+import { GoodsCustomInputsSummary } from '@/components/shop/GoodsCustomInputs';
+import { goodsCustomInputProblem, type GoodsCustomInputSelection } from '@/lib/goods-custom-inputs';
 import { cartItemKey } from '@/lib/cart';
 import { cartOptionGood, goodAtQuotedPrice, optionLabel } from '@/lib/goods-options';
 import { goodsSalesQuoteProblem } from '@/lib/goods-sales';
 import { shippingFeeLabel } from '@/lib/shipping';
-import { useShippingQuote } from '@/components/shop/useShippingQuote';
+import { useGoodsSalesPrecheckoutQuote, useShippingQuote } from '@/components/shop/useShippingQuote';
 import { ShippingGroupSummary } from '@/components/shop/ShippingGroupSummary';
 import { goodsShipDateLabel, preorderSupplyLabel, type GoodsVariantSupply } from '@/lib/goods-preorders';
+import { GoodsSalePeriodRefresh } from '@/components/shop/GoodsSalePeriodRefresh';
+import { goodsSaleUnavailableLabel } from '@/lib/goods-sale-period';
 
 interface CartLine {
   goodId: string;
   variantId: string;
+  customInputs?:GoodsCustomInputSelection;
   optionName?: string | null;
   qty: number;
   good?: Good;
@@ -53,10 +58,11 @@ function isSoldOut(good: Good) {
 /** 주문을 막는 라인인지. 카탈로그에서 사라진 굿즈·품절·재고 초과가 여기 걸린다. */
 function isUnavailable(line: CartLine) {
   if (!line.good) return true;
-  return isSoldOut(line.good) || line.qty > line.good.stockQty;
+  return Boolean(goodsSaleUnavailableLabel(line.good.salePeriod)) || isSoldOut(line.good) || line.qty > line.good.stockQty || Boolean(goodsCustomInputProblem(line.good.customInputs,line.customInputs));
 }
 
 function lineStateLabel(good: Good, qty: number) {
+  const saleLabel = goodsSaleUnavailableLabel(good.salePeriod); if (saleLabel) return saleLabel;
   if (isSoldOut(good)) return '품절';
   if (qty > good.stockQty) return `재고 ${good.stockQty}개만 남음`;
   if (good.stock === 'low') return `재고 ${good.stockQty}개 남음`;
@@ -65,7 +71,7 @@ function lineStateLabel(good: Good, qty: number) {
 
 function CartLineRow({ line }: { line: CartLine }) {
   const { pending, remove, setQuantity } = useCart();
-  const { good, goodId, variantId, ip, qty, optionName, supply } = line;
+  const { good, goodId, variantId, ip, qty, optionName, supply,customInputs } = line;
 
   if (!good) {
     return (
@@ -79,7 +85,7 @@ function CartLineRow({ line }: { line: CartLine }) {
           aria-label={`판매 종료된 굿즈 ${goodId} 삭제`}
           className="wc-cart__remove"
           disabled={pending}
-          onClick={() => void remove(goodId, variantId)}
+          onClick={() => void remove(goodId, variantId,customInputs)}
           type="button"
         >
           <Icon name="close" size={18} />
@@ -88,8 +94,8 @@ function CartLineRow({ line }: { line: CartLine }) {
     );
   }
 
-  const soldOut = isSoldOut(good);
-  const stateLabel = supply?.mode === 'preorder' ? preorderSupplyLabel(supply) : lineStateLabel(good, qty);
+  const soldOut = isSoldOut(good) || Boolean(goodsSaleUnavailableLabel(good.salePeriod));
+  const stateLabel = goodsSaleUnavailableLabel(good.salePeriod) ?? (supply?.mode === 'preorder' ? preorderSupplyLabel(supply) : lineStateLabel(good, qty));
   const href = `/shop/${goodId}`;
 
   return (
@@ -106,6 +112,8 @@ function CartLineRow({ line }: { line: CartLine }) {
         <p className="wc-cart__line-brand">{ip?.title ?? 'ICONS'}</p>
         <Link className="wc-cart__line-name" href={href}>{good.name}</Link>
         {optionName ? <p className="wc-cart__line-option">{optionName}</p> : null}
+        <GoodsCustomInputsSummary selection={customInputs} />
+        {goodsCustomInputProblem(good.customInputs,customInputs) && <p className="wc-cart__line-state">{goodsCustomInputProblem(good.customInputs,customInputs)} <Link href={href}>내용 다시 확인</Link></p>}
         <PriceBlock showDiscountRate={good.showDiscountRate} compareAtPrice={good.compareAtPrice} price={good.price} />
         {stateLabel ? <p className="wc-cart__line-state">{stateLabel}</p> : null}
         {supply?.mode === 'preorder' ? <p className="wc-cart__line-state">{goodsShipDateLabel(supply.expectedShipDate)}</p> : null}
@@ -116,7 +124,7 @@ function CartLineRow({ line }: { line: CartLine }) {
           <QuantityStepper
             label={`${good.name} 수량`}
             max={good.stockQty}
-            onChange={(next) => void setQuantity(goodId, next, good.stockQty, variantId)}
+            onChange={(next) => void setQuantity(goodId, next, good.stockQty, variantId,customInputs)}
             value={qty}
           />
         )}
@@ -126,7 +134,7 @@ function CartLineRow({ line }: { line: CartLine }) {
         aria-label={`${good.name} 장바구니에서 삭제`}
         className="wc-cart__remove"
         disabled={pending}
-        onClick={() => void remove(goodId, variantId)}
+        onClick={() => void remove(goodId, variantId,customInputs)}
         type="button"
       >
         <Icon name="close" size={18} />
@@ -154,7 +162,7 @@ function CartCouponSection({
   const [code, setCode] = useState('');
 
   const selectableCoupons = couponState.coupons.filter((held) => (
-    couponDisplayState(held) === 'usable' || held.id === appliedCoupon?.id
+    held.coupon.benefitKind !== 'shipping' && (couponDisplayState(held) === 'usable' || held.id === appliedCoupon?.id)
   ));
 
   function runAction(action: () => Promise<CouponActionResult>) {
@@ -192,7 +200,7 @@ function CartCouponSection({
 
   return (
     <div className="wc-cart__coupon-slot">
-      <p className="wc-cart__coupon-title" id="cart-coupon-title">쿠폰</p>
+      <p className="wc-cart__coupon-title" id="cart-coupon-title">쿠폰</p><p>굿즈 쿠폰을 미리 선택할 수 있어요. 중복 적용과 배송비 쿠폰은 주문서에서 확인해주세요.</p>
 
       <label className="wc-cart__coupon-label" htmlFor="cart-coupon-select">보유 쿠폰</label>
       <select
@@ -261,17 +269,25 @@ function CartCouponSection({
 export function Cart({
   catalog,
   couponState,
+  transactionMode = 'legacy',
+  giftAvailable = false,
 }: {
   catalog: Pick<CatalogSnapshot, 'goods' | 'ips'>;
   couponState: CartCouponState;
+  transactionMode?: 'legacy' | 'transaction' | 'unavailable';
+  giftAvailable?: boolean;
 }) {
   const { count, error, items, mode, pending, ready, legacyItems = [], removeLegacyItem, refresh } = useCart();
-  const shipping = useShippingQuote(items, ready, couponState.selectedUserCouponId ?? '');
+  const transactionActive = transactionMode === 'transaction';
+  const shipping = useShippingQuote(items, ready && transactionMode === 'legacy', couponState.selectedUserCouponId ?? '');
+  const precheckout = useGoodsSalesPrecheckoutQuote(items, ready && transactionActive);
+  const productQuote = transactionActive ? precheckout : shipping;
+  const sales = productQuote.sales;
 
   const lines = useMemo<CartLine[]>(() => {
     const goodsById = new Map(catalog.goods.map((good) => [good.id, good]));
     const ipsById = new Map(catalog.ips.map((ip) => [ip.id, ip]));
-    const prices = new Map(shipping.sales?.lines.map(line => [cartItemKey(line.goodId, line.variantId), line]));
+    const prices = new Map(sales?.lines.map(line => [cartItemKey(line.goodId, line.variantId), line]));
 
     return items.map((item) => {
       const good = goodAtQuotedPrice(cartOptionGood(goodsById.get(item.goodId), item.variantId), prices.get(cartItemKey(item.goodId, item.variantId)));
@@ -284,9 +300,9 @@ export function Cart({
         ip: good ? ipsById.get(good.ip) : undefined,
       };
     });
-  }, [catalog.goods, catalog.ips, items, shipping.sales]);
+  }, [catalog.goods, catalog.ips, items, sales]);
 
-  const subtotal = shipping.sales?.subtotal ?? lines.reduce((total, line) => (
+  const subtotal = sales?.subtotal ?? lines.reduce((total, line) => (
     total + (line.good ? line.good.price * line.qty : 0)
   ), 0);
   const unavailableCount = lines.filter(isUnavailable).length;
@@ -294,9 +310,10 @@ export function Cart({
   const shippingFee = shipping.quote?.totalFee ?? 0;
   const shippingFinal = shipping.quote?.checkoutAllowed === true && shipping.quote.finalTotalFee !== null;
   const shippingCanContinue = Boolean(shipping.quote && shipping.quote.groups.every(group => group.finalFee !== null || group.regionStatus === 'address_required'));
-  const purchaseProblem = shipping.sales ? goodsSalesQuoteProblem(shipping.sales) : null;
-  const couponSelectionChanged = Boolean(shipping.sales && (shipping.sales.coupon?.userCouponId ?? null) !== couponState.selectedUserCouponId);
-  const canCheckout = unavailableCount === 0 && !pending && shippingCanContinue && Boolean(shipping.sales) && !purchaseProblem && !couponSelectionChanged;
+  const purchaseProblem = sales ? goodsSalesQuoteProblem(sales) : null;
+  const couponSelectionChanged = !transactionActive && Boolean(shipping.sales && (shipping.sales.coupon?.userCouponId ?? null) !== couponState.selectedUserCouponId);
+  const canCheckout = transactionMode !== 'unavailable' && unavailableCount === 0 && !pending && Boolean(sales) && !purchaseProblem
+    && (transactionActive || shippingCanContinue && !couponSelectionChanged);
 
   const appliedCoupon = couponState.coupons.find(
     (held) => held.id === couponState.selectedUserCouponId,
@@ -305,6 +322,7 @@ export function Cart({
 
   return (
     <div className="wc-root wc-cart">
+      <GoodsSalePeriodRefresh goods={lines.flatMap(line => line.good ? [line.good] : [])} />
       <div className="wc-container">
         <h1 className="wc-cart__title">장바구니</h1>
         {ready ? (
@@ -339,14 +357,14 @@ export function Cart({
                 <section className="wc-shipping-group" key={group.originId} aria-label={`${group.originName} 출고 굿즈`}>
                   <h2>{group.originName} 출고</h2>
                   <ul className="wc-cart__list">
-                    {lines.filter(line => line.good?.originId === group.originId).map(line => <CartLineRow key={cartItemKey(line.goodId, line.variantId)} line={line} />)}
+                    {lines.filter(line => line.good?.originId === group.originId).map(line => <CartLineRow key={cartItemKey(line.goodId, line.variantId,line.customInputs)} line={line} />)}
                   </ul>
-                  <ShippingGroupSummary group={group} />
+                  {!transactionActive && <ShippingGroupSummary group={group} />}
                 </section>
               ))}
               <ul className="wc-cart__list">
                 {lines.filter(line => !shipping.quote?.groups.some(group => line.good?.originId === group.originId))
-                  .map(line => <CartLineRow key={cartItemKey(line.goodId, line.variantId)} line={line} />)}
+                  .map(line => <CartLineRow key={cartItemKey(line.goodId, line.variantId,line.customInputs)} line={line} />)}
               </ul>
             </div>
 
@@ -354,32 +372,33 @@ export function Cart({
               <table className="wc-cart__summary">
                 <tbody>
                   <tr>
-                    <th scope="row">총 굿즈 금액</th>
+                    <th scope="row">{transactionActive ? '복수구매 할인 전 굿즈 금액' : '총 굿즈 금액'}</th>
                     <td>{krw(subtotal)}</td>
                   </tr>
                   <tr>
                     <th scope="row">쿠폰 할인</th>
-                    <td>−{krw(couponDiscount)}</td>
+                    <td>{transactionActive ? '주문서에서 확인' : `−${krw(couponDiscount)}`}</td>
                   </tr>
                   <tr>
                     <th scope="row">배송비</th>
-                    <td>{shippingFinal ? shippingFeeLabel(shippingFee) : shipping.quote ? '배송지 입력 후 확정' : '확인 중'}</td>
+                    <td>{transactionActive ? '배송지·선불/착불 선택 후 확정' : shippingFinal ? shippingFeeLabel(shippingFee) : shipping.quote ? '배송지 입력 후 확정' : '확인 중'}</td>
                   </tr>
                 </tbody>
                 <tfoot>
                   <tr>
                     <th scope="row">예상 총액</th>
-                    <td>{shippingFinal ? krw(subtotal + shippingFee - couponDiscount) : '배송비 확인 후 표시'}</td>
+                    <td>{transactionActive ? '주문서에서 할인·배송비 확인 후 표시' : shippingFinal ? krw(subtotal + shippingFee - couponDiscount) : '배송비 확인 후 표시'}</td>
                   </tr>
                 </tfoot>
               </table>
-              <p className="wc-cart__summary-note">출고지별 배송비를 합산합니다. 주문을 만들 때 서버가 최종 금액을 확인합니다.</p>
-              {shipping.loading ? <p role="status">현재 가격과 배송비를 확인하고 있어요.</p> : null}
-              {shipping.error ? <div role="alert"><p>{shipping.error}</p><button type="button" onClick={shipping.refresh}>가격·배송비 다시 확인</button></div> : null}
+              <p className="wc-cart__summary-note">{transactionActive ? '복수구매 할인과 수량별 배송비는 주문서에서 계산합니다. 착불 배송비는 수령 시 별도로 납부합니다.' : '출고지별 배송비를 합산합니다. 주문을 만들 때 서버가 최종 금액을 확인합니다.'}</p>
+              {transactionMode === 'unavailable' && <p role="alert">주문 조건을 확인하지 못했습니다. 새로고침 후 다시 확인해주세요.</p>}
+              {productQuote.loading ? <p role="status">{transactionActive ? '현재 가격과 구매 조건을 확인하고 있어요.' : '현재 가격과 배송비를 확인하고 있어요.'}</p> : null}
+              {productQuote.error ? <div role="alert"><p>{productQuote.error}</p><button type="button" onClick={productQuote.refresh}>{transactionActive ? '가격·구매 조건 다시 확인' : '가격·배송비 다시 확인'}</button></div> : null}
               {purchaseProblem ? <p className="wc-cart__error" role="alert">{purchaseProblem}
-                {couponErrorNeedsPendingOrder(shipping.sales?.coupon?.reason) ? <PendingOrderResolution /> : null}
+                {!transactionActive && couponErrorNeedsPendingOrder(shipping.sales?.coupon?.reason) ? <PendingOrderResolution /> : null}
               </p> : null}
-              {shipping.sales?.goods.filter(good => good.memberRemainingQty !== null).map(good => <p key={good.goodId}>
+              {sales?.goods.filter(good => good.memberRemainingQty !== null).map(good => <p key={good.goodId}>
                 {catalog.goods.find(item => item.id === good.goodId)?.name} · 회원 추가 구매 가능 {good.memberRemainingQty}개
               </p>)}
 
@@ -387,7 +406,7 @@ export function Cart({
                 <>{couponState.unavailable ? <p className="wc-cart__coupon-warning" role="alert">보유 쿠폰을 불러오지 못했습니다. 새로고침 후 다시 확인해주세요.</p> : null}<CartCouponSection
                   appliedCoupon={appliedCoupon}
                   couponState={couponState}
-                  eligibleSubtotal={shipping.sales?.coupon?.userCouponId === appliedCoupon?.id ? shipping.sales?.coupon?.eligibleSubtotal ?? null : null}
+                  eligibleSubtotal={!transactionActive && shipping.sales?.coupon?.userCouponId === appliedCoupon?.id ? shipping.sales?.coupon?.eligibleSubtotal ?? null : null}
                 /></>
               ) : (
                 <div className="wc-cart__coupon-slot">
@@ -412,6 +431,7 @@ export function Cart({
               >
                 {`${count}개 굿즈 주문하기`}
               </WcButton>
+              {giftAvailable ? <Link href="/gifts/new">장바구니에서 선물 준비</Link> : null}
             </aside>
           </div>
         )}

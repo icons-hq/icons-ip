@@ -1,9 +1,11 @@
 import 'server-only';
+import { isReviewKind, type ReviewKind } from '@/lib/review-types';
 
 import { createClient } from '@/lib/supabase/server';
+import { customerServicePageSize } from './customer-service-list';
 import { isReviewStatus, type ReviewStatus } from '@/lib/reviews';
+import { parseReviewBestState } from '@/lib/review-best';
 import {
-  ADMIN_REVIEW_PAGE_SIZE,
   adminReviewAuthorLabel,
   EMPTY_ADMIN_REVIEW_COUNTS,
   ternaryFilterToBoolean,
@@ -23,6 +25,8 @@ const USER_UPLOADS_BUCKET = 'user-uploads';
 const SIGNED_IMAGE_EXPIRES_IN_SECONDS = 60 * 60;
 
 interface ConsoleRow {
+  review_kind: ReviewKind;
+  repeat_purchase: boolean | null;
   id: string;
   good_id: string;
   good_name: string;
@@ -44,6 +48,8 @@ interface ConsoleRow {
   created_at: string;
   edited_at: string | null;
   total_count: number | string;
+  best_selection: unknown;
+  helpful_count: number | string;
 }
 
 interface CountsRow {
@@ -59,6 +65,13 @@ type SupabaseServerClient = Awaited<ReturnType<typeof createClient>>;
 function toNumber(value: number | string | null | undefined) {
   const parsed = typeof value === 'number' ? value : Number(value ?? 0);
   return Number.isSafeInteger(parsed) ? parsed : 0;
+}
+
+function helpfulCount(value: unknown): number {
+  const number = typeof value === 'number' ? value
+    : typeof value === 'string' && /^[0-9]+$/.test(value) ? Number(value) : NaN;
+  if (!Number.isSafeInteger(number) || number < 0) throw new Error('Failed to load review helpful count');
+  return number;
 }
 
 async function signedImageUrls(supabase: SupabaseServerClient, paths: string[]) {
@@ -78,16 +91,20 @@ export async function getAdminReviewConsoleData(
   filters: AdminReviewFilters,
 ): Promise<AdminReviewConsoleData> {
   const supabase = await createClient();
+  const pageSize = customerServicePageSize(filters.pageSize);
 
   const [listResult, countResult] = await Promise.all([
-    supabase.rpc('admin_search_reviews', {
+    supabase.rpc('admin_search_reviews_typed', {
+      p_kind: filters.kind ?? 'all',
+      p_repeat: filters.repeat ?? 'all',
+      p_best: filters.best ?? 'all',
       p_field: filters.field,
       p_from: filters.from,
       p_has_photo: ternaryFilterToBoolean(filters.photo),
       p_has_reply: ternaryFilterToBoolean(filters.reply),
-      p_limit: ADMIN_REVIEW_PAGE_SIZE,
+      p_limit: pageSize,
       p_low_rating: filters.lowRating,
-      p_offset: (filters.page - 1) * ADMIN_REVIEW_PAGE_SIZE,
+      p_offset: (filters.page - 1) * pageSize,
       p_query: filters.query || null,
       p_rating: filters.rating === 'all' ? null : Number(filters.rating),
       p_review_id: filters.reviewId,
@@ -127,13 +144,16 @@ export async function getAdminReviewConsoleData(
   return {
     counts,
     filters,
-    pageSize: ADMIN_REVIEW_PAGE_SIZE,
+    pageSize,
     total: rows.length ? toNumber(rows[0].total_count) : 0,
     rows: rows.map((row): AdminReviewRow => {
+      if (!isReviewKind(row.review_kind) || (row.repeat_purchase !== null && typeof row.repeat_purchase !== 'boolean')) throw new Error('Invalid review type metadata');
       const paths = row.image_paths ?? [];
+      const best = parseReviewBestState(row.best_selection);
 
       return {
         id: row.id,
+        kind: row.review_kind, repeatPurchase: row.repeat_purchase,
         goodId: row.good_id,
         goodName: row.good_name,
         orderId: row.order_id,
@@ -143,6 +163,7 @@ export async function getAdminReviewConsoleData(
         rating: row.rating,
         body: row.body,
         imageCount: paths.length,
+        helpfulCount: helpfulCount(row.helpful_count),
         imageUrls: paths
           .map((path) => urls.get(path))
           .filter((url): url is string => typeof url === 'string'),
@@ -156,6 +177,7 @@ export async function getAdminReviewConsoleData(
         openReportCount: toNumber(row.open_report_count),
         createdAt: row.created_at,
         editedAt: row.edited_at,
+        best: best?.reviewId === row.id ? best : null,
       };
     }),
   };

@@ -1,6 +1,7 @@
 import { isUuid } from '@/lib/uuid';
 import { parseShippingQuote, type ShippingQuote, type ShippingQuoteGroup } from './fulfillment';
 import { parseGoodsSalesQuote, type GoodsSalesQuote } from './goods-sales';
+import { hasShippingChargeDetails } from './shipping-charge-groups';
 
 export type ShippingRegionStatus = 'unconfigured' | 'standard' | 'surcharge' | 'address_required'
   | 'unavailable' | 'manual_review' | 'policy_unavailable' | 'carrier_mismatch';
@@ -40,7 +41,7 @@ export function parseShippingDestination(value: unknown): ShippingDestination | 
 }
 
 export function parseRegionalShippingSnapshot(value: unknown): RegionalShippingSnapshot | null {
-  if (!object(value) || !['legacy_base_only', 'managed'].includes(String(value.regionMode))
+  if (hasShippingChargeDetails(value) || !object(value) || !['legacy_base_only', 'managed'].includes(String(value.regionMode))
     || !STATUSES.includes(value.regionStatus as ShippingRegionStatus)
     || !nullableAmount(value.regionalContractFee) || !nullableAmount(value.regionalFee) || !nullableAmount(value.finalFee)
     || !nullableId(value.policyId) || !nullableId(value.ruleId)

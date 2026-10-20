@@ -43,15 +43,23 @@ export interface GoodsSalesQuoteGood {
   reason: GoodsPurchaseReason | null;
 }
 
-export interface GoodsSalesQuote {
+export interface GoodsSalesConditions {
   calculatedAt: string;
   subtotal: number;
   lines: GoodsSalesQuoteLine[];
   goods: GoodsSalesQuoteGood[];
   paymentMethods: { card: boolean; bankTransfer: boolean };
-  shipping: ShippingQuote;
   nextChangeAt?: string | null;
+}
+
+export interface GoodsSalesQuote extends GoodsSalesConditions {
+  shipping: ShippingQuote;
   coupon?: CouponQuote | null;
+}
+
+/** Cart product conditions precede address, shipping method and discount selection. */
+export interface GoodsSalesPrecheckoutQuote extends GoodsSalesConditions {
+  shipping: { status: 'checkout_required' };
 }
 
 const REASONS = new Set<GoodsPurchaseReason>([
@@ -90,13 +98,12 @@ export function parseGoodsVariantPricing(value: unknown): GoodsVariantPricing | 
   return value as unknown as GoodsVariantPricing;
 }
 
-export function parseGoodsSalesQuote(value: unknown, shippingParser: (value: unknown) => ShippingQuote | null = parseShippingQuote): GoodsSalesQuote | null {
+function parseGoodsSalesConditions(value: unknown): GoodsSalesConditions | null {
   if (!object(value) || !instant(value.calculatedAt) || !nonnegative(value.subtotal)
     || !Array.isArray(value.lines) || !Array.isArray(value.goods)
     || !object(value.paymentMethods) || typeof value.paymentMethods.card !== 'boolean'
     || typeof value.paymentMethods.bankTransfer !== 'boolean') return null;
-  const shipping = shippingParser(value.shipping);
-  if (!shipping || (value.nextChangeAt != null && (!instant(value.nextChangeAt) || Date.parse(value.nextChangeAt) <= Date.parse(value.calculatedAt)))) return null;
+  if (value.nextChangeAt != null && (!instant(value.nextChangeAt) || Date.parse(value.nextChangeAt) <= Date.parse(value.calculatedAt))) return null;
 
   const quantities = new Map<string, number>();
   const identities = new Set<string>();
@@ -117,11 +124,6 @@ export function parseGoodsSalesQuote(value: unknown, shippingParser: (value: unk
     quantities.set(line.goodId, nextQuantity);
   }
   if (subtotal !== value.subtotal || quantities.size !== value.goods.length) return null;
-  if (value.coupon != null) {
-    const coupon = parseCouponQuote(value.coupon);
-    if (!coupon || coupon.eligibleSubtotal > subtotal
-      || coupon.discount > Math.max(0, subtotal + shipping.totalFee - MIN_PAYABLE_TOTAL)) return null;
-  }
   for (const good of value.goods) {
     if (!object(good) || !identity(good.goodId) || !positive(good.qty) || quantities.get(good.goodId) !== good.qty
       || typeof good.orderQuantityLimitEnabled !== 'boolean' || typeof good.memberPurchaseLimitEnabled !== 'boolean'
@@ -139,7 +141,31 @@ export function parseGoodsSalesQuote(value: unknown, shippingParser: (value: unk
     } else if (good.memberRemainingQty !== Math.max(0, (good.memberLifetimeQtyLimit as number) - (good.memberReservedQty as number))) return null;
     quantities.delete(good.goodId);
   }
-  return { ...value, shipping } as unknown as GoodsSalesQuote;
+  return {
+    calculatedAt: value.calculatedAt, subtotal: value.subtotal,
+    lines: value.lines, goods: value.goods, paymentMethods: value.paymentMethods,
+    ...(value.nextChangeAt !== undefined ? { nextChangeAt: value.nextChangeAt } : {}),
+  } as GoodsSalesConditions;
+}
+
+export function parseGoodsSalesQuote(value: unknown, shippingParser: (value: unknown) => ShippingQuote | null = parseShippingQuote): GoodsSalesQuote | null {
+  const conditions = parseGoodsSalesConditions(value);
+  if (!conditions || !object(value)) return null;
+  const shipping = shippingParser(value.shipping);
+  if (!shipping) return null;
+  if (value.coupon != null) {
+    const coupon = parseCouponQuote(value.coupon);
+    if (!coupon || coupon.eligibleSubtotal > conditions.subtotal
+      || coupon.discount > Math.max(0, conditions.subtotal + shipping.totalFee - MIN_PAYABLE_TOTAL)) return null;
+  }
+  return { ...value, ...conditions, shipping } as unknown as GoodsSalesQuote;
+}
+
+export function parseGoodsSalesPrecheckoutQuote(value: unknown): GoodsSalesPrecheckoutQuote | null {
+  const conditions = parseGoodsSalesConditions(value);
+  if (!conditions || !object(value) || Object.hasOwn(value, 'coupon') || !object(value.shipping)
+    || value.shipping.status !== 'checkout_required' || Object.keys(value.shipping).length !== 1) return null;
+  return { ...conditions, shipping: { status: 'checkout_required' } };
 }
 
 export function goodsPurchaseReasonMessage(reason: GoodsPurchaseReason): string {
@@ -152,7 +178,7 @@ export function goodsPurchaseReasonMessage(reason: GoodsPurchaseReason): string 
   return messages[reason];
 }
 
-export function goodsSalesQuoteProblem(quote: GoodsSalesQuote): string | null {
+export function goodsSalesQuoteProblem(quote: GoodsSalesConditions & { coupon?: CouponQuote | null }): string | null {
   if (quote.lines.some((line) => !line.available)) return '현재 판매 상태나 재고가 변경된 굿즈가 있어요. 수량을 다시 확인해주세요.';
   const reason = quote.goods.find((good) => good.reason)?.reason;
   if (reason) return goodsPurchaseReasonMessage(reason);

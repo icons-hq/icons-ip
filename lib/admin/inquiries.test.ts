@@ -4,6 +4,8 @@ import {
   adminInquiryBuyerLabel,
   adminInquiryDetailHref,
   adminInquiryHref,
+  adminInquiryNavigation,
+  adminInquiryBackFilters,
   normalizeAdminInquiryFilters,
   type AdminInquiryFilters,
 } from './inquiries';
@@ -91,5 +93,30 @@ describe('구매자 표기', () => {
   it('닉네임이 비면 주문 콘솔과 같은 축약을 쓴다', () => {
     expect(adminInquiryBuyerLabel(null, '33333333-3333-4333-8333-333333333333')).toBe('fan_333333');
     expect(adminInquiryBuyerLabel('  maple  ', 'x')).toBe('maple');
+  });
+});
+
+describe('inquiry navigation', () => {
+  it('preserves every filter across page boundaries for previews and dedicated details', async () => {
+    const filters = { ...BASE, status: 'all' as const, category: 'order' as const, satisfaction: 'dissatisfied' as const, from: '2026-10-01', to: '2026-10-31', query: '배송', field: 'title' as const, page: 2, pageSize: 20 };
+    const data = { filters, pageSize: 20, total: 42, counts: { open: 42, answered: 0, closed: 0 }, rows: Array.from({ length: 20 }, (_, i) => ({ id: `id-${21+i}` })) } as import('./inquiries').AdminInquiryConsoleData;
+    const calls: number[] = [];
+    const adjacent = async (offset: number) => { calls.push(offset); return `id-${offset+1}`; };
+    const first = await adminInquiryNavigation('id-21', data, 'preview', adjacent);
+    expect(first.position).toBe(21); expect(calls).toEqual([19]);
+    expect(first.previousHref).toBe(`${adminInquiryHref(filters, { page: 1 })}&inquiryId=id-20`);
+    const last = await adminInquiryNavigation('id-40', data, 'detail', adjacent);
+    expect(last.nextHref).toBe(adminInquiryDetailHref('id-41', { ...filters, page: 3 }));
+    expect(adminInquiryBackFilters(new URL(last.nextHref!, 'http://localhost').searchParams.get('back'))).toEqual({ ...filters, page: 3 });
+  });
+  it('does not fabricate a position or neighbor after the record leaves the filtered page', async () => {
+    const data = { filters: BASE, pageSize: 20, total: 0, rows: [], counts: { open: 0, answered: 0, closed: 0 } };
+    const result = await adminInquiryNavigation('removed', data, 'preview', async () => { throw new Error('must not query'); });
+    expect(result).toEqual({ position: null, total: 0, previousHref: null, nextHref: null });
+  });
+  it('never links back to itself when concurrent queue changes shift a boundary lookup', async () => {
+    const data = { filters: { ...BASE, page: 2 }, pageSize: 20, total: 22, rows: [{ id: 'current' }], counts: { open: 22, answered: 0, closed: 0 } } as import('./inquiries').AdminInquiryConsoleData;
+    const result = await adminInquiryNavigation('current', data, 'preview', async () => 'current');
+    expect(result.previousHref).toBeNull(); expect(result.nextHref).toBeNull();
   });
 });

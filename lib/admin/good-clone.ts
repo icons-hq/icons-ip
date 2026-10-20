@@ -41,10 +41,10 @@ export function normalizeGoodCloneForm(input: {
 
 export function goodCloneMatrixRows() {
   return [
-    { label: '복사', value: '설명·이미지 참조·사용 중지 상태를 포함한 옵션 구성·고시·배송 안내·활성 말단 카테고리' },
+    { label: '복사', value: '설명·이미지 참조·사용 중지 상태를 포함한 옵션 구성·고시·배송 안내·활성 말단 카테고리·상품속성(이전 정의의 보관값 포함)' },
     { label: '새로 생성', value: '상품 URL·자체 상품코드·옵션코드·초안 정체성' },
-    { label: '초기화', value: '할당 재고 0·KC 검토 상태·상품의 보관/게시 상태' },
-    { label: '복사하지 않음', value: 'ERP·바코드·매입단가·기간 할인·예약·추가구성·쿠폰·판매 실적' },
+    { label: '초기화', value: '할당 재고 0·일반 판매기간 없음·KC 검토 상태·상품의 보관/게시 상태' },
+    { label: '복사하지 않음', value: 'ERP·바코드·매입단가·기간 할인·예약·추가구성·쿠폰·판매 실적·개별 수령 방식·디지털 파일·제작·정기배송 설정' },
   ] as const;
 }
 

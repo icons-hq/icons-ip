@@ -27,13 +27,17 @@ async function cancelPreparedUpload(path: string) {
 export async function uploadAdminArtwork(input: {
   kind: AdminArtworkKind;
   file: File;
+  expectedActorId?: string;
 }): Promise<AdminArtworkUploadResult> {
+  const { kind, file, expectedActorId } = input;
+  const actorBinding = expectedActorId === undefined ? {} : { expectedActorId };
   let preparedPath: string | null = null;
   try {
     const grant = await prepareAdminArtworkUploadAction({
-      kind: input.kind,
-      mimeType: input.file.type,
-      size: input.file.size,
+      kind,
+      mimeType: file.type,
+      size: file.size,
+      ...actorBinding,
     });
     if (!grant.ok) return grant;
     preparedPath = grant.path;
@@ -41,8 +45,8 @@ export async function uploadAdminArtwork(input: {
     const supabase = createClient();
     const { error } = await supabase.storage
       .from(STAGING_BUCKET)
-      .upload(grant.path, input.file, {
-        contentType: input.file.type,
+      .upload(grant.path, file, {
+        contentType: file.type,
         upsert: false,
       });
 
@@ -52,10 +56,11 @@ export async function uploadAdminArtwork(input: {
     }
 
     const result = await verifyAdminArtworkUploadAction({
-      kind: input.kind,
-      mimeType: input.file.type,
+      kind,
+      mimeType: file.type,
       path: grant.path,
-      size: input.file.size,
+      size: file.size,
+      ...actorBinding,
     });
     if (!result.ok) await cancelPreparedUpload(grant.path);
     return result;

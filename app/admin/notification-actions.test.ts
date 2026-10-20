@@ -1,3 +1,4 @@
+const { legacyOperatorAccessFixture } = await vi.hoisted(() => import('@/lib/admin/access.test-fixtures'));
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { sendAdminNotificationAction } from './notification-actions';
 
@@ -9,12 +10,12 @@ const mocks = vi.hoisted(() => ({
     isConfigured: true,
     user: { id: 'staff-1', email: 'staff@icons.gg' },
     role: 'staff' as 'user' | 'staff' | 'admin',
-    isStaff: true,
+    isStaff: true, operatorAccess: legacyOperatorAccessFixture(),
   } as {
     isConfigured: boolean;
     user: { id: string; email: string | null } | null;
     role: 'user' | 'staff' | 'admin' | null;
-    isStaff: boolean;
+    isStaff: boolean; operatorAccess?: ReturnType<typeof legacyOperatorAccessFixture>;
   },
   randomUUID: vi.fn(),
   revalidatePath: vi.fn(),
@@ -54,7 +55,7 @@ describe('sendAdminNotificationAction', () => {
       isConfigured: true,
       user: { id: 'staff-1', email: 'staff@icons.gg' },
       role: 'staff',
-      isStaff: true,
+      isStaff: true, operatorAccess: legacyOperatorAccessFixture(),
     };
     mocks.randomUUID.mockReset();
     mocks.randomUUID.mockReturnValue(NEXT_OPERATION_ID);

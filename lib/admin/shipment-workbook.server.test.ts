@@ -11,6 +11,22 @@ const line = { shipmentId: '00000000-0000-4000-8000-000000000001', orderId: '000
   goodCode: '000123', variantCode: '000123-RED', goodName: '상품', optionName: '파랑', qty: 2, unitPrice: 12500, deliveryNote: '문 앞\n부탁합니다', carrier: '한진택배' };
 const shipment = { id: line.shipmentId, updatedAt: '2026-09-08T00:00:00Z', originId: 'gimpo', originName: '김포', template: 'standard', shippingFee: 3000, columns: [...DEFAULT_SHIPMENT_EXPORT_COLUMNS], lines: [line] };
 describe('shipment workbook exchange', () => {
+  it('preserves native order rows and fees while attaching complete packing instructions', async () => {
+    const secondId='00000000-0000-4000-8000-000000000003';
+    const pack={id:'00000000-0000-4000-8000-000000000090',revision:1,count:2,shipmentIds:[shipment.id,secondId],collectFee:0,canRelease:true};
+    const packed=[{...shipment,template:'wms_csv',pack},{...shipment,id:secondId,template:'wms_csv',pack,shippingFee:4000,lines:[{...line,shipmentId:secondId,orderId:'00000000-0000-4000-8000-000000000004'}]}];
+    const file=await buildShipmentExport({shipments:packed},'xlsx');const workbook=new ExcelJS.Workbook();await workbook.xlsx.load(file.bytes as never);
+    expect(workbook.worksheets[0].columnCount).toBe(21);expect(workbook.worksheets[0].getCell('I2').value).toBe(line.orderId);
+    expect(workbook.worksheets[0].getCell('T2').value).toBe(3000);expect(workbook.worksheets[0].getCell('T3').value).toBe(4000);
+    const supplement=workbook.getWorksheet('배송 운영 안내')!;expect(supplement.getCell('K2').value).toBe(pack.id);expect(supplement.getCell('L2').value).toBe(2);
+    expect(supplement.getCell('N3').value).toContain('동일 택배사·송장');
+    await expect(buildShipmentExport({shipments:[packed[0]]},'xlsx')).rejects.toThrow('모든 배송 건');
+  });
+  it('keeps rejected references in the DB command so an invalid sibling cannot dispatch its package', () => {
+    const command=trackingImportCommand({rows:[{line:2,reference:line.shipmentId,referenceId:line.shipmentId,carrier:'hanjin',trackingNumber:'0012345678'}],issues:[{line:3,reference:'00000000-0000-4000-8000-000000000003',reason:'invalid tracking'}]},'');
+    expect(command.args.target_rows).toHaveLength(2);expect(command.args.target_rows[1]).toMatchObject({line:3,trackingNumber:''});
+  });
+
   it('round-trips a generated Gimpo export into an origin-scoped tracking command without losing IDs or leading zeros', async () => {
     const originId = '00000000-0000-4000-8000-000000000099';
     const secondOrder = '00000000-0000-4000-8000-000000000043';
@@ -19,6 +35,9 @@ describe('shipment workbook exchange', () => {
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(file.bytes as never);
     const sheet = workbook.worksheets[0];
+    expect(sheet.getCell('U2').value).toBe('');
+    expect(sheet.getCell('U2').numFmt).toBe('@');
+    expect(sheet.getColumn('U').numFmt).toBe('@');
     for (let index = 2; index <= sheet.rowCount; index++) sheet.getCell(`U${index}`).value = '001234567890';
     const parsed = await parseTrackingWorkbook(Buffer.from(await workbook.xlsx.writeBuffer()), []);
     expect(parsed.issues).toEqual([]);
@@ -45,6 +64,8 @@ describe('shipment workbook exchange', () => {
     expect(sheet.getRow(2).values).toEqual([undefined, '01001234567', '', '00123', '서울시, 상세주소', '', '', '합성 키링/빨강(2), 합성 엽서/(1)']);
     expect(sheet.getCell('A2').type).toBe(ExcelJS.ValueType.String);
     expect(sheet.getCell('C2').type).toBe(ExcelJS.ValueType.String);
+    for (const address of ['A2', 'B2', 'C2']) expect(sheet.getCell(address).numFmt).toBe('@');
+    expect(sheet.getCell('F2').numFmt).not.toBe('@');
   });
   it('exports the exact Gimpo columns from order snapshots and charges shipping only on each shipment first line', async () => {
     const gimpo = { ...shipment, template: 'wms_csv', lines: [
@@ -70,8 +91,14 @@ describe('shipment workbook exchange', () => {
     expect(sheet.getCell('O3').value).toBe(9900);
     expect(sheet.getCell('T3').value).toBe(0);
     expect(sheet.getCell('T4').value).toBe(1500);
-    for (const address of ['E2', 'I2', 'R2']) expect(sheet.getCell(address).type).toBe(ExcelJS.ValueType.String);
-    for (const address of ['O2', 'P2', 'T2']) expect(sheet.getCell(address).type).toBe(ExcelJS.ValueType.Number);
+    for (const address of ['E2', 'I2', 'R2']) {
+      expect(sheet.getCell(address).type).toBe(ExcelJS.ValueType.String);
+      expect(sheet.getCell(address).numFmt).toBe('@');
+    }
+    for (const address of ['O2', 'P2', 'T2']) {
+      expect(sheet.getCell(address).type).toBe(ExcelJS.ValueType.Number);
+      expect(sheet.getCell(address).numFmt).not.toBe('@');
+    }
   });
   it('uses the same native profiles in CSV, retaining blanks and escaping formula-looking item names', async () => {
     const native = { ...shipment, lines: [{ ...line, recipient: '합성 수취인', goodName: '=합성,상품', optionName: '파랑', deliveryNote: '문 앞' }] };
@@ -102,6 +129,7 @@ describe('shipment workbook exchange', () => {
     expect(sheet.getCell('A2').value).toBe('000123-RED');
     expect(sheet.getCell('A3').value).toBe('000124-BLUE');
     expect(sheet.getCell('A2').type).toBe(ExcelJS.ValueType.String);
+    expect(sheet.getCell('A2').numFmt).toBe('@');
     expect(sheet.getCell('H2').value).toBe('000123');
     expect(sheet.getCell('H3').value).toBe('000123');
   });
@@ -136,4 +164,34 @@ describe('shipment workbook exchange', () => {
     await expect(buildShipmentExport({ shipments: [{ ...shipment, lines: [] }] }, 'xlsx')).rejects.toThrow('상품 정보');
     await expect(buildShipmentExport({ shipments: [{ ...shipment, columns: [] }] } as ShipmentExportData, 'xlsx')).rejects.toThrow('양식');
   });
+});
+
+it('keeps native columns and separate gift/COD instructions through XLSX and ZIP round trips', async () => {
+  const JSZip = (await import('jszip')).default;
+  const gift = { ...shipment, template: 'wms_csv', isGift: true, shippingFee: 0, shippingCollectFee: 3000,
+    collector: { name: '배송사', method: '수령 시 납부', instructions: '=안내문', refundContact: '판매자 문의' },
+    lines: [{ ...line, recipient: '선물 수령인' }] };
+  const file = await buildShipmentExport({ shipments: [gift] }, 'xlsx');
+  const workbook = new ExcelJS.Workbook(); await workbook.xlsx.load(file.bytes as never);
+  expect(workbook.worksheets).toHaveLength(2); expect(workbook.worksheets[0].columnCount).toBe(21);
+  expect(workbook.worksheets[0].getCell('T2').value).toBe(0);
+  const supplement = workbook.getWorksheet('배송 운영 안내')!;
+  expect(supplement.getCell('C2').value).toBe('선물');
+  expect(supplement.getCell('D2').value).toContain('가격·할인·결제정보');
+  expect(supplement.getCell('E2').value).toBe(0); expect(supplement.getCell('F2').value).toBe(3000);
+  expect(supplement.getCell('I2').type).toBe(ExcelJS.ValueType.String);
+  workbook.worksheets[0].getCell('U2').value = '001234567890';
+  const reply = await parseTrackingWorkbook(Buffer.from(await workbook.xlsx.writeBuffer()), []);
+  expect(reply.issues).toEqual([]); expect(reply.rows[0]).toMatchObject({ reference: line.orderId, trackingNumber: '001234567890' });
+  const csv = await buildShipmentExport({ shipments: [gift] }, 'csv');
+  expect(csv.extension).toBe('zip'); expect(csv.mime).toBe('application/zip');
+  const zip = await JSZip.loadAsync(csv.bytes);
+  expect(Object.keys(zip.files)).toEqual(['ICONS-출고지시.csv', 'ICONS-배송운영안내.csv']);
+  expect(await zip.file('ICONS-배송운영안내.csv')!.async('text')).toContain("\"'=안내문\"");
+  expect(await zip.file('ICONS-출고지시.csv')!.async('text')).toContain('선물 수령인');
+});
+
+it('fails before export when a gift address or COD collector contract is incomplete', async () => {
+  await expect(buildShipmentExport({ shipments: [{ ...shipment, isGift: true, lines: [{ ...line, address: '' }] }] }, 'xlsx')).rejects.toThrow('선물·착불');
+  await expect(buildShipmentExport({ shipments: [{ ...shipment, shippingCollectFee: 3000 }] }, 'xlsx')).rejects.toThrow('선물·착불');
 });

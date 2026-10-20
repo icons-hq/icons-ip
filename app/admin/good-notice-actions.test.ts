@@ -1,10 +1,11 @@
+const { legacyOperatorAccessFixture } = await vi.hoisted(() => import('@/lib/admin/access.test-fixtures'));
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({ auth: vi.fn(), client: vi.fn(), rpc: vi.fn(), presets: vi.fn() }));
 vi.mock('@/lib/auth/admin', () => ({ getCurrentAdminAuthState: mocks.auth }));
 vi.mock('@/lib/supabase/server', () => ({ createClient: mocks.client }));
 vi.mock('@/lib/admin/goods-notice-presets.server', () => ({ loadGoodsNoticePresets: mocks.presets }));
 import { findGoodNoticePresets, loadLastSavedGoodNotice } from './good-notice-actions';
-beforeEach(() => { vi.clearAllMocks(); mocks.auth.mockResolvedValue({ isConfigured: true, user: { id: 'staff' }, isStaff: true }); mocks.client.mockResolvedValue({ rpc: mocks.rpc }); });
+beforeEach(() => { vi.clearAllMocks(); mocks.auth.mockResolvedValue({ isConfigured: true, user: { id: 'staff' }, isStaff: true, operatorAccess: legacyOperatorAccessFixture() }); mocks.client.mockResolvedValue({ rpc: mocks.rpc }); });
 describe('goods notice copying', () => {
   it('rejects nonstaff before reading saved values or presets', async () => {
     mocks.auth.mockResolvedValue({ isConfigured: true, user: { id: 'fan' }, isStaff: false });

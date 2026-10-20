@@ -1,12 +1,16 @@
 import { Cart } from '@/components/screens/Cart';
 import { getCatalogSnapshot } from '@/lib/catalog';
 import { loadCartCouponState } from '@/lib/coupons.server';
+import { loadGoodsTransactionRuntimeMode } from '@/lib/checkout-transaction.server';
+import { giftsAvailable } from '@/lib/gifts.server';
 
 export default async function Page() {
-  const [catalog, couponState] = await Promise.all([
+  const [catalog, couponState, transactionMode, giftAvailable] = await Promise.all([
     getCatalogSnapshot(),
     loadCartCouponState(),
+    loadGoodsTransactionRuntimeMode(),
+    giftsAvailable(),
   ]);
 
-  return <Cart catalog={{ goods: catalog.goods, ips: catalog.ips }} couponState={couponState} />;
+  return <Cart catalog={{ goods: catalog.goods, ips: catalog.ips }} couponState={couponState} transactionMode={transactionMode} giftAvailable={giftAvailable} />;
 }

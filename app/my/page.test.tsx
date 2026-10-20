@@ -112,7 +112,8 @@ describe('/my page', () => {
     mocks.loyaltyStatus.mockResolvedValue({
       grade: 'silver',
       windowSpend: 150000,
-      next: { grade: 'gold', threshold: 300000, remaining: 150000 },
+      windowItemCount: 2,
+      nextNote: 'GOLD까지 150,000원 또는 굿즈 주문 항목 3건',
     });
 
     renderToStaticMarkup(await Page());
@@ -121,7 +122,7 @@ describe('/my page', () => {
       loyalty: {
         grade: 'silver',
         label: 'SILVER',
-        nextNote: 'GOLD까지 150,000원 남았어요.',
+        nextNote: 'GOLD까지 150,000원 또는 굿즈 주문 항목 3건',
       },
     }), undefined);
   });
@@ -130,13 +131,14 @@ describe('/my page', () => {
     mocks.loyaltyStatus.mockResolvedValue({
       grade: 'platinum',
       windowSpend: 2000000,
-      next: null,
+      windowItemCount: 20,
+      nextNote: null,
     });
 
     renderToStaticMarkup(await Page());
 
     expect(mocks.myPage).toHaveBeenCalledWith(expect.objectContaining({
-      loyalty: expect.objectContaining({ label: 'PLATINUM', nextNote: '최고 등급이에요.' }),
+      loyalty: expect.objectContaining({ label: 'PLATINUM', nextNote: null }),
     }), undefined);
   });
 });

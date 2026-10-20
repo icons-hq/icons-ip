@@ -1,5 +1,10 @@
+import { loadAdminOrderTransactions } from '@/lib/order-transactions.server';
+import type { GoodsTransactionDisplay } from '@/lib/goods-transaction';
+import { isUuid } from '@/lib/uuid';
 import type { ShipmentRecord } from '@/lib/orders/shipments';
+import { parseSellerClaimReceipt, type SellerClaimReceipt } from './seller-claim-intake';
 import 'server-only';
+import { readGoodsCustomInputSnapshot, type GoodsCustomInputSelection } from '@/lib/goods-custom-inputs';
 
 import { createClient } from '@/lib/supabase/server';
 import { isOrderWithdrawalReasonType, type OrderWithdrawalReasonType } from '@/lib/orders';
@@ -22,7 +27,7 @@ import {
 
 /* 어드민 클레임 콘솔 로더(#252).
  *
- * 목록·집계·상세 모두 staff 게이트가 붙은 RPC로만 읽는다. 상세는 한 번의 왕복으로
+ * 목록·집계·상세 모두 staff 게이트가 붙은 RPC로만 읽는다. 상세는 권한이 확인된 RPC와 불변 거래 영수증으로
  * 주문 요약·결제·환불 원장·카드팩 발급 여부·마스킹된 환불계좌·타임라인을 함께
  * 받는다 — 운영자가 승인 버튼을 누르기 전에 봐야 하는 것들이 화면을 옮기지 않고
  * 한 자리에 있어야 한다. */
@@ -68,6 +73,7 @@ function emptyCounts(): Record<OrderClaimStage, number> {
     needs_review: 0,
     completed: 0,
     rejected: 0,
+    withdrawn: 0,
   };
 }
 
@@ -101,11 +107,11 @@ export async function getAdminClaimConsoleData(
   /* 목록 엑셀 다운로드 전용: RPC 상한(100건) 안에서 페이지를 키우고 단계별 집계는 읽지 않는다. */
   options: { pageSize?: number; includeCounts?: boolean } = {},
 ): Promise<AdminClaimConsoleData> {
-  const pageSize = Math.min(Math.max(Math.trunc(options.pageSize ?? ADMIN_CLAIM_PAGE_SIZE) || ADMIN_CLAIM_PAGE_SIZE, 1), 100);
+  const pageSize = Math.min(Math.max(Math.trunc(options.pageSize ?? filters.pageSize ?? ADMIN_CLAIM_PAGE_SIZE) || ADMIN_CLAIM_PAGE_SIZE, 1), 100);
   const supabase = await createClient();
 
   const [listResult, countResult] = await Promise.all([
-    supabase.rpc('admin_search_order_claims', {
+    supabase.rpc('admin_search_order_claims_console', {
       p_claim_type: claimType,
       p_from: filters.from,
       p_limit: pageSize,
@@ -114,10 +120,17 @@ export async function getAdminClaimConsoleData(
       p_reason_type: filters.reasonType === 'all' ? null : filters.reasonType,
       p_stage: filters.stage === 'all' ? null : filters.stage,
       p_to: filters.to,
+      p_field: filters.field ?? 'all',
+      p_date_field: filters.dateField ?? 'requested',
+      p_sort: filters.sort ?? 'newest',
     }),
     options.includeCounts === false
       ? Promise.resolve({ data: [], error: null })
-      : supabase.rpc('admin_order_claim_stage_counts', { p_claim_type: claimType }),
+      : supabase.rpc('admin_order_claim_stage_counts_console', {
+        p_claim_type: claimType, p_reason_type: filters.reasonType === 'all' ? null : filters.reasonType,
+        p_from: filters.from, p_to: filters.to, p_query: filters.query || null,
+        p_field: filters.field ?? 'all', p_date_field: filters.dateField ?? 'requested',
+      }),
   ]);
 
   if (listResult.error) {
@@ -146,10 +159,11 @@ export async function getAdminClaimConsoleData(
 
 export interface AdminClaimReshipItem {
   id: string; goodId: string; name: string; qty: number; unitPrice: number;
-  variantId: string; variantName: string | null; currentVariantId: string;
-  options: { id: string; name: string; code: string; stockQty: number }[];
+  variantId: string; variantName: string | null; currentVariantId: string; currentGoodId?: string; customInputs?:GoodsCustomInputSelection|null;
+  options: { id: string; goodId?: string; goodName?: string; name: string; code: string; stockQty: number }[];
 }
 export interface AdminClaimDetailOrder {
+  transaction?: GoodsTransactionDisplay;
   id: string;
   status: string;
   total: number;
@@ -193,6 +207,8 @@ export interface AdminClaimCollection {
 }
 
 export interface AdminClaimDetail {
+  gift?: { giftId: string; requesterRole: 'payer' | 'recipient'; requesterName: string } | null;
+  sellerIntake?: SellerClaimReceipt | null;
   claim: {
     id: string;
     reference: number;
@@ -222,7 +238,7 @@ export interface AdminClaimDetail {
     reshipDeliveredBy: string | null;
     reshipDeliveredByName: string | null;
     reshipDeliveryEvidence: string | null;
-    reshippedItems?: { orderItemId: string; name: string; variantId: string; variantName: string; variantCode: string; qty: number }[];
+    reshippedItems?: { orderItemId: string; goodId?: string; originalGoodId?: string; name: string; variantId: string; variantName: string; variantCode: string; qty: number }[];
     lastErrorCode: string | null;
     handlerName: string | null;
     updatedAt: string;
@@ -281,8 +297,28 @@ export async function loadAdminClaimDetail(
   const account = isRecord(data.refundAccount) ? data.refundAccount : null;
   const timeline = Array.isArray(data.timeline) ? data.timeline : [];
   const operationalFee = isRecord(claim.operationalFee) ? claim.operationalFee : {};
+  let gift: AdminClaimDetail['gift'] = null;
+  if (data.gift != null) {
+    const value = data.gift;
+    if (!isRecord(value) || Object.keys(value).length !== 3 || typeof value.giftId !== 'string' || !isUuid(value.giftId)
+      || (value.requesterRole !== 'payer' && value.requesterRole !== 'recipient') || typeof value.requesterName !== 'string'
+      || !value.requesterName.trim()) throw new Error('Failed to load gift claim requester');
+    gift = { giftId: value.giftId, requesterRole: value.requesterRole, requesterName: value.requesterName };
+  }
+  const transaction = typeof order?.id === 'string' ? (await loadAdminOrderTransactions([order.id])).get(order.id)?.display : undefined;
+  if (transaction && (transaction.totals.onlineTotal !== toNumber(order?.total as number | string)
+    || !Array.isArray(order?.items) || transaction.lines.length !== order.items.length
+    || transaction.lines.some(line => !(order.items as unknown[]).some(item => isRecord(item) && item.id === line.lineId
+      && item.variantId === line.variantId && toNumber(item.qty as number | string) === line.qty && toNumber(item.unitPrice as number | string) === line.unitPrice)))) {
+    throw new Error('Failed to load claim transaction snapshot');
+  }
+
+  const sellerIntake = data.sellerIntake == null ? null : parseSellerClaimReceipt(data.sellerIntake);
+  if (data.sellerIntake != null && !sellerIntake) throw new Error('Failed to load seller claim intake evidence');
 
   return {
+    gift,
+    sellerIntake,
     claim: {
       id: claim.id,
       reference: toNumber(claim.reference as number | string),
@@ -322,7 +358,7 @@ export async function loadAdminClaimDetail(
       reshipDeliveredByName: text(claim.reshipDeliveredByName),
       reshipDeliveryEvidence: text(claim.reshipDeliveryEvidence),
       reshippedItems: (Array.isArray(claim.reshippedItems) ? claim.reshippedItems : []).filter(isRecord).map((item) => ({
-        orderItemId: String(item.orderItemId ?? ''), name: String(item.name ?? ''), variantId: String(item.variantId ?? ''),
+        orderItemId: String(item.orderItemId ?? ''), goodId: text(item.goodId) ?? undefined, originalGoodId: text(item.originalGoodId) ?? undefined, name: String(item.name ?? ''), variantId: String(item.variantId ?? ''),
         variantName: String(item.variantName ?? ''), variantCode: String(item.variantCode ?? ''), qty: toNumber(item.qty as number | string),
       })),
       lastErrorCode: text(claim.lastErrorCode),
@@ -342,6 +378,7 @@ export async function loadAdminClaimDetail(
     order: order
       ? {
         id: String(order.id ?? ''),
+        ...(transaction ? { transaction } : {}),
         status: String(order.status ?? ''),
         total: toNumber(order.total as number | string),
         shippingFee: toNumber(order.shippingFee as number | string),
@@ -354,12 +391,12 @@ export async function loadAdminClaimDetail(
           .filter(isRecord)
           .map((item) => ({
             id: String(item.id ?? ''), goodId: String(item.goodId ?? ''),
-            name: String(item.name ?? ''),
+            name: String(item.name ?? ''),customInputs:readGoodsCustomInputSnapshot(item.customInputs),
             qty: toNumber(item.qty as number | string),
             unitPrice: toNumber(item.unitPrice as number | string),
-            variantId: String(item.variantId ?? ''), variantName: text(item.variantName), currentVariantId: String(item.currentVariantId ?? item.variantId ?? ''),
+            variantId: String(item.variantId ?? ''), variantName: text(item.variantName), currentVariantId: String(item.currentVariantId ?? item.variantId ?? ''), currentGoodId: String(item.currentGoodId ?? item.goodId ?? ''),
             options: (Array.isArray(item.options) ? item.options : []).filter(isRecord).map((option) => ({
-              id: String(option.id ?? ''), name: String(option.name ?? ''), code: String(option.code ?? ''), stockQty: toNumber(option.stockQty as number | string),
+              id: String(option.id ?? ''), goodId: text(option.goodId) ?? undefined, goodName: text(option.goodName) ?? undefined, name: String(option.name ?? ''), code: String(option.code ?? ''), stockQty: toNumber(option.stockQty as number | string),
             })),
           })),
       }

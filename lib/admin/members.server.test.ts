@@ -1,3 +1,4 @@
+const { legacyOperatorAccessFixture } = await vi.hoisted(() => import('@/lib/admin/access.test-fixtures'));
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { getAdminMemberDetail, getAdminMemberSummaries } from './members.server';
 
@@ -8,17 +9,19 @@ const mocks = vi.hoisted(() => ({
     isConfigured: true,
     user: { id: 'staff-1', email: 'staff@icons.gg' },
     role: 'staff' as 'user' | 'staff' | 'admin',
-    isStaff: true,
+    isStaff: true, operatorAccess: legacyOperatorAccessFixture(),
   } as {
     isConfigured: boolean;
     user: { id: string; email: string | null } | null;
     role: 'user' | 'staff' | 'admin' | null;
-    isStaff: boolean;
+    isStaff: boolean; operatorAccess?: ReturnType<typeof legacyOperatorAccessFixture>;
   },
   rpc: vi.fn(),
   gradeSelect: vi.fn(),
+  moderation: vi.fn(),
 }));
 
+vi.mock('./member-moderation.server', () => ({ getMemberModerationContext: mocks.moderation }));
 vi.mock('@/lib/auth/admin', () => ({ getCurrentAdminAuthState: () => mocks.auth }));
 vi.mock('@/lib/admin/members', async () => await import('./members'));
 vi.mock('@/lib/supabase/server', () => ({
@@ -42,9 +45,10 @@ describe('admin member loaders', () => {
       isConfigured: true,
       user: { id: 'staff-1', email: 'staff@icons.gg' },
       role: 'staff',
-      isStaff: true,
+      isStaff: true, operatorAccess: legacyOperatorAccessFixture(),
     };
     mocks.rpc.mockReset();
+    mocks.moderation.mockReset().mockResolvedValue({ managerRole: null, canModerate: true, loyaltyGrade: 'silver' });
     mocks.gradeSelect.mockReset();
     mocks.gradeSelect.mockResolvedValue({ data: { loyalty_grade: 'silver' }, error: null });
   });
@@ -104,8 +108,10 @@ describe('admin member loaders', () => {
       submittedReportCount: 4,
       receivedReportCount: 5,
       loyaltyGrade: 'silver',
+      moderation: { managerRole: null, canModerate: true, loyaltyGrade: 'silver' },
     });
     expect(mocks.rpc).toHaveBeenCalledWith('admin_get_member_detail', { target_profile_id: profileId });
+    expect(mocks.moderation).toHaveBeenCalledWith(profileId);
   });
 
   it('비로그인과 비staff는 PII RPC 전에 차단한다', async () => {

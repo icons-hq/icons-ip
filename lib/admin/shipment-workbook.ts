@@ -2,8 +2,10 @@
 export interface ShipmentExportLine {
   shipmentId:string;orderId:string;recipient:string;phone:string;postalCode:string;address:string;
   goodCode:string;variantCode:string;goodName:string;optionName:string;qty:number;unitPrice:number;deliveryNote:string;carrier:string;
+  smartstore?:import('./smartstore-shipment-workbook').SmartStoreShipmentDetail;
 }
-export type ShipmentExportKey=Exclude<keyof ShipmentExportLine,'unitPrice'>;
+export type ShipmentExportKey=Exclude<keyof ShipmentExportLine,'unitPrice'|'smartstore'>;
+export type ShipmentExportLayout='smartstore'|'warehouse';
 export interface ShipmentExportColumn {key:ShipmentExportKey;header:string}
 export const DEFAULT_SHIPMENT_EXPORT_COLUMNS:readonly ShipmentExportColumn[]=[
   {key:'shipmentId',header:'배송건번호'},{key:'orderId',header:'주문번호'},{key:'recipient',header:'수취인'},

@@ -10,6 +10,7 @@ import type {
   AdminGuideSection,
 } from '@/lib/admin/guide/types';
 import { adminGroupForPath, adminScreenForPath } from '@/lib/admin/navigation';
+import { canAccessAdminScreen, type AdminAccessSource } from '@/lib/admin/access';
 
 /*
  * 어드민 사용 가이드 — 주제 본문 렌더러.
@@ -26,7 +27,8 @@ function screenChipLabel(href: string): string {
   return group && group.label !== screen.label ? `${group.label} › ${screen.label}` : screen.label;
 }
 
-function ScreenChip({ screen }: { screen: AdminGuideScreenLink }) {
+function ScreenChip({ screen, access }: { screen: AdminGuideScreenLink; access?: AdminAccessSource }) {
+  if (access !== undefined && !canAccessAdminScreen(access, adminScreenForPath(screen.href))) return null;
   return (
     <Link className="admin-guide-screen-chip" href={screen.href}>
       <span>{screenChipLabel(screen.href)}</span>
@@ -47,7 +49,7 @@ function CalloutCard({ callout }: { callout: AdminGuideCallout }) {
   );
 }
 
-function SectionBody({ section }: { section: AdminGuideSection }) {
+function SectionBody({ section, access }: { section: AdminGuideSection; access?: AdminAccessSource }) {
   return (
     <>
       {section.paragraphs?.map((paragraph) => (
@@ -64,7 +66,7 @@ function SectionBody({ section }: { section: AdminGuideSection }) {
                   {step.detail.map((item) => <li key={item}>{item}</li>)}
                 </ul>
               )}
-              {step.screenHref && <ScreenChip screen={{ href: step.screenHref }} />}
+              {step.screenHref && <ScreenChip screen={{ href: step.screenHref }} access={access} />}
             </li>
           ))}
         </ol>
@@ -103,14 +105,14 @@ function SectionBody({ section }: { section: AdminGuideSection }) {
 
       {section.screens && section.screens.length > 0 && (
         <p className="admin-guide-screen-row">
-          {section.screens.map((screen) => <ScreenChip key={screen.href} screen={screen} />)}
+          {section.screens.map((screen) => <ScreenChip key={screen.href} screen={screen} access={access} />)}
         </p>
       )}
     </>
   );
 }
 
-export function AdminGuideTopicScreen({ topic }: { topic: AdminGuideTopic }) {
+export function AdminGuideTopicScreen({ topic, access }: { topic: AdminGuideTopic; access?: AdminAccessSource }) {
   const { previous, next } = adjacentAdminGuideTopics(topic.slug);
 
   return (
@@ -133,7 +135,7 @@ export function AdminGuideTopicScreen({ topic }: { topic: AdminGuideTopic }) {
         {topic.sections.map((section) => (
           <section className="admin-guide-section" id={section.id} key={section.id}>
             <h3 className="admin-guide-section__heading">{section.heading}</h3>
-            <SectionBody section={section} />
+            <SectionBody section={section} access={access} />
           </section>
         ))}
       </div>

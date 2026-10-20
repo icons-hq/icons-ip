@@ -1,0 +1,9 @@
+.wc-admin .admin-customer-rewards { display: grid; gap: 18px; }
+.wc-admin .admin-customer-rewards > p { margin: 0; color: var(--wc-ink-tertiary); }
+.wc-admin .admin-customer-rewards fieldset { min-width: 0; margin: 0; padding: 20px; border: 1px solid var(--wc-line-control); }
+.wc-admin .admin-customer-rewards legend { padding: 0 8px; font-size: 15px; font-weight: 700; }
+.wc-admin .admin-customer-rewards label { display: flex; gap: 8px; align-items: center; }
+.wc-admin .admin-customer-rewards fieldset p { font-size: 13px; line-height: 1.7; color: var(--wc-ink-tertiary); }
+.wc-admin .admin-customer-rewards .wc-admin-kit__form-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; }
+.wc-admin .admin-customer-rewards input:not([type="checkbox"]), .wc-admin .admin-customer-rewards select, .wc-admin .admin-customer-rewards textarea { width: 100%; min-width: 0; }
+@media (max-width: 760px) { .wc-admin .admin-customer-rewards fieldset { padding: 12px; } .wc-admin .admin-customer-rewards .wc-admin-kit__form-grid { grid-template-columns: 1fr; } }

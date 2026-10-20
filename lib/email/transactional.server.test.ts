@@ -14,6 +14,10 @@ const mocks = vi.hoisted(() => ({
   providerConfigured: true,
   send: vi.fn(),
   rpc: vi.fn(),
+  gift: false,
+  giftRecipientEmail: 'recipient@example.com' as string | null,
+  receipt: null as import('@/lib/checkout-transaction').CheckoutTransactionReceipt | null,
+  deliveryStatus: 'sent',
   order: null as Record<string, unknown> | null,
   orderError: null as { message: string } | null,
   items: [] as Record<string, unknown>[],
@@ -30,12 +34,16 @@ vi.mock('../supabase/service', () => ({
   createServiceClient: () => ({
     rpc: mocks.rpc,
     from: (table: string) => {
+      let after = '', limit = 500, profileId = '';
       const query = {
         select: () => query,
-        eq: () => query,
-        order: async () => (table === 'restock_alerts'
+        eq: (_column: string, value: string) => { profileId = value; return query; },
+        gt: (_column: string, value: string) => { after = value; return query; },
+        limit: (value: number) => { limit = value; return query; },
+        order: () => query,
+        then: (resolve: (value: unknown) => unknown) => Promise.resolve(table === 'restock_alerts'
           ? { data: mocks.restockError ? null : mocks.restockRows, error: mocks.restockError }
-          : { data: mocks.itemsError ? null : mocks.items, error: mocks.itemsError }),
+          : { data: mocks.itemsError ? null : mocks.items.filter(r => String(r.id) > after).slice(0, limit), error: mocks.itemsError, count: mocks.items.filter(r => String(r.id) > after).length }).then(resolve),
         maybeSingle: async () => {
           if (table === 'orders') {
             return { data: mocks.orderError ? null : mocks.order, error: mocks.orderError };
@@ -43,7 +51,8 @@ vi.mock('../supabase/service', () => ({
           if (table === 'goods') {
             return { data: mocks.goodError ? null : mocks.good, error: mocks.goodError };
           }
-          return { data: mocks.profile, error: null };
+          if (table === 'email_deliveries') return { data: {status: mocks.deliveryStatus}, error: null };
+          return { data: profileId === 'gift-recipient' ? { email: mocks.giftRecipientEmail } : mocks.profile, error: null };
         },
       };
       return query;
@@ -68,6 +77,9 @@ vi.mock('@/lib/orders/shipment.server', () => {
   };
 });
 
+vi.mock('../order-delivery.server', () => ({ loadOrderDeliveryForService: async () => mocks.order ? ({ orderId: mocks.order.id, senderId: mocks.order.user_id, recipientId: mocks.gift ? 'gift-recipient' : mocks.order.user_id, isGift: mocks.gift, address: mocks.order.address }) : null }));
+vi.mock('../order-transactions.server', () => ({ loadServiceOrderTransaction: async () => mocks.receipt }));
+
 vi.mock('@/lib/orders/shipments.server', () => ({ loadOrderShipments: async () => mocks.shipments }));
 
 vi.mock('./provider.server', () => ({
@@ -83,6 +95,7 @@ let errorLog: Mock<Console['error']>;
 
 beforeEach(() => {
   mocks.serviceConfigured = true;
+  mocks.gift = false; mocks.giftRecipientEmail = 'recipient@example.com'; mocks.receipt = null; mocks.deliveryStatus = 'sent';
   mocks.providerConfigured = true;
   mocks.send.mockReset();
   mocks.send.mockResolvedValue({ status: 'sent' });
@@ -152,7 +165,7 @@ describe('sendOrderConfirmationEmail', () => {
 
   it('배송비와 쿠폰 할인은 주문 당시 저장값을 별도로 표시한다', async () => {
     mocks.order = { ...mocks.order, total: 22_000, shipping_fee: 3000, discount_total: 5000 };
-    mocks.items = [{ good_name_snapshot: '홍실 아크릴 블록', qty: 2, unit_price: 12_000 }];
+    mocks.items = [{ id: 'item-1', good_name_snapshot: '홍실 아크릴 블록', qty: 2, unit_price: 12_000 }];
 
     await sendOrderConfirmationEmail(ORDER_ID);
 
@@ -469,3 +482,63 @@ describe('sendRestockAlertEmails (#326)', () => {
   expect(await sendOrderShippedEmail({orderId:ORDER_ID,shipmentId:mocks.shipments[0].id})).toEqual({status:'skipped',reason:'shipment_status_mismatch'});
   expect(mocks.send).not.toHaveBeenCalled();
  });
+
+
+describe('gift audience isolation', () => {
+  it('separates payer money and recipient private address under different dedupe keys', async () => {
+    mocks.gift = true;
+    expect(await sendOrderConfirmationEmail(ORDER_ID)).toEqual({ status: 'sent' });
+    expect(mocks.send).toHaveBeenCalledTimes(2);
+    const payer = mocks.send.mock.calls[0][0], recipient = mocks.send.mock.calls[1][0];
+    expect(payer.to).toBe('buyer@example.com'); expect(payer.text).not.toContain('세종대로');
+    expect(payer.text).not.toContain('010-1234'); expect(payer.text).toContain('27,000');
+    expect(recipient.to).toBe('recipient@example.com'); expect(recipient.text).toContain('세종대로');
+    expect(recipient.text).not.toContain('27,000'); expect(recipient.text).not.toContain('12,000');
+    expect(recipient.text).not.toContain('buyer@example.com');
+    expect(rpcCalls('claim_email_delivery').map(c => c[1].target_dedupe_key)).toEqual([
+      `order_confirmation:${ORDER_ID}`, `order_confirmation:${ORDER_ID}:recipient`,
+    ]);
+  });
+  it('hides recipient tracking in payer shipment messages and retries only selected recipient', async () => {
+    mocks.gift = true; mocks.order = { ...mocks.order, status: 'shipping' };
+    await sendOrderShippedEmail({ orderId: ORDER_ID });
+    expect(mocks.send.mock.calls[0][0].text).not.toContain('123456789012');
+    expect(mocks.send.mock.calls[1][0].text).toContain('123456789012');
+    mocks.send.mockClear();
+    await sendOrderShippedEmail({ orderId: ORDER_ID, shipmentId: mocks.shipments[0].id, audience: 'recipient' });
+    expect(mocks.send).toHaveBeenCalledTimes(1); expect(mocks.send.mock.calls[0][0].to).toBe('recipient@example.com');
+  });
+  it('records a payer failure without suppressing the recipient attempt', async () => {
+    mocks.gift = true; mocks.send.mockResolvedValueOnce({ status: 'failed', error: 'provider_http_503' });
+    expect(await sendOrderConfirmationEmail(ORDER_ID)).toEqual({ status: 'failed', error: 'provider_http_503' });
+    expect(mocks.send).toHaveBeenCalledTimes(2);
+    expect(rpcCalls('complete_email_delivery').map(c => c[1].target_status)).toEqual(['failed', 'sent']);
+  });
+  it('does not report missing recipients or pending claims as fully delivered', async () => {
+    mocks.gift = true; mocks.giftRecipientEmail = null;
+    expect(await sendOrderConfirmationEmail(ORDER_ID)).toEqual({ status: 'skipped', reason: 'recipient_missing' });
+    mocks.gift = false; mocks.deliveryStatus = 'pending';
+    mocks.rpc.mockResolvedValue({ data: false, error: null });
+    expect(await sendOrderConfirmationEmail(ORDER_ID)).toEqual({ status: 'skipped', reason: 'delivery_in_progress' });
+  });
+  it('reads all 1001 distinct line snapshots before rendering', async () => {
+    mocks.items = Array.from({ length: 1001 }, (_, i) => ({ id: String(i).padStart(5,'0'), good_name_snapshot: `상품-${i}`, qty: 1, unit_price: 100 }));
+    await sendOrderConfirmationEmail(ORDER_ID);
+    expect(mocks.send.mock.calls[0][0].text).toContain('상품-1000');
+  });
+});
+
+it('uses the v2 contractual totals and refuses inconsistent immutable item identity', async () => {
+  const { transactionDisplay, transactionQuoteId } = await import('@/test/fixtures/cart-transaction');
+  const row = transactionDisplay.lines[0];
+  mocks.receipt = { orderId: ORDER_ID, quoteId: transactionQuoteId, display: transactionDisplay };
+  mocks.order = { ...mocks.order, calculation_version: 2, total: 16000, volume_discount_total: 2000,
+    discount_total: 1000, store_credit_total: 1000, shipping_fee: 0, shipping_collect_total: 3000 };
+  mocks.items = [{ id: row.lineId, variant_id: row.variantId, good_name_snapshot: '거래 상품', qty: row.qty, unit_price: row.unitPrice }];
+  expect(await sendOrderConfirmationEmail(ORDER_ID)).toEqual({ status: 'sent' });
+  const text = mocks.send.mock.calls[0][0].text;
+  expect(text).toContain('복수구매 할인: −₩2,000'); expect(text).toContain('온라인 결제금액: ₩16,000');
+  expect(text).toContain('착불 배송비 · 수령 시 별도: ₩3,000'); expect(text).toContain('총 부담금액: ₩19,000');
+  mocks.send.mockClear(); mocks.items[0].id = 'wrong-line';
+  expect((await sendOrderConfirmationEmail(ORDER_ID)).status).toBe('failed'); expect(mocks.send).not.toHaveBeenCalled();
+});

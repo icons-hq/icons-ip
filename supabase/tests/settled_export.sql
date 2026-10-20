@@ -33,8 +33,7 @@ select public.admin_save_store_credit_policy('10000000-0000-4000-8000-0000000049
 select public.admin_adjust_store_credit('10000000-0000-4000-8000-000000004952','00000000-0000-4000-8000-000000004952',1000,now()+interval '10 days','거래확정 합성 적립금',0);
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000004952',true);
 select public.apply_cart_coupon_code('SETTLEDEXPORT');
-insert into public.cart_items(user_id,good_id,variant_id,qty)
- select '00000000-0000-4000-8000-000000004952',good_id,id,1 from public.goods_variants where good_id in('settled-export-a','settled-export-b','settled-export-c') and is_default;
+select public.set_cart_item_quantity(good_id,id,1) from public.goods_variants where good_id in('settled-export-a','settled-export-b','settled-export-c') and is_default;
 reset role;
 set local role service_role;
 select public.place_order_with_store_credits('00000000-0000-4000-8000-000000004952','{"recipientName":"거래확정 합성","phone":"01012345678","postalCode":"12345","address1":"합성 주소"}','20000000-0000-4000-8000-000000004951','bank_transfer',1000) as export_order \gset
@@ -45,6 +44,8 @@ set local role authenticated;
 select public.admin_confirm_bank_transfer_deposit(:'export_order','합성 입금확인 증빙');
 reset role;
 update public.orders set created_at='2026-08-31T15:00:00Z' where id=:'export_order';
+-- This rollback fixture explicitly enables automatic confirmation before delivery.
+update private.purchase_confirmation_policy set auto_enabled=true,auto_after_days=8,evidence='TEST ONLY: legacy financial regression' where singleton;
 update public.order_shipments set status='delivered',carrier='hanjin',tracking_number='00001234'||right(origin_id::text,4),shipped_at=now()-interval '10 days',delivered_at=now()-interval '9 days' where order_id=:'export_order';
 update public.orders set status='delivered',delivered_at=now()-interval '9 days' where id=:'export_order';
 set local role service_role;

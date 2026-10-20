@@ -1,3 +1,4 @@
+const { legacyOperatorAccessFixture } = await vi.hoisted(() => import('@/lib/admin/access.test-fixtures'));
 import {beforeEach,describe,expect,it,vi} from 'vitest';
 import {prepareOrderDelayNoticeAction,requestOrderDelayNoticeAction,retryOrderDelayNoticeAction} from './order-delay-actions';
 const mocks=vi.hoisted(()=>({auth:vi.fn(),rpc:vi.fn(),dispatcher:vi.fn(),refresh:vi.fn()}));
@@ -8,7 +9,7 @@ vi.mock('next/cache',()=>({revalidatePath:mocks.refresh}));
 const id='40000000-0000-4000-8000-000000000001';
 const notice={id,title:'발송 지연 안내',customerBody:'별도 고객 문구',expectedShipDate:null,createdAt:'2026-09-11T00:00:00Z',expiresAt:'2026-09-11T01:00:00Z',requestedAt:null,emailEnabled:true,
  targets:[{id:'40000000-0000-4000-8000-000000000002',orderId:'40000000-0000-4000-8000-000000000003',buyerName:'실제 구매자',recipientEmail:'buyer@example.test',shipmentIds:[id],shipmentLabels:['김포 · 00000001'],messageBody:'별도 고객 문구\n발송 예정일: 확인 중',inAppStatus:'prepared',emailStatus:'prepared',emailProviderState:null,errorCode:null,retryable:false,attempts:0}]};
-beforeEach(()=>{vi.clearAllMocks();mocks.auth.mockResolvedValue({isConfigured:true,user:{id:'staff'},isStaff:true});mocks.dispatcher.mockReturnValue({});});
+beforeEach(()=>{vi.clearAllMocks();mocks.auth.mockResolvedValue({isConfigured:true,user:{id:'staff'},isStaff: true, operatorAccess: legacyOperatorAccessFixture()});mocks.dispatcher.mockReturnValue({});});
 describe('지연 안내 서버 액션',()=>{
  it('직원 권한 없이 대상·내용을 저장하거나 고객에게 요청하지 못한다',async()=>{
   mocks.auth.mockResolvedValue({isConfigured:true,user:{id:'buyer'},isStaff:false});

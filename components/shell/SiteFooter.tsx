@@ -16,11 +16,13 @@ import {
 import { BusinessInfo } from './BusinessInfo';
 import { useCardRewardsEnabled } from './CardRewardAvailability';
 import { useCommunityStaffPreviewVisible, useSecondaryMarketDemoVisible } from './StaffPreviewAvailability';
+import { StoreBrandFooterDetails, StoreBrandLogo } from './StoreBranding';
+import { DEFAULT_STOREFRONT_BRANDING, type StorefrontBranding } from '@/lib/store-branding';
 
 /* White Catalog 푸터. 링크 목록은 전부 lib/routes.ts가 진실원이고 여기서는 배치만 한다.
  * 법정 고지 3종은 회사·정책 행 뒤에 이어 붙는다 — 사업자 정보와 함께 표시 의무가 걸린 블록이라
  * 접이식(details) 안이라도 마크업에서 사라지지 않는다. */
-export function SiteFooter({businessInfo=BUSINESS_INFO}:{businessInfo?:BusinessInfoData}) {
+export function SiteFooter({businessInfo=BUSINESS_INFO,branding=DEFAULT_STOREFRONT_BRANDING}:{businessInfo?:BusinessInfoData;branding?:StorefrontBranding}) {
   const pathname = usePathname();
   const cardRewardsEnabled = useCardRewardsEnabled();
   const demoVisible = useSecondaryMarketDemoVisible();
@@ -45,7 +47,8 @@ export function SiteFooter({businessInfo=BUSINESS_INFO}:{businessInfo?:BusinessI
           </ul>
         </nav>
 
-        <p className="wc-footer__logo"><Link aria-label="ICONS 홈" href="/">ICONS</Link></p>
+        <p className="wc-footer__logo"><Link aria-label={`${branding.displayName} 홈`} href="/"><StoreBrandLogo branding={branding} /></Link></p>
+        <StoreBrandFooterDetails branding={branding} />
 
         <div className="wc-footer__middle">
           <div className="wc-footer__cs">
@@ -75,7 +78,7 @@ export function SiteFooter({businessInfo=BUSINESS_INFO}:{businessInfo?:BusinessI
           </div>
         </div>
 
-        {/* 세컨더리 마켓 시연 진입점 — 로그인한 staff/admin 의 is_staff readback 이 참일 때만 마크업에
+        {/* 세컨더리 마켓 시연 진입점 — 로그인 계정의 ICONS 운영 권한 조회가 참일 때만 마크업에
             존재한다. 공개 푸터·SSR 결과에는 없고, 실제 권한 판정은 라우트 서버 게이트가 한다. */}
         {demoVisible ? (
           <nav aria-label="스태프 시연 메뉴" className="wc-footer__demo">

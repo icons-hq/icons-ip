@@ -1,4 +1,6 @@
 import { adminGoodsCopy } from '@/lib/admin/vocabulary';
+import { customerServicePageSize } from './customer-service-list';
+import { REVIEW_BEST_LABELS, REVIEW_BEST_STATES, type ReviewBestState, type ReviewBestStatus } from '../review-best';
 import {
   ADMIN_REVIEW_STATUS_LABELS,
   LOW_REVIEW_RATING_MAX,
@@ -24,7 +26,7 @@ export type AdminReviewStatusFilter = ReviewStatus | 'all';
 export type AdminReviewRatingFilter = 'all' | '1' | '2' | '3' | '4' | '5';
 export type AdminReviewTernaryFilter = 'all' | 'with' | 'without';
 export type AdminReviewSearchField = 'all' | 'good' | 'author' | 'body';
-export type AdminReviewSort = 'recent' | 'oldest' | 'rating_desc' | 'rating_asc';
+export type AdminReviewSort = 'recent' | 'oldest' | 'rating_desc' | 'rating_asc' | 'good_name_asc' | 'photo_count_desc' | 'helpful_desc';
 
 export const ADMIN_REVIEW_STATUS_OPTIONS: { value: AdminReviewStatusFilter; label: string }[] = [
   { value: 'all', label: '전체' },
@@ -54,6 +56,8 @@ export const ADMIN_REVIEW_REPLY_OPTIONS: { value: AdminReviewTernaryFilter; labe
   { value: 'without', label: '답글 없음' },
 ];
 
+export const ADMIN_REVIEW_BEST_OPTIONS = [{ value: 'all', label: '전체' }, ...REVIEW_BEST_STATES.map(value => ({ value, label: REVIEW_BEST_LABELS[value] }))];
+
 export const ADMIN_REVIEW_SEARCH_FIELDS: { value: AdminReviewSearchField; label: string }[] = [
   { value: 'all', label: '전체' },
   { value: 'good', label: adminGoodsCopy('굿즈') },
@@ -64,11 +68,16 @@ export const ADMIN_REVIEW_SEARCH_FIELDS: { value: AdminReviewSearchField; label:
 export const ADMIN_REVIEW_SORT_OPTIONS: { value: AdminReviewSort; label: string }[] = [
   { value: 'recent', label: '최신순' },
   { value: 'oldest', label: '오래된순' },
+  { value: 'good_name_asc', label: '상품명순' },
   { value: 'rating_desc', label: '평점 높은순' },
   { value: 'rating_asc', label: '평점 낮은순' },
+  { value: 'photo_count_desc', label: '첨부사진수순' },
+  { value: 'helpful_desc', label: '도움순' },
 ];
 
 export interface AdminReviewFilters {
+  kind?: import('../review-types').ReviewKindFilter;
+  repeat?: import('../review-types').ReviewRepeatFilter;
   from: string | null;
   to: string | null;
   rating: AdminReviewRatingFilter;
@@ -77,15 +86,19 @@ export interface AdminReviewFilters {
   status: AdminReviewStatusFilter;
   photo: AdminReviewTernaryFilter;
   reply: AdminReviewTernaryFilter;
+  best?: 'all' | ReviewBestStatus;
   query: string;
   field: AdminReviewSearchField;
   sort: AdminReviewSort;
   /** 모더레이션 큐에서 넘어온 딥링크. 있으면 그 리뷰 한 건만 본다. */
   reviewId: string | null;
   page: number;
+  pageSize?: number;
 }
 
 export interface AdminReviewRow {
+  kind?: import('../review-types').ReviewKind;
+  repeatPurchase?: boolean | null;
   id: string;
   goodId: string;
   goodName: string;
@@ -97,6 +110,7 @@ export interface AdminReviewRow {
   body: string;
   imageUrls: string[];
   imageCount: number;
+  helpfulCount: number;
   status: ReviewStatus;
   hiddenReason: string | null;
   hiddenAt: string | null;
@@ -107,6 +121,7 @@ export interface AdminReviewRow {
   openReportCount: number;
   createdAt: string;
   editedAt: string | null;
+  best?: ReviewBestState | null;
 }
 
 export interface AdminReviewCounts {
@@ -179,6 +194,7 @@ export function normalizeAdminReviewFilters(
   const rawStatus = singleParam(searchParams.status);
   const rawPhoto = singleParam(searchParams.photo);
   const rawReply = singleParam(searchParams.reply);
+  const rawBest = singleParam(searchParams.best);
   const rawField = singleParam(searchParams.field);
   const rawSort = singleParam(searchParams.sort);
   const rawQuery = singleParam(searchParams.query).trim();
@@ -188,16 +204,20 @@ export function normalizeAdminReviewFilters(
   return {
     from,
     to,
+    ...(searchParams.kind === 'ordinary' || searchParams.kind === 'month' ? { kind: searchParams.kind } : {}),
+    ...(searchParams.repeat === 'yes' || searchParams.repeat === 'no' || searchParams.repeat === 'unknown' ? { repeat: searchParams.repeat } : {}),
     rating: RATING_FILTERS.has(rawRating) ? rawRating as AdminReviewRatingFilter : 'all',
     lowRating: singleParam(searchParams.low) === '1',
     status: STATUS_FILTERS.has(rawStatus) ? rawStatus as AdminReviewStatusFilter : 'all',
     photo: TERNARY_FILTERS.has(rawPhoto) ? rawPhoto as AdminReviewTernaryFilter : 'all',
     reply: TERNARY_FILTERS.has(rawReply) ? rawReply as AdminReviewTernaryFilter : 'all',
+    best: REVIEW_BEST_STATES.includes(rawBest as ReviewBestStatus) ? rawBest as ReviewBestStatus : 'all',
     query: rawQuery.length <= 100 ? rawQuery : '',
     field: SEARCH_FIELDS.has(rawField) ? rawField as AdminReviewSearchField : 'all',
     sort: SORTS.has(rawSort) ? rawSort as AdminReviewSort : 'recent',
     reviewId: UUID_PATTERN.test(rawReviewId) ? rawReviewId : null,
     page: Number.isSafeInteger(rawPage) && rawPage > 0 ? rawPage : 1,
+    pageSize: customerServicePageSize(searchParams.pageSize),
   };
 }
 
@@ -209,11 +229,13 @@ export const DEFAULT_ADMIN_REVIEW_FILTERS: AdminReviewFilters = {
   status: 'all',
   photo: 'all',
   reply: 'all',
+  best: 'all',
   query: '',
   field: 'all',
   sort: 'recent',
   reviewId: null,
   page: 1,
+  pageSize: ADMIN_REVIEW_PAGE_SIZE,
 };
 
 export function adminReviewHref(
@@ -222,6 +244,8 @@ export function adminReviewHref(
 ) {
   const next = { ...filters, ...overrides };
   const params = new URLSearchParams();
+  if (next.kind && next.kind !== 'all') params.set('kind', next.kind);
+  if (next.repeat && next.repeat !== 'all') params.set('repeat', next.repeat);
   if (next.from) params.set('from', next.from);
   if (next.to) params.set('to', next.to);
   if (next.rating !== 'all') params.set('rating', next.rating);
@@ -229,6 +253,7 @@ export function adminReviewHref(
   if (next.status !== 'all') params.set('status', next.status);
   if (next.photo !== 'all') params.set('photo', next.photo);
   if (next.reply !== 'all') params.set('reply', next.reply);
+  if (next.best && next.best !== 'all') params.set('best', next.best);
   if (next.sort !== 'recent') params.set('sort', next.sort);
   if (next.reviewId) params.set('reviewId', next.reviewId);
   if (next.query) {
@@ -236,6 +261,7 @@ export function adminReviewHref(
     if (next.field !== 'all') params.set('field', next.field);
   }
   params.set('page', String(next.page));
+  if (next.pageSize && next.pageSize !== ADMIN_REVIEW_PAGE_SIZE) params.set('pageSize', String(next.pageSize));
   return `/admin/cs/reviews?${params.toString()}`;
 }
 

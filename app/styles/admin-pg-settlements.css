@@ -1,0 +1,58 @@
+.wc-admin .admin-pg-settlements { display: grid; gap: 20px; min-width: 0; }
+.wc-admin .admin-pg-settlements .admin-console-tabs { margin: 0; }
+.wc-admin .admin-pg-settlements .admin-sales-filter-rows { grid-template-columns: minmax(0, 1fr); }
+.wc-admin .admin-pg-settlements .admin-sales-filter-field:nth-child(even) { padding-left: 0; }
+.wc-admin .admin-pg-settlements .admin-sales-filter-value { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.wc-admin .admin-pg-settlements .admin-sales-filter-value > input { width: 240px; }
+.wc-admin .admin-pg-settlements .admin-sales-filter-value > select { width: 160px; }
+.wc-admin .admin-pg-settlements__import,
+.wc-admin .admin-pg-settlements__snapshot,
+.wc-admin .admin-pg-settlements__history,
+.wc-admin .admin-pg-settlements__notice { min-width: 0; padding: 20px 24px; border: 1px solid var(--wc-line-control); background: var(--wc-surface); }
+.wc-admin .admin-pg-settlements__import { display: grid; gap: 12px; }
+.wc-admin .admin-pg-settlements__import strong { font-size: 15px; font-weight: 600; }
+.wc-admin .admin-pg-settlements__import p { margin: 6px 0 0; font-size: 13px; line-height: 1.7; }
+.wc-admin .admin-pg-settlements__actions,
+.wc-admin .admin-pg-settlements__snapshot { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 16px; }
+.wc-admin .admin-pg-settlements__actions button,
+.wc-admin .admin-pg-settlements__snapshot .btn { min-height: 36px; white-space: normal; }
+.wc-admin .admin-pg-settlements__snapshot { font-size: 13px; line-height: 1.6; }
+.wc-admin .admin-pg-settlements__snapshot > strong { font-weight: 600; }
+.wc-admin .admin-pg-settlements__snapshot > .btn { margin-left: auto; }
+.wc-admin .admin-pg-settlements__muted { margin: 0; color: var(--wc-ink-tertiary); font-size: 12px; line-height: 1.7; }
+.wc-admin .admin-pg-settlements__currency { display: flex; align-items: center; gap: 8px; font-size: 13px; }
+.wc-admin .admin-pg-settlements__currency input { width: 80px; }
+.wc-admin .admin-pg-settlements__message { color: var(--wc-danger); }
+.wc-admin .admin-pg-settlements__notice { color: var(--wc-danger); font-size: 14px; line-height: 1.7; }
+.wc-admin .admin-pg-settlements td small { display: block; margin-top: 5px; color: var(--wc-ink-tertiary); font-size: 12px; line-height: 1.5; }
+.wc-admin .admin-pg-settlements__transaction-details { min-width: 200px; font-size: 12px; }
+.wc-admin .admin-pg-settlements__transaction-details summary,
+.wc-admin .admin-pg-settlements__history summary { cursor: pointer; text-underline-offset: 3px; }
+.wc-admin .admin-pg-settlements__transaction-details dl { display: grid; gap: 8px; margin: 14px 0 0; }
+.wc-admin .admin-pg-settlements__transaction-details dl > div { display: grid; grid-template-columns: minmax(85px, 1fr) minmax(100px, 1.4fr); gap: 10px; }
+.wc-admin .admin-pg-settlements__transaction-details dt { color: var(--wc-ink-tertiary); }
+.wc-admin .admin-pg-settlements__transaction-details dd { margin: 0; overflow-wrap: anywhere; }
+.wc-admin .admin-pg-settlements__history ul { margin: 16px 0 0; padding: 0; list-style: none; }
+.wc-admin .admin-pg-settlements__history li { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px 20px; padding: 12px 0; border-top: 1px solid var(--wc-line-control); font-size: 13px; }
+@media (max-width: 720px) {
+  .wc-admin .admin-pg-settlements .admin-sales-filter-field { grid-template-columns: minmax(0, 1fr); gap: 8px; }
+  .wc-admin .admin-pg-settlements .admin-sales-filter-field > label { padding-top: 0; }
+  .wc-admin .admin-pg-settlements .admin-sales-filter-value > input { width: 100%; }
+  .wc-admin .admin-pg-settlements__import,
+  .wc-admin .admin-pg-settlements__snapshot,
+  .wc-admin .admin-pg-settlements__history,
+  .wc-admin .admin-pg-settlements__notice { padding: 16px; }
+  .wc-admin .admin-pg-settlements__actions { align-items: stretch; }
+  .wc-admin .admin-pg-settlements__actions > button { flex: 1 1 130px; }
+  .wc-admin .admin-pg-settlements__snapshot > .btn { margin-left: 0; }
+}
+@media (forced-colors: active) {
+  .wc-admin .admin-pg-settlements__notice,
+  .wc-admin .admin-pg-settlements__import,
+  .wc-admin .admin-pg-settlements__snapshot { border-color: CanvasText; }
+}
+@media print {
+  .wc-admin .admin-pg-settlements__actions,
+  .wc-admin .admin-pg-settlements__import,
+  .wc-admin .admin-pg-settlements__snapshot .btn { display: none; }
+}

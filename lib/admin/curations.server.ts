@@ -1,10 +1,12 @@
 import 'server-only';
 
 import { notFound, redirect } from 'next/navigation';
+import { hasAdminCapability } from './access';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
 import { createClient } from '@/lib/supabase/server';
 import { imageUrlFromBg, normalizePublicMediaPath } from '@/lib/media';
 import type { AdminCurationKind } from './curations';
+import { parseHomeMosaicPayload } from '@/lib/home-mosaic';
 
 export type AdminCurationStatus = 'inactive' | 'scheduled' | 'active' | 'ended';
 
@@ -18,7 +20,8 @@ export interface AdminCurationRecord {
   /* payload 로 나르는 모바일 아트웍의 공개 URL — 없으면 null. 운영자가 저장된
      모바일 스트립·히어로 아트웍을 폼에서 확인할 수 있어야 한다(로드리뷰 #358). */
   mobileImageUrl: string | null;
-  linkPath: string;
+  mosaicImageUrls?: (string | null)[];
+  linkPath: string | null;
   displayOrder: number;
   activeFrom: string;
   activeTo: string | null;
@@ -37,7 +40,7 @@ interface AdminCurationRow {
   ip_id: string | null;
   title: string;
   image_path: string | null;
-  link_path: string;
+  link_path: string | null;
   display_order: number;
   active_from: string;
   active_to: string | null;
@@ -62,7 +65,7 @@ function loginPath() {
 async function requireStaffLoader() {
   const auth = await getCurrentAdminAuthState();
   if (!auth.isConfigured || !auth.user) redirect(loginPath());
-  if (!auth.isStaff) notFound();
+  if (!auth.isStaff || !hasAdminCapability(auth, 'store.manage')) notFound();
 }
 
 export function getAdminCurationStatus(
@@ -85,6 +88,7 @@ export async function getAdminCurations(now = Date.now()): Promise<AdminCuration
     .select(
       'id,kind,ip_id,title,image_path,link_path,display_order,active_from,active_to,enabled,created_at,updated_at,slot,payload,ips(bg,image_path)',
     )
+    .is('archived_at', null)
     .order('kind', { ascending: true })
     .order('display_order', { ascending: true })
     .order('active_from', { ascending: true })
@@ -122,6 +126,7 @@ export async function getAdminCurations(now = Date.now()): Promise<AdminCuration
     mobileImageUrl: imageUrlForPath(
       typeof row.payload?.mobile_image_path === 'string' ? row.payload.mobile_image_path : null,
     ),
+    mosaicImageUrls: row.kind === 'product_mosaic' ? parseHomeMosaicPayload(row.payload)?.slots.map(slot => imageUrlForPath(slot.image_path)) : undefined,
     linkPath: row.link_path,
     displayOrder: row.display_order,
     activeFrom: row.active_from,

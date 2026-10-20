@@ -10,6 +10,7 @@ import type {
 import { OrdersSection } from './Orders';
 
 vi.mock('@/app/admin/order-actions', () => ({
+  bulkConfirmAdminOrdersAction: vi.fn(),
   approveAdminOrderCancellationAction: vi.fn(),
   recoverAdminGoodsPaymentAction: vi.fn(),
   reconcileAdminOrderCancellationAction: vi.fn(),
@@ -205,11 +206,11 @@ describe('OrdersSection', () => {
     data.filters = { ...data.filters, field: 'tracking' };
     const html = renderToStaticMarkup(<OrdersSection data={data} />);
 
-    expect(html).toContain('aria-label="주문 검색 대상"');
+    expect(html).toContain('aria-label="검색 유형"');
     expect(html).toContain('name="field"');
     expect(html).toContain('<option value="recipient">수취인</option>');
     expect(html).toContain('<option value="tracking" selected="">운송장번호</option>');
-    expect(html).toContain('placeholder="검색어 입력"');
+    expect(html).toContain('placeholder="검색어를 입력하세요"');
   });
 
   it('shows the related safe Korpay reference and exact provider-ledger attestation action', () => {
@@ -462,7 +463,7 @@ describe('OrdersSection', () => {
     expect(html).toContain('action="/admin/sales/orders"');
     expect(html).not.toContain('name="section"');
     expect(html).toContain(
-      'href="/admin/sales/orders?status=paid&amp;from=2026-07-01&amp;to=2026-07-14&amp;query=maple+fan&amp;page=2&amp;order=44444444-4444-4444-8444-444444444444"',
+      'href="/admin/sales/orders?status=paid&amp;from=2026-07-01&amp;to=2026-07-14&amp;query=maple+fan&amp;page=2&amp;order=44444444-4444-4444-8444-444444444444#sales-order-detail"',
     );
     expect(html).toContain(
       'href="/admin/sales/orders?status=paid&amp;from=2026-07-01&amp;to=2026-07-14&amp;query=maple+fan&amp;page=1"',
@@ -714,4 +715,10 @@ describe('주문 통합검색 목록 엑셀 다운로드', () => {
     expect(html).toContain('전체 57건을 받습니다');
     expect(html.indexOf('admin-order-filters')).toBeLessThan(html.indexOf('목록 엑셀 다운로드'));
   });
+});
+
+it('query-only mode offers order search without any processing controls', () => {
+  const html = renderToStaticMarkup(<OrdersSection data={orderData({ status: 'paid' })} canManage={false} />);
+  expect(html).toContain('상세 보기');
+  for (const text of ['선택 주문 발주확인', '배송 건별 운송장 등록', '판매자 직접 반품·교환 접수', '결제·환불', 'href="/admin/sales/dispatch"']) expect(html).not.toContain(text);
 });

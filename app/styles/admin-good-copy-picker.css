@@ -1,0 +1,22 @@
+.wc-admin .admin-good-copy-picker__entry { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 20px; border: 1px solid var(--wc-hairline); background: var(--wc-surface); font-size: 13px; }
+.wc-admin .admin-good-copy-picker__entry p { margin: 6px 0 0; color: var(--wc-ink-sub); font-size: 12px; line-height: 1.6; }
+.wc-admin .admin-good-copy-picker__entry > button { flex: 0 0 auto; }
+.wc-admin .admin-good-copy-picker { display: grid; gap: 14px; min-width: 0; font-size: 12px; }
+.wc-admin .admin-good-copy-picker p { margin: 0; line-height: 1.7; }
+.wc-admin .admin-good-copy-picker__search { display: grid; grid-template-columns: 210px minmax(0, 1fr) auto; gap: 12px; align-items: end; }
+.wc-admin .admin-good-copy-picker__search label { display: grid; gap: 7px; min-width: 0; font-weight: 600; }
+.wc-admin .admin-good-copy-picker__search :is(input, select) { width: 100%; min-width: 0; }
+.wc-admin .admin-good-copy-picker__list { display: grid; gap: 0; max-height: 440px; overflow: auto; padding: 0; margin: 0; list-style: none; border: 1px solid var(--wc-hairline); }
+.wc-admin .admin-good-copy-picker__list li { display: grid; grid-template-columns: 48px minmax(0, 1fr) auto; gap: 14px; align-items: center; padding: 14px; border-bottom: 1px solid var(--wc-hairline); }
+.wc-admin .admin-good-copy-picker__list li:last-child { border-bottom: 0; }
+.wc-admin .admin-good-copy-picker__list :is(strong, small) { display: block; overflow-wrap: anywhere; line-height: 1.6; }
+.wc-admin .admin-good-copy-picker__list small { color: var(--wc-ink-sub); }
+.wc-admin :is(.admin-good-copy-picker__list img, .admin-good-copy-picker__image) { width: 48px; height: 48px; object-fit: contain; background: var(--wc-surface-grey); }
+.wc-admin .admin-good-copy-picker__pages { display: flex; justify-content: center; align-items: center; gap: 16px; }
+@media (max-width: 600px) {
+  .wc-admin .admin-good-copy-picker__entry { align-items: stretch; flex-direction: column; padding: 16px; }
+  .wc-admin .admin-good-copy-picker__search { grid-template-columns: minmax(0, 1fr); }
+  .wc-admin .admin-good-copy-picker__list li { gap: 10px; padding: 12px; }
+  .wc-admin .admin-good-copy-picker__list .wc-admin-kit__button { min-height: 44px; padding-inline: 10px; }
+}
+@media (forced-colors: active) { .wc-admin :is(.admin-good-copy-picker__entry, .admin-good-copy-picker__list, .admin-good-copy-picker__list li) { border-color: CanvasText; } }

@@ -1,3 +1,4 @@
+import { configuredOperatorAccessFixture, legacyOperatorAccessFixture } from '@/lib/admin/access.test-fixtures';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { requireAdminScreenAccess } from './guard.server';
 
@@ -6,13 +7,14 @@ type AuthState = {
   user: { id: string; email: string | null } | null;
   role: 'user' | 'staff' | 'admin' | null;
   isStaff: boolean;
+  operatorAccess?: ReturnType<typeof legacyOperatorAccessFixture>;
 };
 
 const staff: AuthState = {
   isConfigured: true,
   user: { id: '11111111-1111-4111-8111-111111111111', email: 'staff@icons.gg' },
   role: 'staff',
-  isStaff: true,
+  isStaff: true, operatorAccess: legacyOperatorAccessFixture(),
 };
 
 const mocks = vi.hoisted(() => ({ getAuth: vi.fn() }));
@@ -84,5 +86,11 @@ describe('requireAdminScreenAccess', () => {
     const auth = await requireAdminScreenAccess('/admin/catalog/goods');
 
     expect(auth.isStaff).toBe(true);
+  });
+  it('limited manager authority overrides a pre-existing raw admin role', async () => {
+    setAuth({ ...staff, role: 'admin', operatorAccess: configuredOperatorAccessFixture('logistics') });
+    await expect(requireAdminScreenAccess('/admin/catalog/goods')).rejects.toThrow('NEXT_NOT_FOUND');
+    await expect(requireAdminScreenAccess('/admin/catalog/announcements')).resolves.toMatchObject({ role: 'admin' });
+    await expect(requireAdminScreenAccess('/admin/unknown')).rejects.toThrow('NEXT_NOT_FOUND');
   });
 });

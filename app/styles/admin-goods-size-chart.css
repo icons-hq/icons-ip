@@ -1,0 +1,50 @@
+.wc-admin .admin-goods-size-chart { display: grid; gap: 16px; min-width: 0; }
+.wc-admin .admin-goods-size-chart form,
+.wc-admin .admin-goods-size-chart fieldset,
+.wc-admin .admin-goods-size-chart__fields { display: grid; gap: 12px; min-width: 0; }
+.wc-admin .admin-goods-size-chart fieldset { margin: 0; padding: 0; border: 0; }
+.wc-admin .admin-goods-size-chart label { display: grid; gap: 6px; min-width: 0; font-size: 13px; }
+.wc-admin .admin-goods-size-chart input,
+.wc-admin .admin-goods-size-chart select,
+.wc-admin .admin-goods-size-chart textarea { box-sizing: border-box; width: 100%; min-height: 34px; padding: 6px 8px; border: 1px solid var(--wc-line-control); border-radius: 2px; color: var(--wc-ink); background: var(--wc-surface); font: inherit; }
+.wc-admin .admin-goods-size-chart select { max-width: 200px; }
+.wc-admin .admin-goods-size-chart textarea { min-height: 90px; resize: vertical; }
+.wc-admin .admin-goods-size-chart__hint,
+.wc-admin .admin-goods-size-chart small { color: var(--wc-ink-tertiary); font-size: 12px; line-height: 1.6; }
+.wc-admin .admin-goods-size-chart__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.wc-admin .admin-goods-size-chart__search { grid-template-columns: minmax(160px, 1fr) minmax(100px, 160px) auto; align-items: end; }
+.wc-admin .admin-goods-size-chart__scroll { position: relative; max-width: 100%; min-width: 0; overflow-x: auto; border: 1px solid var(--wc-line-control); }
+.wc-admin .admin-goods-size-chart__scroll table { width: 100%; min-width: 520px; border-collapse: collapse; font-size: 13px; }
+.wc-admin .admin-goods-size-chart__scroll th,
+.wc-admin .admin-goods-size-chart__scroll td { min-width: 105px; max-width: 260px; padding: 10px 12px; border-bottom: 1px solid var(--wc-line-control); border-right: 1px solid var(--wc-line-control); overflow-wrap: anywhere; vertical-align: top; text-align: left; }
+.wc-admin .admin-goods-size-chart__scroll th { background: var(--wc-surface-grey); font-weight: 600; }
+.wc-admin .admin-goods-size-chart__scroll th:first-child { min-width: 150px; }
+.wc-admin .admin-goods-size-chart__scroll td input { text-align: right; font-variant-numeric: tabular-nums; }
+.wc-admin .admin-goods-size-chart__scroll th .btn { margin-top: 6px; }
+.wc-admin .admin-goods-size-chart__scroll tr:last-child td,
+.wc-admin .admin-goods-size-chart__scroll tr:last-child th { border-bottom: 0; }
+.wc-admin .admin-goods-size-chart__empty,
+.wc-admin .admin-goods-size-chart__comparison,
+.wc-admin .admin-goods-size-chart__recovery { min-width: 0; padding: 12px; border: 1px solid var(--wc-line-control); background: var(--wc-surface-grey); }
+.wc-admin .admin-goods-size-chart__preview { min-width: 0; border: 1px solid var(--wc-line-control); padding: 12px; }
+.wc-admin .admin-goods-size-chart__preview summary { cursor: pointer; font-weight: 600; }
+.wc-admin .admin-goods-size-chart :focus-visible { outline: 2px solid var(--wc-focus); outline-offset: 2px; }
+@media (max-width: 640px) {
+  .wc-admin .admin-goods-size-chart__search { grid-template-columns: 1fr; }
+  .wc-admin .admin-goods-size-chart input,
+  .wc-admin .admin-goods-size-chart select,
+  .wc-admin .admin-goods-size-chart .btn { min-height: 44px; }
+}
+@media (forced-colors: active) {
+  .wc-admin .admin-goods-size-chart__scroll,
+  .wc-admin .admin-goods-size-chart__empty,
+  .wc-admin .admin-goods-size-chart__comparison,
+  .wc-admin .admin-goods-size-chart__recovery,
+  .wc-admin .admin-goods-size-chart__preview { border-color: CanvasText; }
+}
+@media print {
+  .wc-admin .admin-goods-size-chart__actions,
+  .wc-admin .admin-goods-size-chart__search,
+  .wc-admin .admin-goods-size-chart__recovery { display: none; }
+  .wc-admin .admin-goods-size-chart__scroll { overflow: visible; }
+}

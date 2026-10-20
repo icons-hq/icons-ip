@@ -19,7 +19,7 @@ set local role authenticated;
 select public.admin_save_store_credit_policy('10000000-0000-4000-8000-000000004894',(public.admin_get_store_credit_policy()->>'version')::integer,
  '{"enabled":true,"earnKind":"rate_bps","earnValue":1000,"earnMaxPerOrder":5000,"maxBalance":100000,"validityDays":30,"minUse":100,"maxUse":30000,"restoreGraceDays":3,"refundEarnedCreditMode":"offset_future_credits","evidence":"synthetic earned refund policy"}');
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000004895',true);
-insert into public.cart_items(user_id,good_id,variant_id,qty) select '00000000-0000-4000-8000-000000004895','credit-earned-good',id,1 from public.goods_variants where good_id='credit-earned-good' and is_default;
+select public.set_cart_item_quantity('credit-earned-good',id,1) from public.goods_variants where good_id='credit-earned-good' and is_default;
 reset role;
 set local role service_role;
 select public.place_order_with_store_credits('00000000-0000-4000-8000-000000004895','{"recipientName":"원적립 검증","phone":"01012345678","postalCode":"12345","address1":"합성 주소"}','20000000-0000-4000-8000-000000004894','card',0) as source_order_id \gset
@@ -31,6 +31,8 @@ do $$ declare attempt public.payment_attempts; begin
   perform public.claim_goods_payment_attempt('toss',attempt.provider_order_id,repeat('d',64),'30000000-0000-4000-8000-000000004894');
   perform public.finalize_goods_payment_attempt(attempt.id,'30000000-0000-4000-8000-000000004894','approved',null,'credit-earned-source-key');
 end $$;
+-- This rollback fixture explicitly enables automatic confirmation before delivery.
+update private.purchase_confirmation_policy set auto_enabled=true,auto_after_days=8,evidence='TEST ONLY: legacy financial regression' where singleton;
 update public.order_shipments set status='delivered',carrier='hanjin',tracking_number='CREDITEARNED1',shipped_at=now()-interval '10 days',delivered_at=now()-interval '9 days' where order_id=:'source_order_id';
 update public.orders set status='delivered',delivered_at=now()-interval '9 days' where id=:'source_order_id';
 set local role service_role;
@@ -38,7 +40,7 @@ select public.settle_delivered_orders();
 reset role;
 set local role authenticated;
 select 1/case when (public.get_my_store_credit_history()->>'available')::bigint=1000 then 1 else 0 end as settled_goods_earn_real_credit;
-insert into public.cart_items(user_id,good_id,variant_id,qty) select '00000000-0000-4000-8000-000000004895','credit-earned-good',id,1 from public.goods_variants where good_id='credit-earned-good' and is_default;
+select public.set_cart_item_quantity('credit-earned-good',id,1) from public.goods_variants where good_id='credit-earned-good' and is_default;
 reset role;
 set local role service_role;
 select public.place_order_with_store_credits('00000000-0000-4000-8000-000000004895','{"recipientName":"사용 검증","phone":"01012345678","postalCode":"12345","address1":"합성 주소"}','20000000-0000-4000-8000-000000004895','card',600) as spending_order_id \gset

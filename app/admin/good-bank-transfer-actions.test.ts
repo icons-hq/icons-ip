@@ -1,3 +1,4 @@
+const { legacyOperatorAccessFixture } = await vi.hoisted(() => import('@/lib/admin/access.test-fixtures'));
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { setGoodBankTransferAction } from './good-bank-transfer-actions';
 
@@ -8,12 +9,12 @@ const mocks = vi.hoisted(() => ({
     isConfigured: true,
     user: { id: 'staff-1', email: 'staff@icons.test' },
     role: 'staff' as 'user' | 'staff' | 'admin',
-    isStaff: true,
+    isStaff: true, operatorAccess: legacyOperatorAccessFixture(),
   } as {
     isConfigured: boolean;
     user: { id: string; email: string | null } | null;
     role: 'user' | 'staff' | 'admin' | null;
-    isStaff: boolean;
+    isStaff: boolean; operatorAccess?: ReturnType<typeof legacyOperatorAccessFixture>;
   },
   createClient: vi.fn(),
   getCurrentAdminAuthState: vi.fn(),
@@ -47,7 +48,7 @@ describe('setGoodBankTransferAction', () => {
       isConfigured: true,
       user: { id: 'staff-1', email: 'staff@icons.test' },
       role: 'staff',
-      isStaff: true,
+      isStaff: true, operatorAccess: legacyOperatorAccessFixture(),
     };
     mocks.getCurrentAdminAuthState.mockReset();
     mocks.getCurrentAdminAuthState.mockImplementation(async () => mocks.adminState);

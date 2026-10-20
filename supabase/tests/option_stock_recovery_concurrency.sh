@@ -8,6 +8,22 @@ set -euo pipefail
 }
 psql_bin="${PSQL_BIN:-psql}"
 psql_exec() { env -u PGHOSTADDR -u PGSERVICE -u PGSERVICEFILE "$psql_bin" -X -h "$PGHOST" -p "$PGPORT" -U postgres -d postgres -v ON_ERROR_STOP=1 "$@"; }
+# This race isolates option allocation inside the physical engine. The sealed
+# contact-v2/public RPC boundary is exercised by order_claim_contact.sql.
+# A session-local wrapper preserves the actual JWT capability checks.
+psql_exec_physical() {
+  {
+    cat <<'PHYSICAL_SQL'
+create function pg_temp.option_recovery_reship(p_claim uuid,p_carrier text,p_tracking text,p_items jsonb) returns text
+language sql security definer set search_path='' as $$
+ select private.record_order_claim_reshipment_physical(p_claim,p_carrier,p_tracking,p_items);
+$$;
+revoke all on function pg_temp.option_recovery_reship(uuid,text,text,jsonb) from public,anon,authenticated,service_role;
+grant execute on function pg_temp.option_recovery_reship(uuid,text,text,jsonb) to authenticated;
+PHYSICAL_SQL
+    cat
+  } | psql_exec "$@"
+}
 work_dir="${OPTION_STOCK_LOG_DIR:-$(mktemp -d)}"
 mkdir -p "$work_dir"
 fixture_ids="$(psql_exec -qAt -c "select string_agg(extensions.gen_random_uuid()::text,'|' order by n) from generate_series(1,13) n")"
@@ -104,7 +120,7 @@ values('${origin}','${test_prefix}','합성 옵션 반송지',0,'합성 옵션 �
 insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,origin_id) values('${test_prefix}','${test_prefix}','옵션 경합','문구',10000,'ok',0,'${origin}');
 insert into public.goods_variants(id,good_id,name,price,stock_qty) values('${blue}','${test_prefix}','파랑',10000,0),('${red}','${test_prefix}','빨강',10000,1);
 insert into public.orders(id,user_id,status,total,address,shipped_at,delivered_at) values
-('${first_order}','${customer}','delivered',10000,'{}',now(),now()),('${second_order}','${customer}','delivered',10000,'{}',now(),now());
+('${first_order}','${customer}','delivered',10000,'{"recipientName":"합성 수령인","phone":"01000000000","postalCode":"12345","address1":"합성 교환 주소","address2":"TEST"}',now(),now()),('${second_order}','${customer}','delivered',10000,'{"recipientName":"합성 수령인","phone":"01000000000","postalCode":"12345","address1":"합성 교환 주소","address2":"TEST"}',now(),now());
 insert into public.order_items(id,order_id,good_id,variant_id,qty,unit_price,good_name_snapshot,good_type_snapshot,good_ip_id_snapshot) values
 ('${first_item}','${first_order}','${test_prefix}','${blue}',1,10000,'옵션 경합','문구','${test_prefix}'),
 ('${second_item}','${second_order}','${test_prefix}','${blue}',1,10000,'옵션 경합','문구','${test_prefix}');
@@ -139,25 +155,25 @@ done
 
 # One claim holds the last red option. Its retry waits on order; another order
 # waits on goods. Only one shipment can consume that option.
-psql_exec -q <<SQL >"$work_dir/reship-holder.log" 2>&1 &
+psql_exec_physical -q <<SQL >"$work_dir/reship-holder.log" 2>&1 &
 set application_name='${test_prefix}-reship-holder'; begin; set local lock_timeout='5s';
 set local role authenticated; select set_config('request.jwt.claim.sub','${staff}',true);
-select public.admin_record_order_claim_reshipment('${first_claim}','hanjin','RACE440001','[{"orderItemId":"${first_item}","variantId":"${red}"}]');
+select pg_temp.option_recovery_reship('${first_claim}','hanjin','RACE440001','[{"orderItemId":"${first_item}","variantId":"${red}"}]');
 select pg_sleep(1.5); commit;
 SQL
 holder=$!
 wait_for_state "${test_prefix}-reship-holder" Timeout "$holder" "$work_dir/reship-holder.log"
-psql_exec -q <<SQL >"$work_dir/reship-replay.log" 2>&1 &
+psql_exec_physical -q <<SQL >"$work_dir/reship-replay.log" 2>&1 &
 set application_name='${test_prefix}-reship-replay'; begin; set local lock_timeout='5s';
 set local role authenticated; select set_config('request.jwt.claim.sub','${staff}',true);
-select public.admin_record_order_claim_reshipment('${first_claim}','hanjin','RACE440001','[{"orderItemId":"${first_item}","variantId":"${red}"}]'); commit;
+select pg_temp.option_recovery_reship('${first_claim}','hanjin','RACE440001','[{"orderItemId":"${first_item}","variantId":"${red}"}]'); commit;
 SQL
 replay=$!
 wait_for_state "${test_prefix}-reship-replay" Lock "$replay" "$work_dir/reship-replay.log"
-psql_exec -q <<SQL >"$work_dir/reship-competing.log" 2>&1 &
+psql_exec_physical -q <<SQL >"$work_dir/reship-competing.log" 2>&1 &
 set application_name='${test_prefix}-reship-competing'; begin; set local lock_timeout='5s';
 set local role authenticated; select set_config('request.jwt.claim.sub','${staff}',true);
-select public.admin_record_order_claim_reshipment('${second_claim}','hanjin','RACE440002','[{"orderItemId":"${second_item}","variantId":"${red}"}]'); commit;
+select pg_temp.option_recovery_reship('${second_claim}','hanjin','RACE440002','[{"orderItemId":"${second_item}","variantId":"${red}"}]'); commit;
 SQL
 competing=$!
 wait_for_state "${test_prefix}-reship-competing" Lock "$competing" "$work_dir/reship-competing.log"

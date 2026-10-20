@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { useState, useTransition } from 'react';
 import { saveShippingRegionPolicyAction, setShippingRegionPolicyStatusAction } from '@/app/admin/shipping-region-actions';
 import { AdminPageHeader, AdminSectionCard } from '../console/AdminKit';
-import type { FulfillmentOrigin } from '@/lib/admin/fulfillment-origins';
+import type { GoodsFulfillmentOrigin } from '@/lib/admin/fulfillment-origins';
 import type { EditableCarrier } from '@/lib/admin/store-settings';
 import {
   emptyShippingRegionPolicy, parseShippingRegionPolicyInput, parseShippingRegionRulesTsv, REGION_DISPOSITION_LABELS, shippingRegionPolicyProblems,
@@ -21,7 +21,7 @@ function fromYesNo(value: string): boolean | null { return value === '' ? null :
 const STATUS_LABELS = { draft: '초안', active: '활성', retired: '중단' };
 
 function ShippingRegionEditor({ policy, initialCopy, origins, carriers, canEdit, onSaved }: {
-  policy: ShippingRegionPolicy | null; origins: FulfillmentOrigin[]; carriers: EditableCarrier[]; canEdit: boolean;
+  policy: ShippingRegionPolicy | null; origins: GoodsFulfillmentOrigin[]; carriers: EditableCarrier[]; canEdit: boolean;
   initialCopy?: ShippingRegionPolicyInput | null;
   onSaved: (policy: ShippingRegionPolicy, message: string) => void;
 }) {
@@ -129,7 +129,7 @@ function ShippingRegionEditor({ policy, initialCopy, origins, carriers, canEdit,
 }
 
 export function ShippingRegionsScreen({ policies: initialPolicies, adoptions, origins, carriers, canEdit }: {
-  policies: ShippingRegionPolicy[]; adoptions: ShippingRegionAdoption[]; origins: FulfillmentOrigin[];
+  policies: ShippingRegionPolicy[]; adoptions: ShippingRegionAdoption[]; origins: GoodsFulfillmentOrigin[];
   carriers: EditableCarrier[]; canEdit: boolean;
 }) {
   const [policies, setPolicies] = useState(initialPolicies); const [selectedId, setSelectedId] = useState<string | null>(null);

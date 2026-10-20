@@ -1,4 +1,17 @@
+import { parseGoodsSalePeriod } from './goods-sale-period';
+import { loadPublicGoodsAttributeRows } from '@/lib/goods-attributes.server';
 import 'server-only';
+import { loadGoodsListingAppearance } from './goods-listing-appearance.server';
+import { loadGoodsTransactionOffers } from './goods-transaction-offers.server';
+import { applyGoodsAggregationPolicy } from './goods-aggregation';
+import { loadPublicGoodsGroupReference } from './goods-groups.server';
+import { resolvePublicGoodsGroup } from './goods-groups';
+import { goodsCustomInputConfigFromRow } from './goods-custom-inputs';
+import { loadGoodRelationReferences } from './good-relations.server';
+import { resolveGoodRelations } from './good-relations';
+import { readCompleteIdPages } from './supabase/complete-id-pages';
+import { getPublicShoppingStories } from './shopping-stories.server';
+import { HOME_HERO_LIMIT, homeHeroAltText, homeHeroStyle } from './home-hero';
 
 import { blockedUserIds } from '@/lib/blocks.server';
 import { canViewCommunityPost, formatPostTime, type CommunityPostStatus } from '@/lib/community';
@@ -15,6 +28,11 @@ import { isRarityKey } from '@/lib/rarity';
 import { getSupabaseConfig } from '@/lib/supabase/config';
 import { postgrestInList } from '@/lib/supabase/postgrest';
 import { createClient } from '@/lib/supabase/server';
+import { buildHomeMosaicBand, parseHomeMosaicPayload, type HomeMosaicPayload } from './home-mosaic';
+import { buildHomeProductCollectionBand, isHomeProductCollectionTitle, parseHomeProductCollectionPayload, type HomeProductCollectionPayload } from './home-product-collection';
+import { readPublicHomeLayoutOrder } from '@/lib/home-layout';
+import { buildHomeReviewBestBand, buildHomeSalesBestBand, emptyHomeProductRankings, readHomeReviewRule, readHomeSalesRule, type HomeReviewRule, type HomeSalesRule } from '@/lib/home-ranking';
+import { loadHomeProductRankings } from '@/lib/home-ranking.server';
 import { resolveCatalogSource, type CatalogSource } from './catalog-source';
 import {
   getHomeCuratedIpIds,
@@ -24,6 +42,9 @@ import {
   HOME_GOODS_BAND_LIMIT,
   isSafeInternalLink,
   resolveHomeGoodsCards,
+  resolveHomeLatestGoodsCards,
+  readHomeGoodsSelection,
+  type HomeGoodsSelection,
   type HomeBanner,
   type HomeBenefitTile,
   type HomeBestTab,
@@ -125,7 +146,9 @@ interface GoodOptionRow {
   supply?: unknown;
 }
 
-interface GoodRow {
+export interface GoodRow {
+  sale_period?: unknown;
+  custom_inputs_enabled?: boolean; custom_inputs_revision?: number; custom_input_fields?: unknown;
   origin_id?: string;
   goods_variants?: GoodOptionRow[];
   id: string;
@@ -206,11 +229,14 @@ interface HomeCurationRow {
     | 'editor_pick'
     | 'band_banner'
     | 'best_tab'
+    | 'sales_best'
+    | 'review_best'
+    | 'product_mosaic'
     | 'benefit';
   ip_id: string | null;
   title: string;
   image_path: string | null;
-  link_path: string;
+  link_path: string | null;
   display_order: number;
   active_from: string;
   active_to: string | null;
@@ -233,14 +259,21 @@ interface LoadedGoodsBand {
 interface LoadedBestTab {
   tab: Omit<HomeBestTab, 'goods'>;
   slot: 'category' | 'popular';
-  goodIds: string[];
+  selection: HomeGoodsSelection;
 }
+
+interface LoadedSalesBest { id: string; title: string; rule: HomeSalesRule }
+interface LoadedReviewBest { id: string; title: string; rule: HomeReviewRule }
 
 interface LoadedHomeCuration {
   curation: HomeCurationSnapshot;
   featuredIps: LoadedFeaturedIpCuration[];
   goodsBands: LoadedGoodsBand[];
   bestTabs: LoadedBestTab[];
+  salesBest: LoadedSalesBest[];
+  reviewBest: LoadedReviewBest[];
+  mosaics: { id: string; title: string; payload: HomeMosaicPayload; imageUrls: Map<string, string> }[];
+  productCollections: { id: string; title: string; payload: HomeProductCollectionPayload }[];
 }
 
 interface PublicProfileRow {
@@ -311,7 +344,7 @@ function emptyHomeCuration(): HomeCurationSnapshot {
 }
 
 function emptyLoadedHomeCuration(): LoadedHomeCuration {
-  return { curation: emptyHomeCuration(), featuredIps: [], goodsBands: [], bestTabs: [] };
+  return { curation: emptyHomeCuration(), featuredIps: [], goodsBands: [], bestTabs: [], salesBest: [], reviewBest: [], mosaics: [], productCollections: [] };
 }
 
 /* payload 는 어드민 RPC 가 kind 별 화이트리스트로 검증하지만, 읽기 경로도
@@ -333,7 +366,7 @@ function payloadGoodIds(payload: Record<string, unknown> | null): string[] {
 
 function validCurationBase(row: HomeCurationRow): { title: string; href: string } | null {
   const title = row.title.trim();
-  const href = row.link_path.trim();
+  const href = row.link_path?.trim() ?? '';
   if (!title || Array.from(title).length > 120 || !isSafeInternalLink(href)) return null;
   if (row.image_path && !HOME_CURATION_IMAGE_PATTERN.test(row.image_path)) return null;
   return { title, href };
@@ -360,44 +393,65 @@ function toHomeBanner(
 async function getActiveHomeCurationSnapshot(): Promise<LoadedHomeCuration> {
   const supabase = await createClient();
   const now = new Date().toISOString();
-  const { data, error } = await supabase
+  const [curations, layout, productCollectionsResult] = await Promise.all([supabase
     .from('home_curations')
     .select('id,kind,ip_id,title,image_path,link_path,display_order,active_from,active_to,slot,payload')
+    .is('archived_at', null)
     .eq('enabled', true)
     .lte('active_from', now)
     .or(`active_to.is.null,active_to.gt.${now}`)
     .order('kind', { ascending: true })
     .order('display_order', { ascending: true })
     .order('active_from', { ascending: true })
-    .order('id', { ascending: true });
+    .order('id', { ascending: true }), supabase.rpc('get_home_layout_order'), supabase.rpc('get_home_product_collections')]);
 
+  const { data, error } = curations;
   if (error) throw new Error(`Failed to load home curations: ${error.message}`);
+  if (layout.error) throw new Error(`Failed to load home layout: ${layout.error.message}`);
+  if (productCollectionsResult.error) throw new Error(`Failed to load home product collections: ${productCollectionsResult.error.message}`);
 
   const imageUrlForPath = (path: string) => supabase.storage
     .from(PUBLIC_MEDIA_BUCKET)
     .getPublicUrl(normalizePublicMediaPath(path)).data.publicUrl;
   const curation = emptyHomeCuration();
+  curation.layoutOrder = readPublicHomeLayoutOrder(layout.data);
   const featuredIps: LoadedFeaturedIpCuration[] = [];
   const goodsBands: LoadedGoodsBand[] = [];
   const bestTabs: LoadedBestTab[] = [];
+  const salesBest: LoadedSalesBest[] = [];
+  const reviewBest: LoadedReviewBest[] = [];
+  const mosaics: LoadedHomeCuration['mosaics'] = [];
+  const productCollections: LoadedHomeCuration['productCollections'] = [];
+  for (const row of Array.isArray(productCollectionsResult.data) ? productCollectionsResult.data : []) {
+    if (!row || typeof row !== 'object' || typeof row.id !== 'string'
+      || !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/.test(row.id)
+      || !isHomeProductCollectionTitle(row.title)) continue;
+    const payload = parseHomeProductCollectionPayload(row.payload);
+    if (payload) productCollections.push({ id: row.id, title: row.title, payload });
+  }
 
   for (const row of (data ?? []) as HomeCurationRow[]) {
     switch (row.kind) {
       case 'hero': {
-        const banner = toHomeBanner(row, imageUrlForPath);
-        if (!banner || !row.image_path) break;
+        const title = row.title.trim();
+        const href = row.link_path === null ? null : row.link_path.trim();
+        if (curation.heroSlides.length >= HOME_HERO_LIMIT || Array.from(title).length > 120
+          || (href !== null && !isSafeInternalLink(href)) || row.ip_id !== null
+          || !row.image_path || !HOME_CURATION_IMAGE_PATTERN.test(row.image_path)) break;
         const mobileImagePath = payloadString(row.payload, 'mobile_image_path');
         curation.heroSlides.push({
           id: row.id,
-          title: banner.title,
+          title,
           subtitle: payloadString(row.payload, 'subtitle'),
           imageUrl: imageUrlForPath(row.image_path),
           mobileImageUrl: mobileImagePath && HOME_CURATION_IMAGE_PATTERN.test(mobileImagePath)
             ? imageUrlForPath(mobileImagePath)
             : null,
-          href: banner.href,
+          href,
+          imageAlt: homeHeroAltText(row.payload),
+          ...homeHeroStyle(row.payload),
         } satisfies HomeHeroSlide);
-        if (curation.hero === null) curation.hero = banner;
+        if (curation.hero === null && href) curation.hero = toHomeBanner(row, imageUrlForPath);
         break;
       }
       case 'announcement': {
@@ -444,11 +498,33 @@ async function getActiveHomeCurationSnapshot(): Promise<LoadedHomeCuration> {
         const base = validCurationBase(row);
         if (!base || row.ip_id !== null) break;
         if (row.slot !== 'category' && row.slot !== 'popular') break;
+        const selection = readHomeGoodsSelection(row.payload);
+        if (!selection) break;
         bestTabs.push({
           tab: { id: row.id, label: base.title },
           slot: row.slot,
-          goodIds: payloadGoodIds(row.payload),
+          selection,
         });
+        break;
+      }
+      case 'sales_best': {
+        const base = validCurationBase(row);
+        const rule = readHomeSalesRule(row.payload);
+        if (base && row.ip_id === null && rule) salesBest.push({ id: row.id, title: base.title, rule });
+        break;
+      }
+      case 'product_mosaic': {
+        const base = validCurationBase(row);
+        const payload = parseHomeMosaicPayload(row.payload);
+        if (base && [...base.title].length <= 15 && row.ip_id === null && payload) mosaics.push({ id: row.id, title: base.title, payload,
+          imageUrls: new Map(payload.slots.flatMap(slot => slot.image_path ? [[slot.image_path, imageUrlForPath(slot.image_path)] as const] : [])),
+        });
+        break;
+      }
+      case 'review_best': {
+        const base = validCurationBase(row);
+        const rule = readHomeReviewRule(row.payload);
+        if (base && row.ip_id === null && rule) reviewBest.push({ id: row.id, title: base.title, rule });
         break;
       }
       case 'benefit': {
@@ -469,7 +545,7 @@ async function getActiveHomeCurationSnapshot(): Promise<LoadedHomeCuration> {
     }
   }
 
-  return { curation, featuredIps, goodsBands, bestTabs };
+  return { curation, featuredIps, goodsBands, bestTabs, salesBest, reviewBest, mosaics, productCollections };
 }
 
 function applyHomeFeaturedArtwork(
@@ -516,7 +592,7 @@ function toIp(row: IpRow, verticalsByKey: Map<string, Vertical>, imageUrlForPath
   };
 }
 
-function toGood(row: GoodRow, imageUrlForPath: (path: string) => string): Good {
+export function toGood(row: GoodRow, imageUrlForPath: (path: string) => string): Good {
   const options = row.goods_variants?.filter(option => option.archived_at === null)
     .sort((left, right) => left.sort_order - right.sort_order || left.id.localeCompare(right.id))
     .flatMap(option => {
@@ -531,6 +607,7 @@ function toGood(row: GoodRow, imageUrlForPath: (path: string) => string): Good {
   const stockQty = options ? options.reduce((total, option) => total + option.stockQty, 0) : row.stock_qty ?? 0;
   return {
     id: row.id,
+    salePeriod: parseGoodsSalePeriod(row.sale_period) ?? undefined,
     ip: row.ip_id,
     name: row.name,
     ...(row.name_en ? { nameEn: row.name_en } : {}),
@@ -553,6 +630,7 @@ function toGood(row: GoodRow, imageUrlForPath: (path: string) => string): Good {
     img: backgroundFor(row.bg, row.image_path, imageUrlForPath, DATA.GOODS[0]?.img ?? ''),
     createdAt: row.created_at ?? undefined,
     allowBankTransfer: row.allow_bank_transfer ?? true,
+    customInputs:goodsCustomInputConfigFromRow(row),
     allowCardPayment: row.allow_card_payment ?? true,
     saleRestriction: row.sale_restriction ?? 'none',
     orderQuantityLimitEnabled: row.order_quantity_limit_enabled ?? false,
@@ -716,7 +794,7 @@ export async function getCatalogSnapshot(options: CatalogSnapshotOptions = {}): 
       .order('fans_count', { ascending: false }),
     supabase
       .from('goods')
-      .select('id,ip_id,name,name_en,search_keywords,display_order,category_id,additional_good_ids:goods_additional_ids,type,price,compare_at_price,show_discount_rate,created_at,badge,stock,stock_qty,bg,image_path,allow_bank_transfer,allow_card_payment,sale_restriction,order_quantity_limit_enabled,min_order_qty,max_order_qty,member_purchase_limit_enabled,member_lifetime_qty_limit,origin_id,goods_variants(id,name,code,price,stock_qty,is_default,attributes,archived_at,sort_order,pricing:goods_variant_pricing,supply:goods_variant_supply)')
+      .select('id,ip_id,name,name_en,search_keywords,display_order,category_id,additional_good_ids:goods_additional_ids,type,price,compare_at_price,show_discount_rate,created_at,badge,stock,stock_qty,bg,image_path,sale_period:goods_sale_period,custom_inputs_enabled,custom_inputs_revision,custom_input_fields,allow_bank_transfer,allow_card_payment,sale_restriction,order_quantity_limit_enabled,min_order_qty,max_order_qty,member_purchase_limit_enabled,member_lifetime_qty_limit,origin_id,goods_variants(id,name,code,price,stock_qty,is_default,attributes,archived_at,sort_order,pricing:goods_variant_pricing,supply:goods_variant_supply)')
       .is('archived_at', null)
       .not('published_at', 'is', null)
       /* 판매 제한(19금) 상품은 성인인증(#209·#210) 도입 전까지 스토어 전 표면에서
@@ -772,6 +850,17 @@ export async function getCatalogSnapshot(options: CatalogSnapshotOptions = {}): 
     .filter((row) => belongsToPublicIp(row.ip_id))
     .map((row) => toGood(row, imageUrlForPath))
     .sort(compareGoodsDisplayOrder);
+  const [listingAppearance, transactionOffers] = await Promise.all([
+    loadGoodsListingAppearance(supabase, goods.map(good => good.id)),
+    loadGoodsTransactionOffers(goods.map(good => good.id)),
+  ]);
+  const offersByGood = new Map(transactionOffers?.map(offer => [offer.goodId, offer]));
+  const transactionCalculatedAt = new Date().toISOString();
+  for (const good of goods) {
+    good.listingAppearance = listingAppearance.get(good.id);
+    applyGoodsAggregationPolicy(good, offersByGood.get(good.id) ?? null);
+    good.transactionCalculatedAt = transactionCalculatedAt;
+  }
   const cards = ((cardsResult.data ?? []) as CardRow[])
     .filter((row) => belongsToPublicIp(row.ip_id))
     .map((row) => toCard(row, imageUrlForPath))
@@ -891,34 +980,61 @@ interface GoodDetailRow {
   notice_as_contact: string | null;
 }
 
-/*
- * 굿즈 상세 (#173). 목록 스냅샷에 없는 콘텐츠 컬럼만 따로 읽는다.
- * 보관된 굿즈는 스냅샷에서 이미 빠져 있으므로 여기서도 null 이 되고, 라우트가 404 로 옮긴다.
- */
-export async function getCatalogGoodDetail(goodId: string): Promise<CatalogGoodDetail | null> {
-  const catalog = await getCatalogSnapshot();
-  const good = catalog.goods.find((item) => item.id === goodId);
-  if (!good) return null;
-
-  const ip = catalog.ips.find((item) => item.id === good.ip) ?? null;
-  const additionalGoods = (good.additionalGoodIds ?? []).flatMap((id) => {
-    const additional = catalog.goods.find((item) => item.id === id);
-    return additional && additional.id !== good.id ? [additional] : [];
+/** Selected public cards share the catalog's option pricing, stock and listing metadata. */
+async function readPublicGoodsByIds(supabase: Awaited<ReturnType<typeof createClient>>, ids: readonly string[]): Promise<Good[]> {
+  const selected = [...new Set(ids)];
+  if (!selected.length) return [];
+  if (selected.length > 1000 || selected.some(id => !/^[a-z0-9][a-z0-9-]{0,199}$/.test(id))) throw new Error('Invalid selected goods');
+  const result = await readCompleteIdPages<GoodRow>((afterId, pageSize) => {
+    let query = supabase.from('goods')
+      .select('id,ip_id,name,name_en,search_keywords,display_order,category_id,additional_good_ids:goods_additional_ids,type,price,compare_at_price,show_discount_rate,created_at,badge,stock,stock_qty,bg,image_path,allow_bank_transfer,allow_card_payment,sale_restriction,origin_id,sale_period:goods_sale_period,custom_inputs_enabled,custom_inputs_revision,custom_input_fields,order_quantity_limit_enabled,min_order_qty,max_order_qty,member_purchase_limit_enabled,member_lifetime_qty_limit,goods_variants(id,name,code,price,stock_qty,is_default,attributes,archived_at,sort_order,pricing:goods_variant_pricing,supply:goods_variant_supply),ips!inner(id)', { count: 'exact' })
+      .in('id', selected).is('archived_at', null).not('published_at', 'is', null).eq('sale_restriction', 'none')
+      .is('ips.archived_at', null).not('ips.published_at', 'is', null).order('id').limit(pageSize);
+    if (afterId) query = query.gt('id', afterId);
+    return query;
   });
-  const empty: CatalogGoodDetail = {
-    source: catalog.source,
-    good,
-    additionalGoods,
-    ip,
-    description: null,
-    gallery: [],
-    detailImageUrl: null,
-    notice: EMPTY_GOODS_NOTICE,
-  };
-  if (catalog.source !== 'supabase') return empty;
+  if (result.error) throw new Error('Failed to load selected public goods');
+  const imageUrlForPath = (path: string) => supabase.storage.from(PUBLIC_MEDIA_BUCKET).getPublicUrl(normalizePublicMediaPath(path)).data.publicUrl;
+  const goods = (result.data ?? []).map(row => toGood(row, imageUrlForPath));
+  const [appearance, transactionOffers] = await Promise.all([
+    loadGoodsListingAppearance(supabase, goods.map(good => good.id)),
+    loadGoodsTransactionOffers(goods.map(good => good.id)),
+  ]);
+  const offersByGood = new Map(transactionOffers?.map(offer => [offer.goodId, offer]));
+  const transactionCalculatedAt = new Date().toISOString();
+  for (const good of goods) {
+    good.listingAppearance = appearance.get(good.id);
+    applyGoodsAggregationPolicy(good, offersByGood.get(good.id) ?? null);
+    good.transactionCalculatedAt = transactionCalculatedAt;
+  }
+  return goods;
+}
 
+export async function getCatalogGoodsByIds(ids: readonly string[]): Promise<Good[]> {
+  if (getCatalogSource() !== 'supabase') {
+    const selected = new Set(ids);
+    return (await getCatalogSnapshot()).goods.filter(good => selected.has(good.id));
+  }
+  return readPublicGoodsByIds(await createClient(), ids);
+}
+
+/** 상세 목적지는 목록의 첫 페이지와 독립적으로 상품·IP 공개 조건을 검사한다. */
+export async function getCatalogGoodDetail(goodId: string): Promise<CatalogGoodDetail | null> {
+  const source = getCatalogSource();
+  if (source !== 'supabase') {
+    const catalog = mockSnapshot(), good = catalog.goods.find(item => item.id === goodId);
+    if (!good) return null;
+    return { source, good, ip: catalog.ips.find(item => item.id === good.ip) ?? null,
+      additionalGoods: (good.additionalGoodIds ?? []).flatMap(id => {
+        const additional = catalog.goods.find(item => item.id === id);
+        return additional && additional.id !== good.id ? [additional] : [];
+      }), description: null, gallery: [], detailImageUrl: null, notice: EMPTY_GOODS_NOTICE };
+  }
+  if (!/^[a-z0-9][a-z0-9-]{0,199}$/.test(goodId)) return null;
   const supabase = await createClient();
-  const result = await supabase
+  const [good] = await readPublicGoodsByIds(supabase, [goodId]);
+  if (!good) return null;
+  const detailQuery = supabase
     .from('goods')
     /* supabase-js 는 select 를 문자열 리터럴로 받아야 행 타입을 추론한다 — 쪼개면 안 된다. */
     .select('description,description_format,description_image_paths,gallery_paths,detail_image_path,notice_maker,notice_origin,notice_material,notice_size,notice_made_on,notice_as_manager,notice_as_contact,kc_disclosures,ips!inner(id)')
@@ -927,15 +1043,23 @@ export async function getCatalogGoodDetail(goodId: string): Promise<CatalogGoodD
     .not('published_at', 'is', null)
     .is('ips.archived_at', null)
     .not('ips.published_at', 'is', null)
-    // 스냅샷 제외로 이미 걸러지지만 URL 직접 접근을 이중으로 막는다(#392).
+    // 두 조회 사이에 공개 상태가 바뀐 경우에도 상세를 반환하지 않는다.
     .eq('sale_restriction', 'none')
     .maybeSingle();
+
+  const [result, relationReferences, attributes, groupReference, ipResult, verticalsResult, additionalGoods] = await Promise.all([
+    detailQuery, loadGoodRelationReferences(goodId), loadPublicGoodsAttributeRows(goodId), loadPublicGoodsGroupReference(goodId),
+    supabase.from('ips').select('id,public_slug,title,sub,vertical_key,tagline,synopsis,glyph,bg,image_path,featured,sort_order,fans_count,goods_count,cards_count')
+      .eq('id', good.ip).is('archived_at', null).not('published_at', 'is', null).maybeSingle(),
+    supabase.from('verticals').select('key,label,color').order('key'),
+    readPublicGoodsByIds(supabase, (good.additionalGoodIds ?? []).filter(id => id !== good.id)),
+  ]);
 
   if (result.error) {
     throw new Error(`Failed to load good detail: ${result.error.message}`);
   }
-  // Publication may change after the first snapshot read. Do not return a stale card.
-  if (!result.data) return null;
+  if (ipResult.error || verticalsResult.error) throw new Error('Failed to load good IP');
+  if (!result.data || !ipResult.data) return null;
 
   const row = result.data as GoodDetailRow;
   const kcDisclosures = parseGoodsKcDisclosures(row.kc_disclosures ?? []);
@@ -943,11 +1067,34 @@ export async function getCatalogGoodDetail(goodId: string): Promise<CatalogGoodD
   const imageUrlForPath = (path: string) => supabase.storage
     .from(PUBLIC_MEDIA_BUCKET)
     .getPublicUrl(normalizePublicMediaPath(path)).data.publicUrl;
+  const ip = toIp(ipResult.data as IpRow, new Map(((verticalsResult.data ?? []) as VerticalRow[]).map(vertical => [vertical.key, vertical])), imageUrlForPath);
+  const relationIds = [...new Set(relationReferences.groups.flatMap(group => group.allGoodIds ?? group.goodIds))];
+  const selectedIds = [...new Set([...relationIds, ...(groupReference?.members.map(member => member.goodId) ?? [])])];
+  let relatedGoods = resolveGoodRelations(relationReferences, [], goodId);
+  let goodsGroup: ReturnType<typeof resolvePublicGoodsGroup> = null;
+  if (selectedIds.length) {
+    // Read selected cards directly, so a large catalog cannot truncate a saved
+    // relationship. Reuse the catalog's effective option price/stock mapping.
+    try {
+      // Saved relations may already contain 1,000 goods; the group adds up to
+      // 100 distinct destinations beyond that individual read limit.
+      const selectedGoods = (await Promise.all([
+        readPublicGoodsByIds(supabase, selectedIds.slice(0, 1000)),
+        readPublicGoodsByIds(supabase, selectedIds.slice(1000)),
+      ])).flat();
+      relatedGoods = resolveGoodRelations(relationReferences, selectedGoods, goodId);
+      goodsGroup = resolvePublicGoodsGroup(groupReference, selectedGoods);
+    }
+    catch { relatedGoods = { groups: [], nextChangeAt: null, unavailable: true }; }
+  }
 
   return {
-    source: catalog.source,
+    source,
     good,
     additionalGoods,
+    relatedGoods,
+    goodsGroup,
+    attributes,
     ip,
     description: row.description,
     descriptionFormat: row.description_format ?? 'plain',
@@ -1065,16 +1212,34 @@ export async function getCatalogIpDetail(
 
 export async function getHomeSnapshot(options: CatalogIpDetailOptions = {}): Promise<HomeSnapshot> {
   const source = getCatalogSource();
-  const [catalog, loadedCuration] = await Promise.all([
+  const [catalog, loadedCuration, storyList] = await Promise.all([
     getCatalogSnapshot(),
     source === 'supabase'
       ? getActiveHomeCurationSnapshot()
       : Promise.resolve(emptyLoadedHomeCuration()),
+    source === 'supabase' ? getPublicShoppingStories({ limit: 3 }) : Promise.resolve(null),
   ]);
+  const productRankings = loadedCuration.salesBest.length || loadedCuration.reviewBest.length
+    ? await loadHomeProductRankings(catalog.goods) : emptyHomeProductRankings();
+  const rankingCards = loadedCuration.salesBest.length || loadedCuration.reviewBest.length
+    ? resolveHomeGoodsCards(catalog, catalog.goods.map((good) => good.id), catalog.goods.length) : [];
   const rawCuration: HomeCurationSnapshot = catalog.source === 'mock'
     ? loadedCuration.curation
     : {
         ...loadedCuration.curation,
+        shoppingStories: storyList?.stories ?? [],
+        storiesNextChangeAt: storyList?.nextChangeAt ?? null,
+        shoppingStoriesUnavailable: storyList?.unavailable === true,
+        ...(loadedCuration.salesBest.length ? {
+          salesBestBands: loadedCuration.salesBest.map(({ id, title, rule }) => buildHomeSalesBestBand(id, title, rule, rankingCards, productRankings)),
+        } : {}),
+        ...(loadedCuration.reviewBest.length ? {
+          reviewBestBands: loadedCuration.reviewBest.map(({ id, title, rule }) => buildHomeReviewBestBand(id, title, rule, rankingCards, productRankings)),
+        } : {}),
+        ...(loadedCuration.mosaics.length ? { mosaicBands: loadedCuration.mosaics.map(({ id, title, payload, imageUrls }) =>
+          buildHomeMosaicBand(id, title, payload, resolveHomeGoodsCards(catalog, payload.slots.flatMap(slot => slot.good_id ? [slot.good_id] : []), 8), path => imageUrls.get(path) ?? '')) } : {}),
+        ...(loadedCuration.productCollections.length ? { productCollections: loadedCuration.productCollections.map(({ id, title, payload }) =>
+          buildHomeProductCollectionBand(id, title, payload, resolveHomeGoodsCards(catalog, payload.good_ids, payload.item_count))) } : {}),
         featuredIpIds: getHomeCuratedIpIds(catalog, loadedCuration.curation.featuredIpIds),
         goodsBands: loadedCuration.goodsBands.map(({ band, goodIds }) => ({
           ...band,
@@ -1082,21 +1247,25 @@ export async function getHomeSnapshot(options: CatalogIpDetailOptions = {}): Pro
         })),
         categoryBestTabs: loadedCuration.bestTabs
           .filter((loaded) => loaded.slot === 'category')
-          .map(({ tab, goodIds }) => ({
+          .map(({ tab, selection }) => ({
             ...tab,
-            goods: resolveHomeGoodsCards(catalog, goodIds, HOME_BEST_TAB_GOODS_LIMIT),
+            goods: selection.mode === 'latest'
+              ? resolveHomeLatestGoodsCards(catalog, selection.count)
+              : resolveHomeGoodsCards(catalog, selection.goodIds, HOME_BEST_TAB_GOODS_LIMIT),
           })),
         popularTabs: loadedCuration.bestTabs
           .filter((loaded) => loaded.slot === 'popular')
-          .map(({ tab, goodIds }) => ({
+          .map(({ tab, selection }) => ({
             ...tab,
-            goods: resolveHomeGoodsCards(catalog, goodIds, HOME_BEST_TAB_GOODS_LIMIT),
+            goods: selection.mode === 'latest'
+              ? resolveHomeLatestGoodsCards(catalog, selection.count)
+              : resolveHomeGoodsCards(catalog, selection.goodIds, HOME_BEST_TAB_GOODS_LIMIT),
           })),
       };
   const linkEntries = [rawCuration.hero, rawCuration.announcement, ...rawCuration.heroSlides,
     ...rawCuration.editorPicks, ...rawCuration.goodsBands, ...rawCuration.benefitTiles];
-  const canonicalLinks = await resolvePublicIpLinks(linkEntries.flatMap(entry => entry ? [entry.href] : []), catalog.ips);
-  const canonicalLink = <T extends { href: string }>(entry: T): T => ({ ...entry, href: canonicalLinks.get(entry.href) ?? entry.href });
+  const canonicalLinks = await resolvePublicIpLinks(linkEntries.flatMap(entry => entry?.href ? [entry.href] : []), catalog.ips);
+  const canonicalLink = <T extends { href: string | null }>(entry: T): T => ({ ...entry, href: entry.href === null ? null : canonicalLinks.get(entry.href) ?? entry.href });
   const normalizedCuration: HomeCurationSnapshot = {
     ...rawCuration,
     hero: rawCuration.hero ? canonicalLink(rawCuration.hero) : null,

@@ -1,0 +1,123 @@
+{
+  "kind": "gift",
+  "order": {
+    "id": "a1af4fdb-3c73-4c87-8b97-177ede7ade89",
+    "items": [
+      {
+        "id": "ca8928b0-0b21-4c27-b812-8bda191ed796",
+        "qty": 2,
+        "name": "선물 검증 상품",
+        "type": "문구",
+        "goodId": "gift-domain-good",
+        "unitPrice": 10000,
+        "variantId": "96ceadc2-1249-4391-b467-385be489be5b",
+        "variantCode": "GDI-0001-01",
+        "variantName": null,
+        "customInputs": null,
+        "supplySource": "stock",
+        "preorderExpectedShipDate": null
+      }
+    ],
+    "total": 19200,
+    "giftId": "93942000-0000-4000-8000-000000000010",
+    "status": "pending",
+    "address": null,
+    "createdAt": "2026-10-14T01:44:46.21808+00:00",
+    "expiresAt": "2026-10-14T01:59:46.277049+00:00",
+    "shipments": [
+      {
+        "id": "69db7561-28f8-4f13-bc9b-e90c82f42198",
+        "status": "ready",
+        "carrier": null,
+        "orderId": "a1af4fdb-3c73-4c87-8b97-177ede7ade89",
+        "delivery": null,
+        "originId": "93942000-0000-4000-8000-000000000030",
+        "shippedAt": null,
+        "exportedAt": null,
+        "originName": "선물 검증 출고지",
+        "deliveredAt": null,
+        "shippingFee": 3000,
+        "trackingUrl": null,
+        "carrierLabel": null,
+        "orderItemIds": [
+          "ca8928b0-0b21-4c27-b812-8bda191ed796"
+        ],
+        "preorderReady": true,
+        "trackingNumber": null,
+        "expectedShipDate": null,
+        "regionalShipping": null,
+        "originalExpectedShipDate": null
+      }
+    ],
+    "deliveredAt": null,
+    "shippingFee": 3000,
+    "discountTotal": 1800,
+    "paymentMethod": "card",
+    "paymentStatus": null,
+    "storeCreditTotal": 0
+  },
+  "receipt": {
+    "display": {
+      "lines": [
+        {
+          "qty": 2,
+          "goodId": "gift-domain-good",
+          "lineId": "ca8928b0-0b21-4c27-b812-8bda191ed796",
+          "subtotal": 20000,
+          "unitPrice": 10000,
+          "variantId": "96ceadc2-1249-4391-b467-385be489be5b",
+          "netSubtotal": 18000,
+          "couponDiscount": 1800,
+          "paidGoodsTotal": 16200,
+          "volumePolicyId": "1d8dbc58-c77c-4e1a-b70a-9c142ef822e4",
+          "regularUnitPrice": 10000,
+          "volumeUnitDiscount": 1000,
+          "storeCreditDiscount": 0,
+          "volumeDiscountTotal": 2000
+        }
+      ],
+      "totals": {
+        "subtotal": 20000,
+        "onlineTotal": 19200,
+        "customerTotal": 19200,
+        "netGoodsTotal": 18000,
+        "storeCreditTotal": 0,
+        "couponDiscountTotal": 1800,
+        "volumeDiscountTotal": 2000,
+        "collectShippingTotal": 0,
+        "prepaidShippingTotal": 3000
+      },
+      "currency": "KRW",
+      "shipping": [
+        {
+          "fullFee": 3000,
+          "originId": "93942000-0000-4000-8000-000000000030",
+          "collector": null,
+          "collectFee": 0,
+          "components": [
+            {
+              "goodId": "gift-domain-good",
+              "baseFee": 3000,
+              "totalFee": 3000,
+              "paymentMode": "prepaid",
+              "regionalFee": 0,
+              "deliveryPolicyId": "891ad547-4c94-4b58-9311-21b861201438"
+            }
+          ],
+          "prepaidFee": 3000
+        }
+      ],
+      "calculatedAt": "2026-10-14T01:44:46.27848+00:00",
+      "nextChangeAt": null,
+      "userCouponId": "abfdee3d-b252-4e84-beaa-ac089166c2bb",
+      "paymentMethods": {
+        "card": true,
+        "bankTransfer": true
+      },
+      "calculationVersion": 2,
+      "storeCreditMaximum": 0
+    },
+    "orderId": "a1af4fdb-3c73-4c87-8b97-177ede7ade89",
+    "quoteId": "fbab6bb3-d336-42b8-97ac-f4a3d39c547e"
+  }
+}

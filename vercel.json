@@ -19,6 +19,34 @@
     {
       "path": "/api/cron/order-delay-notices",
       "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/cron/marketing-messages",
+      "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/cron/store-analytics",
+      "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/cron/review-rating-history",
+      "schedule": "5 * * * *"
+    },
+    {
+      "path": "/api/cron/customer-rewards",
+      "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/cron/goods-media",
+      "schedule": "27 3 * * *"
+    },
+    {
+      "path": "/api/cron/gifts",
+      "schedule": "* * * * *"
+    },
+    {
+      "path": "/api/cron/subscriptions",
+      "schedule": "* * * * *"
     }
   ],
   "git": {

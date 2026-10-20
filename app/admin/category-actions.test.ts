@@ -1,8 +1,10 @@
+import { configuredOperatorAccessFixture } from '@/lib/admin/access.test-fixtures';
+const { legacyOperatorAccessFixture } = await vi.hoisted(() => import('@/lib/admin/access.test-fixtures'));
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { saveAdminCategoryAction, saveAdminCategoryErpMappingAction, setAdminCategoryActivationAction } from './category-actions';
 
 const mocks = vi.hoisted(() => ({
-  auth: { isConfigured: true, user: { id: 'staff-1' }, isStaff: true, role: 'staff' as const },
+  auth: { isConfigured: true, user: { id: 'staff-1' }, isStaff: true, operatorAccess: legacyOperatorAccessFixture(), role: 'staff' as const },
   getAuth: vi.fn(), createClient: vi.fn(), rpc: vi.fn(), revalidatePath: vi.fn(),
 }));
 vi.mock('@/lib/auth/admin', () => ({ getCurrentAdminAuthState: mocks.getAuth }));
@@ -58,4 +60,13 @@ describe('admin category actions', () => {
     await expect(saveAdminCategoryAction({}, form({ code: 'paper', name: '문구' }))).resolves.toMatchObject({ errors: { form: '관리자 권한이 필요합니다.' } });
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
+});
+
+it('configured deputy can save categories but cannot change ERP mappings or activation', async () => {
+  mocks.getAuth.mockResolvedValue({ ...mocks.auth, operatorAccess: configuredOperatorAccessFixture('deputy') });
+  expect((await saveAdminCategoryAction({}, form({ code: 'paper', name: '합성 문구', sortOrder: '1' }))).message).toContain('등록했습니다');
+  mocks.rpc.mockClear();
+  expect((await saveAdminCategoryErpMappingAction({}, form())).errors?.form).toContain('권한');
+  expect((await setAdminCategoryActivationAction({}, form())).errors?.form).toContain('권한');
+  expect(mocks.rpc).not.toHaveBeenCalled();
 });

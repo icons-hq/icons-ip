@@ -292,6 +292,8 @@ export async function verifyAndPromoteAdminArtwork(
       {
         p_actor_id: input.actorId,
         p_final_size: normalized.bytes.byteLength,
+        p_final_width: normalized.width,
+        p_final_height: normalized.height,
         p_path: input.path,
       },
     );

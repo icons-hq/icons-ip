@@ -21,11 +21,11 @@ export function GoodIdentifierFields({ ipId, name, code='', defaultVariantCode='
   },[ipId,name,onCodeSuggestion]);
   const fields=[
     {key:'code' as const,label:ADMIN_VOCABULARY.goodsCode,placeholder:suggestion?.code,limit:100},
-    {key:'defaultVariantCode' as const,label:`${ADMIN_VOCABULARY.option}코드`,placeholder:suggestion?.defaultVariantCode,limit:120},
-    {key:'id' as const,label:'URL 슬러그',placeholder:suggestion?.slug,limit:64},
+    {key:'defaultVariantCode' as const,label:ADMIN_VOCABULARY.optionCode,placeholder:suggestion?.defaultVariantCode,limit:120},
+    {key:'id' as const,label:'상품 URL',placeholder:suggestion?.slug,limit:64},
   ];
   return <fieldset className="admin-form-grid" style={{border:0,padding:0,margin:0}}>
-    <legend className="sr-only">상품코드와 URL</legend>
+    <legend className="sr-only">판매자상품코드와 상품 URL</legend>
     {fields.filter((field) => !hideVariantCode || field.key !== 'defaultVariantCode').map((field)=><label className="col" key={field.key} style={{gap:7}}>
       <span className="mono" style={{color:'var(--dim)',fontSize:11}}>{field.label}</span>
       <input aria-describedby={`${field.key}-help`} aria-invalid={Boolean(errors[field.key])} className="admin-field-control"

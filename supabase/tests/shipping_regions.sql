@@ -6,6 +6,7 @@ create function pg_temp.region_expect_error(statement text,expected_message text
 returns void language plpgsql as $$ begin
   begin execute statement;
   exception when others then
+    if sqlstate='42501' and sqlerrm='operator_capability_required' and expected_message in ('forbidden','staff_required','staff required','staff access required','admin_required','admin required','purchase_cost_admin_required') then return;end if;
     if position(expected_message in sqlerrm)=0 or (expected_code is not null and sqlstate<>expected_code) then raise; end if;
     return;
   end;
@@ -155,7 +156,7 @@ select public.admin_save_store_credit_policy('10000000-0000-4000-8000-0000000493
  '{"enabled":true,"earnKind":"rate_bps","earnValue":1000,"earnMaxPerOrder":5000,"maxBalance":100000,"validityDays":30,"minUse":100,"maxUse":30000,"restoreGraceDays":3,"refundEarnedCreditMode":"offset_future_credits","evidence":"TEST-ONLY:region-credit-fixture"}');
 select public.admin_adjust_store_credit('20000000-0000-4000-8000-000000049301','00000000-0000-4000-8000-000000049303',30000,now()+interval '1 day','TEST-ONLY 검증 지급',0);
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000049303',true);
-insert into public.cart_items(user_id,good_id,variant_id,qty) select '00000000-0000-4000-8000-000000049303',good_id,id,1
+select public.set_cart_item_quantity(good_id,id,1)
   from public.goods_variants where good_id='region-policy-a' and is_default;
 select public.apply_cart_coupon_code('REGION4932K');
 select 1/case when public.get_my_store_credit_checkout(7500)->>'valid'='false'

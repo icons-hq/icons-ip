@@ -8,6 +8,7 @@ import {
 } from '@/lib/admin/campaigns';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
 import { createClient } from '@/lib/supabase/server';
+import { hasAdminCapability, type AdminCapability } from '@/lib/admin/access';
 
 /* 캠페인·카드팩 교환처 저장 액션 (S8 #330).
  *
@@ -25,10 +26,10 @@ const CAMPAIGNS_PATH = '/admin/display/campaigns';
 const CAMPAIGN_SAVE_FAILED = '캠페인을 저장하지 못했습니다. 다시 시도해주세요.';
 const OFFER_SAVE_FAILED = '교환처를 저장하지 못했습니다. 다시 시도해주세요.';
 
-async function requireStaffAction(): Promise<AdminCampaignActionState | null> {
+async function requireStaffAction(capability: AdminCapability): Promise<AdminCampaignActionState | null> {
   const auth = await getCurrentAdminAuthState();
   if (!auth.isConfigured || !auth.user) redirect(`/login?next=${encodeURIComponent(CAMPAIGNS_PATH)}`);
-  if (!auth.isStaff) return { errors: { form: '관리자 권한이 필요합니다.' } };
+  if (!auth.isStaff || !hasAdminCapability(auth, capability)) return { errors: { form: '관리자 권한이 필요합니다.' } };
   return null;
 }
 
@@ -104,7 +105,7 @@ export async function upsertAdminCampaignAction(
   _state: AdminCampaignActionState,
   formData: FormData,
 ): Promise<AdminCampaignActionState> {
-  const denied = await requireStaffAction();
+  const denied = await requireStaffAction('promotion.manage');
   if (denied) return denied;
 
   const result = normalizeAdminCampaignForm(formData);
@@ -165,7 +166,7 @@ export async function upsertAdminCoinExchangeOfferAction(
   _state: AdminCampaignActionState,
   formData: FormData,
 ): Promise<AdminCampaignActionState> {
-  const denied = await requireStaffAction();
+  const denied = await requireStaffAction('platform.manage');
   if (denied) return denied;
 
   const result = normalizeAdminCoinExchangeOfferForm(formData);

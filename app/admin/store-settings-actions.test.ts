@@ -1,6 +1,7 @@
+import { configuredOperatorAccessFixture, legacyOperatorAccessFixture } from '@/lib/admin/access.test-fixtures';
 import { beforeEach,describe,expect,it,vi } from 'vitest';
 const mocks=vi.hoisted(()=>({auth:{isConfigured:true,user:{id:'admin'},isStaff:true,role:'admin'},rpc:vi.fn(),updateTag:vi.fn(),revalidatePath:vi.fn()}));
-vi.mock('@/lib/auth/admin',()=>({getCurrentAdminAuthState:async()=>mocks.auth}));
+vi.mock('@/lib/auth/admin',()=>({getCurrentAdminAuthState:async()=>({ ...mocks.auth, operatorAccess: 'operatorAccess' in mocks.auth && mocks.auth.operatorAccess || legacyOperatorAccessFixture() })}));
 vi.mock('@/lib/supabase/server',()=>({createClient:async()=>({rpc:mocks.rpc})}));
 vi.mock('next/cache',()=>({updateTag:mocks.updateTag,revalidatePath:mocks.revalidatePath}));
 vi.mock('next/navigation',()=>({redirect:(path:string)=>{throw new Error(`redirect:${path}`);},unstable_rethrow:(e:unknown)=>{if(e instanceof Error&&e.message.startsWith('redirect:'))throw e;}}));
@@ -74,4 +75,15 @@ it('문의 안내 staff 저장을 막고 충돌·통신 실패에도 설정을 �
   expect(result.values?.['good.body']).toBe('상품 안내');
   expect(result.errors?.form).toContain('입력값은 유지');
   expect(JSON.stringify(result)).not.toContain('network detail');
+});
+
+it('configured deputy can manage inquiry display but cannot edit business, bank or carrier policy', async () => {
+  Object.assign(mocks.auth, { role: 'staff', operatorAccess: configuredOperatorAccessFixture('deputy') });
+  expect((await saveStoreSettingsAction({}, form())).errors?.form).toContain('admin');
+  expect((await saveStoreSettingsAction({}, form({ section: 'bank_transfer' }))).errors?.form).toContain('admin');
+  expect((await saveShippingCarrierAction({}, form())).errors?.form).toContain('admin');
+  expect(mocks.rpc).not.toHaveBeenCalled();
+  const saved = await saveInquiryAutoRepliesAction({}, form({ 'order.enabled': 'true', 'order.body': '합성 문의 안내' }));
+  expect(saved.message).toContain('저장했습니다');
+  expect(mocks.rpc).toHaveBeenCalledWith('admin_save_store_settings', expect.objectContaining({ target_section: 'inquiry_auto_replies' }));
 });

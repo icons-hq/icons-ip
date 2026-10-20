@@ -122,7 +122,7 @@ begin
     perform public.admin_update_ip_identity('identity-473-ip', 'blocked-for-user', 'identity-473-ip');
   exception
     when insufficient_privilege then
-      if sqlerrm = 'forbidden' then return; end if;
+      if sqlerrm in ('forbidden','operator_capability_required') then return; end if;
       raise;
   end;
   raise exception 'non-staff identity update should be rejected';

@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { REVIEW_KIND_LABELS, targetReviewDaysRemaining } from '@/lib/review-types';
 import { MypageShell } from '@/components/wc/MypageShell';
 import type { MyReviewTarget } from '@/lib/reviews.server';
 import {
@@ -7,11 +8,13 @@ import {
   goodReviewsHref,
   newReviewHref,
   REVIEW_WINDOW_DAYS,
-  reviewDaysRemaining,
   reviewRatingLabel,
 } from '@/lib/reviews';
 import { orderReferenceLabel } from '@/lib/orders';
 import { ReviewDeleteButton } from './ReviewDeleteButton';
+import { ReviewEventBanner } from '@/components/reviews/ReviewEventBanner';
+import { ScheduledHomeRefresh } from '@/components/home/ScheduledHomeRefresh';
+import type { GoodsReviewEvents, MyReviewEventEntry, PublicReviewEvent } from '@/lib/review-events';
 
 /* 내 리뷰(#254).
  *
@@ -31,8 +34,9 @@ function Stars({ rating }: { rating: number }) {
 }
 
 function DeadlineNote({ target, now }: { target: MyReviewTarget; now: Date }) {
-  const daysLeft = reviewDaysRemaining(target.deliveredAt, now);
+  const daysLeft = targetReviewDaysRemaining(target, now);
 
+  if (target.opensAt && Date.parse(target.opensAt) > now.getTime()) return <span className="wc-mypage__hint">{formatReviewDate(target.opensAt)}부터 {formatReviewDate(target.deadlineAt ?? '')}까지 작성할 수 있습니다.</span>;
   if (daysLeft === null) {
     return (
       <span className="wc-mypage__hint">
@@ -43,7 +47,7 @@ function DeadlineNote({ target, now }: { target: MyReviewTarget; now: Date }) {
   if (daysLeft === 0) {
     return (
       <span className="wc-mypage__hint">
-        작성 기한(배송완료 후 {REVIEW_WINDOW_DAYS}일)이 지났습니다.
+        작성 기한이 지났습니다.
       </span>
     );
   }
@@ -54,7 +58,7 @@ function DeadlineNote({ target, now }: { target: MyReviewTarget; now: Date }) {
   );
 }
 
-function WritableCard({ target, now }: { target: MyReviewTarget; now: Date }) {
+function WritableCard({ target, now, event }: { target: MyReviewTarget; now: Date; event?: PublicReviewEvent }) {
   return (
     <li className="wc-mypage__card">
       <div className="wc-mypage__card-row">
@@ -65,20 +69,21 @@ function WritableCard({ target, now }: { target: MyReviewTarget; now: Date }) {
           <span className="wc-mypage__card-meta">주문 {orderReferenceLabel(target.orderId)}</span>
           <DeadlineNote now={now} target={target} />
         </div>
-        <Link className="wc-mypage__headbar-link" href={newReviewHref(target.orderId, target.goodId)}>
-          리뷰 쓰기
+        <Link className="wc-mypage__headbar-link" href={newReviewHref(target.orderId, target.goodId, target.kind)}>
+          {REVIEW_KIND_LABELS[target.kind ?? 'ordinary']} 쓰기
         </Link>
       </div>
+      {event ? <ReviewEventBanner event={event} /> : null}
     </li>
   );
 }
 
-function WrittenCard({ target, now }: { target: MyReviewTarget; now: Date }) {
+function WrittenCard({ target, now, entry }: { target: MyReviewTarget; now: Date; entry?: MyReviewEventEntry }) {
   const review = target.review;
   if (!review) return null;
 
-  const daysLeft = reviewDaysRemaining(target.deliveredAt, now);
-  const editable = review.status === 'visible' && daysLeft !== null && daysLeft > 0;
+  const daysLeft = targetReviewDaysRemaining(target, now);
+  const editable = review.status === 'visible' && (target.editable ?? (daysLeft !== null && daysLeft > 0));
 
   return (
     <li className="wc-mypage__card">
@@ -88,6 +93,8 @@ function WrittenCard({ target, now }: { target: MyReviewTarget; now: Date }) {
             {target.goodName}
           </Link>
           <span className="wc-mypage__card-meta">
+            <span>{REVIEW_KIND_LABELS[target.kind ?? 'ordinary']}</span>
+            {target.repeatPurchase ? <span>재구매</span> : null}
             <Stars rating={review.rating} />
             <time dateTime={review.createdAt}>
               {formatReviewDate(review.createdAt)}
@@ -104,6 +111,7 @@ function WrittenCard({ target, now }: { target: MyReviewTarget; now: Date }) {
       </div>
 
       <p className="wc-mypage__card-body">{review.body}</p>
+      {entry ? <div className="wc-my-review-event"><Link href={`/review-events/${entry.eventId}`}>{entry.title}</Link><p>{entry.revokedAt ? `선정 혜택 회수 · ${entry.revokeReason ?? '응모 자격 변경'}` : entry.grantedAt ? `선정 혜택 ${entry.creditAmount.toLocaleString('ko-KR')}원 지급 · 유효기한 ${entry.expiresAt ? new Date(entry.expiresAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }) : '-'}` : entry.state === 'announced' ? '발표 완료 · 선정되지 않았습니다.' : `자동 응모 완료 · 발표 예정 ${entry.announcesOn}`}</p></div> : null}
 
       {review.imageUrls.length > 0 ? (
         <ul className="wc-review-item__photos">
@@ -149,10 +157,14 @@ function WrittenCard({ target, now }: { target: MyReviewTarget; now: Date }) {
 export function MyReviews({
   targets,
   now = new Date(),
+  reviewEvents,
+  eventEntries,
 }: {
   targets: MyReviewTarget[];
   /** 기한 계산 기준 시각. 테스트 주입용. */
   now?: Date;
+  reviewEvents?: GoodsReviewEvents;
+  eventEntries?: { entries: MyReviewEventEntry[]; unavailable?: boolean };
 }) {
   const writable = targets.filter((target) => target.writable);
   const expired = targets.filter((target) => !target.writable && !target.review);
@@ -164,9 +176,11 @@ export function MyReviews({
         <h1 className="wc-mypage__headbar-title">내 리뷰</h1>
       </div>
       <p className="wc-mypage__lede">
-        배송이 완료된 굿즈에 별점과 후기를 남길 수 있습니다. 주문·굿즈당 한 번, 배송완료 후 {REVIEW_WINDOW_DAYS}일까지입니다.
-        리뷰를 남긴다고 적립금이나 혜택이 주어지지는 않습니다.
+        배송이 완료된 굿즈에 별점과 후기를 남길 수 있습니다. 일반 리뷰는 주문·굿즈당 한 번, 배송완료 후 {REVIEW_WINDOW_DAYS}일까지입니다. 한달사용 리뷰는 별도로 안내된 기간에 한 번 작성할 수 있습니다.
+        리뷰 작성만으로 혜택이 지급되지는 않으며, 진행 중인 리뷰이벤트의 선정 혜택은 별도 안내를 확인해주세요.
       </p>
+      {reviewEvents?.nextChangeAt ? <ScheduledHomeRefresh at={reviewEvents.nextChangeAt} /> : null}
+      {reviewEvents?.unavailable || eventEntries?.unavailable ? <p className="wc-mypage__hint" role="status">리뷰이벤트 응모·혜택 상태를 불러오지 못했습니다. 잠시 후 다시 확인해주세요.</p> : null}
 
       <section aria-labelledby="review-writable-heading">
         <div className="wc-mypage__subhead">
@@ -175,7 +189,7 @@ export function MyReviews({
         {writable.length ? (
           <ul className="wc-mypage__cards">
             {writable.map((target) => (
-              <WritableCard key={`${target.orderId}:${target.goodId}`} now={now} target={target} />
+              <WritableCard key={`${target.orderId}:${target.goodId}:${target.kind ?? 'ordinary'}`} now={now} target={target} event={target.kind === 'month' && !target.monthRewardEligible ? undefined : reviewEvents?.rows.find(row => row.goodId === target.goodId)?.event} />
             ))}
           </ul>
         ) : (
@@ -192,7 +206,7 @@ export function MyReviews({
           </div>
           <ul className="wc-mypage__cards">
             {written.map((target) => (
-              <WrittenCard key={`${target.orderId}:${target.goodId}`} now={now} target={target} />
+              <WrittenCard key={`${target.orderId}:${target.goodId}:${target.kind ?? 'ordinary'}`} now={now} target={target} entry={eventEntries?.entries.find(entry => entry.reviewId === target.review?.id)} />
             ))}
           </ul>
         </section>
@@ -201,12 +215,12 @@ export function MyReviews({
       {expired.length ? (
         <section aria-labelledby="review-expired-heading">
           <div className="wc-mypage__subhead">
-            <h2 id="review-expired-heading">기한이 지난 굿즈 {expired.length}건</h2>
+            <h2 id="review-expired-heading">현재 작성할 수 없는 리뷰 {expired.length}건</h2>
           </div>
           <ul className="wc-mypage__rows">
             {expired.map((target) => (
-              <li key={`${target.orderId}:${target.goodId}`}>
-                <Link href={`/shop/${target.goodId}`}>{target.goodName}</Link>
+              <li key={`${target.orderId}:${target.goodId}:${target.kind ?? 'ordinary'}`}>
+                <Link href={`/shop/${target.goodId}`}>{target.goodName} · {REVIEW_KIND_LABELS[target.kind ?? 'ordinary']}</Link>
                 <DeadlineNote now={now} target={target} />
               </li>
             ))}

@@ -6,7 +6,7 @@ import { CUSTOMER_TAB_LABELS } from '@/lib/admin/customer-detail';
 import { CustomerRecordList } from './CustomerRecordList';
 
 const EMPTY: CustomerHistoryState = {};
-export function CustomerHistoryPanel({ userId }: { userId: string }) {
+export function CustomerHistoryPanel({ userId, canReadClaims = true }: { userId: string; canReadClaims?: boolean }) {
   const [state, action, pending] = useActionState(loadCustomerHistoryAction, EMPTY);
   const panelId = useId();
   const history = state.history?.userId === userId ? state.history : null;
@@ -16,7 +16,7 @@ export function CustomerHistoryPanel({ userId }: { userId: string }) {
       <p className="admin-customer__muted">답변 작성 중 고객의 다른 주문과 요청을 함께 확인할 수 있습니다.</p>
       <form action={action} className="admin-customer__history-tabs">
         <input type="hidden" name="userId" value={userId} /><input type="hidden" name="page" value="1" />
-        {(['orders', 'claims'] as const).map((tab) => <button key={tab} type="submit" name="tab" value={tab}
+        {(['orders', ...(canReadClaims ? ['claims'] : [])] as ('orders' | 'claims')[]).map((tab) => <button key={tab} type="submit" name="tab" value={tab}
           className="admin-customer__link-button" aria-pressed={history?.tab === tab} aria-controls={panelId} disabled={pending}>
           {CUSTOMER_TAB_LABELS[tab]}
         </button>)}

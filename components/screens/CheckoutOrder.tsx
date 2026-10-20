@@ -1,5 +1,6 @@
 'use client';
 
+import { GoodsCustomInputsSummary } from '@/components/shop/GoodsCustomInputs';
 import { ShipmentDetails } from '@/components/shop/ShipmentDetails';
 
 import Link from 'next/link';
@@ -21,6 +22,8 @@ import {
 import { paymentFailNoticeCopy } from '@/lib/payments/checkout-fail-copy';
 import type { PreparedCheckout } from '@/lib/payments/gateway';
 import { shippingFeeLabel } from '@/lib/shipping';
+import { GoodsTransactionSummary } from '@/components/checkout/GoodsTransactionSummary';
+import { transactionReceiptNames } from '@/lib/checkout-transaction';
 
 interface CheckoutOrderProps {
   order: CheckoutOrderSnapshot;
@@ -36,6 +39,7 @@ const prepareErrorCopy: Record<NonNullable<PrepareGoodsPaymentActionState['error
   auth_required: '로그인 상태를 다시 확인한 뒤 결제를 준비해주세요.',
   not_found: '이 주문을 확인할 수 없습니다.',
   not_payable: '이 주문은 더 이상 결제할 수 없습니다.',
+  goods_sale_not_open: '굿즈의 판매기간이 시작되지 않았거나 종료되어 결제할 수 없습니다.',
   payment_unavailable: '결제 환경을 준비 중입니다. 잠시 후 다시 시도해주세요.',
 };
 
@@ -236,13 +240,13 @@ export function CheckoutOrder({
           </div>
           <div className="checkout-items">
             {order.items.map((item) => (
-              <div className="checkout-item" key={`${item.goodId}:${item.variantId ?? "default"}`}>
-                <div><span>{item.type}</span><strong>{item.name}</strong>{item.variantName ? <span>{item.variantName}</span> : null}</div>
+              <div className="checkout-item" key={item.id}>
+                <div><span>{item.type}</span><strong>{item.name}</strong>{item.variantName ? <span>{item.variantName}</span> : null}<GoodsCustomInputsSummary selection={item.customInputs} /></div>
                 <span className="mono">{item.qty} × {krw(item.unitPrice)}</span>
               </div>
             ))}
           </div>
-          <dl className="checkout-totals">
+          {order.transaction ? <GoodsTransactionSummary display={order.transaction} names={transactionReceiptNames(order.transaction, order.items)} /> : <dl className="checkout-totals">
             {/* total 은 할인·배송비가 이미 반영된 청구액이다 — 굿즈 금액은 둘을 되돌려 복원한다. */}
             <div><dt>굿즈 금액</dt><dd>{krw(order.total - order.shippingFee + order.discountTotal + order.storeCreditTotal)}</dd></div>
             {order.discountTotal > 0 && (
@@ -251,8 +255,8 @@ export function CheckoutOrder({
             {order.storeCreditTotal > 0 && <div><dt>적립금 사용</dt><dd>−{krw(order.storeCreditTotal)}</dd></div>}
             <div><dt>배송비</dt><dd>{shippingFeeLabel(order.shippingFee)}</dd></div>
             <div className="checkout-total"><dt>결제 금액</dt><dd>{krw(order.total)}</dd></div>
-          </dl>
-          <ShipmentDetails shipments={order.shipments} items={order.items} />
+          </dl>}
+          <ShipmentDetails shipments={order.shipments} items={order.items} transactionShipping={order.transaction?.shipping} />
           {order.address && (
             <div className="checkout-address-preview">
               <span>배송지</span>
@@ -261,6 +265,7 @@ export function CheckoutOrder({
               {order.address.deliveryNote && <small>{order.address.deliveryNote}</small>}
             </div>
           )}
+          {order.giftId && !order.address && <p>선물 받는 분이 입력한 주소로 배송됩니다. 주소와 연락처는 받는 분만 확인할 수 있어요.</p>}
         </aside>
       </div>
     </main>

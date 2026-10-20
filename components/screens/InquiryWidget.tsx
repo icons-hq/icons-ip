@@ -1,6 +1,7 @@
 'use client';
 
 import { InquiryMessageBody } from './InquiryMessageBody';
+import { InquiryMessageFiles } from './InquiryMessageFiles';
 import { inquiryMessageAuthorLabel } from '@/lib/inquiries';
 
 import Link from 'next/link';
@@ -94,14 +95,14 @@ export function WidgetInquiryConversation({ inquiry, onSaved }: { inquiry: Inqui
         <span>{inquiryMessageAuthorLabel(message.author,message.authorName)} · {formatInquiryDateTime(message.createdAt)}</span>
         <p><InquiryMessageBody body={message.body} automatic={message.author==='system'}/></p>{message.imageUrls.map((url, index) =>
           // eslint-disable-next-line @next/next/no-img-element
-          <img key={url} src={url} alt={`첨부 이미지 ${index + 1}`} />)}
+          <img key={url} src={url} alt={`첨부 이미지 ${index + 1}`} />)}<InquiryMessageFiles files={message.files} messageId={message.id} />
       </li>)}
     </ol>
     {inquiry.status === 'closed' ? <p role="status">종결된 문의입니다. 더 궁금한 점은 새 문의로 남겨주세요.</p> :
       <form action={action} className="wc-inquiry-widget__form" key={state.resultKey ?? inquiry.id}>
         <input type="hidden" name="inquiryId" value={inquiry.id} />
         <fieldset disabled={pending}><label className="wc-inquiry-widget__field">추가 문의
-          <textarea name="body" value={body} onChange={(event) => setBody(event.target.value)} required maxLength={MAX_INQUIRY_BODY_LENGTH} rows={3} />
+          <textarea name="body" value={body} onChange={(event) => setBody(event.target.value)} maxLength={MAX_INQUIRY_BODY_LENGTH} rows={3} />
         </label><WidgetImages /></fieldset>
         <WidgetFeedback state={state} /><WcButton type="submit" variant="primary" disabled={pending}>{pending ? '보내는 중' : '추가 문의 보내기'}</WcButton>
       </form>}
@@ -137,7 +138,7 @@ export function InquiryWidgetPanel({ userId, onClose, clientFactory = createClie
     void reload();
     const refresh = () => { if (!timer) timer = setTimeout(() => { timer = undefined; void reload(); }, 100); };
     const stop = observeInquiryChanges(clientFactory(), { inquiryId: view === 'thread' ? inquiryId : undefined,
-      onChange: refresh, onReady: () => { setDisconnected(false); refresh(); }, onDisconnected: () => setDisconnected(true) });
+      onChange: refresh, onReady: () => { setDisconnected(false); refresh(); }, onDisconnected: () => setDisconnected(true), onResync: refresh });
     return () => { active = false; controller?.abort(); clearTimeout(timer); stop(); };
   }, [clientFactory, inquiryId, requestKey, revision, userId, view]);
   const current = result?.key === requestKey ? result : undefined;

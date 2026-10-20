@@ -313,7 +313,7 @@ begin
       now(), null, true
     );
   exception when insufficient_privilege then
-    if sqlerrm = 'forbidden' then return; end if;
+    if sqlerrm in ('forbidden','operator_capability_required') then return; end if;
     raise;
   end;
   raise exception 'non-staff curation upsert should be blocked';
@@ -549,12 +549,16 @@ then 1 else 0 end as assert_direct_ip_archive_curation_guard;
 
 select pg_catalog.pg_get_functiondef(
   'public.admin_upsert_home_curation(uuid,uuid,text,text,text,text,text,integer,timestamptz,timestamptz,boolean,text,jsonb)'::regprocedure
-) as curation_rpc_definition \gset
+) as curation_rpc_definition,
+pg_catalog.pg_get_functiondef(
+  'private.save_home_curation(uuid,uuid,text,text,text,text,text,integer,timestamptz,timestamptz,boolean,text,jsonb,timestamptz,boolean)'::regprocedure
+) as curation_write_definition \gset
 
 select 1 / case when
-  strpos(:'curation_rpc_definition', 'pg_advisory_xact_lock') > 0
-  and strpos(:'curation_rpc_definition', 'for update of ip') > 0
-  and strpos(:'curation_rpc_definition', 'ip.archived_at') > 0
+  strpos(:'curation_rpc_definition', 'private.save_home_curation(') > 0
+  and strpos(:'curation_write_definition', 'pg_advisory_xact_lock') > 0
+  and strpos(:'curation_write_definition', 'for update of ip') > 0
+  and strpos(:'curation_write_definition', 'ip.archived_at') > 0
 then 1 else 0 end as assert_curation_upsert_serializes_operation_entity_and_ip;
 
 -- ---------------------------------------------------------------------------

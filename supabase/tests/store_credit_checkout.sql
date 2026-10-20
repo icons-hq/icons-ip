@@ -28,7 +28,7 @@ values('CREDITSTEST2K','적립금 병용 검증','fixed',2000,0,now()-interval '
 
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000004892',true);
 set local role authenticated;
-insert into public.cart_items(user_id,good_id,variant_id,qty) select '00000000-0000-4000-8000-000000004892','credits-check-good',id,1 from public.goods_variants where good_id='credits-check-good' and is_default;
+select public.set_cart_item_quantity(good_id,id,1) from public.goods_variants where good_id='credits-check-good' and is_default;
 select public.apply_cart_coupon_code('CREDITSTEST2K');
 select 1/case when (public.get_my_store_credit_checkout(4000)->>'maxUse')::bigint=8000
   and (public.get_my_store_credit_checkout(4000)->>'valid')::boolean
@@ -73,7 +73,7 @@ select 1/case when (public.get_my_store_credit_history()->>'available')::bigint=
   then 1 else 0 end as full_refund_restores_once;
 
 -- Unpaid cancel and expiry-after-reserve preserve the captured grace days.
-insert into public.cart_items(user_id,good_id,variant_id,qty) select '00000000-0000-4000-8000-000000004892','credits-check-good',id,1 from public.goods_variants where good_id='credits-check-good' and is_default;
+select public.set_cart_item_quantity(good_id,id,1) from public.goods_variants where good_id='credits-check-good' and is_default;
 reset role;
 set local role service_role;
 select public.place_order_with_store_credits('00000000-0000-4000-8000-000000004892','{"recipientName":"검증","phone":"01012345678","postalCode":"12345","address1":"서울시 합성주소"}','30000000-0000-4000-8000-000000004892','card',9000) as expiring_order_id \gset
@@ -93,7 +93,7 @@ select 1/case when (select coalesce(sum(available_amount),0) from private.store_
 -- then exercises the pre-existing 1,000 KRW minimum amount without altering it.
 update public.fulfillment_origins set base_fee=0 where id='00000000-0000-4000-8000-000000004890';
 set local role authenticated;
-insert into public.cart_items(user_id,good_id,variant_id,qty) select '00000000-0000-4000-8000-000000004892','credits-check-good',id,1 from public.goods_variants where good_id='credits-check-good' and is_default;
+select public.set_cart_item_quantity(good_id,id,1) from public.goods_variants where good_id='credits-check-good' and is_default;
 reset role;
 set local role service_role;
 do $$ begin
@@ -114,6 +114,10 @@ set local role authenticated;
 select public.admin_confirm_bank_transfer_deposit(:'bank_order_id','합성 입금 근거');
 reset role;
 -- Fixture represents completed delivery; the public settlement RPC owns 'done'.
+-- Automatic confirmation is opt-in. This rollback-only fixture explicitly
+-- configures the test deadline before delivery captures the policy.
+update private.purchase_confirmation_policy set auto_enabled=true,auto_after_days=7,
+ evidence='TEST ONLY: store-credit settlement regression' where singleton;
 update public.order_shipments set status='delivered',carrier='hanjin',tracking_number='SCTEST1234',shipped_at=now()-interval '10 days',delivered_at=now()-interval '9 days' where order_id=:'bank_order_id';
 update public.orders set status='delivered',delivered_at=now()-interval '9 days' where id=:'bank_order_id';
 set local role service_role;
@@ -133,7 +137,7 @@ set local role authenticated;
 select public.admin_save_store_credit_policy('10000000-0000-4000-8000-000000004892',(public.admin_get_store_credit_policy()->>'version')::integer,
  '{"enabled":true,"earnKind":"rate_bps","earnValue":1000,"earnMaxPerOrder":5000,"maxBalance":100000,"validityDays":30,"minUse":100,"maxUse":30000,"restoreGraceDays":0,"refundEarnedCreditMode":"offset_future_credits","evidence":"synthetic zero grace test policy"}');
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000004892',true);
-insert into public.cart_items(user_id,good_id,variant_id,qty) select '00000000-0000-4000-8000-000000004892','credits-check-good',id,1 from public.goods_variants where good_id='credits-check-good' and is_default;
+select public.set_cart_item_quantity(good_id,id,1) from public.goods_variants where good_id='credits-check-good' and is_default;
 reset role;
 set local role service_role;
 select public.place_order_with_store_credits('00000000-0000-4000-8000-000000004892','{"recipientName":"검증","phone":"01012345678","postalCode":"12345","address1":"서울시 합성주소"}','30000000-0000-4000-8000-000000004895','card',100) as zero_grace_order_id \gset

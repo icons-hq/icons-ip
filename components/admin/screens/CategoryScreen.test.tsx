@@ -1,5 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
+vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 import { CategoryScreen } from './CategoryScreen';
 
 const categories = [{
@@ -29,4 +30,10 @@ describe('CategoryScreen', () => {
     expect(html).toContain('생활 상품 목록');
     expect(html).toContain('문구 상품 목록');
   });
+});
+
+it('basic category managers keep CRUD and assignment without platform configuration', () => {
+  const html = renderToStaticMarkup(<CategoryScreen data={{ categories, mappings: [], migrations: [], activation: { customerEnabled: false, erpEnabled: false, customerEvidence: null, erpEvidence: null, updatedAt: null } }} canManagePlatform={false} />);
+  expect(html).toContain('카테고리 추가'); expect(html).toContain('대표 분류 저장'); expect(html).toContain('분류 CSV');
+  for (const text of ['ERP 매핑 저장', '활성화 상태 저장', '이관 메모 저장', '기존 8종 이관 메모', '분류·ERP CSV']) expect(html).not.toContain(text);
 });

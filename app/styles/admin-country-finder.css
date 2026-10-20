@@ -1,0 +1,45 @@
+/* Country-name input assistance in the goods editor and workbook import screen. */
+.wc-admin.admin-country-finder-shell .admin-cs-dialog { width: min(700px, calc(100vw - 48px)); }
+.wc-admin .admin-country-finder { display: grid; gap: 14px; min-width: 0; font-size: 13px; line-height: 1.6; }
+.wc-admin .admin-country-finder p { margin: 0; }
+.wc-admin .admin-country-finder__query,
+.wc-admin .admin-country-finder__domestic label,
+.wc-admin .admin-country-finder__selection label { display: grid; gap: 6px; min-width: 0; }
+.wc-admin .admin-country-finder input:not([type="radio"]),
+.wc-admin .admin-country-finder select { width: 100%; min-width: 0; min-height: 40px; padding: 8px 10px; border: 1px solid var(--wc-line-control); color: var(--wc-ink); background: var(--wc-surface); font: inherit; }
+.wc-admin .admin-country-finder__scope { display: flex; flex-wrap: wrap; gap: 12px 24px; margin: 0; padding: 0; border: 0; }
+.wc-admin .admin-country-finder__scope label { display: inline-flex; gap: 8px; min-height: 36px; align-items: center; cursor: pointer; }
+.wc-admin .admin-country-finder__scope input { width: 18px; height: 18px; margin: 0; accent-color: var(--wc-accent); }
+.wc-admin .admin-country-finder__domestic { display: grid; gap: 14px; min-width: 0; }
+.wc-admin .admin-country-finder__choices { min-width: 0; max-height: 310px; overflow-y: auto; margin: 0; padding: 0; border: 1px solid var(--wc-line-control); }
+.wc-admin .admin-country-finder__choices > p { padding: 16px; }
+.wc-admin .admin-country-finder__choice { display: flex; gap: 12px; min-width: 0; min-height: 55px; padding: 10px 12px; align-items: center; border-bottom: 1px solid var(--wc-hairline); cursor: pointer; }
+.wc-admin .admin-country-finder__choice:last-child { border-bottom: 0; }
+.wc-admin .admin-country-finder__choice[data-selected] { background: var(--wc-accent-tint); }
+.wc-admin .admin-country-finder__choice input { width: 18px; height: 18px; margin: 0; flex-shrink: 0; accent-color: var(--wc-accent); }
+.wc-admin .admin-country-finder__choice > span:first-of-type { display: grid; min-width: 0; flex: 1; overflow-wrap: anywhere; }
+.wc-admin .admin-country-finder__choice strong { color: var(--wc-ink); font-weight: 500; }
+.wc-admin .admin-country-finder__choice small,
+.wc-admin .admin-country-finder__code { color: var(--wc-ink-tertiary); font-size: 12px; }
+.wc-admin .admin-country-finder__code { flex-shrink: 0; white-space: nowrap; }
+.wc-admin .admin-country-finder__actions { display: flex; gap: 10px; flex-wrap: wrap; align-items: center; }
+.wc-admin .admin-country-finder__selection { display: grid; gap: 12px; min-width: 0; padding: 16px; border: 1px solid var(--wc-line-control); background: var(--wc-surface-grey); overflow-wrap: anywhere; }
+.wc-admin .admin-country-finder__source { display: flex; gap: 12px; flex-wrap: wrap; color: var(--wc-ink-tertiary); font-size: 11px; }
+.wc-admin .admin-country-finder__source a { color: inherit; text-decoration: underline; text-underline-offset: 3px; }
+.wc-admin .admin-country-finder [role="alert"] { color: var(--wc-danger); }
+.wc-admin .admin-country-origin-field { display: grid; gap: 8px; min-width: 0; align-content: start; }
+.wc-admin .admin-country-origin-field > button { justify-self: start; }
+.wc-admin .admin-country-origin-field > p { margin: 0; color: var(--wc-ink-sub); font-size: 12px; }
+@media (max-width: 720px) {
+  .wc-admin.admin-country-finder-shell .admin-cs-dialog { width: calc(100vw - 20px); }
+  .wc-admin .admin-country-finder input:not([type="radio"]),
+  .wc-admin .admin-country-finder select,
+  .wc-admin .admin-country-finder__scope label,
+  .wc-admin .admin-country-finder .wc-admin-kit__button,
+  .wc-admin .admin-country-origin-field > button { min-height: 44px; }
+  .wc-admin .admin-country-finder__choices { max-height: 250px; }
+  .wc-admin .admin-country-finder__choice { gap: 8px; padding: 10px 8px; }
+}
+@media (forced-colors: active) {
+  .wc-admin .admin-country-finder__choice[data-selected] { outline: 2px solid Highlight; outline-offset: -2px; }
+}

@@ -1,21 +1,35 @@
+import { configuredOperatorAccessFixture, legacyOperatorAccessFixture } from '@/lib/admin/access.test-fixtures';
 import { beforeEach, expect, it, vi } from 'vitest';
 import Page from './page';
-const mocks = vi.hoisted(() => ({ guard:vi.fn(),origins:vi.fn(),settings:vi.fn() }));
-vi.mock('@/lib/admin/guard.server',()=>({requireAdminScreenAccess:mocks.guard}));
-vi.mock('@/lib/admin/fulfillment-origins.server',()=>({loadAdminFulfillmentOrigins:mocks.origins}));
-vi.mock('@/lib/admin/store-settings.server',()=>({loadAdminStoreSettings:mocks.settings}));
-vi.mock('@/components/admin/screens/FulfillmentOriginsScreen',()=>({FulfillmentOriginsScreen:()=>null}));
-beforeEach(()=>{vi.resetAllMocks();mocks.guard.mockResolvedValue({role:'staff'});mocks.origins.mockResolvedValue([]);mocks.settings.mockResolvedValue({carriers:[],history:[]});});
-it('checks route access before any settings read',async()=>{
+const mocks = vi.hoisted(() => ({ guard: vi.fn(), origins: vi.fn(), options: vi.fn(), carriers: vi.fn(), history: vi.fn() }));
+vi.mock('@/lib/admin/guard.server', () => ({ requireAdminScreenAccess: mocks.guard }));
+vi.mock('@/lib/admin/fulfillment-origins.server', () => ({ loadAdminFulfillmentOrigins: mocks.origins, loadGoodsFulfillmentOptions: mocks.options }));
+vi.mock('@/lib/admin/store-settings.server', () => ({ loadAdminShippingCarriers: mocks.carriers, loadAdminStoreSettingsHistory: mocks.history }));
+vi.mock('@/components/admin/screens/FulfillmentOriginsScreen', () => ({ FulfillmentOriginsScreen: () => null, GoodsOriginSummaryScreen: () => null }));
+vi.mock('@/components/admin/screens/ShippingChargeGroupsPanel', () => ({ ShippingChargeGroupsPanel: () => null }));
+beforeEach(() => {
+  vi.resetAllMocks(); mocks.guard.mockResolvedValue({ role: 'staff', user: { id: '91000000-0000-4000-8000-000000000001' }, operatorAccess: legacyOperatorAccessFixture('staff') });
+  mocks.origins.mockResolvedValue([]); mocks.options.mockResolvedValue([]); mocks.carriers.mockResolvedValue([]); mocks.history.mockResolvedValue([]);
+});
+it('checks route access before any settings read', async () => {
   mocks.guard.mockRejectedValue(new Error('denied'));
   await expect(Page()).rejects.toThrow('denied');
-  expect(mocks.origins).not.toHaveBeenCalled();
-  expect(mocks.settings).not.toHaveBeenCalled();
+  expect(mocks.origins).not.toHaveBeenCalled(); expect(mocks.history).not.toHaveBeenCalled(); expect(mocks.options).not.toHaveBeenCalled();
 });
-it('keeps staff read-only and forwards only origin history',async()=>{
-  mocks.settings.mockResolvedValue({carriers:[],history:[{action:'admin.fulfillment_origin.saved',id:'origin'},{action:'admin.store_settings.saved',id:'store'}]});
-  const result=await Page();
+it('keeps legacy staff read-only and forwards only origin history', async () => {
+  mocks.history.mockResolvedValue([{ action: 'admin.fulfillment_origin.saved', id: 'origin' }, { action: 'admin.store_settings.saved', id: 'store' }]);
+  const result = await Page();
+  const [groups, origins] = result.props.children;
   expect(mocks.guard).toHaveBeenCalledWith('/admin/settings/origins');
-  expect(result.props.canEdit).toBe(false);
-  expect(result.props.history).toEqual([{action:'admin.fulfillment_origin.saved',id:'origin'}]);
+  expect(origins.props.canEdit).toBe(false);
+  expect(origins.props.accountId).toBe('91000000-0000-4000-8000-000000000001');
+  expect(origins.props.history).toEqual([{ action: 'admin.fulfillment_origin.saved', id: 'origin' }]);
+  expect(groups.props.canEdit).toBe(true); expect(groups.props.canManageRegional).toBe(false);
+});
+it('configured deputy loads shipping options without warehouse settings or audit records', async () => {
+  mocks.guard.mockResolvedValue({ role: 'staff', user: { id: '91000000-0000-4000-8000-000000000002' }, operatorAccess: configuredOperatorAccessFixture('deputy') });
+  const result = await Page();
+  expect(mocks.options).toHaveBeenCalledOnce(); expect(mocks.origins).not.toHaveBeenCalled();
+  expect(mocks.carriers).toHaveBeenCalledOnce(); expect(mocks.history).not.toHaveBeenCalled();
+  expect(result.props.children[0].props.canManageRegional).toBe(false);
 });

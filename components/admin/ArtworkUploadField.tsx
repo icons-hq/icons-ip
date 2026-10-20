@@ -102,6 +102,7 @@ export function ArtworkUploadField({
   helpText,
   kind,
   label = '아트워크 파일',
+  maxFileSizeBytes,
   name = 'imagePath',
   onPreviewChange,
   onPathChange,
@@ -119,6 +120,7 @@ export function ArtworkUploadField({
   helpText?: string;
   kind: AdminArtworkKind;
   label?: string;
+  maxFileSizeBytes?: number;
   name?: string;
   onPreviewChange?: (url: string | null) => void;
   onPathChange?: (path: string) => void;
@@ -209,6 +211,16 @@ export function ArtworkUploadField({
       return;
     }
 
+    if (maxFileSizeBytes && selected.size > maxFileSizeBytes) {
+      setError(`이미지는 최대 ${Math.floor(maxFileSizeBytes / 1024)}KB까지 등록할 수 있습니다.`);
+      setFile(null);
+      event.currentTarget.setCustomValidity('');
+      restoreCommittedPreview();
+      onPathChange?.(display.imagePath);
+      event.currentTarget.value = '';
+      return;
+    }
+
     const metadata = normalizeAdminArtworkMetadata({
       kind,
       mimeType: selected.type,
@@ -263,7 +275,7 @@ export function ArtworkUploadField({
     ));
     setFile(null);
     setHasUnsavedUpload(true);
-    setStatus('업로드 완료 · 상품 저장 전');
+    setStatus('업로드 완료 · 저장 전');
     clearFileInput();
     onPathChange?.(result.imagePath);
   }

@@ -1,3 +1,4 @@
+const { legacyOperatorAccessFixture } = await vi.hoisted(() => import('@/lib/admin/access.test-fixtures'));
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import AdminCsQnaPage from './page';
 
@@ -6,12 +7,12 @@ const mocks = vi.hoisted(() => ({
     isConfigured: true,
     user: { id: '11111111-1111-4111-8111-111111111111', email: 'staff@icons.gg' },
     role: 'staff',
-    isStaff: true,
+    isStaff: true, operatorAccess: legacyOperatorAccessFixture(),
   } as {
     isConfigured: boolean;
     user: { id: string; email: string | null } | null;
     role: 'user' | 'staff' | 'admin' | null;
-    isStaff: boolean;
+    isStaff: boolean; operatorAccess?: ReturnType<typeof legacyOperatorAccessFixture>;
   },
   screen: vi.fn(() => null),
   questions: vi.fn(async () => ({ rows: [] })),
@@ -43,7 +44,7 @@ describe('AdminCsQnaPage', () => {
       isConfigured: true,
       user: { id: '11111111-1111-4111-8111-111111111111', email: 'staff@icons.gg' },
       role: 'staff',
-      isStaff: true,
+      isStaff: true, operatorAccess: legacyOperatorAccessFixture(),
     };
     mocks.screen.mockClear();
     mocks.questions.mockClear();
@@ -79,13 +80,13 @@ describe('AdminCsQnaPage', () => {
       searchParams: Promise.resolve({ page: '2', status: 'unanswered' }),
     });
 
-    expect(mocks.questions).toHaveBeenCalledWith({ page: 2, status: 'unanswered' });
+    expect(mocks.questions).toHaveBeenCalledWith({ page: 2, status: 'unanswered', field:'body',from:null,to:null,query:'',sort:'recent',pageSize:20 });
   });
 
   it('모르는 상태는 전체로 접어 넘긴다', async () => {
     await AdminCsQnaPage({ searchParams: Promise.resolve({ status: 'deleted' }) });
 
-    expect(mocks.questions).toHaveBeenCalledWith({ page: 1, status: 'all' });
+    expect(mocks.questions).toHaveBeenCalledWith({ page: 1, status: 'all', field:'body',from:null,to:null,query:'',sort:'recent',pageSize:20 });
   });
 
   it('다른 화면의 로더는 부르지 않는다', async () => {

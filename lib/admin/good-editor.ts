@@ -1,3 +1,5 @@
+import { GOODS_SALE_PERIOD_FIELDS, goodsSalePeriodPreview } from './goods-sale-period';
+import { toKstDateTimeInput } from './goods-price-periods';
 import type { AdminGoodRecord } from './catalog.server';
 import type { AdminFormValuesState } from './form-state';
 import { preservedFormValues } from './form-state';
@@ -13,15 +15,22 @@ import { GOODS_PRICE_DRAFT_FIELDS } from './goods-price-editor';
 import { publicMediaUrl } from '@/lib/media';
 import { buildGoodPreview } from './good-preview';
 import type { Ip } from '@/lib/data';
-import type { FulfillmentOrigin } from './fulfillment-origins';
+import type { GoodsFulfillmentOrigin } from './fulfillment-origins';
 import type { GoodShippingPolicy, ShippingNoticeSnapshot } from '@/lib/fulfillment';
 import { readGoodsClaimPolicy } from './goods-claim-policy';
+import { readAdminGoodsCustomInputs } from './goods-custom-inputs';
+import { EMPTY_GOODS_CUSTOM_INPUTS, parseGoodsCustomInputConfig } from '@/lib/goods-custom-inputs';
 export type GoodNoticeDefaults = { asManager: string; asContact: string };
-export const GOOD_LOCAL_DRAFT_FIELDS = ['id', 'ipId', 'name', 'nameEn', 'searchKeywords', 'displayOrder', 'categoryId', 'additionalCategoryIds', 'shippingNoticeTemplate', 'type', 'code', 'defaultVariantCode', 'price', 'compareAtPrice', 'showDiscountRate', 'badge', 'stock', 'description', 'descriptionFormat', 'descriptionUploadPath', 'descriptionImageAlt', 'imagePath', 'detailImagePath', 'originId', 'shippingFeeType', 'individualFee', 'variants', 'variantBaseline', 'optionUsage', 'optionAxisName0', 'optionAxisValues0', 'optionAxisName1', 'optionAxisValues1', ...GOODS_PRICE_DRAFT_FIELDS, ...GOODS_SALE_POLICY_FIELDS, ...GOODS_CLAIM_POLICY_FIELDS,
+export const GOOD_LOCAL_DRAFT_FIELDS = ['serverDraftId', 'serverDraftRevision', 'id', 'ipId', 'name', 'nameEn', 'searchKeywords', 'displayOrder', 'categoryId', 'additionalCategoryIds', 'shippingNoticeTemplate', 'type', 'code', 'defaultVariantCode', 'price', 'compareAtPrice', 'showDiscountRate', 'badge', 'stock', 'description', 'descriptionFormat', 'descriptionUploadPath', 'descriptionImageAlt', 'imagePath', 'detailImagePath', 'originId', 'shippingFeeType', 'individualFee', 'variants', 'variantBaseline', 'customInputs', 'customInputsExpectedRevision', 'productAttributes', 'productAttributeDraft', 'optionUsage', 'optionAxisName0', 'optionAxisValues0', 'optionAxisName1', 'optionAxisValues1', 'optionAxisName2', 'optionAxisValues2', ...GOODS_SALE_PERIOD_FIELDS, ...GOODS_PRICE_DRAFT_FIELDS, ...GOODS_SALE_POLICY_FIELDS, ...GOODS_CLAIM_POLICY_FIELDS,
   ...GOODS_NOTICE_FIELDS.map((field) => field.formName), ...Array.from({ length: GOODS_GALLERY_MAX }, (_, i) => `galleryPath${i}`)];
 /** Failure/recovery owns even empty values; business defaults apply only to untouched new goods. */
 export function goodEditorValues(selected: AdminGoodRecord | null, state: AdminFormValuesState, initialIpId = '', noticeDefaults?: GoodNoticeDefaults): Record<string, string> {
   const values: Record<string, string> = {
+    productAttributes: '', productAttributeDraft: '',
+    salePeriodEnabled: String(Boolean(selected?.saleStartsAt)), saleStartsAt: toKstDateTimeInput(selected?.saleStartsAt ?? null),
+    saleEndsAt: toKstDateTimeInput(selected?.saleEndsAt ?? null), salePeriodRevision: String(selected?.salePeriodRevision ?? 0),
+    customInputs:JSON.stringify({enabled:selected?.customInputs?.enabled ?? false,fields:selected?.customInputs?.fields ?? []}),
+    customInputsExpectedRevision:String(selected?.customInputs?.revision ?? 0),
     id: selected?.id ?? '', code: selected?.code ?? '', ipId: selected?.ipId ?? initialIpId,
     name: selected?.name ?? '', nameEn: selected?.nameEn ?? '', searchKeywords: selected?.searchKeywords?.join('\n') ?? '', displayOrder: selected?.displayOrder == null ? '' : String(selected.displayOrder), type: selected?.type ?? '', price: String(selected?.price ?? 0),
     compareAtPrice: selected?.compareAtPrice == null ? '' : String(selected.compareAtPrice),
@@ -80,13 +89,13 @@ export function createGoodEditorDraft(selected: AdminGoodRecord | null, state: A
 
 export function goodEditorFingerprint(data: FormData): string {
   return JSON.stringify([...data.entries()].filter(([name, value]) =>
-    typeof value === 'string' && GOOD_LOCAL_DRAFT_FIELDS.includes(name)).sort(([a], [b]) => a.localeCompare(b)));
+    typeof value === 'string' && GOOD_LOCAL_DRAFT_FIELDS.includes(name) && !['serverDraftId', 'serverDraftRevision'].includes(name)).sort(([a], [b]) => a.localeCompare(b)));
 }
 
 /** All public projections use the same unsaved values, including delivery and comparison price. */
 export function buildGoodEditorPreview({ values, imageUrls, selected, catalogIps, origins, shippingNoticeOptions }: {
   values: Record<string, string>; imageUrls: Record<string, string | null>; selected: AdminGoodRecord | null;
-  catalogIps: Ip[]; origins: FulfillmentOrigin[]; shippingNoticeOptions: Omit<ShippingNoticeSnapshot, 'templateId'>[];
+  catalogIps: Ip[]; origins: GoodsFulfillmentOrigin[]; shippingNoticeOptions: Omit<ShippingNoticeSnapshot, 'templateId'>[];
 }) {
   const origin = origins.find(origin => origin.id === values.originId);
   const savedNotice = selected?.shippingNoticeSnapshot;
@@ -107,7 +116,13 @@ export function buildGoodEditorPreview({ values, imageUrls, selected, catalogIps
   const basePrice = preview.good.catalogPrice ?? preview.good.price;
   const compare = Number(values.compareAtPrice);
   const compareAtPrice = Number.isInteger(compare) && compare > basePrice ? compare : null;
+  const customInputDraft = readAdminGoodsCustomInputs(form);
+  const customInputs = customInputDraft.ok ? parseGoodsCustomInputConfig({
+    ...(customInputDraft.fields.custom_inputs as object | undefined),
+    revision: Math.max(1, Number(values.customInputsExpectedRevision) || 0),
+  }) : null;
   const detail = { ...preview, good: { ...preview.good, showDiscountRate: values.showDiscountRate !== 'false',
+    customInputs: customInputs ?? EMPTY_GOODS_CUSTOM_INPUTS, salePeriod: goodsSalePeriodPreview(values),
     catalogCompareAtPrice: compareAtPrice, compareAtPrice: goodCompareAtPrice({ price: basePrice, compareAtPrice }, preview.good.options) } };
   return { origin, ip, detail, shippingPolicy };
 }

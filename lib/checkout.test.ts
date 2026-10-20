@@ -91,8 +91,10 @@ describe('checkout copy and safe errors', () => {
   it('maps database failures to a small client-safe vocabulary', () => {
     expect(mapPlaceOrderError('cart empty')).toBe('empty_cart');
     expect(mapPlaceOrderError('out of stock: secret-good-id')).toBe('out_of_stock');
+    expect(mapPlaceOrderError('goods_sale_not_open')).toBe('goods_sale_not_open');
     expect(mapPlaceOrderError('invalid checkout address')).toBe('invalid_address');
     expect(mapPlaceOrderError('account_suspended')).toBe('account_suspended');
+    expect(mapPlaceOrderError('goods_purchase_restricted')).toBe('goods_purchase_restricted');
     expect(mapPlaceOrderError('coupon_min_subtotal')).toBe('coupon_rejected');
     expect(mapPlaceOrderError('coupon_expired')).toBe('coupon_rejected');
     expect(mapPlaceOrderError('sensitive database failure')).toBe('unavailable');

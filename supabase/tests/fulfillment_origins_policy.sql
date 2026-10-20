@@ -32,7 +32,7 @@ do $$ begin
       'cutoff',origin.cutoff,'export_template',origin.export_template,'is_active',origin.is_active),old_stamp.updated_at)
     from public.fulfillment_origins origin cross join old_origin_stamp old_stamp where origin.code='namyangju';
     raise exception 'stale settings accepted';
-  exception when serialization_failure then null; end;
+  exception when sqlstate 'PT409' then null; end;
 end $$;
 select set_config('request.jwt.claim.sub','',true);
 insert into public.verticals(key,label,color) values ('shipping-origins','출고지 검증','#000000');

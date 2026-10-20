@@ -1,4 +1,10 @@
 import 'server-only';
+import { parseOrderReshipmentHistory } from './orders/reshipment-items';
+import { readCompleteIdPages } from '@/lib/supabase/complete-id-pages';
+import { readGoodsCustomInputSnapshot } from '@/lib/goods-custom-inputs';
+import { loadGiftCheckoutOrder } from './gifts-order.server';
+import { loadGiftOrderDetail, loadGiftOrderList } from './gifts-order-detail.server';
+import { parseCheckoutTransactionReceipt } from './checkout-transaction';
 
 import { normalizeCheckoutPaymentMethod } from './checkout';
 
@@ -28,6 +34,9 @@ interface OrderListRow {
 }
 
 interface OrderDetailRow extends OrderListRow {
+  calculation_version?: number;
+  volume_discount_total?: number;
+  shipping_collect_total?: number;
   shipping_fee: number | null;
   discount_total: number | null;
   store_credit_total: number | null;
@@ -53,6 +62,7 @@ interface OrderDetailItemRow extends OrderListItemRow {
   good_type_snapshot: string;
   variant_id: string;
   variant_name_snapshot?: string | null;
+  custom_inputs_snapshot?: unknown;
   variant_code_snapshot?: string | null;
   supply_source?: 'stock' | 'preorder';
   preorder_expected_ship_date?: string | null;
@@ -98,7 +108,7 @@ function requireDetailStatus(status: string) {
 
 export async function loadOrders(userId: string, {includePending=false}:{includePending?:boolean}={}): Promise<OrderListItem[]> {
   const supabase = await createClient();
-  const [orderResult, requestResult] = await Promise.all([
+  const [orderResult, requestResult, giftOrders] = await Promise.all([
     supabase
       .from('orders')
       .select('id,user_id,status,total,created_at,payment_method')
@@ -109,6 +119,7 @@ export async function loadOrders(userId: string, {includePending=false}:{include
     supabase
       .from('order_cancellation_requests')
       .select('order_id'),
+    loadGiftOrderList(includePending),
   ]);
 
   if (orderResult.error) {
@@ -140,14 +151,15 @@ export async function loadOrders(userId: string, {includePending=false}:{include
     right.created_at.localeCompare(left.created_at) || right.id.localeCompare(left.id)
   ));
 
-  if (orderRows.length === 0) return [];
+  if (orderRows.length === 0) return giftOrders.sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id));
 
   const orderIds = orderRows.map((order) => order.id);
-  const { data: itemData, error: itemError } = await supabase
-    .from('order_items')
-    .select('order_id,qty,good_name_snapshot')
-    .in('order_id', orderIds)
-    .order('id', { ascending: true });
+  const { data: itemData, error: itemError } = await readCompleteIdPages<OrderListItemRow&{id:string}>((afterId,pageSize)=>{
+    let query=supabase.from('order_items').select('id,order_id,qty,good_name_snapshot',{count:'exact'})
+      .in('order_id',orderIds).order('id',{ascending:true}).limit(pageSize);
+    if(afterId)query=query.gt('id',afterId);
+    return query;
+  });
 
   if (itemError) {
     throw new Error(`Failed to load order items: ${itemError.message}`);
@@ -160,7 +172,7 @@ export async function loadOrders(userId: string, {includePending=false}:{include
     itemsByOrderId.set(item.order_id, items);
   }
 
-  return orderRows.map((order) => {
+  return [...giftOrders, ...orderRows.map((order) => {
     const status = requireDetailStatus(order.status);
     const summary = summarizeOrderItems(
       (itemsByOrderId.get(order.id) ?? []).map((item) => ({
@@ -178,16 +190,19 @@ export async function loadOrders(userId: string, {includePending=false}:{include
       itemCount: summary.itemCount,
       paymentMethod: normalizeCheckoutPaymentMethod(order.payment_method) ?? 'card',
     };
-  });
+  })].sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id));
 }
 
 export async function loadOrderDetail(userId: string, orderId: string): Promise<OrderDetail | null> {
+  const gift = await loadGiftCheckoutOrder(userId, orderId);
+  if (gift.kind === 'unavailable') return null;
+  if (gift.kind === 'gift') return loadGiftOrderDetail(userId, gift);
   const supabase = await createClient();
   const { data: orderData, error: orderError } = await supabase
     .from('orders')
     // delivered_at은 청약철회 기한의 기산점이다(#189). 이 값이 없으면 주문
     // 상세가 남은 기간을 말할 근거가 없다.
-    .select('id,user_id,status,total,shipping_fee,discount_total,store_credit_total,address,created_at,delivered_at,payment_method,expires_at')
+    .select('id,user_id,status,total,shipping_fee,discount_total,store_credit_total,address,created_at,delivered_at,payment_method,expires_at,calculation_version,volume_discount_total,shipping_collect_total')
     .eq('id', orderId)
     .eq('user_id', userId)
     .in('status', [...ORDER_DETAIL_STATUSES])
@@ -197,14 +212,26 @@ export async function loadOrderDetail(userId: string, orderId: string): Promise<
     throw new Error(`Failed to load order detail: ${orderError.message}`);
   }
   if (!orderData) return null;
+  let transaction: OrderDetail['transaction'];
+  if (orderData.calculation_version === 2) {
+    const result = await supabase.rpc('get_my_goods_transaction_receipt', { p_order_id: orderId });
+    const receipt = result.error ? null : parseCheckoutTransactionReceipt(result.data);
+    if (!receipt || receipt.orderId !== orderId || receipt.display.totals.onlineTotal !== orderData.total
+      || receipt.display.totals.volumeDiscountTotal !== orderData.volume_discount_total || receipt.display.totals.collectShippingTotal !== orderData.shipping_collect_total
+      || receipt.display.totals.prepaidShippingTotal !== orderData.shipping_fee || receipt.display.totals.couponDiscountTotal !== orderData.discount_total
+      || receipt.display.totals.storeCreditTotal !== orderData.store_credit_total) throw new Error('order_transaction_receipt_invalid');
+    transaction = receipt.display;
+  }
 
   const status = requireDetailStatus(orderData.status);
-  const [itemsResult, paymentResult, ticketsResult, cancellationRequestResult, eligibilityResult] = await Promise.all([
-    supabase
-      .from('order_items')
-      .select('id,order_id,good_id,qty,unit_price,good_name_snapshot,good_type_snapshot,variant_id,variant_name_snapshot,variant_code_snapshot,supply_source,preorder_expected_ship_date')
-      .eq('order_id', orderId)
-      .order('id', { ascending: true }),
+  const [itemsResult, paymentResult, ticketsResult, cancellationRequestResult, eligibilityResult, reshipmentResult] = await Promise.all([
+    readCompleteIdPages<OrderDetailItemRow>((afterId,pageSize)=>{
+      let query=supabase.from('order_items')
+        .select('id,order_id,good_id,qty,unit_price,good_name_snapshot,good_type_snapshot,variant_id,variant_name_snapshot,variant_code_snapshot,custom_inputs_snapshot,supply_source,preorder_expected_ship_date',{count:'exact'})
+        .eq('order_id',orderId).order('id',{ascending:true}).limit(pageSize);
+      if(afterId)query=query.gt('id',afterId);
+      return query;
+    }),
     supabase
       .from('payment_summaries')
       .select('id,amount,status,created_at')
@@ -230,7 +257,11 @@ export async function loadOrderDetail(userId: string, orderId: string): Promise<
       .limit(1)
       .maybeSingle<CancellationRequestRow>(),
     supabase.rpc('order_claim_eligibility', { p_order_id: orderId }),
+    supabase.rpc('get_my_order_claim_reshipment_items', { p_order_id: orderId }),
   ]);
+
+  const reshipmentHistory = reshipmentResult.error ? null : parseOrderReshipmentHistory(reshipmentResult.data);
+  if (!reshipmentHistory) throw new Error('order_reshipment_history_invalid');
 
   if (itemsResult.error) {
     throw new Error(`Failed to load order items: ${itemsResult.error.message}`);
@@ -280,6 +311,7 @@ export async function loadOrderDetail(userId: string, orderId: string): Promise<
   }
 
   return {
+    ...(transaction ? { transaction } : {}),
     id: orderData.id,
     status,
     total: orderData.total,
@@ -296,6 +328,7 @@ export async function loadOrderDetail(userId: string, orderId: string): Promise<
       id: item.id,
       goodId: item.good_id,
       name: item.good_name_snapshot,
+      ...(item.custom_inputs_snapshot == null ? {} : {customInputs:readGoodsCustomInputSnapshot(item.custom_inputs_snapshot)}),
       variantId: item.variant_id, variantName: item.variant_name_snapshot ?? null, variantCode: item.variant_code_snapshot ?? null,
       type: item.good_type_snapshot,
       qty: item.qty,
@@ -316,6 +349,7 @@ export async function loadOrderDetail(userId: string, orderId: string): Promise<
           createdAt: refund.created_at,
         }
       : null,
+    reshipmentHistory,
     cancellationRequest: cancellationRequestRow && cancellationRequestStatus
       ? {
           id: cancellationRequestRow.id,

@@ -56,7 +56,7 @@ describe('legal routes', () => {
 });
 
 describe('isAuthShellPath', () => {
-  it.each(['/login', '/update-password', '/account-suspended'])('treats %s as an auth-only shell', (pathname) => {
+  it.each(['/login', '/update-password', '/account-suspended', '/manager-invitation'])('treats %s as an auth-only shell', (pathname) => {
     expect(isAuthShellPath(pathname)).toBe(true);
   });
 
@@ -113,11 +113,11 @@ describe('White Catalog 내비게이션 경로', () => {
 describe('내비게이션 항목 구성', () => {
   it('GNB는 계약된 항목을 순서대로 유지한다', () => {
     /* 커뮤니티만 임시 비공개 스위치 대상이라 기대를 분기한다 — 스위치를 되돌리면 이 테스트도
-       손대지 않고 7개 계약으로 돌아온다(lib/community-visibility.ts). */
+       손대지 않고 8개 계약으로 돌아온다(lib/community-visibility.ts). */
     expect(NAV_ITEMS.map((item) => item.id)).toEqual(
       COMMUNITY_ENABLED
-        ? ['new', 'best', 'shop', 'iphub', 'packs', 'events', 'community']
-        : ['new', 'best', 'shop', 'iphub', 'packs', 'events'],
+        ? ['new', 'best', 'shop', 'iphub', 'packs', 'events', 'community', 'stories']
+        : ['new', 'best', 'shop', 'iphub', 'packs', 'events', 'stories'],
     );
   });
 

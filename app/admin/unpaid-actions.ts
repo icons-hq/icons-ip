@@ -1,5 +1,7 @@
 'use server';
 
+import { hasAdminCapability } from '@/lib/admin/access';
+
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import {
@@ -101,7 +103,7 @@ async function requireStaffAction(): Promise<AdminUnpaidActionState | null> {
   if (!auth.isConfigured || !auth.user) {
     redirect(`/login?next=${encodeURIComponent('/admin/sales/unpaid')}`);
   }
-  if (!auth.isStaff) return { error: '관리자 권한이 필요합니다.' };
+  if (!auth.isStaff || !hasAdminCapability(auth, 'sales.manage')) return { error: '관리자 권한이 필요합니다.' };
   return null;
 }
 

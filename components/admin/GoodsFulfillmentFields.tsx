@@ -3,10 +3,10 @@
 import type { GoodShippingRegionSummary } from '@/lib/admin/good-shipping-summary';
 import { useState } from 'react';
 import { AdminField, AdminFormGrid } from './console/AdminKit';
-import { DEFAULT_FULFILLMENT_ORIGIN_ID, type FulfillmentOrigin } from '@/lib/admin/fulfillment-origins';
+import { DEFAULT_FULFILLMENT_ORIGIN_ID, type GoodsFulfillmentOrigin } from '@/lib/admin/fulfillment-origins';
 import type { ShippingFeeType } from '@/lib/fulfillment';
 export interface GoodsFulfillmentValue { originId?: string | null; shippingFeeType?: ShippingFeeType; individualFee?: number }
-export function GoodsFulfillmentFields({ origins, value, errors = {}, regionSummaries = [] }: { origins: FulfillmentOrigin[]; regionSummaries?: GoodShippingRegionSummary[]; value?: GoodsFulfillmentValue | null; errors?: Record<string, string | undefined> }) {
+export function GoodsFulfillmentFields({ origins, value, errors = {}, regionSummaries = [] }: { origins: GoodsFulfillmentOrigin[]; regionSummaries?: GoodShippingRegionSummary[]; value?: GoodsFulfillmentValue | null; errors?: Record<string, string | undefined> }) {
   const [originId, setOriginId] = useState(value?.originId === null ? '' : value?.originId ?? DEFAULT_FULFILLMENT_ORIGIN_ID);
   const [feeType, setFeeType] = useState(value?.shippingFeeType ?? 'policy');
   const region = regionSummaries.find((item) => item.originId === originId);

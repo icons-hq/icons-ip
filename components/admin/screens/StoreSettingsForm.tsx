@@ -5,14 +5,16 @@ import { saveStoreSettingsAction,saveShippingCarrierAction,saveInquiryAutoReplie
 import { AdminField,AdminFormGrid } from '@/components/admin/console/AdminKit';
 import { BUSINESS_INFO_LABELS } from '@/lib/legal/business-info';
 import { INQUIRY_CATEGORIES } from '@/lib/inquiries';
-import { BANK_ACCOUNT_LABELS,mergeBusinessInfo,type EditableCarrier,type StoreSettingsSection,type StoreSettingsSnapshot } from '@/lib/admin/store-settings';
+import { BANK_ACCOUNT_LABELS,mergeBusinessInfo,type EditableCarrier,type StoreSettingsSnapshot } from '@/lib/admin/store-settings';
+import { CustomerServiceDialog } from './CustomerServiceDialog';
 
 function Feedback({state}:{state:StoreSettingsActionState}) {
   return <>{state.errors?.form?<p role="alert">{state.errors.form}</p>:null}{state.message?<p role="status">{state.message}</p>:null}</>;
 }
 function latestStamp(server:string,local?:string) {return local&&Date.parse(local)>Date.parse(server)?local:server;}
-export function StoreSettingsForm({section,settings,canEdit}:{section:Exclude<StoreSettingsSection,'inquiry_auto_replies'>;settings:StoreSettingsSnapshot;canEdit:boolean}) {
+export function StoreSettingsForm({section,settings,canEdit}:{section:'business'|'bank_transfer';settings:StoreSettingsSnapshot;canEdit:boolean}) {
   const [state,action,pending]=useActionState(saveStoreSettingsAction,{});
+  const [contactHelpOpen,setContactHelpOpen]=useState(false);
   const labels=section==='business'?BUSINESS_INFO_LABELS:BANK_ACCOUNT_LABELS;
   const defaults:Record<string,string>=section==='business'?{...mergeBusinessInfo(settings.business)}:{bank:'',accountNumber:'',holder:'',...settings.bankTransfer};
   return <form action={action} className="wc-admin-kit">
@@ -21,10 +23,23 @@ export function StoreSettingsForm({section,settings,canEdit}:{section:Exclude<St
     <AdminFormGrid>{Object.entries(labels).map(([key,label])=><AdminField key={key} label={label} inputId={`settings-${key}`} error={state.errors?.[key]}>
       <input id={`settings-${key}`} name={key} defaultValue={state.values?.[key]??defaults[key]} maxLength={500} readOnly={!canEdit}
         aria-invalid={Boolean(state.errors?.[key])} aria-describedby={state.errors?.[key]?`settings-${key}-error`:undefined} type={key==='email'?'email':'text'}/>
+      {section==='business'&&key==='phone'?<button className="btn btn--ghost" type="button" onClick={()=>setContactHelpOpen(true)}>고객센터 노출위치</button>:null}
     </AdminField>)}</AdminFormGrid>
     {section==='bank_transfer'?<p>세 항목을 모두 비우면 새 주문에서 무통장 입금이 표시되지 않습니다. 기존 입금 대기 주문을 먼저 확인해주세요.</p>:<p>빈 항목은 공개 사업자 정보에서 숨겨집니다. 연락처를 변경하면 푸터와 법정 문서에 함께 반영됩니다.</p>}
     <Feedback state={state}/>
-    {canEdit?<button className="btn" type="submit" disabled={pending}>{pending?'저장 중…':'설정 저장'}</button>:<p>직원(staff)은 조회할 수 있습니다. 변경은 관리자(admin)에게 요청해주세요.</p>}
+    {canEdit?<button className="btn" type="submit" disabled={pending}>{pending?'저장 중…':'설정 저장'}</button>:<p>현재 계정은 이 설정을 조회할 수 있습니다. 변경 권한이 있는 매니저에게 요청해주세요.</p>}
+    {contactHelpOpen?<CustomerServiceDialog title="고객센터 연락처 노출위치" onClose={()=>setContactHelpOpen(false)}>
+      <div className="admin-store-contact-help">
+      <section>
+      <h3>쇼핑몰 하단</h3>
+      <p>저장한 전화번호와 이메일은 쇼핑몰 하단의 고객센터에 표시됩니다. 주문 상세에서도 같은 하단 연락처를 확인할 수 있습니다.</p>
+      </section><section>
+      <h3>사업자 정보·법정 문서</h3>
+      <p>사업자 정보와 이용약관 등 법정 문서의 연락처에도 함께 반영됩니다. 빈 항목은 표시하지 않으며, 아직 저장하지 않은 입력은 공개 화면에 반영되지 않습니다.</p>
+      </section>
+      <button className="btn" type="button" onClick={()=>setContactHelpOpen(false)}>확인</button>
+      </div>
+    </CustomerServiceDialog>:null}
   </form>;
 }
 export function InquiryAutoRepliesForm({settings,canEdit}:{settings:StoreSettingsSnapshot;canEdit:boolean}) {
@@ -49,7 +64,7 @@ export function InquiryAutoRepliesForm({settings,canEdit}:{settings:StoreSetting
       </fieldset>)}
     </div>
     <Feedback state={state}/>
-    {canEdit?<button className="btn" type="submit" disabled={pending}>{pending?'저장 중…':'문의 자동 안내 저장'}</button>:<p>직원(staff)은 조회할 수 있습니다. 변경은 관리자(admin)에게 요청해주세요.</p>}
+    {canEdit?<button className="btn" type="submit" disabled={pending}>{pending?'저장 중…':'문의 자동 안내 저장'}</button>:<p>현재 계정은 이 설정을 조회할 수 있습니다. 변경 권한이 있는 매니저에게 요청해주세요.</p>}
   </form>;
 }
 export function ShippingCarrierForm({carrier,canEdit}:{carrier?:EditableCarrier;canEdit:boolean}) {

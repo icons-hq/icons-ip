@@ -4,10 +4,12 @@ export type NotificationType =
   | 'order_paid'
   | 'order_shipping'
   | 'order_delivered'
+  | 'purchase_confirmation'
   | 'draw_ticket_issued'
   | 'drop_published'
   | 'event_published'
   | 'announcement'
+  | 'marketing_message'
   /* 1:1 문의 답변(#253). 발송은 admin_answer_inquiry가 같은 트랜잭션에서 남긴다. */
   | 'inquiry_answered'
   /* 무통장 입금 안내(#256). place_order가 주문을 만든 트랜잭션에서 함께 남긴다 —

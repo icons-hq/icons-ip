@@ -1,7 +1,19 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import Link from 'next/link';
 import { categoryPath, type AdminCategoryNode } from '@/lib/admin/category';
+import { CATEGORY_TEMPLATES_PATH, usableTemplateCategory } from '@/lib/admin/category-templates';
+import { CategoryTemplatePicker } from './screens/CategoryTemplatesScreen';
+
+export function searchAssignableCategories(categories: AdminCategoryNode[], query: string) {
+  const words = query.normalize('NFKC').trim().toLocaleLowerCase('ko-KR').split(/\s+/).filter(Boolean);
+  if (!words.length) return [];
+  return categories.filter(category => usableTemplateCategory(categories, category.id)).filter(category => {
+    const label = `${categoryPath(categories, category.id).join(' ')} ${category.code}`.normalize('NFKC').toLocaleLowerCase('ko-KR');
+    return words.every(word => label.includes(word));
+  });
+}
 
 /**
  * 상위가 대표 카테고리를 바꾸면(예: ERP 카테고리로 바꾸기) select에 bubbling change 이벤트를 보낸다.
@@ -48,6 +60,8 @@ export function CategoryAssignmentField({
   onPrimaryChange?: (id: string) => void;
 }) {
   const [uncontrolledPrimary, setUncontrolledPrimary] = useState(value);
+  const [templatePicker, setTemplatePicker] = useState(false), [templateError, setTemplateError] = useState('');
+  const [mode, setMode] = useState<'search' | 'select'>('search'), [query, setQuery] = useState('');
   const controlled = controlledPrimary !== undefined && onPrimaryChange !== undefined;
   const primary = controlled ? controlledPrimary : uncontrolledPrimary;
   const setPrimary = controlled ? onPrimaryChange : setUncontrolledPrimary;
@@ -61,27 +75,48 @@ export function CategoryAssignmentField({
       return Array.isArray(values) ? values.filter((id): id is string => typeof id === 'string' && id !== value) : [];
     } catch { return []; }
   });
-  const activeLeaves = categories.filter((category) => !category.archivedAt && category.childCount === 0);
+  const activeLeaves = categories.filter((category) => usableTemplateCategory(categories, category.id));
+  const matches = useMemo(() => searchAssignableCategories(categories, query), [categories, query]);
   const selectedArchived = primary
-    ? categories.find((category) => category.id === primary && category.archivedAt && category.childCount === 0)
+    ? categories.find((category) => category.id === primary && !usableTemplateCategory(categories, category.id) && category.childCount === 0)
     : undefined;
   const leaves = selectedArchived ? [selectedArchived, ...activeLeaves] : activeLeaves;
+  function choose(id: string) { setPrimary(id); setAdditional(current => current.filter(value => value !== id)); setTemplateError(''); }
   return (
-    <div className="col" style={{ gap: 7 }}>
-      <label className="mono" htmlFor="category-assignment" style={{ color: 'var(--dim)', fontSize: 11 }}>대표 카테고리</label>
-      <select aria-describedby="category-assignment-hint" aria-invalid={error ? 'true' : undefined} className="admin-field-control" value={primary} id="category-assignment" name="categoryId" ref={selectRef} onChange={(event) => {
+    <div className="admin-good-category">
+      <label className="mono" htmlFor={mode === 'search' ? 'category-assignment-search' : 'category-assignment'} style={{ color: 'var(--dim)', fontSize: 11 }}>대표 카테고리</label>
+      <div className="admin-good-category__methods" role="group" aria-label="카테고리 찾기 방식">
+        <button type="button" aria-pressed={mode === 'search'} onClick={() => setMode('search')}>카테고리명 검색</button>
+        <button type="button" aria-pressed={mode === 'select'} onClick={() => setMode('select')}>카테고리명 선택</button>
+        <button type="button" onClick={() => setTemplatePicker(true)}>카테고리 템플릿</button>
+      </div>
+      {mode === 'search' ? <div className="admin-good-category__search">
+        <input id="category-assignment-search" type="search" aria-label="카테고리명 또는 코드" aria-describedby="category-assignment-hint" value={query} maxLength={120} placeholder="카테고리명 또는 코드 입력"
+          onChange={event => setQuery(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') event.preventDefault(); }} />
+        {query.trim() ? <><p role="status">검색 결과 {matches.length.toLocaleString('ko-KR')}개{matches.length > 50 ? ' · 앞의 50개를 표시합니다. 검색어를 더 입력해주세요.' : ''}</p>
+          {matches.length ? <ul aria-label="카테고리 검색 결과">{matches.slice(0, 50).map(category => <li key={category.id}><button type="button" aria-pressed={primary === category.id} onClick={() => choose(category.id)}>
+            <span>{categoryPath(categories, category.id).join(' > ')}</span><small>{category.code}</small>
+          </button></li>)}</ul> : <p>일치하는 사용 가능한 말단 카테고리가 없습니다.</p>}</> : <p>카테고리명이나 코드를 입력하거나 카테고리명 선택을 이용해주세요.</p>}
+        {primary ? <div className="admin-good-category__selected"><span>{selectedArchived ? '보관됨 · ' : ''}{categoryPath(categories, primary).join(' > ') || primary}</span><button type="button" onClick={() => choose('')}>선택 해제</button></div> : null}
+      </div> : null}
+      <select hidden={mode !== 'select'} aria-describedby="category-assignment-hint" aria-invalid={error ? 'true' : undefined} className="admin-field-control" value={primary} id="category-assignment" name="categoryId" ref={selectRef} onChange={(event) => {
         announcer.chosen(event.target.value);
-        setPrimary(event.target.value);
-        setAdditional(current => current.filter(id => id !== event.target.value));
+        choose(event.target.value);
       }}>
         <option value="">미분류</option>
         {leaves.map((category) => <option aria-disabled={category.archivedAt ? 'true' : undefined} key={category.id} value={category.id}>{category.archivedAt ? '보관됨 · ' : ''}{categoryPath(categories, category.id).join(' > ')} ({category.code})</option>)}
       </select>
+      <div className="admin-good-category__templates"><Link href={CATEGORY_TEMPLATES_PATH} target="_blank" rel="noreferrer">카테고리 템플릿 관리 ↗</Link></div>
+      {templateError ? <p role="alert">{templateError}</p> : null}
+      {templatePicker ? <CategoryTemplatePicker onClose={() => setTemplatePicker(false)} onSelect={template => {
+        if (!template.usable || !usableTemplateCategory(categories, template.categoryId)) { setTemplateError('현재 사용할 수 없는 카테고리입니다. 최신 카테고리를 확인해주세요.'); setTemplatePicker(false); return; }
+        choose(template.categoryId); setTemplatePicker(false);
+      }} /> : null}
       <span className="muted" id="category-assignment-hint" style={{ fontSize: 12 }}>
         대표 말단 하나를 고릅니다. ERP 분류는 대표 카테고리를 사용합니다. 보관된 현재 값은 명시적으로 미분류를 선택해야 해제됩니다. 비워도 기존 유형과 전체 상품 판매는 유지됩니다.
       </span>
       {error ? <span role="alert" style={{ color: 'var(--pink)', fontSize: 12 }}>{error}</span> : null}
-      {additionalValue !== undefined && <>
+      {additionalValue !== undefined && <details className="admin-good-category__additional" open={Boolean(additionalError) || additional.length > 0}><summary>추가 카테고리 (선택)</summary><div>
         {/* 상위에서 대표를 바꿔도 같은 분류가 추가 분류에 중복 저장되지 않는다. */}
         <input name="additionalCategoryIds" type="hidden" value={JSON.stringify(additional.filter(id => id !== primary))} />
         <label className="mono" htmlFor="additional-category-assignment">추가 카테고리 (선택)</label>
@@ -102,7 +137,7 @@ export function CategoryAssignmentField({
         })}
         <span className="muted" id="additional-category-hint">관리자 목록에서 대표·추가 분류와 하위 분류로 찾을 수 있습니다. 기본 상품 저장으로 반영합니다.</span>
         {additionalError && <span role="alert">{additionalError}</span>}
-      </>}
+      </div></details>}
     </div>
   );
 }

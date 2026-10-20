@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, type ReactNode } from 'react';
+import { Icon } from '@/components/ui/Icon';
 import { GOOD_EDITOR_SECTIONS, goodFieldSection, orderedGoodErrors } from '@/lib/admin/good-workspace';
 
 export function focusGoodWorkspaceTarget(id: string, field?: string) {
@@ -9,11 +10,13 @@ export function focusGoodWorkspaceTarget(id: string, field?: string) {
   let target: HTMLElement = section;
   if (field) {
     const named = Array.from((section.closest('form') ?? section).querySelectorAll<HTMLElement>('[name]')).filter((element) => element.getAttribute('name') === field);
-    const input = named.find((element) => element.getAttribute('type') !== 'hidden' && !element.hasAttribute('disabled'));
+    const input = named.find((element) => element.getAttribute('type') !== 'hidden' && !element.hasAttribute('disabled') && !element.closest('[hidden]'));
     const artwork = named[0]?.closest('.wc-admin-artwork-upload-field');
     const upload = artwork?.querySelector<HTMLInputElement>('input[type="file"]');
     const invalid = (artwork ?? section).querySelector<HTMLElement>('input:invalid, select:invalid, textarea:invalid');
-    target = input ?? invalid ?? upload ?? section.querySelector<HTMLElement>('input:not([type="hidden"]):not([disabled]), select:not([disabled]), textarea, button') ?? section;
+    target = input ?? invalid ?? upload
+      ?? section.querySelector<HTMLElement>('input:not([type="hidden"]):not([disabled]), select:not([disabled]):not([hidden]), textarea:not([disabled])')
+      ?? section.querySelector<HTMLElement>('button:not([disabled])') ?? section;
   }
   for (let element: HTMLElement | null = target; element; element = element.parentElement) {
     if (element instanceof HTMLDetailsElement) element.open = true;
@@ -64,5 +67,16 @@ export function GoodOperationSection({ id, title, description, children }: { id:
     <summary>{title}<span>별도 저장</span></summary>
     <p>{description} 기본 상품 입력은 함께 저장되지 않습니다.</p>
     {children}
+  </details>;
+}
+
+/** Native details keep every named input mounted when a section is folded. */
+export function GoodEditorSection({ id, title, requirement, status, summary, errorCount = 0, children, defaultOpen = true }: {
+  id?: string; title: string; requirement?: string; status?: string; summary?: string; errorCount?: number; children: ReactNode; defaultOpen?: boolean;
+}) {
+  return <details id={id} className="admin-good-section" aria-label={title} open={defaultOpen || errorCount > 0}>
+    <summary><span className="admin-good-section__title">{title}{requirement?.includes('필수') ? <span className="admin-good-section__required" aria-label="필수">*</span> : null}</span>
+      <span className="admin-good-section__summary">{errorCount ? <strong>{errorCount}개 확인 필요</strong> : summary || status}</span><span className="admin-good-section__chevron" aria-hidden="true"><Icon name="chevronRight" size={17} /></span></summary>
+    <div className="admin-good-section__body">{requirement ? <p className="admin-good-section__requirement">{requirement}</p> : null}{children}</div>
   </details>;
 }

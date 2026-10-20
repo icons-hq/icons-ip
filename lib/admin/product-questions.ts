@@ -12,7 +12,20 @@
  * 판정은 서버가 한다. 여기 있는 것은 URL을 신뢰할 수 있는 값으로 좁히는 일뿐이다.
  */
 
+import { customerServiceDate, customerServicePageSize } from './customer-service-list';
+
 export const ADMIN_PRODUCT_QUESTION_PAGE_SIZE = 20;
+export type AdminProductQuestionSearchField = 'body' | 'good' | 'goodId' | 'id';
+export const ADMIN_PRODUCT_QUESTION_SEARCH_FIELDS = [
+  { value: 'body', label: '문의 내용' },
+  { value: 'good', label: '상품명' },
+  { value: 'goodId', label: '상품번호' },
+  { value: 'id', label: '문의번호' },
+] as const;
+export const ADMIN_PRODUCT_QUESTION_SORT_OPTIONS = [
+  { value: 'recent', label: '문의등록일 최신순' },
+  { value: 'oldest', label: '문의등록일 오래된순' },
+] as const;
 
 export type AdminProductQuestionStatusFilter = 'all' | 'unanswered' | 'answered' | 'hidden';
 
@@ -29,12 +42,20 @@ export const ADMIN_PRODUCT_QUESTION_STATUS_OPTIONS: {
 export interface AdminProductQuestionFilters {
   status: AdminProductQuestionStatusFilter;
   page: number;
+  from?: string | null;
+  to?: string | null;
+  query?: string;
+  field?: AdminProductQuestionSearchField;
+  sort?: 'recent' | 'oldest';
+  pageSize?: number;
 }
 
 export interface AdminProductQuestionRow {
   id: string;
   goodId: string;
   goodName: string;
+  /** 현재 상품 대표 이미지. 등록하지 않았거나 조회할 수 없으면 표시하지 않는다. */
+  goodImageUrl?: string | null;
   userId: string;
   authorName: string;
   body: string;
@@ -44,6 +65,7 @@ export interface AdminProductQuestionRow {
   answeredAt: string | null;
   answeredByName: string | null;
   createdAt: string;
+  updatedAt?: string | null;
 }
 
 export interface AdminProductQuestionCounts {
@@ -64,6 +86,12 @@ export interface AdminProductQuestionConsoleData {
 export const DEFAULT_ADMIN_PRODUCT_QUESTION_FILTERS: AdminProductQuestionFilters = {
   status: 'all',
   page: 1,
+  from: null,
+  to: null,
+  query: '',
+  field: 'body',
+  sort: 'recent',
+  pageSize: ADMIN_PRODUCT_QUESTION_PAGE_SIZE,
 };
 
 export const ADMIN_PRODUCT_QUESTIONS_PATH = '/admin/cs/qna';
@@ -83,12 +111,22 @@ export function normalizeAdminProductQuestionFilters(
 ): AdminProductQuestionFilters {
   const rawStatus = singleParam(searchParams.status);
   const rawPage = Number(singleParam(searchParams.page));
+  let from = customerServiceDate(searchParams.from);
+  let to = customerServiceDate(searchParams.to);
+  if (from && to && from > to) { from = null; to = null; }
+  const field = singleParam(searchParams.field);
 
   return {
     status: STATUS_FILTERS.has(rawStatus)
       ? rawStatus as AdminProductQuestionStatusFilter
       : 'all',
     page: Number.isSafeInteger(rawPage) && rawPage > 0 ? rawPage : 1,
+    from,
+    to,
+    query: singleParam(searchParams.query).trim().slice(0, 100),
+    field: ADMIN_PRODUCT_QUESTION_SEARCH_FIELDS.some((entry) => entry.value === field) ? field as AdminProductQuestionSearchField : 'body',
+    sort: singleParam(searchParams.sort) === 'oldest' ? 'oldest' : 'recent',
+    pageSize: customerServicePageSize(searchParams.pageSize),
   };
 }
 
@@ -100,6 +138,14 @@ export function adminProductQuestionHref(
   const params = new URLSearchParams();
   if (next.status !== 'all') params.set('status', next.status);
   params.set('page', String(next.page));
+  if (next.from) params.set('from', next.from);
+  if (next.to) params.set('to', next.to);
+  if (next.query) {
+    params.set('query', next.query);
+    if (next.field && next.field !== 'body') params.set('field', next.field);
+  }
+  if (next.sort === 'oldest') params.set('sort', next.sort);
+  if (next.pageSize && next.pageSize !== ADMIN_PRODUCT_QUESTION_PAGE_SIZE) params.set('pageSize', String(next.pageSize));
   return `${ADMIN_PRODUCT_QUESTIONS_PATH}?${params.toString()}`;
 }
 

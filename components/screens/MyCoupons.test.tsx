@@ -66,6 +66,16 @@ describe('MyCoupons 티켓 카드', () => {
     expect(html).toContain('기간 만료');
   });
 
+  it('정의가 변경되어도 발급 당시 시작과 만료를 KST로 표시한다', () => {
+    const coupon = heldCoupon({ id: 'snapshot', expiresAt: '2026-10-20T14:59:00Z' });
+    coupon.usableFrom = '2026-10-13T15:00:00Z';
+    coupon.coupon = { ...coupon.coupon, startsAt: '2026-10-15T15:00:00Z', endsAt: '2026-10-25T14:59:00Z', usesValiditySnapshot: true };
+    const html = renderToStaticMarkup(<MyCoupons coupons={[coupon]} />);
+    expect(html).toContain('2026.10.14 00:00 ~ 2026.10.20 23:59 (KST)');
+    expect(html).not.toContain('2026.10.16');
+    expect(html).not.toContain('2026.10.25');
+  });
+
   it('등급 혜택 쿠폰은 등급 뱃지 색 변종을 단다', () => {
     const html = renderToStaticMarkup(
       <MyCoupons coupons={[heldCoupon({ id: 'g', gradeBenefit: 'gold', name: 'GOLD 달성 쿠폰' })]} />,
@@ -86,7 +96,7 @@ describe('MyCoupons 티켓 카드', () => {
   it('정책 안내 박스를 늘 남긴다', () => {
     const html = renderToStaticMarkup(<MyCoupons coupons={[]} />);
 
-    expect(html).toContain('주문 한 건에는 쿠폰 한 장만');
-    expect(html).toContain('배송비는 제외');
+    expect(html).toContain('중복 사용은 스토어 정책과 각 쿠폰의 허용 조건');
+    expect(html).toContain('설치비와 착불 운송비는 배송비 할인에서 제외');
   });
 });

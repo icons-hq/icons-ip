@@ -10,7 +10,7 @@ const mocks = vi.hoisted(() => ({
   variantRows: { data: [{ id: '00000000-0000-4000-8000-000000000001', good_id: 'g1' }], error: null } as { data: {id:string;good_id:string}[]; error: {message:string}|null },
   from: vi.fn(),
   cartRows: { data: [{ good_id: 'g1', variant_id: '00000000-0000-4000-8000-000000000001', qty: 4 }], error: null } as {
-    data: { good_id: string; variant_id?: string; qty: number }[] | null;
+    data: { good_id: string; variant_id?: string; qty: number; input_snapshot?:unknown }[] | null;
     error: { message: string } | null;
   },
   goodRow: { data: { stock: 'ok', stock_qty: 5 }, error: null } as {
@@ -97,9 +97,6 @@ describe('cart Server Actions', () => {
     ]) mock.mockReset();
 
     mocks.rpc.mockResolvedValue({ error: null });
-    mocks.cartOrder.mockImplementation(async () => mocks.cartRows);
-    mocks.cartSelectEq.mockReturnValue({ order: mocks.cartOrder });
-    mocks.cartSelect.mockReturnValue({ eq: mocks.cartSelectEq });
     mocks.cartUpsert.mockImplementation(async () => mocks.upsertResult);
     mocks.cartDelete.mockImplementation(() => thenableDeleteBuilder());
     mocks.goodsMaybeSingle.mockImplementation(async () => mocks.goodRow);
@@ -112,6 +109,17 @@ describe('cart Server Actions', () => {
     mocks.goodsSelect.mockReturnValue({ eq: mocks.goodsEq });
     mocks.from.mockImplementation((table: string) => {
       if (table === 'cart_items') {
+        let afterId:string|null=null,pageSize=1000;
+        const query={
+          eq:mocks.cartSelectEq,order:mocks.cartOrder,
+          gt(_column:string,value:string){afterId=value;return query;},
+          limit(value:number){pageSize=value;return query;},
+          then(resolve:(value:unknown)=>unknown){
+            const rows=(mocks.cartRows.data??[]).map((row,index)=>({id:String(index).padStart(12,'0'),...row})).filter(row=>afterId===null||row.id>afterId);
+            return Promise.resolve({data:mocks.cartRows.error?null:rows.slice(0,Math.min(pageSize,1000)),error:mocks.cartRows.error,count:rows.length}).then(resolve);
+          },
+        };
+        mocks.cartSelect.mockReturnValue(query);mocks.cartSelectEq.mockReturnValue(query);mocks.cartOrder.mockReturnValue(query);
         return {
           select: mocks.cartSelect,
           upsert: mocks.cartUpsert,
@@ -125,6 +133,30 @@ describe('cart Server Actions', () => {
       if (table === 'goods') return { select: mocks.goodsSelect };
       throw new Error(`Unexpected table ${table}`);
     });
+  });
+
+  it('같은 옵션의 다른 문구를 서버 읽기와 값별 수정·삭제에서 보존한다', async () => {
+    const fieldId='00000000-0000-4000-8000-000000063311';
+    const customInputs={revision:2,fields:[{id:fieldId,name:'각인 문구',value:'첫 문구'}]};
+    const other={...customInputs,fields:[{...customInputs.fields[0],value:'다른 문구'}]};
+    mocks.cartRows={data:[{good_id:'g1',variant_id:VARIANT_ID,qty:1,input_snapshot:customInputs},{good_id:'g1',variant_id:VARIANT_ID,qty:2,input_snapshot:other}],error:null};
+    expect(await setCartItemQuantityAction('g1',1,VARIANT_ID,customInputs)).toEqual({ok:true,mode:'server',items:[
+      {goodId:'g1',variantId:VARIANT_ID,qty:1,customInputs},{goodId:'g1',variantId:VARIANT_ID,qty:2,customInputs:other},
+    ]});
+    expect(mocks.rpc).toHaveBeenCalledWith('set_cart_item_quantity_with_inputs',{p_good_id:'g1',p_variant_id:VARIANT_ID,p_qty:1,p_input_revision:2,p_input_values:{[fieldId]:'첫 문구'}});
+    await deleteCartItemAction('g1',VARIANT_ID,customInputs);
+    expect(mocks.rpc).toHaveBeenLastCalledWith('set_cart_item_quantity_with_inputs',{p_good_id:'g1',p_variant_id:VARIANT_ID,p_qty:0,p_input_revision:2,p_input_values:{[fieldId]:'첫 문구'}});
+  });
+  it('같은 옵션의 1001개 문구를 PostgREST 상한에서 자르지 않고 전부 동기화한다', async () => {
+    mocks.cartRows={data:Array.from({length:1001},(_,index)=>({good_id:'g1',variant_id:VARIANT_ID,qty:1,
+      input_snapshot:{revision:1,fields:[{id:'00000000-0000-4000-8000-000000063311',name:'각인 문구',value:`문구 ${index}`}]}})),error:null};
+    const result=await syncCartAction([]);
+    expect(result.ok).toBe(true);
+    if(!result.ok)throw new Error('sync failed');
+    expect(result.items).toHaveLength(1001);
+    expect(result.items.at(-1)?.customInputs?.fields[0].value).toBe('문구 1000');
+    expect(result.items.reduce((total,item)=>total+item.qty,0)).toBe(1001);
+    expect(mocks.cartSelect).toHaveBeenCalledTimes(3);
   });
 
   it('preserves a normalized local cart without DB access when Supabase is not configured', async () => {
@@ -165,7 +197,7 @@ describe('cart Server Actions', () => {
     expect(mocks.rpc).toHaveBeenCalledWith('merge_cart_items', {
       p_items: [{ good_id: 'g1', variant_id: VARIANT_ID, qty: 2 }],
     });
-    expect(mocks.cartSelect).toHaveBeenCalledWith('good_id,variant_id,qty');
+    expect(mocks.cartSelect).toHaveBeenCalledWith('id,good_id,variant_id,qty,input_snapshot',{count:'exact'});
     expect(mocks.cartSelectEq).toHaveBeenCalledWith('user_id', 'user-1');
   });
 

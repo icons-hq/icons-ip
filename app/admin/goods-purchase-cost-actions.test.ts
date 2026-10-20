@@ -1,3 +1,4 @@
+import { legacyOperatorAccessFixture } from '@/lib/admin/access.test-fixtures';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({ auth: vi.fn(), rpc: vi.fn(), revalidate: vi.fn() }));
 vi.mock('@/lib/auth/admin', () => ({ getCurrentAdminAuthState: mocks.auth }));
@@ -14,11 +15,11 @@ function form(amount: string, basis: string, revision = '') {
 }
 beforeEach(() => {
   vi.resetAllMocks();
-  mocks.auth.mockResolvedValue({ isConfigured: true, user: { id: 'admin1' }, isStaff: true, role: 'admin' });
+  mocks.auth.mockResolvedValue({ operatorAccess: legacyOperatorAccessFixture(), isConfigured: true, user: { id: 'admin1' }, isStaff: true, role: 'admin' });
 });
 describe('purchase cost admin boundary', () => {
   it('blocks staff for read, history and write before making a database request', async () => {
-    mocks.auth.mockResolvedValue({ isConfigured: true, user: { id: 'staff1' }, isStaff: true, role: 'staff' });
+    mocks.auth.mockResolvedValue({ operatorAccess: legacyOperatorAccessFixture(), isConfigured: true, user: { id: 'staff1' }, isStaff: true, role: 'staff' });
     expect(await listGoodsPurchaseCostsAction('g1')).toMatchObject({ ok: false });
     expect(await listGoodsPurchaseCostHistoryAction('g1', variantId)).toMatchObject({ ok: false });
     expect(await saveGoodsPurchaseCostAction(form('0', 'included'))).toMatchObject({ ok: false });

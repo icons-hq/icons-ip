@@ -6,6 +6,16 @@ const savedA = '11111111-1111-4111-8111-111111111111';
 const savedB = '22222222-2222-4222-8222-222222222222';
 
 describe('상품 옵션 ERP 식별자 입력', () => {
+  it('세 번째 옵션 축과 적용 전 입력을 숨김 없이 복구한다', () => {
+    const html = renderToStaticMarkup(<GoodsOptionEditor onRowsChange={() => {}} baseline={[savedA]} basePrice={1000}
+      rows={[{ id: savedA, name: '빨강 / M / 기본', code: 'THREE-01', attributes: { 색상: '빨강', 크기: 'M', 구성: '기본' }, extraPrice: 0, stockQty: 3 }]}
+      axisValues={{ optionAxisName2: '포장', optionAxisValues2: '기본, 선물' }} />);
+    expect(html).toContain('옵션명 최대 3개');
+    expect(html).toContain('name="optionAxisName2" value="포장"');
+    expect(html).toContain('name="optionAxisValues2" value="기본, 선물"');
+    expect(html).toContain('옵션값 3 (쉼표로 구분)');
+    expect(html).toContain('&quot;구성&quot;:&quot;기본&quot;');
+  });
   it('renders separate ERP fields and carries their values in the option payload', () => {
     const html = renderToStaticMarkup(<GoodsOptionEditor onRowsChange={() => {}}
       rows={[{

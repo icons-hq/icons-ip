@@ -13,11 +13,12 @@ import {
   inquirySlaState,
 } from '@/lib/inquiries';
 import { orderReferenceLabel } from '@/lib/orders';
-import { isAdminInquiryOverdue } from '@/lib/admin/inquiries';
+import { isAdminInquiryOverdue, type AdminInquiryNavigation } from '@/lib/admin/inquiries';
 import { InquiryAssignmentPanel, InquiryInternalNotesPanel } from './InquiryWorkspacePanel';
 import { InquiryReplyPanel } from './InquiryReplyPanel';
 import { CustomerHistoryPanel } from './CustomerHistoryPanel';
 import { InquiryLiveUpdates } from '@/components/screens/InquiryLiveUpdates';
+import { InquirySatisfactionContext } from './InquirySatisfactionContext';
 
 /* 어드민 문의 상세(#253).
  *
@@ -64,20 +65,44 @@ export function InquiryDetailScreen({
   backHref,
   detail,
   now = new Date(),
+  canReadOrders = true,
+  canManageSales = true,
+  canViewCustomer = true,
+  accountId = '',
+  navigation,
+  embedded = false,
 }: {
   backHref: string;
   detail: AdminInquiryDetail;
   now?: Date;
+  canReadOrders?: boolean;
+  canManageSales?: boolean;
+  canViewCustomer?: boolean;
+  accountId?: string;
+  navigation?: AdminInquiryNavigation;
+  embedded?: boolean;
 }) {
-  const { buyer, inquiry, messages, order, templates, staffOptions, notes } = detail;
+  const { buyer, inquiry, messages, order, staffOptions, notes } = detail;
   const sla = inquirySlaState(
     { answeredAt: inquiry.answeredAt, createdAt: inquiry.createdAt, status: inquiry.status },
     now,
   );
+  const replyPanel = <InquiryReplyPanel
+    key={`${accountId}:${inquiry.id}:reply`}
+    accountId={accountId}
+    category={inquiry.category}
+    closed={inquiry.status === 'closed'}
+    inquiryId={inquiry.id}
+  />;
 
   return (
     <section className="admin-console col" style={{ gap: 16 }}>
       <InquiryLiveUpdates inquiryId={inquiry.id} audience="staff" />
+      {navigation ? <nav className="admin-cs-record-nav" aria-label="고객문의 상세 이동">
+        {navigation.previousHref ? <Link className="btn btn-sm btn-ghost" href={navigation.previousHref} scroll={false}>이전 문의</Link> : <button className="btn btn-sm btn-ghost" disabled>이전 문의</button>}
+        <span>{navigation.position === null ? '현재 목록 조건에 없는 문의' : `${navigation.position} / ${navigation.total} · 현재 조회 순서`}</span>
+        {navigation.nextHref ? <Link className="btn btn-sm btn-ghost" href={navigation.nextHref} scroll={false}>다음 문의</Link> : <button className="btn btn-sm btn-ghost" disabled>다음 문의</button>}
+      </nav> : null}
       <div className="col" style={{ gap: 6 }}>
         <Link className="mono" href={backHref} style={{ fontSize: 12 }}>← 문의 목록</Link>
         <div className="row" style={{ alignItems: 'baseline', gap: 8, justifyContent: 'flex-start' }}>
@@ -99,15 +124,16 @@ export function InquiryDetailScreen({
         </span>
       </div>
 
-      <div className="admin-inquiry-layout">
+      <div className={`admin-inquiry-layout${embedded ? ' admin-inquiry-layout--embedded' : ''}`}>
         <div className="col" style={{ gap: 14 }}>
+          {embedded ? <h3 className="admin-inquiry-workspace-title">고객문의 내용 보기</h3> : null}
           <ol className="col admin-inquiry-thread" style={{ gap: 10, listStyle: 'none', margin: 0, padding: 0 }}>
             {messages.map((message) => (
               <li
                 className="card col"
                 data-author={message.author}
                 key={message.id}
-                style={{ borderRadius: 12, gap: 8, padding: 14 }}
+                style={{ gap: 8, padding: 14 }}
               >
                 <span className="mono muted" style={{ fontSize: 11 }}>
                   {inquiryMessageAuthorLabel(message.author,message.authorName,`@${inquiry.buyerName}`)}
@@ -134,19 +160,15 @@ export function InquiryDetailScreen({
             ))}
           </ol>
 
-          <InquiryInternalNotesPanel inquiryId={inquiry.id} notes={notes} />
+          <InquiryInternalNotesPanel key={`${accountId}:${inquiry.id}:note`} accountId={accountId} inquiryId={inquiry.id} notes={notes} />
 
-          <InquiryReplyPanel
-            category={inquiry.category}
-            closed={inquiry.status === 'closed'}
-            inquiryId={inquiry.id}
-            templates={templates}
-          />
+          {!embedded ? replyPanel : null}
         </div>
-
-        <aside aria-label="문의 컨텍스트" className="col" style={{ gap: 12 }}>
+        {embedded ? <section className="admin-inquiry-reply-column" aria-label="판매자 답변 처리"><h3 className="admin-inquiry-workspace-title">판매자 답변 처리</h3>{replyPanel}</section> : null}
+        <aside aria-label="문의 컨텍스트" className={`col${embedded ? ' admin-inquiry-context--embedded' : ''}`} style={{ gap: 12 }}>
+          <InquirySatisfactionContext result={detail.satisfaction} />
           <InquiryAssignmentPanel assigneeId={inquiry.assigneeId} assigneeName={inquiry.assigneeName} inquiryId={inquiry.id} staffOptions={staffOptions} />
-          <section className="card col" style={{ gap: 8, padding: 16 }}>
+          {canReadOrders ? <section className="card col" style={{ gap: 8, padding: 16 }}>
             <strong style={{ fontSize: 13.5 }}>연결 주문</strong>
             {order ? (
               <>
@@ -160,14 +182,14 @@ export function InquiryDetailScreen({
                     : `총 ${order.itemCount}개`}
                 />
                 <ContextRow label="결제금액" value={`₩${order.total.toLocaleString('ko-KR')}`} />
-                <ContextRow
+                {canManageSales ? <ContextRow
                   label="결제"
                   value={order.payment
                     ? `${PAYMENT_PROVIDER_LABELS[order.payment.provider ?? ''] ?? order.payment.provider ?? '확인 필요'} · ${order.payment.status}`
                     : '결제 내역 없음'}
-                />
+                /> : null}
                 <ShipmentDetails admin shipments={order.shipments} />
-                <div className="col" style={{ gap: 4 }}>
+                {canManageSales ? <div className="col" style={{ gap: 4 }}>
                   <span className="muted" style={{ fontSize: 12 }}>클레임 이력</span>
                   {order.claims.length ? (
                     <ul className="col" style={{ gap: 3, listStyle: 'none', margin: 0, padding: 0 }}>
@@ -182,7 +204,7 @@ export function InquiryDetailScreen({
                   ) : (
                     <span style={{ fontSize: 12.5 }}>없음</span>
                   )}
-                </div>
+                </div> : null}
                 {/* 문의에서 클레임이 필요해지면 여기서 넘어간다. 이 화면은 절차를 만들지 않는다. */}
                 <Link
                   className="btn btn-sm btn-ghost"
@@ -196,7 +218,7 @@ export function InquiryDetailScreen({
                 연결된 주문이 없습니다. 주문 관련 문의라면 구매자에게 주문번호를 물어보세요.
               </span>
             )}
-          </section>
+          </section> : null}
 
           {inquiry.goodId ? (
             <section className="card col" style={{ gap: 8, padding: 16 }}>
@@ -210,7 +232,7 @@ export function InquiryDetailScreen({
             <strong style={{ fontSize: 13.5 }}>구매자</strong>
             <ContextRow label="닉네임" value={`@${inquiry.buyerName}`} />
             <ContextRow label="이메일" value={buyer.email ?? '없음'} />
-            <ContextRow label="주문 수" value={`${buyer.orderCount.toLocaleString('ko-KR')}건`} />
+            {canReadOrders && typeof buyer.orderCount === 'number' ? <ContextRow label="주문 수" value={`${buyer.orderCount.toLocaleString('ko-KR')}건`} /> : null}
             <ContextRow
               label="문의 이력"
               value={`총 ${buyer.inquiryCount}건 · 진행 중 ${buyer.openInquiryCount}건`}
@@ -220,14 +242,14 @@ export function InquiryDetailScreen({
                 정지된 계정입니다 ({formatInquiryDateTime(buyer.suspendedAt)}).
               </span>
             ) : null}
-            <Link
+            {canViewCustomer ? <Link
               className="btn btn-sm btn-ghost"
               href={`/admin/customers/${buyer.id}`}
             >
               고객 상세 열기
-            </Link>
+            </Link> : null}
           </section>
-          <CustomerHistoryPanel key={buyer.id} userId={buyer.id} />
+          {canReadOrders ? <CustomerHistoryPanel key={buyer.id} userId={buyer.id} canReadClaims={canManageSales} /> : null}
         </aside>
       </div>
     </section>

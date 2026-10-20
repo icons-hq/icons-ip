@@ -12,9 +12,11 @@ import {
   AdminListExportAuditError,
   AdminListExportChangedError,
   loadAdminListExportSheet,
-  recordAdminListExport,
 } from '@/lib/admin/list-export-data.server';
 import { SHIPMENT_CONSOLE_TABS } from '@/lib/admin/shipment-dispatch';
+import { encryptAdminWorkbook } from '@/lib/admin/encrypted-workbook.server';
+import { recordEncryptedListExport } from '@/lib/admin/encrypted-export-audit.server';
+import { ExportRequestError, readExportPassword } from '@/lib/admin/export-request.server';
 
 export const runtime = 'nodejs';
 /* 상한(10,000행)까지 여러 페이지를 읽는다. 플랫폼 기본 시한에 맡기지 않는다. */
@@ -32,18 +34,27 @@ function errorResponse(message: string, status: number) {
  * `?screen=<화면 id>&<화면 검색 파라미터>`를 받아 화면과 같은 조건의 전체 결과를 .xlsx로
  * 돌려준다. 권한은 해당 화면 경로로 확인하고, 다운로드 감사 기록이 남아야 파일을 응답한다.
  */
-export async function GET(request: Request) {
+export async function GET() {
+  return Response.json({ error: '관리자 화면에서 비밀번호를 입력한 뒤 내려받아 주세요.' }, { status: 405, headers: { ...NO_STORE, Allow: 'POST' } });
+}
+
+export async function POST(request: Request) {
   const params = new URL(request.url).searchParams;
   const screen = params.get('screen');
   const definition = isAdminListExportScreenId(screen) ? ADMIN_LIST_EXPORT_SCREENS[screen] : null;
-  await requireAdminScreenAccess(definition?.href ?? '/admin');
+  const auth = await requireAdminScreenAccess(definition?.href ?? '/admin');
   if (!definition) return errorResponse('내려받을 화면을 확인해주세요.', 400);
 
   try {
+    const password = await readExportPassword(request, ['screen', 'page', 'view', 'field', 'query', 'status', 'state', 'tab', 'from', 'to', 'dateField', 'paymentMethod', 'sort', 'originId', 'method', 'delayNotice', 'stage', 'reasonType']);
     const now = new Date();
     const sheet = await loadAdminListExportSheet(definition.id, Object.fromEntries(params), now);
-    const bytes = await buildAdminListExportWorkbook(sheet, now);
-    const auditId = await recordAdminListExport(sheet);
+    const plain = await buildAdminListExportWorkbook(sheet, now);
+    let encrypted;
+    try { encrypted = encryptAdminWorkbook(plain, password); }
+    finally { plain.fill(0); }
+    const { bytes, sha256 } = encrypted;
+    const auditId = await recordEncryptedListExport(auth.user.id, sheet, sha256);
     const tab = definition.id === 'dispatch' || definition.id === 'shipping'
       ? SHIPMENT_CONSOLE_TABS[definition.id].find((item) => item.id === sheet.filters.tab)?.label
       : undefined;
@@ -56,10 +67,12 @@ export async function GET(request: Request) {
         'X-ICONS-Export-Audit': auditId,
         'X-ICONS-Export-Rows': String(sheet.rows.length),
         'X-ICONS-Export-Records': String(sheet.recordCount),
+        'X-ICONS-Export-Encryption': 'ECMA-376-Agile',
       },
     });
   } catch (error) {
     unstable_rethrow(error);
+    if (error instanceof ExportRequestError) return errorResponse(error.message, error.status);
     if (error instanceof AdminListExportLimitError) return errorResponse(error.message, 400);
     if (error instanceof AdminListExportChangedError) return errorResponse(error.message, 409);
     if (error instanceof AdminListExportAuditError) return errorResponse(error.message, 500);

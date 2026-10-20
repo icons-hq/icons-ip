@@ -1,16 +1,19 @@
 import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import { BUSINESS_INFO, BUSINESS_INFO_LABELS, type BusinessInfo } from '@/lib/legal/business-info';
 import { INQUIRY_CATEGORIES, type InquiryCategory } from '@/lib/inquiries';
+import { STORE_SOCIAL_LABELS, STORE_SOCIAL_PLATFORMS, type StoreBranding } from '@/lib/store-branding';
+import { STOREFRONT_MENU_ITEMS } from '@/lib/routes';
+import type { StoreNavigation } from '@/lib/store-navigation';
 
 export const STORE_SETTINGS_PATH = '/admin/settings/store';
 export const CARRIER_SETTINGS_PATH = '/admin/settings/carriers';
 export const STORE_SETTINGS_CACHE_TAG = 'store-settings';
-export type StoreSettingsSection = 'business' | 'bank_transfer' | 'inquiry_auto_replies';
+export type StoreSettingsSection = 'business' | 'bank_transfer' | 'inquiry_auto_replies' | 'branding' | 'navigation';
 export type InquiryAutoReplies = Record<InquiryCategory, { enabled: boolean; body: string }>;
 export const BANK_ACCOUNT_LABELS = { bank:'은행',accountNumber:'계좌번호',holder:'예금주' } as const;
 export type StoreSettingsValue = Record<string,string>;
 export type ParsedSettings<T> = {ok:true;value:T} | {ok:false;errors:Record<string,string>};
-export type StoreSettingsSnapshot = { business:StoreSettingsValue;bankTransfer:StoreSettingsValue|null;inquiryAutoReplies:InquiryAutoReplies;updatedAt:string };
+export type StoreSettingsSnapshot = { business:StoreSettingsValue;bankTransfer:StoreSettingsValue|null;inquiryAutoReplies:InquiryAutoReplies;branding?:StoreBranding;navigation?:StoreNavigation;updatedAt:string };
 export type StoreSettingsAudit = { id:string;actorName:string;action:string;target:string;createdAt:string;diff:Record<string,unknown> };
 export type EditableCarrier = { code:string;label:string;trackingUrlTemplate:string;active:boolean;updatedAt:string };
 
@@ -21,7 +24,7 @@ export function mergeBusinessInfo(overrides:Record<string,unknown>,fallback:Busi
   ])) as unknown as BusinessInfo;
 }
 
-export function parseStoreSettingsInput(section:Exclude<StoreSettingsSection,'inquiry_auto_replies'>,input:unknown):ParsedSettings<StoreSettingsValue> {
+export function parseStoreSettingsInput(section:'business'|'bank_transfer',input:unknown):ParsedSettings<StoreSettingsValue> {
   const fields=section==='business'?BUSINESS_INFO_LABELS:BANK_ACCOUNT_LABELS;
   if (!input || typeof input!=='object' || Array.isArray(input)) return {ok:false,errors:{form:'설정 값을 다시 확인해주세요.'}};
   const entries=Object.entries(input);
@@ -60,6 +63,29 @@ export function storeSettingsHistoryRows(entry:StoreSettingsAudit) {
   const before=entry.diff.before&&typeof entry.diff.before==='object'?entry.diff.before as Record<string,unknown>:{};
   const after=entry.diff.after&&typeof entry.diff.after==='object'?entry.diff.after as Record<string,unknown>:{};
   const words=(value:unknown)=>value===true?'사용':value===false?'비활성':typeof value==='string'||typeof value==='number'?String(value):'미설정';
+  if (entry.target==='store_settings:navigation') {
+    const oldItems=Array.isArray(entry.diff.before)?entry.diff.before as StoreNavigation:[];
+    const newItems=Array.isArray(entry.diff.after)?entry.diff.after as StoreNavigation:[];
+    return STOREFRONT_MENU_ITEMS.flatMap(item=>{
+      const oldIndex=oldItems.findIndex(row=>row.id===item.id),newIndex=newItems.findIndex(row=>row.id===item.id);
+      const old=oldItems[oldIndex],next=newItems[newIndex];
+      return [
+        ...(oldIndex!==newIndex?[{key:`${item.id}.order`,label:`${item.label} · 순서`,before:oldIndex<0?'미설정':String(oldIndex+1),after:newIndex<0?'미설정':String(newIndex+1)}]:[]),
+        ...(['label','visible'] as const).filter(key=>old?.[key]!==next?.[key]).map(key=>({key:`${item.id}.${key}`,label:`${item.label} · ${key==='label'?'메뉴명':'노출'}`,before:words(old?.[key]),after:words(next?.[key])})),
+      ];
+    });
+  }
+  if (entry.target==='store_settings:branding') {
+    const brandLabels:Record<string,string>={displayName:'스토어 표시 이름',logoMode:'로고 표시 방식',logoPath:'PC 로고',mobileLogoPath:'모바일 로고',introduction:'스토어 소개',showIntroduction:'소개 노출'};
+    const brandWords=(value:unknown)=>value==='text'?'텍스트':value==='image'?'이미지':words(value);
+    const rows=Object.entries(brandLabels).filter(([key])=>before[key]!==after[key]).map(([key,label])=>({key,label,before:brandWords(before[key]),after:brandWords(after[key])}));
+    for (const platform of STORE_SOCIAL_PLATFORMS) {
+      const old=(before.socials as StoreBranding['socials']|undefined)?.[platform];
+      const next=(after.socials as StoreBranding['socials']|undefined)?.[platform];
+      for (const key of ['enabled','url'] as const) if (old?.[key]!==next?.[key]) rows.push({key:`${platform}.${key}`,label:`${STORE_SOCIAL_LABELS[platform]} · ${key==='enabled'?'노출':'주소'}`,before:words(old?.[key]),after:words(next?.[key])});
+    }
+    return rows;
+  }
   if (entry.target==='store_settings:inquiry_auto_replies') {
     return INQUIRY_CATEGORIES.flatMap(({id,label})=>{
       const old=before[id] as {enabled?:boolean;body?:string}|undefined;

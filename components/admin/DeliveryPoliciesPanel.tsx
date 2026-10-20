@@ -28,7 +28,7 @@ function PolicyForm({ originId, policy, onSaved }: { originId: string; policy?: 
     <input type="hidden" name="revision" value={policy?.revision ?? ''} />
     {policy ? <input type="hidden" name="method" value={policy.method} /> : <label>제공할 배송 방식
       <select name="method" defaultValue="" disabled={pending} required><option value="" disabled>방식을 선택해주세요</option>
-        <option value="quick">퀵</option><option value="pickup">방문수령</option></select>
+        <option value="quick">퀵</option><option value="pickup">방문수령</option><option value="direct">직접배송</option><option value="freight">화물배송</option><option value="none">배송없음 · 직접전달</option></select>
     </label>}
     <fieldset disabled={pending} className="col" style={{ border: 0, padding: 0, margin: 0, gap: 10 }}>
       <legend className="sr-only">실제 운영 조건</legend>
@@ -85,14 +85,14 @@ export function DeliveryPoliciesPanel({ originId, canEdit = false }: { originId:
   const reload = () => setRefresh((value) => value + 1);
   const saved = (text: string) => { setNotice({ originId, text }); reload(); };
   return <section className="col wc-admin-kit" style={{ gap: 12 }} aria-labelledby={`delivery-policies-${originId}`}>
-    <h4 id={`delivery-policies-${originId}`} style={{ margin: 0 }}>퀵·방문수령 운영 조건</h4>
-    <p style={{ margin: 0 }}>고객 요청과 기존 배송비 유지 동의가 기록된 주문에 적용합니다. 활성 정책의 조건은 보존되며, 변경은 새 버전으로 등록합니다.</p>
+    <h4 id={`delivery-policies-${originId}`} style={{ margin: 0 }}>배송·직접전달 운영 조건</h4>
+    <p style={{ margin: 0 }}>상품에서 허용한 방식은 주문서에서 선택할 수 있습니다. 결제 이후에는 고객 요청과 기존 비용 유지 동의를 기록해 변경합니다. 활성 정책의 조건은 보존되며, 변경은 새 버전으로 등록합니다.</p>
     {notice?.originId === originId && <p role="status">{notice.text}</p>}
     {!visible ? <p role="status">운영 조건을 불러오는 중입니다…</p> : visible.error ? <p role="alert">{visible.error}</p> : <>
       {visible.policies?.length ? visible.policies.map((policy) => <details key={`${policy.id}:${policy.revision}`}>
         <summary>{DELIVERY_METHOD_LABELS[policy.method]} · {policy.state === 'draft' ? '초안' : policy.state === 'active' ? '활성' : '새 선택 중지'} · 버전 {policy.revision}</summary>
         {policy.state === 'draft' && canEdit ? <PolicyForm originId={originId} policy={policy} onSaved={saved} /> : <SavedPolicy policy={policy} canEdit={canEdit} onSaved={saved} />}
-      </details>) : <p className="muted">등록된 운영 조건이 없습니다. 퀵·방문수령 선택은 열리지 않습니다.</p>}
+      </details>) : <p className="muted">등록된 운영 조건이 없습니다. 택배 외 배송 방식은 선택할 수 없습니다.</p>}
       {canEdit ? <details key={`new-${key}`}><summary>새 운영 조건 등록</summary><PolicyForm originId={originId} onSaved={saved} /></details> : <small className="muted">운영 조건 등록과 활성화는 관리자가 처리합니다.</small>}
     </>}
     <button className="btn btn-ghost" type="button" onClick={reload}>운영 조건 새로고침</button>

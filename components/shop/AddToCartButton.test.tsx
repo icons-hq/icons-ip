@@ -10,6 +10,10 @@ const good: Good = { id: 'good', ip: 'ip', name: '키링', type: '키링', price
 beforeEach(() => vi.clearAllMocks());
 
 describe('찜 목록 담기', () => {
+  it.each([['scheduled', '판매 시작 전'], ['ended', '판매 종료']] as const)('does not offer cart or option entry while %s', (state, label) => {
+    const closed = { ...good, options: [option, { ...option, id: '00000000-0000-4000-8000-000000000002' }], salePeriod: { state, startsAt: '2026-10-14T00:00:00Z', endsAt: '2026-10-15T00:00:00Z', calculatedAt: '2026-10-13T00:00:00Z', nextChangeAt: null } };
+    const html = renderToStaticMarkup(<AddToCartButton good={closed} />); expect(html).toContain('disabled=""'); expect(html).toContain(`>${label}</button>`); expect(html).not.toContain('옵션 선택'); expect(html).not.toContain('품절');
+  });
   it('단일 옵션의 UUID와 재고로 담고 상품 집계 재고를 사용하지 않는다', () => {
     const button = AddToCartButton({ good });
     expect(mocks.getQuantity).toHaveBeenCalledWith('good', option.id);
@@ -22,5 +26,9 @@ describe('찜 목록 담기', () => {
     expect(renderToStaticMarkup(<AddToCartButton good={multiple} />)).toContain('옵션 선택');
     expect(renderToStaticMarkup(<AddToCartButton good={{ ...good, options: [] }} />)).toContain('disabled=""');
     expect(mocks.add).not.toHaveBeenCalled();
+  });
+  it('최소 수량이 한 개보다 큰 상품은 상세 수량 선택으로 연결한다', () => {
+    const html = renderToStaticMarkup(<AddToCartButton good={{ ...good, orderQuantityLimitEnabled: true, minOrderQty: 2 }} />);
+    expect(html).toContain('href="/shop/good"'); expect(html).toContain('수량 선택'); expect(mocks.add).not.toHaveBeenCalled();
   });
 });

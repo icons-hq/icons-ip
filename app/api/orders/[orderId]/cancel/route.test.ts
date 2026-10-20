@@ -5,6 +5,7 @@ const ORDER_UUID = 'b2f8a1c4-3d5e-4f6a-8b7c-9d0e1f2a3b4c';
 const USER_ID = 'user-1';
 
 const mocks = vi.hoisted(() => ({
+  giftOrder: vi.fn(),
   supabaseConfigured: true,
   serviceConfigured: true,
   user: { id: 'user-1' } as { id: string } | null,
@@ -18,6 +19,7 @@ const mocks = vi.hoisted(() => ({
   rpc: vi.fn(),
 }));
 
+vi.mock('@/lib/gifts-order.server', () => ({ loadGiftCheckoutOrder: mocks.giftOrder }));
 vi.mock('@/lib/supabase/config', () => ({
   getSupabaseConfig: () => ({ isConfigured: mocks.supabaseConfigured }),
 }));
@@ -46,7 +48,7 @@ vi.mock('@/lib/supabase/server', () => ({
 function request(origin = 'https://icons.local', body?: unknown) {
   return new Request(`https://icons.local/api/orders/${ORDER_UUID}/cancel`, {
     method: 'POST',
-    headers: { Origin: origin, 'content-type': 'application/json' },
+    headers: { host: 'icons.local', Origin: origin, 'content-type': 'application/json' },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
 }
@@ -57,6 +59,7 @@ function context(orderId = ORDER_UUID) {
 
 describe('POST /api/orders/[orderId]/cancel', () => {
   beforeEach(() => {
+    mocks.giftOrder.mockReset().mockResolvedValue({ kind: 'ordinary' });
     mocks.supabaseConfigured = true;
     mocks.serviceConfigured = true;
     mocks.user = { id: USER_ID };
@@ -82,6 +85,20 @@ describe('POST /api/orders/[orderId]/cancel', () => {
     await expect(response.json()).resolves.toEqual({ error: { code: 'forbidden' } });
     expect(mocks.orderEq).not.toHaveBeenCalled();
     expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it('Next의 내부 localhost URL은 브라우저 Host로 검증하고 누락·위조 Host는 DB 전에 거절한다', async () => {
+    const local = new Request(`http://localhost:4334/api/orders/${ORDER_UUID}/cancel`, {
+      method: 'POST', headers: { host: '127.0.0.1:4334', origin: 'http://127.0.0.1:4334' },
+    });
+    expect((await POST(local, context())).status).toBe(202);
+    mocks.rpc.mockClear(); mocks.orderEq.mockClear();
+    for (const host of [null, 'evil.test', '127.0.0.1:4335']) {
+      const unsafe = new Request(local); unsafe.headers.set('x-forwarded-host', '127.0.0.1:4334');
+      if (host === null) unsafe.headers.delete('host'); else unsafe.headers.set('host', host);
+      expect((await POST(unsafe, context())).status).toBe(403);
+    }
+    expect(mocks.rpc).not.toHaveBeenCalled(); expect(mocks.orderEq).not.toHaveBeenCalled();
   });
 
   it('잘못된 UUID는 DB를 조회하지 않고 404로 숨긴다', async () => {
@@ -200,6 +217,25 @@ describe('POST /api/orders/[orderId]/cancel', () => {
     },
   );
 
+  it('본문 없는 레거시 요청은 유지하지만 잘못된 JSON은 전액 취소로 해석하지 않는다', async () => {
+    const invalid = new Request(`https://icons.local/api/orders/${ORDER_UUID}/cancel`, {
+      method: 'POST', headers: { host: 'icons.local', Origin: 'https://icons.local', 'content-type': 'application/json' }, body: '{"amount":100',
+    });
+    expect((await POST(invalid, context())).status).toBe(400);
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    expect((await POST(request(), context())).status).toBe(202);
+  });
+
+  it.each(['items', 'orderItemId', 'quantity', 'refundAmount', 'amount', 'partial'])(
+    '부분 처리 입력 %s를 무시한 전액 취소가 발생하지 않도록 거부한다',
+    async (key) => {
+      const response = await POST(request('https://icons.local', { reasonType: 'defect', [key]: 1 }), context());
+      expect(response.status).toBe(400);
+      expect(mocks.orderEq).not.toHaveBeenCalled();
+      expect(mocks.rpc).not.toHaveBeenCalled();
+    },
+  );
+
   it('기한이 지난 요청을 409로 구분해 응답한다', async () => {
     mocks.rpc.mockResolvedValue({ data: 'deadline_expired', error: null });
 
@@ -260,4 +296,10 @@ describe('POST /api/orders/[orderId]/cancel', () => {
     expect(unexpectedBody).toEqual({ error: { code: 'cancel_failed' } });
     expect(JSON.stringify(unexpectedBody)).not.toContain('provider_private_state');
   });
+});
+
+describe('gift payer cancellation boundary', () => {
+  beforeEach(() => { mocks.user = { id: USER_ID }; mocks.supabaseConfigured = true; mocks.serviceConfigured = true; mocks.orderEq.mockClear(); mocks.rpc.mockReset().mockResolvedValue({ data: 'requested', error: null }); });
+  it('accepts the verified payer projection without exposing or querying raw delivery data', async () => { mocks.giftOrder.mockResolvedValue({ kind: 'gift', order: { id: ORDER_UUID } }); expect((await POST(request(), context())).status).toBe(202); expect(mocks.orderEq).not.toHaveBeenCalled(); expect(mocks.rpc).toHaveBeenCalledWith('request_order_cancellation', expect.objectContaining({ p_user_id: USER_ID })); });
+  it('hides unavailable gifts and never falls back after a projection failure', async () => { mocks.giftOrder.mockResolvedValue({ kind: 'unavailable' }); expect((await POST(request(), context())).status).toBe(404); mocks.giftOrder.mockRejectedValue(new Error('private')); expect((await POST(request(), context())).status).toBe(502); expect(mocks.orderEq).not.toHaveBeenCalled(); expect(mocks.rpc).not.toHaveBeenCalled(); });
 });

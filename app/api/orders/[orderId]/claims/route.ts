@@ -1,3 +1,5 @@
+import { isSameOriginRequest } from '@/lib/http/same-origin.server';
+import { loadGiftCheckoutOrder } from '@/lib/gifts-order.server';
 import { NextResponse } from 'next/server';
 import { normalizeOrderReference } from '@/lib/checkout';
 import { isOrderWithdrawalReasonType, type OrderWithdrawalReasonType } from '@/lib/orders';
@@ -37,15 +39,6 @@ function errorJson(status: number, code: string) {
   return NextResponse.json({ error: { code } }, { status });
 }
 
-function isSameOriginRequest(request: Request) {
-  const origin = request.headers.get('origin');
-  if (!origin) return false;
-  try {
-    return new URL(origin).origin === new URL(request.url).origin;
-  } catch {
-    return false;
-  }
-}
 
 interface OrderRow {
   id: string;
@@ -67,9 +60,13 @@ export async function POST(
   if (!orderId) return errorJson(404, 'not_found');
 
   const body: unknown = await request.json().catch(() => null);
-  if (!body || typeof body !== 'object') return errorJson(400, 'invalid_body');
+  if (!body || typeof body !== 'object' || Array.isArray(body)) return errorJson(400, 'invalid_body');
 
   const payload = body as Record<string, unknown>;
+  // The product contract is whole-order cancellation/return. Never silently
+  // ignore a requested item, quantity or partial amount and refund everything.
+  const allowedKeys = new Set(['claimType', 'reasonType', 'accountHolder', 'accountNumber', 'bankName']);
+  if (Object.keys(payload).some((key) => !allowedKeys.has(key))) return errorJson(400, 'invalid_body');
   const claimType = payload.claimType;
   if (!isOrderClaimType(claimType)) return errorJson(400, 'invalid_claim_type');
 
@@ -96,18 +93,16 @@ export async function POST(
   const user = userData.user;
   if (!user) return errorJson(401, 'auth_required');
 
-  const { data: orderData, error: orderError } = await supabase
-    .from('orders')
-    .select('id,user_id')
-    .eq('id', orderId)
-    .eq('user_id', user.id)
-    .maybeSingle<OrderRow>();
-
-  if (orderError) {
-    console.error('[orders/claims] order lookup failed');
-    return errorJson(502, 'claim_failed');
+  // The gift payer receives a redacted projection; raw order RLS is closed.
+  let giftOrder;
+  try { giftOrder = await loadGiftCheckoutOrder(user.id, orderId); }
+  catch { return errorJson(502, 'claim_failed'); }
+  if (giftOrder.kind === 'unavailable') return errorJson(404, 'not_found');
+  if (giftOrder.kind === 'ordinary') {
+    const { data: orderData, error: orderError } = await supabase.from('orders').select('id,user_id').eq('id', orderId).eq('user_id', user.id).maybeSingle<OrderRow>();
+    if (orderError) return errorJson(502, 'claim_failed');
+    if (!orderData) return errorJson(404, 'not_found');
   }
-  if (!orderData) return errorJson(404, 'not_found');
 
   const service = createServiceClient();
   const { data, error } = await service.rpc('request_order_claim', {

@@ -81,11 +81,11 @@ const STATUS_PRESENTATION: Record<OrderDetailStatus, OrderStatusPresentation> = 
     tone: 'delivered',
   },
   done: {
-    // "완료"가 아니라 "거래확정"이다(CONTEXT.md). 변심 청약철회 창이 닫혔다는
-    // 뜻이고, 하자·오배송 클레임은 공급받은 날부터 3개월까지 남아 있다.
+    // 구매자 직접 확정과 설정된 자동 정책이 같은 상태에 도달한다.
+    // 반품·교환 신청 자격과 기한은 별도 계약이다.
     label: '거래확정',
     title: '거래가 확정됐어요',
-    body: '배송완료 후 청약철회 기간이 지나 거래가 확정된 주문입니다.',
+    body: '거래가 확정된 주문입니다. 반품·교환은 배송일과 사유별 신청 기한을 별도로 확인해주세요.',
     tone: 'done',
   },
   canceled: {
@@ -97,6 +97,7 @@ const STATUS_PRESENTATION: Record<OrderDetailStatus, OrderStatusPresentation> = 
 };
 
 export interface OrderListItem {
+  giftId?: string;
   id: string;
   status: OrderDetailStatus;
   total: number;
@@ -111,6 +112,7 @@ export interface OrderDetailItem {
   id: string;
   variantId: string;
   variantName?: string | null;
+  customInputs?: import('@/lib/goods-custom-inputs').GoodsCustomInputSelection | null;
   variantCode?: string | null;
   goodId: string;
   name: string;
@@ -156,6 +158,9 @@ export interface OrderCancellationRequestSummary {
 }
 
 export interface OrderDetail {
+  reshipmentHistory?: import('./orders/reshipment-items').OrderReshipmentReceipt[];
+  giftId?: string;
+  transaction?: import('./goods-transaction').GoodsTransactionDisplay;
   id: string;
   status: OrderDetailStatus;
   total: number;
@@ -220,6 +225,8 @@ export function refundStatusLabel(status: string): string {
   switch (status) {
     case 'requested':
       return '환불 요청 접수';
+    case 'awaiting_transfer':
+      return '환불 송금 대기';
     case 'done':
       return '환불 완료';
     case 'failed':

@@ -6,6 +6,8 @@ export interface FulfillmentOrigin {
   exportColumns?: import('./shipment-workbook').ShipmentExportColumn[];
   exportTemplate: 'standard' | 'wms_csv' | 'seowon_xlsx'; active: boolean; updatedAt: string;
 }
+/** Fields used to select an origin and preview customer shipping information. */
+export type GoodsFulfillmentOrigin = Pick<FulfillmentOrigin, 'id' | 'name' | 'defaultCarrier' | 'baseFee' | 'freeThreshold' | 'returnAddress' | 'active'>;
 export function parseFulfillmentOriginInput(input: Record<string, string>) {
   const value = {
     code: (input.code ?? '').trim(), name: (input.name ?? '').trim(), default_carrier: input.defaultCarrier || null,

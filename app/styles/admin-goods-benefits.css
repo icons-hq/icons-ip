@@ -1,0 +1,36 @@
+.wc-admin .admin-goods-benefits { min-width: 0; font-size: 13px; line-height: 1.7; }
+.wc-admin .admin-goods-benefits fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
+.wc-admin .admin-goods-benefits p { margin: 12px 0; }
+.wc-admin .admin-goods-benefits__field { display: grid; grid-template-columns: 125px minmax(0, 1fr) 60px; align-items: center; gap: 12px; margin: 16px 0; }
+.wc-admin .admin-goods-benefits input,
+.wc-admin .admin-goods-benefits select { min-width: 0; width: 100%; min-height: 34px; padding: 6px 10px; border: 1px solid var(--wc-line-control); background: var(--wc-surface); color: var(--wc-ink); font: inherit; }
+.wc-admin .admin-goods-benefits__field small { color: var(--wc-ink-tertiary); text-align: right; }
+.wc-admin .admin-goods-benefits__images { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 16px; }
+.wc-admin .admin-goods-benefits__images > div { min-width: 0; }
+.wc-admin .admin-goods-benefits__images .btn { white-space: normal; margin-top: 8px; }
+.wc-admin .admin-goods-benefits__actions,
+.wc-admin .admin-goods-benefits__result { display: flex; align-items: center; flex-wrap: wrap; gap: 10px 16px; margin-top: 16px; }
+.wc-admin .admin-goods-benefits__actions .btn { white-space: normal; }
+.wc-admin .admin-goods-benefits__result { justify-content: space-between; }
+.wc-admin .admin-goods-benefits__search { display: flex; flex-wrap: wrap; align-items: end; gap: 12px; padding: 20px; background: var(--wc-surface); border: 1px solid var(--wc-line-control); }
+.wc-admin .admin-goods-benefits__search label:first-child { flex: 1 1 240px; }
+.wc-admin .admin-goods-benefits__search label { display: grid; gap: 6px; }
+.wc-admin .admin-goods-benefits__table { margin-top: 16px; max-width: 100%; overflow-x: auto; border: 1px solid var(--wc-line-control); background: var(--wc-surface); }
+.wc-admin .admin-goods-benefits table { width: 100%; min-width: 560px; border-collapse: collapse; }
+.wc-admin .admin-goods-benefits th,
+.wc-admin .admin-goods-benefits td { padding: 14px 16px; border-bottom: 1px solid var(--wc-line-control); text-align: left; }
+.wc-admin .admin-goods-benefits th { background: var(--wc-surface-grey); font-weight: 500; }
+.wc-admin .admin-goods-benefits td:first-child { overflow-wrap: anywhere; }
+.wc-admin .admin-goods-benefits__template-form { display: grid; gap: 12px; }
+.wc-admin .admin-goods-benefits__template-form label { display: grid; gap: 8px; }
+@media(max-width: 720px) {
+  .wc-admin .admin-goods-benefits__field { grid-template-columns: minmax(0,1fr) 52px; gap: 8px; }
+  .wc-admin .admin-goods-benefits__field input { grid-column: 1 / -1; grid-row: 2; }
+  .wc-admin .admin-goods-benefits__images { grid-template-columns: minmax(0,1fr); }
+  .wc-admin .admin-goods-benefits input,
+  .wc-admin .admin-goods-benefits select { min-height: 44px; }
+}
+@media(forced-colors: active) {
+  .wc-admin .admin-goods-benefits__table,
+  .wc-admin .admin-goods-benefits__search { border-color: CanvasText; }
+}

@@ -1,3 +1,4 @@
+import { goodsCustomInputSummary, type GoodsCustomInputSelection } from '@/lib/goods-custom-inputs';
 /*
  * 화면별 목록 엑셀의 열과 행.
  *
@@ -6,6 +7,9 @@
  * 주문 단위 금액은 행마다 반복되므로 안내 시트에 합계를 내는 열을 밝힌다.
  */
 import { adminGoodsCopy, ADMIN_VOCABULARY as V } from './vocabulary';
+import { SALES_DATE_FIELDS, SALES_SORT_OPTIONS } from './sales-list';
+import { shipmentDelayNoticeLabel } from './shipment-delay-notice';
+import { ORDER_DELAY_STATUS_LABELS } from './order-delay-notices';
 import {
   ADMIN_ORDER_SEARCH_FIELDS,
   ADMIN_ORDER_STATUS_LABELS,
@@ -22,6 +26,8 @@ import {
 import {
   ADMIN_CLAIM_REASON_OPTIONS,
   ADMIN_CLAIM_STAGE_OPTIONS,
+  ADMIN_CLAIM_DATE_FIELDS,
+  ADMIN_CLAIM_SEARCH_FIELDS,
   type AdminClaimFilters,
   type AdminClaimRow,
 } from './claims';
@@ -159,12 +165,22 @@ export function ordersListExportSheet(input: {
     column('결제수단', 'text', 12, ({ paymentMethod }) => nullable(listExportPaymentMethodLabel(paymentMethod))),
     column('결제 상태', 'text', 12, ({ order }) => nullable(order.payments.map((payment) => paymentStatusLabel(payment.status)).join(', '))),
     column('결제금액', 'amount', 12, ({ order }) => order.total),
+    column('선물 주문', 'text', 12, ({ order }) => order.isGift ? '선물 · 수령인용 가격표 제외' : '일반 주문'),
+    column('계산 버전', 'count', 10, ({ order }) => order.transaction?.calculationVersion ?? 1),
+    column('복수구매 할인(주문)', 'amount', 18, ({ order }) => order.transaction?.totals.volumeDiscountTotal ?? 0),
+    column('선불 배송비(주문)', 'amount', 18, ({ order }) => order.transaction?.totals.prepaidShippingTotal ?? null),
+    column('착불 배송비(주문)', 'amount', 18, ({ order }) => order.transaction?.totals.collectShippingTotal ?? 0),
     column(V.goods + '명', 'text', 32, ({ item }) => blank(item?.name)),
     column(V.option, 'text', 18, ({ item }) => blank(item?.variantName)),
+    column('직접 입력 옵션', 'text', 36, ({ item }) => blank(goodsCustomInputSummary(item?.customInputs))),
     column('옵션코드', 'code', 16, ({ item }) => blank(item?.variantCode)),
     column('수량', 'count', 8, ({ item }) => item?.qty ?? null),
     column('판매가', 'amount', 12, ({ item }) => item?.unitPrice ?? null),
     column(`${V.goods} 금액`, 'amount', 12, ({ item }) => (item ? item.unitPrice * item.qty : null)),
+    column('복수구매 할인(품목)', 'amount', 18, ({ order, item }) => order.transaction?.lines.find(line => line.lineId === item?.id)?.volumeDiscountTotal ?? 0),
+    column('쿠폰 할인(품목)', 'amount', 18, ({ order, item }) => order.transaction?.lines.find(line => line.lineId === item?.id)?.couponDiscount ?? null),
+    column('적립금 사용(품목)', 'amount', 18, ({ order, item }) => order.transaction?.lines.find(line => line.lineId === item?.id)?.storeCreditDiscount ?? null),
+    column('품목 실결제액(배송비 제외)', 'amount', 24, ({ order, item }) => order.transaction?.lines.find(line => line.lineId === item?.id)?.paidGoodsTotal ?? null),
     column('출고지', 'text', 10, ({ shipment }) => blank(shipment?.originName)),
     column('배송 방식', 'text', 10, ({ shipment }) => (shipment ? deliveryLabels(shipment.delivery, shipment.status).method : null)),
     column('배송 상태', 'text', 12, ({ shipment }) => (shipment ? nullable(deliveryLabels(shipment.delivery, shipment.status).status) : null)),
@@ -186,12 +202,20 @@ export function ordersListExportSheet(input: {
       ['검색 대상', fieldLabel],
       ['검색어', queryText(filters.query)],
       ['주문 상태', filters.status === 'all' ? '전체 상태' : ADMIN_ORDER_STATUS_LABELS[filters.status]],
-      ['주문일', listExportPeriodLabel(filters.from, filters.to)],
+      [SALES_DATE_FIELDS.find(option => option.value === (filters.dateField ?? 'ordered'))!.label, listExportPeriodLabel(filters.from, filters.to)],
+      ...(filters.paymentMethod ? [['결제수단', listExportPaymentMethodLabel(filters.paymentMethod)] as [string, string]] : []),
+      ...(filters.sort ? [['정렬', SALES_SORT_OPTIONS.find(option => option.value === filters.sort)!.label] as [string, string]] : []),
     ],
     notes: [
-      `한 행은 주문의 ${V.goods} 한 줄입니다. 결제금액은 주문 단위 값이라 같은 주문의 행마다 반복됩니다. 합계는 ${V.goods} 금액 열로 계산해주세요.`,
+      `한 행은 주문의 ${V.goods} 한 줄입니다. 결제금액과 (주문) 열은 같은 주문의 행마다 반복되므로 주문번호별로 한 번만 합산해주세요.`,
+      `${V.goods} 금액은 복수구매·쿠폰·적립금 차감 전 품목 소계입니다. 계산 버전 2의 품목 실결제액은 해당 할인과 적립금을 차감하며 배송비를 제외합니다. 버전 1의 미기록 배분액은 빈칸입니다.`,
+      '착불 배송비는 온라인 결제금액·PG 매출·PG 환급액에 포함하지 않습니다. 이 금액만으로 실제 수납 완료를 판단하지 마세요.',
+      '선물 주문은 내부 운영용 주소를 포함합니다. 수령인에게 가격·결제정보가 있는 이 파일을 동봉하지 마세요.',
     ],
     filters: {
+      ...(filters.dateField ? { dateField: filters.dateField } : {}),
+      ...(filters.paymentMethod ? { paymentMethod: filters.paymentMethod } : {}),
+      ...(filters.sort ? { sort: filters.sort } : {}),
       field: filters.field,
       query: filters.query || null,
       status: filters.status,
@@ -209,7 +233,7 @@ export function unpaidListExportSheet(input: {
   filters: AdminUnpaidFilters;
 }): AdminListExportSheet {
   const columns: ColumnSpec<AdminUnpaidOrderRow>[] = [
-    column('주문코드', 'code', 12, (row) => row.depositCode),
+    column('입금확인코드', 'code', 12, (row) => row.depositCode),
     column('전체 주문번호', 'code', 38, (row) => row.id),
     column('구매자', 'text', 16, (row) => row.buyerName),
     column('안내된 입금자명', 'text', 20, (row) => bankTransferDepositName(row.recipientName, row.id)),
@@ -225,9 +249,10 @@ export function unpaidListExportSheet(input: {
     title: ADMIN_LIST_EXPORT_SCREENS.unpaid.label,
     ...table(columns, input.rows),
     recordCount: input.rows.length,
-    conditions: [['검색어', queryText(input.filters.query)]],
+    conditions: [['검색어', queryText(input.filters.query)],
+      ...(input.filters.state ? [['결제상태', input.filters.state === 'missing' ? '원장 없음' : adminUnpaidAttemptStateLabel(input.filters.state)] as [string, string]] : [])],
     notes: ['한 행은 입금을 기다리는 무통장 입금 주문 한 건입니다. 입금 대조에 필요하지 않은 주소·연락처는 담지 않습니다.'],
-    filters: { query: input.filters.query || null },
+    filters: { query: input.filters.query || null, ...(input.filters.state ? { state: input.filters.state } : {}), ...(input.filters.sort ? { sort: input.filters.sort } : {}) },
   };
 }
 
@@ -276,6 +301,7 @@ export function shipmentsListExportSheet(input: {
     column('배송메시지', 'text', 24, ({ contact }) => blank(contact?.deliveryNote)),
     column(V.goods + '명', 'text', 32, ({ item }) => blank(item?.name)),
     column(V.option, 'text', 18, ({ item }) => blank(item?.variantName)),
+    column('직접 입력 옵션', 'text', 36, ({ item }) => blank(goodsCustomInputSummary(item?.customInputs))),
     column('수량', 'count', 8, ({ item }) => item?.qty ?? null),
     column('결제금액', 'amount', 12, ({ row }) => row.total),
     column('결제수단', 'text', 12, ({ row }) => nullable(listExportPaymentMethodLabel(row.paymentMethod))),
@@ -283,7 +309,11 @@ export function shipmentsListExportSheet(input: {
     column('택배사', 'text', 12, ({ row }) => nullable(carrierText(carriers, row.carrier))),
     column('운송장번호', 'code', 18, ({ row }) => blank(row.trackingNumber)),
     ...(isDispatch
-      ? [column<ShipmentLine>('출고지시 전달일시', 'text', 17, ({ row }) => nullable(kstDateTimeText(row.exportedAt)))]
+      ? [column<ShipmentLine>('출고지시 전달일시', 'text', 17, ({ row }) => nullable(kstDateTimeText(row.exportedAt))),
+        column<ShipmentLine>('지연 안내 결과', 'text', 22, ({ row }) => shipmentDelayNoticeLabel(row.delayNotice?.status)),
+        column<ShipmentLine>('최근 안내 요청일시', 'text', 17, ({ row }) => nullable(kstDateTimeText(row.delayNotice?.requestedAt))),
+        column<ShipmentLine>('안내 앱 알림', 'text', 12, ({ row }) => row.delayNotice?.inAppStatus ? ORDER_DELAY_STATUS_LABELS[row.delayNotice.inAppStatus] : '미요청'),
+        column<ShipmentLine>('안내 이메일', 'text', 14, ({ row }) => row.delayNotice?.emailStatus ? ORDER_DELAY_STATUS_LABELS[row.delayNotice.emailStatus] : '미요청')]
       : []),
     ...(filters.tab === 'delayed'
       ? [
@@ -306,16 +336,26 @@ export function shipmentsListExportSheet(input: {
     conditions: [
       ['탭', tabLabel],
       ['출고지', originName],
-      ['주문일', listExportPeriodLabel(filters.from, filters.to)],
+      [SALES_DATE_FIELDS.find(option => option.value === (filters.dateField ?? 'ordered'))!.label, listExportPeriodLabel(filters.from, filters.to)],
       ['검색어', queryText(filters.query)],
+      ...(isDispatch ? [['발송지연 안내여부', filters.delayNotice ? shipmentDelayNoticeLabel(filters.delayNotice) : '전체'] as [string, string]] : []),
+      ...(filters.method ? [['배송방법', DELIVERY_METHOD_LABELS[filters.method]] as [string, string]] : []),
+      ...(filters.paymentMethod ? [['결제수단', listExportPaymentMethodLabel(filters.paymentMethod)] as [string, string]] : []),
     ],
     notes: [
       `한 행은 배송 건의 ${V.goods} 한 줄입니다. 결제금액은 주문 단위, 배송비는 배송 건 단위 값이라 같은 주문·배송 건의 행마다 반복됩니다.`,
       ...(isDispatch
-        ? ['창고에 전달하는 출고지시 파일과 다른 확인용 목록입니다. 이 파일을 내려받아도 출고지시 전달 기록은 바뀌지 않습니다.']
+        ? ['창고에 전달하는 출고지시 파일과 다른 확인용 목록입니다. 이 파일을 내려받아도 출고지시 전달 기록은 바뀌지 않습니다.',
+          '지연 안내는 배송 건별 최근 발송 요청의 결과입니다. 미리보기는 제외하며 발송 처리는 앱 기록과 이메일 접수·발송을 뜻하고 고객 수신·열람은 확인하지 않습니다.']
         : []),
     ],
     filters: {
+      ...(filters.dateField ? { dateField: filters.dateField } : {}),
+      ...(filters.field ? { field: filters.field } : {}),
+      ...(filters.method ? { method: filters.method } : {}),
+      ...(filters.paymentMethod ? { paymentMethod: filters.paymentMethod } : {}),
+      ...(isDispatch && filters.delayNotice ? { delayNotice: filters.delayNotice } : {}),
+      ...(filters.sort ? { sort: filters.sort } : {}),
       tab: filters.tab,
       originId: filters.originId,
       query: filters.query || null,
@@ -332,6 +372,7 @@ export interface ListExportClaimItem {
   id: string;
   name: string;
   variantName: string | null;
+  customInputs?:GoodsCustomInputSelection|null;
   qty: number;
 }
 
@@ -390,6 +431,7 @@ export function claimsListExportSheet(input: {
     column('처리자', 'text', 14, ({ claim }) => claim.handlerName ?? '미배정'),
     column(V.goods + '명', 'text', 32, ({ item }) => blank(item?.name)),
     column(V.option, 'text', 18, ({ item }) => blank(item?.variantName)),
+    column('직접 입력 옵션', 'text', 36, ({ item }) => blank(goodsCustomInputSummary(item?.customInputs))),
     column('수량', 'count', 8, ({ item }) => item?.qty ?? null),
     ...(withDelivery
       ? [
@@ -414,8 +456,9 @@ export function claimsListExportSheet(input: {
     conditions: [
       [V.claimStatus, ADMIN_CLAIM_STAGE_OPTIONS.find((option) => option.value === filters.stage)?.label ?? filters.stage],
       ['사유', ADMIN_CLAIM_REASON_OPTIONS.find((option) => option.value === filters.reasonType)?.label ?? filters.reasonType],
-      ['접수일', listExportPeriodLabel(filters.from, filters.to)],
+      [filters.dateField ? ADMIN_CLAIM_DATE_FIELDS.find(option => option.value === filters.dateField)!.label : '접수일', listExportPeriodLabel(filters.from, filters.to)],
       ['검색어', queryText(filters.query)],
+      ...(filters.field ? [['검색 대상', ADMIN_CLAIM_SEARCH_FIELDS.find(option => option.value === filters.field)!.label] as [string, string]] : []),
     ],
     notes: [
       `한 행은 요청 주문의 ${V.goods} 한 줄입니다. ${V.claimRequest}은 주문 단위로 처리되며 결제금액은 같은 요청의 행마다 반복됩니다.`,
@@ -423,6 +466,9 @@ export function claimsListExportSheet(input: {
       `환급 기한은 내려받은 시각 기준입니다.`,
     ],
     filters: {
+      ...(filters.dateField ? { dateField: filters.dateField } : {}),
+      ...(filters.field ? { field: filters.field } : {}),
+      ...(filters.sort ? { sort: filters.sort } : {}),
       stage: filters.stage,
       reasonType: filters.reasonType,
       from: filters.from,

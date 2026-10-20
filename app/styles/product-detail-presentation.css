@@ -1,0 +1,42 @@
+.wc-pdp .wc-pdp__gallery-column { min-width:0; }
+.wc-pdp .wc-pdp-promotion { display:flex; align-items:center; justify-content:center; gap:8px 16px; flex-wrap:wrap; padding:14px 18px; background:var(--wc-surface-grey); color:var(--wc-ink); font-size:14px; line-height:1.6; overflow-wrap:anywhere; }
+.wc-pdp .wc-pdp-promotion strong { color:inherit; }
+.wc-pdp .wc-pdp-promotion[data-style="dark"] { background:var(--wc-ink); color:var(--wc-surface); }
+.wc-pdp .wc-pdp-review-summary { padding:32px 0; border-top:1px solid var(--wc-hairline); border-bottom:1px solid var(--wc-hairline); }
+.wc-pdp .wc-pdp-review-summary header { display:flex; align-items:baseline; justify-content:space-between; gap:12px; flex-wrap:wrap; }
+.wc-pdp .wc-pdp-review-summary h2 { font-size:20px; margin:0; line-height:1.5; }
+.wc-pdp .wc-pdp-review-summary header > a { font-size:13px; text-underline-offset:3px; }
+.wc-pdp .wc-pdp-review-summary__basis { color:var(--wc-ink-tertiary); font-size:12px; margin:8px 0 18px; }
+.wc-pdp .wc-pdp-review-summary__cards { display:grid; grid-auto-flow:column; grid-auto-columns:minmax(260px,340px); gap:12px; list-style:none; padding:0 0 10px; margin:0; overflow-x:auto; scroll-snap-type:x mandatory; }
+.wc-pdp .wc-pdp-review-summary__cards li { min-width:0; scroll-snap-align:start; background:var(--wc-surface-grey); border:1px solid var(--wc-hairline); border-radius:4px; }
+.wc-pdp .wc-pdp-review-summary__cards a { display:flex; gap:12px; padding:16px; text-decoration:none; }
+.wc-pdp .wc-pdp-review-summary__cards img { width:70px; height:70px; object-fit:cover; flex-shrink:0; }
+.wc-pdp .wc-pdp-review-summary__cards a > div { min-width:0; }
+.wc-pdp .wc-pdp-review-summary__rating { font-size:13px; font-weight:700; }
+.wc-pdp .wc-pdp-review-summary__author { color:var(--wc-ink-tertiary); font-size:11px; margin-left:8px; }
+.wc-pdp .wc-pdp-review-summary__cards p { margin:6px 0 0; font-size:13px; line-height:1.5; overflow:hidden; display:-webkit-box; -webkit-line-clamp:3; -webkit-box-orient:vertical; overflow-wrap:anywhere; }
+.wc-pdp .wc-pdp-auto { margin:40px 0; }
+.wc-pdp .wc-pdp-auto h2 { font-size:22px; margin:0 0 8px; }
+.wc-pdp .wc-pdp-auto > p { color:var(--wc-ink-tertiary); font-size:13px; margin:0 0 20px; }
+.wc-pdp .wc-pdp-auto__products { display:grid; grid-auto-flow:column; grid-auto-columns:calc((100% - 60px)/4); gap:20px; overflow-x:auto; scroll-snap-type:x mandatory; padding-bottom:12px; }
+.wc-pdp .wc-pdp-auto__products > * { min-width:0; scroll-snap-align:start; }
+.wc-pdp .wc-pdp-other-compositions { margin:32px 0; }
+.wc-pdp .wc-pdp-other-compositions h2 { font-size:18px; margin:0 0 20px; line-height:1.5; overflow-wrap:anywhere; }
+.wc-pdp .wc-pdp-other-compositions__products { display:grid; grid-auto-flow:column; grid-auto-columns:calc((100% - 60px)/4); gap:20px; list-style:none; margin:0; padding:0 0 12px; overflow-x:auto; scroll-snap-type:x mandatory; }
+.wc-pdp .wc-pdp-other-compositions__products > li { min-width:0; scroll-snap-align:start; }
+.wc-pdp .wc-pdp-other-compositions__products:focus-visible { outline:2px solid var(--wc-focus); outline-offset:4px; }
+.wc-pdp .wc-pdp-other-compositions__label { margin:8px 0 0; color:var(--wc-ink-sub); font-size:13px; line-height:1.5; overflow-wrap:anywhere; }
+@media (max-width: 767px) {
+ .wc-pdp .wc-pdp-promotion { font-size:12px; gap:4px 10px; padding:12px; }
+ .wc-pdp .wc-pdp-review-summary { padding:22px 0; }
+ .wc-pdp .wc-pdp-review-summary h2 { font-size:17px; }
+ .wc-pdp .wc-pdp-review-summary__cards { grid-auto-columns:minmax(250px,85%); }
+ .wc-pdp .wc-pdp-auto { margin:30px 0; }
+ .wc-pdp .wc-pdp-auto h2 { font-size:19px; }
+ .wc-pdp .wc-pdp-auto__products { grid-auto-columns:calc((100% - 12px)/2); gap:12px; }
+ .wc-pdp .wc-pdp-other-compositions { margin:24px 0; }
+ .wc-pdp .wc-pdp-other-compositions__products { grid-auto-columns:calc((100% - 12px)/2); gap:12px; }
+}
+@media (prefers-reduced-motion: reduce) {
+ .wc-pdp .wc-pdp-review-summary__cards,.wc-pdp .wc-pdp-auto__products,.wc-pdp .wc-pdp-other-compositions__products { scroll-behavior:auto; }
+}

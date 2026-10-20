@@ -1,3 +1,4 @@
+const { legacyOperatorAccessFixture } = await vi.hoisted(() => import('@/lib/admin/access.test-fixtures'));
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 const mocks = vi.hoisted(() => ({
   auth: vi.fn(),
@@ -58,6 +59,8 @@ import {
   previewSabangnetGoodsImport,
 } from './goods-import-actions';
 import type { GoodsWorkbookContext } from '@/lib/admin/goods-workbook';
+import { emptyGoodsCustomInputWorkbookRow } from '@/lib/admin/goods-custom-input-workbook';
+import { emptyGoodsAfterSalesWorkbookRow } from '@/lib/admin/goods-guidance-workbook';
 import { SABANGNET_KC_WARNING, suggestSabangnetTargets } from '@/lib/admin/sabangnet-goods-format';
 describe('goods workbook server boundary', () => {
   beforeEach(() => {
@@ -65,7 +68,7 @@ describe('goods workbook server boundary', () => {
     mocks.acquire.mockResolvedValue(true);
     mocks.auth.mockResolvedValue({
       isConfigured: true,
-      isStaff: true,
+      isStaff: true, operatorAccess: legacyOperatorAccessFixture(),
       user: { id: 'staff' },
     });
   });
@@ -138,6 +141,37 @@ describe('goods workbook server boundary', () => {
     expect(mocks.parse).not.toHaveBeenCalled();
     expect(mocks.service).not.toHaveBeenCalled();
   });
+  it('새 직접입력 ID는 서버가 저장한 plan에서 한 번 만들고 준비된 미리보기를 다시 열면 유지한다', async () => {
+    const actual = await vi.importActual<typeof import('@/lib/admin/goods-workbook')>('@/lib/admin/goods-workbook');
+    const values = { ...actual.emptyGoodsWorkbookRow(), code: 'TEST-NEW', name: 'TEST 상품', ipId: 'test-ip' };
+    const custom = { ...emptyGoodsCustomInputWorkbookRow(), goodCode: values.code, mode: '편집', enabled: '예',
+      name: 'TEST 주문 문구', action: '사용', revision: '0' };
+    const uploading = { id: 'batch', actor_id: 'staff', state: 'uploading', workbook_name: 'test.xlsx', has_images: false, plan: [], results: {} };
+    let saved: Record<string, unknown> = {};
+    mocks.batch.mockResolvedValueOnce(uploading).mockImplementation(async () => ({ ...uploading, ...saved }));
+    mocks.context.mockResolvedValue({ existing: [], ips: [{ id: 'test-ip', archived_at: null }], origins: [], presets: [], mediaUrl: () => null });
+    const afterSales = { ...emptyGoodsAfterSalesWorkbookRow(), goodCode: values.code, mode: '편집', phone: '02-123-4567', guide: 'TEST A/S 안내', revision: '0' };
+    mocks.parse.mockResolvedValue({ rows: [{ row: 5, values, errors: [] }], kcRows: [], customInputRows: [{ row: 5, values: custom, errors: [] }],
+      afterSalesRows: [{ row: 5, values: afterSales, errors: [] }], sizeRows: [] });
+    mocks.plan.mockImplementation(actual.planGoodsWorkbookImport);
+    mocks.client.mockResolvedValue({ storage: { from: () => ({ download: async () => ({ data: new Blob(['xlsx']), error: null }) }) } });
+    mocks.service.mockReturnValue({ from: () => ({ update: (payload: Record<string, unknown>) => {
+      saved = payload;
+      const chain = { eq: () => chain, then: (resolve: (value: unknown) => void) => resolve({ error: null }) };
+      return chain;
+    } }) });
+    expect(await previewGoodsImport('batch')).toMatchObject({ ok: true });
+    const plan = saved.plan as { target: { custom_inputs: { fields: { id: string }[] }; custom_inputs_expected_revision: number } }[];
+    const id = plan[0].target.custom_inputs.fields[0].id;
+    expect(id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    expect(plan[0].target.custom_inputs_expected_revision).toBe(0);
+    expect(plan[0]).toMatchObject({ afterSalesSource: [{ row: 5, values: afterSales }], guidance: { afterSales: { expectedRevision: 0, values: { guide: 'TEST A/S 안내' } } } });
+    expect(custom.fieldId).toBe('');
+    expect(await previewGoodsImport('batch')).toMatchObject({ ok: true, view: { plan } });
+    expect(mocks.plan).toHaveBeenCalledTimes(1);
+    expect(mocks.parse).toHaveBeenCalledTimes(1);
+    expect((saved.plan as typeof plan)[0].target.custom_inputs.fields[0].id).toBe(id);
+  });
   it('waits for the existing image budget before any product mutation', async () => {
     const batch = {
       id: 'batch',
@@ -206,7 +240,7 @@ describe('사방넷 상품 양식 흐름', () => {
   beforeEach(async () => {
     vi.clearAllMocks();
     saved = undefined;
-    mocks.auth.mockResolvedValue({ isConfigured: true, isStaff: true, user: { id: 'staff' } });
+    mocks.auth.mockResolvedValue({ isConfigured: true, isStaff: true, operatorAccess: legacyOperatorAccessFixture(), user: { id: 'staff' } });
     const actual = await vi.importActual<typeof import('@/lib/admin/goods-workbook')>('@/lib/admin/goods-workbook');
     mocks.plan.mockImplementation(actual.planGoodsWorkbookImport);
     mocks.client.mockResolvedValue({

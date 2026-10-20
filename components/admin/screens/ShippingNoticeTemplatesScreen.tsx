@@ -18,14 +18,14 @@ export function ShippingNoticeTemplatesScreen({ data }: { data: ShippingNoticeTe
   const { templates, impactGoods, filters, total } = data;
   return <section className="wc-admin-kit admin-shipping-notice-templates">
     <AdminPageHeader
-      title="배송정보 템플릿"
+      title="배송 안내 템플릿"
       description="배송·교환/반품 안내와 고객센터 연락처를 버전으로 저장합니다. 실제 운임과 반송 주소는 출고지 설정이 소유하며, 창고 출고지시 양식과 분리됩니다."
     />
     <p className="admin-shipping-notice-templates__policy">
-      템플릿은 초안으로 저장되고 필수 안내와 확인 근거가 있어야 활성화됩니다. 활성 버전은 수정할 수 없으며 새 버전으로 등록합니다.
+      배송비 유형·출고지·반품 조건은 <Link href="/admin/settings/shipping-templates">배송정보 템플릿 관리</Link>에서 적용합니다. 이 안내 템플릿은 초안으로 저장되고 필수 안내와 확인 근거가 있어야 활성화됩니다. 활성 버전은 수정할 수 없으며 새 버전으로 등록합니다.
     </p>
     <details className="admin-shipping-notice-templates__create">
-      <summary>새 배송정보 템플릿 등록</summary>
+      <summary>새 배송 안내 템플릿 등록</summary>
       <ShippingNoticeTemplateForm />
     </details>
     <form action={SHIPPING_NOTICE_TEMPLATES_PATH} className="admin-shipping-notice-templates__search">
@@ -70,7 +70,7 @@ export function ShippingNoticeTemplatesScreen({ data }: { data: ShippingNoticeTe
           {assigned.length ? <p>현재 이 버전을 적용한 상품 {assigned.length}건이 검색 결과에 포함되어 있습니다.</p> : null}
         </details>;
       })}
-    </div> : <p className="admin-shipping-notice-templates__empty">{filters.query ? '조건에 맞는 템플릿이 없습니다.' : '아직 배송정보 템플릿이 없습니다. 새 초안을 등록해주세요.'}</p>}
+    </div> : <p className="admin-shipping-notice-templates__empty">{filters.query ? '조건에 맞는 템플릿이 없습니다.' : '아직 배송 안내 템플릿이 없습니다. 새 초안을 등록해주세요.'}</p>}
     <ConsolePagination page={filters.page} pageSize={SHIPPING_NOTICE_TEMPLATE_PAGE_SIZE} total={total} hrefForPage={(page) => shippingNoticeTemplateHref(filters, page)} />
   </section>;
 }

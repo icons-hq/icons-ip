@@ -7,6 +7,7 @@ import {
 } from '@/lib/admin/guide/topics';
 import { AdminGuideIndexScreen } from './AdminGuideIndexScreen';
 import { AdminGuideTopicScreen } from './AdminGuideTopicScreen';
+import { configuredOperatorAccessFixture } from '@/lib/admin/access.test-fixtures';
 
 describe('AdminGuideIndexScreen', () => {
   const html = renderToStaticMarkup(<AdminGuideIndexScreen />);
@@ -20,6 +21,12 @@ describe('AdminGuideIndexScreen', () => {
 });
 
 describe('AdminGuideTopicScreen', () => {
+  it('읽을 수 있는 가이드에서도 허용되지 않은 실제 화면 링크를 제외한다', () => {
+    const html = renderToStaticMarkup(<AdminGuideTopicScreen topic={ADMIN_GUIDE_TOPICS['members-roles']} access={configuredOperatorAccessFixture('agency')} />);
+    expect(html).not.toContain('href="/admin/community/roles"');
+    expect(html).not.toContain('href="/admin/community/members"');
+    expect(html).toContain('href="/admin/guide"');
+  });
   it('섹션 앵커·목차·단계 목록을 렌더한다', () => {
     const topic = ADMIN_GUIDE_TOPICS['goods-sales'];
     const html = renderToStaticMarkup(<AdminGuideTopicScreen topic={topic} />);
@@ -38,8 +45,8 @@ describe('AdminGuideTopicScreen', () => {
     );
 
     /* "그룹 › 화면" 형태. 화면 이름이 바뀌면 가이드 chip도 따라 바뀌어야 한다. */
-    expect(html).toContain('고객 응대 › 역할');
-    expect(html).toContain('admin 전용');
+    expect(html).toContain('판매자 정보 › 매니저 관리');
+    expect(html).toContain('통합 매니저·계정 주매니저');
   });
 
   it('콜아웃 톤 클래스와 이전/다음 내비를 렌더한다', () => {

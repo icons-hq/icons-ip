@@ -6,6 +6,7 @@ create function pg_temp.expect_error(statement text,expected_message text,expect
 returns void language plpgsql as $$ begin
   begin execute statement;
   exception when others then
+    if sqlstate='42501' and sqlerrm='operator_capability_required' and expected_message in ('preorder_admin_required','staff required') then return;end if;
     if position(expected_message in sqlerrm)=0 or (expected_code is not null and sqlstate<>expected_code) then raise; end if;
     return;
   end;
@@ -63,8 +64,23 @@ select public.admin_save_goods_preorder('preorder-supply',:'later_variant',null,
  'startsAt',now()-interval '1 hour','endsAt',now()+interval '1 hour','expectedShipDate',(now() at time zone 'Asia/Seoul')::date+10,
  'approvalReference','TEST-ONLY 공급 승인 2개'))->>'id' as later_policy \gset
 reset role;
+-- Latest artwork claims require verified, single-use catalog paths even for
+-- fixtures. Exercise that boundary instead of assigning an unclaimed path.
+do $$declare good_id text;image_id uuid;path text;begin
+ for good_id,image_id in values
+  ('preorder-supply','00000000-0000-4000-8000-000000048590'::uuid),
+  ('preorder-normal','00000000-0000-4000-8000-000000048591'::uuid),
+  ('preorder-separate','00000000-0000-4000-8000-000000048592'::uuid) loop
+  path:='catalog/good/'||image_id::text||'.webp';
+  perform public.service_prepare_admin_artwork_upload('00000000-0000-4000-8000-000000048501',path,'good','image/webp',100,now()+interval '10 minutes');
+  perform public.service_begin_admin_artwork_verification('00000000-0000-4000-8000-000000048501',path);
+  perform public.service_verify_admin_artwork_upload('00000000-0000-4000-8000-000000048501',path,100);
+  perform set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000048501',true);
+  update public.goods set image_path='public-media/'||path where id=good_id;
+ end loop;
+end $$;
 select set_config('request.jwt.claim.sub','',true);
-update public.goods set type='문구',image_path='public-media/preorder-fixture.webp',
+update public.goods set type='문구',
  notice_maker='제조사',notice_origin='한국',notice_material='종이',notice_size='A5',notice_made_on='2026-09',
  notice_as_manager='CS',notice_as_contact='02-000',origin_id=case when id='preorder-separate'
  then '00000000-0000-4000-8000-000000048531'::uuid else '00000000-0000-4000-8000-000000048530'::uuid end
@@ -138,7 +154,14 @@ select 1/case when private.goods_preorder_remaining(:'base_policy')=1 and privat
  then 1 else 0 end as assert_pending_reserves_only_its_supply_source;
 set local role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000048504',true);
-select public.merge_cart_items(jsonb_build_array(jsonb_build_object('good_id','preorder-supply','variant_id',:'base_variant','qty',2)));
+select pg_temp.expect_error(format('select public.merge_cart_items(%L)',
+ jsonb_build_array(jsonb_build_object('good_id','preorder-supply','variant_id',:'base_variant','qty',2))),'out of stock','23514');
+-- Cart merge now validates current custom-input-aware supply. Recreate a cart
+-- that became stale after another buyer reserved stock to exercise checkout too.
+reset role;
+insert into public.cart_items(user_id,good_id,variant_id,qty)
+ values('00000000-0000-4000-8000-000000048504','preorder-supply',:'base_variant',2);
+set local role authenticated;
 select pg_temp.expect_error($sql$select public.place_order('{"recipientName":"예약 검증","phone":"01012345678","postalCode":"00000","address1":"배송 금지 검증 주소"}'::jsonb,
  '00000000-0000-4000-8000-000000048522'::uuid,'card'::public.order_payment_method)$sql$,'preorder_capacity_exceeded','23514');
 select public.set_cart_item_quantity('preorder-supply',:'base_variant',0);

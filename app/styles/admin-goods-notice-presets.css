@@ -29,3 +29,5 @@
   .wc-admin .admin-notice-presets__delete { padding: 0 16px 16px; }
   .wc-admin .admin-notice-presets__entry > summary span { display: block; margin-left: 0; }
 }
+
+@media (max-width: 900px) { .wc-admin .admin-notice-presets__search input { min-height: 44px; } }

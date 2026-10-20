@@ -1,5 +1,7 @@
 'use server';
 
+import { canAccessAdminScreen, hasAdminCapability } from '@/lib/admin/access';
+
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { normalizeAdminDispatchDelayForm } from '@/lib/admin/dispatch';
@@ -25,7 +27,7 @@ import { orderReferenceLabel } from '@/lib/orders';
 import { reconcileOrderCancellation } from '@/lib/orders/cancellation-orchestrator.server';
 import { recoverGoodsPaymentManually } from '@/lib/payments/goods-manual-recovery.server';
 import { trackingImportCommand } from '@/lib/admin/warehouse-templates.server';
-import { parseTrackingWorkbook, TRACKING_IMPORT_FILE_LIMIT_BYTES, type TrackingWorkbookParseResult } from '@/lib/admin/tracking-workbook.server';
+import { parseTrackingWorkbook, TRACKING_IMPORT_FILE_LIMIT_BYTES, TRACKING_IMPORT_TEXT_LIMIT_BYTES, type TrackingWorkbookParseResult } from '@/lib/admin/tracking-workbook.server';
 import { shipmentMutationError } from '@/lib/admin/shipment-dispatch';
 import { enqueueOrderShippedEmails } from '@/lib/email/order-shipment-jobs.server';
 import { getShippingCarrierRegistry } from '@/lib/orders/shipment.server';
@@ -44,7 +46,7 @@ function loginPath() {
 async function requireStaffAction() {
   const auth = await getCurrentAdminAuthState();
   if (!auth.isConfigured || !auth.user) redirect(loginPath());
-  if (!auth.isStaff) {
+  if (!auth.isStaff || !hasAdminCapability(auth, 'sales.manage')) {
     return { auth: null, error: { errors: { form: '관리자 권한이 필요합니다.' } } as AdminOrderActionState };
   }
   return { auth, error: null };
@@ -255,8 +257,8 @@ export async function resendOrderEmailAction(
 
   // 운송장 값은 넘기지 않는다 — 발송 훅이 주문 행에서 읽는다.
   const delivery = parsed.template === 'order_confirmation'
-    ? await sendOrderConfirmationEmail(parsed.orderId)
-    : await sendOrderShippedEmail({ orderId: parsed.orderId, shipmentId: parsed.shipmentId });
+    ? await sendOrderConfirmationEmail(parsed.orderId, parsed.audience ?? 'payer')
+    : await sendOrderShippedEmail({ orderId: parsed.orderId, shipmentId: parsed.shipmentId, audience: parsed.audience ?? 'payer' });
 
   revalidatePath('/admin');
 
@@ -352,7 +354,7 @@ export async function recoverAdminGoodsPaymentAction(
   if (access.error || !access.auth?.user) {
     return access.error ?? { errors: { form: '관리자 권한이 필요합니다.' } };
   }
-  if (access.auth.role !== 'admin') {
+  if (!canAccessAdminScreen(access.auth, null, { capability: 'sales.manage', adminOnly: true })) {
     return { errors: { form: 'Korpay 수동 복구는 관리자 계정만 수행할 수 있습니다.' } };
   }
 
@@ -412,13 +414,14 @@ export async function bulkRegisterAdminOrderTrackingAction(
   try {
     const file = formData.get('file');
     if (file instanceof File && file.size > 0) {
-      if (file.size > TRACKING_IMPORT_FILE_LIMIT_BYTES) return {errors:{form:'파일은 256KB 이하로 올려주세요. 운송장은 1,000줄까지 등록할 수 있습니다.'}};
-      if (/\.xlsx$/i.test(file.name)) parsed=await parseTrackingWorkbook(Buffer.from(await file.arrayBuffer()),carriers);
+      const workbook=/\.xlsx$/i.test(file.name);
+      if (file.size > (workbook?TRACKING_IMPORT_FILE_LIMIT_BYTES:TRACKING_IMPORT_TEXT_LIMIT_BYTES)) return {errors:{form:workbook?'XLSX 파일은 1MB 이하로 올려주세요. 운송장은 1,000줄까지 등록할 수 있습니다.':'CSV·TSV·텍스트 파일은 256KB 이하로 올려주세요. 운송장은 1,000줄까지 등록할 수 있습니다.'}};
+      if (workbook) parsed=await parseTrackingWorkbook(Buffer.from(await file.arrayBuffer()),carriers);
       else if (/\.(csv|tsv|txt)$/i.test(file.name)) parsed=parseTrackingImport(await file.text(),carriers);
       else return {errors:{form:'XLSX 또는 CSV·TSV 파일을 올려주세요.'}};
     } else {
       const text=String(formData.get('pasted')??'');
-      if(Buffer.byteLength(text,'utf8')>TRACKING_IMPORT_FILE_LIMIT_BYTES)return {errors:{form:'붙여넣기 내용은 256KB 이하로 나누어주세요.'}};
+      if(Buffer.byteLength(text,'utf8')>TRACKING_IMPORT_TEXT_LIMIT_BYTES)return {errors:{form:'붙여넣기 내용은 256KB 이하로 나누어주세요.'}};
       parsed=parseTrackingImport(text,carriers);
     }
   } catch(error) { return {errors:{form:error instanceof Error?error.message:'운송장 파일을 읽지 못했습니다.'}}; }
@@ -434,12 +437,13 @@ export async function bulkRegisterAdminOrderTrackingAction(
   if(parsed.rows.length){
     const supabase=await createClient();
     const result=await supabase.rpc(command.name,command.args);
-    if(result.error?.message&&/^(warehouse_|inactive_shipping_carrier$|invalid_tracking_)/.test(result.error.message))
+    if(result.error?.message&&/^(warehouse_|shipment_pack_|inactive_shipping_carrier$|invalid_tracking_)/.test(result.error.message))
       return {errors:{form:shipmentMutationError(result.error.message)}};
-    if(result.error||!Array.isArray(result.data)||result.data.length!==parsed.rows.length)return {errors:{form:'등록 결과를 확인하지 못했습니다. 최신 배송 상태를 확인하고 같은 파일로 다시 시도해주세요.'}};
-    const rows=result.data as {line:number;reference:string;ok:boolean;error?:string;shipmentId?:string;orderId?:string;dispatched?:boolean;duplicate?:boolean}[];
-    for(const row of rows){if(row.ok){if(!row.duplicate)succeeded.push(row.reference);}else failed.push({line:row.line,reference:row.reference,reason:shipmentMutationError(row.error??'')});}
-    const deliveries=rows.filter(row=>row.ok&&!row.duplicate&&row.shipmentId&&row.orderId).map(row=>({orderId:row.orderId!,shipmentId:row.shipmentId!}));
+    if(result.error||!Array.isArray(result.data)||result.data.length!==command.args.target_rows.length)return {errors:{form:'등록 결과를 확인하지 못했습니다. 최신 배송 상태를 확인하고 같은 파일로 다시 시도해주세요.'}};
+    const rows=result.data as {line:number;reference:string;ok:boolean;error?:string;shipmentId?:string;orderId?:string;dispatched?:boolean;duplicate?:boolean;packedShipments?:{orderId:string;shipmentId:string}[]}[];
+    for(const row of rows){if(row.ok){if(!row.duplicate)succeeded.push(row.reference);}else if(!parsed.issues.some(issue=>issue.line===row.line))failed.push({line:row.line,reference:row.reference,reason:shipmentMutationError(row.error??'')});}
+    const deliveryRows=rows.filter(row=>row.ok&&!row.duplicate&&row.shipmentId&&row.orderId).flatMap(row=>row.packedShipments??[{orderId:row.orderId!,shipmentId:row.shipmentId!}]);
+    const deliveries=[...new Map(deliveryRows.map(row=>[row.shipmentId,row])).values()];
     if(deliveries.length){try{await enqueueOrderShippedEmails(deliveries);}catch{queueWarning=true;}}
     revalidateOrderSurfaces();
   }

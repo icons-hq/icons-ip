@@ -1,5 +1,6 @@
 import sanitizeHtml from 'sanitize-html';
 import { publicMediaUrl } from './media';
+import { cleanContentFormat, invalidContentFormat, sanitizedContentFormat, withContentFormatAllowlist } from './content-format';
 
 export type GoodsDescriptionFormat = 'plain' | 'html';
 export const GOODS_HTML_MAX_LENGTH = 30000;
@@ -12,7 +13,7 @@ const IMAGE_PATH = /^public-media\/catalog\/good\/[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a
    블록 구조만 보존한다 — 안내할 내용이 없어 제거 경고도 내지 않는다. */
 const LAYOUT_TAGS = ['div', 'span'];
 const DOCUMENT_TAGS = ['h2', 'h3', 'h4', 'h5', 'h6', 'p', 'br', 'hr', 'strong', 'b', 'em', 'i', 'u', 's', 'ul', 'ol', 'li', 'blockquote', 'table', 'caption', 'thead', 'tbody', 'tfoot', 'tr', 'th', 'td', 'a', 'img', 'figure', 'figcaption', ...LAYOUT_TAGS];
-const DOCUMENT_ATTRIBUTES: Record<string, string[]> = { a: ['href', 'title', 'rel'], img: ['src', 'alt', 'loading', 'decoding', 'referrerpolicy'], ol: ['start'], table: ['tabindex'], th: ['colspan', 'rowspan', 'scope'], td: ['colspan', 'rowspan'] };
+const DOCUMENT_ATTRIBUTES = withContentFormatAllowlist({ a: ['href', 'title', 'rel'], img: ['src', 'alt', 'loading', 'decoding', 'referrerpolicy'], ol: ['start'], table: ['tabindex'], th: ['colspan', 'rowspan', 'scope'], td: ['colspan', 'rowspan'] });
 const UNSAFE_URL_CHARACTER = /[\u0000- \u007f\\]/;
 const BLANK_URL_CHARACTER = /[\u0000- \u007f]/;
 /* 스킴 뒤에 //가 바로 오는 절대 주소만 받는다. 원문 문자열을 그대로 저장하므로 `https:host`처럼
@@ -34,7 +35,8 @@ export function goodsHtmlCleanedLengthWarning(length: number) {
   return `정리된 코드가 ${length.toLocaleString('ko-KR')}자로 최대 ${GOODS_HTML_MAX_LENGTH.toLocaleString('ko-KR')}자를 넘어 저장할 수 없습니다. 이미지마다 표시용 속성이 붙어 원문보다 길어지니 내용을 줄여주세요.`;
 }
 
-function safeLink(href: string | undefined): string | undefined {
+/** Shared by HTML sanitization and the product editor's link insertion tool. */
+export function safeGoodsDescriptionLink(href: string | undefined): string | undefined {
   if (!href || UNSAFE_URL_CHARACTER.test(href)) return undefined;
   if (href.startsWith('/') && !href.startsWith('//')) return href;
   try {
@@ -92,15 +94,16 @@ export function sanitizeGoodsDescription(input: string, options: {
     onOpenTag: (tag, attrs) => {
       if (tag !== 'h1' && tag !== 'center' && !DOCUMENT_TAGS.includes(tag)) warnings.add('지원하지 않는 태그는 제거됩니다. 제목·문단·목록·표와 강조 요소로 내용을 옮겨주세요.');
       if (Object.keys(attrs).some((attr) => !(DOCUMENT_ATTRIBUTES[tag] ?? []).includes(attr))) warnings.add('CSS·이벤트 등 지원하지 않는 속성은 제거됩니다. 문서 기본 서식이 적용됩니다.');
-      if (tag === 'a' && attrs.href && !safeLink(attrs.href)) warnings.add('안전하지 않은 링크 주소는 제거됩니다. https 주소 또는 사이트 안의 /경로를 입력해주세요.');
+      if (invalidContentFormat(tag, attrs)) warnings.add('지원하지 않는 본문 서식 값은 제거됩니다. 편집 도구에서 서식을 선택해주세요.');
+      if (tag === 'a' && attrs.href && !safeGoodsDescriptionLink(attrs.href)) warnings.add('안전하지 않은 링크 주소는 제거됩니다. https 주소 또는 사이트 안의 /경로를 입력해주세요.');
     },
     transformTags: {
-      h1: 'h2',
+      h1: (_tag, attrs) => ({ tagName: 'h2', attribs: sanitizedContentFormat('h2', attrs) }),
       center: () => ({ tagName: 'div', attribs: {} }),
-      div: () => ({ tagName: 'div', attribs: {} }),
-      span: () => ({ tagName: 'span', attribs: {} }),
+      div: (_tag, attrs) => ({ tagName: 'div', attribs: sanitizedContentFormat('div', attrs) }),
+      span: (_tag, attrs) => ({ tagName: 'span', attribs: sanitizedContentFormat('span', attrs) }),
       a: (_tag, attrs) => {
-        const href = safeLink(attrs.href);
+        const href = safeGoodsDescriptionLink(attrs.href);
         return { tagName: 'a', attribs: { ...(href ? { href } : {}), ...(attrs.title ? { title: attrs.title } : {}), rel: 'noopener noreferrer' } };
       },
       table: () => ({ tagName: 'table', attribs: { tabindex: '0' } }),
@@ -125,7 +128,7 @@ export function sanitizeGoodsDescription(input: string, options: {
         return { tagName: 'img', attribs: { src: hosted.url, alt: attrs.alt ?? '', loading: 'lazy', decoding: 'async', referrerpolicy: 'no-referrer' } };
       },
       '*': (tagName, attrs) => {
-        const attribs = { ...attrs };
+        const attribs = cleanContentFormat(tagName, attrs);
         for (const name of ['colspan', 'rowspan']) {
           if (attribs[name] && !/^(?:[1-9]|[1-9][0-9]|100)$/.test(attribs[name])) delete attribs[name];
         }

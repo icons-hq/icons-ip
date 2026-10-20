@@ -3,6 +3,7 @@ import { uploadAdminArtwork } from './artwork-upload.client';
 
 const UUID = '123e4567-e89b-42d3-a456-426614174000';
 const OBJECT_PATH = `catalog/card/${UUID}.webp`;
+const ACTOR_CHANGED_ERROR = '로그인 계정이 변경되었습니다. 현재 계정에서 다시 시도해주세요.';
 
 const mocks = vi.hoisted(() => ({
   cancel: vi.fn(),
@@ -50,6 +51,63 @@ beforeEach(() => {
 });
 
 describe('uploadAdminArtwork', () => {
+  it('captures the starting actor once for prepare and verify', async () => {
+    const file = new File(['image'], 'image.webp', { type: 'image/webp' });
+    const input = { kind: 'card' as const, file, expectedActorId: 'staff-1' };
+    mocks.prepare.mockImplementationOnce(async () => {
+      input.expectedActorId = 'staff-2';
+      return { ok: true, path: OBJECT_PATH };
+    });
+
+    await expect(uploadAdminArtwork(input)).resolves.toEqual({ ok: true, imagePath: `public-media/${OBJECT_PATH}` });
+    expect(mocks.prepare).toHaveBeenCalledExactlyOnceWith({ kind: 'card', mimeType: file.type, size: file.size, expectedActorId: 'staff-1' });
+    expect(mocks.verify).toHaveBeenCalledExactlyOnceWith({ kind: 'card', mimeType: file.type, size: file.size, path: OBJECT_PATH, expectedActorId: 'staff-1' });
+    expect(mocks.upload).toHaveBeenCalledExactlyOnceWith(OBJECT_PATH, file, { contentType: file.type, upsert: false });
+    expect(mocks.cancel).not.toHaveBeenCalled();
+  });
+
+  it('keeps explicitly undefined actor bindings compatible with existing actions', async () => {
+    const file = new File(['image'], 'image.webp', { type: 'image/webp' });
+    await uploadAdminArtwork({ kind: 'card', file, expectedActorId: undefined });
+    expect(mocks.prepare).toHaveBeenCalledExactlyOnceWith({ kind: 'card', mimeType: file.type, size: file.size });
+    expect(mocks.verify).toHaveBeenCalledExactlyOnceWith({ kind: 'card', mimeType: file.type, size: file.size, path: OBJECT_PATH });
+  });
+
+  it('does not upload or cancel when the actor changed before prepare', async () => {
+    mocks.prepare.mockResolvedValue({ ok: false, error: ACTOR_CHANGED_ERROR });
+    await expect(uploadAdminArtwork({
+      kind: 'good', file: new File(['image'], 'image.png', { type: 'image/png' }), expectedActorId: 'staff-1',
+    })).resolves.toEqual({ ok: false, error: ACTOR_CHANGED_ERROR });
+    expect(mocks.createClient).not.toHaveBeenCalled();
+    expect(mocks.upload).not.toHaveBeenCalled();
+    expect(mocks.verify).not.toHaveBeenCalled();
+    expect(mocks.cancel).not.toHaveBeenCalled();
+  });
+
+  it.each(['resolves', 'rejects'])('keeps a verify account-switch error when cancellation %s', async cleanup => {
+    mocks.verify.mockResolvedValue({ ok: false, error: ACTOR_CHANGED_ERROR });
+    if (cleanup === 'rejects') mocks.cancel.mockRejectedValue(new Error('private cancellation failure'));
+    await expect(uploadAdminArtwork({
+      kind: 'good', file: new File(['image'], 'image.png', { type: 'image/png' }), expectedActorId: 'staff-1',
+    })).resolves.toEqual({ ok: false, error: ACTOR_CHANGED_ERROR });
+    expect(mocks.cancel).toHaveBeenCalledExactlyOnceWith({ path: OBJECT_PATH });
+    expect(mocks.verify).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ expectedActorId: 'staff-1' }));
+    expect(mocks.prepare).toHaveBeenCalledTimes(1);
+    expect(mocks.upload).toHaveBeenCalledTimes(1);
+  });
+
+  it('cleans up a bound verification rejection without accepting a path or retrying', async () => {
+    mocks.verify.mockRejectedValue(new Error('private verification failure'));
+    mocks.cancel.mockRejectedValue(new Error('private cancellation failure'));
+    await expect(uploadAdminArtwork({
+      kind: 'good', file: new File(['image'], 'image.png', { type: 'image/png' }), expectedActorId: 'staff-1',
+    })).resolves.toEqual({ ok: false, error: '이미지를 업로드하지 못했습니다. 다시 시도해주세요.' });
+    expect(mocks.cancel).toHaveBeenCalledExactlyOnceWith({ path: OBJECT_PATH });
+    expect(mocks.prepare).toHaveBeenCalledTimes(1);
+    expect(mocks.verify).toHaveBeenCalledTimes(1);
+    expect(mocks.upload).toHaveBeenCalledTimes(1);
+  });
+
   it('preserves the curation kind through prepare and verification', async () => {
     const path = `catalog/curation/${UUID}.png`;
     const file = new File(['image'], 'curation.png', { type: 'image/png' });
