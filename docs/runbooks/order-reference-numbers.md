@@ -27,4 +27,4 @@ DB migration 3개(`readable_order_numbers`, `smartstore_delivery_list_export`, `
 - `supabase/tests/smartstore_shipment_workbook.sql`
 - `lib/admin/smartstore-delivery-list*.test.ts`, `lib/admin/smartstore-shipment-workbook.server.test.ts`
 
-정확한 JSON 키를 검사하는 배송지·환불 송금·클레임 비용·합포장·선물 조회는 기존 RPC 응답을 유지하고 새 앱만 `*_numbered` 조회를 사용한다. 합포장 버전 값과 변경 영수증은 기존 계약을 유지한다. 따라서 DB 적용 직후의 기존 앱과 앱 롤백에서도 UUID 연결·기존 조회를 유지한다. 한 번 외부에 표시한 번호를 없애거나 다시 부여하는 DB 롤백은 수행하지 않는다.
+정확한 JSON 키를 검사하는 배송지·환불 송금·클레임 비용·합포장·선물·문의 만족도 조회는 기존 RPC 응답을 유지하고 새 앱만 `*_numbered` 조회를 사용한다. 합포장 버전 값과 변경 영수증은 기존 계약을 유지한다. 따라서 DB 적용 직후의 기존 앱과 앱 롤백에서도 UUID 연결·기존 조회를 유지한다. 한 번 외부에 표시한 번호를 없애거나 다시 부여하는 DB 롤백은 수행하지 않는다.

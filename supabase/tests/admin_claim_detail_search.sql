@@ -107,6 +107,12 @@ do $$declare total bigint; one uuid; all_ids uuid[]; paged_ids uuid[]; counts js
  perform pg_temp.claim_search_assert(total=1,'case-insensitive recipient contains treats percent and underscore literally');
  select count(*) into total from public.admin_search_order_claims_console(p_claim_type=>'return',p_field=>'item',p_query=>upper(pg_temp.claim_search_id('item',1)::text));
  perform pg_temp.claim_search_assert(total=1,'complete uppercase item UUID');
+ select id into one from public.admin_search_order_claims_console(p_claim_type=>'return',p_field=>'order',
+  p_query=>(select order_number from public.orders where id=pg_temp.claim_search_id('order',1)));
+ perform pg_temp.claim_search_assert(one=pg_temp.claim_search_id('claim',1),'displayed numeric order number selects the whole claim');
+ select id into one from public.admin_search_order_claims_console(p_claim_type=>'return',p_field=>'item',
+  p_query=>(select product_order_number from public.order_items where id=pg_temp.claim_search_id('item',1)));
+ perform pg_temp.claim_search_assert(one=pg_temp.claim_search_id('claim',1),'displayed numeric product-order number selects the whole claim');
  select id into one from public.admin_search_order_claims_console(p_claim_type=>'return',p_field=>'item',p_query=>right(pg_temp.claim_search_id('item',1)::text,12));
  perform pg_temp.claim_search_assert(one=pg_temp.claim_search_id('claim',1),'partial item identifier selects its whole claim');
  select count(*) into total from public.order_items where order_id=pg_temp.claim_search_id('order',1);

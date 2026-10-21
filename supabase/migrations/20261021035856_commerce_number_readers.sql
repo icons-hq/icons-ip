@@ -35,11 +35,19 @@ select pg_temp.copy_commerce_reader('public.admin_list_claim_fees(text,integer)'
 select pg_temp.copy_commerce_reader('public.get_my_gift_checkout_order(uuid,uuid)','get_my_gift_checkout_order_numbered');
 select pg_temp.copy_commerce_reader('public.get_my_gift(uuid)','get_my_gift_numbered');
 select pg_temp.copy_commerce_reader('public.list_my_gifts(text,timestamp with time zone,uuid)','list_my_gifts_numbered');
+select pg_temp.copy_commerce_reader('public.admin_inquiry_satisfaction_console(text,text,date,date,text,text,integer,integer,text)','admin_inquiry_satisfaction_console_numbered');
 
 select pg_temp.patch_commerce_reader('private.admin_sales_order_matches(public.orders,date,date,text,text,text,text)',
   $a$position(lower(p_query) in lower((p_order).id::text))>0$a$,
   $a$(position(lower(p_query) in lower((p_order).id::text))>0 or position(p_query in (p_order).order_number)>0)$a$);
 select private.register_operator_internal_contract('private.admin_sales_order_matches(public.orders,date,date,text,text,text,text)'::regprocedure);
+select pg_temp.patch_commerce_reader('private.admin_sales_claim_matches(public.order_cancellation_requests,text,date,date,text,text,text)',
+  $a$position(lower(p_query) in lower((p_claim).order_id::text))>0$a$,
+  $a$(position(lower(p_query) in lower((p_claim).order_id::text))>0 or exists(select 1 from public.orders numbered where numbered.id=(p_claim).order_id and position(p_query in numbered.order_number)>0))$a$);
+select pg_temp.patch_commerce_reader('private.admin_sales_claim_matches(public.order_cancellation_requests,text,date,date,text,text,text)',
+  $a$position(lower(p_query) in lower(i.id::text))>0$a$,
+  $a$(position(lower(p_query) in lower(i.id::text))>0 or position(p_query in i.product_order_number)>0)$a$);
+select private.register_operator_internal_contract('private.admin_sales_claim_matches(public.order_cancellation_requests,text,date,date,text,text,text)'::regprocedure);
 
 do $$declare signature text;begin
   foreach signature in array array[
@@ -185,11 +193,11 @@ select pg_temp.patch_commerce_reader('public.admin_get_order_delay_notice(uuid)'
   $a$'orderId',t.order_id,'orderNumber',(select o.order_number from public.orders o where o.id=t.order_id),'buyerName'$a$);
 select pg_temp.patch_commerce_reader('public.admin_list_bank_transfer_refunds_numbered(integer,integer)',
   $a$'orderId',purchase.id,'reference'$a$,$a$'orderId',purchase.id,'orderNumber',purchase.order_number,'reference'$a$);
-select pg_temp.patch_commerce_reader('public.admin_inquiry_satisfaction_console(text,text,date,date,text,text,integer,integer,text)',
+select pg_temp.patch_commerce_reader('public.admin_inquiry_satisfaction_console_numbered(text,text,date,date,text,text,integer,integer,text)',
   $a$then thread.order_id else null::uuid end order_id,$a$,
   $a$then thread.order_id else null::uuid end order_id,
    case when public.has_operator_capability('sales.read') then (select o.order_number from public.orders o where o.id=thread.order_id) else null::text end order_number,$a$);
-select pg_temp.patch_commerce_reader('public.admin_inquiry_satisfaction_console(text,text,date,date,text,text,integer,integer,text)',
+select pg_temp.patch_commerce_reader('public.admin_inquiry_satisfaction_console_numbered(text,text,date,date,text,text,integer,integer,text)',
   $a$position(lower(v_query) in lower(coalesce(thread.order_id::text,'')))>0$a$,
   $a$(position(lower(v_query) in lower(coalesce(thread.order_id::text,'')))>0 or exists(select 1 from public.orders o where o.id=thread.order_id and position(v_query in o.order_number)>0))$a$);
 -- Enrich only the returned rows, after the original version digest is built.
@@ -235,8 +243,7 @@ select private.register_operator_internal_contract('public.get_my_gift_checkout_
 do $refresh_contexts$declare entry record;begin
   for entry in select * from private.operator_rpc_contracts where signature in (
     'public.admin_order_claim_detail(uuid)','public.admin_inquiry_context(uuid)','public.admin_order_address_context(uuid)',
-    'public.admin_seller_claim_intake_context(uuid)','public.admin_get_order_delay_notice(uuid)',
-    'public.admin_inquiry_satisfaction_console(text,text,date,date,text,text,integer,integer,text)'
+    'public.admin_seller_claim_intake_context(uuid)','public.admin_get_order_delay_notice(uuid)'
   ) loop
     perform private.register_operator_rpc_contract(entry.signature::regprocedure,entry.capability,entry.guard_kind,entry.legacy_admin_only);
   end loop;
@@ -244,6 +251,8 @@ end $refresh_contexts$;
 select private.register_operator_rpc_contract('public.admin_list_bank_transfer_refunds_numbered(integer,integer)'::regprocedure,capability,guard_kind,legacy_admin_only)
 from private.operator_rpc_contracts where signature='public.admin_list_bank_transfer_refunds(integer,integer)';
 select private.register_operator_rpc_contract('public.admin_list_claim_fees_numbered(text,integer)'::regprocedure,'sales.manage','read',false);
+select private.register_operator_rpc_contract('public.admin_inquiry_satisfaction_console_numbered(text,text,date,date,text,text,integer,integer,text)'::regprocedure,capability,guard_kind,legacy_admin_only)
+from private.operator_rpc_contracts where signature='public.admin_inquiry_satisfaction_console(text,text,date,date,text,text,integer,integer,text)';
 
 select pg_temp.patch_commerce_reader('private.order_shipment_records_before_delivery_methods(uuid)',
   $a$'id',shipment.id,'orderId'$a$,$a$'id',shipment.id,'shipmentNumber',shipment.shipment_number,'orderId'$a$);

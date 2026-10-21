@@ -13,7 +13,7 @@ beforeEach(() => { vi.resetAllMocks(); mocks.rpc.mockImplementation(async name =
 it('out-of-range pages keep total and summary; filter is sent before server pagination', async () => {
   const data = await getAdminInquiryConsoleData(filters);
   expect(data.rows).toEqual([]); expect(data.total).toBe(41); expect(data.satisfactionSummary).toEqual(summary);
-  expect(mocks.rpc).toHaveBeenCalledWith('admin_inquiry_satisfaction_console', expect.objectContaining({ p_satisfaction: 'dissatisfied', p_offset: 40, p_limit: 20, p_category: 'order', p_query: '배송' }));
+  expect(mocks.rpc).toHaveBeenCalledWith('admin_inquiry_satisfaction_console_numbered', expect.objectContaining({ p_satisfaction: 'dissatisfied', p_offset: 40, p_limit: 20, p_category: 'order', p_query: '배송' }));
 });
 it.each([null, [], { rows: [], total: 0 }, { rows: [{ ...row, satisfaction: undefined }], total: 41, summary }, { rows: [], total: 41, summary: { ...summary, unrated: null } }])('reader corruption is a load error, never unrated/zero', async input => {
   mocks.rpc.mockImplementation(async name => ({ error: null, data: name === 'admin_inquiry_status_counts' ? [] : input }));
@@ -24,5 +24,5 @@ it('previous/next boundary lookups keep the same satisfaction and current query'
   const data = await getAdminInquiryConsoleData(filters);
   mocks.rpc.mockClear();
   await getAdminInquiryNavigation(row.id, data, 'detail');
-  expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith('admin_inquiry_satisfaction_console', expect.objectContaining({ p_satisfaction: 'dissatisfied', p_limit: 1, p_offset: 39, p_query: '배송', p_from: '2026-10-01', p_to: '2026-10-15' }));
+  expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith('admin_inquiry_satisfaction_console_numbered', expect.objectContaining({ p_satisfaction: 'dissatisfied', p_limit: 1, p_offset: 39, p_query: '배송', p_from: '2026-10-01', p_to: '2026-10-15' }));
 });
