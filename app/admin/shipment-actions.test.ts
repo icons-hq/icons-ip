@@ -6,7 +6,7 @@ import { DEFAULT_SHIPMENT_EXPORT_COLUMNS } from '@/lib/admin/shipment-workbook';
 const ID = '00000000-0000-4000-8000-000000000001';
 const SECOND = '00000000-0000-4000-8000-000000000002';
 const STAMP = '2026-09-08T00:00:00Z';
-const credentials = { password: 'Shipment-Test-1234', passwordConfirmation: 'Shipment-Test-1234' };
+const credentials = { password: '1234', passwordConfirmation: '1234' };
 const mocks = vi.hoisted(() => ({ auth: vi.fn(), rpc: vi.fn(), build: vi.fn(), encrypt: vi.fn(), refresh: vi.fn() }));
 vi.mock('@/lib/auth/admin', () => ({ getCurrentAdminAuthState: mocks.auth }));
 vi.mock('@/lib/supabase/server', () => ({ createClient: async () => ({ rpc: mocks.rpc }) }));

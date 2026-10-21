@@ -8,7 +8,7 @@ export const BANK_TRANSFER_TOPIC: AdminGuideTopic = {
   slug: 'bank-transfer',
   title: '무통장 입금 확인',
   navLabel: '무통장 입금',
-  summary: '입금 대기 주문을 확인해 결제완료로 확정하고, 기한 연장·취소와 입금 내역 큐를 다루는 절차입니다.',
+  summary: '미결제 확인에서 실제 입금을 대조하고 결제완료를 확정합니다. 기한 연장·미입금 취소·입금 제안의 처리도 다룹니다.',
   sections: [
     {
       id: 'overview',
@@ -38,7 +38,8 @@ export const BANK_TRANSFER_TOPIC: AdminGuideTopic = {
           ],
         },
         {
-          text: '결과 문구를 확인합니다. 확정되면 주문은 결제완료가 되고 고객에게 주문확인 메일이 발송됩니다.',
+          text: '결과 문구와 주문의 결제완료를 확인합니다. 주문확인 메일은 별도 발송 결과를 확인하고, 출고할 주문은 발주(주문)확인/발송관리에서 발주확인합니다.',
+          detail: ['입금 확인·메일 발송·발주확인·실제 출고는 각각 다른 처리입니다. 이메일 경고가 나왔다는 이유로 입금 확인을 반복하지 말고 주문 상태와 메일 발송 이력을 먼저 확인합니다.'],
         },
       ],
       callouts: [
@@ -50,7 +51,7 @@ export const BANK_TRANSFER_TOPIC: AdminGuideTopic = {
           ],
         },
       ],
-      screens: [{ href: '/admin/sales/unpaid' }],
+      screens: [{ href: '/admin/sales/unpaid' }, { href: '/admin/messaging/emails' }, { href: '/admin/sales/dispatch' }],
     },
     {
       id: 'extend',

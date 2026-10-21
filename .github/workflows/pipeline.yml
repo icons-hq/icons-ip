@@ -140,7 +140,10 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install --yes ripgrep python3
-          docker pull public.ecr.aws/supabase/postgrest:v14.14
+          # Use Supabase's identical GHCR image to avoid ECR anonymous data limits.
+          docker pull ghcr.io/supabase/postgrest:v14.14
+          # Existing HTTP fixtures inspect this local tag before starting PostgREST.
+          docker tag ghcr.io/supabase/postgrest:v14.14 public.ecr.aws/supabase/postgrest:v14.14
 
       - name: Check manager permission boundaries
         run: |

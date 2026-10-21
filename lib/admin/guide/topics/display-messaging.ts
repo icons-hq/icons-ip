@@ -4,7 +4,7 @@ export const DISPLAY_MESSAGING_TOPIC: AdminGuideTopic = {
   slug: 'display-messaging',
   title: '홈 전시·쇼핑스토리·캠페인과 알림·메일',
   navLabel: '전시·알림',
-  summary: '홈 배너·상품 모음·BEST·자유상품과 전체 영역 순서, 쇼핑스토리·캠페인 편성, 인앱 공지와 메일 이력을 다룹니다.',
+  summary: '스토어 전시와 캠페인, 마케팅 링크·고객 안내 메시지·공지 발송을 설정하고 공개·예약·발송 결과를 확인합니다.',
   sections: [
     {
       id: 'category-display',
@@ -101,9 +101,9 @@ export const DISPLAY_MESSAGING_TOPIC: AdminGuideTopic = {
         '상품·카테고리 링크 생성에는 상품 관리 권한, 홈·쇼핑스토리 생성에는 스토어 관리 권한이 필요합니다. 마케팅 메뉴의 통합 조회 권한과 원본별 생성 권한은 별개입니다.',
         '같은 대상은 같은 링크를 계속 사용하며 링크만 수정하거나 삭제할 수 없습니다. 최초 공개 전 상품 주소 ID가 바뀌어도 링크는 유지되고, 원본과 상위 IP가 비공개이거나 카테고리가 비활성·보관 상태이면 이동할 수 없습니다. 다시 공개하면 기존 링크가 복구됩니다.',
         '쇼핑스토리는 전시기간에만 이동할 수 있고 삭제된 스토리 링크는 사용할 수 없습니다. 잘못된 링크는 404 안내를 표시합니다.',
-        'utm_source, utm_medium, utm_campaign, utm_term, utm_content만 값당 200자까지 전달합니다. 중복 키·제어문자·다른 매개변수는 제외합니다. 클릭·전환·매출은 집계하지 않습니다.',
+        'utm_source, utm_medium, utm_campaign, utm_term, utm_content만 값당 200자까지 전달합니다. 중복 키·제어문자·다른 매개변수는 제외합니다. 링크 목록은 생성·복사용이며, 실제 유입과 결제 전환은 데이터분석 → 마케팅 링크 성과에서 확인합니다. 수집 활성화와 고객의 별도 방문 통계 동의를 충족한 기록만 집계합니다.',
       ],
-      screens: [{ href: '/admin/marketing/links' }],
+      screens: [{ href: '/admin/marketing/links' }, { href: '/admin/stats/marketing' }],
     },
     {
       id: 'campaigns',
@@ -188,8 +188,8 @@ export const DISPLAY_MESSAGING_TOPIC: AdminGuideTopic = {
       id: 'emails',
       heading: '메일 발송 이력',
       paragraphs: [
-        '주문확인·배송 시작 같은 자동 메일의 발송 성공/실패 이력을 보는 화면입니다. 실패한 건은 "다시 보내기"로 재발송할 수 있고, 같은 건을 여러 번 눌러도 중복 발송되지 않습니다.',
-        '문의 답변 메일은 여기서 재발송할 수 없습니다 — 문의 상세에서 답변을 다시 등록해주세요.',
+        '주문확인·배송 시작·문의 답변 메일의 발송 상태와 시도 수·실패 사유를 확인합니다. 주문·발송 처리 성공과 메일 발송 결과는 별개이며, 발송 완료도 고객의 실제 열람을 뜻하지 않습니다.',
+        '다시 보내기 버튼이 있는 주문 메일만 기존 기록으로 재시도합니다. 결과가 불명확한 발송은 새 요청을 만들기 전에 현재 기록을 확인합니다. 문의 답변 메일은 이 화면의 재발송 대상이 아니며 고객은 내 문의에서 저장된 답변을 확인할 수 있습니다.',
       ],
       screens: [{ href: '/admin/messaging/emails' }, { href: '/admin/cs/inquiries' }],
     },

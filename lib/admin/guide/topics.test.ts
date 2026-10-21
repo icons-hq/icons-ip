@@ -49,7 +49,7 @@ function referencedHrefs(topic: AdminGuideTopic): string[] {
 
 describe('어드민 가이드 레지스트리', () => {
   it('순서 배열과 레코드가 변경 로그를 포함한 같은 주제를 가리킨다', () => {
-    expect(getAdminGuideTopic('whats-new')?.title).toBe('이번 주 바뀐 것');
+    expect(getAdminGuideTopic('whats-new')).toMatchObject({ title: '업데이트 내역', navLabel: '업데이트 내역' });
     expect(new Set(ADMIN_GUIDE_TOPIC_SLUGS).size).toBe(ADMIN_GUIDE_TOPIC_SLUGS.length);
     expect([...ADMIN_GUIDE_TOPIC_SLUGS].sort()).toEqual(Object.keys(ADMIN_GUIDE_TOPICS).sort());
 

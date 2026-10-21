@@ -3,10 +3,16 @@ import { exportPasswordError } from './export-password';
 import { readExportPassword } from './export-request.server';
 
 describe('엑셀 비밀번호와 요청 경계', () => {
-  it('대문자를 포함한 인쇄 ASCII 12~64자를 그대로 받는다', () => {
-    for (const password of ['A'.repeat(12), 'Z'.repeat(64), '!"#$%&\'()*+,-./:;<=>?@[\\]^_`{|}~']) expect(exportPasswordError(password, password)).toBeNull();
-    for (const password of ['', 'A'.repeat(11), 'A'.repeat(65), 'Test Password12', '한국어Password12', 'TEST\nPassword12', ' TESTPassword12']) expect(exportPasswordError(password, password)).not.toBeNull();
+  it('숫자만·영문만·기호만 입력해도 인쇄 ASCII 4~16자를 그대로 받는다', () => {
+    for (const password of ['1234', 'ABCD', 'Z'.repeat(16), '!"#$%&\'()*+,-./:', ';<=>?@[\\]^_`{|}~']) expect(exportPasswordError(password, password)).toBeNull();
+    for (const password of ['', 'A'.repeat(3), 'A'.repeat(17), 'Test Password12', '한국어Password12', 'TEST\nPassword12', ' TESTPassword12', 'TESTPassword12 ', 'TEST\tPassword12', 'TESTPassword12\n']) expect(exportPasswordError(password, password)).not.toBeNull();
     expect(exportPasswordError('StrongTEST123!', 'strongTEST123!')).toContain('일치');
+  });
+  it.each(['1234', 'A'.repeat(16)])('요청 본문에서 허용 길이의 비밀번호 %s를 그대로 받는다', async password => {
+    const request = new Request('https://example.test/api?screen=shipping', { method: 'POST',
+      headers: { origin: 'https://example.test', 'content-type': 'application/json' },
+      body: JSON.stringify({ password, passwordConfirmation: password }) });
+    await expect(readExportPassword(request, ['screen'])).resolves.toBe(password);
   });
   it('본문만 받으며 모르는 키·잘못된 형식·상한 초과를 거부한다', async () => {
     const request = (body: string, content = 'application/json') => new Request('https://example.test/api?screen=orders', { method: 'POST', headers: { origin: 'https://example.test', 'content-type': content }, body });
