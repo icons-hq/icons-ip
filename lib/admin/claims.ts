@@ -129,6 +129,7 @@ export interface AdminClaimFilters extends SalesListOptions {
 }
 
 export interface AdminClaimRow {
+  orderNumber?: string;
   id: string;
   reference: number;
   orderId: string;

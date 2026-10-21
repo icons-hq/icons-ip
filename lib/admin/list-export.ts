@@ -67,7 +67,7 @@ export function isAdminListExportScreenId(value: unknown): value is AdminListExp
  * - amount: 원 단위 정수 금액. 숫자 셀 + 천 단위 서식.
  * - count: 수량·건수. 숫자 셀 + 천 단위 서식.
  */
-export type ListExportCellKind = 'text' | 'code' | 'amount' | 'count';
+export type ListExportCellKind = 'text' | 'code' | 'amount' | 'count' | 'date';
 export type ListExportCellValue = string | number | null;
 
 export interface ListExportColumn {
@@ -78,6 +78,8 @@ export interface ListExportColumn {
 }
 
 export interface AdminListExportSheet {
+  /** Source workbook layout; unspecified consoles retain their existing layout. */
+  layout?: 'smartstore-delivery';
   screen: AdminListExportScreenId;
   /** 데이터 시트 이름. 화면 이름과 탭 이름을 쓴다. */
   title: string;

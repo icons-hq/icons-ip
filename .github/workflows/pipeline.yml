@@ -154,6 +154,9 @@ jobs:
           docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/operator_member_loyalty_projection.sql
           docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/operator_manual_recovery_guards.sql
           docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/admin_operator_directory.sql
+          docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/readable_order_numbers.sql
+          READABLE_ORDER_TEST_SCOPE=ci SUPABASE_DB_CONTAINER=supabase_db_icons-ip PGDATABASE=postgres python3 supabase/tests/readable_order_numbers_concurrency.py
+          docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/smartstore_shipment_workbook.sql
           docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/admin_seller_cancel_intake.sql
           docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/purchase_restriction_bulk_release.sql
           cat supabase/tests/helpers/goods_kc_fixture.sql supabase/tests/admin_order_item_console.sql | docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1

@@ -36,6 +36,7 @@ const ATTEMPT_STATE_SET = new Set<string>(GOODS_PAYMENT_ATTEMPT_STATES);
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
 
 interface SearchRow {
+  order_number?: string;
   id: string;
   user_id: string;
   buyer_name: string | null;
@@ -70,7 +71,7 @@ async function loadOrderItemRows(
   for (let start = 0; ; start += ORDER_ITEM_PAGE_ROWS) {
     const { data, error } = await supabase
       .from('order_items')
-      .select('id,order_id,qty,unit_price,good_name_snapshot,good_type_snapshot,variant_id,variant_name_snapshot,variant_code_snapshot,custom_inputs_snapshot')
+      .select('id,product_order_number,order_id,qty,unit_price,good_name_snapshot,good_type_snapshot,variant_id,variant_name_snapshot,variant_code_snapshot,custom_inputs_snapshot')
       .in('order_id', [...orderIds])
       .order('id', { ascending: true })
       .range(start, start + ORDER_ITEM_PAGE_ROWS - 1);
@@ -82,6 +83,7 @@ async function loadOrderItemRows(
 }
 
 interface ItemRow {
+  product_order_number?: string;
   id: string;
   order_id: string;
   qty: number;
@@ -392,6 +394,7 @@ export async function getAdminOrderRecords(
 
     return {
       id: row.id,
+      ...(row.order_number ?? delivery.orderNumber ? { orderNumber: row.order_number ?? delivery.orderNumber } : {}),
       userId: row.user_id,
       buyerName: buyerName(row.buyer_name, row.user_id),
       buyerEmail: row.buyer_email,
@@ -405,6 +408,7 @@ export async function getAdminOrderRecords(
       updatedAt: row.updated_at,
       items: (itemsByOrder.get(row.id) ?? []).map((item) => ({
         id: item.id,
+        ...(item.product_order_number ? { productOrderNumber: item.product_order_number } : {}),
         name: item.good_name_snapshot,
         ...(item.custom_inputs_snapshot == null ? {} : {customInputs:readGoodsCustomInputSnapshot(item.custom_inputs_snapshot)}),
       variantId: item.variant_id, variantName: item.variant_name_snapshot ?? null, variantCode: item.variant_code_snapshot ?? null,

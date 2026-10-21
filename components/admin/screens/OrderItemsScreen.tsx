@@ -19,7 +19,7 @@ import { isOpenOrderClaimStage, ORDER_CLAIM_STAGE_LABELS, ORDER_CLAIM_TYPE_LABEL
 const fields = [...ADMIN_ORDER_SEARCH_FIELDS, { value: 'item', label: '상품주문번호' }];
 const statuses = [{ value: 'all', label: '전체 상태' }, ...ADMIN_ORDER_STATUSES.map(value => ({ value, label: ADMIN_ORDER_STATUS_LABELS[value] }))];
 const columns: ConsoleGridColumn[] = [
-  { key: 'item', label: '상품주문번호', width: '190px', required: true }, { key: 'order', label: '주문번호', width: '140px', required: true },
+  { key: 'item', label: '상품주문번호', width: '190px', required: true }, { key: 'order', label: '주문번호', width: '190px', required: true },
   { key: 'status', label: '주문상태', width: '100px' }, { key: 'created', label: '주문일시', width: '160px' },
   { key: 'good', label: '상품명', width: '240px' }, { key: 'variant', label: '옵션 / 옵션코드', width: '180px' },
   { key: 'qty', label: '수량', width: '65px', align: 'end' }, { key: 'unitPrice', label: '단가', width: '100px', align: 'end' },
@@ -68,9 +68,9 @@ export function OrderItemsScreen({ data, canManage }: { data: AdminOrderItemData
       <p className="admin-order-items-counts">조회 조건에 맞는 상품주문 {data.total.toLocaleString('ko-KR')}개 · 주문 {data.orderCount.toLocaleString('ko-KR')}건 · 수량 {data.qty.toLocaleString('ko-KR')}개</p>
       <ConsoleGrid caption="상품주문 목록" preferencesKey="sales-order-items" columns={columns} selectable={canManage}
         selectedIds={selection} onSelectionChange={setSelected} emptyLabel="검색 조건에 맞는 상품주문이 없습니다."
-        rows={data.rows.map(row => ({ id: row.id, selectable: eligible.has(row.id), selectLabel: `상품주문 ${row.id} 선택`, cells: [
-          <Link key="item" className="mono" href={`${adminOrderDetailHrefFromBack(row.orderId, currentHref)}#item-${row.id}`} target="_blank" rel="noopener noreferrer">{row.id}</Link>,
-          <Link key="order" className="mono" href={adminOrderDetailHrefFromBack(row.orderId, currentHref)} target="_blank" rel="noopener noreferrer">{orderReferenceLabel(row.orderId)}</Link>,
+        rows={data.rows.map(row => ({ id: row.id, selectable: eligible.has(row.id), selectLabel: `상품주문 ${row.productOrderNumber ?? row.id} 선택`, cells: [
+          <Link key="item" className="mono" href={`${adminOrderDetailHrefFromBack(row.orderId, currentHref)}#item-${row.id}`} target="_blank" rel="noopener noreferrer">{row.productOrderNumber ?? row.id}</Link>,
+          <Link key="order" className="mono" href={adminOrderDetailHrefFromBack(row.orderId, currentHref)} target="_blank" rel="noopener noreferrer">{orderReferenceLabel(row.orderId, row.orderNumber)}</Link>,
           <span key="status" className={`order-status order-status--${row.status}`}>{ADMIN_ORDER_STATUS_LABELS[row.status]}</span>,
           formatOrderDateTime(row.createdAt), row.goodName,
           <div key="variant" className="admin-order-items-meta">{row.variantName ?? '기본 옵션'}<small>{row.variantCode ?? ''}</small><GoodsCustomInputsSummary selection={row.customInputs} /></div>,

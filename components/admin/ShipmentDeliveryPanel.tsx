@@ -5,6 +5,7 @@ import { readShipmentDeliveryAction, recordShipmentDeliveryAction, selectShipmen
 import { DELIVERY_METHOD_LABELS, deliveryIsHandoff, deliveryStatusLabel, type AdminShipmentDelivery, type DeliveryMethod, type DeliveryOperation } from '@/lib/shipment-delivery';
 import { formatOrderDateTime } from '@/lib/orders';
 import { krw } from '@/lib/format';
+import { commerceReferenceLabel } from '@/lib/commerce-number';
 
 const HISTORY_LABELS: Record<string, string> = { method_selected: '배송 방식 변경', quick_handoff: '퀵 인계', quick_receive: '퀵 수령 완료', pickup_receive: '방문수령 완료', direct_handoff: '직접배송 인계', direct_receive: '직접배송 수령 완료', freight_handoff: '화물배송 인계', freight_receive: '화물배송 수령 완료', none_receive: '직접전달 완료', digital_access: '디지털 파일 제공 시작' };
 const EVIDENCE_LABELS: Record<string, string> = {
@@ -95,7 +96,7 @@ function HandoffForm({ shipment, onSaved }: { shipment: AdminShipmentDelivery; o
 }
 
 /** Own read/CAS baselines keep receipt forms independent of the parent order form. */
-export function ShipmentDeliveryPanel({ shipmentId, orderId, originName }: { shipmentId: string; orderId: string; originName?: string }) {
+export function ShipmentDeliveryPanel({ shipmentId, shipmentNumber, orderId, originName }: { shipmentId: string; shipmentNumber?: string; orderId: string; originName?: string }) {
   const [refresh, setRefresh] = useState(0); const key = `${shipmentId}:${refresh}`;
   const [notice, setNotice] = useState<{ shipmentId: string; text: string } | null>(null);
   const [loaded, setLoaded] = useState<{ key: string; shipment?: AdminShipmentDelivery; error?: string } | null>(null);
@@ -109,7 +110,7 @@ export function ShipmentDeliveryPanel({ shipmentId, orderId, originName }: { shi
   const reload = () => setRefresh((value) => value + 1); const saved = (text: string) => { setNotice({ shipmentId, text }); reload(); };
   return <section className="card col wc-admin-kit" style={{ padding: 16, gap: 12 }} aria-labelledby={`shipment-delivery-${shipmentId}`}>
     <h3 id={`shipment-delivery-${shipmentId}`} style={{ margin: 0, fontSize: 16 }}>{originName ? `${originName} · ` : ''}배송 방식·인계 확인</h3>
-    <small className="mono">배송 건 {shipmentId.slice(-8).toUpperCase()}</small>
+    <small className="mono">배송 건 {commerceReferenceLabel(shipmentId, shipmentNumber)}</small>
     {notice?.shipmentId === shipmentId && <p role="status">{notice.text}</p>}
     {!visible ? <p role="status">배송 인계 정보를 불러오는 중입니다…</p> : visible.error ? <p role="alert">{visible.error}</p> : shipment ? <>
       <p style={{ margin: 0 }}>{DELIVERY_METHOD_LABELS[shipment.summary.method]} · {deliveryStatusLabel(shipment.summary.method, shipment.status)} · 기존 배송비 {krw(shipment.shippingFee)}</p>

@@ -25,10 +25,11 @@ export interface ShipmentConsoleFilters extends SalesListOptions {
  delayNotice?:ShipmentDelayNoticeStatus;
 }
 export interface ShipmentConsoleRow {
+ orderNumber?:string;shipmentNumber?:string;
  id:string;orderId:string;originId:string;originName:string;status:ShipmentStatus;createdAt:string;confirmedAt:string|null;
  buyerName:string;recipientName:string|null;total:number;paymentMethod:string;shippingFee:number;carrier:string|null;trackingNumber:string|null;
  shippedAt:string|null;deliveredAt:string|null;exportedAt:string|null;updatedAt:string;delayReason:string|null;expectedShipDate:string|null;
- items:{id:string;name:string;variantName:string|null;customInputs?:import('@/lib/goods-custom-inputs').GoodsCustomInputSelection|null;qty:number}[];
+ items:{id:string;productOrderNumber?:string;name:string;variantName:string|null;customInputs?:import('@/lib/goods-custom-inputs').GoodsCustomInputSelection|null;qty:number}[];
  originalExpectedShipDate?:string|null;preorderReady?:boolean;delivery?:ShipmentDeliverySummary|null;
  delayNotice?:ShipmentDelayNoticeSummary;
  pack?:import('./shipment-packs').ShipmentPackSummary|null;

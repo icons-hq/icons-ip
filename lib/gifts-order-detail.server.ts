@@ -27,7 +27,7 @@ export async function loadGiftOrderList(includePending: boolean): Promise<OrderL
       // Gift pending orders remain visible as an obligation after acceptance.
       if (!includePending && order.status === 'pending') continue;
       const summary = summarizeOrderItems(gift.items);
-      orders.push({ id: order.id, giftId: gift.id, status: order.status, total: order.total, createdAt: order.createdAt, itemLabel: summary.label, itemCount: summary.itemCount, paymentMethod: order.paymentMethod });
+      orders.push({ id: order.id, ...(order.orderNumber ? { orderNumber: order.orderNumber } : {}), giftId: gift.id, status: order.status, total: order.total, createdAt: order.createdAt, itemLabel: summary.label, itemCount: summary.itemCount, paymentMethod: order.paymentMethod });
     }
     if (!page.hasMore) return orders;
     const last = page.items.at(-1);

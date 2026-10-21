@@ -92,8 +92,27 @@ do $$declare old_rows jsonb;new_rows jsonb;begin
  select jsonb_agg(v-'satisfaction' order by ord) into new_rows from jsonb_array_elements(public.admin_inquiry_satisfaction_console(p_query=>'TEST 만족도 d515',p_limit=>3,p_offset=>2)->'rows') with ordinality e(v,ord);
  perform satisfaction_test.ok(old_rows=new_rows,'legacy full row/search/SLA ordering parity');end$$;
 select 'INQUIRY_SATISFACTION_DTO:'||jsonb_build_object('kind','admin','value',public.admin_inquiry_satisfaction_detail(satisfaction_test.id(201)))::text;
-select 'INQUIRY_SATISFACTION_DTO:'||jsonb_build_object('kind','console','value',public.admin_inquiry_satisfaction_console(p_query=>'TEST 만족도 d515'))::text;
+reset role;
+savepoint numbered_console;
+insert into public.orders(id,user_id,status,total,address)
+ values(satisfaction_test.id(701),satisfaction_test.id(2),'pending',1000,'{}');
+update public.inquiries set order_id=satisfaction_test.id(701) where id=satisfaction_test.id(201);
+set local role authenticated;
+select satisfaction_test.ok(
+ public.admin_inquiry_satisfaction_console_numbered(p_query=>(select order_number from public.orders where id=satisfaction_test.id(701)))#>>'{rows,0,order_number}'
+ =(select order_number from public.orders where id=satisfaction_test.id(701)),
+ 'numbered console searches and returns the persisted display number');
+do $$declare legacy jsonb;numbered jsonb;begin
+ legacy:=public.admin_inquiry_satisfaction_console(p_query=>'TEST 만족도 d515');
+ numbered:=public.admin_inquiry_satisfaction_console_numbered(p_query=>'TEST 만족도 d515');
+ perform satisfaction_test.ok((select jsonb_agg(v-'order_number' order by ord)
+  from jsonb_array_elements(numbered->'rows') with ordinality e(v,ord))=legacy->'rows'
+  and numbered-'rows'=legacy-'rows','numbered console preserves every legacy field, sort and summary');
+end$$;
+select 'INQUIRY_SATISFACTION_DTO:'||jsonb_build_object('kind','console','value',public.admin_inquiry_satisfaction_console_numbered(p_query=>'TEST 만족도 d515'))::text;
+reset role;rollback to numbered_console;set local role authenticated;
 select satisfaction_test.actor(5);select satisfaction_test.error($q$select public.admin_inquiry_satisfaction_console()$q$,'operator_capability_required');
+select satisfaction_test.error($q$select public.admin_inquiry_satisfaction_console_numbered()$q$,'operator_capability_required');
 reset role;
 select satisfaction_test.ok(not has_table_privilege('authenticated','private.inquiry_satisfaction_state','SELECT') and not has_table_privilege('service_role','private.inquiry_satisfaction_operations','INSERT')
  and not has_function_privilege('authenticated','private.inquiry_satisfaction_current(uuid)','EXECUTE') and not has_function_privilege('anon','public.get_my_inquiry_satisfaction(uuid)','EXECUTE')

@@ -1,4 +1,5 @@
 import type { CheckoutPaymentMethod, CheckoutAddress } from './checkout';
+import { commerceReferenceLabel } from './commerce-number';
 import type { ShipmentRecord } from './orders/shipments';
 import type { OrderClaimEligibility, OrderClaimStage, OrderClaimType } from './orders/claims';
 
@@ -98,6 +99,7 @@ const STATUS_PRESENTATION: Record<OrderDetailStatus, OrderStatusPresentation> = 
 };
 
 export interface OrderListItem {
+  orderNumber?: string;
   giftId?: string;
   id: string;
   status: OrderDetailStatus;
@@ -110,6 +112,7 @@ export interface OrderListItem {
 }
 
 export interface OrderDetailItem {
+  productOrderNumber?: string;
   id: string;
   variantId: string;
   variantName?: string | null;
@@ -159,6 +162,7 @@ export interface OrderCancellationRequestSummary {
 }
 
 export interface OrderDetail {
+  orderNumber?: string;
   reshipmentHistory?: import('./orders/reshipment-items').OrderReshipmentReceipt[];
   giftId?: string;
   transaction?: import('./goods-transaction').GoodsTransactionDisplay;
@@ -283,8 +287,8 @@ export function refundStatusLabel(status: string): string {
   }
 }
 
-export function orderReferenceLabel(orderId: string): string {
-  return orderId.replaceAll('-', '').slice(-8).toUpperCase();
+export function orderReferenceLabel(orderId: string, orderNumber?: string | null): string {
+  return commerceReferenceLabel(orderId, orderNumber);
 }
 
 export function formatOrderDate(value: string): string {

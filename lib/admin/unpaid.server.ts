@@ -11,6 +11,7 @@ import {
 } from './unpaid';
 
 interface UnpaidRow {
+  order_number?: string;
   order_id: string;
   buyer_name: string | null;
   buyer_id: string;
@@ -83,6 +84,7 @@ export async function getAdminUnpaidOrders(
   }));
   const unpaid: AdminUnpaidOrderRow[] = rows.map((row) => ({
     id: row.order_id,
+    ...(row.order_number ? { orderNumber: row.order_number } : {}),
     buyerName: row.buyer_name?.trim() || `fan_${row.buyer_id.slice(0, 6)}`,
     buyerId: row.buyer_id,
     recipientName: row.recipient_name?.trim() ?? '',

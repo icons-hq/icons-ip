@@ -145,6 +145,7 @@ export async function loadGoodReviewSection(
  * ------------------------------------------------------------------------- */
 
 export interface MyReviewTarget {
+  orderNumber?: string;
   kind?: ReviewKind;
   opensAt?: string | null;
   editable?: boolean;
@@ -173,6 +174,7 @@ export interface MyReviewTarget {
 }
 
 interface MyReviewTargetRow {
+  order_number?: string;
   review_kind: ReviewKind;
   opens_at: string | null;
   editable: boolean;
@@ -227,6 +229,7 @@ export async function loadMyReviewTargets(options: {
 
   return rows.map((row) => ({
     orderId: row.order_id,
+    ...(row.order_number ? { orderNumber: row.order_number } : {}),
     kind: row.review_kind, opensAt: row.opens_at, editable: row.editable, monthRewardEligible: row.month_reward_eligible, repeatPurchase: row.repeat_purchase,
     goodId: row.good_id,
     goodName: row.good_name,

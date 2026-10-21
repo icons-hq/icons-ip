@@ -1,5 +1,8 @@
 /** Selected orders and their stored item allocations; current catalog prices are excluded. */
 export interface SmartStoreShipmentDetail {
+  orderNumber: string;
+  productOrderNumber: string;
+  shipmentNumber: string;
   itemId: string;
   goodId: string;
   buyerName: string;

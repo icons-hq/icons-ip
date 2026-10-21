@@ -7,6 +7,7 @@ import { shipmentExportRowsCsv, type ShipmentExportLine } from './shipment-workb
 import type { ShipmentExportData } from './shipment-dispatch';
 import { warehouseExportTable, warehouseOperationalTable } from './warehouse-templates.server';
 import { isUuid } from '@/lib/uuid';
+import { isCommerceNumber } from '@/lib/commerce-number';
 
 type Shipment = ShipmentExportData['shipments'][number];
 type Cell = string | number | Date | null;
@@ -35,7 +36,8 @@ function excelDate(value: string | null | undefined): Date | null {
 
 function detail(line: ShipmentExportLine): SmartStoreShipmentDetail {
   const value = line.smartstore;
-  if (!value || !isUuid(value.itemId) || !value.goodId || !value.orderedAt
+  if (!value || !isUuid(value.itemId) || !isCommerceNumber(value.orderNumber, 'order')
+    || !isCommerceNumber(value.productOrderNumber, 'item') || !isCommerceNumber(value.shipmentNumber, 'shipment') || !value.goodId || !value.orderedAt
     || !Number.isSafeInteger(line.qty) || line.qty < 1 || !Number.isSafeInteger(line.unitPrice) || line.unitPrice < 0) {
     throw new Error('스마트스토어 양식의 상품주문 정보를 확인하지 못했습니다. 목록을 새로고침해주세요.');
   }
@@ -55,7 +57,7 @@ function smartStoreRow(shipment: Shipment, line: ShipmentExportLine, index: numb
   const shipping = paidShipping + collectShipping;
   if (!Number.isSafeInteger(shipping)) throw new Error('배송비 정보를 확인해주세요.');
   const values: Record<string, Cell> = {
-    상품주문번호: saved.itemId, 주문번호: line.orderId,
+    상품주문번호: saved.productOrderNumber, 주문번호: saved.orderNumber,
     '배송방법(구매자 요청)': SMARTSTORE_PARCEL_METHOD, 배송방법: SMARTSTORE_PARCEL_METHOD,
     택배사: line.carrier, 송장번호: '', 발송일: excelDate(saved.shippedAt), 판매채널: 'ICONS',
     구매자명: saved.buyerName, 구매자ID: saved.buyerId, 수취인명: line.recipient, 주문상태: '발송대기',
@@ -67,7 +69,7 @@ function smartStoreRow(shipment: Shipment, line: ShipmentExportLine, index: numb
     '최종 상품별 총 주문금액': money(saved.itemTotal), '최초 상품별 총 주문금액': money(saved.itemTotal),
     발주확인일: excelDate(saved.confirmedAt), 발송기한: excelDate(saved.expectedShipDate), 발송처리일: excelDate(saved.shippedAt),
     '배송비 형태': shipping === 0 ? '무료' : collectShipping > 0 ? paidShipping > 0 ? '선결제/착불' : '착불' : '선결제',
-    '배송비 묶음번호': shipment.id,
+    '배송비 묶음번호': saved.shipmentNumber,
     '배송비 합계': index === 0 ? shipping : 0,
     '제주/도서 추가배송비': index === 0 ? money(saved.regionalShippingFee) : 0,
     '배송비 할인액': index === 0 ? money(saved.shippingDiscount) : 0,

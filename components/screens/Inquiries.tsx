@@ -74,7 +74,7 @@ export function Inquiries({ inquiries }: { inquiries: InquiryListItem[] }) {
                     {inquiry.orderId ? (
                       <>
                         <span aria-hidden>·</span>
-                        <span>주문 {orderReferenceLabel(inquiry.orderId)}</span>
+                        <span>주문 {orderReferenceLabel(inquiry.orderId, inquiry.orderNumber)}</span>
                       </>
                     ) : null}
                   </span>

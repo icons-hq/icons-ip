@@ -87,7 +87,7 @@ export function SellerClaimIntakeForm({ context, carriers, onClose }: {
   return <CustomerServiceDialog title={cancellation ? "판매자 직접 취소 접수" : "판매자 직접 반품·교환 접수"} onClose={close} busy={pending || uncertain} wide>
     <div className="admin-seller-claim-intake">
       <div className="admin-seller-claim-intake__order">
-        <strong>주문 {orderReferenceLabel(context.orderId)} · {context.buyerName || '고객'}</strong>
+        <strong>주문 {orderReferenceLabel(context.orderId, context.orderNumber)} · {context.buyerName || '고객'}</strong>
         <span>주문 전체 {formatKrwExact(context.orderTotal)} · 최초 배송비 포함 전액 기준</span>
         <small>{context.digitalExchangeBlocked ? '디지털 파일 포함 · 재다운로드 및 문의·취소·환불 심사' : cancellation ? '발주확인·출고지시서 출력 전 주문' : context.deliveredAt ? `원주문 배송완료 ${formatOrderDateTime(context.deliveredAt)}` : context.orderStatus === 'shipping' ? '배송 중 접수 · 전체 실물 회수 후 환불/재배송' : '배송 상태 확인 필요'}</small>
       </div>

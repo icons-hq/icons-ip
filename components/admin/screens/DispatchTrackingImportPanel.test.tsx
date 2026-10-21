@@ -19,7 +19,7 @@ describe('운송장 업로드 후속 동선', () => {
     expect(html).toContain('김포');expect(html).toContain('21열');expect(html).toContain('주문번호(쇼핑몰)');
     expect(html).toContain('배송건번호 · 택배사코드 · 운송장번호');
     expect(html).toContain('상품주문번호 · 배송방법 · 택배사 · 송장번호');
-    expect(html).toContain('암호를 해제');expect(html).toContain('발송처리');expect(html).toContain('1행을 삭제');
+    expect(html).toContain('암호를 해제');expect(html).toContain('발송처리');expect(html).toContain('안내 행이 있는 파일만');expect(html).toContain('머리글 행은 유지');
   });
 
   it('남양주(서원) 송장양식 회신 방법과 덮어쓰지 않는 정정 경로를 안내한다',()=>{

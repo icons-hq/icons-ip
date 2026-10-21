@@ -66,7 +66,7 @@ function WritableCard({ target, now, event }: { target: MyReviewTarget; now: Dat
           <Link className="wc-mypage__card-title" href={`/shop/${target.goodId}`}>
             {target.goodName}
           </Link>
-          <span className="wc-mypage__card-meta">주문 {orderReferenceLabel(target.orderId)}</span>
+          <span className="wc-mypage__card-meta">주문 {orderReferenceLabel(target.orderId, target.orderNumber)}</span>
           <DeadlineNote now={now} target={target} />
         </div>
         <Link className="wc-mypage__headbar-link" href={newReviewHref(target.orderId, target.goodId, target.kind)}>

@@ -1,7 +1,8 @@
 import { isUuid } from '@/lib/uuid';
+import { isCommerceNumber } from '@/lib/commerce-number';
 import { transactionExactKeys, transactionInteger, transactionRecord } from '@/lib/goods-transaction-values';
 export interface ShipmentPackSummary { id: string; revision: number; count: number; shipmentIds: string[]; collectFee: number; canRelease: boolean }
-export interface ShipmentPackRow { id: string; orderId: string; originName: string; buyerName: string; recipientName: string | null; status: string; exportedAt: string | null; updatedAt: string; shippingFee: number; collectFee: number; ready: boolean; pack: ShipmentPackSummary | null }
+export interface ShipmentPackRow { orderNumber?: string; shipmentNumber?: string; id: string; orderId: string; originName: string; buyerName: string; recipientName: string | null; status: string; exportedAt: string | null; updatedAt: string; shippingFee: number; collectFee: number; ready: boolean; pack: ShipmentPackSummary | null }
 export interface ShipmentPackDocument { version: string; canCreate: boolean; rows: ShipmentPackRow[] }
 export function shipmentPackIds(value: unknown, max = 100): string[] | null {
  if (!Array.isArray(value) || value.length < 1 || value.length > max || !value.every(isUuid)) return null;
@@ -16,7 +17,8 @@ export function parseShipmentPackSummary(value: unknown): ShipmentPackSummary | 
 export function parseShipmentPackDocument(value: unknown): ShipmentPackDocument | null {
  if (!transactionRecord(value) || !transactionExactKeys(value, ['version', 'canCreate', 'rows']) || typeof value.version !== 'string' || !/^[a-f0-9]{64}$/.test(value.version)
   || typeof value.canCreate !== 'boolean' || !Array.isArray(value.rows) || value.rows.length > 1000) return null;
- if (!value.rows.every(row => transactionRecord(row) && transactionExactKeys(row, ['id', 'orderId', 'originName', 'buyerName', 'recipientName', 'status', 'exportedAt', 'updatedAt', 'shippingFee', 'collectFee', 'ready', 'pack'])
+ if (!value.rows.every(row => transactionRecord(row) && transactionExactKeys(row, ['id', 'orderId', 'originName', 'buyerName', 'recipientName', 'status', 'exportedAt', 'updatedAt', 'shippingFee', 'collectFee', 'ready', 'pack', ...(Object.hasOwn(row, 'orderNumber') ? ['orderNumber'] : []), ...(Object.hasOwn(row, 'shipmentNumber') ? ['shipmentNumber'] : [])])
+  && (row.orderNumber === undefined || isCommerceNumber(row.orderNumber, 'order')) && (row.shipmentNumber === undefined || isCommerceNumber(row.shipmentNumber, 'shipment'))
   && isUuid(row.id) && isUuid(row.orderId) && typeof row.originName === 'string' && typeof row.buyerName === 'string' && (row.recipientName === null || typeof row.recipientName === 'string')
   && ['ready', 'shipping', 'delivered', 'canceled'].includes(row.status as string) && (row.exportedAt === null || typeof row.exportedAt === 'string' && Number.isFinite(Date.parse(row.exportedAt)))
   && typeof row.updatedAt === 'string' && Number.isFinite(Date.parse(row.updatedAt)) && transactionInteger(row.shippingFee, 0) && transactionInteger(row.collectFee, 0) && typeof row.ready === 'boolean'

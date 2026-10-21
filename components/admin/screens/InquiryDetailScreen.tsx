@@ -172,7 +172,7 @@ export function InquiryDetailScreen({
             <strong style={{ fontSize: 13.5 }}>연결 주문</strong>
             {order ? (
               <>
-                <ContextRow label="주문번호" value={orderReferenceLabel(order.id)} />
+                <ContextRow label="주문번호" value={orderReferenceLabel(order.id, order.orderNumber)} />
                 <ContextRow label="주문상태" value={ORDER_STATUS_LABELS[order.status] ?? order.status} />
                 <ContextRow label="주문일시" value={formatInquiryDateTime(order.createdAt)} />
                 <ContextRow

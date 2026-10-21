@@ -5,6 +5,7 @@ import { ADMIN_ORDER_STATUSES, adminOrdersHref, normalizeAdminOrderFilters, type
 
 export type AdminOrderItemFilters = Omit<AdminOrderFilters, 'field'> & { field: AdminOrderFilters['field'] | 'item' };
 export interface AdminOrderItemRow {
+  orderNumber?: string; productOrderNumber?: string;
   id: string; orderId: string; userId: string; buyerName: string; recipientName: string | null;
   status: AdminOrderStatus; createdAt: string; goodId: string; goodName: string;
   variantName: string | null; variantCode: string | null; customInputs: ReturnType<typeof readGoodsCustomInputSnapshot>;

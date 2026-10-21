@@ -49,7 +49,7 @@ export default async function AdminSalesClaimDetailPage({
       amount: detail.payment.amount,
       merchantName: (await getBusinessInfo()).companyName.trim() || '확인 필요',
       orderId: detail.order.id,
-      orderReference: orderReferenceLabel(detail.order.id),
+      orderReference: orderReferenceLabel(detail.order.id, detail.order.orderNumber),
       paidAt: detail.payment.createdAt,
       reason: detail.claim.reason,
     })

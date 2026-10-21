@@ -844,7 +844,7 @@ function OrderDetail({
             data-admin-tooltip={order.status === 'done' ? ADMIN_VOCABULARY.settledHint : undefined}
             aria-label={order.status === 'done' ? `${statusLabel}: ${ADMIN_VOCABULARY.settledHint}` : undefined}
             tabIndex={order.status === 'done' ? 0 : undefined}>{statusLabel}</span>
-          <h2 id="admin-order-detail-title">주문 {orderReferenceLabel(order.id)}</h2>
+          <h2 id="admin-order-detail-title">주문 {orderReferenceLabel(order.id, order.orderNumber)}</h2>
           <p className="faint mono">{order.id}</p>
           <Link
             className="btn btn-sm btn-ghost"
@@ -1092,7 +1092,7 @@ export function OrdersSection({ data, canManage = true }: { data: AdminOrderCons
   const eligible = new Set(data.items.filter((order) => canManage && order.status === 'paid' && !openCancellationRequest(order)).map((order) => order.id));
   const selectedIds = selection.filter((id) => eligible.has(id));
   const columns: ConsoleGridColumn[] = [
-    {key:'reference',label:'주문번호',width:'140px'}, {key:'status',label:'주문상태',width:'110px'},
+    {key:'reference',label:'주문번호',width:'190px'}, {key:'status',label:'주문상태',width:'110px'},
     {key:'ordered',label:'주문일시',width:'160px'}, {key:'buyer',label:'구매자명',width:'130px'},
     {key:'recipient',label:'수취인명',width:'110px'}, {key:'items',label:'상품명 / 옵션',width:'300px'},
     {key:'qty',label:'수량',width:'65px',align:'end'}, {key:'total',label:'결제금액',width:'120px',align:'end'},
@@ -1100,16 +1100,16 @@ export function OrdersSection({ data, canManage = true }: { data: AdminOrderCons
   ];
   const rows = data.items.map((order) => {
     const request = canManage ? openCancellationRequest(order) : null;
-    return {id:order.id,selectable:eligible.has(order.id),selectLabel:`주문 ${orderReferenceLabel(order.id)} 선택`,cells:[
+    return {id:order.id,selectable:eligible.has(order.id),selectLabel:`주문 ${orderReferenceLabel(order.id, order.orderNumber)} 선택`,cells:[
       <Link key="reference" className="mono" href={adminOrderDetailHref(order.id,data.filters)} target="_blank" rel="noopener noreferrer"
-        aria-label={`주문 ${orderReferenceLabel(order.id)} 상세 열기 (새 탭)`}>{orderReferenceLabel(order.id)}</Link>,
+        aria-label={`주문 ${orderReferenceLabel(order.id, order.orderNumber)} 상세 열기 (새 탭)`}>{orderReferenceLabel(order.id, order.orderNumber)}</Link>,
       <span key="status" className={`order-status order-status--${order.status}`} title={order.status==='done'?ADMIN_VOCABULARY.settledHint:undefined}>{ADMIN_ORDER_STATUS_LABELS[order.status]}</span>,
       <time key="created" dateTime={order.createdAt}>{formatOrderDateTime(order.createdAt)}</time>,
       <span key="buyer">{order.buyerName}</span>, <span key="recipient">{order.address?.recipientName??'-'}</span>,
       <ul key="items">{order.items.map(item=><li key={item.id}>{item.name}{item.variantName?` · ${item.variantName}`:''}<GoodsCustomInputsSummary selection={item.customInputs} /></li>)}</ul>,
       order.items.reduce((qty,item)=>qty+item.qty,0), formatKrwExact(order.total),
       request?<div key="claim"><Link href={`/admin/sales/claims/${ORDER_CLAIM_TYPE_SLUGS[request.claimType]}/${request.id}`}>{ORDER_CLAIM_TYPE_LABELS[request.claimType]} · {ORDER_CLAIM_STAGE_LABELS[request.stage]}</Link><br/><CancellationReasonBadge className="admin-order-row-reason" request={request}/></div>:'-',
-      <Link key="detail" aria-label={`주문 ${orderReferenceLabel(order.id)} 선택${request?` · ${cancellationReasonAccessibleName(request)}`:''}`} href={`${adminOrdersHref(data.filters,{orderId:order.id})}#sales-order-detail`}>{canManage ? '상세·처리' : '상세 보기'}</Link>,
+      <Link key="detail" aria-label={`주문 ${orderReferenceLabel(order.id, order.orderNumber)} 선택${request?` · ${cancellationReasonAccessibleName(request)}`:''}`} href={`${adminOrdersHref(data.filters,{orderId:order.id})}#sales-order-detail`}>{canManage ? '상세·처리' : '상세 보기'}</Link>,
     ]};
   });
   const [cancellationState, cancellationAction, cancellationPending] = useActionState(
@@ -1182,7 +1182,7 @@ export function OrdersSection({ data, canManage = true }: { data: AdminOrderCons
           hrefForPage={page=>adminOrdersHref(data.filters,{page,orderId:null})}/>
       </div>
         {selected ? <details id="sales-order-detail" className="admin-sales-detail-disclosure" open={Boolean(data.filters.orderId)} key={selected.id}>
-          <summary>주문 {orderReferenceLabel(selected.id)} {canManage ? '상세·처리' : '상세 보기'}</summary>
+          <summary>주문 {orderReferenceLabel(selected.id, selected.orderNumber)} {canManage ? '상세·처리' : '상세 보기'}</summary>
           <OrderDetail cancellation={cancellation} carriers={data.carriers} filters={data.filters} order={selected} canManage={canManage} />
         </details> : data.filters.orderId ? (
           <div className="card col" role="status">

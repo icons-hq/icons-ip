@@ -25,5 +25,6 @@ it('feeds actual console JSON through the production loader and uses evaluated-r
   mocks.rpc.mockImplementation(async name => ({ error: null, data: name === 'admin_inquiry_status_counts' ? [] : captured('console').value }));
   const result = await getAdminInquiryConsoleData(normalizeAdminInquiryFilters({ status: 'all', query: 'TEST 만족도 d515' }));
   expect(result.total).toBe(10); expect(result.rows).toHaveLength(10); expect(result.satisfactionSummary).toEqual({ satisfied: 3, dissatisfied: 1, unrated: 6 });
+  expect(result.rows.find(row => row.orderId !== null)?.orderNumber).toMatch(/^[0-9]{8}1[0-9]{7}$/);
   expect(inquirySatisfactionPercent(result.satisfactionSummary!)).toBe(75);
 });

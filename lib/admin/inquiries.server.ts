@@ -10,6 +10,7 @@ import { customerServicePageSize } from './customer-service-list';
 import { parseAdminInquirySatisfactionDetail, parseInquirySatisfactionSummary, type AdminInquirySatisfactionDetail, type InquirySatisfactionValue } from '@/lib/inquiry-satisfaction';
 import { transactionExactKeys, transactionInstant, transactionInteger, transactionRecord } from '@/lib/goods-transaction-values';
 import { isUuid } from '@/lib/uuid';
+import { isCommerceNumber } from '@/lib/commerce-number';
 import {
   isInquiryCategory,
   isInquiryStatus,
@@ -34,6 +35,7 @@ const USER_UPLOADS_BUCKET = 'user-uploads';
 const SIGNED_IMAGE_EXPIRES_IN_SECONDS = 60 * 60;
 
 interface QueueRow {
+  order_number?: string | null;
   id: string;
   reference: number;
   category: string;
@@ -65,7 +67,8 @@ function parseConsole(value: unknown) {
   if (!summary || summary.satisfied + summary.dissatisfied + summary.unrated < value.total || value.rows.length > 100 || value.rows.length > value.total
     || value.rows.some(row => !transactionRecord(row) || !transactionExactKeys(row, ['id', 'reference', 'category', 'title', 'status', 'user_id',
       'buyer_name', 'buyer_email', 'order_id', 'good_id', 'good_name', 'handled_by', 'handler_name', 'created_at', 'last_message_at', 'answered_at',
-      'closed_at', 'message_count', 'assignee_id', 'assignee_name', 'waiting_since', 'satisfaction'])
+      'closed_at', 'message_count', 'assignee_id', 'assignee_name', 'waiting_since', 'satisfaction', ...(Object.hasOwn(row, 'order_number') ? ['order_number'] : [])])
+    || (row.order_number !== undefined && row.order_number !== null && (!isCommerceNumber(row.order_number, 'order') || row.order_id === null))
     || !isUuid(row.id) || !isUuid(row.user_id) || !transactionInteger(row.reference, 1) || !transactionInteger(row.message_count)
     || typeof row.title !== 'string' || !isInquiryStatus(row.status) || !isInquiryCategory(row.category)
     || ['buyer_name', 'buyer_email', 'good_id', 'good_name', 'handler_name', 'assignee_name'].some(key => row[key] !== null && typeof row[key] !== 'string')
@@ -81,7 +84,7 @@ function parseConsole(value: unknown) {
 export async function getAdminInquiryNavigation(inquiryId: string, data: AdminInquiryConsoleData, mode: 'preview' | 'detail') {
   const supabase = await createClient();
   return adminInquiryNavigation(inquiryId, data, mode, async (offset) => {
-    const { data: adjacent, error } = await supabase.rpc('admin_inquiry_satisfaction_console', {
+    const { data: adjacent, error } = await supabase.rpc('admin_inquiry_satisfaction_console_numbered', {
       p_category: data.filters.category === 'all' ? null : data.filters.category,
       p_field: data.filters.field, p_from: data.filters.from, p_to: data.filters.to,
       p_query: data.filters.query || null, p_status: data.filters.status === 'all' ? null : data.filters.status,
@@ -115,6 +118,7 @@ function toRow(row: QueueRow): AdminInquiryRow {
     buyerName: adminInquiryBuyerLabel(row.buyer_name, row.user_id),
     buyerEmail: row.buyer_email,
     orderId: row.order_id,
+    ...(row.order_number ? { orderNumber: row.order_number } : {}),
     goodId: row.good_id,
     goodName: row.good_name,
     handlerName: row.handler_name?.trim() || null,
@@ -136,7 +140,7 @@ export async function getAdminInquiryConsoleData(
   const pageSize = customerServicePageSize(filters.pageSize);
 
   const [listResult, countResult] = await Promise.all([
-    supabase.rpc('admin_inquiry_satisfaction_console', {
+    supabase.rpc('admin_inquiry_satisfaction_console_numbered', {
       p_category: filters.category === 'all' ? null : filters.category,
       p_field: filters.field,
       p_from: filters.from,
@@ -195,6 +199,7 @@ export interface AdminInquiryMessage {
 }
 
 export interface AdminInquiryOrderContext {
+  orderNumber?: string;
   id: string;
   status: string;
   total: number;

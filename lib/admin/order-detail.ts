@@ -36,6 +36,7 @@ export interface AdminShipmentEmailJob {
 export interface AdminOrderDetail {
   emailJobs: AdminShipmentEmailJob[];
   order: {
+    orderNumber?: string;
     isGift?: boolean;
     transaction?: import('@/lib/goods-transaction').GoodsTransactionDisplay;
     id: string; userId: string; buyerName: string | null; buyerEmail: string | null;

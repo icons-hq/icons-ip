@@ -72,7 +72,7 @@ export function OrderAddressEditor({ initial, onClose }: { initial: OrderAddress
   }
   return <CustomerServiceDialog title="발송 전 배송지 수정" wide busy={busy} onClose={close}>
     <div className="admin-order-address">
-      <p><strong>주문 {orderReferenceLabel(context.orderId)}</strong> · 연결 배송건 {context.shipmentCount}개 전체에 적용합니다.</p>
+      <p><strong>주문 {orderReferenceLabel(context.orderId, context.orderNumber)}</strong> · 연결 배송건 {context.shipmentCount}개 전체에 적용합니다.</p>
       <p>출고지시 전달·발송 전 주문만 수정합니다. 배송 지역이 바뀌면 배송 가능 여부와 각 배송비를 대조하며, 결제금액이 달라지는 변경은 저장할 수 없습니다.</p>
       <div className="admin-order-address__current"><strong>{receipt ? '변경 전 배송 정보' : '현재 배송 정보'}</strong><p>{addressText(context.address)}</p></div>
       {!context.allowed ? <p role="status">{orderAddressError(undefined, context.blocker ?? '')}</p> : null}

@@ -12,6 +12,7 @@ import { trackingImportCommand } from './warehouse-templates.server';
 import { encryptAdminWorkbook } from './encrypted-workbook.server';
 
 const detail: SmartStoreShipmentDetail = {
+  orderNumber: '2026102010000001', productOrderNumber: '2026102020000001', shipmentNumber: '2026102030000001',
   itemId: '60000000-0000-4000-8000-000000000001', goodId: 'test-good', buyerName: '합성 구매자', buyerId: '60000000-0000-4000-8000-000000000002', buyerPhone: '',
   address1: '합성 기본 주소', address2: '합성 상세 주소', orderedAt: '2026-10-19T16:30:00Z', paidAt: '2026-10-19T16:35:00Z', confirmedAt: '2026-10-19T17:00:00Z',
   expectedShipDate: '2026-10-21', shippedAt: null, exportedAt: null, goodType: 'keyring', paymentMethod: 'card', productPrice: null, optionPrice: null,
@@ -49,7 +50,7 @@ describe('2026-10-20 Smart Store dispatch workbook', () => {
   });
   it('uses actual item IDs, typed KST dates and amounts while leaving unsupported provider and missing snapshot fields blank', async () => {
     const sheet = (await load((await buildShipmentExport({ shipments: [shipment] }, 'xlsx', 'smartstore')).bytes)).worksheets[0];
-    expect(value(sheet, '상품주문번호').value).toBe(detail.itemId);
+    expect(value(sheet, '상품주문번호').value).toBe(detail.productOrderNumber);
     expect(value(sheet, '상품주문번호').value).not.toBe(line.shipmentId);
     for (const [header, expected] of [['수취인연락처1', line.phone], ['우편번호', line.postalCode], ['판매자 상품코드', line.goodCode], ['송장번호', '']]) {
       expect(value(sheet, header).value).toBe(expected); expect(value(sheet, header).numFmt).toBe('@');
@@ -85,7 +86,7 @@ describe('2026-10-20 Smart Store dispatch workbook', () => {
     const parsed = await parseTrackingWorkbook(Buffer.from(await book.xlsx.writeBuffer()), carriers);
     expect(parsed.issues).toEqual([]);
     if (!('kind' in parsed) || parsed.kind !== 'smartstore') throw new Error('Expected Smart Store tracking reply');
-    expect(trackingImportCommand(parsed, '')).toEqual({ name: 'admin_import_item_tracking_batch', args: { target_rows: [{ line: 2, reference: detail.itemId, carrier: 'hanjin', trackingNumber: '001234567890' }] } });
+    expect(trackingImportCommand(parsed, '')).toEqual({ name: 'admin_import_item_tracking_batch', args: { target_rows: [{ line: 2, reference: detail.productOrderNumber, carrier: 'hanjin', trackingNumber: '001234567890' }] } });
   });
   it('accepts a full 1,000-order reply whose real UUIDs and distinct addresses exceed the old 256 KiB limit', async () => {
     const shipments = Array.from({ length: 1000 }, (_, index) => {

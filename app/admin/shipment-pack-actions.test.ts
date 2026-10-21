@@ -11,7 +11,7 @@ beforeEach(()=>{m.rpc.mockReset();m.auth.mockReset().mockResolvedValue({user:{id
 it('reads current state after a frozen operation receipt',async()=>{
  m.rpc.mockResolvedValueOnce({data:{kind:'create',packId:id(5)}}).mockResolvedValueOnce({data:doc});expect(await save()).toEqual({document:doc});
  expect(m.rpc).toHaveBeenNthCalledWith(1,'admin_change_shipment_pack',expect.objectContaining({p_operation:id(5),p_version:version,p_ids:ids,p_session:id(2)}));
- expect(m.rpc).toHaveBeenNthCalledWith(2,'admin_get_shipment_packs',{p_ids:ids});
+ expect(m.rpc).toHaveBeenNthCalledWith(2,'admin_get_shipment_packs_numbered',{p_ids:ids});
 });
 it('preserves an uncertain request if current readback fails',async()=>{
  m.rpc.mockResolvedValueOnce({data:{packId:id(5)}}).mockResolvedValueOnce({error:{code:'network'}});expect(await save()).toMatchObject({uncertain:true});expect(m.revalidate).not.toHaveBeenCalled();

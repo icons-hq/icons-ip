@@ -1,7 +1,9 @@
 import { normalizeCheckoutAddress, type CheckoutAddress } from '@/lib/checkout';
 import { isUuid } from '@/lib/uuid';
+import { isCommerceNumber } from '@/lib/commerce-number';
 
 export interface OrderAddressContext {
+  orderNumber?: string;
   isGift?: boolean;
   orderId: string; address: CheckoutAddress; revision: number; allowed: boolean; blocker: string | null; shipmentCount: number;
   history: { id: string; changedAt: string; actorName: string; before: CheckoutAddress; after: CheckoutAddress; reason: string }[];
@@ -24,6 +26,7 @@ function oldAddress(value: unknown): CheckoutAddress | null {
 }
 export function parseOrderAddressContext(value: unknown): OrderAddressContext | null {
   if (!record(value) || !isUuid(value.orderId) || !integer(value.revision) || typeof value.allowed !== 'boolean'
+    || (value.orderNumber !== undefined && !isCommerceNumber(value.orderNumber, 'order'))
     || (value.blocker !== null && typeof value.blocker !== 'string') || !integer(value.shipmentCount)
     || !Array.isArray(value.history) || value.history.length > 20) return null;
   const address = oldAddress(value.address); if (!address) return null;
@@ -33,7 +36,7 @@ export function parseOrderAddressContext(value: unknown): OrderAddressContext | 
     const before = oldAddress(entry.before); const after = oldAddress(entry.after); if (!before || !after) return null;
     history.push({ id: entry.id, changedAt: entry.changedAt, actorName: entry.actorName, reason: entry.reason, before, after });
   }
-  return { orderId: value.orderId, ...(value.isGift === undefined ? {} : { isGift: value.isGift === true }), address, revision: value.revision, allowed: value.allowed, blocker: value.blocker as string | null, shipmentCount: value.shipmentCount, history };
+  return { orderId: value.orderId, ...(value.orderNumber ? { orderNumber: value.orderNumber as string } : {}), ...(value.isGift === undefined ? {} : { isGift: value.isGift === true }), address, revision: value.revision, allowed: value.allowed, blocker: value.blocker as string | null, shipmentCount: value.shipmentCount, history };
 }
 export function parseOrderAddressReceipt(value: unknown): OrderAddressReceipt | null {
   if (!record(value) || !isUuid(value.id) || !isUuid(value.orderId) || !date(value.changedAt) || typeof value.reason !== 'string' || typeof value.currentMatches !== 'boolean') return null;

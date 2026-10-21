@@ -43,7 +43,7 @@ export function DispatchTrackingImportPanel({ carriers, originId, shippingHref =
 
       <p className="muted">
         스마트스토어 양식은 <strong>상품주문번호 · 배송방법 · 택배사 · 송장번호</strong> 네 열을 사용합니다.
-        내려받은 파일의 암호를 해제하고 안내가 있는 1행을 삭제한 뒤, 시트명을 <strong>발송처리</strong>로 저장해 올려주세요. 열의 순서는 바꿔도 됩니다.
+        내려받은 파일의 암호를 해제하고, 상단 안내 행이 있는 파일만 안내 행을 삭제해주세요. 상품주문번호가 있는 머리글 행은 유지하고 시트명을 <strong>발송처리</strong>로 저장해 올려주세요. 열의 순서는 바꿔도 됩니다.
         한 번에 {TRACKING_IMPORT_ROW_LIMIT.toLocaleString('ko-KR')}건까지 처리합니다.
       </p>
       <p className="muted">상품주문번호는 ICONS 파일의 전체 번호를 유지해주세요. 배송방법은 택배,등기,소포이며 퀵·방문수령·직접전달은 주문 상세에서 처리합니다.</p>

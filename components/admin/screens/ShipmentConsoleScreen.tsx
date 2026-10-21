@@ -1,3 +1,4 @@
+import { commerceReferenceLabel } from '@/lib/commerce-number';
 import { GoodsCustomInputsSummary } from '@/components/shop/GoodsCustomInputs';
 import {FULFILLMENT_METHODS,FULFILLMENT_METHOD_LABELS} from '@/lib/goods-fulfillment';
 import Link from 'next/link';
@@ -22,23 +23,23 @@ export function ShipmentConsoleScreen({data,registeredCount,actorId}:{data:Shipm
  const {surface,filters,rows,origins,carriers}=data;const isDispatch=surface==='dispatch';
  const hasParcelRows=!rows.length||rows.some(isParcelShipment);
  const currentHref=shipmentConsoleHref(surface,filters);
- const columns:ConsoleGridColumn[]=[{key:'reference',label:'배송건번호 / 주문번호',width:'165px'},{key:'origin',label:'출고지',width:'100px'},
+ const columns:ConsoleGridColumn[]=[{key:'reference',label:'배송건번호 / 주문번호',width:'210px'},{key:'origin',label:'출고지',width:'100px'},
   {key:'method',label:'배송 방식',width:'110px'},
   {key:'buyer',label:'구매자명',width:'130px'},
-  {key:'recipient',label:'수취인',width:'110px'},{key:'items',label:'상품 · 옵션'},{key:'time',label:isDispatch?'주문 / 발주확인':'발송 / 배송완료',width:'165px'},
+  {key:'recipient',label:'수취인',width:'110px'},{key:'items',label:'상품 · 옵션'},{key:'time',label:isDispatch?'주문 / 발주확인':'발송 / 배송완료',width:'210px'},
   {key:'tracking',label:isDispatch?'발송·인계':'배송·수령 확인',width:'180px'},...(isDispatch?[{key:'notice',label:'지연 안내 결과',width:'210px'}]:[]),...(filters.tab==='delayed'?[{key:'delay',label:'지연 메모',width:'260px'}]:[])];
  const gridRows=rows.map(row=>{
   const parcel=isParcelShipment(row);const tracking=parcel?orderShipment(carriers,row.carrier,row.trackingNumber):null;
   const methodLabel=row.delivery?DELIVERY_METHOD_LABELS[row.delivery.method]:parcel?'택배':'확인 필요';
   const detailHref=adminOrderDetailHrefFromBack(row.orderId,shipmentConsoleHref(surface,filters));
-  return {id:row.id,selectable:filters.tab==='delayed'||shipmentConsoleSelectable(row,filters.tab),selectLabel:`배송 건 ${row.id.slice(-8).toUpperCase()} 선택`,cells:[
+  return {id:row.id,selectable:filters.tab==='delayed'||shipmentConsoleSelectable(row,filters.tab),selectLabel:`배송 건 ${commerceReferenceLabel(row.id, row.shipmentNumber)} 선택`,cells:[
    <div key="id"><Link
-    aria-label={`주문 ${orderReferenceLabel(row.orderId)} 상세 열기 (새 탭)`}
+    aria-label={`주문 ${orderReferenceLabel(row.orderId, row.orderNumber)} 상세 열기 (새 탭)`}
     className="mono"
     href={adminOrderDetailHrefFromBack(row.orderId,shipmentConsoleHref(surface,filters))}
     rel="noopener noreferrer"
     target="_blank"
-   >{row.id.slice(-8).toUpperCase()}</Link><br/><small>주문 {orderReferenceLabel(row.orderId)}</small>{row.pack?<p><AdminStatusBadge tone="neutral">합포장 {row.pack.id.slice(-8).toUpperCase()} · {row.pack.count}건</AdminStatusBadge></p>:null}</div>,
+   >{commerceReferenceLabel(row.id, row.shipmentNumber)}</Link><br/><small>주문 {orderReferenceLabel(row.orderId, row.orderNumber)}</small>{row.pack?<p><AdminStatusBadge tone="neutral">합포장 {row.pack.id.slice(-8).toUpperCase()} · {row.pack.count}건</AdminStatusBadge></p>:null}</div>,
    <span key="origin">{row.originName}</span>,<span key="method">{methodLabel}</span>,<span key="buyer">{row.buyerName}</span>,<span key="recipient">{row.recipientName||'미기록'}</span>,
    <ul key="items">{row.items.map(item=><li key={item.id}>{item.name}{item.variantName?` · ${item.variantName}`:''} × {item.qty}<GoodsCustomInputsSummary selection={item.customInputs} /></li>)}</ul>,
    <div key="time">{formatOrderDateTime(isDispatch?row.createdAt:row.shippedAt??row.createdAt)}<br/><small>{(isDispatch?row.confirmedAt:row.deliveredAt)?formatOrderDateTime((isDispatch?row.confirmedAt:row.deliveredAt)!):'미기록'}</small></div>,
@@ -49,7 +50,7 @@ export function ShipmentConsoleScreen({data,registeredCount,actorId}:{data:Shipm
     <div key="tracking"><span>{shipmentStatusLabel(row.status)}</span><br/>{tracking?<a href={tracking.trackingUrl} target="_blank" rel="noreferrer noopener">{tracking.carrierLabel} {tracking.trackingNumber}</a>:'운송장 확인 필요'}</div>,
    ...(isDispatch?[<div key="notice"><strong>{shipmentDelayNoticeLabel(row.delayNotice?.status)}</strong>
     {row.delayNotice?.requestedAt?<><br/><small>앱 {ORDER_DELAY_STATUS_LABELS[row.delayNotice.inAppStatus??'prepared']} · 이메일 {ORDER_DELAY_STATUS_LABELS[row.delayNotice.emailStatus??'unknown']}</small><br/><small>{formatOrderDateTime(row.delayNotice.requestedAt)}</small></>:null}</div>]:[]),
-   ...(filters.tab==='delayed'?[<DispatchDelayNoteForm key="delay" orderId={row.orderId} reference={orderReferenceLabel(row.orderId)} note={row.delayReason?{reason:row.delayReason,expectedShipDate:row.expectedShipDate,updatedAt:row.updatedAt}:null}/>]:[]),
+   ...(filters.tab==='delayed'?[<DispatchDelayNoteForm key="delay" orderId={row.orderId} reference={orderReferenceLabel(row.orderId, row.orderNumber)} note={row.delayReason?{reason:row.delayReason,expectedShipDate:row.expectedShipDate,updatedAt:row.updatedAt}:null}/>]:[]),
   ]};
  });
  return <section className="admin-sales-console wc-admin-kit">

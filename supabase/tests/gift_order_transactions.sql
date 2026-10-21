@@ -31,6 +31,16 @@ select public.place_my_gift(pg_temp.gift_id(10),(:'quote'::jsonb->>'quoteId')::u
 select pg_temp.gift_assert((select qty=7 from public.cart_items where user_id=pg_temp.gift_id(1) and good_id='gift-domain-good'),'gift never consumes or overwrites the ordinary cart');
 select pg_temp.gift_assert((select user_coupon_id=:'coupon_id'::uuid from public.cart_coupon_selections where user_id=pg_temp.gift_id(1)),'gift never overwrites the cart coupon choice');
 select public.get_my_gift_checkout_order(:'order_id') as payer_projection \gset
+select public.get_my_gift_checkout_order_numbered(:'order_id') as numbered_payer_projection \gset
+select pg_temp.gift_assert((:'numbered_payer_projection'::jsonb#-'{order,orderNumber}')=:'payer_projection'::jsonb
+  and :'numbered_payer_projection'::jsonb#>>'{order,orderNumber}' ~ '^[0-9]{8}1[0-9]{7}$',
+  'numbered checkout retains the legacy exact shape and role redactions');
+select public.get_my_gift_numbered(pg_temp.gift_id(10)) as numbered_gift \gset
+select pg_temp.gift_assert((:'numbered_gift'::jsonb#-'{order,orderNumber}')=public.get_my_gift(pg_temp.gift_id(10))
+  and :'numbered_gift'::jsonb#>>'{order,orderNumber}'=:'numbered_payer_projection'::jsonb#>>'{order,orderNumber}',
+  'numbered gift preserves the original receipt projection');
+select pg_temp.gift_assert(public.list_my_gifts_numbered('sender')#>>'{items,0,order,orderNumber}'=:'numbered_gift'::jsonb#>>'{order,orderNumber}',
+  'numbered gift list uses the same persisted number');
 select pg_temp.gift_assert(:'payer_projection'::jsonb->>'kind'='gift' and :'payer_projection'::jsonb#>>'{order,total}'='19200' and :'payer_projection'::jsonb#>'{order,address}'='null'::jsonb,'strict payer checkout projection');
 select pg_temp.gift_assert(:'payer_projection' not like '%GIFT-PRIVATE%' and :'payer_projection' not like '%54321%' and :'payer_projection' not like '%01000001234%','payer whole DTO has no PII');
 select pg_temp.gift_assert((select count(*)=0 from public.orders where id=:'order_id'),'raw order closed');
@@ -38,6 +48,7 @@ select pg_temp.gift_assert((select count(*)=0 from public.order_items where orde
 select pg_temp.gift_assert((select count(*)=0 from public.order_shipments where order_id=:'order_id'),'raw shipments closed');
 select set_config('request.jwt.claim.sub',pg_temp.gift_id(2)::text,true);
 select pg_temp.gift_assert(public.get_my_gift_checkout_order(:'order_id')='{"kind":"unavailable"}'::jsonb,'recipient cannot read payer checkout');
+select pg_temp.gift_assert(public.get_my_gift_checkout_order_numbered(:'order_id')='{"kind":"unavailable"}'::jsonb,'numbered checkout keeps recipient boundary');
 select pg_temp.gift_assert(public.get_my_gift(pg_temp.gift_id(10))#>>'{address,address1}'='GIFT-PRIVATE-ADDRESS-THREE','recipient current private snapshot');
 reset role;
 select pg_temp.gift_assert((select total=19200 and address is null and shipping_fee_breakdown::text not like '%54321%' from public.orders where id=:'order_id'),'public order and shipping snapshot private');

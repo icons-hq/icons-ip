@@ -94,7 +94,7 @@ export function InquiryQueueScreen({
         </span>,
         <span key="buyer">@{row.buyerName}</span>,
         row.orderId ? (
-          <span className="mono" key="order">{orderReferenceLabel(row.orderId)}</span>
+          <span className="mono" key="order">{orderReferenceLabel(row.orderId, row.orderNumber)}</span>
         ) : (
           <span className="muted" key="order">-</span>
         ),

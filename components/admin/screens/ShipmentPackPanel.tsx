@@ -43,7 +43,7 @@ function Panel({ ids, onClose, identity, scope }: Props & { identity: ClaimConta
   <p>창고에는 원본 출고 파일과 합포장 안내를 함께 전달해주세요. 택배사와 송장을 등록하면 묶음 전체에 적용됩니다.</p>
   <button type="button" className="wc-admin-kit__button" disabled={pending || uncertain} onClick={() => { void read(); }}>{document ? '최신 합포장 정보 확인' : '선택 건 합포장 조건 확인'}</button>
   {document ? <>
-   <ul className="admin-shipment-pack__rows">{document.rows.map(row => <li key={row.id}><strong>주문 {orderReferenceLabel(row.orderId)}</strong> · 배송 {row.id.slice(-8).toUpperCase()}<br />
+   <ul className="admin-shipment-pack__rows">{document.rows.map(row => <li key={row.id}><strong>주문 {orderReferenceLabel(row.orderId, row.orderNumber)}</strong> · 배송 {row.shipmentNumber ?? row.id.slice(-8).toUpperCase()}<br />
     {row.buyerName} → {row.recipientName ?? '수취인 미기록'} · {row.originName}<br />선결제 배송비 {row.shippingFee.toLocaleString('ko-KR')}원 · 착불 {row.collectFee.toLocaleString('ko-KR')}원
     {row.pack ? <p>합포장 {row.pack.id.slice(-8).toUpperCase()} · {row.pack.count}건 · 묶음 착불 합계 {row.pack.collectFee.toLocaleString('ko-KR')}원</p> : null}</li>)}</ul>
    {!document.canCreate && !releasable ? <p>현재 선택은 새 합포장 또는 해제가 불가능합니다. 출고지시 전달 전인지, 같은 배송 조건인지 확인해주세요.</p> : null}

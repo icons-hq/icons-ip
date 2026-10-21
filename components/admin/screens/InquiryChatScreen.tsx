@@ -67,7 +67,7 @@ export function InquiryChatScreen({ accountId, filters, data, detail, chatContex
         <details className="admin-inquiry-chat__context-card"><summary>담당자 관리</summary><InquiryAssignmentPanel key={detail.inquiry.id} inquiryId={detail.inquiry.id}
           assigneeId={detail.inquiry.assigneeId} assigneeName={detail.inquiry.assigneeName} staffOptions={detail.staffOptions} /></details>
         {canReadOrders ? <section className="admin-inquiry-chat__context-card"><h2>구매이력</h2>
-          {detail.order ? <><p>연결 주문 {orderReferenceLabel(detail.order.id)}</p><p>{detail.order.leadItemName ?? '주문 상품'} · {detail.order.itemCount}개</p>
+          {detail.order ? <><p>연결 주문 {orderReferenceLabel(detail.order.id, detail.order.orderNumber)}</p><p>{detail.order.leadItemName ?? '주문 상품'} · {detail.order.itemCount}개</p>
             <Link href={`/admin/sales/orders/${detail.order.id}`}>주문 상세 보기</Link></> : <p>연결된 주문이 없습니다.</p>}
           <details><summary>전체 구매이력 보기</summary><CustomerHistoryPanel key={detail.buyer.id} userId={detail.buyer.id} canReadClaims={false} /></details>
         </section> : null}

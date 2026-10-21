@@ -55,7 +55,7 @@ const CHIP_STAGES: OrderClaimStage[] = [
 
 const COLUMNS: ConsoleGridColumn[] = [
   { key: 'reference', label: V.claimNumber, width: '104px' },
-  { key: 'order', label: '주문번호', width: '104px' },
+  { key: 'order', label: '주문번호', width: '190px' },
   { key: 'type', label: '유형', width: '70px' },
   { key: 'reason', label: '사유', width: '110px' },
   { key: 'stage', label: '상태', width: '96px' },
@@ -96,7 +96,7 @@ export function ClaimQueueScreen({
       href: adminClaimDetailHref(claimType, row.id, filters),
       cells: [
         <span className="mono" key="reference">{orderClaimReferenceLabel(row.reference)}</span>,
-        <span className="mono" key="order">{orderReferenceLabel(row.orderId)}</span>,
+        <span className="mono" key="order">{orderReferenceLabel(row.orderId, row.orderNumber)}</span>,
         <span key="type">{ORDER_CLAIM_TYPE_LABELS[row.claimType]}</span>,
         <span key="reason">{adminGoodsCopy(adminClaimReasonText(row.reasonType, row.staffReasonCode))}</span>,
         <span key="stage">{adminClaimStageLabel(claimType, row.stage)}</span>,

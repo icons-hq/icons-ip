@@ -156,8 +156,8 @@ export function ordersListExportSheet(input: {
   });
 
   const columns: ColumnSpec<OrderLine>[] = [
-    column('주문번호', 'code', 12, ({ order }) => orderReferenceLabel(order.id)),
-    column('전체 주문번호', 'code', 38, ({ order }) => order.id),
+    column('주문번호', 'code', 22, ({ order }) => orderReferenceLabel(order.id, order.orderNumber)),
+    column('전체 주문번호', 'code', 38, ({ order }) => order.orderNumber ?? order.id),
     column('주문일시', 'text', 17, ({ order }) => nullable(kstDateTimeText(order.createdAt))),
     column('주문 상태', 'text', 12, ({ order }) => ADMIN_ORDER_STATUS_LABELS[order.status]),
     column('구매자', 'text', 16, ({ order }) => order.buyerName),
@@ -235,7 +235,7 @@ export function unpaidListExportSheet(input: {
 }): AdminListExportSheet {
   const columns: ColumnSpec<AdminUnpaidOrderRow>[] = [
     column('입금확인코드', 'code', 12, (row) => row.depositCode),
-    column('전체 주문번호', 'code', 38, (row) => row.id),
+    column('전체 주문번호', 'code', 38, (row) => row.orderNumber ?? row.id),
     column('구매자', 'text', 16, (row) => row.buyerName),
     column('안내된 입금자명', 'text', 20, (row) => bankTransferDepositName(row.recipientName, row.id)),
     column('품목', 'text', 40, (row) => blank(row.itemSummary)),
@@ -285,8 +285,8 @@ export function shipmentsListExportSheet(input: {
   const columns: ColumnSpec<ShipmentLine>[] = [
     column('배송건번호', 'code', 12, ({ row }) => listExportShipmentReference(row.id)),
     column('전체 배송건번호', 'code', 38, ({ row }) => row.id),
-    column('주문번호', 'code', 12, ({ row }) => orderReferenceLabel(row.orderId)),
-    column('전체 주문번호', 'code', 38, ({ row }) => row.orderId),
+    column('주문번호', 'code', 22, ({ row }) => orderReferenceLabel(row.orderId, row.orderNumber)),
+    column('전체 주문번호', 'code', 38, ({ row }) => row.orderNumber ?? row.orderId),
     column('출고지', 'text', 10, ({ row }) => blank(row.originName)),
     column('배송 방식', 'text', 10, ({ row }) => deliveryLabels(row.delivery, row.status).method),
     column('배송 상태', 'text', 12, ({ row }) => nullable(deliveryLabels(row.delivery, row.status).status)),
@@ -416,8 +416,8 @@ export function claimsListExportSheet(input: {
 
   const columns: ColumnSpec<ClaimLine>[] = [
     column(V.claimNumber, 'code', 10, ({ claim }) => orderClaimReferenceLabel(claim.reference)),
-    column('주문번호', 'code', 12, ({ claim }) => orderReferenceLabel(claim.orderId)),
-    column('전체 주문번호', 'code', 38, ({ claim }) => claim.orderId),
+    column('주문번호', 'code', 22, ({ claim }) => orderReferenceLabel(claim.orderId, claim.orderNumber)),
+    column('전체 주문번호', 'code', 38, ({ claim }) => claim.orderNumber ?? claim.orderId),
     column('유형', 'text', 8, ({ claim }) => ORDER_CLAIM_TYPE_LABELS[claim.claimType]),
     column('사유', 'text', 20, ({ claim }) => adminClaimReasonText(claim.reasonType, claim.staffReasonCode)),
     column(V.claimStatus, 'text', 12, ({ claim }) => ORDER_CLAIM_STAGE_LABELS[claim.stage]),

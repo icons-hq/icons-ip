@@ -61,7 +61,7 @@ export function OrderDelayNoticePanel({shipmentIds,onClose}:{shipmentIds:string[
    <div style={{overflowX:'auto'}}>
     <table className="admin-console-grid-table" style={{minWidth:720}}><caption>주문별 수신자·고객 문구·채널 결과</caption><thead><tr><th scope="col">주문·구매자</th><th scope="col">안내 대상·고객 문구</th><th scope="col">앱 알림</th><th scope="col">이메일</th></tr></thead>
      <tbody>{notice.targets.map(target=><tr key={target.id}>
-      <td>{orderReferenceLabel(target.orderId)}<br/>{target.buyerName} · {target.audience==='recipient'?'선물 받는 분':'구매자'}<br/><small>{target.recipientEmail||'수신자 이메일 없음'}</small></td>
+      <td>{orderReferenceLabel(target.orderId, target.orderNumber)}<br/>{target.buyerName} · {target.audience==='recipient'?'선물 받는 분':'구매자'}<br/><small>{target.recipientEmail||'수신자 이메일 없음'}</small></td>
       <td><ul>{target.shipmentLabels.map((label,index)=><li key={target.shipmentIds[index]}>{label}</li>)}</ul><p style={{whiteSpace:'pre-wrap',overflowWrap:'anywhere'}}>{target.messageBody}</p></td>
       <td>{ORDER_DELAY_STATUS_LABELS[target.inAppStatus]}</td>
       <td>{target.emailStatus==='sent'&&target.emailProviderState==='accepted'?'공급자 접수':ORDER_DELAY_STATUS_LABELS[target.emailStatus]}
