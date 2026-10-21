@@ -103,6 +103,15 @@ select pg_temp.ss_assert(:'enriched_export'::jsonb#>>'{shipments,0,lines,0,smart
 select pg_temp.ss_assert(public.admin_smartstore_shipment_export(array[pg_temp.ss_id(4002,2)])#>'{shipments,0,lines,0,smartstore,paidAt}'='null'::jsonb,'no approval time fabricated from payment creation');
 
 reset role;
+-- A merge join would otherwise reorder the source reader's already sorted page.
+set local enable_nestloop=off;
+set local enable_hashjoin=off;
+select pg_temp.ss_assert(
+  (select array_agg(id order by ordinality) from public.admin_search_orders_console(p_query=>'f20e0000',p_field=>'order') with ordinality)
+  = (select array_agg(id order by ordinality) from private.admin_search_orders_console_before_numbers(p_query=>'f20e0000',p_field=>'order') with ordinality),
+  'numbered reader preserves the original page order under merge joins');
+set local enable_nestloop=on;
+set local enable_hashjoin=on;
 update public.goods set price=99999,name='현재 카탈로그 변경' where id='smartstore-workbook-a';
 update public.orders set calculation_version=2,volume_discount_total=200,discount_total=300,store_credit_total=500,total=4000,shipping_coupon_discount_total=100 where id=pg_temp.ss_id(4001,7);
 update public.payments set amount=4000 where id=pg_temp.ss_id(4004,7);

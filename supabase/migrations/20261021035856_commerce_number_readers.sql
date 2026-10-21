@@ -124,7 +124,7 @@ select private.register_operator_internal_contract('private.resolve_shipment_ref
 -- Append a display column to the existing table-returning readers without
 -- dropping their dependencies or rewriting their authorization/filter logic.
 do $numbered_tables$
-declare entry record; original regprocedure; moved regprocedure; arguments text; result_type text; call_args text; function_name text;
+declare entry record; original regprocedure; moved regprocedure; arguments text; result_type text; call_args text; output_columns text; function_name text;
 begin
   for entry in select * from (values
     ('public.admin_search_orders_console(text,date,date,text,integer,integer,timestamp with time zone,text,text,text,text)','id','sales.read'),
@@ -135,8 +135,10 @@ begin
   ) spec(signature,key_column,capability) loop
     original:=entry.signature::regprocedure;
     select proname,pg_get_function_arguments(oid),pg_get_function_result(oid),
-      (select string_agg(quote_ident(name),',' order by ordinal) from unnest(proargnames[1:pronargs]) with ordinality args(name,ordinal))
-      into function_name,arguments,result_type,call_args from pg_proc where oid=original;
+      (select string_agg(quote_ident(name),',' order by ordinal) from unnest(proargnames[1:pronargs]) with ordinality args(name,ordinal)),
+      (select string_agg(format('source.%I',name),',' order by ordinal)
+        from unnest(proargnames,proargmodes) with ordinality args(name,mode,ordinal) where mode in('o','t'))
+      into function_name,arguments,result_type,call_args,output_columns from pg_proc where oid=original;
     if left(result_type,6)<>'TABLE(' or position('order_number' in result_type)>0 then
       raise exception 'commerce_number_table_shape_changed: %',entry.signature;end if;
     execute format('alter function %s rename to %I',original,function_name||'_before_numbers');
@@ -146,11 +148,11 @@ begin
     execute format('create function public.%I(%s) returns %s language plpgsql stable security definer set search_path='''' as $body$
       begin
         if %s then raise insufficient_privilege using message=''operator_capability_required'';end if;
-        return query select source.*,purchase.order_number from private.%I(%s) source
-          join public.orders purchase on purchase.id=source.%I;
+        return query select %s,purchase.order_number from private.%I(%s) with ordinality source
+          join public.orders purchase on purchase.id=source.%I order by source.ordinality;
       end $body$',function_name,arguments,left(result_type,length(result_type)-1)||', order_number text)',
       case when entry.capability is null then 'auth.uid() is null' else format('not public.has_operator_capability(%L,false)',entry.capability) end,
-      function_name||'_before_numbers',call_args,entry.key_column);
+      output_columns,function_name||'_before_numbers',call_args,entry.key_column);
     execute format('revoke all on function %s from public,anon,authenticated,service_role',entry.signature::regprocedure);
     execute format('grant execute on function %s to authenticated',entry.signature::regprocedure);
     perform private.register_operator_internal_contract(moved);
