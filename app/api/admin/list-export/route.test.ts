@@ -34,11 +34,22 @@ beforeEach(() => {
 
 afterEach(() => { vi.useRealTimers(); });
 
-function request(query: string) {
-  return new Request(`https://example.test/api/admin/list-export?${query}`, { method: 'POST', headers: { origin: 'https://example.test', 'content-type': 'application/json' }, body: JSON.stringify({ password: 'StrongTEST123!', passwordConfirmation: 'StrongTEST123!' }) });
+function request(query: string, password = 'StrongTEST123!') {
+  return new Request(`https://example.test/api/admin/list-export?${query}`, { method: 'POST', headers: { origin: 'https://example.test', 'content-type': 'application/json' }, body: JSON.stringify({ password, passwordConfirmation: password }) });
 }
 
 describe('목록 엑셀 다운로드 라우트', () => {
+  it.each(['1234', 'A'.repeat(16)])('배송현황 목록은 허용 길이의 암호 %s를 암호화에 그대로 전달한다', async password => {
+    const response = await POST(request('screen=shipping&tab=transit', password));
+    expect(response.status).toBe(200);
+    expect(mocks.encrypt).toHaveBeenCalledWith(expect.any(Buffer), password);
+  });
+  it.each(['123', 'A'.repeat(17)])('허용 길이 밖의 암호 %s는 조회·암호화·감사 전에 거부한다', async password => {
+    const response = await POST(request('screen=shipping&tab=transit', password));
+    expect(response.status).toBe(400);
+    expect((await response.json()).error).toContain('4~16자');
+    expect(mocks.load).not.toHaveBeenCalled(); expect(mocks.encrypt).not.toHaveBeenCalled(); expect(mocks.record).not.toHaveBeenCalled();
+  });
   it('GET은 평문 우회를 허용하지 않는다', async () => {
     const response = await GET(); expect(response.status).toBe(405);
     expect(mocks.load).not.toHaveBeenCalled(); expect(mocks.build).not.toHaveBeenCalled();

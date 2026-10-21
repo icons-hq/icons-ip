@@ -2,6 +2,7 @@ import Link from 'next/link';
 import {
   adjacentAdminGuideTopics,
   adminGuideTopicHref,
+  ADMIN_GUIDE_UPDATED_AT,
   type AdminGuideTopic,
 } from '@/lib/admin/guide/topics';
 import type {
@@ -121,6 +122,7 @@ export function AdminGuideTopicScreen({ topic, access }: { topic: AdminGuideTopi
         <Link className="admin-guide-back" href="/admin/guide">← 가이드 목차</Link>
         <h2 className="admin-guide-doc__title">{topic.title}</h2>
         <p className="admin-guide-doc__summary">{topic.summary}</p>
+        <p className="admin-guide-paragraph">최종 확인 <time dateTime={ADMIN_GUIDE_UPDATED_AT}>{ADMIN_GUIDE_UPDATED_AT}</time></p>
       </header>
 
       {topic.sections.length > 1 && (

@@ -75,7 +75,7 @@ describe('2026-10-20 Smart Store dispatch workbook', () => {
   });
   it('round-trips the full export using the four input columns without rejecting untouched date cells', async () => {
     const file = await buildShipmentExport({ shipments: [shipment] }, 'xlsx', 'smartstore');
-    const encrypted = encryptAdminWorkbook(file.bytes, 'Shipment-Test-1234');
+    const encrypted = encryptAdminWorkbook(file.bytes, '1234');
     await expect(parseTrackingWorkbook(encrypted.bytes, carriers)).rejects.toThrow('암호를 해제');
     const book = await load(file.bytes);
     const sheet = book.worksheets[0];

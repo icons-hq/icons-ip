@@ -64,8 +64,11 @@ it('김포·남양주에 스마트스토어 양식을 기본으로 보내고 기
   exportFile();
   expect(mocks.export).not.toHaveBeenCalled();
   expect(text(ready())).toContain('비밀번호 확인');
+  for (const input of nodes(ready()).filter(node => node.type === 'input' && node.props.type === 'password')) {
+    expect(input.props).toMatchObject({ minLength: 4, maxLength: 16 });
+  }
   const formData = new FormData();
-  formData.set('password', 'Shipment-Test-1234'); formData.set('passwordConfirmation', 'Shipment-Test-1234');
+  formData.set('password', '1234'); formData.set('passwordConfirmation', '1234');
   vi.stubGlobal('FormData', vi.fn(function() { return formData; }));
   const form = nodes(ready()).find(node => node.type === 'form')!;
   const reset = vi.fn();
@@ -73,7 +76,7 @@ it('김포·남양주에 스마트스토어 양식을 기본으로 보내고 기
   await Promise.all(mocks.work);
   expect(reset).toHaveBeenCalledOnce();
   expect(formData.has('password')).toBe(false);
-  expect(mocks.export).toHaveBeenLastCalledWith([ids[0]], 'xlsx', 'smartstore', { password: 'Shipment-Test-1234', passwordConfirmation: 'Shipment-Test-1234' });
+  expect(mocks.export).toHaveBeenLastCalledWith([ids[0]], 'xlsx', 'smartstore', { password: '1234', passwordConfirmation: '1234' });
   const cancel = nodes(ready()).find(node => node.type === 'button' && text(node.props.children as ReactNode) === '취소')!;
   (cancel.props.onClick as () => void)();
   const layout = nodes(ready()).find(node => node.type === 'select')!;
@@ -90,11 +93,11 @@ it('출고지 전체 다운로드도 기본 74열 암호화와 선택한 창고 
  mocks.exportOrigin.mockResolvedValue({error:'합성 재시도 안내'});
  expect(nodes(ready()).find(node=>node.type==='select')!.props.value).toBe('smartstore');
  clickOrigin();expect(mocks.exportOrigin).not.toHaveBeenCalled();expect(text(ready())).toContain('남양주의 아직 전달하지 않은 발송 대기 건');
- const input=new FormData();input.set('password','Shipment-Test-1234');input.set('passwordConfirmation','Shipment-Test-1234');
+ const input=new FormData();input.set('password','1234');input.set('passwordConfirmation','1234');
  vi.stubGlobal('FormData',vi.fn(function(){return input;}));
  const form=nodes(ready()).find(node=>node.type==='form')!,reset=vi.fn();
  (form.props.onSubmit as (event:unknown)=>void)({preventDefault:vi.fn(),currentTarget:{reset}});await Promise.all(mocks.work);
- expect(mocks.exportOrigin).toHaveBeenCalledWith(origin.id,'xlsx','smartstore',{password:'Shipment-Test-1234',passwordConfirmation:'Shipment-Test-1234'});
+ expect(mocks.exportOrigin).toHaveBeenCalledWith(origin.id,'xlsx','smartstore',{password:'1234',passwordConfirmation:'1234'});
  expect(mocks.export).not.toHaveBeenCalled();expect(reset).toHaveBeenCalledOnce();expect(input.has('password')).toBe(false);
  expect(text(ready())).toContain('합성 재시도 안내');expect(text(ready())).toContain('비밀번호 확인');
  const cancel=nodes(ready()).find(node=>node.type==='button'&&text(node.props.children as ReactNode)==='취소')!;(cancel.props.onClick as ()=>void)();

@@ -2,13 +2,14 @@ import Link from 'next/link';
 import {
   ADMIN_GUIDE_TOPIC_SLUGS,
   ADMIN_GUIDE_TOPICS,
+  ADMIN_GUIDE_UPDATED_AT,
   adminGuideTopicHref,
 } from '@/lib/admin/guide/topics';
 
 /*
  * 어드민 사용 가이드 — 목차 화면.
  *
- * 13개 주제 전부를 순서대로 카드로 편다. 사이드바에는 이 목차 하나만 올라가므로
+ * 전체 주제를 순서대로 카드로 편다. 사이드바에는 이 목차 하나만 올라가므로
  * (lib/admin/navigation.ts), 주제 탐색은 여기와 주제 페이지의 이전/다음이 맡는다.
  */
 
@@ -19,12 +20,12 @@ export function AdminGuideIndexScreen() {
   return (
     <div className="admin-guide-index">
       <section className="card admin-guide-intro">
-        <h2 className="admin-guide-intro__title">어드민 사용 가이드</h2>
+        <h2 className="admin-guide-intro__title">판매자 가이드</h2>
         <p className="admin-guide-paragraph">
-          영업·신사업·운영 담당자가 개발팀에 묻지 않고 어드민을 쓸 수 있도록 화면별 절차와
-          주의점을 정리했습니다. 화면과 어긋난 내용을 발견하면 개발팀에 알려주세요 —
-          가이드는 코드와 함께 관리되어 다음 배포에서 고쳐집니다.
+          상품 등록부터 주문·출고·고객 응대·정산까지 현재 판매자센터의 처리 절차를 안내합니다.
+          업무별 입력·저장·완료 조건과 파일 양식, 처리할 수 없는 경우를 확인하세요.
         </p>
+        <p className="admin-guide-paragraph">전체 {ADMIN_GUIDE_TOPIC_SLUGS.length}개 주제 · 최종 확인 <time dateTime={ADMIN_GUIDE_UPDATED_AT}>{ADMIN_GUIDE_UPDATED_AT}</time> · 화면과 저장 권한은 매니저 역할에 따라 다릅니다.</p>
         <p className="admin-guide-paragraph">처음이라면 이 순서를 권합니다.</p>
         <ol className="admin-guide-start-path">
           {START_PATH.map((slug) => (

@@ -1,10 +1,11 @@
+import { CUSTOMER_TABS, CUSTOMER_TAB_LABELS } from '@/lib/admin/customer-detail';
 import type { AdminGuideTopic } from '../types';
 
 export const MEMBERS_ROLES_TOPIC: AdminGuideTopic = {
   slug: 'members-roles',
   title: '회원·모더레이션·매니저',
   navLabel: '회원·모더레이션',
-  summary: '신고 처리와 게시물 숨김, 회원 조회·정지, 매니저 초대·권한 변경을 다룹니다.',
+  summary: '회원 상세의 주문·문의·쿠폰·내부 메모, 정지와 구매제한의 차이, 고객등급·매니저 초대·권한 변경을 다룹니다.',
   sections: [
     {
       id: 'moderation',
@@ -26,7 +27,7 @@ export const MEMBERS_ROLES_TOPIC: AdminGuideTopic = {
       heading: '회원 조회와 정지',
       steps: [
         { text: '회원 화면에서 닉네임·이메일로 검색합니다. 완전한 이메일 주소를 입력하면 정확히 일치하는 회원을 먼저 보여줍니다.', screenHref: '/admin/community/members' },
-        { text: '회원 상세에서 기본 정보·주문·문의·취소·반품·교환 요청·카드·티켓의 6개 탭을 확인합니다.' },
+        { text: `회원 상세의 ${CUSTOMER_TABS.map(tab => CUSTOMER_TAB_LABELS[tab]).join(' / ')} 탭을 확인합니다. 적립금 조정 권한이 있으면 적립금 잔액·조정으로 이동할 수 있습니다.` },
         {
           text: '규정 위반 회원은 내부 정지 사유를 적고 정지합니다.',
           detail: [
@@ -37,6 +38,7 @@ export const MEMBERS_ROLES_TOPIC: AdminGuideTopic = {
       ],
       paragraphs: [
         '내부 메모는 운영자에게만 보이며 고객 화면에는 노출되지 않습니다. 문의 상세에서는 화면을 떠나지 않고 고객의 주문·취소·반품·교환 이력을 조회할 수 있습니다.',
+        '판매방해 고객관리의 구매제한은 새 상품 주문에 적용되는 별도 조치입니다. 회원 전체 정지와 혼동하지 않으며 기존 주문의 배송·취소·환불은 계속 처리합니다.',
       ],
       callouts: [
         {
@@ -47,7 +49,7 @@ export const MEMBERS_ROLES_TOPIC: AdminGuideTopic = {
           ],
         },
       ],
-      screens: [{ href: '/admin/community/members' }],
+      screens: [{ href: '/admin/community/members' }, { href: '/admin/sales/purchase-restrictions' }],
     },
     {
       id: 'customer-grades',

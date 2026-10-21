@@ -1,3 +1,4 @@
+import { EXPORT_PASSWORD_HINT } from '@/lib/admin/export-password';
 import type { AdminGuideErrorCase, AdminGuideTable, AdminGuideTopic } from '../types';
 
 /*
@@ -110,7 +111,7 @@ const ARCHIVE_CASES: AdminGuideErrorCase[] = [
     quote: '판매 가능한 재고가 남아 있어 굿즈를 보관할 수 없습니다.',
     sourceFile: 'app/admin/archive-actions.ts',
     cause: '실재고 수량이 남은 굿즈를 보관하려 했습니다.',
-    fix: '실재고 조정으로 수량을 0으로 만든 뒤(사유: 보관 전 정리 등) 다시 보관합니다.',
+    fix: '판매만 중지할 때는 판매 중지를 사용합니다. 실제로 ICONS 할당 물량을 회수했을 때만 그 근거로 재고를 조정한 뒤 보관합니다.',
   },
   {
     quote: '활성 리워드 정책에 연결된 굿즈는 보관할 수 없습니다.',
@@ -157,8 +158,8 @@ const CLAIM_CASES: AdminGuideErrorCase[] = [
   {
     quote: '청약철회 기한이 지난 요청입니다. 승인 대신 사유를 남겨 거부해주세요.',
     sourceFile: 'app/admin/claim-actions.ts',
-    cause: '법정 청약철회 기한이 지난 접수 건을 승인하려 했습니다.',
-    fix: '기한 경과를 사유(10~200자)로 적어 거부 처리합니다. 사유는 구매자에게 전달됩니다.',
+    cause: '서버가 기록된 배송일·접수일·사유로 계산한 신청 기한을 넘는 요청입니다.',
+    fix: '배송일과 최초 문의 접수 시각·사유를 담당자가 대조합니다. 앞서 받은 요청이나 별도 검토할 사실이 있으면 고객지원 검토를 이어가고, 오류 문구만으로 즉시 거부하지 않습니다.',
   },
 ];
 
@@ -227,9 +228,21 @@ export const TROUBLESHOOTING_TOPIC: AdminGuideTopic = {
       heading: '오류가 표시되는 방식',
       paragraphs: [
         '어드민의 오류는 팝업이 아니라 폼 안에 표시됩니다 — 문제가 된 입력 칸 바로 아래, 또는 폼 상단의 알림 카드를 확인해주세요.',
-        '"최신 상태를 확인해주세요"로 끝나는 문구는 대부분 다른 운영자·고객의 처리가 먼저 반영된 경우입니다. 새로고침해서 현재 상태를 보고 다시 시도하면 해결됩니다.',
+        '"최신 상태를 확인해주세요"는 다른 운영자·고객의 처리나 조회 실패로 나타날 수 있습니다. 입력을 보존하고 최신 상태를 확인합니다. 결과가 불명확한 결제·환불·출고·일괄 지급은 같은 요청의 결과 확인을 먼저 사용합니다.',
         '아래 표의 문구는 화면에 뜨는 원문 그대로입니다. 표에 없는 오류가 반복되면 문구를 그대로 복사해 개발팀에 전달해주세요.',
       ],
+    },
+    {
+      id: 'excel-password',
+      heading: '엑셀 비밀번호·다운로드·재업로드',
+      paragraphs: [
+        EXPORT_PASSWORD_HINT,
+        '숫자만 입력해도 되며 비밀번호 확인란까지 같은 값으로 입력합니다. 3자리 이하·17자리 이상·공백·한글은 사용할 수 없습니다. 오류나 연결 실패 뒤에는 입력이 지워지므로 다시 입력합니다.',
+        '기존에 받은 파일은 당시 설정한 비밀번호로 엽니다. 새 파일의 비밀번호를 바꿔도 이전 파일은 바뀌지 않습니다. 잊어버린 비밀번호는 조회할 수 없으므로 다시 내려받습니다.',
+        '운송장 회신을 업로드할 때는 Excel에서 암호를 해제한 XLSX로 저장합니다. 스마트스토어 양식은 발송처리 시트와 상품주문번호·배송방법·택배사·송장번호 헤더도 확인합니다.',
+        '출고지시를 다시 받기 전에는 기존 파일의 다운로드 결과와 창고 전달 여부를 확인합니다. 이미 전달한 파일을 중복 전송하지 않도록 각 파일의 처리 범위를 대조합니다.',
+      ],
+      screens: [{ href: '/admin/sales/dispatch' }, { href: '/admin/sales/shipping' }],
     },
     { id: 'catalog', heading: '카탈로그 등록·이미지', table: errorTable(CATALOG_CASES) },
     { id: 'kc-publish', heading: '상품 KC 검토와 공개', table: errorTable(KC_PUBLISH_CASES) },

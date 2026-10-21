@@ -6,7 +6,7 @@ import {completeShipmentsAction,exportPendingOriginShipmentsAction,exportShipmen
 import {ConsoleGrid,type ConsoleGridColumn,type ConsoleGridRow} from '@/components/admin/console';
 import {isParcelShipment,shipmentConsoleSelectable,type ShipmentConsoleOrigin,type ShipmentConsoleRow,type ShipmentConsoleTab} from '@/lib/admin/shipment-dispatch';
 import type {ShipmentExportLayout} from '@/lib/admin/shipment-workbook';
-import {EXPORT_PASSWORD_HINT,exportPasswordError} from '@/lib/admin/export-password';
+import {EXPORT_PASSWORD_HINT,EXPORT_PASSWORD_MAX_LENGTH,EXPORT_PASSWORD_MIN_LENGTH,exportPasswordError} from '@/lib/admin/export-password';
 import {ShipmentPackPanel} from './ShipmentPackPanel';
 import {OrderDelayNoticePanel} from './OrderDelayNoticePanel';
 import {CustomerServiceDialog} from './CustomerServiceDialog';
@@ -141,8 +141,8 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
    }}>
     <p>{exportRequest.kind==='selection'?`선택한 ${exportRequest.ids.length}개 배송 건`:`${exportRequest.origin.name}의 아직 전달하지 않은 발송 대기 건`}을 스마트스토어 양식으로 내려받습니다.</p>
     <p className="muted">{EXPORT_PASSWORD_HINT}</p>
-    <label>비밀번호<input name="password" type="password" autoComplete="new-password" autoFocus minLength={12} maxLength={64} required disabled={pending} spellCheck={false}/></label>
-    <label>비밀번호 확인<input name="passwordConfirmation" type="password" autoComplete="new-password" minLength={12} maxLength={64} required disabled={pending} spellCheck={false}/></label>
+    <label>비밀번호<input name="password" type="password" autoComplete="new-password" autoFocus minLength={EXPORT_PASSWORD_MIN_LENGTH} maxLength={EXPORT_PASSWORD_MAX_LENGTH} required disabled={pending} spellCheck={false}/></label>
+    <label>비밀번호 확인<input name="passwordConfirmation" type="password" autoComplete="new-password" minLength={EXPORT_PASSWORD_MIN_LENGTH} maxLength={EXPORT_PASSWORD_MAX_LENGTH} required disabled={pending} spellCheck={false}/></label>
     <p className="muted">비밀번호는 저장하지 않습니다. 운송장 회신 파일은 Excel에서 암호를 해제한 뒤 올려주세요.</p>
     {error?<p role="alert" className="wc-admin-kit__error">{error}</p>:null}
     <div className="admin-sales-workbar">

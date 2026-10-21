@@ -2,7 +2,7 @@
 
 import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { adminListExportFileNameFromDisposition } from '@/lib/admin/list-export';
-import { EXPORT_PASSWORD_HINT, exportPasswordError } from '@/lib/admin/export-password';
+import { EXPORT_PASSWORD_HINT, EXPORT_PASSWORD_MAX_LENGTH, EXPORT_PASSWORD_MIN_LENGTH, exportPasswordError } from '@/lib/admin/export-password';
 import { CustomerServiceDialog } from './screens/CustomerServiceDialog';
 
 const SESSION_MESSAGE = '로그인이 만료되었거나 권한이 없습니다. 화면을 새로고침한 뒤 다시 시도해주세요.';
@@ -95,9 +95,9 @@ export function EncryptedWorkbookDownloadButton({ href, label, disabled = false,
         <p>{snapshot ? '보존된 거래확정 기록을 새 비밀번호로 내려받습니다.' : '현재 검색 조건의 최신 목록을 암호화해 내려받습니다.'}</p>
         <p className="muted" id={hintId}>{EXPORT_PASSWORD_HINT}</p>
         <label>비밀번호<input aria-describedby={hintId} autoComplete="new-password" autoFocus disabled={pending}
-          maxLength={64} minLength={12} name="password" required spellCheck={false} type="password" /></label>
+          maxLength={EXPORT_PASSWORD_MAX_LENGTH} minLength={EXPORT_PASSWORD_MIN_LENGTH} name="password" required spellCheck={false} type="password" /></label>
         <label>비밀번호 확인<input aria-describedby={hintId} autoComplete="new-password" disabled={pending}
-          maxLength={64} minLength={12} name="passwordConfirmation" required spellCheck={false} type="password" /></label>
+          maxLength={EXPORT_PASSWORD_MAX_LENGTH} minLength={EXPORT_PASSWORD_MIN_LENGTH} name="passwordConfirmation" required spellCheck={false} type="password" /></label>
         <p className="muted">비밀번호는 저장하지 않습니다. 잊어버리면 새 비밀번호로 다시 내려받아 주세요. 개인정보가 담긴 파일은 업무에 필요한 기간만 보관해주세요.</p>
         {error ? <p className="wc-admin-kit__error" role="alert">{error}</p> : null}
         <div className="wc-admin-kit__actions">

@@ -36,7 +36,7 @@ const text = (node: ReactNode): string => Children.toArray(node).map(value => is
 const runEffects = () => { for (const job of hooks.jobs.splice(0)) job(); };
 const unmount = () => { for (const effect of hooks.effects.values()) effect.cleanup?.(); hooks.effects.clear(); };
 const originalFormData = FormData;
-let valid = true, passwords = { password: 'SyntheticQA-2026!', passwordConfirmation: 'SyntheticQA-2026!' };
+let valid = true, passwords = { password: 'SyntheticQA-26!', passwordConfirmation: 'SyntheticQA-26!' };
 const scope: EncryptedWorkbookRequestScope = { capture: () => valid ? () => valid : null };
 function renderShared(requestScope: EncryptedWorkbookRequestScope | undefined = scope) {
   hooks.index = 0; const result = nodes(EncryptedWorkbookDownloadButton({ href: '/api/admin/reviews/export?sort=helpful_desc', label: '엑셀 다운로드', requestScope }));
@@ -56,7 +56,7 @@ function response() {
 }
 beforeEach(() => {
   hooks.values = []; hooks.effects.clear(); hooks.jobs = []; hooks.index = 0; valid = true;
-  vi.clearAllMocks(); vi.useFakeTimers(); passwords = { password: 'SyntheticQA-2026!', passwordConfirmation: 'SyntheticQA-2026!' };
+  vi.clearAllMocks(); vi.useFakeTimers(); passwords = { password: 'SyntheticQA-26!', passwordConfirmation: 'SyntheticQA-26!' };
   mocks.fetch.mockResolvedValue(response()); mocks.createUrl.mockReturnValue('blob:review-export');
   vi.stubGlobal('fetch', mocks.fetch); vi.stubGlobal('window', new EventTarget());
   vi.stubGlobal('document', { body: { append: mocks.append }, createElement: () => ({ href: '', download: '', click: mocks.click, remove: mocks.remove }) });
@@ -66,10 +66,15 @@ beforeEach(() => {
 afterEach(() => { unmount(); vi.runOnlyPendingTimers(); vi.useRealTimers(); vi.restoreAllMocks(); vi.unstubAllGlobals(); });
 
 describe('리뷰에만 적용한 암호화 다운로드 lifetime', () => {
-  it('제출 즉시 암호 입력을 비우고 검증된 파일 한 건만 다운로드한다', async () => {
-    open(); await submit();
+  it.each(['1234', 'A'.repeat(16)])('허용 길이의 암호 %s를 제출 즉시 비우고 검증된 파일 한 건만 다운로드한다', async password => {
+    passwords = { password, passwordConfirmation: password };
+    const inputs = open().filter(node => node.type === 'input' && node.props.type === 'password');
+    expect(inputs).toHaveLength(2);
+    for (const input of inputs) expect(input.props).toMatchObject({ minLength: 4, maxLength: 16 });
+    await submit();
     expect(mocks.reset.mock.invocationCallOrder[0]).toBeLessThan(mocks.fetch.mock.invocationCallOrder[0]);
     expect(mocks.fetch).toHaveBeenCalledOnce(); expect(mocks.fetch.mock.calls[0][1]).toMatchObject({ method: 'POST', credentials: 'same-origin', cache: 'no-store', signal: expect.any(AbortSignal) });
+    expect(JSON.parse(mocks.fetch.mock.calls[0][1].body)).toEqual(passwords);
     expect(mocks.click).toHaveBeenCalledOnce(); expect(mocks.createUrl).toHaveBeenCalledOnce();
     vi.advanceTimersByTime(1000); expect(mocks.revokeUrl).toHaveBeenCalledWith('blob:review-export');
   });

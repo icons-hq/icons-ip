@@ -9,7 +9,7 @@ vi.mock('@/lib/admin/review-export.server', () => ({ prepareReviewExport: mocks.
 import { DELETE, GET, HEAD, OPTIONS, PATCH, POST, PUT, maxDuration, runtime } from './route';
 import { ReviewExportError } from '@/lib/admin/review-export.server';
 import { reviewExportId as id, reviewExportSnapshotFixture } from '@/test/fixtures/review-export';
-const password = 'SyntheticQA-2026!', actor = id(10);
+const password = 'SyntheticQA-26!', actor = id(10);
 let plain: Buffer;
 beforeEach(() => {
   vi.clearAllMocks(); mocks.guard.mockResolvedValue({ user: { id: actor } });

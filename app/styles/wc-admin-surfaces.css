@@ -903,13 +903,14 @@
 .wc-admin .admin-guide-section__heading { margin: 0 0 10px; font-size: 16px; font-weight: 700; letter-spacing: -.01em; word-break: keep-all; }
 .wc-admin .admin-guide-paragraph { margin: 0 0 10px; font-size: 13px; line-height: 1.65; color: var(--wc-ink); }
 .wc-admin .admin-guide-paragraph:last-child { margin-bottom: 0; }
-.wc-admin .admin-guide-steps { margin: 0 0 10px; padding: 0; list-style: none; display: grid; gap: 12px; counter-reset: guide-step; }
+.wc-admin .admin-guide-steps { margin: 0 0 10px; padding: 0; list-style: none; display: grid; grid-template-columns: minmax(0, 1fr); gap: 12px; counter-reset: guide-step; }
 .wc-admin .admin-guide-steps > li { position: relative; padding-left: 34px; counter-increment: guide-step; }
 .wc-admin .admin-guide-steps > li::before { content: counter(guide-step); position: absolute; left: 0; top: 0; display: inline-flex; align-items: center; justify-content: center; width: 24px; height: 24px; border: 1px solid var(--wc-line-control); border-radius: var(--wc-radius-form); background: var(--wc-surface-grey); font-family: var(--wc-font); font-size: 12px; font-weight: 700; color: var(--wc-ink-tertiary); }
 .wc-admin .admin-guide-step-text { margin: 0; font-size: 13px; font-weight: 700; line-height: 1.5; word-break: keep-all; }
-.wc-admin .admin-guide-step-detail { margin: 6px 0 0; padding-left: 16px; display: grid; gap: 4px; font-size: 12.5px; line-height: 1.65; color: var(--wc-ink-tertiary); }
+.wc-admin .admin-guide-step-detail { margin: 6px 0 0; padding-left: 16px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 4px; font-size: 12.5px; line-height: 1.65; color: var(--wc-ink-tertiary); }
 .wc-admin .admin-guide-steps .admin-guide-screen-chip { margin-top: 8px; }
-.wc-admin .admin-guide-list { margin: 0 0 10px; padding-left: 18px; display: grid; gap: 6px; font-size: 13px; line-height: 1.65; }
+.wc-admin .admin-guide-list { margin: 0 0 10px; padding-left: 18px; display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; font-size: 13px; line-height: 1.65; }
+.wc-admin .admin-guide-list > li, .wc-admin .admin-guide-steps > li, .wc-admin .admin-guide-step-detail > li { min-width: 0; overflow-wrap: anywhere; }
 .wc-admin .admin-guide-table-scroll { margin: 0 0 10px; overflow-x: auto; border: 1px solid var(--wc-hairline); border-radius: var(--wc-radius-form); }
 .wc-admin .admin-guide-table { width: 100%; min-width: 520px; border-collapse: collapse; font-size: 12.5px; line-height: 1.5; }
 .wc-admin .admin-guide-table th, .wc-admin .admin-guide-table td { padding: 10px 12px; border-bottom: 1px solid var(--wc-hairline); text-align: left; vertical-align: top; }
