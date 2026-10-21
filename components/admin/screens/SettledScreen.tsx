@@ -19,7 +19,7 @@ import { SALES_DATE_FIELDS, SALES_ORDER_SEARCH_FIELDS } from '@/lib/admin/sales-
 import { SalesFilterPanel, SalesGuide, SalesResultsHeader } from '@/components/admin/sales/SalesConsole';
 
 const COLUMNS: ConsoleGridColumn[] = [
-  { key: 'reference', label: '주문번호', width: '110px' },
+  { key: 'reference', label: '주문번호', width: '190px' },
   { key: 'buyer', label: '구매자', width: '140px' },
   { key: 'deliveredAt', label: '배송완료', width: '160px' },
   { key: 'doneAt', label: '확정일', width: '160px' },
@@ -50,14 +50,14 @@ export function SettledScreen({
       id: row.id,
       cells: [
         <Link
-          aria-label={`주문 ${orderReferenceLabel(row.id)} 상세 열기 (새 탭)`}
+          aria-label={`주문 ${orderReferenceLabel(row.id, row.orderNumber)} 상세 열기 (새 탭)`}
           className="admin-console-grid-link"
           href={adminOrderDetailHrefFromBack(row.id, adminSettledHref(filters))}
           key="reference"
           rel="noopener noreferrer"
           target="_blank"
         >
-          <span className="mono">{orderReferenceLabel(row.id)}</span>
+          <span className="mono">{orderReferenceLabel(row.id, row.orderNumber)}</span>
         </Link>,
         <span key="buyer">@{row.buyerName}</span>,
         row.deliveredAt

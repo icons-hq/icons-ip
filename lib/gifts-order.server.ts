@@ -7,9 +7,10 @@ import { transactionExactKeys, transactionInstant, transactionInteger, transacti
 import type { ShipmentRecord } from './orders/shipments';
 import { createClient } from './supabase/server';
 import { isUuid } from './uuid';
+import { isCommerceNumber } from './commerce-number';
 
 export type GiftCheckoutOrderResult = { kind: 'ordinary' } | { kind: 'unavailable' }
-  | { kind: 'gift'; order: Omit<CheckoutOrderSnapshot, 'paymentAttempt' | 'hasActiveCancellationRequest'> & { giftId: string; deliveredAt: string | null; transaction: NonNullable<ReturnType<typeof parseCheckoutTransactionReceipt>>['display'] } };
+  | { kind: 'gift'; order: Omit<CheckoutOrderSnapshot, 'paymentAttempt' | 'hasActiveCancellationRequest'> & { orderNumber?: string; giftId: string; deliveredAt: string | null; transaction: NonNullable<ReturnType<typeof parseCheckoutTransactionReceipt>>['display'] } };
 const text = (v: unknown, max = 300): v is string => typeof v === 'string' && v.length <= max && !/[\u0000-\u001f\u007f]/.test(v);
 const nullableText = (v: unknown): v is string | null => v === null || text(v);
 const nullableInstant = (v: unknown): v is string | null => v === null || transactionInstant(v);
@@ -23,8 +24,8 @@ export function parseGiftCheckoutOrder(value: unknown, orderId: string): GiftChe
   if (value.kind !== 'gift' || !transactionExactKeys(value, ['kind', 'receipt', 'order']) || !transactionRecord(value.order)) return null;
   const receipt = parseCheckoutTransactionReceipt(value.receipt), row = value.order;
   const paymentMethod = normalizeCheckoutPaymentMethod(row.paymentMethod);
-  if (!receipt || receipt.orderId !== orderId || !transactionExactKeys(row, ['id', 'giftId', 'status', 'total', 'shippingFee', 'discountTotal', 'storeCreditTotal', 'address', 'expiresAt', 'createdAt', 'paymentStatus', 'paymentMethod', 'items', 'shipments', 'deliveredAt'])
-    || row.id !== orderId || !uuid(row.giftId) || !['pending', 'paid', 'confirmed', 'shipping', 'delivered', 'done', 'canceled'].includes(String(row.status))
+  if (!receipt || receipt.orderId !== orderId || !transactionExactKeys(row, ['id', 'giftId', 'status', 'total', 'shippingFee', 'discountTotal', 'storeCreditTotal', 'address', 'expiresAt', 'createdAt', 'paymentStatus', 'paymentMethod', 'items', 'shipments', 'deliveredAt', ...(Object.hasOwn(row, 'orderNumber') ? ['orderNumber'] : [])])
+    || (row.orderNumber !== undefined && !isCommerceNumber(row.orderNumber, 'order')) || row.id !== orderId || !uuid(row.giftId) || !['pending', 'paid', 'confirmed', 'shipping', 'delivered', 'done', 'canceled'].includes(String(row.status))
     || !transactionInteger(row.total) || !transactionInteger(row.shippingFee) || !transactionInteger(row.discountTotal) || !transactionInteger(row.storeCreditTotal)
     || !nullableInstant(row.deliveredAt) || row.address !== null || !nullableInstant(row.expiresAt) || !transactionInstant(row.createdAt) || !nullableText(row.paymentStatus) || !paymentMethod
     || !Array.isArray(row.items) || !row.items.length || row.items.length > 100 || !Array.isArray(row.shipments) || row.shipments.length > 100
@@ -59,7 +60,7 @@ export function parseGiftCheckoutOrder(value: unknown, orderId: string): GiftChe
       shippedAt: shipment.shippedAt, deliveredAt: shipment.deliveredAt, orderItemIds: shipment.orderItemIds as string[], originalExpectedShipDate: shipment.originalExpectedShipDate,
       expectedShipDate: shipment.expectedShipDate, preorderReady: shipment.preorderReady, regionalShipping: null, delivery: null });
   }
-  return { kind: 'gift', order: { id: orderId, giftId: row.giftId, status: row.status as string, total: row.total, shippingFee: row.shippingFee,
+  return { kind: 'gift', order: { id: orderId, ...(row.orderNumber ? { orderNumber: row.orderNumber as string } : {}), giftId: row.giftId, status: row.status as string, total: row.total, shippingFee: row.shippingFee,
     discountTotal: row.discountTotal, storeCreditTotal: row.storeCreditTotal, address: null, expiresAt: row.expiresAt, createdAt: row.createdAt,
     paymentStatus: row.paymentStatus, deliveredAt: row.deliveredAt, paymentMethod, items, shipments, transaction: receipt.display } };
 }
@@ -67,7 +68,7 @@ export function parseGiftCheckoutOrder(value: unknown, orderId: string): GiftChe
 export async function loadGiftCheckoutOrder(userId: string, orderId: string): Promise<GiftCheckoutOrderResult> {
   if (!isUuid(userId) || !isUuid(orderId)) return { kind: 'unavailable' };
   const client = await createClient();
-  const { data, error } = await client.rpc('get_my_gift_checkout_order', { p_order_id: orderId, p_expected_actor_id: userId });
+  const { data, error } = await client.rpc('get_my_gift_checkout_order_numbered', { p_order_id: orderId, p_expected_actor_id: userId });
   if (error) throw new Error('gift_order_projection_failed');
   const result = parseGiftCheckoutOrder(data, orderId);
   if (!result) throw new Error('gift_order_projection_invalid');

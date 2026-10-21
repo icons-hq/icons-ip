@@ -64,8 +64,28 @@ select pg_temp.ss_error('select public.admin_smartstore_shipment_export(array[pg
 select pg_temp.ss_error('select public.admin_import_item_tracking_batch(''[{}]'')','operator_capability_required');
 select set_config('request.jwt.claim.sub',pg_temp.ss_id(4000,1)::text,true);
 select set_config('request.jwt.claims',jsonb_build_object('sub',pg_temp.ss_id(4000,1),'role','authenticated','session_id',pg_temp.ss_id(4006,1))::text,true);
+select public.admin_get_order_delivery_snapshots(array[pg_temp.ss_id(4001,1)]) as legacy_delivery \gset
+select public.admin_get_order_delivery_snapshots_numbered(array[pg_temp.ss_id(4001,1)]) as numbered_delivery \gset
+select pg_temp.ss_assert(:'numbered_delivery'::jsonb#>>'{0,orderNumber}' ~ '^202610181[0-9]{7}$'
+  and (:'numbered_delivery'::jsonb->0)-'orderNumber'=:'legacy_delivery'::jsonb->0
+  and not (:'legacy_delivery'::jsonb->0 ? 'orderNumber'),'legacy strict delivery shape remains valid during DB-first rollout');
 select public.admin_shipment_export(array[pg_temp.ss_id(4002,1)]) as base_export \gset
 select public.admin_smartstore_shipment_export(array[pg_temp.ss_id(4002,1)]) as enriched_export \gset
+select pg_temp.ss_assert(:'enriched_export'::jsonb#>>'{shipments,0,lines,0,smartstore,orderNumber}' ~ '^202610181[0-9]{7}$'
+  and :'enriched_export'::jsonb#>>'{shipments,0,lines,0,smartstore,productOrderNumber}' ~ '^202610182[0-9]{7}$'
+  and :'enriched_export'::jsonb#>>'{shipments,0,lines,0,smartstore,shipmentNumber}' ~ '^202610183[0-9]{7}$','public references are numeric and retain the KST order date');
+select public.admin_delivery_list_export_lines(array[pg_temp.ss_id(4002,1)]) as delivery_list \gset
+select pg_temp.ss_assert(jsonb_array_length(:'delivery_list')=2
+  and :'delivery_list'::jsonb#>>'{0,productOrderNumber}'=:'enriched_export'::jsonb#>>'{shipments,0,lines,0,smartstore,productOrderNumber}'
+  and :'delivery_list'::jsonb#>>'{0,orderNumber}'=:'enriched_export'::jsonb#>>'{shipments,0,lines,0,smartstore,orderNumber}'
+  and :'delivery_list'::jsonb#>>'{0,itemTotal}'='2000'
+  and :'delivery_list'::jsonb#>>'{0,postalCode}'='00123','list export reads actual item allocations and public references');
+select pg_temp.ss_assert((select count(*)=1 from public.admin_search_orders_console(p_query=>:'delivery_list'::jsonb#>>'{0,orderNumber}',p_field=>'order')),'order search accepts displayed order number');
+select pg_temp.ss_assert(public.admin_search_order_items_console(p_query=>:'delivery_list'::jsonb#>>'{0,productOrderNumber}',p_field=>'item')->>'total'='1','item search accepts displayed product-order number');
+select pg_temp.ss_assert(public.admin_search_shipments_notice_console('ready',p_query=>:'delivery_list'::jsonb#>>'{0,orderNumber}',p_field=>'order')->>'total'='1','dispatch search accepts displayed order number');
+select pg_temp.ss_assert((select exported_at is null and status='ready' from public.order_shipments where id=pg_temp.ss_id(4002,1)),'list download does not dispatch or mark exported');
+select pg_temp.ss_assert(not has_function_privilege('anon','public.admin_delivery_list_export_lines(uuid[])','execute')
+  and not has_function_privilege('service_role','public.admin_delivery_list_export_lines(uuid[])','execute'),'list export permission sealed');
 select pg_temp.ss_assert(((:'enriched_export'::jsonb#>'{shipments,0,lines,0}')-'smartstore')=(:'base_export'::jsonb#>'{shipments,0,lines,0}'),'existing line contract preserved');
 select pg_temp.ss_assert(:'enriched_export'::jsonb#>>'{shipments,0,lines,0,smartstore,itemId}'=pg_temp.ss_id(4003,11)::text
   and :'enriched_export'::jsonb#>>'{shipments,0,lines,1,smartstore,itemId}'=pg_temp.ss_id(4003,12)::text,'actual item UUIDs match deterministic order');
@@ -116,14 +136,15 @@ reset role;rollback to incomplete_quantity;
 
 set local role authenticated;
 select public.admin_import_item_tracking_batch(jsonb_build_array(
-  jsonb_build_object('line',2,'reference',pg_temp.ss_id(4003,11),'carrier','hanjin','trackingNumber','0012-3456 7890'),
-  jsonb_build_object('line',3,'reference',pg_temp.ss_id(4003,12),'carrier','hanjin','trackingNumber','001234567890')
+  jsonb_build_object('line',2,'reference',:'delivery_list'::jsonb#>>'{0,productOrderNumber}','carrier','hanjin','trackingNumber','0012-3456 7890'),
+  jsonb_build_object('line',3,'reference',:'delivery_list'::jsonb#>>'{1,productOrderNumber}','carrier','hanjin','trackingNumber','001234567890')
 )) as imported \gset
 select pg_temp.ss_assert(jsonb_array_length(:'imported')=2 and :'imported'::jsonb#>>'{0,ok}'='true'
   and :'imported'::jsonb#>>'{1,ok}'='true' and :'imported'::jsonb#>>'{0,duplicate}'='false'
   and :'imported'::jsonb#>>'{1,duplicate}'='true' and :'imported'::jsonb#>>'{1,dispatched}'='false'
-  and :'imported'::jsonb#>>'{0,reference}'=pg_temp.ss_id(4003,11)::text and :'imported'::jsonb#>>'{1,line}'='3','two item rows create one shipment mutation and preserve original row identity');
+  and :'imported'::jsonb#>>'{0,reference}'=:'delivery_list'::jsonb#>>'{0,productOrderNumber}' and :'imported'::jsonb#>>'{1,line}'='3','two numeric item rows create one shipment mutation and preserve original row identity');
 select pg_temp.ss_assert((select status='shipping' and tracking_number='001234567890' from public.order_shipments where id=pg_temp.ss_id(4002,1)),'normalized leading-zero tracking is persisted');
+select pg_temp.ss_assert(public.admin_delivery_list_export_lines(array[pg_temp.ss_id(4002,1)])#>>'{0,trackingNumber}'='001234567890','shipped rows remain readable by the list export');
 select pg_temp.ss_error('select public.admin_smartstore_shipment_export(array[pg_temp.ss_id(4002,1)])','shipment_not_ready');
 select public.admin_import_item_tracking_batch(jsonb_build_array(
   jsonb_build_object('line',4,'reference',pg_temp.ss_id(4003,21),'carrier','hanjin','trackingNumber','001234567890'),
@@ -174,7 +195,13 @@ select pg_temp.ss_error('select public.admin_import_item_tracking_batch(''{}'')'
 select pg_temp.ss_error('select public.admin_import_item_tracking_batch((select jsonb_agg(''{}''::jsonb) from generate_series(1,1001)))','invalid_tracking_batch');
 
 -- A malformed or conflicting member must not let a valid member dispatch a pack.
-select public.admin_get_shipment_packs(array[pg_temp.ss_id(4002,5),pg_temp.ss_id(4002,6)]) as pack_preview \gset
+select public.admin_get_shipment_packs(array[pg_temp.ss_id(4002,5),pg_temp.ss_id(4002,6)]) as legacy_pack_preview \gset
+select public.admin_get_shipment_packs_numbered(array[pg_temp.ss_id(4002,5),pg_temp.ss_id(4002,6)]) as pack_preview \gset
+select pg_temp.ss_assert(:'pack_preview'::jsonb->>'version'=:'legacy_pack_preview'::jsonb->>'version'
+  and :'pack_preview'::jsonb#>>'{rows,0,orderNumber}' ~ '^202610181[0-9]{7}$'
+  and :'pack_preview'::jsonb#>>'{rows,0,shipmentNumber}' ~ '^202610183[0-9]{7}$'
+  and (:'pack_preview'::jsonb#>'{rows,0}')-'orderNumber'-'shipmentNumber'=:'legacy_pack_preview'::jsonb#>'{rows,0}',
+  'numbered packing read preserves the exact legacy mutation version and row contract');
 select public.admin_change_shipment_pack(array[pg_temp.ss_id(4002,5),pg_temp.ss_id(4002,6)],'create',:'pack_preview'::jsonb->>'version',
   '합성 합포장 검증',pg_temp.ss_id(4007,1),pg_temp.ss_id(4000,1),pg_temp.ss_id(4006,1));
 select pg_temp.ss_error('select public.admin_smartstore_shipment_export(array[pg_temp.ss_id(4002,5)])','shipment_pack_selection_required');

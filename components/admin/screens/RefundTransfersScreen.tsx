@@ -28,7 +28,7 @@ export function RefundTransfersScreen({ data }: { data: RefundTransferPage }) {
         emptyLabel="송금 대기 중인 무통장 환불이 없습니다." rows={data.rows.map(row => ({ id: row.claimId,
           href: `/admin/sales/claims/${row.claimType === 'cancel' ? 'cancels' : 'returns'}/${row.claimId}`,
           cells: [<span className="mono" key="claim">{orderClaimReferenceLabel(row.reference)}</span>,
-            <span className="mono" key="order">{orderReferenceLabel(row.orderId)}</span>,
+            <span className="mono" key="order">{orderReferenceLabel(row.orderId, row.orderNumber)}</span>,
             `${row.gift ? '선물 · ' : ''}${row.claimType === 'cancel' ? '취소' : '반품'}`, row.payerName || '이름 미등록', row.requesterName || '이름 미등록',
             formatKrwExact(row.amount), formatOrderDateTime(row.confirmedAt), row.filedAt ? formatOrderDateTime(row.filedAt) : '미접수'],
         }))} />

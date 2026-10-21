@@ -1,4 +1,5 @@
 import { isUuid } from '@/lib/uuid';
+import { isCommerceNumber } from '@/lib/commerce-number';
 import { isOrderWithdrawalReasonType, type OrderWithdrawalReasonType } from '@/lib/orders';
 import { isOrderClaimStage, isOrderClaimType, normalizeRefundAccount, type OrderClaimStage, type OrderClaimType, type RefundAccountInput } from '@/lib/orders/claims';
 import { isShippingCarrierCodeFormat, isTrackingNumber, normalizeTrackingNumber, type ShippingCarrierRegistry } from '@/lib/orders/shipment';
@@ -26,6 +27,7 @@ export interface SellerClaimCollectionTarget {
   items: { id: string; name: string; qty: number }[];
 }
 export interface SellerClaimContext {
+  orderNumber?: string;
   orderId: string; orderStatus: string; orderTotal: number; buyerName: string | null;
   createdAt: string; deliveredAt: string | null; observedAt: string; address: SellerClaimAddress;
   blockedReasons: Record<OrderWithdrawalReasonType, string | null>;
@@ -129,6 +131,7 @@ function parseItems(value: unknown): SellerClaimCollectionTarget['items'] | null
 }
 export function parseSellerClaimContext(value: unknown): SellerClaimContext | null {
   if (!record(value) || !isUuid(value.orderId) || typeof value.orderStatus !== 'string' || !Number.isSafeInteger(value.orderTotal) || Number(value.orderTotal) < 0
+    || (value.orderNumber !== undefined && !isCommerceNumber(value.orderNumber, 'order'))
     || !nullableText(value.buyerName) || !date(value.createdAt) || !(value.deliveredAt === null || date(value.deliveredAt)) || !date(value.observedAt)
     || !record(value.blockedReasons) || !nullableText(value.blockedReasons.change_of_mind) || !nullableText(value.blockedReasons.defect) || !nullableText(value.cancelBlockedReason) || typeof value.digitalExchangeBlocked !== 'boolean'
     || !Array.isArray(value.collections) || !Array.isArray(value.inquiries) || !Array.isArray(value.carriers)

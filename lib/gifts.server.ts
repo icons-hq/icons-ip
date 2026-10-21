@@ -30,12 +30,12 @@ export async function giftsAvailable(): Promise<boolean> {
   return !error && data === true;
 }
 export async function loadGift(id: string) {
-  const client = await createClient(), { data, error } = await client.rpc('get_my_gift', { p_id: id });
+  const client = await createClient(), { data, error } = await client.rpc('get_my_gift_numbered', { p_id: id });
   if (error) throw new Error('선물을 불러오지 못했습니다.'); if (data === null) return null;
   const gift = parseGiftDetail(data); if (!gift || gift.id !== id) throw new Error('선물 정보를 확인하지 못했습니다.'); return gift;
 }
 export async function loadGifts(party: GiftParty, cursor?: { createdAt: string; id: string }) {
-  const client = await createClient(), { data, error } = await client.rpc('list_my_gifts', { p_party: party, p_before: cursor?.createdAt ?? null, p_before_id: cursor?.id ?? null });
+  const client = await createClient(), { data, error } = await client.rpc('list_my_gifts_numbered', { p_party: party, p_before: cursor?.createdAt ?? null, p_before_id: cursor?.id ?? null });
   const page = parseGiftPage(data); if (error || !page) throw new Error('선물함을 불러오지 못했습니다.'); return page;
 }
 export async function loadGiftInvitation() {

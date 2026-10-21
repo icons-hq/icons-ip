@@ -135,7 +135,7 @@ export function OrderDetailScreen({
     .filter(entry => !(entry.source === 'shipment' && entry.action === 'shipped' && entry.shipmentId && digitalShipments.has(entry.shipmentId)));
   const addressNotRequired = detail.shipments.length > 0 && detail.shipments.every(shipment => shipment.delivery && ['pickup', 'none', 'digital'].includes(shipment.delivery.method));
   return <div className="admin-order-detail">
-    <AdminPageHeader title="주문 상세" description={order.id} actions={<>
+    <AdminPageHeader title="주문 상세" description={order.orderNumber ?? order.id} actions={<>
       <Link href={backHref} className="admin-order-detail__button admin-order-detail__button--secondary">{backLabel}</Link>
       {canManage ? <Link href={`/admin/sales/orders?status=all&query=${order.id}&order=${order.id}`} className="admin-order-detail__button">주문 처리</Link> : null}
       {canManage && !addressNotRequired ? <OrderAddressButton orderId={order.id} /> : null}
@@ -172,12 +172,12 @@ export function OrderDetailScreen({
     <AdminSectionCard title="배송 건별 현황">
       <ShipmentDetails admin shipments={detail.shipments} items={items} transactionShipping={order.transaction?.shipping} />
       {actorId && (order.transaction?.totals.collectShippingTotal ?? 0) > 0 ? <ShippingCollectPanel key={`${actorId}:${order.id}`} orderId={order.id} expectedActorId={actorId} canManage={canManage} /> : null}
-      {canManage ? detail.shipments.map(shipment => <ShipmentDeliveryPanel orderId={order.id} shipmentId={shipment.id} originName={shipment.originName} key={shipment.id} />) : null}
+      {canManage ? detail.shipments.map(shipment => <ShipmentDeliveryPanel orderId={order.id} shipmentId={shipment.id} shipmentNumber={shipment.shipmentNumber} originName={shipment.originName} key={shipment.id} />) : null}
       {canManage ? detail.shipments.filter(shipment => shipment.originalExpectedShipDate).map(shipment => <ShipmentPreorderPromisePanel orderId={order.id} shipmentId={shipment.id} key={shipment.id} />) : null}
       {canManage && detail.emailJobs.length ? <section aria-label="배송 메일 처리 상태">
         <h3>배송 안내 메일</h3>
         <ul>{detail.emailJobs.map(job=><li key={job.shipmentId}>
-          <strong>{detail.shipments.find(shipment=>shipment.id===job.shipmentId)?.originName ?? '배송 건'} · {job.shipmentId}</strong>
+          <strong>{detail.shipments.find(shipment=>shipment.id===job.shipmentId)?.originName ?? '배송 건'} · {detail.shipments.find(shipment=>shipment.id===job.shipmentId)?.shipmentNumber ?? job.shipmentId}</strong>
           <p>{{pending:'발송 대기',processing:'발송 처리 중',completed:'처리 완료',review:'운영자 확인 필요'}[job.status]} · 시도 {job.attempts}회</p>
           {job.lastErrorCode ? <p>확인 코드 · {job.lastErrorCode}</p> : null}
           <time dateTime={job.updatedAt}>{dateTime(job.updatedAt)}</time>

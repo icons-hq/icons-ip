@@ -97,6 +97,7 @@ export interface AdminReviewFilters {
 }
 
 export interface AdminReviewRow {
+  orderNumber?: string;
   kind?: import('../review-types').ReviewKind;
   repeatPurchase?: boolean | null;
   id: string;

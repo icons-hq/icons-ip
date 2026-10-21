@@ -34,6 +34,7 @@ const USER_UPLOADS_BUCKET = 'user-uploads';
 const SIGNED_IMAGE_EXPIRES_IN_SECONDS = 60 * 60;
 
 interface QueueRow {
+  order_number?: string | null;
   id: string;
   reference: number;
   category: string;
@@ -115,6 +116,7 @@ function toRow(row: QueueRow): AdminInquiryRow {
     buyerName: adminInquiryBuyerLabel(row.buyer_name, row.user_id),
     buyerEmail: row.buyer_email,
     orderId: row.order_id,
+    ...(row.order_number ? { orderNumber: row.order_number } : {}),
     goodId: row.good_id,
     goodName: row.good_name,
     handlerName: row.handler_name?.trim() || null,
@@ -195,6 +197,7 @@ export interface AdminInquiryMessage {
 }
 
 export interface AdminInquiryOrderContext {
+  orderNumber?: string;
   id: string;
   status: string;
   total: number;

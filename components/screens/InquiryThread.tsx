@@ -75,7 +75,7 @@ export function InquiryThread({ inquiry, satisfaction }: { inquiry: InquiryThrea
       </div>
       <p className="wc-mypage__lede">
         {inquiryReferenceLabel(inquiry.reference)} · {inquiry.categoryLabel} · {INQUIRY_STATUS_LABELS[inquiry.status]} · 접수 {formatInquiryDateTime(inquiry.createdAt)}
-        {inquiry.orderId ? ` · 주문 ${orderReferenceLabel(inquiry.orderId)}` : ''}
+        {inquiry.orderId ? ` · 주문 ${orderReferenceLabel(inquiry.orderId, inquiry.orderNumber)}` : ''}
       </p>
 
       <section aria-labelledby="inquiry-thread-heading">

@@ -1,9 +1,11 @@
 import { isUuid } from '../uuid';
+import { isCommerceNumber } from '../commerce-number';
 import { transactionExactKeys, transactionInstant, transactionInteger, transactionRecord } from '../goods-transaction-values';
 
 export const REFUND_TRANSFERS_PATH = '/admin/sales/claims/refund-transfers';
 export const REFUND_TRANSFERS_PAGE_SIZE = 50;
 export interface RefundTransferRow {
+  orderNumber?: string;
   claimId: string;
   orderId: string;
   reference: number;
@@ -36,12 +38,13 @@ export function parseRefundTransferPage(value: unknown, page: number): RefundTra
     || value.limit !== REFUND_TRANSFERS_PAGE_SIZE || value.offset !== (page - 1) * REFUND_TRANSFERS_PAGE_SIZE) return null;
   const rows: RefundTransferRow[] = [];
   for (const row of value.rows) {
-    if (!transactionRecord(row) || !transactionExactKeys(row, ['claimId', 'orderId', 'reference', 'claimType', 'amount', 'confirmedAt', 'filedAt', 'updatedAt', 'revision', 'gift', 'payerName', 'requesterName'])
+    if (!transactionRecord(row) || !transactionExactKeys(row, ['claimId', 'orderId', 'reference', 'claimType', 'amount', 'confirmedAt', 'filedAt', 'updatedAt', 'revision', 'gift', 'payerName', 'requesterName', ...(Object.hasOwn(row, 'orderNumber') ? ['orderNumber'] : [])])
+      || (row.orderNumber !== undefined && !isCommerceNumber(row.orderNumber, 'order'))
       || !isUuid(row.claimId) || !isUuid(row.orderId) || !transactionInteger(row.reference, 1)
       || !['cancel', 'return'].includes(String(row.claimType)) || !transactionInteger(row.amount, 1)
       || !transactionInstant(row.confirmedAt) || !nullableInstant(row.filedAt) || !transactionInstant(row.updatedAt)
       || !transactionInteger(row.revision, 1) || typeof row.gift !== 'boolean' || !name(row.payerName) || !name(row.requesterName)) return null;
-    rows.push({ claimId: row.claimId, orderId: row.orderId, reference: row.reference, claimType: row.claimType as 'cancel' | 'return',
+    rows.push({ claimId: row.claimId, orderId: row.orderId, ...(row.orderNumber ? { orderNumber: row.orderNumber as string } : {}), reference: row.reference, claimType: row.claimType as 'cancel' | 'return',
       amount: row.amount, confirmedAt: row.confirmedAt, filedAt: row.filedAt as string | null,
       updatedAt: row.updatedAt, revision: row.revision, gift: row.gift, payerName: row.payerName as string | null, requesterName: row.requesterName as string | null });
   }

@@ -9,6 +9,7 @@ import {
 } from './settled';
 
 interface SearchRow {
+  order_number?: string;
   id: string;
   user_id: string;
   buyer_name: string | null;
@@ -49,6 +50,7 @@ export async function getAdminSettledOrders(
   const rows = (data ?? []) as SearchRow[];
   const settled: AdminSettledOrderRow[] = rows.map((row) => ({
     id: row.id,
+    ...(row.order_number ? { orderNumber: row.order_number } : {}),
     buyerName: buyerName(row.buyer_name, row.user_id),
     createdAt: row.created_at,
     deliveredAt: row.delivered_at,

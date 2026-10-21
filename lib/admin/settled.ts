@@ -16,6 +16,7 @@ export interface AdminSettledFilters extends SalesListOptions {
 }
 
 export interface AdminSettledOrderRow {
+  orderNumber?: string;
   id: string;
   buyerName: string;
   createdAt: string;

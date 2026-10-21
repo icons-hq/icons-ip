@@ -34,6 +34,7 @@ export interface InquiryMessageView {
 }
 
 export interface InquiryListItem {
+  orderNumber?: string;
   id: string;
   reference: number;
   category: InquiryCategory;
@@ -53,6 +54,7 @@ export interface InquiryThreadView extends InquiryListItem {
 }
 
 interface InquiryRow {
+  order?: { order_number: string } | { order_number: string }[] | null;
   id: string;
   reference: number;
   category: string;
@@ -76,7 +78,7 @@ interface MessageRow {
 }
 
 const INQUIRY_COLUMNS =
-  'id,reference,category,title,status,order_id,good_id,created_at,last_message_at,answered_at,closed_at';
+  'id,reference,category,title,status,order_id,good_id,created_at,last_message_at,answered_at,closed_at,order:orders(order_number)';
 
 /* 앱이 모르는 카테고리·상태는 목록에서 빼지 않고 안전한 값으로 접는다.
    행을 감추면 사용자가 자기가 보낸 문의를 잃어버린다. */
@@ -90,6 +92,8 @@ function toListItem(row: InquiryRow): InquiryListItem {
     title: row.title,
     status: isInquiryStatus(row.status) ? row.status : 'open',
     orderId: row.order_id,
+    ...((Array.isArray(row.order) ? row.order[0]?.order_number : row.order?.order_number)
+      ? { orderNumber: Array.isArray(row.order) ? row.order[0].order_number : row.order!.order_number } : {}),
     goodId: row.good_id,
     createdAt: row.created_at,
     lastMessageAt: row.last_message_at,
@@ -222,15 +226,15 @@ export async function resolveInquiryLinkTargets(
   if (input.orderId) {
     const { data } = await supabase
       .from('orders')
-      .select('id')
+      .select('id,order_number')
       .eq('id', input.orderId)
       .eq('user_id', userId)
-      .maybeSingle<{ id: string }>();
+      .maybeSingle<{ id: string; order_number?: string }>();
     if (data) {
       targets.orderId = data.id;
       /* 표기는 주문 화면과 같은 규칙을 쓴다 — 두 화면이 같은 주문을 다르게 부르면
          구매자가 옮겨 적은 번호가 운영자 검색에 걸리지 않는다. */
-      targets.orderLabel = orderReferenceLabel(data.id);
+      targets.orderLabel = orderReferenceLabel(data.id, data.order_number);
     }
   }
 

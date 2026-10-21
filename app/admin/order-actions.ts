@@ -198,7 +198,7 @@ export async function bulkConfirmAdminOrdersAction(
     return {
       errors: {
         form: `선택한 ${orderIds.length}건을 발주확인하지 못했습니다. 취소 요청이 열려 있거나 이미 상태가 바뀐 주문일 수 있습니다: ${
-          failed.map(orderReferenceLabel).join(', ')
+          failed.map(id => orderReferenceLabel(id)).join(', ')
         }`,
       },
     };
@@ -210,7 +210,7 @@ export async function bulkConfirmAdminOrdersAction(
     return {
       confirmedOrderIds,
       message: `${confirmed}건을 발주확인했습니다. 처리하지 못한 ${failed.length}건: ${
-        failed.map(orderReferenceLabel).join(', ')
+        failed.map(id => orderReferenceLabel(id)).join(', ')
       } — 주문 상세에서 취소 요청 여부와 현재 상태를 확인해주세요.`,
     };
   }

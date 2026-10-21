@@ -6,7 +6,7 @@ beforeEach(() => mocks.rpc.mockReset());
 it('reads only the bounded authenticated refund queue RPC', async () => {
   mocks.rpc.mockResolvedValue({ data: { rows: [], total: 51, limit: 50, offset: 50 }, error: null });
   expect((await loadRefundTransfers(2)).page).toBe(2);
-  expect(mocks.rpc).toHaveBeenCalledWith('admin_list_bank_transfer_refunds', { p_limit: 50, p_offset: 50 });
+  expect(mocks.rpc).toHaveBeenCalledWith('admin_list_bank_transfer_refunds_numbered', { p_limit: 50, p_offset: 50 });
 });
 it('does not turn failure or malformed data into an empty successful queue', async () => {
   for (const result of [{ data: null, error: { message: 'private_account_secret' } }, { data: { rows: [], total: 0, limit: 50, offset: 999 }, error: null }]) {

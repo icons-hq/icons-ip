@@ -19,7 +19,7 @@ export function orderItemsExportSheet(rows: AdminOrderItemRow[], filters: AdminO
       { header: '택배사', kind: 'text', width: 14 }, { header: '송장번호', kind: 'code', width: 24 },
       { header: '취소·반품·교환', kind: 'text', width: 20 },
     ],
-    rows: rows.map(row => [row.id, row.orderId, ADMIN_ORDER_STATUS_LABELS[row.status], kstDateTimeText(row.createdAt), row.goodId,
+    rows: rows.map(row => [row.productOrderNumber ?? row.id, row.orderNumber ?? row.orderId, ADMIN_ORDER_STATUS_LABELS[row.status], kstDateTimeText(row.createdAt), row.goodId,
       row.goodName, row.variantName, row.variantCode, goodsCustomInputSummary(row.customInputs), row.qty, row.unitPrice, row.itemAmount,
       row.buyerName, row.recipientName, row.originName,
       ({ ready: '발송대기', shipping: '배송중', delivered: '배송완료', canceled: '취소' } as Record<string, string>)[row.shipmentStatus ?? ''] ?? null,

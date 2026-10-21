@@ -25,6 +25,7 @@ const USER_UPLOADS_BUCKET = 'user-uploads';
 const SIGNED_IMAGE_EXPIRES_IN_SECONDS = 60 * 60;
 
 interface ConsoleRow {
+  order_number?: string;
   review_kind: ReviewKind;
   repeat_purchase: boolean | null;
   id: string;
@@ -157,6 +158,7 @@ export async function getAdminReviewConsoleData(
         goodId: row.good_id,
         goodName: row.good_name,
         orderId: row.order_id,
+        ...(row.order_number ? { orderNumber: row.order_number } : {}),
         userId: row.user_id,
         authorName: adminReviewAuthorLabel(row.author_name, row.user_id),
         authorEmail: row.author_email,

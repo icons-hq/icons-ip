@@ -7,6 +7,7 @@ import { hasShippingChargeDetails, parseShippingChargeSnapshot, shippingChargeRe
 export type ShipmentStatus = 'ready' | 'shipping' | 'delivered' | 'canceled';
 /** One frozen origin group; tracking can be absent while the parcel is being prepared. */
 export interface ShipmentRecord {
+  shipmentNumber?: string;
   id: string;
   orderId: string;
   originId: string;
@@ -30,6 +31,7 @@ export interface ShipmentRecord {
   delivery?: ShipmentDeliverySummary | null;
 }
 export interface ShipmentRow {
+  shipment_number?: string;
   id: string;
   order_id: string;
   origin_id: string;
@@ -48,7 +50,7 @@ export interface ShipmentRow {
   shipping_fee_snapshot?: unknown;
   delivery?: unknown;
 }
-export const SHIPMENT_SELECT = 'id,order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot,status,carrier,tracking_number,shipped_at,delivered_at,exported_at,original_expected_ship_date,expected_ship_date,preorder_ready:shipment_preorder_ready,delivery:shipment_delivery_summary,order_shipment_items(order_item_id)';
+export const SHIPMENT_SELECT = 'id,shipment_number,order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot,status,carrier,tracking_number,shipped_at,delivered_at,exported_at,original_expected_ship_date,expected_ship_date,preorder_ready:shipment_preorder_ready,delivery:shipment_delivery_summary,order_shipment_items(order_item_id)';
 export function shipmentRecord(row: ShipmentRow, registry: ShippingCarrierRegistry): ShipmentRecord {
   const tracking = orderShipment(registry, row.carrier, row.tracking_number);
   const grouped = hasShippingChargeDetails(row.shipping_fee_snapshot);
@@ -56,7 +58,7 @@ export function shipmentRecord(row: ShipmentRow, registry: ShippingCarrierRegist
   if (grouped && (!chargeSnapshot || chargeSnapshot.originId !== row.origin_id || chargeSnapshot.totalFee !== row.shipping_fee
     || chargeSnapshot.originName !== row.origin_name_snapshot)) throw new Error('shipment_shipping_charge_snapshot_invalid');
   return {
-    id: row.id, orderId: row.order_id, originId: row.origin_id, originName: row.origin_name_snapshot,
+    id: row.id, ...(row.shipment_number ? { shipmentNumber: row.shipment_number } : {}), orderId: row.order_id, originId: row.origin_id, originName: row.origin_name_snapshot,
     shippingFee: row.shipping_fee, status: row.status, carrier: row.carrier,
     carrierLabel: tracking?.carrierLabel ?? row.carrier, trackingNumber: row.tracking_number,
     trackingUrl: tracking?.trackingUrl ?? null, shippedAt: row.shipped_at, deliveredAt: row.delivered_at,

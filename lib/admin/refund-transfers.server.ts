@@ -4,7 +4,7 @@ import { parseRefundTransferPage, REFUND_TRANSFERS_PAGE_SIZE } from './refund-tr
 
 export async function loadRefundTransfers(page: number) {
   const client = await createClient();
-  const { data, error } = await client.rpc('admin_list_bank_transfer_refunds', {
+  const { data, error } = await client.rpc('admin_list_bank_transfer_refunds_numbered', {
     p_limit: REFUND_TRANSFERS_PAGE_SIZE, p_offset: (page - 1) * REFUND_TRANSFERS_PAGE_SIZE,
   });
   const result = error ? null : parseRefundTransferPage(data, page);

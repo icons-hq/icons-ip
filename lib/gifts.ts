@@ -1,4 +1,5 @@
 import { isUuid } from './uuid';
+import { isCommerceNumber } from './commerce-number';
 import { normalizeCheckoutAddress, normalizeCheckoutPaymentMethod, type CheckoutAddress, type CheckoutPaymentMethod } from './checkout';
 import { parseGoodsCustomInputSelection, type GoodsCustomInputSelection } from './goods-custom-inputs';
 import { parseGoodsTransactionSelection, type GoodsTransactionSelection } from './goods-transaction';
@@ -13,7 +14,7 @@ export type GiftParty = 'sender' | 'recipient';
 export interface GiftItem { goodId: string; variantId: string; name: string; variantName: string; qty: number; imagePath: string | null; customInputs: GoodsCustomInputSelection | null }
 export interface GiftInvitation { id: string; revision: number; message: string; senderLabel: string; expiresAt: string; items: GiftItem[] }
 export interface GiftShipment { id: string; status: 'ready' | 'shipping' | 'delivered' | 'canceled'; shippedAt: string | null; deliveredAt: string | null; expectedShipDate: string | null; carrier: string | null; trackingNumber: string | null }
-export interface GiftOrder { id: string; status: string; createdAt: string; expiresAt: string | null; total: number | null; paymentMethod: CheckoutPaymentMethod | null }
+export interface GiftOrder { orderNumber?: string; id: string; status: string; createdAt: string; expiresAt: string | null; total: number | null; paymentMethod: CheckoutPaymentMethod | null }
 export interface GiftDetail extends GiftInvitation {
   party: GiftParty; isRecipient: boolean; state: GiftState; recipientLabel: string | null; createdAt: string; acceptedAt: string | null;
   address: CheckoutAddress | null; addressRevision: number | null; order: GiftOrder | null; shipments: GiftShipment[];
@@ -62,12 +63,12 @@ export function parseGiftDetail(value: unknown): GiftDetail | null {
   let order: GiftOrder | null = null;
   if (value.order !== null) {
     const row = value.order;
-    if (!transactionRecord(row) || !transactionExactKeys(row, ['id', 'status', 'createdAt', 'expiresAt', 'total', 'paymentMethod'])
-      || !uuid(row.id) || !['pending', 'paid', 'confirmed', 'shipping', 'delivered', 'done', 'canceled'].includes(String(row.status))
+    if (!transactionRecord(row) || !transactionExactKeys(row, ['id', 'status', 'createdAt', 'expiresAt', 'total', 'paymentMethod', ...(Object.hasOwn(row, 'orderNumber') ? ['orderNumber'] : [])])
+      || (row.orderNumber !== undefined && !isCommerceNumber(row.orderNumber, 'order')) || !uuid(row.id) || !['pending', 'paid', 'confirmed', 'shipping', 'delivered', 'done', 'canceled'].includes(String(row.status))
       || !instant(row.createdAt) || !nullableInstant(row.expiresAt)) return null;
     const paymentMethod = normalizeCheckoutPaymentMethod(row.paymentMethod);
     if (value.party === 'recipient' ? row.total !== null || row.paymentMethod !== null : !transactionInteger(row.total) || !paymentMethod) return null;
-    order = { id: row.id, status: row.status as string, createdAt: row.createdAt, expiresAt: row.expiresAt, total: row.total as number | null, paymentMethod };
+    order = { id: row.id, ...(row.orderNumber ? { orderNumber: row.orderNumber as string } : {}), status: row.status as string, createdAt: row.createdAt, expiresAt: row.expiresAt, total: row.total as number | null, paymentMethod };
   }
   const shipments: GiftShipment[] = []; const ids = new Set<string>();
   for (const row of value.shipments) {

@@ -243,7 +243,7 @@ export function ClaimDetailScreen({
             <>
               <Row
                 label="주문번호"
-                value={`${orderReferenceLabel(order.id)} · ${ORDER_STATUS_LABELS[order.status] ?? order.status}`}
+                value={`${orderReferenceLabel(order.id, order.orderNumber)} · ${ORDER_STATUS_LABELS[order.status] ?? order.status}`}
               />
               <Row label="구매자" value={`${order.buyerName ?? '-'} (${order.buyerEmail ?? '이메일 없음'})`} />
               {detail.gift ? <><Row label="선물 요청자" value={`${detail.gift.requesterName} · ${detail.gift.requesterRole === 'recipient' ? '선물 받는 분' : '구매자'}`} /><p>환불은 구매자의 결제수단으로 처리합니다. 받는 분에게 결제정보를 전달하지 마세요.</p></> : null}

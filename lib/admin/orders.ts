@@ -107,6 +107,7 @@ export interface AdminOrderAddress {
 }
 
 export interface AdminOrderItemRecord {
+  productOrderNumber?: string;
   variantId: string;
   variantName?: string | null;
   customInputs?: import('@/lib/goods-custom-inputs').GoodsCustomInputSelection | null;
@@ -188,6 +189,7 @@ export const ADMIN_WITHDRAWAL_RETURN_SHIPPING_LABELS: Record<OrderWithdrawalReas
 };
 
 export interface AdminOrderRecord {
+  orderNumber?: string;
   isGift?: boolean;
   transaction?: import('@/lib/goods-transaction').GoodsTransactionDisplay;
   id: string;

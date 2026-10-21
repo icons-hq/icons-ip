@@ -1,4 +1,8 @@
 import 'server-only';
+import { AdminListExportChangedError, AdminListExportLoadError } from './list-export-errors';
+export { AdminListExportChangedError, AdminListExportLoadError } from './list-export-errors';
+import { loadSmartStoreDeliveryLines } from './smartstore-delivery-list.server';
+import { smartStoreDeliveryListSheet } from './smartstore-delivery-list';
 import { readGoodsCustomInputSnapshot } from '@/lib/goods-custom-inputs';
 
 import { createClient } from '@/lib/supabase/server';
@@ -56,13 +60,6 @@ const ITEM_ORDER_CHUNK = 50;
 const ITEM_PAGE_ROWS = 1000;
 const PAGE_CONCURRENCY = 4;
 
-export class AdminListExportLoadError extends Error {
-  constructor() {
-    super('목록을 불러오지 못해 파일을 만들지 않았습니다. 잠시 후 다시 내려받아 주세요.');
-    this.name = 'AdminListExportLoadError';
-  }
-}
-
 export class AdminListExportAuditError extends Error {
   constructor() {
     super('다운로드 기록을 남기지 못해 파일을 만들지 않았습니다. 잠시 후 다시 내려받아 주세요.');
@@ -80,13 +77,6 @@ async function mapLimited<T, R>(values: readonly T[], limit: number, task: (valu
   const results: R[] = [];
   for (const batch of chunks(values, limit)) results.push(...await Promise.all(batch.map(task)));
   return results;
-}
-
-export class AdminListExportChangedError extends Error {
-  constructor() {
-    super('목록이 바뀌는 중이라 파일을 만들지 않았습니다. 잠시 후 다시 내려받아 주세요.');
-    this.name = 'AdminListExportChangedError';
-  }
 }
 
 /**
@@ -213,13 +203,14 @@ async function shipmentsSheet(surface: 'dispatch' | 'shipping', params: SearchPa
     (row) => row.id,
     (row) => row.items.length,
   );
-  const extras = await orderContacts(rows.map((row) => row.orderId));
+  const lines = await loadSmartStoreDeliveryLines(rows);
   // Recheck the entire result set, including rows outside the first page, after
-  // collecting contacts. A channel callback may change results without changing counts.
+  // collecting item lines. A channel callback may change results without changing counts.
   if (surface === 'dispatch') verifyNoticeFingerprint(await getShipmentConsoleData({ ...filters, page: 1 }, surface, { pageSize: 1 }));
-  const contacts = new Map([...extras].map(([id, value]) => [id, value.contact]));
+  const contacts = new Map<string, ListExportContact | null>();
   const { origins, carriers } = meta.value ?? { origins: [], carriers: [] };
-  return shipmentsListExportSheet({ surface, rows, filters, contacts, origins, carriers });
+  const base = shipmentsListExportSheet({ surface, rows, filters, contacts, origins, carriers });
+  return smartStoreDeliveryListSheet(base, lines);
 }
 
 async function claimOrders(claimType: OrderClaimType, orderIds: readonly string[]) {

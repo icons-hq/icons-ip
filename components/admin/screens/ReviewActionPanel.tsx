@@ -55,7 +55,7 @@ export function ReviewActionPanel({ review, triggerLabel, accountId = '' }: { re
           <div><dt>상품번호</dt><dd>{review.goodId}</dd></div>
           <div><dt>작성자</dt><dd>@{review.authorName}</dd></div>
           <div><dt>작성일</dt><dd>{formatReviewDateTime(review.createdAt)}</dd></div>
-          <div><dt>주문번호</dt><dd><Link href={`/admin/sales/orders/${review.orderId}`}>{orderReferenceLabel(review.orderId)}</Link></dd></div>
+          <div><dt>주문번호</dt><dd><Link href={`/admin/sales/orders/${review.orderId}`}>{orderReferenceLabel(review.orderId, review.orderNumber)}</Link></dd></div>
           <div><dt>리뷰 상태</dt><dd>{ADMIN_REVIEW_STATUS_LABELS[draft.source.status]}</dd></div>
           <div><dt>평점</dt><dd>{reviewRatingLabel(draft.source.rating ?? review.rating)}</dd></div>
           <div><dt>리뷰도움수</dt><dd>{review.helpfulCount.toLocaleString('ko-KR')}</dd></div>

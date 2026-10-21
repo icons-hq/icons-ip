@@ -25,6 +25,7 @@ import { getShippingCarrierRegistry } from './orders/shipment.server';
 import { createClient } from '@/lib/supabase/server';
 
 interface OrderListRow {
+  order_number?: string;
   id: string;
   user_id: string;
   status: string;
@@ -56,6 +57,7 @@ interface CancellationRequestOrderRow {
 }
 
 interface OrderDetailItemRow extends OrderListItemRow {
+  product_order_number?: string;
   id: string;
   good_id: string;
   unit_price: number;
@@ -111,7 +113,7 @@ export async function loadOrders(userId: string, {includePending=false}:{include
   const [orderResult, requestResult, giftOrders] = await Promise.all([
     supabase
       .from('orders')
-      .select('id,user_id,status,total,created_at,payment_method')
+      .select('id,order_number,user_id,status,total,created_at,payment_method')
       .eq('user_id', userId)
       .in('status', includePending?[...ORDER_DETAIL_STATUSES]:[...VISIBLE_ORDER_STATUSES])
       .order('created_at', { ascending: false })
@@ -137,7 +139,7 @@ export async function loadOrders(userId: string, {includePending=false}:{include
   if (requestedOrderIds.length && !includePending) {
     const { data: pendingData, error: pendingError } = await supabase
       .from('orders')
-      .select('id,user_id,status,total,created_at,payment_method')
+      .select('id,order_number,user_id,status,total,created_at,payment_method')
       .eq('user_id', userId)
       .eq('status', 'pending')
       .in('id', requestedOrderIds)
@@ -183,6 +185,7 @@ export async function loadOrders(userId: string, {includePending=false}:{include
 
     return {
       id: order.id,
+      ...(order.order_number ? { orderNumber: order.order_number } : {}),
       status,
       total: order.total,
       createdAt: order.created_at,
@@ -202,7 +205,7 @@ export async function loadOrderDetail(userId: string, orderId: string): Promise<
     .from('orders')
     // delivered_at은 청약철회 기한의 기산점이다(#189). 이 값이 없으면 주문
     // 상세가 남은 기간을 말할 근거가 없다.
-    .select('id,user_id,status,total,shipping_fee,discount_total,store_credit_total,address,created_at,delivered_at,payment_method,expires_at,calculation_version,volume_discount_total,shipping_collect_total')
+    .select('id,order_number,user_id,status,total,shipping_fee,discount_total,store_credit_total,address,created_at,delivered_at,payment_method,expires_at,calculation_version,volume_discount_total,shipping_collect_total')
     .eq('id', orderId)
     .eq('user_id', userId)
     .in('status', [...ORDER_DETAIL_STATUSES])
@@ -227,7 +230,7 @@ export async function loadOrderDetail(userId: string, orderId: string): Promise<
   const [itemsResult, paymentResult, ticketsResult, cancellationRequestResult, eligibilityResult, reshipmentResult] = await Promise.all([
     readCompleteIdPages<OrderDetailItemRow>((afterId,pageSize)=>{
       let query=supabase.from('order_items')
-        .select('id,order_id,good_id,qty,unit_price,good_name_snapshot,good_type_snapshot,variant_id,variant_name_snapshot,variant_code_snapshot,custom_inputs_snapshot,supply_source,preorder_expected_ship_date',{count:'exact'})
+        .select('id,order_id,product_order_number,good_id,qty,unit_price,good_name_snapshot,good_type_snapshot,variant_id,variant_name_snapshot,variant_code_snapshot,custom_inputs_snapshot,supply_source,preorder_expected_ship_date',{count:'exact'})
         .eq('order_id',orderId).order('id',{ascending:true}).limit(pageSize);
       if(afterId)query=query.gt('id',afterId);
       return query;
@@ -313,6 +316,7 @@ export async function loadOrderDetail(userId: string, orderId: string): Promise<
   return {
     ...(transaction ? { transaction } : {}),
     id: orderData.id,
+    ...(orderData.order_number ? { orderNumber: orderData.order_number } : {}),
     status,
     total: orderData.total,
     shippingFee: orderData.shipping_fee ?? 0,
@@ -326,6 +330,7 @@ export async function loadOrderDetail(userId: string, orderId: string): Promise<
     expiresAt: orderData.expires_at,
     items: ((itemsResult.data ?? []) as OrderDetailItemRow[]).map((item) => ({
       id: item.id,
+      ...(item.product_order_number ? { productOrderNumber: item.product_order_number } : {}),
       goodId: item.good_id,
       name: item.good_name_snapshot,
       ...(item.custom_inputs_snapshot == null ? {} : {customInputs:readGoodsCustomInputSnapshot(item.custom_inputs_snapshot)}),

@@ -1,4 +1,5 @@
 import 'server-only';
+import { isCommerceNumber } from './commerce-number';
 import { normalizeCheckoutAddress, type CheckoutAddress } from './checkout';
 import { transactionExactKeys, transactionInteger, transactionRecord } from './goods-transaction-values';
 import { isUuid } from './uuid';
@@ -6,6 +7,7 @@ import { createClient } from './supabase/server';
 import { createServiceClient } from './supabase/service';
 
 export interface OrderDeliverySnapshot {
+  orderNumber?: string;
   orderId: string; isGift: boolean; address: CheckoutAddress | null; addressRevision: number;
   /** Historical display only; never authorizes a new shipment or address write. */
   addressNeedsReview?: boolean;
@@ -22,7 +24,9 @@ function historicalDisplayAddress(value: unknown): CheckoutAddress | null {
   return { ...value } as unknown as CheckoutAddress;
 }
 function parseDelivery(value: unknown, service: boolean): OrderDeliverySnapshot | ServiceOrderDeliveryContext | null {
-  const keys = ['orderId', 'isGift', 'address', 'addressRevision', 'shippingEvidence', ...(service ? ['senderId', 'recipientId'] : [])];
+  const numbered = transactionRecord(value) && Object.hasOwn(value, 'orderNumber');
+  if (numbered && !isCommerceNumber(value.orderNumber, 'order')) return null;
+  const keys = ['orderId', 'isGift', 'address', 'addressRevision', 'shippingEvidence', ...(numbered ? ['orderNumber'] : []), ...(service ? ['senderId', 'recipientId'] : [])];
   if (!transactionRecord(value) || !transactionExactKeys(value, keys) || typeof value.orderId !== 'string' || !isUuid(value.orderId)
     || typeof value.isGift !== 'boolean' || !transactionInteger(value.addressRevision)) return null;
   let address = value.address === null ? null : normalizeCheckoutAddress(value.address);
@@ -30,7 +34,7 @@ function parseDelivery(value: unknown, service: boolean): OrderDeliverySnapshot 
   if (legacy) address = legacy;
   if (value.address !== null && !address || value.isGift && !address) return null;
   if (service && (typeof value.senderId !== 'string' || !isUuid(value.senderId) || typeof value.recipientId !== 'string' || !isUuid(value.recipientId))) return null;
-  const base = { orderId: value.orderId, isGift: value.isGift, address, addressRevision: value.addressRevision, shippingEvidence: value.shippingEvidence, ...(legacy ? { addressNeedsReview: true } : {}) };
+  const base = { orderId: value.orderId, ...(numbered ? { orderNumber: value.orderNumber as string } : {}), isGift: value.isGift, address, addressRevision: value.addressRevision, shippingEvidence: value.shippingEvidence, ...(legacy ? { addressNeedsReview: true } : {}) };
   return service ? { ...base, senderId: value.senderId as string, recipientId: value.recipientId as string } : base;
 }
 export async function loadAdminOrderDeliveries(orderIds: readonly string[]): Promise<Map<string, OrderDeliverySnapshot>> {
@@ -39,7 +43,7 @@ export async function loadAdminOrderDeliveries(orderIds: readonly string[]): Pro
   const client = await createClient(), rows = new Map<string, OrderDeliverySnapshot>();
   for (let offset = 0; offset < ids.length; offset += 1000) {
     const batch = ids.slice(offset, offset + 1000);
-    const { data, error } = await client.rpc('admin_get_order_delivery_snapshots', { p_order_ids: batch });
+    const { data, error } = await client.rpc('admin_get_order_delivery_snapshots_numbered', { p_order_ids: batch });
     if (error || !Array.isArray(data)) throw new Error('order_delivery_read_failed');
     for (const value of data) {
       const row = parseDelivery(value, false);

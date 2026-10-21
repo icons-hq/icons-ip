@@ -24,6 +24,7 @@ export interface AdminUnpaidFilters extends SalesListOptions {
 }
 
 export interface AdminUnpaidOrderRow {
+  orderNumber?: string;
   id: string;
   buyerName: string;
   buyerId: string;

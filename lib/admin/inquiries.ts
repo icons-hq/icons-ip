@@ -67,6 +67,7 @@ export interface AdminInquiryFilters {
 }
 
 export interface AdminInquiryRow {
+  orderNumber?: string;
   id: string;
   reference: number;
   category: InquiryCategory;

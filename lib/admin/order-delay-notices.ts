@@ -8,6 +8,7 @@ export type OrderDelayChannelStatus =
   | 'unknown'
   | 'suppressed';
 export interface OrderDelayNoticeTarget {
+  orderNumber?: string;
   audience?: 'payer' | 'recipient';
   id: string;
   orderId: string;

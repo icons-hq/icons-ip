@@ -36,6 +36,7 @@ import {
  * 한 자리에 있어야 한다. */
 
 interface ClaimQueueRow {
+  order_number?: string;
   id: string;
   reference: number | string;
   order_id: string;
@@ -86,6 +87,7 @@ function toRow(row: ClaimQueueRow): AdminClaimRow {
     id: row.id,
     reference: toNumber(row.reference),
     orderId: row.order_id,
+    ...(row.order_number ? { orderNumber: row.order_number } : {}),
     claimType: (isOrderClaimType(row.claim_type) ? row.claim_type : 'cancel') as OrderClaimType,
     stage: (isOrderClaimStage(row.stage) ? row.stage : 'requested') as OrderClaimStage,
     reasonType: (isOrderClaimReasonType(row.reason_type)
@@ -168,6 +170,7 @@ export interface AdminClaimReshipItem {
   options: { id: string; goodId?: string; goodName?: string; name: string; code: string; stockQty: number }[];
 }
 export interface AdminClaimDetailOrder {
+  orderNumber?: string;
   transaction?: GoodsTransactionDisplay;
   id: string;
   status: string;
@@ -391,6 +394,7 @@ export async function loadAdminClaimDetail(
     order: order
       ? {
         id: String(order.id ?? ''),
+        ...(typeof order.orderNumber === 'string' ? { orderNumber: order.orderNumber } : {}),
         ...(transaction ? { transaction } : {}),
         status: String(order.status ?? ''),
         total: toNumber(order.total as number | string),
