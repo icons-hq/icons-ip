@@ -191,29 +191,29 @@ grid **2열 451px, gap 20(행)/18(열)**. 카드 451×141: 1px `#DCDEE0`, r2, p 
 |---|---|---|---|---|---|---|
 | CH-01 | 텍스트 공지 바 | Δ1 | 없음 — 이미지 스트립뿐(`components/shell/Nav.tsx:131-142`) | LFS-Δ·GAP-DATA | P1 | L8a |
 | CH-02 | 이미지 스트립 페이지 타입별 노출·로테이션·집계 | 컬렉션에선 미노출, 무작위 1, 노출·클릭 집계 | 전 페이지 1개 — 결정적 정렬 + `.limit(1)`(`lib/notice-strip.server.ts`, `app/layout.tsx:123,134`), 배너 집계 경로 없음(분석은 페이지뷰만) | GAP-DATA | P2 | L8a |
-| CH-03 | GNB·축약 헤더 하단 1px | `#F0F2F4` | 없음(`app/styles/wc-chrome.css:273`) | GAP-UI | P2 | L3 |
-| CH-04 | 축약·해제 기준 | B1(>150 축약 / <64 해제) | 유틸바 아래 센티널(34px) 기준 축약, 맨 위에서만 해제(`Nav.tsx:47-77,157-158`, `wc-chrome.css:142-147`) | GAP-UI | P2 | L3 |
+| CH-03 | GNB·축약 헤더 하단 1px | `#F0F2F4` | 없음(`app/styles/wc-chrome.css:273`) | GAP-UI | P2 | L3 ✅ #587 |
+| CH-04 | 축약·해제 기준 | B1(>150 축약 / <64 해제) | 유틸바 아래 센티널(34px) 기준 축약, 맨 위에서만 해제(`Nav.tsx:47-77,157-158`, `wc-chrome.css:142-147`) | GAP-UI | P2 | L3 ✅ #587 |
 | CH-05 | 카테고리 메가메뉴 | 6그룹 + 세로 구분선, 실제 분류·기획전 링크 | 굿즈샵·수집·거래 3그룹, 실제 분류 없음(`lib/routes.ts:217-232`) | GAP-UI(+카테고리 공개 게이트) | P1 | L5 |
-| CH-06 | 메가메뉴 첫 링크 라벨 | — | '전체 굿즈'가 GNB 라벨로 덮어써짐(`lib/store-navigation.ts:48-56`) | DRIFT | P2 | L3 |
+| CH-06 | 메가메뉴 첫 링크 라벨 | — | '전체 굿즈'가 GNB 라벨로 덮어써짐(`lib/store-navigation.ts:48-56`) | DRIFT | P2 | L3 ✅ #587 |
 | CH-07 | 온라인 팝업(IP) 메가메뉴 | 목록 + 이미지 타일 2 + 전체보기 | 없음 | GAP-UI | P2 | L5 |
-| CH-08 | 검색 오버레이 위치·배경 | B5 | GNB 아래 열림, 전체 70% 딤, 흐림 없음(`wc-chrome.css:544-562`) | DRIFT(R-03 §2.1에 10% 명시) | P1 | L3 |
-| CH-09 | 검색 오버레이 입력(데스크톱) | 1180×60 `#F6F8FA`, 돋보기 안쪽, 뒤로·제출 버튼 없음 | 뒤로 44 + 입력 1068×60 + 제출 44(`components/shell/SearchOverlay.tsx:34-50`) | GAP-UI | P2 | L3 |
+| CH-08 | 검색 오버레이 위치·배경 | B5 | GNB 아래 열림, 전체 70% 딤, 흐림 없음(`wc-chrome.css:544-562`) | DRIFT(R-03 §2.1에 10% 명시) | P1 | L3 ✅ #587 |
+| CH-09 | 검색 오버레이 입력(데스크톱) | 1180×60 `#F6F8FA`, 돋보기 안쪽, 뒤로·제출 버튼 없음 | 뒤로 44 + 입력 1068×60 + 제출 44(`components/shell/SearchOverlay.tsx:34-50`) | GAP-UI | P2 | L3 ✅ #587 |
 | CH-10 | 추천 검색어 | '추천' 17/700 + 운영 칩 10 | '추천 검색어' 15/700 + 코드 상수 8(`lib/search-terms.ts:8-17`) | GAP-DATA | P2 | L8b |
-| CH-11 | 게이트 누수 | — | 푸터 © '무상 카드 리워드'(`components/shell/SiteFooter.tsx:111`), 오버레이 placeholder '포스트'(`SearchOverlay.tsx:43`) — 카드 리워드·커뮤니티 OFF에서도 노출. 이벤트 허브 부제 '카드팩'(`components/screens/CampaignHub.tsx:128`)은 EV-01과 함께 L10 | DRIFT | P1 | L3·L10 |
-| CH-12 | PDP에서 GNB 활성 | 없음 | '카테고리' 활성(`/shop` 접두 매칭) | DRIFT | P2 | L3 |
-| CH-13 | 인증 화면 전역 크롬 | 헤더·푸터, 모바일 서브헤더 + 탭바 | 독립 셸(`lib/routes.ts:146-160`) — 구 숨김 조건 잔존 | DRIFT | P1 | L3 |
-| CH-14 | 404 | 일러스트 + 18/700 + 2CTA 260×56(이전 페이지 잉크 / 메인 아웃라인) | 단일 CTA 220×50(`app/not-found.tsx:5-21`) | GAP-UI(+일러스트 LG-7) | P2 | L3 |
-| CH-15 | 푸터 | 모바일: 로고 → 정책 3 → 고객센터 → 사업자 정보 **기본 펼침** → SNS → 링크 → 저작권 | 모바일: 정책 2열 → 로고 → … 사업자 접힘. SNS·로고 미입력 | GAP-UI·GAP-DATA(LG-8) | P2 | L3 |
+| CH-11 | 게이트 누수 | — | 푸터 © '무상 카드 리워드'(`components/shell/SiteFooter.tsx:111`), 오버레이 placeholder '포스트'(`SearchOverlay.tsx:43`) — 카드 리워드·커뮤니티 OFF에서도 노출. 이벤트 허브 부제 '카드팩'(`components/screens/CampaignHub.tsx:128`)은 EV-01과 함께 L10 | DRIFT | P1 | L3·L10 ✅ #587(푸터·검색) · #589(이벤트 허브) |
+| CH-12 | PDP에서 GNB 활성 | 없음 | '카테고리' 활성(`/shop` 접두 매칭) | DRIFT | P2 | L3 ✅ #587 |
+| CH-13 | 인증 화면 전역 크롬 | 헤더·푸터, 모바일 서브헤더 + 탭바 | 독립 셸(`lib/routes.ts:146-160`) — 구 숨김 조건 잔존 | DRIFT | P1 | L3 ✅ #587 |
+| CH-14 | 404 | 일러스트 + 18/700 + 2CTA 260×56(이전 페이지 잉크 / 메인 아웃라인) | 단일 CTA 220×50(`app/not-found.tsx:5-21`) | GAP-UI(+일러스트 LG-7) | P2 | L3 일부 #587 — 2CTA 260×56, 일러스트는 LG-7 |
+| CH-15 | 푸터 | 모바일: 로고 → 정책 3 → 고객센터 → 사업자 정보 **기본 펼침** → SNS → 링크 → 저작권 | 모바일: 정책 2열 → 로고 → … 사업자 접힘. SNS·로고 미입력 | GAP-UI·GAP-DATA(LG-8) | P2 | L3 일부 #587 — 모바일 순서·사업자 정보 펼침, 로고·SNS 값은 LG-8 |
 | CH-16 | 문의 런처 겹침 | 런처 숨김(PDP) | 데스크톱 PDP 미니 구매바(z90)와 런처(z10)가 같은 우하단 24px, 모바일은 바 위에서 본문을 가림, 701–989px은 탭바·구매바와 겹침(`app/styles/wc-inquiry-widget.css:2,44-45`) | DRIFT | P1 | L1 ✅ #588 |
 
 ### 8.2 모바일 크롬
 
 | ID | 항목 | LFS | ICONS 현재 | 분류 | P | 단계 |
 |---|---|---|---|---|---|---|
-| MC-01 | 축약 방향 | B2(로고 행 숨김·탭 행 유지) | 로고 행 유지·탭 행 숨김(`wc-chrome.css:280-284`) | 스펙 추종 | P1 | L3(LD-2) |
-| MC-02 | 하단 탭바 스크롤 숨김 | B3 | 상시(`components/shell/BottomTabBar.tsx:15-56`) | 스펙 추종 | P2 | L3(LD-2) |
-| MC-03 | 검색 오버레이 중 탭바 | 숨김 | 보임 | GAP-UI | P2 | L3 |
-| MC-04 | 모바일 검색 칩 | 한 줄 가로 스크롤 | 여러 줄(112px) | GAP-UI | P2 | L3 |
+| MC-01 | 축약 방향 | B2(로고 행 숨김·탭 행 유지) | 로고 행 유지·탭 행 숨김(`wc-chrome.css:280-284`) | 스펙 추종 | P1 | L3(LD-2) ✅ #587 |
+| MC-02 | 하단 탭바 스크롤 숨김 | B3 | 상시(`components/shell/BottomTabBar.tsx:15-56`) | 스펙 추종 | P2 | L3(LD-2) ✅ #587 |
+| MC-03 | 검색 오버레이 중 탭바 | 숨김 | 보임 | GAP-UI | P2 | L3 ✅ #587 |
+| MC-04 | 모바일 검색 칩 | 한 줄 가로 스크롤 | 여러 줄(112px) | GAP-UI | P2 | L3 ✅ #587 |
 | MC-05 | 카테고리 바텀시트 | ① 아이콘 바로가기(이미지 칸 60 `#F8F8F8` r10) ② 2×2 기획전 카드 슬라이드 + 점 ③ 탭 + 아이콘 12칸 | 메뉴 시트와 같은 텍스트 링크 2열(`components/shell/MenuSheet.tsx:45-68`) | GAP-UI·GAP-DATA(아이콘·카드 이미지) | P1 | L5 |
 | MC-06 | MENU 탭 | 전용 메뉴 페이지 | 바텀시트 | INTENTIONAL(ADR-0011 전면 메뉴 폐기) | — | — |
 
@@ -285,8 +285,8 @@ grid **2열 451px, gap 20(행)/18(열)**. 카드 451×141: 1px `#DCDEE0`, r2, p 
 | CT-04 | 목록 | 상단 2px 잉크, 썸네일 64, 옵션 회색 밴드 | 1px, 100, 13px 텍스트, 출고지 그룹(유지) | GAP-UI | P2 | L9 |
 | CT-05 | 배송 메모 | 카트 단계 프리셋 | 주문서 자유 입력(`components/screens/Checkout.tsx:351-353`) | 주문 생성 계약 | P2 | LD-8 |
 | CT-06 | 사은품 자동 증정 | B18 | 표시만 | GAP-DATA | P1 | LD-9 |
-| AU-01 | 소셜 버튼 마크 | 각 사 공식 마크 | 글자 G·K + Apple(`components/screens/Login.tsx:100-108`) | GAP-UI | P2 | L3 |
-| AU-02 | 재설정 안내 | Δ10 | 없음 | LFS-Δ | P2 | L3 |
+| AU-01 | 소셜 버튼 마크 | 각 사 공식 마크 | 글자 G·K + Apple(`components/screens/Login.tsx:100-108`) | GAP-UI | P2 | L3 미적용 — 각 사 공식 마크 자산 확보 뒤 |
+| AU-02 | 재설정 안내 | Δ10 | 없음 | LFS-Δ | P2 | L3 ✅ #587 |
 
 ### 8.6 마이페이지
 

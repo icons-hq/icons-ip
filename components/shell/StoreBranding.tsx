@@ -10,9 +10,9 @@ export function StoreBrandLogo({ branding = DEFAULT_STOREFRONT_BRANDING }: { bra
   </picture>;
 }
 
-export function StoreBrandFooterDetails({ branding = DEFAULT_STOREFRONT_BRANDING }: { branding?: StorefrontBranding }) {
+export function StoreBrandFooterDetails({ branding = DEFAULT_STOREFRONT_BRANDING, className }: { branding?: StorefrontBranding; className?: string }) {
   if (!branding.profileImageUrl && !branding.introduction && !branding.socials.length) return null;
-  return <div className="wc-store-brand-details">
+  return <div className={`wc-store-brand-details${className ? ` ${className}` : ''}`}>
     {/* Verified public-media assets retain their normalized bytes and fixed display size. */}
     {/* eslint-disable-next-line @next/next/no-img-element */}
     {branding.profileImageUrl ? <img className="wc-store-profile-image" src={branding.profileImageUrl} alt={`${branding.displayName} 대표 이미지`} width={80} height={80} loading="lazy" /> : null}

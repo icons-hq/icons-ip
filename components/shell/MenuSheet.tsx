@@ -4,13 +4,13 @@ import Link from 'next/link';
 import { useRef } from 'react';
 import { useRouter } from 'next/navigation';
 import { signOutAction } from '@/app/login/actions';
-import { nextPathWithSearch } from '@/lib/auth/onboarding';
 import { hrefFor } from '@/lib/routes';
 import { DEFAULT_STOREFRONT_NAVIGATION, resolveStorefrontNavigation, storeMenuSheetGroups, type StorefrontNavigation } from '@/lib/store-navigation';
 import { Icon } from '@/components/ui/Icon';
 import { ProductInterestMenuLink } from '@/components/shop/ProductInterestShelf';
 import { useAuthPresence } from './AuthPresenceProvider';
 import { useCart } from './CartProvider';
+import { loginEntryHref } from './login-entry';
 import { useOverlayA11y } from './useOverlayA11y';
 
 /* 모바일 전체 메뉴 시트. 바텀바의 '메뉴' 탭과 모바일 GNB의 '카테고리' 탭이 같은 시트를 연다.
@@ -37,10 +37,7 @@ export function MenuSheet({
 
   /* 복귀 경로는 렌더 시점이 아니라 클릭 시점에 window에서 읽는다 — 시트는 라우트 전환에도 살아남으므로
      렌더 시점 pathname을 굳혀 두면 경로가 바뀐 뒤 돌아올 곳이 어긋난다. */
-  const loginHref = () =>
-    `/login?next=${encodeURIComponent(
-      nextPathWithSearch(window.location.pathname, new URLSearchParams(window.location.search)),
-    )}`;
+  const loginHref = () => loginEntryHref(window.location.pathname, window.location.search);
 
   const groups = storeMenuSheetGroups(resolveStorefrontNavigation(navigation, cardRewardsEnabled));
 

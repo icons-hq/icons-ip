@@ -1,3 +1,5 @@
+import { COMMUNITY_ENABLED } from './community-visibility';
+
 /* 추천 검색어 (#326 유저 스토리 19).
  *
  * 검색 오버레이(클라이언트)와 /search 화면(서버)이 함께 쓰므로 server-only 인
@@ -15,3 +17,9 @@ export const SUGGESTED_SEARCH_TERMS = [
   '인형',
   '아크릴',
 ] as const;
+
+/** 통합 검색 입력 안내. 커뮤니티가 닫힌 배포에서는 검색도 포스트·태그 결과를 거르므로(lib/search.ts)
+ *  '포스트'를 약속하지 않는다 — /search 화면(Search.tsx)의 같은 분기와 한 규칙이다. */
+export function searchPlaceholder(communityEnabled: boolean = COMMUNITY_ENABLED): string {
+  return communityEnabled ? 'IP · 굿즈 · 카드 · 포스트 통합 검색' : 'IP · 굿즈 · 카드 통합 검색';
+}

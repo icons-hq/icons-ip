@@ -69,6 +69,8 @@ describe('SiteFooter 법정 고지 링크', () => {
   it('사업자 정보를 접이식 블록으로 푸터에 표기한다', () => {
     const html = render();
 
+    /* SSR은 데스크톱 기본(접힘)이다 — 모바일 기본 펼침(CH-15)은 붙는 순간 클라이언트가 연다. */
+    expect(html).toContain('<details class="wc-footer__biz">');
     expect(html).toContain(`${BUSINESS_INFO.companyName} 사업자 정보`);
     expect(html).toContain('aria-label="사업자 정보"');
     for (const row of businessInfoRows()) {
@@ -85,11 +87,50 @@ describe('SiteFooter 법정 고지 링크', () => {
   });
 
   /* S3에서 홈이 공용 셸 위로 올라오면서 '/'는 더 이상 예외가 아니다 — 푸터를 그린다. */
-  it('인증 셸·어드민·게임에서는 푸터를 렌더하지 않는다', () => {
-    for (const pathname of ['/login', '/update-password', '/account-suspended', '/admin', '/games/roulette', '/ip/aouad']) {
+  it('집중형 인증 셸·어드민·게임에서는 푸터를 렌더하지 않는다', () => {
+    for (const pathname of ['/update-password', '/account-suspended', '/manager-invitation', '/admin', '/games/roulette', '/ip/aouad']) {
       mocks.pathname = pathname;
       expect(render(), pathname).toBe('');
     }
+  });
+
+  /* CH-13: 로그인은 전역 셸 안이다 — 법정 고지·사업자 정보가 로그인 화면에서도 보인다. */
+  it('로그인 화면에서는 푸터를 렌더한다', () => {
+    mocks.pathname = '/login';
+
+    expect(render()).toContain('href="/legal/terms"');
+  });
+});
+
+describe('SiteFooter 블록 순서 (CH-15)', () => {
+  /* 화면 순서 = 마크업 순서여야 키보드·스크린리더가 화면과 같은 차례로 읽는다(WCAG 1.3.2·2.4.3). 폭마다 자리가 다른
+     로고·소개는 한 벌씩 두고 CSS 가 그 폭이 아닌 쪽을 숨긴다(chrome-styles.test). */
+  const branding = { displayName: '검증 스토어', logoUrl: null, mobileLogoUrl: null, introduction: '스토어 소개', socials: [{ platform: 'instagram' as const, url: 'https://www.instagram.com/example/' }] };
+  const at = (html: string, needle: string) => {
+    const index = html.indexOf(needle);
+    expect(index, needle).toBeGreaterThanOrEqual(0);
+    return index;
+  };
+
+  it('모바일 사본만 이으면 로고 → 회사·정책 → 고객센터 → 소개·SNS → 링크 → 저작권이다', () => {
+    const html = renderToStaticMarkup(<SiteFooter branding={branding} />);
+    const sequence = ['wc-footer__logo wc-footer__logo--mobile', 'wc-footer__primary', 'wc-footer__cs', 'wc-footer__brand--mobile', 'wc-footer__cols', 'wc-footer__line'].map((needle) => at(html, needle));
+    expect([...sequence].sort((a, b) => a - b)).toEqual(sequence);
+  });
+
+  it('데스크톱 사본만 이으면 회사·정책 → 로고 → 소개·SNS → 고객센터 | 링크 → 저작권이다', () => {
+    const html = renderToStaticMarkup(<SiteFooter branding={branding} />);
+    const sequence = ['wc-footer__primary', 'wc-footer__logo wc-footer__logo--desktop', 'wc-footer__brand--desktop', 'wc-footer__cs', 'wc-footer__cols', 'wc-footer__line'].map((needle) => at(html, needle));
+    expect([...sequence].sort((a, b) => a - b)).toEqual(sequence);
+  });
+
+  it('로고·소개 사본은 폭마다 한 벌씩이고 다른 블록은 한 번만 그린다', () => {
+    const html = renderToStaticMarkup(<SiteFooter branding={branding} />);
+    const count = (needle: string) => html.split(needle).length - 1;
+    expect(count('검증 스토어 홈')).toBe(2);
+    expect(count('스토어 소개')).toBe(2);
+    expect(count('aria-label="회사·정책"')).toBe(1);
+    expect(count('사업자 정보</summary>')).toBe(1);
   });
 });
 
@@ -108,6 +149,17 @@ describe('SiteFooter 도메인 용어', () => {
     mocks.cardRewardsEnabled = false;
 
     expect(render()).not.toContain('href="/packs"');
+  });
+
+  /* CH-11: 저작권 줄의 약속도 같은 게이트를 따른다 — 꺼진 배포에서 '무상 카드 리워드'를 내세우지 않는다. */
+  it('카드 리워드 게이트가 닫히면 저작권 줄에서 카드 리워드 약속을 뺀다', () => {
+    expect(render()).toContain('공식 라이선스 · 무상 카드 리워드 · 결제사 승인 확인 후 주문 확정');
+
+    mocks.cardRewardsEnabled = false;
+    const html = render();
+
+    expect(html).not.toContain('카드 리워드');
+    expect(html).toContain('공식 라이선스 · 결제사 승인 확인 후 주문 확정');
   });
 });
 

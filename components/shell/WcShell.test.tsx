@@ -1,8 +1,9 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { COMMUNITY_ENABLED } from '@/lib/community-visibility';
-import { SUGGESTED_SEARCH_TERMS } from '@/lib/search-terms';
+import { SUGGESTED_SEARCH_TERMS, searchPlaceholder } from '@/lib/search-terms';
 import type { StorefrontNavigation } from '@/lib/store-navigation';
+import { BottomTabBar } from './BottomTabBar';
 import { Nav } from './Nav';
 import { MenuSheet } from './MenuSheet';
 import { SearchOverlay } from './SearchOverlay';
@@ -31,6 +32,13 @@ vi.mock('@/app/login/actions', () => ({ signOutAction: vi.fn() }));
 vi.mock('@/lib/auth/onboarding', () => ({ nextPathWithSearch: () => '/' }));
 vi.mock('@/lib/supabase/client', () => ({ createClient: () => ({ from: vi.fn() }) }));
 
+/* 메가 패널(div#wc-mega-category)만 잘라 낸다 — 안에는 div가 더 없어 첫 닫는 div가 패널의 끝이다. */
+function megaMarkup(html: string) {
+  const start = html.indexOf('id="wc-mega-category"');
+  expect(start).toBeGreaterThan(-1);
+  return html.slice(start, html.indexOf('</div>', start));
+}
+
 beforeEach(() => {
   mocks.cardRewardsEnabled = true;
   mocks.count = 4;
@@ -39,15 +47,28 @@ beforeEach(() => {
 });
 
 describe('White Catalog 전역 셸', () => {
-  /* 인증은 집중형 셸, 게임은 자기완결 번들, 어드민은 자체 작업대다.
+  /* 초대·비밀번호 변경·정지 안내는 집중형 셸, 게임은 자기완결 번들, 어드민은 자체 작업대다.
    * 공용 크롬이 새어 들어가면 각 표면이 헤더를 두 개 갖는다. */
-  it('인증·게임·어드민에서는 크롬과 푸터를 모두 비운다', () => {
-    for (const pathname of ['/login', '/update-password', '/account-suspended', '/games/roulette', '/admin', '/ip/aouad']) {
+  it('집중형 인증·게임·어드민에서는 크롬과 푸터를 모두 비운다', () => {
+    for (const pathname of ['/update-password', '/account-suspended', '/manager-invitation', '/games/roulette', '/admin', '/ip/aouad']) {
       mocks.pathname = pathname;
 
       expect(renderToStaticMarkup(<Nav />), pathname).toBe('');
       expect(renderToStaticMarkup(<SiteFooter />), pathname).toBe('');
     }
+  });
+
+  /* CH-13: 로그인(가입·재설정 모드 포함)은 레퍼런스처럼 전역 헤더·푸터·모바일 탭바 안에서 연다. */
+  it('로그인 화면에서도 전역 헤더·푸터·하단 탭바를 렌더한다', () => {
+    mocks.pathname = '/login';
+    mocks.presence = 'signed-out';
+
+    const html = renderToStaticMarkup(<Nav />);
+
+    expect(html).toContain('wc-header');
+    expect(html).toContain('wc-gnb');
+    expect(html).toContain('wc-tabbar');
+    expect(renderToStaticMarkup(<SiteFooter />)).toContain('wc-footer');
   });
 
   /* S3에서 홈이 자체 헤더를 버리고 공용 크롬 위로 올라왔다 — 홈만 예외로 비우면 헤더가 통째로 사라진다. */
@@ -171,6 +192,34 @@ describe('White Catalog 전역 셸', () => {
     expect(megaTrigger).not.toContain('aria-current');
   });
 
+  /* CH-12: 굿즈 상세는 카테고리 목록이 아니다 — GNB·모바일 탭·메가 링크 어디에도 현재 위치를 켜지 않는다. */
+  it('굿즈 상세에서는 GNB와 메가메뉴에 현재 위치를 표시하지 않는다', () => {
+    mocks.pathname = '/shop/g1';
+
+    const html = renderToStaticMarkup(<Nav />);
+
+    expect(html).not.toContain('aria-current="page"');
+    expect(html).not.toContain('is-active');
+  });
+
+  /* 메가 링크도 GNB와 같은 최장 매칭 하나만 켠다 — '/shop/new'에서 '전체 굿즈'(/shop)까지 현재로 읽히면 안 된다. */
+  it('메가메뉴는 가장 특정한 링크 하나만 현재 위치로 표시한다', () => {
+    mocks.pathname = '/shop/new';
+
+    const mega = megaMarkup(renderToStaticMarkup(<Nav />));
+
+    expect(mega.match(/aria-current="page"/g)).toHaveLength(1);
+    expect(mega).toMatch(/aria-current="page" class="wc-mega__link" href="\/shop\/new"/);
+  });
+
+  /* CH-06: 메가메뉴 안의 /shop 링크는 '전체 굿즈'다 — GNB 트리거 이름('카테고리')으로 덮이면 메뉴가 자기 이름을 링크로 반복한다. */
+  it('메가메뉴의 전체 굿즈 링크는 GNB 트리거 이름으로 덮이지 않는다', () => {
+    const mega = megaMarkup(renderToStaticMarkup(<Nav />));
+
+    expect(mega).toMatch(/class="wc-mega__link" href="\/shop">전체 굿즈</);
+    expect(mega).not.toContain('>카테고리<');
+  });
+
   /* 화면 하단에 고정된 바가 결제 CTA를 덮으면 결제가 그대로 막힌다 — 이 저장소가 한 번 겪은 사고다. */
   it('결제 흐름에서는 헤더를 남기고 바텀 탭바만 접는다', () => {
     mocks.pathname = '/checkout';
@@ -197,13 +246,25 @@ describe('White Catalog 전역 셸', () => {
     expect(renderToStaticMarkup(<Nav />)).toContain('wc-tabbar');
   });
 
-  /* 축약 판정은 스크롤 절대값이 아니라 헤더 직전 센티널의 뷰포트 이탈로 한다(IntersectionObserver).
-   * 유틸바·공지 스트립이 아직 보이는데 GNB부터 접히는 조기 축약을 막는 구조 계약이다. */
-  it('헤더 앞에 축약 판정용 센티널을 두고 SSR에서는 항상 펼친 상태로 시작한다', () => {
-    const html = renderToStaticMarkup(<Nav />);
+  /* B3·MC-03: 탭바 숨김 여부는 셸(스크롤 판정·검색 오버레이)이 정하고, 탭바는 data-hidden 하나로만 표현한다.
+   * SSR은 항상 노출로 시작해야 첫 페인트에 탭바가 없다가 튀어나오지 않는다. */
+  it('하단 탭바는 SSR에서 노출로 시작하고 숨김 신호를 data-hidden으로 표현한다', () => {
+    expect(renderToStaticMarkup(<Nav />)).toMatch(/class="wc-tabbar"[^>]*data-hidden="false"/);
+    expect(renderToStaticMarkup(<BottomTabBar hidden menuOpen={false} onMenuOpen={vi.fn()} />)).toMatch(/class="wc-tabbar"[^>]*data-hidden="true"/);
+    expect(renderToStaticMarkup(<BottomTabBar menuOpen={false} onMenuOpen={vi.fn()} />)).toMatch(/class="wc-tabbar"[^>]*data-hidden="false"/);
+  });
 
-    expect(html).toMatch(/class="wc-header-sentinel"><\/div><header/);
+  /* 축약 판정(B1, chrome-scroll.ts)은 유틸바의 문서상 위치를 공지 높이로 읽어 두 기준에 더한다.
+   * 공지가 유틸바 아래로 내려가면 그 보정이 사라져 스트립이 보이는 동안 GNB부터 접힌다 — 순서가 계약이다. */
+  it('공지를 유틸바 위에 두고 SSR에서는 항상 펼친 상태로 시작한다', () => {
+    const html = renderToStaticMarkup(
+      <Nav noticeStrip={{ id: 'n1', title: '공지', imageUrl: 'https://cdn.example/n.webp', mobileImageUrl: null, href: '/events' }} />,
+    );
+
     expect(html).toContain('data-condensed="false"');
+    expect(html.indexOf('class="wc-notice"')).toBeGreaterThan(-1);
+    expect(html.indexOf('class="wc-notice"')).toBeLessThan(html.indexOf('class="wc-utilbar"'));
+    expect(html.indexOf('class="wc-utilbar"')).toBeLessThan(html.indexOf('<header'));
   });
 
   it('전체 메뉴 시트가 스토어·내 활동·거래 그룹과 인증 액션을 담는다', () => {
@@ -253,11 +314,38 @@ describe('White Catalog 전역 셸', () => {
     const html = renderToStaticMarkup(<SearchOverlay onClose={vi.fn()} open />);
 
     expect(html).toContain('role="dialog"');
+    expect(html).toContain('aria-modal="true"');
     expect(html).toContain('aria-label="검색"');
-    expect(html).toContain('placeholder="IP · 굿즈 · 카드 · 포스트 통합 검색"');
+    expect(html).toContain('role="search"');
+    expect(html).toContain('action="/search"');
     expect(html).toContain('name="q"');
+    expect(html).toContain('enterKeyHint="search"');
 
     expect(renderToStaticMarkup(<SearchOverlay onClose={vi.fn()} open={false} />)).toBe('');
+  });
+
+  /* CH-11: 커뮤니티가 닫힌 배포에서 입력 안내가 '포스트'를 약속하면 결과에 없는 종류를 광고하는 셈이다.
+   * /search 화면과 같은 규칙(searchPlaceholder)을 쓴다. */
+  it('검색 안내는 커뮤니티 노출 스위치를 따른다', () => {
+    const html = renderToStaticMarkup(<SearchOverlay onClose={vi.fn()} open />);
+
+    expect(html).toContain(`placeholder="${searchPlaceholder()}"`);
+    expect(html.includes('포스트')).toBe(COMMUNITY_ENABLED);
+    expect(searchPlaceholder(true)).toBe('IP · 굿즈 · 카드 · 포스트 통합 검색');
+    expect(searchPlaceholder(false)).toBe('IP · 굿즈 · 카드 통합 검색');
+  });
+
+  /* CH-09: 데스크톱은 회색 칸 하나(돋보기는 칸 안 장식)로 보이지만, 뒤로·제출 버튼은 접근 이름을 가진 채
+   * DOM과 키보드 순서에 남는다 — 감춤은 CSS(.wc-search__aux)가 하고 마크업에서 지우지 않는다. */
+  it('뒤로·제출 버튼은 이름을 유지한 채 감춤 훅을 달고, 돋보기 장식은 숨긴다', () => {
+    const html = renderToStaticMarkup(<SearchOverlay onClose={vi.fn()} open />);
+
+    expect(html).toMatch(/<button aria-label="검색 닫기" class="wc-icon-btn wc-search__aux" type="button">/);
+    expect(html).toMatch(/<button aria-label="검색" class="wc-icon-btn wc-search__aux" type="submit">/);
+    expect(html).toMatch(/<span aria-hidden="true" class="wc-search__field-icon">/);
+    /* 순서: 뒤로 → 입력 → 제출(모바일 한 줄 배치와 포커스 순서가 같다). */
+    expect(html.indexOf('검색 닫기')).toBeLessThan(html.indexOf('name="q"'));
+    expect(html.indexOf('name="q"')).toBeLessThan(html.indexOf('type="submit"'));
   });
 
   /* 최근 검색어도 자동완성도 없는 패널이라, 빈 인풋 앞에서 다음 행동을 주는 건 추천 칩뿐이다.
@@ -265,7 +353,7 @@ describe('White Catalog 전역 셸', () => {
   it('검색 오버레이가 추천 검색어 칩을 결과 링크로 세운다', () => {
     const html = renderToStaticMarkup(<SearchOverlay onClose={vi.fn()} open />);
 
-    expect(html).toContain('추천 검색어');
+    expect(html).toContain('<p class="wc-search__chips-label">추천</p>');
     expect(html).toContain('class="wc-search__chip"');
     for (const term of SUGGESTED_SEARCH_TERMS) {
       expect(html).toContain(`href="/search?q=${encodeURIComponent(term)}"`);
@@ -275,6 +363,23 @@ describe('White Catalog 전역 셸', () => {
     expect(renderToStaticMarkup(<SearchOverlay onClose={vi.fn()} open={false} />)).not.toContain(
       'wc-search__chip',
     );
+  });
+
+  /* MY-13: 데스크톱 위시 진입은 회원에게만 보이는 유틸바 링크다(헤더 아이콘 3개 문법은 그대로).
+   * 탭바에도 같은 목적지가 있으므로 유틸바 구간만 잘라 본다. */
+  it('유틸바 위시리스트 링크는 로그인 회원에게만 보인다', () => {
+    const utilbar = (html: string) => html.slice(html.indexOf('class="wc-utilbar"'), html.indexOf('<header'));
+
+    const member = utilbar(renderToStaticMarkup(<Nav />));
+    expect(member).toContain('<a class="wc-utilbar__link" href="/my/wishlist">위시리스트</a>');
+    /* 오른쪽 정렬 줄의 맨 앞이라 나타나도 다른 항목 자리가 움직이지 않는다. */
+    expect(member.indexOf('위시리스트')).toBeLessThan(member.indexOf('주문조회'));
+    expect(renderToStaticMarkup(<Nav />).match(/class="wc-icon-btn[^"]*"/g)).toHaveLength(3);
+
+    for (const presence of ['signed-out', 'unknown'] as const) {
+      mocks.presence = presence;
+      expect(utilbar(renderToStaticMarkup(<Nav />)), presence).not.toContain('/my/wishlist');
+    }
   });
 
   /* 로그인 상태가 확정되기 전에 로그인/로그아웃 중 하나를 먼저 그리면 절반이 틀린 채로 깜빡인다. */

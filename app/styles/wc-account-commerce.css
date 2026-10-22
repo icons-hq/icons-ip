@@ -26,6 +26,11 @@
   padding: 40px 16px 96px;
 }
 
+/* /login은 전역 셸 안에서 열린다(헤더가 위에 있음) — 독립 셸용 바깥 위 여백을 걷어 헤더 아래 패널 패딩(D 36 / M 27)만 남긴다(R-05 §2.1). */
+.wc-auth--shell {
+  padding-top: 0;
+}
+
 .wc-auth__panel {
   width: min(478px, 100%);
   margin-inline: auto;

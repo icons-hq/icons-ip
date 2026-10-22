@@ -4,11 +4,11 @@ import Link from 'next/link';
 import { Suspense, useEffect, useRef, useState, type FocusEvent, type KeyboardEvent, type RefObject } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { signOutAction } from '@/app/login/actions';
-import { nextPathWithSearch } from '@/lib/auth/onboarding';
 import { COMMUNITY_ENABLED } from '@/lib/community-visibility';
 import { isCardRewardDestination, isCommunityDestination, type NoticeStrip } from '@/lib/home-catalog';
 import {
   CATEGORY_MEGA_GROUPS,
+  MEMBER_UTIL_ITEMS,
   UTIL_ITEMS,
   activeNavId,
   hrefFor,
@@ -22,6 +22,8 @@ import { useAuthPresence } from './AuthPresenceProvider';
 import { BottomTabBar } from './BottomTabBar';
 import { useCardRewardsEnabled } from './CardRewardAvailability';
 import { useCart } from './CartProvider';
+import { nextHeaderCondensed, nextTabBarScroll, tabBarScrollAt } from './chrome-scroll';
+import { loginEntryHref } from './login-entry';
 import { MenuSheet } from './MenuSheet';
 import { loadUnreadNotificationCount, notificationNavigationKey } from './notification-count';
 import { SearchOverlay } from './SearchOverlay';
@@ -39,47 +41,53 @@ type OverlayKind = 'none' | 'search' | 'sheet';
    SSR 렌더 시점에는 window가 없고, 셸은 라우트 전환에도 살아남으므로 한 번 굳혀 두면
    경로가 바뀐 뒤에도 옛 주소가 남아 로그인 후 엉뚱한 곳으로 돌아간다. */
 function loginHref() {
-  return `/login?next=${encodeURIComponent(
-    nextPathWithSearch(window.location.pathname, new URLSearchParams(window.location.search)),
-  )}`;
+  return loginEntryHref(window.location.pathname, window.location.search);
 }
 
-/* 축약 기준은 스크롤 절대값이 아니라 "헤더가 뷰포트 상단에 닿았는가"다.
-   유틸바(그리고 S3의 공지 스트립)가 아직 화면에 있는데 GNB부터 접히면 54px 레이아웃 점프가 보인다.
-   접힘과 해제의 경계를 하나로 쓰면 접히면서 줄어든 54px에 스크롤 앵커링이 맞물려 경계 위에서 출렁이므로,
-   레퍼런스(R-01 §3.1)의 "최상단 근처에서 해제"를 그대로 둔다 — 접힘은 헤더 직전 센티널이 뷰포트를 벗어날 때,
-   해제는 크롬 최상단 센티널이 다시 보일 때. 두 센티널 사이가 히스테리시스 밴드다. SSR 초기값은 항상 펼침이다. */
-function useHeaderCondensed(
-  topSentinelRef: RefObject<HTMLElement | null>,
-  headerSentinelRef: RefObject<HTMLElement | null>,
-) {
+/* 공지(이미지 스트립, 이후 텍스트 공지 행)는 유틸바 위에 쌓인다 — 유틸바의 문서상 위치가 곧 공지 높이다.
+   모바일에서는 유틸바가 숨어 레이아웃 상자가 없으므로 0을 돌려준다. 이 값을 쓰는 데스크톱 축약 판정은
+   모바일에서 표현되지 않는다(wc-chrome.css가 data-condensed를 990px 이상에서만 읽는다). */
+function noticeOffsetAbove(utilbar: HTMLElement | null): number {
+  if (!utilbar || utilbar.offsetParent === null) return 0;
+  return utilbar.getBoundingClientRect().top + window.scrollY;
+}
+
+/* 스크롤 판정은 순수 함수(chrome-scroll.ts)에 맡기고 여기서는 스크롤 위치와 공지 높이만 읽어 넘긴다.
+   - 데스크톱 축약: B1 한 쌍(>150 접힘 / <64 해제, 공지 높이 가산)
+   - 모바일 하단 탭바: B3(아래로 누적 300px 숨김 / 위로·최상단 노출)
+   모바일 로고 행은 판정 없이 CSS(sticky top 음수)가 스크롤과 함께 밀어낸다(wc-chrome.css '모바일 헤더 고정').
+   스크롤 이벤트는 이미 프레임당 한 번 이하로 오고, 상태가 그대로면 React가 렌더를 건너뛴다.
+   SSR 초기값은 항상 펼침·노출이다 — 첫 판정은 다음 프레임에 한다(복원된 스크롤 위치에서 열려도 바로 맞춰진다). */
+function useChromeScroll(utilbarRef: RefObject<HTMLElement | null>) {
   const [condensed, setCondensed] = useState(false);
+  const [tabBarHidden, setTabBarHidden] = useState(false);
 
   useEffect(() => {
-    const top = topSentinelRef.current;
-    const boundary = headerSentinelRef.current;
-    if (!top || !boundary) return;
-    const expandObserver = new IntersectionObserver(([entry]) => {
-      if (entry.isIntersecting) setCondensed(false);
-    });
-    const condenseObserver = new IntersectionObserver(([entry]) => {
-      if (!entry.isIntersecting) setCondensed(true);
-    });
-    expandObserver.observe(top);
-    condenseObserver.observe(boundary);
-    return () => {
-      expandObserver.disconnect();
-      condenseObserver.disconnect();
+    let headerCondensed = false;
+    let tabBar = tabBarScrollAt(window.scrollY);
+    const update = () => {
+      headerCondensed = nextHeaderCondensed(headerCondensed, window.scrollY, noticeOffsetAbove(utilbarRef.current));
+      tabBar = nextTabBarScroll(tabBar, window.scrollY);
+      setCondensed(headerCondensed);
+      setTabBarHidden(tabBar.hidden);
     };
-  }, [headerSentinelRef, topSentinelRef]);
+    const frame = window.requestAnimationFrame(update);
+    window.addEventListener('scroll', update, { passive: true });
+    window.addEventListener('resize', update);
+    return () => {
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener('scroll', update);
+      window.removeEventListener('resize', update);
+    };
+  }, [utilbarRef]);
 
-  return condensed;
+  return { condensed, tabBarHidden };
 }
 
 export function Nav({ noticeStrip = null, branding = DEFAULT_STOREFRONT_BRANDING, navigation = DEFAULT_STOREFRONT_NAVIGATION }: { noticeStrip?: NoticeStrip | null; branding?: StorefrontBranding; navigation?: StorefrontNavigation }) {
   const pathname = usePathname();
   const cardRewardsEnabled = useCardRewardsEnabled();
-  // 게임은 자기완결 번들, 어드민은 자체 작업대, 인증은 집중형 셸을 사용한다.
+  // 게임은 자기완결 번들, 어드민은 자체 작업대, 초대·비밀번호 변경·정지 안내는 집중형 셸을 사용한다(로그인은 크롬 안).
   if (isStandaloneShellPath(pathname)) return null;
   return <WcChrome cardRewardsEnabled={cardRewardsEnabled} noticeStrip={noticeStrip} pathname={pathname} branding={branding} navigation={navigation} />;
 }
@@ -99,9 +107,8 @@ function WcChrome({
 }) {
   const { count } = useCart();
   const { common } = useStorePresentation();
-  const topSentinelRef = useRef<HTMLDivElement>(null);
-  const headerSentinelRef = useRef<HTMLDivElement>(null);
-  const condensed = useHeaderCondensed(topSentinelRef, headerSentinelRef);
+  const utilbarRef = useRef<HTMLElement>(null);
+  const { condensed, tabBarHidden: tabBarScrolledAway } = useChromeScroll(utilbarRef);
   const [overlay, setOverlay] = useState<{ kind: OverlayKind; pathname: string }>({ kind: 'none', pathname });
   /* 상태와 그 상태가 속한 경로를 함께 들고 있다가, 경로가 달라지면 effect가 아니라 렌더 중에 실제로 리셋한다.
      파생 불리언으로 가리기만 하면 뒤로/앞으로 가기로 같은 경로에 돌아왔을 때 옛 상태가 되살아나 오버레이가 멋대로 다시 열린다. */
@@ -120,12 +127,11 @@ function WcChrome({
 
   return (
     <div className="wc-root wc-chrome">
-      {/* 축약 해제 센티널 — 이게 다시 보이는 "최상단 근처"에서만 GNB를 펼친다. */}
-      <div ref={topSentinelRef} aria-hidden className="wc-header-sentinel" />
       <a className="wc-skip-link" href="#root">본문으로 건너뛰기</a>
 
-      {/* 공지 스트립은 이미지 비율만큼 높이를 차지하는 링크 배너다(R-01 §1). 두 센티널 사이에 두면
-          축약 기준이 스트립 높이만큼 자동 보정된다 — 스트립이 아직 보이는 동안에는 GNB가 접히지 않는다.
+      {/* 공지 스트립은 이미지 비율만큼 높이를 차지하는 링크 배너다(R-01 §1). 유틸바 위에 두면
+          축약 기준이 스트립 높이만큼 자동 보정된다(noticeOffsetAbove) — 스트립이 아직 보이는 동안에는
+          GNB가 접히지 않는다. 텍스트 공지 행이 생겨도 유틸바 위에 두면 같은 보정을 받는다.
           PC 비율 아트웍은 모바일 폭에서 수 px 로 붕괴하므로 히어로처럼 모바일 소스를 분기하고,
           카드 리워드 목적지 스트립은 게이트가 꺼진 배포에서 packs GNB 항목과 같은 규칙으로 숨긴다. */}
       {noticeStrip
@@ -141,8 +147,9 @@ function WcChrome({
         </Link>
       ) : null}
 
-      <nav aria-label="유틸리티 메뉴" className="wc-utilbar">
+      <nav ref={utilbarRef} aria-label="유틸리티 메뉴" className="wc-utilbar">
         <div className="wc-container wc-utilbar__inner">
+          <UtilMemberLinks />
           {UTIL_ITEMS.map((item) => (item.id === 'notifications'
             ? <UtilNotificationsLink key={item.id} label={item.label} />
             : (
@@ -154,8 +161,6 @@ function WcChrome({
         </div>
       </nav>
 
-      {/* 축약 판정 센티널 — 뷰포트를 벗어나는 순간이 헤더가 top:0에 붙는 순간이다. */}
-      <div ref={headerSentinelRef} aria-hidden className="wc-header-sentinel" />
       <header className="wc-header" data-condensed={condensed ? 'true' : 'false'} data-store-header={common.headerStyle} style={{ '--store-theme': common.themeColor, '--store-theme-ink': storeThemeForeground(common.themeColor) } as CSSProperties}>
         <div className="wc-header__bar">
           <div className="wc-container wc-header__bar-inner">
@@ -251,7 +256,12 @@ function WcChrome({
       </header>
 
       <MenuSheet open={sheetOpen} onClose={closeOverlay} cardRewardsEnabled={cardRewardsEnabled} navigation={navigation} />
-      <BottomTabBar menuOpen={sheetOpen} onMenuOpen={() => setOverlay({ kind: 'sheet', pathname })} />
+      {/* 검색 오버레이가 열려 있는 동안에도 탭바를 내린다(MC-03) — 딤 위에 탭바만 떠 있으면 모달 밖 조작처럼 보인다. */}
+      <BottomTabBar
+        hidden={searchOpen || tabBarScrolledAway}
+        menuOpen={sheetOpen}
+        onMenuOpen={() => setOverlay({ kind: 'sheet', pathname })}
+      />
     </div>
   );
 }
@@ -279,6 +289,9 @@ function CategoryMegaItem({
   }
   const megaOpen = mega.open && mega.pathname === pathname;
   const setMegaOpen = (open: boolean) => setMega({ open, pathname });
+  /* 메가 링크의 현재 위치도 GNB와 같은 규칙(activeNavId)으로 하나만 고른다 — '/shop/new'에서 '전체 굿즈'와
+     NEW가 함께 켜지지 않고, 굿즈 상세에서는 아무 링크도 켜지 않는다(CH-12). */
+  const currentId = activeNavId(pathname, groups.flatMap((group) => group.items));
 
   const onBlurCapture = (event: FocusEvent<HTMLLIElement>) => {
     // 포커스가 항목 안에서 옮겨 다니는 동안에는 닫지 않는다.
@@ -324,7 +337,7 @@ function CategoryMegaItem({
                 {group.items.map((item) => (
                   <li key={item.id}>
                     <Link
-                      aria-current={isActive(item.id, pathname) ? 'page' : undefined}
+                      aria-current={currentId === item.id ? 'page' : undefined}
                       className="wc-mega__link"
                       href={hrefFor(item.id)}
                       onClick={() => setMegaOpen(false)}
@@ -391,6 +404,18 @@ function UtilNotificationsCount({ label }: { label: string }) {
       {unread > 0 && <span aria-hidden className="wc-utilbar__badge">{unread > 99 ? '99+' : unread}</span>}
     </Link>
   );
+}
+
+/* 회원 전용 유틸 링크(위시리스트). 유틸바는 오른쪽 정렬이라 맨 앞(왼쪽)에 두면 presence가 확정되며 나타나도
+   주문조회·알림함·로그아웃 자리는 움직이지 않는다. 미확정·비회원에게는 그리지 않는다. */
+function UtilMemberLinks() {
+  const presence = useAuthPresence();
+  if (presence !== 'signed-in') return null;
+  return MEMBER_UTIL_ITEMS.map((item) => (
+    <Link key={item.id} className="wc-utilbar__link" href={hrefFor(item.id)}>
+      {item.label}
+    </Link>
+  ));
 }
 
 /* presence 확정 전에는 자리만 잡는다. 로그인/로그아웃이 번갈아 깜빡이면 유틸바 폭이 흔들린다. */

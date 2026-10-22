@@ -7,14 +7,17 @@ import {
   FOOTER_DEMO_ITEMS,
   FOOTER_DISCOVER_ITEMS,
   FOOTER_PRIMARY_ITEMS,
+  MEMBER_UTIL_ITEMS,
   MENU_SHEET_GROUPS,
   MOB_ITEMS,
+  STOREFRONT_MENU_ITEMS,
   NAV_ITEMS,
   UTIL_ITEMS,
   activeNavId,
   hrefFor,
   isActive,
   isAuthShellPath,
+  isGoodDetailPath,
   isStandaloneShellPath,
 } from './routes';
 import { COMMUNITY_ENABLED } from './community-visibility';
@@ -56,20 +59,26 @@ describe('legal routes', () => {
 });
 
 describe('isAuthShellPath', () => {
-  it.each(['/login', '/update-password', '/account-suspended', '/manager-invitation'])('treats %s as an auth-only shell', (pathname) => {
+  it.each(['/update-password', '/account-suspended', '/manager-invitation'])('treats %s as an auth-only shell', (pathname) => {
     expect(isAuthShellPath(pathname)).toBe(true);
   });
 
   it('does not hide the product shell on normal routes', () => {
     expect(isAuthShellPath('/community')).toBe(false);
   });
+
+  /* CH-13: 로그인·가입·재설정은 레퍼런스처럼 전역 헤더·푸터·모바일 탭바 안에서 연다. 모드는 쿼리라 경로는 하나다. */
+  it('opens /login inside the global chrome', () => {
+    expect(isAuthShellPath('/login')).toBe(false);
+    expect(isStandaloneShellPath('/login')).toBe(false);
+  });
 });
 
 describe('독립 경험 셸', () => {
-  it.each(['/ip/aouad', '/ip/aouad/scene', '/games', '/games/hyosan-memories', '/admin/orders', '/login'])('%s에는 공용 크롬을 겹치지 않는다', (pathname) => {
+  it.each(['/ip/aouad', '/ip/aouad/scene', '/games', '/games/hyosan-memories', '/admin/orders', '/update-password', '/account-suspended', '/manager-invitation'])('%s에는 공용 크롬을 겹치지 않는다', (pathname) => {
     expect(isStandaloneShellPath(pathname)).toBe(true);
   });
-  it.each(['/ip', '/ip/aouad-other', '/ip/maplestory', '/games-guide', '/administrator', '/shop'])('%s의 공용 크롬은 유지한다', (pathname) => {
+  it.each(['/ip', '/ip/aouad-other', '/ip/maplestory', '/games-guide', '/administrator', '/shop', '/login'])('%s의 공용 크롬은 유지한다', (pathname) => {
     expect(isStandaloneShellPath(pathname)).toBe(false);
   });
   it('온라인 팝업 하위의 전용 프레젠테이션 경로를 등록한다', () => {
@@ -139,6 +148,15 @@ describe('내비게이션 항목 구성', () => {
   it('유틸 항목은 주문조회와 알림함이다', () => {
     expect(UTIL_ITEMS.map((item) => item.id)).toEqual(['orders', 'notifications']);
   });
+
+  /* MY-13: 데스크톱 위시 진입은 회원 전용 유틸 링크다. 운영 저장 내비(고정 8개)에 섞으면 저장된 설정이
+     개수 불일치로 통째로 무시되므로 STOREFRONT_MENU_ITEMS 밖에 둔다. */
+  it('회원 전용 유틸 항목은 위시리스트 하나이고 저장 내비 목록에 섞지 않는다', () => {
+    expect(MEMBER_UTIL_ITEMS).toEqual([{ id: 'wish', label: '위시리스트' }]);
+    expect(hrefFor('wish')).toBe('/my/wishlist');
+    expect(STOREFRONT_MENU_ITEMS.map((item) => item.id)).not.toContain('wish');
+    expect(STOREFRONT_MENU_ITEMS).toHaveLength(8);
+  });
 });
 
 describe('내비게이션 경로 등록 계약', () => {
@@ -188,15 +206,32 @@ describe('푸터·메뉴 경로 등록 계약', () => {
   });
 });
 
+describe('isGoodDetailPath', () => {
+  it.each(['/shop/g3', '/shop/demo-rilakkuma-keycap-trio', '/shop/newbie', '/shop/best-seller'])('%s는 굿즈 상세다', (pathname) => {
+    expect(isGoodDetailPath(pathname)).toBe(true);
+  });
+
+  it.each(['/shop', '/shop/', '/shop/new', '/shop/best', '/shop/g3/reviews', '/shops/g3', '/'])('%s는 굿즈 상세가 아니다', (pathname) => {
+    expect(isGoodDetailPath(pathname)).toBe(false);
+  });
+});
+
 describe('activeNavId', () => {
   it('하위 경로에서 상위 카테고리가 아니라 가장 특정한 항목을 고른다', () => {
     expect(activeNavId('/shop/new')).toBe('new');
     expect(activeNavId('/shop/best')).toBe('best');
   });
 
-  it('카테고리 목록과 상품 상세에서는 카테고리를 고른다', () => {
+  it('카테고리 목록에서는 카테고리를 고른다', () => {
     expect(activeNavId('/shop')).toBe('shop');
-    expect(activeNavId('/shop/g3')).toBe('shop');
+  });
+
+  /* CH-12: 굿즈 상세는 어떤 1차 내비의 목록도 아니다 — '/shop' 접두가 맞아도 카테고리를 켜지 않는다(레퍼런스 실측). */
+  it('굿즈 상세에서는 아무 항목도 고르지 않는다', () => {
+    expect(activeNavId('/shop/g3')).toBeNull();
+    expect(activeNavId('/shop/g3', MOB_ITEMS)).toBeNull();
+    expect(activeNavId('/shop/new')).toBe('new');
+    expect(activeNavId('/shop/best')).toBe('best');
   });
 
   it('GNB에 홈이 없으므로 루트에서는 아무것도 고르지 않는다', () => {

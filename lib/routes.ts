@@ -66,6 +66,13 @@ export const UTIL_ITEMS: NavItem[] = [
   { id: 'notifications', label: '알림함' },
 ];
 
+/* 로그인 회원에게만 보이는 유틸 항목 — 데스크톱의 위시 진입(MY-13, 10/14 S14). 헤더 아이콘 3개 문법은 그대로 둔다.
+   STOREFRONT_MENU_ITEMS에 넣지 않는다: 운영 저장 내비(고정 8개 ID)가 개수 불일치로 통째로 무시된다
+   (lib/store-navigation.ts parseStoreNavigation). 비회원 위시는 없다(CONTEXT.md 위시리스트). */
+export const MEMBER_UTIL_ITEMS: NavItem[] = [
+  { id: 'wish', label: '위시리스트' },
+];
+
 const PATHS: Record<string, string> = {
   home: '/',
   new: '/shop/new',
@@ -118,6 +125,11 @@ function hasPath(route: string): boolean {
   return route === 'ip' || route === 'reviewEvent' || route in PATHS;
 }
 
+/** 굿즈 상세(`/shop/[goodId]`)인가. NEW·BEST(`/shop/new`·`/shop/best`)는 같은 접두를 쓰는 컬렉션 목록이라 아니다. */
+export function isGoodDetailPath(pathname: string): boolean {
+  return /^\/shop\/(?!(?:new|best)$)[^/]+$/.test(pathname);
+}
+
 /** does the given prototype route-id correspond to the current pathname? */
 export function isActive(route: string, pathname: string): boolean {
   const href = hrefFor(route);
@@ -126,8 +138,11 @@ export function isActive(route: string, pathname: string): boolean {
 }
 
 /** pathname에 가장 특정하게 매칭되는 nav 항목 id 하나를 고른다 (없으면 null).
-    '/shop/new'에서 '카테고리(/shop)'가 아니라 'NEW(/shop/new)'가 이겨야 해서 최장 href가 우선한다. */
+    '/shop/new'에서 '카테고리(/shop)'가 아니라 'NEW(/shop/new)'가 이겨야 해서 최장 href가 우선한다.
+    굿즈 상세는 어떤 내비 항목의 목록도 아니라 아무것도 고르지 않는다 — '/shop' 접두가 맞아도
+    카테고리를 켜지 않는다(CH-12, 레퍼런스 실측). 목록인 /shop·/shop/new·/shop/best는 그대로 켠다. */
 export function activeNavId(pathname: string, items: NavItem[] = NAV_ITEMS): string | null {
+  if (isGoodDetailPath(pathname)) return null;
   let activeId: string | null = null;
   let activeLength = -1;
   for (const item of items) {
@@ -143,9 +158,10 @@ export function activeNavId(pathname: string, items: NavItem[] = NAV_ITEMS): str
   return activeId;
 }
 
+/** 집중형(크롬 없는) 인증 셸 — 초대 수락·비밀번호 변경·이용 정지 안내.
+    `/login`(가입·재설정 모드 포함)은 여기 넣지 않는다: 레퍼런스처럼 전역 헤더·푸터·모바일 탭바 안에서 연다(CH-13). */
 export function isAuthShellPath(pathname: string): boolean {
-  return pathname === '/login'
-    || pathname === MANAGER_INVITATION_PATH
+  return pathname === MANAGER_INVITATION_PATH
     || pathname === '/update-password'
     || pathname === '/account-suspended';
 }
