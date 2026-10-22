@@ -37,7 +37,9 @@ function scrollTabsToStickyTop(root: HTMLElement | null, list: HTMLElement | nul
   const top = tabsStickyScrollTop({
     scrollY: window.scrollY,
     rootTop: root.getBoundingClientRect().top,
-    /* sticky 가 아니면(top: auto) 0 — 탭 묶음 머리를 화면 맨 위로 둔다. */
+    /* 탭바의 실제 sticky top(px)을 읽는다 — 표면 CSS 가 전역 크롬 높이 변수(`--wc-sticky-chrome-h`)와
+       대체값으로 정한 값이 여기서 이미 풀려 있어, 크롬 높이가 바뀌어도 같은 자리로 맞춘다.
+       sticky 가 아니면(top: auto) 0 — 탭 묶음 머리를 화면 맨 위로 둔다. */
     stickyTop: Number.parseFloat(window.getComputedStyle(list).top) || 0,
   });
   if (top === null) return;

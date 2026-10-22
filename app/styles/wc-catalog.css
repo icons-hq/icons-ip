@@ -1082,11 +1082,12 @@
   margin-top: 48px;
 }
 
-/* 탭바는 sticky 헤더 바로 아래에 붙는다 — 축약 상태의 로고 행 높이(모바일 81 / 데스크톱 68)가
-   그대로 오프셋이다(wc-chrome `.wc-header__bar-inner`). */
+/* 탭바는 sticky 헤더 바로 아래에 붙는다 — 스크롤 중 화면에 남는 전역 크롬 높이가 그대로 오프셋이다.
+   셸이 그 높이를 `--wc-sticky-chrome-h`로 내려 준다(L3). 변수가 없으면 지금 축약 헤더 높이
+   (모바일 81 / 데스크톱 68, wc-chrome `.wc-header__bar-inner`)를 쓴다. 탭 스크롤(TabPanels)도 이 top 을 읽는다. */
 .wc-pdp-tabs .wc-tabs__list {
   position: sticky;
-  top: 81px;
+  top: var(--wc-sticky-chrome-h, 81px);
   z-index: 2;
   overflow-x: auto;
   scrollbar-width: none;
@@ -1382,7 +1383,7 @@
   }
 
   .wc-pdp-tabs .wc-tabs__list {
-    top: 68px;
+    top: var(--wc-sticky-chrome-h, 68px);
     overflow-x: visible;
   }
 
@@ -1418,14 +1419,14 @@
   display: block;
 }
 
-/* Review sorting and login return links must clear the sticky header and tabs. */
+/* Review sorting and login return links must clear the sticky chrome and tabs. */
 .wc-pdp-tabs .wc-reviews {
-  scroll-margin-top: calc(81px + 55px + 16px);
+  scroll-margin-top: calc(var(--wc-sticky-chrome-h, 81px) + 55px + 16px);
 }
 
 @media (min-width: 990px) {
   .wc-pdp-tabs .wc-reviews {
-    scroll-margin-top: calc(68px + 55px + 16px);
+    scroll-margin-top: calc(var(--wc-sticky-chrome-h, 68px) + 55px + 16px);
   }
 }
 
