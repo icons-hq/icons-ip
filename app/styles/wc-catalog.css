@@ -1089,6 +1089,8 @@
   position: sticky;
   top: var(--wc-sticky-chrome-h, 81px);
   z-index: 2;
+  /* 데스크톱 헤더가 펴지고 접히면(GNB .3s) 크롬 높이 변수가 바뀐다 — 붙어 있는 탭바도 같은 박자로 따라간다. */
+  transition: top var(--wc-duration-medium);
   overflow-x: auto;
   scrollbar-width: none;
   padding-inline: var(--wc-pdp-inset);

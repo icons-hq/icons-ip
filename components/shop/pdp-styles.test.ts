@@ -75,6 +75,8 @@ describe('PDP 데스크톱 탭 레이아웃·레일 박스 (PD-03·PD-05)', () =
     expect(decls(catalog, '.wc-pdp-tabs .wc-tabs__list')).toMatchObject({ position: 'sticky', top: 'var(--wc-sticky-chrome-h, 81px)',
       'padding-inline': 'var(--wc-pdp-inset)' });
     expect(decls(catalog, '.wc-pdp-tabs .wc-tabs__list', DESKTOP).top).toBe('var(--wc-sticky-chrome-h, 68px)');
+    /* 크롬 높이 변수가 헤더 펼침·접힘(.3s)으로 바뀌면 붙어 있는 탭바가 같은 박자로 따라간다(모션 축소는 파운데이션이 0으로). */
+    expect(decls(catalog, '.wc-pdp-tabs .wc-tabs__list').transition).toBe('top var(--wc-duration-medium)');
     expect(decls(catalog, '.wc-pdp-tabs')['--wc-pdp-inset']).toBe('max(var(--wc-gutter), calc((100% - 1180px) / 2))');
     /* 패널 칼럼 = 콘텐츠 축 − 레일 340. */
     expect(decls(catalog, '.wc-pdp-tabs .wc-tabs__panel', DESKTOP).width).toBe('calc(100% - 2 * var(--wc-pdp-inset) - 340px)');
