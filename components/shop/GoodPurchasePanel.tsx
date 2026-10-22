@@ -20,6 +20,7 @@ import { GoodsTransactionTerms } from './GoodsTransactionTerms';
 import { FULFILLMENT_METHOD_LABELS } from '@/lib/goods-fulfillment';
 import { GiftPurchaseEntry } from '@/components/gifts/GiftPurchaseEntry';
 import { SubscriptionPurchaseEntry } from '@/components/subscriptions/SubscriptionPurchaseEntry';
+import type { AddToCartResultItem } from './AddToCartResultDialog';
 
 /*
  * 굿즈 상세의 구매 블록 (R-04 §3.6~3.8 · DESIGN `pdp-buybox`·`cta-pair`·`restock-cta`).
@@ -297,6 +298,57 @@ export function useGoodPurchase({
       if (inert) return;
       setStatus(null);
       void commit().then((ok) => { if (ok) setCheckoutGen((gen) => gen + 1); });
+    },
+  };
+}
+
+/**
+ * 담기 결과 모달을 여는 시점 (PD-02).
+ *
+ * 담기 함수는 카트 반영이 확정된 뒤에만 성공 문구(CART_ADDED_STATUS)를 남기고, 실패는 카트·검증
+ * 오류 문구를 남긴다. 그래서 "담기를 누른 뒤 성공 문구가 온 때"만 열고, 다른 문구가 오면
+ * 기다림을 접는다 — 클라이언트 낙관 상태로 "담았어요"를 띄우지 않는다(DESIGN §9).
+ */
+export function addToCartResultStep(state: { awaiting: boolean; message: string | null }): 'idle' | 'wait' | 'open' | 'fail' {
+  if (!state.awaiting) return 'idle';
+  if (state.message === CART_ADDED_STATUS) return 'open';
+  return state.message ? 'fail' : 'wait';
+}
+
+/** 지금 담기를 누르면 카트에 들어갈 줄. 담기 함수와 같은 선택(본품 + 고른 추가 구성)을 요약한다. */
+export function addedCartItems(purchase: Pick<GoodPurchaseController, 'good' | 'selectedOption' | 'quantity' | 'additionalChoices'>): AddToCartResultItem[] {
+  return [
+    { name: purchase.good.name, option: optionLabel(purchase.selectedOption, purchase.good.options?.length ?? 0), quantity: purchase.quantity },
+    ...(purchase.additionalChoices ?? [])
+      .filter((choice) => choice.selected && choice.selectedOption)
+      .map((choice) => ({ name: choice.name, option: optionLabel(choice.selectedOption, choice.good?.options?.length ?? 0), quantity: choice.quantity })),
+  ];
+}
+
+/**
+ * 담기 결과 모달 상태. 컨트롤러의 담기 함수는 그대로 부르고, 누른 순간의 선택만 따로 들고
+ * 있다가 성공 문구가 오면 그 요약으로 모달을 연다. 패널·데스크톱 레일 박스·모바일 시트가
+ * 이 훅이 감싼 담기 하나를 함께 쓴다.
+ */
+export function useAddToCartResult(purchase: GoodPurchaseController) {
+  const [awaitingItems, setAwaitingItems] = useState<AddToCartResultItem[] | null>(null);
+  const [items, setItems] = useState<AddToCartResultItem[] | null>(null);
+  /* 렌더 중 상태 보정(이전 값 비교 패턴) — effect 로 미루면 모달이 한 프레임 늦게 뜬다. */
+  const step = addToCartResultStep({ awaiting: awaitingItems !== null, message: purchase.message });
+  if (step === 'open') {
+    setItems(awaitingItems);
+    setAwaitingItems(null);
+  } else if (step === 'fail') {
+    setAwaitingItems(null);
+  }
+
+  return {
+    items,
+    close: () => setItems(null),
+    addToCart: () => {
+      if (purchase.inert) return;
+      setAwaitingItems(addedCartItems(purchase));
+      purchase.addToCart();
     },
   };
 }

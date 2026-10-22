@@ -3,7 +3,10 @@ import { describe, expect, it, vi } from 'vitest';
 import type { Good } from '@/lib/data';
 import { activeGalleryIndex } from './PdpGallery';
 import {
+  CART_ADDED_STATUS,
   GoodPurchasePanel,
+  addToCartResultStep,
+  addedCartItems,
   buyNowNavigation,
   isGoodSoldOut,
   isMiniBuybarVisible,
@@ -135,6 +138,52 @@ describe('buyNowNavigation', () => {
     expect(
       buyNowNavigation({ requested: true, cartPending: false, cartError: '재고 초과' }),
     ).toBe('abort');
+  });
+});
+
+describe('addToCartResultStep', () => {
+  it('담기를 누르지 않았으면 성공 문구가 남아 있어도 모달을 열지 않는다', () => {
+    expect(addToCartResultStep({ awaiting: false, message: CART_ADDED_STATUS })).toBe('idle');
+    expect(addToCartResultStep({ awaiting: false, message: null })).toBe('idle');
+  });
+
+  it('카트 반영 확정 문구가 온 뒤에만 연다 — 반영 중에는 기다린다', () => {
+    expect(addToCartResultStep({ awaiting: true, message: null })).toBe('wait');
+    expect(addToCartResultStep({ awaiting: true, message: CART_ADDED_STATUS })).toBe('open');
+  });
+
+  it('카트·검증 오류 문구가 오면 열지 않고 기다림을 접는다', () => {
+    expect(addToCartResultStep({ awaiting: true, message: '현재 재고보다 많이 담을 수 없습니다.' })).toBe('fail');
+    expect(addToCartResultStep({ awaiting: true, message: '아크릴 블록: 각인 문구를 입력해주세요.' })).toBe('fail');
+  });
+});
+
+describe('addedCartItems', () => {
+  it('본품과 고른 추가 구성을 담기 함수와 같은 선택으로 요약한다', () => {
+    const blue = { id: 'blue', name: '파랑', price: 12000, stockQty: 3, code: 'BLUE', attributes: {}, isDefault: true };
+    const red = { ...blue, id: 'red', name: '빨강', isDefault: false };
+    const sticker = { ...good, id: 'g14', name: '추가 스티커', options: [{ ...blue, id: 'x-blue' }, { ...red, id: 'x-red' }] };
+    const items = addedCartItems({
+      good: { ...good, options: [blue, red] },
+      selectedOption: red,
+      quantity: 2,
+      additionalChoices: [
+        { goodId: sticker.id, name: sticker.name, good: sticker, selected: true, selectedOption: sticker.options[1], quantity: 3 },
+        { goodId: 'g15', name: '고르지 않은 추가 구성', selected: false, quantity: 1 },
+      ],
+    });
+
+    expect(items).toEqual([
+      { name: '아크릴 블록', option: '빨강', quantity: 2 },
+      { name: '추가 스티커', option: '빨강', quantity: 3 },
+    ]);
+  });
+
+  it('하나뿐인 기본 옵션은 옵션 이름을 비운다', () => {
+    const only = { id: 'only', name: '기본 옵션', price: 12000, stockQty: 3, code: 'ONLY', attributes: {}, isDefault: true };
+    expect(addedCartItems({ good: { ...good, options: [only] }, selectedOption: only, quantity: 1 })).toEqual([
+      { name: '아크릴 블록', option: null, quantity: 1 },
+    ]);
   });
 });
 

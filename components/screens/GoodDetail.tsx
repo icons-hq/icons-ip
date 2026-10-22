@@ -6,7 +6,9 @@ import Link from 'next/link';
 import { publicIpHref } from '@/lib/ip-identity';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { GoodBuyBars, GoodPurchasePanel, isMiniBuybarVisible, useGoodPurchase } from '@/components/shop/GoodPurchasePanel';
+import { GoodBuyBars, GoodPurchasePanel, isMiniBuybarVisible, useAddToCartResult, useGoodPurchase } from '@/components/shop/GoodPurchasePanel';
+import { AddToCartResultDialog } from '@/components/shop/AddToCartResultDialog';
+import { OverlayPortal } from '@/components/shell/OverlayPortal';
 import { PdpGallery } from '@/components/shop/PdpGallery';
 import { WishlistHeart } from '@/components/shop/WishlistHeart';
 import { Badge } from '@/components/wc/Badge';
@@ -253,6 +255,10 @@ export function GoodDetailView({
     additionalGoods: detail.additionalGoods ?? [],
     restockRequested: engagement?.restockRequested ?? false,
   });
+  /* 담기 함수는 컨트롤러 것을 그대로 부르고, 확정된 결과만 모달로 알린다(PD-02).
+     패널·고정 바가 같은 감싼 담기를 써야 어느 표면에서 담아도 같은 모달이 뜬다. */
+  const addResult = useAddToCartResult(purchase);
+  const surfacePurchase = embedded ? purchase : { ...purchase, addToCart: addResult.addToCart };
   const nextPriceChange = [good, ...(detail.additionalGoods ?? [])].reduce<number | null>((next, item) => {
     return [goodsVolumeBoundary(item), item.salePeriod?.nextChangeAt, ...(item.options ?? []).flatMap(option => [option.pricing?.nextChangeAt, option.supply?.nextChangeAt])].reduce<number | null>((earliest, changeAt) => {
       const time = changeAt ? Date.parse(changeAt) : NaN;
@@ -389,7 +395,7 @@ export function GoodDetailView({
             </div>
             {!embedded ? goodsBenefits : null}
             {!embedded ? <GoodsGroupSelector group={detail.goodsGroup} /> : null}
-            <GoodPurchasePanel purchase={purchase} />
+            <GoodPurchasePanel purchase={surfacePurchase} />
             {!embedded && discovery?.shippingSavings ? <a className="wc-pdp-shipping-shortcut" href="#pdp-shipping-savings">배송비 절약 굿즈 보기</a> : null}
             {ip ? (
               <div className="wc-pdp__brand">
@@ -429,9 +435,14 @@ export function GoodDetailView({
       {embedded ? null : (
         <GoodBuyBars
           miniVisible={isMiniBuybarVisible({ embedded, panelsInView })}
-          purchase={purchase}
+          purchase={surfacePurchase}
         />
       )}
+      {!embedded && addResult.items ? (
+        <OverlayPortal>
+          <AddToCartResultDialog items={addResult.items} onClose={addResult.close} open />
+        </OverlayPortal>
+      ) : null}
     </Root>
   );
 }
