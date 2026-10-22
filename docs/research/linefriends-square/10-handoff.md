@@ -37,7 +37,7 @@
 7. **행동 QA는 prod 빌드로.** 이 repo의 `next dev`는 Playwright 하이드레이션이 안 된다.
 8. **Next.js는 훈련 데이터와 다르다** — 코드 작성 전 `node_modules/next/dist/docs/` 해당 가이드 선독(루트 AGENTS.md 최상단 지시).
 9. **로컬 빌드도 env가 있으면 Supabase 모드**다(mock 아님). 시드는 카탈로그만.
-10. **SQL smoke는 `npx supabase@2.101.0`으로 CI 미러링**(로컬 이미지와 CI 이미지 차이 이력). 신규 함수는 `revoke all ... from public, anon, authenticated, service_role` 봉인 후 필요 롤만 grant — `from public`만으로는 봉인 안 됨.
+10. **SQL smoke는 CI와 같은 Supabase CLI 2.109.1로**(2026-10-22 정정 — 2.101.0은 42501 대신 연결이 끊긴다, `.github/workflows/pipeline.yml:42-44`). 신규 함수는 `revoke all ... from public, anon, authenticated, service_role` 봉인 후 필요 롤만 grant — `from public`만으로는 봉인 안 됨.
 11. **워크트리에서 `next build` 실패 이력**(심링크 불가·npm install 필요) — 병렬 스테이지를 워크트리로 돌릴 때 각 워크트리에서 `npm install` 필요.
 12. **main 병행 변경 주의**: 첫 판매 게이트(#315~#318)가 main에 계속 들어온다. 통합 브랜치를 주기적으로 main에 rebase.
 13. **금지선**: 레퍼런스 이미지·카피·로고·핑크(#F83BAA·#FD4BBB) 사용 금지(wc-design.test.ts가 hex 부재를 기계 검증하도록 설계됨) · 결제/재고/RNG/검표 동결(DESIGN §11, 쿠폰 S7만 서버 RPC 금액 개입) · 사용자-facing '가챠/뽑기/충전' 어휘 금지 · PR 본문·커밋에 Claude 출처 표기 금지.

@@ -43,7 +43,7 @@
 | ⑧ | 코인·출석 | 코인 원장·출석 체크·뽑기권 교환 RPC | append-only 원장, 교환은 기존 뽑기권 발급 경로 호출, '가챠' 어휘 금지 |
 | ⑨ | `product_questions` | 공개 질문·운영 답변 | 작성자 RLS + 공개 읽기, 모더레이션 가능 |
 
-전 함수 공통: 생성 후 `revoke all from public, anon, authenticated, service_role` 봉인 → 필요한 롤에만 grant. 로컬 적용 검증 + SQL smoke(`npx supabase@2.101.0` — CI 미러) 필수.
+전 함수 공통: 생성 후 `revoke all from public, anon, authenticated, service_role` 봉인 → 필요한 롤에만 grant. 로컬 적용 검증 + SQL smoke(Supabase CLI 2.109.1 — CI `pipeline.yml`과 같음) 필수. *(2026-10-22 정정: 2.101.0은 함수 권한 거절 시 42501 대신 연결이 끊긴다.)*
 
 ## 3. 검증 전략
 
