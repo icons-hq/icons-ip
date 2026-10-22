@@ -15,6 +15,11 @@ describe('FAQ 먼저 여는 상담 위젯', () => {
     expect(renderToStaticMarkup(<InquiryWidget />)).toContain('FAQ · 문의');
     mocks.pathname = '/';
   });
+  it('전역 셸 안의 /login에는 런처를 띄우지 않는다(입력 집중 — 모바일 소셜 버튼을 가림)', () => {
+    mocks.pathname = '/login';
+    expect(renderToStaticMarkup(<InquiryWidget />)).toBe('');
+    mocks.pathname = '/';
+  });
   it('비로그인은 FAQ와 로그인 유도를 보고 문의 작성 폼을 받지 않는다', () => {
     const html = renderToStaticMarkup(<InquiryWidgetPanel userId={null} onClose={() => {}} />);
     expect(html).toContain('role="dialog"'); expect(html).toContain('aria-modal="true"');
