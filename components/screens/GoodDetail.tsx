@@ -3,7 +3,6 @@
 import { krw } from '@/lib/format';
 
 import Link from 'next/link';
-import { publicIpHref } from '@/lib/ip-identity';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { GoodBuyBars, GoodPurchasePanel, GoodRailBuyBox, useAddToCartResult, useGoodPurchase } from '@/components/shop/GoodPurchasePanel';
@@ -20,6 +19,7 @@ import { goodsNoticeRows } from '@/lib/goods-notice';
 import { GoodsKcDisclosure } from '@/components/shop/GoodsKcDisclosure';
 import { GoodsDescription } from '@/components/shop/GoodsDescription';
 import { GoodRelatedProducts } from '@/components/shop/GoodRelatedProducts';
+import { GoodBrandCard, GoodIpStory } from '@/components/shop/GoodBrandCard';
 import { GoodsGroupSelector } from '@/components/shop/GoodsGroupSelector';
 import { goodDisplayBadges } from '@/lib/goods-taxonomy';
 import { newInquiryHref } from '@/lib/inquiries';
@@ -348,10 +348,15 @@ export function GoodDetailView({
             /* eslint-disable-next-line @next/next/no-img-element */
             <img alt={`${good.name} 상세 이미지`} className="wc-pdp-panel__image" src={detail.detailImageUrl} />
           ) : null}
+          {ip ? <GoodIpStory ip={ip} /> : null}
           <NoticeTable detail={detail} />
           <GoodsKcDisclosure disclosures={detail.kcDisclosures ?? []} />
           <InquiryEntry goodId={good.id} />
           {reviewEventBanner}
+          {ip ? <GoodBrandCard className="wc-pdp-brand--panel" ip={ip} /> : null}
+          {/* 추천 블록(연관 굿즈 → 자동 추천)은 상세 설명 패널 맨 끝이다(LD-6, 2026-10-22 확정 — 탭 위에서 이동). */}
+          {!embedded && detail.relatedGoods ? <GoodRelatedProducts data={detail.relatedGoods} /> : null}
+          {!embedded ? automaticRecommendations : null}
         </div>
       ),
     },
@@ -431,12 +436,7 @@ export function GoodDetailView({
               {sheetVisible ? null : <GoodPurchasePanel purchase={surfacePurchase} />}
             </div>
             {!embedded && discovery?.shippingSavings ? <a className="wc-pdp-shipping-shortcut" href="#pdp-shipping-savings">배송비 절약 굿즈 보기</a> : null}
-            {ip ? (
-              <div className="wc-pdp__brand">
-                <span className="wc-pdp__brand-name">{ip.title}</span>
-                <Link className="wc-pdp__brand-link" href={publicIpHref(ip)}>브랜드 보러가기</Link>
-              </div>
-            ) : null}
+            {ip ? <GoodBrandCard ip={ip} /> : null}
           </div>
         </div>
       </div>
@@ -446,8 +446,6 @@ export function GoodDetailView({
       {announcements ? <div className="wc-container">{announcements}</div> : null}
       {detail.attributes?.length ? <div className="wc-container"><section className="wc-pdp-notice" aria-labelledby="pdp-attributes-heading"><h2 className="wc-pdp-panel__title" id="pdp-attributes-heading">굿즈 정보</h2><div className="wc-pdp-notice__scroll"><table className="wc-pdp-notice__table"><caption className="sr-only">굿즈 속성</caption><tbody>{detail.attributes.map(row => <tr key={row.id}><th scope="row">{row.name}</th><td>{row.value}</td></tr>)}</tbody></table></div></section></div> : null}
       {detail.sizeChart ? <div className="wc-container"><GoodSizeChart chart={detail.sizeChart} /></div> : null}
-      {!embedded && detail.relatedGoods ? <div className="wc-container"><GoodRelatedProducts data={detail.relatedGoods} /></div> : null}
-      {!embedded && automaticRecommendations ? <div className="wc-container">{automaticRecommendations}</div> : null}
       {!embedded && discovery?.shippingSavings ? <div className="wc-container"><ProductShippingSavings goodId={good.id} option={purchase.selectedOption} quantity={purchase.quantity} /></div> : null}
       {!embedded && media?.settings.shortclips && media.shortclip ? <div className="wc-container"><ProductShortclips clip={media.shortclip} fallbackBackground={good.img} /></div> : null}
       {/* 하부 탭 섹션(PD-05): 탭바는 화면 전폭, 패널 840 + 우측 레일 340(데스크톱).
