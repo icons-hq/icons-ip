@@ -40,6 +40,22 @@ const archived = campaign({ id: 'spring', title: '봄 이벤트', displayState: 
 /* RLS 상 운영자만 받는 행이다 — 화면은 role 을 보지 않고 받은 데이터를 그대로 그린다. */
 const draft = campaign({ id: 'winter', title: '겨울 캠페인', status: 'draft' });
 
+function tabLabels(html: string) {
+  return [...html.matchAll(/<button[^>]*role="tab"[^>]*>([^<]*)<\/button>/g)].map((match) => match[1]);
+}
+
+/** 탭 패널 하나의 마크업. 패널은 서로 이어져 있어 다음 패널 시작 전까지를 자른다. */
+function panelHtml(html: string, id: 'all' | 'event' | 'drop') {
+  const start = html.indexOf(`id="campaign-panel-${id}"`);
+  const bodyStart = html.indexOf('>', start) + 1;
+  const next = html.indexOf('role="tabpanel"', bodyStart);
+  return html.slice(bodyStart, next === -1 ? undefined : next);
+}
+
+function cardCount(html: string) {
+  return html.match(/class="wc-campaign-card"/g)?.length ?? 0;
+}
+
 describe('CampaignHub', () => {
   it('카드가 상세로 가는 통짜 링크이고 제목·부제를 싣는다', () => {
     const html = renderToStaticMarkup(<CampaignHub banners={[]} campaigns={[summer]} />);
@@ -96,15 +112,66 @@ describe('CampaignHub', () => {
     expect(html).toContain('>DROP<');
   });
 
-  it('ALL·EVENT·DROP 세 탭을 카운트와 함께 낸다', () => {
+  /* 레퍼런스 탭은 14/700 라벨뿐이다 — 건수를 붙이지 않는다(11 §8 EV-01). */
+  it('ALL·EVENT·DROP 세 탭을 건수 없이 낸다', () => {
     const html = renderToStaticMarkup(
       <CampaignHub banners={[]} campaigns={[summer, drop, archived]} />,
     );
 
     expect(html.match(/role="tab"/g)).toHaveLength(3);
-    expect(html).toContain('ALL (3)');
-    expect(html).toContain('EVENT (2)');
-    expect(html).toContain('DROP (1)');
+    expect(tabLabels(html)).toEqual(['ALL', 'EVENT', 'DROP']);
+    expect(html).not.toMatch(/(?:ALL|EVENT|DROP) \(\d+\)/);
+  });
+
+  /* 레퍼런스 허브는 보이는 제목·부제 없이 배너로 시작한다(R-06 §1.1). 제목은 문서 구조와
+     스크린리더 탐색을 위해 시각적으로만 숨긴 h1 으로 남긴다. */
+  it('보이는 제목·부제 없이 시각적으로 숨긴 h1 만 남긴다', () => {
+    const html = renderToStaticMarkup(<CampaignHub banners={[]} campaigns={[summer]} />);
+
+    expect(html).toContain('<h1 class="wc-sr-only">이벤트</h1>');
+    expect(html.match(/<h1\b/g)).toHaveLength(1);
+    expect(html).not.toContain('wc-section-heading');
+    expect(html).not.toContain('기간 한정 캠페인과 프로모션을 모았어요');
+  });
+
+  /* 카드 리워드 게이트가 꺼져 있어도 허브 자신의 문구가 '카드팩'을 말하던 누수(CH-11).
+     운영자가 넣은 캠페인 문구는 데이터라 여기서 보지 않는다 — 허브가 직접 쓰는 문구만 본다. */
+  it('허브 자체 문구에 카드팩 안내가 없다', () => {
+    const plain = campaign({ id: 'plain', title: '가을 이벤트' });
+    for (const html of [
+      renderToStaticMarkup(<CampaignHub banners={[]} campaigns={[]} />),
+      renderToStaticMarkup(<CampaignHub banners={[{ ...plain, featuredOrder: 1 }]} campaigns={[plain]} />),
+    ]) {
+      expect(html).not.toContain('카드팩');
+      expect(html).not.toContain('코인');
+    }
+  });
+
+  /* 11 §6 B21 — ALL 은 최대 100건을 한 번에, EVENT·DROP 은 10건 + [더보기 (n/총)]. */
+  it('ALL 은 최대 100건을 싣고 EVENT·DROP 은 10건과 더보기로 시작한다', () => {
+    const events = Array.from({ length: 23 }, (_, index) => campaign({ id: `event-${index}`, kind: 'event' }));
+    const drops = Array.from({ length: 90 }, (_, index) => campaign({ id: `drop-${index}`, kind: 'drop' }));
+    const html = renderToStaticMarkup(<CampaignHub banners={[]} campaigns={[...events, ...drops]} />);
+
+    expect(cardCount(panelHtml(html, 'all'))).toBe(100);
+    expect(panelHtml(html, 'all')).not.toContain('wc-view-more');
+
+    expect(cardCount(panelHtml(html, 'event'))).toBe(10);
+    expect(panelHtml(html, 'event')).toContain('더보기 (10/23)');
+    expect(panelHtml(html, 'event')).toContain('href="/events/event-9"');
+    expect(panelHtml(html, 'event')).not.toContain('href="/events/event-10"');
+
+    expect(cardCount(panelHtml(html, 'drop'))).toBe(10);
+    expect(panelHtml(html, 'drop')).toContain('더보기 (10/90)');
+  });
+
+  it('10건 이하인 탭에는 더보기를 두지 않는다', () => {
+    const html = renderToStaticMarkup(
+      <CampaignHub banners={[]} campaigns={[summer, drop, archived]} />,
+    );
+
+    expect(html).not.toContain('wc-view-more');
+    expect(cardCount(panelHtml(html, 'event'))).toBe(2);
   });
 
   it('배너는 캠페인 상세로 가는 링크에 텍스트 레이어를 얹는다', () => {
@@ -115,6 +182,23 @@ describe('CampaignHub', () => {
     expect(html).toContain('wc-campaign-banner');
     expect(html).toContain('aria-roledescription="carousel"');
     expect(html.match(/href="\/events\/summer"/g)?.length).toBeGreaterThan(1);
+  });
+
+  /* 배너가 둘 이상이면 자동 넘김이 돈다 — 멈출 수단과 현재 위치가 함께 있어야 한다(DESIGN §10). */
+  it('배너가 여러 장이면 위치·정지 버튼·좌우 화살표를 함께 낸다', () => {
+    const html = renderToStaticMarkup(
+      <CampaignHub
+        banners={[{ ...summer, featuredOrder: 1 }, { ...drop, featuredOrder: 2 }]}
+        campaigns={[summer, drop]}
+      />,
+    );
+
+    expect(html).toContain('aria-roledescription="slide"');
+    expect(html).toContain('aria-label="1 / 2"');
+    expect(html).toContain('aria-label="자동 넘김 일시정지"');
+    expect(html).toContain('aria-pressed="false"');
+    expect(html).toMatch(/<button[^>]*aria-label="이전 배너"[^>]*disabled=""/);
+    expect(html).toMatch(/<button[^>]*aria-label="다음 배너"(?![^>]*disabled)/);
   });
 
   /* 모든 목록에 빈 상태가 있어야 한다(DESIGN §9·§12). */

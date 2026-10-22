@@ -276,7 +276,7 @@ z-index: { chrome: "3–4", panel: "10–100", overlay: "999+", toast-modal: "99
 | `flat-auth-form` | 인증 | 448px 1칼럼, 잉크 60px CTA, 소셜 55px 원형(도입 시), in-place 복구 스왑 (05) |
 | `mypage-shell` | 계정 허브 | 프로필 스트립(등급 뱃지)+좌 200px 메뉴 3그룹, 모바일은 메뉴 숨김 (05) |
 | `coupon-ticket-card` | 쿠폰함 | 2열 티켓형 카드+등급별 뱃지 (05) |
-| `campaign-hub` | 이벤트 허브 | 배너 스와이퍼 1180×260 + ALL/EVENT/DROP 탭 + 2열 580px 카드(3:2) — **기간·상태 뱃지는 추가한다**(레퍼런스 미표기 결함 보완) (06) |
+| `campaign-hub` | 이벤트 허브 | 보이는 제목·부제 없음(h1은 시각 숨김) → 배너 스와이퍼 1180×260(모바일 전폭 375×175, 자동 넘김 5s·loop 없음, hover·포커스·조작·문서 비활성 시 정지, reduced-motion이면 자동 넘김 없음, 정지 버튼+현재 위치) + ALL/EVENT/DROP 탭(14/700, 건수 없음) + 2열 580px 카드(3:2). ALL은 최대 100건, EVENT·DROP은 10건 + [더보기 (n/총)](URL 불변) — **기간·상태 뱃지는 추가한다**(레퍼런스 미표기 결함 보완) (06, 11 §6 B21) |
 | `campaign-landing` | 캠페인 상세 | sticky 앵커 내브+코인 잔액 노출+게스트 로그인 CTA 치환. 코인 소진처는 뽑기권 교환 UI(가챠 어휘 금지) (06) |
 | `document-page` | 정책·법적 | 620px 문서 서식. 공지 상세는 1180px (06) |
 | `standalone-game` | 참여형 게임 | 크롬 없는 풀스크린 유지, 팔레트만 White Catalog 정합 (06) |

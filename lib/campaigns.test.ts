@@ -1,12 +1,16 @@
 import { describe, expect, it } from 'vitest';
 import {
+  CAMPAIGN_HUB_ALL_LIMIT,
+  CAMPAIGN_HUB_PAGE_SIZE,
   campaignAnchors,
   campaignDisplayState,
+  campaignMoreLabel,
   campaignPeriodLabel,
   campaignSectionDomId,
   campaignStateBadgeLabel,
   campaignStateBadgeVariant,
   campaignStateLabel,
+  nextCampaignVisibleCount,
   orderCampaignsForHub,
   parseCampaignSections,
   type CampaignDisplayState,
@@ -207,5 +211,23 @@ describe('campaignAnchors', () => {
       { id: campaignSectionDomId(0), label: 'MY COIN' },
       { id: campaignSectionDomId(2), label: '유의 사항' },
     ]);
+  });
+});
+
+describe('허브 목록 분량 (11 §6 B21)', () => {
+  it('ALL 은 최대 100건, EVENT·DROP 은 10건씩이다', () => {
+    expect(CAMPAIGN_HUB_ALL_LIMIT).toBe(100);
+    expect(CAMPAIGN_HUB_PAGE_SIZE).toBe(10);
+  });
+
+  it('더보기 라벨은 보이는 건수와 전체 건수를 함께 적는다', () => {
+    expect(campaignMoreLabel(10, 23)).toBe('더보기 (10/23)');
+  });
+
+  it('더보기 한 번에 10건씩 늘리되 전체를 넘기지 않는다', () => {
+    expect(nextCampaignVisibleCount(10, 23)).toBe(20);
+    expect(nextCampaignVisibleCount(20, 23)).toBe(23);
+    expect(nextCampaignVisibleCount(23, 23)).toBe(23);
+    expect(nextCampaignVisibleCount(2, 5, 2)).toBe(4);
   });
 });

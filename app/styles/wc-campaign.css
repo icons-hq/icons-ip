@@ -66,32 +66,41 @@
 
 /* ------------------------------------------------------------------
    2. campaign-hub — /events
-   ------------------------------------------------------------------ */
+   ------------------------------------------------------------------
+   보이는 제목·부제 없이 배너 → 탭 → 카드 그리드다(R-06 §1.1, 11 §8 EV-01).
+   제목 h1 은 .wc-sr-only 로 문서 구조에만 남는다. */
 
 .wc-campaign-hub {
   display: block;
-  padding: 24px 0 96px;
+  padding: 0 0 96px;
 }
 
-.wc-campaign-hub__heading {
-  margin-bottom: 24px;
-}
-
-/* 2.1 상단 배너 슬라이더 (R-06 §1.2)
-   데스크톱 1180×260, 모바일 375×175 전폭. 슬라이드는 통짜 링크다. */
+/* 2.1 상단 배너 슬라이더 (R-06 §1.2 · 11 §6 B21)
+   데스크톱 1180×260, 모바일 375×175 전폭. 슬라이드는 통짜 링크다.
+   트랙은 파운데이션 scroll-snap 트랙이고, 한 화면에 한 장씩 넘어간다. */
 
 .wc-campaign-hub__banners {
-  margin-bottom: 40px;
+  /* 모바일은 거터를 지우고 전폭으로 붙인다(R-06 §1.2 "모바일 375×175, 전폭"). */
+  margin: 0 calc(var(--wc-gutter) * -1) 8px;
 }
 
-.wc-campaign-hub__banners .wc-slider__track {
-  gap: 12px;
+.wc-campaign-banners {
+  position: relative;
+  display: block;
+}
+
+.wc-campaign-banners__track {
+  gap: 0;
+}
+
+.wc-campaign-banners__slide {
+  width: 100%;
 }
 
 .wc-campaign-banner {
   position: relative;
   display: block;
-  width: min(100%, 1180px);
+  width: 100%;
   /* 모바일 375×175 ≈ 15:7. 데스크톱에서 1180×260으로 넘어간다. */
   aspect-ratio: 15 / 7;
   overflow: hidden;
@@ -172,25 +181,118 @@
   color: #FFFFFF;
 }
 
-/* 2.2 탭 (R-06 §1.3) — 파운데이션 탭 프리미티브를 이 지면 수치로 재조율한다. */
+/* 좌우 화살표 44×44 — 배너 안쪽 양끝(R-06 §1.2). 모바일은 스와이프가 이동 수단이라
+   감춘다(레퍼런스 small-hide). 첫 장·마지막 장에서는 비활성이다(loop 없음). */
+.wc-campaign-banners__arrow {
+  position: absolute;
+  top: 50%;
+  z-index: 1;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  transform: translateY(-50%);
+  border: 0;
+  background: rgba(0,0,0,.1);
+  color: #FFFFFF;
+  cursor: pointer;
+}
+
+.wc-campaign-banners__arrow--prev {
+  left: 0;
+}
+
+.wc-campaign-banners__arrow--next {
+  right: 0;
+}
+
+.wc-campaign-banners__arrow:disabled {
+  opacity: .35;
+  cursor: default;
+}
+
+/* 현재 위치와 자동 넘김 정지 버튼(DESIGN §10 캐러셀 정지 수단·현재 위치).
+   레퍼런스에 없는 추가 컨트롤이라 이미지 위 오른쪽 위 한 자리에 모은다 —
+   하단은 배너 카피 레이어가 쓴다. */
+.wc-campaign-banners__status {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 16px;
+  background: rgba(0,0,0,.35);
+  color: #FFFFFF;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.5;
+}
+
+.wc-campaign-banners__fraction {
+  font-variant-numeric: tabular-nums;
+}
+
+/* 글리프는 12px 이지만 히트박스는 아이콘 버튼 최소 44px 규칙을 따른다 —
+   알약 밖으로 넘치는 부분은 투명한 터치 영역이다. */
+.wc-campaign-banners__pause {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 32px;
+  margin-right: -8px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  cursor: pointer;
+}
+
+.wc-campaign-banners__pause::after {
+  content: '';
+  position: absolute;
+  inset: -6px -8px;
+}
+
+/* 2.2 탭 (R-06 §1.3 · 11 §8 EV-01)
+   14/700, 건수 없음, 탭 사이 20px, 줄 높이 50. 활성은 잉크 + 글자 폭 밑줄.
+   비활성은 불투명도 대신 ink.tertiary 다(DESIGN §10 — 이동 가능한 비현재 항목). */
+
+.wc-campaign-hub__tabs .wc-tabs__list {
+  gap: 20px;
+}
 
 .wc-campaign-hub__tabs .wc-tabs__tab {
   height: 50px;
-  padding: 0 20px;
-  font-size: 15px;
+  padding: 0;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 50px;
+  letter-spacing: -.2px;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-campaign-hub__tabs .wc-tabs__tab.active {
+  color: var(--wc-ink);
 }
 
 .wc-campaign-hub__tabs .wc-tabs__panel {
-  padding-top: 28px;
+  padding-top: 20px;
 }
 
 /* 2.3 카드 그리드 (R-06 §1.4)
-   데스크톱 2열 580px + gap 20 = 1180. 모바일 1열 343px(전폭). */
+   데스크톱 2열 580px + gap 20 = 1180, 줄 간격 48. 모바일 1열 343px(전폭). */
 
 .wc-campaign-grid {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 32px 20px;
+  gap: 40px 20px;
   margin: 0;
   padding: 0;
   list-style: none;
@@ -234,17 +336,17 @@
 .wc-campaign-card__info {
   display: flex;
   flex-direction: column;
-  gap: 6px;
-  padding-top: 14px;
+  gap: 4px;
+  padding-top: 12px;
 }
 
-/* editorial 파운데이션이 h1~h3 에 display 서체와 자기 잉크를 강제한다 — 지면 서체로 되돌린다. */
+/* 지면 서체·잉크를 명시한다 — 헤딩 요소에 전역 규칙이 끼어들 여지를 남기지 않는다. */
 .wc-campaign-card__title {
   margin: 0;
   font-family: inherit;
   font-size: 18px;
   font-weight: 700;
-  line-height: 1.5;
+  line-height: 1.33;
   letter-spacing: -.4px;
   color: var(--wc-ink);
 }
@@ -264,7 +366,7 @@
   display: flex;
   align-items: center;
   gap: 8px;
-  margin: 2px 0 0;
+  margin: 4px 0 0;
 }
 
 .wc-campaign-card__period {
@@ -272,6 +374,13 @@
   font-weight: 400;
   line-height: 1.5;
   color: var(--wc-ink-sub);
+}
+
+/* 2.4 더보기 (11 §6 B21) — EVENT·DROP 탭. 카드 그리드 아래 가운데. */
+.wc-campaign-more {
+  display: flex;
+  justify-content: center;
+  margin-top: 40px;
 }
 
 .wc-campaign-hub__empty {
@@ -640,6 +749,11 @@
    ------------------------------------------------------------------ */
 
 @media (min-width: 750px) {
+  /* 태블릿부터는 콘텐츠 칼럼 안에 둔다 — 전폭은 모바일 배너만의 문법이다. */
+  .wc-campaign-hub__banners {
+    margin: 0 0 24px;
+  }
+
   .wc-campaign-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -654,13 +768,27 @@
    ------------------------------------------------------------------ */
 
 @media (min-width: 990px) {
+  /* 배너 섹션 위아래 40 (LFS 실측: 배너 274→534, 탭 574) */
   .wc-campaign-hub {
     padding: 40px 0 120px;
+  }
+
+  .wc-campaign-hub__banners {
+    margin-bottom: 40px;
   }
 
   /* 1180×260 (R-06 §1.2) */
   .wc-campaign-banner {
     aspect-ratio: 59 / 13;
+  }
+
+  .wc-campaign-banners__arrow {
+    display: inline-flex;
+  }
+
+  .wc-campaign-banners__status {
+    top: 16px;
+    right: 16px;
   }
 
   .wc-campaign-banner__title {
@@ -675,9 +803,13 @@
     padding: 28px 28px 22px;
   }
 
-  .wc-campaign-hub__tabs .wc-tabs__tab {
-    padding: 0 24px;
-    font-size: 16px;
+  /* 탭 → 카드 40 (LFS 실측: 탭 줄 624 → 카드 664), 카드 줄 간격 48 (664 → 1156, 카드 444). */
+  .wc-campaign-hub__tabs .wc-tabs__panel {
+    padding-top: 40px;
+  }
+
+  .wc-campaign-grid {
+    row-gap: 48px;
   }
 
   .wc-campaign-nav {

@@ -235,6 +235,29 @@ export function campaignPeriodLabel(startsAt: string, endsAt: string): string {
   return `${head} – ${tail}`;
 }
 
+/* ------------------------------------------------------------------
+   허브 목록 분량 — 11 §6 B21 (LFS 이벤트 허브 실측)
+   ------------------------------------------------------------------
+   ALL 은 한 번에 최대 100건을 싣고, EVENT·DROP 은 10건으로 시작해 [더보기 (n/총)]로
+   10건씩 이어 붙인다(URL 불변). 화면이 숫자를 직접 들고 있지 않게 여기서 정한다. */
+
+export const CAMPAIGN_HUB_ALL_LIMIT = 100;
+export const CAMPAIGN_HUB_PAGE_SIZE = 10;
+
+/** "더보기 (10/23)" — 지금 보이는 건수 / 그 탭의 전체 건수. */
+export function campaignMoreLabel(visible: number, total: number): string {
+  return `더보기 (${visible}/${total})`;
+}
+
+/** 더보기 한 번에 늘어나는 노출 건수. 전체를 넘기지 않는다. */
+export function nextCampaignVisibleCount(
+  visible: number,
+  total: number,
+  pageSize: number = CAMPAIGN_HUB_PAGE_SIZE,
+): number {
+  return Math.max(0, Math.min(total, visible + pageSize));
+}
+
 const DISPLAY_STATE_ORDER: Record<CampaignDisplayState, number> = {
   ongoing: 0,
   upcoming: 1,
