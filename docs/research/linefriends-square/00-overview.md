@@ -15,8 +15,10 @@
 | [06-event-campaign-static.md](./06-event-campaign-static.md) | 이벤트 허브 · 캠페인/드랍 아티클 · 공지 · 공고 · 정책 · about · 미니게임 |
 | [07-design-tokens.md](./07-design-tokens.md) | 색 전수+액센트 사용처 맵 · 타이포 스케일 · 스페이싱 · radius/그림자 · 버튼/인풋/뱃지 · z-index · 모션 |
 | [08-feature-inventory.md](./08-feature-inventory.md) | 기능 전수 × ICONS 현황 × 채택 티어(T-A/T-B/T-C) × DB 영향 |
+| [11-parity-audit-2026-10.md](./11-parity-audit-2026-10.md) | 2026-10-22 재실측: LFS 변화·R-스펙 정정·로그인 표면·동작·기능 인벤토리·ICONS 차이 목록 |
+| [12-parity-plan-2026-10.md](./12-parity-plan-2026-10.md) | 패리티 2차 구현 계획(단계 L0~L10·운영 게이트·결정 항목) |
 
-보조 참조(로컬 전용, gitignored): `outputs/lfs-reference/` — 풀페이지 스크린샷 34장(17유형×2뷰포트) + detail 크롭 62장 + 초기 구조 조사(`lfs-structure-survey.md`). 이 저장소 밖으로 배포하지 않는다.
+보조 참조(로컬 전용, gitignored): `outputs/lfs-reference/` — 풀페이지 스크린샷 34장(17유형×2뷰포트) + detail 크롭 62장 + 초기 구조 조사(`lfs-structure-survey.md`), 2026-10-22 재실측 근거(`2026-10-22/` — REA 시나리오·비교 이미지·측정값·감사 보고서). 이 저장소 밖으로 배포하지 않는다.
 
 ## 레퍼런스 정체 요약
 

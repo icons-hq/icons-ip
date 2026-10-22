@@ -272,7 +272,7 @@ z-index: { chrome: "3–4", panel: "10–100", overlay: "999+", toast-modal: "99
 | `panel-tabs` | PDP 하부 | 앵커 아님·패널 전환 탭, sticky, 리뷰 카운트 표기 (04) |
 | `floating-buybar` | 데스크톱 스크롤 | 우하단 [카트 50²][구매 226×50] 미니 바 (04) |
 | `mobile-buybar` | 모바일 구매 | 72px 잉크 풀폭 고정(카트 존+구매 존), 옵션은 본문 인라인 (04) |
-| `mini-checkout-cart` | 카트 | 780+360 2열, 쿠폰 select·배송 메모가 카트 단계에, 빈 상태=일러스트+CTA (05) |
+| `mini-checkout-cart` | 카트 | 780+360 2열, 쿠폰 select는 카트 단계, 배송 메모는 주문서(주문 생성 계약 — 12 LD-8), 빈 상태=일러스트+CTA (05) |
 | `flat-auth-form` | 인증 | 448px 1칼럼, 잉크 60px CTA, 소셜 55px 원형(도입 시), in-place 복구 스왑 (05) |
 | `mypage-shell` | 계정 허브 | 프로필 스트립(등급 뱃지)+좌 200px 메뉴 3그룹, 모바일은 메뉴 숨김 (05) |
 | `coupon-ticket-card` | 쿠폰함 | 2열 티켓형 카드+등급별 뱃지 (05) |
@@ -303,6 +303,8 @@ z-index: { chrome: "3–4", panel: "10–100", overlay: "999+", toast-modal: "99
 10. 푸터 — 링크 그룹+사업자 정보+**오프라인 팝업 진입**+`/about` 링크
 
 빈 카탈로그·큐레이션 상태에서도 각 밴드는 명시적 빈 상태 또는 영역 제거로 처리하고 가짜 콘텐츠를 만들지 않는다.
+
+운영 확장 블록(2026-09~10, 정본은 `docs/ARCHITECTURE.md` 홈 절): 판매 BEST(`sales_best`)·리뷰 BEST(`review_best`)·상품 모자이크(`product_mosaic`)·자유상품(`product_collection`)·쇼핑스토리·홈 검색·홈 공지 팝업은 데이터가 있을 때만 그리고, 전체 순서·노출은 `home_layout_settings.blocks`가 정한다.
 
 ## 8. 표면군별 플레이북
 
@@ -382,7 +384,7 @@ protected-boundaries:
 
 ## 13. 구현 순서
 
-구현 단계·PR 구조·티켓 분해는 [docs/research/linefriends-square/09-implementation-plan.md](docs/research/linefriends-square/09-implementation-plan.md)가 정본이다. 완료 조건: 각 표면이 §8 플레이북과 R-스펙 수치를 만족하고, §11 계약 테스트가 통과하며, `npm run lint`·`npm run build`·`npm run test` 통과 + preview 검수 후 일괄 전환한다. S1~S9 구현은 통합 브랜치에서 끝났고, 남은 단계는 main 일괄 전환이다.
+1차 개편(S1~S9)의 단계·PR 구조는 [docs/research/linefriends-square/09-implementation-plan.md](docs/research/linefriends-square/09-implementation-plan.md)가 정본이고, 2026-09-01 main 전환(#333)으로 라이브됐다. 2차 패리티(2026-10)의 차이 목록과 단계는 [11-parity-audit-2026-10.md](docs/research/linefriends-square/11-parity-audit-2026-10.md)·[12-parity-plan-2026-10.md](docs/research/linefriends-square/12-parity-plan-2026-10.md)가 정본이다. 완료 조건: 각 표면이 §8 플레이북과 R-스펙 수치(11의 정정 포함)를 만족하고, §11 계약 테스트가 통과하며, `npm run lint`·`npm run build`·`npm run test` 통과 + preview 검수.
 
 ## 어드민 콘솔 (ADR-0014 · 판매자센터 표면 확장)
 

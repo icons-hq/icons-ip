@@ -29,3 +29,8 @@ IA와 명칭: GNB는 `NEW | BEST | 카테고리 | 온라인 팝업 | 카드팩 |
 - 헤더/푸터 이중화(홈 자체 셸)와 내비 진실원 2개(`lib/routes.ts` vs `Home.tsx` 하드코딩)는 이번 개편에서 한 벌로 통일된다.
 - 클래스명을 단언하는 컴포넌트 테스트 약 87개와 `app/editorial-design.test.ts`는 표면 교체와 함께 재작성된다.
 - 재현 참조 자료(스크린샷·구조 조사)는 `outputs/lfs-reference/`(gitignored)에, 재현 스펙은 `docs/research/linefriends-square/`에 둔다. 스펙 문서는 레퍼런스의 문구·이미지를 옮기지 않고 구조·수치·동작만 기술한다.
+
+## 추기 (2026-10-22)
+
+- 모바일 하단 5탭 바는 구현 계획(R-스펙 09 §4-1) 승인으로 채택됐다. 위 본문의 "바텀탭은 폐기"는 그 승인으로 대체되며, 전면 메뉴(전용 메뉴 페이지) 폐기는 유지된다.
+- 2차 패리티 감사와 계획은 [11-parity-audit-2026-10.md](../research/linefriends-square/11-parity-audit-2026-10.md)·[12-parity-plan-2026-10.md](../research/linefriends-square/12-parity-plan-2026-10.md)를 따른다. 금지선(레퍼런스 자산·카피·핑크)과 돈의 경계는 그대로다.

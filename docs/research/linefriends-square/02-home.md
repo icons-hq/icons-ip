@@ -72,6 +72,8 @@ Shopify Dawn `card-wrapper product-card-wrapper` + `ipx-card-product`.
 
 ### 1-3. 상품 리스트 행 (컴팩트형) — 밴드 ④~⑥ 공용
 
+> **2026-10-22 정정(11 §4):** 행은 380×99이고 하단 1px `#EBEDEE` 구분선 + 아래 여백 18이 있다. 리뷰가 있으면 별점이 붙는다.
+
 ```
 행 (D 380×80 / M 343×80, 행 간격 D 37 / M 33)
 ├ 썸네일 80×80 (cover, radius 0)  ← 좌측
@@ -94,6 +96,8 @@ Shopify Dawn `card-wrapper product-card-wrapper` + `ipx-card-product`.
 
 ### 1-5. 아웃라인 버튼 (밴드 ④~⑥ "컬렉션 전체보기")
 
+> **2026-10-22 정정(11 §4):** 버튼 테두리는 잉크가 아니라 **1px `#C8CACC`**(픽셀 (200,202,204), 8/26 원본도 같음), 300×50.
+
 - D 300×50 / M 전폭 343×50, 페이지(밴드) 중앙 정렬.
 - 14px/700 #111, bg #FFF, **outline 1.5px #111** (border 아님), radius 2px, padding 0 30, flex 중앙.
 - 리스트 하단 +56px(D) / +40px(M) 지점.
@@ -112,6 +116,8 @@ Shopify Dawn `card-wrapper product-card-wrapper` + `ipx-card-product`.
 - 텍스트·진행바 가독성용 하단 그라데이션 오버레이가 이미지 위에 깔림(스크린샷 확인, 하단부 어두워짐).
 
 ### ② 에디터의 제안 (`ipx-featured-contents`) — 콘텐츠 카드 3열
+
+> **2026-10 변경(11 §3 Δ8):** ②와 ③ 사이에 1180px 1px `#EBEDEE` 선이 생겼다. 배너+리스트 밴드(④~⑥)는 운영 구성이 3개에서 2개로 줄었다(템플릿 동일).
 
 - 헤딩 아래 24px에 캐러셀. **콘텐츠 카드**(상품 카드와 다른 별도 anatomy).
 - **데스크톱**: Swiper slidesPerView 3, gap(spaceBetween) 20 → 카드 **380×470.4**, 3열 표시, 14장 로드(fraction은 `1 / 12` = 14−3+1 위치 수). loop·autoplay 없음.
