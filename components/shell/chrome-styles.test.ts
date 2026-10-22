@@ -140,19 +140,29 @@ describe('모바일 하단 탭바 숨김 (B3·MC-03)', () => {
 });
 
 describe('모바일 푸터 순서 (CH-15)', () => {
-  /* 로고 → 회사·정책 → 고객센터(사업자 정보 포함) → 소개·SNS → 링크 → 스태프 블록 → 저작권. 데스크톱은 마크업 순서 그대로다. */
-  it('모바일에서만 블록 순서를 다시 놓는다', () => {
-    const order = (selector: string) => Number(declsFor(selector, MOBILE).order);
-    const sequence = ['.wc-footer__logo', '.wc-footer__primary', '.wc-footer__cs', '.wc-footer .wc-store-brand-details', '.wc-footer__cols', '.wc-footer__demo', '.wc-footer__line'];
-    const orders = sequence.map(order);
-    expect(orders.every(Number.isFinite)).toBe(true);
-    expect([...orders].sort((a, b) => a - b)).toEqual(orders);
-    expect(new Set(orders).size).toBe(orders.length);
+  /* 로고 → 회사·정책 → 고객센터(사업자 정보 포함) → 소개·SNS → 링크 → 스태프 블록 → 저작권.
+     CSS order 는 화면 순서와 읽기·포커스 순서를 갈라놓는다(WCAG 1.3.2·2.4.3) — 순서는 마크업이 갖고
+     (SiteFooter.test), 시트는 폭마다 자리가 다른 로고·소개 중 그 폭의 것만 보인다. */
+  it('푸터 어디에도 order 를 쓰지 않는다', () => {
+    const ordered: string[] = [];
+    root.walkRules((rule) => {
+      if (!rule.selectors.some((selector) => selector.includes('wc-footer'))) return;
+      rule.walkDecls('order', () => { ordered.push(`${mediaOf(rule) ?? 'base'} ${rule.selector}`); });
+    });
+    expect(ordered).toEqual([]);
+  });
+
+  it('로고·소개는 데스크톱에서 모바일 사본을, 모바일에서 데스크톱 사본을 감춘다', () => {
+    expect(declsFor('.wc-footer .wc-footer__logo--mobile').display).toBe('none');
+    expect(declsFor('.wc-footer .wc-footer__brand--mobile').display).toBe('none');
+    expect(declsFor('.wc-footer .wc-footer__logo--desktop', MOBILE).display).toBe('none');
+    expect(declsFor('.wc-footer .wc-footer__brand--desktop', MOBILE).display).toBe('none');
+    expect(declsFor('.wc-footer .wc-footer__logo--mobile', MOBILE)).toMatchObject({ display: 'block', 'margin-top': '0' });
+    /* 모바일 소개는 브랜드 시트의 기본(grid)으로 되돌린다. */
+    expect(declsFor('.wc-footer .wc-footer__brand--mobile', MOBILE)).toMatchObject({ display: 'grid', 'margin-top': '24px' });
     expect(declsFor('.wc-footer__inner', MOBILE)).toMatchObject({ display: 'flex', 'flex-direction': 'column' });
-    /* 고객센터와 링크 사이에 소개·SNS를 끼우려면 둘을 묶은 상자를 지워야 한다. */
+    /* 고객센터·소개·링크를 세로 흐름에 잇으려면 둘을 묶은 상자를 지워야 한다. */
     expect(declsFor('.wc-footer__middle', MOBILE)).toMatchObject({ display: 'contents' });
-    /* 데스크톱에는 순서 규칙이 없다(현행 유지). */
-    for (const selector of sequence) expect(declsFor(selector, DESKTOP).order, selector).toBeUndefined();
   });
 });
 

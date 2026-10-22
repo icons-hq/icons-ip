@@ -947,6 +947,13 @@
   margin: 50px 0 0;
 }
 
+/* 폭마다 자리가 다른 로고·소개는 한 벌씩 있다(SiteFooter, CH-15). 그 폭이 아닌 쪽은 display:none 이라
+   읽기·포커스 순서에서도 빠진다 — CSS order 처럼 화면 순서와 포커스 순서가 갈리지 않는다. */
+.wc-footer .wc-footer__logo--mobile,
+.wc-footer .wc-footer__brand--mobile {
+  display: none;
+}
+
 .wc-footer__logo a {
   font-size: 20px;
   font-weight: 800;
@@ -1173,21 +1180,25 @@
   }
 
   /* CH-15 — 모바일 순서: 로고 → 회사·정책 → 고객센터 → 사업자 정보(기본 펼침) → 스토어 소개·SNS → 링크 → 저작권.
-     마크업은 데스크톱 순서 그대로 두고 여기서만 다시 놓는다(블록끼리 의미가 이어지지 않아 읽기 순서가 달라도
-     내용이 바뀌지 않는다). 사업자 정보 펼침은 SiteFooter가 모바일에서 붙는 순간 한 번 연다.
-     .wc-footer__middle은 상자를 지워 고객센터와 링크 사이에 소개·SNS를 끼울 수 있게 한다. */
+     마크업이 이미 이 순서다 — 자리가 다른 로고·소개는 이 폭의 것만 보인다(SiteFooter). CSS order 를 쓰지 않아
+     화면 순서와 읽기·포커스 순서가 같다. 사업자 정보 펼침은 SiteFooter가 모바일에서 붙는 순간 한 번 연다.
+     .wc-footer__middle은 상자를 지워 고객센터·소개·링크를 세로 흐름에 그대로 잇는다(간격은 flex 라 겹치지 않는다). */
   .wc-footer__inner {
     display: flex;
     flex-direction: column;
   }
 
-  .wc-footer__logo {
-    order: 1;
+  .wc-footer .wc-footer__logo--desktop,
+  .wc-footer .wc-footer__brand--desktop {
+    display: none;
+  }
+
+  .wc-footer .wc-footer__logo--mobile {
+    display: block;
     margin-top: 0;
   }
 
   .wc-footer__primary {
-    order: 2;
     margin-top: 20px;
   }
 
@@ -1196,26 +1207,16 @@
   }
 
   .wc-footer__cs {
-    order: 3;
     margin-top: 28px;
   }
 
-  .wc-footer .wc-store-brand-details {
-    order: 4;
+  .wc-footer .wc-footer__brand--mobile {
+    display: grid;
     margin-top: 24px;
   }
 
   .wc-footer__cols {
-    order: 5;
     margin-top: 32px;
-  }
-
-  .wc-footer__demo {
-    order: 6;
-  }
-
-  .wc-footer__line {
-    order: 7;
   }
 }
 

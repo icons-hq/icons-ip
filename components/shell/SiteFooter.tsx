@@ -32,8 +32,10 @@ function openOnMobile(details: HTMLDetailsElement | null) {
 /* White Catalog 푸터. 링크 목록은 전부 lib/routes.ts가 진실원이고 여기서는 배치만 한다.
  * 법정 고지 3종은 회사·정책 행 뒤에 이어 붙는다 — 사업자 정보와 함께 표시 의무가 걸린 블록이라
  * 접이식(details) 안이라도 마크업에서 사라지지 않는다.
- * 마크업은 데스크톱 순서(정책 → 로고 → 고객센터·사업자 | 링크 → 저작권)이고, 모바일 순서
- * (로고 → 정책 → 고객센터 → 사업자 → 소개·SNS → 링크 → 저작권)는 wc-chrome.css가 다시 놓는다. */
+ * 데스크톱 순서는 정책 → 로고 → 소개·SNS → 고객센터·사업자 | 링크 → 저작권, 모바일 순서(CH-15)는
+ * 로고 → 정책 → 고객센터 → 사업자 → 소개·SNS → 링크 → 저작권이다. CSS order 로 옮기면 화면 순서와
+ * 읽기·포커스 순서가 갈리므로(WCAG 1.3.2·2.4.3) 자리가 다른 로고·소개는 폭마다 한 벌씩 두고,
+ * 그 폭이 아닌 쪽은 wc-chrome.css 가 display:none 으로 접근성 트리에서도 뺀다. */
 export function SiteFooter({businessInfo=BUSINESS_INFO,branding=DEFAULT_STOREFRONT_BRANDING}:{businessInfo?:BusinessInfoData;branding?:StorefrontBranding}) {
   const pathname = usePathname();
   const cardRewardsEnabled = useCardRewardsEnabled();
@@ -51,6 +53,7 @@ export function SiteFooter({businessInfo=BUSINESS_INFO,branding=DEFAULT_STOREFRO
   return (
     <footer className="wc-root wc-footer">
       <div className="wc-footer__inner">
+        <p className="wc-footer__logo wc-footer__logo--mobile"><Link aria-label={`${branding.displayName} 홈`} href="/"><StoreBrandLogo branding={branding} /></Link></p>
         <nav aria-label="회사·정책" className="wc-footer__primary">
           <ul>
             {FOOTER_PRIMARY_ITEMS.map((item) => (
@@ -62,8 +65,8 @@ export function SiteFooter({businessInfo=BUSINESS_INFO,branding=DEFAULT_STOREFRO
           </ul>
         </nav>
 
-        <p className="wc-footer__logo"><Link aria-label={`${branding.displayName} 홈`} href="/"><StoreBrandLogo branding={branding} /></Link></p>
-        <StoreBrandFooterDetails branding={branding} />
+        <p className="wc-footer__logo wc-footer__logo--desktop"><Link aria-label={`${branding.displayName} 홈`} href="/"><StoreBrandLogo branding={branding} /></Link></p>
+        <StoreBrandFooterDetails branding={branding} className="wc-footer__brand--desktop" />
 
         <div className="wc-footer__middle">
           <div className="wc-footer__cs">
@@ -74,6 +77,8 @@ export function SiteFooter({businessInfo=BUSINESS_INFO,branding=DEFAULT_STOREFRO
               <BusinessInfo info={businessInfo} className="wc-footer__biz-rows" />
             </details>
           </div>
+
+          <StoreBrandFooterDetails branding={branding} className="wc-footer__brand--mobile" />
 
           <div className="wc-footer__cols">
             <nav aria-label="발견 메뉴" className="wc-footer__links">
