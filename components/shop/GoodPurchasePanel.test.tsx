@@ -3,13 +3,17 @@ import { describe, expect, it, vi } from 'vitest';
 import type { Good } from '@/lib/data';
 import { activeGalleryIndex } from './PdpGallery';
 import {
+  CART_ADDED_STATUS,
   GoodPurchasePanel,
+  GoodRailBuyBox,
+  addToCartResultStep,
+  addedCartItems,
   buyNowNavigation,
   isGoodSoldOut,
-  isMiniBuybarVisible,
   mergedCartQuantity,
   purchaseBlockReason,
   purchaseSubtotal,
+  purchaseTotalDisplay,
   type GoodPurchaseController,
 } from './GoodPurchasePanel';
 
@@ -138,6 +142,52 @@ describe('buyNowNavigation', () => {
   });
 });
 
+describe('addToCartResultStep', () => {
+  it('담기를 누르지 않았으면 성공 문구가 남아 있어도 모달을 열지 않는다', () => {
+    expect(addToCartResultStep({ awaiting: false, message: CART_ADDED_STATUS })).toBe('idle');
+    expect(addToCartResultStep({ awaiting: false, message: null })).toBe('idle');
+  });
+
+  it('카트 반영 확정 문구가 온 뒤에만 연다 — 반영 중에는 기다린다', () => {
+    expect(addToCartResultStep({ awaiting: true, message: null })).toBe('wait');
+    expect(addToCartResultStep({ awaiting: true, message: CART_ADDED_STATUS })).toBe('open');
+  });
+
+  it('카트·검증 오류 문구가 오면 열지 않고 기다림을 접는다', () => {
+    expect(addToCartResultStep({ awaiting: true, message: '현재 재고보다 많이 담을 수 없습니다.' })).toBe('fail');
+    expect(addToCartResultStep({ awaiting: true, message: '아크릴 블록: 각인 문구를 입력해주세요.' })).toBe('fail');
+  });
+});
+
+describe('addedCartItems', () => {
+  it('본품과 고른 추가 구성을 담기 함수와 같은 선택으로 요약한다', () => {
+    const blue = { id: 'blue', name: '파랑', price: 12000, stockQty: 3, code: 'BLUE', attributes: {}, isDefault: true };
+    const red = { ...blue, id: 'red', name: '빨강', isDefault: false };
+    const sticker = { ...good, id: 'g14', name: '추가 스티커', options: [{ ...blue, id: 'x-blue' }, { ...red, id: 'x-red' }] };
+    const items = addedCartItems({
+      good: { ...good, options: [blue, red] },
+      selectedOption: red,
+      quantity: 2,
+      additionalChoices: [
+        { goodId: sticker.id, name: sticker.name, good: sticker, selected: true, selectedOption: sticker.options[1], quantity: 3 },
+        { goodId: 'g15', name: '고르지 않은 추가 구성', selected: false, quantity: 1 },
+      ],
+    });
+
+    expect(items).toEqual([
+      { name: '아크릴 블록', option: '빨강', quantity: 2 },
+      { name: '추가 스티커', option: '빨강', quantity: 3 },
+    ]);
+  });
+
+  it('하나뿐인 기본 옵션은 옵션 이름을 비운다', () => {
+    const only = { id: 'only', name: '기본 옵션', price: 12000, stockQty: 3, code: 'ONLY', attributes: {}, isDefault: true };
+    expect(addedCartItems({ good: { ...good, options: [only] }, selectedOption: only, quantity: 1 })).toEqual([
+      { name: '아크릴 블록', option: null, quantity: 1 },
+    ]);
+  });
+});
+
 describe('isGoodSoldOut', () => {
   /* 품절 판정은 수량이 아니라 판매 상태다 — 운영자가 내린 굿즈는 재고가 남아도 품절이다. */
   it('판매 상태로만 판정한다', () => {
@@ -147,11 +197,55 @@ describe('isGoodSoldOut', () => {
   });
 });
 
-describe('isMiniBuybarVisible', () => {
-  it('하부 탭이 보일 때만, 미리보기가 아닐 때만 뜬다', () => {
-    expect(isMiniBuybarVisible({ panelsInView: true, embedded: false })).toBe(true);
-    expect(isMiniBuybarVisible({ panelsInView: false, embedded: false })).toBe(false);
-    expect(isMiniBuybarVisible({ panelsInView: true, embedded: true })).toBe(false);
+describe('purchaseTotalDisplay', () => {
+  const base = { good, unavailableLabel: null, selectionRequired: false, subtotal: 24000, soldOut: false, quantity: 2 };
+
+  it('본문 패널과 레일 박스가 같은 합계 라벨·값을 쓴다', () => {
+    expect(purchaseTotalDisplay(base)).toEqual({ label: '총 금액', amount: '₩24,000', numeric: true });
+    expect(purchaseTotalDisplay({ ...base, good: { ...good, transactionOffer: null } }).label).toBe('총 금액');
+  });
+
+  it('판매 기간 밖이면 판매 상태를, 판매 중 옵션 전이면 안내 문구를 금액 대신 보인다', () => {
+    expect(purchaseTotalDisplay({ ...base, unavailableLabel: '판매 종료', selectionRequired: true, subtotal: 0, soldOut: true }))
+      .toEqual({ label: '판매 상태', amount: '판매 종료', numeric: false });
+    expect(purchaseTotalDisplay({ ...base, selectionRequired: true, subtotal: 0 }))
+      .toEqual({ label: '총 금액', amount: '옵션 선택 후 표시', numeric: false });
+  });
+
+  /* PD-08 — 재고 0 옵션은 자동 선택되지 않아 품절 굿즈에 "옵션 선택 후 표시"가 남던 결함. */
+  it('품절 굿즈는 고를 옵션이 없으니 가격으로 합계를 보인다', () => {
+    const only = { id: 'only', name: '기본 옵션', price: 9000, stockQty: 0, code: 'ONLY', attributes: {}, isDefault: true };
+    expect(purchaseTotalDisplay({ ...base, good: { ...good, stock: 'soldout', stockQty: 0, options: [only] }, selectionRequired: true, subtotal: 0, soldOut: true, quantity: 1 }))
+      .toEqual({ label: '총 금액', amount: '₩9,000', numeric: true });
+    /* 옵션이 없는 품절 굿즈는 굿즈 가격이다. */
+    expect(purchaseTotalDisplay({ ...base, good: { ...good, stock: 'soldout', stockQty: 0 }, selectionRequired: true, subtotal: 0, soldOut: true, quantity: 1 }).amount)
+      .toBe('₩12,000');
+  });
+});
+
+describe('GoodRailBuyBox', () => {
+  it('합계와 [카트 50][구매 226] 버튼을 같은 컨트롤러 함수에 묶는다', () => {
+    const html = renderToStaticMarkup(<GoodRailBuyBox purchase={controller({ quantity: 2, subtotal: 24000 })} />);
+
+    expect(html).toContain('<section aria-label="빠른 구매" class="wc-pdp-railbox">');
+    expect(html).toContain('<strong class="wc-pdp-railbox__amount">₩24,000</strong>');
+    expect(html).toContain('<button aria-label="장바구니에 담기" class="wc-pdp-railbox__cart" type="button">');
+    expect(html).toContain('<button class="wc-pdp-railbox__buy" type="button">구매하기</button>');
+  });
+
+  it('옵션 전에는 CTA 를 잠그고 합계 자리에 안내 문구를 작은 서체로 둔다', () => {
+    const html = renderToStaticMarkup(<GoodRailBuyBox purchase={controller({ selectionRequired: true, inert: true, subtotal: 0 })} />);
+
+    expect(html).toContain('<strong class="wc-pdp-railbox__amount is-note">옵션 선택 후 표시</strong>');
+    expect(html).toMatch(/class="wc-pdp-railbox__cart" disabled=""/);
+    expect(html).toMatch(/class="wc-pdp-railbox__buy" disabled=""/);
+  });
+
+  it('품절이면 두 버튼 자리를 재입고 알림 하나로 바꾼다', () => {
+    const html = renderToStaticMarkup(<GoodRailBuyBox purchase={controller({ good: { ...good, stock: 'soldout', stockQty: 0 }, soldOut: true })} />);
+
+    expect(html).toContain('재입고 알림 받기');
+    expect(html).not.toContain('wc-pdp-railbox__ctas');
   });
 });
 
@@ -204,14 +298,27 @@ describe('GoodPurchasePanel', () => {
     expect(html).toContain('value="3"');
   });
 
-  it('품절이면 CTA 쌍 대신 재입고 알림만 남는다', () => {
+  it('품절이면 CTA 쌍 대신 재입고 알림만 남고 합계는 가격으로 보인다', () => {
     const html = renderToStaticMarkup(
-      <GoodPurchasePanel purchase={controller({ good: { ...good, stock: 'soldout', stockQty: 0 }, soldOut: true })} />,
+      <GoodPurchasePanel purchase={controller({ good: { ...good, stock: 'soldout', stockQty: 0 }, soldOut: true, selectionRequired: true, inert: true, subtotal: 0 })} />,
     );
 
     expect(html).toContain('재입고 알림 받기');
-    expect(html).toContain('>품절<');
     expect(html).not.toContain('wc-buy-panel__ctas');
+    expect(html).toContain('<strong class="wc-buy-panel__total-amount">₩12,000</strong>');
+    expect(html).not.toContain('옵션 선택 후 표시');
+  });
+
+  /* PD-12 — '품절임박/품절'은 운영자가 고르는 재고 표시라 실재고와 연동되지 않는다. 라벨을 두지 않는다. */
+  it('재고 표시 라벨(품절임박·품절)을 패널에 두지 않는다', () => {
+    const low = renderToStaticMarkup(<GoodPurchasePanel purchase={controller({ good: { ...good, stock: 'low', stockQty: 2 } })} />);
+    const soldOut = renderToStaticMarkup(<GoodPurchasePanel purchase={controller({ good: { ...good, stock: 'soldout', stockQty: 0 }, soldOut: true })} />);
+
+    expect(low).not.toContain('품절임박');
+    expect(soldOut).not.toMatch(/<p class="wc-buy-panel__state">품절<\/p>/);
+    /* 판매 기간 같은 판매 상태는 그대로 글로 먼저 알린다. */
+    expect(renderToStaticMarkup(<GoodPurchasePanel purchase={controller({ unavailableLabel: '판매 시작 전' })} />))
+      .toContain('<p class="wc-buy-panel__state">판매 시작 전</p>');
   });
 
   /* 서버 확인 전에는 "완료"라고 하지 않는다. 카트가 낸 오류가 있으면 그것이 먼저다. */

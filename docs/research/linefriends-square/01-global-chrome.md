@@ -34,6 +34,8 @@ body
 
 ## 1. 공지바 (프로모 스트립)
 
+> **2026-10 변경(11 §3 Δ1):** 이미지 스트립 위에 닫기 가능한 **텍스트 공지 바**가 생겼다 — 데스크톱 1440×46.8, `#F2F2F2`, 13px 문구 + 검정 CTA 61×23 + 닫기 19.5, 국가별·예약 노출, 닫힘은 세션 유지. 이 절의 이미지 스트립 기록은 그대로 유효하다.
+
 - **텍스트 공지바가 아니라 "이미지 스트립 배너"다.** `section.hb-simple_banner > .hb-banner-container > .hb-banner-item > a > picture > img`.
 - 높이: 이미지 비율을 그대로 따른다(`img { width:100%; height:auto }`). 실측 **데스크톱 ≈36px**(1680w PC 이미지), **모바일 60px**(420w MO 이미지). srcset: `min-width:1440` → 1680/2520/3000w, 그 미만 데스크톱용, 모바일용 3계층.
 - 배경/텍스트색 없음(이미지가 전부). 전폭 100vw, `overflow:hidden`.
@@ -66,9 +68,9 @@ body
 - sticky 대상은 `.section-header` 하나: `position:sticky; top:0; z-index:3`. **공지바·유틸바는 고정되지 않고 스크롤 아웃.**
 - 스크롤이 상단을 벗어나면 섹션에 `on-sticky` 클래스가 붙고:
   - `.top-nav`(GNB 랩퍼)가 `margin-top:-54px`로 헤더 행 뒤로 슬라이드되어 **GNB가 가려지고 로고+아이콘 단일 바(총 높이 ≈69px)만 남는다.** transition `margin .3s, opacity .3s`.
-  - 모바일은 `.mobile-top-nav { margin-top:-55px; opacity:0 }` — 동일하게 탭 행이 사라진다.
-- 스크롤을 다시 최상단 근처로 되돌리면 해제(스크롤 방향 감지형 아님 — scrollY 400에서도 축약 유지 실측).
-- **그림자/보더 변화 없음** (box-shadow none 유지, 하단 헤어라인 없음). 스크린샷: `detail/chrome-sticky-header-desktop.png`.
+  - 모바일은 반대다: 로고 행(`.header`)이 `hide-header`로 숨고 GNB 탭 행이 상단에 남는다(§7, 2026-10-22 정정).
+- 축약은 `scrollTop>150`, 해제는 `<64`(스크롤 방향 감지형 아님 — scrollY 400에서도 축약 유지 실측, 2026-10-22 정정으로 임계값 보강).
+- **그림자 변화 없음**(box-shadow none 유지). GNB 행과 축약 헤더 아래에는 1px `#F0F2F4` 선이 있다(2026-10-22 정정 — 위 스크린샷에도 존재). 스크린샷: `detail/chrome-sticky-header-desktop.png`.
 
 ## 4. GNB (데스크톱, nav.header-main-menu, 54px)
 
@@ -148,21 +150,23 @@ body
 
 ## 7. 모바일 크롬 (≤989px)
 
-- **적층**: 이미지 배너 60px → 헤더 행 **81px** → 가로 GNB 탭 **51px** (합계 section-header 121px, sticky 동작은 §3.1과 동일 — 탭 행만 숨고 로고 행 유지).
+- **적층**: 이미지 배너 60px → 헤더 행 **81px** → 가로 GNB 탭 **51px** (합계 section-header 121px). sticky: `scrollTop≠0`이면 `hide-header`로 **로고 행이 숨고 GNB 탭 행(51)이 상단에 남는다**(2026-10-22 정정).
 - **헤더 행**: 로고 SVG **138×53**(워드마크 2줄 + 검정 라운드 태그 112×19 rx2 "GLOBAL OFFICIAL"), 좌 16px. 우측 아이콘 **검색 + 카트만**(44×44, 계정 아이콘 없음 — MY는 하단 탭바). **햄버거 메뉴 없음.**
 - **로고 = `<selection-menu>` 커스텀 엘리먼트**: 탭하면 로고 아래로 스토어 전환 패널(`.selection-menu`: absolute top 44, 전폭, padding 20 16, border-top 1px #EBEDEE, 행 높이 60px·radius 2px·배경 #EBEDEE·로고 이미지 h15, active/hover 시 검정 배경+흰 로고) + 검정 70% 백드롭 + `#MainContent blur(2px)`. 현재 항목은 HOME 1개뿐(사실상 미사용 장치).
 - **가로 스크롤 GNB 탭** `nav.mobile-top-nav` (51px, 배경 #FFF):
   - 동일 7항목. **17px/700/uppercase/line-height 51px**, `a` padding 0 11px, 첫/끝 li margin 5px. 전체 폭 실측 488px > 375px → 가로 스크롤(`.wrap { overflow-x:scroll }`, 스크롤바 숨김).
   - **활성 표기: 색·밑줄이 아니라 불투명도** — 기본 `opacity:.35`(회색처럼 보임), `.active`만 `opacity:1`.
   - **좌우 스크롤 fade**: `::before/::after`로 양 끝 **16px 흰색 그라디언트** 오버레이.
-  - sticky 시 `margin-top:-55px; opacity:0`으로 숨김(.3s).
+  - sticky 시에도 탭 행은 남는다(숨는 것은 로고 행 — 2026-10-22 정정).
 - **카테고리 토글 패널(바텀시트)**: 탭의 "카테고리"는 링크가 아니라 `a.gnb-category-trigger[href="#"]`. 탭하면 `.gnb-category-popup-wrapper > .showcase_category_mo_new`의:
   - 딤 `.dimmed_inside` rgba(0,0,0,.7), z 99
   - 시트 `.bottom_panel`: `fixed bottom:0; height:75%; border-radius 8px 8px 0 0; 배경 #FFF; z 100; padding-top 20px`, 내부 `.panel_inner` 세로 스크롤(스크롤바 숨김)
   - 콘텐츠 패턴: 섹션 제목 `h2.title_wrap` **18px/700, margin-bottom 20px** → ① 아이콘 퀵링크 가로 스크롤(`.icon-item` 폭 17vw, 이미지 래퍼 1:1·radius 10px·배경 #F8F8F8, 라벨 위 8px/아래 10px, gap 1.33vw, scroll-snap-x) ② 2열 컬렉션 이미지 카드 + 하단 도트 페이지네이션. 섹션 사이 **10px #F6F8FA 두꺼운 디바이더**.
+  > **2026-10-22 보강:** ② 아래에 ③ [카테고리\|K-POP] 탭 + 아이콘 12칸 그리드가 더 있다(8/26 캡처 하단에도 흔적).
   - 스크린샷: `detail/chrome-mobile-category-sheet.png`.
 - **하단 고정 탭바** `.ipx-footer-float-menu` (모바일 전용, `large-up-hide`):
   - `fixed bottom:0; height:62px; 배경 #FFF; border-top 1px #EBEDEE; padding 5px 13px; z-index 99(테마 오버라이드로 3 !important — 헤더(3)와 동급, 셀렉션 메뉴 열리면 0)`, `transition .3s`.
+  - 아래로 누적 ≥300px 스크롤하면 숨고, 위로 스크롤하거나 최상단이면 다시 보이며, 검색 오버레이가 열리면 숨는다(2026-10-22 정정 — 상시 노출 아님).
   - 5탭 `space-between`: **MENU**(/pages/menu) · **SHOP**(/collections/shop) · **HOME**(/) · **LIKE**(/pages/wish-list) · **MY**(/account). 각 아이템 50×50 세로 flex, svg 22×22 + 라벨 **10px/700/#111**, gap 4px. **비활성 opacity .3 / 활성 1.**
   - 스크린샷: `detail/chrome-mobile-header-floatbar.png`.
 - 유틸바(국가/언어)는 숨기고 모바일 푸터 하단 localization으로 대체.
@@ -177,7 +181,7 @@ body
 
 ## 9. 재현 시 요점 체크리스트
 
-1. sticky는 "헤더 스택 전체"가 아니라 **로고 행만 남는 축약형**이다. 공지바·유틸바·GNB는 스크롤 아웃(GNB는 -54px 슬라이드 + 재등장 시 0.3s 복귀).
+1. sticky는 "헤더 스택 전체"가 아니라 **로고 행만 남는 축약형**이다. 공지바·유틸바·GNB는 스크롤 아웃(GNB는 -54px 슬라이드 + 재등장 시 0.3s 복귀). **모바일은 반대로 로고 행이 숨고 탭 행이 남는다(§7 정정, 2026-10-22).**
 2. GNB 활성/hover는 **텍스트 색 + 3px 바(offset 4px) scaleX 애니메이션** 두 요소가 한 세트.
 3. 메가메뉴는 화면 전폭 패널이지만 **콘텐츠는 page-width(1212) 그리드**이고, 카테고리 메뉴만 고정 트랙폭 + 세로 구분선 변형이다.
 4. 모바일은 햄버거·드로어가 없고 **가로 탭 GNB + 카테고리 바텀시트 + 하단 5탭 바** 3장치로 대체된다.

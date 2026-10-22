@@ -7,12 +7,11 @@ import { RestockCta } from '@/components/shop/RestockCta';
 import { QuantityStepper } from '@/components/wc/QuantityStepper';
 import { WcButton } from '@/components/wc/WcButton';
 import type { Good, GoodOption } from '@/lib/data';
-import { goodsPurchaseConditionProblem, initialGoodOption, optionLabel } from '@/lib/goods-options';
+import { goodsPurchaseConditionProblem, initialGoodOption, optionLabel, selectableGoodOptionId, soldOutPreviewPrice } from '@/lib/goods-options';
 import { goodsAggregationUnavailableLabel } from '@/lib/goods-aggregation';
 import { prepareGoodsCustomInputSelection } from '@/lib/goods-custom-inputs';
 import { GoodsCustomInputsFields } from './GoodsCustomInputs';
 import { krw } from '@/lib/format';
-import { STOCK_LABEL } from '@/lib/goods-display';
 import { goodsShipDateLabel, preorderSupplyLabel, preorderUnavailableLabel } from '@/lib/goods-preorders';
 import { goodsSaleUnavailableLabel } from '@/lib/goods-sale-period';
 import { goodsPurchaseVolumePreview } from '@/lib/goods-transaction-presentation';
@@ -20,6 +19,7 @@ import { GoodsTransactionTerms } from './GoodsTransactionTerms';
 import { FULFILLMENT_METHOD_LABELS } from '@/lib/goods-fulfillment';
 import { GiftPurchaseEntry } from '@/components/gifts/GiftPurchaseEntry';
 import { SubscriptionPurchaseEntry } from '@/components/subscriptions/SubscriptionPurchaseEntry';
+import type { AddToCartResultItem } from './AddToCartResultDialog';
 
 /*
  * 굿즈 상세의 구매 블록 (R-04 §3.6~3.8 · DESIGN `pdp-buybox`·`cta-pair`·`restock-cta`).
@@ -38,6 +38,17 @@ export const CART_ADDED_STATUS = '장바구니에 담았어요.';
 /** 품절 판정은 재고 수량이 아니라 판매 상태다 — 운영자가 내린 굿즈는 수량과 무관하다. */
 export function isGoodSoldOut(good: Pick<Good, 'stock'>) {
   return good.stock === 'soldout';
+}
+
+/** 모바일 바가 구매 시트를 열 수 있는가 — 판매 불가면 비활성 안내, 품절이면 재입고 알림이 바를 대신한다. */
+export function purchaseSheetAvailable(purchase: Pick<GoodPurchaseController, 'unavailableLabel' | 'soldOut'>): boolean {
+  return !purchase.unavailableLabel && !purchase.soldOut;
+}
+
+/** 정기배송·선물 진입 가용성. 굿즈 상세가 한 번 묻고 본문 패널·구매 시트에 같은 값을 내린다. */
+export interface OtherPurchaseAvailability {
+  subscription: boolean;
+  gift: boolean;
 }
 
 function optionAvailabilitySuffix(good: Good, option: GoodOption) {
@@ -87,11 +98,6 @@ export function purchaseBlockReason(state: PurchaseBlockState): PurchaseBlockRea
   if (state.pending) return 'pending';
   if (state.nextQuantity > state.stockQty) return 'stock';
   return null;
-}
-
-/** 데스크톱 플로팅 미니 바는 하부 탭 영역이 보일 때만 뜬다. 미리보기에는 없다. */
-export function isMiniBuybarVisible(state: { panelsInView: boolean; embedded: boolean }) {
-  return state.panelsInView && !state.embedded;
 }
 
 /**
@@ -152,17 +158,20 @@ export function useGoodPurchase({
   good,
   additionalGoods = [],
   restockRequested = false,
+  initialVariantId,
 }: {
   disabled?: boolean;
   good: Good;
   additionalGoods?: readonly Good[];
   restockRequested?: boolean;
+  /** 주소의 `?variant=`(PD-14). 지금 고를 수 있는 옵션일 때만 첫 선택이 된다. */
+  initialVariantId?: string | null;
 }): GoodPurchaseController {
   const router = useRouter();
   const cart = useCart();
   const [quantity, setQuantityState] = useState(1);
   const [customInputValues,setCustomInputValues] = useState<Record<string,Record<string,string>>>({});
-  const [selectedId, setSelectedId] = useState(() => initialGoodOption(good)?.id);
+  const [selectedId, setSelectedId] = useState(() => selectableGoodOptionId(good, initialVariantId) ?? initialGoodOption(good)?.id);
   const selectedOption = good.options?.find(option => option.id === selectedId && option.stockQty > 0)
     ?? (selectedId === undefined ? initialGoodOption(good) : undefined);
   const [additionalSelections, setAdditionalSelections] = useState<AdditionalSelection[]>([]);
@@ -301,6 +310,57 @@ export function useGoodPurchase({
   };
 }
 
+/**
+ * 담기 결과 모달을 여는 시점 (PD-02).
+ *
+ * 담기 함수는 카트 반영이 확정된 뒤에만 성공 문구(CART_ADDED_STATUS)를 남기고, 실패는 카트·검증
+ * 오류 문구를 남긴다. 그래서 "담기를 누른 뒤 성공 문구가 온 때"만 열고, 다른 문구가 오면
+ * 기다림을 접는다 — 클라이언트 낙관 상태로 "담았어요"를 띄우지 않는다(DESIGN §9).
+ */
+export function addToCartResultStep(state: { awaiting: boolean; message: string | null }): 'idle' | 'wait' | 'open' | 'fail' {
+  if (!state.awaiting) return 'idle';
+  if (state.message === CART_ADDED_STATUS) return 'open';
+  return state.message ? 'fail' : 'wait';
+}
+
+/** 지금 담기를 누르면 카트에 들어갈 줄. 담기 함수와 같은 선택(본품 + 고른 추가 구성)을 요약한다. */
+export function addedCartItems(purchase: Pick<GoodPurchaseController, 'good' | 'selectedOption' | 'quantity' | 'additionalChoices'>): AddToCartResultItem[] {
+  return [
+    { name: purchase.good.name, option: optionLabel(purchase.selectedOption, purchase.good.options?.length ?? 0), quantity: purchase.quantity },
+    ...(purchase.additionalChoices ?? [])
+      .filter((choice) => choice.selected && choice.selectedOption)
+      .map((choice) => ({ name: choice.name, option: optionLabel(choice.selectedOption, choice.good?.options?.length ?? 0), quantity: choice.quantity })),
+  ];
+}
+
+/**
+ * 담기 결과 모달 상태. 컨트롤러의 담기 함수는 그대로 부르고, 누른 순간의 선택만 따로 들고
+ * 있다가 성공 문구가 오면 그 요약으로 모달을 연다. 패널·데스크톱 레일 박스·모바일 시트가
+ * 이 훅이 감싼 담기 하나를 함께 쓴다.
+ */
+export function useAddToCartResult(purchase: GoodPurchaseController) {
+  const [awaitingItems, setAwaitingItems] = useState<AddToCartResultItem[] | null>(null);
+  const [items, setItems] = useState<AddToCartResultItem[] | null>(null);
+  /* 렌더 중 상태 보정(이전 값 비교 패턴) — effect 로 미루면 모달이 한 프레임 늦게 뜬다. */
+  const step = addToCartResultStep({ awaiting: awaitingItems !== null, message: purchase.message });
+  if (step === 'open') {
+    setItems(awaitingItems);
+    setAwaitingItems(null);
+  } else if (step === 'fail') {
+    setAwaitingItems(null);
+  }
+
+  return {
+    items,
+    close: () => setItems(null),
+    addToCart: () => {
+      if (purchase.inert) return;
+      setAwaitingItems(addedCartItems(purchase));
+      purchase.addToCart();
+    },
+  };
+}
+
 const CART_ICON = 'M3 5h2.2l2 9.2h9.1l1.9-6.9H6.6';
 
 function CartGlyph() {
@@ -348,16 +408,40 @@ function AdditionalChoices({ purchase }: { purchase: GoodPurchaseController }) {
   </section>;
 }
 
+export interface PurchaseTotalDisplay {
+  label: string;
+  amount: string;
+  /** 금액이 아니라 안내 문구(옵션 선택 전·판매 상태)면 false — 큰 금액 서체를 쓰지 않는다. */
+  numeric: boolean;
+}
+
+/**
+ * 합계 행의 라벨·값. 본문 패널과 데스크톱 레일 박스가 같은 값을 보인다.
+ * 품절 굿즈는 고를 옵션이 없으니 "옵션 선택 후 표시" 대신 가격으로 합계를 보인다(PD-08).
+ */
+export function purchaseTotalDisplay(purchase: Pick<GoodPurchaseController, 'good' | 'unavailableLabel' | 'selectionRequired' | 'subtotal' | 'soldOut' | 'quantity'>): PurchaseTotalDisplay {
+  const label = purchase.unavailableLabel ? '판매 상태' : purchase.good.transactionOffer ? '예상 굿즈 금액' : '총 금액';
+  if (purchase.unavailableLabel) return { label, amount: purchase.unavailableLabel, numeric: false };
+  if (purchase.selectionRequired && purchase.soldOut) {
+    return { label, amount: krw(purchaseSubtotal(soldOutPreviewPrice(purchase.good), purchase.quantity)), numeric: true };
+  }
+  if (purchase.selectionRequired) return { label, amount: '옵션 선택 후 표시', numeric: false };
+  return { label, amount: krw(purchase.subtotal), numeric: true };
+}
+
 /** 정보 칼럼의 구매 패널. 품절이면 CTA 자리만 재입고 알림으로 바뀐다(R-04 §4). */
-export function GoodPurchasePanel({ purchase }: { purchase: GoodPurchaseController }) {
-  const { disabled, good, inert, message, quantity, restockRequested, selectedOption, selectOption, selectionRequired, setQuantity, soldOut, subtotal } = purchase;
-  const stockLabel = purchase.unavailableLabel ?? STOCK_LABEL[good.stock];
+export function GoodPurchasePanel({ otherPurchases, purchase }: { otherPurchases?: OtherPurchaseAvailability; purchase: GoodPurchaseController }) {
+  const { disabled, good, inert, message, quantity, restockRequested, selectedOption, selectOption, setQuantity, soldOut } = purchase;
+  const total = purchaseTotalDisplay(purchase);
   const singleOptionLabel = good.options?.length === 1 ? optionLabel(good.options[0], 1) : null;
   const displayOption = selectedOption ?? (good.options?.length === 1 ? good.options[0] : undefined);
 
   return (
     <div className="wc-buy-panel">
-      {stockLabel ? <p className="wc-buy-panel__state">{stockLabel}</p> : null}
+      {/* 판매 기간·예약 접수 같은 판매 상태만 글로 먼저 알린다. '품절임박/품절' 재고 라벨은 두지 않는다(PD-12) —
+          운영자가 고르는 재고 표시라 실재고와 연동되지 않고(표시광고법 '품절임박' 실재고 연동 요건,
+          docs/online-popup/01-report.md), 품절은 재입고 알림 CTA 가 글로 대신 말한다. */}
+      {purchase.unavailableLabel ? <p className="wc-buy-panel__state">{purchase.unavailableLabel}</p> : null}
       {good.orderQuantityLimitEnabled && good.minOrderQty && good.maxOrderQty ? <p className="wc-buy-panel__state">{good.transactionOffer?.aggregation ? '같은 굿즈에서 나뉜 항목을' : '같은 굿즈의 옵션을'} 합산하여 주문당 {good.minOrderQty.toLocaleString('ko-KR')}–{good.maxOrderQty.toLocaleString('ko-KR')}개 구매할 수 있습니다.</p> : null}
       {good.memberPurchaseLimitEnabled && good.memberLifetimeQtyLimit ? <p className="wc-buy-panel__state">회원 누적 최대 {good.memberLifetimeQtyLimit.toLocaleString('ko-KR')}개 · 결제 대기 주문 포함</p> : null}
       {(good.options?.length ?? 0) > 1 ? (
@@ -386,8 +470,8 @@ export function GoodPurchasePanel({ purchase }: { purchase: GoodPurchaseControll
       {(purchase.additionalChoices ?? []).filter(choice => choice.selected && choice.good).map(choice => <GoodsTransactionTerms key={choice.goodId} good={choice.good!} quantity={choice.quantity} />)}
       {purchase.volumeDiscountTotal ? <p className="wc-buy-panel__state">선택 굿즈 복수구매 할인 예상 −{krw(purchase.volumeDiscountTotal)}</p> : null}
       <div className="wc-buy-panel__total">
-        <span className="wc-buy-panel__total-label">{purchase.unavailableLabel ? '판매 상태' : good.transactionOffer ? '예상 굿즈 금액' : '총 금액'}</span>
-        <strong className="wc-buy-panel__total-amount">{purchase.unavailableLabel ?? (selectionRequired ? '옵션 선택 후 표시' : krw(subtotal))}</strong>
+        <span className="wc-buy-panel__total-label">{total.label}</span>
+        <strong className="wc-buy-panel__total-amount">{total.amount}</strong>
       </div>
       {good.transactionOffer?.fulfillment ? <div className="wc-buy-panel__state"><p>제공 방식: {good.transactionOffer.fulfillment.methods.map(m => FULFILLMENT_METHOD_LABELS[m.method]).join(' · ')}</p>
         <p>{good.transactionOffer.fulfillment.publicNote}</p>{good.transactionOffer.fulfillment.mode === 'digital' ? <p>결제한 계정에서 구매한 파일을 받습니다. 파일 제공 후 취소 요청은 담당자가 검토합니다. 디지털 굿즈의 선물하기는 제공하지 않습니다.</p> : null}</div> : null}
@@ -404,7 +488,7 @@ export function GoodPurchasePanel({ purchase }: { purchase: GoodPurchaseControll
           </WcButton>
         </div>
       )}
-      {!disabled ? <div className="wc-buy-panel__other-purchases"><SubscriptionPurchaseEntry goodId={good.id} />{good.transactionOffer?.fulfillment?.mode !== 'digital' ? <GiftPurchaseEntry /> : null}</div> : null}
+      {!disabled ? <div className="wc-buy-panel__other-purchases"><SubscriptionPurchaseEntry available={otherPurchases?.subscription} goodId={good.id} />{good.transactionOffer?.fulfillment?.mode !== 'digital' ? <GiftPurchaseEntry available={otherPurchases?.gift} /> : null}</div> : null}
       {/* 서버 확인 전에는 "완료"라고 하지 않는다(DESIGN §9) — 카트 저장이 끝난 뒤에만 채운다. */}
       <p aria-atomic="true" aria-live="polite" className="wc-buy-panel__status" role="status">
         {message ?? ''}
@@ -415,76 +499,113 @@ export function GoodPurchasePanel({ purchase }: { purchase: GoodPurchaseControll
 }
 
 /**
- * 고정 구매바 2종.
+ * 모바일 고정 구매바 (R-04 §7.2 · DESIGN `mobile-buybar`).
  *
- * 모바일은 상시 노출 72px 바(R-04 §7.2), 데스크톱은 하부 탭 영역에서만 뜨는
- * 우하단 미니 바(§5.5)다. 레퍼런스의 모바일 바는 품절에도 "구매하기"로 남는
- * 상태 비반응 단일 버튼이지만(§10-7 결함), 여기서는 본문 CTA 와 같은 규칙으로
- * 재입고 알림으로 바뀐다.
+ * 72px 잉크 풀폭 바의 [장바구니]·[구매하기]는 구매 시트를 여는 트리거다(PD-01) — 실행은 시트 안
+ * CTA 가 한다. 그래서 옵션을 아직 고르지 않았거나 카트가 준비 중이어도 잠그지 않는다. 잠그면
+ * 다옵션 굿즈는 옵션을 고를 길이 없는 비활성 바만 남는다. 레퍼런스의 바는 품절에도 "구매하기"로
+ * 남는 상태 비반응 버튼이지만(§10-7 결함), 여기서는 품절이면 바 전체가 재입고 알림이다.
  */
 export function GoodBuyBars({
-  miniVisible,
+  onOpenSheet,
   purchase,
+  sheetOpen,
 }: {
-  miniVisible: boolean;
+  onOpenSheet: () => void;
   purchase: GoodPurchaseController;
+  sheetOpen: boolean;
 }) {
-  const { disabled, good, inert, restockRequested, soldOut } = purchase;
-
-  const actions = purchase.unavailableLabel ? <button className="wc-buybar__buy" type="button" disabled>{purchase.unavailableLabel}</button> : soldOut ? (
-    <RestockCta className="wc-buybar__restock" disabled={disabled} goodId={good.id} initialRequested={restockRequested} />
-  ) : (
-    <>
-      <button
-        aria-label="장바구니에 담기"
-        className="wc-buybar__cart"
-        disabled={inert}
-        onClick={purchase.addToCart}
-        type="button"
-      >
-        <CartGlyph />
-      </button>
-      <button
-        className="wc-buybar__buy"
-        disabled={inert}
-        onClick={purchase.buyNow}
-        type="button"
-      >
-        구매하기
-      </button>
-    </>
-  );
+  const { disabled, good, restockRequested, soldOut } = purchase;
 
   return (
-    <>
-      <div className="wc-buybar">{actions}</div>
-      {/* hidden 과 클래스를 함께 둔다 — 보조기기에서 사라지는 것과 화면에서 사라지는 것이
-          같은 시점이어야 한다. */}
-      <div className={`wc-buybar-mini${miniVisible ? ' is-visible' : ''}`} hidden={!miniVisible}>
-        {purchase.unavailableLabel ? <button className="wc-buybar-mini__buy" type="button" disabled>{purchase.unavailableLabel}</button> : soldOut ? (
-          <RestockCta className="wc-buybar-mini__restock" disabled={disabled} goodId={good.id} initialRequested={restockRequested} />
-        ) : (
-          <>
-            <button
-              aria-label="장바구니에 담기"
-              className="wc-buybar-mini__cart"
-              disabled={inert}
-              onClick={purchase.addToCart}
-              type="button"
-            >
-              <CartGlyph />
-            </button>
-            <button
-              className="wc-buybar-mini__buy"
-              disabled={inert}
-              onClick={purchase.buyNow}
-              type="button"
-            >
-              구매하기
-            </button>
-          </>
-        )}
-      </div>
-    </>
+    <div className="wc-buybar">
+      {purchase.unavailableLabel ? <button className="wc-buybar__buy" type="button" disabled>{purchase.unavailableLabel}</button> : soldOut ? (
+        <RestockCta className="wc-buybar__restock" disabled={disabled} goodId={good.id} initialRequested={restockRequested} />
+      ) : (
+        <>
+          <button
+            aria-expanded={sheetOpen}
+            aria-haspopup="dialog"
+            aria-label="장바구니에 담기"
+            className="wc-buybar__cart"
+            disabled={disabled}
+            onClick={onOpenSheet}
+            type="button"
+          >
+            <CartGlyph />
+          </button>
+          <button
+            aria-expanded={sheetOpen}
+            aria-haspopup="dialog"
+            className="wc-buybar__buy"
+            disabled={disabled}
+            onClick={onOpenSheet}
+            type="button"
+          >
+            구매하기
+          </button>
+        </>
+      )}
+    </div>
   );
+}
+
+/**
+ * 데스크톱 레일 박스 (PD-03·PD-05 · 11 §3 Δ3 · §6 B15 · DESIGN `floating-buybar`).
+ *
+ * 하부 탭 섹션 우측 340 레일 안에서 화면 하단 근처에 붙어 있는 회색 박스다. 레일 안 sticky 라
+ * 탭 섹션 범위에서만 보인다. 예전의 뷰포트 고정 미니 바는 짧은 상세에서 첫 화면부터 본문 CTA 와
+ * 겹치고 문의 런처·푸터를 덮어 없앴다. 합계는 본문 패널과 같은 값이고, 담기·구매는 같은
+ * 컨트롤러 함수를 부른다(담기 결과 모달도 같다).
+ */
+export function GoodRailBuyBox({ purchase }: { purchase: GoodPurchaseController }) {
+  const { disabled, good, inert, restockRequested, soldOut } = purchase;
+  const total = purchaseTotalDisplay(purchase);
+  /* 실패 문구는 정보 칼럼 패널의 상태 줄(live region 하나)에만 나온다. 레일에서 누른 담기·구매가 실패하면
+     박스 근처에는 아무 변화가 없으므로, 고칠 칸(빈 필수 입력 등)이나 그 상태 줄로 데려간다. 성공은
+     담기 결과 모달·주문서 이동이 알린다. 렌더 중 상태 보정은 useAddToCartResult 와 같은 패턴이다. */
+  const [awaiting, setAwaiting] = useState(false);
+  const [revealCount, setRevealCount] = useState(0);
+  const step = addToCartResultStep({ awaiting, message: purchase.message });
+  if (step === 'open' || step === 'fail') {
+    setAwaiting(false);
+    if (step === 'fail') setRevealCount((count) => count + 1);
+  }
+  useEffect(() => {
+    if (revealCount > 0) revealPurchasePanel();
+  }, [revealCount]);
+  const fromRail = (action: () => void) => () => {
+    setAwaiting(true);
+    action();
+  };
+
+  return (
+    <section aria-label="빠른 구매" className="wc-pdp-railbox">
+      <div className="wc-pdp-railbox__total">
+        <span className="wc-pdp-railbox__label">{total.label}</span>
+        <strong className={`wc-pdp-railbox__amount${total.numeric ? '' : ' is-note'}`}>{total.amount}</strong>
+      </div>
+      {purchase.unavailableLabel ? <button className="wc-pdp-railbox__buy is-full" disabled type="button">{purchase.unavailableLabel}</button> : soldOut ? (
+        <RestockCta className="wc-pdp-railbox__restock" disabled={disabled} goodId={good.id} initialRequested={restockRequested} />
+      ) : (
+        <div className="wc-pdp-railbox__ctas">
+          <button aria-label="장바구니에 담기" className="wc-pdp-railbox__cart" disabled={inert} onClick={fromRail(purchase.addToCart)} type="button">
+            <CartGlyph />
+          </button>
+          <button className="wc-pdp-railbox__buy" disabled={inert} onClick={fromRail(purchase.buyNow)} type="button">구매하기</button>
+        </div>
+      )}
+    </section>
+  );
+}
+
+/* 정보 칼럼 패널의 고칠 칸(빈 필수 입력은 required 라 :invalid)이나 상태 줄로 스크롤하고, 칸이면 포커스한다. */
+function revealPurchasePanel() {
+  const panel = document.querySelector<HTMLElement>('.wc-pdp__purchase .wc-buy-panel');
+  if (!panel) return;
+  const field = panel.querySelector<HTMLElement>('input:invalid, textarea:invalid, select:invalid');
+  const target = field ?? panel.querySelector<HTMLElement>('.wc-buy-panel__status') ?? panel;
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  target.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'center' });
+  field?.focus({ preventScroll: true });
 }

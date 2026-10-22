@@ -1,38 +1,41 @@
 'use client';
 
-import { krw } from '@/lib/format';
-
 import Link from 'next/link';
-import { publicIpHref } from '@/lib/ip-identity';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { GoodBuyBars, GoodPurchasePanel, isMiniBuybarVisible, useGoodPurchase } from '@/components/shop/GoodPurchasePanel';
+import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from 'react';
+import { GoodBuyBars, GoodPurchasePanel, GoodRailBuyBox, purchaseSheetAvailable, useAddToCartResult, useGoodPurchase } from '@/components/shop/GoodPurchasePanel';
+import { useGiftPurchaseAvailable } from '@/components/gifts/GiftPurchaseEntry';
+import { useSubscriptionPurchaseAvailable } from '@/components/subscriptions/SubscriptionPurchaseEntry';
+import { AddToCartResultDialog } from '@/components/shop/AddToCartResultDialog';
+import { GoodPurchaseSheet } from '@/components/shop/GoodPurchaseSheet';
+import { OverlayPortal } from '@/components/shell/OverlayPortal';
 import { PdpGallery } from '@/components/shop/PdpGallery';
 import { WishlistHeart } from '@/components/shop/WishlistHeart';
+import { GoodShareButton } from '@/components/shop/GoodShareButton';
+import { PdpPrice } from '@/components/shop/PdpPrice';
 import { Badge } from '@/components/wc/Badge';
-import { PriceBlock } from '@/components/wc/PriceBlock';
 import { TabPanels, type TabPanelDef } from '@/components/wc/TabPanels';
 import type { GoodDetailContent } from '@/lib/goods-detail';
 import { goodsNoticeRows } from '@/lib/goods-notice';
 import { GoodsKcDisclosure } from '@/components/shop/GoodsKcDisclosure';
 import { GoodsDescription } from '@/components/shop/GoodsDescription';
 import { GoodRelatedProducts } from '@/components/shop/GoodRelatedProducts';
+import { GoodIpCard, GoodIpStory } from '@/components/shop/GoodIpCard';
 import { GoodsGroupSelector } from '@/components/shop/GoodsGroupSelector';
 import { goodDisplayBadges } from '@/lib/goods-taxonomy';
 import { newInquiryHref } from '@/lib/inquiries';
-import { LEGAL_DOCUMENT_LABELS, legalDocumentHref } from '@/lib/legal/links';
-import { formatReviewAverage, reviewRatingLabel, type ReviewRatingSummary } from '@/lib/reviews';
-import { shippingPolicyDescription, type GoodShippingPolicy } from '@/lib/fulfillment';
+import { formatReviewAverage, goodReviewsHref, reviewRatingLabel, type ReviewRatingSummary } from '@/lib/reviews';
+import type { GoodShippingPolicy } from '@/lib/fulfillment';
+import type { BusinessInfo } from '@/lib/legal/business-info';
 import type { DetailDiscovery } from '@/lib/product-detail-experiences';
 import { ProductShippingSavings } from '@/components/shop/ProductShippingSavings';
 import { ProductInterestShelf } from '@/components/shop/ProductInterestShelf';
 import { ProductShortclips } from '@/components/shop/ProductShortclips';
 import type { PublicGoodMedia } from '@/lib/goods-media';
-import { cartOptionGood } from '@/lib/goods-options';
-import { goodsShipDateLabel } from '@/lib/goods-preorders';
-import type { Good } from '@/lib/data';
+import { cartOptionGood, variantSearchForSelection, variantSyncDefault } from '@/lib/goods-options';
 import { GoodSizeChart } from '@/components/shop/GoodSizeChart';
-import { goodsQuantityDeliveryLabel, goodsVolumeBoundary } from '@/lib/goods-transaction-presentation';
+import { goodsVolumeBoundary } from '@/lib/goods-transaction-presentation';
+import { GoodAdditionalInfo } from '@/components/shop/GoodAdditionalInfo';
 
 /*
  * 굿즈 상세 (#173 → #326 White Catalog 재조판).
@@ -46,7 +49,7 @@ import { goodsQuantityDeliveryLabel, goodsVolumeBoundary } from '@/lib/goods-tra
  * 마크업을 그리되 인터랙티브 컨트롤만 비활성으로 둔다.
  */
 
-export type PdpPanelId = 'detail' | 'reviews' | 'qna' | 'shipping';
+export type PdpPanelId = 'detail' | 'reviews' | 'qna' | 'info';
 
 /* 리뷰 정렬·필터·페이지는 URL 로 움직이고(lib/reviews.ts) 링크는 전부 풀 페이지 이동이다.
    그 링크를 밟고 돌아온 화면이 상세정보 탭이면 사용자는 방금 누른 "다음 페이지"의
@@ -64,6 +67,15 @@ export function pdpDefaultPanelId(search: { has: (name: string) => boolean } | n
   return 'detail';
 }
 
+/**
+ * 데스크톱 레일 박스의 화면 위치(CH-16). 탭 섹션이 화면 밖이면 없음, 탭 섹션 안에서는 박스가
+ * 화면 하단에 붙어 있다(docked). 레일 끝이 화면에 들어오면 박스가 레일과 함께 밀려 올라간다(leaving).
+ */
+export function pdpRailBoxState(state: { panelsInView: boolean; railEndInView: boolean }): 'docked' | 'leaving' | undefined {
+  if (!state.panelsInView) return undefined;
+  return state.railEndInView ? 'leaving' : 'docked';
+}
+
 /** 별점은 색·기호로만 전하지 않는다 — 별 문자를 그대로 읽히면 "검은 별 검은 별…"이 된다. */
 function Stars({ rating }: { rating: number }) {
   const filled = Math.max(0, Math.min(5, Math.round(rating)));
@@ -76,95 +88,33 @@ function Stars({ rating }: { rating: number }) {
   );
 }
 
+/* 고시정보 표 — 추가정보 탭의 첫 아코디언에 들어간다(PD-06). 제목은 아코디언 펼침 제목
+   ("고시정보", CONTEXT.md 용어)이 맡는다. */
 function NoticeTable({ detail }: { detail: GoodDetailContent }) {
   const rows = goodsNoticeRows(detail.notice);
 
-  return (
-    <section aria-labelledby="pdp-notice-heading" className="wc-pdp-notice">
-      {/* 제목은 용어집(CONTEXT.md '고시정보')을 따른다. 어드민 폼·lib/goods-notice.ts 와 같은 말이어야
-          운영자와 이용자가 같은 표를 다른 이름으로 부르지 않는다. */}
-      <h2 className="wc-pdp-panel__title" id="pdp-notice-heading">고시정보</h2>
-      {rows.length ? (
-        /* 360px 에서 표가 페이지를 가로로 밀지 않도록 자기 컨테이너 안에서 흐른다. */
-        <div className="wc-pdp-notice__scroll">
-          <table className="wc-pdp-notice__table">
-            {/* 법정 고시 제도의 이름은 제목이 아니라 표 캡션에서 각주처럼 밝힌다. */}
-            <caption className="wc-pdp-notice__caption">
-              전자상거래법에 따라 표시하는 상품정보제공고시 항목입니다.
-            </caption>
-            <tbody>
-              {rows.map((row) => (
-                <tr key={row.key}>
-                  <th scope="row">{row.label}</th>
-                  <td>{row.value}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      ) : (
-        <p className="wc-pdp-panel__note">
-          아직 등록된 고시정보가 없습니다. 판매 시작 전에 등록됩니다.
-        </p>
-      )}
-    </section>
-  );
-}
-
-function ShippingGuide({ policy, goods }: { policy?: GoodShippingPolicy | null; goods: readonly Good[] }) {
-  const preorders = goods.flatMap(good => (good.options ?? [])
-    .filter(option => option.supply?.mode === 'preorder')
-    .map(option => ({ id: option.id, label: `${good.name} · ${option.name}`, date: option.supply!.expectedShipDate })));
-  return (
-    <section aria-labelledby="pdp-shipping-heading" className="wc-pdp-guide">
-      <h2 className="wc-pdp-panel__title" id="pdp-shipping-heading">배송 안내</h2>
-      <ul className="wc-pdp-guide__list">
-        <li>{goods[0]?.transactionOffer?.delivery?.quantityTerms ? goodsQuantityDeliveryLabel(goods[0].transactionOffer.delivery.quantityTerms)
-          : policy ? shippingPolicyDescription(policy) : '배송 정책을 확인하지 못했습니다. 주문 전에 배송비를 확인해주세요.'}</li>
-        {policy?.shippingNotice && <li style={{ whiteSpace: 'pre-wrap' }}>{policy.shippingNotice}</li>}
-        <li>출고지별 정책 적용 굿즈의 기간 할인 적용 후, 복수구매 할인·쿠폰·적립금 차감 전 소계로 무료배송 조건을 확인합니다. 수량별 배송비에는 별도 무료 기준이 적용되지 않으며 다른 출고지의 배송비는 각각 더합니다.</li>
-        {/*
-         * 출고 기한의 진실원은 배송·반품 정책(/legal/shipping 1. 배송 안내)이다. 여기서 더 짧은
-         * 영업일 수를 따로 적으면 약관 제13조 3항이 손해배상 기준으로 삼는 "약정 배송기간"이
-         * 두 개가 되어, 어느 쪽이 약정인지 정할 수 없다. 그래서 정책 문장을 그대로 싣는다.
-         */}
-        {preorders.length ? <>
-          <li>예약판매 옵션은 아래 발송 예정일에 맞춰 공급을 준비합니다. 같은 출고지의 일반 굿즈와 예약 굿즈를 함께 주문하면 가장 늦은 예정일에 함께 발송합니다. 주문서에서 최종 발송 예정일을 확인해주세요.</li>
-          {preorders.map(option => <li key={option.id}>{option.label}: {goodsShipDateLabel(option.date)}</li>)}
-          <li>일반 판매 옵션만 주문한 경우에는 기본 배송 정책을 따릅니다. 예약 공급 일정이 바뀌면 주문 상세에서 변경된 예정일을 확인할 수 있습니다.</li>
-        </> : <li>대금을 먼저 지급하는 선지급 주문이므로, 결제가 확정된 날부터 3영업일 이내에 배송에 필요한 조치를 취합니다. 무통장 입금 주문은 입금이 확인된 날이 결제 확정일입니다. 공급 절차가 늦어지면 그 진행 상황을 알립니다.</li>}
-        <li>배송지에 따른 추가 배송비는 주문서에서 주소를 입력한 뒤 확인합니다. 배송 가능 여부와 최종 배송비를 확인해야 주문할 수 있습니다.</li>
-        <li>원화(KRW)로 결제하며 대한민국 주소로 배송합니다. 국내 배송대행지를 이용할 수 있고, 이후 해외 운송은 고객이 배송대행사에 별도로 신청합니다.</li>
-      </ul>
-    </section>
-  );
-}
-
-function ReturnGuide({ policy }: { policy?: GoodShippingPolicy | null }) {
-  const terms = policy?.claimPolicy;
-  return (
-    <section aria-labelledby="pdp-return-heading" className="wc-pdp-guide">
-      <h2 className="wc-pdp-panel__title" id="pdp-return-heading">교환 · 반품 안내</h2>
-      <ul className="wc-pdp-guide__list">
-        {terms?.restrictionReason && <li style={{ whiteSpace: 'pre-wrap' }}>굿즈별 확인 조건: {terms.restrictionReason} · 고객센터에 사유를 접수하면 개별 확인합니다.</li>}
-        {terms && <>
-          <li>고객 귀책 반품비(편도): {terms.returnFee === null ? '확인 후 안내' : krw(terms.returnFee)}</li>
-          <li>최초 무료배송 후 반품비(왕복 합계): {terms.returnFreeShippingFee === null ? '확인 후 안내' : krw(terms.returnFreeShippingFee)}</li>
-          <li>고객 귀책 교환비(왕복 합계): {terms.exchangeFee === null ? '확인 후 안내' : krw(terms.exchangeFee)}</li>
-        </>}
-        {policy?.returnExchangeNotice && <li style={{ whiteSpace: 'pre-wrap' }}>{policy.returnExchangeNotice}</li>}
-        {policy?.returnAddress && <li>회수 주소: {policy.returnAddress} · 먼저 고객센터에 접수한 뒤 안내에 따라 보내주세요.</li>}
-        {policy?.cs && (policy.cs.name || policy.cs.phone || policy.cs.email) && <li>고객센터: {[policy.cs.name, policy.cs.phone, policy.cs.email].filter(Boolean).join(' · ')}</li>}
-        <li>굿즈를 받은 날부터 7일 이내에 청약철회를 신청할 수 있습니다.</li>
-        <li>단순 변심으로 반품하는 경우 반송비는 구매자가 부담하며 착불로 보내주세요.</li>
-        <li>굿즈가 파손·오배송된 경우에는 반송비를 ICONS가 부담합니다.</li>
-        <li>사용·훼손해 재판매가 어려워진 굿즈는 청약철회가 제한될 수 있습니다.</li>
-      </ul>
-      {/* 요약만 두면 반송비 부담·반품 절차·환급 기한을 확인할 곳이 없다. 전문은 정책 문서가 진실원이다. */}
-      <Link className="wc-pdp-guide__link" href={legalDocumentHref('shipping')}>
-        {LEGAL_DOCUMENT_LABELS.shipping} 전문 보기
-      </Link>
-    </section>
+  return rows.length ? (
+    /* 360px 에서 표가 페이지를 가로로 밀지 않도록 자기 컨테이너 안에서 흐른다. */
+    <div className="wc-pdp-notice__scroll">
+      <table className="wc-pdp-notice__table">
+        {/* 법정 고시 제도의 이름은 제목이 아니라 표 캡션에서 각주처럼 밝힌다. */}
+        <caption className="wc-pdp-notice__caption">
+          전자상거래법에 따라 표시하는 상품정보제공고시 항목입니다.
+        </caption>
+        <tbody>
+          {rows.map((row) => (
+            <tr key={row.key}>
+              <th scope="row">{row.label}</th>
+              <td>{row.value}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  ) : (
+    <p className="wc-pdp-panel__note">
+      아직 등록된 고시정보가 없습니다. 판매 시작 전에 등록됩니다.
+    </p>
   );
 }
 
@@ -217,6 +167,8 @@ export interface GoodDetailViewProps {
   reviewSummary?: ReviewRatingSummary;
   /** Q&A 탭 카운트. 본문과 같은 이유로 개수만 따로 받는다. */
   qnaSummary?: { count: number };
+  /** 추가정보 탭의 판매자 정보 — 푸터와 같은 공개 사업자 정보 소스. 없으면 기본값을 쓴다. */
+  sellerInfo?: BusinessInfo;
 }
 
 export function GoodDetailView({
@@ -240,19 +192,58 @@ export function GoodDetailView({
   qnaSummary,
   reviewSummary,
   reviews,
+  sellerInfo,
 }: GoodDetailViewProps) {
   const { good, ip } = detail;
   const searchParams = useSearchParams();
   const router = useRouter();
   const tabsRef = useRef<HTMLDivElement>(null);
+  const railEndRef = useRef<HTMLSpanElement>(null);
   const [panelsInView, setPanelsInView] = useState(false);
+  const [railEndInView, setRailEndInView] = useState(false);
 
   const purchase = useGoodPurchase({
     disabled: embedded,
     good,
     additionalGoods: detail.additionalGoods ?? [],
     restockRequested: engagement?.restockRequested ?? false,
+    /* 주소의 ?variant= 가 고를 수 있는 옵션이면 그 옵션으로 연다(PD-14). 서버 렌더도 같은 값을 읽는다. */
+    initialVariantId: embedded ? null : searchParams?.get('variant'),
   });
+  /* 옵션을 바꾸면 주소의 ?variant= 를 같은 기록 항목 안에서 바꾼다(PD-14, Next 의 history.replaceState
+     연동 — 서버 요청·라우팅 없이 useSearchParams 만 따라 바뀐다). 첫 화면의 자동 기본 선택은 쓰지 않는다.
+     같은 상세 안 이동(리뷰·Q&A 페이지 링크)이 주소에서 variant 를 지우면 다시 써 넣는다 — 그래서 주소의
+     variant 도 따라 읽는다. 주소에서 온 첫 선택은 기본 선택이 아니라 사용자가 고른 선택으로 본다. */
+  const selectedVariantId = purchase.selectedOption?.id;
+  const urlVariantId = embedded ? null : searchParams?.get('variant') ?? null;
+  const [defaultVariantId] = useState(() => variantSyncDefault(urlVariantId, selectedVariantId));
+  useEffect(() => {
+    if (embedded) return;
+    const search = variantSearchForSelection(window.location.search, selectedVariantId, defaultVariantId);
+    if (search !== null) window.history.replaceState(null, '', `${window.location.pathname}${search}${window.location.hash}`);
+  }, [embedded, defaultVariantId, selectedVariantId, urlVariantId]);
+  /* 정기배송·선물 진입 가용성은 상세에서 한 번만 묻는다. 구매 패널은 시트를 열고 닫을 때마다 본문과 시트
+     사이를 오가며 다시 마운트되므로, 패널이 직접 물으면 그때마다 같은 요청이 나가고 응답 전까지 진입이
+     비어 시트 높이가 튄다. */
+  const subscriptionAvailable = useSubscriptionPurchaseAvailable(good.id, !embedded);
+  const giftAvailable = useGiftPurchaseAvailable(!embedded);
+  const otherPurchases = { subscription: subscriptionAvailable, gift: giftAvailable };
+  /* 담기 함수는 컨트롤러 것을 그대로 부르고, 확정된 결과만 모달로 알린다(PD-02).
+     패널·고정 바가 같은 감싼 담기를 써야 어느 표면에서 담아도 같은 모달이 뜬다. */
+  const addResult = useAddToCartResult(purchase);
+  const surfacePurchase = embedded ? purchase : { ...purchase, addToCart: addResult.addToCart };
+  /* 모바일 구매 시트(PD-01). 담기 결과 모달이 뜨면 시트는 내려간다 — 두 모달이 겹치면
+     Escape 하나에 둘이 함께 닫히고 아래 시트가 보조기기에 열린 채 남는다. */
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const sheetVisible = !embedded && sheetOpen && !addResult.items;
+  useEffect(() => {
+    if (!sheetOpen) return;
+    /* 시트는 모바일 바에서만 열린다. 창을 넓혀 데스크톱 배치로 넘어가면 닫아 본문 패널로 돌려준다. */
+    const desktop = window.matchMedia('(min-width: 990px)');
+    const closeOnDesktop = () => { if (desktop.matches) setSheetOpen(false); };
+    desktop.addEventListener('change', closeOnDesktop);
+    return () => desktop.removeEventListener('change', closeOnDesktop);
+  }, [sheetOpen]);
   const nextPriceChange = [good, ...(detail.additionalGoods ?? [])].reduce<number | null>((next, item) => {
     return [goodsVolumeBoundary(item), item.salePeriod?.nextChangeAt, ...(item.options ?? []).flatMap(option => [option.pricing?.nextChangeAt, option.supply?.nextChangeAt])].reduce<number | null>((earliest, changeAt) => {
       const time = changeAt ? Date.parse(changeAt) : NaN;
@@ -281,19 +272,35 @@ export function GoodDetailView({
     };
   }, [embedded, nextPriceChange, router]);
 
-  /* 미니 구매바는 상단 구매 패널이 화면 밖으로 밀려난 뒤에만 의미가 있다. 그 시점을
-     스크롤 좌표로 계산하지 않고 하부 탭 영역의 가시성으로 읽는다 — 탭이 보인다는 것은
-     정보 칼럼이 이미 지나갔다는 뜻이고, 뷰포트 높이·헤더 높이를 다시 재지 않아도 된다. */
+  /* 데스크톱 레일 박스는 레일 안 sticky 라 탭 섹션이 화면에 있는 동안 화면 하단에 붙고,
+     레일 끝이 화면에 들어오면 레일과 함께 밀려 올라간다. 문의 런처가 그 박스와 겹치지 않도록
+     (CH-16) 두 시점을 스크롤 좌표 대신 가시성으로 읽어 지면에 상태로 남긴다. */
   useEffect(() => {
-    const node = tabsRef.current;
-    if (!node || typeof IntersectionObserver === 'undefined') return;
-    const observer = new IntersectionObserver(
-      (entries) => setPanelsInView(entries.some((entry) => entry.isIntersecting)),
-      { threshold: 0 },
-    );
-    observer.observe(node);
+    const tabs = tabsRef.current;
+    const railEnd = railEndRef.current;
+    if (embedded || !tabs || !railEnd || typeof IntersectionObserver === 'undefined') return;
+    const observer = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.target === tabs) setPanelsInView(entry.isIntersecting);
+        else setRailEndInView(entry.isIntersecting);
+      }
+    }, { threshold: 0 });
+    observer.observe(tabs);
+    observer.observe(railEnd);
     return () => observer.disconnect();
-  }, []);
+  }, [embedded]);
+  const railBox = pdpRailBoxState({ panelsInView, railEndInView });
+
+  /* 별점 행의 "N개 리뷰보기"(PD-12) — 같은 문서에서는 리뷰 탭을 열고 탭바 자리로 스크롤한다(탭이
+     scrollOnSelect). 새 탭·수정 키 클릭과 스크립트 전에는 리뷰 탭으로 여는 주소로 그대로 간다. */
+  const openReviewsTab = (event: MouseEvent<HTMLAnchorElement>) => {
+    if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
+    const tab = document.getElementById('pdp-tab-reviews');
+    if (!tab) return;
+    event.preventDefault();
+    tab.click();
+    tab.focus({ preventScroll: true });
+  };
 
   /* 갤러리가 비어도 대표 이미지 한 장으로 정상 렌더된다(#172 완료 조건). */
   const frames = [good.img, ...detail.gallery];
@@ -313,10 +320,14 @@ export function GoodDetailView({
             /* eslint-disable-next-line @next/next/no-img-element */
             <img alt={`${good.name} 상세 이미지`} className="wc-pdp-panel__image" src={detail.detailImageUrl} />
           ) : null}
-          <NoticeTable detail={detail} />
+          {ip ? <GoodIpStory ip={ip} /> : null}
           <GoodsKcDisclosure disclosures={detail.kcDisclosures ?? []} />
           <InquiryEntry goodId={good.id} />
           {reviewEventBanner}
+          {ip ? <GoodIpCard className="wc-pdp-ipcard--panel" ip={ip} /> : null}
+          {/* 추천 블록(연관 굿즈 → 자동 추천)은 상세 설명 패널 맨 끝이다(LD-6, 2026-10-22 확정 — 탭 위에서 이동). */}
+          {!embedded && detail.relatedGoods ? <GoodRelatedProducts data={detail.relatedGoods} /> : null}
+          {!embedded ? automaticRecommendations : null}
         </div>
       ),
     },
@@ -345,12 +356,17 @@ export function GoodDetailView({
       ),
     },
     {
-      id: 'shipping',
-      label: '배송·교환 안내',
+      /* 4번째 탭(PD-06): 고시정보·배송·교환/반품·판매자 정보 아코디언. 고시정보는 상세 패널에서 옮겼다. */
+      id: 'info',
+      label: '추가정보',
       content: (
         <div className="wc-pdp-panel">
-          <ShippingGuide policy={shippingPolicy} goods={[good, ...(purchase.additionalChoices ?? []).filter(choice => choice.selected && choice.good).map(choice => choice.good!)]} />
-          <ReturnGuide policy={shippingPolicy} />
+          <GoodAdditionalInfo
+            notice={<NoticeTable detail={detail} />}
+            goods={[good, ...(purchase.additionalChoices ?? []).filter(choice => choice.selected && choice.good).map(choice => choice.good!)]}
+            sellerInfo={sellerInfo}
+            shippingPolicy={shippingPolicy}
+          />
         </div>
       ),
     },
@@ -359,7 +375,7 @@ export function GoodDetailView({
   const Root = embedded ? 'div' : 'main';
 
   return (
-    <Root className={`wc-root wc-pdp${embedded ? ' is-embedded' : ''}`}>
+    <Root className={`wc-root wc-pdp${embedded ? ' is-embedded' : ''}`} data-rail-box={embedded ? undefined : railBox}>
       <div className="wc-container">
         <div className="wc-pdp__layout">
           {promotionBanner && !embedded ? <div className="wc-pdp__gallery-column">{promotionBanner}<PdpGallery key={`${good.id}:${media?.settings.priority}:${media?.video?.id}:${media?.shortclip?.id}`} frames={frames} goodName={good.name} overlay={purchaseMessages} media={media} selectedReviews={selectedReviews} /></div> : <PdpGallery key={`${good.id}:${media?.settings.priority}:${media?.video?.id}:${media?.shortclip?.id}`} frames={frames} goodName={good.name} overlay={!embedded ? purchaseMessages : undefined} media={!embedded ? media : undefined} selectedReviews={!embedded ? selectedReviews : undefined} />}
@@ -371,32 +387,46 @@ export function GoodDetailView({
             ) : null}
             <h1 className="wc-pdp__title">{good.name}</h1>
             {good.nameEn ? <p lang="en" className="wc-pdp__english-name">{good.nameEn}</p> : null}
-            <PriceBlock className="wc-pdp__price"
+            <PdpPrice className="wc-pdp__price"
               showDiscountRate={displayedGood.showDiscountRate} compareAtPrice={displayedGood.compareAtPrice} price={displayedGood.price} priceMax={displayedGood.priceMax} />
             <div className="wc-pdp-tools">
-              {reviewSummary ? (
+              {/* 리뷰 0건은 회색 별만 둔다(숫자·"리뷰 0건" 없음). 있으면 평균과 리뷰 탭을 여는 링크다(PD-12).
+                  조회 실패(요약 없음)는 0건처럼 보이지 않게 비운다. */}
+              {reviewSummary ? reviewSummary.count > 0 ? (
                 <p className="wc-pdp-tools__rating">
                   <Stars rating={reviewSummary.average} />
                   <strong className="wc-pdp-tools__average">{formatReviewAverage(reviewSummary.average)}</strong>
-                  <span className="wc-pdp-tools__count">리뷰 {reviewSummary.count.toLocaleString('ko-KR')}건</span>
+                  <a className="wc-pdp-tools__reviews" href={goodReviewsHref(good.id)} onClick={openReviewsTab}>
+                    {reviewSummary.count.toLocaleString('ko-KR')}개 리뷰보기
+                  </a>
+                </p>
+              ) : (
+                <p className="wc-pdp-tools__rating is-empty">
+                  <span aria-hidden="true" className="wc-rating__stars">☆☆☆☆☆</span>
+                  <span className="wc-sr-only">아직 등록된 리뷰가 없습니다.</span>
                 </p>
               ) : <span />}
-              <WishlistHeart
-                disabled={embedded}
-                goodId={good.id}
-                initialWished={engagement?.wished ?? false}
-              />
+              <div className="wc-pdp-tools__actions">
+                <WishlistHeart
+                  disabled={embedded}
+                  goodId={good.id}
+                  initialWished={engagement?.wished ?? false}
+                />
+                <GoodShareButton disabled={embedded} goodName={good.name} />
+              </div>
             </div>
             {!embedded ? goodsBenefits : null}
             {!embedded ? <GoodsGroupSelector group={detail.goodsGroup} /> : null}
-            <GoodPurchasePanel purchase={purchase} />
+            {/* 모바일에서 본문 패널은 숨고 같은 패널이 구매 시트에 들어간다(CSS가 숨김을 맡는다).
+                시트가 열린 동안은 본문 사본을 내린다 — 직접 입력 칸의 id 가 두 벌이 되면 라벨이
+                숨은 쪽 입력에 붙는다. 컨트롤러가 하나라 내렸다 다시 그려도 선택·수량은 그대로다.
+                시트를 열 수 없는 상태(판매 불가·품절 — 바가 비활성 안내·재입고 알림이다)에서는 숨기지
+                않는다(is-inline). 숨기면 옵션·가격·예약·한도 안내와 품절 합계를 모바일에서 볼 길이 없다. */}
+            <div className={`wc-pdp__purchase${purchaseSheetAvailable(purchase) ? '' : ' is-inline'}`}>
+              {sheetVisible ? null : <GoodPurchasePanel otherPurchases={otherPurchases} purchase={surfacePurchase} />}
+            </div>
             {!embedded && discovery?.shippingSavings ? <a className="wc-pdp-shipping-shortcut" href="#pdp-shipping-savings">배송비 절약 굿즈 보기</a> : null}
-            {ip ? (
-              <div className="wc-pdp__brand">
-                <span className="wc-pdp__brand-name">{ip.title}</span>
-                <Link className="wc-pdp__brand-link" href={publicIpHref(ip)}>브랜드 보러가기</Link>
-              </div>
-            ) : null}
+            {ip ? <GoodIpCard ip={ip} /> : null}
           </div>
         </div>
       </div>
@@ -406,18 +436,24 @@ export function GoodDetailView({
       {announcements ? <div className="wc-container">{announcements}</div> : null}
       {detail.attributes?.length ? <div className="wc-container"><section className="wc-pdp-notice" aria-labelledby="pdp-attributes-heading"><h2 className="wc-pdp-panel__title" id="pdp-attributes-heading">굿즈 정보</h2><div className="wc-pdp-notice__scroll"><table className="wc-pdp-notice__table"><caption className="sr-only">굿즈 속성</caption><tbody>{detail.attributes.map(row => <tr key={row.id}><th scope="row">{row.name}</th><td>{row.value}</td></tr>)}</tbody></table></div></section></div> : null}
       {detail.sizeChart ? <div className="wc-container"><GoodSizeChart chart={detail.sizeChart} /></div> : null}
-      {!embedded && detail.relatedGoods ? <div className="wc-container"><GoodRelatedProducts data={detail.relatedGoods} /></div> : null}
-      {!embedded && automaticRecommendations ? <div className="wc-container">{automaticRecommendations}</div> : null}
       {!embedded && discovery?.shippingSavings ? <div className="wc-container"><ProductShippingSavings goodId={good.id} option={purchase.selectedOption} quantity={purchase.quantity} /></div> : null}
       {!embedded && media?.settings.shortclips && media.shortclip ? <div className="wc-container"><ProductShortclips clip={media.shortclip} fallbackBackground={good.img} /></div> : null}
+      {/* 하부 탭 섹션(PD-05): 탭바는 화면 전폭, 패널 840 + 우측 레일 340(데스크톱).
+          레일은 구매 요약 박스만 담고 탭 섹션 범위에서만 보인다(PD-03). */}
       <div ref={tabsRef} className="wc-pdp-tabs">
-        <div className="wc-container">
-          <TabPanels
-            defaultPanelId={pdpDefaultPanelId(searchParams)}
-            idBase="pdp"
-            panels={panels}
-          />
-        </div>
+        {/* 탭을 고르면 탭바 자리로 창을 스크롤한다(PD-13). 어드민 미리보기 안에서는 창이 콘솔이라 끈다. */}
+        <TabPanels
+          defaultPanelId={pdpDefaultPanelId(searchParams)}
+          idBase="pdp"
+          panels={panels}
+          scrollOnSelect={!embedded}
+        />
+        {embedded ? null : (
+          <div className="wc-pdp-rail">
+            <GoodRailBuyBox purchase={surfacePurchase} />
+            <span ref={railEndRef} aria-hidden="true" className="wc-pdp-rail__end" />
+          </div>
+        )}
       </div>
 
       {!embedded && afterSales ? <div className="wc-container">{afterSales}</div> : null}
@@ -428,77 +464,33 @@ export function GoodDetailView({
           미리보기가 아니라 콘솔을 가리는 바가 된다. */}
       {embedded ? null : (
         <GoodBuyBars
-          miniVisible={isMiniBuybarVisible({ embedded, panelsInView })}
-          purchase={purchase}
+          onOpenSheet={() => setSheetOpen(true)}
+          purchase={surfacePurchase}
+          sheetOpen={sheetVisible}
         />
       )}
+      {sheetVisible ? (
+        <OverlayPortal>
+          <GoodPurchaseSheet onClose={() => setSheetOpen(false)} otherPurchases={otherPurchases} purchase={surfacePurchase} />
+        </OverlayPortal>
+      ) : null}
+      {!embedded && addResult.items ? (
+        <OverlayPortal>
+          <AddToCartResultDialog
+            items={addResult.items}
+            onClose={() => {
+              addResult.close();
+              setSheetOpen(false);
+            }}
+            open
+          />
+        </OverlayPortal>
+      ) : null}
     </Root>
   );
 }
 
-/** 공개 라우트용. 목록 카드와 같은 재고·수량 제약을 그대로 쓴다. */
-export function GoodDetail({
-  detail,
-  shippingPolicy,
-  announcements,
-  promotionBanner,
-  reviewEventBanner,
-  reviewHighlights,
-  otherCompositions,
-  selectedReviews,
-  automaticRecommendations,
-  purchaseMessages,
-  goodsBenefits,
-  afterSales,
-  discovery,
-  media,
-  engagement,
-  qna,
-  qnaSummary,
-  reviewSummary,
-  reviews,
-}: {
-  detail: GoodDetailContent;
-  shippingPolicy?: GoodShippingPolicy | null;
-  announcements?: ReactNode;
-  promotionBanner?: ReactNode;
-  reviewEventBanner?: ReactNode;
-  reviewHighlights?: ReactNode;
-  otherCompositions?: ReactNode;
-  selectedReviews?: ReactNode;
-  automaticRecommendations?: ReactNode;
-  purchaseMessages?: ReactNode;
-  goodsBenefits?: ReactNode;
-  afterSales?: ReactNode;
-  discovery?: DetailDiscovery;
-  media?: PublicGoodMedia | null;
-  engagement?: { wished: boolean; restockRequested: boolean };
-  qna?: ReactNode;
-  qnaSummary?: { count: number };
-  reviewSummary?: ReviewRatingSummary;
-  reviews?: ReactNode;
-}) {
-  return (
-    <GoodDetailView
-      detail={detail}
-      shippingPolicy={shippingPolicy}
-      announcements={announcements}
-      promotionBanner={promotionBanner}
-      reviewEventBanner={reviewEventBanner}
-      reviewHighlights={reviewHighlights}
-      otherCompositions={otherCompositions}
-      selectedReviews={selectedReviews}
-      automaticRecommendations={automaticRecommendations}
-      purchaseMessages={purchaseMessages}
-      goodsBenefits={goodsBenefits}
-      afterSales={afterSales}
-      discovery={discovery}
-      media={media}
-      engagement={engagement}
-      qna={qna}
-      qnaSummary={qnaSummary}
-      reviewSummary={reviewSummary}
-      reviews={reviews}
-    />
-  );
+/** 공개 라우트용. 목록 카드와 같은 재고·수량 제약을 그대로 쓴다. 미리보기 전용 embedded 만 받지 않는다. */
+export function GoodDetail(props: Omit<GoodDetailViewProps, 'embedded'>) {
+  return <GoodDetailView {...props} />;
 }
