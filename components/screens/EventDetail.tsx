@@ -6,11 +6,21 @@ import { useMemo, useRef, useState, type FormEvent } from 'react';
 import { useFormStatus } from 'react-dom';
 import { reserveTicketsAction } from '@/app/offline-popups/actions';
 import { setIpNotificationPreferencesAction } from '@/app/ip/actions';
+import { OfflinePopupStateBadge } from '@/components/screens/Events';
 import type { FandomEvent, Ip } from '@/lib/data';
 import { krw } from '@/lib/format';
-import { ipAccent, ipAccentInk } from '@/lib/ip-display';
 import type { IpFollowState } from '@/lib/ip-follow';
 import type { PublicTicketType } from '@/lib/ticketing.server';
+
+/* 오프라인 팝업 상세 (DESIGN §8 오프라인 팝업 · 11 §8 EV-04).
+ *
+ * 골격은 R-06 §2.3 안내형(아트 → 기간·장소 → 리드 → 현장·예매 안내)이고, 예매 칸은
+ * R-04 buybox 문법(선택 → 수량 스테퍼 → 합계 → 잉크 CTA)이다. 데스크톱은 PDP 상단처럼
+ * 아트 649 | 정보 446 두 칼럼, 모바일은 한 칼럼으로 쌓는다.
+ *
+ * 바꾸는 것은 마크업과 스타일뿐이다. 회차 판정(disabledReason·최소 결제 수량), 멱등 예매
+ * 시도(reserveTicketsAction + reservationKey 재사용), 결제 진입·로그인 복귀 경로, 알림
+ * 설정 폼은 그대로다 — 회차·잔여·예매·검표 계약 동결(DESIGN §8·§11). */
 
 const reservationErrors: Record<string, string> = {
   auth_required: '로그인이 만료됐어요. 다시 로그인해주세요.',
@@ -55,7 +65,7 @@ function EventNotificationSubmitButton({ followState }: { followState: IpFollowS
       ? '이 IP 이벤트 알림 끄기'
       : '이 IP 이벤트 알림 받기';
   return (
-    <button className="btn btn-ghost" disabled={pending} style={{ minHeight: 44 }} type="submit">
+    <button className="wc-btn wc-offline-alert__submit" disabled={pending} type="submit">
       {pending ? '저장 중' : label}
     </button>
   );
@@ -77,22 +87,21 @@ function EventNotificationAction({
   return (
     <section
       aria-labelledby="event-notification-heading"
-      className="wrap event-notification-action card"
+      className="wc-offline-detail__panel wc-offline-alert"
     >
-      <div>
-        <span className="checkout-step mono">EVENT ALERT</span>
-        <h2 id="event-notification-heading">이 IP의 새 이벤트 소식을 받아보세요</h2>
-        <p>{ip.title}에서 새로운 팝업·이벤트가 공개되면 알림함에서 알려드려요.</p>
+      <div className="wc-offline-detail__panel-body">
+        <h2 className="wc-offline-detail__panel-title" id="event-notification-heading">이 IP의 새 이벤트 소식을 받아보세요</h2>
+        <p className="wc-offline-detail__panel-text">{ip.title}에서 새로운 팝업·이벤트가 공개되면 알림함에서 알려드려요.</p>
         {notificationError && (
-          <p className="checkout-error" role="alert">알림 설정을 저장하지 못했습니다. 잠시 후 다시 시도해주세요.</p>
+          <p className="wc-offline-detail__error" role="alert">알림 설정을 저장하지 못했습니다. 잠시 후 다시 시도해주세요.</p>
         )}
         {notificationSaved && !notificationError && (
-          <p aria-live="polite" className="notification-settings-success" role="status">
+          <p aria-live="polite" className="wc-offline-alert__success" role="status">
             이벤트 알림 설정을 저장했습니다.
           </p>
         )}
       </div>
-      <form action={setIpNotificationPreferencesAction}>
+      <form action={setIpNotificationPreferencesAction} className="wc-offline-alert__form">
         <input type="hidden" name="ipId" value={ip.id} />
         <input type="hidden" name="next" value={`/offline-popups/${event.id}`} />
         {!followState.isFollowed && <input type="hidden" name="autoFollow" value="1" />}
@@ -186,156 +195,163 @@ export function EventDetail({
     setPending(false);
   };
 
-  const accent = ip ? ipAccent(ip) : event.accent;
-
   return (
-    <main className="event-detail-page">
-      <header className="event-detail-hero">
-        <div className="wrap event-detail-hero-grid">
-          <div className="event-detail-copy">
-            <Link className="event-detail-back mono" href="/offline-popups">← 오프라인 팝업</Link>
-            <div className="event-detail-badges">
-              {ip && <span style={{ color: ip ? ipAccentInk(ip) : accent }}>{ip.title}</span>}
-              <span style={{ background: event.accent, color: '#0A0813' }}>{event.mode}</span>
-              <span>{event.status}</span>
-            </div>
-            <h1 className="h-xl">{event.title}</h1>
-            <div className="event-detail-meta mono">
-              <span>◷ {event.date || '일정 공개 예정'}</span>
-              <span>◎ {event.loc || '장소 공개 예정'}</span>
-            </div>
-            <p>원하는 회차와 수량을 고른 뒤 결제를 진행하세요. 결제 확인이 끝나면 전자티켓이 발급됩니다.</p>
-          </div>
-          <div className="event-detail-art" style={{ background: event.img, backgroundPosition: 'center', backgroundSize: 'cover' }}>
-            <div aria-hidden className="sheen" />
-          </div>
-        </div>
-      </header>
+    <main className="wc-root wc-offline-detail">
+      <div className="wc-container">
+        <Link className="wc-offline-detail__back" href="/offline-popups">
+          <svg aria-hidden fill="none" height="13" viewBox="0 0 8 13" width="8">
+            <path d="M6.5 1 1.5 6.5 6.5 12" stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" strokeWidth="1.4" />
+          </svg>
+          오프라인 팝업
+        </Link>
 
-      <form className="wrap event-booking-layout" aria-busy={pending} onSubmit={submit}>
-        <section className="event-session-panel card" aria-labelledby="event-session-title">
-          <div className="checkout-section-heading">
-            <span className="checkout-step mono">01</span>
-            <div>
-              <h2 id="event-session-title">회차 선택</h2>
-              <p>할당 수량에는 결제 대기 중인 예매도 포함됩니다.</p>
-            </div>
-          </div>
+        <div className="wc-offline-detail__top">
+          <div
+            aria-hidden
+            className="wc-offline-detail__art"
+            style={{ background: event.img, backgroundPosition: 'center', backgroundSize: 'cover' }}
+          />
 
-          {sessions.length ? (
-            <fieldset className="event-session-list" disabled={inputsLocked}>
-              <legend className="sr-only">티켓 회차</legend>
-              {sessions.map((session) => {
-                const reason = disabledReason(event, session, paymentAvailable);
-                const checked = selectedId === session.id;
-                return (
-                  <label className={`event-session-card${checked ? ' is-selected' : ''}${reason || inputsLocked ? ' is-disabled' : ''}`} key={session.id}>
-                    <input
-                      checked={checked}
-                      disabled={Boolean(reason)}
-                      name="ticketTypeId"
-                      onChange={() => changeSelection(session.id)}
-                      type="radio"
-                      value={session.id}
-                    />
-                    <span className="event-session-main">
-                      <strong>{session.name}</strong>
-                      <small>{reason ?? `잔여 ${session.remaining}`}</small>
-                    </span>
-                    <span className="event-session-price">
-                      <strong>{krw(session.price)}</strong>
-                      <small className="mono">할당 {session.sold}/{session.capacity}</small>
-                    </span>
-                  </label>
-                );
-              })}
-            </fieldset>
-          ) : (
-            <div className="checkout-state-panel" role="status">
-              <h2>등록된 회차가 아직 없어요</h2>
-              <p>운영 회차가 열리면 이 화면에서 잔여 수량과 함께 안내합니다.</p>
-            </div>
-          )}
-        </section>
-
-        <aside className="event-booking-summary card" aria-label="예매 요약">
-          <div className="checkout-section-heading checkout-section-heading--compact">
-            <span className="checkout-step mono">02</span>
-            <h2>예매 확인</h2>
-          </div>
-          {selected ? (
-            <>
-              <div className="event-booking-selection">
-                <span>{event.title}</span>
-                <strong>{selected.name}</strong>
-                <small>잔여 {selected.remaining} · 결제 대기 포함</small>
-              </div>
-              <div className="event-qty-field">
-                <label htmlFor="event-ticket-qty">수량</label>
-                <div className="event-qty-control">
-                  <button aria-label="수량 줄이기" disabled={qty <= minimumPayableQuantity(selected) || inputsLocked} onClick={() => changeQty(qty - 1)} type="button">−</button>
-                  <input
-                    disabled={inputsLocked}
-                    id="event-ticket-qty"
-                    inputMode="numeric"
-                    max={selected.maxQuantity}
-                    min={minimumPayableQuantity(selected)}
-                    name="qty"
-                    onChange={(qtyEvent) => changeQty(Number(qtyEvent.target.value))}
-                    type="number"
-                    value={qty}
-                  />
-                  <button aria-label="수량 늘리기" disabled={qty >= selected.maxQuantity || inputsLocked} onClick={() => changeQty(qty + 1)} type="button">+</button>
+          <div className="wc-offline-detail__info">
+            <header className="wc-offline-detail__head">
+              <p className="wc-offline-detail__badges">
+                {ip ? <span className="wc-offline-detail__ip">{ip.title}</span> : null}
+                <span className="wc-offline-detail__kind">{event.mode}</span>
+                <OfflinePopupStateBadge status={event.status} />
+              </p>
+              <h1 className="wc-offline-detail__title">{event.title}</h1>
+              <dl className="wc-offline-detail__facts">
+                <div>
+                  <dt>기간</dt>
+                  <dd>{event.date || '일정 공개 예정'}</dd>
                 </div>
-              </div>
-              <dl className="checkout-totals">
-                <div><dt>{krw(selected.price)} × {qty}매</dt><dd>{krw(total)}</dd></div>
-                <div className="checkout-total"><dt>결제 금액</dt><dd>{krw(total)}</dd></div>
+                <div>
+                  <dt>장소</dt>
+                  <dd>{event.loc || '장소 공개 예정'}</dd>
+                </div>
               </dl>
-            </>
-          ) : (
-            <p className="event-booking-empty">예매 가능한 회차가 없습니다.</p>
-          )}
+              <p className="wc-offline-detail__lead">원하는 회차와 수량을 고른 뒤 결제를 진행하세요. 결제 확인이 끝나면 전자티켓이 발급됩니다.</p>
+            </header>
 
-          {(selectedReason || (!selected && event.status !== '예매중')) && (
-            <p className="checkout-error" role="status">{selectedReason ?? '현재 예매 가능한 오프라인 팝업이 아니에요.'}</p>
-          )}
-          {error && <p aria-live="polite" className="checkout-error" role="alert">{error}</p>}
-          {!error && <span aria-live="polite" className="sr-only">{pending ? '예매를 만들고 있습니다.' : ''}</span>}
+            <form aria-busy={pending} className="wc-offline-buybox" onSubmit={submit}>
+              <section aria-labelledby="event-session-title" className="wc-offline-buybox__sessions">
+                <h2 className="wc-offline-buybox__heading" id="event-session-title">회차 선택</h2>
+                <p className="wc-offline-buybox__note">할당 수량에는 결제 대기 중인 예매도 포함됩니다.</p>
 
-          {authState === 'ready' ? (
-            <button className="btn btn-holo checkout-submit" disabled={pending || !selected || Boolean(selectedReason)}>
-              {pending ? '잔여 수량을 확인 중' : retryLocked ? '같은 요청 다시 확인' : '예매하고 결제하기'}
-            </button>
-          ) : selected && !selectedReason ? (
-            <Link className="btn btn-holo checkout-submit" href={authHref}>
-              {authState === 'signed-out' ? '로그인하고 예매' : '프로필 설정 후 예매'}
-            </Link>
-          ) : (
-            <button className="btn btn-holo checkout-submit" disabled type="button">예매할 수 없음</button>
-          )}
-          <p className="money-caption">예약 후 10분 동안 정원이 선점됩니다. 결제사 승인 결과를 서버에서 확인한 뒤 완료를 안내합니다.</p>
-        </aside>
-      </form>
+                {sessions.length ? (
+                  <fieldset className="wc-offline-sessions" disabled={inputsLocked}>
+                    <legend className="wc-sr-only">티켓 회차</legend>
+                    {sessions.map((session) => {
+                      const reason = disabledReason(event, session, paymentAvailable);
+                      const checked = selectedId === session.id;
+                      return (
+                        <label className={`wc-offline-session${checked ? ' is-selected' : ''}${reason || inputsLocked ? ' is-disabled' : ''}`} key={session.id}>
+                          <input
+                            checked={checked}
+                            disabled={Boolean(reason)}
+                            name="ticketTypeId"
+                            onChange={() => changeSelection(session.id)}
+                            type="radio"
+                            value={session.id}
+                          />
+                          <span className="wc-offline-session__main">
+                            <strong>{session.name}</strong>
+                            <small>{reason ?? `잔여 ${session.remaining}`}</small>
+                          </span>
+                          <span className="wc-offline-session__price">
+                            <strong>{krw(session.price)}</strong>
+                            <small>할당 {session.sold}/{session.capacity}</small>
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </fieldset>
+                ) : (
+                  <div className="wc-offline-buybox__state" role="status">
+                    <h3>등록된 회차가 아직 없어요</h3>
+                    <p>운영 회차가 열리면 이 화면에서 잔여 수량과 함께 안내합니다.</p>
+                  </div>
+                )}
+              </section>
 
-      {event.status === '예정' && ip && notificationState && (
-        <EventNotificationAction
-          event={event}
-          followState={notificationState}
-          ip={ip}
-          notificationError={notificationError}
-          notificationSaved={notificationSaved}
-        />
-      )}
+              <section aria-label="예매 요약" className="wc-offline-buybox__summary">
+                {selected ? (
+                  <>
+                    <p className="wc-offline-buybox__selection">
+                      <span>{event.title}</span>
+                      <strong>{selected.name}</strong>
+                      <small>잔여 {selected.remaining} · 결제 대기 포함</small>
+                    </p>
+                    {/* 수량 스테퍼 92×32(R-04 §3.6). 최소 결제 수량·1인 한도 판정은 그대로다. */}
+                    <div className="wc-offline-buybox__qty">
+                      <label htmlFor="event-ticket-qty">수량</label>
+                      <div className="wc-stepper">
+                        <button aria-label="수량 줄이기" className="wc-stepper__btn" disabled={qty <= minimumPayableQuantity(selected) || inputsLocked} onClick={() => changeQty(qty - 1)} type="button">−</button>
+                        <input
+                          className="wc-stepper__input"
+                          disabled={inputsLocked}
+                          id="event-ticket-qty"
+                          inputMode="numeric"
+                          max={selected.maxQuantity}
+                          min={minimumPayableQuantity(selected)}
+                          name="qty"
+                          onChange={(qtyEvent) => changeQty(Number(qtyEvent.target.value))}
+                          type="number"
+                          value={qty}
+                        />
+                        <button aria-label="수량 늘리기" className="wc-stepper__btn" disabled={qty >= selected.maxQuantity || inputsLocked} onClick={() => changeQty(qty + 1)} type="button">+</button>
+                      </div>
+                    </div>
+                    <dl className="wc-offline-buybox__totals">
+                      <div><dt>{krw(selected.price)} × {qty}매</dt><dd>{krw(total)}</dd></div>
+                      <div className="wc-offline-buybox__total"><dt>결제 금액</dt><dd>{krw(total)}</dd></div>
+                    </dl>
+                  </>
+                ) : (
+                  <p className="wc-offline-buybox__none">예매 가능한 회차가 없습니다.</p>
+                )}
 
-      <section className="wrap event-ticket-guide card" aria-labelledby="event-ticket-guide-heading">
-        <div>
-          <span className="checkout-step mono">MY TICKETS</span>
-          <h2 id="event-ticket-guide-heading">전자티켓 이용 안내</h2>
-          <p>결제 확인 후 내 티켓에서 QR을 확인하고, 현장에서는 티켓을 한 장씩 제시해주세요.</p>
+                {(selectedReason || (!selected && event.status !== '예매중')) && (
+                  <p className="wc-offline-buybox__reason" role="status">{selectedReason ?? '현재 예매 가능한 오프라인 팝업이 아니에요.'}</p>
+                )}
+                {error && <p aria-live="polite" className="wc-offline-detail__error" role="alert">{error}</p>}
+                {!error && <span aria-live="polite" className="wc-sr-only">{pending ? '예매를 만들고 있습니다.' : ''}</span>}
+
+                {authState === 'ready' ? (
+                  <button className="wc-btn primary wc-offline-buybox__cta" disabled={pending || !selected || Boolean(selectedReason)}>
+                    {pending ? '잔여 수량을 확인 중' : retryLocked ? '같은 요청 다시 확인' : '예매하고 결제하기'}
+                  </button>
+                ) : selected && !selectedReason ? (
+                  <Link className="wc-btn primary wc-offline-buybox__cta" href={authHref}>
+                    {authState === 'signed-out' ? '로그인하고 예매' : '프로필 설정 후 예매'}
+                  </Link>
+                ) : (
+                  <button className="wc-btn primary wc-offline-buybox__cta" disabled type="button">예매할 수 없음</button>
+                )}
+                <p className="wc-offline-buybox__caption">예약 후 10분 동안 정원이 선점됩니다. 결제사 승인 결과를 서버에서 확인한 뒤 완료를 안내합니다.</p>
+              </section>
+            </form>
+          </div>
         </div>
-        <Link className="btn btn-ghost" href="/tickets">내 티켓 확인</Link>
-      </section>
+
+        {event.status === '예정' && ip && notificationState && (
+          <EventNotificationAction
+            event={event}
+            followState={notificationState}
+            ip={ip}
+            notificationError={notificationError}
+            notificationSaved={notificationSaved}
+          />
+        )}
+
+        <section aria-labelledby="event-ticket-guide-heading" className="wc-offline-detail__panel">
+          <div className="wc-offline-detail__panel-body">
+            <h2 className="wc-offline-detail__panel-title" id="event-ticket-guide-heading">전자티켓 이용 안내</h2>
+            <p className="wc-offline-detail__panel-text">결제 확인 후 내 티켓에서 QR을 확인하고, 현장에서는 티켓을 한 장씩 제시해주세요.</p>
+          </div>
+          <Link className="wc-btn wc-offline-detail__panel-cta" href="/tickets">내 티켓 확인</Link>
+        </section>
+      </div>
     </main>
   );
 }
