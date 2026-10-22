@@ -473,13 +473,21 @@ export function GoodPurchasePanel({ purchase }: { purchase: GoodPurchaseControll
  * 우하단 미니 바(§5.5)다. 레퍼런스의 모바일 바는 품절에도 "구매하기"로 남는
  * 상태 비반응 단일 버튼이지만(§10-7 결함), 여기서는 본문 CTA 와 같은 규칙으로
  * 재입고 알림으로 바뀐다.
+ *
+ * 모바일 바의 [장바구니]·[구매하기]는 구매 시트를 여는 트리거다(PD-01) — 실행은 시트 안
+ * CTA 가 한다. 그래서 옵션을 아직 고르지 않았거나 카트가 준비 중이어도 잠그지 않는다.
+ * 잠그면 다옵션 굿즈는 옵션을 고를 길이 없는 비활성 바만 남는다.
  */
 export function GoodBuyBars({
   miniVisible,
+  onOpenSheet,
   purchase,
+  sheetOpen,
 }: {
   miniVisible: boolean;
+  onOpenSheet: () => void;
   purchase: GoodPurchaseController;
+  sheetOpen: boolean;
 }) {
   const { disabled, good, inert, restockRequested, soldOut } = purchase;
 
@@ -488,18 +496,22 @@ export function GoodBuyBars({
   ) : (
     <>
       <button
+        aria-expanded={sheetOpen}
+        aria-haspopup="dialog"
         aria-label="장바구니에 담기"
         className="wc-buybar__cart"
-        disabled={inert}
-        onClick={purchase.addToCart}
+        disabled={disabled}
+        onClick={onOpenSheet}
         type="button"
       >
         <CartGlyph />
       </button>
       <button
+        aria-expanded={sheetOpen}
+        aria-haspopup="dialog"
         className="wc-buybar__buy"
-        disabled={inert}
-        onClick={purchase.buyNow}
+        disabled={disabled}
+        onClick={onOpenSheet}
         type="button"
       >
         구매하기

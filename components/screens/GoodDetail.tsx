@@ -8,6 +8,7 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { GoodBuyBars, GoodPurchasePanel, isMiniBuybarVisible, useAddToCartResult, useGoodPurchase } from '@/components/shop/GoodPurchasePanel';
 import { AddToCartResultDialog } from '@/components/shop/AddToCartResultDialog';
+import { GoodPurchaseSheet } from '@/components/shop/GoodPurchaseSheet';
 import { OverlayPortal } from '@/components/shell/OverlayPortal';
 import { PdpGallery } from '@/components/shop/PdpGallery';
 import { WishlistHeart } from '@/components/shop/WishlistHeart';
@@ -259,6 +260,18 @@ export function GoodDetailView({
      패널·고정 바가 같은 감싼 담기를 써야 어느 표면에서 담아도 같은 모달이 뜬다. */
   const addResult = useAddToCartResult(purchase);
   const surfacePurchase = embedded ? purchase : { ...purchase, addToCart: addResult.addToCart };
+  /* 모바일 구매 시트(PD-01). 담기 결과 모달이 뜨면 시트는 내려간다 — 두 모달이 겹치면
+     Escape 하나에 둘이 함께 닫히고 아래 시트가 보조기기에 열린 채 남는다. */
+  const [sheetOpen, setSheetOpen] = useState(false);
+  const sheetVisible = !embedded && sheetOpen && !addResult.items;
+  useEffect(() => {
+    if (!sheetOpen) return;
+    /* 시트는 모바일 바에서만 열린다. 창을 넓혀 데스크톱 배치로 넘어가면 닫아 본문 패널로 돌려준다. */
+    const desktop = window.matchMedia('(min-width: 990px)');
+    const closeOnDesktop = () => { if (desktop.matches) setSheetOpen(false); };
+    desktop.addEventListener('change', closeOnDesktop);
+    return () => desktop.removeEventListener('change', closeOnDesktop);
+  }, [sheetOpen]);
   const nextPriceChange = [good, ...(detail.additionalGoods ?? [])].reduce<number | null>((next, item) => {
     return [goodsVolumeBoundary(item), item.salePeriod?.nextChangeAt, ...(item.options ?? []).flatMap(option => [option.pricing?.nextChangeAt, option.supply?.nextChangeAt])].reduce<number | null>((earliest, changeAt) => {
       const time = changeAt ? Date.parse(changeAt) : NaN;
@@ -395,7 +408,12 @@ export function GoodDetailView({
             </div>
             {!embedded ? goodsBenefits : null}
             {!embedded ? <GoodsGroupSelector group={detail.goodsGroup} /> : null}
-            <GoodPurchasePanel purchase={surfacePurchase} />
+            {/* 모바일에서 본문 패널은 숨고 같은 패널이 구매 시트에 들어간다(CSS가 숨김을 맡는다).
+                시트가 열린 동안은 본문 사본을 내린다 — 직접 입력 칸의 id 가 두 벌이 되면 라벨이
+                숨은 쪽 입력에 붙는다. 컨트롤러가 하나라 내렸다 다시 그려도 선택·수량은 그대로다. */}
+            <div className="wc-pdp__purchase">
+              {sheetVisible ? null : <GoodPurchasePanel purchase={surfacePurchase} />}
+            </div>
             {!embedded && discovery?.shippingSavings ? <a className="wc-pdp-shipping-shortcut" href="#pdp-shipping-savings">배송비 절약 굿즈 보기</a> : null}
             {ip ? (
               <div className="wc-pdp__brand">
@@ -435,12 +453,26 @@ export function GoodDetailView({
       {embedded ? null : (
         <GoodBuyBars
           miniVisible={isMiniBuybarVisible({ embedded, panelsInView })}
+          onOpenSheet={() => setSheetOpen(true)}
           purchase={surfacePurchase}
+          sheetOpen={sheetVisible}
         />
       )}
+      {sheetVisible ? (
+        <OverlayPortal>
+          <GoodPurchaseSheet onClose={() => setSheetOpen(false)} purchase={surfacePurchase} />
+        </OverlayPortal>
+      ) : null}
       {!embedded && addResult.items ? (
         <OverlayPortal>
-          <AddToCartResultDialog items={addResult.items} onClose={addResult.close} open />
+          <AddToCartResultDialog
+            items={addResult.items}
+            onClose={() => {
+              addResult.close();
+              setSheetOpen(false);
+            }}
+            open
+          />
         </OverlayPortal>
       ) : null}
     </Root>

@@ -348,6 +348,31 @@ describe('GoodDetail', () => {
     expect(html).toMatch(/class="wc-buybar-mini"[^>]*hidden/);
   });
 
+  /* PD-01 — 모바일 바는 구매 시트를 여는 트리거다. 실행은 시트 안 CTA 가 한다. */
+  it('모바일 바의 장바구니·구매하기는 시트를 여는 트리거라 옵션을 고르기 전에도 잠기지 않는다', () => {
+    const options = [
+      { id: '00000000-0000-4000-8000-000000000201', name: '파랑', code: 'G13-B', price: 12000, stockQty: 3, isDefault: true, attributes: {} },
+      { id: '00000000-0000-4000-8000-000000000202', name: '빨강', code: 'G13-R', price: 13000, stockQty: 0, isDefault: false, attributes: {} },
+    ];
+    const html = render({ good: { ...good, options } });
+    const bar = html.slice(html.indexOf('<div class="wc-buybar">'), html.indexOf('</div>', html.indexOf('<div class="wc-buybar">')));
+
+    expect(bar).toMatch(/<button aria-expanded="false" aria-haspopup="dialog" aria-label="장바구니에 담기" class="wc-buybar__cart" type="button">/);
+    expect(bar).toMatch(/<button aria-expanded="false" aria-haspopup="dialog" class="wc-buybar__buy" type="button">구매하기<\/button>/);
+    expect(bar).not.toContain('disabled');
+    /* 본문 패널은 같은 컨트롤러라 옵션 전에는 CTA 가 잠긴다 — 모바일에서는 CSS 가 이 래퍼째 숨긴다. */
+    expect(html).toContain('<div class="wc-pdp__purchase"><div class="wc-buy-panel">');
+    expect(html).toMatch(/class="wc-btn wc-buy-panel__cart" disabled=""/);
+  });
+
+  it('품절이면 모바일 바 전체가 재입고 알림이고 시트 트리거를 두지 않는다', () => {
+    const html = render({ good: { ...good, stock: 'soldout', stockQty: 0 } });
+    const bar = html.slice(html.indexOf('<div class="wc-buybar">'));
+
+    expect(bar.startsWith('<div class="wc-buybar"><button class="wc-restock-cta"')).toBe(true);
+    expect(html).not.toContain('aria-haspopup="dialog" aria-label="장바구니에 담기"');
+  });
+
   it('하부를 패널 전환 탭으로 나눈다', () => {
     const html = render();
 
