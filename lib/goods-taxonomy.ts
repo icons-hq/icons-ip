@@ -34,15 +34,22 @@ export function isGoodBadge(value: unknown): value is GoodBadge {
   return typeof value === 'string' && (GOOD_BADGES as readonly string[]).includes(value);
 }
 
-/** 카드에 표기할 배지 목록 — 저장 배지에 할인 파생 SALE 을 더한다. */
+/**
+ * 카드에 표기할 배지 목록 — 저장 배지에 할인 파생 SALE 을 더한다.
+ *
+ * 할인율 표시를 끈 굿즈(#543 `show_discount_rate = false`)는 목록·상세가 취소선과 할인율 없이
+ * 할인가만 보인다. 거기에 SALE 배지만 남으면 숨긴 할인을 배지가 다시 광고하는 셈이라 파생하지
+ * 않는다(PD-15). 결제 금액·주문 단가와는 무관한 표시 규칙이다.
+ */
 export function goodDisplayBadges(good: {
   badge: string | null;
   price: number;
   compareAtPrice?: number | null;
+  showDiscountRate?: boolean;
 }): string[] {
   const badges: string[] = [];
   if (good.badge) badges.push(good.badge);
-  if (typeof good.compareAtPrice === 'number' && good.compareAtPrice > good.price) {
+  if (good.showDiscountRate !== false && typeof good.compareAtPrice === 'number' && good.compareAtPrice > good.price) {
     badges.push('SALE');
   }
   return badges;

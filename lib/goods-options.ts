@@ -47,6 +47,51 @@ export function initialGoodOption(good: Good): GoodOption | undefined {
   return good.options?.length === 1 && good.options[0].stockQty > 0 ? good.options[0] : undefined;
 }
 
+/**
+ * 주소의 `?variant=`로 들어온 옵션 중 지금 고를 수 있는 것 (PD-14).
+ * 고를 수 있다는 기준은 구매 컨트롤러의 선택 규칙과 같다 — 이 굿즈의 옵션이고 재고가 있다.
+ * 맞지 않으면(다른 굿즈 옵션·품절·오타) undefined 라 기본 선택 규칙으로 돌아간다.
+ */
+export function selectableGoodOptionId(good: Pick<Good, 'options'>, variantId: string | null | undefined): string | undefined {
+  if (!variantId) return undefined;
+  return good.options?.find(option => option.id === variantId && option.stockQty > 0)?.id;
+}
+
+/**
+ * 옵션 선택을 주소에 남길 검색 문자열(`?variant=`, PD-14 · 11 §6 B9). 바꿀 것이 없으면 null.
+ * 다른 검색 조건(리뷰·Q&A 페이지)은 그대로 둔다. 첫 화면의 자동 기본 선택(`defaultId`)은 주소에 쓰지
+ * 않는다 — 들어오기만 해도 주소가 바뀌면 공유·북마크 주소가 사용자가 고르지 않은 옵션을 가리킨다.
+ */
+export function variantSearchForSelection(search: string, selectedId: string | undefined, defaultId: string | undefined): string | null {
+  if (!selectedId) return null;
+  const params = new URLSearchParams(search);
+  const current = params.get('variant');
+  if (current === selectedId || (current === null && selectedId === defaultId)) return null;
+  params.set('variant', selectedId);
+  return `?${params.toString()}`;
+}
+
+/**
+ * 주소 동기화가 "쓰지 않을 기본 선택"으로 볼 첫 선택. 첫 선택이 주소의 `?variant=`에서 왔으면 사용자가
+ * 고른 선택이라 기본 선택이 아니다(undefined) — 같은 상세 안 이동(리뷰·Q&A 페이지 링크)이 주소에서
+ * variant 를 지워도 다시 써 넣어야 공유·새로고침에서 선택을 잃지 않는다.
+ */
+export function variantSyncDefault(urlVariantId: string | null, initialSelectedId: string | undefined): string | undefined {
+  return urlVariantId !== null && urlVariantId === initialSelectedId ? undefined : initialSelectedId;
+}
+
+/**
+ * 품절 굿즈의 합계 미리보기 단가 (PD-08).
+ *
+ * 재고 0 옵션은 자동 선택하지 않으므로(initialGoodOption) 품절 굿즈의 합계 자리에는 "옵션 선택 후
+ * 표시"가 남았다 — 고를 옵션이 없는데 고르라는 문구다. 품절이면 가격으로 합계를 보인다: 옵션이
+ * 있으면 첫 옵션 가격(레퍼런스는 첫 옵션이 선택된 채 합계를 보인다), 없으면 굿즈 가격.
+ * 표시 전용 값이다 — 품절 굿즈는 담기·구매가 막혀 있고 금액은 서버 견적·주문 RPC 가 정한다.
+ */
+export function soldOutPreviewPrice(good: Pick<Good, 'price' | 'options'>): number {
+  return good.options?.[0]?.price ?? good.price;
+}
+
 export function optionLabel(option: GoodOption | undefined, count: number): string | null {
   if (!option) return null;
   return count === 1 && option.isDefault && option.name === '기본 옵션' && Object.keys(option.attributes).length === 0
