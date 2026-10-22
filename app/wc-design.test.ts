@@ -535,3 +535,41 @@ describe('White Catalog campaign wiring', () => {
     expect(css).toMatch(/\.wc-campaign-nav\s*\{[^}]*z-index:\s*2/s);
   });
 });
+
+describe('White Catalog offline popup wiring', () => {
+  it('loads the offline popup layer after the campaign layer and before the retained about surface', () => {
+    /* 오프라인 팝업은 캠페인 카드 문법(R-06 §1.4)과 파운데이션 버튼·스테퍼를 자기 수치로 조율한다 —
+     * 앞선 레이어보다 먼저 로드되면 같은 특정성에서 그 조율이 밀린다. */
+    const layout = read('./layout.tsx');
+
+    expect(layout).toContain("'./styles/wc-offline-popups.css'");
+    expect(layout.indexOf("'./styles/wc-offline-popups.css'")).toBeGreaterThan(
+      layout.indexOf("'./styles/wc-campaign.css'"),
+    );
+    expect(layout.indexOf("'./styles/about-legacy.css'")).toBeGreaterThan(
+      layout.indexOf("'./styles/wc-offline-popups.css'"),
+    );
+  });
+
+  it('keeps the offline popup stylesheet scoped, rootless, and free of the reference accent', () => {
+    const css = read('./styles/wc-offline-popups.css');
+
+    expect(css).not.toMatch(/^\s*(?:html|body|:root|h[1-6]|a|p|ul|ol|button|input|\*)\s*[,{:]/m);
+    expect(css).not.toMatch(/:root\s*\{[^}]*--wc-/s);
+    expect(css).not.toMatch(/#F83BAA/i);
+    expect(css).not.toMatch(/#FD4BBB/i);
+    expect(css).not.toMatch(/line-height:\s*(?:0?\.)\d+/);
+    postcss.parse(css).walkRules((rule) => {
+      for (const selector of rule.selectors) expect(selector.trim()).toMatch(/^\.wc-offline/);
+    });
+  });
+
+  it('keeps the booking surface free of ambient motion', () => {
+    /* 예매·결제 지면에서는 주변 자동 모션을 두지 않는다(DESIGN §9). 피드백 전환만 허용한다. */
+    const css = read('./styles/wc-offline-popups.css');
+
+    expect(css).not.toMatch(/@keyframes/);
+    expect(css).not.toMatch(/animation:/);
+  });
+});
+

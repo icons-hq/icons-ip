@@ -1,0 +1,384 @@
+/* ==================================================================
+   ICONS — White Catalog: 오프라인 팝업 지면 (LFS 패리티 2차 L10)
+   ==================================================================
+   소유 범위: 오프라인 팝업 목록(/offline-popups)과 상세(/offline-popups/[eventId]).
+   수치 정본: DESIGN.md §6(campaign-hub 기간·상태 보완 규칙·pdp-buybox·cta-pair)·§8 오프라인 팝업,
+   docs/research/linefriends-square/06-event-campaign-static.md §1.4(카드)·§2.3(안내형)·§5(목록 머리),
+   04-product-detail.md §3(buybox).
+
+   규율:
+   - 전 규칙을 .wc-offline* 클래스 아래 스코프한다. 전역 element 셀렉터 금지.
+   - :root 에 --wc-* 토큰을 정의하지 않는다(사용만 한다).
+   - 흰 지면·잉크·헤어라인. 예매·결제 지면이라 주변 자동 모션을 두지 않는다(DESIGN §9).
+   - 회차·잔여·예매·검표 계약은 화면 밖(서버 action·RPC)에 있다 — 이 파일은 모양만 맡는다.
+   ================================================================== */
+
+/* ------------------------------------------------------------------
+   1. 상태 뱃지 — 목록 카드와 상세 머리가 공유
+   ------------------------------------------------------------------
+   예매중(행동 가능) 잉크 솔리드 / 진행중 잉크 아웃라인 / 예정 컨트롤 선 아웃라인 /
+   종료 뮤트. 색만으로 구분하지 않고 상태 글자를 항상 함께 싣는다. */
+
+.wc-offline-state {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  height: 22px;
+  padding: 0 8px;
+  border: 1px solid transparent;
+  border-radius: var(--wc-radius-badge);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.4;
+  letter-spacing: -.2px;
+  white-space: nowrap;
+}
+
+.wc-offline-state--open {
+  background: var(--wc-ink);
+  color: var(--wc-surface);
+}
+
+.wc-offline-state--live {
+  border-color: var(--wc-ink);
+  background: var(--wc-surface);
+  color: var(--wc-ink);
+}
+
+.wc-offline-state--upcoming,
+.wc-offline-state--other {
+  border-color: var(--wc-line-control);
+  background: var(--wc-surface);
+  color: var(--wc-ink);
+}
+
+.wc-offline-state--ended {
+  background: var(--wc-surface-grey-2);
+  color: var(--wc-ink-tertiary);
+}
+
+/* ------------------------------------------------------------------
+   2. 목록 — /offline-popups
+   ------------------------------------------------------------------ */
+
+.wc-offline {
+  display: block;
+  padding: 24px 0 0;
+}
+
+/* 목록 머리 — 레퍼런스 목록 페이지의 왼쪽 정렬 h1(R-06 §5: 40/700, 위아래 20).
+   모바일은 DESIGN page-h1 26/700. */
+.wc-offline__head {
+  margin: 0 0 24px;
+}
+
+.wc-offline__title {
+  margin: 0;
+  font-family: inherit;
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: -.8px;
+  color: var(--wc-ink);
+}
+
+.wc-offline__lead {
+  margin: 8px 0 0;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.6;
+  color: var(--wc-ink-tertiary);
+}
+
+/* 2.1 필터 칩 — DESIGN §5 탐색 조작부 보정(최소 44px·24px 캡슐·회색 지면·헤어라인,
+   선택 = 잉크 반전). 모바일은 축마다 한 줄 가로 스크롤, 데스크톱은 줄바꿈. */
+.wc-offline-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0 0 32px;
+}
+
+.wc-offline-filters__group {
+  display: flex;
+  flex-wrap: nowrap;
+  gap: 8px;
+  margin: 0 calc(var(--wc-gutter) * -1);
+  padding: 0 var(--wc-gutter);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.wc-offline-filters__group::-webkit-scrollbar {
+  display: none;
+}
+
+.wc-offline-chip {
+  display: inline-flex;
+  align-items: center;
+  flex: none;
+  min-height: 44px;
+  padding: 0 16px;
+  font-family: inherit;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.4;
+  border: 1px solid var(--wc-hairline);
+  border-radius: 24px;
+  background: var(--wc-surface-grey);
+  color: var(--wc-ink);
+  cursor: pointer;
+  transition: background-color var(--wc-duration-default), border-color var(--wc-duration-default);
+}
+
+.wc-offline-chip:hover {
+  border-color: var(--wc-ink);
+}
+
+.wc-offline-chip[aria-pressed='true'] {
+  font-weight: 700;
+  border-color: var(--wc-ink);
+  background: var(--wc-ink);
+  color: #FFFFFF;
+}
+
+/* 2.2 카드 그리드 (R-06 §1.4)
+   데스크톱 2열 580px + gap 20 = 1180, 줄 간격 48. 모바일 1열(전폭). */
+.wc-offline-grid {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 40px 20px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wc-offline-card {
+  min-width: 0;
+}
+
+.wc-offline-card__link {
+  display: block;
+  color: inherit;
+}
+
+/* 썸네일 3:2. 이미지가 늦게 와도 회색 면이 자리를 지킨다. */
+.wc-offline-card__media {
+  position: relative;
+  display: block;
+  aspect-ratio: 3 / 2;
+  overflow: hidden;
+  background-color: var(--wc-surface-grey-2);
+}
+
+/* 유형은 색이 아니라 텍스트로 구분한다(R-06 §1.4 — 검정 면 흰 글자). */
+.wc-offline-card__kind {
+  position: absolute;
+  top: 8px;
+  left: 8px;
+  display: inline-flex;
+  align-items: center;
+  height: 29px;
+  padding: 0 8px;
+  background: var(--wc-ink);
+  color: var(--wc-surface);
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.4;
+}
+
+.wc-offline-card__info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding-top: 12px;
+}
+
+.wc-offline-card__ip {
+  margin: 0;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.5;
+  color: var(--wc-ink-tertiary);
+}
+
+/* 지면 서체·잉크를 명시한다 — 헤딩 요소에 전역 규칙이 끼어들 여지를 남기지 않는다. */
+.wc-offline-card__title {
+  margin: 0;
+  font-family: inherit;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.33;
+  letter-spacing: -.4px;
+  color: var(--wc-ink);
+}
+
+.wc-offline-card__place {
+  margin: 0;
+  overflow: hidden;
+  font-size: 15px;
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--wc-ink-tertiary);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.wc-offline-card__meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 4px 0 0;
+}
+
+.wc-offline-card__period {
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--wc-ink-sub);
+}
+
+/* 참여형 게임 진입 — 카드 링크 밖의 보조 링크. 44px 터치 높이. */
+.wc-offline-card__games {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 16px;
+  margin: 4px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wc-offline-card__game {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--wc-ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.wc-offline__empty {
+  padding: 64px 0;
+}
+
+/* 2.3 QR 안내 — 목록 아래 헤어라인 위 3단. 회색 면 대신 여백과 선으로 가른다. */
+.wc-offline-guide {
+  margin-top: 80px;
+  padding: 40px 0 72px;
+  border-top: 1px solid var(--wc-hairline);
+}
+
+.wc-offline-guide__title {
+  margin: 0 0 20px;
+  font-family: inherit;
+  font-size: 18px;
+  font-weight: 700;
+  line-height: 1.4;
+  letter-spacing: -.4px;
+  color: var(--wc-ink);
+}
+
+.wc-offline-guide__steps {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 12px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wc-offline-guide__step {
+  display: grid;
+  grid-template-columns: 32px minmax(0, 1fr);
+  gap: 2px 8px;
+  padding: 16px 0;
+  border-bottom: 1px solid var(--wc-hairline);
+}
+
+.wc-offline-guide__num {
+  grid-row: span 2;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.6;
+  font-variant-numeric: tabular-nums;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-offline-guide__name {
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.6;
+  color: var(--wc-ink);
+}
+
+.wc-offline-guide__desc {
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.6;
+  color: var(--wc-ink-sub);
+}
+
+.wc-offline-guide__caption {
+  margin: 16px 0 0;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.6;
+  color: var(--wc-ink-tertiary);
+}
+
+/* ------------------------------------------------------------------
+   4. 태블릿 이상 (>=750px)
+   ------------------------------------------------------------------ */
+
+@media (min-width: 750px) {
+  .wc-offline-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .wc-offline-guide__steps {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 20px;
+  }
+}
+
+/* ------------------------------------------------------------------
+   5. 데스크톱 (>=990px)
+   ------------------------------------------------------------------ */
+
+@media (min-width: 990px) {
+  .wc-offline {
+    padding-top: 40px;
+  }
+
+  .wc-offline__head {
+    margin-bottom: 32px;
+  }
+
+  .wc-offline__title {
+    font-size: 40px;
+  }
+
+  .wc-offline__lead {
+    margin-top: 12px;
+    font-size: 16px;
+  }
+
+  .wc-offline-filters__group {
+    flex-wrap: wrap;
+    margin-inline: 0;
+    padding-inline: 0;
+    overflow-x: visible;
+  }
+
+  .wc-offline-grid {
+    row-gap: 48px;
+  }
+
+  .wc-offline-guide {
+    margin-top: 120px;
+    padding: 48px 0 96px;
+  }
+}
