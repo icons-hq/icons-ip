@@ -526,13 +526,16 @@ describe('White Catalog campaign wiring', () => {
 
   it('pins the campaign anchor nav under the shell header instead of over it', () => {
     /* 앵커 내브가 셸 헤더보다 위 z-index 를 가져가면 GNB·검색 오버레이를 덮는다.
-     * 헤더 축약 높이(모바일 81 / 데스크톱 68)를 오프셋으로 두고 그 아래에 선다
-     * — wc-catalog 의 PDP 탭바와 같은 계약값이다. */
+     * 셸이 알리는 고정 크롬 높이(--wc-sticky-chrome-h)를 오프셋으로 두고 그 아래에 선다.
+     * 토큰이 없을 때의 대체값은 축약 헤더 높이(모바일 81 / 데스크톱 68)다. */
     const css = read('./styles/wc-campaign.css');
 
     expect(css).toMatch(/\.wc-campaign-nav\s*\{[^}]*position:\s*sticky/s);
-    expect(css).toMatch(/\.wc-campaign-nav\s*\{[^}]*top:\s*81px/s);
+    expect(css).toMatch(/\.wc-campaign-nav\s*\{[^}]*top:\s*var\(--wc-sticky-chrome-h,\s*81px\)/s);
+    expect(css).toMatch(/@media \(min-width: 990px\)\s*\{[^@]*\.wc-campaign-nav\s*\{[^}]*top:\s*var\(--wc-sticky-chrome-h,\s*68px\)/s);
     expect(css).toMatch(/\.wc-campaign-nav\s*\{[^}]*z-index:\s*2/s);
+    /* 고정 높이를 숫자로 박아 두면 셸 높이가 바뀔 때 이 지면만 어긋난다. */
+    expect(css).not.toMatch(/top:\s*(?:81|68|69|52)px/);
   });
 });
 
