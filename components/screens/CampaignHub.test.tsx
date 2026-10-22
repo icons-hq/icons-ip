@@ -197,8 +197,8 @@ describe('CampaignHub', () => {
     expect(html).toContain('aria-label="1 / 2"');
     expect(html).toContain('aria-label="자동 넘김 일시정지"');
     expect(html).not.toContain('aria-pressed');
-    expect(html).toMatch(/<button[^>]*aria-label="이전 배너"[^>]*disabled=""/);
-    expect(html).toMatch(/<button[^>]*aria-label="다음 배너"(?![^>]*disabled)/);
+    expect(html).toContain('<button aria-disabled="true" aria-label="이전 배너"');
+    expect(html).toMatch(/<button aria-label="다음 배너" class="wc-campaign-banners__arrow/);
   });
 
   /* 모든 목록에 빈 상태가 있어야 한다(DESIGN §9·§12). */

@@ -188,7 +188,7 @@
 }
 
 /* 좌우 화살표 44×44 — 배너 안쪽 양끝(R-06 §1.2). 모바일은 스와이프가 이동 수단이라
-   감춘다(레퍼런스 small-hide). 첫 장·마지막 장에서는 비활성이다(loop 없음). */
+   감춘다(레퍼런스 small-hide). 첫 장·마지막 장에서는 눌러도 넘기지 않는다(loop 없음). */
 .wc-campaign-banners__arrow {
   position: absolute;
   top: 50%;
@@ -214,7 +214,8 @@
   right: 0;
 }
 
-.wc-campaign-banners__arrow:disabled {
+/* 양 끝의 화살표는 disabled 가 아니라 aria-disabled 다(포커스를 잃지 않게) — 모양만 낮춘다. */
+.wc-campaign-banners__arrow[aria-disabled='true'] {
   opacity: .35;
   cursor: default;
 }

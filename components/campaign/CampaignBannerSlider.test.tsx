@@ -86,8 +86,10 @@ describe('CampaignBannerSlider 마크업', () => {
       </CampaignBannerSlider>,
     );
 
-    expect(html).toMatch(/<button[^>]*aria-label="이전 배너"[^>]*disabled=""/);
-    expect(html).toMatch(/<button[^>]*aria-label="다음 배너"(?![^>]*disabled)[^>]*>/);
+    /* 끝에 닿아도 disabled 로 포커스를 빼앗지 않는다 — aria-disabled 로만 알린다. */
+    expect(html).toContain('<button aria-disabled="true" aria-label="이전 배너"');
+    expect(html).toMatch(/<button aria-label="다음 배너" class="wc-campaign-banners__arrow/);
+    expect(html).not.toMatch(/<button[^>]*disabled=""[^>]*aria-label="(?:이전|다음) 배너"|<button[^>]*aria-label="(?:이전|다음) 배너"[^>]*\sdisabled=""/);
     expect(html).toContain('1 / 3</span>');
     expect(html).toContain('aria-label="자동 넘김 일시정지"');
     expect(html).not.toContain('aria-pressed');
