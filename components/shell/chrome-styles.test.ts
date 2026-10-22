@@ -183,7 +183,9 @@ describe('404 2CTA (CH-14)', () => {
   it('두 버튼을 260×56으로, 그룹을 260 두 칸 + 간격 8로 넓힌다', () => {
     expect(declsFor('.wc-not-found .wc-not-found__actions .wc-btn')).toMatchObject({ 'max-width': '260px', height: '56px' });
     expect(declsFor('.wc-not-found .wc-not-found__actions')['max-width']).toBe('528px');
-    /* 가운데 정렬 flex 부모 안에서 글자 폭으로 줄지 않도록 폭을 명시한다(QA: 103px로 줄어 두 줄 꺾임). */
+    /* 가운데 정렬 행 flex 부모(.wc-fallback) 안에서 .wc-empty가 글자 폭으로 줄면 묶음의 100%도 그 폭이다 —
+       상자(.wc-empty)부터 폭을 줘야 묶음이 528까지 선다(운영 실측: 묶음 214·버튼 103 → 수정 뒤 260×56). */
+    expect(declsFor('.wc-not-found .wc-empty').width).toBe('min(560px, 100%)');
     expect(declsFor('.wc-not-found .wc-not-found__actions').width).toBe('min(528px, 100%)');
   });
 });
