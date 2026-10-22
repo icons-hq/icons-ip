@@ -57,7 +57,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 
 - Next.js 16, React 19, Tailwind v4 기준으로 작성한다.
 - 공개 표면 디자인 시스템은 "White Catalog"(ADR-0011, 루트 `DESIGN.md` v4)다. 표면별 수치·anatomy는 재현 스펙 `docs/research/linefriends-square/`가 정본이며, 스토어프론트 개편 작업 전에 해당 표면의 R-스펙 문서를 먼저 읽는다.
-- 색·타이포·컴포넌트·표면별 디자인 규율은 루트 `DESIGN.md`를 따른다. 토큰 진실원은 `app/styles/wc-foundation.css`다. 어드민(`/admin/**`)은 [ADR-0014](docs/adr/0014-admin-console-redesign.md)의 White Catalog 키트와 `.wc-admin` 경계를 쓴다. 셸·키트는 `wc-admin.css`, 화면 배치·검표·가이드는 `wc-admin-surfaces.css`가 소유한다. CSS를 옮기거나 지우면 중첩 media/forced-colors/print와 실제 JSX 소비자를 확인하고 경계 테스트를 갱신한다. 어드민 라벨은 운영팀 어휘(상품·상품코드·옵션)를 쓰고 코드·문서·공개 표면은 `CONTEXT.md`의 굿즈를 유지한다. 공개 보존 표면(`/about`·`/offline-popups`·`/legal/*`)은 격리 CSS(`about-legacy`·`offline-popups-legacy`·`legal-doc`) 안에 자체 기본 규칙과 토큰을 둔다. `globals.css`는 전역 하부만 소유한다. 레퍼런스 사이트의 이미지·카피·로고·액센트 색은 재사용하지 않는다.
+- 색·타이포·컴포넌트·표면별 디자인 규율은 루트 `DESIGN.md`를 따른다. 토큰 진실원은 `app/styles/wc-foundation.css`다. 어드민(`/admin/**`)은 [ADR-0014](docs/adr/0014-admin-console-redesign.md)의 White Catalog 키트와 `.wc-admin` 경계를 쓴다. 셸·키트는 `wc-admin.css`, 화면 배치·검표·가이드는 `wc-admin-surfaces.css`가 소유한다. CSS를 옮기거나 지우면 중첩 media/forced-colors/print와 실제 JSX 소비자를 확인하고 경계 테스트를 갱신한다. 어드민 라벨은 운영팀 어휘(상품·상품코드·옵션)를 쓰고 코드·문서·공개 표면은 `CONTEXT.md`의 굿즈를 유지한다. 공개 보존 표면(`/about`)은 격리 CSS(`about-legacy`) 안에 자체 기본 규칙과 토큰을 둔다. `globals.css`는 전역 하부만 소유한다. 레퍼런스 사이트의 이미지·카피·로고·액센트 색은 재사용하지 않는다.
 - 라우트는 `app/**/page.tsx`에서 screen 컴포넌트로 연결하는 현 구조를 존중한다.
 - 프로토타입 라우트 id와 실제 경로 매핑은 `lib/routes.ts`를 기준으로 한다.
 
