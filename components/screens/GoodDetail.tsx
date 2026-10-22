@@ -3,7 +3,9 @@
 import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from 'react';
-import { GoodBuyBars, GoodPurchasePanel, GoodRailBuyBox, useAddToCartResult, useGoodPurchase } from '@/components/shop/GoodPurchasePanel';
+import { GoodBuyBars, GoodPurchasePanel, GoodRailBuyBox, purchaseSheetAvailable, useAddToCartResult, useGoodPurchase } from '@/components/shop/GoodPurchasePanel';
+import { useGiftPurchaseAvailable } from '@/components/gifts/GiftPurchaseEntry';
+import { useSubscriptionPurchaseAvailable } from '@/components/subscriptions/SubscriptionPurchaseEntry';
 import { AddToCartResultDialog } from '@/components/shop/AddToCartResultDialog';
 import { GoodPurchaseSheet } from '@/components/shop/GoodPurchaseSheet';
 import { OverlayPortal } from '@/components/shell/OverlayPortal';
@@ -18,7 +20,7 @@ import { goodsNoticeRows } from '@/lib/goods-notice';
 import { GoodsKcDisclosure } from '@/components/shop/GoodsKcDisclosure';
 import { GoodsDescription } from '@/components/shop/GoodsDescription';
 import { GoodRelatedProducts } from '@/components/shop/GoodRelatedProducts';
-import { GoodBrandCard, GoodIpStory } from '@/components/shop/GoodBrandCard';
+import { GoodIpCard, GoodIpStory } from '@/components/shop/GoodIpCard';
 import { GoodsGroupSelector } from '@/components/shop/GoodsGroupSelector';
 import { goodDisplayBadges } from '@/lib/goods-taxonomy';
 import { newInquiryHref } from '@/lib/inquiries';
@@ -30,7 +32,7 @@ import { ProductShippingSavings } from '@/components/shop/ProductShippingSavings
 import { ProductInterestShelf } from '@/components/shop/ProductInterestShelf';
 import { ProductShortclips } from '@/components/shop/ProductShortclips';
 import type { PublicGoodMedia } from '@/lib/goods-media';
-import { cartOptionGood, variantSearchForSelection } from '@/lib/goods-options';
+import { cartOptionGood, variantSearchForSelection, variantSyncDefault } from '@/lib/goods-options';
 import { GoodSizeChart } from '@/components/shop/GoodSizeChart';
 import { goodsVolumeBoundary } from '@/lib/goods-transaction-presentation';
 import { GoodAdditionalInfo } from '@/components/shop/GoodAdditionalInfo';
@@ -209,14 +211,23 @@ export function GoodDetailView({
     initialVariantId: embedded ? null : searchParams?.get('variant'),
   });
   /* 옵션을 바꾸면 주소의 ?variant= 를 같은 기록 항목 안에서 바꾼다(PD-14, Next 의 history.replaceState
-     연동 — 서버 요청·라우팅 없이 useSearchParams 만 따라 바뀐다). 첫 화면의 기본 선택은 쓰지 않는다. */
+     연동 — 서버 요청·라우팅 없이 useSearchParams 만 따라 바뀐다). 첫 화면의 자동 기본 선택은 쓰지 않는다.
+     같은 상세 안 이동(리뷰·Q&A 페이지 링크)이 주소에서 variant 를 지우면 다시 써 넣는다 — 그래서 주소의
+     variant 도 따라 읽는다. 주소에서 온 첫 선택은 기본 선택이 아니라 사용자가 고른 선택으로 본다. */
   const selectedVariantId = purchase.selectedOption?.id;
-  const [initialVariantId] = useState(selectedVariantId);
+  const urlVariantId = embedded ? null : searchParams?.get('variant') ?? null;
+  const [defaultVariantId] = useState(() => variantSyncDefault(urlVariantId, selectedVariantId));
   useEffect(() => {
     if (embedded) return;
-    const search = variantSearchForSelection(window.location.search, selectedVariantId, initialVariantId);
+    const search = variantSearchForSelection(window.location.search, selectedVariantId, defaultVariantId);
     if (search !== null) window.history.replaceState(null, '', `${window.location.pathname}${search}${window.location.hash}`);
-  }, [embedded, initialVariantId, selectedVariantId]);
+  }, [embedded, defaultVariantId, selectedVariantId, urlVariantId]);
+  /* 정기배송·선물 진입 가용성은 상세에서 한 번만 묻는다. 구매 패널은 시트를 열고 닫을 때마다 본문과 시트
+     사이를 오가며 다시 마운트되므로, 패널이 직접 물으면 그때마다 같은 요청이 나가고 응답 전까지 진입이
+     비어 시트 높이가 튄다. */
+  const subscriptionAvailable = useSubscriptionPurchaseAvailable(good.id, !embedded);
+  const giftAvailable = useGiftPurchaseAvailable(!embedded);
+  const otherPurchases = { subscription: subscriptionAvailable, gift: giftAvailable };
   /* 담기 함수는 컨트롤러 것을 그대로 부르고, 확정된 결과만 모달로 알린다(PD-02).
      패널·고정 바가 같은 감싼 담기를 써야 어느 표면에서 담아도 같은 모달이 뜬다. */
   const addResult = useAddToCartResult(purchase);
@@ -313,7 +324,7 @@ export function GoodDetailView({
           <GoodsKcDisclosure disclosures={detail.kcDisclosures ?? []} />
           <InquiryEntry goodId={good.id} />
           {reviewEventBanner}
-          {ip ? <GoodBrandCard className="wc-pdp-brand--panel" ip={ip} /> : null}
+          {ip ? <GoodIpCard className="wc-pdp-ipcard--panel" ip={ip} /> : null}
           {/* 추천 블록(연관 굿즈 → 자동 추천)은 상세 설명 패널 맨 끝이다(LD-6, 2026-10-22 확정 — 탭 위에서 이동). */}
           {!embedded && detail.relatedGoods ? <GoodRelatedProducts data={detail.relatedGoods} /> : null}
           {!embedded ? automaticRecommendations : null}
@@ -408,12 +419,14 @@ export function GoodDetailView({
             {!embedded ? <GoodsGroupSelector group={detail.goodsGroup} /> : null}
             {/* 모바일에서 본문 패널은 숨고 같은 패널이 구매 시트에 들어간다(CSS가 숨김을 맡는다).
                 시트가 열린 동안은 본문 사본을 내린다 — 직접 입력 칸의 id 가 두 벌이 되면 라벨이
-                숨은 쪽 입력에 붙는다. 컨트롤러가 하나라 내렸다 다시 그려도 선택·수량은 그대로다. */}
-            <div className="wc-pdp__purchase">
-              {sheetVisible ? null : <GoodPurchasePanel purchase={surfacePurchase} />}
+                숨은 쪽 입력에 붙는다. 컨트롤러가 하나라 내렸다 다시 그려도 선택·수량은 그대로다.
+                시트를 열 수 없는 상태(판매 불가·품절 — 바가 비활성 안내·재입고 알림이다)에서는 숨기지
+                않는다(is-inline). 숨기면 옵션·가격·예약·한도 안내와 품절 합계를 모바일에서 볼 길이 없다. */}
+            <div className={`wc-pdp__purchase${purchaseSheetAvailable(purchase) ? '' : ' is-inline'}`}>
+              {sheetVisible ? null : <GoodPurchasePanel otherPurchases={otherPurchases} purchase={surfacePurchase} />}
             </div>
             {!embedded && discovery?.shippingSavings ? <a className="wc-pdp-shipping-shortcut" href="#pdp-shipping-savings">배송비 절약 굿즈 보기</a> : null}
-            {ip ? <GoodBrandCard ip={ip} /> : null}
+            {ip ? <GoodIpCard ip={ip} /> : null}
           </div>
         </div>
       </div>
@@ -428,11 +441,12 @@ export function GoodDetailView({
       {/* 하부 탭 섹션(PD-05): 탭바는 화면 전폭, 패널 840 + 우측 레일 340(데스크톱).
           레일은 구매 요약 박스만 담고 탭 섹션 범위에서만 보인다(PD-03). */}
       <div ref={tabsRef} className="wc-pdp-tabs">
+        {/* 탭을 고르면 탭바 자리로 창을 스크롤한다(PD-13). 어드민 미리보기 안에서는 창이 콘솔이라 끈다. */}
         <TabPanels
           defaultPanelId={pdpDefaultPanelId(searchParams)}
           idBase="pdp"
           panels={panels}
-          scrollOnSelect
+          scrollOnSelect={!embedded}
         />
         {embedded ? null : (
           <div className="wc-pdp-rail">
@@ -457,7 +471,7 @@ export function GoodDetailView({
       )}
       {sheetVisible ? (
         <OverlayPortal>
-          <GoodPurchaseSheet onClose={() => setSheetOpen(false)} purchase={surfacePurchase} />
+          <GoodPurchaseSheet onClose={() => setSheetOpen(false)} otherPurchases={otherPurchases} purchase={surfacePurchase} />
         </OverlayPortal>
       ) : null}
       {!embedded && addResult.items ? (

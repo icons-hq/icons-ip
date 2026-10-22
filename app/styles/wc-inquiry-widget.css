@@ -51,8 +51,10 @@
 }
 /* 굿즈 상세 데스크톱(CH-16): 레일 박스(화면 하단 154px, PD-03)가 하단에 붙어 있는 동안 런처를 박스 위로
    올리고, 박스가 레일 끝과 함께 밀려 올라가는 동안은 지나가는 박스를 덮지 않게 감춘다. 상태는 상세
-   화면이 `data-rail-box`로 남긴다(GoodDetail pdpRailBoxState). 그 밖의 상세 화면에서는 제자리다. */
-@media (min-width: 990px) {
+   화면이 `data-rail-box`로 남긴다(GoodDetail pdpRailBoxState). 그 밖의 상세 화면에서는 제자리다.
+   둘이 가로로 겹치는 폭에서만 그렇게 한다 — 박스 오른쪽 끝((100vw + 1180) / 2)이 런처 왼쪽 끝
+   (100vw − 24 − 런처 폭 약 110)을 넘는 1440px 안팎까지다. 그보다 넓으면 런처는 제자리에 남는다. */
+@media (min-width: 990px) and (max-width: 1459px) {
   #root:has(.wc-pdp[data-rail-box='docked']) .wc-inquiry-widget__launcher { bottom: 178px; }
   #root:has(.wc-pdp[data-rail-box='leaving']) .wc-inquiry-widget__launcher { visibility: hidden; }
 }

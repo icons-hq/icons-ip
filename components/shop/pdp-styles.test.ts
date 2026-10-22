@@ -47,9 +47,11 @@ describe('PDP 모바일 구매 시트 (PD-01)', () => {
     expect(decls(catalog, '.wc-pdp-sheet__dim', DESKTOP).display).toBe('none');
   });
 
-  it('모바일 본문의 인라인 구매 패널은 숨기고 어드민 미리보기는 남긴다', () => {
-    expect(decls(catalog, '.wc-pdp:not(.is-embedded) .wc-pdp__purchase', MOBILE).display).toBe('none');
+  it('모바일 본문의 인라인 구매 패널은 숨기고 어드민 미리보기·시트를 열 수 없는 상태(is-inline)는 남긴다', () => {
+    expect(decls(catalog, '.wc-pdp:not(.is-embedded) .wc-pdp__purchase:not(.is-inline)', MOBILE).display).toBe('none');
     expect(catalog.some((rule) => rule.selectors.includes('.wc-pdp.is-embedded .wc-pdp__purchase'))).toBe(false);
+    /* 판매 불가·품절은 바가 시트를 열지 않는다 — 패널까지 숨기면 옵션·예약·한도·품절 합계를 볼 길이 없다. */
+    expect(catalog.some((rule) => rule.decls.display === 'none' && rule.selectors.some((selector) => selector.includes('wc-pdp__purchase') && !selector.includes(':not(.is-inline)')))).toBe(false);
   });
 });
 
@@ -61,8 +63,10 @@ describe('PDP 데스크톱 탭 레이아웃·레일 박스 (PD-03·PD-05)', () =
   it('레일 340 은 탭바 아래부터 탭 섹션 끝까지, 박스 320 은 화면 하단 근처에 sticky 로 붙는다', () => {
     expect(decls(catalog, '.wc-pdp-rail').display).toBe('none');
     expect(decls(catalog, '.wc-pdp-rail', DESKTOP)).toMatchObject({ position: 'absolute', top: '55px', bottom: '0', width: '340px', display: 'block' });
-    expect(decls(catalog, '.wc-pdp-railbox', DESKTOP)).toMatchObject({ position: 'sticky', top: 'calc(100vh - 154px)', width: '320px',
+    expect(decls(catalog, '.wc-pdp-railbox', DESKTOP)).toMatchObject({ position: 'sticky', top: 'calc(100dvh - 154px)', width: '320px',
       padding: '24px 20px 18px 19px', background: 'var(--wc-surface-grey)' });
+    /* dvh 를 모르는 브라우저용 100vh 를 먼저 둔다(동적 툴바에서 박스 아래가 잘리지 않게 dvh 가 이긴다). */
+    expect(read('../../app/styles/wc-catalog.css')).toMatch(/top: calc\(100vh - 154px\);\s*top: calc\(100dvh - 154px\);/);
     expect(decls(catalog, '.wc-pdp-railbox__cart')).toMatchObject({ width: '50px', height: '50px' });
     expect(decls(catalog, '.wc-pdp-railbox__amount')).toMatchObject({ 'font-size': '23px', 'font-weight': '700' });
   });
@@ -95,8 +99,11 @@ describe('문의 런처 겹침 (CH-16)', () => {
     expect(decls(inquiry, '.wc-root .wc-inquiry-widget__launcher', '(max-width: 700px)')).toEqual({});
   });
 
-  it('PDP 데스크톱에서는 레일 박스 위로 올라가고, 박스가 밀려 올라가는 동안은 감춘다', () => {
-    expect(decls(inquiry, "#root:has(.wc-pdp[data-rail-box='docked']) .wc-inquiry-widget__launcher", DESKTOP).bottom).toBe('178px');
-    expect(decls(inquiry, "#root:has(.wc-pdp[data-rail-box='leaving']) .wc-inquiry-widget__launcher", DESKTOP).visibility).toBe('hidden');
+  it('PDP 데스크톱에서 레일 박스와 가로로 겹치는 폭에서만 박스 위로 올라가고, 박스가 밀려 올라가는 동안은 감춘다', () => {
+    const OVERLAP = '(min-width: 990px) and (max-width: 1459px)';
+    expect(decls(inquiry, "#root:has(.wc-pdp[data-rail-box='docked']) .wc-inquiry-widget__launcher", OVERLAP).bottom).toBe('178px');
+    expect(decls(inquiry, "#root:has(.wc-pdp[data-rail-box='leaving']) .wc-inquiry-widget__launcher", OVERLAP).visibility).toBe('hidden');
+    /* 넓은 화면에서는 박스(오른쪽 끝 (100vw+1180)/2)와 런처가 겹치지 않는다 — 문의 진입을 감추지 않는다. */
+    expect(inquiry.filter((rule) => rule.selectors.some((selector) => selector.includes('data-rail-box')) && rule.media !== OVERLAP)).toEqual([]);
   });
 });

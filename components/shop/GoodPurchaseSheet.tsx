@@ -3,7 +3,7 @@
 import { useId, useRef } from 'react';
 import { useOverlayA11y } from '@/components/shell/useOverlayA11y';
 import { Icon } from '@/components/ui/Icon';
-import { GoodPurchasePanel, type GoodPurchaseController } from './GoodPurchasePanel';
+import { GoodPurchasePanel, type GoodPurchaseController, type OtherPurchaseAvailability } from './GoodPurchasePanel';
 
 /*
  * 모바일 구매 바텀시트 (PD-01 · 11 §3 Δ2 · §6 B14).
@@ -16,7 +16,7 @@ import { GoodPurchasePanel, type GoodPurchaseController } from './GoodPurchasePa
  * 높이는 콘텐츠를 따르고 화면 85%에서 멈춰 안쪽만 스크롤한다. 백드롭·Escape·닫기 버튼으로
  * 닫히고 닫히면 연 버튼으로 포커스가 돌아간다(useOverlayA11y). OverlayPortal 은 호출부에 둔다.
  */
-export function GoodPurchaseSheet({ onClose, purchase }: { onClose: () => void; purchase: GoodPurchaseController }) {
+export function GoodPurchaseSheet({ onClose, otherPurchases, purchase }: { onClose: () => void; otherPurchases?: OtherPurchaseAvailability; purchase: GoodPurchaseController }) {
   const panelRef = useRef<HTMLDivElement>(null);
   const titleId = useId();
   useOverlayA11y({ open: true, onClose, panelRef });
@@ -32,7 +32,7 @@ export function GoodPurchaseSheet({ onClose, purchase }: { onClose: () => void; 
           </button>
         </div>
         <div className="wc-pdp-sheet__body">
-          <GoodPurchasePanel purchase={purchase} />
+          <GoodPurchasePanel otherPurchases={otherPurchases} purchase={purchase} />
         </div>
       </div>
     </>

@@ -40,6 +40,17 @@ export function isGoodSoldOut(good: Pick<Good, 'stock'>) {
   return good.stock === 'soldout';
 }
 
+/** 모바일 바가 구매 시트를 열 수 있는가 — 판매 불가면 비활성 안내, 품절이면 재입고 알림이 바를 대신한다. */
+export function purchaseSheetAvailable(purchase: Pick<GoodPurchaseController, 'unavailableLabel' | 'soldOut'>): boolean {
+  return !purchase.unavailableLabel && !purchase.soldOut;
+}
+
+/** 정기배송·선물 진입 가용성. 굿즈 상세가 한 번 묻고 본문 패널·구매 시트에 같은 값을 내린다. */
+export interface OtherPurchaseAvailability {
+  subscription: boolean;
+  gift: boolean;
+}
+
 function optionAvailabilitySuffix(good: Good, option: GoodOption) {
   const label = goodsSaleUnavailableLabel(good.salePeriod) ?? preorderSupplyLabel(option.supply) ?? (option.stockQty <= 0 ? '품절' : null);
   return label ? ` · ${label}` : '';
@@ -419,7 +430,7 @@ export function purchaseTotalDisplay(purchase: Pick<GoodPurchaseController, 'goo
 }
 
 /** 정보 칼럼의 구매 패널. 품절이면 CTA 자리만 재입고 알림으로 바뀐다(R-04 §4). */
-export function GoodPurchasePanel({ purchase }: { purchase: GoodPurchaseController }) {
+export function GoodPurchasePanel({ otherPurchases, purchase }: { otherPurchases?: OtherPurchaseAvailability; purchase: GoodPurchaseController }) {
   const { disabled, good, inert, message, quantity, restockRequested, selectedOption, selectOption, setQuantity, soldOut } = purchase;
   const total = purchaseTotalDisplay(purchase);
   const singleOptionLabel = good.options?.length === 1 ? optionLabel(good.options[0], 1) : null;
@@ -477,7 +488,7 @@ export function GoodPurchasePanel({ purchase }: { purchase: GoodPurchaseControll
           </WcButton>
         </div>
       )}
-      {!disabled ? <div className="wc-buy-panel__other-purchases"><SubscriptionPurchaseEntry goodId={good.id} />{good.transactionOffer?.fulfillment?.mode !== 'digital' ? <GiftPurchaseEntry /> : null}</div> : null}
+      {!disabled ? <div className="wc-buy-panel__other-purchases"><SubscriptionPurchaseEntry available={otherPurchases?.subscription} goodId={good.id} />{good.transactionOffer?.fulfillment?.mode !== 'digital' ? <GiftPurchaseEntry available={otherPurchases?.gift} /> : null}</div> : null}
       {/* 서버 확인 전에는 "완료"라고 하지 않는다(DESIGN §9) — 카트 저장이 끝난 뒤에만 채운다. */}
       <p aria-atomic="true" aria-live="polite" className="wc-buy-panel__status" role="status">
         {message ?? ''}
@@ -550,6 +561,23 @@ export function GoodBuyBars({
 export function GoodRailBuyBox({ purchase }: { purchase: GoodPurchaseController }) {
   const { disabled, good, inert, restockRequested, soldOut } = purchase;
   const total = purchaseTotalDisplay(purchase);
+  /* 실패 문구는 정보 칼럼 패널의 상태 줄(live region 하나)에만 나온다. 레일에서 누른 담기·구매가 실패하면
+     박스 근처에는 아무 변화가 없으므로, 고칠 칸(빈 필수 입력 등)이나 그 상태 줄로 데려간다. 성공은
+     담기 결과 모달·주문서 이동이 알린다. 렌더 중 상태 보정은 useAddToCartResult 와 같은 패턴이다. */
+  const [awaiting, setAwaiting] = useState(false);
+  const [revealCount, setRevealCount] = useState(0);
+  const step = addToCartResultStep({ awaiting, message: purchase.message });
+  if (step === 'open' || step === 'fail') {
+    setAwaiting(false);
+    if (step === 'fail') setRevealCount((count) => count + 1);
+  }
+  useEffect(() => {
+    if (revealCount > 0) revealPurchasePanel();
+  }, [revealCount]);
+  const fromRail = (action: () => void) => () => {
+    setAwaiting(true);
+    action();
+  };
 
   return (
     <section aria-label="빠른 구매" className="wc-pdp-railbox">
@@ -561,12 +589,23 @@ export function GoodRailBuyBox({ purchase }: { purchase: GoodPurchaseController 
         <RestockCta className="wc-pdp-railbox__restock" disabled={disabled} goodId={good.id} initialRequested={restockRequested} />
       ) : (
         <div className="wc-pdp-railbox__ctas">
-          <button aria-label="장바구니에 담기" className="wc-pdp-railbox__cart" disabled={inert} onClick={purchase.addToCart} type="button">
+          <button aria-label="장바구니에 담기" className="wc-pdp-railbox__cart" disabled={inert} onClick={fromRail(purchase.addToCart)} type="button">
             <CartGlyph />
           </button>
-          <button className="wc-pdp-railbox__buy" disabled={inert} onClick={purchase.buyNow} type="button">구매하기</button>
+          <button className="wc-pdp-railbox__buy" disabled={inert} onClick={fromRail(purchase.buyNow)} type="button">구매하기</button>
         </div>
       )}
     </section>
   );
+}
+
+/* 정보 칼럼 패널의 고칠 칸(빈 필수 입력은 required 라 :invalid)이나 상태 줄로 스크롤하고, 칸이면 포커스한다. */
+function revealPurchasePanel() {
+  const panel = document.querySelector<HTMLElement>('.wc-pdp__purchase .wc-buy-panel');
+  if (!panel) return;
+  const field = panel.querySelector<HTMLElement>('input:invalid, textarea:invalid, select:invalid');
+  const target = field ?? panel.querySelector<HTMLElement>('.wc-buy-panel__status') ?? panel;
+  const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+  target.scrollIntoView({ behavior: reduceMotion ? 'auto' : 'smooth', block: 'center' });
+  field?.focus({ preventScroll: true });
 }

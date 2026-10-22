@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cartOptionGood, goodAtQuotedPrice, goodCompareAtPrice, initialGoodOption, optionLabel, optionPriceRange, selectableGoodOptionId, soldOutPreviewPrice, variantSearchForSelection } from './goods-options';
+import { cartOptionGood, goodAtQuotedPrice, goodCompareAtPrice, initialGoodOption, optionLabel, optionPriceRange, selectableGoodOptionId, soldOutPreviewPrice, variantSearchForSelection, variantSyncDefault } from './goods-options';
 import type { GoodsSalesQuoteLine } from './goods-sales';
 import type { Good, GoodOption } from './data';
 
@@ -46,6 +46,17 @@ describe('public goods options',()=>{
     expect(variantSearchForSelection('?variant=blue&qnaPage=1', 'red', 'blue')).toBe('?variant=red&qnaPage=1');
     /* 사용자가 처음 선택으로 돌아와도 주소가 그 선택을 가리킨다. */
     expect(variantSearchForSelection('?variant=red', 'blue', 'blue')).toBe('?variant=blue');
+  });
+  /* 리뷰·Q&A 페이지 링크는 같은 상세 안 이동이라 선택은 남고 주소의 variant 만 빠진다. */
+  it('주소에서 온 첫 선택은 기본 선택이 아니라서 주소에서 빠지면 다시 써 넣는다', () => {
+    expect(variantSyncDefault('red', 'red')).toBeUndefined();
+    expect(variantSearchForSelection('?reviewPage=2', 'red', variantSyncDefault('red', 'red'))).toBe('?reviewPage=2&variant=red');
+    /* 자동 기본 선택(단일 옵션)은 그대로 쓰지 않는다. */
+    expect(variantSyncDefault(null, 'only')).toBe('only');
+    expect(variantSearchForSelection('?reviewPage=2', 'only', variantSyncDefault(null, 'only'))).toBeNull();
+    /* 주소의 값이 고를 수 없어 기본 규칙으로 돌아간 경우(품절·오타)도 자동 선택이다. */
+    expect(variantSyncDefault('sold-out', 'only')).toBe('only');
+    expect(variantSyncDefault(null, undefined)).toBeUndefined();
   });
   it('첫 화면의 기본 선택과 이미 같은 주소는 건드리지 않는다', () => {
     expect(variantSearchForSelection('', 'only', 'only')).toBeNull();

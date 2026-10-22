@@ -17,13 +17,8 @@ vi.mock('@/components/shop/RestockCta', () => ({
   RestockCta: () => <button className="wc-restock-cta" type="button">재입고 알림 받기</button>,
 }));
 
-/* 정기배송·선물 진입은 마운트 뒤 서버에 물어 보이므로(SSR 에서는 비어 있다) 대상 굿즈처럼 보이는 대역을 세운다. */
-vi.mock('@/components/subscriptions/SubscriptionPurchaseEntry', () => ({
-  SubscriptionPurchaseEntry: ({ goodId }: { goodId: string }) => <a className="wc-btn wc-btn-outline" href={`/subscriptions/new?goodId=${goodId}`}>정기배송 신청</a>,
-}));
-vi.mock('@/components/gifts/GiftPurchaseEntry', () => ({
-  GiftPurchaseEntry: () => <aside className="wc-good-gift-entry"><a href="/gifts">선물함</a></aside>,
-}));
+/* 정기배송·선물 진입 가용성은 굿즈 상세가 한 번 물어 내려 준다 — 대상 굿즈처럼 둘 다 열린 값을 넘긴다. */
+const otherPurchases = { subscription: true, gift: true };
 
 /*
  * 운영에는 아직 다옵션 굿즈가 없다(11 §10). 시트가 패널의 어떤 칸도 빠뜨리지 않는지는
@@ -61,8 +56,8 @@ const controller: GoodPurchaseController = {
 
 describe('GoodPurchaseSheet', () => {
   it('정보 칼럼의 구매 패널을 한 칸도 빼지 않고 그대로 담는다', () => {
-    const sheet = renderToStaticMarkup(<GoodPurchaseSheet onClose={vi.fn()} purchase={controller} />);
-    const panel = renderToStaticMarkup(<GoodPurchasePanel purchase={controller} />);
+    const sheet = renderToStaticMarkup(<GoodPurchaseSheet onClose={vi.fn()} otherPurchases={otherPurchases} purchase={controller} />);
+    const panel = renderToStaticMarkup(<GoodPurchasePanel otherPurchases={otherPurchases} purchase={controller} />);
 
     expect(sheet).toContain(panel);
     /* 패널이 실제로 모든 칸을 그렸는지도 직접 본다 — 위 포함 단언이 빈 패널끼리 통과하지 않게. */
@@ -81,10 +76,16 @@ describe('GoodPurchaseSheet', () => {
     expect(panel).toContain('>장바구니<');
     expect(panel).toContain('>구매하기<');
     expect(panel).toContain('wc-buy-panel__other-purchases');
-    expect(panel).toContain('href="/subscriptions/new?goodId=g13">정기배송 신청</a>');
-    expect(panel).toContain('<a href="/gifts">선물함</a>');
+    expect(panel).toContain('href="/my/subscriptions/new?goodId=g13">정기배송 신청</a>');
+    expect(panel).toMatch(/<aside class="wc-good-gift-entry"><a href="\/gifts\/?">선물함<\/a>/);
     expect(panel).toContain('각인 문구를 입력해주세요.');
     expect(panel).toContain('role="status"');
+  });
+
+  it('가용성을 받지 못한 진입은 그리지 않는다(응답 전·실패와 같다)', () => {
+    const panel = renderToStaticMarkup(<GoodPurchasePanel otherPurchases={{ subscription: false, gift: false }} purchase={controller} />);
+    expect(panel).not.toContain('정기배송 신청');
+    expect(panel).not.toContain('선물함');
   });
 
   it('제목으로 이름 붙은 모달 다이얼로그이고 닫기 버튼과 백드롭을 둔다', () => {

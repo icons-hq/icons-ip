@@ -12,21 +12,21 @@ export function ipArtBackground(ip: Pick<Ip, 'bg'>): string | null {
 }
 
 /*
- * 브랜드(IP) 칩 카드 (PD-09 · R-04 §3.9).
+ * IP 카드 (PD-09 · R-04 §3.9 — 레퍼런스의 브랜드 칩 자리).
  *
  * 446×82 카드 — 왼쪽 IP 키아트 150×80(없으면 글자만) + IP 이름 + '온라인 팝업 보러가기 ›'(IP는 '브랜드'라 부르지 않는다 — CONTEXT.md).
  * 카드 전체가 하나의 링크라 접근 이름은 "IP 이름 온라인 팝업 보러가기"다. 정보 칼럼 맨 아래와
  * 상세 설명 패널 끝(PD-19)이 같은 카드를 쓴다.
  */
-export function GoodBrandCard({ className, ip }: { className?: string; ip: Ip }) {
+export function GoodIpCard({ className, ip }: { className?: string; ip: Ip }) {
   const art = ipArtBackground(ip);
 
   return (
-    <Link className={`wc-pdp-brand${art ? '' : ' is-text'}${className ? ` ${className}` : ''}`} href={publicIpHref(ip)}>
-      {art ? <span aria-hidden="true" className="wc-pdp-brand__art" style={{ background: art }} /> : null}
-      <span className="wc-pdp-brand__text">
-        <strong className="wc-pdp-brand__name">{ip.title}</strong>
-        <span className="wc-pdp-brand__link">
+    <Link className={`wc-pdp-ipcard${art ? '' : ' is-text'}${className ? ` ${className}` : ''}`} href={publicIpHref(ip)}>
+      {art ? <span aria-hidden="true" className="wc-pdp-ipcard__art" style={{ background: art }} /> : null}
+      <span className="wc-pdp-ipcard__text">
+        <strong className="wc-pdp-ipcard__name">{ip.title}</strong>
+        <span className="wc-pdp-ipcard__link">
           온라인 팝업 보러가기 <span aria-hidden="true">›</span>
         </span>
       </span>

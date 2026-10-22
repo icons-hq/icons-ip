@@ -333,6 +333,8 @@ describe('GoodDetail', () => {
     expect(html).toContain(`>${label}</button>`); expect(html).toContain(`>${label}</p>`); expect(html).not.toContain('재입고 알림 받기'); expect(html).not.toContain('>품절<'); expect(html).not.toContain('>구매하기<');
     expect(html).toContain('>판매 상태</span>'); expect(html).not.toContain('옵션 선택 후 표시');
     expect(html).toContain(`class="wc-buybar__buy" type="button" disabled="">${label}</button>`);
+    /* 바가 시트를 열지 않으므로 모바일에서도 본문 패널을 남긴다(옵션·예약·한도 안내를 볼 길). */
+    expect(html).toContain('<div class="wc-pdp__purchase is-inline"><div class="wc-buy-panel">');
   });
   it('품절이면 CTA가 재입고 알림으로 교체되고 합계는 가격으로 남는다', () => {
     const html = render({ good: { ...good, stock: 'soldout', stockQty: 0 } });
@@ -456,6 +458,8 @@ describe('GoodDetail', () => {
 
     expect(bar.startsWith('<div class="wc-buybar"><button class="wc-restock-cta"')).toBe(true);
     expect(html).not.toContain('aria-haspopup="dialog" aria-label="장바구니에 담기"');
+    /* 시트 트리거가 없으니 모바일 본문 패널을 숨기지 않는다 — 품절 합계(PD-08)·옵션별 가격이 남는다. */
+    expect(html).toContain('<div class="wc-pdp__purchase is-inline"><div class="wc-buy-panel">');
   });
 
   it('하부를 패널 전환 탭으로 나눈다', () => {
@@ -603,7 +607,7 @@ describe('GoodDetail', () => {
     expect(html).toContain('배송·반품 정책 전문 보기');
   });
 
-  it('IP 칩에서 브랜드 화면으로 간다', () => {
+  it('IP 카드에서 온라인 팝업 화면으로 간다', () => {
     const html = render();
 
     expect(html).toContain('홍실 퀘스트');
@@ -612,20 +616,20 @@ describe('GoodDetail', () => {
   });
 
   /* PD-09 — 텍스트 한 줄이던 칩이 446×82 카드가 됐다. 키아트가 이미지일 때만 150×80 칸을 둔다. */
-  it('브랜드 칩은 IP 이름과 보러가기를 담은 카드 링크이고 키아트가 이미지일 때만 그림 칸을 둔다', () => {
+  it('IP 카드는 IP 이름과 보러가기를 담은 카드 링크이고 키아트가 이미지일 때만 그림 칸을 둔다', () => {
     const text = render();
-    const card = text.match(/<a class="wc-pdp-brand is-text" href="\/ip\/hong-sil-quest">.*?<\/a>/)?.[0] ?? '';
-    expect(card).toContain('<strong class="wc-pdp-brand__name">홍실 퀘스트</strong>');
+    const card = text.match(/<a class="wc-pdp-ipcard is-text" href="\/ip\/hong-sil-quest">.*?<\/a>/)?.[0] ?? '';
+    expect(card).toContain('<strong class="wc-pdp-ipcard__name">홍실 퀘스트</strong>');
     expect(card).toContain('온라인 팝업 보러가기 <span aria-hidden="true">›</span>');
-    expect(card).not.toContain('wc-pdp-brand__art');
+    expect(card).not.toContain('wc-pdp-ipcard__art');
 
     const art = 'url("https://cdn.example/hong-sil-key.webp") center / cover no-repeat';
     const withArt = render({ ip: { ...ip, bg: art } });
-    expect(withArt).toMatch(/<a class="wc-pdp-brand" href="\/ip\/hong-sil-quest"><span aria-hidden="true" class="wc-pdp-brand__art" style="background:url\(&quot;https:\/\/cdn\.example\/hong-sil-key\.webp&quot;\) center \/ cover no-repeat"><\/span>/);
+    expect(withArt).toMatch(/<a class="wc-pdp-ipcard" href="\/ip\/hong-sil-quest"><span aria-hidden="true" class="wc-pdp-ipcard__art" style="background:url\(&quot;https:\/\/cdn\.example\/hong-sil-key\.webp&quot;\) center \/ cover no-repeat"><\/span>/);
   });
 
-  /* PD-19 — 상세 이미지 다음에 IP 소개, 패널 끝에 같은 브랜드 카드. 데이터는 IP 에 있는 값만 쓴다. */
-  it('상세 설명 패널에 상세 이미지 다음 IP 소개를, 패널 끝에 브랜드 카드를 둔다', () => {
+  /* PD-19 — 상세 이미지 다음에 IP 소개, 패널 끝에 같은 IP 카드. 데이터는 IP 에 있는 값만 쓴다. */
+  it('상세 설명 패널에 상세 이미지 다음 IP 소개를, 패널 끝에 IP 카드를 둔다', () => {
     const html = render();
     const panel = html.slice(html.indexOf('id="pdp-panel-detail"'), html.indexOf('id="pdp-panel-reviews"'));
 
@@ -634,7 +638,7 @@ describe('GoodDetail', () => {
     expect(panel).toContain('붉은 실을 따라 시작되는 특별한 퀘스트');
     expect(panel).toContain('홍실 퀘스트 컬렉션');
     expect(panel.indexOf('wc-pdp-panel__image')).toBeLessThan(panel.indexOf('pdp-ip-story-heading'));
-    expect(panel).toContain('<a class="wc-pdp-brand is-text wc-pdp-brand--panel" href="/ip/hong-sil-quest">');
+    expect(panel).toContain('<a class="wc-pdp-ipcard is-text wc-pdp-ipcard--panel" href="/ip/hong-sil-quest">');
     /* 소개 문장도 키아트도 없는 IP 는 이름만 남은 빈 블록을 그리지 않는다. */
     expect(render({ ip: { ...ip, tagline: '', synopsis: ' ' } })).not.toContain('pdp-ip-story-heading');
   });
@@ -651,12 +655,12 @@ describe('GoodDetail', () => {
     expect(html.indexOf('유사한 굿즈')).toBeGreaterThan(html.indexOf('role="tablist"'));
     expect(panel).toContain('유사한 굿즈');
     expect(panel).toContain('auto-recommendation-marker');
-    expect(panel.indexOf('wc-pdp-brand--panel')).toBeLessThan(panel.indexOf('유사한 굿즈'));
+    expect(panel.indexOf('wc-pdp-ipcard--panel')).toBeLessThan(panel.indexOf('유사한 굿즈'));
     expect(panel.indexOf('유사한 굿즈')).toBeLessThan(panel.indexOf('auto-recommendation-marker'));
     expect(html.indexOf('other-composition-marker')).toBeLessThan(html.indexOf('role="tablist"'));
   });
 
-  it('IP 주소를 바꾼 뒤 브랜드 링크는 새 주소로 직접 간다', () => {
+  it('IP 주소를 바꾼 뒤 IP 카드 링크는 새 주소로 직접 간다', () => {
     const html = render({ ip: { ...detail.ip!, publicSlug: 'new-hong-sil' } });
     expect(html).toContain('href="/ip/new-hong-sil"');
     expect(html).not.toContain('href="/ip/hong-sil-quest"');

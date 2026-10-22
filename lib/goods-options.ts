@@ -59,16 +59,25 @@ export function selectableGoodOptionId(good: Pick<Good, 'options'>, variantId: s
 
 /**
  * 옵션 선택을 주소에 남길 검색 문자열(`?variant=`, PD-14 · 11 §6 B9). 바꿀 것이 없으면 null.
- * 다른 검색 조건(리뷰·Q&A 페이지)은 그대로 둔다. 첫 화면의 기본 선택은 주소에 쓰지 않는다 —
- * 들어오기만 해도 주소가 바뀌면 공유·북마크 주소가 사용자가 고르지 않은 옵션을 가리킨다.
+ * 다른 검색 조건(리뷰·Q&A 페이지)은 그대로 둔다. 첫 화면의 자동 기본 선택(`defaultId`)은 주소에 쓰지
+ * 않는다 — 들어오기만 해도 주소가 바뀌면 공유·북마크 주소가 사용자가 고르지 않은 옵션을 가리킨다.
  */
-export function variantSearchForSelection(search: string, selectedId: string | undefined, initialId: string | undefined): string | null {
+export function variantSearchForSelection(search: string, selectedId: string | undefined, defaultId: string | undefined): string | null {
   if (!selectedId) return null;
   const params = new URLSearchParams(search);
   const current = params.get('variant');
-  if (current === selectedId || (current === null && selectedId === initialId)) return null;
+  if (current === selectedId || (current === null && selectedId === defaultId)) return null;
   params.set('variant', selectedId);
   return `?${params.toString()}`;
+}
+
+/**
+ * 주소 동기화가 "쓰지 않을 기본 선택"으로 볼 첫 선택. 첫 선택이 주소의 `?variant=`에서 왔으면 사용자가
+ * 고른 선택이라 기본 선택이 아니다(undefined) — 같은 상세 안 이동(리뷰·Q&A 페이지 링크)이 주소에서
+ * variant 를 지워도 다시 써 넣어야 공유·새로고침에서 선택을 잃지 않는다.
+ */
+export function variantSyncDefault(urlVariantId: string | null, initialSelectedId: string | undefined): string | undefined {
+  return urlVariantId !== null && urlVariantId === initialSelectedId ? undefined : initialSelectedId;
 }
 
 /**

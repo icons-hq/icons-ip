@@ -59,7 +59,7 @@ describe('PDP 구조화 데이터 (PD-17)', () => {
     expect([...goodDescriptionText({ ...detail, description: '가'.repeat(900), descriptionFormat: 'plain' })]).toHaveLength(500);
   });
 
-  it('Product 에 이름·이미지·설명·브랜드(IP)·가격·통화·재고 상태를 싣는다', () => {
+  it('Product 에 이름·이미지·설명·brand(IP)·가격·통화·재고 상태를 싣는다', () => {
     const product = productJsonLd(detail, ORIGIN);
 
     expect(product).toMatchObject({
