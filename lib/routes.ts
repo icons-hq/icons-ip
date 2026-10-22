@@ -151,9 +151,10 @@ export function activeNavId(pathname: string, items: NavItem[] = NAV_ITEMS): str
   return activeId;
 }
 
+/** 집중형(크롬 없는) 인증 셸 — 초대 수락·비밀번호 변경·이용 정지 안내.
+    `/login`(가입·재설정 모드 포함)은 여기 넣지 않는다: 레퍼런스처럼 전역 헤더·푸터·모바일 탭바 안에서 연다(CH-13). */
 export function isAuthShellPath(pathname: string): boolean {
-  return pathname === '/login'
-    || pathname === MANAGER_INVITATION_PATH
+  return pathname === MANAGER_INVITATION_PATH
     || pathname === '/update-password'
     || pathname === '/account-suspended';
 }

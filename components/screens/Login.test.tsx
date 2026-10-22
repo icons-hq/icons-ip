@@ -131,6 +131,26 @@ describe('Login', () => {
     expect(html).toContain('비밀번호를 변경했습니다. 새 비밀번호로 로그인해주세요.');
   });
 
+  /* AU-02: 재설정 모드에만 소셜 가입 계정 안내 한 줄을 둔다 — 제공자는 로그인 화면의 소셜 버튼과 같은 셋이다. */
+  it('tells social-signup members in reset mode that they can sign in with their SNS account', () => {
+    const notice = 'Google·카카오·Apple로 가입했다면 재설정 없이 로그인 화면에서 같은 SNS 계정으로 로그인할 수 있어요.';
+
+    expect(render({ initialMode: 'reset' })).toContain(notice);
+    expect(render()).not.toContain(notice);
+    expect(render({ initialMode: 'signup' })).not.toContain(notice);
+    for (const provider of ['Google', '카카오', 'Apple']) {
+      expect(render(), provider).toContain(`aria-label="${provider}로 계속하기"`);
+    }
+  });
+
+  /* CH-13: /login은 전역 헤더 안에서 열린다 — 홈 진입은 헤더 로고가 맡아 패널 위 'ICONS' 홈 링크를 다시 두지 않는다. */
+  it('does not repeat a standalone home link above the auth panel', () => {
+    const html = render();
+
+    expect(html).not.toContain('wc-auth__step-note');
+    expect(html).toMatch(/<div class="wc-auth__panel"><h1 class="wc-auth__title">로그인<\/h1>/);
+  });
+
   it('describes payment confirmation without naming a legacy provider', () => {
     const html = render();
 

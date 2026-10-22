@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { Suspense, useEffect, useRef, useState, type FocusEvent, type KeyboardEvent, type RefObject } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { signOutAction } from '@/app/login/actions';
-import { nextPathWithSearch } from '@/lib/auth/onboarding';
 import { COMMUNITY_ENABLED } from '@/lib/community-visibility';
 import { isCardRewardDestination, isCommunityDestination, type NoticeStrip } from '@/lib/home-catalog';
 import {
@@ -23,6 +22,7 @@ import { BottomTabBar } from './BottomTabBar';
 import { useCardRewardsEnabled } from './CardRewardAvailability';
 import { useCart } from './CartProvider';
 import { nextHeaderCondensed, nextTabBarScroll, tabBarScrollAt } from './chrome-scroll';
+import { loginEntryHref } from './login-entry';
 import { MenuSheet } from './MenuSheet';
 import { loadUnreadNotificationCount, notificationNavigationKey } from './notification-count';
 import { SearchOverlay } from './SearchOverlay';
@@ -40,9 +40,7 @@ type OverlayKind = 'none' | 'search' | 'sheet';
    SSR 렌더 시점에는 window가 없고, 셸은 라우트 전환에도 살아남으므로 한 번 굳혀 두면
    경로가 바뀐 뒤에도 옛 주소가 남아 로그인 후 엉뚱한 곳으로 돌아간다. */
 function loginHref() {
-  return `/login?next=${encodeURIComponent(
-    nextPathWithSearch(window.location.pathname, new URLSearchParams(window.location.search)),
-  )}`;
+  return loginEntryHref(window.location.pathname, window.location.search);
 }
 
 /* 공지(이미지 스트립, 이후 텍스트 공지 행)는 유틸바 위에 쌓인다 — 유틸바의 문서상 위치가 곧 공지 높이다.

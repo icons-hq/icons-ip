@@ -85,11 +85,18 @@ describe('SiteFooter 법정 고지 링크', () => {
   });
 
   /* S3에서 홈이 공용 셸 위로 올라오면서 '/'는 더 이상 예외가 아니다 — 푸터를 그린다. */
-  it('인증 셸·어드민·게임에서는 푸터를 렌더하지 않는다', () => {
-    for (const pathname of ['/login', '/update-password', '/account-suspended', '/admin', '/games/roulette', '/ip/aouad']) {
+  it('집중형 인증 셸·어드민·게임에서는 푸터를 렌더하지 않는다', () => {
+    for (const pathname of ['/update-password', '/account-suspended', '/manager-invitation', '/admin', '/games/roulette', '/ip/aouad']) {
       mocks.pathname = pathname;
       expect(render(), pathname).toBe('');
     }
+  });
+
+  /* CH-13: 로그인은 전역 셸 안이다 — 법정 고지·사업자 정보가 로그인 화면에서도 보인다. */
+  it('로그인 화면에서는 푸터를 렌더한다', () => {
+    mocks.pathname = '/login';
+
+    expect(render()).toContain('href="/legal/terms"');
   });
 });
 

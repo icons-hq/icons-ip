@@ -47,15 +47,28 @@ beforeEach(() => {
 });
 
 describe('White Catalog 전역 셸', () => {
-  /* 인증은 집중형 셸, 게임은 자기완결 번들, 어드민은 자체 작업대다.
+  /* 초대·비밀번호 변경·정지 안내는 집중형 셸, 게임은 자기완결 번들, 어드민은 자체 작업대다.
    * 공용 크롬이 새어 들어가면 각 표면이 헤더를 두 개 갖는다. */
-  it('인증·게임·어드민에서는 크롬과 푸터를 모두 비운다', () => {
-    for (const pathname of ['/login', '/update-password', '/account-suspended', '/games/roulette', '/admin', '/ip/aouad']) {
+  it('집중형 인증·게임·어드민에서는 크롬과 푸터를 모두 비운다', () => {
+    for (const pathname of ['/update-password', '/account-suspended', '/manager-invitation', '/games/roulette', '/admin', '/ip/aouad']) {
       mocks.pathname = pathname;
 
       expect(renderToStaticMarkup(<Nav />), pathname).toBe('');
       expect(renderToStaticMarkup(<SiteFooter />), pathname).toBe('');
     }
+  });
+
+  /* CH-13: 로그인(가입·재설정 모드 포함)은 레퍼런스처럼 전역 헤더·푸터·모바일 탭바 안에서 연다. */
+  it('로그인 화면에서도 전역 헤더·푸터·하단 탭바를 렌더한다', () => {
+    mocks.pathname = '/login';
+    mocks.presence = 'signed-out';
+
+    const html = renderToStaticMarkup(<Nav />);
+
+    expect(html).toContain('wc-header');
+    expect(html).toContain('wc-gnb');
+    expect(html).toContain('wc-tabbar');
+    expect(renderToStaticMarkup(<SiteFooter />)).toContain('wc-footer');
   });
 
   /* S3에서 홈이 자체 헤더를 버리고 공용 크롬 위로 올라왔다 — 홈만 예외로 비우면 헤더가 통째로 사라진다. */

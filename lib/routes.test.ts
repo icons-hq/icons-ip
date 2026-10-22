@@ -57,20 +57,26 @@ describe('legal routes', () => {
 });
 
 describe('isAuthShellPath', () => {
-  it.each(['/login', '/update-password', '/account-suspended', '/manager-invitation'])('treats %s as an auth-only shell', (pathname) => {
+  it.each(['/update-password', '/account-suspended', '/manager-invitation'])('treats %s as an auth-only shell', (pathname) => {
     expect(isAuthShellPath(pathname)).toBe(true);
   });
 
   it('does not hide the product shell on normal routes', () => {
     expect(isAuthShellPath('/community')).toBe(false);
   });
+
+  /* CH-13: 로그인·가입·재설정은 레퍼런스처럼 전역 헤더·푸터·모바일 탭바 안에서 연다. 모드는 쿼리라 경로는 하나다. */
+  it('opens /login inside the global chrome', () => {
+    expect(isAuthShellPath('/login')).toBe(false);
+    expect(isStandaloneShellPath('/login')).toBe(false);
+  });
 });
 
 describe('독립 경험 셸', () => {
-  it.each(['/ip/aouad', '/ip/aouad/scene', '/games', '/games/hyosan-memories', '/admin/orders', '/login'])('%s에는 공용 크롬을 겹치지 않는다', (pathname) => {
+  it.each(['/ip/aouad', '/ip/aouad/scene', '/games', '/games/hyosan-memories', '/admin/orders', '/update-password', '/account-suspended', '/manager-invitation'])('%s에는 공용 크롬을 겹치지 않는다', (pathname) => {
     expect(isStandaloneShellPath(pathname)).toBe(true);
   });
-  it.each(['/ip', '/ip/aouad-other', '/ip/maplestory', '/games-guide', '/administrator', '/shop'])('%s의 공용 크롬은 유지한다', (pathname) => {
+  it.each(['/ip', '/ip/aouad-other', '/ip/maplestory', '/games-guide', '/administrator', '/shop', '/login'])('%s의 공용 크롬은 유지한다', (pathname) => {
     expect(isStandaloneShellPath(pathname)).toBe(false);
   });
   it('온라인 팝업 하위의 전용 프레젠테이션 경로를 등록한다', () => {

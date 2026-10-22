@@ -126,17 +126,22 @@ export function Login({ initialError, initialMessage, initialMode, isConfigured,
   const resetHref = modeHref('reset');
   const signInHref = modeHref('signin');
 
+  /* /login은 전역 헤더·푸터·모바일 탭바 안에서 열린다(CH-13) — 홈 진입은 헤더 로고가 맡으므로
+     집중형 셸 시절의 'ICONS' 홈 링크를 패널 위에 따로 두지 않는다. 패널(448 플랫)은 그대로다. */
   return (
     <main className="wc-root wc-auth">
       <div className="wc-auth__panel">
-        <p className="wc-auth__step-note">
-          <Link href="/">ICONS</Link>
-        </p>
         <h1 className={`wc-auth__title${isReset ? ' wc-auth__title--sub' : ''}`}>
           {isReset ? '비밀번호 재설정' : isSignUp ? '이메일 회원가입' : '로그인'}
         </h1>
         {isReset ? (
-          <p className="wc-auth__lede">비밀번호 재설정을 위해 이메일을 보내드릴게요.</p>
+          <p className="wc-auth__lede">
+            비밀번호 재설정을 위해 이메일을 보내드릴게요.
+            <br />
+            {/* AU-02 — 소셜 가입 계정은 재설정 메일 없이 바로 들어갈 수 있다는 안내 한 줄.
+                제공자는 로그인 화면의 소셜 버튼과 같은 셋이고, 재설정 모드는 소셜 버튼을 두지 않는다. */}
+            Google·카카오·Apple로 가입했다면 재설정 없이 로그인 화면에서 같은 SNS 계정으로 로그인할 수 있어요.
+          </p>
         ) : null}
 
         <form action={isReset ? resetAction : isSignUp ? signUpAction : signInAction} className="wc-auth__form">
