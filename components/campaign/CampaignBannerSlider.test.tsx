@@ -90,7 +90,7 @@ describe('CampaignBannerSlider 마크업', () => {
     expect(html).toMatch(/<button[^>]*aria-label="다음 배너"(?![^>]*disabled)[^>]*>/);
     expect(html).toContain('1 / 3</span>');
     expect(html).toContain('aria-label="자동 넘김 일시정지"');
-    expect(html).toContain('aria-pressed="false"');
+    expect(html).not.toContain('aria-pressed');
     expect(html).toContain('aria-live="off"');
   });
 

@@ -196,7 +196,7 @@ describe('CampaignHub', () => {
     expect(html).toContain('aria-roledescription="slide"');
     expect(html).toContain('aria-label="1 / 2"');
     expect(html).toContain('aria-label="자동 넘김 일시정지"');
-    expect(html).toContain('aria-pressed="false"');
+    expect(html).not.toContain('aria-pressed');
     expect(html).toMatch(/<button[^>]*aria-label="이전 배너"[^>]*disabled=""/);
     expect(html).toMatch(/<button[^>]*aria-label="다음 배너"(?![^>]*disabled)/);
   });

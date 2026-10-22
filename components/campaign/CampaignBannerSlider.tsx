@@ -283,10 +283,11 @@ export function CampaignBannerSlider({ children, className, label }: CampaignBan
             <span aria-live="off" className="wc-campaign-banners__fraction">
               {`${activeIndex + 1} / ${slideCount}`}
             </span>
+            {/* 라벨이 지금 누르면 일어날 일을 말한다(WAI-ARIA APG 캐러셀 회전 컨트롤) —
+                라벨이 바뀌는 버튼에 aria-pressed 를 겹치면 "재생, 눌림"처럼 상태를 두 번 거꾸로 읽는다. */}
             {showAutoplayControl ? (
               <button
                 aria-label={paused ? '자동 넘김 재생' : '자동 넘김 일시정지'}
-                aria-pressed={paused}
                 className="wc-campaign-banners__pause"
                 onClick={() => setPaused((value) => !value)}
                 type="button"
