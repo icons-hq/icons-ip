@@ -99,7 +99,7 @@ function SectionSchemaHelp() {
   { "type": "attendance", "anchor": "attend" },
   { "type": "exchange", "offer_id": "00000000-0000-0000-0000-000000000000" },
   { "type": "goods", "good_ids": ["g13", "g14"] },
-  { "type": "cta", "label": "굿즈 더 보기", "href": "/shop" },
+  { "type": "cta", "label": "쇼핑하러 가기", "href": "/shop" },
   { "type": "notice", "items": ["교환한 카드팩은 되돌릴 수 없습니다."] }
 ]`}
         </pre>
