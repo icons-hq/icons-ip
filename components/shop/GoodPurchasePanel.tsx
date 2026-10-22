@@ -7,7 +7,7 @@ import { RestockCta } from '@/components/shop/RestockCta';
 import { QuantityStepper } from '@/components/wc/QuantityStepper';
 import { WcButton } from '@/components/wc/WcButton';
 import type { Good, GoodOption } from '@/lib/data';
-import { goodsPurchaseConditionProblem, initialGoodOption, optionLabel, soldOutPreviewPrice } from '@/lib/goods-options';
+import { goodsPurchaseConditionProblem, initialGoodOption, optionLabel, selectableGoodOptionId, soldOutPreviewPrice } from '@/lib/goods-options';
 import { goodsAggregationUnavailableLabel } from '@/lib/goods-aggregation';
 import { prepareGoodsCustomInputSelection } from '@/lib/goods-custom-inputs';
 import { GoodsCustomInputsFields } from './GoodsCustomInputs';
@@ -147,17 +147,20 @@ export function useGoodPurchase({
   good,
   additionalGoods = [],
   restockRequested = false,
+  initialVariantId,
 }: {
   disabled?: boolean;
   good: Good;
   additionalGoods?: readonly Good[];
   restockRequested?: boolean;
+  /** 주소의 `?variant=`(PD-14). 지금 고를 수 있는 옵션일 때만 첫 선택이 된다. */
+  initialVariantId?: string | null;
 }): GoodPurchaseController {
   const router = useRouter();
   const cart = useCart();
   const [quantity, setQuantityState] = useState(1);
   const [customInputValues,setCustomInputValues] = useState<Record<string,Record<string,string>>>({});
-  const [selectedId, setSelectedId] = useState(() => initialGoodOption(good)?.id);
+  const [selectedId, setSelectedId] = useState(() => selectableGoodOptionId(good, initialVariantId) ?? initialGoodOption(good)?.id);
   const selectedOption = good.options?.find(option => option.id === selectedId && option.stockQty > 0)
     ?? (selectedId === undefined ? initialGoodOption(good) : undefined);
   const [additionalSelections, setAdditionalSelections] = useState<AdditionalSelection[]>([]);

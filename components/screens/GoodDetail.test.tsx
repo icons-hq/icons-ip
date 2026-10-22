@@ -29,10 +29,12 @@ const cart = vi.hoisted(() => ({
 
 vi.mock('@/components/shell/CartProvider', () => ({ useCart: () => cart }));
 
+const navigation = vi.hoisted(() => ({ search: '' }));
+
 vi.mock('next/navigation', () => ({
   usePathname: () => '/shop/g13',
   useRouter: () => ({ push: vi.fn() }),
-  useSearchParams: () => new URLSearchParams(''),
+  useSearchParams: () => new URLSearchParams(navigation.search),
 }));
 
 /* 위시·재입고는 S4 의 다른 트랙(E)이 소유한다. 여기서 검증할 것은 "PDP 가 그 자리에
@@ -490,6 +492,31 @@ describe('GoodDetail', () => {
     expect(pdpRailBoxState({ panelsInView: false, railEndInView: true })).toBeUndefined();
     expect(pdpRailBoxState({ panelsInView: true, railEndInView: false })).toBe('docked');
     expect(pdpRailBoxState({ panelsInView: true, railEndInView: true })).toBe('leaving');
+  });
+
+  /* PD-14 — ?variant= 로 들어오면 그 옵션으로 연다(서버 렌더도 같은 값). 고를 수 없는 값은 무시한다. */
+  it('주소의 ?variant= 가 고를 수 있는 옵션이면 그 옵션과 가격으로 연다', () => {
+    const options = [
+      { id: '00000000-0000-4000-8000-000000000401', name: '파랑', code: 'G13-B', price: 12000, stockQty: 3, isDefault: true, attributes: {} },
+      { id: '00000000-0000-4000-8000-000000000402', name: '빨강', code: 'G13-R', price: 15000, stockQty: 2, isDefault: false, attributes: {} },
+      { id: '00000000-0000-4000-8000-000000000403', name: '초록', code: 'G13-G', price: 13000, stockQty: 0, isDefault: false, attributes: {} },
+    ];
+    const multi = { good: { ...good, price: 12000, priceMax: 15000, options } };
+    try {
+      navigation.search = 'reviewPage=2&variant=00000000-0000-4000-8000-000000000402';
+      const chosen = render(multi);
+      expect(chosen).toMatch(/<select[^>]*>.*<option value="00000000-0000-4000-8000-000000000402" selected="">빨강 · ₩15,000<\/option>/s);
+      expect(chosen).toContain('<span class="wc-sr-only">가격</span><span class="wc-price__amount">₩15,000</span>');
+      expect(chosen).toContain('<strong class="wc-buy-panel__total-amount">₩15,000</strong>');
+
+      /* 품절 옵션·다른 굿즈 옵션은 기본 선택 규칙으로 돌아간다(다옵션은 명시 선택). */
+      for (const variant of ['00000000-0000-4000-8000-000000000403', '00000000-0000-4000-8000-999999999999']) {
+        navigation.search = `variant=${variant}`;
+        expect(render(multi)).toContain('<strong class="wc-buy-panel__total-amount">옵션 선택 후 표시</strong>');
+      }
+    } finally {
+      navigation.search = '';
+    }
   });
 
   it('리뷰 조건이 URL에 있으면 리뷰 탭에서 연다', () => {

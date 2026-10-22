@@ -48,6 +48,30 @@ export function initialGoodOption(good: Good): GoodOption | undefined {
 }
 
 /**
+ * 주소의 `?variant=`로 들어온 옵션 중 지금 고를 수 있는 것 (PD-14).
+ * 고를 수 있다는 기준은 구매 컨트롤러의 선택 규칙과 같다 — 이 굿즈의 옵션이고 재고가 있다.
+ * 맞지 않으면(다른 굿즈 옵션·품절·오타) undefined 라 기본 선택 규칙으로 돌아간다.
+ */
+export function selectableGoodOptionId(good: Pick<Good, 'options'>, variantId: string | null | undefined): string | undefined {
+  if (!variantId) return undefined;
+  return good.options?.find(option => option.id === variantId && option.stockQty > 0)?.id;
+}
+
+/**
+ * 옵션 선택을 주소에 남길 검색 문자열(`?variant=`, PD-14 · 11 §6 B9). 바꿀 것이 없으면 null.
+ * 다른 검색 조건(리뷰·Q&A 페이지)은 그대로 둔다. 첫 화면의 기본 선택은 주소에 쓰지 않는다 —
+ * 들어오기만 해도 주소가 바뀌면 공유·북마크 주소가 사용자가 고르지 않은 옵션을 가리킨다.
+ */
+export function variantSearchForSelection(search: string, selectedId: string | undefined, initialId: string | undefined): string | null {
+  if (!selectedId) return null;
+  const params = new URLSearchParams(search);
+  const current = params.get('variant');
+  if (current === selectedId || (current === null && selectedId === initialId)) return null;
+  params.set('variant', selectedId);
+  return `?${params.toString()}`;
+}
+
+/**
  * 품절 굿즈의 합계 미리보기 단가 (PD-08).
  *
  * 재고 0 옵션은 자동 선택하지 않으므로(initialGoodOption) 품절 굿즈의 합계 자리에는 "옵션 선택 후

@@ -225,6 +225,43 @@ describe('/shop/[goodId] page', () => {
    * not-found 바운더리가 그 제목을 버리므로 브라우저에 절대 도달하지 않는
    * 죽은 분기가 되고, 테스트만 통과해 404 탭 제목을 오해하게 만든다.
    */
+  /* PD-17 — 공유 미리보기 이미지·가격. 상대 이미지 주소는 사이트 기준 절대 주소로 펼친다. */
+  it('Open Graph 이미지·주소와 og:price 를 낸다', async () => {
+    vi.stubEnv('SITE_URL', 'https://iconsip.test');
+    try {
+      mocks.details = [{ ...detailFor('g13', '아크릴 블록', 12000), good: { ...detailFor('g13', '아크릴 블록', 12000).good, img: 'url("/generated/goods/g13.png") center / cover no-repeat' } },
+        detailFor('g14', '오로라 아크릴 키링', 9000)];
+      const metadata = await generateMetadata({ params: Promise.resolve({ goodId: 'g13' }), searchParams: Promise.resolve({}) });
+
+      expect(metadata.openGraph).toMatchObject({
+        type: 'website', siteName: 'ICONS', title: '아크릴 블록', url: 'https://iconsip.test/shop/g13',
+        images: [{ url: 'https://iconsip.test/generated/goods/g13.png', alt: '아크릴 블록' }],
+      });
+      expect(metadata.other).toEqual({ 'og:price:amount': '12000', 'og:price:currency': 'KRW' });
+      /* 이미지가 없는 굿즈(gradient 대체 아트)는 og:image 를 내지 않는다. */
+      const keyring = await generateMetadata({ params: Promise.resolve({ goodId: 'g14' }), searchParams: Promise.resolve({}) });
+      expect(keyring.openGraph).not.toHaveProperty('images');
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it('공개 상세에 JSON-LD Product·BreadcrumbList 를 싣는다', async () => {
+    vi.stubEnv('SITE_URL', 'https://iconsip.test');
+    try {
+      const html = renderToStaticMarkup(await Page({ params: Promise.resolve({ goodId: 'g13' }), searchParams: Promise.resolve({}) }));
+      const scripts = [...html.matchAll(/<script type="application\/ld\+json">(.*?)<\/script>/g)].map(match => JSON.parse(match[1]));
+
+      expect(scripts).toHaveLength(2);
+      expect(scripts[0]).toMatchObject({ '@type': 'Product', name: '아크릴 블록', url: 'https://iconsip.test/shop/g13',
+        offers: { '@type': 'Offer', price: 12000, priceCurrency: 'KRW', availability: 'https://schema.org/InStock' } });
+      expect(scripts[1]).toMatchObject({ '@type': 'BreadcrumbList' });
+      expect(scripts[1].itemListElement).toHaveLength(3);
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it('없는 굿즈의 제목 생성은 404 로 보낸다', async () => {
     await expect(
       generateMetadata({ params: Promise.resolve({ goodId: 'g999' }), searchParams: Promise.resolve({}) }),

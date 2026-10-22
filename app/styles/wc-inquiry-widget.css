@@ -41,7 +41,18 @@
 .wc-root .wc-inquiry-widget__launcher:focus-visible { outline: 2px solid var(--wc-focus); outline-offset: 3px; }
 .wc-root .inquiry-live:empty { display: none; }
 .wc-root .inquiry-live button { min-height: 44px; padding: 8px 12px; border: 1px solid var(--wc-line-control); background: var(--wc-surface); color: var(--wc-ink); font: inherit; font-size: 13px; cursor: pointer; }
-@media (max-width: 700px) {
+/* 990px 미만에는 하단 고정 바가 있다 — 일반 화면은 탭바(62), 굿즈 상세는 구매바(72). 런처는 그 위에 선다.
+   예전 기준(700px)은 701–989px 에서 런처를 바닥 24px 에 두어 탭바·구매바와 겹쳤다(CH-16). */
+@media (max-width: 989px) {
   .wc-root .wc-inquiry-widget__launcher { right: 16px; bottom: calc(80px + env(safe-area-inset-bottom)); }
+}
+@media (max-width: 700px) {
   .wc-root .wc-inquiry-widget__panel { right: 0; bottom: 0; width: 100%; height: 90dvh; border: 0; border-radius: 20px 20px 0 0; }
+}
+/* 굿즈 상세 데스크톱(CH-16): 레일 박스(화면 하단 154px, PD-03)가 하단에 붙어 있는 동안 런처를 박스 위로
+   올리고, 박스가 레일 끝과 함께 밀려 올라가는 동안은 지나가는 박스를 덮지 않게 감춘다. 상태는 상세
+   화면이 `data-rail-box`로 남긴다(GoodDetail pdpRailBoxState). 그 밖의 상세 화면에서는 제자리다. */
+@media (min-width: 990px) {
+  #root:has(.wc-pdp[data-rail-box='docked']) .wc-inquiry-widget__launcher { bottom: 178px; }
+  #root:has(.wc-pdp[data-rail-box='leaving']) .wc-inquiry-widget__launcher { visibility: hidden; }
 }

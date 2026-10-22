@@ -30,7 +30,7 @@ import { ProductShippingSavings } from '@/components/shop/ProductShippingSavings
 import { ProductInterestShelf } from '@/components/shop/ProductInterestShelf';
 import { ProductShortclips } from '@/components/shop/ProductShortclips';
 import type { PublicGoodMedia } from '@/lib/goods-media';
-import { cartOptionGood } from '@/lib/goods-options';
+import { cartOptionGood, variantSearchForSelection } from '@/lib/goods-options';
 import { GoodSizeChart } from '@/components/shop/GoodSizeChart';
 import { goodsVolumeBoundary } from '@/lib/goods-transaction-presentation';
 import { GoodAdditionalInfo } from '@/components/shop/GoodAdditionalInfo';
@@ -205,7 +205,18 @@ export function GoodDetailView({
     good,
     additionalGoods: detail.additionalGoods ?? [],
     restockRequested: engagement?.restockRequested ?? false,
+    /* 주소의 ?variant= 가 고를 수 있는 옵션이면 그 옵션으로 연다(PD-14). 서버 렌더도 같은 값을 읽는다. */
+    initialVariantId: embedded ? null : searchParams?.get('variant'),
   });
+  /* 옵션을 바꾸면 주소의 ?variant= 를 같은 기록 항목 안에서 바꾼다(PD-14, Next 의 history.replaceState
+     연동 — 서버 요청·라우팅 없이 useSearchParams 만 따라 바뀐다). 첫 화면의 기본 선택은 쓰지 않는다. */
+  const selectedVariantId = purchase.selectedOption?.id;
+  const [initialVariantId] = useState(selectedVariantId);
+  useEffect(() => {
+    if (embedded) return;
+    const search = variantSearchForSelection(window.location.search, selectedVariantId, initialVariantId);
+    if (search !== null) window.history.replaceState(null, '', `${window.location.pathname}${search}${window.location.hash}`);
+  }, [embedded, initialVariantId, selectedVariantId]);
   /* 담기 함수는 컨트롤러 것을 그대로 부르고, 확정된 결과만 모달로 알린다(PD-02).
      패널·고정 바가 같은 감싼 담기를 써야 어느 표면에서 담아도 같은 모달이 뜬다. */
   const addResult = useAddToCartResult(purchase);

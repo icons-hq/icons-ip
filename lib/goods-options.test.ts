@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cartOptionGood, goodAtQuotedPrice, goodCompareAtPrice, initialGoodOption, optionLabel, optionPriceRange, soldOutPreviewPrice } from './goods-options';
+import { cartOptionGood, goodAtQuotedPrice, goodCompareAtPrice, initialGoodOption, optionLabel, optionPriceRange, selectableGoodOptionId, soldOutPreviewPrice, variantSearchForSelection } from './goods-options';
 import type { GoodsSalesQuoteLine } from './goods-sales';
 import type { Good, GoodOption } from './data';
 
@@ -32,6 +32,26 @@ describe('public goods options',()=>{
     expect(soldOutPreviewPrice({ price: 9000 })).toBe(9000);
     /* 자동 선택 규칙은 그대로다 — 재고 0 단일 옵션을 고르지 않는다(L2 몫). */
     expect(initialGoodOption({ ...good, options: [options[0]] })).toBeUndefined();
+  });
+  /* PD-14 — 주소의 ?variant= 는 지금 고를 수 있는 이 굿즈의 옵션일 때만 첫 선택이 된다. */
+  it('주소 옵션은 이 굿즈의 재고 있는 옵션일 때만 받는다', () => {
+    expect(selectableGoodOptionId(good, options[1].id)).toBe(options[1].id);
+    expect(selectableGoodOptionId(good, options[0].id)).toBeUndefined();
+    expect(selectableGoodOptionId(good, 'other-good-option')).toBeUndefined();
+    expect(selectableGoodOptionId(good, null)).toBeUndefined();
+    expect(selectableGoodOptionId({ options: undefined }, options[1].id)).toBeUndefined();
+  });
+  it('옵션을 바꾸면 다른 검색 조건은 두고 ?variant= 만 바꾼다', () => {
+    expect(variantSearchForSelection('?reviewPage=2', 'red', undefined)).toBe('?reviewPage=2&variant=red');
+    expect(variantSearchForSelection('?variant=blue&qnaPage=1', 'red', 'blue')).toBe('?variant=red&qnaPage=1');
+    /* 사용자가 처음 선택으로 돌아와도 주소가 그 선택을 가리킨다. */
+    expect(variantSearchForSelection('?variant=red', 'blue', 'blue')).toBe('?variant=blue');
+  });
+  it('첫 화면의 기본 선택과 이미 같은 주소는 건드리지 않는다', () => {
+    expect(variantSearchForSelection('', 'only', 'only')).toBeNull();
+    expect(variantSearchForSelection('?reviewPage=1', 'only', 'only')).toBeNull();
+    expect(variantSearchForSelection('?variant=red', 'red', undefined)).toBeNull();
+    expect(variantSearchForSelection('?variant=red', undefined, undefined)).toBeNull();
   });
   it('shows the price range including sold-out visible options',()=>{
     expect(optionPriceRange(options)).toEqual({price:12000,priceMax:15000});

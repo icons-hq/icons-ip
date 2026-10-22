@@ -32,6 +32,8 @@ import { GalleryBestReviews } from '@/components/shop/GalleryBestReviews';
 import { GoodOtherCompositions } from '@/components/shop/GoodOtherCompositions';
 import { loadGoodOtherCompositions } from '@/lib/good-other-compositions.server';
 import { goodOtherCompositionsNextChange } from '@/lib/good-other-compositions';
+import { goodDetailHref } from '@/lib/goods-display';
+import { breadcrumbJsonLd, goodImageUrls, goodMetaDescription, goodOfferPrices, jsonLdText, productJsonLd, siteOrigin } from './structured-data';
 
 type PageProps = {
   params: Promise<{ goodId: string }>;
@@ -41,7 +43,9 @@ type PageProps = {
 /* generateMetadata 와 Page 가 같은 요청에서 카탈로그를 두 번 읽지 않도록 묶는다. */
 const loadGoodDetail = cache(getCatalogGoodDetail);
 
-/* 굿즈마다 다른 제목을 낸다 — 탭·북마크·검색결과·스크린리더가 상세를 구별할 수 있어야 한다(WCAG 2.4.2). */
+/* 굿즈마다 다른 제목을 낸다 — 탭·북마크·검색결과·스크린리더가 상세를 구별할 수 있어야 한다(WCAG 2.4.2).
+   공유 미리보기용 Open Graph 이미지·가격도 여기서 낸다(PD-17). Next metadata 의 `other`는
+   `<meta name>`으로 그려진다 — og:price 는 property 대신 name 속성으로 나간다. */
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { goodId } = await params;
   const detail = await loadGoodDetail(goodId);
@@ -49,9 +53,25 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
      브라우저에 절대 도달하지 않으면서 테스트만 통과하는 죽은 분기가 된다. */
   if (!detail) notFound();
 
+  const origin = siteOrigin();
+  const description = goodMetaDescription(detail.good.name);
+  const image = goodImageUrls(detail, origin)[0];
   return {
     title: `${detail.good.name} — ICONS`,
-    description: `${detail.good.name} 굿즈의 구성, 고시정보, 리뷰, 배송과 교환·반품 안내를 확인하세요.`,
+    description,
+    openGraph: {
+      type: 'website',
+      siteName: 'ICONS',
+      locale: 'ko_KR',
+      title: detail.good.name,
+      description,
+      url: `${origin}${goodDetailHref(detail.good.id)}`,
+      ...(image ? { images: [{ url: image, alt: detail.good.name }] } : {}),
+    },
+    other: {
+      'og:price:amount': String(goodOfferPrices(detail.good).low),
+      'og:price:currency': 'KRW',
+    },
   };
 }
 
@@ -97,28 +117,36 @@ export default async function Page({ params, searchParams }: PageProps) {
     .flatMap(value => value && Number.isFinite(Date.parse(value)) ? [Date.parse(value)] : []);
   const nextChangeAt = boundaries.length ? new Date(Math.min(...boundaries)).toISOString() : null;
 
+  /* 구조화 데이터(PD-17)는 공개 상세가 뜬 굿즈에만 붙는다 — 미공개·판매 제한은 위 로더가 404 다. */
+  const origin = siteOrigin();
+
   return (
-    <><ProductDetailRefresh nextChangeAt={nextChangeAt} /><GoodDetail
-      detail={{ ...detail, sizeChart }}
-      shippingPolicy={shippingPolicy}
-      announcements={<GoodAnnouncements data={announcements} />}
-      promotionBanner={presentation?.banner ? <ProductDetailBanner data={presentation} /> : undefined}
-      reviewEventBanner={event ? <ReviewEventBanner event={event} /> : undefined}
-      reviewHighlights={<ProductDetailReviewSummary goodId={goodId} data={presentation} />}
-      otherCompositions={<GoodOtherCompositions data={otherCompositions} />}
-      selectedReviews={selectedReviews.length === 3 ? <GalleryBestReviews goodId={goodId} cards={selectedReviews} /> : undefined}
-      automaticRecommendations={<ProductDetailRecommendations data={presentation} manual={detail.relatedGoods} />}
-      purchaseMessages={experience?.messages.length ? <ProductPurchaseMessages messages={experience.messages} /> : undefined}
-      discovery={experience?.discovery}
-      media={media}
-      goodsBenefits={<GoodsBenefitContent value={goodsBenefits} />}
-      afterSales={<GoodAfterSalesContent value={afterSales} />}
-      engagement={engagement}
-      qna={<GoodQna goodId={goodId} section={questionSection} />}
-      qnaSummary={{ count: questionSection.count }}
-      reviewSummary={reviewSection.unavailable ? undefined : reviewSection.summary}
-      reviews={<GoodReviews goodId={goodId} section={reviewSection} />}
-      sellerInfo={sellerInfo}
-    /></>
+    <>
+      <script dangerouslySetInnerHTML={{ __html: jsonLdText(productJsonLd(detail, origin)) }} type="application/ld+json" />
+      <script dangerouslySetInnerHTML={{ __html: jsonLdText(breadcrumbJsonLd(detail, origin)) }} type="application/ld+json" />
+      <ProductDetailRefresh nextChangeAt={nextChangeAt} />
+      <GoodDetail
+        detail={{ ...detail, sizeChart }}
+        shippingPolicy={shippingPolicy}
+        announcements={<GoodAnnouncements data={announcements} />}
+        promotionBanner={presentation?.banner ? <ProductDetailBanner data={presentation} /> : undefined}
+        reviewEventBanner={event ? <ReviewEventBanner event={event} /> : undefined}
+        reviewHighlights={<ProductDetailReviewSummary goodId={goodId} data={presentation} />}
+        otherCompositions={<GoodOtherCompositions data={otherCompositions} />}
+        selectedReviews={selectedReviews.length === 3 ? <GalleryBestReviews goodId={goodId} cards={selectedReviews} /> : undefined}
+        automaticRecommendations={<ProductDetailRecommendations data={presentation} manual={detail.relatedGoods} />}
+        purchaseMessages={experience?.messages.length ? <ProductPurchaseMessages messages={experience.messages} /> : undefined}
+        discovery={experience?.discovery}
+        media={media}
+        goodsBenefits={<GoodsBenefitContent value={goodsBenefits} />}
+        afterSales={<GoodAfterSalesContent value={afterSales} />}
+        engagement={engagement}
+        qna={<GoodQna goodId={goodId} section={questionSection} />}
+        qnaSummary={{ count: questionSection.count }}
+        reviewSummary={reviewSection.unavailable ? undefined : reviewSection.summary}
+        reviews={<GoodReviews goodId={goodId} section={reviewSection} />}
+        sellerInfo={sellerInfo}
+      />
+    </>
   );
 }
