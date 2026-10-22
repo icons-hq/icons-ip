@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cartOptionGood, goodAtQuotedPrice, goodCompareAtPrice, initialGoodOption, optionLabel, optionPriceRange } from './goods-options';
+import { cartOptionGood, goodAtQuotedPrice, goodCompareAtPrice, initialGoodOption, optionLabel, optionPriceRange, soldOutPreviewPrice } from './goods-options';
 import type { GoodsSalesQuoteLine } from './goods-sales';
 import type { Good, GoodOption } from './data';
 
@@ -24,6 +24,14 @@ describe('public goods options',()=>{
     expect(initialGoodOption(good)).toBeUndefined();
     expect(initialGoodOption({...good,options:[options[1]]})).toEqual(options[1]);
     expect(initialGoodOption({...good,options:[options[0]]})).toBeUndefined();
+  });
+  /* PD-08 — 재고 0 옵션은 자동 선택하지 않으므로 품절 굿즈의 합계는 이 단가로 미리 보인다. */
+  it('품절 굿즈의 합계 미리보기 단가는 첫 옵션 가격, 옵션이 없으면 굿즈 가격이다', () => {
+    expect(soldOutPreviewPrice({ price: 12000, options: [options[1], options[0]] })).toBe(15000);
+    expect(soldOutPreviewPrice({ price: 12000, options: [options[0]] })).toBe(12000);
+    expect(soldOutPreviewPrice({ price: 9000 })).toBe(9000);
+    /* 자동 선택 규칙은 그대로다 — 재고 0 단일 옵션을 고르지 않는다(L2 몫). */
+    expect(initialGoodOption({ ...good, options: [options[0]] })).toBeUndefined();
   });
   it('shows the price range including sold-out visible options',()=>{
     expect(optionPriceRange(options)).toEqual({price:12000,priceMax:15000});

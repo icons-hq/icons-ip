@@ -7,12 +7,11 @@ import { RestockCta } from '@/components/shop/RestockCta';
 import { QuantityStepper } from '@/components/wc/QuantityStepper';
 import { WcButton } from '@/components/wc/WcButton';
 import type { Good, GoodOption } from '@/lib/data';
-import { goodsPurchaseConditionProblem, initialGoodOption, optionLabel } from '@/lib/goods-options';
+import { goodsPurchaseConditionProblem, initialGoodOption, optionLabel, soldOutPreviewPrice } from '@/lib/goods-options';
 import { goodsAggregationUnavailableLabel } from '@/lib/goods-aggregation';
 import { prepareGoodsCustomInputSelection } from '@/lib/goods-custom-inputs';
 import { GoodsCustomInputsFields } from './GoodsCustomInputs';
 import { krw } from '@/lib/format';
-import { STOCK_LABEL } from '@/lib/goods-display';
 import { goodsShipDateLabel, preorderSupplyLabel, preorderUnavailableLabel } from '@/lib/goods-preorders';
 import { goodsSaleUnavailableLabel } from '@/lib/goods-sale-period';
 import { goodsPurchaseVolumePreview } from '@/lib/goods-transaction-presentation';
@@ -402,10 +401,16 @@ export interface PurchaseTotalDisplay {
   numeric: boolean;
 }
 
-/** 합계 행의 라벨·값. 본문 패널과 데스크톱 레일 박스가 같은 값을 보인다. */
-export function purchaseTotalDisplay(purchase: Pick<GoodPurchaseController, 'good' | 'unavailableLabel' | 'selectionRequired' | 'subtotal'>): PurchaseTotalDisplay {
+/**
+ * 합계 행의 라벨·값. 본문 패널과 데스크톱 레일 박스가 같은 값을 보인다.
+ * 품절 굿즈는 고를 옵션이 없으니 "옵션 선택 후 표시" 대신 가격으로 합계를 보인다(PD-08).
+ */
+export function purchaseTotalDisplay(purchase: Pick<GoodPurchaseController, 'good' | 'unavailableLabel' | 'selectionRequired' | 'subtotal' | 'soldOut' | 'quantity'>): PurchaseTotalDisplay {
   const label = purchase.unavailableLabel ? '판매 상태' : purchase.good.transactionOffer ? '예상 굿즈 금액' : '총 금액';
   if (purchase.unavailableLabel) return { label, amount: purchase.unavailableLabel, numeric: false };
+  if (purchase.selectionRequired && purchase.soldOut) {
+    return { label, amount: krw(purchaseSubtotal(soldOutPreviewPrice(purchase.good), purchase.quantity)), numeric: true };
+  }
   if (purchase.selectionRequired) return { label, amount: '옵션 선택 후 표시', numeric: false };
   return { label, amount: krw(purchase.subtotal), numeric: true };
 }
@@ -413,14 +418,16 @@ export function purchaseTotalDisplay(purchase: Pick<GoodPurchaseController, 'goo
 /** 정보 칼럼의 구매 패널. 품절이면 CTA 자리만 재입고 알림으로 바뀐다(R-04 §4). */
 export function GoodPurchasePanel({ purchase }: { purchase: GoodPurchaseController }) {
   const { disabled, good, inert, message, quantity, restockRequested, selectedOption, selectOption, setQuantity, soldOut } = purchase;
-  const stockLabel = purchase.unavailableLabel ?? STOCK_LABEL[good.stock];
   const total = purchaseTotalDisplay(purchase);
   const singleOptionLabel = good.options?.length === 1 ? optionLabel(good.options[0], 1) : null;
   const displayOption = selectedOption ?? (good.options?.length === 1 ? good.options[0] : undefined);
 
   return (
     <div className="wc-buy-panel">
-      {stockLabel ? <p className="wc-buy-panel__state">{stockLabel}</p> : null}
+      {/* 판매 기간·예약 접수 같은 판매 상태만 글로 먼저 알린다. '품절임박/품절' 재고 라벨은 두지 않는다(PD-12) —
+          운영자가 고르는 재고 표시라 실재고와 연동되지 않고(표시광고법 '품절임박' 실재고 연동 요건,
+          docs/online-popup/01-report.md), 품절은 재입고 알림 CTA 가 글로 대신 말한다. */}
+      {purchase.unavailableLabel ? <p className="wc-buy-panel__state">{purchase.unavailableLabel}</p> : null}
       {good.orderQuantityLimitEnabled && good.minOrderQty && good.maxOrderQty ? <p className="wc-buy-panel__state">{good.transactionOffer?.aggregation ? '같은 굿즈에서 나뉜 항목을' : '같은 굿즈의 옵션을'} 합산하여 주문당 {good.minOrderQty.toLocaleString('ko-KR')}–{good.maxOrderQty.toLocaleString('ko-KR')}개 구매할 수 있습니다.</p> : null}
       {good.memberPurchaseLimitEnabled && good.memberLifetimeQtyLimit ? <p className="wc-buy-panel__state">회원 누적 최대 {good.memberLifetimeQtyLimit.toLocaleString('ko-KR')}개 · 결제 대기 주문 포함</p> : null}
       {(good.options?.length ?? 0) > 1 ? (

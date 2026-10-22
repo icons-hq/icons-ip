@@ -10,6 +10,7 @@ const summary = { average: 4.5, count: 3, distribution: [0, 0, 0, 1, 2], photoCo
 const mocks = vi.hoisted(() => ({
   details: [] as CatalogGoodDetail[],
   shipping: vi.fn(async () => ({originId:'gimpo',originName:'김포',baseFee:4700,freeThreshold:62000,feeType:'policy',individualFee:0})),
+  businessInfo: vi.fn(async () => ({ companyName: '(주)아이콘스', representative: '', registrationNumber: '109-86-27576', mailOrderNumber: '', address: '', phone: '', email: '', hostingProvider: 'Vercel, Inc.' })),
   engagement: vi.fn(async () => ({ restockRequested: false, wished: true })),
   goodDetail: vi.fn<(props: Record<string, unknown>) => null>(() => null),
   goodQna: vi.fn<(props: Record<string, unknown>) => null>(() => null),
@@ -41,6 +42,7 @@ vi.mock('@/lib/product-questions.server', () => ({ loadGoodQuestions: mocks.ques
 vi.mock('@/lib/reviews.server', () => ({ loadGoodReviewSection: mocks.reviewSection }));
 vi.mock('@/lib/wishlist.server', () => ({ getGoodEngagement: mocks.engagement }));
 vi.mock('@/lib/fulfillment.server', () => ({loadGoodShippingPolicy:mocks.shipping}));
+vi.mock('@/lib/legal/business-info.server', () => ({ getBusinessInfo: mocks.businessInfo }));
 vi.mock('@/lib/product-detail-experiences.server', () => ({ loadPublicDetailExperience: async () => null }));
 vi.mock('@/lib/goods-media.server', () => ({ loadPublicGoodMedia: async () => null }));
 vi.mock('@/lib/good-announcements.server', () => ({ loadGoodAnnouncements: async () => ({ items: [], nextChangeAt: null }) }));
@@ -118,6 +120,14 @@ describe('/shop/[goodId] page', () => {
     expect(mocks.sizeChart).toHaveBeenCalledWith('g13');
     expect(mocks.shipping).toHaveBeenCalledWith('g13');
     expect(mocks.goodDetail.mock.calls[0]?.[0]?.shippingPolicy).toMatchObject({baseFee:4700,freeThreshold:62000});
+  });
+
+  /* PD-06 — 추가정보 탭의 판매자 정보는 푸터와 같은 공개 사업자 정보 소스에서 온다. */
+  it('추가정보 탭의 판매자 정보로 공개 사업자 정보를 넘긴다', async () => {
+    renderToStaticMarkup(await Page({ params: Promise.resolve({ goodId: 'g13' }), searchParams: Promise.resolve({}) }));
+
+    expect(mocks.businessInfo).toHaveBeenCalled();
+    expect(mocks.goodDetail.mock.calls[0]?.[0]?.sellerInfo).toMatchObject({ companyName: '(주)아이콘스', registrationNumber: '109-86-27576' });
   });
 
   it('별도 공개 게이트를 통과한 사이즈 안내를 같은 상품 상세에 전달한다', async () => {

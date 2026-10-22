@@ -47,6 +47,18 @@ export function initialGoodOption(good: Good): GoodOption | undefined {
   return good.options?.length === 1 && good.options[0].stockQty > 0 ? good.options[0] : undefined;
 }
 
+/**
+ * 품절 굿즈의 합계 미리보기 단가 (PD-08).
+ *
+ * 재고 0 옵션은 자동 선택하지 않으므로(initialGoodOption) 품절 굿즈의 합계 자리에는 "옵션 선택 후
+ * 표시"가 남았다 — 고를 옵션이 없는데 고르라는 문구다. 품절이면 가격으로 합계를 보인다: 옵션이
+ * 있으면 첫 옵션 가격(레퍼런스는 첫 옵션이 선택된 채 합계를 보인다), 없으면 굿즈 가격.
+ * 표시 전용 값이다 — 품절 굿즈는 담기·구매가 막혀 있고 금액은 서버 견적·주문 RPC 가 정한다.
+ */
+export function soldOutPreviewPrice(good: Pick<Good, 'price' | 'options'>): number {
+  return good.options?.[0]?.price ?? good.price;
+}
+
 export function optionLabel(option: GoodOption | undefined, count: number): string | null {
   if (!option) return null;
   return count === 1 && option.isDefault && option.name === '기본 옵션' && Object.keys(option.attributes).length === 0

@@ -17,6 +17,7 @@ import { loadGoodQuestions } from '@/lib/product-questions.server';
 import { normalizeGoodReviewOptions } from '@/lib/reviews';
 import { loadGoodReviewSection } from '@/lib/reviews.server';
 import { loadGoodShippingPolicy } from '@/lib/fulfillment.server';
+import { getBusinessInfo } from '@/lib/legal/business-info.server';
 import { getGoodEngagement } from '@/lib/wishlist.server';
 import { loadPublicDetailPresentation } from '@/lib/product-detail-presentation.server';
 import { ProductDetailBanner, ProductDetailReviewSummary, ProductDetailRecommendations, detailPresentationNextChange } from '@/components/shop/ProductDetailPresentation';
@@ -71,7 +72,7 @@ export default async function Page({ params, searchParams }: PageProps) {
   const reviewOptions = normalizeGoodReviewOptions(resolvedSearchParams);
   const questionOptions = normalizeGoodQuestionOptions(resolvedSearchParams);
 
-  const [detail, reviewSection, questionSection, engagement, shippingPolicy, announcements, presentation, reviewEvents, experience, media, selectedReviews, goodsBenefits, afterSales, sizeChart, otherCompositions] = await Promise.all([
+  const [detail, reviewSection, questionSection, engagement, shippingPolicy, announcements, presentation, reviewEvents, experience, media, selectedReviews, goodsBenefits, afterSales, sizeChart, otherCompositions, sellerInfo] = await Promise.all([
     loadGoodDetail(goodId),
     loadGoodReviewSection(goodId, reviewOptions),
     loadGoodQuestions(goodId, questionOptions),
@@ -87,6 +88,8 @@ export default async function Page({ params, searchParams }: PageProps) {
     loadPublicGoodsAfterSales(goodId),
     loadPublicGoodsSizeChart(goodId),
     loadGoodOtherCompositions(goodId),
+    /* 추가정보 탭의 판매자 정보 — 푸터와 같은 쿠키 없는 캐시 읽기다(PD-06). */
+    getBusinessInfo(),
   ]);
   if (!detail) notFound();
   const event = reviewEvents.rows.find(row => row.goodId === goodId)?.event;
@@ -115,6 +118,7 @@ export default async function Page({ params, searchParams }: PageProps) {
       qnaSummary={{ count: questionSection.count }}
       reviewSummary={reviewSection.unavailable ? undefined : reviewSection.summary}
       reviews={<GoodReviews goodId={goodId} section={reviewSection} />}
+      sellerInfo={sellerInfo}
     /></>
   );
 }

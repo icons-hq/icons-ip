@@ -226,6 +226,21 @@ describe('GoodDetail', () => {
     expect(html).not.toContain('wc-price__original');
     expect(html).not.toContain('wc-price__rate');
     expect(html).toContain('₩12,000');
+    /* PD-15 — 숨긴 할인을 SALE 배지가 다시 광고하지 않는다. */
+    expect(html).not.toContain('>SALE<');
+  });
+
+  /* PD-15 · R-04 §3.3 — 취소선·할인율·판매가가 "₩18,000 33% ₩12,000"으로만 읽히지 않게 보조기기 라벨을 붙인다. */
+  it('정가·할인율·할인가를 보조기기가 구분하도록 숨은 라벨을 붙인다', () => {
+    const sale = render({ good: { ...good, compareAtPrice: 18000 } });
+    expect(sale).toContain('<span class="wc-sr-only">정가</span><s class="wc-price__original">₩18,000</s>');
+    expect(sale).toContain('<span class="wc-sr-only">할인율</span><span class="wc-price__rate">33%</span>');
+    expect(sale).toContain('<span class="wc-sr-only">할인가</span><span class="wc-price__amount">₩12,000</span>');
+
+    /* 할인 표기가 없거나 숨겼으면 실제 결제가를 '정가'라 부르지 않는다. */
+    expect(render()).toContain('<span class="wc-sr-only">가격</span><span class="wc-price__amount">₩12,000</span>');
+    expect(render({ good: { ...good, compareAtPrice: 18000, showDiscountRate: false } }))
+      .toContain('<span class="wc-sr-only">가격</span><span class="wc-price__amount">₩12,000</span>');
   });
 
   /* 소비자가 12,000원 → 할인가 10,800원에 옵션가 3,000원. 옵션가는 할인하지 않으므로 선택한 옵션의
@@ -317,15 +332,55 @@ describe('GoodDetail', () => {
     expect(html).toContain('>판매 상태</span>'); expect(html).not.toContain('옵션 선택 후 표시');
     expect(html).toContain(`class="wc-buybar__buy" type="button" disabled="">${label}</button>`);
   });
-  it('품절이면 CTA가 재입고 알림으로 교체된다', () => {
+  it('품절이면 CTA가 재입고 알림으로 교체되고 합계는 가격으로 남는다', () => {
     const html = render({ good: { ...good, stock: 'soldout', stockQty: 0 } });
 
     expect(html).toContain('재입고 알림 받기');
     expect(html).toContain('data-good="g13"');
-    expect(html).toContain('>품절<');
     expect(html).toContain('총 금액');
+    /* PD-08 — 고를 옵션이 없는 품절 굿즈에 "옵션 선택 후 표시"를 남기지 않는다. 본문 패널·레일 박스가 같다. */
+    expect(html).toContain('<strong class="wc-buy-panel__total-amount">₩12,000</strong>');
+    expect(html).toContain('<strong class="wc-pdp-railbox__amount">₩12,000</strong>');
+    expect(html).not.toContain('옵션 선택 후 표시');
+    /* PD-12 — 재고 표시 라벨은 두지 않는다. 품절은 재입고 알림이 말한다. */
+    expect(html).not.toMatch(/<p class="wc-buy-panel__state">품절<\/p>/);
     expect(html).not.toContain('wc-buy-panel__ctas');
     expect(html).not.toContain('>구매하기<');
+  });
+
+  /* PD-12 — 리뷰 0건은 회색 별만, 있으면 평균과 "N개 리뷰보기" 링크(리뷰 탭을 연다). */
+  it('리뷰가 있으면 별점 행이 평균과 리뷰 탭을 여는 링크다', () => {
+    const html = render();
+    const rating = html.match(/<p class="wc-pdp-tools__rating">.*?<\/p>/)?.[0] ?? '';
+
+    expect(rating).toContain('<span class="wc-sr-only">5점 만점에 4.5점</span>');
+    expect(rating).toContain('<strong class="wc-pdp-tools__average">4.5</strong>');
+    /* 스크립트 전·새 탭 클릭에는 리뷰 탭으로 여는 주소로 그대로 간다. */
+    expect(rating).toContain('<a class="wc-pdp-tools__reviews" href="/shop/g13?reviewPage=1#reviews">3개 리뷰보기</a>');
+    expect(rating).not.toContain('리뷰 3건');
+  });
+
+  it('리뷰 0건이면 숫자와 "리뷰 0건" 없이 회색 별만 두고, 조회 실패면 비운다', () => {
+    const empty = renderToStaticMarkup(<GoodDetail detail={detail} reviewSummary={{ count: 0, average: 0, distribution: [0, 0, 0, 0, 0], photoCount: 0 }} />);
+    const rating = empty.match(/<p class="wc-pdp-tools__rating is-empty">.*?<\/p>/)?.[0] ?? '';
+
+    expect(rating).toBe('<p class="wc-pdp-tools__rating is-empty"><span aria-hidden="true" class="wc-rating__stars">☆☆☆☆☆</span><span class="wc-sr-only">아직 등록된 리뷰가 없습니다.</span></p>');
+    expect(empty).not.toContain('0.0');
+    expect(empty).not.toContain('리뷰 0건');
+    expect(empty).not.toContain('wc-pdp-tools__reviews');
+
+    const failed = renderToStaticMarkup(<GoodDetail detail={detail} />);
+    expect(failed).not.toContain('wc-pdp-tools__rating');
+  });
+
+  /* PD-07 — 위시 하트 옆 36 원형 공유 버튼. 미리보기에서는 실제로 열지 않는다. */
+  it('위시 하트 옆에 공유 버튼을 두고 미리보기에서는 비활성으로 그린다', () => {
+    const html = render();
+    const actions = html.match(/<div class="wc-pdp-tools__actions">.*?<\/div>/)?.[0] ?? '';
+
+    expect(actions.indexOf('wc-wish-heart')).toBeLessThan(actions.indexOf('wc-pdp-share'));
+    expect(actions).toContain('<button aria-expanded="false" aria-haspopup="dialog" aria-label="공유하기" class="wc-pdp-share" type="button">');
+    expect(renderToStaticMarkup(<GoodDetailView detail={detail} embedded />)).toMatch(/aria-label="공유하기" class="wc-pdp-share" disabled=""/);
   });
 
   it('위시 하트에 현재 찜 상태를 넘긴다', () => {
@@ -410,20 +465,23 @@ describe('GoodDetail', () => {
     expect(html).toContain('id="pdp-panel-reviews"');
     expect(html).toContain('>상세정보<');
     expect(html).toContain('>리뷰 (3)<');
-    expect(html).toContain('>배송·교환 안내<');
+    /* PD-06 — 4번째 탭은 '추가정보'다(모바일에서 라벨이 잘리지 않는 길이). */
+    expect(html).toContain('>추가정보<');
+    expect(html).toContain('id="pdp-panel-info"');
+    expect(html).not.toContain('배송·교환 안내');
     expect(html).toContain('리뷰 본문 슬롯');
   });
 
   /* 상품 Q&A(#330)는 리뷰와 배송 안내 사이다 — 구매 전 질문은 후기 다음, 정책 앞에서
      읽힌다. 본문은 리뷰와 같은 이유로 서버가 그린 slot 이다. */
-  it('리뷰와 배송 안내 사이에 Q&A 탭을 둔다', () => {
+  it('리뷰와 추가정보 사이에 Q&A 탭을 둔다', () => {
     const html = render();
 
     expect(html).toContain('id="pdp-panel-qna"');
     expect(html).toContain('>Q&amp;A (2)<');
     expect(html).toContain('Q&amp;A 본문 슬롯');
     expect(html.indexOf('id="pdp-tab-qna"')).toBeGreaterThan(html.indexOf('id="pdp-tab-reviews"'));
-    expect(html.indexOf('id="pdp-tab-shipping"')).toBeGreaterThan(html.indexOf('id="pdp-tab-qna"'));
+    expect(html.indexOf('id="pdp-tab-info"')).toBeGreaterThan(html.indexOf('id="pdp-tab-qna"'));
   });
 
   /* CH-16 — 문의 런처가 레일 박스와 겹치지 않게 하는 판단 근거. */
@@ -454,9 +512,18 @@ describe('GoodDetail', () => {
     expect(pdpDefaultPanelId(new URLSearchParams('reviewPage=2&qnaPage=2'))).toBe('reviews');
   });
 
-  it('고시정보 표와 배송·교환 안내를 패널에 싣는다', () => {
+  it('고시정보 표와 배송·교환 안내를 추가정보 탭 아코디언에 싣는다', () => {
     const html = render();
+    const info = html.slice(html.indexOf('id="pdp-panel-info"'));
+    const detailPanel = html.slice(html.indexOf('id="pdp-panel-detail"'), html.indexOf('id="pdp-panel-reviews"'));
 
+    /* PD-06 — 고시정보는 상세 패널에서 추가정보 탭으로 옮겼다. 4개 절이 각각 <details> 다. */
+    expect(detailPanel).not.toContain('pdp-notice-heading');
+    expect(info.match(/<details class="wc-pdp-info__item">/g)).toHaveLength(4);
+    expect(info.indexOf('pdp-notice-heading')).toBeLessThan(info.indexOf('pdp-shipping-heading'));
+    expect(info.indexOf('pdp-shipping-heading')).toBeLessThan(info.indexOf('pdp-return-heading'));
+    expect(info.indexOf('pdp-return-heading')).toBeLessThan(info.indexOf('pdp-seller-heading'));
+    expect(info).toContain('<summary class="wc-pdp-info__summary"><span id="pdp-seller-heading">판매자 정보</span></summary>');
     expect(html).toContain('고시정보');
     expect(html).toContain('제조사 / 수입사');
     expect(html).toContain('주식회사 아이콘스');

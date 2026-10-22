@@ -198,17 +198,28 @@ describe('isGoodSoldOut', () => {
 });
 
 describe('purchaseTotalDisplay', () => {
+  const base = { good, unavailableLabel: null, selectionRequired: false, subtotal: 24000, soldOut: false, quantity: 2 };
+
   it('본문 패널과 레일 박스가 같은 합계 라벨·값을 쓴다', () => {
-    expect(purchaseTotalDisplay({ good, unavailableLabel: null, selectionRequired: false, subtotal: 24000 }))
-      .toEqual({ label: '총 금액', amount: '₩24,000', numeric: true });
-    expect(purchaseTotalDisplay({ good: { ...good, transactionOffer: null }, unavailableLabel: null, selectionRequired: false, subtotal: 24000 }).label).toBe('총 금액');
+    expect(purchaseTotalDisplay(base)).toEqual({ label: '총 금액', amount: '₩24,000', numeric: true });
+    expect(purchaseTotalDisplay({ ...base, good: { ...good, transactionOffer: null } }).label).toBe('총 금액');
   });
 
-  it('판매 기간 밖이면 판매 상태를, 옵션 전이면 안내 문구를 금액 대신 보인다', () => {
-    expect(purchaseTotalDisplay({ good, unavailableLabel: '판매 종료', selectionRequired: true, subtotal: 0 }))
+  it('판매 기간 밖이면 판매 상태를, 판매 중 옵션 전이면 안내 문구를 금액 대신 보인다', () => {
+    expect(purchaseTotalDisplay({ ...base, unavailableLabel: '판매 종료', selectionRequired: true, subtotal: 0, soldOut: true }))
       .toEqual({ label: '판매 상태', amount: '판매 종료', numeric: false });
-    expect(purchaseTotalDisplay({ good, unavailableLabel: null, selectionRequired: true, subtotal: 0 }))
+    expect(purchaseTotalDisplay({ ...base, selectionRequired: true, subtotal: 0 }))
       .toEqual({ label: '총 금액', amount: '옵션 선택 후 표시', numeric: false });
+  });
+
+  /* PD-08 — 재고 0 옵션은 자동 선택되지 않아 품절 굿즈에 "옵션 선택 후 표시"가 남던 결함. */
+  it('품절 굿즈는 고를 옵션이 없으니 가격으로 합계를 보인다', () => {
+    const only = { id: 'only', name: '기본 옵션', price: 9000, stockQty: 0, code: 'ONLY', attributes: {}, isDefault: true };
+    expect(purchaseTotalDisplay({ ...base, good: { ...good, stock: 'soldout', stockQty: 0, options: [only] }, selectionRequired: true, subtotal: 0, soldOut: true, quantity: 1 }))
+      .toEqual({ label: '총 금액', amount: '₩9,000', numeric: true });
+    /* 옵션이 없는 품절 굿즈는 굿즈 가격이다. */
+    expect(purchaseTotalDisplay({ ...base, good: { ...good, stock: 'soldout', stockQty: 0 }, selectionRequired: true, subtotal: 0, soldOut: true, quantity: 1 }).amount)
+      .toBe('₩12,000');
   });
 });
 
@@ -287,14 +298,27 @@ describe('GoodPurchasePanel', () => {
     expect(html).toContain('value="3"');
   });
 
-  it('품절이면 CTA 쌍 대신 재입고 알림만 남는다', () => {
+  it('품절이면 CTA 쌍 대신 재입고 알림만 남고 합계는 가격으로 보인다', () => {
     const html = renderToStaticMarkup(
-      <GoodPurchasePanel purchase={controller({ good: { ...good, stock: 'soldout', stockQty: 0 }, soldOut: true })} />,
+      <GoodPurchasePanel purchase={controller({ good: { ...good, stock: 'soldout', stockQty: 0 }, soldOut: true, selectionRequired: true, inert: true, subtotal: 0 })} />,
     );
 
     expect(html).toContain('재입고 알림 받기');
-    expect(html).toContain('>품절<');
     expect(html).not.toContain('wc-buy-panel__ctas');
+    expect(html).toContain('<strong class="wc-buy-panel__total-amount">₩12,000</strong>');
+    expect(html).not.toContain('옵션 선택 후 표시');
+  });
+
+  /* PD-12 — '품절임박/품절'은 운영자가 고르는 재고 표시라 실재고와 연동되지 않는다. 라벨을 두지 않는다. */
+  it('재고 표시 라벨(품절임박·품절)을 패널에 두지 않는다', () => {
+    const low = renderToStaticMarkup(<GoodPurchasePanel purchase={controller({ good: { ...good, stock: 'low', stockQty: 2 } })} />);
+    const soldOut = renderToStaticMarkup(<GoodPurchasePanel purchase={controller({ good: { ...good, stock: 'soldout', stockQty: 0 }, soldOut: true })} />);
+
+    expect(low).not.toContain('품절임박');
+    expect(soldOut).not.toMatch(/<p class="wc-buy-panel__state">품절<\/p>/);
+    /* 판매 기간 같은 판매 상태는 그대로 글로 먼저 알린다. */
+    expect(renderToStaticMarkup(<GoodPurchasePanel purchase={controller({ unavailableLabel: '판매 시작 전' })} />))
+      .toContain('<p class="wc-buy-panel__state">판매 시작 전</p>');
   });
 
   /* 서버 확인 전에는 "완료"라고 하지 않는다. 카트가 낸 오류가 있으면 그것이 먼저다. */
