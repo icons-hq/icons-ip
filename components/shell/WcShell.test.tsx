@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { COMMUNITY_ENABLED } from '@/lib/community-visibility';
-import { SUGGESTED_SEARCH_TERMS } from '@/lib/search-terms';
+import { SUGGESTED_SEARCH_TERMS, searchPlaceholder } from '@/lib/search-terms';
 import type { StorefrontNavigation } from '@/lib/store-navigation';
 import { BottomTabBar } from './BottomTabBar';
 import { Nav } from './Nav';
@@ -266,11 +266,38 @@ describe('White Catalog 전역 셸', () => {
     const html = renderToStaticMarkup(<SearchOverlay onClose={vi.fn()} open />);
 
     expect(html).toContain('role="dialog"');
+    expect(html).toContain('aria-modal="true"');
     expect(html).toContain('aria-label="검색"');
-    expect(html).toContain('placeholder="IP · 굿즈 · 카드 · 포스트 통합 검색"');
+    expect(html).toContain('role="search"');
+    expect(html).toContain('action="/search"');
     expect(html).toContain('name="q"');
+    expect(html).toContain('enterKeyHint="search"');
 
     expect(renderToStaticMarkup(<SearchOverlay onClose={vi.fn()} open={false} />)).toBe('');
+  });
+
+  /* CH-11: 커뮤니티가 닫힌 배포에서 입력 안내가 '포스트'를 약속하면 결과에 없는 종류를 광고하는 셈이다.
+   * /search 화면과 같은 규칙(searchPlaceholder)을 쓴다. */
+  it('검색 안내는 커뮤니티 노출 스위치를 따른다', () => {
+    const html = renderToStaticMarkup(<SearchOverlay onClose={vi.fn()} open />);
+
+    expect(html).toContain(`placeholder="${searchPlaceholder()}"`);
+    expect(html.includes('포스트')).toBe(COMMUNITY_ENABLED);
+    expect(searchPlaceholder(true)).toBe('IP · 굿즈 · 카드 · 포스트 통합 검색');
+    expect(searchPlaceholder(false)).toBe('IP · 굿즈 · 카드 통합 검색');
+  });
+
+  /* CH-09: 데스크톱은 회색 칸 하나(돋보기는 칸 안 장식)로 보이지만, 뒤로·제출 버튼은 접근 이름을 가진 채
+   * DOM과 키보드 순서에 남는다 — 감춤은 CSS(.wc-search__aux)가 하고 마크업에서 지우지 않는다. */
+  it('뒤로·제출 버튼은 이름을 유지한 채 감춤 훅을 달고, 돋보기 장식은 숨긴다', () => {
+    const html = renderToStaticMarkup(<SearchOverlay onClose={vi.fn()} open />);
+
+    expect(html).toMatch(/<button aria-label="검색 닫기" class="wc-icon-btn wc-search__aux" type="button">/);
+    expect(html).toMatch(/<button aria-label="검색" class="wc-icon-btn wc-search__aux" type="submit">/);
+    expect(html).toMatch(/<span aria-hidden="true" class="wc-search__field-icon">/);
+    /* 순서: 뒤로 → 입력 → 제출(모바일 한 줄 배치와 포커스 순서가 같다). */
+    expect(html.indexOf('검색 닫기')).toBeLessThan(html.indexOf('name="q"'));
+    expect(html.indexOf('name="q"')).toBeLessThan(html.indexOf('type="submit"'));
   });
 
   /* 최근 검색어도 자동완성도 없는 패널이라, 빈 인풋 앞에서 다음 행동을 주는 건 추천 칩뿐이다.
@@ -278,7 +305,7 @@ describe('White Catalog 전역 셸', () => {
   it('검색 오버레이가 추천 검색어 칩을 결과 링크로 세운다', () => {
     const html = renderToStaticMarkup(<SearchOverlay onClose={vi.fn()} open />);
 
-    expect(html).toContain('추천 검색어');
+    expect(html).toContain('<p class="wc-search__chips-label">추천</p>');
     expect(html).toContain('class="wc-search__chip"');
     for (const term of SUGGESTED_SEARCH_TERMS) {
       expect(html).toContain(`href="/search?q=${encodeURIComponent(term)}"`);

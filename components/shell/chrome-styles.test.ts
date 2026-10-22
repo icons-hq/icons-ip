@@ -46,8 +46,60 @@ describe('데스크톱 헤더 축약 표현', () => {
     expect(media.length).toBeGreaterThan(0);
     expect(new Set(media)).toEqual(new Set([DESKTOP]));
     expect(declsFor(".wc-header[data-condensed='true'] .wc-gnb-wrap", DESKTOP)).toMatchObject({ 'margin-top': '-54px', opacity: '0' });
-    /* 헤더 포커스 시 재전개는 유지한다. */
-    expect(declsFor(".wc-header[data-condensed='true']:focus-within .wc-gnb-wrap", DESKTOP)).toMatchObject({ 'margin-top': '0', opacity: '1' });
+    /* 키보드 포커스가 로고 행·GNB에 들어오면 다시 펼친다. 검색 패널 안의 포커스는 재전개 조건이 아니다. */
+    const refocus = ".wc-header[data-condensed='true']:has(.wc-header__bar :focus-visible, .wc-gnb-wrap :focus-visible) .wc-gnb-wrap";
+    expect(declsFor(refocus, DESKTOP)).toMatchObject({ 'margin-top': '0', opacity: '1', 'pointer-events': 'auto' });
+    expect(refocus).not.toContain('wc-search');
+  });
+});
+
+describe('검색 오버레이 (B5·CH-08·CH-09·MC-04)', () => {
+  /* 패널과 백드롭은 sticky 헤더 상자 기준으로 로고 행 바로 아래(= GNB 행 자리)에서 시작한다.
+     레퍼런스의 fixed top 156처럼 고정 수치를 쓰면 공지가 붙는 순간 로고 행을 덮거나 공지에 가려진다. */
+  it('패널·백드롭을 로고 행 바로 아래에 붙여 GNB 행을 덮는다', () => {
+    const logoRow = { mobile: declsFor('.wc-header__bar-inner').height, desktop: declsFor('.wc-header__bar-inner', DESKTOP).height };
+    expect(logoRow).toEqual({ mobile: '81px', desktop: '68px' });
+    for (const selector of ['.wc-search', '.wc-search-backdrop']) {
+      expect(declsFor(selector), selector).toMatchObject({ position: 'absolute', top: logoRow.mobile });
+      expect(declsFor(selector, DESKTOP), selector).toMatchObject({ top: logoRow.desktop });
+    }
+    expect(declsFor('.wc-search', DESKTOP)['min-height']).toBe('200px');
+  });
+
+  it('백드롭은 10% 잉크 딤 + 5px 흐림이다(미지원 브라우저는 딤만)', () => {
+    const backdrop = declsFor('.wc-search-backdrop');
+    expect(backdrop.background).toBe('color-mix(in srgb, var(--wc-ink) 10%, transparent)');
+    expect(backdrop['backdrop-filter']).toBe('blur(5px)');
+    expect(backdrop['-webkit-backdrop-filter']).toBe('blur(5px)');
+    expect(backdrop.background).not.toContain('--wc-dim');
+  });
+
+  /* 데스크톱 입력은 전폭 회색 칸 하나 — 뒤로·제출 버튼은 감추되 접근 이름과 키보드 순서에 남고, 포커스가 오면 드러난다. */
+  it('데스크톱은 돋보기를 칸 안 왼쪽에 두고 뒤로·제출 버튼을 포커스 전까지 감춘다', () => {
+    expect(declsFor('.wc-search__field-icon')).toMatchObject({ display: 'none' });
+    expect(declsFor('.wc-search__field-icon', DESKTOP)).toMatchObject({ position: 'absolute', display: 'flex' });
+    expect(declsFor('.wc-search .wc-search__input', DESKTOP)['padding-left']).toBe('52px');
+    const hidden = declsFor('.wc-search .wc-search__aux:not(:focus)', DESKTOP);
+    expect(hidden).toMatchObject({ position: 'absolute', width: '1px', height: '1px', overflow: 'hidden' });
+    expect(hidden.display).toBeUndefined();
+    expect(hidden.visibility).toBeUndefined();
+    expect(declsFor('.wc-search .wc-search__aux:focus', DESKTOP)).toMatchObject({ position: 'absolute' });
+    /* 모바일에는 감춤 규칙이 없다 — [뒤로][입력][검색] 한 줄이 그대로 보인다. */
+    expect(declsFor('.wc-search .wc-search__aux:not(:focus)', MOBILE)).toEqual({});
+  });
+
+  it('추천 라벨은 17/700, 모바일 칩은 한 줄 가로 스크롤이다', () => {
+    expect(declsFor('.wc-search .wc-search__chips-label')).toMatchObject({ 'font-size': '17px' });
+    expect(declsFor('.wc-search__chips-label')).toMatchObject({ 'font-weight': '700' });
+    expect(declsFor('.wc-search .wc-search__chips', MOBILE)).toMatchObject({ 'flex-wrap': 'nowrap', 'overflow-x': 'auto' });
+  });
+
+  /* /search 빈 결과가 같은 칩·인풋 마크업을 공유한다 — 오버레이 보정이 공유 규칙에 새면 L4 표면이 바뀐다. */
+  it('오버레이 전용 보정은 .wc-search 안에서만 한다', () => {
+    expect(declsFor('.wc-search__chips-label')['font-size']).toBe('15px');
+    expect(declsFor('.wc-search__chips')['flex-wrap']).toBe('wrap');
+    expect(declsFor('.wc-search__chips', MOBILE)).toEqual({});
+    expect(declsFor('.wc-search__input', DESKTOP)['padding-left']).toBeUndefined();
   });
 });
 

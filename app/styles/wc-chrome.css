@@ -451,8 +451,10 @@
     pointer-events: none;
   }
 
-  /* 축약 상태에서도 키보드가 헤더로 들어오면 GNB를 되돌려 준다 — 포커스가 안 보이는 곳으로 사라지면 안 된다. */
-  .wc-header[data-condensed='true']:focus-within .wc-gnb-wrap {
+  /* 축약 상태에서도 키보드가 헤더(로고 행·GNB)로 들어오면 GNB를 되돌려 준다 — 포커스가 안 보이는 곳으로
+     사라지면 안 된다. 검색 패널 안의 포커스는 제외한다: 패널이 GNB 자리를 덮고 있어 되돌릴 이유가 없고,
+     되돌리면 열리는 순간 헤더가 54px 자라 흐린 본문이 밀린다. 마우스 클릭의 포커스(:focus-visible 아님)도 제외한다. */
+  .wc-header[data-condensed='true']:has(.wc-header__bar :focus-visible, .wc-gnb-wrap :focus-visible) .wc-gnb-wrap {
     margin-top: 0;
     opacity: 1;
     pointer-events: auto;
@@ -546,24 +548,34 @@
    검색 오버레이
    ------------------------------------------------------------------ */
 
-/* 헤더 스태킹 컨텍스트 안이라 z 1이어도 본문(#root, z 1)보다 위에 깔린다.
-   로고·아이콘 행(z 2)은 딤 위에 남긴다 — 레퍼런스도 패널이 열릴 때 헤더 행은 밝게 유지한다. */
+/* 11 §6 B5 — 패널은 로고 행 바로 아래에서 GNB 행을 덮고, 그 아래 본문은 10% 딤 + 5px 흐림이다.
+   패널·백드롭 모두 sticky 헤더 상자 기준으로 로고 행(모바일 81 / 데스크톱 68, .wc-header__bar-inner) 바로
+   아래에서 시작한다. 레퍼런스는 fixed top 156이라 공지 바가 생기자 데스크톱에선 로고 행을 덮고 모바일에선
+   공지에 가려졌다 — 헤더 상자 기준이면 공지·유틸바·축약 여부와 무관하게 실제 로고 행 아래에 붙는다.
+   공지·유틸바·로고 행은 딤 밖에서 밝게 남는다. 스크롤 잠금은 useOverlayA11y의 body overflow가 맡는다. */
 .wc-search-backdrop {
-  position: fixed;
-  inset: 0;
+  position: absolute;
+  top: 81px;
+  left: 0;
+  right: 0;
   z-index: 1;
-  background: var(--wc-dim);
+  height: 100vh;
+  background: color-mix(in srgb, var(--wc-ink) 10%, transparent);
+  /* backdrop-filter를 지원하지 않는 브라우저는 10% 딤만 남는다. */
+  -webkit-backdrop-filter: blur(5px);
+  backdrop-filter: blur(5px);
 }
 
-/* 인풋 아래 추천 칩 행이 함께 들어가므로 높이를 고정하지 않는다 — 칩이 두 줄로 접히면
-   86px 고정 높이가 칩을 잘라 먹는다. 패널은 내용만큼만 열린다. */
+/* 인풋 아래 추천 칩 행이 함께 들어가므로 높이는 내용을 따른다(데스크톱은 레퍼런스 200을 최소로 둔다).
+   좌우 거터는 안쪽 .wc-container가 진다. */
 .wc-search {
-  position: fixed;
-  top: 0;
+  position: absolute;
+  top: 81px;
   left: 0;
   right: 0;
   z-index: 3;
-  padding: 16px 16px 20px;
+  padding: 16px 0;
+  border-top: 1px solid var(--wc-hairline);
   background: var(--wc-surface);
 }
 
@@ -571,6 +583,22 @@
   display: flex;
   align-items: center;
   gap: 12px;
+}
+
+/* 오버레이의 입력 칸 — 칸이 플렉스 항목이 되고 인풋이 그 폭을 채운다. 돋보기 장식은 데스크톱에서만 칸 안에 선다. */
+.wc-search .wc-search__form {
+  position: relative;
+}
+
+.wc-search__field {
+  position: relative;
+  display: flex;
+  flex: 1;
+  min-width: 0;
+}
+
+.wc-search__field-icon {
+  display: none;
 }
 
 /* editorial 파운데이션의 `:where(input …)` 규칙이 최소 높이·보더·포커스 글로우를 얹으므로
@@ -597,7 +625,8 @@
 }
 
 /* 추천 검색어 칩 — 오버레이와 `/search` 빈 결과가 같은 마크업을 공유한다(R-03 §2.1·§4-7).
-   레퍼런스는 빈 결과에서 칩을 걷어 회복 동선을 없애는데, 그 결함은 옮기지 않는다. */
+   레퍼런스는 빈 결과에서 칩을 걷어 회복 동선을 없애는데, 그 결함은 옮기지 않는다.
+   오버레이 전용 보정은 아래 `.wc-search` 스코프에서만 한다 — `/search`의 수치는 이 공유 규칙을 따른다. */
 .wc-search__chips {
   display: flex;
   flex-wrap: wrap;
@@ -629,15 +658,80 @@
   color: var(--wc-success);
 }
 
+/* 오버레이의 추천 라벨은 '추천' 17/700이다(R-03 §2.1). */
+.wc-search .wc-search__chips-label {
+  flex: 0 0 auto;
+  font-size: 17px;
+  white-space: nowrap;
+}
+
+@media (max-width: 989px) {
+  /* MC-04 — 모바일 칩은 한 줄로 두고 가로로 넘긴다. 여러 줄로 접히면 패널이 본문을 한 뼘 더 가린다. */
+  .wc-search .wc-search__chips {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .wc-search .wc-search__chips::-webkit-scrollbar {
+    display: none;
+  }
+
+  .wc-search .wc-search__chip {
+    flex: 0 0 auto;
+  }
+}
+
 @media (min-width: 990px) {
+  .wc-search-backdrop,
   .wc-search {
-    position: absolute;
-    top: 100%;
-    padding: 24px 0 32px;
+    top: 68px;
+  }
+
+  .wc-search {
+    min-height: 200px;
+    padding: 24px 0;
   }
 
   .wc-search__input {
     min-height: 60px;
+  }
+
+  /* CH-09 — 데스크톱 입력은 컨테이너 전폭(1180)의 회색 칸 하나이고 돋보기는 칸 안 왼쪽 장식이다. */
+  .wc-search .wc-search__input {
+    padding-left: 52px;
+  }
+
+  .wc-search__field-icon {
+    position: absolute;
+    top: 50%;
+    left: 18px;
+    display: flex;
+    color: var(--wc-ink-tertiary);
+    transform: translateY(-50%);
+    pointer-events: none;
+  }
+
+  /* 데스크톱은 뒤로·제출 버튼을 화면에서 감춘다 — 닫기는 백드롭·ESC, 제출은 Enter.
+     접근 이름과 키보드 순서는 남기고, 키보드 포커스가 오면 칸 안 오른쪽에 드러내 보이지 않는 포커스를 막는다. */
+  .wc-search .wc-search__aux:not(:focus) {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    margin: -1px;
+    padding: 0;
+    overflow: hidden;
+    clip: rect(0, 0, 0, 0);
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .wc-search .wc-search__aux:focus {
+    position: absolute;
+    top: 50%;
+    right: calc(var(--wc-gutter) + 8px);
+    background: var(--wc-surface);
+    transform: translateY(-50%);
   }
 }
 
