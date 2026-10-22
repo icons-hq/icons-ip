@@ -69,6 +69,8 @@ describe('SiteFooter 법정 고지 링크', () => {
   it('사업자 정보를 접이식 블록으로 푸터에 표기한다', () => {
     const html = render();
 
+    /* SSR은 데스크톱 기본(접힘)이다 — 모바일 기본 펼침(CH-15)은 붙는 순간 클라이언트가 연다. */
+    expect(html).toContain('<details class="wc-footer__biz">');
     expect(html).toContain(`${BUSINESS_INFO.companyName} 사업자 정보`);
     expect(html).toContain('aria-label="사업자 정보"');
     for (const row of businessInfoRows()) {

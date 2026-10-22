@@ -365,6 +365,23 @@ describe('White Catalog 전역 셸', () => {
     );
   });
 
+  /* MY-13: 데스크톱 위시 진입은 회원에게만 보이는 유틸바 링크다(헤더 아이콘 3개 문법은 그대로).
+   * 탭바에도 같은 목적지가 있으므로 유틸바 구간만 잘라 본다. */
+  it('유틸바 위시리스트 링크는 로그인 회원에게만 보인다', () => {
+    const utilbar = (html: string) => html.slice(html.indexOf('class="wc-utilbar"'), html.indexOf('<header'));
+
+    const member = utilbar(renderToStaticMarkup(<Nav />));
+    expect(member).toContain('<a class="wc-utilbar__link" href="/my/wishlist">위시리스트</a>');
+    /* 오른쪽 정렬 줄의 맨 앞이라 나타나도 다른 항목 자리가 움직이지 않는다. */
+    expect(member.indexOf('위시리스트')).toBeLessThan(member.indexOf('주문조회'));
+    expect(renderToStaticMarkup(<Nav />).match(/class="wc-icon-btn[^"]*"/g)).toHaveLength(3);
+
+    for (const presence of ['signed-out', 'unknown'] as const) {
+      mocks.presence = presence;
+      expect(utilbar(renderToStaticMarkup(<Nav />)), presence).not.toContain('/my/wishlist');
+    }
+  });
+
   /* 로그인 상태가 확정되기 전에 로그인/로그아웃 중 하나를 먼저 그리면 절반이 틀린 채로 깜빡인다. */
   it('로그인 상태가 미확정이면 자리만 잡고 인증 액션을 그리지 않는다', () => {
     mocks.presence = 'unknown';

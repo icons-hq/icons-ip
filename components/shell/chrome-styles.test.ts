@@ -138,3 +138,27 @@ describe('모바일 하단 탭바 숨김 (B3·MC-03)', () => {
     expect(declsFor('.wc-tabbar').transition).toMatch(/transform var\(--wc-duration-medium\)/);
   });
 });
+
+describe('모바일 푸터 순서 (CH-15)', () => {
+  /* 로고 → 회사·정책 → 고객센터(사업자 정보 포함) → 소개·SNS → 링크 → 스태프 블록 → 저작권. 데스크톱은 마크업 순서 그대로다. */
+  it('모바일에서만 블록 순서를 다시 놓는다', () => {
+    const order = (selector: string) => Number(declsFor(selector, MOBILE).order);
+    const sequence = ['.wc-footer__logo', '.wc-footer__primary', '.wc-footer__cs', '.wc-footer .wc-store-brand-details', '.wc-footer__cols', '.wc-footer__demo', '.wc-footer__line'];
+    const orders = sequence.map(order);
+    expect(orders.every(Number.isFinite)).toBe(true);
+    expect([...orders].sort((a, b) => a - b)).toEqual(orders);
+    expect(new Set(orders).size).toBe(orders.length);
+    expect(declsFor('.wc-footer__inner', MOBILE)).toMatchObject({ display: 'flex', 'flex-direction': 'column' });
+    /* 고객센터와 링크 사이에 소개·SNS를 끼우려면 둘을 묶은 상자를 지워야 한다. */
+    expect(declsFor('.wc-footer__middle', MOBILE)).toMatchObject({ display: 'contents' });
+    /* 데스크톱에는 순서 규칙이 없다(현행 유지). */
+    for (const selector of sequence) expect(declsFor(selector, DESKTOP).order, selector).toBeUndefined();
+  });
+});
+
+describe('404 2CTA (CH-14)', () => {
+  it('두 버튼을 260×56으로, 그룹을 260 두 칸 + 간격 8로 넓힌다', () => {
+    expect(declsFor('.wc-not-found .wc-not-found__actions .wc-btn')).toMatchObject({ 'max-width': '260px', height: '56px' });
+    expect(declsFor('.wc-not-found .wc-not-found__actions')['max-width']).toBe('528px');
+  });
+});

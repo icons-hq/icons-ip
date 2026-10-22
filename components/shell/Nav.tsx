@@ -8,6 +8,7 @@ import { COMMUNITY_ENABLED } from '@/lib/community-visibility';
 import { isCardRewardDestination, isCommunityDestination, type NoticeStrip } from '@/lib/home-catalog';
 import {
   CATEGORY_MEGA_GROUPS,
+  MEMBER_UTIL_ITEMS,
   UTIL_ITEMS,
   activeNavId,
   hrefFor,
@@ -86,7 +87,7 @@ function useChromeScroll(utilbarRef: RefObject<HTMLElement | null>) {
 export function Nav({ noticeStrip = null, branding = DEFAULT_STOREFRONT_BRANDING, navigation = DEFAULT_STOREFRONT_NAVIGATION }: { noticeStrip?: NoticeStrip | null; branding?: StorefrontBranding; navigation?: StorefrontNavigation }) {
   const pathname = usePathname();
   const cardRewardsEnabled = useCardRewardsEnabled();
-  // 게임은 자기완결 번들, 어드민은 자체 작업대, 인증은 집중형 셸을 사용한다.
+  // 게임은 자기완결 번들, 어드민은 자체 작업대, 초대·비밀번호 변경·정지 안내는 집중형 셸을 사용한다(로그인은 크롬 안).
   if (isStandaloneShellPath(pathname)) return null;
   return <WcChrome cardRewardsEnabled={cardRewardsEnabled} noticeStrip={noticeStrip} pathname={pathname} branding={branding} navigation={navigation} />;
 }
@@ -148,6 +149,7 @@ function WcChrome({
 
       <nav ref={utilbarRef} aria-label="유틸리티 메뉴" className="wc-utilbar">
         <div className="wc-container wc-utilbar__inner">
+          <UtilMemberLinks />
           {UTIL_ITEMS.map((item) => (item.id === 'notifications'
             ? <UtilNotificationsLink key={item.id} label={item.label} />
             : (
@@ -402,6 +404,18 @@ function UtilNotificationsCount({ label }: { label: string }) {
       {unread > 0 && <span aria-hidden className="wc-utilbar__badge">{unread > 99 ? '99+' : unread}</span>}
     </Link>
   );
+}
+
+/* 회원 전용 유틸 링크(위시리스트). 유틸바는 오른쪽 정렬이라 맨 앞(왼쪽)에 두면 presence가 확정되며 나타나도
+   주문조회·알림함·로그아웃 자리는 움직이지 않는다. 미확정·비회원에게는 그리지 않는다. */
+function UtilMemberLinks() {
+  const presence = useAuthPresence();
+  if (presence !== 'signed-in') return null;
+  return MEMBER_UTIL_ITEMS.map((item) => (
+    <Link key={item.id} className="wc-utilbar__link" href={hrefFor(item.id)}>
+      {item.label}
+    </Link>
+  ));
 }
 
 /* presence 확정 전에는 자리만 잡는다. 로그인/로그아웃이 번갈아 깜빡이면 유틸바 폭이 흔들린다. */

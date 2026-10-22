@@ -19,15 +19,27 @@ import { useCommunityStaffPreviewVisible, useSecondaryMarketDemoVisible } from '
 import { StoreBrandFooterDetails, StoreBrandLogo } from './StoreBranding';
 import { DEFAULT_STOREFRONT_BRANDING, type StorefrontBranding } from '@/lib/store-branding';
 
+/* 모바일 크롬 브레이크포인트(wc-chrome.css `max-width: 989px`)와 같은 값이다. */
+const FOOTER_MOBILE_QUERY = '(max-width: 989px)';
+
+/* 모바일에서는 사업자 정보를 펼친 채 시작한다(CH-15) — 데스크톱은 지금처럼 접혀 있다. SSR은 뷰포트를 모르므로
+   데스크톱 기본(접힘)으로 그리고 붙는 순간 한 번만 연다. 모듈 수준 함수라 ref 정체성이 안정돼 다시 불리지 않으므로
+   사용자가 접으면 접힌 채로 남는다. open을 prop으로 넘기지 않아 React가 이 상태를 되돌리지 않는다. */
+function openOnMobile(details: HTMLDetailsElement | null) {
+  if (details && window.matchMedia(FOOTER_MOBILE_QUERY).matches) details.open = true;
+}
+
 /* White Catalog 푸터. 링크 목록은 전부 lib/routes.ts가 진실원이고 여기서는 배치만 한다.
  * 법정 고지 3종은 회사·정책 행 뒤에 이어 붙는다 — 사업자 정보와 함께 표시 의무가 걸린 블록이라
- * 접이식(details) 안이라도 마크업에서 사라지지 않는다. */
+ * 접이식(details) 안이라도 마크업에서 사라지지 않는다.
+ * 마크업은 데스크톱 순서(정책 → 로고 → 고객센터·사업자 | 링크 → 저작권)이고, 모바일 순서
+ * (로고 → 정책 → 고객센터 → 사업자 → 소개·SNS → 링크 → 저작권)는 wc-chrome.css가 다시 놓는다. */
 export function SiteFooter({businessInfo=BUSINESS_INFO,branding=DEFAULT_STOREFRONT_BRANDING}:{businessInfo?:BusinessInfoData;branding?:StorefrontBranding}) {
   const pathname = usePathname();
   const cardRewardsEnabled = useCardRewardsEnabled();
   const demoVisible = useSecondaryMarketDemoVisible();
   const communityPreviewVisible = useCommunityStaffPreviewVisible();
-  // 숨김 범위는 Nav와 같다 — 게임은 자기완결 번들, 어드민은 자체 작업대, 인증은 집중형 셸을 사용한다.
+  // 숨김 범위는 Nav와 같다 — 게임은 자기완결 번들, 어드민은 자체 작업대, 초대·비밀번호 변경·정지 안내는 집중형 셸을 사용한다.
   if (isStandaloneShellPath(pathname)) return null;
 
   /* 카드 리워드가 꺼진 배포에서는 카드팩 진입점을 노출하지 않는다. */
@@ -57,7 +69,7 @@ export function SiteFooter({businessInfo=BUSINESS_INFO,branding=DEFAULT_STOREFRO
           <div className="wc-footer__cs">
             <h2 className="wc-footer__heading">고객센터</h2>
             <p className="wc-footer__cs-lines">{businessContactWords(businessInfo)}</p>
-            <details className="wc-footer__biz">
+            <details ref={openOnMobile} className="wc-footer__biz">
               <summary>{businessInfo.companyName} 사업자 정보</summary>
               <BusinessInfo info={businessInfo} className="wc-footer__biz-rows" />
             </details>

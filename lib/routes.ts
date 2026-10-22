@@ -66,6 +66,13 @@ export const UTIL_ITEMS: NavItem[] = [
   { id: 'notifications', label: '알림함' },
 ];
 
+/* 로그인 회원에게만 보이는 유틸 항목 — 데스크톱의 위시 진입(MY-13, 10/14 S14). 헤더 아이콘 3개 문법은 그대로 둔다.
+   STOREFRONT_MENU_ITEMS에 넣지 않는다: 운영 저장 내비(고정 8개 ID)가 개수 불일치로 통째로 무시된다
+   (lib/store-navigation.ts parseStoreNavigation). 비회원 위시는 없다(CONTEXT.md 위시리스트). */
+export const MEMBER_UTIL_ITEMS: NavItem[] = [
+  { id: 'wish', label: '위시리스트' },
+];
+
 const PATHS: Record<string, string> = {
   home: '/',
   new: '/shop/new',

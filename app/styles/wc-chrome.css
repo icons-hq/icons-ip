@@ -1,4 +1,4 @@
-/* White Catalog v4 전역 셸 — 유틸바·헤더·GNB·오버레이·바텀바·푸터.
+/* White Catalog v4 전역 셸 — 유틸바·헤더·GNB·오버레이·바텀바·푸터, 그리고 셸이 직접 그리는 404 기본 표면.
    수치 정본은 재현 스펙 `docs/research/linefriends-square/01-global-chrome.md`(R-01)이고,
    색은 wc-foundation의 `--wc-*` 토큰만 쓴다(레퍼런스 액센트는 옮기지 않는다 — 액센트는 green 하나).
    wc-foundation과 같은 스코프 규율을 지킨다: 모든 규칙은 `.wc-` 클래스에서 시작하고
@@ -1159,7 +1159,65 @@
     min-height: 32px;
   }
 
-  .wc-footer__middle {
+  /* CH-15 — 모바일 순서: 로고 → 회사·정책 → 고객센터 → 사업자 정보(기본 펼침) → 스토어 소개·SNS → 링크 → 저작권.
+     마크업은 데스크톱 순서 그대로 두고 여기서만 다시 놓는다(블록끼리 의미가 이어지지 않아 읽기 순서가 달라도
+     내용이 바뀌지 않는다). 사업자 정보 펼침은 SiteFooter가 모바일에서 붙는 순간 한 번 연다.
+     .wc-footer__middle은 상자를 지워 고객센터와 링크 사이에 소개·SNS를 끼울 수 있게 한다. */
+  .wc-footer__inner {
+    display: flex;
     flex-direction: column;
   }
+
+  .wc-footer__logo {
+    order: 1;
+    margin-top: 0;
+  }
+
+  .wc-footer__primary {
+    order: 2;
+    margin-top: 20px;
+  }
+
+  .wc-footer__middle {
+    display: contents;
+  }
+
+  .wc-footer__cs {
+    order: 3;
+    margin-top: 28px;
+  }
+
+  .wc-footer .wc-store-brand-details {
+    order: 4;
+    margin-top: 24px;
+  }
+
+  .wc-footer__cols {
+    order: 5;
+    margin-top: 32px;
+  }
+
+  .wc-footer__demo {
+    order: 6;
+  }
+
+  .wc-footer__line {
+    order: 7;
+  }
+}
+
+/* ------------------------------------------------------------------
+   404 기본 표면 (CH-14)
+   ------------------------------------------------------------------ */
+
+/* 2CTA 260×56 — [이전 페이지 잉크][메인으로 아웃라인](NotFoundActions). 파운데이션 빈 상태의 버튼 그룹(최대 448)을
+   이 표면에서만 260 두 칸 + 간격 8로 넓힌다. 좁은 폭에서는 두 버튼이 같은 폭으로 나눠 갖는다.
+   일러스트는 LG-7 자산 전까지 두지 않는다 — 제목부터 시작해도 .wc-fallback의 가운데 정렬이 그대로 선다. */
+.wc-not-found .wc-not-found__actions {
+  max-width: 528px;
+}
+
+.wc-not-found .wc-not-found__actions .wc-btn {
+  max-width: 260px;
+  height: 56px;
 }

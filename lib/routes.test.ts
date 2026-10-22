@@ -7,8 +7,10 @@ import {
   FOOTER_DEMO_ITEMS,
   FOOTER_DISCOVER_ITEMS,
   FOOTER_PRIMARY_ITEMS,
+  MEMBER_UTIL_ITEMS,
   MENU_SHEET_GROUPS,
   MOB_ITEMS,
+  STOREFRONT_MENU_ITEMS,
   NAV_ITEMS,
   UTIL_ITEMS,
   activeNavId,
@@ -145,6 +147,15 @@ describe('내비게이션 항목 구성', () => {
 
   it('유틸 항목은 주문조회와 알림함이다', () => {
     expect(UTIL_ITEMS.map((item) => item.id)).toEqual(['orders', 'notifications']);
+  });
+
+  /* MY-13: 데스크톱 위시 진입은 회원 전용 유틸 링크다. 운영 저장 내비(고정 8개)에 섞으면 저장된 설정이
+     개수 불일치로 통째로 무시되므로 STOREFRONT_MENU_ITEMS 밖에 둔다. */
+  it('회원 전용 유틸 항목은 위시리스트 하나이고 저장 내비 목록에 섞지 않는다', () => {
+    expect(MEMBER_UTIL_ITEMS).toEqual([{ id: 'wish', label: '위시리스트' }]);
+    expect(hrefFor('wish')).toBe('/my/wishlist');
+    expect(STOREFRONT_MENU_ITEMS.map((item) => item.id)).not.toContain('wish');
+    expect(STOREFRONT_MENU_ITEMS).toHaveLength(8);
   });
 });
 
