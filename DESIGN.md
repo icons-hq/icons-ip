@@ -40,23 +40,25 @@ authority:
     discovery: app/styles/wc-discovery.css
     account-commerce: app/styles/wc-account-commerce.css
     campaign: app/styles/wc-campaign.css
+    offline-popups: app/styles/wc-offline-popups.css  # /offline-popups·/offline-popups/[eventId]
+    document: app/styles/wc-document.css              # document-page — /legal/*
   admin:
     typography: app/styles/admin-font.css  # 어드민 전용 로컬 Pretendard 1.3.9
     shell-and-kit: app/styles/wc-admin.css
     surfaces: app/styles/wc-admin-surfaces.css
     boundary: .wc-admin
   global-plumbing: app/globals.css  # Tailwind·Pretendard·element 리셋·공용 구조 유틸만 소유
-  retained-legacy-surfaces:         # WC 재조판이 남은 공개 표면 — 표면별 격리 CSS로 자립
-    - app/styles/about-legacy.css           # /about
-    - app/styles/offline-popups-legacy.css  # /offline-popups·/offline-popups/[eventId]
-    - app/styles/legal-doc.css              # /legal/*
+  retained-legacy-surfaces:         # 의도적으로 구 조판을 보존하는 공개 표면 — 자기 앵커 안 격리 CSS로 자립
+    - app/styles/about-legacy.css           # /about — 구 홈 콘텐츠 보존 전시(ADR-0011, LD-11)
   route-map: lib/routes.ts
   note: >
     status=implemented: 공개 스토어프론트 전 표면이 이 시스템으로 이행됐다(S1~S9, 통합 브랜치
     ps/feat/lfs-storefront-redesign). 직전 시스템(Living IP Editorial)의 공개 표면 CSS 3파일은
     S9에서 삭제됐다. ADR-0014 전환 뒤 어드민도 WC 토큰과 격리 레이어를 쓰며, globals.css는 전역 하부만 소유한다.
-    retained-legacy-surfaces의 세 표면은 이행 대상이지만 아직 재조판되지 않았고, 원본 제거에
-    맞춰 격리 CSS로 자립시켰다 — 재조판은 후속 작업이며 그때 해당 파일을 지운다.
+    retained-legacy-surfaces의 /about은 재조판 대상이 아니라 구 홈 콘텐츠를 보존 전시하는 표면이다
+    (ADR-0011 · 패리티 2차 LD-11) — 자체 스타일(about-legacy)을 유지하고 전역 셸만 White Catalog을 쓴다.
+    S9에서 함께 격리했던 오프라인 팝업·법적 문서는 패리티 2차 L10(2026-10)에서 재조판하고
+    격리 CSS(offline-popups-legacy·legal-doc)를 지웠다.
 reference:
   source: https://linefriendssquare.com (2026-08-26 실측)
   restrictions:
@@ -80,7 +82,7 @@ breakpoints:
 
 - 근거 결정은 [ADR-0011](docs/adr/0011-lfs-storefront-redesign.md)이다. 공개 스토어프론트 전 표면이 이 시스템으로 이행됐고, 직전 시스템(Living IP Editorial)의 공개 표면 CSS 3파일과 1세대 잔재(Holographic Midnight)의 공개 표면 규칙은 S9에서 제거됐다.
 - **어드민**(`/admin/**`)은 2026-09 운영 콘솔 재설계(ADR-0014)로 White Catalog에 편입됐다. 셸·공통 키트는 `wc-admin.css`, 워크플로 배치·반응형·검표·가이드는 `wc-admin-surfaces.css`가 `.wc-admin` 안에서 소유한다. 공유 editorial 3파일과 `globals.css`의 관리자 규칙은 제거됐다. 어드민 전용 규율은 §어드민 콘솔을 따른다. **`/about`**은 구 홈의 콘텐츠를 보존하는 표면으로 자체 스타일(about-legacy)을 갖고 전역 셸은 White Catalog을 쓴다.
-- 재조판 잔여: **오프라인 팝업**(`/offline-popups`·`/offline-popups/[eventId]`)과 **법적 문서**(`/legal/*`)는 §8 플레이북의 대상이지만 아직 구 조판이다. S9의 원본 CSS 제거에 맞춰 표면별 격리 CSS(offline-popups-legacy·legal-doc)로 자립시켰고, 재조판은 후속 작업이다.
+- **오프라인 팝업**(`/offline-popups`·`/offline-popups/[eventId]`)과 **법적 문서**(`/legal/*`)는 S9에서 격리 CSS로 자립시켰다가 패리티 2차 L10(2026-10)에서 §8 플레이북대로 재조판했다(`wc-offline-popups.css`·`wc-document.css`). 구 조판을 보존하는 공개 표면은 `/about` 하나다.
 - 시각·IA는 전면 교체하지만 기능 계약(인증, 카트, 주문, 결제, 카드팩, 예매, QR, 권한)은 §11의 동결 경계를 따른다.
 - 용어는 `CONTEXT.md`를 따른다: **온라인 팝업**(구 IP 허브), **오프라인 팝업**(예매 도메인), **이벤트**(캠페인 허브), **카테고리**(굿즈 분류), 수집형 **카드** ≠ 실물 **굿즈**.
 - 실데이터 원칙: 새로 보이게 하려고 정적 배열, 가짜 수치, 가짜 후기, 존재하지 않는 링크를 넣지 않는다.
@@ -276,9 +278,9 @@ z-index: { chrome: "3–4", panel: "10–100", overlay: "999+", toast-modal: "99
 | `flat-auth-form` | 인증 | 448px 1칼럼, 잉크 60px CTA, 소셜 55px 원형(도입 시), in-place 복구 스왑 (05) |
 | `mypage-shell` | 계정 허브 | 프로필 스트립(등급 뱃지)+좌 200px 메뉴 3그룹, 모바일은 메뉴 숨김 (05) |
 | `coupon-ticket-card` | 쿠폰함 | 2열 티켓형 카드+등급별 뱃지 (05) |
-| `campaign-hub` | 이벤트 허브 | 배너 스와이퍼 1180×260 + ALL/EVENT/DROP 탭 + 2열 580px 카드(3:2) — **기간·상태 뱃지는 추가한다**(레퍼런스 미표기 결함 보완) (06) |
-| `campaign-landing` | 캠페인 상세 | sticky 앵커 내브+코인 잔액 노출+게스트 로그인 CTA 치환. 코인 소진처는 뽑기권 교환 UI(가챠 어휘 금지) (06) |
-| `document-page` | 정책·법적 | 620px 문서 서식. 공지 상세는 1180px (06) |
+| `campaign-hub` | 이벤트 허브 | 보이는 제목·부제 없음(h1은 시각 숨김) → 배너 스와이퍼 1180×260(모바일 전폭 375×175, 자동 넘김 5s·loop 없음, hover·포커스·조작·문서 비활성 시 정지, reduced-motion이면 자동 넘김 없음, 정지 버튼+현재 위치) + ALL/EVENT/DROP 탭(14/700, 건수 없음) + 2열 580px 카드(3:2). ALL은 최대 100건, EVENT·DROP은 10건 + [더보기 (n/총)](URL 불변) — **기간·상태 뱃지는 추가한다**(레퍼런스 미표기 결함 보완) (06, 11 §6 B21) |
+| `campaign-landing` | 캠페인 상세 | sticky 앵커 내브+코인 잔액 노출+게스트 로그인 CTA 치환. 코인 소진처는 뽑기권 교환 UI(가챠 어휘 금지). 본문 블록 9종 — `cta`(이동 버튼)는 잉크 버튼(모바일 전폭·태블릿 이상 최소 220×56)이고 링크는 `/`로 시작하는 ICONS 내부 경로만(외부·`//`·역슬래시·공백·제어문자·`.`/`..` 경로 조각·깨진 퍼센트 인코딩 거절 — DB `validate_campaign_sections`·파서·어드민 폼이 같은 판정, 버튼 문구의 공백·길이도 JS trim·코드 포인트로 같다, 12 §4 LD-18) (06) |
+| `document-page` | 정책·법적 | 620px 한 칼럼(좌우 20 → 본문 580): 가운데 제목(모바일 30/700·데스크톱 40/700 — 레퍼런스 글리프 실측)·요약·시행일·다른 문서 링크 → 조항 h2 20/700 + 본문 p 14/1.6. 개정 공지는 회색 안내 상자, 표는 본문 폭 안 가로 스크롤, 이전 판은 details. 공지 상세는 1180px (06 §8) |
 | `standalone-game` | 참여형 게임 | 크롬 없는 풀스크린 유지, 팔레트만 White Catalog 정합 (06) |
 | `about-legacy-showcase` | 회사 소개 | 구 홈 콘텐츠 섹션(파스텔 에디토리얼) 보존, 자체 헤더/푸터 제거, 전역 셸 아래 |
 
@@ -315,15 +317,15 @@ z-index: { chrome: "3–4", panel: "10–100", overlay: "999+", toast-modal: "99
 | 상품 상세 | `/shop/[goodId]` | `pdp-*`·`cta-pair`·`restock-cta`·`panel-tabs`·`floating-buybar`(레일 박스)·`mobile-buybar`(구매 시트)·담기 결과 모달·리뷰/Q&A, JSON-LD Product·BreadcrumbList와 Open Graph 이미지·가격, 옵션 선택은 `?variant=` 동기화 | 카트·주문 생성 경로 유지, 바로구매=기존 주문 RPC. 본문 패널·모바일 시트·레일 박스는 같은 구매 컨트롤러의 담기·구매 함수를 쓴다 |
 | 온라인 팝업 | `/ip`, `/ip/[id]` | A–Z 디렉토리 / 풀블리드 배너 540px+팔로우+facet 축약 컬렉션 | 공개 읽기·팔로우(`fans_count`) 유지 |
 | 카드팩·바인더 | `/packs`, `/binder` | `campaign-landing`·카탈로그 문법 재조판, 카드 foil 물성 유지 | 카드풀·확률·개봉 계약 동결 |
-| 이벤트 | `/events` | `campaign-hub`+`campaign-landing` | 신규 campaigns 도메인(B5) |
-| 오프라인 팝업 | `/offline-popups`, `/offline-popups/[eventId]` | **재조판 대기** — 구 조판을 offline-popups-legacy로 격리 유지. 푸터 진입, 레거시 `/events/[id]` 딥링크는 리다이렉트 | 회차·잔여·예매·검표 계약 동결 |
+| 이벤트 | `/events` | `campaign-hub`+`campaign-landing` | 신규 campaigns 도메인(B5). 본문 블록은 DB `validate_campaign_sections`·`lib/campaigns.ts` 파서·어드민 폼이 1:1 |
+| 오프라인 팝업 | `/offline-popups`, `/offline-popups/[eventId]` | 목록 = `campaign-hub` 카드 문법(2열 580·3:2·유형 뱃지 + 기간·상태 뱃지, R-06 §1.4) + 왼쪽 정렬 h1·필터 칩(§5 탐색 조작부) / 상세 = 안내형 골격(R-06 §2.3: 아트 → 기간·장소 → 리드 → 안내 패널) + `pdp-buybox` 문법(회차 선택 → 수량 스테퍼 → 합계 → 잉크 CTA, 데스크톱 649 \| 446). 푸터 진입, 레거시 `/events/[id]` 딥링크는 리다이렉트 | 회차·잔여·예매·검표 계약 동결 |
 | 커뮤니티 | `/community` | `content-card` 문법 재조판 | 작성·좋아요·신고 계약 유지 |
 | 검색 | `/search` + 오버레이 | `search-overlay`+결과 그리드+숫자 페이지네이션 | `getSearchSnapshot`·URL 상태 유지 |
 | 카트 | `/cart` | `mini-checkout-cart`(쿠폰 select는 B1에서 활성) | local/DB 병합·수량 계약 유지 |
 | 체크아웃·주문·티켓 | `/checkout*`, `/orders*`, `/tickets*`, `/ticket-checkout*` | 흰 종이형 영수증·상태 타임라인 | 스타일 변경만으로 결제 계약을 바꾸지 않는다. 2026-10-14 승인된 [공통 거래 모델](docs/research/smartstore-admin/goods-transaction-module-proposal.md)의 굿즈 주문서는 별도 서버 견적·복구 계약을 따른다. 티켓·콜백의 기존 계약은 유지한다. |
 | 인증 | `/login` 등 | `flat-auth-form` | OAuth·recovery·필드 계약 유지 |
 | 마이 | `/my` 이하 전부 | `mypage-shell`+위시리스트·쿠폰함(B1)·Q&A 내역(B3) | 기존 조회·설정 계약 유지 |
-| 법적·문서 | `/legal/*` | `document-page` — **재조판 대기**, 구 조판을 legal-doc으로 격리 유지 | 정적 파라미터 유지 |
+| 법적·문서 | `/legal/*` | `document-page`(620) | 정적 파라미터 유지 — 쿠키·세션을 읽지 않는다 |
 | 회사 소개 | `/about`(신규) | `about-legacy-showcase` | 구 홈 콘텐츠 보존, CTA 링크는 신 사이트로 |
 | 마켓·트레이드 | `/market`, `/exchange` | v2 플레이스홀더 재조판 · staff/admin 전용 mock 시연(`.wc-c2c`)은 같은 라우트의 서버 분기 | 플레이스홀더 유지 |
 | 게임 | `/games/[gameId]` | `standalone-game` | 서버 판정·한도·보상 동결 |
@@ -436,7 +438,7 @@ protected-boundaries:
 | 일괄 액션 | 기존 `ConsoleBulkActionBar`를 `wc-admin-kit` 안에서 재사용. 선택 0건이면 숨김, 위험 액션 확인은 소유 폼이 처리. |
 | 사이드 패널 | `AdminSidePanel`: 제목·닫기 링크/액션·내용. 흐름 안의 aside로 본문 접근 유지, modal로 선언하지 않는다. |
 
-키트는 `components/admin/console/AdminKit.tsx`에서 직접 가져온다. 공개 보존 표면 3곳의 바탕·폰트·입력·한글 줄바꿈은 각 격리 CSS 안에 정의한다. 카드 foil은 `lib/rarity.ts`의 카드 물성 상수이며 페이지 테마 변수에 의존하지 않는다.
+키트는 `components/admin/console/AdminKit.tsx`에서 직접 가져온다. 공개 보존 표면(`/about`)의 바탕·폰트·입력·한글 줄바꿈은 그 격리 CSS(about-legacy) 안에 정의한다. 카드 foil은 `lib/rarity.ts`의 카드 물성 상수이며 페이지 테마 변수에 의존하지 않는다.
 
 - `wc-product-mosaic.css`는 공개 홈의 상품 모자이크와 격리된 공개 미리보기만 소유한다. 관리자 폼의 제어 스타일은 `admin-store-editor.css`에 둔다.
 - `wc-product-collection.css`는 공개 홈 자유상품의 리스트·풀이미지 열 수와 구성별 썸네일 비율만 소유한다. 기존 BEST 탭·모자이크·일반 상품목록의 전역 카드 스타일은 변경하지 않는다.

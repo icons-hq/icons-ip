@@ -246,6 +246,32 @@ describe('CampaignLanding', () => {
     expect(html).not.toContain('카드팩 교환하기');
   });
 
+  /* EV-03 — 이동 버튼은 ICONS 안의 경로로 가는 잉크 버튼이다(R-06 §2.2, LD-18). */
+  it('이동 버튼 블록을 내부 경로 링크 버튼으로 그린다', () => {
+    const html = render({
+      campaign: snapshot({
+        resolvedSections: [
+          { type: 'intro', copy: '가을 굿즈를 모았어요.' },
+          { type: 'cta', anchor: '굿즈', label: '가을 굿즈 보러 가기', href: '/shop?ip=bt21' },
+        ],
+      }),
+    });
+
+    expect(html).toContain('class="wc-campaign-section wc-campaign-section--cta"');
+    expect(html).toMatch(/<a class="wc-btn primary" href="\/shop\?ip=bt21">가을 굿즈 보러 가기<\/a>/);
+    expect(html).toContain('href="#campaign-section-1"');
+  });
+
+  /* 이동 버튼은 카드 리워드와 무관한 블록이다 — 게이트가 내려가도 그대로 남는다. */
+  it('카드 리워드 게이트와 무관하게 이동 버튼을 남긴다', () => {
+    const html = render({
+      campaign: snapshot({ resolvedSections: [{ type: 'cta', label: '홈으로', href: '/' }] }),
+      cardRewardsEnabled: false,
+    });
+
+    expect(html).toContain('href="/">홈으로</a>');
+  });
+
   it('본문이 비면 빈 상태를 그린다', () => {
     const html = render({ campaign: snapshot({ resolvedSections: [] }) });
 

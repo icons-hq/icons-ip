@@ -155,9 +155,9 @@ describe('EventDetail', () => {
       notificationError: true,
       notificationState: { isFollowed: false, notifyDrops: false, notifyEvents: false },
     });
-    const bookingStart = html.indexOf('event-booking-layout');
+    const bookingStart = html.indexOf('wc-offline-buybox');
     const bookingEnd = html.indexOf('</form>', bookingStart);
-    const notificationAction = html.indexOf('event-notification-action');
+    const notificationAction = html.indexOf('wc-offline-alert');
 
     expect(html).toContain('팔로우하고 새 이벤트 알림 받기');
     expect(html).toContain('새로운 팝업·이벤트가 공개되면');
@@ -198,7 +198,52 @@ describe('EventDetail', () => {
       notificationState: state,
     });
 
-    expect(booking).not.toContain('event-notification-action');
-    expect(joint).not.toContain('event-notification-action');
+    expect(booking).not.toContain('wc-offline-alert');
+    expect(joint).not.toContain('wc-offline-alert');
+  });
+
+  /* 11 §8 EV-04 — White Catalog 지면 안으로 이행한다. 구 조판 클래스·HM 토큰·IP 액센트
+     인라인 색을 남기지 않는다(아트 배경만 데이터 그대로 쓴다). */
+  it('White Catalog 지면에 안내형 머리를 두고 구 조판 흔적을 남기지 않는다', () => {
+    const html = render();
+
+    expect(html).toContain('<main class="wc-root wc-offline-detail">');
+    expect(html).toContain('<h1 class="wc-offline-detail__title">화산강림 여름 팝업</h1>');
+    expect(html).toContain('<span class="wc-offline-state wc-offline-state--open">예매중</span>');
+    expect(html).toContain('<dt>기간</dt><dd>7.25 - 7.28</dd>');
+    expect(html).toContain('<dt>장소</dt><dd>성수 ICONS 스튜디오</dd>');
+    expect(html).toContain('href="/offline-popups"');
+    /* 목록의 피처드 블록을 걷어 낸 뒤 IP 관으로 가는 길은 상세 머리에 남는다. */
+    expect(html).toContain('<a class="wc-offline-detail__ip" href="/ip/ip100">화산강림</a>');
+    for (const legacy of ['btn-holo', 'btn-ghost', 'h-xl', 'mono', 'checkout-step', 'event-booking-layout', 'sheen', '#0A0813', 'class="sr-only"']) {
+      expect(html, legacy).not.toContain(legacy);
+    }
+    expect(html.match(/style="/g)).toHaveLength(1);
+  });
+
+  /* R-04 buybox 문법 — 선택 → 수량 스테퍼 → 1px 잉크 선 위 합계 → 잉크 CTA 순서. */
+  it('예매 칸은 선택·수량 스테퍼·합계·잉크 CTA 순서로 읽힌다', () => {
+    const html = render();
+    const order = [
+      'name="ticketTypeId"',
+      'class="wc-offline-buybox__selection"',
+      'class="wc-stepper"',
+      'class="wc-offline-buybox__totals"',
+      'class="wc-btn primary wc-offline-buybox__cta"',
+    ].map((marker) => html.indexOf(marker));
+
+    expect(order.every((index) => index >= 0)).toBe(true);
+    expect(order).toEqual([...order].sort((a, b) => a - b));
+    expect(html).toMatch(/<input class="wc-stepper__input"[^>]*id="event-ticket-qty"/);
+    expect(html).toContain('<div class="wc-offline-buybox__total"><dt>결제 금액</dt><dd>₩25,000</dd></div>');
+    expect(html).toContain('예매하고 결제하기');
+  });
+
+  it('마감 회차는 이유를 글자로 남기고 선택 회차를 표시한다', () => {
+    const html = render();
+
+    expect(html).toContain('class="wc-offline-session is-selected"');
+    expect(html).toContain('class="wc-offline-session is-disabled"');
+    expect(html).toContain('<legend class="wc-sr-only">티켓 회차</legend>');
   });
 });
