@@ -4,6 +4,7 @@ import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import { AdminFormGrid } from '@/components/admin/console/AdminKit';
 import { useState } from 'react';
 import type { AdminCampaignActionState } from '@/app/admin/campaign-actions';
+import { CAMPAIGN_CTA_LABEL_MAX_LENGTH } from '@/lib/campaigns';
 import {
   ADMIN_CAMPAIGN_KIND_LABELS,
   ADMIN_CAMPAIGN_SECTION_SPECS,
@@ -86,12 +87,19 @@ function SectionSchemaHelp() {
           <code>coupon</code>의 <code>coupon_code</code>는 쿠폰 관리에 먼저 등록되어 있어야 해요 —
           등록되지 않은 코드는 저장 단계에서 거절됩니다.
         </p>
+        <p className="muted" style={{ fontSize: 12, lineHeight: 1.7, margin: 0 }}>
+          <code>cta</code>는 이동 버튼입니다. <code>label</code>은 버튼 문구(1~{CAMPAIGN_CTA_LABEL_MAX_LENGTH}자),
+          {' '}<code>href</code>는 <code>/</code>로 시작하는 ICONS 내부 경로(예: <code>/shop</code>,
+          {' '}<code>/events/autumn-attendance</code>)만 받습니다. 외부 주소(<code>https://…</code>,
+          {' '}<code>{'//…'}</code>)와 공백·역슬래시가 든 주소는 저장되지 않습니다.
+        </p>
         <pre className="admin-campaign-help-sample">
 {`[
   { "type": "intro", "copy": "출석하고 카드팩을 받아 가세요" },
   { "type": "attendance", "anchor": "attend" },
   { "type": "exchange", "offer_id": "00000000-0000-0000-0000-000000000000" },
   { "type": "goods", "good_ids": ["g13", "g14"] },
+  { "type": "cta", "label": "굿즈 더 보기", "href": "/shop" },
   { "type": "notice", "items": ["교환한 카드팩은 되돌릴 수 없습니다."] }
 ]`}
         </pre>

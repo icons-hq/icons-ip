@@ -643,6 +643,20 @@
   color: var(--wc-ink-tertiary);
 }
 
+/* 이동 버튼(cta) — R-06 §2.2 "상품 보러가기" 220×56 잉크 버튼. 모바일은 칼럼 전폭,
+   태블릿 이상은 문구 길이를 따르되 220 아래로 줄지 않는다. 문구가 길면 줄을 바꾼다. */
+.wc-campaign-cta {
+  display: flex;
+}
+
+.wc-campaign-cta .wc-btn {
+  height: auto;
+  min-height: 56px;
+  padding: 12px 28px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
 /* 3.4 참여 패널 — 출석·교환·종료 안내가 같은 상자를 쓴다 */
 
 .wc-campaign-panel {
@@ -749,6 +763,12 @@
    ------------------------------------------------------------------ */
 
 @media (min-width: 750px) {
+  .wc-campaign-cta .wc-btn {
+    width: auto;
+    min-width: 220px;
+    max-width: 100%;
+  }
+
   /* 태블릿부터는 콘텐츠 칼럼 안에 둔다 — 전폭은 모바일 배너만의 문법이다. */
   .wc-campaign-hub__banners {
     margin: 0 0 24px;

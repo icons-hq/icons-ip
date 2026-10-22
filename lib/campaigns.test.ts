@@ -10,6 +10,7 @@ import {
   campaignStateBadgeLabel,
   campaignStateBadgeVariant,
   campaignStateLabel,
+  isCampaignInternalHref,
   nextCampaignVisibleCount,
   orderCampaignsForHub,
   parseCampaignSections,
@@ -164,6 +165,50 @@ describe('parseCampaignSections', () => {
     expect(parseCampaignSections([{ type: 'goods', good_ids: ['g1', 3, '', 'g2'] }]))
       .toEqual([{ type: 'goods', good_ids: ['g1', 'g2'] }]);
     expect(parseCampaignSections([{ type: 'notice', items: [null] }])).toEqual([]);
+  });
+
+  it('이동 버튼 블록은 문구와 내부 경로를 그대로 옮긴다', () => {
+    expect(parseCampaignSections([{ type: 'cta', label: '굿즈 더 보기', href: '/shop?ip=bt21', anchor: '굿즈' }]))
+      .toEqual([{ anchor: '굿즈', type: 'cta', label: '굿즈 더 보기', href: '/shop?ip=bt21' }]);
+  });
+
+  /* 저장은 DB 가 막지만, 외부로 나가는 값이 섞여 들어와도 화면은 그 버튼을 그리지 않는다(LD-18). */
+  it('내부 경로가 아닌 이동 버튼과 문구 없는 버튼은 건너뛴다', () => {
+    expect(parseCampaignSections([
+      { type: 'cta', label: '밖으로', href: 'https://evil.example' },
+      { type: 'cta', label: '밖으로', href: '//evil.example' },
+      { type: 'cta', label: '밖으로', href: '/\\evil.example' },
+      { type: 'cta', label: '', href: '/shop' },
+      { type: 'cta', label: '링크 없음' },
+      { type: 'cta', label: '숫자 링크', href: 42 },
+    ])).toEqual([]);
+  });
+});
+
+/* LD-18 — DB(private.validate_campaign_sections 20261022090100)의 cta href 판정과 1:1. */
+describe('isCampaignInternalHref', () => {
+  it.each(['/', '/shop', '/shop?ip=bt21&sort=new#list', '/events/autumn', '/search?q=키링', '/a~b!c'])(
+    '내부 경로 %s 를 받는다',
+    (href) => expect(isCampaignInternalHref(href)).toBe(true),
+  );
+
+  it.each([
+    ['https://evil.example', '스킴·도메인'],
+    ['javascript:alert(1)', '스킴'],
+    ['//evil.example', '프로토콜 상대 주소'],
+    ['/\\evil.example', '역슬래시는 브라우저가 / 로 바꾼다'],
+    ['/\t/evil.example', '탭은 브라우저가 지운다'],
+    ['/a\nb', '줄바꿈'],
+    ['/a\u0000b', 'NUL'],
+    ['/a\u007fb', 'DEL'],
+    ['/sh op', '공백'],
+    ['shop', '상대 경로'],
+    ['', '빈 값'],
+    [`/${'a'.repeat(300)}`, '300자 초과'],
+  ])('%s 를 거절한다(%s)', (href) => expect(isCampaignInternalHref(href)).toBe(false));
+
+  it('300자까지 받는다', () => {
+    expect(isCampaignInternalHref(`/${'a'.repeat(299)}`)).toBe(true);
   });
 });
 

@@ -223,6 +223,70 @@ describe('parseAdminCampaignSections', () => {
   });
 });
 
+/* LD-18 — 이동 버튼(cta)은 ICONS 내부 경로만 받는다. DB(validate_campaign_sections)와 같은 판정이다. */
+describe('parseAdminCampaignSections — cta 블록', () => {
+  const cta = (href: unknown, extra: Record<string, unknown> = {}) =>
+    parseAdminCampaignSections(JSON.stringify([{ type: 'cta', label: '굿즈 더 보기', href, ...extra }]));
+
+  it.each([
+    '/',
+    '/shop',
+    '/shop?ip=bt21&sort=new#list',
+    '/events/autumn-attendance',
+    '/search?q=키링',
+  ])('내부 경로 %s 는 저장한다', (href) => {
+    expect(cta(href)).toEqual({ ok: true, value: [{ type: 'cta', label: '굿즈 더 보기', href }] });
+  });
+
+  it.each([
+    ['외부 주소', 'https://evil.example/shop'],
+    ['스킴', 'javascript:alert(1)'],
+    ['프로토콜 상대 주소', '//evil.example'],
+    ['역슬래시 우회', '/\\evil.example'],
+    ['탭 우회', '/\t/evil.example'],
+    ['줄바꿈', '/shop\nx'],
+    ['공백', '/sh op'],
+    ['상대 경로', 'shop'],
+    ['빈 문자열', ''],
+    ['너무 긴 경로', `/${'a'.repeat(300)}`],
+  ])('%s(%s)는 거절한다', (_reason, href) => {
+    const result = cta(href);
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.message).toContain('href');
+  });
+
+  it('외부 주소 거절 문구는 다음 행동을 알려 준다', () => {
+    const result = cta('https://evil.example');
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.message).toContain('1번째 블록의 href');
+    expect(result.message).toContain('/로 시작하는 ICONS 내부 경로여야 합니다.');
+  });
+
+  it('버튼 문구는 1~30자 문자열이고 필수다', () => {
+    const missing = parseAdminCampaignSections('[{"type":"cta","href":"/shop"}]');
+    const tooLong = parseAdminCampaignSections(JSON.stringify([{ type: 'cta', label: '가'.repeat(31), href: '/shop' }]));
+    const longest = parseAdminCampaignSections(JSON.stringify([{ type: 'cta', label: '가'.repeat(30), href: '/shop' }]));
+
+    expect(missing.ok).toBe(false);
+    expect(tooLong.ok).toBe(false);
+    expect(longest.ok).toBe(true);
+  });
+
+  it('링크가 빠지거나 모르는 키가 있으면 거절한다', () => {
+    const missing = parseAdminCampaignSections('[{"type":"cta","label":"보러 가기"}]');
+    const target = cta('/shop', { target: '_blank' });
+    const nonString = cta(42);
+
+    expect(missing.ok).toBe(false);
+    expect(target.ok).toBe(false);
+    expect(nonString.ok).toBe(false);
+  });
+});
+
 describe('normalizeAdminCoinExchangeOfferForm', () => {
   it('신규 등록은 id 를 null 로 보낸다', () => {
     const result = normalizeAdminCoinExchangeOfferForm(offerForm());

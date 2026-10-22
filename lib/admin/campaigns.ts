@@ -1,6 +1,11 @@
 import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import type { AdminFieldErrors } from '@/lib/admin/catalog';
 import { kstDateTimeToIso } from '@/lib/admin/kst';
+import {
+  CAMPAIGN_CTA_HREF_MAX_LENGTH,
+  CAMPAIGN_CTA_LABEL_MAX_LENGTH,
+  isCampaignInternalHref,
+} from '@/lib/campaigns';
 
 /*
  * 어드민 캠페인 콘솔의 폼 계약 (S8 #330).
@@ -104,7 +109,8 @@ export type AdminCoinExchangeOfferFormResult =
 
 export const ADMIN_CAMPAIGN_MAX_SECTIONS = 20;
 
-type SectionFieldKind = 'text' | 'uuid' | 'stringArray';
+/** internalPath — ICONS 안의 경로만(LD-18). 판정은 공개 파서·DB 와 같은 isCampaignInternalHref 다. */
+type SectionFieldKind = 'text' | 'uuid' | 'stringArray' | 'internalPath';
 
 export interface AdminCampaignSectionField {
   key: string;
@@ -192,6 +198,14 @@ const SECTION_SPECS = [
       maxItems: 20,
     }],
   },
+  {
+    type: 'cta',
+    label: '이동 버튼',
+    fields: [
+      { key: 'label', kind: 'text', required: true, maxLength: CAMPAIGN_CTA_LABEL_MAX_LENGTH },
+      { key: 'href', kind: 'internalPath', required: true, maxLength: CAMPAIGN_CTA_HREF_MAX_LENGTH },
+    ],
+  },
 ] as const;
 
 export type AdminCampaignSectionType = (typeof SECTION_SPECS)[number]['type'];
@@ -240,6 +254,10 @@ export type AdminCampaignSectionsResult =
   | { ok: true; value: unknown[] }
   | { ok: false; message: string };
 
+/** 이동 버튼 링크 오류 안내. 어드민 가이드 오류 표(troubleshooting)가 이 문구를 인용한다. */
+export const CAMPAIGN_INTERNAL_PATH_MESSAGE =
+  '/로 시작하는 ICONS 내부 경로여야 합니다. 외부 주소(https://…, //…)와 공백·역슬래시는 넣을 수 없습니다.';
+
 function sectionValueError(index: number, key: string, detail: string) {
   return `${index + 1}번째 블록의 ${key}: ${detail}`;
 }
@@ -276,6 +294,11 @@ function validateSectionField(
 
   if (field.kind === 'uuid' && !UUID_PATTERN.test(value)) {
     return sectionValueError(index, field.key, '교환처 ID(UUID)여야 합니다.');
+  }
+
+  /* 외부 링크는 피싱·추적 위험이 있어 받지 않는다(LD-18). DB 가 같은 판정으로 다시 막는다. */
+  if (field.kind === 'internalPath' && !isCampaignInternalHref(value)) {
+    return sectionValueError(index, field.key, CAMPAIGN_INTERNAL_PATH_MESSAGE);
   }
 
   return null;
