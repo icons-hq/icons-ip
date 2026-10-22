@@ -160,5 +160,7 @@ describe('404 2CTA (CH-14)', () => {
   it('두 버튼을 260×56으로, 그룹을 260 두 칸 + 간격 8로 넓힌다', () => {
     expect(declsFor('.wc-not-found .wc-not-found__actions .wc-btn')).toMatchObject({ 'max-width': '260px', height: '56px' });
     expect(declsFor('.wc-not-found .wc-not-found__actions')['max-width']).toBe('528px');
+    /* 가운데 정렬 flex 부모 안에서 글자 폭으로 줄지 않도록 폭을 명시한다(QA: 103px로 줄어 두 줄 꺾임). */
+    expect(declsFor('.wc-not-found .wc-not-found__actions').width).toBe('min(528px, 100%)');
   });
 });
