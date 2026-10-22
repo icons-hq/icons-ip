@@ -573,3 +573,40 @@ describe('White Catalog offline popup wiring', () => {
   });
 });
 
+describe('White Catalog document-page wiring', () => {
+  it('loads the document layer after the campaign layer and before the retained about surface', () => {
+    const layout = read('./layout.tsx');
+
+    expect(layout).toContain("'./styles/wc-document.css'");
+    expect(layout.indexOf("'./styles/wc-document.css'")).toBeGreaterThan(
+      layout.indexOf("'./styles/wc-campaign.css'"),
+    );
+    expect(layout.indexOf("'./styles/about-legacy.css'")).toBeGreaterThan(
+      layout.indexOf("'./styles/wc-document.css'"),
+    );
+  });
+
+  it('keeps the document stylesheet scoped, rootless, and free of the reference accent', () => {
+    const css = read('./styles/wc-document.css');
+
+    expect(css).not.toMatch(/^\s*(?:html|body|:root|h[1-6]|a|p|ul|ol|button|input|\*)\s*[,{:]/m);
+    expect(css).not.toMatch(/:root\s*\{[^}]*--wc-/s);
+    expect(css).not.toMatch(/#F83BAA/i);
+    expect(css).not.toMatch(/#FD4BBB/i);
+    expect(css).not.toMatch(/line-height:\s*(?:0?\.)\d+/);
+    postcss.parse(css).walkRules((rule) => {
+      for (const selector of rule.selectors) expect(selector.trim()).toMatch(/^\.wc-document/);
+    });
+  });
+
+  it('pins the R-06 §8 policy document measures', () => {
+    /* 620 칼럼(좌우 20 → 본문 580), 조항 제목 20/700, 본문 14/1.6 — 레퍼런스 정책 문서 서식. */
+    const css = read('./styles/wc-document.css');
+
+    expect(css).toMatch(/\.wc-document__page\s*\{[^}]*max-width:\s*620px/s);
+    expect(css).toMatch(/@media \(min-width: 990px\)\s*\{[^@]*\.wc-document__page\s*\{[^}]*padding:\s*0 20px/s);
+    expect(css).toMatch(/\.wc-document__heading\s*\{[^}]*font-size:\s*20px;[^}]*font-weight:\s*700/s);
+    expect(css).toMatch(/\.wc-document__paragraph\s*\{[^}]*font-size:\s*14px;[^}]*line-height:\s*1\.6/s);
+  });
+});
+

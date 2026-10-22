@@ -81,6 +81,7 @@ import './styles/wc-discovery.css';
 import './styles/wc-account-commerce.css';
 import './styles/wc-campaign.css';
 import './styles/wc-offline-popups.css';
+import './styles/wc-document.css';
 import './styles/wc-help.css';
 import './styles/wc-inquiry-widget.css';
 /* 보존 표면은 각 앵커 안에 자체 기본 규칙과 토큰을 가진다. */
