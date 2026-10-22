@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { COMMUNITY_ENABLED } from '@/lib/community-visibility';
 import { SUGGESTED_SEARCH_TERMS } from '@/lib/search-terms';
 import type { StorefrontNavigation } from '@/lib/store-navigation';
+import { BottomTabBar } from './BottomTabBar';
 import { Nav } from './Nav';
 import { MenuSheet } from './MenuSheet';
 import { SearchOverlay } from './SearchOverlay';
@@ -195,6 +196,14 @@ describe('White Catalog 전역 셸', () => {
 
     mocks.pathname = '/shop';
     expect(renderToStaticMarkup(<Nav />)).toContain('wc-tabbar');
+  });
+
+  /* B3·MC-03: 탭바 숨김 여부는 셸(스크롤 판정·검색 오버레이)이 정하고, 탭바는 data-hidden 하나로만 표현한다.
+   * SSR은 항상 노출로 시작해야 첫 페인트에 탭바가 없다가 튀어나오지 않는다. */
+  it('하단 탭바는 SSR에서 노출로 시작하고 숨김 신호를 data-hidden으로 표현한다', () => {
+    expect(renderToStaticMarkup(<Nav />)).toMatch(/class="wc-tabbar"[^>]*data-hidden="false"/);
+    expect(renderToStaticMarkup(<BottomTabBar hidden menuOpen={false} onMenuOpen={vi.fn()} />)).toMatch(/class="wc-tabbar"[^>]*data-hidden="true"/);
+    expect(renderToStaticMarkup(<BottomTabBar menuOpen={false} onMenuOpen={vi.fn()} />)).toMatch(/class="wc-tabbar"[^>]*data-hidden="false"/);
   });
 
   /* 축약 판정(B1, chrome-scroll.ts)은 유틸바의 문서상 위치를 공지 높이로 읽어 두 기준에 더한다.

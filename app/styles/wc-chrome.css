@@ -257,6 +257,23 @@
   }
 }
 
+/* 모바일 헤더 고정 (LD-2 · 11 §6 B2)
+   스크롤하면 로고 행이 화면 위로 빠지고 GNB 탭 행만 상단에 남는다. 최상단에서는 로고 행이 제자리에 있다.
+   로고 행을 display로 지우는 레퍼런스 방식은 헤더가 81px 줄며 본문이 튀고, 스크롤 앵커링이 그만큼 scrollY를
+   당기면 최상단 근처에서 숨김·복귀가 번갈아 진동할 수 있다. 그래서 레이아웃은 그대로 두고 sticky 기준만
+   로고 행 높이(81px, .wc-header__bar-inner)만큼 올린다 — 로고 행은 스크롤과 함께 밀려 나가고 판정 상태가 없다. */
+@media (max-width: 989px) {
+  .wc-header {
+    top: -81px;
+  }
+
+  /* 키보드 포커스가 헤더에 들어오면 로고 행까지 내려 보여 준다 — 포커스가 화면 밖에 남으면 안 된다.
+     :focus-within이 아니라 :focus-visible인 이유: 손가락으로 GNB 탭을 누를 때마다 로고 행이 튀어나오지 않게. */
+  .wc-header:has(:focus-visible) {
+    top: 0;
+  }
+}
+
 /* ------------------------------------------------------------------
    GNB (데스크톱) · 메가메뉴
    ------------------------------------------------------------------ */
@@ -727,6 +744,16 @@
   padding-bottom: max(5px, env(safe-area-inset-bottom));
   border-top: 1px solid var(--wc-hairline);
   background: var(--wc-surface);
+  transition: transform var(--wc-duration-medium) ease;
+}
+
+/* B3 — 아래로 누적 300px 스크롤했거나 검색 오버레이가 열려 있으면 화면 밖으로 내린다(Nav·chrome-scroll.ts).
+   내려간 뒤에는 visibility로 포커스 순서·접근성 트리에서도 뺀다 — 안 보이는 탭바에 포커스가 들어가면 안 된다.
+   다시 보일 때는 visibility가 즉시 돌아오고, reduced-motion에서는 파운데이션이 전환을 0으로 만든다. */
+.wc-tabbar[data-hidden='true'] {
+  transform: translateY(100%);
+  visibility: hidden;
+  transition: transform var(--wc-duration-medium) ease, visibility 0s linear var(--wc-duration-medium);
 }
 
 .wc-tabbar__item {

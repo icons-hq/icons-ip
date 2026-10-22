@@ -118,6 +118,11 @@ function hasPath(route: string): boolean {
   return route === 'ip' || route === 'reviewEvent' || route in PATHS;
 }
 
+/** 굿즈 상세(`/shop/[goodId]`)인가. NEW·BEST(`/shop/new`·`/shop/best`)는 같은 접두를 쓰는 컬렉션 목록이라 아니다. */
+export function isGoodDetailPath(pathname: string): boolean {
+  return /^\/shop\/(?!(?:new|best)$)[^/]+$/.test(pathname);
+}
+
 /** does the given prototype route-id correspond to the current pathname? */
 export function isActive(route: string, pathname: string): boolean {
   const href = hrefFor(route);

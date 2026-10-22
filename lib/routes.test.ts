@@ -15,6 +15,7 @@ import {
   hrefFor,
   isActive,
   isAuthShellPath,
+  isGoodDetailPath,
   isStandaloneShellPath,
 } from './routes';
 import { COMMUNITY_ENABLED } from './community-visibility';
@@ -185,6 +186,16 @@ describe('푸터·메뉴 경로 등록 계약', () => {
       expect(group.heading.length).toBeGreaterThan(0);
       expect(group.items.length).toBeGreaterThan(0);
     }
+  });
+});
+
+describe('isGoodDetailPath', () => {
+  it.each(['/shop/g3', '/shop/demo-rilakkuma-keycap-trio', '/shop/newbie', '/shop/best-seller'])('%s는 굿즈 상세다', (pathname) => {
+    expect(isGoodDetailPath(pathname)).toBe(true);
+  });
+
+  it.each(['/shop', '/shop/', '/shop/new', '/shop/best', '/shop/g3/reviews', '/shops/g3', '/'])('%s는 굿즈 상세가 아니다', (pathname) => {
+    expect(isGoodDetailPath(pathname)).toBe(false);
   });
 });
 

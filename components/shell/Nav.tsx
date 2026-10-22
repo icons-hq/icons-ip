@@ -22,7 +22,7 @@ import { useAuthPresence } from './AuthPresenceProvider';
 import { BottomTabBar } from './BottomTabBar';
 import { useCardRewardsEnabled } from './CardRewardAvailability';
 import { useCart } from './CartProvider';
-import { nextHeaderCondensed } from './chrome-scroll';
+import { nextHeaderCondensed, nextTabBarScroll, tabBarScrollAt } from './chrome-scroll';
 import { MenuSheet } from './MenuSheet';
 import { loadUnreadNotificationCount, notificationNavigationKey } from './notification-count';
 import { SearchOverlay } from './SearchOverlay';
@@ -53,18 +53,24 @@ function noticeOffsetAbove(utilbar: HTMLElement | null): number {
   return utilbar.getBoundingClientRect().top + window.scrollY;
 }
 
-/* 축약 판정은 B1 한 쌍(>150 접힘 / <64 해제, 공지 높이 가산)의 순수 함수(chrome-scroll.ts)에 맡기고
-   여기서는 스크롤 위치와 공지 높이만 읽어 넘긴다. 스크롤 이벤트는 이미 프레임당 한 번 이하로 오고,
-   상태가 그대로면 React가 렌더를 건너뛴다. SSR 초기값은 항상 펼침이다 — 첫 판정은 다음 프레임에 한다
-   (복원된 스크롤 위치에서 열려도 첫 페인트 뒤에 바로 맞춰진다). */
+/* 스크롤 판정은 순수 함수(chrome-scroll.ts)에 맡기고 여기서는 스크롤 위치와 공지 높이만 읽어 넘긴다.
+   - 데스크톱 축약: B1 한 쌍(>150 접힘 / <64 해제, 공지 높이 가산)
+   - 모바일 하단 탭바: B3(아래로 누적 300px 숨김 / 위로·최상단 노출)
+   모바일 로고 행은 판정 없이 CSS(sticky top 음수)가 스크롤과 함께 밀어낸다(wc-chrome.css '모바일 헤더 고정').
+   스크롤 이벤트는 이미 프레임당 한 번 이하로 오고, 상태가 그대로면 React가 렌더를 건너뛴다.
+   SSR 초기값은 항상 펼침·노출이다 — 첫 판정은 다음 프레임에 한다(복원된 스크롤 위치에서 열려도 바로 맞춰진다). */
 function useChromeScroll(utilbarRef: RefObject<HTMLElement | null>) {
   const [condensed, setCondensed] = useState(false);
+  const [tabBarHidden, setTabBarHidden] = useState(false);
 
   useEffect(() => {
-    let current = false;
+    let headerCondensed = false;
+    let tabBar = tabBarScrollAt(window.scrollY);
     const update = () => {
-      current = nextHeaderCondensed(current, window.scrollY, noticeOffsetAbove(utilbarRef.current));
-      setCondensed(current);
+      headerCondensed = nextHeaderCondensed(headerCondensed, window.scrollY, noticeOffsetAbove(utilbarRef.current));
+      tabBar = nextTabBarScroll(tabBar, window.scrollY);
+      setCondensed(headerCondensed);
+      setTabBarHidden(tabBar.hidden);
     };
     const frame = window.requestAnimationFrame(update);
     window.addEventListener('scroll', update, { passive: true });
@@ -76,7 +82,7 @@ function useChromeScroll(utilbarRef: RefObject<HTMLElement | null>) {
     };
   }, [utilbarRef]);
 
-  return condensed;
+  return { condensed, tabBarHidden };
 }
 
 export function Nav({ noticeStrip = null, branding = DEFAULT_STOREFRONT_BRANDING, navigation = DEFAULT_STOREFRONT_NAVIGATION }: { noticeStrip?: NoticeStrip | null; branding?: StorefrontBranding; navigation?: StorefrontNavigation }) {
@@ -103,7 +109,7 @@ function WcChrome({
   const { count } = useCart();
   const { common } = useStorePresentation();
   const utilbarRef = useRef<HTMLElement>(null);
-  const condensed = useChromeScroll(utilbarRef);
+  const { condensed, tabBarHidden: tabBarScrolledAway } = useChromeScroll(utilbarRef);
   const [overlay, setOverlay] = useState<{ kind: OverlayKind; pathname: string }>({ kind: 'none', pathname });
   /* 상태와 그 상태가 속한 경로를 함께 들고 있다가, 경로가 달라지면 effect가 아니라 렌더 중에 실제로 리셋한다.
      파생 불리언으로 가리기만 하면 뒤로/앞으로 가기로 같은 경로에 돌아왔을 때 옛 상태가 되살아나 오버레이가 멋대로 다시 열린다. */
@@ -250,7 +256,12 @@ function WcChrome({
       </header>
 
       <MenuSheet open={sheetOpen} onClose={closeOverlay} cardRewardsEnabled={cardRewardsEnabled} navigation={navigation} />
-      <BottomTabBar menuOpen={sheetOpen} onMenuOpen={() => setOverlay({ kind: 'sheet', pathname })} />
+      {/* 검색 오버레이가 열려 있는 동안에도 탭바를 내린다(MC-03) — 딤 위에 탭바만 떠 있으면 모달 밖 조작처럼 보인다. */}
+      <BottomTabBar
+        hidden={searchOpen || tabBarScrolledAway}
+        menuOpen={sheetOpen}
+        onMenuOpen={() => setOverlay({ kind: 'sheet', pathname })}
+      />
     </div>
   );
 }
