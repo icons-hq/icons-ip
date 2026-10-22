@@ -197,13 +197,17 @@ describe('White Catalog 전역 셸', () => {
     expect(renderToStaticMarkup(<Nav />)).toContain('wc-tabbar');
   });
 
-  /* 축약 판정은 스크롤 절대값이 아니라 헤더 직전 센티널의 뷰포트 이탈로 한다(IntersectionObserver).
-   * 유틸바·공지 스트립이 아직 보이는데 GNB부터 접히는 조기 축약을 막는 구조 계약이다. */
-  it('헤더 앞에 축약 판정용 센티널을 두고 SSR에서는 항상 펼친 상태로 시작한다', () => {
-    const html = renderToStaticMarkup(<Nav />);
+  /* 축약 판정(B1, chrome-scroll.ts)은 유틸바의 문서상 위치를 공지 높이로 읽어 두 기준에 더한다.
+   * 공지가 유틸바 아래로 내려가면 그 보정이 사라져 스트립이 보이는 동안 GNB부터 접힌다 — 순서가 계약이다. */
+  it('공지를 유틸바 위에 두고 SSR에서는 항상 펼친 상태로 시작한다', () => {
+    const html = renderToStaticMarkup(
+      <Nav noticeStrip={{ id: 'n1', title: '공지', imageUrl: 'https://cdn.example/n.webp', mobileImageUrl: null, href: '/events' }} />,
+    );
 
-    expect(html).toMatch(/class="wc-header-sentinel"><\/div><header/);
     expect(html).toContain('data-condensed="false"');
+    expect(html.indexOf('class="wc-notice"')).toBeGreaterThan(-1);
+    expect(html.indexOf('class="wc-notice"')).toBeLessThan(html.indexOf('class="wc-utilbar"'));
+    expect(html.indexOf('class="wc-utilbar"')).toBeLessThan(html.indexOf('<header'));
   });
 
   it('전체 메뉴 시트가 스토어·내 활동·거래 그룹과 인증 액션을 담는다', () => {

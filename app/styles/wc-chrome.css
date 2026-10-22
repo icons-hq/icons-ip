@@ -151,13 +151,6 @@
    헤더 행 (로고 · 아이콘)
    ------------------------------------------------------------------ */
 
-/* 헤더가 뷰포트 상단에 닿았는지를 IntersectionObserver로 판정하기 위한 1px 센티널.
-   음수 마진으로 레이아웃 높이를 상쇄해 화면에는 아무 공간도 차지하지 않는다. */
-.wc-header-sentinel {
-  height: 1px;
-  margin-bottom: -1px;
-}
-
 .wc-header {
   position: sticky;
   top: 0;
@@ -268,26 +261,14 @@
    GNB (데스크톱) · 메가메뉴
    ------------------------------------------------------------------ */
 
-/* 스크롤이 상단을 벗어나면 GNB만 로고 행 뒤로 밀어 넣어 로고 행만 남긴다(R-01 §3.1).
+/* 데스크톱은 스크롤이 B1 기준(>150 접힘 / <64 해제, chrome-scroll.ts)을 넘으면 GNB만 로고 행 뒤로
+   밀어 넣어 로고 행만 남긴다(R-01 §3.1). 모바일은 접지 않는다 — 아래 '모바일 헤더 고정'.
    메가 패널의 기준 상자이기도 해서 positioned 상태를 유지한다. */
 .wc-gnb-wrap {
   position: relative;
   z-index: 1;
   background: var(--wc-surface);
   transition: margin-top var(--wc-duration-medium) ease, opacity var(--wc-duration-medium) ease;
-}
-
-.wc-header[data-condensed='true'] .wc-gnb-wrap {
-  margin-top: -51px;
-  opacity: 0;
-  pointer-events: none;
-}
-
-/* 축약 상태에서도 키보드가 헤더로 들어오면 GNB를 되돌려 준다 — 포커스가 안 보이는 곳으로 사라지면 안 된다. */
-.wc-header[data-condensed='true']:focus-within .wc-gnb-wrap {
-  margin-top: 0;
-  opacity: 1;
-  pointer-events: auto;
 }
 
 .wc-gnb {
@@ -449,6 +430,15 @@
 @media (min-width: 990px) {
   .wc-header[data-condensed='true'] .wc-gnb-wrap {
     margin-top: -54px;
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  /* 축약 상태에서도 키보드가 헤더로 들어오면 GNB를 되돌려 준다 — 포커스가 안 보이는 곳으로 사라지면 안 된다. */
+  .wc-header[data-condensed='true']:focus-within .wc-gnb-wrap {
+    margin-top: 0;
+    opacity: 1;
+    pointer-events: auto;
   }
 
   .wc-gnb {
