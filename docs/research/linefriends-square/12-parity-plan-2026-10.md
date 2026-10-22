@@ -82,7 +82,8 @@
 - 다옵션 기본 선택 = 첫 구매 가능 옵션, 품절 옵션도 `· 품절`로 선택 가능 → CTA가 재입고 알림으로 바뀐다(LD-5 — #427 수용 기준 번복, ADR-0015에는 날짜 보완으로 기록).
 - `restock_alerts`에 옵션 키를 더한다. 기존 굿즈 단위 신청은 "모든 옵션"(NULL)으로 보존하고, 유일성은 `unique nulls not distinct (user_id, good_id, variant_id)` 또는 부분 유니크 인덱스로 명시한다(평범한 unique는 NULL 중복을 막지 못한다).
 - 소비처를 함께 바꾼다: `lib/wishlist.server.ts:60-65`의 `.eq('good_id').maybeSingle()`은 옵션 신청이 2건 이상이면 오류를 내고 `restockRequested=false`로 접힌다(`:70`). 신청 action은 기존 시그니처(`app/shop/actions.ts:86`)를 유지하고 옵션 인자를 받는 새 action을 더한다(DESIGN §11 action 계약).
-- 옵션 재고 트리거는 기존 판매 가능 술어(`20260910072933:911-928`)를 재사용하고, 메일·알림 dedupe 키에 옵션을 넣는다(`:956-959`, `lib/email/dedupe.ts`, `lib/notifications.ts`). 트리거는 주문 생성·취소 환원·재고 조정 트랜잭션 안에서 돌므로 예외를 던지지 않음을 `supabase/tests`의 `checkout_order.sql`·`cart_order_variants.sql`·`commerce_wishlist_restock.sql` 회귀로 확인한다.
+- **옵션 신청은 옵션 행의 재고 전이로 깨운다:** `goods_variants` 행의 `old.stock_qty <= 0 → new.stock_qty > 0` 전이에서 그 옵션 키의 신청만 발송한다. 굿즈 단위 판매 가능 술어(`20260910072933:911-928`)를 그대로 쓰면 안 된다 — 다른 옵션이 판매 중이면 `goods_variants_refresh_stock` 뒤에도 굿즈 행은 전후 모두 판매 가능이라 `notify_goods_restock`이 아무것도 깨우지 않는다. 부모 굿즈의 판매 가능 게이트(공개·보관·판매 제한 등 재고 외 조건)는 별도로 적용한다. 기존 굿즈 단위 신청(NULL = 모든 옵션)은 지금처럼 굿즈 단위 전이로 깨운다.
+- 메일·알림 dedupe 키에 옵션을 넣는다(`:956-959`, `lib/email/dedupe.ts`, `lib/notifications.ts`). 트리거는 주문 생성·취소 환원·재고 조정 트랜잭션 안에서 돌므로 예외를 던지지 않음을 `supabase/tests`의 `checkout_order.sql`·`cart_order_variants.sql`·`commerce_wishlist_restock.sql` 회귀와, "옵션 A 판매 중 + 옵션 B 0→양수" 시나리오 스모크로 확인한다.
 - 신규 함수는 `revoke all … from public, anon, authenticated, service_role` 봉인 후 필요한 롤만 grant. `CONTEXT.md`의 **재입고 알림** 정의를 옵션 기준으로 고친다.
 
 **L3 전역 크롬·검색 오버레이·기본 표면**
@@ -119,7 +120,8 @@
 - `CONTEXT.md`에 **주소록** 용어를 추가한다.
 
 **L8a 공지 바·스트립**
-- 텍스트 공지 바: `home_curations` kind 확장(문구·CTA 라벨·링크·노출 기간·대상 페이지 유형), 이미지 스트립 위. 전역 셸 공지는 **쿠키 없는 캐시 읽기**를 유지한다(`lib/notice-strip.server.ts:22-28` — 법적 문서 SSG 붕괴 이력 #325). 그래서 닫힘(sessionStorage)과 대상 페이지 판정(pathname)은 클라이언트에서 한다. 오버레이·sticky 오프셋은 실제 크롬 높이로 계산한다(레퍼런스의 모바일 가림 결함 회피).
+- 텍스트 공지 바: `home_curations` kind 확장(문구·CTA 라벨·링크·노출 기간·대상 페이지 유형), 이미지 스트립 위.
+- **이미지 스트립(CH-02):** 지금 `getActiveNoticeStrip()`은 결정적 정렬 + `.limit(1)`이라 후보가 여럿이어도 늘 같은 1장만 나온다. 유효한 스트립 전체(기간·대상 페이지 유형 포함)를 쿠키 없는 캐시 읽기로 내려 클라이언트에서 pathname으로 페이지 유형을 거른 뒤 남은 후보 중 무작위 1개를 고른다(레퍼런스: 컬렉션 페이지 미노출). 노출·클릭 집계는 동의 기반 1st-party 분석(`/api/store-analytics`, `lib/store-analytics.ts` — 지금은 페이지뷰만)에 공지 노출·클릭 이벤트 종류를 더한다: 수집 API·저장 스키마·어드민 집계 표시·테스트까지 이 단계 범위. 전역 셸 공지는 **쿠키 없는 캐시 읽기**를 유지한다(`lib/notice-strip.server.ts:22-28` — 법적 문서 SSG 붕괴 이력 #325). 그래서 닫힘(sessionStorage)과 대상 페이지 판정(pathname)은 클라이언트에서 한다. 오버레이·sticky 오프셋은 실제 크롬 높이로 계산한다(레퍼런스의 모바일 가림 결함 회피).
 - `admin_upsert_home_curation`은 운영자 RPC 계약에 시그니처로 등록돼 있다(`20261020085215:16778`). 함수를 바꾸면 migration에서 `private.register_operator_rpc_contract`로 재등록하고 `operator_capability_coverage.sql`을 통과시킨다.
 - 배포 전 운영 `home_curations` 실데이터가 새 CHECK 제약을 통과하는지 SELECT로 미리 확인한다(9/1 전환 때 23514 실패 이력).
 
