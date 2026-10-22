@@ -1,6 +1,6 @@
 /* White Catalog v4 foundation. DESIGN.md §2–5 is canonical.
- * Tokens remain on .wc-root so the three retained public surfaces can keep
- * their own typography and canvas. Admin surfaces share this same foundation;
+ * Tokens remain on .wc-root so the retained public surface (/about, about-legacy.css)
+ * can keep its own typography and canvas. Admin surfaces share this same foundation;
  * wc-admin.css and wc-admin-surfaces.css own their scoped controls and layout. */
 
 /* ------------------------------------------------------------------

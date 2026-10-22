@@ -33,7 +33,8 @@
 .wc-document__title {
   margin: 0;
   font-family: inherit;
-  font-size: 26px;
+  /* 레퍼런스 정책 문서 제목은 가운데 대형이다 — 8/26 캡처 글리프 실측 모바일 27px·데스크톱 36px ≈ 30·40px(R-06 §8 정정). */
+  font-size: 30px;
   font-weight: 700;
   line-height: 1.3;
   letter-spacing: -.8px;
