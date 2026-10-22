@@ -12,6 +12,7 @@ import {
   goodOfferPrices,
   jsonLdText,
   productJsonLd,
+  productOpenGraphTags,
   siteOrigin,
 } from './structured-data';
 
@@ -99,6 +100,16 @@ describe('PDP 구조화 데이터 (PD-17)', () => {
       { '@type': 'ListItem', position: 2, name: '굿즈샵', item: 'https://iconsip.test/shop' },
       { '@type': 'ListItem', position: 3, name: '아크릴 블록', item: 'https://iconsip.test/shop/g13' },
     ]);
+  });
+
+  /* og:type 은 product, 가격은 JSON-LD 와 같은 최저가 — 레퍼런스(Shopify)와 같은 property 태그 묶음이다. */
+  it('상품 Open Graph 태그는 product 타입과 최저가·통화다', () => {
+    expect(productOpenGraphTags({ price: 9000, options: [{ ...good.options![0], price: 15000 }, { ...good.options![0], id: 'o2', price: 12000 }] })).toEqual([
+      { property: 'og:type', content: 'product' },
+      { property: 'og:price:amount', content: '12000' },
+      { property: 'og:price:currency', content: 'KRW' },
+    ]);
+    expect(productOpenGraphTags({ price: 9000 })[1]).toEqual({ property: 'og:price:amount', content: '9000' });
   });
 
   it('스크립트 본문은 운영 입력 문자열이 스크립트를 닫지 못하게 < 를 이스케이프한다', () => {

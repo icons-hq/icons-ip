@@ -33,7 +33,7 @@ import { GoodOtherCompositions } from '@/components/shop/GoodOtherCompositions';
 import { loadGoodOtherCompositions } from '@/lib/good-other-compositions.server';
 import { goodOtherCompositionsNextChange } from '@/lib/good-other-compositions';
 import { goodDetailHref } from '@/lib/goods-display';
-import { breadcrumbJsonLd, goodImageUrls, goodMetaDescription, goodOfferPrices, jsonLdText, productJsonLd, siteOrigin } from './structured-data';
+import { breadcrumbJsonLd, goodImageUrls, goodMetaDescription, jsonLdText, productJsonLd, productOpenGraphTags, siteOrigin } from './structured-data';
 
 type PageProps = {
   params: Promise<{ goodId: string }>;
@@ -44,8 +44,8 @@ type PageProps = {
 const loadGoodDetail = cache(getCatalogGoodDetail);
 
 /* 굿즈마다 다른 제목을 낸다 — 탭·북마크·검색결과·스크린리더가 상세를 구별할 수 있어야 한다(WCAG 2.4.2).
-   공유 미리보기용 Open Graph 이미지·가격도 여기서 낸다(PD-17). Next metadata 의 `other`는
-   `<meta name>`으로 그려진다 — og:price 는 property 대신 name 속성으로 나간다. */
+   공유 미리보기용 Open Graph 제목·이미지·주소도 여기서 낸다(PD-17). og:type=product 와 가격(og:price:*)은
+   Next metadata 로 property 속성을 낼 수 없어 페이지가 직접 낸다(productOpenGraphTags) — 그래서 여기에는 type 이 없다. */
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
   const { goodId } = await params;
   const detail = await loadGoodDetail(goodId);
@@ -60,17 +60,12 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     title: `${detail.good.name} — ICONS`,
     description,
     openGraph: {
-      type: 'website',
       siteName: 'ICONS',
       locale: 'ko_KR',
       title: detail.good.name,
       description,
       url: `${origin}${goodDetailHref(detail.good.id)}`,
       ...(image ? { images: [{ url: image, alt: detail.good.name }] } : {}),
-    },
-    other: {
-      'og:price:amount': String(goodOfferPrices(detail.good).low),
-      'og:price:currency': 'KRW',
     },
   };
 }
@@ -124,6 +119,7 @@ export default async function Page({ params, searchParams }: PageProps) {
     <>
       <script dangerouslySetInnerHTML={{ __html: jsonLdText(productJsonLd(detail, origin)) }} type="application/ld+json" />
       <script dangerouslySetInnerHTML={{ __html: jsonLdText(breadcrumbJsonLd(detail, origin)) }} type="application/ld+json" />
+      {productOpenGraphTags(detail.good).map((tag) => <meta content={tag.content} key={tag.property} property={tag.property} />)}
       <ProductDetailRefresh nextChangeAt={nextChangeAt} />
       <GoodDetail
         detail={{ ...detail, sizeChart }}

@@ -72,6 +72,19 @@ export function goodOfferPrices(good: Pick<Good, 'price' | 'options'>): { low: n
   return { low: Math.min(...prices), high: Math.max(...prices), count: prices.length };
 }
 
+/**
+ * 상품 Open Graph 태그(PD-17 · 레퍼런스 `og:type=product`·`og:price:*`).
+ * Next metadata 의 openGraph.type 에는 product 가 없고 `other`는 `<meta name>`으로 그려져 수집기가 읽지 않는다 —
+ * 그래서 이 태그만 `property` 속성으로 페이지가 직접 낸다(React 가 <head>로 올린다). 가격은 JSON-LD 의 최저가와 같다.
+ */
+export function productOpenGraphTags(good: Pick<Good, 'price' | 'options'>): Array<{ property: string; content: string }> {
+  return [
+    { property: 'og:type', content: 'product' },
+    { property: 'og:price:amount', content: String(goodOfferPrices(good).low) },
+    { property: 'og:price:currency', content: 'KRW' },
+  ];
+}
+
 /** 지금 살 수 있는가. 판매 상태·판매 기간·구매 조건·옵션 재고가 화면의 구매 가능 판정과 같다. */
 export function goodOfferAvailability(good: Good): string {
   const purchasableOptions = good.options?.filter((option) => option.stockQty > 0) ?? [];

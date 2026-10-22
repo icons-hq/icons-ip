@@ -226,7 +226,7 @@ describe('/shop/[goodId] page', () => {
    * 죽은 분기가 되고, 테스트만 통과해 404 탭 제목을 오해하게 만든다.
    */
   /* PD-17 — 공유 미리보기 이미지·가격. 상대 이미지 주소는 사이트 기준 절대 주소로 펼친다. */
-  it('Open Graph 이미지·주소와 og:price 를 낸다', async () => {
+  it('Open Graph 제목·이미지·주소를 내고 type·가격은 metadata 에 두지 않는다', async () => {
     vi.stubEnv('SITE_URL', 'https://iconsip.test');
     try {
       mocks.details = [{ ...detailFor('g13', '아크릴 블록', 12000), good: { ...detailFor('g13', '아크릴 블록', 12000).good, img: 'url("/generated/goods/g13.png") center / cover no-repeat' } },
@@ -234,10 +234,12 @@ describe('/shop/[goodId] page', () => {
       const metadata = await generateMetadata({ params: Promise.resolve({ goodId: 'g13' }), searchParams: Promise.resolve({}) });
 
       expect(metadata.openGraph).toMatchObject({
-        type: 'website', siteName: 'ICONS', title: '아크릴 블록', url: 'https://iconsip.test/shop/g13',
+        siteName: 'ICONS', title: '아크릴 블록', url: 'https://iconsip.test/shop/g13',
         images: [{ url: 'https://iconsip.test/generated/goods/g13.png', alt: '아크릴 블록' }],
       });
-      expect(metadata.other).toEqual({ 'og:price:amount': '12000', 'og:price:currency': 'KRW' });
+      /* og:type=product 와 og:price:* 는 property 속성이어야 수집기가 읽는다 — metadata(other 는 name 속성)로 내지 않는다. */
+      expect(metadata.openGraph).not.toHaveProperty('type');
+      expect(metadata).not.toHaveProperty('other');
       /* 이미지가 없는 굿즈(gradient 대체 아트)는 og:image 를 내지 않는다. */
       const keyring = await generateMetadata({ params: Promise.resolve({ goodId: 'g14' }), searchParams: Promise.resolve({}) });
       expect(keyring.openGraph).not.toHaveProperty('images');
@@ -257,6 +259,11 @@ describe('/shop/[goodId] page', () => {
         offers: { '@type': 'Offer', price: 12000, priceCurrency: 'KRW', availability: 'https://schema.org/InStock' } });
       expect(scripts[1]).toMatchObject({ '@type': 'BreadcrumbList' });
       expect(scripts[1].itemListElement).toHaveLength(3);
+      /* PD-17 — 상품 Open Graph 는 property 속성이다(레퍼런스와 같은 og:type=product·og:price:*). */
+      expect(html).toContain('<meta content="product" property="og:type"/>');
+      expect(html).toContain('<meta content="12000" property="og:price:amount"/>');
+      expect(html).toContain('<meta content="KRW" property="og:price:currency"/>');
+      expect(html).not.toContain('name="og:price');
     } finally {
       vi.unstubAllEnvs();
     }
