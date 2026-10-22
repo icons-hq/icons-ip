@@ -129,7 +129,7 @@ export function Login({ initialError, initialMessage, initialMode, isConfigured,
   /* /login은 전역 헤더·푸터·모바일 탭바 안에서 열린다(CH-13) — 홈 진입은 헤더 로고가 맡으므로
      집중형 셸 시절의 'ICONS' 홈 링크를 패널 위에 따로 두지 않는다. 패널(448 플랫)은 그대로다. */
   return (
-    <main className="wc-root wc-auth">
+    <main className="wc-root wc-auth wc-auth--shell">
       <div className="wc-auth__panel">
         <h1 className={`wc-auth__title${isReset ? ' wc-auth__title--sub' : ''}`}>
           {isReset ? '비밀번호 재설정' : isSignUp ? '이메일 회원가입' : '로그인'}

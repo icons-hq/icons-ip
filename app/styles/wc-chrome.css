@@ -12,6 +12,19 @@
    크롬 루트와 스킵 링크
    ------------------------------------------------------------------ */
 
+/* 스크롤 중 화면 위에 남는 크롬의 높이. 표면별 sticky 요소(PDP 탭바·캠페인 앵커 내브)는
+   `top: var(--wc-sticky-chrome-h, <이전 값>)`으로 이 값 바로 아래에 붙는다.
+   모바일·태블릿(≤989px)은 GNB 탭 행 51 + 하단 선 1, 데스크톱은 축약 로고 행 68 + 하단 선 1. */
+.wc-root {
+  --wc-sticky-chrome-h: 52px;
+}
+
+@media (min-width: 990px) {
+  .wc-root {
+    --wc-sticky-chrome-h: 69px;
+  }
+}
+
 /* 래퍼가 박스를 만들면 sticky 헤더가 body가 아니라 이 래퍼를 기준으로 붙어 버린다.
    박스를 지워 헤더·바텀바·오버레이를 body 스택에 그대로 올린다 — 그래서 배경·여백도 주지 않는다. */
 .wc-chrome {
@@ -152,12 +165,12 @@
    ------------------------------------------------------------------ */
 
 /* CH-03 — GNB와 축약 헤더 아래에 1px 헤어라인을 둔다(데스크톱 펼침 123 / 축약 69, 모바일 고정 시 52).
-   레퍼런스 실측값은 #F0F2F4지만 WC 토큰에 같은 값이 없어 line.hairline(#EBEDEE)을 쓴다 — 그림자는 쓰지 않는다. */
+   레퍼런스 실측값 #F0F2F4를 line.hairline-soft 토큰으로 쓴다 — 그림자는 쓰지 않는다. */
 .wc-header {
   position: sticky;
   top: 0;
   z-index: 3;
-  border-bottom: 1px solid var(--wc-hairline);
+  border-bottom: 1px solid var(--wc-hairline-soft);
   background: var(--wc-surface);
 }
 
@@ -578,7 +591,7 @@
   right: 0;
   z-index: 3;
   padding: 16px 0;
-  border-top: 1px solid var(--wc-hairline);
+  border-top: 1px solid var(--wc-hairline-soft);
   background: var(--wc-surface);
 }
 

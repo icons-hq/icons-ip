@@ -112,6 +112,7 @@ colors:
     disabled: "#BBBBBB"       # placeholder·취소선 정가·비활성
   line:
     hairline: "#EBEDEE"       # 푸터/탭바/패널 상단
+    hairline-soft: "#F0F2F4"  # 헤더 하단·검색 오버레이 상단(레퍼런스 실측, 11 §4)
     hairline-dark: "rgba(17,17,17,.1)"
     control: "#C8CACC"        # 아웃라인 버튼 보더
     divider: "#A0A0A0"        # 푸터 링크 세로 구분선
@@ -203,7 +204,7 @@ layout:
   cart-columns: "아이템 780 + 요약 aside 360"
   auth-column: "플랫 448px 1칼럼"
   mypage: "프로필 스트립(surface.grey) + 좌 메뉴 200px + 콘텐츠"
-  header: { notice: "이미지 스트립 ≈36px/60px(mo)", tiers: "유틸바+로고단+GNB", sticky-condensed: "69px 로고+아이콘 단일 바" }
+  header: { notice: "이미지 스트립 ≈36px/60px(mo)", tiers: "유틸바+로고단+GNB", sticky-condensed: "데스크톱 69px 로고+아이콘 단일 바(로고 행 68 + 하단 1px), 모바일·태블릿 52px GNB 탭 행(51 + 1px) — 표면 sticky 요소는 --wc-sticky-chrome-h 아래에 붙는다" }
   buybar-mobile: "높이 72px 고정 풀폭"
   touch-target: "아이콘 44px, 버튼 h50"
 ```
@@ -251,7 +252,7 @@ z-index: { chrome: "3–4", panel: "10–100", overlay: "999+", toast-modal: "99
 | 패턴 | 목적 | 필수 규칙 (R-스펙) |
 |---|---|---|
 | `notice-strip` | 운영 공지 | 어드민 큐레이션 이미지 스트립 1장, 스케줄 노출, 닫기 없음 (01) |
-| `triple-header` | 전역 탐색 | 유틸바+로고단+GNB 3단, 헤더 하단 1px `line.hairline`(레퍼런스 #F0F2F4 — 같은 토큰 없음). 데스크톱은 scrollY >150 축약·<64 해제(방향 무관, 유틸바 위 공지 높이를 두 기준에 가산 — 11 §6 B1)로 69px 단일 바, 로고 행·GNB 키보드 포커스 시 재전개. 모바일은 GNB를 접지 않고 로고 행이 스크롤과 함께 빠져 GNB 탭 행만 고정(LD-2 — sticky 기준을 로고 행 높이만큼 올림, 키보드 포커스 시 로고 행 복귀). 유틸바 맨 앞 '위시리스트'는 로그인 회원 전용. 그림자 없음 (01·11) |
+| `triple-header` | 전역 탐색 | 유틸바+로고단+GNB 3단, 헤더 하단 1px `line.hairline-soft`(#F0F2F4). 데스크톱은 scrollY >150 축약·<64 해제(방향 무관, 유틸바 위 공지 높이를 두 기준에 가산 — 11 §6 B1)로 69px 단일 바, 로고 행·GNB 키보드 포커스 시 재전개. 모바일은 GNB를 접지 않고 로고 행이 스크롤과 함께 빠져 GNB 탭 행만 고정(LD-2 — sticky 기준을 로고 행 높이만큼 올림, 키보드 포커스 시 로고 행 복귀). 유틸바 맨 앞 '위시리스트'는 로그인 회원 전용. 그림자 없음 (01·11) |
 | `underline-gnb` | 1차 탐색 | 고정 ID 8항목(NEW·BEST·카테고리·온라인 팝업·카드팩·이벤트·커뮤니티·쇼핑스토리, `lib/routes.ts`) — 이름·순서·노출은 운영 설정(`lib/store-navigation.ts`, ARCHITECTURE `store_settings.navigation`), 카드팩·커뮤니티는 기능 게이트가 숨긴다. 활성=green 텍스트+3px 밑줄, 최장 경로 하나만 켜고 굿즈 상세에서는 켜지 않는다. 메가메뉴 안 `/shop` 링크는 트리거 이름 대신 '전체 굿즈'. 하단 1px 헤어라인(`triple-header`) (01·11) |
 | `mega-menu` | 카테고리 확장 | 헤더 컨텍스트 내 z0, 헤어라인 상하, 그룹 헤딩 14/700 (01) |
 | `search-overlay` | 검색 진입 | 페이지 이동 없는 오버레이. 패널은 sticky 헤더 기준 로고 행 바로 아래에서 GNB 행을 덮고(데스크톱 최소 200), 그 아래는 10% 잉크 딤 + blur 5px(미지원은 딤만)·스크롤 잠금. 데스크톱 입력은 전폭 60px grey 칸 + 칸 안 왼쪽 돋보기, 뒤로·제출 버튼은 키보드 포커스 때만 드러남(제출 Enter). 모바일은 [뒤로][입력 50][검색] + 추천 칩 한 줄 가로 스크롤, 열린 동안 하단 탭바 숨김. 라벨 '추천' 17/700 + 칩(green). ESC·포커스 트랩 유지(레퍼런스 결함 미재현). 결과는 `/search` (01·03·11 B5) |

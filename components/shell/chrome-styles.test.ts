@@ -44,7 +44,7 @@ describe('헤더 하단 선 (CH-03)', () => {
      그림자는 쓰지 않는다(DESIGN §5 — 헤더 그림자 금지). */
   it('헤더 상자 아래에 1px 헤어라인을 두고 그림자는 쓰지 않는다', () => {
     const header = declsFor('.wc-header');
-    expect(header['border-bottom']).toBe('1px solid var(--wc-hairline)');
+    expect(header['border-bottom']).toBe('1px solid var(--wc-hairline-soft)');
     expect(header['box-shadow']).toBeUndefined();
   });
 });
