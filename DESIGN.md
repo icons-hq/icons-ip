@@ -251,12 +251,12 @@ z-index: { chrome: "3–4", panel: "10–100", overlay: "999+", toast-modal: "99
 | 패턴 | 목적 | 필수 규칙 (R-스펙) |
 |---|---|---|
 | `notice-strip` | 운영 공지 | 어드민 큐레이션 이미지 스트립 1장, 스케줄 노출, 닫기 없음 (01) |
-| `triple-header` | 전역 탐색 | 유틸바+로고단+GNB 3단, 스크롤 시 69px 단일 바로 축약, 그림자 없음 (01) |
-| `underline-gnb` | 1차 탐색 | NEW·BEST·카테고리·온라인 팝업·카드팩·이벤트·커뮤니티. 활성=green 텍스트+3px 밑줄 (01) |
+| `triple-header` | 전역 탐색 | 유틸바+로고단+GNB 3단, 헤더 하단 1px `line.hairline`(레퍼런스 #F0F2F4 — 같은 토큰 없음). 데스크톱은 scrollY >150 축약·<64 해제(방향 무관, 유틸바 위 공지 높이를 두 기준에 가산 — 11 §6 B1)로 69px 단일 바, 로고 행·GNB 키보드 포커스 시 재전개. 모바일은 GNB를 접지 않고 로고 행이 스크롤과 함께 빠져 GNB 탭 행만 고정(LD-2 — sticky 기준을 로고 행 높이만큼 올림, 키보드 포커스 시 로고 행 복귀). 유틸바 맨 앞 '위시리스트'는 로그인 회원 전용. 그림자 없음 (01·11) |
+| `underline-gnb` | 1차 탐색 | 고정 ID 8항목(NEW·BEST·카테고리·온라인 팝업·카드팩·이벤트·커뮤니티·쇼핑스토리, `lib/routes.ts`) — 이름·순서·노출은 운영 설정(`lib/store-navigation.ts`, ARCHITECTURE `store_settings.navigation`), 카드팩·커뮤니티는 기능 게이트가 숨긴다. 활성=green 텍스트+3px 밑줄, 최장 경로 하나만 켜고 굿즈 상세에서는 켜지 않는다. 메가메뉴 안 `/shop` 링크는 트리거 이름 대신 '전체 굿즈'. 하단 1px 헤어라인(`triple-header`) (01·11) |
 | `mega-menu` | 카테고리 확장 | 헤더 컨텍스트 내 z0, 헤어라인 상하, 그룹 헤딩 14/700 (01) |
-| `search-overlay` | 검색 진입 | 페이지 이동 없는 오버레이, 인풋 60px(grey)+추천 칩(green), 결과는 `/search` (01·03) |
-| `mobile-tab-gnb` | 모바일 1차 탐색 | 햄버거 없는 가로 스크롤 탭, 기본 ink.tertiary·활성 ink.default+2px 밑줄, 좌우 16px fade (01, §10 대비 보정) |
-| `bottom-tab-bar` | 모바일 전역 바 | 5탭(메뉴·굿즈샵·홈·위시·마이) 62px, 기본 ink.tertiary·활성 ink.default, 상단 헤어라인 (01, §10 대비 보정) |
+| `search-overlay` | 검색 진입 | 페이지 이동 없는 오버레이. 패널은 sticky 헤더 기준 로고 행 바로 아래에서 GNB 행을 덮고(데스크톱 최소 200), 그 아래는 10% 잉크 딤 + blur 5px(미지원은 딤만)·스크롤 잠금. 데스크톱 입력은 전폭 60px grey 칸 + 칸 안 왼쪽 돋보기, 뒤로·제출 버튼은 키보드 포커스 때만 드러남(제출 Enter). 모바일은 [뒤로][입력 50][검색] + 추천 칩 한 줄 가로 스크롤, 열린 동안 하단 탭바 숨김. 라벨 '추천' 17/700 + 칩(green). ESC·포커스 트랩 유지(레퍼런스 결함 미재현). 결과는 `/search` (01·03·11 B5) |
+| `mobile-tab-gnb` | 모바일 1차 탐색 | 햄버거 없는 가로 스크롤 탭, 기본 ink.tertiary·활성 ink.default+2px 밑줄, 좌우 16px fade. 스크롤하면 이 행만 상단에 고정(로고 행은 빠짐, LD-2) (01·11 B2, §10 대비 보정) |
+| `bottom-tab-bar` | 모바일 전역 바 | 5탭(메뉴·굿즈샵·홈·위시·마이) 62px, 기본 ink.tertiary·활성 ink.default, 상단 헤어라인. 아래로 누적 300px 스크롤하면 내려가고 위로·최상단에서 복귀(.3s, reduced-motion 즉시), 검색 오버레이 중 숨김. 숨긴 상태는 포커스·접근성 트리에서 빠지고, 탭바 안에 포커스가 있으면 내리지 않는다. 결제·굿즈 상세에서는 렌더하지 않는다 (01·11 B3, §10 대비 보정) |
 | `category-sheet` | 모바일 카테고리 | 75% 높이 바텀시트, 상단 radius 8, 딤 70% (01) |
 | `product-card` | 상품 단위 | 1:1 이미지(원본 비율 contain) 무보더 플랫 → 뱃지(정보영역 인라인) → 브랜드 12/600 → 이름 13/400 → 가격 14/600. 품절=하단 1/3 scrim 밴드+italic SOLD OUT (02·03) |
 | `content-card` | 콘텐츠 단위 | 썸네일+뱃지+타이틀, 홈 ②·이벤트 허브·커뮤니티 공용 (02·06) |
@@ -273,7 +273,7 @@ z-index: { chrome: "3–4", panel: "10–100", overlay: "999+", toast-modal: "99
 | `floating-buybar` | 데스크톱 스크롤 | 우하단 [카트 50²][구매 226×50] 미니 바 (04) |
 | `mobile-buybar` | 모바일 구매 | 72px 잉크 풀폭 고정(카트 존+구매 존), 옵션은 본문 인라인 (04) |
 | `mini-checkout-cart` | 카트 | 780+360 2열, 쿠폰 select·배송 메모가 카트 단계에, 빈 상태=일러스트+CTA (05) |
-| `flat-auth-form` | 인증 | 448px 1칼럼, 잉크 60px CTA, 소셜 55px 원형(도입 시), in-place 복구 스왑 (05) |
+| `flat-auth-form` | 인증 | 448px 1칼럼, 잉크 60px CTA, 소셜 55px 원형, in-place 복구 스왑(재설정 모드는 소셜 가입 계정 안내 1줄). `/login`은 전역 헤더·푸터·모바일 탭바 안에서 연다 (05·11) |
 | `mypage-shell` | 계정 허브 | 프로필 스트립(등급 뱃지)+좌 200px 메뉴 3그룹, 모바일은 메뉴 숨김 (05) |
 | `coupon-ticket-card` | 쿠폰함 | 2열 티켓형 카드+등급별 뱃지 (05) |
 | `campaign-hub` | 이벤트 허브 | 배너 스와이퍼 1180×260 + ALL/EVENT/DROP 탭 + 2열 580px 카드(3:2) — **기간·상태 뱃지는 추가한다**(레퍼런스 미표기 결함 보완) (06) |
@@ -319,13 +319,13 @@ z-index: { chrome: "3–4", panel: "10–100", overlay: "999+", toast-modal: "99
 | 검색 | `/search` + 오버레이 | `search-overlay`+결과 그리드+숫자 페이지네이션 | `getSearchSnapshot`·URL 상태 유지 |
 | 카트 | `/cart` | `mini-checkout-cart`(쿠폰 select는 B1에서 활성) | local/DB 병합·수량 계약 유지 |
 | 체크아웃·주문·티켓 | `/checkout*`, `/orders*`, `/tickets*`, `/ticket-checkout*` | 흰 종이형 영수증·상태 타임라인 | 스타일 변경만으로 결제 계약을 바꾸지 않는다. 2026-10-14 승인된 [공통 거래 모델](docs/research/smartstore-admin/goods-transaction-module-proposal.md)의 굿즈 주문서는 별도 서버 견적·복구 계약을 따른다. 티켓·콜백의 기존 계약은 유지한다. |
-| 인증 | `/login` 등 | `flat-auth-form` | OAuth·recovery·필드 계약 유지 |
+| 인증 | `/login`(가입·재설정 모드), `/update-password`, `/account-suspended`, `/manager-invitation` | `flat-auth-form` — `/login`은 전역 셸 안, 나머지는 집중형 셸(`isAuthShellPath`) | OAuth·recovery·필드 계약 유지 |
 | 마이 | `/my` 이하 전부 | `mypage-shell`+위시리스트·쿠폰함(B1)·Q&A 내역(B3) | 기존 조회·설정 계약 유지 |
 | 법적·문서 | `/legal/*` | `document-page` — **재조판 대기**, 구 조판을 legal-doc으로 격리 유지 | 정적 파라미터 유지 |
 | 회사 소개 | `/about`(신규) | `about-legacy-showcase` | 구 홈 콘텐츠 보존, CTA 링크는 신 사이트로 |
 | 마켓·트레이드 | `/market`, `/exchange` | v2 플레이스홀더 재조판 · staff/admin 전용 mock 시연(`.wc-c2c`)은 같은 라우트의 서버 분기 | 플레이스홀더 유지 |
 | 게임 | `/games/[gameId]` | `standalone-game` | 서버 판정·한도·보상 동결 |
-| 404·에러·로딩 | `not-found`·`error`·`loading` | White Catalog 기본 표면 신설 | — |
+| 404·에러·로딩 | `not-found`·`error`·`loading` | White Catalog 기본 표면. 404는 제목 18/700 + [이전 페이지(잉크, 기록 없으면 홈) · 메인으로(아웃라인)] 260×56 — 일러스트는 ICONS 라인아트(LG-7) 대기, 수치는 `wc-chrome.css` 404 구간 | — |
 
 지우학 프레젠테이션 `/ip/aouad`는 `/ip`의 별도 시연 카드에서 들어가는 전용 경험이다. 디렉토리는 White Catalog를 유지하고, 경험은 `components/online-popup/aouad`의 CSS module 경계 안에서 야간 효산고의 장면·소품·타이포를 사용한다. 공용 내비게이션·푸터·문의 위젯은 `isStandaloneShellPath`로 함께 비우며 전역 토큰을 덮지 않는다. 프레젠테이션 표기와 ICONS 복귀 동선을 유지하고 실제 주문·결제·예약·리워드로 이어지지 않는다.
 
