@@ -39,6 +39,16 @@ function mediaFor(selectorPattern: RegExp): Array<string | null> {
 const MOBILE = '(max-width: 989px)';
 const DESKTOP = '(min-width: 990px)';
 
+describe('헤더 하단 선 (CH-03)', () => {
+  /* GNB·축약 헤더 아래 1px. 헤더 상자에 걸어야 축약(GNB가 로고 행 뒤로 들어감)·모바일 고정 상태에도 남는다.
+     그림자는 쓰지 않는다(DESIGN §5 — 헤더 그림자 금지). */
+  it('헤더 상자 아래에 1px 헤어라인을 두고 그림자는 쓰지 않는다', () => {
+    const header = declsFor('.wc-header');
+    expect(header['border-bottom']).toBe('1px solid var(--wc-hairline)');
+    expect(header['box-shadow']).toBeUndefined();
+  });
+});
+
 describe('데스크톱 헤더 축약 표현', () => {
   /* 모바일은 GNB를 접지 않는다(LD-2) — 축약 표현이 미디어 밖에 남으면 모바일 탭 행이 다시 사라진다. */
   it('data-condensed는 990px 이상에서만 GNB를 접는다', () => {

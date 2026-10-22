@@ -109,6 +109,17 @@ describe('SiteFooter 도메인 용어', () => {
 
     expect(render()).not.toContain('href="/packs"');
   });
+
+  /* CH-11: 저작권 줄의 약속도 같은 게이트를 따른다 — 꺼진 배포에서 '무상 카드 리워드'를 내세우지 않는다. */
+  it('카드 리워드 게이트가 닫히면 저작권 줄에서 카드 리워드 약속을 뺀다', () => {
+    expect(render()).toContain('공식 라이선스 · 무상 카드 리워드 · 결제사 승인 확인 후 주문 확정');
+
+    mocks.cardRewardsEnabled = false;
+    const html = render();
+
+    expect(html).not.toContain('카드 리워드');
+    expect(html).toContain('공식 라이선스 · 결제사 승인 확인 후 주문 확정');
+  });
 });
 
 describe('SiteFooter White Catalog 진입점', () => {

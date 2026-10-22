@@ -289,6 +289,9 @@ function CategoryMegaItem({
   }
   const megaOpen = mega.open && mega.pathname === pathname;
   const setMegaOpen = (open: boolean) => setMega({ open, pathname });
+  /* 메가 링크의 현재 위치도 GNB와 같은 규칙(activeNavId)으로 하나만 고른다 — '/shop/new'에서 '전체 굿즈'와
+     NEW가 함께 켜지지 않고, 굿즈 상세에서는 아무 링크도 켜지 않는다(CH-12). */
+  const currentId = activeNavId(pathname, groups.flatMap((group) => group.items));
 
   const onBlurCapture = (event: FocusEvent<HTMLLIElement>) => {
     // 포커스가 항목 안에서 옮겨 다니는 동안에는 닫지 않는다.
@@ -334,7 +337,7 @@ function CategoryMegaItem({
                 {group.items.map((item) => (
                   <li key={item.id}>
                     <Link
-                      aria-current={isActive(item.id, pathname) ? 'page' : undefined}
+                      aria-current={currentId === item.id ? 'page' : undefined}
                       className="wc-mega__link"
                       href={hrefFor(item.id)}
                       onClick={() => setMegaOpen(false)}

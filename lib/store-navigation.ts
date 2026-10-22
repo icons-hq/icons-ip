@@ -44,12 +44,17 @@ export function resolveStorefrontNavigation(navigation: StorefrontNavigation, ca
   return navigation.filter(item => (cardRewardsEnabled || item.id !== 'packs') && (communityEnabled || item.id !== 'community'));
 }
 
-/** Related catalog links use the same labels and hide choices, preserving their own groups. */
+/* 카테고리 메가메뉴를 여는 GNB 항목. 이 항목의 GNB 이름('카테고리' 또는 운영 이름)은 메뉴의 이름이지
+   메뉴 안 같은 목적지 링크(/shop = '전체 굿즈')의 이름이 아니다(CH-06). */
+const MEGA_TRIGGER_ID: StoreMenuId = 'shop';
+
+/** Related catalog links use the same labels and hide choices, preserving their own groups.
+ *  The trigger's own destination keeps its group label — the GNB name of the trigger names the menu. */
 export function configuredNavigationGroups(groups: NavGroup[], navigation: NavItem[]): NavGroup[] {
   const visible = new Map(navigation.map((item, index) => [item.id, { ...item, index }]));
   return groups.map(group => ({ ...group, items: group.items
     .filter(item => !menuIds.has(item.id) || visible.has(item.id))
-    .map(item => visible.has(item.id) ? { id: item.id, label: visible.get(item.id)!.label } : item)
+    .map(item => visible.has(item.id) && item.id !== MEGA_TRIGGER_ID ? { id: item.id, label: visible.get(item.id)!.label } : item)
     .sort((a, b) => (visible.get(a.id)?.index ?? navigation.length) - (visible.get(b.id)?.index ?? navigation.length)),
   })).filter(group => group.items.length > 0);
 }

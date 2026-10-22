@@ -205,9 +205,16 @@ describe('activeNavId', () => {
     expect(activeNavId('/shop/best')).toBe('best');
   });
 
-  it('카테고리 목록과 상품 상세에서는 카테고리를 고른다', () => {
+  it('카테고리 목록에서는 카테고리를 고른다', () => {
     expect(activeNavId('/shop')).toBe('shop');
-    expect(activeNavId('/shop/g3')).toBe('shop');
+  });
+
+  /* CH-12: 굿즈 상세는 어떤 1차 내비의 목록도 아니다 — '/shop' 접두가 맞아도 카테고리를 켜지 않는다(레퍼런스 실측). */
+  it('굿즈 상세에서는 아무 항목도 고르지 않는다', () => {
+    expect(activeNavId('/shop/g3')).toBeNull();
+    expect(activeNavId('/shop/g3', MOB_ITEMS)).toBeNull();
+    expect(activeNavId('/shop/new')).toBe('new');
+    expect(activeNavId('/shop/best')).toBe('best');
   });
 
   it('GNB에 홈이 없으므로 루트에서는 아무것도 고르지 않는다', () => {

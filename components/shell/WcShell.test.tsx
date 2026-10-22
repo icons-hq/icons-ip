@@ -32,6 +32,13 @@ vi.mock('@/app/login/actions', () => ({ signOutAction: vi.fn() }));
 vi.mock('@/lib/auth/onboarding', () => ({ nextPathWithSearch: () => '/' }));
 vi.mock('@/lib/supabase/client', () => ({ createClient: () => ({ from: vi.fn() }) }));
 
+/* 메가 패널(div#wc-mega-category)만 잘라 낸다 — 안에는 div가 더 없어 첫 닫는 div가 패널의 끝이다. */
+function megaMarkup(html: string) {
+  const start = html.indexOf('id="wc-mega-category"');
+  expect(start).toBeGreaterThan(-1);
+  return html.slice(start, html.indexOf('</div>', start));
+}
+
 beforeEach(() => {
   mocks.cardRewardsEnabled = true;
   mocks.count = 4;
@@ -170,6 +177,34 @@ describe('White Catalog 전역 셸', () => {
     const megaTrigger = html.match(/<a[^>]*aria-controls="wc-mega-category"[^>]*>/)?.[0] ?? '';
     expect(megaTrigger).toContain('href="/shop"');
     expect(megaTrigger).not.toContain('aria-current');
+  });
+
+  /* CH-12: 굿즈 상세는 카테고리 목록이 아니다 — GNB·모바일 탭·메가 링크 어디에도 현재 위치를 켜지 않는다. */
+  it('굿즈 상세에서는 GNB와 메가메뉴에 현재 위치를 표시하지 않는다', () => {
+    mocks.pathname = '/shop/g1';
+
+    const html = renderToStaticMarkup(<Nav />);
+
+    expect(html).not.toContain('aria-current="page"');
+    expect(html).not.toContain('is-active');
+  });
+
+  /* 메가 링크도 GNB와 같은 최장 매칭 하나만 켠다 — '/shop/new'에서 '전체 굿즈'(/shop)까지 현재로 읽히면 안 된다. */
+  it('메가메뉴는 가장 특정한 링크 하나만 현재 위치로 표시한다', () => {
+    mocks.pathname = '/shop/new';
+
+    const mega = megaMarkup(renderToStaticMarkup(<Nav />));
+
+    expect(mega.match(/aria-current="page"/g)).toHaveLength(1);
+    expect(mega).toMatch(/aria-current="page" class="wc-mega__link" href="\/shop\/new"/);
+  });
+
+  /* CH-06: 메가메뉴 안의 /shop 링크는 '전체 굿즈'다 — GNB 트리거 이름('카테고리')으로 덮이면 메뉴가 자기 이름을 링크로 반복한다. */
+  it('메가메뉴의 전체 굿즈 링크는 GNB 트리거 이름으로 덮이지 않는다', () => {
+    const mega = megaMarkup(renderToStaticMarkup(<Nav />));
+
+    expect(mega).toMatch(/class="wc-mega__link" href="\/shop">전체 굿즈</);
+    expect(mega).not.toContain('>카테고리<');
   });
 
   /* 화면 하단에 고정된 바가 결제 CTA를 덮으면 결제가 그대로 막힌다 — 이 저장소가 한 번 겪은 사고다. */

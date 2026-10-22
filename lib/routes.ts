@@ -131,8 +131,11 @@ export function isActive(route: string, pathname: string): boolean {
 }
 
 /** pathname에 가장 특정하게 매칭되는 nav 항목 id 하나를 고른다 (없으면 null).
-    '/shop/new'에서 '카테고리(/shop)'가 아니라 'NEW(/shop/new)'가 이겨야 해서 최장 href가 우선한다. */
+    '/shop/new'에서 '카테고리(/shop)'가 아니라 'NEW(/shop/new)'가 이겨야 해서 최장 href가 우선한다.
+    굿즈 상세는 어떤 내비 항목의 목록도 아니라 아무것도 고르지 않는다 — '/shop' 접두가 맞아도
+    카테고리를 켜지 않는다(CH-12, 레퍼런스 실측). 목록인 /shop·/shop/new·/shop/best는 그대로 켠다. */
 export function activeNavId(pathname: string, items: NavItem[] = NAV_ITEMS): string | null {
+  if (isGoodDetailPath(pathname)) return null;
   let activeId: string | null = null;
   let activeLength = -1;
   for (const item of items) {

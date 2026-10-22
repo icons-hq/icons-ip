@@ -32,6 +32,9 @@ export function SiteFooter({businessInfo=BUSINESS_INFO,branding=DEFAULT_STOREFRO
 
   /* 카드 리워드가 꺼진 배포에서는 카드팩 진입점을 노출하지 않는다. */
   const discoverItems = FOOTER_DISCOVER_ITEMS.filter((item) => cardRewardsEnabled || item.id !== 'packs');
+  /* 저작권 줄의 약속도 같은 게이트를 따른다(CH-11) — 꺼진 배포에서 '무상 카드 리워드'를 내세우면 없는 기능을 광고한다.
+     게이트 값은 셸이 이미 읽는 클라이언트 readback(useCardRewardsEnabled)이라 정적 페이지에 새 서버 조회를 얹지 않는다. */
+  const promises = ['공식 라이선스', ...(cardRewardsEnabled ? ['무상 카드 리워드'] : []), '결제사 승인 확인 후 주문 확정'];
 
   return (
     <footer className="wc-root wc-footer">
@@ -108,7 +111,7 @@ export function SiteFooter({businessInfo=BUSINESS_INFO,branding=DEFAULT_STOREFRO
 
         <div className="wc-footer__line">
           <span>© ICONS</span>
-          <span>공식 라이선스 · 무상 카드 리워드 · 결제사 승인 확인 후 주문 확정</span>
+          <span>{promises.join(' · ')}</span>
         </div>
       </div>
     </footer>

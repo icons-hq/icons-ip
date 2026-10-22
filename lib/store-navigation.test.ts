@@ -43,8 +43,15 @@ describe('공개 메뉴 설정 계약', () => {
     expect(sheet.flatMap(group => group.items).filter(item => item.id === 'shop')).toHaveLength(1);
     expect(sheet.find(group => group.heading === '내 활동')?.items.map(item => item.id)).toContain('orders');
     const mega = configuredNavigationGroups(CATEGORY_MEGA_GROUPS, navigation);
-    expect(mega[0].items).toEqual([{ id: 'best', label: '인기 상품' }, { id: 'shop', label: '상품 분류' }]);
+    /* 메가메뉴 트리거(shop)의 운영 이름은 메뉴 이름이다 — 메뉴 안의 /shop 링크는 '전체 굿즈'로 남는다(CH-06). */
+    expect(mega[0].items).toEqual([{ id: 'best', label: '인기 상품' }, { id: 'shop', label: '전체 굿즈' }]);
     expect(mega.flatMap(group => group.items).map(item => item.id)).not.toContain('packs');
     expect(mega.flatMap(group => group.items).map(item => item.id)).toContain('binder');
+  });
+  it('기본 메뉴에서도 메가메뉴의 전체 굿즈 링크가 GNB 트리거 이름으로 덮이지 않는다', () => {
+    const mega = configuredNavigationGroups(CATEGORY_MEGA_GROUPS, storefrontNavigation(DEFAULT_STORE_NAVIGATION));
+    const goods = mega.find(group => group.heading === '굿즈샵');
+    expect(goods?.items).toEqual([{ id: 'new', label: 'NEW' }, { id: 'best', label: 'BEST' }, { id: 'shop', label: '전체 굿즈' }]);
+    expect(mega.flatMap(group => group.items).map(item => item.label)).not.toContain('카테고리');
   });
 });

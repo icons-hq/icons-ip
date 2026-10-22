@@ -151,10 +151,13 @@
    헤더 행 (로고 · 아이콘)
    ------------------------------------------------------------------ */
 
+/* CH-03 — GNB와 축약 헤더 아래에 1px 헤어라인을 둔다(데스크톱 펼침 123 / 축약 69, 모바일 고정 시 52).
+   레퍼런스 실측값은 #F0F2F4지만 WC 토큰에 같은 값이 없어 line.hairline(#EBEDEE)을 쓴다 — 그림자는 쓰지 않는다. */
 .wc-header {
   position: sticky;
   top: 0;
   z-index: 3;
+  border-bottom: 1px solid var(--wc-hairline);
   background: var(--wc-surface);
 }
 
