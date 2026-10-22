@@ -23,6 +23,14 @@
   .wc-root {
     --wc-sticky-chrome-h: 69px;
   }
+
+  /* 데스크톱 헤더가 펼친 동안은 화면 위 크롬이 펼침 높이 123이다 — 스크롤 150 이하(B1)이거나, 축약 중 키보드가
+     헤더로 들어와 GNB를 되돌린 동안(아래 data-condensed 규칙). 지면 맨 위에서 곧바로 붙는 sticky(캠페인 앵커 내브)가
+     펼친 헤더(z 3) 뒤로 숨지 않게 같은 높이를 따른다. GNB는 .3s로 접히고 펴지므로 소비자는 top에 같은 전환을 둔다. */
+  body:has(.wc-header[data-condensed='false']) .wc-root,
+  body:has(.wc-header[data-condensed='true'] :is(.wc-header__bar, .wc-gnb-wrap) :focus-visible) .wc-root {
+    --wc-sticky-chrome-h: 123px;
+  }
 }
 
 /* 래퍼가 박스를 만들면 sticky 헤더가 body가 아니라 이 래퍼를 기준으로 붙어 버린다.

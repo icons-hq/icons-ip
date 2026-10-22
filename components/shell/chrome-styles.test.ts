@@ -139,6 +139,18 @@ describe('모바일 하단 탭바 숨김 (B3·MC-03)', () => {
   });
 });
 
+describe('표면 sticky 기준 높이 (--wc-sticky-chrome-h)', () => {
+  /* 지면 맨 위에서 곧바로 붙는 sticky(캠페인 앵커 내브)는 헤더가 접히기 전(스크롤 150 이하)에 붙는다 — 그동안 기준이
+     축약 높이(69)면 펼친 헤더(123, z 3) 뒤로 숨는다. */
+  it('모바일 52, 데스크톱 축약 69, 데스크톱 헤더가 펼친 동안 123', () => {
+    expect(declsFor('.wc-root')['--wc-sticky-chrome-h']).toBe('52px');
+    expect(declsFor('.wc-root', DESKTOP)['--wc-sticky-chrome-h']).toBe('69px');
+    expect(declsFor("body:has(.wc-header[data-condensed='false']) .wc-root", DESKTOP)['--wc-sticky-chrome-h']).toBe('123px');
+    /* 축약 중이어도 키보드가 헤더로 들어와 GNB를 되돌린 동안은 펼친 높이다(검색 패널 안 포커스는 제외 — GNB 규칙과 같은 조건). */
+    expect(declsFor("body:has(.wc-header[data-condensed='true'] :is(.wc-header__bar, .wc-gnb-wrap) :focus-visible) .wc-root", DESKTOP)['--wc-sticky-chrome-h']).toBe('123px');
+  });
+});
+
 describe('모바일 푸터 순서 (CH-15)', () => {
   /* 로고 → 회사·정책 → 고객센터(사업자 정보 포함) → 소개·SNS → 링크 → 스태프 블록 → 저작권.
      CSS order 는 화면 순서와 읽기·포커스 순서를 갈라놓는다(WCAG 1.3.2·2.4.3) — 순서는 마크업이 갖고
