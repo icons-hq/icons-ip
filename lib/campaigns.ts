@@ -101,20 +101,27 @@ export type CampaignSection =
    - `/` 로 시작해야 한다 — 스킴(`https:`·`javascript:`)과 도메인 주소가 여기서 걸러진다.
    - `//` 로 시작하면 브라우저가 다른 호스트(프로토콜 상대 주소)로 읽는다.
    - 역슬래시·공백·제어문자는 어디에도 둘 수 없다. 브라우저 URL 파서가 `\`를 `/`로 바꾸고
-     탭·줄바꿈을 지워서 `/\evil.example`·`/<TAB>/evil.example`이 `//evil.example`이 된다. */
+     탭·줄바꿈을 지워서 `/\evil.example`·`/<TAB>/evil.example`이 `//evil.example`이 된다.
+   - `.`·`..` 경로 조각(`%2e` 포함)도 거절한다. `/..//evil.example`은 같은 출처지만 정규화된
+     pathname 이 `//evil.example`이 되어, pathname 을 다시 주소로 읽는 소비자(라우터 history 등)가
+     프로토콜 상대 주소로 오해한다.
+   - 길이는 DB char_length 처럼 코드 포인트로 센다(UTF-16 길이로 세면 DB 가 받은 값을 버린다). */
 
 export const CAMPAIGN_CTA_LABEL_MAX_LENGTH = 30;
 export const CAMPAIGN_CTA_HREF_MAX_LENGTH = 300;
 
 const CAMPAIGN_HREF_FORBIDDEN = /[\u0000-\u0020\u007f\\]/;
+const CAMPAIGN_HREF_DOT_SEGMENT = /(^|\/)(\.|%2e){1,2}(\/|[?#]|$)/i;
 
 export function isCampaignInternalHref(value: string): boolean {
+  const length = Array.from(value).length;
   return (
-    value.length >= 1
-    && value.length <= CAMPAIGN_CTA_HREF_MAX_LENGTH
+    length >= 1
+    && length <= CAMPAIGN_CTA_HREF_MAX_LENGTH
     && value.startsWith('/')
     && !value.startsWith('//')
     && !CAMPAIGN_HREF_FORBIDDEN.test(value)
+    && !CAMPAIGN_HREF_DOT_SEGMENT.test(value)
   );
 }
 

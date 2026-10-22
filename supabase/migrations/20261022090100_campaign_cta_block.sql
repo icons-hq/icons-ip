@@ -12,6 +12,10 @@
 --   - 역슬래시·공백·제어문자(0x01–0x20, 0x7F)는 어디에도 둘 수 없다. 브라우저 URL 파서가
 --     `\`를 `/`로 바꾸고 탭·줄바꿈을 지우므로 `/\evil.example`·`/<TAB>/evil.example`이
 --     `//evil.example`로 바뀐다.
+--   - `.`·`..` 경로 조각(`%2e` 포함, 대소문자 무시)도 받지 않는다. `/..//evil.example`은 같은
+--     출처지만 정규화된 pathname 이 `//evil.example`이 되어, pathname 을 다시 주소로 읽는
+--     소비자가 프로토콜 상대 주소로 오해한다.
+--   - label 은 공백만으로 채울 수 없다(그릴 문구가 없는 버튼).
 --
 -- ## 바뀌는 것은 private 검증 함수 하나다
 --
@@ -176,10 +180,17 @@ begin
          left(v_section ->> 'href', 1) <> '/'
          or left(v_section ->> 'href', 2) = '//'
          or (v_section ->> 'href') ~ '[\x01-\x20\x7f\\]'
+         or (v_section ->> 'href') ~* '(^|/)(\.|%2e){1,2}(/|[?#]|$)'
        ) then
       raise exception 'invalid_sections'
         using errcode = '22023',
           detail = format('sections[%s].href: must be an internal path starting with /', v_index);
+    end if;
+
+    if v_type = 'cta' and btrim(v_section ->> 'label', E' \t\n\r\f\v') = '' then
+      raise exception 'invalid_sections'
+        using errcode = '22023',
+          detail = format('sections[%s].label: must not be blank', v_index);
     end if;
 
     if v_type = 'goods'

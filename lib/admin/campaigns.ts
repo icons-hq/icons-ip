@@ -120,6 +120,8 @@ export interface AdminCampaignSectionField {
   maxLength: number;
   minItems?: number;
   maxItems?: number;
+  /** 공백만 든 값을 거절한다(화면에 아무것도 그릴 수 없는 버튼 문구 등). DB 도 같은 키를 막는다. */
+  nonBlank?: boolean;
 }
 
 export interface AdminCampaignSectionSpec {
@@ -202,7 +204,7 @@ const SECTION_SPECS = [
     type: 'cta',
     label: '이동 버튼',
     fields: [
-      { key: 'label', kind: 'text', required: true, maxLength: CAMPAIGN_CTA_LABEL_MAX_LENGTH },
+      { key: 'label', kind: 'text', required: true, maxLength: CAMPAIGN_CTA_LABEL_MAX_LENGTH, nonBlank: true },
       { key: 'href', kind: 'internalPath', required: true, maxLength: CAMPAIGN_CTA_HREF_MAX_LENGTH },
     ],
   },
@@ -256,7 +258,7 @@ export type AdminCampaignSectionsResult =
 
 /** 이동 버튼 링크 오류 안내. 어드민 가이드 오류 표(troubleshooting)가 이 문구를 인용한다. */
 export const CAMPAIGN_INTERNAL_PATH_MESSAGE =
-  '/로 시작하는 ICONS 내부 경로여야 합니다. 외부 주소(https://…, //…)와 공백·역슬래시는 넣을 수 없습니다.';
+  '/로 시작하는 ICONS 내부 경로여야 합니다. 외부 주소(https://…, //…), 공백·역슬래시, ./.. 경로 조각은 넣을 수 없습니다.';
 
 function sectionValueError(index: number, key: string, detail: string) {
   return `${index + 1}번째 블록의 ${key}: ${detail}`;
@@ -290,6 +292,10 @@ function validateSectionField(
 
   if (typeof value !== 'string' || value.length < 1 || value.length > field.maxLength) {
     return sectionValueError(index, field.key, `1~${field.maxLength}자 문자열이어야 합니다.`);
+  }
+
+  if (field.nonBlank && !value.trim()) {
+    return sectionValueError(index, field.key, '공백만으로는 쓸 수 없습니다.');
   }
 
   if (field.kind === 'uuid' && !UUID_PATTERN.test(value)) {

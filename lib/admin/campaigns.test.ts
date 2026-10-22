@@ -249,6 +249,8 @@ describe('parseAdminCampaignSections — cta 블록', () => {
     ['상대 경로', 'shop'],
     ['빈 문자열', ''],
     ['너무 긴 경로', `/${'a'.repeat(300)}`],
+    ['경로 조각 우회', '/..//evil.example'],
+    ['인코딩된 경로 조각', '/%2e//evil.example'],
   ])('%s(%s)는 거절한다', (_reason, href) => {
     const result = cta(href);
 
@@ -267,6 +269,10 @@ describe('parseAdminCampaignSections — cta 블록', () => {
   });
 
   it('버튼 문구는 1~30자 문자열이고 필수다', () => {
+    const blank = parseAdminCampaignSections(JSON.stringify([{ type: 'cta', label: '   ', href: '/shop' }]));
+    expect(blank.ok).toBe(false);
+    if (!blank.ok) expect(blank.message).toContain('label');
+
     const missing = parseAdminCampaignSections('[{"type":"cta","href":"/shop"}]');
     const tooLong = parseAdminCampaignSections(JSON.stringify([{ type: 'cta', label: '가'.repeat(31), href: '/shop' }]));
     const longest = parseAdminCampaignSections(JSON.stringify([{ type: 'cta', label: '가'.repeat(30), href: '/shop' }]));

@@ -205,10 +205,28 @@ describe('isCampaignInternalHref', () => {
     ['shop', '상대 경로'],
     ['', '빈 값'],
     [`/${'a'.repeat(300)}`, '300자 초과'],
+    /* 같은 출처지만 정규화된 pathname 이 // 로 시작한다 — pathname 을 다시 주소로 읽는 소비자가 오해한다. */
+    ['/..//evil.example', '.. 경로 조각'],
+    ['/.//evil.example', '. 경로 조각'],
+    ['/%2E%2e//evil.example', '인코딩된 경로 조각'],
+    ['/shop/..', '끝의 .. 조각'],
+    ['/shop/.?x=1', '쿼리 앞 . 조각'],
   ])('%s 를 거절한다(%s)', (href) => expect(isCampaignInternalHref(href)).toBe(false));
 
   it('300자까지 받는다', () => {
     expect(isCampaignInternalHref(`/${'a'.repeat(299)}`)).toBe(true);
+  });
+
+  /* DB char_length 와 같은 단위 — UTF-16 으로 세면 DB 가 받은 이모지 경로를 화면이 버린다. */
+  it('길이는 코드 포인트로 센다', () => {
+    expect(isCampaignInternalHref(`/${'😀'.repeat(299)}`)).toBe(true);
+    expect(isCampaignInternalHref(`/${'😀'.repeat(300)}`)).toBe(false);
+  });
+
+  it('점으로 시작하는 이름은 경로 조각이 아니다', () => {
+    expect(isCampaignInternalHref('/.well-known/x')).toBe(true);
+    expect(isCampaignInternalHref('/shop/...')).toBe(true);
+    expect(isCampaignInternalHref('/search?q=..')).toBe(true);
   });
 });
 

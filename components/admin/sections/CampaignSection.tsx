@@ -91,7 +91,7 @@ function SectionSchemaHelp() {
           <code>cta</code>는 이동 버튼입니다. <code>label</code>은 버튼 문구(1~{CAMPAIGN_CTA_LABEL_MAX_LENGTH}자),
           {' '}<code>href</code>는 <code>/</code>로 시작하는 ICONS 내부 경로(예: <code>/shop</code>,
           {' '}<code>/events/autumn-attendance</code>)만 받습니다. 외부 주소(<code>https://…</code>,
-          {' '}<code>{'//…'}</code>)와 공백·역슬래시가 든 주소는 저장되지 않습니다.
+          {' '}<code>{'//…'}</code>), 공백·역슬래시가 든 주소, <code>.</code>·<code>..</code> 경로 조각은 저장되지 않습니다.
         </p>
         <pre className="admin-campaign-help-sample">
 {`[

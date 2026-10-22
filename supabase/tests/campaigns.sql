@@ -450,6 +450,13 @@ begin
     '[{"type":"cta","label":"보러 가기","href":"/\t/evil.example"}]'::jsonb,
     '[{"type":"cta","label":"보러 가기","href":"/shop\nx"}]'::jsonb,
     '[{"type":"cta","label":"보러 가기","href":"/sh op"}]'::jsonb,
+    -- 정규화된 pathname 이 // 로 시작하게 되는 경로 조각(. / .. / %2e)
+    '[{"type":"cta","label":"보러 가기","href":"/..//evil.example"}]'::jsonb,
+    '[{"type":"cta","label":"보러 가기","href":"/.//evil.example"}]'::jsonb,
+    '[{"type":"cta","label":"보러 가기","href":"/%2E%2e//evil.example"}]'::jsonb,
+    '[{"type":"cta","label":"보러 가기","href":"/shop/.."}]'::jsonb,
+    -- 공백만 든 버튼 문구
+    '[{"type":"cta","label":"   ","href":"/shop"}]'::jsonb,
     -- 상대 경로·빈 값·타입 오류
     '[{"type":"cta","label":"보러 가기","href":"shop"}]'::jsonb,
     '[{"type":"cta","label":"보러 가기","href":""}]'::jsonb,
