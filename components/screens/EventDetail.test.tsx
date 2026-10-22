@@ -213,6 +213,8 @@ describe('EventDetail', () => {
     expect(html).toContain('<dt>기간</dt><dd>7.25 - 7.28</dd>');
     expect(html).toContain('<dt>장소</dt><dd>성수 ICONS 스튜디오</dd>');
     expect(html).toContain('href="/offline-popups"');
+    /* 목록의 피처드 블록을 걷어 낸 뒤 IP 관으로 가는 길은 상세 머리에 남는다. */
+    expect(html).toContain('<a class="wc-offline-detail__ip" href="/ip/ip100">화산강림</a>');
     for (const legacy of ['btn-holo', 'btn-ghost', 'h-xl', 'mono', 'checkout-step', 'event-booking-layout', 'sheen', '#0A0813', 'class="sr-only"']) {
       expect(html, legacy).not.toContain(legacy);
     }

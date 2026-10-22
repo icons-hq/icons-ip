@@ -436,7 +436,7 @@ protected-boundaries:
 | 일괄 액션 | 기존 `ConsoleBulkActionBar`를 `wc-admin-kit` 안에서 재사용. 선택 0건이면 숨김, 위험 액션 확인은 소유 폼이 처리. |
 | 사이드 패널 | `AdminSidePanel`: 제목·닫기 링크/액션·내용. 흐름 안의 aside로 본문 접근 유지, modal로 선언하지 않는다. |
 
-키트는 `components/admin/console/AdminKit.tsx`에서 직접 가져온다. 공개 보존 표면 3곳의 바탕·폰트·입력·한글 줄바꿈은 각 격리 CSS 안에 정의한다. 카드 foil은 `lib/rarity.ts`의 카드 물성 상수이며 페이지 테마 변수에 의존하지 않는다.
+키트는 `components/admin/console/AdminKit.tsx`에서 직접 가져온다. 공개 보존 표면(`/about`)의 바탕·폰트·입력·한글 줄바꿈은 그 격리 CSS(about-legacy) 안에 정의한다. 카드 foil은 `lib/rarity.ts`의 카드 물성 상수이며 페이지 테마 변수에 의존하지 않는다.
 
 - `wc-product-mosaic.css`는 공개 홈의 상품 모자이크와 격리된 공개 미리보기만 소유한다. 관리자 폼의 제어 스타일은 `admin-store-editor.css`에 둔다.
 - `wc-product-collection.css`는 공개 홈 자유상품의 리스트·풀이미지 열 수와 구성별 썸네일 비율만 소유한다. 기존 BEST 탭·모자이크·일반 상품목록의 전역 카드 스타일은 변경하지 않는다.

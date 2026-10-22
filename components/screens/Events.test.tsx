@@ -44,6 +44,8 @@ function render(events: FandomEvent[], extra: Partial<Parameters<typeof Events>[
 /** 카드 본체 링크 하나의 마크업 — 카드 아래 보조 링크와 가른다. */
 function cardLinkHtml(html: string, id: string) {
   const start = html.indexOf(`<a class="wc-offline-card__link" href="/offline-popups/${id}">`);
+  /* 마커를 못 찾으면 빈 문자열로 접혀 not.toContain 단언이 공허하게 통과한다 — 여기서 막는다. */
+  expect(start, `카드 링크 ${id}`).toBeGreaterThanOrEqual(0);
   return html.slice(start, html.indexOf('</a>', start) + 4);
 }
 

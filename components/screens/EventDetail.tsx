@@ -10,6 +10,7 @@ import { OfflinePopupStateBadge } from '@/components/screens/Events';
 import type { FandomEvent, Ip } from '@/lib/data';
 import { krw } from '@/lib/format';
 import type { IpFollowState } from '@/lib/ip-follow';
+import { hrefFor } from '@/lib/routes';
 import type { PublicTicketType } from '@/lib/ticketing.server';
 
 /* 오프라인 팝업 상세 (DESIGN §8 오프라인 팝업 · 11 §8 EV-04).
@@ -215,7 +216,9 @@ export function EventDetail({
           <div className="wc-offline-detail__info">
             <header className="wc-offline-detail__head">
               <p className="wc-offline-detail__badges">
-                {ip ? <span className="wc-offline-detail__ip">{ip.title}</span> : null}
+                {/* IP 관으로 가는 길은 이 화면에 남긴다 — 목록의 피처드 블록("이 세계 더 보기")을
+                    걷어 낸 뒤 오프라인 팝업에서 IP 로 넘어가는 유일한 링크다. */}
+                {ip ? <Link className="wc-offline-detail__ip" href={hrefFor('ip', ip)}>{ip.title}</Link> : null}
                 <span className="wc-offline-detail__kind">{event.mode}</span>
                 <OfflinePopupStateBadge status={event.status} />
               </p>

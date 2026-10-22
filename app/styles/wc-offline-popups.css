@@ -382,11 +382,17 @@
   margin: 0 0 10px;
 }
 
+/* IP 관 링크 — 글자 링크라 밑줄로 링크임을 알리고, 터치 높이는 최소 24px(WCAG 2.5.8)을 둔다. */
 .wc-offline-detail__ip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
   font-size: 12px;
   font-weight: 700;
   line-height: 1.5;
-  color: var(--wc-ink-tertiary);
+  color: var(--wc-ink-sub);
+  text-decoration: underline;
+  text-underline-offset: 3px;
 }
 
 .wc-offline-detail__kind {
@@ -634,6 +640,29 @@
 .wc-offline-buybox__qty .wc-stepper__btn:disabled {
   color: var(--wc-ink-disabled);
   cursor: not-allowed;
+}
+
+/* 스테퍼 버튼의 그림은 30×30(파운데이션)이지만 터치 영역은 44×44로 넓힌다(DESIGN §10) —
+   가운데 입력칸을 덮지 않게 바깥쪽으로만 늘린다. */
+.wc-offline-buybox__qty .wc-stepper__btn {
+  position: relative;
+}
+
+.wc-offline-buybox__qty .wc-stepper__btn::after {
+  content: '';
+  position: absolute;
+  top: -7px;
+  bottom: -7px;
+}
+
+.wc-offline-buybox__qty .wc-stepper__btn:first-child::after {
+  left: -14px;
+  right: 0;
+}
+
+.wc-offline-buybox__qty .wc-stepper__btn:last-child::after {
+  left: 0;
+  right: -14px;
 }
 
 /* 합계 — 위 1px 잉크 선, "결제 금액" 14/700 + 금액 18/700(R-04 §3.7). */
