@@ -204,7 +204,7 @@ grid **2열 451px, gap 20(행)/18(열)**. 카드 451×141: 1px `#DCDEE0`, r2, p 
 | CH-13 | 인증 화면 전역 크롬 | 헤더·푸터, 모바일 서브헤더 + 탭바 | 독립 셸(`lib/routes.ts:146-160`) — 구 숨김 조건 잔존 | DRIFT | P1 | L3 ✅ #587 |
 | CH-14 | 404 | 일러스트 + 18/700 + 2CTA 260×56(이전 페이지 잉크 / 메인 아웃라인) | 단일 CTA 220×50(`app/not-found.tsx:5-21`) | GAP-UI(+일러스트 LG-7) | P2 | L3 일부 #587 — 2CTA 260×56, 일러스트는 LG-7 |
 | CH-15 | 푸터 | 모바일: 로고 → 정책 3 → 고객센터 → 사업자 정보 **기본 펼침** → SNS → 링크 → 저작권 | 모바일: 정책 2열 → 로고 → … 사업자 접힘. SNS·로고 미입력 | GAP-UI·GAP-DATA(LG-8) | P2 | L3 일부 #587 — 모바일 순서·사업자 정보 펼침, 로고·SNS 값은 LG-8 |
-| CH-16 | 문의 런처 겹침 | 런처 숨김(PDP) | 데스크톱 PDP 미니 구매바(z90)와 런처(z10)가 같은 우하단 24px, 모바일은 바 위에서 본문을 가림, 701–989px은 탭바·구매바와 겹침(`app/styles/wc-inquiry-widget.css:2,44-45`) | DRIFT | P1 | L1 |
+| CH-16 | 문의 런처 겹침 | 런처 숨김(PDP) | 데스크톱 PDP 미니 구매바(z90)와 런처(z10)가 같은 우하단 24px, 모바일은 바 위에서 본문을 가림, 701–989px은 탭바·구매바와 겹침(`app/styles/wc-inquiry-widget.css:2,44-45`) | DRIFT | P1 | L1 ✅ #588 |
 
 ### 8.2 모바일 크롬
 
@@ -254,26 +254,26 @@ grid **2열 451px, gap 20(행)/18(열)**. 카드 451×141: 1px `#DCDEE0`, r2, p 
 
 | ID | 항목 | LFS | ICONS 현재(근거) | 분류 | P | 단계 |
 |---|---|---|---|---|---|---|
-| PD-01 | **모바일 구매 바텀시트** | Δ2·B14 | 본문 인라인 폼 + 바가 직접 담기/구매. 다옵션 굿즈는 미선택이면 바 버튼 비활성(`components/shop/GoodPurchasePanel.tsx:181,220,436-456`). 운영에 다옵션 굿즈가 아직 0건이라 라이브 증상은 없다 | LFS-Δ | **P0** | L1 |
-| PD-02 | **담기 결과 모달** | B10 | `role=status` 한 줄(`GoodPurchasePanel.tsx:36,288-292,409-411`) | GAP-UI | **P0** | L1 |
-| PD-03 | **데스크톱 플로팅 구매 UI** | Δ3(레일 안 sticky 박스 + 합계, 추정) | 뷰포트 fixed 우하단 24(1180 칼럼 밖), z90, 합계 없음. 탭 래퍼가 화면과 겹치면 노출되므로 짧은 상세는 첫 화면부터 본문 CTA와 중복되고 런처·푸터를 덮는다(`components/screens/GoodDetail.tsx:284-296`, `wc-catalog.css:1767-1773`; 라이브 `/shop/g4` 확인) | 스펙 추종(R-04 §5.5·`DESIGN.md:273`) + 결함 | **P0** | L1 |
-| PD-04 | **모바일 갤러리 폭** | 풀블리드 | 16px 안쪽(`GoodDetail.tsx:363-365`, `wc-foundation.css:75-79`) | DRIFT | **P0** | L1 |
-| PD-05 | 하부 탭 레이아웃 | 탭바 1440 전폭 + 패널 840 + 레일 340 | 탭 목록 1180, 패널 840, 레일 없음(`wc-catalog.css:997-1025`) | DRIFT | P1 | L1 |
-| PD-06 | 4번째 탭 | Δ4 아코디언 4 | '배송·교환 안내' 리스트, 고시는 상세 패널(`GoodDetail.tsx:303-357`), 모바일 탭 라벨 잘림. 판매자 정보 칸은 사업자 정보 확정(LG-8, #239)에 의존 | LFS-Δ | P1 | L1 |
-| PD-07 | 공유 | B12 | 없음(ADR-0011 T-A 약속 미이행) | DRIFT | P1 | L1 |
-| PD-08 | 품절 굿즈 합계 | 가격으로 합계 표시 | "옵션 선택 후 표시"(`lib/goods-options.ts:46-48`이 재고 0이면 자동 선택 안 함) | DRIFT(결함) | P1 | L1 |
-| PD-09 | 브랜드 칩 | 446×82 카드(`#FAFAFA`, 1px `#EBEDEE`) + 배너 150×80 | 텍스트 한 줄(`wc-catalog.css:685-695`) | GAP-UI | P1 | L1 |
+| PD-01 | **모바일 구매 바텀시트** | Δ2·B14 | 본문 인라인 폼 + 바가 직접 담기/구매. 다옵션 굿즈는 미선택이면 바 버튼 비활성(`components/shop/GoodPurchasePanel.tsx:181,220,436-456`). 운영에 다옵션 굿즈가 아직 0건이라 라이브 증상은 없다 | LFS-Δ | **P0** | L1 ✅ #588 |
+| PD-02 | **담기 결과 모달** | B10 | `role=status` 한 줄(`GoodPurchasePanel.tsx:36,288-292,409-411`) | GAP-UI | **P0** | L1 ✅ #588 |
+| PD-03 | **데스크톱 플로팅 구매 UI** | Δ3(레일 안 sticky 박스 + 합계, 추정) | 뷰포트 fixed 우하단 24(1180 칼럼 밖), z90, 합계 없음. 탭 래퍼가 화면과 겹치면 노출되므로 짧은 상세는 첫 화면부터 본문 CTA와 중복되고 런처·푸터를 덮는다(`components/screens/GoodDetail.tsx:284-296`, `wc-catalog.css:1767-1773`; 라이브 `/shop/g4` 확인) | 스펙 추종(R-04 §5.5·`DESIGN.md:273`) + 결함 | **P0** | L1 ✅ #588 |
+| PD-04 | **모바일 갤러리 폭** | 풀블리드 | 16px 안쪽(`GoodDetail.tsx:363-365`, `wc-foundation.css:75-79`) | DRIFT | **P0** | L1 ✅ #588 |
+| PD-05 | 하부 탭 레이아웃 | 탭바 1440 전폭 + 패널 840 + 레일 340 | 탭 목록 1180, 패널 840, 레일 없음(`wc-catalog.css:997-1025`) | DRIFT | P1 | L1 ✅ #588 |
+| PD-06 | 4번째 탭 | Δ4 아코디언 4 | '배송·교환 안내' 리스트, 고시는 상세 패널(`GoodDetail.tsx:303-357`), 모바일 탭 라벨 잘림. 판매자 정보 칸은 사업자 정보 확정(LG-8, #239)에 의존 | LFS-Δ | P1 | L1 ✅ #588 — 판매자 정보 값은 LG-8 |
+| PD-07 | 공유 | B12 | 없음(ADR-0011 T-A 약속 미이행) | DRIFT | P1 | L1 ✅ #588 |
+| PD-08 | 품절 굿즈 합계 | 가격으로 합계 표시 | "옵션 선택 후 표시"(`lib/goods-options.ts:46-48`이 재고 0이면 자동 선택 안 함) | DRIFT(결함) | P1 | L1 ✅ #588 |
+| PD-09 | 브랜드 칩 | 446×82 카드(`#FAFAFA`, 1px `#EBEDEE`) + 배너 150×80 | 텍스트 한 줄(`wc-catalog.css:685-695`) | GAP-UI | P1 | L1 ✅ #588 |
 | PD-10 | 다옵션 기본 선택·품절 옵션 선택 | B9 | placeholder, 품절 disabled, 미선택 CTA 비활성(`GoodPurchasePanel.tsx:43-46,165-181,363-374`) — #427 수용 기준("품절 옵션은 선택 불가")을 따른 구현 | 문서 간 충돌(#427 AC ↔ `DESIGN.md:271` `restock-cta`) | P1 | L2(LD-5) |
 | PD-11 | 옵션 단위 재입고 | B11 | 굿즈 단위(`supabase/migrations/20260828100200_restock_alerts.sql:18-31`) | GAP-DATA | P1 | L2 |
-| PD-12 | 합계 위 1px 잉크 선 · 2CTA 실측 27:73 · 별점 행('N개 리뷰보기' → 리뷰 탭) · 재고 라벨 | B13 | 선 없음 · 실측 30:70 · '0.0 리뷰 0건' · '품절임박' 라벨 | DRIFT·GAP-UI | P2 | L1 |
-| PD-13 | 탭 클릭 시 탭바로 스크롤 | B13 | 없음(`components/wc/TabPanels.tsx:28-31` — 홈·이벤트 허브도 같은 컴포넌트 사용) | GAP-UI | P2 | L1(opt-in prop) |
-| PD-14 | 옵션 URL 동기화 | `?variant=` | 없음 | GAP-UI | P2 | L1 |
-| PD-15 | 가격 라벨·SALE 배지 파생 | 정가/할인가 라벨 | 라벨 없음, 할인율 표시를 꺼도 SALE 배지 잔존(`lib/goods-taxonomy.ts:38-48`) | DRIFT | P2 | L1 |
+| PD-12 | 합계 위 1px 잉크 선 · 2CTA 실측 27:73 · 별점 행('N개 리뷰보기' → 리뷰 탭) · 재고 라벨 | B13 | 선 없음 · 실측 30:70 · '0.0 리뷰 0건' · '품절임박' 라벨 | DRIFT·GAP-UI | P2 | L1 ✅ #588 |
+| PD-13 | 탭 클릭 시 탭바로 스크롤 | B13 | 없음(`components/wc/TabPanels.tsx:28-31` — 홈·이벤트 허브도 같은 컴포넌트 사용) | GAP-UI | P2 | L1(opt-in prop) ✅ #588 |
+| PD-14 | 옵션 URL 동기화 | `?variant=` | 없음 | GAP-UI | P2 | L1 ✅ #588 |
+| PD-15 | 가격 라벨·SALE 배지 파생 | 정가/할인가 라벨 | 라벨 없음, 할인율 표시를 꺼도 SALE 배지 잔존(`lib/goods-taxonomy.ts:38-48`) | DRIFT | P2 | L1 ✅ #588 |
 | PD-16a | 띠배너 위치 | 상세 탭 첫 블록은 739×170 **이미지 쿠폰 캐러셀**(R-04 §5.3) | 대표 이미지 바로 위 **텍스트 배너**(스마트스토어 대조, `components/shop/ProductDetailPresentation.tsx:9-12`) | INTENTIONAL — 서로 다른 장치라 옮겨도 같아지지 않는다 | — | — |
-| PD-16b | 추천 블록 위치 | 상세 패널 끝(관련 상품 4열) | 탭 위(`GoodDetail.tsx:404-412`, 스마트스토어 대조) | GAP-UI(LD-6 확정: 상세 패널 끝) | P2 | L1 |
-| PD-17 | 구조화 데이터 | JSON-LD Product·Breadcrumb, og:price·image | title·description만(`app/shop/[goodId]/page.tsx:44-55`) | GAP-UI | P2 | L1 |
+| PD-16b | 추천 블록 위치 | 상세 패널 끝(관련 상품 4열) | 탭 위(`GoodDetail.tsx:404-412`, 스마트스토어 대조) | GAP-UI(LD-6 확정: 상세 패널 끝) | P2 | L1 ✅ #588 |
+| PD-17 | 구조화 데이터 | JSON-LD Product·Breadcrumb, og:price·image | title·description만(`app/shop/[goodId]/page.tsx:44-55`) | GAP-UI | P2 | L1 ✅ #588 — 카카오 수집기는 Next 봇 목록 밖(후속) |
 | PD-18 | Q&A 탭 | 채팅 메신저 | 공개 Q&A | INTENTIONAL(R-08 B3) — 적용 안 함 | — | — |
-| PD-19 | 상세 패널의 브랜드 스토리·브랜드 카드 | 상세 이미지 뒤 브랜드 스토리, 판매자 정보 뒤 브랜드 카드 | 없음 — IP 이름·소개·이미지 데이터는 있음 | GAP-UI | P2 | L1 |
+| PD-19 | 상세 패널의 브랜드 스토리·브랜드 카드 | 상세 이미지 뒤 브랜드 스토리, 판매자 정보 뒤 브랜드 카드 | 없음 — IP 이름·소개·이미지 데이터는 있음 | GAP-UI | P2 | L1 ✅ #588 |
 
 ### 8.5 카트·인증
 

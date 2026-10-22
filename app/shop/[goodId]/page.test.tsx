@@ -10,6 +10,7 @@ const summary = { average: 4.5, count: 3, distribution: [0, 0, 0, 1, 2], photoCo
 const mocks = vi.hoisted(() => ({
   details: [] as CatalogGoodDetail[],
   shipping: vi.fn(async () => ({originId:'gimpo',originName:'김포',baseFee:4700,freeThreshold:62000,feeType:'policy',individualFee:0})),
+  businessInfo: vi.fn(async () => ({ companyName: '(주)아이콘스', representative: '', registrationNumber: '109-86-27576', mailOrderNumber: '', address: '', phone: '', email: '', hostingProvider: 'Vercel, Inc.' })),
   engagement: vi.fn(async () => ({ restockRequested: false, wished: true })),
   goodDetail: vi.fn<(props: Record<string, unknown>) => null>(() => null),
   goodQna: vi.fn<(props: Record<string, unknown>) => null>(() => null),
@@ -41,6 +42,7 @@ vi.mock('@/lib/product-questions.server', () => ({ loadGoodQuestions: mocks.ques
 vi.mock('@/lib/reviews.server', () => ({ loadGoodReviewSection: mocks.reviewSection }));
 vi.mock('@/lib/wishlist.server', () => ({ getGoodEngagement: mocks.engagement }));
 vi.mock('@/lib/fulfillment.server', () => ({loadGoodShippingPolicy:mocks.shipping}));
+vi.mock('@/lib/legal/business-info.server', () => ({ getBusinessInfo: mocks.businessInfo }));
 vi.mock('@/lib/product-detail-experiences.server', () => ({ loadPublicDetailExperience: async () => null }));
 vi.mock('@/lib/goods-media.server', () => ({ loadPublicGoodMedia: async () => null }));
 vi.mock('@/lib/good-announcements.server', () => ({ loadGoodAnnouncements: async () => ({ items: [], nextChangeAt: null }) }));
@@ -118,6 +120,14 @@ describe('/shop/[goodId] page', () => {
     expect(mocks.sizeChart).toHaveBeenCalledWith('g13');
     expect(mocks.shipping).toHaveBeenCalledWith('g13');
     expect(mocks.goodDetail.mock.calls[0]?.[0]?.shippingPolicy).toMatchObject({baseFee:4700,freeThreshold:62000});
+  });
+
+  /* PD-06 — 추가정보 탭의 판매자 정보는 푸터와 같은 공개 사업자 정보 소스에서 온다. */
+  it('추가정보 탭의 판매자 정보로 공개 사업자 정보를 넘긴다', async () => {
+    renderToStaticMarkup(await Page({ params: Promise.resolve({ goodId: 'g13' }), searchParams: Promise.resolve({}) }));
+
+    expect(mocks.businessInfo).toHaveBeenCalled();
+    expect(mocks.goodDetail.mock.calls[0]?.[0]?.sellerInfo).toMatchObject({ companyName: '(주)아이콘스', registrationNumber: '109-86-27576' });
   });
 
   it('별도 공개 게이트를 통과한 사이즈 안내를 같은 상품 상세에 전달한다', async () => {
@@ -215,6 +225,50 @@ describe('/shop/[goodId] page', () => {
    * not-found 바운더리가 그 제목을 버리므로 브라우저에 절대 도달하지 않는
    * 죽은 분기가 되고, 테스트만 통과해 404 탭 제목을 오해하게 만든다.
    */
+  /* PD-17 — 공유 미리보기 이미지·가격. 상대 이미지 주소는 사이트 기준 절대 주소로 펼친다. */
+  it('Open Graph 제목·이미지·주소를 내고 type·가격은 metadata 에 두지 않는다', async () => {
+    vi.stubEnv('SITE_URL', 'https://iconsip.test');
+    try {
+      mocks.details = [{ ...detailFor('g13', '아크릴 블록', 12000), good: { ...detailFor('g13', '아크릴 블록', 12000).good, img: 'url("/generated/goods/g13.png") center / cover no-repeat' } },
+        detailFor('g14', '오로라 아크릴 키링', 9000)];
+      const metadata = await generateMetadata({ params: Promise.resolve({ goodId: 'g13' }), searchParams: Promise.resolve({}) });
+
+      expect(metadata.openGraph).toMatchObject({
+        siteName: 'ICONS', title: '아크릴 블록', url: 'https://iconsip.test/shop/g13',
+        images: [{ url: 'https://iconsip.test/generated/goods/g13.png', alt: '아크릴 블록' }],
+      });
+      /* og:type=product 와 og:price:* 는 property 속성이어야 수집기가 읽는다 — metadata(other 는 name 속성)로 내지 않는다. */
+      expect(metadata.openGraph).not.toHaveProperty('type');
+      expect(metadata).not.toHaveProperty('other');
+      /* 이미지가 없는 굿즈(gradient 대체 아트)는 og:image 를 내지 않는다. */
+      const keyring = await generateMetadata({ params: Promise.resolve({ goodId: 'g14' }), searchParams: Promise.resolve({}) });
+      expect(keyring.openGraph).not.toHaveProperty('images');
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
+  it('공개 상세에 JSON-LD Product·BreadcrumbList 를 싣는다', async () => {
+    vi.stubEnv('SITE_URL', 'https://iconsip.test');
+    try {
+      const html = renderToStaticMarkup(await Page({ params: Promise.resolve({ goodId: 'g13' }), searchParams: Promise.resolve({}) }));
+      const scripts = [...html.matchAll(/<script type="application\/ld\+json">(.*?)<\/script>/g)].map(match => JSON.parse(match[1]));
+
+      expect(scripts).toHaveLength(2);
+      expect(scripts[0]).toMatchObject({ '@type': 'Product', name: '아크릴 블록', url: 'https://iconsip.test/shop/g13',
+        offers: { '@type': 'Offer', price: 12000, priceCurrency: 'KRW', availability: 'https://schema.org/InStock' } });
+      expect(scripts[1]).toMatchObject({ '@type': 'BreadcrumbList' });
+      expect(scripts[1].itemListElement).toHaveLength(3);
+      /* PD-17 — 상품 Open Graph 는 property 속성이다(레퍼런스와 같은 og:type=product·og:price:*). */
+      expect(html).toContain('<meta content="product" property="og:type"/>');
+      expect(html).toContain('<meta content="12000" property="og:price:amount"/>');
+      expect(html).toContain('<meta content="KRW" property="og:price:currency"/>');
+      expect(html).not.toContain('name="og:price');
+    } finally {
+      vi.unstubAllEnvs();
+    }
+  });
+
   it('없는 굿즈의 제목 생성은 404 로 보낸다', async () => {
     await expect(
       generateMetadata({ params: Promise.resolve({ goodId: 'g999' }), searchParams: Promise.resolve({}) }),
