@@ -14,8 +14,8 @@ export function ipArtBackground(ip: Pick<Ip, 'bg'>): string | null {
 /*
  * 브랜드(IP) 칩 카드 (PD-09 · R-04 §3.9).
  *
- * 446×82 카드 — 왼쪽 IP 키아트 150×80(없으면 글자만) + IP 이름 + '브랜드 보러가기 ›'.
- * 카드 전체가 하나의 링크라 접근 이름은 "IP 이름 브랜드 보러가기"다. 정보 칼럼 맨 아래와
+ * 446×82 카드 — 왼쪽 IP 키아트 150×80(없으면 글자만) + IP 이름 + '온라인 팝업 보러가기 ›'(IP는 '브랜드'라 부르지 않는다 — CONTEXT.md).
+ * 카드 전체가 하나의 링크라 접근 이름은 "IP 이름 온라인 팝업 보러가기"다. 정보 칼럼 맨 아래와
  * 상세 설명 패널 끝(PD-19)이 같은 카드를 쓴다.
  */
 export function GoodBrandCard({ className, ip }: { className?: string; ip: Ip }) {
@@ -27,7 +27,7 @@ export function GoodBrandCard({ className, ip }: { className?: string; ip: Ip })
       <span className="wc-pdp-brand__text">
         <strong className="wc-pdp-brand__name">{ip.title}</strong>
         <span className="wc-pdp-brand__link">
-          브랜드 보러가기 <span aria-hidden="true">›</span>
+          온라인 팝업 보러가기 <span aria-hidden="true">›</span>
         </span>
       </span>
     </Link>

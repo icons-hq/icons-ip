@@ -608,7 +608,7 @@ describe('GoodDetail', () => {
 
     expect(html).toContain('홍실 퀘스트');
     expect(html).toContain('href="/ip/hong-sil-quest"');
-    expect(html).toContain('브랜드 보러가기');
+    expect(html).toContain('온라인 팝업 보러가기');
   });
 
   /* PD-09 — 텍스트 한 줄이던 칩이 446×82 카드가 됐다. 키아트가 이미지일 때만 150×80 칸을 둔다. */
@@ -616,7 +616,7 @@ describe('GoodDetail', () => {
     const text = render();
     const card = text.match(/<a class="wc-pdp-brand is-text" href="\/ip\/hong-sil-quest">.*?<\/a>/)?.[0] ?? '';
     expect(card).toContain('<strong class="wc-pdp-brand__name">홍실 퀘스트</strong>');
-    expect(card).toContain('브랜드 보러가기 <span aria-hidden="true">›</span>');
+    expect(card).toContain('온라인 팝업 보러가기 <span aria-hidden="true">›</span>');
     expect(card).not.toContain('wc-pdp-brand__art');
 
     const art = 'url("https://cdn.example/hong-sil-key.webp") center / cover no-repeat';
