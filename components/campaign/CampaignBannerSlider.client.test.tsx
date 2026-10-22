@@ -130,15 +130,18 @@ describe('이벤트 허브 배너 자동 넘김 (11 §6 B21)', () => {
     expect(track.scrollTo).toHaveBeenCalledWith({ left: 375, behavior: 'smooth' });
   });
 
-  /* loop 없음 — 마지막 장에서 멈추고 정지 버튼도 걷는다. */
-  it('마지막 장에서는 더 넘기지 않고 정지 버튼을 걷는다', () => {
+  /* loop 없음 — 마지막 장에서 멈춘다. 정지 버튼은 걷지 않고 aria-disabled 로 남겨 그 버튼의 키보드 포커스를 지킨다. */
+  it('마지막 장에서는 더 넘기지 않고 정지 버튼을 aria-disabled 로 남긴다', () => {
     track.scrollLeft = 750;
     const tree = settle();
     vi.advanceTimersByTime(CAMPAIGN_BANNER_AUTOPLAY_MS * 2);
 
     expect(track.scrollTo).not.toHaveBeenCalled();
-    expect(byLabel(tree, '자동 넘김 일시정지')).toBeUndefined();
-    expect(byLabel(tree, '자동 넘김 재생')).toBeUndefined();
+    const control = byLabel(tree, '자동 넘김 일시정지');
+    expect(control?.props['aria-disabled']).toBe(true);
+    /* 눌러도 재생 상태가 바뀌지 않는다. */
+    (control!.props.onClick as Listener)();
+    expect(byLabel(render(), '자동 넘김 재생')).toBeUndefined();
   });
 
   it('손가락으로 트랙을 넘기면 자동 넘김을 멈추고 재생 버튼으로 바꾼다', () => {
@@ -220,6 +223,28 @@ describe('이벤트 허브 배너 자동 넘김 (11 §6 B21)', () => {
     render();
     vi.advanceTimersByTime(CAMPAIGN_BANNER_AUTOPLAY_MS);
     expect(track.scrollTo).toHaveBeenCalledTimes(2);
+  });
+
+  /* WAI-ARIA APG 캐러셀 — 회전 버튼 위의 마우스는 hover 로 세지 않는다. 세면 마우스로 "재생"을 눌러도 그 자리 hover 가
+     자동 넘김을 막아 라벨만 바뀐다. */
+  it('마우스로 정지한 뒤 같은 자리에서 재생을 누르면 바로 다시 넘어간다', () => {
+    let tree = settle();
+    (tree.props.onPointerEnter as Listener)({ pointerType: 'mouse' });
+    tree = render();
+    const pause = byLabel(tree, '자동 넘김 일시정지')!;
+    (pause.props.onPointerEnter as Listener)({ pointerType: 'mouse' });
+    (pause.props.onClick as Listener)();
+    tree = render();
+    (byLabel(tree, '자동 넘김 재생')!.props.onClick as Listener)();
+    render();
+    vi.advanceTimersByTime(CAMPAIGN_BANNER_AUTOPLAY_MS);
+    expect(track.scrollTo).toHaveBeenCalledTimes(1);
+
+    /* 버튼에서 배너 위로 돌아오면 다시 hover 다. */
+    (byLabel(render(), '자동 넘김 일시정지')!.props.onPointerLeave as Listener)({ pointerType: 'mouse' });
+    render();
+    vi.advanceTimersByTime(CAMPAIGN_BANNER_AUTOPLAY_MS * 2);
+    expect(track.scrollTo).toHaveBeenCalledTimes(1);
   });
 
   it('문서가 가려지면 멈춘다', () => {

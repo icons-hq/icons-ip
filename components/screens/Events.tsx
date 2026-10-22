@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { EmptyState } from '@/components/wc/EmptyState';
 import { WcButton } from '@/components/wc/WcButton';
 import type { CatalogSnapshot } from '@/lib/catalog';
@@ -134,6 +134,15 @@ export function Events({
   const [ipF, setIpF] = useState(initialIpId ?? ALL_IPS);
   const [modeF, setModeF] = useState(ALL_MODES);
   const [statusF, setStatusF] = useState(ALL_STATUSES);
+  const filtersRef = useRef<HTMLDivElement>(null);
+  /* '전체 보기'는 누르는 순간 빈 상태째 사라진다 — 포커스가 문서 맨 앞으로 빠지지 않게 되돌린 필터(첫 묶음의
+     선택된 칩)로 옮긴다. 렌더가 끝난 뒤에만 그 칩이 "전체"로 바뀌어 있으므로 커밋 뒤 effect 에서 옮긴다. */
+  const focusFiltersAfterReset = useRef(false);
+  useEffect(() => {
+    if (!focusFiltersAfterReset.current) return;
+    focusFiltersAfterReset.current = false;
+    filtersRef.current?.querySelector<HTMLElement>('[aria-pressed="true"]')?.focus();
+  });
 
   const ipsById = new Map(catalog.ips.map((ip) => [ip.id, ip]));
   /* 스키마는 이벤트당 게임 수를 제약하지 않으므로 전부 모아 진입 링크로 노출한다 */
@@ -150,6 +159,7 @@ export function Events({
   const list = selectFandomEvents(catalog.events, { ipId: ipF, mode: modeF, status: statusF });
   const filtered = ipF !== ALL_IPS || modeF !== ALL_MODES || statusF !== ALL_STATUSES;
   const resetFilters = () => {
+    focusFiltersAfterReset.current = true;
     setIpF(ALL_IPS);
     setModeF(ALL_MODES);
     setStatusF(ALL_STATUSES);
@@ -169,7 +179,7 @@ export function Events({
         {/* 고를 것이 하나뿐인 축(모든 팝업이 같은 상태·모드)은 필터로 내놓지 않는다 —
             "전체 / 그 하나"는 눌러도 목록이 바뀌지 않는 버튼이다. */}
         {ipsWithEvents.length > 0 || statuses.length > 1 || modes.length > 1 ? (
-          <div className="wc-offline-filters">
+          <div className="wc-offline-filters" ref={filtersRef}>
             {ipsWithEvents.length > 0 ? (
               <FilterGroup
                 label="IP 필터"

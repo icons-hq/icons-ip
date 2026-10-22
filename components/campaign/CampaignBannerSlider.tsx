@@ -62,17 +62,15 @@ export function isCampaignBannerPlaying(state: CampaignBannerPlayback): boolean 
 }
 
 /*
- * 정지 버튼은 자동 넘김이 아직 남아 있을 때만 의미가 있다. 모션 축소 설정이면 처음부터
- * 움직이지 않고, 마지막 장에 닿았으면 더 넘어갈 곳이 없다 — 누를 일이 없는 버튼을 남기지 않는다.
+ * 정지 버튼의 상태. 모션 축소 설정이면 처음부터 움직이지 않으므로 버튼이 없다('none').
+ * 마지막 장에 닿으면 더 넘어갈 곳이 없지만 버튼을 걷지 않고 aria-disabled 로 남긴다('ended') —
+ * 걷어 내면 그 버튼에 있던 키보드 포커스가 문서 맨 앞으로 빠진다(양 끝 화살표와 같은 이유).
  */
-export function hasCampaignBannerAutoplayControl(
+export function campaignBannerAutoplayControl(
   state: Pick<CampaignBannerPlayback, 'current' | 'reducedMotion' | 'slideCount'>,
-): boolean {
-  return (
-    state.slideCount > 1
-    && !state.reducedMotion
-    && nextCampaignBannerIndex(state.current, state.slideCount) !== null
-  );
+): 'none' | 'active' | 'ended' {
+  if (state.slideCount <= 1 || state.reducedMotion) return 'none';
+  return nextCampaignBannerIndex(state.current, state.slideCount) === null ? 'ended' : 'active';
 }
 
 /** 가로로 넘기려는 휠(트랙패드 가로 스와이프·Shift+휠)인가. 세로 휠은 페이지를 내리는 중이다. */
@@ -119,6 +117,9 @@ export function CampaignBannerSlider({ children, className, label }: CampaignBan
   const [current, setCurrent] = useState(0);
   const [paused, setPaused] = useState(false);
   const [hovered, setHovered] = useState(false);
+  /* 정지·재생 버튼 위의 마우스는 hover 로 세지 않는다(WAI-ARIA APG 캐러셀) — 세면 마우스로 "재생"을 누른
+     순간에도 그 자리의 hover 가 자동 넘김을 막아, 라벨만 바뀌고 아무것도 움직이지 않는다. */
+  const [hoveredControl, setHoveredControl] = useState(false);
   const [focusWithin, setFocusWithin] = useState(false);
   /* 서버에는 document·matchMedia 가 없다. 첫 렌더는 둘 다 '재생 가능'으로 두고
      마운트 직후 effect 가 실제 값으로 덮어써 하이드레이션 불일치를 피한다. */
@@ -194,7 +195,7 @@ export function CampaignBannerSlider({ children, className, label }: CampaignBan
     current,
     focusWithin,
     hidden,
-    hovered,
+    hovered: hovered && !hoveredControl,
     paused,
     reducedMotion,
     slideCount,
@@ -215,7 +216,7 @@ export function CampaignBannerSlider({ children, className, label }: CampaignBan
   const activeIndex = current < slideCount ? current : 0;
   const atStart = activeIndex <= 0;
   const atEnd = activeIndex >= slideCount - 1;
-  const showAutoplayControl = hasCampaignBannerAutoplayControl({ current: activeIndex, reducedMotion, slideCount });
+  const autoplayControl = campaignBannerAutoplayControl({ current: activeIndex, reducedMotion, slideCount });
 
   /* 장면을 직접 고르면 자동 넘김을 멈춘다 — 정지 버튼 상태로 멈추므로 라벨이 "재생"으로
      바뀌고, 원하면 같은 버튼으로 다시 돌릴 수 있다. */
@@ -301,11 +302,14 @@ export function CampaignBannerSlider({ children, className, label }: CampaignBan
             </span>
             {/* 라벨이 지금 누르면 일어날 일을 말한다(WAI-ARIA APG 캐러셀 회전 컨트롤) —
                 라벨이 바뀌는 버튼에 aria-pressed 를 겹치면 "재생, 눌림"처럼 상태를 두 번 거꾸로 읽는다. */}
-            {showAutoplayControl ? (
+            {autoplayControl !== 'none' ? (
               <button
+                aria-disabled={autoplayControl === 'ended' || undefined}
                 aria-label={paused ? '자동 넘김 재생' : '자동 넘김 일시정지'}
                 className="wc-campaign-banners__pause"
-                onClick={() => setPaused((value) => !value)}
+                onClick={() => { if (autoplayControl === 'active') setPaused((value) => !value); }}
+                onPointerEnter={(event) => { if (event.pointerType === 'mouse') setHoveredControl(true); }}
+                onPointerLeave={(event) => { if (event.pointerType === 'mouse') setHoveredControl(false); }}
                 ref={controlRef}
                 type="button"
               >

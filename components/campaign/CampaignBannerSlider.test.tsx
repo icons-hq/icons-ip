@@ -3,7 +3,7 @@ import { describe, expect, it } from 'vitest';
 import {
   CAMPAIGN_BANNER_AUTOPLAY_MS,
   CampaignBannerSlider,
-  hasCampaignBannerAutoplayControl,
+  campaignBannerAutoplayControl,
   isCampaignBannerPlaying,
   nextCampaignBannerIndex,
   type CampaignBannerPlayback,
@@ -50,12 +50,13 @@ describe('이벤트 허브 배너 자동 넘김 규칙 (11 §6 B21)', () => {
     expect(isCampaignBannerPlaying({ ...playable, [reason]: true })).toBe(false);
   });
 
-  /* 누를 일이 없는 정지 버튼을 남기지 않는다 — 모션 축소면 처음부터 돌지 않고, 끝에 닿으면 더 갈 곳이 없다. */
-  it('자동 넘김이 남아 있을 때만 정지 버튼을 둔다', () => {
-    expect(hasCampaignBannerAutoplayControl({ current: 0, reducedMotion: false, slideCount: 3 })).toBe(true);
-    expect(hasCampaignBannerAutoplayControl({ current: 2, reducedMotion: false, slideCount: 3 })).toBe(false);
-    expect(hasCampaignBannerAutoplayControl({ current: 0, reducedMotion: true, slideCount: 3 })).toBe(false);
-    expect(hasCampaignBannerAutoplayControl({ current: 0, reducedMotion: false, slideCount: 1 })).toBe(false);
+  /* 모션 축소면 처음부터 돌지 않아 버튼이 없다. 끝에 닿으면 더 갈 곳이 없지만 걷지 않고 aria-disabled 로 남긴다 —
+     걷으면 그 버튼에 있던 키보드 포커스가 문서 맨 앞으로 빠진다. */
+  it('정지 버튼은 여러 장·모션 허용일 때 두고, 마지막 장에서는 끝난 상태로 남긴다', () => {
+    expect(campaignBannerAutoplayControl({ current: 0, reducedMotion: false, slideCount: 3 })).toBe('active');
+    expect(campaignBannerAutoplayControl({ current: 2, reducedMotion: false, slideCount: 3 })).toBe('ended');
+    expect(campaignBannerAutoplayControl({ current: 0, reducedMotion: true, slideCount: 3 })).toBe('none');
+    expect(campaignBannerAutoplayControl({ current: 0, reducedMotion: false, slideCount: 1 })).toBe('none');
   });
 });
 
