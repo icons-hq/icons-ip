@@ -22,7 +22,7 @@ export type CampaignStatus = 'draft' | 'published' | 'ended';
 export type CampaignDisplayState = 'upcoming' | 'ongoing' | 'ended';
 
 /* ------------------------------------------------------------------
-   본문 블록 — private.validate_campaign_sections(20260831100000)와 1:1
+   본문 블록 — private.validate_campaign_sections(20260831100000 · cta 는 20261022090100)와 1:1
    ------------------------------------------------------------------
    키 이름을 DB jsonb 그대로 둔다. 로더에서 camelCase로 갈아끼우면 검증 규칙과
    파서가 서로 다른 이름을 보게 되고, 어드민이 블록을 하나 추가할 때 두 곳을
@@ -74,6 +74,13 @@ export interface CampaignNoticeSection extends CampaignSectionBase {
   items: string[];
 }
 
+/** 이동 버튼 — 버튼 문구와 ICONS 안의 경로(LD-18). */
+export interface CampaignCtaSection extends CampaignSectionBase {
+  type: 'cta';
+  label: string;
+  href: string;
+}
+
 export type CampaignSection =
   | CampaignIntroSection
   | CampaignImageSection
@@ -82,7 +89,45 @@ export type CampaignSection =
   | CampaignExchangeSection
   | CampaignCouponSection
   | CampaignGoodsSection
-  | CampaignNoticeSection;
+  | CampaignNoticeSection
+  | CampaignCtaSection;
+
+/* ------------------------------------------------------------------
+   이동 버튼(cta) 링크 규칙 — LD-18: ICONS 내부 경로만
+   ------------------------------------------------------------------
+   DB(private.validate_campaign_sections, 20261022090100)와 같은 판정이다. 저장은 DB 가
+   막고, 어드민 폼은 저장 왕복 전에 같은 판정을 쓰고, 공개 파서는 혹시 섞인 값을 그리지
+   않는 마지막 방어로 쓴다.
+   - `/` 로 시작해야 한다 — 스킴(`https:`·`javascript:`)과 도메인 주소가 여기서 걸러진다.
+   - `//` 로 시작하면 브라우저가 다른 호스트(프로토콜 상대 주소)로 읽는다.
+   - 역슬래시·공백·제어문자는 어디에도 둘 수 없다. 브라우저 URL 파서가 `\`를 `/`로 바꾸고
+     탭·줄바꿈을 지워서 `/\evil.example`·`/<TAB>/evil.example`이 `//evil.example`이 된다.
+   - `.`·`..` 경로 조각(`%2e` 포함)도 거절한다. `/..//evil.example`은 같은 출처지만 정규화된
+     pathname 이 `//evil.example`이 되어, pathname 을 다시 주소로 읽는 소비자(라우터 history 등)가
+     프로토콜 상대 주소로 오해한다.
+   - `%` 뒤에는 16진수 두 자리가 와야 한다(깨진 인코딩은 라우터가 400 으로 끊는다). 디코드 결과의
+     UTF-8 유효성까지는 보지 않는다 — DB 가 같은 판정을 할 수 없어 둘이 갈린다.
+   - 길이는 DB char_length 처럼 코드 포인트로 센다(UTF-16 길이로 세면 DB 가 받은 값을 버린다). */
+
+export const CAMPAIGN_CTA_LABEL_MAX_LENGTH = 30;
+export const CAMPAIGN_CTA_HREF_MAX_LENGTH = 300;
+
+const CAMPAIGN_HREF_FORBIDDEN = /[\u0000-\u0020\u007f\\]/;
+const CAMPAIGN_HREF_DOT_SEGMENT = /(^|\/)(\.|%2e){1,2}(\/|[?#]|$)/i;
+const CAMPAIGN_HREF_BROKEN_PERCENT = /%(?![0-9a-f]{2})/i;
+
+export function isCampaignInternalHref(value: string): boolean {
+  const length = Array.from(value).length;
+  return (
+    length >= 1
+    && length <= CAMPAIGN_CTA_HREF_MAX_LENGTH
+    && value.startsWith('/')
+    && !value.startsWith('//')
+    && !CAMPAIGN_HREF_FORBIDDEN.test(value)
+    && !CAMPAIGN_HREF_DOT_SEGMENT.test(value)
+    && !CAMPAIGN_HREF_BROKEN_PERCENT.test(value)
+  );
+}
 
 export interface CampaignSummary {
   id: string;
@@ -235,6 +280,29 @@ export function campaignPeriodLabel(startsAt: string, endsAt: string): string {
   return `${head} – ${tail}`;
 }
 
+/* ------------------------------------------------------------------
+   허브 목록 분량 — 11 §6 B21 (LFS 이벤트 허브 실측)
+   ------------------------------------------------------------------
+   ALL 은 한 번에 최대 100건을 싣고, EVENT·DROP 은 10건으로 시작해 [더보기 (n/총)]로
+   10건씩 이어 붙인다(URL 불변). 화면이 숫자를 직접 들고 있지 않게 여기서 정한다. */
+
+export const CAMPAIGN_HUB_ALL_LIMIT = 100;
+export const CAMPAIGN_HUB_PAGE_SIZE = 10;
+
+/** "더보기 (10/23)" — 지금 보이는 건수 / 그 탭의 전체 건수. */
+export function campaignMoreLabel(visible: number, total: number): string {
+  return `더보기 (${visible}/${total})`;
+}
+
+/** 더보기 한 번에 늘어나는 노출 건수. 전체를 넘기지 않는다. */
+export function nextCampaignVisibleCount(
+  visible: number,
+  total: number,
+  pageSize: number = CAMPAIGN_HUB_PAGE_SIZE,
+): number {
+  return Math.max(0, Math.min(total, visible + pageSize));
+}
+
 const DISPLAY_STATE_ORDER: Record<CampaignDisplayState, number> = {
   ongoing: 0,
   upcoming: 1,
@@ -321,6 +389,13 @@ function parseSection(raw: unknown): CampaignSection | null {
     case 'notice': {
       const items = stringArray(entry.items);
       return items.length ? { ...base, type: 'notice', items } : null;
+    }
+    case 'cta': {
+      /* 저장은 DB 가 이미 막았지만, 내부 경로가 아닌 값이 섞여 들어와도 화면이 외부로
+         내보내는 버튼을 그리지 않게 같은 판정을 한 번 더 건다(LD-18). */
+      const label = requiredString(entry.label);
+      const href = typeof entry.href === 'string' && isCampaignInternalHref(entry.href) ? entry.href : null;
+      return label && href ? { ...base, type: 'cta', label, href } : null;
     }
     default:
       return null;

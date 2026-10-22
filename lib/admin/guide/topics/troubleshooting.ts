@@ -176,6 +176,12 @@ const PROMOTION_CASES: AdminGuideErrorCase[] = [
     cause: '캠페인 랜딩 구성의 쿠폰 블록에 아직 등록되지 않은 쿠폰 코드를 넣었습니다.',
     fix: '쿠폰 관리에서 그 코드를 먼저 등록한 뒤 캠페인을 저장합니다.',
   },
+  {
+    quote: '/로 시작하는 ICONS 내부 경로여야 합니다.',
+    sourceFile: 'lib/admin/campaigns.ts',
+    cause: '캠페인 랜딩 구성의 이동 버튼(cta) 블록 href에 외부 사이트 주소(https://…, //…)나 공백·역슬래시가 든 주소를 넣었습니다. 외부로 보내는 버튼은 피싱·추적 위험이 있어 받지 않습니다.',
+    fix: '이동할 ICONS 화면 주소에서 도메인을 뺀 경로(예: /shop, /events/캠페인ID)를 넣고 다시 저장합니다.',
+  },
 ];
 
 const POOL_CASES: AdminGuideErrorCase[] = [

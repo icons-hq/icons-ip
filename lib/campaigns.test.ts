@@ -1,12 +1,17 @@
 import { describe, expect, it } from 'vitest';
 import {
+  CAMPAIGN_HUB_ALL_LIMIT,
+  CAMPAIGN_HUB_PAGE_SIZE,
   campaignAnchors,
   campaignDisplayState,
+  campaignMoreLabel,
   campaignPeriodLabel,
   campaignSectionDomId,
   campaignStateBadgeLabel,
   campaignStateBadgeVariant,
   campaignStateLabel,
+  isCampaignInternalHref,
+  nextCampaignVisibleCount,
   orderCampaignsForHub,
   parseCampaignSections,
   type CampaignDisplayState,
@@ -161,6 +166,75 @@ describe('parseCampaignSections', () => {
       .toEqual([{ type: 'goods', good_ids: ['g1', 'g2'] }]);
     expect(parseCampaignSections([{ type: 'notice', items: [null] }])).toEqual([]);
   });
+
+  it('이동 버튼 블록은 문구와 내부 경로를 그대로 옮긴다', () => {
+    expect(parseCampaignSections([{ type: 'cta', label: '굿즈 더 보기', href: '/shop?ip=bt21', anchor: '굿즈' }]))
+      .toEqual([{ anchor: '굿즈', type: 'cta', label: '굿즈 더 보기', href: '/shop?ip=bt21' }]);
+  });
+
+  /* 저장은 DB 가 막지만, 외부로 나가는 값이 섞여 들어와도 화면은 그 버튼을 그리지 않는다(LD-18). */
+  it('내부 경로가 아닌 이동 버튼과 문구 없는 버튼은 건너뛴다', () => {
+    expect(parseCampaignSections([
+      { type: 'cta', label: '밖으로', href: 'https://evil.example' },
+      { type: 'cta', label: '밖으로', href: '//evil.example' },
+      { type: 'cta', label: '밖으로', href: '/\\evil.example' },
+      { type: 'cta', label: '', href: '/shop' },
+      { type: 'cta', label: '링크 없음' },
+      { type: 'cta', label: '숫자 링크', href: 42 },
+    ])).toEqual([]);
+  });
+});
+
+/* LD-18 — DB(private.validate_campaign_sections 20261022090100)의 cta href 판정과 1:1. */
+describe('isCampaignInternalHref', () => {
+  it.each(['/', '/shop', '/shop?ip=bt21&sort=new#list', '/events/autumn', '/search?q=키링', '/a~b!c'])(
+    '내부 경로 %s 를 받는다',
+    (href) => expect(isCampaignInternalHref(href)).toBe(true),
+  );
+
+  it.each([
+    ['https://evil.example', '스킴·도메인'],
+    ['javascript:alert(1)', '스킴'],
+    ['//evil.example', '프로토콜 상대 주소'],
+    ['/\\evil.example', '역슬래시는 브라우저가 / 로 바꾼다'],
+    ['/\t/evil.example', '탭은 브라우저가 지운다'],
+    ['/a\nb', '줄바꿈'],
+    ['/a\u0000b', 'NUL'],
+    ['/a\u007fb', 'DEL'],
+    ['/sh op', '공백'],
+    ['shop', '상대 경로'],
+    ['', '빈 값'],
+    [`/${'a'.repeat(300)}`, '300자 초과'],
+    /* 같은 출처지만 정규화된 pathname 이 // 로 시작한다 — pathname 을 다시 주소로 읽는 소비자가 오해한다. */
+    ['/..//evil.example', '.. 경로 조각'],
+    ['/.//evil.example', '. 경로 조각'],
+    ['/%2E%2e//evil.example', '인코딩된 경로 조각'],
+    ['/shop/..', '끝의 .. 조각'],
+    ['/shop/.?x=1', '쿼리 앞 . 조각'],
+    /* 깨진 퍼센트 인코딩은 라우터가 400 으로 끊는다 — DB 와 같은 문법 판정(% 뒤 16진수 두 자리). */
+    ['/events/%E0%A4%A', '끝이 잘린 인코딩'],
+    ['/%zz', '16진수가 아닌 인코딩'],
+  ])('%s 를 거절한다(%s)', (href) => expect(isCampaignInternalHref(href)).toBe(false));
+
+  it('온전한 퍼센트 인코딩은 받는다', () => {
+    expect(isCampaignInternalHref('/search?q=%ED%82%A4%EB%A7%81')).toBe(true);
+  });
+
+  it('300자까지 받는다', () => {
+    expect(isCampaignInternalHref(`/${'a'.repeat(299)}`)).toBe(true);
+  });
+
+  /* DB char_length 와 같은 단위 — UTF-16 으로 세면 DB 가 받은 이모지 경로를 화면이 버린다. */
+  it('길이는 코드 포인트로 센다', () => {
+    expect(isCampaignInternalHref(`/${'😀'.repeat(299)}`)).toBe(true);
+    expect(isCampaignInternalHref(`/${'😀'.repeat(300)}`)).toBe(false);
+  });
+
+  it('점으로 시작하는 이름은 경로 조각이 아니다', () => {
+    expect(isCampaignInternalHref('/.well-known/x')).toBe(true);
+    expect(isCampaignInternalHref('/shop/...')).toBe(true);
+    expect(isCampaignInternalHref('/search?q=..')).toBe(true);
+  });
 });
 
 describe('orderCampaignsForHub', () => {
@@ -207,5 +281,23 @@ describe('campaignAnchors', () => {
       { id: campaignSectionDomId(0), label: 'MY COIN' },
       { id: campaignSectionDomId(2), label: '유의 사항' },
     ]);
+  });
+});
+
+describe('허브 목록 분량 (11 §6 B21)', () => {
+  it('ALL 은 최대 100건, EVENT·DROP 은 10건씩이다', () => {
+    expect(CAMPAIGN_HUB_ALL_LIMIT).toBe(100);
+    expect(CAMPAIGN_HUB_PAGE_SIZE).toBe(10);
+  });
+
+  it('더보기 라벨은 보이는 건수와 전체 건수를 함께 적는다', () => {
+    expect(campaignMoreLabel(10, 23)).toBe('더보기 (10/23)');
+  });
+
+  it('더보기 한 번에 10건씩 늘리되 전체를 넘기지 않는다', () => {
+    expect(nextCampaignVisibleCount(10, 23)).toBe(20);
+    expect(nextCampaignVisibleCount(20, 23)).toBe(23);
+    expect(nextCampaignVisibleCount(23, 23)).toBe(23);
+    expect(nextCampaignVisibleCount(2, 5, 2)).toBe(4);
   });
 });

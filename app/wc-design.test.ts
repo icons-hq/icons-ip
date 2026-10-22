@@ -526,12 +526,90 @@ describe('White Catalog campaign wiring', () => {
 
   it('pins the campaign anchor nav under the shell header instead of over it', () => {
     /* 앵커 내브가 셸 헤더보다 위 z-index 를 가져가면 GNB·검색 오버레이를 덮는다.
-     * 헤더 축약 높이(모바일 81 / 데스크톱 68)를 오프셋으로 두고 그 아래에 선다
-     * — wc-catalog 의 PDP 탭바와 같은 계약값이다. */
+     * 셸이 알리는 고정 크롬 높이(--wc-sticky-chrome-h)를 오프셋으로 두고 그 아래에 선다.
+     * 토큰이 없을 때의 대체값은 축약 헤더 높이(모바일 81 / 데스크톱 68)다. */
     const css = read('./styles/wc-campaign.css');
 
     expect(css).toMatch(/\.wc-campaign-nav\s*\{[^}]*position:\s*sticky/s);
-    expect(css).toMatch(/\.wc-campaign-nav\s*\{[^}]*top:\s*81px/s);
+    expect(css).toMatch(/\.wc-campaign-nav\s*\{[^}]*top:\s*var\(--wc-sticky-chrome-h,\s*81px\)/s);
+    expect(css).toMatch(/@media \(min-width: 990px\)\s*\{[^@]*\.wc-campaign-nav\s*\{[^}]*top:\s*var\(--wc-sticky-chrome-h,\s*68px\)/s);
     expect(css).toMatch(/\.wc-campaign-nav\s*\{[^}]*z-index:\s*2/s);
+    /* 고정 높이를 숫자로 박아 두면 셸 높이가 바뀔 때 이 지면만 어긋난다. */
+    expect(css).not.toMatch(/top:\s*(?:81|68|69|52)px/);
   });
 });
+
+describe('White Catalog offline popup wiring', () => {
+  it('loads the offline popup layer after the campaign layer and before the retained about surface', () => {
+    /* 오프라인 팝업은 캠페인 카드 문법(R-06 §1.4)과 파운데이션 버튼·스테퍼를 자기 수치로 조율한다 —
+     * 앞선 레이어보다 먼저 로드되면 같은 특정성에서 그 조율이 밀린다. */
+    const layout = read('./layout.tsx');
+
+    expect(layout).toContain("'./styles/wc-offline-popups.css'");
+    expect(layout.indexOf("'./styles/wc-offline-popups.css'")).toBeGreaterThan(
+      layout.indexOf("'./styles/wc-campaign.css'"),
+    );
+    expect(layout.indexOf("'./styles/about-legacy.css'")).toBeGreaterThan(
+      layout.indexOf("'./styles/wc-offline-popups.css'"),
+    );
+  });
+
+  it('keeps the offline popup stylesheet scoped, rootless, and free of the reference accent', () => {
+    const css = read('./styles/wc-offline-popups.css');
+
+    expect(css).not.toMatch(/^\s*(?:html|body|:root|h[1-6]|a|p|ul|ol|button|input|\*)\s*[,{:]/m);
+    expect(css).not.toMatch(/:root\s*\{[^}]*--wc-/s);
+    expect(css).not.toMatch(/#F83BAA/i);
+    expect(css).not.toMatch(/#FD4BBB/i);
+    expect(css).not.toMatch(/line-height:\s*(?:0?\.)\d+/);
+    postcss.parse(css).walkRules((rule) => {
+      for (const selector of rule.selectors) expect(selector.trim()).toMatch(/^\.wc-offline/);
+    });
+  });
+
+  it('keeps the booking surface free of ambient motion', () => {
+    /* 예매·결제 지면에서는 주변 자동 모션을 두지 않는다(DESIGN §9). 피드백 전환만 허용한다. */
+    const css = read('./styles/wc-offline-popups.css');
+
+    expect(css).not.toMatch(/@keyframes/);
+    expect(css).not.toMatch(/animation:/);
+  });
+});
+
+describe('White Catalog document-page wiring', () => {
+  it('loads the document layer after the campaign layer and before the retained about surface', () => {
+    const layout = read('./layout.tsx');
+
+    expect(layout).toContain("'./styles/wc-document.css'");
+    expect(layout.indexOf("'./styles/wc-document.css'")).toBeGreaterThan(
+      layout.indexOf("'./styles/wc-campaign.css'"),
+    );
+    expect(layout.indexOf("'./styles/about-legacy.css'")).toBeGreaterThan(
+      layout.indexOf("'./styles/wc-document.css'"),
+    );
+  });
+
+  it('keeps the document stylesheet scoped, rootless, and free of the reference accent', () => {
+    const css = read('./styles/wc-document.css');
+
+    expect(css).not.toMatch(/^\s*(?:html|body|:root|h[1-6]|a|p|ul|ol|button|input|\*)\s*[,{:]/m);
+    expect(css).not.toMatch(/:root\s*\{[^}]*--wc-/s);
+    expect(css).not.toMatch(/#F83BAA/i);
+    expect(css).not.toMatch(/#FD4BBB/i);
+    expect(css).not.toMatch(/line-height:\s*(?:0?\.)\d+/);
+    postcss.parse(css).walkRules((rule) => {
+      for (const selector of rule.selectors) expect(selector.trim()).toMatch(/^\.wc-document/);
+    });
+  });
+
+  it('pins the R-06 §8 policy document measures', () => {
+    /* 620 칼럼(좌우 20 → 본문 580), 조항 제목 20/700, 본문 14/1.6 — 레퍼런스 정책 문서 서식. */
+    const css = read('./styles/wc-document.css');
+
+    expect(css).toMatch(/\.wc-document__page\s*\{[^}]*max-width:\s*620px/s);
+    expect(css).toMatch(/@media \(min-width: 990px\)\s*\{[^@]*\.wc-document__page\s*\{[^}]*padding:\s*0 20px/s);
+    expect(css).toMatch(/\.wc-document__heading\s*\{[^}]*font-size:\s*20px;[^}]*font-weight:\s*700/s);
+    expect(css).toMatch(/\.wc-document__paragraph\s*\{[^}]*font-size:\s*14px;[^}]*line-height:\s*1\.6/s);
+  });
+});
+

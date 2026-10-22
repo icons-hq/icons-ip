@@ -1,17 +1,25 @@
 'use client';
 
 import Link from 'next/link';
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { EmptyState } from '@/components/wc/EmptyState';
+import { WcButton } from '@/components/wc/WcButton';
 import type { CatalogSnapshot } from '@/lib/catalog';
 import type { FandomEvent, Ip } from '@/lib/data';
 import type { EventGameLink } from '@/lib/games/catalog';
 import { ALL_IPS, ALL_MODES, ALL_STATUSES, eventModeOptions, eventStatusOptions, selectFandomEvents } from '@/lib/events-catalog';
-import { ipAccent, ipAccentInk } from '@/lib/ip-display';
-import { hrefFor } from '@/lib/routes';
 
-const statusColor = (s: string) => (s === '진행중' ? 'var(--mint)' : s === '예매중' ? 'var(--cyan)' : 'var(--dim)');
-const ctaFor = (s: string) => (s === '진행중' ? '현장 정보' : s === '예매중' ? '티켓 예매' : '상세 보기');
-const footNoteFor = (s: string) => (s === '예매중' ? '잔여 회차 있음' : s === '진행중' ? '현장 발권 가능' : '오픈 예정');
+/* 오프라인 팝업 목록 (DESIGN §8 오프라인 팝업 · 11 §8 EV-04).
+ *
+ * 레퍼런스에 대응 표면이 없어 이벤트 허브의 카드 문법(R-06 §1.4)을 빌린다:
+ * 2열 580px 그리드, 3:2 썸네일, 좌상단 유형 뱃지(검정 면 텍스트), 제목 18/700.
+ * 허브와 같은 보완 규칙으로 기간 라벨과 상태 뱃지를 함께 단다(DESIGN §6 campaign-hub —
+ * 레퍼런스는 진행·종료를 리스트 순서로만 구분했다). 머리는 레퍼런스 목록 페이지
+ * (R-06 §5)처럼 왼쪽 정렬 h1 이다.
+ *
+ * 필터·정렬(selectFandomEvents)·딥링크(initialIpId)·참여형 게임 진입은 그대로다 —
+ * 이 화면이 바꾸는 것은 마크업과 스타일뿐이고, 회차·잔여·예매는 상세가 맡는다. */
+
 const eventHref = (id: string) => `/offline-popups/${encodeURIComponent(id)}`;
 
 const GUIDE = [
@@ -20,89 +28,96 @@ const GUIDE = [
   { n: '03', t: '스캔 입장', d: '현장에서 QR을 스캔하면 줄 없이 바로 입장해요.' },
 ];
 
-function FeaturedEvent({ e, ip, games }: { e: FandomEvent; ip: Ip | null; games: EventGameLink[] }) {
+/* ------------------------------------------------------------------
+   상태 뱃지 — 목록 카드와 상세 머리가 같은 규칙을 쓴다
+   ------------------------------------------------------------------
+   예매중은 행동할 수 있는 상태라 잉크 솔리드, 진행중은 잉크 아웃라인, 예정은 컨트롤 선
+   아웃라인, 종료는 뮤트. 색만으로 구분하지 않고 상태 글자를 항상 함께 싣는다. */
+
+export type OfflinePopupStateVariant = 'open' | 'live' | 'upcoming' | 'ended' | 'other';
+
+const STATE_VARIANTS: Record<string, OfflinePopupStateVariant> = {
+  예매중: 'open',
+  진행중: 'live',
+  예정: 'upcoming',
+  종료: 'ended',
+};
+
+export function offlinePopupStateVariant(status: string): OfflinePopupStateVariant {
+  return STATE_VARIANTS[status] ?? 'other';
+}
+
+export function OfflinePopupStateBadge({ status }: { status: string }) {
   return (
-    <section style={{ padding: 'clamp(28px, 4vw, 40px) 0 0' }}>
-      <div className="wrap">
-        <div className="event-featured" style={{ borderRadius: 26, border: '1px solid rgba(255,255,255,.09)', background: 'linear-gradient(180deg, var(--surface), var(--bg-2))', overflow: 'hidden', display: 'grid', minHeight: 320 }}>
-          <div style={{ padding: 'clamp(26px, 4vw, 44px)', display: 'flex', flexDirection: 'column', justifyContent: 'center', position: 'relative', zIndex: 2 }}>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, alignItems: 'center' }}>
-              {ip && (
-                <span className="mono" style={{ display: 'inline-flex', alignItems: 'center', height: 26, padding: '0 11px', borderRadius: 999, fontSize: 11, color: ipAccentInk(ip), border: '1px solid rgba(255,255,255,.16)' }}>{ip.title}</span>
-              )}
-              <span className="mono" style={{ display: 'inline-flex', alignItems: 'center', height: 26, padding: '0 11px', borderRadius: 999, fontSize: 11, fontWeight: 700, color: '#0A0813', background: e.accent }}>{e.mode}</span>
-              <span className="mono" style={{ display: 'inline-flex', alignItems: 'center', gap: 7, height: 26, padding: '0 11px', borderRadius: 999, fontSize: 11, color: statusColor(e.status), border: '1px solid rgba(255,255,255,.16)' }}>
-                {e.status === '진행중' && <span style={{ width: 6, height: 6, borderRadius: 99, background: 'var(--mint)', animation: 'pulseDot 1.8s ease infinite' }} />}
-                {e.status}
-              </span>
-              {games.length > 0 && (
-                <span className="mono" style={{ display: 'inline-flex', alignItems: 'center', height: 26, padding: '0 11px', borderRadius: 999, fontSize: 11, color: 'var(--mint)', border: '1px solid rgba(56,240,192,.35)' }}>참여형 게임</span>
-              )}
-            </div>
-            <h2 style={{ margin: '18px 0 0', fontFamily: 'var(--ff-display)', fontWeight: 700, fontSize: 'clamp(26px, 3.4vw, 40px)', letterSpacing: '-0.02em', lineHeight: 1.1, maxWidth: 480, textWrap: 'pretty' }}>{e.title}</h2>
-            <div className="mono" style={{ display: 'flex', flexWrap: 'wrap', gap: 18, marginTop: 16, fontSize: 12.5, color: 'var(--dim)' }}>
-              <span>◷ {e.date || '일정 공개 예정'}</span>
-              <span>◎ {e.loc || '장소 공개 예정'}</span>
-            </div>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginTop: 26 }}>
-              <Link className="btn btn-holo" href={eventHref(e.id)} style={{ height: 48, padding: '0 26px' }}>
-                {ctaFor(e.status)} →
-              </Link>
-              {games.map((game) => (
-                <Link key={game.gameId} className="btn btn-ghost" href={`/games/${game.gameId}`} style={{ height: 48, padding: '0 22px', fontSize: 14, color: 'var(--mint)', borderColor: 'rgba(56,240,192,.35)' }}>
-                  {game.title} 플레이
-                </Link>
-              ))}
-              {e.ip && (
-                <Link className="btn btn-ghost" href={hrefFor('ip', ip ?? e.ip)} style={{ height: 48, padding: '0 22px', fontSize: 14 }}>
-                  이 세계 더 보기
-                </Link>
-              )}
-            </div>
-          </div>
-          <div style={{ position: 'relative', minHeight: 220, background: e.img, backgroundSize: 'cover', backgroundPosition: 'center' }}>
-            <div aria-hidden style={{ position: 'absolute', inset: 0, background: 'linear-gradient(90deg, #100D20 0%, rgba(16,13,32,.25) 45%, transparent 100%)' }} />
-            <div aria-hidden className="sheen" style={{ opacity: 0.3 }} />
-          </div>
-        </div>
-      </div>
-    </section>
+    <span className={`wc-offline-state wc-offline-state--${offlinePopupStateVariant(status)}`}>{status}</span>
   );
 }
 
-function EventCard({ e, ip, games }: { e: FandomEvent; ip: Ip | null; games: EventGameLink[] }) {
+function OfflinePopupCard({ e, ip, games }: { e: FandomEvent; ip: Ip | null; games: EventGameLink[] }) {
   return (
-    <div className="event-card" style={{ borderRadius: 20, border: '1px solid var(--line)', background: 'linear-gradient(180deg, var(--surface), var(--bg-2))', overflow: 'hidden' }}>
-      <div style={{ aspectRatio: '16 / 9', position: 'relative', background: e.img, backgroundSize: 'cover', backgroundPosition: 'center' }}>
-        <div style={{ position: 'absolute', top: 12, left: 12, display: 'flex', gap: 6, zIndex: 2 }}>
-          <span className="mono" style={{ display: 'inline-flex', alignItems: 'center', height: 24, padding: '0 10px', borderRadius: 999, fontSize: 10.5, fontWeight: 700, color: '#0A0813', background: e.accent }}>{e.mode}</span>
-          <span className="mono" style={{ display: 'inline-flex', alignItems: 'center', height: 24, padding: '0 10px', borderRadius: 999, fontSize: 10.5, color: 'var(--text)', background: 'rgba(8,6,15,.6)', backdropFilter: 'blur(6px)' }}>{e.status}</span>
+    <li className="wc-offline-card">
+      {/* 카드 본체는 상세로 가는 링크 하나다(R-06 §1.4). 참여형 게임 진입은 다른 목적지라
+          링크 안에 넣지 않고 카드 아래 따로 둔다 — 링크 안의 링크는 만들 수 없다. */}
+      <Link className="wc-offline-card__link" href={eventHref(e.id)}>
+        {/* 썸네일 아트는 장식이지만 유형 뱃지 텍스트는 정보다 — 미디어 통째로 aria-hidden 하지 않는다. */}
+        <div
+          className="wc-offline-card__media"
+          style={{ background: e.img, backgroundSize: 'cover', backgroundPosition: 'center' }}
+        >
+          <span className="wc-offline-card__kind">{e.mode}</span>
         </div>
-        <div aria-hidden style={{ position: 'absolute', inset: 0, background: 'linear-gradient(180deg, transparent 55%, rgba(12,10,24,.85) 100%)' }} />
-      </div>
-      <div style={{ padding: '16px 18px 18px' }}>
-        {ip && <div className="mono" style={{ fontSize: 11, color: ipAccentInk(ip) }}>{ip.title}</div>}
-        <div style={{ fontWeight: 700, fontSize: 15.5, marginTop: 6, textWrap: 'pretty' }}>{e.title}</div>
-        <div className="mono" style={{ display: 'flex', flexWrap: 'wrap', gap: 14, marginTop: 10, fontSize: 11.5, color: 'var(--dim)' }}>
-          <span>◷ {e.date || '일정 공개 예정'}</span>
-          <span>◎ {e.loc || '장소 공개 예정'}</span>
+        <div className="wc-offline-card__info">
+          {ip ? <p className="wc-offline-card__ip">{ip.title}</p> : null}
+          <h2 className="wc-offline-card__title">{e.title}</h2>
+          <p className="wc-offline-card__place">{e.loc || '장소 공개 예정'}</p>
+          <p className="wc-offline-card__meta">
+            <span className="wc-offline-card__period">{e.date || '일정 공개 예정'}</span>
+            <OfflinePopupStateBadge status={e.status} />
+          </p>
         </div>
-        {games.length > 0 && (
-          <div className="col" style={{ gap: 4, marginTop: 12, alignItems: 'flex-start' }}>
-            {games.map((game) => (
-              <Link key={game.gameId} className="mono" href={`/games/${game.gameId}`} style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontSize: 12, fontWeight: 700, color: 'var(--mint)' }}>
-                ▶ {game.title} 플레이
-              </Link>
-            ))}
-          </div>
-        )}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginTop: 14, paddingTop: 13, borderTop: '1px solid rgba(255,255,255,.06)' }}>
-          <span className="mono" style={{ fontSize: 11, color: statusColor(e.status) }}>{footNoteFor(e.status)}</span>
-          <Link className="event-card-cta" href={eventHref(e.id)} style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)' }}>
-            {ctaFor(e.status)} →
-          </Link>
-        </div>
-      </div>
+      </Link>
+      {games.length > 0 ? (
+        <ul aria-label={`${e.title} 참여형 게임`} className="wc-offline-card__games">
+          {games.map((game) => (
+            <li key={game.gameId}>
+              <Link className="wc-offline-card__game" href={`/games/${game.gameId}`}>{game.title} 플레이</Link>
+            </li>
+          ))}
+        </ul>
+      ) : null}
+    </li>
+  );
+}
+
+interface FilterOption {
+  value: string;
+  label: string;
+}
+
+function FilterGroup({
+  label,
+  onChange,
+  options,
+  value,
+}: {
+  label: string;
+  onChange: (value: string) => void;
+  options: FilterOption[];
+  value: string;
+}) {
+  return (
+    <div aria-label={label} className="wc-offline-filters__group" role="group">
+      {options.map((option) => (
+        <button
+          aria-pressed={value === option.value}
+          className="wc-offline-chip"
+          key={option.value}
+          onClick={() => onChange(option.value)}
+          type="button"
+        >
+          {option.label}
+        </button>
+      ))}
     </div>
   );
 }
@@ -119,9 +134,18 @@ export function Events({
   const [ipF, setIpF] = useState(initialIpId ?? ALL_IPS);
   const [modeF, setModeF] = useState(ALL_MODES);
   const [statusF, setStatusF] = useState(ALL_STATUSES);
+  const filtersRef = useRef<HTMLDivElement>(null);
+  /* '전체 보기'는 누르는 순간 빈 상태째 사라진다 — 포커스가 문서 맨 앞으로 빠지지 않게 되돌린 필터(첫 묶음의
+     선택된 칩)로 옮긴다. 렌더가 끝난 뒤에만 그 칩이 "전체"로 바뀌어 있으므로 커밋 뒤 effect 에서 옮긴다. */
+  const focusFiltersAfterReset = useRef(false);
+  useEffect(() => {
+    if (!focusFiltersAfterReset.current) return;
+    focusFiltersAfterReset.current = false;
+    filtersRef.current?.querySelector<HTMLElement>('[aria-pressed="true"]')?.focus();
+  });
 
   const ipsById = new Map(catalog.ips.map((ip) => [ip.id, ip]));
-  /* 스키마는 이벤트당 게임 수를 제약하지 않으므로 전부 모아 CTA로 노출한다 */
+  /* 스키마는 이벤트당 게임 수를 제약하지 않으므로 전부 모아 진입 링크로 노출한다 */
   const gamesByEventId = new Map<string, EventGameLink[]>();
   for (const link of gameLinks) {
     const list = gamesByEventId.get(link.eventId);
@@ -133,109 +157,109 @@ export function Events({
   const statuses = eventStatusOptions(catalog.events);
 
   const list = selectFandomEvents(catalog.events, { ipId: ipF, mode: modeF, status: statusF });
-  const featured = list[0];
-  const rest = list.slice(1);
+  const filtered = ipF !== ALL_IPS || modeF !== ALL_MODES || statusF !== ALL_STATUSES;
+  const resetFilters = () => {
+    focusFiltersAfterReset.current = true;
+    setIpF(ALL_IPS);
+    setModeF(ALL_MODES);
+    setStatusF(ALL_STATUSES);
+  };
 
   return (
-    <div style={{ minHeight: '100vh' }}>
-      {/* header + filters */}
-      <header style={{ padding: 'clamp(108px, 12vw, 140px) 0 0' }}>
-        <div className="wrap">
-          <div className="eyebrow rise" style={{ color: 'var(--mint)' }}>만나요 · POP-UP &amp; TICKETING</div>
-          <h1 className="h-xl rise" style={{ marginTop: 14, animationDelay: '.08s' }}>오프라인 팝업</h1>
-          <p className="rise" style={{ margin: '14px 0 0', fontSize: 15, color: '#C9C3E4', maxWidth: 480, textWrap: 'pretty', animationDelay: '.16s' }}>
-            {/* 이 표면은 오프라인만 싣는다(selectOfflinePopupEvents) — 리드도 그렇게 읽혀야
-                한다. "온·오프라인"이라고 적어 두면 목록에 없는 온라인 팝업을 찾는 사람이
-                여기서 필터만 만지다 돌아간다. */}
-            공식 오프라인 팝업스토어를 발견하고, 예매부터 QR 입장까지 한 번에.
-          </p>
+    <div className="wc-root wc-offline">
+      <div className="wc-container">
+        <header className="wc-offline__head">
+          <h1 className="wc-offline__title">오프라인 팝업</h1>
+          {/* 이 표면은 오프라인만 싣는다(selectOfflinePopupEvents) — 리드도 그렇게 읽혀야
+              한다. "온·오프라인"이라고 적어 두면 목록에 없는 온라인 팝업을 찾는 사람이
+              여기서 필터만 만지다 돌아간다. */}
+          <p className="wc-offline__lead">공식 오프라인 팝업스토어를 발견하고, 예매부터 QR 입장까지 한 번에.</p>
+        </header>
 
-          <div className="rise" style={{ display: 'flex', flexDirection: 'column', gap: 10, marginTop: 26, animationDelay: '.24s' }}>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }} role="group" aria-label="IP 필터">
-              <button className={'chip' + (ipF === ALL_IPS ? ' on' : '')} aria-pressed={ipF === ALL_IPS} onClick={() => setIpF(ALL_IPS)}>전체 IP</button>
-              {ipsWithEvents.map((ip) => {
-                const active = ipF === ip.id;
-                const accent = ipAccent(ip);
-                return (
-                  <button
-                    key={ip.id}
-                    className={'chip' + (active ? ' on accent' : '')}
-                    aria-pressed={active}
-                    onClick={() => setIpF(ip.id)}
-                    style={active ? { background: accent, borderColor: accent, color: '#0A0813' } : {}}
-                  >
-                    {ip.title}
-                  </button>
-                );
-              })}
-            </div>
-            {(statuses.length > 0 || modes.length > 0) && (
-              <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8 }}>
-                {statuses.length > 0 && (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }} role="group" aria-label="상태 필터">
-                    <button className={'chip chip-sm' + (statusF === ALL_STATUSES ? ' on' : '')} aria-pressed={statusF === ALL_STATUSES} onClick={() => setStatusF(ALL_STATUSES)}>전체 상태</button>
-                    {statuses.map((s) => (
-                      <button key={s} className={'chip chip-sm' + (statusF === s ? ' on' : '')} aria-pressed={statusF === s} onClick={() => setStatusF(s)}>{s}</button>
-                    ))}
-                  </div>
-                )}
-                {statuses.length > 0 && modes.length > 0 && (
-                  <span aria-hidden style={{ width: 1, height: 30, background: 'rgba(255,255,255,.09)' }} />
-                )}
-                {modes.length > 0 && (
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }} role="group" aria-label="모드 필터">
-                    <button className={'chip chip-sm' + (modeF === ALL_MODES ? ' on' : '')} aria-pressed={modeF === ALL_MODES} onClick={() => setModeF(ALL_MODES)}>전체 모드</button>
-                    {modes.map((m) => (
-                      <button key={m} className={'chip chip-sm' + (modeF === m ? ' on' : '')} aria-pressed={modeF === m} onClick={() => setModeF(m)}>{m}</button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
+        {/* 고를 것이 하나뿐인 축(모든 팝업이 같은 상태·모드)은 필터로 내놓지 않는다 —
+            "전체 / 그 하나"는 눌러도 목록이 바뀌지 않는 버튼이다. */}
+        {ipsWithEvents.length > 0 || statuses.length > 1 || modes.length > 1 ? (
+          <div className="wc-offline-filters" ref={filtersRef}>
+            {ipsWithEvents.length > 0 ? (
+              <FilterGroup
+                label="IP 필터"
+                onChange={setIpF}
+                options={[
+                  { value: ALL_IPS, label: '전체 IP' },
+                  ...ipsWithEvents.map((ip) => ({ value: ip.id, label: ip.title })),
+                ]}
+                value={ipF}
+              />
+            ) : null}
+            {statuses.length > 1 ? (
+              <FilterGroup
+                label="상태 필터"
+                onChange={setStatusF}
+                options={[
+                  { value: ALL_STATUSES, label: '전체 상태' },
+                  ...statuses.map((status) => ({ value: status, label: status })),
+                ]}
+                value={statusF}
+              />
+            ) : null}
+            {modes.length > 1 ? (
+              <FilterGroup
+                label="모드 필터"
+                onChange={setModeF}
+                options={[
+                  { value: ALL_MODES, label: '전체 모드' },
+                  ...modes.map((mode) => ({ value: mode, label: mode })),
+                ]}
+                value={modeF}
+              />
+            ) : null}
           </div>
-        </div>
-      </header>
+        ) : null}
 
-      {/* featured */}
-      {featured && <FeaturedEvent e={featured} ip={featured.ip ? ipsById.get(featured.ip) ?? null : null} games={gamesByEventId.get(featured.id) ?? []} />}
-
-      {/* grid / empty */}
-      <section style={{ padding: 'clamp(28px, 4vw, 44px) 0 clamp(40px, 6vw, 60px)' }}>
-        <div className="wrap">
-          {rest.length > 0 && (
-            <div className="event-grid">
-              {rest.map((e) => (
-                <EventCard key={e.id} e={e} ip={e.ip ? ipsById.get(e.ip) ?? null : null} games={gamesByEventId.get(e.id) ?? []} />
-              ))}
-            </div>
-          )}
-          {list.length === 0 && (
-            <div style={{ textAlign: 'center', padding: '70px 20px', border: '1px dashed var(--line-2)', borderRadius: 20 }}>
-              <div style={{ fontSize: 17, fontWeight: 700 }}>
-                {catalog.events.length ? '조건에 맞는 오프라인 팝업이 없어요' : '등록된 오프라인 팝업이 아직 없습니다'}
-              </div>
-              <div className="mono" style={{ fontSize: 12, color: 'var(--faint)', marginTop: 8 }}>
-                {catalog.events.length ? '필터를 바꿔보세요' : 'Supabase 카탈로그 seed 또는 admin 등록 후 오프라인 팝업 목록에 공개됩니다.'}
-              </div>
-            </div>
-          )}
-        </div>
-      </section>
-
-      {/* QR guide */}
-      <section style={{ borderTop: '1px solid var(--line)', background: 'rgba(12,10,24,.5)', padding: 'clamp(44px, 6vw, 70px) 0' }}>
-        <div className="wrap">
-          <div className="eyebrow" style={{ color: 'var(--mint)' }}>전자티켓 · QR 입장</div>
-          <div className="event-guide-grid" style={{ marginTop: 22 }}>
-            {GUIDE.map((g) => (
-              <div key={g.n} style={{ padding: '22px 24px', borderRadius: 18, border: '1px solid var(--line)', background: 'linear-gradient(180deg, var(--surface), var(--bg-2))' }}>
-                <span className="mono" style={{ fontSize: 12, color: 'var(--faint)' }}>{g.n}</span>
-                <div style={{ fontWeight: 700, fontSize: 16, marginTop: 10 }}>{g.t}</div>
-                <div style={{ fontSize: 13.5, color: 'var(--dim)', marginTop: 6, textWrap: 'pretty' }}>{g.d}</div>
-              </div>
+        {list.length > 0 ? (
+          <ul className="wc-offline-grid">
+            {list.map((e) => (
+              <OfflinePopupCard
+                e={e}
+                games={gamesByEventId.get(e.id) ?? []}
+                ip={e.ip ? ipsById.get(e.ip) ?? null : null}
+                key={e.id}
+              />
             ))}
-          </div>
-          <p className="money-caption" style={{ margin: '18px 0 0' }}>취소·환불 규정은 예매 화면에서 안내됩니다</p>
+          </ul>
+        ) : catalog.events.length && filtered ? (
+          <EmptyState
+            action={<WcButton onClick={resetFilters}>전체 보기</WcButton>}
+            className="wc-offline__empty"
+            description="필터를 바꾸거나 전체 목록으로 돌아가 보세요."
+            title="조건에 맞는 오프라인 팝업이 없어요"
+            titleAs="h2"
+          />
+        ) : (
+          <EmptyState
+            action={<WcButton href="/">홈으로 가기</WcButton>}
+            className="wc-offline__empty"
+            description="새 오프라인 팝업이 열리면 이 자리에서 알려 드릴게요."
+            title="등록된 오프라인 팝업이 아직 없어요"
+            titleAs="h2"
+          />
+        )}
+      </div>
+
+      {/* QR 안내 — 예매 전에 입장 방식을 먼저 알 수 있게 목록 아래 둔다. */}
+      <section aria-labelledby="offline-guide-heading" className="wc-offline-guide">
+        <div className="wc-container">
+          <h2 className="wc-offline-guide__title" id="offline-guide-heading">전자티켓 · QR 입장</h2>
+          <ol className="wc-offline-guide__steps">
+            {GUIDE.map((g) => (
+              <li className="wc-offline-guide__step" key={g.n}>
+                <span aria-hidden className="wc-offline-guide__num">{g.n}</span>
+                <strong className="wc-offline-guide__name">{g.t}</strong>
+                <span className="wc-offline-guide__desc">{g.d}</span>
+              </li>
+            ))}
+          </ol>
+          <p className="wc-offline-guide__caption">취소·환불 규정은 예매 화면에서 안내됩니다</p>
         </div>
       </section>
     </div>
