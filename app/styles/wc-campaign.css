@@ -558,9 +558,11 @@
 
 .wc-campaign-section {
   padding-top: 40px;
-  /* 앵커 링크로 점프했을 때 고정 크롬 + sticky 내브(48) 뒤로 제목이 숨지 않게 한다.
-     대체값 기준 81 + 59 = 140. */
-  scroll-margin-top: calc(var(--wc-sticky-chrome-h, 81px) + 59px);
+  /* 착지선 = 고정 크롬 + 앵커 내브(48 + 하단 선 1). 목차 클릭은 CampaignAnchorNav 가 이 선에 섹션 머리를
+     맞추고(campaign-anchor-scroll), 이 값은 해시가 붙은 주소로 처음 들어올 때처럼 브라우저가 직접 옮기는
+     경우에만 쓰인다 — 그때는 전역 html scroll-padding-top(globals.css)이 더해져 선보다 아래에 선다.
+     선 아래로 여백을 두지 않는다: 그 틈으로 앞 블록의 끝이 비친다. 제목 위 여백은 이 padding-top 이다. */
+  scroll-margin-top: calc(var(--wc-sticky-chrome-h, 81px) + 49px);
 }
 
 .wc-campaign-section__heading {
@@ -871,8 +873,8 @@
 
   .wc-campaign-section {
     padding-top: 64px;
-    /* 대체값 기준 68 + 60 = 128. */
-    scroll-margin-top: calc(var(--wc-sticky-chrome-h, 68px) + 60px);
+    /* 모바일과 같은 착지선(고정 크롬 + 내브 49) — 대체값만 데스크톱 축약 높이다. */
+    scroll-margin-top: calc(var(--wc-sticky-chrome-h, 68px) + 49px);
   }
 
   .wc-campaign-section__heading {
