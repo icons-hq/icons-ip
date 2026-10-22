@@ -164,3 +164,12 @@ describe('404 2CTA (CH-14)', () => {
     expect(declsFor('.wc-not-found .wc-not-found__actions').width).toBe('min(528px, 100%)');
   });
 });
+
+describe('검색 모달 배경 inert (공지 스트립 포함)', () => {
+  /* 백드롭이 로고 행 아래에서 시작해 공지 스트립이 딤 밖에 남는다 — 모달이 열린 동안 스트립도 inert여야 한다. */
+  it('useOverlayA11y가 공지 스트립을 배경으로 덮는다', async () => {
+    const { readFileSync } = await import('node:fs');
+    const src = readFileSync(new URL('./useOverlayA11y.ts', import.meta.url), 'utf8');
+    expect(src).toMatch(/'[^']*\.wc-notice[^']*'/);
+  });
+});

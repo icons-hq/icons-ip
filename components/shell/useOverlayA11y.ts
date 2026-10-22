@@ -45,7 +45,7 @@ export function useOverlayA11y({
     const backgroundElements = [
       ownerDocument.getElementById('root'),
       ...ownerDocument.querySelectorAll<HTMLElement>(
-        '.wc-footer, .wc-utilbar, .wc-header__bar, .wc-gnb-wrap, .wc-tabbar',
+        '.wc-footer, .wc-notice, .wc-utilbar, .wc-header__bar, .wc-gnb-wrap, .wc-tabbar',
       ),
     ].filter((element): element is HTMLElement => element !== null && !element.contains(panel));
     const previousInert = backgroundElements.map((element) => element.inert);

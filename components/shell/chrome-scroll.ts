@@ -42,3 +42,14 @@ export function nextTabBarScroll(state: TabBarScroll, scrollY: number): TabBarSc
   const travel = state.travel + delta;
   return { hidden: state.hidden || travel >= TAB_BAR_HIDE_AFTER, lastY: y, travel };
 }
+
+/** 하단 탭바 숨김을 막는 포커스는 키보드 포커스뿐이다. 탭·클릭으로 생긴 포커스와 오버레이가 닫히며
+ * 되돌린 포커스(포인터로 닫은 경우)는 :focus-visible이 아니라 숨김을 막지 않는다 — 그렇지 않으면 메뉴 시트를
+ * 닫은 뒤 '메뉴' 버튼에 남은 포커스 때문에 스크롤해도 탭바가 내려가지 않는다(B3·MC-02). */
+export function focusKeepsTabBarVisible(target: { matches?: (selector: string) => boolean } | null): boolean {
+  try {
+    return Boolean(target?.matches?.(':focus-visible'));
+  } catch {
+    return false;
+  }
+}

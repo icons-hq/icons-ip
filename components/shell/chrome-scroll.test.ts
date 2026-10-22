@@ -3,6 +3,7 @@ import {
   HEADER_CONDENSE_AFTER,
   HEADER_EXPAND_BELOW,
   TAB_BAR_HIDE_AFTER,
+  focusKeepsTabBarVisible,
   nextHeaderCondensed,
   nextTabBarScroll,
   tabBarScrollAt,
@@ -100,5 +101,16 @@ describe('모바일 하단 탭바 숨김 (B3)', () => {
   /* 뒤로 가기로 스크롤이 복원된 채 마운트돼도 첫 판정만으로 숨기지 않는다. */
   it('복원된 스크롤 위치에서 시작해도 처음에는 보인다', () => {
     expect(tabBarScrollAt(2400)).toEqual({ hidden: false, lastY: 2400, travel: 0 });
+  });
+});
+
+describe('탭바 숨김을 막는 포커스', () => {
+  it('키보드 포커스(:focus-visible)만 숨김을 막고 탭·클릭·포인터로 닫은 오버레이의 되돌린 포커스는 막지 않는다', () => {
+    const keyboard = { matches: (s: string) => s === ':focus-visible' };
+    const pointer = { matches: () => false };
+    expect(focusKeepsTabBarVisible(keyboard)).toBe(true);
+    expect(focusKeepsTabBarVisible(pointer)).toBe(false);
+    expect(focusKeepsTabBarVisible(null)).toBe(false);
+    expect(focusKeepsTabBarVisible({ matches: () => { throw new Error('unsupported'); } })).toBe(false);
   });
 });

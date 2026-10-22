@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useState, type FocusEvent } from 'react';
 import { usePathname } from 'next/navigation';
 import { MOB_ITEMS, activeNavId, hrefFor, isGoodDetailPath } from '@/lib/routes';
+import { focusKeepsTabBarVisible } from './chrome-scroll';
 import { Icon } from '@/components/ui/Icon';
 
 /* 바텀 탭의 아이콘은 라우트 데이터가 아니라 표면의 표현이라 여기서 고정한다. */
@@ -54,7 +55,7 @@ export function BottomTabBar({
       className="wc-tabbar"
       data-hidden={hidden && !focusWithin ? 'true' : 'false'}
       onBlurCapture={onBlurCapture}
-      onFocusCapture={() => setFocus({ within: true, pathname })}
+      onFocusCapture={(event) => setFocus({ within: focusKeepsTabBarVisible(event.target as Element), pathname })}
     >
       {MOB_ITEMS.map((item) => item.id === 'menu'
         ? (
