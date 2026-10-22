@@ -5,14 +5,15 @@ import { activeGalleryIndex } from './PdpGallery';
 import {
   CART_ADDED_STATUS,
   GoodPurchasePanel,
+  GoodRailBuyBox,
   addToCartResultStep,
   addedCartItems,
   buyNowNavigation,
   isGoodSoldOut,
-  isMiniBuybarVisible,
   mergedCartQuantity,
   purchaseBlockReason,
   purchaseSubtotal,
+  purchaseTotalDisplay,
   type GoodPurchaseController,
 } from './GoodPurchasePanel';
 
@@ -196,11 +197,44 @@ describe('isGoodSoldOut', () => {
   });
 });
 
-describe('isMiniBuybarVisible', () => {
-  it('하부 탭이 보일 때만, 미리보기가 아닐 때만 뜬다', () => {
-    expect(isMiniBuybarVisible({ panelsInView: true, embedded: false })).toBe(true);
-    expect(isMiniBuybarVisible({ panelsInView: false, embedded: false })).toBe(false);
-    expect(isMiniBuybarVisible({ panelsInView: true, embedded: true })).toBe(false);
+describe('purchaseTotalDisplay', () => {
+  it('본문 패널과 레일 박스가 같은 합계 라벨·값을 쓴다', () => {
+    expect(purchaseTotalDisplay({ good, unavailableLabel: null, selectionRequired: false, subtotal: 24000 }))
+      .toEqual({ label: '총 금액', amount: '₩24,000', numeric: true });
+    expect(purchaseTotalDisplay({ good: { ...good, transactionOffer: null }, unavailableLabel: null, selectionRequired: false, subtotal: 24000 }).label).toBe('총 금액');
+  });
+
+  it('판매 기간 밖이면 판매 상태를, 옵션 전이면 안내 문구를 금액 대신 보인다', () => {
+    expect(purchaseTotalDisplay({ good, unavailableLabel: '판매 종료', selectionRequired: true, subtotal: 0 }))
+      .toEqual({ label: '판매 상태', amount: '판매 종료', numeric: false });
+    expect(purchaseTotalDisplay({ good, unavailableLabel: null, selectionRequired: true, subtotal: 0 }))
+      .toEqual({ label: '총 금액', amount: '옵션 선택 후 표시', numeric: false });
+  });
+});
+
+describe('GoodRailBuyBox', () => {
+  it('합계와 [카트 50][구매 226] 버튼을 같은 컨트롤러 함수에 묶는다', () => {
+    const html = renderToStaticMarkup(<GoodRailBuyBox purchase={controller({ quantity: 2, subtotal: 24000 })} />);
+
+    expect(html).toContain('<section aria-label="빠른 구매" class="wc-pdp-railbox">');
+    expect(html).toContain('<strong class="wc-pdp-railbox__amount">₩24,000</strong>');
+    expect(html).toContain('<button aria-label="장바구니에 담기" class="wc-pdp-railbox__cart" type="button">');
+    expect(html).toContain('<button class="wc-pdp-railbox__buy" type="button">구매하기</button>');
+  });
+
+  it('옵션 전에는 CTA 를 잠그고 합계 자리에 안내 문구를 작은 서체로 둔다', () => {
+    const html = renderToStaticMarkup(<GoodRailBuyBox purchase={controller({ selectionRequired: true, inert: true, subtotal: 0 })} />);
+
+    expect(html).toContain('<strong class="wc-pdp-railbox__amount is-note">옵션 선택 후 표시</strong>');
+    expect(html).toMatch(/class="wc-pdp-railbox__cart" disabled=""/);
+    expect(html).toMatch(/class="wc-pdp-railbox__buy" disabled=""/);
+  });
+
+  it('품절이면 두 버튼 자리를 재입고 알림 하나로 바꾼다', () => {
+    const html = renderToStaticMarkup(<GoodRailBuyBox purchase={controller({ good: { ...good, stock: 'soldout', stockQty: 0 }, soldOut: true })} />);
+
+    expect(html).toContain('재입고 알림 받기');
+    expect(html).not.toContain('wc-pdp-railbox__ctas');
   });
 });
 

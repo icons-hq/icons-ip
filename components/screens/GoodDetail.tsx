@@ -6,7 +6,7 @@ import Link from 'next/link';
 import { publicIpHref } from '@/lib/ip-identity';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { GoodBuyBars, GoodPurchasePanel, isMiniBuybarVisible, useAddToCartResult, useGoodPurchase } from '@/components/shop/GoodPurchasePanel';
+import { GoodBuyBars, GoodPurchasePanel, GoodRailBuyBox, useAddToCartResult, useGoodPurchase } from '@/components/shop/GoodPurchasePanel';
 import { AddToCartResultDialog } from '@/components/shop/AddToCartResultDialog';
 import { GoodPurchaseSheet } from '@/components/shop/GoodPurchaseSheet';
 import { OverlayPortal } from '@/components/shell/OverlayPortal';
@@ -65,6 +65,15 @@ export function pdpDefaultPanelId(search: { has: (name: string) => boolean } | n
   if (REVIEW_PARAM_NAMES.some((name) => search.has(name))) return 'reviews';
   if (QNA_PARAM_NAMES.some((name) => search.has(name))) return 'qna';
   return 'detail';
+}
+
+/**
+ * 데스크톱 레일 박스의 화면 위치(CH-16). 탭 섹션이 화면 밖이면 없음, 탭 섹션 안에서는 박스가
+ * 화면 하단에 붙어 있다(docked). 레일 끝이 화면에 들어오면 박스가 레일과 함께 밀려 올라간다(leaving).
+ */
+export function pdpRailBoxState(state: { panelsInView: boolean; railEndInView: boolean }): 'docked' | 'leaving' | undefined {
+  if (!state.panelsInView) return undefined;
+  return state.railEndInView ? 'leaving' : 'docked';
 }
 
 /** 별점은 색·기호로만 전하지 않는다 — 별 문자를 그대로 읽히면 "검은 별 검은 별…"이 된다. */
@@ -248,7 +257,9 @@ export function GoodDetailView({
   const searchParams = useSearchParams();
   const router = useRouter();
   const tabsRef = useRef<HTMLDivElement>(null);
+  const railEndRef = useRef<HTMLSpanElement>(null);
   const [panelsInView, setPanelsInView] = useState(false);
+  const [railEndInView, setRailEndInView] = useState(false);
 
   const purchase = useGoodPurchase({
     disabled: embedded,
@@ -300,19 +311,24 @@ export function GoodDetailView({
     };
   }, [embedded, nextPriceChange, router]);
 
-  /* 미니 구매바는 상단 구매 패널이 화면 밖으로 밀려난 뒤에만 의미가 있다. 그 시점을
-     스크롤 좌표로 계산하지 않고 하부 탭 영역의 가시성으로 읽는다 — 탭이 보인다는 것은
-     정보 칼럼이 이미 지나갔다는 뜻이고, 뷰포트 높이·헤더 높이를 다시 재지 않아도 된다. */
+  /* 데스크톱 레일 박스는 레일 안 sticky 라 탭 섹션이 화면에 있는 동안 화면 하단에 붙고,
+     레일 끝이 화면에 들어오면 레일과 함께 밀려 올라간다. 문의 런처가 그 박스와 겹치지 않도록
+     (CH-16) 두 시점을 스크롤 좌표 대신 가시성으로 읽어 지면에 상태로 남긴다. */
   useEffect(() => {
-    const node = tabsRef.current;
-    if (!node || typeof IntersectionObserver === 'undefined') return;
-    const observer = new IntersectionObserver(
-      (entries) => setPanelsInView(entries.some((entry) => entry.isIntersecting)),
-      { threshold: 0 },
-    );
-    observer.observe(node);
+    const tabs = tabsRef.current;
+    const railEnd = railEndRef.current;
+    if (embedded || !tabs || !railEnd || typeof IntersectionObserver === 'undefined') return;
+    const observer = new IntersectionObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.target === tabs) setPanelsInView(entry.isIntersecting);
+        else setRailEndInView(entry.isIntersecting);
+      }
+    }, { threshold: 0 });
+    observer.observe(tabs);
+    observer.observe(railEnd);
     return () => observer.disconnect();
-  }, []);
+  }, [embedded]);
+  const railBox = pdpRailBoxState({ panelsInView, railEndInView });
 
   /* 갤러리가 비어도 대표 이미지 한 장으로 정상 렌더된다(#172 완료 조건). */
   const frames = [good.img, ...detail.gallery];
@@ -378,7 +394,7 @@ export function GoodDetailView({
   const Root = embedded ? 'div' : 'main';
 
   return (
-    <Root className={`wc-root wc-pdp${embedded ? ' is-embedded' : ''}`}>
+    <Root className={`wc-root wc-pdp${embedded ? ' is-embedded' : ''}`} data-rail-box={embedded ? undefined : railBox}>
       <div className="wc-container">
         <div className="wc-pdp__layout">
           {promotionBanner && !embedded ? <div className="wc-pdp__gallery-column">{promotionBanner}<PdpGallery key={`${good.id}:${media?.settings.priority}:${media?.video?.id}:${media?.shortclip?.id}`} frames={frames} goodName={good.name} overlay={purchaseMessages} media={media} selectedReviews={selectedReviews} /></div> : <PdpGallery key={`${good.id}:${media?.settings.priority}:${media?.video?.id}:${media?.shortclip?.id}`} frames={frames} goodName={good.name} overlay={!embedded ? purchaseMessages : undefined} media={!embedded ? media : undefined} selectedReviews={!embedded ? selectedReviews : undefined} />}
@@ -434,14 +450,20 @@ export function GoodDetailView({
       {!embedded && automaticRecommendations ? <div className="wc-container">{automaticRecommendations}</div> : null}
       {!embedded && discovery?.shippingSavings ? <div className="wc-container"><ProductShippingSavings goodId={good.id} option={purchase.selectedOption} quantity={purchase.quantity} /></div> : null}
       {!embedded && media?.settings.shortclips && media.shortclip ? <div className="wc-container"><ProductShortclips clip={media.shortclip} fallbackBackground={good.img} /></div> : null}
+      {/* 하부 탭 섹션(PD-05): 탭바는 화면 전폭, 패널 840 + 우측 레일 340(데스크톱).
+          레일은 구매 요약 박스만 담고 탭 섹션 범위에서만 보인다(PD-03). */}
       <div ref={tabsRef} className="wc-pdp-tabs">
-        <div className="wc-container">
-          <TabPanels
-            defaultPanelId={pdpDefaultPanelId(searchParams)}
-            idBase="pdp"
-            panels={panels}
-          />
-        </div>
+        <TabPanels
+          defaultPanelId={pdpDefaultPanelId(searchParams)}
+          idBase="pdp"
+          panels={panels}
+        />
+        {embedded ? null : (
+          <div className="wc-pdp-rail">
+            <GoodRailBuyBox purchase={surfacePurchase} />
+            <span ref={railEndRef} aria-hidden="true" className="wc-pdp-rail__end" />
+          </div>
+        )}
       </div>
 
       {!embedded && afterSales ? <div className="wc-container">{afterSales}</div> : null}
@@ -452,7 +474,6 @@ export function GoodDetailView({
           미리보기가 아니라 콘솔을 가리는 바가 된다. */}
       {embedded ? null : (
         <GoodBuyBars
-          miniVisible={isMiniBuybarVisible({ embedded, panelsInView })}
           onOpenSheet={() => setSheetOpen(true)}
           purchase={surfacePurchase}
           sheetOpen={sheetVisible}

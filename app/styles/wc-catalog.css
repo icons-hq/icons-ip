@@ -707,8 +707,7 @@
 }
 
 /* 어드민 미리보기는 문서 안의 한 조각이라 고정 구매바를 띄우지 않는다. */
-.wc-pdp.is-embedded .wc-buybar,
-.wc-pdp.is-embedded .wc-buybar-mini {
+.wc-pdp.is-embedded .wc-buybar {
   display: none;
 }
 
@@ -994,7 +993,11 @@
    PDP — 하부 탭과 패널
    ------------------------------------------------------------------ */
 
+/* 하부 탭 섹션은 컨테이너 밖 전폭이다(PD-05) — 탭바 바탕·하단선은 화면 끝까지 가고, 탭·패널·레일은
+   1180 콘텐츠 축에 맞춘다. 축 여백은 이 섹션 폭 기준이라 탭바·패널·레일이 같은 값을 쓴다. */
 .wc-pdp-tabs {
+  --wc-pdp-inset: max(var(--wc-gutter), calc((100% - 1180px) / 2));
+  position: relative;
   margin-top: 48px;
 }
 
@@ -1006,6 +1009,7 @@
   z-index: 2;
   overflow-x: auto;
   scrollbar-width: none;
+  padding-inline: var(--wc-pdp-inset);
   background: var(--wc-surface);
 }
 
@@ -1013,10 +1017,17 @@
   display: none;
 }
 
+/* 모바일 4탭은 한 줄에 같은 폭으로 선다(PD-06 라벨 잘림) — 라벨 폭 밑으로는 줄지 않고, 그래도 넘치면 가로로 민다. */
 .wc-pdp-tabs .wc-tabs__tab {
-  padding: 0 20px;
-  font-size: 16px;
+  flex: 1 0 0;
+  min-width: max-content;
+  padding: 0 4px;
+  font-size: 14px;
   white-space: nowrap;
+}
+
+.wc-pdp-tabs .wc-tabs__panel {
+  padding-inline: var(--wc-pdp-inset);
 }
 
 /* 초장축 상세 이미지가 그대로 오는 자리라 폭 상한만 잡고 좌측 정렬로 둔다(R-04 §1). */
@@ -1182,9 +1193,26 @@
   }
 
   .wc-pdp-tabs .wc-tabs__tab {
+    flex: none;
     min-width: 220px;
     padding: 0 32px;
     font-size: 20px;
+  }
+
+  /* 패널 칼럼 840 = 1180 − 레일 340. 레일 박스가 앉을 높이(24 + 153)보다 짧아지면 박스가
+     탭 섹션 밖으로 삐져나오므로 최소 높이를 둔다. */
+  .wc-pdp-tabs .wc-tabs__panel {
+    width: calc(100% - 2 * var(--wc-pdp-inset) - 340px);
+    min-height: 200px;
+    margin-left: var(--wc-pdp-inset);
+    padding: 40px 40px 0;
+  }
+
+  /* 어드민 미리보기에는 레일이 없다 — 패널이 콘텐츠 축을 다 쓴다. */
+  .wc-pdp.is-embedded .wc-pdp-tabs .wc-tabs__panel {
+    width: auto;
+    margin-inline: var(--wc-pdp-inset);
+    padding-inline: 0;
   }
 }
 
@@ -1754,73 +1782,144 @@
   font-size: 16px;
 }
 
-/* 데스크톱 하부 상세로 내려갔을 때만 뜨는 우하단 미니 바(R-04 §5.5). */
-.wc-buybar-mini {
-  display: none;
-}
-
 @media (min-width: 990px) {
   .wc-buybar {
     display: none;
   }
+}
 
-  .wc-buybar-mini {
-    position: fixed;
-    right: 24px;
-    bottom: 24px;
-    z-index: 90;
-    display: flex;
-    gap: 5px;
+/* ------------------------------------------------------------------
+   PDP — 데스크톱 레일 박스 (PD-03 · 11 §3 Δ3 · §6 B15)
+   ------------------------------------------------------------------ */
+
+/* 하부 탭 섹션 우측 340 레일. 탭바(54 + 하단선 1) 바로 아래에서 탭 섹션 끝까지 내려가고,
+   그 안의 박스는 화면 하단 근처에 붙는다 — 그래서 탭 섹션 범위에서만 보인다.
+   예전의 뷰포트 고정 우하단 미니 바는 짧은 상세에서 첫 화면부터 본문 CTA 와 겹쳐 없앴다. */
+.wc-pdp-rail {
+  display: none;
+}
+
+@media (min-width: 990px) {
+  .wc-pdp-rail {
+    position: absolute;
+    top: 55px;
+    right: var(--wc-pdp-inset);
+    bottom: 0;
+    display: block;
+    width: 340px;
+    padding: 24px 0 0 20px;
+    border-left: 1px solid var(--wc-hairline);
   }
 
-  /* 노출 조건은 화면 스크립트가 판단한다. 지면 규칙이 display 를 켜 버리므로
-     브라우저 기본 `[hidden]` 이 더는 이기지 못한다 — 여기서 다시 끈다. */
-  .wc-buybar-mini[hidden] {
-    display: none;
+  /* 320 × 153 회색 박스, p 24/20/18/19 → 안쪽 281 = 카트 50 + 갭 5 + 구매 226. */
+  .wc-pdp-railbox {
+    position: sticky;
+    top: calc(100vh - 154px);
+    width: 320px;
+    padding: 24px 20px 18px 19px;
+    background: var(--wc-surface-grey);
   }
+}
 
-  .wc-buybar-mini__cart {
-    display: inline-flex;
-    flex: none;
-    align-items: center;
-    justify-content: center;
-    width: 50px;
-    height: 50px;
-    padding: 0;
-    border: 1px solid var(--wc-line-control);
-    border-radius: var(--wc-radius-cta);
-    background: var(--wc-surface);
-    color: var(--wc-ink);
-    cursor: pointer;
-  }
+/* 레일 끝 표지 — 화면에 들어오면 박스가 레일과 함께 밀려 올라가는 중이다(문의 런처 판단용). */
+.wc-pdp-rail__end {
+  position: absolute;
+  left: 0;
+  bottom: 0;
+  width: 1px;
+  height: 1px;
+  pointer-events: none;
+}
 
-  .wc-buybar-mini__buy {
-    display: inline-flex;
-    flex: none;
-    align-items: center;
-    justify-content: center;
-    width: 226px;
-    height: 50px;
-    padding: 0 15px;
-    font-family: inherit;
-    font-size: 15px;
-    font-weight: 700;
-    border: 1px solid var(--wc-ink);
-    border-radius: var(--wc-radius-cta);
-    background: var(--wc-ink);
-    color: #FFFFFF;
-    cursor: pointer;
-  }
+.wc-pdp-railbox__total {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 41px;
+}
 
-  /* 카트 50 + 갭 5 + 구매 226 = 281 — 재입고로 바뀌어도 바 폭이 흔들리지 않는다. */
-  .wc-buybar-mini__restock {
-    margin: 0;
-  }
+.wc-pdp-railbox__label {
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.8;
+  color: var(--wc-ink);
+}
 
-  .wc-buybar-mini__restock .wc-btn {
-    width: 281px;
-    font-size: 15px;
-  }
+.wc-pdp-railbox__amount {
+  font-size: 23px;
+  font-weight: 700;
+  line-height: 1.8;
+  color: var(--wc-ink);
+  white-space: nowrap;
+}
+
+/* 금액이 아니라 안내 문구(옵션 선택 전·판매 상태)면 금액 서체로 키우지 않는다. */
+.wc-pdp-railbox__amount.is-note {
+  font-size: 14px;
+  white-space: normal;
+  text-align: right;
+}
+
+.wc-pdp-railbox__ctas {
+  display: flex;
+  gap: 5px;
+  margin-top: 20px;
+}
+
+.wc-pdp-railbox__cart {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 50px;
+  height: 50px;
+  padding: 0;
+  border: 1px solid var(--wc-line-control);
+  border-radius: var(--wc-radius-cta);
+  background: var(--wc-surface);
+  color: var(--wc-ink);
+  cursor: pointer;
+}
+
+.wc-pdp-railbox__buy {
+  display: inline-flex;
+  flex: 1;
+  align-items: center;
+  justify-content: center;
+  min-width: 0;
+  height: 50px;
+  padding: 0 15px;
+  font-family: inherit;
+  font-size: 15px;
+  font-weight: 700;
+  border: 1px solid var(--wc-ink);
+  border-radius: var(--wc-radius-cta);
+  background: var(--wc-ink);
+  color: #FFFFFF;
+  cursor: pointer;
+}
+
+.wc-pdp-railbox__buy.is-full {
+  width: 100%;
+  margin-top: 20px;
+}
+
+.wc-pdp-railbox__cart:disabled,
+.wc-pdp-railbox__buy:disabled {
+  border-color: var(--wc-ink-disabled);
+  background: var(--wc-ink-disabled);
+  color: #FFFFFF;
+  cursor: not-allowed;
+}
+
+/* 품절이면 두 버튼 자리가 같은 폭(281)의 재입고 버튼 하나로 바뀐다 — 박스 크기가 흔들리지 않는다. */
+.wc-pdp-railbox__restock {
+  margin-top: 20px;
+}
+
+.wc-pdp-railbox__restock .wc-btn {
+  font-size: 15px;
 }
 
 /* ------------------------------------------------------------------

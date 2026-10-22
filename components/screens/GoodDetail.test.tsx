@@ -5,7 +5,7 @@ import type { GoodDetailContent } from '@/lib/goods-detail';
 import { EMPTY_GOODS_NOTICE } from '@/lib/goods-notice';
 import { getLegalDocument } from '@/lib/legal/documents';
 import type { ReviewRatingSummary } from '@/lib/reviews';
-import { GoodDetail, GoodDetailView, pdpDefaultPanelId } from './GoodDetail';
+import { GoodDetail, GoodDetailView, pdpDefaultPanelId, pdpRailBoxState } from './GoodDetail';
 import { buildGoodPreview } from '@/lib/admin/good-preview';
 
 /* 상세페이지의 출고 기한 문장은 배송·반품 정책이 진실원이다.
@@ -338,14 +338,42 @@ describe('GoodDetail', () => {
     expect(render()).toContain('data-wished="false"');
   });
 
-  it('고정 구매바 2종을 함께 둔다', () => {
-    const html = render();
+  /* PD-03 — 뷰포트 고정 미니 바는 짧은 상세에서 첫 화면부터 본문 CTA 와 겹쳤다. 데스크톱 구매 요약은
+     하부 탭 섹션의 우측 레일 안 박스로만 둔다(레일 안 sticky 라 탭 섹션 범위에서만 보인다). */
+  it('모바일 고정 바와 탭 섹션 레일 안 구매 요약 박스를 두고 뷰포트 고정 미니 바는 없다', () => {
+    const only = { id: '00000000-0000-4000-8000-000000000301', name: '기본 옵션', code: 'G13', price: 12000, stockQty: 8, isDefault: true, attributes: {} };
+    const html = render({ good: { ...good, options: [only] } });
 
     expect(html).toContain('class="wc-buybar"');
-    expect(html).toContain('wc-buybar-mini');
-    expect(html).toContain('aria-label="장바구니에 담기"');
-    /* 미니 바는 하부 탭이 보이기 전까지 화면과 보조기기 양쪽에서 없다. */
-    expect(html).toMatch(/class="wc-buybar-mini"[^>]*hidden/);
+    expect(html).not.toContain('wc-buybar-mini');
+    const tabs = html.slice(html.indexOf('class="wc-pdp-tabs"'));
+    const rail = tabs.slice(tabs.indexOf('<div class="wc-pdp-rail">'));
+    expect(tabs.indexOf('<div class="wc-pdp-rail">')).toBeGreaterThan(tabs.indexOf('role="tablist"'));
+    expect(rail).toMatch(/^<div class="wc-pdp-rail"><section aria-label="빠른 구매" class="wc-pdp-railbox">/);
+    expect(rail).toContain('<span class="wc-pdp-railbox__label">총 금액</span><strong class="wc-pdp-railbox__amount">₩12,000</strong>');
+    expect(rail).toContain('aria-label="장바구니에 담기" class="wc-pdp-railbox__cart"');
+    expect(rail).toContain('>구매하기</button>');
+    /* 레일 끝 표지는 문의 런처 판단용이다 — 보조기기에는 없다. */
+    expect(rail).toContain('<span aria-hidden="true" class="wc-pdp-rail__end"></span>');
+  });
+
+  it('탭 섹션은 컨테이너 밖 전폭이라 탭바가 화면 끝까지 간다', () => {
+    const html = render();
+    const tabs = html.slice(html.indexOf('<div class="wc-pdp-tabs">'));
+
+    expect(tabs.startsWith('<div class="wc-pdp-tabs"><div class="wc-tabs"><div class="wc-tabs__list" role="tablist">')).toBe(true);
+  });
+
+  it('품절이면 레일 박스 CTA 도 재입고 알림이고 판매 기간 밖이면 비활성 상태 버튼이다', () => {
+    const soldOut = render({ good: { ...good, stock: 'soldout', stockQty: 0 } });
+    const soldOutRail = soldOut.slice(soldOut.indexOf('<div class="wc-pdp-rail">'));
+    expect(soldOutRail).toContain('wc-restock-cta');
+    expect(soldOutRail).not.toContain('wc-pdp-railbox__ctas');
+
+    const ended = render({ good: { ...good, stock: 'soldout', stockQty: 0, salePeriod: { state: 'ended', startsAt: '2026-10-14T00:00:00Z', endsAt: '2026-10-15T00:00:00Z', calculatedAt: '2026-10-16T00:00:00Z', nextChangeAt: null } } });
+    const endedRail = ended.slice(ended.indexOf('<div class="wc-pdp-rail">'));
+    expect(endedRail).toContain('<button class="wc-pdp-railbox__buy is-full" disabled="" type="button">판매 종료</button>');
+    expect(endedRail).not.toContain('wc-restock-cta');
   });
 
   /* PD-01 — 모바일 바는 구매 시트를 여는 트리거다. 실행은 시트 안 CTA 가 한다. */
@@ -396,6 +424,14 @@ describe('GoodDetail', () => {
     expect(html).toContain('Q&amp;A 본문 슬롯');
     expect(html.indexOf('id="pdp-tab-qna"')).toBeGreaterThan(html.indexOf('id="pdp-tab-reviews"'));
     expect(html.indexOf('id="pdp-tab-shipping"')).toBeGreaterThan(html.indexOf('id="pdp-tab-qna"'));
+  });
+
+  /* CH-16 — 문의 런처가 레일 박스와 겹치지 않게 하는 판단 근거. */
+  it('레일 박스는 탭 섹션 안에서는 화면 하단에 붙고, 레일 끝이 보이면 레일과 함께 올라간다', () => {
+    expect(pdpRailBoxState({ panelsInView: false, railEndInView: false })).toBeUndefined();
+    expect(pdpRailBoxState({ panelsInView: false, railEndInView: true })).toBeUndefined();
+    expect(pdpRailBoxState({ panelsInView: true, railEndInView: false })).toBe('docked');
+    expect(pdpRailBoxState({ panelsInView: true, railEndInView: true })).toBe('leaving');
   });
 
   it('리뷰 조건이 URL에 있으면 리뷰 탭에서 연다', () => {
@@ -524,6 +560,8 @@ describe('GoodDetail', () => {
     /* 고정 바가 어드민 콘솔 하단을 덮으면 미리보기가 아니라 방해물이 된다. */
     expect(html).not.toContain('class="wc-buybar"');
     expect(html).not.toContain('wc-buybar-mini');
+    expect(html).not.toContain('wc-pdp-rail');
+    expect(html).not.toContain('data-rail-box');
   });
 
   it('리뷰 슬롯이 없으면 리뷰 탭이 빈 이유를 적는다', () => {
