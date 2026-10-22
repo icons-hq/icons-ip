@@ -271,7 +271,7 @@ grid **2열 451px, gap 20(행)/18(열)**. 카드 451×141: 1px `#DCDEE0`, r2, p 
 | PD-15 | 가격 라벨·SALE 배지 파생 | 정가/할인가 라벨 | 라벨 없음, 할인율 표시를 꺼도 SALE 배지 잔존(`lib/goods-taxonomy.ts:38-48`) | DRIFT | P2 | L1 ✅ #588 |
 | PD-16a | 띠배너 위치 | 상세 탭 첫 블록은 739×170 **이미지 쿠폰 캐러셀**(R-04 §5.3) | 대표 이미지 바로 위 **텍스트 배너**(스마트스토어 대조, `components/shop/ProductDetailPresentation.tsx:9-12`) | INTENTIONAL — 서로 다른 장치라 옮겨도 같아지지 않는다 | — | — |
 | PD-16b | 추천 블록 위치 | 상세 패널 끝(관련 상품 4열) | 탭 위(`GoodDetail.tsx:404-412`, 스마트스토어 대조) | GAP-UI(LD-6 확정: 상세 패널 끝) | P2 | L1 ✅ #588 |
-| PD-17 | 구조화 데이터 | JSON-LD Product·Breadcrumb, og:price·image | title·description만(`app/shop/[goodId]/page.tsx:44-55`) | GAP-UI | P2 | L1 ✅ #588 — 카카오 수집기는 Next 봇 목록 밖(후속) |
+| PD-17 | 구조화 데이터 | JSON-LD Product·Breadcrumb, og:price·image | title·description만(`app/shop/[goodId]/page.tsx:44-55`) | GAP-UI | P2 | L1 ✅ #588 — 카카오 식별자만 보내는 수집기 UA 변형까지 <head> 보장은 #591 |
 | PD-18 | Q&A 탭 | 채팅 메신저 | 공개 Q&A | INTENTIONAL(R-08 B3) — 적용 안 함 | — | — |
 | PD-19 | 상세 패널의 브랜드 스토리·브랜드 카드 | 상세 이미지 뒤 브랜드 스토리, 판매자 정보 뒤 브랜드 카드 | 없음 — IP 이름·소개·이미지 데이터는 있음 | GAP-UI | P2 | L1 ✅ #588 |
 
@@ -311,13 +311,13 @@ grid **2열 451px, gap 20(행)/18(열)**. 카드 451×141: 1px `#DCDEE0`, r2, p 
 
 | ID | 항목 | LFS | ICONS 현재(근거) | 분류 | P | 단계 |
 |---|---|---|---|---|---|---|
-| EV-01 | 허브 머리·탭 카운트·부제 누수 | h1·부제 없음, 탭 14/700 카운트 없음 | h1 + 부제(카드 게이트 OFF에도 '카드팩' 문구), "ALL (n)"(`CampaignHub.tsx:125-162`) | DRIFT | P1 | L10 |
-| EV-02 | 허브 더보기·배너 자동재생 | B21 | 전부 렌더, 자동재생 없음(`CampaignHub.tsx:133-139`) | LFS-Δ·GAP-UI | P2 | L10 |
-| EV-03 | 캠페인 CTA 블록 | 외부 링크·CTA 버튼 블록 | 블록 8종. DB 검증(`supabase/migrations/20260831100000_campaigns_domain.sql:89-131`, `validate_campaign_sections`)·파서(`lib/campaigns.ts`)·어드민 편집기(`lib/admin/campaigns.ts`, `components/admin/sections/CampaignSection*`)가 1:1로 묶여 있다 | GAP-DATA(+링크 정책 LD-18) | P2 | L10 |
-| EV-04 | 오프라인 팝업 | (대응 표면 없음) — R-06 §1.4 카드·§2.3 안내형 차용 | 구 조판 격리 CSS + 구 인라인 스타일(대비 미달 추정, `components/screens/Events.tsx:139-146`) | GAP-UI(재조판 대기) | P1 | L10 |
-| EV-05 | 법적 문서 | 620 문서 서식 | 860 구 조판(`app/styles/legal-doc.css:262`) | GAP-UI(재조판 대기) | P2 | L10 |
+| EV-01 | 허브 머리·탭 카운트·부제 누수 | h1·부제 없음, 탭 14/700 카운트 없음 | h1 + 부제(카드 게이트 OFF에도 '카드팩' 문구), "ALL (n)"(`CampaignHub.tsx:125-162`) | DRIFT | P1 | L10 ✅ #589 |
+| EV-02 | 허브 더보기·배너 자동재생 | B21 | 전부 렌더, 자동재생 없음(`CampaignHub.tsx:133-139`) | LFS-Δ·GAP-UI | P2 | L10 ✅ #589 |
+| EV-03 | 캠페인 CTA 블록 | 외부 링크·CTA 버튼 블록 | 블록 8종. DB 검증(`supabase/migrations/20260831100000_campaigns_domain.sql:89-131`, `validate_campaign_sections`)·파서(`lib/campaigns.ts`)·어드민 편집기(`lib/admin/campaigns.ts`, `components/admin/sections/CampaignSection*`)가 1:1로 묶여 있다 | GAP-DATA(+링크 정책 LD-18) | P2 | L10 ✅ #589 |
+| EV-04 | 오프라인 팝업 | (대응 표면 없음) — R-06 §1.4 카드·§2.3 안내형 차용 | 구 조판 격리 CSS + 구 인라인 스타일(대비 미달 추정, `components/screens/Events.tsx:139-146`) | GAP-UI(재조판 대기) | P1 | L10 ✅ #589 |
+| EV-05 | 법적 문서 | 620 문서 서식 | 860 구 조판(`app/styles/legal-doc.css:262`) | GAP-UI(재조판 대기) | P2 | L10 ✅ #589 |
 | EV-06 | 공지 게시판 | 아코디언 목록 + 상세 1180 | 공개 공지 라우트 없음 | GAP-DATA | P2 | LD-12 |
-| EV-07 | about | 자체 마이크로사이트 | 구 홈 콘텐츠 보존 | INTENTIONAL(ADR-0011) — DESIGN 본문(보존)과 frontmatter("재조판 후속") 충돌만 정리 | — | L10(LD-11) |
+| EV-07 | about | 자체 마이크로사이트 | 구 홈 콘텐츠 보존 | INTENTIONAL(ADR-0011) — DESIGN 본문(보존)과 frontmatter("재조판 후속") 충돌만 정리 | — | L10(LD-11) ✅ #589 |
 
 ### 8.8 운영 데이터·게이트 공백 (코드 변경 없음 — DT-11만 결정 필요)
 

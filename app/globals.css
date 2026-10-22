@@ -1,7 +1,5 @@
 @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard@v1.3.9/dist/web/static/pretendard.css');
 @import "tailwindcss";
-/* EventDetail uses Tailwind's sr-only utility. */
-@source "../components/screens/EventDetail.tsx";
 
 /* Global plumbing only. Surface colors, controls and layouts belong to their scoped stylesheets. */
 @theme {

@@ -4,6 +4,7 @@ import { CampaignAnchorNav } from '@/components/campaign/CampaignAnchorNav';
 import { ExchangePanel } from '@/components/campaign/ExchangePanel';
 import { EmptyState } from '@/components/wc/EmptyState';
 import { ProductCard } from '@/components/wc/ProductCard';
+import { WcButton } from '@/components/wc/WcButton';
 import { GoodsSalePeriodRefresh } from '@/components/shop/GoodsSalePeriodRefresh';
 import {
   campaignAnchors,
@@ -137,6 +138,15 @@ function SectionBody({
               salePeriod={good.salePeriod} soldOut={good.soldOut}
             />
           ))}
+        </div>
+      );
+
+    case 'cta':
+      /* 이동 버튼 — ICONS 안의 경로만 온다(LD-18: DB·파서가 이미 외부 주소를 걸렀다).
+         R-06 §2.2 "상품 보러가기" 잉크 버튼 문법이다. */
+      return (
+        <div className="wc-campaign-cta">
+          <WcButton href={section.href} variant="primary">{section.label}</WcButton>
         </div>
       );
 
