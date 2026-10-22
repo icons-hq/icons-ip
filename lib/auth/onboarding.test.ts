@@ -91,6 +91,49 @@ describe('safeNextPath', () => {
   ])('falls back for unsafe path %s', (value) => {
     expect(safeNextPath(value)).toBe('/');
   });
+
+  it.each([
+    '/..//evil.example',
+    '%2F..%2F%2Fevil.example',
+    '/a/..//evil.example',
+    '/%2e%2e//evil.example',
+    '/%252e%252e//evil.example',
+    '/.//evil.example',
+    '/%2e//evil.example',
+    '/.%09.//evil.example',
+    '/..%0A//evil.example',
+    '/..//evil.example/path?x=1#y',
+  ])('falls back when dot-segment normalization turns %s into a protocol-relative path', (value) => {
+    expect(safeNextPath(value)).toBe('/');
+  });
+
+  it.each(['/%09/[', '/%0A/%20'])('falls back instead of throwing when %s does not parse as a URL', (value) => {
+    expect(safeNextPath(value)).toBe('/');
+  });
+
+  // 로그인 페이지 → postAuthenticationPath, 온보딩 페이지 → 완료 액션처럼 한 번 정제된 값이
+  // 다시 정제된다. 한 겹 더 인코딩한 점 조각이 두 번째 디코드에서 `..`로 살아나도 같은 출처에 머문다.
+  it.each([
+    '/..//evil.example',
+    '/%25252e%25252e//evil.example',
+    '/%252F%252Fevil.example',
+    '/%255C%255Cevil.example',
+  ])('keeps %s on the same origin even when sanitized twice', (value) => {
+    const once = safeNextPath(value);
+    const twice = safeNextPath(once);
+
+    for (const path of [once, twice]) {
+      expect(new URL(path, 'https://iconsip.com/onboarding').origin).toBe('https://iconsip.com');
+    }
+  });
+
+  it('resolves same-origin dot segments', () => {
+    expect(safeNextPath('/a/../b')).toBe('/b');
+  });
+
+  it('keeps a path with query and hash unchanged', () => {
+    expect(safeNextPath('/shop?x=1#y')).toBe('/shop?x=1#y');
+  });
 });
 
 describe('postAuthenticationPath', () => {
