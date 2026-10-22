@@ -99,12 +99,13 @@
   margin: 0 0 32px;
 }
 
+/* 가로 스크롤 줄은 overflow 로 칩의 포커스 링(바깥 4px)을 자른다 — 위아래 4px 여백을 둔다. */
 .wc-offline-filters__group {
   display: flex;
   flex-wrap: nowrap;
   gap: 8px;
-  margin: 0 calc(var(--wc-gutter) * -1);
-  padding: 0 var(--wc-gutter);
+  margin: -4px calc(var(--wc-gutter) * -1);
+  padding: 4px var(--wc-gutter);
   overflow-x: auto;
   scrollbar-width: none;
 }
@@ -823,8 +824,8 @@
 
   .wc-offline-filters__group {
     flex-wrap: wrap;
-    margin-inline: 0;
-    padding-inline: 0;
+    margin: 0;
+    padding: 0;
     overflow-x: visible;
   }
 

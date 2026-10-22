@@ -108,6 +108,12 @@
   color: var(--wc-ink);
 }
 
+/* 배너 링크는 가로 스크롤 트랙(overflow) 안에 있다 — 파운데이션의 바깥쪽 포커스 링
+   (offset 2px)은 트랙 경계에서 잘려 보이지 않는다. 링을 배너 안쪽으로 들인다. */
+.wc-campaign-banner:focus-visible {
+  outline-offset: -4px;
+}
+
 .wc-campaign-banner__art {
   position: absolute;
   inset: 0;
