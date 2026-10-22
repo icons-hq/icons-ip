@@ -211,7 +211,14 @@ describe('isCampaignInternalHref', () => {
     ['/%2E%2e//evil.example', '인코딩된 경로 조각'],
     ['/shop/..', '끝의 .. 조각'],
     ['/shop/.?x=1', '쿼리 앞 . 조각'],
+    /* 깨진 퍼센트 인코딩은 라우터가 400 으로 끊는다 — DB 와 같은 문법 판정(% 뒤 16진수 두 자리). */
+    ['/events/%E0%A4%A', '끝이 잘린 인코딩'],
+    ['/%zz', '16진수가 아닌 인코딩'],
   ])('%s 를 거절한다(%s)', (href) => expect(isCampaignInternalHref(href)).toBe(false));
+
+  it('온전한 퍼센트 인코딩은 받는다', () => {
+    expect(isCampaignInternalHref('/search?q=%ED%82%A4%EB%A7%81')).toBe(true);
+  });
 
   it('300자까지 받는다', () => {
     expect(isCampaignInternalHref(`/${'a'.repeat(299)}`)).toBe(true);

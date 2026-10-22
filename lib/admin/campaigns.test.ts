@@ -282,6 +282,15 @@ describe('parseAdminCampaignSections — cta 블록', () => {
     expect(longest.ok).toBe(true);
   });
 
+  /* DB 와 같은 판정 — 공백의 범위는 JS trim(유니코드 공백 포함), 길이는 코드 포인트다. */
+  it('유니코드 공백만 든 문구는 거절하고 이모지 문구는 코드 포인트로 센다', () => {
+    for (const label of ['\u3000', '\u00a0', '\ufeff']) {
+      expect(parseAdminCampaignSections(JSON.stringify([{ type: 'cta', label, href: '/shop' }])).ok, JSON.stringify(label)).toBe(false);
+    }
+    expect(parseAdminCampaignSections(JSON.stringify([{ type: 'cta', label: '🎁'.repeat(16), href: '/shop' }])).ok).toBe(true);
+    expect(parseAdminCampaignSections(JSON.stringify([{ type: 'cta', label: '🎁'.repeat(31), href: '/shop' }])).ok).toBe(false);
+  });
+
   it('링크가 빠지거나 모르는 키가 있으면 거절한다', () => {
     const missing = parseAdminCampaignSections('[{"type":"cta","label":"보러 가기"}]');
     const target = cta('/shop', { target: '_blank' });

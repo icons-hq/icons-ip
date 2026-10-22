@@ -226,6 +226,11 @@ const SECTION_SPEC_BY_TYPE = new Map<string, AdminCampaignSectionSpec>(
 const ANCHOR_MAX_LENGTH = 20;
 
 const ID_PATTERN = /^[a-z0-9][a-z0-9-]{1,63}$/;
+/* DB 는 char_length(코드 포인트)로 센다. UTF-16 길이로 세면 이모지 든 문구를 DB 보다 먼저, 더 엄격하게 거절한다. */
+function codePointLength(value: string): number {
+  return Array.from(value).length;
+}
+
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 const KIND_SET = new Set<string>(ADMIN_CAMPAIGN_KINDS);
 const STATUS_SET = new Set<string>(ADMIN_CAMPAIGN_STATUSES);
@@ -283,14 +288,14 @@ function validateSectionField(
       return sectionValueError(index, field.key, `문자열 ${min}~${max}개의 배열이어야 합니다.`);
     }
     const bad = value.some(
-      (entry) => typeof entry !== 'string' || entry.length < 1 || entry.length > field.maxLength,
+      (entry) => typeof entry !== 'string' || codePointLength(entry) < 1 || codePointLength(entry) > field.maxLength,
     );
     return bad
       ? sectionValueError(index, field.key, `각 항목은 1~${field.maxLength}자 문자열이어야 합니다.`)
       : null;
   }
 
-  if (typeof value !== 'string' || value.length < 1 || value.length > field.maxLength) {
+  if (typeof value !== 'string' || codePointLength(value) < 1 || codePointLength(value) > field.maxLength) {
     return sectionValueError(index, field.key, `1~${field.maxLength}자 문자열이어야 합니다.`);
   }
 

@@ -105,6 +105,8 @@ export type CampaignSection =
    - `.`·`..` 경로 조각(`%2e` 포함)도 거절한다. `/..//evil.example`은 같은 출처지만 정규화된
      pathname 이 `//evil.example`이 되어, pathname 을 다시 주소로 읽는 소비자(라우터 history 등)가
      프로토콜 상대 주소로 오해한다.
+   - `%` 뒤에는 16진수 두 자리가 와야 한다(깨진 인코딩은 라우터가 400 으로 끊는다). 디코드 결과의
+     UTF-8 유효성까지는 보지 않는다 — DB 가 같은 판정을 할 수 없어 둘이 갈린다.
    - 길이는 DB char_length 처럼 코드 포인트로 센다(UTF-16 길이로 세면 DB 가 받은 값을 버린다). */
 
 export const CAMPAIGN_CTA_LABEL_MAX_LENGTH = 30;
@@ -112,6 +114,7 @@ export const CAMPAIGN_CTA_HREF_MAX_LENGTH = 300;
 
 const CAMPAIGN_HREF_FORBIDDEN = /[\u0000-\u0020\u007f\\]/;
 const CAMPAIGN_HREF_DOT_SEGMENT = /(^|\/)(\.|%2e){1,2}(\/|[?#]|$)/i;
+const CAMPAIGN_HREF_BROKEN_PERCENT = /%(?![0-9a-f]{2})/i;
 
 export function isCampaignInternalHref(value: string): boolean {
   const length = Array.from(value).length;
@@ -122,6 +125,7 @@ export function isCampaignInternalHref(value: string): boolean {
     && !value.startsWith('//')
     && !CAMPAIGN_HREF_FORBIDDEN.test(value)
     && !CAMPAIGN_HREF_DOT_SEGMENT.test(value)
+    && !CAMPAIGN_HREF_BROKEN_PERCENT.test(value)
   );
 }
 

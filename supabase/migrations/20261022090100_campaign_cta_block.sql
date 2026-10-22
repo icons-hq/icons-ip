@@ -15,7 +15,9 @@
 --   - `.`·`..` 경로 조각(`%2e` 포함, 대소문자 무시)도 받지 않는다. `/..//evil.example`은 같은
 --     출처지만 정규화된 pathname 이 `//evil.example`이 되어, pathname 을 다시 주소로 읽는
 --     소비자가 프로토콜 상대 주소로 오해한다.
---   - label 은 공백만으로 채울 수 없다(그릴 문구가 없는 버튼).
+--   - `%` 뒤에는 16진수 두 자리가 와야 한다(`%zz`·끝의 `%A` 같은 깨진 인코딩은 라우터가 400 으로 끊는다).
+--   - label 은 공백만으로 채울 수 없다(그릴 문구가 없는 버튼). 공백의 범위는 JS String.prototype.trim 과
+--     같다 — 유니코드 공백(U+00A0·U+3000·U+FEFF 등)만 든 문구도 어드민 폼과 공개 파서가 버리므로 여기서 막는다.
 --
 -- ## 바뀌는 것은 private 검증 함수 하나다
 --
@@ -181,13 +183,18 @@ begin
          or left(v_section ->> 'href', 2) = '//'
          or (v_section ->> 'href') ~ '[\x01-\x20\x7f\\]'
          or (v_section ->> 'href') ~* '(^|/)(\.|%2e){1,2}(/|[?#]|$)'
+         or (v_section ->> 'href') ~ '%(?![0-9A-Fa-f]{2})'
        ) then
       raise exception 'invalid_sections'
         using errcode = '22023',
           detail = format('sections[%s].href: must be an internal path starting with /', v_index);
     end if;
 
-    if v_type = 'cta' and btrim(v_section ->> 'label', E' \t\n\r\f\v') = '' then
+    -- 공백 집합은 JS trim 과 같다(WhiteSpace·LineTerminator — Zs 전부·TAB·VT·FF·LF·CR·LS·PS·ZWNBSP).
+    if v_type = 'cta' and btrim(
+      v_section ->> 'label',
+      E' \t\n\v\f\r\u00a0\u1680\u2000\u2001\u2002\u2003\u2004\u2005\u2006\u2007\u2008\u2009\u200a\u2028\u2029\u202f\u205f\u3000\ufeff'
+    ) = '' then
       raise exception 'invalid_sections'
         using errcode = '22023',
           detail = format('sections[%s].label: must not be blank', v_index);

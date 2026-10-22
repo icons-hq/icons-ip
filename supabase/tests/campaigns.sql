@@ -455,8 +455,13 @@ begin
     '[{"type":"cta","label":"보러 가기","href":"/.//evil.example"}]'::jsonb,
     '[{"type":"cta","label":"보러 가기","href":"/%2E%2e//evil.example"}]'::jsonb,
     '[{"type":"cta","label":"보러 가기","href":"/shop/.."}]'::jsonb,
-    -- 공백만 든 버튼 문구
+    -- 공백만 든 버튼 문구(JS trim 과 같은 공백 집합 — 유니코드 공백 포함)
     '[{"type":"cta","label":"   ","href":"/shop"}]'::jsonb,
+    '[{"type":"cta","label":"\u3000","href":"/shop"}]'::jsonb,
+    '[{"type":"cta","label":"\u00a0\ufeff","href":"/shop"}]'::jsonb,
+    -- 깨진 퍼센트 인코딩(% 뒤 16진수 두 자리가 아님)
+    '[{"type":"cta","label":"보러 가기","href":"/events/%E0%A4%A"}]'::jsonb,
+    '[{"type":"cta","label":"보러 가기","href":"/%zz"}]'::jsonb,
     -- 상대 경로·빈 값·타입 오류
     '[{"type":"cta","label":"보러 가기","href":"shop"}]'::jsonb,
     '[{"type":"cta","label":"보러 가기","href":""}]'::jsonb,
