@@ -145,9 +145,10 @@ describe('표면 sticky 기준 높이 (--wc-sticky-chrome-h)', () => {
   it('모바일 52, 데스크톱 축약 69, 데스크톱 헤더가 펼친 동안 123', () => {
     expect(declsFor('.wc-root')['--wc-sticky-chrome-h']).toBe('52px');
     expect(declsFor('.wc-root', DESKTOP)['--wc-sticky-chrome-h']).toBe('69px');
-    expect(declsFor("body:has(.wc-header[data-condensed='false']) .wc-root", DESKTOP)['--wc-sticky-chrome-h']).toBe('123px');
+    /* 셸(.wc-chrome)과 본문(#root)은 body 아래 형제다 — 전역 element(body) 규칙 없이 형제 결합자로 건다. */
+    expect(declsFor(".wc-chrome:has(.wc-header[data-condensed='false']) ~ #root .wc-root", DESKTOP)['--wc-sticky-chrome-h']).toBe('123px');
     /* 축약 중이어도 키보드가 헤더로 들어와 GNB를 되돌린 동안은 펼친 높이다(검색 패널 안 포커스는 제외 — GNB 규칙과 같은 조건). */
-    expect(declsFor("body:has(.wc-header[data-condensed='true'] :is(.wc-header__bar, .wc-gnb-wrap) :focus-visible) .wc-root", DESKTOP)['--wc-sticky-chrome-h']).toBe('123px');
+    expect(declsFor(".wc-chrome:has(.wc-header[data-condensed='true'] :is(.wc-header__bar, .wc-gnb-wrap) :focus-visible) ~ #root .wc-root", DESKTOP)['--wc-sticky-chrome-h']).toBe('123px');
   });
 });
 
