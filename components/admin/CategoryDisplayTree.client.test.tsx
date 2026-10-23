@@ -1,11 +1,11 @@
 import { Children, isValidElement, type ReactElement, type ReactNode } from 'react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-const hooks = vi.hoisted(() => ({ values: [] as unknown[], index: 0, effects: new Map<number, { deps: unknown[]; cleanup?: () => void }>(), jobs: [] as (() => void)[], pending: false }));
+const hooks = vi.hoisted(() => ({ values: [] as unknown[], index: 0, effects: new Map<number, { deps?: unknown[]; cleanup?: () => void }>(), jobs: [] as (() => void)[], pending: false }));
 const mocks = vi.hoisted(() => ({ save: vi.fn(), reload: vi.fn(), image: vi.fn(), auth: null as null | ((event: string, session: { user: { id: string }; access_token: string } | null) => void) }));
 vi.mock('react', async () => ({ ...await vi.importActual<typeof import('react')>('react'),
   useState: (initial: unknown) => { const index = hooks.index++; if (!(index in hooks.values)) hooks.values[index] = typeof initial === 'function' ? initial() : initial; return [hooks.values[index], (value: unknown) => { hooks.values[index] = typeof value === 'function' ? value(hooks.values[index]) : value; }]; },
   useRef: (initial: unknown) => { const index = hooks.index++; return hooks.values[index] ??= { current: initial }; },
-  useEffect: (effect: () => void | (() => void), deps: unknown[]) => { const index = hooks.index++, previous = hooks.effects.get(index); if (!previous || deps.some((dep, i) => dep !== previous.deps[i])) { hooks.effects.set(index, { deps, cleanup: previous?.cleanup }); hooks.jobs.push(() => { previous?.cleanup?.(); hooks.effects.get(index)!.cleanup = effect() || undefined; }); } },
+  useEffect: (effect: () => void | (() => void), deps?: unknown[]) => { const index = hooks.index++, previous = hooks.effects.get(index); if (!previous || !deps || deps.some((dep, i) => dep !== previous.deps?.[i])) { hooks.effects.set(index, { deps, cleanup: previous?.cleanup }); hooks.jobs.push(() => { previous?.cleanup?.(); hooks.effects.get(index)!.cleanup = effect() || undefined; }); } },
   useTransition: () => [hooks.pending, (action: () => Promise<void>) => { hooks.pending = true; void action().finally(() => { hooks.pending = false; }); }],
 }));
 vi.mock('@/app/admin/category-display-actions', () => ({ updateCategoryDisplayTreeAction: mocks.save, reloadCategoryDisplayTreeAction: mocks.reload, updateCategoryDisplayNodeImageAction: mocks.image }));
@@ -91,3 +91,36 @@ it('아이콘 해제는 확인을 받고, 이름·상위 분류를 고치는 동
   expect(render().some(node => node.type === 'p' && text(node).startsWith('이름·상위 분류를 저장하거나 되돌린 뒤'))).toBe(true);
 });
 
+/* 리뷰 l5-data-2 — 아이콘 이미지를 확인(업로드)하는 동안 같은 트리 revision 을 쓰는 명령이 열려 있었다. 업로드 완료 콜백은 업로드를
+ * 시작한 렌더의 클로저라, 그 사이 순서를 바꾸면 옛 revision 으로 적용해 가짜 충돌(PT409)로 편집기 전체가 잠기거나,
+ * 저장이 진행 중이면 안내 없이 적용되지 않았다. */
+const busy = (value: boolean) => (artwork().props.onBusy as (busy: boolean) => void)(value);
+it('아이콘 이미지를 확인하는 동안 이동·보관·새 분류·이름 편집·최신 불러오기를 잠그고, 끝나면 푼다', () => {
+  busy(true);
+  for (const label of ['아래로', '보관', '새 전시분류', '최신 분류 불러오기', '이름·상위 분류 저장']) {
+    expect(render().find(node => node.type === 'button' && text(node) === label)!.props.disabled, label).toBe(true);
+  }
+  expect(render().find(node => node.type === 'fieldset')!.props.disabled).toBe(true);
+  busy(false);
+  for (const label of ['아래로', '보관', '새 전시분류', '최신 분류 불러오기']) {
+    expect(render().find(node => node.type === 'button' && text(node) === label)!.props.disabled, label).toBe(false);
+  }
+});
+it('업로드를 시작한 렌더의 콜백이 늦게 와도 적용하는 시점의 최신 revision 으로 아이콘을 적용한다', async () => {
+  const onChangeAtUploadStart = artwork().props.onChange as (path: string | null) => void;
+  mocks.save.mockResolvedValueOnce({ nodeId: id(1), directory: { ...initial, revision: 9, categories: [node(2), node(1), node(3, 1, 2)] } });
+  click('아래로'); await flush();
+  expect(mocks.save.mock.calls[0][1]).toBe(8);
+  mocks.image.mockResolvedValueOnce({ nodeId: id(1), directory: { ...initial, revision: 10, categories: [node(2), { ...node(1), imagePath: ICON }, node(3, 1, 2)] } });
+  onChangeAtUploadStart(ICON); await flush();
+  expect(mocks.image.mock.calls[0].slice(0, 3)).toEqual([id(1), ICON, 9]);
+  expect(render().some(node => node.props.role === 'status' && text(node) === '카테고리 아이콘을 적용했습니다.')).toBe(true);
+});
+it('트리 저장이 진행 중일 때 도착한 아이콘은 보내지 않고 저장이 끝난 뒤 다시 올리라고 안내한다', async () => {
+  const onChangeAtUploadStart = artwork().props.onChange as (path: string | null) => void;
+  mocks.save.mockReturnValueOnce(new Promise(() => {}));
+  click('아래로'); await flush();
+  onChangeAtUploadStart(ICON); await flush();
+  expect(mocks.image).not.toHaveBeenCalled();
+  expect(render().some(node => node.props.role === 'alert' && text(node).includes('다시 올려주세요'))).toBe(true);
+});
