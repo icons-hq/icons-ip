@@ -213,6 +213,8 @@ describe('CurationSection', () => {
     expect(html).toContain('상품 목록(굿즈샵·NEW·BEST·IP관)');
     expect(html).not.toContain('data-artwork-kind="curation"');
     expect(html).toContain('type="hidden" name="imagePath" value=""');
+    /* 띠배너를 공지 바로 바꿔도 이전 이미지 경로를 싣지 않는다 — 이미지 칸이 없어 오류를 보여 줄 자리도 없다. */
+    expect(renderSection({ ...notice, imagePath: record.imagePath })).toContain('type="hidden" name="imagePath" value=""');
     /* 링크를 비우면 버튼 문구 칸이 사라진다 — 저장 계약에서도 버튼 문구를 싣지 않는다. */
     expect(renderSection({ ...notice, linkPath: null })).not.toContain('name="ctaLabel"');
   });

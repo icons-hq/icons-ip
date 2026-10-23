@@ -323,7 +323,7 @@ function CurationForm({
           <ArtworkUploadField allowRemove={!IMAGE_REQUIRED.has(kind)} currentPath={values.imagePath || null} currentUrl={values.imageUrl} helpText={ARTWORK_HELP[kind]} kind="curation" label="PC 이미지" onPathChange={(path) => update('imagePath', path)} onPreviewChange={(url) => update('imageUrl', url)} showCropGuide={false} showPath={false} />
           <ErrorText>{state.errors?.imagePath}</ErrorText>
           {kind === 'hero' || kind === 'notice_strip' ? <><ArtworkUploadField allowRemove currentPath={values.mobileImagePath || null} currentUrl={values.mobileImageUrl} fieldId="curation-mobile" helpText="등록하지 않으면 PC 이미지를 사용합니다." kind="curation" label="모바일 이미지" name="mobileImagePath" onPathChange={(path) => update('mobileImagePath', path)} onPreviewChange={(url) => update('mobileImageUrl', url)} showCropGuide={false} showPath={false} /><ErrorText>{state.errors?.mobileImagePath}</ErrorText></> : null}
-        </section> : <input name="imagePath" type="hidden" value={isFreeProductKind(kind) ? '' : values.imagePath} />}
+        </section> : <input name="imagePath" type="hidden" value={isFreeProductKind(kind) || kind === 'notice_bar' ? '' : values.imagePath} />}
         {kind === 'product_collection' ? <section className="admin-store-editor__form-section">
           <h4>디자인과 사진</h4>
           <CurationSelect name="productLayout" label="디자인 유형" error={state.errors?.productLayout} value={values.productLayout} onChange={event => update('productLayout', event.target.value as HomeProductLayout)}>
@@ -423,7 +423,7 @@ function CurationForm({
           <ErrorText>{state.errors?.pageTypes}</ErrorText>
           <p>{kind === 'notice_bar'
             ? '고른 화면의 맨 위, 상단 띠배너 위에 보입니다. 결제·마이 화면처럼 방해가 되는 곳은 빼 두세요.'
-            : '고른 화면의 상단에 보입니다. 새로 만드는 띠배너는 상품 목록을 빼고 시작합니다.'} 예약·종료 시각은 최대 5분 늦게 반영될 수 있습니다.</p>
+            : '고른 화면의 상단에 보입니다. 새로 만드는 띠배너는 상품 목록을 빼고 시작합니다.'} 예약한 시작·종료 시각은 공개 화면에 5분 안팎 늦게 반영될 수 있습니다.</p>
         </section> : null}
         <section className="admin-store-editor__form-section">
           <h4>노출 설정</h4>
