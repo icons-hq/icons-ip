@@ -3741,6 +3741,110 @@ a.wc-mypage__card:hover .wc-mypage__card-title {
   }
 }
 
+/* 마이 › 성인 인증 — 상태 박스 → 인증 버튼 → 회색 안내 박스. 코인·쿠폰함과 같은
+   마이페이지 지면 문법이고, 인증 완료만 액센트 띠로 구분한다(색만으로 구분하지 않도록
+   배지 문구를 함께 쓴다). 결과 화면은 팝업(410×500)에서도 읽히는 한 열 패널이다. */
+.wc-adult-status {
+  padding: 20px;
+  border: 1px solid var(--wc-hairline);
+  background: var(--wc-surface);
+}
+
+.wc-adult-status--verified {
+  border-left: 3px solid var(--wc-accent);
+}
+
+.wc-adult-status__badge {
+  display: inline-flex;
+  margin: 0 0 8px;
+  padding: 0 4px;
+  font-size: 11px;
+  font-weight: 600;
+  line-height: 18px;
+  border-radius: var(--wc-radius-badge);
+  background: var(--wc-accent-tint);
+  color: var(--wc-success);
+}
+
+.wc-adult-status__title {
+  margin: 0;
+  font-size: 17px;
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--wc-ink);
+}
+
+.wc-adult-status__body {
+  margin: 6px 0 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--wc-ink-sub);
+}
+
+.wc-adult-notice {
+  margin: 16px 0 0;
+  padding: 12px 16px;
+  font-size: 14px;
+  line-height: 1.6;
+  background: var(--wc-surface-grey);
+  color: var(--wc-ink-sub);
+}
+
+.wc-adult-notice--error {
+  color: var(--wc-danger);
+}
+
+.wc-adult-actions {
+  margin-top: 20px;
+  max-width: 360px;
+}
+
+.wc-adult-actions__closed {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.6;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-adult-result {
+  padding: 48px 0 64px;
+}
+
+.wc-adult-result__panel {
+  max-width: 420px;
+  margin: 0 auto;
+  text-align: center;
+}
+
+.wc-adult-result__title {
+  margin: 0;
+  font-size: 20px;
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--wc-ink);
+}
+
+.wc-adult-result__body {
+  margin: 10px 0 0;
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--wc-ink-sub);
+}
+
+.wc-adult-result__actions {
+  margin-top: 24px;
+}
+
+@media (forced-colors: active) {
+  .wc-adult-status--verified {
+    border-left-color: CanvasText;
+  }
+
+  .wc-adult-status__badge {
+    border: 1px solid CanvasText;
+  }
+}
+
 /* ==================================================================
    9. editorial·HM 자립 (S9 #331 · W1-B)
    ==================================================================
