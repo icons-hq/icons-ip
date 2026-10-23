@@ -458,6 +458,23 @@ describe('고객 계층 카테고리', () => {
     expect(selectShopGoods(catalog, parse({ category: 'root', type: '문구' })).goods).toHaveLength(0);
     expect(selectShopGoods({ ...catalog, categories: [] }, parseShopSearchParams({}, { view: 'all', validIpIds: new Set(['ip1']) })).goods).toHaveLength(2);
   });
+
+  /* 좁힌 스코프(검색·IP관)는 IP·타입처럼 결과가 있는 카테고리만 보인다 — 0개 값을 고르면 빈 목록뿐이다(l4-ui-7).
+     지금 고른 값과 그 조상은 0개여도 남겨 해제할 길과 트리 모양을 지킨다. */
+  it('결과 0개 카테고리는 숨기고 고른 카테고리와 그 조상은 0개여도 남긴다', () => {
+    const tree = [
+      ...categories,
+      { id: 'toy', parentId: null, name: '인형', code: 'toy', depth: 1, sortOrder: 1 },
+      { id: 'cushion', parentId: 'toy', name: '쿠션', code: 'cushion', depth: 2, sortOrder: 0 },
+    ];
+    const scoped = { ips, categories: tree, goods: [good('g1', 'ip1', { categoryId: 'leaf' }), good('g2', 'ip1')] };
+    const parseTree = (params: Record<string, string | string[]>) => parseShopSearchParams(params, { view: 'search', validIpIds: new Set(['ip1']), validCategoryIds: new Set(tree.map((category) => category.id)) });
+    const facets = (params: Record<string, string | string[]>) => selectCollectionGoods(scoped.goods, scoped, parseTree(params)).categoryFacets?.map((facet) => `${facet.value}:${facet.count}`);
+
+    expect(facets({})).toEqual(['root:1', 'child:1', 'leaf:1']);
+    expect(facets({ category: 'cushion' })).toEqual(['root:1', 'child:1', 'leaf:1', 'toy:0', 'cushion:0']);
+    expect(selectCollectionGoods([good('g2', 'ip1')], scoped, parseTree({})).categoryFacets).toEqual([]);
+  });
 });
 
 describe('목록 카드 별점 (CL-02)', () => {

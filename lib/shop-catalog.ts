@@ -257,12 +257,18 @@ export function selectCollectionGoods(
      체크박스가 사라지거나 슬라이더 최대값이 줄면 되돌릴 방법이 없어진다(R-03 §1.3). */
   const countByIp = new Map<string, number>();
   const countByType = new Map<string, number>();
+  const countByCategory = new Map<string, number>();
   let preorderCount = 0;
   for (const good of scope) {
     countByIp.set(good.ip, (countByIp.get(good.ip) ?? 0) + 1);
     countByType.set(good.type, (countByType.get(good.type) ?? 0) + 1);
+    /* 굿즈의 카테고리 ID 목록은 자기와 모든 조상이라 부모 개수는 자손 합계가 된다. */
+    for (const id of goodCategoryIds.get(good.id) ?? []) countByCategory.set(id, (countByCategory.get(id) ?? 0) + 1);
     if (isPreorderGood(good)) preorderCount += 1;
   }
+  /* 결과 0개 카테고리는 IP·타입처럼 숨긴다 — 좁힌 스코프(검색·IP관)에서 고르면 빈 목록으로만 가는 값이다.
+     지금 고른 카테고리와 그 조상은 개수와 무관하게 남겨 해제할 길과 트리 모양을 지킨다. */
+  const keptCategoryIds = new Set([...selectedCategories].flatMap((id) => categoryAncestorIds(categories, id)));
 
   const scopeIsRecommended = query.view === 'best' || query.view === 'search';
   const recommended = scopeIsRecommended ? filtered : sortRecommendedGoods(filtered);
@@ -277,10 +283,12 @@ export function selectCollectionGoods(
     ipFacets: catalog.ips
       .filter((ip) => (countByIp.get(ip.id) ?? 0) > 0)
       .map((ip) => ({ value: ip.id, label: ip.title, count: countByIp.get(ip.id) ?? 0 })),
-    ...(categories.length ? { categoryFacets: orderedCatalogCategories(categories).map((category) => ({
-      value: category.id, label: category.name, depth: category.depth,
-      count: scope.filter((good) => goodCategoryIds.get(good.id)?.includes(category.id)).length,
-    })) } : {}),
+    ...(categories.length ? { categoryFacets: orderedCatalogCategories(categories)
+      .filter((category) => (countByCategory.get(category.id) ?? 0) > 0 || keptCategoryIds.has(category.id))
+      .map((category) => ({
+        value: category.id, label: category.name, depth: category.depth,
+        count: countByCategory.get(category.id) ?? 0,
+      })) } : {}),
     typeFacets: [
       ...GOOD_TYPES.filter((type) => (countByType.get(type) ?? 0) > 0).map((type) => ({
         value: type,
