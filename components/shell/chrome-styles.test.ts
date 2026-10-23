@@ -280,4 +280,15 @@ describe('셸 공지 (CH-01 텍스트 공지 바 · CH-02 스트립)', () => {
     /* 23px 버튼의 누르는 영역은 바 높이까지 넓힌다. */
     expect(declsFor('.wc-notice-bar__cta::before')).toMatchObject({ position: 'absolute' });
   });
+
+  /* 닫기 상자(44)는 47px 바의 위 1.5px·오른쪽 2px에 붙는다. 링이 상자 밖으로 나가면(offset > -두께) 위·오른쪽 변이
+     뷰포트 밖으로 잘려 'ㄴ'자만 남는다 — 링의 바깥 변이 상자 안(≥ 0)에 들어오게 고정한다. */
+  it('공지 닫기의 포커스 링은 상자 안쪽에 그려 위·오른쪽 끝에서도 잘리지 않는다', () => {
+    const close = declsFor('.wc-notice-bar__close');
+    expect(close).toMatchObject({ top: '50%', 'margin-top': '-22px', right: '2px', height: '44px' });
+    const ring = declsFor('.wc-notice-bar .wc-notice-bar__close:focus-visible');
+    const ringOutsideBox = parseFloat(ring['outline-offset']) + 2; // + 기본 두께 2px(wc-foundation .wc-root :focus-visible)
+    expect(ringOutsideBox).toBeLessThanOrEqual(0);
+    expect(ring['outline-offset']).toBe('-4px');
+  });
 });
