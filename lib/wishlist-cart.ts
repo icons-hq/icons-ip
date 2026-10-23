@@ -14,7 +14,11 @@ export type WishCartState =
   | { kind: 'choose'; href: string; label: '옵션 선택' | '수량 선택'; ariaLabel: string }
   | { kind: 'add'; variantId: string | null; stockQty: number; label: string; ariaLabel: string; unavailable: boolean };
 
-export function wishCartState(good: Good, cart: { quantityInCart: number; ready: boolean; working: boolean }): WishCartState {
+/**
+ * @param cart.working 이 카드의 담기가 진행 중인가('담는 중'은 누른 카드에만).
+ * @param cart.pending 카트가 다른 반영을 처리하는 중인가 — 그동안은 어느 카드도 담지 못하므로 비활성으로만 둔다.
+ */
+export function wishCartState(good: Good, cart: { quantityInCart: number; ready: boolean; working: boolean; pending?: boolean }): WishCartState {
   const saleLabel = goodsSaleUnavailableLabel(good.salePeriod);
   const minQuantity = Boolean(good.orderQuantityLimitEnabled && (good.minOrderQty ?? 1) > 1);
   if (!saleLabel && (good.customInputs?.enabled || (good.options?.length ?? 0) > 1 || minQuantity)) {
@@ -27,7 +31,7 @@ export function wishCartState(good: Good, cart: { quantityInCart: number; ready:
   const soldOut = good.stock === 'soldout' || !option || stockQty <= 0;
   const conditionProblem = goodsPurchaseConditionProblem(good);
   const atLimit = Boolean(option) && cart.quantityInCart >= stockQty;
-  const unavailable = soldOut || Boolean(saleLabel) || Boolean(conditionProblem) || atLimit || !cart.ready || cart.working;
+  const unavailable = soldOut || Boolean(saleLabel) || Boolean(conditionProblem) || atLimit || !cart.ready || cart.working || Boolean(cart.pending);
 
   const label = soldOut ? '품절'
     : saleLabel ?? (conditionProblem ? '판매 준비 중'

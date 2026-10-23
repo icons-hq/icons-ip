@@ -25,7 +25,8 @@ export function WishlistCartButton({ good, onAdded }: { good: Good; onAdded: (it
   const state = wishCartState(good, {
     quantityInCart: option ? cart.getQuantity(good.id, option.id) : 0,
     ready: cart.ready,
-    working: busy || cart.pending,
+    working: busy,
+    pending: cart.pending,
   });
 
   if (state.kind === 'choose') {
@@ -48,7 +49,7 @@ export function WishlistCartButton({ good, onAdded }: { good: Good; onAdded: (it
   return (
     <>
       <button
-        aria-busy={busy || cart.pending || undefined}
+        aria-busy={busy || undefined}
         aria-disabled={state.unavailable ? 'true' : undefined}
         aria-label={state.ariaLabel}
         className="wc-btn wc-wish__cart"

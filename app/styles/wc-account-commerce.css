@@ -4509,10 +4509,15 @@ a.wc-mypage__card:hover .wc-mypage__card-title {
   min-width: 0;
 }
 
-/* 수량 없는 담기 — 카드 폭 그대로 40 높이 아웃라인(.wc-btn 기본형의 축소). 담을 수 없으면 aria-disabled. */
+/* 수량 없는 담기 — 카드 폭 그대로 40 높이 아웃라인(.wc-btn 기본형의 축소). 담을 수 없으면 aria-disabled.
+   같은 줄 카드의 배지·이름 줄 수가 달라도 버튼은 줄 바닥에 맞춘다(li 는 그리드 행 높이로 늘어나는 세로 flex). */
+.wc-wish__grid > li > .wc-product-card {
+  margin-bottom: 12px;
+}
+
 .wc-wish__cart.wc-btn {
   height: 40px;
-  margin-top: 12px;
+  margin-top: auto;
   padding: 0 8px;
   font-size: 14px;
   font-weight: 700;
