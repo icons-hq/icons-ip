@@ -9,6 +9,7 @@ import {
   addToCartResultStep,
   addedCartItems,
   buyNowNavigation,
+  foldedPurchaseInputsNote,
   isGoodSoldOut,
   mergedCartQuantity,
   purchaseBlockReason,
@@ -436,6 +437,75 @@ describe('GoodPurchasePanel', () => {
     expect(html).toContain('aria-label="추가 스티커 추가 수량"');
     expect(html).toMatch(/<option[^>]*value="extra-red"[^>]*disabled=""/);
     expect(html).toContain('₩18,000');
+  });
+
+  /*
+   * QA l2-qa-3 — 할 수 있는 일이 재입고 알림뿐인 상태에서 직접 입력(필수)·추가 구성 체크박스가 그대로 남아, 체크해도 합계가
+   * 움직이지 않는 반응 없는 컨트롤이었다. 재입고 상태는 두 칸을 접고, 고른 옵션만 품절이면 돌아갈 길을 한 줄로 알린다.
+   */
+  describe('재입고 알림만 할 수 있는 상태의 구매 전용 칸 (QA l2-qa-3)', () => {
+    const blue = { id: 'blue', name: '파랑', price: 12000, stockQty: 3, code: 'BLUE', attributes: {}, isDefault: true };
+    const red = { id: 'red', name: '빨강', price: 15000, stockQty: 0, code: 'RED', attributes: {}, isDefault: false };
+    const extraOption = { id: 'extra-blue', name: '파랑', price: 3000, stockQty: 4, code: 'EXTRA-BLUE', attributes: {}, isDefault: true };
+    const extra = { ...good, id: 'g14', name: '추가 스티커', price: 3000, options: [extraOption],
+      transactionOffer: { goodId: 'g14', volume: null, delivery: null, collectReady: false, collector: null,
+        production: { version: 1, goodId: 'g14', revision: 1, leadDays: 3, dayBasis: 'business' as const, closedDates: [], publicNote: '스티커는 주문 후 인쇄합니다.' } } };
+    const engraved = { ...good, options: [blue, red], customInputs: { enabled: true, revision: 1, fields: [{ id: 'engrave', name: '각인 문구', active: true }] } };
+    const choices = [{ goodId: extra.id, name: extra.name, good: extra, selected: true, selectedOption: extraOption, quantity: 2 }];
+    const NOTE = '품절 옵션은 재입고 알림만 신청할 수 있어요. 직접 입력 옵션·추가 구성 굿즈는 판매 중인 옵션을 고르면 보여요.';
+
+    it('고른 옵션만 품절이면 직접 입력·추가 구성(과 그 거래 조건)을 접고 판매 중인 옵션을 고르면 보인다고 알린다', () => {
+      const html = renderToStaticMarkup(<GoodPurchasePanel purchase={controller({
+        good: engraved, restockOption: red, selectionRequired: true, inert: true, subtotal: 0,
+        additionalChoices: choices, toggleAdditional: vi.fn(), customInputValues: { g13: { engrave: '적어 둔 문구' } }, setCustomInputValue: vi.fn(),
+      })} />);
+
+      expect(html).not.toContain('직접 입력 옵션</legend>');
+      expect(html).not.toContain('good-custom-g13-engrave');
+      expect(html).not.toContain('aria-label="추가 구성 굿즈"');
+      expect(html).not.toContain('스티커는 주문 후 인쇄합니다.');
+      expect(html).toContain(`<p class="wc-buy-panel__state">${NOTE}</p>`);
+      /* 안내는 셀렉트 바로 아래(예약판매 안내와 같은 자리)이고, 수량·합계·그 옵션의 재입고 CTA 는 그대로다. */
+      expect(html.indexOf(NOTE)).toBeGreaterThan(html.indexOf('</select>'));
+      expect(html.indexOf(NOTE)).toBeLessThan(html.indexOf('wc-buy-panel__row'));
+      expect(html).toContain('<strong class="wc-buy-panel__total-amount">₩15,000</strong>');
+      expect(html).toContain('data-option="빨강" data-variant="red"');
+    });
+
+    it('판매 중인 옵션이면 같은 칸을 그대로 보이고 안내는 없다', () => {
+      const html = renderToStaticMarkup(<GoodPurchasePanel purchase={controller({
+        good: engraved, selectedOption: blue, additionalChoices: choices, toggleAdditional: vi.fn(), setAdditionalQuantity: vi.fn(),
+        customInputValues: { g13: { engrave: '적어 둔 문구' } }, setCustomInputValue: vi.fn(),
+      })} />);
+
+      expect(html).toContain('직접 입력 옵션</legend>');
+      expect(html).toContain('value="적어 둔 문구"');
+      expect(html).toContain('aria-label="추가 구성 굿즈"');
+      expect(html).toContain('스티커는 주문 후 인쇄합니다.');
+      expect(html).not.toContain('품절 옵션은 재입고 알림만');
+    });
+
+    it('모든 옵션이 품절이면 칸을 접되 돌아갈 옵션이 없으니 안내하지 않는다', () => {
+      const html = renderToStaticMarkup(<GoodPurchasePanel purchase={controller({
+        good: { ...engraved, stock: 'soldout', stockQty: 0, options: [{ ...blue, stockQty: 0 }, red] }, soldOut: true, restockOption: { ...blue, stockQty: 0 },
+        selectionRequired: true, inert: true, subtotal: 0, additionalChoices: choices, toggleAdditional: vi.fn(),
+      })} />);
+
+      expect(html).not.toContain('직접 입력 옵션</legend>');
+      expect(html).not.toContain('aria-label="추가 구성 굿즈"');
+      expect(html).not.toContain('품절 옵션은 재입고 알림만');
+      expect(html).toContain('data-variant=""');
+    });
+
+    it('접을 칸이 없으면 안내도 없고, 접은 칸만 이름으로 말한다', () => {
+      const plain = renderToStaticMarkup(<GoodPurchasePanel purchase={controller({ good: { ...good, options: [blue, red] }, restockOption: red, selectionRequired: true, inert: true, subtotal: 0 })} />);
+      expect(plain).not.toContain('품절 옵션은 재입고 알림만');
+
+      expect(foldedPurchaseInputsNote([])).toBeNull();
+      expect(foldedPurchaseInputsNote(['직접 입력 옵션'])).toBe('품절 옵션은 재입고 알림만 신청할 수 있어요. 직접 입력 옵션은 판매 중인 옵션을 고르면 보여요.');
+      expect(foldedPurchaseInputsNote(['추가 구성 굿즈'])).toBe('품절 옵션은 재입고 알림만 신청할 수 있어요. 추가 구성 굿즈는 판매 중인 옵션을 고르면 보여요.');
+      expect(foldedPurchaseInputsNote(['직접 입력 옵션', '추가 구성 굿즈'])).toBe(NOTE);
+    });
   });
 
   it('없어진 추가 선택을 숨기지 않고 해제할 체크박스와 구매 불가 상태를 남긴다', () => {

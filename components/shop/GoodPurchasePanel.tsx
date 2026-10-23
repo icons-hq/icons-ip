@@ -552,6 +552,13 @@ export function useSheetTriggerFocusReturn(barRef: RefObject<HTMLElement | null>
   };
 }
 
+/** 구매 전용 칸을 접었을 때의 안내. 고른 옵션만 품절이면 판매 중인 옵션을 고르면 다시 보인다고 알린다. */
+export function foldedPurchaseInputsNote(folded: readonly string[]): string | null {
+  if (!folded.length) return null;
+  const particle = folded[folded.length - 1].endsWith('옵션') ? '은' : '는';
+  return `품절 옵션은 재입고 알림만 신청할 수 있어요. ${folded.join('·')}${particle} 판매 중인 옵션을 고르면 보여요.`;
+}
+
 /** 정보 칼럼의 구매 패널. 품절이면(고른 옵션만 품절이어도) CTA 자리만 재입고 알림으로 바뀐다(R-04 §4). */
 export function GoodPurchasePanel({ otherPurchases, purchase }: { otherPurchases?: OtherPurchaseAvailability; purchase: GoodPurchaseController }) {
   const { disabled, good, inert, message, quantity, restockOption, selectedOption, selectOption, setQuantity } = purchase;
@@ -568,6 +575,15 @@ export function GoodPurchasePanel({ otherPurchases, purchase }: { otherPurchases
   const singleOptionLabel = good.options?.length === 1 ? optionLabel(good.options[0], 1) : null;
   const displayOption = selectedOption ?? (good.options?.length === 1 ? good.options[0] : undefined);
   const chosenOption = selectedOption ?? restockOption;
+  /* 할 수 있는 일이 재입고 알림 신청뿐이면(고른 옵션만 품절·모든 옵션 품절) 구매에만 쓰는 칸 — 직접 입력 옵션·추가 구성
+     굿즈 — 을 접는다. 그대로 두면 적고 체크해도 합계·CTA 가 반응하지 않는 컨트롤이 된다. 적은 값과 고른 추가 구성은
+     컨트롤러에 남아, 판매 중인 옵션을 고르면 그대로 다시 보인다. 고른 옵션만 품절일 때만 그 사실을 한 줄로 알린다
+     (모든 옵션이 품절이면 돌아갈 옵션이 없다). */
+  const restockOnly = cta.kind === 'restock';
+  const foldedInputs = restockOnly
+    ? [good.customInputs?.enabled ? '직접 입력 옵션' : null, purchase.additionalChoices?.length ? '추가 구성 굿즈' : null].filter((label): label is string => label !== null)
+    : [];
+  const foldedNote = cta.kind === 'restock' && cta.variantId ? foldedPurchaseInputsNote(foldedInputs) : null;
 
   return (
     <div className="wc-buy-panel" ref={panelRef}>
@@ -595,16 +611,17 @@ export function GoodPurchasePanel({ otherPurchases, purchase }: { otherPurchases
         </label>
       ) : singleOptionLabel ? <p className="wc-buy-panel__option">{singleOptionLabel}</p> : null}
       {displayOption?.supply?.mode === 'preorder' ? <p className="wc-buy-panel__state">예약판매 · 주문 시 결제 · {goodsShipDateLabel(displayOption.supply.expectedShipDate)}</p> : null}
-      <GoodsCustomInputsFields goodId={good.id} config={good.customInputs} values={purchase.customInputValues?.[good.id]} disabled={disabled || purchase.busy} onChange={(id,value)=>purchase.setCustomInputValue?.(good.id,id,value)} />
+      {foldedNote ? <p className="wc-buy-panel__state">{foldedNote}</p> : null}
+      {restockOnly ? null : <GoodsCustomInputsFields goodId={good.id} config={good.customInputs} values={purchase.customInputValues?.[good.id]} disabled={disabled || purchase.busy} onChange={(id,value)=>purchase.setCustomInputValue?.(good.id,id,value)} />}
       <div className="wc-buy-panel__row" inert={purchase.busy || undefined}>
         <span className="wc-buy-panel__label">수량</span>
         {/* 재고가 0인데 판매중인 데이터는 없다. 그래도 max 0 이면 스테퍼가 0에 잠겨
             수량을 고를 수 없는 컨트롤이 되므로 최소 1은 남긴다. */}
         <QuantityStepper max={Math.max(1, selectedOption?.stockQty ?? (good.options ? 0 : good.stockQty))} onChange={setQuantity} value={quantity} />
       </div>
-      <AdditionalChoices purchase={purchase} />
+      {restockOnly ? null : <AdditionalChoices purchase={purchase} />}
       <GoodsTransactionTerms good={good} quantity={quantity} />
-      {(purchase.additionalChoices ?? []).filter(choice => choice.selected && choice.good).map(choice => <GoodsTransactionTerms key={choice.goodId} good={choice.good!} quantity={choice.quantity} />)}
+      {restockOnly ? null : (purchase.additionalChoices ?? []).filter(choice => choice.selected && choice.good).map(choice => <GoodsTransactionTerms key={choice.goodId} good={choice.good!} quantity={choice.quantity} />)}
       {purchase.volumeDiscountTotal ? <p className="wc-buy-panel__state">선택 굿즈 복수구매 할인 예상 −{krw(purchase.volumeDiscountTotal)}</p> : null}
       <div className="wc-buy-panel__total">
         <span className="wc-buy-panel__total-label">{total.label}</span>
