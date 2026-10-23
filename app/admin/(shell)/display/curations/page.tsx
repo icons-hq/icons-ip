@@ -40,6 +40,7 @@ export default async function AdminDisplayCurationsPage() {
       preview={{
         curation: home.curation,
         noticeStrip: homeNotices.strips[0] ?? null,
+        noticeBar: homeNotices.bars[0] ?? null,
         goods: resolveHomeGoodsCards(home.catalog, home.catalog.goods.map((good) => good.id), home.catalog.goods.length),
         latestGoods: resolveHomeLatestGoodsCards(home.catalog, 10),
         productRankings,

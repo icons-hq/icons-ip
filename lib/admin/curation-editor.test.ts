@@ -54,6 +54,26 @@ describe('curation editor preview', () => {
     expect(result.curation.heroSlides).toEqual([]);
   });
 
+  it('텍스트 공지 바는 버튼 없이·모든 화면에서 시작하고, 링크와 버튼 문구가 함께일 때만 버튼을 미리보기한다', () => {
+    const values = createCurationEditorValues(null, '2026-10-12T00:00:00Z', 'notice_bar');
+    expect(values).toMatchObject({ linkPath: '', ctaLabel: '자세히 보기', pageTypes: ['home', 'collection', 'product', 'content', 'other'] });
+    const draft = buildDraftCurationPreview('draft', { ...values, kind: 'notice_bar', title: '배송 일정 안내' }, []);
+    expect(draft.noticeBar).toEqual({ id: 'draft', key: 'draft', message: '배송 일정 안내', cta: null, pageTypes: values.pageTypes });
+    expect(buildDraftCurationPreview('draft', { ...values, kind: 'notice_bar', title: '배송 일정 안내', linkPath: '/events' }, []).noticeBar?.cta)
+      .toEqual({ label: '자세히 보기', href: '/events' });
+    expect(buildDraftCurationPreview('draft', { ...values, kind: 'notice_bar', title: '', linkPath: '/events' }, []).noticeBar).toBeNull();
+    expect(draft.curation.heroSlides).toEqual([]);
+  });
+
+  it('새 띠배너는 상품 목록을 빼고 시작하고, 대상 없이 저장된 기존 띠배너는 모든 화면으로 보인다', () => {
+    expect(createCurationEditorValues(null, '2026-10-12T00:00:00Z', 'notice_strip').pageTypes).toEqual(['home', 'product', 'content', 'other']);
+    const legacy = { id: 'strip', kind: 'notice_strip' as const, ipId: null, title: '기존', imagePath: null, imageUrl: null, mobileImageUrl: null,
+      linkPath: '/events', displayOrder: 0, activeFrom: '2026-10-01T00:00:00Z', activeTo: null, enabled: true, slot: null, payload: null,
+      createdAt: '2026-10-01T00:00:00Z', updatedAt: '2026-10-01T00:00:00Z', status: 'active' as const };
+    expect(createCurationEditorValues(legacy, '2026-10-12T00:00:00Z').pageTypes).toEqual(['home', 'collection', 'product', 'content', 'other']);
+    expect(createCurationEditorValues({ ...legacy, payload: { page_types: ['product'] } }, '2026-10-12T00:00:00Z').pageTypes).toEqual(['product']);
+  });
+
   it('상품 목록 이동은 경계에서 그대로이고 선택 배열을 변경하지 않는다', () => {
     const ids = ['g1', 'g2', 'g3'];
     expect(moveCurationProduct(ids, 1, -1)).toEqual(['g2', 'g1', 'g3']);
