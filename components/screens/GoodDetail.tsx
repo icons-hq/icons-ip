@@ -452,7 +452,7 @@ export function GoodDetailView({
       {announcements ? <div className="wc-container">{announcements}</div> : null}
       {detail.attributes?.length ? <div className="wc-container"><section className="wc-pdp-notice" aria-labelledby="pdp-attributes-heading"><h2 className="wc-pdp-panel__title" id="pdp-attributes-heading">굿즈 정보</h2><div className="wc-pdp-notice__scroll"><table className="wc-pdp-notice__table"><caption className="sr-only">굿즈 속성</caption><tbody>{detail.attributes.map(row => <tr key={row.id}><th scope="row">{row.name}</th><td>{row.value}</td></tr>)}</tbody></table></div></section></div> : null}
       {detail.sizeChart ? <div className="wc-container"><GoodSizeChart chart={detail.sizeChart} /></div> : null}
-      {!embedded && discovery?.shippingSavings ? <div className="wc-container"><ProductShippingSavings goodId={good.id} option={purchase.selectedOption} quantity={purchase.quantity} /></div> : null}
+      {!embedded && discovery?.shippingSavings ? <div className="wc-container"><ProductShippingSavings goodId={good.id} option={purchase.selectedOption} quantity={purchase.quantity} wishlist={listingWishlist} /></div> : null}
       {!embedded && media?.settings.shortclips && media.shortclip ? <div className="wc-container"><ProductShortclips clip={media.shortclip} fallbackBackground={good.img} /></div> : null}
       {/* 하부 탭 섹션(PD-05): 탭바는 화면 전폭, 패널 840 + 우측 레일 340(데스크톱).
           레일은 구매 요약 박스만 담고 탭 섹션 범위에서만 보인다(PD-03). */}
@@ -474,7 +474,7 @@ export function GoodDetailView({
 
       {!embedded && afterSales ? <div className="wc-container">{afterSales}</div> : null}
 
-      {!embedded && discovery?.interests ? <div className="wc-container"><ProductInterestShelf currentGoodId={good.id} /></div> : null}
+      {!embedded && discovery?.interests ? <div className="wc-container"><ProductInterestShelf currentGoodId={good.id} wishlist={listingWishlist} /></div> : null}
 
       {/* 고정 바는 실제 상세 화면에만 둔다 — 어드민 미리보기에서 화면 하단을 덮으면
           미리보기가 아니라 콘솔을 가리는 바가 된다. */}
