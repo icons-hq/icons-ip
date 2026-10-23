@@ -86,7 +86,9 @@ export function ProductCard({
       <div className="wc-product-card__info">
         {visibleBadges?.length ? (
           <div className="wc-product-card__badges">
-            {visibleBadges.map((badge) => <Badge key={badge}>{badge}</Badge>)}
+            {/* SALE 만 흰 바탕 + 틴트 테두리 아웃라인이다 — NEW·EXCLUSIVE 같은 저장 배지(색 바탕)와
+                할인에서 파생된 표기를 모양으로 가른다(R-03 §1.5 · 11 CL-03). */}
+            {visibleBadges.map((badge) => <Badge key={badge} variant={badge === 'SALE' ? 'outline' : 'tint'}>{badge}</Badge>)}
           </div>
         ) : null}
         {brand ? <p className="wc-product-card__brand">{brand}</p> : null}

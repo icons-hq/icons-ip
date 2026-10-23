@@ -139,16 +139,22 @@
   justify-self: end;
 }
 
+/* '전체 › N개 굿즈' — 14px(11 CL-05). 머리 '전체 ›'는 보조 위계(ink.tertiary)이고 수량 문구만 700 이다.
+   모바일은 머리를 감추고 'N개 굿즈'만 남긴다(R-03 §1.8). 레퍼런스의 핑크 강조 대신 잉크 농도로 위계를 만든다. */
 .wc-collection__count {
   grid-column: 1;
   grid-row: 1;
   margin: 0;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 400;
   color: var(--wc-ink);
 }
 
-/* 카운트 숫자만 굵기로 세운다 — 레퍼런스의 핑크 강조 대신 잉크 농도로 위계를 만든다. */
+.wc-collection__count-scope {
+  display: none;
+  color: var(--wc-ink-tertiary);
+}
+
 .wc-collection__count strong {
   font-weight: 700;
   color: var(--wc-ink);
@@ -164,7 +170,7 @@
   height: 44px;
   padding: 0 22px 0 8px;
   font-family: inherit;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 500;
   line-height: normal;
   text-align: right;
@@ -186,13 +192,13 @@
   padding: 64px 0 80px;
 }
 
-/* VIEW MORE 는 그리드 폭을 그대로 채우는 48px 바다(R-03 §1.6) —
-   프리미티브의 데스크톱 `min-width: 300px` 축소를 이 지면에서만 되돌린다. */
+/* VIEW MORE 는 그리드 폭을 그대로 채우는 896×48 바다(R-03 §1.6 · 11 CL-07, 선·라운드는 프리미티브) —
+   프리미티브의 데스크톱 `min-width: 300px` 축소를 이 지면에서만 되돌린다. 그리드 끝에서 50px 아래. */
 .wc-collection__main .wc-view-more {
   width: 100%;
   min-width: 0;
   height: 48px;
-  margin-top: 56px;
+  margin-top: 50px;
 }
 
 @media (min-width: 990px) {
@@ -212,8 +218,21 @@
     padding-top: 32px;
 
   }
+
+  /* 수량·정렬 줄은 896×50, 상하 1px 헤어라인(11 CL-05). 정렬 select 의 44px 히트 영역을 지키면서
+     1 + 2 + 44 + 2 + 1 = 50 으로 맞춘다. 줄의 윗선은 사이드바 첫 그룹의 윗선과 같은 높이에 선다. */
   .wc-collection__toolbar {
     grid-template-columns: minmax(0, 1fr) auto;
+    box-sizing: border-box;
+    min-height: 50px;
+    margin-bottom: 16px;
+    padding: 2px 0;
+    border-top: 1px solid var(--wc-hairline);
+    border-bottom: 1px solid var(--wc-hairline);
+  }
+
+  .wc-collection__count-scope {
+    display: inline;
   }
 }
 
@@ -228,6 +247,23 @@
 .wc-filter-group + .wc-filter-group {
   padding-top: 24px;
   border-top: 1px solid var(--wc-hairline);
+}
+
+/* 사이드바는 첫 그룹까지 모든 그룹 위에 1px 선을 긋는다(11 CL-06). 제목 줄은 18/20 패딩의 58 높이이고
+   선택지는 제목 바로 아래서 시작한다(레퍼런스 facet 실측). 바텀시트 안 그룹은 아래 시트 규칙이 지운다. */
+.wc-collection__sidebar .wc-filter-group,
+.wc-collection__sidebar .wc-filter-group + .wc-filter-group {
+  padding: 0 0 24px;
+  border-top: 1px solid var(--wc-hairline);
+}
+
+.wc-collection__sidebar .wc-filter-group__summary {
+  padding: 18px 0 20px;
+  line-height: 20px;
+}
+
+.wc-collection__sidebar .wc-filter-group__options {
+  margin-top: 0;
 }
 
 /* 네이티브 마커를 지우고 직접 그린다 — 열림 방향은 아래(닫힘)↔위(열림)로만 회전한다. */

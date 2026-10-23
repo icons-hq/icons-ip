@@ -20,6 +20,8 @@
   --wc-hairline-soft: #F0F2F4;
   --wc-hairline-dark: rgba(17,17,17,.1);
   --wc-line-control: #C8CACC;
+  /* 목록 VIEW MORE 의 옅은 컨트롤 선(R-03 §0 "#DCDEE0(컨트롤)" · 11 CL-07). */
+  --wc-line-control-soft: #DCDEE0;
   --wc-line-divider: #A0A0A0;
   --wc-accent: #78BB53;
   --wc-accent-tint: rgba(120,187,83,.12);
@@ -469,7 +471,8 @@
 }
 
 /* ------------------------------------------------------------------
-   더 보기
+   더 보기 — 목록 VIEW MORE 문법(1px 옅은 컨트롤 선 · r5, R-03 §1.6 · 11 CL-07).
+   컬렉션(wc-catalog)은 그리드 폭 896×48 로, 이벤트 허브 더보기(wc-campaign)는 기본 폭으로 쓴다.
    ------------------------------------------------------------------ */
 
 .wc-view-more {
@@ -482,8 +485,8 @@
   font-family: inherit;
   font-size: 14px;
   font-weight: 700;
-  border: 1.5px solid var(--wc-ink);
-  border-radius: var(--wc-radius-form);
+  border: 1px solid var(--wc-line-control-soft);
+  border-radius: 5px;
   background: var(--wc-surface);
   color: var(--wc-ink);
   cursor: pointer;

@@ -89,6 +89,14 @@ describe('ProductCard', () => {
     expect(badges).not.toContain('<a ');
   });
 
+  /* 레퍼런스는 NEW 같은 저장 배지를 색 바탕으로, 할인 파생 SALE 을 흰 바탕 + 틴트 테두리로 가른다(11 CL-03). */
+  it('draws the derived SALE badge as the outline variant and keeps stored badges tinted', () => {
+    const html = renderToStaticMarkup(<ProductCard {...card} badges={['NEW', 'SALE']} />);
+
+    expect(html).toContain('<span class="wc-badge">NEW</span>');
+    expect(html).toContain('<span class="wc-badge outline">SALE</span>');
+  });
+
   it('puts the image background on the inline style', () => {
     const html = renderToStaticMarkup(
       <ProductCard {...card} imageBackground="linear-gradient(#111, #222)" />,

@@ -4,8 +4,9 @@ import { useRouter } from 'next/navigation';
 import { Shop, shopQueryString } from '@/components/screens/Shop';
 import { CATEGORY_DISPLAY_API_PATH, categoryDisplayRecord, isCategoryDisplayGoodId, type CategoryDisplayPage, type CategoryDisplayPageBatch } from '@/lib/category-display';
 import { CategoryDisplayContents, CategoryDisplayNavigation } from './CategoryDisplayContents';
+import type { ListingWishlist } from '@/lib/listing-wishlist';
 
-export function CategoryDisplayShop({ initial }: { initial: CategoryDisplayPage }) {
+export function CategoryDisplayShop({ initial, wishlist }: { initial: CategoryDisplayPage; wishlist?: ListingWishlist | null }) {
   const router = useRouter(), active = useRef(true), request = useRef<AbortController | null>(null);
   const [goods, setGoods] = useState(initial.result.goods), [nextOffset, setNextOffset] = useState(initial.nextOffset);
   const [loading, setLoading] = useState(false), [error, setError] = useState(''), [stale, setStale] = useState(false);
@@ -33,7 +34,7 @@ export function CategoryDisplayShop({ initial }: { initial: CategoryDisplayPage 
   return <>
     <CategoryDisplayNavigation entries={initial.navigation} currentId={initial.category.id} />
     <CategoryDisplayContents page={initial} />
-    <Shop view="all" title={initial.category.name} query={initial.query} result={{ ...initial.result, goods }}
+    <Shop view="all" title={initial.category.name} query={initial.query} result={{ ...initial.result, goods }} wishlist={wishlist}
       paging={{ loading, error, hasMore: nextOffset !== null, onLoadMore: () => { if (stale) router.refresh(); else void loadMore(); }, onReload: stale ? () => router.refresh() : undefined }} />
   </>;
 }
