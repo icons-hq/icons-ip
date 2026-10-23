@@ -16,11 +16,13 @@ import { kcpCertConfiguration, type KcpCertConfiguration } from './kcp-cert-conf
  *   2. return   — KCP 인증창이 브라우저를 Ret_URL로 보낸 요청. 교차 사이트 POST라
  *                 로그인 쿠키가 없다. 경로 nonce + 거래등록키로 세션을 잡고, KCP에 결과를
  *                 직접 조회·복호화해 판정만 '보류'로 적는다.
- *   3. complete — return이 같은 브라우저를 보낸 동일 사이트 GET. 로그인 세션이 세션
- *                 주인과 같을 때만 DB가 보류를 증거로 확정한다.
+ *   3. complete — return이 같은 브라우저를 보낸 GET. 콜백을 선점한 요청만 그 브라우저에
+ *                 완료 토큰 쿠키를 준다. 로그인 세션이 세션 주인이고 완료 토큰이 맞을 때만
+ *                 DB가 보류를 증거로 확정한다.
  *
  * 2의 판정 근거는 KCP 결과조회 응답뿐이고, 3의 계정 근거는 DB의 auth.uid()뿐이다. 브라우저가
- * 실어 오는 res_cd는 조회를 시작할지 정하는 신호로만 쓴다.
+ * 실어 오는 res_cd는 조회를 시작할지 정하는 신호로만 쓴다. 완료 토큰은 인증창을 실제로
+ * 끝낸 브라우저를 묶는다 — nonce와 거래등록키를 아는 다른 브라우저는 확정하지 못한다.
  */
 
 export type AdultVerificationPresentation = 'popup' | 'page';
@@ -60,6 +62,7 @@ export interface AdultVerificationDependencies {
   readonly now: () => Date;
   readonly nonce: () => string;
   readonly claimToken: () => string;
+  readonly completionToken: () => string;
 }
 
 export function runtimeAdultVerificationDependencies(): AdultVerificationDependencies {
@@ -74,20 +77,45 @@ export function runtimeAdultVerificationDependencies(): AdultVerificationDepende
     now: () => new Date(),
     nonce: () => randomBytes(32).toString('base64url'),
     claimToken: () => randomUUID(),
+    completionToken: () => randomBytes(32).toString('base64url'),
   };
 }
 
-/** 경로 nonce: 32바이트 base64url(43자). KCP 전문 금지 문자가 없다. */
-const CALLBACK_NONCE = /^[A-Za-z0-9_-]{43}$/;
+/** 경로 nonce·완료 토큰: 32바이트 base64url(43자). KCP 전문·쿠키 금지 문자가 없다. */
+const RANDOM_TOKEN = /^[A-Za-z0-9_-]{43}$/;
 const REGISTRATION_KEY = /^[A-Za-z0-9]{1,40}$/;
 const RESULT_CODE = /^[A-Za-z0-9]{1,10}$/;
 
 export function isAdultVerificationNonce(value: string) {
-  return CALLBACK_NONCE.test(value);
+  return RANDOM_TOKEN.test(value);
+}
+
+function sha256Hex(value: string) {
+  return createHash('sha256').update(value, 'utf8').digest('hex');
 }
 
 export function adultVerificationNonceDigest(nonce: string) {
-  return createHash('sha256').update(nonce, 'utf8').digest('hex');
+  return sha256Hex(nonce);
+}
+
+/**
+ * 확정 티켓. 콜백을 선점한 요청이 같은 브라우저에 쿠키로 준다. DB에는 두 값의
+ * 해시만 있다.
+ */
+export interface AdultVerificationTicket {
+  readonly nonce: string;
+  readonly token: string;
+}
+
+export function adultVerificationTicketValue(ticket: AdultVerificationTicket) {
+  return `${ticket.nonce}.${ticket.token}`;
+}
+
+export function parseAdultVerificationTicket(value: string | null | undefined): AdultVerificationTicket | null {
+  if (typeof value !== 'string') return null;
+  const [nonce, token, ...rest] = value.split('.');
+  if (rest.length > 0 || !nonce || !token || !RANDOM_TOKEN.test(nonce) || !RANDOM_TOKEN.test(token)) return null;
+  return { nonce, token };
 }
 
 function keyedDigest(secret: string, label: string, value: string) {
@@ -106,10 +134,6 @@ export function adultVerificationReturnPath(value: string | null | undefined) {
 
 export function adultVerificationReturnUrl(config: KcpCertConfiguration, nonce: string) {
   return `${config.siteOrigin}/api/identity/kcp/return/${nonce}`;
-}
-
-export function adultVerificationCompletionPath(nonce: string) {
-  return `/api/identity/adult/complete/${nonce}`;
 }
 
 export interface AdultVerificationStart {
@@ -173,8 +197,11 @@ export async function beginAdultVerification(
 }
 
 export type KcpCertReturnOutcome =
-  /** 세션 주인의 로그인 세션 확정으로 넘어간다(보류·진행 중·이미 종결 모두 확정 경로가 답한다). */
-  | { readonly kind: 'confirm'; readonly nonce: string }
+  /**
+   * 세션 주인의 로그인 세션 확정으로 넘어간다(보류·실패·진행 중·이미 종결 모두 확정 경로가
+   * 답한다). ticket은 이 요청이 콜백을 선점했을 때만 있다 — 그 브라우저에만 준다.
+   */
+  | { readonly kind: 'confirm'; readonly ticket: AdultVerificationTicket | null }
   /** 우리 세션이 아니거나 형식이 깨진 콜백이다. 아무 상태도 바꾸지 않았다. */
   | { readonly kind: 'invalid' };
 
@@ -188,7 +215,8 @@ interface ClaimResult {
 /**
  * KCP Ret_URL 콜백 처리. KCP 응답·복호화·판정에서 무엇이 실패해도 세션은 failed로 닫고
  * 확정 경로로 보낸다 — 사용자는 실패 화면을 보고 다시 시작한다. 재시도로 같은 거래등록키를
- * 다시 조회하지 않는다.
+ * 다시 조회하지 않는다. 확정 티켓은 선점한 요청에만 준다: 실패로 닫은 경우에도 같은
+ * 브라우저가 확정 경로에서 실패 결과를 볼 수 있어야 한다.
  */
 export async function processKcpCertReturn(
   input: { readonly nonce: string; readonly resultCode: string | null; readonly registrationKey: string | null },
@@ -205,13 +233,17 @@ export async function processKcpCertReturn(
   }
 
   const claimToken = deps.claimToken();
+  const completionToken = deps.completionToken();
+  if (!RANDOM_TOKEN.test(completionToken)) return { kind: 'invalid' };
   const claimed = await deps.rpc<ClaimResult>('claim_adult_verification_callback', {
     p_callback_nonce_digest: adultVerificationNonceDigest(input.nonce),
     p_registration_key: input.registrationKey,
     p_claim_token: claimToken,
+    p_completion_token_digest: sha256Hex(completionToken),
   });
   if (claimed.error || !claimed.data) return { kind: 'invalid' };
-  if (claimed.data.claimStatus !== 'claimed') return { kind: 'confirm', nonce: input.nonce };
+  if (claimed.data.claimStatus !== 'claimed') return { kind: 'confirm', ticket: null };
+  const ticket: AdultVerificationTicket = { nonce: input.nonce, token: completionToken };
 
   const { sessionId, providerOrderId, registrationKey } = claimed.data;
   if (typeof sessionId !== 'string' || typeof providerOrderId !== 'string' || typeof registrationKey !== 'string') {
@@ -224,7 +256,7 @@ export async function processKcpCertReturn(
       p_claim_token: claimToken,
       p_result_code: code,
     });
-    return { kind: 'confirm', nonce: input.nonce } as const;
+    return { kind: 'confirm', ticket } as const;
   };
 
   // 인증창의 실패 코드(사용자 취소·인증 실패 등)는 조회 없이 닫는다.
@@ -262,7 +294,7 @@ export async function processKcpCertReturn(
   // 닫기도 거절되고, 그 세션은 이미 다른 요청이 처리한 것이다.
   if (staged.error) return fail('stage_failed');
 
-  return { kind: 'confirm', nonce: input.nonce };
+  return { kind: 'confirm', ticket };
 }
 
 export type AdultVerificationCompletion =
@@ -271,7 +303,19 @@ export type AdultVerificationCompletion =
     readonly presentation: AdultVerificationPresentation;
     readonly returnPath: string;
   }
-  | { readonly outcome: 'not_found' };
+  /** 남의 세션·모르는 nonce·맞지 않는 완료 토큰. 구별하지 않는다. */
+  | { readonly outcome: 'not_found' }
+  /** 탈퇴 신청 등으로 쓰기가 막힌 계정. */
+  | { readonly outcome: 'blocked' }
+  /** 확정 직전에 로그인 세션이 끊겼다. */
+  | { readonly outcome: 'login_required' };
+
+export class AdultVerificationCompletionError extends Error {
+  constructor() {
+    super('adult_verification_completion_failed');
+    this.name = 'AdultVerificationCompletionError';
+  }
+}
 
 interface CompletionRow {
   readonly outcome?: string;
@@ -283,25 +327,32 @@ const COMPLETION_OUTCOMES = new Set(['verified', 'underage', 'failed', 'expired'
 
 /**
  * 확정은 세션 주인의 로그인 세션으로 부른다 — service role이 아니다. rpc는 사용자 쿠키로
- * 만든 클라이언트의 것이어야 한다.
+ * 만든 클라이언트의 것이어야 한다. DB가 거절 사유로 답한 경우만 결과로 돌려주고, 그 밖의
+ * 실패(장애·깨진 응답)는 던진다 — 호출자는 상태를 추측하지 않고 다시 확인하게 한다.
  */
 export async function completeAdultVerification(
-  nonce: string,
+  ticket: AdultVerificationTicket,
   rpc: <T>(fn: string, args: Record<string, unknown>) => Promise<RpcResult<T>>,
 ): Promise<AdultVerificationCompletion> {
-  if (!isAdultVerificationNonce(nonce)) return { outcome: 'not_found' };
+  if (!RANDOM_TOKEN.test(ticket.nonce) || !RANDOM_TOKEN.test(ticket.token)) return { outcome: 'not_found' };
   const completed = await rpc<CompletionRow>('complete_my_adult_verification', {
-    p_callback_nonce_digest: adultVerificationNonceDigest(nonce),
+    p_callback_nonce_digest: adultVerificationNonceDigest(ticket.nonce),
+    p_completion_token_digest: sha256Hex(ticket.token),
   });
+  if (completed.error) {
+    if (completed.error.message === 'adult_verification_not_found') return { outcome: 'not_found' };
+    if (completed.error.message === 'adult_verification_account_blocked') return { outcome: 'blocked' };
+    if (completed.error.message === 'auth required') return { outcome: 'login_required' };
+    throw new AdultVerificationCompletionError();
+  }
   const row = completed.data;
   if (
-    completed.error
-    || !row
+    !row
     || typeof row.outcome !== 'string'
     || !COMPLETION_OUTCOMES.has(row.outcome)
     || (row.presentation !== 'popup' && row.presentation !== 'page')
   ) {
-    return { outcome: 'not_found' };
+    throw new AdultVerificationCompletionError();
   }
   return {
     outcome: row.outcome as 'verified' | 'underage' | 'failed' | 'expired' | 'pending',

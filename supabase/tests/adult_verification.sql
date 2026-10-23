@@ -8,14 +8,16 @@ begin;
 -- 이 스모크가 DB 안에 고정하는 것:
 --   1. 세션·결과 보류 RPC는 service role만, 확정·상태 조회는 로그인 세션만 부른다.
 --      세션·증거 테이블과 판정 helper는 어떤 브라우저 롤에도 열려 있지 않다
---   2. 콜백은 nonce 다이제스트와 KCP 거래등록키가 함께 맞아야 잡히고, 선점은 한 번이다
---   3. 보류된 결과는 세션을 만든 계정의 로그인 세션만 확정한다
+--   2. 콜백은 nonce 다이제스트와 KCP 거래등록키가 함께 맞아야 잡히고, 선점은 한 번이다.
+--      선점이 만료된 세션은 다시 선점되지 않고 실패로 닫힌다
+--   3. 보류된 결과는 세션을 만든 계정의 로그인 세션이, 선점한 브라우저의 완료 토큰을
+--      함께 낼 때만 확정한다
 --   4. 확정 전에는 성인이 아니고, 확정 뒤 1년 동안만 성인이다
 --   5. 한 명의(DI 해시)는 한 계정에서만 유효하다 — 다른 계정에서 같은 명의로 확정하면
 --      이전 계정의 증거가 해제되고 감사 기록이 남는다
 --   6. 미성년 판정은 그 계정의 기존 성인 증거를 해제하고, 명의 해시를 남기지 않는다
 --   7. 끝난 세션에는 명의·거래 해시가 남지 않는다
---   8. 만료·한도·정지 계정은 fail closed다
+--   8. 만료·한도·정지 계정은 fail closed다. TTL이 지난 미종결 세션은 sweeper가 닫는다
 -- ============================================================================
 
 -- ---------------------------------------------------------------------------
@@ -29,9 +31,9 @@ select 1 / case when (
   and not has_function_privilege('authenticated', 'public.register_adult_verification(uuid, text)', 'execute')
   and has_function_privilege('service_role', 'public.fail_adult_verification_registration(uuid, text)', 'execute')
   and not has_function_privilege('authenticated', 'public.fail_adult_verification_registration(uuid, text)', 'execute')
-  and has_function_privilege('service_role', 'public.claim_adult_verification_callback(text, text, uuid)', 'execute')
-  and not has_function_privilege('authenticated', 'public.claim_adult_verification_callback(text, text, uuid)', 'execute')
-  and not has_function_privilege('anon', 'public.claim_adult_verification_callback(text, text, uuid)', 'execute')
+  and has_function_privilege('service_role', 'public.claim_adult_verification_callback(text, text, uuid, text)', 'execute')
+  and not has_function_privilege('authenticated', 'public.claim_adult_verification_callback(text, text, uuid, text)', 'execute')
+  and not has_function_privilege('anon', 'public.claim_adult_verification_callback(text, text, uuid, text)', 'execute')
   and has_function_privilege('service_role', 'public.fail_adult_verification_callback(uuid, uuid, text)', 'execute')
   and not has_function_privilege('authenticated', 'public.fail_adult_verification_callback(uuid, uuid, text)', 'execute')
   and has_function_privilege('service_role', 'public.stage_adult_verification_result(uuid, uuid, text, text, text, text)', 'execute')
@@ -42,9 +44,9 @@ select 1 / case when (
 -- 확정은 로그인 세션의 auth.uid()로만 묶인다. service role이 부르면 그 묶음이
 -- 사라지므로 service role에도 열지 않는다.
 select 1 / case when (
-  has_function_privilege('authenticated', 'public.complete_my_adult_verification(text)', 'execute')
-  and not has_function_privilege('anon', 'public.complete_my_adult_verification(text)', 'execute')
-  and not has_function_privilege('service_role', 'public.complete_my_adult_verification(text)', 'execute')
+  has_function_privilege('authenticated', 'public.complete_my_adult_verification(text, text)', 'execute')
+  and not has_function_privilege('anon', 'public.complete_my_adult_verification(text, text)', 'execute')
+  and not has_function_privilege('service_role', 'public.complete_my_adult_verification(text, text)', 'execute')
   and has_function_privilege('authenticated', 'public.get_my_adult_verification()', 'execute')
   and not has_function_privilege('anon', 'public.get_my_adult_verification()', 'execute')
   and not has_function_privilege('service_role', 'public.get_my_adult_verification()', 'execute')
@@ -56,6 +58,9 @@ select 1 / case when (
   and not has_function_privilege('service_role', 'private.adult_verification_valid(uuid)', 'execute')
   and not has_function_privilege('authenticated', 'private.close_adult_verification_session(uuid, text, text)', 'execute')
   and not has_function_privilege('service_role', 'private.close_adult_verification_session(uuid, text, text)', 'execute')
+  and not has_function_privilege('anon', 'private.expire_adult_verification_sessions(integer)', 'execute')
+  and not has_function_privilege('authenticated', 'private.expire_adult_verification_sessions(integer)', 'execute')
+  and not has_function_privilege('service_role', 'private.expire_adult_verification_sessions(integer)', 'execute')
   and not has_table_privilege('authenticated', 'private.adult_verification_sessions', 'select')
   and not has_table_privilege('service_role', 'private.adult_verification_sessions', 'select')
   and not has_table_privilege('anon', 'private.adult_verifications', 'select')
@@ -101,10 +106,16 @@ where id = '00000000-0000-4000-8000-0000000a1903';
 create temporary table adult_fixture_nonce (label text primary key, digest text not null) on commit drop;
 insert into adult_fixture_nonce (label, digest)
 select label, pg_catalog.encode(extensions.digest(label, 'sha256'), 'hex')
-from (values ('a1'), ('a2'), ('a3'), ('b1'), ('a4'), ('a5'), ('x1'), ('s1')) as v(label);
+from (values ('a1'), ('a2'), ('a3'), ('b1'), ('a4'), ('a5'), ('a6'), ('a7'), ('a8'), ('x1'), ('s1')) as v(label);
+
+-- 완료 토큰 다이제스트: 콜백을 선점한 브라우저가 받는 토큰의 해시.
+create temporary table adult_fixture_completion (label text primary key, digest text not null) on commit drop;
+insert into adult_fixture_completion (label, digest)
+select label, pg_catalog.encode(extensions.digest('completion-' || label, 'sha256'), 'hex')
+from (values ('a2'), ('a3'), ('b1'), ('a5'), ('a6'), ('a7'), ('a8'), ('forged')) as v(label);
 
 create temporary table adult_fixture_session (label text primary key, session_id uuid not null) on commit drop;
-grant all on adult_fixture_nonce, adult_fixture_session to service_role, authenticated;
+grant all on adult_fixture_nonce, adult_fixture_session, adult_fixture_completion to service_role, authenticated;
 
 -- ---------------------------------------------------------------------------
 -- 시작 — 입력 검증 · 정지 계정 · 같은 계정의 이전 세션 만료
@@ -207,7 +218,8 @@ begin
     perform public.claim_adult_verification_callback(
       (select digest from adult_fixture_nonce where label = 'a2'),
       'REGA2000000000000099',
-      extensions.gen_random_uuid()
+      extensions.gen_random_uuid(),
+      (select digest from adult_fixture_completion where label = 'forged')
     );
   exception when no_data_found then rejected := true;
   end;
@@ -224,7 +236,8 @@ insert into adult_fixture_claim (label, result, token)
 select 'a2', public.claim_adult_verification_callback(
   (select digest from adult_fixture_nonce where label = 'a2'),
   'REGA2000000000000001',
-  token
+  token,
+  (select digest from adult_fixture_completion where label = 'a2')
 ), token
 from (select extensions.gen_random_uuid() as token) as t;
 
@@ -242,9 +255,21 @@ select 1 / case when (
   public.claim_adult_verification_callback(
     (select digest from adult_fixture_nonce where label = 'a2'),
     'REGA2000000000000001',
-    extensions.gen_random_uuid()
+    extensions.gen_random_uuid(),
+    (select digest from adult_fixture_completion where label = 'forged')
   ) ->> 'claimStatus' = 'in_progress'
 ) then 1 else 0 end as assert_concurrent_callback_does_not_reclaim;
+
+reset role;
+
+-- 완료 토큰은 처음 선점한 요청의 것만 남는다. 두 번째 콜백이 낸 토큰은 적히지 않는다.
+select 1 / case when (
+  select completion_token_digest = (select digest from adult_fixture_completion where label = 'a2')
+  from private.adult_verification_sessions
+  where id = (select session_id from adult_fixture_session where label = 'a2')
+) then 1 else 0 end as assert_first_claim_owns_completion_token;
+
+set local role service_role;
 
 -- 성인 판정에는 명의·거래 해시가 반드시 있어야 한다.
 do $$
@@ -290,7 +315,8 @@ select 1 / case when (
   public.claim_adult_verification_callback(
     (select digest from adult_fixture_nonce where label = 'a2'),
     'REGA2000000000000001',
-    extensions.gen_random_uuid()
+    extensions.gen_random_uuid(),
+    (select digest from adult_fixture_completion where label = 'forged')
   ) ->> 'claimStatus' = 'staged'
 ) then 1 else 0 end as assert_staged_callback_replay_is_not_reclaimed;
 
@@ -314,7 +340,10 @@ declare
   rejected boolean := false;
 begin
   begin
-    perform public.complete_my_adult_verification((select digest from adult_fixture_nonce where label = 'a2'));
+    perform public.complete_my_adult_verification(
+      (select digest from adult_fixture_nonce where label = 'a2'),
+      (select digest from adult_fixture_completion where label = 'a2')
+    );
   exception when no_data_found then rejected := true;
   end;
   if not rejected then
@@ -325,13 +354,37 @@ $$;
 
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-0000000a1901', true);
 
+-- 세션 주인이어도 선점한 브라우저의 완료 토큰이 없으면 확정하지 못한다.
+do $$
+declare
+  rejected boolean := false;
+begin
+  begin
+    perform public.complete_my_adult_verification(
+      (select digest from adult_fixture_nonce where label = 'a2'),
+      (select digest from adult_fixture_completion where label = 'forged')
+    );
+  exception when no_data_found then rejected := true;
+  end;
+  if not rejected then
+    raise exception 'owner completed without the claiming browser''s completion token';
+  end if;
+end;
+$$;
+
 select 1 / case when (
-  public.complete_my_adult_verification((select digest from adult_fixture_nonce where label = 'a2')) ->> 'outcome' = 'verified'
+  public.complete_my_adult_verification(
+    (select digest from adult_fixture_nonce where label = 'a2'),
+    (select digest from adult_fixture_completion where label = 'a2')
+  ) ->> 'outcome' = 'verified'
 ) then 1 else 0 end as assert_owner_completes_verification;
 
 -- 확정은 멱등이다. 같은 결과로 다시 와도 증거가 늘지 않는다.
 select 1 / case when (
-  public.complete_my_adult_verification((select digest from adult_fixture_nonce where label = 'a2')) ->> 'outcome' = 'verified'
+  public.complete_my_adult_verification(
+    (select digest from adult_fixture_nonce where label = 'a2'),
+    (select digest from adult_fixture_completion where label = 'a2')
+  ) ->> 'outcome' = 'verified'
 ) then 1 else 0 end as assert_completion_is_idempotent;
 
 select 1 / case when (
@@ -384,7 +437,8 @@ select 1 / case when (
   public.claim_adult_verification_callback(
     (select digest from adult_fixture_nonce where label = 'a2'),
     'REGA2000000000000001',
-    extensions.gen_random_uuid()
+    extensions.gen_random_uuid(),
+    (select digest from adult_fixture_completion where label = 'forged')
   ) ->> 'claimStatus' = 'terminal'
 ) then 1 else 0 end as assert_completed_callback_replay_is_terminal;
 
@@ -406,7 +460,8 @@ insert into adult_fixture_claim (label, result, token)
 select 'b1', public.claim_adult_verification_callback(
   (select digest from adult_fixture_nonce where label = 'b1'),
   'REGB1000000000000001',
-  token
+  token,
+  (select digest from adult_fixture_completion where label = 'b1')
 ), token
 from (select extensions.gen_random_uuid() as token) as t;
 
@@ -419,7 +474,10 @@ select public.stage_adult_verification_result(
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-0000000a1902', true);
 select 1 / case when (
-  public.complete_my_adult_verification((select digest from adult_fixture_nonce where label = 'b1')) ->> 'outcome' = 'verified'
+  public.complete_my_adult_verification(
+    (select digest from adult_fixture_nonce where label = 'b1'),
+    (select digest from adult_fixture_completion where label = 'b1')
+  ) ->> 'outcome' = 'verified'
 ) then 1 else 0 end as assert_second_account_completes_with_same_subject;
 
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-0000000a1901', true);
@@ -469,7 +527,8 @@ insert into adult_fixture_claim (label, result, token)
 select 'a3', public.claim_adult_verification_callback(
   (select digest from adult_fixture_nonce where label = 'a3'),
   'REGA3000000000000001',
-  token
+  token,
+  (select digest from adult_fixture_completion where label = 'a3')
 ), token
 from (select extensions.gen_random_uuid() as token) as t;
 
@@ -494,7 +553,10 @@ select 1 / case when (
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-0000000a1902', true);
 select 1 / case when (
-  public.complete_my_adult_verification((select digest from adult_fixture_nonce where label = 'a3')) ->> 'outcome' = 'underage'
+  public.complete_my_adult_verification(
+    (select digest from adult_fixture_nonce where label = 'a3'),
+    (select digest from adult_fixture_completion where label = 'a3')
+  ) ->> 'outcome' = 'underage'
 ) then 1 else 0 end as assert_underage_result_completes;
 
 -- 상태 조회는 STABLE이라 같은 문장 안에서는 확정 전 스냅샷을 본다. 문장을 나눈다.
@@ -562,21 +624,191 @@ select 1 / case when (
   public.claim_adult_verification_callback(
     (select digest from adult_fixture_nonce where label = 'a5'),
     'REGA5000000000000001',
-    extensions.gen_random_uuid()
+    extensions.gen_random_uuid(),
+    (select digest from adult_fixture_completion where label = 'forged')
   ) ->> 'state' = 'expired'
 ) then 1 else 0 end as assert_expired_session_callback_is_closed;
 reset role;
+
+-- 선점이 만료된 confirming(처리기가 중간에 죽은 경우)은 다시 선점되지 않고 실패로 닫힌다.
+set local role service_role;
+
+insert into adult_fixture_session (label, session_id)
+select 'a6', (public.begin_adult_verification(
+  '00000000-0000-4000-8000-0000000a1901', 'test', 'page', '/my',
+  (select digest from adult_fixture_nonce where label = 'a6')
+) ->> 'sessionId')::uuid;
+
+select public.register_adult_verification(
+  (select session_id from adult_fixture_session where label = 'a6'),
+  'REGA6000000000000001'
+);
+
+select public.claim_adult_verification_callback(
+  (select digest from adult_fixture_nonce where label = 'a6'),
+  'REGA6000000000000001',
+  extensions.gen_random_uuid(),
+  (select digest from adult_fixture_completion where label = 'a6')
+);
+
+reset role;
+update private.adult_verification_sessions
+set claim_expires_at = pg_catalog.clock_timestamp() - interval '1 second'
+where id = (select session_id from adult_fixture_session where label = 'a6');
+
+set local role service_role;
+select 1 / case when (
+  public.claim_adult_verification_callback(
+    (select digest from adult_fixture_nonce where label = 'a6'),
+    'REGA6000000000000001',
+    extensions.gen_random_uuid(),
+    (select digest from adult_fixture_completion where label = 'forged')
+  ) ->> 'state' = 'failed'
+) then 1 else 0 end as assert_expired_claim_is_not_reclaimed;
+reset role;
+
+select 1 / case when (
+  select state = 'failed'
+    and result_code = 'claim_expired'
+    and claim_token is null
+    and completion_token_digest = (select digest from adult_fixture_completion where label = 'a6')
+  from private.adult_verification_sessions
+  where id = (select session_id from adult_fixture_session where label = 'a6')
+) then 1 else 0 end as assert_expired_claim_closes_session_failed;
+
+-- 확정 경로도 선점이 만료된 세션을 기다리게 두지 않는다.
+set local role service_role;
+
+insert into adult_fixture_session (label, session_id)
+select 'a7', (public.begin_adult_verification(
+  '00000000-0000-4000-8000-0000000a1901', 'test', 'popup', '/my',
+  (select digest from adult_fixture_nonce where label = 'a7')
+) ->> 'sessionId')::uuid;
+
+select public.register_adult_verification(
+  (select session_id from adult_fixture_session where label = 'a7'),
+  'REGA7000000000000001'
+);
+
+select public.claim_adult_verification_callback(
+  (select digest from adult_fixture_nonce where label = 'a7'),
+  'REGA7000000000000001',
+  extensions.gen_random_uuid(),
+  (select digest from adult_fixture_completion where label = 'a7')
+);
+
+reset role;
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-0000000a1901', true);
+select 1 / case when (
+  public.complete_my_adult_verification(
+    (select digest from adult_fixture_nonce where label = 'a7'),
+    (select digest from adult_fixture_completion where label = 'a7')
+  ) ->> 'outcome' = 'pending'
+) then 1 else 0 end as assert_live_claim_completes_as_pending;
+reset role;
+
+update private.adult_verification_sessions
+set claim_expires_at = pg_catalog.clock_timestamp() - interval '1 second'
+where id = (select session_id from adult_fixture_session where label = 'a7');
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-0000000a1901', true);
+select 1 / case when (
+  public.complete_my_adult_verification(
+    (select digest from adult_fixture_nonce where label = 'a7'),
+    (select digest from adult_fixture_completion where label = 'a7')
+  ) ->> 'outcome' = 'failed'
+) then 1 else 0 end as assert_expired_claim_completes_as_failed;
+reset role;
+
+select 1 / case when (
+  select state = 'failed' and result_code = 'claim_expired'
+  from private.adult_verification_sessions
+  where id = (select session_id from adult_fixture_session where label = 'a7')
+) then 1 else 0 end as assert_completion_closes_expired_claim;
+
+-- 만료 sweeper — 브라우저가 돌아오지 않은 보류 세션도 TTL이 지나면 닫히고 해시를 잃는다.
+set local role service_role;
+
+insert into adult_fixture_session (label, session_id)
+select 'a8', (public.begin_adult_verification(
+  '00000000-0000-4000-8000-0000000a1901', 'test', 'page', '/my',
+  (select digest from adult_fixture_nonce where label = 'a8')
+) ->> 'sessionId')::uuid;
+
+select public.register_adult_verification(
+  (select session_id from adult_fixture_session where label = 'a8'),
+  'REGA8000000000000001'
+);
+
+insert into adult_fixture_claim (label, result, token)
+select 'a8', public.claim_adult_verification_callback(
+  (select digest from adult_fixture_nonce where label = 'a8'),
+  'REGA8000000000000001',
+  token,
+  (select digest from adult_fixture_completion where label = 'a8')
+), token
+from (select extensions.gen_random_uuid() as token) as t;
+
+select public.stage_adult_verification_result(
+  (select session_id from adult_fixture_session where label = 'a8'),
+  (select token from adult_fixture_claim where label = 'a8'),
+  'adult', repeat('d', 64), repeat('5', 64), 'adult_19_youth_protection_act@2026-10-23'
+);
+
+reset role;
+
+update private.adult_verification_sessions
+set created_at = created_at - interval '2 hours',
+    registered_at = registered_at - interval '2 hours',
+    staged_at = staged_at - interval '2 hours',
+    expires_at = pg_catalog.clock_timestamp() - interval '1 minute'
+where id = (select session_id from adult_fixture_session where label = 'a8');
+
+select 1 / case when (
+  private.expire_adult_verification_sessions() >= 1
+) then 1 else 0 end as assert_sweeper_closes_overdue_sessions;
+
+select 1 / case when (
+  select state = 'expired'
+    and result_code = 'session_expired'
+    and staged_outcome is null
+    and staged_subject_digest is null
+    and staged_transaction_digest is null
+    and staged_policy_version is null
+    and completed_at is not null
+  from private.adult_verification_sessions
+  where id = (select session_id from adult_fixture_session where label = 'a8')
+) then 1 else 0 end as assert_swept_session_drops_staged_digests;
+
+-- pg_cron이 있는 배포에는 sweeper가 등록돼 있다.
+do $$
+declare
+  scheduled integer;
+begin
+  if exists (select 1 from pg_catalog.pg_extension where extname = 'pg_cron') then
+    execute 'select count(*) from cron.job where jobname = $1 and command = $2'
+      into scheduled
+      using 'adult-verification-session-expiry', 'select private.expire_adult_verification_sessions()';
+    if scheduled <> 1 then
+      raise exception 'adult verification session sweeper is not scheduled';
+    end if;
+  end if;
+end;
+$$;
 
 -- 증거 만료 — 1년이 지나면 성인이 아니다. 한 트랜잭션 안의 스모크라 위 계정들의
 -- 최신 증거는 이 트랜잭션 시각이다. 만료 판정은 증거가 하나뿐인 별도 계정으로 본다.
 insert into private.adult_verification_sessions (
   user_id, provider_mode, provider_order_id, callback_nonce_digest, presentation, return_path,
-  registration_key, state, created_at, expires_at, completed_at
+  registration_key, completion_token_digest, state, created_at, expires_at, completed_at
 )
 values (
   '00000000-0000-4000-8000-0000000a1905', 'test',
   'IV' || repeat('e', 32), repeat('e', 64), 'page', '/my',
-  'REGEXPIRED0000000001', 'verified',
+  'REGEXPIRED0000000001', repeat('f', 64), 'verified',
   pg_catalog.now() - interval '2 years', pg_catalog.now() - interval '2 years' + interval '30 minutes',
   pg_catalog.now() - interval '2 years'
 );

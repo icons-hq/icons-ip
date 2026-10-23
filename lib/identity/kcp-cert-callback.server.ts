@@ -1,5 +1,7 @@
 import 'server-only';
 
+import { ADULT_VERIFICATION_COMPLETE_PATH } from './adult-verification-routes';
+
 /*
  * KCP 인증창 → Ret_URL 콜백의 경계 파서.
  *
@@ -73,14 +75,51 @@ export async function parseKcpCertCallback(request: Request): Promise<KcpCertCal
   return fieldsFrom(new URLSearchParams(await readBoundedText(request)));
 }
 
-/** 콜백·확정 경로의 303. 결과 화면 주소에 nonce가 실려도 다른 사이트로 새지 않게 한다. */
-export function adultVerificationRedirect(location: string) {
-  return new Response(null, {
-    status: 303,
-    headers: {
-      location,
-      'cache-control': 'no-store',
-      'referrer-policy': 'no-referrer',
-    },
+/** 콜백·확정 경로의 303. 쿠키를 함께 실을 수 있고, 이동 주소가 다른 사이트로 새지 않게 한다. */
+export function adultVerificationRedirect(location: string, setCookie?: string) {
+  const headers = new Headers({
+    location,
+    'cache-control': 'no-store',
+    'referrer-policy': 'no-referrer',
   });
+  if (setCookie) headers.append('set-cookie', setCookie);
+  return new Response(null, { status: 303, headers });
+}
+
+/*
+ * 확정 티켓 쿠키. 콜백을 선점한 Ret_URL 응답이 그 브라우저에 심고, 확정 경로만 읽는다.
+ * Ret_URL은 KCP 페이지에서 오는 최상위 이동이라 SameSite=Lax 쿠키를 심을 수 있고, 이어지는
+ * 확정 GET에도 실린다. 세션 TTL(30분)만큼만 산다.
+ */
+const TICKET_COOKIE = 'icons_adult_verification';
+const TICKET_COOKIE_MAX_AGE_SECONDS = 30 * 60;
+
+function ticketCookie(value: string, maxAge: number, request: Request) {
+  const secure = new URL(request.url).protocol === 'https:';
+  return [
+    `${TICKET_COOKIE}=${value}`,
+    `Path=${ADULT_VERIFICATION_COMPLETE_PATH}`,
+    `Max-Age=${maxAge}`,
+    'HttpOnly',
+    'SameSite=Lax',
+    ...(secure ? ['Secure'] : []),
+  ].join('; ');
+}
+
+export function adultVerificationTicketCookie(value: string, request: Request) {
+  return ticketCookie(value, TICKET_COOKIE_MAX_AGE_SECONDS, request);
+}
+
+export function clearAdultVerificationTicketCookie(request: Request) {
+  return ticketCookie('', 0, request);
+}
+
+/** 요청의 확정 티켓 쿠키 값. 같은 이름이 둘 이상이면 고르지 않는다. */
+export function readAdultVerificationTicketCookie(request: Request): string | null {
+  const values = (request.headers.get('cookie') ?? '')
+    .split(';')
+    .map((part) => part.trim())
+    .filter((part) => part.startsWith(`${TICKET_COOKIE}=`))
+    .map((part) => part.slice(TICKET_COOKIE.length + 1));
+  return values.length === 1 ? values[0] : null;
 }

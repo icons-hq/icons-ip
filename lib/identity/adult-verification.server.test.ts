@@ -4,11 +4,14 @@ import { describe, expect, it, vi } from 'vitest';
 import { ADULT_VERIFICATION_POLICY_VERSION } from '@/lib/age/adult-age';
 import {
   AdultVerificationAccountBlockedError,
+  AdultVerificationCompletionError,
   AdultVerificationRateLimitedError,
   AdultVerificationUnavailableError,
   adultVerificationReturnPath,
+  adultVerificationTicketValue,
   beginAdultVerification,
   completeAdultVerification,
+  parseAdultVerificationTicket,
   processKcpCertReturn,
   type AdultVerificationDependencies,
 } from './adult-verification.server';
@@ -17,6 +20,9 @@ import type { KcpCertConfiguration } from './kcp-cert-config';
 
 const NONCE = 'n'.repeat(43);
 const NONCE_DIGEST = createHash('sha256').update(NONCE).digest('hex');
+const COMPLETION_TOKEN = 't'.repeat(43);
+const COMPLETION_TOKEN_DIGEST = createHash('sha256').update(COMPLETION_TOKEN).digest('hex');
+const TICKET = { nonce: NONCE, token: COMPLETION_TOKEN };
 const SESSION_ID = '10000000-0000-4000-8000-000000000001';
 const CLAIM_TOKEN = '20000000-0000-4000-8000-000000000002';
 const PROVIDER_ORDER_ID = `IV${'a'.repeat(32)}`;
@@ -50,6 +56,7 @@ function dependencies(overrides: Partial<AdultVerificationDependencies> = {}, rp
     now: () => new Date('2026-10-23T03:00:00Z'),
     nonce: () => NONCE,
     claimToken: () => CLAIM_TOKEN,
+    completionToken: () => COMPLETION_TOKEN,
     ...overrides,
   };
   return { deps, calls };
@@ -150,10 +157,15 @@ describe('processKcpCertReturn', () => {
 
     const outcome = await processKcpCertReturn({ nonce: NONCE, resultCode: '0000', registrationKey: '1234567890123456' }, deps);
 
-    expect(outcome).toEqual({ kind: 'confirm', nonce: NONCE });
+    expect(outcome).toEqual({ kind: 'confirm', ticket: TICKET });
     expect(calls[0]).toEqual({
       fn: 'claim_adult_verification_callback',
-      args: { p_callback_nonce_digest: NONCE_DIGEST, p_registration_key: '1234567890123456', p_claim_token: CLAIM_TOKEN },
+      args: {
+        p_callback_nonce_digest: NONCE_DIGEST,
+        p_registration_key: '1234567890123456',
+        p_claim_token: CLAIM_TOKEN,
+        p_completion_token_digest: COMPLETION_TOKEN_DIGEST,
+      },
     });
     expect(deps.fetchResult).toHaveBeenCalledWith(config, { providerOrderId: PROVIDER_ORDER_ID, registrationKey: '1234567890123456' });
     const expectedSubject = createHmac('sha256', config.digestSecret).update('adult-verification/subject/di\u0000di-value').digest('hex');
@@ -169,8 +181,9 @@ describe('processKcpCertReturn', () => {
         p_policy_version: ADULT_VERIFICATION_POLICY_VERSION,
       },
     });
-    // 원문 값은 어디에도 넘기지 않는다.
+    // 원문 값과 완료 토큰 원문은 어디에도 넘기지 않는다.
     expect(JSON.stringify(calls)).not.toMatch(/19900101|di-value|25284339349648/);
+    expect(JSON.stringify(calls)).not.toContain(COMPLETION_TOKEN);
   });
 
   it('청소년 판정은 명의·거래 해시 없이 보류한다', async () => {
@@ -183,11 +196,12 @@ describe('processKcpCertReturn', () => {
     expect(calls[1]?.args).toMatchObject({ p_outcome: 'underage', p_subject_digest: null, p_transaction_digest: null });
   });
 
+  /* 실패로 닫은 세션도 선점한 브라우저가 확정 경로에서 실패 결과를 보도록 티켓을 준다. */
   it('인증창 실패 코드는 조회 없이 세션을 실패로 닫는다', async () => {
     const { deps, calls } = dependencies({}, { claim_adult_verification_callback: claimed });
 
     await expect(processKcpCertReturn({ nonce: NONCE, resultCode: '3001', registrationKey: '1234567890123456' }, deps))
-      .resolves.toEqual({ kind: 'confirm', nonce: NONCE });
+      .resolves.toEqual({ kind: 'confirm', ticket: TICKET });
     expect(deps.fetchResult).not.toHaveBeenCalled();
     expect(calls[1]).toEqual({
       fn: 'fail_adult_verification_callback',
@@ -209,11 +223,12 @@ describe('processKcpCertReturn', () => {
     expect(invalidBirthDay.calls[1]?.args).toMatchObject({ p_result_code: 'kcp_result_birth_day' });
   });
 
-  it('이미 선점·보류·종결된 세션은 다시 조회하지 않고 확정 경로로 보낸다', async () => {
+  /* 재전송·다른 브라우저의 콜백에는 확정 티켓을 주지 않는다 — 티켓은 선점한 브라우저의 것이다. */
+  it('이미 선점·보류·종결된 세션은 다시 조회하지 않고 티켓 없이 확정 경로로 보낸다', async () => {
     for (const claimStatus of ['in_progress', 'staged', 'terminal']) {
       const { deps, calls } = dependencies({}, { claim_adult_verification_callback: { claimStatus } });
       await expect(processKcpCertReturn({ nonce: NONCE, resultCode: '0000', registrationKey: '1234567890123456' }, deps))
-        .resolves.toEqual({ kind: 'confirm', nonce: NONCE });
+        .resolves.toEqual({ kind: 'confirm', ticket: null });
       expect(calls).toHaveLength(1);
       expect(deps.fetchResult).not.toHaveBeenCalled();
     }
@@ -240,25 +255,53 @@ function completionRpc(data: unknown, error: { message: string } | null = null) 
   return { mock, rpc: mock as unknown as CompletionRpc };
 }
 
+describe('adult verification ticket', () => {
+  it('nonce와 완료 토큰을 점으로 묶고 형식이 맞는 값만 되읽는다', () => {
+    expect(adultVerificationTicketValue(TICKET)).toBe(`${NONCE}.${COMPLETION_TOKEN}`);
+    expect(parseAdultVerificationTicket(`${NONCE}.${COMPLETION_TOKEN}`)).toEqual(TICKET);
+    expect(parseAdultVerificationTicket(null)).toBeNull();
+    expect(parseAdultVerificationTicket(NONCE)).toBeNull();
+    expect(parseAdultVerificationTicket(`${NONCE}.${COMPLETION_TOKEN}.x`)).toBeNull();
+    expect(parseAdultVerificationTicket(`${NONCE}.short`)).toBeNull();
+    expect(parseAdultVerificationTicket(`${NONCE}.${'*'.repeat(43)}`)).toBeNull();
+  });
+});
+
 describe('completeAdultVerification', () => {
-  it('로그인 세션 rpc로 nonce 다이제스트를 확정하고 돌아갈 경로를 다시 좁힌다', async () => {
+  it('로그인 세션 rpc로 nonce·완료 토큰 다이제스트를 확정하고 돌아갈 경로를 다시 좁힌다', async () => {
     const { mock, rpc } = completionRpc({ outcome: 'verified', presentation: 'popup', returnPath: '/shop/g1' });
-    await expect(completeAdultVerification(NONCE, rpc)).resolves.toEqual({
+    await expect(completeAdultVerification(TICKET, rpc)).resolves.toEqual({
       outcome: 'verified', presentation: 'popup', returnPath: '/shop/g1',
     });
-    expect(mock).toHaveBeenCalledWith('complete_my_adult_verification', { p_callback_nonce_digest: NONCE_DIGEST });
+    expect(mock).toHaveBeenCalledWith('complete_my_adult_verification', {
+      p_callback_nonce_digest: NONCE_DIGEST,
+      p_completion_token_digest: COMPLETION_TOKEN_DIGEST,
+    });
   });
 
-  it('남의 세션·모르는 nonce·깨진 응답은 not_found다', async () => {
-    await expect(completeAdultVerification('bad', completionRpc(null).rpc)).resolves.toEqual({ outcome: 'not_found' });
-    await expect(completeAdultVerification(NONCE, completionRpc(null, { message: 'adult_verification_not_found' }).rpc))
+  it('DB가 답한 거절 사유만 결과로 돌려준다', async () => {
+    await expect(completeAdultVerification({ nonce: 'bad', token: COMPLETION_TOKEN }, completionRpc(null).rpc))
       .resolves.toEqual({ outcome: 'not_found' });
-    await expect(completeAdultVerification(NONCE, completionRpc({ outcome: 'hacked', presentation: 'page' }).rpc))
+    await expect(completeAdultVerification(TICKET, completionRpc(null, { message: 'adult_verification_not_found' }).rpc))
       .resolves.toEqual({ outcome: 'not_found' });
+    await expect(completeAdultVerification(TICKET, completionRpc(null, { message: 'adult_verification_account_blocked' }).rpc))
+      .resolves.toEqual({ outcome: 'blocked' });
+    await expect(completeAdultVerification(TICKET, completionRpc(null, { message: 'auth required' }).rpc))
+      .resolves.toEqual({ outcome: 'login_required' });
+  });
+
+  /* 장애·깨진 응답을 "없는 인증"으로 접으면 사용자가 다시 확인할 길을 잃는다. */
+  it('그 밖의 실패와 깨진 응답은 던진다', async () => {
+    await expect(completeAdultVerification(TICKET, completionRpc(null, { message: 'connection reset' }).rpc))
+      .rejects.toBeInstanceOf(AdultVerificationCompletionError);
+    await expect(completeAdultVerification(TICKET, completionRpc({ outcome: 'hacked', presentation: 'page' }).rpc))
+      .rejects.toBeInstanceOf(AdultVerificationCompletionError);
+    await expect(completeAdultVerification(TICKET, completionRpc(null).rpc))
+      .rejects.toBeInstanceOf(AdultVerificationCompletionError);
   });
 
   it('돌아갈 경로가 화면 경로가 아니면 마이페이지로 바꾼다', async () => {
-    await expect(completeAdultVerification(NONCE, completionRpc({ outcome: 'failed', presentation: 'page', returnPath: '/api/x' }).rpc))
+    await expect(completeAdultVerification(TICKET, completionRpc({ outcome: 'failed', presentation: 'page', returnPath: '/api/x' }).rpc))
       .resolves.toEqual({ outcome: 'failed', presentation: 'page', returnPath: '/my' });
   });
 });

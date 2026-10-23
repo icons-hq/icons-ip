@@ -22,8 +22,10 @@
    거래등록을 한 뒤 인증창 주소·거래등록키만 브라우저에 준다. 데스크톱은 팝업, 그 밖은 페이지 전환이다.
 2. KCP 인증창이 `/api/identity/kcp/return/<nonce>`로 결과를 POST한다(Ret_URL). 처리기는 nonce
    다이제스트 + 거래등록키로 세션을 선점하고, KCP 결과조회·복호화로 성인 여부만 판정해 보류한다.
-3. 같은 브라우저가 `/api/identity/adult/complete/<nonce>`로 돌아온다. 로그인 세션이 세션 주인과
-   같을 때만 DB가 증거를 확정한다. 결과 화면은 `/my/adult-verification/result`다.
+   선점한 요청만 그 브라우저에 확정 티켓 쿠키(`icons_adult_verification`, 30분)를 심는다.
+3. 같은 브라우저가 `/api/identity/adult/complete`로 돌아온다. 로그인 세션이 세션 주인이고 티켓이
+   맞을 때만 DB가 증거를 확정한다. 결과 화면은 `/my/adult-verification/result`이고, 확인 중·로그인
+   필요·장애 결과는 같은 티켓으로 "다시 확인하기"를 준다.
 
 ## 환경변수
 
@@ -95,7 +97,9 @@ docker exec -i <격리 DB 컨테이너> psql -X -U postgres -d postgres -v ON_ER
 - 비용·트래픽: 기본 제공 건수를 넘으면 다음 달 청구된다. 이벤트로 트래픽이 몰릴 때는 시작 3~5일 전 KCP에 공유한다.
 - 장애·문의: KCP 1666-6410(내선 1), 기술지원 support@kcp.co.kr, 응답코드 https://developer.kcp.co.kr/code/error.
 - 인증 시작 한도: 계정당 1시간 10회·하루 30회. 세션은 30분 뒤 만료되고, 같은 계정의 새 시작은 이전 세션을 닫는다.
-- 결과 코드: 세션 `result_code`에 `kcp_window_<코드>`(인증창 실패)·`kcp_result_<코드>`(조회 실패)·`kcp_result_decrypt` 등이 남는다.
+  만료된 미종결 세션은 pg_cron `adult-verification-session-expiry`(5분마다)가 닫고 보류 해시를 지운다.
+- 결과 코드: 세션 `result_code`에 `kcp_window_<코드>`(인증창 실패)·`kcp_result_<코드>`(조회 실패)·`kcp_result_decrypt`·
+  `claim_expired`(조회 처리기가 중간에 멈춤)·`session_expired`·`superseded` 등이 남는다.
 
 ## 개인정보처리방침 개정 초안 (법무 확인 후 시행일과 함께 반영)
 

@@ -6,17 +6,25 @@ import { useEffect, useState } from 'react';
 import { ADULT_VERIFICATION_RESULT_COPY } from '@/lib/identity/adult-verification-copy';
 import {
   ADULT_VERIFICATION_CHANNEL,
+  ADULT_VERIFICATION_COMPLETE_PATH,
   ADULT_VERIFICATION_MESSAGE_TYPE,
   adultVerificationHref,
   type AdultVerificationResultStatus,
 } from '@/lib/identity/adult-verification-routes';
 
 /*
- * 성인 인증 결과. 페이지 전환으로 온 경우 결과와 다음 행동을 보여 주고, 팝업이면 원래
- * 창에 결과를 알리고 스스로 닫는다. 창을 닫지 못하면(스크립트가 연 창이 아닌 경우) 같은
- * 결과 화면을 그대로 보여 준다. 이 화면의 status는 안내용이다 — 인증 상태의 진실원은
- * 서버의 성인 인증 증거다.
+ * 성인 인증 결과. 페이지 전환으로 온 경우 결과와 다음 행동을 보여 주고, 팝업이 끝난 결과면
+ * 원래 창에 알리고 스스로 닫는다. 이 화면의 status는 안내용이다 — 인증 상태의 진실원은
+ * 서버의 성인 인증 증거이고, 'verified'는 페이지가 서버에서 다시 확인한 뒤에만 온다.
+ *
+ * 팝업으로 다루는 것은 이 창을 연 원래 창(window.opener)이 있을 때뿐이다. 주소만 따라 들어온
+ * 창은 다른 탭에 알리지 않고 일반 결과 화면으로 남는다. 확인 중·로그인 필요·장애는 이 창에서
+ * 다시 확인해야 하므로 팝업이어도 닫지 않는다.
  */
+
+const POPUP_FINAL_STATUSES: ReadonlySet<AdultVerificationResultStatus> = new Set([
+  'verified', 'underage', 'failed', 'expired', 'invalid',
+]);
 
 function ResultActions({ next, status }: { next: string; status: AdultVerificationResultStatus }) {
   if (status === 'verified') {
@@ -25,8 +33,24 @@ function ResultActions({ next, status }: { next: string; status: AdultVerificati
   if (status === 'underage') {
     return <Link className="wc-btn" href="/">홈으로</Link>;
   }
+  // 확정 경로는 라우트 핸들러라 클라이언트 이동이 아니라 문서 이동으로 간다.
   if (status === 'login_required') {
-    return <Link className="wc-btn primary" href={`/login?next=${encodeURIComponent(adultVerificationHref(next))}`}>로그인하기</Link>;
+    return (
+      <a className="wc-btn primary" href={`/login?next=${encodeURIComponent(ADULT_VERIFICATION_COMPLETE_PATH)}`}>
+        로그인하고 결과 확인하기
+      </a>
+    );
+  }
+  if (status === 'pending') {
+    return <a className="wc-btn primary" href={ADULT_VERIFICATION_COMPLETE_PATH}>다시 확인하기</a>;
+  }
+  if (status === 'error') {
+    return (
+      <>
+        <a className="wc-btn primary" href={ADULT_VERIFICATION_COMPLETE_PATH}>다시 확인하기</a>
+        <Link className="wc-btn" href={adultVerificationHref(next)}>처음부터 다시 인증하기</Link>
+      </>
+    );
   }
   return <Link className="wc-btn primary" href={adultVerificationHref(next)}>다시 인증하기</Link>;
 }
@@ -40,15 +64,19 @@ export function AdultVerificationResult({
   next: string;
   status: AdultVerificationResultStatus;
 }) {
-  const [closing, setClosing] = useState(mode === 'popup');
+  const closesPopup = mode === 'popup' && POPUP_FINAL_STATUSES.has(status);
+  const [closing, setClosing] = useState(closesPopup);
 
   useEffect(() => {
-    if (mode !== 'popup') return;
+    if (!closesPopup) return;
+    // 원래 창이 없으면 팝업이 아니다 — 알리지도 닫지도 않고 결과 화면으로 남는다.
+    if (!window.opener) {
+      const timer = window.setTimeout(() => setClosing(false), 0);
+      return () => window.clearTimeout(timer);
+    }
     const message = { type: ADULT_VERIFICATION_MESSAGE_TYPE, status };
     try {
-      if (window.opener && !window.opener.closed) {
-        window.opener.postMessage(message, window.location.origin);
-      }
+      if (!window.opener.closed) window.opener.postMessage(message, window.location.origin);
     } catch {
       // 원래 창과의 연결이 끊긴 경우 — BroadcastChannel이 대신 알린다.
     }
@@ -66,7 +94,7 @@ export function AdultVerificationResult({
       setClosing(false);
     }, 300);
     return () => window.clearTimeout(timer);
-  }, [mode, status]);
+  }, [closesPopup, status]);
 
   const copy = ADULT_VERIFICATION_RESULT_COPY[status];
 

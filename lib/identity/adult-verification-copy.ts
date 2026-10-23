@@ -24,7 +24,7 @@ export const ADULT_VERIFICATION_RESULT_COPY: Record<AdultVerificationResultStatu
   },
   pending: {
     title: '인증 결과를 확인하고 있어요',
-    description: '잠시 뒤 성인 인증 화면에서 결과를 다시 확인해 주세요.',
+    description: '본인확인 결과를 아직 받지 못했어요. 잠시 뒤 다시 확인해 주세요.',
   },
   invalid: {
     title: '유효하지 않은 인증 요청이에요',
@@ -32,10 +32,10 @@ export const ADULT_VERIFICATION_RESULT_COPY: Record<AdultVerificationResultStatu
   },
   login_required: {
     title: '로그인이 필요해요',
-    description: '인증을 시작한 계정으로 로그인한 같은 브라우저에서 다시 시도해 주세요.',
+    description: '인증을 시작한 계정으로 이 브라우저에서 로그인하면 결과를 이어서 확인해요.',
   },
   error: {
     title: '일시적인 문제로 인증을 마치지 못했어요',
-    description: '잠시 뒤 처음부터 다시 시도해 주세요.',
+    description: '잠시 뒤 다시 확인해 주세요. 계속 안 되면 처음부터 다시 인증해 주세요.',
   },
 };

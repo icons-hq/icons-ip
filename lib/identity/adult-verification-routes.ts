@@ -6,6 +6,8 @@
 
 export const ADULT_VERIFICATION_PATH = '/my/adult-verification';
 export const ADULT_VERIFICATION_RESULT_PATH = '/my/adult-verification/result';
+/** 본인 세션 확정 경로. 콜백을 선점한 브라우저의 완료 토큰 쿠키로 확정한다. */
+export const ADULT_VERIFICATION_COMPLETE_PATH = '/api/identity/adult/complete';
 
 export type AdultVerificationResultStatus =
   | 'verified'

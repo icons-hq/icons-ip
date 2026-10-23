@@ -13,8 +13,10 @@
 --      KCP 결과 콜백은 경로 nonce 다이제스트와 KCP 거래등록키가 함께 맞아야 잡힌다.
 --   2. 결과는 두 단계로 확정한다. 콜백 처리기(service role)가 KCP 결과를 조회·
 --      복호화한 판정을 '보류(awaiting_owner)'로만 적고, 세션을 만든 계정의 로그인
---      세션이 그 보류를 직접 확정해야 증거가 생긴다. 남이 만든 인증 링크를 끝까지
---      진행해도 링크를 만든 계정에 성인 인증이 붙지 않는다.
+--      세션이 그 보류를 직접 확정해야 증거가 생긴다. 확정에는 콜백을 처음 선점한
+--      브라우저만 가진 완료 토큰도 필요하다 — 남이 만든 인증창을 끝까지 진행해도
+--      링크를 만든 계정에 성인 인증이 붙지 않고, 링크를 만든 사람이 남의 결과를
+--      자기 브라우저에서 확정하지도 못한다.
 --   3. 증거는 최소다. 이름·생년월일·성별·전화번호·통신사·내외국인·CI는 저장하지
 --      않는다. 남는 것은 판정, 유효기간, 정책 버전, DI와 KCP 거래번호의 키 해시다.
 --      유효기간 1년은 청소년보호법 시행령 제17조 제2항(확인 후 1년까지 회원 확인으로
@@ -30,10 +32,12 @@
 -- 상태 기계:
 --   created ─(거래등록 성공)→ registered ─(콜백 선점)→ confirming
 --   confirming ─(결과 조회·판정)→ awaiting_owner ─(본인 세션 확정)→ verified | underage
---   created·confirming ─(거래등록 실패·KCP 실패 코드·조회 실패)→ failed
---   미종결 상태 ─(TTL 경과 · 같은 계정의 새 시작)→ expired
+--   created·confirming ─(거래등록 실패·KCP 실패 코드·조회 실패·선점 만료)→ failed
+--   미종결 상태 ─(TTL 경과 · 같은 계정의 새 시작 · 만료 sweeper)→ expired
 -- staged_* 칸은 awaiting_owner 동안만 채워진다. 확정·만료 시 비워서 세션 테이블에
 -- DI 해시가 남지 않게 한다 — 증거로 옮겨지는 건 성인 확정 한 경우뿐이다.
+-- completion_token_digest는 콜백을 처음 선점한 요청이 그 브라우저에 준 완료 토큰의
+-- 해시다. 선점 이후 상태에서는 늘 있고, 본인 세션 확정은 이 토큰을 함께 내야 한다.
 create table private.adult_verification_sessions (
   id uuid primary key default extensions.gen_random_uuid(),
   user_id uuid not null references auth.users(id) on delete cascade,
@@ -42,6 +46,7 @@ create table private.adult_verification_sessions (
   provider_order_id text not null unique check (provider_order_id ~ '^IV[0-9a-f]{32}$'),
   callback_nonce_digest text not null unique check (callback_nonce_digest ~ '^[0-9a-f]{64}$'),
   registration_key text unique check (registration_key ~ '^[A-Za-z0-9]{1,40}$'),
+  completion_token_digest text unique check (completion_token_digest ~ '^[0-9a-f]{64}$'),
   presentation text not null check (presentation in ('popup', 'page')),
   return_path text not null check (
     char_length(return_path) between 1 and 512
@@ -71,6 +76,8 @@ create table private.adult_verification_sessions (
   check (expires_at > created_at),
   check (state not in ('registered', 'confirming', 'awaiting_owner', 'verified', 'underage')
     or registration_key is not null),
+  check (state not in ('confirming', 'awaiting_owner', 'verified', 'underage')
+    or completion_token_digest is not null),
   check ((state = 'confirming') = (claim_token is not null and claim_expires_at is not null)),
   check ((state = 'awaiting_owner') = (staged_outcome is not null and staged_policy_version is not null)),
   check (staged_outcome is distinct from 'adult'
@@ -379,6 +386,11 @@ grant execute on function public.fail_adult_verification_registration(uuid, text
 -- KCP 인증창이 사용자의 브라우저를 Ret_URL로 보내면 처리기가 부른다. 그 요청은
 -- 교차 사이트 POST라 로그인 쿠키가 없으므로 계정은 세션 행에서만 읽는다.
 --
+-- 선점은 세션마다 한 번뿐이다. 선점한 요청만 완료 토큰 해시를 세션에 적고, 처리기는
+-- 그 토큰을 같은 브라우저에만 쿠키로 준다. 선점이 만료된 confirming(처리기가 중간에
+-- 죽은 경우)은 다시 선점하지 않고 실패로 닫는다 — 재선점을 허용하면 nonce와 거래등록키를
+-- 아는 다른 브라우저가 남의 결과에 새 완료 토큰을 받을 수 있다.
+--
 -- 반환 claim_status:
 --   claimed     — 이 호출이 결과 조회 권한을 얻었다(선점 토큰 2분)
 --   in_progress — 다른 요청이 조회 중이다
@@ -387,7 +399,8 @@ grant execute on function public.fail_adult_verification_registration(uuid, text
 create function public.claim_adult_verification_callback(
   p_callback_nonce_digest text,
   p_registration_key text,
-  p_claim_token uuid
+  p_claim_token uuid,
+  p_completion_token_digest text
 )
 returns jsonb
 language plpgsql
@@ -404,6 +417,8 @@ begin
     or p_registration_key is null
     or p_registration_key !~ '^[A-Za-z0-9]{1,40}$'
     or p_claim_token is null
+    or p_completion_token_digest is null
+    or p_completion_token_digest !~ '^[0-9a-f]{64}$'
   then
     raise invalid_parameter_value using message = 'adult_verification_callback_invalid';
   end if;
@@ -448,20 +463,31 @@ begin
     );
   end if;
 
-  if v_session.state = 'confirming' and v_session.claim_expires_at > v_now then
+  if v_session.state = 'confirming' then
+    if v_session.claim_expires_at > v_now then
+      return pg_catalog.jsonb_build_object(
+        'claimStatus', 'in_progress',
+        'presentation', v_session.presentation,
+        'returnPath', v_session.return_path
+      );
+    end if;
+
+    perform private.close_adult_verification_session(v_session.id, 'failed', 'claim_expired');
     return pg_catalog.jsonb_build_object(
-      'claimStatus', 'in_progress',
+      'claimStatus', 'terminal',
+      'state', 'failed',
       'presentation', v_session.presentation,
       'returnPath', v_session.return_path
     );
   end if;
 
-  -- registered, 또는 선점이 만료된 confirming(처리기가 중간에 죽은 경우)만 남는다.
+  -- 거래등록만 끝난 registered만 남는다.
   update private.adult_verification_sessions
   set
     state = 'confirming',
     claim_token = p_claim_token,
-    claim_expires_at = v_now + interval '2 minutes'
+    claim_expires_at = v_now + interval '2 minutes',
+    completion_token_digest = p_completion_token_digest
   where id = v_session.id
   returning * into v_session;
 
@@ -477,9 +503,9 @@ begin
 end;
 $function$;
 
-revoke all on function public.claim_adult_verification_callback(text, text, uuid)
+revoke all on function public.claim_adult_verification_callback(text, text, uuid, text)
   from public, anon, authenticated, service_role;
-grant execute on function public.claim_adult_verification_callback(text, text, uuid)
+grant execute on function public.claim_adult_verification_callback(text, text, uuid, text)
   to service_role;
 
 -- 선점한 처리기가 KCP 실패 코드·조회 실패·형식 오류로 세션을 닫는다.
@@ -598,10 +624,13 @@ grant execute on function public.stage_adult_verification_result(uuid, uuid, tex
 -- 6. 본인 세션 확정 (authenticated)
 -- ---------------------------------------------------------------------------
 -- 콜백 처리기는 결과를 보류한 뒤 같은 브라우저를 이 확정 경로로 보낸다. 그 요청은
--- 동일 사이트 GET이라 로그인 쿠키가 실리고, 여기서 auth.uid()가 세션을 만든 계정과
--- 같아야만 증거가 생긴다. nonce는 그 브라우저만 아는 값이라 다른 계정이 이 함수로
--- 남의 보류를 확정할 수 없다 — 세션의 주인이 아니면 "없음"과 구별되지 않게 거절한다.
-create function public.complete_my_adult_verification(p_callback_nonce_digest text)
+-- GET 최상위 이동이라 로그인 쿠키와 완료 토큰 쿠키가 함께 실린다. auth.uid()가 세션을
+-- 만든 계정이고 완료 토큰이 콜백을 선점한 브라우저의 것일 때만 증거가 생긴다. 둘 중
+-- 하나라도 어긋나면 "없음"과 구별되지 않게 거절한다.
+create function public.complete_my_adult_verification(
+  p_callback_nonce_digest text,
+  p_completion_token_digest text
+)
 returns jsonb
 language plpgsql
 volatile
@@ -619,7 +648,11 @@ begin
     raise insufficient_privilege using message = 'auth required';
   end if;
 
-  if p_callback_nonce_digest is null or p_callback_nonce_digest !~ '^[0-9a-f]{64}$' then
+  if p_callback_nonce_digest is null
+    or p_callback_nonce_digest !~ '^[0-9a-f]{64}$'
+    or p_completion_token_digest is null
+    or p_completion_token_digest !~ '^[0-9a-f]{64}$'
+  then
     raise invalid_parameter_value using message = 'adult_verification_invalid';
   end if;
 
@@ -635,7 +668,11 @@ begin
   where session.callback_nonce_digest = p_callback_nonce_digest
   for update;
 
-  if not found or v_session.user_id is distinct from v_user then
+  if not found
+    or v_session.user_id is distinct from v_user
+    or v_session.completion_token_digest is null
+    or v_session.completion_token_digest is distinct from p_completion_token_digest
+  then
     raise no_data_found using message = 'adult_verification_not_found';
   end if;
 
@@ -647,18 +684,29 @@ begin
     );
   end if;
 
-  if v_session.state <> 'awaiting_owner' then
+  if v_session.expires_at <= v_now then
+    perform private.close_adult_verification_session(v_session.id, 'expired', 'session_expired');
     return pg_catalog.jsonb_build_object(
-      'outcome', 'pending',
+      'outcome', 'expired',
       'presentation', v_session.presentation,
       'returnPath', v_session.return_path
     );
   end if;
 
-  if v_session.expires_at <= v_now then
-    perform private.close_adult_verification_session(v_session.id, 'expired', 'session_expired');
+  -- 결과 조회 중이다. 선점이 만료됐으면 처리기가 중간에 죽은 것이고 콜백은 다시 오지
+  -- 않는다 — 기다리게 두지 않고 실패로 닫아 다시 시작하게 한다.
+  if v_session.state = 'confirming' and v_session.claim_expires_at <= v_now then
+    perform private.close_adult_verification_session(v_session.id, 'failed', 'claim_expired');
     return pg_catalog.jsonb_build_object(
-      'outcome', 'expired',
+      'outcome', 'failed',
+      'presentation', v_session.presentation,
+      'returnPath', v_session.return_path
+    );
+  end if;
+
+  if v_session.state <> 'awaiting_owner' then
+    return pg_catalog.jsonb_build_object(
+      'outcome', 'pending',
       'presentation', v_session.presentation,
       'returnPath', v_session.return_path
     );
@@ -781,9 +829,9 @@ begin
 end;
 $function$;
 
-revoke all on function public.complete_my_adult_verification(text)
+revoke all on function public.complete_my_adult_verification(text, text)
   from public, anon, authenticated, service_role;
-grant execute on function public.complete_my_adult_verification(text)
+grant execute on function public.complete_my_adult_verification(text, text)
   to authenticated;
 
 -- ---------------------------------------------------------------------------
@@ -845,3 +893,65 @@ revoke all on function public.get_my_adult_verification()
   from public, anon, authenticated, service_role;
 grant execute on function public.get_my_adult_verification()
   to authenticated;
+
+-- ---------------------------------------------------------------------------
+-- 8. 만료 sweeper (pg_cron)
+-- ---------------------------------------------------------------------------
+-- 브라우저가 돌아오지 않은 세션은 콜백·확정 경로가 닫아 주지 않는다. TTL이 지난
+-- 미종결 세션을 주기적으로 expired로 닫아 보류된 DI 해시가 세션 테이블에 30분 넘게
+-- 남지 않게 한다. 콜백·확정이 잠근 행은 건너뛰고 다음 실행에서 닫는다.
+create function private.expire_adult_verification_sessions(p_batch_size integer default 1000)
+returns integer
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $function$
+declare
+  v_closed integer;
+begin
+  with due as (
+    select session.id
+    from private.adult_verification_sessions as session
+    where session.state in ('created', 'registered', 'confirming', 'awaiting_owner')
+      and session.expires_at <= pg_catalog.clock_timestamp()
+    order by session.expires_at
+    limit greatest(1, least(coalesce(p_batch_size, 1000), 10000))
+    for update skip locked
+  )
+  update private.adult_verification_sessions as session
+  set
+    state = 'expired',
+    result_code = 'session_expired',
+    claim_token = null,
+    claim_expires_at = null,
+    staged_outcome = null,
+    staged_subject_digest = null,
+    staged_transaction_digest = null,
+    staged_policy_version = null,
+    completed_at = pg_catalog.clock_timestamp()
+  from due
+  where session.id = due.id;
+
+  get diagnostics v_closed = row_count;
+  return v_closed;
+end;
+$function$;
+
+revoke all on function private.expire_adult_verification_sessions(integer)
+  from public, anon, authenticated, service_role;
+-- cron 작업은 등록한 롤(postgres)로 돈다. 복원 뒤 소유자가 달라져도 실행되게 명시한다.
+grant execute on function private.expire_adult_verification_sessions(integer) to postgres;
+
+-- pg_cron이 있는 배포만 등록한다. cron.schedule은 이름 기준 upsert라 재적용에 안전하다.
+do $$
+begin
+  if exists (select 1 from pg_catalog.pg_extension where extname = 'pg_cron') then
+    perform cron.schedule(
+      'adult-verification-session-expiry',
+      '*/5 * * * *',
+      'select private.expire_adult_verification_sessions()'
+    );
+  end if;
+end;
+$$;

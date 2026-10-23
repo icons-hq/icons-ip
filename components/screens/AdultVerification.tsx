@@ -202,7 +202,14 @@ export function AdultVerification({
       return;
     }
 
-    if (popup && !popup.closed) {
+    if (popup) {
+      // 서버가 거래등록을 하는 사이에 사용자가 창을 닫았으면 취소로 본다 — 이 창을 KCP로
+      // 넘기지 않는다. 열린 세션은 다음 시작이나 만료로 닫힌다.
+      if (popup.closed) {
+        setBusy(false);
+        setNotice({ tone: 'info', text: '본인확인 창을 닫아서 인증을 시작하지 않았어요.' });
+        return;
+      }
       popupRef.current = popup;
       submitCertWindow(result, POPUP_NAME);
       popup.focus();
