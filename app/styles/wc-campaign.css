@@ -565,6 +565,12 @@
   scroll-margin-top: 49px;
 }
 
+/* 본문 안 키보드 포커스도 붙어 있는 앵커 내브(49) 밑에 숨지 않게 — 포커스 이동은 이 여백까지 보이는지로 판정한다.
+   고정 크롬은 전역 html scroll-padding-top 이 비켜 준다. */
+.wc-campaign__body :where(a[href], button, input, select, textarea, summary, [tabindex]) {
+  scroll-margin-top: 49px;
+}
+
 .wc-campaign-section__heading {
   margin: 0 0 16px;
   padding-bottom: 12px;

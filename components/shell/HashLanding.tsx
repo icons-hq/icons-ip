@@ -10,6 +10,7 @@ import {
   hashLandingLine,
   hashTargetIds,
   isHashLanded,
+  nextHashLandingStep,
   shouldLandAfterNavigation,
   shouldLandOnHashChange,
   shouldLandOnLoad,
@@ -48,11 +49,13 @@ function insideInnerScroller(target: HTMLElement): boolean {
  * 해시 대상을 지켜보다가 착지선에서 벗어나 있으면 다시 세운다. 돌려준 함수로 그만둔다.
  * smoothFirst: 아직 아무도 옮기지 않았을 수 있는 첫 이동(문서를 막 연 경우)은 브라우저 해시 이동처럼 부드럽게 —
  * 데스크톱 헤더가 접히는 만큼은 지금 크롬 높이로 잡은 목표가 이미 품고 있다. 나머지 보정은 즉시 옮긴다.
+ * 시간은 첫 프레임부터 잰다 — 백그라운드 탭(새 탭으로 연 링크)은 화면에 나오기 전까지 프레임이 돌지 않는다.
  */
 function watchHashLanding(hash: string, { smoothFirst }: { smoothFirst: boolean }): () => void {
-  const startedAt = performance.now();
+  let startedAt: number | null = null;
   let renderedAt: number | null = null;
-  let lastScrollAt = startedAt;
+  let lastScrollAt: number | null = null;
+  let lastLandedScrollY: number | null = null;
   let moves = 0;
   let stopped = false;
   let frame = 0;
@@ -70,6 +73,7 @@ function watchHashLanding(hash: string, { smoothFirst }: { smoothFirst: boolean 
 
   const tick = (now: number) => {
     if (stopped) return;
+    startedAt ??= now;
     if (now - (renderedAt ?? startedAt) > (renderedAt === null ? HASH_LANDING_REVEAL_MS : HASH_LANDING_WATCH_MS)) {
       stop();
       return;
@@ -79,23 +83,31 @@ function watchHashLanding(hash: string, { smoothFirst }: { smoothFirst: boolean 
     /* 스트리밍 경계가 아직 숨긴 대상(hidden 컨테이너 안)은 상자가 없다 — 드러날 때까지 기다린다. */
     if (!target || target.getClientRects().length === 0) return;
     renderedAt ??= now;
-    if (now - lastScrollAt < HASH_LANDING_QUIET_MS) return;
+    if (now - Math.max(lastScrollAt ?? startedAt, startedAt) < HASH_LANDING_QUIET_MS) return;
 
     const root = document.documentElement;
-    const landed = isHashLanded({
-      targetTop: target.getBoundingClientRect().top,
-      line: hashLandingLine(window.getComputedStyle(root).scrollPaddingTop, window.getComputedStyle(target).scrollMarginTop),
+    const step = nextHashLandingStep({
+      landed: isHashLanded({
+        targetTop: target.getBoundingClientRect().top,
+        line: hashLandingLine(window.getComputedStyle(root).scrollPaddingTop, window.getComputedStyle(target).scrollMarginTop),
+        scrollY: window.scrollY,
+        maxScrollY: root.scrollHeight - window.innerHeight,
+      }),
       scrollY: window.scrollY,
-      maxScrollY: root.scrollHeight - window.innerHeight,
+      lastLandedScrollY,
     });
-    if (landed) return;
-    if (moves >= HASH_LANDING_MAX_MOVES || insideInnerScroller(target)) {
+    if (step === 'landed') {
+      lastLandedScrollY = window.scrollY;
+      return;
+    }
+    if (step === 'leave' || moves >= HASH_LANDING_MAX_MOVES || insideInnerScroller(target)) {
       stop();
       return;
     }
     const reduceMotion = window.matchMedia('(prefers-reduced-motion: reduce)').matches;
     target.scrollIntoView({ block: 'start', behavior: smoothFirst && moves === 0 && !reduceMotion ? 'smooth' : 'instant' });
     moves += 1;
+    lastLandedScrollY = null;
     lastScrollAt = now;
   };
 
@@ -119,8 +131,9 @@ export function HashLanding() {
       stopWatching.current?.();
       stopWatching.current = null;
     };
-    /* 뒤로·앞으로 가기는 브라우저가 복원한 자리(문서 안 해시 기록이면 브라우저 해시 이동)에 맡긴다 — 진행 중인 착지를
-       끊고, 이 기록 이동으로 이어지는 hashchange·경로 변경에서도 다시 세우지 않는다. popstate 는 그 둘보다 먼저 온다. */
+    /* 기록이 바뀌면(뒤로·앞으로 가기, 그리고 Chrome 에서는 해시 링크 클릭·location.hash 대입도) 진행 중인 착지를 끊는다.
+       경로가 바뀌는 뒤로·앞으로 가기는 브라우저 스크롤 복원에 맡기도록 도착 주소를 적어 두고 경로 effect 가 소비한다 —
+       해시만 바뀌는 이동은 이어지는 hashchange 가 소비한다. popstate 는 둘보다 먼저 온다. */
     const onPopState = () => {
       stopWatch();
       traversal.current = window.location.href;
@@ -128,10 +141,9 @@ export function HashLanding() {
     const onHashChange = () => {
       /* 해시가 바뀌면 앞선 대상의 감시는 언제나 끝낸다 — 뒤로 가기로 해시가 비워졌는데 옛 대상으로 되돌아가지 않게. */
       stopWatch();
-      const fromTraversal = traversal.current === window.location.href;
       traversal.current = null;
       if (previous.current) previous.current = { ...previous.current, hash: window.location.hash };
-      if (shouldLandOnHashChange(window.location.hash, { traversal: fromTraversal })) {
+      if (shouldLandOnHashChange(window.location.hash)) {
         stopWatching.current = watchHashLanding(window.location.hash, { smoothFirst: false });
       }
     };
@@ -151,6 +163,11 @@ export function HashLanding() {
     previous.current = next;
     const fromTraversal = traversal.current === window.location.href;
     traversal.current = null;
+    /* 다른 화면으로 넘어가면 앞선 대상의 감시는 끝낸다 — 새 화면에 같은 id 가 있어도 옛 이동을 이어 가지 않는다. */
+    if (before && before.pathname !== next.pathname) {
+      stopWatching.current?.();
+      stopWatching.current = null;
+    }
     const watch = (smoothFirst: boolean) => {
       stopWatching.current?.();
       stopWatching.current = watchHashLanding(next.hash, { smoothFirst });

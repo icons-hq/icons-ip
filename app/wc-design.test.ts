@@ -546,15 +546,19 @@ describe('White Catalog campaign wiring', () => {
     const css = read('./styles/wc-campaign.css');
     const margins: string[] = [];
     postcss.parse(css).walkDecls('scroll-margin-top', (decl) => {
-      const rule = decl.parent?.type === 'rule' ? decl.parent.selector : '';
+      const rule = decl.parent?.type === 'rule' ? (decl.parent as Rule).selectors.join(', ') : '';
       const media = decl.parent?.parent?.type === 'atrule' ? (decl.parent.parent as AtRule).params : 'base';
       margins.push(`${media} ${rule}: ${decl.value}`);
     });
 
     expect(css).toMatch(/\.wc-campaign-nav\s*\{[^}]*border-bottom:\s*1px/s);
     expect(css).toMatch(/\.wc-campaign-nav__inner\s*\{[^}]*height:\s*48px/s);
-    /* 모바일·데스크톱이 같은 한 줄이다 — 미디어마다 다시 적으면 크롬 높이를 다시 끌어들이기 쉽다. */
-    expect(margins).toEqual(['base .wc-campaign-section: 49px']);
+    /* 모바일·데스크톱이 같은 한 줄이다 — 미디어마다 다시 적으면 크롬 높이를 다시 끌어들이기 쉽다.
+     * 본문 안 키보드 포커스도 같은 내브 높이만큼 띄워 붙어 있는 내브 밑에 숨지 않게 한다. */
+    expect(margins).toEqual([
+      'base .wc-campaign-section: 49px',
+      'base .wc-campaign__body :where(a[href], button, input, select, textarea, summary, [tabindex]): 49px',
+    ]);
   });
 });
 
@@ -645,7 +649,7 @@ describe('Hash landing offsets', () => {
       postcss.parse(read(`./styles/${sheet}`)).walkDecls(/^scroll-margin/, (decl) => {
         const rule = decl.parent?.type === 'rule' ? (decl.parent as Rule) : null;
         const media = rule?.parent?.type === 'atrule' ? (rule.parent as AtRule).params : null;
-        found.push({ sheet, selector: rule?.selector ?? '', media, prop: decl.prop, value: decl.value });
+        found.push({ sheet, selector: rule ? rule.selectors.join(', ') : '', media, prop: decl.prop, value: decl.value });
       });
     }
     return found;
@@ -655,11 +659,14 @@ describe('Hash landing offsets', () => {
     const margins = scrollMargins(styleNames.filter((name) => !isAdminSheet(name)));
 
     expect(margins.filter((margin) => /--wc-sticky-chrome-h|\b(?:52|68|69|81|88|112|123)px/.test(margin.value))).toEqual([]);
-    /* 감사한 해시 대상: 캠페인 섹션(내브 49, 여백 0 — 섹션 padding 이 여백), PDP 리뷰(탭바 55 + 16), 배송비 절약(16). */
+    /* 감사한 해시 대상: 캠페인 섹션(내브 49, 여백 0 — 섹션 padding 이 여백), PDP 리뷰·Q&A(탭바 55 + 16), 배송비 절약(16).
+     * sticky 하위 내브 아래 패널·본문의 키보드 포커스는 내브 높이만큼 띄운다(탭바 55, 캠페인 내브 49). */
     expect(margins.map(({ sheet, selector, media, value }) => `${sheet} ${media ?? 'base'} ${selector}: ${value}`)).toEqual(expect.arrayContaining([
-      'product-detail-experience.css base .wc-pdp-shipping-savings,.wc-product-interests: 16px',
+      'product-detail-experience.css base .wc-pdp-shipping-savings, .wc-product-interests: 16px',
       'wc-campaign.css base .wc-campaign-section: 49px',
-      'wc-catalog.css base .wc-pdp-tabs .wc-reviews: calc(55px + 16px)',
+      'wc-campaign.css base .wc-campaign__body :where(a[href], button, input, select, textarea, summary, [tabindex]): 49px',
+      'wc-catalog.css base .wc-pdp-tabs .wc-reviews, .wc-pdp-tabs .wc-qna: calc(55px + 16px)',
+      'wc-catalog.css base .wc-pdp-tabs .wc-tabs__panel :where(a[href], button, input, select, textarea, summary, [tabindex]): 55px',
     ]));
   });
 
@@ -668,9 +675,8 @@ describe('Hash landing offsets', () => {
     const margins = scrollMargins(styleNames.filter(isAdminSheet)).filter((margin) => margin.prop === 'scroll-margin-top');
 
     expect(margins.length).toBeGreaterThan(0);
-    for (const margin of margins) {
-      expect(Number.parseFloat(margin.value), `${margin.sheet} ${margin.selector}: ${margin.value}`).toBeLessThan(55);
-    }
+    /* 어드민 해시 대상은 모두 상단바 아래 16에 선다 — 상단바 높이를 다시 더한 값(80·84·90·96)이 돌아오면 여기서 걸린다. */
+    expect(margins.filter((margin) => margin.value !== '16px').map(({ sheet, selector, value }) => `${sheet} ${selector}: ${value}`)).toEqual([]);
   });
 
   it('lands goods workspace sections on their own margin, not the centered-field margin', () => {

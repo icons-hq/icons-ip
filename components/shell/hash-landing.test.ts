@@ -9,6 +9,7 @@ import {
   hashLandingLine,
   hashTargetIds,
   isHashLanded,
+  nextHashLandingStep,
   shouldLandAfterNavigation,
   shouldLandOnHashChange,
   shouldLandOnLoad,
@@ -81,6 +82,28 @@ describe('착지 판정', () => {
   });
 });
 
+describe('조용해진 뒤 한 번의 판정', () => {
+  it('선에 섰으면 그대로 두고 그 자리를 기준점으로 삼는다', () => {
+    expect(nextHashLandingStep({ landed: true, scrollY: 1411, lastLandedScrollY: null })).toBe('landed');
+    expect(nextHashLandingStep({ landed: true, scrollY: 1411, lastLandedScrollY: 1200 })).toBe('landed');
+  });
+
+  /* 2026-10-23 실측: 착지 뒤 306ms 에 대상 위 블록이 드러나 457px 밀렸다 — 스크롤 위치는 그대로다. */
+  it('스크롤은 그대로인데 대상이 밀렸으면(늦게 드러난 블록) 다시 세운다', () => {
+    expect(nextHashLandingStep({ landed: false, scrollY: 1411, lastLandedScrollY: 1411 })).toBe('move');
+  });
+
+  it('아직 선에 선 적이 없으면(맨 위 멈춤·앱이 막 옮김) 다시 세운다', () => {
+    expect(nextHashLandingStep({ landed: false, scrollY: 0, lastLandedScrollY: null })).toBe('move');
+  });
+
+  /* 휠·터치·키 이벤트 없이 스크롤바를 끌거나 자동 스크롤하면 입력 감지로는 못 멈춘다 — 위치 변화로 알아챈다. */
+  it('선에 선 뒤 스크롤 위치가 바뀌었으면 사용자가 넘겨받은 것이라 놓아준다', () => {
+    expect(nextHashLandingStep({ landed: false, scrollY: 900, lastLandedScrollY: 1411 })).toBe('leave');
+    expect(nextHashLandingStep({ landed: false, scrollY: 1411.5, lastLandedScrollY: 1411 })).toBe('move');
+  });
+});
+
 describe('문서를 열 때', () => {
   it('새 이동은 해시에 맞춘다', () => {
     expect(shouldLandOnLoad('navigate', 'auto')).toBe(true);
@@ -128,14 +151,17 @@ describe('클라이언트 이동 뒤', () => {
 });
 
 describe('같은 문서 안 해시 이동 뒤', () => {
-  it('링크로 바꾼 해시는 맞춘다', () => {
+  /* Chrome 은 해시 링크 클릭·location.hash 대입에도 popstate 를 먼저 낸다(2026-10-23 실측) — popstate 로 기록 이동을
+     가려 hashchange 를 건너뛰면 일반 해시 클릭의 보정(동작 줄이기의 헤더 접힘 54)이 빠진다. 같은 문서 기록 이동도
+     Chrome 이 해시 위치로 옮기므로 같은 선에 세운다. */
+  it('새 해시가 착지 대상이면 링크·기록 이동을 가리지 않고 맞춘다', () => {
     expect(shouldLandOnHashChange('#pdp-shipping-savings')).toBe(true);
   });
 
   /* 문서 안 해시로 간 뒤 뒤로 가기로 해시가 비면 브라우저가 복원한 자리에 둔다(앞선 감시는 HashLanding 이 먼저 끊는다). */
-  it('뒤로·앞으로 가기로 바뀐 해시와 비워진 해시는 맞추지 않는다', () => {
-    expect(shouldLandOnHashChange('#pdp-shipping-savings', { traversal: true })).toBe(false);
+  it('비워진 해시와 착지 대상이 아닌 해시는 맞추지 않는다', () => {
     expect(shouldLandOnHashChange('')).toBe(false);
+    expect(shouldLandOnHashChange('#top')).toBe(false);
     expect(shouldLandOnHashChange('#token=abc')).toBe(false);
   });
 });

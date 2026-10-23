@@ -61,6 +61,20 @@ export function isHashLanded(state: { targetTop: number; line: number; scrollY: 
   return state.scrollY <= HASH_LANDING_TOLERANCE;
 }
 
+export type HashLandingStep = 'landed' | 'move' | 'leave';
+
+/**
+ * 조용해진 뒤 한 번의 판정. 선에 섰으면 landed. 아니면 다시 세우는데(move), 앞서 선에 선 것을 본 뒤로 스크롤 위치가
+ * 바뀌었다면 앱이 옮긴 것이 아니다 — 휠·터치·키 없이 스크롤바를 끌거나 자동 스크롤한 사용자이므로 놓아준다(leave).
+ * 늦게 드러난 블록에 밀린 대상은 스크롤 위치는 그대로라 다시 세운다. 앱이 다시 세우면 기준점(lastLandedScrollY)은
+ * 지운다 — 그 이동 자체를 사용자의 스크롤로 오인하지 않게.
+ */
+export function nextHashLandingStep(state: { landed: boolean; scrollY: number; lastLandedScrollY: number | null }): HashLandingStep {
+  if (state.landed) return 'landed';
+  if (state.lastLandedScrollY !== null && Math.abs(state.scrollY - state.lastLandedScrollY) > HASH_LANDING_TOLERANCE) return 'leave';
+  return 'move';
+}
+
 /**
  * 문서를 처음 열 때 해시를 맞출지. 새 이동은 맞추고, 뒤로·앞으로 가기는 브라우저의 스크롤 복원에 맡긴다.
  * 새로고침도 복원에 맡기되, 페이지가 복원을 끄고 다시 연 경우(scrollRestoration = 'manual' — 리뷰 링크)는 맞춘다.
@@ -92,9 +106,10 @@ export function shouldLandAfterNavigation(
 }
 
 /**
- * 같은 문서 안 해시 이동(hashchange) 뒤 맞출지. 기록 이동으로 바뀐 해시(뒤로·앞으로 가기)는 브라우저가 옮기는 자리에
- * 맡기고, 해시가 비었거나 착지 대상이 아니면 맞추지 않는다 — 어느 경우든 앞선 착지 감시는 먼저 끊는다(HashLanding).
+ * 같은 문서 안 해시 이동(hashchange) 뒤 맞출지 — 새 해시가 착지 대상이면 맞춘다. 뒤로·앞으로 가기로 바뀐 해시도
+ * 같다: Chrome 은 같은 문서 기록 이동에서 저장된 자리 대신 해시 위치로 다시 옮기므로(2026-10-22 실측) 같은 선에
+ * 세울 뿐이다. 해시가 비었거나 착지 대상이 아니면 맞추지 않는다 — 어느 경우든 앞선 감시는 먼저 끊는다(HashLanding).
  */
-export function shouldLandOnHashChange(hash: string, { traversal = false }: { traversal?: boolean } = {}): boolean {
-  return !traversal && hashTargetIds(hash).length > 0;
+export function shouldLandOnHashChange(hash: string): boolean {
+  return hashTargetIds(hash).length > 0;
 }

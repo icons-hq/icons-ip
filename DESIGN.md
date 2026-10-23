@@ -47,7 +47,7 @@ authority:
     shell-and-kit: app/styles/wc-admin.css
     surfaces: app/styles/wc-admin-surfaces.css
     boundary: .wc-admin
-  global-plumbing: app/globals.css  # Tailwind·Pretendard·element 리셋·공용 구조 유틸만 소유
+  global-plumbing: app/globals.css  # Tailwind·Pretendard·element 리셋·공용 구조 유틸, 그리고 셸 고정 크롬을 따르는 html scroll-padding-top(해시 착지선)만 소유
   retained-legacy-surfaces:         # 의도적으로 구 조판을 보존하는 공개 표면 — 자기 앵커 안 격리 CSS로 자립
     - app/styles/about-legacy.css           # /about — 구 홈 콘텐츠 보존 전시(ADR-0011, LD-11)
   route-map: lib/routes.ts
@@ -81,7 +81,7 @@ breakpoints:
 ## 0. 상태와 적용 원칙
 
 - 근거 결정은 [ADR-0011](docs/adr/0011-lfs-storefront-redesign.md)이다. 공개 스토어프론트 전 표면이 이 시스템으로 이행됐고, 직전 시스템(Living IP Editorial)의 공개 표면 CSS 3파일과 1세대 잔재(Holographic Midnight)의 공개 표면 규칙은 S9에서 제거됐다.
-- **어드민**(`/admin/**`)은 2026-09 운영 콘솔 재설계(ADR-0014)로 White Catalog에 편입됐다. 셸·공통 키트는 `wc-admin.css`, 워크플로 배치·반응형·검표·가이드는 `wc-admin-surfaces.css`가 `.wc-admin` 안에서 소유한다. 공유 editorial 3파일과 `globals.css`의 관리자 규칙은 제거됐다. 어드민 전용 규율은 §어드민 콘솔을 따른다. **`/about`**은 구 홈의 콘텐츠를 보존하는 표면으로 자체 스타일(about-legacy)을 갖고 전역 셸은 White Catalog을 쓴다.
+- **어드민**(`/admin/**`)은 2026-09 운영 콘솔 재설계(ADR-0014)로 White Catalog에 편입됐다. 셸·공통 키트는 `wc-admin.css`, 워크플로 배치·반응형·검표·가이드는 `wc-admin-surfaces.css`가 `.wc-admin` 안에서 소유한다. 공유 editorial 3파일과 `globals.css`의 관리자 규칙은 제거됐다(예외: 고정 상단바 55를 비키는 `html:has(.wc-admin__header)`의 scroll-padding-top 한 줄 — 해시 착지·키보드 포커스용). 어드민 전용 규율은 §어드민 콘솔을 따른다. **`/about`**은 구 홈의 콘텐츠를 보존하는 표면으로 자체 스타일(about-legacy)을 갖고 전역 셸은 White Catalog을 쓴다.
 - **오프라인 팝업**(`/offline-popups`·`/offline-popups/[eventId]`)과 **법적 문서**(`/legal/*`)는 S9에서 격리 CSS로 자립시켰다가 패리티 2차 L10(2026-10)에서 §8 플레이북대로 재조판했다(`wc-offline-popups.css`·`wc-document.css`). 구 조판을 보존하는 공개 표면은 `/about` 하나다.
 - 시각·IA는 전면 교체하지만 기능 계약(인증, 카트, 주문, 결제, 카드팩, 예매, QR, 권한)은 §11의 동결 경계를 따른다.
 - 용어는 `CONTEXT.md`를 따른다: **온라인 팝업**(구 IP 허브), **오프라인 팝업**(예매 도메인), **이벤트**(캠페인 허브), **카테고리**(굿즈 분류), 수집형 **카드** ≠ 실물 **굿즈**.

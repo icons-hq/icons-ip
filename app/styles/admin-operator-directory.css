@@ -32,6 +32,7 @@
 @media (max-width: 760px) { .wc-admin .admin-operator-directory__list > header, .wc-admin .admin-operator-directory__guide, .wc-admin .admin-operator-setup__confirm { padding: 14px; } .wc-admin .admin-operator-directory__duty > button, .wc-admin .admin-operator-directory__controls > button, .wc-admin .admin-operator-setup button, .wc-admin .admin-operator-duty-dialog button { min-height: 44px; } }
 @media (forced-colors: active) { .wc-admin .admin-operator-duty-dialog button { border: 1px solid ButtonText; } }
 .wc-admin .admin-operator-invite-start { display: flex; align-items: center; flex-wrap: wrap; gap: 14px; padding: 18px 22px; }
+.wc-admin .admin-operator-invitations { scroll-margin-top: 16px; }
 .wc-admin .admin-operator-invitations button, .wc-admin .admin-operator-invite-dialog button { min-height: 38px; padding: 6px 14px; border: 1px solid var(--wc-line-control); background: var(--wc-surface); color: var(--wc-ink); }
 .wc-admin .admin-operator-invitations .admin-operator-primary, .wc-admin .admin-operator-invite-dialog .admin-operator-primary { background: var(--wc-accent); border-color: var(--wc-accent); color: var(--wc-surface); }
 .wc-admin .admin-operator-invite-dialog { width: min(920px, calc(100vw - 32px)); }

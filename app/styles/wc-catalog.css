@@ -1421,10 +1421,17 @@
   display: block;
 }
 
-/* 리뷰 정렬·페이지·로그인 복귀 링크(#reviews)는 sticky 탭바(54 + 하단 선 1) 아래 16에 선다.
+/* 리뷰·Q&A 정렬·페이지·로그인 복귀 링크(#reviews·#qna)는 sticky 탭바(54 + 하단 선 1) 아래 16에 선다.
    고정 크롬은 전역 html scroll-padding-top(globals.css)이 이미 비켜 준다. */
-.wc-pdp-tabs .wc-reviews {
+.wc-pdp-tabs .wc-reviews,
+.wc-pdp-tabs .wc-qna {
   scroll-margin-top: calc(55px + 16px);
+}
+
+/* 패널 안 키보드 포커스도 붙어 있는 탭바 밑에 숨지 않게 탭바 높이만큼 띄운다 — 포커스 이동은 이 여백까지
+   보이는지로 판정해 가려진 칸을 화면 안으로 옮긴다(크롬은 html scroll-padding-top 이 비켜 준다). */
+.wc-pdp-tabs .wc-tabs__panel :where(a[href], button, input, select, textarea, summary, [tabindex]) {
+  scroll-margin-top: 55px;
 }
 
 .wc-reviews__policy {

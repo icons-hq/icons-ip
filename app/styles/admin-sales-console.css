@@ -88,7 +88,7 @@
 .wc-admin .admin-sales-console .admin-shipment-import-disclosure > summary { width: fit-content; cursor: pointer; }
 .wc-admin .admin-sales-console .admin-shipment-import-disclosure[open] > summary { margin-bottom: 12px; }
 .wc-admin .admin-sales-note { margin: 0; padding: 12px 20px; border-top: 1px solid var(--wc-hairline); color: var(--wc-ink-tertiary); line-height: 1.7; }
-.wc-admin .admin-sales-detail-disclosure { background: var(--wc-surface); border: 1px solid var(--wc-hairline); }
+.wc-admin .admin-sales-detail-disclosure { background: var(--wc-surface); border: 1px solid var(--wc-hairline); scroll-margin-top: 16px; }
 .wc-admin .admin-sales-detail-disclosure > summary { padding: 14px 20px; color: var(--wc-ink-tertiary); cursor: pointer; }
 .wc-admin .admin-sales-detail-disclosure > .admin-order-detail { border-radius: 0; border: 0; box-shadow: none; }
 .wc-admin .admin-sales-detail-header { display: flex; flex-wrap: wrap; align-items: start; justify-content: space-between; gap: 15px; padding: 18px 22px; background: var(--wc-surface); border: 1px solid var(--wc-hairline); }
