@@ -9,14 +9,14 @@ import type { Ip } from './data';
  * point to the JSON emitted by the rollback-only SQL fixture of the same name. */
 const filename = process.env.CATEGORY_DISPLAY_ORACLE_FILE;
 describe.skipIf(!filename)('실제 DB 공개 카탈로그와 전시의 독립 가격·공급·정렬 비교', () => {
-  it('기간할인, 옵션가격범위, 예약물량, 품절, zero-padding, 모든 정렬·필터가 48개 경우에 일치한다', () => {
+  it('기간할인, 옵션가격범위, 예약물량, 품절, zero-padding, 정렬 7종·예약판매 포함 필터가 112개 경우에 일치한다', () => {
     const data = JSON.parse(readFileSync(filename!, 'utf8')) as { rows: GoodRow[]; cases: { mode: string; query: { ips: string[]; types: string[]; min: number | null; max: number | null; sort: ShopListQuery['sort'] }; page: unknown }[] };
     const goods = data.rows.map(row => toGood(row, () => ''));
     const ips = [{ id: 'cd-oracle-ip', title: '가격 공급 비교' } as Ip];
     const baseQuery: ShopListQuery = { ips: [], types: [], priceMin: null, priceMax: null, sort: 'recommended', view: 'all' };
     const baseline = selectShopGoods({ goods, ips }, baseQuery).goods;
     const manualIds = ['10', '2', '1', '01', '001', '20'].map(suffix => `cd-oracle-g-${suffix}`);
-    expect(data.cases).toHaveLength(48);
+    expect(data.cases).toHaveLength(112);
     for (const entry of data.cases) {
       const query: ShopListQuery = { ...baseQuery, ips: entry.query.ips, types: entry.query.types, priceMin: entry.query.min, priceMax: entry.query.max, sort: entry.query.sort };
       const expected = selectShopGoods({ goods: baseline, ips }, { ...query, view: entry.mode === 'manual' ? 'best' : 'all' }, manualIds);
