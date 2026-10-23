@@ -27,6 +27,12 @@ const CATALOG = './styles/wc-catalog.css';
 const FOUNDATION = './styles/wc-foundation.css';
 const DESKTOP = '(min-width: 990px)';
 
+/** px 값만 받는다 — 세로 예산 계약이 단위 없는 줄높이(배수)로 조용히 바뀌면 여기서 실패한다. */
+function px(value: string | undefined): number {
+  expect(value, 'px 값').toMatch(/^\d+(?:\.\d+)?px$/);
+  return Number.parseFloat(value!);
+}
+
 describe('컬렉션 수량·정렬 줄 (11 CL-05)', () => {
   it('데스크톱은 896×50 바에 상하 1px 헤어라인, 그리드까지 16px 이다', () => {
     const toolbar = decls(CATALOG, '.wc-collection__toolbar', DESKTOP);
@@ -249,6 +255,36 @@ describe('홈 밴드 (11 HM-01~07)', () => {
     expect(decls(HOME, '.wc-benefit__tile-icon').width).toBe('32px');
     expect(decls(HOME, '.wc-benefit__tile', DESKTOP).padding).toBe('32px 24px');
     expect(decls(HOME, '.wc-benefit__tile', DESKTOP)['min-height']).toBe('158px');
+  });
+
+  /* 세로 예산 계약(l4-ui-4·l4-ui-6) — 줄높이·간격을 px 로 고정해 렌더 높이를 CSS 에서 셀 수 있게 둔다.
+     별점 행이 107.8(모바일 105.8)로, 아이콘 타일이 165.8 로 커졌던 것을 되돌리지 않게 막는다. */
+  it('별점까지 든 리스트 행 글 블록이 썸네일 80 안에 들어 행이 99(모바일 97)로 선다(HM-03)', () => {
+    const brand = decls(HOME, '.wc-band__row-brand');
+    const name = decls(HOME, '.wc-band__row-name');
+    const price = decls(HOME, '.wc-band__row-price');
+    const rating = decls(CATALOG, '.wc-band__row-rating');
+    const text = px(brand['line-height']) + px(name['margin-top']) + px(name['line-height'])
+      + px(price['margin-top']) + px(price['line-height']) + px(rating['margin-top']) + px(rating['line-height']);
+    const thumb = px(decls(HOME, '.wc-band__thumb').height);
+
+    expect(thumb).toBe(80);
+    expect(text).toBeLessThanOrEqual(thumb);
+    expect(brand['white-space']).toBe('nowrap');
+    expect(name['white-space']).toBe('nowrap');
+    expect(thumb + px(decls(HOME, '.wc-band__row')['padding-bottom']) + 1).toBe(97);
+    expect(thumb + px(decls(HOME, '.wc-band__row', DESKTOP)['padding-bottom']) + 1).toBe(99);
+  });
+
+  it('데스크톱 혜택 타일의 글 블록이 158 - 패딩 64 안에 들어 280×158 을 지킨다(HM-07)', () => {
+    const tile = decls(HOME, '.wc-benefit__tile', DESKTOP);
+    const icon = decls(HOME, '.wc-benefit__tile-icon');
+    const title = decls(HOME, '.wc-benefit__tile-title', DESKTOP);
+    const desc = decls(HOME, '.wc-benefit__tile-desc');
+    const [padY] = tile.padding.split(' ').map(px);
+    const content = px(icon.height) + px(icon['margin-bottom']) + px(title['line-height']) + px(desc['margin-top']) + px(desc['line-height']);
+
+    expect(padY * 2 + content).toBeLessThanOrEqual(px(tile['min-height']));
   });
 });
 

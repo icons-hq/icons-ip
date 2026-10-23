@@ -132,6 +132,7 @@
 
 .wc-band__row-rating {
   margin-top: 4px;
+  line-height: 16px;
 }
 
 @media (forced-colors: active) {
