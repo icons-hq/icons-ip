@@ -341,13 +341,21 @@
 }
 
 /* 모바일은 고정 300px 카드 + 다음 카드 피킹, 데스크톱은 균등 3열이다(R-02 §2②).
-   프리미티브의 기본 gap 16px 을 이 밴드 안에서만 되돌린다. */
+   프리미티브의 기본 gap 16px 을 이 밴드 안에서만 되돌린다.
+   모바일 트랙은 컨테이너 거터를 넘어 화면 양끝까지 편다(레퍼런스 offset 16 슬라이더 · 11 B20). 트랙이 거터 안(16~359)에
+   갇히면 다음 카드가 화면 끝이 아니라 오른쪽 거터에서 잘려 375 폭에서 33px 만 보인다. 거터만큼 안쪽 패딩을 되돌려 첫 카드는
+   x16 에서 시작하고, scroll-padding 도 같은 값이라 스냅한 카드도 x16 에 선다. 끝 패딩은 끝까지 넘긴 마지막 카드를
+   오른쪽 거터 앞(375 폭에서 x359)에 세운다. */
 .wc-picks .wc-slider__track {
   gap: 10px;
+  margin-inline: calc(-1 * var(--wc-gutter));
+  padding-inline: var(--wc-gutter);
+  scroll-padding-inline: var(--wc-gutter);
 }
 
 /* min-width:0 이 없으면 flex 항목의 최소 폭이 콘텐츠(한 줄 고정 제목)만큼 커져 첫 카드가 351px 로 늘고
-   다음 카드가 화면 밖으로 밀린다(11 HM-01). 300 + gap 10 이면 375 폭에서 다음 카드가 49px 보인다. */
+   다음 카드가 화면 밖으로 밀린다(11 HM-01). 첫 카드 16~316 + gap 10 이고 트랙이 화면 끝까지라 다음 카드가
+   326 부터 화면 끝까지 — 375 폭에서 49px, 390 폭에서 64px 보인다. */
 .wc-picks .wc-slider__track > * {
   flex: 0 0 300px;
   min-width: 0;
@@ -359,8 +367,12 @@
 }
 
 @media (min-width: 990px) {
+  /* 데스크톱 3열은 컨테이너 안쪽 폭(1180)에 맞춘다 — 모바일의 거터 넘김을 되돌린다. */
   .wc-picks .wc-slider__track {
     gap: 20px;
+    margin-inline: 0;
+    padding-inline: 0;
+    scroll-padding-inline: 0;
   }
 
   .wc-picks .wc-slider__track > * {

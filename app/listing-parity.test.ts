@@ -234,6 +234,36 @@ describe('홈 밴드 (11 HM-01~07)', () => {
     expect(decls(HOME, '.wc-picks .wc-slider__track').gap).toBe('10px');
   });
 
+  /* 트랙이 컨테이너 거터 안(16~359)에 갇히면 다음 카드가 오른쪽 거터에서 잘려 375 폭에서 33px 만 보였다(l4-qa-1).
+     레퍼런스는 첫 카드 x16 · 다음 카드 326~375(49px)다 — 트랙 오른쪽 끝이 뷰포트 끝이어야 나오는 값이다. */
+  it('모바일 트랙은 거터를 넘어 화면 끝까지 펴고 첫 카드·스냅은 x16 에 세운다(HM-01 · B20)', () => {
+    const track = decls(HOME, '.wc-picks .wc-slider__track');
+    const container = decls(FOUNDATION, '.wc-container');
+
+    // 컨테이너 거터와 같은 토큰으로 상쇄해야 트랙 양끝이 뷰포트 양끝과 겹친다.
+    expect(container['padding-inline']).toBe('var(--wc-gutter)');
+    expect(track['margin-inline']).toBe('calc(-1 * var(--wc-gutter))');
+    expect(track['padding-inline']).toBe('var(--wc-gutter)');
+    expect(track['scroll-padding-inline']).toBe('var(--wc-gutter)');
+
+    // 트랙 오른쪽 끝 = 뷰포트 끝이므로 다음 카드 노출 폭 = 뷰포트 − (거터 + 카드 + gap).
+    const gutter = px(read(FOUNDATION).match(/--wc-gutter:\s*([^;]+);/)?.[1]);
+    const card = px(decls(HOME, '.wc-picks .wc-slider__track > *').flex.split(' ')[2]);
+    const gap = px(track.gap);
+    expect(375 - (gutter + card + gap)).toBe(49);
+    expect(390 - (gutter + card + gap)).toBe(64);
+  });
+
+  it('데스크톱 3열은 거터 넘김을 되돌려 컨테이너 안쪽 폭에 맞춘다', () => {
+    const track = decls(HOME, '.wc-picks .wc-slider__track', DESKTOP);
+
+    expect(track.gap).toBe('20px');
+    expect(track['margin-inline']).toBe('0');
+    expect(track['padding-inline']).toBe('0');
+    expect(track['scroll-padding-inline']).toBe('0');
+    expect(decls(HOME, '.wc-picks .wc-slider__track > *', DESKTOP).flex).toBe('0 0 calc((100% - 40px) / 3)');
+  });
+
   it('콘텐츠 카드 배지는 12/700 success 글자·grey 칸·3×6·r0 이다(HM-02)', () => {
     const badge = decls(HOME, '.wc-content-card .wc-content-card__badge');
 
