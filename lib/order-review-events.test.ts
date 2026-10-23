@@ -19,15 +19,17 @@ describe('order review events', () => {
   });
 
   it('folds per-goods rows into distinct events, larger reward first, up to the limit', () => {
-    const picked = pickOrderReviewEvents({ rows: [
+    const rows = [
       { goodId: 'g1', event: event('small', 1000) },
       { goodId: 'g2', event: event('big', 5000) },
       { goodId: 'g3', event: event('big', 5000) },
       { goodId: 'g4', event: event('mid-late', 3000, '2026-10-22') },
       { goodId: 'g5', event: event('mid-early', 3000, '2026-10-18') },
-    ] });
+    ];
 
-    expect(picked.map((item) => item.id)).toEqual(['big', 'mid-early']);
+    /* 기본은 한 장 — 보상이 가장 큰 이벤트만 주문 목록 위에 선다. */
+    expect(pickOrderReviewEvents({ rows }).map((item) => item.id)).toEqual(['big']);
+    expect(pickOrderReviewEvents({ rows }, 3).map((item) => item.id)).toEqual(['big', 'mid-early', 'mid-late']);
     expect(pickOrderReviewEvents({ rows: [] })).toEqual([]);
   });
 });

@@ -8,8 +8,9 @@ import type { GoodsReviewEvents, PublicReviewEvent } from './review-events';
  * 진행 중 이벤트가 있을 때만 기존 ReviewEventBanner 를 보인다. 보상 명칭·금액은 이벤트가 말한다(적립금 등).
  * 결제 대기·취소 주문은 리뷰로 이어지지 않으므로 대상 굿즈를 모을 때 뺀다. */
 
-/** 주문 화면 위에 한 번에 세우는 배너 수 — 목록을 밀어내지 않게 상한을 둔다. */
-export const ORDER_REVIEW_EVENT_LIMIT = 2;
+/** 주문 화면 위에 세우는 배너 수 — 레퍼런스처럼 한 장(보상이 가장 큰 이벤트)만 둔다. 배너가 쌓이면 주문 목록이
+    첫 화면 밖으로 밀린다. 다른 이벤트는 배너가 여는 리뷰 이벤트 안내에서 이어 본다. */
+export const ORDER_REVIEW_EVENT_LIMIT = 1;
 
 /** 리뷰 대상이 될 수 있는 주문(선물 주문·결제 대기·취소 제외)의 ID. 선물 주문 품목은 받는 사람 몫이다. */
 export function reviewableOrderIds(orders: readonly OrderListItem[]): string[] {

@@ -595,6 +595,7 @@
   margin: 0;
   font-size: 22px;
   font-weight: 700;
+  line-height: 1.3;
   letter-spacing: -0.4px;
   color: var(--wc-ink);
   overflow-wrap: anywhere;
@@ -603,12 +604,14 @@
 .wc-mypage__greeting-sub {
   margin: 4px 0 0;
   font-size: 16px;
+  line-height: 1.5;
   letter-spacing: -0.2px;
   color: var(--wc-ink-sub);
 }
 
-/* 웰컴 행의 등급 뱃지는 모바일 전용 — 데스크톱은 등급 타일이 같은 뱃지를 든다. */
-.wc-mypage__greeting-badge {
+/* 웰컴 행의 등급 뱃지는 모바일 전용 — 데스크톱은 등급 타일이 같은 뱃지를 든다.
+   뱃지 기본형(.wc-mypage__tier-badge, inline-flex)보다 뒤에 오지 않아도 지도록 스트립 스코프로 올린다. */
+.wc-mypage__profile .wc-mypage__greeting-badge {
   display: none;
 }
 
@@ -617,7 +620,7 @@
   display: flex;
   flex-direction: column;
   align-items: flex-start;
-  gap: 6px;
+  gap: 4px;
   min-width: 0;
   min-height: 120px;
   padding: 16px 14px;
@@ -633,6 +636,7 @@
   margin: 0;
   font-size: 14px;
   font-weight: 700;
+  line-height: 1.3;
   letter-spacing: -0.2px;
   color: var(--wc-ink);
 }
@@ -641,9 +645,10 @@
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  gap: 4px 6px;
   margin: 0;
   font-size: 13px;
+  line-height: 1.4;
   color: var(--wc-ink-sub);
 }
 
@@ -1031,7 +1036,7 @@
     background: none;
   }
 
-  .wc-mypage__greeting-badge {
+  .wc-mypage__profile .wc-mypage__greeting-badge {
     display: inline-flex;
     margin-bottom: 6px;
   }
