@@ -117,10 +117,23 @@ describe('셸 공지 캐시 읽기', () => {
 
   it('비공개 대상은 바꾸지 않고, 읽기 실패는 공지 없음으로 수렴한다', async () => {
     mocks.published = false;
-    mocks.rows = [strip('s1', { link_path: '/ip/old-ip' })];
-    expect((await getShellNotices()).strips[0].href).toBe('/ip/old-ip');
+    mocks.rows = [bar('b1', { link_path: '/ip/old-ip' }), strip('s1', { link_path: '/ip/old-ip' })];
+    const notices = await getShellNotices();
+    expect(notices.bars[0].cta?.href).toBe('/ip/old-ip');
+    expect(notices.strips[0].href).toBe('/ip/old-ip');
     mocks.error = { message: 'offline' };
     expect(await getShellNotices()).toEqual({ bars: [], strips: [] });
     expect(mocks.cookieClient).not.toHaveBeenCalled();
   });
+
+  /* 예약 팝업 주소는 IP 별칭 해석을 타지 않는다. 대역은 어떤 슬러그든 공개 IP로 풀어 주므로(published), 예약 검사가
+     빠지면 이 주소가 '/ip/current-ip'로 바뀌어 실패한다. */
+  it.each(['/ip/aouad', '/ip/aouad?tab=goods#detail', '/ip?ip=aouad'])(
+    '공지 바 버튼·스트립의 예약 팝업 주소는 그대로 둔다: %s', async (href) => {
+      mocks.rows = [bar('b1', { link_path: href }), strip('s1', { link_path: href })];
+      const notices = await getShellNotices();
+      expect(notices.bars[0].cta?.href).toBe(href);
+      expect(notices.strips[0].href).toBe(href);
+    },
+  );
 });
