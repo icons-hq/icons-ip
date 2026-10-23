@@ -221,33 +221,33 @@ grid **2열 451px, gap 20(행)/18(열)**. 카드 451×141: 1px `#DCDEE0`, r2, p 
 
 | ID | 항목 | LFS | ICONS 현재(근거) | 분류 | P | 단계 |
 |---|---|---|---|---|---|---|
-| HM-01 | 에디터의 제안 모바일 다음 카드 노출 | 300 + gap 10, 다음 카드 49px | 첫 카드가 351px로 늘어 다음 카드 안 보임 — `flex:0 0 300px`에 `min-width:0` 부재 + 한 줄 고정이 최소 폭을 키움(`app/styles/wc-home.css:291-323`) | DRIFT(결함) | P1 | L4 |
-| HM-02 | 콘텐츠 카드 배지 | 12/700 액센트 글자, `#F6F8FA`, p 3×6, r0 | 상품 배지 재사용 11/600(`components/wc/ContentCard.tsx:27`) | DRIFT | P2 | L4 |
-| HM-03 | 배너 옆 리스트 행 | 380×99, 하단 1px + 18, 하트, 별점 | 380×80, 구분선·하트·별점 없음(`components/screens/Home.tsx:156-172`) | GAP-UI(하트·선)·GAP-DATA(별점) | P1 | L4 |
-| HM-04 | '전체보기' 버튼 | 1px `#C8CACC` | 1.5px 잉크(`wc-home.css:531-545`) | GAP-UI | P2 | L4 |
-| HM-05 | 섹션 제목 자간 | -0.2px | -0.8px(`wc-home.css:35-38`) | GAP-UI | P2 | L4 |
-| HM-06 | 밴드 사이 1px 선 | Δ8 | 없음 | LFS-Δ | P2 | L4 |
-| HM-07 | 혜택 타일 아이콘 | 아이콘 32 | 없음(`Home.tsx:222-231`) | DRIFT | P2 | L4 |
-| HM-08 | 홈 모자이크 다크 면·리뷰 이벤트 다크 | — | `#141414`·`#222a35` 하드코딩(`app/styles/wc-product-mosaic.css:4,11`, `wc-review-events.css:1-16`) | DRIFT(DESIGN 위반) | P2 | L4 |
-| CL-01 | **상품 카드 위시 하트** | 모든 카드 우상단 36 원형 | 없음(`components/wc/ProductCard.tsx:83` action 슬롯 미사용) | GAP-UI(#326 결정 번복) | P1 | L4(LD-4) |
-| CL-02 | 카드 별점 | 리뷰 있으면 표시 | 없음 | GAP-DATA(목록 리뷰 집계) | P2 | L4 |
-| CL-03 | SALE 배지 | 흰 배경 + 색 테두리 | 색 배경(outline 변형 미사용 `components/wc/Badge.tsx:9-12`) | GAP-UI | P2 | L4 |
+| HM-01 | 에디터의 제안 모바일 다음 카드 노출 | 300 + gap 10, 다음 카드 49px | 첫 카드가 351px로 늘어 다음 카드 안 보임 — `flex:0 0 300px`에 `min-width:0` 부재 + 한 줄 고정이 최소 폭을 키움(`app/styles/wc-home.css:291-323`) | DRIFT(결함) | P1 | L4 ✅ #598 |
+| HM-02 | 콘텐츠 카드 배지 | 12/700 액센트 글자, `#F6F8FA`, p 3×6, r0 | 상품 배지 재사용 11/600(`components/wc/ContentCard.tsx:27`) | DRIFT | P2 | L4 ✅ #598 |
+| HM-03 | 배너 옆 리스트 행 | 380×99, 하단 1px + 18, 하트, 별점 | 380×80, 구분선·하트·별점 없음(`components/screens/Home.tsx:156-172`) | GAP-UI(하트·선)·GAP-DATA(별점) | P1 | L4 ✅ #598 |
+| HM-04 | '전체보기' 버튼 | 1px `#C8CACC` | 1.5px 잉크(`wc-home.css:531-545`) | GAP-UI | P2 | L4 ✅ #598 |
+| HM-05 | 섹션 제목 자간 | -0.2px | -0.8px(`wc-home.css:35-38`) | GAP-UI | P2 | L4 ✅ #598 |
+| HM-06 | 밴드 사이 1px 선 | Δ8 | 없음 | LFS-Δ | P2 | L4 ✅ #598 |
+| HM-07 | 혜택 타일 아이콘 | 아이콘 32 | 없음(`Home.tsx:222-231`) | DRIFT | P2 | L4 ✅ #598 |
+| HM-08 | 홈 모자이크 다크 면·리뷰 이벤트 다크 | — | `#141414`·`#222a35` 하드코딩(`app/styles/wc-product-mosaic.css:4,11`, `wc-review-events.css:1-16`) | DRIFT(DESIGN 위반) | P2 | L4 ✅ #598 |
+| CL-01 | **상품 카드 위시 하트** | 모든 카드 우상단 36 원형 | 없음(`components/wc/ProductCard.tsx:83` action 슬롯 미사용) | GAP-UI(#326 결정 번복) | P1 | L4(LD-4) 일부 #598 — PDP 선반·캠페인·스토리 카드는 L4b, 카테고리 전시는 L5 |
+| CL-02 | 카드 별점 | 리뷰 있으면 표시 | 없음 | GAP-DATA(목록 리뷰 집계) | P2 | L4 일부 #598 — PDP 선반·캠페인·스토리 카드는 L4b, 카테고리 전시는 L5 |
+| CL-03 | SALE 배지 | 흰 배경 + 색 테두리 | 색 배경(outline 변형 미사용 `components/wc/Badge.tsx:9-12`) | GAP-UI | P2 | L4 ✅ #598 |
 | CL-04 | 카드 설명 줄 | 없음 | 운영 설정 기본 ON으로 2줄(`lib/store-presentation.ts:11`) | 운영 설정 | P1 | LG-6(LD-7) |
-| CL-05 | 수량·정렬 줄 | 896×50, 상하 1px `#EBEDEE`, 14px | 896×44, 선 없음, 13px(`app/styles/wc-catalog.css:68-96`) | DRIFT | P2 | L4 |
-| CL-06 | 필터 그룹 선 | 모든 그룹 위 1px | 첫 그룹만 선 없음 | DRIFT | P2 | L4 |
-| CL-07 | VIEW MORE | 896×48, 1px `#DCDEE0`, r5 | 1px 잉크, r2(`app/styles/wc-foundation.css:474-489`) | DRIFT | P2 | L4 |
-| CL-08 | NEW 컬렉션 제목 | 없음 | 'NEW' + 부제 | DRIFT | P2 | L4 |
+| CL-05 | 수량·정렬 줄 | 896×50, 상하 1px `#EBEDEE`, 14px | 896×44, 선 없음, 13px(`app/styles/wc-catalog.css:68-96`) | DRIFT | P2 | L4 ✅ #598 |
+| CL-06 | 필터 그룹 선 | 모든 그룹 위 1px | 첫 그룹만 선 없음 | DRIFT | P2 | L4 ✅ #598 |
+| CL-07 | VIEW MORE | 896×48, 1px `#DCDEE0`, r5 | 1px 잉크, r2(`app/styles/wc-foundation.css:474-489`) | DRIFT | P2 | L4 ✅ #598 |
+| CL-08 | NEW 컬렉션 제목 | 없음 | 'NEW' + 부제 | DRIFT | P2 | L4 ✅ #598 |
 | CL-09 | 컬렉션 상단 배너 | BEST 1180×260, 전체 상품 1440×580 슬라이드 | 없음(텍스트 제목) | GAP-DATA | P1 | L8b |
-| CL-10 | 정렬 | 9종(추천·관련성·베스트셀러·이름 A–Z·Z–A·가격 2·출시 2) | 4종(추천·최신·가격 2, `lib/shop-catalog.ts:10-20`) | 이름순 2·오래된순은 GAP-UI(집계 불요), 베스트셀러는 GAP-DATA(판매 집계 일부 존재) | P2 | L4(LD-13) |
-| CL-11 | PRE-ORDER 필터 값 | Δ6 | 타입 축 = `goods.type` | LFS-Δ | P2 | L4 |
-| SR-01 | **검색 결과 사이드바·정렬·수** | 카테고리 트리·브랜드·타입·가격, 관련성 정렬, '전체 › N개 결과' / 모바일 '필터 및 정렬' | 없음, 1180 4열(`components/screens/Search.tsx:123-208`) | DRIFT | P1 | L4 |
-| SR-02 | 검색 제목·입력 배치 | 한 줄: 제목 24/400(검색어·건수 강조) + 입력 435×50 | 제목 굵게, 입력 다음 줄 382×60 | DRIFT | P2 | L4 |
-| SR-03 | 페이저 | 모바일 5칸, 창 단위 점프 | 10칸 고정, ±1(`Search.tsx:24-99`) | GAP-UI | P2 | L4 |
-| IP-01 | **IP 관 상품 영역** | 브랜드로 좁힌 필터 사이드바 + 정렬 + 212 4열 + 더보기 | 제목 + 종류 칩 + 4열 283, 정렬·더보기 없이 전부(`components/screens/IpDetail.tsx:212-261`) | DRIFT(DESIGN §8 'facet 축약 컬렉션') | P1 | L4 |
-| IP-02 | 피처드 이름 띠 | 하단 36 띠 + 16/700 | 그라데이션 + 14/700(`app/styles/wc-discovery.css:41-68`) | GAP-UI | P2 | L4 |
-| IP-03 | A–Z 바 | 위쪽 2px `#111`, 폭 848.5, 15px | 상하 1px `#EBEDEE`, 1180 균등(`wc-discovery.css:78-118`) | GAP-UI | P2 | L4 |
-| IP-04 | 모바일 피처드 | 점 5 | '1 / 5' + 화살표(`components/screens/IpDirectory.tsx:56-67`) | DRIFT | P2 | L4 |
-| IP-05 | 모바일 IP 관 배너 | 글자 가운데, 해시태그 배너 아래 | 왼쪽, 해시태그 배너 안 | GAP-UI | P2 | L4 |
+| CL-10 | 정렬 | 9종(추천·관련성·베스트셀러·이름 A–Z·Z–A·가격 2·출시 2) | 4종(추천·최신·가격 2, `lib/shop-catalog.ts:10-20`) | 이름순 2·오래된순은 GAP-UI(집계 불요), 베스트셀러는 GAP-DATA(판매 집계 일부 존재) | P2 | L4(LD-13) 일부 #598 — 컬렉션 7종, 카테고리 전시 정렬은 L5 |
+| CL-11 | PRE-ORDER 필터 값 | Δ6 | 타입 축 = `goods.type` | LFS-Δ | P2 | L4 일부 #598 — 카테고리 전시 타입 값은 L5 |
+| SR-01 | **검색 결과 사이드바·정렬·수** | 카테고리 트리·브랜드·타입·가격, 관련성 정렬, '전체 › N개 결과' / 모바일 '필터 및 정렬' | 없음, 1180 4열(`components/screens/Search.tsx:123-208`) | DRIFT | P1 | L4 ✅ #598 |
+| SR-02 | 검색 제목·입력 배치 | 한 줄: 제목 24/400(검색어·건수 강조) + 입력 435×50 | 제목 굵게, 입력 다음 줄 382×60 | DRIFT | P2 | L4 ✅ #598 |
+| SR-03 | 페이저 | 모바일 5칸, 창 단위 점프 | 10칸 고정, ±1(`Search.tsx:24-99`) | GAP-UI | P2 | L4 ✅ #598 |
+| IP-01 | **IP 관 상품 영역** | 브랜드로 좁힌 필터 사이드바 + 정렬 + 212 4열 + 더보기 | 제목 + 종류 칩 + 4열 283, 정렬·더보기 없이 전부(`components/screens/IpDetail.tsx:212-261`) | DRIFT(DESIGN §8 'facet 축약 컬렉션') | P1 | L4 ✅ #598 |
+| IP-02 | 피처드 이름 띠 | 하단 36 띠 + 16/700 | 그라데이션 + 14/700(`app/styles/wc-discovery.css:41-68`) | GAP-UI | P2 | L4 ✅ #598 |
+| IP-03 | A–Z 바 | 위쪽 2px `#111`, 폭 848.5, 15px | 상하 1px `#EBEDEE`, 1180 균등(`wc-discovery.css:78-118`) | GAP-UI | P2 | L4 ✅ #598 |
+| IP-04 | 모바일 피처드 | 점 5 | '1 / 5' + 화살표(`components/screens/IpDirectory.tsx:56-67`) | DRIFT | P2 | L4 ✅ #598 |
+| IP-05 | 모바일 IP 관 배너 | 글자 가운데, 해시태그 배너 아래 | 왼쪽, 해시태그 배너 안 | GAP-UI | P2 | L4 ✅ #598 |
 | IP-06 | IP 관 PC/MO 배너 에셋 | 별도 | `ip.bg` 단일 | GAP-DATA | P2 | L8b |
 
 ### 8.4 상품 상세
@@ -333,7 +333,7 @@ grid **2열 451px, gap 20(행)/18(열)**. 카드 451×141: 1px `#DCDEE0`, r2, p 
 | DT-08 | 상세 이미지·고시 | 굿즈 상세 | 일부 굿즈 미등록 | P1 | LG-5 |
 | DT-09 | 로고·SNS·사업자 정보 | 스토어 브랜딩·사업자 정보 | 텍스트 로고, SNS 없음, 사업자 정보 확정 대기(#239) | P2 | LG-8 |
 | DT-10 | 카테고리 공개 | `category_activation_control.customer_enabled` | 기본 false — 메가메뉴·카테고리 시트의 선행 조건 | P1 | LG-3 |
-| DT-11 | 홈 혜택 밴드 | `benefit` + 카드 리워드 게이트 | 게이트 OFF면 `withoutCardRewardCurations`가 혜택 타일을 통째로 비운다(`lib/home-catalog.ts:84-89`, `Home.tsx:185,192-193,218`) — LG-1을 마쳐도 홈은 최대 6밴드 | P1 | L4(LD-15) |
+| DT-11 | 홈 혜택 밴드 | `benefit` + 카드 리워드 게이트 | 게이트 OFF면 `withoutCardRewardCurations`가 혜택 타일을 통째로 비운다(`lib/home-catalog.ts:84-89`, `Home.tsx:185,192-193,218`) — LG-1을 마쳐도 홈은 최대 6밴드 | P1 | L4(LD-15) ✅ #598 |
 
 ### 8.9 감사 간 충돌 판정
 
