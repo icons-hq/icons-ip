@@ -572,7 +572,7 @@ export function GoodBuyBars({
   return (
     <div className="wc-buybar">
       {purchase.unavailableLabel ? <button className="wc-buybar__buy" type="button" disabled>{purchase.unavailableLabel}</button> : soldOut ? (
-        <RestockCta className="wc-buybar__restock" disabled={disabled} goodId={good.id} initialRequested={restockRequested} />
+        <RestockCta className="wc-buybar__restock" compact disabled={disabled} goodId={good.id} initialRequested={restockRequested} />
       ) : (
         <>
           <button
@@ -639,7 +639,7 @@ export function GoodRailBuyBox({ purchase }: { purchase: GoodPurchaseController 
         <strong className={`wc-pdp-railbox__amount${total.numeric ? '' : ' is-note'}`}>{total.amount}</strong>
       </div>
       {cta.kind === 'unavailable' ? <button className="wc-pdp-railbox__buy is-full" disabled type="button">{cta.label}</button> : cta.kind === 'restock' ? (
-        <RestockCta className="wc-pdp-railbox__restock" disabled={disabled} goodId={good.id} initialRequested={cta.requested} optionName={cta.optionName} variantId={cta.variantId} />
+        <RestockCta className="wc-pdp-railbox__restock" compact disabled={disabled} goodId={good.id} initialRequested={cta.requested} optionName={cta.optionName} variantId={cta.variantId} />
       ) : (
         <div className="wc-pdp-railbox__ctas">
           <button aria-label="장바구니에 담기" className="wc-pdp-railbox__cart" disabled={inert} onClick={fromRail(purchase.addToCart)} type="button">

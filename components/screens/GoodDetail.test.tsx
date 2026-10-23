@@ -58,8 +58,9 @@ vi.mock('@/components/shop/WishlistHeart', () => ({
 }));
 
 vi.mock('@/components/shop/RestockCta', () => ({
-  RestockCta: ({ disabled, goodId, initialRequested, variantId }: {
+  RestockCta: ({ compact, disabled, goodId, initialRequested, variantId }: {
     className?: string;
+    compact?: boolean;
     disabled?: boolean;
     goodId: string;
     initialRequested: boolean;
@@ -68,6 +69,7 @@ vi.mock('@/components/shop/RestockCta', () => ({
   }) => (
     <button
       className="wc-restock-cta"
+      data-compact={compact ? 'true' : 'false'}
       data-disabled={disabled ? 'true' : 'false'}
       data-good={goodId}
       data-requested={initialRequested ? 'true' : 'false'}
@@ -526,6 +528,10 @@ describe('GoodDetail', () => {
     expect(bar.startsWith('<div class="wc-buybar"><button class="wc-restock-cta"')).toBe(true);
     /* 모든 옵션 품절은 굿즈 단위(모든 옵션) 신청이다 — 옵션 키가 없다. */
     expect(bar).toMatch(/^<div class="wc-buybar"><button class="wc-restock-cta"[^>]*data-variant=""/);
+    /* 바(72px)·레일 박스에는 안내 줄을 늘릴 자리가 없어 좁은 표면 모드로, 본문 패널은 버튼 아래 안내 줄로 알린다. */
+    expect(bar).toMatch(/^<div class="wc-buybar"><button class="wc-restock-cta" data-compact="true"/);
+    expect(html.slice(html.indexOf('<div class="wc-pdp-rail">'))).toMatch(/<button class="wc-restock-cta" data-compact="true"/);
+    expect(html.slice(html.indexOf('<div class="wc-pdp__purchase'), html.indexOf('<div class="wc-pdp-tabs">'))).toMatch(/<button class="wc-restock-cta" data-compact="false"/);
     expect(html).not.toContain('aria-haspopup="dialog" aria-label="장바구니에 담기"');
     /* 시트 트리거가 없으니 모바일 본문 패널을 숨기지 않는다 — 품절 합계(PD-08)·옵션별 가격이 남는다. */
     expect(html).toContain('<div class="wc-pdp__purchase is-inline"><div class="wc-buy-panel">');
