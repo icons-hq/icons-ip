@@ -126,7 +126,8 @@ describe('fetchKcpCertResult', () => {
   });
 
   it('DI_URL이 없으면 원문 DI를 쓴다', async () => {
-    const { DI_URL: _omitted, ...withoutUrl } = certData;
+    const withoutUrl: Record<string, unknown> = { ...certData };
+    delete withoutUrl.DI_URL;
     const result = await fetchKcpCertResult(config, { providerOrderId: 'IV1', registrationKey: '1' }, vi.fn(async () => encryptedResult(withoutUrl)));
     expect(result.duplicateInfo).toBe('di-raw');
   });

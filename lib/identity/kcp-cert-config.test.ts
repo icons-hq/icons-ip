@@ -61,6 +61,16 @@ describe('kcpCertConfiguration', () => {
     expect(kcpCertConfiguration({ ...productionEnvironment, SITE_URL: 'https://iconsip.com/path' })).toBeNull();
   });
 
+  it('운영 밖에서는 https와 로컬 개발 호스트의 http만 Ret_URL origin으로 받는다', () => {
+    expect(kcpCertConfiguration({ ...testEnvironment, SITE_URL: 'http://kcp-adult.localhost:3110' })?.siteOrigin)
+      .toBe('http://kcp-adult.localhost:3110');
+    expect(kcpCertConfiguration({ ...testEnvironment, VERCEL_ENV: 'preview', SITE_URL: 'https://icons-ip.vercel.app' })?.siteOrigin)
+      .toBe('https://icons-ip.vercel.app');
+    expect(kcpCertConfiguration({ ...testEnvironment, SITE_URL: 'http://example.test' })).toBeNull();
+    expect(kcpCertConfiguration({ ...testEnvironment, SITE_URL: 'https://example.test/path' })).toBeNull();
+    expect(kcpCertConfiguration({ ...testEnvironment, SITE_URL: ' https://example.test' })).toBeNull();
+  });
+
   it('비어 있거나 형식이 어긋난 값은 fail closed다', () => {
     expect(kcpCertConfiguration({})).toBeNull();
     expect(kcpCertConfiguration({ ...testEnvironment, KCP_CERT_MODE: 'sandbox' })).toBeNull();

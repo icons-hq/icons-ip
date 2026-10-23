@@ -51,6 +51,34 @@ function trimmed(value: string | undefined) {
   return result ? result : null;
 }
 
+/**
+ * Ret_URL origin. 운영은 결제와 같은 정규화로 https://iconsip.com 하나만 받는다. 그 밖은
+ * https 아무 호스트나, 로컬 개발 호스트(localhost·127.0.0.1·*.localhost)의 http를 받는다 —
+ * 로컬 QA는 다른 스택과 로그인 쿠키가 섞이지 않게 *.localhost 하위 호스트를 쓴다.
+ */
+function siteOriginFor(value: string | undefined, production: boolean) {
+  if (production) return normalizeKorpaySiteUrl(value?.trim() ?? '', { production: true });
+  if (typeof value !== 'string' || value.length === 0 || value !== value.trim()) return null;
+  try {
+    const url = new URL(value);
+    const localHttp = url.protocol === 'http:'
+      && (url.hostname === 'localhost' || url.hostname === '127.0.0.1' || url.hostname.endsWith('.localhost'));
+    if (
+      (url.protocol !== 'https:' && !localHttp)
+      || url.username
+      || url.password
+      || url.pathname !== '/'
+      || url.search
+      || url.hash
+    ) {
+      return null;
+    }
+    return url.origin;
+  } catch {
+    return null;
+  }
+}
+
 export function kcpCertConfiguration(env: RuntimeEnvironment = process.env): KcpCertConfiguration | null {
   const mode = trimmed(env.KCP_CERT_MODE);
   if (mode !== 'test' && mode !== 'production') return null;
@@ -75,7 +103,7 @@ export function kcpCertConfiguration(env: RuntimeEnvironment = process.env): Kcp
     return null;
   }
 
-  const siteOrigin = normalizeKorpaySiteUrl(env.SITE_URL?.trim() ?? '', { production });
+  const siteOrigin = siteOriginFor(env.SITE_URL, production);
   if (!siteOrigin) return null;
 
   const origin = KCP_ORIGINS[mode];

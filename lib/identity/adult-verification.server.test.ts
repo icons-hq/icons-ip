@@ -230,20 +230,35 @@ describe('processKcpCertReturn', () => {
   });
 });
 
+type CompletionRpc = Parameters<typeof completeAdultVerification>[1];
+
+function completionRpc(data: unknown, error: { message: string } | null = null) {
+  const mock = vi.fn(async (...call: [string, Record<string, unknown>]) => {
+    void call;
+    return { data, error };
+  });
+  return { mock, rpc: mock as unknown as CompletionRpc };
+}
+
 describe('completeAdultVerification', () => {
   it('로그인 세션 rpc로 nonce 다이제스트를 확정하고 돌아갈 경로를 다시 좁힌다', async () => {
-    const rpc = vi.fn(async () => ({ data: { outcome: 'verified', presentation: 'popup', returnPath: '/shop/g1' }, error: null }));
+    const { mock, rpc } = completionRpc({ outcome: 'verified', presentation: 'popup', returnPath: '/shop/g1' });
     await expect(completeAdultVerification(NONCE, rpc)).resolves.toEqual({
       outcome: 'verified', presentation: 'popup', returnPath: '/shop/g1',
     });
-    expect(rpc).toHaveBeenCalledWith('complete_my_adult_verification', { p_callback_nonce_digest: NONCE_DIGEST });
+    expect(mock).toHaveBeenCalledWith('complete_my_adult_verification', { p_callback_nonce_digest: NONCE_DIGEST });
   });
 
   it('남의 세션·모르는 nonce·깨진 응답은 not_found다', async () => {
-    await expect(completeAdultVerification('bad', vi.fn())).resolves.toEqual({ outcome: 'not_found' });
-    await expect(completeAdultVerification(NONCE, vi.fn(async () => ({ data: null, error: { message: 'adult_verification_not_found' } }))))
+    await expect(completeAdultVerification('bad', completionRpc(null).rpc)).resolves.toEqual({ outcome: 'not_found' });
+    await expect(completeAdultVerification(NONCE, completionRpc(null, { message: 'adult_verification_not_found' }).rpc))
       .resolves.toEqual({ outcome: 'not_found' });
-    await expect(completeAdultVerification(NONCE, vi.fn(async () => ({ data: { outcome: 'hacked', presentation: 'page' }, error: null }))))
+    await expect(completeAdultVerification(NONCE, completionRpc({ outcome: 'hacked', presentation: 'page' }).rpc))
       .resolves.toEqual({ outcome: 'not_found' });
+  });
+
+  it('돌아갈 경로가 화면 경로가 아니면 마이페이지로 바꾼다', async () => {
+    await expect(completeAdultVerification(NONCE, completionRpc({ outcome: 'failed', presentation: 'page', returnPath: '/api/x' }).rpc))
+      .resolves.toEqual({ outcome: 'failed', presentation: 'page', returnPath: '/my' });
   });
 });
