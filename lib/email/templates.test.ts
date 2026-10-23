@@ -5,6 +5,7 @@ import {
   renderOrderConfirmationEmail,
   renderOrderShippedEmail,
   renderRestockAlertEmail,
+  restockAlertSentence,
 } from './templates';
 
 const ORDER_ID = 'b2f8a1c4-3d5e-4f6a-8b7c-9d0e1f2a3b4c';
@@ -261,6 +262,43 @@ describe('renderRestockAlertEmail (#326)', () => {
 
     expect(email.html).not.toContain('<script>');
     expect(email.html).toContain('&lt;script&gt;');
+  });
+
+  /* PD-11 — 옵션 단위 신청은 어느 옵션이 돌아왔는지 제목·본문이 말하고, 링크는 그 옵션을 고른 상세다. */
+  it('옵션 단위 신청이면 제목과 본문이 옵션을 말한다', () => {
+    const email = renderRestockAlertEmail({ ...input, optionName: '빨강', goodPath: 'https://iconsip.com/shop/g13?variant=00000000-0000-4000-8000-000000056711' });
+
+    expect(email.subject).toBe('[ICONS] 재입고 알림 — 홍실 아크릴 블록 · 빨강');
+    expect(email.text.split('\n')[0]).toBe('홍실 아크릴 블록 · 빨강 옵션이 다시 판매를 시작했어요.');
+    expect(email.html).toContain('홍실 아크릴 블록 · 빨강 옵션이 다시 판매를 시작했어요.');
+    expect(email.html).toContain('href="https://iconsip.com/shop/g13?variant=00000000-0000-4000-8000-000000056711"');
+  });
+
+  it('옵션 이름이 없거나 비면 굿즈 단위 문장 그대로다', () => {
+    for (const optionName of [undefined, null, '   ']) {
+      const email = renderRestockAlertEmail({ ...input, optionName });
+      expect(email.subject).toBe('[ICONS] 재입고 알림 — 홍실 아크릴 블록');
+      expect(email.text.split('\n')[0]).toBe('홍실 아크릴 블록 굿즈가 다시 판매를 시작했어요.');
+    }
+  });
+
+  /* claim_email_delivery 는 제목 200자를 넘기면 거부한다 — 옵션 이름까지 더한 표시를 60자에서 자른다. */
+  it('긴 옵션 이름도 제목을 60자 표시 안에 둔다', () => {
+    const email = renderRestockAlertEmail({ ...input, optionName: '아주 긴 옵션 이름 '.repeat(20) });
+    expect(email.subject.length).toBeLessThanOrEqual('[ICONS] 재입고 알림 — '.length + 60);
+    expect(email.subject.endsWith('…')).toBe(true);
+  });
+
+  it('옵션 이름의 HTML을 이스케이프한다', () => {
+    const email = renderRestockAlertEmail({ ...input, optionName: '<b>빨강</b>' });
+    expect(email.html).not.toContain('<b>빨강</b>');
+    expect(email.html).toContain('&lt;b&gt;빨강&lt;/b&gt;');
+  });
+
+  /* 알림함 본문은 DB 트리거가 같은 문장으로 쓴다(20261023010000 private.wake_restock_alerts). */
+  it('알림함과 같은 문장을 쓴다', () => {
+    expect(restockAlertSentence('옵션 재입고 굿즈', '옵션 B')).toBe('옵션 재입고 굿즈 · 옵션 B 옵션이 다시 판매를 시작했어요.');
+    expect(restockAlertSentence('전부 품절 굿즈')).toBe('전부 품절 굿즈 굿즈가 다시 판매를 시작했어요.');
   });
 });
 

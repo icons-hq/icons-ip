@@ -95,6 +95,22 @@ describe('PDP 정보 칼럼 (PD-04·PD-12)', () => {
   });
 });
 
+describe('PDP 상태 줄 색 (QA l2-qa-2)', () => {
+  /* 구매 패널 상태 줄·재입고 버튼 아래 줄은 같은 클래스다 — 담기 성공만 성공색이고, 실패·거절은 is-error 로 state.danger 다. */
+  /* 담는 동안 aria-disabled 로 잠근 담기·구매 버튼(포커스 유지)은 비활성 버튼과 같은 모습이다(L2 QA l2-qa-4). */
+  it('카트 반영 중 aria-disabled CTA 는 비활성 버튼과 같은 색으로 그린다', () => {
+    const disabledLook = { 'border-color': 'var(--wc-ink-disabled)', background: 'var(--wc-ink-disabled)', color: '#FFFFFF' };
+    expect(decls(catalog, ".wc-buy-panel__ctas .wc-btn[aria-disabled='true']")).toMatchObject({ ...disabledLook, cursor: 'progress' });
+    expect(decls(catalog, ".wc-pdp-railbox__cart[aria-disabled='true']")).toMatchObject(disabledLook);
+    expect(decls(catalog, ".wc-pdp-railbox__buy[aria-disabled='true']")).toMatchObject(disabledLook);
+  });
+
+  it('담기 성공은 state.success, 실패·거절(is-error)은 서체는 그대로 두고 색만 state.danger 다', () => {
+    expect(decls(catalog, '.wc-buy-panel__status')).toMatchObject({ color: 'var(--wc-success)', 'font-size': '13px', 'font-weight': '400' });
+    expect(decls(catalog, '.wc-buy-panel__status.is-error')).toEqual({ color: 'var(--wc-danger)' });
+  });
+});
+
 describe('문의 런처 겹침 (CH-16)', () => {
   it('990px 미만 전 구간에서 하단 고정 바 위에 선다(701–989px 오프셋 누락 해소)', () => {
     expect(decls(inquiry, '.wc-root .wc-inquiry-widget__launcher', '(max-width: 989px)').bottom).toBe('calc(80px + env(safe-area-inset-bottom))');

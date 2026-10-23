@@ -22,8 +22,9 @@ export type NotificationType =
   /* 리뷰 운영자 답글(#254). 첫 답글에서만 나간다 — 답글을 다듬을 때마다 알리면
      "운영자가 또 뭐라고 했다"로 읽혀 알림 자체의 신뢰가 깎인다. */
   | 'review_replied'
-  /* 재입고 알림(#326). goods 의 판매 가능 전이 트리거가 restock_alerts 의
-     pending 신청을 notified 로 넘기면서 같은 트랜잭션에서 남긴다. */
+  /* 재입고 알림(#326 · 옵션 단위 PD-11). goods 의 판매 가능 전이 트리거와 goods_variants 의
+     옵션 재고 전이 트리거가 restock_alerts 의 pending 신청을 notified 로 넘기면서 같은 트랜잭션에서
+     남긴다. 옵션 신청은 본문에 옵션 이름을, 링크에 ?variant= 를, dedupe 키에 옵션 id 를 담는다. */
   | 'restock_available'
   /* 회원 등급 승급(#329). 재산정·수동 보정이 승급을 확정한 트랜잭션에서 남긴다 —
      강등은 알리지 않고, 재승급은 같은 dedupe 키를 재부상시킨다. */

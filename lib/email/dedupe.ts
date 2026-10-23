@@ -59,15 +59,19 @@ export function inquiryEmailDedupeKey(messageId: string): string {
 }
 
 /**
- * 재입고 알림 메일의 dedupe_key (#326).
+ * 재입고 알림 메일의 dedupe_key (#326 · PD-11).
  *
  * 신청 id 하나로는 부족하다. 같은 신청 행은 재신청→재품절→재입고 사이클마다
  * pending 으로 되돌아오는데, 키가 그대로면 두 번째 재입고 메일이 첫 사이클의 sent
  * 행에 막혀 조용히 사라진다. 전이 시각(restock_alerts.notified_at)을 함께 담아
  * 사이클마다 유일한 키가 되게 한다 — DB 트리거의 알림함 dedupe_key 와 같은 규율이다.
+ *
+ * 옵션 단위 신청은 옵션 id 를 키에 담는다. 굿즈 단위(모든 옵션) 신청은 옵션 키 없이 예전 형식을
+ * 한 글자도 바꾸지 않는다 — 발송 경로는 최근 7일의 notified 행을 다시 읽고 이미 보낸 사이클을 이
+ * 키로만 거르므로, 형식이 바뀌면 그 기간의 지난 사이클 메일이 다음 어드민 저장 때 한 번 더 나간다.
  */
-export function restockAlertEmailDedupeKey(alertId: string, notifiedAtIso: string): string {
-  return `restock_alert:${alertId}:${notifiedAtIso}`;
+export function restockAlertEmailDedupeKey(alertId: string, notifiedAtIso: string, variantId?: string | null): string {
+  return variantId ? `restock_alert:${alertId}:${variantId}:${notifiedAtIso}` : `restock_alert:${alertId}:${notifiedAtIso}`;
 }
 
 /**

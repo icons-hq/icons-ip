@@ -43,18 +43,50 @@ function catalogPricing(good: Good): GoodsCatalogPricing {
     compareAtPrice: (good.catalogCompareAtPrice !== undefined ? good.catalogCompareAtPrice : good.compareAtPrice) ?? null };
 }
 
+/**
+ * 목록 카드 담기·추가 구성의 자동 선택: 하나뿐인 옵션을 지금 살 수 있을 때만 고른다. 다옵션은 명시 선택이다.
+ * 굿즈 상세 본품의 첫 선택은 defaultGoodOption 이다(LD-5).
+ */
 export function initialGoodOption(good: Good): GoodOption | undefined {
   return good.options?.length === 1 && good.options[0].stockQty > 0 ? good.options[0] : undefined;
 }
 
+type OptionAvailability = Pick<GoodOption, 'stockQty' | 'supply'>;
+
+/**
+ * 재입고 알림을 받을 수 있는 품절 옵션인가 (PD-10·PD-11 · LD-5).
+ * 재고만 떨어진 옵션이다. 예약판매 옵션은 재고가 아니라 예약 기간·물량으로 열리고 닫혀 재입고 알림 대상이
+ * 아니므로 살 수 없으면 고르지 않는다(DB request_variant_restock_alert 도 거절한다).
+ */
+export function isRestockableGoodOption(option: OptionAvailability): boolean {
+  return option.stockQty <= 0 && option.supply?.mode !== 'preorder';
+}
+
+/** 굿즈 상세 옵션 셀렉트에서 고를 수 있는가 — 지금 살 수 있거나, 재입고 알림을 받을 수 있는 품절 옵션이다(LD-5). */
+export function isSelectableGoodOption(option: OptionAvailability): boolean {
+  return option.stockQty > 0 || isRestockableGoodOption(option);
+}
+
+/**
+ * 굿즈 상세 본품의 첫 선택 (LD-5 · 11 §6 B9 · R-04 §3.5): 정렬 순서상 첫 구매 가능 옵션.
+ * 살 수 있는 옵션이 없으면(모든 옵션 품절) 고를 수 있는 첫 옵션(재입고 알림을 받을 품절 옵션)을 고른 채
+ * 연다 — 레퍼런스처럼 빈 옵션(placeholder) 없이 셀렉트·제목 가격·합계가 같은 옵션을 가리킨다(PD-08·PD-10).
+ * 그때도 CTA 는 굿즈 단위 재입고 알림이다(굿즈가 품절이면 purchaseCtaState 가 고른 옵션보다 먼저 본다).
+ * 고를 수 있는 옵션이 하나도 없으면(닫힌 예약판매뿐) 고르지 않는다.
+ */
+export function defaultGoodOption(good: Pick<Good, 'options'>): GoodOption | undefined {
+  return good.options?.find(option => option.stockQty > 0) ?? good.options?.find(isSelectableGoodOption);
+}
+
 /**
  * 주소의 `?variant=`로 들어온 옵션 중 지금 고를 수 있는 것 (PD-14).
- * 고를 수 있다는 기준은 구매 컨트롤러의 선택 규칙과 같다 — 이 굿즈의 옵션이고 재고가 있다.
- * 맞지 않으면(다른 굿즈 옵션·품절·오타) undefined 라 기본 선택 규칙으로 돌아간다.
+ * 고를 수 있다는 기준은 구매 컨트롤러의 선택 규칙과 같다 — 이 굿즈의 옵션이고, 살 수 있거나 재입고 알림을
+ * 받을 수 있는 품절 옵션이다(PD-10 — 품절 옵션을 가리키는 공유·알림 링크는 그 옵션의 재입고 알림으로 연다).
+ * 맞지 않으면(다른 굿즈 옵션·닫힌 예약판매 옵션·오타) undefined 라 기본 선택 규칙으로 돌아간다.
  */
 export function selectableGoodOptionId(good: Pick<Good, 'options'>, variantId: string | null | undefined): string | undefined {
   if (!variantId) return undefined;
-  return good.options?.find(option => option.id === variantId && option.stockQty > 0)?.id;
+  return good.options?.find(option => option.id === variantId && isSelectableGoodOption(option))?.id;
 }
 
 /**
@@ -83,9 +115,10 @@ export function variantSyncDefault(urlVariantId: string | null, initialSelectedI
 /**
  * 품절 굿즈의 합계 미리보기 단가 (PD-08).
  *
- * 재고 0 옵션은 자동 선택하지 않으므로(initialGoodOption) 품절 굿즈의 합계 자리에는 "옵션 선택 후
- * 표시"가 남았다 — 고를 옵션이 없는데 고르라는 문구다. 품절이면 가격으로 합계를 보인다: 옵션이
- * 있으면 첫 옵션 가격(레퍼런스는 첫 옵션이 선택된 채 합계를 보인다), 없으면 굿즈 가격.
+ * 고른 옵션이 없는 품절 굿즈의 합계 자리에 "옵션 선택 후 표시"가 남지 않게 가격으로 합계를 보인다:
+ * 옵션이 있으면 첫 옵션 가격(레퍼런스는 첫 옵션이 선택된 채 합계를 보인다), 없으면 굿즈 가격.
+ * 모든 옵션이 품절인 다옵션 굿즈는 첫 옵션을 고른 채 열리므로(defaultGoodOption) 합계는 고른 옵션
+ * 가격이고(purchaseTotalDisplay), 이 값은 고를 수 있는 옵션이 없는 굿즈(옵션 없음·닫힌 예약판매뿐)의 몫이다.
  * 표시 전용 값이다 — 품절 굿즈는 담기·구매가 막혀 있고 금액은 서버 견적·주문 RPC 가 정한다.
  */
 export function soldOutPreviewPrice(good: Pick<Good, 'price' | 'options'>): number {
