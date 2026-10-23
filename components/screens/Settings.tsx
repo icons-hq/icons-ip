@@ -12,12 +12,16 @@ import {
   updateProfileAction,
   type SettingsActionState,
 } from '@/app/settings/actions';
+import Link from 'next/link';
 import { AccountDeletionPanel } from '@/components/account/AccountDeletionPanel';
 import { MemberActivityConsent } from '@/components/account/MemberActivityConsent';
 import { CustomerDemographicConsent } from '@/components/account/CustomerDemographicConsent';
+import { Icon } from '@/components/ui/Icon';
 import { MypageShell } from '@/components/wc/MypageShell';
 import { WcButton } from '@/components/wc/WcButton';
 import type { AccountDeletionPresentation } from '@/lib/account-deletion';
+import { updatePasswordPath } from '@/lib/auth/onboarding';
+import { LEGAL_DOCUMENT_LABELS, legalDocumentHref } from '@/lib/legal/links';
 import { PROFILE_IMAGE_ACCEPT } from '@/lib/profile';
 import { uploadProfileAvatar } from '@/lib/profile-upload.client';
 
@@ -44,6 +48,21 @@ function RequiredConsentRow({ label }: { label: string }) {
       </span>
       <span className="wc-settings__consent-state">동의 완료</span>
     </div>
+  );
+}
+
+/* 설정에서 나가는 링크 행(11 §5.7 ④ 약관 및 정책 — 16/700 + ›). 비밀번호 변경 진입도 같은 행 문법이다(MY-09). */
+function SettingsLinkRow({ href, label, hint }: { href: string; label: string; hint?: string }) {
+  return (
+    <li>
+      <Link className="wc-settings__link-row" href={href}>
+        <span>
+          <strong>{label}</strong>
+          {hint ? <span className="wc-settings__link-hint">{hint}</span> : null}
+        </span>
+        <span aria-hidden className="wc-settings__link-arrow"><Icon name="chevronRight" size={18} /></span>
+      </Link>
+    </li>
   );
 }
 
@@ -215,6 +234,27 @@ export function Settings({
           필수 동의는 서비스 이용을 위해 유지돼요 · 마케팅 수신 동의는 언제든 변경할 수 있어요
         </p>
       </form>
+
+      {/* 로그인 정보 — 비밀번호 변경은 재설정과 같은 화면(/update-password)으로 들어가고 저장 뒤 이 화면으로 돌아온다.
+          저장하면 모든 기기에서 로그아웃되므로 들어가기 전에 미리 알린다. */}
+      <section aria-labelledby="settings-login-heading" className="wc-settings__links">
+        <h2 className="wc-mypage__subtitle" id="settings-login-heading">로그인 정보</h2>
+        <ul>
+          <SettingsLinkRow
+            hint="새 비밀번호를 저장하면 모든 기기에서 로그아웃되고 새 비밀번호로 다시 로그인해요."
+            href={updatePasswordPath('/settings')}
+            label="비밀번호 변경"
+          />
+        </ul>
+      </section>
+
+      <section aria-labelledby="settings-policy-heading" className="wc-settings__links">
+        <h2 className="wc-mypage__subtitle" id="settings-policy-heading">약관 및 정책</h2>
+        <ul>
+          <SettingsLinkRow href={legalDocumentHref('terms')} label={LEGAL_DOCUMENT_LABELS.terms} />
+          <SettingsLinkRow href={legalDocumentHref('privacy')} label={LEGAL_DOCUMENT_LABELS.privacy} />
+        </ul>
+      </section>
 
       <div className="wc-settings__danger">
         <AccountDeletionPanel

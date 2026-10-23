@@ -1906,6 +1906,58 @@ a.wc-mypage__card:hover .wc-mypage__card-title {
   border-top: 1px solid var(--wc-hairline);
 }
 
+/* 로그인 정보·약관 및 정책 링크 행 (11 §5.7 ④ — 16/700 + ›, MY-09). */
+.wc-settings__links {
+  margin-top: 36px;
+}
+
+.wc-settings__links ul {
+  margin: 8px 0 0;
+  padding: 0;
+  list-style: none;
+  border-top: 1px solid var(--wc-hairline);
+}
+
+.wc-settings__links li {
+  border-bottom: 1px solid var(--wc-hairline);
+}
+
+.wc-settings__link-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 56px;
+  padding: 12px 2px;
+  color: var(--wc-ink);
+}
+
+.wc-settings__link-row strong {
+  display: block;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+}
+
+.wc-settings__link-hint {
+  display: block;
+  margin-top: 4px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-settings__link-arrow {
+  display: inline-flex;
+  flex: none;
+  color: var(--wc-ink-disabled);
+}
+
+.wc-settings__link-row:hover strong {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
 /* 회원 탈퇴 패널 — editorial 소유 클래스를 wc 문법으로 재소유(스코프 한정). */
 .wc-mypage .account-deletion-panel,
 .wc-auth .account-deletion-panel {
@@ -3957,16 +4009,18 @@ a.wc-mypage__card:hover .wc-mypage__card-title {
 .wc-coupon-list {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 16px;
-  margin: 20px 0 0;
+  gap: 20px 18px;
+  margin: 24px 0 0;
   padding: 0;
   list-style: none;
 }
 
+/* 카드 451×141(콘텐츠 920 의 두 칸) — 1px line.control-soft, r2, 안쪽 13/23(11 §5.4 · MY-14). */
 .wc-coupon-card {
   position: relative;
-  padding: 18px 72px 18px 20px;
-  border: 1px solid var(--wc-hairline);
+  padding: 13px 23px;
+  border: 1px solid var(--wc-line-control-soft);
+  border-radius: 2px;
   background: var(--wc-surface);
 }
 
@@ -3983,12 +4037,12 @@ a.wc-mypage__card:hover .wc-mypage__card-title {
 
 .wc-coupon-card::before {
   top: -8px;
-  box-shadow: inset 0 -1px 0 var(--wc-hairline);
+  box-shadow: inset 0 -1px 0 var(--wc-line-control-soft);
 }
 
 .wc-coupon-card::after {
   bottom: -8px;
-  box-shadow: inset 0 1px 0 var(--wc-hairline);
+  box-shadow: inset 0 1px 0 var(--wc-line-control-soft);
 }
 
 .wc-coupon-card--used,
@@ -4075,30 +4129,36 @@ a.wc-mypage__card:hover .wc-mypage__card-title {
 .wc-coupon-card__benefit {
   margin: 2px 0 0;
   font-size: 14px;
-  font-weight: 600;
+  font-weight: 700;
   color: var(--wc-success);
 }
 
+/* 정의 행 — dt 13/400 ink.tertiary, dd 앞 13, 사용조건 값만 13/700(11 §5.4). */
 .wc-coupon-card__meta {
-  margin: 12px 0 0;
+  margin: 10px 0 0;
 }
 
 .wc-coupon-card__meta div {
   display: flex;
-  gap: 8px;
-  font-size: 12px;
+  gap: 13px;
+  font-size: 13px;
   line-height: 1.7;
 }
 
 .wc-coupon-card__meta dt {
   flex: 0 0 52px;
+  font-weight: 400;
   color: var(--wc-ink-tertiary);
 }
 
 .wc-coupon-card__meta dd {
   margin: 0;
-  font-weight: 600;
+  font-weight: 400;
   color: var(--wc-ink-sub);
+}
+
+.wc-coupon-card__meta .wc-coupon-card__condition {
+  font-weight: 700;
 }
 
 .wc-coupon-empty__link {
@@ -4109,10 +4169,10 @@ a.wc-mypage__card:hover .wc-mypage__card-title {
   text-underline-offset: 3px;
 }
 
-/* 하단 회색 안내 박스 (R-05 §4.4). */
+/* 하단 회색 안내 박스 (R-05 §4.4) — 18/16, 13/400, 굵은 소제목 두 묶음(11 §5.4). 레퍼런스 #888 은 AA 미달이라 ink.tertiary. */
 .wc-coupon-guide {
   margin-top: 28px;
-  padding: 16px 20px;
+  padding: 18px 16px;
   background: var(--wc-surface-grey);
 }
 
@@ -4121,6 +4181,10 @@ a.wc-mypage__card:hover .wc-mypage__card-title {
   font-size: 13px;
   font-weight: 700;
   color: var(--wc-ink-sub);
+}
+
+.wc-coupon-guide ul + p {
+  margin-top: 14px;
 }
 
 .wc-coupon-guide ul {

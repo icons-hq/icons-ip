@@ -227,6 +227,23 @@ describe('Settings', () => {
     expect(html).toContain('저장 중');
   });
 
+  /* MY-09(11 §5.7): 비밀번호 변경 진입과 약관 링크를 둔다. 비밀번호 변경은 재설정 화면을 그대로 쓰고 설정으로 돌아온다. */
+  it('offers the password change entry and the policy documents', () => {
+    const html = render();
+    const login = html.slice(html.indexOf('id="settings-login-heading"'), html.indexOf('id="settings-policy-heading"'));
+    const policy = html.slice(html.indexOf('id="settings-policy-heading"'), html.indexOf('wc-settings__danger'));
+
+    expect(login).toContain('href="/update-password?next=%2Fsettings"');
+    expect(login).toContain('<strong>비밀번호 변경</strong>');
+    expect(login).toContain('모든 기기에서 로그아웃');
+    expect(policy).toContain('href="/legal/terms"');
+    expect(policy).toContain('<strong>이용약관</strong>');
+    expect(policy).toContain('href="/legal/privacy"');
+    expect(policy).toContain('<strong>개인정보처리방침</strong>');
+    /* 회원 탈퇴는 늘 맨 끝이다. */
+    expect(html.indexOf('id="settings-policy-heading"')).toBeLessThan(html.indexOf('wc-settings__danger'));
+  });
+
   it('keeps profile and marketing feedback inside their own status regions', () => {
     mocks.profileState = {
       errors: {
