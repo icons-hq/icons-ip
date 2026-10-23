@@ -4248,6 +4248,175 @@ a.wc-mypage__card:hover .wc-mypage__card-title {
 }
 
 /* ------------------------------------------------------------------
+   위시리스트 — /my/wishlist (LFS 패리티 2차 L6 · MY-06·MY-07, 11 §5.6)
+   탭 2(각 460×48: 굿즈 / 팔로우한 IP) → '총 N개' 14/400 → 5열 그리드(171, 행 40·열 16).
+   카드는 상품 카드 문법 그대로(1:1 이미지·우상단 목록 하트), 아래에 수량 없는 '장바구니 담기'.
+   ------------------------------------------------------------------ */
+
+.wc-wish__tabs {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin: 0;
+}
+
+.wc-wish__tabs a {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 48px;
+  padding: 0 8px;
+  border-bottom: 1px solid var(--wc-hairline);
+  font-size: 15px;
+  letter-spacing: -0.2px;
+  text-align: center;
+  color: var(--wc-ink-tertiary);
+}
+
+/* 현재 탭 15/900 잉크 + 2px 잉크 밑선. 레퍼런스 비활성 #A0A0A0 은 AA 미달이라 ink.tertiary 로 보정한다. */
+.wc-wish__tabs a[aria-current='page'] {
+  border-bottom: 2px solid var(--wc-ink);
+  font-weight: 900;
+  color: var(--wc-ink);
+}
+
+.wc-wish__total {
+  margin: 24px 0 0;
+  font-size: 14px;
+  letter-spacing: -0.2px;
+  color: var(--wc-ink-sub);
+}
+
+.wc-wish__total strong {
+  font-weight: 700;
+  color: var(--wc-ink);
+}
+
+.wc-wish__grid,
+.wc-wish__ips {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 40px 16px;
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wc-wish__grid > li,
+.wc-wish__ips > li {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+}
+
+/* 수량 없는 담기 — 카드 폭 그대로 40 높이 아웃라인(.wc-btn 기본형의 축소). 담을 수 없으면 aria-disabled. */
+.wc-wish__cart.wc-btn {
+  height: 40px;
+  margin-top: 12px;
+  padding: 0 8px;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.wc-wish__cart[aria-disabled='true'] {
+  border-color: var(--wc-hairline);
+  color: var(--wc-ink-disabled);
+  cursor: not-allowed;
+}
+
+.wc-wish__cart-error {
+  margin: 6px 0 0;
+  font-size: 12.5px;
+  line-height: 1.5;
+  color: var(--wc-danger);
+}
+
+/* 판매 종료 카드 — 이미지 없이 회색 프레임, 해제 하트만 남긴다. */
+.wc-wish__ended .wc-product-card__image {
+  display: block;
+}
+
+.wc-wish__state {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-wish__unavailable {
+  margin: 0;
+  padding: 64px 0 40px;
+  font-size: 15px;
+  text-align: center;
+  color: var(--wc-ink);
+}
+
+.wc-wish__ip {
+  display: block;
+  color: var(--wc-ink);
+}
+
+.wc-wish__ip-art {
+  display: block;
+  aspect-ratio: 1 / 1;
+  background-color: var(--wc-surface-grey-2);
+}
+
+.wc-wish__ip-name {
+  display: block;
+  margin-top: 12px;
+  font-size: 14px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+  overflow-wrap: anywhere;
+}
+
+.wc-wish__ip-sub {
+  display: block;
+  margin-top: 2px;
+  font-size: 12px;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-wish__ip:hover .wc-wish__ip-name {
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.wc-wish__unfollow {
+  width: 100%;
+  height: 36px;
+  margin-top: 10px;
+  border: 1px solid var(--wc-line-control);
+  border-radius: 2px;
+  background: var(--wc-surface);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--wc-ink-sub);
+  cursor: pointer;
+}
+
+.wc-wish__unfollow:disabled {
+  color: var(--wc-ink-disabled);
+  cursor: progress;
+}
+
+@media (max-width: 989px) {
+  .wc-wish__grid,
+  .wc-wish__ips {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 749px) {
+  .wc-wish__grid,
+  .wc-wish__ips {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 40px 7px;
+  }
+}
+
+/* ------------------------------------------------------------------
    내 상품 Q&A (#330)
    ------------------------------------------------------------------ */
 
