@@ -69,4 +69,27 @@ describe('Slider', () => {
     expect(prev).toContain('disabled');
     expect(next).not.toContain('disabled');
   });
+
+  it('swaps the fraction controls for position dots when asked', () => {
+    const html = renderToStaticMarkup(
+      <Slider indicator="dots" label="피처드">
+        <div>a</div>
+        <div>b</div>
+      </Slider>,
+    );
+    const dots = html.match(/<button[^>]*class="wc-slider__dot[^"]*"[^>]*>/g) ?? [];
+
+    expect(html).toContain('role="group"');
+    expect(html).toContain('aria-label="피처드 위치"');
+    expect(dots).toHaveLength(2);
+    expect(dots[0]).toContain('aria-current="true"');
+    expect(dots[1]).not.toContain('aria-current');
+    expect(dots[1]).toContain('aria-label="2 / 2"');
+    expect(html).not.toContain('wc-slider__controls');
+  });
+
+  it('draws no dots when there is nothing to scroll to or controls are off', () => {
+    expect(renderToStaticMarkup(<Slider indicator="dots" label="피처드"><div>a</div></Slider>)).not.toContain('wc-slider__dots');
+    expect(renderToStaticMarkup(<Slider indicator="dots" label="피처드" showControls={false}><div>a</div><div>b</div></Slider>)).not.toContain('wc-slider__dots');
+  });
 });

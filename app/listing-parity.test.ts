@@ -122,3 +122,48 @@ describe('검색 결과 머리 (11 SR-02) · 페이지 창 (SR-03)', () => {
     expect(decls(CATALOG, '.wc-pagination .is-narrow', '(min-width: 768px)').display).toBe('none');
   });
 });
+
+const DISCOVERY = './styles/wc-discovery.css';
+
+describe('온라인 팝업 디렉토리 (11 IP-02~04)', () => {
+  it('데스크톱 피처드 이름은 하단 36px scrim 띠 위 16/700 이다', () => {
+    const name = decls(DISCOVERY, '.wc-ipdir__tile > span', DESKTOP);
+
+    expect(name.height).toBe('36px');
+    expect(name.background).toBe('var(--wc-scrim)');
+    expect(name['font-size']).toBe('16px');
+    expect(name['font-weight']).toBe('700');
+    expect(name.padding).toBe('0 14px');
+    expect(decls(DISCOVERY, '.wc-ipdir__tile::before', DESKTOP).content).toBe('none');
+  });
+
+  it('A–Z 바는 위쪽만 2px 잉크 선이고 데스크톱 글자는 균등 배분하지 않는다', () => {
+    const band = decls(DISCOVERY, '.wc-alpha-index-band');
+
+    expect(band['border-top']).toBe('2px solid var(--wc-ink)');
+    expect(band['border-bottom']).toBeUndefined();
+    expect(decls(DISCOVERY, '.wc-alpha-index__letter', DESKTOP).flex).toBe('none');
+    expect(decls(DISCOVERY, '.wc-alpha-index__letter', DESKTOP).padding).toBe('0 10px');
+    expect(decls(DISCOVERY, '.wc-alpha-index__letter')['font-size']).toBe('15px');
+  });
+
+  it('모바일 피처드 점은 24×44 터치 상자이고 데스크톱 그리드에서는 감춘다', () => {
+    const dot = decls(DISCOVERY, '.wc-ipdir__featured .wc-slider__dot');
+
+    expect([dot.width, dot.height]).toEqual(['24px', '44px']);
+    expect(decls(DISCOVERY, '.wc-ipdir__featured .wc-slider__dot[aria-current=\'true\']::before').background).toBe('var(--wc-ink)');
+    expect(decls(DISCOVERY, '.wc-ipdir__featured .wc-slider__dots', DESKTOP).display).toBe('none');
+    expect(decls(DISCOVERY, '.wc-ipdir__featured .wc-slider__controls', DESKTOP).display).toBe('none');
+  });
+});
+
+describe('IP관 모바일 배너 (11 IP-05)', () => {
+  const MOBILE = '(max-width: 749px)';
+
+  it('모바일은 배너 글자를 가운데 세우고 해시태그를 배너 아래로 내린다', () => {
+    expect(decls(DISCOVERY, '.wc-iphall__banner .wc-container', MOBILE)['text-align']).toBe('center');
+    expect(decls(DISCOVERY, '.wc-iphall__hashtags--banner', MOBILE).display).toBe('none');
+    expect(decls(DISCOVERY, '.wc-iphall__tags-band', MOBILE).display).toBe('block');
+    expect(decls(DISCOVERY, '.wc-iphall__tags-band').display).toBe('none');
+  });
+});
