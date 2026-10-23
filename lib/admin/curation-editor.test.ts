@@ -58,7 +58,7 @@ describe('curation editor preview', () => {
     const values = createCurationEditorValues(null, '2026-10-12T00:00:00Z', 'notice_bar');
     expect(values).toMatchObject({ linkPath: '', ctaLabel: '자세히 보기', pageTypes: ['home', 'collection', 'product', 'content', 'other'] });
     const draft = buildDraftCurationPreview('draft', { ...values, kind: 'notice_bar', title: '배송 일정 안내' }, []);
-    expect(draft.noticeBar).toEqual({ id: 'draft', key: 'draft', message: '배송 일정 안내', cta: null, pageTypes: values.pageTypes });
+    expect(draft.noticeBar).toEqual({ id: 'draft', key: 'draft', message: '배송 일정 안내', cta: null, pageTypes: values.pageTypes, endsAt: null });
     expect(buildDraftCurationPreview('draft', { ...values, kind: 'notice_bar', title: '배송 일정 안내', linkPath: '/events' }, []).noticeBar?.cta)
       .toEqual({ label: '자세히 보기', href: '/events' });
     expect(buildDraftCurationPreview('draft', { ...values, kind: 'notice_bar', title: '', linkPath: '/events' }, []).noticeBar).toBeNull();

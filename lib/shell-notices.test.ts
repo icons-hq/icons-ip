@@ -1,17 +1,25 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   applicableShellNotices,
   firstVisibleNoticeBar,
+  forgetShellNoticeNow,
+  initialShellNoticeNow,
+  nextShellNoticeEnd,
   noticeStripIndex,
   parseShellNoticePageTypes,
   readDismissedNoticeKeys,
+  readShellNoticeNow,
   readShellNoticeSeed,
   rememberDismissedNotice,
   SHELL_NOTICE_DISMISSED_KEY,
+  SHELL_NOTICE_NOW_GLOBAL,
   SHELL_NOTICE_ROOT_ID,
   SHELL_NOTICE_SCRIPT,
   SHELL_NOTICE_SEED_GLOBAL,
+  shellNoticeLive,
   shellNoticePageType,
+  shellNoticeTimerDelay,
+  visibleNoticeStripIndex,
   type ShellNoticeBar,
   type ShellNotices,
   type ShellNoticeStrip,
@@ -19,11 +27,11 @@ import {
 
 const bar = (id: string, patch: Partial<ShellNoticeBar> = {}): ShellNoticeBar => ({
   id, key: `${id}:k`, message: `공지 ${id}`, cta: { label: '자세히 보기', href: '/events' },
-  pageTypes: ['home', 'collection', 'product', 'content', 'other'], ...patch,
+  pageTypes: ['home', 'collection', 'product', 'content', 'other'], endsAt: null, ...patch,
 });
 const strip = (id: string, patch: Partial<ShellNoticeStrip> = {}): ShellNoticeStrip => ({
   id, title: `띠배너 ${id}`, imageUrl: `https://cdn.example/${id}.webp`, mobileImageUrl: null, href: '/events',
-  pageTypes: null, ...patch,
+  pageTypes: null, endsAt: null, ...patch,
 });
 const open = { cardRewardsEnabled: true, communityEnabled: true };
 
@@ -111,6 +119,68 @@ describe('같은 탭 닫힘과 스트립 선택', () => {
   });
 });
 
+/* 셸 공지는 하드 로드 때만 내려오고 앱 안 이동에는 다시 오지 않는다 — 열린 화면은 종료 시각을 직접 지킨다(l8a-ui-4). */
+describe('노출 종료(열린 화면)', () => {
+  const T = Date.UTC(2026, 9, 23, 9, 0, 0);
+
+  it('종료 시각이 없거나 아직 지나지 않은 공지만 노출 중이고, 서버 렌더(now 없음)는 시각으로 거르지 않는다', () => {
+    expect(shellNoticeLive({ endsAt: null }, T)).toBe(true);
+    expect(shellNoticeLive({ endsAt: T + 1 }, T)).toBe(true);
+    expect(shellNoticeLive({ endsAt: T }, T)).toBe(false);
+    expect(shellNoticeLive({ endsAt: T - 1 }, null)).toBe(true);
+    /* 종료 시각을 싣기 전 모양의 캐시 값(endsAt 없음)은 끝나지 않은 것으로 본다 — 공지를 통째로 숨기지 않는다. */
+    expect(shellNoticeLive({} as { endsAt: number | null }, T)).toBe(true);
+  });
+
+  it('끝난 공지 바는 건너뛰어 다음 공지 바를 보이고, 닫힘과 함께 판정한다', () => {
+    const bars = [bar('b1', { endsAt: T }), bar('b2', { endsAt: T + 60_000 }), bar('b3')];
+    expect(firstVisibleNoticeBar(bars, [], T - 1)?.id).toBe('b1');
+    expect(firstVisibleNoticeBar(bars, [], T)?.id).toBe('b2');
+    expect(firstVisibleNoticeBar(bars, ['b2:k'], T)?.id).toBe('b3');
+    expect(firstVisibleNoticeBar(bars, [], T + 60_000)?.id).toBe('b3');
+    expect(firstVisibleNoticeBar(bars, [], null)?.id).toBe('b1');
+  });
+
+  it('보이던 스트립은 다른 후보가 끝나도 그대로고, 그 스트립이 끝나면 다음 후보로 넘기며, 모두 끝나면 숨긴다', () => {
+    const strips = [strip('s1', { endsAt: T }), strip('s2', { endsAt: T + 60_000 }), strip('s3')];
+    /* 시드 0.5 → 가운데(s2). s1이 끝나도 s2를 유지한다(후보 수로 다시 나누지 않는다). */
+    expect(visibleNoticeStripIndex(strips, 0.5, T - 1)).toBe(1);
+    expect(visibleNoticeStripIndex(strips, 0.5, T)).toBe(1);
+    expect(visibleNoticeStripIndex(strips, 0.5, T + 60_000)).toBe(2);
+    /* 시드 0 → s1, s1이 끝나면 s2로 넘긴다. 마지막 후보가 끝나면 처음으로 돌아 찾는다. */
+    expect(visibleNoticeStripIndex(strips, 0, T)).toBe(1);
+    expect(visibleNoticeStripIndex([strip('a'), strip('b', { endsAt: T })], 0.9, T)).toBe(0);
+    expect(visibleNoticeStripIndex([strip('a', { endsAt: T }), strip('b', { endsAt: T })], 0.3, T)).toBe(-1);
+    expect(visibleNoticeStripIndex([], 0.3, T)).toBe(-1);
+    expect(visibleNoticeStripIndex(strips, 0.5, null)).toBe(1);
+  });
+
+  it('다음 종료 시각과 타이머 지연을 고른다 — 지났으면 곧바로, 아주 멀면 타이머 한도까지만', () => {
+    const notices: ShellNotices = {
+      bars: [bar('b1', { endsAt: T + 5_000 }), bar('b2')],
+      strips: [strip('s1', { endsAt: T + 1_000 }), strip('s2', { endsAt: T - 1 })],
+    };
+    expect(nextShellNoticeEnd(notices, T)).toBe(T + 1_000);
+    expect(nextShellNoticeEnd(notices, T + 1_000)).toBe(T + 5_000);
+    expect(nextShellNoticeEnd(notices, T + 5_000)).toBeNull();
+    expect(nextShellNoticeEnd({ bars: [bar('b')], strips: [] }, T)).toBeNull();
+    expect(shellNoticeTimerDelay(T + 1_000, T)).toBe(1_050);
+    expect(shellNoticeTimerDelay(T - 10_000, T)).toBe(50);
+    expect(shellNoticeTimerDelay(T + 40 * 24 * 60 * 60 * 1_000, T)).toBe(2_147_483_647);
+  });
+
+  it('하이드레이션은 스크립트가 쓴 판정 시각을 쓰고, 그 시각을 지운 뒤나 스크립트가 없으면 지금 시각, 서버는 null이다', () => {
+    const scope: Record<string, unknown> = { [SHELL_NOTICE_NOW_GLOBAL]: T };
+    expect(readShellNoticeNow(scope)).toBe(T);
+    expect(initialShellNoticeNow(scope, () => T + 9_999)).toBe(T);
+    forgetShellNoticeNow(scope);
+    expect(readShellNoticeNow(scope)).toBeNull();
+    expect(initialShellNoticeNow(scope, () => T + 9_999)).toBe(T + 9_999);
+    expect(initialShellNoticeNow(null, () => T)).toBeNull();
+    for (const value of ['1', Number.NaN, Infinity, undefined]) expect(readShellNoticeNow({ [SHELL_NOTICE_NOW_GLOBAL]: value })).toBeNull();
+  });
+});
+
 /* 인라인 스크립트는 하이드레이션 전에 DOM을 고친다 — 컴포넌트의 계산(firstVisibleNoticeBar·noticeStripIndex)과
    한 칸이라도 다르면 React가 서버 HTML과 다른 결과를 보게 된다. 최소 DOM 대역으로 같은 입력의 결과를 대조한다. */
 describe('첫 페인트 전 스크립트 ↔ 컴포넌트 계산', () => {
@@ -123,11 +193,17 @@ describe('첫 페인트 전 스크립트 ↔ 컴포넌트 계산', () => {
     get hidden() { return this.attributes.has('hidden'); }
   }
 
-  function run({ bars, strips, dismissed, seed, rootPresent = true }: {
+  afterEach(() => vi.useRealTimers());
+
+  /* ends: 컴포넌트가 그리는 data-notice-ends(종료 시각이 있을 때만). */
+  const endsAttribute = (endsAt: number | null | undefined) => (typeof endsAt === 'number' ? { 'data-notice-ends': String(endsAt) } : {});
+
+  function run({ bars, strips, dismissed, seed, rootPresent = true, barEnds = [], stripEnds = [] }: {
     bars: string[]; strips: string[]; dismissed?: string; seed?: unknown; rootPresent?: boolean;
+    barEnds?: (number | null)[]; stripEnds?: (number | null)[];
   }) {
-    const barElements = bars.map((key, index) => new FakeElement({ 'data-notice-bar': key, ...(index > 0 ? { hidden: '' } : {}) }));
-    const stripElements = strips.map((id, index) => new FakeElement({ 'data-notice-strip': id, ...(index > 0 ? { hidden: '' } : {}) }));
+    const barElements = bars.map((key, index) => new FakeElement({ 'data-notice-bar': key, ...endsAttribute(barEnds[index]), ...(index > 0 ? { hidden: '' } : {}) }));
+    const stripElements = strips.map((id, index) => new FakeElement({ 'data-notice-strip': id, ...endsAttribute(stripEnds[index]), ...(index > 0 ? { hidden: '' } : {}) }));
     const root = {
       querySelectorAll: (selector: string) => (selector === '[data-notice-bar]' ? barElements : selector === '[data-notice-strip]' ? stripElements : []),
     };
@@ -153,6 +229,32 @@ describe('첫 페인트 전 스크립트 ↔ 컴포넌트 계산', () => {
     expect(result.stripElements.map((element) => !element.hidden)).toEqual(strips.map((_, i) => i === index));
   });
 
+  /* 오래된 정적 HTML·캐시에는 이미 끝난 공지가 남아 있을 수 있다 — 스크립트가 첫 페인트 전에 숨기고, 컴포넌트는 스크립트가
+     남긴 판정 시각으로 같은 결과를 계산한다. */
+  it.each([
+    { name: '첫 공지 바·보이던 스트립이 끝남', barEnds: [0, null, null], stripEnds: [null, 0, null], seed: 0.5, dismissed: undefined },
+    { name: '끝나지 않음', barEnds: [60_000, null, null], stripEnds: [60_000, 60_000, null], seed: 0.1, dismissed: undefined },
+    { name: '끝남과 닫힘이 겹침', barEnds: [0, null, 0], stripEnds: [0, 0, 0], seed: 0.99, dismissed: '["b2:k"]' },
+    { name: '마지막 후보가 끝나 처음으로 돎', barEnds: [null, null, null], stripEnds: [null, null, -5], seed: 0.9, dismissed: undefined },
+  ])('$name: 종료 시각이 지난 공지의 hidden도 컴포넌트 계산과 같다', ({ barEnds, stripEnds, seed, dismissed }) => {
+    const T = Date.UTC(2026, 9, 23, 9, 0, 0);
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(T);
+    const at = (offset: number | null) => (offset === null ? null : T + offset);
+    const bars = [bar('b1', { endsAt: at(barEnds[0]) }), bar('b2', { endsAt: at(barEnds[1]) }), bar('b3', { endsAt: at(barEnds[2]) })];
+    const strips = [strip('s1', { endsAt: at(stripEnds[0]) }), strip('s2', { endsAt: at(stripEnds[1]) }), strip('s3', { endsAt: at(stripEnds[2]) })];
+    const result = run({
+      bars: bars.map((item) => item.key), strips: strips.map((item) => item.id), dismissed, seed,
+      barEnds: bars.map((item) => item.endsAt), stripEnds: strips.map((item) => item.endsAt),
+    });
+    const now = initialShellNoticeNow(result.scope);
+    expect(now).toBe(T);
+    const visible = firstVisibleNoticeBar(bars, readDismissedNoticeKeys(result.storage), now);
+    expect(result.barElements.map((element) => !element.hidden)).toEqual(bars.map((item) => item === visible));
+    const index = visibleNoticeStripIndex(strips, readShellNoticeSeed(result.scope), now);
+    expect(result.stripElements.map((element) => !element.hidden)).toEqual(strips.map((_, i) => i === index));
+  });
+
   it('시드가 없으면 하드 로드마다 새로 뽑아 남기고, 공지 묶음이 없는 화면에서도 뒤 화면 이동을 위해 남긴다', () => {
     const first = run({ bars: [], strips: [], rootPresent: false });
     const seed = first.scope[SHELL_NOTICE_SEED_GLOBAL];
@@ -161,6 +263,8 @@ describe('첫 페인트 전 스크립트 ↔ 컴포넌트 계산', () => {
     expect(seed as number).toBeLessThan(1);
     expect(readShellNoticeSeed(first.scope)).toBe(seed);
     expect(run({ bars: [], strips: ['a', 'b'], seed: 0.75 }).scope[SHELL_NOTICE_SEED_GLOBAL]).toBe(0.75);
+    /* 판정 시각도 공지 묶음이 없는 화면에서 남긴다 — 하이드레이션이 같은 시각으로 판정한다. */
+    expect(typeof first.scope[SHELL_NOTICE_NOW_GLOBAL]).toBe('number');
   });
 
   it('운영 입력을 끼워 넣지 않는 고정 소스다', () => {

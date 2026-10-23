@@ -4,7 +4,7 @@ import { getShellNotices } from './notice-strip.server';
 const IMAGE = 'public-media/catalog/curation/11111111-1111-4111-8111-111111111111.webp';
 const MOBILE = 'public-media/catalog/curation/22222222-2222-4222-8222-222222222222.webp';
 
-type Row = { id: string; kind: string; title: string; image_path: string | null; link_path: string | null; payload: Record<string, unknown> | null };
+type Row = { id: string; kind: string; title: string; image_path: string | null; link_path: string | null; active_to?: string | null; payload: Record<string, unknown> | null };
 
 const mocks = vi.hoisted(() => ({
   published: true,
@@ -68,12 +68,22 @@ describe('셸 공지 캐시 읽기', () => {
     ]));
     expect(notices.bars).toEqual([{
       id: 'b1', key: expect.stringMatching(/^b1:[0-9a-f]{12}$/), message: '이용약관 개정 안내',
-      cta: { label: '자세히 보기', href: '/legal/terms' }, pageTypes: ['home', 'product'],
+      cta: { label: '자세히 보기', href: '/legal/terms' }, pageTypes: ['home', 'product'], endsAt: null,
     }]);
     expect(notices.strips).toEqual([
-      { id: 's1', title: '키링 기획전', imageUrl: `https://cdn.example.test/${IMAGE.replace('public-media/', '')}`, mobileImageUrl: null, href: '/events', pageTypes: null },
+      { id: 's1', title: '키링 기획전', imageUrl: `https://cdn.example.test/${IMAGE.replace('public-media/', '')}`, mobileImageUrl: null, href: '/events', pageTypes: null, endsAt: null },
       expect.objectContaining({ id: 's2', mobileImageUrl: `https://cdn.example.test/${MOBILE.replace('public-media/', '')}`, pageTypes: ['home'] }),
     ]);
+  });
+
+  /* 셸 공지는 하드 로드 때만 내려온다 — 열린 화면이 종료 시각에 숨기도록 active_to를 epoch ms로 싣는다(l8a-ui-4). */
+  it('노출 종료 시각을 함께 읽어 공지 바·스트립에 epoch ms로 싣는다', async () => {
+    const endsAt = '2026-10-23T09:00:00+00:00';
+    mocks.rows = [bar('b1', { active_to: endsAt }), strip('s1', { active_to: endsAt }), strip('s2', { active_to: null })];
+    const notices = await getShellNotices();
+    expect(mocks.calls).toContainEqual(['select', 'home_curations', 'id,kind,title,image_path,link_path,active_to,payload']);
+    expect(notices.bars[0].endsAt).toBe(Date.parse(endsAt));
+    expect(notices.strips.map((item) => item.endsAt)).toEqual([Date.parse(endsAt), null]);
   });
 
   it('문구·버튼·대상을 바꾸면 닫힘 키가 바뀌고, 순서·기간만 바뀌면 그대로다', async () => {
@@ -83,7 +93,7 @@ describe('셸 공지 캐시 읽기', () => {
     expect((await getShellNotices()).bars[0].key).not.toBe(first);
     mocks.rows = [bar('b1', { payload: { page_types: ['home'], cta_label: '자세히 보기' } })];
     expect((await getShellNotices()).bars[0].key).not.toBe(first);
-    mocks.rows = [bar('b1')];
+    mocks.rows = [bar('b1', { active_to: '2026-12-31T15:00:00+00:00' })];
     expect((await getShellNotices()).bars[0].key).toBe(first);
   });
 

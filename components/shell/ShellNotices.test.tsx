@@ -11,11 +11,11 @@ vi.mock('@/components/ui/Icon', () => ({ Icon: ({ name }: { name: string }) => <
 
 const bar = (id: string, patch: Partial<ShellNoticeBar> = {}): ShellNoticeBar => ({
   id, key: `${id}:abc123abc123`, message: `공지 문구 ${id}`, cta: { label: '자세히 보기', href: '/legal/terms' },
-  pageTypes: ['home', 'product', 'content', 'other'], ...patch,
+  pageTypes: ['home', 'product', 'content', 'other'], endsAt: null, ...patch,
 });
 const strip = (id: string, patch: Partial<ShellNoticeStrip> = {}): ShellNoticeStrip => ({
   id, title: `띠배너 ${id}`, imageUrl: `https://cdn.example/${id}.webp`, mobileImageUrl: null, href: '/events',
-  pageTypes: ['home', 'product', 'content', 'other'], ...patch,
+  pageTypes: ['home', 'product', 'content', 'other'], endsAt: null, ...patch,
 });
 
 function render(notices: ShellNoticeData, pathname = '/', cardRewardsEnabled = true) {
@@ -86,6 +86,19 @@ describe('셸 공지 서버 렌더', () => {
     expect(shop).not.toContain('data-notice-strip="s1"');
     expect(shop).toContain('data-notice-strip="legacy"');
     expect(render(notices, '/shop/g11')).toContain('data-notice-strip="s1"');
+  });
+
+  /* 종료 시각은 첫 페인트 전 스크립트와 하이드레이션·타이머가 지킨다(l8a-ui-4). 서버 렌더는 시각을 모르므로(캐시·정적 HTML)
+     시각으로 거르지 않고, 스크립트가 읽을 종료 시각을 속성으로 싣는다. */
+  it('종료 시각이 있는 공지는 data-notice-ends를 싣고, 서버 렌더는 시각으로 거르지 않는다', () => {
+    const past = Date.UTC(2020, 0, 1);
+    const html = render({ bars: [bar('b1', { endsAt: past }), bar('b2')], strips: [strip('s1', { endsAt: past }), strip('s2')] });
+    expect(tagFor(html, 'data-notice-bar="b1:abc123abc123"')).toContain(`data-notice-ends="${past}"`);
+    expect(tagFor(html, 'data-notice-bar="b1:abc123abc123"')).not.toContain('hidden');
+    expect(tagFor(html, 'data-notice-bar="b2:abc123abc123"')).not.toContain('data-notice-ends');
+    expect(tagFor(html, 'data-notice-strip="s1"')).toContain(`data-notice-ends="${past}"`);
+    expect(tagFor(html, 'data-notice-strip="s1"')).not.toContain('hidden');
+    expect(tagFor(html, 'data-notice-strip="s2"')).not.toContain('data-notice-ends');
   });
 
   it('보일 공지가 없는 화면에도 스크립트는 남긴다 — 하드 로드 시드를 다음 화면 이동이 쓴다', () => {

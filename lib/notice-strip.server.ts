@@ -24,12 +24,20 @@ interface ShellNoticeRow {
   title: string;
   image_path: string | null;
   link_path: string | null;
+  active_to: string | null;
   payload: Record<string, unknown> | null;
 }
 
 export const NOTICE_STRIP_CACHE_TAG = 'home-curations';
 
 const CONTROL_CHARACTER = /[\u0000-\u001f\u007f-\u009f]/;
+
+/* 노출 종료 시각 → epoch ms. 셸 공지는 하드 로드 때만 내려오므로 열린 화면은 이 시각으로 직접 숨긴다(ShellNotices). */
+function noticeEndsAt(row: ShellNoticeRow): number | null {
+  if (!row.active_to) return null;
+  const endsAt = Date.parse(row.active_to);
+  return Number.isFinite(endsAt) ? endsAt : null;
+}
 
 type ServerClient = ReturnType<typeof createServerClient>;
 
@@ -66,7 +74,7 @@ async function toNoticeBar(row: ShellNoticeRow, supabase: ServerClient): Promise
     if (!link || !label || Array.from(label).length > 12 || CONTROL_CHARACTER.test(label) || !isSafeInternalLink(link)) return null;
     cta = { label, href: await currentPublicHref(link, supabase) };
   }
-  return { id: row.id, key: noticeBarKey(row.id, message, cta, pageTypes), message, cta, pageTypes };
+  return { id: row.id, key: noticeBarKey(row.id, message, cta, pageTypes), message, cta, pageTypes, endsAt: noticeEndsAt(row) };
 }
 
 async function toNoticeStrip(
@@ -91,6 +99,7 @@ async function toNoticeStrip(
         : null,
     href: await currentPublicHref(href, supabase),
     pageTypes: pageTypes ?? null,
+    endsAt: noticeEndsAt(row),
   };
 }
 
@@ -100,7 +109,7 @@ async function toNoticeStrip(
  * 실측돼 있어(#325), 쿠키 없는 anon 클라이언트로 읽고 unstable_cache 로
  * 빌드·시간 재검증한다. 어드민 큐레이션 저장이 updateTag 로 즉시 갱신한다.
  * 그래서 화면 유형·같은 탭 닫힘·스트립 무작위 선택은 요청이 아니라 클라이언트가 정한다 —
- * 유효한 공지 전체(현재 노출 창 안)를 운영 순서대로 돌려준다.
+ * 유효한 공지 전체(현재 노출 창 안)를 운영 순서대로, 열린 화면이 종료 시각에 숨길 수 있게 종료 시각과 함께 돌려준다.
  * 실패는 공지 없음으로 조용히 수렴한다 — 셸이 데이터 문제로 깨지면 안 된다.
  */
 async function loadShellNotices(): Promise<ShellNotices> {
@@ -121,7 +130,7 @@ async function loadShellNotices(): Promise<ShellNotices> {
     const now = new Date().toISOString();
     const { data, error } = await supabase
       .from('home_curations')
-      .select('id,kind,title,image_path,link_path,payload')
+      .select('id,kind,title,image_path,link_path,active_to,payload')
       .in('kind', ['notice_bar', 'notice_strip'])
       .eq('enabled', true)
       .lte('active_from', now)

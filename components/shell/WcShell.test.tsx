@@ -93,6 +93,7 @@ describe('White Catalog 전역 셸', () => {
           mobileImageUrl: 'https://cdn.example/notice-mobile.webp',
           href: '/events',
           pageTypes: null,
+          endsAt: null,
         }] }}
       />,
     );
@@ -116,6 +117,7 @@ describe('White Catalog 전역 셸', () => {
             mobileImageUrl: null,
             href: '/packs',
             pageTypes: null,
+            endsAt: null,
           }] }}
         />,
       ),
@@ -133,6 +135,7 @@ describe('White Catalog 전역 셸', () => {
             mobileImageUrl: null,
             href: '/community',
             pageTypes: null,
+            endsAt: null,
           }] }}
         />,
       ).includes('class="wc-notice"'),
@@ -265,8 +268,8 @@ describe('White Catalog 전역 셸', () => {
     mocks.pathname = '/';
     const html = renderToStaticMarkup(
       <Nav notices={{
-        bars: [{ id: 'b1', key: 'b1:abc123abc123', message: '배송 일정 안내', cta: null, pageTypes: ['home'] }],
-        strips: [{ id: 'n1', title: '공지', imageUrl: 'https://cdn.example/n.webp', mobileImageUrl: null, href: '/events', pageTypes: null }],
+        bars: [{ id: 'b1', key: 'b1:abc123abc123', message: '배송 일정 안내', cta: null, pageTypes: ['home'], endsAt: null }],
+        strips: [{ id: 'n1', title: '공지', imageUrl: 'https://cdn.example/n.webp', mobileImageUrl: null, href: '/events', pageTypes: null, endsAt: null }],
       }} />,
     );
 

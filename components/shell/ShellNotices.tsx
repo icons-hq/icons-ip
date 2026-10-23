@@ -8,12 +8,16 @@ import { COMMUNITY_ENABLED } from '@/lib/community-visibility';
 import {
   applicableShellNotices,
   firstVisibleNoticeBar,
-  noticeStripIndex,
+  forgetShellNoticeNow,
+  initialShellNoticeNow,
+  nextShellNoticeEnd,
   readDismissedNoticeKeys,
   readShellNoticeSeed,
   rememberDismissedNotice,
   SHELL_NOTICE_ROOT_ID,
   SHELL_NOTICE_SCRIPT,
+  shellNoticeTimerDelay,
+  visibleNoticeStripIndex,
   type ShellNotices as ShellNoticeData,
 } from '@/lib/shell-notices';
 import { enterShellNoticeView, leaveShellNoticeView, recordShellNoticeEvent, shellNoticeSeen } from '@/lib/store-analytics-client';
@@ -37,9 +41,10 @@ function browserScope(): Record<string, unknown> | null {
  * 실제 공지 높이가 그대로 더해지고(Nav의 noticeOffsetAbove), 스크롤과 함께 빠져나가 sticky 크롬 높이·해시 착지선은 바뀌지 않는다.
  *
  * 서버 렌더는 결정적이다: 이 화면 유형에 맞는 공지를 모두 그리되 첫 공지 바·첫 스트립만 보이고 나머지는 hidden.
- * 바로 뒤 인라인 스크립트가 첫 페인트 전에 같은 탭의 닫힘 기록·하드 로드 시드로 hidden을 고치고, 이 컴포넌트는 같은
- * 저장소·시드를 lazy 초기값으로 읽어 같은 결과로 하이드레이트한다 — 닫은 공지가 깜빡였다 사라지거나 스트립이 바뀌며 밀리지 않는다.
- * 닫으면 hidden(display:none)이라 빈 띠가 남지 않는다.
+ * 바로 뒤 인라인 스크립트가 첫 페인트 전에 같은 탭의 닫힘 기록·하드 로드 시드·지금 시각(끝난 공지 숨김)으로 hidden을 고치고,
+ * 이 컴포넌트는 같은 저장소·시드·판정 시각을 lazy 초기값으로 읽어 같은 결과로 하이드레이트한다 — 닫은 공지가 깜빡였다
+ * 사라지거나 스트립이 바뀌며 밀리지 않는다. 닫거나 끝나면 hidden(display:none)이라 빈 띠가 남지 않는다.
+ * 셸 공지는 하드 로드 때만 내려오므로, 열린 화면에서는 다음 종료 시각에 맞춘 타이머로 끝난 공지를 숨긴다.
  */
 export function ShellNotices({
   notices,
@@ -53,11 +58,25 @@ export function ShellNotices({
   const rootRef = useRef<HTMLDivElement>(null);
   const [dismissed, setDismissed] = useState<readonly string[]>(() => readDismissedNoticeKeys(browserSessionStorage()));
   const [seed] = useState(() => readShellNoticeSeed(browserScope()));
+  const [now, setNow] = useState(() => initialShellNoticeNow(browserScope()));
   const { bars, strips } = applicableShellNotices(notices, pathname, { cardRewardsEnabled, communityEnabled: COMMUNITY_ENABLED });
-  const visibleBar = firstVisibleNoticeBar(bars, dismissed);
+  const visibleBar = firstVisibleNoticeBar(bars, dismissed, now);
   const visibleBarKey = visibleBar?.key ?? null;
-  const stripIndex = noticeStripIndex(seed, strips.length);
+  const stripIndex = visibleNoticeStripIndex(strips, seed, now);
   const visibleStripId = strips[stripIndex]?.id ?? null;
+
+  /* 하이드레이션은 스크립트의 판정 시각을 썼다 — 이후 다시 마운트되면 지금 시각으로 판정하게 지운다. */
+  useEffect(() => forgetShellNoticeNow(browserScope()), []);
+
+  /* 노출 종료: 다음으로 끝나는 공지의 종료 시각에 시각을 다시 읽어, 끝난 공지 바는 다음 공지 바로 넘기고 끝난 스트립은
+     다른 후보로 넘기거나 숨긴다. 경로가 바뀔 때도 다시 재서, 늦게 깬 타이머가 있어도 다음 화면에서 끝난 공지를 오래 두지 않는다. */
+  useEffect(() => {
+    if (now === null) return;
+    const endsAt = nextShellNoticeEnd(notices, now);
+    if (endsAt === null) return;
+    const timer = window.setTimeout(() => setNow(Date.now()), shellNoticeTimerDelay(endsAt, Date.now()));
+    return () => window.clearTimeout(timer);
+  }, [notices, now, pathname]);
 
   /* 셸이 사라지면(전용 셸 화면) 노출 화면을 닫는다 — 돌아오면 같은 경로여도 새 화면으로 센다(페이지뷰와 같은 경계). */
   useEffect(() => () => leaveShellNoticeView(), []);
@@ -111,6 +130,7 @@ export function ShellNotices({
               aria-label="스토어 공지"
               className="wc-notice-bar"
               data-notice-bar={bar.key}
+              data-notice-ends={bar.endsAt ?? undefined}
               data-notice-id={bar.id}
               hidden={bar !== visibleBar}
               suppressHydrationWarning
@@ -134,6 +154,7 @@ export function ShellNotices({
             <Link
               key={strip.id}
               className="wc-notice"
+              data-notice-ends={strip.endsAt ?? undefined}
               data-notice-id={strip.id}
               data-notice-strip={strip.id}
               hidden={index !== stripIndex}

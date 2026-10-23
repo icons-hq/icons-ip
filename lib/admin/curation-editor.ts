@@ -214,9 +214,10 @@ export function buildDraftCurationPreview(
         break;
       case 'notice_bar': {
         const label = values.ctaLabel.trim();
+        /* 미리보기는 모양만 보여 준다 — 노출 기간과 무관하게 그린다. */
         noticeBar = {
           id, key: id, message: title, pageTypes: values.pageTypes,
-          cta: href && label ? { label, href } : null,
+          cta: href && label ? { label, href } : null, endsAt: null,
         };
         break;
       }
