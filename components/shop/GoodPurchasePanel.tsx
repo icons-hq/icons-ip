@@ -137,6 +137,10 @@ export interface GoodPurchaseController {
   restockVariantIds?: readonly string[];
   disabled: boolean;
   inert: boolean;
+  /** 카트 반영이 진행 중이라서만 잠긴 상태다. 누른 버튼이 포커스를 잃지 않게 disabled 대신 aria-disabled 로
+      잠근다 — disabled 로 바꾸면 Chrome 이 포커스를 body 로 빼고, 담기 결과 모달이 그 body 를 복귀 대상으로
+      기억해 닫은 뒤 포커스가 사라진다(RestockCta 와 같은 방식). 담기·구매 함수는 inert 로 그대로 막는다. */
+  inFlight?: boolean;
   message: string | null;
   addToCart: () => void;
   buyNow: () => void;
@@ -286,6 +290,7 @@ export function useGoodPurchase({
     restockVariantIds,
     disabled,
     inert,
+    inFlight: !selectionRequired && blocked === 'pending',
     /* 카트가 낸 오류가 먼저다 — 담기에 실패한 화면에 "담았어요"가 남으면 안 된다. */
     message: conditionProblem ?? cart.error ?? status,
     additionalChoices,
@@ -638,10 +643,10 @@ export function GoodPurchasePanel({ otherPurchases, purchase }: { otherPurchases
         <RestockCta disabled={disabled} goodId={good.id} initialRequested={cta.requested} onStaleState={stale.onStale} optionName={cta.optionName} variantId={cta.variantId} />
       ) : (
         <div className="wc-buy-panel__ctas">
-          <WcButton className="wc-buy-panel__cart" disabled={inert} onClick={purchase.addToCart}>
+          <WcButton ariaDisabled={purchase.inFlight} className="wc-buy-panel__cart" disabled={inert && !purchase.inFlight} onClick={purchase.addToCart}>
             장바구니
           </WcButton>
-          <WcButton className="wc-buy-panel__buy" disabled={inert} onClick={purchase.buyNow} variant="primary">
+          <WcButton ariaDisabled={purchase.inFlight} className="wc-buy-panel__buy" disabled={inert && !purchase.inFlight} onClick={purchase.buyNow} variant="primary">
             구매하기
           </WcButton>
         </div>
@@ -780,10 +785,10 @@ export function GoodRailBuyBox({ purchase }: { purchase: GoodPurchaseController 
         <RestockCta className="wc-pdp-railbox__restock" compact disabled={disabled} goodId={good.id} initialRequested={cta.requested} onStaleState={stale.onStale} optionName={cta.optionName} variantId={cta.variantId} />
       ) : (
         <div className="wc-pdp-railbox__ctas">
-          <button aria-label="장바구니에 담기" className="wc-pdp-railbox__cart" disabled={inert} onClick={fromRail(purchase.addToCart)} type="button">
+          <button aria-disabled={purchase.inFlight ? 'true' : undefined} aria-label="장바구니에 담기" className="wc-pdp-railbox__cart" disabled={inert && !purchase.inFlight} onClick={fromRail(purchase.addToCart)} type="button">
             <CartGlyph />
           </button>
-          <button className="wc-pdp-railbox__buy" disabled={inert} onClick={fromRail(purchase.buyNow)} type="button">구매하기</button>
+          <button aria-disabled={purchase.inFlight ? 'true' : undefined} className="wc-pdp-railbox__buy" disabled={inert && !purchase.inFlight} onClick={fromRail(purchase.buyNow)} type="button">구매하기</button>
         </div>
       )}
       {/* 박스(320×153)를 늘리지 않게 보조기기에만 둔다 — 재입고 신청이 바뀐 판매 상태로 거절된 이유다. */}

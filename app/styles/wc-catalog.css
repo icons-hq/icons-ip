@@ -2113,11 +2113,22 @@
 }
 
 .wc-pdp-railbox__cart:disabled,
-.wc-pdp-railbox__buy:disabled {
+.wc-pdp-railbox__buy:disabled,
+.wc-pdp-railbox__cart[aria-disabled='true'],
+.wc-pdp-railbox__buy[aria-disabled='true'] {
   border-color: var(--wc-ink-disabled);
   background: var(--wc-ink-disabled);
   color: #FFFFFF;
   cursor: not-allowed;
+}
+
+/* 카트 반영 중에는 담기·구매 버튼을 disabled 대신 aria-disabled 로 잠근다(포커스 유지 — 담기 결과 모달의
+   복귀 대상). 보이는 모습은 비활성 버튼과 같다. */
+.wc-buy-panel__ctas .wc-btn[aria-disabled='true'] {
+  border-color: var(--wc-ink-disabled);
+  background: var(--wc-ink-disabled);
+  color: #FFFFFF;
+  cursor: progress;
 }
 
 /* 품절이면 두 버튼 자리가 같은 폭(281)의 재입고 버튼 하나로 바뀐다 — 박스 크기가 흔들리지 않는다. */

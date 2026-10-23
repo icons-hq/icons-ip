@@ -277,6 +277,16 @@ describe('GoodRailBuyBox', () => {
     expect(html).toMatch(/class="wc-pdp-railbox__buy" disabled=""/);
   });
 
+  /* 담는 동안(카트 반영 중)에는 disabled 로 바꾸지 않는다 — 누른 버튼이 포커스를 잃으면 담기 결과 모달이 body 를
+     복귀 대상으로 기억해, 닫은 뒤 포커스가 사라진다(L2 QA l2-qa-4). 상태는 aria-disabled 로 알리고 클릭은 inert 가 막는다. */
+  it('담는 동안에는 CTA 를 aria-disabled 로 잠그고 포커스를 지킨다(옵션 전 잠금은 그대로 disabled)', () => {
+    const busy = renderToStaticMarkup(<GoodRailBuyBox purchase={controller({ inert: true, inFlight: true, quantity: 1, subtotal: 12000 })} />);
+
+    expect(busy).toContain('<button aria-disabled="true" aria-label="장바구니에 담기" class="wc-pdp-railbox__cart" type="button">');
+    expect(busy).toContain('<button aria-disabled="true" class="wc-pdp-railbox__buy" type="button">구매하기</button>');
+    expect(busy).not.toMatch(/wc-pdp-railbox__(cart|buy)" disabled=""/);
+  });
+
   it('품절이면 두 버튼 자리를 재입고 알림 하나로 바꾼다', () => {
     const html = renderToStaticMarkup(<GoodRailBuyBox purchase={controller({ good: { ...good, stock: 'soldout', stockQty: 0 }, soldOut: true })} />);
 
@@ -293,6 +303,19 @@ describe('GoodRailBuyBox', () => {
     expect(html).toContain('<strong class="wc-pdp-railbox__amount">₩15,000</strong>');
     expect(html).toContain('data-option="빨강" data-variant="red"');
     expect(html).not.toContain('wc-pdp-railbox__ctas');
+  });
+});
+
+describe('GoodPurchasePanel 담는 동안의 CTA', () => {
+  it('카트 반영 중에는 장바구니·구매하기를 aria-disabled 로 잠그고 disabled 는 옵션 전처럼 실제로 막을 때만 쓴다', () => {
+    const busy = renderToStaticMarkup(<GoodPurchasePanel purchase={controller({ inert: true, inFlight: true, quantity: 1, subtotal: 12000 })} />);
+    expect(busy).toMatch(/<button aria-disabled="true" class="wc-btn wc-buy-panel__cart" type="button">/);
+    expect(busy).toMatch(/<button aria-disabled="true" class="wc-btn primary wc-buy-panel__buy" type="button">/);
+
+    const locked = renderToStaticMarkup(<GoodPurchasePanel purchase={controller({ selectionRequired: true, inert: true, subtotal: 0 })} />);
+    expect(locked).toMatch(/<button class="wc-btn wc-buy-panel__cart" disabled="" type="button">/);
+    expect(locked).toMatch(/<button class="wc-btn primary wc-buy-panel__buy" disabled="" type="button">/);
+    expect(locked).not.toContain('aria-disabled="true" class="wc-btn wc-buy-panel__cart"');
   });
 });
 
