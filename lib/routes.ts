@@ -102,6 +102,8 @@ const PATHS: Record<string, string> = {
   tickets: '/tickets',
   my: '/my',
   wish: '/my/wishlist',
+  /* 회원 등급 혜택 — 등급 기준·혜택 안내(L6 · MY-05). 무료 회원 등급이라 유료 v2 어휘를 경로·라벨에 쓰지 않는다(CONTEXT.md). */
+  gradeBenefits: '/my/grade-benefits',
   notifications: '/notifications',
   about: '/about',
   help: '/help',
