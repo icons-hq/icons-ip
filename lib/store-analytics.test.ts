@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { analyticsAcquisition, analyticsChoice, analyticsPage, parseAnalyticsEvent } from './store-analytics';
+import { analyticsAcquisition, analyticsChoice, analyticsPage, parseAnalyticsEvent, parseAnalyticsNoticeEvent } from './store-analytics';
 const id='11111111-1111-4111-8111-111111111111';
 const event={eventId:id,pageKind:'good',targetId:'test-good',linkToken:null,channel:'direct',source:'none',medium:'none'};
 describe('optional store analytics privacy boundary',()=>{
@@ -22,5 +22,11 @@ describe('optional store analytics privacy boundary',()=>{
  it('rejects extra fields, raw source strings, invalid targets, and identifier override payloads',()=>{
   expect(parseAnalyticsEvent(event)).toEqual(event);
   for(const patch of [{userId:id},{token:'session-secret'},{referrer:'https://example.test'},{source:'email@example.test'},{pageKind:'checkout'},{targetId:'secret@example.test'},{eventId:'invalid'}])expect(parseAnalyticsEvent({...event,...patch})).toBeNull();
+ });
+ it('accepts only a notice id and impression/click for shell notice events',()=>{
+  const notice={eventId:id,curationId:'22222222-2222-4222-8222-222222222222',interaction:'impression'};
+  expect(parseAnalyticsNoticeEvent(notice)).toEqual(notice);
+  for(const patch of [{interaction:'view'},{curationId:'home'},{eventId:'x'},{pageKind:'home'},{href:'/events'}])expect(parseAnalyticsNoticeEvent({...notice,...patch})).toBeNull();
+  expect(parseAnalyticsNoticeEvent([notice])).toBeNull();expect(parseAnalyticsNoticeEvent(null)).toBeNull();
  });
 });

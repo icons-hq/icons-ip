@@ -1,12 +1,23 @@
 import Link from 'next/link';
 import { ConsoleGrid, type ConsoleGridColumn } from '@/components/admin/console';
 import { StatsTrafficChart } from '@/components/admin/charts/StatsTrafficChart';
-import { TRAFFIC_DIMENSIONS, TRAFFIC_STATE_LABELS, trafficDifference, trafficHref, trafficLabel, trafficNumber, type TrafficCoverage, type TrafficFilters, type TrafficMetric, type TrafficReport } from '@/lib/admin/store-analytics';
+import { NOTICE_PLACEMENT_LABELS, noticeTrafficTitle, TRAFFIC_DIMENSIONS, TRAFFIC_STATE_LABELS, trafficDifference, trafficHref, trafficLabel, trafficNumber, type NoticeTrafficReport, type TrafficCoverage, type TrafficFilters, type TrafficMetric, type TrafficReport } from '@/lib/admin/store-analytics';
 const CARDS:{key:TrafficMetric;label:string;suffix?:string}[]=[{key:'sessions',label:'방문 세션'},{key:'productViews',label:'상품 상세 열람'},{key:'orders',label:'결제 주문'},{key:'conversionRate',label:'결제 전환율',suffix:'%'},{key:'grossAmount',label:'실제 결제금액',suffix:'원'},{key:'netAmount',label:'환불 차감금액',suffix:'원'}];
 const COLUMNS:ConsoleGridColumn[]=[{key:'label',label:'분석 항목',width:'240px'},{key:'sessions',label:'방문 세션',align:'end',width:'110px'},{key:'views',label:'전체 열람',align:'end',width:'100px'},{key:'product',label:'상품 상세',align:'end',width:'100px'},{key:'landings',label:'링크 유입',align:'end',width:'100px'},{key:'orders',label:'결제 주문',align:'end',width:'120px'},{key:'rate',label:'전환율',align:'end',width:'100px'},{key:'change',label:'방문 증감',align:'end',width:'110px'},{key:'gross',label:'실제 결제금액',align:'end',width:'130px'},{key:'refund',label:'완료 환불금액',align:'end',width:'130px'},{key:'net',label:'환불 차감금액',align:'end',width:'140px'},{key:'observation',label:'관측',width:'170px'}];
+const NOTICE_COLUMNS:ConsoleGridColumn[]=[{key:'title',label:'공지',width:'280px'},{key:'placement',label:'종류',width:'130px'},{key:'impressions',label:'노출',align:'end',width:'100px'},{key:'impressionSessions',label:'노출 세션',align:'end',width:'110px'},{key:'clicks',label:'클릭',align:'end',width:'100px'},{key:'clickSessions',label:'클릭 세션',align:'end',width:'110px'},{key:'clickRate',label:'클릭률',align:'end',width:'100px'}];
 function coverageText(value:TrafficCoverage){return `정상 관측 ${value.observed_days}일 · 일부/진행 중 ${value.partial_days}일 · 미측정 ${value.missing_days}일${value.archived_days?` · 보존 합계 ${value.archived_days}일`:''}`;}
 function dateTime(value:string|null){return value?new Date(value).toLocaleString('ko-KR',{timeZone:'Asia/Seoul'}):'없음';}
-export function StatsTrafficScreen({report,filters,marketing=false}:{report:TrafficReport|null;filters:TrafficFilters;marketing?:boolean}){
+/* 상단 공지(텍스트 공지 바·띠배너) 노출·클릭. undefined = 이 화면에서 다루지 않음(마케팅 링크 성과), null = 읽기 실패. */
+function NoticeTrafficSection({report}:{report:NoticeTrafficReport|null}){
+ return <section aria-labelledby="traffic-notices-title" className="wc-admin-traffic-notices">
+  <div className="wc-admin-traffic-table-tools"><h3 id="traffic-notices-title">상단 공지 노출·클릭 {report?<small>{report.rows.length.toLocaleString('ko-KR')}개</small>:null}</h3></div>
+  {report===null?<p className="admin-note" role="alert">공지 노출·클릭 집계를 불러오지 못했습니다. 새로고침해주세요.</p>
+   :<ConsoleGrid caption="상단 공지 노출·클릭" preferencesKey="traffic-notices" columns={NOTICE_COLUMNS} emptyLabel="이 기간에 집계된 공지 노출이 없습니다."
+    rows={report.rows.map(row=>({id:`${row.curationId}:${row.placement}`,cells:[noticeTrafficTitle(row),NOTICE_PLACEMENT_LABELS[row.placement]??row.placement,trafficNumber(row.impressions),trafficNumber(row.impressionSessions),trafficNumber(row.clicks),trafficNumber(row.clickSessions),row.clickRate===null?'계산 불가':trafficNumber(row.clickRate,'%')]}))}/>}
+  <p className="admin-note">방문 통계에 동의한 공개 화면 방문에서 공지가 절반 이상 보인 횟수와 버튼·배너를 누른 횟수입니다. 한 화면에서는 공지마다 한 번만 세고, 클릭은 같은 방문에서 노출된 뒤에만 셉니다. 클릭률은 노출 대비 클릭입니다.</p>
+ </section>;
+}
+export function StatsTrafficScreen({report,filters,marketing=false,noticeReport}:{report:TrafficReport|null;filters:TrafficFilters;marketing?:boolean;noticeReport?:NoticeTrafficReport|null}){
  const base=marketing?'/admin/stats/marketing':'/admin/stats/traffic';const financial=!filters.key||filters.dimension==='channel'||filters.dimension==='link';
  const dimensionFinancial=filters.dimension==='channel'||filters.dimension==='link';
  const title=marketing?'마케팅 링크 성과':'방문·유입 분석';
@@ -39,6 +50,7 @@ export function StatsTrafficScreen({report,filters,marketing=false}:{report:Traf
    <ConsoleGrid caption={`${title} 분석 항목`} preferencesKey={`traffic-${filters.dimension}`} columns={COLUMNS} emptyLabel={report.summary.sessions===null?'수집 전이거나 관측 자료가 없어 수치를 표시할 수 없습니다.':'조건에 맞는 관측 항목이 없습니다.'}
     rows={report.rows.map(row=>({id:row.key,cells:[<Link key="label" href={trafficHref(base,filters,{key:row.key,page:1})}>{trafficLabel(filters.dimension,row.key,row.label)}</Link>,trafficNumber(row.metrics.sessions),trafficNumber(row.metrics.pageViews),trafficNumber(row.metrics.productViews),trafficNumber(row.metrics.linkLandings),trafficNumber(row.metrics.orders),trafficNumber(row.metrics.conversionRate,'%'),row.comparison?trafficDifference(row.metrics.sessions,row.comparison.sessions):'비교 없음',dimensionFinancial?trafficNumber(row.metrics.grossAmount,'원'):'배분 안 함',dimensionFinancial?trafficNumber(row.metrics.refundAmount,'원'):'배분 안 함',dimensionFinancial?trafficNumber(row.metrics.netAmount,'원'):'배분 안 함',row.archived?`보존 합계 · ${dateTime(row.observedUntil)}`:row.metrics.sessions===null?'미측정':'관측 자료']}))}/>
    <nav className="wc-admin-traffic-pagination" aria-label="분석 결과 페이지">{filters.page>1?<Link href={trafficHref(base,filters,{page:filters.page-1})}>이전</Link>:null}<span>{filters.page} / {Math.max(1,Math.ceil(report.total/20))}</span>{filters.page*20<report.total?<Link href={trafficHref(base,filters,{page:filters.page+1})}>다음</Link>:null}</nav>
+   {!marketing&&noticeReport!==undefined?<NoticeTrafficSection report={noticeReport}/>:null}
    <details className="wc-admin-traffic-definitions"><summary>지표 정의와 집계 범위</summary><ul>
     <li>방문 세션은 같은 브라우저의 짧은 방문 구간입니다. 30분 비활동·최대 24시간·한국 날짜 변경 시 분리하며 고유 고객수와 다릅니다.</li>
     <li>링크 유입은 발급된 링크의 목적지 화면을 연 횟수입니다. 새로고침도 열람이며 HTTP 리다이렉트·프리패치는 세지 않습니다.</li>

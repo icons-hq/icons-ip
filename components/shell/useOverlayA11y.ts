@@ -36,7 +36,7 @@ export function useOverlayA11y({
     const previousOverflow = ownerDocument.body.style.overflow;
     const previousFocus = ownerDocument.activeElement as HTMLElement | null;
     /* 다이얼로그 밖 상호작용 표면 전부를 inert로 덮는다 — 본문·푸터만 덮으면
-       유틸바·헤더 컨트롤·탭바가 접근성 트리에 남아 모달인데 밖을 조작할 수 있게 된다.
+       유틸바·헤더 컨트롤·탭바(그리고 맨 위 공지 바의 버튼·닫기)가 접근성 트리에 남아 모달인데 밖을 조작할 수 있게 된다.
        검색 패널은 .wc-header "안"에 있으므로 헤더 전체가 아니라 형제 행들만 개별로 덮는다.
        패널이 후보 안에 있으면 그 후보는 건너뛴다 — #root 안 화면 오버레이가 자기 자신까지
        inert로 얼려 페이지가 잠기는 사고 방지. 이 안전망은 배경 일부(그 후보의 내용)를 덮지
@@ -45,7 +45,7 @@ export function useOverlayA11y({
     const backgroundElements = [
       ownerDocument.getElementById('root'),
       ...ownerDocument.querySelectorAll<HTMLElement>(
-        '.wc-footer, .wc-notice, .wc-utilbar, .wc-header__bar, .wc-gnb-wrap, .wc-tabbar',
+        '.wc-footer, .wc-notice-bar, .wc-notice, .wc-utilbar, .wc-header__bar, .wc-gnb-wrap, .wc-tabbar',
       ),
     ].filter((element): element is HTMLElement => element !== null && !element.contains(panel));
     const previousInert = backgroundElements.map((element) => element.inert);

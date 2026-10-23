@@ -35,6 +35,10 @@ const goodOptions = [
   { id: 'g13', title: '홍실 아크릴 블록', archivedAt: null },
   { id: 'archived-good', title: '보관 상품', archivedAt: '2026-07-01' },
 ];
+/* 체크박스 하나의 태그 — 속성 순서와 무관하게 값으로 찾는다. */
+function checkboxTag(html: string, value: string) {
+  return html.match(new RegExp(`<input[^>]*name="pageTypes"[^>]*value="${value}"[^>]*/>`))?.[0] ?? '';
+}
 function renderSection(selected: AdminCurationRecord | null = record) {
   return renderToStaticMarkup(<CurationSection
     draftActiveFrom="2026-07-15T03:04:05.000Z" draftId="22222222-2222-4222-8222-222222222222"
@@ -188,6 +192,41 @@ describe('CurationSection', () => {
     expect(html).toContain('현재 홈 본문에는 특집 IP 영역이 없습니다.');
     expect(html).toContain('name="ipId"');
     expect(html).not.toContain('<iframe');
+  });
+
+  it('텍스트 공지 바는 문구·선택 버튼·노출 화면을 편집하고 이미지 업로드를 두지 않는다', () => {
+    const notice: AdminCurationRecord = { ...record, kind: 'notice_bar', title: '이용약관 개정 안내', imagePath: null, imageUrl: null, mobileImageUrl: null,
+      linkPath: '/shop/g13', payload: { page_types: ['home', 'product'], cta_label: '자세히 보기' } };
+    const html = renderSection(notice);
+    expect(html).toContain('텍스트 공지 바 관리');
+    expect(html).toContain('공지 문구');
+    expect(html).toContain('10 / 60자');
+    expect(html).toContain('name="ctaLabel"');
+    expect(html).toContain('value="자세히 보기"');
+    expect(html).toContain('버튼을 눌렀을 때 이동할 화면');
+    expect(html).toContain('<option value="">링크 없음</option>');
+    expect(html).toContain('type="hidden" name="pageTypesField" value="1"');
+    expect(checkboxTag(html, 'home')).toContain('checked=""');
+    expect(checkboxTag(html, 'collection')).toContain('type="checkbox"');
+    expect(checkboxTag(html, 'collection')).not.toContain('checked');
+    expect(checkboxTag(html, 'product')).toContain('checked=""');
+    expect(html).toContain('상품 목록(굿즈샵·NEW·BEST·IP관)');
+    expect(html).not.toContain('data-artwork-kind="curation"');
+    expect(html).toContain('type="hidden" name="imagePath" value=""');
+    /* 띠배너를 공지 바로 바꿔도 이전 이미지 경로를 싣지 않는다 — 이미지 칸이 없어 오류를 보여 줄 자리도 없다. */
+    expect(renderSection({ ...notice, imagePath: record.imagePath })).toContain('type="hidden" name="imagePath" value=""');
+    /* 링크를 비우면 버튼 문구 칸이 사라진다 — 저장 계약에서도 버튼 문구를 싣지 않는다. */
+    expect(renderSection({ ...notice, linkPath: null })).not.toContain('name="ctaLabel"');
+  });
+
+  it('띠배너도 노출 화면을 고르고, 대상 없이 저장된 기존 띠배너는 모든 화면이 켜진 채로 보인다', () => {
+    const strip: AdminCurationRecord = { ...record, kind: 'notice_strip', payload: null };
+    const html = renderSection(strip);
+    for (const type of ['home', 'collection', 'product', 'content', 'other']) {
+      expect(checkboxTag(html, type), type).toContain('checked=""');
+    }
+    expect(html).toContain('스토어를 새로 열 때마다 하나를 무작위로 보여줍니다');
+    expect(renderSection({ ...strip, payload: { page_types: ['product'] } })).toContain('홈이 노출 화면에 없어 공개 홈에서는 보이지 않습니다.');
   });
 
   it('저장본 변경은 폼을 초기화하지만 서버 요청 ID 교체는 폼의 식별자가 아니다', () => {

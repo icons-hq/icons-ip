@@ -70,6 +70,7 @@ export async function upsertAdminCurationAction(
     if (message.includes('invalid_hero_title')) return { errors: { title: '변경한 제목은 40자 이하로 입력해주세요. 기존 제목은 그대로 유지할 수 있습니다.' } };
     if (message.includes('invalid_hero_subtitle')) return { errors: { subtitle: '변경한 내용은 150자 이하, 최대 3줄로 입력해주세요.' } };
     if (message.includes('invalid_hero_alt')) return { errors: { altTitle: '대체텍스트 제목 40자·내용 150자와 설정 여부를 확인해주세요.' } };
+    if (message.includes('invalid_curation_notice')) return { errors: { form: '텍스트 공지 바·띠배너의 문구, 버튼 문구와 공지를 보일 화면을 확인해주세요.' } };
     if (/forbidden|auth_required|operator_/.test(message)) return { errors: { form: '현재 스토어 관리 권한을 확인해주세요.' } };
     if (/invalid_|unverified_artwork|curation_image_required|catalog_item_archived|curation_ip_not_found/.test(message)) return { errors: { form: SAVE_ERROR } };
     return { errors: { form: UNCERTAIN_ERROR }, uncertain: true };
@@ -79,7 +80,7 @@ export async function upsertAdminCurationAction(
   revalidatePath('/admin');
   revalidatePath('/admin/display/curations');
   /*
-   * 공지 스트립은 전역 셸이 unstable_cache 로 읽는다 — 경로 재검증만으로는 늦는다.
+   * 셸 공지(텍스트 공지 바·띠배너)는 전역 셸이 unstable_cache 로 읽는다 — 경로 재검증만으로는 늦는다.
    * Next 16 의 revalidateTag 는 cacheLife 프로필을 요구하고 'max' 는 stale-while-
    * revalidate 라 저장한 운영자가 옛 스트립을 한 번 더 본다. 서버 액션 전용
    * updateTag 가 즉시 만료(read-your-own-writes)라서 이쪽을 쓴다.

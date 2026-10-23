@@ -79,18 +79,22 @@ describe('White Catalog 전역 셸', () => {
     expect(renderToStaticMarkup(<SiteFooter />)).toContain('wc-footer');
   });
 
-  /* 공지 스트립은 텍스트 바가 아니라 이미지 링크 배너다(R-01 §1). 데이터가 없으면 자리도 차지하지 않고,
-     PC 비율 아트웍이 모바일 폭에서 붕괴하지 않도록 모바일 소스는 picture 로 분기한다. */
+  /* 공지 스트립은 이미지 링크 배너다(R-01 §1). 데이터가 없으면 자리도 차지하지 않고,
+     PC 비율 아트웍이 모바일 폭에서 붕괴하지 않도록 모바일 소스는 picture 로 분기한다.
+     텍스트 공지 바(11 §3 Δ1)는 그 위에 쌓인다 — 세부 렌더 계약은 ShellNotices.test.tsx. */
   it('공지 스트립 데이터가 있으면 헤더 위 링크 스트립을 그린다', () => {
+    mocks.pathname = '/';
     const html = renderToStaticMarkup(
       <Nav
-        noticeStrip={{
+        notices={{ bars: [], strips: [{
           id: 'n1',
           title: '배송 공지',
           imageUrl: 'https://cdn.example/notice.webp',
           mobileImageUrl: 'https://cdn.example/notice-mobile.webp',
           href: '/events',
-        }}
+          pageTypes: null,
+          endsAt: null,
+        }] }}
       />,
     );
 
@@ -106,31 +110,35 @@ describe('White Catalog 전역 셸', () => {
     expect(
       renderToStaticMarkup(
         <Nav
-          noticeStrip={{
+          notices={{ bars: [], strips: [{
             id: 'n2',
             title: '카드팩 공지',
             imageUrl: 'https://cdn.example/packs.webp',
             mobileImageUrl: null,
             href: '/packs',
-          }}
+            pageTypes: null,
+            endsAt: null,
+          }] }}
         />,
       ),
-    ).not.toContain('wc-notice');
+    ).not.toContain('class="wc-notice"');
 
     /* 커뮤니티 임시 비공개도 같은 규칙이다 — 배너만 살아 404 로 떨어지지 않게 한다. */
     mocks.cardRewardsEnabled = true;
     expect(
       renderToStaticMarkup(
         <Nav
-          noticeStrip={{
+          notices={{ bars: [], strips: [{
             id: 'n3',
             title: '커뮤니티 공지',
             imageUrl: 'https://cdn.example/community.webp',
             mobileImageUrl: null,
             href: '/community',
-          }}
+            pageTypes: null,
+            endsAt: null,
+          }] }}
         />,
-      ).includes('wc-notice'),
+      ).includes('class="wc-notice"'),
     ).toBe(COMMUNITY_ENABLED);
   });
 
@@ -257,11 +265,19 @@ describe('White Catalog 전역 셸', () => {
   /* 축약 판정(B1, chrome-scroll.ts)은 유틸바의 문서상 위치를 공지 높이로 읽어 두 기준에 더한다.
    * 공지가 유틸바 아래로 내려가면 그 보정이 사라져 스트립이 보이는 동안 GNB부터 접힌다 — 순서가 계약이다. */
   it('공지를 유틸바 위에 두고 SSR에서는 항상 펼친 상태로 시작한다', () => {
+    mocks.pathname = '/';
     const html = renderToStaticMarkup(
-      <Nav noticeStrip={{ id: 'n1', title: '공지', imageUrl: 'https://cdn.example/n.webp', mobileImageUrl: null, href: '/events' }} />,
+      <Nav notices={{
+        bars: [{ id: 'b1', key: 'b1:abc123abc123', message: '배송 일정 안내', cta: null, pageTypes: ['home'], endsAt: null }],
+        strips: [{ id: 'n1', title: '공지', imageUrl: 'https://cdn.example/n.webp', mobileImageUrl: null, href: '/events', pageTypes: null, endsAt: null }],
+      }} />,
     );
 
     expect(html).toContain('data-condensed="false"');
+    /* 텍스트 공지 바 → 이미지 스트립 → 유틸바 → 헤더. 스킵 링크는 여전히 셸의 첫 포커스 대상이다. */
+    expect(html.indexOf('class="wc-skip-link"')).toBeLessThan(html.indexOf('class="wc-notice-bar"'));
+    expect(html.indexOf('class="wc-notice-bar"')).toBeGreaterThan(-1);
+    expect(html.indexOf('class="wc-notice-bar"')).toBeLessThan(html.indexOf('class="wc-notice"'));
     expect(html.indexOf('class="wc-notice"')).toBeGreaterThan(-1);
     expect(html.indexOf('class="wc-notice"')).toBeLessThan(html.indexOf('class="wc-utilbar"'));
     expect(html.indexOf('class="wc-utilbar"')).toBeLessThan(html.indexOf('<header'));

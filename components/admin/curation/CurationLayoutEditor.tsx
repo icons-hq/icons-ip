@@ -88,7 +88,7 @@ export function CurationLayoutEditor({ layout, operationId, preview, records, de
     <aside className="admin-store-editor__preview" aria-label="홈 영역 순서 미리보기">
       <header><h3>전체 홈 미리보기</h3><span>{device === 'mobile' ? '390px' : '1212px'}</span></header>
       <div className="admin-store-editor__preview-note">현재 공개된 콘텐츠에 편집 중인 영역 순서·노출을 적용한 모습입니다.</div>
-      <CurationPreview cardRewardsEnabled={preview.cardRewardsEnabled} curation={{ ...preview.curation, productCollections: previewCollections, layoutOrder: publicOrder }} noticeStrip={preview.noticeStrip} device={device} />
+      <CurationPreview cardRewardsEnabled={preview.cardRewardsEnabled} curation={{ ...preview.curation, productCollections: previewCollections, layoutOrder: publicOrder }} noticeBar={preview.noticeBar ?? null} noticeStrip={preview.noticeStrip} device={device} />
     </aside>
   </div>;
 }

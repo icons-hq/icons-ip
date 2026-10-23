@@ -64,6 +64,17 @@ export function analyticsAcquisition(search:URLSearchParams,referrer:string,orig
  }catch{/* Malformed referrers reveal no collected string. */}
  return {channel:'direct',source:'none',medium:'none'};
 }
+/** Global-shell notice impression/click (text notice bar or image strip). Only the public notice id crosses the boundary. */
+export type AnalyticsNoticeInteraction = 'impression' | 'click';
+export interface AnalyticsNoticeEvent { eventId: string; curationId: string; interaction: AnalyticsNoticeInteraction }
+export function parseAnalyticsNoticeEvent(input:unknown):AnalyticsNoticeEvent|null {
+ if(!input||typeof input!=='object'||Array.isArray(input))return null;
+ const row=input as Record<string,unknown>;const keys=['eventId','curationId','interaction'];
+ if(Object.keys(row).length!==keys.length||Object.keys(row).some(key=>!keys.includes(key))
+  ||typeof row.eventId!=='string'||!UUID.test(row.eventId)||typeof row.curationId!=='string'||!UUID.test(row.curationId)
+  ||(row.interaction!=='impression'&&row.interaction!=='click'))return null;
+ return {eventId:row.eventId,curationId:row.curationId,interaction:row.interaction};
+}
 export function parseAnalyticsEvent(input:unknown):AnalyticsEvent|null {
  if(!input||typeof input!=='object'||Array.isArray(input))return null;
  const row=input as Record<string,unknown>;const keys=['eventId','pageKind','targetId','linkToken','channel','source','medium'];

@@ -99,7 +99,7 @@ import { getStorefrontPresentation } from '@/lib/store-presentation.server';
 import { StorePresentationProvider } from '@/components/shell/StorePresentationProvider';
 import { CardRewardAvailabilityProvider } from '@/components/shell/CardRewardAvailability';
 import { StaffPreviewAvailabilityProvider } from '@/components/shell/StaffPreviewAvailability';
-import { getActiveNoticeStrip } from '@/lib/notice-strip.server';
+import { getShellNotices } from '@/lib/notice-strip.server';
 
 const spaceGrotesk = Space_Grotesk({
   subsets: ['latin'],
@@ -119,9 +119,10 @@ export const metadata: Metadata = {
 };
 
 export default async function RootLayout({ children }: { children: React.ReactNode }) {
-  /* 공지 스트립은 셸의 일부라 루트에서 한 번만 읽는다. 쿠키를 만지지 않는 캐시 읽기라
-     legal 라우트의 SSG가 dynamic으로 무너지지 않는다(lib/notice-strip.server.ts 주석 참고). */
-  const [noticeStrip,businessInfo,branding,navigation,presentation] = await Promise.all([getActiveNoticeStrip(),getBusinessInfo(),getStorefrontBranding(),getStorefrontNavigation(),getStorefrontPresentation()]);
+  /* 셸 공지(텍스트 공지 바·이미지 스트립)는 셸의 일부라 루트에서 한 번만 읽는다. 쿠키를 만지지 않는 캐시 읽기라
+     legal 라우트의 SSG가 dynamic으로 무너지지 않는다(lib/notice-strip.server.ts 주석 참고). 화면 유형·닫힘·스트립 선택은
+     셸이 클라이언트에서 정한다(components/shell/ShellNotices.tsx). */
+  const [notices,businessInfo,branding,navigation,presentation] = await Promise.all([getShellNotices(),getBusinessInfo(),getStorefrontBranding(),getStorefrontNavigation(),getStorefrontPresentation()]);
 
   return (
     <html lang="ko" data-scroll-behavior="smooth" className={`${spaceGrotesk.variable} ${spaceMono.variable}`}>
@@ -132,7 +133,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               {/* 스태프 전용 진입점(세컨더리 마켓 시연·커뮤니티 프리뷰)은 presence 위에서 is_staff 를 읽으므로 AuthPresence 안쪽이다. */}
               <StaffPreviewAvailabilityProvider>
                 <StorePresentationProvider value={presentation}>
-                <Nav noticeStrip={noticeStrip} branding={branding} navigation={navigation} />
+                <Nav notices={notices} branding={branding} navigation={navigation} />
                 {/* tabIndex: 셸 스킵 링크(#root)가 키보드 포커스를 본문으로 실제 이동시키기 위한 타깃. */}
                 <div id="root" tabIndex={-1}>{children}<InquiryWidget /></div>
                 <SiteFooter businessInfo={businessInfo} branding={branding} />
