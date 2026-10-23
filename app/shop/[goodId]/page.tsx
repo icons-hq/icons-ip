@@ -33,6 +33,9 @@ import { GoodOtherCompositions } from '@/components/shop/GoodOtherCompositions';
 import { loadGoodOtherCompositions } from '@/lib/good-other-compositions.server';
 import { goodOtherCompositionsNextChange } from '@/lib/good-other-compositions';
 import { goodDetailHref } from '@/lib/goods-display';
+import { pdpShelfGoodIds } from '@/lib/listing-review-summaries';
+import { loadListingReviewSummaries } from '@/lib/listing-review-summaries.server';
+import { loadListingWishlist } from '@/lib/wishlist-ids.server';
 import { breadcrumbJsonLd, goodImageUrls, goodMetaDescription, jsonLdText, productJsonLd, productOpenGraphTags, siteOrigin } from './structured-data';
 
 type PageProps = {
@@ -80,6 +83,10 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
  *
  * 각 로더는 서로를 기다릴 이유가 없어 함께 돈다. 찜·재입고 신청 여부(#326)는
  * 게스트·mock 모드에서도 던지지 않고 false 로 떨어지므로 공개 열람을 막지 않는다.
+ *
+ * 선반 카드(연관 굿즈·다른 구성·자동 추천·배송비 절약·관심 굿즈)의 목록 하트와 별점(LFS 패리티 2차 L4b · CL-01·CL-02):
+ * 위시 굿즈 ID 는 회원당 한 번(`loadListingWishlist`), 서버가 그리는 세 선반의 별점은 선반 굿즈가 정해진 뒤
+ * 한 번의 묶음으로 읽는다 — 다른 로더와 나란히 돌아 카드 수만큼 부르지 않는다. 둘 다 던지지 않는다.
  */
 export default async function Page({ params, searchParams }: PageProps) {
   const { goodId } = await params;
@@ -87,14 +94,21 @@ export default async function Page({ params, searchParams }: PageProps) {
   const reviewOptions = normalizeGoodReviewOptions(resolvedSearchParams);
   const questionOptions = normalizeGoodQuestionOptions(resolvedSearchParams);
 
-  const [detail, reviewSection, questionSection, engagement, shippingPolicy, announcements, presentation, reviewEvents, experience, media, selectedReviews, goodsBenefits, afterSales, sizeChart, otherCompositions, sellerInfo] = await Promise.all([
-    loadGoodDetail(goodId),
+  const detailRequest = loadGoodDetail(goodId);
+  const presentationRequest = loadPublicDetailPresentation(goodId);
+  const otherCompositionsRequest = loadGoodOtherCompositions(goodId);
+  const shelfReviewSummariesRequest = Promise.all([detailRequest, otherCompositionsRequest, presentationRequest])
+    .then(([loadedDetail, compositions, loadedPresentation]) => (loadedDetail
+      ? loadListingReviewSummaries(pdpShelfGoodIds({ relatedGoods: loadedDetail.relatedGoods, otherCompositions: compositions, presentation: loadedPresentation }))
+      : {}));
+  const [detail, reviewSection, questionSection, engagement, shippingPolicy, announcements, presentation, reviewEvents, experience, media, selectedReviews, goodsBenefits, afterSales, sizeChart, otherCompositions, sellerInfo, listingWishlist, listingReviewSummaries] = await Promise.all([
+    detailRequest,
     loadGoodReviewSection(goodId, reviewOptions),
     loadGoodQuestions(goodId, questionOptions),
     getGoodEngagement(goodId),
     loadGoodShippingPolicy(goodId),
     loadGoodAnnouncements(goodId),
-    loadPublicDetailPresentation(goodId),
+    presentationRequest,
     loadGoodsReviewEvents([goodId]),
     loadPublicDetailExperience(goodId),
     loadPublicGoodMedia(goodId),
@@ -102,9 +116,11 @@ export default async function Page({ params, searchParams }: PageProps) {
     loadPublicGoodsBenefits(goodId),
     loadPublicGoodsAfterSales(goodId),
     loadPublicGoodsSizeChart(goodId),
-    loadGoodOtherCompositions(goodId),
+    otherCompositionsRequest,
     /* 추가정보 탭의 판매자 정보 — 푸터와 같은 쿠키 없는 캐시 읽기다(PD-06). */
     getBusinessInfo(),
+    loadListingWishlist(),
+    shelfReviewSummariesRequest,
   ]);
   if (!detail) notFound();
   const event = reviewEvents.rows.find(row => row.goodId === goodId)?.event;
@@ -128,9 +144,9 @@ export default async function Page({ params, searchParams }: PageProps) {
         promotionBanner={presentation?.banner ? <ProductDetailBanner data={presentation} /> : undefined}
         reviewEventBanner={event ? <ReviewEventBanner event={event} /> : undefined}
         reviewHighlights={<ProductDetailReviewSummary goodId={goodId} data={presentation} />}
-        otherCompositions={<GoodOtherCompositions data={otherCompositions} />}
+        otherCompositions={<GoodOtherCompositions data={otherCompositions} reviewSummaries={listingReviewSummaries} wishlist={listingWishlist} />}
         selectedReviews={selectedReviews.length === 3 ? <GalleryBestReviews goodId={goodId} cards={selectedReviews} /> : undefined}
-        automaticRecommendations={<ProductDetailRecommendations data={presentation} manual={detail.relatedGoods} />}
+        automaticRecommendations={<ProductDetailRecommendations data={presentation} manual={detail.relatedGoods} reviewSummaries={listingReviewSummaries} wishlist={listingWishlist} />}
         purchaseMessages={experience?.messages.length ? <ProductPurchaseMessages messages={experience.messages} /> : undefined}
         discovery={experience?.discovery}
         media={media}
@@ -142,6 +158,8 @@ export default async function Page({ params, searchParams }: PageProps) {
         reviewSummary={reviewSection.unavailable ? undefined : reviewSection.summary}
         reviews={<GoodReviews goodId={goodId} section={reviewSection} />}
         sellerInfo={sellerInfo}
+        listingWishlist={listingWishlist}
+        listingReviewSummaries={listingReviewSummaries}
       />
     </>
   );

@@ -3,6 +3,9 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CatalogGoodDetail } from '@/lib/catalog';
 import type { GoodsSizeChart } from '@/lib/goods-size-chart';
 import type { PublicGoodOtherCompositions } from '@/lib/good-other-compositions';
+import type { GoodsReviewSummary } from '@/lib/goods-review-summary';
+import type { ListingWishlist } from '@/lib/listing-wishlist';
+import type { PublicDetailPresentation } from '@/lib/product-detail-presentation';
 import Page, { generateMetadata } from './page';
 
 const summary = { average: 4.5, count: 3, distribution: [0, 0, 0, 1, 2], photoCount: 1 };
@@ -18,6 +21,9 @@ const mocks = vi.hoisted(() => ({
   sizeChart: vi.fn<(goodId: string) => Promise<GoodsSizeChart | null>>(async () => null),
   otherCompositions: vi.fn<(goodId: string) => Promise<PublicGoodOtherCompositions>>(async () => ({ groups: [], nextChangeAt: null })),
   refresh: vi.fn<(props: { nextChangeAt: string | null }) => null>(() => null),
+  presentation: vi.fn<(goodId: string) => Promise<PublicDetailPresentation | null>>(async () => null),
+  wishlist: vi.fn<() => Promise<ListingWishlist | null>>(async () => null),
+  shelfReviewSummaries: vi.fn<(ids: Iterable<unknown>) => Promise<Record<string, GoodsReviewSummary>>>(async () => ({})),
   questionSection: vi.fn(async () => ({
     questions: [],
     count: 4,
@@ -49,6 +55,9 @@ vi.mock('@/lib/good-announcements.server', () => ({ loadGoodAnnouncements: async
 vi.mock('@/lib/goods-size-chart.server', () => ({ loadPublicGoodsSizeChart: mocks.sizeChart }));
 vi.mock('@/lib/good-other-compositions.server', () => ({ loadGoodOtherCompositions: mocks.otherCompositions }));
 vi.mock('@/components/shop/ProductDetailRefresh', () => ({ ProductDetailRefresh: mocks.refresh }));
+vi.mock('@/lib/product-detail-presentation.server', () => ({ loadPublicDetailPresentation: mocks.presentation }));
+vi.mock('@/lib/wishlist-ids.server', () => ({ loadListingWishlist: mocks.wishlist }));
+vi.mock('@/lib/listing-review-summaries.server', () => ({ loadListingReviewSummaries: mocks.shelfReviewSummaries }));
 vi.mock('@/lib/catalog', () => ({
   getCatalogGoodDetail: async (id: string) => mocks.details.find((item) => item.good.id === id) ?? null,
 }));
@@ -93,6 +102,9 @@ beforeEach(() => {
   mocks.sizeChart.mockReset().mockResolvedValue(null);
   mocks.otherCompositions.mockReset().mockResolvedValue({ groups: [], nextChangeAt: null });
   mocks.refresh.mockClear();
+  mocks.presentation.mockReset().mockResolvedValue(null);
+  mocks.wishlist.mockReset().mockResolvedValue(null);
+  mocks.shelfReviewSummaries.mockReset().mockResolvedValue({});
   mocks.details = [
     detailFor('g13', '아크릴 블록', 12000),
     detailFor('g14', '오로라 아크릴 키링', 9000),
@@ -110,6 +122,38 @@ describe('/shop/[goodId] page', () => {
     expect(mocks.otherCompositions).toHaveBeenCalledExactlyOnceWith('g13');
     expect(mocks.goodDetail.mock.calls[0]?.[0]?.otherCompositions).toMatchObject({ props: { data: other } });
     expect(mocks.refresh.mock.calls[0]?.[0]?.nextChangeAt).toBe('2026-10-15T04:00:00.000Z');
+  });
+
+  /* L4b · CL-01·CL-02 — 선반 카드의 위시 상태는 회원당 한 번, 서버가 그리는 세 선반의 별점은 한 번의 묶음으로 읽어
+     상세 화면(연관 굿즈·배송비 절약·관심 굿즈)과 서버 슬롯(다른 구성·자동 추천)에 같은 값을 넘긴다. */
+  it('선반 카드의 위시 ID 와 세 선반 굿즈의 별점을 한 번씩 읽어 화면과 서버 슬롯에 넘긴다', async () => {
+    const base = mocks.details[1].good;
+    const shelfGood = (id: string) => ({ ...base, id, name: `선반 ${id}` });
+    mocks.details = [{ ...mocks.details[0], relatedGoods: { nextChangeAt: null, groups: [{ id: 'related', kind: 'similar', title: '유사한 굿즈', goods: [shelfGood('r1'), shelfGood('r2')] }] } }];
+    const other: PublicGoodOtherCompositions = { groups: [{ id: '99000000-0000-4000-8000-000000000301', title: '다른 구성', goods: [{ good: shelfGood('oc1'), compositionLabel: null }, { good: shelfGood('r2'), compositionLabel: null }] }], nextChangeAt: null };
+    const presentation = { banner: null, reviews: null, nextChangeAt: null,
+      recommendations: { similar: [], together: [], categoryPopular: [shelfGood('p1')], storePopular: [shelfGood('r1')] } } as unknown as PublicDetailPresentation;
+    const wishlist: ListingWishlist = { viewerId: 'viewer-1', goodIds: ['r1', 'p1'] };
+    const summaries = { r1: { count: 2, average: 4.5 } };
+    mocks.otherCompositions.mockResolvedValue(other);
+    mocks.presentation.mockResolvedValue(presentation);
+    mocks.wishlist.mockResolvedValue(wishlist);
+    mocks.shelfReviewSummaries.mockResolvedValue(summaries);
+
+    renderToStaticMarkup(await Page({ params: Promise.resolve({ goodId: 'g13' }), searchParams: Promise.resolve({}) }));
+    const props = mocks.goodDetail.mock.calls[0]?.[0];
+
+    expect(mocks.wishlist).toHaveBeenCalledOnce();
+    expect(mocks.shelfReviewSummaries).toHaveBeenCalledExactlyOnceWith(['r1', 'r2', 'oc1', 'p1']);
+    expect(props?.listingWishlist).toBe(wishlist);
+    expect(props?.listingReviewSummaries).toBe(summaries);
+    expect(props?.otherCompositions).toMatchObject({ props: { data: other, wishlist, reviewSummaries: summaries } });
+    expect(props?.automaticRecommendations).toMatchObject({ props: { data: presentation, wishlist, reviewSummaries: summaries } });
+  });
+
+  it('없는 굿즈는 선반 별점을 묻지 않는다', async () => {
+    await expect(Page({ params: Promise.resolve({ goodId: 'g999' }), searchParams: Promise.resolve({}) })).rejects.toThrow('NEXT_NOT_FOUND');
+    expect(mocks.shelfReviewSummaries).not.toHaveBeenCalled();
   });
 
   /* 공개 브라우징 — 로그인 상태를 묻지 않고 상세를 넘긴다. */

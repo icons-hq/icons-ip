@@ -16,6 +16,8 @@ import { PdpPrice } from '@/components/shop/PdpPrice';
 import { Badge } from '@/components/wc/Badge';
 import { TabPanels, type TabPanelDef } from '@/components/wc/TabPanels';
 import type { GoodDetailContent } from '@/lib/goods-detail';
+import type { GoodsReviewSummaries } from '@/lib/goods-review-summary';
+import type { ListingWishlist } from '@/lib/listing-wishlist';
 import { goodsNoticeRows } from '@/lib/goods-notice';
 import { GoodsKcDisclosure } from '@/components/shop/GoodsKcDisclosure';
 import { GoodsDescription } from '@/components/shop/GoodsDescription';
@@ -170,6 +172,13 @@ export interface GoodDetailViewProps {
   qnaSummary?: { count: number };
   /** 추가정보 탭의 판매자 정보 — 푸터와 같은 공개 사업자 정보 소스. 없으면 기본값을 쓴다. */
   sellerInfo?: BusinessInfo;
+  /**
+   * 선반 카드(연관 굿즈·배송비 절약·관심 굿즈)의 목록 하트 초기 상태(L4b · CL-01, `lib/wishlist-ids.server`).
+   * 생략하면(어드민 미리보기·mock) 선반 카드에 하트를 그리지 않는다. 이 굿즈 자신의 하트는 `engagement` 가 맡는다.
+   */
+  listingWishlist?: ListingWishlist | null;
+  /** 서버가 그리는 선반 카드의 별점(L4b · CL-02) — 연관 굿즈 몫. 브라우저에서 굿즈를 받아 오는 선반은 스스로 묻는다. */
+  listingReviewSummaries?: GoodsReviewSummaries;
 }
 
 export function GoodDetailView({
@@ -194,6 +203,8 @@ export function GoodDetailView({
   reviewSummary,
   reviews,
   sellerInfo,
+  listingWishlist,
+  listingReviewSummaries,
 }: GoodDetailViewProps) {
   const { good, ip } = detail;
   const searchParams = useSearchParams();
@@ -331,7 +342,7 @@ export function GoodDetailView({
           {reviewEventBanner}
           {ip ? <GoodIpCard className="wc-pdp-ipcard--panel" ip={ip} /> : null}
           {/* 추천 블록(연관 굿즈 → 자동 추천)은 상세 설명 패널 맨 끝이다(LD-6, 2026-10-22 확정 — 탭 위에서 이동). */}
-          {!embedded && detail.relatedGoods ? <GoodRelatedProducts data={detail.relatedGoods} /> : null}
+          {!embedded && detail.relatedGoods ? <GoodRelatedProducts data={detail.relatedGoods} reviewSummaries={listingReviewSummaries} wishlist={listingWishlist} /> : null}
           {!embedded ? automaticRecommendations : null}
         </div>
       ),

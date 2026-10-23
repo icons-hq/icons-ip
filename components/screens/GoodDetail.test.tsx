@@ -787,6 +787,21 @@ describe('GoodDetail', () => {
     expect(html.indexOf('other-composition-marker')).toBeLessThan(html.indexOf('role="tablist"'));
   });
 
+  /* L4b · CL-01·CL-02 — 상세가 받은 위시 상태·별점을 연관 굿즈 카드로 넘긴다. 이 굿즈 자신의 하트(engagement)와는 별개다. */
+  it('선반 카드의 목록 하트와 별점을 연관 굿즈에 넘기고 어드민 미리보기에는 선반을 그리지 않는다', () => {
+    const relatedGoods = { nextChangeAt: null, groups: [{ id: 'group-a', kind: 'similar' as const, title: '유사한 굿즈',
+      goods: [{ id: 'good-b', name: '연관 굿즈', ip: 'hong-sil-quest', type: '문구', price: 3000, badge: null, img: '', stock: 'ok' as const, stockQty: 5 }] }] };
+    const html = renderToStaticMarkup(
+      <GoodDetail detail={{ ...detail, relatedGoods }} listingReviewSummaries={{ 'good-b': { count: 4, average: 4.25 } }} listingWishlist={{ viewerId: 'viewer-1', goodIds: ['good-b'] }} />,
+    );
+    const panel = html.slice(html.indexOf('id="pdp-panel-detail"'), html.indexOf('id="pdp-panel-reviews"'));
+
+    expect(panel).toContain('aria-label="연관 굿즈 위시리스트에서 빼기"');
+    expect(panel).toContain('평점 5점 만점에 4.3점, 리뷰 4개');
+    expect(renderToStaticMarkup(<GoodDetail detail={{ ...detail, relatedGoods }} />)).not.toContain('wc-list-heart');
+    expect(renderToStaticMarkup(<GoodDetailView embedded detail={{ ...detail, relatedGoods }} listingWishlist={{ viewerId: 'viewer-1', goodIds: [] }} />)).not.toContain('wc-list-heart');
+  });
+
   it('IP 주소를 바꾼 뒤 IP 카드 링크는 새 주소로 직접 간다', () => {
     const html = render({ ip: { ...detail.ip!, publicSlug: 'new-hong-sil' } });
     expect(html).toContain('href="/ip/new-hong-sil"');
