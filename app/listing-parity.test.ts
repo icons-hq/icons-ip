@@ -249,6 +249,14 @@ describe('다크 면 토큰 (11 HM-08)', () => {
 });
 
 describe('목록 카드 별점 (11 CL-02)', () => {
+  /* 카드의 sr-only 라벨(품절·별점 문장)이 슬라이더 트랙 밖으로 containing block 을 잡으면 화면 밖 페이지의
+     라벨이 문서 폭을 넓힌다(홈 1440 scrollWidth 1612·375 레이아웃 뷰포트 609 — l4-ui-1). 카드가 기준 상자다. */
+  it('카드가 sr-only 라벨의 containing block 이라 슬라이더 클립 안에 갇힌다', () => {
+    expect(decls(CATALOG, '.wc-product-card').position).toBe('relative');
+    expect(decls(CATALOG, '.wc-product-card')['z-index']).toBeUndefined();
+    expect(decls(FOUNDATION, '.wc-sr-only').position).toBe('absolute');
+  });
+
   it('가격 아래 7px 에 잉크 별·컨트롤 선 빈 칸·ink.tertiary 리뷰 수를 그린다', () => {
     expect(decls(CATALOG, '.wc-product-card__rating').margin).toBe('7px 0 0');
     expect(decls(CATALOG, '.wc-product-card__stars').color).toBe('var(--wc-ink)');
