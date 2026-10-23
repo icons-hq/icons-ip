@@ -22,6 +22,12 @@ export interface RestockCtaProps {
    * 상태 줄은 보조기기에만 둔다 — 바는 72px 고정이고 레일 박스는 화면 하단에 붙어 있어 줄이 늘면 잘린다.
    */
   compact?: boolean;
+  /**
+   * 그 사이 판매 상태가 바뀌어 신청이 거절됐을 때(invalid_request) 이 버튼을 둔 표면에 알린다. 화면을 다시 받으면
+   * 이 버튼 자리가 담기·구매로 바뀌며 이 버튼(과 상태 줄)이 사라지므로, 이유 안내와 포커스 이전은 그 표면이
+   * 맡는다(GoodPurchasePanel·레일 박스·모바일 바). 주면 이 버튼은 그 안내를 따로 띄우지 않는다.
+   */
+  onStaleState?: (notice: string) => void;
   className?: string;
 }
 
@@ -54,7 +60,7 @@ export function restockResultNotice(result: RestockAlertResult): RestockNotice |
     case 'auth_required':
       return null;
     case 'invalid_request':
-      return { tone: 'error', text: '판매 상태가 바뀌었어요. 최신 상태를 다시 불러올게요.', label: '판매 상태가 바뀌었어요' };
+      return { tone: 'error', text: '판매 상태가 바뀌었어요. 지금 상태를 확인해주세요.', label: '판매 상태가 바뀌었어요' };
     case 'account_suspended':
       return { tone: 'error', text: '정지된 계정은 재입고 알림을 신청할 수 없어요.', label: '신청할 수 없는 계정이에요' };
     default:
@@ -76,7 +82,7 @@ export function restockResultNotice(result: RestockAlertResult): RestockNotice |
  * 바꾸면 포커스가 body 로 빠진다 — 구매 시트(모달) 안이면 다이얼로그 밖이다. 결과는 버튼 옆 상태 줄
  * (role=status)이 알린다.
  */
-export function RestockCta({ className, compact = false, disabled, goodId, initialRequested, optionName, variantId = null }: RestockCtaProps) {
+export function RestockCta({ className, compact = false, disabled, goodId, initialRequested, onStaleState, optionName, variantId = null }: RestockCtaProps) {
   const [requestedKeys, setRequestedKeys] = useState<readonly string[]>([]);
   const [notice, setNotice] = useState<(RestockNotice & { key: string }) | null>(null);
   const [pending, startTransition] = useTransition();
@@ -103,7 +109,13 @@ export function RestockCta({ className, compact = false, disabled, goodId, initi
         : await requestRestockAlertAction(goodId);
       if (!result.ok) setRequestedKeys((keys) => keys.filter((item) => item !== key));
       const next = restockResultNotice(result);
-      setNotice(next ? { ...next, key } : null);
+      const stale = !result.ok && result.error === 'invalid_request';
+      if (stale && next && onStaleState) {
+        setNotice(null);
+        onStaleState(next.text);
+      } else {
+        setNotice(next ? { ...next, key } : null);
+      }
 
       if (result.ok) {
         /* PDP 는 이 버튼을 세 표면(패널·모바일 바/시트·레일 박스)에 둔다. 서버 렌더를 다시
@@ -117,7 +129,7 @@ export function RestockCta({ className, compact = false, disabled, goodId, initi
       }
       /* 그 사이 재입고·예약판매 전환·판매 중단이 있었다 — 서버 사실을 다시 받아 지금 할 수 있는 CTA 로 바꾼다
          (재입고된 옵션이면 담기·구매가 돌아온다). 다시 눌러도 같은 거절만 반복되는 버튼으로 남기지 않는다. */
-      if (result.error === 'invalid_request') router.refresh();
+      if (stale) router.refresh();
     });
   }
 

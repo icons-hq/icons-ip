@@ -495,7 +495,9 @@ describe('GoodDetail', () => {
       expect(rail).toContain('<strong class="wc-pdp-railbox__amount">₩13,000</strong>');
       expect(bar.startsWith('<div class="wc-buybar"><div class="wc-restock-cta wc-buybar__restock">'
         + '<button aria-expanded="false" aria-haspopup="dialog" class="wc-btn primary" type="button"><svg aria-hidden="true"')).toBe(true);
-      expect(bar).toContain('<span class="wc-sr-only">빨강 옵션 </span>재입고 알림 받기</button></div></div>');
+      /* 바 끝의 상태 줄(보조기기 전용)은 바에서 직접 신청한 결과가 바뀐 판매 상태로 거절됐을 때 이유를 든다. */
+      expect(bar).toContain('<span class="wc-sr-only">빨강 옵션 </span>재입고 알림 받기</button></div>'
+        + '<p aria-atomic="true" aria-live="polite" class="wc-sr-only" role="status"></p></div>');
       /* 담을 수 없는 옵션을 고른 채 [장바구니]·[구매하기]를 약속하지 않는다. 시트 안 신청 버튼(RestockCta)도 바에 없다. */
       expect(bar).not.toContain('장바구니에 담기');
       expect(bar).not.toContain('>구매하기<');

@@ -131,7 +131,27 @@ describe('RestockCta 신청 동작 (PD-11 · 리뷰 l2-ui-2·3)', () => {
     expect(button(tree).props['aria-disabled']).toBeUndefined();
     expect(text(button(tree).props.children as ReactNode)).toContain('재입고 알림 받기');
     expect(status(tree).props.className).toBe('wc-buy-panel__status');
-    expect(text(status(tree).props.children as ReactNode)).toBe('판매 상태가 바뀌었어요. 최신 상태를 다시 불러올게요.');
+    expect(text(status(tree).props.children as ReactNode)).toBe('판매 상태가 바뀌었어요. 지금 상태를 확인해주세요.');
+  });
+
+  /* 화면을 다시 받으면 이 버튼(과 그 상태 줄)은 담기·구매로 바뀌며 사라진다 — 이유와 포커스는 버튼을 둔 표면이 맡는다. */
+  it('버튼을 둔 표면이 받겠다고 하면 거절 이유를 그 표면에 넘기고 자기 상태 줄에는 띄우지 않는다', async () => {
+    mocks.requestVariant.mockResolvedValue({ ok: false, error: 'invalid_request' });
+    const onStaleState = vi.fn();
+
+    let tree = render({ onStaleState });
+    await click(tree);
+    tree = render({ onStaleState });
+
+    expect(onStaleState).toHaveBeenCalledWith('판매 상태가 바뀌었어요. 지금 상태를 확인해주세요.');
+    expect(mocks.refresh).toHaveBeenCalledTimes(1);
+    expect(text(status(tree).props.children as ReactNode)).toBe('');
+    /* 다른 실패는 그대로 버튼 옆에서 알린다. */
+    mocks.requestVariant.mockResolvedValue({ ok: false, error: 'unavailable' });
+    await click(tree);
+    tree = render({ onStaleState });
+    expect(onStaleState).toHaveBeenCalledTimes(1);
+    expect(text(status(tree).props.children as ReactNode)).toBe('재입고 알림을 신청하지 못했어요. 잠시 후 다시 시도해주세요.');
   });
 
   it('일시 오류·정지 계정은 버튼 아래 상태 줄로 알리고 화면은 그대로 둔다', async () => {

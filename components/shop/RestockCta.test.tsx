@@ -57,7 +57,7 @@ describe('RestockCta (PD-11)', () => {
     expect(restockResultNotice({ ok: true, status: 'pending' })).toEqual({ tone: 'success', text: '재입고 알림을 신청했어요.' });
     expect(restockResultNotice({ ok: false, error: 'auth_required' })).toBeNull();
     expect(restockResultNotice({ ok: false, error: 'invalid_request' })).toEqual({
-      tone: 'error', text: '판매 상태가 바뀌었어요. 최신 상태를 다시 불러올게요.', label: '판매 상태가 바뀌었어요',
+      tone: 'error', text: '판매 상태가 바뀌었어요. 지금 상태를 확인해주세요.', label: '판매 상태가 바뀌었어요',
     });
     expect(restockResultNotice({ ok: false, error: 'account_suspended' })).toEqual({
       tone: 'error', text: '정지된 계정은 재입고 알림을 신청할 수 없어요.', label: '신청할 수 없는 계정이에요',
