@@ -47,6 +47,6 @@ describe('loadMypageDashboard', () => {
 
     const dashboard = await loadMypageDashboard('user-1');
 
-    expect(dashboard).toEqual({ orders: null, wishlist: null, follows: null, coupons: { usable: 0 }, storeCredit: null });
+    expect(dashboard).toEqual({ orders: null, wishlist: { count: 0, goods: null }, follows: null, coupons: { usable: 0 }, storeCredit: null });
   });
 });

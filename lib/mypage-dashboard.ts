@@ -33,8 +33,9 @@ export interface MypageShelfGood {
 
 export interface MypageDashboard {
   orders: MypageOrderSummary | null;
-  /** count 는 찜 기록 전체(판매 종료 포함 — 위시 화면 '총 N개'와 같은 수), goods 는 지금 공개된 굿즈만. */
-  wishlist: { count: number; goods: MypageShelfGood[] } | null;
+  /** count 는 찜 기록 전체(판매 종료 포함 — 위시 화면 '총 N개'와 같은 수), goods 는 지금 공개된 굿즈만.
+      카탈로그만 못 읽었으면 goods 가 null 이다 — 찜 수는 그대로 말하고 줄만 '확인하지 못했어요'가 된다. */
+  wishlist: { count: number; goods: MypageShelfGood[] | null } | null;
   /** 공개 중인 IP 만 센다 — 비공개 IP 는 화면에 세울 수 없다. */
   follows: { count: number; ips: Ip[] } | null;
   coupons: { usable: number } | null;
@@ -66,15 +67,17 @@ export function buildMypageDashboard(sources: MypageDashboardSources): MypageDas
   const goodsById = sources.catalog ? new Map(sources.catalog.goods.map((good) => [good.id, good])) : null;
   const ipsById = sources.catalog ? new Map(sources.catalog.ips.map((ip) => [ip.id, ip])) : null;
 
-  const wishlist = sources.wishEntries && goodsById
+  const wishlist = sources.wishEntries
     ? {
       count: sources.wishEntries.length,
-      goods: sources.wishEntries
-        .flatMap((entry) => {
-          const good = goodsById.get(entry.goodId);
-          return good ? [{ good, brand: ipsById?.get(good.ip)?.title ?? null }] : [];
-        })
-        .slice(0, DASHBOARD_SHELF_LIMIT),
+      goods: goodsById
+        ? sources.wishEntries
+          .flatMap((entry) => {
+            const good = goodsById.get(entry.goodId);
+            return good ? [{ good, brand: ipsById?.get(good.ip)?.title ?? null }] : [];
+          })
+          .slice(0, DASHBOARD_SHELF_LIMIT)
+        : null,
     }
     : null;
 

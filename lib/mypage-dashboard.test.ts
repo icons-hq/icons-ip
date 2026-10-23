@@ -50,7 +50,7 @@ describe('buildMypageDashboard', () => {
     /* 판매 종료(카탈로그 밖) 굿즈도 찜 수에 든다 — 위시 화면의 '총 N개'와 같은 수다. */
     expect(dashboard.wishlist?.count).toBe(14);
     expect(dashboard.wishlist?.goods).toHaveLength(DASHBOARD_SHELF_LIMIT);
-    expect(dashboard.wishlist?.goods[0]).toEqual({ good: goods[1], brand: '비' });
+    expect(dashboard.wishlist?.goods?.[0]).toEqual({ good: goods[1], brand: '비' });
     expect(dashboard.follows).toEqual({ count: 2, ips: [ips[2], ips[0]] });
     expect(dashboard.coupons).toEqual({ usable: 2 });
     expect(dashboard.storeCredit).toEqual({ available: 4500 });
@@ -65,9 +65,12 @@ describe('buildMypageDashboard', () => {
     expect(dashboard.storeCredit).toBeNull();
     expect(dashboard.wishlist).not.toBeNull();
 
+    /* 카탈로그만 못 읽으면 찜 수는 말하고 줄만 비운다. 팔로우는 공개 IP 만 세므로 수도 모른다. */
     const noCatalog = buildMypageDashboard({ ...base, catalog: null });
-    expect(noCatalog.wishlist).toBeNull();
+    expect(noCatalog.wishlist).toEqual({ count: 14, goods: null });
     expect(noCatalog.follows).toBeNull();
     expect(noCatalog.orders).not.toBeNull();
+
+    expect(buildMypageDashboard({ ...base, wishEntries: null }).wishlist).toBeNull();
   });
 });

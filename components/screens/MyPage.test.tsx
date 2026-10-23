@@ -215,6 +215,12 @@ describe('MyPage dashboard', () => {
     expect(broken).toContain('위시리스트를 확인하지 못했어요.');
     expect(broken).toContain('팔로우한 IP를 확인하지 못했어요.');
     expect(broken).not.toContain('aria-label="주문 상태별 건수"');
+
+    /* 카탈로그만 못 읽었으면 찜 수(스트립·머리)는 그대로, 줄만 못 읽음으로 접는다. */
+    const noShelf = render({ dashboard: { ...filled, wishlist: { count: 3, goods: null } } });
+    expect(noShelf).toContain('위시리스트<span class="wc-mydash__count"> (3)</span>');
+    expect(noShelf).toContain('찜한 굿즈 목록을 불러오지 못했어요.');
+    expect(noShelf).toMatch(/wc-mypage__stat-count">3<span class="wc-sr-only">개<\/span>/);
   });
 
   it('carries the mobile shortcuts with count badges and a sign-out form', () => {

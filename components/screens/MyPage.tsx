@@ -191,6 +191,8 @@ function WishBlock({ wishlist }: { wishlist: MypageDashboard['wishlist'] }) {
       <MypageSectionHead count={wishlist?.count} href={hrefFor('wish')} id="mydash-wish" title="위시리스트" />
       {wishlist === null ? (
         <Unavailable message="위시리스트를 확인하지 못했어요." />
+      ) : wishlist.goods === null ? (
+        <Unavailable message="찜한 굿즈 목록을 불러오지 못했어요." />
       ) : wishlist.goods.length ? (
         <ul className="wc-mydash__shelf">
           {wishlist.goods.map(({ brand, good }) => (
