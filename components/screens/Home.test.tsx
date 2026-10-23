@@ -1,7 +1,11 @@
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { HomeCurationSnapshot, HomeGoodsCard } from '@/lib/home-catalog';
+import type { ListingWishlist } from '@/lib/listing-wishlist';
 import { Home } from './Home';
+
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }) }));
+vi.mock('@/app/shop/actions', () => ({ toggleWishlistAction: vi.fn() }));
 
 const emptyCuration: HomeCurationSnapshot = {
   hero: null,
@@ -78,8 +82,10 @@ describe('home sale-period state', () => {
   });
 });
 
-const render = (curation: HomeCurationSnapshot, cardRewardsEnabled = true) =>
-  renderToStaticMarkup(<Home cardRewardsEnabled={cardRewardsEnabled} curation={curation} />);
+const render = (curation: HomeCurationSnapshot, cardRewardsEnabled = true, wishlist?: ListingWishlist | null) =>
+  renderToStaticMarkup(<Home cardRewardsEnabled={cardRewardsEnabled} curation={curation} wishlist={wishlist} />);
+
+const hearts = (html: string) => [...html.matchAll(/<button[^>]*class="wc-list-heart[ "][^>]*>/g)].map((match) => match[0]);
 
 describe('Home empty curation', () => {
   it('positions free-product collections without merging BEST tabs and hides empty or disabled regions', () => {
@@ -192,6 +198,7 @@ describe('Home bands', () => {
   it('renders the editor picks band as content cards', () => {
     const html = render(fullCuration);
 
+    expect(html).toContain('class="wc-home__band wc-home__band--picks"');
     expect(html).toContain('id="home-picks-heading"');
     expect(html).toContain('에디터의 제안');
     expect(html).toContain('aria-label="에디터의 제안 콘텐츠"');
@@ -270,6 +277,29 @@ describe('Home bands', () => {
     expect(rows[1]).toContain('<span class="wc-band__row-soldout">품절</span>');
   });
 
+  /* HM-03: 행 = [링크(썸네일·글) | 하트]. 하트는 링크의 형제라 버튼이 링크 안에 들지 않는다. */
+  it('puts a listing heart beside each band row link, never inside it', () => {
+    const html = render(fullCuration, true, { signedIn: true, goodIds: ['g7'] });
+    const rows = [...html.matchAll(/<div class="wc-band__row">([\s\S]*?)<\/button><\/div>/g)].map((match) => match[1]);
+
+    expect(rows).toHaveLength(2);
+    for (const row of rows) {
+      const link = row.match(/<a\b[^>]*class="wc-band__row-link"[^>]*>[\s\S]*?<\/a>/)?.[0] ?? '';
+      expect(link).not.toContain('<button');
+      expect(row).toMatch(/<button[^>]*class="wc-list-heart[^"]* wc-band__heart"/);
+    }
+    expect(rows[1]).toContain('aria-label="굿즈 g7 위시리스트에서 빼기"');
+  });
+
+  it('puts hearts on every home product card and row only when the wish set is passed', () => {
+    const withHearts = render(fullCuration, true, { signedIn: false, goodIds: [] });
+
+    /* 탭 밴드 카드 5 + 1, 기획전 행 2. 게스트도 하트를 보고 누르면 로그인으로 간다. */
+    expect(hearts(withHearts)).toHaveLength(8);
+    expect(withHearts).not.toContain('aria-pressed="true"');
+    expect(hearts(render(fullCuration))).toHaveLength(0);
+  });
+
   /* 상품이 하나도 없는 기획전은 배너와 전체보기만 남는다 — 빈 리스트 칼럼을 그리지 않는다. */
   it('keeps only the banner when a goods band has no products', () => {
     const html = render({
@@ -282,25 +312,54 @@ describe('Home bands', () => {
     expect(html).not.toContain('wc-band__list');
   });
 
-  it('renders the card pack and game band on a grey surface', () => {
+  /* 혜택 밴드 제목은 목적지와 무관한 '혜택'이다 — 카드팩·게임 밖의 혜택 타일도 담기 때문이다(12 LD-15). */
+  it('renders the benefit band on a grey surface with a neutral heading', () => {
     const html = render(fullCuration);
 
     expect(html).toContain('wc-home__band wc-home__band--grey');
     expect(html).toContain('id="home-benefit-heading"');
-    expect(html).toContain('카드팩·게임');
+    expect(html).toMatch(/<h2 class="wc-section-heading__title" id="home-benefit-heading">혜택<\/h2>/);
+    expect(html).not.toContain('카드팩·게임');
     expect(html).toContain('href="/packs"');
     expect(html).toContain('카드팩 열기');
     /* 설명은 선택이다 — 없는 타일에 빈 줄을 남기면 타일 높이가 어긋난다. */
     expect((html.match(/wc-benefit__tile-desc/g) ?? []).length).toBe(1);
   });
 
+  /* 혜택 타일 머리에 32px 아이콘(11 HM-07) — ICONS 아이콘 세트에서 목적지로 고르고, 장식이라 읽지 않는다. */
+  it('heads each benefit tile with a decorative 32px icon chosen by destination', () => {
+    const html = render(fullCuration);
+    const icons = html.match(/<span aria-hidden="true" class="wc-benefit__tile-icon"><svg width="32" height="32"[^>]*>/g) ?? [];
+
+    expect(icons).toHaveLength(2);
+    expect(html.indexOf('wc-benefit__tile-icon')).toBeLessThan(html.indexOf('wc-benefit__tile-title'));
+  });
+
   /* 게이트가 꺼져 있으면 카드팩·게임은 존재하지 않는 기능이다. 데이터가 있어도 진입점을 열지 않는다. */
-  it('hides the benefit band while the card rewards gate is off', () => {
+  it('hides card-reward benefit tiles while the card rewards gate is off', () => {
     const html = render(fullCuration, false);
 
     expect(html).not.toContain('home-benefit-heading');
     expect(html).not.toContain('카드팩·게임');
     expect(html).not.toContain('href="/packs"');
+  });
+
+  /* LD-15(11 DT-11): 게이트는 혜택 밴드를 통째로 비우지 않는다 — 다른 큐레이션처럼 목적지로 거른다. */
+  it('keeps non card-reward benefit tiles while the gate is off', () => {
+    const html = render({
+      ...fullCuration,
+      benefitTiles: [
+        ...fullCuration.benefitTiles,
+        { id: 't3', title: '첫 구매 쿠폰', description: '가입하면 바로 쓰는 쿠폰', href: '/events/welcome' },
+      ],
+    }, false);
+
+    expect(html).toContain('id="home-benefit-heading"');
+    expect(html).toContain('첫 구매 쿠폰');
+    expect(html).toContain('href="/events/welcome"');
+    expect(html).not.toContain('카드팩 열기');
+    expect(html).not.toContain('href="/packs"');
+    expect(html).not.toContain('href="/games/reward"');
   });
 
   it('drops the benefit band when the gate is on but no tile is curated', () => {

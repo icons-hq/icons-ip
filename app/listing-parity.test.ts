@@ -167,3 +167,83 @@ describe('IP관 모바일 배너 (11 IP-05)', () => {
     expect(decls(DISCOVERY, '.wc-iphall__tags-band').display).toBe('none');
   });
 });
+
+const HOME = './styles/wc-home.css';
+
+describe('홈 밴드 (11 HM-01~07)', () => {
+  it('에디터의 제안 모바일 카드는 300px 에 min-width 0 이라 다음 카드가 보인다(HM-01)', () => {
+    const item = decls(HOME, '.wc-picks .wc-slider__track > *');
+
+    expect(item.flex).toBe('0 0 300px');
+    expect(item['min-width']).toBe('0');
+    expect(decls(HOME, '.wc-picks .wc-slider__track').gap).toBe('10px');
+  });
+
+  it('콘텐츠 카드 배지는 12/700 success 글자·grey 칸·3×6·r0 이다(HM-02)', () => {
+    const badge = decls(HOME, '.wc-content-card .wc-content-card__badge');
+
+    expect(badge['font-size']).toBe('12px');
+    expect(badge['font-weight']).toBe('700');
+    expect(badge.padding).toBe('3px 6px');
+    expect(badge['border-radius']).toBe('0');
+    expect(badge.background).toBe('var(--wc-surface-grey)');
+    expect(badge.color).toBe('var(--wc-success)');
+  });
+
+  it('리스트 행은 하단 1px 헤어라인과 여백 16/18 을 두고 마지막 행은 선이 없다(HM-03)', () => {
+    const row = decls(HOME, '.wc-band__row');
+
+    expect(row['border-bottom']).toBe('1px solid var(--wc-hairline)');
+    expect(row['padding-bottom']).toBe('16px');
+    expect(decls(HOME, '.wc-band__row', DESKTOP)['padding-bottom']).toBe('18px');
+    expect(decls(HOME, '.wc-band__row:last-child')['border-bottom']).toBe('0');
+    expect(decls(HOME, '.wc-band__list', DESKTOP)['row-gap']).toBe('18px');
+  });
+
+  it('"전체보기"는 1px line.control 선이다(HM-04)', () => {
+    const more = decls(HOME, '.wc-band__more');
+
+    expect(more.outline).toBe('1px solid var(--wc-line-control)');
+    expect(more['outline-offset']).toBe('-1px');
+    expect(more.height).toBe('50px');
+    expect(decls(HOME, '.wc-band__more', DESKTOP).width).toBe('300px');
+  });
+
+  it('섹션 제목은 28/700 자간 -0.2px 다(HM-05)', () => {
+    const title = decls(HOME, '.wc-home .wc-section-heading__title');
+
+    expect(title['font-size']).toBe('28px');
+    expect(title['letter-spacing']).toBe('-.2px');
+  });
+
+  it('에디터의 제안 바로 뒤 밴드 머리에 1px 헤어라인을 긋는다(HM-06)', () => {
+    const line = decls(HOME, '.wc-home__band--picks + .wc-home__band:not(.wc-home__band--grey) > .wc-container::before');
+
+    expect(line.height).toBe('1px');
+    expect(line.background).toBe('var(--wc-hairline)');
+  });
+
+  it('혜택 타일은 32px 아이콘을 머리에 두고 데스크톱 패딩은 32/24 다(HM-07)', () => {
+    expect(decls(HOME, '.wc-benefit__tile-icon').width).toBe('32px');
+    expect(decls(HOME, '.wc-benefit__tile', DESKTOP).padding).toBe('32px 24px');
+    expect(decls(HOME, '.wc-benefit__tile', DESKTOP)['min-height']).toBe('158px');
+  });
+});
+
+describe('다크 면 토큰 (11 HM-08)', () => {
+  const HEX_OR_RGB = /#[\da-f]{3,8}\b|rgba?\(/i;
+
+  it('홈 모자이크와 리뷰 이벤트 스타일은 하드코딩 색 없이 토큰만 쓴다', () => {
+    for (const file of ['./styles/wc-product-mosaic.css', './styles/wc-review-events.css']) {
+      postcss.parse(read(file)).walkDecls((decl) => {
+        if (decl.prop.startsWith('--')) return;
+        expect(decl.value, `${file} ${decl.prop}`).not.toMatch(HEX_OR_RGB);
+      });
+    }
+  });
+
+  it('모자이크 면과 강조형 리뷰 이벤트 배너는 잉크 면이다', () => {
+    expect(read('./styles/wc-product-mosaic.css')).toMatch(/\.wc-product-mosaic__surface \{[^}]*background: var\(--wc-ink\)/);
+    expect(read('./styles/wc-review-events.css')).toMatch(/\.wc-review-event-banner\[data-style=emphasis\] \{[^}]*background: var\(--wc-ink\)/);
+  });
+});

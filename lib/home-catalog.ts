@@ -79,15 +79,38 @@ export function isCardRewardDestination(href: string): boolean {
   }
 }
 
-/** 게이트가 꺼진 화면이 카드 리워드 목적지 큐레이션을 통째로 걸러낼 때 쓴다. */
+/**
+ * 게이트가 꺼진 화면이 카드 리워드 목적지 큐레이션을 걸러낼 때 쓴다.
+ * 혜택 타일도 다른 큐레이션처럼 목적지 기준이다 — 카드팩·게임으로 가는 타일만 빠지고 쿠폰·이벤트 같은
+ * 혜택 타일은 게이트와 무관하게 남는다(12 LD-15, 11 DT-11). 예전에는 밴드를 통째로 비웠다.
+ */
 export function withoutCardRewardCurations(curation: HomeCurationSnapshot): HomeCurationSnapshot {
   return {
     ...curation,
     heroSlides: curation.heroSlides.filter((slide) => slide.href === null || !isCardRewardDestination(slide.href)),
     editorPicks: curation.editorPicks.filter((pick) => !isCardRewardDestination(pick.href)),
     goodsBands: curation.goodsBands.filter((band) => !isCardRewardDestination(band.href)),
-    benefitTiles: [],
+    benefitTiles: curation.benefitTiles.filter((tile) => !isCardRewardDestination(tile.href)),
   };
+}
+
+/** 혜택 타일 아이콘(`components/ui/Icon` 이름). 레퍼런스 아이콘 대신 ICONS 아이콘 세트에서 목적지로 고른다(11 HM-07). */
+export type HomeBenefitIcon = 'card' | 'spark' | 'event' | 'shop' | 'ip' | 'star';
+
+export function benefitTileIcon(href: string): HomeBenefitIcon {
+  let pathname: string;
+  try {
+    pathname = decodeURIComponent(new URL(href, 'https://icons.local').pathname);
+  } catch {
+    return 'star';
+  }
+  const under = (root: string) => pathname === root || pathname.startsWith(`${root}/`);
+  if (under('/packs')) return 'card';
+  if (under('/games')) return 'spark';
+  if (under('/events') || under('/review-events') || under('/offline-popups')) return 'event';
+  if (under('/shop')) return 'shop';
+  if (under('/ip')) return 'ip';
+  return 'star';
 }
 
 /* 커뮤니티가 임시 비공개인 동안 커뮤니티로 가는 큐레이션 배너를 걸러낸다. 어드민 타깃 목록에서

@@ -5,6 +5,7 @@ import Page from './page';
 const mocks = vi.hoisted(() => ({
   cardRewardsEnabled: false,
   getHomeSnapshot: vi.fn(),
+  wishlist: { signedIn: true, goodIds: ['g1'] } as { signedIn: boolean; goodIds: string[] } | null,
 }));
 
 vi.mock('@/lib/goods-announcement-popup.server', () => ({ loadHomeAnnouncementPopup: async () => ({ item: null, nextChangeAt: null }) }));
@@ -13,6 +14,7 @@ vi.mock('@/lib/catalog', () => ({ getHomeSnapshot: mocks.getHomeSnapshot }));
 vi.mock('@/lib/card-rewards/gate.server', () => ({
   readCardRewardsEnabled: () => mocks.cardRewardsEnabled,
 }));
+vi.mock('@/lib/wishlist-ids.server', () => ({ loadListingWishlist: async () => mocks.wishlist }));
 
 const home = {
   catalog: { source: 'supabase', verticals: [], ips: [], goods: [], cards: [], events: [] },
@@ -53,6 +55,15 @@ describe('home page assembly', () => {
     expect(mocks.getHomeSnapshot).toHaveBeenCalledTimes(1);
     expect(mocks.getHomeSnapshot).toHaveBeenCalledWith();
     expect(element.props.curation).toBe(home.curation);
+  });
+
+  /* 목록 하트(11 CL-01·HM-03)의 초기 상태만 회원별이다 — 위시 ID 집합 하나를 따로 읽어 넘기고,
+     큐레이션 스냅샷은 여전히 뷰어 인자 없이 공개 데이터만 읽는다. */
+  it('passes the viewer wish set for the listing hearts while the snapshot stays viewer-agnostic', async () => {
+    const element = await Page();
+
+    expect(element.props.wishlist).toEqual({ signedIn: true, goodIds: ['g1'] });
+    expect(mocks.getHomeSnapshot).toHaveBeenCalledWith();
   });
 
   it('passes the card rewards gate straight through to the screen', async () => {

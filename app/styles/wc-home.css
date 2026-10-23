@@ -31,10 +31,22 @@
   padding: 40px 0 80px;
 }
 
-/* 홈 헤딩은 시스템 기본 24px 이 아니라 R-02 §1-1 의 28px 을 모바일·데스크톱 공통으로 쓴다. */
+/* 홈 헤딩은 시스템 기본 24px 이 아니라 R-02 §1-1 의 28px 을 모바일·데스크톱 공통으로 쓴다.
+   자간은 레퍼런스 실측 -0.2px 이다(11 HM-05 — 예전 -0.8 은 R-07 의 24px 기준값을 빌린 것). */
 .wc-home .wc-section-heading__title {
   font-size: 28px;
-  letter-spacing: -.8px;
+  letter-spacing: -.2px;
+}
+
+/* 에디터의 제안과 그다음 밴드 사이 1180 폭 1px 헤어라인(11 §3 Δ8 · HM-06). 레퍼런스에서 관측된 자리는
+   이 한 곳뿐이라 다른 밴드 사이에는 긋지 않는다. 운영자가 순서를 바꿔도 에디터의 제안 바로 뒤를 따라가고,
+   회색 면 밴드(혜택) 앞에서는 면 경계가 이미 구분이라 긋지 않는다. */
+.wc-home__band--picks + .wc-home__band:not(.wc-home__band--grey) > .wc-container::before {
+  content: '';
+  display: block;
+  height: 1px;
+  margin-bottom: 24px;
+  background: var(--wc-hairline);
 }
 
 @media (min-width: 990px) {
@@ -44,6 +56,10 @@
 
   .wc-hero + .wc-home__band {
     padding-top: 120px;
+  }
+
+  .wc-home__band--picks + .wc-home__band:not(.wc-home__band--grey) > .wc-container::before {
+    margin-bottom: 36px;
   }
 
   .wc-home__empty {
@@ -285,6 +301,19 @@
   padding-top: 14px;
 }
 
+/* 콘텐츠 카드 배지 — 상품 배지(11/600 · 틴트)가 아니라 12/700 소형 액센트 글자 + surface.grey 칸,
+   3×6 패딩, 각진 모서리다(레퍼런스 실측 · 11 HM-02). 글자는 소형 액센트 텍스트 규칙대로 state.success 다. */
+.wc-content-card .wc-content-card__badge {
+  padding: 3px 6px;
+  font-size: 12px;
+  font-weight: 700;
+  line-height: 1.15;
+  border: 0;
+  border-radius: 0;
+  background: var(--wc-surface-grey);
+  color: var(--wc-success);
+}
+
 /* 배지는 이미지 위 오버레이가 아니라 정보 영역의 첫 줄이다(R-02 §2②).
    배지 아래 10px 간격은 타이틀의 margin-top 이 그대로 낸다 — 마진을 양쪽에서 겹쳐 주지 않는다.
    editorial 파운데이션이 h1~h3에 display 서체와 잉크색을 강제하므로 지면 값으로 되돌린다. */
@@ -317,8 +346,11 @@
   gap: 10px;
 }
 
+/* min-width:0 이 없으면 flex 항목의 최소 폭이 콘텐츠(한 줄 고정 제목)만큼 커져 첫 카드가 351px 로 늘고
+   다음 카드가 화면 밖으로 밀린다(11 HM-01). 300 + gap 10 이면 375 폭에서 다음 카드가 49px 보인다. */
 .wc-picks .wc-slider__track > * {
   flex: 0 0 300px;
+  min-width: 0;
 }
 
 /* 모바일 에디터의 제안은 자유 스와이프만 — fraction·화살표를 숨긴다(R-02 §1-4·§2②). */
@@ -465,22 +497,44 @@
 .wc-band__list {
   display: flex;
   flex-direction: column;
-  row-gap: 33px;
+  row-gap: 16px;
+}
+
+/* 행 = [링크(썸네일·글) | 하트]. 행마다 하단 1px 헤어라인과 그 위 여백(모바일 16·데스크톱 18)을 두고
+   마지막 행은 선 없이 끝난다(레퍼런스 380×99 · 11 HM-03). 하트는 링크의 형제라 버튼이 링크 안에 들지 않는다. */
+.wc-band__row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  column-gap: 8px;
+  align-items: end;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--wc-hairline);
+}
+
+.wc-band__row:last-child {
+  padding-bottom: 0;
+  border-bottom: 0;
 }
 
 /* 두 번째 트랙을 `minmax(0, 1fr)` 로 열어야 상품명 한 줄 말줄임이 실제로 작동한다 —
    기본 `1fr` 은 min-content 바닥을 깔아서 긴 이름이 행을 밀어낸다. */
-.wc-band__row {
+.wc-band__row-link {
   display: grid;
   grid-template-columns: 80px minmax(0, 1fr);
   column-gap: 15px;
   align-items: center;
+  min-width: 0;
   color: inherit;
   text-decoration: none;
 }
 
-.wc-band__row > * {
+.wc-band__row-link > * {
   min-width: 0;
+}
+
+/* 행 하트는 가격 줄 높이에 맞춰 바닥에 붙는다 — 44 히트 영역의 아래 4px 를 행 여백 쪽으로 물린다. */
+.wc-band__heart {
+  margin-bottom: -4px;
 }
 
 .wc-band__thumb {
@@ -527,7 +581,8 @@
   color: var(--wc-ink);
 }
 
-/* 보더가 아니라 outline 이다 — 안쪽으로 당겨 그려야 50px 높이가 그대로 유지된다(R-02 §1-5). */
+/* 보더가 아니라 outline 이다 — 안쪽으로 당겨 그려야 50px 높이가 그대로 유지된다(R-02 §1-5).
+   선은 1px line.control(#C8CACC)이다(11 §4 R-02 §1-5 정정 · HM-04 — 예전 1.5px 잉크는 기록 오류 추종). */
 .wc-band__more {
   display: flex;
   align-items: center;
@@ -539,8 +594,8 @@
   font-weight: 700;
   text-decoration: none;
   border-radius: var(--wc-radius-form);
-  outline: 1.5px solid var(--wc-ink);
-  outline-offset: -1.5px;
+  outline: 1px solid var(--wc-line-control);
+  outline-offset: -1px;
   background: var(--wc-surface);
   color: var(--wc-ink);
 }
@@ -558,7 +613,15 @@
   }
 
   .wc-band__list {
-    row-gap: 37px;
+    row-gap: 18px;
+  }
+
+  .wc-band__row {
+    padding-bottom: 18px;
+  }
+
+  .wc-band__row:last-child {
+    padding-bottom: 0;
   }
 
   .wc-band__more {
@@ -603,6 +666,19 @@
   background: var(--wc-surface);
   color: inherit;
   text-decoration: none;
+}
+
+/* 타일 머리 아이콘 32 — 레퍼런스 아이콘을 옮기지 않고 ICONS 아이콘 세트에서 목적지로 고른다(11 HM-07). */
+.wc-benefit__tile-icon {
+  display: block;
+  width: 32px;
+  height: 32px;
+  margin-bottom: 12px;
+  color: var(--wc-ink);
+}
+
+.wc-benefit__tile-icon svg {
+  display: block;
 }
 
 .wc-benefit__tile-title {
@@ -697,9 +773,10 @@
     flex: 0 0 calc((100% - 60px) / 4);
   }
 
+  /* 280×158 흰 타일, 패딩 32(세로)/24(가로) — 레퍼런스 실측. */
   .wc-benefit__tile {
     min-height: 158px;
-    padding: 24px 32px;
+    padding: 32px 24px;
   }
 
   .wc-benefit__tile-title {

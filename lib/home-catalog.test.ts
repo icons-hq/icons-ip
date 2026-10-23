@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import type { CatalogPostPreview, CatalogSnapshot } from './catalog';
 import type { Card, FandomEvent, Good, Ip, Vertical } from './data';
 import {
+  benefitTileIcon,
   buildHomeIpWorld,
   getHomeSelectableIps,
   isCommunityDestination,
@@ -21,6 +22,32 @@ it('링크 없는 프로모션 배너는 카드·커뮤니티 게이트와 무�
   const curation: HomeCurationSnapshot = { hero: null, announcement: null, featuredIpIds: [], editorPicks: [], goodsBands: [], categoryBestTabs: [], popularTabs: [], benefitTiles: [],
     heroSlides: [{ id: 'no-link', title: '', subtitle: null, imageUrl: '/banner.webp', mobileImageUrl: null, href: null }] };
   expect(withoutCommunityCurations(withoutCardRewardCurations(curation)).heroSlides).toEqual(curation.heroSlides);
+});
+
+/* LD-15(11 DT-11): 게이트 OFF 는 혜택 밴드를 통째로 비우지 않는다 — 카드팩·게임 목적지 타일만 뺀다. */
+it('게이트가 꺼지면 카드팩·게임으로 가는 혜택 타일만 걸러내고 나머지 혜택은 남긴다', () => {
+  const curation: HomeCurationSnapshot = { hero: null, announcement: null, featuredIpIds: [], heroSlides: [], editorPicks: [], goodsBands: [], categoryBestTabs: [], popularTabs: [],
+    benefitTiles: [
+      { id: 'packs', title: '카드팩', description: null, href: '/packs' },
+      { id: 'game', title: '게임', description: null, href: '/games/reward?x=1' },
+      { id: 'coupon', title: '쿠폰', description: null, href: '/events/welcome' },
+      { id: 'broken', title: '깨진 링크', description: null, href: 'http://[' },
+    ] };
+
+  expect(withoutCardRewardCurations(curation).benefitTiles.map((tile) => tile.id)).toEqual(['coupon']);
+  expect(curation.benefitTiles).toHaveLength(4);
+});
+
+it('혜택 타일 아이콘은 목적지에서 ICONS 아이콘 이름으로 고른다', () => {
+  expect(benefitTileIcon('/packs')).toBe('card');
+  expect(benefitTileIcon('/packs/season-1')).toBe('card');
+  expect(benefitTileIcon('/games/marble')).toBe('spark');
+  expect(benefitTileIcon('/events/welcome')).toBe('event');
+  expect(benefitTileIcon('/review-events/abc')).toBe('event');
+  expect(benefitTileIcon('/shop?type=%ED%82%A4%EB%A7%81')).toBe('shop');
+  expect(benefitTileIcon('/ip/rilakkuma')).toBe('ip');
+  expect(benefitTileIcon('/my/coupons')).toBe('star');
+  expect(benefitTileIcon('/packsale')).toBe('star');
 });
 
 describe('automatic home goods selection', () => {
