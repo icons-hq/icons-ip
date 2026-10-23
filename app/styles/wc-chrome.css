@@ -91,8 +91,101 @@
 }
 
 /* ------------------------------------------------------------------
-   공지 스트립
+   공지 (텍스트 공지 바 · 이미지 스트립)
    ------------------------------------------------------------------ */
+
+/* 셸 공지 묶음(ShellNotices) — 유틸바 위, 스크롤과 함께 빠지는 일반 흐름이다(sticky 아님, R-01 §1·3.1).
+   패딩·보더를 두지 않아 공지가 모두 닫히거나 숨으면 높이 0으로 사라진다(빈 띠 없음).
+   후보 공지는 hidden으로 접는데, 아래 클래스의 display가 UA의 [hidden]을 이기므로 여기서 다시 끈다. */
+.wc-notices {
+  display: block;
+}
+
+.wc-notice-bar[hidden],
+.wc-notice[hidden] {
+  display: none;
+}
+
+/* 텍스트 공지 바(11 §3 Δ1): 데스크톱 1440×47, 13px 문구 + 잉크 버튼(높이 23) + 오른쪽 끝 닫기.
+   배경은 레퍼런스 #F2F2F2 대신 surface.grey 토큰이다. 긴 문구는 줄을 바꿔 바가 자란다 — 자르지 않는다. */
+.wc-notice-bar {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 47px;
+  padding: 8px 56px;
+  background: var(--wc-surface-grey);
+  color: var(--wc-ink);
+}
+
+.wc-notice-bar__body {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 4px 8px;
+  max-width: var(--wc-container-max);
+  margin: 0;
+  font-size: 13px;
+  font-weight: 400;
+  line-height: 1.25;
+  letter-spacing: -.2px;
+  text-align: center;
+}
+
+.wc-notice-bar__message {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.wc-notice-bar__cta {
+  position: relative;
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  height: 23px;
+  padding: 0 11px;
+  font-size: 11px;
+  font-weight: 400;
+  line-height: 1;
+  text-decoration: none;
+  white-space: nowrap;
+  border-radius: var(--wc-radius-form);
+  background: var(--wc-ink);
+  color: #FFFFFF;
+}
+
+/* 보이는 버튼은 23px지만 누르는 영역은 바 높이(47)까지 넓힌다 — 터치 대상 44px(DESIGN touch-target). */
+.wc-notice-bar__cta::before {
+  content: '';
+  position: absolute;
+  inset: -12px -4px;
+}
+
+.wc-notice-bar__close {
+  position: absolute;
+  top: 50%;
+  right: 2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  margin-top: -22px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--wc-ink);
+  cursor: pointer;
+}
+
+/* 모바일은 레퍼런스처럼 왼쪽을 좁혀 375 폭에서도 문구와 버튼이 한 줄에 서게 한다(오른쪽은 닫기 자리). */
+@media (max-width: 989px) {
+  .wc-notice-bar {
+    padding: 8px 44px 8px 12px;
+  }
+}
 
 /* 큐레이션 kind(notice_strip) 한 장을 통째로 감싸는 링크 배너다. 높이를 고정하지 않고
    이미지 비율을 그대로 따른다(R-01 §1) — 스트립 높이가 그대로 축약 히스테리시스 밴드에 더해진다.

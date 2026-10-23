@@ -251,5 +251,33 @@ describe('검색 모달 배경 inert (공지 스트립 포함)', () => {
     const { readFileSync } = await import('node:fs');
     const src = readFileSync(new URL('./useOverlayA11y.ts', import.meta.url), 'utf8');
     expect(src).toMatch(/'[^']*\.wc-notice[^']*'/);
+    /* 텍스트 공지 바의 버튼·닫기도 딤 밖에 남는 조작부다(L8a). */
+    expect(src).toMatch(/'[^']*\.wc-notice-bar[^']*'/);
+  });
+});
+
+describe('셸 공지 (CH-01 텍스트 공지 바 · CH-02 스트립)', () => {
+  /* 공지는 유틸바 위 일반 흐름이다 — sticky·fixed가 되면 sticky 크롬 높이(--wc-sticky-chrome-h)와 해시 착지선이 공지만큼 어긋난다. */
+  it('공지 묶음·바·스트립은 스크롤과 함께 빠지는 일반 흐름이고 묶음 자체는 높이를 더하지 않는다', () => {
+    for (const selector of ['.wc-notices', '.wc-notice-bar', '.wc-notice']) {
+      expect(['sticky', 'fixed']).not.toContain(declsFor(selector).position);
+    }
+    const group = declsFor('.wc-notices');
+    for (const prop of ['padding', 'margin', 'border', 'min-height', 'height']) expect(group[prop], prop).toBeUndefined();
+  });
+
+  /* 후보는 hidden으로 접는다. 클래스의 display가 UA [hidden]을 이기므로 다시 꺼야 닫힌 뒤 빈 띠가 남지 않는다. */
+  it('hidden 처리된 공지 바·스트립은 자리를 차지하지 않는다', () => {
+    expect(declsFor('.wc-notice-bar[hidden]')).toMatchObject({ display: 'none' });
+    expect(declsFor('.wc-notice[hidden]')).toMatchObject({ display: 'none' });
+  });
+
+  it('공지 바는 47 높이·회색 면·13px 문구, 버튼 23, 닫기 44 터치 대상이다(11 §3 Δ1)', () => {
+    expect(declsFor('.wc-notice-bar')).toMatchObject({ 'min-height': '47px', background: 'var(--wc-surface-grey)', position: 'relative' });
+    expect(declsFor('.wc-notice-bar__body')).toMatchObject({ 'font-size': '13px', 'flex-wrap': 'wrap' });
+    expect(declsFor('.wc-notice-bar__cta')).toMatchObject({ height: '23px', background: 'var(--wc-ink)' });
+    expect(declsFor('.wc-notice-bar__close')).toMatchObject({ width: '44px', height: '44px', position: 'absolute' });
+    /* 23px 버튼의 누르는 영역은 바 높이까지 넓힌다. */
+    expect(declsFor('.wc-notice-bar__cta::before')).toMatchObject({ position: 'absolute' });
   });
 });
