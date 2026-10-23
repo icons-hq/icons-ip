@@ -106,7 +106,7 @@ describe('모바일 카트 크롬 (CT-03)', () => {
   it('바가 마지막 행·푸터·문의 런처를 가리지 않게 바닥을 연다', () => {
     expect(decls(catalog, '.wc-cart', MOBILE)['padding-block']).toBe('0 calc(117px + env(safe-area-inset-bottom))');
     expect(decls(catalog, '#root:has(.wc-cart__cta-bar) .wc-inquiry-widget__launcher', MOBILE).bottom).toBe('calc(109px + env(safe-area-inset-bottom))');
-    expect(decls(catalog, '#root:has(.wc-cart__cta-bar) ~ .wc-footer', MOBILE)['padding-bottom']).toBe('calc(133px + env(safe-area-inset-bottom))');
+    expect(decls(catalog, '#root:has(.wc-cart__cta-bar) ~ .wc-footer', MOBILE)['padding-bottom']).toBe('calc(173px + env(safe-area-inset-bottom))');
   });
 });
 

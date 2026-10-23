@@ -3495,9 +3495,10 @@
     bottom: calc(109px + env(safe-area-inset-bottom));
   }
 
-  /* 푸터 바닥 여백도 탭바(62) 대신 주문 바를 기준으로 연다 — 맨 아래 줄이 바에 가리지 않는다. */
+  /* 푸터 바닥 여백도 탭바(62) 대신 주문 바와 그 위 문의 런처를 기준으로 연다 — 맨 아래 줄(저작권)이 바(93)에도,
+     바 위로 올린 런처(109 + 48)에도 가리지 않는다(+ 간격 16). */
   #root:has(.wc-cart__cta-bar) ~ .wc-footer {
-    padding-bottom: calc(133px + env(safe-area-inset-bottom));
+    padding-bottom: calc(173px + env(safe-area-inset-bottom));
   }
 }
 
