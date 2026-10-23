@@ -17,7 +17,7 @@ import {
   type ShellNotices as ShellNoticeData,
 } from '@/lib/shell-notices';
 import { analyticsPage } from '@/lib/store-analytics';
-import { recordShellNoticeEvent } from '@/lib/store-analytics-client';
+import { beginShellNoticePageView, recordShellNoticeEvent } from '@/lib/store-analytics-client';
 import { InlineScript } from './InlineScript';
 
 function browserSessionStorage(): Storage | null {
@@ -69,7 +69,9 @@ export function ShellNotices({
 
   /* 노출은 화면에 절반 이상 보였을 때 화면(경로)당 공지마다 한 번 센다. 다음 공지 바로 바뀌어도 이미 센 스트립은 다시 세지 않는다. */
   useEffect(() => {
-    if (!measured || typeof IntersectionObserver === 'undefined') return;
+    if (!measured) return;
+    beginShellNoticePageView(pathname);
+    if (typeof IntersectionObserver === 'undefined') return;
     if (impressionsRef.current.pathname !== pathname) impressionsRef.current = { pathname, ids: new Set() };
     const seen = impressionsRef.current.ids;
     const targets = Array.from(rootRef.current?.querySelectorAll<HTMLElement>('[data-notice-id]:not([hidden])') ?? [])

@@ -23,19 +23,47 @@ export function storeAnalyticsCollecting(): boolean {
 
 export type ShellNoticeInteraction = 'impression' | 'click';
 
+/* 화면(경로)마다 노출을 실제로 보낸 공지. 서버는 같은 세션의 노출 없는 클릭을 받지 않으므로, 동의 전에 보여(보내지 못한)
+   공지를 동의 뒤 같은 화면에서 누르면 클릭 직전에 노출을 한 번 보낸다. 클릭이 화면을 바꿔도 클릭한 화면 기준으로 판단하도록
+   화면마다 번호를 매기고 최근 몇 화면만 기억한다. */
+const KEPT_VIEWS = 5;
+let viewKey = '';
+let viewSeq = 0;
+const sentByView = new Map<number, Set<string>>();
+
+export function beginShellNoticePageView(key: string): void {
+  if (key === viewKey) return;
+  viewKey = key;
+  viewSeq += 1;
+  sentByView.set(viewSeq, new Set());
+  for (const seq of sentByView.keys()) if (seq <= viewSeq - KEPT_VIEWS) sentByView.delete(seq);
+}
+
+function postNoticeEvent(curationId: string, interaction: ShellNoticeInteraction, eventId: string) {
+  return fetch(STORE_ANALYTICS_API, {
+    method: 'POST',
+    credentials: 'same-origin',
+    cache: 'no-store',
+    // 클릭 뒤 화면이 바뀌어도 요청이 끊기지 않게 한다.
+    keepalive: true,
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ action: 'notice', event: { eventId, curationId, interaction } }),
+  });
+}
+
 /** 셸 공지 노출·클릭 한 건. 사건 ID는 지금 정해 재전송이 같은 사건으로 남게 한다. */
 export function recordShellNoticeEvent(curationId: string, interaction: ShellNoticeInteraction): void {
-  const event = { eventId: crypto.randomUUID(), curationId, interaction };
+  const eventId = crypto.randomUUID();
+  const impressionId = crypto.randomUUID();
+  const view = viewSeq;
   enqueueStoreAnalytics(async () => {
     if (!collecting) return;
-    await fetch(STORE_ANALYTICS_API, {
-      method: 'POST',
-      credentials: 'same-origin',
-      cache: 'no-store',
-      // 클릭 뒤 화면이 바뀌어도 요청이 끊기지 않게 한다.
-      keepalive: true,
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'notice', event }),
-    });
+    const sent = sentByView.get(view);
+    if (interaction === 'click' && !sent?.has(curationId)) {
+      await postNoticeEvent(curationId, 'impression', impressionId);
+      sent?.add(curationId);
+    }
+    await postNoticeEvent(curationId, interaction, eventId);
+    if (interaction === 'impression') sent?.add(curationId);
   });
 }
