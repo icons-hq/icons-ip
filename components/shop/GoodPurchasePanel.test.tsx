@@ -421,6 +421,20 @@ describe('GoodPurchasePanel', () => {
     expect(html).toContain('현재 재고보다 많이 담을 수 없습니다.');
   });
 
+  /* QA l2-qa-2 — 실패·거절 안내가 성공색으로 그려지던 결함. 성공(담았어요)만 기본 상태 줄이고 나머지는 실패 표시다. */
+  it('상태 줄은 담기 성공만 성공 표시이고 카트·검증 오류는 실패 표시(is-error)다', () => {
+    const status = (html: string) => /<p aria-atomic="true" aria-live="polite" class="([^"]*)" role="status">([^<]*)<\/p>/.exec(html)?.slice(1);
+
+    expect(status(renderToStaticMarkup(<GoodPurchasePanel purchase={controller({ message: CART_ADDED_STATUS })} />)))
+      .toEqual(['wc-buy-panel__status', CART_ADDED_STATUS]);
+    expect(status(renderToStaticMarkup(<GoodPurchasePanel purchase={controller({ message: '현재 재고보다 많이 담을 수 없습니다.' })} />)))
+      .toEqual(['wc-buy-panel__status is-error', '현재 재고보다 많이 담을 수 없습니다.']);
+    expect(status(renderToStaticMarkup(<GoodPurchasePanel purchase={controller({ message: '아크릴 블록: 각인 문구을(를) 1~100자로 입력해주세요.' })} />)))
+      .toEqual(['wc-buy-panel__status is-error', '아크릴 블록: 각인 문구을(를) 1~100자로 입력해주세요.']);
+    /* 비어 있으면 기본 상태 줄 그대로(빈 줄은 CSS 가 자리를 접는다). */
+    expect(status(renderToStaticMarkup(<GoodPurchasePanel purchase={controller()} />))).toEqual(['wc-buy-panel__status', '']);
+  });
+
   it('추가상품은 선택형이며 선택한 상품의 옵션과 독립 수량을 표시한다', () => {
     const extraOption = { id: 'extra-blue', name: '파랑', price: 3000, stockQty: 4, code: 'EXTRA-BLUE', attributes: { 색상: '파랑' }, isDefault: false };
     const unavailableOption = { ...extraOption, id: 'extra-red', name: '빨강', stockQty: 0 };

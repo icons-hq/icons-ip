@@ -147,11 +147,11 @@ export function RestockCta({ className, compact = false, disabled, goodId, initi
         {requested ? '재입고 알림 신청됨' : compact && visibleError?.label ? visibleError.label : '재입고 알림 받기'}
       </button>
       {/* 성공은 버튼 글자가 이미 말하므로 보조기기에만 알린다. 실패는 본문 패널에서 버튼 아래에 보이고(구매 패널
-          상태 줄과 같은 서체), 좁은 표면에서는 버튼 글자가 대신 말한다. 비어 있으면 자리를 차지하지 않는다. */}
+          상태 줄과 같은 서체·실패색 is-error), 좁은 표면에서는 버튼 글자가 대신 말한다. 비어 있으면 자리를 차지하지 않는다. */}
       <p
         aria-atomic="true"
         aria-live="polite"
-        className={visibleError && !compact ? 'wc-buy-panel__status' : 'wc-sr-only'}
+        className={visibleError && !compact ? 'wc-buy-panel__status is-error' : 'wc-sr-only'}
         role="status"
       >
         {shown?.text ?? ''}

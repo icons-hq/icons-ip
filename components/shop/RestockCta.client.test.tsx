@@ -130,7 +130,7 @@ describe('RestockCta 신청 동작 (PD-11 · 리뷰 l2-ui-2·3)', () => {
     expect(mocks.push).not.toHaveBeenCalled();
     expect(button(tree).props['aria-disabled']).toBeUndefined();
     expect(text(button(tree).props.children as ReactNode)).toContain('재입고 알림 받기');
-    expect(status(tree).props.className).toBe('wc-buy-panel__status');
+    expect(status(tree).props.className).toBe('wc-buy-panel__status is-error');
     expect(text(status(tree).props.children as ReactNode)).toBe('판매 상태가 바뀌었어요. 지금 상태를 확인해주세요.');
   });
 
@@ -160,7 +160,7 @@ describe('RestockCta 신청 동작 (PD-11 · 리뷰 l2-ui-2·3)', () => {
     await click(tree);
     tree = render();
     expect(text(status(tree).props.children as ReactNode)).toBe('재입고 알림을 신청하지 못했어요. 잠시 후 다시 시도해주세요.');
-    expect(status(tree).props.className).toBe('wc-buy-panel__status');
+    expect(status(tree).props.className).toBe('wc-buy-panel__status is-error');
     expect(mocks.refresh).not.toHaveBeenCalled();
 
     /* 다시 누르면 안내를 지우고 새로 신청한다. */

@@ -584,6 +584,10 @@ export function GoodPurchasePanel({ otherPurchases, purchase }: { otherPurchases
     ? [good.customInputs?.enabled ? '직접 입력 옵션' : null, purchase.additionalChoices?.length ? '추가 구성 굿즈' : null].filter((label): label is string => label !== null)
     : [];
   const foldedNote = cta.kind === 'restock' && cta.variantId ? foldedPurchaseInputsNote(foldedInputs) : null;
+  /* 상태 줄은 성공(담았어요) 말고는 실패·거절 안내다(카트·검증 오류, 구매 조건, 재입고 거절) — 문구가 뜻을 전하고 색은
+     state.danger 로 보탠다(DESIGN form-feedback). */
+  const statusText = stale.notice ?? message;
+  const statusIsError = Boolean(statusText) && statusText !== CART_ADDED_STATUS;
 
   return (
     <div className="wc-buy-panel" ref={panelRef}>
@@ -645,8 +649,8 @@ export function GoodPurchasePanel({ otherPurchases, purchase }: { otherPurchases
       {!disabled ? <div className="wc-buy-panel__other-purchases"><SubscriptionPurchaseEntry available={otherPurchases?.subscription} goodId={good.id} />{good.transactionOffer?.fulfillment?.mode !== 'digital' ? <GiftPurchaseEntry available={otherPurchases?.gift} /> : null}</div> : null}
       {/* 서버 확인 전에는 "완료"라고 하지 않는다(DESIGN §9) — 카트 저장이 끝난 뒤에만 채운다. 재입고 신청이 바뀐
           판매 상태로 거절되면 그 이유도 여기 남는다(신청 버튼은 담기·구매로 바뀌며 사라진다). */}
-      <p aria-atomic="true" aria-live="polite" className="wc-buy-panel__status" role="status">
-        {stale.notice ?? message ?? ''}
+      <p aria-atomic="true" aria-live="polite" className={`wc-buy-panel__status${statusIsError ? ' is-error' : ''}`} role="status">
+        {statusText ?? ''}
       </p>
       {purchase.cartError && purchase.refreshCart ? <WcButton disabled={purchase.busy} onClick={purchase.refreshCart}>장바구니 새로고침</WcButton> : null}
     </div>
