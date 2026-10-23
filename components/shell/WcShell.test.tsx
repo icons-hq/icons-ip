@@ -254,6 +254,18 @@ describe('White Catalog 전역 셸', () => {
     expect(renderToStaticMarkup(<Nav />)).toContain('wc-tabbar');
   });
 
+  /* CT-03: 모바일 카트는 하단 고정 주문 바(93px)가 최하단을 차지한다. 탭바를 남기면 바 뒤로 가려진 유령 내비가 된다.
+     전역 헤더는 DOM 에 남긴다 — 데스크톱은 그대로 쓰고, 모바일은 카트 화면의 서브헤더가 있는 동안 CSS가 감춘다. */
+  it('장바구니에서는 헤더를 남기고 바텀 탭바만 접는다', () => {
+    mocks.pathname = '/cart';
+
+    const html = renderToStaticMarkup(<Nav />);
+
+    expect(html).not.toContain('wc-tabbar');
+    expect(html).toContain('wc-header');
+    expect(html).toContain('aria-current="page" aria-label="장바구니, 4개"');
+  });
+
   /* B3·MC-03: 탭바 숨김 여부는 셸(스크롤 판정·검색 오버레이)이 정하고, 탭바는 data-hidden 하나로만 표현한다.
    * SSR은 항상 노출로 시작해야 첫 페인트에 탭바가 없다가 튀어나오지 않는다. */
   it('하단 탭바는 SSR에서 노출로 시작하고 숨김 신호를 data-hidden으로 표현한다', () => {

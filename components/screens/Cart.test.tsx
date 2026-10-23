@@ -78,6 +78,9 @@ vi.mock('@/app/cart/coupon-actions', () => ({
   clearCouponAction: vi.fn(),
 }));
 
+/* 모바일 서브헤더의 [← 이전]이 라우터를 쓴다. 정적 렌더라 클릭은 일어나지 않는다. */
+vi.mock('next/navigation', () => ({ useRouter: () => ({ back: vi.fn(), push: vi.fn() }) }));
+
 const DEFAULT_VARIANT = '00000000-0000-4000-8000-000000000013';
 const SOLD_VARIANT = '00000000-0000-4000-8000-000000000014';
 const goods: Good[] = [
@@ -326,7 +329,7 @@ describe('Cart 라인 상태', () => {
   });
 });
 
-describe('Cart 빈 상태', () => {
+describe('Cart 빈 상태 (CT-02)', () => {
   it('굿즈샵으로 돌려보낸다', () => {
     const html = render([]);
 
@@ -334,6 +337,137 @@ describe('Cart 빈 상태', () => {
     expect(html).toContain('굿즈샵 둘러보기');
     expect(html).toContain('href="/shop"');
     expect(html).not.toContain('wc-cart__summary');
+  });
+
+  /* 서버 렌더·첫 페인트는 굿즈샵이다 — 직전에 보던 목록 주소는 하이드레이션 뒤 탭 세션에서 읽는다(lib/listing-return). */
+  it('16/400 안내 다음 액센트 CTA 하나를 고정 바 묶음에 담고, 일러스트(LG-7)가 없으면 자리를 그리지 않는다', () => {
+    const html = render([]);
+
+    expect(html).toContain('<p class="wc-cart__empty-message">장바구니가 비어 있어요</p>');
+    expect(html).toMatch(/<div class="wc-cart__cta-bar"><a class="wc-btn accent wc-cart__empty-cta" href="\/shop">굿즈샵 둘러보기<\/a><\/div>/);
+    expect(html.indexOf('wc-cart__empty-message')).toBeLessThan(html.indexOf('wc-cart__empty-cta'));
+    expect(html).not.toContain('wc-cart__empty-art');
+    expect(html).not.toContain('href="/checkout"');
+  });
+});
+
+describe('Cart 모바일 크롬 (CT-03)', () => {
+  /* 990px 미만에서는 서브헤더가 전역 헤더를 대신한다(CSS). 제목은 h1 과 같은 말이라 보조기기에는 감춘다. */
+  it('[이전 페이지] 버튼·제목·[홈] 링크 서브헤더를 화면 맨 앞에 두고 h1 은 유지한다', () => {
+    const html = render([{ goodId: 'g13', variantId: DEFAULT_VARIANT, qty: 1 }]);
+    const subheader = html.slice(html.indexOf('<nav aria-label="장바구니 상단 메뉴"'), html.indexOf('</nav>') + 6);
+
+    expect(subheader).toContain('class="wc-cart-subheader"');
+    expect(subheader).toMatch(/<button aria-label="이전 페이지" class="wc-cart-subheader__btn wc-cart-subheader__back" type="button">/);
+    expect(subheader).toContain('<p aria-hidden="true" class="wc-cart-subheader__title">장바구니</p>');
+    expect(subheader).toMatch(/<a aria-label="홈" class="wc-cart-subheader__btn" href="\/">/);
+    expect(html.indexOf('wc-cart-subheader')).toBeLessThan(html.indexOf('<h1 class="wc-cart__title">장바구니</h1>'));
+  });
+
+  it('불러오는 중에도 서브헤더는 남고 주문 바는 없다', () => {
+    mocks.ready = false;
+    const html = render([{ goodId: 'g13', variantId: DEFAULT_VARIANT, qty: 1 }]);
+
+    expect(html).toContain('wc-cart-subheader');
+    expect(html).toContain('장바구니를 불러오는 중이에요.');
+    expect(html).not.toContain('wc-cart__cta-bar');
+  });
+
+  /* 모바일 바는 예상 총액이 확정된 동안만 금액을 싣는다 — 같은 기존 계산값이고, 데스크톱 문구(수량)는 그대로 남는다. */
+  it('주문 CTA 를 고정 바 묶음에 담고 예상 총액이 확정되면 "₩금액 주문하기" 문구를 함께 싣는다', () => {
+    const html = render([{ goodId: 'g13', variantId: DEFAULT_VARIANT, qty: 1 }]);
+    const bar = html.slice(html.indexOf('<div class="wc-cart__cta-bar">'));
+
+    expect(bar).toMatch(/^<div class="wc-cart__cta-bar"><a class="wc-btn primary wc-cart__checkout wc-cart__checkout--amount" href="\/checkout">/);
+    expect(bar).toContain('<span class="wc-cart__checkout-count">1개 굿즈 주문하기</span>');
+    expect(bar).toContain('<span class="wc-cart__checkout-amount">₩15,000 주문하기</span>');
+  });
+
+  it('배송비가 확정되지 않았거나 주문서 계약이면 금액 문구 없이 수량 문구만 싣는다', () => {
+    mocks.quote = { ...defaultQuote, checkoutAllowed: false, finalTotalFee: null,
+      groups: [{ ...gimpoGroup, regionMode: 'managed', regionStatus: 'address_required', finalFee: null, regionalFee: null }] };
+    let html = render([{ goodId: 'g13', variantId: DEFAULT_VARIANT, qty: 1 }]);
+    expect(html).toContain('class="wc-btn primary wc-cart__checkout" href="/checkout"');
+    expect(html).not.toContain('wc-cart__checkout-amount');
+
+    mocks.precheckout = transactionPrecheckout();
+    html = renderTransaction();
+    expect(html).toContain('<span class="wc-cart__checkout-count">1개 굿즈 주문하기</span>');
+    expect(html).not.toContain('wc-cart__checkout-amount');
+  });
+
+  it('주문할 수 없는 카트의 바는 금액을 보여도 링크가 아니다', () => {
+    const html = render([{ goodId: 'gone', variantId: DEFAULT_VARIANT, qty: 1 }]);
+
+    expect(html).toMatch(/<div class="wc-cart__cta-bar"><span aria-disabled="true" class="wc-btn primary disabled wc-cart__checkout[^"]*">/);
+    expect(html).not.toContain('href="/checkout"');
+  });
+});
+
+describe('Cart 요약 박스 (CT-01)', () => {
+  it('예상 총액이 금액이면 강조 칸(wc-cart__total)에 기존 계산값을 그대로 싣는다', () => {
+    const html = render([{ goodId: 'g13', variantId: DEFAULT_VARIANT, qty: 1 }]);
+
+    expect(html).toContain('<td class="wc-cart__total">₩15,000</td>');
+    expect(html).not.toContain('wc-cart__total--pending');
+  });
+
+  it('안내 문구면 금액 서체로 키우지 않는 칸(--pending)에 둔다', () => {
+    mocks.quote = null;
+    let html = render([{ goodId: 'g13', variantId: DEFAULT_VARIANT, qty: 1 }]);
+    expect(html).toContain('<td class="wc-cart__total wc-cart__total--pending">배송비 확인 후 표시</td>');
+
+    mocks.precheckout = transactionPrecheckout();
+    html = renderTransaction();
+    expect(html).toContain('<td class="wc-cart__total wc-cart__total--pending">주문서에서 할인·배송비 확인 후 표시</td>');
+  });
+});
+
+describe('Cart 목록 행 (CT-04)', () => {
+  const lineOf = (html: string, marker: string) => html.split('<li class="wc-cart__line').find((chunk) => chunk.includes(marker)) ?? '';
+
+  it('브랜드·이름·단가 다음 옵션 밴드에 옵션·수량·삭제를 두고, 줄 금액은 밴드 뒤에 둔다', () => {
+    const options = [
+      { id: '00000000-0000-4000-8000-000000000001', name: '파랑', price: 12000, stockQty: 2, code: 'BLUE', attributes: {}, isDefault: true },
+      { id: '00000000-0000-4000-8000-000000000002', name: '빨강', price: 15000, stockQty: 3, code: 'RED', attributes: {}, isDefault: false },
+    ];
+    mocks.items = [{ goodId: 'g13', variantId: options[1].id, qty: 2 }];
+    mocks.quotePrices = new Map(options.map((option) => [option.id, option.price]));
+    const html = renderToStaticMarkup(<Cart catalog={{ goods: [{ ...goods[0], options }], ips: [] }} couponState={emptyCouponState} />);
+    const line = lineOf(html, '빨강');
+    const band = line.slice(line.indexOf('<div class="wc-cart__line-band">'), line.indexOf('<p class="wc-cart__line-total">'));
+
+    expect(line.indexOf('wc-cart__line-media')).toBeLessThan(line.indexOf('wc-cart__line-info'));
+    expect(line.indexOf('wc-cart__line-name')).toBeLessThan(line.indexOf('wc-price'));
+    expect(line.indexOf('wc-price')).toBeLessThan(line.indexOf('wc-cart__line-band'));
+    expect(band).toContain('<div class="wc-cart__line-detail"><p class="wc-cart__line-option">빨강</p></div>');
+    expect(band).toContain('aria-label="홍실 아크릴 블록 수량"');
+    expect(band).toContain('aria-label="홍실 아크릴 블록 장바구니에서 삭제"');
+    expect(band.indexOf('wc-stepper')).toBeLessThan(band.indexOf('wc-cart__remove'));
+    expect(line).toContain('<p class="wc-cart__line-total">₩30,000</p>');
+  });
+
+  it('직접 입력 값은 옵션과 함께 밴드 왼쪽에 둔다', () => {
+    const fieldId = '00000000-0000-4000-8000-0000000000f1';
+    mocks.items = [{ goodId: 'g13', variantId: DEFAULT_VARIANT, qty: 1, customInputs: { revision: 1, fields: [{ id: fieldId, name: '각인 문구', value: 'ICONS' }] } }];
+    const customGood: Good = { ...goods[0], customInputs: { enabled: true, revision: 1, fields: [{ id: fieldId, name: '각인 문구', active: true }] } };
+    const html = renderToStaticMarkup(<Cart catalog={{ goods: [customGood], ips: [] }} couponState={emptyCouponState} />);
+    const line = lineOf(html, '각인 문구');
+
+    expect(line).toMatch(/<div class="wc-cart__line-detail"><dl class="wc-custom-inputs-summary"><div><dt>각인 문구<\/dt><dd>ICONS<\/dd><\/div><\/dl><\/div>/);
+    expect(line).not.toContain('wc-cart__line-state');
+    expect(line).toContain('wc-stepper');
+  });
+
+  it('품절 라인의 밴드는 수량 없이 삭제만, 판매 종료 라인도 밴드에 삭제를 둔다', () => {
+    let html = render([{ goodId: 'g14', variantId: SOLD_VARIANT, qty: 1 }]);
+    let band = lineOf(html, '품절된 키링');
+    expect(band).not.toContain('wc-stepper');
+    expect(band).toMatch(/<div class="wc-cart__line-band"><div class="wc-cart__line-detail"><\/div><button aria-label="품절된 키링 장바구니에서 삭제" class="wc-cart__remove"/);
+
+    html = render([{ goodId: 'gone', variantId: DEFAULT_VARIANT, qty: 1 }]);
+    band = lineOf(html, '판매 종료된 굿즈 (gone)');
+    expect(band).toMatch(/<div class="wc-cart__line-band"><div class="wc-cart__line-detail"><\/div><button aria-label="판매 종료된 굿즈 gone 삭제" class="wc-cart__remove"/);
   });
 });
 
@@ -394,7 +528,8 @@ describe('origin quote and option lines', () => {
     mocks.quotePeriods.set(options[3].id, { regularPrice: 13800, ...period });
     const catalogGood = { ...goods[0], price: 10800, priceMax: 13800, catalogPrice: 10800, catalogCompareAtPrice: 12000, compareAtPrice: 12000, options };
     const html = renderToStaticMarkup(<Cart catalog={{ goods: [catalogGood], ips: [] }} couponState={emptyCouponState} />);
-    const linePrice = (name: string) => html.split(`<p class="wc-cart__line-option">${name}</p>`)[1]?.split('wc-cart__line-controls')[0] ?? '';
+    /* 줄마다 그 줄의 <li> 하나만 잘라 본다 — 단가 블록은 옵션 밴드 앞(정보 칸)에 있다(CT-04). */
+    const linePrice = (name: string) => html.split('<li class="wc-cart__line').find((chunk) => chunk.includes(`<p class="wc-cart__line-option">${name}</p>`)) ?? '';
 
     expect(linePrice('기본형')).toMatch(/₩12,000<\/s>.*>10%<.*>₩10,800</);
     expect(linePrice('추가 500원')).toMatch(/₩12,500<\/s>.*>10%<.*>₩11,300</);
