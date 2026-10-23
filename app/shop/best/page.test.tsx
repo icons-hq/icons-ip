@@ -10,10 +10,12 @@ const mocks = vi.hoisted(() => ({
   popularTabs: [] as HomeBestTab[],
 }));
 vi.mock('@/lib/catalog-categories.server', () => ({ loadPublicCatalogCategories: async () => [] }));
+vi.mock('@/lib/wishlist-ids.server', () => ({ loadListingWishlist: async () => ({ signedIn: false, goodIds: [] }) }));
+vi.mock('@/app/shop/actions', () => ({ toggleWishlistAction: vi.fn() }));
 
 vi.mock('next/navigation', () => ({
   usePathname: () => '/shop/best',
-  useRouter: () => ({ replace: vi.fn(), push: vi.fn() }),
+  useRouter: () => ({ replace: vi.fn(), push: vi.fn(), refresh: vi.fn() }),
 }));
 vi.mock('@/lib/catalog', () => ({
   getHomeSnapshot: async (): Promise<HomeSnapshot> => ({
@@ -108,7 +110,9 @@ describe('/shop/best page', () => {
 
     expect(html).toMatch(/<h1[^>]*>BEST<\/h1>/);
     expect(html).toContain('지금 가장 사랑받는 굿즈예요.');
-    expect(html.replace(/<[^>]+>/g, '')).toContain('전체 2개 굿즈');
+    expect(html.replace(/<[^>]+>/g, '')).toContain('전체 › 2개 굿즈');
+    /* 게스트에게도 카드 하트가 보인다(누르면 로그인 벽 — CL-01). */
+    expect((html.match(/<button[^>]*class="wc-list-heart"/g) ?? []).length).toBe(2);
     expect(html.indexOf('1위 굿즈')).toBeLessThan(html.indexOf('2위 굿즈'));
     expect(html).not.toContain('큐레이션 밖 굿즈');
   });
