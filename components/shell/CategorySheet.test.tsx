@@ -89,4 +89,12 @@ describe('모바일 카테고리 시트 (MC-05)', () => {
     expect(noIps).not.toContain('role="tablist"');
     expect(noIps).toContain('<h2 class="wc-sheet__title">카테고리</h2><ul class="wc-catsheet__grid">');
   });
+
+  it('대화상자·탭 이름은 운영 메뉴 이름을 따른다', () => {
+    const html = render({ categoryLabel: '상품 분류', onlinePopupLabel: 'IP관' });
+    expect(html).toContain('aria-label="상품 분류" aria-modal="true"');
+    expect(html).toContain('aria-label="상품 분류 닫기"');
+    expect(html).toMatch(/id="wc-catsheet-tab-categories"[^>]*>상품 분류<\/button>/);
+    expect(html).toMatch(/id="wc-catsheet-tab-ips"[^>]*>IP관<\/button>/);
+  });
 });

@@ -160,6 +160,9 @@ function WcChrome({
   const categoryLive = isCategoryMenuLive(megaMenus);
   const shortcutGroup = configuredNavigationGroups([CATEGORY_MEGA_GROUPS[0]], navItems)[0] ?? null;
   const sheetShortcuts = configuredNavigationGroups([CATEGORY_SHEET_SHORTCUTS], navItems)[0]?.items ?? [];
+  /* 시트의 이름·탭도 운영 메뉴 설정을 따른다 — GNB에서 숨긴 온라인 팝업은 시트 탭에서도 빠지고, 바꾼 이름은 그대로 쓴다. */
+  const shopLabel = navItems.find((item) => item.id === 'shop')?.label ?? '카테고리';
+  const onlinePopupItem = navItems.find((item) => item.id === 'iphub') ?? null;
 
   return (
     <div className="wc-root wc-chrome">
@@ -253,7 +256,7 @@ function WcChrome({
                       panelId="wc-mega-online-popup"
                       pathname={pathname}
                     >
-                      {(close) => <OnlinePopupMega ips={megaMenus.featuredIps} onNavigate={close} pathname={pathname} />}
+                      {(close) => <OnlinePopupMega ips={megaMenus.featuredIps} label={item.label} onNavigate={close} pathname={pathname} />}
                     </MegaMenuItem>
                   );
                 }
@@ -316,9 +319,11 @@ function WcChrome({
         <OverlayPortal>
           <CategorySheet
             campaigns={megaMenus.campaigns}
-            featuredIps={megaMenus.featuredIps}
+            categoryLabel={shopLabel}
+            featuredIps={onlinePopupItem ? megaMenus.featuredIps : []}
             nodes={megaMenus.categories}
             onClose={closeOverlay}
+            onlinePopupLabel={onlinePopupItem?.label ?? '온라인 팝업'}
             shortcuts={sheetShortcuts}
           />
         </OverlayPortal>
@@ -546,7 +551,7 @@ function CategoryMegaCatalog({
 
 /* CH-07 — 온라인 팝업 메가메뉴(R-01 §4.1 메가메뉴 B·C): 1열 디렉토리 피처드 IP 목록, 4열부터 '전체보기' + 피처드 상위 2개 이미지 타일.
    이미지가 없는 IP 타일은 이름 첫 글자로 선다. */
-function OnlinePopupMega({ ips, onNavigate, pathname }: { ips: StorefrontMenuIp[]; onNavigate: () => void; pathname: string }) {
+function OnlinePopupMega({ ips, label, onNavigate, pathname }: { ips: StorefrontMenuIp[]; label: string; onNavigate: () => void; pathname: string }) {
   const directoryHref = hrefFor('iphub');
   return (
     <ul className="wc-container wc-mega__list wc-mega__list--ip">
@@ -563,7 +568,7 @@ function OnlinePopupMega({ ips, onNavigate, pathname }: { ips: StorefrontMenuIp[
       <li className="wc-mega__group wc-mega__group--tiles">
         <Link
           aria-current={pathname === directoryHref ? 'page' : undefined}
-          aria-label="온라인 팝업 전체보기"
+          aria-label={`${label} 전체보기`}
           className="wc-mega__heading wc-mega__heading-link"
           href={directoryHref}
           onClick={onNavigate}

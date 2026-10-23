@@ -75,15 +75,21 @@ function SheetSection({ children, title }: { children: ReactNode; title?: string
    useOverlayA11y 가 맡는다. 호출부(Nav)가 body 직계 포털로 열린 동안에만 마운트한다. */
 export function CategorySheet({
   campaigns,
+  categoryLabel = '카테고리',
   featuredIps,
   nodes,
   onClose,
+  onlinePopupLabel = '온라인 팝업',
   shortcuts,
 }: {
   campaigns: StorefrontMenuCampaign[];
+  /** 시트를 연 GNB 항목(카테고리)의 운영 이름 — 대화상자 이름과 첫 탭 이름이다. */
+  categoryLabel?: string;
   featuredIps: StorefrontMenuIp[];
   nodes: StorefrontCategoryNode[];
   onClose: () => void;
+  /** 온라인 팝업 GNB 항목의 운영 이름 — 둘째 탭 이름이다. */
+  onlinePopupLabel?: string;
   shortcuts: NavItem[];
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
@@ -100,8 +106,8 @@ export function CategorySheet({
   return (
     <>
       <div aria-hidden className="wc-sheet-dim wc-catsheet-dim" onClick={onClose} />
-      <div ref={panelRef} aria-label="카테고리" aria-modal="true" className="wc-sheet wc-catsheet" role="dialog">
-        <button aria-label="카테고리 닫기" className="wc-icon-btn wc-sheet__close" onClick={onClose} type="button">
+      <div ref={panelRef} aria-label={categoryLabel} aria-modal="true" className="wc-sheet wc-catsheet" role="dialog">
+        <button aria-label={`${categoryLabel} 닫기`} className="wc-icon-btn wc-sheet__close" onClick={onClose} type="button">
           <Icon name="close" size={24} />
         </button>
         <div className="wc-sheet__inner">
@@ -149,13 +155,13 @@ export function CategorySheet({
                 className="wc-catsheet__tabs"
                 idBase="wc-catsheet"
                 panels={[
-                  { id: 'categories', label: '카테고리', content: categoryGrid },
-                  { id: 'ips', label: '온라인 팝업', content: <TileGrid onNavigate={onClose} tiles={ipTiles} /> },
+                  { id: 'categories', label: categoryLabel, content: categoryGrid },
+                  { id: 'ips', label: onlinePopupLabel, content: <TileGrid onNavigate={onClose} tiles={ipTiles} /> },
                 ]}
               />
             </SheetSection>
           ) : (
-            <SheetSection title="카테고리">{categoryGrid}</SheetSection>
+            <SheetSection title={categoryLabel}>{categoryGrid}</SheetSection>
           )}
         </div>
       </div>
