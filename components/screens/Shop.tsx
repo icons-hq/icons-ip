@@ -125,6 +125,8 @@ const VIEW_HEADINGS: Record<ShopView, { title: string; subcopy?: string }> = {
   all: { title: '굿즈샵' },
   new: { title: 'NEW', subcopy: '새로 나온 굿즈를 모아 봤어요.' },
   best: { title: 'BEST', subcopy: '지금 가장 사랑받는 굿즈예요.' },
+  search: { title: '검색 결과' },
+  ip: { title: '굿즈' },
 };
 
 const SHEET_TABS = [
