@@ -187,6 +187,25 @@ describe('Home bands', () => {
     expect(render({ ...fullCuration, reviewBestBands: [{ id: 'review-a', title: '베스트리뷰', goods: reviewGoods }], layoutOrder: ['popular'] })).not.toContain('home-reviews-review-a-heading');
   });
 
+  /* L4b — 리뷰 BEST 밴드의 '★ 평균 · 리뷰 N'은 같은 홈의 카드 별점과 같은 그룹 범위 요약을 보인다(선정은 굿즈 단위 그대로). */
+  it('shows the review band rating from the group-scope summary and falls back to the selection statistic', () => {
+    const reviewGoods = ['r1', 'r2', 'r3', 'r4'].map((id) => ({ ...good(id, id === 'r1' ? { reviewSummary: { count: 31, average: 4.25 } } : {}),
+      ratingAverage: 4.5, reviewCount: 12,
+      review: { id: `review-${id}`, rating: 5, body: '공개 후기', authorName: '공개 닉네임', createdAt: '2026-10-01T00:00:00Z' },
+    }));
+    const html = render({ ...emptyCuration, reviewBestBands: [{ id: 'review-a', title: '베스트리뷰', goods: reviewGoods }],
+      categoryBestTabs: [{ id: 'keyring', label: '키링', goods: [good('r1', { reviewSummary: { count: 31, average: 4.25 } })] }] });
+    const ratingOf = (id: string) => html.match(new RegExp(`<a class="wc-home-review__rating"[^>]*href="/shop/${id}\\?reviewPage=1#reviews"[^>]*>[\\s\\S]*?</a>`))?.[0] ?? '';
+
+    expect(ratingOf('r1')).toContain('aria-label="굿즈 r1 평점 4.25점, 리뷰 31개 보기"');
+    expect(ratingOf('r1')).toContain('4.25');
+    expect(ratingOf('r1')).toContain('리뷰 31');
+    expect(ratingOf('r1')).not.toContain('리뷰 12');
+    /* 같은 홈의 카드 별점과 같은 숫자다. */
+    expect(html).toContain('평점 5점 만점에 4.3점, 리뷰 31개');
+    expect(ratingOf('r2')).toContain('aria-label="굿즈 r2 평점 4.50점, 리뷰 12개 보기"');
+  });
+
   it('renders the hero carousel from the curated slides', () => {
     const html = render(fullCuration);
 

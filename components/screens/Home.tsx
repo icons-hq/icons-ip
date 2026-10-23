@@ -4,7 +4,7 @@ import Link from 'next/link';
 import { ReviewEventDisclosureNote } from '@/components/reviews/ReviewEventBanner';
 import { Fragment, type ReactNode } from 'react';
 import { defaultHomeBlockKeys, type HomeRankingBlockKey } from '@/lib/home-layout';
-import { HOME_REVIEW_GOODS_MIN, type HomeReviewBestBand } from '@/lib/home-ranking';
+import { HOME_REVIEW_GOODS_MIN, homeReviewBandRating, type HomeReviewBestBand } from '@/lib/home-ranking';
 import { ProductMosaic } from '@/components/home/ProductMosaic';
 import { ProductCollection } from '@/components/home/ProductCollection';
 import { HomeShoppingStories } from '@/components/home/ShoppingStories';
@@ -145,19 +145,23 @@ function ReviewProductBand({ band, heartFor }: { band: HomeReviewBestBand; heart
       <SectionHeading id={`home-reviews-${band.id}-heading`} title={band.title} />
       <Slider label={`${band.title} 굿즈`}>
         {paginate(band.goods, HOME_REVIEW_GOODS_MIN).map((page) => <div className="wc-home-review__page" key={page[0].id}>
-          {page.map((good) => <div className="wc-home-review__item" key={good.id}>
-            <ProductCard action={heartFor(good)} badges={good.badge ? [good.badge] : undefined} brand={good.brand}
-              href={good.href} imageBackground={good.imageBg} name={good.name}
-              price={good.price} priceMax={good.priceMax} salePeriod={good.salePeriod} soldOut={good.soldOut} />
-            <Link className="wc-home-review__rating" href={`${good.href}?reviewPage=1#reviews`} aria-label={`${good.name} 평점 ${good.ratingAverage.toFixed(2)}점, 리뷰 ${good.reviewCount}개 보기`}>
-              <span aria-hidden>★</span> {good.ratingAverage.toFixed(2)} <span>리뷰 {good.reviewCount.toLocaleString('ko-KR')}</span>
-            </Link>
-            <blockquote className="wc-home-review__quote">
-              <p>{good.review.body}</p>
-              <ReviewEventDisclosureNote value={good.review.eventDisclosure} />
-              <footer><span>{good.review.authorName}</span><time dateTime={good.review.createdAt}>{new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(good.review.createdAt))}</time></footer>
-            </blockquote>
-          </div>)}
+          {page.map((good) => {
+            /* 보이는 숫자는 카드 별점과 같은 그룹 범위다(L4b) — 선정 기준은 굿즈 단위 집계 그대로(lib/home-ranking). */
+            const rating = homeReviewBandRating(good);
+            return <div className="wc-home-review__item" key={good.id}>
+              <ProductCard action={heartFor(good)} badges={good.badge ? [good.badge] : undefined} brand={good.brand}
+                href={good.href} imageBackground={good.imageBg} name={good.name}
+                price={good.price} priceMax={good.priceMax} salePeriod={good.salePeriod} soldOut={good.soldOut} />
+              <Link className="wc-home-review__rating" href={`${good.href}?reviewPage=1#reviews`} aria-label={`${good.name} 평점 ${rating.average.toFixed(2)}점, 리뷰 ${rating.count}개 보기`}>
+                <span aria-hidden>★</span> {rating.average.toFixed(2)} <span>리뷰 {rating.count.toLocaleString('ko-KR')}</span>
+              </Link>
+              <blockquote className="wc-home-review__quote">
+                <p>{good.review.body}</p>
+                <ReviewEventDisclosureNote value={good.review.eventDisclosure} />
+                <footer><span>{good.review.authorName}</span><time dateTime={good.review.createdAt}>{new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit' }).format(new Date(good.review.createdAt))}</time></footer>
+              </blockquote>
+            </div>;
+          })}
         </div>)}
       </Slider>
     </div>

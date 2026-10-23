@@ -109,6 +109,18 @@ export function selectHomeReviewGoods(
   }).slice(0, rule.mode === 'manual' ? HOME_REVIEW_MANUAL_LIMIT : HOME_REVIEW_AUTO_LIMIT);
 }
 
+/**
+ * 리뷰 BEST 밴드의 '★ 평균 · 리뷰 N' 표시값(LFS 패리티 2차 L4b). 선정 — 평균 3 이상·평점순 정렬·최근 후기 — 은 굿즈 단위
+ * 집계(`get_home_review_candidates` 의 ratingAverage·reviewCount)로 그대로 하고, 보이는 숫자만 같은 홈의 카드·리스트 행
+ * 별점과 같은 묶음 그룹 범위 요약(`reviewSummary`, `get_goods_review_summaries`)을 쓴다 — 같은 굿즈가 한 홈에서 두 숫자로
+ * 보이지 않게. 요약을 읽지 못한 실행(어드민 미리보기처럼 별점을 읽지 않는 스냅샷·조회 실패)은 선정 집계값을 보인다.
+ */
+export function homeReviewBandRating(good: Pick<HomeReviewGoodsCard, 'ratingAverage' | 'reviewCount' | 'reviewSummary'>): { average: number; count: number } {
+  return good.reviewSummary
+    ? { average: good.reviewSummary.average, count: good.reviewSummary.count }
+    : { average: good.ratingAverage, count: good.reviewCount };
+}
+
 export function buildHomeReviewBestBand(
   id: string, title: string, rule: HomeReviewRule, goods: readonly HomeGoodsCard[], rankings: HomeProductRankings,
 ): HomeReviewBestBand {
