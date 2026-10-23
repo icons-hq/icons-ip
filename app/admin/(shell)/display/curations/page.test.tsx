@@ -40,7 +40,7 @@ vi.mock('@/lib/admin/orders.server', () => ({ getAdminOrderRecords: mocks.orders
 vi.mock('@/lib/catalog', () => ({ getHomeSnapshot: mocks.home }));
 vi.mock('@/lib/admin/home-layout.server', () => ({ getAdminHomeLayout: mocks.homeLayout }));
 vi.mock('@/lib/card-rewards/gate.server', () => ({ readCardRewardsEnabled: vi.fn(async () => false) }));
-vi.mock('@/lib/notice-strip.server', () => ({ getActiveNoticeStrip: vi.fn(async () => null) }));
+vi.mock('@/lib/notice-strip.server', () => ({ getShellNotices: vi.fn(async () => ({ bars: [], strips: [] })) }));
 vi.mock('@/lib/home-ranking.server', () => ({ loadHomeProductRankings: vi.fn(async () => ({ sales: { realtime: [], daily: [], weekly: [], monthly: [] }, reviewStatistics: [], salesAvailable: true, reviewsAvailable: true })) }));
 vi.mock('@/lib/auth/admin', () => ({
   getCurrentAdminAuthState: vi.fn(async () => mocks.authState),

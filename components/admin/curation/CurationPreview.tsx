@@ -3,8 +3,10 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Home } from '@/components/screens/Home';
+import { Icon } from '@/components/ui/Icon';
 import { COMMUNITY_ENABLED } from '@/lib/community-visibility';
 import { isCardRewardDestination, isCommunityDestination, type HomeCurationSnapshot, type NoticeStrip } from '@/lib/home-catalog';
+import { shellNoticeDestinationAllowed, type ShellNoticeBar } from '@/lib/shell-notices';
 
 export type CurationPreviewDevice = 'mobile' | 'desktop';
 
@@ -15,11 +17,13 @@ export function CurationPreview({
   cardRewardsEnabled,
   curation,
   device,
+  noticeBar = null,
   noticeStrip,
 }: {
   cardRewardsEnabled: boolean;
   curation: HomeCurationSnapshot;
   device: CurationPreviewDevice;
+  noticeBar?: ShellNoticeBar | null;
   noticeStrip: NoticeStrip | null;
 }) {
   const frameRef = useRef<HTMLIFrameElement>(null);
@@ -53,6 +57,9 @@ export function CurationPreview({
   const visibleNotice = noticeStrip
     && (cardRewardsEnabled || !isCardRewardDestination(noticeStrip.href))
     && (COMMUNITY_ENABLED || !isCommunityDestination(noticeStrip.href));
+  const visibleBar = noticeBar
+    && shellNoticeDestinationAllowed(noticeBar.cta?.href ?? null, { cardRewardsEnabled, communityEnabled: COMMUNITY_ENABLED })
+    ? noticeBar : null;
 
   return (
     <div className="admin-store-editor__preview-stage" ref={stageRef}>
@@ -80,6 +87,18 @@ export function CurationPreview({
               if ((event.target as HTMLElement).closest('a')) event.preventDefault();
             }}
           >
+            {/* 공개 셸과 같은 마크업·CSS로 텍스트 공지 바를 띠배너 위에 그린다. 미리보기에서는 닫지 않는다. */}
+            {visibleBar ? (
+              <div className="wc-root wc-chrome">
+                <aside aria-label="스토어 공지" className="wc-notice-bar">
+                  <p className="wc-notice-bar__body">
+                    <span className="wc-notice-bar__message">{visibleBar.message}</span>
+                    {visibleBar.cta ? <a className="wc-notice-bar__cta" href={visibleBar.cta.href}>{visibleBar.cta.label}</a> : null}
+                  </p>
+                  <span aria-hidden className="wc-notice-bar__close"><Icon name="close" size={16} /></span>
+                </aside>
+              </div>
+            ) : null}
             {visibleNotice ? (
               <div className="wc-root wc-chrome">
                 <a className="wc-notice" href={noticeStrip.href}>

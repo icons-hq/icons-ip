@@ -143,6 +143,28 @@ describe('admin curation action', () => {
     }));
   });
 
+  it('텍스트 공지 바의 버튼·대상 payload를 넘기고 셸 공지 캐시를 즉시 만료시킨다', async () => {
+    const form = curationForm({ kind: 'notice_bar', title: '배송 일정 안내', imagePath: '', linkPath: '/events', ctaLabel: '보기', pageTypesField: '1' });
+    form.append('pageTypes', 'product');
+    form.append('pageTypes', 'home');
+    await expect(upsertAdminCurationAction({}, form)).resolves.toEqual({ message: '홈 큐레이션을 저장했습니다.' });
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_save_home_curation', expect.objectContaining({
+      target_kind: 'notice_bar', target_image_path: null, target_link_path: '/events',
+      target_payload: { page_types: ['home', 'product'], cta_label: '보기' },
+    }));
+    expect(mocks.updateTag.mock.calls).toEqual([['home-curations']]);
+  });
+
+  it('공지 검증 거절은 결과 불명이 아니라 입력 확인 안내다', async () => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'invalid_curation_notice' } });
+    const form = curationForm({ kind: 'notice_bar', title: '배송 일정 안내', imagePath: '', linkPath: '', pageTypesField: '1' });
+    form.append('pageTypes', 'home');
+    await expect(upsertAdminCurationAction({}, form)).resolves.toEqual({
+      errors: { form: '텍스트 공지 바·띠배너의 문구, 버튼 문구와 공지를 보일 화면을 확인해주세요.' },
+    });
+    expect(mocks.updateTag).not.toHaveBeenCalled();
+  });
+
   it('rejects invalid forms before auth, client, or RPC access', async () => {
     await expect(upsertAdminCurationAction({}, curationForm({
       operationId: 'invalid',

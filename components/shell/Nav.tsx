@@ -4,8 +4,7 @@ import Link from 'next/link';
 import { Suspense, useEffect, useRef, useState, type FocusEvent, type KeyboardEvent, type RefObject } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { signOutAction } from '@/app/login/actions';
-import { COMMUNITY_ENABLED } from '@/lib/community-visibility';
-import { isCardRewardDestination, isCommunityDestination, type NoticeStrip } from '@/lib/home-catalog';
+import { EMPTY_SHELL_NOTICES, type ShellNotices as ShellNoticeData } from '@/lib/shell-notices';
 import {
   CATEGORY_MEGA_GROUPS,
   MEMBER_UTIL_ITEMS,
@@ -27,6 +26,7 @@ import { loginEntryHref } from './login-entry';
 import { MenuSheet } from './MenuSheet';
 import { loadUnreadNotificationCount, notificationNavigationKey } from './notification-count';
 import { SearchOverlay } from './SearchOverlay';
+import { ShellNotices } from './ShellNotices';
 import { StoreBrandLogo } from './StoreBranding';
 import { DEFAULT_STOREFRONT_BRANDING, type StorefrontBranding } from '@/lib/store-branding';
 import { useStorePresentation } from './StorePresentationProvider';
@@ -44,7 +44,8 @@ function loginHref() {
   return loginEntryHref(window.location.pathname, window.location.search);
 }
 
-/* 공지(이미지 스트립, 이후 텍스트 공지 행)는 유틸바 위에 쌓인다 — 유틸바의 문서상 위치가 곧 공지 높이다.
+/* 공지(텍스트 공지 바 + 이미지 스트립, ShellNotices)는 유틸바 위에 쌓인다 — 유틸바의 문서상 위치가 곧 공지 높이다.
+   공지 바를 닫거나 공지가 없으면 그 높이도 0이 되어 다음 스크롤 판정부터 기준이 함께 줄어든다.
    모바일에서는 유틸바가 숨어 레이아웃 상자가 없으므로 0을 돌려준다. 이 값을 쓰는 데스크톱 축약 판정은
    모바일에서 표현되지 않는다(wc-chrome.css가 data-condensed를 990px 이상에서만 읽는다). */
 function noticeOffsetAbove(utilbar: HTMLElement | null): number {
@@ -84,23 +85,23 @@ function useChromeScroll(utilbarRef: RefObject<HTMLElement | null>) {
   return { condensed, tabBarHidden };
 }
 
-export function Nav({ noticeStrip = null, branding = DEFAULT_STOREFRONT_BRANDING, navigation = DEFAULT_STOREFRONT_NAVIGATION }: { noticeStrip?: NoticeStrip | null; branding?: StorefrontBranding; navigation?: StorefrontNavigation }) {
+export function Nav({ notices = EMPTY_SHELL_NOTICES, branding = DEFAULT_STOREFRONT_BRANDING, navigation = DEFAULT_STOREFRONT_NAVIGATION }: { notices?: ShellNoticeData; branding?: StorefrontBranding; navigation?: StorefrontNavigation }) {
   const pathname = usePathname();
   const cardRewardsEnabled = useCardRewardsEnabled();
   // 게임은 자기완결 번들, 어드민은 자체 작업대, 초대·비밀번호 변경·정지 안내는 집중형 셸을 사용한다(로그인은 크롬 안).
   if (isStandaloneShellPath(pathname)) return null;
-  return <WcChrome cardRewardsEnabled={cardRewardsEnabled} noticeStrip={noticeStrip} pathname={pathname} branding={branding} navigation={navigation} />;
+  return <WcChrome cardRewardsEnabled={cardRewardsEnabled} notices={notices} pathname={pathname} branding={branding} navigation={navigation} />;
 }
 
 function WcChrome({
   cardRewardsEnabled,
-  noticeStrip,
+  notices,
   pathname,
   branding,
   navigation,
 }: {
   cardRewardsEnabled: boolean;
-  noticeStrip: NoticeStrip | null;
+  notices: ShellNoticeData;
   pathname: string;
   branding: StorefrontBranding;
   navigation: StorefrontNavigation;
@@ -129,23 +130,10 @@ function WcChrome({
     <div className="wc-root wc-chrome">
       <a className="wc-skip-link" href="#root">본문으로 건너뛰기</a>
 
-      {/* 공지 스트립은 이미지 비율만큼 높이를 차지하는 링크 배너다(R-01 §1). 유틸바 위에 두면
-          축약 기준이 스트립 높이만큼 자동 보정된다(noticeOffsetAbove) — 스트립이 아직 보이는 동안에는
-          GNB가 접히지 않는다. 텍스트 공지 행이 생겨도 유틸바 위에 두면 같은 보정을 받는다.
-          PC 비율 아트웍은 모바일 폭에서 수 px 로 붕괴하므로 히어로처럼 모바일 소스를 분기하고,
-          카드 리워드 목적지 스트립은 게이트가 꺼진 배포에서 packs GNB 항목과 같은 규칙으로 숨긴다. */}
-      {noticeStrip
-        && (cardRewardsEnabled || !isCardRewardDestination(noticeStrip.href))
-        && (COMMUNITY_ENABLED || !isCommunityDestination(noticeStrip.href)) ? (
-        <Link className="wc-notice" href={noticeStrip.href}>
-          <picture>
-            {noticeStrip.mobileImageUrl ? (
-              <source media="(max-width: 749px)" srcSet={noticeStrip.mobileImageUrl} />
-            ) : null}
-            <img alt={noticeStrip.title} src={noticeStrip.imageUrl} />
-          </picture>
-        </Link>
-      ) : null}
+      {/* 텍스트 공지 바 + 이미지 스트립. 유틸바 위에 두면 축약 기준이 실제 공지 높이만큼 자동 보정된다(noticeOffsetAbove) —
+          공지가 아직 보이는 동안에는 GNB가 접히지 않는다. 카드 리워드·커뮤니티 목적지 공지는 게이트가 꺼진 배포에서
+          GNB 항목과 같은 규칙으로 숨긴다(ShellNotices). */}
+      <ShellNotices cardRewardsEnabled={cardRewardsEnabled} notices={notices} pathname={pathname} />
 
       <nav ref={utilbarRef} aria-label="유틸리티 메뉴" className="wc-utilbar">
         <div className="wc-container wc-utilbar__inner">

@@ -14,26 +14,29 @@ import { MarketingLinkIssuer } from '@/components/admin/marketing/MarketingLinkI
 import type { AdminHomeLayout } from '@/lib/admin/home-layout';
 import {
   buildDraftCurationPreview, createCurationEditorValues, curationKstInput, CURATION_KIND_LABELS,
-  CURATION_KIND_ORDER, CURATION_STATUS_LABELS, emptyCurationPreview, moveCurationProduct,
+  CURATION_KIND_ORDER, CURATION_STATUS_LABELS, curationValuesForKindChange, emptyCurationPreview, moveCurationProduct, NOTICE_PAGE_TYPE_LABELS,
   type CurationEditorValues, type CurationPublicPreview,
 } from '@/lib/admin/curation-editor';
 import { adminCurationTargetGroupsFor, type AdminCurationTargetRecord } from '@/lib/admin/curation-targets';
-import type { AdminCurationActionState, AdminCurationKind } from '@/lib/admin/curations';
+import { NOTICE_BAR_CTA_LIMIT, NOTICE_BAR_MESSAGE_LIMIT, type AdminCurationActionState, type AdminCurationKind } from '@/lib/admin/curations';
 import type { AdminCurationRecord } from '@/lib/admin/curations.server';
 import { eligibleHomeReviewStatistics, HOME_REVIEW_MANUAL_LIMIT, HOME_SALES_PERIOD_LABELS, HOME_SALES_PERIODS, type HomeSalesPeriod } from '@/lib/home-ranking';
 import { HOME_HERO_CONTENT_LIMIT, HOME_HERO_LIMIT, HOME_HERO_TITLE_LIMIT, type HomeHeroImageDim, type HomeHeroTextColor } from '@/lib/home-hero';
 import { HOME_FREE_PRODUCT_LIMIT, HOME_PRODUCT_CANDIDATE_LIMIT, HOME_PRODUCT_TITLE_LIMIT, homeProductCountRange,
   type HomeProductImageShape, type HomeProductLayout } from '@/lib/home-product-collection';
+import { SHELL_NOTICE_PAGE_TYPES } from '@/lib/shell-notices';
 import { ArtworkUploadField } from '../ArtworkUploadField';
 import { ActionNotice, ErrorText } from '../fields';
 
 const EMPTY_STATE: AdminCurationActionState = {};
 const IMAGE_REQUIRED = new Set<AdminCurationKind>(['hero', 'notice_strip', 'editor_pick', 'band_banner']);
-const IMAGE_FREE = new Set<AdminCurationKind>(['best_tab', 'benefit', 'sales_best', 'review_best', 'product_mosaic', 'product_collection']);
+const IMAGE_FREE = new Set<AdminCurationKind>(['notice_bar', 'best_tab', 'benefit', 'sales_best', 'review_best', 'product_mosaic', 'product_collection']);
+const isShellNoticeKind = (kind: AdminCurationKind) => kind === 'notice_bar' || kind === 'notice_strip';
 const isFreeProductKind = (kind: AdminCurationKind | undefined) => kind === 'product_mosaic' || kind === 'product_collection';
 const KIND_HELP: Record<AdminCurationKind, string> = {
   hero: '홈 첫 화면에 최대 10개의 배너를 차례로 보여줍니다. PC와 모바일 이미지를 따로 등록할 수 있습니다.',
-  notice_strip: '스토어 상단에 보이는 띠배너입니다. 같은 시간에 여러 개가 있으면 순서가 가장 앞선 배너를 보여줍니다.',
+  notice_bar: '스토어 맨 위에 문구와 이동 버튼으로 보이는 공지입니다. 고객이 닫으면 같은 탭에서는 다시 보이지 않고, 같은 화면에 여러 개가 있으면 순서가 앞선 하나를 보여줍니다.',
+  notice_strip: '스토어 상단에 보이는 이미지 띠배너입니다. 같은 시간·화면에 여러 개가 있으면 스토어를 새로 열 때마다 하나를 무작위로 보여줍니다.',
   editor_pick: '이미지, 제목과 설명을 카드로 보여줍니다.',
   band_banner: '기획전 배너와 선택한 상품을 함께 보여줍니다.',
   best_tab: '직접 선택한 상품 또는 최신 등록 상품을 카테고리 BEST·인기템 탭으로 보여줍니다.',
@@ -50,6 +53,7 @@ const ARTWORK_HELP: Record<AdminCurationKind, string> = {
   featured_ip: '특집 IP 이미지는 선택입니다. 비우면 IP 키아트를 사용합니다.',
   announcement: '공지 배너 이미지는 선택입니다.',
   notice_strip: '공지 스트립 이미지는 필수입니다.',
+  notice_bar: '텍스트 공지 바는 이미지를 쓰지 않습니다.',
   editor_pick: '에디터의 제안 카드 이미지는 필수입니다.',
   band_banner: '기획전 배너 이미지는 필수입니다.',
   best_tab: 'BEST 탭은 이미지를 쓰지 않습니다.',
@@ -225,6 +229,8 @@ function CurationForm({
   const router = useRouter();
   const [values, setValues] = useState(() => createCurationEditorValues(selected, draftActiveFrom, initialKind));
   const [kind, setKind] = useState<AdminCurationKind>(selected?.kind ?? initialKind);
+  /* 운영자가 직접 고친 칸 — 새 구성에서 영역을 바꿔도 이 칸은 새 종류의 시작값으로 덮지 않는다. */
+  const [touched, setTouched] = useState<ReadonlySet<keyof CurationEditorValues>>(() => new Set());
   const [picker, setPicker] = useState(false);
   const [saveOperationId] = useState(operationId);
   const [previewScope, setPreviewScope] = useState<'draft' | 'public'>('draft');
@@ -256,9 +262,11 @@ function CurationForm({
   const showManualProducts = kind === 'band_banner' || (kind === 'best_tab' && values.selectionMode === 'manual')
     || (kind === 'review_best' && values.reviewSelectionMode === 'manual') || kind === 'product_collection';
   const legacyKind = kind === 'featured_ip' || kind === 'announcement';
+  const optionalLink = kind === 'hero' || kind === 'notice_bar';
   const heroLimitReached = kind === 'hero' && selected?.kind !== 'hero' && heroCount >= HOME_HERO_LIMIT;
   const freeProductLimitReached = isFreeProductKind(kind) && !isFreeProductKind(selected?.kind) && freeProductCount >= HOME_FREE_PRODUCT_LIMIT;
   function update<K extends keyof CurationEditorValues>(key: K, value: CurationEditorValues[K]) {
+    setTouched((current) => (current.has(key) ? current : new Set(current).add(key)));
     setValues((current) => ({ ...current, [key]: value }));
     onDirty();
   }
@@ -282,8 +290,10 @@ function CurationForm({
           <h4>기본 설정</h4>
           <CurationSelect error={state.errors?.kind} label="홈에 보일 영역" name="kind" onChange={(event) => {
             const next = event.target.value as AdminCurationKind;
+            /* 새 구성은 바꾼 종류의 시작값(새 띠배너는 상품 목록 제외, 새 공지 바는 링크 없음·전 화면)을 손대지 않은 칸에 다시 적용한다. */
+            const adjusted = curationValuesForKindChange(values, next, { isNew: !selected, touched, draftActiveFrom });
             setKind(next);
-            if (next === 'hero' && selected?.kind !== 'hero') setValues(current => ({ ...current, imageDim: 'none', textColor: 'white' }));
+            setValues(next === 'hero' && selected?.kind !== 'hero' ? { ...adjusted, imageDim: 'none', textColor: 'white' } : adjusted);
             onDirty();
           }} value={kind}>
             {CURATION_KIND_ORDER.map((option) => <option disabled={(option === 'hero' && selected?.kind !== 'hero' && heroCount >= HOME_HERO_LIMIT)
@@ -291,7 +301,10 @@ function CurationForm({
               || Boolean(selected && selected.kind !== option && (selected.kind === 'product_collection' || option === 'product_collection'))}
               key={option} value={option}>{CURATION_KIND_LABELS[option]}</option>)}
           </CurationSelect>
-          {kind === 'hero' ? <>
+          {kind === 'notice_bar' ? <>
+            <CurationCountedText name="title" label="공지 문구" value={values.title} limit={NOTICE_BAR_MESSAGE_LIMIT} required error={state.errors?.title} onChange={value => update('title', value)} />
+            <p>한 줄 문구로 보여줍니다. 줄바꿈은 쓸 수 없고, 화면이 좁으면 문구가 다음 줄로 넘어갑니다.</p>
+          </> : kind === 'hero' ? <>
             <CurationCountedText name="title" label="제목" value={values.title} limit={HOME_HERO_TITLE_LIMIT} error={state.errors?.title} onChange={value => update('title', value)} />
             <CurationCountedText name="subtitle" label="내용" value={values.subtitle} limit={HOME_HERO_CONTENT_LIMIT} multiline error={state.errors?.subtitle} onChange={value => update('subtitle', value)} />
             <p>제목과 내용은 선택항목입니다. 새 제목은 40자, 내용은 150자·최대 3줄까지 입력합니다. 이전에 등록한 긴 문구는 그대로 유지할 수 있습니다.</p>
@@ -304,14 +317,18 @@ function CurationForm({
           {kind === 'featured_ip' ? <CurationSelect error={state.errors?.ipId} label="특집할 IP" name="ipId" onChange={(event) => update('ipId', event.target.value)} required value={values.ipId}><option value="">IP 선택</option>{ipOptions.map((ip) => <option disabled={Boolean(ip.archivedAt)} key={ip.id} value={ip.id}>{ip.archivedAt ? '[보관] ' : ''}{ip.title}</option>)}</CurationSelect> : null}
           {kind === 'best_tab' ? <CurationSelect error={state.errors?.slot} label="상품 모음 위치" name="slot" onChange={(event) => update('slot', event.target.value)} required value={values.slot}><option value="category">카테고리 BEST</option><option value="popular">인기템</option></CurationSelect> : null}
           {kind === 'product_collection' ? <input name="linkPath" type="hidden" value="" /> : kind === 'sales_best' || kind === 'review_best' || kind === 'product_mosaic' ? <input name="linkPath" type="hidden" value="/shop" />
-            : <CurationSelect error={state.errors?.linkPath} label="눌렀을 때 이동할 화면" name="linkPath" onChange={(event) => update('linkPath', event.target.value)} required={kind !== 'hero'} value={values.linkPath}>{kind === 'hero' ? <option value="">링크 없음</option> : null}{targetGroups.map((group) => <optgroup key={group.label} label={group.label}>{group.options.map((option) => <option key={option.path} value={option.path}>{option.label}</option>)}</optgroup>)}</CurationSelect>}
+            : <CurationSelect error={state.errors?.linkPath} label={kind === 'notice_bar' ? '버튼을 눌렀을 때 이동할 화면' : '눌렀을 때 이동할 화면'} name="linkPath" onChange={(event) => update('linkPath', event.target.value)} required={!optionalLink} value={values.linkPath}>{optionalLink ? <option value="">링크 없음</option> : null}{targetGroups.map((group) => <optgroup key={group.label} label={group.label}>{group.options.map((option) => <option key={option.path} value={option.path}>{option.label}</option>)}</optgroup>)}</CurationSelect>}
+          {kind === 'notice_bar' && values.linkPath ? <>
+            <CurationCountedText name="ctaLabel" label="버튼 문구" value={values.ctaLabel} limit={NOTICE_BAR_CTA_LIMIT} required error={state.errors?.ctaLabel} onChange={value => update('ctaLabel', value)} />
+            <p>문구 옆 버튼으로 보입니다. 링크 없음을 고르면 버튼 없이 문구와 닫기만 보입니다.</p>
+          </> : null}
         </section>
         {!IMAGE_FREE.has(kind) ? <section className="admin-store-editor__form-section">
           <h4>이미지 관리</h4>
           <ArtworkUploadField allowRemove={!IMAGE_REQUIRED.has(kind)} currentPath={values.imagePath || null} currentUrl={values.imageUrl} helpText={ARTWORK_HELP[kind]} kind="curation" label="PC 이미지" onPathChange={(path) => update('imagePath', path)} onPreviewChange={(url) => update('imageUrl', url)} showCropGuide={false} showPath={false} />
           <ErrorText>{state.errors?.imagePath}</ErrorText>
           {kind === 'hero' || kind === 'notice_strip' ? <><ArtworkUploadField allowRemove currentPath={values.mobileImagePath || null} currentUrl={values.mobileImageUrl} fieldId="curation-mobile" helpText="등록하지 않으면 PC 이미지를 사용합니다." kind="curation" label="모바일 이미지" name="mobileImagePath" onPathChange={(path) => update('mobileImagePath', path)} onPreviewChange={(url) => update('mobileImageUrl', url)} showCropGuide={false} showPath={false} /><ErrorText>{state.errors?.mobileImagePath}</ErrorText></> : null}
-        </section> : <input name="imagePath" type="hidden" value={isFreeProductKind(kind) ? '' : values.imagePath} />}
+        </section> : <input name="imagePath" type="hidden" value={isFreeProductKind(kind) || kind === 'notice_bar' ? '' : values.imagePath} />}
         {kind === 'product_collection' ? <section className="admin-store-editor__form-section">
           <h4>디자인과 사진</h4>
           <CurationSelect name="productLayout" label="디자인 유형" error={state.errors?.productLayout} value={values.productLayout} onChange={event => update('productLayout', event.target.value as HomeProductLayout)}>
@@ -397,6 +414,22 @@ function CurationForm({
           {values.goodIds.length === 0 ? <p className="admin-store-editor__empty">선택한 상품이 없습니다.</p> : null}<ErrorText>{state.errors?.goodIds}</ErrorText>
           </> : null}
         </section> : null}
+        {isShellNoticeKind(kind) ? <section className="admin-store-editor__form-section">
+          <h4 id={`${id}-page-types`}>공지를 보일 화면</h4>
+          <input name="pageTypesField" type="hidden" value="1" />
+          <div aria-labelledby={`${id}-page-types`} role="group">
+            {SHELL_NOTICE_PAGE_TYPES.map((type) => <label className="admin-store-editor__enabled" key={type}>
+              <input checked={values.pageTypes.includes(type)} name="pageTypes" onChange={(event) => update('pageTypes', event.target.checked
+                ? SHELL_NOTICE_PAGE_TYPES.filter((option) => option === type || values.pageTypes.includes(option))
+                : values.pageTypes.filter((option) => option !== type))} type="checkbox" value={type} />
+              <span>{NOTICE_PAGE_TYPE_LABELS[type]}</span>
+            </label>)}
+          </div>
+          <ErrorText>{state.errors?.pageTypes}</ErrorText>
+          <p>{kind === 'notice_bar'
+            ? '고른 화면의 맨 위, 상단 띠배너 위에 보입니다. 결제·마이 화면처럼 방해가 되는 곳은 빼 두세요.'
+            : '고른 화면의 상단에 보입니다. 새로 만드는 띠배너는 상품 목록을 빼고 시작합니다.'} 노출 종료 시각이 되면 이미 열려 있는 화면에서도 사라집니다. 적용한 변경(문구·노출안함 등)과 예약한 노출 시작은 새로 여는 화면부터 보이며, 예약 시작은 최대 10분가량 늦게 나타날 수 있습니다.</p>
+        </section> : null}
         <section className="admin-store-editor__form-section">
           <h4>노출 설정</h4>
           <label className="admin-store-editor__enabled"><span>홈 노출</span><input checked={values.enabled} name="enabled" onChange={(event) => update('enabled', event.target.checked)} type="checkbox" />{values.enabled ? '노출함' : '노출안함'}</label>
@@ -417,10 +450,11 @@ function CurationForm({
     <aside className="admin-store-editor__preview" aria-label="스토어 미리보기">
       <header><h3>미리보기</h3><select aria-label="미리보기 범위" onChange={(event) => setPreviewScope(event.target.value as 'draft' | 'public')} value={previewScope}><option value="draft">편집 중인 구성</option><option value="public">현재 공개 홈</option></select><span>{device === 'mobile' ? '390px' : '1212px'}</span></header>
       {previewScope === 'draft' ? <div className="admin-store-editor__preview-note"><span>편집 중인 내용입니다. 적용하면 노출 설정에 따라 반영됩니다.</span>{!values.enabled ? <strong>현재 비노출로 설정되어 있습니다.</strong> : null}{draft.missingGoodIds.length && showManualProducts ? <strong>비노출 또는 없는 상품 {draft.missingGoodIds.length}개는 미리보기에 표시되지 않습니다.</strong> : null}{kind === 'benefit' && !preview.cardRewardsEnabled ? <strong>카드 리워드가 비활성 상태여서 혜택 타일은 노출되지 않습니다.</strong> : null}
+        {isShellNoticeKind(kind) && !values.pageTypes.includes('home') ? <strong>홈이 노출 화면에 없어 공개 홈에서는 보이지 않습니다. 미리보기는 모양만 보여줍니다.</strong> : null}
         {kind === 'sales_best' && !preview.productRankings?.salesAvailable ? <strong>판매량을 불러오지 못했습니다. 새로고침 후 다시 확인해주세요.</strong> : null}
         {kind === 'review_best' ? !preview.productRankings?.reviewsAvailable ? <strong>리뷰 평점을 불러오지 못했습니다. 새로고침 후 다시 확인해주세요.</strong> : draft.reviewEligibleCount < 4 ? <strong>노출 가능한 리뷰 상품 {draft.reviewEligibleCount}개 · 4개 이상이어야 영역이 표시됩니다.</strong> : <span>노출 가능한 리뷰 상품 {draft.reviewEligibleCount}개</span> : null}
       </div> : null}
-      {previewScope === 'draft' && legacyKind ? <p className="admin-store-editor__empty">{KIND_HELP[kind]}</p> : <CurationPreview cardRewardsEnabled={preview.cardRewardsEnabled} curation={previewScope === 'public' ? preview.curation : draft.curation} device={device} noticeStrip={previewScope === 'public' ? preview.noticeStrip : draft.noticeStrip} />}
+      {previewScope === 'draft' && legacyKind ? <p className="admin-store-editor__empty">{KIND_HELP[kind]}</p> : <CurationPreview cardRewardsEnabled={preview.cardRewardsEnabled} curation={previewScope === 'public' ? preview.curation : draft.curation} device={device} noticeBar={previewScope === 'public' ? preview.noticeBar ?? null : draft.noticeBar} noticeStrip={previewScope === 'public' ? preview.noticeStrip : draft.noticeStrip} />}
     </aside>
     {picker ? <CurationProductPicker goods={preview.goods} limit={productLimit} onApply={(ids) => { update('goodIds', ids); setPicker(false); }} onClose={() => setPicker(false)} options={kind === 'review_best' ? goodOptions.filter((good) => eligibleReviewIds.has(good.id)) : goodOptions} reviewStatistics={kind === 'review_best' ? reviewStatistics : undefined} selectedIds={values.goodIds} /> : null}
   </>;

@@ -241,6 +241,7 @@ interface HomeCurationRow {
     | 'featured_ip'
     | 'announcement'
     | 'notice_strip'
+    | 'notice_bar'
     | 'editor_pick'
     | 'band_banner'
     | 'best_tab'
@@ -553,7 +554,7 @@ async function getActiveHomeCurationSnapshot(): Promise<LoadedHomeCuration> {
         } satisfies HomeBenefitTile);
         break;
       }
-      /* notice_strip 은 전역 셸 전용 데이터라 홈 스냅샷에서는 다루지 않는다
+      /* notice_strip·notice_bar 는 전역 셸 전용 데이터라 홈 스냅샷에서는 다루지 않는다
          (lib/notice-strip.server.ts). 미래 kind 는 여기 닿기 전에 무시된다. */
       default:
         break;

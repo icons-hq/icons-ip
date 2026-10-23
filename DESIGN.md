@@ -207,7 +207,7 @@ layout:
   cart-columns: "아이템 780 + 요약 aside 360"
   auth-column: "플랫 448px 1칼럼"
   mypage: "프로필 스트립(surface.grey) + 좌 메뉴 200px + 콘텐츠"
-  header: { notice: "이미지 스트립 ≈36px/60px(mo)", tiers: "유틸바+로고단+GNB", sticky-condensed: "데스크톱 69px 로고+아이콘 단일 바(로고 행 68 + 하단 1px), 모바일·태블릿 52px GNB 탭 행(51 + 1px) — 표면 sticky 요소는 --wc-sticky-chrome-h 아래에 붙는다(데스크톱 헤더가 펼친 동안은 123, top 전환 .3s)", anchor-landing: "해시 이동·scrollIntoView 착지선 = html scroll-padding-top(globals.css, 크롬과 같은 높이 · 어드민 상단바 55) + 대상 scroll-margin-top(표면 sticky 하위 내브·여백만, 크롬 높이를 다시 더하지 않는다)" }
+  header: { notice: "텍스트 공지 바 47px(문구 13 · 잉크 버튼 23 · 닫기 44) 위에 이미지 스트립 ≈36px/60px(mo), 둘 다 유틸바 위 스크롤 아웃(sticky 아님)", tiers: "유틸바+로고단+GNB", sticky-condensed: "데스크톱 69px 로고+아이콘 단일 바(로고 행 68 + 하단 1px), 모바일·태블릿 52px GNB 탭 행(51 + 1px) — 표면 sticky 요소는 --wc-sticky-chrome-h 아래에 붙는다(데스크톱 헤더가 펼친 동안은 123, top 전환 .3s)", anchor-landing: "해시 이동·scrollIntoView 착지선 = html scroll-padding-top(globals.css, 크롬과 같은 높이 · 어드민 상단바 55) + 대상 scroll-margin-top(표면 sticky 하위 내브·여백만, 크롬 높이를 다시 더하지 않는다)" }
   buybar-mobile: "높이 72px 고정 풀폭"
   touch-target: "아이콘 44px, 버튼 h50"
 ```
@@ -254,7 +254,8 @@ z-index: { chrome: "3–4", panel: "10–100", overlay: "999+", toast-modal: "99
 
 | 패턴 | 목적 | 필수 규칙 (R-스펙) |
 |---|---|---|
-| `notice-strip` | 운영 공지 | 어드민 큐레이션 이미지 스트립 1장, 스케줄 노출, 닫기 없음 (01) |
+| `notice-bar` | 운영 공지(텍스트) | 큐레이션 `notice_bar` — 셸 맨 위 `surface.grey` 47px 바: 13px 문구(60자, 줄바꿈 없음, 좁으면 줄을 바꿔 바가 자람) + 선택 잉크 버튼 23px(12자, 누르는 영역은 바 높이) + 오른쪽 끝 닫기 44. 대상 화면 유형(홈·상품 목록·상품 상세·쇼핑스토리/이벤트·그 밖)·스케줄 노출, 같은 화면에선 순서 첫 공지 하나. 닫으면 같은 탭 동안 숨고(sessionStorage) 문구·버튼·대상을 바꾸면 다시 보인다. 노출 종료 시각이 지나면 열린 화면에서도 숨는다. 서버는 결정적으로 그리고 첫 페인트 전 인라인 스크립트가 닫힘·종료를 반영 — 깜빡임·빈 띠 없음. 모달 오버레이 중 inert (01·11 Δ1) |
+| `notice-strip` | 운영 공지(이미지) | 큐레이션 `notice_strip` 이미지 링크 스트립, 공지 바 아래·유틸바 위. 대상 화면 유형 선택(대상 없이 저장된 기존 행은 모든 화면, 새 행은 상품 목록 제외로 시작)·스케줄 노출, 같은 화면의 유효 후보 중 하드 로드마다 무작위 1장(첫 페인트 전 선택, 이동 중 유지 — 보이던 스트립이 종료되면 다음 후보로 넘기거나 숨김). 닫기 없음. 노출·클릭은 동의한 1st-party 방문 통계로만 집계 (01·11 B28) |
 | `triple-header` | 전역 탐색 | 유틸바+로고단+GNB 3단, 헤더 하단 1px `line.hairline-soft`(#F0F2F4). 데스크톱은 scrollY >150 축약·<64 해제(방향 무관, 유틸바 위 공지 높이를 두 기준에 가산 — 11 §6 B1)로 69px 단일 바, 로고 행·GNB 키보드 포커스 시 재전개. 모바일은 GNB를 접지 않고 로고 행이 스크롤과 함께 빠져 GNB 탭 행만 고정(LD-2 — sticky 기준을 로고 행 높이만큼 올림, 키보드 포커스 시 로고 행 복귀). 유틸바 맨 앞 '위시리스트'는 로그인 회원 전용. 그림자 없음 (01·11) |
 | `underline-gnb` | 1차 탐색 | 고정 ID 8항목(NEW·BEST·카테고리·온라인 팝업·카드팩·이벤트·커뮤니티·쇼핑스토리, `lib/routes.ts`) — 이름·순서·노출은 운영 설정(`lib/store-navigation.ts`, ARCHITECTURE `store_settings.navigation`), 카드팩·커뮤니티는 기능 게이트가 숨긴다. 활성=green 텍스트+3px 밑줄, 최장 경로 하나만 켜고 굿즈 상세에서는 켜지 않는다. 메가메뉴 안 `/shop` 링크는 트리거 이름 대신 '전체 굿즈'. 하단 1px 헤어라인(`triple-header`) (01·11) |
 | `mega-menu` | 카테고리 확장 | 헤더 컨텍스트 내 z0, 헤어라인 상하, 그룹 헤딩 14/700 (01) |
@@ -297,7 +298,7 @@ z-index: { chrome: "3–4", panel: "10–100", overlay: "999+", toast-modal: "99
 
 밴드 구성과 수치는 R-스펙 02가 정본이다. 데이터는 전부 어드민 큐레이션·카탈로그에서 온다.
 
-1. `notice-strip` + `triple-header`
+1. `notice-bar` + `notice-strip` + `triple-header`
 2. 히어로 캐러셀 — 1425×770(1440+), fade 1s·5s·루프, 전폭 9등분 세그먼트 진행바, PC/MO 별도 아트웍(5:6), `home_curations.hero`
 3. "에디터의 제안" `content-card` 3열 — 이벤트·커뮤니티·드랍 소재 큐레이션. 바로 다음 밴드 머리에 1180 폭 1px 헤어라인(회색 면 밴드 앞 제외, 11 §3 Δ8)
 4. 카테고리 BEST `tab-product-slider` — 카테고리 탭+판매량/큐레이션 정렬
