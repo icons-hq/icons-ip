@@ -36,7 +36,15 @@ describe('complete admin WC cutover (#433)', () => {
       expect(read('./layout.tsx')).not.toContain(`'./styles/${file}'`);
     }
     const globals = postcss.parse(read('./globals.css'));
-    globals.walkRules((rule) => expect(rule.selector).not.toMatch(/\.admin-|\.check-in-|\.wc-admin/));
+    /* 문서 스크롤 여백(html scroll-padding-top)만 어드민 셸 유무를 묻는다 — 고정 상단바(55) 밑으로 해시 대상과
+       키보드 포커스가 숨지 않게 한다(chrome-styles.test 가 상단바 높이와 맞춘다). 어드민 지면 규칙은 여전히 두지 않는다. */
+    globals.walkRules((rule) => {
+      if (rule.selector === 'html:has(.wc-admin__header)') {
+        rule.each((node) => expect(node.type === 'decl' ? node.prop : node.type).toBe('scroll-padding-top'));
+        return;
+      }
+      expect(rule.selector).not.toMatch(/\.admin-|\.check-in-|\.wc-admin/);
+    });
     globals.walkDecls((decl) => expect(decl.value).not.toMatch(/var\(--editorial-|#8b5cff|#ff4d9d|#08060f/i));
     expect(read('./globals.css')).toContain('@import "tailwindcss"');
     expect(read('./globals.css')).toMatch(/#root\s*\{[^}]*position:\s*relative;[^}]*z-index:\s*1;/s);

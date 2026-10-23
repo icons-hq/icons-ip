@@ -11,6 +11,8 @@ export function ProductDetailReviewLink({ href, children }: { href: string; chil
       // A same-document anchor would leave a manually selected detail tab active.
       event.preventDefault();
       window.location.hash = target.hash;
+      // A reload restores the old scroll position instead of the anchor; HashLanding lands it and restores the default.
+      window.history.scrollRestoration = 'manual';
       window.location.reload();
     }
   }}>{children}</a>;

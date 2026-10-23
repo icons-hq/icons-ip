@@ -1,4 +1,4 @@
-.wc-admin .admin-shipping-charge-groups { display: grid; min-width: 0; gap: 16px; }
+.wc-admin .admin-shipping-charge-groups { display: grid; min-width: 0; gap: 16px; scroll-margin-top: 16px; }
 .wc-admin .admin-shipping-charge-groups__heading { display: grid; min-width: 0; gap: 6px; }
 .wc-admin .admin-shipping-charge-groups__heading h2 { margin: 0; font-size: 18px; font-weight: 600; }
 .wc-admin :is(.admin-shipping-charge-groups__heading p, .admin-shipping-charge-groups__hint, .admin-shipping-charge-group-editor p, .admin-shipping-charge-group-field p) { margin: 0; font-size: 12px; line-height: 1.7; color: var(--wc-ink-sub); overflow-wrap: anywhere; }

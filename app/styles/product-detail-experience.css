@@ -2,7 +2,7 @@
 .wc-pdp .wc-pdp-purchase-messages { display:flex; flex-wrap:wrap; gap:7px; list-style:none; margin:0; padding:0; }
 .wc-pdp .wc-pdp-purchase-messages li { border-radius:3px; padding:6px 9px; font-size:12px; line-height:1.5; background:color-mix(in srgb,var(--wc-ink) 90%,transparent); color:var(--wc-surface); }
 .wc-pdp .wc-pdp-shipping-shortcut { display:inline-block; font-size:13px; margin:16px 0 0; text-underline-offset:4px; }
-.wc-pdp-shipping-savings,.wc-product-interests { margin:40px 0; min-width:0; scroll-margin-top:160px; }
+.wc-pdp-shipping-savings,.wc-product-interests { margin:40px 0; min-width:0; scroll-margin-top:16px; }
 .wc-pdp-shipping-savings h2,.wc-product-interests h2 { margin:0 0 12px; font-size:22px; }
 .wc-pdp-shipping-savings > p,.wc-product-interests > p { margin:0 0 18px; font-size:13px; line-height:1.7; color:var(--wc-ink-tertiary); }
 .wc-pdp-shipping-savings__products,.wc-product-interests__products { display:grid; grid-auto-flow:column; grid-auto-columns:calc((100% - 60px)/4); gap:20px; overflow-x:auto; padding-bottom:14px; }

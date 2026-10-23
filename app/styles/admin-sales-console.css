@@ -88,7 +88,7 @@
 .wc-admin .admin-sales-console .admin-shipment-import-disclosure > summary { width: fit-content; cursor: pointer; }
 .wc-admin .admin-sales-console .admin-shipment-import-disclosure[open] > summary { margin-bottom: 12px; }
 .wc-admin .admin-sales-note { margin: 0; padding: 12px 20px; border-top: 1px solid var(--wc-hairline); color: var(--wc-ink-tertiary); line-height: 1.7; }
-.wc-admin .admin-sales-detail-disclosure { background: var(--wc-surface); border: 1px solid var(--wc-hairline); }
+.wc-admin .admin-sales-detail-disclosure { background: var(--wc-surface); border: 1px solid var(--wc-hairline); scroll-margin-top: 16px; }
 .wc-admin .admin-sales-detail-disclosure > summary { padding: 14px 20px; color: var(--wc-ink-tertiary); cursor: pointer; }
 .wc-admin .admin-sales-detail-disclosure > .admin-order-detail { border-radius: 0; border: 0; box-shadow: none; }
 .wc-admin .admin-sales-detail-header { display: flex; flex-wrap: wrap; align-items: start; justify-content: space-between; gap: 15px; padding: 18px 22px; background: var(--wc-surface); border: 1px solid var(--wc-hairline); }
@@ -107,7 +107,7 @@
 .wc-admin .admin-claim-progress dd strong { font-size: 16px; font-weight: 600; }
 .wc-admin .admin-claim-progress dd a { width: fit-content; padding-block: 8px; text-decoration: underline; text-underline-offset: 3px; }
 .wc-admin .admin-claim-progress__hold { margin: 12px 0 0; color: var(--wc-ink-sub); font-size: 13px; line-height: 1.6; overflow-wrap: anywhere; }
-.wc-admin #claim-process, .wc-admin #claim-refund { scroll-margin-top: 80px; }
+.wc-admin #claim-order, .wc-admin #claim-request, .wc-admin #claim-process, .wc-admin #claim-refund { scroll-margin-top: 16px; }
 .wc-admin .admin-return-workspace { display: grid; gap: 20px; min-width: 0; }
 .wc-admin .admin-return-workspace__heading h3 { margin: 0; font-size: 18px; }
 .wc-admin .admin-return-workspace p { font-size: 13px; line-height: 1.7; overflow-wrap: anywhere; }
@@ -118,7 +118,7 @@
 .wc-admin .admin-return-workspace__navigation button { min-height: 44px; padding: 8px 12px; border: 1px solid var(--wc-line-control); background: var(--wc-surface); color: var(--wc-ink-sub); font-size: 13px; text-align: left; }
 .wc-admin .admin-return-workspace__navigation [aria-current=step] { border-color: var(--wc-accent); color: var(--wc-accent); font-weight: 600; }
 .wc-admin .admin-return-workspace__step { min-width: 0; padding-top: 20px; border-top: 1px solid var(--wc-hairline); }
-.wc-admin .admin-return-workspace__step > h4 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 16px; scroll-margin-top: 90px; }
+.wc-admin .admin-return-workspace__step > h4 { display: flex; align-items: center; gap: 8px; margin: 0; font-size: 16px; scroll-margin-top: 16px; }
 .wc-admin .admin-return-workspace__step > h4:focus-visible { outline: 2px solid var(--wc-focus); outline-offset: 4px; }
 .wc-admin .admin-return-workspace__step > h4 > span { display: inline-grid; place-items: center; flex: 0 0 24px; height: 24px; border: 1px solid var(--wc-line-control); font-size: 13px; }
 .wc-admin .admin-return-workspace__evidence { margin: 8px 0 16px; color: var(--wc-ink-sub); }

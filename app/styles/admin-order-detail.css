@@ -10,7 +10,7 @@
 .wc-admin .admin-order-detail__facts dd { margin: 0; overflow-wrap: anywhere; font-size: 14px; }
 .wc-admin .admin-order-detail__facts dd > span:not(.wc-admin-kit__badge) { display: block; margin-top: 4px; color: var(--wc-ink-tertiary); font-size: 13px; }
 .wc-admin .admin-order-detail__items { list-style: none; padding: 0; margin: 0; }
-.wc-admin .admin-order-detail__items li { display: flex; justify-content: space-between; gap: 16px; padding: 16px 0; border-bottom: 1px solid var(--wc-hairline); }
+.wc-admin .admin-order-detail__items li { display: flex; justify-content: space-between; gap: 16px; padding: 16px 0; border-bottom: 1px solid var(--wc-hairline); scroll-margin-top: 16px; }
 .wc-admin .admin-order-detail__items li:first-child { padding-top: 0; }
 .wc-admin .admin-order-detail__items li:last-child { padding-bottom: 0; border-bottom: 0; }
 .wc-admin .admin-order-detail__items li > div { display: grid; gap: 4px; min-width: 0; overflow-wrap: anywhere; }

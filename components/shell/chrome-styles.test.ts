@@ -152,6 +152,61 @@ describe('표면 sticky 기준 높이 (--wc-sticky-chrome-h)', () => {
   });
 });
 
+describe('해시 이동 착지선 (html scroll-padding-top)', () => {
+  /* 해시 이동·scrollIntoView·포커스 이동은 html scroll-padding-top 만큼 아래에 대상을 세운다. 문서 루트는 .wc-root 의
+     변수를 읽지 못해 globals.css 가 같은 상태 조건으로 같은 수치를 적는다 — 한쪽만 바뀌면 sticky 표면과 해시 착지가
+     갈라진다. 2026-10-23까지는 White Catalog 이전 셸의 112(≤720px 88)가 남아 해시 대상이 크롬보다 그만큼 아래에 섰다. */
+  const globals = postcss.parse(readFileSync(new URL('../../app/globals.css', import.meta.url), 'utf8'));
+  const admin = postcss.parse(readFileSync(new URL('../../app/styles/wc-admin.css', import.meta.url), 'utf8'));
+
+  function htmlScrollPadding() {
+    const found: Array<{ selector: string; media: string | null; layer: string | null; value: string }> = [];
+    globals.walkDecls('scroll-padding-top', (decl) => {
+      const rule = decl.parent as Rule;
+      let layer: string | null = null;
+      for (let node = rule.parent; node?.type === 'atrule'; node = node.parent) {
+        if ((node as AtRule).name === 'layer') layer = (node as AtRule).params;
+      }
+      for (const selector of rule.selectors) found.push({ selector: selector.trim(), media: mediaOf(rule), layer, value: decl.value });
+    });
+    return found;
+  }
+
+  it('공개 셸 상태마다 --wc-sticky-chrome-h 와 같은 높이를 둔다', () => {
+    const expected: Array<{ selector: string; media: string | null; value: string }> = [];
+    root.walkDecls('--wc-sticky-chrome-h', (decl) => {
+      const rule = decl.parent as Rule;
+      for (const selector of rule.selectors.map((s) => s.trim())) {
+        const state = selector === '.wc-root' ? '.wc-header' : /^\.wc-chrome:has\((.+)\) ~ #root \.wc-root$/.exec(selector)?.[1];
+        expect(state, selector).toBeDefined();
+        expected.push({ selector: `html:has(.wc-chrome ${state})`, media: mediaOf(rule), value: decl.value });
+      }
+    });
+    const mirrored = htmlScrollPadding()
+      .filter((entry) => entry.selector.includes('.wc-chrome'))
+      .map(({ selector, media, value }) => ({ selector, media, value }));
+
+    expect(expected.map((entry) => entry.value)).toEqual(['52px', '69px', '123px', '123px']);
+    expect(mirrored).toEqual(expected);
+  });
+
+  it('어드민은 고정 상단바 높이를, 셸이 없는 집중형 화면은 0을 둔다', () => {
+    const topbar: Decls = {};
+    admin.walkRules('.wc-admin .wc-admin__header', (rule) => {
+      if (mediaOf(rule) === null) rule.walkDecls((decl) => { topbar[decl.prop] = decl.value; });
+    });
+    expect(topbar).toMatchObject({ position: 'fixed', height: '55px' });
+    expect(htmlScrollPadding().filter((entry) => entry.selector === 'html:has(.wc-admin__header)').map((entry) => entry.value)).toEqual([topbar.height]);
+    /* 셸을 묻지 않는 html 규칙에 높이를 두면 게임·초대 같은 화면도 없는 크롬만큼 내려간다. */
+    expect(htmlScrollPadding().map((entry) => entry.selector).filter((selector) => !selector.startsWith('html:has('))).toEqual([]);
+  });
+
+  it('기본 레이어에 두어 표면이 직접 정한 값이 이긴다', () => {
+    /* 보존 표면(/about, about-legacy)은 자기 스크롤 여백을 0으로 정해 두었다 — 레이어 밖 규칙이 그대로 이긴다. */
+    expect(htmlScrollPadding().map((entry) => entry.layer)).toEqual(htmlScrollPadding().map(() => 'base'));
+  });
+});
+
 describe('모바일 푸터 순서 (CH-15)', () => {
   /* 로고 → 회사·정책 → 고객센터(사업자 정보 포함) → 소개·SNS → 링크 → 스태프 블록 → 저작권.
      CSS order 는 화면 순서와 읽기·포커스 순서를 갈라놓는다(WCAG 1.3.2·2.4.3) — 순서는 마크업이 갖고

@@ -14,7 +14,9 @@
 
 /* 스크롤 중 화면 위에 남는 크롬의 높이. 표면별 sticky 요소(PDP 탭바·캠페인 앵커 내브)는
    `top: var(--wc-sticky-chrome-h, <이전 값>)`으로 이 값 바로 아래에 붙는다.
-   모바일·태블릿(≤989px)은 GNB 탭 행 51 + 하단 선 1, 데스크톱은 축약 로고 행 68 + 하단 선 1. */
+   모바일·태블릿(≤989px)은 GNB 탭 행 51 + 하단 선 1, 데스크톱은 축약 로고 행 68 + 하단 선 1.
+   해시 이동·scrollIntoView 의 착지선(html scroll-padding-top)도 같은 높이다 — 문서 루트(html)는 이 변수를 읽지 못해
+   globals.css 가 아래와 같은 상태 조건으로 같은 수치를 적는다(chrome-styles.test 가 두 곳을 맞춘다). */
 .wc-root {
   --wc-sticky-chrome-h: 52px;
 }
