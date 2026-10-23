@@ -1,20 +1,20 @@
 import { Children, isValidElement, type ReactElement, type ReactNode } from 'react';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 const hooks = vi.hoisted(() => ({ values: [] as unknown[], index: 0, effects: new Map<number, { deps: unknown[]; cleanup?: () => void }>(), jobs: [] as (() => void)[], pending: false }));
-const mocks = vi.hoisted(() => ({ save: vi.fn(), reload: vi.fn(), auth: null as null | ((event: string, session: { user: { id: string }; access_token: string } | null) => void) }));
+const mocks = vi.hoisted(() => ({ save: vi.fn(), reload: vi.fn(), image: vi.fn(), auth: null as null | ((event: string, session: { user: { id: string }; access_token: string } | null) => void) }));
 vi.mock('react', async () => ({ ...await vi.importActual<typeof import('react')>('react'),
   useState: (initial: unknown) => { const index = hooks.index++; if (!(index in hooks.values)) hooks.values[index] = typeof initial === 'function' ? initial() : initial; return [hooks.values[index], (value: unknown) => { hooks.values[index] = typeof value === 'function' ? value(hooks.values[index]) : value; }]; },
   useRef: (initial: unknown) => { const index = hooks.index++; return hooks.values[index] ??= { current: initial }; },
   useEffect: (effect: () => void | (() => void), deps: unknown[]) => { const index = hooks.index++, previous = hooks.effects.get(index); if (!previous || deps.some((dep, i) => dep !== previous.deps[i])) { hooks.effects.set(index, { deps, cleanup: previous?.cleanup }); hooks.jobs.push(() => { previous?.cleanup?.(); hooks.effects.get(index)!.cleanup = effect() || undefined; }); } },
   useTransition: () => [hooks.pending, (action: () => Promise<void>) => { hooks.pending = true; void action().finally(() => { hooks.pending = false; }); }],
 }));
-vi.mock('@/app/admin/category-display-actions', () => ({ updateCategoryDisplayTreeAction: mocks.save, reloadCategoryDisplayTreeAction: mocks.reload }));
+vi.mock('@/app/admin/category-display-actions', () => ({ updateCategoryDisplayTreeAction: mocks.save, reloadCategoryDisplayTreeAction: mocks.reload, updateCategoryDisplayNodeImageAction: mocks.image }));
 vi.mock('@/lib/supabase/client', () => ({ createClient: () => ({ auth: { onAuthStateChange: (callback: typeof mocks.auth) => { mocks.auth = callback; return { data: { subscription: { unsubscribe() {} } } }; } } }) }));
 import { CategoryDisplayTree } from './CategoryDisplayTree';
 import type { CategoryDisplayDirectory } from '@/lib/category-display';
 const id = (n: number) => `94933000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 const actor = id(90), sessionId = id(91);
-const node = (n: number, parent: number | null = null, depth = 1) => ({ id: id(n), name: `전시 ${n}`, parentId: parent === null ? null : id(parent), depth, sortOrder: n - 1, publicEnabled: true, archivedAt: null, legacyCategoryId: null });
+const node = (n: number, parent: number | null = null, depth = 1) => ({ id: id(n), name: `전시 ${n}`, parentId: parent === null ? null : id(parent), depth, sortOrder: n - 1, publicEnabled: true, archivedAt: null, legacyCategoryId: null, imagePath: null as string | null });
 const initial: CategoryDisplayDirectory = { categories: [node(1), node(2), node(3, 1, 2)], sourceCategories: [], revision: 8, checkedAt: '2026-10-14T00:00:00Z' };
 type Element = ReactElement<Record<string, unknown>>;
 const nodes = (node: ReactNode): Element[] => Children.toArray(node).flatMap(value => isValidElement<Record<string, unknown>>(value) ? [value, ...nodes(value.props.children as ReactNode)] : []);
@@ -62,3 +62,32 @@ it.each(['account', 'session'])('%s 변경 뒤 늦게 도착한 저장 응답을
   expect(render().some(node => node.props.role === 'alert' && text(node).includes('로그인 상태'))).toBe(true);
   expect(render().some(node => node.type === 'input' && node.props.value === '서버 늦은 결과')).toBe(false);
 });
+
+/* L5 — 전시분류 아이콘은 올리면 바로 트리 revision CAS 로 적용되고, 결과 불명확이면 같은 요청(UUID·경로)으로만 다시 확인한다. */
+const ICON = 'public-media/catalog/curation/94933000-0000-4000-8000-000000000301.png';
+const artwork = () => render().find(node => node.props.label === '아이콘 이미지')!;
+it('아이콘을 올리면 선택한 전시분류에 현재 revision 으로 바로 적용하고, 불명확한 결과는 같은 요청으로 재확인한다', async () => {
+  expect(artwork()).toBeDefined();
+  expect(artwork().props.disabled).toBe(false);
+  mocks.image.mockResolvedValueOnce({ error: '저장 결과를 확인하지 못했습니다.', uncertain: true });
+  (artwork().props.onChange as (path: string | null) => void)(ICON); await flush();
+  const first = mocks.image.mock.calls[0];
+  expect(first[0]).toBe(id(1)); expect(first[1]).toBe(ICON); expect(first[2]).toBe(8); expect(first[4]).toBe(actor);
+  /* 불명확한 동안 트리 저장·다른 아이콘 변경은 잠기고, 재확인 버튼만 같은 요청을 다시 보낸다. */
+  expect(render().find(node => node.type === 'button' && text(node) === '이름·상위 분류 저장')!.props.disabled).toBe(true);
+  expect(artwork().props.disabled).toBe(true);
+  mocks.image.mockResolvedValueOnce({ nodeId: id(1), directory: { ...initial, revision: 9, categories: [{ ...node(1), imagePath: ICON }, node(2), node(3, 1, 2)] } });
+  click('아이콘 같은 요청 결과 확인'); await flush();
+  expect(mocks.image.mock.calls[1]).toEqual(first);
+  expect(render().some(node => node.props.role === 'status' && text(node) === '카테고리 아이콘을 적용했습니다.')).toBe(true);
+  expect(artwork().props.path).toBe(ICON);
+});
+it('아이콘 해제는 확인을 받고, 이름·상위 분류를 고치는 동안에는 아이콘을 바꾸지 않는다', async () => {
+  (window.confirm as ReturnType<typeof vi.fn>).mockReturnValueOnce(false);
+  (artwork().props.onChange as (path: string | null) => void)(null); await flush();
+  expect(mocks.image).not.toHaveBeenCalled();
+  change('전시분류명', '고치는 중');
+  expect(artwork().props.disabled).toBe(true);
+  expect(render().some(node => node.type === 'p' && text(node).startsWith('이름·상위 분류를 저장하거나 되돌린 뒤'))).toBe(true);
+});
+

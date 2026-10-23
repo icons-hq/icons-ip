@@ -1,5 +1,10 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { DISPLAY_MESSAGING_TOPIC } from './admin/guide/topics/display-messaging';
 import {
+  MEGA_MENU_CAMPAIGN_LIMIT,
+  MEGA_MENU_IP_TILE_COUNT,
   MENU_CAMPAIGN_LIMIT,
   MENU_FEATURED_IP_LIMIT,
   categoryMenuGroups,
@@ -121,5 +126,17 @@ describe('기획전·피처드 IP 원천', () => {
     ]);
     expect(ips.map((ip) => ip.id)).not.toContain('zeta');
     expect(toMenuIps([{ id: 'none', title: '', bg: null }], url)).toEqual([]);
+  });
+});
+
+describe('어드민 가이드 수치 결속', () => {
+  /* 판매자 가이드(전시·알림 › 독립 전시분류)가 프로즈로 옮겨 적은 메뉴 수치 — 소스가 바뀌면 여기가 깨지고 가이드도 함께 고친다. */
+  it('기획전·추천 IP·이미지 타일 개수와 반영 지연(캐시 300초)이 소스와 같다', () => {
+    const text = DISPLAY_MESSAGING_TOPIC.sections.find((section) => section.id === 'category-display')!.paragraphs!.join('\n');
+    expect(text).toContain(`PC ${MEGA_MENU_CAMPAIGN_LIMIT}개·모바일 ${MENU_CAMPAIGN_LIMIT}개`);
+    expect(text).toContain(`최대 ${MENU_FEATURED_IP_LIMIT}개`);
+    expect(text).toContain(`상위 ${MEGA_MENU_IP_TILE_COUNT}개`);
+    expect(text).toContain('최대 5분');
+    expect(readFileSync(join(process.cwd(), 'lib/storefront-mega-menu.server.ts'), 'utf8')).toContain('revalidate: 300');
   });
 });

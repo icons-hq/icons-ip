@@ -37,7 +37,11 @@ export interface CategoryDisplayValues {
   recommendations: { enabled: boolean; title: string; itemCount: number; goodIds: string[] };
 }
 export interface CategoryDisplayCategory { id: string; name: string; parentId: string | null; depth: number; sortOrder: number; publicEnabled: boolean }
-export interface CategoryDisplayNode extends CategoryDisplayCategory { archivedAt: string | null; legacyCategoryId: string | null }
+export interface CategoryDisplayNode extends CategoryDisplayCategory {
+  archivedAt: string | null; legacyCategoryId: string | null;
+  /** 모바일 카테고리 시트 아이콘(기존 curation 업로드 경로). 없으면 이름 첫 글자로 보인다(L5). */
+  imagePath: string | null;
+}
 export interface CategoryDisplaySnapshot { category: CategoryDisplayCategory; revision: number; values: CategoryDisplayValues; checkedAt: string }
 export interface CategoryDisplayDirectory { categories: CategoryDisplayNode[]; sourceCategories: CategoryDisplayCategory[]; revision: number; checkedAt: string }
 export type CategoryDisplayTreeChange = { action: 'create' | 'update'; id: string; name: string; parentId: string | null; position: number }
@@ -98,9 +102,11 @@ export function parseCategoryDisplayDirectory(value: unknown): CategoryDisplayDi
   const categories: CategoryDisplayNode[] = [];
   for (const item of value.categories) {
     const category = parseCategoryDisplayCategory(item);
+    /* imagePath 는 L5 migration 이후 어드민 목록에 실린다 — 배포 순서 사이(앱 먼저)의 응답에는 없을 수 있어 빈 값으로 읽는다. */
+    const nodeImage = item && categoryDisplayRecord(item) && item.imagePath !== undefined ? item.imagePath : null;
     if (!category || !categoryDisplayRecord(item) || item.archivedAt !== null && (typeof item.archivedAt !== 'string' || !Number.isFinite(Date.parse(item.archivedAt)))
-      || item.legacyCategoryId !== null && !isUuid(item.legacyCategoryId)) return null;
-    categories.push({ ...category, archivedAt: item.archivedAt as string | null, legacyCategoryId: item.legacyCategoryId as string | null });
+      || item.legacyCategoryId !== null && !isUuid(item.legacyCategoryId) || !imagePath(nodeImage)) return null;
+    categories.push({ ...category, archivedAt: item.archivedAt as string | null, legacyCategoryId: item.legacyCategoryId as string | null, imagePath: nodeImage });
   }
   const sourceCategories = value.sourceCategories.map(parseCategoryDisplayCategory);
   const byId = new Map(categories.map(category => [category.id, category]));

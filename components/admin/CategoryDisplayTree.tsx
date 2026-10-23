@@ -2,7 +2,8 @@
 import Link from 'next/link';
 import { useEffect, useRef, useState, useTransition } from 'react';
 import { AdminSectionCard } from './console/AdminKit';
-import { reloadCategoryDisplayTreeAction, updateCategoryDisplayTreeAction, type CategoryDisplayTreeResult } from '@/app/admin/category-display-actions';
+import { CategoryDisplayArtwork } from './CategoryDisplayArtwork';
+import { reloadCategoryDisplayTreeAction, updateCategoryDisplayNodeImageAction, updateCategoryDisplayTreeAction, type CategoryDisplayTreeResult } from '@/app/admin/category-display-actions';
 import { CATEGORY_DISPLAY_ADMIN_PATH, categoryDisplayParentChoices, type CategoryDisplayDirectory, type CategoryDisplayTreeChange } from '@/lib/category-display';
 import { createClient } from '@/lib/supabase/client';
 import { inquiryDraftSessionId } from '@/lib/admin/inquiry-drafts';
@@ -14,7 +15,10 @@ export function CategoryDisplayTree({ initial, selectedId, actorId, sessionId }:
   const [pending, startTransition] = useTransition(), [uncertain, setUncertain] = useState(false), [conflict, setConflict] = useState(false), [blocked, setBlocked] = useState(false);
   const [message, setMessage] = useState(''), [error, setError] = useState(false), [createdId, setCreatedId] = useState<string | null>(null);
   const request = useRef<{ change: CategoryDisplayTreeChange; revision: number; operationId: string } | null>(null), alive = useRef(true), blockedRef = useRef(false);
-  const locked = pending || uncertain || conflict || blocked;
+  /* 아이콘 적용은 트리와 같은 revision 을 쓰는 별도 요청이다 — 결과 불명확이면 같은 요청으로만 다시 확인한다(트리 저장과 섞지 않는다). */
+  const imageRequest = useRef<{ nodeId: string; imagePath: string | null; revision: number; operationId: string } | null>(null);
+  const [imageUncertain, setImageUncertain] = useState(false), [imageBusy, setImageBusy] = useState(false);
+  const locked = pending || uncertain || imageUncertain || conflict || blocked;
   const dirty = creating ? Boolean(name || parentId) : name !== (selected?.name ?? '') || parentId !== (selected?.parentId ?? '');
   const parents = categoryDisplayParentChoices(directory, creating ? null : selectedId);
   const siblings = directory.categories.filter(node => node.parentId === (parentId || null) && (creating || node.id !== selectedId));
@@ -28,7 +32,7 @@ export function CategoryDisplayTree({ initial, selectedId, actorId, sessionId }:
     return () => { alive.current = false; subscription.unsubscribe(); };
   }, [actorId, sessionId]);
   useEffect(() => {
-    if (!dirty && !uncertain) return;
+    if (!dirty && !uncertain && !imageUncertain) return;
     const prevent = (event: BeforeUnloadEvent) => event.preventDefault();
     const navigate = (event: MouseEvent) => {
       if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
@@ -38,7 +42,30 @@ export function CategoryDisplayTree({ initial, selectedId, actorId, sessionId }:
     };
     window.addEventListener('beforeunload', prevent); document.addEventListener('click', navigate, true);
     return () => { window.removeEventListener('beforeunload', prevent); document.removeEventListener('click', navigate, true); };
-  }, [dirty, uncertain]);
+  }, [dirty, uncertain, imageUncertain]);
+  function applyImage(imagePath: string | null) {
+    if (!selected || pending || conflict || blockedRef.current || request.current) return;
+    if (!imageRequest.current && imagePath === null && !window.confirm('카테고리 아이콘을 해제할까요? 모바일 카테고리 시트에는 이름 첫 글자로 보입니다.')) return;
+    imageRequest.current ??= { nodeId: selected.id, imagePath, revision: directory.revision, operationId: crypto.randomUUID() };
+    const attempt = imageRequest.current;
+    setMessage('');
+    startTransition(async () => {
+      let result: CategoryDisplayTreeResult;
+      try { result = await updateCategoryDisplayNodeImageAction(attempt.nodeId, attempt.imagePath, attempt.revision, attempt.operationId, actorId); }
+      catch { result = { error: '저장 결과를 확인하지 못했습니다. 같은 요청으로 다시 확인해주세요.', uncertain: true }; }
+      if (!alive.current || blockedRef.current) return;
+      if ('error' in result) {
+        setMessage(result.error); setError(true); setImageUncertain(Boolean(result.uncertain)); setConflict(Boolean(result.conflict));
+        if (!result.uncertain) imageRequest.current = null;
+        return;
+      }
+      setDirectory(result.directory); setImageUncertain(false); setConflict(false); imageRequest.current = null; setError(false);
+      setMessage(attempt.imagePath ? '카테고리 아이콘을 적용했습니다.' : '카테고리 아이콘을 해제했습니다.');
+    });
+  }
+  function retryImage() {
+    if (imageRequest.current) applyImage(imageRequest.current.imagePath);
+  }
   function submit(change: CategoryDisplayTreeChange) {
     if (pending || conflict || blockedRef.current) return;
     request.current ??= { change, revision: directory.revision, operationId: crypto.randomUUID() };
@@ -101,12 +128,22 @@ export function CategoryDisplayTree({ initial, selectedId, actorId, sessionId }:
           {!creating && selected?.depth === 4 ? <p>기존 4단계 분류는 보존됩니다. 다른 상위 분류로 옮길 때는 하위 분류를 포함해 3단계 이내여야 합니다.</p> : null}
           {!creating && selected?.archivedAt ? <p>보관 중에는 이 분류와 하위 분류의 공개 전시가 숨겨집니다. 상품 연결과 상단 콘텐츠는 보존됩니다.</p> : null}
         </fieldset>
-        <div className="admin-category-display__tree-actions"><button type="submit" disabled={pending || conflict || blocked}>{pending ? '저장 중…' : uncertain ? '같은 요청 결과 확인' : creating ? '전시분류 만들기' : '이름·상위 분류 저장'}</button>
+        <div className="admin-category-display__tree-actions"><button type="submit" disabled={pending || conflict || blocked || imageUncertain || imageBusy}>{pending ? '저장 중…' : uncertain ? '같은 요청 결과 확인' : creating ? '전시분류 만들기' : '이름·상위 분류 저장'}</button>
           {!creating && selected ? <><button type="button" disabled={locked || dirty || peerIndex <= 0} onClick={() => move(-1)}>위로</button><button type="button" disabled={locked || dirty || peerIndex >= peerCount - 1} onClick={() => move(1)}>아래로</button>
             <button type="button" disabled={locked || dirty} onClick={() => { if (selected.archivedAt || window.confirm('이 전시분류와 하위 공개 전시를 숨길까요? 상품 연결과 상단 콘텐츠는 보존됩니다.')) submit({ action: selected.archivedAt ? 'restore' : 'archive', id: selected.id }); }}>{selected.archivedAt ? '보관 해제' : '보관'}</button></> : null}
           <button type="button" disabled={pending || uncertain || blocked} onClick={reload}>최신 분류 불러오기</button></div>
         {message ? <p role={error ? 'alert' : 'status'}>{message}</p> : null}
         {createdId ? <Link href={`${CATEGORY_DISPLAY_ADMIN_PATH}?id=${createdId}`}>새 전시분류의 상품·상단 콘텐츠 구성하기</Link> : null}
+        {!creating && selected ? (
+          <section className="admin-category-display__node-image" aria-label="카테고리 아이콘">
+            <h3>카테고리 아이콘</h3>
+            <p>모바일 카테고리 시트의 아이콘 칸(60px 정사각)에 맞춰 보입니다. 투명 배경의 정사각 PNG를 권장합니다. 올리면 바로 적용되고, 비우면 이름 첫 글자로 표시합니다.</p>
+            {dirty ? <p>이름·상위 분류를 저장하거나 되돌린 뒤 아이콘을 바꿀 수 있습니다.</p> : null}
+            <CategoryDisplayArtwork key={`${selected.id}:${selected.imagePath ?? 'none'}`} label="아이콘 이미지" actorId={actorId} path={selected.imagePath}
+              disabled={locked || dirty} onChange={applyImage} onBusy={setImageBusy} />
+            {imageUncertain ? <button type="button" disabled={pending || blocked} onClick={retryImage}>아이콘 같은 요청 결과 확인</button> : null}
+          </section>
+        ) : null}
       </form>
     </div>
   </AdminSectionCard>;
