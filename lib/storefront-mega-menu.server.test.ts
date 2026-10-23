@@ -8,7 +8,7 @@ vi.mock('@supabase/ssr', () => ({ createServerClient: mocks.create }));
 vi.mock('next/cache', () => ({ unstable_cache: (fn: unknown) => fn }));
 vi.mock('./supabase/config', () => ({ getSupabaseConfig: () => ({ url: 'https://local.example.test', key: 'anon-test', isConfigured: mocks.configured }) }));
 import { loadStorefrontMegaMenus } from './storefront-mega-menu.server';
-import { EMPTY_STOREFRONT_MEGA_MENUS } from './storefront-mega-menu';
+import { EMPTY_STOREFRONT_MEGA_MENUS, MENU_CAMPAIGN_LIMIT, MENU_CAMPAIGN_QUERY_LIMIT } from './storefront-mega-menu';
 
 const id = (n: number) => `94932000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 
@@ -57,7 +57,7 @@ describe('메가메뉴 로더', () => {
       ['campaigns.lte', ['starts_at', now.toISOString()]],
       ['campaigns.gt', ['ends_at', now.toISOString()]],
       ['campaigns.order', ['featured_order', { ascending: true, nullsFirst: false }]],
-      ['campaigns.limit', [8]],
+      ['campaigns.limit', [MENU_CAMPAIGN_QUERY_LIMIT]],
       ['ips.eq', ['featured', true]],
       ['ips.is', ['archived_at', null]],
       ['ips.not', ['published_at', 'is', null]],
@@ -74,6 +74,19 @@ describe('메가메뉴 로더', () => {
 
     mocks.rpc.mockResolvedValue({ data: [{ id: id(2), parentId: id(1), name: '고아', depth: 2, imagePath: null, navigable: true }], error: null });
     expect((await loadStorefrontMegaMenus()).categories).toEqual([]);
+  });
+
+  /* 리뷰 l5-data-1 — limit(8)이 검증보다 먼저 걸리면 검증에서 빠진 행 자리가 비어 8개 대신 7개만 보였다. */
+  it('캠페인은 상한보다 넉넉히 읽어 검증에서 빠진 자리를 다음 순서의 캠페인으로 채운다', async () => {
+    expect(MENU_CAMPAIGN_QUERY_LIMIT).toBeGreaterThan(MENU_CAMPAIGN_LIMIT);
+    results.campaigns = { data: [
+      { id: 'blank', title: '\u0007', card_image_path: null },
+      { id: 'c0', title: '첫 기획전', card_image_path: null },
+      { id: 'c0', title: '중복', card_image_path: null },
+      ...Array.from({ length: 10 }, (_, index) => ({ id: `c${index + 1}`, title: `기획전 ${index + 1}`, card_image_path: null })),
+    ], error: null };
+    const menus = await loadStorefrontMegaMenus();
+    expect(menus.campaigns.map((campaign) => campaign.id)).toEqual(['c0', 'c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'c7']);
   });
 
   it('미설정 환경·예외에서는 빈 메뉴(= 기존 셸 메뉴)다', async () => {

@@ -5,7 +5,7 @@ import { normalizePublicMediaPath, PUBLIC_MEDIA_BUCKET } from './media';
 import { getSupabaseConfig } from './supabase/config';
 import {
   EMPTY_STOREFRONT_MEGA_MENUS,
-  MENU_CAMPAIGN_LIMIT,
+  MENU_CAMPAIGN_QUERY_LIMIT,
   STOREFRONT_MEGA_MENU_CACHE_TAG,
   parseStorefrontCategoryMenu,
   toMenuCampaigns,
@@ -28,7 +28,8 @@ export async function loadStorefrontMegaMenus(now: Date = new Date()): Promise<S
     const at = now.toISOString();
     const [menu, campaigns, ips] = await Promise.all([
       client.rpc('get_storefront_category_menu'),
-      /* 진행 중 기획전 — 허브 배너 순서(featured_order)를 먼저, 그다음 최근 시작 순. 초안은 RLS 가 가린다. */
+      /* 진행 중 기획전 — 허브 배너 순서(featured_order)를 먼저, 그다음 최근 시작 순. 초안은 RLS 가 가린다.
+         상한(8)보다 넉넉히 읽는다 — 자르기는 검증 뒤 toMenuCampaigns 가 한다(검증에서 빠진 자리를 다음 캠페인이 채운다). */
       client.from('campaigns')
         .select('id,title,card_image_path')
         .eq('status', 'published')
@@ -37,7 +38,7 @@ export async function loadStorefrontMegaMenus(now: Date = new Date()): Promise<S
         .order('featured_order', { ascending: true, nullsFirst: false })
         .order('starts_at', { ascending: false })
         .order('id', { ascending: true })
-        .limit(MENU_CAMPAIGN_LIMIT),
+        .limit(MENU_CAMPAIGN_QUERY_LIMIT),
       client.from('ips')
         .select('id,public_slug,title,bg,image_path,sort_order')
         .eq('featured', true)

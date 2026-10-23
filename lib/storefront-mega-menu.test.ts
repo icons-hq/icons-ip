@@ -7,10 +7,12 @@ import {
   MEGA_MENU_IP_TILE_COUNT,
   MENU_CAMPAIGN_LIMIT,
   MENU_FEATURED_IP_LIMIT,
+  MENU_LABEL_MAX,
   categoryMenuGroups,
   categoryMenuTiles,
   chunkMenuItems,
   isCategoryMenuLive,
+  menuLabel,
   menuMonogram,
   parseStorefrontCategoryMenu,
   toMenuCampaigns,
@@ -45,16 +47,39 @@ describe('공개 메뉴 RPC 검증', () => {
     expect(isCategoryMenuLive({ categories: nodes! })).toBe(true);
   });
 
-  it('부모보다 먼저 온 자식·깊이 불일치·중복·외부 이미지·제어문자 이름은 메뉴 전체를 거절한다', () => {
+  it('부모보다 먼저 온 자식·깊이 불일치·중복·외부 이미지·행 모양이 틀린 구조는 메뉴 전체를 거절한다', () => {
     expect(parseStorefrontCategoryMenu([tree[1], tree[0]], url)).toBeNull();
     expect(parseStorefrontCategoryMenu([tree[0], { ...tree[1], depth: 3 }], url)).toBeNull();
     expect(parseStorefrontCategoryMenu([tree[0], { ...tree[0] }], url)).toBeNull();
     expect(parseStorefrontCategoryMenu([{ ...tree[4], parentId: id(1) }], url)).toBeNull();
     expect(parseStorefrontCategoryMenu([{ ...tree[4], imagePath: 'https://evil.example/icon.png' }], url)).toBeNull();
-    expect(parseStorefrontCategoryMenu([{ ...tree[4], name: '줄\n바꿈' }], url)).toBeNull();
-    expect(parseStorefrontCategoryMenu([{ ...tree[4], name: '   ' }], url)).toBeNull();
+    expect(parseStorefrontCategoryMenu([{ ...tree[4], name: 42 }], url)).toBeNull();
     expect(parseStorefrontCategoryMenu([{ ...tree[4], navigable: 'true' }], url)).toBeNull();
     expect(parseStorefrontCategoryMenu({ nodes: tree }, url)).toBeNull();
+  });
+
+  /* 리뷰 l5-data-1 — 이름 상한이 DB(상품분류 이름 120자 → 레거시 전시 노드 이름)보다 좁으면 긴 이름 하나가 공개 트리 전체를
+   * 기존 메뉴로 폴백시켰다. 이름은 구조가 아니라 표시 값이다: DB 가 받는 값은 그대로 싣고, 넘치는 값만 잘라 싣는다. */
+  it('이름은 120자(DB 상한)까지 그대로 싣고, 넘치는 이름은 말줄임으로 잘라 싣는다 — 긴 이름 하나가 트리를 버리지 않는다', () => {
+    const legacy = '나'.repeat(MENU_LABEL_MAX);
+    const nodes = parseStorefrontCategoryMenu([{ ...tree[0], name: legacy }, ...tree.slice(1)], url);
+    expect(nodes?.map((node) => node.name)).toEqual([legacy, '피규어', '라이프', '머그', '시즌']);
+
+    const longer = parseStorefrontCategoryMenu([{ ...tree[4], name: '다'.repeat(MENU_LABEL_MAX + 30) }], url);
+    expect(longer?.[0].name).toBe(`${'다'.repeat(MENU_LABEL_MAX - 1)}…`);
+    expect(Array.from(longer![0].name)).toHaveLength(MENU_LABEL_MAX);
+  });
+
+  it('제어문자는 공백 하나로 바꿔 싣고, 쓸 이름이 없는 노드는 그 가지만 빼며 목적지 없는 조상도 함께 정리한다', () => {
+    expect(parseStorefrontCategoryMenu([{ ...tree[4], name: ' 줄\n\t바꿈 ' }], url)?.[0].name).toBe('줄 바꿈');
+    /* '라이프'(이름 없음)가 빠지면 그 아래 '머그'도 놓일 자리가 없어 함께 빠진다. 나머지 트리는 그대로다. */
+    const pruned = parseStorefrontCategoryMenu(tree.map((node) => (node.id === id(3) ? { ...node, name: '\u0007' } : node)), url);
+    expect(pruned?.map((node) => node.name)).toEqual(['토이', '피규어', '시즌']);
+    /* 목적지를 가진 하위가 모두 빠진 그룹 제목('토이')은 이름표만 남기지 않는다. */
+    const orphaned = parseStorefrontCategoryMenu(tree.map((node) => (node.id === id(2) || node.id === id(3) ? { ...node, name: '   ' } : node)), url);
+    expect(orphaned?.map((node) => node.name)).toEqual(['시즌']);
+    /* 남는 목적지가 하나도 없으면 꺼진 메뉴가 아니라 폴백이다. */
+    expect(parseStorefrontCategoryMenu([{ ...tree[4], name: '   ' }], url)).toBeNull();
   });
 
   it('목적지 없는 제목만 남은 응답은 그리지 않고, 빈 응답은 꺼진 메뉴다', () => {
@@ -93,6 +118,21 @@ describe('메가메뉴 그룹과 시트 타일', () => {
   });
 });
 
+describe('메뉴 이름', () => {
+  it('앞뒤 공백을 다듬고 제어문자 덩어리는 공백 하나로 바꾸며, 빈 이름은 null 이다', () => {
+    expect(menuLabel('  가을\r\n기획전  ')).toBe('가을 기획전');
+    expect(menuLabel('\u0000\u001f')).toBeNull();
+    expect(menuLabel('   ')).toBeNull();
+    expect(menuLabel(null)).toBeNull();
+  });
+
+  it('상한은 코드 포인트로 센다 — 120자는 그대로, 121자부터 119자 + 말줄임표', () => {
+    const exact = `${'가'.repeat(MENU_LABEL_MAX - 1)}😀`;
+    expect(menuLabel(exact)).toBe(exact);
+    expect(menuLabel(`${exact}다`)).toBe(`${'가'.repeat(MENU_LABEL_MAX - 1)}…`);
+  });
+});
+
 describe('기획전·피처드 IP 원천', () => {
   it('진행 중 캠페인은 중복·빈 제목을 버리고 상한까지만 싣는다', () => {
     const rows = [
@@ -111,6 +151,19 @@ describe('기획전·피처드 IP 원천', () => {
     expect(toMenuCampaigns(null, url)).toEqual([]);
   });
 
+  /* 리뷰 l5-data-1 — 어드민·DB 는 캠페인 제목을 120자까지 받는다. 허브 배너 1순위 기획전이 길이 때문에 메뉴에서 빠지면 안 된다. */
+  it('DB 가 받는 120자 제목·제어문자가 섞인 제목도 싣는다', () => {
+    const title = '가'.repeat(120);
+    const campaigns = toMenuCampaigns([
+      { id: 'long-title', title, card_image_path: null },
+      { id: 'pasted', title: '겨울\n선물 모음', card_image_path: null },
+      { id: 'short', title: '짧은 기획전', card_image_path: null },
+    ], url);
+    expect(campaigns.map((campaign) => [campaign.id, campaign.title])).toEqual([
+      ['long-title', title], ['pasted', '겨울 선물 모음'], ['short', '짧은 기획전'],
+    ]);
+  });
+
   it('피처드 IP는 디렉토리와 같은 순서(운영 순번 → 영문 표시명)·상한, 공개 주소·키아트를 쓴다', () => {
     const rows = [
       { id: 'zeta', public_slug: null, title: 'Zeta', bg: null, image_path: null, sort_order: null },
@@ -126,6 +179,13 @@ describe('기획전·피처드 IP 원천', () => {
     ]);
     expect(ips.map((ip) => ip.id)).not.toContain('zeta');
     expect(toMenuIps([{ id: 'none', title: '', bg: null }], url)).toEqual([]);
+  });
+
+  /* 리뷰 l5-data-1 — ips.title 에는 DB 길이 제약이 없다. 이름이 길다고 피처드 IP 를 메뉴에서 빼지 않고 표시용으로만 자른다. */
+  it('이름이 아주 긴 피처드 IP 도 빠지지 않고 표시 이름만 잘린다', () => {
+    const ips = toMenuIps([{ id: 'long-ip', public_slug: null, title: 'L'.repeat(300), bg: null, image_path: null, sort_order: 1 }], url);
+    expect(ips).toHaveLength(1);
+    expect(ips[0].name).toBe(`${'L'.repeat(MENU_LABEL_MAX - 1)}…`);
   });
 });
 
