@@ -11,6 +11,7 @@ import {
   readShellNoticeNow,
   readShellNoticeSeed,
   rememberDismissedNotice,
+  shellNoticeImpressionVisible,
   SHELL_NOTICE_DISMISSED_KEY,
   SHELL_NOTICE_NOW_GLOBAL,
   SHELL_NOTICE_ROOT_ID,
@@ -98,6 +99,24 @@ describe('같은 탭 닫힘과 스트립 선택', () => {
   it('저장소가 막혀도 이번 화면에서는 닫힌 목록을 돌려준다', () => {
     const blocked = { getItem: () => null, setItem: () => { throw new Error('quota'); } };
     expect(rememberDismissedNotice(blocked, 'x')).toEqual(['x']);
+  });
+
+  /* 저장소가 막히면 매번 빈 목록을 읽으므로, 지금 화면의 닫힘에 합치지 않으면 둘째를 닫을 때 첫째가 다시 나타난다(Codex #599). */
+  it('저장소가 막히거나 없어도 앞서 닫은 공지를 지금 화면 상태에서 이어받는다', () => {
+    const blocked = { getItem: () => null, setItem: () => { throw new Error('quota'); } };
+    const first = rememberDismissedNotice(blocked, 'first');
+    expect(rememberDismissedNotice(blocked, 'second', first)).toEqual(['first', 'second']);
+    expect(rememberDismissedNotice(null, 'third', ['first', 'second'])).toEqual(['first', 'second', 'third']);
+    const storage = memoryStorage({ [SHELL_NOTICE_DISMISSED_KEY]: '["stored"]' });
+    expect(rememberDismissedNotice(storage, 'b', ['a', 'stored'])).toEqual(['stored', 'a', 'b']);
+  });
+
+  /* IntersectionObserver는 관찰 시작·교차 변화 때 문턱 아래 비율로도 항목을 준다 — 절반 미만은 노출이 아니다(Codex #599). */
+  it('공지는 절반 이상 보일 때만 노출로 센다', () => {
+    expect(shellNoticeImpressionVisible({ isIntersecting: true, intersectionRatio: 0.02 })).toBe(false);
+    expect(shellNoticeImpressionVisible({ isIntersecting: true, intersectionRatio: 0.49 })).toBe(false);
+    expect(shellNoticeImpressionVisible({ isIntersecting: true, intersectionRatio: 0.5 })).toBe(true);
+    expect(shellNoticeImpressionVisible({ isIntersecting: false, intersectionRatio: 0.8 })).toBe(false);
   });
 
   it('닫지 않은 첫 공지 바 하나만 보이고, 스트립은 시드로 후보 하나를 고른다', () => {

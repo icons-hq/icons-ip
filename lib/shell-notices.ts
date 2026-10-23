@@ -109,8 +109,17 @@ export function readDismissedNoticeKeys(storage: Pick<Storage, 'getItem'> | null
 }
 
 /** 닫힘을 기록하고 새 목록을 돌려준다. 저장에 실패해도 이번 화면에서는 닫힌 상태를 유지한다. */
-export function rememberDismissedNotice(storage: Pick<Storage, 'getItem' | 'setItem'> | null, key: string): string[] {
-  const next = [...readDismissedNoticeKeys(storage).filter((entry) => entry !== key), key].slice(-DISMISSED_LIMIT);
+/**
+ * 닫힘을 더한다. 지금 화면의 닫힘 상태(previous)에 합치고 저장소는 보존용으로만 쓴다 — 저장소가 막혀(사생활 모드·용량 초과)
+ * 읽기가 비어도 앞서 닫은 공지가 다시 나타나지 않는다.
+ */
+export function rememberDismissedNotice(
+  storage: Pick<Storage, 'getItem' | 'setItem'> | null,
+  key: string,
+  previous: readonly string[] = [],
+): string[] {
+  const known = [...new Set([...readDismissedNoticeKeys(storage), ...previous])];
+  const next = [...known.filter((entry) => entry !== key), key].slice(-DISMISSED_LIMIT);
   try {
     storage?.setItem(SHELL_NOTICE_DISMISSED_KEY, JSON.stringify(next));
   } catch {
@@ -127,6 +136,17 @@ export function rememberDismissedNotice(storage: Pick<Storage, 'getItem' | 'setI
 export function shellNoticeLive(notice: { endsAt: number | null }, now: number | null): boolean {
   return now === null || typeof notice.endsAt !== 'number' || notice.endsAt > now;
 }
+
+/**
+ * IntersectionObserver 항목이 노출로 셀 만큼(절반 이상) 보이는가. 관찰을 시작할 때나 교차 여부가 바뀔 때는 문턱 아래 비율로도
+ * 항목이 오므로 isIntersecting만으로는 1px만 보여도 세게 된다.
+ */
+export function shellNoticeImpressionVisible(entry: Pick<IntersectionObserverEntry, 'isIntersecting' | 'intersectionRatio'>): boolean {
+  return entry.isIntersecting && entry.intersectionRatio >= SHELL_NOTICE_IMPRESSION_RATIO;
+}
+
+/** 노출 문턱 — 공지가 화면에 이만큼 보이면 노출로 센다. */
+export const SHELL_NOTICE_IMPRESSION_RATIO = 0.5;
 
 /** 운영 순서에서 닫지 않았고 끝나지 않은 첫 공지 바. 하나만 보인다. */
 export function firstVisibleNoticeBar(

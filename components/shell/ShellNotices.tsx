@@ -14,6 +14,8 @@ import {
   readDismissedNoticeKeys,
   readShellNoticeSeed,
   rememberDismissedNotice,
+  SHELL_NOTICE_IMPRESSION_RATIO,
+  shellNoticeImpressionVisible,
   SHELL_NOTICE_ROOT_ID,
   SHELL_NOTICE_SCRIPT,
   shellNoticeTimerDelay,
@@ -94,11 +96,11 @@ export function ShellNotices({
       if (!active) return;
       for (const entry of entries) {
         const id = (entry.target as HTMLElement).dataset.noticeId;
-        if (!entry.isIntersecting || !id) continue;
+        if (!id || !shellNoticeImpressionVisible(entry)) continue;
         observer.unobserve(entry.target);
         recordShellNoticeEvent(id, 'impression');
       }
-    }, { threshold: 0.5 });
+    }, { threshold: SHELL_NOTICE_IMPRESSION_RATIO });
     targets.forEach((target) => observer.observe(target));
     return () => {
       active = false;
@@ -113,7 +115,7 @@ export function ShellNotices({
 
   /* 닫은 버튼이 사라지면 포커스가 문서 처음으로 튄다 — 다음 공지의 조작부, 없으면 로고로 옮긴다. */
   const dismiss = (key: string) => {
-    flushSync(() => setDismissed(rememberDismissedNotice(browserSessionStorage(), key)));
+    flushSync(() => setDismissed((current) => rememberDismissedNotice(browserSessionStorage(), key, current)));
     const next = rootRef.current?.querySelector<HTMLElement>(
       '[data-notice-bar]:not([hidden]) .wc-notice-bar__close, [data-notice-strip]:not([hidden])',
     ) ?? document.querySelector<HTMLElement>('.wc-chrome .wc-logo');
