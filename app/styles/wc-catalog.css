@@ -44,6 +44,65 @@
 }
 
 /* ------------------------------------------------------------------
+   목록 하트 (CL-01·HM-03 · 12 LD-4) — 카드 action 슬롯·홈 리스트 행 공용
+   ------------------------------------------------------------------ */
+
+/* 버튼은 44px 히트 영역이고 그림은 안쪽 36px 원이다(레퍼런스 카드 하트 36 · DESIGN §10 아이콘 44).
+   카드 슬롯(.wc-product-card__action)은 이미지 우상단 4px 에 서므로, 44 상자를 그 자리에서 4px 씩
+   바깥으로 물려 원이 정확히 우상단 4px 에 앉게 한다. 빈 하트 선은 ink.tertiary(흰 원 위 6.2:1),
+   채운 하트는 비텍스트 액센트다(DESIGN §2 "위시 하트 선택됨"). */
+.wc-list-heart {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--wc-ink-tertiary);
+  cursor: pointer;
+}
+
+.wc-list-heart__disc {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--wc-hairline-soft);
+  border-radius: 50%;
+  background: var(--wc-surface);
+}
+
+.wc-list-heart.is-active {
+  color: var(--wc-accent);
+}
+
+.wc-list-heart[aria-busy='true'] {
+  cursor: progress;
+}
+
+.wc-list-heart svg {
+  transition: transform var(--wc-duration-short);
+}
+
+.wc-list-heart.is-active svg {
+  transform: scale(1.08);
+}
+
+.wc-product-card__action .wc-list-heart {
+  margin: -4px -4px 0 0;
+}
+
+@media (forced-colors: active) {
+  .wc-list-heart__disc {
+    border-color: CanvasText;
+  }
+}
+
+/* ------------------------------------------------------------------
    컬렉션 — 페이지 골격
    ------------------------------------------------------------------ */
 
@@ -3179,7 +3238,8 @@
     scroll-behavior: auto;
   }
 
-  .wc-wish-heart svg {
+  .wc-wish-heart svg,
+  .wc-list-heart svg {
     transition-duration: .01ms;
   }
 }
