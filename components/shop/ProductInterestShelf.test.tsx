@@ -100,3 +100,55 @@ describe('interest collection listing cards', () => {
     expect(cardProps(render()).map(card => card.action)).toEqual([undefined]);
   });
 });
+/* l4b-data-1 — 선반은 다른 탭의 로그아웃·로그인을 따라 새 계정의 목록으로 바뀐다. 하트는 서버 렌더 때 판정한 회원의 것이라,
+   지금 그리는 목록의 주인과 다르면 숨긴다 — 한 선반 안에서 두 계정의 위시가 섞이지 않게. */
+describe('interest collection hearts follow the drawn account', () => {
+  /* clearAllMocks 는 mockResolvedValueOnce 대기열을 비우지 않는다 — 앞 시험이 중간에 실패해도 남은 응답이 넘어오지 않게 비운다. */
+  beforeEach(() => { mocks.collection.mockReset(); });
+  /* 카드마다 [이름, 하트의 회원, 초기 찜 상태] — 하트가 없으면 회원·상태가 undefined 다. */
+  const hearts = (node: unknown) => cardProps(node).map(card => {
+    const action = card.action as { props?: Record<string, unknown> } | undefined;
+    return [card.name, action?.props?.viewerId, action?.props?.initialWished];
+  });
+  const collectionOf = (owner: string | null, groups: Partial<InterestCollection['groups']>): InterestCollection =>
+    ({ ...emptyInterestCollection(owner), enabled: true, groups: { ...emptyInterestCollection(owner).groups, ...groups } });
+
+  it('계정이 바뀌어 새 계정의 목록을 그리면 이전 회원의 하트를 남기지 않고, 같은 회원으로 돌아오면 다시 단다', async () => {
+    /* 페이지는 first 로 서버 렌더됐다 — first 의 위시는 g3 하나. */
+    const wishlist = { viewerId: first, goodIds: ['g3'] };
+    mocks.collection
+      .mockResolvedValueOnce(collectionOf(first, { wishlist: [good('g3')], recent: [good('g4')] }))
+      .mockResolvedValueOnce(collectionOf(second, { wishlist: [good('g5')], recent: [good('g3')] }))
+      .mockResolvedValueOnce(collectionOf(first, { wishlist: [good('g3')], recent: [good('g4')] }));
+    render({ wishlist }); hooks.effects[0]();
+    mocks.authCallback!('SIGNED_IN', { user: { id: first } }); render({ wishlist }); hooks.effects[1](); await flush();
+    expect(hearts(render({ wishlist }))).toEqual([['관심 g4', first, false]]);
+
+    /* 다른 탭에서 second 로 로그인 — 선반은 second 의 목록으로 바뀌지만 first 의 찜(g3 채움)이 보이거나 g5 가 빈 하트로 서면 안 된다. */
+    mocks.authCallback!('SIGNED_IN', { user: { id: second } }); render({ wishlist }); hooks.effects[1](); await flush();
+    expect(hooks.state[1]).toMatchObject({ ownerId: second });
+    expect(hearts(render({ wishlist }))).toEqual([['관심 g3', undefined, undefined]]);
+    hooks.state[2] = 'wishlist';
+    expect(hearts(render({ wishlist }))).toEqual([['관심 g5', undefined, undefined]]);
+
+    /* 서버가 그린 회원으로 돌아오면 그 위시 상태로 하트를 다시 단다. */
+    mocks.authCallback!('SIGNED_IN', { user: { id: first } }); render({ wishlist }); hooks.effects[1](); await flush();
+    expect(hooks.state[1]).toMatchObject({ ownerId: first });
+    expect(hearts(render({ wishlist }))).toEqual([['관심 g3', first, true]]);
+  });
+
+  it('서버가 게스트로 그린 화면에서 선반이 회원을 관측하면 로그인 벽 하트를 세우지 않는다', async () => {
+    const wishlist = { viewerId: null, goodIds: [] };
+    mocks.collection
+      .mockResolvedValueOnce(collectionOf(null, { recent: [good('g4')] }))
+      .mockResolvedValueOnce(collectionOf(second, { recent: [good('g4')] }));
+    render({ wishlist }); hooks.effects[0]();
+    /* 게스트끼리는 하트를 단다 — 누르면 로그인 벽으로 간다. */
+    mocks.authCallback!('INITIAL_SESSION', null); render({ wishlist }); hooks.effects[1](); await flush();
+    expect(hearts(render({ wishlist }))).toEqual([['관심 g4', null, false]]);
+
+    mocks.authCallback!('SIGNED_IN', { user: { id: second } }); render({ wishlist }); hooks.effects[1](); await flush();
+    expect(hooks.state[1]).toMatchObject({ ownerId: second });
+    expect(hearts(render({ wishlist }))).toEqual([['관심 g4', undefined, undefined]]);
+  });
+});

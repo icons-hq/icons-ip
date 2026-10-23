@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { ProductCard } from '@/components/wc/ProductCard';
-import { listingHeartsFor } from './listing-hearts';
+import { listingHeartsFor, wishlistForOwner } from './listing-hearts';
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }) }));
 vi.mock('@/app/shop/actions', () => ({ toggleWishlistAction: vi.fn() }));
@@ -30,5 +30,28 @@ describe('listingHeartsFor', () => {
     expect(listingHeartsFor(null)({ id: 'g1', name: '아크릴 블록' })).toBeUndefined();
     expect(listingHeartsFor(undefined)({ id: 'g1', name: '아크릴 블록' })).toBeUndefined();
     expect(card(undefined)).not.toContain('wc-list-heart');
+  });
+});
+
+/* l4b-data-1 — 스스로 계정 전환을 따라가는 선반은 그리는 목록의 주인과 서버가 판정한 회원이 같을 때만 하트를 단다. */
+describe('wishlistForOwner', () => {
+  const member = { viewerId: 'viewer-a', goodIds: ['g1'] };
+  const guest = { viewerId: null, goodIds: [] };
+
+  it('목록의 주인이 서버가 판정한 회원과 같으면(게스트끼리 포함) 그 위시 상태를 그대로 넘긴다', () => {
+    expect(wishlistForOwner(member, 'viewer-a')).toBe(member);
+    expect(wishlistForOwner(guest, null)).toBe(guest);
+  });
+
+  it('다른 회원·게스트↔회원 전환·주인 미정이면 하트를 그리지 않도록 null 이다', () => {
+    expect(wishlistForOwner(member, 'viewer-b')).toBeNull();
+    /* 서버는 회원으로 그렸는데 선반은 로그아웃을 관측했다 — 게스트 목록에 이전 회원의 찜이 보이면 안 된다. */
+    expect(wishlistForOwner(member, null)).toBeNull();
+    /* 서버는 게스트로 그렸는데 선반은 회원을 관측했다 — 회원 화면에 로그인 벽 하트가 서면 안 된다. */
+    expect(wishlistForOwner(guest, 'viewer-b')).toBeNull();
+    expect(wishlistForOwner(member, undefined)).toBeNull();
+    expect(wishlistForOwner(null, 'viewer-a')).toBeNull();
+    expect(wishlistForOwner(undefined, null)).toBeNull();
+    expect(listingHeartsFor(wishlistForOwner(member, 'viewer-b'))({ id: 'g1', name: '아크릴 블록' })).toBeUndefined();
   });
 });

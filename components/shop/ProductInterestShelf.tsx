@@ -10,13 +10,14 @@ import { ProductCard } from '@/components/wc/ProductCard';
 import { goodDisplayBadges } from '@/lib/goods-taxonomy';
 import type { ListingWishlist } from '@/lib/listing-wishlist';
 import { GoodsSalePeriodRefresh } from './GoodsSalePeriodRefresh';
-import { listingHeartsFor } from './listing-hearts';
+import { listingHeartsFor, wishlistForOwner } from './listing-hearts';
 import { useListingReviewSummaries } from './useListingReviewSummaries';
 
 const labels: Record<InterestKind, string> = { repurchase: '재구매한 굿즈', cart: '장바구니', wishlist: '찜한 굿즈', recent: '최근 본 굿즈' };
 const kinds: InterestKind[] = ['repurchase', 'cart', 'wishlist', 'recent'];
 /* 카드의 목록 하트는 서버가 판정한 위시 상태(`wishlist`)로 시작한다(LFS 패리티 2차 L4b · CL-01) — 상세·관심 굿즈 화면이 한 번
-   읽어 내려 준다. 생략하면 하트가 없다. 별점(CL-02)은 굿즈를 받아 온 뒤 네 묶음의 굿즈를 한 번에 묻는다. */
+   읽어 내려 준다. 생략하면 하트가 없다. 선반은 계정 전환을 스스로 따라가므로, 그리는 목록의 주인이 서버가 판정한 회원과 다르면
+   하트를 숨긴다(`wishlistForOwner`). 별점(CL-02)은 굿즈를 받아 온 뒤 네 묶음의 굿즈를 한 번에 묻는다. */
 export function ProductInterestShelf({ currentGoodId, standalone = false, wishlist }: { currentGoodId?: string; standalone?: boolean; wishlist?: ListingWishlist | null }) {
   const cart = useCart();
   const [owner, setOwner] = useState<string | null | undefined>(undefined), [collection, setCollection] = useState<InterestCollection>(() => emptyInterestCollection());
@@ -52,7 +53,8 @@ export function ProductInterestShelf({ currentGoodId, standalone = false, wishli
   }, [owner, currentGoodId, cartIds, refresh]);
   const groups = kinds.map(kind => ({ kind, goods: collection.groups[kind].filter(good => good.id !== currentGoodId) }));
   const reviewSummaries = useListingReviewSummaries(groups.flatMap(group => group.goods.map(good => good.id)));
-  const heartFor = listingHeartsFor(wishlist);
+  /* 목록은 owner 의 것이다 — 계정이 바뀌면 identity() 가 목록을 비우고 새 owner 의 응답만 받는다. 하트도 같은 회원일 때만 그린다. */
+  const heartFor = listingHeartsFor(wishlistForOwner(wishlist, owner));
   const available = groups.filter(group => group.goods.length), active = available.find(group => group.kind === selected) ?? available[0];
   if (!standalone && (!collection.enabled || !active)) return null;
   return <section className="wc-product-interests" aria-labelledby="product-interests-heading">
