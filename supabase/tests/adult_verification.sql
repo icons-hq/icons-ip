@@ -80,7 +80,9 @@ values
   ('00000000-0000-4000-8000-0000000a1902', 'authenticated', 'authenticated', 'adult-b@example.test', now(), '{}', '{}', now(), now()),
   ('00000000-0000-4000-8000-0000000a1903', 'authenticated', 'authenticated', 'adult-suspended@example.test', now(), '{}', '{}', now(), now()),
   ('00000000-0000-4000-8000-0000000a1904', 'authenticated', 'authenticated', 'adult-limit@example.test', now(), '{}', '{}', now(), now()),
-  ('00000000-0000-4000-8000-0000000a1905', 'authenticated', 'authenticated', 'adult-expired@example.test', now(), '{}', '{}', now(), now())
+  ('00000000-0000-4000-8000-0000000a1905', 'authenticated', 'authenticated', 'adult-expired@example.test', now(), '{}', '{}', now(), now()),
+  ('00000000-0000-4000-8000-0000000a1906', 'authenticated', 'authenticated', 'adult-swap-c@example.test', now(), '{}', '{}', now(), now()),
+  ('00000000-0000-4000-8000-0000000a1907', 'authenticated', 'authenticated', 'adult-swap-d@example.test', now(), '{}', '{}', now(), now())
 on conflict (id) do nothing;
 
 insert into public.profiles (id, email, nickname, birth_date, consents, onboarded_at, role)
@@ -89,7 +91,9 @@ values
   ('00000000-0000-4000-8000-0000000a1902', 'adult-b@example.test', 'adult_b', '2000-01-01', '{"terms":true,"privacy":true}'::jsonb, now(), 'user'::public.user_role),
   ('00000000-0000-4000-8000-0000000a1903', 'adult-suspended@example.test', 'adult_suspended', '2000-01-01', '{"terms":true,"privacy":true}'::jsonb, now(), 'user'::public.user_role),
   ('00000000-0000-4000-8000-0000000a1904', 'adult-limit@example.test', 'adult_limit', '2000-01-01', '{"terms":true,"privacy":true}'::jsonb, now(), 'user'::public.user_role),
-  ('00000000-0000-4000-8000-0000000a1905', 'adult-expired@example.test', 'adult_expired', '2000-01-01', '{"terms":true,"privacy":true}'::jsonb, now(), 'user'::public.user_role)
+  ('00000000-0000-4000-8000-0000000a1905', 'adult-expired@example.test', 'adult_expired', '2000-01-01', '{"terms":true,"privacy":true}'::jsonb, now(), 'user'::public.user_role),
+  ('00000000-0000-4000-8000-0000000a1906', 'adult-swap-c@example.test', 'adult_swap_c', '2000-01-01', '{"terms":true,"privacy":true}'::jsonb, now(), 'user'::public.user_role),
+  ('00000000-0000-4000-8000-0000000a1907', 'adult-swap-d@example.test', 'adult_swap_d', '2000-01-01', '{"terms":true,"privacy":true}'::jsonb, now(), 'user'::public.user_role)
 on conflict (id) do update set
   email = excluded.email,
   nickname = excluded.nickname,
@@ -106,13 +110,13 @@ where id = '00000000-0000-4000-8000-0000000a1903';
 create temporary table adult_fixture_nonce (label text primary key, digest text not null) on commit drop;
 insert into adult_fixture_nonce (label, digest)
 select label, pg_catalog.encode(extensions.digest(label, 'sha256'), 'hex')
-from (values ('a1'), ('a2'), ('a3'), ('b1'), ('a4'), ('a5'), ('a6'), ('a7'), ('a8'), ('x1'), ('s1')) as v(label);
+from (values ('a1'), ('a2'), ('a3'), ('b1'), ('a4'), ('a5'), ('a6'), ('a7'), ('a8'), ('c1'), ('x1'), ('s1')) as v(label);
 
 -- 완료 토큰 다이제스트: 콜백을 선점한 브라우저가 받는 토큰의 해시.
 create temporary table adult_fixture_completion (label text primary key, digest text not null) on commit drop;
 insert into adult_fixture_completion (label, digest)
 select label, pg_catalog.encode(extensions.digest('completion-' || label, 'sha256'), 'hex')
-from (values ('a2'), ('a3'), ('b1'), ('a5'), ('a6'), ('a7'), ('a8'), ('forged')) as v(label);
+from (values ('a2'), ('a3'), ('b1'), ('a5'), ('a6'), ('a7'), ('a8'), ('c1'), ('forged')) as v(label);
 
 create temporary table adult_fixture_session (label text primary key, session_id uuid not null) on commit drop;
 grant all on adult_fixture_nonce, adult_fixture_session, adult_fixture_completion to service_role, authenticated;
@@ -506,6 +510,87 @@ select 1 / case when (
     and target = 'profiles:00000000-0000-4000-8000-0000000a1901'
     and actor_id = '00000000-0000-4000-8000-0000000a1902'
 ) then 1 else 0 end as assert_subject_move_is_audited;
+
+-- ---------------------------------------------------------------------------
+-- 명의 맞바꾸기 — 인증된 C가 인증된 D의 명의로 확정하면 C의 이전 증거는 갱신으로,
+-- D의 증거는 명의 이전으로 한 번에 해제된다. 두 해제가 잠그는 행을 id 순서로 먼저
+-- 잠그는 경로다(서로의 명의로 동시에 확정해도 교착되지 않게).
+-- ---------------------------------------------------------------------------
+insert into private.adult_verification_sessions (
+  user_id, provider_mode, provider_order_id, callback_nonce_digest, presentation, return_path,
+  registration_key, completion_token_digest, state, created_at, expires_at, completed_at
+)
+values
+  ('00000000-0000-4000-8000-0000000a1906', 'test', 'IV' || repeat('6', 32), repeat('6', 64), 'page', '/my',
+    'REGSWAPC000000000001', repeat('6', 64), 'verified', now(), now() + interval '30 minutes', now()),
+  ('00000000-0000-4000-8000-0000000a1907', 'test', 'IV' || repeat('8', 32), repeat('8', 64), 'page', '/my',
+    'REGSWAPD000000000001', repeat('8', 64), 'verified', now(), now() + interval '30 minutes', now());
+
+insert into private.adult_verifications (
+  user_id, session_id, provider, provider_mode, subject_digest, transaction_digest,
+  policy_version, verified_at, expires_at
+)
+select session.user_id, session.id, 'kcp', 'test', subject.digest, subject.transaction_digest,
+  'adult_19_youth_protection_act@2026-10-23', now(), now() + interval '1 year'
+from private.adult_verification_sessions as session
+join (values
+  ('IV' || repeat('6', 32), repeat('6', 64), repeat('7', 64)),
+  ('IV' || repeat('8', 32), repeat('8', 64), repeat('9', 64))
+) as subject(order_id, digest, transaction_digest) on subject.order_id = session.provider_order_id;
+
+set local role service_role;
+
+insert into adult_fixture_session (label, session_id)
+select 'c1', (public.begin_adult_verification(
+  '00000000-0000-4000-8000-0000000a1906', 'test', 'page', '/my',
+  (select digest from adult_fixture_nonce where label = 'c1')
+) ->> 'sessionId')::uuid;
+
+select public.register_adult_verification(
+  (select session_id from adult_fixture_session where label = 'c1'),
+  'REGC1000000000000001'
+);
+
+insert into adult_fixture_claim (label, result, token)
+select 'c1', public.claim_adult_verification_callback(
+  (select digest from adult_fixture_nonce where label = 'c1'),
+  'REGC1000000000000001',
+  token,
+  (select digest from adult_fixture_completion where label = 'c1')
+), token
+from (select extensions.gen_random_uuid() as token) as t;
+
+select public.stage_adult_verification_result(
+  (select session_id from adult_fixture_session where label = 'c1'),
+  (select token from adult_fixture_claim where label = 'c1'),
+  'adult', repeat('8', 64), repeat('ab', 32), 'adult_19_youth_protection_act@2026-10-23'
+);
+
+reset role;
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-0000000a1906', true);
+select 1 / case when (
+  public.complete_my_adult_verification(
+    (select digest from adult_fixture_nonce where label = 'c1'),
+    (select digest from adult_fixture_completion where label = 'c1')
+  ) ->> 'outcome' = 'verified'
+) then 1 else 0 end as assert_swap_completion_verifies;
+reset role;
+
+select 1 / case when (
+  (select revoked_reason from private.adult_verifications where transaction_digest = repeat('7', 64)) = 'superseded'
+  and (select revoked_reason from private.adult_verifications where transaction_digest = repeat('9', 64)) = 'subject_moved'
+  and exists (
+    select 1 from private.adult_verifications
+    where user_id = '00000000-0000-4000-8000-0000000a1906'
+      and subject_digest = repeat('8', 64)
+      and transaction_digest = repeat('ab', 32)
+      and revoked_at is null
+  )
+  and private.adult_verification_valid('00000000-0000-4000-8000-0000000a1906')
+  and not private.adult_verification_valid('00000000-0000-4000-8000-0000000a1907')
+) then 1 else 0 end as assert_swap_supersedes_own_and_moves_other;
 
 -- ---------------------------------------------------------------------------
 -- 미성년 판정 — B의 기존 증거가 해제되고 명의 해시는 남지 않는다

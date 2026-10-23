@@ -759,6 +759,17 @@ begin
     pg_catalog.hashtextextended('adult-verification-subject:' || v_session.staged_subject_digest, 0)
   );
 
+  -- 아래 두 해제가 건드릴 활성 증거(내 증거 + 이 명의의 다른 계정 증거)를 id 순서로 먼저
+  -- 잠근다. 인증된 두 계정이 서로의 명의로 동시에 확정하면 명의 잠금이 달라 직렬화되지
+  -- 않고, 각자 자기 증거를 먼저 잠근 뒤 상대 증거를 기다려 교착될 수 있다 — 잠금 순서를
+  -- 하나로 고정해 한쪽이 기다리게 한다.
+  perform 1
+  from private.adult_verifications as evidence
+  where evidence.revoked_at is null
+    and (evidence.user_id = v_user or evidence.subject_digest = v_session.staged_subject_digest)
+  order by evidence.id
+  for update;
+
   update private.adult_verifications
   set revoked_at = v_now, revoked_reason = 'superseded'
   where user_id = v_user
