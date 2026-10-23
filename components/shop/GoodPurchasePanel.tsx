@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useEffect, useRef, useState, type RefObject } from 'react';
+import { useEffect, useRef, useState, type MouseEvent, type RefObject } from 'react';
 import { useCart } from '@/components/shell/CartProvider';
 import { RestockBellGlyph } from '@/components/shop/RestockBellGlyph';
 import { RestockCta } from '@/components/shop/RestockCta';
@@ -513,6 +513,44 @@ export function useRestockStaleState(rootRef: RefObject<HTMLElement | null>, cta
 const PANEL_CTA_FOCUS = ['.wc-buy-panel__ctas button:not([disabled])', 'select:not([disabled])'] as const;
 const RAIL_CTA_FOCUS = ['.wc-pdp-railbox__ctas button:not([disabled])', 'button:not([disabled])'] as const;
 const BAR_CTA_FOCUS = ['button:not([disabled])'] as const;
+/* 시트를 연 바 버튼이 사라졌을 때 대신 받을 바 버튼 — 주 버튼(구매하기·재입고 알림)을 먼저, 없으면 바의 다른 버튼이다. */
+const BAR_SHEET_RETURN_FOCUS = ['.wc-buybar__buy:not([disabled])', '.wc-buybar__restock button:not([disabled])', 'button:not([disabled])'] as const;
+
+/**
+ * 모바일 바의 시트 트리거가 시트가 열린 동안 바뀌었을 때의 포커스 복귀.
+ *
+ * 바는 고른 옵션의 품절 여부에 따라 [카트][구매하기]와 벨 트리거를 서로 다른 버튼으로 갈아 끼운다 — 시트 안에서 옵션을
+ * 바꾸거나 그 사이 재입고로 화면을 다시 받으면 시트를 연 버튼이 문서에서 빠진다. 시트의 포커스 복귀(useOverlayA11y)는
+ * 빠진 버튼을 겨눠 아무 일도 하지 않고 포커스는 body 로 떨어진다(다음 Tab 이 문서 맨 앞으로 간다). 그래서 시트가 닫힌 뒤
+ * 연 버튼이 빠졌고 포커스를 잃은 채면 그 자리를 대신한 바 버튼으로 옮긴다 — 카트로 열었으면 새 카트, 아니면 주 버튼이다.
+ * 연 버튼이 남아 있으면 시트가 원래대로 그 버튼으로 돌려주므로 건드리지 않는다.
+ *
+ * effect 는 시트의 정리(배경 inert 해제·포커스 복귀) 뒤에 돈다 — 한 커밋의 effect 정리는 모두 새 effect 보다 먼저다.
+ * 같은 커밋에 담기 결과 모달이 뜨면(시트에서 담기 성공) 바가 모달 포털보다 앞 형제라 이 effect 가 모달의 effect 보다
+ * 먼저 돌고, 모달은 여기서 옮긴 버튼을 복귀 대상으로 기억한다.
+ */
+export function useSheetTriggerFocusReturn(barRef: RefObject<HTMLElement | null>, sheetOpen: boolean) {
+  const openerRef = useRef<HTMLElement | null>(null);
+  useEffect(() => {
+    if (sheetOpen) return;
+    const opener = openerRef.current;
+    openerRef.current = null;
+    if (!opener || opener.isConnected) return;
+    const active = document.activeElement;
+    if (active && active !== document.body) return;
+    const selectors = opener.classList.contains('wc-buybar__cart') ? ['.wc-buybar__cart:not([disabled])', ...BAR_SHEET_RETURN_FOCUS] : BAR_SHEET_RETURN_FOCUS;
+    for (const selector of selectors) {
+      const target = barRef.current?.querySelector<HTMLElement>(selector);
+      if (target) {
+        target.focus();
+        return;
+      }
+    }
+  }, [barRef, sheetOpen]);
+  return (event: MouseEvent<HTMLElement>) => {
+    openerRef.current = event.currentTarget;
+  };
+}
 
 /** 정보 칼럼의 구매 패널. 품절이면(고른 옵션만 품절이어도) CTA 자리만 재입고 알림으로 바뀐다(R-04 §4). */
 export function GoodPurchasePanel({ otherPurchases, purchase }: { otherPurchases?: OtherPurchaseAvailability; purchase: GoodPurchaseController }) {
@@ -623,6 +661,12 @@ export function GoodBuyBars({
   /* 바에서 직접 신청하는 버튼(RestockCta)은 모든 옵션 품절일 때뿐이다 — 고른 옵션만 품절일 때의 벨은 시트 트리거다. */
   const barRef = useRef<HTMLDivElement>(null);
   const stale = useRestockStaleState(barRef, purchase.unavailableLabel ? 'unavailable' : soldOut ? 'restock' : 'buy', BAR_CTA_FOCUS);
+  /* 시트에서 옵션을 바꾸면 이 바의 트리거가 다른 버튼으로 바뀐다 — 닫을 때 포커스를 그 자리의 새 버튼으로 돌린다. */
+  const rememberOpener = useSheetTriggerFocusReturn(barRef, sheetOpen);
+  const openSheet = (event: MouseEvent<HTMLButtonElement>) => {
+    rememberOpener(event);
+    onOpenSheet();
+  };
 
   return (
     <div className="wc-buybar" ref={barRef}>
@@ -635,7 +679,7 @@ export function GoodBuyBars({
             aria-haspopup="dialog"
             className="wc-btn primary"
             disabled={disabled}
-            onClick={onOpenSheet}
+            onClick={openSheet}
             type="button"
           >
             <RestockBellGlyph />
@@ -651,7 +695,7 @@ export function GoodBuyBars({
             aria-label="장바구니에 담기"
             className="wc-buybar__cart"
             disabled={disabled}
-            onClick={onOpenSheet}
+            onClick={openSheet}
             type="button"
           >
             <CartGlyph />
@@ -661,7 +705,7 @@ export function GoodBuyBars({
             aria-haspopup="dialog"
             className="wc-buybar__buy"
             disabled={disabled}
-            onClick={onOpenSheet}
+            onClick={openSheet}
             type="button"
           >
             구매하기

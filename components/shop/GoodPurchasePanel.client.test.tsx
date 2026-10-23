@@ -186,3 +186,78 @@ describe('재입고 신청이 바뀐 판매 상태로 거절된 뒤 (리뷰 l2-u
     expect(statusText(frame.result)).toBe(STALE);
   });
 });
+
+/*
+ * 시트를 연 바 버튼이 시트가 열린 동안 바뀐 뒤 시트를 닫으면(QA l2-qa-1) — 바는 고른 옵션의 품절 여부로 [카트][구매하기]와
+ * 벨 트리거를 서로 다른 버튼으로 갈아 끼운다. 시트의 포커스 복귀는 빠진 버튼을 겨눠 body 로 떨어지므로, 바가 그 자리의 새
+ * 버튼으로 옮긴다. 바의 버튼은 className 으로 고르고, 문서에서 빠졌는지는 isConnected 로 흉내 낸다.
+ */
+describe('시트를 연 바 버튼이 바뀐 뒤 닫힐 때의 포커스 복귀 (QA l2-qa-1)', () => {
+  const buyable = () => controller({ restockOption: undefined, selectedOption: optionA, selectionRequired: false, inert: false, subtotal: 26000 });
+  const barButton = (tree: ReactNode, className: string) => elements(tree).find((element) => element.type === 'button' && element.props.className === className)!;
+  const opener = (className: string) => ({ isConnected: true, classList: { contains: (name: string) => className.split(' ').includes(name) } });
+
+  /* 바를 그리고 버튼을 눌러 시트를 연 뒤, 시트가 열린 동안 연 버튼이 문서에서 빠졌다고 두고 닫는다. */
+  function openThenClose(start: GoodPurchaseController, className: string, after: GoodPurchaseController, bar: Record<string, string>, connected = false) {
+    const onOpenSheet = vi.fn();
+    let frame = render(() => GoodBuyBars({ onOpenSheet, purchase: start, sheetOpen: false }));
+    frame.commit();
+    const target = opener(className);
+    (barButton(frame.result, className).props.onClick as (event: { currentTarget: unknown }) => void)({ currentTarget: target });
+    expect(onOpenSheet).toHaveBeenCalledTimes(1);
+    frame = render(() => GoodBuyBars({ onOpenSheet, purchase: start, sheetOpen: true }));
+    frame.commit();
+    target.isConnected = connected;
+    hooks.refs[0].current = fakeRoot(bar);
+    frame = render(() => GoodBuyBars({ onOpenSheet, purchase: after, sheetOpen: false }));
+    frame.commit();
+    return frame;
+  }
+
+  it('구매하기로 연 시트에서 품절 옵션을 고르고 닫으면 그 자리의 벨 트리거로 돌아간다', () => {
+    openThenClose(buyable(), 'wc-buybar__buy', controller(), { '.wc-buybar__restock button:not([disabled])': '재입고 알림 받기', 'button:not([disabled])': '재입고 알림 받기' });
+    expect(focused).toEqual(['재입고 알림 받기']);
+  });
+
+  it('카트로 연 시트에서 품절 옵션을 고르면 카트 존이 없으니 벨 트리거로 돌아간다', () => {
+    openThenClose(buyable(), 'wc-buybar__cart', controller(), { '.wc-buybar__restock button:not([disabled])': '재입고 알림 받기' });
+    expect(focused).toEqual(['재입고 알림 받기']);
+  });
+
+  it('벨로 연 시트에서 판매 중인 옵션을 고르거나 그 사이 재입고되면 주 버튼(구매하기)으로 돌아간다', () => {
+    openThenClose(controller(), 'wc-btn primary', buyable(), { '.wc-buybar__buy:not([disabled])': '구매하기', 'button:not([disabled])': '장바구니에 담기' });
+    expect(focused).toEqual(['구매하기']);
+  });
+
+  /* 카트 → 품절 옵션 → 판매 중인 옵션: 바가 두 번 바뀌어 처음 카트도 빠졌다 — 새 카트가 그 자리다. */
+  it('카트로 열었으면 새로 생긴 카트로 돌아간다', () => {
+    openThenClose(buyable(), 'wc-buybar__cart', buyable(), { '.wc-buybar__cart:not([disabled])': '장바구니에 담기', '.wc-buybar__buy:not([disabled])': '구매하기' });
+    expect(focused).toEqual(['장바구니에 담기']);
+  });
+
+  it('연 버튼이 남아 있으면 시트의 복귀에 맡기고 옮기지 않는다', () => {
+    openThenClose(buyable(), 'wc-buybar__buy', buyable(), { '.wc-buybar__buy:not([disabled])': '구매하기' }, true);
+    expect(focused).toEqual([]);
+  });
+
+  it('포커스가 이미 다른 곳에 있으면 옮기지 않는다', () => {
+    vi.stubGlobal('document', { activeElement: { tagName: 'BUTTON' }, body });
+    openThenClose(buyable(), 'wc-buybar__buy', controller(), { '.wc-buybar__restock button:not([disabled])': '재입고 알림 받기' });
+    expect(focused).toEqual([]);
+  });
+
+  it('닫힌 뒤 한 번만 옮기고, 바에 누를 버튼이 없으면(판매 불가로 바뀜) 아무 데도 옮기지 않는다', () => {
+    const onOpenSheet = vi.fn();
+    openThenClose(buyable(), 'wc-buybar__buy', controller(), { '.wc-buybar__restock button:not([disabled])': '재입고 알림 받기' });
+    expect(focused).toEqual(['재입고 알림 받기']);
+    let frame = render(() => GoodBuyBars({ onOpenSheet, purchase: controller(), sheetOpen: true }));
+    frame.commit();
+    frame = render(() => GoodBuyBars({ onOpenSheet, purchase: controller(), sheetOpen: false }));
+    frame.commit();
+    expect(focused).toEqual(['재입고 알림 받기']);
+
+    focused = [];
+    openThenClose(buyable(), 'wc-buybar__buy', controller({ unavailableLabel: '판매 종료' }), {});
+    expect(focused).toEqual([]);
+  });
+});
