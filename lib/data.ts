@@ -88,6 +88,11 @@ export interface Good {
   allowBankTransfer?: boolean;
   allowCardPayment?: boolean;
   saleRestriction?: 'none' | 'adult';
+  /**
+   * 성인 인증 전 방문자에게 보이는 가림 카드(ADR-0024). 이름·이미지·배지·옵션은
+   * 서버에서 이미 지워져 있고, 화면은 이 값으로 19 가림 표지를 그린다.
+   */
+  masked?: boolean;
   orderQuantityLimitEnabled?: boolean;
   minOrderQty?: number | null;
   maxOrderQty?: number | null;

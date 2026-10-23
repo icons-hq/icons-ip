@@ -252,7 +252,7 @@ select public.admin_save_good(pg_temp.good_payload('sales-policy-main')||'{"sale
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000047602',true);
 set local role service_role;
 select pg_temp.expect_error($sql$select public.place_order('00000000-0000-4000-8000-000000047602'::uuid,'{"recipientName":"검증 구매자","phone":"01012345678","postalCode":"00000","address1":"배송 금지 검증 주소"}'::jsonb,
- '00000000-0000-4000-8000-000000047627'::uuid,'card'::public.order_payment_method)$sql$,'restricted good blocked','23514');
+ '00000000-0000-4000-8000-000000047627'::uuid,'card'::public.order_payment_method)$sql$,'adult verification required','23514');
 reset role;
 select 1/case when (select count(*) from public.orders where user_id='00000000-0000-4000-8000-000000047602')=2
  and exists(select 1 from public.audit_log where action='admin.good.sales_policy_saved' and target='goods:sales-policy-main'

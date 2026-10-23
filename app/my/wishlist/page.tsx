@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { Wishlist } from '@/components/screens/Wishlist';
 import { getCurrentAuthState } from '@/lib/auth/server';
 import { getCatalogSnapshot } from '@/lib/catalog';
+import { getAdultGoodsAccess } from '@/lib/adult-goods-access.server';
 import { getWishlistEntries } from '@/lib/wishlist.server';
 
 export const metadata: Metadata = {
@@ -21,7 +22,7 @@ export default async function Page() {
   const auth = await getCurrentAuthState();
   if (!auth.user) redirect(`/login?next=${encodeURIComponent('/my/wishlist')}`);
 
-  const [entries, catalog] = await Promise.all([getWishlistEntries(), getCatalogSnapshot()]);
+  const [entries, catalog] = await Promise.all([getWishlistEntries(), getAdultGoodsAccess().then(adultGoods => getCatalogSnapshot({ adultGoods }))]);
 
   return <Wishlist catalog={catalog} entries={entries} />;
 }

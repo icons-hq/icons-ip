@@ -3466,3 +3466,11 @@
 .wc-good-gift-entry { border-top: 1px solid var(--wc-hairline); padding-top: 12px; font-size: 14px; }
 .wc-good-gift-entry a { color: var(--wc-ink); text-underline-offset: 3px; }
 .wc-good-gift-entry p { margin: 6px 0 0; color: var(--wc-ink-sub); line-height: 1.6; }
+
+/* 19금 굿즈 상세의 성인 인증 안내(ADR-0024) — 인증 전 방문자는 상품 정보 대신 이 패널만 본다. */
+.wc-adult-gate { padding: 64px 0 80px; }
+.wc-adult-gate__panel { max-width: 440px; margin: 0 auto; text-align: center; }
+.wc-adult-gate__title { margin: 20px 0 0; font-size: 22px; font-weight: 700; line-height: 1.4; color: var(--wc-ink); }
+.wc-adult-gate__body { margin: 10px 0 0; font-size: 14px; line-height: 1.7; color: var(--wc-ink-sub); }
+.wc-adult-gate__actions { display: grid; gap: 8px; margin-top: 28px; }
+.wc-adult-gate__actions > .wc-btn + .wc-btn { margin-top: 0; }

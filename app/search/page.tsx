@@ -1,5 +1,6 @@
 import { Search } from '@/components/screens/Search';
 import { getCatalogSnapshot } from '@/lib/catalog';
+import { getAdultGoodsAccess } from '@/lib/adult-goods-access.server';
 import { loadPublicCatalogCategories } from '@/lib/catalog-categories.server';
 import { getSearchSnapshot, normalizeSearchQuery } from '@/lib/search';
 import { selectSearchGoods } from '@/lib/search-goods';
@@ -22,7 +23,7 @@ function parsePageParam(raw: string | string[] | undefined) {
 export default async function Page({ searchParams }: PageProps) {
   const params = (await searchParams) ?? {};
   const query = normalizeSearchQuery(params.q);
-  const [snapshot, catalog, wishlist] = await Promise.all([getSearchSnapshot(query), getCatalogSnapshot({ includeReviewSummaries: true }), loadListingWishlist()]);
+  const [snapshot, catalog, wishlist] = await Promise.all([getSearchSnapshot(query), getAdultGoodsAccess().then(adultGoods => getCatalogSnapshot({ adultGoods, includeReviewSummaries: true })), loadListingWishlist()]);
   const categories = catalog.source === 'supabase' ? await loadPublicCatalogCategories() : [];
   const listQuery = parseShopSearchParams(params, {
     view: 'search',

@@ -2,6 +2,7 @@ import 'server-only';
 import { createClient } from '@/lib/supabase/server';
 import { getSupabaseConfig } from '@/lib/supabase/config';
 import { getCatalogGoodsByIds } from '@/lib/catalog';
+import { getAdultGoodsAccess } from '@/lib/adult-goods-access.server';
 import { parseGoodOtherCompositionReferences, resolveGoodOtherCompositions, type PublicGoodOtherCompositions } from './good-other-compositions';
 
 export async function loadGoodOtherCompositions(goodId: string): Promise<PublicGoodOtherCompositions> {
@@ -16,7 +17,8 @@ export async function loadGoodOtherCompositions(goodId: string): Promise<PublicG
     // Include the current card so a publication change between reads hides the groups too.
     const ids = [...new Set([goodId, ...references.groups.flatMap(group => group.goods.map(member => member.goodId))])];
     const reads = [];
-    for (let offset = 0; offset < ids.length; offset += 1000) reads.push(getCatalogGoodsByIds(ids.slice(offset, offset + 1000)));
+    const adultGoods = await getAdultGoodsAccess() === 'full' ? 'full' : 'hidden';
+    for (let offset = 0; offset < ids.length; offset += 1000) reads.push(getCatalogGoodsByIds(ids.slice(offset, offset + 1000), { adultGoods }));
     const goods = (await Promise.all(reads)).flat();
     return resolveGoodOtherCompositions(references, goods, goodId);
   } catch {

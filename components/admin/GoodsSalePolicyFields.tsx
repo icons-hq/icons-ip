@@ -26,7 +26,7 @@ export function GoodsSalePolicyFields({ values, errors, quantityReadOnly = false
       </SelectField>
     </AdminFormGrid>
     <p>함께 주문한 모든 상품이 허용하는 결제수단만 사용할 수 있습니다. 두 수단을 모두 닫으면 새 주문을 받지 않습니다. 실제 결제는 결제사·계좌 준비 상태도 확인합니다.</p>
-    <p>성인(19금) 상품은 성인인증을 도입하기 전까지 공개되지 않고 구매가 차단됩니다.</p>
+    <p>성인(19금) 상품은 성인 인증을 마친 회원에게만 공개·판매됩니다. 성인 인증이 열리기 전에는 스토어에 노출되지 않습니다.</p>
     <fieldset disabled={quantityReadOnly} style={{ border: 0, padding: 0, margin: 0 }}><AdminFormGrid>
       {choice('orderQuantityLimitEnabled', '주문당 수량 제한', '적용', '사용 안 함')}
       <div hidden={!orderLimit && !errors?.minOrderQty && !errors?.maxOrderQty} className="admin-good-workspace__conditional">

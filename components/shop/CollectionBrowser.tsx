@@ -354,6 +354,7 @@ export function CollectionBrowser({
                     price={good.price} priceMax={good.priceMax}
                     reviewSummary={result.reviewSummaries?.[good.id]}
                     salePeriod={good.salePeriod} soldOut={good.stock === 'soldout' || good.stockQty <= 0}
+                    masked={good.masked}
                   />
                 ))}
               </div>

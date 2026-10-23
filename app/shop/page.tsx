@@ -1,6 +1,7 @@
 import { loadPublicCatalogCategories } from '@/lib/catalog-categories.server';
 import { Shop } from '@/components/screens/Shop';
 import { getCatalogSnapshot } from '@/lib/catalog';
+import { getAdultGoodsAccess } from '@/lib/adult-goods-access.server';
 import { parseShopSearchParams, selectShopGoods } from '@/lib/shop-catalog';
 import { notFound } from 'next/navigation';
 import { parseCategoryDisplayRequest } from '@/lib/category-display';
@@ -22,7 +23,7 @@ export default async function Page({ searchParams }: PageProps) {
     if (!page) notFound();
     return <CategoryDisplayShop key={`${page.category.id}:${page.token}`} initial={{ ...page, navigation }} wishlist={wishlist} />;
   }
-  const [catalog, displayNavigation, wishlist] = await Promise.all([getCatalogSnapshot({ includeReviewSummaries: true }), loadCategoryDisplayNavigation().then(entries => ({ entries, failed: false })).catch(() => ({ entries: [], failed: true })), loadListingWishlist()]);
+  const [catalog, displayNavigation, wishlist] = await Promise.all([getAdultGoodsAccess().then(adultGoods => getCatalogSnapshot({ adultGoods, includeReviewSummaries: true })), loadCategoryDisplayNavigation().then(entries => ({ entries, failed: false })).catch(() => ({ entries: [], failed: true })), loadListingWishlist()]);
   const categories = catalog.source === 'supabase' ? await loadPublicCatalogCategories() : [];
   const query = parseShopSearchParams(params, {
     view: 'all',

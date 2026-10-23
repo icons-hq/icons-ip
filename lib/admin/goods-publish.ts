@@ -23,5 +23,5 @@ export function canSellAdminGood(
     : (good.activeStockQty ?? good.stockQty) > 0;
   const hasPaymentMethod = good.allowCardPayment !== false || good.allowBankTransfer !== false;
   return Boolean(good.publishedAt) && !good.archivedAt && good.stock !== 'soldout' && hasStock && good.noticeComplete
-    && hasPaymentMethod && good.saleRestriction !== 'adult';
+    && hasPaymentMethod;
 }

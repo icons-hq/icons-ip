@@ -14,7 +14,7 @@ if args.scope!='ci':assert cid==target
 sql=lambda text:subprocess.check_output(['docker','exec',cid,'psql','-X','-U','postgres','-d','postgres','-At','-c',text],timeout=15).decode().strip()
 assert sql('select configured from private.operator_access_state where id')=='f','Use an unconfigured fresh database, never browser QA or production'
 helper=(root/'supabase/tests/helpers/goods_kc_fixture.sql').read_bytes()
-tests=['operator_capability_coverage','operator_capability_guards','goods_group_console','goods_list_bulk_operations','shipping_template_fulfillment','member_activity','customer_demographics','customer_rewards','customer_grade_rewards_checkout','marketing_coupon_test_receipts','coupon_target_issuance','coupon_category_targeting','purchase_confirmation','in_transit_claim_intake','claim_full_address_collection','claim_fees','combined_packing','review_types','order_production','fulfillment_checkout','coupon_combinations']
+tests=['operator_capability_coverage','operator_capability_guards','goods_group_console','goods_list_bulk_operations','shipping_template_fulfillment','member_activity','customer_demographics','customer_rewards','customer_grade_rewards_checkout','marketing_coupon_test_receipts','coupon_target_issuance','coupon_category_targeting','purchase_confirmation','in_transit_claim_intake','claim_full_address_collection','claim_fees','combined_packing','review_types','order_production','fulfillment_checkout','coupon_combinations','adult_goods_sales_gate']
 results=[]
 for name in tests:
  source=root/'supabase/tests'/f'{name}.sql';started=time.monotonic()

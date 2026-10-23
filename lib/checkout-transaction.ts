@@ -82,6 +82,7 @@ export const transactionIssueCopy: Record<GoodsTransactionIssueCode, string> = {
   address_required: '받는 분과 배송지를 입력하면 할인과 배송비를 확인할 수 있어요.',
   invalid_selection: '주문할 굿즈와 옵션을 다시 확인해주세요.',
   goods_unavailable: '지금 주문할 수 없는 굿즈가 있어요. 판매기간과 재고를 확인해주세요.',
+  adult_verification_required: '19금 굿즈는 성인 인증을 마친 회원만 주문할 수 있어요. 마이 > 성인 인증에서 인증한 뒤 다시 시도해주세요.',
   purchase_limit: '구매 가능한 수량을 확인해주세요.',
   purchase_restricted: '현재 굿즈 구매가 제한된 계정이에요. 자세한 내용은 고객센터에 문의해주세요.',
   payment_method_unavailable: '이 주문에 사용할 수 있는 결제수단이 없어요.',
