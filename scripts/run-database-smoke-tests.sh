@@ -203,6 +203,7 @@ run_sql_test supabase/tests/home_layout_order.sql
 run_sql_test supabase/tests/goods_custom_inputs.sql
 run_sql_test supabase/tests/admin_benefit_report.sql
 run_sql_test supabase/tests/home_sales_and_review_curations.sql
+run_sql_test supabase/tests/goods_review_summaries.sql
 run_sql_test supabase/tests/admin_operations_dock.sql
 run_sql_test supabase/tests/admin_shipping_settings_templates.sql
 run_sql_test supabase/tests/admin_cs_reply_tools.sql

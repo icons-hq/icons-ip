@@ -3,6 +3,7 @@
 import { usePathname, useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { toggleWishlistAction } from '@/app/shop/actions';
+import { confirmWish } from './wishlist-heart-store';
 
 export interface WishlistHeartProps {
   goodId: string;
@@ -45,7 +46,11 @@ export function WishlistHeart({ className, disabled, goodId, initialWished }: Wi
       const result = await toggleWishlistAction(goodId, nextWished);
       if (result.ok) {
         /* 서버 렌더를 다시 받아 이 하트 밖의 표면(위시 목록의 행, 다른 인스턴스)도
-           같은 사실을 보게 한다 — 낙관 상태는 이 버튼 하나만 즉시 바꾼다. */
+           같은 사실을 보게 한다 — 낙관 상태는 이 버튼 하나만 즉시 바꾼다.
+           목록 하트(ListingWishHeart)는 refresh 없이 세션 저장소를 읽으므로, 상세에서 누른
+           결과도 거기 적어 두어야 뒤로 가기로 돌아간 목록이 옛 하트를 그리지 않는다.
+           이 하트는 뷰어 ID 를 모르므로 저장소의 지금 주인(마지막으로 마운트된 목록 하트의 회원) 몫으로 적힌다. */
+        confirmWish(goodId, nextWished);
         router.refresh();
         return;
       }

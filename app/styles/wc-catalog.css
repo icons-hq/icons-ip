@@ -43,6 +43,116 @@
   }
 }
 
+/* 카드 안의 sr-only 문장('(품절)'·별점 요약)은 position:absolute 다. 카드에 positioned 조상이 없으면 containing
+   block 이 슬라이더 트랙(overflow-x:auto) 바깥에 잡혀, 화면 밖 페이지 카드의 라벨이 트랙 클립을 무시하고 문서 폭을
+   넓힌다 — 홈 탭 슬라이더 2페이지에 품절·리뷰 굿즈가 오면 1440·375 모두 가로 스크롤이 생겼다. 카드를 containing
+   block 으로 세워 라벨을 트랙의 스크롤 영역 안에 가둔다(z-index 가 없어 쌓임 맥락은 만들지 않는다). */
+.wc-product-card {
+  position: relative;
+}
+
+/* ------------------------------------------------------------------
+   목록 하트 (CL-01·HM-03 · 12 LD-4) — 카드 action 슬롯·홈 리스트 행 공용
+   ------------------------------------------------------------------ */
+
+/* 버튼은 44px 히트 영역이고 그림은 안쪽 36px 원이다(레퍼런스 카드 하트 36 · DESIGN §10 아이콘 44).
+   카드 슬롯(.wc-product-card__action)은 이미지 우상단 4px 에 서므로, 44 상자를 그 자리에서 4px 씩
+   바깥으로 물려 원이 정확히 우상단 4px 에 앉게 한다. 빈 하트 선은 ink.tertiary(흰 원 위 6.2:1),
+   채운 하트는 비텍스트 액센트다(DESIGN §2 "위시 하트 선택됨"). */
+.wc-list-heart {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--wc-ink-tertiary);
+  cursor: pointer;
+}
+
+.wc-list-heart__disc {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid var(--wc-hairline-soft);
+  border-radius: 50%;
+  background: var(--wc-surface);
+}
+
+.wc-list-heart.is-active {
+  color: var(--wc-accent);
+}
+
+.wc-list-heart[aria-busy='true'] {
+  cursor: progress;
+}
+
+.wc-list-heart svg {
+  transition: transform var(--wc-duration-short);
+}
+
+.wc-list-heart.is-active svg {
+  transform: scale(1.08);
+}
+
+.wc-product-card__action .wc-list-heart {
+  margin: -4px -4px 0 0;
+}
+
+/* 포커스 링은 44 히트 상자가 아니라 보이는 36 원을 감싼다. 카드 슬롯의 하트는 이미지 프레임 우상단에 딱 붙어 있어
+   상자 바깥 4px 에 그리는 기본 링(2px · offset 2)의 위·오른쪽 변이 프레임의 overflow:hidden 에 잘렸다. 원에서 그리면
+   링 바깥 끝이 히트 상자 가장자리(원에서 4px)에 닿아 어느 자리에서도 잘리지 않는다(디렉토리 점과 같은 처리). */
+.wc-root .wc-list-heart:focus-visible {
+  outline: none;
+}
+
+.wc-root .wc-list-heart:focus-visible .wc-list-heart__disc {
+  outline: 2px solid var(--wc-focus);
+  outline-offset: 2px;
+}
+
+/* 목록 카드 별점(CL-02) — 리뷰가 있을 때만 가격 아래 7px 에 별 다섯 칸 + (리뷰 수). 별은 잉크 한 색이고
+   빈 칸은 컨트롤 선 색이다(금색을 들이면 단일 액센트 규칙이 깨진다 — PDP 별점과 같은 규칙).
+   리뷰 수는 레퍼런스의 #BBB 대신 AA 대비를 넘는 ink.tertiary 다. 홈 리스트 행도 같은 줄을 쓴다(HM-03). */
+.wc-product-card__rating,
+.wc-band__row-rating {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 7px 0 0;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.wc-product-card__stars {
+  letter-spacing: 1px;
+  color: var(--wc-ink);
+}
+
+.wc-product-card__stars-empty {
+  color: var(--wc-line-control);
+}
+
+.wc-product-card__rating-count {
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-band__row-rating {
+  margin-top: 4px;
+  line-height: 16px;
+}
+
+@media (forced-colors: active) {
+  .wc-list-heart__disc {
+    border-color: CanvasText;
+  }
+}
+
 /* ------------------------------------------------------------------
    컬렉션 — 페이지 골격
    ------------------------------------------------------------------ */
@@ -80,16 +190,22 @@
   justify-self: end;
 }
 
+/* '전체 › N개 굿즈' — 14px(11 CL-05). 머리 '전체 ›'는 보조 위계(ink.tertiary)이고 수량 문구만 700 이다.
+   모바일은 머리를 감추고 'N개 굿즈'만 남긴다(R-03 §1.8). 레퍼런스의 핑크 강조 대신 잉크 농도로 위계를 만든다. */
 .wc-collection__count {
   grid-column: 1;
   grid-row: 1;
   margin: 0;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 400;
   color: var(--wc-ink);
 }
 
-/* 카운트 숫자만 굵기로 세운다 — 레퍼런스의 핑크 강조 대신 잉크 농도로 위계를 만든다. */
+.wc-collection__count-scope {
+  display: none;
+  color: var(--wc-ink-tertiary);
+}
+
 .wc-collection__count strong {
   font-weight: 700;
   color: var(--wc-ink);
@@ -105,7 +221,7 @@
   height: 44px;
   padding: 0 22px 0 8px;
   font-family: inherit;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 500;
   line-height: normal;
   text-align: right;
@@ -127,13 +243,13 @@
   padding: 64px 0 80px;
 }
 
-/* VIEW MORE 는 그리드 폭을 그대로 채우는 48px 바다(R-03 §1.6) —
-   프리미티브의 데스크톱 `min-width: 300px` 축소를 이 지면에서만 되돌린다. */
+/* VIEW MORE 는 그리드 폭을 그대로 채우는 896×48 바다(R-03 §1.6 · 11 CL-07, 선·라운드는 프리미티브) —
+   프리미티브의 데스크톱 `min-width: 300px` 축소를 이 지면에서만 되돌린다. 그리드 끝에서 50px 아래. */
 .wc-collection__main .wc-view-more {
   width: 100%;
   min-width: 0;
   height: 48px;
-  margin-top: 56px;
+  margin-top: 50px;
 }
 
 @media (min-width: 990px) {
@@ -153,8 +269,21 @@
     padding-top: 32px;
 
   }
+
+  /* 수량·정렬 줄은 896×50, 상하 1px 헤어라인(11 CL-05). 정렬 select 의 44px 히트 영역을 지키면서
+     1 + 2 + 44 + 2 + 1 = 50 으로 맞춘다. 줄의 윗선은 사이드바 첫 그룹의 윗선과 같은 높이에 선다. */
   .wc-collection__toolbar {
     grid-template-columns: minmax(0, 1fr) auto;
+    box-sizing: border-box;
+    min-height: 50px;
+    margin-bottom: 16px;
+    padding: 2px 0;
+    border-top: 1px solid var(--wc-hairline);
+    border-bottom: 1px solid var(--wc-hairline);
+  }
+
+  .wc-collection__count-scope {
+    display: inline;
   }
 }
 
@@ -169,6 +298,23 @@
 .wc-filter-group + .wc-filter-group {
   padding-top: 24px;
   border-top: 1px solid var(--wc-hairline);
+}
+
+/* 사이드바는 첫 그룹까지 모든 그룹 위에 1px 선을 긋는다(11 CL-06). 제목 줄은 18/20 패딩의 58 높이이고
+   선택지는 제목 바로 아래서 시작한다(레퍼런스 facet 실측). 바텀시트 안 그룹은 아래 시트 규칙이 지운다. */
+.wc-collection__sidebar .wc-filter-group,
+.wc-collection__sidebar .wc-filter-group + .wc-filter-group {
+  padding: 0 0 24px;
+  border-top: 1px solid var(--wc-hairline);
+}
+
+.wc-collection__sidebar .wc-filter-group__summary {
+  padding: 18px 0 20px;
+  line-height: 20px;
+}
+
+.wc-collection__sidebar .wc-filter-group__options {
+  margin-top: 0;
 }
 
 /* 네이티브 마커를 지우고 직접 그린다 — 열림 방향은 아래(닫힘)↔위(열림)로만 회전한다. */
@@ -2420,27 +2566,55 @@
 }
 
 /* ------------------------------------------------------------------
-   검색 결과
+   검색 결과 (R-03 §2 · 11 SR-01~03)
    ------------------------------------------------------------------ */
 
 .wc-search-results {
   padding-block: 24px 96px;
 }
 
-/* 헤딩(좌)과 재검색 인풋(우)이 같은 밴드에 산다. 모바일은 세로로 접힌다(R-03 §2.2·§2.6). */
+/* 헤딩(좌)과 재검색 인풋(우)이 한 밴드에 산다(SR-02). 결과 그리드가 있는 모바일은 레퍼런스처럼
+   둘을 걷어 내고 필터·정렬 줄로 바로 시작한다 — 제목은 시각만 숨겨 스크린리더가 여전히 읽고,
+   인풋은 헤더 검색으로 대신한다(포커스가 숨은 칸에 들어가지 않게 display 로 뺀다). */
 .wc-search-results__head {
   margin-bottom: 32px;
 }
 
-/* 질의어·건수 강조는 색이 아니라 잉크 굵기다 — 레퍼런스의 핑크 강조를 옮기지 않는다. */
+.wc-search-results__head.has-results {
+  margin-bottom: 0;
+}
+
+.wc-search-results__head.has-results .wc-search-results__heading {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.wc-search-results__head.has-results .wc-search-results__form {
+  display: none;
+}
+
+/* 24/400(레퍼런스 실측, 자간 -0.2). 질의어·건수 강조는 색이 아니라 잉크 굵기다 —
+   레퍼런스의 핑크 강조를 옮기지 않고 액센트 사용처(DESIGN §2 전수 목록)도 늘리지 않는다. */
 .wc-search-results__heading {
+  min-width: 0;
   margin: 0 0 24px;
   font-family: inherit;
   font-size: 24px;
   font-weight: 400;
   line-height: 1.33;
-  letter-spacing: -.8px;
+  letter-spacing: -.2px;
   color: var(--wc-ink);
+  /* 검색어는 사용자가 붙여 넣는 값이다 — 공백 없는 긴 토큰(URL·상품 코드)이 데스크톱 한 줄의 인풋을
+     컨테이너 밖으로 밀거나 모바일 폭을 넘지 않게 어디서든 끊는다(flex 항목이라 min-width 0 도 함께). */
+  overflow-wrap: anywhere;
 }
 
 .wc-search-results__heading strong {
@@ -2448,19 +2622,19 @@
   color: var(--wc-ink);
 }
 
+/* 보더 없는 grey 필드 + 칸 안 왼쪽 돋보기(레퍼런스 인라인 인풋 435×50). 돋보기는 44px 제출 버튼이다. */
 .wc-search-results__form {
+  position: relative;
   display: flex;
-  gap: 8px;
   margin-top: 16px;
 }
 
-/* 오버레이 인풋과 같은 문법이다 — 보더 없는 grey 필드(DESIGN §6 버튼·인풋 기본형).
-   editorial 파운데이션의 `:where(input)` 규칙이 48px·12px 라운드를 얹으므로 되돌린다. */
+/* editorial 파운데이션의 `:where(input)` 규칙이 48px·12px 라운드를 얹으므로 되돌린다. */
 .wc-search-results__input {
   flex: 1;
   min-width: 0;
   min-height: 50px;
-  padding: 0 16px;
+  padding: 0 16px 0 48px;
   font-family: inherit;
   font-size: 16px;
   -webkit-appearance: none;
@@ -2474,21 +2648,20 @@
 }
 
 .wc-search-results__submit {
-  flex: none;
-  height: 50px;
-  padding: 0 20px;
-  font-family: inherit;
-  font-size: 15px;
-  font-weight: 700;
-  border: 1px solid var(--wc-ink);
-  border-radius: var(--wc-radius-form);
-  background: var(--wc-ink);
-  color: #FFFFFF;
+  position: absolute;
+  top: 3px;
+  left: 4px;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--wc-ink-tertiary);
   cursor: pointer;
-}
-
-.wc-search-results__grid {
-  margin-top: 24px;
 }
 
 /* 굿즈가 주 결과이고 IP·카드·포스트는 그 아래 보조 섹션이다. */
@@ -2563,28 +2736,51 @@
   margin-top: 24px;
 }
 
+/* 빈 결과 제목도 검색어를 그대로 싣는다 — 머리와 같은 이유로 긴 토큰을 끊는다. */
+.wc-search-results__empty .wc-empty__title {
+  overflow-wrap: anywhere;
+}
+
 @media (min-width: 990px) {
-  .wc-search-results__head {
+  .wc-search-results__head,
+  .wc-search-results__head.has-results {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 40px;
+    margin-bottom: 40px;
+  }
+
+  .wc-search-results__head.has-results .wc-search-results__heading {
+    position: static;
+    width: auto;
+    height: auto;
+    margin: 0;
+    overflow: visible;
+    clip: auto;
+    clip-path: none;
+    white-space: normal;
   }
 
   .wc-search-results__heading {
     margin-bottom: 0;
   }
 
-  /* 433.5px 인라인 인풋(R-03 §2.2) — 헤딩과 같은 줄에서 폭을 고정한다. */
-  .wc-search-results__form {
+  /* 435px 인라인 인풋(R-03 §2.2) — 헤딩과 같은 줄에서 폭을 고정한다. */
+  .wc-search-results__form,
+  .wc-search-results__head.has-results .wc-search-results__form {
+    display: flex;
     flex: none;
-    width: 434px;
+    width: 435px;
     margin-top: 0;
   }
 }
 
+/* 숫자 페이지네이션 — 셀 36, 현재 700. 넓은 창(10칸) 밖 셀·화살표는 767px 이하에서 감추고
+   좁은 창(5칸) 전용 화살표는 768px 이상에서 감춘다(SR-03 · 11 §6 B8). */
 .wc-pagination {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: center;
   gap: 4px;
@@ -2627,6 +2823,23 @@
   min-width: 36px;
   height: 36px;
   color: var(--wc-ink-disabled);
+}
+
+/* 모바일 한 줄 = ‹ + 5칸 + › (44 + 36×5 + 44 + 간격 2×6 = 280) — 320 기기(본문 288)까지 한 줄로 선다. */
+@media (max-width: 767px) {
+  .wc-pagination {
+    gap: 2px;
+  }
+
+  .wc-pagination .is-wide {
+    display: none;
+  }
+}
+
+@media (min-width: 768px) {
+  .wc-pagination .is-narrow {
+    display: none;
+  }
 }
 
 /* ------------------------------------------------------------------
@@ -3196,7 +3409,8 @@
     scroll-behavior: auto;
   }
 
-  .wc-wish-heart svg {
+  .wc-wish-heart svg,
+  .wc-list-heart svg {
     transition-duration: .01ms;
   }
 }

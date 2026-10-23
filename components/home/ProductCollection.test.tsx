@@ -1,9 +1,12 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { readFileSync } from 'node:fs';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { ProductCollection } from './ProductCollection';
 import { ProductCard } from '@/components/wc/ProductCard';
 import type { HomeProductCollectionBand } from '@/lib/home-product-collection';
+
+vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn(), refresh: vi.fn() }) }));
+vi.mock('@/app/shop/actions', () => ({ toggleWishlistAction: vi.fn() }));
 
 const band: HomeProductCollectionBand = { id: 'collection', title: '선택한 상품', layout: 'full_image', imageShape: 'portrait', goods: [
   { id: 'good', href: '/shop/good', name: '상품 이름', brand: '브랜드', price: 12000, badge: null, soldOut: true, imageBg: 'url("https://cdn.example/good.webp") center / cover no-repeat' },
@@ -30,5 +33,12 @@ describe('ProductCollection', () => {
     expect(css).toContain('object-fit: cover; object-position: center');
     const selectors = css.split('{').slice(0, -1).map(part => part.slice(part.lastIndexOf('}') + 1).trim()).filter(part => !part.startsWith('@'));
     expect(selectors.every(selector => selector.startsWith('.wc-product-collection'))).toBe(true);
+  });
+  /* 홈 자유상품 카드에도 목록 하트(11 CL-01) — 미리보기처럼 위시 상태가 없으면 하트를 그리지 않는다. */
+  it('adds the listing heart to each card only when the wish set is passed', () => {
+    const html = renderToStaticMarkup(<ProductCollection band={band} wishlist={{ viewerId: 'viewer-1', goodIds: ['good'] }} />);
+
+    expect(html).toContain('aria-label="상품 이름 위시리스트에서 빼기"');
+    expect(renderToStaticMarkup(<ProductCollection band={band} />)).not.toContain('wc-list-heart');
   });
 });

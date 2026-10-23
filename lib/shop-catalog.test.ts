@@ -3,9 +3,13 @@ import type { Good, Ip, Stock } from './data';
 import {
   SHOP_DEFAULT_SORT,
   SHOP_PAGE_SIZE,
+  SHOP_PREORDER_TYPE,
   SHOP_SORTS,
   SHOP_SORT_LABELS,
+  SHOP_VIEW_SORTS,
+  isPreorderGood,
   parseShopSearchParams,
+  selectCollectionGoods,
   selectShopGoods,
   type ShopListQuery,
 } from './shop-catalog';
@@ -72,15 +76,33 @@ function ids(result: { goods: Good[] }) {
 }
 
 describe('정렬 상수', () => {
-  it('정렬 4종에 모두 한국어 라벨이 있고 페이지 크기는 20이다', () => {
+  it('서버 페이지네이션 정렬 4종은 DB 화이트리스트와 같고 페이지 크기는 20이다', () => {
+    /* get_category_display_page 가 받는 값과 하나라도 어긋나면 카테고리 전시 페이지가 실패한다. */
     expect(SHOP_SORTS).toEqual(['recommended', 'newest', 'price_asc', 'price_desc']);
+    expect(SHOP_PAGE_SIZE).toBe(20);
+  });
+
+  it('모든 정렬에 한국어 라벨이 있다 — 이름 가나다순·역순·오래된순이 더해졌다(12 LD-13)', () => {
     expect(SHOP_SORT_LABELS).toEqual({
       recommended: '추천순',
-      newest: '최신순',
+      relevance: '관련성순',
+      name_asc: '이름 가나다순',
+      name_desc: '이름 역순',
       price_asc: '낮은 가격순',
       price_desc: '높은 가격순',
+      oldest: '오래된순',
+      newest: '최신순',
     });
-    expect(SHOP_PAGE_SIZE).toBe(20);
+  });
+
+  it('목록은 레퍼런스 순서의 7종, 검색은 관련성·가격 3종을 고르게 한다(베스트셀러 보류)', () => {
+    const collection = ['recommended', 'name_asc', 'name_desc', 'price_asc', 'price_desc', 'oldest', 'newest'];
+    expect(SHOP_VIEW_SORTS.all).toEqual(collection);
+    expect(SHOP_VIEW_SORTS.new).toEqual(collection);
+    expect(SHOP_VIEW_SORTS.best).toEqual(collection);
+    expect(SHOP_VIEW_SORTS.ip).toEqual(collection);
+    expect(SHOP_VIEW_SORTS.search).toEqual(['relevance', 'price_asc', 'price_desc']);
+    for (const sorts of Object.values(SHOP_VIEW_SORTS)) expect(sorts).not.toContain('best_selling');
   });
 });
 
@@ -134,7 +156,23 @@ describe('parseShopSearchParams', () => {
     expect(parseShopSearchParams({ sort: 'hot' }, { view: 'all', validIpIds }).sort).toBe('recommended');
     expect(parseShopSearchParams({}, { view: 'new', validIpIds }).sort).toBe('newest');
     expect(parseShopSearchParams({}, { view: 'best', validIpIds }).sort).toBe('recommended');
-    expect(SHOP_DEFAULT_SORT).toEqual({ all: 'recommended', new: 'newest', best: 'recommended' });
+    expect(parseShopSearchParams({}, { view: 'search', validIpIds }).sort).toBe('relevance');
+    expect(parseShopSearchParams({}, { view: 'ip', validIpIds }).sort).toBe('recommended');
+    expect(SHOP_DEFAULT_SORT).toEqual({ all: 'recommended', new: 'newest', best: 'recommended', ip: 'recommended', search: 'relevance' });
+  });
+
+  it('정렬 값은 그 뷰가 고르게 하는 목록 안에서만 받는다', () => {
+    expect(parseShopSearchParams({ sort: 'name_asc' }, { view: 'all', validIpIds }).sort).toBe('name_asc');
+    expect(parseShopSearchParams({ sort: 'oldest' }, { view: 'ip', validIpIds }).sort).toBe('oldest');
+    /* 검색은 관련성·가격만 있다 — 다른 값은 관련성으로 떨어진다. */
+    expect(parseShopSearchParams({ sort: 'name_asc' }, { view: 'search', validIpIds }).sort).toBe('relevance');
+    expect(parseShopSearchParams({ sort: 'price_asc' }, { view: 'search', validIpIds }).sort).toBe('price_asc');
+    expect(parseShopSearchParams({ sort: 'relevance' }, { view: 'all', validIpIds }).sort).toBe('recommended');
+  });
+
+  it('예약판매는 타입 축의 값으로 받는다', () => {
+    expect(parseShopSearchParams({ type: [SHOP_PREORDER_TYPE, '키링', 'PRE-ORDER'] }, { view: 'all', validIpIds }).types)
+      .toEqual([SHOP_PREORDER_TYPE, '키링']);
   });
 
   it('알려진 정렬 값은 그대로 쓰고 뷰를 함께 실어 보낸다', () => {
@@ -252,6 +290,83 @@ describe('selectShopGoods 정렬', () => {
 
     expect(ids(selectShopGoods(undated, query({ sort: 'newest' })))).toEqual(['z', 'x', 'y']);
   });
+
+  it('오래된순은 등록 시각 오름차순이고 시각이 없는 굿즈는 역시 뒤로 원순서를 지킨다', () => {
+    expect(ids(selectShopGoods(catalog, query({ sort: 'oldest' })))).toEqual(['d', 'a', 'b', 'c']);
+    const undated = { ips, goods: [good('x', 'ip1'), good('y', 'ip1'), good('z', 'ip1', { createdAt: '2026-01-01T00:00:00Z' })] };
+    expect(ids(selectShopGoods(undated, query({ sort: 'oldest' })))).toEqual(['z', 'x', 'y']);
+  });
+
+  it('이름순은 숫자 → 한글 가나다 → 영문이고 숫자는 자연수로 비교한다', () => {
+    const named = {
+      ips,
+      goods: [
+        good('n1', 'ip1', { name: '키링' }),
+        good('n2', 'ip1', { name: 'Acrylic' }),
+        good('n3', 'ip1', { name: '10번 세트' }),
+        good('n4', 'ip1', { name: '가방' }),
+        good('n5', 'ip1', { name: '2번 세트' }),
+      ],
+    };
+
+    expect(ids(selectShopGoods(named, query({ sort: 'name_asc' })))).toEqual(['n5', 'n3', 'n4', 'n1', 'n2']);
+    expect(ids(selectShopGoods(named, query({ sort: 'name_desc' })))).toEqual(['n2', 'n1', 'n4', 'n3', 'n5']);
+  });
+
+  it('이름이 같은 굿즈는 진열(스코프) 순서를 지킨다', () => {
+    const same = { ips, goods: [good('s2', 'ip1', { name: '같은 이름' }), good('s1', 'ip1', { name: '같은 이름' })] };
+
+    expect(ids(selectShopGoods(same, query({ sort: 'name_asc' })))).toEqual(['s2', 's1']);
+    expect(ids(selectShopGoods(same, query({ sort: 'name_desc' })))).toEqual(['s2', 's1']);
+  });
+});
+
+describe('selectCollectionGoods 스코프', () => {
+  it('검색 스코프는 관련성 순서가 추천 기준이고 진열 순서로 다시 줄 세우지 않는다', () => {
+    const scope = [good('late', 'ip1', { displayOrder: 9 }), good('early', 'ip1', { displayOrder: 1 })];
+    const result = selectCollectionGoods(scope, { ips }, query({ view: 'search', sort: 'relevance' }));
+
+    expect(ids(result)).toEqual(['late', 'early']);
+    expect(ids(selectCollectionGoods(scope, { ips }, query({ view: 'search', sort: 'price_asc' })))).toEqual(['late', 'early']);
+  });
+
+  it('IP관 스코프는 굿즈샵과 같은 진열 순서·facet 규칙을 쓴다', () => {
+    const scope = goods.filter((item) => item.ip === 'ip1');
+    const result = selectCollectionGoods(scope, { ips }, query({ view: 'ip' }));
+
+    expect(ids(result)).toEqual(['a', 'b']);
+    expect(result.total).toBe(2);
+    expect(result.ipFacets).toEqual([{ value: 'ip1', label: '홍실', count: 2 }]);
+    expect(result.priceCeil).toBe(30000);
+  });
+});
+
+describe('예약판매 타입 값 (11 §3 Δ6 · CL-11)', () => {
+  const preorderSupply = {
+    mode: 'preorder' as const, availableQty: 5, policyId: '11111111-1111-4111-8111-111111111111', policyRevision: 1,
+    state: 'open' as const, startsAt: '2026-10-01T00:00:00Z', endsAt: '2026-11-01T00:00:00Z', expectedShipDate: '2026-11-20',
+    calculatedAt: '2026-10-20T00:00:00Z', nextChangeAt: '2026-11-01T00:00:00Z',
+  };
+  const preorder = good('p1', 'ip1', {
+    type: '피규어',
+    options: [{ id: 'v1', name: '기본', code: 'P1', price: 10000, stockQty: 5, isDefault: true, attributes: {}, supply: preorderSupply }],
+  });
+  const scoped = { ips, goods: [...goods, preorder] };
+
+  it('예약판매 옵션을 가진 굿즈를 판별한다', () => {
+    expect(isPreorderGood(preorder)).toBe(true);
+    expect(isPreorderGood(goods[0])).toBe(false);
+  });
+
+  it('스코프에 예약판매 굿즈가 있을 때만 타입 facet 끝에 값 하나로 붙인다', () => {
+    expect(selectShopGoods(scoped, query()).typeFacets.at(-1)).toEqual({ value: SHOP_PREORDER_TYPE, label: SHOP_PREORDER_TYPE, count: 1 });
+    expect(selectShopGoods(catalog, query()).typeFacets.map((facet) => facet.value)).not.toContain(SHOP_PREORDER_TYPE);
+  });
+
+  it('타입 그룹 안에서 예약판매와 분류 값은 OR 로 고른다', () => {
+    expect(ids(selectShopGoods(scoped, query({ types: [SHOP_PREORDER_TYPE] })))).toEqual(['p1']);
+    expect(ids(selectShopGoods(scoped, query({ types: [SHOP_PREORDER_TYPE, '인형'] })))).toEqual(['d', 'p1']);
+  });
 });
 
 describe('selectShopGoods 뷰', () => {
@@ -342,5 +457,31 @@ describe('고객 계층 카테고리', () => {
     expect(parse({ category: 'archived' }).categories).toEqual([]);
     expect(selectShopGoods(catalog, parse({ category: 'root', type: '문구' })).goods).toHaveLength(0);
     expect(selectShopGoods({ ...catalog, categories: [] }, parseShopSearchParams({}, { view: 'all', validIpIds: new Set(['ip1']) })).goods).toHaveLength(2);
+  });
+
+  /* 좁힌 스코프(검색·IP관)는 IP·타입처럼 결과가 있는 카테고리만 보인다 — 0개 값을 고르면 빈 목록뿐이다(l4-ui-7).
+     지금 고른 값과 그 조상은 0개여도 남겨 해제할 길과 트리 모양을 지킨다. */
+  it('결과 0개 카테고리는 숨기고 고른 카테고리와 그 조상은 0개여도 남긴다', () => {
+    const tree = [
+      ...categories,
+      { id: 'toy', parentId: null, name: '인형', code: 'toy', depth: 1, sortOrder: 1 },
+      { id: 'cushion', parentId: 'toy', name: '쿠션', code: 'cushion', depth: 2, sortOrder: 0 },
+    ];
+    const scoped = { ips, categories: tree, goods: [good('g1', 'ip1', { categoryId: 'leaf' }), good('g2', 'ip1')] };
+    const parseTree = (params: Record<string, string | string[]>) => parseShopSearchParams(params, { view: 'search', validIpIds: new Set(['ip1']), validCategoryIds: new Set(tree.map((category) => category.id)) });
+    const facets = (params: Record<string, string | string[]>) => selectCollectionGoods(scoped.goods, scoped, parseTree(params)).categoryFacets?.map((facet) => `${facet.value}:${facet.count}`);
+
+    expect(facets({})).toEqual(['root:1', 'child:1', 'leaf:1']);
+    expect(facets({ category: 'cushion' })).toEqual(['root:1', 'child:1', 'leaf:1', 'toy:0', 'cushion:0']);
+    expect(selectCollectionGoods([good('g2', 'ip1')], scoped, parseTree({})).categoryFacets).toEqual([]);
+  });
+});
+
+describe('목록 카드 별점 (CL-02)', () => {
+  it('carries only the result goods’ review summaries and omits the field without catalog summaries', () => {
+    const withSummaries = { ips, goods, reviewSummaries: { a: { count: 2, average: 4.5 }, d: { count: 1, average: 3 } } };
+
+    expect(selectShopGoods(withSummaries, query({ ips: ['ip1'] })).reviewSummaries).toEqual({ a: { count: 2, average: 4.5 } });
+    expect(selectShopGoods(catalog, query())).not.toHaveProperty('reviewSummaries');
   });
 });

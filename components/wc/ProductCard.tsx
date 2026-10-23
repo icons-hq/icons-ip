@@ -8,6 +8,7 @@ import type { GoodsListingAppearance } from '@/lib/store-presentation';
 import { Badge } from '@/components/wc/Badge';
 import { PriceBlock } from '@/components/wc/PriceBlock';
 import { goodsImageBackground } from '@/lib/goods-image';
+import { reviewStarCount, reviewSummaryLabel, type GoodsReviewSummary } from '@/lib/goods-review-summary';
 import { goodsSaleUnavailableLabel, type GoodsSalePeriod } from '@/lib/goods-sale-period';
 
 export interface ProductCardProps {
@@ -29,6 +30,8 @@ export interface ProductCardProps {
   listingAppearance?: GoodsListingAppearance;
   cartGood?: Good;
   imageShape?: 'square' | 'portrait';
+  /** 목록 카드 별점(CL-02) — 공개 리뷰가 있을 때만 넘어온다. 없으면 별점 줄을 그리지 않는다. */
+  reviewSummary?: GoodsReviewSummary | null;
 }
 
 /*
@@ -62,6 +65,7 @@ export function ProductCard({
   listingAppearance,
   cartGood,
   imageShape,
+  reviewSummary,
 }: ProductCardProps) {
   const { listing } = useStorePresentation();
   const configured = listSurface !== 'preview';
@@ -86,7 +90,9 @@ export function ProductCard({
       <div className="wc-product-card__info">
         {visibleBadges?.length ? (
           <div className="wc-product-card__badges">
-            {visibleBadges.map((badge) => <Badge key={badge}>{badge}</Badge>)}
+            {/* SALE 만 흰 바탕 + 틴트 테두리 아웃라인이다 — NEW·EXCLUSIVE 같은 저장 배지(색 바탕)와
+                할인에서 파생된 표기를 모양으로 가른다(R-03 §1.5 · 11 CL-03). */}
+            {visibleBadges.map((badge) => <Badge key={badge} variant={badge === 'SALE' ? 'outline' : 'tint'}>{badge}</Badge>)}
           </div>
         ) : null}
         {brand ? <p className="wc-product-card__brand">{brand}</p> : null}
@@ -96,6 +102,18 @@ export function ProductCard({
         </h3>
         {configured && listing.showColors && listingAppearance?.colors.length ? <ul className="wc-product-card__colors" aria-label="굿즈 색상">{listingAppearance.colors.map(chip => <li key={chip.label} title={chip.label}><span style={{ backgroundColor: chip.hex }} /><span className="wc-sr-only">{chip.label}</span></li>)}</ul> : null}
         <PriceBlock compareAtPrice={compareAtPrice} price={price} priceMax={priceMax} showDiscountRate={showDiscountRate} />
+        {/* 리뷰가 있을 때만 가격 아래 별 다섯 칸 + (리뷰 수). 별은 잉크 한 색이고(DESIGN §2 단일 액센트),
+            스크린리더에는 별 문자 대신 숨은 문장을 읽힌다(상세 별점과 같은 반올림). */}
+        {reviewSummary && reviewSummary.count > 0 ? (
+          <p className="wc-product-card__rating">
+            <span aria-hidden className="wc-product-card__stars">
+              {'★'.repeat(reviewStarCount(reviewSummary.average))}
+              <span className="wc-product-card__stars-empty">{'★'.repeat(5 - reviewStarCount(reviewSummary.average))}</span>
+            </span>
+            <span aria-hidden className="wc-product-card__rating-count">{`(${reviewSummary.count.toLocaleString('ko-KR')})`}</span>
+            <span className="wc-sr-only">{reviewSummaryLabel(reviewSummary)}</span>
+          </p>
+        ) : null}
         {configured && listing.showDescription && listingAppearance?.description ? <p className="wc-product-card__description">{listingAppearance.description}</p> : null}
         {listSurface === 'standard' && listing.showCart && cartGood ? <div className="wc-product-card__cart"><AddToCartButton good={cartGood} /></div> : null}
       </div>
