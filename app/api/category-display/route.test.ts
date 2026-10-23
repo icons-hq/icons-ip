@@ -17,8 +17,17 @@ describe('전시 다음 페이지 API', () => {
     mocks.load.mockResolvedValue({ result: { goods: [{ id: 'g1' }] }, token, nextOffset: 40, checkedAt: 'now', banner: { title: '배너' } });
     const result = await GET(new Request(path));
     expect(result.status).toBe(200); expect(result.headers.get('Cache-Control')).toBe('no-store');
-    expect(await result.json()).toEqual({ goods: [{ id: 'g1' }], token, nextOffset: 40, checkedAt: 'now' });
+    expect(await result.json()).toEqual({ goods: [{ id: 'g1' }], reviewSummaries: {}, token, nextOffset: 40, checkedAt: 'now' });
     expect(mocks.load).toHaveBeenCalledWith(id, expect.objectContaining({ displayCategory: id }), 20, token);
+  });
+  it('다음 묶음의 카드 별점을 그 묶음 몫만 함께 돌려준다(CL-02)', async () => {
+    mocks.load.mockResolvedValue({ result: { goods: [{ id: 'g1' }], reviewSummaries: { g1: { count: 2, average: 4 } } }, token, nextOffset: null, checkedAt: 'now' });
+    expect(await (await GET(new Request(path))).json()).toEqual({ goods: [{ id: 'g1' }], reviewSummaries: { g1: { count: 2, average: 4 } }, token, nextOffset: null, checkedAt: 'now' });
+  });
+  it("정렬 7종과 타입 '예약판매' 조건을 그대로 DB 로 넘긴다", async () => {
+    mocks.load.mockResolvedValue({ result: { goods: [] }, token, nextOffset: null, checkedAt: 'now' });
+    expect((await GET(new Request(`${path}&sort=name_desc&type=${encodeURIComponent('예약판매')}`))).status).toBe(200);
+    expect(mocks.load).toHaveBeenCalledWith(id, expect.objectContaining({ sort: 'name_desc', types: ['예약판매'] }), 20, token);
   });
   it('전시 해제·목록 변경·조회 오류를 빈 성공 목록으로 숨기지 않는다', async () => {
     mocks.load.mockResolvedValueOnce(null); expect((await GET(new Request(path))).status).toBe(404);
