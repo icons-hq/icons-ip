@@ -114,6 +114,10 @@ export function selectHomeReviewGoods(
  * 집계(`get_home_review_candidates` 의 ratingAverage·reviewCount)로 그대로 하고, 보이는 숫자만 같은 홈의 카드·리스트 행
  * 별점과 같은 묶음 그룹 범위 요약(`reviewSummary`, `get_goods_review_summaries`)을 쓴다 — 같은 굿즈가 한 홈에서 두 숫자로
  * 보이지 않게. 요약을 읽지 못한 실행(어드민 미리보기처럼 별점을 읽지 않는 스냅샷·조회 실패)은 선정 집계값을 보인다.
+ *
+ * 알려진 상충: 두 범위가 다르므로 그룹상품으로 묶인 굿즈는 보이는 평균이 3 미만일 수 있고(굿즈 단위로는 3 이상이라 선정됨),
+ * 자동 모음에서 보이는 평균이 내림차순이 아닐 수 있다. 선정도 그룹 범위로 판정할지는 결정 대기다 — 그러려면 어드민
+ * 미리보기·상품 선택기도 같은 요약을 읽어야 미리보기와 공개 홈의 선정이 같다(ARCHITECTURE 홈 review_best).
  */
 export function homeReviewBandRating(good: Pick<HomeReviewGoodsCard, 'ratingAverage' | 'reviewCount' | 'reviewSummary'>): { average: number; count: number } {
   return good.reviewSummary
