@@ -2,6 +2,7 @@ import type { Metadata } from 'next';
 import { Suspense } from 'react';
 import { StoreAnalytics } from '@/components/shell/StoreAnalytics';
 import { MemberActivity } from '@/components/shell/MemberActivity';
+import { HashLanding } from '@/components/shell/HashLanding';
 import { Space_Grotesk, Space_Mono } from 'next/font/google';
 import './globals.css';
 import './styles/wc-foundation.css';
@@ -137,6 +138,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
                 <SiteFooter businessInfo={businessInfo} branding={branding} />
                 <Suspense fallback={null}><StoreAnalytics /></Suspense>
                 <Suspense fallback={null}><MemberActivity /></Suspense>
+                {/* 해시가 붙은 주소·링크의 대상을 고정 크롬 아래 착지선에 세운다 — 스트리밍으로 늦게 드러난 본문 포함. */}
+                <Suspense fallback={null}><HashLanding /></Suspense>
                 </StorePresentationProvider>
               </StaffPreviewAvailabilityProvider>
             </AuthPresenceProvider>

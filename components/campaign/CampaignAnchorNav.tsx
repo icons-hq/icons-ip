@@ -20,10 +20,11 @@ import {
  * 노출하고, 게스트에게는 같은 자리에 로그인 링크가 온다.
  *
  * 목차 이동과 활성 표시는 같은 착지선(고정 크롬 높이 + 이 내브 높이)을 쓴다 — 계산은
- * campaign-anchor-scroll 에 있다. 이동을 브라우저 기본 해시 이동에 맡기지 않는다: 전역 html
- * scroll-padding-top(globals.css)이 섹션의 scroll-margin-top 에 더해져 섹션이 선보다 한참 아래
- * (태블릿·데스크톱 +112, 모바일 +88)에 멈춘다. 기본 이동이 하던 나머지 — 주소 해시·방문 기록·
- * 이어 읽을 자리(포커스) — 는 그대로 남긴다.
+ * campaign-anchor-scroll 에 있다. 브라우저 기본 해시 이동도 같은 선에 선다(전역 html scroll-padding-top =
+ * 고정 크롬, 섹션 scroll-margin-top = 내브 49). 그래도 목차 이동은 직접 옮긴다: 누른 앵커가 활성으로 남을
+ * 착지 자리를 알아야 하고(문서 끝에 막힌 섹션), 동작 줄이기 설정의 즉시 이동이 데스크톱 헤더 접힘만큼
+ * 어긋나는 것을 멈춘 뒤 바로잡는다. 기본 이동이 하던 나머지 — 주소 해시·방문 기록·이어 읽을 자리(포커스) —
+ * 는 그대로 남긴다.
  *
  * 활성 표시는 스크롤 위치를 프레임마다 재지 않는다 — 저사양 기기에서 스크롤이 끊긴다.
  * IntersectionObserver 가 섹션 경계가 착지선을 넘을 때만 다시 재게 한다. 이동은 기본 해시 이동의
@@ -161,8 +162,9 @@ export function CampaignAnchorNav({ anchors, balance, loginHref, signedIn }: Cam
     nav.addEventListener('click', onClick);
 
     /* 목차가 남긴 기록을 뒤로·앞으로 오가면 브라우저가 해시로 직접 다시 옮긴다(Chrome 은 저장된 자리 대신
-       해시 위치로 부드럽게 이동한다 — 2026-10-22 실측). 그 이동은 전역 scroll-padding 이 더해진 자리라
-       같은 착지선으로 다시 맞춘다. hashchange 는 그 이동이 화면에 그려지기 전에 와서 이동 하나로 보인다. */
+       해시 위치로 부드럽게 이동한다 — 2026-10-22 실측). 같은 착지선으로 목차 이동처럼 옮겨, 누른 앵커의 착지
+       자리와 즉시 이동의 헤더 접힘 보정을 함께 챙긴다. hashchange 는 그 이동이 화면에 그려지기 전에 와서
+       이동 하나로 보인다. */
     const onHashChange = () => {
       /* 섹션 id 는 ASCII(campaign-section-N)라 해시를 디코드하지 않고 그대로 맞춘다 — 깨진 퍼센트 인코딩에도 던지지 않는다. */
       const section = sections.find((candidate) => window.location.hash === `#${candidate.id}`);

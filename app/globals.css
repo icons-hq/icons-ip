@@ -9,7 +9,18 @@
 }
 
 @layer base {
-  html { scroll-behavior: smooth; scroll-padding-top: 112px; }
+  html { scroll-behavior: smooth; }
+  /* Hash jumps, scrollIntoView and focus scrolling stop right below the chrome fixed on top of the viewport.
+     The public shell mirrors --wc-sticky-chrome-h from wc-chrome.css (html cannot read a .wc-root variable),
+     the admin shell clears its 55px topbar, and shell-less screens keep 0. Sticky sub-navs and gaps of a surface
+     belong to the target's scroll-margin-top. Layered, so a surface that sets its own padding still wins. */
+  html:has(.wc-chrome .wc-header) { scroll-padding-top: 52px; }
+  html:has(.wc-admin__header) { scroll-padding-top: 55px; }
+  @media (min-width: 990px) {
+    html:has(.wc-chrome .wc-header) { scroll-padding-top: 69px; }
+    html:has(.wc-chrome .wc-header[data-condensed='false']),
+    html:has(.wc-chrome .wc-header[data-condensed='true'] :is(.wc-header__bar, .wc-gnb-wrap) :focus-visible) { scroll-padding-top: 123px; }
+  }
   body {
     min-width: 320px;
     background: #fff;
@@ -39,9 +50,6 @@
   .between { display: flex; align-items: center; justify-content: space-between; gap: 16px; }
 }
 
-@media (max-width: 720px) {
-  html { scroll-padding-top: 88px; }
-}
 @media (prefers-reduced-motion: reduce) {
   html { scroll-behavior: auto !important; }
   *, *::before, *::after {

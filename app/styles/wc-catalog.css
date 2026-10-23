@@ -1421,15 +1421,10 @@
   display: block;
 }
 
-/* Review sorting and login return links must clear the sticky chrome and tabs. */
+/* 리뷰 정렬·페이지·로그인 복귀 링크(#reviews)는 sticky 탭바(54 + 하단 선 1) 아래 16에 선다.
+   고정 크롬은 전역 html scroll-padding-top(globals.css)이 이미 비켜 준다. */
 .wc-pdp-tabs .wc-reviews {
-  scroll-margin-top: calc(var(--wc-sticky-chrome-h, 81px) + 55px + 16px);
-}
-
-@media (min-width: 990px) {
-  .wc-pdp-tabs .wc-reviews {
-    scroll-margin-top: calc(var(--wc-sticky-chrome-h, 68px) + 55px + 16px);
-  }
+  scroll-margin-top: calc(55px + 16px);
 }
 
 .wc-reviews__policy {
