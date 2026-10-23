@@ -4,9 +4,9 @@ import { validateVercelBuildEnvironment } from './check-vercel-build-env.mjs';
 const baseEnvironment = {
   VERCEL_ENV: 'preview',
   NEXT_PUBLIC_SUPABASE_URL: 'https://example.supabase.co',
-  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'publishable-key',
+  NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_preview_test',
   AUTH_SIGNUP_RESEND_SECRET: 'resend-secret',
-  SUPABASE_SERVICE_ROLE_KEY: 'service-role-key',
+  SUPABASE_SERVICE_ROLE_KEY: 'sb_secret_preview_test',
 };
 
 const validKorpayEnvironment = {
@@ -146,14 +146,36 @@ describe('validateVercelBuildEnvironment', () => {
     }))).toThrow('Invalid Vercel production PAYMENT_RECONCILIATION_SECRET');
   });
 
-  it('accepts the legacy Supabase anon key name', () => {
-    const environment = { ...baseEnvironment };
+  it('requires the publishable key even when a legacy anon key is present', () => {
+    const environment = { ...baseEnvironment, NEXT_PUBLIC_SUPABASE_ANON_KEY: 'eyJhbGciOiJIUzI1NiJ9.anon.sig' };
     delete environment.NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY;
 
-    expect(validateVercelBuildEnvironment({
-      ...environment,
-      NEXT_PUBLIC_SUPABASE_ANON_KEY: 'anon-key',
-    }).checked).toBe(true);
+    expect(() => validateVercelBuildEnvironment(environment)).toThrow(
+      'Missing Vercel preview environment: NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY',
+    );
+  });
+
+  it('rejects legacy or masked Supabase API keys without echoing them', () => {
+    const legacyJwt = 'eyJhbGciOiJIUzI1NiJ9.legacy.signature';
+    for (const target of ['preview', 'production']) {
+      const environment = target === 'production' ? productionEnvironment() : baseEnvironment;
+      for (const [name, value, message] of [
+        ['NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY', legacyJwt, 'not a legacy anon JWT'],
+        ['SUPABASE_SERVICE_ROLE_KEY', legacyJwt, 'not a legacy service_role JWT'],
+        ['SUPABASE_SERVICE_ROLE_KEY', 'sb_secret_abcde\u00b7\u00b7\u00b7\u00b7', 'not a legacy service_role JWT'],
+        ['SUPABASE_SERVICE_ROLE_KEY', 'sb_publishable_wrong_slot', 'not a legacy service_role JWT'],
+      ]) {
+        let error;
+        try {
+          validateVercelBuildEnvironment({ ...environment, [name]: value });
+        } catch (caught) {
+          error = caught;
+        }
+        expect(error?.message).toContain(`Invalid Vercel ${target} ${name}`);
+        expect(error?.message).toContain(message);
+        expect(error?.message).not.toContain(value);
+      }
+    }
   });
 
   it('reports required variables by name without including their values', () => {

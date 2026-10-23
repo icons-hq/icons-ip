@@ -49,8 +49,8 @@ export function readLocalSupabaseEnvironment(execFile = execFileSync) {
 
   const values = parseSupabaseStatus(output);
   const url = requireLoopbackSupabaseUrl(values.API_URL);
-  const publishableKey = values.PUBLISHABLE_KEY || values.ANON_KEY;
-  const serviceRoleKey = values.SERVICE_ROLE_KEY;
+  const publishableKey = values.PUBLISHABLE_KEY;
+  const serviceRoleKey = values.SECRET_KEY;
   if (!publishableKey || !serviceRoleKey) {
     throw new Error('Local Supabase status did not provide the required API keys');
   }

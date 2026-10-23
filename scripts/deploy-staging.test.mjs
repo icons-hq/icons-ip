@@ -59,7 +59,7 @@ const { appendFileSync, writeFileSync } = require('node:fs');
         SUPABASE_PREVIEW_PROJECT_ID: 'abcdefghijklmnopqrst',
         SUPABASE_PRODUCTION_PROJECT_ID: 'bcdefghijklmnopqrstu',
         SUPABASE_URL: 'https://cdefghijklmnopqrstuv.supabase.co',
-        SUPABASE_PUBLISHABLE_KEY: 'test-public', SUPABASE_SERVICE_ROLE_KEY: 'test-private',
+        SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_test', SUPABASE_SERVICE_ROLE_KEY: 'sb_secret_test',
         POSTGRES_URL: 'postgres://postgres.cdefghijklmnopqrstuv:test@pooler.supabase.com/postgres',
         TEST_MODE: mode, TEST_ALIAS_FILE: aliasFile, TEST_CALLS_FILE: callsFile,
       },
