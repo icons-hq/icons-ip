@@ -16,8 +16,7 @@ import {
   SHELL_NOTICE_SCRIPT,
   type ShellNotices as ShellNoticeData,
 } from '@/lib/shell-notices';
-import { analyticsPage } from '@/lib/store-analytics';
-import { beginShellNoticePageView, recordShellNoticeEvent } from '@/lib/store-analytics-client';
+import { enterShellNoticeView, leaveShellNoticeView, recordShellNoticeEvent, shellNoticeSeen } from '@/lib/store-analytics-client';
 import { InlineScript } from './InlineScript';
 
 function browserSessionStorage(): Storage | null {
@@ -31,11 +30,6 @@ function browserSessionStorage(): Storage | null {
 
 function browserScope(): Record<string, unknown> | null {
   return typeof window === 'undefined' ? null : window as unknown as Record<string, unknown>;
-}
-
-/* 방문 통계와 같은 공개 화면에서만 노출·클릭을 센다(회원·주문·결제·검색 화면 제외 — 방문 통계 안내와 같은 범위). */
-function isMeasuredPath(pathname: string): boolean {
-  return analyticsPage(pathname, new URLSearchParams()) !== null;
 }
 
 /*
@@ -57,7 +51,6 @@ export function ShellNotices({
   cardRewardsEnabled: boolean;
 }) {
   const rootRef = useRef<HTMLDivElement>(null);
-  const impressionsRef = useRef<{ pathname: string; ids: Set<string> }>({ pathname: '', ids: new Set() });
   const [dismissed, setDismissed] = useState<readonly string[]>(() => readDismissedNoticeKeys(browserSessionStorage()));
   const [seed] = useState(() => readShellNoticeSeed(browserScope()));
   const { bars, strips } = applicableShellNotices(notices, pathname, { cardRewardsEnabled, communityEnabled: COMMUNITY_ENABLED });
@@ -65,36 +58,39 @@ export function ShellNotices({
   const visibleBarKey = visibleBar?.key ?? null;
   const stripIndex = noticeStripIndex(seed, strips.length);
   const visibleStripId = strips[stripIndex]?.id ?? null;
-  const measured = isMeasuredPath(pathname);
 
-  /* 노출은 화면에 절반 이상 보였을 때 화면(경로)당 공지마다 한 번 센다. 다음 공지 바로 바뀌어도 이미 센 스트립은 다시 세지 않는다. */
+  /* 셸이 사라지면(전용 셸 화면) 노출 화면을 닫는다 — 돌아오면 같은 경로여도 새 화면으로 센다(페이지뷰와 같은 경계). */
+  useEffect(() => () => leaveShellNoticeView(), []);
+
+  /* 노출은 화면에 절반 이상 보였을 때 화면(경로 한 번의 방문)당 공지마다 한 번 센다. 측정 밖 화면에서도 경로가 바뀌면
+     새 화면을 시작해, 검색·장바구니를 거쳐 돌아온 홈은 다시 센다. 다음 공지 바로 바뀌어도 이미 센 스트립은 다시 세지 않는다.
+     동의·상태 확인 전에 보인 공지는 lib/store-analytics-client가 그 화면의 페이지뷰 기록 뒤에 보낸다. */
   useEffect(() => {
-    if (!measured) return;
-    beginShellNoticePageView(pathname);
-    if (typeof IntersectionObserver === 'undefined') return;
-    if (impressionsRef.current.pathname !== pathname) impressionsRef.current = { pathname, ids: new Set() };
-    const seen = impressionsRef.current.ids;
+    if (!enterShellNoticeView(pathname) || typeof IntersectionObserver === 'undefined') return;
     const targets = Array.from(rootRef.current?.querySelectorAll<HTMLElement>('[data-notice-id]:not([hidden])') ?? [])
-      .filter((target) => !seen.has(target.dataset.noticeId ?? ''));
+      .filter((target) => !shellNoticeSeen(target.dataset.noticeId ?? ''));
     if (targets.length === 0) return;
+    let active = true;
     const observer = new IntersectionObserver((entries) => {
+      if (!active) return;
       for (const entry of entries) {
         const id = (entry.target as HTMLElement).dataset.noticeId;
-        if (!entry.isIntersecting || !id || seen.has(id)) continue;
-        seen.add(id);
+        if (!entry.isIntersecting || !id) continue;
         observer.unobserve(entry.target);
         recordShellNoticeEvent(id, 'impression');
       }
     }, { threshold: 0.5 });
     targets.forEach((target) => observer.observe(target));
-    return () => observer.disconnect();
-  }, [measured, pathname, visibleBarKey, visibleStripId]);
+    return () => {
+      active = false;
+      observer.disconnect();
+    };
+  }, [pathname, visibleBarKey, visibleStripId]);
 
   if (notices.bars.length === 0 && notices.strips.length === 0) return null;
 
-  const recordClick = (id: string) => {
-    if (measured) recordShellNoticeEvent(id, 'click');
-  };
+  /* 측정 밖 화면의 클릭은 lib/store-analytics-client가 버린다. */
+  const recordClick = (id: string) => recordShellNoticeEvent(id, 'click');
 
   /* 닫은 버튼이 사라지면 포커스가 문서 처음으로 튄다 — 다음 공지의 조작부, 없으면 로고로 옮긴다. */
   const dismiss = (key: string) => {

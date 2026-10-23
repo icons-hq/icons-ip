@@ -7,7 +7,7 @@ import {
   STORE_ANALYTICS_NOTICE_VERSION, type AnalyticsChoice, type AnalyticsEvent,
 } from '@/lib/store-analytics';
 import { STORE_ANALYTICS_NOTICE } from '@/lib/store-analytics-notice';
-import { enqueueStoreAnalytics, setStoreAnalyticsCollecting } from '@/lib/store-analytics-client';
+import { enqueueStoreAnalytics, releaseShellNoticeImpressions, setStoreAnalyticsCollecting } from '@/lib/store-analytics-client';
 
 type State = { enabled: boolean; choice: AnalyticsChoice; usable: boolean; needsRevocation?: boolean };
 function localChoice(): AnalyticsChoice {
@@ -26,14 +26,16 @@ async function post(body: unknown) {
 }
 
 /** Visible public navigation only. Prefetches and private routes never emit events.
- * 셸 공지 노출·클릭(ShellNotices)과 같은 전송 줄(enqueueStoreAnalytics)을 쓴다 — 페이지뷰가 상태 확인·세션 생성을 끝낸 뒤에
- * 공지 사건이 나가고, 확인한 동의·수집 상태를 setStoreAnalyticsCollecting으로 알린다. */
+ * 셸 공지 노출·클릭(ShellNotices)과 같은 전송 줄(enqueueStoreAnalytics)을 쓰고, 확인한 동의·수집 상태를
+ * setStoreAnalyticsCollecting으로 알린다. 한 화면의 페이지뷰가 기록되면 그 화면에서 상태 확인 전·동의 전에 보여
+ * 보류된 공지 노출을 releaseShellNoticeImpressions로 같은 세션에 보낸다(하드 로드에서는 셸 공지가 이 컴포넌트보다
+ * 먼저 하이드레이트돼 노출이 상태 확인보다 앞설 수 있다). */
 export function StoreAnalytics() {
   const pathname = usePathname(); const search = useSearchParams();
   const [state, setState] = useState<State | null>(null);
   const [open, setOpen] = useState(false); const [busy, setBusy] = useState(false); const [message, setMessage] = useState('');
   const dialog = useRef<HTMLDialogElement>(null);
-  const entry = useRef<{ signature: string; event: AnalyticsEvent } | null>(null);
+  const entry = useRef<{ signature: string; path: string; event: AnalyticsEvent } | null>(null);
   const choiceGeneration = useRef(0);
   const hasNavigated = useRef(false);
   const currentChoice = useRef<AnalyticsChoice>('unset');
@@ -63,11 +65,12 @@ export function StoreAnalytics() {
     const parameters = new URLSearchParams(window.location.search);
     const target = analyticsPage(window.location.pathname, parameters); if (!target) return;
     if (entry.current?.signature !== signature) {
-      entry.current = { signature, event: { eventId: crypto.randomUUID(), pageKind: target.kind, targetId: target.target, linkToken: target.linkToken,
+      entry.current = { signature, path: window.location.pathname, event: { eventId: crypto.randomUUID(), pageKind: target.kind, targetId: target.target, linkToken: target.linkToken,
         ...analyticsAcquisition(parameters, document.referrer, window.location.origin, hasNavigated.current) } };
     }
     hasNavigated.current = true;
     const event = entry.current.event;
+    const path = entry.current.path;
     const collect = () => enqueueStoreAnalytics(async () => {
       if (document.visibilityState !== 'visible') return;
       const generation = choiceGeneration.current;
@@ -90,11 +93,12 @@ export function StoreAnalytics() {
       }
       if (generation !== choiceGeneration.current || currentChoice.current !== 'accepted' || localChoice() === 'declined') return;
       const result = await post({ action: 'record', event: measurement });
+      if (result.ok) { releaseShellNoticeImpressions(path); return; }
       if (result.code === 'session_expired' && currentChoice.current === 'accepted' && localChoice() !== 'declined') {
         const accepted = await post({ action: 'accept' });
         if (accepted.ok && generation === choiceGeneration.current) {
           if (accepted.created) { measurement = { ...measurement, eventId: crypto.randomUUID() }; if (entry.current?.signature === signature) entry.current.event = measurement; }
-          await post({ action: 'record', event: measurement });
+          if ((await post({ action: 'record', event: measurement })).ok) releaseShellNoticeImpressions(path);
         }
       }
     });
@@ -115,9 +119,11 @@ export function StoreAnalytics() {
         saveChoice(choice); setState(value => value ? { ...value, choice, usable: choice === 'accepted' } : value);
         setStoreAnalyticsCollecting(choice === 'accepted');
         setOpen(false); setMessage('');
-        if (choice === 'accepted' && entry.current && currentChoice.current === 'accepted') {
-          if (result.created) entry.current.event = { ...entry.current.event, eventId: crypto.randomUUID() };
-          await post({ action: 'record', event: entry.current.event });
+        const view = entry.current;
+        if (choice === 'accepted' && view && currentChoice.current === 'accepted') {
+          if (result.created) view.event = { ...view.event, eventId: crypto.randomUUID() };
+          /* 동의한 화면의 페이지뷰와 함께, 동의 전에 그 화면에서 보인 공지 노출도 남긴다. */
+          if ((await post({ action: 'record', event: view.event })).ok) releaseShellNoticeImpressions(view.path);
         }
       } catch { setMessage('선택 저장 상태를 확인하지 못했습니다. 다시 시도해주세요.'); }
       finally { if (generation === choiceGeneration.current) setBusy(false); }
