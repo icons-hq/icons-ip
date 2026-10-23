@@ -6,7 +6,7 @@ import { loadListingWishlist } from '@/lib/wishlist-ids.server';
 
 export default async function Page() {
   const [home, cardRewardsEnabled, announcementPopup, wishlist] = await Promise.all([
-    getHomeSnapshot(),
+    getHomeSnapshot({ includeReviewSummaries: true }),
     readCardRewardsEnabled(),
     loadHomeAnnouncementPopup(),
     loadListingWishlist(),

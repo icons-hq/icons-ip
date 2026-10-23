@@ -53,7 +53,7 @@ describe('home page assembly', () => {
     const element = await Page();
 
     expect(mocks.getHomeSnapshot).toHaveBeenCalledTimes(1);
-    expect(mocks.getHomeSnapshot).toHaveBeenCalledWith();
+    expect(mocks.getHomeSnapshot).toHaveBeenCalledWith({ includeReviewSummaries: true });
     expect(element.props.curation).toBe(home.curation);
   });
 
@@ -63,7 +63,7 @@ describe('home page assembly', () => {
     const element = await Page();
 
     expect(element.props.wishlist).toEqual({ viewerId: 'viewer-1', goodIds: ['g1'] });
-    expect(mocks.getHomeSnapshot).toHaveBeenCalledWith();
+    expect(mocks.getHomeSnapshot).toHaveBeenCalledWith({ includeReviewSummaries: true });
   });
 
   it('passes the card rewards gate straight through to the screen', async () => {

@@ -17,7 +17,7 @@ interface PageProps {
 /* NEW 는 별도 큐레이션이 아니라 굿즈의 NEW 배지가 정의한다 — 컬렉션 스코프만 다르고
    필터·정렬·VIEW MORE 는 굿즈샵과 같은 화면이다. */
 export default async function Page({ searchParams }: PageProps) {
-  const [catalog, params, wishlist] = await Promise.all([getCatalogSnapshot(), searchParams ?? {}, loadListingWishlist()]);
+  const [catalog, params, wishlist] = await Promise.all([getCatalogSnapshot({ includeReviewSummaries: true }), searchParams ?? {}, loadListingWishlist()]);
   const categories = catalog.source === 'supabase' ? await loadPublicCatalogCategories() : [];
   const query = parseShopSearchParams(params, {
     view: 'new',

@@ -580,7 +580,8 @@ describe('getCatalogSnapshot', () => {
     mocks.client = null;
   });
 
-  /* CL-02: 목록 카드 별점은 공개 굿즈 ID 전체를 한 RPC 묶음으로 읽어 스냅샷에 싣는다(N+1 금지). */
+  /* CL-02: 목록 카드 별점은 별점을 그리는 경로가 요청할 때만 공개 굿즈 ID 전체를 한 RPC 묶음으로 읽어 스냅샷에 싣는다
+     (N+1 금지). 요청하지 않는 경로(주문서·장바구니 등)는 집계 RPC를 기다리지 않는다(Codex #598). */
   it('loads list review summaries for every public good in one batch and keeps only valid requested rows', async () => {
     const records: QueryRecord[] = [];
     const rpcCalls: { name: string; args: unknown }[] = [];
@@ -602,7 +603,11 @@ describe('getCatalogSnapshot', () => {
     };
     mocks.client = client;
 
-    const snapshot = await getCatalogSnapshot();
+    const plain = await getCatalogSnapshot();
+    expect(rpcCalls.filter((call) => call.name === 'get_goods_review_summaries')).toEqual([]);
+    expect(plain.reviewSummaries).toBeUndefined();
+
+    const snapshot = await getCatalogSnapshot({ includeReviewSummaries: true });
 
     expect(rpcCalls.filter((call) => call.name === 'get_goods_review_summaries')).toEqual([
       { name: 'get_goods_review_summaries', args: { p_good_ids: ['a', 'b'] } },
@@ -624,7 +629,7 @@ describe('getCatalogSnapshot', () => {
     client.rpc = (name?: string) => Promise.resolve({ data: null, error: name === 'get_goods_review_summaries' ? { message: 'unavailable' } : null });
     mocks.client = client;
 
-    const snapshot = await getCatalogSnapshot();
+    const snapshot = await getCatalogSnapshot({ includeReviewSummaries: true });
 
     expect(snapshot.goods.map((good) => good.id)).toEqual(['a']);
     expect(snapshot.reviewSummaries).toEqual({});
@@ -753,6 +758,38 @@ describe('getBinderCatalogOverlay', () => {
 });
 
 describe('getCatalogIpDetail', () => {
+  /* IP 관 카드 별점은 공개 굿즈 전체가 아니라 그 IP 굿즈 몫만 읽는다(CL-02, Codex #598). */
+  it('reads review summaries only for the goods of the requested IP', async () => {
+    const rpcCalls: { name: string; args: unknown }[] = [];
+    mocks.isConfigured = true;
+    const base = defaultSupabaseRows();
+    const client = createSupabaseClient([], {
+      ips: [...base.ips, { ...base.ips[0], id: 'lumen', public_slug: 'lumen', title: 'LUMEN' }],
+      goods: [
+        { id: 'a', ip_id: 'hwasan', name: '첫 번째', type: '키링', price: 1000, stock: 'ok', stock_qty: 1, sale_restriction: 'none' },
+        { id: 'c', ip_id: 'lumen', name: '다른 IP', type: '키링', price: 1000, stock: 'ok', stock_qty: 1, sale_restriction: 'none' },
+      ],
+    });
+    client.rpc = (name?: string, args?: unknown) => {
+      rpcCalls.push({ name: name ?? '', args });
+      return Promise.resolve({
+        data: name === 'get_goods_review_summaries' ? [{ goodId: 'a', reviewCount: 2, ratingAverage: 4.5 }] : null,
+        error: null,
+      });
+    };
+    mocks.client = client;
+
+    const detail = await getCatalogIpDetail('hwasan');
+
+    expect(rpcCalls.filter((call) => call.name === 'get_goods_review_summaries')).toEqual([
+      { name: 'get_goods_review_summaries', args: { p_good_ids: ['a'] } },
+    ]);
+    expect(detail?.reviewSummaries).toEqual({ a: { count: 2, average: 4.5 } });
+
+    mocks.isConfigured = false;
+    mocks.client = null;
+  });
+
   it('loads latest visible Supabase post previews without exposing internal filtering fields or upload paths', async () => {
     const records: QueryRecord[] = [];
     mocks.isConfigured = true;

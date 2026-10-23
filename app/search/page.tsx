@@ -22,7 +22,7 @@ function parsePageParam(raw: string | string[] | undefined) {
 export default async function Page({ searchParams }: PageProps) {
   const params = (await searchParams) ?? {};
   const query = normalizeSearchQuery(params.q);
-  const [snapshot, catalog, wishlist] = await Promise.all([getSearchSnapshot(query), getCatalogSnapshot(), loadListingWishlist()]);
+  const [snapshot, catalog, wishlist] = await Promise.all([getSearchSnapshot(query), getCatalogSnapshot({ includeReviewSummaries: true }), loadListingWishlist()]);
   const categories = catalog.source === 'supabase' ? await loadPublicCatalogCategories() : [];
   const listQuery = parseShopSearchParams(params, {
     view: 'search',

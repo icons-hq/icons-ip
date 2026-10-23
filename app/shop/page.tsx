@@ -22,7 +22,7 @@ export default async function Page({ searchParams }: PageProps) {
     if (!page) notFound();
     return <CategoryDisplayShop key={`${page.category.id}:${page.token}`} initial={{ ...page, navigation }} wishlist={wishlist} />;
   }
-  const [catalog, displayNavigation, wishlist] = await Promise.all([getCatalogSnapshot(), loadCategoryDisplayNavigation().then(entries => ({ entries, failed: false })).catch(() => ({ entries: [], failed: true })), loadListingWishlist()]);
+  const [catalog, displayNavigation, wishlist] = await Promise.all([getCatalogSnapshot({ includeReviewSummaries: true }), loadCategoryDisplayNavigation().then(entries => ({ entries, failed: false })).catch(() => ({ entries: [], failed: true })), loadListingWishlist()]);
   const categories = catalog.source === 'supabase' ? await loadPublicCatalogCategories() : [];
   const query = parseShopSearchParams(params, {
     view: 'all',
