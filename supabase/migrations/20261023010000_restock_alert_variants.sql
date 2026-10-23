@@ -5,14 +5,21 @@
 -- 신청에 옵션 키(variant_id)를 더한다. NULL 은 "모든 옵션" — 기존 굿즈 단위 신청이 그대로 이 뜻으로
 -- 남는다(백필 없음).
 --
+-- "재고로 살 수 있는 옵션"은 사용 중(archived_at is null)이고 재고 판매(preorder_policy_id is null)이며
+-- 재고가 있는(stock_qty > 0) 옵션이다. 예약판매 옵션은 재고가 아니라 예약 기간·물량으로 열리고 닫혀
+-- 재입고 알림 대상이 아니다 — 그 옵션의 stock_qty 는 예약 주문에 할당할 실물 입고분이라 판매 재고가 아니다.
+-- 아래 신청 판정·두 갈래의 발화·트리거 조건이 모두 이 술어 하나를 쓴다.
+--
 -- 발화는 두 갈래다.
---   ① 굿즈 행의 판매 가능 전이(기존 trg_goods_notify_restock): 굿즈 단위 신청과, 그 순간 살 수 있는
---      옵션의 옵션 신청을 깨운다. 판매 가능 술어(공개·보관·판매 제한·결제수단·IP 공개·품절 표시·재고)는
---      기존 정의를 그대로 둔다.
---   ② 옵션 행의 살 수 없음→살 수 있음 전이(신규 goods_variants_restock_notify): 그 옵션의 신청과 굿즈
---      단위 신청을 깨운다. 다른 옵션이 판매 중이면 굿즈 행은 전후 모두 판매 가능이라 ①은 아무것도
---      깨우지 않는다 — 옵션 신청은 옵션 행의 전이로만 성립한다. 부모 굿즈의 재고 외 판매 가능
---      조건(공개·보관·판매 제한·결제수단·IP 공개·품절 표시)은 따로 확인한다.
+--   ① 굿즈 행의 판매 가능 전이(기존 trg_goods_notify_restock): 굿즈 단위 신청과, 그 순간 재고로 살 수
+--      있는 옵션의 옵션 신청을 깨운다. 판매 가능 술어(공개·보관·판매 제한·결제수단·IP 공개·품절 표시·
+--      재고)는 기존 정의를 그대로 둔다. goods.stock_qty 는 보관·예약판매 옵션의 재고까지 더한 캐시라
+--      굿즈 행이 판매 가능해져도 신청마다 재고로 살 수 있는 옵션을 다시 본다.
+--   ② 옵션 행이 재고로 살 수 없음→살 수 있음으로 바뀌는 전이(신규 goods_variants_restock_notify): 재고
+--      0→양수, 보관 옵션 복원, 예약판매→재고 판매 전환(재고가 남아 있을 때). 그 옵션의 신청과 굿즈 단위
+--      신청을 깨운다. 다른 옵션이 판매 중이면 굿즈 행은 전후 모두 판매 가능이라 ①은 아무것도 깨우지
+--      않는다 — 옵션 신청은 옵션 행의 전이로만 성립한다. 부모 굿즈의 재고 외 판매 가능 조건(공개·보관·
+--      판매 제한·결제수단·IP 공개·품절 표시)은 따로 확인한다.
 -- 두 갈래가 같은 신청을 함께 보아도 pending → notified 전이는 한 번뿐이라 알림도 한 번이다.
 --
 -- 두 트리거는 재고를 바꾸는 트랜잭션(주문 생성·취소 환원·재고 조정·옵션 편집) 안에서 돈다. 팬아웃은
@@ -79,13 +86,15 @@ begin
           -- ② 옵션이 살 수 있게 됐다: 그 옵션 신청과 "모든 옵션" 신청이 충족된다.
           when target_variant_id is not null then
             alert.variant_id is null or alert.variant_id = target_variant_id
-          -- ① 굿즈가 판매 가능해졌다: "모든 옵션" 신청은 사용 중인 옵션 하나라도 살 수 있을 때,
-          --    옵션 신청은 그 옵션을 지금 살 수 있을 때만 충족된다. goods.stock_qty 는 보관 옵션
-          --    재고까지 더한 캐시라(ADR-0015) 그것만으로는 살 수 있는 옵션이 있다는 뜻이 아니다.
+          -- ① 굿즈가 판매 가능해졌다: "모든 옵션" 신청은 재고로 살 수 있는 옵션이 하나라도 있을 때,
+          --    옵션 신청은 그 옵션을 지금 재고로 살 수 있을 때만 충족된다. goods.stock_qty 는 보관 옵션과
+          --    예약판매 옵션의 실물 입고분까지 더한 캐시라(ADR-0015) 그것만으로는 살 수 있는 옵션이 있다는
+          --    뜻이 아니다.
           when alert.variant_id is null then exists (
             select 1 from public.goods_variants as variant
             where variant.good_id = target_good.id
               and variant.archived_at is null
+              and variant.preorder_policy_id is null
               and variant.stock_qty > 0
           )
           else exists (
@@ -93,6 +102,7 @@ begin
             where variant.id = alert.variant_id
               and variant.good_id = target_good.id
               and variant.archived_at is null
+              and variant.preorder_policy_id is null
               and variant.stock_qty > 0
           )
         end
@@ -187,7 +197,7 @@ $function$;
 
 revoke all on function private.notify_goods_restock() from public, anon, authenticated, service_role;
 
--- ── 4. ② 옵션 행의 살 수 없음→살 수 있음 전이 ──────────────────────
+-- ── 4. ② 옵션 행의 재고로 살 수 없음→살 수 있음 전이 ────────────────
 create function private.notify_goods_variant_restock()
 returns trigger
 language plpgsql
@@ -199,8 +209,10 @@ declare
   target_good public.goods;
 begin
   -- 트리거 WHEN 과 같은 조건이다. 함수가 다른 자리에 다시 쓰여도 뜻이 바뀌지 않게 여기서도 본다.
-  if not (new.archived_at is null and new.stock_qty > 0)
-    or (old.archived_at is null and old.stock_qty > 0) then
+  -- 예약판매 옵션에 실물이 입고돼도(할당 전 재고 조정) 재고 판매가 아니라 깨우지 않는다. 재고 판매로
+  -- 바꾸는 순간(preorder_policy_id → null) 재고가 남아 있으면 그때가 이 옵션의 재입고다.
+  if not (new.archived_at is null and new.preorder_policy_id is null and new.stock_qty > 0)
+    or (old.archived_at is null and old.preorder_policy_id is null and old.stock_qty > 0) then
     return null;
   end if;
 
@@ -236,21 +248,25 @@ revoke all on function private.notify_goods_variant_restock() from public, anon,
 
 -- 이름은 goods_variants_refresh_stock 뒤에 오도록 지었다(같은 시점 AFTER 트리거는 이름순).
 -- 재고 캐시 갱신이 먼저 굿즈 행을 잠그고 굿즈 단위 전이(①)를 끝낸 뒤 이 트리거가 남은 옵션 신청을 본다.
+-- preorder_policy_id 를 null 로 바꾸는 곳은 재고 판매 전환(admin_use_stock_supply) 하나이고, 그 RPC 도
+-- 굿즈 → 옵션 순서로 잠근 뒤 옵션 행을 바꾸므로 이 트리거가 굿즈 행을 다시 잡아도 잠금 순서가 같다.
 create trigger goods_variants_restock_notify
-after update of stock_qty, archived_at on public.goods_variants
+after update of stock_qty, archived_at, preorder_policy_id on public.goods_variants
 for each row
 when (
-  (new.archived_at is null and new.stock_qty > 0)
-  and not (old.archived_at is null and old.stock_qty > 0)
+  (new.archived_at is null and new.preorder_policy_id is null and new.stock_qty > 0)
+  and not (old.archived_at is null and old.preorder_policy_id is null and old.stock_qty > 0)
 )
 execute function private.notify_goods_variant_restock();
 
 -- ── 5. 신청 RPC ─────────────────────────────────────────────────────
 -- 굿즈 단위(모든 옵션) 신청. 시그니처·권한·에러 코드는 그대로다. 바뀐 것:
 --   · 유일성이 (user, good, variant) 라 충돌 대상에 옵션 키(null)를 더한다.
---   · "판매 중" 판정은 사용 중인 옵션 중 살 수 있는 것이 있는가다(공개 상세의 품절 판정과 같다).
---     goods.stock_qty 는 보관 옵션 재고까지 더한 캐시라, 그 값만 보면 공개 화면은 품절인데
---     신청은 good_available 로 거절됐다. 보관 옵션 재고가 없는 굿즈에서는 이전과 같은 판정이다.
+--   · "판매 중" 판정은 재고로 살 수 있는 옵션(사용 중·재고 판매·재고 > 0)이 있는가다 — 깨우는 술어와
+--     같아서, 받아들인 신청은 언제나 다음 전이로 깨어날 수 있다. goods.stock_qty 는 보관 옵션 재고와
+--     예약판매 옵션의 실물 입고분까지 더한 캐시라, 그 값만 보면 공개 화면은 품절(재입고 CTA)인데
+--     신청은 good_available 로 거절됐다. 그런 재고가 없는 굿즈에서는 이전과 같은 판정이다.
+--     공개 상세는 열린 예약판매도 판매 중으로 보지만 그때 CTA 는 재입고가 아니라 담기·구매다.
 --   · 탈퇴 신청으로 쓰기가 봉인된 계정의 신청을 거절한다(계정 fence 관례, 20260813193000).
 create or replace function public.request_restock_alert(target_good_id text)
 returns void
@@ -288,6 +304,7 @@ begin
     select 1 from public.goods_variants as variant
     where variant.good_id = target_good_id
       and variant.archived_at is null
+      and variant.preorder_policy_id is null
       and variant.stock_qty > 0
   ) then
     raise exception 'good_available' using errcode = '22023';
@@ -305,7 +322,8 @@ revoke all on function public.request_restock_alert(text)
 grant execute on function public.request_restock_alert(text) to authenticated;
 
 -- 옵션 단위 신청(PD-11). 굿즈는 판매 중이고 고른 옵션만 품절일 때 쓴다.
--- 예약판매 옵션은 재고가 아니라 예약 기간·물량으로 열리고 닫혀 재입고 알림 대상이 아니다.
+-- 예약판매 옵션은 재고가 아니라 예약 기간·물량으로 열리고 닫혀 재입고 알림 대상이 아니다. 재고 판매일 때
+-- 받아 둔 신청이 그 뒤 예약판매로 바뀐 옵션에 남으면, 재고 판매로 돌아와 재고가 있을 때 깨어난다(②).
 create function public.request_variant_restock_alert(target_good_id text, target_variant_id uuid)
 returns void
 language plpgsql

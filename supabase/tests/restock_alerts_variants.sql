@@ -5,7 +5,8 @@
 -- 검증 축: 스키마·ACL 계약 / 신청 RPC(옵션·굿즈 단위, 거절 코드, 계정 fence, 멱등) /
 --          옵션 전이(다른 옵션 판매 중 + 옵션 B 0→양수) / 굿즈 전이와의 중복 없는 팬아웃 /
 --          부모 굿즈 판매 가능 게이트 / 재고 트랜잭션(주문 생성·취소 환원) 안 무예외 /
---          팬아웃 실패 시 재고 쓰기 보존 / dedupe 키 / RLS / 굿즈 URL 변경·옵션 삭제 전파.
+--          팬아웃 실패 시 재고 쓰기 보존 / dedupe 키 / RLS / 굿즈 URL 변경·옵션 삭제 전파 /
+--          예약판매 옵션의 실물 입고는 재입고가 아님·재고 판매 전환이 깨움 / 사용 중지 옵션 복원이 깨움.
 -- 모든 단언은 이 파일의 픽스처 행으로만 센다(전역 개수 단언 없음). 끝은 rollback.
 
 begin;
@@ -85,7 +86,9 @@ select 1 / case when exists (
   where tgrelid = 'public.goods_variants'::regclass
     and tgname = 'goods_variants_restock_notify'
     and not tgisinternal
-    and pg_get_triggerdef(oid) like 'CREATE TRIGGER goods_variants_restock_notify AFTER UPDATE OF stock_qty, archived_at ON public.goods_variants FOR EACH ROW WHEN %'
+    and pg_get_triggerdef(oid) like 'CREATE TRIGGER goods_variants_restock_notify AFTER UPDATE OF stock_qty, archived_at, preorder_policy_id ON public.goods_variants FOR EACH ROW WHEN %'
+    -- 재고로 살 수 있는 옵션 = 사용 중 · 재고 판매(예약판매 아님) · 재고 > 0. 전후 모두 이 술어로 본다.
+    and pg_get_triggerdef(oid) like '%(new.preorder_policy_id IS NULL)%(old.preorder_policy_id IS NULL)%'
 ) then 1 else 0 end as assert_variant_transition_trigger;
 
 -- 옵션 전이 트리거는 재고 캐시 갱신 트리거 뒤에 돈다(같은 시점 AFTER 트리거는 이름순).
@@ -98,7 +101,8 @@ insert into auth.users (id, aud, role, email, email_confirmed_at, raw_app_meta_d
 values
   ('00000000-0000-4000-8000-000000056701', 'authenticated', 'authenticated', 'restock-variant-a@example.test', now(), '{}', '{}', now(), now()),
   ('00000000-0000-4000-8000-000000056702', 'authenticated', 'authenticated', 'restock-variant-b@example.test', now(), '{}', '{}', now(), now()),
-  ('00000000-0000-4000-8000-000000056703', 'authenticated', 'authenticated', 'restock-variant-fenced@example.test', now(), '{}', '{}', now(), now());
+  ('00000000-0000-4000-8000-000000056703', 'authenticated', 'authenticated', 'restock-variant-fenced@example.test', now(), '{}', '{}', now(), now()),
+  ('00000000-0000-4000-8000-000000056704', 'authenticated', 'authenticated', 'restock-variant-operator@example.test', now(), '{}', '{}', now(), now());
 
 update public.profiles
 set nickname = 'restock_variant_' || right(id::text, 2), birth_date = '2000-01-01',
@@ -127,14 +131,22 @@ begin
     return;
   end if;
   update private.operator_access_state set configured = true where id;
-  foreach fixture_good in array array['restock-variant-good', 'restock-variant-soldout', 'restock-variant-archived-stock'] loop
+  foreach fixture_good in array array['restock-variant-good', 'restock-variant-soldout', 'restock-variant-archived-stock',
+    'restock-variant-preorder', 'restock-variant-restore'] loop
     reviewer := ('47c47700' || left(md5(fixture_good), 24))::uuid;
     insert into auth.users (id, aud, role, email, raw_app_meta_data, created_at, updated_at)
     values (reviewer, 'authenticated', 'authenticated', 'restock-variant-kc-' || left(md5(fixture_good), 8) || '@example.test',
       '{"testFixture":"goods-kc"}', now(), now());
     insert into private.operator_memberships (profile_id, manager_role) values (reviewer, 'primary');
   end loop;
+  -- 재고 판매 전환(admin_use_stock_supply)을 실행할 관리자.
+  insert into private.operator_memberships (profile_id, manager_role)
+  values ('00000000-0000-4000-8000-000000056704', 'primary');
 end $$;
+
+-- 레거시 픽스처 안에서는 이 역할 변경이 운영자 코호트로 잡히고, 밖에서는 위 멤버십이 권한을 준다.
+update public.profiles set role = 'admin', nickname = 'restock_variant_op'
+where id = '00000000-0000-4000-8000-000000056704';
 
 -- 굿즈 1: 옵션 A 판매 중(20) · B 품절(0) · C 품절(0) · 보관 옵션 Z.
 insert into public.goods (id, ip_id, name, type, price, stock, stock_qty, published_at)
@@ -525,5 +537,112 @@ select 1 / case when (
   (select count(*) from public.restock_alerts where good_id = 'restock-variant-renamed') = 2
   and not exists (select 1 from public.restock_alerts where variant_id = '00000000-0000-4000-8000-000000056742')
 ) then 1 else 0 end as assert_variant_delete_cascades_its_alerts;
+
+-- ── 11. 예약판매 옵션의 실물 입고는 재입고가 아니다 — 재고 판매로 바꿀 때 깨운다 ─
+-- 굿즈 5: 옵션 A(기본) 재고 0 · 옵션 B 재고 0. 모든 옵션이 품절이다.
+insert into public.goods (id, ip_id, name, type, price, stock, stock_qty, published_at)
+values ('restock-variant-preorder', 'restock-variant-ip', '예약 전환 굿즈', '키링', 10000, 'ok', 0, null);
+update public.goods_variants set name = '옵션 A'
+where good_id = 'restock-variant-preorder' and is_default;
+insert into public.goods_variants (id, good_id, name, price, stock_qty, sort_order)
+values ('00000000-0000-4000-8000-000000056751', 'restock-variant-preorder', '옵션 B', 10000, 0, 1);
+select pg_temp.publish_goods_kc_fixture('restock-variant-preorder');
+
+-- A 는 굿즈 단위(모든 옵션), B 는 옵션 B 단위로 기다린다(B 가 아직 재고 판매일 때 받은 신청).
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000056701', true);
+select public.request_restock_alert('restock-variant-preorder');
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000056702', true);
+select public.request_variant_restock_alert('restock-variant-preorder', '00000000-0000-4000-8000-000000056751');
+reset role;
+
+-- 운영자가 옵션 B 를 예약판매로 열었다가 중지했다(정책 행과 옵션의 공급 선택은 픽스처로 둔다).
+insert into private.goods_preorder_policies (id, variant_id, state, capacity_qty, starts_at, ends_at, expected_ship_date,
+  approval_reference, created_by, activated_by, activated_at, stopped_by, stopped_at)
+values ('00000000-0000-4000-8000-000000056759', '00000000-0000-4000-8000-000000056751', 'stopped', 10,
+  now() - interval '2 days', now() + interval '5 days', current_date + 30, 'TEST-ONLY 재입고 스모크 예약 승인',
+  '00000000-0000-4000-8000-000000056704', '00000000-0000-4000-8000-000000056704', now() - interval '2 days',
+  '00000000-0000-4000-8000-000000056704', now() - interval '1 day');
+update public.goods_variants set preorder_policy_id = '00000000-0000-4000-8000-000000056759'
+where id = '00000000-0000-4000-8000-000000056751';
+
+-- 예약 물량이 실물로 들어와 할당 전에 실재고를 올린다(admin_allocate_goods_preorders 가 요구하는 순서,
+-- admin_adjust_stock 과 같은 내부 쓰기). 굿즈 행은 재고 캐시 0→10 으로 판매 가능 전이(①)를 하지만 재고로
+-- 살 수 있는 옵션은 없고, B 는 예약판매라 옵션 전이(②)도 아니다 — 아무 신청도 깨우지 않는다.
+select private.change_goods_variant_stock('restock-variant-preorder', '00000000-0000-4000-8000-000000056751', 10);
+select 1 / case when (
+  (select stock_qty from public.goods where id = 'restock-variant-preorder') = 10
+  and (select count(*) from public.restock_alerts
+    where good_id = 'restock-variant-preorder' and status = 'pending') = 2
+  and not exists (select 1 from public.notifications where source_id = 'restock-variant-preorder')
+) then 1 else 0 end as assert_preorder_physical_receipt_is_not_a_restock;
+
+-- 공개 화면은 품절이다(옵션 A 재고 0, 옵션 B 는 중지된 예약판매라 구매 가능 수량 0). 굿즈 단위 신청을
+-- 받는다 — 예약판매 옵션의 실물 입고분을 판매 재고로 세면 good_available 로 거절됐다.
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000056702', true);
+select public.request_restock_alert('restock-variant-preorder');
+-- 예약판매 옵션의 옵션 신청은 여전히 받지 않는다(이미 받아 둔 신청은 남는다).
+do $$ begin
+  perform public.request_variant_restock_alert('restock-variant-preorder', '00000000-0000-4000-8000-000000056751');
+  raise exception 'preorder option request was accepted' using errcode = 'P5682';
+exception when sqlstate '22023' then null; end $$;
+reset role;
+select 1 / case when (
+  select count(*) = 3 from public.restock_alerts
+  where good_id = 'restock-variant-preorder' and status = 'pending'
+) then 1 else 0 end as assert_goods_request_ignores_preorder_physical_stock;
+
+-- 운영자가 B 를 재고 판매로 바꾼다(실재고 10 이 남아 있다). 그 순간이 B 의 재입고다 — B 신청과
+-- 굿즈 단위 신청이 깨어나고, 신청마다 알림은 하나다.
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000056704', true);
+select public.admin_use_stock_supply('restock-variant-preorder', '00000000-0000-4000-8000-000000056751',
+  '00000000-0000-4000-8000-000000056759', 1) ->> 'changed' as stock_supply_selected;
+reset role;
+select 1 / case when (
+  (select preorder_policy_id is null and stock_qty = 10 from public.goods_variants
+    where id = '00000000-0000-4000-8000-000000056751')
+  and (select count(*) from public.restock_alerts
+    where good_id = 'restock-variant-preorder' and status = 'notified') = 3
+  and (select count(*) from public.notifications
+    where user_id = '00000000-0000-4000-8000-000000056701' and source_id = 'restock-variant-preorder'
+      and link_path = '/shop/restock-variant-preorder'
+      and body = '예약 전환 굿즈 굿즈가 다시 판매를 시작했어요.') = 1
+  and (select count(*) from public.notifications
+    where user_id = '00000000-0000-4000-8000-000000056701' and source_id = 'restock-variant-preorder') = 1
+  and (select count(*) from public.notifications
+    where user_id = '00000000-0000-4000-8000-000000056702' and source_id = 'restock-variant-preorder'
+      and link_path = '/shop/restock-variant-preorder?variant=00000000-0000-4000-8000-000000056751'
+      and body = '예약 전환 굿즈 · 옵션 B 옵션이 다시 판매를 시작했어요.') = 1
+  and (select count(*) from public.notifications
+    where user_id = '00000000-0000-4000-8000-000000056702' and source_id = 'restock-variant-preorder') = 2
+) then 1 else 0 end as assert_stock_supply_switch_wakes_option_and_goods_alerts;
+
+-- ── 12. 사용 중지 옵션의 복원도 재고로 살 수 있게 되는 전이다 ─────────
+-- 굿즈 6: 기본 옵션 A 재고 0(사용 중) · 옵션 B 재고 5. B 를 사용 중지(재고 보존)하면 공개 화면은 품절이다.
+-- 사용 중지·복원은 admin_set_goods_variant_active 의 쓰기(archived_at)와 같다. 복원 뒤 메일은 앱이 보낸다.
+insert into public.goods (id, ip_id, name, type, price, stock, stock_qty, published_at)
+values ('restock-variant-restore', 'restock-variant-ip', '복원 재입고 굿즈', '키링', 10000, 'ok', 0, null);
+update public.goods_variants set name = '옵션 A'
+where good_id = 'restock-variant-restore' and is_default;
+insert into public.goods_variants (id, good_id, name, price, stock_qty, sort_order)
+values ('00000000-0000-4000-8000-000000056761', 'restock-variant-restore', '옵션 B', 10000, 5, 1);
+select pg_temp.publish_goods_kc_fixture('restock-variant-restore');
+update public.goods_variants set archived_at = now() where id = '00000000-0000-4000-8000-000000056761';
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000056701', true);
+select public.request_restock_alert('restock-variant-restore');
+reset role;
+
+update public.goods_variants set archived_at = null where id = '00000000-0000-4000-8000-000000056761';
+select 1 / case when (
+  (select status from public.restock_alerts
+    where user_id = '00000000-0000-4000-8000-000000056701' and good_id = 'restock-variant-restore') = 'notified'
+  and (select count(*) from public.notifications
+    where user_id = '00000000-0000-4000-8000-000000056701' and source_id = 'restock-variant-restore'
+      and link_path = '/shop/restock-variant-restore') = 1
+) then 1 else 0 end as assert_variant_restore_wakes_all_options_alert;
 
 rollback;
