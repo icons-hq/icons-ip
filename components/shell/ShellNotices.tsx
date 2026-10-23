@@ -149,7 +149,11 @@ export function ShellNotices({
             </aside>
           ))}
           {/* 스트립은 이미지 비율만큼 높이를 차지하는 링크 배너다(R-01 §1). PC 비율 아트웍은 모바일 폭에서 수 px로
-              붕괴하므로 모바일 소스를 분기한다. 후보가 여럿이면 보이지 않는 후보의 이미지는 내려받지 않는다(lazy + hidden). */}
+              붕괴하므로 모바일 소스를 분기한다. 이미지는 숨은 후보까지 모두 기본(eager)으로 받는다(l8a-qa-1): 높이를 미리
+              알 수 없어 이미지가 첫 페인트 뒤에 오면 띠배너가 끼어들며 본문을 민다. 보일 후보를 고르는 첫 페인트 전 스크립트는
+              head 스타일시트가 끝나야 돌기 때문에(로컬 실측 첫 페인트 15~20ms 전), 숨은 후보를 lazy로 미루면 그 후보가 뽑힌 하드 로드는
+              이미지 요청이 그때서야 시작돼 실제 네트워크에서는 매번 늦는다. 모두 받으면 어느 후보가 뽑혀도 HTML 파싱 중 바로
+              요청된다(main의 단일 스트립과 같은 시점) — 대가는 같은 화면 유형의 후보 수만큼 얇은 띠배너를 받는 것이다. */}
           {strips.map((strip, index) => (
             <Link
               key={strip.id}
@@ -164,7 +168,7 @@ export function ShellNotices({
             >
               <picture>
                 {strip.mobileImageUrl ? <source media="(max-width: 749px)" srcSet={strip.mobileImageUrl} /> : null}
-                <img alt={strip.title} loading={strips.length > 1 ? 'lazy' : undefined} src={strip.imageUrl} />
+                <img alt={strip.title} src={strip.imageUrl} />
               </picture>
             </Link>
           ))}

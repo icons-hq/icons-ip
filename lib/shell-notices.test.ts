@@ -272,4 +272,11 @@ describe('첫 페인트 전 스크립트 ↔ 컴포넌트 계산', () => {
     expect(SHELL_NOTICE_SCRIPT).toContain(JSON.stringify(SHELL_NOTICE_DISMISSED_KEY));
     expect(SHELL_NOTICE_SCRIPT.startsWith('(function(){try{')).toBe(true);
   });
+
+  /* l8a-qa-1: 이 스크립트는 head 스타일시트가 끝난 뒤(로컬 실측 첫 페인트 15~20ms 전)에야 돈다. 여기서 고른 후보만 eager로 바꾸는 식으로
+     숨은 후보를 미루면, 첫 후보가 아닌 후보가 뽑힌 하드 로드는 이미지 요청이 그때서야 시작돼 첫 페인트 뒤에 끼어든다.
+     후보 이미지는 서버 마크업에서 모두 eager이고 스크립트는 hidden만 고친다. */
+  it('스트립 이미지의 loading을 바꾸지 않는다 — 어느 후보가 뽑혀도 HTML 파싱 중 이미 요청된 상태다', () => {
+    expect(SHELL_NOTICE_SCRIPT).not.toMatch(/loading/i);
+  });
 });

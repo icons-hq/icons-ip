@@ -34,6 +34,13 @@ function tagFor(html: string, marker: string) {
   return html.slice(start, html.indexOf('>', index) + 1);
 }
 
+/* 스트립 후보 링크 안의 img 태그. */
+function stripImg(html: string, id: string) {
+  const start = html.indexOf(`data-notice-strip="${id}"`);
+  expect(start, id).toBeGreaterThan(-1);
+  return tagFor(html.slice(start, html.indexOf('</a>', start)), '<img');
+}
+
 describe('셸 공지 서버 렌더', () => {
   it('공지가 하나도 없으면 아무것도 그리지 않는다(빈 띠·스크립트 없음)', () => {
     expect(render({ bars: [], strips: [] })).toBe('');
@@ -59,15 +66,17 @@ describe('셸 공지 서버 렌더', () => {
     expect(html).toContain('wc-notice-bar__close');
   });
 
-  it('스트립은 링크 배너이고 첫 후보만 보이며, 후보가 여럿이면 숨은 후보의 이미지는 늦게 받는다', () => {
-    const html = render({ bars: [], strips: [strip('s1', { mobileImageUrl: 'https://cdn.example/s1-m.webp' }), strip('s2')] });
+  /* l8a-qa-1: 이미지가 lazy면 첫 레이아웃 뒤에야 요청돼, 첫 페인트 뒤 띠배너가 끼어들며 본문을 민다. 보일 후보는 첫 페인트
+     직전(스타일시트 뒤)에야 정해지므로 숨은 후보도 미루지 않는다 — 어느 후보가 뽑혀도 HTML 파싱 중 바로 요청된다. */
+  it('스트립은 링크 배너이고 첫 후보만 보이며, 이미지는 숨은 후보까지 모두 바로 받는다(lazy 없음)', () => {
+    const html = render({ bars: [], strips: [strip('s1', { mobileImageUrl: 'https://cdn.example/s1-m.webp' }), strip('s2'), strip('s3')] });
     expect(tagFor(html, 'data-notice-strip="s1"')).not.toContain('hidden');
     expect(tagFor(html, 'data-notice-strip="s2"')).toContain('hidden=""');
     expect(html).toContain('class="wc-notice"');
     expect(html).toContain('<source media="(max-width: 749px)" srcSet="https://cdn.example/s1-m.webp"/>');
     expect(html).toContain('alt="띠배너 s1"');
-    expect(html.match(/loading="lazy"/g)).toHaveLength(2);
-    expect(render({ bars: [], strips: [strip('only')] })).not.toContain('loading="lazy"');
+    for (const id of ['s1', 's2', 's3']) expect(stripImg(html, id)).not.toContain('loading=');
+    expect(stripImg(render({ bars: [], strips: [strip('only')] }), 'only')).not.toContain('loading=');
   });
 
   it('텍스트 공지 바가 이미지 스트립 위에 있고, 바로 뒤에 첫 페인트 전 스크립트가 온다', () => {

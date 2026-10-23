@@ -177,6 +177,8 @@ export function shellNoticeTimerDelay(endsAt: number, now: number): number {
  * 서버는 공지를 결정적으로 그린다(첫 공지 바·첫 스트립만 보이고 나머지는 hidden). 이 스크립트가 같은 탭의 닫힘 기록,
  * 하드 로드마다 한 번 뽑는 시드, 지금 시각(data-notice-ends가 지난 공지는 숨김 — 오래된 정적 HTML·캐시 대비)으로
  * hidden을 고친 뒤 판정 시각을 남기고, 클라이언트 컴포넌트가 같은 저장소·시드·시각을 읽어 같은 결과로 하이드레이트한다.
+ * 스트립 이미지의 loading은 건드리지 않는다: 이 스크립트는 파서 차단 인라인 스크립트라 head 스타일시트가 끝난 뒤(첫 페인트
+ * 직전)에야 돌므로, 여기서 고른 후보를 그제야 받기 시작하면 첫 페인트에 늦는다. 그래서 후보는 모두 eager로 그린다(l8a-qa-1).
  * 데이터를 문자열에 끼워 넣지 않는 고정 문자열이라 운영 입력이 스크립트를 깨뜨릴 수 없다.
  */
 export const SHELL_NOTICE_SCRIPT = `(function(){try{var w=window,d=document,g=${JSON.stringify(SHELL_NOTICE_SEED_GLOBAL)},now=Date.now();`
