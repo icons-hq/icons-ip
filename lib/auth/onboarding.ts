@@ -81,8 +81,17 @@ export function safeNextPath(value: FormDataEntryValue | string | null | undefin
   if (!decoded.startsWith('/') || decoded.startsWith('//')) return '/';
 
   const sameOrigin = 'https://icons.local';
-  const url = new URL(decoded, sameOrigin);
+  let url: URL;
+  try {
+    url = new URL(decoded, sameOrigin);
+  } catch {
+    return '/';
+  }
   if (url.origin !== sameOrigin) return '/';
+
+  // 점 조각(`/..//x`, `/.//x`, `%2e`)을 접고 탭·줄바꿈을 지우는 일은 파서 안에서 일어나서,
+  // 원문 검사를 통과한 값도 정규화 뒤에는 `//evil.example`(스킴 상대 URL)이 될 수 있다.
+  if (url.pathname.startsWith('//') || url.pathname.includes('\\')) return '/';
 
   return `${url.pathname}${url.search}${url.hash}`;
 }
