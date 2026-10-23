@@ -1,7 +1,27 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import type { OrderListItem } from '@/lib/orders';
+import type { PublicReviewEvent } from '@/lib/review-events';
 import { Orders } from './Orders';
+
+function reviewEvent(overrides: Partial<PublicReviewEvent> = {}): PublicReviewEvent {
+  return {
+    id: '33333333-3333-4333-8333-333333333333',
+    title: '첫 리뷰 이벤트',
+    description: '사진 리뷰를 남겨주세요',
+    startsOn: '2026-10-20',
+    endsOn: '2026-10-31',
+    announcesOn: '2026-11-05',
+    plannedWinners: 10,
+    creditAmount: 3000,
+    creditValidityDays: 30,
+    bannerStyle: 'basic',
+    state: 'active',
+    announcedAt: null,
+    nextChangeAt: null,
+    ...overrides,
+  } as PublicReviewEvent;
+}
 
 function orderItem(overrides: Partial<OrderListItem> = {}): OrderListItem {
   return {
@@ -196,5 +216,39 @@ describe('Orders', () => {
       expect(html).toContain('결제가 확인됐어요');
       expect(html).toContain(`href="/orders/${orderId}"`);
     });
+  });
+
+  /* MY-01(10/14 S16): 주문 목록도 마이페이지 셸 안에 선다 — 영수증 어휘는 셸 콘텐츠 안에서 그대로다. */
+  it('sits inside the mypage shell with orders as the current menu and the shell heading grammar', () => {
+    const html = renderToStaticMarkup(<Orders orders={[orderItem()]} />);
+    const aside = html.slice(html.indexOf('aria-label="마이페이지 메뉴"'), html.indexOf('wc-mypage__content'));
+
+    expect(html).toContain('<main class="wc-root wc-mypage">');
+    expect(aside).toMatch(/aria-current="page" href="\/orders"|href="\/orders"[^>]*aria-current="page"/);
+    expect(html).toContain('class="wc-receipt orders-page"');
+    expect(html).toContain('<h1 class="wc-mypage__headbar-title">주문 내역</h1>');
+    expect(html.match(/<h1/g)).toHaveLength(1);
+  });
+
+  /* MY-08: 내 주문 굿즈에 진행 중 리뷰 이벤트가 있을 때만 기존 리뷰 이벤트 배너를 보인다 — 보상은 이벤트가 말한다. */
+  it('shows the existing review event banners only when the page passes ongoing events', () => {
+    expect(renderToStaticMarkup(<Orders orders={[orderItem()]} />)).not.toContain('wc-review-event-banner');
+
+    const html = renderToStaticMarkup(<Orders orders={[orderItem()]} reviewEvents={[reviewEvent(), reviewEvent({ id: '44444444-4444-4444-8444-444444444444', title: '두 번째 이벤트', creditAmount: 1000 })]} />);
+    expect(html.match(/class="wc-review-event-banner"/g)).toHaveLength(2);
+    expect(html).toContain('href="/review-events/33333333-3333-4333-8333-333333333333"');
+    expect(html).toContain('선정 시 적립금 <b>3,000원</b>');
+    expect(html.indexOf('wc-review-event-banner')).toBeLessThan(html.indexOf('id="orders-list-heading"'));
+  });
+
+  it('explains the delivery process with what can be done at each step', () => {
+    const html = renderToStaticMarkup(<Orders orders={[]} />);
+    const flow = html.slice(html.indexOf('orders-flow-heading'));
+
+    expect(flow).toContain('주문 후 배송 과정');
+    for (const label of ['결제완료', '발주확인', '배송중', '배송완료', '거래확정']) expect(flow).toContain(`<strong>${label}</strong>`);
+    expect(flow).toContain('발주확인 전에는 주문 상세에서 직접 취소할 수 있어요.');
+    expect(flow).toContain('배송 중부터 주문 전체로 반품·교환을 신청할 수 있어요.');
+    expect(flow).toContain('단순 변심은 공급받은 날부터 7일, 하자·오배송은 공급받은 날부터 3개월 안에 신청해주세요.');
   });
 });

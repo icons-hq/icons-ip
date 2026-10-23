@@ -1,5 +1,7 @@
 import Link from 'next/link';
+import { ReviewEventBanner } from '@/components/reviews/ReviewEventBanner';
 import { Icon } from '@/components/ui/Icon';
+import { MypageShell } from '@/components/wc/MypageShell';
 import {
   checkoutPaymentResultFollowsApproval,
   type CheckoutPaymentResultFocus,
@@ -7,10 +9,13 @@ import {
 import { krw } from '@/lib/format';
 import {
   formatOrderDate,
+  ORDER_WITHDRAWAL_DEADLINE_LABELS,
   orderReferenceLabel,
   orderStatusMeta,
   type OrderListItem,
+  type VisibleOrderStatus,
 } from '@/lib/orders';
+import type { PublicReviewEvent } from '@/lib/review-events';
 
 /** 결제 confirm 콜백(/api/payments/goods/confirm…)이 /orders?payment=…로 붙이는 결과값. */
 export type OrdersPaymentResult = 'approved' | 'checking' | 'failed';
@@ -136,15 +141,53 @@ function focusBanner(focus: CheckoutPaymentResultFocus): BannerCopy {
   }
 }
 
+/*
+ * 주문 후 배송 과정 안내 (LFS 패리티 2차 L6 · MY-08 — 11 §5.3, R-05 §4.4). 레퍼런스의 4단계를 우리 주문 사다리
+ * 다섯 단계(주문 상세와 같은 이름)로 옮기고, 단계마다 그때 할 수 있는 일을 한 줄로 적는다. 문구는 주문 상세의
+ * 취소·반품 안내와 같은 규칙이다(직접 취소는 발주확인 전, 반품·교환은 배송 중부터, 청약철회 기한).
+ */
+const ORDER_FLOW_STEPS: readonly { status: VisibleOrderStatus; body: string; note: string | null }[] = [
+  { status: 'paid', body: '결제가 확인되면 주문이 접수돼요.', note: '발주확인 전에는 주문 상세에서 직접 취소할 수 있어요.' },
+  { status: 'confirmed', body: '판매자가 주문을 확인하고 발송을 준비해요.', note: '발주확인 뒤 취소는 이 주문의 1:1 문의로 요청해주세요.' },
+  { status: 'shipping', body: '굿즈가 출고돼 배송지로 이동하고 있어요.', note: '배송 중부터 주문 전체로 반품·교환을 신청할 수 있어요.' },
+  {
+    status: 'delivered',
+    body: '굿즈를 받았어요. 리뷰를 남길 수 있어요.',
+    note: `단순 변심은 ${ORDER_WITHDRAWAL_DEADLINE_LABELS.change_of_mind}, 하자·오배송은 ${ORDER_WITHDRAWAL_DEADLINE_LABELS.defect} 안에 신청해주세요.`,
+  },
+  { status: 'done', body: '구매를 확정하면 거래가 마무리돼요.', note: null },
+];
+
+function OrderFlowGuide() {
+  return (
+    <section aria-labelledby="orders-flow-heading" className="orders-flow">
+      <h2 id="orders-flow-heading">주문 후 배송 과정</h2>
+      <ol className="orders-flow-steps">
+        {ORDER_FLOW_STEPS.map((step, index) => (
+          <li key={step.status}>
+            <span className="orders-flow-index" aria-hidden>{index + 1}</span>
+            <strong>{orderStatusMeta(step.status).label}</strong>
+            <p>{step.body}</p>
+            {step.note ? <p className="orders-flow-note">{step.note}</p> : null}
+          </li>
+        ))}
+      </ol>
+    </section>
+  );
+}
+
 export function Orders({
   orders,
   paymentResult,
   paymentFocus = null,
+  reviewEvents = [],
 }: {
   orders: OrderListItem[];
   paymentResult?: OrdersPaymentResult;
   /** 최근 결제 시도의 실제 결과. page가 원장에서 읽어 넘긴다. */
   paymentFocus?: CheckoutPaymentResultFocus | null;
+  /** 내 주문에 든 굿즈의 진행 중 리뷰 이벤트(MY-08). 없으면 배너를 그리지 않는다. */
+  reviewEvents?: PublicReviewEvent[];
 }) {
   // ?payment=는 클라이언트가 만들 수 있는 입력이다. 원장에서 읽은 결과가 있으면 그것으로
   // 안내하고, 없을 때만 쿼리 기본 안내를 쓴다. "결제가 확인됐어요"는 DB가 결제 완료 국면
@@ -168,14 +211,13 @@ export function Orders({
         ? undefined
         : QUERY_BANNERS[paymentResult];
 
+  /* 마이페이지 셸 안의 영수증 지면(MY-01) — 데스크톱은 좌 메뉴로 다른 계정 화면을 오가고, 목록·결제 안내는
+     영수증 어휘(.wc-receipt) 그대로다. 머리는 셸 하위 화면과 같은 17/700 + 2px 선. */
   return (
-    <main className="wc-root wc-receipt orders-page">
-      <header className="wc-receipt__head">
-        <div className="wrap">
-          <h1 className="wc-receipt__title">주문 내역</h1>
-          <p className="wc-receipt__subcopy">굿즈 주문의 결제와 배송 상태를 한눈에 확인하세요.</p>
-        </div>
-      </header>
+    <MypageShell active="/orders"><div className="wc-receipt orders-page">
+      <div className="wc-mypage__headbar">
+        <h1 className="wc-mypage__headbar-title">주문 내역</h1>
+      </div>
 
       <section className="orders-section" aria-labelledby="orders-list-heading">
         <div className="wrap">
@@ -200,6 +242,11 @@ export function Orders({
               )}
             </div>
           )}
+          {reviewEvents.length ? (
+            <div className="orders-review-events">
+              {reviewEvents.map((event) => <ReviewEventBanner event={event} key={event.id} />)}
+            </div>
+          ) : null}
           <div className="orders-section-heading">
             <h2 id="orders-list-heading">최근 주문</h2>
             <span className="mono">{orders.length}건</span>
@@ -241,8 +288,9 @@ export function Orders({
               })}
             </ol>
           )}
+          <OrderFlowGuide />
         </div>
       </section>
-    </main>
+    </div></MypageShell>
   );
 }

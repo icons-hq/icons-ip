@@ -9,6 +9,7 @@ import { parseClaimReasonHistory } from '@/lib/orders/claim-reason-change';
 import { transactionDisplay, transactionLineId } from '@/test/fixtures/cart-transaction';
 
 vi.mock('next/navigation', () => ({
+  usePathname: () => '/orders/11111111-1111-4111-8111-111111111111',
   useRouter: () => ({ refresh: () => undefined }),
 }));
 
@@ -46,6 +47,18 @@ function order(overrides: Partial<OrderDetailData> = {}): OrderDetailData {
 }
 
 describe('OrderDetail', () => {
+  /* MY-01(10/14 S16): 주문 상세도 데스크톱 좌 메뉴 셸 안에 선다 — 영수증 지면은 셸 안 콘텐츠로 유지한다. */
+  it('sits inside the mypage shell with orders as the current menu, keeping the receipt surface', () => {
+    const html = renderToStaticMarkup(<OrderDetail order={order()} />);
+    const aside = html.slice(html.indexOf('aria-label="마이페이지 메뉴"'), html.indexOf('wc-mypage__content'));
+
+    expect(html).toContain('<main class="wc-root wc-mypage">');
+    expect(aside).toMatch(/aria-current="page" href="\/orders"|href="\/orders"[^>]*aria-current="page"/);
+    expect(html).toContain('class="wc-receipt order-detail-page"');
+    expect(html.indexOf('wc-mypage__content')).toBeLessThan(html.indexOf('wc-receipt order-detail-page'));
+    expect(html.match(/<h1/g)).toHaveLength(1);
+  });
+
   it('keeps the original purchase and actual exchange product in separate labeled sections', () => {
     const html = renderToStaticMarkup(<OrderDetail order={order({ reshipmentHistory: [orderReshipmentReceipt] })} />);
     expect(html).toContain('주문한 굿즈'); expect(html).toContain('홍실 아크릴 블록');

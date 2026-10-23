@@ -2416,6 +2416,138 @@ a.wc-mypage__card:hover .wc-mypage__card-title {
   color: var(--wc-ink-tertiary);
 }
 
+/* --- 마이페이지 셸 안의 영수증 지면 (L6 · MY-01) -------------------- */
+
+/* 주문 목록·상세는 셸(컨테이너 1212·여백 40/100·좌 메뉴) 안 콘텐츠다. 지면이 독립 화면일 때 쓰던 바깥 틀
+   (지면 여백·최소 높이·.wrap 컨테이너·섹션 위아래 clamp 여백)은 셸이 이미 가지므로 걷는다. 영수증 어휘는 그대로. */
+.wc-mypage__content > .wc-receipt {
+  min-height: 0;
+  padding: 0;
+}
+
+.wc-mypage .wc-mypage__content .wrap {
+  max-width: none;
+  padding-inline: 0;
+}
+
+.wc-mypage .wc-mypage__content .orders-section,
+.wc-mypage .wc-mypage__content .order-detail-layout {
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
+/* 콘텐츠 920 안의 영수증 2열(본문 + 360)은 1200px 이상에서만 — 더 좁으면 본문 칸이 300px 대로 눌린다. */
+@media (max-width: 1199px) {
+  .wc-mypage .wc-mypage__content .order-detail-layout {
+    display: block;
+  }
+
+  .wc-mypage .wc-mypage__content .order-detail-receipt {
+    position: static;
+    margin-top: 20px;
+  }
+}
+
+/* 리뷰 보상 배너(MY-08) — 기존 리뷰 이벤트 배너를 목록 위에 그대로 세운다. */
+.wc-receipt .orders-review-events {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin: 0 0 8px;
+}
+
+/* 주문 후 배송 과정(MY-08) — 다섯 단계, 단계마다 지금 할 수 있는 일 한 줄. 레퍼런스의 강조 주의문은
+   액센트 대신 잉크 위 헤어라인으로 둔다(액센트 사용처는 닫힌 목록 — DESIGN §2). */
+.wc-receipt .orders-flow {
+  margin-top: 56px;
+}
+
+.wc-receipt .orders-flow h2 {
+  margin: 0;
+  padding-bottom: 14px;
+  border-bottom: 2px solid var(--wc-ink);
+  font-size: 17px;
+  font-weight: 700;
+  letter-spacing: -0.4px;
+  color: var(--wc-ink);
+}
+
+.wc-receipt .orders-flow-steps {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 16px;
+  margin: 24px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wc-receipt .orders-flow-steps li {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+}
+
+.wc-receipt .orders-flow-index {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  border: 1px solid var(--wc-line-control);
+  border-radius: 50%;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--wc-ink);
+}
+
+.wc-receipt .orders-flow-steps strong {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--wc-ink);
+}
+
+.wc-receipt .orders-flow-steps p {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-receipt .orders-flow-steps .orders-flow-note {
+  margin-top: 2px;
+  padding-top: 8px;
+  border-top: 1px solid var(--wc-hairline);
+  color: var(--wc-ink-sub);
+}
+
+@media (max-width: 989px) {
+  .wc-receipt .orders-flow {
+    margin-top: 40px;
+  }
+
+  .wc-receipt .orders-flow-steps {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 14px;
+  }
+
+  .wc-receipt .orders-flow-steps li {
+    display: grid;
+    grid-template-columns: 30px minmax(0, 1fr);
+    column-gap: 12px;
+    row-gap: 4px;
+  }
+
+  .wc-receipt .orders-flow-index {
+    grid-row: 1 / span 3;
+  }
+
+  .wc-receipt .orders-flow-steps strong,
+  .wc-receipt .orders-flow-steps p {
+    grid-column: 2;
+  }
+}
+
 /* --- 주문 상세 /orders/[id] --------------------------------------- */
 
 .wc-receipt .order-detail-back,
