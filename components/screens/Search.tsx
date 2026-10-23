@@ -58,6 +58,10 @@ function SuggestedTerms() {
  * 숫자 페이지네이션(R-03 §2.4 · 11 §6 B8 · SR-03) — 데스크톱 10칸·767px 이하 5칸의 고정 창이고,
  * 이전·다음은 창 단위로 건너뛴다. 셀은 넓은 창 하나만 그리고 좁은 창 밖의 셀은 모바일에서 감춘다.
  * 두 창의 화살표 목적지가 다를 때만 화살표를 둘 그려 폭마다 하나씩 보인다(감춘 쪽은 접근성 트리에서도 빠진다).
+ *
+ * 모바일은 한 줄이어야 한다 — 44px 화살표 넷(« ‹ › »)과 생략 부호 둘을 5칸에 더하면 468px 라 343 폭에서 두 줄로
+ * 깨진다. 처음·마지막과 생략 부호는 넓은 창(768px 이상)에만 두고 모바일은 창 단위 ‹ › 만 남긴다. 첫 창의 ‹ 는
+ * 1페이지로, 마지막 창의 › 는 마지막 페이지로 가므로(searchPageWindow) 모바일에서도 모든 페이지에 닿는다.
  */
 function Pagination({ hrefFor, page, pageCount }: { hrefFor: (page: number) => string; page: number; pageCount: number }) {
   if (pageCount <= 1) return null;
@@ -82,17 +86,15 @@ function Pagination({ hrefFor, page, pageCount }: { hrefFor: (page: number) => s
       ? arrow(wideTarget, label, glyph)
       : [arrow(wideTarget, label, glyph, 'wide'), arrow(narrowTarget, label, glyph, 'narrow')]
   );
-  const ellipsis = (wideShown: boolean, narrowShown: boolean, key: string) => {
-    if (!wideShown && !narrowShown) return null;
-    const scope = wideShown && narrowShown ? '' : wideShown ? ' is-wide' : ' is-narrow';
-    return <span key={key} aria-hidden className={`wc-pagination__ellipsis${scope}`}>…</span>;
-  };
+  const ellipsis = (shown: boolean, key: string) => (
+    shown ? <span key={key} aria-hidden className="wc-pagination__ellipsis is-wide">…</span> : null
+  );
 
   return (
     <nav aria-label="검색 결과 페이지" className="wc-pagination">
-      {page > 1 ? arrow(1, '첫 페이지', '«') : null}
+      {page > 1 ? arrow(1, '첫 페이지', '«', 'wide') : null}
       {windowArrow(wide.prev, narrow.prev, '이전 페이지', '‹')}
-      {ellipsis(wide.start > 1, narrow.start > 1, 'before')}
+      {ellipsis(wide.start > 1, 'before')}
       {cells.map((cell) => (
         <Link
           key={cell}
@@ -104,9 +106,9 @@ function Pagination({ hrefFor, page, pageCount }: { hrefFor: (page: number) => s
           {cell}
         </Link>
       ))}
-      {ellipsis(wide.end < pageCount, narrow.end < pageCount, 'after')}
+      {ellipsis(wide.end < pageCount, 'after')}
       {windowArrow(wide.next, narrow.next, '다음 페이지', '›')}
-      {page < pageCount ? arrow(pageCount, '마지막 페이지', '»') : null}
+      {page < pageCount ? arrow(pageCount, '마지막 페이지', '»', 'wide') : null}
     </nav>
   );
 }

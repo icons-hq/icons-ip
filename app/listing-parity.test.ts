@@ -121,6 +121,28 @@ describe('검색 결과 머리 (11 SR-02) · 페이지 창 (SR-03)', () => {
     expect(decls(CATALOG, '.wc-pagination .is-wide', '(max-width: 767px)').display).toBe('none');
     expect(decls(CATALOG, '.wc-pagination .is-narrow', '(min-width: 768px)').display).toBe('none');
   });
+
+  /* 모바일 한 줄 예산(l4-ui-3): ‹ 44 + 셀 36×5 + › 44 + 간격 2×6 = 280 ≤ 320 기기 본문 288.
+     Search.test 가 모바일에 남는 항목(‹ 5칸 ›)을, 여기서는 그 폭 입력값을 고정한다. */
+  it('모바일 페이저는 44px 화살표·36px 셀·2px 간격이라 ‹ + 5칸 + › 가 한 줄에 든다', () => {
+    const arrow = decls(CATALOG, '.wc-pagination__arrow');
+    const cell = decls(CATALOG, '.wc-pagination__cell');
+    const gap = decls(CATALOG, '.wc-pagination', '(max-width: 767px)').gap;
+
+    expect([arrow.width, arrow.height]).toEqual(['44px', '44px']);
+    expect(cell['min-width']).toBe('36px');
+    expect(gap).toBe('2px');
+    expect(44 * 2 + 36 * 5 + Number.parseFloat(gap) * 6).toBeLessThanOrEqual(288);
+  });
+
+  /* 공백 없는 긴 검색어가 데스크톱 한 줄의 인풋을 밀거나 모바일 폭을 넘지 않는다(l4-ui-10). */
+  it('검색 제목과 빈 결과 제목은 긴 토큰을 어디서든 끊는다', () => {
+    const heading = decls(CATALOG, '.wc-search-results__heading');
+
+    expect(heading['min-width']).toBe('0');
+    expect(heading['overflow-wrap']).toBe('anywhere');
+    expect(decls(CATALOG, '.wc-search-results__empty .wc-empty__title')['overflow-wrap']).toBe('anywhere');
+  });
 });
 
 const DISCOVERY = './styles/wc-discovery.css';

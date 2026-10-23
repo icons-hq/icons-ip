@@ -2574,6 +2574,7 @@
 /* 24/400(레퍼런스 실측, 자간 -0.2). 질의어·건수 강조는 색이 아니라 잉크 굵기다 —
    레퍼런스의 핑크 강조를 옮기지 않고 액센트 사용처(DESIGN §2 전수 목록)도 늘리지 않는다. */
 .wc-search-results__heading {
+  min-width: 0;
   margin: 0 0 24px;
   font-family: inherit;
   font-size: 24px;
@@ -2581,6 +2582,9 @@
   line-height: 1.33;
   letter-spacing: -.2px;
   color: var(--wc-ink);
+  /* 검색어는 사용자가 붙여 넣는 값이다 — 공백 없는 긴 토큰(URL·상품 코드)이 데스크톱 한 줄의 인풋을
+     컨테이너 밖으로 밀거나 모바일 폭을 넘지 않게 어디서든 끊는다(flex 항목이라 min-width 0 도 함께). */
+  overflow-wrap: anywhere;
 }
 
 .wc-search-results__heading strong {
@@ -2702,6 +2706,11 @@
   margin-top: 24px;
 }
 
+/* 빈 결과 제목도 검색어를 그대로 싣는다 — 머리와 같은 이유로 긴 토큰을 끊는다. */
+.wc-search-results__empty .wc-empty__title {
+  overflow-wrap: anywhere;
+}
+
 @media (min-width: 990px) {
   .wc-search-results__head,
   .wc-search-results__head.has-results {
@@ -2786,7 +2795,12 @@
   color: var(--wc-ink-disabled);
 }
 
+/* 모바일 한 줄 = ‹ + 5칸 + › (44 + 36×5 + 44 + 간격 2×6 = 280) — 320 기기(본문 288)까지 한 줄로 선다. */
 @media (max-width: 767px) {
+  .wc-pagination {
+    gap: 2px;
+  }
+
   .wc-pagination .is-wide {
     display: none;
   }

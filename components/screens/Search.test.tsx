@@ -220,6 +220,38 @@ describe('Search 페이지네이션 (SR-03)', () => {
     expect(html).toMatch(/<a aria-label="이전 페이지" class="wc-pagination__arrow is-wide" href="\/search\?q=keyring">/);
     expect(html).toMatch(/<a aria-label="이전 페이지" class="wc-pagination__arrow is-narrow" href="\/search\?q=keyring&(amp;)?page=5">/);
   });
+
+  /* 모바일(767px 이하는 is-wide 를 감춘다)은 한 줄이어야 한다 — 중간 창에서 « ‹ … 5칸 … › » 를 다 그리면
+     468px 라 343 폭에서 두 줄로 깨졌다(l4-ui-3). 모바일에 남는 항목은 창 단위 ‹ › 와 5칸뿐이고, 처음·마지막과
+     생략 부호는 데스크톱 전용이다. 폭 예산은 CSS 계약(화살표 44·셀 36·모바일 간격 2)으로 센다. */
+  it('모바일 중간 창은 ‹ + 5칸 + › 한 줄이고 처음·마지막·생략 부호는 데스크톱에만 있다', () => {
+    const items = (page: number) => {
+      const html = render('keyring', many(40 * 12), { page });
+      const nav = html.slice(html.indexOf('<nav aria-label="검색 결과 페이지"'), html.indexOf('</nav>'));
+      return [...nav.matchAll(/<(a|span)([^>]*)>([^<]*)<\/\1>/g)].map(([, , attrs, body]) => ({
+        cls: /class="([^"]*)"/.exec(attrs)?.[1] ?? '',
+        label: /aria-label="([^"]*)"/.exec(attrs)?.[1] ?? body,
+        page: /page=(\d+)/.exec(attrs)?.[1] ?? (/href=/.test(attrs) ? '1' : ''),
+      }));
+    };
+    const mobile = (page: number) => items(page).filter((item) => !item.cls.split(' ').includes('is-wide'));
+    const width = (list: { cls: string }[]) => list.reduce((sum, item) => sum + (item.cls.includes('__arrow') ? 44 : 36), 0) + 2 * (list.length - 1);
+
+    for (const page of [6, 7, 10]) {
+      const visible = mobile(page);
+      expect(visible.map((item) => `${item.label}→${item.page}`)).toEqual([
+        '이전 페이지→5', '6페이지→6', '7페이지→7', '8페이지→8', '9페이지→9', '10페이지→10', '다음 페이지→11',
+      ]);
+      expect(width(visible)).toBeLessThanOrEqual(288);
+    }
+    expect(mobile(1).map((item) => item.label)).toEqual(['1페이지', '2페이지', '3페이지', '4페이지', '5페이지', '다음 페이지']);
+    expect(mobile(12).map((item) => `${item.label}→${item.page}`)).toEqual(['이전 페이지→10', '11페이지→11', '12페이지→12']);
+
+    const all = items(7);
+    expect(all.filter((item) => item.label === '첫 페이지' || item.label === '마지막 페이지').map((item) => item.cls))
+      .toEqual(['wc-pagination__arrow is-wide', 'wc-pagination__arrow is-wide']);
+    expect(all.filter((item) => item.cls.includes('__ellipsis')).map((item) => item.cls)).toEqual(['wc-pagination__ellipsis is-wide']);
+  });
 });
 
 describe('Search 빈 상태', () => {
