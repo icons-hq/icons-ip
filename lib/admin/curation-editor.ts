@@ -161,6 +161,29 @@ export function createCurationEditorValues(
   };
 }
 
+/** 종류마다 시작값이 다른 칸 — 새 구성에서 영역(kind)을 바꾸면 운영자가 손대지 않은 칸은 새 종류의 시작값을 따른다. */
+export const CURATION_KIND_DEFAULT_FIELDS = ['linkPath', 'pageTypes', 'ctaLabel'] as const satisfies readonly (keyof CurationEditorValues)[];
+
+/**
+ * 새 구성(selected 없음)에서 '홈에 보일 영역'을 바꿀 때의 입력값. 기본 새 폼은 프로모션 배너로 시작하므로, 바꾼 종류의
+ * 시작값(새 띠배너는 상품 목록 제외, 새 공지 바는 링크 없음·전 화면)을 다시 계산하지 않으면 안내 문구와 실제 체크 상태가
+ * 어긋난다. 운영자가 이미 고친 칸(touched)과 저장된 구성의 값은 그대로 둔다.
+ */
+export function curationValuesForKindChange(
+  current: CurationEditorValues,
+  nextKind: AdminCurationKind,
+  { isNew, touched, draftActiveFrom }: { isNew: boolean; touched: ReadonlySet<keyof CurationEditorValues>; draftActiveFrom: string },
+): CurationEditorValues {
+  if (!isNew) return current;
+  const defaults = createCurationEditorValues(null, draftActiveFrom, nextKind);
+  return {
+    ...current,
+    ...(touched.has('linkPath') ? {} : { linkPath: defaults.linkPath }),
+    ...(touched.has('pageTypes') ? {} : { pageTypes: defaults.pageTypes }),
+    ...(touched.has('ctaLabel') ? {} : { ctaLabel: defaults.ctaLabel }),
+  };
+}
+
 export function moveCurationProduct(ids: readonly string[], index: number, delta: -1 | 1): string[] {
   const next = [...ids];
   const target = index + delta;

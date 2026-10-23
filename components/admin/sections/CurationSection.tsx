@@ -14,7 +14,7 @@ import { MarketingLinkIssuer } from '@/components/admin/marketing/MarketingLinkI
 import type { AdminHomeLayout } from '@/lib/admin/home-layout';
 import {
   buildDraftCurationPreview, createCurationEditorValues, curationKstInput, CURATION_KIND_LABELS,
-  CURATION_KIND_ORDER, CURATION_STATUS_LABELS, emptyCurationPreview, moveCurationProduct, NOTICE_PAGE_TYPE_LABELS,
+  CURATION_KIND_ORDER, CURATION_STATUS_LABELS, curationValuesForKindChange, emptyCurationPreview, moveCurationProduct, NOTICE_PAGE_TYPE_LABELS,
   type CurationEditorValues, type CurationPublicPreview,
 } from '@/lib/admin/curation-editor';
 import { adminCurationTargetGroupsFor, type AdminCurationTargetRecord } from '@/lib/admin/curation-targets';
@@ -229,6 +229,8 @@ function CurationForm({
   const router = useRouter();
   const [values, setValues] = useState(() => createCurationEditorValues(selected, draftActiveFrom, initialKind));
   const [kind, setKind] = useState<AdminCurationKind>(selected?.kind ?? initialKind);
+  /* 운영자가 직접 고친 칸 — 새 구성에서 영역을 바꿔도 이 칸은 새 종류의 시작값으로 덮지 않는다. */
+  const [touched, setTouched] = useState<ReadonlySet<keyof CurationEditorValues>>(() => new Set());
   const [picker, setPicker] = useState(false);
   const [saveOperationId] = useState(operationId);
   const [previewScope, setPreviewScope] = useState<'draft' | 'public'>('draft');
@@ -264,6 +266,7 @@ function CurationForm({
   const heroLimitReached = kind === 'hero' && selected?.kind !== 'hero' && heroCount >= HOME_HERO_LIMIT;
   const freeProductLimitReached = isFreeProductKind(kind) && !isFreeProductKind(selected?.kind) && freeProductCount >= HOME_FREE_PRODUCT_LIMIT;
   function update<K extends keyof CurationEditorValues>(key: K, value: CurationEditorValues[K]) {
+    setTouched((current) => (current.has(key) ? current : new Set(current).add(key)));
     setValues((current) => ({ ...current, [key]: value }));
     onDirty();
   }
@@ -287,8 +290,10 @@ function CurationForm({
           <h4>기본 설정</h4>
           <CurationSelect error={state.errors?.kind} label="홈에 보일 영역" name="kind" onChange={(event) => {
             const next = event.target.value as AdminCurationKind;
+            /* 새 구성은 바꾼 종류의 시작값(새 띠배너는 상품 목록 제외, 새 공지 바는 링크 없음·전 화면)을 손대지 않은 칸에 다시 적용한다. */
+            const adjusted = curationValuesForKindChange(values, next, { isNew: !selected, touched, draftActiveFrom });
             setKind(next);
-            if (next === 'hero' && selected?.kind !== 'hero') setValues(current => ({ ...current, imageDim: 'none', textColor: 'white' }));
+            setValues(next === 'hero' && selected?.kind !== 'hero' ? { ...adjusted, imageDim: 'none', textColor: 'white' } : adjusted);
             onDirty();
           }} value={kind}>
             {CURATION_KIND_ORDER.map((option) => <option disabled={(option === 'hero' && selected?.kind !== 'hero' && heroCount >= HOME_HERO_LIMIT)

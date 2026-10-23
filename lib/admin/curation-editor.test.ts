@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { buildDraftCurationPreview, createCurationEditorValues, curationKstInput, moveCurationProduct } from './curation-editor';
+import { buildDraftCurationPreview, createCurationEditorValues, curationKstInput, curationValuesForKindChange, moveCurationProduct } from './curation-editor';
 import type { HomeGoodsCard } from '@/lib/home-catalog';
 
 const card: HomeGoodsCard = { id: 'g1', name: '실제 상품', brand: 'ICONS', price: 12000, badge: null, imageBg: 'url("/goods.webp")', href: '/shop/g1', soldOut: false };
@@ -72,6 +72,32 @@ describe('curation editor preview', () => {
       createdAt: '2026-10-01T00:00:00Z', updatedAt: '2026-10-01T00:00:00Z', status: 'active' as const };
     expect(createCurationEditorValues(legacy, '2026-10-12T00:00:00Z').pageTypes).toEqual(['home', 'collection', 'product', 'content', 'other']);
     expect(createCurationEditorValues({ ...legacy, payload: { page_types: ['product'] } }, '2026-10-12T00:00:00Z').pageTypes).toEqual(['product']);
+  });
+
+  /* 기본 새 폼은 프로모션 배너로 시작한다 — 거기서 영역을 바꾸면 그 종류의 시작값을 다시 계산해야 안내('새로 만드는 띠배너는
+     상품 목록을 빼고 시작')·'새 공지 바: 링크 없음'과 실제 입력이 맞는다(l8a-ui-6). */
+  it('새 구성에서 영역을 바꾸면 손대지 않은 링크·노출 화면·버튼 문구를 그 종류의 시작값으로 다시 맞춘다', () => {
+    const DRAFT = '2026-10-12T00:00:00Z';
+    const hero = { ...createCurationEditorValues(null, DRAFT), title: '입력한 제목' };
+    const none = new Set<never>();
+    const strip = curationValuesForKindChange(hero, 'notice_strip', { isNew: true, touched: none, draftActiveFrom: DRAFT });
+    expect(strip).toMatchObject({ title: '입력한 제목', linkPath: '/', pageTypes: ['home', 'product', 'content', 'other'] });
+    const bar = curationValuesForKindChange(hero, 'notice_bar', { isNew: true, touched: none, draftActiveFrom: DRAFT });
+    expect(bar).toMatchObject({ title: '입력한 제목', linkPath: '', ctaLabel: '자세히 보기', pageTypes: ['home', 'collection', 'product', 'content', 'other'] });
+    /* 띠배너 → 공지 바 → 추천 콘텐츠: 링크가 필수인 종류로 돌아가면 링크 시작값도 돌아온다. */
+    expect(curationValuesForKindChange(strip, 'notice_bar', { isNew: true, touched: none, draftActiveFrom: DRAFT }).pageTypes).toHaveLength(5);
+    expect(curationValuesForKindChange(bar, 'editor_pick', { isNew: true, touched: none, draftActiveFrom: DRAFT }).linkPath).toBe('/');
+    expect(curationValuesForKindChange(bar, 'notice_strip', { isNew: true, touched: none, draftActiveFrom: DRAFT }).pageTypes).not.toContain('collection');
+  });
+
+  it('운영자가 고친 칸과 저장된 구성의 값은 영역을 바꿔도 그대로 둔다', () => {
+    const DRAFT = '2026-10-12T00:00:00Z';
+    const edited = { ...createCurationEditorValues(null, DRAFT), linkPath: '/events', pageTypes: ['product' as const], ctaLabel: '보러 가기' };
+    const touched = new Set(['linkPath', 'pageTypes', 'ctaLabel'] as const);
+    expect(curationValuesForKindChange(edited, 'notice_bar', { isNew: true, touched, draftActiveFrom: DRAFT })).toEqual(edited);
+    expect(curationValuesForKindChange(edited, 'notice_bar', { isNew: true, touched: new Set(['pageTypes'] as const), draftActiveFrom: DRAFT }))
+      .toMatchObject({ linkPath: '', pageTypes: ['product'], ctaLabel: '자세히 보기' });
+    expect(curationValuesForKindChange(edited, 'notice_strip', { isNew: false, touched: new Set(), draftActiveFrom: DRAFT })).toBe(edited);
   });
 
   it('상품 목록 이동은 경계에서 그대로이고 선택 배열을 변경하지 않는다', () => {
