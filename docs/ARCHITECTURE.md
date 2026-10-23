@@ -405,7 +405,7 @@ Production Auth 설정:
 - 외부 OAuth callback은 세 공급자 모두 `https://sbutbsghcxmxmxgrshwq.supabase.co/auth/v1/callback`이다. Google은 production 공개 앱, Apple은 `com.iconsip.app` primary App ID와 `com.iconsip.web` Services ID, Kakao는 앱 ID `1520482`의 REST API 키를 사용한다. Apple secret은 2027-01-18 이전에 교체한다.
 - Kakao 앱은 `(주) 아이콘스` 비즈 앱이고 `account_email`을 필수 동의·계정 정보 수집으로 요청한다. Supabase provider의 이메일 없는 사용자 허용은 꺼서 현재 `isOnboarded()`의 profile/auth email 필수 조건과 맞춘다.
 
-연령 상태: 현재 온보딩의 `profiles.birth_date`는 자가신고 프로필 값이며 연령보증 증거가 아니다. v1 14+ 강제 seam·경계일·기존 계정 처리·법정 문서는 [#188](https://github.com/icons-hq/icons-ip/issues/188)이 승인·구현될 때까지 미완료다. 목표 `AgeAssurance`는 `minimum_age_14`와 NICE 기반 `adult_19` purpose를 분리하며, 결제사 인증은 어느 purpose도 대체하지 않는다. 19+ 계약 discovery는 #209, 상품 gate는 #210에서 추적한다.
+연령 상태: 현재 온보딩의 `profiles.birth_date`는 자가신고 프로필 값이며 연령보증 증거가 아니다. v1 14+ 강제 seam·경계일·기존 계정 처리·법정 문서는 [#188](https://github.com/icons-hq/icons-ip/issues/188)이 승인·구현될 때까지 미완료다. `minimum_age_14`와 `adult_19` purpose는 분리되며, 결제사 인증은 어느 purpose도 대체하지 않는다. `adult_19`는 NHN KCP 휴대폰 본인확인 V2로 확인한다([ADR-0024](./adr/0024-adult-verification-kcp.md)) — 서버 액션이 KCP 거래등록 후 인증창을 열고, Ret_URL 콜백(`/api/identity/kcp/return/[nonce]`, 교차 사이트 POST라 쿠키 없음)은 경로 nonce 다이제스트 + 거래등록키로 세션을 선점해 KCP 결과조회·복호화로 판정만 보류하며, 콜백을 선점한 브라우저에만 확정 티켓 쿠키를 준다. 같은 브라우저의 GET(`/api/identity/adult/complete`)에서 로그인 세션이 그 티켓으로 `complete_my_adult_verification`을 불러 증거를 확정한다. TTL(30분)이 지난 미종결 세션은 pg_cron sweeper가 닫는다. 증거(`private.adult_verifications`)는 판정·1년 만료·정책 버전과 DI·KCP 거래번호의 HMAC만 남기고, 활성 증거는 계정당·명의당 하나다. 노출·구매 경계는 `private.adult_verification_valid(uuid)`만 본다. 설정·gate·롤아웃은 `docs/runbooks/kcp-adult-verification.md`, 19금 상품 gate는 #210에서 추적한다.
 
 ---
 
@@ -571,7 +571,7 @@ docs/
 |---|---|
 | 카드 리워드 운영 증거 | `pool_odds` 변경과 카드 발급·개봉·회수 이력을 감사 가능하게 보존. 이것만으로 법적 적용 제외를 주장하지 않는다 |
 | 14+ 가입 기준 | 현재 `birth_date` 자가신고와 목표 `minimum_age_14` 증거를 구분. #188 전에는 강제 완료로 보지 않는다 |
-| 19+ 성인 상품 | NICE `adult_19` receipt와 private 상세·미디어 gate를 #209·#210에서 별도 구현. PG 인증으로 대체 금지 |
+| 19+ 성인 상품 | KCP 휴대폰 본인확인 `adult_19` 증거(ADR-0024)와 private 상세·미디어 gate(#210). PG 인증으로 대체 금지 |
 | 전자상거래(청약철회) | `orders`/`refunds` 상태기계 + 환불 RPC |
 | PIPA/청소년보호 | `profiles.consents`·`birth_date`, 최소수집·동의·파기 |
 | UGC 안전 | `reports`/`blocks` + `/admin` 모더레이션 + 게시물 `status` |
@@ -581,7 +581,7 @@ docs/
 ## 16. 미해결 결정
 
 - **14+ 연령보증 세부 계약** — timezone·경계일·기존 계정 처리·증거 TTL은 #188 human acceptance가 필요하다.
-- **19+ NICE와 유한 실물 쿠지** — #209·#210·#212·#213의 계약·법률·IP·재고·환불 evidence가 필요하며 현재 as-built 기능이 아니다.
+- **19+ 판매 개방과 유한 실물 쿠지** — 성인 인증 연동(ADR-0024)은 구현됐지만 공개 스위치가 닫혀 있다. 19금 상품 gate(#210)와 #212·#213의 계약·법률·IP·재고·환불 evidence가 필요하며 현재 판매 기능이 아니다.
 - **결제 provider rollout** — 기본 provider가 토스 주문서형 v2로 재전환됐다(ADR-0013, 에픽 #384). 코드 전환(#386~#393)은 완료됐고, 코페이 굿즈 gate 폐쇄(#385)·테스트 키 prod 배포와 전자결제 심사(#394)·라이브 키 전환(#395)이 human 스텝으로 남아 있다. Korpay gate·adapter는 판매 제한 상품 전용으로 대기한다(§9, `docs/runbooks/toss-production-rollout.md`).
 - 한국어 검색 품질이 임계 넘는 시점의 외부 검색엔진 도입.
 
