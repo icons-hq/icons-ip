@@ -1469,6 +1469,20 @@ describe('getHomeSnapshot', () => {
           payload: null,
         },
         {
+          id: '00000000-0000-0000-0000-000000000029',
+          kind: 'notice_bar',
+          ip_id: null,
+          title: '셸 전용 텍스트 공지',
+          image_path: null,
+          link_path: '/events/notice',
+          display_order: 0,
+          active_from: '2020-01-01T00:00:00.000Z',
+          active_to: null,
+          enabled: true,
+          slot: null,
+          payload: { page_types: ['home'], cta_label: '자세히 보기' },
+        },
+        {
           id: '00000000-0000-0000-0000-000000000023',
           kind: 'editor_pick',
           ip_id: null,
@@ -1586,8 +1600,9 @@ describe('getHomeSnapshot', () => {
       description: '로그인하면 매일 카드팩을 열 수 있어요',
       href: '/packs',
     }]);
-    /* notice_strip 은 전역 셸 로더의 몫 — 홈 스냅샷 어디에도 나타나지 않는다. */
+    /* notice_strip·notice_bar 는 전역 셸 로더의 몫 — 홈 스냅샷 어디에도 나타나지 않는다. */
     expect(JSON.stringify(snapshot.curation)).not.toContain('셸 전용 공지 스트립');
+    expect(JSON.stringify(snapshot.curation)).not.toContain('셸 전용 텍스트 공지');
 
     mocks.isConfigured = false;
     mocks.client = null;
