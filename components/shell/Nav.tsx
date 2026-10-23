@@ -21,6 +21,7 @@ import { useAuthPresence } from './AuthPresenceProvider';
 import { BottomTabBar } from './BottomTabBar';
 import { useCardRewardsEnabled } from './CardRewardAvailability';
 import { useCart } from './CartProvider';
+import { ListingReturnRecorder } from './ListingReturn';
 import { nextHeaderCondensed, nextTabBarScroll, tabBarScrollAt } from './chrome-scroll';
 import { loginEntryHref } from './login-entry';
 import { MenuSheet } from './MenuSheet';
@@ -129,6 +130,9 @@ function WcChrome({
   return (
     <div className="wc-root wc-chrome">
       <a className="wc-skip-link" href="#root">본문으로 건너뛰기</a>
+      {/* 굿즈 목록을 볼 때마다 빈 장바구니의 둘러보기 목적지(직전 목록)를 남긴다(CT-02). 아무것도 그리지 않고,
+          useSearchParams 를 쓰므로 Suspense 안에 둔다 — 밖으로 새면 라우트 전체가 CSR 로 떨어진다. */}
+      <Suspense fallback={null}><ListingReturnRecorder /></Suspense>
 
       {/* 텍스트 공지 바 + 이미지 스트립. 유틸바 위에 두면 축약 기준이 실제 공지 높이만큼 자동 보정된다(noticeOffsetAbove) —
           공지가 아직 보이는 동안에는 GNB가 접히지 않는다. 카드 리워드·커뮤니티 목적지 공지는 게이트가 꺼진 배포에서
