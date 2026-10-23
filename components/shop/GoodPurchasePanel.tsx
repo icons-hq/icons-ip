@@ -3,6 +3,7 @@
 import { useRouter } from 'next/navigation';
 import { useEffect, useRef, useState } from 'react';
 import { useCart } from '@/components/shell/CartProvider';
+import { RestockBellGlyph } from '@/components/shop/RestockBellGlyph';
 import { RestockCta } from '@/components/shop/RestockCta';
 import { QuantityStepper } from '@/components/wc/QuantityStepper';
 import { WcButton } from '@/components/wc/WcButton';
@@ -554,9 +555,10 @@ export function GoodPurchasePanel({ otherPurchases, purchase }: { otherPurchases
  * 72px 잉크 풀폭 바의 [장바구니]·[구매하기]는 구매 시트를 여는 트리거다(PD-01) — 실행은 시트 안
  * CTA 가 한다. 그래서 옵션을 아직 고르지 않았거나 카트가 준비 중이어도 잠그지 않는다. 잠그면
  * 다옵션 굿즈는 옵션을 고를 길이 없는 비활성 바만 남는다. 레퍼런스의 바는 품절에도 "구매하기"로
- * 남는 상태 비반응 버튼이지만(§10-7 결함), 여기서는 모든 옵션이 품절이면 바 전체가 굿즈 단위 재입고
- * 알림이다. 고른 옵션만 품절이면(PD-10) 바는 시트 트리거로 남는다 — 그 옵션의 재입고 알림은 시트 안
- * CTA 가 맡고, 바까지 재입고로 바꾸면 모바일에서 다른 옵션을 고르러 시트를 다시 열 길이 없다.
+ * 남는 상태 비반응 버튼이지만(§10-7 결함 — 재현하지 않는다), 여기서는 바가 상태를 말한다. 모든 옵션이
+ * 품절이면 바 전체가 굿즈 단위 재입고 알림이다. 고른 옵션만 품절이면(PD-10) 바는 벨 + '재입고 알림'으로
+ * 바뀌되 여전히 시트 트리거다 — 시트에서 그 옵션의 재입고 알림을 신청하거나 다른 옵션을 고른다. 고른
+ * 옵션은 담을 수 없으니 카트 존은 두지 않는다(로그인 뒤 그 옵션으로 돌아와도 바에서 이어서 신청할 길이 보인다).
  */
 export function GoodBuyBars({
   onOpenSheet,
@@ -568,11 +570,27 @@ export function GoodBuyBars({
   sheetOpen: boolean;
 }) {
   const { disabled, good, restockRequested, soldOut } = purchase;
+  const cta = purchaseCtaState(purchase);
 
   return (
     <div className="wc-buybar">
       {purchase.unavailableLabel ? <button className="wc-buybar__buy" type="button" disabled>{purchase.unavailableLabel}</button> : soldOut ? (
         <RestockCta className="wc-buybar__restock" compact disabled={disabled} goodId={good.id} initialRequested={restockRequested} />
+      ) : cta.kind === 'restock' ? (
+        <div className="wc-restock-cta wc-buybar__restock">
+          <button
+            aria-expanded={sheetOpen}
+            aria-haspopup="dialog"
+            className="wc-btn primary"
+            disabled={disabled}
+            onClick={onOpenSheet}
+            type="button"
+          >
+            <RestockBellGlyph />
+            {cta.optionName ? <span className="wc-sr-only">{`${cta.optionName} 옵션 `}</span> : null}
+            {cta.requested ? '재입고 알림 신청됨' : '재입고 알림 받기'}
+          </button>
+        </div>
       ) : (
         <>
           <button

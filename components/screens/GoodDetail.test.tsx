@@ -472,9 +472,10 @@ describe('GoodDetail', () => {
     }
   });
 
-  /* PD-10 — 다른 옵션은 판매 중이고 고른 옵션만 품절: 본문 패널·레일 박스 CTA 는 그 옵션의 재입고 알림이고,
-     모바일 바는 시트 트리거로 남는다(바까지 재입고로 바꾸면 다른 옵션을 고르러 시트를 다시 열 길이 없다). */
-  it('고른 옵션만 품절이면 패널·레일은 그 옵션의 재입고 알림이고 모바일 바는 시트 트리거로 남는다', () => {
+  /* PD-10 — 다른 옵션은 판매 중이고 고른 옵션만 품절: 본문 패널·레일 박스 CTA 는 그 옵션의 재입고 알림이다.
+     모바일 바는 상태를 말한다(R-04 §10-7 결함 미재현) — 벨 + '재입고 알림 받기'로 바뀌되 여전히 시트를 여는
+     트리거라 시트에서 그 옵션을 신청하거나 다른 옵션을 고른다. 고른 옵션은 담을 수 없어 카트 존이 없다. */
+  it('고른 옵션만 품절이면 패널·레일은 그 옵션의 재입고 알림이고 모바일 바는 재입고 알림을 말하는 시트 트리거다', () => {
     const options = [
       { id: '00000000-0000-4000-8000-000000000221', name: '파랑', code: 'G13-B', price: 12000, stockQty: 3, isDefault: true, attributes: {} },
       { id: '00000000-0000-4000-8000-000000000222', name: '빨강', code: 'G13-R', price: 13000, stockQty: 0, isDefault: false, attributes: {} },
@@ -492,8 +493,13 @@ describe('GoodDetail', () => {
       expect(panel).toContain('<strong class="wc-buy-panel__total-amount">₩13,000</strong>');
       expect(rail).toMatch(/<button class="wc-restock-cta"[^>]*data-variant="00000000-0000-4000-8000-000000000222"/);
       expect(rail).toContain('<strong class="wc-pdp-railbox__amount">₩13,000</strong>');
-      expect(bar.startsWith('<div class="wc-buybar"><button aria-expanded="false" aria-haspopup="dialog" aria-label="장바구니에 담기"')).toBe(true);
-      expect(bar).not.toContain('wc-restock-cta');
+      expect(bar.startsWith('<div class="wc-buybar"><div class="wc-restock-cta wc-buybar__restock">'
+        + '<button aria-expanded="false" aria-haspopup="dialog" class="wc-btn primary" type="button"><svg aria-hidden="true"')).toBe(true);
+      expect(bar).toContain('<span class="wc-sr-only">빨강 옵션 </span>재입고 알림 받기</button></div></div>');
+      /* 담을 수 없는 옵션을 고른 채 [장바구니]·[구매하기]를 약속하지 않는다. 시트 안 신청 버튼(RestockCta)도 바에 없다. */
+      expect(bar).not.toContain('장바구니에 담기');
+      expect(bar).not.toContain('>구매하기<');
+      expect(bar).not.toMatch(/<button class="wc-restock-cta"/);
       /* 바가 시트를 여니 모바일 본문 패널은 시트로 옮겨 간다(is-inline 아님). 가격 표시는 고른 옵션이다. */
       expect(html).toContain('<div class="wc-pdp__purchase"><div class="wc-buy-panel">');
       expect(html).toContain('<span class="wc-sr-only">가격</span><span class="wc-price__amount">₩13,000</span>');
@@ -516,6 +522,9 @@ describe('GoodDetail', () => {
       const goodsLevelOnly = renderToStaticMarkup(<GoodDetail detail={{ ...detail, good: { ...good, options } }}
         engagement={{ wished: false, restockRequested: true, restockVariantIds: [] }} />);
       expect(goodsLevelOnly).toMatch(/data-requested="false" data-variant="00000000-0000-4000-8000-000000000232"/);
+      /* 모바일 바의 시트 트리거도 고른 옵션의 신청 상태를 말한다. */
+      expect(requested.slice(requested.indexOf('<div class="wc-buybar">'))).toContain('<span class="wc-sr-only">빨강 옵션 </span>재입고 알림 신청됨</button>');
+      expect(goodsLevelOnly.slice(goodsLevelOnly.indexOf('<div class="wc-buybar">'))).toContain('<span class="wc-sr-only">빨강 옵션 </span>재입고 알림 받기</button>');
     } finally {
       navigation.search = '';
     }
