@@ -16,6 +16,7 @@ import {
   purchaseCtaState,
   purchaseSubtotal,
   purchaseTotalDisplay,
+  type AdditionalPurchaseChoice,
   type GoodPurchaseController,
 } from './GoodPurchasePanel';
 
@@ -461,11 +462,11 @@ describe('GoodPurchasePanel', () => {
     const blue = { id: 'blue', name: '파랑', price: 12000, stockQty: 3, code: 'BLUE', attributes: {}, isDefault: true };
     const red = { id: 'red', name: '빨강', price: 15000, stockQty: 0, code: 'RED', attributes: {}, isDefault: false };
     const extraOption = { id: 'extra-blue', name: '파랑', price: 3000, stockQty: 4, code: 'EXTRA-BLUE', attributes: {}, isDefault: true };
-    const extra = { ...good, id: 'g14', name: '추가 스티커', price: 3000, options: [extraOption],
+    const extra: Good = { ...good, id: 'g14', name: '추가 스티커', price: 3000, options: [extraOption],
       transactionOffer: { goodId: 'g14', volume: null, delivery: null, collectReady: false, collector: null,
-        production: { version: 1, goodId: 'g14', revision: 1, leadDays: 3, dayBasis: 'business' as const, closedDates: [], publicNote: '스티커는 주문 후 인쇄합니다.' } } };
-    const engraved = { ...good, options: [blue, red], customInputs: { enabled: true, revision: 1, fields: [{ id: 'engrave', name: '각인 문구', active: true }] } };
-    const choices = [{ goodId: extra.id, name: extra.name, good: extra, selected: true, selectedOption: extraOption, quantity: 2 }];
+        production: { version: 1, goodId: 'g14', revision: 1, leadDays: 3, dayBasis: 'business', closedDates: [], publicNote: '스티커는 주문 후 인쇄합니다.' } } };
+    const engraved: Good = { ...good, options: [blue, red], customInputs: { enabled: true, revision: 1, fields: [{ id: 'engrave', name: '각인 문구', active: true }] } };
+    const choices: AdditionalPurchaseChoice[] = [{ goodId: extra.id, name: extra.name, good: extra, selected: true, selectedOption: extraOption, quantity: 2 }];
     const NOTE = '품절 옵션은 재입고 알림만 신청할 수 있어요. 직접 입력 옵션·추가 구성 굿즈는 판매 중인 옵션을 고르면 보여요.';
 
     it('고른 옵션만 품절이면 직접 입력·추가 구성(과 그 거래 조건)을 접고 판매 중인 옵션을 고르면 보인다고 알린다', () => {
