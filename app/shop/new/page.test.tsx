@@ -6,7 +6,7 @@ import Page, { metadata } from './page';
 
 const mocks = vi.hoisted(() => ({ goods: [] as Good[] }));
 vi.mock('@/lib/catalog-categories.server', () => ({ loadPublicCatalogCategories: async () => [] }));
-vi.mock('@/lib/wishlist-ids.server', () => ({ loadListingWishlist: async () => ({ signedIn: true, goodIds: ['a'] }) }));
+vi.mock('@/lib/wishlist-ids.server', () => ({ loadListingWishlist: async () => ({ viewerId: 'viewer-1', goodIds: ['a'] }) }));
 vi.mock('@/app/shop/actions', () => ({ toggleWishlistAction: vi.fn() }));
 
 vi.mock('next/navigation', () => ({

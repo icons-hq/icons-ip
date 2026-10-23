@@ -10,7 +10,7 @@ const mocks = vi.hoisted(() => ({
   popularTabs: [] as HomeBestTab[],
 }));
 vi.mock('@/lib/catalog-categories.server', () => ({ loadPublicCatalogCategories: async () => [] }));
-vi.mock('@/lib/wishlist-ids.server', () => ({ loadListingWishlist: async () => ({ signedIn: false, goodIds: [] }) }));
+vi.mock('@/lib/wishlist-ids.server', () => ({ loadListingWishlist: async () => ({ viewerId: null, goodIds: [] }) }));
 vi.mock('@/app/shop/actions', () => ({ toggleWishlistAction: vi.fn() }));
 
 vi.mock('next/navigation', () => ({

@@ -158,7 +158,7 @@ describe('Search 컬렉션 본문 (SR-01)', () => {
   });
 
   it('위시 상태를 받으면 결과 카드에도 하트를 둔다', () => {
-    const html = render('리락쿠마', items, { wishlist: { signedIn: true, goodIds: ['g2'] } });
+    const html = render('리락쿠마', items, { wishlist: { viewerId: 'viewer-1', goodIds: ['g2'] } });
 
     expect((html.match(/<button[^>]*class="wc-list-heart[ "]/g) ?? []).length).toBe(3);
     expect(html).toContain('aria-label="리락쿠마 인형 위시리스트에서 빼기"');

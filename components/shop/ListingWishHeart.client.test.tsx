@@ -9,6 +9,7 @@ const hooks = vi.hoisted(() => ({
   states: [] as unknown[],
   stateIndex: 0,
   transitions: [] as Promise<void>[],
+  effects: [] as (() => void)[],
 }));
 
 const mocks = vi.hoisted(() => ({
@@ -31,18 +32,28 @@ vi.mock('react', async () => {
     },
     useTransition: () => [false, (callback: () => Promise<void>) => { hooks.transitions.push(callback()); }],
     useSyncExternalStore: (_subscribe: unknown, getSnapshot: () => unknown) => getSnapshot(),
+    /* 마운트 effect 는 붙잡아 두었다가 mount() 가 돌린다 — 렌더 중에는 저장소를 바꾸지 않는다는 것도 함께 본다. */
+    useEffect: (effect: () => void) => { hooks.effects.push(effect); },
   };
 });
 
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: mocks.push, refresh: mocks.refresh }) }));
 vi.mock('@/app/shop/actions', () => ({ toggleWishlistAction: mocks.toggle }));
 
-import { confirmedWish, forgetWishConfirmations } from './wishlist-heart-store';
+import { INQUIRY_DRAFT_SIGN_OUT_EVENT } from '@/lib/admin/inquiry-draft-lifecycle';
+import { confirmedWish, forgetWishConfirmations, observeWishSignOut } from './wishlist-heart-store';
 import { ListingWishHeart, type ListingWishHeartProps } from './ListingWishHeart';
 
 function render(props: Partial<ListingWishHeartProps> = {}) {
   hooks.stateIndex = 0;
-  return ListingWishHeart({ goodId: 'g1', initialWished: false, label: '홍실 키링', signedIn: true, ...props });
+  return ListingWishHeart({ goodId: 'g1', initialWished: false, label: '홍실 키링', viewerId: 'member-a', ...props });
+}
+
+/** 렌더한 뒤 마운트 effect 를 돌린다(실제 마운트와 같은 순서). */
+function mount(props: Partial<ListingWishHeartProps> = {}) {
+  const tree = render(props);
+  for (const effect of hooks.effects.splice(0)) effect();
+  return tree;
 }
 
 function button(tree: ReactNode) {
@@ -58,6 +69,7 @@ async function settle() {
 beforeEach(() => {
   hooks.states = [];
   hooks.transitions = [];
+  hooks.effects = [];
   mocks.push.mockReset();
   mocks.refresh.mockReset();
   mocks.toggle.mockReset();
@@ -83,7 +95,7 @@ describe('ListingWishHeart 토글 (CL-01 · 12 LD-4)', () => {
     await settle();
 
     expect(button(render())['aria-pressed']).toBe(true);
-    expect(confirmedWish('g1')).toBe(true);
+    expect(confirmedWish('member-a', 'g1')).toBe(true);
     expect(mocks.refresh).not.toHaveBeenCalled();
     expect(mocks.push).not.toHaveBeenCalled();
   });
@@ -96,7 +108,7 @@ describe('ListingWishHeart 토글 (CL-01 · 12 LD-4)', () => {
     await settle();
 
     expect(button(render({ initialWished: true }))['aria-pressed']).toBe(true);
-    expect(confirmedWish('g1')).toBeUndefined();
+    expect(confirmedWish('member-a', 'g1')).toBeUndefined();
     expect(mocks.push).not.toHaveBeenCalled();
   });
 
@@ -107,12 +119,12 @@ describe('ListingWishHeart 토글 (CL-01 · 12 LD-4)', () => {
     await settle();
 
     expect(button(render())['aria-pressed']).toBe(false);
-    expect(confirmedWish('g1')).toBeUndefined();
+    expect(confirmedWish('member-a', 'g1')).toBeUndefined();
   });
 
   /* 비로그인은 현행 로그인 벽이다 — 저장할 곳이 없으니 액션을 부르지도 않는다. */
   it('sends a guest straight to login with the current list as next', () => {
-    button(render({ signedIn: false })).onClick();
+    button(render({ viewerId: null })).onClick();
 
     expect(mocks.toggle).not.toHaveBeenCalled();
     expect(mocks.push).toHaveBeenCalledWith(`/login?next=${encodeURIComponent('/shop?type=%ED%82%A4%EB%A7%81')}`);
@@ -137,5 +149,54 @@ describe('ListingWishHeart 토글 (CL-01 · 12 LD-4)', () => {
 
     hooks.states = [];
     expect(button(render({ initialWished: false }))['aria-pressed']).toBe(true);
+  });
+});
+
+/* 로그아웃·로그인은 server action redirect 라 소프트 내비게이션이다 — 모듈 저장소가 살아남는다.
+   이전 회원의 확인값이 다음 회원(또는 같은 회원의 재로그인)의 서버 값을 덮으면 안 된다(l4-data-2 · l4-ui-2). */
+describe('ListingWishHeart 회원 경계', () => {
+  async function confirmAsMemberA() {
+    mocks.toggle.mockResolvedValue({ ok: true, wished: true });
+    button(mount()).onClick();
+    await settle();
+    expect(confirmedWish('member-a', 'g1')).toBe(true);
+    hooks.states = [];
+  }
+
+  it('does not paint member A’s confirmed heart for member B in the same tab', async () => {
+    await confirmAsMemberA();
+
+    /* 첫 렌더부터 B 의 서버 값이다 — 저장소 정리는 마운트 effect 가 하지만 읽기가 이미 뷰어로 걸러진다. */
+    expect(button(render({ viewerId: 'member-b', initialWished: false }))['aria-pressed']).toBe(false);
+    hooks.states = [];
+    expect(button(mount({ viewerId: 'member-b', initialWished: true }))['aria-pressed']).toBe(true);
+    expect(confirmedWish('member-a', 'g1')).toBeUndefined();
+  });
+
+  it('empties the store when a guest heart mounts after sign-out', async () => {
+    await confirmAsMemberA();
+
+    expect(button(mount({ viewerId: null, initialWished: true }))['aria-pressed']).toBe(false);
+    hooks.states = [];
+    expect(button(render({ viewerId: 'member-a', initialWished: false }))['aria-pressed']).toBe(false);
+  });
+
+  it('starts from server values when the same member signs back in after the sign-out signal', async () => {
+    const target = new EventTarget();
+    const stop = observeWishSignOut(target);
+    await confirmAsMemberA();
+
+    target.dispatchEvent(new Event(INQUIRY_DRAFT_SIGN_OUT_EVENT));
+    stop();
+
+    expect(button(mount({ viewerId: 'member-a', initialWished: false }))['aria-pressed']).toBe(false);
+  });
+
+  it('keeps the store untouched while rendering — only the mount effect claims it', async () => {
+    await confirmAsMemberA();
+
+    render({ viewerId: 'member-b' });
+    expect(confirmedWish('member-a', 'g1')).toBe(true);
+    expect(hooks.effects).toHaveLength(1);
   });
 });

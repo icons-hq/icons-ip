@@ -1,9 +1,10 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useState, useSyncExternalStore, useTransition } from 'react';
+import { useEffect, useState, useSyncExternalStore, useTransition } from 'react';
 import { toggleWishlistAction } from '@/app/shop/actions';
 import {
+  claimWishConfirmations,
   confirmWish,
   confirmedWish,
   forgetWishConfirmations,
@@ -14,8 +15,9 @@ export interface ListingWishHeartProps {
   goodId: string;
   /** 목록 페이지가 한 번 내려준 위시 ID 집합에 이 굿즈가 있는지(`lib/listing-wishlist`). */
   initialWished: boolean;
-  /** 서버가 로그인 회원으로 판정했는지. false 면 누르는 순간 로그인으로 보낸다. */
-  signedIn: boolean;
+  /** 서버가 판정한 로그인 회원 ID(= 로그인 여부). null 이면 게스트라 누르는 순간 로그인으로 보낸다.
+      세션 확정 저장소를 회원별로 묶는 열쇠이기도 하다 — 같은 탭에서 회원이 바뀌어도 이전 회원의 하트가 남지 않는다. */
+  viewerId: string | null;
   /** 굿즈 이름. 목록에는 하트가 여러 개라 접근 이름에 이름이 없으면 어느 굿즈인지 알 수 없다. */
   label: string;
   className?: string;
@@ -42,15 +44,21 @@ function loginHref() {
  * 카드 링크 밖에 놓인다(ProductCard 의 action 슬롯은 이미지 링크의 형제다) — 링크 안의 버튼은
  * 마크업으로도 잘못됐고 클릭 한 번이 상세 이동까지 같이 일으킨다.
  */
-export function ListingWishHeart({ className, goodId, initialWished, label, signedIn }: ListingWishHeartProps) {
+export function ListingWishHeart({ className, goodId, initialWished, label, viewerId }: ListingWishHeartProps) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [optimistic, setOptimistic] = useState<boolean | null>(null);
+  const signedIn = viewerId !== null;
   const confirmed = useSyncExternalStore(
     subscribeWishConfirmations,
-    () => confirmedWish(goodId),
+    () => confirmedWish(viewerId, goodId),
     () => undefined,
   );
+  /* 저장소를 이 화면의 뷰어 것으로 맞춘다 — 다른 회원(또는 게스트)이 남긴 확인값은 여기서 비워진다.
+     읽기는 위에서 이미 뷰어로 걸러지므로 이 effect 가 늦어도 다른 회원의 하트가 그려지지는 않는다. */
+  useEffect(() => {
+    claimWishConfirmations(viewerId);
+  }, [viewerId]);
   const wished = signedIn && (optimistic ?? confirmed ?? initialWished);
 
   function toggle() {
@@ -65,7 +73,7 @@ export function ListingWishHeart({ className, goodId, initialWished, label, sign
     setOptimistic(nextWished);
     startTransition(async () => {
       const result = await toggleWishlistAction(goodId, nextWished).catch(() => null);
-      if (result?.ok) confirmWish(goodId, nextWished);
+      if (result?.ok) confirmWish(goodId, nextWished, viewerId);
       setOptimistic(null);
       if (result && !result.ok && result.error === 'auth_required') {
         forgetWishConfirmations();

@@ -19,7 +19,7 @@ export function ProductCollection({ band, wishlist }: { band: HomeProductCollect
           const imageUrl = imageUrlFromBg(good.imageBg);
           return <li key={good.id}>
           <ProductCard name={good.name} brand={good.brand} href={good.href}
-            action={wishlist ? <ListingWishHeart goodId={good.id} initialWished={wished.has(good.id)} label={good.name} signedIn={wishlist.signedIn} /> : undefined}
+            action={wishlist ? <ListingWishHeart goodId={good.id} initialWished={wished.has(good.id)} label={good.name} viewerId={wishlist.viewerId} /> : undefined}
             image={imageUrl ? (
               // The collection explicitly crops the public primary image; ordinary product cards retain contain.
               // eslint-disable-next-line @next/next/no-img-element

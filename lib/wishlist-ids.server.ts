@@ -22,7 +22,7 @@ export async function loadListingWishlist(): Promise<ListingWishlist | null> {
 
   const supabase = await createClient();
   const { data: auth, error: authError } = await supabase.auth.getUser();
-  if (authError || !auth.user) return { signedIn: false, goodIds: [] };
+  if (authError || !auth.user) return { viewerId: null, goodIds: [] };
 
   const userId = auth.user.id;
   const result = await readCompleteIdPages<{ id: string }>((afterId, pageSize) => {
@@ -37,7 +37,7 @@ export async function loadListingWishlist(): Promise<ListingWishlist | null> {
   });
 
   return {
-    signedIn: true,
+    viewerId: userId,
     goodIds: result.error ? [] : (result.data ?? []).map((row) => row.id),
   };
 }

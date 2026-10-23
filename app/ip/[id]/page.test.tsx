@@ -23,7 +23,7 @@ vi.mock('@/lib/catalog', () => ({ getCatalogIpDetail: () => mocks.detail }));
 vi.mock('@/lib/ip-identity.server', () => ({ resolvePublicIpIdentity: () => mocks.identity }));
 vi.mock('@/lib/ip-follow.server', () => ({ getIpFollowState: () => mocks.followState }));
 vi.mock('@/lib/catalog-categories.server', () => ({ loadPublicCatalogCategories: async () => [] }));
-vi.mock('@/lib/wishlist-ids.server', () => ({ loadListingWishlist: async () => ({ signedIn: true, goodIds: ['g2'] }) }));
+vi.mock('@/lib/wishlist-ids.server', () => ({ loadListingWishlist: async () => ({ viewerId: 'viewer-1', goodIds: ['g2'] }) }));
 
 const ip = {
   id: 'ip-1',
@@ -126,6 +126,6 @@ describe('/ip/[id] page', () => {
     expect(props.collection.query).toMatchObject({ ips: [], types: ['인형'], sort: 'price_desc', view: 'ip' });
     expect(props.collection.result.goods.map((good) => good.id)).toEqual(['g2']);
     expect(props.collection.result.total).toBe(2);
-    expect(props.wishlist).toEqual({ signedIn: true, goodIds: ['g2'] });
+    expect(props.wishlist).toEqual({ viewerId: 'viewer-1', goodIds: ['g2'] });
   });
 });

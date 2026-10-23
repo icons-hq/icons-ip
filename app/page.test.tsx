@@ -5,7 +5,7 @@ import Page from './page';
 const mocks = vi.hoisted(() => ({
   cardRewardsEnabled: false,
   getHomeSnapshot: vi.fn(),
-  wishlist: { signedIn: true, goodIds: ['g1'] } as { signedIn: boolean; goodIds: string[] } | null,
+  wishlist: { viewerId: 'viewer-1', goodIds: ['g1'] } as { viewerId: string | null; goodIds: string[] } | null,
 }));
 
 vi.mock('@/lib/goods-announcement-popup.server', () => ({ loadHomeAnnouncementPopup: async () => ({ item: null, nextChangeAt: null }) }));
@@ -62,7 +62,7 @@ describe('home page assembly', () => {
   it('passes the viewer wish set for the listing hearts while the snapshot stays viewer-agnostic', async () => {
     const element = await Page();
 
-    expect(element.props.wishlist).toEqual({ signedIn: true, goodIds: ['g1'] });
+    expect(element.props.wishlist).toEqual({ viewerId: 'viewer-1', goodIds: ['g1'] });
     expect(mocks.getHomeSnapshot).toHaveBeenCalledWith();
   });
 

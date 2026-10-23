@@ -55,7 +55,7 @@ function heartsFrom(wishlist: ListingWishlist | null | undefined): HeartFor {
   const wished = listingWishSet(wishlist);
   return function homeWishHeart(good, className) {
     if (!wishlist) return null;
-    return <ListingWishHeart className={className} goodId={good.id} initialWished={wished.has(good.id)} label={good.name} signedIn={wishlist.signedIn} />;
+    return <ListingWishHeart className={className} goodId={good.id} initialWished={wished.has(good.id)} label={good.name} viewerId={wishlist.viewerId} />;
   };
 }
 

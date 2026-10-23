@@ -50,14 +50,14 @@ describe('loadListingWishlist', () => {
 
   it('marks a guest as signed out without reading the table', async () => {
     mocks.user = null;
-    expect(await loadListingWishlist()).toEqual({ signedIn: false, goodIds: [] });
+    expect(await loadListingWishlist()).toEqual({ viewerId: null, goodIds: [] });
     expect(mocks.calls).toHaveLength(0);
   });
 
   it('reads only the signed-in member’s wish ids in one bounded query', async () => {
     mocks.pages = [{ data: [{ id: 'g1' }, { id: 'g7' }], error: null, count: 2 }];
 
-    expect(await loadListingWishlist()).toEqual({ signedIn: true, goodIds: ['g1', 'g7'] });
+    expect(await loadListingWishlist()).toEqual({ viewerId: 'user-1', goodIds: ['g1', 'g7'] });
     expect(mocks.calls).toHaveLength(1);
     expect(mocks.calls[0].filters).toContainEqual(['select', 'id:good_id', 'exact']);
     expect(mocks.calls[0].filters).toContainEqual(['eq', 'user_id', 'user-1']);
@@ -76,17 +76,17 @@ describe('loadListingWishlist', () => {
   /* 공개 목록은 위시 상태를 못 읽었다고 실패하면 안 된다 — 빈 집합으로 접는다. */
   it('folds a failed or changing read into an empty set while keeping the member signed in', async () => {
     mocks.pages = [{ data: null, error: { message: 'boom' }, count: null }];
-    expect(await loadListingWishlist()).toEqual({ signedIn: true, goodIds: [] });
+    expect(await loadListingWishlist()).toEqual({ viewerId: 'user-1', goodIds: [] });
 
     mocks.pages = [{ data: [{ id: 'a' }], error: null, count: 2 }, { data: [], error: null, count: 0 }];
-    expect(await loadListingWishlist()).toEqual({ signedIn: true, goodIds: [] });
+    expect(await loadListingWishlist()).toEqual({ viewerId: 'user-1', goodIds: [] });
   });
 });
 
 describe('listingWishSet', () => {
   it('builds the lookup set only for signed-in members', () => {
-    expect(listingWishSet({ signedIn: true, goodIds: ['g1', 'g2'] }).has('g2')).toBe(true);
-    expect(listingWishSet({ signedIn: false, goodIds: ['g1'] }).size).toBe(0);
+    expect(listingWishSet({ viewerId: 'user-1', goodIds: ['g1', 'g2'] }).has('g2')).toBe(true);
+    expect(listingWishSet({ viewerId: null, goodIds: ['g1'] }).size).toBe(0);
     expect(listingWishSet(null).size).toBe(0);
     expect(listingWishSet(undefined).has('g1')).toBe(false);
   });

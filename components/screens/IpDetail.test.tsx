@@ -269,7 +269,7 @@ describe('IpDetail goods section', () => {
   });
 
   it('puts a listing heart on every card when the wish set is passed', () => {
-    const html = render({ wishlist: { signedIn: true, goodIds: ['g3'] } });
+    const html = render({ wishlist: { viewerId: 'viewer-1', goodIds: ['g3'] } });
 
     expect((html.match(/<button[^>]*class="wc-list-heart[ "]/g) ?? []).length).toBe(3);
     expect(html).toContain('aria-label="버섯 키링 위시리스트에서 빼기"');

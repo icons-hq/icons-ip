@@ -342,7 +342,7 @@ export function CollectionBrowser({
                   <ProductCard
                     key={good.id}
                     action={wishlist ? (
-                      <ListingWishHeart goodId={good.id} initialWished={wished.has(good.id)} label={good.name} signedIn={wishlist.signedIn} />
+                      <ListingWishHeart goodId={good.id} initialWished={wished.has(good.id)} label={good.name} viewerId={wishlist.viewerId} />
                     ) : undefined}
                     listSurface={listSurface} listingAppearance={good.listingAppearance} cartGood={good}
                     badges={goodDisplayBadges(good)}

@@ -230,7 +230,7 @@ describe('굿즈샵 목록', () => {
   /* LD-4(#326 결정 번복): 모든 상품 카드 우상단에 위시 하트. 목록 페이지가 위시 ID 집합을 한 번 내려 주고
      카드는 그 집합으로 초기 상태만 정한다. 어드민 미리보기처럼 상태를 받지 않은 자리에는 하트가 없다. */
   it('위시 상태를 받으면 카드마다 링크 밖에 하트를 두고 찜한 굿즈만 눌린 상태로 시작한다', () => {
-    const html = render('all', {}, catalog, undefined, { signedIn: true, goodIds: ['b'] });
+    const html = render('all', {}, catalog, undefined, { viewerId: 'viewer-1', goodIds: ['b'] });
     const hearts = [...html.matchAll(/<button[^>]*class="wc-list-heart[^"]*"[^>]*>/g)].map((match) => match[0]);
 
     expect(hearts).toHaveLength(4);
@@ -241,7 +241,7 @@ describe('굿즈샵 목록', () => {
   });
 
   it('게스트에게도 하트를 보이되 눌린 상태로 그리지 않고, 위시 상태가 없으면 하트를 그리지 않는다', () => {
-    const guest = render('all', {}, catalog, undefined, { signedIn: false, goodIds: [] });
+    const guest = render('all', {}, catalog, undefined, { viewerId: null, goodIds: [] });
     expect((guest.match(/class="wc-list-heart"/g) ?? []).length).toBe(4);
     expect(guest).not.toContain('aria-pressed="true"');
 

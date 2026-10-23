@@ -279,7 +279,7 @@ describe('Home bands', () => {
 
   /* HM-03: 행 = [링크(썸네일·글) | 하트]. 하트는 링크의 형제라 버튼이 링크 안에 들지 않는다. */
   it('puts a listing heart beside each band row link, never inside it', () => {
-    const html = render(fullCuration, true, { signedIn: true, goodIds: ['g7'] });
+    const html = render(fullCuration, true, { viewerId: 'viewer-1', goodIds: ['g7'] });
     const rows = [...html.matchAll(/<div class="wc-band__row">([\s\S]*?)<\/button><\/div>/g)].map((match) => match[1]);
 
     expect(rows).toHaveLength(2);
@@ -307,7 +307,7 @@ describe('Home bands', () => {
   });
 
   it('puts hearts on every home product card and row only when the wish set is passed', () => {
-    const withHearts = render(fullCuration, true, { signedIn: false, goodIds: [] });
+    const withHearts = render(fullCuration, true, { viewerId: null, goodIds: [] });
 
     /* 탭 밴드 카드 5 + 1, 기획전 행 2. 게스트도 하트를 보고 누르면 로그인으로 간다. */
     expect(hearts(withHearts)).toHaveLength(8);

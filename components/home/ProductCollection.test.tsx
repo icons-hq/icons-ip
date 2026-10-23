@@ -36,7 +36,7 @@ describe('ProductCollection', () => {
   });
   /* 홈 자유상품 카드에도 목록 하트(11 CL-01) — 미리보기처럼 위시 상태가 없으면 하트를 그리지 않는다. */
   it('adds the listing heart to each card only when the wish set is passed', () => {
-    const html = renderToStaticMarkup(<ProductCollection band={band} wishlist={{ signedIn: true, goodIds: ['good'] }} />);
+    const html = renderToStaticMarkup(<ProductCollection band={band} wishlist={{ viewerId: 'viewer-1', goodIds: ['good'] }} />);
 
     expect(html).toContain('aria-label="상품 이름 위시리스트에서 빼기"');
     expect(renderToStaticMarkup(<ProductCollection band={band} />)).not.toContain('wc-list-heart');
