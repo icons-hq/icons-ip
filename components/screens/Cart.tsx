@@ -39,6 +39,8 @@ import { ShippingGroupSummary } from '@/components/shop/ShippingGroupSummary';
 import { goodsShipDateLabel, preorderSupplyLabel, type GoodsVariantSupply } from '@/lib/goods-preorders';
 import { GoodsSalePeriodRefresh } from '@/components/shop/GoodsSalePeriodRefresh';
 import { goodsSaleUnavailableLabel } from '@/lib/goods-sale-period';
+import { ADULT_GOOD_LABEL } from '@/lib/adult-goods';
+import { adultVerificationHref } from '@/lib/identity/adult-verification-routes';
 
 interface CartLine {
   goodId: string;
@@ -49,6 +51,8 @@ interface CartLine {
   good?: Good;
   ip?: Ip;
   supply?: GoodsVariantSupply;
+  /** 성인 인증이 없거나 만료된 계정에 남은 19금 굿즈 줄(ADR-0024). 주문을 막는다. */
+  masked?: boolean;
 }
 
 function isSoldOut(good: Good) {
@@ -57,7 +61,7 @@ function isSoldOut(good: Good) {
 
 /** 주문을 막는 라인인지. 카탈로그에서 사라진 굿즈·품절·재고 초과가 여기 걸린다. */
 function isUnavailable(line: CartLine) {
-  if (!line.good) return true;
+  if (line.masked || !line.good) return true;
   return Boolean(goodsSaleUnavailableLabel(line.good.salePeriod)) || isSoldOut(line.good) || line.qty > line.good.stockQty || Boolean(goodsCustomInputProblem(line.good.customInputs,line.customInputs));
 }
 
@@ -72,6 +76,32 @@ function lineStateLabel(good: Good, qty: number) {
 function CartLineRow({ line }: { line: CartLine }) {
   const { pending, remove, setQuantity } = useCart();
   const { good, goodId, variantId, ip, qty, optionName, supply,customInputs } = line;
+
+  if (line.masked) {
+    return (
+      <li className="wc-cart__line wc-cart__line--unavailable">
+        <span aria-hidden className="wc-cart__line-media wc-product-card__adult-cover">
+          <span className="wc-product-card__adult-mark">19</span>
+        </span>
+        <div className="wc-cart__line-info">
+          <p className="wc-cart__line-brand">{ip?.title ?? 'ICONS'}</p>
+          <p className="wc-cart__line-name">{ADULT_GOOD_LABEL}</p>
+          <p className="wc-cart__line-state">
+            성인 인증 후 구매할 수 있어요. <Link href={adultVerificationHref('/cart')}>성인 인증하기</Link>
+          </p>
+        </div>
+        <button
+          aria-label={`${ADULT_GOOD_LABEL} 장바구니에서 삭제`}
+          className="wc-cart__remove"
+          disabled={pending}
+          onClick={() => void remove(goodId, variantId,customInputs)}
+          type="button"
+        >
+          <Icon name="close" size={18} />
+        </button>
+      </li>
+    );
+  }
 
   if (!good) {
     return (
@@ -290,7 +320,9 @@ export function Cart({
     const prices = new Map(sales?.lines.map(line => [cartItemKey(line.goodId, line.variantId), line]));
 
     return items.map((item) => {
-      const good = goodAtQuotedPrice(cartOptionGood(goodsById.get(item.goodId), item.variantId), prices.get(cartItemKey(item.goodId, item.variantId)));
+      const catalogGood = goodsById.get(item.goodId);
+      if (catalogGood?.masked) return { ...item, masked: true, ip: ipsById.get(catalogGood.ip) };
+      const good = goodAtQuotedPrice(cartOptionGood(catalogGood, item.variantId), prices.get(cartItemKey(item.goodId, item.variantId)));
       const option = good?.options?.find(option => option.id === item.variantId);
       return {
         ...item,

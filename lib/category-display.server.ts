@@ -28,7 +28,7 @@ export function parseCategoryDisplayGood(value: unknown): Good | null {
     || typeof value.type !== 'string' || !number(value.price) || !number(value.stock_qty) || typeof value.stock !== 'string'
     || !nullableString(value.image_path) || !nullableString(value.bg) || !nullableString(value.badge)
     || !Array.isArray(value.goods_variants) || typeof value.custom_inputs_enabled !== 'boolean' || !number(value.custom_inputs_revision)
-    || !Array.isArray(value.custom_input_fields) || value.sale_restriction !== 'none') return null;
+    || !Array.isArray(value.custom_input_fields) || (value.sale_restriction !== 'none' && value.sale_restriction !== 'adult')) return null;
   for (const variant of value.goods_variants) {
     if (!record(variant) || !isUuid(variant.id) || typeof variant.name !== 'string' || typeof variant.code !== 'string'
       || !number(variant.price) || !number(variant.stock_qty) || typeof variant.is_default !== 'boolean' || !record(variant.attributes)

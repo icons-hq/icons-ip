@@ -25,6 +25,7 @@ export type PlaceOrderErrorCode =
   | 'order_quantity_above_maximum'
   | 'member_purchase_limit_exceeded'
   | 'restricted_good_blocked'
+  | 'adult_verification_required'
   | 'coupon_rejected'
   | 'store_credit_rejected'
   | 'checkout_changed'
@@ -219,7 +220,9 @@ export function mapPlaceOrderError(message: unknown): PlaceOrderErrorCode {
   for (const code of ['purchase_limit_not_configured', 'order_quantity_below_minimum', 'order_quantity_above_maximum', 'member_purchase_limit_exceeded'] as const) {
     if (normalized.includes(code)) return code;
   }
-  /* 판매 제한(19금) 상품은 성인인증 도입 전까지 서버가 주문을 차단한다(#392). */
+  /* 19금 굿즈는 유효한 성인 인증이 있어야 주문된다(ADR-0024). 그 밖의 판매 제한 유형은
+     계속 서버가 주문을 차단한다(#392). */
+  if (normalized.includes('adult verification required')) return 'adult_verification_required';
   if (normalized.includes('restricted good blocked')) return 'restricted_good_blocked';
   /* 적용해 둔 쿠폰이 주문 확정 시점 재검증에서 거부된 경우(만료·조건 미달 등).
      세부 사유는 카트가 안내한다 — 주문서는 카트로 돌아가라고만 말한다. */

@@ -420,6 +420,7 @@ export function Shop({ query, result, view, title, onQueryChange, paging, refres
                       name={good.name}
                       price={good.price} priceMax={good.priceMax}
                       salePeriod={good.salePeriod} soldOut={good.stock === 'soldout'}
+                      masked={good.masked}
                     />
                   ))}
                 </div>

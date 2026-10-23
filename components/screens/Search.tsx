@@ -176,6 +176,7 @@ export function Search({ goodsResult, ips, query, snapshot }: SearchProps) {
                   name={good.name}
                   price={good.price} priceMax={good.priceMax}
                   salePeriod={good.salePeriod} soldOut={good.stock === 'soldout' || good.stockQty <= 0}
+                  masked={good.masked}
                 />
               ))}
             </div>

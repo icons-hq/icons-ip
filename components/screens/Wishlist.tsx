@@ -67,6 +67,25 @@ function WishlistRow({ line }: { line: WishlistLine }) {
     );
   }
 
+  if (good.masked) {
+    return (
+      <li className="wc-wishlist__row">
+        <div className="wc-wishlist__media" data-list-shape={listing.imageShape}><Link aria-hidden className="wc-wishlist__media-link" href={`/shop/${good.id}`} tabIndex={-1}>
+          <span className="wc-wishlist__image wc-product-card__adult-cover"><span className="wc-product-card__adult-mark">19</span></span>
+        </Link></div>
+        <div className="wc-wishlist__info">
+          {ip ? <p className="wc-wishlist__brand">{ip.title}</p> : null}
+          <p className="wc-wishlist__name"><Link className="wc-wishlist__name-link" href={`/shop/${good.id}`}>{good.name}</Link></p>
+          <p className="wc-wishlist__state">성인 인증 후 볼 수 있어요</p>
+          <PriceBlock price={good.price} />
+        </div>
+        <div className="wc-wishlist__actions">
+          <WishlistHeart goodId={good.id} initialWished />
+        </div>
+      </li>
+    );
+  }
+
   const soldOut = good.stock === 'soldout' || good.stockQty <= 0;
   const saleLabel = goodsSaleUnavailableLabel(good.salePeriod);
   const gallery = listing.imageMode === 'gallery' ? [...new Set([good.img, ...(good.listingAppearance?.gallery ?? [])])].filter(Boolean).slice(0, 10) : [good.img];

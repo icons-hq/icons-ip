@@ -29,6 +29,8 @@ export interface ProductCardProps {
   listingAppearance?: GoodsListingAppearance;
   cartGood?: Good;
   imageShape?: 'square' | 'portrait';
+  /** 성인 인증 전 방문자의 19금 굿즈 가림 카드(ADR-0024). 이름·이미지·배지·담기를 그리지 않는다. */
+  masked?: boolean;
 }
 
 /*
@@ -42,7 +44,32 @@ export interface ProductCardProps {
  *
  * 품절 밴드는 그 숨긴 링크 안에 있어 스크린리더에 닿지 않는다. 이름 옆의 sr-only
  * '(품절)'이 그 상태를 대신 읽어주는 유일한 지점이다(WCAG 1.3.1).
+ *
+ * 가림 카드는 19 표지와 고정 이름, 가격만 그린다. 상세로 가는 링크는 남긴다 — 상세가
+ * 인증 안내를 보여준다. 이름·이미지는 서버에서 이미 지워져 오므로 여기서 숨기는 것은
+ * 표시 정책일 뿐 보안 경계가 아니다.
  */
+function MaskedProductCard({ className, href, name, price, priceMax, brand }: Pick<ProductCardProps, 'className' | 'href' | 'name' | 'price' | 'priceMax' | 'brand'>) {
+  return (
+    <article className={`wc-product-card wc-product-card--masked${className ? ` ${className}` : ''}`}>
+      <div className="wc-product-card__media">
+        <Link aria-hidden className="wc-product-card__media-link" href={href} tabIndex={-1}>
+          <div className="wc-product-card__image wc-product-card__adult-cover">
+            <span className="wc-product-card__adult-mark">19</span>
+          </div>
+        </Link>
+      </div>
+      <div className="wc-product-card__info">
+        {brand ? <p className="wc-product-card__brand">{brand}</p> : null}
+        <h3 className="wc-product-card__name">
+          <Link className="wc-product-card__name-link" href={href}>{name}</Link>
+        </h3>
+        <p className="wc-product-card__adult-note">성인 인증 후 볼 수 있어요</p>
+        <PriceBlock price={price} priceMax={priceMax} />
+      </div>
+    </article>
+  );
+}
 export function ProductCard({
   action,
   badges,
@@ -62,6 +89,7 @@ export function ProductCard({
   listingAppearance,
   cartGood,
   imageShape,
+  masked,
 }: ProductCardProps) {
   const { listing } = useStorePresentation();
   const configured = listSurface !== 'preview';
@@ -71,6 +99,7 @@ export function ProductCard({
   const visibleBadges = configured && !listing.showTags ? badges?.filter(badge => !['BEST', 'NEW'].includes(badge.toUpperCase())) : badges;
   const saleLabel = goodsSaleUnavailableLabel(salePeriod ?? cartGood?.salePeriod);
   const availabilityLabel = saleLabel ?? (soldOut ? '품절' : null);
+  if (masked) return <MaskedProductCard brand={brand} className={className} href={href} name={name} price={price} priceMax={priceMax} />;
   return (
     <article className={`wc-product-card${className ? ` ${className}` : ''}`} data-list-shape={configured ? imageShape ?? listing.imageShape : undefined}>
       <div className="wc-product-card__media">

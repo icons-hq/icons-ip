@@ -5,6 +5,7 @@ const mocks = vi.hoisted(() => ({ configured: true, rpc: vi.fn(), cards: vi.fn()
 vi.mock('@/lib/supabase/config', () => ({ getSupabaseConfig: () => ({ isConfigured: mocks.configured }) }));
 vi.mock('@/lib/supabase/server', () => ({ createClient: async () => ({ rpc: mocks.rpc }) }));
 vi.mock('@/lib/catalog', () => ({ getCatalogGoodsByIds: mocks.cards }));
+vi.mock('@/lib/adult-goods-access.server', () => ({ getAdultGoodsAccess: async () => 'hidden' }));
 
 const reference = () => ({ groups: [{ id: '99000000-0000-4000-8000-000000000301', title: '다른 구성도 살펴보세요', goods: [
   { goodId: 'good-1500', compositionLabel: '2개 세트' }, { goodId: 'good-b', compositionLabel: null },
@@ -19,7 +20,7 @@ describe('다른 구성 공개 서버 loader', () => {
   it('공개 RPC 이후 현재 상품과 첫 목록 1000행 밖 후보도 ID로 직접 재조회한다', async () => {
     const data = await loadGoodOtherCompositions('good-current');
     expect(mocks.rpc).toHaveBeenCalledExactlyOnceWith('get_good_other_compositions', { p_good_id: 'good-current' });
-    expect(mocks.cards).toHaveBeenCalledExactlyOnceWith(['good-current', 'good-1500', 'good-b']);
+    expect(mocks.cards).toHaveBeenCalledExactlyOnceWith(['good-current', 'good-1500', 'good-b'], { adultGoods: 'hidden' });
     expect(data.groups[0].goods.map(({ good }) => good.id)).toEqual(['good-1500', 'good-b']);
     expect(data.unavailable).toBeUndefined();
   });

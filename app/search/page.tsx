@@ -1,5 +1,6 @@
 import { Search } from '@/components/screens/Search';
 import { getCatalogSnapshot } from '@/lib/catalog';
+import { getAdultGoodsAccess } from '@/lib/adult-goods-access.server';
 import { getSearchSnapshot, normalizeSearchQuery } from '@/lib/search';
 import { searchGoods } from '@/lib/search-goods';
 
@@ -18,7 +19,7 @@ function parsePageParam(raw: string | string[] | undefined) {
 export default async function Page({ searchParams }: PageProps) {
   const params = (await searchParams) ?? {};
   const query = normalizeSearchQuery(params.q);
-  const [snapshot, catalog] = await Promise.all([getSearchSnapshot(query), getCatalogSnapshot()]);
+  const [snapshot, catalog] = await Promise.all([getSearchSnapshot(query), getAdultGoodsAccess().then(adultGoods => getCatalogSnapshot({ adultGoods }))]);
   const goodsResult = searchGoods(catalog, query, parsePageParam(params.page));
 
   return <Search goodsResult={goodsResult} ips={catalog.ips} query={query} snapshot={snapshot} />;
