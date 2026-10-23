@@ -196,7 +196,7 @@ describe('첫 페인트 전 스크립트 ↔ 컴포넌트 계산', () => {
   afterEach(() => vi.useRealTimers());
 
   /* ends: 컴포넌트가 그리는 data-notice-ends(종료 시각이 있을 때만). */
-  const endsAttribute = (endsAt: number | null | undefined) => (typeof endsAt === 'number' ? { 'data-notice-ends': String(endsAt) } : {});
+  const endsAttribute = (endsAt: number | null | undefined): Record<string, string> => (typeof endsAt === 'number' ? { 'data-notice-ends': String(endsAt) } : {});
 
   function run({ bars, strips, dismissed, seed, rootPresent = true, barEnds = [], stripEnds = [] }: {
     bars: string[]; strips: string[]; dismissed?: string; seed?: unknown; rootPresent?: boolean;
