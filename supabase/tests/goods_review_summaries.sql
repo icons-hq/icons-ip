@@ -116,10 +116,12 @@ exception when invalid_parameter_value then
 end $$;
 select pg_temp.l4_expect_invalid(null);
 select pg_temp.l4_expect_invalid(array[]::text[]);
-select pg_temp.l4_expect_invalid(array(select 'g'||n from generate_series(1,501) n));
+select pg_temp.l4_expect_invalid(array(select 'l4-sum-pad-'||n from generate_series(1,501) n));
 select pg_temp.l4_expect_invalid(array['l4-sum-solo','bad id']);
 select pg_temp.l4_expect_invalid(array['l4-sum-solo',null]);
-select 1/case when jsonb_array_length(public.get_goods_review_summaries(array(select 'g'||n from generate_series(1,500) n)))=0
+-- 경계 패딩 ID 는 fixture 접두사를 쓴다 — 'g'||n 은 migration 이 심은 기준 카탈로그 굿즈(g1~g15)와 겹쳐
+-- 리뷰가 있는 DB(QA 시드·운영 복제)에서 0행 단언이 깨진다.
+select 1/case when jsonb_array_length(public.get_goods_review_summaries(array(select 'l4-sum-pad-'||n from generate_series(1,500) n)))=0
  then 1 else 0 end as assert_accepts_five_hundred_ids;
 
 -- 봉인: PUBLIC·service_role 실행 없음, 공개 브라우징 롤만 실행, 읽기 전용 definer.
