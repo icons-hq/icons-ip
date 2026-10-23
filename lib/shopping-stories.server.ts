@@ -1,6 +1,7 @@
 import { parseGoodsSalePeriod } from './goods-sale-period';
 import 'server-only';
 import { loadGoodsListingAppearance } from './goods-listing-appearance.server';
+import { readListingReviewSummaries } from './listing-review-summaries.server';
 import { createClient } from '@/lib/supabase/server';
 import { getSupabaseConfig } from '@/lib/supabase/config';
 import { isUuid } from '@/lib/uuid';
@@ -106,7 +107,13 @@ export async function getPublicShoppingStory(id: string): Promise<PublicShopping
   if (data === null) return null;
   const story = parsePublicShoppingStory(data);
   if (!story) throw new Error('쇼핑스토리의 공개 내용을 확인하지 못했습니다.');
-  const listing = await loadGoodsListingAppearance(client, story.sections.flatMap(section => section.goods.map(good => good.id)));
-  for (const section of story.sections) for (const good of section.goods) good.listingAppearance = listing.get(good.id);
+  const goodIds = story.sections.flatMap(section => section.goods.map(good => good.id));
+  /* 카드 별점(L4b · CL-02)은 목록 표시 정보와 나란히 한 번의 묶음으로 읽는다. 못 읽으면 별점만 숨는다. */
+  const [listing, reviewSummaries] = await Promise.all([loadGoodsListingAppearance(client, goodIds), readListingReviewSummaries(client, goodIds)]);
+  for (const section of story.sections) for (const good of section.goods) {
+    good.listingAppearance = listing.get(good.id);
+    const reviewSummary = reviewSummaries[good.id];
+    if (reviewSummary) good.reviewSummary = reviewSummary;
+  }
   return story;
 }
