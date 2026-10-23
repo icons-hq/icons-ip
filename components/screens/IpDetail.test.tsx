@@ -5,6 +5,7 @@ import type { CatalogIpDetail } from '@/lib/catalog';
 import type { IpFollowState } from '@/lib/ip-follow';
 import type { ListingWishlist } from '@/lib/listing-wishlist';
 import { parseShopSearchParams, selectCollectionGoods } from '@/lib/shop-catalog';
+import { shopQueryString } from '@/components/shop/collection-filters';
 import { IpDetail, type IpGoodsCollection } from './IpDetail';
 
 /* R-03 §1.9 개별 관 행동 단언 — 팔로우·알림 폼의 hidden 필드 계약(app/ip/actions.ts),
@@ -133,6 +134,27 @@ describe('IpDetail follow form', () => {
     );
     expect(inputNamed(html, 'ipId')).toContain('value="maplestory"');
     expect(inputNamed(html, 'next')).toContain('value="/ip/maple-world"');
+  });
+});
+
+/* 팔로우·알림 저장(성공·실패·로그인 왕복) 뒤에도 고른 굿즈 필터·정렬이 남아야 한다(Codex #598). */
+describe('IpDetail form return path', () => {
+  it('sends the current filtered hall URL as next from every follow and notification form', () => {
+    const collection = collectionOf({ sort: 'name_asc', type: '키링' });
+    const expected = `/ip/maplestory?${shopQueryString(collection.query)}`.replace(/&/g, '&amp;');
+    expect(expected).toContain('sort=name_asc');
+
+    const follower = render({ collection, followState: { isFollowed: true, notifyDrops: true, notifyEvents: false } });
+    const guest = render({ collection });
+    const nextValues = (html: string) => [...html.matchAll(/<input[^>]*name="next"[^>]*value="([^"]*)"/g)].map((match) => match[1]);
+
+    expect(nextValues(follower)).toEqual([expected, expected]);
+    expect(nextValues(guest)).toEqual([expected, expected]);
+  });
+
+  it('keeps the bare hall path when no collection filter is chosen', () => {
+    const nextValues = [...render().matchAll(/<input[^>]*name="next"[^>]*value="([^"]*)"/g)].map((match) => match[1]);
+    expect(nextValues).toEqual(['/ip/maplestory', '/ip/maplestory']);
   });
 });
 

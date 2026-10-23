@@ -67,12 +67,12 @@ function FollowSubmit({ isFollowed }: { isFollowed: boolean }) {
 
 /* 팔로우 폼 계약(불변): hidden ipId·intent(follow|unfollow)·next.
  * 비로그인은 액션이 /login?next= 로 보내므로 클라이언트 게이트를 두지 않는다. */
-function FollowForm({ followState, ipId, publicSlug }: { followState: IpFollowState; ipId: string; publicSlug: string }) {
+function FollowForm({ followState, ipId, next }: { followState: IpFollowState; ipId: string; next: string }) {
   return (
     <form action={toggleIpFollowAction}>
       <input name="ipId" type="hidden" value={ipId} />
       <input name="intent" type="hidden" value={followState.isFollowed ? 'unfollow' : 'follow'} />
-      <input name="next" type="hidden" value={publicIpHref(publicSlug)} />
+      <input name="next" type="hidden" value={next} />
       <FollowSubmit isFollowed={followState.isFollowed} />
     </form>
   );
@@ -88,11 +88,11 @@ function NotificationSubmit({ label }: { label: string }) {
 }
 
 /* 미팔로우 상태의 원클릭 폼(불변): autoFollow·setBoth·notifyDrops·notifyEvents 전부 1로 고정 전송. */
-function AutoFollowNotificationForm({ ipId, publicSlug }: { ipId: string; publicSlug: string }) {
+function AutoFollowNotificationForm({ ipId, next }: { ipId: string; next: string }) {
   return (
     <form action={setIpNotificationPreferencesAction}>
       <input name="ipId" type="hidden" value={ipId} />
-      <input name="next" type="hidden" value={publicIpHref(publicSlug)} />
+      <input name="next" type="hidden" value={next} />
       <input name="autoFollow" type="hidden" value="1" />
       <input name="setBoth" type="hidden" value="1" />
       <input name="notifyDrops" type="hidden" value="1" />
@@ -138,11 +138,11 @@ function NotificationPreferenceFields({ followState }: { followState: IpFollowSt
 }
 
 /* 팔로우 상태의 알림 설정 폼(불변): hidden ipId·next·setBoth + notifyDrops·notifyEvents 체크박스. */
-function NotificationPreferencesForm({ followState, ipId, publicSlug }: { followState: IpFollowState; ipId: string; publicSlug: string }) {
+function NotificationPreferencesForm({ followState, ipId, next }: { followState: IpFollowState; ipId: string; next: string }) {
   return (
     <form action={setIpNotificationPreferencesAction} aria-label="IP 알림 설정">
       <input name="ipId" type="hidden" value={ipId} />
-      <input name="next" type="hidden" value={publicIpHref(publicSlug)} />
+      <input name="next" type="hidden" value={next} />
       <input name="setBoth" type="hidden" value="1" />
       <NotificationPreferenceFields followState={followState} />
     </form>
@@ -174,6 +174,10 @@ export function IpDetail({
   const canonicalSlug = publicSlug ?? ip.publicSlug ?? ip.id;
   const hallPath = publicIpHref(canonicalSlug);
   const goodsCollection = collection ?? ipGoodsCollection(detail);
+  /* 팔로우·알림 폼은 저장(성공·실패·로그인 왕복) 뒤 지금 보던 IP 관으로 돌아온다 — 고른 굿즈 필터·정렬까지.
+     액션은 이 주소를 safeNextPath 로 다시 검사하고 결과 파라미터를 searchParams 로 덧붙인다. */
+  const collectionQuery = shopQueryString(goodsCollection.query);
+  const returnPath = collectionQuery ? `${hallPath}?${collectionQuery}` : hallPath;
   const description = [ip.tagline, ip.synopsis].filter(Boolean).join(' ');
   /* 해시태그는 데스크톱에서 배너 안, 모바일에서 배너 아래에 선다(11 IP-05). 같은 목록을 두 자리에
      두고 폭마다 하나만 보인다 — 감춘 쪽은 display 로 빠져 스크린리더가 두 번 읽지 않는다. */
@@ -194,7 +198,7 @@ export function IpDetail({
         <div className="wc-container">
           <h1 className="wc-iphall__name">{ip.title}</h1>
           <div className="wc-iphall__follow">
-            <FollowForm followState={followState} ipId={ip.id} publicSlug={canonicalSlug} />
+            <FollowForm followState={followState} ipId={ip.id} next={returnPath} />
             <span className="wc-iphall__follow-count">
               <span className="wc-sr-only">팬 </span>
               {compactNumber(ip.fans)}
@@ -228,8 +232,8 @@ export function IpDetail({
             </p>
           ) : null}
           {followState.isFollowed
-            ? <NotificationPreferencesForm followState={followState} ipId={ip.id} publicSlug={canonicalSlug} />
-            : <AutoFollowNotificationForm ipId={ip.id} publicSlug={canonicalSlug} />}
+            ? <NotificationPreferencesForm followState={followState} ipId={ip.id} next={returnPath} />
+            : <AutoFollowNotificationForm ipId={ip.id} next={returnPath} />}
         </section>
       </div>
 
