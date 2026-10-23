@@ -825,4 +825,218 @@ then 1 else 0 end as assert_anon_reads_hero_mobile_payload;
 
 reset role;
 
+-- ---------------------------------------------------------------------------
+-- L8a (#573): text notice bar kind and page-type targeting for shell notices.
+-- ---------------------------------------------------------------------------
+select 1 / case when (
+  select pg_catalog.pg_get_constraintdef(constraint_record.oid)
+  from pg_catalog.pg_constraint as constraint_record
+  where constraint_record.conrelid = 'public.home_curations'::regclass
+    and constraint_record.conname = 'home_curations_kind_check'
+) ilike '%''notice_bar''%'
+and exists (
+  select 1
+  from pg_catalog.pg_constraint as constraint_record
+  where constraint_record.conrelid = 'public.home_curations'::regclass
+    and constraint_record.conname = 'home_curations_notice_check'
+)
+then 1 else 0 end as assert_notice_bar_kind_and_check_exist;
+
+select 1 / case when
+  not has_function_privilege('anon', 'private.is_valid_home_notice_payload(text,jsonb,text)', 'execute')
+  and not has_function_privilege('authenticated', 'private.is_valid_home_notice_payload(text,jsonb,text)', 'execute')
+  and not has_function_privilege('service_role', 'private.is_valid_home_notice_payload(text,jsonb,text)', 'execute')
+  and not has_function_privilege('anon', 'private.is_valid_home_notice_page_types(jsonb)', 'execute')
+  and not has_function_privilege('authenticated', 'private.is_valid_home_notice_page_types(jsonb)', 'execute')
+  and not has_function_privilege('service_role', 'private.is_valid_home_notice_page_types(jsonb)', 'execute')
+then 1 else 0 end as assert_notice_validators_sealed;
+
+-- The table constraint itself rejects an image on a text bar and a button
+-- without a destination, independent of the RPC.
+do $$
+declare
+  invalid_row record;
+begin
+  for invalid_row in
+    select *
+    from (values
+      ('bar-with-image', '공지', 'public-media/catalog/curation/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa.webp', null::text, '{"page_types":["home"]}'::jsonb),
+      ('bar-label-without-link', '공지', null, null, '{"page_types":["home"],"cta_label":"보기"}'::jsonb),
+      ('bar-link-without-label', '공지', null, '/events', '{"page_types":["home"]}'::jsonb),
+      ('bar-without-targets', '공지', null, null, null),
+      ('bar-long-title', repeat('가', 61), null, null, '{"page_types":["home"]}'::jsonb)
+    ) as rows(name, title, image_path, link_path, payload)
+  loop
+    begin
+      insert into public.home_curations (id, kind, title, image_path, link_path, display_order, active_from, payload)
+      values (extensions.gen_random_uuid(), 'notice_bar', invalid_row.title, invalid_row.image_path,
+        invalid_row.link_path, 0, now(), invalid_row.payload);
+    exception when check_violation then
+      continue;
+    end;
+    raise exception 'notice bar row should violate a table check: %', invalid_row.name;
+  end loop;
+end;
+$$;
+
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000011401', true);
+
+do $$
+declare
+  invalid_call record;
+begin
+  for invalid_call in
+    select *
+    from (values
+      ('bar-with-image', '배송 공지', 'public-media/catalog/curation/aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa.webp', '/events', '{"page_types":["home"],"cta_label":"보기"}'::jsonb),
+      ('bar-title-too-long', repeat('가', 61), null::text, null::text, '{"page_types":["home"]}'::jsonb),
+      ('bar-title-control', E'배송\n공지', null, null, '{"page_types":["home"]}'::jsonb),
+      ('bar-without-payload', '배송 공지', null, null, null),
+      ('bar-empty-targets', '배송 공지', null, null, '{"page_types":[]}'::jsonb),
+      ('bar-unknown-target', '배송 공지', null, null, '{"page_types":["checkout"]}'::jsonb),
+      ('bar-duplicate-target', '배송 공지', null, null, '{"page_types":["home","home"]}'::jsonb),
+      ('bar-targets-not-array', '배송 공지', null, null, '{"page_types":"home"}'::jsonb),
+      ('bar-link-without-label', '배송 공지', null, '/events', '{"page_types":["home"]}'::jsonb),
+      ('bar-label-without-link', '배송 공지', null, null, '{"page_types":["home"],"cta_label":"보기"}'::jsonb),
+      ('bar-label-too-long', '배송 공지', null, '/events', '{"page_types":["home"],"cta_label":"열세글자가넘는버튼이름입니다"}'::jsonb),
+      ('bar-label-blank', '배송 공지', null, '/events', '{"page_types":["home"],"cta_label":"   "}'::jsonb),
+      ('bar-label-not-string', '배송 공지', null, '/events', '{"page_types":["home"],"cta_label":7}'::jsonb),
+      ('bar-unknown-key', '배송 공지', null, null, '{"page_types":["home"],"mobile_image_path":"x"}'::jsonb),
+      ('bar-unsafe-link', '배송 공지', null, '//outside', '{"page_types":["home"],"cta_label":"보기"}'::jsonb)
+    ) as calls(name, title, image_path, link_path, payload)
+  loop
+    begin
+      perform public.admin_upsert_home_curation(
+        extensions.gen_random_uuid(), extensions.gen_random_uuid(),
+        'notice_bar', null, invalid_call.title, invalid_call.image_path, invalid_call.link_path,
+        0, now(), null, true, null, invalid_call.payload
+      );
+    exception
+      when invalid_parameter_value or not_null_violation or check_violation or no_data_found then
+        continue;
+    end;
+    raise exception 'invalid notice bar call should fail: %', invalid_call.name;
+  end loop;
+end;
+$$;
+
+-- Targets are stored in one canonical order and the button label is trimmed,
+-- so a retry that lists the same targets in another order replays exactly.
+select public.admin_upsert_home_curation(
+  '00000000-0000-4000-8000-000000011601',
+  '00000000-0000-4000-8000-000000011602',
+  'notice_bar', null, '  이용약관 개정 안내  ', null, '/legal/terms', 0,
+  now() - interval '1 hour', now() + interval '1 day', true,
+  null, '{"page_types":["other","product","home"],"cta_label":"  자세히 보기 "}'::jsonb
+);
+
+select 1 / case when exists (
+  select 1
+  from public.home_curations
+  where id = '00000000-0000-4000-8000-000000011602'
+    and kind = 'notice_bar'
+    and title = '이용약관 개정 안내'
+    and image_path is null
+    and link_path = '/legal/terms'
+    and payload = '{"page_types":["home","product","other"],"cta_label":"자세히 보기"}'::jsonb
+) then 1 else 0 end as assert_notice_bar_stored_canonically;
+
+select public.admin_upsert_home_curation(
+  '00000000-0000-4000-8000-000000011601',
+  '00000000-0000-4000-8000-000000011602',
+  'notice_bar', null, '이용약관 개정 안내', null, '/legal/terms', 0,
+  now() - interval '1 hour', now() + interval '1 day', true,
+  null, '{"page_types":["home","other","product"],"cta_label":"자세히 보기"}'::jsonb
+) as replayed_notice_bar_id \gset
+
+select 1 / case when :'replayed_notice_bar_id'::uuid = '00000000-0000-4000-8000-000000011602'::uuid
+  and (select count(*) from public.audit_log where id = '00000000-0000-4000-8000-000000011601') = 1
+then 1 else 0 end as assert_notice_bar_replay_is_order_insensitive;
+
+-- A copy-only bar has neither a destination nor a button.
+select public.admin_upsert_home_curation(
+  '00000000-0000-4000-8000-000000011603',
+  '00000000-0000-4000-8000-000000011604',
+  'notice_bar', null, '추석 연휴 출고 일정 안내', null, null, 1,
+  now() - interval '1 hour', null, true,
+  null, '{"page_types":["home","collection","product","content","other"]}'::jsonb
+);
+
+select 1 / case when exists (
+  select 1
+  from public.home_curations
+  where id = '00000000-0000-4000-8000-000000011604'
+    and link_path is null
+    and not (payload ? 'cta_label')
+) then 1 else 0 end as assert_copy_only_notice_bar_stored;
+
+reset role;
+insert into public.admin_artwork_upload_claims (
+  path, actor_id, kind, mime_type, source_size, final_size,
+  status, expires_at, processing_started_at, verified_at
+)
+values (
+  'catalog/curation/1a1a1a1a-1a1a-4a1a-8a1a-1a1a1a1a1a1a.webp',
+  '00000000-0000-4000-8000-000000011401', 'curation', 'image/webp',
+  1024, 1024, 'verified', now() + interval '10 minutes', now(), now()
+);
+
+set local role authenticated;
+select set_config('request.jwt.claim.role', 'authenticated', true);
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000011401', true);
+
+-- Strips accept the same targeting; one that lists none keeps showing everywhere.
+select public.admin_upsert_home_curation(
+  '00000000-0000-4000-8000-000000011605',
+  '00000000-0000-4000-8000-000000011606',
+  'notice_strip', null, '키링 기획전 띠배너',
+  'public-media/catalog/curation/1a1a1a1a-1a1a-4a1a-8a1a-1a1a1a1a1a1a.webp',
+  '/events', 2, now() - interval '1 hour', null, true,
+  null, '{"page_types":["product","home"]}'::jsonb
+);
+
+select 1 / case when (
+  select payload -> 'page_types'
+  from public.home_curations
+  where id = '00000000-0000-4000-8000-000000011606'
+) = '["home","product"]'::jsonb
+then 1 else 0 end as assert_notice_strip_targets_stored;
+
+do $$
+begin
+  begin
+    perform public.admin_upsert_home_curation(
+      extensions.gen_random_uuid(), '00000000-0000-4000-8000-000000011606',
+      'notice_strip', null, '키링 기획전 띠배너',
+      'public-media/catalog/curation/1a1a1a1a-1a1a-4a1a-8a1a-1a1a1a1a1a1a.webp',
+      '/events', 2, now() - interval '1 hour', null, true,
+      null, '{"page_types":["search"]}'::jsonb
+    );
+  exception when invalid_parameter_value then
+    if sqlerrm = 'invalid_curation_notice' then return; end if;
+    raise;
+  end;
+  raise exception 'notice strip with an unknown page type should fail';
+end;
+$$;
+
+reset role;
+set local role anon;
+select set_config('request.jwt.claim.role', 'anon', true);
+select set_config('request.jwt.claim.sub', '', true);
+
+select 1 / case when (
+  select count(*)
+  from public.home_curations
+  where id in (
+    '00000000-0000-4000-8000-000000011602',
+    '00000000-0000-4000-8000-000000011604',
+    '00000000-0000-4000-8000-000000011606'
+  )
+) = 3 then 1 else 0 end as assert_anon_reads_active_shell_notices;
+
+reset role;
+
 rollback;
