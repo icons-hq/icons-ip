@@ -491,8 +491,31 @@ describe('admin curation form normalization', () => {
       ok: true, value: { linkPath: null, payload: { page_types: ['home', 'other'] } },
     });
     for (const ctaLabel of ['', '   ', '열세글자가넘는버튼이름입니다']) {
-      expect(normalizeAdminCurationForm(noticeForm({ ctaLabel }))).toMatchObject({ ok: false, errors: { ctaLabel: '버튼 문구는 1자 이상 12자 이하로 입력해주세요.' } });
+      expect(normalizeAdminCurationForm(noticeForm({ ctaLabel }))).toMatchObject({ ok: false, errors: { ctaLabel: '버튼 문구는 줄바꿈 없이 1자 이상 12자 이하로 입력해주세요.' } });
     }
+  });
+
+  /* 셸 로더와 DB([[:cntrl:]])는 C0·DEL과 함께 C1(U+0080~U+009F)도 제어 문자로 거절한다 — 폼이 먼저 칸 오류로 막아야
+     '홈 큐레이션을 저장하지 못했습니다' 같은 일반 실패로 새지 않는다. trim은 U+0085(NEL)를 지우지 않는다. */
+  it.each([
+    ['U+0085', '\u0085', true], ['U+0080', '\u0080', true], ['U+009F', '\u009f', true], ['U+007F', '\u007f', true],
+    /* 끝의 탭은 trim이 지워 저장되지 않는다(DB에도 가지 않는다) — 문구 안의 탭만 막으면 된다. */
+    ['U+0009', '\t', false],
+  ])('공지 문구·버튼 문구의 제어 문자 %s를 칸 오류로 막는다', (_name, control, keptByTrim) => {
+    const titleError = { ok: false, errors: { title: '공지 문구는 줄바꿈 없이 1자 이상 60자 이하로 입력해주세요.' } };
+    const labelError = { ok: false, errors: { ctaLabel: '버튼 문구는 줄바꿈 없이 1자 이상 12자 이하로 입력해주세요.' } };
+    expect(normalizeAdminCurationForm(noticeForm({ title: `배송${control}안내` }))).toMatchObject(titleError);
+    expect(normalizeAdminCurationForm(noticeForm({ ctaLabel: `자세히${control}보기` }))).toMatchObject(labelError);
+    if (keptByTrim) {
+      expect(normalizeAdminCurationForm(noticeForm({ title: `배송 안내${control}` }))).toMatchObject(titleError);
+      expect(normalizeAdminCurationForm(noticeForm({ ctaLabel: `보기${control}` }))).toMatchObject(labelError);
+    }
+  });
+
+  it('제어 문자가 아닌 C1 바로 다음 문자(U+00A0)는 문구 안에서 받는다', () => {
+    expect(normalizeAdminCurationForm(noticeForm({ title: '배송 안내', ctaLabel: '자세히 보기' }))).toMatchObject({
+      ok: true, value: { title: '배송 안내', payload: { cta_label: '자세히 보기' } },
+    });
   });
 
   it('공지 바 문구는 줄바꿈 없이 60자까지, 이미지와 빈 대상은 거절한다', () => {

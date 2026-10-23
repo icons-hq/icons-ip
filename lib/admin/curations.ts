@@ -120,7 +120,8 @@ const DATE_TIME_ERROR = '일시는 YYYY-MM-DDTHH:mm 형식이어야 합니다.';
 const INT32_MAX = 2147483647;
 const AMBIGUOUS_LINK_CHARACTER_PATTERN =
   /[\u0000-\u001f\u007f-\u009f\u061c\u200e\u200f\u2028-\u202e\u2066-\u2069]/;
-const CONTROL_CHARACTER_PATTERN = /[\u0000-\u001f\u007f]/;
+/* C0·DEL·C1 — 셸 로더(lib/notice-strip.server.ts)와 DB의 [[:cntrl:]](ICU)와 같은 범위다. trim이 지우지 않는 U+0085(NEL)도 잡는다. */
+const CONTROL_CHARACTER_PATTERN = /[\u0000-\u001f\u007f-\u009f]/;
 /* 텍스트 공지 바는 셸 맨 위의 한 줄 문구와 짧은 버튼이다 — DB home_curations_notice_check와 같은 한도. */
 export const NOTICE_BAR_MESSAGE_LIMIT = 60;
 export const NOTICE_BAR_CTA_LIMIT = 12;
@@ -371,7 +372,7 @@ function readCurationPayload(
     if (readString(formData, 'linkPath')) {
       const label = readString(formData, 'ctaLabel');
       if (!label || characterLength(label) > NOTICE_BAR_CTA_LIMIT || CONTROL_CHARACTER_PATTERN.test(label)) {
-        errors.ctaLabel = `버튼 문구는 1자 이상 ${NOTICE_BAR_CTA_LIMIT}자 이하로 입력해주세요.`;
+        errors.ctaLabel = `버튼 문구는 줄바꿈 없이 1자 이상 ${NOTICE_BAR_CTA_LIMIT}자 이하로 입력해주세요.`;
       } else {
         payload.cta_label = label;
       }
