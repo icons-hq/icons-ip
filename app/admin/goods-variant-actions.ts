@@ -1,10 +1,12 @@
 'use server';
 
 import { unstable_rethrow } from 'next/navigation';
+import { after } from 'next/server';
 import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { revalidateGoodsSurfaces } from '@/lib/admin/revalidate-goods.server';
 import { isUuid } from '@/lib/uuid';
 import { createClient } from '@/lib/supabase/server';
+import { sendRestockAlertEmails } from '@/lib/email/transactional.server';
 
 export interface GoodsVariantActionState {
   error?: string;
@@ -52,6 +54,9 @@ export async function setGoodsVariantActiveAction(
         ?? '옵션 사용 상태를 변경하지 못했습니다. 잠시 후 다시 시도해주세요.' };
     }
     revalidateGoodsSurfaces();
+    /* 재고가 남은 옵션의 복원은 재입고 전이다 — 트리거가 알림함은 이미 보냈고, 메일은 굿즈 저장·실재고 조정처럼
+       응답 뒤 수명(after)에서 보낸다. 보낼 신청이 없으면 producer 가 조용히 넘어간다. */
+    if (active) after(() => sendRestockAlertEmails(goodId));
     return { message: active ? '옵션을 복원했습니다.' : '옵션 사용을 중지했습니다. 재고와 주문 이력은 보존됩니다.' };
   } catch (error) {
     unstable_rethrow(error);
