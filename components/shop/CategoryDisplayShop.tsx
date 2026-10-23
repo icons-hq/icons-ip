@@ -31,8 +31,11 @@ export function CategoryDisplayShop({ initial, wishlist }: { initial: CategoryDi
       if (active.current && !controller.signal.aborted) setError(cause instanceof Error && cause.message === 'stale' ? '전시 굿즈가 변경되었습니다. 목록을 새로 불러와주세요.' : '굿즈를 더 불러오지 못했습니다. 다시 시도해주세요.');
     } finally { if (active.current) setLoading(false); if (request.current === controller) request.current = null; }
   }
+  /* 내비는 CategoryDisplayContents·Shop 과 달리 자기 .wc-root 가 없다 — 토큰 스코프를 여기서 준다(l4-qa-2, app/shop/page.tsx 와 같은 규칙). */
   return <>
-    <CategoryDisplayNavigation entries={initial.navigation} currentId={initial.category.id} />
+    {initial.navigation.length ? <div className="wc-root">
+      <CategoryDisplayNavigation entries={initial.navigation} currentId={initial.category.id} />
+    </div> : null}
     <CategoryDisplayContents page={initial} />
     <Shop view="all" title={initial.category.name} query={initial.query} result={{ ...initial.result, goods }} wishlist={wishlist}
       paging={{ loading, error, hasMore: nextOffset !== null, onLoadMore: () => { if (stale) router.refresh(); else void loadMore(); }, onReload: stale ? () => router.refresh() : undefined }} />
