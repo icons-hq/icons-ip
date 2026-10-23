@@ -249,6 +249,14 @@ describe('굿즈샵 목록', () => {
     expect(render('all')).not.toContain('wc-list-heart');
   });
 
+  /* CL-02: 목록 카드 별점은 카탈로그 스냅샷의 공개 리뷰 요약에서 온다 — 리뷰 없는 굿즈는 별점이 없다. */
+  it('draws card ratings from the catalog review summaries only for reviewed goods', () => {
+    const html = render('all', {}, { ...catalog, reviewSummaries: { b: { count: 7, average: 4.6 } } } as typeof catalog);
+
+    expect((html.match(/class="wc-product-card__rating"/g) ?? []).length).toBe(1);
+    expect(html).toContain('평점 5점 만점에 4.6점, 리뷰 7개');
+  });
+
   it('한 페이지를 넘길 때만 VIEW MORE 를 노출한다', () => {
     const many = {
       ips: [ip('ip1', '홍실')],

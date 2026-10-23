@@ -2,6 +2,8 @@ import { parseGoodsSalePeriod } from './goods-sale-period';
 import { loadPublicGoodsAttributeRows } from '@/lib/goods-attributes.server';
 import 'server-only';
 import { loadGoodsListingAppearance } from './goods-listing-appearance.server';
+import { pickGoodsReviewSummaries, type GoodsReviewSummaries } from './goods-review-summary';
+import { loadGoodsReviewSummaries } from './goods-review-summary.server';
 import { loadGoodsTransactionOffers } from './goods-transaction-offers.server';
 import { applyGoodsAggregationPolicy } from './goods-aggregation';
 import { loadPublicGoodsGroupReference } from './goods-groups.server';
@@ -62,6 +64,11 @@ export interface CatalogSnapshot {
   goods: Good[];
   cards: Card[];
   events: FandomEvent[];
+  /**
+   * 목록 카드 별점(LFS 패리티 2차 L4 · CL-02) — 굿즈 ID → 공개 리뷰 수·평균(굿즈 상세와 같은 그룹 범위).
+   * 리뷰 0건 굿즈는 키가 없고 카드는 별점을 숨긴다. mock 카탈로그와 읽기 실패는 비어 있다.
+   */
+  reviewSummaries?: GoodsReviewSummaries;
 }
 
 export interface CatalogSnapshotOptions {
@@ -102,6 +109,8 @@ export interface CatalogIpDetail {
   cards: Card[];
   events: FandomEvent[];
   posts: CatalogPostPreview[];
+  /** 이 IP 굿즈 몫의 목록 카드 별점(CL-02). */
+  reviewSummaries?: GoodsReviewSummaries;
 }
 
 export interface HomeSnapshot {
@@ -850,9 +859,11 @@ export async function getCatalogSnapshot(options: CatalogSnapshotOptions = {}): 
     .filter((row) => belongsToPublicIp(row.ip_id))
     .map((row) => toGood(row, imageUrlForPath))
     .sort(compareGoodsDisplayOrder);
-  const [listingAppearance, transactionOffers] = await Promise.all([
+  /* 목록 카드 별점은 공개 굿즈 전체를 한 번(500개 묶음)에 읽는다 — 카드마다 부르지 않는다(CL-02). */
+  const [listingAppearance, transactionOffers, reviewSummaries] = await Promise.all([
     loadGoodsListingAppearance(supabase, goods.map(good => good.id)),
     loadGoodsTransactionOffers(goods.map(good => good.id)),
+    loadGoodsReviewSummaries(supabase, goods.map(good => good.id)),
   ]);
   const offersByGood = new Map(transactionOffers?.map(offer => [offer.goodId, offer]));
   const transactionCalculatedAt = new Date().toISOString();
@@ -877,6 +888,7 @@ export async function getCatalogSnapshot(options: CatalogSnapshotOptions = {}): 
     goods,
     cards,
     events,
+    reviewSummaries,
   };
 }
 
@@ -1121,11 +1133,13 @@ export function buildCatalogIpDetail(
 ): CatalogIpDetail | null {
   const ip = catalog.ips.find((item) => item.id === id);
   if (!ip) return null;
+  const goods = sortGoodsDisplayOrder(catalog.goods.filter((good) => good.ip === id));
 
   return {
     source: catalog.source,
     ip,
-    goods: sortGoodsDisplayOrder(catalog.goods.filter((good) => good.ip === id)),
+    goods,
+    reviewSummaries: pickGoodsReviewSummaries(catalog.reviewSummaries, goods.map((good) => good.id)),
     cards: catalog.cards.filter((card) => card.ip === id),
     events: catalog.events.filter((event) => event.ip === id),
     posts: posts

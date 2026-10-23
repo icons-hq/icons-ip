@@ -26,6 +26,7 @@ import { TabPanels, type TabPanelDef } from '@/components/wc/TabPanels';
 import { COMMUNITY_ENABLED } from '@/lib/community-visibility';
 import { krw } from '@/lib/format';
 import { goodsImageBackground } from '@/lib/goods-image';
+import { reviewStarCount, reviewSummaryLabel } from '@/lib/goods-review-summary';
 import {
   benefitTileIcon,
   withoutCardRewardCurations,
@@ -108,6 +109,7 @@ function TabProductBand({
                 <ProductCard
                   key={good.id}
                   action={heartFor(good)}
+                  reviewSummary={good.reviewSummary}
                   badges={good.badge ? [good.badge] : undefined}
                   brand={good.brand ?? undefined}
                   href={good.href}
@@ -191,6 +193,17 @@ function GoodsBandSection({ band, heartFor }: { band: HomeGoodsBand; heartFor: H
                         {/* 리스트 행에는 품절 스크림 밴드를 겹칠 자리가 없어 가격 옆 라벨로 전한다(DESIGN §12 품절 상태). */}
                         {goodsSaleUnavailableLabel(good.salePeriod) || good.soldOut ? <span className="wc-band__row-soldout">{goodsSaleUnavailableLabel(good.salePeriod) ?? '품절'}</span> : null}
                       </p>
+                      {/* 행 별점(11 HM-03) — 카드와 같은 공개 리뷰 요약이 있을 때만. */}
+                      {good.reviewSummary ? (
+                        <p className="wc-band__row-rating">
+                          <span aria-hidden className="wc-product-card__stars">
+                            {'★'.repeat(reviewStarCount(good.reviewSummary.average))}
+                            <span className="wc-product-card__stars-empty">{'★'.repeat(5 - reviewStarCount(good.reviewSummary.average))}</span>
+                          </span>
+                          <span aria-hidden className="wc-product-card__rating-count">{`(${good.reviewSummary.count.toLocaleString('ko-KR')})`}</span>
+                          <span className="wc-sr-only">{reviewSummaryLabel(good.reviewSummary)}</span>
+                        </p>
+                      ) : null}
                     </div>
                   </Link>
                   {heartFor(good, 'wc-band__heart')}

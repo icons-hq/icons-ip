@@ -96,6 +96,36 @@
   margin: -4px -4px 0 0;
 }
 
+/* 목록 카드 별점(CL-02) — 리뷰가 있을 때만 가격 아래 7px 에 별 다섯 칸 + (리뷰 수). 별은 잉크 한 색이고
+   빈 칸은 컨트롤 선 색이다(금색을 들이면 단일 액센트 규칙이 깨진다 — PDP 별점과 같은 규칙).
+   리뷰 수는 레퍼런스의 #BBB 대신 AA 대비를 넘는 ink.tertiary 다. 홈 리스트 행도 같은 줄을 쓴다(HM-03). */
+.wc-product-card__rating,
+.wc-band__row-rating {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  margin: 7px 0 0;
+  font-size: 12px;
+  line-height: 1.4;
+}
+
+.wc-product-card__stars {
+  letter-spacing: 1px;
+  color: var(--wc-ink);
+}
+
+.wc-product-card__stars-empty {
+  color: var(--wc-line-control);
+}
+
+.wc-product-card__rating-count {
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-band__row-rating {
+  margin-top: 4px;
+}
+
 @media (forced-colors: active) {
   .wc-list-heart__disc {
     border-color: CanvasText;

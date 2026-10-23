@@ -1,6 +1,7 @@
 import type { CatalogCategory } from '@/lib/catalog-categories';
 import type { CatalogSnapshot } from '@/lib/catalog';
 import type { Good } from '@/lib/data';
+import { pickGoodsReviewSummaries } from '@/lib/goods-review-summary';
 import { selectCollectionGoods, type ShopListQuery, type ShopListResult } from '@/lib/shop-catalog';
 
 /* /search 의 굿즈 결과 선택자 (#326 유저 스토리 18·19, LFS 패리티 2차 L4 · SR-01~03).
@@ -114,7 +115,7 @@ export function searchGoods(
  * facet 과 가격 상한은 필터 전 검색 스코프에서, 페이지 수는 필터 뒤 개수에서 센다.
  */
 export function selectSearchGoods(
-  catalog: Pick<CatalogSnapshot, 'ips' | 'goods'> & { categories?: readonly CatalogCategory[] },
+  catalog: Pick<CatalogSnapshot, 'ips' | 'goods' | 'reviewSummaries'> & { categories?: readonly CatalogCategory[] },
   term: string,
   query: ShopListQuery,
   page: number,
@@ -123,9 +124,15 @@ export function selectSearchGoods(
   const pageCount = Math.max(1, Math.ceil(full.filteredTotal / SEARCH_GOODS_PAGE_SIZE));
   const safePage = clampPage(page, pageCount);
   const start = (safePage - 1) * SEARCH_GOODS_PAGE_SIZE;
+  const goods = full.goods.slice(start, start + SEARCH_GOODS_PAGE_SIZE);
 
   return {
-    result: { ...full, goods: full.goods.slice(start, start + SEARCH_GOODS_PAGE_SIZE) },
+    /* 화면에는 이 페이지 굿즈와 그 별점만 싣는다. */
+    result: {
+      ...full,
+      goods,
+      ...(full.reviewSummaries ? { reviewSummaries: pickGoodsReviewSummaries(full.reviewSummaries, goods.map((good) => good.id)) } : {}),
+    },
     page: safePage,
     pageCount,
   };

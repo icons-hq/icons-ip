@@ -352,6 +352,7 @@ export function CollectionBrowser({
                     imageBackground={good.img}
                     name={good.name}
                     price={good.price} priceMax={good.priceMax}
+                    reviewSummary={result.reviewSummaries?.[good.id]}
                     salePeriod={good.salePeriod} soldOut={good.stock === 'soldout' || good.stockQty <= 0}
                   />
                 ))}

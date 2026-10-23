@@ -64,7 +64,10 @@ export default async function Page({ params, searchParams }: PageProps) {
     validIpIds: new Set(),
     validCategoryIds: new Set(categories.map((category) => category.id)),
   });
-  const collection = { query: listQuery, result: selectCollectionGoods(detail.goods, { ips: [detail.ip], categories }, listQuery) };
+  const collection = {
+    query: listQuery,
+    result: selectCollectionGoods(detail.goods, { ips: [detail.ip], categories, reviewSummaries: detail.reviewSummaries }, listQuery),
+  };
 
   return (
     <IpDetail

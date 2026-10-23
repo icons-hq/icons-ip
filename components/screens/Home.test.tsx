@@ -291,6 +291,21 @@ describe('Home bands', () => {
     expect(rows[1]).toContain('aria-label="굿즈 g7 위시리스트에서 빼기"');
   });
 
+  /* CL-02·HM-03: 홈 카드와 리스트 행도 같은 공개 리뷰 요약으로 별점을 보인다. */
+  it('shows ratings on home cards and band rows from the review summaries', () => {
+    const html = render({
+      ...fullCuration,
+      categoryBestTabs: [{ id: 'keyring', label: '키링', goods: [good('g1', { reviewSummary: { count: 4, average: 4.5 } }), good('g2')] }],
+      goodsBands: [{ ...fullCuration.goodsBands[0], goods: [good('g6', { reviewSummary: { count: 2, average: 3 } })] }],
+    });
+    const row = html.match(/<div class="wc-band__row">[\s\S]*?<\/a>/)?.[0] ?? '';
+
+    expect((html.match(/class="wc-product-card__rating"/g) ?? []).length).toBe(1);
+    expect(html).toContain('평점 5점 만점에 4.5점, 리뷰 4개');
+    expect(row).toContain('<p class="wc-band__row-rating">');
+    expect(row).toContain('평점 5점 만점에 3.0점, 리뷰 2개');
+  });
+
   it('puts hearts on every home product card and row only when the wish set is passed', () => {
     const withHearts = render(fullCuration, true, { signedIn: false, goodIds: [] });
 

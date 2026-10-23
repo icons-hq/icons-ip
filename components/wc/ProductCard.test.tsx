@@ -115,4 +115,18 @@ describe('ProductCard', () => {
     expect(html).toContain('<s class="wc-price__original">₩16,000</s>');
     expect(html).toContain('₩12,000');
   });
+
+  /* CL-02: 리뷰가 있으면 가격 아래 별 다섯 칸 + (리뷰 수). 별 문자는 읽지 않고 숨은 문장을 읽는다. */
+  it('shows the list rating under the price only when public reviews exist', () => {
+    const html = renderToStaticMarkup(<ProductCard {...card} reviewSummary={{ count: 12, average: 4.33 }} />);
+    const rating = html.match(/<p class="wc-product-card__rating">[\s\S]*?<\/p>/)?.[0] ?? '';
+
+    expect(rating).toContain('<span aria-hidden="true" class="wc-product-card__stars">★★★★<span class="wc-product-card__stars-empty">★</span></span>');
+    expect(rating).toContain('<span aria-hidden="true" class="wc-product-card__rating-count">(12)</span>');
+    expect(rating).toContain('<span class="wc-sr-only">평점 5점 만점에 4.3점, 리뷰 12개</span>');
+    expect(html.indexOf('wc-price')).toBeLessThan(html.indexOf('wc-product-card__rating'));
+
+    expect(renderToStaticMarkup(<ProductCard {...card} />)).not.toContain('wc-product-card__rating');
+    expect(renderToStaticMarkup(<ProductCard {...card} reviewSummary={{ count: 0, average: 0 }} />)).not.toContain('wc-product-card__rating');
+  });
 });

@@ -225,3 +225,14 @@ describe('searchPageWindow (SR-03 · 11 §6 B8)', () => {
     expect(searchPageWindow(99, 30, 10)).toEqual({ start: 21, end: 30, prev: 20, next: null });
   });
 });
+
+describe('selectSearchGoods 별점 (CL-02)', () => {
+  it('ships the review summaries of the current page only', () => {
+    const many = Array.from({ length: SEARCH_GOODS_PAGE_SIZE + 1 }, (_, index) => good(`k${index}`, { name: `키링 ${index}` }));
+    const catalog = { ips, goods: many, reviewSummaries: { k0: { count: 3, average: 5 }, [`k${SEARCH_GOODS_PAGE_SIZE}`]: { count: 1, average: 4 } } };
+    const listQuery = parseShopSearchParams({}, { view: 'search', validIpIds: new Set(ips.map((item) => item.id)) });
+
+    expect(selectSearchGoods(catalog, '키링', listQuery, 1).result.reviewSummaries).toEqual({ k0: { count: 3, average: 5 } });
+    expect(selectSearchGoods(catalog, '키링', listQuery, 2).result.reviewSummaries).toEqual({ [`k${SEARCH_GOODS_PAGE_SIZE}`]: { count: 1, average: 4 } });
+  });
+});

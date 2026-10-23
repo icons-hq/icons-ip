@@ -25,7 +25,7 @@ export function ProductCollection({ band, wishlist }: { band: HomeProductCollect
               // eslint-disable-next-line @next/next/no-img-element
               <img className="wc-product-collection__image" src={imageUrl} alt="" loading="lazy" />
             ) : <div className="wc-product-collection__image" style={{ background: good.imageBg }} />}
-            badges={good.badge ? [good.badge] : undefined} price={good.price} priceMax={good.priceMax}
+            badges={good.badge ? [good.badge] : undefined} price={good.price} priceMax={good.priceMax} reviewSummary={good.reviewSummary}
             soldOut={good.soldOut} salePeriod={good.salePeriod} />
         </li>;
         })}

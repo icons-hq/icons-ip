@@ -459,3 +459,12 @@ describe('고객 계층 카테고리', () => {
     expect(selectShopGoods({ ...catalog, categories: [] }, parseShopSearchParams({}, { view: 'all', validIpIds: new Set(['ip1']) })).goods).toHaveLength(2);
   });
 });
+
+describe('목록 카드 별점 (CL-02)', () => {
+  it('carries only the result goods’ review summaries and omits the field without catalog summaries', () => {
+    const withSummaries = { ips, goods, reviewSummaries: { a: { count: 2, average: 4.5 }, d: { count: 1, average: 3 } } };
+
+    expect(selectShopGoods(withSummaries, query({ ips: ['ip1'] })).reviewSummaries).toEqual({ a: { count: 2, average: 4.5 } });
+    expect(selectShopGoods(catalog, query())).not.toHaveProperty('reviewSummaries');
+  });
+});

@@ -1,6 +1,7 @@
 import { categoryAncestorIds, orderedCatalogCategories, type CatalogCategory } from './catalog-categories';
 import type { CatalogSnapshot } from './catalog';
 import type { Good } from './data';
+import { pickGoodsReviewSummaries, type GoodsReviewSummaries, type GoodsReviewSummary } from './goods-review-summary';
 import { GOOD_TYPES, isGoodType } from './goods-taxonomy';
 
 /* 굿즈샵·NEW·BEST·검색 결과·온라인 팝업 IP관이 공유하는 목록 상태 하나 (#326, LFS 패리티 2차 L4).
@@ -94,6 +95,8 @@ export interface ShopListResult {
   ipFacets: ShopFacetOption[];
   typeFacets: ShopFacetOption[];
   categoryFacets?: ShopFacetOption[];
+  /** 목록 카드 별점(CL-02) — 이 결과의 굿즈 몫만 담는다. 리뷰 0건 굿즈는 키가 없다. */
+  reviewSummaries?: Record<string, GoodsReviewSummary>;
 }
 
 const naturalIdCollator = new Intl.Collator('en', { numeric: true, sensitivity: 'base' });
@@ -220,7 +223,10 @@ function sortGoods(goods: Good[], sort: ShopSort): Good[] {
     .map((entry) => entry.good);
 }
 
-type CollectionCatalog = Pick<CatalogSnapshot, 'ips'> & { categories?: readonly CatalogCategory[] };
+type CollectionCatalog = Pick<CatalogSnapshot, 'ips'> & {
+  categories?: readonly CatalogCategory[];
+  reviewSummaries?: GoodsReviewSummaries;
+};
 
 /**
  * 이미 정해진 스코프(뷰·검색 결과·IP관) 위에서 필터·정렬·facet 을 계산한다.
@@ -260,9 +266,11 @@ export function selectCollectionGoods(
 
   const scopeIsRecommended = query.view === 'best' || query.view === 'search';
   const recommended = scopeIsRecommended ? filtered : sortRecommendedGoods(filtered);
+  const sorted = query.sort === 'recommended' ? recommended : sortGoods(filtered, query.sort);
 
   return {
-    goods: query.sort === 'recommended' ? recommended : sortGoods(filtered, query.sort),
+    goods: sorted,
+    ...(catalog.reviewSummaries ? { reviewSummaries: pickGoodsReviewSummaries(catalog.reviewSummaries, sorted.map((good) => good.id)) } : {}),
     filteredTotal: filtered.length,
     total: scope.length,
     priceCeil: scope.reduce((max, good) => Math.max(max, good.price), 0),
@@ -285,7 +293,7 @@ export function selectCollectionGoods(
 }
 
 export function selectShopGoods(
-  catalog: Pick<CatalogSnapshot, 'ips' | 'goods'> & { categories?: readonly CatalogCategory[] },
+  catalog: Pick<CatalogSnapshot, 'ips' | 'goods' | 'reviewSummaries'> & { categories?: readonly CatalogCategory[] },
   query: ShopListQuery,
   bestGoodIds: readonly string[] = [],
 ): ShopListResult {

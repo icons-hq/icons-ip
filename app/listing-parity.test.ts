@@ -247,3 +247,12 @@ describe('다크 면 토큰 (11 HM-08)', () => {
     expect(read('./styles/wc-review-events.css')).toMatch(/\.wc-review-event-banner\[data-style=emphasis\] \{[^}]*background: var\(--wc-ink\)/);
   });
 });
+
+describe('목록 카드 별점 (11 CL-02)', () => {
+  it('가격 아래 7px 에 잉크 별·컨트롤 선 빈 칸·ink.tertiary 리뷰 수를 그린다', () => {
+    expect(decls(CATALOG, '.wc-product-card__rating').margin).toBe('7px 0 0');
+    expect(decls(CATALOG, '.wc-product-card__stars').color).toBe('var(--wc-ink)');
+    expect(decls(CATALOG, '.wc-product-card__stars-empty').color).toBe('var(--wc-line-control)');
+    expect(decls(CATALOG, '.wc-product-card__rating-count').color).toBe('var(--wc-ink-tertiary)');
+  });
+});

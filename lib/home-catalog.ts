@@ -1,5 +1,6 @@
 import type { CatalogPostPreview, CatalogSnapshot } from './catalog';
 import type { Card, FandomEvent, Good, Ip } from './data';
+import type { GoodsReviewSummary } from './goods-review-summary';
 import type { HomeBlockKey } from './home-layout';
 import type { HomeMosaicBand } from './home-mosaic';
 import type { HomeProductCollectionBand } from './home-product-collection';
@@ -169,6 +170,8 @@ export interface HomeGoodsCard {
   imageBg: string;
   href: string;
   soldOut: boolean;
+  /** 목록 카드 별점(CL-02) — 공개 리뷰가 있을 때만. */
+  reviewSummary?: GoodsReviewSummary;
 }
 
 export interface HomeGoodsBand {
@@ -240,7 +243,7 @@ export function readHomeGoodsSelection(payload: Record<string, unknown> | null):
 
 /** Only the public catalog is eligible. Undated mock/legacy rows cannot claim to be newest. */
 export function resolveHomeLatestGoodsCards(
-  catalog: Pick<CatalogSnapshot, 'ips' | 'goods'>,
+  catalog: Pick<CatalogSnapshot, 'ips' | 'goods' | 'reviewSummaries'>,
   count: number,
 ): HomeGoodsCard[] {
   if (!Number.isInteger(count) || count < HOME_LATEST_GOODS_MIN || count > HOME_LATEST_GOODS_MAX) return [];
@@ -253,7 +256,7 @@ export function resolveHomeLatestGoodsCards(
 
 /** 큐레이션이 참조한 굿즈 id 목록을 카드 뷰모델로 바꾼다 — 없는 id·중복은 버리고 순서를 지킨다. */
 export function resolveHomeGoodsCards(
-  catalog: Pick<CatalogSnapshot, 'ips' | 'goods'>,
+  catalog: Pick<CatalogSnapshot, 'ips' | 'goods' | 'reviewSummaries'>,
   goodIds: readonly string[],
   limit: number,
 ): HomeGoodsCard[] {
@@ -278,6 +281,7 @@ export function resolveHomeGoodsCards(
       href: `/shop/${good.id}`,
       soldOut: good.stock === 'soldout',
       ...(good.salePeriod ? { salePeriod: good.salePeriod } : {}),
+      ...(catalog.reviewSummaries?.[good.id] ? { reviewSummary: catalog.reviewSummaries[good.id] } : {}),
     });
     if (cards.length === limit) break;
   }

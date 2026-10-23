@@ -580,6 +580,59 @@ describe('getCatalogSnapshot', () => {
     mocks.client = null;
   });
 
+  /* CL-02: 목록 카드 별점은 공개 굿즈 ID 전체를 한 RPC 묶음으로 읽어 스냅샷에 싣는다(N+1 금지). */
+  it('loads list review summaries for every public good in one batch and keeps only valid requested rows', async () => {
+    const records: QueryRecord[] = [];
+    const rpcCalls: { name: string; args: unknown }[] = [];
+    mocks.isConfigured = true;
+    const client = createSupabaseClient(records, {
+      goods: [
+        { id: 'a', ip_id: 'hwasan', name: '첫 번째', type: '키링', price: 1000, stock: 'ok', stock_qty: 1, sale_restriction: 'none' },
+        { id: 'b', ip_id: 'hwasan', name: '두 번째', type: '키링', price: 1000, stock: 'ok', stock_qty: 1, sale_restriction: 'none' },
+      ],
+    });
+    client.rpc = (name?: string, args?: unknown) => {
+      rpcCalls.push({ name: name ?? '', args });
+      return Promise.resolve({
+        data: name === 'get_goods_review_summaries'
+          ? [{ goodId: 'a', reviewCount: 3, ratingAverage: '4.33' }, { goodId: 'outside', reviewCount: 9, ratingAverage: 5 }, { goodId: 'b', reviewCount: 0, ratingAverage: 4 }]
+          : null,
+        error: null,
+      });
+    };
+    mocks.client = client;
+
+    const snapshot = await getCatalogSnapshot();
+
+    expect(rpcCalls.filter((call) => call.name === 'get_goods_review_summaries')).toEqual([
+      { name: 'get_goods_review_summaries', args: { p_good_ids: ['a', 'b'] } },
+    ]);
+    expect(snapshot.reviewSummaries).toEqual({ a: { count: 3, average: 4.33 } });
+
+    const detail = buildCatalogIpDetail(snapshot, 'hwasan', []);
+    expect(detail?.reviewSummaries).toEqual({ a: { count: 3, average: 4.33 } });
+
+    mocks.isConfigured = false;
+    mocks.client = null;
+  });
+
+  it('folds a failed review summary read into no stars instead of failing the catalog', async () => {
+    mocks.isConfigured = true;
+    const client = createSupabaseClient([], {
+      goods: [{ id: 'a', ip_id: 'hwasan', name: '첫 번째', type: '키링', price: 1000, stock: 'ok', stock_qty: 1, sale_restriction: 'none' }],
+    });
+    client.rpc = (name?: string) => Promise.resolve({ data: null, error: name === 'get_goods_review_summaries' ? { message: 'unavailable' } : null });
+    mocks.client = client;
+
+    const snapshot = await getCatalogSnapshot();
+
+    expect(snapshot.goods.map((good) => good.id)).toEqual(['a']);
+    expect(snapshot.reviewSummaries).toEqual({});
+
+    mocks.isConfigured = false;
+    mocks.client = null;
+  });
+
   /* 기준 판매가 10,800원·소비자가 12,000원. 옵션가는 할인하지 않으므로 목록 정가도 최저가 옵션의 옵션가를 더한다. */
   it('derives the listed comparison price from the cheapest option and keeps the stored base prices', async () => {
     const calculatedAt = '2026-10-08T00:00:00Z';
