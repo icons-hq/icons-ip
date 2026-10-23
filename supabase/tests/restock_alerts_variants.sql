@@ -464,7 +464,22 @@ select 1 / case when (
     'restock_alert:00000000-0000-4000-8000-0000000567aa:00000000-0000-4000-8000-000000056711:2026-10-23T01:00:00.123456+00:00',
     'restock_alert', 'restock-variant-a@example.test', '[ICONS] 재입고 알림 — 옵션 재입고 굿즈 · 옵션 B')
 ) then 1 else 0 end as assert_variant_email_key_claims_once;
+
+-- 메일 producer(service role)는 goods_variants 를 직접 읽지 못한다. 봉인된 RPC 가 notified 옵션 신청이
+-- 가리키는 옵션 이름만 돌려준다(pending 인 옵션 C 신청은 아직 메일 대상이 아니다).
+select 1 / case when (
+  select array_agg(option_name order by option_name) = array['옵션 B']
+  from public.service_restock_alert_option_names('restock-variant-good')
+) then 1 else 0 end as assert_service_option_names_for_notified_alerts;
 reset role;
+
+select 1 / case when (
+  has_function_privilege('service_role', 'public.service_restock_alert_option_names(text)', 'execute')
+  and not has_function_privilege('authenticated', 'public.service_restock_alert_option_names(text)', 'execute')
+  and not has_function_privilege('anon', 'public.service_restock_alert_option_names(text)', 'execute')
+  and not has_function_privilege('public', 'public.service_restock_alert_option_names(text)', 'execute')
+  and not has_table_privilege('service_role', 'public.goods_variants', 'select')
+) then 1 else 0 end as assert_service_option_names_sealed;
 
 -- ── 10. 굿즈 URL 변경·옵션 삭제가 옵션 신청을 따라간다 ───────────────
 insert into public.goods (id, ip_id, name, type, price, stock, stock_qty, published_at)

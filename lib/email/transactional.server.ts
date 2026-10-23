@@ -389,7 +389,26 @@ export function sendOrderShippedEmail(input: {
 interface RestockAlertRow {
   id: string;
   notified_at: string | null;
+  /** 옵션 단위 신청의 옵션(PD-11). null 은 굿즈 단위(모든 옵션) 신청이다. */
+  variant_id?: string | null;
   profiles: { email: string | null } | { email: string | null }[] | null;
+}
+
+function rowVariantId(row: RestockAlertRow): string | null {
+  return typeof row.variant_id === 'string' && row.variant_id ? row.variant_id : null;
+}
+
+/* 옵션 신청이 가리키는 옵션 이름. service role 은 goods_variants 를 직접 읽지 못해 봉인된 RPC 로만 받는다. */
+async function restockOptionNames(service: ReturnType<typeof createServiceClient>, goodId: string): Promise<Map<string, string>> {
+  const { data, error } = await service.rpc('service_restock_alert_option_names', { target_good_id: goodId });
+  if (error || !Array.isArray(data)) throw new Error('restock_email_option_names_load_failed');
+  const names = new Map<string, string>();
+  for (const row of data as { variant_id?: unknown; option_name?: unknown }[]) {
+    if (typeof row.variant_id === 'string' && typeof row.option_name === 'string' && row.option_name.trim()) {
+      names.set(row.variant_id, row.option_name.trim());
+    }
+  }
+  return names;
 }
 
 function rowRecipient(value: RestockAlertRow['profiles']): string | null {
@@ -399,10 +418,10 @@ function rowRecipient(value: RestockAlertRow['profiles']): string | null {
 }
 
 /**
- * 재입고 알림 메일 (#326).
+ * 재입고 알림 메일 (#326 · 옵션 단위 PD-11).
  *
- * 신청 행을 notified 로 넘기는 것은 DB 트리거다. 여기는 그 결과를 읽어 메일만 보낸다 —
- * "전이가 일어났는가"를 앱이 다시 판정하지 않는다. 판정을 두 곳에 두면 재고 복원 경로
+ * 신청 행을 notified 로 넘기는 것은 DB 트리거다(굿즈 행의 판매 가능 전이와 옵션 행의 재고
+ * 전이). 여기는 그 결과를 읽어 메일만 보낸다 — "전이가 일어났는가"를 앱이 다시 판정하지 않는다. 판정을 두 곳에 두면 재고 복원 경로
  * (주문 취소·반품의 service role 쓰기)가 늘 때마다 한쪽이 빠진다.
  *
  * 그래서 호출부는 재고를 건드린 뒤 조건 없이 부르면 된다. 이미 보낸 사이클은
@@ -453,7 +472,7 @@ export async function sendRestockAlertEmails(
 
     const { data, error } = await service
       .from('restock_alerts')
-      .select('id,notified_at,profiles(email)')
+      .select('id,notified_at,variant_id,profiles(email)')
       .eq('good_id', goodId)
       .eq('status', 'notified')
       .order('notified_at', { ascending: true });
@@ -461,12 +480,25 @@ export async function sendRestockAlertEmails(
 
     const rows = (data ?? []) as RestockAlertRow[];
     if (!rows.length) return { status: 'skipped', reason: 'no_notified_alerts' };
+    /* 옵션 신청이 있을 때만 옵션 이름을 읽는다. 못 읽으면 옵션을 말하지 않는 메일을 보내지 않고 이번 배치를
+       접는다 — 클레임 전이라 다음 재고 접점에서 다시 보낸다. */
+    const optionNames = rows.some((row) => rowVariantId(row)) ? await restockOptionNames(service, goodId) : new Map<string, string>();
 
-    /* 본문은 수신자와 무관하다 — 한 번 그려 재사용한다. */
-    const rendered = renderRestockAlertEmail({
-      goodName,
-      goodPath: `${siteUrl()}/shop/${goodId}`,
-    });
+    /* 본문은 수신자와 무관하고 옵션마다 다르다 — 옵션(없으면 굿즈 단위)별로 한 번 그려 재사용한다.
+       옵션 신청의 링크는 그 옵션을 고른 상세다(?variant=, PD-14). */
+    const renderedByOption = new Map<string, RenderedEmail>();
+    const renderedFor = (variantId: string | null, optionName: string | null) => {
+      const cacheKey = variantId ?? '';
+      const cached = renderedByOption.get(cacheKey);
+      if (cached) return cached;
+      const rendered = renderRestockAlertEmail({
+        goodName,
+        optionName: variantId ? optionName : null,
+        goodPath: `${siteUrl()}/shop/${goodId}${variantId ? `?variant=${encodeURIComponent(variantId)}` : ''}`,
+      });
+      renderedByOption.set(cacheKey, rendered);
+      return rendered;
+    };
 
     for (const row of rows) {
       const recipient = rowRecipient(row.profiles);
@@ -477,12 +509,13 @@ export async function sendRestockAlertEmails(
         continue;
       }
 
+      const variantId = rowVariantId(row);
       /* 한 명이 실패해도 나머지는 보낸다 — 행마다 껍질을 씌워 실패를 격리한다. */
       results.push(await safely('restock alert', `alert:${row.id}`, () => deliver(service, {
-        dedupeKey: restockAlertEmailDedupeKey(row.id, notifiedAt),
+        dedupeKey: restockAlertEmailDedupeKey(row.id, notifiedAt, variantId),
         template: 'restock_alert',
         recipient,
-        rendered,
+        rendered: renderedFor(variantId, variantId ? optionNames.get(variantId) ?? null : null),
       })));
     }
 

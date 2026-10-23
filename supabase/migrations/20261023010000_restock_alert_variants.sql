@@ -374,3 +374,31 @@ $$;
 revoke all on function public.request_variant_restock_alert(text, uuid)
   from public, anon, authenticated, service_role;
 grant execute on function public.request_variant_restock_alert(text, uuid) to authenticated;
+
+-- ── 6. 메일 producer 용 옵션 이름 ───────────────────────────────────
+-- 재입고 메일은 앱 producer 가 service role 로 notified 신청을 읽어 보낸다. service role 에는
+-- goods_variants 읽기 권한이 없으므로(20260908020855 — 카탈로그 옵션은 anon·authenticated 공개
+-- 읽기만 연다) 권한을 넓히지 않고, 그 굿즈의 notified 옵션 신청이 가리키는 옵션 이름만 돌려준다.
+-- 알림 뒤에 사용 중지된 옵션도 이름은 그대로 돌려준다(알림 시점에는 판매 중이었다).
+create function public.service_restock_alert_option_names(target_good_id text)
+returns table (variant_id uuid, option_name text)
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select variant.id, variant.name
+  from public.goods_variants as variant
+  where variant.good_id = target_good_id
+    and exists (
+      select 1 from public.restock_alerts as alert
+      where alert.good_id = target_good_id
+        and alert.variant_id = variant.id
+        and alert.status = 'notified'
+    )
+  order by variant.sort_order, variant.id;
+$$;
+
+revoke all on function public.service_restock_alert_option_names(text)
+  from public, anon, authenticated, service_role;
+grant execute on function public.service_restock_alert_option_names(text) to service_role;
