@@ -22,6 +22,13 @@
 --      판매 제한·결제수단·IP 공개·품절 표시)은 따로 확인한다.
 -- 두 갈래가 같은 신청을 함께 보아도 pending → notified 전이는 한 번뿐이라 알림도 한 번이다.
 --
+-- 부모 굿즈의 재고 외 판매 가능 조건(공개·보관·판매 제한·결제수단·IP 공개·품절 표시·판매 기간)은
+-- private.restock_parent_open 하나로 판정한다. 판매 기간은 상세·주문 생성과 같은 판정이다(기간이 없으면
+-- 무기한, 있으면 시작 ≤ 지금 < 종료). 재고가 들어온 순간 이 조건이 닫혀 있으면 깨우지 않고 신청은 pending
+-- 으로 남는다. 조건이 다시 열리는 전이 가운데 굿즈 행이 바뀌는 것(결제수단·판매 제한·판매 기간 편집 등)은
+-- ① 트리거가 바로 깨우고, 행이 바뀌지 않는 것(IP 재공개, 판매 기간 시작 시각 도래)은 5분 주기 청소 작업
+-- (private.sweep_restock_alerts)이 깨운다.
+--
 -- 두 트리거는 재고를 바꾸는 트랜잭션(주문 생성·취소 환원·재고 조정·옵션 편집) 안에서 돈다. 팬아웃은
 -- 예외를 밖으로 던지지 않는다 — 실패하면 그 블록만 되돌려 신청을 pending 으로 남기고(다음 전이에서
 -- 다시 깨운다) 재고 쓰기는 그대로 진행한다. 재고 수량은 읽기만 한다.
@@ -47,6 +54,37 @@ alter table public.restock_alerts
 create index restock_alerts_variant_status_idx
   on public.restock_alerts (variant_id, status)
   where variant_id is not null;
+
+-- ── 1b. 부모 굿즈의 재고 외 판매 가능 조건 ───────────────────────────
+-- 두 갈래의 발화와 청소 작업이 모두 이 술어 하나를 쓴다. 판매 기간 판정은 20261020085302 와 같다.
+-- null 이 섞여도 거짓으로 접는다 — 트리거의 `if not (...)` 이 null 을 통과로 읽지 않게.
+create function private.restock_parent_open(target_good public.goods)
+returns boolean
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select coalesce(
+    target_good.archived_at is null
+    and target_good.published_at is not null
+    and target_good.sale_restriction = 'none'
+    and (target_good.allow_card_payment or target_good.allow_bank_transfer)
+    and target_good.stock <> 'soldout'
+    and (
+      target_good.sale_starts_at is null
+      or (now() >= target_good.sale_starts_at and now() < target_good.sale_ends_at)
+    )
+    and exists (
+      select 1 from public.ips
+      where ips.id = target_good.ip_id and ips.published_at is not null and ips.archived_at is null
+    ),
+    false
+  );
+$$;
+
+revoke all on function private.restock_parent_open(public.goods)
+  from public, anon, authenticated, service_role;
 
 -- ── 2. 깨우기(공용 팬아웃) ───────────────────────────────────────────
 -- target_variant_id 가 null 이면 굿즈 단위 전이(①), 아니면 그 옵션의 전이(②)다.
@@ -162,7 +200,10 @@ revoke all on function private.wake_restock_alerts(public.goods, uuid)
   from public, anon, authenticated, service_role;
 
 -- ── 3. ① 굿즈 행의 판매 가능 전이 ───────────────────────────────────
--- 판매 가능 술어는 20260910072933 의 정의 그대로다. 팬아웃만 공용 함수로 옮긴다.
+-- 판매 가능 술어는 20260910072933 의 정의(공개·보관·판매 제한·결제수단·IP 공개·품절 표시·재고 캐시)에
+-- 판매 기간을 더한 것이다. 팬아웃은 공용 함수로 옮긴다. IP 공개와 판매 기간의 '지금' 판정은 한 문장 안의
+-- old·new 가 같은 값을 보므로 그 자체로는 전이를 만들지 않는다 — 판매 기간 칸을 고치는 편집은 old·new 의
+-- 기간이 달라 전이가 되고, IP 재공개·시작 시각 도래는 청소 작업이 맡는다.
 create or replace function private.notify_goods_restock()
 returns trigger
 language plpgsql
@@ -171,22 +212,8 @@ set search_path to ''
 as $function$
 begin
   -- 판매 가능 술어가 거짓→참으로 전이할 때만 발화한다.
-  if not (
-    new.archived_at is null
-    and new.published_at is not null
-    and new.sale_restriction='none'
-    and (new.allow_card_payment or new.allow_bank_transfer)
-    and exists(select 1 from public.ips where id=new.ip_id and published_at is not null and archived_at is null)
-    and new.stock <> 'soldout'
-    and new.stock_qty > 0
-  ) or (
-    old.archived_at is null
-    and old.published_at is not null
-    and old.sale_restriction='none'
-    and (old.allow_card_payment or old.allow_bank_transfer)
-    and old.stock <> 'soldout'
-    and old.stock_qty > 0
-  ) then
+  if not (private.restock_parent_open(new) and new.stock_qty > 0)
+    or (private.restock_parent_open(old) and old.stock_qty > 0) then
     return new;
   end if;
 
@@ -224,18 +251,9 @@ begin
     return null;
   end if;
 
-  -- 재고 외 판매 가능 조건. 재고 조건은 이 옵션의 전이 자체다.
-  if not (
-    target_good.archived_at is null
-    and target_good.published_at is not null
-    and target_good.sale_restriction = 'none'
-    and (target_good.allow_card_payment or target_good.allow_bank_transfer)
-    and target_good.stock <> 'soldout'
-    and exists (
-      select 1 from public.ips
-      where id = target_good.ip_id and published_at is not null and archived_at is null
-    )
-  ) then
+  -- 재고 외 판매 가능 조건(판매 기간 포함). 재고 조건은 이 옵션의 전이 자체다. 닫혀 있으면 신청은 pending 으로
+  -- 남고, 조건이 다시 열릴 때 ① 트리거나 청소 작업이 깨운다.
+  if not private.restock_parent_open(target_good) then
     return null;
   end if;
 
@@ -258,6 +276,57 @@ when (
   and not (old.archived_at is null and old.preorder_policy_id is null and old.stock_qty > 0)
 )
 execute function private.notify_goods_variant_restock();
+
+-- ① 굿즈 트리거는 재고·보관·공개 칸뿐 아니라 재고 외 판매 가능 조건을 바꾸는 칸(판매 제한·결제수단·판매
+-- 기간)에도 발화한다. 재고가 들어온 순간 그 조건이 닫혀 pending 으로 남은 신청이, 조건이 다시 열리는 편집
+-- (예: 무통장 재허용, 판매 기간을 지금으로 당김)에서 바로 깨어난다. 함수가 전이만 보고 일찍 끝나므로
+-- 다른 편집에는 일이 없다. 정의는 20260908031346 을 대체한다.
+drop trigger trg_goods_notify_restock on public.goods;
+create trigger trg_goods_notify_restock
+after update of stock, stock_qty, archived_at, published_at, sale_restriction,
+  allow_card_payment, allow_bank_transfer, sale_starts_at, sale_ends_at
+on public.goods
+for each row
+execute function private.notify_goods_restock();
+
+-- ── 4b. 청소: 굿즈·옵션 행이 바뀌지 않고 열린 조건 ────────────────────
+-- IP 재공개(ips 행)나 판매 기간 시작 시각 도래(시간)는 굿즈·옵션 트리거가 보지 못한다. 받아 둔 신청은 신청
+-- 시점에 그 대상을 재고로 살 수 없었다(신청 RPC 가 판매 중이면 거절한다). 그러니 지금 살 수 있으면 그 사이에
+-- 전이가 있었던 것이다. 대기 신청이 있는 굿즈 가운데 재고 외 조건이 열린 굿즈를 골라 ①과 같은 판정으로
+-- 깨운다(신청마다 그 대상을 지금 재고로 살 수 있을 때만). 재고를 쓰는 트랜잭션과 같은 순서(굿즈 행 잠금 →
+-- 신청)를 따르고, 지금 잠긴 굿즈는 건너뛰어 다음 회차에 본다. 대기 신청이 없으면 아무 일도 하지 않는다.
+create function private.sweep_restock_alerts()
+returns integer
+language plpgsql
+volatile
+security definer
+set search_path = ''
+as $$
+declare
+  candidate public.goods;
+  woken integer := 0;
+begin
+  for candidate in
+    select good.*
+    from public.goods as good
+    where good.id in (
+        select alert.good_id from public.restock_alerts as alert where alert.status = 'pending'
+      )
+      and private.restock_parent_open(good)
+    order by good.id
+    for update of good skip locked
+  loop
+    woken := woken + private.wake_restock_alerts(candidate, null);
+  end loop;
+  return woken;
+end;
+$$;
+
+revoke all on function private.sweep_restock_alerts()
+  from public, anon, authenticated, service_role;
+
+-- 5분마다. cron.schedule 은 이름 기준 upsert 라 재적용에도 안전하다.
+select cron.schedule('sweep-restock-alerts', '*/5 * * * *', 'select private.sweep_restock_alerts()');
 
 -- ── 5. 신청 RPC ─────────────────────────────────────────────────────
 -- 굿즈 단위(모든 옵션) 신청. 시그니처·권한·에러 코드는 그대로다. 바뀐 것:

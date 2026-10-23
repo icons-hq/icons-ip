@@ -6,7 +6,8 @@
 --          옵션 전이(다른 옵션 판매 중 + 옵션 B 0→양수) / 굿즈 전이와의 중복 없는 팬아웃 /
 --          부모 굿즈 판매 가능 게이트 / 재고 트랜잭션(주문 생성·취소 환원) 안 무예외 /
 --          팬아웃 실패 시 재고 쓰기 보존 / dedupe 키 / RLS / 굿즈 URL 변경·옵션 삭제 전파 /
---          예약판매 옵션의 실물 입고는 재입고가 아님·재고 판매 전환이 깨움 / 사용 중지 옵션 복원이 깨움.
+--          예약판매 옵션의 실물 입고는 재입고가 아님·재고 판매 전환이 깨움 / 사용 중지 옵션 복원이 깨움 /
+--          판매 기간이 닫힌 동안 깨우지 않음·판매 기간·결제수단이 다시 열리면 깨움 / IP 재공개는 청소 작업이 깨움.
 -- 모든 단언은 이 파일의 픽스처 행으로만 센다(전역 개수 단언 없음). 끝은 rollback.
 
 begin;
@@ -91,6 +92,32 @@ select 1 / case when exists (
     and pg_get_triggerdef(oid) like '%(new.preorder_policy_id IS NULL)%(old.preorder_policy_id IS NULL)%'
 ) then 1 else 0 end as assert_variant_transition_trigger;
 
+-- 재고 외 판매 가능 조건 판정·청소 작업도 봉인이다.
+select 1 / case when (
+  not has_function_privilege('anon', 'private.restock_parent_open(public.goods)', 'execute')
+  and not has_function_privilege('authenticated', 'private.restock_parent_open(public.goods)', 'execute')
+  and not has_function_privilege('service_role', 'private.restock_parent_open(public.goods)', 'execute')
+  and not has_function_privilege('anon', 'private.sweep_restock_alerts()', 'execute')
+  and not has_function_privilege('authenticated', 'private.sweep_restock_alerts()', 'execute')
+  and not has_function_privilege('service_role', 'private.sweep_restock_alerts()', 'execute')
+) then 1 else 0 end as assert_restock_gate_and_sweep_sealed;
+
+-- 굿즈 트리거는 재고 외 판매 가능 조건을 바꾸는 칸에도 발화한다.
+select 1 / case when exists (
+  select 1 from pg_trigger
+  where tgrelid = 'public.goods'::regclass
+    and tgname = 'trg_goods_notify_restock'
+    and not tgisinternal
+    and pg_get_triggerdef(oid) = 'CREATE TRIGGER trg_goods_notify_restock AFTER UPDATE OF stock, stock_qty, archived_at, published_at, sale_restriction, allow_card_payment, allow_bank_transfer, sale_starts_at, sale_ends_at ON public.goods FOR EACH ROW EXECUTE FUNCTION private.notify_goods_restock()'
+) then 1 else 0 end as assert_goods_trigger_watches_parent_gate_columns;
+
+-- 행이 바뀌지 않는 전이(IP 재공개, 판매 기간 시작 시각)는 5분 주기 청소 작업이 맡는다.
+select 1 / case when (
+  select count(*) = 1 from cron.job
+  where jobname = 'sweep-restock-alerts' and schedule = '*/5 * * * *'
+    and command = 'select private.sweep_restock_alerts()'
+) then 1 else 0 end as assert_restock_sweep_scheduled;
+
 -- 옵션 전이 트리거는 재고 캐시 갱신 트리거 뒤에 돈다(같은 시점 AFTER 트리거는 이름순).
 select 1 / case when 'goods_variants_refresh_stock' < 'goods_variants_restock_notify'
   then 1 else 0 end as assert_variant_trigger_runs_after_stock_refresh;
@@ -132,7 +159,7 @@ begin
   end if;
   update private.operator_access_state set configured = true where id;
   foreach fixture_good in array array['restock-variant-good', 'restock-variant-soldout', 'restock-variant-archived-stock',
-    'restock-variant-preorder', 'restock-variant-restore'] loop
+    'restock-variant-preorder', 'restock-variant-restore', 'restock-variant-gate'] loop
     reviewer := ('47c47700' || left(md5(fixture_good), 24))::uuid;
     insert into auth.users (id, aud, role, email, raw_app_meta_data, created_at, updated_at)
     values (reviewer, 'authenticated', 'authenticated', 'restock-variant-kc-' || left(md5(fixture_good), 8) || '@example.test',
@@ -644,5 +671,116 @@ select 1 / case when (
     where user_id = '00000000-0000-4000-8000-000000056701' and source_id = 'restock-variant-restore'
       and link_path = '/shop/restock-variant-restore') = 1
 ) then 1 else 0 end as assert_variant_restore_wakes_all_options_alert;
+
+-- ── 13. 판매 기간·결제수단·IP 공개 — 닫혀 있는 동안 깨우지 않고, 다시 열리면 깨운다 ─
+-- 굿즈 7: 별도 IP, 기본 옵션 A 재고 0(모든 옵션 품절). 재고 외 조건을 하나씩 닫은 채 재고를 넣고, 그 조건이
+-- 다시 열릴 때 깨어나는지 본다.
+insert into public.ips (id, title, vertical_key, published_at)
+values ('restock-variant-gate-ip', '옵션 재입고 게이트 IP', 'character', now());
+insert into public.goods (id, ip_id, name, type, price, stock, stock_qty, published_at)
+values ('restock-variant-gate', 'restock-variant-gate-ip', '게이트 재입고 굿즈', '키링', 10000, 'ok', 0, null);
+update public.goods_variants set name = '옵션 A'
+where good_id = 'restock-variant-gate' and is_default;
+select pg_temp.publish_goods_kc_fixture('restock-variant-gate');
+
+-- 13a. 판매 기간이 아직 시작하지 않았다(예약된 판매) — 재고가 들어와도 깨우지 않는다.
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000056701', true);
+select public.request_restock_alert('restock-variant-gate');
+reset role;
+update public.goods set sale_starts_at = now() + interval '1 day', sale_ends_at = now() + interval '2 days'
+where id = 'restock-variant-gate';
+select private.change_goods_variant_stock('restock-variant-gate',
+  (select id from public.goods_variants where good_id = 'restock-variant-gate' and is_default), 3);
+select 1 / case when (
+  (select status from public.restock_alerts
+    where user_id = '00000000-0000-4000-8000-000000056701' and good_id = 'restock-variant-gate') = 'pending'
+  and (select count(*) from public.notifications
+    where user_id = '00000000-0000-4000-8000-000000056701' and source_id = 'restock-variant-gate') = 0
+) then 1 else 0 end as assert_closed_sale_window_holds_alert;
+
+-- 청소 작업도 닫힌 판매 기간에는 깨우지 않는다.
+select private.sweep_restock_alerts();
+select 1 / case when (
+  select status = 'pending' from public.restock_alerts
+  where user_id = '00000000-0000-4000-8000-000000056701' and good_id = 'restock-variant-gate'
+) then 1 else 0 end as assert_sweep_respects_closed_sale_window;
+
+-- 13b. 판매 기간을 지금으로 당기는 편집은 굿즈 트리거가 바로 깨운다.
+update public.goods set sale_starts_at = now() - interval '1 hour', sale_ends_at = now() + interval '1 day'
+where id = 'restock-variant-gate';
+select 1 / case when (
+  (select status from public.restock_alerts
+    where user_id = '00000000-0000-4000-8000-000000056701' and good_id = 'restock-variant-gate') = 'notified'
+  and (select count(*) from public.notifications
+    where user_id = '00000000-0000-4000-8000-000000056701' and source_id = 'restock-variant-gate'
+      and link_path = '/shop/restock-variant-gate') = 1
+) then 1 else 0 end as assert_opening_sale_window_wakes_alert;
+
+-- 13c. 결제수단이 모두 닫힌 채 재고가 들어오면 깨우지 않고, 무통장을 다시 허용하면 깨운다.
+select private.change_goods_variant_stock('restock-variant-gate',
+  (select id from public.goods_variants where good_id = 'restock-variant-gate' and is_default), -3);
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000056702', true);
+select public.request_restock_alert('restock-variant-gate');
+reset role;
+update public.goods set allow_card_payment = false, allow_bank_transfer = false where id = 'restock-variant-gate';
+select private.change_goods_variant_stock('restock-variant-gate',
+  (select id from public.goods_variants where good_id = 'restock-variant-gate' and is_default), 2);
+select 1 / case when (
+  select status = 'pending' from public.restock_alerts
+  where user_id = '00000000-0000-4000-8000-000000056702' and good_id = 'restock-variant-gate'
+) then 1 else 0 end as assert_closed_payment_methods_hold_alert;
+update public.goods set allow_bank_transfer = true where id = 'restock-variant-gate';
+select 1 / case when (
+  (select status from public.restock_alerts
+    where user_id = '00000000-0000-4000-8000-000000056702' and good_id = 'restock-variant-gate') = 'notified'
+  and (select count(*) from public.notifications
+    where user_id = '00000000-0000-4000-8000-000000056702' and source_id = 'restock-variant-gate') = 1
+) then 1 else 0 end as assert_reopening_payment_method_wakes_alert;
+
+-- 13d. IP 가 비공개인 동안 재고가 들어오면 깨우지 않는다. IP 재공개는 굿즈 행을 바꾸지 않으므로 트리거가
+--      보지 못하고, 청소 작업이 깨운다. 두 번째 청소는 이 신청에 아무 일도 하지 않는다.
+select private.change_goods_variant_stock('restock-variant-gate',
+  (select id from public.goods_variants where good_id = 'restock-variant-gate' and is_default), -2);
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000056701', true);
+select public.request_restock_alert('restock-variant-gate');
+reset role;
+update public.ips set published_at = null where id = 'restock-variant-gate-ip';
+select private.change_goods_variant_stock('restock-variant-gate',
+  (select id from public.goods_variants where good_id = 'restock-variant-gate' and is_default), 2);
+update public.ips set published_at = now() where id = 'restock-variant-gate-ip';
+select 1 / case when (
+  select status = 'pending' from public.restock_alerts
+  where user_id = '00000000-0000-4000-8000-000000056701' and good_id = 'restock-variant-gate'
+) then 1 else 0 end as assert_ip_republish_alone_does_not_fire_trigger;
+select private.sweep_restock_alerts();
+select 1 / case when (
+  (select status from public.restock_alerts
+    where user_id = '00000000-0000-4000-8000-000000056701' and good_id = 'restock-variant-gate') = 'notified'
+  and (select count(*) from public.notifications
+    where user_id = '00000000-0000-4000-8000-000000056701' and source_id = 'restock-variant-gate') = 2
+) then 1 else 0 end as assert_sweep_wakes_after_ip_republish;
+select private.sweep_restock_alerts();
+select 1 / case when (
+  select count(*) = 2 from public.notifications
+  where user_id = '00000000-0000-4000-8000-000000056701' and source_id = 'restock-variant-gate'
+) then 1 else 0 end as assert_second_sweep_is_noop_for_woken_alert;
+
+-- 13e. 청소 작업은 대상이 아직 품절이면 깨우지 않는다(옵션 신청 기준).
+select private.change_goods_variant_stock('restock-variant-gate',
+  (select id from public.goods_variants where good_id = 'restock-variant-gate' and is_default), -2);
+set local role authenticated;
+select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000056702', true);
+select public.request_variant_restock_alert('restock-variant-gate',
+  (select id from public.goods_variants where good_id = 'restock-variant-gate' and is_default));
+reset role;
+select private.sweep_restock_alerts();
+select 1 / case when (
+  select status = 'pending' from public.restock_alerts
+  where user_id = '00000000-0000-4000-8000-000000056702' and good_id = 'restock-variant-gate'
+    and variant_id is not null
+) then 1 else 0 end as assert_sweep_skips_still_soldout_target;
 
 rollback;
