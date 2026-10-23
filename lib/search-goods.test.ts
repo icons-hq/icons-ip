@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import type { Good, Ip, Vertical } from '@/lib/data';
-import { SEARCH_GOODS_PAGE_SIZE, searchGoods } from './search-goods';
+import { SEARCH_GOODS_PAGE_SIZE, matchSearchGoods, searchGoods, searchPageWindow, selectSearchGoods } from './search-goods';
+import { parseShopSearchParams, type ShopListQuery } from './shop-catalog';
 
 const vertical: Vertical = { key: 'toy', label: '토이', color: '#111' };
 
@@ -137,5 +138,90 @@ describe('searchGoods 빈 질의', () => {
     expect(searchGoods(catalog, '', 1).total).toBe(0);
     expect(searchGoods(catalog, '   ', 1).total).toBe(0);
     expect(searchGoods(catalog, '', 1).items).toEqual([]);
+  });
+});
+
+describe('matchSearchGoods 와일드카드', () => {
+  /* 검색어의 % · _ 는 SQL 와일드카드가 아니라 글자 그대로다(검색 불변식). */
+  it('%·_ 를 글자 그대로 비교한다', () => {
+    const catalog = catalogOf([good('pct', { name: '100% 면 파우치' }), good('plain', { name: '면 파우치' }), good('under', { name: 'a_b 키링' })]);
+
+    expect(matchSearchGoods(catalog, '100%').map((item) => item.id)).toEqual(['pct']);
+    expect(matchSearchGoods(catalog, '%').map((item) => item.id)).toEqual(['pct']);
+    expect(matchSearchGoods(catalog, '_').map((item) => item.id)).toEqual(['under']);
+  });
+});
+
+describe('selectSearchGoods (SR-01)', () => {
+  const listQuery = (params: Record<string, string | string[]> = {}): ShopListQuery =>
+    parseShopSearchParams(params, { view: 'search', validIpIds: new Set(ips.map((item) => item.id)) });
+  const catalog = catalogOf([
+    good('rest', { name: '무관', ip: 'maple', type: '리락쿠마 세트', price: 7000 }),
+    good('ipGood', { name: '무관2', price: 5000 }),
+    good('name', { name: '리락쿠마 인형', type: '인형', price: 30000 }),
+    good('name2', { name: '리락쿠마 키링', price: 9000 }),
+    good('other', { name: '관계없음', ip: 'maple' }),
+  ]);
+
+  it('관련성 순서를 기본 정렬로 쓰고 facet·가격 상한은 필터 전 검색 스코프에서 센다', () => {
+    const collection = selectSearchGoods(catalog, '리락쿠마', listQuery(), 1);
+
+    expect(collection.result.goods.map((item) => item.id)).toEqual(['name', 'name2', 'ipGood', 'rest']);
+    expect(collection.result.total).toBe(4);
+    expect(collection.result.ipFacets).toEqual([
+      { value: 'rilakkuma', label: '리락쿠마', count: 3 },
+      { value: 'maple', label: '메이플스토리', count: 1 },
+    ]);
+    expect(collection.result.priceCeil).toBe(30000);
+  });
+
+  it('IP·타입·가격 필터와 가격 정렬을 굿즈샵과 같은 규칙으로 얹는다', () => {
+    const filtered = selectSearchGoods(catalog, '리락쿠마', listQuery({ type: '인형', sort: 'price_desc' }), 1);
+
+    expect(filtered.result.goods.map((item) => item.id)).toEqual(['name']);
+    expect(filtered.result.filteredTotal).toBe(1);
+    expect(filtered.result.total).toBe(4);
+    expect(selectSearchGoods(catalog, '리락쿠마', listQuery({ ip: 'rilakkuma', sort: 'price_asc' }), 1).result.goods.map((item) => item.id))
+      .toEqual(['ipGood', 'name2', 'name']);
+  });
+
+  it('페이지는 필터 뒤 개수로 세고 범위를 벗어나면 클램프한다', () => {
+    const many = catalogOf(Array.from({ length: SEARCH_GOODS_PAGE_SIZE + 5 }, (_, index) => good(`k${index}`, { name: `키링 ${index}`, price: index < 3 ? 1000 : 9000 })));
+
+    const all = selectSearchGoods(many, '키링', listQuery(), 2);
+    expect(all.pageCount).toBe(2);
+    expect(all.result.goods).toHaveLength(5);
+    expect(all.result.goods[0].id).toBe(`k${SEARCH_GOODS_PAGE_SIZE}`);
+
+    const narrowed = selectSearchGoods(many, '키링', listQuery({ max: '1000' }), 9);
+    expect(narrowed.pageCount).toBe(1);
+    expect(narrowed.page).toBe(1);
+    expect(narrowed.result.goods).toHaveLength(3);
+  });
+
+  it('빈 질의는 빈 스코프다', () => {
+    const empty = selectSearchGoods(catalog, '   ', listQuery(), 1);
+
+    expect(empty.result.total).toBe(0);
+    expect(empty.result.goods).toEqual([]);
+    expect(empty.pageCount).toBe(1);
+  });
+});
+
+describe('searchPageWindow (SR-03 · 11 §6 B8)', () => {
+  it('고정 창으로 셀을 자르고 이전·다음은 창 단위로 건너뛴다', () => {
+    expect(searchPageWindow(13, 30, 10)).toEqual({ start: 11, end: 20, prev: 10, next: 21 });
+    expect(searchPageWindow(7, 30, 5)).toEqual({ start: 6, end: 10, prev: 5, next: 11 });
+  });
+
+  it('더 갈 창이 없으면 첫·마지막 페이지로 보내고, 이미 거기면 화살표를 없앤다', () => {
+    expect(searchPageWindow(3, 7, 10)).toEqual({ start: 1, end: 7, prev: 1, next: 7 });
+    expect(searchPageWindow(1, 7, 10)).toEqual({ start: 1, end: 7, prev: null, next: 7 });
+    expect(searchPageWindow(7, 7, 10)).toEqual({ start: 1, end: 7, prev: 1, next: null });
+  });
+
+  it('URL 쓰레기 페이지도 창 안으로 클램프한다', () => {
+    expect(searchPageWindow(Number.NaN, 30, 10).start).toBe(1);
+    expect(searchPageWindow(99, 30, 10)).toEqual({ start: 21, end: 30, prev: 20, next: null });
   });
 });

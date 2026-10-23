@@ -2498,26 +2498,50 @@
 }
 
 /* ------------------------------------------------------------------
-   검색 결과
+   검색 결과 (R-03 §2 · 11 SR-01~03)
    ------------------------------------------------------------------ */
 
 .wc-search-results {
   padding-block: 24px 96px;
 }
 
-/* 헤딩(좌)과 재검색 인풋(우)이 같은 밴드에 산다. 모바일은 세로로 접힌다(R-03 §2.2·§2.6). */
+/* 헤딩(좌)과 재검색 인풋(우)이 한 밴드에 산다(SR-02). 결과 그리드가 있는 모바일은 레퍼런스처럼
+   둘을 걷어 내고 필터·정렬 줄로 바로 시작한다 — 제목은 시각만 숨겨 스크린리더가 여전히 읽고,
+   인풋은 헤더 검색으로 대신한다(포커스가 숨은 칸에 들어가지 않게 display 로 뺀다). */
 .wc-search-results__head {
   margin-bottom: 32px;
 }
 
-/* 질의어·건수 강조는 색이 아니라 잉크 굵기다 — 레퍼런스의 핑크 강조를 옮기지 않는다. */
+.wc-search-results__head.has-results {
+  margin-bottom: 0;
+}
+
+.wc-search-results__head.has-results .wc-search-results__heading {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  margin: -1px;
+  padding: 0;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  clip-path: inset(50%);
+  white-space: nowrap;
+  border: 0;
+}
+
+.wc-search-results__head.has-results .wc-search-results__form {
+  display: none;
+}
+
+/* 24/400(레퍼런스 실측, 자간 -0.2). 질의어·건수 강조는 색이 아니라 잉크 굵기다 —
+   레퍼런스의 핑크 강조를 옮기지 않고 액센트 사용처(DESIGN §2 전수 목록)도 늘리지 않는다. */
 .wc-search-results__heading {
   margin: 0 0 24px;
   font-family: inherit;
   font-size: 24px;
   font-weight: 400;
   line-height: 1.33;
-  letter-spacing: -.8px;
+  letter-spacing: -.2px;
   color: var(--wc-ink);
 }
 
@@ -2526,19 +2550,19 @@
   color: var(--wc-ink);
 }
 
+/* 보더 없는 grey 필드 + 칸 안 왼쪽 돋보기(레퍼런스 인라인 인풋 435×50). 돋보기는 44px 제출 버튼이다. */
 .wc-search-results__form {
+  position: relative;
   display: flex;
-  gap: 8px;
   margin-top: 16px;
 }
 
-/* 오버레이 인풋과 같은 문법이다 — 보더 없는 grey 필드(DESIGN §6 버튼·인풋 기본형).
-   editorial 파운데이션의 `:where(input)` 규칙이 48px·12px 라운드를 얹으므로 되돌린다. */
+/* editorial 파운데이션의 `:where(input)` 규칙이 48px·12px 라운드를 얹으므로 되돌린다. */
 .wc-search-results__input {
   flex: 1;
   min-width: 0;
   min-height: 50px;
-  padding: 0 16px;
+  padding: 0 16px 0 48px;
   font-family: inherit;
   font-size: 16px;
   -webkit-appearance: none;
@@ -2552,21 +2576,20 @@
 }
 
 .wc-search-results__submit {
-  flex: none;
-  height: 50px;
-  padding: 0 20px;
-  font-family: inherit;
-  font-size: 15px;
-  font-weight: 700;
-  border: 1px solid var(--wc-ink);
-  border-radius: var(--wc-radius-form);
-  background: var(--wc-ink);
-  color: #FFFFFF;
+  position: absolute;
+  top: 3px;
+  left: 4px;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--wc-ink-tertiary);
   cursor: pointer;
-}
-
-.wc-search-results__grid {
-  margin-top: 24px;
 }
 
 /* 굿즈가 주 결과이고 IP·카드·포스트는 그 아래 보조 섹션이다. */
@@ -2642,27 +2665,45 @@
 }
 
 @media (min-width: 990px) {
-  .wc-search-results__head {
+  .wc-search-results__head,
+  .wc-search-results__head.has-results {
     display: flex;
     align-items: center;
     justify-content: space-between;
     gap: 40px;
+    margin-bottom: 40px;
+  }
+
+  .wc-search-results__head.has-results .wc-search-results__heading {
+    position: static;
+    width: auto;
+    height: auto;
+    margin: 0;
+    overflow: visible;
+    clip: auto;
+    clip-path: none;
+    white-space: normal;
   }
 
   .wc-search-results__heading {
     margin-bottom: 0;
   }
 
-  /* 433.5px 인라인 인풋(R-03 §2.2) — 헤딩과 같은 줄에서 폭을 고정한다. */
-  .wc-search-results__form {
+  /* 435px 인라인 인풋(R-03 §2.2) — 헤딩과 같은 줄에서 폭을 고정한다. */
+  .wc-search-results__form,
+  .wc-search-results__head.has-results .wc-search-results__form {
+    display: flex;
     flex: none;
-    width: 434px;
+    width: 435px;
     margin-top: 0;
   }
 }
 
+/* 숫자 페이지네이션 — 셀 36, 현재 700. 넓은 창(10칸) 밖 셀·화살표는 767px 이하에서 감추고
+   좁은 창(5칸) 전용 화살표는 768px 이상에서 감춘다(SR-03 · 11 §6 B8). */
 .wc-pagination {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   justify-content: center;
   gap: 4px;
@@ -2705,6 +2746,18 @@
   min-width: 36px;
   height: 36px;
   color: var(--wc-ink-disabled);
+}
+
+@media (max-width: 767px) {
+  .wc-pagination .is-wide {
+    display: none;
+  }
+}
+
+@media (min-width: 768px) {
+  .wc-pagination .is-narrow {
+    display: none;
+  }
 }
 
 /* ------------------------------------------------------------------

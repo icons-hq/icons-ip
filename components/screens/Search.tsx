@@ -1,32 +1,37 @@
+'use client';
+
 import Link from 'next/link';
 import { Icon } from '@/components/ui/Icon';
+import { CollectionBrowser } from '@/components/shop/CollectionBrowser';
+import { shopQueryString } from '@/components/shop/collection-filters';
 import { EmptyState } from '@/components/wc/EmptyState';
-import { ProductCard } from '@/components/wc/ProductCard';
 import { GoodsSalePeriodRefresh } from '@/components/shop/GoodsSalePeriodRefresh';
 import { SectionHeading } from '@/components/wc/SectionHeading';
 import { COMMUNITY_ENABLED } from '@/lib/community-visibility';
 import { publicIpHref } from '@/lib/ip-identity';
-import type { Ip } from '@/lib/data';
-import { goodDisplayBadges } from '@/lib/goods-taxonomy';
-import type { GoodsSearchResult } from '@/lib/search-goods';
+import type { ListingWishlist } from '@/lib/listing-wishlist';
+import { SEARCH_PAGE_WINDOW, searchPageWindow, type SearchGoodsCollection } from '@/lib/search-goods';
 import type { SearchResult, SearchResultGroup, SearchSnapshot } from '@/lib/search';
 import { SUGGESTED_SEARCH_TERMS } from '@/lib/search-terms';
+import { SHOP_VIEW_SORTS, type ShopListQuery } from '@/lib/shop-catalog';
 
 export interface SearchProps {
-  /** 통합 검색 스냅샷. 굿즈 그룹은 쓰지 않는다 — goodsResult 가 대체한다. */
+  /** 통합 검색 스냅샷. 굿즈 그룹은 쓰지 않는다 — goods 가 대체한다. */
   snapshot: SearchSnapshot;
-  goodsResult: GoodsSearchResult;
+  /** 필터·정렬이 걸린 굿즈 결과 한 페이지(lib/search-goods selectSearchGoods). */
+  goods: SearchGoodsCollection;
+  /** 정규화된 검색어. */
   query: string;
-  /** 카드 브랜드 줄(IP 제목) 룩업용 — 굿즈샵 그리드와 같은 카드 anatomy 를 지킨다. */
-  ips: Ip[];
+  /** 사이드바·정렬 상태(view 'search'). */
+  listQuery: ShopListQuery;
+  /** 목록 하트의 초기 상태. 생략하면 하트를 그리지 않는다. */
+  wishlist?: ListingWishlist | null;
 }
 
-/* 데스크톱 페이저에 한 번에 노출할 숫자 셀 수 (R-03 §2.4 — 최대 10개 + 말줄임). */
-const PAGE_WINDOW = 10;
-
-function searchHref(query: string, page: number) {
-  const base = `/search?q=${encodeURIComponent(query)}`;
-  return page <= 1 ? base : `${base}&page=${page}`;
+/** 검색어 → 필터·정렬 → 페이지 순서로 싣는다. 검색어는 칩 링크와 같은 인코딩(encodeURIComponent)을 쓴다. */
+export function searchResultsHref(query: string, listQuery: ShopListQuery | null, page: number) {
+  const filters = listQuery ? shopQueryString(listQuery) : '';
+  return `/search?q=${encodeURIComponent(query)}${filters ? `&${filters}` : ''}${page > 1 ? `&page=${page}` : ''}`;
 }
 
 /** 결과 클릭은 목록이 아니라 실제 상세로 간다 — 구 화면의 '굿즈 → /shop' 은 버그였다. */
@@ -38,62 +43,70 @@ function resultHref(result: SearchResult) {
   return `/shop/${result.id}`;
 }
 
-/* 현재 페이지를 가운데 두고 최대 PAGE_WINDOW 개를 자른다. 양 끝에서는 창이 안쪽으로
-   밀려 항상 같은 개수를 유지한다 — 마지막 페이지에서 셀이 하나만 남는 일이 없다. */
-function pageWindow(page: number, pageCount: number) {
-  const size = Math.min(PAGE_WINDOW, pageCount);
-  const start = Math.min(Math.max(page - Math.floor(size / 2), 1), pageCount - size + 1);
-  return Array.from({ length: size }, (_, index) => start + index);
-}
-
 function SuggestedTerms() {
   return (
     <div className="wc-search__chips">
       <p className="wc-search__chips-label">추천 검색어</p>
       {SUGGESTED_SEARCH_TERMS.map((term) => (
-        <Link key={term} className="wc-search__chip" href={searchHref(term, 1)}>{term}</Link>
+        <Link key={term} className="wc-search__chip" href={searchResultsHref(term, null, 1)}>{term}</Link>
       ))}
     </div>
   );
 }
 
-function Pagination({ page, pageCount, query }: { page: number; pageCount: number; query: string }) {
+/*
+ * 숫자 페이지네이션(R-03 §2.4 · 11 §6 B8 · SR-03) — 데스크톱 10칸·767px 이하 5칸의 고정 창이고,
+ * 이전·다음은 창 단위로 건너뛴다. 셀은 넓은 창 하나만 그리고 좁은 창 밖의 셀은 모바일에서 감춘다.
+ * 두 창의 화살표 목적지가 다를 때만 화살표를 둘 그려 폭마다 하나씩 보인다(감춘 쪽은 접근성 트리에서도 빠진다).
+ */
+function Pagination({ hrefFor, page, pageCount }: { hrefFor: (page: number) => string; page: number; pageCount: number }) {
   if (pageCount <= 1) return null;
 
-  const cells = pageWindow(page, pageCount);
-  const hasPrev = page > 1;
-  const hasNext = page < pageCount;
+  const wide = searchPageWindow(page, pageCount, SEARCH_PAGE_WINDOW.wide);
+  const narrow = searchPageWindow(page, pageCount, SEARCH_PAGE_WINDOW.narrow);
+  const cells = Array.from({ length: wide.end - wide.start + 1 }, (_, index) => wide.start + index);
+  const arrow = (target: number | null, label: string, glyph: string, scope?: 'wide' | 'narrow') => (
+    target === null ? null : (
+      <Link
+        key={`${label}-${scope ?? 'all'}`}
+        aria-label={label}
+        className={`wc-pagination__arrow${scope ? ` is-${scope}` : ''}`}
+        href={hrefFor(target)}
+      >
+        {glyph}
+      </Link>
+    )
+  );
+  const windowArrow = (wideTarget: number | null, narrowTarget: number | null, label: string, glyph: string) => (
+    wideTarget === narrowTarget
+      ? arrow(wideTarget, label, glyph)
+      : [arrow(wideTarget, label, glyph, 'wide'), arrow(narrowTarget, label, glyph, 'narrow')]
+  );
+  const ellipsis = (wideShown: boolean, narrowShown: boolean, key: string) => {
+    if (!wideShown && !narrowShown) return null;
+    const scope = wideShown && narrowShown ? '' : wideShown ? ' is-wide' : ' is-narrow';
+    return <span key={key} aria-hidden className={`wc-pagination__ellipsis${scope}`}>…</span>;
+  };
 
   return (
     <nav aria-label="검색 결과 페이지" className="wc-pagination">
-      {/* 첫/마지막 페이지에서 제자리로 돌아오는 화살표는 죽은 링크라 아예 그리지 않는다. */}
-      {hasPrev ? (
-        <>
-          <Link aria-label="첫 페이지" className="wc-pagination__arrow" href={searchHref(query, 1)}>«</Link>
-          <Link aria-label="이전 페이지" className="wc-pagination__arrow" href={searchHref(query, page - 1)}>‹</Link>
-        </>
-      ) : null}
-      {cells[0] > 1 ? <span aria-hidden className="wc-pagination__ellipsis">…</span> : null}
+      {page > 1 ? arrow(1, '첫 페이지', '«') : null}
+      {windowArrow(wide.prev, narrow.prev, '이전 페이지', '‹')}
+      {ellipsis(wide.start > 1, narrow.start > 1, 'before')}
       {cells.map((cell) => (
         <Link
           key={cell}
           aria-current={cell === page ? 'page' : undefined}
           aria-label={`${cell}페이지`}
-          className="wc-pagination__cell"
-          href={searchHref(query, cell)}
+          className={`wc-pagination__cell${cell < narrow.start || cell > narrow.end ? ' is-wide' : ''}`}
+          href={hrefFor(cell)}
         >
           {cell}
         </Link>
       ))}
-      {cells[cells.length - 1] < pageCount ? (
-        <span aria-hidden className="wc-pagination__ellipsis">…</span>
-      ) : null}
-      {hasNext ? (
-        <>
-          <Link aria-label="다음 페이지" className="wc-pagination__arrow" href={searchHref(query, page + 1)}>›</Link>
-          <Link aria-label="마지막 페이지" className="wc-pagination__arrow" href={searchHref(query, pageCount)}>»</Link>
-        </>
-      ) : null}
+      {ellipsis(wide.end < pageCount, narrow.end < pageCount, 'after')}
+      {windowArrow(wide.next, narrow.next, '다음 페이지', '›')}
+      {page < pageCount ? arrow(pageCount, '마지막 페이지', '»') : null}
     </nav>
   );
 }
@@ -120,67 +133,67 @@ function AsideGroup({ group }: { group: SearchResultGroup }) {
   );
 }
 
-export function Search({ goodsResult, ips, query, snapshot }: SearchProps) {
-  const ipTitleById = new Map(ips.map((ip) => [ip.id, ip.title]));
+/*
+ * 검색 결과 (R-03 §2, LFS 패리티 2차 L4 · SR-01~03).
+ * 굿즈는 굿즈샵과 같은 컬렉션 본문(사이드바·'전체 › N개 결과'·관련성 정렬·모바일 필터)으로 그리고,
+ * IP·카드·포스트 같은 통합 검색 결과는 그 아래 보조 섹션으로 유지한다(커뮤니티 노출 게이트 그대로).
+ * 제목과 재검색 인풋은 데스크톱 한 줄이다. 결과 그리드가 있는 모바일에서는 레퍼런스처럼 둘을 걷어
+ * 내고(제목은 읽기 전용으로 남긴다) 필터·정렬 줄로 바로 시작한다.
+ */
+export function Search({ goods, listQuery, query, snapshot, wishlist }: SearchProps) {
   /* 굿즈 그룹만 자체 결과로 대체하고 나머지 그룹은 보조 섹션으로 남긴다. */
   const asideGroups = snapshot.groups.filter((group) => group.kind !== 'good');
   const hasQuery = query.length > 0;
+  const total = goods.result.total;
 
   return (
     <div className="wc-root wc-search-results">
-      <GoodsSalePeriodRefresh goods={goodsResult.items} />
+      <GoodsSalePeriodRefresh goods={goods.result.goods} />
       <div className="wc-container">
-        <h1 className="wc-search-results__heading">
-          {hasQuery ? (
-            <>
-              <strong>{`'${query}'`}</strong>
-              {` 검색 결과 `}
-              <strong>{`${goodsResult.total}개`}</strong>
-            </>
-          ) : (
-            '무엇을 찾고 있나요?'
-          )}
-        </h1>
-        {/* JS 없이도 성립해야 하는 화면이라 폼 제출로만 질의를 바꾼다. 인풋 지면은 오버레이와 공유한다. */}
-        <form
-          action="/search"
-          className="wc-search-results__form wc-search__form"
-          method="get"
-          role="search"
-        >
-          <input
-            aria-label="검색어"
-            className="wc-search__input"
-            defaultValue={query}
-            name="q"
-            placeholder={COMMUNITY_ENABLED ? 'IP · 굿즈 · 카드 · 포스트 통합 검색' : 'IP · 굿즈 · 카드 통합 검색'}
-            type="search"
-          />
-          <button aria-label="검색" className="wc-icon-btn" type="submit">
-            <Icon name="search" size={24} />
-          </button>
-        </form>
+        <div className={`wc-search-results__head${total > 0 ? ' has-results' : ''}`}>
+          <h1 className="wc-search-results__heading">
+            {hasQuery ? (
+              <>
+                <strong>{`'${query}'`}</strong>
+                {` 검색 결과 `}
+                <strong>{`${total}개`}</strong>
+              </>
+            ) : (
+              '무엇을 찾고 있나요?'
+            )}
+          </h1>
+          {/* JS 없이도 성립해야 하는 화면이라 폼 제출로만 질의를 바꾼다. 새 검색어는 필터를 비우고 1페이지부터다. */}
+          <form action="/search" className="wc-search-results__form" method="get" role="search">
+            <button aria-label="검색" className="wc-search-results__submit" type="submit">
+              <Icon name="search" size={20} />
+            </button>
+            <input
+              aria-label="검색어"
+              className="wc-search-results__input"
+              defaultValue={query}
+              name="q"
+              placeholder={COMMUNITY_ENABLED ? 'IP · 굿즈 · 카드 · 포스트 통합 검색' : 'IP · 굿즈 · 카드 통합 검색'}
+              type="search"
+            />
+          </form>
+        </div>
 
-        {goodsResult.total > 0 ? (
-          <>
-            <div className="wc-product-grid wc-search-results__grid">
-              {goodsResult.items.map((good) => (
-                <ProductCard
-                  key={good.id}
-                  listSurface="standard" listingAppearance={good.listingAppearance} cartGood={good}
-                  badges={goodDisplayBadges(good)}
-                  brand={ipTitleById.get(good.ip) ?? null}
-                  showDiscountRate={good.showDiscountRate} compareAtPrice={good.compareAtPrice}
-                  href={`/shop/${good.id}`}
-                  imageBackground={good.img}
-                  name={good.name}
-                  price={good.price} priceMax={good.priceMax}
-                  salePeriod={good.salePeriod} soldOut={good.stock === 'soldout' || good.stockQty <= 0}
-                />
-              ))}
-            </div>
-            <Pagination page={goodsResult.page} pageCount={goodsResult.pageCount} query={query} />
-          </>
+        {total > 0 ? (
+          <CollectionBrowser
+            countNoun="결과"
+            hrefFor={(next) => searchResultsHref(query, next, 1)}
+            pager={(
+              <Pagination
+                hrefFor={(page) => searchResultsHref(query, listQuery, page)}
+                page={goods.page}
+                pageCount={goods.pageCount}
+              />
+            )}
+            query={listQuery}
+            result={goods.result}
+            sorts={SHOP_VIEW_SORTS.search}
+            wishlist={wishlist}
+          />
         ) : (
           /* 레퍼런스는 빈 결과에서 회복 동선을 전부 걷어냈다(R-03 §4-7). 추천 칩을 다시 붙인다. */
           <div className="wc-search-results__empty">

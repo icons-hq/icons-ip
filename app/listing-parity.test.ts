@@ -99,3 +99,26 @@ describe('목록 하트 (11 CL-01 · 12 LD-4)', () => {
     expect(decls(CATALOG, '.wc-list-heart.is-active').color).toBe('var(--wc-accent)');
   });
 });
+
+describe('검색 결과 머리 (11 SR-02) · 페이지 창 (SR-03)', () => {
+  it('데스크톱은 24/400 제목과 435px 인풋이 한 줄이다', () => {
+    const head = decls(CATALOG, '.wc-search-results__head', DESKTOP);
+
+    expect(head.display).toBe('flex');
+    expect(head['justify-content']).toBe('space-between');
+    expect(decls(CATALOG, '.wc-search-results__form', DESKTOP).width).toBe('435px');
+    expect(decls(CATALOG, '.wc-search-results__heading')['font-size']).toBe('24px');
+    expect(decls(CATALOG, '.wc-search-results__heading')['font-weight']).toBe('400');
+    expect(decls(CATALOG, '.wc-search-results__heading')['letter-spacing']).toBe('-.2px');
+  });
+
+  it('결과가 있는 모바일은 제목을 시각만 숨기고 인풋은 포커스에서도 뺀다', () => {
+    expect(decls(CATALOG, '.wc-search-results__head.has-results .wc-search-results__heading').clip).toBe('rect(0, 0, 0, 0)');
+    expect(decls(CATALOG, '.wc-search-results__head.has-results .wc-search-results__form').display).toBe('none');
+  });
+
+  it('767px 이하는 넓은 창 표식을, 768px 이상은 좁은 창 표식을 감춘다', () => {
+    expect(decls(CATALOG, '.wc-pagination .is-wide', '(max-width: 767px)').display).toBe('none');
+    expect(decls(CATALOG, '.wc-pagination .is-narrow', '(min-width: 768px)').display).toBe('none');
+  });
+});
