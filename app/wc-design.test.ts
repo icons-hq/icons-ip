@@ -537,6 +537,18 @@ describe('White Catalog campaign wiring', () => {
     /* 고정 높이를 숫자로 박아 두면 셸 높이가 바뀔 때 이 지면만 어긋난다. */
     expect(css).not.toMatch(/top:\s*(?:81|68|69|52)px/);
   });
+
+  it('lands anchored sections right on the nav line, not in a gap below it', () => {
+    /* 착지선 = 고정 크롬 + 앵커 내브(안쪽 48 + 하단 선 1). 목차 클릭은 CampaignAnchorNav 가 같은 선에
+     * 맞추고(campaign-anchor-scroll), scroll-margin-top 은 브라우저가 직접 옮기는 경우의 같은 정의다.
+     * 선 아래 틈을 두면 그 사이로 앞 블록의 끝(이동 버튼 아랫단)이 비친다. */
+    const css = read('./styles/wc-campaign.css');
+
+    expect(css).toMatch(/\.wc-campaign-nav\s*\{[^}]*border-bottom:\s*1px/s);
+    expect(css).toMatch(/\.wc-campaign-nav__inner\s*\{[^}]*height:\s*48px/s);
+    expect(css).toMatch(/\.wc-campaign-section\s*\{[^}]*scroll-margin-top:\s*calc\(var\(--wc-sticky-chrome-h,\s*81px\)\s*\+\s*49px\)/s);
+    expect(css).toMatch(/@media \(min-width: 990px\)\s*\{[^@]*\.wc-campaign-section\s*\{[^}]*scroll-margin-top:\s*calc\(var\(--wc-sticky-chrome-h,\s*68px\)\s*\+\s*49px\)/s);
+  });
 });
 
 describe('White Catalog offline popup wiring', () => {

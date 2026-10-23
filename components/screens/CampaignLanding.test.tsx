@@ -131,6 +131,16 @@ describe('CampaignLanding', () => {
     expect(html).toContain('id="campaign-section-1"');
   });
 
+  /* 목차로 이동하면 포커스가 섹션 제목으로 온다(CampaignAnchorNav) — 기본 해시 이동이 옮기던
+     '이어 읽을 자리'다. 제목은 탭 순서에 끼어들지 않는다. */
+  it('앵커 섹션 제목을 탭 순서 밖의 포커스 대상으로 둔다', () => {
+    const html = render();
+
+    expect(html).toContain('<h2 class="wc-campaign-section__heading" tabindex="-1">유의사항</h2>');
+    expect(html.match(/class="wc-campaign-section__heading" tabindex="-1"/g)).toHaveLength(4);
+    expect(html).not.toMatch(/wc-campaign-section__heading"[^>]*tabindex="0"/);
+  });
+
   it('로그인 상태에서는 잔액과 교환 비용을 노출한다', () => {
     const html = render();
 

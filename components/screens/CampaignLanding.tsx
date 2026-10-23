@@ -247,8 +247,9 @@ export function CampaignLanding({
               id={campaignSectionDomId(index)}
               key={campaignSectionDomId(index)}
             >
+              {/* 목차로 이동하면 포커스가 이 제목으로 온다(CampaignAnchorNav) — 탭 순서에는 넣지 않는다. */}
               {section.anchor ? (
-                <h2 className="wc-campaign-section__heading">{section.anchor}</h2>
+                <h2 className="wc-campaign-section__heading" tabIndex={-1}>{section.anchor}</h2>
               ) : null}
               <SectionBody
                 context={context}
