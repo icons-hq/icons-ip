@@ -206,7 +206,7 @@ layout:
   pdp-columns: "갤러리 649 : 정보 531 (정보 콘텐츠 446px)"
   cart-columns: "아이템 780 + 요약 aside 360"
   auth-column: "플랫 448px 1칼럼"
-  mypage: "프로필 스트립(surface.grey) + 좌 메뉴 200px + 콘텐츠"
+  mypage: "1212 컨테이너(위 40·아래 100): 프로필 스트립(/my 전용, 620+276×2·높이 120) + 좌 메뉴 200 + 거터 60 + 콘텐츠 920"
   header: { notice: "텍스트 공지 바 47px(문구 13 · 잉크 버튼 23 · 닫기 44) 위에 이미지 스트립 ≈36px/60px(mo), 둘 다 유틸바 위 스크롤 아웃(sticky 아님)", tiers: "유틸바+로고단+GNB", sticky-condensed: "데스크톱 69px 로고+아이콘 단일 바(로고 행 68 + 하단 1px), 모바일·태블릿 52px GNB 탭 행(51 + 1px) — 표면 sticky 요소는 --wc-sticky-chrome-h 아래에 붙는다(데스크톱 헤더가 펼친 동안은 123, top 전환 .3s)", anchor-landing: "해시 이동·scrollIntoView 착지선 = html scroll-padding-top(globals.css, 크롬과 같은 높이 · 어드민 상단바 55) + 대상 scroll-margin-top(표면 sticky 하위 내브·여백만, 크롬 높이를 다시 더하지 않는다)" }
   buybar-mobile: "높이 72px 고정 풀폭"
   touch-target: "아이콘 44px, 버튼 h50"
