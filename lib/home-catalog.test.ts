@@ -38,6 +38,24 @@ it('게이트가 꺼지면 카드팩·게임으로 가는 혜택 타일만 걸�
   expect(curation.benefitTiles).toHaveLength(4);
 });
 
+/* 커뮤니티 노출 게이트는 카드 리워드 게이트와 별개다 — 혜택 타일도 다른 큐레이션처럼 커뮤니티 목적지를 거른다.
+   게이트 OFF(홈 순서: 카드 → 커뮤니티)와 게이트 ON 두 경로 모두에서 커뮤니티 타일이 남지 않아야 한다. */
+it('커뮤니티가 닫히면 커뮤니티로 가는 혜택 타일도 카드 게이트와 무관하게 걸러낸다', () => {
+  const curation: HomeCurationSnapshot = { hero: null, announcement: null, featuredIpIds: [], heroSlides: [], editorPicks: [], goodsBands: [], categoryBestTabs: [], popularTabs: [],
+    benefitTiles: [
+      { id: 'community-events', title: '팬 이벤트', description: null, href: '/community/events' },
+      { id: 'community', title: '커뮤니티', description: null, href: '/community' },
+      { id: 'packs', title: '카드팩', description: null, href: '/packs' },
+      { id: 'coupon', title: '쿠폰', description: null, href: '/events/first' },
+      { id: 'lookalike', title: '비슷한 경로', description: null, href: '/communitylike' },
+      { id: 'broken', title: '깨진 링크', description: null, href: 'http://[' },
+    ] };
+
+  expect(withoutCommunityCurations(withoutCardRewardCurations(curation)).benefitTiles.map((tile) => tile.id)).toEqual(['coupon', 'lookalike']);
+  expect(withoutCommunityCurations(curation).benefitTiles.map((tile) => tile.id)).toEqual(['packs', 'coupon', 'lookalike']);
+  expect(curation.benefitTiles).toHaveLength(6);
+});
+
 it('혜택 타일 아이콘은 목적지에서 ICONS 아이콘 이름으로 고른다', () => {
   expect(benefitTileIcon('/packs')).toBe('card');
   expect(benefitTileIcon('/packs/season-1')).toBe('card');

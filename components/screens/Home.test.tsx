@@ -377,6 +377,26 @@ describe('Home bands', () => {
     expect(html).not.toContain('href="/games/reward"');
   });
 
+  /* 커뮤니티 임시 비공개(COMMUNITY_ENABLED=false) 동안에는 커뮤니티로 가는 혜택 타일도 그리지 않는다 —
+     비스태프가 누르면 404 다. 카드 게이트가 꺼져 있든 켜져 있든 같다. */
+  it('hides community-destination benefit tiles while the community is closed', () => {
+    const curation: HomeCurationSnapshot = {
+      ...fullCuration,
+      benefitTiles: [
+        { id: 'fan', title: '팬 커뮤니티 이벤트', description: null, href: '/community/events' },
+        { id: 'first', title: '첫 구매 혜택', description: null, href: '/events/first' },
+      ],
+    };
+
+    for (const gate of [false, true]) {
+      const html = render(curation, gate);
+      expect(html).toContain('href="/events/first"');
+      expect(html).not.toContain('팬 커뮤니티 이벤트');
+      expect(html).not.toContain('href="/community/events"');
+    }
+    expect(render({ ...curation, benefitTiles: [curation.benefitTiles[0]] }, false)).not.toContain('home-benefit-heading');
+  });
+
   it('drops the benefit band when the gate is on but no tile is curated', () => {
     expect(render({ ...fullCuration, benefitTiles: [] })).not.toContain('home-benefit-heading');
   });

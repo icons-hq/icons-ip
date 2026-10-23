@@ -126,13 +126,18 @@ export function isCommunityDestination(href: string): boolean {
   }
 }
 
-/** 커뮤니티가 닫힌 화면이 커뮤니티 목적지 큐레이션을 통째로 걸러낼 때 쓴다. */
+/**
+ * 커뮤니티가 닫힌 화면이 커뮤니티 목적지 큐레이션을 통째로 걸러낼 때 쓴다.
+ * 혜택 타일도 같다 — 카드 리워드 게이트가 혜택 밴드를 통째로 비우던 동안에는 게이트 OFF 화면에서 이 구멍이
+ * 가려졌지만, 목적지 기준 게이트(12 LD-15)로 바뀐 뒤에는 커뮤니티로 가는 혜택 타일이 남아 404 로 떨어진다.
+ */
 export function withoutCommunityCurations(curation: HomeCurationSnapshot): HomeCurationSnapshot {
   return {
     ...curation,
     heroSlides: curation.heroSlides.filter((slide) => slide.href === null || !isCommunityDestination(slide.href)),
     editorPicks: curation.editorPicks.filter((pick) => !isCommunityDestination(pick.href)),
     goodsBands: curation.goodsBands.filter((band) => !isCommunityDestination(band.href)),
+    benefitTiles: curation.benefitTiles.filter((tile) => !isCommunityDestination(tile.href)),
   };
 }
 
