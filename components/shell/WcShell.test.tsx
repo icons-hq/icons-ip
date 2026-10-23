@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { COMMUNITY_ENABLED } from '@/lib/community-visibility';
 import { SUGGESTED_SEARCH_TERMS, searchPlaceholder } from '@/lib/search-terms';
 import type { StorefrontNavigation } from '@/lib/store-navigation';
+import type { StorefrontMegaMenus } from '@/lib/storefront-mega-menu';
 import { BottomTabBar } from './BottomTabBar';
 import { Nav } from './Nav';
 import { MenuSheet } from './MenuSheet';
@@ -32,12 +33,30 @@ vi.mock('@/app/login/actions', () => ({ signOutAction: vi.fn() }));
 vi.mock('@/lib/auth/onboarding', () => ({ nextPathWithSearch: () => '/' }));
 vi.mock('@/lib/supabase/client', () => ({ createClient: () => ({ from: vi.fn() }) }));
 
-/* 메가 패널(div#wc-mega-category)만 잘라 낸다 — 안에는 div가 더 없어 첫 닫는 div가 패널의 끝이다. */
-function megaMarkup(html: string) {
-  const start = html.indexOf('id="wc-mega-category"');
+/* 메가 패널(div#wc-mega-category · div#wc-mega-online-popup)만 잘라 낸다 — 안에는 div가 더 없어 첫 닫는 div가 패널의 끝이다. */
+function megaMarkup(html: string, panelId = 'wc-mega-category') {
+  const start = html.indexOf(`id="${panelId}"`);
   expect(start).toBeGreaterThan(-1);
   return html.slice(start, html.indexOf('</div>', start));
 }
+
+const nodeId = (n: number) => `94932000-0000-4000-8000-${String(n).padStart(12, '0')}`;
+/* 공개 전시 트리가 있는 셸(L5) — 고객 카테고리 공개 스위치 ON + 공개 전시 3개, 진행 중 기획전 1개, 피처드 IP 3개. */
+const LIVE_MENUS: StorefrontMegaMenus = {
+  categories: [
+    { id: nodeId(1), parentId: null, name: '토이', depth: 1, imageUrl: null, navigable: false },
+    { id: nodeId(2), parentId: nodeId(1), name: '피규어', depth: 2, imageUrl: 'https://cdn.example/icon.png', navigable: true },
+    { id: nodeId(3), parentId: nodeId(1), name: '라이프', depth: 2, imageUrl: null, navigable: false },
+    { id: nodeId(4), parentId: nodeId(3), name: '머그', depth: 3, imageUrl: null, navigable: true },
+    { id: nodeId(5), parentId: null, name: '시즌', depth: 1, imageUrl: null, navigable: true },
+  ],
+  campaigns: [{ id: 'fall-drop', title: '가을 기획전', imageUrl: null }],
+  featuredIps: [
+    { id: 'maple', name: 'MapleStory', href: '/ip/maple', imageBg: 'url("https://cdn.example/maple.webp") center / cover no-repeat' },
+    { id: 'hongsil', name: 'Hong Sil', href: '/ip/hongsil', imageBg: null },
+    { id: 'third', name: 'Third IP', href: '/ip/third', imageBg: null },
+  ],
+};
 
 beforeEach(() => {
   mocks.cardRewardsEnabled = true;
@@ -408,5 +427,81 @@ describe('White Catalog 전역 셸', () => {
     expect(html).toContain('wc-utilbar__placeholder');
     expect(html).not.toContain('로그인');
     expect(html).not.toContain('로그아웃');
+  });
+});
+
+/* LFS 패리티 2차 L5 — 카테고리·온라인 팝업 메가메뉴(CH-05·CH-07)와 모바일 카테고리 탭 진입(MC-05). */
+describe('카테고리 내비게이션 (L5)', () => {
+  it('공개 전시 트리가 있으면 메가메뉴가 굿즈샵 바로가기 · 기획전 | 세로선 | 전시분류 그룹이 된다', () => {
+    const mega = megaMarkup(renderToStaticMarkup(<Nav megaMenus={LIVE_MENUS} />));
+
+    expect(mega).toContain('wc-mega__list--catalog');
+    expect(mega).not.toContain('wc-mega__list--compact');
+    /* 순서: 굿즈샵 → 기획전 → (세로선 칸) 전시분류. */
+    expect(mega.indexOf('>굿즈샵<')).toBeLessThan(mega.indexOf('>기획전<'));
+    expect(mega.indexOf('>기획전<')).toBeLessThan(mega.indexOf('class="wc-mega__catalog"'));
+    expect(mega).toContain('href="/events/fall-drop">가을 기획전</a>');
+    /* 자기 전시가 없는 그룹 제목·2단계는 링크 없는 이름표, 전시가 있는 노드만 /shop?displayCategory 링크다. */
+    expect(mega).toContain('<p class="wc-mega__heading">토이</p>');
+    expect(mega).toContain(`class="wc-mega__link" href="/shop?displayCategory=${nodeId(2)}">피규어</a>`);
+    expect(mega).toContain('<span class="wc-mega__label">라이프</span>');
+    expect(mega).toContain(`class="wc-mega__link wc-mega__link--nested" href="/shop?displayCategory=${nodeId(4)}">머그</a>`);
+    expect(mega).toContain(`class="wc-mega__heading wc-mega__heading-link" href="/shop?displayCategory=${nodeId(5)}">시즌</a>`);
+    /* 실제 분류가 생기면 비(非)분류 그룹(수집·거래)은 메가메뉴에서 빠진다 — 진입점은 GNB·메뉴 시트·푸터에 남는다. */
+    expect(mega).not.toContain('>수집<');
+    expect(mega).not.toContain('>거래<');
+    expect(mega).toMatch(/class="wc-mega__link" href="\/shop">전체 굿즈</);
+  });
+
+  it('진행 중 기획전이 없으면 기획전 칸을 접고, 전시 트리가 비면 기존 3그룹 메뉴로 돌아간다', () => {
+    const compact = megaMarkup(renderToStaticMarkup(<Nav megaMenus={{ ...LIVE_MENUS, campaigns: [] }} />));
+    expect(compact).toContain('wc-mega__list--catalog wc-mega__list--compact');
+    expect(compact).not.toContain('>기획전<');
+
+    /* 공개 스위치 OFF·전시 없음 — 운영 화면이 머지만으로 바뀌지 않는다. */
+    const fallback = megaMarkup(renderToStaticMarkup(<Nav megaMenus={{ ...LIVE_MENUS, categories: [] }} />));
+    expect(fallback).not.toContain('wc-mega__list--catalog');
+    for (const heading of ['굿즈샵', '수집', '거래']) expect(fallback).toContain(`<p class="wc-mega__heading">${heading}</p>`);
+    expect(fallback).not.toContain('가을 기획전');
+  });
+
+  it('온라인 팝업 메가메뉴는 피처드 IP 목록 + 전체보기 + 상위 2개 이미지 타일이고, 피처드가 없으면 링크로 남는다', () => {
+    mocks.pathname = '/ip/maple';
+    const html = renderToStaticMarkup(<Nav megaMenus={LIVE_MENUS} />);
+    const trigger = html.match(/<a[^>]*aria-controls="wc-mega-online-popup"[^>]*>/)?.[0] ?? '';
+    expect(trigger).toContain('href="/ip"');
+    expect(trigger).toContain('aria-current="page"');
+    expect(trigger).toContain('aria-expanded="false"');
+
+    const mega = megaMarkup(html, 'wc-mega-online-popup');
+    expect(mega).toContain('<p class="wc-mega__heading">추천 IP</p>');
+    expect(mega).toContain('aria-current="page" class="wc-mega__link" href="/ip/maple">MapleStory</a>');
+    expect(mega).toContain('aria-label="온라인 팝업 전체보기" class="wc-mega__heading wc-mega__heading-link" href="/ip">전체보기</a>');
+    expect(mega.match(/class="wc-mega__tile"/g)).toHaveLength(2);
+    expect(mega).toContain('style="background:url(&quot;https://cdn.example/maple.webp&quot;) center / cover no-repeat"');
+    /* 키아트가 없는 IP 타일은 이름 첫 글자로 선다. */
+    expect(mega).toContain('<span aria-hidden="true" class="wc-mega__tile-image wc-mega__tile-image--text">H</span>');
+    expect(mega).not.toContain('Third IP</span>');
+
+    const noFeatured = renderToStaticMarkup(<Nav megaMenus={{ ...LIVE_MENUS, featuredIps: [] }} />);
+    expect(noFeatured).not.toContain('wc-mega-online-popup');
+    expect(noFeatured).toMatch(/<li class="wc-gnb__item"><a aria-current="page" class="wc-gnb__link is-active" title="온라인 팝업" href="\/ip">/);
+  });
+
+  it('메가메뉴는 SSR 에서 닫힌 채 목차를 DOM 에 두고 트리거가 aria-expanded·aria-controls 로 패널을 가리킨다', () => {
+    const html = renderToStaticMarkup(<Nav megaMenus={LIVE_MENUS} />);
+    for (const panelId of ['wc-mega-category', 'wc-mega-online-popup']) {
+      expect(html).toContain(`class="wc-mega" data-open="false" id="${panelId}"`);
+      expect(html).toMatch(new RegExp(`<a[^>]*aria-controls="${panelId}"[^>]*aria-expanded="false"`));
+    }
+  });
+
+  it('모바일 카테고리 탭은 시트 트리거 버튼이고 바텀바 메뉴 탭과 따로 열린다(SSR 은 둘 다 닫힘)', () => {
+    const html = renderToStaticMarkup(<Nav megaMenus={LIVE_MENUS} />);
+    const tabs = html.slice(html.indexOf('aria-label="주요 메뉴 탭"'));
+    expect(tabs).toMatch(/<button aria-expanded="false" aria-haspopup="dialog" class="wc-mob-gnb__link is-active" type="button">카테고리<\/button>/);
+    /* 카테고리 시트는 닫힌 동안 마운트하지 않는다(호출부 포털). */
+    expect(html).not.toContain('wc-catsheet');
+    expect(html).not.toContain('aria-label="카테고리"');
   });
 });

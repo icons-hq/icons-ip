@@ -570,6 +570,138 @@
   text-decoration: none;
 }
 
+/* CH-05 — 공개 전시 트리가 있을 때의 카테고리 메가메뉴(R-01 §4.1 메가메뉴 A).
+   [굿즈샵 바로가기 130][기획전 180] | 세로선 | 전시분류 그룹(줄바꿈 흐름). 레퍼런스 트랙 130·180·150(구분선 칸)·간격 20을
+   같은 자리로 옮긴다 — 세로선은 기획전 칸 끝에서 70px(간격 20 + 50), 전시분류는 선에서 120px 뒤에서 시작한다.
+   기획전이 없으면 그 칸을 접는다(빈 180px 를 남기지 않는다). */
+.wc-mega__list--catalog {
+  grid-template-columns: 130px 180px minmax(0, 1fr);
+  column-gap: 20px;
+  row-gap: 18px;
+}
+
+.wc-mega__list--catalog.wc-mega__list--compact {
+  grid-template-columns: 130px minmax(0, 1fr);
+}
+
+/* 세로 구분선은 장식이라 목록 항목이 아니라 그룹 칸의 왼쪽 선으로 그린다(스크린리더가 빈 항목을 읽지 않게). */
+.wc-mega__catalog {
+  min-width: 0;
+  margin-left: 50px;
+  padding-left: 119px;
+  border-left: 1px solid var(--wc-hairline-dark);
+}
+
+.wc-mega__catalog-groups {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 18px 20px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+/* 그룹 폭은 레퍼런스 트랙(80~180)을 따른다 — 짧은 이름은 80, 긴 하위 이름은 180까지 넓어진다. */
+.wc-mega__catalog-groups > .wc-mega__group {
+  flex: 0 0 auto;
+  min-width: 80px;
+  max-width: 180px;
+}
+
+/* 자기 전시가 있는 그룹 제목은 링크다 — 제목 문법(14/700) 그대로, hover 밑줄은 하위 링크와 같다. */
+.wc-mega__heading-link {
+  display: block;
+  text-decoration: none;
+}
+
+.wc-mega__heading-link:hover {
+  text-decoration: underline;
+}
+
+.wc-mega__heading-link[aria-current='page'] {
+  color: var(--wc-success);
+  text-decoration: none;
+}
+
+/* 하위 전시를 묶기만 하는(자기 전시가 없는) 2단계 이름표. 링크와 같은 줄 높이로 서고 굵기로 구분한다. */
+.wc-mega__label {
+  display: block;
+  padding: 7px 0;
+  font-size: 14px;
+  font-weight: 700;
+  line-height: 1.3;
+  letter-spacing: -.5px;
+  color: var(--wc-ink-sub);
+}
+
+/* 3단계 이하 전시는 한 칸 들여 부모 아래에 묶인다. */
+.wc-mega__link--nested {
+  padding-left: 10px;
+  font-size: 13px;
+}
+
+/* CH-07 — 온라인 팝업 메가메뉴(R-01 §4.1 메가메뉴 B·C): repeat(6) 간격 18×40, 1열 피처드 IP 목록,
+   4열부터 '전체보기' 제목 + 이미지 타일 136×136 두 개. */
+.wc-mega__list--ip {
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  column-gap: 40px;
+  row-gap: 18px;
+}
+
+.wc-mega__group--tiles {
+  grid-column: 4 / span 2;
+}
+
+.wc-mega__tiles {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  column-gap: 40px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wc-mega__tile {
+  display: block;
+  width: 136px;
+  max-width: 100%;
+  text-decoration: none;
+  color: var(--wc-ink);
+}
+
+.wc-mega__tile-image {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  aspect-ratio: 1;
+  background-color: var(--wc-surface-icon-tile);
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+}
+
+/* 키아트가 없는 IP는 이름 첫 글자로 선다 — 빈 회색 칸만 남기지 않는다. */
+.wc-mega__tile-image--text {
+  font-size: 28px;
+  font-weight: 700;
+  color: var(--wc-ink-sub);
+}
+
+.wc-mega__tile-name {
+  display: block;
+  margin-top: 8px;
+  overflow-wrap: anywhere;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.3;
+  letter-spacing: -.5px;
+}
+
+.wc-mega__tile:hover .wc-mega__tile-name {
+  text-decoration: underline;
+}
+
 @media (min-width: 990px) {
   .wc-header[data-condensed='true'] .wc-gnb-wrap {
     margin-top: -54px;
@@ -945,6 +1077,256 @@
 .wc-sheet__auth-placeholder {
   display: block;
   height: 50px;
+}
+
+/* ------------------------------------------------------------------
+   모바일 카테고리 시트 (L5 · MC-05)
+   ------------------------------------------------------------------ */
+
+/* 전체 메뉴 시트와 같은 75% 바텀시트(.wc-sheet — radius 8·딤 70%·섹션 사이 10px 회색 띠)이고 내용만 다르다:
+   ① 아이콘 바로가기(가로 스크롤) → ② 기획전 카드 2×2 슬라이드 + 점 → ③ [카테고리 | 온라인 팝업] 탭 + 아이콘 그리드(R-01 §7·11 2-4).
+   열 때 아래에서 올라온다(.3s, 레퍼런스 300ms) — 모션 축소에서는 전환 없이 바로 선다. */
+.wc-catsheet {
+  animation: wc-sheet-rise var(--wc-duration-medium) var(--wc-ease-out-slow);
+}
+
+.wc-catsheet-dim {
+  animation: wc-fade-in var(--wc-duration-medium) ease;
+}
+
+@keyframes wc-sheet-rise {
+  0% {
+    transform: translateY(100%);
+  }
+
+  100% {
+    transform: translateY(0);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .wc-catsheet,
+  .wc-catsheet-dim {
+    animation: none;
+  }
+}
+
+/* ① 아이콘 바로가기 — 칸 폭 17vw(375에서 63.8), 이미지 칸 60 정사각 r10 icon-tile, 라벨 위 8·아래 10, 간격 5(1.33vw).
+   시트 거터 밖까지 스크롤되도록 트랙만 좌우 16px 넓히고 같은 만큼 안쪽 여백·스냅 여백을 둔다. */
+.wc-catsheet__shortcuts {
+  display: flex;
+  gap: 5px;
+  margin: 0 -16px;
+  padding: 0 16px;
+  overflow-x: auto;
+  scroll-snap-type: x mandatory;
+  scroll-padding-inline: 16px;
+  scrollbar-width: none;
+  list-style: none;
+}
+
+.wc-catsheet__shortcuts::-webkit-scrollbar {
+  display: none;
+}
+
+.wc-catsheet__shortcuts > li {
+  flex: 0 0 auto;
+  scroll-snap-align: start;
+}
+
+.wc-catsheet__shortcut {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: clamp(60px, 17vw, 72px);
+  padding-bottom: 10px;
+  text-decoration: none;
+  color: var(--wc-ink);
+}
+
+.wc-catsheet__icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 60px;
+  height: 60px;
+  border-radius: 10px;
+  background: var(--wc-surface-icon-tile);
+  color: var(--wc-ink);
+}
+
+.wc-catsheet__label,
+.wc-catsheet__tile-label {
+  display: block;
+  margin-top: 8px;
+  overflow-wrap: anywhere;
+  word-break: keep-all;
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.3;
+  text-align: center;
+}
+
+/* ② 기획전 2×2 슬라이드 — 한 장이 시트 폭 전체(슬라이드 간격 16)이고 장 안은 2열(열 간격 7·행 간격 16).
+   카드 이미지는 캠페인 카드 이미지의 비율(3:2, 이벤트 허브 카드와 같은 자산)을 그대로 쓴다. */
+.wc-catsheet__collections .wc-slider__track > * {
+  width: 100%;
+}
+
+.wc-catsheet__collection-page {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px 7px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wc-catsheet__collection {
+  display: block;
+  text-decoration: none;
+  color: var(--wc-ink);
+}
+
+.wc-catsheet__collection-image {
+  display: block;
+  aspect-ratio: 3 / 2;
+  background-color: var(--wc-surface-icon-tile);
+  background-position: center;
+  background-size: cover;
+  background-repeat: no-repeat;
+}
+
+.wc-catsheet__collection-title {
+  display: -webkit-box;
+  margin-top: 8px;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.35;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
+/* 장 위치는 점 버튼이다(디렉토리 피처드와 같은 문법 — 24×44 터치 상자 안 8px 점, 반투명 잉크/잉크). */
+.wc-catsheet__collections .wc-slider__dots {
+  display: flex;
+  justify-content: center;
+  margin-top: 6px;
+}
+
+.wc-catsheet__collections .wc-slider__dot {
+  position: relative;
+  flex: none;
+  width: 24px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.wc-catsheet__collections .wc-slider__dot::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--wc-ink) 30%, transparent);
+  transform: translate(-50%, -50%);
+}
+
+.wc-catsheet__collections .wc-slider__dot[aria-current='true']::before {
+  background: var(--wc-ink);
+}
+
+.wc-root .wc-catsheet__collections .wc-slider__dot:focus-visible {
+  outline: none;
+}
+
+.wc-root .wc-catsheet__collections .wc-slider__dot:focus-visible::before {
+  outline: 2px solid var(--wc-focus);
+  outline-offset: 2px;
+}
+
+@media (forced-colors: active) {
+  .wc-catsheet__collections .wc-slider__dot::before {
+    forced-color-adjust: none;
+    background: GrayText;
+  }
+
+  .wc-catsheet__collections .wc-slider__dot[aria-current='true']::before {
+    background: CanvasText;
+  }
+}
+
+/* ③ [카테고리 | 온라인 팝업] 탭 — 시트 폭을 반씩 나누는 16/700 탭(비활성은 읽히는 ink.tertiary, 활성은 잉크 + 2px 밑줄). */
+.wc-catsheet__tabs .wc-tabs__tab {
+  flex: 1 1 0;
+  height: 48px;
+  padding: 0 8px;
+  font-size: 16px;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-catsheet__tabs .wc-tabs__tab.active {
+  color: var(--wc-ink);
+}
+
+.wc-catsheet__tabs .wc-tabs__panel {
+  padding-top: 20px;
+}
+
+/* 아이콘 그리드 4열 — 칸마다 60 정사각 r10 이미지 칸 + 12px 이름. 전시분류 아이콘은 칸 안에 맞추고(라인아트),
+   IP 키아트는 칸을 채운다. 이미지가 없으면 이름 첫 글자다. */
+.wc-catsheet__grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px 5px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.wc-catsheet__tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-decoration: none;
+  color: var(--wc-ink);
+}
+
+.wc-catsheet__tile-image {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 60px;
+  height: 60px;
+  overflow: hidden;
+  border-radius: 10px;
+  background-color: var(--wc-surface-icon-tile);
+  background-position: center;
+  background-repeat: no-repeat;
+}
+
+.wc-catsheet__tile-image--icon {
+  padding: 6px;
+  background-origin: content-box;
+  background-size: contain;
+}
+
+.wc-catsheet__tile-image--art {
+  background-size: cover;
+}
+
+.wc-catsheet__tile-image--text {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--wc-ink-sub);
 }
 
 /* ------------------------------------------------------------------

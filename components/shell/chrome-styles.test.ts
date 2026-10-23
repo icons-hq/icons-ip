@@ -292,3 +292,56 @@ describe('셸 공지 (CH-01 텍스트 공지 바 · CH-02 스트립)', () => {
     expect(ring['outline-offset']).toBe('-4px');
   });
 });
+
+describe('카테고리 메가메뉴·카테고리 시트 (L5 · CH-05·CH-07·MC-05)', () => {
+  /* R-01 §4.1 메가메뉴 A 트랙 130·180·150(구분선 칸)·간격 20을 같은 자리로 — 세로선은 기획전 칸 끝 +70(간격 20 + 50),
+     전시분류는 선 +120에서 시작한다. 기획전이 없으면 180 칸을 접어 빈 칸을 남기지 않는다. 선은 목록 항목이 아니라 칸의 왼쪽 선이다. */
+  it('공개 전시 메가메뉴는 [130][180] | 세로선 | 전시분류 흐름이고 기획전이 없으면 칸을 접는다', () => {
+    expect(declsFor('.wc-mega__list--catalog')).toMatchObject({ 'grid-template-columns': '130px 180px minmax(0, 1fr)', 'column-gap': '20px', 'row-gap': '18px' });
+    expect(declsFor('.wc-mega__list--catalog.wc-mega__list--compact')['grid-template-columns']).toBe('130px minmax(0, 1fr)');
+    expect(declsFor('.wc-mega__catalog')).toMatchObject({ 'margin-left': '50px', 'padding-left': '119px', 'border-left': '1px solid var(--wc-hairline-dark)' });
+    expect(declsFor('.wc-mega__catalog-groups')).toMatchObject({ display: 'flex', 'flex-wrap': 'wrap', gap: '18px 20px' });
+    expect(declsFor('.wc-mega__catalog-groups > .wc-mega__group')).toMatchObject({ 'min-width': '80px', 'max-width': '180px' });
+    /* 그룹 제목 링크는 제목 문법 그대로 블록이고, 현재 위치는 GNB 와 같은 state.success 색이다. */
+    expect(declsFor('.wc-mega__heading-link')).toMatchObject({ display: 'block', 'text-decoration': 'none' });
+    expect(declsFor(".wc-mega__heading-link[aria-current='page']").color).toBe('var(--wc-success)');
+  });
+
+  it('온라인 팝업 메가메뉴는 repeat(6) 간격 40, 4열부터 136 정사각 타일 두 개다(R-01 §4.1 B·C)', () => {
+    expect(declsFor('.wc-mega__list--ip')).toMatchObject({ 'grid-template-columns': 'repeat(6, minmax(0, 1fr))', 'column-gap': '40px', 'row-gap': '18px' });
+    expect(declsFor('.wc-mega__group--tiles')['grid-column']).toBe('4 / span 2');
+    expect(declsFor('.wc-mega__tile').width).toBe('136px');
+    expect(declsFor('.wc-mega__tile-image')).toMatchObject({ 'aspect-ratio': '1', 'background-color': 'var(--wc-surface-icon-tile)', 'background-size': 'cover' });
+  });
+
+  /* 카테고리 시트는 전체 메뉴 시트의 바텀시트(.wc-sheet 75%·radius 8·딤 70%)를 그대로 쓴다. 열 때만 .3s 로 올라오고
+     모션 축소에서는 전환 없이 선다(파운데이션의 .wc-root * 규칙에 더해 이 표면이 직접 끈다). */
+  it('카테고리 시트는 75% 바텀시트로 .3s 올라오고 모션 축소에서는 애니메이션이 없다', () => {
+    expect(declsFor('.wc-sheet')).toMatchObject({ position: 'fixed', bottom: '0', height: '75%', 'z-index': '1000', 'border-radius': 'var(--wc-radius-sheet) var(--wc-radius-sheet) 0 0' });
+    expect(declsFor('.wc-sheet-dim')).toMatchObject({ background: 'var(--wc-dim)', 'z-index': '999' });
+    expect(declsFor('.wc-catsheet').animation).toBe('wc-sheet-rise var(--wc-duration-medium) var(--wc-ease-out-slow)');
+    expect(declsFor('.wc-catsheet', '(prefers-reduced-motion: reduce)').animation).toBe('none');
+    expect(declsFor('.wc-catsheet-dim', '(prefers-reduced-motion: reduce)').animation).toBe('none');
+  });
+
+  it('바로가기·그리드 아이콘 칸은 60 정사각 r10 icon-tile 이고 그리드는 4열이다(11 2-4)', () => {
+    for (const selector of ['.wc-catsheet__icon', '.wc-catsheet__tile-image']) {
+      expect(declsFor(selector), selector).toMatchObject({ width: '60px', height: '60px', 'border-radius': '10px' });
+    }
+    expect(declsFor('.wc-catsheet__icon').background).toBe('var(--wc-surface-icon-tile)');
+    expect(declsFor('.wc-catsheet__tile-image')['background-color']).toBe('var(--wc-surface-icon-tile)');
+    expect(declsFor('.wc-catsheet__shortcut').width).toBe('clamp(60px, 17vw, 72px)');
+    expect(declsFor('.wc-catsheet__shortcuts')).toMatchObject({ 'overflow-x': 'auto', 'scroll-snap-type': 'x mandatory' });
+    expect(declsFor('.wc-catsheet__grid')['grid-template-columns']).toBe('repeat(4, minmax(0, 1fr))');
+    /* 전시분류 아이콘은 칸 안에 맞추고(라인아트), IP 키아트는 칸을 채운다. */
+    expect(declsFor('.wc-catsheet__tile-image--icon')['background-size']).toBe('contain');
+    expect(declsFor('.wc-catsheet__tile-image--art')['background-size']).toBe('cover');
+    expect(declsFor('.wc-catsheet__collection-page')['grid-template-columns']).toBe('repeat(2, minmax(0, 1fr))');
+  });
+
+  it('기획전 슬라이드 점은 24×44 터치 상자 안 8px 점이고 강제 색상에서도 보인다', () => {
+    expect(declsFor('.wc-catsheet__collections .wc-slider__dot')).toMatchObject({ width: '24px', height: '44px' });
+    expect(declsFor('.wc-catsheet__collections .wc-slider__dot::before')).toMatchObject({ width: '8px', height: '8px' });
+    expect(declsFor(".wc-catsheet__collections .wc-slider__dot[aria-current='true']::before", '(forced-colors: active)').background).toBe('CanvasText');
+  });
+});
