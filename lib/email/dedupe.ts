@@ -67,8 +67,8 @@ export function inquiryEmailDedupeKey(messageId: string): string {
  * 사이클마다 유일한 키가 되게 한다 — DB 트리거의 알림함 dedupe_key 와 같은 규율이다.
  *
  * 옵션 단위 신청은 옵션 id 를 키에 담는다. 굿즈 단위(모든 옵션) 신청은 옵션 키 없이 예전 형식을
- * 한 글자도 바꾸지 않는다 — 발송 경로는 notified 행을 기간 없이 다시 읽고 이미 보낸 사이클을 이
- * 키로만 거르므로, 형식이 바뀌면 지난 사이클의 메일이 다음 어드민 저장 때 한 번 더 나간다.
+ * 한 글자도 바꾸지 않는다 — 발송 경로는 최근 7일의 notified 행을 다시 읽고 이미 보낸 사이클을 이
+ * 키로만 거르므로, 형식이 바뀌면 그 기간의 지난 사이클 메일이 다음 어드민 저장 때 한 번 더 나간다.
  */
 export function restockAlertEmailDedupeKey(alertId: string, notifiedAtIso: string, variantId?: string | null): string {
   return variantId ? `restock_alert:${alertId}:${variantId}:${notifiedAtIso}` : `restock_alert:${alertId}:${notifiedAtIso}`;
