@@ -144,6 +144,15 @@ describe('어드민 가이드 콘텐츠 무결성', () => {
       }
     }
   });
+  /* 같은 제품의 판매 구성을 묶은 상품군은 CONTEXT.md의 정본 이름 '그룹상품'으로 부른다 — 어드민 메뉴(그룹상품 등록·
+     그룹상품 조회/수정)와 같은 말이어야 운영자가 같은 것인지 추측하지 않는다. 홈 베스트리뷰의 리뷰 합산 범위가 이 그룹이다. */
+  it('홈 전시 안내와 업데이트 내역은 그룹 개념을 정본 용어(그룹상품)로 부른다', () => {
+    const displayGuide = plainText(ADMIN_GUIDE_TOPICS['display-messaging']);
+    expect(displayGuide).toContain('같은 그룹상품으로 묶인 상품들의 공개 리뷰를 합쳐');
+    for (const text of [displayGuide, ...ADMIN_WEEKLY_CHANGES.flatMap((entry) => entry.changes)]) {
+      expect(text).not.toContain('상품그룹');
+    }
+  });
   it('운영 안내는 매핑표에 결속하고 카드·티켓 안내는 상품이라 부르지 않는다', () => {
     expect(ADMIN_GUIDE_TOPICS['goods-sales'].title).toContain(ADMIN_VOCABULARY.goods);
     expect(ADMIN_GUIDE_TOPICS.claims.title).toBe(ADMIN_VOCABULARY.claims);
