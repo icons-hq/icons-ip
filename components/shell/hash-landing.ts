@@ -80,8 +80,21 @@ export interface HashLandingLocation {
  * 클라이언트 이동(Link·router.push) 뒤 해시를 맞출지 — 해시가 있고 경로가 바뀌었거나 해시가 새로 붙거나 바뀐 이동만.
  * 같은 경로·같은 해시에서 검색어만 바뀐 경우(옵션 선택이 주소를 바꾸는 replaceState, 같은 목록 안 페이지 이동)는
  * 사용자가 읽던 자리를 지킨다 — 그런 이동의 해시 스크롤은 Next 가 맡는다.
+ * 뒤로·앞으로 가기(popstate)로 온 경우는 브라우저 스크롤 복원에 맡긴다 — 문서를 열 때의 back_forward 와 같다.
  */
-export function shouldLandAfterNavigation(previous: HashLandingLocation, next: HashLandingLocation): boolean {
-  if (!hashTargetIds(next.hash).length) return false;
+export function shouldLandAfterNavigation(
+  previous: HashLandingLocation,
+  next: HashLandingLocation,
+  { traversal = false }: { traversal?: boolean } = {},
+): boolean {
+  if (traversal || !hashTargetIds(next.hash).length) return false;
   return previous.pathname !== next.pathname || previous.hash !== next.hash;
+}
+
+/**
+ * 같은 문서 안 해시 이동(hashchange) 뒤 맞출지. 기록 이동으로 바뀐 해시(뒤로·앞으로 가기)는 브라우저가 옮기는 자리에
+ * 맡기고, 해시가 비었거나 착지 대상이 아니면 맞추지 않는다 — 어느 경우든 앞선 착지 감시는 먼저 끊는다(HashLanding).
+ */
+export function shouldLandOnHashChange(hash: string, { traversal = false }: { traversal?: boolean } = {}): boolean {
+  return !traversal && hashTargetIds(hash).length > 0;
 }

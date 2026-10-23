@@ -11,6 +11,7 @@ import {
   hashTargetIds,
   isHashLanded,
   shouldLandAfterNavigation,
+  shouldLandOnHashChange,
   shouldLandOnLoad,
   type HashLandingLocation,
 } from './hash-landing';
@@ -20,7 +21,8 @@ import {
    scroll-margin)에 없을 때만 한 번 더 세운다. 해시 이동을 직접 처리하는 표면(캠페인 목차·어드민 상품 작업대)도 같은
    선에 맞추므로 둘이 겹쳐도 결과가 같다.
    지켜보는 계기는 셋이다: 해시가 붙은 주소로 문서를 열 때, 같은 문서 안 해시 이동(hashchange), 해시를 실은
-   클라이언트 이동. 사용자가 휠·터치·키·포인터로 손대면 그 자리에서 그만둔다 — 읽기 시작한 자리를 빼앗지 않는다. */
+   클라이언트 이동. 뒤로·앞으로 가기는 어느 쪽이든 브라우저 복원에 맡긴다. 사용자가 휠·터치·키·포인터로 손대면
+   그 자리에서 그만둔다 — 읽기 시작한 자리를 빼앗지 않는다. */
 
 /** 사용자가 스크롤을 넘겨받았다고 보는 입력. 앱과 브라우저가 옮기는 스크롤은 이 이벤트를 내지 않는다. */
 const USER_INPUT_EVENTS = ['wheel', 'touchstart', 'keydown', 'pointerdown'] as const;
@@ -109,26 +111,46 @@ export function HashLanding() {
   const search = useSearchParams().toString();
   const previous = useRef<HashLandingLocation | null>(null);
   const stopWatching = useRef<(() => void) | null>(null);
+  /** 진행 중인 뒤로·앞으로 가기의 도착 주소. 그 이동으로 바뀐 해시·경로는 다시 세우지 않는다. */
+  const traversal = useRef<string | null>(null);
 
   useEffect(() => {
-    const watch = (hash: string, smoothFirst: boolean) => {
+    const stopWatch = () => {
       stopWatching.current?.();
-      stopWatching.current = watchHashLanding(hash, { smoothFirst });
+      stopWatching.current = null;
+    };
+    /* 뒤로·앞으로 가기는 브라우저가 복원한 자리(문서 안 해시 기록이면 브라우저 해시 이동)에 맡긴다 — 진행 중인 착지를
+       끊고, 이 기록 이동으로 이어지는 hashchange·경로 변경에서도 다시 세우지 않는다. popstate 는 그 둘보다 먼저 온다. */
+    const onPopState = () => {
+      stopWatch();
+      traversal.current = window.location.href;
     };
     const onHashChange = () => {
+      /* 해시가 바뀌면 앞선 대상의 감시는 언제나 끝낸다 — 뒤로 가기로 해시가 비워졌는데 옛 대상으로 되돌아가지 않게. */
+      stopWatch();
+      const fromTraversal = traversal.current === window.location.href;
+      traversal.current = null;
       if (previous.current) previous.current = { ...previous.current, hash: window.location.hash };
-      if (hashTargetIds(window.location.hash).length) watch(window.location.hash, false);
+      if (shouldLandOnHashChange(window.location.hash, { traversal: fromTraversal })) {
+        stopWatching.current = watchHashLanding(window.location.hash, { smoothFirst: false });
+      }
     };
+    window.addEventListener('popstate', onPopState);
     window.addEventListener('hashchange', onHashChange);
     /* 지켜보기는 여기서 끊지 않는다 — 스스로 끝나고(시간·사용자 입력), 개발 모드의 effect 재실행이 문서를 막 연
        때의 착지를 지우지 않게 한다. */
-    return () => window.removeEventListener('hashchange', onHashChange);
+    return () => {
+      window.removeEventListener('popstate', onPopState);
+      window.removeEventListener('hashchange', onHashChange);
+    };
   }, []);
 
   useEffect(() => {
     const next = { pathname, hash: window.location.hash };
     const before = previous.current;
     previous.current = next;
+    const fromTraversal = traversal.current === window.location.href;
+    traversal.current = null;
     const watch = (smoothFirst: boolean) => {
       stopWatching.current?.();
       stopWatching.current = watchHashLanding(next.hash, { smoothFirst });
@@ -143,7 +165,7 @@ export function HashLanding() {
       if (land) watch(true);
       return;
     }
-    if (shouldLandAfterNavigation(before, next)) watch(false);
+    if (shouldLandAfterNavigation(before, next, { traversal: fromTraversal })) watch(false);
   }, [pathname, search]);
 
   return null;

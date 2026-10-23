@@ -10,6 +10,7 @@ import {
   hashTargetIds,
   isHashLanded,
   shouldLandAfterNavigation,
+  shouldLandOnHashChange,
   shouldLandOnLoad,
 } from './hash-landing';
 
@@ -114,9 +115,28 @@ describe('클라이언트 이동 뒤', () => {
     expect(shouldLandAfterNavigation({ pathname: '/shop/g1', hash: '#reviews' }, { pathname: '/shop/g1', hash: '#reviews' })).toBe(false);
   });
 
+  /* 읽던 굿즈 상세(#reviews)에서 다른 상품으로 갔다가 뒤로 오면 브라우저가 복원한 자리가 맞다 — 리뷰 머리로 되돌리지 않는다. */
+  it('뒤로·앞으로 가기로 온 경로는 해시가 있어도 복원에 맡긴다', () => {
+    expect(shouldLandAfterNavigation({ pathname: '/shop/g2', hash: '' }, { pathname: '/shop/g1', hash: '#reviews' }, { traversal: true })).toBe(false);
+    expect(shouldLandAfterNavigation({ pathname: '/shop/g2', hash: '' }, { pathname: '/shop/g1', hash: '#reviews' }, { traversal: false })).toBe(true);
+  });
+
   it('해시가 없거나 착지 대상이 아닌 해시면 그대로 둔다', () => {
     expect(shouldLandAfterNavigation({ pathname: '/shop/g1', hash: '#reviews' }, { pathname: '/shop', hash: '' })).toBe(false);
     expect(shouldLandAfterNavigation({ pathname: '/', hash: '' }, { pathname: '/gifts/receive', hash: '#token=abc' })).toBe(false);
+  });
+});
+
+describe('같은 문서 안 해시 이동 뒤', () => {
+  it('링크로 바꾼 해시는 맞춘다', () => {
+    expect(shouldLandOnHashChange('#pdp-shipping-savings')).toBe(true);
+  });
+
+  /* 문서 안 해시로 간 뒤 뒤로 가기로 해시가 비면 브라우저가 복원한 자리에 둔다(앞선 감시는 HashLanding 이 먼저 끊는다). */
+  it('뒤로·앞으로 가기로 바뀐 해시와 비워진 해시는 맞추지 않는다', () => {
+    expect(shouldLandOnHashChange('#pdp-shipping-savings', { traversal: true })).toBe(false);
+    expect(shouldLandOnHashChange('')).toBe(false);
+    expect(shouldLandOnHashChange('#token=abc')).toBe(false);
   });
 });
 
