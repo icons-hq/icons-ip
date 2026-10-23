@@ -20,6 +20,8 @@ const mocks = vi.hoisted(() => ({
   getCurrentAdminAuthState: vi.fn(),
   revalidatePath: vi.fn(),
   rpc: vi.fn(),
+  after: vi.fn(),
+  restockEmails: vi.fn(),
 }));
 
 vi.mock('@/lib/auth/admin', () => ({
@@ -29,6 +31,8 @@ vi.mock('@/lib/supabase/server', () => ({
   createClient: mocks.createClient,
 }));
 vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidatePath }));
+vi.mock('next/server', () => ({ after: mocks.after }));
+vi.mock('@/lib/email/transactional.server', () => ({ sendRestockAlertEmails: mocks.restockEmails }));
 vi.mock('next/navigation', () => ({
   redirect: (path: string) => {
     throw new Error(`NEXT_REDIRECT:${path}`);
@@ -57,6 +61,23 @@ describe('setGoodBankTransferAction', () => {
     mocks.revalidatePath.mockReset();
     mocks.rpc.mockReset();
     mocks.rpc.mockResolvedValue({ data: null, error: null });
+    mocks.after.mockReset();
+    mocks.restockEmails.mockReset();
+  });
+
+  /* 결제수단이 모두 닫힌 동안 재고가 들어와 pending 으로 남은 재입고 신청은 무통장을 다시 여는 순간 굿즈
+     트리거가 깨운다. 메일은 굿즈 저장처럼 응답 뒤(after) 보내고, 닫는 편집과 실패에는 보내지 않는다. */
+  it('무통장을 열면 응답 뒤 재입고 메일을 보내고, 닫거나 실패하면 보내지 않는다', async () => {
+    await setGoodBankTransferAction({}, bankTransferForm(GOOD_ID, 'true'));
+    expect(mocks.after).toHaveBeenCalledTimes(1);
+    (mocks.after.mock.calls[0][0] as () => unknown)();
+    expect(mocks.restockEmails).toHaveBeenCalledWith(GOOD_ID);
+
+    mocks.after.mockClear();
+    await setGoodBankTransferAction({}, bankTransferForm(GOOD_ID, 'false'));
+    mocks.rpc.mockResolvedValueOnce({ data: null, error: { message: 'private permission detail' } });
+    await setGoodBankTransferAction({}, bankTransferForm(GOOD_ID, 'true'));
+    expect(mocks.after).not.toHaveBeenCalled();
   });
 
   /* 무통장을 여는 것은 재고를 최대 24시간 묶겠다는 판단이다. 그 판단이 굿즈 폼이

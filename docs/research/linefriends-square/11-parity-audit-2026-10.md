@@ -263,8 +263,8 @@ grid **2열 451px, gap 20(행)/18(열)**. 카드 451×141: 1px `#DCDEE0`, r2, p 
 | PD-07 | 공유 | B12 | 없음(ADR-0011 T-A 약속 미이행) | DRIFT | P1 | L1 ✅ #588 |
 | PD-08 | 품절 굿즈 합계 | 가격으로 합계 표시 | "옵션 선택 후 표시"(`lib/goods-options.ts:46-48`이 재고 0이면 자동 선택 안 함) | DRIFT(결함) | P1 | L1 ✅ #588 |
 | PD-09 | 브랜드 칩 | 446×82 카드(`#FAFAFA`, 1px `#EBEDEE`) + 배너 150×80 | 텍스트 한 줄(`wc-catalog.css:685-695`) | GAP-UI | P1 | L1 ✅ #588 |
-| PD-10 | 다옵션 기본 선택·품절 옵션 선택 | B9 | placeholder, 품절 disabled, 미선택 CTA 비활성(`GoodPurchasePanel.tsx:43-46,165-181,363-374`) — #427 수용 기준("품절 옵션은 선택 불가")을 따른 구현 | 문서 간 충돌(#427 AC ↔ `DESIGN.md:271` `restock-cta`) | P1 | L2(LD-5) |
-| PD-11 | 옵션 단위 재입고 | B11 | 굿즈 단위(`supabase/migrations/20260828100200_restock_alerts.sql:18-31`) | GAP-DATA | P1 | L2 |
+| PD-10 | 다옵션 기본 선택·품절 옵션 선택 | B9 | placeholder, 품절 disabled, 미선택 CTA 비활성(`GoodPurchasePanel.tsx:43-46,165-181,363-374`) — #427 수용 기준("품절 옵션은 선택 불가")을 따른 구현 | 문서 간 충돌(#427 AC ↔ `DESIGN.md:271` `restock-cta`) | P1 | L2(LD-5) ✅ #597 |
+| PD-11 | 옵션 단위 재입고 | B11 | 굿즈 단위(`supabase/migrations/20260828100200_restock_alerts.sql:18-31`) | GAP-DATA | P1 | L2 ✅ #597 |
 | PD-12 | 합계 위 1px 잉크 선 · 2CTA 실측 27:73 · 별점 행('N개 리뷰보기' → 리뷰 탭) · 재고 라벨 | B13 | 선 없음 · 실측 30:70 · '0.0 리뷰 0건' · '품절임박' 라벨 | DRIFT·GAP-UI | P2 | L1 ✅ #588 |
 | PD-13 | 탭 클릭 시 탭바로 스크롤 | B13 | 없음(`components/wc/TabPanels.tsx:28-31` — 홈·이벤트 허브도 같은 컴포넌트 사용) | GAP-UI | P2 | L1(opt-in prop) ✅ #588 |
 | PD-14 | 옵션 URL 동기화 | `?variant=` | 없음 | GAP-UI | P2 | L1 ✅ #588 |

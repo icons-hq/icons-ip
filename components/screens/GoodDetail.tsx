@@ -159,7 +159,8 @@ export interface GoodDetailViewProps {
   reviews?: ReactNode;
   /** 상품 Q&A 본문. 리뷰와 같은 이유로 서버에서 읽어 서버에서 그린 블록을 받는다. */
   qna?: ReactNode;
-  engagement?: { wished: boolean; restockRequested: boolean };
+  /** 위시·재입고 신청 상태. restockVariantIds 는 옵션 단위 신청이 대기 중인 옵션(PD-11). */
+  engagement?: { wished: boolean; restockRequested: boolean; restockVariantIds?: readonly string[] };
   /**
    * 정보 칼럼의 별점 요약과 리뷰 탭 카운트. 리뷰 본문은 slot 이 그리므로 개수·평균만
    * 따로 받는다 — 어드민 미리보기처럼 리뷰가 없는 호출은 생략한다.
@@ -207,14 +208,18 @@ export function GoodDetailView({
     good,
     additionalGoods: detail.additionalGoods ?? [],
     restockRequested: engagement?.restockRequested ?? false,
-    /* 주소의 ?variant= 가 고를 수 있는 옵션이면 그 옵션으로 연다(PD-14). 서버 렌더도 같은 값을 읽는다. */
+    restockVariantIds: engagement?.restockVariantIds ?? [],
+    /* 주소의 ?variant= 가 고를 수 있는 옵션이면 그 옵션으로 연다(PD-14). 서버 렌더도 같은 값을 읽는다.
+       품절 옵션도 고를 수 있어 재입고 알림·공유 링크가 그 옵션의 재입고 알림으로 연다(PD-10). */
     initialVariantId: embedded ? null : searchParams?.get('variant'),
   });
   /* 옵션을 바꾸면 주소의 ?variant= 를 같은 기록 항목 안에서 바꾼다(PD-14, Next 의 history.replaceState
      연동 — 서버 요청·라우팅 없이 useSearchParams 만 따라 바뀐다). 첫 화면의 자동 기본 선택은 쓰지 않는다.
      같은 상세 안 이동(리뷰·Q&A 페이지 링크)이 주소에서 variant 를 지우면 다시 써 넣는다 — 그래서 주소의
-     variant 도 따라 읽는다. 주소에서 온 첫 선택은 기본 선택이 아니라 사용자가 고른 선택으로 본다. */
-  const selectedVariantId = purchase.selectedOption?.id;
+     variant 도 따라 읽는다. 주소에서 온 첫 선택은 기본 선택이 아니라 사용자가 고른 선택으로 본다.
+     고른 품절 옵션(재입고 알림 대상)도 선택이다 — 레퍼런스처럼 주소에 남긴다(PD-10). */
+  const chosenOption = purchase.selectedOption ?? purchase.restockOption;
+  const selectedVariantId = chosenOption?.id;
   const urlVariantId = embedded ? null : searchParams?.get('variant') ?? null;
   const [defaultVariantId] = useState(() => variantSyncDefault(urlVariantId, selectedVariantId));
   useEffect(() => {
@@ -304,7 +309,7 @@ export function GoodDetailView({
 
   /* 갤러리가 비어도 대표 이미지 한 장으로 정상 렌더된다(#172 완료 조건). */
   const frames = [good.img, ...detail.gallery];
-  const displayedGood = purchase.selectedOption ? cartOptionGood(good, purchase.selectedOption.id) ?? good : good;
+  const displayedGood = chosenOption ? cartOptionGood(good, chosenOption.id) ?? good : good;
   const badges = goodDisplayBadges(displayedGood);
 
   const panels: TabPanelDef[] = [
