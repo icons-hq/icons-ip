@@ -492,8 +492,10 @@
   cursor: pointer;
 }
 
+/* 비활성(불러오는 중)은 활성보다 약해야 한다 — 활성 선을 옅은 컨트롤 선(#DCDEE0)으로 내린 뒤에도 비활성이
+   예전 line.control(#C8CACC)이면 위계가 뒤집힌다. 한 단계 더 옅은 헤어라인 선에 비활성 글자색을 쓴다. */
 .wc-view-more:disabled {
-  border-color: var(--wc-line-control);
+  border-color: var(--wc-hairline);
   color: var(--wc-ink-disabled);
   cursor: default;
 }

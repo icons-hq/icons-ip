@@ -79,6 +79,20 @@ describe('VIEW MORE (11 CL-07)', () => {
     expect(viewMore['font-weight']).toBe('700');
   });
 
+  /* 비활성(불러오는 중)이 활성보다 진해 보이면 위계가 뒤집힌다(l4-ui-9) — 비활성 선은 활성 선보다 밝은 토큰이다. */
+  it('비활성 선은 활성의 옅은 컨트롤 선보다도 옅은 헤어라인이다', () => {
+    const disabled = decls(FOUNDATION, '.wc-view-more:disabled');
+    const token = (name: string) => new RegExp(`${name}:\\s*(#[0-9A-F]{6})`, 'i').exec(read(FOUNDATION))?.[1] ?? '';
+    const luminance = (hex: string) => [1, 3, 5]
+      .map((index) => Number.parseInt(hex.slice(index, index + 2), 16) / 255)
+      .map((channel) => (channel <= 0.03928 ? channel / 12.92 : ((channel + 0.055) / 1.055) ** 2.4))
+      .reduce((sum, channel, index) => sum + channel * [0.2126, 0.7152, 0.0722][index], 0);
+
+    expect(disabled['border-color']).toBe('var(--wc-hairline)');
+    expect(disabled.color).toBe('var(--wc-ink-disabled)');
+    expect(luminance(token('--wc-hairline'))).toBeGreaterThan(luminance(token('--wc-line-control-soft')));
+  });
+
   it('컬렉션에서는 그리드 폭 896×48 바로 편다', () => {
     const collection = decls(CATALOG, '.wc-collection__main .wc-view-more');
 
@@ -98,6 +112,19 @@ describe('목록 하트 (11 CL-01 · 12 LD-4)', () => {
     expect(disc['border-radius']).toBe('50%');
     expect(disc.background).toBe('var(--wc-surface)');
     expect(decls(CATALOG, '.wc-product-card__action .wc-list-heart').margin).toBe('-4px -4px 0 0');
+  });
+
+  /* 카드 슬롯 하트는 overflow:hidden 이미지 프레임 우상단에 붙어 있어 상자 바깥 링의 위·오른쪽 변이 잘렸다(l4-ui-5).
+     링은 36 원에 그리고, 원에서 히트 상자 가장자리까지(4px) 안에 링 두께 + 간격이 들어야 한다. */
+  it('키보드 포커스 링은 보이는 원을 감싸고 히트 상자 안에서 끝난다', () => {
+    const heart = decls(CATALOG, '.wc-list-heart');
+    const disc = decls(CATALOG, '.wc-list-heart__disc');
+    const ring = decls(CATALOG, '.wc-root .wc-list-heart:focus-visible .wc-list-heart__disc');
+
+    expect(decls(CATALOG, '.wc-root .wc-list-heart:focus-visible').outline).toBe('none');
+    expect(ring.outline).toBe('2px solid var(--wc-focus)');
+    expect(ring['outline-offset']).toBe('2px');
+    expect(px(ring.outline.split(' ')[0]) + px(ring['outline-offset'])).toBeLessThanOrEqual((px(heart.width) - px(disc.width)) / 2);
   });
 
   it('빈 하트는 ink.tertiary, 찜한 하트는 비텍스트 액센트다', () => {
