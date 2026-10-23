@@ -74,6 +74,7 @@ describe('셸 공지 노출·클릭 전송', () => {
   it('노출이 페이지뷰 상태 확인보다 먼저 줄에 서도 버리지 않고, 그 화면 페이지뷰 기록 뒤에 공지마다 한 번 보낸다', async () => {
     const client = await load();
     client.enterShellNoticeView('/');
+    const home = client.shellNoticeViewFor('/');
     client.recordShellNoticeEvent(A, 'impression');
     client.recordShellNoticeEvent(B, 'impression');
     await settle(client);
@@ -82,13 +83,13 @@ describe('셸 공지 노출·클릭 전송', () => {
     client.enqueueStoreAnalytics(async () => {
       client.setStoreAnalyticsCollecting(true);
       order.push('record');
-      client.releaseShellNoticeImpressions('/');
+      client.releaseShellNoticeImpressions(home);
     });
     await settle(client);
     expect(order).toEqual(['record', 'impression:3', 'impression:4']);
     const eventIds = sentBodies().map((body) => body.event.eventId);
     /* 같은 화면에서 다시 해제되거나 같은 공지가 다시 보여도 두 번 보내지 않는다. */
-    client.enqueueStoreAnalytics(async () => client.releaseShellNoticeImpressions('/'));
+    client.enqueueStoreAnalytics(async () => client.releaseShellNoticeImpressions(home));
     client.recordShellNoticeEvent(A, 'impression');
     await settle(client);
     expect(fetchMock).toHaveBeenCalledTimes(2);
@@ -101,6 +102,7 @@ describe('셸 공지 노출·클릭 전송', () => {
     client.enterShellNoticeView('/');
     client.recordShellNoticeEvent(A, 'impression');
     client.enterShellNoticeView('/shop/g1');
+    const detail = client.shellNoticeViewFor('/shop/g1');
     client.recordShellNoticeEvent(B, 'impression');
     await settle(client);
     expect(fetchMock).not.toHaveBeenCalled();
@@ -108,7 +110,7 @@ describe('셸 공지 노출·클릭 전송', () => {
       order.push('accept');
       client.setStoreAnalyticsCollecting(true);
       order.push('record');
-      client.releaseShellNoticeImpressions('/shop/g1');
+      client.releaseShellNoticeImpressions(detail);
     });
     await settle(client);
     expect(order).toEqual(['accept', 'record', 'impression:4']);
@@ -117,14 +119,44 @@ describe('셸 공지 노출·클릭 전송', () => {
   it('수집이 꺼졌거나 거부한 뒤에는 해제해도 보내지 않는다', async () => {
     const client = await load();
     client.enterShellNoticeView('/');
+    const home = client.shellNoticeViewFor('/');
     client.recordShellNoticeEvent(A, 'impression');
-    client.enqueueStoreAnalytics(async () => client.releaseShellNoticeImpressions('/'));
+    client.enqueueStoreAnalytics(async () => client.releaseShellNoticeImpressions(home));
     await settle(client);
     client.setStoreAnalyticsCollecting(true);
     client.enqueueStoreAnalytics(async () => client.setStoreAnalyticsCollecting(false));
-    client.enqueueStoreAnalytics(async () => client.releaseShellNoticeImpressions('/'));
+    client.enqueueStoreAnalytics(async () => client.releaseShellNoticeImpressions(home));
     await settle(client);
     expect(fetchMock).not.toHaveBeenCalled();
+  });
+
+  /* 페이지뷰 기록이 늦게 끝나는 사이 다른 화면을 거쳐 같은 경로를 다시 방문해도, 기록이 끝난 페이지뷰의 화면 것만 보낸다 —
+     경로로 '가장 최근 화면'을 찾으면 첫 방문의 노출은 잃고 두 방문이 하나로 셀 수 있다(Codex #599). */
+  it('페이지뷰 항목이 붙잡은 화면의 보류 노출만 보내고, 같은 경로의 다음 방문 노출은 그 방문의 페이지뷰를 기다린다', async () => {
+    const client = await load();
+    const firstVisit = client.shellNoticeViewFor('/');
+    client.enterShellNoticeView('/');
+    client.recordShellNoticeEvent(A, 'impression');
+    client.enterShellNoticeView('/shop');
+    client.enterShellNoticeView('/');
+    const secondVisit = client.shellNoticeViewFor('/');
+    expect(secondVisit).not.toBe(firstVisit);
+    client.recordShellNoticeEvent(B, 'impression');
+    await settle(client);
+    expect(fetchMock).not.toHaveBeenCalled();
+    client.enqueueStoreAnalytics(async () => {
+      client.setStoreAnalyticsCollecting(true);
+      order.push('record-first');
+      client.releaseShellNoticeImpressions(firstVisit);
+    });
+    await settle(client);
+    expect(order).toEqual(['record-first', 'impression:3']);
+    client.enqueueStoreAnalytics(async () => {
+      order.push('record-second');
+      client.releaseShellNoticeImpressions(secondVisit);
+    });
+    await settle(client);
+    expect(order).toEqual(['record-first', 'impression:3', 'record-second', 'impression:4']);
   });
 
   /* 페이지뷰는 측정 밖 화면(검색·장바구니)을 거쳐 같은 경로로 돌아오면 다시 센다 — 노출도 같은 경계로 다시 센다(l8a-data-2·ui-2). */
@@ -170,9 +202,10 @@ describe('셸 공지 노출·클릭 전송', () => {
     client.setStoreAnalyticsCollecting(true);
     rejectNext(409, '{"ok":false,"code":"session_expired"}');
     client.enterShellNoticeView('/');
+    const home = client.shellNoticeViewFor('/');
     client.recordShellNoticeEvent(A, 'impression');
     await settle(client);
-    client.enqueueStoreAnalytics(async () => client.releaseShellNoticeImpressions('/'));
+    client.enqueueStoreAnalytics(async () => client.releaseShellNoticeImpressions(home));
     await settle(client);
     const [failed, retried] = sentBodies();
     expect(fetchMock).toHaveBeenCalledTimes(2);

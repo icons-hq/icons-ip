@@ -41,19 +41,34 @@ interface NoticeView {
   seen: Map<string, string>;
   sent: Set<string>;
 }
+/** 화면 하나를 가리키는 손잡이. 페이지뷰 기록이 자기 화면의 보류 노출만 보내도록 그 화면을 붙잡아 둔다. */
+export type ShellNoticeViewHandle = Readonly<Pick<NoticeView, 'path'>>;
 const KEPT_VIEWS = 5;
 const views: NoticeView[] = [];
 let current: NoticeView | null = null;
 
-/** 경로 화면에 들어간다(같은 경로가 이어지면 그 화면 그대로). 공지 노출을 세는 공개 화면이면 true. */
-export function enterShellNoticeView(path: string): boolean {
+function viewFor(path: string): NoticeView {
   if (current?.path !== path) {
     /* 방문 통계와 같은 공개 화면에서만 센다(회원·주문·결제·검색 화면 제외 — 방문 통계 안내와 같은 범위). */
     current = { path, measured: analyticsPage(path, new URLSearchParams()) !== null, seen: new Map(), sent: new Set() };
     views.push(current);
     if (views.length > KEPT_VIEWS) views.shift();
   }
-  return current.measured;
+  return current;
+}
+
+/** 경로 화면에 들어간다(같은 경로가 이어지면 그 화면 그대로). 공지 노출을 세는 공개 화면이면 true. */
+export function enterShellNoticeView(path: string): boolean {
+  return viewFor(path).measured;
+}
+
+/**
+ * 이 경로의 지금 화면(없거나 다른 경로면 새 화면)을 돌려준다. 방문 통계가 페이지뷰 항목을 만들 때 부르고, 그 페이지뷰가 기록되면
+ * 이 손잡이로 releaseShellNoticeImpressions를 부른다 — 기록이 늦게 끝나는 사이 같은 경로를 다시 방문해도 두 방문을 섞지 않는다.
+ * 셸 공지와 방문 통계 중 누가 먼저 하이드레이트해도 같은 경로면 같은 화면이다.
+ */
+export function shellNoticeViewFor(path: string): ShellNoticeViewHandle {
+  return viewFor(path);
 }
 
 /** 셸이 사라지면(전용 셸 화면) 화면을 닫는다 — 다음에 같은 경로로 들어와도 새 화면이다. */
@@ -109,12 +124,12 @@ export function recordShellNoticeEvent(curationId: string, interaction: ShellNot
 }
 
 /**
- * 이 경로 화면의 페이지뷰가 기록된 직후 StoreAnalytics가 전송 줄 안에서 부른다. 하드 로드의 첫 상태 확인 전이나 동의 전에
- * 보여 아직 못 보낸 노출을, 페이지뷰를 기록한 그 화면 것만 같은 세션으로 보낸다(다른 화면에서 동의 전에 본 공지는 보내지 않는다).
+ * 페이지뷰가 기록된 직후 StoreAnalytics가 전송 줄 안에서, 그 페이지뷰 항목을 만들 때 붙잡은 화면 손잡이로 부른다. 하드 로드의 첫
+ * 상태 확인 전이나 동의 전에 보여 아직 못 보낸 노출을, 페이지뷰를 기록한 바로 그 화면 것만 같은 세션으로 보낸다(다른 화면이나 같은
+ * 경로의 다른 방문에서 본 공지는 보내지 않는다).
  */
-export function releaseShellNoticeImpressions(path: string): void {
-  let view: NoticeView | undefined;
-  for (let index = views.length - 1; index >= 0 && !view; index -= 1) if (views[index].path === path) view = views[index];
+export function releaseShellNoticeImpressions(handle: ShellNoticeViewHandle): void {
+  const view = handle as NoticeView;
   if (!view?.measured) return;
   const target = view;
   for (const curationId of target.seen.keys()) {
