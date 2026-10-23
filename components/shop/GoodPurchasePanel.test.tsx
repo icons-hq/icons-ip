@@ -335,6 +335,25 @@ describe('GoodPurchasePanel', () => {
     expect(html).toMatch(/<option value="red" selected="">빨강 · ₩15,000<\/option>/);
     expect(html).toMatch(/<option value="pre" disabled="">예약 · ₩16,000 · 예약 접수 종료<\/option>/);
     expect(html).toContain('wc-buy-panel__ctas');
+    /* R-04 §3.5 — 고른 옵션이 있으면 빈 옵션(placeholder) 행을 두지 않는다. 첫 옵션이 고른 옵션이다. */
+    expect(html).not.toContain('옵션을 선택해주세요');
+    expect(html).toMatch(/<select>(<option value="blue">)/);
+  });
+
+  /* 고른 품절 옵션(재입고 알림 대상)도 고른 옵션이라 빈 옵션이 없다. 고른 옵션이 사라졌을 때만 빈 옵션이 선택된 채 남는다. */
+  it('빈 옵션은 고른 옵션이 없을 때만 둔다', () => {
+    const options = [
+      {id:'blue',name:'파랑',price:12000,stockQty:0,code:'BLUE',attributes:{},isDefault:true},
+      {id:'red',name:'빨강',price:15000,stockQty:0,code:'RED',attributes:{},isDefault:false},
+    ];
+    const soldOut = { ...good, stock: 'soldout' as const, stockQty: 0, options };
+    const chosen = renderToStaticMarkup(<GoodPurchasePanel purchase={controller({ good: soldOut, soldOut: true, restockOption: options[0], selectionRequired: true, inert: true, subtotal: 0 })} />);
+    expect(chosen).not.toContain('옵션을 선택해주세요');
+    expect(chosen).toMatch(/<option value="blue" selected="">파랑 · ₩12,000 · 품절<\/option>/);
+    expect(chosen).toContain('<strong class="wc-buy-panel__total-amount">₩12,000</strong>');
+
+    const gone = renderToStaticMarkup(<GoodPurchasePanel purchase={controller({ good: { ...good, options: [{ ...options[0], stockQty: 3 }, options[1]] }, selectionRequired: true, inert: true, subtotal: 0 })} />);
+    expect(gone).toContain('<option value="" disabled="" selected="">옵션을 선택해주세요</option>');
   });
 
   /* PD-10 — 고른 품절 옵션: 셀렉트는 그 옵션을 가리키고, CTA 쌍 대신 그 옵션의 재입고 알림, 합계는 그 옵션 가격. */

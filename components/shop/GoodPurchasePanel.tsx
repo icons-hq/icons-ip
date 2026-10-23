@@ -25,7 +25,8 @@ import type { AddToCartResultItem } from './AddToCartResultDialog';
  * 굿즈 상세의 구매 블록 (R-04 §3.6~3.8 · DESIGN `pdp-buybox`·`cta-pair`·`restock-cta`).
  *
  * 첫 선택은 첫 구매 가능 옵션이고, 품절 옵션도 `· 품절`로 고를 수 있다 — 고르면 CTA 가 그 옵션의
- * 재입고 알림으로 바뀐다(PD-10 · LD-5). 모든 옵션이 품절이면 굿즈 단위 재입고 알림이다.
+ * 재입고 알림으로 바뀐다(PD-10 · LD-5). 모든 옵션이 품절이면 첫 옵션을 고른 채 열고 CTA 는 굿즈 단위
+ * 재입고 알림이다.
  * 상태는 이 훅 하나가 갖고, 정보 칼럼 패널과 고정 구매바가 같은 컨트롤러를 나눠 쓴다.
  * 두 표면이 각자 수량을 들면 아래 바로 산 개수와 위에서 고른 개수가 갈린다.
  *
@@ -433,7 +434,8 @@ export interface PurchaseTotalDisplay {
 
 /**
  * 합계 행의 라벨·값. 본문 패널과 데스크톱 레일 박스가 같은 값을 보인다.
- * 품절 굿즈는 고를 옵션이 없으니 "옵션 선택 후 표시" 대신 가격으로 합계를 보인다(PD-08).
+ * 고른 품절 옵션(모든 옵션이 품절이면 첫 옵션이 고른 채 열린다)은 그 옵션 가격이고, 고를 옵션이 없는
+ * 품절 굿즈도 "옵션 선택 후 표시" 대신 가격으로 합계를 보인다(PD-08).
  */
 export function purchaseTotalDisplay(purchase: Pick<GoodPurchaseController, 'good' | 'unavailableLabel' | 'selectionRequired' | 'subtotal' | 'soldOut' | 'quantity' | 'restockOption'>): PurchaseTotalDisplay {
   const label = purchase.unavailableLabel ? '판매 상태' : purchase.good.transactionOffer ? '예상 굿즈 금액' : '총 금액';
@@ -478,6 +480,7 @@ export function GoodPurchasePanel({ otherPurchases, purchase }: { otherPurchases
   const cta = purchaseCtaState(purchase);
   const singleOptionLabel = good.options?.length === 1 ? optionLabel(good.options[0], 1) : null;
   const displayOption = selectedOption ?? (good.options?.length === 1 ? good.options[0] : undefined);
+  const chosenOption = selectedOption ?? restockOption;
 
   return (
     <div className="wc-buy-panel">
@@ -491,9 +494,11 @@ export function GoodPurchasePanel({ otherPurchases, purchase }: { otherPurchases
         <label className="wc-buy-panel__option">
           <span>옵션</span>
           {/* 품절 옵션도 `· 품절`로 고를 수 있다 — 고르면 CTA 가 그 옵션의 재입고 알림이다(PD-10). 닫힌 예약판매
-              옵션처럼 재입고 알림 대상이 아닌 옵션만 고르지 못한다. */}
-          <select disabled={disabled || purchase.busy} onChange={event => selectOption(event.target.value)} value={(selectedOption ?? restockOption)?.id ?? ''}>
-            <option value="" disabled>옵션을 선택해주세요</option>
+              옵션처럼 재입고 알림 대상이 아닌 옵션만 고르지 못한다. 첫 선택이 늘 있으므로(defaultGoodOption) 빈
+              옵션(placeholder)은 고른 옵션이 없을 때만 둔다 — 새로고침으로 고른 옵션이 사라졌거나 고를 수 있는 옵션이
+              하나도 없을 때다(R-04 §3.5, 레퍼런스에는 빈 옵션 행이 없다). */}
+          <select disabled={disabled || purchase.busy} onChange={event => selectOption(event.target.value)} value={chosenOption?.id ?? ''}>
+            {chosenOption ? null : <option value="" disabled>옵션을 선택해주세요</option>}
             {good.options!.map(option => (
               <option key={option.id} value={option.id} disabled={!isSelectableGoodOption(option)}>
                 {`${option.name} · ${krw(option.price)}${optionAvailabilitySuffix(good, option)}`}

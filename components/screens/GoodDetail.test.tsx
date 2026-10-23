@@ -531,6 +531,39 @@ describe('GoodDetail', () => {
     expect(html).toContain('<div class="wc-pdp__purchase is-inline"><div class="wc-buy-panel">');
   });
 
+  /* PD-10 · R-04 §3.5 — 모든 옵션이 품절인 다옵션 굿즈: 빈 옵션 없이 첫 옵션을 고른 채 열고, 셀렉트·제목 가격·
+     합계가 같은 옵션을 가리킨다. CTA 는 굿즈 단위(모든 옵션) 재입고 알림 그대로다. */
+  it('모든 옵션이 품절이면 첫 옵션을 고른 채 열고 셀렉트·가격·합계가 같은 옵션이다', () => {
+    const options = [
+      { id: '00000000-0000-4000-8000-0000005672d1', name: '옵션 D', code: 'G13-D', price: 12000, stockQty: 0, isDefault: true, attributes: {} },
+      { id: '00000000-0000-4000-8000-0000005672e1', name: '옵션 E', code: 'G13-E', price: 13000, stockQty: 0, isDefault: false, attributes: {} },
+    ];
+    const soldOut = { good: { ...good, stock: 'soldout' as const, stockQty: 0, price: 12000, priceMax: 13000, options } };
+    const html = render(soldOut);
+    const select = html.slice(html.indexOf('<select'), html.indexOf('</select>'));
+
+    expect(select).not.toContain('옵션을 선택해주세요');
+    expect(select).toContain('<option value="00000000-0000-4000-8000-0000005672d1" selected="">옵션 D · ₩12,000 · 품절</option>');
+    expect(html).toContain('<span class="wc-sr-only">가격</span><span class="wc-price__amount">₩12,000</span>');
+    expect(html).not.toContain('₩12,000 ~ ₩13,000');
+    expect(html).toContain('<strong class="wc-buy-panel__total-amount">₩12,000</strong>');
+    expect(html).toContain('<strong class="wc-pdp-railbox__amount">₩12,000</strong>');
+    expect(html).toMatch(/<button class="wc-restock-cta"[^>]*data-variant=""/);
+    expect(html).not.toMatch(/data-variant="00000000-0000-4000-8000-0000005672d1"/);
+
+    /* 직접 고른 옵션 E 도 셀렉트·가격·합계가 E 이고 CTA 는 굿즈 단위다. 기본 선택은 주소에 쓰지 않지만 고른 옵션은 받는다. */
+    try {
+      navigation.search = 'variant=00000000-0000-4000-8000-0000005672e1';
+      const chosen = render(soldOut);
+      expect(chosen).toContain('<option value="00000000-0000-4000-8000-0000005672e1" selected="">옵션 E · ₩13,000 · 품절</option>');
+      expect(chosen).toContain('<span class="wc-sr-only">가격</span><span class="wc-price__amount">₩13,000</span>');
+      expect(chosen).toContain('<strong class="wc-buy-panel__total-amount">₩13,000</strong>');
+      expect(chosen).toMatch(/<button class="wc-restock-cta"[^>]*data-variant=""/);
+    } finally {
+      navigation.search = '';
+    }
+  });
+
   it('하부를 패널 전환 탭으로 나눈다', () => {
     const html = render();
 

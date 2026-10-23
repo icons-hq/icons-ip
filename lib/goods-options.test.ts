@@ -33,15 +33,23 @@ describe('public goods options',()=>{
     /* 자동 선택 규칙은 그대로다 — 재고 0 단일 옵션을 고르지 않는다(L2 몫). */
     expect(initialGoodOption({ ...good, options: [options[0]] })).toBeUndefined();
   });
-  /* LD-5 · 11 §6 B9 — 굿즈 상세 본품의 첫 선택은 정렬 순서상 첫 구매 가능 옵션이다. */
-  it('상세의 첫 선택은 첫 구매 가능 옵션이고, 모든 옵션이 품절이면 고르지 않는다', () => {
+  /* LD-5 · 11 §6 B9 · R-04 §3.5 — 굿즈 상세 본품의 첫 선택은 정렬 순서상 첫 구매 가능 옵션이다.
+     살 수 있는 옵션이 없으면 고를 수 있는 첫 옵션을 고른 채 연다(빈 옵션 없음 — 셀렉트·가격·합계가 같은 옵션). */
+  it('상세의 첫 선택은 첫 구매 가능 옵션이고, 모든 옵션이 품절이면 고를 수 있는 첫 옵션이다', () => {
     expect(defaultGoodOption(good)).toEqual(options[1]);
     expect(defaultGoodOption({ options: [options[1], { ...options[0], id: 'third', stockQty: 5 }] })).toEqual(options[1]);
-    expect(defaultGoodOption({ options: [options[0]] })).toBeUndefined();
-    expect(defaultGoodOption({ options: [options[0], { ...options[1], stockQty: 0 }] })).toBeUndefined();
+    expect(defaultGoodOption({ options: [options[0]] })).toEqual(options[0]);
+    expect(defaultGoodOption({ options: [options[0], { ...options[1], stockQty: 0 }] })).toEqual(options[0]);
+    /* 닫힌 예약판매 옵션은 고를 수 없어 건너뛰고, 고를 수 있는 옵션이 하나도 없으면 고르지 않는다. */
+    const closedPreorder = { ...options[0], id: 'closed-preorder', supply: { mode: 'preorder' as const, state: 'closed' as const, availableQty: 0,
+      policyId: '00000000-0000-4000-8000-000000000009', policyRevision: 1, startsAt: '2026-10-01T00:00:00Z', endsAt: '2026-10-21T00:00:00Z',
+      expectedShipDate: '2026-11-20', calculatedAt: '2026-10-22T00:00:00Z', nextChangeAt: null } };
+    expect(defaultGoodOption({ options: [closedPreorder, { ...options[1], stockQty: 0 }] })).toEqual({ ...options[1], stockQty: 0 });
+    expect(defaultGoodOption({ options: [closedPreorder] })).toBeUndefined();
     expect(defaultGoodOption({ options: undefined })).toBeUndefined();
     /* 목록 카드 담기·추가 구성의 자동 선택은 그대로 하나뿐인 구매 가능 옵션만이다. */
     expect(initialGoodOption(good)).toBeUndefined();
+    expect(initialGoodOption({ ...good, options: [options[0]] })).toBeUndefined();
   });
   /* PD-10 — 재고만 떨어진 옵션은 고를 수 있고(재입고 알림 대상), 닫힌 예약판매 옵션은 고르지 못한다. */
   it('재고만 떨어진 옵션은 재입고 알림 대상이라 고를 수 있고, 예약판매 옵션은 살 수 있을 때만 고른다', () => {
