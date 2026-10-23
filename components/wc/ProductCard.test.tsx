@@ -89,6 +89,14 @@ describe('ProductCard', () => {
     expect(badges).not.toContain('<a ');
   });
 
+  /* 레퍼런스는 NEW 같은 저장 배지를 색 바탕으로, 할인 파생 SALE 을 흰 바탕 + 틴트 테두리로 가른다(11 CL-03). */
+  it('draws the derived SALE badge as the outline variant and keeps stored badges tinted', () => {
+    const html = renderToStaticMarkup(<ProductCard {...card} badges={['NEW', 'SALE']} />);
+
+    expect(html).toContain('<span class="wc-badge">NEW</span>');
+    expect(html).toContain('<span class="wc-badge outline">SALE</span>');
+  });
+
   it('puts the image background on the inline style', () => {
     const html = renderToStaticMarkup(
       <ProductCard {...card} imageBackground="linear-gradient(#111, #222)" />,
@@ -106,5 +114,19 @@ describe('ProductCard', () => {
     expect(html).toContain('<p class="wc-product-card__brand">ICONS</p>');
     expect(html).toContain('<s class="wc-price__original">₩16,000</s>');
     expect(html).toContain('₩12,000');
+  });
+
+  /* CL-02: 리뷰가 있으면 가격 아래 별 다섯 칸 + (리뷰 수). 별 문자는 읽지 않고 숨은 문장을 읽는다. */
+  it('shows the list rating under the price only when public reviews exist', () => {
+    const html = renderToStaticMarkup(<ProductCard {...card} reviewSummary={{ count: 12, average: 4.33 }} />);
+    const rating = html.match(/<p class="wc-product-card__rating">[\s\S]*?<\/p>/)?.[0] ?? '';
+
+    expect(rating).toContain('<span aria-hidden="true" class="wc-product-card__stars">★★★★<span class="wc-product-card__stars-empty">★</span></span>');
+    expect(rating).toContain('<span aria-hidden="true" class="wc-product-card__rating-count">(12)</span>');
+    expect(rating).toContain('<span class="wc-sr-only">평점 5점 만점에 4.3점, 리뷰 12개</span>');
+    expect(html.indexOf('wc-price')).toBeLessThan(html.indexOf('wc-product-card__rating'));
+
+    expect(renderToStaticMarkup(<ProductCard {...card} />)).not.toContain('wc-product-card__rating');
+    expect(renderToStaticMarkup(<ProductCard {...card} reviewSummary={{ count: 0, average: 0 }} />)).not.toContain('wc-product-card__rating');
   });
 });

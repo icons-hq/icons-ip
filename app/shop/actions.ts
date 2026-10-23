@@ -3,6 +3,7 @@
 import { isAccountSuspended } from '@/lib/auth/onboarding';
 import { getCurrentAuthState, type CurrentAuthState } from '@/lib/auth/server';
 import { createClient } from '@/lib/supabase/server';
+import { isUuid } from '@/lib/uuid';
 
 /* 굿즈 참여 액션 (#326 S4).
  *
@@ -101,6 +102,40 @@ export async function requestRestockAlertAction(goodIdValue: unknown): Promise<R
     if (error.code === 'P0002' || error.code === '22023') {
       return { ok: false, error: 'invalid_request' };
     }
+    return { ok: false, error: 'unavailable' };
+  }
+
+  return { ok: true, status: 'pending' };
+}
+
+/*
+ * 옵션 단위 재입고 알림 신청 (PD-11 · LD-5).
+ *
+ * 굿즈는 판매 중이고 고른 옵션만 품절일 때 쓴다 — 굿즈 전체가 품절이면 위의 굿즈 단위 신청(모든 옵션)이다.
+ * 기존 requestRestockAlertAction 의 시그니처는 그대로 두고 옵션 인자를 받는 액션을 따로 둔다(DESIGN §11).
+ * 판정·재신청 upsert 는 request_variant_restock_alert RPC 한 트랜잭션이 굿즈 행 잠금과 함께 한다.
+ * good/variant missing(P0002)·판매 중 옵션·예약판매 옵션(22023)은 성립하지 않는 요청이고,
+ * 탈퇴 신청으로 쓰기가 봉인된 계정(55000)은 저장하지 않는다.
+ */
+export async function requestVariantRestockAlertAction(
+  goodIdValue: unknown,
+  variantIdValue: unknown,
+): Promise<RestockAlertResult> {
+  const gate = engagementGate(await getCurrentAuthState());
+  if ('error' in gate) return { ok: false, error: gate.error };
+
+  const goodId = normalizeGoodId(goodIdValue);
+  const variantId = typeof variantIdValue === 'string' ? variantIdValue.trim().toLowerCase() : '';
+  if (!goodId || !isUuid(variantId)) return { ok: false, error: 'invalid_request' };
+
+  const supabase = await createClient();
+  const { error } = await supabase.rpc('request_variant_restock_alert', {
+    target_good_id: goodId,
+    target_variant_id: variantId,
+  });
+  if (error) {
+    if (error.code === '28000') return { ok: false, error: 'auth_required' };
+    if (error.code === 'P0002' || error.code === '22023') return { ok: false, error: 'invalid_request' };
     return { ok: false, error: 'unavailable' };
   }
 

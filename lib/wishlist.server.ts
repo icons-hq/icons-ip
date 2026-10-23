@@ -19,7 +19,10 @@ interface WishlistRow {
 
 export interface GoodEngagement {
   wished: boolean;
+  /** 굿즈 단위(모든 옵션) 재입고 알림이 대기 중인가. */
   restockRequested: boolean;
+  /** 옵션 단위 재입고 알림이 대기 중인 옵션 id (PD-11). */
+  restockVariantIds: string[];
 }
 
 export interface WishlistEntry {
@@ -27,7 +30,7 @@ export interface WishlistEntry {
   createdAt: string;
 }
 
-const guestEngagement: GoodEngagement = { wished: false, restockRequested: false };
+const guestEngagement: GoodEngagement = { wished: false, restockRequested: false, restockVariantIds: [] };
 
 type WishlistSupabaseClient = Awaited<ReturnType<typeof createClient>>;
 
@@ -56,18 +59,36 @@ export async function getGoodEngagement(goodId: string): Promise<GoodEngagement>
       .eq('user_id', userId)
       .eq('good_id', id)
       .maybeSingle<{ good_id: string }>(),
+    /* 한 굿즈에 신청이 여러 행일 수 있다 — "모든 옵션" 1행과 옵션마다 1행(PD-11).
+       maybeSingle 로 읽으면 두 행부터 오류가 나 신청 상태가 통째로 false 로 접힌다. */
     supabase
       .from('restock_alerts')
-      .select('status')
+      .select('variant_id,status')
       .eq('user_id', userId)
       .eq('good_id', id)
-      .maybeSingle<{ status: string }>(),
+      .eq('status', 'pending'),
   ]);
 
   return {
     wished: !wishResult.error && Boolean(wishResult.data),
-    /* notified 로 넘어간 신청은 이미 알림을 받은 과거다 — 다시 신청할 수 있어야 한다. */
-    restockRequested: !restockResult.error && restockResult.data?.status === 'pending',
+    ...pendingRestockState(restockResult.error ? [] : restockResult.data ?? []),
+  };
+}
+
+interface RestockAlertStateRow {
+  variant_id: string | null;
+  status: string;
+}
+
+/**
+ * 대기 중인 재입고 신청 행을 굿즈 단위 표식과 옵션 id 목록으로 나눈다.
+ * notified 로 넘어간 신청은 이미 알림을 받은 과거다 — 다시 신청할 수 있어야 하므로 세지 않는다.
+ */
+export function pendingRestockState(rows: readonly RestockAlertStateRow[]): Pick<GoodEngagement, 'restockRequested' | 'restockVariantIds'> {
+  const pending = rows.filter((row) => row.status === 'pending');
+  return {
+    restockRequested: pending.some((row) => row.variant_id === null),
+    restockVariantIds: [...new Set(pending.flatMap((row) => typeof row.variant_id === 'string' ? [row.variant_id] : []))],
   };
 }
 

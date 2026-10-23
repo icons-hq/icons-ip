@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cartOptionGood, goodAtQuotedPrice, goodCompareAtPrice, initialGoodOption, optionLabel, optionPriceRange, selectableGoodOptionId, soldOutPreviewPrice, variantSearchForSelection, variantSyncDefault } from './goods-options';
+import { cartOptionGood, defaultGoodOption, goodAtQuotedPrice, goodCompareAtPrice, initialGoodOption, isRestockableGoodOption, isSelectableGoodOption, optionLabel, optionPriceRange, selectableGoodOptionId, soldOutPreviewPrice, variantSearchForSelection, variantSyncDefault } from './goods-options';
 import type { GoodsSalesQuoteLine } from './goods-sales';
 import type { Good, GoodOption } from './data';
 
@@ -33,13 +33,54 @@ describe('public goods options',()=>{
     /* 자동 선택 규칙은 그대로다 — 재고 0 단일 옵션을 고르지 않는다(L2 몫). */
     expect(initialGoodOption({ ...good, options: [options[0]] })).toBeUndefined();
   });
-  /* PD-14 — 주소의 ?variant= 는 지금 고를 수 있는 이 굿즈의 옵션일 때만 첫 선택이 된다. */
-  it('주소 옵션은 이 굿즈의 재고 있는 옵션일 때만 받는다', () => {
+  /* LD-5 · 11 §6 B9 · R-04 §3.5 — 굿즈 상세 본품의 첫 선택은 정렬 순서상 첫 구매 가능 옵션이다.
+     살 수 있는 옵션이 없으면 고를 수 있는 첫 옵션을 고른 채 연다(빈 옵션 없음 — 셀렉트·가격·합계가 같은 옵션). */
+  it('상세의 첫 선택은 첫 구매 가능 옵션이고, 모든 옵션이 품절이면 고를 수 있는 첫 옵션이다', () => {
+    expect(defaultGoodOption(good)).toEqual(options[1]);
+    expect(defaultGoodOption({ options: [options[1], { ...options[0], id: 'third', stockQty: 5 }] })).toEqual(options[1]);
+    expect(defaultGoodOption({ options: [options[0]] })).toEqual(options[0]);
+    expect(defaultGoodOption({ options: [options[0], { ...options[1], stockQty: 0 }] })).toEqual(options[0]);
+    /* 닫힌 예약판매 옵션은 고를 수 없어 건너뛰고, 고를 수 있는 옵션이 하나도 없으면 고르지 않는다. */
+    const closedPreorder = { ...options[0], id: 'closed-preorder', supply: { mode: 'preorder' as const, state: 'closed' as const, availableQty: 0,
+      policyId: '00000000-0000-4000-8000-000000000009', policyRevision: 1, startsAt: '2026-10-01T00:00:00Z', endsAt: '2026-10-21T00:00:00Z',
+      expectedShipDate: '2026-11-20', calculatedAt: '2026-10-22T00:00:00Z', nextChangeAt: null } };
+    expect(defaultGoodOption({ options: [closedPreorder, { ...options[1], stockQty: 0 }] })).toEqual({ ...options[1], stockQty: 0 });
+    expect(defaultGoodOption({ options: [closedPreorder] })).toBeUndefined();
+    expect(defaultGoodOption({ options: undefined })).toBeUndefined();
+    /* 목록 카드 담기·추가 구성의 자동 선택은 그대로 하나뿐인 구매 가능 옵션만이다. */
+    expect(initialGoodOption(good)).toBeUndefined();
+    expect(initialGoodOption({ ...good, options: [options[0]] })).toBeUndefined();
+  });
+  /* PD-10 — 재고만 떨어진 옵션은 고를 수 있고(재입고 알림 대상), 닫힌 예약판매 옵션은 고르지 못한다. */
+  it('재고만 떨어진 옵션은 재입고 알림 대상이라 고를 수 있고, 예약판매 옵션은 살 수 있을 때만 고른다', () => {
+    const preorder = (state: 'open' | 'closed', availableQty: number) => ({ ...options[0], stockQty: availableQty, supply: {
+      mode: 'preorder' as const, state, availableQty, policyId: '00000000-0000-4000-8000-000000000009', policyRevision: 1,
+      startsAt: '2026-10-01T00:00:00Z', endsAt: '2026-10-31T00:00:00Z', expectedShipDate: '2026-11-20',
+      calculatedAt: '2026-10-22T00:00:00Z', nextChangeAt: null } });
+    expect(isRestockableGoodOption(options[0])).toBe(true);
+    expect(isSelectableGoodOption(options[0])).toBe(true);
+    expect(isRestockableGoodOption(options[1])).toBe(false);
+    expect(isSelectableGoodOption(options[1])).toBe(true);
+    expect(isRestockableGoodOption(preorder('open', 0))).toBe(false);
+    expect(isSelectableGoodOption(preorder('open', 0))).toBe(false);
+    expect(isSelectableGoodOption(preorder('closed', 0))).toBe(false);
+    expect(isSelectableGoodOption(preorder('open', 3))).toBe(true);
+    /* 재고 판매 옵션의 품절은 공급 정보가 있어도 재입고 알림 대상이다. */
+    expect(isRestockableGoodOption({ stockQty: 0, supply: { ...preorder('open', 0).supply, mode: 'stock', state: 'stock', policyId: null,
+      policyRevision: null, startsAt: null, endsAt: null, expectedShipDate: null } })).toBe(true);
+  });
+  /* PD-14·PD-10 — 주소의 ?variant= 는 지금 고를 수 있는 이 굿즈의 옵션일 때만 첫 선택이 된다.
+     품절 옵션을 가리키는 공유·재입고 알림 링크는 그 옵션을 고른 채(재입고 알림 CTA) 연다. */
+  it('주소 옵션은 이 굿즈의 고를 수 있는 옵션일 때만 받고, 품절 옵션도 받는다', () => {
     expect(selectableGoodOptionId(good, options[1].id)).toBe(options[1].id);
-    expect(selectableGoodOptionId(good, options[0].id)).toBeUndefined();
+    expect(selectableGoodOptionId(good, options[0].id)).toBe(options[0].id);
     expect(selectableGoodOptionId(good, 'other-good-option')).toBeUndefined();
     expect(selectableGoodOptionId(good, null)).toBeUndefined();
     expect(selectableGoodOptionId({ options: undefined }, options[1].id)).toBeUndefined();
+    const closedPreorder = { ...options[0], id: 'closed-preorder', supply: { mode: 'preorder' as const, state: 'closed' as const, availableQty: 0,
+      policyId: '00000000-0000-4000-8000-000000000009', policyRevision: 1, startsAt: '2026-10-01T00:00:00Z', endsAt: '2026-10-21T00:00:00Z',
+      expectedShipDate: '2026-11-20', calculatedAt: '2026-10-22T00:00:00Z', nextChangeAt: null } };
+    expect(selectableGoodOptionId({ options: [closedPreorder] }, 'closed-preorder')).toBeUndefined();
   });
   it('옵션을 바꾸면 다른 검색 조건은 두고 ?variant= 만 바꾼다', () => {
     expect(variantSearchForSelection('?reviewPage=2', 'red', undefined)).toBe('?reviewPage=2&variant=red');
