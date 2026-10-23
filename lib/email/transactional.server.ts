@@ -389,7 +389,56 @@ export function sendOrderShippedEmail(input: {
 interface RestockAlertRow {
   id: string;
   notified_at: string | null;
+  /** 옵션 단위 신청의 옵션(PD-11). null 은 굿즈 단위(모든 옵션) 신청이다. */
+  variant_id?: string | null;
   profiles: { email: string | null } | { email: string | null }[] | null;
+}
+
+function rowVariantId(row: RestockAlertRow): string | null {
+  return typeof row.variant_id === 'string' && row.variant_id ? row.variant_id : null;
+}
+
+/* 옵션 신청이 가리키는 옵션 이름. service role 은 goods_variants 를 직접 읽지 못해 봉인된 RPC 로만 받는다. */
+async function restockOptionNames(service: ReturnType<typeof createServiceClient>, goodId: string): Promise<Map<string, string>> {
+  const { data, error } = await service.rpc('service_restock_alert_option_names', { target_good_id: goodId });
+  if (error || !Array.isArray(data)) throw new Error('restock_email_option_names_load_failed');
+  const names = new Map<string, string>();
+  for (const row of data as { variant_id?: unknown; option_name?: unknown }[]) {
+    if (typeof row.variant_id === 'string' && typeof row.option_name === 'string' && row.option_name.trim()) {
+      names.set(row.variant_id, row.option_name.trim());
+    }
+  }
+  return names;
+}
+
+/**
+ * 재입고 메일이 notified 신청을 다시 읽는 기간(전이 뒤 7일).
+ *
+ * 신청 행은 지우지 않고(이력 보존) 사이클마다 같은 행이 다시 notified 가 되며, 옵션 키로 굿즈당 행이
+ * "사용자 × (옵션 수 + 1)"까지 는다. 기간 없이 다시 읽으면 지난 사이클이 끝없이 쌓여 매 접점이 그만큼
+ * 클레임을 다시 돌고, 범위 없이 읽으면 PostgREST max_rows(1000)에서 행이 조용히 잘린다. 기간 안은
+ * id 커서로 끝까지 읽는다. 7일이 지난 사이클은 알림함이 전이 순간에 이미 받았고, 그만큼 늦은
+ * "다시 판매를 시작했어요"는 사실이 아닐 수 있어 메일로 보내지 않는다.
+ */
+export const RESTOCK_EMAIL_LOOKBACK_MS = 7 * 24 * 60 * 60 * 1000;
+
+/* 기간 안의 notified 신청을 빠짐없이 읽는다. 읽는 사이 행이 바뀌어 스냅샷이 어긋나면 일부만 보내지 않고
+   실패로 접는다(readCompleteIdPages — 클레임 전이라 다음 재고 접점에서 다시 읽는다). */
+async function loadNotifiedRestockAlerts(service: ReturnType<typeof createServiceClient>, goodId: string): Promise<RestockAlertRow[]> {
+  const since = new Date(Date.now() - RESTOCK_EMAIL_LOOKBACK_MS).toISOString();
+  const { data, error } = await readCompleteIdPages<RestockAlertRow>((after, size) => {
+    let query = service.from('restock_alerts')
+      .select('id,notified_at,variant_id,profiles(email)', { count: 'exact' })
+      .eq('good_id', goodId)
+      .eq('status', 'notified')
+      .gte('notified_at', since)
+      .order('id', { ascending: true })
+      .limit(size);
+    if (after) query = query.gt('id', after);
+    return query;
+  });
+  if (error || !data) throw new Error('restock_email_alerts_load_failed');
+  return data;
 }
 
 function rowRecipient(value: RestockAlertRow['profiles']): string | null {
@@ -399,24 +448,28 @@ function rowRecipient(value: RestockAlertRow['profiles']): string | null {
 }
 
 /**
- * 재입고 알림 메일 (#326).
+ * 재입고 알림 메일 (#326 · 옵션 단위 PD-11).
  *
- * 신청 행을 notified 로 넘기는 것은 DB 트리거다. 여기는 그 결과를 읽어 메일만 보낸다 —
- * "전이가 일어났는가"를 앱이 다시 판정하지 않는다. 판정을 두 곳에 두면 재고 복원 경로
+ * 신청 행을 notified 로 넘기는 것은 DB 트리거다(굿즈 행의 판매 가능 전이와 옵션 행의 재고
+ * 전이). 여기는 그 결과를 읽어 메일만 보낸다 — "전이가 일어났는가"를 앱이 다시 판정하지 않는다. 판정을 두 곳에 두면 재고 복원 경로
  * (주문 취소·반품의 service role 쓰기)가 늘 때마다 한쪽이 빠진다.
  *
  * 그래서 호출부는 재고를 건드린 뒤 조건 없이 부르면 된다. 이미 보낸 사이클은
  * claim_email_delivery 가 거른다(dedupe_key 에 notified_at 이 들어가 사이클마다 유일).
+ * 다시 읽는 범위는 전이 뒤 7일 안의 notified 신청 전부다(RESTOCK_EMAIL_LOOKBACK_MS).
  *
  * 한 굿즈에 신청자가 여럿이라 결과도 여러 개다. 한 명에게 실패해도 나머지는 보낸다 —
  * 배열 하나로 묶어 실패를 삼키면 누가 못 받았는지 알 수 없다.
  *
- * 알려진 한계: 현재 호출부는 어드민의 재고 접점(굿즈 저장·실재고 조정)뿐이다.
- * 주문 취소·반품의 재고 복원으로 전이가 일어나면 인앱 알림은 트리거가 즉시 보내지만,
- * 메일은 어드민이 그 굿즈를 다음에 만질 때까지 미룬다 — 취소 정합화 경로 서너 곳에
- * orderId→goods 팬아웃 훅을 심는 산탄보다, notified 행이 claim 게이트에 남아 있다가
- * 다음 접점에서 발송되는 쪽을 택했다. 발송 주기가 필요해지면 호출부를 늘리지 말고
- * 미발송 notified 행을 쓸어 담는 단일 청소 경로를 만들 것.
+ * 알려진 한계: 호출부는 어드민 접점(굿즈 저장·실재고 조정·옵션 복원 app/admin/goods-variant-actions.ts·
+ * 무통장 재허용 app/admin/good-bank-transfer-actions.ts)이다. 그 밖의 전이 — 주문 취소·반품의 재고
+ * 복원, 행 변경 없이 열린 판매 조건(IP 재공개·판매 기간 시작 시각 도래 — DB 청소 작업
+ * private.sweep_restock_alerts 가 5분마다 깨운다) — 은 인앱 알림이 즉시 나가지만, 메일은 어드민이 그
+ * 굿즈를 다음에 저장하거나 실재고를 조정할 때까지 미룬다(전이 뒤 7일이 지나면 보내지 않는다). 취소
+ * 정합화 경로 서너 곳에 orderId→goods 팬아웃 훅을 심는 산탄보다, notified 행이 claim 게이트에 남아
+ * 있다가 다음 접점에서 발송되는 쪽을 택했다. 어드민 액션이 굿즈 id 를 들고 있는 접점은 굿즈 저장처럼
+ * after() 로 이 함수를 부르면 된다. 발송 주기가 필요해지면 호출부를 늘리지 말고 미발송 notified 행을
+ * 쓸어 담는 단일 청소 경로를 만들 것.
  */
 export async function sendRestockAlertEmails(
   goodId: string,
@@ -451,22 +504,27 @@ export async function sendRestockAlertEmails(
       return { status: 'skipped', reason: 'good_unavailable' };
     }
 
-    const { data, error } = await service
-      .from('restock_alerts')
-      .select('id,notified_at,profiles(email)')
-      .eq('good_id', goodId)
-      .eq('status', 'notified')
-      .order('notified_at', { ascending: true });
-    if (error) throw new Error('restock_email_alerts_load_failed');
-
-    const rows = (data ?? []) as RestockAlertRow[];
+    const rows = await loadNotifiedRestockAlerts(service, goodId);
     if (!rows.length) return { status: 'skipped', reason: 'no_notified_alerts' };
+    /* 옵션 신청이 있을 때만 옵션 이름을 읽는다. 못 읽으면 옵션을 말하지 않는 메일을 보내지 않고 이번 배치를
+       접는다 — 클레임 전이라 다음 재고 접점에서 다시 보낸다. */
+    const optionNames = rows.some((row) => rowVariantId(row)) ? await restockOptionNames(service, goodId) : new Map<string, string>();
 
-    /* 본문은 수신자와 무관하다 — 한 번 그려 재사용한다. */
-    const rendered = renderRestockAlertEmail({
-      goodName,
-      goodPath: `${siteUrl()}/shop/${goodId}`,
-    });
+    /* 본문은 수신자와 무관하고 옵션마다 다르다 — 옵션(없으면 굿즈 단위)별로 한 번 그려 재사용한다.
+       옵션 신청의 링크는 그 옵션을 고른 상세다(?variant=, PD-14). */
+    const renderedByOption = new Map<string, RenderedEmail>();
+    const renderedFor = (variantId: string | null, optionName: string | null) => {
+      const cacheKey = variantId ?? '';
+      const cached = renderedByOption.get(cacheKey);
+      if (cached) return cached;
+      const rendered = renderRestockAlertEmail({
+        goodName,
+        optionName: variantId ? optionName : null,
+        goodPath: `${siteUrl()}/shop/${goodId}${variantId ? `?variant=${encodeURIComponent(variantId)}` : ''}`,
+      });
+      renderedByOption.set(cacheKey, rendered);
+      return rendered;
+    };
 
     for (const row of rows) {
       const recipient = rowRecipient(row.profiles);
@@ -477,12 +535,13 @@ export async function sendRestockAlertEmails(
         continue;
       }
 
+      const variantId = rowVariantId(row);
       /* 한 명이 실패해도 나머지는 보낸다 — 행마다 껍질을 씌워 실패를 격리한다. */
       results.push(await safely('restock alert', `alert:${row.id}`, () => deliver(service, {
-        dedupeKey: restockAlertEmailDedupeKey(row.id, notifiedAt),
+        dedupeKey: restockAlertEmailDedupeKey(row.id, notifiedAt, variantId),
         template: 'restock_alert',
         recipient,
-        rendered,
+        rendered: renderedFor(variantId, variantId ? optionNames.get(variantId) ?? null : null),
       })));
     }
 

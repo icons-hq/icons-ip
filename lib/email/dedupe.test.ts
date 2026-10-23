@@ -80,6 +80,7 @@ describe('문의 답변 메일 키 (#253)', () => {
 describe('재입고 알림 메일 키 (#326)', () => {
   const ALERT_ID = '11111111-1111-4111-8111-111111111111';
   const NOTIFIED_AT = '2026-08-28T02:00:00.000Z';
+  const VARIANT_ID = '22222222-2222-4222-8222-222222222222';
 
   it('템플릿 이름 목록에 restock_alert가 있다 — DB CHECK와 같은 집합이다', () => {
     expect(EMAIL_TEMPLATE_NAMES).toContain('restock_alert');
@@ -103,6 +104,28 @@ describe('재입고 알림 메일 키 (#326)', () => {
   it('주문 메일 파서가 재입고 키를 주문으로 오인하지 않는다', () => {
     expect(isOrderEmailTemplateName('restock_alert')).toBe(false);
     expect(parseOrderEmailDedupeKey(restockAlertEmailDedupeKey(ALERT_ID, NOTIFIED_AT))).toBeNull();
+    expect(parseOrderEmailDedupeKey(restockAlertEmailDedupeKey(ALERT_ID, NOTIFIED_AT, VARIANT_ID))).toBeNull();
+  });
+
+  /* PD-11 — 옵션 단위 신청은 옵션을 키에 담는다. */
+  it('옵션 단위 신청의 키는 옵션 id 를 담고 굿즈 단위 키와 겹치지 않는다', () => {
+    expect(restockAlertEmailDedupeKey(ALERT_ID, NOTIFIED_AT, VARIANT_ID))
+      .toBe(`restock_alert:${ALERT_ID}:${VARIANT_ID}:${NOTIFIED_AT}`);
+    expect(restockAlertEmailDedupeKey(ALERT_ID, NOTIFIED_AT, VARIANT_ID))
+      .not.toBe(restockAlertEmailDedupeKey(ALERT_ID, NOTIFIED_AT));
+    expect(restockAlertEmailDedupeKey(ALERT_ID, NOTIFIED_AT, VARIANT_ID))
+      .not.toBe(restockAlertEmailDedupeKey(ALERT_ID, '2026-09-01T02:00:00.000Z', VARIANT_ID));
+  });
+
+  /* 발송 경로는 notified 행을 기간 없이 다시 읽고 이미 보낸 사이클을 키로만 거른다. 굿즈 단위 키 형식이
+     바뀌면 지난 사이클 메일이 다음 어드민 저장 때 다시 나간다 — 옵션 키가 없으면 예전 형식 그대로다. */
+  it('굿즈 단위(모든 옵션) 신청의 키는 예전 형식과 같다', () => {
+    expect(restockAlertEmailDedupeKey(ALERT_ID, NOTIFIED_AT, null)).toBe(`restock_alert:${ALERT_ID}:${NOTIFIED_AT}`);
+    expect(restockAlertEmailDedupeKey(ALERT_ID, NOTIFIED_AT, undefined)).toBe(`restock_alert:${ALERT_ID}:${NOTIFIED_AT}`);
+  });
+
+  it('옵션 키도 PostgREST 의 마이크로초·시간대 표기 그대로 DB 한도 안에 있다', () => {
+    expect(restockAlertEmailDedupeKey(ALERT_ID, '2026-10-23T01:23:45.123456+00:00', VARIANT_ID).length).toBeLessThanOrEqual(200);
   });
 });
 

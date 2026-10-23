@@ -1,9 +1,11 @@
 const { legacyOperatorAccessFixture } = await vi.hoisted(() => import('@/lib/admin/access.test-fixtures'));
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-const mocks = vi.hoisted(() => ({ auth: vi.fn(), client: vi.fn(), rpc: vi.fn(), revalidatePath: vi.fn(), signal: new Error('NEXT_REDIRECT') }));
+const mocks = vi.hoisted(() => ({ auth: vi.fn(), client: vi.fn(), rpc: vi.fn(), revalidatePath: vi.fn(), signal: new Error('NEXT_REDIRECT'), after: vi.fn(), restockEmails: vi.fn() }));
 vi.mock('@/lib/auth/admin', () => ({ getCurrentAdminAuthState: mocks.auth }));
 vi.mock('@/lib/supabase/server', () => ({ createClient: mocks.client }));
 vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidatePath }));
+vi.mock('next/server', () => ({ after: mocks.after }));
+vi.mock('@/lib/email/transactional.server', () => ({ sendRestockAlertEmails: mocks.restockEmails }));
 vi.mock('next/navigation', () => ({
   redirect: (path: string) => { throw new Error(`NEXT_REDIRECT:${path}`); },
   unstable_rethrow: (error: unknown) => { if (error === mocks.signal || (error instanceof Error && error.message.startsWith('NEXT_REDIRECT:'))) throw error; },
@@ -33,6 +35,18 @@ describe('옵션 사용·복원 액션', () => {
     }
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/shop/[goodId]', 'page');
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/checkout/[orderId]', 'page');
+  });
+  /* 옵션 복원은 재입고 전이일 수 있다 — 굿즈 저장·실재고 조정처럼 응답 뒤 재입고 메일을 보낸다(L2 리뷰 l2-data-2). */
+  it('복원에 성공하면 응답 뒤 재입고 메일을 보내고, 사용 중지·실패에는 보내지 않는다', async () => {
+    await setGoodsVariantActiveAction({}, form());
+    expect(mocks.after).toHaveBeenCalledTimes(1);
+    (mocks.after.mock.calls[0][0] as () => unknown)();
+    expect(mocks.restockEmails).toHaveBeenCalledWith('g1');
+    mocks.after.mockClear();
+    await setGoodsVariantActiveAction({}, form({ active: 'false', price: '' }));
+    mocks.rpc.mockResolvedValueOnce({ error: { message: 'goods_variant_changed' } });
+    await setGoodsVariantActiveAction({}, form());
+    expect(mocks.after).not.toHaveBeenCalled();
   });
   it('사용 중지에는 복원 가격을 보내지 않는다', async () => {
     expect(await setGoodsVariantActiveAction({}, form({ active: 'false', price: '' }))).toHaveProperty('message');

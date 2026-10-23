@@ -1070,6 +1070,12 @@
   margin: 0;
 }
 
+/* 실패·거절 안내(카트·검증 오류, 구매 조건, 재입고 신청 실패·거절)는 성공색이 아니라 state.danger 다
+   (DESIGN form-feedback · invalid=green 아님). 문구가 먼저 뜻을 전하고 색은 보탠다. */
+.wc-buy-panel__status.is-error {
+  color: var(--wc-danger);
+}
+
 /* ------------------------------------------------------------------
    PDP — 하부 탭과 패널
    ------------------------------------------------------------------ */
@@ -2107,11 +2113,22 @@
 }
 
 .wc-pdp-railbox__cart:disabled,
-.wc-pdp-railbox__buy:disabled {
+.wc-pdp-railbox__buy:disabled,
+.wc-pdp-railbox__cart[aria-disabled='true'],
+.wc-pdp-railbox__buy[aria-disabled='true'] {
   border-color: var(--wc-ink-disabled);
   background: var(--wc-ink-disabled);
   color: #FFFFFF;
   cursor: not-allowed;
+}
+
+/* 카트 반영 중에는 담기·구매 버튼을 disabled 대신 aria-disabled 로 잠근다(포커스 유지 — 담기 결과 모달의
+   복귀 대상). 보이는 모습은 비활성 버튼과 같다. */
+.wc-buy-panel__ctas .wc-btn[aria-disabled='true'] {
+  border-color: var(--wc-ink-disabled);
+  background: var(--wc-ink-disabled);
+  color: #FFFFFF;
+  cursor: progress;
 }
 
 /* 품절이면 두 버튼 자리가 같은 폭(281)의 재입고 버튼 하나로 바뀐다 — 박스 크기가 흔들리지 않는다. */

@@ -1,5 +1,5 @@
 import { shipmentFixture } from '@/lib/orders/shipments.fixture';
-import { beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi, type Mock } from 'vitest';
 import {
   sendOrderConfirmationEmail,
   sendOrderShippedEmail,
@@ -27,7 +27,14 @@ const mocks = vi.hoisted(() => ({
   goodError: null as { message: string } | null,
   restockRows: [] as Record<string, unknown>[],
   restockError: null as { message: string } | null,
+  /** 재입고 신청 조회가 받은 notified_at 하한(.gte). 기간 없이 읽으면 null 이다. */
+  restockSince: [] as (string | null)[],
+  /** 재입고 신청 페이지를 읽기 직전에 불린다(읽는 사이 행이 바뀌는 경합 재현용). 인자는 0부터 센 페이지 번호다. */
+  beforeRestockPage: null as ((page: number) => void) | null,
 }));
+
+/* PostgREST 의 상한(supabase/config.toml max_rows = 1000). limit 이 없거나 더 크면 여기서 조용히 잘린다. */
+const POSTGREST_MAX_ROWS = 1000;
 
 vi.mock('../supabase/service', () => ({
   getServiceRoleConfig: () => ({ isConfigured: mocks.serviceConfigured }),
@@ -35,14 +42,30 @@ vi.mock('../supabase/service', () => ({
     rpc: mocks.rpc,
     from: (table: string) => {
       let after = '', limit = 500, profileId = '';
+      let since: string | null = null, orderColumn = 'id', ascending = true, limited = false;
+      /* 재입고 신청은 서버처럼 거른다: notified_at 하한·id 커서 → 정렬 → limit(없으면 max_rows) 순이고,
+         count 는 자르기 전 남은 행 수다. */
+      const restockPage = () => {
+        mocks.beforeRestockPage?.(mocks.restockSince.length);
+        mocks.restockSince.push(since);
+        const matching = mocks.restockRows
+          .filter((row) => since === null || String(row.notified_at) >= since)
+          .filter((row) => String(row.id) > after)
+          .sort((left, right) => {
+            const order = String(left[orderColumn]).localeCompare(String(right[orderColumn]));
+            return ascending ? order : -order;
+          });
+        return { data: matching.slice(0, Math.min(limited ? limit : POSTGREST_MAX_ROWS, POSTGREST_MAX_ROWS)), error: null, count: matching.length };
+      };
       const query = {
         select: () => query,
         eq: (_column: string, value: string) => { profileId = value; return query; },
         gt: (_column: string, value: string) => { after = value; return query; },
-        limit: (value: number) => { limit = value; return query; },
-        order: () => query,
+        gte: (_column: string, value: string) => { since = value; return query; },
+        limit: (value: number) => { limit = value; limited = true; return query; },
+        order: (column: string, options?: { ascending?: boolean }) => { orderColumn = column; ascending = options?.ascending ?? true; return query; },
         then: (resolve: (value: unknown) => unknown) => Promise.resolve(table === 'restock_alerts'
-          ? { data: mocks.restockError ? null : mocks.restockRows, error: mocks.restockError }
+          ? (mocks.restockError ? { data: null, error: mocks.restockError, count: null } : restockPage())
           : { data: mocks.itemsError ? null : mocks.items.filter(r => String(r.id) > after).slice(0, limit), error: mocks.itemsError, count: mocks.items.filter(r => String(r.id) > after).length }).then(resolve),
         maybeSingle: async () => {
           if (table === 'orders') {
@@ -126,10 +149,12 @@ beforeEach(() => {
   mocks.goodError = null;
   mocks.good = { name: '홍실 아크릴 블록', published_at: '2026-09-08', archived_at: null, sale_restriction: 'none', ips: { published_at: '2026-09-08', archived_at: null } };
   mocks.restockError = null;
+  mocks.restockSince = [];
+  mocks.beforeRestockPage = null;
   mocks.restockRows = [
     {
       id: '11111111-1111-4111-8111-111111111111',
-      notified_at: '2026-08-28T02:00:00.000Z',
+      notified_at: '2026-10-22T02:00:00.000Z',
       profiles: { email: 'fan@example.com' },
     },
   ];
@@ -380,13 +405,24 @@ describe('sendOrderShippedEmail', () => {
 
 describe('sendRestockAlertEmails (#326)', () => {
   const ALERT_ID = '11111111-1111-4111-8111-111111111111';
+  /* 다시 읽는 기간(최근 7일)을 결정적으로 재려고 시계만 고정한다 — 타이머·Promise 는 그대로다. */
+  const NOW = '2026-10-23T03:00:00.000Z';
+
+  beforeEach(() => {
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date(NOW));
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
 
   it('notified 로 넘어간 신청자마다 클레임 → 발송한다', async () => {
     const results = await sendRestockAlertEmails('g13');
 
     expect(results).toEqual([{ status: 'sent' }]);
     expect(rpcCalls('claim_email_delivery')[0][1]).toMatchObject({
-      target_dedupe_key: `restock_alert:${ALERT_ID}:2026-08-28T02:00:00.000Z`,
+      target_dedupe_key: `restock_alert:${ALERT_ID}:2026-10-22T02:00:00.000Z`,
       target_template: 'restock_alert',
       target_recipient: 'fan@example.com',
       target_subject: '[ICONS] 재입고 알림 — 홍실 아크릴 블록',
@@ -402,7 +438,7 @@ describe('sendRestockAlertEmails (#326)', () => {
     await sendRestockAlertEmails('g13');
     mocks.restockRows = [{
       ...mocks.restockRows[0],
-      notified_at: '2026-09-01T02:00:00.000Z',
+      notified_at: '2026-10-23T02:00:00.000Z',
     }];
     await sendRestockAlertEmails('g13');
 
@@ -441,10 +477,10 @@ describe('sendRestockAlertEmails (#326)', () => {
 
   it('한 수신자의 실패가 다른 수신자의 발송을 막지 않는다', async () => {
     mocks.restockRows = [
-      { id: ALERT_ID, notified_at: '2026-08-28T02:00:00.000Z', profiles: { email: null } },
+      { id: ALERT_ID, notified_at: '2026-10-22T02:00:00.000Z', profiles: { email: null } },
       {
         id: '22222222-2222-4222-8222-222222222222',
-        notified_at: '2026-08-28T02:00:00.000Z',
+        notified_at: '2026-10-22T02:00:00.000Z',
         profiles: { email: 'fan2@example.com' },
       },
     ];
@@ -476,6 +512,135 @@ describe('sendRestockAlertEmails (#326)', () => {
 
     expect(results).toEqual([{ status: 'failed', error: 'unexpected_email_failure' }]);
     expect(loggedLines().some((line) => line.includes('restock alert failed'))).toBe(true);
+  });
+
+  /* 신청 행은 지우지 않고(이력 보존) 옵션 키로 굿즈당 행 수가 늘었다. 기간·범위 없이 오래된 순으로 읽으면
+     PostgREST max_rows(1000)에서 가장 최신 사이클이 조용히 잘려 그 굿즈의 재입고 메일이 영영 끊긴다. */
+  it('지난 사이클 신청이 1,000행 넘게 쌓여도 이번 사이클을 빠짐없이 읽어 보낸다', async () => {
+    const CURRENT = '99999999-9999-4999-8999-999999999999';
+    const past = Array.from({ length: 1_100 }, (_, index) => ({
+      id: `00000000-0000-4000-8000-${String(index).padStart(12, '0')}`,
+      notified_at: `2026-10-${String(17 + (index % 5)).padStart(2, '0')}T01:00:00.000Z`,
+      variant_id: null,
+      profiles: { email: `past-${index}@example.com` },
+    }));
+    mocks.restockRows = [...past, { id: CURRENT, notified_at: '2026-10-23T02:59:00.000Z', variant_id: null, profiles: { email: 'now@example.com' } }];
+    const currentKey = `restock_alert:${CURRENT}:2026-10-23T02:59:00.000Z`;
+    /* 지난 사이클은 이미 보냈다 — 클레임이 거른다. */
+    mocks.rpc.mockImplementation(async (name: string, args?: { target_dedupe_key?: string }) => (
+      name === 'claim_email_delivery' ? { data: args?.target_dedupe_key === currentKey, error: null } : { data: null, error: null }
+    ));
+
+    const results = await sendRestockAlertEmails('g13');
+
+    const claimed = rpcCalls('claim_email_delivery').map((call) => call[1].target_dedupe_key as string);
+    expect(claimed).toHaveLength(1_101);
+    expect(new Set(claimed).size).toBe(1_101);
+    expect(claimed).toContain(currentKey);
+    expect(mocks.send).toHaveBeenCalledTimes(1);
+    expect(mocks.send.mock.calls[0][0].to).toBe('now@example.com');
+    expect(results.filter((result) => result.status === 'sent')).toHaveLength(1);
+    expect(loggedLines()).toEqual([]);
+  });
+
+  /* 다시 읽는 기간은 전이 뒤 7일이다. 그보다 오래된 사이클은 알림함이 이미 받았고, 그만큼 늦은 "다시 판매를
+     시작했어요"는 사실이 아닐 수 있어 메일로 보내지 않는다. */
+  it('전이 뒤 7일이 지난 사이클은 다시 읽지 않는다', async () => {
+    mocks.restockRows = [
+      { id: ALERT_ID, notified_at: '2026-10-16T02:59:59.999Z', variant_id: null, profiles: { email: 'stale@example.com' } },
+      { id: '22222222-2222-4222-8222-222222222222', notified_at: '2026-10-16T03:00:00.000Z', variant_id: null, profiles: { email: 'fresh@example.com' } },
+    ];
+
+    const results = await sendRestockAlertEmails('g13');
+
+    expect(mocks.restockSince).toEqual(['2026-10-16T03:00:00.000Z']);
+    expect(results).toEqual([{ status: 'sent' }]);
+    expect(mocks.send).toHaveBeenCalledTimes(1);
+    expect(mocks.send.mock.calls[0][0].to).toBe('fresh@example.com');
+  });
+
+  /* 기간 안의 행은 끝까지 읽는다 — 읽는 사이 행이 바뀌어 스냅샷이 어긋나면 일부만 보내지 않고 이번 배치를 접는다
+     (클레임 전이라 다음 재고 접점에서 다시 읽는다). */
+  it('읽는 사이 신청 행이 바뀌면 일부만 보내지 않고 배치를 접는다', async () => {
+    mocks.restockRows = Array.from({ length: 501 }, (_, index) => ({
+      id: `00000000-0000-4000-8000-${String(index).padStart(12, '0')}`,
+      notified_at: '2026-10-22T02:00:00.000Z',
+      variant_id: null,
+      profiles: { email: `fan-${index}@example.com` },
+    }));
+    /* 첫 페이지(500행)를 읽은 뒤 아직 읽지 않은 신청자가 재신청해 notified 행 하나가 빠진다. */
+    mocks.beforeRestockPage = (page) => {
+      if (page === 1) mocks.restockRows = mocks.restockRows.slice(0, 500);
+    };
+
+    const results = await sendRestockAlertEmails('g13');
+
+    expect(results).toEqual([{ status: 'failed', error: 'unexpected_email_failure' }]);
+    expect(rpcCalls('claim_email_delivery')).toHaveLength(0);
+    expect(mocks.send).not.toHaveBeenCalled();
+  });
+
+  /* PD-11 — 옵션 단위 신청. service role 은 goods_variants 를 직접 읽지 못해 봉인된 RPC 로 옵션 이름을 받는다. */
+  describe('옵션 단위 신청', () => {
+    const VARIANT_ID = '00000000-0000-4000-8000-000000056711';
+    const SECOND_ALERT = '22222222-2222-4222-8222-222222222222';
+
+    function withOptionNames(rows: { variant_id: string; option_name: string }[] | null, error: { message: string } | null = null) {
+      mocks.rpc.mockImplementation(async (name: string) => {
+        if (name === 'claim_email_delivery') return { data: true, error: null };
+        if (name === 'service_restock_alert_option_names') return { data: rows, error };
+        return { data: null, error: null };
+      });
+    }
+
+    it('굿즈 단위 신청만 있으면 옵션 이름을 읽지 않고 예전 키 형식 그대로 보낸다', async () => {
+      await sendRestockAlertEmails('g13');
+
+      expect(rpcCalls('service_restock_alert_option_names')).toHaveLength(0);
+      expect(rpcCalls('claim_email_delivery')[0][1].target_dedupe_key).toBe(`restock_alert:${ALERT_ID}:2026-10-22T02:00:00.000Z`);
+    });
+
+    it('옵션 신청은 옵션 이름·옵션을 고른 링크·옵션 키로 보내고 굿즈 단위 신청은 그대로 둔다', async () => {
+      withOptionNames([{ variant_id: VARIANT_ID, option_name: '빨강' }]);
+      mocks.restockRows = [
+        { id: ALERT_ID, notified_at: '2026-10-22T02:00:00.000Z', variant_id: null, profiles: { email: 'fan@example.com' } },
+        { id: SECOND_ALERT, notified_at: '2026-10-23T01:00:00.000Z', variant_id: VARIANT_ID, profiles: { email: 'fan2@example.com' } },
+      ];
+
+      const results = await sendRestockAlertEmails('g13');
+
+      expect(results).toEqual([{ status: 'sent' }, { status: 'sent' }]);
+      expect(rpcCalls('service_restock_alert_option_names')).toEqual([['service_restock_alert_option_names', { target_good_id: 'g13' }]]);
+      const claims = rpcCalls('claim_email_delivery').map((call) => call[1]);
+      expect(claims[0]).toMatchObject({
+        target_dedupe_key: `restock_alert:${ALERT_ID}:2026-10-22T02:00:00.000Z`,
+        target_subject: '[ICONS] 재입고 알림 — 홍실 아크릴 블록',
+      });
+      expect(claims[1]).toMatchObject({
+        target_dedupe_key: `restock_alert:${SECOND_ALERT}:${VARIANT_ID}:2026-10-23T01:00:00.000Z`,
+        target_recipient: 'fan2@example.com',
+        target_subject: '[ICONS] 재입고 알림 — 홍실 아크릴 블록 · 빨강',
+      });
+      const optionMail = mocks.send.mock.calls[1][0];
+      expect(optionMail.text).toContain('홍실 아크릴 블록 · 빨강 옵션이 다시 판매를 시작했어요.');
+      expect(optionMail.text).toContain(`/shop/g13?variant=${VARIANT_ID}`);
+      const goodsMail = mocks.send.mock.calls[0][0];
+      expect(goodsMail.text).toContain('홍실 아크릴 블록 굿즈가 다시 판매를 시작했어요.');
+      expect(goodsMail.text).not.toContain('variant=');
+    });
+
+    it('옵션 이름을 못 읽으면 이번 배치를 보내지 않고 실패로 남긴다(클레임 전이라 다음 접점에서 다시 보낸다)', async () => {
+      withOptionNames(null, { message: 'permission denied' });
+      mocks.restockRows = [
+        { id: SECOND_ALERT, notified_at: '2026-10-23T01:00:00.000Z', variant_id: VARIANT_ID, profiles: { email: 'fan2@example.com' } },
+      ];
+
+      const results = await sendRestockAlertEmails('g13');
+
+      expect(results).toEqual([{ status: 'failed', error: 'unexpected_email_failure' }]);
+      expect(rpcCalls('claim_email_delivery')).toHaveLength(0);
+      expect(mocks.send).not.toHaveBeenCalled();
+    });
   });
 });
 
