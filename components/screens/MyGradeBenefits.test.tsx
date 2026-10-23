@@ -71,7 +71,7 @@ describe('MyGradeBenefits', () => {
     expect(html).toContain('wc-mypage__tier-badge--gold');
     /* 자동 승급을 운영하지 않는 등급은 내 등급이 아니면 행을 세우지 않는다. */
     expect(html).not.toContain('wc-mypage__tier-badge--platinum');
-    expect(html).not.toContain('구매 적립 3%');
+    expect(html).not.toContain('구매 금액의 3% 적립금');
   });
 
   it('describes coupon benefits without codes and rates only when they are paid out', () => {
@@ -80,10 +80,10 @@ describe('MyGradeBenefits', () => {
     expect(html).toContain('<strong>골드 승급 쿠폰</strong> · ₩5,000 할인');
     expect(html).toContain('₩50,000 이상 구매 시 · 사용 기간 지급일부터 30일');
     expect(html).toContain('배송비 ₩3,000 할인');
-    expect(html).toContain('구매 적립 1.5%');
-    expect(html).toContain('구매 적립 1%');
+    expect(html).toContain('구매 금액의 1.5% 적립금');
+    expect(html).toContain('구매 금액의 1% 적립금');
     /* 0% 는 혜택이 아니다 — WELCOME 은 혜택 없음으로 읽힌다. */
-    expect(html).not.toContain('구매 적립 0%');
+    expect(html).not.toContain('구매 금액의 0% 적립금');
     expect(html).toContain('지금은 이 등급에 지급 중인 혜택이 없어요.');
   });
 
@@ -92,7 +92,7 @@ describe('MyGradeBenefits', () => {
 
     expect(html).toContain('wc-mypage__tier-badge--platinum');
     expect(html).toContain('지금은 자동으로 오르는 기준이 없는 등급이에요');
-    expect(html).toContain('구매 적립 3%');
+    expect(html).toContain('구매 금액의 3% 적립금');
   });
 
   it('says where it could not read instead of inventing values', () => {

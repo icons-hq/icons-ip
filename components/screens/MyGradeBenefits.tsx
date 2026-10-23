@@ -73,8 +73,8 @@ function BenefitList({ row, unavailable, now }: { row: GradeBenefitRow | null; u
       })}
       {rate ? (
         <li>
-          <strong>구매 적립 {rate}</strong>
-          <span className="wc-grade-benefits__terms">거래확정된 주문의 결제 금액(배송비 제외)에 주문할 때의 등급 적립률로 쌓여요</span>
+          <strong>구매 금액의 {rate} 적립금</strong>
+          <span className="wc-grade-benefits__terms">거래확정된 주문의 결제 금액(배송비 제외) 기준이며, 주문할 때의 등급 적립률이 적용돼요</span>
         </li>
       ) : null}
     </ul>
@@ -161,7 +161,7 @@ export function MyGradeBenefits({
         <p className="wc-grade-benefits__guide-title">혜택 지급</p>
         <ul>
           <li>등급 혜택 쿠폰은 쿠폰마다 한 번만 지급되고, 이미 받은 쿠폰은 다시 지급되지 않아요.</li>
-          <li>구매 적립은 기본 적립금 정책의 주문당·보유 한도 안에서 쌓여요.</li>
+          <li>등급 적립금은 기본 적립금 정책의 주문당·보유 한도 안에서 쌓여요.</li>
         </ul>
         <p className="wc-grade-benefits__guide-title">유의사항</p>
         <ul>
