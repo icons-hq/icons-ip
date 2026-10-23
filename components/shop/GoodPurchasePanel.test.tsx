@@ -12,6 +12,7 @@ import {
   isGoodSoldOut,
   mergedCartQuantity,
   purchaseBlockReason,
+  purchaseCtaState,
   purchaseSubtotal,
   purchaseTotalDisplay,
   type GoodPurchaseController,
@@ -27,8 +28,8 @@ vi.mock('next/navigation', () => ({
 }));
 
 vi.mock('@/components/shop/RestockCta', () => ({
-  RestockCta: ({ initialRequested }: { initialRequested: boolean }) => (
-    <button className="wc-restock-cta" type="button">
+  RestockCta: ({ initialRequested, optionName, variantId }: { initialRequested: boolean; optionName?: string | null; variantId?: string | null }) => (
+    <button className="wc-restock-cta" data-option={optionName ?? ''} data-variant={variantId ?? ''} type="button">
       {initialRequested ? '재입고 알림 신청됨' : '재입고 알림 받기'}
     </button>
   ),
@@ -221,6 +222,39 @@ describe('purchaseTotalDisplay', () => {
     expect(purchaseTotalDisplay({ ...base, good: { ...good, stock: 'soldout', stockQty: 0 }, selectionRequired: true, subtotal: 0, soldOut: true, quantity: 1 }).amount)
       .toBe('₩12,000');
   });
+
+  /* PD-10 — 고른 품절 옵션은 담기 대상이 아니라 subtotal 이 0 이어도 그 옵션 가격으로 합계를 보인다. */
+  it('고른 품절 옵션은 그 옵션 가격으로 합계를 보인다', () => {
+    const red = { id: 'red', name: '빨강', price: 15000, stockQty: 0, code: 'RED', attributes: {}, isDefault: false };
+    expect(purchaseTotalDisplay({ ...base, restockOption: red, selectionRequired: true, subtotal: 0, quantity: 1 }))
+      .toEqual({ label: '총 금액', amount: '₩15,000', numeric: true });
+    /* 모든 옵션이 품절인 굿즈에서 직접 고른 옵션도 첫 옵션 대신 그 옵션 가격이다. */
+    expect(purchaseTotalDisplay({ ...base, good: { ...good, stock: 'soldout', stockQty: 0 }, restockOption: red, selectionRequired: true, subtotal: 0, soldOut: true, quantity: 1 }).amount)
+      .toBe('₩15,000');
+    /* 판매 상태 안내가 먼저다. */
+    expect(purchaseTotalDisplay({ ...base, restockOption: red, unavailableLabel: '판매 종료' }).amount).toBe('판매 종료');
+  });
+});
+
+describe('purchaseCtaState (PD-10 · DESIGN restock-cta)', () => {
+  const blue = { id: 'blue', name: '파랑', price: 12000, stockQty: 3, code: 'BLUE', attributes: {}, isDefault: true };
+  const red = { id: 'red', name: '빨강', price: 15000, stockQty: 0, code: 'RED', attributes: {}, isDefault: false };
+  const multi = { ...good, options: [blue, red] };
+  const base = { good: multi, unavailableLabel: null, soldOut: false, restockRequested: false, restockVariantIds: [] as string[] };
+
+  it('판매 불가 안내 → 굿즈 전체 품절(모든 옵션) → 고른 옵션만 품절(그 옵션) → 담기·구매 순이다', () => {
+    expect(purchaseCtaState({ ...base, unavailableLabel: '판매 종료', soldOut: true, restockOption: red })).toEqual({ kind: 'unavailable', label: '판매 종료' });
+    expect(purchaseCtaState({ ...base, soldOut: true, restockOption: red, restockRequested: true }))
+      .toEqual({ kind: 'restock', variantId: null, optionName: null, requested: true });
+    expect(purchaseCtaState({ ...base, restockOption: red })).toEqual({ kind: 'restock', variantId: 'red', optionName: '빨강', requested: false });
+    expect(purchaseCtaState(base)).toEqual({ kind: 'buy' });
+  });
+
+  /* 옵션 신청의 신청됨 표시는 그 옵션의 대기 신청으로만 정해진다 — 굿즈 단위 신청과 섞지 않는다. */
+  it('옵션 신청 상태는 그 옵션의 대기 신청만 본다', () => {
+    expect(purchaseCtaState({ ...base, restockOption: red, restockVariantIds: ['red'] })).toMatchObject({ requested: true });
+    expect(purchaseCtaState({ ...base, restockOption: red, restockVariantIds: ['other'], restockRequested: true })).toMatchObject({ requested: false });
+  });
 });
 
 describe('GoodRailBuyBox', () => {
@@ -245,6 +279,17 @@ describe('GoodRailBuyBox', () => {
     const html = renderToStaticMarkup(<GoodRailBuyBox purchase={controller({ good: { ...good, stock: 'soldout', stockQty: 0 }, soldOut: true })} />);
 
     expect(html).toContain('재입고 알림 받기');
+    expect(html).toContain('data-variant=""');
+    expect(html).not.toContain('wc-pdp-railbox__ctas');
+  });
+
+  it('고른 옵션만 품절이면 레일 박스도 그 옵션의 재입고 알림과 그 옵션 합계다', () => {
+    const red = { id: 'red', name: '빨강', price: 15000, stockQty: 0, code: 'RED', attributes: {}, isDefault: false };
+    const blue = { ...red, id: 'blue', name: '파랑', price: 12000, stockQty: 3, isDefault: true };
+    const html = renderToStaticMarkup(<GoodRailBuyBox purchase={controller({ good: { ...good, options: [blue, red] }, restockOption: red, selectionRequired: true, inert: true, subtotal: 0 })} />);
+
+    expect(html).toContain('<strong class="wc-pdp-railbox__amount">₩15,000</strong>');
+    expect(html).toContain('data-option="빨강" data-variant="red"');
     expect(html).not.toContain('wc-pdp-railbox__ctas');
   });
 });
@@ -276,16 +321,41 @@ describe('GoodPurchasePanel', () => {
     expect(defaultHtml).not.toContain('wc-buy-panel__option');
   });
 
-  it('keeps sold-out options visible and prevents choosing them', () => {
+  /* LD-5 — #427 수용 기준("품절 옵션은 선택 불가")을 번복했다. 품절 옵션도 `· 품절`로 보이고 고를 수 있다. */
+  it('품절 옵션도 `· 품절`로 보이고 고를 수 있으며, 닫힌 예약판매 옵션만 고르지 못한다', () => {
     const options = [
       {id:'blue',name:'파랑',price:12000,stockQty:0,code:'BLUE',attributes:{},isDefault:true},
       {id:'red',name:'빨강',price:15000,stockQty:2,code:'RED',attributes:{},isDefault:false},
+      {id:'pre',name:'예약',price:16000,stockQty:0,code:'PRE',attributes:{},isDefault:false,supply:{mode:'preorder' as const,state:'closed' as const,availableQty:0,
+        policyId:'00000000-0000-4000-8000-000000000009',policyRevision:1,startsAt:'2026-10-01T00:00:00Z',endsAt:'2026-10-21T00:00:00Z',
+        expectedShipDate:'2026-11-20',calculatedAt:'2026-10-22T00:00:00Z',nextChangeAt:null}},
     ];
-    const html = renderToStaticMarkup(<GoodPurchasePanel purchase={controller({good:{...good,options},selectionRequired:true,inert:true})} />);
-    expect(html).toContain('옵션을 선택해주세요');
-    expect(html).toMatch(/<option[^>]*value="blue"[^>]*disabled=""/);
-    expect(html).toContain('파랑 · ₩12,000 · 품절');
-    expect(html).toContain('빨강 · ₩15,000');
+    const html = renderToStaticMarkup(<GoodPurchasePanel purchase={controller({good:{...good,options},selectedOption:options[1]})} />);
+    expect(html).toMatch(/<option value="blue">파랑 · ₩12,000 · 품절<\/option>/);
+    expect(html).toMatch(/<option value="red" selected="">빨강 · ₩15,000<\/option>/);
+    expect(html).toMatch(/<option value="pre" disabled="">예약 · ₩16,000 · 예약 접수 종료<\/option>/);
+    expect(html).toContain('wc-buy-panel__ctas');
+  });
+
+  /* PD-10 — 고른 품절 옵션: 셀렉트는 그 옵션을 가리키고, CTA 쌍 대신 그 옵션의 재입고 알림, 합계는 그 옵션 가격. */
+  it('품절 옵션을 고르면 CTA 가 그 옵션의 재입고 알림으로 바뀌고 합계는 그 옵션 가격이다', () => {
+    const options = [
+      {id:'blue',name:'파랑',price:12000,stockQty:3,code:'BLUE',attributes:{},isDefault:true},
+      {id:'red',name:'빨강',price:15000,stockQty:0,code:'RED',attributes:{},isDefault:false},
+    ];
+    const html = renderToStaticMarkup(<GoodPurchasePanel purchase={controller({
+      good:{...good,options}, selectedOption: undefined, restockOption: options[1], selectionRequired: true, inert: true, subtotal: 0,
+    })} />);
+    expect(html).toMatch(/<option value="red" selected="">빨강 · ₩15,000 · 품절<\/option>/);
+    expect(html).toContain('<button class="wc-restock-cta" data-option="빨강" data-variant="red" type="button">재입고 알림 받기</button>');
+    expect(html).not.toContain('wc-buy-panel__ctas');
+    expect(html).toContain('<strong class="wc-buy-panel__total-amount">₩15,000</strong>');
+    expect(html).not.toContain('옵션 선택 후 표시');
+
+    const requested = renderToStaticMarkup(<GoodPurchasePanel purchase={controller({
+      good:{...good,options}, restockOption: options[1], restockVariantIds: ['red'], selectionRequired: true, inert: true, subtotal: 0,
+    })} />);
+    expect(requested).toContain('data-variant="red" type="button">재입고 알림 신청됨</button>');
   });
 
   it('합계는 단가가 아니라 수량을 반영한 금액이다', () => {

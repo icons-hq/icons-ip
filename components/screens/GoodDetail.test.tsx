@@ -58,17 +58,20 @@ vi.mock('@/components/shop/WishlistHeart', () => ({
 }));
 
 vi.mock('@/components/shop/RestockCta', () => ({
-  RestockCta: ({ disabled, goodId, initialRequested }: {
+  RestockCta: ({ disabled, goodId, initialRequested, variantId }: {
     className?: string;
     disabled?: boolean;
     goodId: string;
     initialRequested: boolean;
+    optionName?: string | null;
+    variantId?: string | null;
   }) => (
     <button
       className="wc-restock-cta"
       data-disabled={disabled ? 'true' : 'false'}
       data-good={goodId}
       data-requested={initialRequested ? 'true' : 'false'}
+      data-variant={variantId ?? ''}
       type="button"
     >
       재입고 알림 받기
@@ -436,20 +439,84 @@ describe('GoodDetail', () => {
   });
 
   /* PD-01 — 모바일 바는 구매 시트를 여는 트리거다. 실행은 시트 안 CTA 가 한다. */
-  it('모바일 바의 장바구니·구매하기는 시트를 여는 트리거라 옵션을 고르기 전에도 잠기지 않는다', () => {
+  it('모바일 바의 장바구니·구매하기는 시트를 여는 트리거라 본문 패널이 잠긴 동안에도 잠기지 않는다', () => {
     const options = [
       { id: '00000000-0000-4000-8000-000000000201', name: '파랑', code: 'G13-B', price: 12000, stockQty: 3, isDefault: true, attributes: {} },
       { id: '00000000-0000-4000-8000-000000000202', name: '빨강', code: 'G13-R', price: 13000, stockQty: 0, isDefault: false, attributes: {} },
     ];
+    const barOf = (html: string) => html.slice(html.indexOf('<div class="wc-buybar">'), html.indexOf('</div>', html.indexOf('<div class="wc-buybar">')));
     const html = render({ good: { ...good, options } });
-    const bar = html.slice(html.indexOf('<div class="wc-buybar">'), html.indexOf('</div>', html.indexOf('<div class="wc-buybar">')));
+    const bar = barOf(html);
 
     expect(bar).toMatch(/<button aria-expanded="false" aria-haspopup="dialog" aria-label="장바구니에 담기" class="wc-buybar__cart" type="button">/);
     expect(bar).toMatch(/<button aria-expanded="false" aria-haspopup="dialog" class="wc-buybar__buy" type="button">구매하기<\/button>/);
     expect(bar).not.toContain('disabled');
-    /* 본문 패널은 같은 컨트롤러라 옵션 전에는 CTA 가 잠긴다 — 모바일에서는 CSS 가 이 래퍼째 숨긴다. */
+    /* LD-5 — 본문 패널은 같은 컨트롤러라 첫 구매 가능 옵션(파랑)을 고른 채 열리고 담기·구매가 바로 된다.
+       품절 옵션(빨강)은 고를 수 있게 `· 품절`로 남는다. 모바일에서는 CSS 가 이 래퍼째 숨긴다. */
     expect(html).toContain('<div class="wc-pdp__purchase"><div class="wc-buy-panel">');
-    expect(html).toMatch(/class="wc-btn wc-buy-panel__cart" disabled=""/);
+    expect(html).toContain('<option value="00000000-0000-4000-8000-000000000201" selected="">파랑 · ₩12,000</option>');
+    expect(html).toContain('<option value="00000000-0000-4000-8000-000000000202">빨강 · ₩13,000 · 품절</option>');
+    expect(html).toMatch(/<button class="wc-btn wc-buy-panel__cart" type="button">장바구니<\/button>/);
+    expect(html).toContain('<strong class="wc-buy-panel__total-amount">₩12,000</strong>');
+
+    /* 카트가 준비되기 전에는 본문 패널의 CTA 가 잠기지만 바는 시트를 여는 트리거라 그대로다. */
+    try {
+      cart.ready = false;
+      const loading = render({ good: { ...good, options } });
+      expect(loading).toMatch(/class="wc-btn wc-buy-panel__cart" disabled=""/);
+      expect(barOf(loading)).not.toContain('disabled');
+    } finally {
+      cart.ready = true;
+    }
+  });
+
+  /* PD-10 — 다른 옵션은 판매 중이고 고른 옵션만 품절: 본문 패널·레일 박스 CTA 는 그 옵션의 재입고 알림이고,
+     모바일 바는 시트 트리거로 남는다(바까지 재입고로 바꾸면 다른 옵션을 고르러 시트를 다시 열 길이 없다). */
+  it('고른 옵션만 품절이면 패널·레일은 그 옵션의 재입고 알림이고 모바일 바는 시트 트리거로 남는다', () => {
+    const options = [
+      { id: '00000000-0000-4000-8000-000000000221', name: '파랑', code: 'G13-B', price: 12000, stockQty: 3, isDefault: true, attributes: {} },
+      { id: '00000000-0000-4000-8000-000000000222', name: '빨강', code: 'G13-R', price: 13000, stockQty: 0, isDefault: false, attributes: {} },
+    ];
+    try {
+      navigation.search = 'variant=00000000-0000-4000-8000-000000000222';
+      const html = render({ good: { ...good, price: 12000, priceMax: 13000, options } });
+      const panel = html.slice(html.indexOf('<div class="wc-pdp__purchase">'), html.indexOf('<div class="wc-pdp-tabs">'));
+      const rail = html.slice(html.indexOf('<div class="wc-pdp-rail">'));
+      const bar = html.slice(html.indexOf('<div class="wc-buybar">'));
+
+      expect(panel).toContain('<option value="00000000-0000-4000-8000-000000000222" selected="">빨강 · ₩13,000 · 품절</option>');
+      expect(panel).toMatch(/<button class="wc-restock-cta"[^>]*data-variant="00000000-0000-4000-8000-000000000222"/);
+      expect(panel).not.toContain('wc-buy-panel__ctas');
+      expect(panel).toContain('<strong class="wc-buy-panel__total-amount">₩13,000</strong>');
+      expect(rail).toMatch(/<button class="wc-restock-cta"[^>]*data-variant="00000000-0000-4000-8000-000000000222"/);
+      expect(rail).toContain('<strong class="wc-pdp-railbox__amount">₩13,000</strong>');
+      expect(bar.startsWith('<div class="wc-buybar"><button aria-expanded="false" aria-haspopup="dialog" aria-label="장바구니에 담기"')).toBe(true);
+      expect(bar).not.toContain('wc-restock-cta');
+      /* 바가 시트를 여니 모바일 본문 패널은 시트로 옮겨 간다(is-inline 아님). 가격 표시는 고른 옵션이다. */
+      expect(html).toContain('<div class="wc-pdp__purchase"><div class="wc-buy-panel">');
+      expect(html).toContain('<span class="wc-sr-only">가격</span><span class="wc-price__amount">₩13,000</span>');
+    } finally {
+      navigation.search = '';
+    }
+  });
+
+  /* PD-11 — 옵션 단위 신청은 그 옵션을 골랐을 때만 신청됨으로 보이고, 굿즈 단위 신청과 섞이지 않는다. */
+  it('옵션 단위 신청 상태를 그 옵션의 재입고 CTA 에만 넘긴다', () => {
+    const options = [
+      { id: '00000000-0000-4000-8000-000000000231', name: '파랑', code: 'G13-B', price: 12000, stockQty: 3, isDefault: true, attributes: {} },
+      { id: '00000000-0000-4000-8000-000000000232', name: '빨강', code: 'G13-R', price: 13000, stockQty: 0, isDefault: false, attributes: {} },
+    ];
+    try {
+      navigation.search = 'variant=00000000-0000-4000-8000-000000000232';
+      const requested = renderToStaticMarkup(<GoodDetail detail={{ ...detail, good: { ...good, options } }}
+        engagement={{ wished: false, restockRequested: false, restockVariantIds: ['00000000-0000-4000-8000-000000000232'] }} />);
+      expect(requested).toMatch(/data-requested="true" data-variant="00000000-0000-4000-8000-000000000232"/);
+      const goodsLevelOnly = renderToStaticMarkup(<GoodDetail detail={{ ...detail, good: { ...good, options } }}
+        engagement={{ wished: false, restockRequested: true, restockVariantIds: [] }} />);
+      expect(goodsLevelOnly).toMatch(/data-requested="false" data-variant="00000000-0000-4000-8000-000000000232"/);
+    } finally {
+      navigation.search = '';
+    }
   });
 
   it('품절이면 모바일 바 전체가 재입고 알림이고 시트 트리거를 두지 않는다', () => {
@@ -457,6 +524,8 @@ describe('GoodDetail', () => {
     const bar = html.slice(html.indexOf('<div class="wc-buybar">'));
 
     expect(bar.startsWith('<div class="wc-buybar"><button class="wc-restock-cta"')).toBe(true);
+    /* 모든 옵션 품절은 굿즈 단위(모든 옵션) 신청이다 — 옵션 키가 없다. */
+    expect(bar).toMatch(/^<div class="wc-buybar"><button class="wc-restock-cta"[^>]*data-variant=""/);
     expect(html).not.toContain('aria-haspopup="dialog" aria-label="장바구니에 담기"');
     /* 시트 트리거가 없으니 모바일 본문 패널을 숨기지 않는다 — 품절 합계(PD-08)·옵션별 가격이 남는다. */
     expect(html).toContain('<div class="wc-pdp__purchase is-inline"><div class="wc-buy-panel">');
@@ -513,11 +582,19 @@ describe('GoodDetail', () => {
       expect(chosen).toContain('<span class="wc-sr-only">가격</span><span class="wc-price__amount">₩15,000</span>');
       expect(chosen).toContain('<strong class="wc-buy-panel__total-amount">₩15,000</strong>');
 
-      /* 품절 옵션·다른 굿즈 옵션은 기본 선택 규칙으로 돌아간다(다옵션은 명시 선택). */
-      for (const variant of ['00000000-0000-4000-8000-000000000403', '00000000-0000-4000-8000-999999999999']) {
-        navigation.search = `variant=${variant}`;
-        expect(render(multi)).toContain('<strong class="wc-buy-panel__total-amount">옵션 선택 후 표시</strong>');
-      }
+      /* PD-10 — 품절 옵션은 그 옵션을 고른 채(재입고 알림 CTA) 연다. 재입고 알림·공유 링크가 이 주소다. */
+      navigation.search = 'variant=00000000-0000-4000-8000-000000000403';
+      const soldOutChoice = render(multi);
+      expect(soldOutChoice).toMatch(/<option value="00000000-0000-4000-8000-000000000403" selected="">초록 · ₩13,000 · 품절<\/option>/);
+      expect(soldOutChoice).toContain('<strong class="wc-buy-panel__total-amount">₩13,000</strong>');
+      expect(soldOutChoice).toMatch(/data-variant="00000000-0000-4000-8000-000000000403"/);
+
+      /* 다른 굿즈 옵션·오타는 기본 선택 규칙(첫 구매 가능 옵션, LD-5)으로 돌아간다. */
+      navigation.search = 'variant=00000000-0000-4000-8000-999999999999';
+      const fallback = render(multi);
+      expect(fallback).toMatch(/<option value="00000000-0000-4000-8000-000000000401" selected="">파랑 · ₩12,000<\/option>/);
+      expect(fallback).toContain('<strong class="wc-buy-panel__total-amount">₩12,000</strong>');
+      expect(fallback).not.toContain('wc-restock-cta');
     } finally {
       navigation.search = '';
     }

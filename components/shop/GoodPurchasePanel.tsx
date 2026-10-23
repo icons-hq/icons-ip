@@ -7,7 +7,7 @@ import { RestockCta } from '@/components/shop/RestockCta';
 import { QuantityStepper } from '@/components/wc/QuantityStepper';
 import { WcButton } from '@/components/wc/WcButton';
 import type { Good, GoodOption } from '@/lib/data';
-import { goodsPurchaseConditionProblem, initialGoodOption, optionLabel, selectableGoodOptionId, soldOutPreviewPrice } from '@/lib/goods-options';
+import { defaultGoodOption, goodsPurchaseConditionProblem, initialGoodOption, isSelectableGoodOption, optionLabel, selectableGoodOptionId, soldOutPreviewPrice } from '@/lib/goods-options';
 import { goodsAggregationUnavailableLabel } from '@/lib/goods-aggregation';
 import { prepareGoodsCustomInputSelection } from '@/lib/goods-custom-inputs';
 import { GoodsCustomInputsFields } from './GoodsCustomInputs';
@@ -24,7 +24,8 @@ import type { AddToCartResultItem } from './AddToCartResultDialog';
 /*
  * 굿즈 상세의 구매 블록 (R-04 §3.6~3.8 · DESIGN `pdp-buybox`·`cta-pair`·`restock-cta`).
  *
- * 여러 옵션은 명시적으로 선택하고 단일 옵션은 자동 선택한다.
+ * 첫 선택은 첫 구매 가능 옵션이고, 품절 옵션도 `· 품절`로 고를 수 있다 — 고르면 CTA 가 그 옵션의
+ * 재입고 알림으로 바뀐다(PD-10 · LD-5). 모든 옵션이 품절이면 굿즈 단위 재입고 알림이다.
  * 상태는 이 훅 하나가 갖고, 정보 칼럼 패널과 고정 구매바가 같은 컨트롤러를 나눠 쓴다.
  * 두 표면이 각자 수량을 들면 아래 바로 산 개수와 위에서 고른 개수가 갈린다.
  *
@@ -117,7 +118,10 @@ export function buyNowNavigation(state: {
 
 export interface GoodPurchaseController {
   good: Good;
+  /** 담기·구매할 선택 — 지금 살 수 있는 옵션만 여기에 온다. */
   selectedOption: GoodOption | undefined;
+  /** 고른 옵션이 재고만 떨어진 품절 옵션이면 그 옵션 — 재입고 알림 대상이다(PD-10). 담기·구매 대상이 아니다. */
+  restockOption?: GoodOption;
   selectOption: (id: string) => void;
   selectionRequired: boolean;
   quantity: number;
@@ -125,7 +129,10 @@ export interface GoodPurchaseController {
   subtotal: number;
   volumeDiscountTotal?: number;
   soldOut: boolean;
+  /** 굿즈 단위(모든 옵션) 재입고 알림이 대기 중인가. */
   restockRequested: boolean;
+  /** 옵션 단위 재입고 알림이 대기 중인 옵션 id(PD-11). */
+  restockVariantIds?: readonly string[];
   disabled: boolean;
   inert: boolean;
   message: string | null;
@@ -158,22 +165,29 @@ export function useGoodPurchase({
   good,
   additionalGoods = [],
   restockRequested = false,
+  restockVariantIds = [],
   initialVariantId,
 }: {
   disabled?: boolean;
   good: Good;
   additionalGoods?: readonly Good[];
   restockRequested?: boolean;
-  /** 주소의 `?variant=`(PD-14). 지금 고를 수 있는 옵션일 때만 첫 선택이 된다. */
+  restockVariantIds?: readonly string[];
+  /** 주소의 `?variant=`(PD-14). 지금 고를 수 있는 옵션(재입고 알림을 받을 품절 옵션 포함)일 때만 첫 선택이 된다. */
   initialVariantId?: string | null;
 }): GoodPurchaseController {
   const router = useRouter();
   const cart = useCart();
   const [quantity, setQuantityState] = useState(1);
   const [customInputValues,setCustomInputValues] = useState<Record<string,Record<string,string>>>({});
-  const [selectedId, setSelectedId] = useState(() => selectableGoodOptionId(good, initialVariantId) ?? initialGoodOption(good)?.id);
-  const selectedOption = good.options?.find(option => option.id === selectedId && option.stockQty > 0)
-    ?? (selectedId === undefined ? initialGoodOption(good) : undefined);
+  const [selectedId, setSelectedId] = useState(() => selectableGoodOptionId(good, initialVariantId) ?? defaultGoodOption(good)?.id);
+  /* 고른 옵션(PD-10 · LD-5). 살 수 있으면 selectedOption(담기·구매 대상), 재고만 떨어졌으면 restockOption
+     (재입고 알림 대상)이다. 담기·구매는 selectedOption 만 본다 — 품절 옵션을 골라도 선택이 비어 있는 것과
+     같아서 inert 이고 commit 이 거절한다. 새로고침으로 재고가 바뀌면 같은 옵션이 두 자리를 오간다. */
+  const chosenOption = good.options?.find(option => option.id === selectedId && isSelectableGoodOption(option))
+    ?? (selectedId === undefined ? defaultGoodOption(good) : undefined);
+  const selectedOption = chosenOption && chosenOption.stockQty > 0 ? chosenOption : undefined;
+  const restockOption = chosenOption && chosenOption.stockQty <= 0 ? chosenOption : undefined;
   const [additionalSelections, setAdditionalSelections] = useState<AdditionalSelection[]>([]);
   const additionalChoices: AdditionalPurchaseChoice[] = additionalGoods.map((extra) => {
     const selection = additionalSelections.find((item) => item.goodId === extra.id);
@@ -251,9 +265,10 @@ export function useGoodPurchase({
   return {
     good,
     selectedOption,
+    restockOption,
     selectionRequired,
     selectOption: (id: string) => {
-      if (!good.options?.some(option => option.id === id && option.stockQty > 0)) return;
+      if (!good.options?.some(option => option.id === id && isSelectableGoodOption(option))) return;
       setSelectedId(id); setQuantityState(1); setStatus(null);
     },
     quantity,
@@ -266,6 +281,7 @@ export function useGoodPurchase({
     volumeDiscountTotal: volumePreview?.volumeDiscountTotal,
     soldOut,
     restockRequested,
+    restockVariantIds,
     disabled,
     inert,
     /* 카트가 낸 오류가 먼저다 — 담기에 실패한 화면에 "담았어요"가 남으면 안 된다. */
@@ -419,9 +435,11 @@ export interface PurchaseTotalDisplay {
  * 합계 행의 라벨·값. 본문 패널과 데스크톱 레일 박스가 같은 값을 보인다.
  * 품절 굿즈는 고를 옵션이 없으니 "옵션 선택 후 표시" 대신 가격으로 합계를 보인다(PD-08).
  */
-export function purchaseTotalDisplay(purchase: Pick<GoodPurchaseController, 'good' | 'unavailableLabel' | 'selectionRequired' | 'subtotal' | 'soldOut' | 'quantity'>): PurchaseTotalDisplay {
+export function purchaseTotalDisplay(purchase: Pick<GoodPurchaseController, 'good' | 'unavailableLabel' | 'selectionRequired' | 'subtotal' | 'soldOut' | 'quantity' | 'restockOption'>): PurchaseTotalDisplay {
   const label = purchase.unavailableLabel ? '판매 상태' : purchase.good.transactionOffer ? '예상 굿즈 금액' : '총 금액';
   if (purchase.unavailableLabel) return { label, amount: purchase.unavailableLabel, numeric: false };
+  /* 고른 품절 옵션은 그 옵션 가격으로 합계를 보인다(레퍼런스도 품절 옵션을 고른 채 합계를 보인다, 11 §6 B9). */
+  if (purchase.restockOption) return { label, amount: krw(purchaseSubtotal(purchase.restockOption.price, purchase.quantity)), numeric: true };
   if (purchase.selectionRequired && purchase.soldOut) {
     return { label, amount: krw(purchaseSubtotal(soldOutPreviewPrice(purchase.good), purchase.quantity)), numeric: true };
   }
@@ -429,10 +447,35 @@ export function purchaseTotalDisplay(purchase: Pick<GoodPurchaseController, 'goo
   return { label, amount: krw(purchase.subtotal), numeric: true };
 }
 
-/** 정보 칼럼의 구매 패널. 품절이면 CTA 자리만 재입고 알림으로 바뀐다(R-04 §4). */
+export type PurchaseCtaState =
+  | { kind: 'unavailable'; label: string }
+  | { kind: 'restock'; variantId: string | null; optionName: string | null; requested: boolean }
+  | { kind: 'buy' };
+
+/**
+ * CTA 자리에 무엇을 둘지 (PD-10 · DESIGN `restock-cta`). 본문 패널(모바일 시트 안 포함)과 데스크톱 레일
+ * 박스가 같은 판정을 쓴다. 판매 불가 안내 → 굿즈 전체 품절(굿즈 단위 = 모든 옵션 재입고 알림, 현행 규칙)
+ * → 고른 옵션만 품절(그 옵션의 재입고 알림) → 담기·구매 순이다.
+ */
+export function purchaseCtaState(purchase: Pick<GoodPurchaseController, 'good' | 'unavailableLabel' | 'soldOut' | 'restockRequested' | 'restockOption' | 'restockVariantIds'>): PurchaseCtaState {
+  if (purchase.unavailableLabel) return { kind: 'unavailable', label: purchase.unavailableLabel };
+  if (purchase.soldOut) return { kind: 'restock', variantId: null, optionName: null, requested: purchase.restockRequested };
+  if (purchase.restockOption) {
+    return {
+      kind: 'restock',
+      variantId: purchase.restockOption.id,
+      optionName: optionLabel(purchase.restockOption, purchase.good.options?.length ?? 0),
+      requested: purchase.restockVariantIds?.includes(purchase.restockOption.id) ?? false,
+    };
+  }
+  return { kind: 'buy' };
+}
+
+/** 정보 칼럼의 구매 패널. 품절이면(고른 옵션만 품절이어도) CTA 자리만 재입고 알림으로 바뀐다(R-04 §4). */
 export function GoodPurchasePanel({ otherPurchases, purchase }: { otherPurchases?: OtherPurchaseAvailability; purchase: GoodPurchaseController }) {
-  const { disabled, good, inert, message, quantity, restockRequested, selectedOption, selectOption, setQuantity, soldOut } = purchase;
+  const { disabled, good, inert, message, quantity, restockOption, selectedOption, selectOption, setQuantity } = purchase;
   const total = purchaseTotalDisplay(purchase);
+  const cta = purchaseCtaState(purchase);
   const singleOptionLabel = good.options?.length === 1 ? optionLabel(good.options[0], 1) : null;
   const displayOption = selectedOption ?? (good.options?.length === 1 ? good.options[0] : undefined);
 
@@ -447,10 +490,12 @@ export function GoodPurchasePanel({ otherPurchases, purchase }: { otherPurchases
       {(good.options?.length ?? 0) > 1 ? (
         <label className="wc-buy-panel__option">
           <span>옵션</span>
-          <select disabled={disabled || purchase.busy} onChange={event => selectOption(event.target.value)} value={selectedOption?.id ?? ''}>
+          {/* 품절 옵션도 `· 품절`로 고를 수 있다 — 고르면 CTA 가 그 옵션의 재입고 알림이다(PD-10). 닫힌 예약판매
+              옵션처럼 재입고 알림 대상이 아닌 옵션만 고르지 못한다. */}
+          <select disabled={disabled || purchase.busy} onChange={event => selectOption(event.target.value)} value={(selectedOption ?? restockOption)?.id ?? ''}>
             <option value="" disabled>옵션을 선택해주세요</option>
             {good.options!.map(option => (
-              <option key={option.id} value={option.id} disabled={option.stockQty <= 0}>
+              <option key={option.id} value={option.id} disabled={!isSelectableGoodOption(option)}>
                 {`${option.name} · ${krw(option.price)}${optionAvailabilitySuffix(good, option)}`}
               </option>
             ))}
@@ -476,8 +521,8 @@ export function GoodPurchasePanel({ otherPurchases, purchase }: { otherPurchases
       {good.transactionOffer?.fulfillment ? <div className="wc-buy-panel__state"><p>제공 방식: {good.transactionOffer.fulfillment.methods.map(m => FULFILLMENT_METHOD_LABELS[m.method]).join(' · ')}</p>
         <p>{good.transactionOffer.fulfillment.publicNote}</p>{good.transactionOffer.fulfillment.mode === 'digital' ? <p>결제한 계정에서 구매한 파일을 받습니다. 파일 제공 후 취소 요청은 담당자가 검토합니다. 디지털 굿즈의 선물하기는 제공하지 않습니다.</p> : null}</div> : null}
       {good.transactionOffer ? <p className="wc-buy-panel__state">현재 선택한 굿즈 기준입니다. 장바구니 수량·쿠폰·적립금·배송비를 반영한 결제 금액은 주문서에서 확인해주세요.</p> : null}
-      {purchase.unavailableLabel ? <WcButton disabled variant="primary">{purchase.unavailableLabel}</WcButton> : soldOut ? (
-        <RestockCta disabled={disabled} goodId={good.id} initialRequested={restockRequested} />
+      {cta.kind === 'unavailable' ? <WcButton disabled variant="primary">{cta.label}</WcButton> : cta.kind === 'restock' ? (
+        <RestockCta disabled={disabled} goodId={good.id} initialRequested={cta.requested} optionName={cta.optionName} variantId={cta.variantId} />
       ) : (
         <div className="wc-buy-panel__ctas">
           <WcButton className="wc-buy-panel__cart" disabled={inert} onClick={purchase.addToCart}>
@@ -504,7 +549,9 @@ export function GoodPurchasePanel({ otherPurchases, purchase }: { otherPurchases
  * 72px 잉크 풀폭 바의 [장바구니]·[구매하기]는 구매 시트를 여는 트리거다(PD-01) — 실행은 시트 안
  * CTA 가 한다. 그래서 옵션을 아직 고르지 않았거나 카트가 준비 중이어도 잠그지 않는다. 잠그면
  * 다옵션 굿즈는 옵션을 고를 길이 없는 비활성 바만 남는다. 레퍼런스의 바는 품절에도 "구매하기"로
- * 남는 상태 비반응 버튼이지만(§10-7 결함), 여기서는 품절이면 바 전체가 재입고 알림이다.
+ * 남는 상태 비반응 버튼이지만(§10-7 결함), 여기서는 모든 옵션이 품절이면 바 전체가 굿즈 단위 재입고
+ * 알림이다. 고른 옵션만 품절이면(PD-10) 바는 시트 트리거로 남는다 — 그 옵션의 재입고 알림은 시트 안
+ * CTA 가 맡고, 바까지 재입고로 바꾸면 모바일에서 다른 옵션을 고르러 시트를 다시 열 길이 없다.
  */
 export function GoodBuyBars({
   onOpenSheet,
@@ -559,8 +606,9 @@ export function GoodBuyBars({
  * 컨트롤러 함수를 부른다(담기 결과 모달도 같다).
  */
 export function GoodRailBuyBox({ purchase }: { purchase: GoodPurchaseController }) {
-  const { disabled, good, inert, restockRequested, soldOut } = purchase;
+  const { disabled, good, inert } = purchase;
   const total = purchaseTotalDisplay(purchase);
+  const cta = purchaseCtaState(purchase);
   /* 실패 문구는 정보 칼럼 패널의 상태 줄(live region 하나)에만 나온다. 레일에서 누른 담기·구매가 실패하면
      박스 근처에는 아무 변화가 없으므로, 고칠 칸(빈 필수 입력 등)이나 그 상태 줄로 데려간다. 성공은
      담기 결과 모달·주문서 이동이 알린다. 렌더 중 상태 보정은 useAddToCartResult 와 같은 패턴이다. */
@@ -585,8 +633,8 @@ export function GoodRailBuyBox({ purchase }: { purchase: GoodPurchaseController 
         <span className="wc-pdp-railbox__label">{total.label}</span>
         <strong className={`wc-pdp-railbox__amount${total.numeric ? '' : ' is-note'}`}>{total.amount}</strong>
       </div>
-      {purchase.unavailableLabel ? <button className="wc-pdp-railbox__buy is-full" disabled type="button">{purchase.unavailableLabel}</button> : soldOut ? (
-        <RestockCta className="wc-pdp-railbox__restock" disabled={disabled} goodId={good.id} initialRequested={restockRequested} />
+      {cta.kind === 'unavailable' ? <button className="wc-pdp-railbox__buy is-full" disabled type="button">{cta.label}</button> : cta.kind === 'restock' ? (
+        <RestockCta className="wc-pdp-railbox__restock" disabled={disabled} goodId={good.id} initialRequested={cta.requested} optionName={cta.optionName} variantId={cta.variantId} />
       ) : (
         <div className="wc-pdp-railbox__ctas">
           <button aria-label="장바구니에 담기" className="wc-pdp-railbox__cart" disabled={inert} onClick={fromRail(purchase.addToCart)} type="button">
