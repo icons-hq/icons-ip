@@ -279,10 +279,10 @@ grid **2열 451px, gap 20(행)/18(열)**. 카드 451×141: 1px `#DCDEE0`, r2, p 
 
 | ID | 항목 | LFS | ICONS 현재(근거) | 분류 | P | 단계 |
 |---|---|---|---|---|---|---|
-| CT-01 | 요약 aside | `#F6F8FA` 360×436, 예상 총액 26px 강조, CTA 312×56 | 배경 없음, 총액 16/700(`app/styles/wc-catalog.css:2191-2236`) | GAP-UI | P1 | L9 |
-| CT-02 | 빈 상태 | 일러스트 146×178 + 16px + CTA 220×60 액센트 | 일러스트 없음, CTA 220×50 잉크(`components/screens/Cart.tsx:327-352`) | DRIFT(+일러스트 LG-7) | P1 | L9 |
-| CT-03 | 모바일 카트 크롬 | 서브헤더 + 하단 고정 CTA 343×60 | 전역 헤더·탭바, 인라인 CTA | GAP-UI | P1 | L9 |
-| CT-04 | 목록 | 상단 2px 잉크, 썸네일 64, 옵션 회색 밴드 | 1px, 100, 13px 텍스트, 출고지 그룹(유지) | GAP-UI | P2 | L9 |
+| CT-01 | 요약 aside | `#F6F8FA` 360×436, 예상 총액 26px 강조, CTA 312×56 | 배경 없음, 총액 16/700(`app/styles/wc-catalog.css:2191-2236`) | GAP-UI | P1 | L9 ✅ #603 |
+| CT-02 | 빈 상태 | 일러스트 146×178 + 16px + CTA 220×60 액센트 | 일러스트 없음, CTA 220×50 잉크(`components/screens/Cart.tsx:327-352`) | DRIFT(+일러스트 LG-7) | P1 | L9 ✅ #603 — 라인아트는 LG-7(#583) |
+| CT-03 | 모바일 카트 크롬 | 서브헤더 + 하단 고정 CTA 343×60 | 전역 헤더·탭바, 인라인 CTA | GAP-UI | P1 | L9 ✅ #603 |
+| CT-04 | 목록 | 상단 2px 잉크, 썸네일 64, 옵션 회색 밴드 | 1px, 100, 13px 텍스트, 출고지 그룹(유지) | GAP-UI | P2 | L9 ✅ #603 |
 | CT-05 | 배송 메모 | 카트 단계 프리셋 | 주문서 자유 입력(`components/screens/Checkout.tsx:351-353`) | 주문 생성 계약 | P2 | LD-8 |
 | CT-06 | 사은품 자동 증정 | B18 | 표시만 | GAP-DATA | P1 | LD-9 |
 | AU-01 | 소셜 버튼 마크 | 각 사 공식 마크 | 글자 G·K + Apple(`components/screens/Login.tsx:100-108`) | GAP-UI | P2 | L3 미적용 — 각 사 공식 마크 자산 확보 뒤 |
