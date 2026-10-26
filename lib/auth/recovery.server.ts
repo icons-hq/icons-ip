@@ -1,10 +1,11 @@
 import 'server-only';
 
 import { createHmac, timingSafeEqual } from 'node:crypto';
-import { safeNextPath } from './onboarding';
+import { safeNextPath, UPDATE_PASSWORD_PATH } from './onboarding';
 
 export const AUTH_NEXT_SIGNUP_MAX_AGE_SECONDS = 10 * 60;
 export const AUTH_NEXT_RECOVERY_MAX_AGE_SECONDS = 60 * 60;
+export const AUTH_RECOVERY_PROOF_MAX_AGE_SECONDS = 15 * 60;
 export const AUTH_PASSWORD_RESET_COOKIE_NAME = 'icons_auth_password_reset';
 export const AUTH_PASSWORD_RESET_COOKIE_MAX_AGE_SECONDS = 10 * 60;
 export const PASSWORD_RESET_WINDOW_MS = 10 * 60 * 1000;
@@ -32,6 +33,7 @@ interface PasswordResetRateState {
 const AUTH_NEXT_SIGNATURE_DOMAIN = 'icons-auth-next-v1';
 const PASSWORD_RESET_EMAIL_DOMAIN = 'icons-password-reset-email-v1';
 const PASSWORD_RESET_RATE_SIGNATURE_DOMAIN = 'icons-password-reset-rate-v1';
+const PASSWORD_RECOVERY_PROOF_SIGNATURE_DOMAIN = 'icons-password-recovery-proof-v1';
 
 function hmacDigest(secret: string, domain: string, value: string) {
   return createHmac('sha256', secret)
@@ -111,6 +113,112 @@ export function authNextStateFromCookie(
     next: safeNextPath(candidate.next),
     purpose: candidate.purpose,
   };
+}
+
+/*
+ * 비밀번호 복구 증명. /update-password는 로그인 세션만으로 비밀번호를 바꾸지 않는다 — 세션을 가진 사람이
+ * 현재 비밀번호 없이 계정을 가져갈 수 있기 때문이다. recovery 콜백이 verifyOtp(type=recovery)를 통과한
+ * 세션에만 이 서명 쿠키를 남기고, 화면과 서버 action은 쿠키의 사용자·세션이 검증된 access token claims와
+ * 같을 때만 비밀번호를 받는다. JWT `amr`은 recovery와 매직링크를 똑같이 `otp`로 남겨 증명으로 쓰지 않는다.
+ */
+export interface PasswordRecoveryProof {
+  issuedAt: number;
+  sessionId: string;
+  userId: string;
+}
+
+interface PasswordRecoveryClaimsReader {
+  auth: {
+    getClaims: () => Promise<{
+      data: { claims: { sub?: unknown; session_id?: unknown } } | null;
+      error: unknown;
+    }>;
+  };
+}
+
+export function signedPasswordRecoveryProofValue(
+  proof: Pick<PasswordRecoveryProof, 'sessionId' | 'userId'>,
+  issuedAt: number,
+  secret: string,
+) {
+  return encodeSignedPayload({
+    issuedAt,
+    sessionId: proof.sessionId,
+    userId: proof.userId,
+  } satisfies PasswordRecoveryProof, secret, PASSWORD_RECOVERY_PROOF_SIGNATURE_DOMAIN);
+}
+
+export function passwordRecoveryProofFromCookie(
+  value: string | null | undefined,
+  now: number,
+  secret: string | null,
+): PasswordRecoveryProof | null {
+  if (!secret) return null;
+  const parsed = decodeSignedPayload(value, secret, PASSWORD_RECOVERY_PROOF_SIGNATURE_DOMAIN);
+  if (!parsed || typeof parsed !== 'object') return null;
+
+  const candidate = parsed as Partial<PasswordRecoveryProof>;
+  if (typeof candidate.userId !== 'string' || !candidate.userId) return null;
+  if (typeof candidate.sessionId !== 'string' || !candidate.sessionId) return null;
+  if (typeof candidate.issuedAt !== 'number' || !Number.isInteger(candidate.issuedAt)) return null;
+  if (candidate.issuedAt > now) return null;
+  if (now - candidate.issuedAt >= AUTH_RECOVERY_PROOF_MAX_AGE_SECONDS * 1000) return null;
+
+  return {
+    issuedAt: candidate.issuedAt,
+    sessionId: candidate.sessionId,
+    userId: candidate.userId,
+  };
+}
+
+export function passwordRecoveryProofCookieOptions(secure: boolean) {
+  return {
+    httpOnly: true,
+    maxAge: AUTH_RECOVERY_PROOF_MAX_AGE_SECONDS,
+    path: UPDATE_PASSWORD_PATH,
+    sameSite: 'lax' as const,
+    secure,
+  };
+}
+
+export async function hasPasswordRecoveryProof(
+  supabase: PasswordRecoveryClaimsReader,
+  cookieValue: string | null | undefined,
+  now: number = Date.now(),
+  secret: string | null = authCookieSecret(),
+) {
+  const proof = passwordRecoveryProofFromCookie(cookieValue, now, secret);
+  if (!proof) return false;
+
+  try {
+    const { data, error } = await supabase.auth.getClaims();
+    if (error || !data) return false;
+    return data.claims.sub === proof.userId && data.claims.session_id === proof.sessionId;
+  } catch {
+    return false;
+  }
+}
+
+export type PasswordUpdateAccess = 'allowed' | 'recovery_required' | 'no_email_identity';
+
+/** 이메일 로그인 수단(email identity)이 있는 계정인지. 소셜 전용 계정에는 비밀번호를 새로 만들지 않는다. */
+export function hasEmailIdentity(user: { identities?: Array<{ provider?: string | null }> | null }) {
+  return Boolean(user.identities?.some((identity) => identity.provider === 'email'));
+}
+
+/*
+ * /update-password 화면과 서버 action이 함께 쓰는 판정. 소셜 전용 계정은 메일함 소유를 증명해도 비밀번호를
+ * 만들지 않는다 — 6자 비밀번호가 SNS 로그인 옆에 생기고, 계정 기록(identities)은 여전히 SNS 하나로 보여서다.
+ */
+export async function passwordUpdateAccess(
+  supabase: PasswordRecoveryClaimsReader,
+  user: Parameters<typeof hasEmailIdentity>[0],
+  cookieValue: string | null | undefined,
+  now: number = Date.now(),
+  secret: string | null = authCookieSecret(),
+): Promise<PasswordUpdateAccess> {
+  if (!hasEmailIdentity(user)) return 'no_email_identity';
+  return await hasPasswordRecoveryProof(supabase, cookieValue, now, secret) ? 'allowed' : 'recovery_required';
 }
 
 function normalizedEmail(email: string) {

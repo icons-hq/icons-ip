@@ -1,12 +1,18 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { signedPasswordRecoveryProofValue } from '@/lib/auth/recovery.server';
 import { updatePasswordAction } from './actions';
 
 const AUTH_NEXT_COOKIE_NAME = 'icons_auth_next';
+const RECOVERY_PROOF_COOKIE_NAME = 'icons_auth_recovery_proof';
+const SECRET = 'test-update-password-secret-with-enough-entropy';
+const ORIGINAL_SECRET = process.env.AUTH_SIGNUP_RESEND_SECRET;
 
 const mocks = vi.hoisted(() => ({
   configured: true,
   cookieSetCalls: [] as Array<{ name: string; value: string; options?: Record<string, unknown> }>,
+  requestCookies: new Map<string, string>(),
   getUser: vi.fn(),
+  getClaims: vi.fn(),
   updateUser: vi.fn(),
   signOut: vi.fn(),
   operationOrder: [] as string[],
@@ -19,6 +25,7 @@ vi.mock('@/lib/supabase/server', () => ({
   createClient: () => ({
     auth: {
       getUser: mocks.getUser,
+      getClaims: mocks.getClaims,
       updateUser: mocks.updateUser,
       signOut: mocks.signOut,
     },
@@ -26,6 +33,10 @@ vi.mock('@/lib/supabase/server', () => ({
 }));
 vi.mock('next/headers', () => ({
   cookies: async () => ({
+    get: (name: string) => {
+      const value = mocks.requestCookies.get(name);
+      return value === undefined ? undefined : { name, value };
+    },
     set: (name: string, value: string, options?: Record<string, unknown>) => {
       mocks.cookieSetCalls.push({ name, value, options });
     },
@@ -49,15 +60,30 @@ function formData(
   return data;
 }
 
+function recoveryProof(issuedAt = Date.now(), sessionId = 'recovery-session-1') {
+  return signedPasswordRecoveryProofValue({ sessionId, userId: 'user-1' }, issuedAt, SECRET);
+}
+
 describe('updatePasswordAction', () => {
   beforeEach(() => {
+    process.env.AUTH_SIGNUP_RESEND_SECRET = SECRET;
     mocks.configured = true;
     mocks.cookieSetCalls.length = 0;
+    mocks.requestCookies.clear();
+    mocks.requestCookies.set(RECOVERY_PROOF_COOKIE_NAME, recoveryProof());
     mocks.operationOrder.length = 0;
     mocks.getUser.mockReset();
+    mocks.getClaims.mockReset();
     mocks.updateUser.mockReset();
     mocks.signOut.mockReset();
-    mocks.getUser.mockResolvedValue({ data: { user: { id: 'user-1' } }, error: null });
+    mocks.getUser.mockResolvedValue({
+      data: { user: { id: 'user-1', identities: [{ provider: 'email' }] } },
+      error: null,
+    });
+    mocks.getClaims.mockResolvedValue({
+      data: { claims: { sub: 'user-1', session_id: 'recovery-session-1' } },
+      error: null,
+    });
     mocks.updateUser.mockImplementation(async () => {
       mocks.operationOrder.push('update');
       return { data: { user: { id: 'user-1' } }, error: null };
@@ -66,6 +92,11 @@ describe('updatePasswordAction', () => {
       mocks.operationOrder.push('signout');
       return { error: null };
     });
+  });
+
+  afterEach(() => {
+    if (ORIGINAL_SECRET === undefined) delete process.env.AUTH_SIGNUP_RESEND_SECRET;
+    else process.env.AUTH_SIGNUP_RESEND_SECRET = ORIGINAL_SECRET;
   });
 
   it('validates both password fields before authenticating or updating', async () => {
@@ -89,6 +120,63 @@ describe('updatePasswordAction', () => {
     expect(state.errors?.form).toContain('세션이 만료');
     expect(mocks.updateUser).not.toHaveBeenCalled();
     expect(mocks.signOut).not.toHaveBeenCalled();
+  });
+
+  it('refuses a signed-in session that never passed the recovery callback', async () => {
+    mocks.requestCookies.clear();
+
+    const state = await updatePasswordAction({}, formData());
+
+    expect(state).toEqual({
+      blocked: 'recovery_required',
+      errors: { form: expect.stringContaining('재설정 메일의 링크를 연 뒤에만') },
+    });
+    expect(mocks.updateUser).not.toHaveBeenCalled();
+    expect(mocks.signOut).not.toHaveBeenCalled();
+    expect(mocks.cookieSetCalls).toEqual([]);
+  });
+
+  it.each([
+    ['an expired proof', () => recoveryProof(Date.now() - 15 * 60 * 1000), undefined],
+    ['a proof from another session', () => recoveryProof(Date.now(), 'old-recovery-session'), undefined],
+    ['a forged proof', () => `${recoveryProof()}x`, undefined],
+    ['unreadable claims', () => recoveryProof(), { data: null, error: { code: 'session_not_found' } }],
+  ])('refuses %s before updateUser', async (_label, proof, claims) => {
+    mocks.requestCookies.set(RECOVERY_PROOF_COOKIE_NAME, proof());
+    if (claims) mocks.getClaims.mockResolvedValueOnce(claims);
+
+    const state = await updatePasswordAction({}, formData());
+
+    expect(state.blocked).toBe('recovery_required');
+    expect(mocks.updateUser).not.toHaveBeenCalled();
+    expect(mocks.signOut).not.toHaveBeenCalled();
+  });
+
+  it('refuses a social-only account even after a verified recovery link', async () => {
+    mocks.getUser.mockResolvedValue({
+      data: { user: { id: 'user-1', identities: [{ provider: 'kakao' }] } },
+      error: null,
+    });
+
+    const state = await updatePasswordAction({}, formData());
+
+    expect(state).toEqual({
+      blocked: 'no_email_identity',
+      errors: { form: expect.stringContaining('SNS로 가입한 계정은 비밀번호를 설정할 수 없습니다') },
+    });
+    expect(mocks.updateUser).not.toHaveBeenCalled();
+    expect(mocks.signOut).not.toHaveBeenCalled();
+    expect(mocks.cookieSetCalls).toEqual([]);
+  });
+
+  it('lets an email account linked to a social login change its password', async () => {
+    mocks.getUser.mockResolvedValue({
+      data: { user: { id: 'user-1', identities: [{ provider: 'email' }, { provider: 'kakao' }] } },
+      error: null,
+    });
+
+    await expect(updatePasswordAction({}, formData())).rejects.toThrow('NEXT_REDIRECT:/login?password_reset=success');
+    expect(mocks.updateUser).toHaveBeenCalledWith({ password: 'new-password-1234' });
   });
 
   it.each([
@@ -120,6 +208,11 @@ describe('updatePasswordAction', () => {
       name: AUTH_NEXT_COOKIE_NAME,
       value: '',
       options: { path: '/auth/callback', maxAge: 0 },
+    });
+    expect(mocks.cookieSetCalls).toContainEqual({
+      name: RECOVERY_PROOF_COOKIE_NAME,
+      value: '',
+      options: { path: '/update-password', maxAge: 0 },
     });
     expect(JSON.stringify(mocks.cookieSetCalls)).not.toContain('new-password-1234');
   });
