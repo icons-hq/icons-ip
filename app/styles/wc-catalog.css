@@ -3234,101 +3234,10 @@
 }
 
 /* ------------------------------------------------------------------
-   위시리스트
+   위시 하트 · 담기 버튼 폭 (PDP·목록 공용)
+   위시리스트 화면은 상품 카드 그리드(wc-account-commerce.css 'wish-grid')로 바뀌어
+   옛 행 목록 규칙은 걷었다(L6).
    ------------------------------------------------------------------ */
-
-.wc-wishlist {
-  padding-block: 24px 96px;
-}
-
-.wc-wishlist__list {
-  margin: 0;
-  padding: 0;
-  border-top: 1px solid var(--wc-hairline);
-  list-style: none;
-}
-
-/* 그리드가 아니라 리스트 행이다 — 하트와 담기가 행마다 같은 자리에 선다. */
-.wc-wishlist__row {
-  display: grid;
-  grid-template-columns: 72px minmax(0, 1fr);
-  column-gap: 16px;
-  row-gap: 12px;
-  align-items: center;
-  padding: 16px 0;
-  border-bottom: 1px solid var(--wc-hairline);
-}
-
-.wc-wishlist__media {
-  display: block;
-  width: 72px;
-  aspect-ratio: 1 / 1;
-  overflow: hidden;
-  background-color: var(--wc-surface-grey-2);
-}
-
-.wc-wishlist__media img,
-.wc-wishlist__image {
-  display: block;
-  width: 100%;
-  height: 100%;
-  object-fit: contain;
-}
-
-.wc-wishlist__info {
-  min-width: 0;
-}
-
-.wc-wishlist__brand {
-  margin: 0 0 4px;
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--wc-ink);
-}
-
-.wc-wishlist__name {
-  display: block;
-  margin: 0 0 6px;
-  font-family: inherit;
-  font-size: 14px;
-  font-weight: 400;
-  line-height: 1.5;
-  text-decoration: none;
-  color: var(--wc-ink);
-}
-
-.wc-wishlist__name-link {
-  color: inherit;
-  text-decoration: none;
-}
-
-.wc-wishlist__name-link:hover {
-  text-decoration: underline;
-}
-
-/* 판매 종료처럼 담을 수 없는 사정은 문구로 남긴다 — 행을 지우면 왜 사라졌는지 알 수 없다. */
-.wc-wishlist__state {
-  margin: 0;
-  font-size: 13px;
-  font-weight: 400;
-  line-height: 1.5;
-  color: var(--wc-ink-tertiary);
-}
-
-.wc-wishlist__actions {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  grid-column: 2;
-}
-
-.wc-wishlist__actions .wc-btn {
-  width: auto;
-  height: 40px;
-  margin-top: 0;
-  padding: 0 16px;
-  font-size: 14px;
-}
 
 /* 담기 버튼(AddToCartButton)은 아직 `.wc-` 어휘로 재작성되지 않았고 색·크기를 인라인
    style로 들고 있다. CSS가 잡는 건 폭 거동뿐이라 그 두 줄만 S9에서 globals.css
@@ -3342,10 +3251,6 @@
   .wc-root .shop-cart-button {
     width: 100%;
   }
-}
-
-.wc-wishlist__empty {
-  padding: 64px 0 40px;
 }
 
 /* 36×36 원형. 채움 색은 비텍스트라 brand-green 을 그대로 쓴다(DESIGN §2 액센트 사용처). */
@@ -3379,17 +3284,6 @@
 
 .wc-wish-heart.is-active svg {
   transform: scale(1.08);
-}
-
-@media (min-width: 990px) {
-  .wc-wishlist__row {
-    grid-template-columns: 72px minmax(0, 1fr) auto;
-    row-gap: 0;
-  }
-
-  .wc-wishlist__actions {
-    grid-column: auto;
-  }
 }
 
 /* ------------------------------------------------------------------
