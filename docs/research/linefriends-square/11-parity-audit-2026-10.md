@@ -292,20 +292,20 @@ grid **2열 451px, gap 20(행)/18(열)**. 카드 451×141: 1px `#DCDEE0`, r2, p 
 
 | ID | 항목 | LFS(§5) | ICONS 현재(근거) | 분류 | P | 단계 |
 |---|---|---|---|---|---|---|
-| MY-01 | 좌측 메뉴 셸이 모든 하위 화면에 | §5.1 | 주문 목록·상세는 셸 밖 영수증 지면(`components/screens/Orders.tsx:172`, `OrderDetail.tsx:243`) | GAP-UI(10/14 S16) | P1 | L6 |
-| MY-02 | 대시보드 블록 | §5.2 ①~④ | `/my`는 메뉴 목록뿐(`components/screens/MyPage.tsx:23-58`) | GAP-UI(10/14 S16) | P1 | L6 |
-| MY-03 | 프로필 스트립 링크·좋아요 수 | 셀 링크·등급 '자세히 보기'·좋아요 수 타일 | 링크 없음 — "메뉴와 같은 목적지를 여기 또 두지 않는다(한 화면 한 링크 규율)"(`components/wc/MypageShell.tsx:126-127`) | INTENTIONAL(링크) / GAP-UI(위시 수 텍스트) | P2 | L6 |
-| MY-04 | 모바일 대시보드 | §5.2 모바일 | 없음 — 모바일은 메뉴 허브가 유일한 계정 내비(`MyPage.tsx:19-22`) | GAP-UI(10/14 S16 모바일 기준과 충돌 — LD-1a) | P1 | L6 |
-| MY-05 | 회원 등급 혜택 안내 | §5.5 | 없음. 등급 조건은 로그인 회원용 `get_my_loyalty_status()`가 이미 돌려준다(`supabase/migrations/20261020085208_admin_loyalty_policy.sql:195-208`, `lib/coupons.server.ts:97-115`). 빈 곳은 등급별 혜택: 등급 혜택 쿠폰은 RLS상 보유분만 보이고(`20260831090000_coupon_domain.sql:121-131`), 등급 적립률(`private.customer_reward_policy.grade_rates`)은 관리자 전용이다 | GAP-UI + 읽기 RPC | P1 | L6 |
-| MY-06 | 위시 그리드·담기 | §5.6(PRODUCT 탭, 5열, 플로팅 하트 제거) | 리스트 행 + 하트, 담기 버튼이 `listing.showCart`에 묶임(`components/screens/Wishlist.tsx:94,110-126`) | DRIFT(10/14 S14·S15) | P1 | L6 |
-| MY-07 | 팔로우한 IP 목록 | 위시 BRAND 탭·대시보드 블록 | `ip_follows` 보유, 화면 없음 | GAP-UI | P2 | L6 |
-| MY-08 | 주문 목록 상단 리뷰 보상 배너·배송과정 안내 | §5.3 | 없음. 리뷰 이벤트는 굿즈 대상별(`get_goods_review_events`)이고 `ReviewEventBanner`(`components/screens/MyReviews.tsx:76`)가 있다. 보상 명칭은 이벤트 기준(적립금 등) | GAP-UI | P2 | L6 |
-| MY-09 | 내 정보 수정 범위 | §5.7 | /settings: 아바타·이메일·닉네임·동의·탈퇴. 약관 링크·비밀번호 변경 진입 없음(`components/screens/Settings.tsx:37-226`) | GAP-UI | P2 | L6 |
+| MY-01 | 좌측 메뉴 셸이 모든 하위 화면에 | §5.1 | 주문 목록·상세는 셸 밖 영수증 지면(`components/screens/Orders.tsx:172`, `OrderDetail.tsx:243`) | GAP-UI(10/14 S16) | P1 | L6 ✅ #602 |
+| MY-02 | 대시보드 블록 | §5.2 ①~④ | `/my`는 메뉴 목록뿐(`components/screens/MyPage.tsx:23-58`) | GAP-UI(10/14 S16) | P1 | L6 ✅ #602 |
+| MY-03 | 프로필 스트립 링크·좋아요 수 | 셀 링크·등급 '자세히 보기'·좋아요 수 타일 | 링크 없음 — "메뉴와 같은 목적지를 여기 또 두지 않는다(한 화면 한 링크 규율)"(`components/wc/MypageShell.tsx:126-127`) | INTENTIONAL(링크) / GAP-UI(위시 수 텍스트) | P2 | L6 ✅ #602 |
+| MY-04 | 모바일 대시보드 | §5.2 모바일 | 없음 — 모바일은 메뉴 허브가 유일한 계정 내비(`MyPage.tsx:19-22`) | GAP-UI(10/14 S16 모바일 기준과 충돌 — LD-1a) | P1 | L6 ✅ #602 |
+| MY-05 | 회원 등급 혜택 안내 | §5.5 | 없음. 등급 조건은 로그인 회원용 `get_my_loyalty_status()`가 이미 돌려준다(`supabase/migrations/20261020085208_admin_loyalty_policy.sql:195-208`, `lib/coupons.server.ts:97-115`). 빈 곳은 등급별 혜택: 등급 혜택 쿠폰은 RLS상 보유분만 보이고(`20260831090000_coupon_domain.sql:121-131`), 등급 적립률(`private.customer_reward_policy.grade_rates`)은 관리자 전용이다 | GAP-UI + 읽기 RPC | P1 | L6 ✅ #602 |
+| MY-06 | 위시 그리드·담기 | §5.6(PRODUCT 탭, 5열, 플로팅 하트 제거) | 리스트 행 + 하트, 담기 버튼이 `listing.showCart`에 묶임(`components/screens/Wishlist.tsx:94,110-126`) | DRIFT(10/14 S14·S15) | P1 | L6 ✅ #602 |
+| MY-07 | 팔로우한 IP 목록 | 위시 BRAND 탭·대시보드 블록 | `ip_follows` 보유, 화면 없음 | GAP-UI | P2 | L6 ✅ #602 |
+| MY-08 | 주문 목록 상단 리뷰 보상 배너·배송과정 안내 | §5.3 | 없음. 리뷰 이벤트는 굿즈 대상별(`get_goods_review_events`)이고 `ReviewEventBanner`(`components/screens/MyReviews.tsx:76`)가 있다. 보상 명칭은 이벤트 기준(적립금 등) | GAP-UI | P2 | L6 ✅ #602 |
+| MY-09 | 내 정보 수정 범위 | §5.7 | /settings: 아바타·이메일·닉네임·동의·탈퇴. 약관 링크·비밀번호 변경 진입 없음(`components/screens/Settings.tsx:37-226`) | GAP-UI | P2 | L6 ✅ #602 |
 | MY-10 | 메일·SMS 수신 동의 분리 | §5.7 ③ | 마케팅 단일 토글 | GAP-DATA | P2 | 10/14 트랙(S4·D4·H4) |
 | MY-11 | **주소록(배송지 관리)** | §5.8 | 없음 — 주문서가 직전 주문 주소 1건을 미리 채움(`lib/checkout.server.ts:131-143`) | GAP-DATA(10/14 S6b·S3·S6a) | P1 | L7 |
-| MY-12 | 최근 본 굿즈 | 대시보드 ④(클라이언트 5개) | 관심 굿즈 선반이 계정별 localStorage(최대 30)에 기록하지만, 서버가 상세 경험 `interests` 스위치를 켰다고 답할 때만 기록·렌더한다(`ProductInterestShelf.tsx:41-42,58`, `lib/product-detail-experiences.server.ts:31`, `GoodDetail.tsx:425`) | 운영 스위치 의존 | P2 | L6(LD-16) |
-| MY-13 | 데스크톱 위시 진입 | 대시보드 좋아요 타일 | 헤더·유틸바에 없음(10/14 S14) | GAP-UI | P1 | L6 |
-| MY-14 | 쿠폰함 수치 | §5.4(2열 451, 카드 p 13/23, 안내 박스) | 2열 티켓형 보유(`components/screens/MyCoupons.tsx:18-87`) — 수치 대조 필요 | GAP-UI(수치) | P2 | L6 |
+| MY-12 | 최근 본 굿즈 | 대시보드 ④(클라이언트 5개) | 관심 굿즈 선반이 계정별 localStorage(최대 30)에 기록하지만, 서버가 상세 경험 `interests` 스위치를 켰다고 답할 때만 기록·렌더한다(`ProductInterestShelf.tsx:41-42,58`, `lib/product-detail-experiences.server.ts:31`, `GoodDetail.tsx:425`) | 운영 스위치 의존 | P2 | L6(LD-16) ✅ #602 |
+| MY-13 | 데스크톱 위시 진입 | 대시보드 좋아요 타일 | 헤더·유틸바에 없음(10/14 S14) | GAP-UI | P1 | L6 ✅ #602 |
+| MY-14 | 쿠폰함 수치 | §5.4(2열 451, 카드 p 13/23, 안내 박스) | 2열 티켓형 보유(`components/screens/MyCoupons.tsx:18-87`) — 수치 대조 필요 | GAP-UI(수치) | P2 | L6 ✅ #602 |
 
 ### 8.7 이벤트·정적
 
