@@ -103,6 +103,18 @@ describe('모바일 카트 크롬 (CT-03)', () => {
     expect(decls(catalog, '.wc-cart__checkout--amount .wc-cart__checkout-amount', MOBILE).display).toBe('inline');
   });
 
+  /* 첫 화면에 푸터가 올라오지 않는 계약은 불러오는 중에도 지킨다(L9 QA 첫 페인트) — 로딩 → 빈 상태에서 푸터가 첫 화면으로
+     올라왔다 밀려나지 않는다. 데스크톱은 한 화면을 잡아(루트 스켈레톤과 같은 첫 화면) 담긴 카트로 바뀔 때 푸터가 밀려나지
+     않고, 빈 상태는 레퍼런스처럼 첫 화면에 푸터가 보이는 높이 그대로다. */
+  it('불러오는 중 블록은 모바일에서 빈 상태와 같은 최소 높이, 데스크톱에서 한 화면 높이를 잡는다', () => {
+    const empty = decls(catalog, '.wc-cart__empty', MOBILE);
+    expect(empty['min-height']).toBe('calc(100dvh - 145px)');
+    expect(decls(catalog, '.wc-cart__loading', MOBILE)['min-height']).toBe(empty['min-height']);
+    expect(decls(catalog, '.wc-cart__loading', DESKTOP)['min-height']).toBe('100vh');
+    expect(decls(catalog, '.wc-cart__empty', DESKTOP)['min-height']).toBeUndefined();
+    expect(decls(catalog, '.wc-cart__empty')['min-height']).toBeUndefined();
+  });
+
   it('바가 마지막 행·푸터·문의 런처를 가리지 않게 바닥을 연다', () => {
     expect(decls(catalog, '.wc-cart', MOBILE)['padding-block']).toBe('0 calc(117px + env(safe-area-inset-bottom))');
     expect(decls(catalog, '#root:has(.wc-cart__cta-bar) .wc-inquiry-widget__launcher', MOBILE).bottom).toBe('calc(109px + env(safe-area-inset-bottom))');

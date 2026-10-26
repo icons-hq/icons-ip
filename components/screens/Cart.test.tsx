@@ -8,6 +8,7 @@ import type { AddressShippingQuote } from '@/lib/shipping-regions';
 import type { CouponQuote } from '@/lib/coupon-targeting';
 import type { GoodsSalesPrecheckoutQuote, GoodsSalesQuoteLine } from '@/lib/goods-sales';
 import { goodsSalesPrecheckoutQuote } from '@/test/fixtures/goods-sales-precheckout';
+import CartLoading from '@/app/cart/loading';
 import { Cart } from './Cart';
 
 const mocks = vi.hoisted(() => ({
@@ -371,6 +372,22 @@ describe('Cart 모바일 크롬 (CT-03)', () => {
     expect(html).toContain('wc-cart-subheader');
     expect(html).toContain('장바구니를 불러오는 중이에요.');
     expect(html).not.toContain('wc-cart__cta-bar');
+  });
+
+  /* 라우트 로딩 경계가 루트 경계(굿즈 그리드 스켈레톤·전역 헤더)를 대신한다 — 모바일 첫 페인트부터 서브헤더 크롬이고,
+     본문이 오면 같은 자리의 같은 블록으로 바뀌어 헤더 교체·본문 점프가 없다(L9 QA 첫 페인트). */
+  it('라우트 로딩 경계는 카트 첫 렌더와 같은 서브헤더·제목·불러오는 중 블록을 그린다', () => {
+    mocks.ready = false;
+    const cart = render([{ goodId: 'g13', variantId: DEFAULT_VARIANT, qty: 1 }]);
+    const loading = renderToStaticMarkup(<CartLoading />);
+    const frame = (html: string) => html.slice(html.indexOf('<nav aria-label="장바구니 상단 메뉴"'), html.indexOf('</p></div>') + 10);
+
+    expect(frame(loading)).toContain('class="wc-cart-subheader"');
+    expect(frame(loading)).toContain('<h1 class="wc-cart__title">장바구니</h1><p aria-live="polite" class="wc-cart__loading" role="status">장바구니를 불러오는 중이에요.</p>');
+    expect(frame(loading)).toBe(frame(cart));
+    expect(loading).toMatch(/^<div aria-busy="true" class="wc-root wc-cart">/);
+    expect(loading).not.toContain('wc-loading__grid');
+    expect(loading).not.toContain('wc-cart__cta-bar');
   });
 
   /* 모바일 바는 예상 총액이 확정된 동안만 금액을 싣는다 — 같은 기존 계산값이고, 데스크톱 문구(수량)는 그대로 남는다. */
