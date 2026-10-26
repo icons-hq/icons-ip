@@ -16,7 +16,8 @@ import {
 /*
  * 메가메뉴·카테고리 시트는 전역 셸의 일부라 루트 레이아웃이 한 번 읽는다. 셸 공지·메뉴 설정처럼
  * 쿠키 없는 anon 클라이언트로 읽고 unstable_cache 로 300초 재검증한다 — cookies() 를 쓰면 법적 문서의 SSG 가
- * dynamic 으로 무너진다(#325). 전시분류·구성·이미지 저장은 어드민 액션이 태그를 즉시 만료한다.
+ * dynamic 으로 무너진다(#325). 전시분류·구성·이미지 저장(category-display-actions)과 상품분류 액션(고객 카테고리 공개 전환 포함,
+ * category-actions)은 태그를 즉시 만료한다. 상품 공개·캠페인·피처드 IP 변경은 TTL(300초) 안에 반영된다.
  * 세 원천은 따로 실패한다: 하나를 못 읽으면 그 부분만 비고(카테고리가 비면 기존 메뉴), 셸은 깨지지 않는다.
  */
 export async function loadStorefrontMegaMenus(now: Date = new Date()): Promise<StorefrontMegaMenus> {

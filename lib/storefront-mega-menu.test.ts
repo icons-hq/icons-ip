@@ -218,5 +218,10 @@ describe('어드민 가이드 수치 결속', () => {
     expect(text).toContain(`상위 ${MEGA_MENU_IP_TILE_COUNT}개`);
     expect(text).toContain('최대 5분');
     expect(readFileSync(join(process.cwd(), 'lib/storefront-mega-menu.server.ts'), 'utf8')).toContain('revalidate: 300');
+    /* '바로 반영'이라고 적은 저장 경로는 모두 셸 메뉴 태그를 즉시 만료한다 — 카테고리 공개 전환(상품분류 액션)과 전시분류 액션. */
+    expect(text).toContain('고객 카테고리 공개 전환과 전시분류·전시 설정·아이콘 저장은 공개 메뉴에 바로 반영됩니다.');
+    for (const file of ['app/admin/category-actions.ts', 'app/admin/category-display-actions.ts']) {
+      expect(readFileSync(join(process.cwd(), file), 'utf8'), file).toContain('updateTag(STOREFRONT_MEGA_MENU_CACHE_TAG)');
+    }
   });
 });
