@@ -317,6 +317,10 @@ jobs:
       # PRUNE: preview는 2026-08-11부터 전용 Supabase 프로젝트를 보므로(ADR-0006) 운영
       # allow-list에 preview wildcard가 남아 있을 이유가 없다. 게다가 이 패턴은 실제
       # preview 호스트(`icons-<hash>-<team>.vercel.app`)와 애초에 맞지도 않았다.
+      #
+      # 비밀번호 변경 가드는 앱 handler와 무관하게 recovery 흐름을 유지하므로 앱 배포 전에 켠다.
+      # 변경 알림 메일은 custom SMTP가 있는 production에서만 켠다 — preview 계열은 기본 메일
+      # 발송 한도를 recovery 메일과 나눠 쓰게 된다.
       - name: Sync and verify Supabase Auth configuration
         env:
           PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_ID }}
@@ -324,6 +328,9 @@ jobs:
           REQUIRE_SMTP: "true"
           ENFORCE_MAILER: "true"
           EMAIL_OTP_EXPIRY_SECONDS: "3600"
+          PASSWORD_UPDATE_GUARDS: "true"
+          PASSWORD_CHANGED_TEMPLATE_PATH: supabase/templates/password_changed_notification.html
+          PASSWORD_CHANGED_SUBJECT: ICONS 비밀번호 변경 안내
           REDIRECT_URLS: |
             https://iconsip.com/auth/callback
             https://iconsip.com/auth/recovery/callback
@@ -670,6 +677,7 @@ jobs:
           REQUIRE_SMTP: "false"
           ENFORCE_MAILER: "false"
           EMAIL_OTP_EXPIRY_SECONDS: "3600"
+          PASSWORD_UPDATE_GUARDS: "true"
           REDIRECT_URLS: |
             https://icons-ip.vercel.app/auth/callback
             https://icons-ip.vercel.app/auth/recovery/callback
@@ -970,6 +978,7 @@ jobs:
           REQUIRE_SMTP: "false"
           ENFORCE_MAILER: "false"
           EMAIL_OTP_EXPIRY_SECONDS: "3600"
+          PASSWORD_UPDATE_GUARDS: "true"
           RECOVERY_TEMPLATE_PATH: supabase/templates/recovery.html
           REDIRECT_URLS: |
             https://icons-ip.vercel.app/auth/callback
@@ -1072,6 +1081,7 @@ jobs:
           REQUIRE_SMTP: "false"
           ENFORCE_MAILER: "false"
           EMAIL_OTP_EXPIRY_SECONDS: "3600"
+          PASSWORD_UPDATE_GUARDS: "true"
         run: |
           export SITE_URL="https://$STAGING_ALIAS"
           export REDIRECT_URLS="https://$STAGING_ALIAS/auth/callback

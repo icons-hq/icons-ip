@@ -15,6 +15,9 @@
  *   ENFORCE_MAILER          'true'면 confirmation·rate limit 설정까지 강제한다.
  *   EMAIL_OTP_EXPIRY_SECONDS 선택. email link/OTP TTL을 숫자로 일치시키고 read-back한다.
  *   RECOVERY_TEMPLATE_PATH  선택. recovery 메일 본문을 파일과 일치시키고 read-back한다.
+ *   PASSWORD_UPDATE_GUARDS  'true'면 비밀번호 변경에 현재 비밀번호·24시간 재인증을 요구한다.
+ *   PASSWORD_CHANGED_TEMPLATE_PATH 선택. 비밀번호 변경 알림을 켜고 본문을 파일과 일치시킨다.
+ *   PASSWORD_CHANGED_SUBJECT 위 경로를 줄 때 필수. 알림 메일 제목.
  */
 
 import { readFile } from 'node:fs/promises';
@@ -105,6 +108,31 @@ export function isSafeRecoveryTemplate(value) {
   return !/{{[\s\S]*?}}/.test(remaining);
 }
 
+/*
+ * GoTrue는 recovery·magic link 세션(AMR otp)에는 현재 비밀번호를 요구하지 않고, 재인증은 세션 생성
+ * 24시간 뒤부터만 요구한다. 재설정 메일 흐름은 그대로 두고, access token만 쥔 직접 호출
+ * PUT /auth/v1/user를 막는다 — 실측과 남은 빈틈은 docs/runbooks/supabase-auth-password-update-guards.md.
+ */
+export function passwordGuardPatch({ enforcePasswordGuards }) {
+  if (!enforcePasswordGuards) return {};
+  return {
+    security_update_password_require_current_password: true,
+    security_update_password_require_reauthentication: true,
+  };
+}
+
+/* 알림 메일은 링크 하나로 재설정 화면만 가리킨다. 토큰·리디렉트 값은 이 메일에 존재하지 않는다. */
+export function isSafePasswordChangedTemplate(value) {
+  const normalized = normalizedTemplate(value);
+  if (/<!--|-->|<(?:script|style|template|textarea|img|form)\b/i.test(normalized)) return false;
+
+  const resetAnchor = /<a\s+href\s*=\s*(["']){{\s*\.SiteURL\s*}}\/login\?mode=reset\1\s*>/g;
+  if ([...normalized.matchAll(resetAnchor)].length !== 1) return false;
+
+  const remaining = normalized.replace(resetAnchor, '<a>').replace(/{{\s*\.Email\s*}}/g, '');
+  return !/{{[\s\S]*?}}/.test(remaining) && !/\bhref\s*=/i.test(remaining);
+}
+
 export function isSatisfied({
   config,
   siteUrl,
@@ -112,6 +140,8 @@ export function isSatisfied({
   enforceMailer,
   recoveryTemplate = null,
   emailOtpExpirySeconds = null,
+  enforcePasswordGuards = false,
+  passwordChanged = null,
 }) {
   if ((config.site_url ?? '') !== siteUrl) return false;
   if ((config.uri_allow_list ?? '') !== allowList) return false;
@@ -122,6 +152,18 @@ export function isSatisfied({
   if (
     recoveryTemplate !== null
     && normalizedTemplate(config.mailer_templates_recovery_content) !== recoveryTemplate
+  ) return false;
+  if (
+    enforcePasswordGuards
+    && (config.security_update_password_require_current_password !== true
+      || config.security_update_password_require_reauthentication !== true)
+  ) return false;
+  if (
+    passwordChanged !== null
+    && (config.mailer_notifications_password_changed_enabled !== true
+      || (config.mailer_subjects_password_changed_notification ?? '') !== passwordChanged.subject
+      || normalizedTemplate(config.mailer_templates_password_changed_notification_content)
+        !== passwordChanged.template)
   ) return false;
   if (!enforceMailer) return true;
   /* 갓 만든 프로젝트는 mailer_autoconfirm을 아예 돌려주지 않는다 — 빈 값은 통과시킨다. */
@@ -177,6 +219,23 @@ export async function syncSupabaseAuth(env = process.env, log = console.log) {
       'recovery email template must use one exact {{ .RedirectTo }}?token_hash={{ .TokenHash }}&type=recovery href',
     );
   }
+  const enforcePasswordGuards = env.PASSWORD_UPDATE_GUARDS === 'true';
+  const passwordChangedTemplatePath = env.PASSWORD_CHANGED_TEMPLATE_PATH?.trim();
+  const passwordChangedSubject = env.PASSWORD_CHANGED_SUBJECT?.trim();
+  if (passwordChangedTemplatePath && !passwordChangedSubject) {
+    throw new Error('PASSWORD_CHANGED_SUBJECT is required with PASSWORD_CHANGED_TEMPLATE_PATH');
+  }
+  const passwordChanged = passwordChangedTemplatePath
+    ? {
+      subject: passwordChangedSubject,
+      template: normalizedTemplate(await readFile(passwordChangedTemplatePath, 'utf8')),
+    }
+    : null;
+  if (passwordChanged !== null && !isSafePasswordChangedTemplate(passwordChanged.template)) {
+    throw new Error(
+      'password changed email template must link only {{ .SiteURL }}/login?mode=reset once and use no other variables than {{ .Email }}',
+    );
+  }
 
   const config = await readConfig({ token, projectRef });
 
@@ -194,14 +253,16 @@ export async function syncSupabaseAuth(env = process.env, log = console.log) {
   if (allow.added.length > 0) log(`adding redirect URLs: ${allow.added.join(', ')}`);
   if (allow.removed.length > 0) log(`removing redirect URLs: ${allow.removed.join(', ')}`);
 
-  if (isSatisfied({
-    config,
+  const desired = {
     siteUrl,
     allowList: allow.list,
     enforceMailer,
     recoveryTemplate,
     emailOtpExpirySeconds,
-  })) {
+    enforcePasswordGuards,
+    passwordChanged,
+  };
+  if (isSatisfied({ config, ...desired })) {
     log(`Supabase Auth configuration for ${projectRef} is already up to date.`);
     return { patched: false };
   }
@@ -212,6 +273,12 @@ export async function syncSupabaseAuth(env = process.env, log = console.log) {
     ...mailerPatch({ enforceMailer }),
     ...(emailOtpExpirySeconds === null ? {} : { mailer_otp_exp: emailOtpExpirySeconds }),
     ...(recoveryTemplate === null ? {} : { mailer_templates_recovery_content: recoveryTemplate }),
+    ...passwordGuardPatch({ enforcePasswordGuards }),
+    ...(passwordChanged === null ? {} : {
+      mailer_notifications_password_changed_enabled: true,
+      mailer_subjects_password_changed_notification: passwordChanged.subject,
+      mailer_templates_password_changed_notification_content: passwordChanged.template,
+    }),
   };
   const response = await fetch(`${API_ROOT}/${projectRef}/config/auth`, {
     method: 'PATCH',
@@ -227,14 +294,7 @@ export async function syncSupabaseAuth(env = process.env, log = console.log) {
   /* PATCH가 200이어도 반영은 곧바로 읽히지 않는다 — 확인까지 해야 동기화라고 말할 수 있다. */
   for (let attempt = 1; attempt <= 5; attempt += 1) {
     const verified = await readConfig({ token, projectRef });
-    if (isSatisfied({
-      config: verified,
-      siteUrl,
-      allowList: allow.list,
-      enforceMailer,
-      recoveryTemplate,
-      emailOtpExpirySeconds,
-    })) {
+    if (isSatisfied({ config: verified, ...desired })) {
       log(`Supabase Auth configuration for ${projectRef} updated.`);
       return { patched: true };
     }
@@ -249,7 +309,11 @@ export async function syncSupabaseAuth(env = process.env, log = console.log) {
     + `mailer_secure_email_change_enabled=${final.mailer_secure_email_change_enabled}, `
     + `rate_limit_email_sent=${final.rate_limit_email_sent}, `
     + `mailer_otp_exp=${final.mailer_otp_exp}, `
-    + `recovery_template=${recoveryTemplate === null ? 'not-managed' : 'mismatch'}`,
+    + `recovery_template=${recoveryTemplate === null ? 'not-managed' : 'mismatch'}, `
+    + `security_update_password_require_current_password=${final.security_update_password_require_current_password}, `
+    + `security_update_password_require_reauthentication=${final.security_update_password_require_reauthentication}, `
+    + `mailer_notifications_password_changed_enabled=${final.mailer_notifications_password_changed_enabled}, `
+    + `password_changed_template=${passwordChanged === null ? 'not-managed' : 'mismatch'}`,
   );
 }
 
