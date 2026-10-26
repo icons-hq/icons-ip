@@ -1,6 +1,13 @@
 /** Newest first. Describe available behavior; do not preannounce unfinished tickets. */
 export const ADMIN_WEEKLY_CHANGES = [
   {
+    week: '2026-10-26',
+    title: '회원 등급 혜택 화면',
+    changes: [
+      '고객 마이페이지에 회원 등급 혜택 화면을 추가했습니다. 회원 등급 기준과, 각 등급에 오르면 자동 지급되는 등급 혜택 쿠폰, 기본 적립금과 등급 적립이 모두 켜져 있을 때의 등급 적립률을 보여 줍니다. 아직 오르지 않은 등급의 쿠폰은 종류별 장수만 보이고, 쿠폰함의 등급 혜택 쿠폰은 코드 없이 표시됩니다.',
+    ],
+  },
+  {
     week: '2026-10-23',
     title: '텍스트 공지 바와 공지 노출 화면',
     changes: [
