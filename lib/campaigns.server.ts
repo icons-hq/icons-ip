@@ -13,7 +13,9 @@ import {
   type CampaignSummary,
 } from '@/lib/campaigns';
 import { goodCompareAtPrice } from '@/lib/goods-options';
+import type { GoodsReviewSummary } from '@/lib/goods-review-summary';
 import { parseGoodsVariantPricing } from '@/lib/goods-sales';
+import { readListingReviewSummaries } from '@/lib/listing-review-summaries.server';
 import { imageBg, normalizePublicMediaPath, PUBLIC_MEDIA_BUCKET } from '@/lib/media';
 import { getSupabaseConfig } from '@/lib/supabase/config';
 import { createClient } from '@/lib/supabase/server';
@@ -97,6 +99,8 @@ export interface GoodCardView {
   badge: string | null;
   soldOut: boolean;
   imageBackground: string;
+  /** 카드 별점(LFS 패리티 2차 L4b · CL-02) — 공개 리뷰가 있을 때만. 숫자는 굿즈 상세와 같은 묶음 그룹 범위다. */
+  reviewSummary?: GoodsReviewSummary;
 }
 
 /* 참조를 해석한 본문. exchange 는 offer 를, goods 는 상품 카드를, image 는 공개
@@ -270,9 +274,12 @@ async function resolveCampaignDetail(id: string): Promise<CampaignLandingSnapsho
   const offerIds = sections.flatMap((section) => (section.type === 'exchange' ? [section.offer_id] : []));
   const goodIds = sections.flatMap((section) => (section.type === 'goods' ? section.good_ids : []));
 
-  const [offers, goods] = await Promise.all([
+  const sectionGoodIds = [...new Set(goodIds)];
+  const [offers, goods, reviewSummaries] = await Promise.all([
     loadExchangeOffers(supabase, [...new Set(offerIds)]),
-    loadSectionGoods(supabase, [...new Set(goodIds)]),
+    loadSectionGoods(supabase, sectionGoodIds),
+    /* 굿즈 진열 카드 별점(CL-02) — 진열 굿즈 전체를 한 번의 묶음으로 묻는다. 못 읽으면 별점만 숨는다(던지지 않는다). */
+    readListingReviewSummaries(supabase, sectionGoodIds),
   ]);
 
   const resolvedSections: ResolvedCampaignSection[] = sections.map((section) => {
@@ -295,7 +302,9 @@ async function resolveCampaignDetail(id: string): Promise<CampaignLandingSnapsho
         ...section,
         goods: section.good_ids.flatMap((goodId) => {
           const good = goods.get(goodId);
-          return good ? [good] : [];
+          if (!good) return [];
+          const reviewSummary = reviewSummaries[goodId];
+          return [reviewSummary ? { ...good, reviewSummary } : good];
         }),
       };
     }

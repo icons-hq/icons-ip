@@ -11,7 +11,7 @@ import { resolveHomeLayoutBlocks, type HomeBlockKey, type HomeRankingBlockKey } 
 import { CurationPreview, type CurationPreviewDevice } from './CurationPreview';
 import { buildHomeProductCollectionBand, isHomeProductCollectionTitle, parseHomeProductCollectionPayload } from '@/lib/home-product-collection';
 
-const LABELS: Record<string, string> = { hero: '프로모션 배너', editor_picks: '추천 콘텐츠', category_best: '카테고리 BEST', popular: '인기템', benefits: '카드팩·게임 혜택', stories: '쇼핑스토리' };
+const LABELS: Record<string, string> = { hero: '프로모션 배너', editor_picks: '추천 콘텐츠', category_best: '카테고리 BEST', popular: '인기템', benefits: '혜택', stories: '쇼핑스토리' };
 
 export function CurationLayoutEditor({ layout, operationId, preview, records, device, onDirty, onSaved }: {
   layout: AdminHomeLayout; operationId: string; preview: CurationPublicPreview; records: AdminCurationRecord[];

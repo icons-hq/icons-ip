@@ -289,6 +289,7 @@ export function buildDraftCurationPreview(
       case 'review_best': {
         const rule = values.reviewSelectionMode === 'manual'
           ? { mode: 'manual' as const, goodIds: selectedIds } : { mode: 'rating' as const };
+        /* 공개 홈과 같은 판정이다 — publicGoods 가 그룹 범위 요약(reviewSummary)을 실으면 그 평균으로 3점 이상·정렬을 정한다. */
         reviewEligibleCount = selectHomeReviewGoods(rule, publicGoods, productRankings).length;
         curation.reviewBestBands = [buildHomeReviewBestBand(id, title, rule, publicGoods, productRankings)];
         break;

@@ -144,6 +144,20 @@ describe('어드민 가이드 콘텐츠 무결성', () => {
       }
     }
   });
+  /* 같은 제품의 판매 구성을 묶은 상품군은 CONTEXT.md의 정본 이름 '그룹상품'으로 부른다 — 어드민 메뉴(그룹상품 등록·
+     그룹상품 조회/수정)와 같은 말이어야 운영자가 같은 것인지 추측하지 않는다. 홈 베스트리뷰의 리뷰 합산 범위와
+     리뷰도움수의 한 표 집계 범위가 이 그룹이다. 모든 안내 주제·오류 사례·업데이트 내역을 검사한다. */
+  it('모든 안내 주제와 업데이트 내역은 그룹 개념을 정본 용어(그룹상품)로 부른다', () => {
+    expect(plainText(ADMIN_GUIDE_TOPICS['display-messaging'])).toContain('같은 그룹상품으로 묶인 상품들의 공개 리뷰를 합쳐');
+    expect(plainText(ADMIN_GUIDE_TOPICS['inquiries-reviews'])).toContain('같은 그룹상품의 여러 상세 페이지에 보이는 동일 리뷰');
+    const sources: (readonly [string, string])[] = [
+      ...topics.map((topic) => [topic.slug, plainText(topic)] as const),
+      ['troubleshooting · 오류 사례', JSON.stringify(ADMIN_GUIDE_ERROR_CASES)] as const,
+      ...ADMIN_WEEKLY_CHANGES.map((entry) => [`업데이트 내역 ${entry.week}`, [entry.title, ...entry.changes].join('\n')] as const),
+    ];
+    expect(sources.length).toBeGreaterThan(ADMIN_GUIDE_TOPIC_SLUGS.length);
+    for (const [label, text] of sources) expect(text, label).not.toContain('상품그룹');
+  });
   it('운영 안내는 매핑표에 결속하고 카드·티켓 안내는 상품이라 부르지 않는다', () => {
     expect(ADMIN_GUIDE_TOPICS['goods-sales'].title).toContain(ADMIN_VOCABULARY.goods);
     expect(ADMIN_GUIDE_TOPICS.claims.title).toBe(ADMIN_VOCABULARY.claims);

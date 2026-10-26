@@ -6,7 +6,7 @@ import { revalidateGoodsSurfaces } from '@/lib/admin/revalidate-goods.server';
 import { isUuid } from '@/lib/uuid';
 
 import { adminGoodsCopy } from '@/lib/admin/vocabulary';
-import { revalidatePath } from 'next/cache';
+import { revalidatePath, updateTag } from 'next/cache';
 import { unstable_rethrow } from 'next/navigation';
 import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { withPreservedFormValues, type AdminFormValuesState } from '@/lib/admin/form-state';
@@ -16,6 +16,7 @@ import {
   normalizeCategoryForm,
 } from '@/lib/admin/category';
 import { createClient } from '@/lib/supabase/server';
+import { STOREFRONT_MEGA_MENU_CACHE_TAG } from '@/lib/storefront-mega-menu';
 
 export interface AdminCategoryActionState extends AdminFormValuesState {
   errors?: {
@@ -72,6 +73,10 @@ function mapRpcError(error: { code?: unknown; message?: unknown }): string {
 function revalidateCategorySurfaces() {
   revalidatePath(CATEGORY_PATH);
   revalidateGoodsSurfaces();
+  /* 전역 셸의 카테고리 메가메뉴·모바일 카테고리 시트는 쿠키 없는 300초 캐시로 읽는다(lib/storefront-mega-menu.server.ts).
+     고객 카테고리 공개 전환(LG-3)·상품분류·상품 분류 연결이 공개 메뉴(노출 여부·목적지 있는 전시)를 바꾸므로 저장 직후 태그를
+     즉시 만료한다 — 서버 액션 전용 updateTag(다음 요청이 새 값을 기다린다). */
+  updateTag(STOREFRONT_MEGA_MENU_CACHE_TAG);
 }
 
 export async function saveAdminCategoryAction(
