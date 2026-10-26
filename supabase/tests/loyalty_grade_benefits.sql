@@ -1,8 +1,10 @@
 \set ON_ERROR_STOP on
 -- 회원 등급 혜택 안내(LFS 패리티 2차 L6 · MY-05) — get_loyalty_grade_benefits 의 공개 범위·봉인·읽기 전용.
 -- 승급 지급(private.grant_grade_benefit_coupons)과 같은 정의만 싣는지, 쿠폰 코드·운영 값이 새지 않는지,
+-- 아직 오르지 않은 등급의 쿠폰은 종류별 장수만 나가는지(이름·금액·조건 없음),
 -- 적립률이 두 정책(기본 적립금·등급 적립)이 모두 켜졌을 때만 나오는지 확인한다. 데이터는 끝에서 rollback 한다.
--- 다른 스모크·시드가 남긴 등급 쿠폰이 있어도 흔들리지 않도록 이 파일의 정의(이름 'L6 등급 ')만 골라 단언한다.
+-- 다른 스모크·시드가 남긴 등급 쿠폰이 있어도 흔들리지 않도록 이 파일의 정의(이름 'L6 등급 ')만 골라 단언하고,
+-- 정책 단언 앞에서는 두 적립 정책을 직접 고정한다(시드가 켜 둔 DB 에서도 같은 결과).
 begin;
 
 -- 봉인: 로그인 회원만 실행한다. CI Postgres 버전 차이로 권한 거절은 런타임 호출 대신 선언으로 단언한다.
@@ -16,7 +18,11 @@ select 1/case when (select provolatile='s' and prosecdef and proconfig @> array[
   from pg_proc where oid='public.get_loyalty_grade_benefits()'::regprocedure) then 1 else 0 end as stable_definer_with_empty_search_path;
 
 insert into auth.users(id,aud,role,email,raw_app_meta_data,raw_user_meta_data) values
- ('00000000-0000-4000-8000-000000058901','authenticated','authenticated','l6-grade-benefit-member@example.test','{}','{}');
+ ('00000000-0000-4000-8000-000000058901','authenticated','authenticated','l6-grade-benefit-member@example.test','{}','{}'),
+ ('00000000-0000-4000-8000-000000058902','authenticated','authenticated','l6-grade-benefit-silver@example.test','{}','{}');
+-- 058901 은 최상위 등급이라 모든 등급의 쿠폰 내용을 본다. 058902 는 SILVER 라 GOLD·PLATINUM 은 요약만 본다.
+update public.profiles set loyalty_grade='platinum' where id='00000000-0000-4000-8000-000000058901';
+update public.profiles set loyalty_grade='silver' where id='00000000-0000-4000-8000-000000058902';
 
 insert into public.coupons(code,name,discount_type,discount_value,max_discount_amount,min_subtotal,starts_at,ends_at,
   issue_starts_at,issue_ends_at,valid_days,issue_limit,issued_count,status,grade_benefit,recipient_segment,benefit_kind) values
@@ -56,9 +62,17 @@ select set_config('request.jwt.claim.sub','',true);
 select pg_temp.l6_expect_error('select public.get_loyalty_grade_benefits()','auth_required');
 reset role;
 
+-- 정책 단언이 시드 상태에 흔들리지 않도록 기본값(등급 적립 꺼짐)을 직접 고정한다.
+update private.customer_reward_policy set grade_enabled=false where singleton;
+
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000058901',true);
 set local role authenticated;
 select public.get_loyalty_grade_benefits() as doc \gset
+reset role;
+
+select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000058902',true);
+set local role authenticated;
+select public.get_loyalty_grade_benefits() as silver_doc \gset
 reset role;
 
 select 1/case when (select array_agg(value->>'grade' order by position) from jsonb_array_elements(:'doc'::jsonb->'grades') with ordinality as g(value,position))
@@ -78,15 +92,40 @@ select 1/case when (select value from jsonb_array_elements(pg_temp.l6_coupons(:'
     from jsonb_array_elements(pg_temp.l6_coupons(:'doc','platinum')))
   then 1 else 0 end as coupon_fields_are_benefit_terms_only;
 
+-- 오른 등급 표시: 최상위 회원은 네 등급 모두 reached, SILVER 회원은 WELCOME·SILVER 만 reached.
+select 1/case when (select bool_and((value->>'reached')::boolean) from jsonb_array_elements(:'doc'::jsonb->'grades'))
+  and (select array_agg(value->>'grade' order by position) from jsonb_array_elements(:'silver_doc'::jsonb->'grades') with ordinality as g(value,position)
+       where (value->>'reached')::boolean) = array['welcome','silver']
+  then 1 else 0 end as reached_follows_member_grade;
+
+-- 종류별 장수는 내용을 펼친 목록과 같다(최상위 회원 기준 — 다른 시드의 등급 쿠폰까지 포함한 전체 수).
+select 1/case when not exists (
+    select 1 from jsonb_array_elements(:'doc'::jsonb->'grades') as grade(value)
+    where (grade.value->'couponCounts'->>'goods')::integer
+            <> (select count(*) from jsonb_array_elements(grade.value->'coupons') as c(value) where c.value->>'benefitKind'='goods')
+       or (grade.value->'couponCounts'->>'shipping')::integer
+            <> (select count(*) from jsonb_array_elements(grade.value->'coupons') as c(value) where c.value->>'benefitKind'='shipping')
+  ) then 1 else 0 end as coupon_counts_match_full_lists;
+
+-- 오르지 않은 등급(SILVER 회원의 GOLD·PLATINUM)은 쿠폰 내용 없이 장수만: 이름·금액·조건이 어디에도 없다.
+select 1/case when (select bool_and(jsonb_array_length(value->'coupons')=0) from jsonb_array_elements(:'silver_doc'::jsonb->'grades')
+                    where value->>'grade' in ('gold','platinum'))
+  and (select jsonb_object_agg(value->>'grade', value->'couponCounts') from jsonb_array_elements(:'silver_doc'::jsonb->'grades'))
+    = (select jsonb_object_agg(value->>'grade', value->'couponCounts') from jsonb_array_elements(:'doc'::jsonb->'grades'))
+  and position('L6 등급 골드' in :'silver_doc') = 0
+  and position('L6 등급 플래티넘' in :'silver_doc') = 0
+  and (select array_agg(value->>'name' order by position) from jsonb_array_elements(pg_temp.l6_coupons(:'silver_doc','silver')) with ordinality as c(value,position)) = array['L6 등급 실버 3천원']
+  then 1 else 0 end as upper_grades_show_counts_only;
+
 -- 코드·발급 수량·대상 ID 같은 운영 값은 어디에도 없다.
-select 1/case when position('L6GB-' in :'doc') = 0
+select 1/case when position('L6GB-' in :'doc') = 0 and position('L6GB-' in :'silver_doc') = 0
   and not exists (
     select 1 from jsonb_array_elements(:'doc'::jsonb->'grades') as grade(value)
     cross join lateral jsonb_array_elements(grade.value->'coupons') as coupon(value)
     where coupon.value ?| array['code','issueLimit','issuedCount','targetGoodIds','targetCategoryIds','issuanceMode']
   ) then 1 else 0 end as no_codes_or_operator_values;
 
--- 기본: 등급 적립이 꺼져 있으면 적립률을 말하지 않는다.
+-- 등급 적립이 꺼져 있으면(위에서 고정) 적립률을 말하지 않는다.
 select 1/case when :'doc'::jsonb->'creditRatesEnabled'='false'::jsonb
   and not exists (select 1 from jsonb_array_elements(:'doc'::jsonb->'grades') as grade(value) where grade.value->'creditRateBps'<>'null'::jsonb)
   then 1 else 0 end as rates_hidden_while_policy_off;

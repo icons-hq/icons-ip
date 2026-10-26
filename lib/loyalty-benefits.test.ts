@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import {
+  gradeBenefitCountLines,
   gradeBenefitCouponCopy,
   gradeCreditRateLabel,
+  hasGradeCreditRates,
   loyaltyCriterionCopy,
   parseLoyaltyGradeBenefits,
   parseLoyaltyStanding,
@@ -30,10 +32,10 @@ function response(overrides: Record<string, unknown> = {}) {
   return {
     creditRatesEnabled: false,
     grades: [
-      { grade: 'welcome', creditRateBps: null, coupons: [] },
-      { grade: 'silver', creditRateBps: null, coupons: [coupon()] },
-      { grade: 'gold', creditRateBps: null, coupons: [] },
-      { grade: 'platinum', creditRateBps: null, coupons: [] },
+      { grade: 'welcome', reached: true, creditRateBps: null, couponCounts: { goods: 0, shipping: 0 }, coupons: [] },
+      { grade: 'silver', reached: true, creditRateBps: null, couponCounts: { goods: 1, shipping: 0 }, coupons: [coupon()] },
+      { grade: 'gold', reached: false, creditRateBps: null, couponCounts: { goods: 1, shipping: 1 }, coupons: [] },
+      { grade: 'platinum', reached: false, creditRateBps: null, couponCounts: { goods: 0, shipping: 0 }, coupons: [] },
     ],
     ...overrides,
   };
@@ -51,7 +53,28 @@ describe('parseLoyaltyGradeBenefits', () => {
 
     expect(parsed?.grades.map((row) => row.grade)).toEqual(['welcome', 'silver', 'gold', 'platinum']);
     expect(parsed?.grades[1].coupons).toEqual([coupon()]);
+    expect(parsed?.grades.map((row) => row.reached)).toEqual([true, true, false, false]);
+    expect(parsed?.grades[2]).toMatchObject({ coupons: [], couponCounts: { goods: 1, shipping: 1 } });
     expect(parsed?.creditRatesEnabled).toBe(false);
+  });
+
+  /* 오르지 않은 등급의 쿠폰 내용은 응답에 없어야 한다 — 실려 오면 공개 범위 계약이 깨진 것이다. */
+  it('rejects coupon details for an unreached grade and counts that disagree with the details', () => {
+    const leaked = response();
+    (leaked.grades as { coupons: unknown[] }[])[2].coupons = [coupon({ name: '골드 승급 쿠폰' })];
+    expect(parseLoyaltyGradeBenefits(leaked)).toBeNull();
+
+    const miscounted = response();
+    (miscounted.grades as { couponCounts: unknown }[])[1].couponCounts = { goods: 2, shipping: 0 };
+    expect(parseLoyaltyGradeBenefits(miscounted)).toBeNull();
+
+    const missingReached = response();
+    delete (missingReached.grades as { reached?: unknown }[])[0].reached;
+    expect(parseLoyaltyGradeBenefits(missingReached)).toBeNull();
+
+    const brokenCounts = response();
+    (brokenCounts.grades as { couponCounts: unknown }[])[3].couponCounts = { goods: -1, shipping: 0 };
+    expect(parseLoyaltyGradeBenefits(brokenCounts)).toBeNull();
   });
 
   /* 코드 입력 발급은 등급을 묻지 않는다 — 응답에 코드가 실려 오면 계약이 깨진 것이라 화면에 쓰지 않는다. */
@@ -114,6 +137,24 @@ describe('parseLoyaltyStanding', () => {
 });
 
 describe('grade benefit copy', () => {
+  it('summarises an unreached grade by coupon kind only', () => {
+    expect(gradeBenefitCountLines({ goods: 2, shipping: 1 })).toEqual(['굿즈 할인 쿠폰 2장', '배송비 할인 쿠폰 1장']);
+    expect(gradeBenefitCountLines({ goods: 0, shipping: 1 })).toEqual(['배송비 할인 쿠폰 1장']);
+    expect(gradeBenefitCountLines({ goods: 0, shipping: 0 })).toEqual([]);
+  });
+
+  it('knows whether the table shows any grade credit rate', () => {
+    const parsed = parseLoyaltyGradeBenefits(response());
+    expect(hasGradeCreditRates(parsed)).toBe(false);
+    expect(hasGradeCreditRates(null)).toBe(false);
+
+    const on = response({ creditRatesEnabled: true });
+    (on.grades as { creditRateBps: unknown }[]).forEach((row) => { row.creditRateBps = 0; });
+    expect(hasGradeCreditRates(parseLoyaltyGradeBenefits(on))).toBe(false);
+    (on.grades as { creditRateBps: unknown }[])[2].creditRateBps = 150;
+    expect(hasGradeCreditRates(parseLoyaltyGradeBenefits(on))).toBe(true);
+  });
+
   it('reads rates in percent', () => {
     expect(gradeCreditRateLabel(100)).toBe('1%');
     expect(gradeCreditRateLabel(150)).toBe('1.5%');

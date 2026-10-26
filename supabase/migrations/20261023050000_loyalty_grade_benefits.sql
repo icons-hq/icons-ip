@@ -10,10 +10,15 @@
 --
 -- ## 돌려주는 것 / 돌려주지 않는 것
 --
--- - 쿠폰: 이름·혜택(정액/정률·상한·굿즈/배송비)·최소 주문 금액·대상 범위 종류·받는 회원 조건·유효 기간
---   (사용 기간 또는 지급일 기준 일수). **쿠폰 코드는 돌려주지 않는다** — 코드 입력 발급(claim_coupon_code)은
---   등급을 묻지 않으므로 코드가 새면 아무 회원이나 상위 등급 쿠폰을 받을 수 있다. 대상 굿즈·카테고리 ID,
+-- - 쿠폰(내가 오른 등급까지): 이름·혜택(정액/정률·상한·굿즈/배송비)·최소 주문 금액·대상 범위 종류·받는 회원
+--   조건·유효 기간(사용 기간 또는 지급일 기준 일수). **쿠폰 코드는 돌려주지 않는다.** 대상 굿즈·카테고리 ID,
 --   발급 수량·한도 같은 운영 값도 내지 않는다.
+-- - 쿠폰(아직 오르지 않은 등급): 종류별 장수(couponCounts — 굿즈 할인·배송비 할인)만 낸다. 이름·금액·조건·기간은
+--   내지 않는다. 등급 혜택 쿠폰은 늘 코드 발급형(coupon_targeted_grade_exclusive)이고 코드 입력 발급
+--   (claim_coupon_code → private.issue_coupon_code 'code_entry')은 회원 등급을 묻지 않는다. 회원은 보유한
+--   쿠폰 코드를 RLS 로 읽을 수 있어 운영자가 정한 코드 규칙을 짐작할 수 있다. 그래서 상위 등급 쿠폰의 이름·
+--   금액을 모든 회원에게 펼치면 '추측할 가치가 있는 목록'이 된다 — 승급 전에는 종류와 장수만 알린다
+--   (근본 차단은 발급 경로의 등급 확인이고, 이 함수 밖의 결정이다).
 -- - 지금 승급하면 실제로 지급되는 정의만 싣는다. 승급 지급(private.grant_grade_benefit_coupons)과 같은 거름이다:
 --   활성 정의, 사용 기간이 끝나지 않음, 발급 기간이 열려 있음, 발급 한도가 남음, 등급이 WELCOME 보다 위
 --   (WELCOME 은 가입 기본 등급이라 승급 지급 대상이 아니다). 받는 회원 조건(첫 구매·재구매)은 회원마다
@@ -40,6 +45,7 @@ set search_path = ''
 as $$
 declare
   actor uuid := (select auth.uid());
+  member_grade public.loyalty_grade;
   credit_enabled boolean;
   reward_enabled boolean;
   reward_rates jsonb;
@@ -49,6 +55,12 @@ begin
   if actor is null then
     raise insufficient_privilege using message = 'auth_required';
   end if;
+
+  -- 프로필이 없으면(가입 직후 경합 등) 가입 기본 등급으로 본다 — 상위 등급 쿠폰은 요약만 나간다.
+  select coalesce(profile.loyalty_grade, 'welcome'::public.loyalty_grade) into member_grade
+  from public.profiles as profile
+  where profile.id = actor;
+  member_grade := coalesce(member_grade, 'welcome'::public.loyalty_grade);
 
   select policy.enabled into credit_enabled
   from private.store_credit_policy as policy
@@ -80,8 +92,14 @@ begin
     'grades', jsonb_agg(
       jsonb_build_object(
         'grade', grades.grade,
+        -- 내가 오른 등급(이하)인지. 오르지 않은 등급은 쿠폰 내용 대신 종류별 장수만 싣는다.
+        'reached', grades.grade <= member_grade,
         'creditRateBps', case when rates_effective then (reward_rates ->> grades.grade::text)::integer end,
-        'coupons', coalesce((
+        'couponCounts', jsonb_build_object(
+          'goods', (select count(*) from grantable as coupon where coupon.grade_benefit = grades.grade and coupon.benefit_kind = 'goods'),
+          'shipping', (select count(*) from grantable as coupon where coupon.grade_benefit = grades.grade and coupon.benefit_kind = 'shipping')
+        ),
+        'coupons', case when grades.grade > member_grade then '[]'::jsonb else coalesce((
           select jsonb_agg(
             jsonb_build_object(
               'name', coupon.name,
@@ -101,7 +119,7 @@ begin
           )
           from grantable as coupon
           where coupon.grade_benefit = grades.grade
-        ), '[]'::jsonb)
+        ), '[]'::jsonb) end
       )
       order by grades.position
     )
@@ -114,7 +132,7 @@ end;
 $$;
 
 comment on function public.get_loyalty_grade_benefits() is
-  '회원 등급 혜택 안내: 등급별 지급 중인 등급 혜택 쿠폰(코드 제외)과 등급 적립률(bps, 적립 정책이 꺼져 있으면 null). 로그인 회원 전용 읽기.';
+  '회원 등급 혜택 안내: 등급별 지급 중인 등급 혜택 쿠폰(내가 오른 등급까지는 내용·코드 제외, 위 등급은 종류별 장수만)과 등급 적립률(bps, 적립 정책이 꺼져 있으면 null). 로그인 회원 전용 읽기.';
 
 revoke all on function public.get_loyalty_grade_benefits() from public, anon, authenticated, service_role;
 grant execute on function public.get_loyalty_grade_benefits() to authenticated;

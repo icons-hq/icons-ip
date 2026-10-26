@@ -85,6 +85,25 @@ describe('MyCoupons 티켓 카드', () => {
     expect(html).toContain('GOLD');
   });
 
+  /* 코드 입력 발급은 회원 등급을 묻지 않는다 — 보유한 등급 쿠폰 코드로 상위 등급 코드 규칙을 짐작하지 못하게 한다. */
+  it('등급 혜택 쿠폰은 코드 줄을 그리지 않고 일반 쿠폰은 코드를 보여 준다', () => {
+    const html = renderToStaticMarkup(
+      <MyCoupons
+        coupons={[
+          heldCoupon({ id: 'g', gradeBenefit: 'silver', name: 'SILVER 달성 쿠폰' }),
+          heldCoupon({ id: 'plain', name: '일반 쿠폰' }),
+        ]}
+      />,
+    );
+    const cards = html.split('<li class="wc-coupon-card').slice(1);
+
+    expect(cards).toHaveLength(2);
+    expect(cards[0]).toContain('SILVER 달성 쿠폰');
+    expect(cards[0]).not.toContain('wc-coupon-card__code');
+    expect(cards[0]).not.toContain('CPNFIX5K');
+    expect(cards[1]).toContain('<p class="wc-coupon-card__code">CPNFIX5K</p>');
+  });
+
   it('빈 쿠폰함은 카트의 코드 입력으로 안내한다', () => {
     const html = renderToStaticMarkup(<MyCoupons coupons={[]} />);
 

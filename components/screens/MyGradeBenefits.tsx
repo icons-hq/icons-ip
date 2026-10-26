@@ -2,8 +2,10 @@ import Link from 'next/link';
 import { MypageShell } from '@/components/wc/MypageShell';
 import { LOYALTY_GRADES, LOYALTY_WINDOW_DAYS, loyaltyGradeLabel, type LoyaltyGrade } from '@/lib/loyalty';
 import {
+  gradeBenefitCountLines,
   gradeBenefitCouponCopy,
   gradeCreditRateLabel,
+  hasGradeCreditRates,
   loyaltyCriterionCopy,
   type GradeBenefitRow,
   type LoyaltyGradeBenefits,
@@ -17,6 +19,7 @@ import { hrefFor } from '@/lib/routes';
  * 레퍼런스 순서: 안내 박스 → 등급표(등급·기준 280 | 혜택 640) → 쿠폰함 CTA → 산정 안내.
  * 등급 조건과 내 등급은 get_my_loyalty_status(), 등급별 혜택은 get_loyalty_grade_benefits()가 정본이다 —
  * 화면은 숫자를 지어내지 않고, 못 읽은 칸은 그 자리에 "확인하지 못했어요"라고 쓴다.
+ * 아직 오르지 않은 등급은 쿠폰 내용 대신 종류별 장수만 받는다(RPC 공개 범위) — 내용은 승급 뒤 쿠폰함에서 본다.
  * 뱃지 색은 DESIGN §2 의 --wc-loyalty-* 쌍만 쓴다(레퍼런스 원색 금지). 용어는 '회원 등급' — 유료 v2 개념과 섞지 않는다.
  */
 
@@ -56,11 +59,18 @@ function BenefitList({ row, unavailable, now }: { row: GradeBenefitRow | null; u
     return <p className="wc-grade-benefits__empty">혜택 정보를 확인하지 못했어요. 잠시 후 다시 열어주세요.</p>;
   }
   const rate = row.creditRateBps !== null && row.creditRateBps > 0 ? gradeCreditRateLabel(row.creditRateBps) : null;
-  if (!row.coupons.length && !rate) {
+  const countLines = row.reached ? [] : gradeBenefitCountLines(row.couponCounts);
+  if (!row.coupons.length && !countLines.length && !rate) {
     return <p className="wc-grade-benefits__empty">지금은 이 등급에 지급 중인 혜택이 없어요.</p>;
   }
   return (
     <ul className="wc-grade-benefits__list">
+      {countLines.map((line) => (
+        <li key={`${row.grade}-${line}`}>
+          <strong>{line}</strong>
+          <span className="wc-grade-benefits__terms">쿠폰 내용은 이 등급에 오르면 쿠폰함에서 확인할 수 있어요</span>
+        </li>
+      ))}
       {row.coupons.map((coupon, index) => {
         const copy = gradeBenefitCouponCopy(coupon, now);
         return (
@@ -161,7 +171,8 @@ export function MyGradeBenefits({
         <p className="wc-grade-benefits__guide-title">혜택 지급</p>
         <ul>
           <li>등급 혜택 쿠폰은 쿠폰마다 한 번만 지급되고, 이미 받은 쿠폰은 다시 지급되지 않아요.</li>
-          <li>등급 적립금은 기본 적립금 정책의 주문당·보유 한도 안에서 쌓여요.</li>
+          {/* 표가 적립률 줄을 그릴 때만 — 등급 적립이 꺼져 있으면 없는 혜택을 약속하지 않는다. */}
+          {hasGradeCreditRates(benefits) ? <li>등급 적립금은 기본 적립금 정책의 주문당·보유 한도 안에서 쌓여요.</li> : null}
         </ul>
         <p className="wc-grade-benefits__guide-title">유의사항</p>
         <ul>

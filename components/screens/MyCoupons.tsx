@@ -21,6 +21,10 @@ import { CouponCodeClaim } from '@/components/shop/CouponCodeClaim';
  * 레퍼런스 순서를 따른다: 배지 → 코드 → 이름 → 유효기간 → 사용조건.
  * 등급 혜택 쿠폰은 등급 뱃지 색(DESIGN.md §2 예외 토큰)을, 일반 쿠폰은
  * 무채색을 쓴다. 사용·만료 카드는 잉크를 낮춰 구분한다.
+ *
+ * 등급 혜택 쿠폰은 코드 줄을 그리지 않는다. 승급 때 자동 지급되고 주문서에서 보유 쿠폰으로 고르므로 회원이
+ * 코드를 쓸 일이 없다. 반면 코드 입력 발급은 회원 등급을 묻지 않아, 보유한 등급 쿠폰 코드에서 운영 코드
+ * 규칙이 드러나면 상위 등급 코드를 짐작해 받을 수 있다(L6 리뷰 l6-data-1). 일반 쿠폰은 코드를 그대로 보여 준다.
  */
 
 const STATE_LABELS: Record<CouponDisplayState, string> = {
@@ -45,7 +49,7 @@ function CouponTicketCard({ held }: { held: UserCouponSummary }) {
         ) : null}
         <span className="wc-coupon-card__state">{STATE_LABELS[state]}</span>
       </div>
-      <p className="wc-coupon-card__code">{held.coupon.code}</p>
+      {grade ? null : <p className="wc-coupon-card__code">{held.coupon.code}</p>}
       <p className="wc-coupon-card__name">{held.coupon.name}</p>
       <p className="wc-coupon-card__benefit">{couponBenefitLabel(held.coupon)}</p>
       <dl className="wc-coupon-card__meta">

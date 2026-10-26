@@ -6,7 +6,9 @@ import { loyaltyProgressNote, parseLoyaltyPolicy, type LoyaltyCriterion } from '
 /* 회원 등급 혜택 안내(/my/grade-benefits · LFS 패리티 2차 L6 · MY-05)의 읽기 모델.
  *
  * 등급별 혜택은 public.get_loyalty_grade_benefits()가 정본이다 — 지금 승급하면 지급되는 등급 혜택 쿠폰과
- * 등급 적립률(bps)만 돌려주고 쿠폰 코드는 싣지 않는다. 등급 조건과 내 등급은 get_my_loyalty_status()가
+ * 등급 적립률(bps)만 돌려주고 쿠폰 코드는 싣지 않는다. 쿠폰 내용(이름·금액·조건·기간)은 내가 오른 등급까지만
+ * 오고, 아직 오르지 않은 등급은 종류별 장수(couponCounts)만 온다 — 코드 입력 발급이 회원 등급을 묻지 않아
+ * 상위 등급 쿠폰 목록을 펼치면 코드 추측 대상이 되기 때문이다. 등급 조건과 내 등급은 get_my_loyalty_status()가
  * 따로 돌려준다(loyalty-benefits.server). 이 모듈은 응답 검증과 화면 문구만 만든다 — 순수 함수라 단위 테스트한다. */
 
 export type GradeBenefitKind = 'goods' | 'shipping';
@@ -28,10 +30,20 @@ export interface GradeBenefitCoupon {
   validDays: number | null;
 }
 
+export interface GradeBenefitCouponCounts {
+  goods: number;
+  shipping: number;
+}
+
 export interface GradeBenefitRow {
   grade: LoyaltyGrade;
+  /** 내가 오른 등급(이하)인지. false 면 coupons 는 비어 있고 couponCounts 만 믿는다. */
+  reached: boolean;
   /** 등급 적립률(0.01% 단위). 등급 적립이나 기본 적립금 정책이 꺼져 있으면 null 이다. */
   creditRateBps: number | null;
+  /** 지급 중인 등급 혜택 쿠폰의 종류별 장수 — 오르지 않은 등급도 이것만은 안다. */
+  couponCounts: GradeBenefitCouponCounts;
+  /** 쿠폰 내용. 내가 오른 등급에만 실린다. */
   coupons: GradeBenefitCoupon[];
 }
 
@@ -119,17 +131,45 @@ export function parseLoyaltyGradeBenefits(value: unknown): LoyaltyGradeBenefits 
   const grades: GradeBenefitRow[] = [];
   for (const [index, row] of value.grades.entries()) {
     if (!record(row) || !isLoyaltyGrade(row.grade) || row.grade !== LOYALTY_GRADES[index] || !Array.isArray(row.coupons)) return null;
+    if (typeof row.reached !== 'boolean') return null;
     const rate = row.creditRateBps;
     if (value.creditRatesEnabled ? !(rate === null || wholeNumber(rate, 0, 10_000)) : rate !== null) return null;
+    const counts = row.couponCounts;
+    if (!record(counts) || !wholeNumber(counts.goods, 0, 1_000) || !wholeNumber(counts.shipping, 0, 1_000)) return null;
+    /* 오르지 않은 등급에 쿠폰 내용이 실려 오면 공개 범위 계약이 깨진 것이다 — 화면에 쓰지 않는다. */
+    if (!row.reached && row.coupons.length > 0) return null;
     const coupons: GradeBenefitCoupon[] = [];
     for (const coupon of row.coupons) {
       const parsed = parseCoupon(coupon);
       if (!parsed) return null;
       coupons.push(parsed);
     }
-    grades.push({ grade: row.grade, creditRateBps: rate as number | null, coupons });
+    if (row.reached) {
+      const goods = coupons.filter((coupon) => coupon.benefitKind === 'goods').length;
+      if (goods !== counts.goods || coupons.length - goods !== counts.shipping) return null;
+    }
+    grades.push({
+      grade: row.grade,
+      reached: row.reached,
+      creditRateBps: rate as number | null,
+      couponCounts: { goods: counts.goods, shipping: counts.shipping },
+      coupons,
+    });
   }
   return { creditRatesEnabled: value.creditRatesEnabled, grades };
+}
+
+/** 아직 오르지 않은 등급의 쿠폰 요약 — 종류별 장수만 적는다(굿즈 할인 → 배송비 할인 순, 0장은 뺀다). */
+export function gradeBenefitCountLines(counts: GradeBenefitCouponCounts): string[] {
+  return [
+    counts.goods > 0 ? `굿즈 할인 쿠폰 ${counts.goods.toLocaleString('ko-KR')}장` : null,
+    counts.shipping > 0 ? `배송비 할인 쿠폰 ${counts.shipping.toLocaleString('ko-KR')}장` : null,
+  ].filter((line): line is string => line !== null);
+}
+
+/** 등급표 아래 '등급 적립금은 … 한도 안에서 쌓여요' 안내를 쓸지 — 표가 적립률 줄을 하나라도 그릴 때만. */
+export function hasGradeCreditRates(benefits: LoyaltyGradeBenefits | null): boolean {
+  return Boolean(benefits?.creditRatesEnabled && benefits.grades.some((row) => (row.creditRateBps ?? 0) > 0));
 }
 
 /** 0.01% 단위 적립률을 사람이 읽는 퍼센트로 — 100 → '1%', 150 → '1.5%', 5 → '0.05%'. */

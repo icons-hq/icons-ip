@@ -31,7 +31,7 @@ const STATUS = {
 };
 const BENEFITS = {
   creditRatesEnabled: false,
-  grades: ['welcome', 'silver', 'gold', 'platinum'].map((grade) => ({ grade, creditRateBps: null, coupons: [] })),
+  grades: ['welcome', 'silver', 'gold', 'platinum'].map((grade, index) => ({ grade, reached: index <= 1, creditRateBps: null, couponCounts: { goods: 0, shipping: 0 }, coupons: [] })),
 };
 
 describe('loadLoyaltyBenefitsPage', () => {
