@@ -1963,6 +1963,40 @@ a.wc-mypage__card:hover .wc-mypage__card-title {
   text-underline-offset: 3px;
 }
 
+/* 비밀번호 변경은 링크가 아니라 재설정 메일을 보내는 버튼이다 — 같은 행 문법, 오른쪽에 동작 글자. */
+button.wc-settings__link-row {
+  width: 100%;
+  border: 0;
+  background: none;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+button.wc-settings__link-row:disabled {
+  cursor: default;
+}
+
+button.wc-settings__link-row:disabled strong {
+  color: var(--wc-ink-tertiary);
+  text-decoration: none;
+}
+
+.wc-settings__link-action {
+  flex: none;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--wc-ink);
+}
+
+.wc-settings__links [role="group"]:empty {
+  display: none;
+}
+
+.wc-settings__links [role="group"] > div {
+  margin: 0 0 12px;
+}
+
 /* 회원 탈퇴 패널 — editorial 소유 클래스를 wc 문법으로 재소유(스코프 한정). */
 .wc-mypage .account-deletion-panel,
 .wc-auth .account-deletion-panel {
