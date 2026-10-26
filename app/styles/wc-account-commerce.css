@@ -2514,7 +2514,7 @@ button.wc-settings__link-row:disabled strong {
 
 /* --- 마이페이지 셸 안의 영수증 지면 (L6 · MY-01) -------------------- */
 
-/* 주문 목록·상세는 셸(컨테이너 1212·여백 40/100·좌 메뉴) 안 콘텐츠다. 지면이 독립 화면일 때 쓰던 바깥 틀
+/* 주문·티켓 목록·상세는 셸(컨테이너 1212·여백 40/100·좌 메뉴) 안 콘텐츠다. 지면이 독립 화면일 때 쓰던 바깥 틀
    (지면 여백·최소 높이·.wrap 컨테이너·섹션 위아래 clamp 여백)은 셸이 이미 가지므로 걷는다. 영수증 어휘는 그대로. */
 .wc-mypage__content > .wc-receipt {
   min-height: 0;
@@ -2527,18 +2527,22 @@ button.wc-settings__link-row:disabled strong {
 }
 
 .wc-mypage .wc-mypage__content .orders-section,
-.wc-mypage .wc-mypage__content .order-detail-layout {
+.wc-mypage .wc-mypage__content .order-detail-layout,
+.wc-mypage .wc-mypage__content .tickets-content,
+.wc-mypage .wc-mypage__content .ticket-detail-layout {
   padding-top: 0;
   padding-bottom: 0;
 }
 
 /* 콘텐츠 920 안의 영수증 2열(본문 + 360)은 1200px 이상에서만 — 더 좁으면 본문 칸이 300px 대로 눌린다. */
 @media (max-width: 1199px) {
-  .wc-mypage .wc-mypage__content .order-detail-layout {
+  .wc-mypage .wc-mypage__content .order-detail-layout,
+  .wc-mypage .wc-mypage__content .ticket-detail-layout {
     display: block;
   }
 
-  .wc-mypage .wc-mypage__content .order-detail-receipt {
+  .wc-mypage .wc-mypage__content .order-detail-receipt,
+  .wc-mypage .wc-mypage__content .ticket-detail-receipt {
     position: static;
     margin-top: 20px;
   }
