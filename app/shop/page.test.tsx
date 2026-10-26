@@ -14,10 +14,11 @@ const mocks = vi.hoisted(() => ({
   navigation: [] as CategoryDisplayNavigation[],
   navigationFails: false,
   page: null as CategoryDisplayPage | null,
+  wishlist: null as { viewerId: string | null; goodIds: string[] } | null,
 }));
 
 vi.mock('@/lib/catalog-categories.server', () => ({ loadPublicCatalogCategories: async () => [] }));
-vi.mock('@/lib/wishlist-ids.server', () => ({ loadListingWishlist: async () => null }));
+vi.mock('@/lib/wishlist-ids.server', () => ({ loadListingWishlist: async () => mocks.wishlist }));
 vi.mock('@/app/shop/actions', () => ({ toggleWishlistAction: vi.fn() }));
 vi.mock('@/lib/category-display.server', () => ({
   loadCategoryDisplayNavigation: async () => {
@@ -64,6 +65,7 @@ beforeEach(() => {
   mocks.navigation = [{ id: DISPLAY_ID, name: 'QA 인형 전시', depth: 0 }];
   mocks.navigationFails = false;
   mocks.page = null;
+  mocks.wishlist = null;
 });
 
 describe('/shop 카테고리 전시 내비 토큰 스코프 (l4-qa-2)', () => {
@@ -110,5 +112,25 @@ describe('/shop 카테고리 전시 내비 토큰 스코프 (l4-qa-2)', () => {
 
     expect(html).not.toContain('wc-category-display__navigation');
     expect(html).not.toContain('<div class="wc-root"></div>');
+  });
+});
+
+/* L5 — 카테고리 전시도 컬렉션과 같은 목록 문법이다: 카드 하트(CL-01)·별점(CL-02)·정렬 7종(CL-10)·타입 '예약판매'(CL-11). */
+describe('카테고리 전시 목록 문법 (LFS 패리티 2차 L5)', () => {
+  it('카드에 목록 하트와 별점을 그리고 정렬 7종·예약판매 타입을 연다', async () => {
+    mocks.navigation = [];
+    mocks.wishlist = { viewerId: 'viewer-1', goodIds: ['b'] };
+    const page = displayPage([good('a', { name: '별점 굿즈' }), good('b', { name: '찜한 굿즈' })]);
+    page.result.reviewSummaries = { a: { count: 3, average: 4.2 } };
+    page.result.typeFacets = [{ value: '키링', label: '키링', count: 2 }, { value: '예약판매', label: '예약판매', count: 1 }];
+    mocks.page = page;
+    const html = await render({ displayCategory: DISPLAY_ID });
+
+    expect(html.match(/<button[^>]*class="wc-list-heart/g)).toHaveLength(2);
+    expect(html).toMatch(/aria-pressed="true"[^>]*aria-label="찜한 굿즈[^"]*"|aria-label="찜한 굿즈[^"]*"[^>]*aria-pressed="true"/);
+    expect(html).toContain('평점 5점 만점에 4.2점, 리뷰 3개');
+    const sorts = [...html.matchAll(/<option[^>]*value="([^"]+)"/g)].map((match) => match[1]);
+    expect(sorts).toEqual(['recommended', 'name_asc', 'name_desc', 'price_asc', 'price_desc', 'oldest', 'newest']);
+    expect(html).toContain('예약판매');
   });
 });

@@ -1,0 +1,227 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
+import { describe, expect, it } from 'vitest';
+import { DISPLAY_MESSAGING_TOPIC } from './admin/guide/topics/display-messaging';
+import {
+  MEGA_MENU_CAMPAIGN_LIMIT,
+  MEGA_MENU_IP_TILE_COUNT,
+  MENU_CAMPAIGN_LIMIT,
+  MENU_FEATURED_IP_LIMIT,
+  MENU_LABEL_MAX,
+  categoryMenuGroups,
+  categoryMenuTiles,
+  chunkMenuItems,
+  isCategoryMenuLive,
+  megaMenuLocation,
+  menuLabel,
+  menuMonogram,
+  parseStorefrontCategoryMenu,
+  toMenuCampaigns,
+  toMenuIps,
+} from './storefront-mega-menu';
+
+/* LFS 패리티 2차 L5 — 메가메뉴·카테고리 시트 데이터 계약. 공개 메뉴 RPC(get_storefront_category_menu)가 트리 순서로
+ * 공개 전시 노드와 그 조상만 내려 준다는 것을 전제로, 셸은 그 모양이 조금이라도 어긋나면 기존 메뉴로 돌아간다. */
+
+const id = (n: number) => `94932000-0000-4000-8000-${String(n).padStart(12, '0')}`;
+const url = (path: string) => `https://cdn.example/${path}`;
+const row = (n: number, parent: number | null, depth: number, navigable: boolean, imagePath: string | null = null, name = `전시 ${n}`) => ({
+  id: id(n), parentId: parent === null ? null : id(parent), name, depth, imagePath, navigable,
+});
+const tree = [
+  row(1, null, 1, false, null, '토이'),
+  row(2, 1, 2, true, null, '피규어'),
+  row(3, 1, 2, false, null, '라이프'),
+  row(4, 3, 3, true, null, '머그'),
+  row(5, null, 1, true, null, '시즌'),
+];
+
+describe('공개 메뉴 RPC 검증', () => {
+  it('트리 순서·깊이·부모를 그대로 받고 이미지 경로는 공개 URL로 바꾼다', () => {
+    const iconPath = 'public-media/catalog/curation/94932000-0000-4000-8000-000000000301.png';
+    const nodes = parseStorefrontCategoryMenu([...tree.slice(0, 1), { ...tree[1], imagePath: iconPath }, ...tree.slice(2)], url);
+    expect(nodes?.map((node) => [node.name, node.depth, node.navigable])).toEqual([
+      ['토이', 1, false], ['피규어', 2, true], ['라이프', 2, false], ['머그', 3, true], ['시즌', 1, true],
+    ]);
+    expect(nodes?.[1].imageUrl).toBe(`https://cdn.example/${iconPath}`);
+    expect(nodes?.[0].imageUrl).toBeNull();
+    expect(isCategoryMenuLive({ categories: nodes! })).toBe(true);
+  });
+
+  it('부모보다 먼저 온 자식·깊이 불일치·중복·외부 이미지·행 모양이 틀린 구조는 메뉴 전체를 거절한다', () => {
+    expect(parseStorefrontCategoryMenu([tree[1], tree[0]], url)).toBeNull();
+    expect(parseStorefrontCategoryMenu([tree[0], { ...tree[1], depth: 3 }], url)).toBeNull();
+    expect(parseStorefrontCategoryMenu([tree[0], { ...tree[0] }], url)).toBeNull();
+    expect(parseStorefrontCategoryMenu([{ ...tree[4], parentId: id(1) }], url)).toBeNull();
+    expect(parseStorefrontCategoryMenu([{ ...tree[4], imagePath: 'https://evil.example/icon.png' }], url)).toBeNull();
+    expect(parseStorefrontCategoryMenu([{ ...tree[4], name: 42 }], url)).toBeNull();
+    expect(parseStorefrontCategoryMenu([{ ...tree[4], navigable: 'true' }], url)).toBeNull();
+    expect(parseStorefrontCategoryMenu({ nodes: tree }, url)).toBeNull();
+  });
+
+  /* 리뷰 l5-data-1 — 이름 상한이 DB(상품분류 이름 120자 → 레거시 전시 노드 이름)보다 좁으면 긴 이름 하나가 공개 트리 전체를
+   * 기존 메뉴로 폴백시켰다. 이름은 구조가 아니라 표시 값이다: DB 가 받는 값은 그대로 싣고, 넘치는 값만 잘라 싣는다. */
+  it('이름은 120자(DB 상한)까지 그대로 싣고, 넘치는 이름은 말줄임으로 잘라 싣는다 — 긴 이름 하나가 트리를 버리지 않는다', () => {
+    const legacy = '나'.repeat(MENU_LABEL_MAX);
+    const nodes = parseStorefrontCategoryMenu([{ ...tree[0], name: legacy }, ...tree.slice(1)], url);
+    expect(nodes?.map((node) => node.name)).toEqual([legacy, '피규어', '라이프', '머그', '시즌']);
+
+    const longer = parseStorefrontCategoryMenu([{ ...tree[4], name: '다'.repeat(MENU_LABEL_MAX + 30) }], url);
+    expect(longer?.[0].name).toBe(`${'다'.repeat(MENU_LABEL_MAX - 1)}…`);
+    expect(Array.from(longer![0].name)).toHaveLength(MENU_LABEL_MAX);
+  });
+
+  it('제어문자는 공백 하나로 바꿔 싣고, 쓸 이름이 없는 노드는 그 가지만 빼며 목적지 없는 조상도 함께 정리한다', () => {
+    expect(parseStorefrontCategoryMenu([{ ...tree[4], name: ' 줄\n\t바꿈 ' }], url)?.[0].name).toBe('줄 바꿈');
+    /* '라이프'(이름 없음)가 빠지면 그 아래 '머그'도 놓일 자리가 없어 함께 빠진다. 나머지 트리는 그대로다. */
+    const pruned = parseStorefrontCategoryMenu(tree.map((node) => (node.id === id(3) ? { ...node, name: '\u0007' } : node)), url);
+    expect(pruned?.map((node) => node.name)).toEqual(['토이', '피규어', '시즌']);
+    /* 목적지를 가진 하위가 모두 빠진 그룹 제목('토이')은 이름표만 남기지 않는다. */
+    const orphaned = parseStorefrontCategoryMenu(tree.map((node) => (node.id === id(2) || node.id === id(3) ? { ...node, name: '   ' } : node)), url);
+    expect(orphaned?.map((node) => node.name)).toEqual(['시즌']);
+    /* 남는 목적지가 하나도 없으면 꺼진 메뉴가 아니라 폴백이다. */
+    expect(parseStorefrontCategoryMenu([{ ...tree[4], name: '   ' }], url)).toBeNull();
+  });
+
+  it('목적지 없는 제목만 남은 응답은 그리지 않고, 빈 응답은 꺼진 메뉴다', () => {
+    expect(parseStorefrontCategoryMenu([tree[0]], url)).toBeNull();
+    expect(parseStorefrontCategoryMenu([], url)).toEqual([]);
+    expect(isCategoryMenuLive({ categories: [] })).toBe(false);
+  });
+});
+
+describe('메가메뉴 그룹과 시트 타일', () => {
+  const nodes = parseStorefrontCategoryMenu(tree, url)!;
+
+  it('최상위 전시분류가 그룹 제목이고 하위 전시는 트리 순서의 항목이다 — 자기 전시가 없으면 링크 없는 이름표', () => {
+    const groups = categoryMenuGroups(nodes);
+    expect(groups.map((group) => [group.name, group.href])).toEqual([
+      ['토이', null],
+      ['시즌', `/shop?displayCategory=${id(5)}`],
+    ]);
+    expect(groups[0].items).toEqual([
+      { id: id(2), name: '피규어', depth: 2, href: `/shop?displayCategory=${id(2)}` },
+      { id: id(3), name: '라이프', depth: 2, href: null },
+      { id: id(4), name: '머그', depth: 3, href: `/shop?displayCategory=${id(4)}` },
+    ]);
+  });
+
+  it('시트 아이콘 그리드는 목적지가 있는 전시분류만 트리 순서로 싣는다', () => {
+    expect(categoryMenuTiles(nodes).map((tile) => tile.name)).toEqual(['피규어', '머그', '시즌']);
+    expect(categoryMenuTiles(nodes)[0]).toEqual({ id: id(2), name: '피규어', href: `/shop?displayCategory=${id(2)}`, imageUrl: null });
+  });
+
+  it('이미지 대체 첫 글자와 2×2 묶음', () => {
+    expect(menuMonogram(' 피규어')).toBe('피');
+    expect(menuMonogram('Maple')).toBe('M');
+    expect(chunkMenuItems([1, 2, 3, 4, 5, 6, 7, 8, 9])).toEqual([[1, 2, 3, 4], [5, 6, 7, 8], [9]]);
+    expect(chunkMenuItems([])).toEqual([]);
+  });
+});
+
+describe('메뉴 이름', () => {
+  it('앞뒤 공백을 다듬고 제어문자 덩어리는 공백 하나로 바꾸며, 빈 이름은 null 이다', () => {
+    expect(menuLabel('  가을\r\n기획전  ')).toBe('가을 기획전');
+    expect(menuLabel('\u0000\u001f')).toBeNull();
+    expect(menuLabel('   ')).toBeNull();
+    expect(menuLabel(null)).toBeNull();
+  });
+
+  it('상한은 코드 포인트로 센다 — 120자는 그대로, 121자부터 119자 + 말줄임표', () => {
+    const exact = `${'가'.repeat(MENU_LABEL_MAX - 1)}😀`;
+    expect(menuLabel(exact)).toBe(exact);
+    expect(menuLabel(`${exact}다`)).toBe(`${'가'.repeat(MENU_LABEL_MAX - 1)}…`);
+  });
+});
+
+describe('기획전·피처드 IP 원천', () => {
+  it('진행 중 캠페인은 중복·빈 제목을 버리고 상한까지만 싣는다', () => {
+    const rows = [
+      { id: 'c1', title: '가을 기획전', card_image_path: 'catalog/event/a.webp' },
+      { id: 'c1', title: '중복', card_image_path: null },
+      { id: 'c2', title: '  ', card_image_path: null },
+      { id: 'c3', title: '겨울 기획전', card_image_path: null },
+      ...Array.from({ length: 10 }, (_, index) => ({ id: `x${index}`, title: `추가 ${index}`, card_image_path: null })),
+    ];
+    const campaigns = toMenuCampaigns(rows, url);
+    expect(campaigns).toHaveLength(MENU_CAMPAIGN_LIMIT);
+    expect(campaigns.slice(0, 2)).toEqual([
+      { id: 'c1', title: '가을 기획전', imageUrl: 'https://cdn.example/catalog/event/a.webp' },
+      { id: 'c3', title: '겨울 기획전', imageUrl: null },
+    ]);
+    expect(toMenuCampaigns(null, url)).toEqual([]);
+  });
+
+  /* 리뷰 l5-data-1 — 어드민·DB 는 캠페인 제목을 120자까지 받는다. 허브 배너 1순위 기획전이 길이 때문에 메뉴에서 빠지면 안 된다. */
+  it('DB 가 받는 120자 제목·제어문자가 섞인 제목도 싣는다', () => {
+    const title = '가'.repeat(120);
+    const campaigns = toMenuCampaigns([
+      { id: 'long-title', title, card_image_path: null },
+      { id: 'pasted', title: '겨울\n선물 모음', card_image_path: null },
+      { id: 'short', title: '짧은 기획전', card_image_path: null },
+    ], url);
+    expect(campaigns.map((campaign) => [campaign.id, campaign.title])).toEqual([
+      ['long-title', title], ['pasted', '겨울 선물 모음'], ['short', '짧은 기획전'],
+    ]);
+  });
+
+  it('피처드 IP는 디렉토리와 같은 순서(운영 순번 → 영문 표시명)·상한, 공개 주소·키아트를 쓴다', () => {
+    const rows = [
+      { id: 'zeta', public_slug: null, title: 'Zeta', bg: null, image_path: null, sort_order: null },
+      { id: 'beta', public_slug: 'beta-world', title: 'Beta', bg: 'linear-gradient(#fff, #000)', image_path: null, sort_order: 2 },
+      { id: 'alpha', public_slug: null, title: 'Alpha', bg: null, image_path: 'catalog/ip/alpha.webp', sort_order: 1 },
+      ...Array.from({ length: 6 }, (_, index) => ({ id: `ip${index}`, public_slug: null, title: `IP ${index}`, bg: null, image_path: null, sort_order: 10 + index })),
+    ];
+    const ips = toMenuIps(rows, url);
+    expect(ips).toHaveLength(MENU_FEATURED_IP_LIMIT);
+    expect(ips.slice(0, 2)).toEqual([
+      { id: 'alpha', name: 'Alpha', href: '/ip/alpha', imageBg: 'url("https://cdn.example/catalog/ip/alpha.webp") center / cover no-repeat' },
+      { id: 'beta', name: 'Beta', href: '/ip/beta-world', imageBg: 'linear-gradient(#fff, #000)' },
+    ]);
+    expect(ips.map((ip) => ip.id)).not.toContain('zeta');
+    expect(toMenuIps([{ id: 'none', title: '', bg: null }], url)).toEqual([]);
+  });
+
+  /* 리뷰 l5-data-1 — ips.title 에는 DB 길이 제약이 없다. 이름이 길다고 피처드 IP 를 메뉴에서 빼지 않고 표시용으로만 자른다. */
+  it('이름이 아주 긴 피처드 IP 도 빠지지 않고 표시 이름만 잘린다', () => {
+    const ips = toMenuIps([{ id: 'long-ip', public_slug: null, title: 'L'.repeat(300), bg: null, image_path: null, sort_order: 1 }], url);
+    expect(ips).toHaveLength(1);
+    expect(ips[0].name).toBe(`${'L'.repeat(MENU_LABEL_MAX - 1)}…`);
+  });
+});
+
+describe('메가메뉴 현재 위치 (리뷰 l5-ui-2)', () => {
+  const uuid = '94932000-0000-4000-8000-000000000002';
+  const query = (search: string) => new URLSearchParams(search);
+
+  it('카테고리 전시는 쿼리의 전시분류가 현재 위치이고 굿즈샵 바로가기는 켜지 않는다', () => {
+    expect(megaMenuLocation('/shop', query(`displayCategory=${uuid}&sort=newest`))).toEqual({ routePathname: null, displayCategoryId: uuid });
+    expect(megaMenuLocation('/shop', query(`displayCategory=${uuid.toUpperCase()}`))).toEqual({ routePathname: null, displayCategoryId: uuid });
+    /* 잘못된 값도 전체 굿즈 화면은 아니다(전시 not-found). */
+    expect(megaMenuLocation('/shop', query('displayCategory=nope'))).toEqual({ routePathname: null, displayCategoryId: null });
+  });
+
+  it('전시 쿼리가 없으면 경로로만 고르고, 쿼리를 아직 모르면(정적 HTML 폴백) /shop 에서 아무것도 켜지 않는다', () => {
+    expect(megaMenuLocation('/shop', query('sort=newest'))).toEqual({ routePathname: '/shop', displayCategoryId: null });
+    expect(megaMenuLocation('/shop/new', query(`displayCategory=${uuid}`))).toEqual({ routePathname: '/shop/new', displayCategoryId: null });
+    expect(megaMenuLocation('/shop', null)).toEqual({ routePathname: null, displayCategoryId: null });
+    expect(megaMenuLocation('/legal/terms', null)).toEqual({ routePathname: '/legal/terms', displayCategoryId: null });
+  });
+});
+
+describe('어드민 가이드 수치 결속', () => {
+  /* 판매자 가이드(전시·알림 › 독립 전시분류)가 프로즈로 옮겨 적은 메뉴 수치 — 소스가 바뀌면 여기가 깨지고 가이드도 함께 고친다. */
+  it('기획전·추천 IP·이미지 타일 개수와 반영 지연(캐시 300초)이 소스와 같다', () => {
+    const text = DISPLAY_MESSAGING_TOPIC.sections.find((section) => section.id === 'category-display')!.paragraphs!.join('\n');
+    expect(text).toContain(`PC ${MEGA_MENU_CAMPAIGN_LIMIT}개·모바일 ${MENU_CAMPAIGN_LIMIT}개`);
+    expect(text).toContain(`최대 ${MENU_FEATURED_IP_LIMIT}개`);
+    expect(text).toContain(`상위 ${MEGA_MENU_IP_TILE_COUNT}개`);
+    expect(text).toContain('최대 5분');
+    expect(readFileSync(join(process.cwd(), 'lib/storefront-mega-menu.server.ts'), 'utf8')).toContain('revalidate: 300');
+    /* '바로 반영'이라고 적은 저장 경로는 모두 셸 메뉴 태그를 즉시 만료한다 — 카테고리 공개 전환(상품분류 액션)과 전시분류 액션. */
+    expect(text).toContain('고객 카테고리 공개 전환과 전시분류·전시 설정·아이콘 저장은 공개 메뉴에 바로 반영됩니다.');
+    for (const file of ['app/admin/category-actions.ts', 'app/admin/category-display-actions.ts']) {
+      expect(readFileSync(join(process.cwd(), file), 'utf8'), file).toContain('updateTag(STOREFRONT_MEGA_MENU_CACHE_TAG)');
+    }
+  });
+});

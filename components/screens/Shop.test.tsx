@@ -314,12 +314,13 @@ describe('컬렉션 뷰별 머리말', () => {
     expect(html).not.toContain('메이플 인형');
   });
 
-  it('카테고리 전시는 서버 페이지네이션이 받는 정렬 4종만 연다', () => {
+  /* L5: 카테고리 전시 RPC 가 컬렉션과 같은 7종을 받는다 — 서버 페이지네이션 목록도 같은 정렬 문법이다(CL-10). */
+  it('카테고리 전시는 서버 페이지네이션이 받는 정렬(컬렉션과 같은 7종)을 연다', () => {
     const query = { ...parseShopSearchParams({}, { view: 'all', validIpIds: new Set(['ip1', 'ip2']) }), displayCategory: '00000000-0000-4000-8000-000000000001' };
     const html = renderToStaticMarkup(<Shop query={query} result={selectShopGoods(catalog, query)} title="전시" view="all" />);
     const values = [...html.matchAll(/<option[^>]*value="([^"]+)"/g)].map((match) => match[1]);
 
-    expect(values).toEqual(['recommended', 'newest', 'price_asc', 'price_desc']);
+    expect(values).toEqual(['recommended', 'name_asc', 'name_desc', 'price_asc', 'price_desc', 'oldest', 'newest']);
   });
 
   it('BEST 는 큐레이션 순서를 그대로 그린다', () => {
