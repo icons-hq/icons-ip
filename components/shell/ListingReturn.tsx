@@ -4,8 +4,9 @@ import { useEffect, useSyncExternalStore } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
 import {
   LISTING_RETURN_FALLBACK,
+  listingReturnEntry,
   readListingReturnHref,
-  rememberListingReturn,
+  rememberListingReturnEntry,
   type ListingReturnStorage,
 } from '@/lib/listing-return';
 
@@ -20,12 +21,54 @@ function sessionStore(): ListingReturnStorage | null {
   }
 }
 
-/** 굿즈 목록 화면을 볼 때마다 그 주소를 탭 세션에 남긴다. useSearchParams 를 쓰므로 셸(Nav)이 Suspense 안에 둔다. */
+/*
+ * 라우트 경계가 그린 표면. 목록 주소라도 화면이 목록을 그렸다는 뜻은 아니다 — 없는·보관된 IP관은 notFound() 를 부르고
+ * Next 의 soft 404 는 200 이라 주소와 응답만으로는 모른다. 루트 경계는 #root 안에 표식을 남긴다: 로딩(app/loading.tsx)은
+ * .wc-loading, 찾을 수 없음(app/not-found.tsx)·오류(app/error.tsx)는 .wc-fallback(ListingReturn.client.test 가 세 파일을 대조).
+ * 스트리밍으로 늦게 오는 본문은 #root 밖 숨은 상자에 있다가 옮겨지므로 #root 안만 본다.
+ */
+const ROUTE_PENDING_SELECTOR = '.wc-loading';
+const ROUTE_FALLBACK_SELECTOR = '.wc-fallback';
+
+export type RouteSurface = 'pending' | 'fallback' | 'rendered';
+
+export function routeSurface(root: Pick<ParentNode, 'querySelector'>): RouteSurface {
+  if (root.querySelector(ROUTE_FALLBACK_SELECTOR)) return 'fallback';
+  if (root.querySelector(ROUTE_PENDING_SELECTOR)) return 'pending';
+  return 'rendered';
+}
+
+/**
+ * 지금 라우트가 화면을 실제로 그리면(로딩 경계가 걷히고 찾을 수 없음·오류 표면이 아니면) 한 번 부른다. 아직이면 #root 의
+ * 변화를 지켜보다가 그때 부른다 — 오류 화면에서 [다시 시도]로 목록이 그려져도 그때 남는다. 돌려준 함수로 그만둔다(라우트가 바뀌면 셸이 부른다).
+ */
+function whenRouteRendered(onRendered: () => void): () => void {
+  const root = document.getElementById('root');
+  if (!root) return () => {};
+  if (routeSurface(root) === 'rendered') {
+    onRendered();
+    return () => {};
+  }
+  const observer = new MutationObserver(() => {
+    if (routeSurface(root) !== 'rendered') return;
+    observer.disconnect();
+    onRendered();
+  });
+  observer.observe(root, { childList: true, subtree: true });
+  return () => observer.disconnect();
+}
+
+/**
+ * 굿즈 목록 화면을 그릴 때마다 그 주소(목록 상태만)를 탭 세션에 남긴다. 찾을 수 없음·오류 화면은 직전 목록을 덮지 않는다.
+ * useSearchParams 를 쓰므로 셸(Nav)이 Suspense 안에 둔다.
+ */
 export function ListingReturnRecorder() {
   const pathname = usePathname();
   const query = useSearchParams().toString();
   useEffect(() => {
-    rememberListingReturn(sessionStore(), pathname, new URLSearchParams(query));
+    const entry = listingReturnEntry(pathname, new URLSearchParams(query));
+    if (!entry) return undefined;
+    return whenRouteRendered(() => rememberListingReturnEntry(sessionStore(), entry));
   }, [pathname, query]);
   return null;
 }

@@ -1,14 +1,19 @@
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { searchResultsHref } from '@/components/screens/Search';
+import { shopQueryString } from '@/components/shop/collection-filters';
 import {
   LISTING_RETURN_FALLBACK,
   LISTING_RETURN_STORAGE_KEY,
   isListingReturnPath,
   listingReturnEntry,
   listingReturnHref,
+  listingStateKeys,
   readListingReturnHref,
-  rememberListingReturn,
+  rememberListingReturnEntry,
   type ListingReturnStorage,
 } from './listing-return';
+import type { ShopListQuery } from './shop-catalog';
 
 /* 빈 장바구니의 둘러보기 = 직전에 보던 굿즈 목록(10/14 S17 셋째 기준 · LFS 패리티 2차 L9 CT-02).
  * 저장소는 누구나 쓸 수 있으니 읽을 때 다시 판정한다 — 외부·열린 리디렉션 금지, 내부 굿즈 목록만, 없으면 /shop. */
@@ -64,6 +69,70 @@ describe('남길 주소', () => {
     expect(listingReturnEntry('/shop/g13', params())).toBeNull();
     expect(listingReturnEntry('/search', params(`q=${'가'.repeat(200)}`))).toBeNull();
   });
+
+  /* l9-data-1: IP관 팔로우·알림 액션은 결과를 쿼리 플래그로 돌려준다(app/ip/actions.ts). 직전 목록이 이 플래그를 품으면
+     빈 장바구니의 둘러보기가 지난 '알림 설정을 저장했습니다'·팔로우 오류 안내를 다시 띄운다. */
+  it('IP관 액션 결과 플래그(notification_saved·follow_error·notification_error)는 남기지 않고 목록 상태만 남긴다', () => {
+    expect(listingReturnEntry('/ip/hong-sil-quest', params('category=abc&notification_saved=1'))).toBe('/ip/hong-sil-quest?category=abc');
+    expect(listingReturnEntry('/ip/hong-sil-quest', params('follow_error=1'))).toBe('/ip/hong-sil-quest');
+    expect(listingReturnEntry('/ip/hong-sil-quest', params('notification_error=1&sort=price_asc&min=1000'))).toBe('/ip/hong-sil-quest?sort=price_asc&min=1000');
+  });
+
+  it('화면마다 그 화면이 읽는 목록 상태 키만 남긴다 — 모르는 키·다른 화면의 키는 버린다', () => {
+    expect(listingReturnEntry('/shop', params('displayCategory=d1&type=a&foo=1&page=3'))).toBe('/shop?displayCategory=d1&type=a');
+    expect(listingReturnEntry('/shop/new', params('displayCategory=d1&ip=i1&sort=price_asc'))).toBe('/shop/new?ip=i1&sort=price_asc');
+    expect(listingReturnEntry('/shop/best', params('q=키링&max=5000'))).toBe('/shop/best?max=5000');
+    expect(listingReturnEntry('/search', params('q=곰&ip=i1&type=a&page=2&notification_saved=1'))).toBe('/search?q=%EA%B3%B0&ip=i1&type=a&page=2');
+    /* IP관은 스코프가 이미 IP 하나다 — ip 필터는 목록 상태가 아니다(app/ip/[id]/page.tsx). */
+    expect(listingReturnEntry('/ip/hong-sil-quest', params('ip=other&type=a'))).toBe('/ip/hong-sil-quest?type=a');
+  });
+
+  it('같은 키가 여러 번 오면(다중 선택 필터) 순서대로 모두 남긴다', () => {
+    expect(listingReturnEntry('/shop', params('type=a&icm=T&type=b&ip=i1'))).toBe('/shop?type=a&type=b&ip=i1');
+  });
+});
+
+/* 목록 상태 키 목록이 화면 파서·컨트롤과 어긋나면 돌아간 목록이 필터를 잃는다 — 컨트롤이 실제로 만드는 주소와 대조한다. */
+describe('목록 상태 키 계약', () => {
+  const keysOf = (href: string) => [...new Set([...new URL(href, 'https://icons.invalid').searchParams.keys()])];
+  const fullQuery = (view: ShopListQuery['view'], extra: Partial<ShopListQuery> = {}): ShopListQuery => ({
+    ips: ['i1'], categories: ['c1'], types: ['키링'], priceMin: 1000, priceMax: 9000, sort: 'price_desc', view, ...extra,
+  });
+
+  it('굿즈샵·NEW·BEST·전시 카테고리 컨트롤(shopQueryString)이 만드는 주소는 그대로 남는다', () => {
+    const cases = [
+      ['/shop', fullQuery('all')],
+      ['/shop/new', fullQuery('new')],
+      ['/shop/best', fullQuery('best')],
+      /* 전시 카테고리는 레거시 category 와 함께 오지 않는다(parseCategoryDisplayRequest). */
+      ['/shop', fullQuery('all', { displayCategory: 'd1', categories: [] })],
+    ] as const;
+    for (const [pathname, query] of cases) {
+      const href = `${pathname}?${shopQueryString(query)}`;
+      expect(keysOf(href).length).toBeGreaterThanOrEqual(6);
+      expect(listingReturnEntry(pathname, new URL(href, 'https://icons.invalid').searchParams)).toBe(href);
+    }
+  });
+
+  it('검색 결과 주소(searchResultsHref — 검색어·필터·페이지)는 그대로 남는다', () => {
+    const href = searchResultsHref('곰 인형', fullQuery('search', { sort: 'price_asc' }), 3);
+    expect(keysOf(href)).toEqual(['q', 'category', 'ip', 'type', 'min', 'max', 'sort', 'page']);
+    expect(listingReturnEntry('/search', new URL(href, 'https://icons.invalid').searchParams)).toBe(
+      `/search?${new URL(href, 'https://icons.invalid').searchParams.toString()}`,
+    );
+  });
+
+  it('IP관 키는 정본 페이지의 COLLECTION_PARAMS 와 같고, 액션 결과 플래그는 들지 않는다', () => {
+    const page = readFileSync(new URL('../app/ip/[id]/page.tsx', import.meta.url), 'utf8');
+    const collection = page.match(/const COLLECTION_PARAMS = \[([^\]]+)\] as const/)?.[1];
+    const flags = page.match(/for \(const key of \[([^\]]+)\] as const\)/)?.[1];
+    const literals = (source: string | undefined) => [...(source ?? '').matchAll(/'([^']+)'/g)].map((match) => match[1]);
+
+    expect(literals(collection)).toEqual(['category', 'type', 'min', 'max', 'sort']);
+    expect(listingStateKeys('/ip/hong-sil-quest', params())).toEqual(literals(collection));
+    expect(literals(flags)).toEqual(['follow_error', 'notification_error', 'notification_saved']);
+    for (const flag of literals(flags)) expect(listingStateKeys('/ip/hong-sil-quest', params())).not.toContain(flag);
+  });
 });
 
 describe('돌아갈 주소 판정', () => {
@@ -103,18 +172,22 @@ describe('돌아갈 주소 판정', () => {
     expect(listingReturnHref('/shop/new#top')).toBe('/shop/new');
     expect(listingReturnHref('/shop?icm=TOKEN1234&type=a')).toBe('/shop?type=a');
   });
+
+  it('이전 판에 남은 값의 결과 플래그도 읽을 때 걸러 내 재생하지 않는다', () => {
+    expect(listingReturnHref('/ip/hong-sil-quest?notification_saved=1')).toBe('/ip/hong-sil-quest');
+    expect(listingReturnHref('/ip/hong-sil-quest?follow_error=1&type=a')).toBe('/ip/hong-sil-quest?type=a');
+  });
 });
 
 describe('세션 저장소 읽고 쓰기', () => {
-  it('목록 화면을 볼 때만 남기고, 목록이 아닌 화면은 직전 목록을 덮지 않는다', () => {
+  /* 목록이 아닌 화면·그리지 못한 화면이 직전 목록을 덮지 않는 것은 셸 기록기가 지킨다(ListingReturn.client.test). */
+  it('판정한 목록 주소를 남기고, 읽을 때 다시 판정해 돌려준다', () => {
     const { storage, values } = memoryStorage();
-    rememberListingReturn(storage, '/search', params('q=키링'));
-    rememberListingReturn(storage, '/shop/g13', params());
-    rememberListingReturn(storage, '/my', params());
+    rememberListingReturnEntry(storage, listingReturnEntry('/search', params('q=키링'))!);
     expect(values.get(LISTING_RETURN_STORAGE_KEY)).toBe('/search?q=%ED%82%A4%EB%A7%81');
     expect(readListingReturnHref(storage)).toBe('/search?q=%ED%82%A4%EB%A7%81');
 
-    rememberListingReturn(storage, '/shop/best', params());
+    rememberListingReturnEntry(storage, '/shop/best');
     expect(readListingReturnHref(storage)).toBe('/shop/best');
   });
 
@@ -128,9 +201,9 @@ describe('세션 저장소 읽고 쓰기', () => {
       getItem: () => { throw new Error('SecurityError'); },
       setItem: () => { throw new Error('QuotaExceededError'); },
     };
-    expect(() => rememberListingReturn(blocked, '/shop', params())).not.toThrow();
+    expect(() => rememberListingReturnEntry(blocked, '/shop')).not.toThrow();
     expect(readListingReturnHref(blocked)).toBe('/shop');
-    expect(() => rememberListingReturn(null, '/shop', params())).not.toThrow();
+    expect(() => rememberListingReturnEntry(null, '/shop')).not.toThrow();
     expect(readListingReturnHref(null)).toBe('/shop');
   });
 });
