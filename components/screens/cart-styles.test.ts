@@ -26,6 +26,7 @@ const decls = (all: Rule[], selector: string, media: string | null = null) => Ob
   .map((rule) => rule.decls)) as Record<string, string>;
 
 const catalog = rules('../../app/styles/wc-catalog.css');
+const globals = rules('../../app/globals.css');
 const chrome = rules('../../app/styles/wc-chrome.css');
 const MOBILE = '(max-width: 989px)';
 const DESKTOP = '(min-width: 990px)';
@@ -119,6 +120,14 @@ describe('모바일 카트 크롬 (CT-03)', () => {
     expect(decls(catalog, '.wc-cart', MOBILE)['padding-block']).toBe('0 calc(117px + env(safe-area-inset-bottom))');
     expect(decls(catalog, '#root:has(.wc-cart__cta-bar) .wc-inquiry-widget__launcher', MOBILE).bottom).toBe('calc(109px + env(safe-area-inset-bottom))');
     expect(decls(catalog, '#root:has(.wc-cart__cta-bar) ~ .wc-footer', MOBILE)['padding-bottom']).toBe('calc(173px + env(safe-area-inset-bottom))');
+  });
+
+  it('키보드 포커스·해시 이동이 바 뒤에 멈추지 않게 문서 착지선 아래쪽도 바 위로 올린다', () => {
+    /* 바(93) 뒤의 수량·삭제·푸터 링크는 화면 안으로 판정돼 스크롤되지 않고 통째로 가려졌다(WCAG 2.4.11).
+       html 은 표면 CSS 가 건드리지 않는다(wc-design 계약) — 전역 착지선을 가진 globals.css 가 바 높이 + 16 을 적는다. */
+    expect(decls(globals, 'html:has(.wc-cart__cta-bar)', MOBILE)['scroll-padding-bottom']).toBe('calc(109px + env(safe-area-inset-bottom))');
+    expect(decls(globals, 'html:has(.wc-cart__cta-bar)', DESKTOP)['scroll-padding-bottom']).toBeUndefined();
+    expect(decls(globals, 'html:has(.wc-cart__cta-bar)')['scroll-padding-bottom']).toBeUndefined();
   });
 });
 
