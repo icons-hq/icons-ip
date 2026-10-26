@@ -528,8 +528,10 @@ describe('origin quote and option lines', () => {
     mocks.quotePeriods.set(options[3].id, { regularPrice: 13800, ...period });
     const catalogGood = { ...goods[0], price: 10800, priceMax: 13800, catalogPrice: 10800, catalogCompareAtPrice: 12000, compareAtPrice: 12000, options };
     const html = renderToStaticMarkup(<Cart catalog={{ goods: [catalogGood], ips: [] }} couponState={emptyCouponState} />);
-    /* 줄마다 그 줄의 <li> 하나만 잘라 본다 — 단가 블록은 옵션 밴드 앞(정보 칸)에 있다(CT-04). */
-    const linePrice = (name: string) => html.split('<li class="wc-cart__line').find((chunk) => chunk.includes(`<p class="wc-cart__line-option">${name}</p>`)) ?? '';
+    /* 줄마다 그 줄의 <li> 를 찾아 옵션 밴드 앞(정보 칸)만 본다 — 단가 블록은 정보 칸에 있다(CT-04). 밴드 뒤의 줄 금액
+       (qty 1 이면 판매가와 같은 값)까지 넣으면 단가 블록이 판매가를 빠뜨려도 단언이 통과한다. */
+    const linePrice = (name: string) => (html.split('<li class="wc-cart__line').find((chunk) => chunk.includes(`<p class="wc-cart__line-option">${name}</p>`)) ?? '')
+      .split('<div class="wc-cart__line-band">')[0];
 
     expect(linePrice('기본형')).toMatch(/₩12,000<\/s>.*>10%<.*>₩10,800</);
     expect(linePrice('추가 500원')).toMatch(/₩12,500<\/s>.*>10%<.*>₩11,300</);
