@@ -3,8 +3,8 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { currentListingReturnHref } from '@/components/shell/ListingReturn';
-import { previousPageTarget } from '@/components/shell/NotFoundActions';
 import { Icon } from '@/components/ui/Icon';
+import { goBackFromCart, type CartBackEnv, type ProbeWindow } from './cart-back';
 
 /*
  * 모바일 카트 서브헤더(CT-03 · R-05 §1 2026-10 보강) — [← 이전] 제목 [홈]. 990px 이상에서는 CSS가 감추고 전역 헤더가 그대로다.
@@ -15,11 +15,10 @@ import { Icon } from '@/components/ui/Icon';
 export function CartSubheader() {
   const router = useRouter();
 
-  /* 새 탭·주소 직접 입력으로 온 장바구니는 이 탭의 기록이 1개라 뒤로 가기가 아무 일도 하지 않는다 —
-     그때는 직전에 보던 굿즈 목록(없으면 굿즈샵)으로 보낸다. */
+  /* 앞에 돌아갈 ICONS 화면이 있을 때만 뒤로 간다. 새 탭·주소 직접 입력·탭의 첫 기록으로 돌아온 장바구니는
+     직전에 보던 굿즈 목록(없으면 굿즈샵)으로 보낸다(cart-back.ts). */
   const goBack = () => {
-    if (previousPageTarget(window.history.length) === 'back') router.back();
-    else router.push(currentListingReturnHref());
+    goBackFromCart(window as unknown as CartBackEnv & ProbeWindow, () => router.back(), () => router.push(currentListingReturnHref()));
   };
 
   return (

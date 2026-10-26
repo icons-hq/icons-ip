@@ -316,8 +316,8 @@ describe('모바일 서브헤더 [← 이전] (CT-03)', () => {
     return button.props as { onClick: () => void };
   }
 
-  it('이 탭에 돌아갈 기록이 있으면 뒤로 간다', () => {
-    stubBrowser(sessionStorageStub().storage, { history: { length: 3 } });
+  it('이 탭에서 앞에 ICONS 화면이 있으면 뒤로 간다', () => {
+    stubBrowser(sessionStorageStub().storage, { history: { length: 3 }, navigation: { canGoBack: true } });
 
     backButton().onClick();
     expect(nav.back).toHaveBeenCalledTimes(1);
@@ -334,5 +334,36 @@ describe('모바일 서브헤더 [← 이전] (CT-03)', () => {
     backButton().onClick();
     expect(nav.push).toHaveBeenLastCalledWith('/shop');
     expect(nav.back).not.toHaveBeenCalled();
+  });
+
+  /* l9-data-4·l9-ui-1: 첫 기록인 장바구니에서 [홈]으로 갔다가 브라우저 뒤로 돌아오면 길이는 2 지만 뒤로 갈 곳이 없다.
+     빈 탭·다른 사이트에서 주소로 들어와도 길이는 2 다 — 그 앞 기록은 ICONS 가 아니다. */
+  it('기록 길이가 2 이상이어도 앞에 ICONS 화면이 없으면 뒤로 가지 않고 직전 목록으로 보낸다', () => {
+    const { storage } = sessionStorageStub({ [LISTING_RETURN_STORAGE_KEY]: '/shop/new' });
+    stubBrowser(storage, { history: { length: 2 }, navigation: { canGoBack: false } });
+
+    backButton().onClick();
+    expect(nav.back).not.toHaveBeenCalled();
+    expect(nav.push).toHaveBeenLastCalledWith('/shop/new');
+  });
+
+  it('Navigation API 가 없는 브라우저에서 뒤로 가기가 아무 일도 하지 않으면 잠시 뒤 직전 목록으로 보낸다', () => {
+    vi.useFakeTimers();
+    try {
+      const { storage } = sessionStorageStub({ [LISTING_RETURN_STORAGE_KEY]: '/search?q=%ED%82%A4%EB%A7%81' });
+      stubBrowser(storage, {
+        history: { length: 2 },
+        location: { href: 'http://127.0.0.1:3346/cart' },
+        setTimeout: (handler: () => void, timeout: number) => setTimeout(handler, timeout),
+      });
+
+      backButton().onClick();
+      expect(nav.back).toHaveBeenCalledTimes(1);
+      expect(nav.push).not.toHaveBeenCalled();
+      vi.runAllTimers();
+      expect(nav.push).toHaveBeenLastCalledWith('/search?q=%ED%82%A4%EB%A7%81');
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
