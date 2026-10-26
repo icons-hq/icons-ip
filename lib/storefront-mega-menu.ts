@@ -11,7 +11,7 @@ import { sortIpsForDirectory } from './ip-directory';
 import { ipEn } from './ip-display';
 import { publicIpHref } from './ip-identity';
 import { imageBg } from './media';
-import { categoryDisplayHref } from './routes';
+import { categoryDisplayHref, hrefFor } from './routes';
 import { isUuid } from './uuid';
 
 export const STOREFRONT_MEGA_MENU_CACHE_TAG = 'storefront-mega-menus';
@@ -232,4 +232,24 @@ export function chunkMenuItems<T>(items: readonly T[], size = 4): T[][] {
   const pages: T[][] = [];
   for (let index = 0; index < items.length; index += size) pages.push(items.slice(index, index + size));
   return pages;
+}
+
+export interface MegaMenuLocation {
+  /** 굿즈샵 바로가기(NEW·BEST·전체 굿즈)의 현재 위치를 가릴 때 쓰는 경로. null 이면 바로가기 중 어느 것도 켜지 않는다. */
+  routePathname: string | null;
+  /** 현재 위치로 표시할 전시분류 노드 id(소문자 UUID). 카테고리 전시 페이지가 아니면 null. */
+  displayCategoryId: string | null;
+}
+
+/**
+ * 메가메뉴의 현재 위치(리뷰 l5-ui-2). 카테고리 전시(`/shop?displayCategory=<UUID>`)는 경로가 '전체 굿즈'(`/shop`)와 같아
+ * 쿼리로만 가려진다 — 전시 페이지에서는 그 전시분류 링크가 현재 위치이고 '전체 굿즈'는 아니다.
+ * `query` 가 null 이면 쿼리를 아직 모르는 상태(정적 HTML 의 Suspense 폴백)다. 그때 `/shop` 에서는 틀리게 켜느니 바로가기를 켜지 않는다.
+ */
+export function megaMenuLocation(pathname: string, query: { get(name: string): string | null; has(name: string): boolean } | null): MegaMenuLocation {
+  if (pathname !== hrefFor('shop')) return { routePathname: pathname, displayCategoryId: null };
+  if (!query) return { routePathname: null, displayCategoryId: null };
+  if (!query.has('displayCategory')) return { routePathname: pathname, displayCategoryId: null };
+  const value = query.get('displayCategory');
+  return { routePathname: null, displayCategoryId: isUuid(value) ? value.toLowerCase() : null };
 }

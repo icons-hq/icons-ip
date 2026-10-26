@@ -18,12 +18,13 @@ const mocks = vi.hoisted(() => ({
   count: 4,
   pathname: '/shop',
   presence: 'signed-in' as 'unknown' | 'signed-in' | 'signed-out',
+  search: '',
 }));
 
 vi.mock('next/navigation', () => ({
   usePathname: () => mocks.pathname,
   useRouter: () => ({ push: vi.fn() }),
-  useSearchParams: () => new URLSearchParams(''),
+  useSearchParams: () => new URLSearchParams(mocks.search),
 }));
 vi.mock('@/components/ui/Icon', () => ({ Icon: ({ name }: { name: string }) => <span data-icon={name} /> }));
 vi.mock('./CartProvider', () => ({ useCart: () => ({ count: mocks.count, resetForSignOut: vi.fn() }) }));
@@ -63,6 +64,7 @@ beforeEach(() => {
   mocks.count = 4;
   mocks.pathname = '/shop';
   mocks.presence = 'signed-in';
+  mocks.search = '';
 });
 
 describe('White Catalog 전역 셸', () => {
@@ -451,6 +453,48 @@ describe('카테고리 내비게이션 (L5)', () => {
     expect(mega).not.toContain('>수집<');
     expect(mega).not.toContain('>거래<');
     expect(mega).toMatch(/class="wc-mega__link" href="\/shop">전체 굿즈</);
+  });
+
+  /* 리뷰 l5-ui-2 — 카테고리 전시(/shop?displayCategory=)는 경로가 '전체 굿즈'와 같아 쿼리로만 가려진다. 전시 페이지에서 '전체 굿즈'가
+   * 현재 위치로 읽히고 실제 전시분류 링크는 표시가 없었다. 기획전 상세(/events/<id>)에서는 기획전 링크에 표시가 없었다. */
+  it('전시 페이지에서는 그 전시분류 링크만 현재 위치이고 전체 굿즈는 아니다', () => {
+    mocks.search = `displayCategory=${nodeId(2)}&sort=newest`;
+    const item = megaMarkup(renderToStaticMarkup(<Nav megaMenus={LIVE_MENUS} />));
+    expect(item.match(/aria-current="page"/g)).toHaveLength(1);
+    expect(item).toContain(`aria-current="page" class="wc-mega__link" href="/shop?displayCategory=${nodeId(2)}">피규어</a>`);
+    expect(item).toMatch(/[^"] class="wc-mega__link" href="\/shop">전체 굿즈</);
+
+    /* 그룹 제목이 전시인 분류(시즌)는 제목 링크가 현재 위치다. 대문자 UUID 쿼리도 같은 분류다. */
+    mocks.search = `displayCategory=${nodeId(5).toUpperCase()}`;
+    const heading = megaMarkup(renderToStaticMarkup(<Nav megaMenus={LIVE_MENUS} />));
+    expect(heading.match(/aria-current="page"/g)).toHaveLength(1);
+    expect(heading).toContain(`aria-current="page" class="wc-mega__heading wc-mega__heading-link" href="/shop?displayCategory=${nodeId(5)}">시즌</a>`);
+
+    /* 메뉴에 없는 전시(숨김·잘못된 값)에서도 전체 굿즈를 켜지 않는다. GNB 트리거는 카테고리 구역이라 그대로 켜진다. */
+    mocks.search = 'displayCategory=not-a-uuid';
+    const unknown = renderToStaticMarkup(<Nav megaMenus={LIVE_MENUS} />);
+    expect(megaMarkup(unknown)).not.toContain('aria-current="page"');
+    expect(unknown).toMatch(/aria-controls="wc-mega-category"[^>]*aria-current="page"|aria-current="page"[^>]*aria-controls="wc-mega-category"/);
+
+    /* 전시 트리가 없어 기존 3그룹 메가로 돌아가도 전시 페이지에서 전체 굿즈를 켜지 않는다. */
+    mocks.search = `displayCategory=${nodeId(2)}`;
+    expect(megaMarkup(renderToStaticMarkup(<Nav megaMenus={{ ...LIVE_MENUS, categories: [] }} />))).not.toContain('aria-current="page"');
+
+    /* 쿼리가 없는 /shop 은 그대로 전체 굿즈다. */
+    mocks.search = '';
+    const all = megaMarkup(renderToStaticMarkup(<Nav megaMenus={LIVE_MENUS} />));
+    expect(all.match(/aria-current="page"/g)).toHaveLength(1);
+    expect(all).toContain('aria-current="page" class="wc-mega__link" href="/shop">전체 굿즈</a>');
+  });
+
+  it('기획전 상세에서는 그 기획전 링크가 메가메뉴의 현재 위치다', () => {
+    mocks.pathname = '/events/fall-drop';
+    const mega = megaMarkup(renderToStaticMarkup(<Nav megaMenus={LIVE_MENUS} />));
+    expect(mega.match(/aria-current="page"/g)).toHaveLength(1);
+    expect(mega).toContain('aria-current="page" class="wc-mega__link" href="/events/fall-drop">가을 기획전</a>');
+
+    mocks.pathname = '/events/other-drop';
+    expect(megaMarkup(renderToStaticMarkup(<Nav megaMenus={LIVE_MENUS} />))).not.toContain('aria-current="page"');
   });
 
   it('진행 중 기획전이 없으면 기획전 칸을 접고, 전시 트리가 비면 기존 3그룹 메뉴로 돌아간다', () => {

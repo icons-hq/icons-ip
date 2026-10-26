@@ -24,8 +24,10 @@ import {
   MEGA_MENU_IP_TILE_COUNT,
   categoryMenuGroups,
   isCategoryMenuLive,
+  megaMenuLocation,
   menuMonogram,
   type CategoryMenuGroup,
+  type MegaMenuLocation,
   type StorefrontMegaMenus,
   type StorefrontMenuCampaign,
   type StorefrontMenuIp,
@@ -231,17 +233,28 @@ function WcChrome({
                       panelId="wc-mega-category"
                       pathname={pathname}
                     >
-                      {(close) => (categoryLive
-                        ? (
-                          <CategoryMegaCatalog
-                            campaigns={megaMenus.campaigns.slice(0, MEGA_MENU_CAMPAIGN_LIMIT)}
-                            groups={categoryMenuGroups(megaMenus.categories)}
-                            onNavigate={close}
-                            pathname={pathname}
-                            shortcuts={shortcutGroup}
-                          />
-                        )
-                        : <CategoryMegaFallback groups={megaGroups} onNavigate={close} pathname={pathname} />)}
+                      {(close) => {
+                        const renderCategoryMega = (location: MegaMenuLocation) => (categoryLive
+                          ? (
+                            <CategoryMegaCatalog
+                              campaigns={megaMenus.campaigns.slice(0, MEGA_MENU_CAMPAIGN_LIMIT)}
+                              groups={categoryMenuGroups(megaMenus.categories)}
+                              location={location}
+                              onNavigate={close}
+                              pathname={pathname}
+                              shortcuts={shortcutGroup}
+                            />
+                          )
+                          : <CategoryMegaFallback groups={megaGroups} onNavigate={close} pathname={location.routePathname} />);
+                        /* 전시분류 페이지(/shop?displayCategory=)의 현재 위치는 쿼리로만 가려진다(리뷰 l5-ui-2). useSearchParams 는 정적
+                           페이지에서 가장 가까운 Suspense 경계까지 클라이언트 렌더로 떨어지므로 메가 내용만 경계로 감싼다 — 서버 HTML 의
+                           폴백은 쿼리를 모르는 같은 메가(/shop 에서는 바로가기 표시 없음)다. */
+                        return (
+                          <Suspense fallback={renderCategoryMega(megaMenuLocation(pathname, null))}>
+                            <MegaLocation pathname={pathname} render={renderCategoryMega} />
+                          </Suspense>
+                        );
+                      }}
                     </MegaMenuItem>
                   );
                 }
@@ -434,10 +447,16 @@ function MegaMenuItem({
   );
 }
 
+/* 메가메뉴의 현재 위치를 쿼리까지 읽어 고른다(전시분류 페이지 — 리뷰 l5-ui-2). 반드시 Suspense 안에서 쓴다. */
+function MegaLocation({ pathname, render }: { pathname: string; render: (location: MegaMenuLocation) => ReactNode }) {
+  const searchParams = useSearchParams();
+  return render(megaMenuLocation(pathname, searchParams));
+}
+
 /* 메가 링크의 현재 위치도 GNB와 같은 규칙(activeNavId)으로 하나만 고른다 — '/shop/new'에서 '전체 굿즈'와
    NEW가 함께 켜지지 않고, 굿즈 상세에서는 아무 링크도 켜지 않는다(CH-12). */
-function MegaRouteLinks({ items, onNavigate, pathname }: { items: NavItem[]; onNavigate: () => void; pathname: string }) {
-  const currentId = activeNavId(pathname, items);
+function MegaRouteLinks({ items, onNavigate, pathname }: { items: NavItem[]; onNavigate: () => void; pathname: string | null }) {
+  const currentId = pathname === null ? null : activeNavId(pathname, items);
   return (
     <ul className="wc-mega__links">
       {items.map((item) => (
@@ -457,8 +476,8 @@ function MegaRouteLinks({ items, onNavigate, pathname }: { items: NavItem[]; onN
 }
 
 /* 공개 전시 트리가 없을 때의 카테고리 메가메뉴 — 실존 라우트 그룹(굿즈샵·수집·거래). */
-function CategoryMegaFallback({ groups, onNavigate, pathname }: { groups: NavGroup[]; onNavigate: () => void; pathname: string }) {
-  const currentId = activeNavId(pathname, groups.flatMap((group) => group.items));
+function CategoryMegaFallback({ groups, onNavigate, pathname }: { groups: NavGroup[]; onNavigate: () => void; pathname: string | null }) {
+  const currentId = pathname === null ? null : activeNavId(pathname, groups.flatMap((group) => group.items));
   return (
     <ul className="wc-container wc-mega__list">
       {groups.map((group) => (
@@ -489,22 +508,26 @@ function CategoryMegaFallback({ groups, onNavigate, pathname }: { groups: NavGro
 function CategoryMegaCatalog({
   campaigns,
   groups,
+  location,
   onNavigate,
   pathname,
   shortcuts,
 }: {
   campaigns: StorefrontMenuCampaign[];
   groups: CategoryMenuGroup[];
+  location: MegaMenuLocation;
   onNavigate: () => void;
   pathname: string;
   shortcuts: NavGroup | null;
 }) {
+  /* 현재 위치는 메가 전체에서 하나다: 기획전 상세는 경로로, 전시분류는 쿼리(location)로, 바로가기는 그 밖일 때만 고른다. */
+  const currentDisplay = (id: string) => (location.displayCategoryId === id ? 'page' as const : undefined);
   return (
     <ul className={`wc-container wc-mega__list wc-mega__list--catalog${campaigns.length ? '' : ' wc-mega__list--compact'}`}>
       {shortcuts ? (
         <li className="wc-mega__group">
           <p className="wc-mega__heading">{shortcuts.heading}</p>
-          <MegaRouteLinks items={shortcuts.items} onNavigate={onNavigate} pathname={pathname} />
+          <MegaRouteLinks items={shortcuts.items} onNavigate={onNavigate} pathname={location.routePathname} />
         </li>
       ) : null}
       {campaigns.length ? (
@@ -513,7 +536,14 @@ function CategoryMegaCatalog({
           <ul className="wc-mega__links">
             {campaigns.map((campaign) => (
               <li key={campaign.id}>
-                <Link className="wc-mega__link" href={campaignDetailHref(campaign.id)} onClick={onNavigate}>{campaign.title}</Link>
+                <Link
+                  aria-current={pathname === campaignDetailHref(campaign.id) ? 'page' : undefined}
+                  className="wc-mega__link"
+                  href={campaignDetailHref(campaign.id)}
+                  onClick={onNavigate}
+                >
+                  {campaign.title}
+                </Link>
               </li>
             ))}
           </ul>
@@ -524,7 +554,7 @@ function CategoryMegaCatalog({
           {groups.map((group) => (
             <li key={group.id} className="wc-mega__group">
               {group.href
-                ? <Link className="wc-mega__heading wc-mega__heading-link" href={group.href} onClick={onNavigate}>{group.name}</Link>
+                ? <Link aria-current={currentDisplay(group.id)} className="wc-mega__heading wc-mega__heading-link" href={group.href} onClick={onNavigate}>{group.name}</Link>
                 : <p className="wc-mega__heading">{group.name}</p>}
               {group.items.length ? (
                 <ul className="wc-mega__links">
@@ -532,7 +562,12 @@ function CategoryMegaCatalog({
                     <li key={item.id}>
                       {item.href
                         ? (
-                          <Link className={`wc-mega__link${item.depth > 2 ? ' wc-mega__link--nested' : ''}`} href={item.href} onClick={onNavigate}>
+                          <Link
+                            aria-current={currentDisplay(item.id)}
+                            className={`wc-mega__link${item.depth > 2 ? ' wc-mega__link--nested' : ''}`}
+                            href={item.href}
+                            onClick={onNavigate}
+                          >
                             {item.name}
                           </Link>
                         )

@@ -12,6 +12,7 @@ import {
   categoryMenuTiles,
   chunkMenuItems,
   isCategoryMenuLive,
+  megaMenuLocation,
   menuLabel,
   menuMonogram,
   parseStorefrontCategoryMenu,
@@ -186,6 +187,25 @@ describe('기획전·피처드 IP 원천', () => {
     const ips = toMenuIps([{ id: 'long-ip', public_slug: null, title: 'L'.repeat(300), bg: null, image_path: null, sort_order: 1 }], url);
     expect(ips).toHaveLength(1);
     expect(ips[0].name).toBe(`${'L'.repeat(MENU_LABEL_MAX - 1)}…`);
+  });
+});
+
+describe('메가메뉴 현재 위치 (리뷰 l5-ui-2)', () => {
+  const uuid = '94932000-0000-4000-8000-000000000002';
+  const query = (search: string) => new URLSearchParams(search);
+
+  it('카테고리 전시는 쿼리의 전시분류가 현재 위치이고 굿즈샵 바로가기는 켜지 않는다', () => {
+    expect(megaMenuLocation('/shop', query(`displayCategory=${uuid}&sort=newest`))).toEqual({ routePathname: null, displayCategoryId: uuid });
+    expect(megaMenuLocation('/shop', query(`displayCategory=${uuid.toUpperCase()}`))).toEqual({ routePathname: null, displayCategoryId: uuid });
+    /* 잘못된 값도 전체 굿즈 화면은 아니다(전시 not-found). */
+    expect(megaMenuLocation('/shop', query('displayCategory=nope'))).toEqual({ routePathname: null, displayCategoryId: null });
+  });
+
+  it('전시 쿼리가 없으면 경로로만 고르고, 쿼리를 아직 모르면(정적 HTML 폴백) /shop 에서 아무것도 켜지 않는다', () => {
+    expect(megaMenuLocation('/shop', query('sort=newest'))).toEqual({ routePathname: '/shop', displayCategoryId: null });
+    expect(megaMenuLocation('/shop/new', query(`displayCategory=${uuid}`))).toEqual({ routePathname: '/shop/new', displayCategoryId: null });
+    expect(megaMenuLocation('/shop', null)).toEqual({ routePathname: null, displayCategoryId: null });
+    expect(megaMenuLocation('/legal/terms', null)).toEqual({ routePathname: '/legal/terms', displayCategoryId: null });
   });
 });
 
