@@ -234,4 +234,21 @@ describe('CurationSection', () => {
     expect(getCurationFormKey(record, 'draft')).toBe(getCurationFormKey(record, 'other-server-draft'));
     expect(getCurationFormKey(null, 'draft')).not.toBe(getCurationFormKey(null, 'new-explicit-draft'));
   });
+
+  /* LD-15(12 §4) — 카드 리워드가 중지되면 카드팩·게임으로 가는 혜택 타일만 숨고 다른 혜택 타일은 노출된다.
+     안내와 미리보기 알림이 "혜택 타일 전체가 숨는다"고 말하면 운영자가 쿠폰·이벤트 타일까지 내려 버린다. */
+  it('혜택 타일 안내는 목적지 기준 게이트를 설명하고 카드팩·게임 목적지일 때만 숨김 알림을 띄운다', () => {
+    const benefit = (linkPath: string): AdminCurationRecord => ({ ...record, kind: 'benefit', title: '첫 구매 혜택', imagePath: null, imageUrl: null,
+      mobileImageUrl: null, linkPath, payload: { description: '쿠폰을 받아 가세요' } });
+    const packs = renderSection(benefit('/packs'));
+    const events = renderSection(benefit('/events'));
+
+    expect(packs).toContain('쿠폰·이벤트 같은 혜택을 제목과 설명, 이동할 화면으로 보여줍니다. 카드 리워드가 중지되면 카드팩·게임으로 가는 타일만 숨깁니다.');
+    expect(packs).not.toContain('카드팩·게임 혜택을');
+    /* 기본 미리보기는 카드 리워드 중지 상태다(DEFAULT_PREVIEW). */
+    expect(packs).toContain('<strong>카드 리워드가 중지되어 카드팩·게임으로 가는 이 혜택 타일은 노출되지 않습니다. 다른 화면으로 가는 혜택 타일은 그대로 보입니다.</strong>');
+    expect(events).not.toContain('혜택 타일은 노출되지 않습니다');
+    expect(events).not.toContain('카드 리워드가 비활성 상태여서');
+    expect(renderSection(benefit('/games/runner'))).toContain('카드팩·게임으로 가는 이 혜택 타일은 노출되지 않습니다');
+  });
 });

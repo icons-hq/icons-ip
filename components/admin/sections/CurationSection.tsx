@@ -20,7 +20,8 @@ import {
 import { adminCurationTargetGroupsFor, type AdminCurationTargetRecord } from '@/lib/admin/curation-targets';
 import { NOTICE_BAR_CTA_LIMIT, NOTICE_BAR_MESSAGE_LIMIT, type AdminCurationActionState, type AdminCurationKind } from '@/lib/admin/curations';
 import type { AdminCurationRecord } from '@/lib/admin/curations.server';
-import { eligibleHomeReviewStatistics, HOME_REVIEW_MANUAL_LIMIT, HOME_SALES_PERIOD_LABELS, HOME_SALES_PERIODS, type HomeSalesPeriod } from '@/lib/home-ranking';
+import { isCardRewardDestination } from '@/lib/home-catalog';
+import { eligibleHomeReviewGoodIds, HOME_REVIEW_MANUAL_LIMIT, HOME_SALES_PERIOD_LABELS, HOME_SALES_PERIODS, type HomeSalesPeriod } from '@/lib/home-ranking';
 import { HOME_HERO_CONTENT_LIMIT, HOME_HERO_LIMIT, HOME_HERO_TITLE_LIMIT, type HomeHeroImageDim, type HomeHeroTextColor } from '@/lib/home-hero';
 import { HOME_FREE_PRODUCT_LIMIT, HOME_PRODUCT_CANDIDATE_LIMIT, HOME_PRODUCT_TITLE_LIMIT, homeProductCountRange,
   type HomeProductImageShape, type HomeProductLayout } from '@/lib/home-product-collection';
@@ -44,7 +45,7 @@ const KIND_HELP: Record<AdminCurationKind, string> = {
   product_mosaic: '8개 상품과 대표이미지를 지정한 위치에 콜라주로 보여줍니다.',
   product_collection: '직접 고른 상품을 리스트나 큰 이미지로 보여줍니다. 모자이크와 합계 5개까지 구성할 수 있습니다.',
   review_best: '공개 리뷰 평점이 높은 상품을 자동 또는 직접 선정합니다. 4개 이상일 때 전시합니다.',
-  benefit: '카드팩·게임 혜택을 제목과 설명으로 보여줍니다.',
+  benefit: '쿠폰·이벤트 같은 혜택을 제목과 설명, 이동할 화면으로 보여줍니다. 카드 리워드가 중지되면 카드팩·게임으로 가는 타일만 숨깁니다.',
   featured_ip: '기존 특집 IP 설정입니다. 현재 홈 본문에는 특집 IP 영역이 없습니다.',
   announcement: '기존 공지 배너 설정입니다. 현재 홈 본문에 배너를 노출하려면 상단 띠배너를 사용하세요.',
 };
@@ -258,7 +259,8 @@ function CurationForm({
   const names = useMemo(() => new Map(goodOptions.map((good) => [good.id, good.title])), [goodOptions]);
   const draft = buildDraftCurationPreview(id, { ...values, kind }, preview.goods, preview.latestGoods, preview.productRankings);
   const reviewStatistics = preview.productRankings?.reviewStatistics ?? [];
-  const eligibleReviewIds = new Set(eligibleHomeReviewStatistics(reviewStatistics).map((row) => row.goodId));
+  /* 고를 수 있는 리뷰 상품은 공개 홈 선정과 같은 판정이다 — 그룹 범위 요약(preview.goods 의 reviewSummary)이 있으면 그 평균 3 이상. */
+  const eligibleReviewIds = eligibleHomeReviewGoodIds(reviewStatistics, preview.goods);
   const showManualProducts = kind === 'band_banner' || (kind === 'best_tab' && values.selectionMode === 'manual')
     || (kind === 'review_best' && values.reviewSelectionMode === 'manual') || kind === 'product_collection';
   const legacyKind = kind === 'featured_ip' || kind === 'announcement';
@@ -449,7 +451,7 @@ function CurationForm({
     </form>
     <aside className="admin-store-editor__preview" aria-label="스토어 미리보기">
       <header><h3>미리보기</h3><select aria-label="미리보기 범위" onChange={(event) => setPreviewScope(event.target.value as 'draft' | 'public')} value={previewScope}><option value="draft">편집 중인 구성</option><option value="public">현재 공개 홈</option></select><span>{device === 'mobile' ? '390px' : '1212px'}</span></header>
-      {previewScope === 'draft' ? <div className="admin-store-editor__preview-note"><span>편집 중인 내용입니다. 적용하면 노출 설정에 따라 반영됩니다.</span>{!values.enabled ? <strong>현재 비노출로 설정되어 있습니다.</strong> : null}{draft.missingGoodIds.length && showManualProducts ? <strong>비노출 또는 없는 상품 {draft.missingGoodIds.length}개는 미리보기에 표시되지 않습니다.</strong> : null}{kind === 'benefit' && !preview.cardRewardsEnabled ? <strong>카드 리워드가 비활성 상태여서 혜택 타일은 노출되지 않습니다.</strong> : null}
+      {previewScope === 'draft' ? <div className="admin-store-editor__preview-note"><span>편집 중인 내용입니다. 적용하면 노출 설정에 따라 반영됩니다.</span>{!values.enabled ? <strong>현재 비노출로 설정되어 있습니다.</strong> : null}{draft.missingGoodIds.length && showManualProducts ? <strong>비노출 또는 없는 상품 {draft.missingGoodIds.length}개는 미리보기에 표시되지 않습니다.</strong> : null}{kind === 'benefit' && !preview.cardRewardsEnabled && isCardRewardDestination(values.linkPath) ? <strong>카드 리워드가 중지되어 카드팩·게임으로 가는 이 혜택 타일은 노출되지 않습니다. 다른 화면으로 가는 혜택 타일은 그대로 보입니다.</strong> : null}
         {isShellNoticeKind(kind) && !values.pageTypes.includes('home') ? <strong>홈이 노출 화면에 없어 공개 홈에서는 보이지 않습니다. 미리보기는 모양만 보여줍니다.</strong> : null}
         {kind === 'sales_best' && !preview.productRankings?.salesAvailable ? <strong>판매량을 불러오지 못했습니다. 새로고침 후 다시 확인해주세요.</strong> : null}
         {kind === 'review_best' ? !preview.productRankings?.reviewsAvailable ? <strong>리뷰 평점을 불러오지 못했습니다. 새로고침 후 다시 확인해주세요.</strong> : draft.reviewEligibleCount < 4 ? <strong>노출 가능한 리뷰 상품 {draft.reviewEligibleCount}개 · 4개 이상이어야 영역이 표시됩니다.</strong> : <span>노출 가능한 리뷰 상품 {draft.reviewEligibleCount}개</span> : null}
