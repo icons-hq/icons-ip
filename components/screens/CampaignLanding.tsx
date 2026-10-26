@@ -6,6 +6,7 @@ import { EmptyState } from '@/components/wc/EmptyState';
 import { ProductCard } from '@/components/wc/ProductCard';
 import { WcButton } from '@/components/wc/WcButton';
 import { GoodsSalePeriodRefresh } from '@/components/shop/GoodsSalePeriodRefresh';
+import { listingHeartsFor, type ListingHeartFor } from '@/components/shop/listing-hearts';
 import {
   campaignAnchors,
   campaignKindLabel,
@@ -16,6 +17,7 @@ import {
 } from '@/lib/campaigns';
 import type { CampaignLandingSnapshot, ResolvedCampaignSection } from '@/lib/campaigns.server';
 import type { CoinOverview } from '@/lib/coins.server';
+import type { ListingWishlist } from '@/lib/listing-wishlist';
 import { imageBg } from '@/lib/media';
 
 /* 캠페인 상세 랜딩 (R-06 §2 · DESIGN §6 campaign-landing).
@@ -42,6 +44,11 @@ export interface CampaignLandingProps {
   /** 교환 블록의 멱등 키. 섹션 인덱스별로 다르다(키 공유는 가짜 성공을 만든다). */
   exchangeOperationIds: Record<number, string>;
   signedIn: boolean;
+  /**
+   * 굿즈 진열 카드의 목록 하트 초기 상태(LFS 패리티 2차 L4b · CL-01, `lib/wishlist-ids.server`). 라우트가 진열이 있을 때만
+   * 한 번 읽어 내려 준다. 생략하면 하트를 그리지 않는다. 카드 별점은 로더가 굿즈 카드에 실어 온다(`reviewSummary`).
+   */
+  wishlist?: ListingWishlist | null;
 }
 
 function ClosedNotice() {
@@ -61,6 +68,8 @@ interface SectionContext {
   attendedToday: boolean;
   balance: number;
   ended: boolean;
+  /** 굿즈 진열 카드의 목록 하트(L4b · CL-01). 위시 상태를 받지 않았으면 하트가 없다. */
+  heartFor: ListingHeartFor;
   loginHref: string;
   next: string;
   signedIn: boolean;
@@ -128,6 +137,7 @@ function SectionBody({
         <div className="wc-campaign-goods">
           {section.goods.map((good) => (
             <ProductCard
+              action={context.heartFor(good)}
               badges={good.badge ? [good.badge] : undefined}
               showDiscountRate={good.showDiscountRate} compareAtPrice={good.compareAtPrice}
               href={`/shop/${encodeURIComponent(good.id)}`}
@@ -135,6 +145,7 @@ function SectionBody({
               key={good.id}
               name={good.name}
               price={good.price} priceMax={good.priceMax}
+              reviewSummary={good.reviewSummary}
               salePeriod={good.salePeriod} soldOut={good.soldOut}
             />
           ))}
@@ -186,6 +197,7 @@ export function CampaignLanding({
   coin,
   exchangeOperationIds,
   signedIn,
+  wishlist,
 }: CampaignLandingProps) {
   const next = `/events/${encodeURIComponent(campaign.id)}`;
   const loginHref = `/login?next=${encodeURIComponent(next)}`;
@@ -204,6 +216,7 @@ export function CampaignLanding({
     attendedToday: coin?.attendedToday ?? false,
     balance: coin?.balance ?? 0,
     ended: campaign.displayState === 'ended',
+    heartFor: listingHeartsFor(wishlist),
     loginHref,
     next,
     signedIn,
