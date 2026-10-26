@@ -27,7 +27,8 @@ function sessionStore(): ListingReturnStorage | null {
  * 라우트 경계가 그린 표면. 목록 주소라도 화면이 목록을 그렸다는 뜻은 아니다 — 없는·보관된 IP관은 notFound() 를 부르고
  * Next 의 soft 404 는 200 이라 주소와 응답만으로는 모른다. 루트 경계는 #root 안에 표식을 남긴다: 로딩(app/loading.tsx)은
  * .wc-loading, 찾을 수 없음(app/not-found.tsx)·오류(app/error.tsx)는 .wc-fallback(ListingReturn.client.test 가 세 파일을 대조).
- * 스트리밍으로 늦게 오는 본문은 #root 밖 숨은 상자에 있다가 옮겨지므로 #root 안만 본다.
+ * 목록이 아닌 화면의 구간 로딩 경계(app/cart/loading.tsx)는 표식이 없다 — 그 화면은 기록하지 않고, 앞 화면의 늦은 기록은
+ * isCurrentLocation 이 막는다. 스트리밍으로 늦게 오는 본문은 #root 밖 숨은 상자에 있다가 옮겨지므로 #root 안만 본다.
  */
 const ROUTE_PENDING_SELECTOR = '.wc-loading';
 const ROUTE_FALLBACK_SELECTOR = '.wc-fallback';
@@ -60,6 +61,17 @@ function whenRouteRendered(onRendered: () => void): () => void {
   return () => observer.disconnect();
 }
 
+/*
+ * 지켜보기를 건 화면의 주소가 아직 현재 주소인가. 다음 화면이 커밋될 때 Next 는 같은 커밋 안에서 주소를 먼저 바꾸고
+ * (HistoryUpdater 의 useInsertionEffect) #root 를 바꾼다 — 그 변화를 알리는 관찰 콜백(마이크로태스크)은 앞 화면 effect 정리보다
+ * 먼저 온다. 다음 화면이 루트 로딩 표식(.wc-loading) 없이 바로 그려지면(장바구니 라우트 로딩 경계 app/cart/loading.tsx, 미리 받아 둔
+ * 화면) 앞의 찾을 수 없음·로딩 중 화면이 그려진 목록으로 남는다. 그래서 남기기 직전에 주소를 다시 본다(usePathname·useSearchParams 와
+ * location 은 같은 canonicalUrl 에서 나온다).
+ */
+export function isCurrentLocation(location: Pick<Location, 'pathname' | 'search'>, pathname: string, query: string): boolean {
+  return location.pathname === pathname && new URLSearchParams(location.search).toString() === query;
+}
+
 /**
  * 굿즈 목록 화면을 그릴 때마다 그 주소(목록 상태만)를 탭 세션에 남긴다. 찾을 수 없음·오류 화면은 직전 목록을 덮지 않는다.
  * useSearchParams 를 쓰므로 셸(Nav)이 Suspense 안에 둔다.
@@ -70,7 +82,10 @@ export function ListingReturnRecorder() {
   useEffect(() => {
     const entry = listingReturnEntry(pathname, new URLSearchParams(query));
     if (!entry) return undefined;
-    return whenRouteRendered(() => rememberListingReturnEntry(sessionStore(), entry));
+    return whenRouteRendered(() => {
+      if (!isCurrentLocation(window.location, pathname, query)) return;
+      rememberListingReturnEntry(sessionStore(), entry);
+    });
   }, [pathname, query]);
   return null;
 }

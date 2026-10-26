@@ -91,6 +91,8 @@ function stubBrowser(storage: { getItem(key: string): string | null; setItem(key
   vi.stubGlobal('window', Object.defineProperties({
     ...(storage ? { sessionStorage: storage } : {}),
     history: { length: 1 },
+    /* 주소창 — Next 처럼 라우터 훅과 같은 현재 주소를 보인다(navigate() 는 훅보다 주소만 먼저 바꾼다). */
+    location: { get pathname() { return nav.pathname; }, get search() { return nav.search ? `?${nav.search}` : ''; } },
     addEventListener: () => {},
     removeEventListener: () => {},
   }, Object.getOwnPropertyDescriptors(extra)));
@@ -109,6 +111,12 @@ function renderRecorder() {
     if (typeof slot?.cleanup === 'function') slot.cleanup();
     slots[index] = { deps, cleanup: effect() };
   });
+}
+
+/* 다음 화면의 커밋 직전 — 주소창만 넘어가고 기록기는 아직 다시 렌더되지 않았다(앞 화면의 지켜보기가 살아 있다). */
+function navigate(pathname: string, search = '') {
+  nav.pathname = pathname;
+  nav.search = search;
 }
 
 function visit(pathname: string, search = '', surface: Surface = 'rendered') {
@@ -277,6 +285,35 @@ describe('직전 목록 기록 (셸 · CT-02)', () => {
     expect(observers.size).toBe(0);
     mutate('rendered');
     expect(values.get(LISTING_RETURN_STORAGE_KEY)).toBe('/shop/new');
+  });
+
+  /* L9 QA 재측정(listing-flows '없는 IP(404)로 클라이언트 이동'): 다음 화면이 커밋되면 주소가 먼저 바뀌고 #root 변화의 관찰 콜백이
+     앞 화면 effect 정리보다 먼저 온다. 장바구니 로딩 경계(app/cart/loading.tsx)처럼 루트 로딩 표식 없이 바로 그려지는 화면이면
+     그 콜백이 'rendered' 를 본다 — 떠난 화면을 목록으로 남기지 않는다. */
+  it('다음 화면이 표식 없이 그려지며 알린 #root 변화로는 떠난 찾을 수 없음 화면을 남기지 않는다', () => {
+    const { storage, values } = sessionStorageStub({ [LISTING_RETURN_STORAGE_KEY]: '/shop/new' });
+    stubBrowser(storage);
+
+    visit('/ip/no-such-ip', '', 'fallback');
+    expect(observers.size).toBe(1);
+    navigate('/cart');
+    mutate('rendered');
+    expect(values.get(LISTING_RETURN_STORAGE_KEY)).toBe('/shop/new');
+    visit('/cart');
+    expect(observers.size).toBe(0);
+    expect(currentListingReturnHref()).toBe('/shop/new');
+  });
+
+  it('같은 목록의 상태만 바뀌어도 떠난 상태는 남기지 않고 새 상태가 그려지면 그것을 남긴다', () => {
+    const { storage, values } = sessionStorageStub({ [LISTING_RETURN_STORAGE_KEY]: '/shop/best' });
+    stubBrowser(storage);
+
+    visit('/shop', 'type=a', 'pending');
+    navigate('/shop', 'type=b');
+    mutate('rendered');
+    expect(values.get(LISTING_RETURN_STORAGE_KEY)).toBe('/shop/best');
+    visit('/shop', 'type=b');
+    expect(values.get(LISTING_RETURN_STORAGE_KEY)).toBe('/shop?type=b');
   });
 
   it('#root 가 없는 문서에서는 남기지 않는다', () => {
