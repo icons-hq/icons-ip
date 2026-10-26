@@ -24,6 +24,7 @@ import {
   newReviewHref,
 } from '@/lib/reviews';
 import { Icon } from '@/components/ui/Icon';
+import { MypageShell } from '@/components/wc/MypageShell';
 import type { CheckoutPaymentReading } from '@/lib/checkout';
 import { orderDetailCardPaymentNotice } from '@/lib/checkout-status-copy';
 import { krw } from '@/lib/format';
@@ -239,8 +240,9 @@ export function OrderDetail({
     : null;
   const headerCopy = cardNotice?.header ?? status;
 
+  /* 마이페이지 셸 안의 영수증 지면(MY-01) — 주문 상세도 데스크톱 좌 메뉴를 함께 둔다. 영수증·클레임 패널은 그대로다. */
   return (
-    <main className="wc-root wc-receipt order-detail-page">
+    <MypageShell active="/orders"><div className="wc-receipt order-detail-page">
       <header className="wc-receipt__head order-detail-header">
         <div className="wrap">
           <Link className="order-detail-back" href="/orders">
@@ -449,6 +451,6 @@ export function OrderDetail({
           )}
         </aside>
       </div>
-    </main>
+    </div></MypageShell>
   );
 }

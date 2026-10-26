@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { Settings } from './Settings';
+import { PasswordResetRow, Settings } from './Settings';
 
 interface MockActionState {
   errors?: {
@@ -24,7 +24,15 @@ const mocks = vi.hoisted(() => ({
   profilePending: false,
   profileState: {} as MockActionState,
   profileSubmit: vi.fn(),
+  resetAction: vi.fn(),
+  resetPending: false,
+  resetState: {} as { message?: string; errors?: { email?: string; form?: string } },
+  resetSubmit: vi.fn(),
   uploadProfileAvatar: vi.fn(),
+}));
+
+vi.mock('@/app/login/actions', () => ({
+  requestPasswordResetAction: mocks.resetAction,
 }));
 
 vi.mock('@/app/settings/actions', () => ({
@@ -48,6 +56,9 @@ vi.mock('react', async () => {
       }
       if (action === mocks.deletionAction) {
         return [mocks.deletionState, mocks.deletionSubmit, mocks.deletionPending];
+      }
+      if (action === mocks.resetAction) {
+        return [mocks.resetState, mocks.resetSubmit, mocks.resetPending];
       }
       throw new Error('Unexpected settings action');
     },
@@ -93,6 +104,8 @@ describe('Settings', () => {
     mocks.marketingState = {};
     mocks.profilePending = false;
     mocks.profileState = {};
+    mocks.resetPending = false;
+    mocks.resetState = {};
     mocks.uploadProfileAvatar.mockReset();
   });
 
@@ -118,7 +131,9 @@ describe('Settings', () => {
     expect(html).toContain('name="confirmation"');
     expect(html).toContain('name="idempotencyKey"');
     expect(html).not.toContain('name="userId"');
-    expect(html.match(/<form /g)).toHaveLength(3);
+    /* 프로필·마케팅·탈퇴 세 폼 + 비밀번호 재설정 메일 폼. */
+    expect(html.match(/<form /g)).toHaveLength(4);
+    expect(html.match(/<form class="wc-settings__reset-form"/g)).toHaveLength(1);
   });
 
   it('shows only blocker counts and recovery paths after a fenced request', () => {
@@ -165,7 +180,9 @@ describe('Settings', () => {
   it('renders independent profile and marketing forms with an editable signed avatar preview', () => {
     const html = render();
 
-    expect(html.match(/<form /g)).toHaveLength(2);
+    /* 프로필·마케팅 두 폼 + 비밀번호 재설정 메일 폼(탈퇴 미가용이라 탈퇴 폼은 없다). */
+    expect(html.match(/<form /g)).toHaveLength(3);
+    expect(html.match(/<form class="wc-settings__reset-form"/g)).toHaveLength(1);
     expect(html).toContain('action=');
     expect(html).toContain('name="nickname"');
     expect(html).toContain('accept="image/jpeg,image/png,image/webp"');
@@ -225,6 +242,78 @@ describe('Settings', () => {
 
     expect(profileStatus).not.toContain('이전 프로필 저장 성공');
     expect(html).toContain('저장 중');
+  });
+
+  /* MY-09(11 §5.7): 비밀번호 변경 진입과 약관 링크를 둔다. 비밀번호 변경은 세션만으로 열리는 화면이 아니라
+     계정 이메일로 보내는 재설정 링크(로그인 화면의 재설정과 같은 서버 액션)로만 들어간다 — l6-data-2. */
+  it('offers the password change entry and the policy documents', () => {
+    const html = render();
+    const login = html.slice(html.indexOf('id="settings-login-heading"'), html.indexOf('id="settings-policy-heading"'));
+    const policy = html.slice(html.indexOf('id="settings-policy-heading"'), html.indexOf('wc-settings__danger'));
+
+    expect(login).not.toContain('/update-password');
+    expect(login).not.toContain('href=');
+    expect(login).toContain('<input type="hidden" name="email" value="fan@icons.gg"/>');
+    expect(login).toContain('<input type="hidden" name="next" value="/settings"/>');
+    expect(login).toMatch(/<button class="wc-settings__link-row" type="submit">/);
+    expect(login).toContain('<strong>비밀번호 변경</strong>');
+    expect(login).toContain('가입한 이메일로 재설정 링크를 보내요');
+    expect(login).toContain('모든 기기에서 로그아웃');
+    expect(policy).toContain('href="/legal/terms"');
+    expect(policy).toContain('<strong>이용약관</strong>');
+    expect(policy).toContain('href="/legal/privacy"');
+    expect(policy).toContain('<strong>개인정보처리방침</strong>');
+    /* 회원 탈퇴는 늘 맨 끝이다. */
+    expect(html.indexOf('id="settings-policy-heading"')).toBeLessThan(html.indexOf('wc-settings__danger'));
+  });
+
+  it('reports the reset mail result in its own region and blocks resubmission while sending', () => {
+    const resetStatus = (html: string) => {
+      const start = html.indexOf('aria-label="비밀번호 재설정 메일 상태"');
+      expect(start).toBeGreaterThan(-1);
+      return html.slice(start, html.indexOf('</li>', start));
+    };
+    mocks.resetState = { message: '해당 이메일로 가입한 계정이 있다면 재설정 메일을 보냈습니다.' };
+    const sent = resetStatus(render());
+    expect(sent).toContain('role="status"');
+    expect(sent).toContain('재설정 메일을 보냈습니다');
+
+    mocks.resetState = { errors: { form: '비밀번호 재설정 요청이 너무 많습니다. 10분 후 다시 시도해주세요.' } };
+    const blocked = resetStatus(render());
+    expect(blocked).toContain('role="alert"');
+    expect(blocked).not.toContain('role="status"');
+
+    mocks.resetState = {};
+    mocks.resetPending = true;
+    const pending = render();
+    /* L6 QA l6-qa-2: 보내는 중에도 disabled 를 달지 않는다 — 포커스된 버튼이 disabled 가 되면 포커스가 body 로
+       빠져 키보드 사용자가 결과 행에서 이어가지 못한다. 비활성은 aria-disabled 로 알린다. */
+    const pendingButton = pending.match(/<button class="wc-settings__link-row"[^>]*>/)?.[0];
+    expect(pendingButton).toBe('<button class="wc-settings__link-row" aria-busy="true" aria-disabled="true" type="submit">');
+    expect(pendingButton).not.toContain('disabled=""');
+    expect(pending).toContain('보내는 중');
+  });
+
+  /* l6-qa-2: disabled 를 빼도 보내는 중의 두 번째 제출은 폼 action 에 닿지 않는다(onSubmit 이 기본 동작을 막으면
+     React 는 폼 action 을 부르지 않는다). 대기 중이 아니면 막지 않는다. */
+  it('blocks a second reset submission while sending without dropping focus', () => {
+    const submit = (pending: boolean) => {
+      mocks.resetPending = pending;
+      /* useActionState 가 목이라 행을 함수로 불러 폼 요소의 onSubmit 을 직접 확인한다. */
+      const row = PasswordResetRow({ email: 'fan@icons.gg', isConfigured: true });
+      const form = (row.props as { children: React.ReactElement[] }).children[0] as React.ReactElement<{ onSubmit: (event: { preventDefault: () => void }) => void }>;
+      const preventDefault = vi.fn();
+      form.props.onSubmit({ preventDefault });
+      return preventDefault;
+    };
+
+    expect(submit(true)).toHaveBeenCalledTimes(1);
+    expect(submit(false)).not.toHaveBeenCalled();
+  });
+
+  it('disables the reset mail without an account email or Supabase config', () => {
+    expect(render({ email: '' })).toMatch(/<button class="wc-settings__link-row" disabled="" type="submit">/);
+    expect(render({ isConfigured: false })).toMatch(/<button class="wc-settings__link-row" disabled="" type="submit">/);
   });
 
   it('keeps profile and marketing feedback inside their own status regions', () => {

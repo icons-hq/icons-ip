@@ -1,42 +1,46 @@
 'use client';
+
 import Link from 'next/link';
-import { useState } from 'react';
+import { useState, useSyncExternalStore } from 'react';
+import { useFormStatus } from 'react-dom';
+import { toggleIpFollowAction } from '@/app/ip/actions';
+import { WishlistCartButton } from '@/components/mypage/WishlistCartButton';
+import { OverlayPortal } from '@/components/shell/OverlayPortal';
 import { useStorePresentation } from '@/components/shell/StorePresentationProvider';
-import { AddToCartButton } from '@/components/shop/AddToCartButton';
+import { AddToCartResultDialog, type AddToCartResultItem } from '@/components/shop/AddToCartResultDialog';
 import { GoodsSalePeriodRefresh } from '@/components/shop/GoodsSalePeriodRefresh';
-import { goodsSaleUnavailableLabel } from '@/lib/goods-sale-period';
-import { WishlistHeart } from '@/components/shop/WishlistHeart';
+import { ListingWishHeart } from '@/components/shop/ListingWishHeart';
+import { confirmedWish, subscribeWishConfirmations } from '@/components/shop/wishlist-heart-store';
 import { EmptyState } from '@/components/wc/EmptyState';
 import { MypageShell } from '@/components/wc/MypageShell';
-import { PriceBlock } from '@/components/wc/PriceBlock';
+import { ProductCard } from '@/components/wc/ProductCard';
 import { WcButton } from '@/components/wc/WcButton';
-import { Badge } from '@/components/wc/Badge';
+import type { Ip } from '@/lib/data';
 import { goodDisplayBadges } from '@/lib/goods-taxonomy';
-import type { CatalogSnapshot } from '@/lib/catalog';
-import { goodsImageBackground } from '@/lib/goods-image';
-import type { Good, Ip } from '@/lib/data';
-import type { WishlistEntry } from '@/lib/wishlist.server';
+import { ipEn } from '@/lib/ip-display';
+import { hrefFor } from '@/lib/routes';
+import { wishlistTabHref, type WishlistLine, type WishlistTab } from '@/lib/wishlist-lines';
 
 /*
- * 위시리스트 화면 (#326 S4).
+ * 위시리스트 (#326 S4 → LFS 패리티 2차 L6 · MY-06·MY-07, 10/14 S14·S15 — 11 §5.6).
  *
- * 그리드가 아니라 리스트 행이다. 찜한 굿즈는 "다시 보러 온 것"이라 이름·가격·담기를
- * 한 줄에서 비교하는 편이 빠르고, 하트를 카드 위에 겹치면 해제 버튼이 이미지 링크와
- * 같은 자리를 다툰다(R-02·04 실측).
+ * 탭 2개: 굿즈(위시리스트는 굿즈만 — CONTEXT.md) / 팔로우한 IP(레퍼런스 BRAND 탭의 우리 대응, IP 는 위시가 아니라 팔로우).
+ * 탭은 URL(?tab=ip)이 정한다 — 대시보드의 '더보기'가 바로 IP 탭으로 들어오고 새로고침해도 그 탭이다.
  *
- * 카탈로그에서 사라진 굿즈(보관·삭제)도 행을 지운다: 찜 기록은 남아 있는데 목록에서
- * 조용히 빠지면 사용자는 자기가 해제한 줄 안다. 판매 종료로 표시하고 해제 수단을 남긴다.
+ * 굿즈 탭은 상품 카드 5열 그리드다. 이미지 우상단의 목록 하트(L4 공용 부품)가 해제 버튼이고, 카드 아래
+ * 수량 없는 '장바구니 담기'가 `listing.showCart` 와 무관하게 선다(S14). 담기가 확정되면 L1 의 담기 결과 모달이 뜬다.
+ * 하트를 풀어도 카드는 이 화면에 남는다(새로고침 전까지) — 실수로 푼 하트를 바로 되돌릴 수 있고, 총 개수는
+ * 서버가 확인한 해제만큼 줄어든다. 카탈로그에서 사라진 굿즈는 '판매 종료' 카드로 남겨 해제 수단을 둔다.
  */
 
 export interface WishlistProps {
-  catalog: Pick<CatalogSnapshot, 'goods' | 'ips'>;
-  entries: WishlistEntry[];
-}
-
-interface WishlistLine {
-  goodId: string;
-  good: Good | null;
-  ip: Ip | null;
+  viewerId: string;
+  tab: WishlistTab;
+  lines: WishlistLine[];
+  /** 공개 중인 팔로우한 IP(최근 팔로우 먼저). 못 읽었으면 null. */
+  followedIps: Ip[] | null;
+  /** 팔로우 해제 저장 실패로 돌아왔는지(?follow_error=1, IP 관 폼 계약). IP 탭에서만 안내한다. */
+  followError?: boolean;
 }
 
 function shopCta() {
@@ -47,84 +51,160 @@ function shopCta() {
   );
 }
 
-function WishlistRow({ line }: { line: WishlistLine }) {
-  const { good, goodId, ip } = line;
-  const { listing } = useStorePresentation();
-  const [imageIndex, setImageIndex] = useState(0);
-
-  if (!good) {
-    return (
-      <li className="wc-wishlist__row">
-        <span aria-hidden className="wc-wishlist__media" />
-        <div className="wc-wishlist__info">
-          <p className="wc-wishlist__name">판매 종료</p>
-          <p className="wc-wishlist__state">더 이상 판매하지 않는 굿즈예요.</p>
-        </div>
-        <div className="wc-wishlist__actions">
-          <WishlistHeart goodId={goodId} initialWished />
-        </div>
-      </li>
-    );
-  }
-
-  const soldOut = good.stock === 'soldout' || good.stockQty <= 0;
-  const saleLabel = goodsSaleUnavailableLabel(good.salePeriod);
-  const gallery = listing.imageMode === 'gallery' ? [...new Set([good.img, ...(good.listingAppearance?.gallery ?? [])])].filter(Boolean).slice(0, 10) : [good.img];
-  const badges = goodDisplayBadges(good).filter(badge => listing.showTags || !['BEST', 'NEW'].includes(badge.toUpperCase()));
-
-  return (
-    <li className="wc-wishlist__row">
-      <div className="wc-wishlist__media" data-list-shape={listing.imageShape}><Link aria-hidden className="wc-wishlist__media-link" href={`/shop/${good.id}`} tabIndex={-1}>
-        <span className="wc-wishlist__image" style={{ background: goodsImageBackground(gallery[imageIndex % gallery.length]) }} />
-      </Link>{gallery.length > 1 ? <div className="wc-product-card__gallery" aria-label={`${good.name} 이미지 선택`}><button type="button" aria-label={`${good.name} 이전 이미지`} onClick={() => setImageIndex(index => (index + gallery.length - 1) % gallery.length)}>‹</button><span aria-live="polite">{imageIndex % gallery.length + 1} / {gallery.length}</span><button type="button" aria-label={`${good.name} 다음 이미지`} onClick={() => setImageIndex(index => (index + 1) % gallery.length)}>›</button></div> : null}</div>
-      <div className="wc-wishlist__info">
-        {badges.length ? <div className="wc-product-card__badges">{badges.map(badge => <Badge key={badge}>{badge}</Badge>)}</div> : null}
-        {ip ? <p className="wc-wishlist__brand">{ip.title}</p> : null}
-        <p className="wc-wishlist__name">
-          <Link className="wc-wishlist__name-link" href={`/shop/${good.id}`}>{good.name}</Link>
-          {saleLabel || soldOut ? <span className="wc-sr-only"> ({saleLabel ?? '품절'})</span> : null}
-        </p>
-        {listing.showColors && good.listingAppearance?.colors.length ? <ul className="wc-product-card__colors" aria-label="굿즈 색상">{good.listingAppearance.colors.map(chip => <li key={chip.label} title={chip.label}><span style={{ backgroundColor: chip.hex }} /><span className="wc-sr-only">{chip.label}</span></li>)}</ul> : null}
-        <PriceBlock showDiscountRate={good.showDiscountRate} compareAtPrice={good.compareAtPrice} price={good.price} />
-        {saleLabel ? <p className="wc-wishlist__state">{saleLabel}</p> : null}
-        {listing.showDescription && good.listingAppearance?.description ? <p className="wc-product-card__description">{good.listingAppearance.description}</p> : null}
-      </div>
-      <div className="wc-wishlist__actions">
-        <WishlistHeart goodId={good.id} initialWished />
-        {listing.showCart ? <AddToCartButton good={good} /> : null}
-      </div>
-    </li>
+/* 이 세션에서 서버가 해제를 확인한 줄만 뺀 개수. 서버 렌더와 첫 페인트는 서버 값 그대로다. */
+function useLiveWishCount(viewerId: string, lines: readonly WishlistLine[]): number {
+  return useSyncExternalStore(
+    subscribeWishConfirmations,
+    () => lines.filter((line) => confirmedWish(viewerId, line.goodId) !== false).length,
+    () => lines.length,
   );
 }
 
-export function Wishlist({ catalog, entries }: WishlistProps) {
-  const goodsById = new Map(catalog.goods.map((good) => [good.id, good]));
-  const ipsById = new Map(catalog.ips.map((ip) => [ip.id, ip]));
+function WishCard({ line, onAdded, viewerId }: { line: WishlistLine; onAdded: (items: AddToCartResultItem[]) => void; viewerId: string }) {
+  const { brand, good, goodId } = line;
+  const { listing } = useStorePresentation();
 
-  const lines: WishlistLine[] = entries.map((entry) => {
-    const good = goodsById.get(entry.goodId) ?? null;
-    return { goodId: entry.goodId, good, ip: good ? ipsById.get(good.ip) ?? null : null };
-  });
+  if (!good) {
+    /* 같은 줄의 ProductCard(listSurface="standard")처럼 스토어 목록 이미지 비율을 따른다 — portrait 설정에서
+       판매 종료 카드만 1:1 로 남아 이름 줄이 어긋나지 않게(DESIGN '상품 카드 anatomy 통일'). */
+    return (
+      <article className="wc-product-card wc-wish__ended" data-list-shape={listing.imageShape}>
+        <div className="wc-product-card__media">
+          <span aria-hidden className="wc-product-card__image" />
+          <div className="wc-product-card__action">
+            <ListingWishHeart goodId={goodId} initialWished label="판매 종료 굿즈" viewerId={viewerId} />
+          </div>
+        </div>
+        <div className="wc-product-card__info">
+          <h3 className="wc-product-card__name">판매 종료</h3>
+          <p className="wc-wish__state">더 이상 판매하지 않는 굿즈예요.</p>
+        </div>
+      </article>
+    );
+  }
+
+  return (
+    <>
+      <ProductCard
+        action={<ListingWishHeart goodId={good.id} initialWished label={good.name} viewerId={viewerId} />}
+        badges={goodDisplayBadges(good)}
+        brand={brand}
+        compareAtPrice={good.compareAtPrice}
+        href={`/shop/${good.id}`}
+        imageBackground={good.img}
+        listSurface="standard"
+        listingAppearance={good.listingAppearance}
+        name={good.name}
+        price={good.price}
+        priceMax={good.priceMax}
+        salePeriod={good.salePeriod}
+        showDiscountRate={good.showDiscountRate}
+        soldOut={good.stock === 'soldout' || good.stockQty <= 0}
+      />
+      <WishlistCartButton good={good} onAdded={onAdded} />
+    </>
+  );
+}
+
+function UnfollowSubmit({ name }: { name: string }) {
+  const { pending } = useFormStatus();
+  return (
+    <button aria-label={`${name} 팔로우 해제`} className="wc-wish__unfollow" disabled={pending} type="submit">
+      {pending ? '해제 중' : '팔로우 해제'}
+    </button>
+  );
+}
+
+/* 팔로우 해제는 IP 관과 같은 폼 계약(app/ip/actions.ts — hidden ipId·intent·next)을 쓴다. 저장 뒤 이 탭으로 돌아온다. */
+function FollowedIpTile({ ip }: { ip: Ip }) {
+  const name = ipEn(ip);
+  return (
+    <>
+      <Link className="wc-wish__ip" href={hrefFor('ip', ip)}>
+        <span aria-hidden className="wc-wish__ip-art" style={{ background: ip.bg, backgroundPosition: 'center', backgroundSize: 'cover' }} />
+        <span className="wc-wish__ip-name">{name}</span>
+        {name !== ip.title ? <span className="wc-wish__ip-sub">{ip.title}</span> : null}
+      </Link>
+      <form action={toggleIpFollowAction}>
+        <input name="ipId" type="hidden" value={ip.id} />
+        <input name="intent" type="hidden" value="unfollow" />
+        <input name="next" type="hidden" value={wishlistTabHref('ip')} />
+        <UnfollowSubmit name={name} />
+      </form>
+    </>
+  );
+}
+
+export function Wishlist({ followError = false, followedIps, lines, tab, viewerId }: WishlistProps) {
+  const [resultItems, setResultItems] = useState<AddToCartResultItem[] | null>(null);
+  const wishCount = useLiveWishCount(viewerId, lines);
+  const goods = lines.flatMap((line) => (line.good ? [line.good] : []));
 
   return (
     <MypageShell active="/my/wishlist">
-      <GoodsSalePeriodRefresh goods={catalog.goods} />
-      <section aria-labelledby="wishlist-heading" className="wc-wishlist">
+      <GoodsSalePeriodRefresh goods={goods} />
+      <section aria-labelledby="wishlist-heading" className="wc-wish">
         <div className="wc-mypage__headbar">
           <h1 className="wc-mypage__headbar-title" id="wishlist-heading">위시리스트</h1>
         </div>
-        {lines.length ? (
-          <ul className="wc-wishlist__list">
-            {lines.map((line) => <WishlistRow key={line.goodId} line={line} />)}
-          </ul>
+        <nav aria-label="위시리스트 종류" className="wc-wish__tabs">
+          <Link aria-current={tab === 'goods' ? 'page' : undefined} href={wishlistTabHref('goods')}>
+            굿즈 ({wishCount.toLocaleString('ko-KR')})
+          </Link>
+          <Link aria-current={tab === 'ip' ? 'page' : undefined} href={wishlistTabHref('ip')}>
+            팔로우한 IP{followedIps ? ` (${followedIps.length.toLocaleString('ko-KR')})` : ''}
+          </Link>
+        </nav>
+
+        {tab === 'ip' && followError ? (
+          <p className="wc-wish__alert" role="alert">팔로우 해제를 저장하지 못했어요. 잠시 후 다시 시도해주세요.</p>
+        ) : null}
+
+        {tab === 'goods' ? (
+          lines.length ? (
+            <>
+              <p className="wc-wish__total" aria-live="polite">총 <strong>{wishCount.toLocaleString('ko-KR')}</strong>개</p>
+              <ul className="wc-wish__grid">
+                {lines.map((line) => (
+                  <li key={line.goodId}>
+                    <WishCard line={line} onAdded={setResultItems} viewerId={viewerId} />
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : (
+            <EmptyState
+              action={shopCta()}
+              description="마음에 드는 굿즈를 하트로 담아 두면 여기에 모여요."
+              title="아직 찜한 굿즈가 없어요"
+            />
+          )
+        ) : followedIps === null ? (
+          <p className="wc-wish__unavailable" role="status">팔로우한 IP를 확인하지 못했어요. 잠시 후 다시 열어주세요.</p>
+        ) : followedIps.length ? (
+          <>
+            <p className="wc-wish__total">총 <strong>{followedIps.length.toLocaleString('ko-KR')}</strong>개</p>
+            <ul className="wc-wish__ips">
+              {followedIps.map((ip) => (
+                <li key={ip.id}>
+                  <FollowedIpTile ip={ip} />
+                </li>
+              ))}
+            </ul>
+          </>
         ) : (
           <EmptyState
-            action={shopCta()}
-            description="마음에 드는 굿즈를 하트로 담아 두면 여기에 모여요."
-            title="아직 찜한 굿즈가 없어요"
+            action={<WcButton href={hrefFor('iphub')} variant="primary">온라인 팝업 둘러보기</WcButton>}
+            description="좋아하는 IP를 팔로우하면 새 굿즈와 소식을 여기서 모아 볼 수 있어요."
+            title="아직 팔로우한 IP가 없어요"
           />
         )}
       </section>
+      {resultItems ? (
+        <OverlayPortal>
+          <AddToCartResultDialog items={resultItems} onClose={() => setResultItems(null)} open />
+        </OverlayPortal>
+      ) : null}
     </MypageShell>
   );
 }

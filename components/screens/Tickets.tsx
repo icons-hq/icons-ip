@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { Icon } from '@/components/ui/Icon';
+import { MypageShell } from '@/components/wc/MypageShell';
 import {
   groupTicketOrders,
   ticketOrderDisplayMeta,
@@ -57,7 +58,8 @@ export function Tickets({
   const groups = groupTicketOrders(orders, now);
 
   return (
-    <main className="wc-root wc-receipt tickets-page">
+    /* 마이페이지 셸 안의 영수증 지면(MY-01) — 메뉴 '내 티켓'도 데스크톱 좌 메뉴를 함께 둔다. 예매·검표·취소 로직은 그대로다. */
+    <MypageShell active="/tickets"><div className="wc-receipt tickets-page">
       <header className="wc-receipt__head">
         <div className="wrap">
           <h1 className="wc-receipt__title">내 티켓</h1>
@@ -126,6 +128,6 @@ export function Tickets({
           })
         )}
       </div>
-    </main>
+    </div></MypageShell>
   );
 }

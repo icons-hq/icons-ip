@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { TicketCancellation } from '@/components/tickets/TicketCancellation';
 import { TicketQrPager } from '@/components/tickets/TicketQrPager';
 import { Icon } from '@/components/ui/Icon';
+import { MypageShell } from '@/components/wc/MypageShell';
 import { krw } from '@/lib/format';
 import {
   ticketOrderDisplayMeta,
@@ -58,7 +59,8 @@ export function TicketDetail({
   const meta = ticketOrderDisplayMeta(asListItem(order), now);
 
   return (
-    <main className="wc-root wc-receipt ticket-detail-page">
+    /* 마이페이지 셸 안의 영수증 지면(MY-01) — 메뉴 '내 티켓'도 데스크톱 좌 메뉴를 함께 둔다. 예매·검표·취소 로직은 그대로다. */
+    <MypageShell active="/tickets"><div className="wc-receipt ticket-detail-page">
       <header className="wc-receipt__head ticket-detail-header">
         <div className="wrap">
           <Link className="ticket-detail-back" href="/tickets">
@@ -129,6 +131,6 @@ export function TicketDetail({
           )}
         </aside>
       </div>
-    </main>
+    </div></MypageShell>
   );
 }
