@@ -213,7 +213,7 @@ describe('MyPage dashboard', () => {
     expect(blank).toContain('아직 팔로우한 IP가 없어요.');
     expect(blank).toContain('0장');
 
-    const broken = render({ dashboard: { orders: null, wishlist: null, follows: null, coupons: null, storeCredit: null } });
+    const broken = render({ dashboard: { orders: null, wishlist: null, follows: null, coupons: null, storeCredit: null, ipTitles: null } });
     expect(broken).toContain('주문 내역을 확인하지 못했어요.');
     expect(broken).toContain('위시리스트를 확인하지 못했어요.');
     expect(broken).toContain('팔로우한 IP를 확인하지 못했어요.');
