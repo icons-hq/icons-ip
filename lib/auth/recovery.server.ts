@@ -199,6 +199,28 @@ export async function hasPasswordRecoveryProof(
   }
 }
 
+export type PasswordUpdateAccess = 'allowed' | 'recovery_required' | 'no_email_identity';
+
+/** 이메일 로그인 수단(email identity)이 있는 계정인지. 소셜 전용 계정에는 비밀번호를 새로 만들지 않는다. */
+export function hasEmailIdentity(user: { identities?: Array<{ provider?: string | null }> | null }) {
+  return Boolean(user.identities?.some((identity) => identity.provider === 'email'));
+}
+
+/*
+ * /update-password 화면과 서버 action이 함께 쓰는 판정. 소셜 전용 계정은 메일함 소유를 증명해도 비밀번호를
+ * 만들지 않는다 — 6자 비밀번호가 SNS 로그인 옆에 생기고, 계정 기록(identities)은 여전히 SNS 하나로 보여서다.
+ */
+export async function passwordUpdateAccess(
+  supabase: PasswordRecoveryClaimsReader,
+  user: Parameters<typeof hasEmailIdentity>[0],
+  cookieValue: string | null | undefined,
+  now: number = Date.now(),
+  secret: string | null = authCookieSecret(),
+): Promise<PasswordUpdateAccess> {
+  if (!hasEmailIdentity(user)) return 'no_email_identity';
+  return await hasPasswordRecoveryProof(supabase, cookieValue, now, secret) ? 'allowed' : 'recovery_required';
+}
+
 function normalizedEmail(email: string) {
   return email.trim().toLowerCase();
 }

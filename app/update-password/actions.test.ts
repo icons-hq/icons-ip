@@ -76,7 +76,10 @@ describe('updatePasswordAction', () => {
     mocks.getClaims.mockReset();
     mocks.updateUser.mockReset();
     mocks.signOut.mockReset();
-    mocks.getUser.mockResolvedValue({ data: { user: { id: 'user-1' } }, error: null });
+    mocks.getUser.mockResolvedValue({
+      data: { user: { id: 'user-1', identities: [{ provider: 'email' }] } },
+      error: null,
+    });
     mocks.getClaims.mockResolvedValue({
       data: { claims: { sub: 'user-1', session_id: 'recovery-session-1' } },
       error: null,
@@ -125,7 +128,7 @@ describe('updatePasswordAction', () => {
     const state = await updatePasswordAction({}, formData());
 
     expect(state).toEqual({
-      recoveryRequired: true,
+      blocked: 'recovery_required',
       errors: { form: expect.stringContaining('재설정 메일의 링크를 연 뒤에만') },
     });
     expect(mocks.updateUser).not.toHaveBeenCalled();
@@ -144,9 +147,36 @@ describe('updatePasswordAction', () => {
 
     const state = await updatePasswordAction({}, formData());
 
-    expect(state.recoveryRequired).toBe(true);
+    expect(state.blocked).toBe('recovery_required');
     expect(mocks.updateUser).not.toHaveBeenCalled();
     expect(mocks.signOut).not.toHaveBeenCalled();
+  });
+
+  it('refuses a social-only account even after a verified recovery link', async () => {
+    mocks.getUser.mockResolvedValue({
+      data: { user: { id: 'user-1', identities: [{ provider: 'kakao' }] } },
+      error: null,
+    });
+
+    const state = await updatePasswordAction({}, formData());
+
+    expect(state).toEqual({
+      blocked: 'no_email_identity',
+      errors: { form: expect.stringContaining('SNS로 가입한 계정은 비밀번호를 설정할 수 없습니다') },
+    });
+    expect(mocks.updateUser).not.toHaveBeenCalled();
+    expect(mocks.signOut).not.toHaveBeenCalled();
+    expect(mocks.cookieSetCalls).toEqual([]);
+  });
+
+  it('lets an email account linked to a social login change its password', async () => {
+    mocks.getUser.mockResolvedValue({
+      data: { user: { id: 'user-1', identities: [{ provider: 'email' }, { provider: 'kakao' }] } },
+      error: null,
+    });
+
+    await expect(updatePasswordAction({}, formData())).rejects.toThrow('NEXT_REDIRECT:/login?password_reset=success');
+    expect(mocks.updateUser).toHaveBeenCalledWith({ password: 'new-password-1234' });
   });
 
   it.each([

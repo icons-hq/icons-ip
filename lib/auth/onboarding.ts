@@ -36,6 +36,7 @@ const GENERIC_SIGNUP_ERROR_MESSAGE = '가입 요청을 처리하지 못했습니
 const GENERIC_PASSWORD_RESET_ERROR_MESSAGE = '비밀번호 재설정을 완료하지 못했습니다. 로그인 화면에서 새 재설정 메일을 요청해주세요.';
 const GENERIC_PASSWORD_UPDATE_ERROR_MESSAGE = '비밀번호를 변경하지 못했습니다. 잠시 후 다시 시도해주세요.';
 export const PASSWORD_RECOVERY_REQUIRED_MESSAGE = '비밀번호는 재설정 메일의 링크를 연 뒤에만 바꿀 수 있습니다. 새 재설정 메일을 받아주세요.';
+export const PASSWORD_UNAVAILABLE_FOR_SOCIAL_ACCOUNT_MESSAGE = 'SNS로 가입한 계정은 비밀번호를 설정할 수 없습니다. 가입한 SNS 계정으로 로그인해주세요.';
 
 export function isAccountSuspended(
   profile: Pick<ProfileForOnboarding, 'suspended_at'> | null | undefined,

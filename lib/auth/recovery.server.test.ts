@@ -8,9 +8,11 @@ import {
   PASSWORD_RESET_WINDOW_MS,
   authNextStateFromCookie,
   consumePasswordResetAttempt,
+  hasEmailIdentity,
   hasPasswordRecoveryProof,
   passwordRecoveryProofCookieOptions,
   passwordRecoveryProofFromCookie,
+  passwordUpdateAccess,
   signedAuthNextCookieValue,
   signedPasswordRecoveryProofValue,
 } from './recovery.server';
@@ -262,5 +264,42 @@ describe('password recovery proof', () => {
       SECRET,
     )).resolves.toBe(false);
     expect(reader.auth.getClaims).not.toHaveBeenCalled();
+  });
+});
+
+describe('password update access', () => {
+  const proof = signedPasswordRecoveryProofValue({ sessionId: 'session-1', userId: 'user-1' }, NOW, SECRET);
+
+  function claimsReader() {
+    return {
+      auth: {
+        getClaims: vi.fn(async () => ({ data: { claims: { sub: 'user-1', session_id: 'session-1' } }, error: null })),
+      },
+    };
+  }
+
+  it('treats only accounts with an email identity as able to hold a password', () => {
+    expect(hasEmailIdentity({ identities: [{ provider: 'email' }] })).toBe(true);
+    expect(hasEmailIdentity({ identities: [{ provider: 'kakao' }, { provider: 'email' }] })).toBe(true);
+    expect(hasEmailIdentity({ identities: [{ provider: 'kakao' }] })).toBe(false);
+    expect(hasEmailIdentity({ identities: [{ provider: 'google' }, { provider: 'apple' }] })).toBe(false);
+    expect(hasEmailIdentity({ identities: [] })).toBe(false);
+    expect(hasEmailIdentity({})).toBe(false);
+  });
+
+  it('refuses a social-only account even with a valid recovery proof, without reading claims', async () => {
+    const reader = claimsReader();
+
+    await expect(passwordUpdateAccess(reader, { identities: [{ provider: 'kakao' }] }, proof, NOW, SECRET))
+      .resolves.toBe('no_email_identity');
+    expect(reader.auth.getClaims).not.toHaveBeenCalled();
+  });
+
+  it('requires the recovery proof for email and linked accounts', async () => {
+    const linked = { identities: [{ provider: 'email' }, { provider: 'kakao' }] };
+
+    await expect(passwordUpdateAccess(claimsReader(), linked, proof, NOW, SECRET)).resolves.toBe('allowed');
+    await expect(passwordUpdateAccess(claimsReader(), linked, undefined, NOW, SECRET))
+      .resolves.toBe('recovery_required');
   });
 });

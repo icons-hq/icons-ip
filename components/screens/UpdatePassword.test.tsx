@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   action: vi.fn(),
   pending: false,
   recoveryRequiredProps: null as Record<string, unknown> | null,
+  socialNoticeProps: null as Record<string, unknown> | null,
 }));
 
 vi.mock('@/app/update-password/actions', () => ({
@@ -16,6 +17,12 @@ vi.mock('@/components/screens/PasswordRecoveryRequired', () => ({
   PasswordRecoveryRequired: (props: Record<string, unknown>) => {
     mocks.recoveryRequiredProps = props;
     return <p>recovery-required</p>;
+  },
+}));
+vi.mock('@/components/screens/SocialAccountPasswordNotice', () => ({
+  SocialAccountPasswordNotice: (props: Record<string, unknown>) => {
+    mocks.socialNoticeProps = props;
+    return <p>social-account</p>;
   },
 }));
 vi.mock('react', async () => {
@@ -31,6 +38,7 @@ describe('UpdatePassword', () => {
     mocks.state = {};
     mocks.pending = false;
     mocks.recoveryRequiredProps = null;
+    mocks.socialNoticeProps = null;
   });
 
   it('renders labeled new-password fields and a safe hidden next value', () => {
@@ -73,12 +81,22 @@ describe('UpdatePassword', () => {
   });
 
   it('replaces the form with reset-mail guidance when the action rejects the recovery proof', () => {
-    mocks.state = { recoveryRequired: true, errors: { form: '재설정 필요' } };
+    mocks.state = { blocked: 'recovery_required', errors: { form: '재설정 필요' } };
 
     const html = renderToStaticMarkup(<UpdatePassword email="fan@icons.gg" next="/settings" />);
 
     expect(mocks.recoveryRequiredProps).toEqual({ email: 'fan@icons.gg', next: '/settings' });
     expect(html).toContain('recovery-required');
+    expect(html).not.toContain('name="password"');
+  });
+
+  it('replaces the form with the SNS sign-in notice when the action refuses a social-only account', () => {
+    mocks.state = { blocked: 'no_email_identity', errors: { form: 'SNS 계정' } };
+
+    const html = renderToStaticMarkup(<UpdatePassword email="fan@icons.gg" next="/settings" />);
+
+    expect(mocks.socialNoticeProps).toEqual({ next: '/settings' });
+    expect(html).toContain('social-account');
     expect(html).not.toContain('name="password"');
   });
 });
