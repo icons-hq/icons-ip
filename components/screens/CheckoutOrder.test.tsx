@@ -1,3 +1,4 @@
+import type { ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import type { CheckoutOrderSnapshot } from '@/lib/checkout.server';
@@ -14,6 +15,12 @@ vi.mock('next/navigation', () => ({
   useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }),
 }));
 vi.mock('@/app/checkout/reorder-actions', () => ({ restoreCanceledOrderToCartAction: vi.fn() }));
+/* 직전 목록 링크(목적지·문구 판정)는 ListingReturn.client.test 가 본다 — 여기서는 닫힌 주문이 그 링크를 쓰는지만 표식으로 본다. */
+vi.mock('@/components/shell/ListingReturn', () => ({
+  ListingReturnLink: ({ children, className }: { children?: ReactNode; className?: string }) => (
+    <a className={className} data-listing-return="">{children ?? '(직전 목록 문구)'}</a>
+  ),
+}));
 
 const order: CheckoutOrderSnapshot = {
   id: '7ad4c967-3d48-44da-a665-64731ac33f62',
@@ -266,6 +273,18 @@ describe('CheckoutOrder 닫힌 결제 안내', () => {
 
     expect(html).toContain('결제 가능 시간을 확인하고 있어요');
     expect(html).not.toContain('이 주문 취소하고 다시 주문하기');
+  });
+
+  /* l9-ui-2 · 10/14 S17 셋째 기준: 닫힌 주문의 둘러보기도 직전에 보던 굿즈 목록으로 간다. 표면을 말하지 않는 '굿즈 다시 담기'는 그 문구를 쓴다. */
+  it('닫힌 주문의 둘러보기는 직전 목록 링크로 간다', () => {
+    const card = renderToStaticMarkup(<CheckoutOrder order={{ ...order, status: 'canceled', expiresAt: null }} />);
+    const bank = renderToStaticMarkup(
+      <CheckoutOrder order={{ ...order, paymentMethod: 'bank_transfer', status: 'canceled', expiresAt: null }} />,
+    );
+
+    expect(card).toContain('<a class="btn btn-ghost" data-listing-return="">(직전 목록 문구)</a>');
+    expect(bank).toContain('<a class="btn btn-holo" data-listing-return="">굿즈 다시 담기</a>');
+    expect(card + bank).not.toContain('href="/shop"');
   });
 
   it('무통장 주문에는 카드 주문 정리 액션을 띄우지 않는다', () => {

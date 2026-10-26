@@ -21,6 +21,12 @@
     html:has(.wc-chrome .wc-header[data-condensed='false']),
     html:has(.wc-chrome .wc-header[data-condensed='true'] :is(.wc-header__bar, .wc-gnb-wrap) :focus-visible) { scroll-padding-top: 123px; }
   }
+  /* The same scrolling also stops above a bar fixed to the bottom of the viewport. The mobile cart pins its order bar there
+     (wc-catalog.css .wc-cart__cta-bar: 93 + safe area); 16 more keeps the focus ring clear of it, the same line the
+     inquiry launcher stands on. Without it a focused row under the bar counts as on screen and never scrolls. */
+  @media (max-width: 989px) {
+    html:has(.wc-cart__cta-bar) { scroll-padding-bottom: calc(109px + env(safe-area-inset-bottom)); }
+  }
   body {
     min-width: 320px;
     background: #fff;
