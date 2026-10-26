@@ -76,9 +76,10 @@ function ids(result: { goods: Good[] }) {
 }
 
 describe('정렬 상수', () => {
-  it('서버 페이지네이션 정렬 4종은 DB 화이트리스트와 같고 페이지 크기는 20이다', () => {
-    /* get_category_display_page 가 받는 값과 하나라도 어긋나면 카테고리 전시 페이지가 실패한다. */
-    expect(SHOP_SORTS).toEqual(['recommended', 'newest', 'price_asc', 'price_desc']);
+  it('서버 페이지네이션 정렬은 DB 화이트리스트(컬렉션과 같은 7종)와 같고 페이지 크기는 20이다', () => {
+    /* get_category_display_page 가 받는 값과 하나라도 어긋나면 카테고리 전시 페이지가 실패한다(L5 — 4종 → 7종). */
+    expect(SHOP_SORTS).toEqual(['recommended', 'name_asc', 'name_desc', 'price_asc', 'price_desc', 'oldest', 'newest']);
+    expect(SHOP_SORTS).toEqual(SHOP_VIEW_SORTS.all);
     expect(SHOP_PAGE_SIZE).toBe(20);
   });
 

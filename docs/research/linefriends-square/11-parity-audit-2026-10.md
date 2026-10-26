@@ -193,9 +193,9 @@ grid **2열 451px, gap 20(행)/18(열)**. 카드 451×141: 1px `#DCDEE0`, r2, p 
 | CH-02 | 이미지 스트립 페이지 타입별 노출·로테이션·집계 | 컬렉션에선 미노출, 무작위 1, 노출·클릭 집계 | 전 페이지 1개 — 결정적 정렬 + `.limit(1)`(`lib/notice-strip.server.ts`, `app/layout.tsx:123,134`), 배너 집계 경로 없음(분석은 페이지뷰만) | GAP-DATA | P2 | L8a ✅ #599 |
 | CH-03 | GNB·축약 헤더 하단 1px | `#F0F2F4` | 없음(`app/styles/wc-chrome.css:273`) | GAP-UI | P2 | L3 ✅ #587 |
 | CH-04 | 축약·해제 기준 | B1(>150 축약 / <64 해제) | 유틸바 아래 센티널(34px) 기준 축약, 맨 위에서만 해제(`Nav.tsx:47-77,157-158`, `wc-chrome.css:142-147`) | GAP-UI | P2 | L3 ✅ #587 |
-| CH-05 | 카테고리 메가메뉴 | 6그룹 + 세로 구분선, 실제 분류·기획전 링크 | 굿즈샵·수집·거래 3그룹, 실제 분류 없음(`lib/routes.ts:217-232`) | GAP-UI(+카테고리 공개 게이트) | P1 | L5 |
+| CH-05 | 카테고리 메가메뉴 | 6그룹 + 세로 구분선, 실제 분류·기획전 링크 | 굿즈샵·수집·거래 3그룹, 실제 분류 없음(`lib/routes.ts:217-232`) | GAP-UI(+카테고리 공개 게이트) | P1 | L5 ✅ #601 |
 | CH-06 | 메가메뉴 첫 링크 라벨 | — | '전체 굿즈'가 GNB 라벨로 덮어써짐(`lib/store-navigation.ts:48-56`) | DRIFT | P2 | L3 ✅ #587 |
-| CH-07 | 온라인 팝업(IP) 메가메뉴 | 목록 + 이미지 타일 2 + 전체보기 | 없음 | GAP-UI | P2 | L5 |
+| CH-07 | 온라인 팝업(IP) 메가메뉴 | 목록 + 이미지 타일 2 + 전체보기 | 없음 | GAP-UI | P2 | L5 ✅ #601 |
 | CH-08 | 검색 오버레이 위치·배경 | B5 | GNB 아래 열림, 전체 70% 딤, 흐림 없음(`wc-chrome.css:544-562`) | DRIFT(R-03 §2.1에 10% 명시) | P1 | L3 ✅ #587 |
 | CH-09 | 검색 오버레이 입력(데스크톱) | 1180×60 `#F6F8FA`, 돋보기 안쪽, 뒤로·제출 버튼 없음 | 뒤로 44 + 입력 1068×60 + 제출 44(`components/shell/SearchOverlay.tsx:34-50`) | GAP-UI | P2 | L3 ✅ #587 |
 | CH-10 | 추천 검색어 | '추천' 17/700 + 운영 칩 10 | '추천 검색어' 15/700 + 코드 상수 8(`lib/search-terms.ts:8-17`) | GAP-DATA | P2 | L8b |
@@ -214,7 +214,7 @@ grid **2열 451px, gap 20(행)/18(열)**. 카드 451×141: 1px `#DCDEE0`, r2, p 
 | MC-02 | 하단 탭바 스크롤 숨김 | B3 | 상시(`components/shell/BottomTabBar.tsx:15-56`) | 스펙 추종 | P2 | L3(LD-2) ✅ #587 |
 | MC-03 | 검색 오버레이 중 탭바 | 숨김 | 보임 | GAP-UI | P2 | L3 ✅ #587 |
 | MC-04 | 모바일 검색 칩 | 한 줄 가로 스크롤 | 여러 줄(112px) | GAP-UI | P2 | L3 ✅ #587 |
-| MC-05 | 카테고리 바텀시트 | ① 아이콘 바로가기(이미지 칸 60 `#F8F8F8` r10) ② 2×2 기획전 카드 슬라이드 + 점 ③ 탭 + 아이콘 12칸 | 메뉴 시트와 같은 텍스트 링크 2열(`components/shell/MenuSheet.tsx:45-68`) | GAP-UI·GAP-DATA(아이콘·카드 이미지) | P1 | L5 |
+| MC-05 | 카테고리 바텀시트 | ① 아이콘 바로가기(이미지 칸 60 `#F8F8F8` r10) ② 2×2 기획전 카드 슬라이드 + 점 ③ 탭 + 아이콘 12칸 | 메뉴 시트와 같은 텍스트 링크 2열(`components/shell/MenuSheet.tsx:45-68`) | GAP-UI·GAP-DATA(아이콘·카드 이미지) | P1 | L5 ✅ #601 |
 | MC-06 | MENU 탭 | 전용 메뉴 페이지 | 바텀시트 | INTENTIONAL(ADR-0011 전면 메뉴 폐기) | — | — |
 
 ### 8.3 홈·컬렉션·검색·온라인 팝업
@@ -229,8 +229,8 @@ grid **2열 451px, gap 20(행)/18(열)**. 카드 451×141: 1px `#DCDEE0`, r2, p 
 | HM-06 | 밴드 사이 1px 선 | Δ8 | 없음 | LFS-Δ | P2 | L4 ✅ #598 |
 | HM-07 | 혜택 타일 아이콘 | 아이콘 32 | 없음(`Home.tsx:222-231`) | DRIFT | P2 | L4 ✅ #598 |
 | HM-08 | 홈 모자이크 다크 면·리뷰 이벤트 다크 | — | `#141414`·`#222a35` 하드코딩(`app/styles/wc-product-mosaic.css:4,11`, `wc-review-events.css:1-16`) | DRIFT(DESIGN 위반) | P2 | L4 ✅ #598 |
-| CL-01 | **상품 카드 위시 하트** | 모든 카드 우상단 36 원형 | 없음(`components/wc/ProductCard.tsx:83` action 슬롯 미사용) | GAP-UI(#326 결정 번복) | P1 | L4(LD-4)·L4b 일부 #598·#600 — 카테고리 전시는 L5 |
-| CL-02 | 카드 별점 | 리뷰 있으면 표시 | 없음 | GAP-DATA(목록 리뷰 집계) | P2 | L4·L4b 일부 #598·#600 — 카테고리 전시는 L5 |
+| CL-01 | **상품 카드 위시 하트** | 모든 카드 우상단 36 원형 | 없음(`components/wc/ProductCard.tsx:83` action 슬롯 미사용) | GAP-UI(#326 결정 번복) | P1 | L4·L4b·L5(LD-4) ✅ #598·#600·#601 |
+| CL-02 | 카드 별점 | 리뷰 있으면 표시 | 없음 | GAP-DATA(목록 리뷰 집계) | P2 | L4·L4b·L5 ✅ #598·#600·#601 |
 | CL-03 | SALE 배지 | 흰 배경 + 색 테두리 | 색 배경(outline 변형 미사용 `components/wc/Badge.tsx:9-12`) | GAP-UI | P2 | L4 ✅ #598 |
 | CL-04 | 카드 설명 줄 | 없음 | 운영 설정 기본 ON으로 2줄(`lib/store-presentation.ts:11`) | 운영 설정 | P1 | LG-6(LD-7) |
 | CL-05 | 수량·정렬 줄 | 896×50, 상하 1px `#EBEDEE`, 14px | 896×44, 선 없음, 13px(`app/styles/wc-catalog.css:68-96`) | DRIFT | P2 | L4 ✅ #598 |
@@ -238,8 +238,8 @@ grid **2열 451px, gap 20(행)/18(열)**. 카드 451×141: 1px `#DCDEE0`, r2, p 
 | CL-07 | VIEW MORE | 896×48, 1px `#DCDEE0`, r5 | 1px 잉크, r2(`app/styles/wc-foundation.css:474-489`) | DRIFT | P2 | L4 ✅ #598 |
 | CL-08 | NEW 컬렉션 제목 | 없음 | 'NEW' + 부제 | DRIFT | P2 | L4 ✅ #598 |
 | CL-09 | 컬렉션 상단 배너 | BEST 1180×260, 전체 상품 1440×580 슬라이드 | 없음(텍스트 제목) | GAP-DATA | P1 | L8b |
-| CL-10 | 정렬 | 9종(추천·관련성·베스트셀러·이름 A–Z·Z–A·가격 2·출시 2) | 4종(추천·최신·가격 2, `lib/shop-catalog.ts:10-20`) | 이름순 2·오래된순은 GAP-UI(집계 불요), 베스트셀러는 GAP-DATA(판매 집계 일부 존재) | P2 | L4(LD-13) 일부 #598 — 컬렉션 7종, 카테고리 전시 정렬은 L5 |
-| CL-11 | PRE-ORDER 필터 값 | Δ6 | 타입 축 = `goods.type` | LFS-Δ | P2 | L4 일부 #598 — 카테고리 전시 타입 값은 L5 |
+| CL-10 | 정렬 | 9종(추천·관련성·베스트셀러·이름 A–Z·Z–A·가격 2·출시 2) | 4종(추천·최신·가격 2, `lib/shop-catalog.ts:10-20`) | 이름순 2·오래된순은 GAP-UI(집계 불요), 베스트셀러는 GAP-DATA(판매 집계 일부 존재) | P2 | L4·L5(LD-13) ✅ #598·#601 — 컬렉션·카테고리 전시 정렬 7종, 베스트셀러 보류 |
+| CL-11 | PRE-ORDER 필터 값 | Δ6 | 타입 축 = `goods.type` | LFS-Δ | P2 | L4·L5 ✅ #598·#601 |
 | SR-01 | **검색 결과 사이드바·정렬·수** | 카테고리 트리·브랜드·타입·가격, 관련성 정렬, '전체 › N개 결과' / 모바일 '필터 및 정렬' | 없음, 1180 4열(`components/screens/Search.tsx:123-208`) | DRIFT | P1 | L4 ✅ #598 |
 | SR-02 | 검색 제목·입력 배치 | 한 줄: 제목 24/400(검색어·건수 강조) + 입력 435×50 | 제목 굵게, 입력 다음 줄 382×60 | DRIFT | P2 | L4 ✅ #598 |
 | SR-03 | 페이저 | 모바일 5칸, 창 단위 점프 | 10칸 고정, ±1(`Search.tsx:24-99`) | GAP-UI | P2 | L4 ✅ #598 |
@@ -279,10 +279,10 @@ grid **2열 451px, gap 20(행)/18(열)**. 카드 451×141: 1px `#DCDEE0`, r2, p 
 
 | ID | 항목 | LFS | ICONS 현재(근거) | 분류 | P | 단계 |
 |---|---|---|---|---|---|---|
-| CT-01 | 요약 aside | `#F6F8FA` 360×436, 예상 총액 26px 강조, CTA 312×56 | 배경 없음, 총액 16/700(`app/styles/wc-catalog.css:2191-2236`) | GAP-UI | P1 | L9 |
-| CT-02 | 빈 상태 | 일러스트 146×178 + 16px + CTA 220×60 액센트 | 일러스트 없음, CTA 220×50 잉크(`components/screens/Cart.tsx:327-352`) | DRIFT(+일러스트 LG-7) | P1 | L9 |
-| CT-03 | 모바일 카트 크롬 | 서브헤더 + 하단 고정 CTA 343×60 | 전역 헤더·탭바, 인라인 CTA | GAP-UI | P1 | L9 |
-| CT-04 | 목록 | 상단 2px 잉크, 썸네일 64, 옵션 회색 밴드 | 1px, 100, 13px 텍스트, 출고지 그룹(유지) | GAP-UI | P2 | L9 |
+| CT-01 | 요약 aside | `#F6F8FA` 360×436, 예상 총액 26px 강조, CTA 312×56 | 배경 없음, 총액 16/700(`app/styles/wc-catalog.css:2191-2236`) | GAP-UI | P1 | L9 ✅ #603 |
+| CT-02 | 빈 상태 | 일러스트 146×178 + 16px + CTA 220×60 액센트 | 일러스트 없음, CTA 220×50 잉크(`components/screens/Cart.tsx:327-352`) | DRIFT(+일러스트 LG-7) | P1 | L9 ✅ #603 — 라인아트는 LG-7(#583) |
+| CT-03 | 모바일 카트 크롬 | 서브헤더 + 하단 고정 CTA 343×60 | 전역 헤더·탭바, 인라인 CTA | GAP-UI | P1 | L9 ✅ #603 |
+| CT-04 | 목록 | 상단 2px 잉크, 썸네일 64, 옵션 회색 밴드 | 1px, 100, 13px 텍스트, 출고지 그룹(유지) | GAP-UI | P2 | L9 ✅ #603 |
 | CT-05 | 배송 메모 | 카트 단계 프리셋 | 주문서 자유 입력(`components/screens/Checkout.tsx:351-353`) | 주문 생성 계약 | P2 | LD-8 |
 | CT-06 | 사은품 자동 증정 | B18 | 표시만 | GAP-DATA | P1 | LD-9 |
 | AU-01 | 소셜 버튼 마크 | 각 사 공식 마크 | 글자 G·K + Apple(`components/screens/Login.tsx:100-108`) | GAP-UI | P2 | L3 미적용 — 각 사 공식 마크 자산 확보 뒤 |
@@ -292,20 +292,20 @@ grid **2열 451px, gap 20(행)/18(열)**. 카드 451×141: 1px `#DCDEE0`, r2, p 
 
 | ID | 항목 | LFS(§5) | ICONS 현재(근거) | 분류 | P | 단계 |
 |---|---|---|---|---|---|---|
-| MY-01 | 좌측 메뉴 셸이 모든 하위 화면에 | §5.1 | 주문 목록·상세는 셸 밖 영수증 지면(`components/screens/Orders.tsx:172`, `OrderDetail.tsx:243`) | GAP-UI(10/14 S16) | P1 | L6 |
-| MY-02 | 대시보드 블록 | §5.2 ①~④ | `/my`는 메뉴 목록뿐(`components/screens/MyPage.tsx:23-58`) | GAP-UI(10/14 S16) | P1 | L6 |
-| MY-03 | 프로필 스트립 링크·좋아요 수 | 셀 링크·등급 '자세히 보기'·좋아요 수 타일 | 링크 없음 — "메뉴와 같은 목적지를 여기 또 두지 않는다(한 화면 한 링크 규율)"(`components/wc/MypageShell.tsx:126-127`) | INTENTIONAL(링크) / GAP-UI(위시 수 텍스트) | P2 | L6 |
-| MY-04 | 모바일 대시보드 | §5.2 모바일 | 없음 — 모바일은 메뉴 허브가 유일한 계정 내비(`MyPage.tsx:19-22`) | GAP-UI(10/14 S16 모바일 기준과 충돌 — LD-1a) | P1 | L6 |
-| MY-05 | 회원 등급 혜택 안내 | §5.5 | 없음. 등급 조건은 로그인 회원용 `get_my_loyalty_status()`가 이미 돌려준다(`supabase/migrations/20261020085208_admin_loyalty_policy.sql:195-208`, `lib/coupons.server.ts:97-115`). 빈 곳은 등급별 혜택: 등급 혜택 쿠폰은 RLS상 보유분만 보이고(`20260831090000_coupon_domain.sql:121-131`), 등급 적립률(`private.customer_reward_policy.grade_rates`)은 관리자 전용이다 | GAP-UI + 읽기 RPC | P1 | L6 |
-| MY-06 | 위시 그리드·담기 | §5.6(PRODUCT 탭, 5열, 플로팅 하트 제거) | 리스트 행 + 하트, 담기 버튼이 `listing.showCart`에 묶임(`components/screens/Wishlist.tsx:94,110-126`) | DRIFT(10/14 S14·S15) | P1 | L6 |
-| MY-07 | 팔로우한 IP 목록 | 위시 BRAND 탭·대시보드 블록 | `ip_follows` 보유, 화면 없음 | GAP-UI | P2 | L6 |
-| MY-08 | 주문 목록 상단 리뷰 보상 배너·배송과정 안내 | §5.3 | 없음. 리뷰 이벤트는 굿즈 대상별(`get_goods_review_events`)이고 `ReviewEventBanner`(`components/screens/MyReviews.tsx:76`)가 있다. 보상 명칭은 이벤트 기준(적립금 등) | GAP-UI | P2 | L6 |
-| MY-09 | 내 정보 수정 범위 | §5.7 | /settings: 아바타·이메일·닉네임·동의·탈퇴. 약관 링크·비밀번호 변경 진입 없음(`components/screens/Settings.tsx:37-226`) | GAP-UI | P2 | L6 |
+| MY-01 | 좌측 메뉴 셸이 모든 하위 화면에 | §5.1 | 주문 목록·상세는 셸 밖 영수증 지면(`components/screens/Orders.tsx:172`, `OrderDetail.tsx:243`) | GAP-UI(10/14 S16) | P1 | L6 ✅ #602 |
+| MY-02 | 대시보드 블록 | §5.2 ①~④ | `/my`는 메뉴 목록뿐(`components/screens/MyPage.tsx:23-58`) | GAP-UI(10/14 S16) | P1 | L6 ✅ #602 |
+| MY-03 | 프로필 스트립 링크·좋아요 수 | 셀 링크·등급 '자세히 보기'·좋아요 수 타일 | 링크 없음 — "메뉴와 같은 목적지를 여기 또 두지 않는다(한 화면 한 링크 규율)"(`components/wc/MypageShell.tsx:126-127`) | INTENTIONAL(링크) / GAP-UI(위시 수 텍스트) | P2 | L6 ✅ #602 |
+| MY-04 | 모바일 대시보드 | §5.2 모바일 | 없음 — 모바일은 메뉴 허브가 유일한 계정 내비(`MyPage.tsx:19-22`) | GAP-UI(10/14 S16 모바일 기준과 충돌 — LD-1a) | P1 | L6 ✅ #602 |
+| MY-05 | 회원 등급 혜택 안내 | §5.5 | 없음. 등급 조건은 로그인 회원용 `get_my_loyalty_status()`가 이미 돌려준다(`supabase/migrations/20261020085208_admin_loyalty_policy.sql:195-208`, `lib/coupons.server.ts:97-115`). 빈 곳은 등급별 혜택: 등급 혜택 쿠폰은 RLS상 보유분만 보이고(`20260831090000_coupon_domain.sql:121-131`), 등급 적립률(`private.customer_reward_policy.grade_rates`)은 관리자 전용이다 | GAP-UI + 읽기 RPC | P1 | L6 ✅ #602 |
+| MY-06 | 위시 그리드·담기 | §5.6(PRODUCT 탭, 5열, 플로팅 하트 제거) | 리스트 행 + 하트, 담기 버튼이 `listing.showCart`에 묶임(`components/screens/Wishlist.tsx:94,110-126`) | DRIFT(10/14 S14·S15) | P1 | L6 ✅ #602 |
+| MY-07 | 팔로우한 IP 목록 | 위시 BRAND 탭·대시보드 블록 | `ip_follows` 보유, 화면 없음 | GAP-UI | P2 | L6 ✅ #602 |
+| MY-08 | 주문 목록 상단 리뷰 보상 배너·배송과정 안내 | §5.3 | 없음. 리뷰 이벤트는 굿즈 대상별(`get_goods_review_events`)이고 `ReviewEventBanner`(`components/screens/MyReviews.tsx:76`)가 있다. 보상 명칭은 이벤트 기준(적립금 등) | GAP-UI | P2 | L6 ✅ #602 |
+| MY-09 | 내 정보 수정 범위 | §5.7 | /settings: 아바타·이메일·닉네임·동의·탈퇴. 약관 링크·비밀번호 변경 진입 없음(`components/screens/Settings.tsx:37-226`) | GAP-UI | P2 | L6 ✅ #602 |
 | MY-10 | 메일·SMS 수신 동의 분리 | §5.7 ③ | 마케팅 단일 토글 | GAP-DATA | P2 | 10/14 트랙(S4·D4·H4) |
 | MY-11 | **주소록(배송지 관리)** | §5.8 | 없음 — 주문서가 직전 주문 주소 1건을 미리 채움(`lib/checkout.server.ts:131-143`) | GAP-DATA(10/14 S6b·S3·S6a) | P1 | L7 |
-| MY-12 | 최근 본 굿즈 | 대시보드 ④(클라이언트 5개) | 관심 굿즈 선반이 계정별 localStorage(최대 30)에 기록하지만, 서버가 상세 경험 `interests` 스위치를 켰다고 답할 때만 기록·렌더한다(`ProductInterestShelf.tsx:41-42,58`, `lib/product-detail-experiences.server.ts:31`, `GoodDetail.tsx:425`) | 운영 스위치 의존 | P2 | L6(LD-16) |
-| MY-13 | 데스크톱 위시 진입 | 대시보드 좋아요 타일 | 헤더·유틸바에 없음(10/14 S14) | GAP-UI | P1 | L6 |
-| MY-14 | 쿠폰함 수치 | §5.4(2열 451, 카드 p 13/23, 안내 박스) | 2열 티켓형 보유(`components/screens/MyCoupons.tsx:18-87`) — 수치 대조 필요 | GAP-UI(수치) | P2 | L6 |
+| MY-12 | 최근 본 굿즈 | 대시보드 ④(클라이언트 5개) | 관심 굿즈 선반이 계정별 localStorage(최대 30)에 기록하지만, 서버가 상세 경험 `interests` 스위치를 켰다고 답할 때만 기록·렌더한다(`ProductInterestShelf.tsx:41-42,58`, `lib/product-detail-experiences.server.ts:31`, `GoodDetail.tsx:425`) | 운영 스위치 의존 | P2 | L6(LD-16) ✅ #602 |
+| MY-13 | 데스크톱 위시 진입 | 대시보드 좋아요 타일 | 헤더·유틸바에 없음(10/14 S14) | GAP-UI | P1 | L6 ✅ #602 |
+| MY-14 | 쿠폰함 수치 | §5.4(2열 451, 카드 p 13/23, 안내 박스) | 2열 티켓형 보유(`components/screens/MyCoupons.tsx:18-87`) — 수치 대조 필요 | GAP-UI(수치) | P2 | L6 ✅ #602 |
 
 ### 8.7 이벤트·정적
 

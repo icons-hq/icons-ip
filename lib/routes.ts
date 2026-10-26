@@ -102,6 +102,8 @@ const PATHS: Record<string, string> = {
   tickets: '/tickets',
   my: '/my',
   wish: '/my/wishlist',
+  /* 회원 등급 혜택 — 등급 기준·혜택 안내(L6 · MY-05). 무료 회원 등급이라 유료 v2 어휘를 경로·라벨에 쓰지 않는다(CONTEXT.md). */
+  gradeBenefits: '/my/grade-benefits',
   notifications: '/notifications',
   about: '/about',
   help: '/help',
@@ -230,7 +232,8 @@ export const FOOTER_COMMUNITY_STAFF_ITEMS: NavItem[] = [
   { id: 'community', label: '커뮤니티' },
 ];
 
-/* 카테고리 메가메뉴 — goods.type 표준화(S4) 전까지 실존 라우트 그룹만 노출한다. */
+/* 카테고리 메가메뉴의 기존 그룹 — 고객 카테고리 공개 스위치가 꺼졌거나 공개 전시분류가 없을 때의 폴백이다.
+   공개 전시 트리가 있으면 메가메뉴는 첫 그룹(굿즈샵)만 바로가기로 남기고 기획전·전시분류 그룹을 잇는다(L5, Nav.tsx). */
 export const CATEGORY_MEGA_GROUPS: NavGroup[] = [
   { heading: '굿즈샵', items: [
     { id: 'shop', label: '전체 굿즈' },
@@ -247,7 +250,23 @@ export const CATEGORY_MEGA_GROUPS: NavGroup[] = [
   ] },
 ];
 
-/* 모바일 전체 메뉴 시트 — 바텀바 '메뉴' 탭과 모바일 GNB '카테고리' 탭이 함께 연다. */
+/* 모바일 카테고리 시트의 아이콘 바로가기(레퍼런스 '스퀘어 픽' 자리, MC-05 ①) — 스토어 목적지만 둔다.
+   운영 메뉴 설정의 이름·노출·순서를 메가메뉴 링크와 같은 규칙으로 따른다(lib/store-navigation.ts configuredNavigationGroups). */
+export const CATEGORY_SHEET_SHORTCUTS: NavGroup = { heading: '바로가기', items: [
+  { id: 'shop', label: '전체 굿즈' },
+  { id: 'new', label: 'NEW' },
+  { id: 'best', label: 'BEST' },
+  { id: 'events', label: '이벤트' },
+  { id: 'stories', label: '쇼핑스토리' },
+] };
+
+/** 기획전(캠페인) 상세 주소 — 메가메뉴·카테고리 시트의 기획전 링크(이벤트 허브 카드와 같은 목적지). */
+export function campaignDetailHref(id: string): string {
+  return `/events/${encodeURIComponent(id)}`;
+}
+
+/* 모바일 전체 메뉴 시트 — 바텀바 '메뉴' 탭이 연다. 모바일 GNB '카테고리' 탭은 공개 전시 트리가 있으면 카테고리 시트를,
+   없으면(공개 스위치 OFF·전시 없음) 이 시트를 연다(L5 폴백). */
 export const MENU_SHEET_GROUPS: NavGroup[] = visibleGroups([
   { heading: '쇼핑', items: [
     { id: 'shop', label: '전체 굿즈' },

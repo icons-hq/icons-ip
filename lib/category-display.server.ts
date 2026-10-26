@@ -5,6 +5,7 @@ import { publicMediaUrl } from './media';
 import { toGood, type GoodRow } from './catalog';
 import { parseGoodsMediaAsset } from './goods-media';
 import { loadGoodsListingAppearance } from './goods-listing-appearance.server';
+import { loadGoodsReviewSummaries } from './goods-review-summary.server';
 import { isSafeInternalLink, isCommunityDestination, isCardRewardDestination } from './home-catalog';
 import { COMMUNITY_ENABLED } from './community-visibility';
 import { readCardRewardsEnabled } from './card-rewards/gate.server';
@@ -115,10 +116,14 @@ export async function loadCategoryDisplayPage(categoryId: string, query: ShopLis
   const page = parseCategoryDisplayPage(data, query); if (!page || page.category.id !== categoryId || page.offset !== offset) throw failure();
   return hydrateCategoryDisplayPage(page, client);
 }
-/** Public pages and the unsaved preview share presentation and destination gates. */
+/** Public pages and the unsaved preview share presentation and destination gates.
+ *  목록 카드 별점(CL-02)도 컬렉션과 같은 배치 RPC로 이 페이지(20개) 굿즈 몫만 읽는다 — 별점은 장식이라 실패하면 숨길 뿐 목록을 막지 않는다. */
 export async function hydrateCategoryDisplayPage(page: CategoryDisplayPage, client: SupabaseClient): Promise<CategoryDisplayPage> {
-  const [appearance, rewards] = await Promise.all([loadGoodsListingAppearance(client, page.result.goods.map(good => good.id)), readCardRewardsEnabled()]);
+  const ids = page.result.goods.map(good => good.id);
+  const [appearance, rewards, reviewSummaries] = await Promise.all([loadGoodsListingAppearance(client, ids), readCardRewardsEnabled(),
+    loadGoodsReviewSummaries(client, ids).catch(() => ({}))]);
   for (const good of page.result.goods) good.listingAppearance = appearance.get(good.id);
+  page.result.reviewSummaries = reviewSummaries;
   if (page.banner?.href && ((!COMMUNITY_ENABLED && isCommunityDestination(page.banner.href)) || (!rewards && isCardRewardDestination(page.banner.href)))) page.banner = null;
   return page;
 }

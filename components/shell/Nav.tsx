@@ -1,30 +1,50 @@
 'use client';
 
 import Link from 'next/link';
-import { Suspense, useEffect, useRef, useState, type FocusEvent, type KeyboardEvent, type RefObject } from 'react';
+import { Suspense, useEffect, useRef, useState, type FocusEvent, type KeyboardEvent, type ReactNode, type RefObject } from 'react';
 import { usePathname, useRouter, useSearchParams } from 'next/navigation';
 import { signOutAction } from '@/app/login/actions';
 import { EMPTY_SHELL_NOTICES, type ShellNotices as ShellNoticeData } from '@/lib/shell-notices';
 import {
   CATEGORY_MEGA_GROUPS,
+  CATEGORY_SHEET_SHORTCUTS,
   MEMBER_UTIL_ITEMS,
   UTIL_ITEMS,
   activeNavId,
+  campaignDetailHref,
   hrefFor,
   isActive,
   isStandaloneShellPath,
   type NavGroup,
+  type NavItem,
 } from '@/lib/routes';
+import {
+  EMPTY_STOREFRONT_MEGA_MENUS,
+  MEGA_MENU_CAMPAIGN_LIMIT,
+  MEGA_MENU_IP_TILE_COUNT,
+  categoryMenuGroups,
+  isCategoryMenuLive,
+  megaMenuLocation,
+  menuMonogram,
+  type CategoryMenuGroup,
+  type MegaMenuLocation,
+  type StorefrontMegaMenus,
+  type StorefrontMenuCampaign,
+  type StorefrontMenuIp,
+} from '@/lib/storefront-mega-menu';
 import { createClient } from '@/lib/supabase/client';
 import { Icon } from '@/components/ui/Icon';
 import { useAuthPresence } from './AuthPresenceProvider';
 import { BottomTabBar } from './BottomTabBar';
 import { useCardRewardsEnabled } from './CardRewardAvailability';
 import { useCart } from './CartProvider';
+import { CategorySheet } from './CategorySheet';
+import { ListingReturnRecorder } from './ListingReturn';
 import { nextHeaderCondensed, nextTabBarScroll, tabBarScrollAt } from './chrome-scroll';
 import { loginEntryHref } from './login-entry';
 import { MenuSheet } from './MenuSheet';
 import { loadUnreadNotificationCount, notificationNavigationKey } from './notification-count';
+import { OverlayPortal } from './OverlayPortal';
 import { SearchOverlay } from './SearchOverlay';
 import { ShellNotices } from './ShellNotices';
 import { StoreBrandLogo } from './StoreBranding';
@@ -34,8 +54,8 @@ import { storeThemeForeground } from '@/lib/store-presentation';
 import type { CSSProperties } from 'react';
 import { configuredNavigationGroups, DEFAULT_STOREFRONT_NAVIGATION, resolveStorefrontNavigation, type StorefrontNavigation } from '@/lib/store-navigation';
 
-/** 검색 오버레이와 전체 메뉴 시트는 동시에 열리지 않는다 — 하나의 상태로 다룬다. */
-type OverlayKind = 'none' | 'search' | 'sheet';
+/** 검색 오버레이·전체 메뉴 시트·카테고리 시트는 동시에 열리지 않는다 — 하나의 상태로 다룬다. */
+type OverlayKind = 'none' | 'search' | 'sheet' | 'category';
 
 /* 로그인 복귀 경로는 렌더 시점이 아니라 클릭 시점의 주소로 계산한다 — 그래서 값이 아니라 함수다.
    SSR 렌더 시점에는 window가 없고, 셸은 라우트 전환에도 살아남으므로 한 번 굳혀 두면
@@ -85,12 +105,22 @@ function useChromeScroll(utilbarRef: RefObject<HTMLElement | null>) {
   return { condensed, tabBarHidden };
 }
 
-export function Nav({ notices = EMPTY_SHELL_NOTICES, branding = DEFAULT_STOREFRONT_BRANDING, navigation = DEFAULT_STOREFRONT_NAVIGATION }: { notices?: ShellNoticeData; branding?: StorefrontBranding; navigation?: StorefrontNavigation }) {
+export function Nav({
+  notices = EMPTY_SHELL_NOTICES,
+  branding = DEFAULT_STOREFRONT_BRANDING,
+  navigation = DEFAULT_STOREFRONT_NAVIGATION,
+  megaMenus = EMPTY_STOREFRONT_MEGA_MENUS,
+}: {
+  notices?: ShellNoticeData;
+  branding?: StorefrontBranding;
+  navigation?: StorefrontNavigation;
+  megaMenus?: StorefrontMegaMenus;
+}) {
   const pathname = usePathname();
   const cardRewardsEnabled = useCardRewardsEnabled();
   // 게임은 자기완결 번들, 어드민은 자체 작업대, 초대·비밀번호 변경·정지 안내는 집중형 셸을 사용한다(로그인은 크롬 안).
   if (isStandaloneShellPath(pathname)) return null;
-  return <WcChrome cardRewardsEnabled={cardRewardsEnabled} notices={notices} pathname={pathname} branding={branding} navigation={navigation} />;
+  return <WcChrome cardRewardsEnabled={cardRewardsEnabled} notices={notices} pathname={pathname} branding={branding} navigation={navigation} megaMenus={megaMenus} />;
 }
 
 function WcChrome({
@@ -99,12 +129,14 @@ function WcChrome({
   pathname,
   branding,
   navigation,
+  megaMenus,
 }: {
   cardRewardsEnabled: boolean;
   notices: ShellNoticeData;
   pathname: string;
   branding: StorefrontBranding;
   navigation: StorefrontNavigation;
+  megaMenus: StorefrontMegaMenus;
 }) {
   const { count } = useCart();
   const { common } = useStorePresentation();
@@ -118,6 +150,7 @@ function WcChrome({
   }
   const searchOpen = overlay.pathname === pathname && overlay.kind === 'search';
   const sheetOpen = overlay.pathname === pathname && overlay.kind === 'sheet';
+  const categoryOpen = overlay.pathname === pathname && overlay.kind === 'category';
   const closeOverlay = () => setOverlay({ kind: 'none', pathname });
 
   const navItems = resolveStorefrontNavigation(navigation, cardRewardsEnabled);
@@ -125,10 +158,21 @@ function WcChrome({
      '/shop/new'에서 카테고리(/shop)와 NEW가 동시에 활성으로 보인다. */
   const activeId = activeNavId(pathname, navItems);
   const megaGroups = configuredNavigationGroups(CATEGORY_MEGA_GROUPS, navItems);
+  /* 공개 전시 트리가 있으면(고객 카테고리 공개 스위치 ON + 공개 전시 1개 이상) 카테고리 메가메뉴는 실제 분류·기획전을 싣고
+     모바일 '카테고리' 탭은 카테고리 시트를 연다. 없으면 지금 메뉴(굿즈샵·수집·거래)와 전체 메뉴 시트로 돌아간다(L5 폴백). */
+  const categoryLive = isCategoryMenuLive(megaMenus);
+  const shortcutGroup = configuredNavigationGroups([CATEGORY_MEGA_GROUPS[0]], navItems)[0] ?? null;
+  const sheetShortcuts = configuredNavigationGroups([CATEGORY_SHEET_SHORTCUTS], navItems)[0]?.items ?? [];
+  /* 시트의 이름·탭도 운영 메뉴 설정을 따른다 — GNB에서 숨긴 온라인 팝업은 시트 탭에서도 빠지고, 바꾼 이름은 그대로 쓴다. */
+  const shopLabel = navItems.find((item) => item.id === 'shop')?.label ?? '카테고리';
+  const onlinePopupItem = navItems.find((item) => item.id === 'iphub') ?? null;
 
   return (
     <div className="wc-root wc-chrome">
       <a className="wc-skip-link" href="#root">본문으로 건너뛰기</a>
+      {/* 굿즈 목록을 볼 때마다 빈 장바구니의 둘러보기 목적지(직전 목록)를 남긴다(CT-02). 아무것도 그리지 않고,
+          useSearchParams 를 쓰므로 Suspense 안에 둔다 — 밖으로 새면 라우트 전체가 CSR 로 떨어진다. */}
+      <Suspense fallback={null}><ListingReturnRecorder /></Suspense>
 
       {/* 텍스트 공지 바 + 이미지 스트립. 유틸바 위에 두면 축약 기준이 실제 공지 높이만큼 자동 보정된다(noticeOffsetAbove) —
           공지가 아직 보이는 동안에는 GNB가 접히지 않는다. 카드 리워드·커뮤니티 목적지 공지는 게이트가 꺼진 배포에서
@@ -182,17 +226,58 @@ function WcChrome({
         <div className="wc-gnb-wrap">
           <nav aria-label="주요 메뉴" className="wc-gnb">
             <ul className="wc-gnb__list">
-              {navItems.map((item) => (item.id === 'shop'
-                ? (
-                  <CategoryMegaItem
-                    key={item.id}
-                    active={activeId === 'shop'}
-                    groups={megaGroups}
-                    label={item.label}
-                    pathname={pathname}
-                  />
-                )
-                : (
+              {navItems.map((item) => {
+                if (item.id === 'shop') {
+                  return (
+                    <MegaMenuItem
+                      key={item.id}
+                      active={activeId === 'shop'}
+                      href={hrefFor('shop')}
+                      label={item.label}
+                      panelId="wc-mega-category"
+                      pathname={pathname}
+                    >
+                      {(close) => {
+                        const renderCategoryMega = (location: MegaMenuLocation) => (categoryLive
+                          ? (
+                            <CategoryMegaCatalog
+                              campaigns={megaMenus.campaigns.slice(0, MEGA_MENU_CAMPAIGN_LIMIT)}
+                              groups={categoryMenuGroups(megaMenus.categories)}
+                              location={location}
+                              onNavigate={close}
+                              pathname={pathname}
+                              shortcuts={shortcutGroup}
+                            />
+                          )
+                          : <CategoryMegaFallback groups={megaGroups} onNavigate={close} pathname={location.routePathname} />);
+                        /* 전시분류 페이지(/shop?displayCategory=)의 현재 위치는 쿼리로만 가려진다(리뷰 l5-ui-2). useSearchParams 는 정적
+                           페이지에서 가장 가까운 Suspense 경계까지 클라이언트 렌더로 떨어지므로 메가 내용만 경계로 감싼다 — 서버 HTML 의
+                           폴백은 쿼리를 모르는 같은 메가(/shop 에서는 바로가기 표시 없음)다. */
+                        return (
+                          <Suspense fallback={renderCategoryMega(megaMenuLocation(pathname, null))}>
+                            <MegaLocation pathname={pathname} render={renderCategoryMega} />
+                          </Suspense>
+                        );
+                      }}
+                    </MegaMenuItem>
+                  );
+                }
+                /* CH-07 — 온라인 팝업 메가메뉴는 디렉토리 피처드 IP가 있을 때만 연다. 없으면 지금처럼 디렉토리 링크다. */
+                if (item.id === 'iphub' && megaMenus.featuredIps.length > 0) {
+                  return (
+                    <MegaMenuItem
+                      key={item.id}
+                      active={activeId === 'iphub'}
+                      href={hrefFor('iphub')}
+                      label={item.label}
+                      panelId="wc-mega-online-popup"
+                      pathname={pathname}
+                    >
+                      {(close) => <OnlinePopupMega ips={megaMenus.featuredIps} label={item.label} onNavigate={close} pathname={pathname} />}
+                    </MegaMenuItem>
+                  );
+                }
+                return (
                   <li key={item.id} className="wc-gnb__item">
                     <Link
                       aria-current={activeId === item.id ? 'page' : undefined}
@@ -203,7 +288,8 @@ function WcChrome({
                       <span className="wc-gnb__label">{item.label}</span>
                     </Link>
                   </li>
-                )))}
+                );
+              })}
             </ul>
           </nav>
 
@@ -214,11 +300,12 @@ function WcChrome({
                   <li key={item.id}>
                     {item.id === 'shop'
                       ? (
+                        /* MC-05 — 공개 전시 트리가 있으면 카테고리 전용 시트, 없으면 지금 전체 메뉴 시트. */
                         <button
-                          aria-expanded={sheetOpen}
+                          aria-expanded={categoryLive ? categoryOpen : sheetOpen}
                           aria-haspopup="dialog"
                           className={`wc-mob-gnb__link${activeId === 'shop' ? ' is-active' : ''}`}
-                          onClick={() => setOverlay({ kind: 'sheet', pathname })}
+                          onClick={() => setOverlay({ kind: categoryLive ? 'category' : 'sheet', pathname })}
                           type="button"
                         >
                           {item.label}
@@ -244,6 +331,20 @@ function WcChrome({
       </header>
 
       <MenuSheet open={sheetOpen} onClose={closeOverlay} cardRewardsEnabled={cardRewardsEnabled} navigation={navigation} />
+      {/* 카테고리 시트는 body 직계 포털로 연다(호출부 포털 — 계약 §2-8). 열린 동안에만 마운트한다. */}
+      {categoryOpen ? (
+        <OverlayPortal>
+          <CategorySheet
+            campaigns={megaMenus.campaigns}
+            categoryLabel={shopLabel}
+            featuredIps={onlinePopupItem ? megaMenus.featuredIps : []}
+            nodes={megaMenus.categories}
+            onClose={closeOverlay}
+            onlinePopupLabel={onlinePopupItem?.label ?? '온라인 팝업'}
+            shortcuts={sheetShortcuts}
+          />
+        </OverlayPortal>
+      ) : null}
       {/* 검색 오버레이가 열려 있는 동안에도 탭바를 내린다(MC-03) — 딤 위에 탭바만 떠 있으면 모달 밖 조작처럼 보인다. */}
       <BottomTabBar
         hidden={searchOpen || tabBarScrolledAway}
@@ -254,21 +355,31 @@ function WcChrome({
   );
 }
 
-/* 카테고리 트리거는 링크이자 메가메뉴 트리거다. 포인터(hover)와 키보드(focus) 양쪽으로 열리고,
-   메가 마크업은 항상 DOM에 두고 data-open으로만 표시를 토글한다 — 크롤러와 스크린리더가 목차를 잃지 않게. */
-function CategoryMegaItem({
+/* 메가메뉴 트리거는 링크이자 메가메뉴 트리거다(카테고리·온라인 팝업). 포인터(hover)와 키보드(focus) 양쪽으로 열리고,
+   메가 마크업은 항상 DOM에 두고 data-open으로만 표시를 토글한다 — 크롤러와 스크린리더가 목차를 잃지 않게.
+   키보드: 트리거에 포커스가 오면 열리고 Tab 으로 패널 링크를 차례로 지난다. ↓ 는 패널 첫 링크로, Escape 는 패널을 닫고
+   트리거로 돌아간다 — 돌아온 포커스가 패널을 다시 열지 않으므로 다음 Tab 은 옆 GNB 항목으로 간다(레퍼런스는 키보드로
+   열리지 않는 결함, 11 §6 B4 — 재현하지 않는다). */
+function MegaMenuItem({
   active,
-  groups,
+  children,
+  href,
   label,
+  panelId,
   pathname,
 }: {
   active: boolean;
-  groups: NavGroup[];
+  children: (close: () => void) => ReactNode;
+  href: string;
   label: string;
+  panelId: string;
   pathname: string;
 }) {
   const liRef = useRef<HTMLLIElement>(null);
   const triggerRef = useRef<HTMLAnchorElement>(null);
+  const panelRef = useRef<HTMLDivElement>(null);
+  /* Escape 로 닫고 트리거에 되돌린 포커스가 focus 이벤트로 패널을 다시 여는 것을 막는다. 포커스가 항목을 떠나면 풀린다. */
+  const suppressFocusOpen = useRef(false);
   /* 셸은 라우트 전환에도 살아남는다 — 링크로 이동해도 포인터·포커스가 li 안에 남아
      mouseleave/blur가 안 올 수 있어, 경로가 바뀌면 렌더 중에 닫힌 상태로 리셋한다. */
   const [mega, setMega] = useState({ open: false, pathname });
@@ -277,21 +388,35 @@ function CategoryMegaItem({
   }
   const megaOpen = mega.open && mega.pathname === pathname;
   const setMegaOpen = (open: boolean) => setMega({ open, pathname });
-  /* 메가 링크의 현재 위치도 GNB와 같은 규칙(activeNavId)으로 하나만 고른다 — '/shop/new'에서 '전체 굿즈'와
-     NEW가 함께 켜지지 않고, 굿즈 상세에서는 아무 링크도 켜지 않는다(CH-12). */
-  const currentId = activeNavId(pathname, groups.flatMap((group) => group.items));
+  const close = () => setMegaOpen(false);
+
+  const onFocusCapture = () => {
+    if (!suppressFocusOpen.current) setMegaOpen(true);
+  };
 
   const onBlurCapture = (event: FocusEvent<HTMLLIElement>) => {
     // 포커스가 항목 안에서 옮겨 다니는 동안에는 닫지 않는다.
     if (liRef.current?.contains(event.relatedTarget)) return;
+    suppressFocusOpen.current = false;
     setMegaOpen(false);
   };
 
   const onKeyDown = (event: KeyboardEvent<HTMLLIElement>) => {
-    if (event.key !== 'Escape') return;
-    event.preventDefault();
-    setMegaOpen(false);
-    triggerRef.current?.focus();
+    if (event.key === 'Escape') {
+      if (!megaOpen) return;
+      event.preventDefault();
+      suppressFocusOpen.current = true;
+      setMegaOpen(false);
+      triggerRef.current?.focus();
+      return;
+    }
+    if (event.key === 'ArrowDown' && event.target === triggerRef.current) {
+      event.preventDefault();
+      suppressFocusOpen.current = false;
+      setMegaOpen(true);
+      /* 패널이 표시된 다음 프레임에 첫 링크로 옮긴다(닫힌 패널은 display:none 이라 바로는 포커스되지 않는다). */
+      window.requestAnimationFrame(() => panelRef.current?.querySelector<HTMLElement>('a[href]')?.focus());
+    }
   };
 
   return (
@@ -299,47 +424,217 @@ function CategoryMegaItem({
       ref={liRef}
       className="wc-gnb__item wc-gnb__item--mega"
       onBlurCapture={onBlurCapture}
-      onFocusCapture={() => setMegaOpen(true)}
+      onFocusCapture={onFocusCapture}
       onKeyDown={onKeyDown}
-      onMouseEnter={() => setMegaOpen(true)}
-      onMouseLeave={() => setMegaOpen(false)}
+      onMouseEnter={() => {
+        suppressFocusOpen.current = false;
+        setMegaOpen(true);
+      }}
+      onMouseLeave={close}
     >
       <Link
         ref={triggerRef}
-        aria-controls="wc-mega-category"
+        aria-controls={panelId}
         aria-current={active ? 'page' : undefined}
         aria-expanded={megaOpen}
         className={`wc-gnb__link${active ? ' is-active' : ''}`}
-        href={hrefFor('shop')}
+        href={href}
         title={label}
       >
         <span className="wc-gnb__label">{label}</span>
       </Link>
 
-      <div className="wc-mega" data-open={megaOpen ? 'true' : 'false'} id="wc-mega-category">
-        <ul className="wc-container wc-mega__list">
+      <div ref={panelRef} className="wc-mega" data-open={megaOpen ? 'true' : 'false'} id={panelId}>
+        {children(close)}
+      </div>
+    </li>
+  );
+}
+
+/* 메가메뉴의 현재 위치를 쿼리까지 읽어 고른다(전시분류 페이지 — 리뷰 l5-ui-2). 반드시 Suspense 안에서 쓴다. */
+function MegaLocation({ pathname, render }: { pathname: string; render: (location: MegaMenuLocation) => ReactNode }) {
+  const searchParams = useSearchParams();
+  return render(megaMenuLocation(pathname, searchParams));
+}
+
+/* 메가 링크의 현재 위치도 GNB와 같은 규칙(activeNavId)으로 하나만 고른다 — '/shop/new'에서 '전체 굿즈'와
+   NEW가 함께 켜지지 않고, 굿즈 상세에서는 아무 링크도 켜지 않는다(CH-12). */
+function MegaRouteLinks({ items, onNavigate, pathname }: { items: NavItem[]; onNavigate: () => void; pathname: string | null }) {
+  const currentId = pathname === null ? null : activeNavId(pathname, items);
+  return (
+    <ul className="wc-mega__links">
+      {items.map((item) => (
+        <li key={item.id}>
+          <Link
+            aria-current={currentId === item.id ? 'page' : undefined}
+            className="wc-mega__link"
+            href={hrefFor(item.id)}
+            onClick={onNavigate}
+          >
+            {item.label}
+          </Link>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/* 공개 전시 트리가 없을 때의 카테고리 메가메뉴 — 실존 라우트 그룹(굿즈샵·수집·거래). */
+function CategoryMegaFallback({ groups, onNavigate, pathname }: { groups: NavGroup[]; onNavigate: () => void; pathname: string | null }) {
+  const currentId = pathname === null ? null : activeNavId(pathname, groups.flatMap((group) => group.items));
+  return (
+    <ul className="wc-container wc-mega__list">
+      {groups.map((group) => (
+        <li key={group.heading} className="wc-mega__group">
+          <p className="wc-mega__heading">{group.heading}</p>
+          <ul className="wc-mega__links">
+            {group.items.map((item) => (
+              <li key={item.id}>
+                <Link
+                  aria-current={currentId === item.id ? 'page' : undefined}
+                  className="wc-mega__link"
+                  href={hrefFor(item.id)}
+                  onClick={onNavigate}
+                >
+                  {item.label}
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/* CH-05 — 카테고리 메가메뉴(R-01 §4.1 메가메뉴 A): [굿즈샵 바로가기][기획전] | 세로선 | 공개 전시분류 그룹.
+   기획전은 진행 중 캠페인이고(정적 배열 금지 — DESIGN §0) 없으면 칸째 빠진다. 전시분류 그룹 제목은 자기 전시가 있으면 링크다. */
+function CategoryMegaCatalog({
+  campaigns,
+  groups,
+  location,
+  onNavigate,
+  pathname,
+  shortcuts,
+}: {
+  campaigns: StorefrontMenuCampaign[];
+  groups: CategoryMenuGroup[];
+  location: MegaMenuLocation;
+  onNavigate: () => void;
+  pathname: string;
+  shortcuts: NavGroup | null;
+}) {
+  /* 현재 위치는 메가 전체에서 하나다: 기획전 상세는 경로로, 전시분류는 쿼리(location)로, 바로가기는 그 밖일 때만 고른다. */
+  const currentDisplay = (id: string) => (location.displayCategoryId === id ? 'page' as const : undefined);
+  return (
+    <ul className={`wc-container wc-mega__list wc-mega__list--catalog${campaigns.length ? '' : ' wc-mega__list--compact'}`}>
+      {shortcuts ? (
+        <li className="wc-mega__group">
+          <p className="wc-mega__heading">{shortcuts.heading}</p>
+          <MegaRouteLinks items={shortcuts.items} onNavigate={onNavigate} pathname={location.routePathname} />
+        </li>
+      ) : null}
+      {campaigns.length ? (
+        <li className="wc-mega__group">
+          <p className="wc-mega__heading">기획전</p>
+          <ul className="wc-mega__links">
+            {campaigns.map((campaign) => (
+              <li key={campaign.id}>
+                {/* 캠페인 제목은 120자까지 온다(DB 상한) — 칸 180 에서 2줄로 자르고, 전체 제목은 글자(접근 이름)와 title 로 남긴다.
+                    자르기는 안쪽 글자 상자가 한다: 링크의 위아래 여백(7)에 걸면 overflow 가 여백 끝에서 잘려 3번째 줄 윗부분이 비친다. */}
+                <Link
+                  aria-current={pathname === campaignDetailHref(campaign.id) ? 'page' : undefined}
+                  className="wc-mega__link"
+                  href={campaignDetailHref(campaign.id)}
+                  onClick={onNavigate}
+                  title={campaign.title}
+                >
+                  <span className="wc-mega__link-clamp">{campaign.title}</span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </li>
+      ) : null}
+      <li className="wc-mega__catalog">
+        <ul className="wc-mega__catalog-groups">
           {groups.map((group) => (
-            <li key={group.heading} className="wc-mega__group">
-              <p className="wc-mega__heading">{group.heading}</p>
-              <ul className="wc-mega__links">
-                {group.items.map((item) => (
-                  <li key={item.id}>
-                    <Link
-                      aria-current={currentId === item.id ? 'page' : undefined}
-                      className="wc-mega__link"
-                      href={hrefFor(item.id)}
-                      onClick={() => setMegaOpen(false)}
-                    >
-                      {item.label}
-                    </Link>
-                  </li>
-                ))}
-              </ul>
+            <li key={group.id} className="wc-mega__group">
+              {group.href
+                ? <Link aria-current={currentDisplay(group.id)} className="wc-mega__heading wc-mega__heading-link" href={group.href} onClick={onNavigate}>{group.name}</Link>
+                : <p className="wc-mega__heading">{group.name}</p>}
+              {group.items.length ? (
+                <ul className="wc-mega__links">
+                  {group.items.map((item) => (
+                    <li key={item.id}>
+                      {item.href
+                        ? (
+                          <Link
+                            aria-current={currentDisplay(item.id)}
+                            className={`wc-mega__link${item.depth > 2 ? ' wc-mega__link--nested' : ''}`}
+                            href={item.href}
+                            onClick={onNavigate}
+                          >
+                            {item.name}
+                          </Link>
+                        )
+                        : <span className={`wc-mega__label${item.depth > 2 ? ' wc-mega__link--nested' : ''}`}>{item.name}</span>}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
             </li>
           ))}
         </ul>
-      </div>
-    </li>
+      </li>
+    </ul>
+  );
+}
+
+/* CH-07 — 온라인 팝업 메가메뉴(R-01 §4.1 메가메뉴 B·C): 1열 디렉토리 피처드 IP 목록, 4열부터 '전체보기' + 피처드 상위 2개 이미지 타일.
+   이미지가 없는 IP 타일은 이름 첫 글자로 선다. */
+function OnlinePopupMega({ ips, label, onNavigate, pathname }: { ips: StorefrontMenuIp[]; label: string; onNavigate: () => void; pathname: string }) {
+  const directoryHref = hrefFor('iphub');
+  return (
+    <ul className="wc-container wc-mega__list wc-mega__list--ip">
+      <li className="wc-mega__group">
+        <p className="wc-mega__heading">추천 IP</p>
+        <ul className="wc-mega__links">
+          {ips.map((ip) => (
+            <li key={ip.id}>
+              <Link aria-current={pathname === ip.href ? 'page' : undefined} className="wc-mega__link" href={ip.href} onClick={onNavigate}>{ip.name}</Link>
+            </li>
+          ))}
+        </ul>
+      </li>
+      <li className="wc-mega__group wc-mega__group--tiles">
+        <Link
+          aria-current={pathname === directoryHref ? 'page' : undefined}
+          aria-label={`${label} 전체보기`}
+          className="wc-mega__heading wc-mega__heading-link"
+          href={directoryHref}
+          onClick={onNavigate}
+        >
+          전체보기
+        </Link>
+        <ul className="wc-mega__tiles">
+          {ips.slice(0, MEGA_MENU_IP_TILE_COUNT).map((ip) => (
+            <li key={ip.id}>
+              <Link className="wc-mega__tile" href={ip.href} onClick={onNavigate}>
+                <span
+                  aria-hidden
+                  className={`wc-mega__tile-image${ip.imageBg ? '' : ' wc-mega__tile-image--text'}`}
+                  style={ip.imageBg ? { background: ip.imageBg } : undefined}
+                >
+                  {ip.imageBg ? null : menuMonogram(ip.name)}
+                </span>
+                <span className="wc-mega__tile-name">{ip.name}</span>
+              </Link>
+            </li>
+          ))}
+        </ul>
+      </li>
+    </ul>
   );
 }
 

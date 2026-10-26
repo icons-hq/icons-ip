@@ -222,6 +222,7 @@ run_sql_test supabase/tests/admin_goods_server_drafts.sql
 run_sql_test supabase/tests/admin_inquiry_reply_template_management.sql
 run_sql_test supabase/tests/home_product_mosaic.sql
 run_sql_test supabase/tests/admin_loyalty_policy.sql
+run_sql_test supabase/tests/loyalty_grade_benefits.sql
 run_sql_test supabase/tests/goods_dynamic_attributes.sql
 run_sql_test supabase/tests/goods_three_axis_options.sql
 bash supabase/tests/goods_photo_library_concurrency.sh "$db_container" postgres

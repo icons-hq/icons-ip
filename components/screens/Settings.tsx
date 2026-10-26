@@ -7,17 +7,21 @@ import {
   useState,
   type FormEvent,
 } from 'react';
+import { requestPasswordResetAction, type AuthActionState } from '@/app/login/actions';
 import {
   updateMarketingConsentAction,
   updateProfileAction,
   type SettingsActionState,
 } from '@/app/settings/actions';
+import Link from 'next/link';
 import { AccountDeletionPanel } from '@/components/account/AccountDeletionPanel';
 import { MemberActivityConsent } from '@/components/account/MemberActivityConsent';
 import { CustomerDemographicConsent } from '@/components/account/CustomerDemographicConsent';
+import { Icon } from '@/components/ui/Icon';
 import { MypageShell } from '@/components/wc/MypageShell';
 import { WcButton } from '@/components/wc/WcButton';
 import type { AccountDeletionPresentation } from '@/lib/account-deletion';
+import { LEGAL_DOCUMENT_LABELS, legalDocumentHref } from '@/lib/legal/links';
 import { PROFILE_IMAGE_ACCEPT } from '@/lib/profile';
 import { uploadProfileAvatar } from '@/lib/profile-upload.client';
 
@@ -33,6 +37,7 @@ interface SettingsProps {
 }
 
 const emptyState: SettingsActionState = {};
+const emptyResetState: AuthActionState = {};
 
 /* 필수 동의(이용약관·개인정보)는 변경 불가 — 동의 완료 상태만 읽기 전용으로 표시 */
 function RequiredConsentRow({ label }: { label: string }) {
@@ -44,6 +49,71 @@ function RequiredConsentRow({ label }: { label: string }) {
       </span>
       <span className="wc-settings__consent-state">동의 완료</span>
     </div>
+  );
+}
+
+/* 설정에서 나가는 링크 행(11 §5.7 ④ 약관 및 정책 — 16/700 + ›). */
+function SettingsLinkRow({ href, label, hint }: { href: string; label: string; hint?: string }) {
+  return (
+    <li>
+      <Link className="wc-settings__link-row" href={href}>
+        <span>
+          <strong>{label}</strong>
+          {hint ? <span className="wc-settings__link-hint">{hint}</span> : null}
+        </span>
+        <span aria-hidden className="wc-settings__link-arrow"><Icon name="chevronRight" size={18} /></span>
+      </Link>
+    </li>
+  );
+}
+
+/*
+ * 비밀번호 변경 진입(MY-09). 로그인 세션만으로 비밀번호를 바꾸는 화면을 열지 않는다 — 세션을 가진 사람이
+ * 현재 비밀번호 없이 비밀번호를 바꾸고 소유자를 모든 기기에서 로그아웃시킬 수 있기 때문이다(L6 리뷰 l6-data-2).
+ * 대신 로그인 화면의 '비밀번호 재설정'과 같은 서버 액션으로 계정 이메일에 재설정 링크를 보낸다. 링크(recovery
+ * 콜백)를 연 사람만 새 비밀번호를 저장할 수 있어 메일함 소유가 재인증이 되고, 저장 뒤 설정으로 돌아온다.
+ *
+ * 보내는 동안은 disabled 대신 aria-disabled 로 두고 onSubmit 에서 다시 보내기를 막는다 — 포커스된 버튼이
+ * disabled 가 되면 브라우저가 포커스를 body 로 떨궈, 키보드로 보낸 사람이 결과 행에서 이어가지 못한다(L6 QA
+ * l6-qa-2). 계정 이메일·Supabase 설정이 없을 때는 처음부터 누를 수 없으니 그대로 disabled 다.
+ */
+export function PasswordResetRow({ email, isConfigured }: { email: string; isConfigured: boolean }) {
+  const [state, action, pending] = useActionState(requestPasswordResetAction, emptyResetState);
+  const error = state.errors?.form ?? state.errors?.email;
+
+  return (
+    <li>
+      <form
+        action={action}
+        className="wc-settings__reset-form"
+        onSubmit={(event) => {
+          /* 기본 동작을 막으면 React 가 폼 action 을 부르지 않는다 — 보내는 중의 두 번째 제출은 메일을 또 보내지 않는다. */
+          if (pending) event.preventDefault();
+        }}
+      >
+        <input name="email" type="hidden" value={email} />
+        <input name="next" type="hidden" value="/settings" />
+        <button
+          className="wc-settings__link-row"
+          aria-busy={pending || undefined}
+          aria-disabled={pending ? 'true' : undefined}
+          disabled={!isConfigured || !email}
+          type="submit"
+        >
+          <span>
+            <strong>비밀번호 변경</strong>
+            <span className="wc-settings__link-hint">
+              가입한 이메일로 재설정 링크를 보내요. 링크에서 새 비밀번호를 저장하면 모든 기기에서 로그아웃되고 새 비밀번호로 다시 로그인해요.
+            </span>
+          </span>
+          <span className="wc-settings__link-action">{pending ? '보내는 중' : '메일 받기'}</span>
+        </button>
+      </form>
+      <div aria-label="비밀번호 재설정 메일 상태" aria-live="polite" role="group">
+        {error ? <div className="wc-auth__alert" role="alert">{error}</div> : null}
+        {!error && state.message ? <div className="wc-auth__status" role="status">{state.message}</div> : null}
+      </div>
+    </li>
   );
 }
 
@@ -215,6 +285,23 @@ export function Settings({
           필수 동의는 서비스 이용을 위해 유지돼요 · 마케팅 수신 동의는 언제든 변경할 수 있어요
         </p>
       </form>
+
+      {/* 로그인 정보 — 비밀번호 변경은 계정 이메일로 보내는 재설정 링크로만 들어간다(PasswordResetRow).
+          저장하면 모든 기기에서 로그아웃되므로 보내기 전에 미리 알린다. */}
+      <section aria-labelledby="settings-login-heading" className="wc-settings__links">
+        <h2 className="wc-mypage__subtitle" id="settings-login-heading">로그인 정보</h2>
+        <ul>
+          <PasswordResetRow email={email} isConfigured={isConfigured} />
+        </ul>
+      </section>
+
+      <section aria-labelledby="settings-policy-heading" className="wc-settings__links">
+        <h2 className="wc-mypage__subtitle" id="settings-policy-heading">약관 및 정책</h2>
+        <ul>
+          <SettingsLinkRow href={legalDocumentHref('terms')} label={LEGAL_DOCUMENT_LABELS.terms} />
+          <SettingsLinkRow href={legalDocumentHref('privacy')} label={LEGAL_DOCUMENT_LABELS.privacy} />
+        </ul>
+      </section>
 
       <div className="wc-settings__danger">
         <AccountDeletionPanel

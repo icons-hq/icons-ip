@@ -472,10 +472,11 @@ export async function requestPasswordResetAction(
     return { errors: { form: '비밀번호 재설정 요청이 너무 많습니다. 10분 후 다시 시도해주세요.' } };
   }
 
+  // 로그인 화면과 설정 화면이 같은 action을 쓰므로 어느 쪽에서 보내도 같은 쿠키를 읽고 쓴다.
   cookieStore.set(AUTH_PASSWORD_RESET_COOKIE_NAME, attempt.cookieValue, {
     httpOnly: true,
     maxAge: AUTH_PASSWORD_RESET_COOKIE_MAX_AGE_SECONDS,
-    path: '/login',
+    path: '/',
     sameSite: 'lax',
     secure: origin.startsWith('https://'),
   });

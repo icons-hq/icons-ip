@@ -13,7 +13,8 @@ import { useCart } from './CartProvider';
 import { loginEntryHref } from './login-entry';
 import { useOverlayA11y } from './useOverlayA11y';
 
-/* 모바일 전체 메뉴 시트. 바텀바의 '메뉴' 탭과 모바일 GNB의 '카테고리' 탭이 같은 시트를 연다.
+/* 모바일 전체 메뉴 시트. 바텀바의 '메뉴' 탭이 연다. 모바일 GNB의 '카테고리' 탭은 공개 전시 트리가 있으면
+   카테고리 전용 시트(CategorySheet)를, 없으면(고객 카테고리 공개 스위치 OFF·공개 전시 없음) 이 시트를 연다(L5 폴백).
    스토어 그룹은 GNB와 같은 설정 순서, 내 활동/거래는 routes.ts의 고정 그룹을 사용한다. */
 export function MenuSheet({
   open,

@@ -3,6 +3,7 @@ import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   CATEGORY_MEGA_GROUPS,
+  CATEGORY_SHEET_SHORTCUTS,
   FOOTER_ACCOUNT_ITEMS,
   FOOTER_DEMO_ITEMS,
   FOOTER_DISCOVER_ITEMS,
@@ -179,7 +180,7 @@ describe('내비게이션 경로 등록 계약', () => {
 describe('푸터·메뉴 경로 등록 계약', () => {
   /* GNB와 같은 함정을 공유한다 — 미등록 id 하나가 '/'로 폴백해 항목 전체가 홈 링크로 둔갑한다.
      푸터·메가메뉴·시트는 링크만 있고 활성 표시가 없어 눈으로는 더 안 보인다. */
-  const groupedItems = [...CATEGORY_MEGA_GROUPS, ...MENU_SHEET_GROUPS].flatMap((group) => group.items);
+  const groupedItems = [...CATEGORY_MEGA_GROUPS, ...MENU_SHEET_GROUPS, CATEGORY_SHEET_SHORTCUTS].flatMap((group) => group.items);
   const routedItems = [
     ...FOOTER_PRIMARY_ITEMS,
     ...FOOTER_DISCOVER_ITEMS,
@@ -199,7 +200,7 @@ describe('푸터·메뉴 경로 등록 계약', () => {
   );
 
   it('그룹은 제목과 항목을 비우지 않는다', () => {
-    for (const group of [...CATEGORY_MEGA_GROUPS, ...MENU_SHEET_GROUPS]) {
+    for (const group of [...CATEGORY_MEGA_GROUPS, ...MENU_SHEET_GROUPS, CATEGORY_SHEET_SHORTCUTS]) {
       expect(group.heading.length).toBeGreaterThan(0);
       expect(group.items.length).toBeGreaterThan(0);
     }

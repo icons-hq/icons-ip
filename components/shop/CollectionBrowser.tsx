@@ -341,7 +341,7 @@ export function CollectionBrowser({
                 {visibleGoods.map((good) => (
                   <ProductCard
                     key={good.id}
-                    action={wishlist ? (
+                    action={wishlist && !good.masked ? (
                       <ListingWishHeart goodId={good.id} initialWished={wished.has(good.id)} label={good.name} viewerId={wishlist.viewerId} />
                     ) : undefined}
                     listSurface={listSurface} listingAppearance={good.listingAppearance} cartGood={good}
