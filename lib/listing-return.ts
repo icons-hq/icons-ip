@@ -1,5 +1,6 @@
 /*
- * 직전에 보던 굿즈 목록 — 빈 장바구니의 둘러보기 버튼이 돌아갈 곳(LFS 패리티 2차 L9 CT-02 · 10/14 S17 셋째 기준).
+ * 직전에 보던 굿즈 목록 — 빈 상태의 둘러보기 버튼이 돌아갈 곳(LFS 패리티 2차 L9 CT-02 · 10/14 S17 셋째 기준).
+ * 빈 장바구니, 주문 목록의 빈 상태·결제 실패 안내, 닫힌 주문 결제 화면이 같은 규칙을 쓴다(ListingReturnLink).
  *
  * 셸(components/shell/ListingReturn.tsx)이 굿즈 목록 화면을 실제로 그린 뒤 그 주소를 탭 세션 저장소에 남기고,
  * 빈 장바구니가 그 값을 읽는다. 남기는 것은 그 목록의 상태(필터·정렬·검색어·페이지)뿐이다 — 화면마다 URL 이 담는
@@ -82,6 +83,18 @@ export function listingReturnHref(stored: string | null | undefined): string {
   /* `/\evil.example`·`/\t/evil.example` 같은 값은 해석하면 다른 호스트가 된다 — 출처로 걸러 낸다. */
   if (url.origin !== RESOLVE_BASE) return LISTING_RETURN_FALLBACK;
   return listingReturnEntry(url.pathname, url.searchParams) ?? LISTING_RETURN_FALLBACK;
+}
+
+/**
+ * 둘러보기 버튼 문구 — 목적지 표면을 그대로 말한다('{표면} 둘러보기', WCAG 2.4.4 링크 목적). 표면 이름은 CONTEXT.md 를 따른다:
+ * 굿즈샵·NEW·BEST = 굿즈샵, IP관 = 온라인 팝업(UI 표기), 검색 결과 = 검색 결과. 주소와 같은 값(listingReturnHref 결과)에서
+ * 나오므로 서버 렌더(굿즈샵)든 하이드레이션 뒤(직전 목록)든 문구와 목적지가 어긋나지 않는다.
+ */
+export function listingReturnLabel(href: string): string {
+  const pathname = href.split(/[?#]/, 1)[0];
+  if (pathname === '/search') return '검색 결과 둘러보기';
+  if (pathname.startsWith('/ip/')) return '온라인 팝업 둘러보기';
+  return '굿즈샵 둘러보기';
 }
 
 /**

@@ -11,6 +11,7 @@ import {
   type PrepareGoodsPaymentActionState,
 } from '@/app/checkout/actions';
 import { ReorderAction } from '@/components/checkout/ReorderAction';
+import { ListingReturnLink } from '@/components/shell/ListingReturn';
 import { PreparedCheckoutAction } from '@/components/payments/PreparedCheckoutAction';
 import {
   checkoutOrderState,
@@ -318,9 +319,9 @@ export function CheckoutOrder({
                 />
               )}
               {state === 'closed' && !order.giftId && (
-                <Link className={reorderMode ? 'btn btn-ghost' : 'btn btn-holo'} href="/shop">
-                  {reorderMode ? '굿즈샵 둘러보기' : '굿즈 다시 담기'}
-                </Link>
+                <ListingReturnLink className={reorderMode ? 'btn btn-ghost' : 'btn btn-holo'}>
+                  {reorderMode ? undefined : '굿즈 다시 담기'}
+                </ListingReturnLink>
               )}
               {state === 'closed' && !isBankTransfer && (
                 <Link className="btn btn-ghost" href={`/orders/${order.id}`}>주문 상세 보기</Link>

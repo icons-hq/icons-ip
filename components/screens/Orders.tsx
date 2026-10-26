@@ -5,6 +5,7 @@ import {
   type CheckoutPaymentResultFocus,
 } from '@/lib/checkout';
 import { krw } from '@/lib/format';
+import { ListingReturnLink } from '@/components/shell/ListingReturn';
 import {
   formatOrderDate,
   orderReferenceLabel,
@@ -27,7 +28,7 @@ interface BannerCopy {
   readonly tone: BannerTone;
   readonly title: string;
   readonly body: string;
-  readonly link?: BannerLink;
+  readonly link?: BannerLink | 'listing-return';
   /** 결제가 잡혔을 수 있는 상태에서만 고객센터 안내를 붙인다. */
   readonly inquiry?: boolean;
 }
@@ -53,7 +54,7 @@ const QUERY_BANNERS: Record<OrdersPaymentResult, BannerCopy> = {
     tone: 'failed',
     title: '결제가 완료되지 않았어요',
     body: '결제가 승인되지 않았습니다. 결제 대기 주문이 있다면 아래 목록에서 결제를 이어가거나 주문을 정리할 수 있어요.',
-    link: { href: '/shop', label: '굿즈샵 둘러보기' },
+    link: 'listing-return',
   },
 };
 
@@ -188,7 +189,7 @@ export function Orders({
               <p>{banner.body}</p>
               {banner.link && (
                 <p>
-                  <Link href={banner.link.href}>{banner.link.label}</Link>
+                  {banner.link === 'listing-return' ? <ListingReturnLink /> : <Link href={banner.link.href}>{banner.link.label}</Link>}
                 </p>
               )}
               {banner.inquiry && (
@@ -210,7 +211,7 @@ export function Orders({
               <div className="orders-empty-icon" aria-hidden><Icon name="bag" size={30} /></div>
               <h2>아직 주문 내역이 없어요</h2>
               <p>굿즈샵에서 첫 굿즈를 만나보세요.</p>
-              <Link className="btn btn-holo" href="/shop">굿즈샵 둘러보기</Link>
+              <ListingReturnLink className="btn btn-holo" />
             </div>
           ) : (
             <ol className="orders-list">

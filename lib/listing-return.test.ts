@@ -8,6 +8,7 @@ import {
   isListingReturnPath,
   listingReturnEntry,
   listingReturnHref,
+  listingReturnLabel,
   listingStateKeys,
   readListingReturnHref,
   rememberListingReturnEntry,
@@ -176,6 +177,28 @@ describe('돌아갈 주소 판정', () => {
   it('이전 판에 남은 값의 결과 플래그도 읽을 때 걸러 내 재생하지 않는다', () => {
     expect(listingReturnHref('/ip/hong-sil-quest?notification_saved=1')).toBe('/ip/hong-sil-quest');
     expect(listingReturnHref('/ip/hong-sil-quest?follow_error=1&type=a')).toBe('/ip/hong-sil-quest?type=a');
+  });
+});
+
+/* l9-ui-3: 둘러보기의 목적지가 직전 목록으로 바뀌므로 문구도 그 목적지 표면을 말해야 한다(WCAG 2.4.4 · CONTEXT.md). */
+describe('둘러보기 문구', () => {
+  it('목적지 표면을 말한다 — 굿즈샵·NEW·BEST = 굿즈샵, IP관 = 온라인 팝업, 검색 결과 = 검색 결과', () => {
+    expect(listingReturnLabel('/shop')).toBe('굿즈샵 둘러보기');
+    expect(listingReturnLabel('/shop?displayCategory=d1&type=a')).toBe('굿즈샵 둘러보기');
+    expect(listingReturnLabel('/shop/new?sort=price_asc')).toBe('굿즈샵 둘러보기');
+    expect(listingReturnLabel('/shop/best')).toBe('굿즈샵 둘러보기');
+    expect(listingReturnLabel('/ip/maplestory')).toBe('온라인 팝업 둘러보기');
+    expect(listingReturnLabel('/ip/maplestory?type=a')).toBe('온라인 팝업 둘러보기');
+    expect(listingReturnLabel('/search?q=%ED%82%A4%EB%A7%81')).toBe('검색 결과 둘러보기');
+  });
+
+  it('판정한 목적지와 같은 값에서 문구를 고른다 — 거절된 저장값은 굿즈샵 주소와 굿즈샵 문구', () => {
+    for (const stored of [null, 'https://evil.example/ip/x', '//evil.example/search?q=a', '/my', '/search']) {
+      const href = listingReturnHref(stored);
+      expect([href, listingReturnLabel(href)]).toEqual(['/shop', '굿즈샵 둘러보기']);
+    }
+    const ip = listingReturnHref('/ip/hong-sil-quest?notification_saved=1');
+    expect([ip, listingReturnLabel(ip)]).toEqual(['/ip/hong-sil-quest', '온라인 팝업 둘러보기']);
   });
 });
 

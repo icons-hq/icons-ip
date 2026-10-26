@@ -42,7 +42,8 @@ vi.mock('next/navigation', () => ({
 import { LISTING_RETURN_STORAGE_KEY } from '@/lib/listing-return';
 import { CartEmptyState } from '@/components/cart/CartEmptyState';
 import { CartSubheader } from '@/components/cart/CartSubheader';
-import { ListingReturnRecorder, currentListingReturnHref, routeSurface, useListingReturnHref } from './ListingReturn';
+import { Orders } from '@/components/screens/Orders';
+import { ListingReturnLink, ListingReturnRecorder, currentListingReturnHref, routeSurface, useListingReturnHref } from './ListingReturn';
 
 function sessionStorageStub(initial: Record<string, string> = {}) {
   const values = new Map(Object.entries(initial));
@@ -130,6 +131,17 @@ function findElement(node: unknown, match: (element: ReactElement<Props>) => boo
   const element = node as ReactElement<Props>;
   if (match(element)) return element;
   return findElement(element.props.children, match);
+}
+
+function findAllElements(node: unknown, match: (element: ReactElement<Props>) => boolean, found: ReactElement<Props>[] = []): ReactElement<Props>[] {
+  if (Array.isArray(node)) {
+    for (const child of node) findAllElements(child, match, found);
+    return found;
+  }
+  if (!isValidElement(node)) return found;
+  const element = node as ReactElement<Props>;
+  if (match(element)) found.push(element);
+  return findAllElements(element.props.children, match, found);
 }
 
 beforeEach(() => {
@@ -289,6 +301,20 @@ describe('빈 장바구니 둘러보기 목적지', () => {
     expect(cta?.props.variant).toBe('accent');
   });
 
+  /* l9-ui-3: CTA 문구는 실제 목적지를 말한다 — IP관이면 온라인 팝업, 검색 결과면 검색 결과. */
+  it('CTA 문구가 목적지 표면을 말한다', () => {
+    const cases = [
+      ['/ip/maplestory', '/ip/maplestory', '온라인 팝업 둘러보기'],
+      ['/search?q=%ED%82%A4%EB%A7%81', '/search?q=%ED%82%A4%EB%A7%81', '검색 결과 둘러보기'],
+      ['/shop/new', '/shop/new', '굿즈샵 둘러보기'],
+    ] as const;
+    for (const [stored, href, label] of cases) {
+      stubBrowser(sessionStorageStub({ [LISTING_RETURN_STORAGE_KEY]: stored }).storage);
+      const cta = findElement(CartEmptyState({}), (element) => element.props.className === 'wc-cart__empty-cta');
+      expect([cta?.props.href, cta?.props.children]).toEqual([href, label]);
+    }
+  });
+
   it('저장소에 외부 주소가 들어 있어도 CTA 는 굿즈샵으로 간다', () => {
     const { storage } = sessionStorageStub({ [LISTING_RETURN_STORAGE_KEY]: 'https://evil.example/shop' });
     stubBrowser(storage);
@@ -306,6 +332,29 @@ describe('빈 장바구니 둘러보기 목적지', () => {
 
     expect(art?.props['aria-hidden']).toBe('true');
     expect(children.findIndex((child) => child === art)).toBe(0);
+  });
+});
+
+/* l9-ui-2 · 리드 지시: 10/14 S17 셋째 기준은 빈 장바구니만이 아니라 주문 목록의 둘러보기에도 걸린다. */
+describe('다른 화면의 둘러보기 링크', () => {
+  it('직전 목록으로 가고 문구는 목적지를 말한다 — 문구를 넘기면 그 문구를 쓴다', () => {
+    stubBrowser(sessionStorageStub({ [LISTING_RETURN_STORAGE_KEY]: '/ip/hong-sil-quest?type=a' }).storage);
+
+    const link = ListingReturnLink({ className: 'btn btn-holo' }) as ReactElement<Props>;
+    expect([link.props.href, link.props.className, link.props.children]).toEqual(['/ip/hong-sil-quest?type=a', 'btn btn-holo', '온라인 팝업 둘러보기']);
+    const custom = ListingReturnLink({ children: '굿즈 다시 담기' }) as ReactElement<Props>;
+    expect([custom.props.href, custom.props.children]).toEqual(['/ip/hong-sil-quest?type=a', '굿즈 다시 담기']);
+  });
+
+  it('주문 목록의 빈 상태와 결제 실패 안내가 직전 목록 링크를 쓴다', () => {
+    stubBrowser(sessionStorageStub({ [LISTING_RETURN_STORAGE_KEY]: '/search?q=%ED%82%A4%EB%A7%81' }).storage);
+
+    const links = findAllElements(Orders({ orders: [], paymentResult: 'failed' }), (element) => element.type === ListingReturnLink);
+    expect(links.map((element) => element.props.className)).toEqual([undefined, 'btn btn-holo']);
+    for (const element of links) {
+      const rendered = ListingReturnLink(element.props as Parameters<typeof ListingReturnLink>[0]) as ReactElement<Props>;
+      expect([rendered.props.href, rendered.props.children]).toEqual(['/search?q=%ED%82%A4%EB%A7%81', '검색 결과 둘러보기']);
+    }
   });
 });
 

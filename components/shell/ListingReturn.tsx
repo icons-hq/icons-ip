@@ -1,16 +1,18 @@
 'use client';
 
-import { useEffect, useSyncExternalStore } from 'react';
+import Link from 'next/link';
+import { useEffect, useSyncExternalStore, type ReactNode } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
 import {
   LISTING_RETURN_FALLBACK,
   listingReturnEntry,
+  listingReturnLabel,
   readListingReturnHref,
   rememberListingReturnEntry,
   type ListingReturnStorage,
 } from '@/lib/listing-return';
 
-/* 직전에 보던 굿즈 목록(lib/listing-return.ts) — 셸이 기록하고 빈 장바구니가 읽는다(CT-02 · 10/14 S17 셋째 기준). */
+/* 직전에 보던 굿즈 목록(lib/listing-return.ts) — 셸이 기록하고 빈 상태의 둘러보기 버튼이 읽는다(CT-02 · 10/14 S17 셋째 기준). */
 
 /* 사생활 보호 모드·차단된 사이트 데이터에서는 접근자부터 던진다 — 그때는 저장소가 없는 것으로 본다. */
 function sessionStore(): ListingReturnStorage | null {
@@ -78,7 +80,7 @@ const subscribeToNothing = () => () => {};
 const currentHref = () => readListingReturnHref(sessionStore());
 const serverHref = () => LISTING_RETURN_FALLBACK;
 
-/** 빈 장바구니 둘러보기 목적지. 서버 렌더·하이드레이션 첫 렌더는 굿즈샵이고, 그 뒤 남겨 둔 직전 목록으로 바뀐다. */
+/** 둘러보기 목적지. 서버 렌더·하이드레이션 첫 렌더는 굿즈샵이고, 그 뒤 남겨 둔 직전 목록으로 바뀐다. */
 export function useListingReturnHref(): string {
   return useSyncExternalStore(subscribeToNothing, currentHref, serverHref);
 }
@@ -86,4 +88,13 @@ export function useListingReturnHref(): string {
 /** 클릭한 순간의 직전 목록(이벤트 처리기용). */
 export function currentListingReturnHref(): string {
   return currentHref();
+}
+
+/**
+ * 빈 상태의 둘러보기 링크 — 직전에 보던 굿즈 목록(없으면 굿즈샵)으로 가고, 문구는 그 목적지를 말한다(listingReturnLabel).
+ * 서버 화면(주문 목록)에서도 이 부품만 클라이언트로 그린다. children 은 표면을 말하지 않는 문구('굿즈 다시 담기')일 때만 넘긴다.
+ */
+export function ListingReturnLink({ children, className }: { children?: ReactNode; className?: string }) {
+  const href = useListingReturnHref();
+  return <Link className={className} href={href}>{children ?? listingReturnLabel(href)}</Link>;
 }
