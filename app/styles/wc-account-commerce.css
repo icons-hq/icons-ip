@@ -4590,6 +4590,17 @@ button.wc-settings__link-row:disabled strong {
   color: var(--wc-ink);
 }
 
+/* 팔로우 해제 저장 실패 안내(?follow_error=1) — 탭 아래 한 줄, 오류는 잉크 글자 + 헤어라인 상자(액센트 없음). */
+.wc-wish__alert {
+  margin: 16px 0 0;
+  padding: 12px 16px;
+  border: 1px solid var(--wc-hairline);
+  border-radius: 2px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--wc-ink);
+}
+
 .wc-wish__ip {
   display: block;
   color: var(--wc-ink);

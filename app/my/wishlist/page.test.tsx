@@ -1,6 +1,8 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { StorePresentationProvider } from '@/components/shell/StorePresentationProvider';
 import type { CatalogSnapshot } from '@/lib/catalog';
+import { DEFAULT_STORE_PRESENTATION } from '@/lib/store-presentation';
 import type { WishlistEntry } from '@/lib/wishlist.server';
 import Page, { metadata } from './page';
 
@@ -125,8 +127,8 @@ const catalog = {
   events: [],
 } as unknown as CatalogSnapshot;
 
-async function render(tab?: string) {
-  return renderToStaticMarkup(await Page({ searchParams: Promise.resolve(tab ? { tab } : {}) }));
+async function render(tab?: string, extra: Record<string, string> = {}) {
+  return renderToStaticMarkup(await Page({ searchParams: Promise.resolve({ ...(tab ? { tab } : {}), ...extra }) }));
 }
 
 describe('/my/wishlist page', () => {
@@ -221,6 +223,27 @@ describe('/my/wishlist page', () => {
     expect(html).not.toContain('아직 찜한 굿즈가 없어요');
   });
 
+  /* 판매 종료 카드도 같은 그리드의 상품 카드처럼 스토어 목록 이미지 비율(listing.imageShape)을 따른다(l6-ui-3). */
+  it('frames the 판매 종료 card with the same listing image shape as its neighbours', async () => {
+    mocks.entries = [
+      { goodId: 'g13', createdAt: '2026-08-28T00:00:00.000Z' },
+      { goodId: 'gone', createdAt: '2026-08-27T00:00:00.000Z' },
+    ];
+    const portrait = { ...DEFAULT_STORE_PRESENTATION, listing: { ...DEFAULT_STORE_PRESENTATION.listing, imageShape: 'portrait' as const } };
+
+    const html = renderToStaticMarkup(
+      <StorePresentationProvider value={portrait}>{await Page({ searchParams: Promise.resolve({}) })}</StorePresentationProvider>,
+    );
+    const cards = html.match(/<article class="wc-product-card[^"]*"[^>]*>/g) ?? [];
+
+    expect(cards).toHaveLength(2);
+    expect(cards.every((card) => card.includes('data-list-shape="portrait"'))).toBe(true);
+    expect(cards[1]).toContain('wc-wish__ended');
+
+    const square = await render();
+    expect(square.match(/<article class="wc-product-card wc-wish__ended"[^>]*>/)?.[0]).toContain(`data-list-shape="${DEFAULT_STORE_PRESENTATION.listing.imageShape}"`);
+  });
+
   it('switches between wished goods and followed IPs by URL with counts on both tabs', async () => {
     mocks.entries = [{ goodId: 'g13', createdAt: '2026-08-28T00:00:00.000Z' }];
     mocks.follows = ['maplestory', 'unpublished-ip', 'hong-sil-quest'];
@@ -254,5 +277,20 @@ describe('/my/wishlist page', () => {
     expect(unavailable).toContain('팔로우한 IP를 확인하지 못했어요.');
     expect(unavailable).not.toContain('아직 팔로우한 IP가 없어요');
     expect(unavailable).toContain('href="/my/wishlist?tab=ip">팔로우한 IP</a>');
+  });
+
+  /* 팔로우 해제는 IP 관 폼 계약이다 — 저장에 실패하면 follow_error=1 로 이 탭에 돌아오고, 그 사실을 알린다(l6-data-5). */
+  it('says when an unfollow could not be saved, on the IP tab only', async () => {
+    mocks.follows = ['maplestory'];
+
+    const failed = await render('ip', { follow_error: '1' });
+    expect(failed).toContain('<p class="wc-wish__alert" role="alert">팔로우 해제를 저장하지 못했어요. 잠시 후 다시 시도해주세요.</p>');
+    /* 저장하지 못했으니 타일과 해제 버튼은 그대로 남는다. */
+    expect(failed).toContain('aria-label="MAPLESTORY 팔로우 해제"');
+    expect(failed.indexOf('wc-wish__alert')).toBeLessThan(failed.indexOf('href="/ip/maplestory"'));
+
+    expect(await render('ip')).not.toContain('wc-wish__alert');
+    expect(await render('ip', { follow_error: '0' })).not.toContain('wc-wish__alert');
+    expect(await render(undefined, { follow_error: '1' })).not.toContain('wc-wish__alert');
   });
 });

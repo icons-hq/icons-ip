@@ -6,6 +6,7 @@ import { useFormStatus } from 'react-dom';
 import { toggleIpFollowAction } from '@/app/ip/actions';
 import { WishlistCartButton } from '@/components/mypage/WishlistCartButton';
 import { OverlayPortal } from '@/components/shell/OverlayPortal';
+import { useStorePresentation } from '@/components/shell/StorePresentationProvider';
 import { AddToCartResultDialog, type AddToCartResultItem } from '@/components/shop/AddToCartResultDialog';
 import { GoodsSalePeriodRefresh } from '@/components/shop/GoodsSalePeriodRefresh';
 import { ListingWishHeart } from '@/components/shop/ListingWishHeart';
@@ -38,6 +39,8 @@ export interface WishlistProps {
   lines: WishlistLine[];
   /** 공개 중인 팔로우한 IP(최근 팔로우 먼저). 못 읽었으면 null. */
   followedIps: Ip[] | null;
+  /** 팔로우 해제 저장 실패로 돌아왔는지(?follow_error=1, IP 관 폼 계약). IP 탭에서만 안내한다. */
+  followError?: boolean;
 }
 
 function shopCta() {
@@ -59,10 +62,13 @@ function useLiveWishCount(viewerId: string, lines: readonly WishlistLine[]): num
 
 function WishCard({ line, onAdded, viewerId }: { line: WishlistLine; onAdded: (items: AddToCartResultItem[]) => void; viewerId: string }) {
   const { brand, good, goodId } = line;
+  const { listing } = useStorePresentation();
 
   if (!good) {
+    /* 같은 줄의 ProductCard(listSurface="standard")처럼 스토어 목록 이미지 비율을 따른다 — portrait 설정에서
+       판매 종료 카드만 1:1 로 남아 이름 줄이 어긋나지 않게(DESIGN '상품 카드 anatomy 통일'). */
     return (
-      <article className="wc-product-card wc-wish__ended">
+      <article className="wc-product-card wc-wish__ended" data-list-shape={listing.imageShape}>
         <div className="wc-product-card__media">
           <span aria-hidden className="wc-product-card__image" />
           <div className="wc-product-card__action">
@@ -129,7 +135,7 @@ function FollowedIpTile({ ip }: { ip: Ip }) {
   );
 }
 
-export function Wishlist({ followedIps, lines, tab, viewerId }: WishlistProps) {
+export function Wishlist({ followError = false, followedIps, lines, tab, viewerId }: WishlistProps) {
   const [resultItems, setResultItems] = useState<AddToCartResultItem[] | null>(null);
   const wishCount = useLiveWishCount(viewerId, lines);
   const goods = lines.flatMap((line) => (line.good ? [line.good] : []));
@@ -149,6 +155,10 @@ export function Wishlist({ followedIps, lines, tab, viewerId }: WishlistProps) {
             팔로우한 IP{followedIps ? ` (${followedIps.length.toLocaleString('ko-KR')})` : ''}
           </Link>
         </nav>
+
+        {tab === 'ip' && followError ? (
+          <p className="wc-wish__alert" role="alert">팔로우 해제를 저장하지 못했어요. 잠시 후 다시 시도해주세요.</p>
+        ) : null}
 
         {tab === 'goods' ? (
           lines.length ? (
