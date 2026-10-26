@@ -210,7 +210,7 @@ export function Orders({
             <div className="orders-empty card">
               <div className="orders-empty-icon" aria-hidden><Icon name="bag" size={30} /></div>
               <h2>아직 주문 내역이 없어요</h2>
-              <p>굿즈샵에서 첫 굿즈를 만나보세요.</p>
+              <p>첫 굿즈를 만나보세요.</p>
               <ListingReturnLink className="btn btn-holo" />
             </div>
           ) : (
