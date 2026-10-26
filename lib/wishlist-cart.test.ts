@@ -48,6 +48,27 @@ describe('wishCartState', () => {
       label: '담김 · 3', ariaLabel: '홍실 아크릴 블록, 장바구니 3개, 재고 한도 3개', unavailable: true,
     });
   });
+
+  /* L6 QA l6-qa-1: 판매 기간 밖 굿즈는 고를 옵션이 없어 품절 조건도 참이 되지만, 카드 위 표시·목록 담기 버튼·
+     굿즈 상세처럼 판매 기간 문구를 먼저 말한다 — 버튼만 '품절'(재고 소진)로 부르면 같은 카드 안에서 모순된다. */
+  it('names the sale period before sold-out when a good is outside its sale window', () => {
+    const calculatedAt = '2026-10-26T00:00:00.000Z';
+    const scheduled = { startsAt: '2026-10-29T00:00:00.000Z', endsAt: '2026-11-25T00:00:00.000Z', state: 'scheduled', calculatedAt, nextChangeAt: '2026-10-29T00:00:00.000Z' } as const;
+    const ended = { startsAt: '2026-10-16T00:00:00.000Z', endsAt: '2026-10-25T00:00:00.000Z', state: 'ended', calculatedAt, nextChangeAt: null } as const;
+    const noOption = { options: [], stock: 'soldout' as const, stockQty: 0 };
+
+    expect(wishCartState(good({ ...noOption, salePeriod: scheduled }), READY)).toEqual({
+      kind: 'add', variantId: null, stockQty: 0, label: '판매 시작 전', ariaLabel: '홍실 아크릴 블록 판매 시작 전', unavailable: true,
+    });
+    expect(wishCartState(good({ ...noOption, salePeriod: ended }), READY)).toEqual({
+      kind: 'add', variantId: null, stockQty: 0, label: '판매 종료', ariaLabel: '홍실 아크릴 블록 판매 종료', unavailable: true,
+    });
+    /* 옵션이 남아 있어도(재고 있음) 판매 기간 밖이면 같은 문구로 막는다. */
+    expect(wishCartState(good({ salePeriod: scheduled }), READY)).toMatchObject({ label: '판매 시작 전', ariaLabel: '홍실 아크릴 블록 판매 시작 전', unavailable: true });
+    /* 판매 기간 안이면 품절은 그대로 품절이다. */
+    const open = { ...scheduled, startsAt: '2026-10-20T00:00:00.000Z', state: 'open', nextChangeAt: scheduled.endsAt } as const;
+    expect(wishCartState(good({ ...noOption, salePeriod: open }), READY)).toMatchObject({ label: '품절', ariaLabel: '홍실 아크릴 블록 품절', unavailable: true });
+  });
 });
 
 describe('addWishGoodToCart', () => {

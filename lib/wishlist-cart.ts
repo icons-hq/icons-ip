@@ -6,8 +6,10 @@ import type { CartSelectionItem } from './cart-additions';
 /* 위시 카드의 수량 없는 '장바구니 담기' 판정 (LFS 패리티 2차 L6 · MY-06, 10/14 S14·S15).
  *
  * 목록 담기 버튼(AddToCartButton)과 같은 규칙을 따른다: 옵션·직접 입력·최소 수량이 필요한 굿즈는 여기서
- * 고를 수 없으니 상세로 보내고, 단일 옵션 굿즈만 한 개 담는다. 담을 수 없는 사정(품절·판매 기간 밖·판매
- * 준비 중·카트 준비 전·재고 한도)은 버튼 문구와 접근 이름으로 말한다. 담기 자체는 굿즈 상세와 같은 카트
+ * 고를 수 없으니 상세로 보내고, 단일 옵션 굿즈만 한 개 담는다. 담을 수 없는 사정(판매 기간 밖·품절·판매
+ * 준비 중·카트 준비 전·재고 한도)은 버튼 문구와 접근 이름으로 말한다. 판매 기간 문구가 품절보다 먼저다 — 같은
+ * 카드 위 표시(ProductCard)·목록 담기 버튼·굿즈 상세가 모두 그 순서라, 판매 기간 밖이라 고를 옵션이 없는 굿즈를
+ * 버튼만 '품절'(재고 소진)로 부르지 않는다(L6 QA l6-qa-1). 담기 자체는 굿즈 상세와 같은 카트
  * 계약(addSelection — 기대 수량 + 1)이고, 결과 모달은 그 반영이 확정(true)된 뒤에만 연다. */
 
 export type WishCartState =
@@ -33,14 +35,14 @@ export function wishCartState(good: Good, cart: { quantityInCart: number; ready:
   const atLimit = Boolean(option) && cart.quantityInCart >= stockQty;
   const unavailable = soldOut || Boolean(saleLabel) || Boolean(conditionProblem) || atLimit || !cart.ready || cart.working || Boolean(cart.pending);
 
-  const label = soldOut ? '품절'
-    : saleLabel ?? (conditionProblem ? '판매 준비 중'
+  const label = saleLabel ?? (soldOut ? '품절'
+    : conditionProblem ? '판매 준비 중'
       : !cart.ready ? '준비 중'
         : atLimit ? `담김 · ${cart.quantityInCart}`
           : cart.working ? '담는 중'
             : '장바구니 담기');
-  const ariaLabel = soldOut ? `${good.name} 품절`
-    : saleLabel ? `${good.name} ${saleLabel}`
+  const ariaLabel = saleLabel ? `${good.name} ${saleLabel}`
+    : soldOut ? `${good.name} 품절`
       : conditionProblem ? `${good.name} ${conditionProblem}`
         : atLimit ? `${good.name}, 장바구니 ${cart.quantityInCart}개, 재고 한도 ${stockQty}개`
           : `${good.name} 장바구니에 한 개 담기`;
