@@ -1,5 +1,5 @@
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it, vi } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { NavItem } from '@/lib/routes';
 import type { StorefrontCategoryNode, StorefrontMenuCampaign, StorefrontMenuIp } from '@/lib/storefront-mega-menu';
 import { CategorySheet } from './CategorySheet';
@@ -8,6 +8,15 @@ import { CategorySheet } from './CategorySheet';
  * 그 동작은 useOverlayA11y 계약이고 여기서는 시트의 세 단 구조·목적지·대체 표시를 잠근다. */
 
 vi.mock('@/components/ui/Icon', () => ({ Icon: ({ name }: { name: string }) => <span data-icon={name} /> }));
+/* 시트가 쓰는 탭 부품은 그대로 쓰되, 테스트가 처음 고를 탭만 바꿀 수 있게 감싼다(renderToStaticMarkup 이라 클릭이 없다). */
+const tabProbe = vi.hoisted(() => ({ defaultTabId: undefined as 'categories' | 'ips' | undefined }));
+vi.mock('./CategorySheetTabs', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('./CategorySheetTabs')>();
+  return {
+    ...actual,
+    CategorySheetTabs: (props: Parameters<typeof actual.CategorySheetTabs>[0]) => actual.CategorySheetTabs({ ...props, defaultTabId: tabProbe.defaultTabId ?? props.defaultTabId }),
+  };
+});
 
 const nodeId = (n: number) => `94932000-0000-4000-8000-${String(n).padStart(12, '0')}`;
 const nodes: StorefrontCategoryNode[] = [
@@ -31,6 +40,10 @@ function render(overrides: Partial<Parameters<typeof CategorySheet>[0]> = {}) {
 }
 
 describe('모바일 카테고리 시트 (MC-05)', () => {
+  beforeEach(() => {
+    tabProbe.defaultTabId = undefined;
+  });
+
   it('모달 대화상자이고 닫기 버튼이 첫 포커스 대상이다 — 딤은 장식이다', () => {
     const html = render();
     expect(html).toMatch(/^<div aria-hidden="true" class="wc-sheet-dim wc-catsheet-dim"><\/div>/);
@@ -73,14 +86,18 @@ describe('모바일 카테고리 시트 (MC-05)', () => {
     const html = render();
     expect(html).toContain('id="wc-catsheet-tab-categories"');
     expect(html).toContain('id="wc-catsheet-tab-ips"');
-    const categories = html.slice(html.indexOf('id="wc-catsheet-panel-categories"'), html.indexOf('id="wc-catsheet-panel-ips"'));
+    const categories = html.slice(html.indexOf('id="wc-catsheet-panel-categories"'));
     expect(categories).not.toContain('>토이<');
     expect(categories).toContain(`class="wc-catsheet__tile" href="/shop?displayCategory=${nodeId(2)}"><span aria-hidden="true" class="wc-catsheet__tile-image wc-catsheet__tile-image--icon" style="background-image:url(&quot;https://cdn.example/public-media/catalog/curation/icon.png&quot;)"></span><span class="wc-catsheet__tile-label">피규어</span>`);
     expect(categories).toContain(`class="wc-catsheet__tile" href="/shop?displayCategory=${nodeId(3)}"><span aria-hidden="true" class="wc-catsheet__tile-image wc-catsheet__tile-image--text">키</span><span class="wc-catsheet__tile-label">키링</span>`);
   });
 
   it('온라인 팝업 탭은 피처드 IP 키아트 그리드이고, 피처드가 없으면 탭 없이 카테고리 그리드만 둔다', () => {
+    /* 기본은 카테고리 탭이고, 고르지 않은 패널은 DOM 에 없다(리뷰 l5-ui-1). 온라인 팝업 탭을 고른 상태로 그려 IP 타일을 확인한다. */
+    expect(render()).not.toContain('href="/ip/maple"');
+    tabProbe.defaultTabId = 'ips';
     const html = render();
+    expect(html).not.toContain('id="wc-catsheet-panel-categories"');
     const ipPanel = html.slice(html.indexOf('id="wc-catsheet-panel-ips"'));
     expect(ipPanel).toContain('class="wc-catsheet__tile" href="/ip/maple"><span aria-hidden="true" class="wc-catsheet__tile-image wc-catsheet__tile-image--art" style="background:url(&quot;https://cdn.example/maple.webp&quot;) center / cover no-repeat"></span>');
     expect(ipPanel).toContain('class="wc-catsheet__tile-image wc-catsheet__tile-image--text">H</span><span class="wc-catsheet__tile-label">Hong Sil</span>');
@@ -88,6 +105,22 @@ describe('모바일 카테고리 시트 (MC-05)', () => {
     const noIps = render({ featuredIps: [] });
     expect(noIps).not.toContain('role="tablist"');
     expect(noIps).toContain('<h2 class="wc-sheet__title">카테고리</h2><ul class="wc-catsheet__grid">');
+  });
+
+  /* 리뷰 l5-ui-1 — 공유 포커스 트랩(useOverlayA11y)은 대화상자 안 포커스 후보(a[href]·button·[tabindex] …)의 처음과 끝을
+   * DOM 순서로 고르고 보이는지는 따지지 않는다. 숨긴 패널이 DOM 에 남으면 끝 후보가 보이지 않는 링크가 돼 마지막 타일에서 Tab 이
+   * 대화상자 밖(셸 스킵 링크)으로 새고, 닫기 버튼에서 Shift+Tab 이 멈췄다. 시트에는 숨긴 요소가 없어야 하고, 끝 후보는 보이는
+   * 마지막 타일이어야 한다. */
+  it('포커스 트랩의 처음·끝 후보가 보이는 요소다 — 숨긴 패널·링크를 DOM 에 남기지 않는다', () => {
+    for (const tab of ['categories', 'ips'] as const) {
+      tabProbe.defaultTabId = tab;
+      const dialog = render().slice(render().indexOf('role="dialog"'));
+      expect(dialog).not.toMatch(/\shidden(=|\s|>)/);
+      expect(dialog.match(/role="tabpanel"/g)).toHaveLength(1);
+      const focusable = [...dialog.matchAll(/<(a|button)\b[^>]*>|<[a-z]+\b[^>]*\btabindex="(?!-1")[^"]*"[^>]*>/g)].map((match) => match[0]);
+      expect(focusable[0]).toContain('aria-label="카테고리 닫기"');
+      expect(focusable.at(-1)).toContain(tab === 'categories' ? `href="/shop?displayCategory=${nodeId(3)}"` : 'href="/ip/hongsil"');
+    }
   });
 
   it('대화상자·탭 이름은 운영 메뉴 이름을 따른다', () => {

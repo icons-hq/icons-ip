@@ -339,6 +339,23 @@ describe('카테고리 메가메뉴·카테고리 시트 (L5 · CH-05·CH-07·MC
     expect(declsFor('.wc-catsheet__collection-page')['grid-template-columns']).toBe('repeat(2, minmax(0, 1fr))');
   });
 
+  /* 리뷰 l5-ui-3 — 가로 스크롤 트랙(overflow)은 위아래까지 자른다. 바로가기·기획전 카드가 트랙 경계에 붙어 있으면
+   * 포커스 링(2px + 간격 2px)이 잘렸다. 링이 들어갈 4px 안쪽 여백을 두고 같은 만큼 바깥 여백을 당겨 배치는 그대로 둔다. */
+  it('바로가기·기획전 슬라이드 트랙은 포커스 링이 들어갈 4px 안쪽 여백을 두고 바깥 여백으로 상쇄한다', () => {
+    /* 링이 상자 밖으로 뻗는 거리 = 전역 포커스 링(wc-foundation `.wc-root :focus-visible`)의 두께 + 간격. */
+    const foundation = postcss.parse(readFileSync(new URL('../../app/styles/wc-foundation.css', import.meta.url), 'utf8'));
+    let ringReach = 0;
+    foundation.walkRules('.wc-root :focus-visible', (rule) => {
+      rule.walkDecls((decl) => {
+        if (decl.prop === 'outline') ringReach += Number.parseFloat(decl.value);
+        if (decl.prop === 'outline-offset') ringReach += Number.parseFloat(decl.value);
+      });
+    });
+    expect(ringReach).toBe(4);
+    expect(declsFor('.wc-catsheet__shortcuts')).toMatchObject({ margin: `-${ringReach}px -16px`, padding: `${ringReach}px 16px` });
+    expect(declsFor('.wc-catsheet__collections .wc-slider__track')).toMatchObject({ margin: `-${ringReach}px`, padding: `${ringReach}px`, 'scroll-padding-inline': `${ringReach}px` });
+  });
+
   it('기획전 슬라이드 점은 24×44 터치 상자 안 8px 점이고 강제 색상에서도 보인다', () => {
     expect(declsFor('.wc-catsheet__collections .wc-slider__dot')).toMatchObject({ width: '24px', height: '44px' });
     expect(declsFor('.wc-catsheet__collections .wc-slider__dot::before')).toMatchObject({ width: '8px', height: '8px' });

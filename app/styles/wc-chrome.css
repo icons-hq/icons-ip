@@ -1112,12 +1112,14 @@
 }
 
 /* ① 아이콘 바로가기 — 칸 폭 17vw(375에서 63.8), 이미지 칸 60 정사각 r10 icon-tile, 라벨 위 8·아래 10, 간격 5(1.33vw).
-   시트 거터 밖까지 스크롤되도록 트랙만 좌우 16px 넓히고 같은 만큼 안쪽 여백·스냅 여백을 둔다. */
+   시트 거터 밖까지 스크롤되도록 트랙만 좌우 16px 넓히고 같은 만큼 안쪽 여백·스냅 여백을 둔다.
+   가로 스크롤 트랙은 overflow 로 위아래도 자르므로, 포커스 링(2px + 간격 2px, DESIGN §10)이 잘리지 않게 위아래 4px 안쪽 여백을 두고
+   같은 만큼 바깥 여백을 당겨 배치는 그대로 둔다(리뷰 l5-ui-3). */
 .wc-catsheet__shortcuts {
   display: flex;
   gap: 5px;
-  margin: 0 -16px;
-  padding: 0 16px;
+  margin: -4px -16px;
+  padding: 4px 16px;
   overflow-x: auto;
   scroll-snap-type: x mandatory;
   scroll-padding-inline: 16px;
@@ -1169,6 +1171,14 @@
 
 /* ② 기획전 2×2 슬라이드 — 한 장이 시트 폭 전체(슬라이드 간격 16)이고 장 안은 2열(열 간격 7·행 간격 16).
    카드 이미지는 캠페인 카드 이미지의 비율(3:2, 이벤트 허브 카드와 같은 자산)을 그대로 쓴다. */
+/* 슬라이드 트랙도 overflow 로 네 변을 자른다 — 카드가 트랙 경계에 붙어 포커스 링이 잘리지 않게 트랙을 사방 4px 넓히고 같은 만큼
+   안쪽 여백·스냅 여백을 둔다. 슬라이드 폭(100% = 내용 상자)과 카드 위치는 그대로다(리뷰 l5-ui-3). */
+.wc-catsheet__collections .wc-slider__track {
+  margin: -4px;
+  padding: 4px;
+  scroll-padding-inline: 4px;
+}
+
 .wc-catsheet__collections .wc-slider__track > * {
   width: 100%;
 }

@@ -172,6 +172,7 @@ describe('White Catalog global chrome wiring', () => {
       '../components/shell/SearchOverlay.tsx',
       '../components/shell/MenuSheet.tsx',
       '../components/shell/CategorySheet.tsx',
+      '../components/shell/CategorySheetTabs.tsx',
       '../components/shell/BottomTabBar.tsx',
       '../components/shell/SiteFooter.tsx',
     ].map(read);

@@ -4,7 +4,6 @@ import Link from 'next/link';
 import { useRef, type ReactNode } from 'react';
 import { Icon } from '@/components/ui/Icon';
 import { Slider } from '@/components/wc/Slider';
-import { TabPanels } from '@/components/wc/TabPanels';
 import { campaignDetailHref, hrefFor, type NavItem } from '@/lib/routes';
 import {
   categoryMenuTiles,
@@ -14,6 +13,7 @@ import {
   type StorefrontMenuCampaign,
   type StorefrontMenuIp,
 } from '@/lib/storefront-mega-menu';
+import { CategorySheetTabs } from './CategorySheetTabs';
 import { useOverlayA11y } from './useOverlayA11y';
 
 /* 바로가기 아이콘은 라우트 데이터가 아니라 표면의 표현이라 여기서 고정한다(BottomTabBar 와 같은 규율).
@@ -151,10 +151,8 @@ export function CategorySheet({
 
           {ipTiles.length > 0 ? (
             <SheetSection>
-              <TabPanels
-                className="wc-catsheet__tabs"
-                idBase="wc-catsheet"
-                panels={[
+              <CategorySheetTabs
+                tabs={[
                   { id: 'categories', label: categoryLabel, content: categoryGrid },
                   { id: 'ips', label: onlinePopupLabel, content: <TileGrid onNavigate={onClose} tiles={ipTiles} /> },
                 ]}
