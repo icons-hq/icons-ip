@@ -229,8 +229,8 @@ grid **2열 451px, gap 20(행)/18(열)**. 카드 451×141: 1px `#DCDEE0`, r2, p 
 | HM-06 | 밴드 사이 1px 선 | Δ8 | 없음 | LFS-Δ | P2 | L4 ✅ #598 |
 | HM-07 | 혜택 타일 아이콘 | 아이콘 32 | 없음(`Home.tsx:222-231`) | DRIFT | P2 | L4 ✅ #598 |
 | HM-08 | 홈 모자이크 다크 면·리뷰 이벤트 다크 | — | `#141414`·`#222a35` 하드코딩(`app/styles/wc-product-mosaic.css:4,11`, `wc-review-events.css:1-16`) | DRIFT(DESIGN 위반) | P2 | L4 ✅ #598 |
-| CL-01 | **상품 카드 위시 하트** | 모든 카드 우상단 36 원형 | 없음(`components/wc/ProductCard.tsx:83` action 슬롯 미사용) | GAP-UI(#326 결정 번복) | P1 | L4(LD-4)·L4b 일부 #598·#600 — 카테고리 전시는 L5 |
-| CL-02 | 카드 별점 | 리뷰 있으면 표시 | 없음 | GAP-DATA(목록 리뷰 집계) | P2 | L4·L4b 일부 #598·#600 — 카테고리 전시는 L5 |
+| CL-01 | **상품 카드 위시 하트** | 모든 카드 우상단 36 원형 | 없음(`components/wc/ProductCard.tsx:83` action 슬롯 미사용) | GAP-UI(#326 결정 번복) | P1 | L4·L4b·L5(LD-4) ✅ #598·#600·#601 |
+| CL-02 | 카드 별점 | 리뷰 있으면 표시 | 없음 | GAP-DATA(목록 리뷰 집계) | P2 | L4·L4b·L5 ✅ #598·#600·#601 |
 | CL-03 | SALE 배지 | 흰 배경 + 색 테두리 | 색 배경(outline 변형 미사용 `components/wc/Badge.tsx:9-12`) | GAP-UI | P2 | L4 ✅ #598 |
 | CL-04 | 카드 설명 줄 | 없음 | 운영 설정 기본 ON으로 2줄(`lib/store-presentation.ts:11`) | 운영 설정 | P1 | LG-6(LD-7) |
 | CL-05 | 수량·정렬 줄 | 896×50, 상하 1px `#EBEDEE`, 14px | 896×44, 선 없음, 13px(`app/styles/wc-catalog.css:68-96`) | DRIFT | P2 | L4 ✅ #598 |
