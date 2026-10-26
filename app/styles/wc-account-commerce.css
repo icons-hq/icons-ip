@@ -1888,6 +1888,13 @@ a.wc-mypage__card:hover .wc-mypage__card-title {
 
 .wc-settings__avatar-row .wc-mypage__field {
   flex: 1;
+  /* 파일 입력의 고유 폭이 줄지 않으면 375 폭에서 가로로 14px 넘친다 — 칸을 줄 수 있게 한다. */
+  min-width: 0;
+}
+
+.wc-settings__avatar-row input[type='file'] {
+  width: 100%;
+  min-width: 0;
 }
 
 .wc-settings__consent-check {
