@@ -13,6 +13,8 @@ const mocks = vi.hoisted(() => ({
   configured: true,
   tables: {} as Record<string, TableResult>,
   filters: [] as [string, string, unknown][],
+  rpcCalls: [] as [string, unknown][],
+  rpcResult: { data: [], error: null } as TableResult,
 }));
 
 vi.mock('@/lib/supabase/config', () => ({
@@ -53,6 +55,10 @@ vi.mock('@/lib/supabase/server', () => ({
         getPublicUrl: (path: string) => ({ data: { publicUrl: `https://cdn.test/${bucket}/${path}` } }),
       }),
     },
+    rpc(name: string, args: unknown) {
+      mocks.rpcCalls.push([name, args]);
+      return Promise.resolve(mocks.rpcResult);
+    },
   }),
 }));
 
@@ -82,6 +88,8 @@ beforeEach(() => {
   mocks.configured = true;
   mocks.tables = {};
   mocks.filters = [];
+  mocks.rpcCalls = [];
+  mocks.rpcResult = { data: [], error: null };
 });
 
 describe('loadCampaignHub', () => {
@@ -432,5 +440,42 @@ describe('loadCampaignDetail', () => {
     expect(mocks.filters).toContainEqual(['goods', 'sale_restriction', 'none']);
     expect(mocks.filters).toContainEqual(['goods', 'archived_at', null]);
     expect(mocks.filters).toContainEqual(['goods', 'published_at', 'not.is.null']);
+  });
+
+  /* L4b · CL-02 — 진열 굿즈의 별점은 굿즈 조회와 나란히 한 번의 묶음으로 묻고, 리뷰가 있는 굿즈 카드에만 싣는다. */
+  it('진열 굿즈 별점을 한 번에 묻고 리뷰가 있는 카드에만 싣는다', async () => {
+    const goodRow = (id: string) => ({ id, ips: { published_at: '2026-07-01', archived_at: null }, name: id, price: 9000, compare_at_price: null,
+      badge: null, stock: 'ok', stock_qty: 3, bg: null, image_path: null });
+    mocks.tables.campaigns = {
+      data: { ...hubRow('reviews'), hero_image_path: null, sections: [
+        { type: 'goods', good_ids: ['g1', 'g2', 'not a good'] },
+        { type: 'goods', good_ids: ['g2', 'g3'] },
+      ] },
+      error: null,
+    };
+    mocks.tables.goods = { data: [goodRow('g1'), goodRow('g2'), goodRow('g3')], error: null };
+    mocks.rpcResult = { data: [{ goodId: 'g2', reviewCount: 6, ratingAverage: 4.5 }], error: null };
+
+    const detail = await loadCampaignDetail('reviews');
+    const goods = (detail?.resolvedSections ?? []).flatMap((section) => (section.type === 'goods' ? section.goods : []));
+
+    /* RPC 형식 밖 참조는 묻지 않는다 — 하나가 묶음 전체를 거절시키지 않게. */
+    expect(mocks.rpcCalls).toEqual([['get_goods_review_summaries', { p_good_ids: ['g1', 'g2', 'g3'] }]]);
+    expect(goods.map((good) => [good.id, good.reviewSummary])).toEqual([
+      ['g1', undefined], ['g2', { count: 6, average: 4.5 }], ['g2', { count: 6, average: 4.5 }], ['g3', undefined],
+    ]);
+    expect(goods[0]).not.toHaveProperty('reviewSummary');
+  });
+
+  it('별점을 못 읽어도 진열은 그대로 내린다', async () => {
+    mocks.tables.campaigns = { data: { ...hubRow('review-fail'), hero_image_path: null, sections: [{ type: 'goods', good_ids: ['g1'] }] }, error: null };
+    mocks.tables.goods = { data: [{ id: 'g1', ips: { published_at: '2026-07-01', archived_at: null }, name: 'g1', price: 9000, compare_at_price: null,
+      badge: null, stock: 'ok', stock_qty: 3, bg: null, image_path: null }], error: null };
+    mocks.rpcResult = { data: null, error: { message: 'boom' } };
+
+    const detail = await loadCampaignDetail('review-fail');
+
+    expect(detail?.resolvedSections[0]).toMatchObject({ type: 'goods', goods: [{ id: 'g1' }] });
+    expect(detail?.resolvedSections[0]).not.toHaveProperty(['goods', 0, 'reviewSummary']);
   });
 });

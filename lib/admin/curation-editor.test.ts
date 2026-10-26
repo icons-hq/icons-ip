@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildDraftCurationPreview, createCurationEditorValues, curationKstInput, curationValuesForKindChange, moveCurationProduct } from './curation-editor';
 import type { HomeGoodsCard } from '@/lib/home-catalog';
+import { buildHomeReviewBestBand, emptyHomeProductRankings, homeReviewBandRating, type HomeProductRankings } from '@/lib/home-ranking';
 
 const card: HomeGoodsCard = { id: 'g1', name: '실제 상품', brand: 'ICONS', price: 12000, badge: null, imageBg: 'url("/goods.webp")', href: '/shop/g1', soldOut: false };
 
@@ -30,6 +31,32 @@ describe('curation editor preview', () => {
     const values = { ...createCurationEditorValues(null, '2026-10-12T00:00:00Z', 'best_tab'), title: '신상품', selectionMode: 'latest' as const, itemCount: '3', goodIds: ['old'] };
     const latest = Array.from({ length: 5 }, (_, index) => ({ ...card, id: `new-${index}` }));
     expect(buildDraftCurationPreview('draft', values, [card], latest).curation.categoryBestTabs[0].goods).toEqual(latest.slice(0, 3));
+  });
+
+  /* L4b(2026-10-26 리드 결정) — 리뷰 BEST 편집 미리보기·노출 가능 수는 공개 홈과 같은 카드 묶음(그룹 범위 요약 포함)을 같은
+     함수로 판정한다. 어드민 화면이 공개 홈과 같은 옵션(includeReviewSummaries)으로 카드를 읽으면 선정이 같다. */
+  it('리뷰 BEST 미리보기와 노출 가능 수는 공개 홈과 같은 그룹 범위 판정이다', () => {
+    const stat = (goodId: string, ratingAverage: number, reviewCount: number) => ({ goodId, ratingAverage, reviewCount, recentReviewAt: '2026-10-20T00:00:00Z',
+      representative: { id: `review-${goodId}`, rating: 5, body: '공개 후기', authorName: '공개 닉네임', createdAt: '2026-10-20T00:00:00Z' } });
+    /* r1 은 자기 리뷰 5.00/1 이지만 그룹상품 범위 2.33/3 — 공개 홈에서 빠진다. r5 는 요약이 없어 굿즈 단위로 폴백한다. */
+    const summaries: Record<string, { count: number; average: number }> = { r0: { count: 3, average: 4.33 }, r1: { count: 3, average: 2.33 }, r2: { count: 2, average: 4.5 }, r3: { count: 1, average: 4 }, r4: { count: 4, average: 3.5 } };
+    const publicGoods = ['r0', 'r1', 'r2', 'r3', 'r4', 'r5'].map((id) => ({ ...card, id, href: `/shop/${id}`, ...(summaries[id] ? { reviewSummary: summaries[id] } : {}) }));
+    const rankings: HomeProductRankings = { ...emptyHomeProductRankings(), reviewsAvailable: true,
+      reviewStatistics: [stat('r0', 4.33, 3), stat('r1', 5, 1), stat('r2', 4.5, 2), stat('r3', 4, 1), stat('r4', 2.5, 2), stat('r5', 4.2, 5)] };
+    const goodIds = ['r0', 'r1', 'r2', 'r3', 'r4', 'r5'];
+    const values = { ...createCurationEditorValues(null, '2026-10-12T00:00:00Z', 'review_best'), title: '리뷰 베스트', reviewSelectionMode: 'manual' as const, goodIds };
+
+    const draft = buildDraftCurationPreview('review', values, publicGoods, [], rankings);
+    const publicBand = buildHomeReviewBestBand('review', '리뷰 베스트', { mode: 'manual', goodIds }, publicGoods, rankings);
+    expect(draft.curation.reviewBestBands?.[0].goods.map((good) => good.id)).toEqual(['r0', 'r2', 'r3', 'r4', 'r5']);
+    expect(draft.curation.reviewBestBands?.[0].goods.map((good) => good.id)).toEqual(publicBand.goods.map((good) => good.id));
+    expect(draft.reviewEligibleCount).toBe(5);
+    expect(draft.curation.reviewBestBands?.[0].goods.map((good) => homeReviewBandRating(good))).toEqual([
+      { average: 4.33, count: 3 }, { average: 4.5, count: 2 }, { average: 4, count: 1 }, { average: 3.5, count: 4 }, { average: 4.2, count: 5 }]);
+    /* 같은 카드에서 요약을 떼면(옵션 없이 읽은 스냅샷) 굿즈 단위 판정이 돼 r1 이 들어오고 r4 가 빠진다 — 미리보기가 공개 홈과 엇갈리는 경로. */
+    const withoutSummaries = publicGoods.map((good) => ({ ...good, reviewSummary: undefined }));
+    expect(buildDraftCurationPreview('review', values, withoutSummaries, [], rankings).curation.reviewBestBands?.[0].goods.map((good) => good.id))
+      .toEqual(['r0', 'r1', 'r2', 'r3', 'r5']);
   });
 
   it('모바일·PC 이미지와 입력 중인 제목을 공개 히어로 계약으로 전달한다', () => {
