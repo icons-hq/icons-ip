@@ -1985,11 +1985,14 @@ button.wc-settings__link-row {
   cursor: pointer;
 }
 
-button.wc-settings__link-row:disabled {
+/* 보내는 중은 포커스를 지키려고 aria-disabled 다(Settings PasswordResetRow) — 같은 비활성 모양. */
+button.wc-settings__link-row:disabled,
+button.wc-settings__link-row[aria-disabled="true"] {
   cursor: default;
 }
 
-button.wc-settings__link-row:disabled strong {
+button.wc-settings__link-row:disabled strong,
+button.wc-settings__link-row[aria-disabled="true"] strong {
   color: var(--wc-ink-tertiary);
   text-decoration: none;
 }

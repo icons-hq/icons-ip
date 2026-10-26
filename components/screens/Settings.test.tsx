@@ -1,6 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { Settings } from './Settings';
+import { PasswordResetRow, Settings } from './Settings';
 
 interface MockActionState {
   errors?: {
@@ -286,8 +286,29 @@ describe('Settings', () => {
     mocks.resetState = {};
     mocks.resetPending = true;
     const pending = render();
-    expect(pending).toMatch(/<button class="wc-settings__link-row" disabled="" type="submit">/);
+    /* L6 QA l6-qa-2: 보내는 중에도 disabled 를 달지 않는다 — 포커스된 버튼이 disabled 가 되면 포커스가 body 로
+       빠져 키보드 사용자가 결과 행에서 이어가지 못한다. 비활성은 aria-disabled 로 알린다. */
+    const pendingButton = pending.match(/<button class="wc-settings__link-row"[^>]*>/)?.[0];
+    expect(pendingButton).toBe('<button class="wc-settings__link-row" aria-busy="true" aria-disabled="true" type="submit">');
+    expect(pendingButton).not.toContain('disabled=""');
     expect(pending).toContain('보내는 중');
+  });
+
+  /* l6-qa-2: disabled 를 빼도 보내는 중의 두 번째 제출은 폼 action 에 닿지 않는다(onSubmit 이 기본 동작을 막으면
+     React 는 폼 action 을 부르지 않는다). 대기 중이 아니면 막지 않는다. */
+  it('blocks a second reset submission while sending without dropping focus', () => {
+    const submit = (pending: boolean) => {
+      mocks.resetPending = pending;
+      /* useActionState 가 목이라 행을 함수로 불러 폼 요소의 onSubmit 을 직접 확인한다. */
+      const row = PasswordResetRow({ email: 'fan@icons.gg', isConfigured: true });
+      const form = (row.props as { children: React.ReactElement[] }).children[0] as React.ReactElement<{ onSubmit: (event: { preventDefault: () => void }) => void }>;
+      const preventDefault = vi.fn();
+      form.props.onSubmit({ preventDefault });
+      return preventDefault;
+    };
+
+    expect(submit(true)).toHaveBeenCalledTimes(1);
+    expect(submit(false)).not.toHaveBeenCalled();
   });
 
   it('disables the reset mail without an account email or Supabase config', () => {
