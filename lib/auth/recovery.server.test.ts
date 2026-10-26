@@ -1,13 +1,18 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 
 import {
   AUTH_NEXT_RECOVERY_MAX_AGE_SECONDS,
   AUTH_NEXT_SIGNUP_MAX_AGE_SECONDS,
+  AUTH_RECOVERY_PROOF_MAX_AGE_SECONDS,
   PASSWORD_RESET_MAX_BUCKETS,
   PASSWORD_RESET_WINDOW_MS,
   authNextStateFromCookie,
   consumePasswordResetAttempt,
+  hasPasswordRecoveryProof,
+  passwordRecoveryProofCookieOptions,
+  passwordRecoveryProofFromCookie,
   signedAuthNextCookieValue,
+  signedPasswordRecoveryProofValue,
 } from './recovery.server';
 
 const SECRET = 'test-auth-recovery-secret-with-enough-entropy';
@@ -165,5 +170,97 @@ describe('password-reset browser rate state', () => {
     expect(blocked).toMatchObject({ blocked: true, attemptCount: 0 });
     expect(blocked.cookieValue).toBe(cookieValue);
     expect(blocked.cookieValue.length).toBeLessThan(4096);
+  });
+});
+
+describe('password recovery proof', () => {
+  const proof = { sessionId: 'session-1', userId: 'user-1' };
+
+  function claimsReader(claims: Record<string, unknown> | null, error: unknown = null) {
+    return {
+      auth: {
+        getClaims: vi.fn(async () => ({ data: claims ? { claims } : null, error })),
+      },
+    };
+  }
+
+  it('round-trips the recovered user and session for fifteen minutes only', () => {
+    const value = signedPasswordRecoveryProofValue(proof, NOW, SECRET);
+    const lastValidMs = NOW + AUTH_RECOVERY_PROOF_MAX_AGE_SECONDS * 1000 - 1;
+
+    expect(AUTH_RECOVERY_PROOF_MAX_AGE_SECONDS).toBe(15 * 60);
+    expect(passwordRecoveryProofFromCookie(value, NOW, SECRET)).toEqual({ issuedAt: NOW, ...proof });
+    expect(passwordRecoveryProofFromCookie(value, lastValidMs, SECRET)).toEqual({ issuedAt: NOW, ...proof });
+    expect(passwordRecoveryProofFromCookie(value, lastValidMs + 1, SECRET)).toBeNull();
+  });
+
+  it('rejects tampered, foreign-domain, future, or unsigned proofs', () => {
+    const value = signedPasswordRecoveryProofValue(proof, NOW, SECRET);
+    const [payload, signature] = value.split('.');
+    const forgedPayload = Buffer.from(JSON.stringify({ issuedAt: NOW, sessionId: 'attacker', userId: 'user-1' }))
+      .toString('base64url');
+
+    expect(passwordRecoveryProofFromCookie(`${forgedPayload}.${signature}`, NOW, SECRET)).toBeNull();
+    expect(passwordRecoveryProofFromCookie(`${payload}.${signature}`, NOW, 'another-secret')).toBeNull();
+    expect(passwordRecoveryProofFromCookie(value, NOW, null)).toBeNull();
+    expect(passwordRecoveryProofFromCookie(value, NOW - 1, SECRET)).toBeNull();
+    // 같은 비밀값으로 서명된 recovery next 쿠키를 증명으로 바꿔 쓸 수 없다(서명 도메인 분리).
+    expect(passwordRecoveryProofFromCookie(
+      signedAuthNextCookieValue('/settings', 'recovery', NOW, SECRET),
+      NOW,
+      SECRET,
+    )).toBeNull();
+  });
+
+  it('scopes the proof cookie to the password update page', () => {
+    expect(passwordRecoveryProofCookieOptions(true)).toEqual({
+      httpOnly: true,
+      maxAge: AUTH_RECOVERY_PROOF_MAX_AGE_SECONDS,
+      path: '/update-password',
+      sameSite: 'lax',
+      secure: true,
+    });
+  });
+
+  it('accepts only the verified session that passed the recovery callback', async () => {
+    const value = signedPasswordRecoveryProofValue(proof, NOW, SECRET);
+
+    await expect(hasPasswordRecoveryProof(
+      claimsReader({ sub: 'user-1', session_id: 'session-1' }),
+      value,
+      NOW,
+      SECRET,
+    )).resolves.toBe(true);
+    await expect(hasPasswordRecoveryProof(
+      claimsReader({ sub: 'user-1', session_id: 'password-login-session' }),
+      value,
+      NOW,
+      SECRET,
+    )).resolves.toBe(false);
+    await expect(hasPasswordRecoveryProof(
+      claimsReader({ sub: 'user-2', session_id: 'session-1' }),
+      value,
+      NOW,
+      SECRET,
+    )).resolves.toBe(false);
+    await expect(hasPasswordRecoveryProof(
+      claimsReader(null, { code: 'session_not_found' }),
+      value,
+      NOW,
+      SECRET,
+    )).resolves.toBe(false);
+  });
+
+  it('does not read claims when there is no valid proof cookie', async () => {
+    const reader = claimsReader({ sub: 'user-1', session_id: 'session-1' });
+
+    await expect(hasPasswordRecoveryProof(reader, undefined, NOW, SECRET)).resolves.toBe(false);
+    await expect(hasPasswordRecoveryProof(
+      reader,
+      signedPasswordRecoveryProofValue(proof, NOW - AUTH_RECOVERY_PROOF_MAX_AGE_SECONDS * 1000, SECRET),
+      NOW,
+      SECRET,
+    )).resolves.toBe(false);
+    expect(reader.auth.getClaims).not.toHaveBeenCalled();
   });
 });

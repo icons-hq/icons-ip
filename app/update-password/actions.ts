@@ -5,15 +5,21 @@ import { redirect } from 'next/navigation';
 import {
   AUTH_CALLBACK_PATH,
   AUTH_NEXT_COOKIE_NAME,
+  AUTH_RECOVERY_PROOF_COOKIE_NAME,
+  PASSWORD_RECOVERY_REQUIRED_MESSAGE,
   passwordResetSuccessLoginPath,
   passwordUpdateErrorMessage,
   safeNextPath,
+  UPDATE_PASSWORD_PATH,
 } from '@/lib/auth/onboarding';
+import { hasPasswordRecoveryProof } from '@/lib/auth/recovery.server';
 import { getSupabaseConfig } from '@/lib/supabase/config';
 import { createClient } from '@/lib/supabase/server';
 
 export interface UpdatePasswordActionState {
   message?: string;
+  /** recovery 콜백을 거친 세션이 아니다(또는 증명이 만료됐다) — 화면은 폼 대신 재설정 메일 안내로 바꾼다. */
+  recoveryRequired?: boolean;
   errors?: {
     password?: string;
     passwordConfirmation?: string;
@@ -57,13 +63,19 @@ export async function updatePasswordAction(
     };
   }
 
+  const cookieStore = await cookies();
+  const recoveryProof = cookieStore.get(AUTH_RECOVERY_PROOF_COOKIE_NAME)?.value;
+  if (!await hasPasswordRecoveryProof(supabase, recoveryProof)) {
+    return { recoveryRequired: true, errors: { form: PASSWORD_RECOVERY_REQUIRED_MESSAGE } };
+  }
+
   const { error: updateError } = await supabase.auth.updateUser({ password });
   if (updateError) {
     return { errors: { form: passwordUpdateErrorMessage(updateError) } };
   }
 
-  const cookieStore = await cookies();
   cookieStore.set(AUTH_NEXT_COOKIE_NAME, '', { path: AUTH_CALLBACK_PATH, maxAge: 0 });
+  cookieStore.set(AUTH_RECOVERY_PROOF_COOKIE_NAME, '', { path: UPDATE_PASSWORD_PATH, maxAge: 0 });
 
   const { error: signOutError } = await supabase.auth.signOut({ scope: 'global' });
   if (signOutError) {

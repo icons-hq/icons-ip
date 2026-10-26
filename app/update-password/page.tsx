@@ -1,5 +1,6 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
+import { PasswordRecoveryRequired } from '@/components/screens/PasswordRecoveryRequired';
 import { RecoverySessionBridge } from '@/components/screens/RecoverySessionBridge';
 import { UpdatePassword } from '@/components/screens/UpdatePassword';
 import {
@@ -7,7 +8,7 @@ import {
   safeNextPath,
   updatePasswordPath,
 } from '@/lib/auth/onboarding';
-import { getCurrentAuthState } from '@/lib/auth/server';
+import { getCurrentAuthState, hasCurrentPasswordRecoveryProof } from '@/lib/auth/server';
 
 type PageProps = {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
@@ -34,5 +35,10 @@ export default async function Page({ searchParams }: PageProps) {
   }
   if (sessionReady) redirect(updatePasswordPath(next));
 
-  return <UpdatePassword next={next} />;
+  // 로그인 세션만으로는 폼을 열지 않는다 — recovery 콜백을 거친 그 세션일 때만 새 비밀번호를 받는다.
+  if (!await hasCurrentPasswordRecoveryProof()) {
+    return <PasswordRecoveryRequired email={auth.user.email} next={next} />;
+  }
+
+  return <UpdatePassword email={auth.user.email} next={next} />;
 }

@@ -1,9 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { NextRequest } from 'next/server';
-import { signedAuthNextCookieValue } from '../../../../lib/auth/recovery.server';
+import {
+  passwordRecoveryProofFromCookie,
+  signedAuthNextCookieValue,
+} from '../../../../lib/auth/recovery.server';
 import { GET } from './route';
 
 const AUTH_NEXT_COOKIE_NAME = 'icons_auth_recovery_next';
+const RECOVERY_PROOF_COOKIE_NAME = 'icons_auth_recovery_proof';
 const SECRET = 'test-recovery-callback-secret-with-enough-entropy';
 const ORIGINAL_SECRET = process.env.AUTH_SIGNUP_RESEND_SECRET;
 
@@ -11,6 +15,7 @@ const mocks = vi.hoisted(() => ({
   configured: true,
   verifyOtp: vi.fn(),
   getUser: vi.fn(),
+  getClaims: vi.fn(),
   signOut: vi.fn(),
   setAll: null as null | ((
     cookies: Array<{ name: string; value: string; options: Record<string, unknown> }>,
@@ -35,6 +40,7 @@ vi.mock('@supabase/ssr', () => ({
       auth: {
         verifyOtp: mocks.verifyOtp,
         getUser: mocks.getUser,
+        getClaims: mocks.getClaims,
         signOut: mocks.signOut,
       },
     };
@@ -66,10 +72,15 @@ describe('GET /auth/recovery/callback', () => {
     mocks.configured = true;
     mocks.verifyOtp.mockReset();
     mocks.getUser.mockReset();
+    mocks.getClaims.mockReset();
     mocks.signOut.mockReset();
     mocks.setAll = null;
     mocks.getUser.mockResolvedValue({
       data: { user: { id: 'user-1', email: 'fan@icons.gg' } },
+      error: null,
+    });
+    mocks.getClaims.mockResolvedValue({
+      data: { claims: { sub: 'user-1', session_id: 'recovery-session-1' } },
       error: null,
     });
     mocks.signOut.mockResolvedValue({ error: null });
@@ -127,6 +138,52 @@ describe('GET /auth/recovery/callback', () => {
     );
     expect(response.headers.get('set-cookie')).toContain('sb-local-auth-token=session-value');
     expect(response.headers.get('cache-control')).toContain('no-store');
+
+    const proofCookie = response.cookies.get(RECOVERY_PROOF_COOKIE_NAME);
+    expect(proofCookie).toMatchObject({
+      httpOnly: true,
+      maxAge: 15 * 60,
+      path: '/update-password',
+      sameSite: 'lax',
+      secure: true,
+    });
+    expect(passwordRecoveryProofFromCookie(proofCookie?.value, Date.now(), SECRET)).toEqual({
+      issuedAt: Date.now(),
+      sessionId: 'recovery-session-1',
+      userId: 'user-1',
+    });
+  });
+
+  it.each([
+    ['another user', { sub: 'user-2', session_id: 'recovery-session-1' }],
+    ['no session id', { sub: 'user-1' }],
+  ])('does not issue a recovery proof when the verified claims name %s', async (_label, claims) => {
+    mocks.verifyOtp.mockImplementationOnce(async () => {
+      mocks.setAll?.([
+        {
+          name: 'sb-local-auth-token',
+          value: 'session-value',
+          options: { httpOnly: true, path: '/', sameSite: 'lax' },
+        },
+      ], {});
+      return {
+        data: { session: { access_token: 'redacted' }, user: { id: 'user-1' } },
+        error: null,
+      };
+    });
+    mocks.getClaims.mockResolvedValueOnce({ data: { claims }, error: null });
+
+    const response = await GET(request(
+      '/auth/recovery/callback?token_hash=recovery-token-hash&type=recovery',
+      signedRecoveryCookie(),
+    ));
+
+    expect(locationPath(response)).toBe(
+      '/login?mode=reset&reset_error=session_not_found&next=%2Fcommunity%3Fsort%3Dhot',
+    );
+    expect(mocks.signOut).toHaveBeenCalledWith({ scope: 'local' });
+    expect(response.headers.get('set-cookie')).toContain('sb-local-auth-token=;');
+    expect(response.cookies.get(RECOVERY_PROOF_COOKIE_NAME)).toBeUndefined();
   });
 
   it('routes an expired or reused token hash through the recovery error UX', async () => {
@@ -145,6 +202,7 @@ describe('GET /auth/recovery/callback', () => {
     );
     expect(response.headers.get('location')).not.toContain('private');
     expect(response.headers.get('location')).not.toContain('reused-token-hash');
+    expect(response.cookies.get(RECOVERY_PROOF_COOKIE_NAME)).toBeUndefined();
     expect(response.headers.get('set-cookie') ?? '').not.toContain(
       `${AUTH_NEXT_COOKIE_NAME}=;`,
     );
@@ -235,5 +293,7 @@ describe('GET /auth/recovery/callback', () => {
       `${AUTH_NEXT_COOKIE_NAME}=;`,
     );
     expect(response.headers.get('location')).not.toContain('private');
+    expect(mocks.getClaims).not.toHaveBeenCalled();
+    expect(response.cookies.get(RECOVERY_PROOF_COOKIE_NAME)).toBeUndefined();
   });
 });

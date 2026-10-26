@@ -9,8 +9,16 @@ const mocks = vi.hoisted(() => ({
     profile: null,
     isStaff: false,
   },
+  hasRecoveryProof: true,
   props: null as Record<string, unknown> | null,
   bridgeProps: null as Record<string, unknown> | null,
+  recoveryRequiredProps: null as Record<string, unknown> | null,
+}));
+vi.mock('@/components/screens/PasswordRecoveryRequired', () => ({
+  PasswordRecoveryRequired: (props: Record<string, unknown>) => {
+    mocks.recoveryRequiredProps = props;
+    return null;
+  },
 }));
 vi.mock('@/components/screens/RecoverySessionBridge', () => ({
   RecoverySessionBridge: (props: Record<string, unknown>) => {
@@ -27,6 +35,7 @@ vi.mock('@/components/screens/UpdatePassword', () => ({
 }));
 vi.mock('@/lib/auth/server', () => ({
   getCurrentAuthState: async () => mocks.auth,
+  hasCurrentPasswordRecoveryProof: async () => mocks.hasRecoveryProof,
 }));
 vi.mock('next/navigation', () => ({
   redirect: (path: string) => {
@@ -42,8 +51,10 @@ describe('/update-password page', () => {
       profile: null,
       isStaff: false,
     };
+    mocks.hasRecoveryProof = true;
     mocks.props = null;
     mocks.bridgeProps = null;
+    mocks.recoveryRequiredProps = null;
   });
 
   it('renders for an authenticated but not-onboarded recovery user', async () => {
@@ -51,7 +62,19 @@ describe('/update-password page', () => {
       searchParams: Promise.resolve({ next: '/community?sort=hot' }),
     }));
 
-    expect(mocks.props).toEqual({ next: '/community?sort=hot' });
+    expect(mocks.props).toEqual({ email: 'fan@icons.gg', next: '/community?sort=hot' });
+    expect(mocks.recoveryRequiredProps).toBeNull();
+  });
+
+  it('shows reset-mail guidance instead of the form to a session without recovery proof', async () => {
+    mocks.hasRecoveryProof = false;
+
+    renderToStaticMarkup(await Page({
+      searchParams: Promise.resolve({ next: '/settings' }),
+    }));
+
+    expect(mocks.recoveryRequiredProps).toEqual({ email: 'fan@icons.gg', next: '/settings' });
+    expect(mocks.props).toBeNull();
   });
 
   it('redirects unauthenticated users to reset-specific re-request UX', async () => {
@@ -92,6 +115,6 @@ describe('/update-password page', () => {
       searchParams: Promise.resolve({ next: 'https://evil.example/steal' }),
     }));
 
-    expect(mocks.props).toEqual({ next: '/' });
+    expect(mocks.props).toEqual({ email: 'fan@icons.gg', next: '/' });
   });
 });

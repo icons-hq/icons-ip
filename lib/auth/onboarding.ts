@@ -27,12 +27,15 @@ export const ACCOUNT_SUSPENDED_PATH = '/account-suspended';
 export const ACCOUNT_DELETION_PATH = '/settings/delete-account';
 export const AUTH_NEXT_COOKIE_NAME = 'icons_auth_next';
 export const AUTH_RECOVERY_NEXT_COOKIE_NAME = 'icons_auth_recovery_next';
+export const AUTH_RECOVERY_PROOF_COOKIE_NAME = 'icons_auth_recovery_proof';
+export const UPDATE_PASSWORD_PATH = '/update-password';
 export const AUTH_NEXT_COOKIE_MAX_AGE_SECONDS = 10 * 60;
 
 const GENERIC_AUTH_ERROR_MESSAGE = '인증을 완료하지 못했습니다. 다시 시도하거나 새 확인 메일을 요청해주세요.';
 const GENERIC_SIGNUP_ERROR_MESSAGE = '가입 요청을 처리하지 못했습니다. 이메일 형식과 비밀번호를 확인한 뒤 다시 시도해주세요.';
 const GENERIC_PASSWORD_RESET_ERROR_MESSAGE = '비밀번호 재설정을 완료하지 못했습니다. 로그인 화면에서 새 재설정 메일을 요청해주세요.';
 const GENERIC_PASSWORD_UPDATE_ERROR_MESSAGE = '비밀번호를 변경하지 못했습니다. 잠시 후 다시 시도해주세요.';
+export const PASSWORD_RECOVERY_REQUIRED_MESSAGE = '비밀번호는 재설정 메일의 링크를 연 뒤에만 바꿀 수 있습니다. 새 재설정 메일을 받아주세요.';
 
 export function isAccountSuspended(
   profile: Pick<ProfileForOnboarding, 'suspended_at'> | null | undefined,
@@ -249,14 +252,14 @@ export function passwordResetErrorLoginPath(code: string | null | undefined, nex
 }
 
 export function updatePasswordPath(next: string = '/') {
-  const url = new URL('/update-password', 'https://icons.local');
+  const url = new URL(UPDATE_PASSWORD_PATH, 'https://icons.local');
   const safeNext = safeNextPath(next);
   if (safeNext !== '/') url.searchParams.set('next', safeNext);
   return `${url.pathname}${url.search}`;
 }
 
 export function updatePasswordSessionReadyPath(next: string = '/') {
-  const url = new URL('/update-password', 'https://icons.local');
+  const url = new URL(UPDATE_PASSWORD_PATH, 'https://icons.local');
   url.searchParams.set('session_ready', '1');
   const safeNext = safeNextPath(next);
   if (safeNext !== '/') url.searchParams.set('next', safeNext);

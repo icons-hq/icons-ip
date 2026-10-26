@@ -6,6 +6,7 @@ import {
   updatePasswordAction,
   type UpdatePasswordActionState,
 } from '@/app/update-password/actions';
+import { PasswordRecoveryRequired } from '@/components/screens/PasswordRecoveryRequired';
 import { WcButton } from '@/components/wc/WcButton';
 
 const emptyState: UpdatePasswordActionState = {};
@@ -36,9 +37,12 @@ function PasswordField({ error, label, name }: { error?: string; label: string; 
   );
 }
 
-export function UpdatePassword({ next }: { next: string }) {
+export function UpdatePassword({ email, next }: { email: string | null; next: string }) {
   const [state, action, pending] = useActionState(updatePasswordAction, emptyState);
   const resetHref = `/login?mode=reset${next === '/' ? '' : `&next=${encodeURIComponent(next)}`}`;
+
+  /* 폼을 연 뒤 복구 증명이 만료됐거나 맞지 않으면 서버 action이 저장을 거절한다 — 화면도 같은 안내로 바꾼다. */
+  if (state.recoveryRequired) return <PasswordRecoveryRequired email={email} next={next} />;
 
   return (
     <main className="wc-root wc-auth">

@@ -94,7 +94,7 @@ KORPAY_TICKET_CANARY_USER_ID=
 - `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`: Supabase publishable public key. 새 프로젝트는 이 값을 우선 사용한다.
 - `NEXT_PUBLIC_SUPABASE_ANON_KEY`: legacy Supabase anon public key. `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`가 없을 때 fallback으로만 사용한다.
 - `ICONS_CATALOG_SOURCE`: 서버 전용 catalog/search source override. 값은 `mock` 또는 `supabase`만 허용한다. 비워두면 Vercel Preview는 `mock`, Supabase 환경변수가 있는 production/local은 `supabase`, Supabase 환경변수가 없으면 `mock`을 쓴다. GitHub Actions의 PR preview는 선택된 shared/isolated Supabase 자격 증명과 함께 `supabase`를 강제한다.
-- `AUTH_SIGNUP_RESEND_SECRET`: 회원가입 확인 메일 재전송 상태, 인증 `next`, 비밀번호 재설정 요청 제한 쿠키를 domain-separated HMAC으로 서명하는 서버 전용 secret. 긴 랜덤 값을 사용하고 `NEXT_PUBLIC_` prefix를 붙이지 않는다.
+- `AUTH_SIGNUP_RESEND_SECRET`: 회원가입 확인 메일 재전송 상태, 인증 `next`, 비밀번호 재설정 요청 제한 쿠키, 비밀번호 복구 증명 쿠키를 domain-separated HMAC으로 서명하는 서버 전용 secret. 긴 랜덤 값을 사용하고 `NEXT_PUBLIC_` prefix를 붙이지 않는다.
 - `SITE_URL`: secret이 아닌 서버 전용 canonical public origin이다. Production은 정확히 `https://iconsip.com`을 사용하며 토스 `successUrl`·`failUrl`과 코페이 `returnUrl` callback이 모두 이 origin 아래에서 생성된다. Preview/CI는 필요하면 각 환경의 일반 서버 origin을 둘 수 있지만 Korpay 실자격 증명과 canary actor는 두지 않고 목적별 gate를 닫는다. `SITE_URL`만으로 live checkout이 열리지는 않는다.
 - `CRON_SECRET`: production Vercel Cron이 만료된 관리자 아트워크 staging 객체를 정리할 때 쓰는 서버 전용 bearer secret. 16~128자의 URL-safe 랜덤 값을 사용하고 preview에는 필요하지 않다.
 - `SUPABASE_SEND_EMAIL_HOOK_SECRET`·`RESEND_WEBHOOK_SECRET`: #191 Hook/webhook의 raw body 서명 검증용 서버 secret이다.
@@ -153,7 +153,7 @@ Server Action이 만드는 callback origin은 production·www·기본 Vercel·lo
 
 비밀번호 재설정 요청은 계정 존재 여부와 무관하게 같은 응답을 반환한다. 같은 브라우저의 정규화 이메일별 요청은 raw email 대신 HMAC digest를 담은 `icons_auth_password_reset` 쿠키로 총 3회/10분 제한하고, 활성 이메일 bucket은 12개로 제한해 브라우저 cookie 크기를 넘지 않게 한다. Supabase provider rate limit은 실제 상한으로 둔다. 전용 callback의 서명 state가 요청 브라우저에만 있으므로 최신 메일 링크는 재설정을 요청한 브라우저에서 열어야 한다.
 
-전용 Recovery callback은 `token_hash`와 `type=recovery`만 허용한다. token-hash `verifyOtp(type=recovery)`, 유효한 전용 서명 state, `getUser()` 재검증을 모두 통과한 뒤에만 온보딩 여부와 무관하게 `/update-password`로 보낸다. `code`만 있는 PKCE 링크는 session exchange 없이 제한된 reset 오류로 닫는다. 검증 과정의 성공 조건이 어긋나면 그 과정에서 만들어진 local session만 폐기한다. signed recovery state는 최신 유효 링크를 다시 쓸 수 있도록 성공하거나 자체 3,600초 TTL이 끝날 때까지 보존한다. 브라우저가 redirect 응답의 session cookie를 첫 SSR 요청보다 늦게 반영하면 callback이 붙인 1회성 `session_ready` 표식으로 전체 탐색을 한 번 다시 수행하며, 세션 확인 전에는 비밀번호 폼을 노출하지 않는다. 새 비밀번호 저장 뒤 global sign-out을 완료하면 `/login?password_reset=success`로 이동한다. 일반 가입 callback은 기존 온보딩 게이트를 유지하고, 회원가입 확인 메일 재전송은 서명된 httpOnly 쿠키로 3회/10분 window를 추적한 뒤 Supabase `auth.resend({ type: 'signup' })`를 사용한다. workflow는 Site URL, 두 callback의 Redirect URLs, email link/OTP TTL 3,600초와 기존 mailer 설정을 먼저 동기화한다. 각 대상 앱 handler가 배포된 뒤에만 recovery template 원문을 PATCH하고 read-back한다.
+전용 Recovery callback은 `token_hash`와 `type=recovery`만 허용한다. token-hash `verifyOtp(type=recovery)`, 유효한 전용 서명 state, `getUser()` 재검증을 모두 통과한 뒤에만 온보딩 여부와 무관하게 `/update-password`로 보낸다. `code`만 있는 PKCE 링크는 session exchange 없이 제한된 reset 오류로 닫는다. 검증 과정의 성공 조건이 어긋나면 그 과정에서 만들어진 local session만 폐기한다. signed recovery state는 최신 유효 링크를 다시 쓸 수 있도록 성공하거나 자체 3,600초 TTL이 끝날 때까지 보존한다. 브라우저가 redirect 응답의 session cookie를 첫 SSR 요청보다 늦게 반영하면 callback이 붙인 1회성 `session_ready` 표식으로 전체 탐색을 한 번 다시 수행하며, 세션 확인 전에는 비밀번호 폼을 노출하지 않는다. 성공한 callback만 그 세션의 사용자·session id에 묶인 15분짜리 `icons_auth_recovery_proof`(서명 httpOnly, path `/update-password`)를 남기며, `/update-password` 화면과 저장 action은 이 증명이 없거나 현재 세션과 다르면 폼 대신 계정 이메일로 재설정 메일을 다시 보내는 안내를 보이고 저장을 거절한다. 일반 로그인 세션으로 주소를 직접 열어도 비밀번호를 바꿀 수 없다. 새 비밀번호 저장 뒤 증명을 지우고 global sign-out을 완료하면 `/login?password_reset=success`로 이동한다. 일반 가입 callback은 기존 온보딩 게이트를 유지하고, 회원가입 확인 메일 재전송은 서명된 httpOnly 쿠키로 3회/10분 window를 추적한 뒤 Supabase `auth.resend({ type: 'signup' })`를 사용한다. workflow는 Site URL, 두 callback의 Redirect URLs, email link/OTP TTL 3,600초와 기존 mailer 설정을 먼저 동기화한다. 각 대상 앱 handler가 배포된 뒤에만 recovery template 원문을 PATCH하고 read-back한다.
 
 ### 소셜 OAuth 공급자 운영
 
@@ -343,7 +343,7 @@ curl -s "$PREVIEW_URL" | grep -o '/_next/static/chunks/[^"]*\.js' | sort -u | wh
 - `app/auth/callback/route.ts`: 가입·소셜 로그인 code exchange와 onboarding 처리, recovery exchange fail-closed 포함.
 - `app/auth/recovery/callback/route.ts`: 비밀번호 재설정 전용 token-hash 검증, state/user 검증, 세션 정리와 update-password redirect 처리.
 - `app/login/actions.ts`: 이메일 로그인/회원가입, Google·Apple·Kakao OAuth 시작, 확인 메일 재전송, 비밀번호 재설정 메일 요청, 로그아웃 server action.
-- `app/update-password/`: recovery 세션 재검증, 새 비밀번호 저장, 전역 로그아웃.
+- `app/update-password/`: recovery 세션·복구 증명 재검증(없으면 재설정 메일 안내), 새 비밀번호 저장, 전역 로그아웃.
 - `app/onboarding/actions.ts`: 프로필 완성과 추천 IP 팔로우 저장 server action.
 - `app/ip/actions.ts`: IP 팔로우/언팔로우 보호 액션.
 - `components/screens/`: 라우트별 화면 컴포넌트.
