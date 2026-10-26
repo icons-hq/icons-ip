@@ -55,6 +55,8 @@ describe('buildMypageDashboard', () => {
     expect(dashboard.coupons).toEqual({ usable: 2 });
     expect(dashboard.storeCredit).toEqual({ available: 4500 });
     expect(dashboard.orders?.counts.paid).toBe(1);
+    /* 최근 본 굿즈 카드도 위시 줄처럼 IP 이름을 브랜드 줄로 쓴다 — 공개 IP 이름표(l6-ui-5). */
+    expect(dashboard.ipTitles).toEqual(Object.fromEntries(ips.map((item) => [item.id, item.title])));
   });
 
   /* 블록은 서로 독립이다 — 한 조회가 실패하면 그 블록만 "확인하지 못했어요"가 된다. */
@@ -69,6 +71,7 @@ describe('buildMypageDashboard', () => {
     const noCatalog = buildMypageDashboard({ ...base, catalog: null });
     expect(noCatalog.wishlist).toEqual({ count: 14, goods: null });
     expect(noCatalog.follows).toBeNull();
+    expect(noCatalog.ipTitles).toBeNull();
     expect(noCatalog.orders).not.toBeNull();
 
     expect(buildMypageDashboard({ ...base, wishEntries: null }).wishlist).toBeNull();

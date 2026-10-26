@@ -62,7 +62,8 @@ function TicketGlyph() {
   );
 }
 
-/* 모바일 바로가기 4칸(11 §5.2 모바일) — 장바구니·위시는 카운트 배지(카트 수량 뱃지와 같은 비텍스트 액센트, 숫자는 접근 이름에). */
+/* 모바일 바로가기 4칸(11 §5.2 모바일) — 장바구니·위시는 카운트 배지(숫자는 접근 이름에). 장바구니 배지는 DESIGN §2
+   '카트 수량 뱃지'와 같은 비텍스트 액센트, 위시 배지는 액센트 사용처(폐쇄 목록) 밖이라 잉크다 — 스트립의 위시 수와 같은 판단. */
 function MypageShortcuts({ wishCount }: { wishCount: number | null }) {
   const cart = useCart();
   const cartCount = cart.ready ? cart.count : 0;
@@ -95,7 +96,7 @@ function MypageShortcuts({ wishCount }: { wishCount: number | null }) {
           <Link href={hrefFor('wish')}>
             <span className="wc-mydash__shortcut-icon">
               <Icon name="heart" size={30} stroke={1.5} />
-              {wishCount ? <span aria-hidden className="wc-mydash__badge">{countBadge(wishCount)}</span> : null}
+              {wishCount ? <span aria-hidden className="wc-mydash__badge wc-mydash__badge--ink">{countBadge(wishCount)}</span> : null}
             </span>
             위시
             {wishCount ? <span className="wc-sr-only"> {wishCount}개</span> : null}
@@ -265,7 +266,7 @@ export function MyPage({ avatarInitial, avatarUrl, dashboard, loyalty, nickname,
         <BenefitsBlock coupons={dashboard.coupons} storeCredit={dashboard.storeCredit} />
         <WishBlock wishlist={dashboard.wishlist} />
         <FollowsBlock follows={dashboard.follows} />
-        <MypageRecentGoods enabled={recentGoodsEnabled} viewerId={viewerId} />
+        <MypageRecentGoods enabled={recentGoodsEnabled} ipTitles={dashboard.ipTitles} viewerId={viewerId} />
       </div>
     </MypageShell>
   );

@@ -40,6 +40,9 @@ export interface MypageDashboard {
   follows: { count: number; ips: Ip[] } | null;
   coupons: { usable: number } | null;
   storeCredit: { available: number } | null;
+  /** 공개 IP id → 이름. '최근 본 굿즈' 카드가 위시 줄과 같은 브랜드 줄(IP 이름)을 쓰게 한다 — 그 굿즈는 브라우저
+      기록에서 나와 서버가 미리 고를 수 없어 공개 IP 이름표 전체를 내린다. 카탈로그를 못 읽었으면 null. */
+  ipTitles: Record<string, string> | null;
 }
 
 export interface MypageDashboardSources {
@@ -93,5 +96,6 @@ export function buildMypageDashboard(sources: MypageDashboardSources): MypageDas
       ? { usable: sources.coupons.filter((held) => couponDisplayState(held, now) === 'usable').length }
       : null,
     storeCredit: sources.storeCredit ? { available: sources.storeCredit.available } : null,
+    ipTitles: sources.catalog ? Object.fromEntries(sources.catalog.ips.map((ip) => [ip.id, ip.title])) : null,
   };
 }

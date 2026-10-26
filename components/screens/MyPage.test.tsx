@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Good, Ip } from '@/lib/data';
 import type { MypageDashboard } from '@/lib/mypage-dashboard';
 import type { OrderListItem } from '@/lib/orders';
+import { RecentGoodsCards } from '@/components/mypage/MypageRecentGoods';
 import { MyPage } from './MyPage';
 
 vi.mock('@/components/ui/Icon', () => ({ Icon: () => <span aria-hidden /> }));
@@ -68,6 +69,7 @@ const filled: MypageDashboard = {
   follows: { count: 1, ips: [ip] },
   coupons: { usable: 2 },
   storeCredit: { available: 4500 },
+  ipTitles: { 'hong-sil-quest': '홍실' },
 };
 
 const empty: MypageDashboard = {
@@ -76,6 +78,7 @@ const empty: MypageDashboard = {
   follows: { count: 0, ips: [] },
   coupons: { usable: 0 },
   storeCredit: { available: 0 },
+  ipTitles: {},
 };
 
 function render(overrides: Partial<React.ComponentProps<typeof MyPage>> = {}) {
@@ -235,8 +238,23 @@ describe('MyPage dashboard', () => {
     expect(shortcuts).toContain('href="/my/coupons"');
     expect(shortcuts).toContain('href="/my/wishlist"');
     expect(shortcuts).toContain('<span class="wc-sr-only"> 3개</span>');
+    /* 장바구니 배지는 카트 수량 뱃지(액센트), 위시 배지는 액센트 사용처 밖이라 잉크다(DESIGN §2 — l6-ui-2). */
+    expect(shortcuts).toContain('<span aria-hidden="true" class="wc-mydash__badge">99+</span>');
+    expect(shortcuts).toContain('<span aria-hidden="true" class="wc-mydash__badge wc-mydash__badge--ink">3</span>');
     expect(html).toContain('wc-mydash__signout');
     expect(html).toContain('>로그아웃</button>');
+  });
+
+  /* 같은 굿즈가 위시 줄과 최근 본 굿즈 줄에 함께 보여도 카드 구성(배지 → IP 이름 → 이름 → 가격)이 같다(l6-ui-5). */
+  it('draws recently viewed cards with the same anatomy as the wish shelf', () => {
+    const wishShelf = section(render(), 'aria-labelledby="mydash-wish"', 'aria-labelledby="mydash-follows"');
+    const wishCards = wishShelf.slice(wishShelf.indexOf('<ul class="wc-mydash__shelf">'), wishShelf.indexOf('</ul>') + 5);
+    const recentCards = renderToStaticMarkup(<RecentGoodsCards goods={[good]} ipTitles={filled.ipTitles} />);
+
+    expect(wishCards).toContain('<p class="wc-product-card__brand">홍실</p>');
+    expect(recentCards).toBe(wishCards);
+    /* 카탈로그를 못 읽어 이름표가 없으면 브랜드 줄만 비우고 카드는 그린다. */
+    expect(renderToStaticMarkup(<RecentGoodsCards goods={[good]} ipTitles={null} />)).not.toContain('wc-product-card__brand');
   });
 
   it('draws the recently viewed block only while the detail interests switch is on', () => {

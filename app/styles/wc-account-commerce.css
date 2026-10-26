@@ -1226,6 +1226,11 @@
     color: #FFFFFF;
   }
 
+  /* 위시 수 배지는 액센트 사용처(DESIGN §2 폐쇄 목록) 밖이라 잉크 바탕 — 흰 글자 대비도 AA 를 넘는다. */
+  .wc-mydash__badge--ink {
+    background: var(--wc-ink);
+  }
+
   /* 로그아웃 343×50 — 14/700, 흰 지면. 레퍼런스 #A0A0A0 글자는 AA 미달이라 ink.tertiary 로 보정한다. */
   .wc-mydash__signout {
     display: block;

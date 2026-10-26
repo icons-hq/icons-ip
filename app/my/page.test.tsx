@@ -19,6 +19,7 @@ const DASHBOARD = {
   follows: { count: 0, ips: [] },
   coupons: { usable: 1 },
   storeCredit: null,
+  ipTitles: {},
 };
 
 vi.mock('@/components/screens/MyPage', () => ({ MyPage: mocks.myPage }));

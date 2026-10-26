@@ -27,7 +27,37 @@ type RecentState =
  * 스위치를 다시 확인해 꺼졌다고 답하면 숨는다. 이 블록은 기록을 읽기만 하고 새로 쓰지 않는다.
  * 다른 회원의 기록을 보이지 않도록 서버가 판정한 뷰어 ID 로 저장 키를 고르고, 액션이 돌려준 주인과 맞을 때만 그린다.
  */
-export function MypageRecentGoods({ enabled, viewerId }: { enabled: boolean; viewerId: string }) {
+/**
+ * 최근 본 굿즈 카드 줄. 대시보드 '위시리스트' 줄과 같은 카드 구성(배지 → 브랜드(IP 이름) → 이름 → 가격)을 쓴다 —
+ * 같은 굿즈가 두 줄에 함께 보여도 카드 높이·구성이 어긋나지 않게(DESIGN '상품 카드 anatomy 통일', 11 §5.2).
+ */
+export function RecentGoodsCards({ goods, ipTitles }: { goods: readonly Good[]; ipTitles: Record<string, string> | null }) {
+  return (
+    <ul className="wc-mydash__shelf">
+      {goods.map((good) => (
+        <li key={good.id}>
+          <ProductCard
+            badges={goodDisplayBadges(good)}
+            brand={ipTitles?.[good.ip] ?? null}
+            compareAtPrice={good.compareAtPrice}
+            href={`/shop/${good.id}`}
+            imageBackground={good.img}
+            listSurface="standard"
+            listingAppearance={good.listingAppearance}
+            name={good.name}
+            price={good.price}
+            priceMax={good.priceMax}
+            salePeriod={good.salePeriod}
+            showDiscountRate={good.showDiscountRate}
+            soldOut={good.stock === 'soldout' || good.stockQty <= 0}
+          />
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+export function MypageRecentGoods({ enabled, ipTitles, viewerId }: { enabled: boolean; ipTitles: Record<string, string> | null; viewerId: string }) {
   const [state, setState] = useState<RecentState>({ kind: 'loading' });
 
   useEffect(() => {
@@ -73,26 +103,7 @@ export function MypageRecentGoods({ enabled, viewerId }: { enabled: boolean; vie
       ) : state.kind === 'unavailable' ? (
         <p className="wc-mydash__empty" role="status">최근 본 굿즈를 확인하지 못했어요. 잠시 후 다시 열어주세요.</p>
       ) : goods.length ? (
-        <ul className="wc-mydash__shelf">
-          {goods.map((good) => (
-            <li key={good.id}>
-              <ProductCard
-                badges={goodDisplayBadges(good)}
-                compareAtPrice={good.compareAtPrice}
-                href={`/shop/${good.id}`}
-                imageBackground={good.img}
-                listSurface="standard"
-                listingAppearance={good.listingAppearance}
-                name={good.name}
-                price={good.price}
-                priceMax={good.priceMax}
-                salePeriod={good.salePeriod}
-                showDiscountRate={good.showDiscountRate}
-                soldOut={good.stock === 'soldout' || good.stockQty <= 0}
-              />
-            </li>
-          ))}
-        </ul>
+        <RecentGoodsCards goods={goods} ipTitles={ipTitles} />
       ) : (
         <p className="wc-mydash__empty">최근 본 굿즈가 없어요. 굿즈를 둘러보면 여기에 모여요.</p>
       )}

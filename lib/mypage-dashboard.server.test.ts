@@ -51,7 +51,7 @@ describe('loadMypageDashboard', () => {
 
     const dashboard = await loadMypageDashboard('user-1');
 
-    expect(dashboard).toEqual({ orders: null, wishlist: { count: 0, goods: null }, follows: null, coupons: { usable: 0 }, storeCredit: null });
+    expect(dashboard).toEqual({ orders: null, wishlist: { count: 0, goods: null }, follows: null, coupons: { usable: 0 }, storeCredit: null, ipTitles: null });
   });
 
   /* 위시·쿠폰 읽기가 실패(null)하면 '0개'를 지어내지 않고 그 블록을 '확인하지 못했어요'로 접는다. */
