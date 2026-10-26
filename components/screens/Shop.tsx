@@ -102,7 +102,7 @@ export function Shop({ query, result, view, title, onQueryChange, paging, refres
           paging={paging}
           query={query}
           result={result}
-          /* 카테고리 전시는 서버(RPC)가 20개씩 잘라 주므로 DB 가 받는 정렬 4종만 연다. */
+          /* 카테고리 전시는 서버(RPC)가 20개씩 잘라 주므로 DB 화이트리스트(SHOP_SORTS — 컬렉션과 같은 7종)를 연다. */
           sorts={query.displayCategory ? SHOP_SORTS : SHOP_VIEW_SORTS[view]}
           wishlist={wishlist}
         />

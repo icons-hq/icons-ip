@@ -187,6 +187,7 @@ jobs:
           cat supabase/tests/helpers/goods_kc_fixture.sql supabase/tests/home_review_helpful_priority.sql | docker exec -i supabase_db_icons-ip psql -X -U supabase_admin -d postgres -v ON_ERROR_STOP=1
           cat supabase/tests/helpers/goods_kc_fixture.sql supabase/tests/category_display_compositions.sql | docker exec -i supabase_db_icons-ip psql -X -U supabase_admin -d postgres -v ON_ERROR_STOP=1
           cat supabase/tests/helpers/goods_kc_fixture.sql supabase/tests/category_display_tree.sql | docker exec -i supabase_db_icons-ip psql -X -U supabase_admin -d postgres -v ON_ERROR_STOP=1
+          cat supabase/tests/helpers/goods_kc_fixture.sql supabase/tests/category_display_menu.sql | docker exec -i supabase_db_icons-ip psql -X -U supabase_admin -d postgres -v ON_ERROR_STOP=1
           CATEGORY_DISPLAY_TEST_SCOPE=ci SUPABASE_DB_CONTAINER=supabase_db_icons-ip bash supabase/tests/category_display_concurrency.sh
           docker exec -i supabase_db_icons-ip psql -X -U supabase_admin -d postgres -v ON_ERROR_STOP=1 < supabase/tests/admin_body_templates.sql
           BODY_TEMPLATE_TEST_SCOPE=ci SUPABASE_DB_CONTAINER=supabase_db_icons-ip bash supabase/tests/admin_body_templates_concurrency.sh

@@ -22,7 +22,7 @@ const nodes = (node: ReactNode): Element[] => Children.toArray(node).flatMap(val
 const text = (node: ReactNode): string => Children.toArray(node).map(value => isValidElement<Record<string, unknown>>(value) ? text(value.props.children as ReactNode) : String(value)).join('');
 function render() {
   hooks.index = 0;
-  const screen = CategoryDisplayScreen({ initial, actorId, sessionId: null, directory: { categories: [{ ...category, archivedAt: null, legacyCategoryId: null }], sourceCategories: [], revision: 1, checkedAt: initial.checkedAt } });
+  const screen = CategoryDisplayScreen({ initial, actorId, sessionId: null, directory: { categories: [{ ...category, archivedAt: null, legacyCategoryId: null, imagePath: null }], sourceCategories: [], revision: 1, checkedAt: initial.checkedAt } });
   const editor = nodes(screen).find(node => typeof node.type === 'function' && node.type.name === 'CategoryDisplayEditor')!;
   const result = (editor.type as (props: Record<string, unknown>) => ReactNode)(editor.props);
   for (const job of hooks.jobs.splice(0)) job();
