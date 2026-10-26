@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
   catalog: null as CatalogSnapshot | null,
   coin: null as CoinOverview | null,
   screen: vi.fn<(props: Record<string, unknown>) => null>(() => null),
+  wishlist: vi.fn(async () => ({ viewerId: 'viewer-1', goodIds: ['g13'] }) as { viewerId: string | null; goodIds: string[] } | null),
   notFound: vi.fn(() => {
     throw new Error('NEXT_NOT_FOUND');
   }),
@@ -38,6 +39,7 @@ vi.mock('@/lib/card-rewards/gate.server', () => ({
 }));
 vi.mock('@/lib/catalog', () => ({ getCatalogSnapshot: () => mocks.catalog }));
 vi.mock('@/lib/coins.server', () => ({ loadCoinOverview: async () => mocks.coin }));
+vi.mock('@/lib/wishlist-ids.server', () => ({ loadListingWishlist: mocks.wishlist }));
 
 const event: FandomEvent = {
   id: 'e100',
@@ -116,6 +118,7 @@ beforeEach(() => {
   mocks.catalog = snapshot([event]);
   mocks.coin = null;
   mocks.screen.mockClear();
+  mocks.wishlist.mockClear();
   mocks.notFound.mockClear();
   mocks.permanentRedirect.mockClear();
 });
@@ -129,6 +132,22 @@ describe('/events/[eventId] 캠페인 상세', () => {
     expect(mocks.screen.mock.calls[0]?.[0]?.campaign).toEqual(mocks.campaign);
     expect(mocks.permanentRedirect).not.toHaveBeenCalled();
     expect(mocks.notFound).not.toHaveBeenCalled();
+  });
+
+  /* L4b · CL-01 — 굿즈 진열 카드의 목록 하트는 진열이 있을 때만 회원의 위시 ID 를 한 번 읽어 넘긴다. */
+  it('굿즈 진열이 있으면 위시 ID 를 한 번 읽어 화면에 넘기고, 없으면 읽지 않는다', async () => {
+    mocks.campaign = { ...campaignFor('goods'), resolvedSections: [{ type: 'goods', good_ids: ['g13'], goods: [{
+      id: 'g13', name: '아크릴 블록', price: 12000, compareAtPrice: null, badge: null, soldOut: false, imageBackground: '' }] }] };
+    renderToStaticMarkup(await Page(pageProps('goods')));
+    expect(mocks.wishlist).toHaveBeenCalledOnce();
+    expect(mocks.screen.mock.calls[0]?.[0]?.wishlist).toEqual({ viewerId: 'viewer-1', goodIds: ['g13'] });
+
+    mocks.wishlist.mockClear();
+    mocks.screen.mockClear();
+    mocks.campaign = { ...campaignFor('empty-goods'), resolvedSections: [{ type: 'goods', good_ids: ['gone'], goods: [] }, { type: 'attendance' }] };
+    renderToStaticMarkup(await Page(pageProps('empty-goods')));
+    expect(mocks.wishlist).not.toHaveBeenCalled();
+    expect(mocks.screen.mock.calls[0]?.[0]?.wishlist).toBeNull();
   });
 
   /* 공개 브라우징 — 비로그인도 본문을 그대로 읽는다. 로그인 여부는 참여 패널을
