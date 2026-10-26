@@ -146,7 +146,7 @@ function ReviewProductBand({ band, heartFor }: { band: HomeReviewBestBand; heart
       <Slider label={`${band.title} 굿즈`}>
         {paginate(band.goods, HOME_REVIEW_GOODS_MIN).map((page) => <div className="wc-home-review__page" key={page[0].id}>
           {page.map((good) => {
-            /* 보이는 숫자는 카드 별점과 같은 그룹 범위다(L4b) — 선정 기준은 굿즈 단위 집계 그대로(lib/home-ranking). */
+            /* 보이는 숫자는 카드 별점과 같은 그룹 범위이고, 선정(3점 이상)·정렬도 같은 값이다(L4b, lib/home-ranking). */
             const rating = homeReviewBandRating(good);
             return <div className="wc-home-review__item" key={good.id}>
               <ProductCard action={heartFor(good)} badges={good.badge ? [good.badge] : undefined} brand={good.brand}

@@ -21,7 +21,7 @@ import { adminCurationTargetGroupsFor, type AdminCurationTargetRecord } from '@/
 import { NOTICE_BAR_CTA_LIMIT, NOTICE_BAR_MESSAGE_LIMIT, type AdminCurationActionState, type AdminCurationKind } from '@/lib/admin/curations';
 import type { AdminCurationRecord } from '@/lib/admin/curations.server';
 import { isCardRewardDestination } from '@/lib/home-catalog';
-import { eligibleHomeReviewStatistics, HOME_REVIEW_MANUAL_LIMIT, HOME_SALES_PERIOD_LABELS, HOME_SALES_PERIODS, type HomeSalesPeriod } from '@/lib/home-ranking';
+import { eligibleHomeReviewGoodIds, HOME_REVIEW_MANUAL_LIMIT, HOME_SALES_PERIOD_LABELS, HOME_SALES_PERIODS, type HomeSalesPeriod } from '@/lib/home-ranking';
 import { HOME_HERO_CONTENT_LIMIT, HOME_HERO_LIMIT, HOME_HERO_TITLE_LIMIT, type HomeHeroImageDim, type HomeHeroTextColor } from '@/lib/home-hero';
 import { HOME_FREE_PRODUCT_LIMIT, HOME_PRODUCT_CANDIDATE_LIMIT, HOME_PRODUCT_TITLE_LIMIT, homeProductCountRange,
   type HomeProductImageShape, type HomeProductLayout } from '@/lib/home-product-collection';
@@ -259,7 +259,8 @@ function CurationForm({
   const names = useMemo(() => new Map(goodOptions.map((good) => [good.id, good.title])), [goodOptions]);
   const draft = buildDraftCurationPreview(id, { ...values, kind }, preview.goods, preview.latestGoods, preview.productRankings);
   const reviewStatistics = preview.productRankings?.reviewStatistics ?? [];
-  const eligibleReviewIds = new Set(eligibleHomeReviewStatistics(reviewStatistics).map((row) => row.goodId));
+  /* 고를 수 있는 리뷰 상품은 공개 홈 선정과 같은 판정이다 — 그룹 범위 요약(preview.goods 의 reviewSummary)이 있으면 그 평균 3 이상. */
+  const eligibleReviewIds = eligibleHomeReviewGoodIds(reviewStatistics, preview.goods);
   const showManualProducts = kind === 'band_banner' || (kind === 'best_tab' && values.selectionMode === 'manual')
     || (kind === 'review_best' && values.reviewSelectionMode === 'manual') || kind === 'product_collection';
   const legacyKind = kind === 'featured_ip' || kind === 'announcement';

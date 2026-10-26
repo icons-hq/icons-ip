@@ -187,7 +187,8 @@ describe('Home bands', () => {
     expect(render({ ...fullCuration, reviewBestBands: [{ id: 'review-a', title: '베스트리뷰', goods: reviewGoods }], layoutOrder: ['popular'] })).not.toContain('home-reviews-review-a-heading');
   });
 
-  /* L4b — 리뷰 BEST 밴드의 '★ 평균 · 리뷰 N'은 같은 홈의 카드 별점과 같은 그룹 범위 요약을 보인다(선정은 굿즈 단위 그대로). */
+  /* L4b — 리뷰 BEST 밴드의 '★ 평균 · 리뷰 N'은 같은 홈의 카드 별점과 같은 그룹 범위 요약을 보인다(선정·정렬도 같은 값 —
+     lib/home-ranking.test.ts). 요약이 없는 카드만 선정 집계값으로 폴백한다. */
   it('shows the review band rating from the group-scope summary and falls back to the selection statistic', () => {
     const reviewGoods = ['r1', 'r2', 'r3', 'r4'].map((id) => ({ ...good(id, id === 'r1' ? { reviewSummary: { count: 31, average: 4.25 } } : {}),
       ratingAverage: 4.5, reviewCount: 12,
