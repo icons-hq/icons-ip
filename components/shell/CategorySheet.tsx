@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useRef, type ReactNode } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { Icon } from '@/components/ui/Icon';
 import { Slider } from '@/components/wc/Slider';
 import { campaignDetailHref, hrefFor, type NavItem } from '@/lib/routes';
@@ -62,7 +62,7 @@ function TileGrid({ onNavigate, tiles }: { onNavigate: () => void; tiles: SheetT
 
 function SheetSection({ children, title }: { children: ReactNode; title?: string }) {
   return (
-    <section className="wc-sheet__section wc-catsheet__section">
+    <section className={`wc-sheet__section wc-catsheet__section${title ? '' : ' wc-catsheet__section--untitled'}`}>
       {title ? <h2 className="wc-sheet__title">{title}</h2> : null}
       {children}
     </section>
@@ -93,6 +93,8 @@ export function CategorySheet({
   shortcuts: NavItem[];
 }) {
   const panelRef = useRef<HTMLDivElement>(null);
+  /* 콘텐츠가 닫기 버튼 줄 아래로 들어간 동안만 머리줄에 지면색을 깐다(QA l5-qa-5, wc-chrome.css .wc-catsheet::before). */
+  const [scrolled, setScrolled] = useState(false);
   useOverlayA11y({ open: true, onClose, panelRef });
 
   const categoryTiles: SheetTile[] = categoryMenuTiles(nodes).map((tile) => ({
@@ -106,11 +108,11 @@ export function CategorySheet({
   return (
     <>
       <div aria-hidden className="wc-sheet-dim wc-catsheet-dim" onClick={onClose} />
-      <div ref={panelRef} aria-label={categoryLabel} aria-modal="true" className="wc-sheet wc-catsheet" role="dialog">
+      <div ref={panelRef} aria-label={categoryLabel} aria-modal="true" className="wc-sheet wc-catsheet" data-scrolled={scrolled ? 'true' : undefined} role="dialog">
         <button aria-label={`${categoryLabel} 닫기`} className="wc-icon-btn wc-sheet__close" onClick={onClose} type="button">
           <Icon name="close" size={24} />
         </button>
-        <div className="wc-sheet__inner">
+        <div className="wc-sheet__inner" onScroll={(event) => setScrolled(event.currentTarget.scrollTop > 0)}>
           {shortcuts.length > 0 ? (
             <SheetSection title="바로가기">
               <ul className="wc-catsheet__shortcuts">

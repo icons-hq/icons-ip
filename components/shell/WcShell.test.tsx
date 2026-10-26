@@ -442,7 +442,7 @@ describe('카테고리 내비게이션 (L5)', () => {
     /* 순서: 굿즈샵 → 기획전 → (세로선 칸) 전시분류. */
     expect(mega.indexOf('>굿즈샵<')).toBeLessThan(mega.indexOf('>기획전<'));
     expect(mega.indexOf('>기획전<')).toBeLessThan(mega.indexOf('class="wc-mega__catalog"'));
-    expect(mega).toContain('href="/events/fall-drop">가을 기획전</a>');
+    expect(mega).toContain('href="/events/fall-drop"><span class="wc-mega__link-clamp">가을 기획전</span></a>');
     /* 자기 전시가 없는 그룹 제목·2단계는 링크 없는 이름표, 전시가 있는 노드만 /shop?displayCategory 링크다. */
     expect(mega).toContain('<p class="wc-mega__heading">토이</p>');
     expect(mega).toContain(`class="wc-mega__link" href="/shop?displayCategory=${nodeId(2)}">피규어</a>`);
@@ -491,10 +491,24 @@ describe('카테고리 내비게이션 (L5)', () => {
     mocks.pathname = '/events/fall-drop';
     const mega = megaMarkup(renderToStaticMarkup(<Nav megaMenus={LIVE_MENUS} />));
     expect(mega.match(/aria-current="page"/g)).toHaveLength(1);
-    expect(mega).toContain('aria-current="page" class="wc-mega__link" href="/events/fall-drop">가을 기획전</a>');
+    expect(mega).toContain('aria-current="page" class="wc-mega__link" title="가을 기획전" href="/events/fall-drop"><span class="wc-mega__link-clamp">가을 기획전</span></a>');
 
     mocks.pathname = '/events/other-drop';
     expect(megaMarkup(renderToStaticMarkup(<Nav megaMenus={LIVE_MENUS} />))).not.toContain('aria-current="page"');
+  });
+
+  /* QA l5-qa-1 — 캠페인 제목은 DB 상한 120자까지 온다. 칸(180)에서 그대로 감기면 한 제목이 8줄이 돼 패널을 밀어 올렸다.
+   * 메가는 기획전 링크의 글자 상자만 2줄 말줄임(wc-mega__link-clamp, chrome-styles)이고, 제목은 자르지 않고 전부 싣는다(접근 이름·title). */
+  it('긴 기획전 제목(상한 120자)도 개수를 줄이지 않고 전체 제목을 접근 이름·title 로 싣는다', () => {
+    const longTitle = '아주 긴 겨울 기획전 '.repeat(10).trimEnd().padEnd(120, '전');
+    expect([...longTitle]).toHaveLength(120);
+    const campaigns = [{ id: 'long', title: longTitle, imageUrl: null }, ...Array.from({ length: 5 }, (_, index) => ({ id: `c${index}`, title: `기획전 ${index}`, imageUrl: null }))];
+    const mega = megaMarkup(renderToStaticMarkup(<Nav megaMenus={{ ...LIVE_MENUS, campaigns }} />));
+    expect(mega.match(/<span class="wc-mega__link-clamp">/g)).toHaveLength(6);
+    expect(mega).toContain(`class="wc-mega__link" title="${longTitle}" href="/events/long"><span class="wc-mega__link-clamp">${longTitle}</span></a>`);
+    /* 말줄임 변형은 기획전 칸에만 있다 — 굿즈샵 바로가기·전시분류 링크는 그대로다. */
+    expect(mega).toMatch(/class="wc-mega__link" href="\/shop">전체 굿즈</);
+    expect(mega).toContain(`class="wc-mega__link" href="/shop?displayCategory=${nodeId(2)}">피규어</a>`);
   });
 
   it('진행 중 기획전이 없으면 기획전 칸을 접고, 전시 트리가 비면 기존 3그룹 메뉴로 돌아간다', () => {

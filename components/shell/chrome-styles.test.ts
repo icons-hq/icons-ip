@@ -356,6 +356,65 @@ describe('카테고리 메가메뉴·카테고리 시트 (L5 · CH-05·CH-07·MC
     expect(declsFor('.wc-catsheet__collections .wc-slider__track')).toMatchObject({ margin: `-${ringReach}px`, padding: `${ringReach}px`, 'scroll-padding-inline': `${ringReach}px` });
   });
 
+  /* QA l5-qa-1 — 캠페인 제목은 DB 상한 120자까지 온다. 180 칸에서 그대로 감기면 110자 제목 하나가 8줄(h160)이 돼 패널이 316→444 로
+   * 커지고 나머지 기획전이 밀렸다. 기획전 링크만 2줄 말줄임이고(레퍼런스 컬렉션 링크도 2줄), 다른 메가 링크는 그대로 감긴다. */
+  it('카탈로그 메가의 기획전 링크만 글자 상자를 2줄에서 말줄임한다(링크 여백은 그대로 — 여백에 3번째 줄이 비치지 않게)', () => {
+    expect(declsFor('.wc-mega__list--catalog .wc-mega__link-clamp')).toEqual({
+      display: '-webkit-box',
+      overflow: 'hidden',
+      'overflow-wrap': 'anywhere',
+      'word-break': 'keep-all',
+      '-webkit-box-orient': 'vertical',
+      '-webkit-line-clamp': '2',
+    });
+    /* 바탕 링크 규칙은 말줄임을 갖지 않는다 — 전시분류·IP 링크에는 번지지 않고, 누르는 영역(위아래 여백 7)은 링크에 남는다. */
+    expect(declsFor('.wc-mega__link')).not.toHaveProperty('-webkit-line-clamp');
+    expect(declsFor('.wc-mega__link')).toMatchObject({ display: 'block', padding: '7px 0' });
+    /* 자르는 상자에는 위아래 여백이 없다 — overflow 가 여백 끝에서 잘리면 다음 줄 윗부분이 비친다. */
+    expect(declsFor('.wc-mega__list--catalog .wc-mega__link-clamp')).not.toHaveProperty('padding');
+  });
+
+  /* QA l5-qa-2 — 375 그리드 칸은 82 인데 'NONGDAMGOM'(12px, 브라우저 실측 약 83)이 칸만 쓰다 'NONGDAMGO / M' 으로 갈렸다.
+   * 라벨은 열 간격의 반씩을 양옆으로 더 써서 375 에서도 한 줄에 들고, 긴 운영 이름은 2줄에서 말줄임한다. */
+  it('시트 라벨은 열 간격의 반씩을 더 쓰고 2줄에서 말줄임해 375 에서 라틴 IP 이름이 단어 중간에서 갈리지 않는다', () => {
+    const label = declsFor('.wc-catsheet__tile-label');
+    expect(declsFor('.wc-catsheet__label')).toEqual(label);
+    expect(label).toMatchObject({ display: '-webkit-box', overflow: 'hidden', 'word-break': 'keep-all', '-webkit-box-orient': 'vertical', '-webkit-line-clamp': '2' });
+    const [top, inline, bottom] = label.margin.split(' ').map((value) => Number.parseFloat(value));
+    expect([top, bottom]).toEqual([8, 0]);
+    const columnGap = Number.parseFloat(declsFor('.wc-catsheet__grid').gap.split(' ')[1]);
+    expect(Number.parseFloat(declsFor('.wc-catsheet__shortcuts').gap)).toBe(columnGap);
+    expect(inline).toBe(-columnGap / 2);
+
+    /* 375 셈: 시트 안쪽 여백 16 ×2, 4열·열 간격 → 칸 82, 라벨이 쓰는 폭 = 칸 + 간격. */
+    const gutter = Number.parseFloat(declsFor('.wc-sheet__inner').padding.split(' ')[1]);
+    const cell = (375 - gutter * 2 - columnGap * 3) / 4;
+    expect(cell).toBe(82);
+    const NONGDAMGOM_12PX = 83; // QA labels.json(m375.ips[4]) 실측 — 라틴 대문자 10자, 12px/-0.2px
+    expect(cell).toBeLessThan(NONGDAMGOM_12PX);
+    expect(cell - inline * 2).toBeGreaterThanOrEqual(NONGDAMGOM_12PX);
+  });
+
+  /* QA l5-qa-5 — 공용 닫기(.wc-sheet__close)는 투명한 채 시트 기준 absolute 이고 스크롤은 안쪽이 해서, 내리면 기획전 이미지·제목이
+   * X 아래로 지나갔다. 카테고리 시트만 닫기 버튼 줄을 머리줄로 두고, 콘텐츠가 그 아래로 들어간 동안(data-scrolled)에만 지면색을 깐다. */
+  it('카테고리 시트 머리줄은 닫기 버튼 줄 높이이고, 스크롤한 동안에만 지면색으로 콘텐츠를 가린다 — 공용 닫기는 그대로다', () => {
+    const close = declsFor('.wc-sheet__close');
+    expect(close).toEqual({ position: 'absolute', top: '8px', right: '8px' });
+    const iconButton = declsFor('.wc-icon-btn');
+    expect(iconButton.background).toBe('none');
+
+    const strip = declsFor('.wc-catsheet::before');
+    expect(strip).toMatchObject({ position: 'absolute', top: '0', right: '0', left: '0', background: 'var(--wc-surface)', opacity: '0', 'pointer-events': 'none' });
+    expect(Number.parseFloat(strip.height)).toBe(Number.parseFloat(close.top) + Number.parseFloat(iconButton.height));
+    expect(declsFor(".wc-catsheet[data-scrolled='true']::before")).toEqual({ opacity: '1', 'pointer-events': 'auto' });
+    expect(Number(declsFor('.wc-catsheet .wc-sheet__close')['z-index'])).toBeGreaterThan(Number(strip['z-index']));
+    expect(declsFor('.wc-catsheet::before', '(prefers-reduced-motion: reduce)').transition).toBe('none');
+
+    /* 제목 없는 탭 구역이 맨 위에 오면 머리줄과 겹치는 만큼(52 − 시트 위 여백 20) 내린다. */
+    const offset = Number.parseFloat(strip.height) - Number.parseFloat(declsFor('.wc-sheet')['padding-top']);
+    expect(declsFor('.wc-catsheet .wc-sheet__inner > .wc-catsheet__section--untitled:first-child')['padding-top']).toBe(`${offset}px`);
+  });
+
   it('기획전 슬라이드 점은 24×44 터치 상자 안 8px 점이고 강제 색상에서도 보인다', () => {
     expect(declsFor('.wc-catsheet__collections .wc-slider__dot')).toMatchObject({ width: '24px', height: '44px' });
     expect(declsFor('.wc-catsheet__collections .wc-slider__dot::before')).toMatchObject({ width: '8px', height: '8px' });

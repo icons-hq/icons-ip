@@ -57,7 +57,21 @@ describe('모바일 카테고리 시트 (MC-05)', () => {
     expect(html.indexOf('>바로가기</h2>')).toBeGreaterThan(-1);
     expect(html.indexOf('>바로가기</h2>')).toBeLessThan(html.indexOf('>기획전</h2>'));
     expect(html.indexOf('>기획전</h2>')).toBeLessThan(html.indexOf('role="tablist"'));
-    expect(html.match(/class="wc-sheet__section wc-catsheet__section"/g)).toHaveLength(3);
+    /* ①·② 는 제목이 있고, ③ 탭 구역은 탭이 제목을 대신한다(제목 없는 구역 표시 — 맨 위에 올 때만 닫기 버튼 줄만큼 내린다). */
+    expect(html.match(/class="wc-sheet__section wc-catsheet__section"/g)).toHaveLength(2);
+    expect(html.match(/class="wc-sheet__section wc-catsheet__section wc-catsheet__section--untitled"><div class="wc-tabs wc-catsheet__tabs">/g)).toHaveLength(1);
+  });
+
+  /* QA l5-qa-5 — 닫기 버튼은 시트 기준으로 떠 있고 스크롤은 안쪽이 해서, 내리면 기획전 이미지·제목이 X 아래로 지나갔다.
+   * 머리줄 배경은 스크롤 위치로 켜지므로(data-scrolled) 처음 그릴 때는 꺼져 있고, 스크롤을 받는 것은 안쪽 상자다. */
+  it('처음 열 때 머리줄 배경은 꺼져 있고(스크롤 전), 바로가기·기획전이 없으면 제목 없는 탭 구역이 맨 위에 온다', () => {
+    const html = render();
+    expect(html).toContain('class="wc-sheet wc-catsheet" role="dialog"');
+    expect(html).not.toContain('data-scrolled');
+    expect(html).toContain('</button><div class="wc-sheet__inner">');
+
+    const tabsFirst = render({ shortcuts: [], campaigns: [] });
+    expect(tabsFirst).toContain('<div class="wc-sheet__inner"><section class="wc-sheet__section wc-catsheet__section wc-catsheet__section--untitled">');
   });
 
   it('바로가기는 운영 메뉴 설정 순서의 스토어 목적지와 ICONS 아이콘 칸이다', () => {

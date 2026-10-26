@@ -584,6 +584,19 @@
   grid-template-columns: 130px minmax(0, 1fr);
 }
 
+/* 기획전 칸(180)의 캠페인 제목은 2줄에서 말줄임한다 — 제목은 120자까지 와서, 그대로 감으면 한 제목이 8줄로 늘어
+   패널 높이를 밀어 올리고 나머지 기획전을 아래로 밀었다(QA l5-qa-1). 레퍼런스 컬렉션 링크도 2줄까지만 감긴다.
+   한글은 낱말 단위로 줄을 바꾸고 칸보다 긴 낱말만 글자 단위로 끊는다. 전체 제목은 글자(접근 이름)와 title 에 남는다.
+   자르기는 링크 안 글자 상자에 건다 — 링크(위아래 여백 7)에 걸면 overflow 가 여백 바깥 끝에서 잘려 3번째 줄 윗부분이 여백에 비친다. */
+.wc-mega__list--catalog .wc-mega__link-clamp {
+  display: -webkit-box;
+  overflow: hidden;
+  overflow-wrap: anywhere;
+  word-break: keep-all;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+}
+
 /* 세로 구분선은 장식이라 목록 항목이 아니라 그룹 칸의 왼쪽 선으로 그린다(스크린리더가 빈 항목을 읽지 않게). */
 .wc-mega__catalog {
   min-width: 0;
@@ -1104,10 +1117,49 @@
   }
 }
 
+/* 닫기 버튼 줄(위 8 + 버튼 44 = 52)은 카테고리 시트의 머리줄이다. 공용 닫기(.wc-sheet__close)는 투명한 채 시트 기준으로 떠 있고
+   스크롤은 안쪽(.wc-sheet__inner)이 하므로, 내리면 기획전 이미지·제목이 X 아래로 지나가 어두운 키아트 위에서 X 가 묻혔다(QA l5-qa-5).
+   콘텐츠가 머리줄 아래로 들어간 동안(data-scrolled — CategorySheet 가 스크롤 위치로 단다)에만 지면색과 하단 선을 깔아 콘텐츠를 가린다.
+   맨 위에서는 투명하고 탭도 통과시켜 첫 섹션 제목 자리(시트 위 20)가 레퍼런스와 같다. 공용 .wc-sheet__close·전체 메뉴 시트는 그대로다. */
+.wc-catsheet::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: 0;
+  z-index: 1;
+  height: 52px;
+  border-radius: inherit;
+  background: var(--wc-surface);
+  box-shadow: 0 1px 0 var(--wc-hairline);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity var(--wc-duration-short) ease;
+}
+
+.wc-catsheet[data-scrolled='true']::before {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.wc-catsheet .wc-sheet__close {
+  z-index: 2;
+}
+
+/* 바로가기·기획전이 모두 비어 제목 없는 탭 구역이 맨 위에 오면, 탭 줄이 시트 위 20에서 시작해 닫기 버튼(8~52)과 겹친다 —
+   그때만 그 차이(32)만큼 내린다. */
+.wc-catsheet .wc-sheet__inner > .wc-catsheet__section--untitled:first-child {
+  padding-top: 32px;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .wc-catsheet,
   .wc-catsheet-dim {
     animation: none;
+  }
+
+  .wc-catsheet::before {
+    transition: none;
   }
 }
 
@@ -1157,16 +1209,22 @@
   color: var(--wc-ink);
 }
 
+/* 라벨은 칸 폭(375에서 82)에 열 간격(5)의 반씩을 양옆으로 더 쓴다 — 칸만 쓰면 'NONGDAMGOM'(약 83) 같은 라틴 IP 이름이
+   'NONGDAMGO / M'처럼 한 글자만 다음 줄로 떨어졌다(QA l5-qa-2). 한글은 낱말 단위로 줄을 바꾸고, 그래도 칸보다 긴 낱말만
+   글자 단위로 끊으며, 운영 이름이 길어도 2줄에서 말줄임해 그리드 행 높이가 들쭉날쭉하지 않게 한다. */
 .wc-catsheet__label,
 .wc-catsheet__tile-label {
-  display: block;
-  margin-top: 8px;
+  display: -webkit-box;
+  margin: 8px -2.5px 0;
+  overflow: hidden;
   overflow-wrap: anywhere;
   word-break: keep-all;
   font-size: 12px;
   font-weight: 400;
   line-height: 1.3;
   text-align: center;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
 }
 
 /* ② 기획전 2×2 슬라이드 — 한 장이 시트 폭 전체(슬라이드 간격 16)이고 장 안은 2열(열 간격 7·행 간격 16).
