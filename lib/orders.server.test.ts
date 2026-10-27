@@ -162,6 +162,7 @@ describe('loadOrders', () => {
       itemLabel: '아크릴 스탠드 외 1건',
       itemCount: 3,
       paymentMethod: 'card',
+      claim: null,
     }]);
 
     expect(records.find((record) => record.table === 'orders')).toMatchObject({
@@ -191,7 +192,7 @@ describe('loadOrders', () => {
           { id: orderId, user_id: userId, status: 'paid', total: 54000, created_at: '2026-07-14T06:00:00.000Z' },
           { id: pendingOrderId, user_id: userId, status: 'pending', total: 32000, created_at: '2026-07-14T07:00:00.000Z' },
         ],
-        order_cancellation_requests: [{ order_id: pendingOrderId }],
+        order_cancellation_requests: [{ order_id: pendingOrderId, claim_type: 'cancel', stage: 'requested', requested_at: '2026-07-14T07:01:00.000Z' }],
         order_items: [
           { order_id: orderId, qty: 1, good_name_snapshot: '완료 주문 굿즈' },
           { order_id: pendingOrderId, qty: 1, good_name_snapshot: '취소 확인 중 굿즈' },
@@ -208,6 +209,7 @@ describe('loadOrders', () => {
         itemLabel: '취소 확인 중 굿즈',
         itemCount: 1,
         paymentMethod: 'card',
+        claim: { claimType: 'cancel', stage: 'requested' },
       },
       {
         id: orderId,
@@ -217,11 +219,30 @@ describe('loadOrders', () => {
         itemLabel: '완료 주문 굿즈',
         itemCount: 1,
         paymentMethod: 'card',
+        claim: null,
       },
     ]);
     expect(records.find((record) => record.table === 'order_cancellation_requests')).toMatchObject({
-      select: 'order_id',
+      select: 'order_id,claim_type,stage',
+      order: [['requested_at', { ascending: false }]],
     });
+  });
+
+  /* 10/14 회의 S20 — 목록 배지는 상세와 같은 기준(가장 최근 클레임)으로 진행 중 클레임을 말한다. */
+  it('carries the latest claim of each order so the list badge matches the detail header', async () => {
+    mocks.client = createClient({
+      records: [],
+      rows: {
+        orders: [{ id: orderId, user_id: userId, status: 'paid', total: 54000, created_at: '2026-07-14T06:00:00.000Z' }],
+        order_cancellation_requests: [
+          { order_id: orderId, claim_type: 'cancel', stage: 'rejected', requested_at: '2026-07-14T06:10:00.000Z' },
+          { order_id: orderId, claim_type: 'cancel', stage: 'processing', requested_at: '2026-07-14T06:20:00.000Z' },
+        ],
+        order_items: [{ order_id: orderId, qty: 1, good_name_snapshot: '굿즈' }],
+      },
+    });
+
+    await expect(loadOrders(userId)).resolves.toMatchObject([{ id: orderId, claim: { claimType: 'cancel', stage: 'processing' } }]);
   });
 });
 

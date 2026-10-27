@@ -54,6 +54,8 @@ interface OrderListItemRow {
 
 interface CancellationRequestOrderRow {
   order_id: string;
+  claim_type: string;
+  stage: string;
 }
 
 interface OrderDetailItemRow extends OrderListItemRow {
@@ -118,9 +120,11 @@ export async function loadOrders(userId: string, {includePending=false}:{include
       .in('status', includePending?[...ORDER_DETAIL_STATUSES]:[...VISIBLE_ORDER_STATUSES])
       .order('created_at', { ascending: false })
       .order('id', { ascending: false }),
+    /* 주문마다 가장 최근 클레임 하나가 목록 배지가 된다 — 상세와 같은 기준(requested_at 최신). */
     supabase
       .from('order_cancellation_requests')
-      .select('order_id'),
+      .select('order_id,claim_type,stage')
+      .order('requested_at', { ascending: false }),
     loadGiftOrderList(includePending),
   ]);
 
@@ -132,6 +136,14 @@ export async function loadOrders(userId: string, {includePending=false}:{include
   }
 
   let orderRows = (orderResult.data ?? []) as OrderListRow[];
+  const latestClaimByOrderId = new Map<string, NonNullable<OrderListItem['claim']>>();
+  for (const request of (requestResult.data ?? []) as CancellationRequestOrderRow[]) {
+    if (latestClaimByOrderId.has(request.order_id)) continue;
+    /* 모르는 값은 배지를 만들지 않는다 — 상세가 판정을 보여준다. */
+    if (isOrderClaimType(request.claim_type) && isOrderClaimStage(request.stage)) {
+      latestClaimByOrderId.set(request.order_id, { claimType: request.claim_type, stage: request.stage });
+    }
+  }
   const requestedOrderIds = [...new Set(
     ((requestResult.data ?? []) as CancellationRequestOrderRow[]).map((request) => request.order_id),
   )];
@@ -192,6 +204,7 @@ export async function loadOrders(userId: string, {includePending=false}:{include
       itemLabel: summary.label,
       itemCount: summary.itemCount,
       paymentMethod: normalizeCheckoutPaymentMethod(order.payment_method) ?? 'card',
+      claim: latestClaimByOrderId.get(order.id) ?? null,
     };
   })].sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id));
 }

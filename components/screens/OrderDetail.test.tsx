@@ -251,7 +251,7 @@ describe('OrderDetail', () => {
       />,
     );
 
-    expect(html).toContain('단순 변심 청약철회 기한이 지났습니다');
+    expect(html).toContain('단순 변심 반품·교환 기한이 지났습니다');
     expect(html).toContain('공급받은 날부터 3개월');
     expect(html).not.toContain('일 남음');
   });
@@ -345,3 +345,22 @@ describe('진행 중인 취소의 상단 상태 카드', () => {
     expect(done).toContain('취소된 주문이에요');
   });
 });
+
+/* 10/14 회의 S20·S21 */
+describe('OrderDetail claim badge and line totals', () => {
+  it('shows the same claim badge as the order list in the header', () => {
+    const html = renderToStaticMarkup(<OrderDetail order={order({ status: 'paid', cancellationRequest: {
+      id: '22222222-2222-4222-8222-222222222222', status: 'requested', claimType: 'cancel', stage: 'requested', reference: 1,
+      requestedAt: '2026-08-01T07:00:00.000Z', decidedAt: null, decisionNote: null, reshipCarrier: null, reshipTrackingNumber: null,
+    } })} />);
+    expect(html).toMatch(/<div class="order-detail-status-row"><span class="order-status order-status--paid">결제완료<\/span><span class="order-list-badge order-claim-badge">취소 요청<\/span><\/div>/);
+  });
+
+  it('omits the line total when the quantity is one and keeps it for larger quantities', () => {
+    const single = renderToStaticMarkup(<OrderDetail order={order()} />);
+    expect(single).not.toContain('<strong class="mono">₩27,000</strong>');
+    const double = renderToStaticMarkup(<OrderDetail order={order({ items: [{ id: 'item-1', variantId: '00000000-0000-4000-8000-000000000001', goodId: 'g13', name: '홍실 아크릴 블록', type: '아크릴 블록', qty: 2, unitPrice: 27000 }] })} />);
+    expect(double).toContain('<strong class="mono">₩54,000</strong>');
+  });
+});
+

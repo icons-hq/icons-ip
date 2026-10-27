@@ -2689,7 +2689,17 @@ button.wc-settings__link-row[aria-disabled="true"] strong {
 }
 
 .wc-receipt .order-detail-status-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
   margin-bottom: 10px;
+}
+
+/* 진행 중인 클레임 배지(취소 요청·처리 중 등) — 주문 목록과 상세 헤더가 같은 표시를 쓴다. */
+.wc-receipt .order-claim-badge {
+  border-color: var(--wc-ink-sub);
+  color: var(--wc-ink);
 }
 
 .wc-receipt .order-detail-meta,
@@ -5094,6 +5104,17 @@ button.wc-settings__link-row[aria-disabled="true"] strong {
   font-size: 13px;
   line-height: 1.6;
   color: var(--wc-ink-tertiary);
+}
+
+/* 법정 안내는 접어서 제공한다(10/14 회의 S21) — 요약 줄만 보이고 펼치면 고지 전문. */
+.wc-receipt .order-cancellation-notice > summary {
+  font-weight: 600;
+  color: var(--wc-ink-sub);
+  cursor: pointer;
+}
+
+.wc-receipt .order-cancellation-notice[open] > summary {
+  margin-bottom: 8px;
 }
 
 /* 원본: globals. 취소 안내 본문은 읽기 폭을 제한한다. */

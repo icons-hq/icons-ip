@@ -11,6 +11,7 @@ import { ListingReturnLink } from '@/components/shell/ListingReturn';
 import {
   formatOrderDate,
   ORDER_WITHDRAWAL_DEADLINE_LABELS,
+  orderClaimProgressLabel,
   orderReferenceLabel,
   orderStatusMeta,
   type OrderListItem,
@@ -264,6 +265,7 @@ export function Orders({
             <ol className="orders-list">
               {orders.map((order) => {
                 const status = orderStatusMeta(order.status);
+                const claimLabel = orderClaimProgressLabel(order.status, order.claim);
                 const date = formatOrderDate(order.createdAt);
 
                 return (
@@ -278,6 +280,8 @@ export function Orders({
                         {order.paymentMethod === 'bank_transfer' && order.status === 'pending' && (
                           <span className="order-list-badge">입금 대기</span>
                         )}
+                        {/* 진행 중인 취소·반품·교환 — 상세 헤더와 같은 함수(orderClaimProgressLabel)로 말한다. */}
+                        {claimLabel && <span className="order-list-badge order-claim-badge">{claimLabel}</span>}
                         <span>{order.itemCount}개 굿즈</span>
                       </div>
                       <span className={`order-status order-status--${status.tone}`}>{status.label}</span>
