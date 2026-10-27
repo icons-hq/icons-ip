@@ -280,6 +280,9 @@ export function passwordUpdateErrorMessage(error: AuthErrorLike | null | undefin
     case 'session_expired':
     case 'session_not_found':
     case 'reauthentication_needed':
+    /* 운영 Auth 가드가 recovery 세션이 아닌 비밀번호 변경을 거절한 경우 — 재설정 메일로만 바꿀 수 있다. */
+    case 'current_password_required':
+    case 'current_password_invalid':
       return '비밀번호 재설정 세션이 만료되었습니다. 로그인 화면에서 새 재설정 메일을 요청해주세요.';
     default:
       return GENERIC_PASSWORD_UPDATE_ERROR_MESSAGE;
