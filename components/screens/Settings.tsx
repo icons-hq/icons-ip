@@ -22,6 +22,16 @@ import { MypageShell } from '@/components/wc/MypageShell';
 import { WcButton } from '@/components/wc/WcButton';
 import type { AccountDeletionPresentation } from '@/lib/account-deletion';
 import { LEGAL_DOCUMENT_LABELS, legalDocumentHref } from '@/lib/legal/links';
+import {
+  marketingChannelConsentLabel,
+  MARKETING_CHANNEL_FIELDS,
+  MARKETING_CHANNEL_LABELS,
+  MARKETING_CHANNELS,
+  MARKETING_CONSENT_NOTICE,
+  type MarketingChannel,
+  type MarketingChannelConsent,
+  type MarketingConsentState,
+} from '@/lib/marketing-consent';
 import { PROFILE_IMAGE_ACCEPT } from '@/lib/profile';
 import { uploadProfileAvatar } from '@/lib/profile-upload.client';
 
@@ -31,7 +41,10 @@ interface SettingsProps {
   avatarInitial: string;
   avatarUrl: string | null;
   email: string;
-  initialMarketing: boolean;
+  /** 수단별 마케팅 정보 수신 동의. 읽지 못하면 null — 미동의로 그리고 저장은 서버가 판정한다. */
+  marketingConsent: MarketingConsentState | null;
+  /** 동의 상태를 읽지 못했다. 미동의로 그려 저장하면 실제 동의를 철회하게 되므로 폼을 잠근다. */
+  marketingConsentUnavailable?: boolean;
   isConfigured: boolean;
   nickname: string;
 }
@@ -117,20 +130,25 @@ export function PasswordResetRow({ email, isConfigured }: { email: string; isCon
   );
 }
 
-function MarketingConsentRow({ defaultChecked }: { defaultChecked: boolean }) {
+/* 수단별 마케팅 정보 수신 동의(10/14 회의 S4 — LFS 설정의 메일·SMS 수신 동의와 같은 두 줄).
+   동의 중이면 동의일을 함께 보여 준다(2년 재확인의 기준일). 이관 동의는 날짜 대신 "기존 동의(기록 전)". */
+function MarketingConsentRow({ channel, consent, disabled }: { channel: MarketingChannel; consent: MarketingChannelConsent | null; disabled: boolean }) {
+  const consentLabel = marketingChannelConsentLabel(consent);
   return (
     <div className="wc-auth__agree-row">
       <label>
         <input
           className="settings-marketing-input"
-          defaultChecked={defaultChecked}
-          name="marketing"
+          defaultChecked={consent?.agreed === true}
+          disabled={disabled}
+          name={MARKETING_CHANNEL_FIELDS[channel]}
           type="checkbox"
         />
         <span>
-          마케팅 정보 수신 동의 <em className="wc-auth__opt">선택</em>
+          {MARKETING_CONSENT_NOTICE.title} ({MARKETING_CHANNEL_LABELS[channel]}) <em className="wc-auth__opt">선택</em>
         </span>
       </label>
+      {consentLabel ? <span className="wc-settings__consent-state">{consentLabel}</span> : null}
     </div>
   );
 }
@@ -141,7 +159,8 @@ export function Settings({
   avatarInitial,
   avatarUrl,
   email,
-  initialMarketing,
+  marketingConsent,
+  marketingConsentUnavailable = false,
   isConfigured,
   nickname,
 }: SettingsProps) {
@@ -257,13 +276,26 @@ export function Settings({
 
       <MemberActivityConsent />
       <CustomerDemographicConsent />
-      <form action={marketingAction} className="wc-mypage__form">
-        <h2 className="wc-mypage__subtitle">약관 동의</h2>
+      {/* 알림함 마케팅 소식의 '마케팅 수신 동의 관리' 링크가 이 폼(#marketing-consent)으로 온다. */}
+      <form action={marketingAction} aria-labelledby="settings-consent-heading" className="wc-mypage__form" id="marketing-consent">
+        <h2 className="wc-mypage__subtitle" id="settings-consent-heading">약관 동의</h2>
         <ul className="wc-auth__agree">
           <li><RequiredConsentRow label="이용약관 동의" /></li>
           <li><RequiredConsentRow label="개인정보 처리방침 동의" /></li>
-          <li><MarketingConsentRow defaultChecked={initialMarketing} /></li>
+          {MARKETING_CHANNELS.map((channel) => (
+            <li key={channel}>
+              <MarketingConsentRow channel={channel} consent={marketingConsent?.[channel] ?? null} disabled={marketingConsentUnavailable} />
+            </li>
+          ))}
         </ul>
+        {marketingConsentUnavailable ? (
+          <div className="wc-auth__alert" role="alert">
+            마케팅 정보 수신 동의를 불러오지 못했어요. 지금은 변경할 수 없으니 새로고침한 뒤 다시 확인해주세요.
+          </div>
+        ) : null}
+        <p className="wc-mypage__note">
+          {MARKETING_CONSENT_NOTICE.summary} {MARKETING_CONSENT_NOTICE.sms} {MARKETING_CONSENT_NOTICE.inApp}
+        </p>
 
         <div aria-label="마케팅 동의 저장 상태" aria-live="polite" role="group">
           {marketingState.errors?.form && (
@@ -278,7 +310,7 @@ export function Settings({
           )}
         </div>
 
-        <WcButton className="settings-marketing-submit" disabled={!isConfigured || marketingPending} type="submit" variant="primary">
+        <WcButton className="settings-marketing-submit" disabled={!isConfigured || marketingPending || marketingConsentUnavailable} type="submit" variant="primary">
           {marketingPending ? '저장 중' : '변경사항 저장'}
         </WcButton>
         <p className="wc-mypage__note">

@@ -45,7 +45,7 @@ describe('wishCartState', () => {
     /* 다른 카드의 담기로 카트가 바쁜 동안에는 담지 못하지만 '담는 중'은 누른 카드에만 보인다. */
     expect(wishCartState(good(), { ...READY, pending: true })).toMatchObject({ label: '장바구니 담기', unavailable: true });
     expect(wishCartState(good(), { ...READY, quantityInCart: 3 })).toMatchObject({
-      label: '담김 · 3', ariaLabel: '홍실 아크릴 블록, 장바구니 3개, 재고 한도 3개', unavailable: true,
+      label: '장바구니 · 3', ariaLabel: '홍실 아크릴 블록, 장바구니 3개, 재고 한도 3개', unavailable: true,
     });
   });
 

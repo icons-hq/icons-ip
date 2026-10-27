@@ -36,6 +36,7 @@ import {
   formatOrderDateTime,
   ORDER_WITHDRAWAL_DEADLINE_LABELS,
   ORDER_WITHDRAWAL_REASON_LABELS,
+  orderClaimProgressLabel,
   orderDetailHeaderPresentation,
   orderReferenceLabel,
   orderStatusMeta,
@@ -136,7 +137,11 @@ function OrderReviewEntry({
 }
 
 /*
- * 청약철회 기한 안내.
+ * 단순 변심 반품·교환 기한 안내(법정 청약철회 기한).
+ *
+ * 화면 문구는 고객이 실제로 누르는 절차 이름으로 말한다(10/14 회의 S19) — 실물은 반품·교환,
+ * 디지털 전용 주문은 교환을 받지 않으므로 취소·환불 검토 요청이다. 법정 용어와 전체 고지는
+ * 취소 패널의 접힌 법정 안내(LEGAL_WITHDRAWAL_NOTICE)에 그대로 있다.
  *
  * 기산점은 delivered_at(재화를 공급받은 날)이다 — 주문일도, 발송일도 아니다(#189).
  * 판정의 진실원은 DB의 order_withdrawal_deadline_passed이고 이 블록은 같은 규칙의
@@ -154,11 +159,12 @@ function WithdrawalDeadlineNotice({
   digitalOnly?: boolean;
 }) {
   if (status === 'canceled') return null;
+  const procedure = digitalOnly ? '취소·환불 검토 요청' : '반품·교환';
 
   if (!deliveredAt) {
     return (
       <p className="order-detail-withdrawal faint">
-        단순 변심 청약철회 기한({ORDER_WITHDRAWAL_DEADLINE_LABELS.change_of_mind})은
+        단순 변심 {procedure} 기한({ORDER_WITHDRAWAL_DEADLINE_LABELS.change_of_mind})은
         {' '}{digitalOnly ? '파일 제공이 시작된 날부터 확인합니다.' : '배송이 완료된 날부터 시작됩니다.'}
       </p>
     );
@@ -175,13 +181,13 @@ function WithdrawalDeadlineNotice({
       <span> · </span>
       {daysLeft > 0 ? (
         <>
-          <span>단순 변심 청약철회 </span>
+          <span>단순 변심 {procedure} </span>
           <time dateTime={deadline.toISOString()}>{formatOrderDate(deadline.toISOString())}</time>
           <span>까지 (약 {daysLeft}일 남음)</span>
         </>
       ) : (
         <span>
-          단순 변심 청약철회 기한이 지났습니다. 굿즈 하자·오배송은
+          단순 변심 {procedure} 기한이 지났습니다. {digitalOnly ? '파일 하자·오제공은' : '굿즈 하자·오배송은'}
           {' '}{ORDER_WITHDRAWAL_DEADLINE_LABELS.defect} 이내에 요청할 수 있습니다.
         </span>
       )}
@@ -229,6 +235,7 @@ export function OrderDetail({
     status.body = '구매한 파일과 현재 제공 상태를 아래에서 확인할 수 있습니다. 파일에 문제가 있으면 이 주문의 문의 또는 취소 검토 요청을 이용해주세요.';
   }
   const claimRequest = order.cancellationRequest;
+  const claimLabel = orderClaimProgressLabel(order.status, claimRequest);
   const isCancelClaim = claimRequest?.claimType === 'cancel';
   const activeCancelClaim = Boolean(
     claimRequest && isCancelClaim && isOpenOrderClaimStage(claimRequest.stage),
@@ -250,6 +257,8 @@ export function OrderDetail({
           </Link>
           <div className="order-detail-status-row">
             <span className={`order-status order-status--${status.tone}`}>{status.label}</span>
+            {/* 주문 목록 배지와 같은 함수다 — 진행 중인 클레임이 두 화면에서 같은 말로 보인다. */}
+            {claimLabel && <span className="order-list-badge order-claim-badge">{claimLabel}</span>}
           </div>
           <h1 className="wc-receipt__title">{headerCopy.title}</h1>
           <p className="wc-receipt__subcopy">{headerCopy.body}</p>
@@ -313,7 +322,8 @@ export function OrderDetail({
                   <div><dt>수량</dt><dd>{item.qty}개</dd></div>
                   <div><dt>단가</dt><dd>{krw(item.unitPrice)}</dd></div>
                 </dl>
-                <strong className="mono">{krw(item.qty * item.unitPrice)}</strong>
+                {/* 수량이 1이면 줄 합계가 단가와 같은 금액이라 두 번 말하지 않는다(10/14 회의 S21). */}
+                {item.qty > 1 ? <strong className="mono">{krw(item.qty * item.unitPrice)}</strong> : null}
               </article>
             ))}
           </div>
@@ -389,7 +399,7 @@ export function OrderDetail({
             </Link>
             <span className="faint" style={{ fontSize: 12.5 }}>
               {downloads?.items.length ? '디지털 파일 제공 후에도 취소·환불 검토를 요청할 수 있습니다.' : production?.jobs.length ? '주문제작은 발송 전 취소 검토를 요청할 수 있고, 반품·교환은 배송 중부터 주문 전체로 신청할 수 있습니다.' : '직접 취소는 발주확인 전, 반품·교환은 배송 중부터 주문 전체로 신청할 수 있습니다.'}
-              그 밖의 청약철회 의사표시는 이 주문의 1:1 문의 또는 고객센터로 알려주세요.
+              그 밖의 취소·반품 요청은 이 주문의 1:1 문의 또는 고객센터로 알려주세요.
               주문 정보와 접수 시각이 함께 보존됩니다. 문의 접수만으로 환불이 승인되거나 출고가 중단되지는 않습니다.
             </span>
           </div>

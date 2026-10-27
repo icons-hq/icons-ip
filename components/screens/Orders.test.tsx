@@ -252,3 +252,14 @@ describe('Orders', () => {
     expect(flow).toContain('단순 변심은 공급받은 날부터 7일, 하자·오배송은 공급받은 날부터 3개월 안에 신청해주세요.');
   });
 });
+
+/* 10/14 회의 S20 — 취소를 요청한 주문은 목록에서도 상세 헤더와 같은 배지로 보인다. */
+describe('Orders claim badge', () => {
+  it('shows the open claim stage next to the order status with the detail header rule', () => {
+    const html = renderToStaticMarkup(<Orders orders={[orderItem({ claim: { claimType: 'cancel', stage: 'processing' } })]} />);
+    expect(html).toContain('<span class="order-list-badge order-claim-badge">취소 처리 중</span>');
+    expect(html).toContain('결제완료');
+    expect(renderToStaticMarkup(<Orders orders={[orderItem({ claim: { claimType: 'cancel', stage: 'rejected' } })]} />)).not.toContain('order-claim-badge');
+  });
+});
+

@@ -37,6 +37,7 @@ import { goodsSalesQuoteProblem } from '@/lib/goods-sales';
 import { shippingFeeLabel } from '@/lib/shipping';
 import { useGoodsSalesPrecheckoutQuote, useShippingQuote } from '@/components/shop/useShippingQuote';
 import { ShippingGroupSummary } from '@/components/shop/ShippingGroupSummary';
+import { shippingGroupLabel } from '@/lib/fulfillment';
 import { goodsShipDateLabel, preorderSupplyLabel, type GoodsVariantSupply } from '@/lib/goods-preorders';
 import { GoodsSalePeriodRefresh } from '@/components/shop/GoodsSalePeriodRefresh';
 import { goodsSaleUnavailableLabel } from '@/lib/goods-sale-period';
@@ -359,9 +360,9 @@ export function Cart({
         ) : (
           <div className="wc-cart__layout">
             <div aria-busy={pending} className="wc-cart__list-col">
-              {shipping.quote?.groups.map(group => (
-                <section className="wc-shipping-group" key={group.originId} aria-label={`${group.originName} 출고 굿즈`}>
-                  <h2>{group.originName} 출고</h2>
+              {shipping.quote?.groups.map((group, index, groups) => (
+                <section className="wc-shipping-group" key={group.originId} aria-label={`${shippingGroupLabel(index, groups.length)} 굿즈`}>
+                  <h2>{shippingGroupLabel(index, groups.length)}</h2>
                   <ul className="wc-cart__list">
                     {lines.filter(line => line.good?.originId === group.originId).map(line => <CartLineRow key={cartItemKey(line.goodId, line.variantId,line.customInputs)} line={line} />)}
                   </ul>

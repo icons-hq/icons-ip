@@ -869,6 +869,8 @@ describe('출고지 배송 정책 표시', () => {
   it('DB 정책 금액과 상품별 유형을 표시하고 누락 시 금액을 추정하지 않는다', () => {
     const policy = {originId:'gimpo',originName:'김포',baseFee:4700,freeThreshold:62000,feeType:'policy' as const,individualFee:2500};
     expect(renderToStaticMarkup(<GoodDetailView detail={detail} shippingPolicy={policy} />)).toContain('4,700');
+    /* 배송 안내에 출고지 이름을 내지 않는다(10/14 회의 S7). */
+    expect(renderToStaticMarkup(<GoodDetailView detail={detail} shippingPolicy={policy} />)).not.toContain('김포');
     expect(renderToStaticMarkup(<GoodDetailView detail={detail} shippingPolicy={{...policy,feeType:'individual'}} />)).toContain('굿즈당 1회');
     expect(renderToStaticMarkup(<GoodDetailView detail={detail} shippingPolicy={{...policy,feeType:'free'}} />)).toContain('무료배송');
     expect(renderToStaticMarkup(<GoodDetailView detail={detail} />)).toContain('배송 정책을 확인하지 못했습니다');

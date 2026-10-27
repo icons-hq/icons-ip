@@ -32,3 +32,15 @@ describe('찜 목록 담기', () => {
     expect(html).toContain('href="/shop/good"'); expect(html).toContain('수량 선택'); expect(mocks.add).not.toHaveBeenCalled();
   });
 });
+
+/* 10/14 회의 S14 — '담김'이 생소하다는 지적에 따라 이미 담은 굿즈는 장바구니 기준으로 말한다. */
+describe('담은 굿즈 표시', () => {
+  it('shows the cart quantity with the cart wording instead of 담김', () => {
+    mocks.getQuantity.mockReturnValueOnce(1);
+    const html = renderToStaticMarkup(<AddToCartButton good={good} />);
+    expect(html).toContain('>장바구니 · 1</button>');
+    expect(html).not.toContain('담김');
+    expect(html).toContain('aria-label="키링, 장바구니 1개, 한 개 더 담기"');
+  });
+});
+
