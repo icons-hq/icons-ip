@@ -1,15 +1,21 @@
 import { isUuid } from '@/lib/uuid';
 export type CouponRecipientSegment = 'all' | 'first_purchase' | 'repeat_purchase';
-export type CouponGoodsScope = 'all' | 'selected_goods' | 'selected_categories';
+export type CouponGoodsScope = 'all' | 'selected_goods' | 'selected_categories' | 'selected_ips';
+export const COUPON_GOODS_SCOPES: readonly CouponGoodsScope[] = ['all', 'selected_goods', 'selected_categories', 'selected_ips'];
+/** IP ids follow the catalog slug rule (lowercase, digits, hyphen). */
+const IP_ID = /^[a-z0-9][a-z0-9-]{0,99}$/;
 export interface CouponTargeting {
   recipientSegment: CouponRecipientSegment;
   goodsScope: CouponGoodsScope;
   targetGoodIds: string[];
   targetCategoryIds?: string[];
+  /** IP coupons follow each good's current IP, including goods added later. */
+  targetIpIds?: string[];
   issuanceMode?: 'code' | 'targeted';
 }
 export interface CouponTargetGood { id: string; code: string; name: string; archivedAt?: string | null }
 export interface CouponTargetCategory { id: string; name: string; path: string; blocked: boolean }
+export interface CouponTargetIp { id: string; title: string; blocked: boolean }
 export interface CouponQuote {
   userCouponId: string; couponCode: string; eligibleSubtotal: number; discount: number; reason: string | null;
 }
@@ -25,7 +31,7 @@ export function parseCouponQuote(value: unknown): CouponQuote | null {
 }
 export function parseCouponTargetingRecord(value: unknown): CouponTargeting | null {
   if (!object(value) || typeof value.recipientSegment !== 'string' || !['all', 'first_purchase', 'repeat_purchase'].includes(value.recipientSegment)
-    || typeof value.goodsScope !== 'string' || !['all', 'selected_goods', 'selected_categories'].includes(value.goodsScope) || !Array.isArray(value.targetGoodIds)
+    || typeof value.goodsScope !== 'string' || !COUPON_GOODS_SCOPES.includes(value.goodsScope as CouponGoodsScope) || !Array.isArray(value.targetGoodIds)
     || value.targetGoodIds.length > 1000 || value.targetGoodIds.some(id => typeof id !== 'string' || !id.trim() || id.length > 200)
     || new Set(value.targetGoodIds).size !== value.targetGoodIds.length || value.goodsScope !== 'selected_goods' && value.targetGoodIds.length > 0
     || value.issuanceMode !== undefined && value.issuanceMode !== 'code' && value.issuanceMode !== 'targeted'
@@ -33,7 +39,12 @@ export function parseCouponTargetingRecord(value: unknown): CouponTargeting | nu
     || value.targetCategoryIds !== undefined && (!Array.isArray(value.targetCategoryIds) || value.targetCategoryIds.length > 100
       || value.targetCategoryIds.some(id => typeof id !== 'string' || !isUuid(id))
       || new Set(value.targetCategoryIds).size !== value.targetCategoryIds.length
-      || value.goodsScope !== 'selected_categories' && value.targetCategoryIds.length > 0)) return null;
+      || value.goodsScope !== 'selected_categories' && value.targetCategoryIds.length > 0)
+    || value.goodsScope === 'selected_ips' && !Array.isArray(value.targetIpIds)
+    || value.targetIpIds !== undefined && (!Array.isArray(value.targetIpIds) || value.targetIpIds.length > 100
+      || value.targetIpIds.some(id => typeof id !== 'string' || !IP_ID.test(id))
+      || new Set(value.targetIpIds).size !== value.targetIpIds.length
+      || value.goodsScope !== 'selected_ips' && value.targetIpIds.length > 0)) return null;
   return value as unknown as CouponTargeting;
 }
 export function parseCouponTargetCategories(value: unknown): CouponTargetCategory[] | null {
@@ -41,6 +52,12 @@ export function parseCouponTargetCategories(value: unknown): CouponTargetCategor
     || typeof item.name !== 'string' || !item.name || typeof item.path !== 'string' || !item.path || typeof item.blocked !== 'boolean')
     || new Set(value.map(item => item.id)).size !== value.length) return null;
   return value as CouponTargetCategory[];
+}
+export function parseCouponTargetIps(value: unknown): CouponTargetIp[] | null {
+  if (!Array.isArray(value) || value.length > 100 || value.some(item => !object(item) || typeof item.id !== 'string' || !IP_ID.test(item.id)
+    || typeof item.title !== 'string' || !item.title || typeof item.blocked !== 'boolean')
+    || new Set(value.map(item => item.id)).size !== value.length) return null;
+  return value as CouponTargetIp[];
 }
 export function parseCouponTargetGoods(value: unknown): CouponTargetGood[] | null {
   if (!Array.isArray(value) || value.some(item => !object(item) || typeof item.id !== 'string' || !item.id
@@ -53,7 +70,7 @@ export function parseCouponTargeting(form: FormData): { ok: true; value: CouponT
   const segment = read('recipientSegment') || 'all'; const scope = read('goodsScope') || 'all';
   const errors: Record<string, string> = {};
   if (!['all', 'first_purchase', 'repeat_purchase'].includes(segment)) errors.recipientSegment = '발급 대상 고객을 선택해주세요.';
-  if (!['all', 'selected_goods', 'selected_categories'].includes(scope)) errors.goodsScope = '할인 대상 상품 범위를 선택해주세요.';
+  if (!COUPON_GOODS_SCOPES.includes(scope as CouponGoodsScope)) errors.goodsScope = '할인 대상 상품 범위를 선택해주세요.';
   const mode = read('issuanceMode') || 'code';
   if (!['code', 'targeted'].includes(mode)) errors.issuanceMode = '쿠폰 발급 방식을 선택해주세요.';
   let ids: string[] = [];
@@ -72,12 +89,21 @@ export function parseCouponTargeting(form: FormData): { ok: true; value: CouponT
   } catch { errors.targetCategoryIds = '할인 대상 카테고리를 다시 선택해주세요.'; }
   if (scope === 'selected_categories' && !categoryIds.length && read('status') !== 'archived') errors.targetCategoryIds = '카테고리 쿠폰을 활성화하려면 대상 카테고리가 필요합니다.';
   if (scope !== 'selected_categories') categoryIds = [];
+  let ipIds: string[] = [];
+  try {
+    const input: unknown = JSON.parse(read('targetIpIds') || '[]');
+    if (!Array.isArray(input) || input.length > 100 || input.some(id => typeof id !== 'string' || !IP_ID.test(id))) throw new Error('invalid');
+    ipIds = [...new Set(input as string[])].sort();
+  } catch { errors.targetIpIds = '할인 대상 IP를 다시 선택해주세요.'; }
+  if (scope === 'selected_ips' && !ipIds.length && read('status') !== 'archived') errors.targetIpIds = 'IP 쿠폰을 활성화하려면 대상 IP가 필요합니다.';
+  if (scope !== 'selected_ips') ipIds = [];
   return Object.keys(errors).length ? { ok: false, errors } : { ok: true, value: { recipientSegment: segment as CouponRecipientSegment, goodsScope: scope as CouponGoodsScope, targetGoodIds: ids,
     ...(form.has('targetCategoryIds') || scope === 'selected_categories' ? { targetCategoryIds: categoryIds } : {}),
+    ...(form.has('targetIpIds') || scope === 'selected_ips' ? { targetIpIds: ipIds } : {}),
     ...(form.has('issuanceMode') ? { issuanceMode: mode as 'code' | 'targeted' } : {}),
   } };
 }
 export function couponTargetingLabel(value: Partial<CouponTargeting>): string {
   const recipient = value.issuanceMode === 'targeted' ? '지정 고객' : value.recipientSegment === 'first_purchase' ? '첫구매 고객' : value.recipientSegment === 'repeat_purchase' ? '재구매 고객' : '전체 고객';
-  return `${recipient} · ${value.goodsScope === 'selected_goods' ? `선택 굿즈 ${value.targetGoodIds?.length ?? 0}종` : value.goodsScope === 'selected_categories' ? `선택 카테고리 ${value.targetCategoryIds?.length ?? 0}개` : '전체 굿즈'}`;
+  return `${recipient} · ${value.goodsScope === 'selected_goods' ? `선택 굿즈 ${value.targetGoodIds?.length ?? 0}종` : value.goodsScope === 'selected_categories' ? `선택 카테고리 ${value.targetCategoryIds?.length ?? 0}개` : value.goodsScope === 'selected_ips' ? `선택 IP ${value.targetIpIds?.length ?? 0}개` : '전체 굿즈'}`;
 }

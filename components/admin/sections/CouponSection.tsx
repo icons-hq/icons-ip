@@ -90,6 +90,9 @@ function CouponEditor({
     if (values.get('goodsScope') === 'selected_categories' && values.get('targetCategoryIds') === '[]') {
       setStepError('혜택을 적용할 카테고리를 한 개 이상 선택해주세요.'); return;
     }
+    if (values.get('goodsScope') === 'selected_ips' && values.get('targetIpIds') === '[]') {
+      setStepError('혜택을 적용할 IP를 한 개 이상 선택해주세요.'); return;
+    }
     setStepError(''); setStep(2);
     requestAnimationFrame(() => form.current?.querySelector<HTMLInputElement>('[name="code"]')?.focus());
   }
@@ -124,6 +127,8 @@ function CouponEditor({
         targetGoods={defaults?.targetGoods ?? []}
         categoryIds={String(value('targetCategoryIds', JSON.stringify(defaults?.targetCategoryIds ?? [])))}
         targetCategories={defaults?.targetCategories ?? []}
+        ipIds={String(value('targetIpIds', JSON.stringify(defaults?.targetIpIds ?? [])))}
+        targetIps={defaults?.targetIps ?? []}
         issuanceMode={String(value('issuanceMode', defaults?.issuanceMode ?? 'code'))}
         modeLocked={Boolean(selected?.issuedCount)}
         errors={state.errors}

@@ -612,7 +612,7 @@ docs/
 
 ### 혜택 콘솔
 
-카테고리 쿠폰은 `selected_categories`와 UUID 최대 100개로 현재 대표·추가 분류/하위 분류를 평가한다. `private.coupon_good_matches`를 단일·조합 할인과 배송비 배분에서 공유하며 카테고리 트리의 공유 advisory lock을 즉시 획득하지 못하면 `coupon_category_changed`로 재견적을 요구한다. 상품 잠금을 가진 결제가 트리 잠금을 가진 분류 변경을 기다리는 교착을 만들지 않는다. 완료 사용 원장의 스냅샷은 유지한다. `issuance_mode=targeted`는 운영자 지정 발급만 허용하며 코드 입력 신규 발급을 차단한다. 기존 보유분의 같은 코드 재조회는 멱등이고 발급 후 방식 변경은 금지한다. 마케팅의 다운로드형 쿠폰 첨부 후보/가용성에서는 고객지정 쿠폰을 제외한다. [계약·검증](research/smartstore-admin/coupon-category-targeting.md).
+카테고리 쿠폰은 `selected_categories`와 UUID 최대 100개로 현재 대표·추가 분류/하위 분류를 평가한다. `private.coupon_good_matches`를 단일·조합 할인과 배송비 배분에서 공유하며 카테고리 트리의 공유 advisory lock을 즉시 획득하지 못하면 `coupon_category_changed`로 재견적을 요구한다. 상품 잠금을 가진 결제가 트리 잠금을 가진 분류 변경을 기다리는 교착을 만들지 않는다. 완료 사용 원장의 스냅샷은 유지한다. `issuance_mode=targeted`는 운영자 지정 발급만 허용하며 코드 입력 신규 발급을 차단한다. 기존 보유분의 같은 코드 재조회는 멱등이고 발급 후 방식 변경은 금지한다. 마케팅의 다운로드형 쿠폰 첨부 후보/가용성에서는 고객지정 쿠폰을 제외한다. [계약·검증](research/smartstore-admin/coupon-category-targeting.md). IP 쿠폰은 `selected_ips`와 IP ID 최대 100개(`coupons.target_ip_ids`)로 각 상품의 현재 `ip_id`를 평가하며, 같은 판정을 5인자 `private.coupon_good_matches`로 legacy 평가·단일/조합 할인 배분에 공유하고 사용 스냅샷에 `targetIpIds`를 남긴다. 최소금액은 기존처럼 대상(해당 IP) 소계 기준이다([IP 쿠폰 계약](research/smartstore-admin/coupon-ip-targeting.md)).
 
 혜택 목록은 `admin_search_coupon_console_v3`가 대상·할인 방식·기간·진행 상태·정렬을 페이지 제한 전에 적용한다. 대기/적용/완료는 발급기간에서 파생하고 중지는 기존 `archived` 계약을 따른다. 복사는 새 코드로 정의를 만드는 입력 초안이며 기존 코드·발급·사용 이력을 복제하지 않는다. 중지/재개는 `admin_set_coupon_status`가 revision 확인과 행 잠금 아래 감사 기록을 남기며 기존 완료 주문의 할인은 바꾸지 않는다. 기존 쿠폰의 발급·사용 대상과 최소 결제금액 계약은 유지한다. 일반 장바구니의 중복 사용은 아래 조합 정책을 따른다.
 
