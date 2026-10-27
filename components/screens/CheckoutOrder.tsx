@@ -53,6 +53,11 @@ const prepareErrorCopy: Record<NonNullable<PrepareGoodsPaymentActionState['error
   payment_unavailable: '결제 환경을 준비 중입니다. 잠시 후 다시 시도해주세요.',
 };
 
+/** 같은 주문으로 결제 준비를 다시 시도할 만한 실패인지. 일시적인 결제 환경 문제만 해당한다. */
+export function prepareRetryable(error: NonNullable<PrepareGoodsPaymentActionState['error']>): boolean {
+  return error === 'payment_unavailable';
+}
+
 export function effectiveGoodsCheckoutExpiry(
   orderExpiresAt: string,
   providerExpiresAt?: string,
@@ -160,8 +165,9 @@ export function CheckoutOrder({
 
   /* 화면을 연 뒤 다른 탭·콜백이 결제를 닫았다면 prepare가 그 사실을 알려준다.
      서버 상태를 다시 읽어 닫힌 결제 안내로 바꾼다. */
+  /* 뒤로 가기로 캐시된 화면이 이미 닫힌 주문을 결제 가능으로 그렸을 때도 같다(not_payable·not_found). */
   useEffect(() => {
-    if (prepareState.error === 'payment_closed') router.refresh();
+    if (prepareState.error === 'payment_closed' || prepareState.error === 'not_payable' || prepareState.error === 'not_found') router.refresh();
   }, [prepareState, router]);
 
   /* 이 화면에서 준비한 결제가 유효 시간을 넘겼는데 처음 읽은 주문에는 그 시도가 없다.
@@ -299,10 +305,15 @@ export function CheckoutOrder({
             <div className="checkout-state-panel" role="alert">
               <h2>결제 화면을 열지 못했어요</h2>
               <p className="checkout-error">{prepareErrorCopy[prepareState.error]}</p>
-              <form action={prepareAction}>
-                <input name="orderId" type="hidden" value={order.id} />
-                <button className="btn btn-holo checkout-submit">다시 시도</button>
-              </form>
+              {/* 다시 눌러도 같은 결과인 사유(닫힌 주문·판매기간·로그인)에는 다시 시도를 두지 않는다. */}
+              {prepareRetryable(prepareState.error) ? (
+                <form action={prepareAction}>
+                  <input name="orderId" type="hidden" value={order.id} />
+                  <button className="btn btn-holo checkout-submit">다시 시도</button>
+                </form>
+              ) : (
+                <Link className="btn btn-ghost" href={`/orders/${order.id}`}>주문 상세 보기</Link>
+              )}
             </div>
           ) : state === 'payable' ? (
             <div className="checkout-state-panel" role="status">

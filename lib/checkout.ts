@@ -98,6 +98,17 @@ export interface CheckoutClosureInput {
 }
 
 /**
+ * 보류 원장의 상태로 본 "결제 없이 장바구니를 남긴 주문"인지(ADR-0026). 결제를 기다리는 보류와 결제 없이
+ * 닫혀 풀린 보류만 해당한다 — 결제가 확정돼 장바구니에서 이미 뺀 보류(consumed)와, 새 주문이 장바구니를
+ * 넘겨받아 떼어 낸 보류(detached)는 아니다.
+ */
+export function cartRetentionKeepsCart(value: unknown): boolean {
+  if (typeof value !== 'object' || value === null) return false;
+  const { state, releaseReason } = value as { state?: unknown; releaseReason?: unknown };
+  return state === 'awaiting_payment' || (state === 'released' && releaseReason !== 'detached');
+}
+
+/**
  * 무통장 입금 선택지 아래 안내. 두 주문서(legacy·거래 런타임)가 같은 사유 문구를 쓴다(S26).
  * `goodsAllow`는 서버 견적의 결제수단 판정이다. 아직 견적 전이면 null.
  */
@@ -460,6 +471,8 @@ export function checkoutPaymentResultFollowsApproval(outcome: CheckoutPaymentRes
 export interface CheckoutPaymentResultFocus {
   readonly orderId: string;
   readonly outcome: CheckoutPaymentResultOutcome;
+  /** 결제 없이 장바구니를 남긴 주문인지(ADR-0026). 다시 담지 않고 주문서에서 다시 결제하게 한다. */
+  readonly cartRetained?: boolean;
 }
 
 export function checkoutPaymentResultOutcome(

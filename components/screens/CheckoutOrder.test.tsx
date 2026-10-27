@@ -9,6 +9,7 @@ import { bankTransferDepositName } from '@/lib/payments/bank-transfer';
 import {
   CheckoutOrder,
   effectiveGoodsCheckoutExpiry,
+  prepareRetryable,
   preparedGoodsCheckoutUsable,
 } from './CheckoutOrder';
 
@@ -406,5 +407,14 @@ describe('CheckoutOrder 한 번에 결제(S8)·장바구니 유지(D3)', () => {
     expect(html).toContain('결제 없이 취소된 주문이에요');
     expect(html).toContain('href="/cart"');
     expect(html).not.toContain('같은 굿즈 다시 담기');
+  });
+});
+
+describe('prepareRetryable', () => {
+  it('닫힌 주문·판매기간·로그인처럼 다시 눌러도 같은 실패에는 다시 시도를 두지 않는다', () => {
+    expect(prepareRetryable('payment_unavailable')).toBe(true);
+    for (const error of ['not_payable', 'not_found', 'payment_closed', 'goods_sale_not_open', 'auth_required'] as const) {
+      expect(prepareRetryable(error)).toBe(false);
+    }
   });
 });

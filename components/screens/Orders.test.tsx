@@ -127,6 +127,20 @@ describe('Orders', () => {
       expect(html).toContain('role="alert"');
     });
 
+    it('장바구니가 남은 주문의 결제 실패는 다시 담지 않고 주문서에서 다시 결제하게 한다(ADR-0026)', () => {
+      const html = renderToStaticMarkup(
+        <Orders orders={[]} paymentResult="failed" paymentFocus={{ orderId, outcome: 'not_approved', cartRetained: true }} />,
+      );
+      expect(html).toContain('장바구니는 그대로 있으니');
+      expect(html).toContain('href="/checkout"');
+      expect(html).not.toContain('주문 정리하고 다시 주문하기');
+      const canceled = renderToStaticMarkup(
+        <Orders orders={[]} paymentResult="failed" paymentFocus={{ orderId, outcome: 'canceled', cartRetained: true }} />,
+      );
+      expect(canceled).toContain('href="/cart"');
+      expect(canceled).not.toContain('같은 굿즈 다시 담기');
+    });
+
     it('아직 유효한 시도만 같은 주문 재시도를 안내한다', () => {
       const retryable = renderToStaticMarkup(
         <Orders orders={[]} paymentResult="failed" paymentFocus={{ orderId, outcome: 'retryable' }} />,

@@ -159,6 +159,13 @@ describe('restoreCanceledOrderToCartAction', () => {
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
+  it('결제가 확정돼 장바구니에서 이미 뺀 주문(consumed)은 기존 다시 담기 흐름을 쓴다', async () => {
+    mocks.rows.orders = [{ id: orderId, user_id: userId, status: 'canceled', discount_total: 0, store_credit_total: 0 }];
+    mocks.retention.mockResolvedValue({ data: { state: 'consumed', releaseReason: null }, error: null });
+    const result = await restoreCanceledOrderToCartAction(orderId);
+    expect(result).not.toEqual({ ok: false, error: 'cart_retained' });
+  });
+
   it('DB가 취소를 확정한 본인 주문의 품목을 장바구니 수량 RPC로 다시 담는다', async () => {
     await expect(restoreCanceledOrderToCartAction(orderId)).resolves.toEqual({
       ok: true,

@@ -11,6 +11,7 @@ import { parseCheckoutTransactionReceipt } from './checkout-transaction';
 import type { GoodsTransactionDisplay } from './goods-transaction';
 
 import {
+  cartRetentionKeepsCart,
   checkoutEffectivePaymentStatus,
   checkoutPaymentResultOutcome,
   normalizeCheckoutAddress,
@@ -133,8 +134,8 @@ function selectLatestOrderPaymentAttempt(userId: string, orderId: string) {
 }
 
 /**
- * 이 주문이 결제가 끝날 때까지 장바구니를 남긴 주문인지(ADR-0026). 보류 원장은 private이라
- * service role RPC로 본인 주문만 읽는다. 읽지 못하면 false — 다시 담기 경로가 원래대로 남는다.
+ * 이 주문이 결제 없이 장바구니를 남긴 주문인지(ADR-0026, 판정은 `cartRetentionKeepsCart`). 보류 원장은
+ * private이라 service role RPC로 본인 주문만 읽는다. 읽지 못하면 false — 다시 담기 경로가 원래대로 남는다.
  */
 async function loadOrderCartRetained(userId: string, orderId: string): Promise<boolean> {
   try {
@@ -142,7 +143,7 @@ async function loadOrderCartRetained(userId: string, orderId: string): Promise<b
       p_user_id: userId,
       p_order_id: orderId,
     });
-    return !error && data !== null && typeof data === 'object';
+    return !error && cartRetentionKeepsCart(data);
   } catch {
     return false;
   }
@@ -401,6 +402,7 @@ export async function loadLatestCardPaymentResultFocus(
 
     return {
       orderId: order.id,
+      ...(await loadOrderCartRetained(userId, order.id) ? { cartRetained: true } : {}),
       outcome: checkoutPaymentResultOutcome({
         orderStatus: order.status,
         paymentStatus: payment?.status ?? null,

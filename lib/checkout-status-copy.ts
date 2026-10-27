@@ -156,7 +156,7 @@ export function checkoutStatusCopy({
     }
     if (orderStatus === 'canceled') {
       return reorderMode === 'retry_from_cart'
-        ? { title: '결제 없이 취소된 주문이에요', body: '결제가 끝나지 않아 이 주문은 취소됐어요. 장바구니에 굿즈가 그대로 있으니 다시 결제할 수 있어요.' }
+        ? { title: '결제 없이 취소된 주문이에요', body: '결제가 끝나지 않아 이 주문은 결제 없이 취소됐어요. 장바구니에서 다시 주문할 수 있어요.' }
         : { title: '취소된 주문이에요', body: '이 주문은 취소됐어요. 같은 굿즈를 다시 담아 새로 주문할 수 있어요.' };
     }
     return cardDeadlinePassedCopy(reorderMode);

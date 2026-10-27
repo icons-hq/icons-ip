@@ -3,7 +3,7 @@
 import { isAccountSuspended, isOnboarded } from '@/lib/auth/onboarding';
 import { getCurrentAuthState } from '@/lib/auth/server';
 import { aggregateCartVariantQuantities, cartItemKey, normalizeCartItems, type CartItem } from '@/lib/cart';
-import { normalizeCheckoutAddress, normalizeOrderReference } from '@/lib/checkout';
+import { cartRetentionKeepsCart, normalizeCheckoutAddress, normalizeOrderReference } from '@/lib/checkout';
 import { loadGoodsTransactionRuntimeMode } from '@/lib/checkout-transaction.server';
 import { loadGiftCheckoutOrder } from '@/lib/gifts-order.server';
 import { goodsCustomInputSummary, goodsCustomInputValues, readGoodsCustomInputSnapshot } from '@/lib/goods-custom-inputs';
@@ -374,7 +374,7 @@ export async function restoreCanceledOrderToCartAction(
       p_order_id: orderId,
     });
     if (retentionError) return { ok: false, error: 'failed' };
-    if (retention !== null) return { ok: false, error: 'cart_retained' };
+    if (cartRetentionKeepsCart(retention)) return { ok: false, error: 'cart_retained' };
 
     const [{ data: itemData, error: itemError }, cartItems] = await Promise.all([
       readCompleteIdPages<OrderItemRow>((afterId, pageSize) => {
