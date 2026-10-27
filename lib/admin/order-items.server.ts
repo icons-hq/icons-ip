@@ -15,5 +15,5 @@ export async function getAdminOrderItemData(filters: AdminOrderItemFilters, limi
   if (error || !result) throw new Error('Failed to load order item console');
   const orderIds = result.rows.map(row => row.orderId);
   const allocations = options.strictAllocations ? await loadOrderItemAllocations(orderIds, client) : await loadOrderItemAllocationsForScreen(orderIds);
-  return { ...result, rows: result.rows.map(row => ({ ...row, allocation: allocations.get(row.id)?.allocation ?? null })) };
+  return { ...result, rows: result.rows.map(row => ({ ...row, allocation: allocations?.get(row.id)?.allocation ?? null })) };
 }

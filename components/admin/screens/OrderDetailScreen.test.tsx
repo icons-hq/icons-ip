@@ -43,6 +43,10 @@ describe('주문 상세', () => {
     expect(allocated).toContain('쿠폰 −200원 · 적립금 −0원');
     expect(allocated).toContain('배분 후 9,800원 · 배송비 제외');
     expect(renderToStaticMarkup(<OrderDetailScreen detail={detail} noteOperationId="operation" />)).toContain('주문 당시 기록이 없어 나누지 않았습니다');
+    // 배분 조회 실패는 기록이 없다고 안내하지 않는다.
+    const unavailable = renderToStaticMarkup(<OrderDetailScreen detail={{ ...detail, itemAllocations: {}, itemAllocationsUnavailable: true }} noteOperationId="operation" />);
+    expect(unavailable).toContain('배분을 불러오지 못했습니다');
+    expect(unavailable).not.toContain('주문 당시 기록이 없어');
     const plain = renderToStaticMarkup(<OrderDetailScreen detail={{ ...detail, order: { ...detail.order, discountTotal: 0 } }} noteOperationId="operation" />);
     expect(plain).not.toContain('배분 후');
   });

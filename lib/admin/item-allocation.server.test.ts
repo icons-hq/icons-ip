@@ -24,10 +24,13 @@ it('주문 당시 기록을 읽어 버전 1 할인 주문을 품목별로 나눈
   expect(rpc).toHaveBeenCalledTimes(1);
 });
 
-it('조회 실패는 화면에서만 빈칸으로 낮추고 엑셀 경로에는 그대로 알린다', async () => {
+it('조회 실패는 화면에서만 null(불러오지 못함)로 낮춰 나눌 수 없는 주문과 구분하고 엑셀 경로에는 그대로 알린다', async () => {
+  await expect(loadOrderItemAllocationsForScreen([ORDER])).resolves.toBeInstanceOf(Map);
+  rpc.mockResolvedValue({ data: [], error: null });
+  await expect(loadOrderItemAllocationsForScreen([ORDER])).resolves.toEqual(new Map());
   rpc.mockResolvedValue({ data: null, error: { message: 'operator_capability_required' } });
   await expect(loadOrderItemAllocations([ORDER])).rejects.toThrow('order_item_allocation_load_failed');
-  await expect(loadOrderItemAllocationsForScreen([ORDER])).resolves.toEqual(new Map());
+  await expect(loadOrderItemAllocationsForScreen([ORDER])).resolves.toBeNull();
 });
 
 it('스마트스토어 양식의 비어 있는 버전 1 품목 금액만 채우고 정가가 없으면 할인액은 비운다', async () => {

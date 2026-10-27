@@ -51,5 +51,7 @@ export interface AdminOrderDetail {
   items: AdminOrderItemRecord[];
   /** 품목 id별 쿠폰·적립금·복수구매 배분(`lib/admin/item-allocation`). 나눌 수 없는 주문은 비어 있다. */
   itemAllocations?: Record<string, import('./item-allocation').OrderItemAllocation>;
+  /** 배분 조회 자체가 실패했다. 나눌 수 없는 주문(빈 itemAllocations)과 구분해 '불러오지 못했다'고 안내한다. */
+  itemAllocationsUnavailable?: true;
   timeline: AdminOrderTimelineEntry[];
 }

@@ -34,9 +34,12 @@ export async function loadOrderItemAllocations(orderIds: readonly string[], clie
   return result;
 }
 
-/** 화면용: 실패해도 주문 화면을 막지 않고 배분 칸만 비운다. */
-export async function loadOrderItemAllocationsForScreen(orderIds: readonly string[]): Promise<Map<string, LoadedItemAllocation>> {
-  try { return await loadOrderItemAllocations(orderIds); } catch { return new Map(); }
+/**
+ * 화면용: 실패해도 주문 화면을 막지 않는다. 조회 실패는 `null`로 돌려 '나눌 수 없는 주문'(빈 Map)과 구분한다 —
+ * 화면이 실패를 '주문 당시 기록이 없다'고 안내하지 않게 한다.
+ */
+export async function loadOrderItemAllocationsForScreen(orderIds: readonly string[]): Promise<Map<string, LoadedItemAllocation> | null> {
+  try { return await loadOrderItemAllocations(orderIds); } catch { return null; }
 }
 
 /**

@@ -77,9 +77,11 @@ const dateTime = (value: string) => new Date(value).toLocaleString('ko-KR', {
   timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false,
 });
 
-/** 주문 할인·적립금을 품목에 나눈 값(거래확정 엑셀과 같은 규칙). 할인이 없는 주문은 표시하지 않는다. */
-function ItemAllocationSummary({ allocation, discounted }: { allocation?: OrderItemAllocation; discounted: boolean }) {
+/** 주문 할인·적립금을 품목에 나눈 값(거래확정 엑셀과 같은 규칙). 할인이 없는 주문은 표시하지 않는다.
+ * 조회 실패(`unavailable`)는 나눌 수 없는 주문과 다르게 안내한다 — 기록이 없다고 잘못 알리지 않는다. */
+function ItemAllocationSummary({ allocation, discounted, unavailable = false }: { allocation?: OrderItemAllocation; discounted: boolean; unavailable?: boolean }) {
   if (!discounted) return null;
+  if (unavailable) return <span>할인·적립금 배분 · 배분을 불러오지 못했습니다. 잠시 후 새로고침해 다시 확인해주세요</span>;
   if (!allocation) return <span>할인·적립금 배분 · 주문 당시 기록이 없어 나누지 않았습니다</span>;
   const parts = [allocation.volumeDiscount ? `복수구매 −${money(allocation.volumeDiscount)}` : '', `쿠폰 −${money(allocation.couponDiscount)}`,
     `적립금 −${money(allocation.storeCreditDiscount)}`].filter(Boolean);
@@ -206,7 +208,7 @@ export function OrderDetailScreen({
     <AdminSectionCard title="주문 상품">
       <ul className="admin-order-detail__items">{items.map((item) => <li key={item.id} id={`item-${item.id}`}>
         <div><strong>{item.name}</strong>{item.variantName ? <span>{item.variantName} · {item.variantCode}</span> : null}<GoodsCustomInputsSummary selection={item.customInputs} /><span>{item.type} · {item.qty}개</span></div>
-        <div><strong>{money(item.unitPrice * item.qty)}</strong><span>개당 {money(item.unitPrice)}</span><ItemAllocationSummary allocation={detail.itemAllocations?.[item.id]} discounted={orderDiscounted} /></div>
+        <div><strong>{money(item.unitPrice * item.qty)}</strong><span>개당 {money(item.unitPrice)}</span><ItemAllocationSummary allocation={detail.itemAllocations?.[item.id]} discounted={orderDiscounted} unavailable={detail.itemAllocationsUnavailable} /></div>
       </li>)}</ul>
       {!items.length ? <p>주문 상품 기록이 없습니다.</p> : null}
     </AdminSectionCard>
