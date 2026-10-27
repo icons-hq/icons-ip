@@ -16,6 +16,8 @@ import { getAdminOrderRecords } from './orders.server';
 import { normalizeAdminOrderItemFilters } from './order-items';
 import { getAdminOrderItemData } from './order-items.server';
 import { orderItemsExportSheet } from './order-items-export';
+import { loadOrderItemAllocations } from './item-allocation.server';
+import type { OrderItemAllocation } from './item-allocation';
 import { normalizeAdminUnpaidFilters } from './unpaid';
 import { getAdminUnpaidOrders } from './unpaid.server';
 import { normalizeShipmentFilters, type ShipmentConsoleData } from './shipment-dispatch';
@@ -142,12 +144,23 @@ async function orderContacts(orderIds: readonly string[]) {
   return contacts;
 }
 
+/** 품목별 쿠폰·적립금 배분(거래확정 엑셀과 같은 공통 규칙). 일부만 빈 파일을 만들지 않게 실패하면 멈춘다. */
+async function orderAllocations(orderIds: readonly string[]) {
+  const allocations = new Map<string, OrderItemAllocation>();
+  try {
+    for (const batch of chunks([...new Set(orderIds)], 1000)) {
+      for (const [itemId, loaded] of await loadOrderItemAllocations(batch)) allocations.set(itemId, loaded.allocation);
+    }
+  } catch { throw new AdminListExportLoadError(); }
+  return allocations;
+}
+
 async function ordersSheet(params: SearchParams) {
   if (params.view === 'items') {
     const filters = normalizeAdminOrderItemFilters(params);
     let fingerprint: string | undefined;
     const rows = await collectAdminListExportPages(500, async page => {
-      const data = await getAdminOrderItemData({ ...filters, page }, 500);
+      const data = await getAdminOrderItemData({ ...filters, page }, 500, { strictAllocations: true });
       if (fingerprint !== undefined && fingerprint !== data.fingerprint) throw new AdminListExportChangedError();
       fingerprint = data.fingerprint;
       return { items: data.rows, total: data.total };
@@ -166,7 +179,8 @@ async function ordersSheet(params: SearchParams) {
   );
   const extras = await orderContacts(records.map((record) => record.id));
   const paymentMethods = new Map([...extras].map(([id, value]) => [id, value.paymentMethod]));
-  return ordersListExportSheet({ records, paymentMethods, filters });
+  const allocations = await orderAllocations(records.map((record) => record.id));
+  return ordersListExportSheet({ records, paymentMethods, filters, allocations });
 }
 
 async function unpaidSheet(params: SearchParams) {

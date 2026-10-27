@@ -4,6 +4,7 @@ import {revalidatePath} from 'next/cache';
 import {getCurrentAdminAuthState} from '@/lib/auth/admin';
 import {createClient} from '@/lib/supabase/server';
 import {buildShipmentExport} from '@/lib/admin/shipment-workbook.server';
+import {withSmartStoreLegacyAllocations} from '@/lib/admin/item-allocation.server';
 import {shipmentMutationError,type ShipmentExportData} from '@/lib/admin/shipment-dispatch';
 import {parseShipmentExportColumns,type ShipmentExportLayout} from '@/lib/admin/shipment-workbook';
 import {exportPasswordError} from '@/lib/admin/export-password';
@@ -24,7 +25,9 @@ async function exportShipments(client:Client,keys:string[],format:'xlsx'|'csv',l
  const result=await client.rpc(layout==='smartstore'?'admin_smartstore_shipment_export':'admin_shipment_export',{p_ids:keys});
  const exportError=result.error?.message??'';
  if(result.error||!result.data)return {error:exportError.startsWith('shipment_pack_')||exportError.startsWith('production_')||['shipment_item_export_mismatch','shipment_price_allocation_missing'].includes(exportError)?shipmentMutationError(exportError):'발송 대기 상태와 취소 요청을 확인해주세요. 출고지시를 만들지 못했습니다.'};
- const data=result.data as ShipmentExportData;
+ let data=result.data as ShipmentExportData;
+ // 버전 1 할인 주문의 품목 금액은 거래확정 엑셀과 같은 공통 배분으로 채운다(10/14 회의 A5).
+ if(layout==='smartstore'){try{data=await withSmartStoreLegacyAllocations(data,client);}catch{return {error:'주문 당시 금액 배분을 확인하지 못했습니다. 잠시 후 다시 내려받아 주세요.'};}}
  try{
   let file=await buildShipmentExport(data,format,layout);let sha256:string|undefined;
   if(layout==='smartstore'&&format==='xlsx'){

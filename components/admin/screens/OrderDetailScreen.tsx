@@ -8,6 +8,7 @@ import { ShipmentDetails } from '@/components/shop/ShipmentDetails';
 import Link from 'next/link';
 import { AdminPageHeader, AdminSectionCard, AdminStatusBadge } from '@/components/admin/console/AdminKit';
 import type { AdminOrderDetail, AdminOrderTimelineEntry, AdminOrderTimelineSource } from '@/lib/admin/order-detail';
+import type { OrderItemAllocation } from '@/lib/admin/item-allocation';
 import { ADMIN_VOCABULARY as V } from '@/lib/admin/vocabulary';
 import { ADMIN_ORDER_STATUS_LABELS } from '@/lib/admin/orders';
 import { isOrderClaimType, ORDER_CLAIM_STAGE_LABELS, ORDER_CLAIM_TYPE_LABELS, ORDER_CLAIM_TYPE_SLUGS } from '@/lib/orders/claims';
@@ -70,6 +71,15 @@ const dateTime = (value: string) => new Date(value).toLocaleString('ko-KR', {
   timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false,
 });
 
+/** 주문 할인·적립금을 품목에 나눈 값(거래확정 엑셀과 같은 규칙). 할인이 없는 주문은 표시하지 않는다. */
+function ItemAllocationSummary({ allocation, discounted }: { allocation?: OrderItemAllocation; discounted: boolean }) {
+  if (!discounted) return null;
+  if (!allocation) return <span>할인·적립금 배분 · 주문 당시 기록이 없어 나누지 않았습니다</span>;
+  const parts = [allocation.volumeDiscount ? `복수구매 −${money(allocation.volumeDiscount)}` : '', `쿠폰 −${money(allocation.couponDiscount)}`,
+    `적립금 −${money(allocation.storeCreditDiscount)}`].filter(Boolean);
+  return <><span>{parts.join(' · ')}</span><span>배분 후 {money(allocation.paidGoodsTotal)} · 배송비 제외</span></>;
+}
+
 function entryTitle(entry: AdminOrderTimelineEntry) {
   if (ACTION_LABELS[entry.action]) return ACTION_LABELS[entry.action];
   switch (entry.source) {
@@ -130,6 +140,7 @@ export function OrderDetailScreen({
   actorId?: string;
 }) {
   const { order, items } = detail;
+  const orderDiscounted = order.discountTotal > 0 || order.storeCreditTotal > 0 || (order.transaction?.totals.volumeDiscountTotal ?? 0) > 0;
   const digitalShipments = new Set(detail.shipments.filter(shipment => shipment.delivery?.method === 'digital').map(shipment => shipment.id));
   const timeline = (canManage ? detail.timeline : detail.timeline.filter(entry => ['order', 'shipment'].includes(entry.source)))
     .filter(entry => !(entry.source === 'shipment' && entry.action === 'shipped' && entry.shipmentId && digitalShipments.has(entry.shipmentId)));
@@ -187,7 +198,7 @@ export function OrderDetailScreen({
     <AdminSectionCard title="주문 상품">
       <ul className="admin-order-detail__items">{items.map((item) => <li key={item.id} id={`item-${item.id}`}>
         <div><strong>{item.name}</strong>{item.variantName ? <span>{item.variantName} · {item.variantCode}</span> : null}<GoodsCustomInputsSummary selection={item.customInputs} /><span>{item.type} · {item.qty}개</span></div>
-        <div><strong>{money(item.unitPrice * item.qty)}</strong><span>개당 {money(item.unitPrice)}</span></div>
+        <div><strong>{money(item.unitPrice * item.qty)}</strong><span>개당 {money(item.unitPrice)}</span><ItemAllocationSummary allocation={detail.itemAllocations?.[item.id]} discounted={orderDiscounted} /></div>
       </li>)}</ul>
       {!items.length ? <p>주문 상품 기록이 없습니다.</p> : null}
     </AdminSectionCard>

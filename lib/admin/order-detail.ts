@@ -47,5 +47,7 @@ export interface AdminOrderDetail {
   };
   shipments: ShipmentRecord[];
   items: AdminOrderItemRecord[];
+  /** 품목 id별 쿠폰·적립금·복수구매 배분(`lib/admin/item-allocation`). 나눌 수 없는 주문은 비어 있다. */
+  itemAllocations?: Record<string, import('./item-allocation').OrderItemAllocation>;
   timeline: AdminOrderTimelineEntry[];
 }
