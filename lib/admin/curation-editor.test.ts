@@ -152,7 +152,17 @@ describe('curation editor preview', () => {
     expect(draft.collectionBanner).toEqual({ id: 'draft', slot: 'all', title: '가을 신상', subtitle: '새로 나온 굿즈', imageUrl: '/pc.webp', mobileImageUrl: '/mo.webp',
       href: null, imageAlt: '키링 세 종', imageDim: 'none', textColor: 'black', endsAt: null });
     expect(draft.curation.heroSlides).toEqual([]);
-    expect(buildDraftCurationPreview('draft', { ...values, imageUrl: null }, []).collectionBanner).toBeNull();
+    /* 업로드 전·문구 전 초안도 홈으로 떨어지지 않고 같은 크기의 빈 배너 면으로 미리 본다(l8b-ui-4). */
+    expect(buildDraftCurationPreview('draft', { ...values, imageUrl: null, title: '' }, []).collectionBanner)
+      .toMatchObject({ slot: 'all', title: '', imageUrl: '' });
+    expect(buildDraftCurationPreview('draft', { ...values, slot: 'best', imageUrl: null }, []).collectionBanner).toMatchObject({ slot: 'best', imageUrl: '' });
+  });
+
+  it('추천 검색어 초안은 목록 이름(관리용)이 비어도 칩 행으로 미리 보고, 검색어가 없으면 빈 칩 행이다(l8b-ui-4)', () => {
+    const values = createCurationEditorValues(null, '2026-10-12T00:00:00Z', 'search_terms');
+    expect(buildDraftCurationPreview('draft', { ...values, title: '', searchTerms: ['키링', ' '] }, []).searchTerms).toEqual(['키링']);
+    expect(buildDraftCurationPreview('draft', { ...values, title: '' }, []).searchTerms).toEqual([]);
+    expect(buildDraftCurationPreview('draft', { ...values, title: '' }, []).collectionBanner).toBeNull();
   });
 
   it('저장된 컬렉션 배너·추천 검색어 값을 폼으로 되살린다', () => {

@@ -256,7 +256,18 @@ export function buildDraftCurationPreview(
   let collectionBanner: CollectionBanner | null = null;
   let searchTerms: string[] | null = null;
 
-  if (title || values.kind === 'hero') {
+  /* 홈 밖 두 표면은 제목·이미지가 비어도 그 표면의 빈 상태를 그린다 — 홈 미리보기로 떨어지면 무엇을 편집하는지 놓친다.
+     추천 검색어의 목록 이름은 관리용이라 화면에 없고, 업로드 전 컬렉션 배너는 같은 크기의 회색 면으로 보인다. */
+  if (values.kind === 'collection_banner') {
+    const slot = isCollectionBannerSlot(values.slot) ? values.slot : 'all';
+    collectionBanner = {
+      id, slot, title, subtitle: values.subtitle.trim() || null, imageUrl: values.imageUrl ?? '',
+      mobileImageUrl: values.mobileImageUrl, href: href || null, imageAlt: values.imageAlt.trim(),
+      imageDim: values.imageDim || 'none', textColor: values.textColor || 'black', endsAt: null,
+    };
+  } else if (values.kind === 'search_terms') {
+    searchTerms = values.searchTerms.map((term) => term.replace(/\s+/g, ' ').trim()).filter(Boolean);
+  } else if (title || values.kind === 'hero') {
     switch (values.kind) {
       case 'hero':
         if (values.imageUrl) curation.heroSlides = [{
@@ -317,16 +328,6 @@ export function buildDraftCurationPreview(
       }
       case 'benefit':
         curation.benefitTiles = [{ id, title, href, description: values.description || null }];
-        break;
-      case 'collection_banner':
-        if (values.imageUrl && isCollectionBannerSlot(values.slot)) collectionBanner = {
-          id, slot: values.slot, title, subtitle: values.subtitle.trim() || null, imageUrl: values.imageUrl,
-          mobileImageUrl: values.mobileImageUrl, href: href || null, imageAlt: values.imageAlt.trim(),
-          imageDim: values.imageDim || 'none', textColor: values.textColor || 'black', endsAt: null,
-        };
-        break;
-      case 'search_terms':
-        searchTerms = values.searchTerms.map((term) => term.replace(/\s+/g, ' ').trim()).filter(Boolean);
         break;
       case 'sales_best':
         curation.salesBestBands = [buildHomeSalesBestBand(id, title,

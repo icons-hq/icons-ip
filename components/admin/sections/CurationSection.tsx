@@ -348,10 +348,10 @@ function CurationForm({
             </CurationSelect>
             <CurationCountedText name="title" label="배너 문구" value={values.title} limit={COLLECTION_BANNER_TITLE_LIMIT} required error={state.errors?.title} onChange={value => update('title', value)} />
             <CurationCountedText name="subtitle" label="부제 (선택)" value={values.subtitle} limit={COLLECTION_BANNER_SUBTITLE_LIMIT} error={state.errors?.subtitle} onChange={value => update('subtitle', value)} />
-            <p>문구는 줄바꿈 없이 한 줄로 입력합니다. 굿즈샵 전체는 여러 장을 노출 순서대로 넘겨 보고(자동으로 넘기지 않음), BEST·NEW는 노출 순서가 가장 앞선 한 장을 보여줍니다. 카테고리 전시·검색·IP관에는 보이지 않습니다.</p>
+            <p>문구는 줄바꿈 없이 한 줄로 입력합니다. 굿즈샵 전체는 여러 장을 노출 순서대로 넘겨 보고(자동으로 넘기지 않음), BEST·NEW는 노출 순서가 가장 앞선 한 장을 보여줍니다. 한 컬렉션에 노출 기간이 겹치는 배너는 비노출을 빼고 10장까지 등록합니다. BEST·NEW 배너는 문구가 길면 모바일에서 배너가 그만큼 길어지니 짧게 쓰는 것을 권장합니다. 카테고리 전시·검색·IP관에는 보이지 않습니다.</p>
           </> : kind === 'search_terms' ? <>
             <CurationCountedText name="title" label="목록 이름 (관리용)" value={values.title} limit={SEARCH_TERM_LIST_NAME_LIMIT} required error={state.errors?.title} onChange={value => update('title', value)} />
-            <p>고객에게는 보이지 않는 이름입니다. 예: 11월 추천 검색어</p>
+            <p>스토어 화면에는 보이지 않는 이름이지만 공개 데이터로 읽힐 수 있으니 내부 메모나 협력사 정보는 적지 마세요. 예: 11월 추천 검색어</p>
           </> : kind === 'product_collection'
             ? <CurationCountedText name="title" label="제목" value={values.title} limit={HOME_PRODUCT_TITLE_LIMIT} required error={state.errors?.title} onChange={value => update('title', value)} />
             : textField('title', '제목', { required: true, maxLength: ['sales_best', 'review_best', 'product_mosaic'].includes(kind) ? 15 : 120, placeholder: '제목을 입력하세요' })}
@@ -372,7 +372,12 @@ function CurationForm({
           <ArtworkUploadField allowRemove={!IMAGE_REQUIRED.has(kind)} currentPath={values.imagePath || null} currentUrl={values.imageUrl} helpText={ARTWORK_HELP[kind]} kind="curation" label="PC 이미지" onPathChange={(path) => update('imagePath', path)} onPreviewChange={(url) => update('imageUrl', url)} showCropGuide={false} showPath={false} />
           <ErrorText>{state.errors?.imagePath}</ErrorText>
           {kind === 'hero' || kind === 'notice_strip' || kind === 'collection_banner' ? <><ArtworkUploadField allowRemove currentPath={values.mobileImagePath || null} currentUrl={values.mobileImageUrl} fieldId="curation-mobile" helpText="등록하지 않으면 PC 이미지를 사용합니다." kind="curation" label="모바일 이미지" name="mobileImagePath" onPathChange={(path) => update('mobileImagePath', path)} onPreviewChange={(url) => update('mobileImageUrl', url)} showCropGuide={false} showPath={false} /><ErrorText>{state.errors?.mobileImagePath}</ErrorText></> : null}
-        </section> : <input name="imagePath" type="hidden" value={isFreeProductKind(kind) || kind === 'notice_bar' ? '' : values.imagePath} />}
+        </section> : <>
+          {/* 이미지를 쓰지 않는 종류로 바꾸면 이전 종류의 이미지를 보내지 않는다(공지 바·자유상품·추천 검색어는 이미지가 있으면 거절된다).
+              그래도 이미지 오류가 오면 숨은 칸 대신 여기 보인다 — 아무 표시 없이 적용이 막히지 않게(l8b-data-2). */}
+          <input name="imagePath" type="hidden" value={isFreeProductKind(kind) || kind === 'notice_bar' || kind === 'search_terms' ? '' : values.imagePath} />
+          <ErrorText>{state.errors?.imagePath}</ErrorText>
+        </>}
         {kind === 'product_collection' ? <section className="admin-store-editor__form-section">
           <h4>디자인과 사진</h4>
           <CurationSelect name="productLayout" label="디자인 유형" error={state.errors?.productLayout} value={values.productLayout} onChange={event => update('productLayout', event.target.value as HomeProductLayout)}>
@@ -502,6 +507,7 @@ function CurationForm({
     <aside className="admin-store-editor__preview" aria-label="스토어 미리보기">
       <header><h3>미리보기</h3><select aria-label="미리보기 범위" onChange={(event) => setPreviewScope(event.target.value as 'draft' | 'public')} value={previewScope}><option value="draft">편집 중인 구성</option><option value="public">현재 공개 홈</option></select><span>{device === 'mobile' ? '390px' : '1212px'}</span></header>
       {previewScope === 'draft' ? <div className="admin-store-editor__preview-note"><span>편집 중인 내용입니다. 적용하면 노출 설정에 따라 반영됩니다.</span>{!values.enabled ? <strong>현재 비노출로 설정되어 있습니다.</strong> : null}{draft.missingGoodIds.length && showManualProducts ? <strong>비노출 또는 없는 상품 {draft.missingGoodIds.length}개는 미리보기에 표시되지 않습니다.</strong> : null}{kind === 'benefit' && !preview.cardRewardsEnabled && isCardRewardDestination(values.linkPath) ? <strong>카드 리워드가 중지되어 카드팩·게임으로 가는 이 혜택 타일은 노출되지 않습니다. 다른 화면으로 가는 혜택 타일은 그대로 보입니다.</strong> : null}
+        {kind === 'collection_banner' && !preview.cardRewardsEnabled && values.linkPath && isCardRewardDestination(values.linkPath) ? <strong>카드 리워드가 중지되어 카드팩·게임으로 가는 이 컬렉션 배너는 노출되지 않습니다. 배너가 없으면 컬렉션은 지금처럼 시작합니다.</strong> : null}
         {isShellNoticeKind(kind) && !values.pageTypes.includes('home') ? <strong>홈이 노출 화면에 없어 공개 홈에서는 보이지 않습니다. 미리보기는 모양만 보여줍니다.</strong> : null}
         {kind === 'sales_best' && !preview.productRankings?.salesAvailable ? <strong>판매량을 불러오지 못했습니다. 새로고침 후 다시 확인해주세요.</strong> : null}
         {kind === 'review_best' ? !preview.productRankings?.reviewsAvailable ? <strong>리뷰 평점을 불러오지 못했습니다. 새로고침 후 다시 확인해주세요.</strong> : draft.reviewEligibleCount < 4 ? <strong>노출 가능한 리뷰 상품 {draft.reviewEligibleCount}개 · 4개 이상이어야 영역이 표시됩니다.</strong> : <span>노출 가능한 리뷰 상품 {draft.reviewEligibleCount}개</span> : null}

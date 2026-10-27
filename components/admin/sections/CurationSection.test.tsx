@@ -294,4 +294,36 @@ describe('CurationSection', () => {
     /* 빈 목록도 입력 칸 하나로 시작한다. */
     expect(renderSection({ ...terms, payload: { terms: [] } }).match(/name="searchTerm"/g)).toHaveLength(1);
   });
+
+  /* l8b-data-2 — 이미지가 있던 구성을 추천 검색어로 바꿔도 숨은 이미지 칸이 이전 이미지를 보내지 않고, 이미지 오류는 보인다. */
+  it('추천 검색어는 이전 종류의 이미지 경로를 보내지 않고, 이미지 오류가 와도 숨기지 않는다', () => {
+    const carried: AdminCurationRecord = { ...record, kind: 'search_terms', title: '11월', linkPath: null, payload: { terms: ['키링'] } };
+    const html = renderSection(carried);
+    expect(html).toContain('type="hidden" name="imagePath" value=""');
+    expect(html).not.toContain('77777777-7777-4777-8777-777777777777');
+    mocks.state = { errors: { imagePath: '추천 검색어는 이미지를 쓰지 않습니다.' } };
+    expect(renderSection(carried)).toMatch(/role="alert"[^>]*>추천 검색어는 이미지를 쓰지 않습니다\.</);
+  });
+
+  /* l8b-data-5 — 목록 이름은 화면에 없지만 공개 읽기로 나간다. 내부 메모를 적지 않게 안내한다. */
+  it('추천 검색어 목록 이름 안내는 공개 데이터임을 알린다', () => {
+    const html = renderSection({ ...record, kind: 'search_terms', title: '11월', imagePath: null, imageUrl: null, mobileImageUrl: null, linkPath: null, payload: { terms: ['키링'] } });
+    expect(html).toContain('공개 데이터로 읽힐 수 있으니 내부 메모나 협력사 정보는 적지 마세요');
+    expect(html).not.toContain('고객에게는 보이지 않는 이름입니다');
+  });
+
+  /* l8b-ui-2 — 카드 리워드가 멈춘 배포에서 카드팩으로 가는 컬렉션 배너는 공개 화면에 없다. 혜택 타일처럼 알린다. */
+  it('카드 리워드가 중지되면 카드팩으로 가는 컬렉션 배너에 노출되지 않음을 알리고, 다른 목적지는 알리지 않는다', () => {
+    const banner: AdminCurationRecord = { ...record, kind: 'collection_banner', title: 'BEST 아이템', slot: 'best', linkPath: '/packs', payload: null };
+    expect(renderSection(banner)).toContain('카드팩·게임으로 가는 이 컬렉션 배너는 노출되지 않습니다');
+    expect(renderSection({ ...banner, linkPath: '/shop/best' })).not.toContain('이 컬렉션 배너는 노출되지 않습니다');
+    expect(renderSection({ ...banner, linkPath: null })).not.toContain('이 컬렉션 배너는 노출되지 않습니다');
+  });
+
+  /* l8b-data-4 — 한 컬렉션에 노출 기간이 겹치는 배너 상한을 편집기에서도 알린다(DB 트리거가 강제). */
+  it('컬렉션 배너 안내는 겹치는 노출 10장 상한과 BEST·NEW 한 장 규칙을 함께 알린다', () => {
+    const html = renderSection({ ...record, kind: 'collection_banner', title: 'BEST 아이템', slot: 'best', linkPath: null, payload: null });
+    expect(html).toContain('노출 기간이 겹치는 배너는 비노출을 빼고 10장까지');
+    expect(html).toContain('BEST·NEW는 노출 순서가 가장 앞선 한 장을 보여줍니다');
+  });
 });

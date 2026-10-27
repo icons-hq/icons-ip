@@ -89,6 +89,14 @@ describe('CollectionBanners', () => {
     expect(html).toContain('href="/packs"');
   });
 
+  it('이미지 주소가 빈 초안(어드민 미리보기)은 그림 없이 같은 크기의 면만 그린다', () => {
+    const html = renderToStaticMarkup(<CollectionBanners banners={[banner('draft', { slot: 'new', imageUrl: '', title: '' })]} slot="new" />);
+
+    expect(html).toContain('wc-collection-banners--contained');
+    expect(html).not.toContain('<img');
+    expect(html).not.toContain('<picture');
+  });
+
   it('CSS: 레퍼런스 수치(전폭 72:29·모바일 375:302, 칸 59:13·15:7, 44×45 버튼, 모바일 위치 알약)와 대비 보정을 둔다', () => {
     expect(css).toMatch(/\.wc-collection-banner \{[^}]*aspect-ratio: 375 \/ 302;/);
     expect(css).toMatch(/\.wc-collection-banners--contained \.wc-collection-banner \{\s*aspect-ratio: 15 \/ 7;/);

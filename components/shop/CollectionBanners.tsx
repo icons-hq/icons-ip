@@ -31,8 +31,9 @@ const CHEVRON_PREV = 'M6.5 1 1.5 6.5 6.5 12';
 const CHEVRON_NEXT = 'M1.5 1 6.5 6.5 1.5 12';
 
 function BannerSlide({ banner, first }: { banner: CollectionBanner; first: boolean }) {
+  /* 이미지 주소가 빈 배너는 어드민 미리보기의 업로드 전 초안뿐이다(공개 로더는 이미지 없는 행을 버린다) — 회색 면만 남긴다. */
   const content = <>
-    <picture className="wc-collection-banner__media">
+    {banner.imageUrl ? <picture className="wc-collection-banner__media">
       {banner.mobileImageUrl ? <source media="(max-width: 749px)" srcSet={banner.mobileImageUrl} /> : null}
       <img
         alt={banner.imageAlt}
@@ -42,7 +43,7 @@ function BannerSlide({ banner, first }: { banner: CollectionBanner; first: boole
         sizes="100vw"
         src={banner.imageUrl}
       />
-    </picture>
+    </picture> : null}
     {banner.imageDim !== 'none' ? <span aria-hidden className="wc-collection-banner__dim" data-tone={banner.imageDim} /> : null}
     <span className="wc-collection-banner__copy">
       <strong className="wc-collection-banner__title">{banner.title}</strong>
