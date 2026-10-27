@@ -6,7 +6,7 @@ import { parseSuggestedSearchTerms } from './search-terms';
 import { getSupabaseConfig } from './supabase/config';
 
 /*
- * 운영 추천 검색어(11 CH-10). 셸 전역 데이터라 루트 레이아웃이 한 번 읽는다 — 셸 메뉴(lib/storefront-mega-menu.server.ts)·
+ * 운영 추천 검색어(11 CH-10). 셸 전역 데이터라 루트 레이아웃이 한 번 읽는다(/search 의 빈 검색·0건 칩도 같은 캐시를 읽는다) — 셸 메뉴(lib/storefront-mega-menu.server.ts)·
  * 셸 공지와 같은 쿠키 없는 anon 읽기 + unstable_cache 300초다(cookies() 를 쓰면 법적 문서 SSG 가 dynamic 으로 무너진다, #325).
  * 홈 큐레이션 저장이 같은 태그('home-curations')를 즉시 만료한다(app/admin/curation-actions.ts의 updateTag).
  *

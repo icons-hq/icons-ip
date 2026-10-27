@@ -65,12 +65,12 @@ const snapshotOf = (query: string, groups: SearchSnapshot['groups']): SearchSnap
 function render(
   query: string,
   goods: Good[],
-  options: { params?: Record<string, string | string[]>; page?: number; groups?: SearchSnapshot['groups']; wishlist?: ListingWishlist | null } = {},
+  options: { params?: Record<string, string | string[]>; page?: number; groups?: SearchSnapshot['groups']; wishlist?: ListingWishlist | null; suggestedTerms?: readonly string[] } = {},
 ) {
   const listQuery = parseShopSearchParams(options.params ?? {}, { view: 'search', validIpIds: new Set(IPS.map((item) => item.id)) });
   const collection = selectSearchGoods({ ips: IPS, goods }, query, listQuery, options.page ?? 1);
   return renderToStaticMarkup(
-    <Search goods={collection} listQuery={listQuery} query={query} snapshot={snapshotOf(query, options.groups ?? [])} wishlist={options.wishlist} />,
+    <Search goods={collection} listQuery={listQuery} query={query} snapshot={snapshotOf(query, options.groups ?? [])} suggestedTerms={options.suggestedTerms} wishlist={options.wishlist} />,
   );
 }
 
@@ -268,6 +268,15 @@ describe('Search 빈 상태', () => {
 
   it('추천 칩은 실제 검색 결과로 이어진다', () => {
     expect(html).toContain(`href="/search?q=${encodeURIComponent(SUGGESTED_SEARCH_TERMS[0])}"`);
+  });
+
+  /* l8b-qa-2 — 검색 오버레이와 같은 운영 추천 검색어를 쓴다(운영 목록이 있으면 코드 상수는 보이지 않는다). */
+  it('운영 추천 검색어를 받으면 그 목록만 칩으로 그리고 입력값 그대로 검색 결과로 잇는다', () => {
+    const operator = render('없는말', [], { suggestedTerms: ['진격의 거인', '100%_굿즈'] });
+    expect(operator.match(/class="wc-search__chip"/g)).toHaveLength(2);
+    expect(operator).toContain(`href="/search?q=${encodeURIComponent('100%_굿즈')}"`);
+    expect(operator).toContain('>진격의 거인</a>');
+    for (const term of SUGGESTED_SEARCH_TERMS) expect(operator).not.toContain(`>${term}</a>`);
   });
 
   /* 결과가 없으면 레퍼런스처럼 사이드바를 그리지 않고, 모바일에서도 재검색 인풋을 남긴다. */
