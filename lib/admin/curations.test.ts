@@ -596,13 +596,17 @@ describe('admin curation form normalization', () => {
     });
   });
 
-  it('추천 검색어 개수·길이·중복과 이미지·링크를 거절한다', () => {
-    const error = { ok: false, errors: { searchTerms: '추천 검색어는 줄바꿈 없이 1~20자로, 겹치지 않게 1~10개 입력해주세요.' } };
-    expect(normalizeAdminCurationForm(termsForm([]))).toMatchObject(error);
-    expect(normalizeAdminCurationForm(termsForm(['', '  ']))).toMatchObject(error);
-    expect(normalizeAdminCurationForm(termsForm(Array.from({ length: 11 }, (_, index) => `검색어${index}`)))).toMatchObject(error);
-    expect(normalizeAdminCurationForm(termsForm(['가'.repeat(21)]))).toMatchObject(error);
-    expect(normalizeAdminCurationForm(termsForm(['BT21', 'bt21']))).toMatchObject(error);
+  it('추천 검색어 개수·길이·중복과 이미지·링크를 거절하고, 무엇을 고칠지 짚는다(l8b-qa-3)', () => {
+    const error = (searchTerms: string) => ({ ok: false, errors: { searchTerms } });
+    expect(normalizeAdminCurationForm(termsForm([]))).toMatchObject(error('추천 검색어를 1개 이상 입력해주세요.'));
+    expect(normalizeAdminCurationForm(termsForm(['', '  ']))).toMatchObject(error('추천 검색어를 1개 이상 입력해주세요.'));
+    expect(normalizeAdminCurationForm(termsForm(Array.from({ length: 11 }, (_, index) => `검색어${index}`)))).toMatchObject(error('추천 검색어는 10개까지 입력할 수 있습니다.'));
+    expect(normalizeAdminCurationForm(termsForm(['가'.repeat(21)]))).toMatchObject(error('추천 검색어는 20자까지 입력할 수 있습니다.'));
+    /* 겹친 검색어를 그대로 적는다 — 운영자가 어느 칸인지 찾을 수 있다. */
+    expect(normalizeAdminCurationForm(termsForm(['키링', 'BT21', ' bt21 ']))).toMatchObject(
+      error('겹치는 추천 검색어가 있습니다: BT21 · bt21. 영문 대소문자는 같은 검색어로 보니 하나만 남겨주세요.'),
+    );
+    expect(normalizeAdminCurationForm(termsForm(['키\u0001링']))).toMatchObject(error('추천 검색어에 줄바꿈·제어 문자를 넣을 수 없습니다.'));
     expect(normalizeAdminCurationForm(termsForm(['키링'], { imagePath: IMAGE_PATH }))).toMatchObject({ ok: false, errors: { imagePath: '추천 검색어는 이미지를 쓰지 않습니다.' } });
     expect(normalizeAdminCurationForm(termsForm(['키링'], { linkPath: '/search' }))).toMatchObject({ ok: false, errors: { linkPath: '추천 검색어는 각 검색어의 검색 결과로 이동합니다.' } });
     expect(normalizeAdminCurationForm(termsForm(['키링'], { title: '' }))).toMatchObject({ ok: false, errors: { title: expect.any(String) } });

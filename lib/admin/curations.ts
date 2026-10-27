@@ -10,6 +10,7 @@ import {
   isCollectionBannerSlot,
 } from '@/lib/collection-banners';
 import {
+  describeSearchTermsError,
   normalizeSuggestedSearchTerm,
   parseSuggestedSearchTerms,
   SEARCH_TERM_LIMIT,
@@ -427,7 +428,8 @@ function readCurationPayload(
       .map((value) => (typeof value === 'string' ? normalizeSuggestedSearchTerm(value) : ''))
       .filter(Boolean);
     const parsed = parseSuggestedSearchTerms(terms);
-    if (!parsed) errors.searchTerms = SEARCH_TERMS_ERROR;
+    /* 목록 단위 한 줄 대신 고칠 것을 짚는다(겹친 검색어 이름·개수·길이) — 편집기는 같은 규칙으로 문제 칸만 표시한다(l8b-qa-3). */
+    if (!parsed) errors.searchTerms = describeSearchTermsError(terms) ?? SEARCH_TERMS_ERROR;
     else payload.terms = parsed;
   } else if (kind === 'editor_pick') {
     readPayloadText(formData, 'badge', errors, payload);

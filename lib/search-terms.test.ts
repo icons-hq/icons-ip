@@ -1,9 +1,11 @@
 import { describe, expect, it } from 'vitest';
 import {
+  describeSearchTermsError,
   normalizeSuggestedSearchTerm,
   parseSuggestedSearchTerms,
   resolveSuggestedSearchTerms,
   SEARCH_TERM_LIMIT,
+  searchTermFieldIssues,
   SUGGESTED_SEARCH_TERMS,
   suggestedSearchHref,
 } from './search-terms';
@@ -44,5 +46,24 @@ describe('추천 검색어 운영 목록 (11 CH-10)', () => {
   it('칩 링크는 입력값을 그대로 인코딩해 검색 결과로 보낸다', () => {
     expect(suggestedSearchHref('100%_굿즈 & 키링')).toBe(`/search?q=${encodeURIComponent('100%_굿즈 & 키링')}`);
     expect(new URL(suggestedSearchHref('100%_굿즈'), 'https://icons.test').searchParams.get('q')).toBe('100%_굿즈');
+  });
+
+  /* l8b-qa-3 — 거절된 목록에서 고칠 칸만 짚는다. */
+  it('칸별 문제는 겹친 칸 전부·20자 초과·제어 문자만 짚고 빈 칸·정상 칸은 비운다', () => {
+    expect(searchTermFieldIssues(['키링', 'BT21', '', ' bt21 ', '가'.repeat(21), '키\u0001링', '인형']))
+      .toEqual([null, 'duplicate', null, 'duplicate', 'too_long', 'control', null]);
+    expect(searchTermFieldIssues(['키링', '인형'])).toEqual([null, null]);
+  });
+
+  it('목록 오류 문구는 저장 규칙을 지키면 null 이고, 어기면 고칠 것을 적는다', () => {
+    expect(describeSearchTermsError(['키링', '', '인형'])).toBeNull();
+    expect(describeSearchTermsError(['', ' '])).toBe('추천 검색어를 1개 이상 입력해주세요.');
+    expect(describeSearchTermsError(['BT21', 'bt21', 'Bt21'])).toBe('겹치는 추천 검색어가 있습니다: BT21 · bt21 · Bt21. 영문 대소문자는 같은 검색어로 보니 하나만 남겨주세요.');
+    expect(describeSearchTermsError([...Array.from({ length: 11 }, (_, index) => `검색어${index}`)])).toBe('추천 검색어는 10개까지 입력할 수 있습니다.');
+    /* 규칙 판정은 저장 파서와 같다 — 문구가 null 이면 파서가 받고, 문구가 있으면 파서가 거절한다. */
+    for (const terms of [['키링'], ['BT21', 'bt21'], ['가'.repeat(21)], ['키\u0001링'], Array.from({ length: 11 }, (_, index) => `t${index}`)]) {
+      const normalized = terms.map(normalizeSuggestedSearchTerm).filter(Boolean);
+      expect(describeSearchTermsError(terms) === null).toBe(parseSuggestedSearchTerms(normalized) !== null);
+    }
   });
 });

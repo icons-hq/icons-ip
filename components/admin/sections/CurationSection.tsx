@@ -29,7 +29,7 @@ import { SHELL_NOTICE_PAGE_TYPES } from '@/lib/shell-notices';
 import {
   COLLECTION_BANNER_ALT_LIMIT, COLLECTION_BANNER_SLOT_LABELS, COLLECTION_BANNER_SLOTS, COLLECTION_BANNER_SUBTITLE_LIMIT, COLLECTION_BANNER_TITLE_LIMIT,
 } from '@/lib/collection-banners';
-import { SEARCH_TERM_LIMIT, SEARCH_TERM_LIST_NAME_LIMIT, SEARCH_TERM_MAX_LENGTH } from '@/lib/search-terms';
+import { SEARCH_TERM_LIMIT, SEARCH_TERM_LIST_NAME_LIMIT, SEARCH_TERM_MAX_LENGTH, searchTermFieldIssues } from '@/lib/search-terms';
 import { ArtworkUploadField } from '../ArtworkUploadField';
 import { ActionNotice, ErrorText } from '../fields';
 
@@ -224,18 +224,24 @@ function CurationCountedText({ name, label, value, onChange, limit, error, multi
   </AdminField>;
 }
 
-/* 추천 검색어 목록(CH-10) — 칸 하나가 칩 하나다. 빈 칸은 저장할 때 버리고, 순서가 칩 순서다. */
-function SearchTermFields({ terms, onChange, error }: { terms: string[]; onChange: (terms: string[]) => void; error?: string }) {
+/*
+ * 추천 검색어 목록(CH-10) — 칸 하나가 칩 하나다. 빈 칸은 저장할 때 버리고, 순서가 칩 순서다.
+ * 저장이 거절되면 문제 칸만 오류로 표시한다(겹친 칸·20자 초과 칸 — 저장과 같은 규칙, l8b-qa-3). 칸을 고치면 그 칸의 표시가
+ * 바로 풀린다. 전부 비어 거절됐으면 첫 칸을 짚는다.
+ */
+export function SearchTermFields({ terms, onChange, error }: { terms: string[]; onChange: (terms: string[]) => void; error?: string }) {
   const id = useId();
   const rows = terms.length ? terms : [''];
   const filled = rows.filter((term) => term.trim()).length;
+  const issues = error ? searchTermFieldIssues(rows) : [];
+  const invalidAt = (index: number) => Boolean(error) && (Boolean(issues[index]) || (filled === 0 && index === 0));
   return <section className="admin-store-editor__form-section" aria-labelledby={`${id}-heading`}>
     <div className="admin-store-editor__section-title"><h4 id={`${id}-heading`}>추천 검색어 <span>{filled} / {SEARCH_TERM_LIMIT}</span></h4>
       <button disabled={rows.length >= SEARCH_TERM_LIMIT} onClick={() => onChange([...rows, ''])} type="button">검색어 추가</button></div>
     <p>검색어마다 {SEARCH_TERM_MAX_LENGTH}자까지, 겹치지 않게 입력합니다(영문 대소문자는 같은 검색어로 봅니다). 입력한 그대로 검색되니 실제 상품·IP 이름처럼 결과가 있는 말을 고르세요. 목록이 없으면 기본 추천 검색어가 보입니다.</p>
     <ol className="admin-store-editor__selected-products">{rows.map((term, index) => <li key={index}>
       <span className="admin-store-editor__product-number">{index + 1}</span>
-      <input aria-describedby={error ? `${id}-error` : undefined} aria-invalid={Boolean(error)} aria-label={`추천 검색어 ${index + 1}`} className="admin-field-control" maxLength={SEARCH_TERM_MAX_LENGTH * 2} name="searchTerm"
+      <input aria-describedby={invalidAt(index) ? `${id}-error` : undefined} aria-invalid={invalidAt(index)} aria-label={`추천 검색어 ${index + 1}`} className="admin-field-control" maxLength={SEARCH_TERM_MAX_LENGTH * 2} name="searchTerm"
         onChange={(event) => onChange(rows.map((value, current) => (current === index ? event.target.value : value)))} value={term} />
       <div>
         <button aria-label={`추천 검색어 ${index + 1} 위로`} disabled={index === 0} onClick={() => onChange(moveCurationProduct(rows, index, -1))} type="button">↑</button>

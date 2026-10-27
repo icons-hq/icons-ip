@@ -51,6 +51,44 @@ export function parseSuggestedSearchTerms(value: unknown): string[] | null {
   return terms;
 }
 
+export type SearchTermFieldIssue = 'duplicate' | 'too_long' | 'control';
+
+/**
+ * 편집 칸별 문제(빈 칸·문제없는 칸은 null). 칸 값을 저장과 같은 규칙으로 정규화해 본다. 대소문자 무시 중복은 겹친 칸
+ * 전부를 짚는다 — 어느 쪽을 남길지는 운영자가 고른다(l8b-qa-3: 목록 단위 오류에 10칸이 모두 빨갛던 결함).
+ */
+export function searchTermFieldIssues(values: readonly string[]): (SearchTermFieldIssue | null)[] {
+  const normalized = values.map(normalizeSuggestedSearchTerm);
+  const counts = new Map<string, number>();
+  for (const term of normalized) {
+    if (term) counts.set(term.toLowerCase(), (counts.get(term.toLowerCase()) ?? 0) + 1);
+  }
+  return normalized.map((term) => {
+    if (!term) return null;
+    if (CONTROL_CHARACTER.test(term)) return 'control';
+    if (Array.from(term).length > SEARCH_TERM_MAX_LENGTH) return 'too_long';
+    return (counts.get(term.toLowerCase()) ?? 0) > 1 ? 'duplicate' : null;
+  });
+}
+
+/**
+ * 목록 저장 오류 문구 — 무엇을 고칠지 짚는다(겹친 검색어는 그대로 적는다). 칸 값은 빈 칸을 포함한 입력 그대로 받는다.
+ * 저장 규칙(parseSuggestedSearchTerms)을 지키는 목록이면 null.
+ */
+export function describeSearchTermsError(values: readonly string[]): string | null {
+  const terms = values.map(normalizeSuggestedSearchTerm).filter(Boolean);
+  if (terms.length === 0) return '추천 검색어를 1개 이상 입력해주세요.';
+  const issues = searchTermFieldIssues(terms);
+  const pick = (issue: SearchTermFieldIssue) => [...new Set(terms.filter((_, index) => issues[index] === issue))];
+  const messages: string[] = [];
+  if (terms.length > SEARCH_TERM_LIMIT) messages.push(`추천 검색어는 ${SEARCH_TERM_LIMIT}개까지 입력할 수 있습니다.`);
+  const duplicates = pick('duplicate');
+  if (duplicates.length) messages.push(`겹치는 추천 검색어가 있습니다: ${duplicates.join(' · ')}. 영문 대소문자는 같은 검색어로 보니 하나만 남겨주세요.`);
+  if (pick('too_long').length) messages.push(`추천 검색어는 ${SEARCH_TERM_MAX_LENGTH}자까지 입력할 수 있습니다.`);
+  if (pick('control').length) messages.push('추천 검색어에 줄바꿈·제어 문자를 넣을 수 없습니다.');
+  return messages.length ? messages.join(' ') : null;
+}
+
 /** 오버레이가 보일 칩 — 운영 목록이 있으면 그것, 없으면 코드 상수. */
 export function resolveSuggestedSearchTerms(operatorTerms: readonly string[] | null | undefined): readonly string[] {
   return operatorTerms && operatorTerms.length > 0 ? operatorTerms : SUGGESTED_SEARCH_TERMS;

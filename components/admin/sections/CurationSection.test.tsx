@@ -4,7 +4,7 @@ vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AdminCurationActionState } from '@/lib/admin/curations';
 import type { AdminCurationRecord } from '@/lib/admin/curations.server';
-import { CurationSection, getCurationFormKey } from './CurationSection';
+import { CurationSection, getCurationFormKey, SearchTermFields } from './CurationSection';
 
 const mocks = vi.hoisted(() => ({
   action: vi.fn(),
@@ -303,6 +303,27 @@ describe('CurationSection', () => {
     expect(html).not.toContain('77777777-7777-4777-8777-777777777777');
     mocks.state = { errors: { imagePath: '추천 검색어는 이미지를 쓰지 않습니다.' } };
     expect(renderSection(carried)).toMatch(/role="alert"[^>]*>추천 검색어는 이미지를 쓰지 않습니다\.</);
+  });
+
+  /* l8b-qa-3 — 목록 단위 오류여도 겹친 칸만 오류로 표시한다(10칸 전부가 빨갛고 스크린리더가 전부 오류로 읽던 결함). */
+  it('추천 검색어 저장 거절은 문제 칸만 aria-invalid·오류 설명으로 잇는다', () => {
+    const terms = ['메이플스토리', '리락쿠마', '담곰이', '카카오프렌즈', '진격의 거인', '키링', '인형', '아크릴', 'BT21', 'bt21'];
+    const inputs = (html: string) => html.match(/<input[^>]*name="searchTerm"[^>]*>/g) ?? [];
+    const html = renderToStaticMarkup(<SearchTermFields error="겹치는 추천 검색어가 있습니다: BT21 · bt21." onChange={vi.fn()} terms={terms} />);
+    const invalid = inputs(html).filter((tag) => tag.includes('aria-invalid="true"'));
+    expect(inputs(html)).toHaveLength(10);
+    expect(invalid).toHaveLength(2);
+    expect(invalid.map((tag) => tag.match(/aria-label="([^"]+)"/)?.[1])).toEqual(['추천 검색어 9', '추천 검색어 10']);
+    expect(invalid.every((tag) => /aria-describedby="[^"]+-error"/.test(tag))).toBe(true);
+    expect(inputs(html).filter((tag) => tag.includes('aria-describedby'))).toHaveLength(2);
+    expect(html).toMatch(/role="alert"[^>]*>겹치는 추천 검색어가 있습니다: BT21 · bt21\.</);
+
+    /* 저장 전·문제 없는 칸은 표시하지 않고, 전부 비어 거절되면 첫 칸만 짚는다. */
+    expect(inputs(renderToStaticMarkup(<SearchTermFields onChange={vi.fn()} terms={terms} />)).filter((tag) => tag.includes('aria-invalid="true"'))).toHaveLength(0);
+    const empty = inputs(renderToStaticMarkup(<SearchTermFields error="추천 검색어를 1개 이상 입력해주세요." onChange={vi.fn()} terms={['', '']} />));
+    expect(empty.map((tag) => tag.includes('aria-invalid="true"'))).toEqual([true, false]);
+    const long = inputs(renderToStaticMarkup(<SearchTermFields error="추천 검색어는 20자까지 입력할 수 있습니다." onChange={vi.fn()} terms={['키링', '가'.repeat(21)]} />));
+    expect(long.map((tag) => tag.includes('aria-invalid="true"'))).toEqual([false, true]);
   });
 
   /* l8b-data-5 — 목록 이름은 화면에 없지만 공개 읽기로 나간다. 내부 메모를 적지 않게 안내한다. */
