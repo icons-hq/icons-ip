@@ -88,7 +88,7 @@ export function OrderComplete({ order, bankTransferAccount, depositDeadlinePasse
           <h2 id="order-complete-summary">주문 요약</h2>
           <dl className="checkout-totals">
             <div><dt>주문번호</dt><dd className="mono">{orderReferenceLabel(order.id, order.orderNumber)}</dd></div>
-            <div className="checkout-total"><dt>{awaitingDeposit ? '입금할 금액' : '최종 결제 금액'}</dt><dd>{krw(total)}</dd></div>
+            <div className="checkout-total"><dt>{awaitingDeposit ? (depositDeadlinePassed ? '주문 금액' : '입금할 금액') : '최종 결제 금액'}</dt><dd>{krw(total)}</dd></div>
             {collectShipping > 0 && <div><dt>착불 배송비(받을 때 결제)</dt><dd>{krw(collectShipping)}</dd></div>}
             <div>
               <dt>{awaitingDeposit ? '입금 기한' : '결제 일시'}</dt>

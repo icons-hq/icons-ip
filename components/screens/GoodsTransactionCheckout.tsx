@@ -212,7 +212,7 @@ export function GoodsTransactionCheckout({ accountId, catalog, latestAddress, pa
           {/* legacy 주문서와 같은 결제수단 선택지 마크업·스타일을 쓴다 — 사유 문구가 선택지 이름과 붙지 않게(10/14 S26). */}
           <fieldset disabled={busy} className="checkout-method"><legend>결제수단</legend>{(['card', 'bank_transfer'] as const).map(value => <label className="checkout-method-option" key={value}><input type="radio" name="paymentMethod" value={value} checked={effectiveMethod === value} disabled={!selectable[value]} onChange={() => setMethod(value)} />
             <span>
-              <strong>{value === 'card' ? '카드' : '무통장 입금'}</strong>
+              <strong>{value === 'card' ? '신용·체크카드' : '무통장 입금'}</strong>
               {/* 두 주문서가 같은 사유 문구를 쓴다(S26). */}
               {value === 'bank_transfer' && <small>{bankTransferMethodNote({ accountConfigured: bankTransferAvailable, goodsAllow: currentDisplay ? currentDisplay.paymentMethods.bankTransfer : null })}</small>}
             </span>

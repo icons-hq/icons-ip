@@ -97,6 +97,9 @@ describe('OrderComplete', () => {
     expect(html).toContain('입금 기한이 지났어요');
     expect(html).not.toContain('123456-01-789012');
     expect(html).not.toContain('주문이 접수됐어요');
+    /* 기한이 지나면 더 입금을 청하지 않는다. */
+    expect(html).toContain('주문 금액</dt>');
+    expect(html).not.toContain('입금할 금액');
   });
 });
 
