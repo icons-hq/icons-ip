@@ -47,10 +47,18 @@ def wait_state(name, expected, process):
     raise RuntimeError(f'{name} never reached {expected}')
 
 
-def race(label, first, second):
+def session(name, body):
+    process = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    process.stdin.write(f"set application_name='{name}';{body}")
+    process.stdin.close()
+    process.stdin = None
+    return process
+
+
+def race(label, first, second, hold=1.5):
     name = f'{prefix}-{label}'
     one = subprocess.Popen(command, stdin=subprocess.PIPE, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    one.stdin.write(f"set application_name='{name}-first';begin;set local lock_timeout='8s';{first}select pg_sleep(1.5);commit;")
+    one.stdin.write(f"set application_name='{name}-first';begin;set local lock_timeout='8s';{first}select pg_sleep({hold});commit;")
     one.stdin.close()
     one.stdin = None
     wait_state(f'{name}-first', 'Timeout', one)
@@ -87,7 +95,8 @@ update private.auto_order_confirmation_settings set enabled=true,run_time='16:30
 do $seed$
 declare item uuid;sid uuid;oid uuid;paid timestamptz;n integer;
 begin
- for n,paid in select * from (values (1,'2031-03-14 10:00:00+09'::timestamptz),(2,'2031-03-14 17:00:00+09'),(3,'2031-03-15 17:00:00+09')) v loop
+ for n,paid in select * from (values (1,'2031-03-14 10:00:00+09'::timestamptz),(2,'2031-03-14 17:00:00+09'),(3,'2031-03-15 17:00:00+09'),
+   (4,'2031-03-16 17:00:00+09'),(5,'2031-03-16 17:01:00+09'),(6,'2031-03-17 19:00:00+09'),(7,'2031-03-17 18:00:00+09')) v loop
   oid:=('a0c10000-0000-4001-8000-'||lpad(n::text,12,'0'))::uuid;sid:=gen_random_uuid();
   insert into public.orders(id,user_id,status,total,address) values(oid,'{buyer}','paid',10000,
    '{{"recipientName":"TEST 수령인","phone":"01000000000","postalCode":"12345","address1":"합성 주소"}}');
@@ -124,4 +133,29 @@ _, auto_after_manual = race('manual-before-auto', manual_confirm(3), run('2031-0
 assert 'finished' in auto_after_manual, auto_after_manual
 assert sql(f"select outcome from private.auto_order_confirmation_outcomes where run_date='2031-03-16' and order_id='{order(3)}';") == 'status_changed'
 assert sql(f"select count(*)||':'||count(*) filter(where actor_id='{operator}') from public.audit_log where target='order:{order(3)}' and action='admin.order.status_updated';") == '1:1'
+
+# 4) 다른 처리가 주문을 잠금 대기 한도(3초)보다 오래 쥐면 그 주문만 locked로 남고 나머지는 커밋된다.
+_, auto_while_locked = race('locked-order-skipped', f"select id from public.orders where id='{order(4)}' for update;", run('2031-03-17 16:31:00+09'), hold=4.5)
+assert 'finished' in auto_while_locked, auto_while_locked
+assert sql(f"select outcome||':'||coalesce(detail,'') from private.auto_order_confirmation_outcomes where run_date='2031-03-17' and order_id='{order(4)}';") == 'locked:55P03'
+assert sql(f"select status from public.orders where id='{order(4)}';") == 'paid'
+assert sql(f"select status from public.orders where id='{order(5)}';") == 'confirmed'
+assert sql("select (finished_at is not null)::text||':'||confirmed_count||':'||excluded_count from private.auto_order_confirmation_runs where run_date='2031-03-17';") == 'true:1:2'
+
+# 5) 배송 건을 쥔 트랜잭션 + 주문 id 순으로 여러 주문을 잠그는 트랜잭션과 겹쳐도 교착 없이 끝난다.
+#    (결제는 Y가 먼저지만 자동 실행도 주문 id 순 X → Y로 잠근다.)
+name = f'{prefix}-pack-order'
+holder = session(f'{name}-shipments', f"begin;select 1 from public.order_shipments where order_id='{order(7)}' for update;select pg_sleep(2.5);commit;")
+wait_state(f'{name}-shipments', 'Timeout', holder)
+runner = session(f'{name}-run', f"begin;{run('2031-03-18 16:31:00+09')}commit;")
+wait_state(f'{name}-run', 'Lock', runner)
+multi = session(f'{name}-multi', f"begin;select id from public.orders where id in ('{order(6)}','{order(7)}') order by id for update;select pg_sleep(0.5);commit;")
+wait_state(f'{name}-multi', 'Lock', multi)
+outputs = [process.communicate(timeout=20) for process in (holder, runner, multi)]
+for process, (out, err) in zip((holder, runner, multi), outputs):
+    if process.returncode:
+        raise RuntimeError(err)
+assert 'finished' in outputs[1][0], outputs[1]
+assert sql(f"select string_agg(status::text,',' order by id) from public.orders where id in ('{order(6)}','{order(7)}');") == 'confirmed,confirmed'
+print('PASS id-ordered-locks: shipment holder and multi-order locker finished without deadlock')
 print('PASS final readback: each order took exactly one side of every race')

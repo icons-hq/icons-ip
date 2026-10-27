@@ -30,6 +30,10 @@ select 1/case when (
   and not has_function_privilege('service_role','private.tick_auto_order_confirmation()','execute')
   and not has_function_privilege('authenticated','private.confirm_paid_order(uuid,uuid,jsonb)','execute')
   and not has_function_privilege('service_role','private.confirm_paid_order(uuid,uuid,jsonb)','execute')
+  and not has_function_privilege('authenticated','private.finish_auto_order_confirmation_run(date,text)','execute')
+  and not has_function_privilege('service_role','private.auto_order_confirmation_blocker(uuid)','execute')
+  and not has_table_privilege('service_role','private.auto_order_confirmation_outcomes','select,insert')
+  and not exists(select 1 from pg_constraint where conrelid='private.auto_order_confirmation_outcomes'::regclass and confrelid='public.orders'::regclass)
   and not has_table_privilege('authenticated','private.auto_order_confirmation_settings','select,update')
   and not has_table_privilege('service_role','private.auto_order_confirmation_runs','select,insert,update')
   and not has_table_privilege('service_role','private.order_paid_marks','select,insert,update')
@@ -222,6 +226,59 @@ select 1/case when (select status='paid' from public.orders where id=:'before_re
  and (select status='confirmed' from public.orders where id=:'after_reenable')
  and (select enabled_at=:'reenabled_at'::timestamptz from private.auto_order_confirmation_runs where run_date='2031-03-19')
  then 1 else 0 end as assert_reenable_boundary;
+
+-- ---------------------------------------------------------------------------
+-- KST 자정을 넘긴 미완료 실행: 다음 날 마감 전이라도 저장된 마감·켠 시각으로 이어 처리하고 닫는다.
+-- 실행 도중 켠 시각이 바뀌면 그 실행을 닫고 감사에 사유를 남긴다.
+-- ---------------------------------------------------------------------------
+select pg_temp.paid_order(13,'2031-03-20 10:00:00+09') as overnight_one \gset
+select pg_temp.paid_order(14,'2031-03-20 11:00:00+09') as overnight_two \gset
+-- 3/20 묶음 1건: 결제 시각이 가장 이른 취소 요청 주문(3/14 결제)이 먼저 판정된다.
+select private.run_auto_order_confirmation('2031-03-20 19:01:00+09',1)->>'status' as overnight_first \gset
+select private.run_auto_order_confirmation('2031-03-21 09:00:00+09',1)->>'status' as overnight_second \gset
+select private.run_auto_order_confirmation('2031-03-21 09:01:00+09',1)->>'status' as overnight_third \gset
+select private.run_auto_order_confirmation('2031-03-21 09:02:00+09',1) as overnight_last \gset
+select 1/case when :'overnight_first'='continuing' and :'overnight_second'='continuing' and :'overnight_third'='continuing'
+ and (:'overnight_last'::jsonb->>'status')='finished' and (:'overnight_last'::jsonb->>'runDate')='2031-03-20'
+ and not exists(select 1 from private.auto_order_confirmation_runs where run_date='2031-03-21')
+ then 1 else 0 end as assert_overnight_run_continues_with_saved_cutoff;
+select 1/case when (select count(*)=2 from public.orders where id in(:'overnight_one',:'overnight_two') and status='confirmed')
+ and (select finished_at is not null and confirmed_count=2 and excluded_count=1 and batch_count=4 and cutoff_at='2031-03-20 19:00:00+09'
+  from private.auto_order_confirmation_runs where run_date='2031-03-20')
+ and (select count(*)=1 from public.audit_log where target='auto_order_confirmation:2031-03-20' and diff->>'closedBy'='completed')
+ then 1 else 0 end as assert_overnight_run_closed_once;
+select private.run_auto_order_confirmation('2031-03-21 19:01:00+09',1)->>'status' as changed_first \gset
+update private.auto_order_confirmation_settings set enabled_at=clock_timestamp() where singleton;
+select private.run_auto_order_confirmation('2031-03-21 19:02:00+09',1)->>'status' as changed_second \gset
+select 1/case when :'changed_first'='continuing' and :'changed_second'='settings_changed'
+ and (select finished_at is not null from private.auto_order_confirmation_runs where run_date='2031-03-21')
+ and (select count(*)=1 from public.audit_log where target='auto_order_confirmation:2031-03-21' and diff->>'closedBy'='settings_changed')
+ then 1 else 0 end as assert_changed_enable_closes_open_run;
+
+-- ---------------------------------------------------------------------------
+-- 잠금 대기 초과·오류는 그 주문만 남기고 나머지는 같은 실행에서 확정된다(예외 블록 격리).
+-- 실제 잠금 경합은 auto_order_confirmation_concurrency.sh가 확인하고, 여기서는 같은 SQLSTATE를 흉내 낸다.
+-- ---------------------------------------------------------------------------
+select pg_temp.paid_order(15,'2031-03-22 10:00:00+09') as fault_locked \gset
+select pg_temp.paid_order(16,'2031-03-22 10:01:00+09') as fault_clean \gset
+select pg_temp.paid_order(17,'2031-03-22 10:02:00+09') as fault_failed \gset
+create function public.test_auto_confirm_fault() returns trigger language plpgsql as $$begin
+ if new.id='a0c00000-0000-4001-8000-000000000015' then raise sqlstate '55P03' using message='TEST lock wait timeout';end if;
+ if new.id='a0c00000-0000-4001-8000-000000000017' then raise exception 'TEST unexpected failure';end if;
+ return new;
+end $$;
+create trigger test_auto_confirm_fault before update of status on public.orders for each row
+ when (new.id in ('a0c00000-0000-4001-8000-000000000015','a0c00000-0000-4001-8000-000000000017')) execute function public.test_auto_confirm_fault();
+select private.run_auto_order_confirmation('2031-03-22 19:01:00+09') as fault_run \gset
+select 1/case when (:'fault_run'::jsonb->>'status')='finished' and (:'fault_run'::jsonb->>'confirmed')='1'
+ and (select status='paid' from public.orders where id=:'fault_locked') and (select status='confirmed' from public.orders where id=:'fault_clean')
+ and (select status='paid' from public.orders where id=:'fault_failed')
+ and (select outcome='locked' and detail='55P03' from private.auto_order_confirmation_outcomes where run_date='2031-03-22' and order_id=:'fault_locked')
+ and (select outcome='failed' and detail like 'P0001 TEST unexpected failure%' from private.auto_order_confirmation_outcomes where run_date='2031-03-22' and order_id=:'fault_failed')
+ and current_setting('lock_timeout')<>'3s'
+ then 1 else 0 end as assert_fault_isolated_per_order;
+drop trigger test_auto_confirm_fault on public.orders;
+drop function public.test_auto_confirm_fault();
 
 -- ---------------------------------------------------------------------------
 -- 수동 발주확인은 같은 내부 전이를 쓰고 기존 감사 형식을 유지한다.

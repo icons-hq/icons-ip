@@ -51,7 +51,9 @@ create table private.auto_order_confirmation_runs (
 );
 create table private.auto_order_confirmation_outcomes (
  run_date date not null references private.auto_order_confirmation_runs(run_date),
- order_id uuid not null references public.orders(id) on delete cascade,
+ -- 실행 기록(로그)이다. 주문 FK를 두지 않는다 — FK 검사(FOR KEY SHARE)가 다른 트랜잭션의
+ -- 주문 잠금을 기다리면 예외 블록 밖에서 실행 묶음 전체가 실패한다.
+ order_id uuid not null,
  outcome text not null check(outcome in ('confirmed','cancellation_in_progress','preorder_unallocated','status_changed','locked','failed')),
  detail text check(detail is null or char_length(detail)<=300),
  recorded_at timestamptz not null default clock_timestamp(),
@@ -134,6 +136,19 @@ end $$;
 revoke all on function public.admin_get_auto_order_confirmation() from public,anon,authenticated,service_role;
 grant execute on function public.admin_get_auto_order_confirmation() to authenticated;
 
+-- 실행을 닫고 시스템 감사를 남긴다. 완료·설정 변경·끄기 모두 같은 기록을 쓴다.
+create function private.finish_auto_order_confirmation_run(p_run_date date,p_reason text) returns void
+language plpgsql security definer set search_path='' as $$
+declare run private.auto_order_confirmation_runs;
+begin
+ update private.auto_order_confirmation_runs set finished_at=clock_timestamp() where run_date=p_run_date and finished_at is null returning * into run;
+ if not found then return;end if;
+ insert into public.audit_log(actor_id,action,target,diff) values(null,'system.order.auto_confirmation_run','auto_order_confirmation:'||run.run_date,
+  jsonb_build_object('runDate',run.run_date,'cutoffAt',run.cutoff_at,'enabledAt',run.enabled_at,'settingsRevision',run.settings_revision,
+   'confirmed',run.confirmed_count,'excluded',run.excluded_count,'batches',run.batch_count,'closedBy',p_reason));
+end $$;
+revoke all on function private.finish_auto_order_confirmation_run(date,text) from public,anon,authenticated,service_role;
+
 -- 5. 운영자 설정 변경. 켤 때마다 enabled_at을 새로 잡아 그 뒤 결제분만 대상이 된다.
 create function public.admin_save_auto_order_confirmation(p_enabled boolean,p_run_time text,p_expected_revision bigint,p_operation_id uuid) returns jsonb
 language plpgsql security definer set search_path='' as $$
@@ -154,7 +169,10 @@ begin
   enabled_at=case when p_enabled and not previous.enabled then at_value else previous.enabled_at end,
   updated_by=actor,updated_at=at_value where singleton;
  -- 끄면 이어 가던 실행도 닫는다. 다시 켜면 새 켠 시각 기준의 실행이 새로 시작된다.
- if not p_enabled then update private.auto_order_confirmation_runs set finished_at=at_value where finished_at is null;end if;
+ if not p_enabled then
+  perform private.finish_auto_order_confirmation_run(r.run_date,'disabled')
+  from private.auto_order_confirmation_runs r where r.finished_at is null order by r.run_date;
+ end if;
  receipt:=private.auto_order_confirmation_document(at_value);
  insert into public.audit_log(id,actor_id,action,target,diff) values(p_operation_id,actor,'admin.auto_order_confirmation.settings','auto_order_confirmation',
   jsonb_build_object('request',request,'before',jsonb_build_object('enabled',previous.enabled,'runTime',to_char(previous.run_time,'HH24:MI'),'enabledAt',previous.enabled_at),'result',receipt));
@@ -163,76 +181,98 @@ end $$;
 revoke all on function public.admin_save_auto_order_confirmation(boolean,text,bigint,uuid) from public,anon,authenticated,service_role;
 grant execute on function public.admin_save_auto_order_confirmation(boolean,text,bigint,uuid) to authenticated;
 
--- 6. 실행. p_now 기준 KST 날짜의 마감이 지났고 그날 실행이 끝나지 않았으면 한 묶음을 처리한다.
---    대상 = paid + 켠 시각 ≤ 결제 시각 ≤ 마감. 날짜당 실행 행 하나(멱등)이며, 묶음이 가득 차면
---    다음 틱이 같은 실행을 이어 간다. 이미 판정한 주문은 같은 실행에서 다시 보지 않는다.
+-- 6. 실행. 대상 = paid + 켠 시각 ≤ 결제완료 시각 ≤ 마감. 날짜당 실행 행 하나가 멱등 경계다.
+--    묶음이 가득 차면 다음 틱이 같은 실행을 이어 가고(자정을 넘겨도 저장된 마감·켠 시각으로),
+--    한 실행에서 판정한 주문은 다시 보지 않는다.
+--    잠금 대기는 주문별 예외 블록 안에서만 일어난다. 결제 시각 순으로 묶음을 고르고 저장소 공통
+--    규칙대로 주문 id 오름차순 → 그 주문의 배송 건 순으로 잠근다. 제외 판정은 블록을 되돌려
+--    잡았던 잠금을 바로 놓는다. 잠금 대기 초과·교착은 그 주문만 'locked'로 남기고 다음 실행이 본다.
+create function private.auto_order_confirmation_blocker(p_order_id uuid) returns text
+language sql stable security definer set search_path='' as $$
+ select case
+  when exists(select 1 from public.order_cancellation_requests c where c.order_id=p_order_id and c.status in ('requested','processing','needs_review'))
+   or exists(select 1 from public.order_cancellation_claims c where c.order_id=p_order_id) then 'cancellation_in_progress'
+  when exists(select 1 from public.order_items i left join private.goods_preorder_reservations r on r.order_item_id=i.id
+   where i.order_id=p_order_id and i.supply_source='preorder' and (r.order_item_id is null or r.state<>'allocated')) then 'preorder_unallocated'
+ end;
+$$;
+revoke all on function private.auto_order_confirmation_blocker(uuid) from public,anon,authenticated,service_role;
+
 create function private.run_auto_order_confirmation(p_now timestamptz,p_batch integer default 200) returns jsonb
 language plpgsql security definer set search_path='' as $$
-declare s private.auto_order_confirmation_settings;run private.auto_order_confirmation_runs;run_day date;cutoff timestamptz;
+declare s private.auto_order_confirmation_settings;run private.auto_order_confirmation_runs;today date;cutoff timestamptz;
  candidate record;purchase public.orders;outcome text;detail text;confirmed integer:=0;excluded integer:=0;seen integer:=0;
+ base_timeout text:=current_setting('lock_timeout');
 begin
  if p_now is null or p_batch is null or p_batch not between 1 and 1000 then raise invalid_parameter_value using message='invalid_auto_order_confirmation_run';end if;
+ today:=(p_now at time zone 'Asia/Seoul')::date;
  -- 잠금 없는 사전 확인: 대부분의 틱은 여기서 끝난다.
  select * into s from private.auto_order_confirmation_settings where singleton;
  if not found or not s.enabled then return jsonb_build_object('status','disabled');end if;
- run_day:=(p_now at time zone 'Asia/Seoul')::date;
- cutoff:=(run_day+s.run_time) at time zone 'Asia/Seoul';
- if p_now<cutoff then return jsonb_build_object('status','before_cutoff','cutoffAt',cutoff);end if;
- if s.enabled_at>=cutoff then return jsonb_build_object('status','enabled_after_cutoff','cutoffAt',cutoff);end if;
- if exists(select 1 from private.auto_order_confirmation_runs where run_date=run_day and finished_at is not null) then
-  return jsonb_build_object('status','already_ran','runDate',run_day);end if;
+ if not exists(select 1 from private.auto_order_confirmation_runs where finished_at is null and run_date<=today) then
+  cutoff:=(today+s.run_time) at time zone 'Asia/Seoul';
+  if p_now<cutoff then return jsonb_build_object('status','before_cutoff','cutoffAt',cutoff);end if;
+  if s.enabled_at>=cutoff then return jsonb_build_object('status','enabled_after_cutoff','cutoffAt',cutoff);end if;
+  if exists(select 1 from private.auto_order_confirmation_runs where run_date=today) then return jsonb_build_object('status','already_ran','runDate',today);end if;
+ end if;
  -- 동시 틱을 직렬화하고, 실행 중에는 설정 변경을 기다리게 한다.
  perform pg_advisory_xact_lock(hashtextextended('auto-order-confirmation-run',0));
  select * into s from private.auto_order_confirmation_settings where singleton for share;
  if not s.enabled then return jsonb_build_object('status','disabled');end if;
- cutoff:=(run_day+s.run_time) at time zone 'Asia/Seoul';
- if p_now<cutoff then return jsonb_build_object('status','before_cutoff','cutoffAt',cutoff);end if;
- if s.enabled_at>=cutoff then return jsonb_build_object('status','enabled_after_cutoff','cutoffAt',cutoff);end if;
- insert into private.auto_order_confirmation_runs(run_date,cutoff_at,enabled_at,settings_revision)
-  values(run_day,cutoff,s.enabled_at,s.revision) on conflict(run_date) do nothing;
- select * into run from private.auto_order_confirmation_runs where run_date=run_day for update;
- if run.finished_at is not null then return jsonb_build_object('status','already_ran','runDate',run_day);end if;
- -- 실행 도중 껐다 켜면 새 켠 시각 이전 결제분을 더 처리하지 않고 이 실행을 닫는다.
- if s.enabled_at is distinct from run.enabled_at then
-  update private.auto_order_confirmation_runs set finished_at=clock_timestamp() where run_date=run_day;
-  return jsonb_build_object('status','settings_changed','runDate',run_day);end if;
- perform set_config('lock_timeout','3s',true);
+ -- 이전 날짜에서 넘어온 실행을 포함해 가장 이른 미완료 실행을 먼저 이어 간다.
+ select * into run from private.auto_order_confirmation_runs where finished_at is null and run_date<=today order by run_date limit 1 for update;
+ if found then
+  -- 실행 도중 껐다 켜면 새 켠 시각 이전 결제분을 더 처리하지 않고 그 실행을 닫는다.
+  if s.enabled_at is distinct from run.enabled_at then
+   perform private.finish_auto_order_confirmation_run(run.run_date,'settings_changed');
+   return jsonb_build_object('status','settings_changed','runDate',run.run_date);
+  end if;
+ else
+  cutoff:=(today+s.run_time) at time zone 'Asia/Seoul';
+  if p_now<cutoff then return jsonb_build_object('status','before_cutoff','cutoffAt',cutoff);end if;
+  if s.enabled_at>=cutoff then return jsonb_build_object('status','enabled_after_cutoff','cutoffAt',cutoff);end if;
+  insert into private.auto_order_confirmation_runs(run_date,cutoff_at,enabled_at,settings_revision)
+   values(today,cutoff,s.enabled_at,s.revision) on conflict(run_date) do nothing;
+  select * into run from private.auto_order_confirmation_runs where run_date=today for update;
+  if run.finished_at is not null then return jsonb_build_object('status','already_ran','runDate',today);end if;
+ end if;
  for candidate in
-  select o.id from public.orders o join private.order_paid_marks m on m.order_id=o.id
-  where o.status='paid' and m.paid_at>=run.enabled_at and m.paid_at<=run.cutoff_at
-   and not exists(select 1 from private.auto_order_confirmation_outcomes x where x.run_date=run_day and x.order_id=o.id)
-  order by m.paid_at,o.id limit p_batch
+  select picked.id from (
+   select o.id from public.orders o join private.order_paid_marks m on m.order_id=o.id
+   where o.status='paid' and m.paid_at>=run.enabled_at and m.paid_at<=run.cutoff_at
+    and not exists(select 1 from private.auto_order_confirmation_outcomes x where x.run_date=run.run_date and x.order_id=o.id)
+   order by m.paid_at,o.id limit p_batch) picked
+  order by picked.id
  loop
   seen:=seen+1;detail:=null;
-  begin
-   -- 고객 직접 취소·수동 발주확인과 같은 주문 → 배송 건 잠금 순서. 먼저 잠근 쪽만 반영된다.
-   select * into purchase from public.orders where id=candidate.id for update;
-   perform id from public.order_shipments where order_id=candidate.id order by id for update;
-   if purchase.status<>'paid' then outcome:='status_changed';
-   elsif exists(select 1 from public.order_cancellation_requests c where c.order_id=candidate.id and c.status in ('requested','processing','needs_review'))
-    or exists(select 1 from public.order_cancellation_claims c where c.order_id=candidate.id) then outcome:='cancellation_in_progress';
-   elsif exists(select 1 from public.order_items i left join private.goods_preorder_reservations r on r.order_item_id=i.id
-    where i.order_id=candidate.id and i.supply_source='preorder' and (r.order_item_id is null or r.state<>'allocated')) then outcome:='preorder_unallocated';
-   else
-    perform private.confirm_paid_order(candidate.id,null,jsonb_build_object('trigger','auto_order_confirmation','runDate',run_day,'cutoffAt',run.cutoff_at));
+  -- 잠그기 전에 이미 보이는 제외 사유는 잠금 없이 남긴다.
+  outcome:=private.auto_order_confirmation_blocker(candidate.id);
+  if outcome is null then
+   begin
+    perform set_config('lock_timeout','3s',true);
+    -- 고객 직접 취소·수동 발주확인과 같은 주문 → 배송 건 순서. 먼저 잠근 쪽만 반영된다.
+    select * into purchase from public.orders where id=candidate.id for update;
+    perform id from public.order_shipments where order_id=candidate.id order by id for update;
+    if purchase.status<>'paid' then raise sqlstate 'AOC01' using message='status_changed';end if;
+    outcome:=private.auto_order_confirmation_blocker(candidate.id);
+    if outcome is not null then raise sqlstate 'AOC01' using message=outcome;end if;
+    perform private.confirm_paid_order(candidate.id,null,jsonb_build_object('trigger','auto_order_confirmation','runDate',run.run_date,'cutoffAt',run.cutoff_at));
     outcome:='confirmed';
-   end if;
-  exception
-   when lock_not_available then outcome:='locked';
-   when others then outcome:='failed';detail:=left(sqlstate||' '||sqlerrm,300);
-  end;
-  insert into private.auto_order_confirmation_outcomes(run_date,order_id,outcome,detail) values(run_day,candidate.id,outcome,detail);
+    perform set_config('lock_timeout',base_timeout,true);
+   exception
+    -- 블록을 되돌리므로 제외·실패한 주문의 잠금은 여기서 풀린다.
+    when sqlstate 'AOC01' then outcome:=sqlerrm;
+    when lock_not_available or deadlock_detected then outcome:='locked';detail:=sqlstate;
+    when others then outcome:='failed';detail:=left(sqlstate||' '||sqlerrm,300);
+   end;
+  end if;
+  insert into private.auto_order_confirmation_outcomes(run_date,order_id,outcome,detail) values(run.run_date,candidate.id,outcome,detail);
   if outcome='confirmed' then confirmed:=confirmed+1;elsif outcome<>'status_changed' then excluded:=excluded+1;end if;
  end loop;
  update private.auto_order_confirmation_runs set confirmed_count=confirmed_count+confirmed,excluded_count=excluded_count+excluded,
-  batch_count=batch_count+1,finished_at=case when seen<p_batch then clock_timestamp() end
- where run_date=run_day returning * into run;
- if run.finished_at is not null then
-  insert into public.audit_log(actor_id,action,target,diff) values(null,'system.order.auto_confirmation_run','auto_order_confirmation:'||run_day,
-   jsonb_build_object('runDate',run_day,'cutoffAt',run.cutoff_at,'enabledAt',run.enabled_at,'settingsRevision',run.settings_revision,
-    'confirmed',run.confirmed_count,'excluded',run.excluded_count,'batches',run.batch_count));
- end if;
- return jsonb_build_object('status',case when run.finished_at is null then 'continuing' else 'finished' end,'runDate',run_day,
+  batch_count=batch_count+1 where run_date=run.run_date;
+ if seen<p_batch then perform private.finish_auto_order_confirmation_run(run.run_date,'completed');end if;
+ return jsonb_build_object('status',case when seen<p_batch then 'finished' else 'continuing' end,'runDate',run.run_date,
   'confirmed',confirmed,'excluded',excluded);
 end $$;
 revoke all on function private.run_auto_order_confirmation(timestamptz,integer) from public,anon,authenticated,service_role;
