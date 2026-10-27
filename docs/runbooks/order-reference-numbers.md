@@ -24,6 +24,8 @@ UUID 기본키, 외래키, URL, 서버 액션·결제 시도·PG 주문번호와
 
 안내된 코드는 바꾸지 않는다. 이 규칙으로 바꾼 시각(migration `20261027140200` 적용 시각, `private.bank_transfer_deposit_code_switch`) 전에 만든 주문은 그때 안내받은 옛 코드(UUID 앞 8자리)가 입금코드다. 그 시각은 DB만 알므로 이미 만든 주문의 코드를 보여주는 화면은 DB가 준 코드를 쓴다 — 고객 주문서는 `get_my_bank_transfer_deposit_code(주문 id)`(본인의 무통장 주문만), 미입금 콘솔은 조회 결과의 `deposit_code`.
 
+파이프라인은 DB를 먼저, 앱을 몇 분 뒤 배포하므로 그 사이 옛 앱의 주문서는 옛 코드를 안내한다. 그래서 전환 시각부터 2시간 안에 만든 주문은 입금 제안과 미입금 검색이 옛 코드(UUID 앞 8자리)도 함께 받는다(`private.bank_transfer_switch_grace_code`). 그 뒤에 만든 주문은 공식 코드만 받는다.
+
 입금 제안은 입금자명에 든 코드가 입금 대기 주문 한 건에만 맞을 때만 코드로 제안한다. 오래 남은 입금 대기 주문(결제 확인 필요 등)과 코드가 겹치면 제안하지 않고 운영자가 고른다. 미입금 검색은 6자리 입금코드를 정확히 일치로만 찾고, 주문번호 부분 일치는 8자리 이상 숫자일 때만 쓴다. 검증: `supabase/tests/bank_transfer_order_number_code.sql`, `lib/payments/bank-transfer.test.ts`.
 
 ## 적용 순서와 검증

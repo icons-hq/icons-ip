@@ -14,6 +14,10 @@
 -- 대조: 입금 제안은 입금자명에 든 코드가 입금 대기 주문 한 건에만 맞을 때만 코드로 제안한다(오래 남은 입금 대기
 -- 주문과 코드가 겹치면 사람이 고른다). 미입금 검색의 주문번호 부분 일치는 8자리 이상 숫자만 받는다 — 6자리 코드
 -- 검색이 다른 주문의 주문번호 일부로 잡히지 않게 한다.
+--
+-- 배포 순서 보호: 파이프라인은 DB를 먼저, 앱을 몇 분 뒤 배포한다. 그 사이 옛 앱의 주문서는 새 코드 대신 옛 코드
+-- (UUID 앞 8자리)를 안내한다. 그래서 전환 시각부터 2시간 안에 만든 주문은 입금 제안과 미입금 검색이 옛 코드도
+-- 함께 받는다(bank_transfer_switch_grace_code). 코드가 여러 주문에 맞으면 제안하지 않는 규칙은 그대로다.
 begin;
 
 create table private.bank_transfer_deposit_code_switch (
@@ -47,8 +51,15 @@ returns text language sql stable strict security definer set search_path='' as $
     private.bank_transfer_legacy_deposit_code(p_order_id));
 $$;
 
+-- 전환 직후 구간(전환 시각 ~ +2시간)에 만든 주문의 옛 코드. 그 밖의 주문은 null이다(공식 코드만 받는다).
+create function private.bank_transfer_switch_grace_code(p_order_id uuid)
+returns text language sql stable strict security definer set search_path='' as $$
+  select private.bank_transfer_legacy_deposit_code(o.id) from public.orders o, private.bank_transfer_deposit_code_switch s
+  where o.id=p_order_id and s.singleton and o.created_at>=s.switched_at and o.created_at<s.switched_at+interval '2 hours';
+$$;
+
 revoke all on function private.bank_transfer_legacy_deposit_code(uuid),private.bank_transfer_deposit_code_for_number(text),
-  private.bank_transfer_deposit_code(uuid) from public,anon,authenticated,service_role;
+  private.bank_transfer_deposit_code(uuid),private.bank_transfer_switch_grace_code(uuid) from public,anon,authenticated,service_role;
 
 -- 주문서가 자기 무통장 주문에 안내된 코드를 그대로 보여주도록 연다. 다른 사람의 주문·카드 주문은 null이다.
 create function public.get_my_bank_transfer_deposit_code(p_order_id uuid) returns text
@@ -63,7 +74,16 @@ do $patch$
 declare definition text; anchor text;
 begin
  -- 입금 제안: 코드가 입금 대기 주문 한 건에만 맞을 때만 코드로 제안한다. 둘 이상이면 금액·이름 제안도 하지 않는다.
+ -- 전환 직후 구간의 주문은 옛 코드(grace_code)도 코드 일치로 본다.
  definition:=pg_get_functiondef('private.suggest_bank_deposit_order(text,bigint)'::regprocedure);
+ anchor:=$old$private.bank_transfer_deposit_code(orders.id) as code,$old$;
+ if (length(definition)-length(replace(definition,anchor,'')))/length(anchor)<>1 then raise exception 'deposit_suggest_code_column_anchor_changed'; end if;
+ definition:=replace(definition,anchor,anchor||$new$
+      private.bank_transfer_switch_grace_code(orders.id) as grace_code,$new$);
+ anchor:=$old$where position(candidate.code in normalized.name) > 0$old$;
+ if (length(definition)-length(replace(definition,anchor,'')))/length(anchor)<>1 then raise exception 'deposit_suggest_match_anchor_changed'; end if;
+ definition:=replace(definition,anchor,$new$where (position(candidate.code in normalized.name) > 0
+      or (candidate.grace_code is not null and position(candidate.grace_code in normalized.name) > 0))$new$);
  anchor:=$old$  by_code as ($old$;
  if (length(definition)-length(replace(definition,anchor,'')))/length(anchor)<>1 then raise exception 'deposit_suggest_code_anchor_changed'; end if;
  definition:=replace(definition,anchor,$new$  by_code_all as ($new$);
@@ -81,12 +101,23 @@ begin
  definition:=pg_get_functiondef('private.admin_unpaid_bank_transfer_orders_console_before_numbers(text,integer,integer,text,text)'::regprocedure);
  anchor:=$old$position(v_query in numbered.order_number)>0$old$;
  if (length(definition)-length(replace(definition,anchor,'')))/length(anchor)<>1 then raise exception 'unpaid_console_number_anchor_changed'; end if;
- execute replace(definition,anchor,$new$v_query ~ '^[0-9]{8,16}$' and position(v_query in numbered.order_number)>0$new$);
+ definition:=replace(definition,anchor,$new$v_query ~ '^[0-9]{8,16}$' and position(v_query in numbered.order_number)>0$new$);
+ anchor:=$old$or candidate.code = upper(v_query)$old$;
+ if (length(definition)-length(replace(definition,anchor,'')))/length(anchor)<>1 then raise exception 'unpaid_console_code_anchor_changed'; end if;
+ execute replace(definition,anchor,$new$or candidate.code = upper(v_query)
+      or private.bank_transfer_switch_grace_code(candidate.id) = upper(v_query)$new$);
+
+ definition:=pg_get_functiondef('public.admin_unpaid_bank_transfer_orders(text,integer,integer)'::regprocedure);
+ anchor:=$old$or candidate.code = upper(v_query)$old$;
+ if (length(definition)-length(replace(definition,anchor,'')))/length(anchor)<>1 then raise exception 'unpaid_code_anchor_changed'; end if;
+ execute replace(definition,anchor,$new$or candidate.code = upper(v_query)
+      or private.bank_transfer_switch_grace_code(candidate.id) = upper(v_query)$new$);
 end $patch$;
 
 do $$declare signature text;fn regprocedure;contract record;begin
  foreach signature in array ARRAY[
-  'private.admin_unpaid_bank_transfer_orders_console_before_numbers(text,integer,integer,text,text)'
+  'private.admin_unpaid_bank_transfer_orders_console_before_numbers(text,integer,integer,text,text)',
+  'public.admin_unpaid_bank_transfer_orders(text,integer,integer)'
  ] loop
   fn:=signature::regprocedure;
   select * into contract from private.operator_rpc_contracts r where r.signature::regprocedure=fn;

@@ -70,6 +70,37 @@ select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000271502'
 select 1/case when public.get_my_bank_transfer_deposit_code('a1b2c3d4-0000-4000-8000-000000271590') is null then 1 else 0 end as assert_other_user_reads_nothing;
 reset role;
 
+-- 6-1) 배포 순서 보호: DB가 먼저 바뀌고 앱이 몇 분 뒤 배포되는 동안 옛 앱은 옛 코드를 안내한다.
+--      전환 시각부터 2시간 안에 만든 주문은 입금 제안·미입금 검색이 옛 코드도 받고, 그 뒤 주문은 공식 코드만 받는다.
+insert into public.orders(id,user_id,status,total,address,payment_method,created_at,expires_at) values
+ ('c0ffee12-0000-4000-8000-000000271592','00000000-0000-4000-8000-000000271501','pending',17000,'{"recipientName":"배포 사이"}','bank_transfer',
+  (select switched_at from private.bank_transfer_deposit_code_switch)+interval '30 minutes',now()+interval '1 day'),
+ ('c1ffee12-0000-4000-8000-000000271593','00000000-0000-4000-8000-000000271501','pending',18000,'{"recipientName":"구간 뒤"}','bank_transfer',
+  (select switched_at from private.bank_transfer_deposit_code_switch)+interval '3 hours',now()+interval '1 day');
+select 1/case when private.bank_transfer_deposit_code('c0ffee12-0000-4000-8000-000000271592')
+   =private.bank_transfer_deposit_code_for_number((select order_number from public.orders where id='c0ffee12-0000-4000-8000-000000271592'))
+ and private.bank_transfer_switch_grace_code('c0ffee12-0000-4000-8000-000000271592')='C0FFEE12'
+ and private.bank_transfer_switch_grace_code('c1ffee12-0000-4000-8000-000000271593') is null
+ and private.bank_transfer_switch_grace_code('a1b2c3d4-0000-4000-8000-000000271590') is null
+ -- 옛 코드로 입금해도(금액이 달라도) 그 주문을 코드로 제안한다.
+ and (select order_id from private.suggest_bank_deposit_order('배포 사이 C0FFEE12',99))='c0ffee12-0000-4000-8000-000000271592'
+ and (select confidence from private.suggest_bank_deposit_order('배포사이c0ffee12',17000))='code_amount'
+ and not exists(select 1 from private.suggest_bank_deposit_order('구간 뒤 C1FFEE12',99))
+ then 1 else 0 end as assert_switch_grace_accepts_legacy_code;
+select private.bank_transfer_deposit_code('c0ffee12-0000-4000-8000-000000271592') as grace_order_code \gset
+set local role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000271502',true);
+select 1/case when (select array_agg(order_id) from public.admin_unpaid_bank_transfer_orders_console('c0ffee12'))=array['c0ffee12-0000-4000-8000-000000271592'::uuid]
+ and (select array_agg(order_id) from public.admin_unpaid_bank_transfer_orders('C0FFEE12'))=array['c0ffee12-0000-4000-8000-000000271592'::uuid]
+ and not exists(select 1 from public.admin_unpaid_bank_transfer_orders_console('C1FFEE12'))
+ and (select deposit_code from public.admin_unpaid_bank_transfer_orders_console('c0ffee12'))=:'grace_order_code'
+ and (select array_agg(order_id) from public.admin_unpaid_bank_transfer_orders_console(:'grace_order_code'))=array['c0ffee12-0000-4000-8000-000000271592'::uuid]
+ then 1 else 0 end as assert_unpaid_search_accepts_grace_legacy_code;
+reset role;
+-- 옛 코드가 다른 입금 대기 주문의 공식 코드와 겹치면(같은 입금자명에 두 주문이 맞으면) 여전히 제안하지 않는다.
+select 1/case when not exists(select 1 from private.suggest_bank_deposit_order('배포 사이 C0FFEE12 '||:'new_code',17000))
+ then 1 else 0 end as assert_grace_code_keeps_ambiguity_rule;
+
 -- 7) 오래 남은 입금 대기 주문(예: 결제 확인 필요)과 코드가 겹치면 코드로 제안하지 않고 사람이 고른다.
 select day::date as cycle_day from generate_series(date '2036-01-01',date '2036-01-10',interval '1 day') day
  where (day::date - date '2000-01-01') % 10 = 0 limit 1 \gset
@@ -101,6 +132,7 @@ select 1/case when not has_function_privilege('anon','private.bank_transfer_depo
  and not has_function_privilege('service_role','private.bank_transfer_deposit_code(uuid)','execute')
  and not has_function_privilege('authenticated','private.bank_transfer_deposit_code_for_number(text)','execute')
  and not has_function_privilege('authenticated','private.bank_transfer_legacy_deposit_code(uuid)','execute')
+ and not has_function_privilege('authenticated','private.bank_transfer_switch_grace_code(uuid)','execute')
  and has_function_privilege('authenticated','public.get_my_bank_transfer_deposit_code(uuid)','execute')
  and not has_function_privilege('anon','public.get_my_bank_transfer_deposit_code(uuid)','execute')
  then 1 else 0 end as assert_code_functions_private;
