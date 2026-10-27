@@ -7,6 +7,21 @@ import { GOODS_READINESS_REASONS, unknownGoodsReadiness } from '@/lib/admin/good
 import { normalizeGoodsListFilters } from '@/lib/admin/goods-list';
 
 describe('goods list screen', () => {
+  it('상품 관리 권한과 현재 세션이 있으면 판매가·재고수량·판매상태를 목록에서 바로 고치고, IP 필터에서는 IP 전체 즉시할인을 연다', () => {
+    const identity = { actorId: 'b9000000-0000-4000-8000-000000000001', sessionId: 'b9000000-0000-4000-8000-000000000002' };
+    const good = { id: 'good-a', code: 'A', name: '상품 A', ipId: 'maple', ipTitle: '메이플', publishedAt: null, archivedAt: null, stock: 'ok' as const, stockQty: 7,
+      activeStockQty: 7, lowStockOptionCount: 0, noticeComplete: true, priceMin: 10000, priceMax: 10000, basePrice: 10000, activeVariantCount: 1,
+      inlineStock: { variantId: 'b9000000-0000-4000-8000-000000000010', stockQty: 7 } };
+    const multi = { ...good, id: 'good-b', activeVariantCount: 3, inlineStock: null };
+    const data = { filters: normalizeGoodsListFilters({ ipId: 'maple' }), goods: [good, multi], ips: [{ id: 'maple', title: '메이플', archivedAt: null }], total: 2 };
+    const html = renderToStaticMarkup(<GoodsListScreen data={data} canIssueMarketingLinks bulkIdentity={identity} />);
+    for (const label of ['판매가 바로 수정', '판매상태 바로 수정', '재고수량 바로 수정']) expect(html).toContain(`aria-label="${label}"`);
+    expect(html.match(/재고수량 바로 수정/g)).toHaveLength(1);
+    expect(html).toContain('옵션별 재고 수정');
+    expect(html).toContain('IP 전체 즉시할인');
+    const readOnly = renderToStaticMarkup(<GoodsListScreen data={data} bulkIdentity={identity} />);
+    expect(readOnly).not.toContain('바로 수정'); expect(readOnly).not.toContain('IP 전체 즉시할인');
+  });
   it('shows server status counts independently of the filtered total and exposes real list controls', () => {
     const html = renderToStaticMarkup(<GoodsListScreen data={{ filters: normalizeGoodsListFilters({ status: 'draft', from: '2026-10-01', pageSize: '50', image: 'without' }), goods: [], ips: [], total: 3, pageSize: 50, counts: { all: 20, active: 15, draft: 3, published: 12, archived: 5 } }} />);
     expect(html).toContain('상품등록일');

@@ -67,6 +67,11 @@ export interface AdminGoodSummary {
   readiness?: AdminGoodsReadiness;
   createdAt?: string;
   updatedAt?: string;
+  /** 목록 바로 수정(A9): 기본 판매가. 옵션 추가금은 옵션별로 유지한다. */
+  basePrice?: number;
+  /** 사용 중인 옵션 수(-1: 확인 불가). 1개일 때만 목록에서 재고수량을 바로 고친다(옵션 재고는 옵션 단위). */
+  activeVariantCount?: number;
+  inlineStock?: { variantId: string; stockQty: number } | null;
 }
 export interface AdminGoodsListData {
   filters: GoodsListFilters;
