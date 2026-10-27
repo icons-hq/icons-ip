@@ -366,7 +366,7 @@ begin
           where user_id = v_hold.user_id and variant_id = v_cart.variant_id and input_key = v_cart.input_key;
           v_outcome := 'decreased';
         exception when others then
-          -- 직접입력 정의가 바뀌어 수량 변경 트리거가 거절하는 경우 등. 줄은 그대로 둔다.
+          -- 장바구니 행 트리거·잠금 등으로 수량을 바꾸지 못했다. 결제는 확정됐으므로 줄은 그대로 둔다.
           v_outcome := 'kept';
         end;
       else
