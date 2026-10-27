@@ -5,7 +5,7 @@ import { Checkout } from '@/components/screens/Checkout';
 import { isOnboarded, onboardingPath } from '@/lib/auth/onboarding';
 import { getCurrentAuthState } from '@/lib/auth/server';
 import { getCatalogSnapshot } from '@/lib/catalog';
-import { loadLatestCheckoutAddress, loadLatestPendingCheckoutOrderId } from '@/lib/checkout.server';
+import { loadCheckoutAddressPrefill, loadLatestPendingCheckoutOrderId } from '@/lib/checkout.server';
 import { loadCartCouponState } from '@/lib/coupons.server';
 import { bankTransferCheckoutEnabled } from '@/lib/payments/bank-transfer.server';
 import { goodsCheckoutPaymentsEnabled } from '@/lib/payments/goods-checkout-availability';
@@ -35,9 +35,9 @@ export default async function Page({ searchParams }: PageProps) {
     ? rawFailCode
     : null;
 
-  const [catalog, latestAddress, resumeOrderId, couponState, transactionMode, couponPolicy] = await Promise.all([
+  const [catalog, addressPrefill, resumeOrderId, couponState, transactionMode, couponPolicy] = await Promise.all([
     getCatalogSnapshot(),
-    loadLatestCheckoutAddress(auth.user.id),
+    loadCheckoutAddressPrefill(auth.user.id),
     loadLatestPendingCheckoutOrderId(auth.user.id),
     loadCartCouponState(),
     loadGoodsTransactionRuntimeMode(),
@@ -50,14 +50,14 @@ export default async function Page({ searchParams }: PageProps) {
   ) ?? null;
 
   if (transactionMode === 'unavailable') return <main className="wc-root checkout-page"><div className="wrap card"><h1>주문 조건을 확인하지 못했어요</h1><p>잠시 후 다시 확인해주세요.</p><Link href="/cart">장바구니로 돌아가기</Link></div></main>;
-  if (transactionMode === 'transaction') return <GoodsTransactionCheckout key={auth.user.id} accountId={auth.user.id} catalog={{ goods: catalog.goods, ips: catalog.ips }} latestAddress={latestAddress}
+  if (transactionMode === 'transaction') return <GoodsTransactionCheckout key={auth.user.id} accountId={auth.user.id} catalog={{ goods: catalog.goods, ips: catalog.ips }} addressPrefill={addressPrefill}
     resumeOrderId={resumeOrderId} paymentAvailable={goodsCheckoutPaymentsEnabled(auth.user.id)} bankTransferAvailable={await bankTransferCheckoutEnabled()}
     userCouponId={couponState.selectedUserCouponId} coupons={couponState.coupons} couponPolicy={couponPolicy} paymentFailCode={paymentFailCode} />;
 
   return (
     <Checkout
       catalog={{ goods: catalog.goods, ips: catalog.ips }}
-      latestAddress={latestAddress}
+      addressPrefill={addressPrefill}
       resumeOrderId={resumeOrderId}
       /* 카트 단계라 파생할 주문이 아직 없다 — 기본(toss) gate로 그린다. 제한
          상품은 현재 담기 자체가 차단되고, 19금 오픈 트랙에서 카트 파생과 함께

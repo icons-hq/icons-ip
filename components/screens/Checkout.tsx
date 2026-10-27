@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { useMemo, useRef, useState, type FormEvent } from 'react';
 import { placeOrderAction } from '@/app/checkout/actions';
 import { PostcodeField } from '@/components/checkout/PostcodeField';
+import { CheckoutAddressBook } from '@/components/checkout/CheckoutAddressBook';
 import { useStoreCreditQuote } from '@/components/checkout/useStoreCreditQuote';
 import { useCart } from '@/components/shell/CartProvider';
 import type { CatalogSnapshot } from '@/lib/catalog';
@@ -28,6 +29,7 @@ import { goodsShipDateLabel } from '@/lib/goods-preorders';
 import { paymentFailNoticeCopy } from '@/lib/payments/checkout-fail-copy';
 import type { ComposedPostcodeAddress } from '@/lib/postcode';
 import { shippingFeeLabel } from '@/lib/shipping';
+import { addressBookEntryToCheckout, checkoutAddressPrefillNotice, sameCheckoutDestination, type AddressBookEntry, type CheckoutAddressPrefill } from '@/lib/address-book';
 import { useShippingQuote } from '@/components/shop/useShippingQuote';
 import { ShippingGroupSummary } from '@/components/shop/ShippingGroupSummary';
 import { parseShippingDestination } from '@/lib/shipping-regions';
@@ -69,7 +71,8 @@ const actionErrors = {
 
 interface CheckoutProps {
   catalog: Pick<CatalogSnapshot, 'goods' | 'ips'>;
-  latestAddress: CheckoutAddress | null;
+  /** 배송지 미리 채우기(주소록 기본 배송지 → 결제를 마친 직전 주문)와 주소록 — L7 · 10/14 S6a. */
+  addressPrefill: CheckoutAddressPrefill;
   paymentAvailable: boolean;
   /** 법인계좌가 설정돼 있는지. 없으면 무통장 자체가 뜨지 않는다(#255). */
   bankTransferAvailable: boolean;
@@ -104,7 +107,7 @@ export function checkoutMethodAvailable(
 
 export function Checkout({
   catalog,
-  latestAddress,
+  addressPrefill,
   paymentAvailable,
   bankTransferAvailable,
   resumeOrderId,
@@ -123,14 +126,18 @@ export function Checkout({
   const [paymentMethod, setPaymentMethod] = useState<CheckoutPaymentMethod>(
     paymentAvailable || !bankTransferAvailable ? 'card' : 'bank_transfer',
   );
+  const prefilled = addressPrefill.address;
   const [address, setAddress] = useState<CheckoutAddress>({
-    recipientName: latestAddress?.recipientName ?? '',
-    phone: latestAddress?.phone ?? '',
-    postalCode: latestAddress?.postalCode ?? '',
-    address1: latestAddress?.address1 ?? '',
-    address2: latestAddress?.address2 ?? '',
-    deliveryNote: latestAddress?.deliveryNote ?? '',
+    recipientName: prefilled?.recipientName ?? '',
+    phone: prefilled?.phone ?? '',
+    postalCode: prefilled?.postalCode ?? '',
+    address1: prefilled?.address1 ?? '',
+    address2: prefilled?.address2 ?? '',
+    deliveryNote: prefilled?.deliveryNote ?? '',
   });
+  /* 미리 채운 배송지를 그대로 두는 동안만 출처를 안내한다(S6a — 사실대로). */
+  const prefillNotice = prefilled && sameCheckoutDestination(prefilled, address)
+    ? checkoutAddressPrefillNotice(addressPrefill.source) : null;
   const destination = parseShippingDestination({ postalCode: address.postalCode, address1: address.address1 });
   const shipping = useShippingQuote(items, ready, appliedCoupon?.id ?? '', destination);
   const [storeCreditInput, setStoreCreditInput] = useState('');
@@ -191,6 +198,14 @@ export function Checkout({
       delete next[field];
       return next;
     });
+  };
+
+  /* 주소록에서 고르면 그 배송지로 채우고, '새 배송지 입력'이면 비운다. 배송 메모는 주문서에 적은 값을 둔다. */
+  const pickAddressBookEntry = (entry: AddressBookEntry | null) => {
+    setAddress((current) => entry
+      ? addressBookEntryToCheckout(entry, current.deliveryNote ?? '')
+      : { recipientName: '', phone: '', postalCode: '', address1: '', address2: '', deliveryNote: current.deliveryNote ?? '' });
+    setFieldErrors({});
   };
 
   /* 검색 결과는 우편번호와 기본 주소만 덮어쓴다. 상세 주소는 사용자 몫이라
@@ -315,10 +330,12 @@ export function Checkout({
             <span className="checkout-step mono">01</span>
             <div>
               <h2 id="shipping-title">배송지</h2>
-              <p>{latestAddress ? '최근 배송지를 불러왔어요. 주문 전 한 번 더 확인해주세요.' : '수령에 필요한 정보만 주문에 안전하게 저장합니다.'}</p>
+              <p>{prefillNotice ?? '수령에 필요한 정보만 주문에 안전하게 저장합니다.'}</p>
               <p>원화(KRW) 결제·국내 배송만 제공합니다. 국내 배송대행지 주소도 사용할 수 있으며, 이후 해외 운송은 고객이 별도로 진행합니다.</p>
             </div>
           </div>
+
+          <CheckoutAddressBook address={address} book={addressPrefill.book} disabled={submitting} onPick={pickAddressBookEntry} />
 
           <div className="checkout-fields">
             <label>

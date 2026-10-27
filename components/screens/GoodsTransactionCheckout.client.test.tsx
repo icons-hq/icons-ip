@@ -16,6 +16,8 @@ vi.mock('@/components/checkout/useCartTransactionQuote', () => ({ useCartTransac
 vi.mock('@/lib/supabase/client', () => ({ createClient: () => ({ auth: { onAuthStateChange: (callback: typeof mocks.auth) => { mocks.auth = callback; return { data: { subscription: { unsubscribe: vi.fn() } } }; } } }) }));
 import { GoodsTransactionCheckout } from './GoodsTransactionCheckout';
 import { GoodsTransactionSummary } from '@/components/checkout/GoodsTransactionSummary';
+import { CheckoutAddressBook } from '@/components/checkout/CheckoutAddressBook';
+import { PostcodeField } from '@/components/checkout/PostcodeField';
 type Element = ReactElement<Record<string, unknown>>;
 const all = (node: ReactNode): Element[] => Children.toArray(node).flatMap(child => isValidElement<Record<string, unknown>>(child) ? [child, ...all(child.props.children as ReactNode)] : []);
 const text = (node: ReactNode): string => Children.toArray(node).map(child => isValidElement<Record<string, unknown>>(child) ? text(child.props.children as ReactNode) : String(child)).join('');
@@ -33,7 +35,7 @@ beforeEach(async () => {
   vi.stubGlobal('window', new EventTarget()); vi.stubGlobal('sessionStorage', { getItem: (key: string) => storage.get(key) ?? null, setItem: (key: string, value: string) => storage.set(key, value), removeItem: (key: string) => storage.delete(key) });
   mocks.cart = { items: transactionInput.items, ready: true, mode: 'server', pending: false, refresh: mocks.refresh }; mocks.refresh.mockResolvedValue(undefined);
   mocks.quote = { ok: true, quote: transactionQuote, offers: [] }; mocks.place.mockResolvedValue({ ok: false, error: 'unavailable', uncertain: true }); mocks.resume.mockResolvedValue({ ok: false, error: 'unavailable', uncertain: true });
-  props = { accountId: transactionActor, catalog: { goods: [], ips: [] }, latestAddress: transactionInput.address, paymentAvailable: true, bankTransferAvailable: true, resumeOrderId: null, userCouponId: transactionInput.userCouponId };
+  props = { accountId: transactionActor, catalog: { goods: [], ips: [] }, addressPrefill: { address: transactionInput.address, source: 'recent_order', book: [] }, paymentAvailable: true, bankTransferAvailable: true, resumeOrderId: null, userCouponId: transactionInput.userCouponId };
   render(); effects(); authenticate(); await flush();
 });
 afterEach(() => { for (const effect of hooks.effects) effect.cleanup?.(); vi.unstubAllGlobals(); vi.useRealTimers(); });
@@ -83,4 +85,27 @@ it('새 세션은 이전 세션의 복구 식별자를 재사용하지 않는다
   storage.set(`icons.cart-order-recovery.v1:${transactionActor}`, JSON.stringify(transactionRecovery));
   for (const effect of hooks.effects) effect.cleanup?.(); resetHooks(); render(); effects(); authenticate(transactionActor, transactionOrder); await flush();
   expect(storage.size).toBe(0); expect(button('같은 주문 다시 확인')).toBeUndefined();
+});
+/* 주소록(L7 · MY-11) · 미리 채우기 정정(10/14 S6a) — 거래 주문서도 같은 선택·안내를 쓴다. */
+it('주소록 배송지를 고르면 폼을 채우고 배송 메모는 두며, 미리 채운 출처 안내는 그 배송지일 때만 보인다', async () => {
+  const home = { id: '7a570000-0000-4000-8000-000000000011', label: '집', recipientName: '수령인', phone: '01012345678', postalCode: '04799', address1: '서울 성동구 테스트길', address2: '123호', isDefault: true };
+  const office = { ...home, id: '7a570000-0000-4000-8000-000000000012', label: '회사', recipientName: '회사 수령인', address1: '서울 강남구 테헤란로 152', address2: null, isDefault: false };
+  props = { ...props, addressPrefill: { address: { ...transactionInput.address, deliveryNote: '' }, source: 'address_book', book: [home, office] } };
+  for (const effect of hooks.effects) effect.cleanup?.(); resetHooks(); render(); effects(); authenticate(); await flush();
+  const field = (id: string) => all(render()).find(node => node.type === 'input' && node.props.id === id)!;
+  expect(text(render())).toContain('주소록의 기본 배송지를 불러왔어요. 주문 전 한 번 더 확인해주세요.');
+  const picker = all(render()).find(node => node.type === CheckoutAddressBook)!;
+  expect(picker.props.book).toEqual([home, office]);
+  (field('checkout-deliveryNote').props.onChange as (event: { target: { value: string } }) => void)({ target: { value: '문 앞' } });
+  (picker.props.onPick as (entry: unknown) => void)(office);
+  expect(field('checkout-recipientName').props.value).toBe('회사 수령인');
+  expect(field('checkout-address1').props.value).toBe('서울 강남구 테헤란로 152');
+  expect(field('checkout-address2').props.value).toBe('');
+  expect(all(render()).find(node => node.type === PostcodeField)!.props.value).toBe('04799');
+  expect(field('checkout-deliveryNote').props.value).toBe('문 앞');
+  expect(text(render())).not.toContain('불러왔어요');
+  (all(render()).find(node => node.type === CheckoutAddressBook)!.props.onPick as (entry: unknown) => void)(null);
+  expect(field('checkout-recipientName').props.value).toBe('');
+  expect(all(render()).find(node => node.type === PostcodeField)!.props.value).toBe('');
+  expect(field('checkout-deliveryNote').props.value).toBe('문 앞');
 });
