@@ -51,10 +51,15 @@ export function GoodsListScreen({ data, shippingRegionExpiry, canIssueMarketingL
           <span><strong>{good.name}</strong><small>{good.code}</small></span>
         </span>,
         <Link key="edit" className="admin-goods-worklist__edit" href={goodEditorHref(filters, good.id)}>수정</Link>,
-        editable && inlineIdentity && typeof good.basePrice === 'number'
+        editable && inlineIdentity && typeof good.basePrice === 'number' && good.compareAtPrice == null && !good.activeDiscountEndsAt
           ? <GoodsInlinePrice key="price" goodId={good.id} basePrice={good.basePrice} identity={inlineIdentity} hasOptions={(good.activeVariantCount ?? 0) !== 1}
             display={<span className="admin-goods-worklist__price">{priceLabel(good.priceMin, good.priceMax)}</span>} />
-          : <span key="price" className="admin-goods-worklist__price">{priceLabel(good.priceMin, good.priceMax)}</span>,
+          : editable && typeof good.basePrice === 'number' && (good.compareAtPrice != null || good.activeDiscountEndsAt)
+            ? <span key="price" className="admin-goods-worklist__qty"><span className="admin-goods-worklist__price">{priceLabel(good.priceMin, good.priceMax)}</span>
+              {good.activeDiscountEndsAt
+                ? <small className="admin-goods-worklist__secondary">즉시할인 진행·예정 중(~{new Date(good.activeDiscountEndsAt).toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul' })}) · 할인을 중지한 뒤 판매가를 바꿀 수 있습니다</small>
+                : <Link className="admin-goods-worklist__secondary" href={`${goodEditorHref(filters, good.id)}#good-section-price`}>상품 할인 중 · 판매가는 상품 수정에서 변경</Link>}</span>
+            : <span key="price" className="admin-goods-worklist__price">{priceLabel(good.priceMin, good.priceMax)}</span>,
         <div key="readiness" className="admin-goods-worklist__readiness">
           <div><AdminStatusBadge tone={good.publishedAt && !good.archivedAt ? 'success' : 'neutral'}>{good.archivedAt ? '보관' : good.publishedAt ? '전시중' : '임시저장'}</AdminStatusBadge>
             <span>{GOODS_READINESS_STATE_LABELS[readiness.state]}</span></div>

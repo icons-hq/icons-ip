@@ -5,6 +5,10 @@
 -- skipped list instead of cancelling the whole batch. Discount guards ignore
 -- stock movement, so ordinary sales between preview and commit do not reject
 -- a large IP batch, while option prices and discount periods remain guarded.
+-- A discount-stop preview shows the current/upcoming discounts each good will
+-- lose (including individually set ones) and skips goods with none. A base
+-- price change on a good with a current/upcoming discount is refused already
+-- at preview with the same code the option price guard raises at commit.
 begin;
 
 create function private.goods_bulk_price_fingerprint(p_good text) returns text
@@ -69,7 +73,7 @@ language plpgsql security definer set search_path='' as $$
 declare prior private.goods_bulk_operations;ids text[];groups jsonb:='[]';rows jsonb:='[]';guards jsonb:='{}';g public.goods;
  next_price integer;min_price integer;max_price integer;next_min integer;next_max integer;expires timestamptz;result jsonb;
  command text:=p_request->>'command';kind text:=p_request->>'kind';target_limit integer;skip text;applied integer:=0;
- window_range tstzrange;
+ window_range tstzrange;discounts jsonb;
 begin
  perform private.require_goods_group_identity(p_actor,p_session);
  perform private.goods_bulk_validate(p_request);
@@ -104,8 +108,11 @@ begin
   if g.archived_at is not null and command not in ('restore','archive','dissolve') then raise check_violation using message='good_archived';end if;
   next_price:=case when command='price' then private.goods_bulk_price(g.price,p_request->'values') else g.price end;
   select min(price),max(price) into min_price,max_price from public.goods_variants where good_id=g.id and archived_at is null;
-  next_min:=min_price;next_max:=max_price;skip:=null;
+  next_min:=min_price;next_max:=max_price;skip:=null;discounts:=null;
   if command='price' then
+   -- Same predicate as private.guard_goods_variant_period_price (every option, current or upcoming).
+   if exists(select 1 from private.goods_variant_price_periods p where p.good_id=g.id and p.state='active' and p.ends_at>statement_timestamp()) then
+    raise check_violation using message='active_price_period_requires_reset';end if;
    if g.compare_at_price is not null and g.compare_at_price<=next_price then raise check_violation using message='goods_compare_at_price_invalid';end if;
    if exists(select 1 from public.goods_variants where good_id=g.id and (price<g.price or price::bigint-g.price+next_price>2147483647)) then
     raise check_violation using message='goods_bulk_price_invalid';end if;
@@ -117,14 +124,19 @@ begin
      where v.good_id=g.id and v.archived_at is null and p.state='active' and tstzrange(p.starts_at,p.ends_at,'[)') && window_range) then skip:='price_period_overlap';
    elsif exists(select 1 from public.goods_variants v where v.good_id=g.id and v.archived_at is null and private.goods_bulk_discount_price(v.price,p_request->'values') is null) then skip:='goods_bulk_price_invalid';
    else next_min:=private.goods_bulk_price(min_price,p_request->'values');next_max:=private.goods_bulk_price(max_price,p_request->'values');end if;
+  elsif command='discount_stop' then
+   select case when count(*)=0 then null else jsonb_build_object('count',count(*),'minPrice',min(p.discount_price),'maxPrice',max(p.discount_price),
+     'startsAt',min(p.starts_at),'endsAt',max(p.ends_at)) end into discounts
+    from private.goods_variant_price_periods p where p.good_id=g.id and p.state='active' and p.ends_at>statement_timestamp();
+   if discounts is null then skip:='no_active_discount';end if;
   end if;
   if skip is null then applied:=applied+1;end if;
   rows:=rows||jsonb_build_array(jsonb_build_object('id',g.id,'name',g.name,'code',g.code,'price',g.price,'nextPrice',next_price,
    'priceMin',min_price,'priceMax',max_price,'nextMin',next_min,'nextMax',next_max,'published',g.published_at is not null,
-   'archived',g.archived_at is not null,'stopped',g.stock='soldout','skip',skip));
+   'archived',g.archived_at is not null,'stopped',g.stock='soldout','skip',skip,'discounts',discounts));
   guards:=guards||jsonb_build_object(g.id,case when command in ('discount','discount_stop') then private.goods_bulk_price_fingerprint(g.id) else private.goods_bulk_fingerprint(g.id) end);
  end loop;
- if applied=0 then raise check_violation using message='goods_bulk_all_skipped';end if;
+ if applied=0 then raise check_violation using message=case when command='discount_stop' then 'goods_bulk_no_active_discount' else 'goods_bulk_all_skipped' end;end if;
  expires:=clock_timestamp()+interval '15 minutes';
  result:=jsonb_build_object('state','ready','operationId',p_id,'request',p_request,'groups',groups,'goods',rows,'expiresAt',expires);
  insert into private.goods_bulk_operations(id,actor_id,session_id,request,guards,preview,expires_at) values(p_id,p_actor,p_session,p_request,guards,result,expires);
@@ -213,7 +225,7 @@ begin
    end loop;
   end if;
   result:=jsonb_build_object('state','completed','operationId',p_id,'goodsCount',cardinality(ids)-cardinality(skipped_ids),'groupsCount',jsonb_array_length(operation.preview->'groups'),'error',null)
-   ||case when command='discount' then jsonb_build_object('skipped',skipped) else '{}'::jsonb end;
+   ||case when command in ('discount','discount_stop') then jsonb_build_object('skipped',skipped) else '{}'::jsonb end;
   insert into public.audit_log(actor_id,action,target,diff) values(p_actor,'catalog.goods_bulk.completed','goods_bulk:'||p_id::text,
    jsonb_build_object('request',operation.request,'preview',operation.preview,'receipt',result));
  exception when others then

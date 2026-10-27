@@ -54,12 +54,31 @@ select pg_temp.bulk_assert((select count(*)=1 from private.goods_variant_price_p
 select pg_temp.bulk_assert((select count(*)=1 from public.audit_log where action='catalog.goods_bulk.completed' and target='goods_bulk:'||md5('bulk-ip-test:1')::uuid::text),'one batch audit');
 set local role authenticated;
 select pg_temp.bulk_assert(pg_temp.ip_commit(1)=:'receipt'::jsonb,'repeat commit returns the stored receipt');
+-- Discount stop shows every current/upcoming discount it will turn off (including individually set ones).
+select pg_temp.ip_preview(2,'discount_stop','{}') as stop_preview \gset
+select pg_temp.bulk_assert((select r->'discounts'->>'count'='1' and r->'discounts'->>'minPrice'='9500' and r->'skip'='null'::jsonb from jsonb_array_elements(:'stop_preview'::jsonb->'goods') r where r->>'id'='bulk-ip-001')
+ and (select r->'discounts'->>'minPrice'='9000' from jsonb_array_elements(:'stop_preview'::jsonb->'goods') r where r->>'id'='bulk-ip-050')
+ and (select r->>'skip'='no_active_discount' and r->'discounts'='null'::jsonb from jsonb_array_elements(:'stop_preview'::jsonb->'goods') r where r->>'id'='bulk-ip-002'),'stop preview lists discounts to turn off');
+-- A base price change is refused at preview while a current/upcoming discount exists (same rule as the option price guard).
+select pg_temp.bulk_error($q$select public.admin_preview_goods_bulk(md5('bulk-ip-test:price')::uuid,'{"kind":"goods","ids":["bulk-ip-050"],"command":"price","values":{"mode":"set","value":12000}}','b9100000-0000-4000-8000-000000000001','b9100000-0000-4000-8000-000000000011')$q$,'active_price_period_requires_reset');
+-- The list projection explains why inline price edit is closed.
+select pg_temp.bulk_assert((select jsonb_object_agg(r->>'id',r->'activeDiscountEndsAt' is distinct from 'null'::jsonb) from jsonb_array_elements(public.admin_goods_list_price_states(array['bulk-ip-050','bulk-ip-002'])) r)
+ ='{"bulk-ip-050":true,"bulk-ip-002":false}'::jsonb,'list price state shows active discounts');
 -- A changed option price still rejects the whole batch.
-select pg_temp.ip_preview(2,'discount_stop','{}');
 reset role;
 update public.goods_variants set price=price+1 where good_id='bulk-ip-002';
 set local role authenticated;
 select pg_temp.bulk_assert(pg_temp.ip_commit(2)->>'error'='goods_bulk_changed','price change rejects');
+-- Stop for real: goods without discounts are skipped and reported, the rest lose every active period.
+select pg_temp.ip_preview(6,'discount_stop','{}');
+select pg_temp.ip_commit(6) as stop_receipt \gset
+select pg_temp.bulk_assert(:'stop_receipt'::jsonb->>'state'='completed' and (:'stop_receipt'::jsonb->>'goodsCount')::int=104
+ and :'stop_receipt'::jsonb->'skipped' @> '[{"id":"bulk-ip-002","reason":"no_active_discount"}]'::jsonb and jsonb_array_length(:'stop_receipt'::jsonb->'skipped')=1,'stop skips goods without discounts');
+reset role;
+select pg_temp.bulk_assert(not exists(select 1 from private.goods_variant_price_periods where good_id like 'bulk-ip-%' and state='active'),'every active period stopped');
+set local role authenticated;
+select pg_temp.bulk_error($q$select pg_temp.ip_preview(7,'discount_stop','{}')$q$,'goods_bulk_no_active_discount');
+select pg_temp.bulk_error($q$select public.admin_goods_list_price_states(array_fill('x'::text,array[101]))$q$,'invalid_goods_list_price_states');
 select pg_temp.bulk_error($q$select pg_temp.ip_preview(3,'price','{"mode":"set","value":1000}')$q$,'goods_bulk_invalid');
 select pg_temp.bulk_error($q$select pg_temp.ip_preview(4,'discount','{"mode":"rate","value":10,"startsAt":"2030-01-01T00:00:00Z","endsAt":"2030-01-02T00:00:00Z"}','bulk-ip-closed')$q$,'goods_bulk_ip_unavailable');
 select pg_temp.bulk_error($q$select public.admin_preview_goods_bulk(gen_random_uuid(),'{"kind":"ip","ids":["bulk-ip-main","bulk-ip-other"],"command":"discount_stop","values":{}}','b9100000-0000-4000-8000-000000000001','b9100000-0000-4000-8000-000000000011')$q$,'goods_bulk_invalid');
@@ -70,7 +89,9 @@ insert into public.goods(id,ip_id,name,type,price,stock,stock_qty)
 set local role authenticated;
 select pg_temp.bulk_error($q$select pg_temp.ip_preview(5,'discount_stop','{}','bulk-ip-other')$q$,'goods_bulk_target_limit');
 reset role;
-select pg_temp.bulk_assert(not has_function_privilege('authenticated','private.goods_bulk_price_fingerprint(text)','execute')
+select pg_temp.bulk_assert(not has_function_privilege('anon','public.admin_goods_list_price_states(text[])','execute')
+ and not has_function_privilege('service_role','public.admin_goods_list_price_states(text[])','execute')
+ and not has_function_privilege('authenticated','private.goods_bulk_price_fingerprint(text)','execute')
  and not has_function_privilege('authenticated','private.goods_bulk_discount_price(integer,jsonb)','execute')
  and not has_function_privilege('anon','public.admin_preview_goods_bulk(uuid,jsonb,uuid,uuid)','execute'),'helper ACL');
 rollback;

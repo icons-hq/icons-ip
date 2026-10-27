@@ -12,6 +12,13 @@ import { GROUP_BUTTON, GROUP_PRIMARY, GroupTable, useGoodsGroupSession } from '.
 const money = (value: number | null) => value === null ? '사용 옵션 없음' : `${value.toLocaleString('ko-KR')}원`;
 const range = (min: number | null, max: number | null) => min === max ? money(min) : `${money(min)} ~ ${money(max)}`;
 function status(row: GoodsBulkPreview['goods'][number]) { return row.archived ? '보관' : row.published ? '전시중' : '미전시'; }
+const kstDate = (value: string) => new Date(value).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit' });
+/* 할인 중지로 꺼질 진행·예정 할인을 상품별로 보여 준다(개별로 걸어 둔 할인 포함). */
+function activeDiscountLabel(row: GoodsBulkPreview['goods'][number]) {
+  const value = row.discounts;
+  if (!value) return '진행·예정 할인 없음';
+  return `할인 ${value.count}건 · ${range(value.minPrice, value.maxPrice)} · ${kstDate(value.startsAt)} ~ ${kstDate(value.endsAt)}`;
+}
 function after(row: GoodsBulkPreview['goods'][number], command: GoodsBulkCommand) {
   if (row.skip) return `건너뜀 · ${goodsBulkSkipLabel(row.skip)}`;
   if (command === 'publish') return '전시중'; if (command === 'unpublish') return '미전시';
@@ -151,7 +158,8 @@ export function GoodsBulkToolbar({ kind, selectedIds, shippingGoodIds = selected
             {dialog.command === 'period' ? <label className="admin-goods-bulk__check"><input type="checkbox" name="unlimited" value="true" />판매기간 제한 해제</label> : null}
             {dialog.command === 'period' || dialog.command === 'discount' ? <div className="admin-goods-bulk__fields"><label>시작 (한국 시간)<input name="startsAt" type="datetime-local" /></label><label>종료 (한국 시간)<input name="endsAt" type="datetime-local" /></label></div> : null}
             {dialog.command === 'discount' ? <p>사용 중인 모든 옵션에 기간 할인을 등록합니다. 기존 활성 할인과 시간이 겹치거나 할인가가 맞지 않는 상품은 건너뛰고, 비교 결과와 저장 후에 그 목록을 보여 드립니다. 특정 상품만 다르게 할인하려면 먼저 그 상품에 할인을 등록해 두세요.</p> : null}
-            {dialog.command === 'discount_stop' ? <p>선택 상품의 활성 기간 할인을 모두 중지합니다. 기존 주문 금액과 할인 이력은 유지합니다.</p> : null}
+            {dialog.command === 'discount_stop' ? <p>{kind === 'ip' ? '이 IP의 보관하지 않은 전체 상품에서 진행 중이거나 예정된 기간 할인을 모두 중지합니다. IP 전체 할인뿐 아니라 상품별로 따로 걸어 둔 할인도 함께 중지되니, 변경 내용 확인에서 꺼질 할인을 상품별로 확인해주세요.'
+              : '선택 상품의 진행 중이거나 예정된 기간 할인을 모두 중지합니다. 변경 내용 확인에서 꺼질 할인을 상품별로 확인해주세요.'} 할인이 없는 상품은 건너뛰며, 기존 주문 금액과 할인 이력은 유지합니다.</p> : null}
             {dialog.command === 'archive' ? <p>재고·진행 중 거래 등 보관 조건을 확인합니다. 보관된 상품은 목록에서 복원할 수 있습니다.</p> : null}
             {dialog.command === 'restore' ? <p>보관을 해제합니다. 공개 전 필요한 상품정보와 KC 검토를 확인해주세요.</p> : null}
             {dialog.command === 'dissolve' ? <p>그룹 연결을 해제합니다. 개별 상품·재고·주문 이력과 원상품의 합산 조건은 유지합니다.</p> : null}
@@ -159,10 +167,11 @@ export function GoodsBulkToolbar({ kind, selectedIds, shippingGoodIds = selected
           </fieldset>
         </form> : <>
           <p><strong>{GOODS_BULK_LABELS[preview.request.command]}</strong> · 상품 {preview.goods.length}개{preview.groups.length ? ` · 그룹 ${preview.groups.length}개` : ''}
-            {preview.request.command === 'discount' ? ` · 적용 ${appliedCount}개 · 건너뜀 ${preview.goods.length - appliedCount}개` : ''}</p>
+            {['discount', 'discount_stop'].includes(preview.request.command) ? ` · 적용 ${appliedCount}개 · 건너뜀 ${preview.goods.length - appliedCount}개` : ''}
+            {preview.request.command === 'discount_stop' ? ` · 꺼질 할인 ${preview.goods.reduce((sum, row) => sum + (row.skip ? 0 : row.discounts?.count ?? 0), 0)}건` : ''}</p>
           {preview.request.values.startsAt ? <p>{new Date(String(preview.request.values.startsAt)).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })} ~ {new Date(String(preview.request.values.endsAt)).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })} (한국 시간)</p> : preview.request.command === 'period' ? <p>판매기간 제한을 해제합니다.</p> : null}
           <GroupTable label="일괄 변경 대상"><thead><tr><th>상품명·판매자상품코드</th><th>현재</th><th>변경 후</th></tr></thead><tbody>{[...preview.goods].sort((a, b) => Number(Boolean(b.skip)) - Number(Boolean(a.skip))).map(row => <tr key={row.id} data-skipped={row.skip ? 'true' : undefined}><td>{row.name}<small>{row.code ?? row.id}</small></td>
-            <td>{['price', 'discount'].includes(preview.request.command) ? range(row.priceMin, row.priceMax) : ['start', 'stop'].includes(preview.request.command) ? row.stopped ? '판매 중지' : '판매 운영' : status(row)}</td><td>{after(row, preview.request.command)}</td></tr>)}</tbody></GroupTable>
+            <td>{preview.request.command === 'discount_stop' ? activeDiscountLabel(row) : ['price', 'discount'].includes(preview.request.command) ? range(row.priceMin, row.priceMax) : ['start', 'stop'].includes(preview.request.command) ? row.stopped ? '판매 중지' : '판매 운영' : status(row)}</td><td>{after(row, preview.request.command)}</td></tr>)}</tbody></GroupTable>
           <p>{['discount', 'discount_stop'].includes(preview.request.command) ? '비교 이후 상품·옵션 가격이나 할인 기간이 바뀌면 전체 적용을 중단합니다(판매로 인한 재고 변동은 영향 없음).' : '비교 이후 상품이나 재고가 바뀌면 전체 적용을 중단합니다.'} 비교 결과는 15분 동안 유효합니다.</p>
           <label className="admin-goods-bulk__check"><input type="checkbox" checked={acknowledged} disabled={locked} onChange={event => setAcknowledged(event.target.checked)} />대상과 변경 내용을 확인했습니다.</label>
           <div className="admin-goods-bulk__actions"><button className={GROUP_BUTTON} type="button" disabled={locked} onClick={() => { setPreview(null); setAcknowledged(false); }}>다시 입력</button>

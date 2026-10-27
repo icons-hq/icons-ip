@@ -12,11 +12,16 @@ describe('goods list screen', () => {
     const good = { id: 'good-a', code: 'A', name: '상품 A', ipId: 'maple', ipTitle: '메이플', publishedAt: null, archivedAt: null, stock: 'ok' as const, stockQty: 7,
       activeStockQty: 7, lowStockOptionCount: 0, noticeComplete: true, priceMin: 10000, priceMax: 10000, basePrice: 10000, activeVariantCount: 1,
       inlineStock: { variantId: 'b9000000-0000-4000-8000-000000000010', stockQty: 7 } };
-    const multi = { ...good, id: 'good-b', activeVariantCount: 3, inlineStock: null };
-    const data = { filters: normalizeGoodsListFilters({ ipId: 'maple' }), goods: [good, multi], ips: [{ id: 'maple', title: '메이플', archivedAt: null }], total: 2 };
+    const multi = { ...good, id: 'good-b', activeVariantCount: 3, inlineStock: null, compareAtPrice: 15000 };
+    const discounted = { ...good, id: 'good-c', activeDiscountEndsAt: '2026-10-30T00:00:00Z' };
+    const data = { filters: normalizeGoodsListFilters({ ipId: 'maple' }), goods: [good, multi, discounted], ips: [{ id: 'maple', title: '메이플', archivedAt: null }], total: 3 };
     const html = renderToStaticMarkup(<GoodsListScreen data={data} canIssueMarketingLinks bulkIdentity={identity} />);
     for (const label of ['판매가 바로 수정', '판매상태 바로 수정', '재고수량 바로 수정']) expect(html).toContain(`aria-label="${label}"`);
-    expect(html.match(/재고수량 바로 수정/g)).toHaveLength(1);
+    // 판매가 바로 수정은 편집기의 판매가와 같은 뜻일 때만: 상품 할인·진행 중인 즉시할인 상품은 이유만 보인다.
+    expect(html.match(/판매가 바로 수정/g)).toHaveLength(1);
+    expect(html).toContain('상품 할인 중 · 판매가는 상품 수정에서 변경'); expect(html).toContain('#good-section-price');
+    expect(html).toContain('할인을 중지한 뒤 판매가를 바꿀 수 있습니다');
+    expect(html.match(/재고수량 바로 수정/g)).toHaveLength(2);
     expect(html).toContain('옵션별 재고 수정');
     expect(html).toContain('IP 전체 즉시할인');
     const readOnly = renderToStaticMarkup(<GoodsListScreen data={data} bulkIdentity={identity} />);
