@@ -184,11 +184,13 @@ export function AdminSidebar({
   const normalizedQuery = query.trim().toLocaleLowerCase('ko-KR');
   const activeScreen = adminScreenForPath(pathname);
   const activeGroup = adminGroupForPath(pathname);
+  /* 접힘 설정은 콘솔을 가리지 않고 계정마다 하나다. 처음 메뉴를 만질 때 기본값이 저장되므로, 현재 콘솔 그룹만으로 만들면
+     다른 콘솔의 그룹이 저장 목록에 빠져 전부 펼쳐진다 — 볼 수 있는 모든 콘솔의 그룹으로 기본 접힘을 만든다. */
   const defaultCollapsedGroupIds = useMemo(
-    () => groups
+    () => allGroups
       .map((group) => group.id)
       .filter((groupId) => groupId !== 'home' && groupId !== activeGroup?.id),
-    [activeGroup?.id, groups],
+    [activeGroup?.id, allGroups],
   );
   const navigationDefaults = useMemo<AdminNavigationPreferences>(
     () => ({ favoriteScreenIds: [], collapsedGroupIds: defaultCollapsedGroupIds }),
