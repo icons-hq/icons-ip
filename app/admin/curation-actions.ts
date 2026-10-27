@@ -64,6 +64,7 @@ export async function upsertAdminCurationAction(
     if (message.includes('home_mosaic_limit')) return { errors: { mosaic: '자유상품 모자이크는 최대 5개까지 등록할 수 있습니다. 기존 구성을 수정해주세요.' } };
     if (message.includes('home_free_product_limit')) return { errors: { form: '리스트·풀이미지·모자이크는 비노출과 종료를 포함해 합계 5개까지 등록할 수 있습니다. 기존 구성을 수정해주세요.' } };
     if (message.includes('curation_kind_change_not_allowed')) return { errors: { kind: '저장된 자유상품과 다른 종류의 구성은 서로 변환할 수 없습니다. 새 구성을 추가해주세요.' } };
+    if (message.includes('collection_banner_limit')) return { errors: { form: '이 컬렉션에는 노출 기간이 겹치는 배너가 이미 10장 있습니다. 노출 기간을 조정하거나 기존 배너를 비노출로 바꿔주세요.' } };
     if (message.includes('home_hero_limit')) return { errors: { form: '프로모션 배너는 비노출을 포함해 최대 10개까지 등록할 수 있습니다. 기존 배너를 수정해주세요.' } };
     if (message.includes('curation_archived')) return { errors: { form: '삭제된 배너입니다. 입력은 유지합니다. 최신 목록을 불러오고 삭제한 배너에서 복구한 뒤 편집해주세요.' }, conflict: true };
     if (message.includes('curation_conflict') || message.includes('operation_conflict')) return { errors: { form: '다른 저장이 먼저 반영되었습니다. 입력은 유지합니다. 최신 저장본을 불러온 뒤 다시 편집해주세요.' }, conflict: true };
@@ -71,6 +72,9 @@ export async function upsertAdminCurationAction(
     if (message.includes('invalid_hero_subtitle')) return { errors: { subtitle: '변경한 내용은 150자 이하, 최대 3줄로 입력해주세요.' } };
     if (message.includes('invalid_hero_alt')) return { errors: { altTitle: '대체텍스트 제목 40자·내용 150자와 설정 여부를 확인해주세요.' } };
     if (message.includes('invalid_curation_notice')) return { errors: { form: '텍스트 공지 바·띠배너의 문구, 버튼 문구와 공지를 보일 화면을 확인해주세요.' } };
+    if (message.includes('invalid_curation_collection_banner')) return { errors: { form: '컬렉션 배너의 문구(40자)·부제(80자)·이미지 대체텍스트(100자)와 딤·텍스트 색상을 확인해주세요.' } };
+    if (message.includes('invalid_curation_search_terms')) return { errors: { searchTerms: '추천 검색어는 줄바꿈 없이 1~20자로, 겹치지 않게 1~10개 입력해주세요.' } };
+    if (message.includes('invalid_curation_slot')) return { errors: { slot: '배너를 보일 컬렉션 또는 상품 모음 위치를 다시 선택해주세요.' } };
     if (/forbidden|auth_required|operator_/.test(message)) return { errors: { form: '현재 스토어 관리 권한을 확인해주세요.' } };
     if (/invalid_|unverified_artwork|curation_image_required|catalog_item_archived|curation_ip_not_found/.test(message)) return { errors: { form: SAVE_ERROR } };
     return { errors: { form: UNCERTAIN_ERROR }, uncertain: true };
@@ -78,6 +82,7 @@ export async function upsertAdminCurationAction(
 
   revalidatePath('/');
   revalidatePath('/admin');
+  /* 컬렉션 배너(굿즈샵·BEST·NEW)와 추천 검색어(셸)도 아래 태그로 읽는다(lib/collection-banners.server · lib/search-terms.server). */
   revalidatePath('/admin/display/curations');
   /*
    * 셸 공지(텍스트 공지 바·띠배너)는 전역 셸이 unstable_cache 로 읽는다 — 경로 재검증만으로는 늦는다.

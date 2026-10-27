@@ -212,7 +212,7 @@ reset role;
 -- 목록·상세·캠페인·카트는 앱 쿼리가 sale_restriction = 'none'으로 거르지만
 -- /search는 그 쿼리를 지나지 않고 search_public_content 본문이 곧 노출 규칙이다.
 -- 본문에 같은 필터가 없으면 목록에서 감춘 상품이 검색 한 번에 다시 나온다.
--- 성인 인증 이후(20261027170100)에는 인증 성인에게만 포함된다 — 익명은 계속 못 본다.
+-- 성인 인증 이후(20261027235100)에는 인증 성인에게만 포함된다 — 익명은 계속 못 본다.
 -- 여전히 쿼리 레이어다 — 보안 경계는 아래 주문 생성 차단이다.
 set local role anon;
 
@@ -287,7 +287,7 @@ begin
   if accepted then
     raise exception 'a restricted good must not be ordered';
   end if;
-  -- 성인 인증이 없는 계정이다(20261027170100). 성인 상품은 인증 요구로 막힌다.
+  -- 성인 인증이 없는 계정이다(20261027235100). 성인 상품은 인증 요구로 막힌다.
   if blocked_message not like 'adult verification required:%' then
     raise exception 'a restricted good was rejected for the wrong reason: %', blocked_message;
   end if;

@@ -165,6 +165,34 @@ describe('admin curation action', () => {
     expect(mocks.updateTag).not.toHaveBeenCalled();
   });
 
+  it('컬렉션 배너와 추천 검색어를 같은 RPC 로 저장하고 같은 캐시 태그를 만료시킨다(L8b)', async () => {
+    await expect(upsertAdminCurationAction({}, curationForm({ kind: 'collection_banner', title: 'BEST 아이템', linkPath: '', slot: 'best', imageDim: 'none', textColor: 'black' })))
+      .resolves.toEqual({ message: '홈 큐레이션을 저장했습니다.' });
+    expect(mocks.rpc).toHaveBeenLastCalledWith('admin_save_home_curation', expect.objectContaining({
+      target_kind: 'collection_banner', target_slot: 'best', target_link_path: null, target_payload: { image_dim: 'none', text_color: 'black' },
+    }));
+    const terms = curationForm({ kind: 'search_terms', title: '11월', imagePath: '', linkPath: '' });
+    terms.append('searchTerm', '키링');
+    await expect(upsertAdminCurationAction({}, terms)).resolves.toEqual({ message: '홈 큐레이션을 저장했습니다.' });
+    expect(mocks.rpc).toHaveBeenLastCalledWith('admin_save_home_curation', expect.objectContaining({
+      target_kind: 'search_terms', target_image_path: null, target_link_path: null, target_slot: null, target_payload: { terms: ['키링'] },
+    }));
+    expect(mocks.updateTag.mock.calls).toEqual([['home-curations'], ['home-curations']]);
+  });
+
+  it.each([
+    ['invalid_curation_collection_banner', { form: expect.stringContaining('컬렉션 배너') }],
+    ['invalid_curation_search_terms', { searchTerms: expect.stringContaining('추천 검색어') }],
+    ['invalid_curation_slot', { slot: expect.any(String) }],
+    /* l8b-data-4 — 겹치는 노출 10장 상한(DB 트리거)은 결과 불명이 아니라 폼 안내다. */
+    ['collection_banner_limit', { form: expect.stringContaining('노출 기간이 겹치는 배너가 이미 10장') }],
+  ])('%s 거절은 결과 불명이 아니라 칸·폼 안내다', async (message, errors) => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { message } });
+    const result = await upsertAdminCurationAction({}, curationForm());
+    expect(result).toEqual({ errors });
+    expect(mocks.updateTag).not.toHaveBeenCalled();
+  });
+
   it('rejects invalid forms before auth, client, or RPC access', async () => {
     await expect(upsertAdminCurationAction({}, curationForm({
       operationId: 'invalid',
