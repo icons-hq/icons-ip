@@ -27,6 +27,7 @@ import { createServiceClient } from './supabase/service';
 
 interface OrderRow {
   id: string;
+  order_number?: string | null;
   user_id: string;
   status: string;
   total: number;
@@ -98,6 +99,15 @@ export interface CheckoutOrderSnapshot {
   paymentAttempt: CheckoutPaymentAttemptSnapshot | null;
   /** 처리 중인 취소 요청(requested·processing·needs_review)이 있으면 DB가 결제를 막는다. */
   hasActiveCancellationRequest: boolean;
+  /** DB가 발급한 16자리 주문번호(#563). 발급 전 주문이면 없다. */
+  orderNumber?: string;
+  /**
+   * 결제가 끝날 때까지 장바구니를 남긴 카드 장바구니 주문인지(ADR-0026). 이런 주문은 결제가
+   * 닫혀도 다시 담지 않고 주문서에서 새로 결제한다.
+   */
+  cartRetained?: boolean;
+  /** 결제 완료(paid) 원장이 만들어진 시각. 결제 전·무통장 입금 전이면 null. */
+  paidAt?: string | null;
   items: CheckoutOrderItem[];
 }
 
@@ -120,6 +130,22 @@ function selectLatestOrderPaymentAttempt(userId: string, orderId: string) {
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle<PaymentAttemptRow>();
+}
+
+/**
+ * 이 주문이 결제가 끝날 때까지 장바구니를 남긴 주문인지(ADR-0026). 보류 원장은 private이라
+ * service role RPC로 본인 주문만 읽는다. 읽지 못하면 false — 다시 담기 경로가 원래대로 남는다.
+ */
+async function loadOrderCartRetained(userId: string, orderId: string): Promise<boolean> {
+  try {
+    const { data, error } = await createServiceClient().rpc('service_get_order_cart_retention', {
+      p_user_id: userId,
+      p_order_id: orderId,
+    });
+    return !error && data !== null && typeof data === 'object';
+  } catch {
+    return false;
+  }
 }
 
 function paymentAttemptSnapshot(row: PaymentAttemptRow | null): CheckoutPaymentAttemptSnapshot | null {
@@ -181,7 +207,7 @@ export async function loadCheckoutOrder(
   const supabase = await createClient();
   const { data: orderData, error: orderError } = await supabase
     .from('orders')
-    .select('id,user_id,status,total,shipping_fee,discount_total,store_credit_total,address,expires_at,created_at,payment_method,calculation_version,volume_discount_total,shipping_collect_total')
+    .select('id,order_number,user_id,status,total,shipping_fee,discount_total,store_credit_total,address,expires_at,created_at,payment_method,calculation_version,volume_discount_total,shipping_collect_total')
     .eq('id', orderId)
     .eq('user_id', userId)
     .maybeSingle<OrderRow>();
@@ -203,12 +229,12 @@ export async function loadCheckoutOrder(
     }),
     supabase
       .from('payment_summaries')
-      .select('status')
+      .select('status,created_at')
       .eq('purpose', 'order')
       .eq('ref_id', orderId)
       .order('created_at', { ascending: false })
       .limit(1)
-      .maybeSingle<{ status: string }>(),
+      .maybeSingle<{ status: string; created_at: string }>(),
     selectLatestOrderPaymentAttempt(userId, orderId),
     orderData.calculation_version === 2 ? supabase.rpc('get_my_goods_transaction_receipt', { p_order_id: orderId }) : Promise.resolve({ data: null, error: null }),
     supabase
@@ -243,6 +269,9 @@ export async function loadCheckoutOrder(
     paymentMethod: normalizeCheckoutPaymentMethod(orderData.payment_method) ?? 'card',
     paymentAttempt: paymentAttemptSnapshot(attemptData),
     hasActiveCancellationRequest: ((requestData ?? []) as unknown[]).length > 0,
+    ...(orderData.order_number ? { orderNumber: orderData.order_number } : {}),
+    cartRetained: orderData.payment_method === 'card' ? await loadOrderCartRetained(userId, orderId) : false,
+    paidAt: paymentData?.status === 'paid' ? paymentData.created_at : null,
     shipments: await loadOrderShipments(supabase, [orderId], await getShippingCarrierRegistry()),
     items: itemRows.map((item) => ({
       id: item.id,
@@ -282,11 +311,15 @@ export async function loadPendingCardPaymentReading(
 ): Promise<CheckoutPaymentReading | null> {
   if (order.status !== 'pending' || order.paymentMethod !== 'card') return null;
   try {
-    const { data, error } = await selectLatestOrderPaymentAttempt(userId, order.id);
+    const [{ data, error }, cartRetained] = await Promise.all([
+      selectLatestOrderPaymentAttempt(userId, order.id),
+      loadOrderCartRetained(userId, order.id),
+    ]);
     if (error) return null;
     return readCheckoutPayment({
       status: order.status,
       paymentMethod: order.paymentMethod,
+      cartRetained,
       paymentStatus: checkoutEffectivePaymentStatus(data?.state, order.ledgerPaymentStatus),
       paymentAttempt: paymentAttemptSnapshot(data),
       hasActiveCancellationRequest: order.cancellationRequestStatus !== null

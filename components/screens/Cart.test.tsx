@@ -55,6 +55,7 @@ beforeEach(() => {
 });
 
 vi.mock('@/components/shell/CartProvider', () => ({
+  useReleaseUnpaidCartOrders: () => true,
   useCart: () => ({
     items: mocks.items,
     count: mocks.items.reduce((total, item) => total + item.qty, 0),

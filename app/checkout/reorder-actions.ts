@@ -10,6 +10,7 @@ import { goodsCustomInputSummary, goodsCustomInputValues, readGoodsCustomInputSn
 import { loadGoodsSalesQuote } from '@/lib/goods-sales.server';
 import { readCompleteIdPages } from '@/lib/supabase/complete-id-pages';
 import { createClient } from '@/lib/supabase/server';
+import { createServiceClient } from '@/lib/supabase/service';
 import { quoteCartTransactionAction } from './transaction-actions';
 
 /*
@@ -77,7 +78,8 @@ export type RestoreCanceledOrderToCartResult =
     }
   | {
       readonly ok: false;
-      readonly error: 'auth_required' | 'account_suspended' | 'not_found' | 'not_canceled' | 'gift_order' | 'failed';
+      /** `cart_retained`: 결제가 끝날 때까지 장바구니를 남긴 주문이다(ADR-0026). 장바구니에 이미 있으므로 다시 담지 않는다. */
+      readonly error: 'auth_required' | 'account_suspended' | 'not_found' | 'not_canceled' | 'gift_order' | 'cart_retained' | 'failed';
     };
 
 interface OrderRow {
@@ -365,6 +367,14 @@ export async function restoreCanceledOrderToCartAction(
     if (orderError) return { ok: false, error: 'failed' };
     if (!orderData) return { ok: false, error: 'not_found' };
     if (orderData.status !== 'canceled') return { ok: false, error: 'not_canceled' };
+    /* 장바구니를 남긴 카드 주문은 품목이 장바구니에 그대로 있다. 다시 담으면 고객이 그 뒤에
+       뺀 굿즈까지 되살아나므로 담지 않는다(중복 재담기 금지). */
+    const { data: retention, error: retentionError } = await createServiceClient().rpc('service_get_order_cart_retention', {
+      p_user_id: auth.user.id,
+      p_order_id: orderId,
+    });
+    if (retentionError) return { ok: false, error: 'failed' };
+    if (retention !== null) return { ok: false, error: 'cart_retained' };
 
     const [{ data: itemData, error: itemError }, cartItems] = await Promise.all([
       readCompleteIdPages<OrderItemRow>((afterId, pageSize) => {

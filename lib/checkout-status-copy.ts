@@ -31,6 +31,14 @@ export function closedPaymentCopy(
     reorderMode = null,
   }: { orderExpiresAt: string | null; provider: string | null; reorderMode?: CheckoutReorderMode | null },
 ): StatusCopy {
+  /* 결제가 끝날 때까지 장바구니가 남는 주문(ADR-0026). 주문서에서 새로 결제하면 이 주문은
+     결제 없이 자동으로 닫히고 재고·쿠폰·적립금이 돌아온다. */
+  if (reorderMode === 'retry_from_cart' && closure !== 'cancellation_requested') {
+    const retryCharge = provider === 'toss' ? ' 결제는 진행되지 않았고 청구된 금액은 없어요.' : '';
+    return closure === 'not_approved'
+      ? { title: '결제가 완료되지 않았어요', body: `결제가 승인되지 않았어요.${retryCharge} 장바구니는 그대로 있으니 다시 결제해주세요. 이 주문은 자동으로 취소돼요.` }
+      : { title: '결제 가능 시간이 지났어요', body: `결제 화면을 연 뒤 유효 시간이 지났어요.${retryCharge} 장바구니는 그대로 있으니 다시 결제해주세요. 이 주문은 자동으로 취소돼요.` };
+  }
   if (closure === 'not_approved') {
     return {
       title: '이 주문은 다시 결제할 수 없어요',
@@ -92,6 +100,9 @@ const CHECKING_COPY: StatusCopy = {
 
 /** 결제 기한이 지났지만 아직 만료 sweep이 닫지 않은 카드 결제 대기 주문. */
 function cardDeadlinePassedCopy(reorderMode: CheckoutReorderMode | null): StatusCopy {
+  if (reorderMode === 'retry_from_cart') {
+    return { title: '결제 가능한 시간이 지났어요', body: '이 주문으로는 더 이상 결제할 수 없어요. 장바구니는 그대로 있으니 다시 결제해주세요. 이 주문은 자동으로 취소돼요.' };
+  }
   /* 즉시 취소할 수 없는 주문(시도를 확인하지 못함 등)은 결제 기한 뒤 만료 sweep이 닫는다. */
   return reorderMode
     ? { title: '결제 가능한 시간이 지났어요', body: '이 주문으로는 더 이상 결제할 수 없어요. 주문을 취소하면 재고와 사용한 쿠폰·적립금이 바로 돌아와요. 같은 굿즈로 다시 주문해주세요.' }
@@ -144,7 +155,9 @@ export function checkoutStatusCopy({
       return { title: '입금 기한이 지났어요', body: '선점된 재고는 자동으로 복원됩니다. 기한이 지난 뒤 입금하셨다면 고객센터 문의로 알려주세요 — 주문은 되살아나지 않고 입금액을 반환해 드립니다.' };
     }
     if (orderStatus === 'canceled') {
-      return { title: '취소된 주문이에요', body: '이 주문은 취소됐어요. 같은 굿즈를 다시 담아 새로 주문할 수 있어요.' };
+      return reorderMode === 'retry_from_cart'
+        ? { title: '결제 없이 취소된 주문이에요', body: '결제가 끝나지 않아 이 주문은 취소됐어요. 장바구니에 굿즈가 그대로 있으니 다시 결제할 수 있어요.' }
+        : { title: '취소된 주문이에요', body: '이 주문은 취소됐어요. 같은 굿즈를 다시 담아 새로 주문할 수 있어요.' };
     }
     return cardDeadlinePassedCopy(reorderMode);
   }
@@ -174,11 +187,13 @@ export function orderDetailCardPaymentNotice(
   { orderId, orderExpiresAt }: { orderId: string; orderExpiresAt: string | null },
 ): OrderDetailCardPaymentNotice {
   const checkoutHref = `/checkout/${orderId}`;
-  const reorderBanner = (title: string) => ({
-    title,
-    body: '결제 화면에서 이 주문을 취소하고 같은 굿즈로 다시 주문할 수 있어요.',
-    link: { href: checkoutHref, label: '주문 정리하고 다시 주문하기' },
-  });
+  const reorderBanner = (title: string, mode: CheckoutReorderMode | null) => mode === 'retry_from_cart'
+    ? { title, body: '장바구니에 굿즈가 그대로 있어요. 주문서에서 다시 결제할 수 있어요.', link: { href: '/checkout', label: '다시 결제하기' } }
+    : {
+        title,
+        body: '결제 화면에서 이 주문을 취소하고 같은 굿즈로 다시 주문할 수 있어요.',
+        link: { href: checkoutHref, label: '주문 정리하고 다시 주문하기' },
+      };
   const closureBannerTitle: Record<Exclude<CheckoutPaymentClosure, 'cancellation_requested'>, string> = {
     not_approved: '결제가 승인되지 않았어요',
     attempt_expired: '결제 가능 시간이 지났어요',
@@ -247,15 +262,15 @@ export function orderDetailCardPaymentNotice(
         }),
         /* 승인 거절·시도 만료 모두 결제 화면의 "취소하고 다시 주문하기"로 정리한다. 그 액션이
            없는 주문(즉시 취소가 확실하지 않음)은 안내 띠로 결제 화면에 보내지 않는다. */
-        banner: reading.reorderMode === 'cancel_then_reorder'
-          ? reorderBanner(closureBannerTitle[reading.closure])
+        banner: reading.reorderMode === 'cancel_then_reorder' || reading.reorderMode === 'retry_from_cart'
+          ? reorderBanner(closureBannerTitle[reading.closure], reading.reorderMode)
           : null,
       };
     case 'closed':
       return {
         header: cardDeadlinePassedCopy(reading.reorderMode),
-        banner: reading.reorderMode === 'cancel_then_reorder'
-          ? reorderBanner('이 주문으로는 결제할 수 없어요')
+        banner: reading.reorderMode === 'cancel_then_reorder' || reading.reorderMode === 'retry_from_cart'
+          ? reorderBanner('이 주문으로는 결제할 수 없어요', reading.reorderMode)
           : null,
       };
     case 'complete':

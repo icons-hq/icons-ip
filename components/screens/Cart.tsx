@@ -11,7 +11,7 @@ import {
 } from '@/app/cart/coupon-actions';
 import { CartEmptyState } from '@/components/cart/CartEmptyState';
 import { CartSubheader } from '@/components/cart/CartSubheader';
-import { useCart } from '@/components/shell/CartProvider';
+import { useCart, useReleaseUnpaidCartOrders } from '@/components/shell/CartProvider';
 import { Icon } from '@/components/ui/Icon';
 import { PriceBlock } from '@/components/wc/PriceBlock';
 import { QuantityStepper } from '@/components/wc/QuantityStepper';
@@ -287,8 +287,10 @@ export function Cart({
 }) {
   const { count, error, items, mode, pending, ready, legacyItems = [], removeLegacyItem, refresh } = useCart();
   const transactionActive = transactionMode === 'transaction';
-  const shipping = useShippingQuote(items, ready && transactionMode === 'legacy', couponState.selectedUserCouponId ?? '');
-  const precheckout = useGoodsSalesPrecheckoutQuote(items, ready && transactionActive);
+  /* 결제를 마치지 않은 이전 주문이 쿠폰·구매 한도를 잡고 있으면 견적 전에 닫는다(ADR-0026). */
+  const released = useReleaseUnpaidCartOrders();
+  const shipping = useShippingQuote(items, ready && released && transactionMode === 'legacy', couponState.selectedUserCouponId ?? '');
+  const precheckout = useGoodsSalesPrecheckoutQuote(items, ready && released && transactionActive);
   const productQuote = transactionActive ? precheckout : shipping;
   const sales = productQuote.sales;
 
