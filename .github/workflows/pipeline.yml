@@ -223,6 +223,8 @@ jobs:
           HOME_BANNER_ARCHIVE_TEST_SCOPE=ci SUPABASE_DB_CONTAINER=supabase_db_icons-ip bash supabase/tests/home_banner_style_archive_concurrency.sh
           cat supabase/tests/helpers/goods_kc_fixture.sql supabase/tests/home_free_product_collections.sql | docker exec -i supabase_db_icons-ip psql -X -U supabase_admin -d postgres -v ON_ERROR_STOP=1
           HOME_FREE_PRODUCTS_TEST_SCOPE=ci SUPABASE_DB_CONTAINER=supabase_db_icons-ip bash supabase/tests/home_free_product_collections_concurrency.sh
+          docker exec -i supabase_db_icons-ip psql -X -U supabase_admin -d postgres -v ON_ERROR_STOP=1 < supabase/tests/home_collection_banners.sql
+          docker exec -i supabase_db_icons-ip psql -X -U supabase_admin -d postgres -v ON_ERROR_STOP=1 < supabase/tests/ip_hall_banners.sql
 
       - name: Check story and marketing workflows
         run: |
