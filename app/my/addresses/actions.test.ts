@@ -1,11 +1,11 @@
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { deleteAddressBookEntryAction, saveAddressBookEntryAction, setDefaultAddressBookEntryAction } from './actions';
 
 type Profile = { email: string; nickname: string; birth_date: string; onboarded_at: string | null; consents: Record<string, boolean>; suspended_at: string | null };
 const ONBOARDED: Profile = { email: 'a@example.test', nickname: '회원', birth_date: '1990-01-01', onboarded_at: '2026-10-01T00:00:00Z', consents: { terms: true, privacy: true }, suspended_at: null };
 
 const mocks = vi.hoisted(() => ({
-  auth: { isConfigured: true, user: { id: 'user-1' }, profile: null } as { isConfigured: boolean; user: { id: string; email?: string } | null; profile: unknown },
+  auth: { isConfigured: true, user: { id: 'user-1' }, profile: null } as { isConfigured: boolean; user: { id: string; email?: string } | null; profile: unknown; isStaff?: boolean },
   rpc: vi.fn(),
   load: vi.fn(),
 }));
@@ -19,10 +19,33 @@ const SAVED = '7a570000-0000-4000-8000-000000000009';
 const book = [{ id: ENTRY, label: '집', recipientName: '홍길동', phone: '01012345678', postalCode: '04524', address1: '서울', address2: null, isDefault: true }];
 const draft = { label: ' 집 ', recipientName: '홍길동', phone: '010-1234-5678', postalCode: '04524', address1: '서울 중구 세종대로 110', address2: '', makeDefault: true };
 
+/* 주소록은 처리방침 주소록 개정 시행일(KST)부터 열린다 — 아래 검사는 여는 날 이후를 기준으로 한다. */
+const at = (iso: string) => vi.setSystemTime(new Date(iso));
 beforeEach(() => {
+  vi.useFakeTimers({ toFake: ['Date'] });
+  at('2026-11-06T00:00:00+09:00');
   mocks.auth = { isConfigured: true, user: { id: 'user-1' }, profile: ONBOARDED };
   mocks.rpc.mockReset().mockResolvedValue({ data: SAVED, error: null });
   mocks.load.mockReset().mockResolvedValue(book);
+});
+afterEach(() => { vi.useRealTimers(); });
+
+describe('주소록을 여는 날(처리방침 주소록 개정 시행일) 전', () => {
+  it('일반 회원의 저장·기본 지정은 RPC 전에 거절하고, 자기 배송지 삭제는 받는다', async () => {
+    at('2026-11-05T23:59:59+09:00');
+    mocks.auth = { isConfigured: true, user: { id: 'user-1' }, profile: ONBOARDED, isStaff: false };
+    expect(await saveAddressBookEntryAction(null, draft)).toEqual({ ok: false, error: 'address_book_not_open', message: '배송지 저장은 2026년 11월 6일부터 이용할 수 있어요.' });
+    expect(await setDefaultAddressBookEntryAction(ENTRY)).toMatchObject({ ok: false, error: 'address_book_not_open' });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    expect(await deleteAddressBookEntryAction(ENTRY)).toEqual({ ok: true, entries: book });
+    expect(mocks.rpc).toHaveBeenCalledWith('delete_my_address_book_entry', { p_entry_id: ENTRY });
+  });
+
+  it('staff/admin 은 미리보기로 저장할 수 있다', async () => {
+    at('2026-10-28T12:00:00+09:00');
+    mocks.auth = { isConfigured: true, user: { id: 'user-1' }, profile: ONBOARDED, isStaff: true };
+    expect(await saveAddressBookEntryAction(null, draft)).toEqual({ ok: true, entries: book, savedId: SAVED });
+  });
 });
 
 describe('saveAddressBookEntryAction', () => {

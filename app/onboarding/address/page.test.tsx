@@ -1,5 +1,5 @@
 import { renderToStaticMarkup } from 'react-dom/server';
-import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import Page, { metadata } from './page';
 
 const mocks = vi.hoisted(() => ({
@@ -24,10 +24,25 @@ const page = (next?: string) => Page({ searchParams: Promise.resolve(next === un
 
 describe('/onboarding/address — 온보딩 뒤 배송지 등록 안내(건너뛸 수 있음)', () => {
   beforeEach(() => {
+    /* 주소록을 여는 날(처리방침 주소록 개정 시행일, KST) 이후를 기준으로 한다. */
+    vi.useFakeTimers({ toFake: ['Date'] });
+    vi.setSystemTime(new Date('2026-11-06T00:00:00+09:00'));
     mocks.auth = { isConfigured: true, user: { id: 'user-1', email: 'fan@icons.gg' }, profile: { onboarded_at: '2026-10-27T00:00:00.000Z' }, isStaff: false };
     mocks.onboarded = true;
     mocks.load.mockReset().mockResolvedValue([]);
     mocks.screen.mockClear();
+  });
+  afterEach(() => { vi.useRealTimers(); });
+
+  it('여는 날 전에는 일반 회원에게 안내를 끼우지 않고 바로 next 로 보낸다(staff/admin 은 미리보기)', async () => {
+    vi.setSystemTime(new Date('2026-11-05T23:59:59+09:00'));
+    await expect(page('/checkout')).rejects.toThrow('NEXT_REDIRECT:/checkout');
+    expect(mocks.load).not.toHaveBeenCalled();
+    expect(mocks.screen).not.toHaveBeenCalled();
+
+    mocks.auth = { ...(mocks.auth as object), isStaff: true };
+    renderToStaticMarkup(await page('/checkout'));
+    expect(mocks.screen).toHaveBeenLastCalledWith({ next: '/checkout' }, undefined);
   });
 
   it('검색에 노출하지 않는 개인 화면이다', () => {

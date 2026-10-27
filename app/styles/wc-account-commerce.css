@@ -5004,6 +5004,34 @@ button.wc-settings__link-row[aria-disabled="true"] strong {
   color: var(--wc-ink-sub);
 }
 
+/* 주소록을 여는 날 전(처리방침 개정 시행일 전) 안내 — 빈 목록과 같은 자리·선. */
+.wc-address-book__opening {
+  padding: 40px 0;
+  border-bottom: 1px solid var(--wc-ink);
+  font-size: 15px;
+  text-align: center;
+  color: var(--wc-ink-sub);
+}
+
+.wc-address-book__opening p {
+  margin: 0;
+}
+
+.wc-address-book__opening p + p {
+  margin-top: 6px;
+}
+
+.wc-address-book__opening-title {
+  font-weight: 700;
+  color: var(--wc-ink);
+}
+
+.wc-address-book__guide a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 .wc-address-book__table {
   width: 100%;
   border-collapse: collapse;

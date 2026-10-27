@@ -157,10 +157,12 @@ export async function loadLatestCheckoutAddress(userId: string): Promise<Checkou
  * 주문서 배송지 미리 채우기(LFS 패리티 2차 L7 · 10/14 S6a, LD-1b). 주소록에 기본 배송지가 있으면 그것으로,
  * 없으면 결제를 마친 직전 주문의 배송지로 채우고, 무엇으로 채웠는지(source)를 함께 돌려 화면이 사실대로
  * 안내하게 한다. 주문에 저장되는 배송지는 여전히 주문서 폼의 값이다 — 이 함수는 입력 보조만 만든다.
+ * 주소록이 아직 열리지 않았으면(addressBookOpen=false — 처리방침 개정 시행일 전) 주소록을 읽지 않고 book 을 null 로
+ * 돌린다. 주문서는 주소록 고르기·저장 UI 없이 직전 주문 배송지만 채운다.
  */
-export async function loadCheckoutAddressPrefill(userId: string): Promise<CheckoutAddressPrefill> {
+export async function loadCheckoutAddressPrefill(userId: string, addressBookOpen: boolean): Promise<CheckoutAddressPrefill> {
   const [book, latest] = await Promise.all([
-    loadMyAddressBook(userId),
+    addressBookOpen ? loadMyAddressBook(userId) : Promise.resolve(null),
     loadLatestCheckoutAddress(userId).catch(() => null),
   ]);
   const preferred = defaultAddressBookEntry(book);

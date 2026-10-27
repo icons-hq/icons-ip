@@ -1,5 +1,6 @@
 import { safeNextPath } from './auth/onboarding';
 import { checkoutAddressErrors, normalizeCheckoutAddress, type CheckoutAddress } from './checkout';
+import { PRIVACY_ADDRESS_BOOK_REVISION, koreanLegalDate, kstToday } from './legal/privacy-address-book-revision';
 
 /*
  * 주소록(LFS 패리티 2차 L7 · MY-11, 10/14 S6b·S3·S6a) — CONTEXT.md **주소록**.
@@ -18,6 +19,23 @@ export const ADDRESS_BOOK_LIMIT = 10;
 export const ADDRESS_BOOK_LABEL_MAX = 20;
 /** 온보딩 직후 배송지 등록 안내(건너뛸 수 있음) 경로. */
 export const ADDRESS_BOOK_ONBOARDING_PATH = '/onboarding/address';
+
+/**
+ * 주소록을 여는 날(KST) — 개인정보처리방침 주소록 개정의 시행일과 같다. 그 전에는 방침이 주소록 수집을 아직 고지하지
+ * 않으므로(사전 공지 기간) 회원의 배송지를 주소록에 받지 않는다. 날짜는 lib/legal/privacy-address-book-revision.ts 가 정본이다.
+ */
+export const ADDRESS_BOOK_OPENS_ON: string = PRIVACY_ADDRESS_BOOK_REVISION.effectiveDate;
+
+/**
+ * 이 사람에게 주소록(배송지 관리 화면·주문서 고르기·저장·온보딩 안내)이 열려 있는가. 여는 날부터 모두에게, 그 전에는
+ * 정지되지 않은 staff/admin 미리보기만(auth.isStaff — 커뮤니티 스태프 프리뷰와 같은 경계). 서버(화면·액션)가 판정한다.
+ */
+export function addressBookOpenFor(viewer: { isStaff: boolean }, today: string = kstToday()): boolean {
+  return today >= ADDRESS_BOOK_OPENS_ON || viewer.isStaff === true;
+}
+
+/** '2026년 11월 6일' — 여는 날 안내 문구용. */
+export const ADDRESS_BOOK_OPENS_ON_LABEL = koreanLegalDate(ADDRESS_BOOK_OPENS_ON);
 
 export interface AddressBookEntry {
   id: string;
@@ -280,6 +298,7 @@ export type AddressBookErrorCode =
   | 'address_book_full'
   | 'address_book_invalid'
   | 'address_book_entry_missing'
+  | 'address_book_not_open'
   | 'unavailable';
 
 /* 연락처·주소 같은 입력값은 오류 문구에 싣지 않는다. */
@@ -291,6 +310,7 @@ export const ADDRESS_BOOK_ERROR_COPY: Record<AddressBookErrorCode, string> = {
   address_book_full: `배송지는 최대 ${ADDRESS_BOOK_LIMIT}개까지 저장할 수 있어요. 쓰지 않는 배송지를 지운 뒤 다시 시도해주세요.`,
   address_book_invalid: '배송지 정보를 다시 확인해주세요.',
   address_book_entry_missing: '배송지를 찾지 못했어요. 새로고침한 뒤 다시 시도해주세요.',
+  address_book_not_open: `배송지 저장은 ${ADDRESS_BOOK_OPENS_ON_LABEL}부터 이용할 수 있어요.`,
   unavailable: '배송지를 바꾸지 못했어요. 잠시 후 다시 시도해주세요.',
 };
 

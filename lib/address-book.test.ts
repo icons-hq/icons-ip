@@ -14,6 +14,9 @@ import {
   emptyAddressBookDraft,
   mapAddressBookError,
   maskAddressBookPhone,
+  addressBookOpenFor,
+  ADDRESS_BOOK_OPENS_ON,
+  ADDRESS_BOOK_OPENS_ON_LABEL,
   matchingAddressBookEntry,
   orderAddressBook,
   parseAddressBookDraft,
@@ -23,6 +26,7 @@ import {
   type AddressBookEntry,
 } from './address-book';
 import { checkoutAddressErrors } from './checkout';
+import { PRIVACY_ADDRESS_BOOK_REVISION } from './legal/privacy-address-book-revision';
 
 const home: AddressBookEntry = {
   id: '7a570000-0000-4000-8000-000000000001', label: '집', recipientName: '홍길동', phone: '01012345678',
@@ -167,12 +171,25 @@ describe('표시·오류·경로', () => {
     expect(mapAddressBookError('duplicate key value violates unique constraint "address_book_entries_one_default"')).toBe('unavailable');
     expect(mapAddressBookError(undefined)).toBe('unavailable');
     expect(ADDRESS_BOOK_ERROR_COPY.address_book_full).toContain(`최대 ${ADDRESS_BOOK_LIMIT}개`);
-    for (const copy of Object.values(ADDRESS_BOOK_ERROR_COPY)) expect(copy).not.toMatch(/\d{4}/);
+    /* 입력값(연락처 등) 같은 숫자열을 싣지 않는다 — 여는 날 안내의 고정 날짜(공개 시행일)만 예외다. */
+    for (const copy of Object.values(ADDRESS_BOOK_ERROR_COPY)) expect(copy.replace(ADDRESS_BOOK_OPENS_ON_LABEL, '')).not.toMatch(/\d{4}/);
   });
 
   it('온보딩 뒤 배송지 안내 경로는 안전한 next 만 싣는다', () => {
     expect(addressBookOnboardingPath('/checkout')).toBe('/onboarding/address?next=%2Fcheckout');
     expect(addressBookOnboardingPath('//evil.example')).toBe('/onboarding/address?next=%2F');
     expect(addressBookOnboardingPath('https://evil.example/x')).toBe('/onboarding/address?next=%2F');
+  });
+});
+
+/* 주소록 수집은 처리방침 주소록 개정 시행일부터다 — 사전 공지 기간에는 staff/admin 미리보기만(L7 QA). */
+describe('주소록을 여는 날', () => {
+  it('처리방침 주소록 개정 시행일(KST)과 같은 날부터 모두에게 열리고, 그 전에는 staff/admin 만 쓴다', () => {
+    expect(ADDRESS_BOOK_OPENS_ON).toBe(PRIVACY_ADDRESS_BOOK_REVISION.effectiveDate);
+    expect(addressBookOpenFor({ isStaff: false }, '2026-11-05')).toBe(false);
+    expect(addressBookOpenFor({ isStaff: true }, '2026-11-05')).toBe(true);
+    expect(addressBookOpenFor({ isStaff: false }, '2026-11-06')).toBe(true);
+    expect(addressBookOpenFor({ isStaff: false }, '2027-01-01')).toBe(true);
+    expect(ADDRESS_BOOK_ERROR_COPY.address_book_not_open).toBe('배송지 저장은 2026년 11월 6일부터 이용할 수 있어요.');
   });
 });

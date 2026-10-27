@@ -1,5 +1,5 @@
 import { renderToStaticMarkup } from 'react-dom/server';
-import { describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { LegalDocumentScreen } from '@/components/screens/LegalDocument';
 import { LEGAL_DOCUMENTS, LEGAL_DOCUMENT_SLUGS } from '@/lib/legal/documents';
 import Page, { generateMetadata, generateStaticParams } from './page';
@@ -79,12 +79,38 @@ describe('/legal/[document] 라우트', () => {
     }
   });
 
-  it('현재 세 문서는 시행이 끝나 사전 공지 배너를 렌더하지 않는다', async () => {
-    for (const slug of LEGAL_DOCUMENT_SLUGS) {
-      const html = renderToStaticMarkup(await Page({ params: Promise.resolve({ document: slug }) }));
+  describe('주소록 예약 개정(L7 · MY-11) — 요청한 날(KST)로 사전 공지와 개정 본문을 가른다', () => {
+    afterEach(() => { vi.useRealTimers(); });
+    const at = (iso: string) => { vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date(iso)); };
 
-      expect(html, slug).not.toContain('개정 사전 공지');
-    }
+    it('시행일 전에는 개인정보처리방침만 현행 2026-10-19 본문에 사전 공지 배너를 붙인다', async () => {
+      at('2026-11-05T23:59:00+09:00');
+      for (const slug of LEGAL_DOCUMENT_SLUGS) {
+        const html = renderToStaticMarkup(await Page({ params: Promise.resolve({ document: slug }) }));
+        if (slug !== 'privacy') {
+          expect(html, slug).not.toContain('개정 사전 공지');
+          continue;
+        }
+        expect(html).toContain('<p class="wc-document__effective">시행일 2026-10-19</p>');
+        expect(html).toContain('<p class="wc-document__notice-kicker">개정 사전 공지</p>');
+        expect(html).toContain('공지일 2026-10-28');
+        expect(html).toContain('시행 예정일 2026-11-06');
+        expect(html).toContain('이전 정책 본문 (시행일 2026-08-22)');
+        expect(html).not.toContain('2026-11-06 개정 안내');
+      }
+    });
+
+    it('시행일부터는 세 문서 모두 사전 공지 없이 개정 본문이 현행이다', async () => {
+      at('2026-11-06T00:00:00+09:00');
+      for (const slug of LEGAL_DOCUMENT_SLUGS) {
+        const html = renderToStaticMarkup(await Page({ params: Promise.resolve({ document: slug }) }));
+        expect(html, slug).not.toContain('개정 사전 공지');
+      }
+      const privacy = renderToStaticMarkup(await Page({ params: Promise.resolve({ document: 'privacy' }) }));
+      expect(privacy).toContain('<p class="wc-document__effective">시행일 2026-11-06</p>');
+      expect(privacy).toContain('2026-11-06 개정 안내');
+      expect(privacy).toContain('이전 정책 본문 (시행일 2026-10-19)');
+    });
   });
 
   it('다른 두 문서로 서로 이동할 수 있다', async () => {

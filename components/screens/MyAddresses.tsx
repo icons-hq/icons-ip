@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useRef, useState, useTransition } from 'react';
 import { deleteAddressBookEntryAction, setDefaultAddressBookEntryAction, type AddressBookActionResult } from '@/app/my/addresses/actions';
@@ -8,12 +9,14 @@ import { MypageShell } from '@/components/wc/MypageShell';
 import {
   ADDRESS_BOOK_ERROR_COPY,
   ADDRESS_BOOK_LIMIT,
+  ADDRESS_BOOK_OPENS_ON_LABEL,
   ADDRESS_BOOK_PATH,
   addressBookAddressLine,
   defaultAddressBookEntry,
   maskAddressBookPhone,
   type AddressBookEntry,
 } from '@/lib/address-book';
+import { legalDocumentHref } from '@/lib/legal/links';
 
 /*
  * 배송지 관리 — /my/addresses (LFS 패리티 2차 L7 · MY-11, 11 §5.8, 10/14 S6b·S3).
@@ -308,6 +311,33 @@ export function MyAddresses({ entries: initialEntries }: { entries: AddressBookE
           <li>주문에는 주문할 때의 배송지가 따로 저장돼요. 여기서 고치거나 지워도 이미 한 주문의 배송지는 바뀌지 않아요.</li>
           <li>선물 받는 분의 주소는 주소록에 저장하지 않아요.</li>
           <li>회원 탈퇴가 처리되면 주소록도 바로 삭제돼요. 그 전에 여기서 언제든 직접 지울 수 있어요.</li>
+        </ul>
+      </div>
+    </MypageShell>
+  );
+}
+
+/**
+ * 주소록을 여는 날(처리방침 주소록 개정 시행일) 전 — 여는 날과 지금 주문하는 방법, 개정 사전 공지만 안내한다(L7 QA).
+ * 진입점(마이 메뉴·설정)은 그대로 두고 이 화면이 받는다. 주소록을 읽거나 받지 않는다.
+ */
+export function MyAddressesNotOpen() {
+  return (
+    <MypageShell active={ADDRESS_BOOK_PATH}>
+      <div className="wc-mypage__headbar">
+        <h1 className="wc-mypage__headbar-title" id={HEADING_ID} tabIndex={-1}>배송지 관리</h1>
+      </div>
+      <div className="wc-address-book__opening">
+        <p className="wc-address-book__opening-title">배송지 관리는 {ADDRESS_BOOK_OPENS_ON_LABEL}부터 이용할 수 있어요.</p>
+        <p>그 전까지는 주문할 때 주문서에서 배송지를 입력해주세요.</p>
+      </div>
+      <div className="wc-address-book__guide">
+        <p className="wc-address-book__guide-title">이용 안내</p>
+        <ul>
+          <li>
+            주소록 도입에 맞춰 {ADDRESS_BOOK_OPENS_ON_LABEL}부터 개인정보처리방침이 바뀌어요.{' '}
+            <Link href={legalDocumentHref('privacy')}>개정 사전 공지 보기</Link>
+          </li>
         </ul>
       </div>
     </MypageShell>

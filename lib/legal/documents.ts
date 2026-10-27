@@ -8,6 +8,11 @@ import {
 import { socialLoginWords } from './social-login';
 import previousPublicDocuments from './archive/pre-2026-09-09.json';
 import { DEMOGRAPHIC_NOTICE } from '../customer-demographics';
+import {
+  PRIVACY_ADDRESS_BOOK_REVISION,
+  kstToday,
+  privacyAddressBookRevisionInEffect,
+} from './privacy-address-book-revision';
 
 export { LEGAL_DOCUMENT_SLUGS, legalDocumentHref };
 export type { LegalDocumentSlug };
@@ -84,13 +89,14 @@ const EMAIL_PROCESSOR_LABEL = 'Resend';
  * 무통장을 실제로 여는 시점에 개정 공지와 시행일을 함께 정해야 한다. */
 /* 2026-09-09 — 승인된 A 직접 신청·출고지별 회수·CS 의사표시 안내를 반영한다.
  * 이전 공개 정책 본문은 개정 이력으로 남기며, 개인정보처리방침 시행일은 바꾸지 않는다. */
-/* 2026-11-06 개정(개인정보처리방침만) — 주소록(배송지 관리) 도입(LFS 패리티 2차 L7 · MY-11, #572).
- * 수집 항목·목적·보유 기간·자가 열람 경로에 주소록을 더하고, 직전 공개 본문(2026-10-19)을 이전 판으로 보존한다.
- * 시행일은 과거로 두지 않는다 — 제13조대로 시행 7일 전부터 화면에 고지하는 기간을 두기 위해 배포 예정일 뒤로
- * 잡았다. 시행일·고지 방식·문구는 사람 검토 대상이다(머지 전 확정). terms·shipping 은 본문에 주소록이 없어 그대로다. */
+/* 2026-11-06 예약 개정(개인정보처리방침만) — 주소록(배송지 관리) 도입(LFS 패리티 2차 L7 · MY-11, #572).
+ * 아래 privacy 시행일은 지금 효력이 있는 본문(2026-10-19)의 날짜다. 주소록 개정은 시행일 전까지 제13조대로 사전 공지
+ * (pendingRevision)로만 알리고, 시행일(PRIVACY_ADDRESS_BOOK_REVISION.effectiveDate, KST)부터 개정 본문이 현행이 되며
+ * 문서 시행일도 그 날짜로 바뀐다 — createLegalDocuments 가 날짜로 고른다. 시행일이 지난 뒤 이 예약 구조를 걷어
+ * 본문으로 접어도 된다(2026-08-21 #207 승격 선례). terms·shipping 은 본문에 주소록이 없어 그대로다. */
 export const LEGAL_EFFECTIVE_DATES: Record<LegalDocumentSlug, string> = {
   terms: '2026-09-09',
-  privacy: '2026-11-06',
+  privacy: '2026-10-19',
   shipping: '2026-09-09',
 };
 
@@ -153,7 +159,8 @@ function previousPublicVersion(slug: 'terms' | 'shipping', contact: string) {
   };
 }
 
-export function createLegalDocuments(businessInfo:BusinessInfo=BUSINESS_INFO) {
+/** today(KST `YYYY-MM-DD`)는 예약 개정(주소록)의 시행 여부만 가른다 — 테스트는 날짜를 넘겨 두 상태를 고정한다. */
+export function createLegalDocuments(businessInfo:BusinessInfo=BUSINESS_INFO, today: string = kstToday()) {
 /* 문의처 문장은 푸터와 같은 사업자 정보에서 파생된다.
  * 연락처가 채워지면 본문에 그 값이 그대로 드러나고, 비어 있는 동안에는
  * 존재하지 않는 창구를 가리키는 대신 그 사실과 실제로 열려 있는 경로를 안내한다(#87). */
@@ -662,17 +669,30 @@ privacy.articles.splice(2, 0, {
   paragraphs: [DEMOGRAPHIC_NOTICE.purpose, DEMOGRAPHIC_NOTICE.collected, DEMOGRAPHIC_NOTICE.retention, DEMOGRAPHIC_NOTICE.choice],
 });
 
-// 2026-11-06 개정 — 주소록(배송지 관리). 2026-10-19 공개 본문을 이전 판으로 보존한 뒤 주소록 항목을 더한다.
+// 2026-11-06 예약 개정 — 주소록(배송지 관리). 시행일 전에는 현행(2026-10-19) 본문을 그대로 두고 사전 공지만 붙인다.
+// 시행일부터 2026-10-19 공개 본문을 이전 판으로 보존한 뒤 주소록 항목을 더한다.
 // 주소록은 주문서 입력 보조라 주문에 저장되는 배송지(굿즈 주문·배송 행)와 따로 적는다. 선물 수령인 주소는 담지 않는다.
 // 파기 시점은 약관 제7조('탈퇴를 처리하면 … 지체 없이 파기')와 같은 말로 적는다. 탈퇴 신청 기능이 꺼져 있는 동안
 // 탈퇴는 문의로 받아 회사가 처리한다(WITHDRAWAL_ROUTE_NOTICE) — 그때 운영자가 private.erase_member_address_book 으로
 // 지운다. 신청 기능이 켜지면 신청 시점(계정 봉인)에 지워지므로 '처리하면'보다 이르다.
-privacy.previousVersion = { effectiveDate: '2026-10-19', articles: structuredClone(privacy.articles) };
-privacy.revisionChanges = [
+const addressBookRevisionChanges = [
   '주소록(배송지 관리)에 저장하는 배송지 이름·받는 분 이름·연락처·주소의 수집 시점, 이용 목적과 보유 기간을 추가합니다.',
   '주소록은 회원이 직접 삭제하거나 회사가 회원 탈퇴를 처리하면 지체 없이 파기하며, 이미 한 주문의 배송지는 주문 정보로 따로 보관한다는 점을 밝힙니다.',
 ];
-{
+if (!privacyAddressBookRevisionInEffect(today)) {
+  privacy.pendingRevision = {
+    announcedDate: PRIVACY_ADDRESS_BOOK_REVISION.announcedDate,
+    effectiveDate: PRIVACY_ADDRESS_BOOK_REVISION.effectiveDate,
+    heading: '주소록(배송지 관리) 도입에 따른 개정 예정 안내',
+    changes: [
+      ...addressBookRevisionChanges,
+      '주소록에 배송지를 저장하는 기능은 개정 방침이 시행되는 날부터 이용할 수 있습니다. 그 전까지 주문의 배송지는 지금처럼 주문서에서 입력합니다.',
+    ],
+  };
+} else {
+  privacy.previousVersion = { effectiveDate: privacy.effectiveDate, articles: structuredClone(privacy.articles) };
+  privacy.effectiveDate = PRIVACY_ADDRESS_BOOK_REVISION.effectiveDate;
+  privacy.revisionChanges = addressBookRevisionChanges;
   const article = (prefix: string) => privacy.articles.find((item) => item.heading.startsWith(prefix))!;
   const collected = article('제1조 ').table!.rows;
   collected.splice(collected.findIndex((row) => row[0] === '굿즈 주문·배송') + 1, 0,

@@ -1,6 +1,7 @@
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
-import { MyAddresses } from '@/components/screens/MyAddresses';
+import { MyAddresses, MyAddressesNotOpen } from '@/components/screens/MyAddresses';
+import { addressBookOpenFor } from '@/lib/address-book';
 import { loadMyAddressBook } from '@/lib/address-book.server';
 import { isOnboarded, onboardingPath } from '@/lib/auth/onboarding';
 import { getCurrentAuthState } from '@/lib/auth/server';
@@ -19,6 +20,8 @@ export default async function Page() {
   const auth = await getCurrentAuthState();
   if (!auth.user) redirect(`/login?next=${encodeURIComponent(path)}`);
   if (!isOnboarded(auth.profile, auth.user.email)) redirect(onboardingPath(path));
+  /* 처리방침 주소록 개정 시행일 전에는 여는 날만 안내한다(staff/admin 은 미리보기로 쓴다). 주소록을 읽지도 않는다. */
+  if (!addressBookOpenFor(auth)) return <MyAddressesNotOpen />;
 
   const entries = await loadMyAddressBook(auth.user.id);
   return <MyAddresses entries={entries} />;

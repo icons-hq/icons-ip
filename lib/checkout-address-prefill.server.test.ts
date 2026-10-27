@@ -101,7 +101,7 @@ describe('loadCheckoutAddressPrefill', () => {
     mocks.rows.address_book_entries = [bookRow('7a570000-0000-4000-8000-000000000001', '집', true, '2026-10-27T00:00:00Z')];
     mocks.rows.orders = [{ user_id: USER, status: 'paid', created_at: '2026-10-27T01:00:00Z', address: orderAddress('직전') }];
 
-    const prefill = await loadCheckoutAddressPrefill(USER);
+    const prefill = await loadCheckoutAddressPrefill(USER, true);
 
     expect(prefill.source).toBe('address_book');
     expect(prefill.address).toEqual({ recipientName: '홍길동', phone: '01012345678', postalCode: '04524', address1: '서울 집', address2: '', deliveryNote: '' });
@@ -111,13 +111,22 @@ describe('loadCheckoutAddressPrefill', () => {
   it('주소록이 비었거나 읽지 못하면 결제를 마친 직전 주문으로 채우고, 둘 다 없으면 빈 폼이다', async () => {
     mocks.rows.address_book_entries = [];
     mocks.rows.orders = [{ user_id: USER, status: 'shipping', created_at: '2026-10-27T01:00:00Z', address: orderAddress('직전') }];
-    expect(await loadCheckoutAddressPrefill(USER)).toMatchObject({ source: 'recent_order', book: [], address: { recipientName: '직전', deliveryNote: '문 앞' } });
+    expect(await loadCheckoutAddressPrefill(USER, true)).toMatchObject({ source: 'recent_order', book: [], address: { recipientName: '직전', deliveryNote: '문 앞' } });
 
     mocks.errors.address_book_entries = { message: 'unavailable' };
-    expect(await loadCheckoutAddressPrefill(USER)).toMatchObject({ source: 'recent_order', book: null });
+    expect(await loadCheckoutAddressPrefill(USER, true)).toMatchObject({ source: 'recent_order', book: null });
 
     mocks.errors = {};
     mocks.rows.orders = [{ user_id: USER, status: 'canceled', created_at: '2026-10-27T01:00:00Z', address: orderAddress('취소') }];
-    expect(await loadCheckoutAddressPrefill(USER)).toEqual({ address: null, source: null, book: [] });
+    expect(await loadCheckoutAddressPrefill(USER, true)).toEqual({ address: null, source: null, book: [] });
+  });
+
+  /* 처리방침 주소록 개정 시행일 전(주소록이 열리지 않은 회원) — 주소록을 읽지 않고 직전 주문 배송지만 채운다(L7 QA). */
+  it('주소록이 아직 열리지 않았으면 주소록을 읽지 않고 고르기·저장 UI 도 없이(book null) 직전 주문으로 채운다', async () => {
+    mocks.rows.address_book_entries = [bookRow('7a570000-0000-4000-8000-000000000001', '집', true, '2026-10-27T00:00:00Z')];
+    mocks.rows.orders = [{ user_id: USER, status: 'paid', created_at: '2026-10-27T01:00:00Z', address: orderAddress('직전') }];
+
+    expect(await loadCheckoutAddressPrefill(USER, false)).toMatchObject({ source: 'recent_order', book: null, address: { recipientName: '직전' } });
+    expect(mocks.calls.map((call) => call.table)).not.toContain('address_book_entries');
   });
 });

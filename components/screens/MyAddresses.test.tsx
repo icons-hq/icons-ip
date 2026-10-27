@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import type { AddressBookEntry } from '@/lib/address-book';
-import { MyAddresses, addressBookReturnFocusIds } from './MyAddresses';
+import { MyAddresses, MyAddressesNotOpen, addressBookReturnFocusIds } from './MyAddresses';
 
 vi.mock('@/components/shell/CardRewardAvailability', () => ({ useCardRewardsEnabled: () => false }));
 vi.mock('next/navigation', () => ({ usePathname: () => '/my/addresses', useRouter: () => ({ refresh: vi.fn(), push: vi.fn(), replace: vi.fn() }) }));
@@ -106,5 +106,19 @@ describe('MyAddresses (/my/addresses · 11 §5.8)', () => {
     expect(source).toContain('maskAddressBookPhone(entry.phone)');
     expect(source).not.toMatch(/\{entry\.phone\}/);
     expect(source).not.toMatch(/console\.(log|error)/);
+  });
+});
+
+/* 주소록을 여는 날(처리방침 주소록 개정 시행일) 전 — 여는 날·지금 주문하는 방법·개정 사전 공지만 안내한다(L7 QA). */
+describe('MyAddressesNotOpen', () => {
+  it('셸 안에서 여는 날과 개정 사전 공지 링크만 보이고 목록·추가 버튼은 없다', () => {
+    const html = renderToStaticMarkup(<MyAddressesNotOpen />);
+    expect(html).toContain('<h1 class="wc-mypage__headbar-title" id="address-book-heading" tabindex="-1">배송지 관리</h1>');
+    expect(html).toContain('배송지 관리는 2026년 11월 6일부터 이용할 수 있어요.');
+    expect(html).toContain('주문서에서 배송지를 입력해주세요');
+    expect(html).toContain('href="/legal/privacy"');
+    expect(html).toContain('개정 사전 공지 보기');
+    expect(html).not.toContain('<table');
+    expect(html).not.toContain('id="address-book-add"');
   });
 });

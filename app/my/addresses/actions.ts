@@ -4,6 +4,7 @@ import { unstable_rethrow } from 'next/navigation';
 import {
   ADDRESS_BOOK_ERROR_COPY,
   addressBookDraftErrors,
+  addressBookOpenFor,
   addressBookSaveInput,
   mapAddressBookError,
   parseAddressBookDraft,
@@ -47,13 +48,17 @@ function failure(error: AddressBookErrorCode, fieldErrors?: AddressBookDraftErro
 
 type Writer = { ok: true; userId: string } | { ok: false; error: AddressBookErrorCode };
 
-/** 로그인한 회원. newWrite 이면 온보딩(처리방침 동의)과 정지 여부도 본다(DB address_book_actor 와 같은 기준). */
+/**
+ * 로그인한 회원. newWrite 이면 온보딩(처리방침 동의)과 정지 여부, 그리고 주소록이 열렸는지(처리방침 주소록 개정 시행일
+ * 전에는 staff/admin 미리보기만 — addressBookOpenFor)도 본다. 삭제는 자기 정보를 지우는 일이라 언제나 받는다.
+ */
 async function writer(newWrite: boolean): Promise<Writer> {
   const auth = await getCurrentAuthState();
   if (!auth.isConfigured || !auth.user) return { ok: false, error: 'auth_required' };
   if (newWrite) {
     if (isAccountSuspended(auth.profile)) return { ok: false, error: 'account_suspended' };
     if (!isOnboarded(auth.profile, auth.user.email)) return { ok: false, error: 'onboarding_required' };
+    if (!addressBookOpenFor(auth)) return { ok: false, error: 'address_book_not_open' };
   }
   return { ok: true, userId: auth.user.id };
 }

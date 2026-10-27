@@ -6,14 +6,24 @@ import {
   LEGAL_DOCUMENTS,
   LEGAL_DOCUMENT_SLUGS,
   LEGAL_EFFECTIVE_DATES,
+  createLegalDocuments,
   getLegalDocument,
   legalDocumentHref,
   PENDING_PROCESSOR_LABEL,
   type LegalDocument,
 } from './documents';
+import { PRIVACY_ADDRESS_BOOK_REVISION, kstToday, koreanLegalDate, privacyAddressBookRevisionInEffect } from './privacy-address-book-revision';
 import { SOCIAL_LOGIN_LABELS } from './social-login';
 
-const documents = LEGAL_DOCUMENT_SLUGS.map((slug) => LEGAL_DOCUMENTS[slug]);
+/* 주소록 예약 개정(L7 · MY-11)은 날짜(KST)로 시행 여부가 갈린다 — 시행 전날과 시행일 두 상태를 고정해 검사한다.
+   LEGAL_DOCUMENTS(오늘 날짜)는 어느 쪽이든 성립해야 하는 검사에만 쓴다. */
+const BEFORE_ADDRESS_BOOK = createLegalDocuments(BUSINESS_INFO, '2026-11-05');
+const AFTER_ADDRESS_BOOK = createLegalDocuments(BUSINESS_INFO, PRIVACY_ADDRESS_BOOK_REVISION.effectiveDate);
+const documents = [
+  ...LEGAL_DOCUMENT_SLUGS.map((slug) => LEGAL_DOCUMENTS[slug]),
+  BEFORE_ADDRESS_BOOK.privacy,
+  AFTER_ADDRESS_BOOK.privacy,
+];
 
 function source() {
   return readFileSync(new URL('./documents.ts', import.meta.url), 'utf8');
@@ -94,7 +104,11 @@ describe('법정 문서 레지스트리', () => {
     expect(Object.keys(LEGAL_EFFECTIVE_DATES).sort()).toEqual([...LEGAL_DOCUMENT_SLUGS].sort());
 
     for (const slug of LEGAL_DOCUMENT_SLUGS) {
-      expect(LEGAL_DOCUMENTS[slug].effectiveDate, slug).toBe(LEGAL_EFFECTIVE_DATES[slug]);
+      expect(BEFORE_ADDRESS_BOOK[slug].effectiveDate, slug).toBe(LEGAL_EFFECTIVE_DATES[slug]);
+      /* 주소록 예약 개정은 개인정보처리방침의 시행일만 옮긴다. */
+      expect(AFTER_ADDRESS_BOOK[slug].effectiveDate, slug).toBe(
+        slug === 'privacy' ? PRIVACY_ADDRESS_BOOK_REVISION.effectiveDate : LEGAL_EFFECTIVE_DATES[slug],
+      );
       /* 각 문서가 자기 슬러그의 시행일만 참조해야 개별 개정이 가능하다. */
       expect(source().match(new RegExp(`LEGAL_EFFECTIVE_DATES\\.${slug}`, 'g')), slug).toHaveLength(1);
     }
@@ -102,22 +116,60 @@ describe('법정 문서 레지스트리', () => {
     expect(source(), '문서 셋이 시행일 상수 하나를 공유하면 개정 이력을 만들 수 없다').not.toMatch(/const EFFECTIVE_DATE\b/);
   });
 
-  it('신청 안내·선택 성별 수집·주소록 개정의 개정일을 문서별로 보존한다', () => {
-    expect(LEGAL_DOCUMENTS.terms.effectiveDate).toBe('2026-09-09');
-    /* 주소록 개정(L7 · MY-11)이 직전 공개 본문(2026-10-19, 선택 성별 수집 포함)을 이전 판으로 보존한다. */
-    expect(LEGAL_DOCUMENTS.privacy.effectiveDate).toBe('2026-11-06');
-    expect(LEGAL_DOCUMENTS.privacy.previousVersion?.effectiveDate).toBe('2026-10-19');
-    expect(JSON.stringify(LEGAL_DOCUMENTS.privacy.previousVersion)).toContain('성별 정보의 선택');
-    expect(JSON.stringify(LEGAL_DOCUMENTS.privacy.previousVersion)).toContain('10명 이상');
-    expect(JSON.stringify(LEGAL_DOCUMENTS.privacy.previousVersion)).not.toContain('주소록');
-    expect(JSON.stringify(LEGAL_DOCUMENTS.privacy.articles)).toContain('10명 이상');
-    expect(JSON.stringify(LEGAL_DOCUMENTS.privacy.articles)).toContain('주소록');
-    expect(LEGAL_DOCUMENTS.privacy.revisionChanges?.join('\n')).toContain('주소록');
-    expect(LEGAL_DOCUMENTS.shipping.effectiveDate).toBe('2026-09-09');
-
-    for (const document of documents) {
-      expect(document.pendingRevision, document.slug).toBeUndefined();
+  it('신청 안내·선택 성별 수집의 개정일을 문서별로 보존한다', () => {
+    for (const set of [BEFORE_ADDRESS_BOOK, AFTER_ADDRESS_BOOK]) {
+      expect(set.terms.effectiveDate).toBe('2026-09-09');
+      expect(set.shipping.effectiveDate).toBe('2026-09-09');
+      expect(set.terms.pendingRevision).toBeUndefined();
+      expect(set.shipping.pendingRevision).toBeUndefined();
     }
+    /* 지금 효력이 있는 개인정보처리방침은 선택 성별 수집을 더한 2026-10-19 본문이다. */
+    const privacy = BEFORE_ADDRESS_BOOK.privacy;
+    expect(privacy.effectiveDate).toBe('2026-10-19');
+    expect(privacy.previousVersion?.effectiveDate).toBe('2026-08-22');
+    expect(JSON.stringify(privacy.previousVersion)).not.toContain('성별 정보의 선택');
+    expect(JSON.stringify(privacy.articles)).toContain('10명 이상');
+  });
+
+  /* 주소록 개정(L7 · MY-11) — 제13조대로 시행 7일 전부터 사전 공지하고, 시행일 전에는 현행 본문을 바꾸지 않는다(L7 QA). */
+  it('주소록 개정은 시행일 전까지 현행 본문에 사전 공지로만 붙고, 시행일부터 개정 본문이 현행이 된다', () => {
+    const { announcedDate, effectiveDate } = PRIVACY_ADDRESS_BOOK_REVISION;
+    const days = (Date.parse(`${effectiveDate}T00:00:00+09:00`) - Date.parse(`${announcedDate}T00:00:00+09:00`)) / 86_400_000;
+    expect(days, '시행 7일 전부터 공지').toBeGreaterThanOrEqual(7);
+
+    const before = BEFORE_ADDRESS_BOOK.privacy;
+    expect(before.effectiveDate).toBe('2026-10-19');
+    expect(before.pendingRevision).toEqual({
+      announcedDate,
+      effectiveDate,
+      heading: '주소록(배송지 관리) 도입에 따른 개정 예정 안내',
+      changes: expect.arrayContaining([expect.stringContaining('주소록(배송지 관리)에 저장하는')]),
+    });
+    expect(before.pendingRevision!.changes.join('\n')).toContain('개정 방침이 시행되는 날부터 이용할 수 있습니다');
+    expect(JSON.stringify(before.articles), '시행 전 현행 본문에는 주소록이 없다').not.toContain('주소록');
+    expect(before.revisionChanges?.join('\n')).not.toContain('주소록');
+
+    const after = AFTER_ADDRESS_BOOK.privacy;
+    expect(after.effectiveDate).toBe(effectiveDate);
+    expect(after.pendingRevision).toBeUndefined();
+    /* 직전 공개 본문(2026-10-19, 선택 성별 수집 포함)을 이전 판으로 그대로 보존한다. */
+    expect(after.previousVersion).toEqual({ effectiveDate: '2026-10-19', articles: before.articles });
+    expect(JSON.stringify(after.articles)).toContain('주소록');
+    expect(JSON.stringify(after.articles)).toContain('10명 이상');
+    expect(after.revisionChanges?.join('\n')).toContain('주소록');
+    /* 사전 공지한 변경 내용이 시행일의 개정 안내와 같다. */
+    for (const change of after.revisionChanges!) expect(before.pendingRevision!.changes).toContain(change);
+  });
+
+  it('시행 여부는 한국 시간 날짜로 가른다 — 시행일 0시(KST)부터 개정 본문이다', () => {
+    expect(kstToday(new Date('2026-11-05T14:59:59Z'))).toBe('2026-11-05');
+    expect(kstToday(new Date('2026-11-05T15:00:00Z'))).toBe('2026-11-06');
+    expect(privacyAddressBookRevisionInEffect('2026-11-05')).toBe(false);
+    expect(privacyAddressBookRevisionInEffect('2026-11-06')).toBe(true);
+    expect(createLegalDocuments(BUSINESS_INFO, '2026-11-05').privacy.pendingRevision).toBeDefined();
+    expect(createLegalDocuments(BUSINESS_INFO, '2026-11-06').privacy.pendingRevision).toBeUndefined();
+    expect(createLegalDocuments(BUSINESS_INFO, '2027-01-01').privacy.effectiveDate).toBe('2026-11-06');
+    expect(koreanLegalDate('2026-11-06')).toBe('2026년 11월 6일');
   });
 
   it('본문이 Korpay 신규 카드 결제와 Toss 기존 결제 조회·취소·환급 유지를 함께 밝힌다', () => {
@@ -200,7 +252,8 @@ describe('승인된 배송 중 접수 정책과 고객지원 안내', () => {
     const shipping = LEGAL_DOCUMENTS.shipping;
     expect(terms.previousVersion?.effectiveDate).toBe('2026-08-22');
     expect(shipping.previousVersion?.effectiveDate).toBe('2026-08-21');
-    expect(LEGAL_DOCUMENTS.privacy.previousVersion?.effectiveDate).toBe('2026-10-19');
+    expect(BEFORE_ADDRESS_BOOK.privacy.previousVersion?.effectiveDate).toBe('2026-08-22');
+    expect(AFTER_ADDRESS_BOOK.privacy.previousVersion?.effectiveDate).toBe('2026-10-19');
     for (const [document, headings] of [
       [terms, ['제3조 (약관의 명시와 개정)', '제4조 (서비스의 제공과 변경)', '제15조 (청약철회 등)', '제16조 (청약철회 등의 효과)']],
       [shipping, ['4. 청약철회가 제한되는 경우', '7. 환급 계좌', '8. 환급', '9. 하자·오배송 시 재발송']],
@@ -320,7 +373,8 @@ describe('이용약관', () => {
 });
 
 describe('개인정보처리방침', () => {
-  const privacy = LEGAL_DOCUMENTS.privacy;
+  /* 주소록 개정 시행 뒤의 본문(시행 전 본문은 그 이전 판과 같다 — 위 레지스트리 검사). */
+  const privacy = AFTER_ADDRESS_BOOK.privacy;
   const text = plainText(privacy);
 
   it('코드가 실제로 수집하는 항목을 기술한다', () => {

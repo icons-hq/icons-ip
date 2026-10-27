@@ -2,6 +2,7 @@ import { loadCouponCombinationPolicy } from '@/lib/coupon-combinations.server';
 import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { Checkout } from '@/components/screens/Checkout';
+import { addressBookOpenFor } from '@/lib/address-book';
 import { isOnboarded, onboardingPath } from '@/lib/auth/onboarding';
 import { getCurrentAuthState } from '@/lib/auth/server';
 import { getCatalogSnapshot } from '@/lib/catalog';
@@ -37,7 +38,7 @@ export default async function Page({ searchParams }: PageProps) {
 
   const [catalog, addressPrefill, resumeOrderId, couponState, transactionMode, couponPolicy] = await Promise.all([
     getCatalogSnapshot(),
-    loadCheckoutAddressPrefill(auth.user.id),
+    loadCheckoutAddressPrefill(auth.user.id, addressBookOpenFor(auth)),
     loadLatestPendingCheckoutOrderId(auth.user.id),
     loadCartCouponState(),
     loadGoodsTransactionRuntimeMode(),
