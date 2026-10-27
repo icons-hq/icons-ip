@@ -848,6 +848,11 @@
   transform: translateY(-50%);
 }
 
+/* 모바일 슬라이더는 오른쪽 아래에 위치 알약이 선다 — 문구가 알약 밑으로 들어가지 않게 그 폭(약 40 + 여백)을 비운다. */
+.wc-collection-banners__carousel .wc-collection-banner__copy {
+  max-width: calc(100% - var(--wc-collection-banner-inset) - 72px);
+}
+
 .wc-collection-banner__title {
   font-size: 22px;
   font-weight: 700;
@@ -924,7 +929,8 @@
     aspect-ratio: 59 / 13;
   }
 
-  .wc-collection-banner__copy {
+  .wc-collection-banner__copy,
+  .wc-collection-banners__carousel .wc-collection-banner__copy {
     bottom: 89px;
     gap: 10px;
     max-width: min(640px, calc(100% - var(--wc-collection-banner-inset) * 2));

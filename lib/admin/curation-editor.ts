@@ -144,7 +144,8 @@ export function createCurationEditorValues(
     title: record?.title ?? '',
     ipId: record?.ipId ?? '',
     /* 새 텍스트 공지 바는 버튼 없이 시작한다 — 이동할 화면을 고르면 버튼이 생긴다. */
-    linkPath: record ? record.linkPath ?? '' : initialKind === 'notice_bar' ? '' : '/',
+    /* 컬렉션 배너는 링크가 선택이라 링크 없이 시작하고, 추천 검색어는 링크가 없다. */
+    linkPath: record ? record.linkPath ?? '' : initialKind === 'notice_bar' || initialKind === 'collection_banner' || initialKind === 'search_terms' ? '' : '/',
     displayOrder: String(record?.displayOrder ?? 0),
     activeFrom: curationKstInput(record?.activeFrom ?? draftActiveFrom),
     activeTo: curationKstInput(record?.activeTo ?? null),

@@ -145,6 +145,9 @@ describe('curation editor preview', () => {
   it('새 컬렉션 배너는 굿즈샵 전체 슬롯·딤 없음·잉크 글자로 시작하고 컬렉션 배너로 미리 본다', () => {
     const values = { ...createCurationEditorValues(null, '2026-10-12T00:00:00Z', 'collection_banner'), title: '가을 신상', imageUrl: '/pc.webp', mobileImageUrl: '/mo.webp', imageAlt: ' 키링 세 종 ', subtitle: ' 새로 나온 굿즈 ', linkPath: '' };
     expect(values).toMatchObject({ slot: 'all', imageDim: 'none', textColor: 'black', searchTerms: [] });
+    /* 링크는 선택이라 새 배너·새 추천 검색어는 링크 없이 시작한다(홈으로 가는 기본 링크를 몰래 싣지 않는다). */
+    expect(createCurationEditorValues(null, '2026-10-12T00:00:00Z', 'collection_banner').linkPath).toBe('');
+    expect(createCurationEditorValues(null, '2026-10-12T00:00:00Z', 'search_terms').linkPath).toBe('');
     const draft = buildDraftCurationPreview('draft', values, []);
     expect(draft.collectionBanner).toEqual({ id: 'draft', slot: 'all', title: '가을 신상', subtitle: '새로 나온 굿즈', imageUrl: '/pc.webp', mobileImageUrl: '/mo.webp',
       href: null, imageAlt: '키링 세 종', imageDim: 'none', textColor: 'black', endsAt: null });
