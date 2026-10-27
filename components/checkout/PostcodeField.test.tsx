@@ -43,4 +43,17 @@ describe('PostcodeField', () => {
     expect(html).toContain('id="checkout-postalCode-error"');
     expect(html).toContain('우편번호 5자리를 입력해주세요.');
   });
+
+  /* 주소록 폼(L7)이 같은 부품을 쓸 때 — 주문서의 id 와 겹치지 않게 접두 id 를 받는다. 기본값은 그대로다. */
+  it('다른 화면은 자기 id 를 넘겨 라벨·오류·검색 레이어 연결을 함께 옮긴다', () => {
+    const html = render({ id: 'address-book-postalCode', error: '우편번호 5자리를 입력해주세요.' });
+
+    expect(html).toContain('for="address-book-postalCode"');
+    expect(html).toContain('id="address-book-postalCode"');
+    expect(html).toContain('aria-describedby="address-book-postalCode-error"');
+    expect(html).toContain('id="address-book-postalCode-error"');
+    expect(html).toContain('aria-controls="address-book-postalCode-search-layer"');
+    expect(html).not.toContain('checkout-postalCode');
+    expect(render()).toContain('aria-controls="postcode-search-layer"');
+  });
 });

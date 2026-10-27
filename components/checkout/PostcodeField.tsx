@@ -12,8 +12,9 @@ import { loadPostcodeSearch } from '@/lib/postcode.client';
    갈 수 있어야 하기 때문이다. */
 
 const FIELD_ID = 'checkout-postalCode';
-/* Checkout의 첫 오류 필드 포커스 이동이 이 두 id를 찾는다. */
-const ERROR_ID = `${FIELD_ID}-error`;
+/* Checkout의 첫 오류 필드 포커스 이동이 이 두 id를 찾는다(기본 id). 주소록 폼처럼 다른 화면이
+   이 칸을 쓰면 자기 접두의 id를 넘겨 같은 문서 안에서 id가 겹치지 않게 한다. */
+const errorId = (fieldId: string) => `${fieldId}-error`;
 
 type LayerState = 'loading' | 'ready' | 'failed';
 
@@ -25,12 +26,14 @@ const LAYER_MESSAGE: Record<LayerState, string | null> = {
 
 interface PostcodeFieldProps {
   error?: string;
+  /** 우편번호 입력 id. 기본은 주문서의 `checkout-postalCode`. */
+  id?: string;
   onChange: (postalCode: string) => void;
   onSelect: (address: ComposedPostcodeAddress) => void;
   value: string;
 }
 
-export function PostcodeField({ error, onChange, onSelect, value }: PostcodeFieldProps) {
+export function PostcodeField({ error, id = FIELD_ID, onChange, onSelect, value }: PostcodeFieldProps) {
   const [open, setOpen] = useState(false);
   const [layerState, setLayerState] = useState<LayerState>('loading');
   const [selectionError, setSelectionError] = useState<string | null>(null);
@@ -75,7 +78,9 @@ export function PostcodeField({ error, onChange, onSelect, value }: PostcodeFiel
     };
   }, [open]);
 
-  const describedBy = error ? ERROR_ID : undefined;
+  const describedBy = error ? errorId(id) : undefined;
+  /* 주문서의 기본 칸은 기존 마크업(id)을 그대로 둔다. */
+  const layerId = id === FIELD_ID ? 'postcode-search-layer' : `${id}-search-layer`;
   const layerMessage = LAYER_MESSAGE[layerState];
   const toggleLayer = () => {
     if (open) {
@@ -89,10 +94,10 @@ export function PostcodeField({ error, onChange, onSelect, value }: PostcodeFiel
 
   return (
     <div className="checkout-field--wide postcode-field">
-      <label className="postcode-field-label" htmlFor={FIELD_ID}>우편번호</label>
+      <label className="postcode-field-label" htmlFor={id}>우편번호</label>
       <div className="postcode-field-row">
         <input
-          id={FIELD_ID}
+          id={id}
           required
           autoComplete="postal-code"
           inputMode="numeric"
@@ -107,16 +112,16 @@ export function PostcodeField({ error, onChange, onSelect, value }: PostcodeFiel
           type="button"
           className="btn btn-ghost postcode-field-open"
           aria-expanded={open}
-          aria-controls="postcode-search-layer"
+          aria-controls={layerId}
           onClick={toggleLayer}
         >
           {open ? '주소 검색 닫기' : '주소 검색'}
         </button>
       </div>
-      {error && <small id={ERROR_ID} className="checkout-field-error">{error}</small>}
+      {error && <small id={errorId(id)} className="checkout-field-error">{error}</small>}
       {selectionError && <small className="checkout-field-error" role="alert">{selectionError}</small>}
       {open && (
-        <div className="postcode-layer" id="postcode-search-layer" role="dialog" aria-label="주소 검색">
+        <div className="postcode-layer" id={layerId} role="dialog" aria-label="주소 검색">
           {/* 임베드가 이 노드를 직접 채운다. React 자식을 두면 조정이 충돌한다. */}
           <div className="postcode-layer-frame" ref={embedRef} />
           {layerMessage && (
