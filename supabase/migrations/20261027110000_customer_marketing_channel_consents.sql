@@ -106,11 +106,13 @@ begin
  if p_email is null or p_sms is null or p_notice_version is distinct from 'marketing-channels-v1'
   or p_source is null or p_source not in ('onboarding','settings') then
   raise invalid_parameter_value using message='invalid_marketing_consent'; end if;
+ -- 계정 잠금(account-action)을 회원 행보다 먼저 잡는다 — 결제 확정·미결제 주문 닫기가 계정 잠금 →
+ -- 회원 행(등급 재산정) 순서라, 반대로 잡으면 같은 회원의 동시 처리와 교착한다(ADR-0026 잠금 순서).
+ if private.is_account_write_fenced(actor) then
+  raise object_not_in_prerequisite_state using message='account_deletion_write_fenced'; end if;
  -- 회원 행 잠금으로 같은 회원의 동시 저장(다른 탭·온보딩 재제출·옛 앱 직접 쓰기)을 직렬화한다.
  select p.consents into profile_consents from public.profiles p where p.id=actor for update;
  if not found then raise insufficient_privilege using message='marketing_consent_auth_required'; end if;
- if private.is_account_write_fenced(actor) then
-  raise object_not_in_prerequisite_state using message='account_deletion_write_fenced'; end if;
  perform private.write_customer_marketing_consent(actor,'email',p_email,p_notice_version,p_source,changed_at);
  perform private.write_customer_marketing_consent(actor,'sms',p_sms,p_notice_version,p_source,changed_at);
  derived:=p_email or p_sms;
