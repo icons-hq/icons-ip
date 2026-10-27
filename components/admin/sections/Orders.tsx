@@ -60,6 +60,7 @@ import {
 import { formatKrwExact } from '../format';
 import { ADMIN_VOCABULARY } from '@/lib/admin/vocabulary';
 import { isParcelShipment } from '@/lib/admin/shipment-dispatch';
+import { commerceReferenceLabel } from '@/lib/commerce-number';
 import { DELIVERY_METHOD_LABELS, deliveryStatusLabel } from '@/lib/shipment-delivery';
 import { adminListExportHref } from '@/lib/admin/list-export';
 import { AdminListExportButton } from '@/components/admin/AdminListExportButton';
@@ -1005,13 +1006,13 @@ function OrderDetail({
             청약철회 창을 사람 손으로 조기 종료시킬 수 있다. */}
         {hasShipped ? order.shipments.filter(shipment=>isParcelShipment(shipment)&&(shipment.status==='shipping'||shipment.status==='delivered')).map(shipment=>(
           <section key={shipment.id} aria-label={`${shipment.originName} 운송장 수정`}>
-            <h4>{shipment.originName} · {shipment.id.slice(-8).toUpperCase()}</h4>
+            <h4>{shipment.originName} · {commerceReferenceLabel(shipment.id, shipment.shipmentNumber)}</h4>
             <UpdateTrackingForm carriers={carriers} orderId={order.id} shipmentId={shipment.id} shipment={orderShipment(carriers,shipment.carrier,shipment.trackingNumber)} />
           </section>
         )) : null}
         {order.shipments.filter(shipment=>!isParcelShipment(shipment)).map(shipment=>(
           <section key={shipment.id} aria-label={`${shipment.originName} 인계·수령 확인`}>
-            <h4>{shipment.originName} · {shipment.id.slice(-8).toUpperCase()}</h4>
+            <h4>{shipment.originName} · {commerceReferenceLabel(shipment.id, shipment.shipmentNumber)}</h4>
             <p>{shipment.delivery ? deliveryStatusLabel(shipment.delivery.method,shipment.status) : '배송 방식 확인 필요'}</p>
             <Link href={adminOrderDetailHref(order.id,filters)} target="_blank" rel="noopener noreferrer">
               {shipment.delivery ? DELIVERY_METHOD_LABELS[shipment.delivery.method] : '배송 방식'} 인계·수령 확인

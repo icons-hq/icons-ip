@@ -658,6 +658,16 @@ describe('sendRestockAlertEmails (#326)', () => {
   expect(mocks.send.mock.calls[1][0].text).not.toContain('김포 굿즈');
   expect(await sendOrderShippedEmail({orderId:ORDER_ID})).toEqual({status:'skipped',reason:'shipment_reference_required'});
  });
+ it('DB가 발급한 16자리 주문번호·배송건번호로 배송 메일을 쓰고 출고지 이름은 싣지 않는다', async () => {
+  mocks.order = {...mocks.order,status:'shipping',order_number:'2026102710000009'};
+  mocks.items = [{id:'item-1',good_name_snapshot:'굿즈',qty:1,unit_price:1000}];
+  mocks.shipments = [shipmentFixture({orderId:ORDER_ID,shipmentNumber:'2026102730000011',originName:'남양주',orderItemIds:['item-1']})];
+  await sendOrderShippedEmail({orderId:ORDER_ID,shipmentId:mocks.shipments[0].id});
+  const sent = mocks.send.mock.calls[0][0];
+  expect(sent.subject).toBe('[ICONS] 굿즈가 배송을 시작했어요 (주문번호 2026102710000009)');
+  expect(sent.text).toContain('배송건번호: 2026102730000011');
+  expect(`${sent.subject}${sent.text}${sent.html}`).not.toContain('남양주');
+ });
  it('다른 배송이 출발했어도 아직 준비 중인 배송건의 메일은 보내지 않는다', async () => {
   mocks.order = {...mocks.order,status:'shipping'};
   mocks.shipments[0].status='ready';

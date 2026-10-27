@@ -26,6 +26,7 @@ import {
   sendOrderShippedEmail,
 } from '@/lib/email/transactional.server';
 import { orderReferenceLabel } from '@/lib/orders';
+import { commerceReferenceLabel } from '@/lib/commerce-number';
 import { reconcileOrderCancellation } from '@/lib/orders/cancellation-orchestrator.server';
 import { recoverGoodsPaymentManually } from '@/lib/payments/goods-manual-recovery.server';
 import { trackingImportCommand, type SeowonTrackingParseResult } from '@/lib/admin/warehouse-templates.server';
@@ -150,6 +151,16 @@ const BULK_CONFIRM_LIMIT = 100;
  * 세어 돌려준다. 개별 실패 사유는 화면에 늘어놓지 않는다 — 목록을 새로고침하면
  * 남아 있는 건이 곧 실패한 건이다.
  */
+/** 결과 문구의 주문은 16자리 주문번호로 적는다. 번호를 읽지 못하면 UUID 표기로 남긴다. */
+async function orderNumberLabels(supabase: Awaited<ReturnType<typeof createClient>>, orderIds: string[]) {
+  let numbers = new Map<string, string | null>();
+  try {
+    const { data } = await supabase.from('orders').select('id,order_number').in('id', orderIds);
+    numbers = new Map(((data ?? []) as { id: string; order_number: string | null }[]).map(row => [row.id, row.order_number]));
+  } catch { /* 결과 문구가 번호 조회 실패로 사라지지 않게 UUID 표기로 남긴다. */ }
+  return orderIds.map(id => orderReferenceLabel(id, numbers.get(id))).join(', ');
+}
+
 export async function bulkConfirmAdminOrdersAction(
   _state: AdminOrderActionState,
   formData: FormData,
@@ -194,12 +205,11 @@ export async function bulkConfirmAdminOrdersAction(
   for (const orderId of orderIds) revalidateOrderSurfaces(orderId);
 
   const confirmed = confirmedOrderIds.length;
+  const failedLabels = failed.length ? await orderNumberLabels(supabase, failed) : '';
   if (!confirmed) {
     return {
       errors: {
-        form: `선택한 ${orderIds.length}건을 발주확인하지 못했습니다. 취소 요청이 열려 있거나 이미 상태가 바뀐 주문일 수 있습니다: ${
-          failed.map(id => orderReferenceLabel(id)).join(', ')
-        }`,
+        form: `선택한 ${orderIds.length}건을 발주확인하지 못했습니다. 취소 요청이 열려 있거나 이미 상태가 바뀐 주문일 수 있습니다: ${failedLabels}`,
       },
     };
   }
@@ -209,9 +219,7 @@ export async function bulkConfirmAdminOrdersAction(
        (취소 요청·이미 바뀐 상태·일시적 오류) 한 가지로 단정하지 않는다. */
     return {
       confirmedOrderIds,
-      message: `${confirmed}건을 발주확인했습니다. 처리하지 못한 ${failed.length}건: ${
-        failed.map(id => orderReferenceLabel(id)).join(', ')
-      } — 주문 상세에서 취소 요청 여부와 현재 상태를 확인해주세요.`,
+      message: `${confirmed}건을 발주확인했습니다. 처리하지 못한 ${failed.length}건: ${failedLabels} — 주문 상세에서 취소 요청 여부와 현재 상태를 확인해주세요.`,
     };
   }
   return { confirmedOrderIds, message: `${confirmed}건을 발주확인했습니다.` };
@@ -567,7 +575,7 @@ async function registerSeowonReply(parsed: SeowonTrackingParseResult, requestedO
     const outcomes=new Map((result.data as TrackingBatchRow[]).map(row=>[row.reference,row]));
     const deliveries:{orderId:string;shipmentId:string}[]=[];
     for(const command of match.commands){
-      const outcome=outcomes.get(command.shipmentId),reference=command.shipmentId.slice(-8).toUpperCase();
+      const outcome=outcomes.get(command.shipmentId),reference=commerceReferenceLabel(command.shipmentId,command.shipmentNumber);
       if(outcome?.ok&&outcome.dispatched!==false){succeeded.push(reference);deliveries.push(...(outcome.packedShipments??[{orderId:command.orderId,shipmentId:command.shipmentId}]));}
       else if(outcome?.ok)unchanged++; // 다른 운영자가 같은 회신을 먼저 등록했다.
       else for(const line of command.lines)failed.push({line,reference,reason:shipmentMutationError(outcome?.error??'')});
