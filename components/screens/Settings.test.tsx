@@ -80,7 +80,7 @@ function render(overrides: Partial<React.ComponentProps<typeof Settings>> = {}) 
       avatarInitial="아"
       avatarUrl="https://signed.example/avatar.png"
       email="fan@icons.gg"
-      initialMarketing={false}
+      marketingConsent={null}
       isConfigured
       nickname="아이콘즈 팬"
       {...overrides}
@@ -347,3 +347,24 @@ describe('Settings', () => {
     expect(marketingStatus).not.toContain('프로필 저장 성공');
   });
 });
+
+/* 10/14 회의 S4 — 설정에서도 이메일·SMS 수신 동의를 각각 바꾼다. 동의 중이면 동의일을 보여 준다. */
+describe('Settings marketing channels', () => {
+  it('renders one optional row per channel with the current choice and consent date', () => {
+    const html = render({ marketingConsent: {
+      marketing: true,
+      email: { agreed: true, agreedAt: '2026-10-27T03:00:00.000Z', withdrawnAt: null, noticeVersion: 'marketing-channels-v1' },
+      sms: { agreed: false, agreedAt: null, withdrawnAt: '2026-10-27T04:00:00.000Z', noticeVersion: 'marketing-channels-v1' },
+    } });
+
+    const inputs = [...html.matchAll(/<input class="settings-marketing-input"[^>]*>/g)].map(([tag]) => tag);
+    expect(inputs).toHaveLength(2);
+    expect(inputs[0]).toContain('name="marketingEmail"'); expect(inputs[0]).toContain('checked=""');
+    expect(inputs[1]).toContain('name="marketingSms"'); expect(inputs[1]).not.toContain('checked');
+    expect(html).toContain('마케팅 정보 수신 동의 (이메일)');
+    expect(html).toContain('마케팅 정보 수신 동의 (SMS)');
+    expect(html).toContain('2026. 10. 27. 동의');
+    expect(html).not.toContain('name="marketing"');
+  });
+});
+

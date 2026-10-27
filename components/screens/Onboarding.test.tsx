@@ -21,7 +21,7 @@ function render(overrides: Partial<React.ComponentProps<typeof Onboarding>> = {}
       birthDate=""
       email="fan@icons.gg"
       followedIpIds={[]}
-      initialMarketing={false}
+      initialMarketing={{ email: false, sms: false }}
       isConfigured
       next="/"
       nickname=""
@@ -130,3 +130,29 @@ describe('Onboarding form contracts', () => {
     expect(new Set(names).size).toBe(names.length);
   });
 });
+
+/* 10/14 회의 S4·S5 — 수단별 마케팅 수신 동의와 선택 성별. */
+describe('Onboarding optional consents', () => {
+  it('asks email and SMS marketing consent separately as optional rows', () => {
+    const html = render({ initialMarketing: { email: true, sms: false } });
+
+    expect(html).toContain('마케팅 정보 수신 동의 (이메일) <em class="wc-auth__opt">선택</em>');
+    expect(html).toContain('마케팅 정보 수신 동의 (SMS) <em class="wc-auth__opt">선택</em>');
+    expect(html).toMatch(/<input[^>]*checked=""[^>]*name="marketingEmail"|<input[^>]*name="marketingEmail"[^>]*checked=""/);
+    expect(html).not.toMatch(/<input[^>]*name="marketingSms"[^>]*checked=""/);
+    expect(html).not.toContain('name="marketing"');
+    expect(html).toContain('거래 안내는 동의와 관계없이');
+  });
+
+  it('offers an unselected optional gender with its own consent and notice', () => {
+    const html = render();
+
+    expect(html).toContain('<legend>성별 <em class="wc-auth__opt">선택</em></legend>');
+    expect(html).toMatch(/<select[^>]*name="gender"[^>]*>[\s\S]*<option value="" selected="">선택 안 함<\/option>/);
+    expect(html).toContain('<option value="female">여성</option>');
+    expect(html).toContain('<input type="checkbox" name="genderConsent"/>');
+    expect(html).not.toMatch(/name="genderConsent"[^>]*checked/);
+    expect(html).toContain('<summary>수집 항목·보관·철회 안내</summary>');
+  });
+});
+

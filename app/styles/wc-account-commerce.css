@@ -423,6 +423,64 @@
   color: var(--wc-ink-tertiary);
 }
 
+/* 마케팅 수신 동의 안내(수단별 선택, 10/14 회의 S4) — 약관 목록 바로 아래 작은 회색 문단. */
+.wc-auth .onboarding-consent-note {
+  margin: -4px 0 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--wc-ink-tertiary);
+}
+
+/* 선택 성별(10/14 회의 S5) — 생년월일 fieldset 문법을 그대로 쓰고 셀렉트만 인풋과 같은 40px 필드로 맞춘다. */
+.wc-auth .onboarding-gender-fieldset select {
+  width: 100%;
+  min-height: 0;
+  height: 40px;
+  padding: 0 14px;
+  font-family: inherit;
+  font-size: 15px;
+  letter-spacing: -0.2px;
+  border: 1px solid var(--wc-line-control);
+  border-radius: 2px;
+  box-shadow: none;
+  background: var(--wc-surface);
+  color: var(--wc-ink);
+}
+
+.wc-auth .onboarding-gender-consent {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--wc-ink-sub);
+  cursor: pointer;
+}
+
+.wc-auth .onboarding-gender-consent input[type='checkbox'] {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  margin: 0;
+  accent-color: var(--wc-ink);
+}
+
+.wc-auth .onboarding-gender-notice {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-auth .onboarding-gender-notice > summary {
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.wc-auth .onboarding-gender-notice p {
+  margin: 6px 0 0;
+}
+
 /* 추천 IP 선택 */
 .wc-auth__picks-head {
   display: flex;

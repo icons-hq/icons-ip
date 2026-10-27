@@ -3,13 +3,22 @@
 import { startTransition, useActionState, useState, type FormEvent } from 'react';
 import { completeOnboardingAction, type OnboardingActionState } from '@/app/onboarding/actions';
 import { WcButton } from '@/components/wc/WcButton';
+import { DEMOGRAPHIC_GENDER_LABELS, DEMOGRAPHIC_GENDERS, DEMOGRAPHIC_NOTICE } from '@/lib/customer-demographics';
 import { LEGAL_DOCUMENT_LABELS, legalDocumentHref, type LegalDocumentSlug } from '@/lib/legal/links';
+import {
+  MARKETING_CHANNEL_FIELDS,
+  MARKETING_CHANNEL_LABELS,
+  MARKETING_CHANNELS,
+  MARKETING_CONSENT_NOTICE,
+  type MarketingChannelChoices,
+} from '@/lib/marketing-consent';
 
 interface OnboardingProps {
   birthDate: string;
   email: string;
   followedIpIds: string[];
-  initialMarketing: boolean;
+  /** 채널별 마케팅 정보 수신 동의의 현재 선택(10/14 회의 S4). */
+  initialMarketing: MarketingChannelChoices;
   isConfigured: boolean;
   next: string;
   nickname: string;
@@ -222,10 +231,48 @@ export function Onboarding({
               <TermRow errorId="privacy-error" hasError={Boolean(state.errors?.privacy)} label="개인정보 처리방침 동의" name="privacy" required slug="privacy" />
               <ErrorText id="privacy-error">{state.errors?.privacy}</ErrorText>
             </li>
-            <li>
-              <TermRow defaultChecked={initialMarketing} label="마케팅 정보 수신 동의" name="marketing" required={false} />
-            </li>
+            {/* 마케팅 정보 수신 동의는 수단별 선택이다(LFS와 같은 이메일·SMS 두 줄, 10/14 회의 S4). */}
+            {MARKETING_CHANNELS.map((channel) => (
+              <li key={channel}>
+                <TermRow
+                  defaultChecked={initialMarketing[channel]}
+                  label={`${MARKETING_CONSENT_NOTICE.title} (${MARKETING_CHANNEL_LABELS[channel]})`}
+                  name={MARKETING_CHANNEL_FIELDS[channel]}
+                  required={false}
+                />
+              </li>
+            ))}
           </ul>
+          <p className="onboarding-consent-note">
+            {MARKETING_CONSENT_NOTICE.summary} {MARKETING_CONSENT_NOTICE.sms} {MARKETING_CONSENT_NOTICE.change}
+          </p>
+
+          {/* 선택 성별(10/14 회의 S5). 기본은 미선택이고, 고른 경우에만 별도 수집·이용 동의를 받는다.
+              저장은 온보딩 완료 직후 같은 액션에서 기존 선택 동의 경로로 한다. */}
+          <fieldset
+            aria-describedby={state.errors?.gender ? 'gender-hint gender-error' : 'gender-hint'}
+            className="onboarding-birth-fieldset onboarding-gender-fieldset"
+          >
+            <legend>성별 <em className="wc-auth__opt">선택</em></legend>
+            <span className="onboarding-birth-hint" id="gender-hint">{DEMOGRAPHIC_NOTICE.purpose}</span>
+            <select aria-invalid={Boolean(state.errors?.gender)} aria-label="통계용 성별" defaultValue="" name="gender">
+              <option value="">선택 안 함</option>
+              {DEMOGRAPHIC_GENDERS.map((gender) => (
+                <option key={gender} value={gender}>{DEMOGRAPHIC_GENDER_LABELS[gender]}</option>
+              ))}
+            </select>
+            <label className="onboarding-gender-consent">
+              <input name="genderConsent" type="checkbox" />
+              <span>위 안내에 따라 성별 정보를 수집·이용하는 데 동의합니다. <em className="wc-auth__opt">선택</em></span>
+            </label>
+            <details className="onboarding-gender-notice">
+              <summary>수집 항목·보관·철회 안내</summary>
+              <p>{DEMOGRAPHIC_NOTICE.collected}</p>
+              <p>{DEMOGRAPHIC_NOTICE.retention}</p>
+              <p>{DEMOGRAPHIC_NOTICE.choice}</p>
+            </details>
+            <ErrorText id="gender-error">{state.errors?.gender}</ErrorText>
+          </fieldset>
 
           {recommendedIps.length > 0 && (
             <div className="wc-auth__picks" data-onboarding-ip-picks={ipPicksSkipped ? 'skipped' : 'open'}>

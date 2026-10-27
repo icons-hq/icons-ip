@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({
   accountDeletion: vi.fn(),
   auth: null as unknown as CurrentAuthState,
   avatarPresentation: vi.fn(),
+  marketingConsent: vi.fn(),
   onboarded: true,
   settings: vi.fn<(props: Record<string, unknown>) => null>(() => null),
 }));
@@ -26,6 +27,9 @@ vi.mock('@/lib/auth/server', () => ({
 }));
 vi.mock('@/lib/profile-avatar.server', () => ({
   getProfileAvatarPresentation: mocks.avatarPresentation,
+}));
+vi.mock('@/lib/marketing-consent.server', () => ({
+  readMyMarketingConsentState: mocks.marketingConsent,
 }));
 vi.mock('next/navigation', () => ({
   redirect: (path: string) => {
@@ -72,6 +76,18 @@ describe('/settings page', () => {
     });
     mocks.onboarded = true;
     mocks.settings.mockClear();
+    mocks.marketingConsent.mockReset();
+    mocks.marketingConsent.mockResolvedValue(null);
+  });
+
+  /* 10/14 회의 S4 — 설정 화면은 수단별 수신 동의 원장 상태를 그대로 넘긴다. */
+  it('passes the channel marketing consent state to the settings screen', async () => {
+    const consent = { marketing: true, email: { agreed: true, agreedAt: '2026-10-27T00:00:00.000Z', withdrawnAt: null, noticeVersion: 'marketing-channels-v1' }, sms: null };
+    mocks.marketingConsent.mockResolvedValue(consent);
+
+    renderToStaticMarkup(await Page());
+
+    expect(mocks.settings.mock.calls[0]?.[0]).toMatchObject({ marketingConsent: consent });
   });
 
   it('retains the exact authentication and onboarding return paths', async () => {
