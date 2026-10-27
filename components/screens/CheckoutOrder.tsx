@@ -5,7 +5,7 @@ import { ShipmentDetails } from '@/components/shop/ShipmentDetails';
 
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import { useActionState, useEffect, useState } from 'react';
+import { startTransition, useActionState, useEffect, useRef, useState } from 'react';
 import {
   prepareGoodsPaymentAction,
   type PrepareGoodsPaymentActionState,
@@ -32,6 +32,7 @@ import type { PreparedCheckout } from '@/lib/payments/gateway';
 import { shippingFeeLabel } from '@/lib/shipping';
 import { GoodsTransactionSummary } from '@/components/checkout/GoodsTransactionSummary';
 import { transactionReceiptNames } from '@/lib/checkout-transaction';
+import { orderReferenceLabel } from '@/lib/orders';
 
 interface CheckoutOrderProps {
   order: CheckoutOrderSnapshot;
@@ -44,7 +45,7 @@ interface CheckoutOrderProps {
 const emptyPrepareState: PrepareGoodsPaymentActionState = {};
 
 const prepareErrorCopy: Record<NonNullable<PrepareGoodsPaymentActionState['error']>, string> = {
-  auth_required: '로그인 상태를 다시 확인한 뒤 결제를 준비해주세요.',
+  auth_required: '로그인 상태를 다시 확인한 뒤 다시 시도해주세요.',
   not_found: '이 주문을 확인할 수 없습니다.',
   not_payable: '이 주문은 더 이상 결제할 수 없습니다.',
   goods_sale_not_open: '굿즈의 판매기간이 시작되지 않았거나 종료되어 결제할 수 없습니다.',
@@ -172,6 +173,20 @@ export function CheckoutOrder({
 
   const isBankTransfer = order.paymentMethod === 'bank_transfer';
 
+  /* 결제 준비는 따로 누르지 않는다(S8). 결제할 수 있는 카드 주문이면 화면이 열리자마자 서버가
+     로그인·주문 소유권·금액·재고 예약을 다시 확인하고 결제 시도를 준비한다. 유효 시간 안의
+     시도는 같은 시도를 다시 쓴다. 실패하면 사유와 다시 시도 버튼을 보인다. */
+  const autoPrepareStarted = useRef(false);
+  const autoPrepareReady = state === 'payable' && !isBankTransfer && now !== null
+    && !prepareState.prepared && !prepareState.error;
+  useEffect(() => {
+    if (!autoPrepareReady || autoPrepareStarted.current) return;
+    autoPrepareStarted.current = true;
+    const formData = new FormData();
+    formData.set('orderId', order.id);
+    startTransition(() => prepareAction(formData));
+  }, [autoPrepareReady, order.id, prepareAction]);
+
   const baseStatusCopy = checkoutStatusCopy({
     state,
     closedCopy,
@@ -201,7 +216,7 @@ export function CheckoutOrder({
               {paymentFailNoticeCopy(paymentFailCode, { sameOrderRetry })}
             </p>
           )}
-          <span className="checkout-order-ref mono">ORDER · {order.id}</span>
+          <span className="checkout-order-ref mono">주문번호 {orderReferenceLabel(order.id, order.orderNumber)}</span>
         </div>
       </header>
 
@@ -268,7 +283,9 @@ export function CheckoutOrder({
               <h2>{statusCopy?.title ?? closedCopy.title}</h2>
               <p>{statusCopy?.body ?? closedCopy.body}</p>
               {giftReturn}
-              {reorderMode && (
+              {reorderMode === 'retry_from_cart' ? (
+                <Link className="btn btn-holo" href="/checkout">다시 결제하기</Link>
+              ) : reorderMode && (
                 <ReorderAction
                   mode={reorderMode}
                   onCanceled={markReorderCanceled}
@@ -278,19 +295,19 @@ export function CheckoutOrder({
               )}
               <Link className="btn btn-ghost" href={`/orders/${order.id}`}>주문 상세 보기</Link>
             </div>
-          ) : state === 'payable' ? (
+          ) : state === 'payable' && prepareState.error && !preparePending ? (
             <div className="checkout-state-panel" role="alert">
-              <h2>결제를 준비해주세요</h2>
-              <p>버튼을 누르면 로그인·주문 소유권·금액·재고 예약을 서버에서 다시 확인합니다. 결제 준비 후 10분 안에 결제를 마쳐주세요.</p>
+              <h2>결제 화면을 열지 못했어요</h2>
+              <p className="checkout-error">{prepareErrorCopy[prepareState.error]}</p>
               <form action={prepareAction}>
                 <input name="orderId" type="hidden" value={order.id} />
-                <button className="btn btn-holo checkout-submit" disabled={preparePending}>
-                  {preparePending ? '결제 준비 중' : '결제 준비하기'}
-                </button>
+                <button className="btn btn-holo checkout-submit">다시 시도</button>
               </form>
-              {prepareState.error && (
-                <p className="checkout-error">{prepareErrorCopy[prepareState.error]}</p>
-              )}
+            </div>
+          ) : state === 'payable' ? (
+            <div className="checkout-state-panel" role="status">
+              <h2>결제 화면을 준비하고 있어요</h2>
+              <p>로그인·주문·금액·재고를 서버에서 다시 확인하고 있어요. 결제 화면이 열리면 10분 안에 결제를 마쳐주세요.</p>
             </div>
           ) : (
             <div className={`checkout-state-panel checkout-state-panel--${state}`} role="status">
@@ -310,7 +327,12 @@ export function CheckoutOrder({
                 </>
               )}
               {state === 'closed' && giftReturn}
-              {state === 'closed' && reorderMode && (
+              {state === 'closed' && reorderMode === 'retry_from_cart' && (
+                <Link className="btn btn-holo" href={order.status === 'canceled' ? '/cart' : '/checkout'}>
+                  {order.status === 'canceled' ? '장바구니 보기' : '다시 결제하기'}
+                </Link>
+              )}
+              {state === 'closed' && reorderMode && reorderMode !== 'retry_from_cart' && (
                 <ReorderAction
                   mode={reorderMode}
                   onCanceled={markReorderCanceled}
@@ -329,11 +351,16 @@ export function CheckoutOrder({
               {state === 'complete' && <Link className="btn btn-holo" href={`/orders/${order.id}`}>주문 상세 보기</Link>}
             </div>
           )}
-          {state === 'payable' && !activeClosure && (
+          {state === 'payable' && !activeClosure && (order.cartRetained ? (
+            /* 장바구니는 결제가 끝날 때까지 남는다(ADR-0026). 주문서에서 다시 결제하면 이 주문은 자동으로 닫힌다. */
+            <p className="checkout-cancel-link">
+              결제를 마치기 전까지 장바구니는 그대로예요. <Link href="/cart">장바구니로 돌아가기</Link>
+            </p>
+          ) : (
             <p className="checkout-cancel-link">
               결제하지 않으려면 <Link href={`/orders/${order.id}`}>주문 상세에서 취소</Link>해주세요.
             </p>
-          )}
+          ))}
         </section>
 
         <aside className="checkout-receipt card" aria-label="주문 영수증">

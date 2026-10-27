@@ -367,3 +367,36 @@ describe('CheckoutOrder 무통장 입금 안내', () => {
     expect(html).not.toContain('123456-01-789012');
   });
 });
+
+describe('CheckoutOrder 한 번에 결제(S8)·장바구니 유지(D3)', () => {
+  it('결제할 수 있는 카드 주문은 결제 준비 버튼 없이 결제 화면을 바로 준비한다', () => {
+    const html = renderToStaticMarkup(<CheckoutOrder order={order} />);
+    expect(html).not.toContain('결제 준비하기');
+    expect(html).not.toContain('결제를 준비해주세요');
+  });
+
+  it('결제 화면 머리말은 전체 UUID 대신 16자리 주문번호를 쓴다(A3a)', () => {
+    const html = renderToStaticMarkup(<CheckoutOrder order={{ ...order, orderNumber: '2026102710000001' }} />);
+    expect(html).toContain('주문번호 2026102710000001');
+    expect(html).not.toContain(`ORDER · ${order.id}`);
+  });
+
+  it('장바구니가 남은 주문의 승인 거절은 다시 담지 않고 주문서에서 다시 결제하게 한다', () => {
+    const html = renderToStaticMarkup(
+      <CheckoutOrder
+        order={{ ...order, cartRetained: true, paymentAttempt: { state: 'declined', expiresAt: '2099-08-07T06:10:00.000Z', provider: 'toss' } }}
+      />,
+    );
+    expect(html).toContain('href="/checkout"');
+    expect(html).toContain('다시 결제하기');
+    expect(html).toContain('장바구니는 그대로 있으니');
+    expect(html).not.toContain('이 주문 취소하고 다시 주문하기');
+  });
+
+  it('장바구니가 남은 주문이 결제 없이 취소됐으면 다시 담지 않고 장바구니로 잇는다', () => {
+    const html = renderToStaticMarkup(<CheckoutOrder order={{ ...order, cartRetained: true, status: 'canceled', expiresAt: null }} />);
+    expect(html).toContain('결제 없이 취소된 주문이에요');
+    expect(html).toContain('href="/cart"');
+    expect(html).not.toContain('같은 굿즈 다시 담기');
+  });
+});
