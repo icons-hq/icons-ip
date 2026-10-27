@@ -9,6 +9,8 @@ import { isOrderCancellationRequestStatus } from './orders';
 import { transactionRecord } from './goods-transaction-values';
 import { parseCheckoutTransactionReceipt } from './checkout-transaction';
 import type { GoodsTransactionDisplay } from './goods-transaction';
+import { addressBookEntryToCheckout, defaultAddressBookEntry, type CheckoutAddressPrefill } from './address-book';
+import { loadMyAddressBook } from './address-book.server';
 
 import {
   checkoutEffectivePaymentStatus,
@@ -128,18 +130,42 @@ function paymentAttemptSnapshot(row: PaymentAttemptRow | null): CheckoutPaymentA
     : null;
 }
 
+/* 결제가 끝난 주문(결제 대기·취소 제외). 주문 사다리 pending → paid → confirmed → shipping → delivered → done. */
+const PAID_ORDER_STATUSES = ['paid', 'confirmed', 'shipping', 'delivered', 'done'] as const;
+
+/**
+ * 결제를 마친 가장 최근 주문의 배송지(10/14 S6a). 결제 대기·취소 주문의 주소는 쓰지 않는다 — 입력하다
+ * 멈춘 주소나 취소한 주소를 "최근 배송지"로 내밀지 않기 위해서다. 선물 주문은 공개 주문 행에 주소가
+ * 없어(수령인 주소는 비공개 스냅샷) 여기 잡히지 않는다.
+ */
 export async function loadLatestCheckoutAddress(userId: string): Promise<CheckoutAddress | null> {
   const supabase = await createClient();
   const { data, error } = await supabase
     .from('orders')
     .select('address')
     .eq('user_id', userId)
+    .in('status', [...PAID_ORDER_STATUSES])
     .not('address', 'is', null)
     .order('created_at', { ascending: false })
     .limit(1)
     .maybeSingle<{ address: unknown }>();
 
   return error ? null : normalizeCheckoutAddress(data?.address);
+}
+
+/**
+ * 주문서 배송지 미리 채우기(LFS 패리티 2차 L7 · 10/14 S6a, LD-1b). 주소록에 기본 배송지가 있으면 그것으로,
+ * 없으면 결제를 마친 직전 주문의 배송지로 채우고, 무엇으로 채웠는지(source)를 함께 돌려 화면이 사실대로
+ * 안내하게 한다. 주문에 저장되는 배송지는 여전히 주문서 폼의 값이다 — 이 함수는 입력 보조만 만든다.
+ */
+export async function loadCheckoutAddressPrefill(userId: string): Promise<CheckoutAddressPrefill> {
+  const [book, latest] = await Promise.all([
+    loadMyAddressBook(userId),
+    loadLatestCheckoutAddress(userId).catch(() => null),
+  ]);
+  const preferred = defaultAddressBookEntry(book);
+  if (preferred) return { address: addressBookEntryToCheckout(preferred), source: 'address_book', book };
+  return { address: latest, source: latest ? 'recent_order' : null, book };
 }
 
 export async function loadLatestPendingCheckoutOrderId(userId: string): Promise<string | null> {
