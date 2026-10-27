@@ -223,6 +223,13 @@ jobs:
           HOME_BANNER_ARCHIVE_TEST_SCOPE=ci SUPABASE_DB_CONTAINER=supabase_db_icons-ip bash supabase/tests/home_banner_style_archive_concurrency.sh
           cat supabase/tests/helpers/goods_kc_fixture.sql supabase/tests/home_free_product_collections.sql | docker exec -i supabase_db_icons-ip psql -X -U supabase_admin -d postgres -v ON_ERROR_STOP=1
           HOME_FREE_PRODUCTS_TEST_SCOPE=ci SUPABASE_DB_CONTAINER=supabase_db_icons-ip bash supabase/tests/home_free_product_collections_concurrency.sh
+          docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/customer_marketing_consents.sql
+          docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/auto_order_confirmation.sql
+          AUTO_ORDER_CONFIRM_TEST_SCOPE=ci SUPABASE_DB_CONTAINER=supabase_db_icons-ip bash supabase/tests/auto_order_confirmation_concurrency.sh
+          docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/staging_test_delivery.sql
+          docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/commerce_number_labels.sql
+          docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/bank_transfer_order_number_code.sql
+          docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/order_item_allocation_inputs.sql
 
       - name: Check story and marketing workflows
         run: |
