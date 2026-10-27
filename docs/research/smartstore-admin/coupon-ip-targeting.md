@@ -29,4 +29,4 @@
 - `supabase/tests/coupon_ip_targeting.sql`: 빈 IP·없는 IP·보관 IP·잘못된 ID·다른 범위 잔여 IP 거절, 검색의 보관 IP 제외, v4 목록 읽기, 대상 IP 변경의 revision·감사, 범위 제약, 나중에 추가한 상품 자동 포함, legacy 평가(IP 소계 20,000원만 대상·10% 2,000원, 25,000원 최소금액은 장바구니 25,000원이어도 거절, 다른 IP만 담으면 `coupon_no_eligible_goods`), 거래 런타임 단일·조합 견적의 2,000원 할인과 IP 품목만의 배분, 권한 봉인.
 - 기존 `coupon_category_targeting.sql`·`operator_capability_coverage.sql` 통과.
 
-알려진 한계: 어드민 `거래확정 내역` 엑셀의 쿠폰 조건 해석(`lib/admin/settled-export.ts`)은 `all`·`selected_goods`만 허용한다. 카테고리 쿠폰과 같이 IP 쿠폰 주문도 그 해석을 확장해야 한다(품목별 쿠폰 배분 작업과 함께).
+거래확정 내역 엑셀의 쿠폰 조건 해석(`lib/admin/settled-export.ts`)이 `all`·`selected_goods`만 허용하던 한계는 같은 배포의 T4 A5(품목별 쿠폰 배분 후 금액)와 함께 배포되어 해소된다. 이 문서의 변경만 단독 배포하지 않는다.
