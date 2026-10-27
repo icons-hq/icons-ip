@@ -67,6 +67,17 @@ describe('AdminSalesDispatchPage shipment contract', () => {
     const shown = children(await AdminSalesDispatchPage({ searchParams: Promise.resolve({}) }) as Element);
     expect(shown.map(child => child.type)).toEqual([mocks.autoPanel, mocks.stagingPanel, mocks.screen]);
   });
+  /* 저장 뒤 revalidatePath로 다시 그릴 때 key가 바뀌면 패널이 새로 마운트돼 저장 결과 문구와 포커스가 사라진다. */
+  it('자동 발주확인 패널은 설정 revision·실행 기록이 바뀌어도 같은 자리에 남는다', async () => {
+    const [before] = children(await AdminSalesDispatchPage({ searchParams: Promise.resolve({}) }) as Element) as (Element & { key: unknown })[];
+    mocks.loadAuto.mockResolvedValue({ ...autoState, revision: 2, lastRun: { runDate: '2026-10-27', cutoffAt: '2026-10-27T07:30:00Z', startedAt: '2026-10-27T07:30:30Z',
+      finishedAt: '2026-10-27T07:30:31Z', confirmedCount: 1, excludedCount: 0 } });
+    const [after] = children(await AdminSalesDispatchPage({ searchParams: Promise.resolve({}) }) as Element) as (Element & { key: unknown })[];
+    expect(before.type).toBe(mocks.autoPanel);
+    expect(before.key).toBeNull();
+    expect(after.key).toBe(before.key);
+    expect((after.props.initial as { revision: number }).revision).toBe(2);
+  });
   it('자동 발주확인 설정을 읽지 못해도 발주 목록은 그대로 연다', async () => {
     mocks.loadAuto.mockResolvedValue(null);
     const [panel, list] = children(await AdminSalesDispatchPage({ searchParams: Promise.resolve({}) }) as Element);

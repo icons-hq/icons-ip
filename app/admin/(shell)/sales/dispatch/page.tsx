@@ -12,7 +12,8 @@ export default async function AdminSalesDispatchPage({searchParams}:{searchParam
   const filters=normalizeShipmentFilters(await searchParams,'dispatch');
   const [data,autoConfirmation,stagingDelivery]=await Promise.all([getShipmentConsoleData(filters,'dispatch'),getAutoOrderConfirmation(),stagingTestDeliveryAvailable()]);
   return <section className="wc-admin-kit wc-admin-kit__screen">
-    <AutoOrderConfirmPanel key={autoConfirmation?`${autoConfirmation.revision}:${autoConfirmation.lastRun?.finishedAt??autoConfirmation.lastRun?.startedAt??''}`:'unavailable'} initial={autoConfirmation}/>
+    {/* key를 두지 않는다 — 저장 뒤 다시 그릴 때 패널이 새로 마운트되면 저장 결과 문구와 포커스가 사라진다. 새 설정은 패널이 맞춘다. */}
+    <AutoOrderConfirmPanel initial={autoConfirmation}/>
     {stagingDelivery?<StagingTestDeliveryPanel/>:null}
     <ShipmentConsoleScreen data={data} actorId={auth.user.id}/>
   </section>;
