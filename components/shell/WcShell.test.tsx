@@ -414,6 +414,27 @@ describe('White Catalog 전역 셸', () => {
     );
   });
 
+  /* CH-10(L8b): 운영 목록이 있으면 코드 상수 대신 그 목록을 순서대로 칩으로 세운다. 입력값은 그대로 질의어가 되고
+   * URL 인코딩만 거친다 — %·_ 같은 LIKE 와일드카드는 검색 RPC 가 이스케이프한다. */
+  it('운영 추천 검색어가 있으면 그 목록만 순서대로 칩으로 세운다', () => {
+    const html = renderToStaticMarkup(<SearchOverlay onClose={vi.fn()} open terms={['가을 키링', '100%_굿즈', 'BT21']} />);
+    const hrefs = [...html.matchAll(/class="wc-search__chip" href="([^"]+)"/g)].map((match) => match[1]);
+
+    expect(hrefs).toEqual([
+      `/search?q=${encodeURIComponent('가을 키링')}`,
+      '/search?q=100%25_%EA%B5%BF%EC%A6%88',
+      '/search?q=BT21',
+    ]);
+    expect(html).not.toContain(`href="/search?q=${encodeURIComponent(SUGGESTED_SEARCH_TERMS[0])}"`);
+  });
+
+  it('운영 목록이 비었거나 없으면 코드 상수로 돌아간다', () => {
+    for (const terms of [null, [] as string[]]) {
+      const html = renderToStaticMarkup(<SearchOverlay onClose={vi.fn()} open terms={terms} />);
+      expect(html.match(/class="wc-search__chip"/g)).toHaveLength(SUGGESTED_SEARCH_TERMS.length);
+    }
+  });
+
   /* MY-13: 데스크톱 위시 진입은 회원에게만 보이는 유틸바 링크다(헤더 아이콘 3개 문법은 그대로).
    * 탭바에도 같은 목적지가 있으므로 유틸바 구간만 잘라 본다. */
   it('유틸바 위시리스트 링크는 로그인 회원에게만 보인다', () => {

@@ -13,6 +13,7 @@ vi.mock('../../../app/admin/ip-publish-actions', () => ({
   publishAdminIpAction: vi.fn(),
   unpublishAdminIpAction: vi.fn(),
 }));
+vi.mock('@/app/admin/ip-banner-actions', () => ({ saveAdminIpHallBannerAction: vi.fn() }));
 
 const ip: AdminIpRecord = {
   id: 'hwasan',
@@ -352,5 +353,27 @@ describe('IpSection', () => {
       expect(html).not.toContain('uploaded.png');
       expect(html).toMatch(/name="title"[^>]*value="화산강림"|value="화산강림"[^>]*name="title"/);
     });
+  });
+
+  /* IP-06(L8b): IP관 PC/MO 배너는 기본정보 폼과 따로 저장하는 별도 폼이다 — 저장된 IP 에만 보인다. */
+  it('저장된 IP 에만 IP관 PC/MO 배너 폼을 두고 현재 배너 경로를 싣는다', () => {
+    const render = (selected: AdminIpRecord | null) => renderToStaticMarkup(
+      <IpSection accountId="operator-a" action={vi.fn()} onSelect={vi.fn()} pending={false} records={selected ? [selected] : []}
+        selected={selected} state={{}} verticals={[{ key: 'webtoon', label: '웹툰', color: '#2DE2FF' }]} />,
+    );
+    expect(render(null)).not.toContain('IP관 배너');
+
+    const html = render({ ...ip, hallBannerImagePath: 'public-media/catalog/ip/97510000-0000-4000-8000-000000000001.webp', hallBannerImageUrl: 'https://cdn.test/pc.webp',
+      hallBannerMobileImagePath: null, hallBannerMobileImageUrl: null });
+    const form = html.slice(html.indexOf('aria-label="IP관 배너"'));
+    expect(form).toContain('PC 배너');
+    expect(form).toContain('모바일 배너');
+    expect(form).toContain('<input type="hidden" name="ipId" value="hwasan"/>');
+    expect(form).toContain('<input readOnly="" type="hidden" name="hallBannerImagePath" value="public-media/catalog/ip/97510000-0000-4000-8000-000000000001.webp"/>');
+    expect(form).toContain('<input readOnly="" type="hidden" name="hallBannerMobileImagePath" value=""/>');
+    expect(form).toContain('비우면 모바일에서도 PC 배너를 씁니다');
+    expect(form).toContain('IP관 배너 저장');
+    /* 기본정보 폼의 키아트 칸(imagePath)과 이름이 겹치지 않는다. */
+    expect(form).not.toContain('name="imagePath"');
   });
 });

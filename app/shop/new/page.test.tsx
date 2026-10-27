@@ -6,6 +6,15 @@ import Page, { metadata } from './page';
 
 const mocks = vi.hoisted(() => ({ goods: [] as Good[] }));
 vi.mock('@/lib/catalog-categories.server', () => ({ loadPublicCatalogCategories: async () => [] }));
+const bannerMocks = vi.hoisted(() => ({ slots: [] as string[], enabled: false }));
+vi.mock('@/lib/collection-banners.server', () => ({
+  getCollectionBanners: async (slot: string) => {
+    bannerMocks.slots.push(slot);
+    return bannerMocks.enabled
+      ? [{ id: 'n1', slot, title: 'NEW 배너', subtitle: null, imageUrl: 'https://cdn.test/n1.webp', mobileImageUrl: null, href: null, imageAlt: '', imageDim: 'none', textColor: 'black', endsAt: null }]
+      : [];
+  },
+}));
 vi.mock('@/lib/wishlist-ids.server', () => ({ loadListingWishlist: async () => ({ viewerId: 'viewer-1', goodIds: ['a'] }) }));
 vi.mock('@/app/shop/actions', () => ({ toggleWishlistAction: vi.fn() }));
 
@@ -107,5 +116,16 @@ describe('/shop/new page', () => {
     expect(html).toContain('굿즈샵 둘러보기');
     expect(html).toContain('href="/shop"');
     expect(html).not.toContain('wc-product-grid');
+  });
+
+  it('NEW 슬롯 배너를 읽어 콘텐츠 폭으로 그린다(CL-09)', async () => {
+    bannerMocks.slots = [];
+    bannerMocks.enabled = true;
+    const html = renderToStaticMarkup(await Page({ searchParams: Promise.resolve({}) }));
+    bannerMocks.enabled = false;
+
+    expect(bannerMocks.slots).toEqual(['new']);
+    expect(html).toContain('wc-collection-banners--contained');
+    expect(html).toContain('NEW 배너');
   });
 });

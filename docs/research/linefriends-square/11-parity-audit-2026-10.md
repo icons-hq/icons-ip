@@ -198,7 +198,7 @@ grid **2열 451px, gap 20(행)/18(열)**. 카드 451×141: 1px `#DCDEE0`, r2, p 
 | CH-07 | 온라인 팝업(IP) 메가메뉴 | 목록 + 이미지 타일 2 + 전체보기 | 없음 | GAP-UI | P2 | L5 ✅ #601 |
 | CH-08 | 검색 오버레이 위치·배경 | B5 | GNB 아래 열림, 전체 70% 딤, 흐림 없음(`wc-chrome.css:544-562`) | DRIFT(R-03 §2.1에 10% 명시) | P1 | L3 ✅ #587 |
 | CH-09 | 검색 오버레이 입력(데스크톱) | 1180×60 `#F6F8FA`, 돋보기 안쪽, 뒤로·제출 버튼 없음 | 뒤로 44 + 입력 1068×60 + 제출 44(`components/shell/SearchOverlay.tsx:34-50`) | GAP-UI | P2 | L3 ✅ #587 |
-| CH-10 | 추천 검색어 | '추천' 17/700 + 운영 칩 10 | '추천 검색어' 15/700 + 코드 상수 8(`lib/search-terms.ts:8-17`) | GAP-DATA | P2 | L8b |
+| CH-10 | 추천 검색어 | '추천' 17/700 + 운영 칩 10 | '추천 검색어' 15/700 + 코드 상수 8(`lib/search-terms.ts:8-17`) | GAP-DATA | P2 | L8b ✅ #611 |
 | CH-11 | 게이트 누수 | — | 푸터 © '무상 카드 리워드'(`components/shell/SiteFooter.tsx:111`), 오버레이 placeholder '포스트'(`SearchOverlay.tsx:43`) — 카드 리워드·커뮤니티 OFF에서도 노출. 이벤트 허브 부제 '카드팩'(`components/screens/CampaignHub.tsx:128`)은 EV-01과 함께 L10 | DRIFT | P1 | L3·L10 ✅ #587(푸터·검색) · #589(이벤트 허브) |
 | CH-12 | PDP에서 GNB 활성 | 없음 | '카테고리' 활성(`/shop` 접두 매칭) | DRIFT | P2 | L3 ✅ #587 |
 | CH-13 | 인증 화면 전역 크롬 | 헤더·푸터, 모바일 서브헤더 + 탭바 | 독립 셸(`lib/routes.ts:146-160`) — 구 숨김 조건 잔존 | DRIFT | P1 | L3 ✅ #587 |
@@ -237,7 +237,7 @@ grid **2열 451px, gap 20(행)/18(열)**. 카드 451×141: 1px `#DCDEE0`, r2, p 
 | CL-06 | 필터 그룹 선 | 모든 그룹 위 1px | 첫 그룹만 선 없음 | DRIFT | P2 | L4 ✅ #598 |
 | CL-07 | VIEW MORE | 896×48, 1px `#DCDEE0`, r5 | 1px 잉크, r2(`app/styles/wc-foundation.css:474-489`) | DRIFT | P2 | L4 ✅ #598 |
 | CL-08 | NEW 컬렉션 제목 | 없음 | 'NEW' + 부제 | DRIFT | P2 | L4 ✅ #598 |
-| CL-09 | 컬렉션 상단 배너 | BEST 1180×260, 전체 상품 1440×580 슬라이드 | 없음(텍스트 제목) | GAP-DATA | P1 | L8b |
+| CL-09 | 컬렉션 상단 배너 | BEST 1180×260, 전체 상품 1440×580 슬라이드 | 없음(텍스트 제목) | GAP-DATA | P1 | L8b ✅ #611 |
 | CL-10 | 정렬 | 9종(추천·관련성·베스트셀러·이름 A–Z·Z–A·가격 2·출시 2) | 4종(추천·최신·가격 2, `lib/shop-catalog.ts:10-20`) | 이름순 2·오래된순은 GAP-UI(집계 불요), 베스트셀러는 GAP-DATA(판매 집계 일부 존재) | P2 | L4·L5(LD-13) ✅ #598·#601 — 컬렉션·카테고리 전시 정렬 7종, 베스트셀러 보류 |
 | CL-11 | PRE-ORDER 필터 값 | Δ6 | 타입 축 = `goods.type` | LFS-Δ | P2 | L4·L5 ✅ #598·#601 |
 | SR-01 | **검색 결과 사이드바·정렬·수** | 카테고리 트리·브랜드·타입·가격, 관련성 정렬, '전체 › N개 결과' / 모바일 '필터 및 정렬' | 없음, 1180 4열(`components/screens/Search.tsx:123-208`) | DRIFT | P1 | L4 ✅ #598 |
@@ -248,7 +248,7 @@ grid **2열 451px, gap 20(행)/18(열)**. 카드 451×141: 1px `#DCDEE0`, r2, p 
 | IP-03 | A–Z 바 | 위쪽 2px `#111`, 폭 848.5, 15px | 상하 1px `#EBEDEE`, 1180 균등(`wc-discovery.css:78-118`) | GAP-UI | P2 | L4 ✅ #598 |
 | IP-04 | 모바일 피처드 | 점 5 | '1 / 5' + 화살표(`components/screens/IpDirectory.tsx:56-67`) | DRIFT | P2 | L4 ✅ #598 |
 | IP-05 | 모바일 IP 관 배너 | 글자 가운데, 해시태그 배너 아래 | 왼쪽, 해시태그 배너 안 | GAP-UI | P2 | L4 ✅ #598 |
-| IP-06 | IP 관 PC/MO 배너 에셋 | 별도 | `ip.bg` 단일 | GAP-DATA | P2 | L8b |
+| IP-06 | IP 관 PC/MO 배너 에셋 | 별도 | `ip.bg` 단일 | GAP-DATA | P2 | L8b ✅ #611 |
 
 ### 8.4 상품 상세
 

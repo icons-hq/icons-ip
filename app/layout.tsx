@@ -101,6 +101,7 @@ import { StorePresentationProvider } from '@/components/shell/StorePresentationP
 import { CardRewardAvailabilityProvider } from '@/components/shell/CardRewardAvailability';
 import { StaffPreviewAvailabilityProvider } from '@/components/shell/StaffPreviewAvailability';
 import { getShellNotices } from '@/lib/notice-strip.server';
+import { getOperatorSearchTerms } from '@/lib/search-terms.server';
 
 const spaceGrotesk = Space_Grotesk({
   subsets: ['latin'],
@@ -124,7 +125,8 @@ export default async function RootLayout({ children }: { children: React.ReactNo
      legal 라우트의 SSG가 dynamic으로 무너지지 않는다(lib/notice-strip.server.ts 주석 참고). 화면 유형·닫힘·스트립 선택은
      셸이 클라이언트에서 정한다(components/shell/ShellNotices.tsx). */
   /* 메가메뉴·카테고리 시트(공개 전시 트리·진행 중 기획전·피처드 IP)도 같은 쿠키 없는 캐시 읽기다(lib/storefront-mega-menu.server.ts). */
-  const [notices,businessInfo,branding,navigation,presentation,megaMenus] = await Promise.all([getShellNotices(),getBusinessInfo(),getStorefrontBranding(),getStorefrontNavigation(),getStorefrontPresentation(),getStorefrontMegaMenus()]);
+  /* 검색 오버레이의 운영 추천 검색어도 같은 쿠키 없는 캐시 읽기다(lib/search-terms.server.ts). */
+  const [notices,businessInfo,branding,navigation,presentation,megaMenus,searchTerms] = await Promise.all([getShellNotices(),getBusinessInfo(),getStorefrontBranding(),getStorefrontNavigation(),getStorefrontPresentation(),getStorefrontMegaMenus(),getOperatorSearchTerms()]);
 
   return (
     <html lang="ko" data-scroll-behavior="smooth" className={`${spaceGrotesk.variable} ${spaceMono.variable}`}>
@@ -135,7 +137,7 @@ export default async function RootLayout({ children }: { children: React.ReactNo
               {/* 스태프 전용 진입점(세컨더리 마켓 시연·커뮤니티 프리뷰)은 presence 위에서 is_staff 를 읽으므로 AuthPresence 안쪽이다. */}
               <StaffPreviewAvailabilityProvider>
                 <StorePresentationProvider value={presentation}>
-                <Nav notices={notices} branding={branding} navigation={navigation} megaMenus={megaMenus} />
+                <Nav notices={notices} branding={branding} navigation={navigation} megaMenus={megaMenus} searchTerms={searchTerms} />
                 {/* tabIndex: 셸 스킵 링크(#root)가 키보드 포커스를 본문으로 실제 이동시키기 위한 타깃. */}
                 <div id="root" tabIndex={-1}>{children}<InquiryWidget /></div>
                 <SiteFooter businessInfo={businessInfo} branding={branding} />

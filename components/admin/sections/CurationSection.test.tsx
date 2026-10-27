@@ -4,7 +4,7 @@ vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AdminCurationActionState } from '@/lib/admin/curations';
 import type { AdminCurationRecord } from '@/lib/admin/curations.server';
-import { CurationSection, getCurationFormKey } from './CurationSection';
+import { CurationSection, getCurationFormKey, SearchTermFields } from './CurationSection';
 
 const mocks = vi.hoisted(() => ({
   action: vi.fn(),
@@ -250,5 +250,101 @@ describe('CurationSection', () => {
     expect(events).not.toContain('혜택 타일은 노출되지 않습니다');
     expect(events).not.toContain('카드 리워드가 비활성 상태여서');
     expect(renderSection(benefit('/games/runner'))).toContain('카드팩·게임으로 가는 이 혜택 타일은 노출되지 않습니다');
+  });
+
+  /* L8b(#574) — 컬렉션 배너(CL-09): 슬롯·한 줄 문구·부제·PC/MO 이미지·딤/글자색·대체텍스트, 링크는 선택. */
+  it('컬렉션 배너는 컬렉션 선택·문구·부제·PC/MO 이미지·스타일·대체텍스트를 편집한다', () => {
+    const banner: AdminCurationRecord = { ...record, kind: 'collection_banner', title: 'BEST 아이템', slot: 'best', linkPath: null,
+      payload: { subtitle: '지금 많이 찾는 굿즈', image_alt: '키링 세 종', image_dim: 'none', text_color: 'black', mobile_image_path: 'public-media/catalog/curation/99999999-9999-4999-8999-999999999999.webp' } };
+    const html = renderSection(banner);
+    expect(html).toContain('컬렉션 배너 관리');
+    expect(html).toContain('배너를 보일 컬렉션');
+    expect(html).toContain('<option value="best" selected="">BEST</option>');
+    expect(html).toContain('<option value="all">굿즈샵 전체(슬라이드)</option>');
+    expect(html).toContain('배너 문구');
+    expect(html).toContain('8 / 40자');
+    expect(html).toContain('name="subtitle"');
+    expect(html).toContain('11 / 80자');
+    expect(html).toContain('name="imageAlt"');
+    expect(html).toContain('value="키링 세 종"');
+    expect(html).toContain('<option value="" selected="">링크 없음</option>');
+    expect(html).toContain('name="mobileImagePath"');
+    expect(html).toContain('name="imageDim"');
+    /* 새 종류라 '기존 표시 유지' 같은 옛 선택지가 없다. */
+    expect(html).not.toContain('기존 표시 유지');
+    expect(html).not.toContain('기존 흰색 유지');
+    expect(html).not.toContain('배너 삭제');
+  });
+
+  /* CH-10 — 추천 검색어: 칸 하나가 칩 하나, 최대 10개, 이미지·링크 없음. */
+  it('추천 검색어는 목록 이름과 검색어 칸을 편집하고 이미지·이동 화면 입력을 두지 않는다', () => {
+    const terms: AdminCurationRecord = { ...record, kind: 'search_terms', title: '11월 추천 검색어', imagePath: null, imageUrl: null, mobileImageUrl: null,
+      linkPath: null, payload: { terms: ['리락쿠마', '키링'] } };
+    const html = renderSection(terms);
+    expect(html).toContain('추천 검색어 관리');
+    expect(html).toContain('목록 이름 (관리용)');
+    expect(html.match(/name="searchTerm"/g)).toHaveLength(2);
+    expect(html).toContain('value="리락쿠마"');
+    expect(html).toContain('aria-label="추천 검색어 2 삭제"');
+    expect(html).toContain('2 / 10');
+    expect(html).toContain('type="hidden" name="linkPath" value=""');
+    expect(html).toContain('type="hidden" name="imagePath" value=""');
+    expect(html).not.toContain('data-artwork-kind="curation"');
+    expect(html).not.toContain('눌렀을 때 이동할 화면');
+    /* 빈 목록도 입력 칸 하나로 시작한다. */
+    expect(renderSection({ ...terms, payload: { terms: [] } }).match(/name="searchTerm"/g)).toHaveLength(1);
+  });
+
+  /* l8b-data-2 — 이미지가 있던 구성을 추천 검색어로 바꿔도 숨은 이미지 칸이 이전 이미지를 보내지 않고, 이미지 오류는 보인다. */
+  it('추천 검색어는 이전 종류의 이미지 경로를 보내지 않고, 이미지 오류가 와도 숨기지 않는다', () => {
+    const carried: AdminCurationRecord = { ...record, kind: 'search_terms', title: '11월', linkPath: null, payload: { terms: ['키링'] } };
+    const html = renderSection(carried);
+    expect(html).toContain('type="hidden" name="imagePath" value=""');
+    expect(html).not.toContain('77777777-7777-4777-8777-777777777777');
+    mocks.state = { errors: { imagePath: '추천 검색어는 이미지를 쓰지 않습니다.' } };
+    expect(renderSection(carried)).toMatch(/role="alert"[^>]*>추천 검색어는 이미지를 쓰지 않습니다\.</);
+  });
+
+  /* l8b-qa-3 — 목록 단위 오류여도 겹친 칸만 오류로 표시한다(10칸 전부가 빨갛고 스크린리더가 전부 오류로 읽던 결함). */
+  it('추천 검색어 저장 거절은 문제 칸만 aria-invalid·오류 설명으로 잇는다', () => {
+    const terms = ['메이플스토리', '리락쿠마', '담곰이', '카카오프렌즈', '진격의 거인', '키링', '인형', '아크릴', 'BT21', 'bt21'];
+    const inputs = (html: string) => html.match(/<input[^>]*name="searchTerm"[^>]*>/g) ?? [];
+    const html = renderToStaticMarkup(<SearchTermFields error="겹치는 추천 검색어가 있습니다: BT21 · bt21." onChange={vi.fn()} terms={terms} />);
+    const invalid = inputs(html).filter((tag) => tag.includes('aria-invalid="true"'));
+    expect(inputs(html)).toHaveLength(10);
+    expect(invalid).toHaveLength(2);
+    expect(invalid.map((tag) => tag.match(/aria-label="([^"]+)"/)?.[1])).toEqual(['추천 검색어 9', '추천 검색어 10']);
+    expect(invalid.every((tag) => /aria-describedby="[^"]+-error"/.test(tag))).toBe(true);
+    expect(inputs(html).filter((tag) => tag.includes('aria-describedby'))).toHaveLength(2);
+    expect(html).toMatch(/role="alert"[^>]*>겹치는 추천 검색어가 있습니다: BT21 · bt21\.</);
+
+    /* 저장 전·문제 없는 칸은 표시하지 않고, 전부 비어 거절되면 첫 칸만 짚는다. */
+    expect(inputs(renderToStaticMarkup(<SearchTermFields onChange={vi.fn()} terms={terms} />)).filter((tag) => tag.includes('aria-invalid="true"'))).toHaveLength(0);
+    const empty = inputs(renderToStaticMarkup(<SearchTermFields error="추천 검색어를 1개 이상 입력해주세요." onChange={vi.fn()} terms={['', '']} />));
+    expect(empty.map((tag) => tag.includes('aria-invalid="true"'))).toEqual([true, false]);
+    const long = inputs(renderToStaticMarkup(<SearchTermFields error="추천 검색어는 20자까지 입력할 수 있습니다." onChange={vi.fn()} terms={['키링', '가'.repeat(21)]} />));
+    expect(long.map((tag) => tag.includes('aria-invalid="true"'))).toEqual([false, true]);
+  });
+
+  /* l8b-data-5 — 목록 이름은 화면에 없지만 공개 읽기로 나간다. 내부 메모를 적지 않게 안내한다. */
+  it('추천 검색어 목록 이름 안내는 공개 데이터임을 알린다', () => {
+    const html = renderSection({ ...record, kind: 'search_terms', title: '11월', imagePath: null, imageUrl: null, mobileImageUrl: null, linkPath: null, payload: { terms: ['키링'] } });
+    expect(html).toContain('공개 데이터로 읽힐 수 있으니 내부 메모나 협력사 정보는 적지 마세요');
+    expect(html).not.toContain('고객에게는 보이지 않는 이름입니다');
+  });
+
+  /* l8b-ui-2 — 카드 리워드가 멈춘 배포에서 카드팩으로 가는 컬렉션 배너는 공개 화면에 없다. 혜택 타일처럼 알린다. */
+  it('카드 리워드가 중지되면 카드팩으로 가는 컬렉션 배너에 노출되지 않음을 알리고, 다른 목적지는 알리지 않는다', () => {
+    const banner: AdminCurationRecord = { ...record, kind: 'collection_banner', title: 'BEST 아이템', slot: 'best', linkPath: '/packs', payload: null };
+    expect(renderSection(banner)).toContain('카드팩·게임으로 가는 이 컬렉션 배너는 노출되지 않습니다');
+    expect(renderSection({ ...banner, linkPath: '/shop/best' })).not.toContain('이 컬렉션 배너는 노출되지 않습니다');
+    expect(renderSection({ ...banner, linkPath: null })).not.toContain('이 컬렉션 배너는 노출되지 않습니다');
+  });
+
+  /* l8b-data-4 — 한 컬렉션에 노출 기간이 겹치는 배너 상한을 편집기에서도 알린다(DB 트리거가 강제). */
+  it('컬렉션 배너 안내는 겹치는 노출 10장 상한과 BEST·NEW 한 장 규칙을 함께 알린다', () => {
+    const html = renderSection({ ...record, kind: 'collection_banner', title: 'BEST 아이템', slot: 'best', linkPath: null, payload: null });
+    expect(html).toContain('노출 기간이 겹치는 배너는 비노출을 빼고 10장까지');
+    expect(html).toContain('BEST·NEW는 노출 순서가 가장 앞선 한 장을 보여줍니다');
   });
 });

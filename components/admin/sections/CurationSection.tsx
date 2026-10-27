@@ -26,12 +26,16 @@ import { HOME_HERO_CONTENT_LIMIT, HOME_HERO_LIMIT, HOME_HERO_TITLE_LIMIT, type H
 import { HOME_FREE_PRODUCT_LIMIT, HOME_PRODUCT_CANDIDATE_LIMIT, HOME_PRODUCT_TITLE_LIMIT, homeProductCountRange,
   type HomeProductImageShape, type HomeProductLayout } from '@/lib/home-product-collection';
 import { SHELL_NOTICE_PAGE_TYPES } from '@/lib/shell-notices';
+import {
+  COLLECTION_BANNER_ALT_LIMIT, COLLECTION_BANNER_SLOT_LABELS, COLLECTION_BANNER_SLOTS, COLLECTION_BANNER_SUBTITLE_LIMIT, COLLECTION_BANNER_TITLE_LIMIT,
+} from '@/lib/collection-banners';
+import { SEARCH_TERM_LIMIT, SEARCH_TERM_LIST_NAME_LIMIT, SEARCH_TERM_MAX_LENGTH, searchTermFieldIssues } from '@/lib/search-terms';
 import { ArtworkUploadField } from '../ArtworkUploadField';
 import { ActionNotice, ErrorText } from '../fields';
 
 const EMPTY_STATE: AdminCurationActionState = {};
-const IMAGE_REQUIRED = new Set<AdminCurationKind>(['hero', 'notice_strip', 'editor_pick', 'band_banner']);
-const IMAGE_FREE = new Set<AdminCurationKind>(['notice_bar', 'best_tab', 'benefit', 'sales_best', 'review_best', 'product_mosaic', 'product_collection']);
+const IMAGE_REQUIRED = new Set<AdminCurationKind>(['hero', 'notice_strip', 'editor_pick', 'band_banner', 'collection_banner']);
+const IMAGE_FREE = new Set<AdminCurationKind>(['notice_bar', 'best_tab', 'benefit', 'sales_best', 'review_best', 'product_mosaic', 'product_collection', 'search_terms']);
 const isShellNoticeKind = (kind: AdminCurationKind) => kind === 'notice_bar' || kind === 'notice_strip';
 const isFreeProductKind = (kind: AdminCurationKind | undefined) => kind === 'product_mosaic' || kind === 'product_collection';
 const KIND_HELP: Record<AdminCurationKind, string> = {
@@ -46,6 +50,8 @@ const KIND_HELP: Record<AdminCurationKind, string> = {
   product_collection: '직접 고른 상품을 리스트나 큰 이미지로 보여줍니다. 모자이크와 합계 5개까지 구성할 수 있습니다.',
   review_best: '공개 리뷰 평점이 높은 상품을 자동 또는 직접 선정합니다. 4개 이상일 때 전시합니다.',
   benefit: '쿠폰·이벤트 같은 혜택을 제목과 설명, 이동할 화면으로 보여줍니다. 카드 리워드가 중지되면 카드팩·게임으로 가는 타일만 숨깁니다.',
+  collection_banner: '굿즈샵 전체(여러 장이면 넘겨 보는 슬라이드)·BEST·NEW 목록 맨 위에 보이는 배너입니다. 문구는 이미지 위에 글자로 얹습니다.',
+  search_terms: '검색창을 열면 보이는 추천 검색어 칩입니다. 최대 10개이며, 칩을 누르면 그 검색어의 검색 결과로 이동합니다.',
   featured_ip: '기존 특집 IP 설정입니다. 현재 홈 본문에는 특집 IP 영역이 없습니다.',
   announcement: '기존 공지 배너 설정입니다. 현재 홈 본문에 배너를 노출하려면 상단 띠배너를 사용하세요.',
 };
@@ -63,6 +69,8 @@ const ARTWORK_HELP: Record<AdminCurationKind, string> = {
   product_collection: '선택한 상품의 대표이미지를 사용합니다.',
   review_best: '리뷰 상품의 대표이미지를 사용합니다.',
   benefit: '혜택 타일은 이미지를 쓰지 않습니다.',
+  collection_banner: '배너 이미지는 필수입니다. 굿즈샵 전체는 PC 2880×1160px(화면 1440×580), BEST·NEW는 PC 2360×520px(화면 1180×260)를 권장합니다. 문구는 이미지에 넣지 말고 아래 배너 문구 칸에 입력하세요.',
+  search_terms: '추천 검색어는 이미지를 쓰지 않습니다.',
 };
 const DEFAULT_PREVIEW: CurationPublicPreview = { curation: emptyCurationPreview(), noticeStrip: null, goods: [], cardRewardsEnabled: false };
 
@@ -216,6 +224,35 @@ function CurationCountedText({ name, label, value, onChange, limit, error, multi
   </AdminField>;
 }
 
+/*
+ * 추천 검색어 목록(CH-10) — 칸 하나가 칩 하나다. 빈 칸은 저장할 때 버리고, 순서가 칩 순서다.
+ * 저장이 거절되면 문제 칸만 오류로 표시한다(겹친 칸·20자 초과 칸 — 저장과 같은 규칙, l8b-qa-3). 칸을 고치면 그 칸의 표시가
+ * 바로 풀린다. 전부 비어 거절됐으면 첫 칸을 짚는다.
+ */
+export function SearchTermFields({ terms, onChange, error }: { terms: string[]; onChange: (terms: string[]) => void; error?: string }) {
+  const id = useId();
+  const rows = terms.length ? terms : [''];
+  const filled = rows.filter((term) => term.trim()).length;
+  const issues = error ? searchTermFieldIssues(rows) : [];
+  const invalidAt = (index: number) => Boolean(error) && (Boolean(issues[index]) || (filled === 0 && index === 0));
+  return <section className="admin-store-editor__form-section" aria-labelledby={`${id}-heading`}>
+    <div className="admin-store-editor__section-title"><h4 id={`${id}-heading`}>추천 검색어 <span>{filled} / {SEARCH_TERM_LIMIT}</span></h4>
+      <button disabled={rows.length >= SEARCH_TERM_LIMIT} onClick={() => onChange([...rows, ''])} type="button">검색어 추가</button></div>
+    <p>검색어마다 {SEARCH_TERM_MAX_LENGTH}자까지, 겹치지 않게 입력합니다(영문 대소문자는 같은 검색어로 봅니다). 입력한 그대로 검색되니 실제 상품·IP 이름처럼 결과가 있는 말을 고르세요. 목록이 없으면 기본 추천 검색어가 보입니다.</p>
+    <ol className="admin-store-editor__selected-products">{rows.map((term, index) => <li key={index}>
+      <span className="admin-store-editor__product-number">{index + 1}</span>
+      <input aria-describedby={invalidAt(index) ? `${id}-error` : undefined} aria-invalid={invalidAt(index)} aria-label={`추천 검색어 ${index + 1}`} className="admin-field-control" maxLength={SEARCH_TERM_MAX_LENGTH * 2} name="searchTerm"
+        onChange={(event) => onChange(rows.map((value, current) => (current === index ? event.target.value : value)))} value={term} />
+      <div>
+        <button aria-label={`추천 검색어 ${index + 1} 위로`} disabled={index === 0} onClick={() => onChange(moveCurationProduct(rows, index, -1))} type="button">↑</button>
+        <button aria-label={`추천 검색어 ${index + 1} 아래로`} disabled={index === rows.length - 1} onClick={() => onChange(moveCurationProduct(rows, index, 1))} type="button">↓</button>
+        <button aria-label={`추천 검색어 ${index + 1} 삭제`} onClick={() => onChange(rows.filter((_, current) => current !== index))} type="button">×</button>
+      </div>
+    </li>)}</ol>
+    <ErrorText id={`${id}-error`}>{error}</ErrorText>
+  </section>;
+}
+
 function CurationForm({
   draftActiveFrom, draftId, eventOptions, goodOptions, initialKind, ipOptions, onDirty, onSaved, operationId, preview, selected, device, heroCount, freeProductCount, dirty, onDeleted,
 }: {
@@ -264,7 +301,7 @@ function CurationForm({
   const showManualProducts = kind === 'band_banner' || (kind === 'best_tab' && values.selectionMode === 'manual')
     || (kind === 'review_best' && values.reviewSelectionMode === 'manual') || kind === 'product_collection';
   const legacyKind = kind === 'featured_ip' || kind === 'announcement';
-  const optionalLink = kind === 'hero' || kind === 'notice_bar';
+  const optionalLink = kind === 'hero' || kind === 'notice_bar' || kind === 'collection_banner';
   const heroLimitReached = kind === 'hero' && selected?.kind !== 'hero' && heroCount >= HOME_HERO_LIMIT;
   const freeProductLimitReached = isFreeProductKind(kind) && !isFreeProductKind(selected?.kind) && freeProductCount >= HOME_FREE_PRODUCT_LIMIT;
   function update<K extends keyof CurationEditorValues>(key: K, value: CurationEditorValues[K]) {
@@ -295,7 +332,8 @@ function CurationForm({
             /* 새 구성은 바꾼 종류의 시작값(새 띠배너는 상품 목록 제외, 새 공지 바는 링크 없음·전 화면)을 손대지 않은 칸에 다시 적용한다. */
             const adjusted = curationValuesForKindChange(values, next, { isNew: !selected, touched, draftActiveFrom });
             setKind(next);
-            setValues(next === 'hero' && selected?.kind !== 'hero' ? { ...adjusted, imageDim: 'none', textColor: 'white' } : adjusted);
+            setValues(next === 'hero' && selected?.kind !== 'hero' ? { ...adjusted, imageDim: 'none', textColor: 'white' }
+              : next === 'collection_banner' && selected?.kind !== 'collection_banner' ? { ...adjusted, imageDim: 'none', textColor: 'black' } : adjusted);
             onDirty();
           }} value={kind}>
             {CURATION_KIND_ORDER.map((option) => <option disabled={(option === 'hero' && selected?.kind !== 'hero' && heroCount >= HOME_HERO_LIMIT)
@@ -310,6 +348,16 @@ function CurationForm({
             <CurationCountedText name="title" label="제목" value={values.title} limit={HOME_HERO_TITLE_LIMIT} error={state.errors?.title} onChange={value => update('title', value)} />
             <CurationCountedText name="subtitle" label="내용" value={values.subtitle} limit={HOME_HERO_CONTENT_LIMIT} multiline error={state.errors?.subtitle} onChange={value => update('subtitle', value)} />
             <p>제목과 내용은 선택항목입니다. 새 제목은 40자, 내용은 150자·최대 3줄까지 입력합니다. 이전에 등록한 긴 문구는 그대로 유지할 수 있습니다.</p>
+          </> : kind === 'collection_banner' ? <>
+            <CurationSelect error={state.errors?.slot} label="배너를 보일 컬렉션" name="slot" onChange={(event) => update('slot', event.target.value)} required value={values.slot}>
+              {COLLECTION_BANNER_SLOTS.map((slot) => <option key={slot} value={slot}>{COLLECTION_BANNER_SLOT_LABELS[slot]}</option>)}
+            </CurationSelect>
+            <CurationCountedText name="title" label="배너 문구" value={values.title} limit={COLLECTION_BANNER_TITLE_LIMIT} required error={state.errors?.title} onChange={value => update('title', value)} />
+            <CurationCountedText name="subtitle" label="부제 (선택)" value={values.subtitle} limit={COLLECTION_BANNER_SUBTITLE_LIMIT} error={state.errors?.subtitle} onChange={value => update('subtitle', value)} />
+            <p>문구는 줄바꿈 없이 한 줄로 입력합니다. 굿즈샵 전체는 여러 장을 노출 순서대로 넘겨 보고(자동으로 넘기지 않음), BEST·NEW는 노출 순서가 가장 앞선 한 장을 보여줍니다. 한 컬렉션에 노출 기간이 겹치는 배너는 비노출을 빼고 10장까지 등록합니다. BEST·NEW 배너는 문구가 길면 모바일에서 배너가 그만큼 길어지니 짧게 쓰는 것을 권장합니다. 카테고리 전시·검색·IP관에는 보이지 않습니다.</p>
+          </> : kind === 'search_terms' ? <>
+            <CurationCountedText name="title" label="목록 이름 (관리용)" value={values.title} limit={SEARCH_TERM_LIST_NAME_LIMIT} required error={state.errors?.title} onChange={value => update('title', value)} />
+            <p>스토어 화면에는 보이지 않는 이름이지만 공개 데이터로 읽힐 수 있으니 내부 메모나 협력사 정보는 적지 마세요. 예: 11월 추천 검색어</p>
           </> : kind === 'product_collection'
             ? <CurationCountedText name="title" label="제목" value={values.title} limit={HOME_PRODUCT_TITLE_LIMIT} required error={state.errors?.title} onChange={value => update('title', value)} />
             : textField('title', '제목', { required: true, maxLength: ['sales_best', 'review_best', 'product_mosaic'].includes(kind) ? 15 : 120, placeholder: '제목을 입력하세요' })}
@@ -318,7 +366,7 @@ function CurationForm({
           {kind === 'benefit' ? textField('description', '혜택 설명', { maxLength: 200 }) : null}
           {kind === 'featured_ip' ? <CurationSelect error={state.errors?.ipId} label="특집할 IP" name="ipId" onChange={(event) => update('ipId', event.target.value)} required value={values.ipId}><option value="">IP 선택</option>{ipOptions.map((ip) => <option disabled={Boolean(ip.archivedAt)} key={ip.id} value={ip.id}>{ip.archivedAt ? '[보관] ' : ''}{ip.title}</option>)}</CurationSelect> : null}
           {kind === 'best_tab' ? <CurationSelect error={state.errors?.slot} label="상품 모음 위치" name="slot" onChange={(event) => update('slot', event.target.value)} required value={values.slot}><option value="category">카테고리 BEST</option><option value="popular">인기템</option></CurationSelect> : null}
-          {kind === 'product_collection' ? <input name="linkPath" type="hidden" value="" /> : kind === 'sales_best' || kind === 'review_best' || kind === 'product_mosaic' ? <input name="linkPath" type="hidden" value="/shop" />
+          {kind === 'product_collection' || kind === 'search_terms' ? <input name="linkPath" type="hidden" value="" /> : kind === 'sales_best' || kind === 'review_best' || kind === 'product_mosaic' ? <input name="linkPath" type="hidden" value="/shop" />
             : <CurationSelect error={state.errors?.linkPath} label={kind === 'notice_bar' ? '버튼을 눌렀을 때 이동할 화면' : '눌렀을 때 이동할 화면'} name="linkPath" onChange={(event) => update('linkPath', event.target.value)} required={!optionalLink} value={values.linkPath}>{optionalLink ? <option value="">링크 없음</option> : null}{targetGroups.map((group) => <optgroup key={group.label} label={group.label}>{group.options.map((option) => <option key={option.path} value={option.path}>{option.label}</option>)}</optgroup>)}</CurationSelect>}
           {kind === 'notice_bar' && values.linkPath ? <>
             <CurationCountedText name="ctaLabel" label="버튼 문구" value={values.ctaLabel} limit={NOTICE_BAR_CTA_LIMIT} required error={state.errors?.ctaLabel} onChange={value => update('ctaLabel', value)} />
@@ -329,8 +377,13 @@ function CurationForm({
           <h4>이미지 관리</h4>
           <ArtworkUploadField allowRemove={!IMAGE_REQUIRED.has(kind)} currentPath={values.imagePath || null} currentUrl={values.imageUrl} helpText={ARTWORK_HELP[kind]} kind="curation" label="PC 이미지" onPathChange={(path) => update('imagePath', path)} onPreviewChange={(url) => update('imageUrl', url)} showCropGuide={false} showPath={false} />
           <ErrorText>{state.errors?.imagePath}</ErrorText>
-          {kind === 'hero' || kind === 'notice_strip' ? <><ArtworkUploadField allowRemove currentPath={values.mobileImagePath || null} currentUrl={values.mobileImageUrl} fieldId="curation-mobile" helpText="등록하지 않으면 PC 이미지를 사용합니다." kind="curation" label="모바일 이미지" name="mobileImagePath" onPathChange={(path) => update('mobileImagePath', path)} onPreviewChange={(url) => update('mobileImageUrl', url)} showCropGuide={false} showPath={false} /><ErrorText>{state.errors?.mobileImagePath}</ErrorText></> : null}
-        </section> : <input name="imagePath" type="hidden" value={isFreeProductKind(kind) || kind === 'notice_bar' ? '' : values.imagePath} />}
+          {kind === 'hero' || kind === 'notice_strip' || kind === 'collection_banner' ? <><ArtworkUploadField allowRemove currentPath={values.mobileImagePath || null} currentUrl={values.mobileImageUrl} fieldId="curation-mobile" helpText="등록하지 않으면 PC 이미지를 사용합니다." kind="curation" label="모바일 이미지" name="mobileImagePath" onPathChange={(path) => update('mobileImagePath', path)} onPreviewChange={(url) => update('mobileImageUrl', url)} showCropGuide={false} showPath={false} /><ErrorText>{state.errors?.mobileImagePath}</ErrorText></> : null}
+        </section> : <>
+          {/* 이미지를 쓰지 않는 종류로 바꾸면 이전 종류의 이미지를 보내지 않는다(공지 바·자유상품·추천 검색어는 이미지가 있으면 거절된다).
+              그래도 이미지 오류가 오면 숨은 칸 대신 여기 보인다 — 아무 표시 없이 적용이 막히지 않게(l8b-data-2). */}
+          <input name="imagePath" type="hidden" value={isFreeProductKind(kind) || kind === 'notice_bar' || kind === 'search_terms' ? '' : values.imagePath} />
+          <ErrorText>{state.errors?.imagePath}</ErrorText>
+        </>}
         {kind === 'product_collection' ? <section className="admin-store-editor__form-section">
           <h4>디자인과 사진</h4>
           <CurationSelect name="productLayout" label="디자인 유형" error={state.errors?.productLayout} value={values.productLayout} onChange={event => update('productLayout', event.target.value as HomeProductLayout)}>
@@ -347,17 +400,19 @@ function CurationForm({
           <p>선택한 목록에서 공개 가능한 상품부터 설정한 개수까지 표시합니다. 상품이 없으면 제목을 포함해 영역 전체를 숨깁니다. 품절 상품은 품절 표시와 함께 전시하며, 매출이 없어도 직접 선택한 상품은 표시합니다.</p>
           <p>상품을 누르면 해당 상품 상세로 이동합니다. 디자인이나 전시 개수를 바꿔도 아래 후보 목록은 유지됩니다.</p>
         </section> : null}
-        {kind === 'hero' ? <section className="admin-store-editor__form-section">
+        {kind === 'hero' || kind === 'collection_banner' ? <section className="admin-store-editor__form-section">
           <h4>딤과 텍스트 색상</h4>
           <CurationSelect name="imageDim" label="이미지 딤처리" error={state.errors?.imageDim} value={values.imageDim} onChange={event => update('imageDim', event.target.value as HomeHeroImageDim | '')}>
-            {selected && !selected.payload?.image_dim ? <option value="">기존 표시 유지</option> : null}
+            {kind === 'hero' && selected && !selected.payload?.image_dim ? <option value="">기존 표시 유지</option> : null}
             <option value="none">적용안함</option><option value="white">흰색</option><option value="black">검정색</option>
           </CurationSelect>
           <CurationSelect name="textColor" label="텍스트 색상" error={state.errors?.textColor} value={values.textColor} onChange={event => update('textColor', event.target.value as HomeHeroTextColor | '')}>
-            {selected && !selected.payload?.text_color ? <option value="">기존 흰색 유지</option> : null}
+            {kind === 'hero' && selected && !selected.payload?.text_color ? <option value="">기존 흰색 유지</option> : null}
             <option value="white">흰색</option><option value="black">검정색</option>
           </CurationSelect>
-          <p>흰색·검정색 딤은 이미지 전체에 35%로 적용됩니다. 적용안함을 선택하면 기존 그라데이션도 사라집니다.</p>
+          <p>{kind === 'hero'
+            ? '흰색·검정색 딤은 이미지 전체에 35%로 적용됩니다. 적용안함을 선택하면 기존 그라데이션도 사라집니다.'
+            : '흰색·검정색 딤은 이미지 전체에 35%로 적용됩니다. 밝은 이미지에 흰색 문구를 쓰면 검정색 딤을 함께 고르세요.'}</p>
           {values.imageDim === '' ? <p>기존 표시 유지에서는 문구가 있을 때 하단 그라데이션을 그대로 보여줍니다.</p> : null}
         </section> : null}
         {kind === 'hero' ? <section className="admin-store-editor__form-section">
@@ -371,6 +426,12 @@ function CurationForm({
             <CurationCountedText name="altContent" label="대체텍스트 내용" value={values.altContent} limit={HOME_HERO_CONTENT_LIMIT} multiline error={state.errors?.altContent} onChange={value => update('altContent', value)} />
           </> : null}
         </section> : null}
+        {kind === 'collection_banner' ? <section className="admin-store-editor__form-section">
+          <h4>이미지 대체텍스트</h4>
+          <p>배너 문구는 화면에 글자로 읽히므로 따로 적지 않습니다. 이미지 자체에 담긴 상품이나 장면을 스크린리더에 전달하려면 입력하고, 꾸밈용 이미지면 비워 두세요.</p>
+          <CurationCountedText name="imageAlt" label="이미지 대체텍스트 (선택)" value={values.imageAlt} limit={COLLECTION_BANNER_ALT_LIMIT} error={state.errors?.imageAlt} onChange={value => update('imageAlt', value)} />
+        </section> : null}
+        {kind === 'search_terms' ? <SearchTermFields error={state.errors?.searchTerms} onChange={(terms) => update('searchTerms', terms)} terms={values.searchTerms} /> : null}
         {kind === 'product_mosaic' ? <CurationMosaicFields title={values.mosaicTitle} subtitle={values.mosaicSubtitle} slots={values.mosaicSlots} imageUrls={values.mosaicImageUrls}
           options={goodOptions} goods={preview.goods} error={state.errors?.mosaic}
           onTitle={value => update('mosaicTitle', value)} onSubtitle={value => update('mosaicSubtitle', value)}
@@ -452,11 +513,12 @@ function CurationForm({
     <aside className="admin-store-editor__preview" aria-label="스토어 미리보기">
       <header><h3>미리보기</h3><select aria-label="미리보기 범위" onChange={(event) => setPreviewScope(event.target.value as 'draft' | 'public')} value={previewScope}><option value="draft">편집 중인 구성</option><option value="public">현재 공개 홈</option></select><span>{device === 'mobile' ? '390px' : '1212px'}</span></header>
       {previewScope === 'draft' ? <div className="admin-store-editor__preview-note"><span>편집 중인 내용입니다. 적용하면 노출 설정에 따라 반영됩니다.</span>{!values.enabled ? <strong>현재 비노출로 설정되어 있습니다.</strong> : null}{draft.missingGoodIds.length && showManualProducts ? <strong>비노출 또는 없는 상품 {draft.missingGoodIds.length}개는 미리보기에 표시되지 않습니다.</strong> : null}{kind === 'benefit' && !preview.cardRewardsEnabled && isCardRewardDestination(values.linkPath) ? <strong>카드 리워드가 중지되어 카드팩·게임으로 가는 이 혜택 타일은 노출되지 않습니다. 다른 화면으로 가는 혜택 타일은 그대로 보입니다.</strong> : null}
+        {kind === 'collection_banner' && !preview.cardRewardsEnabled && values.linkPath && isCardRewardDestination(values.linkPath) ? <strong>카드 리워드가 중지되어 카드팩·게임으로 가는 이 컬렉션 배너는 노출되지 않습니다. 배너가 없으면 컬렉션은 지금처럼 시작합니다.</strong> : null}
         {isShellNoticeKind(kind) && !values.pageTypes.includes('home') ? <strong>홈이 노출 화면에 없어 공개 홈에서는 보이지 않습니다. 미리보기는 모양만 보여줍니다.</strong> : null}
         {kind === 'sales_best' && !preview.productRankings?.salesAvailable ? <strong>판매량을 불러오지 못했습니다. 새로고침 후 다시 확인해주세요.</strong> : null}
         {kind === 'review_best' ? !preview.productRankings?.reviewsAvailable ? <strong>리뷰 평점을 불러오지 못했습니다. 새로고침 후 다시 확인해주세요.</strong> : draft.reviewEligibleCount < 4 ? <strong>노출 가능한 리뷰 상품 {draft.reviewEligibleCount}개 · 4개 이상이어야 영역이 표시됩니다.</strong> : <span>노출 가능한 리뷰 상품 {draft.reviewEligibleCount}개</span> : null}
       </div> : null}
-      {previewScope === 'draft' && legacyKind ? <p className="admin-store-editor__empty">{KIND_HELP[kind]}</p> : <CurationPreview cardRewardsEnabled={preview.cardRewardsEnabled} curation={previewScope === 'public' ? preview.curation : draft.curation} device={device} noticeBar={previewScope === 'public' ? preview.noticeBar ?? null : draft.noticeBar} noticeStrip={previewScope === 'public' ? preview.noticeStrip : draft.noticeStrip} />}
+      {previewScope === 'draft' && legacyKind ? <p className="admin-store-editor__empty">{KIND_HELP[kind]}</p> : <CurationPreview cardRewardsEnabled={preview.cardRewardsEnabled} collectionBanner={previewScope === 'draft' ? draft.collectionBanner : null} curation={previewScope === 'public' ? preview.curation : draft.curation} device={device} noticeBar={previewScope === 'public' ? preview.noticeBar ?? null : draft.noticeBar} noticeStrip={previewScope === 'public' ? preview.noticeStrip : draft.noticeStrip} searchTerms={previewScope === 'draft' ? draft.searchTerms : null} />}
     </aside>
     {picker ? <CurationProductPicker goods={preview.goods} limit={productLimit} onApply={(ids) => { update('goodIds', ids); setPicker(false); }} onClose={() => setPicker(false)} options={kind === 'review_best' ? goodOptions.filter((good) => eligibleReviewIds.has(good.id)) : goodOptions} reviewStatistics={kind === 'review_best' ? reviewStatistics : undefined} selectedIds={values.goodIds} /> : null}
   </>;
