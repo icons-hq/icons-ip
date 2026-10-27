@@ -335,7 +335,7 @@ export function Checkout({
             </div>
           </div>
 
-          <CheckoutAddressBook address={address} book={addressPrefill.book} disabled={submitting} onPick={pickAddressBookEntry} />
+          <CheckoutAddressBook address={address} book={addressPrefill.book} disabled={submitting} onAddressErrors={setFieldErrors} onPick={pickAddressBookEntry} />
 
           <div className="checkout-fields">
             <label>

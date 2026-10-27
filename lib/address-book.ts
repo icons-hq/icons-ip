@@ -237,8 +237,19 @@ export function addressBookEntryMatches(entry: AddressBookEntry, address: Checko
   return sameCheckoutDestination(addressBookEntryToCheckout(entry), address);
 }
 
-export function matchingAddressBookEntry(entries: readonly AddressBookEntry[] | null, address: CheckoutAddress): AddressBookEntry | null {
-  return entries?.find((entry) => addressBookEntryMatches(entry, address)) ?? null;
+/**
+ * 폼 배송지와 같은 주소록 항목. 같은 배송지를 두 이름으로 저장했을 수 있으니, 회원이 마지막으로 고른 항목(preferredId)이
+ * 여전히 같으면 그 항목을 우선하고, 아니면 목록 순서(기본 배송지 먼저)의 첫 항목이다.
+ */
+export function matchingAddressBookEntry(
+  entries: readonly AddressBookEntry[] | null,
+  address: CheckoutAddress,
+  preferredId: string | null = null,
+): AddressBookEntry | null {
+  if (!entries) return null;
+  const preferred = preferredId ? entries.find((entry) => entry.id === preferredId) : undefined;
+  if (preferred && addressBookEntryMatches(preferred, address)) return preferred;
+  return entries.find((entry) => addressBookEntryMatches(entry, address)) ?? null;
 }
 
 /**

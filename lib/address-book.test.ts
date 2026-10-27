@@ -109,6 +109,16 @@ describe('주문서와 주소록', () => {
     expect(sameCheckoutDestination(typed, { ...typed, phone: '01012345679' })).toBe(false);
   });
 
+  it('같은 배송지가 두 이름으로 있으면 마지막으로 고른 항목을 우선하고, 그 항목이 달라지면 첫 일치로 돌아간다', () => {
+    const typed = addressBookEntryToCheckout(home);
+    const twin = { ...home, id: '7a570000-0000-4000-8000-0000000000aa', label: '본가', isDefault: false };
+    expect(matchingAddressBookEntry([home, twin], typed)).toBe(home);
+    expect(matchingAddressBookEntry([home, twin], typed, twin.id)).toBe(twin);
+    expect(matchingAddressBookEntry([home, twin], addressBookEntryToCheckout(office), twin.id)).toBeNull();
+    expect(matchingAddressBookEntry([home, office], addressBookEntryToCheckout(office), home.id)).toBe(office);
+    expect(matchingAddressBookEntry([home, twin], typed, 'missing')).toBe(home);
+  });
+
   it('주문서 폼 값을 주소록 입력으로 옮길 때 배송 메모를 담지 않는다', () => {
     const value = addressBookDraftFromCheckout({ ...addressBookEntryToCheckout(home), deliveryNote: '문 앞' }, '집', true);
     expect(value).toEqual({ label: '집', recipientName: '홍길동', phone: '01012345678', postalCode: '04524', address1: '서울 중구 세종대로 110', address2: '101동 1203호', makeDefault: true });
