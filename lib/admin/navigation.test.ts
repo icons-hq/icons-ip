@@ -4,12 +4,27 @@ import {
   ADMIN_SCREENS,
   adminGroupForPath,
   adminScreenForPath,
+  adminConsoleForPath,
+  adminConsoleHomeHref,
   legacyAdminSectionHref,
   visibleAdminNavGroups,
 } from './navigation';
 import { ERP_ITEMS_PATH } from './erp-items';
 
 describe('어드민 IA 정의', () => {
+  it('IP·콘텐츠 운영과 현장 운영은 별도 콘솔이고 도움말은 두 콘솔이 공유한다 (D9)', () => {
+    expect(adminConsoleForPath('/admin/catalog/cards')).toBe('content');
+    expect(adminConsoleForPath('/admin/catalog/ips/maple')).toBe('content');
+    expect(adminConsoleForPath('/admin/community/moderation')).toBe('content');
+    expect(adminConsoleForPath('/admin/catalog/goods?create=1')).toBe('commerce');
+    expect(adminConsoleForPath('/admin/guide/getting-started')).toBe('commerce');
+    expect(visibleAdminNavGroups('admin', undefined, 'content').map(group => group.id)).toEqual(['content', 'field', 'help']);
+    expect(visibleAdminNavGroups('admin', undefined, 'commerce').map(group => group.id)).not.toContain('content');
+    expect(adminConsoleHomeHref('commerce', 'staff')).toBe('/admin');
+    expect(adminConsoleHomeHref('content', 'staff')).toBe('/admin/catalog/ips');
+    expect(adminConsoleHomeHref('content', 'staff', { mode: 'configured', managerRole: 'deputy', capabilities: ['home', 'cs.manage'], revision: 1, setupRequired: false })).toBeNull();
+  });
+
   it('화면 id와 경로가 서로 겹치지 않는다', () => {
     const ids = ADMIN_SCREENS.map((screen) => screen.id);
     const hrefs = ADMIN_SCREENS.map((screen) => screen.href);

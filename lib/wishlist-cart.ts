@@ -38,7 +38,7 @@ export function wishCartState(good: Good, cart: { quantityInCart: number; ready:
   const label = saleLabel ?? (soldOut ? '품절'
     : conditionProblem ? '판매 준비 중'
       : !cart.ready ? '준비 중'
-        : atLimit ? `담김 · ${cart.quantityInCart}`
+        : atLimit ? `장바구니 · ${cart.quantityInCart}`
           : cart.working ? '담는 중'
             : '장바구니 담기');
   const ariaLabel = saleLabel ? `${good.name} ${saleLabel}`

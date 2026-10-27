@@ -208,7 +208,8 @@ describe('/my/wishlist page', () => {
 
     expect(html).toContain('aria-label="홍실 아크릴 블록, 장바구니 20개, 재고 한도 20개"');
     expect(html).toContain('aria-disabled="true"');
-    expect(html).toContain('담김 · 20');
+    expect(html).toContain('>장바구니 · 20</button>');
+    expect(html).not.toContain('담김');
   });
 
   /* 카탈로그에서 빠진 굿즈의 행을 조용히 지우면 사용자는 자기가 해제한 줄 안다. */

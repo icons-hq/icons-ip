@@ -80,7 +80,7 @@ function render(overrides: Partial<React.ComponentProps<typeof Settings>> = {}) 
       avatarInitial="아"
       avatarUrl="https://signed.example/avatar.png"
       email="fan@icons.gg"
-      initialMarketing={false}
+      marketingConsent={null}
       isConfigured
       nickname="아이콘즈 팬"
       {...overrides}
@@ -347,3 +347,51 @@ describe('Settings', () => {
     expect(marketingStatus).not.toContain('프로필 저장 성공');
   });
 });
+
+/* 10/14 회의 S4 — 설정에서도 이메일·SMS 수신 동의를 각각 바꾼다. 동의 중이면 동의일을 보여 준다. */
+describe('Settings marketing channels', () => {
+  it('renders one optional row per channel with the current choice and consent date', () => {
+    const html = render({ marketingConsent: {
+      marketing: true,
+      email: { agreed: true, agreedAt: '2026-10-27T03:00:00.000Z', withdrawnAt: null, noticeVersion: 'marketing-channels-v1', source: 'onboarding' },
+      sms: { agreed: false, agreedAt: null, withdrawnAt: '2026-10-27T04:00:00.000Z', noticeVersion: 'marketing-channels-v1', source: 'settings' },
+    } });
+
+    const inputs = [...html.matchAll(/<input class="settings-marketing-input"[^>]*>/g)].map(([tag]) => tag);
+    expect(inputs).toHaveLength(2);
+    expect(inputs[0]).toContain('name="marketingEmail"'); expect(inputs[0]).toContain('checked=""');
+    expect(inputs[1]).toContain('name="marketingSms"'); expect(inputs[1]).not.toContain('checked');
+    expect(html).toContain('마케팅 정보 수신 동의 (이메일)');
+    expect(html).toContain('마케팅 정보 수신 동의 (SMS)');
+    expect(html).toContain('2026. 10. 27. 동의');
+    expect(html).not.toContain('name="marketing"');
+  });
+});
+
+describe('Settings marketing consent edge states', () => {
+  /* 이관 동의는 실제 동의 시각이 기록된 적이 없다 — 날짜 대신 기존 동의로 말한다. */
+  it('labels a migrated consent without a fabricated date', () => {
+    const html = render({ marketingConsent: { marketing: true, sms: null,
+      email: { agreed: true, agreedAt: '2026-07-01T00:00:00.000Z', withdrawnAt: null, noticeVersion: 'marketing-legacy-v0', source: 'legacy' } } });
+    expect(html).toContain('기존 동의(기록 전)');
+    expect(html).not.toContain('2026. 7. 1. 동의');
+  });
+
+  /* 알림함 마케팅 소식의 '마케팅 수신 동의 관리' 링크로 온 고객이 두 수단을 끄면 알림함도 끊긴다는 것을 본다. */
+  it('anchors the consent form and says the in-app feed follows either channel', () => {
+    const html = render();
+    expect(html).toContain('id="marketing-consent"');
+    expect(html).toContain('두 수단을 모두 끄면 알림함 마케팅 소식도 받지 않아요');
+  });
+
+  /* 상태를 못 읽었는데 미동의로 그려 저장하면 실제 동의를 철회한다 — 폼을 잠그고 이유를 말한다. */
+  it('locks the marketing form when the consent state could not be read', () => {
+    const html = render({ marketingConsentUnavailable: true });
+    const inputs = [...html.matchAll(/<input class="settings-marketing-input"[^>]*>/g)].map(([tag]) => tag);
+    expect(inputs).toHaveLength(2);
+    for (const input of inputs) expect(input).toContain('disabled=""');
+    expect(html).toMatch(/settings-marketing-submit"[^>]*disabled=""|disabled=""[^>]*settings-marketing-submit"/);
+    expect(html).toContain('마케팅 정보 수신 동의를 불러오지 못했어요');
+  });
+});
+

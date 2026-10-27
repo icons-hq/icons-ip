@@ -11,7 +11,7 @@ import {
 } from '@/app/cart/coupon-actions';
 import { CartEmptyState } from '@/components/cart/CartEmptyState';
 import { CartSubheader } from '@/components/cart/CartSubheader';
-import { useCart } from '@/components/shell/CartProvider';
+import { useCart, useReleaseUnpaidCartOrders } from '@/components/shell/CartProvider';
 import { Icon } from '@/components/ui/Icon';
 import { PriceBlock } from '@/components/wc/PriceBlock';
 import { QuantityStepper } from '@/components/wc/QuantityStepper';
@@ -37,6 +37,7 @@ import { goodsSalesQuoteProblem } from '@/lib/goods-sales';
 import { shippingFeeLabel } from '@/lib/shipping';
 import { useGoodsSalesPrecheckoutQuote, useShippingQuote } from '@/components/shop/useShippingQuote';
 import { ShippingGroupSummary } from '@/components/shop/ShippingGroupSummary';
+import { shippingGroupLabel } from '@/lib/fulfillment';
 import { goodsShipDateLabel, preorderSupplyLabel, type GoodsVariantSupply } from '@/lib/goods-preorders';
 import { GoodsSalePeriodRefresh } from '@/components/shop/GoodsSalePeriodRefresh';
 import { goodsSaleUnavailableLabel } from '@/lib/goods-sale-period';
@@ -287,8 +288,10 @@ export function Cart({
 }) {
   const { count, error, items, mode, pending, ready, legacyItems = [], removeLegacyItem, refresh } = useCart();
   const transactionActive = transactionMode === 'transaction';
-  const shipping = useShippingQuote(items, ready && transactionMode === 'legacy', couponState.selectedUserCouponId ?? '');
-  const precheckout = useGoodsSalesPrecheckoutQuote(items, ready && transactionActive);
+  /* 결제를 마치지 않은 이전 주문이 쿠폰·구매 한도를 잡고 있으면 견적 전에 닫는다(ADR-0026). */
+  const released = useReleaseUnpaidCartOrders();
+  const shipping = useShippingQuote(items, ready && released && transactionMode === 'legacy', couponState.selectedUserCouponId ?? '');
+  const precheckout = useGoodsSalesPrecheckoutQuote(items, ready && released && transactionActive);
   const productQuote = transactionActive ? precheckout : shipping;
   const sales = productQuote.sales;
 
@@ -359,9 +362,9 @@ export function Cart({
         ) : (
           <div className="wc-cart__layout">
             <div aria-busy={pending} className="wc-cart__list-col">
-              {shipping.quote?.groups.map(group => (
-                <section className="wc-shipping-group" key={group.originId} aria-label={`${group.originName} 출고 굿즈`}>
-                  <h2>{group.originName} 출고</h2>
+              {shipping.quote?.groups.map((group, index, groups) => (
+                <section className="wc-shipping-group" key={group.originId} aria-label={`${shippingGroupLabel(index, groups.length)} 굿즈`}>
+                  <h2>{shippingGroupLabel(index, groups.length)}</h2>
                   <ul className="wc-cart__list">
                     {lines.filter(line => line.good?.originId === group.originId).map(line => <CartLineRow key={cartItemKey(line.goodId, line.variantId,line.customInputs)} line={line} />)}
                   </ul>
@@ -400,7 +403,7 @@ export function Cart({
                   </tr>
                 </tfoot>
               </table>
-              <p className="wc-cart__summary-note">{transactionActive ? '복수구매 할인과 수량별 배송비는 주문서에서 계산합니다. 착불 배송비는 수령 시 별도로 납부합니다.' : '출고지별 배송비를 합산합니다. 주문을 만들 때 서버가 최종 금액을 확인합니다.'}</p>
+              <p className="wc-cart__summary-note">{transactionActive ? '복수구매 할인과 수량별 배송비는 주문서에서 계산합니다. 착불 배송비는 수령 시 별도로 납부합니다.' : '배송 묶음별 배송비를 합산합니다. 주문을 만들 때 서버가 최종 금액을 확인합니다.'}</p>
               {transactionMode === 'unavailable' && <p role="alert">주문 조건을 확인하지 못했습니다. 새로고침 후 다시 확인해주세요.</p>}
               {productQuote.loading ? <p role="status">{transactionActive ? '현재 가격과 구매 조건을 확인하고 있어요.' : '현재 가격과 배송비를 확인하고 있어요.'}</p> : null}
               {productQuote.error ? <div role="alert"><p>{productQuote.error}</p><button type="button" onClick={productQuote.refresh}>{transactionActive ? '가격·구매 조건 다시 확인' : '가격·배송비 다시 확인'}</button></div> : null}

@@ -5,6 +5,8 @@ import { searchShoppingStoryGoodsAction } from '@/app/admin/shopping-story-actio
 import { DEFAULT_STORY_GOOD_FILTERS, STORY_GOOD_SORTS, storyGoodSelectionCapacity, validStoryGoodFilters, type StoryGoodCandidates, type StoryGoodFilters } from '@/lib/admin/shopping-story-picker';
 import type { ShoppingStoryGoodOption } from '@/lib/admin/shopping-stories';
 import { CustomerServiceDialog } from './screens/CustomerServiceDialog';
+import { findGoodById, GOOD_URL_ERRORS } from '@/lib/admin/good-url';
+import { GoodUrlAddField } from './GoodUrlAddField';
 
 type Search = { query: string; filters: StoryGoodFilters };
 export function ShoppingStoryGoodsPicker({ existingIds, sectionCount, onAdd, onClose }: {
@@ -59,6 +61,18 @@ export function ShoppingStoryGoodsPicker({ existingIds, sectionCount, onAdd, onC
         <div className="admin-story-picker__submit"><button type="button" onClick={() => { setQuery(''); setFilters(DEFAULT_STORY_GOOD_FILTERS); void search(1, { query: '', filters: DEFAULT_STORY_GOOD_FILTERS }); }}>초기화</button><button className="btn btn-primary" type="submit">검색</button></div>
       </fieldset>
     </form>
+    <GoodUrlAddField disabled={pending} onAdd={async id => {
+      if (existing.has(id) || picked.some(item => item.id === id)) return { ok: false, message: GOOD_URL_ERRORS.exists };
+      if (picked.length >= capacity) return { ok: false, message: `더 추가할 수 없습니다. 추가 가능 ${capacity}개를 확인해주세요.` };
+      const good = await findGoodById(id, async page => {
+        const result = await searchShoppingStoryGoodsAction(id, page, { ...DEFAULT_STORY_GOOD_FILTERS, field: 'id' });
+        if (!result.ok) throw new Error(result.error);
+        return result.data;
+      });
+      if (!good) return { ok: false, message: GOOD_URL_ERRORS.notFound };
+      setPicked(current => current.some(item => item.id === good.id) ? current : [...current, good]);
+      return { ok: true, message: `'${good.name}' 상품을 선택했습니다. 선택한 상품 추가를 눌러 반영해주세요.` };
+    }} />
     <details className="admin-story-picker__help"><summary>검색·정렬 기준</summary><p>카테고리는 하위·추가 카테고리를 포함합니다. 가격은 현재 최저 옵션 판매가이며 할인은 현재 할인 옵션 또는 판매가보다 높은 비교가격이 있는 상품입니다. 무료배송은 최저 판매가 옵션 1개의 기본배송비 0원 기준입니다. 지역 추가배송비와 주문 전체 배송비는 주문 시 다시 계산합니다.</p><p>인기순은 찜 수, 판매순은 최근 30일 결제 승인 근거가 확인된 판매 수량이며 취소·반품 완료 주문을 제외합니다. 두 정렬은 서로의 지표를 동률 보조 기준으로 씁니다. 리뷰 수와 평점은 공개 리뷰 기준이며 동률이면 서로의 지표를 확인합니다. 마지막 동률은 등록일 최신순, 내부 ID순으로 표시합니다.</p></details>
     {error ? <p className="admin-story-error" role="alert">{error}</p> : null}
     <div className="admin-story-picker__selection"><span aria-live="polite">{pending ? '상품을 찾고 있습니다…' : `${data?.total.toLocaleString('ko-KR') ?? 0}개 검색됨`} · {picked.length}개 선택 / 추가 가능 {capacity}개</span><button type="button" disabled={pending || !selectable.length} onClick={() => setPicked(current => pageSelected ? current.filter(good => !selectable.some(row => row.id === good.id)) : [...current, ...selectable.filter(good => !current.some(row => row.id === good.id)).slice(0, Math.max(0, capacity - current.length))])}>{pageSelected ? '현재 페이지 선택 해제' : '현재 페이지 선택'}</button><button disabled={!picked.length} type="button" onClick={() => setPicked([])}>선택 비우기</button></div>

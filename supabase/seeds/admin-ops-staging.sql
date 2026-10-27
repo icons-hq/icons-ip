@@ -87,3 +87,8 @@ select ('de400000-0000-4000-8000-' || lpad(n::text, 12, '0'))::uuid,
   '운영 연습용 문의입니다. 배정, 내부 메모, 답변 등록을 연습하세요. 실제 배송이나 연락은 하지 않습니다.',
   now() - n * interval '6 hours'
 from generate_series(1, 10) as n on conflict do nothing;
+
+-- Staging-only test tools (ADR-0025 테스트 배송완료). Production never runs this seed,
+-- so the allow row exists only in the verified staging branch.
+insert into private.staging_test_tools(singleton, marker)
+values (true, 'admin-ops-v1') on conflict do nothing;

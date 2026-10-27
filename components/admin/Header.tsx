@@ -22,12 +22,18 @@ export function Header({
   title,
   groupLabel,
   immersive = false,
+  consoles = [],
+  root,
 }: {
   admin: { email: string | null; role: string; operatorAccess?: OperatorAccess };
   next: string;
   title: string;
   groupLabel?: string;
   immersive?: boolean;
+  /** 커머스↔콘텐츠 운영 콘솔 전환(D9). 볼 수 있는 콘솔이 둘 이상일 때만 그린다. */
+  consoles?: { id: string; label: string; href: string; current: boolean }[];
+  /** 경로 표시의 첫 칸. 기본은 판매자센터 홈이다. */
+  root?: { label: string; href: string };
 }) {
   const [accountOpen, setAccountOpen] = useState(false);
   const [signOutState, signOutFormAction, signOutPending] = useActionState(adminSignOutAction, emptySignOutState);
@@ -43,6 +49,9 @@ export function Header({
         <Link aria-label="ICONS 판매자센터 홈" className="wc-admin__top-brand" href="/admin">
           <strong>ICONS</strong><span>판매자센터</span>
         </Link>
+        {consoles.length > 1 ? <nav aria-label="콘솔 전환" className="wc-admin__console-switch">
+          {consoles.map((item) => <Link key={item.id} href={item.href} aria-current={item.current ? 'page' : undefined} data-admin-console-link={item.id}>{item.label}</Link>)}
+        </nav> : null}
         <nav aria-label="판매자 바로가기" className="wc-admin__header-links">
           <Link href="/admin/guide">판매자 가이드</Link>
           <Link href="/" target="_blank" rel="noopener noreferrer">쇼핑몰 바로가기 ↗</Link>
@@ -86,8 +95,8 @@ export function Header({
     {immersive || next.split('?')[0] === '/admin' ? <h1 className="sr-only">{title}</h1> : <div className="wc-admin__page-context">
       <h1 className="wc-admin__title">{title}</h1>
       <nav aria-label="현재 위치" className="wc-admin__breadcrumb">
-        <Link href="/admin">홈</Link>
-        {groupLabel && groupLabel !== '홈' ? <><span aria-hidden="true">›</span><span>{groupLabel}</span></> : null}
+        <Link href={root?.href ?? '/admin'}>{root?.label ?? '홈'}</Link>
+        {groupLabel && groupLabel !== '홈' && groupLabel !== root?.label ? <><span aria-hidden="true">›</span><span>{groupLabel}</span></> : null}
         {title !== '홈' ? <><span aria-hidden="true">›</span><span aria-current="page">{title}</span></> : null}
       </nav>
     </div>}

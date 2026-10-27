@@ -3,6 +3,8 @@ import { useEffect, useState } from 'react';
 import { findGoodsForRelationAction } from '@/app/admin/goods-relation-actions';
 import type { GoodsRelationCandidates, GoodsRelationGood } from '@/lib/admin/goods-relations';
 import { CustomerServiceDialog } from './CustomerServiceDialog';
+import { findGoodById, GOOD_URL_ERRORS } from '@/lib/admin/good-url';
+import { GoodUrlAddField } from '@/components/admin/GoodUrlAddField';
 
 export function GoodsRelationProductPicker({ value, limit, onApply, onClose }: { value: GoodsRelationGood[]; limit: number; onApply: (goods: GoodsRelationGood[]) => void; onClose: () => void }) {
   const [query, setQuery] = useState(''); const [selected, setSelected] = useState(value);
@@ -27,6 +29,18 @@ export function GoodsRelationProductPicker({ value, limit, onApply, onClose }: {
   return <CustomerServiceDialog title="연관상품 찾기" onClose={onClose} wide>
     <div className="admin-relation-picker">
       <div className="admin-relation-picker__search"><label htmlFor="relation-good-query">상품명·상품코드·상품번호</label><input id="relation-good-query" maxLength={100} value={query} onChange={event => setQuery(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); void search(1); } }} /><button type="button" className="btn btn-sm" disabled={pending} onClick={() => { void search(1); }}>검색</button></div>
+      <GoodUrlAddField disabled={pending} onAdd={async id => {
+        if (selected.some(item => item.id === id)) return { ok: false, message: GOOD_URL_ERRORS.exists };
+        if (selected.length >= limit) return { ok: false, message: `대표 상품을 포함해 최대 ${limit}개까지 선택할 수 있습니다.` };
+        const good = await findGoodById(id, async page => {
+          const result = await findGoodsForRelationAction(id, page);
+          if (!('data' in result)) throw new Error(result.error);
+          return result.data;
+        });
+        if (!good) return { ok: false, message: GOOD_URL_ERRORS.notFound };
+        setSelected(items => items.some(item => item.id === good.id) ? items : [...items, good]);
+        return { ok: true, message: `'${good.name}' 상품을 선택했습니다. 선택 상품 적용을 눌러 반영해주세요.` };
+      }} />
       <p>선택 {selected.length}개 / 최대 {limit}개 · 조회 {data?.total.toLocaleString('ko-KR') ?? '—'}개</p>
       <p className="muted">초안·판매 제한 상품도 미리 편성할 수 있습니다. 실제 공개 조건에 맞는 상품만 상세에 표시됩니다.</p>
       {error ? <p role="alert">{error}</p> : null}{pending ? <p role="status">상품을 불러오는 중입니다.</p> : null}

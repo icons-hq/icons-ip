@@ -136,6 +136,11 @@ jobs:
       - name: Apply local migrations
         run: supabase db reset --local --no-seed
 
+      - name: Pause automatic order confirmation in the CI database
+        # 매분 cron 틱이 KST 16:30을 걸친 CI 실행에서 다른 스모크가 커밋한 결제완료 주문을 발주확인하지 않게 한다.
+        # 꺼진 설정이면 틱은 잠금 없이 끝난다. 자동 발주확인 스모크는 자기 트랜잭션 안에서 설정을 켜고 검증한다.
+        run: docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 -c "update private.auto_order_confirmation_settings set enabled=false, revision=revision+1 where singleton"
+
       - name: Install database smoke test tools
         run: |
           sudo apt-get update
@@ -223,6 +228,14 @@ jobs:
           HOME_BANNER_ARCHIVE_TEST_SCOPE=ci SUPABASE_DB_CONTAINER=supabase_db_icons-ip bash supabase/tests/home_banner_style_archive_concurrency.sh
           cat supabase/tests/helpers/goods_kc_fixture.sql supabase/tests/home_free_product_collections.sql | docker exec -i supabase_db_icons-ip psql -X -U supabase_admin -d postgres -v ON_ERROR_STOP=1
           HOME_FREE_PRODUCTS_TEST_SCOPE=ci SUPABASE_DB_CONTAINER=supabase_db_icons-ip bash supabase/tests/home_free_product_collections_concurrency.sh
+          docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/customer_marketing_consents.sql
+          docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/auto_order_confirmation.sql
+          AUTO_ORDER_CONFIRM_TEST_SCOPE=ci SUPABASE_DB_CONTAINER=supabase_db_icons-ip bash supabase/tests/auto_order_confirmation_concurrency.sh
+          docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/staging_test_delivery.sql
+          docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/commerce_number_labels.sql
+          docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/bank_transfer_order_number_code.sql
+          docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/order_item_allocation_inputs.sql
+          cat supabase/tests/helpers/goods_kc_fixture.sql supabase/tests/cart_retained_until_payment.sql | docker exec -i supabase_db_icons-ip psql -X -U supabase_admin -d postgres -v ON_ERROR_STOP=1
 
       - name: Check story and marketing workflows
         run: |

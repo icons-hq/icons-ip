@@ -7,9 +7,10 @@ import { useMemo, useRef, useState, type FormEvent } from 'react';
 import { placeOrderAction } from '@/app/checkout/actions';
 import { PostcodeField } from '@/components/checkout/PostcodeField';
 import { useStoreCreditQuote } from '@/components/checkout/useStoreCreditQuote';
-import { useCart } from '@/components/shell/CartProvider';
+import { useCart, useReleaseUnpaidCartOrders } from '@/components/shell/CartProvider';
 import type { CatalogSnapshot } from '@/lib/catalog';
 import {
+  bankTransferMethodNote,
   checkoutAddressErrors,
   type CheckoutAddress,
   type CheckoutAddressErrors,
@@ -30,7 +31,9 @@ import type { ComposedPostcodeAddress } from '@/lib/postcode';
 import { shippingFeeLabel } from '@/lib/shipping';
 import { useShippingQuote } from '@/components/shop/useShippingQuote';
 import { ShippingGroupSummary } from '@/components/shop/ShippingGroupSummary';
+import { shippingGroupLabel } from '@/lib/fulfillment';
 import { parseShippingDestination } from '@/lib/shipping-regions';
+import { orderCompleteHref } from '@/lib/routes';
 
 /* 결제 대기 주문의 최소 결제 금액. DB 트리거(orders_korpay_minimum_amount)가 같은 값으로
    막는다 — 쿠폰·적립금은 그 아래로 깎지 않으므로 굿즈 금액+배송비가 기준이다. */
@@ -64,6 +67,7 @@ const actionErrors = {
   preorder_policy_not_configured: '굿즈의 예약 조건을 확인 중입니다. 잠시 후 다시 시도해주세요.',
   shipping_region_unresolved: '배송지의 배송 가능 여부와 배송비가 변경되었습니다. 배송지와 최신 배송비를 다시 확인해주세요.',
   payment_below_minimum: BELOW_MINIMUM_PAYMENT_COPY,
+  checkout_payment_in_progress: '앞서 결제한 주문의 승인 결과를 확인하고 있어요. 확인이 끝난 뒤 다시 시도해주세요.',
   unavailable: '주문을 만들지 못했어요. 잠시 후 다시 시도해주세요.',
 } as const;
 
@@ -113,6 +117,8 @@ export function Checkout({
 }: CheckoutProps) {
   const router = useRouter();
   const { items, ready, mode, pending: cartPending, error: cartError, refresh } = useCart();
+  /* 결제를 마치지 않은 이전 장바구니 주문이 쿠폰·적립금·구매 한도를 잡고 있으면 먼저 닫는다(ADR-0026). */
+  const released = useReleaseUnpaidCartOrders();
   const checkoutKey = useRef<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -132,7 +138,7 @@ export function Checkout({
     deliveryNote: latestAddress?.deliveryNote ?? '',
   });
   const destination = parseShippingDestination({ postalCode: address.postalCode, address1: address.address1 });
-  const shipping = useShippingQuote(items, ready, appliedCoupon?.id ?? '', destination);
+  const shipping = useShippingQuote(items, ready && released, appliedCoupon?.id ?? '', destination);
   const [storeCreditInput, setStoreCreditInput] = useState('');
   const requestedStoreCredits = normalizeStoreCreditAmount(storeCreditInput);
   const credits = useStoreCreditQuote(requestedStoreCredits, shipping.sales?.calculatedAt ?? null, destination);
@@ -247,12 +253,14 @@ export function Checkout({
       return;
     }
 
+    /* 카드: 장바구니는 결제가 확정될 때까지 그대로다. 결제 화면이 바로 결제를 준비한다(S8).
+       무통장: 접수 = 주문 완료(입금대기)라 장바구니에서 빠졌다. 완료 화면이 입금 안내를 보인다. */
     await refresh();
     window.scrollTo(0, 0);
-    router.push(`/checkout/${result.orderId}`);
+    router.push(selectedPaymentMethod === 'bank_transfer' ? orderCompleteHref(result.orderId) : `/checkout/${result.orderId}`);
   };
 
-  if (!ready || cartPending) {
+  if (!ready || cartPending || !released) {
     return (
       <main className="wc-root wc-receipt checkout-page">
         <div className="wrap checkout-loading" role="status">계정 장바구니를 확인하고 있어요.</div>
@@ -280,18 +288,18 @@ export function Checkout({
   ) : null;
 
   if (lines.length === 0) {
-    // failUrl 복귀 시 카트는 이미 주문으로 옮겨져 비어 있다 — 이 분기의
-    // "결제 이어가기"가 같은 주문 재시도 경로라서 실패 안내도 여기 함께 선다.
+    // 카드 주문은 결제가 끝날 때까지 장바구니를 남기므로(ADR-0026) 여기에 오는 것은 장바구니가
+    // 정말 비었을 때다. 무통장 입금 대기 주문이 있으면 그 입금 안내로 잇는다.
     return (
       <main className="wc-root wc-receipt checkout-page">
         <div className="wrap checkout-empty card">
           <h1>{resumeOrderId ? '진행 중인 주문이 있어요' : '주문할 굿즈가 없어요'}</h1>
           {paymentFailNotice}
           <p>{resumeOrderId
-            ? '주문 생성 응답을 놓쳤거나 결제 확인을 이어가는 중일 수 있어요.'
+            ? '결제를 기다리거나 입금을 기다리는 주문이 있어요. 이어서 결제하거나 입금 안내를 확인할 수 있어요.'
             : '장바구니에 굿즈를 담은 뒤 다시 와주세요.'}</p>
           {resumeOrderId && (
-            <Link className="btn btn-holo" href={`/checkout/${resumeOrderId}`}>결제 이어가기</Link>
+            <Link className="btn btn-holo" href={`/checkout/${resumeOrderId}`}>주문 이어가기</Link>
           )}
           <Link className={resumeOrderId ? 'btn btn-ghost' : 'btn btn-holo'} href="/shop">굿즈 보러 가기</Link>
         </div>
@@ -303,8 +311,8 @@ export function Checkout({
     <main className="wc-root wc-receipt checkout-page">
       <header className="wc-receipt__head">
         <div className="wrap">
-          <h1 className="wc-receipt__title">배송지를 확인하고 결제를 준비해요</h1>
-          <p className="wc-receipt__subcopy">재고는 주문 생성 후 15분 동안 선점됩니다. 최종 완료는 결제 확인 후 안내해요.</p>
+          <h1 className="wc-receipt__title">배송지와 결제 금액을 확인해주세요</h1>
+          <p className="wc-receipt__subcopy">{paymentMethod === 'bank_transfer' ? '주문을 접수하면 입금 계좌와 기한을 안내해요. 접수한 굿즈는 장바구니에서 빠져요.' : '결제하기를 누르면 바로 결제 화면이 열려요. 결제를 마치기 전까지 장바구니는 그대로예요.'}</p>
           {paymentFailNotice}
         </div>
       </header>
@@ -402,7 +410,7 @@ export function Checkout({
             {(requestedStoreCredits ?? 0) > 0 && <button type="button" onClick={() => setStoreCreditInput('')}>적립금 사용 취소</button>}
           </fieldset>
 
-          {shipping.quote?.groups.map(group => <section className="wc-shipping-group" key={group.originId}><h3>{group.originName} 출고</h3><ShippingGroupSummary group={group} /></section>)}
+          {shipping.quote?.groups.map((group, index, groups) => <section className="wc-shipping-group" key={group.originId}><h3>{shippingGroupLabel(index, groups.length)}</h3><ShippingGroupSummary group={group} /></section>)}
           {shipping.loading ? <p role="status">현재 가격과 배송비를 확인하고 있어요.</p> : null}
           {shipping.error ? <div role="alert"><p>{shipping.error}</p><button type="button" onClick={shipping.refresh}>가격·배송비 다시 확인</button></div> : null}
           {purchaseProblem ? <p className="checkout-error" role="alert">{purchaseProblem}
@@ -438,11 +446,12 @@ export function Checkout({
               <span>
                 <strong>무통장 입금</strong>
                 <small>
-                  {bankTransferBlockedByCart
-                    ? '이 주문에는 무통장을 쓸 수 없는 굿즈가 있어요.'
-                    : bankTransferAvailable
-                      ? '안내된 계좌로 24시간 안에 입금하면 확인 후 확정됩니다.'
-                      : '지금은 무통장 입금을 받지 않습니다.'}
+                  {bankTransferMethodNote({
+                    accountConfigured: bankTransferAvailable,
+                    goodsAllow: bankTransferBlockedByCart || shipping.sales?.paymentMethods.bankTransfer === false
+                      ? false
+                      : shipping.sales ? true : null,
+                  })}
                 </small>
               </span>
             </label>
@@ -457,12 +466,12 @@ export function Checkout({
           <button className="btn btn-holo checkout-submit" disabled={submitting || cartPending || unavailable || !methodAvailable || !shippingReady || !shipping.sales || Boolean(purchaseProblem) || !creditReady || couponSelectionChanged}>
             {submitting
               ? '재고를 확인하는 중'
-              : selectedPaymentMethod === 'bank_transfer' ? '주문 만들고 입금 안내 받기' : '주문 만들고 결제하기'}
+              : selectedPaymentMethod === 'bank_transfer' ? '주문하고 입금 안내 받기' : '결제하기'}
           </button>
           <p className="money-caption">
             {selectedPaymentMethod === 'bank_transfer'
-              ? '이 버튼은 결제를 완료하지 않습니다. 다음 화면에서 입금 계좌와 기한을 안내합니다.'
-              : '이 버튼은 결제를 완료하지 않습니다. 다음 화면에서 결제수단과 약관을 확인합니다.'}
+              ? '주문이 접수되면 입금 계좌와 기한을 안내해요. 접수한 굿즈는 장바구니에서 빠져요.'
+              : '다음 화면에서 결제수단을 고르고 결제를 마쳐요. 결제가 끝나면 주문한 굿즈가 장바구니에서 빠져요.'}
           </p>
           <Link className="checkout-back" href="/cart">← 장바구니 수정</Link>
         </aside>

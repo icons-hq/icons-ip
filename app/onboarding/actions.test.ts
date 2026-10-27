@@ -39,7 +39,7 @@ function onboardingForm(nickname: string, options: {
   formData.set('birthDate', '2000-01-01');
   formData.set('terms', 'on');
   formData.set('privacy', 'on');
-  formData.set('marketing', 'on');
+  formData.set('marketingEmail', 'on');
   formData.set('next', '/community');
   for (const id of options.recommended ?? []) formData.append('recommendedIpIds', id);
   for (const id of options.selected ?? []) formData.append('followIpIds', id);
@@ -240,7 +240,7 @@ describe('completeOnboardingAction profile identity', () => {
     expect(mocks.profilePayloads).toEqual([
       {
         birth_date: '2000-01-01',
-        consents: { terms: true, privacy: true, marketing: true },
+        consents: { terms: true, privacy: true },
       },
       { onboarded_at: expect.any(String) },
     ]);
@@ -278,6 +278,22 @@ describe('completeOnboardingAction profile identity', () => {
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
+  /* 10/14 회의 S2 · D5 — 관심 IP는 선택이다. 건너뛰면 화면이 추천 목록 입력을 보내지 않고,
+     서버는 팔로우를 바꾸지 않은 채 온보딩을 끝낸다(이미 팔로우한 IP를 풀지 않는다). */
+  it('completes onboarding without IP picks and leaves existing follows untouched', async () => {
+    mocks.from.mockImplementation((table: string) => {
+      if (table === 'profiles') return profileQuery();
+      if (table === 'ips') return ipQuery([{ id: IP_ONE }]);
+      if (table === 'ip_follows') return followsQuery([{ ip_id: IP_ONE }]);
+      throw new Error(`Unexpected table ${table}`);
+    });
+
+    await expect(completeOnboardingAction({}, onboardingForm('fan'))).rejects.toThrow('NEXT_REDIRECT:/community');
+
+    expect(mocks.rpc.mock.calls.filter(([name]) => name === 'follow_ip' || name === 'unfollow_ip')).toEqual([]);
+    expect(mocks.profilePayloads.at(-1)).toEqual({ onboarded_at: expect.any(String) });
+  });
+
   it('keeps the existing recommended follow, consent, and completion flow', async () => {
     mocks.from.mockImplementation((table: string) => {
       if (table === 'profiles') return profileQuery();
@@ -292,6 +308,7 @@ describe('completeOnboardingAction profile identity', () => {
     }))).rejects.toThrow('NEXT_REDIRECT:/community');
 
     expect(mocks.rpc.mock.calls).toEqual([
+      ['set_my_marketing_consents', { p_email: true, p_sms: false, p_notice_version: 'marketing-channels-v1', p_source: 'onboarding' }],
       ['follow_ip', { target_ip_id: IP_TWO }],
       ['unfollow_ip', { target_ip_id: IP_ONE }],
     ]);
@@ -305,3 +322,85 @@ describe('completeOnboardingAction profile identity', () => {
     ]);
   });
 });
+
+/* 10/14 회의 S4·S5 — 수단별 마케팅 수신 동의와 선택 성별. */
+describe('completeOnboardingAction optional consents', () => {
+  const DEMOGRAPHIC_STATE = {
+    actorId: USER_ID, sessionId: '00000000-0000-4000-9000-000000001201', revision: 0, choice: 'unset', gender: null,
+    noticeVersion: 'customer-demographics-v1', acceptedAt: null,
+  };
+
+  it('records email and SMS choices separately and does not write the derived marketing flag directly', async () => {
+    const formData = onboardingForm('fan');
+    formData.delete('marketingEmail');
+    formData.set('marketingSms', 'on');
+
+    await expect(completeOnboardingAction({}, formData)).rejects.toThrow('NEXT_REDIRECT:/community');
+
+    expect(mocks.rpc).toHaveBeenCalledWith('set_my_marketing_consents', {
+      p_email: false, p_sms: true, p_notice_version: 'marketing-channels-v1', p_source: 'onboarding',
+    });
+    expect(JSON.stringify(mocks.profilePayloads)).not.toContain('marketing');
+  });
+
+  it('stops before completion when the channel consent cannot be recorded', async () => {
+    mocks.rpc.mockImplementation(async (name: string) => name === 'set_my_marketing_consents'
+      ? { data: null, error: { message: 'unavailable' } } : { data: null, error: null });
+
+    await expect(completeOnboardingAction({}, onboardingForm('fan'))).resolves.toEqual({
+      errors: { form: '마케팅 정보 수신 동의를 저장하지 못했습니다. 다시 시도해주세요.' },
+    });
+    expect(mocks.profilePayloads.some((payload) => 'onboarded_at' in payload)).toBe(false);
+  });
+
+  it.each([
+    [{ gender: 'female' }, '성별을 저장하려면 수집·이용에 동의해주세요.'],
+    [{ genderConsent: 'on' }, '동의하려면 성별을 선택해주세요.'],
+    [{ gender: 'unknown', genderConsent: 'on' }, '성별을 다시 선택해주세요.'],
+  ])('rejects an incomplete gender choice %o before any writes', async (fields, message) => {
+    const formData = onboardingForm('fan');
+    for (const [key, value] of Object.entries(fields)) formData.set(key, value);
+
+    await expect(completeOnboardingAction({}, formData)).resolves.toEqual({ errors: { gender: message } });
+    expect(mocks.createClient).not.toHaveBeenCalled();
+  });
+
+  it('saves a consented gender through the existing optional consent path right after completion', async () => {
+    const order: string[] = [];
+    mocks.from.mockImplementation((table: string) => {
+      if (table !== 'profiles') return table === 'ips' ? ipQuery([]) : followsQuery([]);
+      const query = profileQuery();
+      return { update: (payload: Record<string, unknown>) => { order.push(Object.keys(payload).join(',')); return query.update(payload); } };
+    });
+    mocks.rpc.mockImplementation(async (name: string, args: Record<string, unknown>) => {
+      order.push(name);
+      if (name === 'customer_demographic_state') return { data: DEMOGRAPHIC_STATE, error: null };
+      if (name === 'set_customer_demographic_consent') return { data: { ...DEMOGRAPHIC_STATE, revision: 1, choice: 'accepted', gender: args.p_gender, acceptedAt: '2026-10-27T00:00:00.000Z' }, error: null };
+      return { data: null, error: null };
+    });
+    const formData = onboardingForm('fan');
+    formData.set('gender', 'female');
+    formData.set('genderConsent', 'on');
+
+    await expect(completeOnboardingAction({}, formData)).rejects.toThrow('NEXT_REDIRECT:/community');
+
+    expect(mocks.rpc).toHaveBeenCalledWith('set_customer_demographic_consent', {
+      p_choice: 'accepted', p_gender: 'female', p_expected_revision: 0, p_expected_actor: USER_ID,
+      p_expected_session: DEMOGRAPHIC_STATE.sessionId, p_notice_version: 'customer-demographics-v1',
+    });
+    expect(order.indexOf('onboarded_at')).toBeLessThan(order.indexOf('customer_demographic_state'));
+  });
+
+  it('does not save gender without a choice and does not undo completion when the optional save fails', async () => {
+    await expect(completeOnboardingAction({}, onboardingForm('fan'))).rejects.toThrow('NEXT_REDIRECT:/community');
+    expect(mocks.rpc.mock.calls.map(([name]) => name)).not.toContain('customer_demographic_state');
+
+    mocks.rpc.mockImplementation(async (name: string) => name === 'customer_demographic_state'
+      ? { data: null, error: { message: 'unavailable' } } : { data: null, error: null });
+    const formData = onboardingForm('fan');
+    formData.set('gender', 'male');
+    formData.set('genderConsent', 'on');
+    await expect(completeOnboardingAction({}, formData)).rejects.toThrow('NEXT_REDIRECT:/community');
+  });
+});
+

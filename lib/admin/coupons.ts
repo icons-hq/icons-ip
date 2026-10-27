@@ -2,7 +2,7 @@ import type { AdminFieldErrors } from '@/lib/admin/catalog';
 import { kstDateTimeToIso } from '@/lib/admin/kst';
 import { customerServiceDate } from './customer-service-list';
 import { LOYALTY_GRADES } from '@/lib/loyalty';
-import { parseCouponTargeting, type CouponTargetCategory, type CouponTargetGood, type CouponTargeting } from '@/lib/coupon-targeting';
+import { parseCouponTargeting, type CouponTargetCategory, type CouponTargetGood, type CouponTargetIp, type CouponTargeting } from '@/lib/coupon-targeting';
 import { readCouponIssueSchedule, type CouponIssueSchedule } from './coupon-schedule';
 
 export const ADMIN_COUPON_LIST_PATH = '/admin/sales/coupons';
@@ -44,6 +44,7 @@ export interface AdminCouponRecord extends Partial<CouponTargeting>, Partial<Cou
   termsRevision?: number;
   targetGoods?: CouponTargetGood[];
   targetCategories?: CouponTargetCategory[];
+  targetIps?: CouponTargetIp[];
 }
 
 export interface AdminCouponFilters {

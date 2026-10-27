@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import type { Good } from '@/lib/data';
@@ -134,11 +135,17 @@ describe('buyNowNavigation', () => {
     expect(buyNowNavigation({ requested: true, cartPending: true, cartError: null })).toBe('wait');
   });
 
-  it('반영이 정착하고 오류가 없을 때만 체크아웃으로 간다', () => {
+  it('반영이 정착하고 오류가 없을 때만 장바구니로 간다', () => {
     expect(buyNowNavigation({ requested: true, cartPending: false, cartError: null })).toBe('navigate');
   });
 
-  it('카트가 오류를 냈으면 이동을 접는다 — 담기지 않은 채 결제 화면에 서지 않는다', () => {
+  it('구매하기는 LFS처럼 담은 뒤 주문서가 아니라 장바구니로 이동한다(D2)', () => {
+    const source = readFileSync('components/shop/GoodPurchasePanel.tsx', 'utf8');
+    expect(source).toContain("if (navigation === 'navigate') router.push('/cart');");
+    expect(source).not.toContain("router.push('/checkout')");
+  });
+
+  it('카트가 오류를 냈으면 이동을 접는다 — 담기지 않은 채 장바구니로 가지 않는다', () => {
     expect(
       buyNowNavigation({ requested: true, cartPending: false, cartError: '재고 초과' }),
     ).toBe('abort');

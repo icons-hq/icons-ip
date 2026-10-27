@@ -149,7 +149,7 @@ export function InquiryComposer({
       </form>
 
       <p className="wc-mypage__note">
-        취소·반품·교환을 실제로 접수하려면 주문 상세의 청약철회 경로를 이용해주세요.
+        취소·반품·교환을 실제로 접수하려면 주문 상세의 주문 취소·반품·교환 신청을 이용해주세요.
         이 화면은 질문과 답변을 주고받는 곳이라 접수 자체를 대신하지 않습니다.
       </p>
     </MypageShell>

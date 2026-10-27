@@ -34,3 +34,12 @@ describe('CurationProductPicker 평점 열', () => {
     expect(html).not.toContain('평점 / 리뷰 수');
   });
 });
+
+describe('CurationProductPicker URL 추가', () => {
+  it('상품 상세 주소를 붙여 넣는 칸을 검색과 따로 둔다', () => {
+    const html = renderToStaticMarkup(<CurationProductPicker goods={[card('m1')]} limit={4} onApply={() => undefined} onClose={() => undefined}
+      options={[{ id: 'm1', title: '2단 필통', archivedAt: null }]} selectedIds={[]} />);
+    expect(html).toContain('상품 URL로 추가');
+    expect(html).toContain('placeholder="https://iconsip.com/shop/상품ID 또는 /shop/상품ID"');
+  });
+});
