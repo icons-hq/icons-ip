@@ -98,4 +98,20 @@ describe('CollectionBanners', () => {
     expect(css).toMatch(/\.wc-collection-banners__fraction \{[^}]*background: rgba\(0, 0, 0, \.6\);/);
     expect(css).toMatch(/\.wc-collection--banner \{\s*padding-top: 0;/);
   });
+
+  it('CSS: 칸 배너는 문구를 흐름 안에 두어 허용 한도의 긴 문구가 잘리지 않고 배너를 늘린다(l8b-ui-3)', () => {
+    const contained = css.match(/\.wc-collection-banners--contained \.wc-collection-banner \{[^}]*aspect-ratio: 15 \/ 7;[^}]*\}/)?.[0] ?? '';
+    expect(contained).toMatch(/box-sizing: border-box;/);
+    expect(contained).toMatch(/display: flex;/);
+    expect(contained).toMatch(/align-items: center;/);
+    /* 비율 상자가 내용 높이로 늘어나려면 스크롤 컨테이너가 아니어야 한다(overflow hidden 금지). */
+    expect(contained).toMatch(/overflow: visible;/);
+    const copy = css.match(/\.wc-collection-banners--contained \.wc-collection-banner__copy \{[^}]*\}/)?.[0] ?? '';
+    expect(copy).toMatch(/position: relative;/);
+    expect(copy).not.toMatch(/top: 50%|translateY/);
+    /* 데스크톱 공용 규칙의 bottom 89 가 흐름 안 문구를 끌어올리지 않게 칸 배너에서 되돌린다. */
+    expect(css).toMatch(/@media \(min-width: 750px\)[\s\S]*\.wc-collection-banners--contained \.wc-collection-banner__copy \{\s*bottom: auto;/);
+    /* 칸 배너는 한 장이라 슬라이더 전용 칸 규칙이 없다. */
+    expect(css).not.toMatch(/\.wc-collection-banners--contained \.wc-collection-banners__(controls|fraction)/);
+  });
 });
