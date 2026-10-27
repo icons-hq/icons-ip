@@ -29,7 +29,7 @@ export function CouponIpPicker({ active, targetIds, ips, error }: {
     </AdminField>
     <div className="admin-coupon-category-picker__body">
     <button type="button" className="wc-admin-kit__button" disabled={pending} onClick={() => search()}>IP 찾기</button>
-    <p>선택 {selected.length}개 · 이 IP의 굿즈 소계에만 최소금액과 할인을 적용합니다. 나중에 이 IP에 등록되거나 이 IP로 옮긴 굿즈도 포함하며, 보관한 IP는 새로 지정할 수 없습니다.</p>
+    <p>선택 {selected.length}개 · 이 IP 상품의 소계에만 최소금액과 할인을 적용합니다. 나중에 이 IP에 등록되거나 이 IP로 옮긴 상품도 포함하며, 보관한 IP는 새로 지정할 수 없습니다.</p>
     {selected.length ? <ul aria-label="선택한 IP">{selected.map(ip => <li key={ip.id}><span>{ip.title}{ip.blocked ? ' (현재 적용 불가)' : ''}</span> <button type="button" className="wc-admin-kit__button" aria-label={`${ip.title} 제외`} onClick={() => setSelected(items => items.filter(item => item.id !== ip.id))}>제외</button></li>)}</ul> : null}
     {result?.ok ? <>
       <p role="status">검색 결과 전체 {result.total}개 · {result.page}페이지</p>
