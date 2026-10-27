@@ -249,6 +249,11 @@ describe('어드민 가이드 인용·수치 정합', () => {
     expect(repoFile('lib/admin/roles.server.ts')).toContain('PROFILE_LIMIT = 50');
     /* 일괄 발주확인 상한 — orders-shipping의 "한 번에 100건". */
     expect(repoFile('app/admin/order-actions.ts')).toContain('BULK_CONFIRM_LIMIT = 100');
+    /* 자동 발주확인 기본 시각 — orders-shipping·dev-requests의 "기본 16:30"(ADR-0025). */
+    expect(repoFile('lib/admin/auto-order-confirmation.ts')).toContain("AUTO_ORDER_CONFIRMATION_DEFAULT_TIME = '16:30'");
+    expect(repoFile('supabase/migrations/20261027130000_auto_order_confirmation.sql')).toContain("values(true,true,'16:30',clock_timestamp())");
+    /* 자동 구매확정 소급 — orders-shipping의 "이미 배송완료된 주문도"(D11). */
+    expect(repoFile('components/admin/PurchaseConfirmationPolicyForm.tsx')).toContain('켜면 이미 배송완료된 주문도 배송완료일 기준으로 확정됩니다');
     /* 자동 확정은 운영자가 기간을 설정해 활성화한 뒤 적용한다. */
     expect(repoFile('components/admin/screens/SettledScreen.tsx')).toContain('자동 확정은 기본 꺼짐');
     /* 추가 이미지 상한 — goods-sales·주간 변경의 "추가 이미지 최대 9장"·"갤러리 1~9". */
