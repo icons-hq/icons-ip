@@ -46,6 +46,7 @@ export default async function Page({ searchParams }: PageProps) {
       birthDate={auth.profile?.birth_date ?? ''}
       email={auth.profile?.email ?? auth.user?.email ?? ''}
       followedIpIds={[...followedIpIds]}
+      genderEligible={!auth.profile || auth.profile.role === 'user'}
       initialMarketing={marketingChannelChoices(marketingConsent)}
       isConfigured={auth.isConfigured}
       next={next}

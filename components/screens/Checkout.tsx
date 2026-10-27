@@ -296,10 +296,10 @@ export function Checkout({
           <h1>{resumeOrderId ? '진행 중인 주문이 있어요' : '주문할 굿즈가 없어요'}</h1>
           {paymentFailNotice}
           <p>{resumeOrderId
-            ? '주문 생성 응답을 놓쳤거나 결제 확인을 이어가는 중일 수 있어요.'
+            ? '결제를 기다리거나 입금을 기다리는 주문이 있어요. 이어서 결제하거나 입금 안내를 확인할 수 있어요.'
             : '장바구니에 굿즈를 담은 뒤 다시 와주세요.'}</p>
           {resumeOrderId && (
-            <Link className="btn btn-holo" href={`/checkout/${resumeOrderId}`}>결제 이어가기</Link>
+            <Link className="btn btn-holo" href={`/checkout/${resumeOrderId}`}>주문 이어가기</Link>
           )}
           <Link className={resumeOrderId ? 'btn btn-ghost' : 'btn btn-holo'} href="/shop">굿즈 보러 가기</Link>
         </div>

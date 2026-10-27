@@ -19,6 +19,11 @@ interface OnboardingProps {
   followedIpIds: string[];
   /** 채널별 마케팅 정보 수신 동의의 현재 선택(10/14 회의 S4). */
   initialMarketing: MarketingChannelChoices;
+  /**
+   * 선택 성별을 받을 수 있는 계정인지. 성별 동의는 일반 회원(role=user)만 저장되므로(설정 화면과 같은 기준)
+   * 운영자 초대 가입처럼 저장되지 않는 계정에는 묻지 않는다.
+   */
+  genderEligible: boolean;
   isConfigured: boolean;
   next: string;
   nickname: string;
@@ -124,6 +129,7 @@ export function Onboarding({
   birthDate,
   email,
   followedIpIds,
+  genderEligible,
   initialMarketing,
   isConfigured,
   next,
@@ -249,30 +255,32 @@ export function Onboarding({
 
           {/* 선택 성별(10/14 회의 S5). 기본은 미선택이고, 고른 경우에만 별도 수집·이용 동의를 받는다.
               저장은 온보딩 완료 직후 같은 액션에서 기존 선택 동의 경로로 한다. */}
-          <fieldset
-            aria-describedby={state.errors?.gender ? 'gender-hint gender-error' : 'gender-hint'}
-            className="onboarding-birth-fieldset onboarding-gender-fieldset"
-          >
-            <legend>성별 <em className="wc-auth__opt">선택</em></legend>
-            <span className="onboarding-birth-hint" id="gender-hint">{DEMOGRAPHIC_NOTICE.purpose}</span>
-            <select aria-invalid={Boolean(state.errors?.gender)} aria-label="통계용 성별" defaultValue="" name="gender">
-              <option value="">선택 안 함</option>
-              {DEMOGRAPHIC_GENDERS.map((gender) => (
-                <option key={gender} value={gender}>{DEMOGRAPHIC_GENDER_LABELS[gender]}</option>
-              ))}
-            </select>
-            <label className="onboarding-gender-consent">
-              <input name="genderConsent" type="checkbox" />
-              <span>위 안내에 따라 성별 정보를 수집·이용하는 데 동의합니다. <em className="wc-auth__opt">선택</em></span>
-            </label>
-            <details className="onboarding-gender-notice">
-              <summary>수집 항목·보관·철회 안내</summary>
-              <p>{DEMOGRAPHIC_NOTICE.collected}</p>
-              <p>{DEMOGRAPHIC_NOTICE.retention}</p>
-              <p>{DEMOGRAPHIC_NOTICE.choice}</p>
-            </details>
-            <ErrorText id="gender-error">{state.errors?.gender}</ErrorText>
-          </fieldset>
+          {genderEligible ? (
+            <fieldset
+              aria-describedby={state.errors?.gender ? 'gender-hint gender-error' : 'gender-hint'}
+              className="onboarding-birth-fieldset onboarding-gender-fieldset"
+            >
+              <legend>성별 <em className="wc-auth__opt">선택</em></legend>
+              <span className="onboarding-birth-hint" id="gender-hint">{DEMOGRAPHIC_NOTICE.purpose}</span>
+              <select aria-invalid={Boolean(state.errors?.gender)} aria-label="통계용 성별" defaultValue="" name="gender">
+                <option value="">선택 안 함</option>
+                {DEMOGRAPHIC_GENDERS.map((gender) => (
+                  <option key={gender} value={gender}>{DEMOGRAPHIC_GENDER_LABELS[gender]}</option>
+                ))}
+              </select>
+              <label className="onboarding-gender-consent">
+                <input name="genderConsent" type="checkbox" />
+                <span>위 안내에 따라 성별 정보를 수집·이용하는 데 동의합니다. <em className="wc-auth__opt">선택</em></span>
+              </label>
+              <details className="onboarding-gender-notice">
+                <summary>수집 항목·보관·철회 안내</summary>
+                <p>{DEMOGRAPHIC_NOTICE.collected}</p>
+                <p>{DEMOGRAPHIC_NOTICE.retention}</p>
+                <p>{DEMOGRAPHIC_NOTICE.choice}</p>
+              </details>
+              <ErrorText id="gender-error">{state.errors?.gender}</ErrorText>
+            </fieldset>
+          ) : null}
 
           {recommendedIps.length > 0 && (
             <div className="wc-auth__picks" data-onboarding-ip-picks={ipPicksSkipped ? 'skipped' : 'open'}>

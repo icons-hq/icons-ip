@@ -21,6 +21,7 @@ function render(overrides: Partial<React.ComponentProps<typeof Onboarding>> = {}
       birthDate=""
       email="fan@icons.gg"
       followedIpIds={[]}
+      genderEligible
       initialMarketing={{ email: false, sms: false }}
       isConfigured
       next="/"
@@ -154,6 +155,13 @@ describe('Onboarding optional consents', () => {
     expect(html).toContain('<input type="checkbox" name="genderConsent"/>');
     expect(html).not.toMatch(/name="genderConsent"[^>]*checked/);
     expect(html).toContain('<summary>수집 항목·보관·철회 안내</summary>');
+  });
+
+  it('does not ask gender from accounts whose demographic consent is not stored (staff·admin, like settings)', () => {
+    const html = render({ genderEligible: false });
+
+    expect(html).not.toContain('name="gender"');
+    expect(html).not.toContain('name="genderConsent"');
   });
 });
 
