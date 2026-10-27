@@ -8,7 +8,7 @@ import { PRIVACY_ADDRESS_BOOK_REVISION, koreanLegalDate, kstToday } from './lega
  * 회원이 저장해 두는 배송지 목록이다. 주문서에서 골라 채우는 입력 보조일 뿐이고, 주문에 저장되는 배송지는
  * 주문할 때 폼에 적힌 사본이다(주문 주소 JSON 계약 그대로). 선물 수령인 주소는 담지 않는다.
  * DB 계약(본인만 읽기·RPC 쓰기·온보딩 회원만 저장·회원당 10개·기본 배송지 1개·탈퇴 시 삭제)은
- * supabase/migrations/20261027010000_address_book.sql 이 정본이다. 이 모듈은 화면·액션이 함께 쓰는
+ * supabase/migrations/20261027160000_address_book.sql 이 정본이다. 이 모듈은 화면·액션이 함께 쓰는
  * 순수 규칙(검증·정규화·표시·오류 문구)만 둔다.
  */
 
