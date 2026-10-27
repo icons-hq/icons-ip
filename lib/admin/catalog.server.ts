@@ -25,6 +25,11 @@ export interface AdminIpRecord {
   bg: string | null;
   imagePath: string | null;
   imageUrl?: string | null;
+  /** IP관 PC/MO 배너(IP-06, L8b) — Storage 키와 미리보기 URL. 없으면 IP관은 키아트를 쓴다. */
+  hallBannerImagePath?: string | null;
+  hallBannerImageUrl?: string | null;
+  hallBannerMobileImagePath?: string | null;
+  hallBannerMobileImageUrl?: string | null;
   featured: boolean;
   fansCount: number;
 }
@@ -334,6 +339,8 @@ interface IpRow {
   glyph: string | null;
   bg: string | null;
   image_path: string | null;
+  hall_banner_image_path?: string | null;
+  hall_banner_mobile_image_path?: string | null;
   featured: boolean;
   fans_count: number;
 }
@@ -565,7 +572,7 @@ export async function getAdminCatalogRecords(
     queried.has('ips')
       ? supabase
         .from('ips')
-        .select('id,public_slug,archived_at,published_at,title,sub,vertical_key,tagline,synopsis,glyph,bg,image_path,featured,fans_count')
+        .select('id,public_slug,archived_at,published_at,title,sub,vertical_key,tagline,synopsis,glyph,bg,image_path,hall_banner_image_path,hall_banner_mobile_image_path,featured,fans_count')
         .order('id')
       : skippedResult,
     goodsQuery ?? skippedResult,
@@ -681,6 +688,10 @@ export async function getAdminCatalogRecords(
       bg: row.bg,
       imagePath: row.image_path,
       imageUrl: previewUrlFor(row),
+      hallBannerImagePath: row.hall_banner_image_path ?? null,
+      hallBannerImageUrl: imageUrlForPath(row.hall_banner_image_path ?? null),
+      hallBannerMobileImagePath: row.hall_banner_mobile_image_path ?? null,
+      hallBannerMobileImageUrl: imageUrlForPath(row.hall_banner_mobile_image_path ?? null),
       featured: row.featured,
       fansCount: row.fans_count ?? 0,
     })),

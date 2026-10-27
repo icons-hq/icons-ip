@@ -8,6 +8,7 @@ import { loadCategoryDisplayNavigation, loadCategoryDisplayPage } from '@/lib/ca
 import { CategoryDisplayShop } from '@/components/shop/CategoryDisplayShop';
 import { CategoryDisplayNavigation } from '@/components/shop/CategoryDisplayContents';
 import { loadListingWishlist } from '@/lib/wishlist-ids.server';
+import { getCollectionBanners } from '@/lib/collection-banners.server';
 
 interface PageProps {
   searchParams?: Promise<Record<string, string | string[] | undefined>>;
@@ -22,7 +23,8 @@ export default async function Page({ searchParams }: PageProps) {
     if (!page) notFound();
     return <CategoryDisplayShop key={`${page.category.id}:${page.token}`} initial={{ ...page, navigation }} wishlist={wishlist} />;
   }
-  const [catalog, displayNavigation, wishlist] = await Promise.all([getCatalogSnapshot({ includeReviewSummaries: true }), loadCategoryDisplayNavigation().then(entries => ({ entries, failed: false })).catch(() => ({ entries: [], failed: true })), loadListingWishlist()]);
+  /* 컬렉션 배너(CL-09)는 굿즈샵 전체에만 선다 — 카테고리 전시 분기(위)는 배너를 읽지 않는다. */
+  const [catalog, displayNavigation, wishlist, banners] = await Promise.all([getCatalogSnapshot({ includeReviewSummaries: true }), loadCategoryDisplayNavigation().then(entries => ({ entries, failed: false })).catch(() => ({ entries: [], failed: true })), loadListingWishlist(), getCollectionBanners('all')]);
   const categories = catalog.source === 'supabase' ? await loadPublicCatalogCategories() : [];
   const query = parseShopSearchParams(params, {
     view: 'all',
@@ -38,6 +40,6 @@ export default async function Page({ searchParams }: PageProps) {
       <CategoryDisplayNavigation entries={displayNavigation.entries} />
       {displayNavigation.failed ? <p className="wc-container" role="status">카테고리 전시를 불러오지 못했습니다. 전체 굿즈는 계속 확인할 수 있습니다.</p> : null}
     </div> : null}
-    <Shop query={query} result={selectShopGoods({ ...catalog, categories }, query)} view="all" wishlist={wishlist} />
+    <Shop banners={banners} query={query} result={selectShopGoods({ ...catalog, categories }, query)} view="all" wishlist={wishlist} />
   </>;
 }

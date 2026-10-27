@@ -3,9 +3,11 @@
 /* 온라인 팝업 개별 관(/ip/[id]) — R-03 §1.9 브랜드관 재현.
  * 풀블리드 배너(IP명·팔로우 하트+팬 수·설명·해시태그) + IP로 좁힌 굿즈샵 컬렉션(사이드바·정렬·VIEW MORE·
  * 212 카드 — 11 IP-01) + 연결 밴드 3종.
+ * 배너 그림은 IP관 PC/MO 배너(11 IP-06)가 있으면 그것, 없으면 키아트(ip.bg)다 — lib/ip-hall-banner.ts 의 폭별 폴백.
  * 팔로우·알림 폼은 app/ip/actions.ts 계약(hidden ipId·intent·next·setBoth·autoFollow…)을 그대로 승계한다. */
 
 import Link from 'next/link';
+import type { CSSProperties } from 'react';
 import { useFormStatus } from 'react-dom';
 import { setIpNotificationPreferencesAction, toggleIpFollowAction } from '@/app/ip/actions';
 import { CollectionBrowser } from '@/components/shop/CollectionBrowser';
@@ -17,6 +19,7 @@ import type { CatalogIpDetail } from '@/lib/catalog';
 import { COMMUNITY_ENABLED } from '@/lib/community-visibility';
 import { compactNumber } from '@/lib/format';
 import type { IpFollowState } from '@/lib/ip-follow';
+import { IP_HALL_BANNER_EMPTY_SOURCE, type IpHallBanner } from '@/lib/ip-hall-banner';
 import { ipEn } from '@/lib/ip-display';
 import { publicIpHref } from '@/lib/ip-identity';
 import type { ListingWishlist } from '@/lib/listing-wishlist';
@@ -149,7 +152,27 @@ function NotificationPreferencesForm({ followState, ipId, next }: { followState:
   );
 }
 
+/*
+ * 배너 그림(IP-06). 없으면 지금처럼 키아트를 섹션 배경으로 깐다(마크업·스타일 그대로).
+ * PC 배너가 있으면 키아트 배경을 걷고 picture 하나로 폭을 고른다(모바일 배너 → PC 배너). 모바일 배너만 있으면 데스크톱은 키아트를
+ * CSS 변수로 남기고(모바일에서는 내려받지 않는다), picture 는 데스크톱에서 1×1 빈 그림을 골라 모바일 그림을 받지 않는다.
+ * 그림은 IP명·설명이 텍스트로 얹히는 배경이라 장식(alt="")이고, 첫 화면 LCP 후보라 우선 로드한다.
+ */
+function HallBannerMedia({ banner }: { banner: IpHallBanner }) {
+  const src = banner.imageUrl ?? banner.mobileImageUrl;
+  if (!src) return null;
+  return (
+    <picture className="wc-iphall__banner-media">
+      {banner.imageUrl
+        ? banner.mobileImageUrl ? <source media="(max-width: 749px)" srcSet={banner.mobileImageUrl} /> : null
+        : <source media="(min-width: 750px)" srcSet={IP_HALL_BANNER_EMPTY_SOURCE} />}
+      <img alt="" decoding="async" fetchPriority="high" loading="eager" sizes="100vw" src={src} />
+    </picture>
+  );
+}
+
 export function IpDetail({
+  banner = null,
   collection,
   detail,
   publicSlug,
@@ -159,6 +182,8 @@ export function IpDetail({
   notificationSaved,
   wishlist,
 }: {
+  /** IP관 PC/MO 배너(lib/ip-hall-banner.server). 생략·null 이면 키아트 배경 그대로다. */
+  banner?: IpHallBanner | null;
   /** URL 필터·정렬이 걸린 굿즈 컬렉션. 생략하면 필터 없는 기본 컬렉션을 그린다. */
   collection?: IpGoodsCollection;
   detail: CatalogIpDetail;
@@ -171,6 +196,7 @@ export function IpDetail({
   wishlist?: ListingWishlist | null;
 }) {
   const { ip, goods, cards } = detail;
+  const hallBanner = banner && (banner.imageUrl || banner.mobileImageUrl) ? banner : null;
   const canonicalSlug = publicSlug ?? ip.publicSlug ?? ip.id;
   const hallPath = publicIpHref(canonicalSlug);
   const goodsCollection = collection ?? ipGoodsCollection(detail);
@@ -193,8 +219,12 @@ export function IpDetail({
       <GoodsSalePeriodRefresh goods={goods} />
       <section
         className="wc-iphall__banner"
-        style={{ background: ip.bg, backgroundSize: 'cover', backgroundPosition: 'center' }}
+        data-banner={hallBanner ? (hallBanner.imageUrl ? 'all' : 'mobile') : undefined}
+        style={hallBanner
+          ? hallBanner.imageUrl ? undefined : ({ '--wc-iphall-keyart': ip.bg } as CSSProperties)
+          : { background: ip.bg, backgroundSize: 'cover', backgroundPosition: 'center' }}
       >
+        {hallBanner ? <HallBannerMedia banner={hallBanner} /> : null}
         <div className="wc-container">
           <h1 className="wc-iphall__name">{ip.title}</h1>
           <div className="wc-iphall__follow">

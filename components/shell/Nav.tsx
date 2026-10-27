@@ -110,17 +110,20 @@ export function Nav({
   branding = DEFAULT_STOREFRONT_BRANDING,
   navigation = DEFAULT_STOREFRONT_NAVIGATION,
   megaMenus = EMPTY_STOREFRONT_MEGA_MENUS,
+  searchTerms = null,
 }: {
   notices?: ShellNoticeData;
   branding?: StorefrontBranding;
   navigation?: StorefrontNavigation;
   megaMenus?: StorefrontMegaMenus;
+  /** 운영 추천 검색어(L8b) — null 이면 검색 오버레이가 코드 상수를 쓴다. */
+  searchTerms?: readonly string[] | null;
 }) {
   const pathname = usePathname();
   const cardRewardsEnabled = useCardRewardsEnabled();
   // 게임은 자기완결 번들, 어드민은 자체 작업대, 초대·비밀번호 변경·정지 안내는 집중형 셸을 사용한다(로그인은 크롬 안).
   if (isStandaloneShellPath(pathname)) return null;
-  return <WcChrome cardRewardsEnabled={cardRewardsEnabled} notices={notices} pathname={pathname} branding={branding} navigation={navigation} megaMenus={megaMenus} />;
+  return <WcChrome cardRewardsEnabled={cardRewardsEnabled} notices={notices} pathname={pathname} branding={branding} navigation={navigation} megaMenus={megaMenus} searchTerms={searchTerms} />;
 }
 
 function WcChrome({
@@ -130,6 +133,7 @@ function WcChrome({
   branding,
   navigation,
   megaMenus,
+  searchTerms,
 }: {
   cardRewardsEnabled: boolean;
   notices: ShellNoticeData;
@@ -137,6 +141,7 @@ function WcChrome({
   branding: StorefrontBranding;
   navigation: StorefrontNavigation;
   megaMenus: StorefrontMegaMenus;
+  searchTerms: readonly string[] | null;
 }) {
   const { count } = useCart();
   const { common } = useStorePresentation();
@@ -327,7 +332,7 @@ function WcChrome({
           </nav>
         </div>
 
-        <SearchOverlay open={searchOpen} onClose={closeOverlay} />
+        <SearchOverlay open={searchOpen} onClose={closeOverlay} terms={searchTerms} />
       </header>
 
       <MenuSheet open={sheetOpen} onClose={closeOverlay} cardRewardsEnabled={cardRewardsEnabled} navigation={navigation} />
