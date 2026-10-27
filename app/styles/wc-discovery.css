@@ -597,6 +597,18 @@
     display: none;
   }
 
+  /* IP관 PC 배너(IP-06)는 운영자가 IP관에 맞춰 그린 그림이라 전면을 어둡게 덮지 않는다 — 레퍼런스 브랜드관처럼 그림이 그대로
+     보이게, 흰 글자가 서는 왼쪽 글자 단(콘텐츠 왼쪽 선 + 설명 최대 폭 560)에만 스크림을 깐다(l8b-qa-6). 글자 단 안은 .6→.5 로
+     기존 전면 스크림의 세로 가운데 값(.535) 수준을 지키고, 글자 단 끝에서 280px 동안 0 으로 풀려 오른쪽 그림은 손대지 않는다.
+     키아트(배너 없음)·모바일 배너만 있는 IP 의 데스크톱과 모바일 폭은 기존 전면 스크림 그대로다(모바일은 글자가 가운데에 선다). */
+  .wc-iphall__banner[data-banner='all']::before {
+    --wc-iphall-text-end: calc(max(var(--wc-gutter), (100% - var(--wc-container-max)) / 2 + var(--wc-gutter)) + 560px);
+    background: linear-gradient(90deg,
+      rgba(0, 0, 0, .6) 0,
+      rgba(0, 0, 0, .5) var(--wc-iphall-text-end),
+      rgba(0, 0, 0, 0) calc(var(--wc-iphall-text-end) + 280px));
+  }
+
   .wc-iphall__links {
     grid-template-columns: repeat(3, minmax(0, 1fr));
     gap: 12px;

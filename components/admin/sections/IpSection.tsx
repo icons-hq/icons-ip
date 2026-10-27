@@ -36,7 +36,7 @@ export function IpHallBannerForm({ ip }: { ip: AdminIpRecord }) {
       <div className="col" style={{ gap: 4 }}>
         <strong>IP관 배너</strong>
         <span className="muted" style={{ fontSize: 12 }}>
-          온라인 팝업 IP관 맨 위 배너 그림입니다. 비워 두면 IP 키아트를 씁니다. IP 이름·설명·해시태그는 그림 위에 글자로 얹히니 그림에 넣지 마세요.
+          온라인 팝업 IP관 맨 위 배너 그림입니다. 비워 두면 IP 키아트를 씁니다. IP 이름·설명·해시태그는 그림 위에 흰 글자로 얹히니 그림에 넣지 마세요. PC 배너는 글자가 서는 왼쪽(콘텐츠 시작선에서 약 560px)만 어둡게 깔고 나머지는 그림 그대로 보이니 주요 그림은 오른쪽에 두세요. 모바일은 글자가 가운데에 서고 그림 전체가 어둡게 깔립니다.
         </span>
       </div>
       <input name="ipId" type="hidden" value={ip.id} />
