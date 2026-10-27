@@ -35,7 +35,11 @@ describe('orderCompleteDestination', () => {
   it('결제 완료 카드 주문과 무통장 입금 대기 주문만 완료 화면을 그린다', () => {
     expect(orderCompleteDestination(order)).toEqual({ kind: 'paid' });
     expect(orderCompleteDestination({ ...order, status: 'confirmed' })).toEqual({ kind: 'paid' });
-    expect(orderCompleteDestination({ ...order, status: 'pending', paymentMethod: 'bank_transfer', paymentStatus: null })).toEqual({ kind: 'deposit' });
+    const now = Date.parse('2026-10-27T06:00:00.000Z');
+    expect(orderCompleteDestination({ ...order, status: 'pending', paymentMethod: 'bank_transfer', paymentStatus: null, expiresAt: '2026-10-28T05:00:00.000Z' }, now))
+      .toEqual({ kind: 'deposit', deadlinePassed: false });
+    expect(orderCompleteDestination({ ...order, status: 'pending', paymentMethod: 'bank_transfer', paymentStatus: null, expiresAt: '2026-10-27T05:00:00.000Z' }, now))
+      .toEqual({ kind: 'deposit', deadlinePassed: true });
   });
 
   it('결제 전 카드 주문·결제 취소 진행·취소 주문은 주문 상세로, 선물은 선물함으로 보낸다', () => {
@@ -77,5 +81,18 @@ describe('OrderComplete', () => {
     expect(html).toContain('입금자명');
     expect(html).toContain(bankTransferDepositName('아이콘즈', '2026102710000001'));
     expect(html).toContain('입금할 금액</dt><dd>₩15,000');
+  });
+
+  it('기한이 지났지만 아직 정리 전인 무통장 주문에는 계좌 대신 기한 만료를 안내한다', () => {
+    const html = renderToStaticMarkup(
+      <OrderComplete
+        order={{ ...order, status: 'pending', paymentMethod: 'bank_transfer', paymentStatus: null, paidAt: null, expiresAt: '2026-10-27T05:00:00.000Z' }}
+        bankTransferAccount={{ bank: '국민은행', accountNumber: '123456-01-789012', holder: '아이콘즈' }}
+        depositDeadlinePassed
+      />,
+    );
+    expect(html).toContain('입금 기한이 지났어요');
+    expect(html).not.toContain('123456-01-789012');
+    expect(html).not.toContain('주문이 접수됐어요');
   });
 });
