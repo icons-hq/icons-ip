@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import type { Good, Ip, Stock } from '@/lib/data';
+import type { CollectionBanner } from '@/lib/collection-banners';
 import type { ListingWishlist } from '@/lib/listing-wishlist';
 import {
   parseShopSearchParams,
@@ -8,6 +9,7 @@ import {
   type ShopView,
 } from '@/lib/shop-catalog';
 import {
+  collectionBannerSlotFor,
   EMPTY_SHOP_FILTER_DRAFT,
   Shop,
   setDraftPriceRange,
@@ -329,5 +331,90 @@ describe('컬렉션 뷰별 머리말', () => {
     expect(html).toMatch(/<h1[^>]*>BEST<\/h1>/);
     expect(html).toContain('지금 가장 사랑받는 굿즈예요.');
     expect(html.indexOf('메이플 인형')).toBeLessThan(html.indexOf('홍실 키링'));
+  });
+});
+
+describe('컬렉션 머리 배너 (11 CL-09 · L8b)', () => {
+  function banner(id: string, slot: CollectionBanner['slot'], overrides: Partial<CollectionBanner> = {}): CollectionBanner {
+    return {
+      id,
+      slot,
+      title: `배너 ${id}`,
+      subtitle: null,
+      imageUrl: `https://cdn.test/${id}.webp`,
+      mobileImageUrl: null,
+      href: null,
+      imageAlt: '',
+      imageDim: 'none',
+      textColor: 'black',
+      endsAt: null,
+      ...overrides,
+    };
+  }
+
+  function renderWith(view: ShopView, banners: CollectionBanner[], params: Record<string, string> = {}, bestGoodIds?: string[]) {
+    const query = parseShopSearchParams(params, { view, validIpIds: new Set(catalog.ips.map((item) => item.id)) });
+    return renderToStaticMarkup(<Shop banners={banners} query={query} result={selectShopGoods(catalog, query, bestGoodIds)} view={view} />);
+  }
+
+  it('배너가 없으면 컬렉션 루트에 배너 수식어도 배너 마크업도 없다(지금 화면 그대로)', () => {
+    const html = render('all');
+
+    expect(html).toContain('class="wc-root wc-collection"');
+    expect(html).not.toContain('wc-collection--banner');
+    expect(html).not.toContain('wc-collection-banners');
+  });
+
+  it('굿즈샵 전체 배너는 컨테이너 밖 전폭으로, 목록 앞에 선다', () => {
+    const html = renderWith('all', [banner('a1', 'all'), banner('a2', 'all'), banner('b1', 'best')]);
+
+    expect(html).toContain('class="wc-root wc-collection wc-collection--banner"');
+    expect(html).toContain('wc-collection-banners--wide');
+    expect(html.indexOf('wc-collection-banners--wide')).toBeLessThan(html.indexOf('class="wc-container"'));
+    expect(html).toContain('배너 a1');
+    expect(html).toContain('배너 a2');
+    /* 다른 컬렉션 슬롯의 배너는 섞이지 않는다. */
+    expect(html).not.toContain('배너 b1');
+    expect(html).toMatch(/<h1 class="wc-sr-only">굿즈샵<\/h1>/);
+  });
+
+  it('BEST 배너가 있으면 보이는 텍스트 제목을 걷고 콘텐츠 폭 배너가 머리말이 된다', () => {
+    const html = renderWith('best', [banner('b1', 'best', { subtitle: '지금 많이 찾는 굿즈' })], {}, ['d', 'b']);
+
+    expect(html).toMatch(/<h1 class="wc-sr-only">BEST<\/h1>/);
+    expect(html).not.toContain('wc-section-heading');
+    expect(html).toContain('wc-collection-banners--contained');
+    expect(html.indexOf('class="wc-container"')).toBeLessThan(html.indexOf('wc-collection-banners--contained'));
+    expect(html).toContain('지금 많이 찾는 굿즈');
+  });
+
+  it('NEW 는 NEW 슬롯 배너만 받는다', () => {
+    const html = renderWith('new', [banner('n1', 'new'), banner('a1', 'all')]);
+
+    expect(html).toContain('배너 n1');
+    expect(html).not.toContain('배너 a1');
+    expect(html).toContain('wc-collection-banners--contained');
+  });
+
+  it('카테고리 전시(?displayCategory=)는 같은 화면이어도 배너를 그리지 않는다', () => {
+    const query = { ...parseShopSearchParams({}, { view: 'all', validIpIds: new Set(['ip1', 'ip2']) }), displayCategory: '00000000-0000-4000-8000-000000000001' };
+    const html = renderToStaticMarkup(<Shop banners={[banner('a1', 'all')]} query={query} result={selectShopGoods(catalog, query)} title="전시" view="all" />);
+
+    expect(html).not.toContain('wc-collection-banners');
+    expect(html).not.toContain('wc-collection--banner');
+    expect(collectionBannerSlotFor('all', query)).toBeNull();
+  });
+
+  it('검색·IP관 컬렉션에는 배너 슬롯이 없다', () => {
+    expect(collectionBannerSlotFor('search', {})).toBeNull();
+    expect(collectionBannerSlotFor('ip', {})).toBeNull();
+    expect(collectionBannerSlotFor('best', {})).toBe('best');
+  });
+
+  it('스코프가 빈 BEST 도 배너는 그대로 두고 준비 중 안내를 잇는다', () => {
+    const html = renderWith('best', [banner('b1', 'best')], {}, []);
+
+    expect(html).toContain('wc-collection-banners--contained');
+    expect(html).toContain('아직 준비 중이에요');
   });
 });

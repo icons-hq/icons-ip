@@ -3,10 +3,12 @@
 import { usePathname } from 'next/navigation';
 import { EmptyState } from '@/components/wc/EmptyState';
 import { GoodsSalePeriodRefresh } from '@/components/shop/GoodsSalePeriodRefresh';
+import { CollectionBanners } from '@/components/shop/CollectionBanners';
 import { CollectionBrowser } from '@/components/shop/CollectionBrowser';
 import { shopQueryString } from '@/components/shop/collection-filters';
 import { SectionHeading } from '@/components/wc/SectionHeading';
 import { WcButton } from '@/components/wc/WcButton';
+import type { CollectionBanner, CollectionBannerSlot } from '@/lib/collection-banners';
 import type { ListingWishlist } from '@/lib/listing-wishlist';
 import {
   SHOP_SORTS,
@@ -32,7 +34,8 @@ export {
  * 이 화면은 컬렉션 머리말과 스코프가 빈 경우의 안내, 그리고 URL 조립 규칙만 정한다.
  *
  * 머리말: 굿즈샵과 NEW 는 제목 없이 목록으로 바로 시작한다(R-03 §1.2 · CL-08 — h1 은 시각 숨김).
- * BEST 는 컬렉션 배너(CL-09, L8b)가 오기 전까지 텍스트 제목을 둔다.
+ * 컬렉션 배너(CL-09, L8b)는 굿즈샵 전체·BEST·NEW 머리에 선다(카테고리 전시·검색·IP관에는 없다). BEST 는 배너가 없을 때만
+ * 텍스트 제목을 보인다 — 배너가 있으면 배너 문구가 머리말이고 h1 은 시각 숨김이다. 배너가 없으면 화면은 지금 그대로다.
  */
 
 export interface ShopProps {
@@ -47,6 +50,14 @@ export interface ShopProps {
   paging?: { loading: boolean; error?: string; hasMore?: boolean; onLoadMore: () => void; onReload?: () => void };
   /** 목록 하트의 초기 상태(`lib/wishlist-ids.server`). 생략하면 하트를 그리지 않는다(어드민 미리보기). */
   wishlist?: ListingWishlist | null;
+  /** 이 컬렉션의 머리 배너(`lib/collection-banners.server`). 비었거나 생략하면 배너 없이 그린다. */
+  banners?: readonly CollectionBanner[];
+}
+
+/** 배너를 받는 컬렉션 — 굿즈샵 전체·BEST·NEW. 카테고리 전시(`?displayCategory=`)는 같은 화면을 쓰지만 배너가 없다. */
+export function collectionBannerSlotFor(view: ShopView, query: Pick<ShopListQuery, 'displayCategory'>): CollectionBannerSlot | null {
+  if (query.displayCategory) return null;
+  return view === 'all' || view === 'best' || view === 'new' ? view : null;
 }
 
 const VIEW_HEADINGS: Record<ShopView, { title: string; subcopy?: string }> = {
@@ -57,21 +68,30 @@ const VIEW_HEADINGS: Record<ShopView, { title: string; subcopy?: string }> = {
   ip: { title: '굿즈' },
 };
 
-export function Shop({ query, result, view, title, onQueryChange, paging, refreshScheduledContent = true, overlayContainer, wishlist }: ShopProps) {
+export function Shop({ query, result, view, title, onQueryChange, paging, refreshScheduledContent = true, overlayContainer, wishlist, banners = [] }: ShopProps) {
   const pathname = usePathname();
   const heading = VIEW_HEADINGS[view];
+  const bannerSlot = collectionBannerSlotFor(view, query);
+  const slotBanners = bannerSlot ? banners.filter((banner) => banner.slot === bannerSlot) : [];
+  const hasBanner = slotBanners.length > 0;
   const headingNode = title
     ? <SectionHeading as="h1" title={title} />
-    : view === 'best'
+    : view === 'best' && !hasBanner
       ? <SectionHeading as="h1" subcopy={heading.subcopy} title={heading.title} />
       : <h1 className="wc-sr-only">{heading.title}</h1>;
+  /* 굿즈샵 전체 배너는 전폭이라 컨테이너 밖, BEST·NEW 배너는 콘텐츠 폭이라 컨테이너 안 머리말 자리에 선다. */
+  const wideBanner = bannerSlot === 'all' && hasBanner ? <CollectionBanners banners={slotBanners} slot="all" /> : null;
+  const containedBanner = bannerSlot && bannerSlot !== 'all' && hasBanner ? <CollectionBanners banners={slotBanners} slot={bannerSlot} /> : null;
+  const rootClass = `wc-root wc-collection${hasBanner ? ' wc-collection--banner' : ''}`;
 
   /* 스코프가 통째로 비면 필터·정렬을 그릴 이유가 없다. 가짜 목록 대신 안내만 남긴다. */
   if (result.total === 0) {
     return (
-      <div className="wc-root wc-collection">
+      <div className={rootClass}>
+        {wideBanner}
         <div className="wc-container">
           {headingNode}
+          {containedBanner}
           <div className="wc-collection__empty">
             <EmptyState
               action={view === 'all' && !query.displayCategory ? undefined : (
@@ -86,10 +106,12 @@ export function Shop({ query, result, view, title, onQueryChange, paging, refres
   }
 
   return (
-    <div className="wc-root wc-collection">
+    <div className={rootClass}>
       {refreshScheduledContent ? <GoodsSalePeriodRefresh goods={result.goods} /> : null}
+      {wideBanner}
       <div className="wc-container">
         {headingNode}
+        {containedBanner}
         <CollectionBrowser
           countNoun="굿즈"
           hrefFor={(next) => {
