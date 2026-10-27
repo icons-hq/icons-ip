@@ -79,6 +79,19 @@ describe('셸 공지 서버 렌더', () => {
     expect(stripImg(render({ bars: [], strips: [strip('only')] }), 'only')).not.toContain('loading=');
   });
 
+  /* 셸 QA(2026-10-27) — 이미지가 600ms 늦으면 모바일 띠가 0 에서 52 로 펼쳐지며 #root 를 밀었다(CLS 0.05). 서버가 읽은 고유 크기로
+     자리를 먼저 잡는다 — 모바일 소스는 자기 크기를, img 는 PC 크기를 단다. */
+  it('이미지 고유 크기를 width·height 로 달아 띠 자리를 첫 페인트 전에 잡는다', () => {
+    const html = render({ bars: [], strips: [strip('s1', {
+      mobileImageUrl: 'https://cdn.example/s1-m.webp', imageSize: { width: 1440, height: 36 }, mobileImageSize: { width: 375, height: 52 },
+    })] });
+    expect(html).toContain('<source height="52" media="(max-width: 749px)" srcSet="https://cdn.example/s1-m.webp" width="375"/>');
+    expect(stripImg(html, 's1')).toBe('<img alt="띠배너 s1" height="36" src="https://cdn.example/s1.webp" width="1440"/>');
+    /* 모바일 소스 크기를 모르면 img 크기도 달지 않는다 — 브라우저가 PC 비율로 모바일 이미지 자리를 잘못 잡는다. */
+    const unknownMobile = render({ bars: [], strips: [strip('s2', { mobileImageUrl: 'https://cdn.example/s2-m.webp', imageSize: { width: 1440, height: 36 }, mobileImageSize: null })] });
+    expect(stripImg(unknownMobile, 's2')).toBe('<img alt="띠배너 s2" src="https://cdn.example/s2.webp"/>');
+  });
+
   it('텍스트 공지 바가 이미지 스트립 위에 있고, 바로 뒤에 첫 페인트 전 스크립트가 온다', () => {
     const html = render({ bars: [bar('b1')], strips: [strip('s1')] });
     expect(html.indexOf('wc-notice-bar')).toBeLessThan(html.indexOf('class="wc-notice"'));

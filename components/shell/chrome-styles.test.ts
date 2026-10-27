@@ -205,6 +205,98 @@ describe('해시 이동 착지선 (html scroll-padding-top)', () => {
     /* 보존 표면(/about, about-legacy)은 자기 스크롤 여백을 0으로 정해 두었다 — 레이어 밖 규칙이 그대로 이긴다. */
     expect(htmlScrollPadding().map((entry) => entry.layer)).toEqual(htmlScrollPadding().map(() => 'base'));
   });
+
+  /* 셸 QA(2026-10-27) — 축약 중 깊이 스크롤한 /shop 에서 키보드가 로고·GNB 로 들어오면 Tab 마다 약 477px 끌려 올라가 맨 위까지 갔다.
+     sticky 헤더 안 요소가 착지선(최대 123) 안쪽이라 브라우저가 가려진 것으로 읽고 가운데로 데려온 것이다. */
+  it('헤더 행 안 포커스는 착지 상자 윗변을 착지선 최댓값만큼 내려 문서를 끌어올리지 않는다', () => {
+    const lines = htmlScrollPadding().filter((entry) => entry.selector.includes('.wc-chrome')).map((entry) => Number.parseInt(entry.value, 10));
+    const margin = `-${Math.max(...lines)}px`;
+    expect(margin).toBe('-123px');
+    expect(declsFor('.wc-header .wc-header__bar :focus', DESKTOP)['scroll-margin-top']).toBe(margin);
+    expect(declsFor('.wc-header .wc-gnb__link:focus', DESKTOP)['scroll-margin-top']).toBe(margin);
+    /* 메가메뉴는 안쪽 스크롤 상자다 — 음수 여백이 붙으면 위로 넘친 링크를 상자 안으로 데려오지 못한다. 모바일 헤더는 다른 구조다. */
+    root.walkDecls('scroll-margin-top', (decl) => {
+      const rule = decl.parent as Rule;
+      if (!decl.value.startsWith('-')) return;
+      expect(rule.selectors.some((selector) => selector.includes('.wc-mega'))).toBe(false);
+      expect(mediaOf(rule)).toBe(DESKTOP);
+    });
+  });
+});
+
+describe('하단 착지선 (html scroll-padding-bottom)', () => {
+  /* 셸 QA(2026-10-27) 375 Tab 순회 — 하단 탭바 뒤(/shop 목록 이름·/my 회원 등급 혜택·/my/wishlist 하트), PDP 구매바 뒤(위시 하트),
+     문의 런처 뒤(/my 최근 본 굿즈)로 포커스가 통째로 들어갔다(WCAG 2.2 SC 2.4.11). 화면 아래 고정 층의 윗변이 착지선이다. */
+  const globals = postcss.parse(readFileSync(new URL('../../app/globals.css', import.meta.url), 'utf8'));
+  const inquiry = postcss.parse(readFileSync(new URL('../../app/styles/wc-inquiry-widget.css', import.meta.url), 'utf8'));
+  const catalog = postcss.parse(readFileSync(new URL('../../app/styles/wc-catalog.css', import.meta.url), 'utf8'));
+
+  function declsIn(sheet: postcss.Root, selector: string, media: string | null = null): Decls {
+    const decls: Decls = {};
+    sheet.walkRules((rule) => {
+      if (!rule.selectors.map((s) => s.trim()).includes(selector) || mediaOf(rule) !== media) return;
+      rule.walkDecls((decl) => {
+        decls[decl.prop] = decl.value;
+      });
+    });
+    return decls;
+  }
+
+  it('모바일 탭바·PDP 구매바 화면은 그 위에 선 문의 런처의 윗변, 카트는 주문 바 + 16 이다', () => {
+    const launcher = declsIn(inquiry, '.wc-root .wc-inquiry-widget__launcher');
+    const raised = declsIn(inquiry, '.wc-root .wc-inquiry-widget__launcher', MOBILE);
+    expect(raised.bottom).toBe('calc(80px + env(safe-area-inset-bottom))');
+    expect(launcher['min-height']).toBe('48px');
+    expect(declsFor('.wc-tabbar')['min-height']).toBe('62px');
+    expect(declsIn(catalog, '.wc-buybar').height).toBe('72px');
+
+    const top = 'calc(128px + env(safe-area-inset-bottom))';
+    expect(declsIn(globals, 'html:has(.wc-chrome .wc-tabbar)', MOBILE)['--wc-bottom-fixed-h']).toBe(top);
+    /* 어드민 미리보기 PDP(.is-embedded)는 구매바를 띄우지 않는다(wc-catalog.css). */
+    expect(declsIn(globals, 'html:has(.wc-pdp:not(.is-embedded) .wc-buybar)', MOBILE)['--wc-bottom-fixed-h']).toBe(top);
+    expect(declsIn(globals, 'html:has(.wc-cart__cta-bar)', MOBILE)['--wc-bottom-fixed-h']).toBe('calc(109px + env(safe-area-inset-bottom))');
+    /* 데스크톱에는 하단 고정 바가 없다. */
+    for (const selector of ['html:has(.wc-chrome .wc-tabbar)', 'html:has(.wc-cart__cta-bar)']) {
+      expect(declsIn(globals, selector, DESKTOP)['--wc-bottom-fixed-h']).toBeUndefined();
+      expect(declsIn(globals, selector)['--wc-bottom-fixed-h']).toBeUndefined();
+    }
+  });
+
+  /* 고정 층끼리 겹치면 스크롤로는 풀 수 없다 — 375 에서 문의 런처(바닥 80~128)가 선택 방문 통계 안내(바닥 76~) 밑에 통째로 깔렸고,
+     601~989 에서는 안내(바닥 20)·설정 버튼(바닥 12)이 하단 탭바를 덮었다. */
+  it('선택 방문 통계 안내·설정 버튼은 990 미만에서 하단 바와 문의 런처 위에 선다', () => {
+    const analytics = postcss.parse(readFileSync(new URL('../../app/styles/store-analytics.css', import.meta.url), 'utf8'));
+    const cart = '#root:has(.wc-cart__cta-bar)~.wc-store-analytics';
+    const compactMobile = '(max-width:989px)'; // 이 시트는 압축 표기다.
+    expect(declsIn(analytics, '.wc-store-analytics-banner', compactMobile).bottom).toBe('calc(136px + env(safe-area-inset-bottom))'); // 런처 윗변 128 + 8
+    expect(declsIn(analytics, `${cart} .wc-store-analytics-banner`, compactMobile).bottom).toBe('calc(165px + env(safe-area-inset-bottom))'); // 카트 런처 윗변 157 + 8
+    expect(declsIn(analytics, '.wc-store-analytics-settings', compactMobile).bottom).toBe('calc(72px + env(safe-area-inset-bottom))'); // 탭바 62 + 10
+    expect(declsIn(analytics, `${cart} .wc-store-analytics-settings`, compactMobile).bottom).toBe('calc(101px + env(safe-area-inset-bottom))'); // 주문 바 93 + 8
+    expect(declsIn(catalog, '#root:has(.wc-cart__cta-bar) .wc-inquiry-widget__launcher', MOBILE).bottom).toBe('calc(109px + env(safe-area-inset-bottom))');
+    /* 최대 스크롤에서는 착지선이 더 내릴 곳이 없다 — 안내가 보이는 동안 푸터 바닥이 그 윗변 + 16 까지 열린다. */
+    const raised = 'calc(var(--wc-store-analytics-clearance, 0px) + 16px)';
+    expect(declsFor('.wc-footer').padding).toBe(`40px 0 max(60px, ${raised})`);
+    expect(declsFor('.wc-footer', MOBILE)['padding-bottom']).toBe(`max(122px, ${raised})`);
+    /* 600 이하 배치(줄바꿈·버튼 폭)만 남기고 위치는 990 기준 하나로 둔다. */
+    expect(declsIn(analytics, '.wc-store-analytics-banner', '(max-width:600px)').bottom).toBeUndefined();
+    expect(declsIn(analytics, '.wc-store-analytics-settings', '(max-width:600px)').bottom).toBeUndefined();
+  });
+
+  it('착지선은 하단 바와 선택 방문 통계 안내(측정값) 중 높은 쪽이고, 기본 레이어라 표면 값이 이긴다', () => {
+    expect(declsIn(globals, 'html')['scroll-padding-bottom']).toBe('max(var(--wc-bottom-fixed-h, 0px), var(--wc-store-analytics-clearance, 0px))');
+    const layers: Array<string | null> = [];
+    globals.walkDecls(/^(scroll-padding-bottom|--wc-bottom-fixed-h)$/, (decl) => {
+      let layer: string | null = null;
+      for (let node = decl.parent?.parent; node; node = node.parent) {
+        if (node.type === 'atrule' && (node as AtRule).name === 'layer') layer = (node as AtRule).params;
+      }
+      layers.push(layer);
+    });
+    expect(layers.length).toBeGreaterThan(0);
+    expect(new Set(layers)).toEqual(new Set(['base']));
+    const analytics = readFileSync(new URL('./StoreAnalytics.tsx', import.meta.url), 'utf8');
+    expect(analytics).toContain('holdStoreAnalyticsClearance(pinned.current, window)');
+  });
 });
 
 describe('모바일 푸터 순서 (CH-15)', () => {
@@ -253,6 +345,8 @@ describe('검색 모달 배경 inert (공지 스트립 포함)', () => {
     expect(src).toMatch(/'[^']*\.wc-notice[^']*'/);
     /* 텍스트 공지 바의 버튼·닫기도 딤 밖에 남는 조작부다(L8a). */
     expect(src).toMatch(/'[^']*\.wc-notice-bar[^']*'/);
+    /* body 직계 선택 방문 통계 안내(배너·설정 버튼)도 — 셸 QA(2026-10-27)에서 시트가 열린 동안 Tab 이 배너 버튼으로 나갔다. */
+    expect(src).toMatch(/'[^']*\.wc-store-analytics'/);
   });
 });
 

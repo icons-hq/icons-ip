@@ -2746,11 +2746,16 @@ button.wc-settings__link-row[aria-disabled="true"] strong {
   text-underline-offset: 3px;
 }
 
+/* 주문 상세 상태 줄은 주문 상태 배지 옆에 진행 중인 클레임 배지를 함께 둔다. */
 .wc-receipt .order-detail-status-row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 6px;
+}
+
+.wc-receipt .order-detail-status-row,
+.wc-receipt .ticket-detail-status-row {
   margin-bottom: 10px;
 }
 

@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useRef, type RefObject } from 'react';
+import { tabbableIn, trapFocusTarget } from './overlay-focus';
 
 /* 모달 오버레이가 공유하는 접근성 — 배경 스크롤 잠금, 배경 inert, 최초 포커스,
    Escape 닫기, Tab 순환, 닫힐 때 이전 포커스 복귀.
@@ -8,9 +9,6 @@ import { useEffect, useRef, type RefObject } from 'react';
    화면 오버레이(Shop 필터 시트, Binder 카드 상세)가 함께 쓴다.
    패널은 inert 대상(#root·셸 행들) 밖에 있어야 한다 — #root 안 화면의 오버레이는
    OverlayPortal로 body 직계에 렌더한다. */
-
-const FOCUSABLE_SELECTOR =
-  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
 
 export function useOverlayA11y({
   open,
@@ -36,7 +34,8 @@ export function useOverlayA11y({
     const previousOverflow = ownerDocument.body.style.overflow;
     const previousFocus = ownerDocument.activeElement as HTMLElement | null;
     /* 다이얼로그 밖 상호작용 표면 전부를 inert로 덮는다 — 본문·푸터만 덮으면
-       유틸바·헤더 컨트롤·탭바(그리고 맨 위 공지 바의 버튼·닫기)가 접근성 트리에 남아 모달인데 밖을 조작할 수 있게 된다.
+       유틸바·헤더 컨트롤·탭바(그리고 맨 위 공지 바의 버튼·닫기)와 body 직계인 선택 방문 통계 안내(.wc-store-analytics)가
+       접근성 트리에 남아 모달인데 밖을 조작할 수 있게 된다.
        검색 패널은 .wc-header "안"에 있으므로 헤더 전체가 아니라 형제 행들만 개별로 덮는다.
        패널이 후보 안에 있으면 그 후보는 건너뛴다 — #root 안 화면 오버레이가 자기 자신까지
        inert로 얼려 페이지가 잠기는 사고 방지. 이 안전망은 배경 일부(그 후보의 내용)를 덮지
@@ -45,7 +44,7 @@ export function useOverlayA11y({
     const backgroundElements = [
       ownerDocument.getElementById('root'),
       ...ownerDocument.querySelectorAll<HTMLElement>(
-        '.wc-footer, .wc-notice-bar, .wc-notice, .wc-utilbar, .wc-header__bar, .wc-gnb-wrap, .wc-tabbar',
+        '.wc-footer, .wc-notice-bar, .wc-notice, .wc-utilbar, .wc-header__bar, .wc-gnb-wrap, .wc-tabbar, .wc-store-analytics',
       ),
     ].filter((element): element is HTMLElement => element !== null && !element.contains(panel));
     const previousInert = backgroundElements.map((element) => element.inert);
@@ -54,8 +53,8 @@ export function useOverlayA11y({
       element.inert = true;
     });
 
-    const getFocusable = () =>
-      Array.from(panelRef.current?.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR) ?? []);
+    /* 순환 후보는 Tab 이 실제로 닿는 요소만이다 — 숨은 요소가 처음·끝 후보가 되면 되감지 못해 밖으로 샌다(overlay-focus.ts). */
+    const getFocusable = () => tabbableIn<HTMLElement>(panelRef.current);
 
     /* initialFocusRef가 없으면 패널 안 첫 포커서블(= 닫기 버튼)로 들어간다. */
     (initialFocusRef?.current ?? getFocusable()[0])?.focus();
@@ -69,15 +68,20 @@ export function useOverlayA11y({
       if (event.key !== 'Tab') return;
 
       const items = getFocusable();
-      if (items.length === 0) return;
-      const first = items[0];
-      const last = items[items.length - 1];
-      if (event.shiftKey && ownerDocument.activeElement === first) {
+      const active = ownerDocument.activeElement;
+      /* 닿을 곳이 없으면 포커스를 그대로 둔다 — 배경이 inert 라 기본 이동은 브라우저 UI 로 나간다. */
+      if (items.length === 0) {
         event.preventDefault();
-        last.focus();
-      } else if (!event.shiftKey && ownerDocument.activeElement === last) {
+        return;
+      }
+      const target = trapFocusTarget(items, active, {
+        backward: event.shiftKey,
+        inside: Boolean(active && panelRef.current?.contains(active)),
+        onPanel: active === panelRef.current,
+      });
+      if (target) {
         event.preventDefault();
-        first.focus();
+        target.focus();
       }
     };
 

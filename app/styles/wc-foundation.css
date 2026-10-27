@@ -153,10 +153,12 @@
   color: #FFFFFF;
 }
 
+/* 액센트 면 + 잉크 글자. brand-green 위 흰 글자는 2.3:1 로 AA 미달이고, 흰 글자는 잉크 면 위에만 쓴다(DESIGN §2) —
+   잉크 글자는 8.1:1 이다. */
 .wc-btn.accent {
   background: var(--wc-accent);
   border-color: var(--wc-accent);
-  color: #FFFFFF;
+  color: var(--wc-ink);
 }
 
 .wc-btn:disabled,

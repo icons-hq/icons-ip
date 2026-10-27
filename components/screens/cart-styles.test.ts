@@ -28,6 +28,7 @@ const decls = (all: Rule[], selector: string, media: string | null = null) => Ob
 const catalog = rules('../../app/styles/wc-catalog.css');
 const globals = rules('../../app/globals.css');
 const chrome = rules('../../app/styles/wc-chrome.css');
+const foundation = rules('../../app/styles/wc-foundation.css');
 const MOBILE = '(max-width: 989px)';
 const DESKTOP = '(min-width: 990px)';
 
@@ -67,7 +68,10 @@ describe('빈 상태 (CT-02)', () => {
   });
 
   it('액센트 CTA 글자는 잉크다 — brand-green 위 흰 글자(2.3:1)는 AA 미달이다', () => {
-    expect(decls(catalog, '.wc-cart__empty-cta.wc-btn.accent')).toMatchObject({ width: '220px', height: '60px', color: 'var(--wc-ink)' });
+    expect(decls(catalog, '.wc-cart__empty-cta.wc-btn.accent')).toMatchObject({ width: '220px', height: '60px' });
+    /* 글자색은 파운데이션 변형이 잉크로 갖는다 — 카트 구간이 따로 덮지 않는다. */
+    expect(decls(catalog, '.wc-cart__empty-cta.wc-btn.accent').color).toBeUndefined();
+    expect(decls(foundation, '.wc-btn.accent').color).toBe('var(--wc-ink)');
   });
 });
 
@@ -119,15 +123,19 @@ describe('모바일 카트 크롬 (CT-03)', () => {
   it('바가 마지막 행·푸터·문의 런처를 가리지 않게 바닥을 연다', () => {
     expect(decls(catalog, '.wc-cart', MOBILE)['padding-block']).toBe('0 calc(117px + env(safe-area-inset-bottom))');
     expect(decls(catalog, '#root:has(.wc-cart__cta-bar) .wc-inquiry-widget__launcher', MOBILE).bottom).toBe('calc(109px + env(safe-area-inset-bottom))');
-    expect(decls(catalog, '#root:has(.wc-cart__cta-bar) ~ .wc-footer', MOBILE)['padding-bottom']).toBe('calc(173px + env(safe-area-inset-bottom))');
+    expect(decls(catalog, '#root:has(.wc-cart__cta-bar) ~ .wc-footer', MOBILE)['padding-bottom'])
+      .toBe('max(calc(173px + env(safe-area-inset-bottom)), calc(var(--wc-store-analytics-clearance, 0px) + 16px))');
   });
 
   it('키보드 포커스·해시 이동이 바 뒤에 멈추지 않게 문서 착지선 아래쪽도 바 위로 올린다', () => {
     /* 바(93) 뒤의 수량·삭제·푸터 링크는 화면 안으로 판정돼 스크롤되지 않고 통째로 가려졌다(WCAG 2.4.11).
        html 은 표면 CSS 가 건드리지 않는다(wc-design 계약) — 전역 착지선을 가진 globals.css 가 바 높이 + 16 을 적는다. */
-    expect(decls(globals, 'html:has(.wc-cart__cta-bar)', MOBILE)['scroll-padding-bottom']).toBe('calc(109px + env(safe-area-inset-bottom))');
-    expect(decls(globals, 'html:has(.wc-cart__cta-bar)', DESKTOP)['scroll-padding-bottom']).toBeUndefined();
-    expect(decls(globals, 'html:has(.wc-cart__cta-bar)')['scroll-padding-bottom']).toBeUndefined();
+    /* 착지선 자체는 하단 고정 층 중 높은 쪽이다(globals.css html scroll-padding-bottom — chrome-styles.test 하단 착지선). */
+    expect(decls(globals, 'html:has(.wc-cart__cta-bar)', MOBILE)['--wc-bottom-fixed-h']).toBe('calc(109px + env(safe-area-inset-bottom))');
+    expect(decls(globals, 'html:has(.wc-cart__cta-bar)', DESKTOP)['--wc-bottom-fixed-h']).toBeUndefined();
+    expect(decls(globals, 'html:has(.wc-cart__cta-bar)')['--wc-bottom-fixed-h']).toBeUndefined();
+    /* @layer base 직속 규칙 — 이 헬퍼는 부모 at-rule 의 params 를 미디어 자리로 읽는다. */
+    expect(decls(globals, 'html', 'base')['scroll-padding-bottom']).toContain('var(--wc-bottom-fixed-h, 0px)');
   });
 });
 
