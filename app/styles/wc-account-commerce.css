@@ -3415,6 +3415,14 @@ button.wc-settings__link-row[aria-disabled="true"] strong {
   align-self: flex-start;
 }
 
+/* 주문 완료 화면(D12)의 [주문 상세]·[쇼핑 계속] — 버튼 두 개를 한 줄로, 좁으면 줄바꿈. */
+.wc-receipt .order-complete-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 20px;
+}
+
 .wc-receipt .checkout-state-mark {
   display: inline-flex;
   align-items: center;

@@ -105,6 +105,22 @@ reset role;
 
 select 1/case when not has_table_privilege('authenticated','private.goods_digital_assets','select') and not has_function_privilege('authenticated','public.service_verify_digital_asset(uuid,uuid,uuid,text)','execute')
  and not(select public from storage.buckets where id='goods-digital-private') then 1 else 0 end as private_asset_boundary;
+-- 결제 대기 카드 주문은 같은 계정의 다음 장바구니 주문이 닫는다(ADR-0026). 디지털 주문은
+-- 다음 주문 전에 결제를 확정하고, 결제 확정이 그 줄을 장바구니에서 뺀다.
+-- Approved payment evidence and actual receiver confirmation are independent
+-- of fixture order status. No external payment provider is contacted.
+create function pg_temp.fulfillment_pay(target uuid) returns void language plpgsql as $$declare payment uuid:=gen_random_uuid();attempt uuid:=gen_random_uuid();begin
+ insert into public.payments(id,user_id,purpose,ref_id,provider,amount,status,idempotency_key) select payment,user_id,'order',id,'toss',total,'paid','fulfillment-paid-'||target from public.orders where id=target;
+ insert into public.payment_attempts(id,provider,user_id,purpose,ref_id,amount,state,idempotency_key,provider_order_id,provider_product_code,payment_id,expires_at)
+ select attempt,'toss',user_id,'order',id,total,'approved','fulfillment-attempt-'||target,'fulfillment-provider-'||target,'fulfillment-code-'||target,payment,now()+interval '1 hour' from public.orders where id=target;
+ insert into private.payment_provider_evidence(payment_attempt_id,evidence_kind,approved_at) values(attempt,'confirm',now());
+ update public.orders set status='paid' where id=target;
+end $$;
+select id as digital_item from public.order_items where order_id=:'digital_order' \gset
+set local role service_role;
+select pg_temp.transaction_expect_error(format('select public.service_get_digital_download_info(%L,%L,%L,%L)','c7160850-0000-4000-8000-000000000002','c7160850-0000-4000-9000-000000000002',:'digital_item','c7160850-0000-4003-8000-000000000001'),'digital_access_unavailable');
+reset role;
+select pg_temp.fulfillment_pay(:'digital_order');
 -- Installation remains prepaid even if the transport charge is collected.
 select pg_temp.fulfillment_actor(1);set local role authenticated;
 select public.admin_save_shipping_collect_contract('c7160850-0000-4000-8000-000000000010',0,'active',
@@ -123,20 +139,6 @@ select public.place_cart_goods_transaction('c7160850-0000-4000-8000-000000000002
 reset role;
 select 1/case when private.goods_transaction_snapshot_matches(:'install_order',22400,2400) and(select amount=3000 from private.shipping_collect_obligations where order_id=:'install_order') then 1 else 0 end as separate_installation_and_collect_ledgers;
 
--- Approved payment evidence and actual receiver confirmation are independent
--- of fixture order status. No external payment provider is contacted.
-create function pg_temp.fulfillment_pay(target uuid) returns void language plpgsql as $$declare payment uuid:=gen_random_uuid();attempt uuid:=gen_random_uuid();begin
- insert into public.payments(id,user_id,purpose,ref_id,provider,amount,status,idempotency_key) select payment,user_id,'order',id,'toss',total,'paid','fulfillment-paid-'||target from public.orders where id=target;
- insert into public.payment_attempts(id,provider,user_id,purpose,ref_id,amount,state,idempotency_key,provider_order_id,provider_product_code,payment_id,expires_at)
- select attempt,'toss',user_id,'order',id,total,'approved','fulfillment-attempt-'||target,'fulfillment-provider-'||target,'fulfillment-code-'||target,payment,now()+interval '1 hour' from public.orders where id=target;
- insert into private.payment_provider_evidence(payment_attempt_id,evidence_kind,approved_at) values(attempt,'confirm',now());
- update public.orders set status='paid' where id=target;
-end $$;
-select id as digital_item from public.order_items where order_id=:'digital_order' \gset
-set local role service_role;
-select pg_temp.transaction_expect_error(format('select public.service_get_digital_download_info(%L,%L,%L,%L)','c7160850-0000-4000-8000-000000000002','c7160850-0000-4000-9000-000000000002',:'digital_item','c7160850-0000-4003-8000-000000000001'),'digital_access_unavailable');
-reset role;
-select pg_temp.fulfillment_pay(:'digital_order');
 select pg_temp.fulfillment_actor(2);set local role authenticated;
 select 1/case when public.get_my_order_downloads(:'digital_order')#>>'{items,0,available}'='true' and not has_function_privilege('authenticated','public.service_get_digital_download_info(uuid,uuid,uuid,uuid)','execute') then 1 else 0 end as purchased_download_listing_without_private_paths;
 reset role;set local role service_role;

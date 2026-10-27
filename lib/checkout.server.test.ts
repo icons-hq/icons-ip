@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { transactionActor, transactionDisplay, transactionInput, transactionLineId, transactionOrder, transactionQuoteId } from '@/test/fixtures/cart-transaction';
+import { cartRetentionKeepsCart } from './checkout';
 import {
   loadCheckoutOrder,
   loadLatestCardPaymentResultFocus,
@@ -657,4 +658,15 @@ it('신규 주문은 저장된 온라인·착불·할인·품목 원장과 일�
   expect(await loadCheckoutOrder(transactionActor, transactionOrder)).toBeNull();
   rows.order_items[0].qty = 2; rpc.mockResolvedValueOnce({ data: null, error: null });
   expect(await loadCheckoutOrder(transactionActor, transactionOrder)).toBeNull();
+});
+
+describe('cartRetentionKeepsCart', () => {
+  it('결제를 기다리거나 결제 없이 닫힌 보류만 장바구니가 남은 주문으로 본다(ADR-0026)', () => {
+    expect(cartRetentionKeepsCart({ state: 'awaiting_payment', releaseReason: null })).toBe(true);
+    expect(cartRetentionKeepsCart({ state: 'released', releaseReason: 'superseded' })).toBe(true);
+    expect(cartRetentionKeepsCart({ state: 'released', releaseReason: 'order_closed' })).toBe(true);
+    expect(cartRetentionKeepsCart({ state: 'released', releaseReason: 'detached' })).toBe(false);
+    expect(cartRetentionKeepsCart({ state: 'consumed', releaseReason: null })).toBe(false);
+    expect(cartRetentionKeepsCart(null)).toBe(false);
+  });
 });

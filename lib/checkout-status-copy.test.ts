@@ -253,3 +253,12 @@ describe('orderDetailCardPaymentNotice', () => {
     expect(noticeText(notice)).not.toContain('이어가기');
   });
 });
+
+describe('장바구니 유지 주문의 다시 결제 안내(ADR-0026)', () => {
+  it('결제 없이 끝난 주문은 주문 상세에서도 주문서로 다시 결제하게 한다', () => {
+    const reading: CheckoutPaymentReading = { state: 'payment_closed', closure: 'not_approved', reorderMode: 'retry_from_cart', provider: 'toss' };
+    const notice = orderDetailCardPaymentNotice(reading, { orderId: 'order-1', orderExpiresAt: null });
+    expect(notice.header.body).toContain('장바구니는 그대로 있으니');
+    expect(notice.banner?.link).toEqual({ href: '/checkout', label: '다시 결제하기' });
+  });
+});
