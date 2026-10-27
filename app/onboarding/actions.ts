@@ -3,6 +3,7 @@
 import { revalidatePath } from 'next/cache';
 import { redirect } from 'next/navigation';
 import { meetsMinimumSignupAge } from '@/lib/age/minimum-age';
+import { addressBookOnboardingPath } from '@/lib/address-book';
 import { safeNextPath } from '@/lib/auth/onboarding';
 import { buildRecommendedIpFollowChanges, uniqueSelectedIpIds } from '@/lib/ip-follow';
 import { normalizeProfileNickname } from '@/lib/profile';
@@ -227,5 +228,7 @@ export async function completeOnboardingAction(
   revalidatePath('/');
   revalidatePath('/ip');
 
-  redirect(next);
+  /* 온보딩을 마치면 배송지 등록 안내(건너뛸 수 있음)를 한 번 거쳐 원래 가려던 곳으로 간다(L7 · 10/14 S3).
+     안내 화면은 이미 주소록이 있거나 읽지 못하면 바로 next 로 보낸다 — 가입·주문을 막지 않는다. */
+  redirect(addressBookOnboardingPath(next));
 }

@@ -131,7 +131,7 @@ describe('completeOnboardingAction profile identity', () => {
     formData.set('birthDay', '31');
 
     await expect(completeOnboardingAction({}, formData)).rejects.toThrow(
-      'NEXT_REDIRECT:/community',
+      'NEXT_REDIRECT:/onboarding/address?next=%2Fcommunity',
     );
 
     expect(mocks.profilePayloads[0]).toMatchObject({ birth_date: '2000-01-31' });
@@ -209,7 +209,7 @@ describe('completeOnboardingAction profile identity', () => {
     const formData = onboardingForm('fan');
     formData.set('birthDate', birthDateForExactAge(14));
 
-    await expect(completeOnboardingAction({}, formData)).rejects.toThrow('NEXT_REDIRECT:/community');
+    await expect(completeOnboardingAction({}, formData)).rejects.toThrow('NEXT_REDIRECT:/onboarding/address?next=%2Fcommunity');
     expect(mocks.profilePayloads[0]?.birth_date).toBe(birthDateForExactAge(14));
   });
 
@@ -228,7 +228,7 @@ describe('completeOnboardingAction profile identity', () => {
     const nickname = familyEmoji.repeat(30);
 
     await expect(completeOnboardingAction({}, onboardingForm(nickname))).rejects.toThrow(
-      'NEXT_REDIRECT:/community',
+      'NEXT_REDIRECT:/onboarding/address?next=%2Fcommunity',
     );
 
     expect(mocks.identity).toHaveBeenCalledWith({
@@ -289,7 +289,7 @@ describe('completeOnboardingAction profile identity', () => {
     await expect(completeOnboardingAction({}, onboardingForm('fan', {
       recommended: [IP_ONE, IP_TWO],
       selected: [IP_TWO],
-    }))).rejects.toThrow('NEXT_REDIRECT:/community');
+    }))).rejects.toThrow('NEXT_REDIRECT:/onboarding/address?next=%2Fcommunity');
 
     expect(mocks.rpc.mock.calls).toEqual([
       ['follow_ip', { target_ip_id: IP_TWO }],
