@@ -134,7 +134,7 @@ describe('MyPage dashboard', () => {
     expect(strip.match(/확인하지 못했어요/g)).toHaveLength(2);
   });
 
-  it('keeps the shell menu once as the account navigation, including the grade benefits page', () => {
+  it('keeps the shell menu once as the account navigation, including the address book and grade benefits pages', () => {
     const html = render();
     const menu = section(html, 'aria-label="마이페이지 메뉴"', 'wc-mypage__content');
 
@@ -147,6 +147,7 @@ describe('MyPage dashboard', () => {
       ['/binder', '바인더'],
       ['/packs', '카드팩'],
       ['/my/reviews', '내 리뷰'],
+      ['/my/addresses', '배송지 관리'],
       ['/my/grade-benefits', '회원 등급 혜택'],
       ['/my/coupons', '쿠폰함'],
       ['/notifications', '알림함'],

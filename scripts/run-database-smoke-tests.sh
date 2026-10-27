@@ -223,6 +223,8 @@ run_sql_test supabase/tests/admin_inquiry_reply_template_management.sql
 run_sql_test supabase/tests/home_product_mosaic.sql
 run_sql_test supabase/tests/admin_loyalty_policy.sql
 run_sql_test supabase/tests/loyalty_grade_benefits.sql
+run_sql_test supabase/tests/address_book.sql
+ADDRESS_BOOK_TEST_SCOPE=ci SUPABASE_DB_CONTAINER="$db_container" bash supabase/tests/address_book_concurrency.sh
 run_sql_test supabase/tests/goods_dynamic_attributes.sql
 run_sql_test supabase/tests/goods_three_axis_options.sql
 bash supabase/tests/goods_photo_library_concurrency.sh "$db_container" postgres

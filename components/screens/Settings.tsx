@@ -21,6 +21,7 @@ import { Icon } from '@/components/ui/Icon';
 import { MypageShell } from '@/components/wc/MypageShell';
 import { WcButton } from '@/components/wc/WcButton';
 import type { AccountDeletionPresentation } from '@/lib/account-deletion';
+import { ADDRESS_BOOK_PATH } from '@/lib/address-book';
 import { LEGAL_DOCUMENT_LABELS, legalDocumentHref } from '@/lib/legal/links';
 import {
   marketingChannelConsentLabel,
@@ -317,6 +318,14 @@ export function Settings({
           필수 동의는 서비스 이용을 위해 유지돼요 · 마케팅 수신 동의는 언제든 변경할 수 있어요
         </p>
       </form>
+
+      {/* 배송지 — 레퍼런스 내 정보 수정의 '내 주소 관리'는 여기서 주소록(배송지 관리)으로 들어간다(L7 · MY-11). */}
+      <section aria-labelledby="settings-address-heading" className="wc-settings__links">
+        <h2 className="wc-mypage__subtitle" id="settings-address-heading">배송지</h2>
+        <ul>
+          <SettingsLinkRow href={ADDRESS_BOOK_PATH} hint="주문서에서 불러올 배송지를 등록하고 기본 배송지를 정해요" label="배송지 관리" />
+        </ul>
+      </section>
 
       {/* 로그인 정보 — 비밀번호 변경은 계정 이메일로 보내는 재설정 링크로만 들어간다(PasswordResetRow).
           저장하면 모든 기기에서 로그아웃되므로 보내기 전에 미리 알린다. */}

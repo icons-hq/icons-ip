@@ -78,6 +78,12 @@ Phase 1 schema는 기본 OFF이며, 거래 lookup 연락처 HMAC/key version, le
 
 법정 snapshot은 `private` schema의 service-only 원장에 저장하고 `public`, `anon`, `authenticated`, 일반 `service_role` 직접 권한을 모두 회수한다. `legal_basis`, `retain_until`, 접근 목적, 사건별 hold와 파기 결과가 없는 record는 생성할 수 없다. 매일 만료 batch가 legal hold 없는 record를 파기하고 PII 없는 category·건수·시각만 감사한다.
 
+주소록(`public.address_book_entries`)은 법정 보존 대상이 아니다. 탈퇴 신청으로 계정 fence가 생기는 트랜잭션에서 그 회원의 주소록을 지운다. 이미 한 주문의 배송지는 주문 정보로서 위 '배송 운영 개인정보'·거래 기록 기준을 따른다. 주문이 있는 회원은 `orders.user_id` 제약 때문에 Auth 삭제의 cascade로 지워지지 않는다. 그래서 Phase 1이 OFF인 동안 문의로 받은 탈퇴는 운영자가 다음 순서로 처리한다.
+
+1. `admin_suspend_user`로 계정을 정지한다. 정지된 계정은 주소록 저장·기본 지정이 거절된다.
+2. SQL 편집기에서 `select private.erase_member_address_book('<회원 id>');`를 실행한다. 지운 개수를 돌려주고 다시 실행해도 안전하다.
+3. 이 함수는 감사 로그를 남기지 않으므로 문의 번호·실행자·실행 시각·반환 개수를 탈퇴 처리 기록에 적는다.
+
 ## 6. Secondary Supabase compliance ledger
 
 외부 interface는 다음 두 동작으로 제한한다.
