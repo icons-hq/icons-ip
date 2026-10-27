@@ -315,6 +315,7 @@ Cloudflare DNS는 `iconsip.com`/`www.iconsip.com`을 Vercel로 보내고, 같은
 | notifications | **본인만** | 직접 쓰기 없음. 읽음 처리는 `open_notification`, 발급은 신뢰 trigger 또는 staff를 재검사하는 audited RPC만 |
 | wishlists | **본인만** | 본인 직접 insert/delete(수량 없는 토글이라 RPC 불요). update 권한 없음 |
 | restock_alerts | **본인만**(select) | 쓰기는 `request_restock_alert`(굿즈 단위)·`request_variant_restock_alert`(옵션 단위) RPC만(탈퇴 진행 계정 거절). delete 권한 없음 — 신청·발송 이력 보존. notified 전이는 goods·goods_variants 트리거만 수행 |
+| address_book_entries(주소록) | **본인만**(select) | 직접 DML 없음. `save_my_address_book_entry`·`set_my_default_address_book_entry`·`delete_my_address_book_entry` RPC만 — 저장·기본 지정은 온보딩을 마치고 정지되지 않은 회원, 삭제는 정지·미온보딩도 허용. 회원당 10개·기본 배송지 1개를 회원 단위 잠금으로 지킨다. 탈퇴 신청 fence 트랜잭션에서 삭제하고, 문의로 받은 탈퇴는 운영자가 봉인 함수 `private.erase_member_address_book`으로 지운다([탈퇴 정책](account-deletion-retention-policy.md) §5). 개인정보처리방침 시행일 전에는 앱이 staff 미리보기로만 연다(`lib/legal/privacy-address-book-revision.ts`) |
 | 쿠폰(coupons/user_coupons/coupon_redemptions/cart_coupon_selections) | 정의는 **보유자 + `marketing.manage`**만(공개로 열면 코드가 열거된다), 보유·사용 원장과 카트 선택은 **본인**(+`marketing.manage`) | 어떤 롤에도 직접 쓰기가 없다. 발급·적용·사용·복구는 전부 security definer 경로만 |
 | 적립금(store_credit_ledger와 private 계정/lot/정책) | 공개 원장은 **본인 RLS**, 본인 잔액·이력은 본인 RPC, 타고객 이력·정책은 **`marketing.manage` 전용 RPC** | `marketing.manage` 정책/조정과 주문 전이·만료 RPC만. 브라우저 및 service role의 직접 private 테이블 쓰기는 봉인 |
 | 거래확정 영수증(private.settled_export_receipts) | 현재 `sales.manage` 권한이 있는 **생성자 전용 RPC** | 생성 RPC가 조건·원본을 보존하고 감사. 다운로드는 기록된 payload만 읽으며 직접 DML 없음 |
