@@ -31,6 +31,11 @@ const DEPOSIT_CODE_EPOCH = Date.UTC(2000, 0, 1);
  * DB `private.bank_transfer_deposit_code`와 **같은 규칙**이어야 한다 — 어긋나면 화면이 안내한
  * 코드로 운영자가 검색해도 주문이 나오지 않는다. 주문번호가 없는 옛 기록(UUID)만 옛 규칙
  * (UUID 앞 8자리)으로 계산한다.
+ *
+ * 안내된 코드는 바꾸지 않는다: DB는 이 규칙으로 바꾼 시각(migration 적용 시각) 전에 만든 주문에
+ * 그때 안내한 옛 코드를 계속 쓴다. 그 시각은 DB만 알므로, 주문서처럼 이미 만든 주문의 코드를
+ * 보여줄 때는 `get_my_bank_transfer_deposit_code`(고객)나 미입금 조회의 deposit_code(운영자)를
+ * `bankTransferDepositNameWithCode`로 쓴다.
  */
 export function bankTransferDepositCode(orderReference: string) {
   if (!isCommerceNumber(orderReference, 'order')) return bankTransferLegacyDepositCode(orderReference);

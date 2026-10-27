@@ -40,27 +40,68 @@ select 1/case when (select count(*)=9 and count(distinct private.bank_transfer_d
  and (select count(*)=count(distinct private.bank_transfer_deposit_code(id)) from public.orders where status='pending' and payment_method='bank_transfer')
  then 1 else 0 end as assert_pending_codes_unique;
 
--- 5) 입금 제안·미입금 검색은 새 코드와 옛 코드(이전에 안내받은 입금)를 모두 받는다.
+-- 5) 입금 제안·미입금 검색은 그 주문에 안내된 코드로 찾는다.
 select private.bank_transfer_deposit_code('55000000-0000-4000-8000-000000271505') as new_code \gset
-select private.bank_transfer_legacy_deposit_code('55000000-0000-4000-8000-000000271505') as legacy_code \gset
 select 1/case when (select order_id from private.suggest_bank_deposit_order('입금 5'||:'new_code',10005))='55000000-0000-4000-8000-000000271505'
- and (select confidence from private.suggest_bank_deposit_order('입금 5 '||lower(:'legacy_code'),10005))='code_amount'
- and (select order_id from private.suggest_bank_deposit_order('입금 5 '||:'legacy_code',99))='55000000-0000-4000-8000-000000271505'
- then 1 else 0 end as assert_suggestion_accepts_new_and_legacy_codes;
+ and (select confidence from private.suggest_bank_deposit_order('입금 5 '||:'new_code',99))='code'
+ then 1 else 0 end as assert_suggestion_by_issued_code;
 set local role authenticated;
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000271502',true);
 select 1/case when (select array_agg(order_id) from public.admin_unpaid_bank_transfer_orders_console(:'new_code'))=array['55000000-0000-4000-8000-000000271505'::uuid]
- and (select array_agg(order_id) from public.admin_unpaid_bank_transfer_orders_console(lower(:'legacy_code')))=array['55000000-0000-4000-8000-000000271505'::uuid]
  and (select deposit_code from public.admin_unpaid_bank_transfer_orders_console(:'new_code'))=:'new_code'
- and (select array_agg(order_id) from public.admin_unpaid_bank_transfer_orders(:'legacy_code'))=array['55000000-0000-4000-8000-000000271505'::uuid]
- then 1 else 0 end as assert_unpaid_search_accepts_new_and_legacy_codes;
+ then 1 else 0 end as assert_unpaid_search_by_issued_code;
 reset role;
 
--- 6) 코드 함수는 서버 내부 전용이다.
+-- 6) 전환 시각 전에 만든 주문은 그때 안내받은 옛 코드(UUID 앞 8자리)가 입금코드다. 고객은 자기 무통장 주문의 코드만 읽는다.
+insert into public.orders(id,user_id,status,total,address,payment_method,created_at,expires_at) values
+ ('a1b2c3d4-0000-4000-8000-000000271590','00000000-0000-4000-8000-000000271501','pending',15000,'{"recipientName":"전환 전"}','bank_transfer',
+  (select switched_at from private.bank_transfer_deposit_code_switch)-interval '1 hour',now()+interval '1 day'),
+ ('a1b2c3d4-0000-4000-8000-000000271591','00000000-0000-4000-8000-000000271501','pending',16000,'{"recipientName":"카드"}','card',now(),now()+interval '1 day');
+select 1/case when private.bank_transfer_deposit_code('a1b2c3d4-0000-4000-8000-000000271590')='A1B2C3D4'
+ and (select order_id from private.suggest_bank_deposit_order('전환 전 a1b2c3d4',15000))='a1b2c3d4-0000-4000-8000-000000271590'
+ then 1 else 0 end as assert_pre_switch_orders_keep_issued_legacy_code;
+set local role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000271501',true);
+select 1/case when public.get_my_bank_transfer_deposit_code('a1b2c3d4-0000-4000-8000-000000271590')='A1B2C3D4'
+ and public.get_my_bank_transfer_deposit_code('55000000-0000-4000-8000-000000271505')=:'new_code'
+ and public.get_my_bank_transfer_deposit_code('a1b2c3d4-0000-4000-8000-000000271591') is null
+ then 1 else 0 end as assert_owner_reads_issued_code;
+select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000271502',true);
+select 1/case when public.get_my_bank_transfer_deposit_code('a1b2c3d4-0000-4000-8000-000000271590') is null then 1 else 0 end as assert_other_user_reads_nothing;
+reset role;
+
+-- 7) 오래 남은 입금 대기 주문(예: 결제 확인 필요)과 코드가 겹치면 코드로 제안하지 않고 사람이 고른다.
+select day::date as cycle_day from generate_series(date '2036-01-01',date '2036-01-10',interval '1 day') day
+ where (day::date - date '2000-01-01') % 10 = 0 limit 1 \gset
+insert into public.orders(id,user_id,status,total,address,payment_method,created_at,expires_at) values
+ ('b1000000-0000-4000-8000-000000271581','00000000-0000-4000-8000-000000271501','pending',21000,'{"recipientName":"오래 대기"}','bank_transfer',
+  (:'cycle_day'::date)::timestamp at time zone 'Asia/Seoul'+interval '10 hours',now()-interval '9 days'),
+ ('b2000000-0000-4000-8000-000000271582','00000000-0000-4000-8000-000000271501','pending',22000,'{"recipientName":"새 주문"}','bank_transfer',
+  (:'cycle_day'::date+10)::timestamp at time zone 'Asia/Seoul'+interval '10 hours',now()+interval '1 day'),
+ ('b3000000-0000-4000-8000-000000271583','00000000-0000-4000-8000-000000271501','pending',23000,'{"recipientName":"전날"}','bank_transfer',
+  (:'cycle_day'::date+9)::timestamp at time zone 'Asia/Seoul'+interval '10 hours',now()+interval '1 day');
+select private.bank_transfer_deposit_code('b2000000-0000-4000-8000-000000271582') as shared_code \gset
+select 1/case when private.bank_transfer_deposit_code('b1000000-0000-4000-8000-000000271581')=:'shared_code' and :'shared_code'='000001'
+ and not exists(select 1 from private.suggest_bank_deposit_order('새 주문'||:'shared_code',22000))
+ then 1 else 0 end as assert_ambiguous_code_is_not_suggested;
+set local role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000271502',true);
+-- 6자리 코드 검색은 코드가 정확히 같은 주문만 찾는다. 주문번호 일부(…10000001)에 든 숫자로는 찾지 않는다.
+select 1/case when (select array_agg(order_id order by order_id) from public.admin_unpaid_bank_transfer_orders_console(:'shared_code'))
+   =array['b1000000-0000-4000-8000-000000271581'::uuid,'b2000000-0000-4000-8000-000000271582'::uuid]
+ and (select array_agg(order_id) from public.admin_unpaid_bank_transfer_orders_console(
+   (select order_number from public.orders where id='b3000000-0000-4000-8000-000000271583')))=array['b3000000-0000-4000-8000-000000271583'::uuid]
+ and (select count(*) from public.admin_unpaid_bank_transfer_orders_console(left((select order_number from public.orders where id='b3000000-0000-4000-8000-000000271583'),8)))>=1
+ then 1 else 0 end as assert_numeric_search_is_code_exact_or_number_prefix;
+reset role;
+
+-- 8) 코드 함수는 서버 내부 전용이고 고객용 조회만 로그인 사용자에게 열린다.
 select 1/case when not has_function_privilege('anon','private.bank_transfer_deposit_code(uuid)','execute')
  and not has_function_privilege('authenticated','private.bank_transfer_deposit_code(uuid)','execute')
  and not has_function_privilege('service_role','private.bank_transfer_deposit_code(uuid)','execute')
  and not has_function_privilege('authenticated','private.bank_transfer_deposit_code_for_number(text)','execute')
  and not has_function_privilege('authenticated','private.bank_transfer_legacy_deposit_code(uuid)','execute')
+ and has_function_privilege('authenticated','public.get_my_bank_transfer_deposit_code(uuid)','execute')
+ and not has_function_privilege('anon','public.get_my_bank_transfer_deposit_code(uuid)','execute')
  then 1 else 0 end as assert_code_functions_private;
 rollback;
