@@ -5,6 +5,7 @@ import {
   forgetShellNoticeNow,
   initialShellNoticeNow,
   nextShellNoticeEnd,
+  noticeStripDimensions,
   noticeStripIndex,
   parseShellNoticePageTypes,
   readDismissedNoticeKeys,
@@ -297,5 +298,20 @@ describe('첫 페인트 전 스크립트 ↔ 컴포넌트 계산', () => {
      후보 이미지는 서버 마크업에서 모두 eager이고 스크립트는 hidden만 고친다. */
   it('스트립 이미지의 loading을 바꾸지 않는다 — 어느 후보가 뽑혀도 HTML 파싱 중 이미 요청된 상태다', () => {
     expect(SHELL_NOTICE_SCRIPT).not.toMatch(/loading/i);
+  });
+});
+
+describe('띠배너 자리 크기', () => {
+  const PC = { width: 1440, height: 36 };
+  const MOBILE = { width: 375, height: 52 };
+  it('모바일 소스가 없으면 PC 크기, 있으면 둘 다 알 때만 단다', () => {
+    expect(noticeStripDimensions(strip('a', { imageSize: PC }))).toEqual({ image: PC, mobile: null });
+    expect(noticeStripDimensions(strip('b', { mobileImageUrl: 'https://cdn.example/b-m.webp', imageSize: PC, mobileImageSize: MOBILE }))).toEqual({ image: PC, mobile: MOBILE });
+    /* 고른 <source> 에 크기가 없으면 브라우저는 <img> 크기로 비율을 잡는다 — 모바일에 PC 비율이 쓰이지 않게 둘 다 뺀다. */
+    expect(noticeStripDimensions(strip('c', { mobileImageUrl: 'https://cdn.example/c-m.webp', imageSize: PC, mobileImageSize: null }))).toEqual({ image: null, mobile: null });
+    expect(noticeStripDimensions(strip('d', { mobileImageUrl: 'https://cdn.example/d-m.webp', imageSize: null, mobileImageSize: MOBILE }))).toEqual({ image: null, mobile: MOBILE });
+    /* 모바일 소스가 없는데 남은 모바일 크기는 쓰지 않는다. 크기를 모르는 기존 스트립은 그리던 그대로다. */
+    expect(noticeStripDimensions(strip('e', { imageSize: PC, mobileImageSize: MOBILE }))).toEqual({ image: PC, mobile: null });
+    expect(noticeStripDimensions(strip('f'))).toEqual({ image: null, mobile: null });
   });
 });

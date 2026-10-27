@@ -66,7 +66,10 @@ export function TicketDetail({
           <Link className="ticket-detail-back" href="/tickets">
             <Icon name="chevronLeft" size={17} /> 내 티켓
           </Link>
-          <span className={`ticket-status ticket-status--${meta.tone}`}>{meta.label}</span>
+          {/* 상태 배지는 뒤로 링크(inline-flex) 옆에 붙지 않게 주문 상세처럼 자기 줄에 둔다. */}
+          <div className="ticket-detail-status-row">
+            <span className={`ticket-status ticket-status--${meta.tone}`}>{meta.label}</span>
+          </div>
           <h1 className="wc-receipt__title">{order.eventTitle}</h1>
           <p className="wc-receipt__subcopy">{meta.title} {meta.body}</p>
           <div className="ticket-detail-meta mono">
