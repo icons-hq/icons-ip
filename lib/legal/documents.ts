@@ -84,9 +84,13 @@ const EMAIL_PROCESSOR_LABEL = 'Resend';
  * 무통장을 실제로 여는 시점에 개정 공지와 시행일을 함께 정해야 한다. */
 /* 2026-09-09 — 승인된 A 직접 신청·출고지별 회수·CS 의사표시 안내를 반영한다.
  * 이전 공개 정책 본문은 개정 이력으로 남기며, 개인정보처리방침 시행일은 바꾸지 않는다. */
+/* 2026-11-06 개정(개인정보처리방침만) — 주소록(배송지 관리) 도입(LFS 패리티 2차 L7 · MY-11, #572).
+ * 수집 항목·목적·보유 기간·자가 열람 경로에 주소록을 더하고, 직전 공개 본문(2026-10-19)을 이전 판으로 보존한다.
+ * 시행일은 과거로 두지 않는다 — 제13조대로 시행 7일 전부터 화면에 고지하는 기간을 두기 위해 배포 예정일 뒤로
+ * 잡았다. 시행일·고지 방식·문구는 사람 검토 대상이다(머지 전 확정). terms·shipping 은 본문에 주소록이 없어 그대로다. */
 export const LEGAL_EFFECTIVE_DATES: Record<LegalDocumentSlug, string> = {
   terms: '2026-09-09',
-  privacy: '2026-10-19',
+  privacy: '2026-11-06',
   shipping: '2026-09-09',
 };
 
@@ -657,6 +661,29 @@ privacy.articles.splice(2, 0, {
   heading: '제2조의2 (성별 정보의 선택 수집·이용)',
   paragraphs: [DEMOGRAPHIC_NOTICE.purpose, DEMOGRAPHIC_NOTICE.collected, DEMOGRAPHIC_NOTICE.retention, DEMOGRAPHIC_NOTICE.choice],
 });
+
+// 2026-11-06 개정 — 주소록(배송지 관리). 2026-10-19 공개 본문을 이전 판으로 보존한 뒤 주소록 항목을 더한다.
+// 주소록은 주문서 입력 보조라 주문에 저장되는 배송지(굿즈 주문·배송 행)와 따로 적는다. 선물 수령인 주소는 담지 않는다.
+privacy.previousVersion = { effectiveDate: '2026-10-19', articles: structuredClone(privacy.articles) };
+privacy.revisionChanges = [
+  '주소록(배송지 관리)에 저장하는 배송지 이름·받는 분 이름·연락처·주소의 수집 시점, 이용 목적과 보유 기간을 추가합니다.',
+  '주소록은 회원이 직접 삭제하거나 회원 탈퇴를 요청하면 지체 없이 파기하며, 이미 한 주문의 배송지는 주문 정보로 따로 보관한다는 점을 밝힙니다.',
+];
+{
+  const article = (prefix: string) => privacy.articles.find((item) => item.heading.startsWith(prefix))!;
+  const collected = article('제1조 ').table!.rows;
+  collected.splice(collected.findIndex((row) => row[0] === '굿즈 주문·배송') + 1, 0,
+    ['주소록 (선택)', '배송지 이름, 받는 분 이름, 연락처, 우편번호, 주소', '회원이 배송지 관리·주문서·가입 직후 안내에서 배송지를 저장한 경우']);
+  article('제2조 ').list!.splice(2, 0, '회원이 저장한 배송지(주소록)를 주문서에 불러오는 배송지 입력 편의 제공');
+  const retention = article('제3조 ');
+  retention.closing = [
+    ...(retention.closing ?? []),
+    '주소록에 저장한 배송지는 회원이 배송지 관리에서 직접 삭제하거나 회원 탈퇴를 요청하면 지체 없이 파기합니다. 이미 한 주문의 배송지는 주문 정보의 일부로 위 표의 거래 기록 보존 기간 동안 따로 보관합니다.',
+  ];
+  const rights = article('제7조 ').paragraphs!;
+  rights.splice(rights.findIndex((paragraph) => paragraph.includes('설정 화면에서 직접 열람·수정')) + 1, 0,
+    '주소록에 저장한 배송지는 마이페이지의 배송지 관리(/my/addresses)에서 직접 열람·수정·삭제할 수 있습니다.');
+}
 
 const shipping: LegalDocument = {
   slug: 'shipping',

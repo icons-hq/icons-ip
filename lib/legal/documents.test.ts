@@ -102,12 +102,17 @@ describe('법정 문서 레지스트리', () => {
     expect(source(), '문서 셋이 시행일 상수 하나를 공유하면 개정 이력을 만들 수 없다').not.toMatch(/const EFFECTIVE_DATE\b/);
   });
 
-  it('신청 안내와 승인된 선택 성별 수집의 개정일을 문서별로 보존한다', () => {
+  it('신청 안내·선택 성별 수집·주소록 개정의 개정일을 문서별로 보존한다', () => {
     expect(LEGAL_DOCUMENTS.terms.effectiveDate).toBe('2026-09-09');
-    expect(LEGAL_DOCUMENTS.privacy.effectiveDate).toBe('2026-10-19');
-    expect(LEGAL_DOCUMENTS.privacy.previousVersion?.effectiveDate).toBe('2026-08-22');
-    expect(JSON.stringify(LEGAL_DOCUMENTS.privacy.previousVersion)).not.toContain('성별 정보의 선택');
+    /* 주소록 개정(L7 · MY-11)이 직전 공개 본문(2026-10-19, 선택 성별 수집 포함)을 이전 판으로 보존한다. */
+    expect(LEGAL_DOCUMENTS.privacy.effectiveDate).toBe('2026-11-06');
+    expect(LEGAL_DOCUMENTS.privacy.previousVersion?.effectiveDate).toBe('2026-10-19');
+    expect(JSON.stringify(LEGAL_DOCUMENTS.privacy.previousVersion)).toContain('성별 정보의 선택');
+    expect(JSON.stringify(LEGAL_DOCUMENTS.privacy.previousVersion)).toContain('10명 이상');
+    expect(JSON.stringify(LEGAL_DOCUMENTS.privacy.previousVersion)).not.toContain('주소록');
     expect(JSON.stringify(LEGAL_DOCUMENTS.privacy.articles)).toContain('10명 이상');
+    expect(JSON.stringify(LEGAL_DOCUMENTS.privacy.articles)).toContain('주소록');
+    expect(LEGAL_DOCUMENTS.privacy.revisionChanges?.join('\n')).toContain('주소록');
     expect(LEGAL_DOCUMENTS.shipping.effectiveDate).toBe('2026-09-09');
 
     for (const document of documents) {
@@ -195,7 +200,7 @@ describe('승인된 배송 중 접수 정책과 고객지원 안내', () => {
     const shipping = LEGAL_DOCUMENTS.shipping;
     expect(terms.previousVersion?.effectiveDate).toBe('2026-08-22');
     expect(shipping.previousVersion?.effectiveDate).toBe('2026-08-21');
-    expect(LEGAL_DOCUMENTS.privacy.previousVersion?.effectiveDate).toBe('2026-08-22');
+    expect(LEGAL_DOCUMENTS.privacy.previousVersion?.effectiveDate).toBe('2026-10-19');
     for (const [document, headings] of [
       [terms, ['제3조 (약관의 명시와 개정)', '제4조 (서비스의 제공과 변경)', '제15조 (청약철회 등)', '제16조 (청약철회 등의 효과)']],
       [shipping, ['4. 청약철회가 제한되는 경우', '7. 환급 계좌', '8. 환급', '9. 하자·오배송 시 재발송']],
@@ -322,6 +327,24 @@ describe('개인정보처리방침', () => {
     for (const item of ['닉네임', '생년월일', '수령인', '우편번호', '주소', '동의']) {
       expect(text, item).toMatch(new RegExp(item));
     }
+  });
+
+  /* 주소록(L7 · MY-11) — 주문 배송지와 별개로 회원이 저장하는 배송지라 수집 시점·목적·보유 기간·자가 열람 경로를 따로 적는다. */
+  it('주소록의 수집 항목·시점·목적·보유 기간·자가 열람 경로를 밝힌다', () => {
+    const article = (prefix: string) => privacy.articles.find((item) => item.heading.startsWith(prefix))!;
+    const rows = article('제1조 ').table!.rows;
+    const order = rows.findIndex((row) => row[0] === '굿즈 주문·배송');
+    expect(rows[order + 1]?.[0]).toBe('주소록 (선택)');
+    expect(rows[order + 1]?.[1]).toBe('배송지 이름, 받는 분 이름, 연락처, 우편번호, 주소');
+    expect(rows[order + 1]?.[2]).toMatch(/배송지를 저장한 경우/);
+    /* 주문 배송지 행은 그대로다 — 주소록은 주문에 저장되는 배송지를 대신하지 않는다. */
+    expect(rows[order]).toEqual(['굿즈 주문·배송', '수령인 이름, 연락처, 우편번호, 주소, 배송 요청사항', '주문 시']);
+    expect(article('제2조 ').list!.join('\n')).toMatch(/주소록\)를 주문서에 불러오는/);
+    expect(article('제3조 ').closing!.join('\n')).toMatch(/주소록에 저장한 배송지는 회원이 배송지 관리에서 직접 삭제하거나 회원 탈퇴를 요청하면 지체 없이 파기합니다/);
+    expect(article('제3조 ').closing!.join('\n')).toMatch(/이미 한 주문의 배송지는 주문 정보의 일부로/);
+    expect(article('제7조 ').paragraphs!.join('\n')).toContain('배송지 관리(/my/addresses)에서 직접 열람·수정·삭제');
+    /* 개정 시행일은 직전 판보다 뒤다(과거로 소급하지 않는다). */
+    expect(privacy.effectiveDate > privacy.previousVersion!.effectiveDate).toBe(true);
   });
 
   it('결제수단 인증정보를 보유하지 않는다는 사실을 밝힌다', () => {
