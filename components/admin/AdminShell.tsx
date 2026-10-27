@@ -2,7 +2,7 @@
 
 import { usePathname, useSearchParams } from 'next/navigation';
 import { useState, type ReactNode } from 'react';
-import { ADMIN_CONSOLES, adminConsoleHomeHref, adminGroupForPath, adminScreenForPath, type AdminConsoleId } from '@/lib/admin/navigation';
+import { ADMIN_CONSOLES, adminConsoleHomeHref, adminGroupConsoles, adminGroupForPath, adminScreenForPath, type AdminConsoleId } from '@/lib/admin/navigation';
 import { AdminSidebar } from './AdminSidebar';
 import { Header } from './Header';
 import { AdminPreferencesProvider } from './console/AdminPreferences';
@@ -35,6 +35,8 @@ export function AdminShell({
   const consoles = ADMIN_CONSOLES.map((item) => ({ ...item, href: adminConsoleHomeHref(item.id, admin.role, access) }))
     .filter((item): item is typeof item & { href: string } => Boolean(item.href));
   const consoleLinks = consoles.length > 1 ? consoles.map((item) => ({ ...item, current: item.id === consoleId })) : [];
+  /* 콘텐츠 콘솔은 경로 첫 칸이 콘솔 이름이라, 그 콘솔 전용 메뉴 그룹(IP·콘텐츠 운영)을 다시 적지 않는다. */
+  const groupLabel = group && consoleId !== 'commerce' && adminGroupConsoles(group).every((id) => id === consoleId) ? undefined : group?.label;
   const title = pathname === '/admin/catalog/goods' && searchParams.get('create') !== '1' && searchParams.get('goodId')
     ? '상품 수정' : screen?.label ?? '판매자센터';
 
@@ -52,7 +54,7 @@ export function AdminShell({
         homeHref={consoles.find((item) => item.id === consoleId)?.href ?? '/admin'}
       />
       <div className="wc-admin__main">
-        <Header admin={admin} next={currentPath} title={title} groupLabel={group?.label} immersive={isChat} consoles={consoleLinks}
+        <Header admin={admin} next={currentPath} title={title} groupLabel={groupLabel} immersive={isChat} consoles={consoleLinks}
           root={consoleId === 'content' ? { label: '콘텐츠 운영', href: consoles.find((item) => item.id === 'content')?.href ?? '/admin' } : undefined} />
         {!isChat && badges}
         <main className="admin-content">

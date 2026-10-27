@@ -71,6 +71,18 @@ describe('AdminShell', () => {
     expect(content).toContain('>콘텐츠 운영</a>');
   });
 
+  it('현재 위치는 콘텐츠 콘솔에서 콘솔 이름을 메뉴 그룹으로 다시 적지 않고, 커머스는 메뉴 그룹을 적는다', () => {
+    const crumbs = (html: string) => html.slice(html.indexOf('>', html.indexOf('aria-label="현재 위치"')) + 1, html.indexOf('</nav>', html.indexOf('aria-label="현재 위치"')))
+      .replace(/<[^>]+>/g, '|').split('|').map((part) => part.trim()).filter((part) => part && part !== '›');
+
+    mocks.pathname = '/admin/catalog/cards';
+    const content = renderToStaticMarkup(<AdminShell admin={admin} console="content"><p>카드</p></AdminShell>);
+    expect(crumbs(content)).toEqual(['콘텐츠 운영', '카드']);
+
+    mocks.pathname = '/admin/sales/orders';
+    expect(crumbs(render())).toEqual(['홈', '판매관리', '주문통합검색']);
+  });
+
   it('콘텐츠 운영 화면을 볼 수 없는 역할에는 콘솔 전환을 만들지 않는다', () => {
     const limited = { ...admin, operatorAccess: { mode: 'configured' as const, managerRole: 'deputy' as const, capabilities: ['home', 'catalog.read', 'cs.manage'] as ('home' | 'catalog.read' | 'cs.manage')[], revision: 1, setupRequired: false } };
     const html = renderToStaticMarkup(<AdminShell admin={limited}><p>본문</p></AdminShell>);
