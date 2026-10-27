@@ -46,6 +46,18 @@ describe('주문 상세', () => {
     const plain = renderToStaticMarkup(<OrderDetailScreen detail={{ ...detail, order: { ...detail.order, discountTotal: 0 } }} noteOperationId="operation" />);
     expect(plain).not.toContain('배분 후');
   });
+  it('시스템 감사 기록을 출처로 구분해 자동 발주확인·결제 대기 자동 취소·장바구니 보류 해제로 적는다', () => {
+    const html = renderToStaticMarkup(<OrderDetailScreen detail={{ ...detail, timeline: [
+      { id: 'auto', source: 'status', occurredAt: '2026-10-27T07:30:00Z', action: 'admin.order.status_updated', fromStatus: 'paid', toStatus: 'confirmed', actorName: null, trigger: 'auto_order_confirmation' },
+      { id: 'manual', source: 'status', occurredAt: '2026-10-27T08:00:00Z', action: 'admin.order.status_updated', fromStatus: 'paid', toStatus: 'confirmed', actorName: '수민' },
+      { id: 'closed', source: 'status', occurredAt: '2026-10-27T09:00:00Z', action: 'system.order.unpaid_cart_order_closed', actorName: null },
+      { id: 'detached', source: 'status', occurredAt: '2026-10-27T10:00:00Z', action: 'system.order.cart_hold_detached', actorName: null },
+    ] }} noteOperationId="operation" />);
+    expect(html).toContain('자동 발주확인 (시스템)');
+    expect(html.split('주문 상태 변경').length - 1).toBe(1);
+    expect(html).toContain('결제 대기 주문 자동 취소 (재주문·장바구니 복귀)');
+    expect(html).toContain('장바구니 보류 해제 (결제 확인 필요 주문)');
+  });
   it('배송완료 주문에서 별도 대리 접수 진입점을 제공한다', () => {
     const html = renderToStaticMarkup(<OrderDetailScreen detail={{ ...detail, order: { ...detail.order, status: 'delivered' } }} noteOperationId="operation" />);
     expect(html).toContain('판매자 직접 반품·교환 접수');

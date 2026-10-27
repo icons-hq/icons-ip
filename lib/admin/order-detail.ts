@@ -24,6 +24,8 @@ export interface AdminOrderTimelineEntry {
   title?: string | null;
   relatedId?: string | null;
   claimType?: string | null;
+  /** 시스템이 남긴 감사 기록의 출처(예: 자동 발주확인 'auto_order_confirmation'). 운영자 처리는 비어 있다. */
+  trigger?: string | null;
 }
 export interface AdminShipmentEmailJob {
   shipmentId: string;

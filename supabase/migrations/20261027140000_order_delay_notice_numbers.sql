@@ -25,13 +25,20 @@ begin
  if (length(definition)-length(replace(definition,anchor,'')))/length(anchor)<>1 then raise exception 'delay_email_label_anchor_changed'; end if;
  execute replace(definition,anchor,$new$'shipmentLabels',(select coalesce(array_agg(coalesce(s.shipment_number,upper(right(s.id::text,8))) order by s.id),'{}'::text[])
    from public.order_shipments s where s.id=any(c.shipment_ids))$new$);
+
+ -- 주문 상세 타임라인: 감사 기록의 trigger(예: T3 자동 발주확인 'auto_order_confirmation')를 판독기가 함께 낸다.
+ definition:=pg_get_functiondef('private.admin_order_detail_before_preorder(uuid)'::regprocedure);
+ anchor:=$old$'body',case when a.action='admin.order.note' then a.diff->>'body' end)$old$;
+ if (length(definition)-length(replace(definition,anchor,'')))/length(anchor)<>1 then raise exception 'order_timeline_trigger_anchor_changed'; end if;
+ execute replace(definition,anchor,$new$'body',case when a.action='admin.order.note' then a.diff->>'body' end,'trigger',a.diff->>'trigger')$new$);
 end $patch$;
 
 -- 본문만 바꿨다. 기존 권한 계약은 그대로 다시 등록해 지문을 맞춘다.
 do $$declare signature text;fn regprocedure;contract record;registered boolean;begin
  foreach signature in array ARRAY[
   'public.admin_prepare_order_delay_notice(uuid,uuid[],text,text,date)',
-  'public.claim_order_delay_email_jobs(integer)'
+  'public.claim_order_delay_email_jobs(integer)',
+  'private.admin_order_detail_before_preorder(uuid)'
  ] loop
   fn:=signature::regprocedure;registered:=false;
   select * into contract from private.operator_rpc_contracts r where r.signature::regprocedure=fn;

@@ -57,6 +57,12 @@ const ACTION_LABELS: Record<string, string> = {
   'admin.order.bank_refund_confirm_cancellation': '무통장 취소 확정 · 재고 복원',
   'admin.order.bank_refund_file_transfer': '계좌 송금 접수',
   'admin.order.bank_refund_complete_transfer': '계좌 송금 완료',
+  'system.order.unpaid_cart_order_closed': '결제 대기 주문 자동 취소 (재주문·장바구니 복귀)',
+  'system.order.cart_hold_detached': '장바구니 보류 해제 (결제 확인 필요 주문)',
+};
+/** 같은 감사 action이라도 시스템이 남긴 기록은 출처(trigger)로 구분한다. */
+const TRIGGER_LABELS: Record<string, Record<string, string>> = {
+  'admin.order.status_updated': { auto_order_confirmation: '자동 발주확인 (시스템)' },
 };
 const STATUS_LABELS: Record<string, string> = {
   pending: '대기', paid: '결제완료', failed: '실패', canceled: '취소', refunded: '환불',
@@ -81,6 +87,8 @@ function ItemAllocationSummary({ allocation, discounted }: { allocation?: OrderI
 }
 
 function entryTitle(entry: AdminOrderTimelineEntry) {
+  const triggered = entry.trigger ? TRIGGER_LABELS[entry.action]?.[entry.trigger] : undefined;
+  if (triggered) return triggered;
   if (ACTION_LABELS[entry.action]) return ACTION_LABELS[entry.action];
   switch (entry.source) {
     case 'order': return '주문 생성';
