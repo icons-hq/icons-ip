@@ -2,7 +2,7 @@ import 'server-only';
 import { createServerClient } from '@supabase/ssr';
 import { unstable_cache } from 'next/cache';
 import { NOTICE_STRIP_CACHE_TAG } from './notice-strip.server';
-import { parseSuggestedSearchTerms } from './search-terms';
+import { liveSuggestedSearchTerms, parseSuggestedSearchTerms, type SuggestedSearchTermList } from './search-terms';
 import { getSupabaseConfig } from './supabase/config';
 
 /*
@@ -11,7 +11,9 @@ import { getSupabaseConfig } from './supabase/config';
  * 홈 큐레이션 저장이 같은 태그('home-curations')를 즉시 만료한다(app/admin/curation-actions.ts의 updateTag).
  *
  * 지금 노출 중인 목록 중 노출 시작이 가장 늦은 하나를 쓴다 — 다음 달 목록을 미리 예약해 두면 시작 시각에 이어받는다
- * (공개 읽기 RLS 가 노출 중인 행만 주므로 예약 시작은 최대 5분 늦을 수 있다). 목록이 없거나 깨졌으면 null — 셸은 코드 상수로 돌아간다.
+ * (공개 읽기 RLS 가 노출 중인 행만 주므로 예약 시작은 최대 5분 늦을 수 있다). 캐시에는 후보 목록을 끝나는 시각과 함께 담고
+ * 요청마다 끝난 목록을 다시 거른다 — 캐시가 끝난 목록을 붙들지 않고 앞선 목록(없으면 코드 상수)이 바로 이어받는다(컬렉션 배너와 같다).
+ * 목록이 없거나 깨졌으면 null — 셸은 코드 상수로 돌아간다.
  * 실패한 읽기는 캐시하지 않는다(던져서 캐시 밖으로 보내고 로그만 남긴다).
  */
 
@@ -20,9 +22,9 @@ interface SearchTermRow {
   active_to: string | null;
 }
 
-async function loadOperatorSearchTerms(): Promise<string[] | null> {
+async function loadOperatorSearchTermLists(): Promise<SuggestedSearchTermList[]> {
   const { url, key, isConfigured } = getSupabaseConfig();
-  if (!isConfigured || !url || !key) return null;
+  if (!isConfigured || !url || !key) return [];
   const client = createServerClient(url, key, { cookies: { getAll: () => [], setAll: () => {} } });
   const nowIso = new Date().toISOString();
   const { data, error } = await client
@@ -39,15 +41,16 @@ async function loadOperatorSearchTerms(): Promise<string[] | null> {
   if (error || !Array.isArray(data)) {
     throw new Error(`suggested search terms read failed: ${error?.code ?? 'invalid response'}`);
   }
-  for (const row of data as SearchTermRow[]) {
+  return (data as SearchTermRow[]).flatMap((row) => {
     const terms = parseSuggestedSearchTerms(row.payload?.terms);
-    if (terms) return terms;
-  }
-  return null;
+    if (!terms) return [];
+    const endsAt = row.active_to ? Date.parse(row.active_to) : null;
+    return [{ terms, endsAt: endsAt !== null && Number.isFinite(endsAt) ? endsAt : null }];
+  });
 }
 
-const getCachedOperatorSearchTerms = unstable_cache(
-  loadOperatorSearchTerms,
+const getCachedOperatorSearchTermLists = unstable_cache(
+  loadOperatorSearchTermLists,
   ['suggested-search-terms'],
   { revalidate: 300, tags: [NOTICE_STRIP_CACHE_TAG] },
 );
@@ -55,7 +58,7 @@ const getCachedOperatorSearchTerms = unstable_cache(
 /** 셸이 부르는 읽기. 던지지 않는다 — 실패하면 null(코드 상수 폴백)이다. */
 export async function getOperatorSearchTerms(): Promise<string[] | null> {
   try {
-    return await getCachedOperatorSearchTerms();
+    return liveSuggestedSearchTerms(await getCachedOperatorSearchTermLists(), Date.now());
   } catch (error) {
     console.error('[storefront/search-terms] read failed', error instanceof Error ? error.message : String(error));
     return null;

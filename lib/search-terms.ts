@@ -89,6 +89,20 @@ export function describeSearchTermsError(values: readonly string[]): string | nu
   return messages.length ? messages.join(' ') : null;
 }
 
+/** 캐시에 담는 운영 목록 후보 — 로더 순서(노출 시작이 늦은 것 먼저)이고, 끝나는 시각을 함께 둔다. */
+export interface SuggestedSearchTermList {
+  terms: string[];
+  endsAt: number | null;
+}
+
+/**
+ * 요청 시각에 노출 중인 첫 목록. 끝난 목록은 캐시(300초)가 남아 있어도 건너뛰고 다음 목록이 이어받는다 —
+ * 남은 목록이 없으면 null(셸은 코드 상수로 돌아간다).
+ */
+export function liveSuggestedSearchTerms(lists: readonly SuggestedSearchTermList[], now: number): string[] | null {
+  return lists.find((list) => list.endsAt === null || list.endsAt > now)?.terms ?? null;
+}
+
 /** 오버레이가 보일 칩 — 운영 목록이 있으면 그것, 없으면 코드 상수. */
 export function resolveSuggestedSearchTerms(operatorTerms: readonly string[] | null | undefined): readonly string[] {
   return operatorTerms && operatorTerms.length > 0 ? operatorTerms : SUGGESTED_SEARCH_TERMS;

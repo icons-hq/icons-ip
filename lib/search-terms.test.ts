@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   describeSearchTermsError,
+  liveSuggestedSearchTerms,
   normalizeSuggestedSearchTerm,
   parseSuggestedSearchTerms,
   resolveSuggestedSearchTerms,
@@ -35,6 +36,14 @@ describe('추천 검색어 운영 목록 (11 CH-10)', () => {
     for (const raw of ['  리락쿠마 ', '키링\t  세트', '가 나  다']) {
       expect(normalizeSuggestedSearchTerm(raw)).toBe(normalizeSearchQuery(raw));
     }
+  });
+
+  it('요청 시각에 노출 중인 첫 목록을 고르고, 끝난 목록은 건너뛴다', () => {
+    const lists = [{ terms: ['가을 한정'], endsAt: 1_000 }, { terms: ['상시'], endsAt: null }];
+    expect(liveSuggestedSearchTerms(lists, 999)).toEqual(['가을 한정']);
+    expect(liveSuggestedSearchTerms(lists, 1_000)).toEqual(['상시']);
+    expect(liveSuggestedSearchTerms([{ terms: ['가을 한정'], endsAt: 1_000 }], 1_000)).toBeNull();
+    expect(liveSuggestedSearchTerms([], 0)).toBeNull();
   });
 
   it('운영 목록이 없으면 코드 상수가 폴백이다', () => {
