@@ -279,12 +279,12 @@ describe('IpDetail hall banner artwork', () => {
 
     /* 기본(키아트·모바일): 전면 세로 스크림 .45→.62 그대로. */
     expect(find('.wc-iphall__banner::before', null)[0]?.decls.background).toBe('linear-gradient(180deg, rgba(0, 0, 0, .45) 0%, rgba(0, 0, 0, .62) 100%)');
-    /* 데스크톱 PC 배너만: 왼쪽 글자 단(콘텐츠 왼쪽 선 + 560) 안은 .6→.5, 그 끝에서 280px 동안 0 으로 풀린다. */
+    /* 데스크톱 PC 배너만: 왼쪽 글자 단(콘텐츠 왼쪽 선 + 560) 안은 .62→.54(기존 스크림의 글자 줄 값 이상), 그 끝에서 280px 동안 0 으로 풀린다. */
     const pc = find(".wc-iphall__banner[data-banner='all']::before", '(min-width: 750px)');
     expect(pc).toHaveLength(1);
     expect(pc[0].decls['--wc-iphall-text-end']).toBe('calc(max(var(--wc-gutter), (100% - var(--wc-container-max)) / 2 + var(--wc-gutter)) + 560px)');
     expect(pc[0].decls.background.replace(/\s+/g, ' ')).toBe(
-      'linear-gradient(90deg, rgba(0, 0, 0, .6) 0, rgba(0, 0, 0, .5) var(--wc-iphall-text-end), rgba(0, 0, 0, 0) calc(var(--wc-iphall-text-end) + 280px))',
+      'linear-gradient(90deg, rgba(0, 0, 0, .62) 0, rgba(0, 0, 0, .54) var(--wc-iphall-text-end), rgba(0, 0, 0, 0) calc(var(--wc-iphall-text-end) + 280px))',
     );
     /* 모바일 폭과 모바일 배너만 있는 IP 의 데스크톱(키아트)에는 이 완화가 걸리지 않는다. */
     expect(rules.filter((rule) => rule.selector.includes('::before') && rule.selector.includes('wc-iphall__banner') && rule.media === '(max-width: 749px)')).toHaveLength(0);
