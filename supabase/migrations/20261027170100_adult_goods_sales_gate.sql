@@ -383,158 +383,39 @@ revoke all on function private.quote_goods_shipping_before_preorder(items jsonb)
   from public, anon, authenticated, service_role;
 
 -- private.calculate_goods_transaction_locked
-create or replace function private.calculate_goods_transaction_locked(p_actor uuid, p_selection jsonb, p_address jsonb, p_delivery_choices jsonb, p_user_coupon_id uuid, p_store_credit_amount bigint, p_at timestamp with time zone, p_line_ids jsonb, p_order_id uuid DEFAULT NULL::uuid)
- RETURNS jsonb
- LANGUAGE plpgsql
- SECURITY DEFINER
- SET search_path TO ''
-AS $function$
-declare entry jsonb;index integer:=0;good public.goods;owner_row public.goods;variant public.goods_variants;price record;supply record;good_qty numeric;variant_qty numeric;
- custom_inputs jsonb;quantity_error text;priced_lines jsonb:='[]';shipping_lines jsonb:='[]';internal_lines jsonb:='[]';display_lines jsonb:='[]';policies jsonb;volume jsonb;
- discounted jsonb;line jsonb;shipping jsonb;coupon_eval record;coupon_data jsonb;coupon_lines jsonb;coupon_weights jsonb;credit_weights jsonb;
- coupon_allocations jsonb;credit_allocations jsonb;policy private.store_credit_policy;balance jsonb;available numeric;maximum numeric:=0;
- subtotal numeric;volume_total numeric;net numeric;coupon numeric:=0;credit numeric:=p_store_credit_amount;online numeric;customer numeric;
- next_change timestamptz;boundary timestamptz;card_allowed boolean:=true;bank_allowed boolean:=true;selected_policy jsonb;line_coupon numeric;line_credit numeric;
-begin
- if p_at is null or not isfinite(p_at) or p_store_credit_amount is null or p_store_credit_amount not between 0 and 999999999999
-  or jsonb_typeof(p_line_ids) is distinct from 'array' or jsonb_array_length(p_line_ids)<>jsonb_array_length(p_selection)
-  or exists(select 1 from jsonb_array_elements(p_line_ids) id where jsonb_typeof(id) is distinct from 'string'
-   or id#>>'{}'!~'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$')
-  or (select count(distinct id) from jsonb_array_elements(p_line_ids) id)<>jsonb_array_length(p_line_ids) then
-  raise invalid_parameter_value using message='invalid_transaction_calculation';end if;
- begin perform private.assert_goods_purchase_allowed(p_actor);
- exception when check_violation then
-  if sqlerrm<>'goods_purchase_restricted' then raise;end if;
-  return jsonb_build_object('state','blocked','issues',jsonb_build_array(jsonb_build_object('code','purchase_restricted','goodId',null)));
- end;
- select coalesce(jsonb_agg(jsonb_build_object('id',v.id,'goodId',v.good_id,'revision',v.revision,'status',v.status,'terms',v.terms,'draftValues',v.draft_values)),'[]')
-  into policies from private.goods_transaction_configs c join private.goods_volume_discount_versions v on v.id=c.volume_version_id
-  where c.good_id in(select private.goods_aggregation_owner(value->>'goodId') from jsonb_array_elements(p_selection));
- for entry in select value from jsonb_array_elements(p_selection) loop
-  select g.* into good from public.goods g join public.ips ip on ip.id=g.ip_id
-   join public.goods owner_good on owner_good.id=private.goods_aggregation_owner(g.id)
-   join public.fulfillment_origins origin on origin.id=owner_good.origin_id and origin.is_active
-   where g.id=entry->>'goodId' and g.archived_at is null and g.published_at is not null and private.good_sale_restriction_visible(g.sale_restriction,p_actor)
-    and (g.sale_starts_at is null or g.sale_starts_at<=p_at) and (g.sale_ends_at is null or g.sale_ends_at>p_at)
-    and ip.archived_at is null and ip.published_at is not null;
-  if not found then
+-- 본문 전체를 다시 쓰지 않는다. 20261027150000_coupon_ip_targeting이 이 함수를 현재 정의의 앵커
+-- 치환으로 고쳤다(쿠폰 IP 대상) — 여기서도 판매 제한 판정 두 곳만 바꿔 두 변경이 함께 남게 한다.
+-- 앵커가 정확히 한 번이 아니면 실패한다(조용히 덮어쓰지 않는다).
+do $patch$
+declare
+  v_definition text;
+  v_patch jsonb;
+  v_found integer;
+  v_patches jsonb := jsonb_build_array(
+    jsonb_build_array(
+      $o$   where g.id=entry->>'goodId' and g.archived_at is null and g.published_at is not null and g.sale_restriction='none'$o$,
+      $n$   where g.id=entry->>'goodId' and g.archived_at is null and g.published_at is not null and private.good_sale_restriction_visible(g.sale_restriction,p_actor)$n$),
+    jsonb_build_array(
+      $o$  if not found then return jsonb_build_object('state','blocked','issues',jsonb_build_array(jsonb_build_object('code','goods_unavailable','goodId',entry->>'goodId')));end if;$o$,
+      $n$  if not found then
    if exists(select 1 from public.goods restricted where restricted.id=entry->>'goodId' and restricted.sale_restriction='adult'
      and not private.adult_verification_valid(p_actor)) then
     return jsonb_build_object('state','blocked','issues',jsonb_build_array(jsonb_build_object('code','adult_verification_required','goodId',entry->>'goodId')));
    end if;
    return jsonb_build_object('state','blocked','issues',jsonb_build_array(jsonb_build_object('code','goods_unavailable','goodId',entry->>'goodId')));
-  end if;
-  select * into owner_row from public.goods where id=private.goods_aggregation_owner(good.id);
-  good.origin_id:=owner_row.origin_id;good.shipping_fee_type:=owner_row.shipping_fee_type;good.individual_fee:=owner_row.individual_fee;
-  good.order_quantity_limit_enabled:=owner_row.order_quantity_limit_enabled;good.min_order_qty:=owner_row.min_order_qty;good.max_order_qty:=owner_row.max_order_qty;
-  good.member_purchase_limit_enabled:=owner_row.member_purchase_limit_enabled;good.member_lifetime_qty_limit:=owner_row.member_lifetime_qty_limit;
-  select * into variant from public.goods_variants where id=(entry->>'variantId')::uuid and good_id=good.id and archived_at is null;
-  if not found then return jsonb_build_object('state','blocked','issues',jsonb_build_array(jsonb_build_object('code','goods_unavailable','goodId',good.id)));end if;
-  select sum((value->>'qty')::numeric) into good_qty from jsonb_array_elements(p_selection) where private.goods_aggregation_owner(value->>'goodId')=owner_row.id;
-  quantity_error:=private.check_goods_purchase_quantity(good,p_actor,good_qty::bigint,true);
-  if quantity_error is not null then return jsonb_build_object('state','blocked','issues',jsonb_build_array(jsonb_build_object('code','purchase_limit','goodId',good.id)));end if;
-  begin custom_inputs:=private.resolve_goods_custom_inputs(good.id,(entry->>'inputRevision')::integer,entry->'inputValues');
-  exception when check_violation or invalid_parameter_value then
-   return jsonb_build_object('state','blocked','issues',jsonb_build_array(jsonb_build_object('code','invalid_selection','goodId',good.id)));
-  end;
-  select * into supply from private.resolve_goods_variant_supply(variant.id,p_at);
-  select sum((value->>'qty')::numeric) into variant_qty from jsonb_array_elements(p_selection) where value->>'variantId'=variant.id::text;
-  if good.stock='soldout' or supply.available_qty<variant_qty or (supply.mode='preorder' and supply.state<>'open') then
-   return jsonb_build_object('state','blocked','issues',jsonb_build_array(jsonb_build_object('code','goods_unavailable','goodId',good.id)));end if;
-  select * into price from private.resolve_goods_variant_price(variant.id,p_at);
-  priced_lines:=priced_lines||jsonb_build_array(jsonb_build_object('lineId',p_line_ids->>index,'goodId',owner_row.id,'regularUnitPrice',price.regular_price,
-   'unitPrice',price.effective_price,'qty',entry->'qty'));
-  shipping_lines:=shipping_lines||jsonb_build_array(jsonb_build_object('origin_id',good.origin_id,'good_id',good.id,'qty',entry->'qty',
-   'unit_price',price.effective_price,'fee_type',good.shipping_fee_type,'individual_fee',good.individual_fee));
-  select value into selected_policy from jsonb_array_elements(policies) where value->>'goodId'=owner_row.id;
-  internal_lines:=internal_lines||jsonb_build_array(entry||jsonb_build_object('lineId',p_line_ids->>index,
-   'goodName',good.name,'goodType',good.type,'goodIpId',good.ip_id,'originId',good.origin_id,'variantName',variant.name,
-   'customInputsSnapshot',custom_inputs,'regularUnitPrice',price.regular_price,'unitPrice',price.effective_price,'pricePeriodId',price.price_period_id,
-   'priceStartsAt',price.starts_at,'priceEndsAt',price.ends_at,'volumePolicySnapshot',selected_policy,
-   'supplySource',supply.mode,'preorderPolicyId',supply.policy_id,'preorderPolicyRevision',supply.policy_revision,
-   'preorderStartsAt',supply.starts_at,'preorderEndsAt',supply.ends_at,'preorderExpectedShipDate',supply.expected_ship_date,
-   'fulfillmentTermsSnapshot',private.goods_fulfillment_selected_terms(good.id,p_delivery_choices->good.id),'productionTermsSnapshot',private.goods_production_terms(good.id),'salesPolicySnapshot',jsonb_build_object('version',2,'allowCardPayment',good.allow_card_payment,'allowBankTransfer',good.allow_bank_transfer,
-    'orderQuantityLimitEnabled',good.order_quantity_limit_enabled,'minOrderQty',good.min_order_qty,'maxOrderQty',good.max_order_qty,
-    'memberPurchaseLimitEnabled',good.member_purchase_limit_enabled,'memberLifetimeQtyLimit',good.member_lifetime_qty_limit,
-    'saleStartsAt',good.sale_starts_at,'saleEndsAt',good.sale_ends_at,'salePeriodRevision',good.sale_period_revision)));
-  select min(moment) into boundary from (
-   select schedule.starts_at moment from private.goods_variant_price_periods schedule where schedule.variant_id=variant.id and schedule.state='active' and schedule.starts_at>p_at
-   union all select schedule.ends_at from private.goods_variant_price_periods schedule where schedule.variant_id=variant.id and schedule.state='active' and schedule.ends_at>p_at
-   union all select good.sale_starts_at where good.sale_starts_at>p_at union all select good.sale_ends_at where good.sale_ends_at>p_at
-   union all select supply.next_change_at where supply.next_change_at>p_at) moments;
-  next_change:=least(next_change,boundary);card_allowed:=card_allowed and good.allow_card_payment;bank_allowed:=bank_allowed and good.allow_bank_transfer;
-  index:=index+1;
- end loop;
- if not card_allowed and not bank_allowed then return jsonb_build_object('state','blocked','issues',jsonb_build_array(jsonb_build_object('code','payment_method_unavailable','goodId',null)));end if;
- volume:=private.calculate_goods_volume_discounts(priced_lines,policies,p_at);
- -- Restore actual selected IDs before coupon targeting, display and immutable order snapshots.
- select jsonb_agg(v.value||jsonb_build_object('goodId',i.value->>'goodId') order by v.ordinality) into discounted
-  from jsonb_array_elements(volume->'lines') with ordinality v(value,ordinality)
-  join jsonb_array_elements(internal_lines) i(value) on i.value->>'lineId'=v.value->>'lineId';
- volume:=jsonb_set(volume,'{lines}',discounted);
- subtotal:=(volume->>'subtotal')::numeric;volume_total:=(volume->>'volumeDiscountTotal')::numeric;net:=subtotal-volume_total;
- next_change:=least(next_change,(volume->>'nextChangeAt')::timestamptz);
- shipping:=private.calculate_goods_transaction_shipping(shipping_lines,jsonb_build_object('postalCode',p_address->>'postalCode','address1',p_address->>'address1'),p_delivery_choices,p_at);
- if shipping->>'state'='blocked' then return shipping;end if;
- next_change:=least(next_change,(shipping->>'nextChangeAt')::timestamptz);
- select jsonb_agg(jsonb_build_object('good_id',value->>'goodId','subtotal',(value->>'netSubtotal')::bigint)) into coupon_lines from jsonb_array_elements(volume->'lines');
- if p_user_coupon_id is not null then
-  if exists(select 1 from public.user_coupons held join public.coupons c on c.code=held.coupon_code where held.id=p_user_coupon_id and c.benefit_kind='shipping') then return jsonb_build_object('state','blocked','issues',jsonb_build_array(jsonb_build_object('code','coupon_unavailable','goodId',null)));end if;
-  select * into coupon_eval from private.evaluate_coupon_target_lines_at(p_user_coupon_id,p_actor,coupon_lines,p_order_id,p_at);
-  if coupon_eval.o_reason is not null then return jsonb_build_object('state','blocked','issues',jsonb_build_array(jsonb_build_object('code','coupon_unavailable','goodId',null)));end if;
-  coupon:=least(coupon_eval.o_discount,greatest(0,net+(shipping->>'prepaidFee')::numeric-1000));
-  if coupon<=0 then return jsonb_build_object('state','blocked','issues',jsonb_build_array(jsonb_build_object('code','coupon_unavailable','goodId',null)));end if;
-  coupon_data:=jsonb_build_object('userCouponId',p_user_coupon_id,'couponCode',coupon_eval.o_coupon_code,'eligibleSubtotal',coupon_eval.o_eligible_subtotal,
-   'discount',coupon,'termsSnapshot',coupon_eval.o_terms_snapshot||jsonb_build_object('calculationVersion',2,'eligibleNetSubtotal',coupon_eval.o_eligible_subtotal));
-  select min(moment) into boundary from public.user_coupons held join public.coupons definition on definition.code=held.coupon_code
-   cross join lateral(values(held.usable_from),(held.expires_at),(definition.starts_at),(definition.ends_at)) moments(moment)
-   where held.id=p_user_coupon_id and moment>p_at;
-  next_change:=least(next_change,boundary);
- end if;
- select jsonb_agg(jsonb_build_object('id',value->>'lineId','weight',case when p_user_coupon_id is null then 0
-   when private.coupon_good_matches(coupon_data#>>'{termsSnapshot,goodsScope}',
-    array(select jsonb_array_elements_text(coupon_data#>'{termsSnapshot,targetGoodIds}')),
-    array(select jsonb_array_elements_text(coalesce(coupon_data#>'{termsSnapshot,targetCategoryIds}','[]'))::uuid),value->>'goodId')
-   then (value->>'netSubtotal')::numeric else 0 end)) into coupon_weights from jsonb_array_elements(volume->'lines');
- coupon_allocations:=private.allocate_transaction_amount(coupon,coupon_weights);
- select * into policy from private.store_credit_policy where singleton;
- perform private.expire_store_credit_lots(p_actor,p_at);balance:=private.store_credit_balance(p_actor);available:=(balance->>'available')::numeric;
- if policy.enabled and (balance->>'debt')::numeric=0 then
-  maximum:=least(policy.max_use,available,greatest(0,net-coupon),greatest(0,net+(shipping->>'prepaidFee')::numeric-coupon-1000));end if;
- if credit>0 and (credit<policy.min_use or credit>maximum) then
-  return jsonb_build_object('state','blocked','issues',jsonb_build_array(jsonb_build_object('code','store_credit_unavailable','goodId',null)));end if;
- if credit>0 then
-  select min(expires_at) into boundary from private.store_credit_lots where user_id=p_actor and available_amount>0 and expires_at>p_at and revoked_at is null;
-  next_change:=least(next_change,boundary);
- end if;
- online:=net+(shipping->>'prepaidFee')::numeric-coupon-credit;customer:=online+(shipping->>'collectFee')::numeric;
- if online<1000 then return jsonb_build_object('state','blocked','issues',jsonb_build_array(jsonb_build_object('code','below_minimum_payment','goodId',null)));end if;
- if customer>9007199254740991 or online>999999999999 then return jsonb_build_object('state','blocked','issues',jsonb_build_array(jsonb_build_object('code','amount_overflow','goodId',null)));end if;
- select jsonb_agg(jsonb_build_object('id',value->>'lineId','weight',(value->>'netSubtotal')::numeric-(coupon_allocations->>(value->>'lineId'))::numeric))
-  into credit_weights from jsonb_array_elements(volume->'lines');
- credit_allocations:=private.allocate_transaction_amount(credit,credit_weights);
- index:=0;
- for discounted in select value from jsonb_array_elements(volume->'lines') loop
-  line:=internal_lines->index;line_coupon:=(coupon_allocations->>(line->>'lineId'))::numeric;line_credit:=(credit_allocations->>(line->>'lineId'))::numeric;
-  line:=line||jsonb_build_object('subtotal',(discounted->>'unitPrice')::numeric*(discounted->>'qty')::numeric,
-   'volumeUnitDiscount',discounted->'volumeUnitDiscount','volumeDiscountTotal',discounted->'volumeDiscountTotal','netSubtotal',discounted->'netSubtotal',
-   'couponDiscount',line_coupon,'storeCreditDiscount',line_credit,'paidGoodsTotal',(discounted->>'netSubtotal')::numeric-line_coupon-line_credit,
-   'volumePolicyId',discounted->'policyId');
-  internal_lines:=jsonb_set(internal_lines,array[index::text],line);
-  display_lines:=display_lines||jsonb_build_array(jsonb_build_object('lineId',line->'lineId','goodId',line->'goodId','variantId',line->'variantId','qty',line->'qty',
-   'regularUnitPrice',line->'regularUnitPrice','unitPrice',line->'unitPrice','volumeUnitDiscount',line->'volumeUnitDiscount','subtotal',line->'subtotal',
-   'volumeDiscountTotal',line->'volumeDiscountTotal','netSubtotal',line->'netSubtotal','couponDiscount',line->'couponDiscount',
-   'storeCreditDiscount',line->'storeCreditDiscount','paidGoodsTotal',line->'paidGoodsTotal','volumePolicyId',line->'volumePolicyId','production',line->'productionTermsSnapshot','fulfillment',line->'fulfillmentTermsSnapshot'));
-  index:=index+1;
- end loop;
- return jsonb_build_object('state','calculated','display',jsonb_build_object('calculationVersion',2,'currency','KRW','calculatedAt',p_at,'nextChangeAt',next_change,
-  'lines',display_lines,'shipping',shipping->'displayGroups','totals',jsonb_build_object('subtotal',subtotal,'volumeDiscountTotal',volume_total,'netGoodsTotal',net,
-   'couponDiscountTotal',coupon,'storeCreditTotal',credit,'prepaidShippingTotal',shipping->'prepaidFee','collectShippingTotal',shipping->'collectFee','onlineTotal',online,'customerTotal',customer),
-  'userCouponId',p_user_coupon_id,'storeCreditMaximum',maximum,'paymentMethods',jsonb_build_object('card',card_allowed,'bankTransfer',bank_allowed)),
-  'lines',internal_lines,'shippingRaw',shipping->'rawGroups','coupon',coupon_data,'creditPolicy',case when policy.enabled then private.store_credit_policy_for_member(p_actor)-'evidence' else null end);
-exception when numeric_value_out_of_range then
- return jsonb_build_object('state','blocked','issues',jsonb_build_array(jsonb_build_object('code','amount_overflow','goodId',null)));
-end $function$;
+  end if;$n$));
+begin
+  v_definition := pg_catalog.pg_get_functiondef('private.calculate_goods_transaction_locked(uuid,jsonb,jsonb,jsonb,uuid,bigint,timestamp with time zone,jsonb,uuid)'::regprocedure);
+  for v_patch in select value from pg_catalog.jsonb_array_elements(v_patches) loop
+    v_found := (pg_catalog.length(v_definition) - pg_catalog.length(pg_catalog.replace(v_definition, v_patch->>0, ''))) / pg_catalog.length(v_patch->>0);
+    if v_found <> 1 then
+      raise exception 'adult_goods_transaction_anchor_changed (% matches)', v_found;
+    end if;
+    v_definition := pg_catalog.replace(v_definition, v_patch->>0, v_patch->>1);
+  end loop;
+  execute v_definition;
+end;
+$patch$;
 
 revoke all on function private.calculate_goods_transaction_locked(p_actor uuid, p_selection jsonb, p_address jsonb, p_delivery_choices jsonb, p_user_coupon_id uuid, p_store_credit_amount bigint, p_at timestamp with time zone, p_line_ids jsonb, p_order_id uuid)
   from public, anon, authenticated, service_role;
