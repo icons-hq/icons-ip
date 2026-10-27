@@ -54,7 +54,7 @@ import {
 } from '@/lib/orders/claims';
 import { shippingCarrierLabel, type ShippingCarrierRegistry } from '@/lib/orders/shipment';
 import { shipmentStatusLabel, type ShipmentRecord, type ShipmentStatus } from '@/lib/orders/shipments';
-import { bankTransferDepositName } from '@/lib/payments/bank-transfer';
+import { bankTransferDepositNameWithCode } from '@/lib/payments/bank-transfer';
 import { DELIVERY_METHOD_LABELS, deliveryStatusLabel, type ShipmentDeliverySummary } from '@/lib/shipment-delivery';
 
 interface ColumnSpec<Row> extends ListExportColumn {
@@ -237,7 +237,7 @@ export function unpaidListExportSheet(input: {
     column('입금확인코드', 'code', 12, (row) => row.depositCode),
     column('전체 주문번호', 'code', 38, (row) => row.orderNumber ?? row.id),
     column('구매자', 'text', 16, (row) => row.buyerName),
-    column('안내된 입금자명', 'text', 20, (row) => bankTransferDepositName(row.recipientName, row.id)),
+    column('안내된 입금자명', 'text', 20, (row) => bankTransferDepositNameWithCode(row.recipientName, row.depositCode)),
     column('품목', 'text', 40, (row) => blank(row.itemSummary)),
     column('주문일시', 'text', 17, (row) => nullable(kstDateTimeText(row.createdAt))),
     column('입금 기한', 'text', 17, (row) => nullable(kstDateTimeText(row.expiresAt))),

@@ -4,31 +4,49 @@ import {
   bankTransferDeadlineLabel,
   bankTransferDepositCode,
   bankTransferDepositName,
+  bankTransferDepositNameWithCode,
+  bankTransferLegacyDepositCode,
 } from './bank-transfer';
 
 const ORDER_ID = '9a3f21c0-1111-4000-8000-000000000abc';
 
 describe('bankTransferDepositCode', () => {
-  it('주문 id 앞 8자리를 대문자 코드로 만든다', () => {
-    expect(bankTransferDepositCode(ORDER_ID)).toBe('9A3F21C0');
+  /*
+   * DB private.bank_transfer_deposit_code_for_number와 같은 벡터다(supabase/tests/bank_transfer_order_number_code.sql).
+   * 어긋나면 화면이 안내한 코드로 운영자가 검색해도 주문이 나오지 않는다.
+   */
+  it('16자리 주문번호에서 주문일 10일 주기 자리 + 일련번호 끝 5자리를 만든다', () => {
+    expect(['2026102710000001', '2026102810123456', '2026103110000001', '2026110110000001', '2000010110099999'].map(bankTransferDepositCode))
+      .toEqual(['600001', '723456', '000001', '100001', '099999']);
   });
 
-  /*
-   * DB private.bank_transfer_deposit_code와 같은 규칙이어야 한다. 어긋나면
-   * 화면이 안내한 코드로 운영자가 검색해도 주문이 나오지 않는다.
-   */
-  it('하이픈을 먼저 걷어내고 자른다 — UUID 구분자가 코드에 섞이지 않는다', () => {
-    expect(bankTransferDepositCode('9a-3f-21-c0-1111')).toBe('9A3F21C0');
+  it('연속한 10일의 같은 일련번호는 서로 다른 코드다', () => {
+    const codes = Array.from({ length: 10 }, (_, index) => {
+      const day = new Date(Date.UTC(2026, 9, 27 + index)).toISOString().slice(0, 10).replaceAll('-', '');
+      return bankTransferDepositCode(`${day}10000042`);
+    });
+    expect(new Set(codes).size).toBe(10);
+    expect(codes.every(code => /^\d{6}$/.test(code))).toBe(true);
+  });
+
+  it('주문번호가 없는 옛 기록만 UUID 앞 8자리 옛 규칙을 쓴다', () => {
+    expect(bankTransferDepositCode(ORDER_ID)).toBe('9A3F21C0');
+    expect(bankTransferLegacyDepositCode('9a-3f-21-c0-1111')).toBe('9A3F21C0');
+    // 상품주문·배송건번호는 주문번호가 아니다.
+    expect(bankTransferDepositCode('2026102720000001')).toBe('20261027');
   });
 });
 
 describe('bankTransferDepositName', () => {
-  it('입금자명 뒤에 주문코드를 붙인다', () => {
-    expect(bankTransferDepositName('홍길동', ORDER_ID)).toBe('홍길동9A3F21C0');
+  it('입금자명 뒤에 주문코드를 붙이고 한글 4자 이름도 은행 입금자명 14바이트 안에 든다', () => {
+    expect(bankTransferDepositName('홍길동', '2026102710000001')).toBe('홍길동600001');
+    const name = bankTransferDepositName('남궁길동', '2026102710000001');
+    expect([...name].reduce((bytes, char) => bytes + (/[가-힣]/.test(char) ? 2 : 1), 0)).toBeLessThanOrEqual(14);
   });
 
   it('이름이 비면 코드만 안내한다', () => {
     expect(bankTransferDepositName('   ', ORDER_ID)).toBe('9A3F21C0');
+    expect(bankTransferDepositNameWithCode(' ', '600001')).toBe('600001');
   });
 });
 

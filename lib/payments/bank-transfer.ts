@@ -4,6 +4,7 @@
  * 법인계좌 값 자체는 여기 없다 — 서버 설정에서만 읽는다(`bank-transfer.server.ts`).
  * 이 모듈은 값이 무엇이든 성립하는 규칙, 즉 입금자명 코드와 기한 표기만 안다.
  */
+import { isCommerceNumber } from '@/lib/commerce-number';
 
 /** 입금 대기 창. DB `place_order`의 24시간과 같은 값이어야 한다. */
 export const BANK_TRANSFER_HOLD_HOURS = 24;
@@ -17,22 +18,41 @@ export interface BankTransferAccount {
   readonly holder: string;
 }
 
+const DEPOSIT_CODE_EPOCH = Date.UTC(2000, 0, 1);
+
 /**
- * 입금자명에 붙일 주문코드.
+ * 입금자명에 붙일 주문코드(입금코드).
  *
- * 주문 id는 UUID라 입금자명 칸에 들어가지 않는다. DB
- * `private.bank_transfer_deposit_code`와 **같은 규칙**이어야 한다 — 어긋나면
- * 화면이 안내한 코드로 운영자가 검색해도 주문이 나오지 않는다.
+ * 16자리 주문번호(`YYYYMMDD` + `1` + 일련 7자리)에서 만든다 — 주문일의 10일 주기 자리 1자리
+ * (`(주문일 - 2000-01-01) mod 10`) + 그날 일련번호 끝 5자리, 숫자 6자리다. 입금 대기는 최대
+ * 48시간이라 동시에 열린 주문의 주문일은 연속한 3일 안이고, 하루 주문이 10만 건을 넘지 않는 한
+ * 입금 대기 주문 사이 코드가 겹치지 않는다. 한글 4자 이름과 붙여도 은행 입금자명 14바이트 안이다.
+ *
+ * DB `private.bank_transfer_deposit_code`와 **같은 규칙**이어야 한다 — 어긋나면 화면이 안내한
+ * 코드로 운영자가 검색해도 주문이 나오지 않는다. 주문번호가 없는 옛 기록(UUID)만 옛 규칙
+ * (UUID 앞 8자리)으로 계산한다.
  */
-export function bankTransferDepositCode(orderId: string) {
+export function bankTransferDepositCode(orderReference: string) {
+  if (!isCommerceNumber(orderReference, 'order')) return bankTransferLegacyDepositCode(orderReference);
+  const day = Date.UTC(Number(orderReference.slice(0, 4)), Number(orderReference.slice(4, 6)) - 1, Number(orderReference.slice(6, 8)));
+  const cycle = Math.round((day - DEPOSIT_CODE_EPOCH) / 86_400_000) % 10;
+  return `${(cycle + 10) % 10}${orderReference.slice(-5)}`;
+}
+
+/** 주문번호 도입 전 규칙(UUID 앞 8자리). 옛 코드를 안내받은 입금도 대조할 수 있게 남긴다. */
+export function bankTransferLegacyDepositCode(orderId: string) {
   return orderId.replace(/-/g, '').slice(0, 8).toUpperCase();
 }
 
-/** 주문서에 노출할 입금자명 예시. */
-export function bankTransferDepositName(recipientName: string, orderId: string) {
+/** DB가 준 입금코드로 주문서·미입금 콘솔에 노출할 입금자명 예시를 만든다. */
+export function bankTransferDepositNameWithCode(recipientName: string, code: string) {
   const trimmed = recipientName.trim();
-  const code = bankTransferDepositCode(orderId);
   return trimmed ? `${trimmed}${code}` : code;
+}
+
+/** 주문서에 노출할 입금자명 예시. `orderReference`는 16자리 주문번호다(없는 옛 기록만 UUID). */
+export function bankTransferDepositName(recipientName: string, orderReference: string) {
+  return bankTransferDepositNameWithCode(recipientName, bankTransferDepositCode(orderReference));
 }
 
 /**
