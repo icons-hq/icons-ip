@@ -38,6 +38,26 @@ describe('주문 상세', () => {
     for(const value of ['디지털 파일 제공 기록','구매 당시 디지털 상품','original.txt','35 B','2회','파일 제공 시작','전송 완료나 고객의 열람을 의미하지 않습니다','배송 주소가 필요하지 않은']) expect(html).toContain(value);
     expect(html).not.toContain('상품 발송');expect(html).not.toContain('다운로드</button>');
   });
+  it('할인 주문은 품목별 쿠폰·적립금 배분과 배분 후 금액을 보여주고, 나눌 수 없으면 그렇다고 적는다', () => {
+    const allocated = renderToStaticMarkup(<OrderDetailScreen detail={{ ...detail, itemAllocations: { item: { source: 'legacy', volumeDiscount: 0, couponDiscount: 200, storeCreditDiscount: 0, paidGoodsTotal: 9800 } } }} noteOperationId="operation" />);
+    expect(allocated).toContain('쿠폰 −200원 · 적립금 −0원');
+    expect(allocated).toContain('배분 후 9,800원 · 배송비 제외');
+    expect(renderToStaticMarkup(<OrderDetailScreen detail={detail} noteOperationId="operation" />)).toContain('주문 당시 기록이 없어 나누지 않았습니다');
+    const plain = renderToStaticMarkup(<OrderDetailScreen detail={{ ...detail, order: { ...detail.order, discountTotal: 0 } }} noteOperationId="operation" />);
+    expect(plain).not.toContain('배분 후');
+  });
+  it('시스템 감사 기록을 출처로 구분해 자동 발주확인·결제 대기 자동 취소·장바구니 보류 해제로 적는다', () => {
+    const html = renderToStaticMarkup(<OrderDetailScreen detail={{ ...detail, timeline: [
+      { id: 'auto', source: 'status', occurredAt: '2026-10-27T07:30:00Z', action: 'admin.order.status_updated', fromStatus: 'paid', toStatus: 'confirmed', actorName: null, trigger: 'auto_order_confirmation' },
+      { id: 'manual', source: 'status', occurredAt: '2026-10-27T08:00:00Z', action: 'admin.order.status_updated', fromStatus: 'paid', toStatus: 'confirmed', actorName: '수민' },
+      { id: 'closed', source: 'status', occurredAt: '2026-10-27T09:00:00Z', action: 'system.order.unpaid_cart_order_closed', actorName: null },
+      { id: 'detached', source: 'status', occurredAt: '2026-10-27T10:00:00Z', action: 'system.order.cart_hold_detached', actorName: null },
+    ] }} noteOperationId="operation" />);
+    expect(html).toContain('자동 발주확인 (시스템)');
+    expect(html.split('주문 상태 변경').length - 1).toBe(1);
+    expect(html).toContain('결제 대기 주문 자동 취소 (재주문·장바구니 복귀)');
+    expect(html).toContain('장바구니 보류 해제 (결제 확인 필요 주문)');
+  });
   it('배송완료 주문에서 별도 대리 접수 진입점을 제공한다', () => {
     const html = renderToStaticMarkup(<OrderDetailScreen detail={{ ...detail, order: { ...detail.order, status: 'delivered' } }} noteOperationId="operation" />);
     expect(html).toContain('판매자 직접 반품·교환 접수');

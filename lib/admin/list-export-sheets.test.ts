@@ -47,6 +47,14 @@ function order(overrides: Partial<AdminOrderRecord> = {}): AdminOrderRecord {
 describe('주문 통합검색 목록 엑셀', () => {
   const filters = { field: 'recipient' as const, query: '김수취', status: 'all' as const, from: '2026-10-01', to: null, page: 3, orderId: null };
 
+  it('계산 버전 1 할인 주문도 공통 배분으로 품목 쿠폰·적립금·실결제액을 채운다', () => {
+    const allocations = new Map([['item-1', { source: 'legacy' as const, volumeDiscount: 0, couponDiscount: 1200, storeCreditDiscount: 300, paidGoodsTotal: 28_500 }]]);
+    const sheet = ordersListExportSheet({ records: [order()], paymentMethods: new Map(), filters, allocations });
+    expect(cells(sheet)).toMatchObject({ '쿠폰 할인(품목)': 1200, '적립금 사용(품목)': 300, '품목 실결제액(배송비 제외)': 28_500, '복수구매 할인(품목)': 0 });
+    expect(cells(sheet, 1)).toMatchObject({ '쿠폰 할인(품목)': null, '품목 실결제액(배송비 제외)': null });
+    expect(sheet.notes.join(' ')).toContain('거래확정 엑셀과 같은 규칙');
+  });
+
   it('상품 한 줄을 한 행으로 펼치고 화면 라벨과 KST 시각을 쓴다', () => {
     const sheet = ordersListExportSheet({ records: [order()], paymentMethods: new Map([[ORDER_ID, 'bank_transfer']]), filters });
     expect(sheet.screen).toBe('orders');

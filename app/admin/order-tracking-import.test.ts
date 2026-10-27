@@ -25,14 +25,14 @@ const seowonShipment='60000000-0000-4000-8000-0000000000a1',seowonOrder='5000000
 const seowonLine={recipient:'합성 수취인',phone:'01012345678',postalCode:'04524',address:'서울특별시 중구 세종대로 110 101호',deliveryNote:'',qty:2};
 const seowonCandidate=(overrides:Record<string,unknown>={})=>({id:seowonShipment,orderId:seowonOrder,status:'ready',carrier:null,trackingNumber:null,
   lines:[{...seowonLine,goodName:'합성 키링',optionName:'빨강'},{...seowonLine,goodName:'합성 엽서',optionName:'',qty:1}],...overrides});
-/** 내려받은 송장양식(7열+덧붙인 2열) 오른쪽에 송장번호 열을 채운 서원 회신. */
+/** 내려받은 송장양식(7열+덧붙인 3열) 오른쪽에 송장번호 열을 채운 서원 회신. */
 async function seowonForm(rows:(string|number)[][],origin=''){
  const workbook=new ExcelJS.Workbook(),sheet=workbook.addWorksheet('송장양식');sheet.addRow([...SEOWON_EXPORT_HEADERS,'송장번호']);
  for(const row of rows)sheet.addRow(row);
  for(let i=0;i<5;i++)workbook.addWorksheet(`Sheet${i+1}`);
  const data=new FormData();data.set('file',new File([await workbook.xlsx.writeBuffer() as ArrayBuffer],'seowon-reply.xlsx'));data.set('originId',origin);return data;
 }
-const seowonRow=(items:string,quantity:number,tracking:string|number,phone='010-1234-5678')=>[phone,'','04524','서울특별시 중구 세종대로 110 101호','',quantity,items,'합성 수취인','',tracking];
+const seowonRow=(items:string,quantity:number,tracking:string|number,phone='010-1234-5678',shipmentNumber='')=>[phone,'','04524','서울특별시 중구 세종대로 110 101호','',quantity,items,'합성 수취인','',shipmentNumber,tracking];
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.origins.mockImplementation(async (template: string) => ({ error: null, data: template === 'wms_csv' ? [{ id: warehouseOrigin, name: '김포' }] : [{ id: seowonOrigin, name: '남양주' }] }));
@@ -168,6 +168,19 @@ describe('bulk tracking action', () => {
     expect(result.report?.succeeded).toEqual(['000000A1']);
     expect(result.report?.failed).toEqual([{ line: 4, reference: '전화 끝 5678 · 없는 상품', reason: SEOWON_REPLY_REASONS.notFound }]);
     expect(mocks.enqueue).toHaveBeenCalledWith([{ orderId: seowonOrder, shipmentId: seowonShipment }]);
+  });
+  it('서원 회신에 남은 배송건번호로 배송 건을 정확히 찾고 결과를 배송건번호로 적는다', async () => {
+    const candidate = seowonCandidate({ shipmentNumber: '2026102730000021' });
+    mocks.rpc.mockImplementation(async (name: string, args: { target_rows?: { line: number; reference: string }[] }) => name === 'admin_origin_tracking_candidates'
+      ? { error: null, data: { defaultCarrier: 'epost', truncated: false, shipments: [candidate, seowonCandidate({ id: '60000000-0000-4000-8000-0000000000b1', shipmentNumber: '2026102730000022' })], usedTracking: [] } }
+      : { error: null, data: args.target_rows!.map(row => ({ ...row, ok: true, dispatched: true, orderId: seowonOrder, shipmentId: seowonShipment })) });
+    const result = await bulkRegisterAdminOrderTrackingAction({}, await seowonForm([
+      seowonRow('합성 키링_빨강', 2, '6012345678901', '010-1234-5678', '2026102730000021'), seowonRow('합성 엽서_', 1, '6012345678901', '010-1234-5678', '2026102730000021'),
+    ]));
+    expect(mocks.rpc).toHaveBeenNthCalledWith(2, 'admin_import_seowon_tracking_batch', { target_origin_id: seowonOrigin, target_rows: [
+      { line: 2, reference: seowonShipment, carrier: 'epost', trackingNumber: '6012345678901' },
+    ] });
+    expect(result.report?.succeeded).toEqual(['2026102730000021']);
   });
   it('routes Seowon through the whole-pack preflight and sends no email when a member is missing',async()=>{
     mocks.rpc.mockImplementation(async(name:string)=>name==='admin_origin_tracking_candidates'

@@ -24,6 +24,8 @@ export interface AdminOrderTimelineEntry {
   title?: string | null;
   relatedId?: string | null;
   claimType?: string | null;
+  /** 시스템이 남긴 감사 기록의 출처(예: 자동 발주확인 'auto_order_confirmation'). 운영자 처리는 비어 있다. */
+  trigger?: string | null;
 }
 export interface AdminShipmentEmailJob {
   shipmentId: string;
@@ -47,5 +49,7 @@ export interface AdminOrderDetail {
   };
   shipments: ShipmentRecord[];
   items: AdminOrderItemRecord[];
+  /** 품목 id별 쿠폰·적립금·복수구매 배분(`lib/admin/item-allocation`). 나눌 수 없는 주문은 비어 있다. */
+  itemAllocations?: Record<string, import('./item-allocation').OrderItemAllocation>;
   timeline: AdminOrderTimelineEntry[];
 }

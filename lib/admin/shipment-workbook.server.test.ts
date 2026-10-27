@@ -7,7 +7,7 @@ import type { ShipmentExportData } from './shipment-dispatch';
 import { parseTrackingWorkbook, type TrackingWorkbookParseResult } from './tracking-workbook.server';
 import { trackingImportCommand, type SeowonTrackingParseResult, type WarehouseTrackingParseResult } from './warehouse-templates.server';
 import { SEOWON_EXPORT_HEADERS } from './warehouse-templates';
-import { matchSeowonReply } from './seowon-exchange';
+import { matchSeowonReply, seowonExportLabels } from './seowon-exchange';
 
 function native<T extends WarehouseTrackingParseResult | SeowonTrackingParseResult>(parsed: TrackingWorkbookParseResult, kind: T['kind']): T {
   if (!('kind' in parsed) || parsed.kind !== kind) throw new Error(`expected ${kind} reply`);
@@ -61,7 +61,7 @@ describe('shipment workbook exchange', () => {
     expect(() => trackingImportCommand(parsed, '')).toThrow('출고지를 선택');
   });
   it('exports the Seowon 송장양식 exactly: sheet, 7 original headers, widths, colours and one row per item', async () => {
-    const file = await buildShipmentExport({ shipments: [{ ...shipment, originName: '남양주', template: 'seowon_xlsx', lines: [
+    const file = await buildShipmentExport({ shipments: [{ ...shipment, shipmentNumber: '2026102730000001', originName: '남양주', template: 'seowon_xlsx', lines: [
       { ...line, recipient: '합성 수취인', goodName: '합성 키링', optionName: '빨강' },
       { ...line, recipient: '합성 수취인', goodName: '합성 엽서', optionName: '', qty: 1 },
     ] }] }, 'xlsx', 'warehouse', '2026-10-12');
@@ -69,10 +69,12 @@ describe('shipment workbook exchange', () => {
     const workbook = await loadXlsx(file.bytes);
     expect(workbook.worksheets.map(sheet => sheet.name)).toEqual(['송장양식']);
     const sheet = workbook.worksheets[0];
-    expect(sheet.getRow(1).values).toEqual([undefined, '받는분전화번호', '받는분기타연락처', '받는분우편번호', '받는분주소(전체,분할)', '운임Type', '수량', '품목명', '받는분성명', '배송메시지']);
+    expect(sheet.getRow(1).values).toEqual([undefined, '받는분전화번호', '받는분기타연락처', '받는분우편번호', '받는분주소(전체,분할)', '운임Type', '수량', '품목명', '받는분성명', '배송메시지', '배송건번호']);
     expect(sheet.rowCount).toBe(3);
-    expect(sheet.getRow(2).values).toEqual([undefined, '010-0123-4567', '', '00123', '서울시, 상세주소', '', 2, '합성 키링_빨강', '합성 수취인', '문 앞 부탁합니다']);
-    expect(sheet.getRow(3).values).toEqual([undefined, '010-0123-4567', '', '00123', '서울시, 상세주소', '', 1, '합성 엽서_', '합성 수취인', '문 앞 부탁합니다']);
+    expect(sheet.getRow(2).values).toEqual([undefined, '010-0123-4567', '', '00123', '서울시, 상세주소', '', 2, '합성 키링_빨강', '합성 수취인', '문 앞 부탁합니다', '2026102730000001']);
+    expect(sheet.getRow(3).values).toEqual([undefined, '010-0123-4567', '', '00123', '서울시, 상세주소', '', 1, '합성 엽서_', '합성 수취인', '문 앞 부탁합니다', '2026102730000001']);
+    expect(sheet.getCell('J2').numFmt).toBe('@');
+    expect(sheet.getCell('J2').type).toBe(ExcelJS.ValueType.String);
     expect([1, 2, 3, 4, 5, 6, 7].map(column => sheet.getColumn(column).width)).toEqual([18.3984375, 21, 18.3984375, 83.3984375, 11.69921875, 6.59765625, 62.5]);
     const fill = (address: string) => (sheet.getCell(address).fill as ExcelJS.FillPattern).fgColor;
     expect(['A1', 'D1'].map(fill)).toEqual([{ argb: 'FFFFFF00' }, { argb: 'FFFFFF00' }]);
@@ -95,8 +97,8 @@ describe('shipment workbook exchange', () => {
     const workbook = await loadXlsx(file.bytes);
     const sheet = workbook.worksheets[0];
     expect(sheet.getCell('A4').value).toBe('02-1234-5678');
-    sheet.getCell('J1').value = '송장번호';
-    sheet.getCell('J2').value = '6012345678901'; sheet.getCell('J3').value = 6012345678901; sheet.getCell('J4').value = '6012-3456-7890-2';
+    sheet.getCell('K1').value = '송장번호';
+    sheet.getCell('K2').value = '6012345678901'; sheet.getCell('K3').value = 6012345678901; sheet.getCell('K4').value = '6012-3456-7890-2';
     const parsed = native<SeowonTrackingParseResult>(await parseTrackingWorkbook(Buffer.from(await workbook.xlsx.writeBuffer()), []), 'seowon');
     expect(parsed.rows.map(row => [row.line, row.trackingNumber, row.error])).toEqual([[2, '6012345678901', undefined], [3, '6012345678901', undefined], [4, '6012345678902', undefined]]);
     const match = matchSeowonReply(parsed.rows, [
@@ -108,6 +110,30 @@ describe('shipment workbook exchange', () => {
       { line: 2, shipmentId: line.shipmentId, orderId: line.orderId, trackingNumber: '6012345678901', lines: [2, 3] },
       { line: 4, shipmentId: second.shipmentId, orderId: second.orderId, trackingNumber: '6012345678902', lines: [4] },
     ]);
+  });
+  it('같은 받는 분의 두 배송 건은 이름 접미사로 송장을 따로 받고, 배송건번호 열이 지워진 회신도 접미사로 각 배송 건에 등록한다', async () => {
+    const twin = { ...line, recipient: '김영생', goodName: '합성 키링', optionName: '빨강', qty: 1 };
+    const first = { ...shipment, id: line.shipmentId, shipmentNumber: '2026102730000001', originName: '남양주', template: 'seowon_xlsx', lines: [twin] };
+    const second = { ...first, id: '00000000-0000-4000-8000-000000000003', shipmentNumber: '2026102730000002', lines: [{ ...twin, shipmentId: '00000000-0000-4000-8000-000000000003', orderId: '00000000-0000-4000-8000-000000000004' }] };
+    const file = await buildShipmentExport({ shipments: [second, first] }, 'xlsx');
+    const workbook = await loadXlsx(file.bytes);
+    const sheet = workbook.worksheets[0];
+    expect([sheet.getCell('H2').value, sheet.getCell('J2').value, sheet.getCell('H3').value, sheet.getCell('J3').value]).toEqual(['김영생02', '2026102730000002', '김영생01', '2026102730000001']);
+    sheet.spliceColumns(10, 1);
+    sheet.getCell('J1').value = '송장번호'; sheet.getCell('J2').value = '6012345678902'; sheet.getCell('J3').value = '6012345678901';
+    const parsed = native<SeowonTrackingParseResult>(await parseTrackingWorkbook(Buffer.from(await workbook.xlsx.writeBuffer()), []), 'seowon');
+    // 내보낼 때 기록하는 접미사(admin_mark_seowon_shipments_exported)와 같은 값이다.
+    const labels = new Map(seowonExportLabels([second, first]).map(label => [label.shipmentId, { batch: 'export-1', suffix: label.suffix }]));
+    expect([...labels.values()].map(label => label.suffix)).toEqual(['02', '01']);
+    const candidates = [
+      { id: first.id, shipmentNumber: first.shipmentNumber, orderId: line.orderId, status: 'ready' as const, trackingNumber: null, lines: first.lines, seowonLabel: labels.get(first.id) },
+      { id: second.id, shipmentNumber: second.shipmentNumber, orderId: '00000000-0000-4000-8000-000000000004', status: 'ready' as const, trackingNumber: null, lines: second.lines, seowonLabel: labels.get(second.id) },
+    ];
+    const match = matchSeowonReply(parsed.rows, candidates);
+    expect(match.issues).toEqual([]);
+    expect(match.commands.map(command => [command.shipmentNumber, command.trackingNumber])).toEqual([['2026102730000002', '6012345678902'], ['2026102730000001', '6012345678901']]);
+    // 기록이 없으면 순위로 추정하지 않는다.
+    expect(matchSeowonReply(parsed.rows, candidates.map(candidate => ({ ...candidate, seowonLabel: null }))).commands).toEqual([]);
   });
   it('exports the exact Gimpo columns from order snapshots and charges shipping only on each shipment first line', async () => {
     const gimpo = { ...shipment, template: 'wms_csv', lines: [
@@ -259,8 +285,8 @@ it('keeps a Seowon gift reply readable with its validated operational supplement
  const gift={...shipment,template:'seowon_xlsx',originName:'남양주',isGift:true,lines:[{...line,recipient:'합성 선물 수령인'}]};
  const file=await buildShipmentExport({shipments:[gift]},'xlsx');const book=await loadXlsx(file.bytes);
  expect(book.worksheets.map(sheet=>sheet.name)).toEqual(['송장양식','배송 운영 안내']);
- expect(book.worksheets[0].columnCount).toBe(9);expect(book.worksheets[0].getCell('F2').value).toBe(2);
- book.worksheets[0].getCell('J1').value='송장번호';book.worksheets[0].getCell('J2').value='001234567890';
+ expect(book.worksheets[0].columnCount).toBe(10);expect(book.worksheets[0].getCell('F2').value).toBe(2);
+ book.worksheets[0].getCell('K1').value='송장번호';book.worksheets[0].getCell('K2').value='001234567890';
  book.addWorksheet('Sheet1');
  const reply=native<SeowonTrackingParseResult>(await parseTrackingWorkbook(Buffer.from(await book.xlsx.writeBuffer()),[]),'seowon');
  expect(reply.rows).toHaveLength(1);expect(reply.rows[0]).toMatchObject({trackingNumber:'001234567890',quantity:2});

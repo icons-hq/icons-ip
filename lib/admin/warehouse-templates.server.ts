@@ -10,8 +10,9 @@ import { parseShipmentExportColumns, shipmentExportCells } from './shipment-work
 import { TRACKING_IMPORT_ROW_LIMIT, type TrackingImportParseResult } from './tracking-import';
 import type { SmartStoreTrackingParseResult } from './smartstore-tracking-workbook.server';
 import { readSafeWorkbookCell } from './workbook-safety';
-import { seowonExportRows, type SeowonReplyRow } from './seowon-exchange';
+import { seowonExportTable, type SeowonReplyRow } from './seowon-exchange';
 import { isTrackingNumber, normalizeTrackingNumber } from '@/lib/orders/shipment';
+import { isCommerceNumber } from '@/lib/commerce-number';
 import { transactionExactKeys, transactionRecord } from '@/lib/goods-transaction-values';
 
 type Shipments = ShipmentExportData['shipments'];
@@ -71,7 +72,8 @@ export function warehouseExportTable(shipments: Shipments) {
   if (first.template === 'seowon_xlsx') return {
     headers: SEOWON_EXPORT_HEADERS, widths: SEOWON_COLUMNS.map(column => column.width),
     textColumns: SEOWON_COLUMNS.map(column => column.text),
-    rows: shipments.flatMap(shipment => seowonExportRows(shipment.lines).map(row => SEOWON_COLUMNS.map(column => row[column.key]))),
+    rows: seowonExportTable(shipments.map(shipment => ({ id: shipment.id, shipmentNumber: shipment.shipmentNumber ?? null, packId: shipment.pack?.id ?? null, lines: shipment.lines })))
+      .map(row => SEOWON_COLUMNS.map(column => row[column.key])),
   };
   if (first.template === 'wms_csv') return {
     headers: GIMPO_EXPORT_HEADERS, widths: GIMPO_COLUMNS.map(column => column.width),
@@ -115,14 +117,14 @@ function seowonHeaderStyle(column: SeowonColumn): Partial<ExcelJS.Style> {
   return {
     font: { ...SEOWON_FONT, bold: true }, fill: SEOWON_FILLS[column.fill],
     alignment: { vertical: 'middle', ...(centered ? { horizontal: 'center' } : column.key === 'items' ? { horizontal: 'left' } : {}) },
-    ...(column.key === 'phone' ? { numFmt: '@' } : column.key === 'quantity' ? { numFmt: SEOWON_QUANTITY_FORMAT } : {}),
+    ...(column.key === 'phone' || column.key === 'shipmentNumber' ? { numFmt: '@' } : column.key === 'quantity' ? { numFmt: SEOWON_QUANTITY_FORMAT } : {}),
   };
 }
 function seowonCellStyle(column: SeowonColumn): Partial<ExcelJS.Style> {
   return {
     font: { ...SEOWON_FONT }, alignment: { vertical: 'middle', ...(column.key === 'items' ? { horizontal: 'left' } : {}) },
     ...(column.fill === 'picking' ? { fill: SEOWON_FILLS.picking } : {}),
-    ...(column.key === 'quantity' ? { numFmt: SEOWON_QUANTITY_FORMAT } : column.key === 'phone' ? { numFmt: '@' } : {}),
+    ...(column.key === 'quantity' ? { numFmt: SEOWON_QUANTITY_FORMAT } : column.key === 'phone' || column.key === 'shipmentNumber' ? { numFmt: '@' } : {}),
   };
 }
 
@@ -196,10 +198,17 @@ function readReplyPhone(cell: ExcelJS.Cell): { value: string; error?: string } {
   return typeof cell.value === 'number' && /^1\d{8,9}$/.test(read.value) ? { value: `0${read.value}` } : read;
 }
 
+/** 회신에 남은 배송건번호. 숫자 칸으로 바뀌면 16자리가 깨지므로 버리고 줄 내용으로 대조한다. */
+function readReplyShipmentNumber(cell: ExcelJS.Cell | null): string | undefined {
+  if (!cell || typeof cell.value !== 'string') return undefined;
+  const value = cell.value.trim();
+  return isCommerceNumber(value, 'shipment') ? value : undefined;
+}
+
 /**
  * null means this is not a Seowon reply. A reply is the exported `송장양식` (A~G headers unchanged)
- * with a 송장번호 column added on the right; rows are matched by content because Seowon does not
- * return our order numbers.
+ * with a 송장번호 column added on the right. Rows keep our appended 배송건번호 when the warehouse
+ * leaves it in place; otherwise they are matched by content and the 받는분성명 suffix.
  */
 export function parseSeowonReply(sheet: ExcelJS.Worksheet): SeowonTrackingParseResult | null {
   const title = (column: number) => { const cell = readSafeWorkbookCell(sheet.getRow(1).getCell(column)); return cell.error ? '' : cell.value.trim(); };
@@ -209,6 +218,9 @@ export function parseSeowonReply(sheet: ExcelJS.Worksheet): SeowonTrackingParseR
     if (REPLY_TRACKING_HEADERS.has(compact(title(column)))) trackingColumn = column;
   }
   if (!trackingColumn) throw new Error('남양주 회신에서 송장번호 열을 찾지 못했습니다. 송장양식 오른쪽에 "송장번호" 열을 두고 번호를 채워 올려주세요.');
+  // 덧붙인 열은 서원이 지우거나 옮길 수 있어 위치가 아니라 헤더로 찾는다.
+  const appended = (header: string) => { for (let column = SEOWON_TEMPLATE_HEADERS.length + 1; column <= sheet.columnCount; column++) if (compact(title(column)) === compact(header)) return column; return 0; };
+  const recipientColumn = appended('받는분성명'), numberColumn = appended('배송건번호');
   const at = (key: typeof SEOWON_COLUMNS[number]['key']) => SEOWON_COLUMNS.findIndex(column => column.key === key) + 1;
   const rows: SeowonReplyRow[] = [];
   for (let line = 2; line <= sheet.rowCount; line++) {
@@ -224,7 +236,11 @@ export function parseSeowonReply(sheet: ExcelJS.Worksheet): SeowonTrackingParseR
       ?? (!quantity ? '수량은 1 이상의 숫자여야 합니다.' : undefined)
       ?? (!trackingNumber ? '송장번호가 비어 있습니다. 출고하지 않은 줄이면 해당 배송 건의 줄을 모두 빼고 올려주세요.' : undefined)
       ?? (!isTrackingNumber(trackingNumber) || /[\r\n\t]/.test(tracking.value) ? '송장번호는 8~30자리 영숫자여야 합니다.' : undefined);
-    rows.push({ line, phone: phone.value, address: address.value, items: items.value, quantity, trackingNumber, ...(error ? { error } : {}) });
+    const recipient = recipientColumn ? readSafeWorkbookCell(source.getCell(recipientColumn)) : null;
+    const shipmentNumber = readReplyShipmentNumber(numberColumn ? source.getCell(numberColumn) : null);
+    rows.push({ line, phone: phone.value, address: address.value, items: items.value, quantity, trackingNumber,
+      ...(recipient && !recipient.error && recipient.value.trim() ? { recipient: recipient.value } : {}),
+      ...(shipmentNumber ? { shipmentNumber } : {}), ...(error ? { error } : {}) });
   }
   return { kind: 'seowon', rows, issues: [] };
 }
