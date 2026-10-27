@@ -38,6 +38,7 @@ export default async function Page({ params }: PageProps<'/orders/[orderId]/comp
     <OrderComplete
       order={order}
       bankTransferAccount={destination.kind === 'deposit' ? await getBankTransferAccount() : null}
+      depositDeadlinePassed={destination.kind === 'deposit' && destination.deadlinePassed}
     />
   );
 }

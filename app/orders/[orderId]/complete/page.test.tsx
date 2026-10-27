@@ -62,8 +62,15 @@ describe('/orders/[orderId]/complete', () => {
     expect(mocks.account).not.toHaveBeenCalled();
   });
 
+  it('기한이 지난 무통장 대기 주문은 계좌 대신 기한 만료를 안내한다', async () => {
+    mocks.loadOrder.mockResolvedValue({ ...order, status: 'pending', paymentMethod: 'bank_transfer', paymentStatus: null, paidAt: null, expiresAt: '2000-01-01T00:00:00.000Z' });
+    const html = renderToStaticMarkup(await Page(params()));
+    expect(html).toContain('입금 기한이 지났어요');
+    expect(html).not.toContain('국민은행');
+  });
+
   it('무통장 입금 대기 주문은 계좌 안내와 함께 그린다', async () => {
-    mocks.loadOrder.mockResolvedValue({ ...order, status: 'pending', paymentMethod: 'bank_transfer', paymentStatus: null, paidAt: null, expiresAt: '2026-10-28T05:00:00.000Z' });
+    mocks.loadOrder.mockResolvedValue({ ...order, status: 'pending', paymentMethod: 'bank_transfer', paymentStatus: null, paidAt: null, expiresAt: '2099-10-28T05:00:00.000Z' });
     const html = renderToStaticMarkup(await Page(params()));
     expect(html).toContain('주문이 접수됐어요');
     expect(html).toContain('국민은행');

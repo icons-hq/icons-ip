@@ -1,7 +1,9 @@
 import Link from 'next/link';
 import { GoodsCustomInputsSummary } from '@/components/shop/GoodsCustomInputs';
 import { ListingReturnLink } from '@/components/shell/ListingReturn';
+import { BankTransferDeadlineGate, bankTransferDeadlinePassed } from '@/components/checkout/BankTransferDeadline';
 import { checkoutDeadlineTimeLabel } from '@/lib/checkout';
+import { BANK_TRANSFER_EXPIRED_COPY } from '@/lib/checkout-status-copy';
 import type { CheckoutOrderSnapshot } from '@/lib/checkout.server';
 import { krw } from '@/lib/format';
 import { formatOrderDateTime, orderReferenceLabel } from '@/lib/orders';
@@ -17,17 +19,21 @@ import { bankTransferDepositName, bankTransferDepositNameWithCode, type BankTran
  */
 export type OrderCompleteDestination =
   | { readonly kind: 'paid' }
-  | { readonly kind: 'deposit' }
+  /** `deadlinePassed`: 기한이 지났지만 아직 자동 취소 전이라 pending인 무통장 주문. 계좌를 안내하지 않는다. */
+  | { readonly kind: 'deposit'; readonly deadlinePassed: boolean }
   | { readonly kind: 'redirect'; readonly href: string };
 
 export function orderCompleteDestination(
-  order: Pick<CheckoutOrderSnapshot, 'id' | 'giftId' | 'status' | 'paymentMethod' | 'paymentStatus'>,
+  order: Pick<CheckoutOrderSnapshot, 'id' | 'giftId' | 'status' | 'paymentMethod' | 'paymentStatus' | 'expiresAt'>,
+  now: number = Date.now(),
 ): OrderCompleteDestination {
   if (order.giftId) return { kind: 'redirect', href: `/gifts/${encodeURIComponent(order.giftId)}` };
   const detail = { kind: 'redirect', href: `/orders/${order.id}` } as const;
   if (order.status === 'canceled') return detail;
   if (order.status === 'pending') {
-    return order.paymentMethod === 'bank_transfer' && order.paymentStatus === null ? { kind: 'deposit' } : detail;
+    return order.paymentMethod === 'bank_transfer' && order.paymentStatus === null
+      ? { kind: 'deposit', deadlinePassed: bankTransferDeadlinePassed(order.expiresAt, now) }
+      : detail;
   }
   return order.paymentStatus === 'paid' ? { kind: 'paid' } : detail;
 }
@@ -36,10 +42,14 @@ interface OrderCompleteProps {
   order: CheckoutOrderSnapshot;
   /** 무통장 입금 대기 주문에만 실린다. 서버 설정에 계좌가 없으면 null. */
   bankTransferAccount: BankTransferAccount | null;
+  /** 서버가 그릴 때 이미 입금 기한이 지났는지(orderCompleteDestination). 첫 렌더 판정에 쓴다. */
+  depositDeadlinePassed?: boolean;
 }
 
-export function OrderComplete({ order, bankTransferAccount }: OrderCompleteProps) {
+export function OrderComplete({ order, bankTransferAccount, depositDeadlinePassed = false }: OrderCompleteProps) {
   const awaitingDeposit = order.status === 'pending' && order.paymentMethod === 'bank_transfer';
+  /* 기한이 지났지만 아직 정리(자동 취소) 전인 무통장 주문은 계좌를 안내하지 않는다. 화면을 연 채
+     기한이 지나도 클라이언트가 안내를 닫는다(BankTransferDeadlineGate). */
   const deadline = order.expiresAt ? formatOrderDateTime(order.expiresAt) : '';
   const deadlineTime = checkoutDeadlineTimeLabel(order.expiresAt);
   const total = order.transaction?.totals.onlineTotal ?? order.total;
@@ -49,12 +59,26 @@ export function OrderComplete({ order, bankTransferAccount }: OrderCompleteProps
     <main className="wc-root wc-receipt checkout-page checkout-order-page order-complete-page">
       <header className="wc-receipt__head">
         <div className="wrap">
-          <h1 className="wc-receipt__title">{awaitingDeposit ? '주문이 접수됐어요' : '주문이 완료됐어요'}</h1>
-          <p className="wc-receipt__subcopy">
-            {awaitingDeposit
-              ? '아래 계좌로 기한 안에 입금하면 확인 후 주문이 확정돼요.'
-              : '결제가 확인됐어요. 배송 진행은 주문 상세에서 확인할 수 있어요.'}
-          </p>
+          {awaitingDeposit ? (
+            <BankTransferDeadlineGate
+              expiresAt={order.expiresAt}
+              initiallyPassed={depositDeadlinePassed}
+              expired={(
+                <>
+                  <h1 className="wc-receipt__title">{BANK_TRANSFER_EXPIRED_COPY.title}</h1>
+                  <p className="wc-receipt__subcopy" role="alert">{BANK_TRANSFER_EXPIRED_COPY.body}</p>
+                </>
+              )}
+            >
+              <h1 className="wc-receipt__title">주문이 접수됐어요</h1>
+              <p className="wc-receipt__subcopy">아래 계좌로 기한 안에 입금하면 확인 후 주문이 확정돼요.</p>
+            </BankTransferDeadlineGate>
+          ) : (
+            <>
+              <h1 className="wc-receipt__title">주문이 완료됐어요</h1>
+              <p className="wc-receipt__subcopy">결제가 확인됐어요. 배송 진행은 주문 상세에서 확인할 수 있어요.</p>
+            </>
+          )}
           <span className="checkout-order-ref mono">주문번호 {orderReferenceLabel(order.id, order.orderNumber)}</span>
         </div>
       </header>
@@ -73,6 +97,7 @@ export function OrderComplete({ order, bankTransferAccount }: OrderCompleteProps
           </dl>
 
           {awaitingDeposit && (
+            <BankTransferDeadlineGate expiresAt={order.expiresAt} initiallyPassed={depositDeadlinePassed} expired={null}>
             <div className="checkout-deposit" role="status">
               <h2>안내된 계좌로 입금해주세요</h2>
               {bankTransferAccount ? (
@@ -95,6 +120,7 @@ export function OrderComplete({ order, bankTransferAccount }: OrderCompleteProps
                 <p className="checkout-error" role="alert">입금 계좌 안내를 불러오지 못했어요. 고객센터로 문의해주세요.</p>
               )}
             </div>
+            </BankTransferDeadlineGate>
           )}
 
           <div className="order-complete-actions">

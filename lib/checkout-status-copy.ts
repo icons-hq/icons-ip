@@ -91,6 +91,12 @@ export const REORDER_REQUESTED_COPY: StatusCopy = {
   body: '이 주문은 바로 취소되지 않고 취소 요청으로 접수돼, 굿즈를 장바구니에 다시 담지 않았어요. 취소가 끝나면 재고와 사용한 쿠폰·적립금이 돌아와요. 진행 상태는 주문 상세에서 확인해주세요.',
 };
 
+/** 무통장 입금 기한이 지난 주문의 안내. 결제 화면과 주문 완료 화면이 같은 말을 쓴다. */
+export const BANK_TRANSFER_EXPIRED_COPY: StatusCopy = {
+  title: '입금 기한이 지났어요',
+  body: '선점된 재고는 자동으로 복원됩니다. 기한이 지난 뒤 입금하셨다면 고객센터 문의로 알려주세요 — 주문은 되살아나지 않고 입금액을 반환해 드립니다.',
+};
+
 /* 웹훅·재정합 설정과 무관하게 지킬 수 있는 말만 한다 — "닫아도 확인은 계속된다"는
    자동 재정합 경로가 열려 있을 때만 참이다. */
 const CHECKING_COPY: StatusCopy = {
@@ -152,7 +158,7 @@ export function checkoutStatusCopy({
   if (closedCopy) return closedCopy;
   if (state === 'closed') {
     if (isBankTransfer) {
-      return { title: '입금 기한이 지났어요', body: '선점된 재고는 자동으로 복원됩니다. 기한이 지난 뒤 입금하셨다면 고객센터 문의로 알려주세요 — 주문은 되살아나지 않고 입금액을 반환해 드립니다.' };
+      return BANK_TRANSFER_EXPIRED_COPY;
     }
     if (orderStatus === 'canceled') {
       return reorderMode === 'retry_from_cart'
