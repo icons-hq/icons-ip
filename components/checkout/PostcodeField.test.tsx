@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { POSTCODE_SCRIPT_SRC } from '@/lib/postcode';
-import { PostcodeField } from './PostcodeField';
+import { POSTCODE_FAILED_MESSAGE, PostcodeField, postcodeLayerMessage } from './PostcodeField';
 
 function render(props: Partial<Parameters<typeof PostcodeField>[0]> = {}) {
   return renderToStaticMarkup(
@@ -55,5 +55,15 @@ describe('PostcodeField', () => {
     expect(html).toContain('aria-controls="address-book-postalCode-search-layer"');
     expect(html).not.toContain('checkout-postalCode');
     expect(render()).toContain('aria-controls="postcode-search-layer"');
+  });
+
+  /* 검색을 열지 못했을 때 문구는 화면 문맥을 따른다 — 주문서는 '주문할 수 있어요', 주소록은 저장 문맥(L7 QA). */
+  it('검색 실패 문구는 기본이 주문서 문맥이고, 다른 화면은 자기 문구를 넘긴다', () => {
+    expect(postcodeLayerMessage('loading')).toBe('주소 검색을 불러오는 중이에요.');
+    expect(postcodeLayerMessage('ready')).toBeNull();
+    expect(postcodeLayerMessage('failed')).toBe(POSTCODE_FAILED_MESSAGE);
+    expect(POSTCODE_FAILED_MESSAGE).toContain('직접 입력해도 주문할 수 있어요');
+    expect(postcodeLayerMessage('failed', '배송지 문구')).toBe('배송지 문구');
+    expect(postcodeLayerMessage('loading', '배송지 문구')).toBe('주소 검색을 불러오는 중이에요.');
   });
 });

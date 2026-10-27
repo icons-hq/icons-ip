@@ -16,16 +16,21 @@ const FIELD_ID = 'checkout-postalCode';
    이 칸을 쓰면 자기 접두의 id를 넘겨 같은 문서 안에서 id가 겹치지 않게 한다. */
 const errorId = (fieldId: string) => `${fieldId}-error`;
 
-type LayerState = 'loading' | 'ready' | 'failed';
+export type LayerState = 'loading' | 'ready' | 'failed';
 
-const LAYER_MESSAGE: Record<LayerState, string | null> = {
-  loading: '주소 검색을 불러오는 중이에요.',
-  ready: null,
-  failed: '주소 검색을 열지 못했어요. 우편번호와 기본 주소를 직접 입력해도 주문할 수 있어요.',
-};
+/** 검색 스크립트를 불러오지 못했을 때의 기본 문구(주문서 문맥). 다른 화면은 failedMessage 로 자기 문맥의 문구를 넘긴다. */
+export const POSTCODE_FAILED_MESSAGE = '주소 검색을 열지 못했어요. 우편번호와 기본 주소를 직접 입력해도 주문할 수 있어요.';
+
+/** 검색 레이어 아래 상태 문구. 준비되면 문구가 없다. */
+export function postcodeLayerMessage(state: LayerState, failedMessage: string = POSTCODE_FAILED_MESSAGE): string | null {
+  if (state === 'loading') return '주소 검색을 불러오는 중이에요.';
+  return state === 'failed' ? failedMessage : null;
+}
 
 interface PostcodeFieldProps {
   error?: string;
+  /** 검색을 열지 못했을 때 문구. 기본은 주문서 문맥(POSTCODE_FAILED_MESSAGE). */
+  failedMessage?: string;
   /** 우편번호 입력 id. 기본은 주문서의 `checkout-postalCode`. */
   id?: string;
   onChange: (postalCode: string) => void;
@@ -33,7 +38,7 @@ interface PostcodeFieldProps {
   value: string;
 }
 
-export function PostcodeField({ error, id = FIELD_ID, onChange, onSelect, value }: PostcodeFieldProps) {
+export function PostcodeField({ error, failedMessage, id = FIELD_ID, onChange, onSelect, value }: PostcodeFieldProps) {
   const [open, setOpen] = useState(false);
   const [layerState, setLayerState] = useState<LayerState>('loading');
   const [selectionError, setSelectionError] = useState<string | null>(null);
@@ -81,7 +86,7 @@ export function PostcodeField({ error, id = FIELD_ID, onChange, onSelect, value 
   const describedBy = error ? errorId(id) : undefined;
   /* 주문서의 기본 칸은 기존 마크업(id)을 그대로 둔다. */
   const layerId = id === FIELD_ID ? 'postcode-search-layer' : `${id}-search-layer`;
-  const layerMessage = LAYER_MESSAGE[layerState];
+  const layerMessage = postcodeLayerMessage(layerState, failedMessage);
   const toggleLayer = () => {
     if (open) {
       setOpen(false);

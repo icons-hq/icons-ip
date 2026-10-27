@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { saveAddressBookEntryAction } from '@/app/my/addresses/actions';
 import { PostcodeField } from '@/components/checkout/PostcodeField';
 import {
@@ -16,6 +16,9 @@ import {
   type AddressBookEntry,
 } from '@/lib/address-book';
 import type { ComposedPostcodeAddress } from '@/lib/postcode';
+
+/** 주소 검색을 열지 못했을 때 — 주문이 아니라 배송지를 저장하는 화면의 문구다(주문서 문구는 PostcodeField 기본값). */
+export const ADDRESS_BOOK_POSTCODE_FAILED_MESSAGE = '주소 검색을 열지 못했어요. 우편번호와 기본 주소를 직접 입력해도 배송지를 저장할 수 있어요.';
 
 /*
  * 주소록 배송지 추가·수정 폼(LFS 패리티 2차 L7 · MY-11). 배송지 관리와 온보딩 안내가 같은 폼을 쓴다.
@@ -55,6 +58,9 @@ export function AddressBookForm({
   const [fieldErrors, setFieldErrors] = useState<AddressBookDraftErrors>({});
   const [formError, setFormError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  /* 저장 요청이 나가 있는 동안 true. pending 은 다음 렌더에야 보이므로, 같은 태스크 안에서 제출이 두 번 불리면
+     (같은 클로저) 둘 다 통과한다 — 이 ref 가 동기로 두 번째 요청을 막는다. */
+  const inFlight = useRef(false);
   const fieldId = (field: AddressBookDraftField) => `${idPrefix}-${field}`;
   /* 첫 배송지와 이미 기본인 배송지는 기본 지정을 끌 수 없다 — 주소가 있으면 기본 배송지는 늘 1개다. */
   const defaultLocked = firstEntry || entry?.isDefault === true;
@@ -93,13 +99,14 @@ export function AddressBookForm({
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (pending) return;
+    if (pending || inFlight.current) return;
     const value = { ...draft, makeDefault: defaultLocked || draft.makeDefault };
     const errors = addressBookDraftErrors(value);
     if (Object.keys(errors).length > 0) {
       showErrors(errors);
       return;
     }
+    inFlight.current = true;
     setPending(true);
     setFormError(null);
     try {
@@ -113,6 +120,7 @@ export function AddressBookForm({
     } catch {
       setFormError(ADDRESS_BOOK_ERROR_COPY.unavailable);
     } finally {
+      inFlight.current = false;
       setPending(false);
     }
   };
@@ -171,6 +179,7 @@ export function AddressBookForm({
         </label>
         <PostcodeField
           error={fieldErrors.postalCode}
+          failedMessage={ADDRESS_BOOK_POSTCODE_FAILED_MESSAGE}
           id={fieldId('postalCode')}
           onChange={(postalCode) => setField('postalCode', postalCode)}
           onSelect={applySearchedAddress}

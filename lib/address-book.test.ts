@@ -141,9 +141,16 @@ describe('표시·오류·경로', () => {
     expect(maskAddressBookPhone('15881234')).toBe('****-1234');
     expect(maskAddressBookPhone('1588-1234')).toBe('****-1234');
     expect(maskAddressBookPhone('021234567')).toBe('****-4567');
-    expect(maskAddressBookPhone('0311234567')).toBe('03-****-4567');
+    /* 10자리 비-02 번호(경기 031·옛 011)는 앞자리를 자르면 다른 번호로 읽힌다 — 앞자리를 감추고 끝 4자리만 남긴다. */
+    expect(maskAddressBookPhone('0311234567')).toBe('****-4567');
+    expect(maskAddressBookPhone('031-123-4567')).toBe('****-4567');
+    expect(maskAddressBookPhone('0111234567')).toBe('****-4567');
+    expect(maskAddressBookPhone('03112345678')).toBe('031-****-5678');
     expect(maskAddressBookPhone('010123456789012')).toBe('010-****-9012');
-    for (const phone of ['15881234', '021234567', '0212345678', '0311234567', '01012345678', '010123456789012']) {
+    for (const phone of ['15881234', '021234567', '0212345678', '0311234567', '0111234567', '01012345678', '010123456789012']) {
+      /* 보이는 앞자리는 잘리지 않은 지역·통신 번호(02·3자리) 그대로다. */
+      const masked = maskAddressBookPhone(phone);
+      if (masked.includes('-****-')) expect(masked.split('-****-')[0]).toBe(phone.startsWith('02') ? '02' : phone.slice(0, 3));
       const shown = maskAddressBookPhone(phone).replace(/[^0-9]/g, '');
       expect(phone.length - shown.length).toBeGreaterThanOrEqual(4);
     }

@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { AddressBookEntry } from '@/lib/address-book';
 
-const hooks = vi.hoisted(() => ({ fake: false, states: [] as unknown[], index: 0 }));
+const hooks = vi.hoisted(() => ({ fake: false, states: [] as unknown[], index: 0, refs: [] as { current: unknown }[], refIndex: 0 }));
 const mocks = vi.hoisted(() => ({ save: vi.fn() }));
 vi.mock('react', async () => {
   const actual = await vi.importActual<typeof import('react')>('react');
@@ -15,12 +15,18 @@ vi.mock('react', async () => {
       if (!(i in hooks.states)) hooks.states[i] = typeof initial === 'function' ? (initial as () => unknown)() : initial;
       return [hooks.states[i], (next: unknown) => { hooks.states[i] = typeof next === 'function' ? (next as (value: unknown) => unknown)(hooks.states[i]) : next; }];
     },
+    useRef: (initial: unknown) => {
+      if (!hooks.fake) return actual.useRef(initial);
+      const i = hooks.refIndex++;
+      hooks.refs[i] ??= { current: initial };
+      return hooks.refs[i];
+    },
   };
 });
 vi.mock('@/app/my/addresses/actions', () => ({ saveAddressBookEntryAction: mocks.save }));
 
 import { PostcodeField } from '@/components/checkout/PostcodeField';
-import { AddressBookForm, type AddressBookFormProps } from './AddressBookForm';
+import { ADDRESS_BOOK_POSTCODE_FAILED_MESSAGE, AddressBookForm, type AddressBookFormProps } from './AddressBookForm';
 
 type Element = ReactElement<Record<string, unknown>>;
 const all = (node: ReactNode): Element[] => Children.toArray(node).flatMap((child) => (isValidElement<Record<string, unknown>>(child) ? [child, ...all(child.props.children as ReactNode)] : []));
@@ -32,7 +38,7 @@ const home: AddressBookEntry = {
 };
 
 let props: AddressBookFormProps;
-const renderFake = () => { hooks.index = 0; return AddressBookForm(props); };
+const renderFake = () => { hooks.index = 0; hooks.refIndex = 0; return AddressBookForm(props); };
 const input = (id: string) => all(renderFake()).find((node) => node.type === 'input' && node.props.id === id)!;
 const type = (id: string, value: string) => (input(id).props.onChange as (event: { target: { value: string } }) => void)({ target: { value } });
 const submit = () => (all(renderFake()).find((node) => node.type === 'form')!.props.onSubmit as (event: { preventDefault(): void }) => Promise<void>)({ preventDefault() {} });
@@ -40,6 +46,7 @@ const submit = () => (all(renderFake()).find((node) => node.type === 'form')!.pr
 beforeEach(() => {
   hooks.fake = false;
   hooks.states = [];
+  hooks.refs = [];
   mocks.save.mockReset();
   props = { idPrefix: 'address-book', firstEntry: false, submitLabel: '배송지 저장', onSaved: vi.fn(), onCancel: vi.fn() };
 });
@@ -118,5 +125,31 @@ describe('AddressBookForm — 제출', () => {
     expect(mocks.save).toHaveBeenCalledWith(null, expect.objectContaining({ makeDefault: true }));
     expect(props.onSaved).not.toHaveBeenCalled();
     expect(text(renderFake())).toContain('배송지는 최대 10개까지 저장할 수 있어요.');
+  });
+
+  /* 같은 태스크 안에서 제출이 두 번 불리면(같은 렌더의 onSubmit — pending 이 아직 false) 요청은 한 번만 나간다(L7 QA). */
+  it('같은 렌더의 제출을 연달아 불러도 저장 요청은 하나만 나가고, 끝나면 다시 저장할 수 있다', async () => {
+    let resolve: (value: unknown) => void = () => {};
+    mocks.save.mockImplementation(() => new Promise((done) => { resolve = done; }));
+    for (const [id, value] of [['label', '집'], ['recipientName', '홍길동'], ['phone', '010-1234-5678'], ['address1', '서울']] as const) type(`address-book-${id}`, value);
+    (all(renderFake()).find((node) => node.type === PostcodeField)!.props.onChange as (value: string) => void)('04524');
+    const onSubmit = all(renderFake()).find((node) => node.type === 'form')!.props.onSubmit as (event: { preventDefault(): void }) => Promise<void>;
+    const first = onSubmit({ preventDefault() {} });
+    const second = onSubmit({ preventDefault() {} });
+    await second;
+    expect(mocks.save).toHaveBeenCalledTimes(1);
+    resolve({ ok: true, entries: [home], savedId: home.id });
+    await first;
+    expect(props.onSaved).toHaveBeenCalledTimes(1);
+    mocks.save.mockResolvedValue({ ok: true, entries: [home], savedId: home.id });
+    await submit();
+    expect(mocks.save).toHaveBeenCalledTimes(2);
+  });
+
+  it('주소 검색을 열지 못했을 때 주문이 아니라 배송지 저장 문맥의 문구를 넘긴다', () => {
+    const field = all(renderFake()).find((node) => node.type === PostcodeField)!;
+    expect(field.props.failedMessage).toBe(ADDRESS_BOOK_POSTCODE_FAILED_MESSAGE);
+    expect(ADDRESS_BOOK_POSTCODE_FAILED_MESSAGE).toContain('배송지를 저장할 수 있어요');
+    expect(ADDRESS_BOOK_POSTCODE_FAILED_MESSAGE).not.toContain('주문');
   });
 });

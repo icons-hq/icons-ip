@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useState, type KeyboardEvent } from 'react';
+import { useRef, useState, type KeyboardEvent } from 'react';
 import { saveAddressBookEntryAction } from '@/app/my/addresses/actions';
 import {
   ADDRESS_BOOK_ERROR_COPY,
@@ -76,6 +76,8 @@ export function CheckoutAddressBook({ address, book: initialBook, disabled = fal
   const [message, setMessage] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null);
   /* 마지막으로 고른(또는 저장한) 항목 — 같은 배송지가 두 이름으로 있으면 이 항목을 고른 상태로 둔다. */
   const [pickedId, setPickedId] = useState<string | null>(null);
+  /* 저장 요청이 나가 있는 동안 true — pending 은 다음 렌더에야 보이므로 같은 태스크 안의 두 번째 저장을 동기로 막는다. */
+  const inFlight = useRef(false);
 
   if (book === null) return null;
 
@@ -84,7 +86,7 @@ export function CheckoutAddressBook({ address, book: initialBook, disabled = fal
   const firstEntry = book.length === 0;
 
   const save = async () => {
-    if (pending || disabled) return;
+    if (pending || disabled || inFlight.current) return;
     const draft = addressBookDraftFromCheckout(address, label, firstEntry || makeDefault);
     const errors = addressBookDraftErrors(draft);
     const addressErrors: CheckoutAddressErrors = {};
@@ -106,6 +108,7 @@ export function CheckoutAddressBook({ address, book: initialBook, disabled = fal
       setMessage({ tone: 'error', text: ADDRESS_BOOK_ERROR_COPY.address_book_invalid });
       return;
     }
+    inFlight.current = true;
     setPending(true);
     setMessage(null);
     try {
@@ -130,6 +133,7 @@ export function CheckoutAddressBook({ address, book: initialBook, disabled = fal
     } catch {
       setMessage({ tone: 'error', text: ADDRESS_BOOK_ERROR_COPY.unavailable });
     } finally {
+      inFlight.current = false;
       setPending(false);
     }
   };

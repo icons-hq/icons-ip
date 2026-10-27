@@ -5,7 +5,7 @@ import type { AddressBookEntry } from '@/lib/address-book';
 import type { CheckoutAddress } from '@/lib/checkout';
 
 /* 정적 마크업(실제 React)과, 저장 흐름을 위한 훅 대체 렌더(GoodsTransactionCheckout.client.test 와 같은 방식)를 함께 쓴다. */
-const hooks = vi.hoisted(() => ({ fake: false, states: [] as unknown[], index: 0 }));
+const hooks = vi.hoisted(() => ({ fake: false, states: [] as unknown[], index: 0, refs: [] as { current: unknown }[], refIndex: 0 }));
 const mocks = vi.hoisted(() => ({ save: vi.fn() }));
 vi.mock('react', async () => {
   const actual = await vi.importActual<typeof import('react')>('react');
@@ -16,6 +16,12 @@ vi.mock('react', async () => {
       const i = hooks.index++;
       if (!(i in hooks.states)) hooks.states[i] = typeof initial === 'function' ? (initial as () => unknown)() : initial;
       return [hooks.states[i], (next: unknown) => { hooks.states[i] = typeof next === 'function' ? (next as (value: unknown) => unknown)(hooks.states[i]) : next; }];
+    },
+    useRef: (initial: unknown) => {
+      if (!hooks.fake) return actual.useRef(initial);
+      const i = hooks.refIndex++;
+      hooks.refs[i] ??= { current: initial };
+      return hooks.refs[i];
     },
   };
 });
@@ -34,12 +40,13 @@ const home: AddressBookEntry = {
 const typed: CheckoutAddress = { recipientName: '김팬', phone: '010-9999-8888', postalCode: '06236', address1: '서울 강남구 테헤란로 152', address2: '', deliveryNote: '문 앞' };
 
 let props: CheckoutAddressBookProps;
-function renderFake() { hooks.index = 0; return CheckoutAddressBook(props); }
+function renderFake() { hooks.index = 0; hooks.refIndex = 0; return CheckoutAddressBook(props); }
 function find(tree: ReactNode, predicate: (node: Element) => boolean) { return all(tree).find(predicate); }
 
 beforeEach(() => {
   hooks.fake = false;
   hooks.states = [];
+  hooks.refs = [];
   mocks.save.mockReset();
   props = { address: typed, book: [home], onPick: vi.fn() };
 });
@@ -200,5 +207,19 @@ describe('CheckoutAddressBook — 고르기·저장', () => {
     expect(options).toEqual(['', saved]);
     /* 첫 배송지라 기본 배송지가 된다. */
     expect(mocks.save).toHaveBeenCalledWith(null, expect.objectContaining({ makeDefault: true }));
+  });
+
+  /* 같은 태스크 안에서 저장 버튼 클릭이 두 번 불리면(같은 렌더의 onClick — pending 이 아직 false) 요청은 한 번만 나간다(L7 QA). */
+  it('같은 렌더의 저장 클릭을 연달아 불러도 저장 요청은 하나만 나간다', async () => {
+    let resolve: (value: unknown) => void = () => {};
+    mocks.save.mockImplementation(() => new Promise((done) => { resolve = done; }));
+    openSave('회사');
+    const click = find(renderFake(), (node) => node.type === 'button' && text(node.props.children as ReactNode) === '주소록에 저장')!.props.onClick as () => void;
+    click();
+    click();
+    expect(mocks.save).toHaveBeenCalledTimes(1);
+    resolve({ ok: true, entries: [home], savedId: home.id });
+    await vi.waitFor(() => expect(text(renderFake())).toContain('주소록에 저장했어요.'));
+    expect(mocks.save).toHaveBeenCalledTimes(1);
   });
 });
