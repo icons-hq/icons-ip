@@ -3554,12 +3554,10 @@
   margin-top: 16px;
 }
 
-/* 액센트 면 + 잉크 글자. brand-green 위 흰 글자는 2.3:1 로 AA 미달이고, 흰 글자는 잉크 면 위에만 쓴다(DESIGN §2·§10) —
-   잉크 글자는 8.1:1 이다. */
+/* 액센트 CTA(green 면·잉크 글자 — 파운데이션 .wc-btn.accent) 220×60. */
 .wc-cart__empty-cta.wc-btn.accent {
   width: 220px;
   height: 60px;
-  color: var(--wc-ink);
 }
 
 /* 모바일 카트 서브헤더(CT-03) — [← 44][제목 18/700][홈 44], 52 높이(51 + 하단 1px). 레퍼런스 서브헤더는 60이지만 셸의
@@ -3747,9 +3745,9 @@
   }
 
   /* 푸터 바닥 여백도 탭바(62) 대신 주문 바와 그 위 문의 런처를 기준으로 연다 — 맨 아래 줄(저작권)이 바(93)에도,
-     바 위로 올린 런처(109 + 48)에도 가리지 않는다(+ 간격 16). */
+     바 위로 올린 런처(109 + 48)에도 가리지 않는다(+ 간격 16). 선택 방문 통계 안내가 보이면 그 위까지다(wc-chrome.css 푸터). */
   #root:has(.wc-cart__cta-bar) ~ .wc-footer {
-    padding-bottom: calc(173px + env(safe-area-inset-bottom));
+    padding-bottom: max(calc(173px + env(safe-area-inset-bottom)), calc(var(--wc-store-analytics-clearance, 0px) + 16px));
   }
 }
 
