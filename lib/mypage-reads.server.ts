@@ -13,7 +13,7 @@ import type { WishlistEntry } from './wishlist.server';
  * 던지지 않는다. Supabase 가 설정되지 않은 목업 모드는 기존 로더처럼 빈 목록이다. */
 
 /** 쿠폰함(loadMyCoupons)과 같은 선택 열 — parseUserCouponRows 가 같은 판정으로 읽는다. */
-const HELD_COUPON_SELECT = 'id,status,issued_at,expires_at,usable_from,used_at,coupons(code,name,discount_type,discount_value,max_discount_amount,min_subtotal,starts_at,ends_at,issue_starts_at,status,grade_benefit,benefit_kind,stackable,recipient_segment,goods_scope,target_good_ids,target_category_ids,issuance_mode,recipient_reason:coupon_recipient_state)';
+const HELD_COUPON_SELECT = 'id,status,issued_at,expires_at,usable_from,used_at,coupons(code,name,discount_type,discount_value,max_discount_amount,min_subtotal,starts_at,ends_at,issue_starts_at,status,grade_benefit,benefit_kind,stackable,recipient_segment,goods_scope,target_good_ids,target_category_ids,target_ip_ids,issuance_mode,recipient_reason:coupon_recipient_state)';
 
 /** 내 위시 행(최근 찜 먼저). 못 읽으면 null. */
 export async function loadMyWishlistEntries(userId: string): Promise<WishlistEntry[] | null> {

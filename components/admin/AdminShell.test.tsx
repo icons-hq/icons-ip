@@ -54,6 +54,29 @@ describe('AdminShell', () => {
     expect(html).toContain('value="/admin/cs/chat?inquiry=case-a"');
   });
 
+  it('콘텐츠 운영 권한이 있으면 상단에서 커머스와 콘텐츠 운영 콘솔을 전환한다', () => {
+    const html = render();
+    expect(html).toContain('aria-label="콘솔 전환"');
+    expect(html).toContain('<a aria-current="page" data-admin-console-link="commerce" href="/admin">커머스</a>');
+    expect(html).toContain('<a data-admin-console-link="content" href="/admin/catalog/ips">콘텐츠 운영</a>');
+    expect(html).toContain('data-admin-console="commerce"');
+
+    mocks.pathname = '/admin/catalog/cards';
+    const content = renderToStaticMarkup(<AdminShell admin={admin} console="content"><p>카드</p></AdminShell>);
+    expect(content).toContain('data-admin-console="content"');
+    expect(content).toContain('<a aria-current="page" data-admin-console-link="content" href="/admin/catalog/ips">콘텐츠 운영</a>');
+    expect(content).toContain('<a data-admin-console-link="commerce" href="/admin">커머스</a>');
+    expect(content).toContain('aria-label="콘텐츠 운영 메뉴"');
+    expect(content).toMatch(/aria-current="page"[^>]*data-admin-nav-screen="cards"/);
+    expect(content).toContain('>콘텐츠 운영</a>');
+  });
+
+  it('콘텐츠 운영 화면을 볼 수 없는 역할에는 콘솔 전환을 만들지 않는다', () => {
+    const limited = { ...admin, operatorAccess: { mode: 'configured' as const, managerRole: 'deputy' as const, capabilities: ['home', 'catalog.read', 'cs.manage'] as ('home' | 'catalog.read' | 'cs.manage')[], revision: 1, setupRequired: false } };
+    const html = renderToStaticMarkup(<AdminShell admin={limited}><p>본문</p></AdminShell>);
+    expect(html).not.toContain('aria-label="콘솔 전환"');
+  });
+
   it('본문을 그대로 렌더한다', () => {
     expect(render(<p>주문 목록</p>)).toContain('주문 목록');
   });

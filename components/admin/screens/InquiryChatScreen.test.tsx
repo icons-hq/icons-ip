@@ -39,4 +39,16 @@ describe('ICONS 상담 콘솔', () => {
     const html = render({ selected: true });
     expect(html).toContain('대화를 찾을 수 없습니다.'); expect(html).not.toContain('상담할 대화를 선택해 주세요');
   });
+  it('주문 조회 권한이 있으면 구매이력을 버튼 없이 바로 보여 주고, 없으면 카드를 만들지 않는다', () => {
+    const userId = detail.buyer.id;
+    const purchaseHistory = { userId, tab: 'orders' as const, page: 1, pageSize: 20, total: 1,
+      items: [{ id: 'a20c0000-0000-4000-8000-000000000401', title: '합성 키링', status: 'paid', amount: 12000, createdAt: '2026-10-19T01:00:00Z', itemCount: 1 }] };
+    const html = render({ detail, selected: true, canReadOrders: true, purchaseHistory });
+    expect(html).toContain('전체 구매이력'); expect(html).toContain('합성 키링'); expect(html).toContain('1 / 1 · 1건');
+    expect(html).not.toContain('전체 구매이력 보기'); expect(html).not.toMatch(/<button(?=[^>]*name="tab")/);
+    const other = render({ detail, selected: true, canReadOrders: true, purchaseHistory: { ...purchaseHistory, userId: 'a20c0000-0000-4000-8000-000000000009' } });
+    expect(other).not.toContain('합성 키링'); expect(other).toMatch(/<button(?=[^>]*name="tab")(?=[^>]*value="orders")/);
+    expect(render({ detail, selected: true, canReadOrders: true, purchaseHistoryError: true })).toContain('구매이력을 자동으로 불러오지 못했습니다');
+    expect(render({ detail, selected: true, canReadOrders: false, purchaseHistory })).not.toContain('합성 키링');
+  });
 });

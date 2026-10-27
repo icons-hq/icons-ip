@@ -9,6 +9,7 @@ import {
   adminGroupForPath,
   adminScreenForPath,
   visibleAdminNavGroups,
+  type AdminConsoleId,
   type AdminNavGroup,
   type AdminScreen,
 } from '@/lib/admin/navigation';
@@ -156,7 +157,12 @@ export function AdminSidebar({
   onCollapsedChange,
   role,
   operatorAccess,
+  console: consoleId = 'commerce',
+  homeHref = '/admin',
 }: {
+  /** 현재 콘솔. 사이드바는 이 콘솔의 메뉴만 보여 주고, 즐겨찾기는 콘솔을 가리지 않는다. */
+  console?: AdminConsoleId;
+  homeHref?: string;
   /** 계정별 로컬 메뉴 설정의 경계. 인증되지 않은 테스트·초기 셸은 role로 대체한다. */
   accountId?: string;
   currentPath?: string;
@@ -172,7 +178,8 @@ export function AdminSidebar({
   const mobileSearchRef = useRef<HTMLInputElement>(null);
   const mobileDrawerRef = useRef<HTMLElement>(null);
   const wasMobileOpen = useRef(false);
-  const groups = useMemo(() => visibleAdminNavGroups(role, operatorAccess), [role, operatorAccess]);
+  const groups = useMemo(() => visibleAdminNavGroups(role, operatorAccess, consoleId), [role, operatorAccess, consoleId]);
+  const allGroups = useMemo(() => visibleAdminNavGroups(role, operatorAccess), [role, operatorAccess]);
   const [query, setQuery] = useState('');
   const normalizedQuery = query.trim().toLocaleLowerCase('ko-KR');
   const activeScreen = adminScreenForPath(pathname);
@@ -214,7 +221,7 @@ export function AdminSidebar({
     [groups, normalizedQuery],
   );
   const favoriteIds = new Set(preferences.favoriteScreenIds);
-  const favoriteItems = groups.flatMap((group) => group.screens
+  const favoriteItems = allGroups.flatMap((group) => group.screens
     .filter((screen) => screen.status === 'ready' && favoriteIds.has(screen.id))
     .map((screen) => ({ group, screen })));
   const homeGroup = groups.find((group) => group.id === 'home');
@@ -300,14 +307,14 @@ export function AdminSidebar({
         <span aria-hidden="true" className="admin-mobile-nav-trigger__line" />
         <span aria-hidden="true" className="admin-mobile-nav-trigger__line" />
       </button>
-      <Link aria-label="ICONS 판매자센터 홈" className="wc-admin__brand" href="/admin">
+      <Link aria-label={consoleId === 'content' ? 'ICONS 콘텐츠 운영 홈' : 'ICONS 판매자센터 홈'} className="wc-admin__brand" href={homeHref}>
         <span aria-hidden="true" className="wc-admin__store-mark">ICONS</span>
         <span className="wc-admin__nav-label wc-admin__store-profile">
           <strong>ICONS</strong>
-          <span className="wc-admin__brand-caption">{operatorAccess?.managerRole ? MANAGER_ROLE_LABELS[operatorAccess.managerRole] : role === 'admin' ? '관리자' : '스토어 매니저'}</span>
+          <span className="wc-admin__brand-caption">{consoleId === 'content' ? '콘텐츠 운영 · ' : ''}{operatorAccess?.managerRole ? MANAGER_ROLE_LABELS[operatorAccess.managerRole] : role === 'admin' ? '관리자' : '스토어 매니저'}</span>
         </span>
       </Link>
-      <nav aria-label="관리자 메뉴" className="wc-admin__nav" id="admin-mobile-navigation">
+      <nav aria-label={consoleId === 'content' ? '콘텐츠 운영 메뉴' : '관리자 메뉴'} className="wc-admin__nav" id="admin-mobile-navigation">
         <div className="admin-nav-tools">
           {homeGroup ? <div className="admin-nav-current">
             {homeGroup.screens.map((screen) => <AdminNavItem
