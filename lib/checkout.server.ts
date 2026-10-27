@@ -103,6 +103,11 @@ export interface CheckoutOrderSnapshot {
   /** DB가 발급한 16자리 주문번호(#563). 발급 전 주문이면 없다. */
   orderNumber?: string;
   /**
+   * 무통장 주문의 공식 입금코드(DB `private.bank_transfer_deposit_code`). 코드 전환 전에 접수된 주문은
+   * 안내된 옛 코드를 그대로 쓰므로 주문번호만으로 계산하지 않고 DB 값을 읽는다.
+   */
+  depositCode?: string;
+  /**
    * 결제가 끝날 때까지 장바구니를 남긴 카드 장바구니 주문인지(ADR-0026). 이런 주문은 결제가
    * 닫혀도 다시 담지 않고 주문서에서 새로 결제한다.
    */
@@ -182,6 +187,19 @@ export async function loadLatestPendingCheckoutOrderId(userId: string): Promise<
     .maybeSingle<{ id: string }>();
 
   return error ? null : data?.id ?? null;
+}
+
+/** 본인 무통장 주문의 공식 입금코드. 읽지 못하면 화면이 주문번호로 계산한 코드로 돌아간다. */
+async function loadBankTransferDepositCode(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  orderId: string,
+): Promise<{ depositCode?: string }> {
+  try {
+    const { data, error } = await supabase.rpc('get_my_bank_transfer_deposit_code', { p_order_id: orderId });
+    return !error && typeof data === 'string' && /^[0-9A-Z]{6,8}$/.test(data) ? { depositCode: data } : {};
+  } catch {
+    return {};
+  }
 }
 
 export async function loadCheckoutOrder(
@@ -271,6 +289,7 @@ export async function loadCheckoutOrder(
     paymentAttempt: paymentAttemptSnapshot(attemptData),
     hasActiveCancellationRequest: ((requestData ?? []) as unknown[]).length > 0,
     ...(orderData.order_number ? { orderNumber: orderData.order_number } : {}),
+    ...(orderData.payment_method === 'bank_transfer' ? await loadBankTransferDepositCode(supabase, orderId) : {}),
     cartRetained: orderData.payment_method === 'card' ? await loadOrderCartRetained(userId, orderId) : false,
     paidAt: paymentData?.status === 'paid' ? paymentData.created_at : null,
     shipments: await loadOrderShipments(supabase, [orderId], await getShippingCarrierRegistry()),

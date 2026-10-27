@@ -25,6 +25,7 @@ import { krw } from '@/lib/format';
 import {
   bankTransferDeadlineLabel,
   bankTransferDepositName,
+  bankTransferDepositNameWithCode,
   type BankTransferAccount,
 } from '@/lib/payments/bank-transfer';
 import { paymentFailNoticeCopy } from '@/lib/payments/checkout-fail-copy';
@@ -241,7 +242,7 @@ export function CheckoutOrder({
                     <div>
                       <dt>입금자명</dt>
                       <dd className="mono">
-                        {bankTransferDepositName(order.address?.recipientName ?? '', order.orderNumber ?? order.id)}
+                        {order.depositCode ? bankTransferDepositNameWithCode(order.address?.recipientName ?? '', order.depositCode) : bankTransferDepositName(order.address?.recipientName ?? '', order.orderNumber ?? order.id)}
                       </dd>
                     </div>
                   </dl>

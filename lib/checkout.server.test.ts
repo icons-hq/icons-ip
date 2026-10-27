@@ -603,9 +603,13 @@ it('같은 옵션의 1001개 주문 문구를 결제 준비 화면에서 모두 
   const rows:Record<string,Record<string,unknown>[]>={orders:[{id:orderId,user_id:userId,status:'pending',total:1001000,address:{},created_at:'2026-10-12T00:00:00Z',payment_method:'bank_transfer'}],
     order_items:Array.from({length:1001},(_,index)=>({id:String(index).padStart(12,'0'),order_id:orderId,good_id:'g1',qty:1,unit_price:1000,good_name_snapshot:'각인 상품',good_type_snapshot:'문구',variant_id:'00000000-0000-4000-8000-000000000001',
       custom_inputs_snapshot:{revision:1,fields:[{id:'00000000-0000-4000-8000-000000063311',name:'문구',value:`입력 ${index}`}]}}))};
-  mocks.client={from:(table:string)=>createQuery(table,records,rows)};mocks.serviceClient=mocks.client;
+  const rpc=vi.fn(async()=>({data:'7AD4C967',error:null}));
+  mocks.client={from:(table:string)=>createQuery(table,records,rows),rpc};mocks.serviceClient=mocks.client;
   const result=await loadCheckoutOrder(userId,orderId);
   expect(result?.items).toHaveLength(1001);
+  /* 무통장 주문은 DB 공식 입금코드를 함께 싣는다(코드 전환 전 주문의 옛 코드 유지). */
+  expect(rpc).toHaveBeenCalledWith('get_my_bank_transfer_deposit_code',{p_order_id:orderId});
+  expect(result?.depositCode).toBe('7AD4C967');
   expect(result?.items.at(-1)?.customInputs?.fields[0].value).toBe('입력 1000');
   expect(records.filter(record=>record.table==='order_items')).toHaveLength(3);
 });

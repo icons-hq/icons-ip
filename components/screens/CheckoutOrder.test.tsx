@@ -333,9 +333,19 @@ describe('CheckoutOrder 무통장 입금 안내', () => {
 
   it('16자리 주문번호가 있으면 입금자명 코드를 주문번호로 만든다(알림 코드와 같은 근거)', () => {
     const html = renderToStaticMarkup(
-      <CheckoutOrder bankTransferAccount={account} order={{ ...bankOrder, orderNumber: '2026102720000001' }} />,
+      <CheckoutOrder bankTransferAccount={account} order={{ ...bankOrder, orderNumber: '2026102710000001' }} />,
     );
-    expect(html).toContain(bankTransferDepositName('홍길동', '2026102720000001'));
+    /* 주문일 10일 주기 자리(6) + 그날 일련번호 끝 5자리 — DB private.bank_transfer_deposit_code_for_number와 같다. */
+    expect(html).toContain('홍길동600001');
+    expect(html).toContain(bankTransferDepositName('홍길동', '2026102710000001'));
+  });
+
+  it('DB가 준 공식 입금코드가 있으면 그것을 안내한다(코드 전환 전에 접수된 주문은 옛 코드 유지)', () => {
+    const html = renderToStaticMarkup(
+      <CheckoutOrder bankTransferAccount={account} order={{ ...bankOrder, orderNumber: '2026102710000001', depositCode: '7AD4C967' }} />,
+    );
+    expect(html).toContain('홍길동7AD4C967');
+    expect(html).not.toContain('홍길동600001');
   });
 
   /*

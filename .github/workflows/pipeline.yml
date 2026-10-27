@@ -230,6 +230,7 @@ jobs:
           docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/commerce_number_labels.sql
           docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/bank_transfer_order_number_code.sql
           docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/order_item_allocation_inputs.sql
+          cat supabase/tests/helpers/goods_kc_fixture.sql supabase/tests/cart_retained_until_payment.sql | docker exec -i supabase_db_icons-ip psql -X -U supabase_admin -d postgres -v ON_ERROR_STOP=1
 
       - name: Check story and marketing workflows
         run: |

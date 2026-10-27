@@ -75,6 +75,7 @@ describe('OrderComplete', () => {
     expect(html).toContain('국민은행');
     expect(html).toContain('123456-01-789012');
     expect(html).toContain('입금자명');
+    expect(html).toContain('아이콘즈600001');
     expect(html).toContain(bankTransferDepositName('아이콘즈', '2026102710000001'));
     expect(html).toContain('입금할 금액</dt><dd>₩15,000');
   });
