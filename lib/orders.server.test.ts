@@ -168,7 +168,7 @@ describe('loadOrders', () => {
     expect(records.find((record) => record.table === 'orders')).toMatchObject({
       select: 'id,order_number,user_id,status,total,created_at,payment_method',
       eq: [['user_id', userId]],
-      in: [['status', ['paid', 'confirmed', 'shipping', 'delivered', 'done', 'canceled']]],
+      in: [['status', ['pending', 'paid', 'confirmed', 'shipping', 'delivered', 'done', 'canceled']]],
       order: [['created_at', { ascending: false }], ['id', { ascending: false }]],
     });
     expect(records.find((record) => record.table === 'order_items')).toMatchObject({
@@ -224,8 +224,36 @@ describe('loadOrders', () => {
     ]);
     expect(records.find((record) => record.table === 'order_cancellation_requests')).toMatchObject({
       select: 'order_id,claim_type,stage',
-      order: [['requested_at', { ascending: false }]],
+      in: [['order_id', [pendingOrderId, orderId]]],
+      order: [['requested_at', { ascending: false }], ['id', { ascending: false }]],
     });
+  });
+
+  /* 운영자 계정은 RLS로 전체 클레임을 읽을 수 있다. 자기 /orders는 자기 주문 id의 클레임만 읽고,
+     운영자가 접수한 클레임도 요청자와 무관하게 보인다(requested_by 필터 없음). */
+  it('reads claims only for the viewer order ids without filtering by requester', async () => {
+    const records: QueryRecord[] = [];
+    const pendingOrderId = '8be5d078-4e59-4f8b-a776-75842bd44073';
+    mocks.client = createClient({
+      records,
+      rows: {
+        orders: [
+          { id: orderId, user_id: userId, status: 'paid', total: 54000, created_at: '2026-07-14T06:00:00.000Z' },
+          { id: pendingOrderId, user_id: userId, status: 'pending', total: 1000, created_at: '2026-07-14T05:00:00.000Z' },
+          { id: 'someone-else', user_id: 'other-user', status: 'paid', total: 1000, created_at: '2026-07-14T07:00:00.000Z' },
+        ],
+        order_cancellation_requests: [
+          { order_id: orderId, claim_type: 'cancel', stage: 'requested', requested_by: 'staff-id', requested_at: '2026-07-14T06:10:00.000Z' },
+          { order_id: 'someone-else', claim_type: 'cancel', stage: 'requested', requested_at: '2026-07-14T07:10:00.000Z' },
+        ],
+        order_items: [{ order_id: orderId, qty: 1, good_name_snapshot: '굿즈' }],
+      },
+    });
+
+    await expect(loadOrders(userId)).resolves.toMatchObject([{ id: orderId, claim: { claimType: 'cancel', stage: 'requested' } }]);
+    const claimQuery = records.find((record) => record.table === 'order_cancellation_requests');
+    expect(claimQuery?.in.map(([column, ids]) => [column, [...ids].sort()])).toEqual([['order_id', [orderId, pendingOrderId].sort()]]);
+    expect(claimQuery?.eq).toEqual([]);
   });
 
   /* 10/14 회의 S20 — 목록 배지는 상세와 같은 기준(가장 최근 클레임)으로 진행 중 클레임을 말한다. */
