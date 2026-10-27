@@ -42,25 +42,42 @@ select 1/case when not exists(select 1 from public.orders where user_id='0000000
 set local role service_role;
 select public.place_order_with_cart_snapshot('00000000-0000-4000-8000-000000064502','{"recipientName":"합성 수취인","phone":"01000000000","postalCode":"12345","address1":"합성 주소"}','00000000-0000-4000-8000-000000064521','card',0,null,current_setting('test.cart_snapshot')::jsonb) as order_id \gset
 reset role;
+-- 카드 주문은 결제가 확정될 때까지 장바구니를 남기고 1001줄 전체를 보류로 기록한다(ADR-0026).
 select 1/case when (select count(*) from public.order_items where order_id=:'order_id')=1001
  and (select sum(qty) from public.order_items where order_id=:'order_id')=1001
  and (select total from public.orders where id=:'order_id')=1001000
  and (select stock_qty from public.goods_variants where good_id='cart-snapshot-1001')=199
- and not exists(select 1 from public.cart_items where user_id='00000000-0000-4000-8000-000000064502')
- then 1 else 0 end as assert_complete_1001_row_snapshot_orders_every_visible_line;
-set local role authenticated;
-select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000064502',true);
-select public.set_cart_item_quantity_with_inputs('cart-snapshot-1001',(select id from public.goods_variants where good_id='cart-snapshot-1001'),1,1,'{"00000000-0000-4000-8000-000000064511":"새 카트 문구"}');
-reset role;
+ and (select count(*) from public.cart_items where user_id='00000000-0000-4000-8000-000000064502')=1001
+ and (select state='awaiting_payment' and jsonb_array_length(lines)=1001 from private.cart_order_holds where order_id=:'order_id')
+ then 1 else 0 end as assert_complete_1001_row_card_snapshot_keeps_cart_until_payment;
+-- 같은 checkout key의 재시도는 지금 장바구니(남아 있는 1001줄)와 비교하지 않고 원래 주문을 돌려준다.
 set local role service_role;
 select 1/case when public.place_order_with_cart_snapshot('00000000-0000-4000-8000-000000064502','{"recipientName":"합성 수취인","phone":"01000000000","postalCode":"12345","address1":"합성 주소"}','00000000-0000-4000-8000-000000064521','card',0,null,'{}')=:'order_id'::uuid
  then 1 else 0 end as assert_existing_checkout_replays_without_comparing_new_cart;
 select public.cancel_order(:'order_id','합성 1001행 전체 취소');
 reset role;
-select 1/case when (select count(*) from public.cart_items where user_id='00000000-0000-4000-8000-000000064502')=1
+-- 결제 전에 취소된 카드 주문의 줄은 장바구니에 그대로 남는다. 재고가 돌아온 뒤 새 문구 1줄을 더 담는다.
+set local role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000064502',true);
+select public.set_cart_item_quantity_with_inputs('cart-snapshot-1001',(select id from public.goods_variants where good_id='cart-snapshot-1001'),1,1,'{"00000000-0000-4000-8000-000000064511":"새 카트 문구"}');
+reset role;
+select 1/case when (select count(*) from public.cart_items where user_id='00000000-0000-4000-8000-000000064502')=1002
+ and (select state='released' and release_reason='order_closed' from private.cart_order_holds where order_id=:'order_id')
  and (select stock_qty from public.goods_variants where good_id='cart-snapshot-1001')=1200
  and (select count(*) from public.order_items where order_id=:'order_id' and custom_inputs_snapshot is not null)=1001
  and not has_function_privilege('authenticated','public.place_order_with_cart_snapshot(uuid,jsonb,uuid,public.order_payment_method,bigint,uuid,jsonb)','execute')
  and has_function_privilege('service_role','public.place_order_with_cart_snapshot(uuid,jsonb,uuid,public.order_payment_method,bigint,uuid,jsonb)','execute')
  then 1 else 0 end as assert_replay_keeps_new_cart_full_cancel_restores_stock_and_acl;
+-- 무통장 입금은 접수 = 주문 완료(입금대기)다. 1002줄 스냅샷 전체가 주문되고 접수 시 장바구니에서 빠진다.
+select jsonb_agg(jsonb_build_object('good_id',good_id,'variant_id',variant_id,'qty',qty,'input_revision',input_revision,'input_values',input_values)) as bank_snapshot
+ from public.cart_items where user_id='00000000-0000-4000-8000-000000064502' \gset
+set local role service_role;
+select public.place_order_with_cart_snapshot('00000000-0000-4000-8000-000000064502','{"recipientName":"합성 수취인","phone":"01000000000","postalCode":"12345","address1":"합성 주소"}','00000000-0000-4000-8000-000000064522','bank_transfer',0,null,:'bank_snapshot') as bank_order_id \gset
+reset role;
+select 1/case when (select count(*) from public.order_items where order_id=:'bank_order_id')=1002
+ and (select payment_method='bank_transfer' and status='pending' from public.orders where id=:'bank_order_id')
+ and not exists(select 1 from public.cart_items where user_id='00000000-0000-4000-8000-000000064502')
+ and not exists(select 1 from private.cart_order_holds where order_id=:'bank_order_id')
+ and (select stock_qty from public.goods_variants where good_id='cart-snapshot-1001')=198
+ then 1 else 0 end as assert_bank_transfer_snapshot_consumes_every_visible_line;
 rollback;

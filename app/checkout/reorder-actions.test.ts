@@ -14,6 +14,11 @@ const mocks = vi.hoisted(() => ({
   transactionQuote: vi.fn(),
   pageCap: 500,
   missingCounts: new Set<string>(),
+  retention: vi.fn(),
+}));
+
+vi.mock('@/lib/supabase/service', () => ({
+  createServiceClient: () => ({ rpc: (...args: unknown[]) => mocks.retention(...args) }),
 }));
 
 vi.mock('@/lib/auth/server', () => ({ getCurrentAuthState: () => mocks.auth }));
@@ -128,6 +133,8 @@ describe('restoreCanceledOrderToCartAction', () => {
     mocks.missingCounts = new Set();
     mocks.pageCap = 500;
     mocks.rpc.mockReset();
+    mocks.retention.mockReset();
+    mocks.retention.mockResolvedValue({ data: null, error: null });
     mocks.rpc.mockImplementation(cartRpc);
     mocks.quote.mockReset();
     mocks.quote.mockImplementation(quoteWithCouponReason(null));
@@ -142,6 +149,21 @@ describe('restoreCanceledOrderToCartAction', () => {
       ],
       cart_items: [],
     };
+  });
+
+  it('does not re-add lines for a card order whose cart was retained until payment (ADR-0026)', async () => {
+    mocks.rows.orders = [{ id: orderId, user_id: userId, status: 'canceled', discount_total: 0, store_credit_total: 0 }];
+    mocks.retention.mockResolvedValue({ data: { state: 'released', releaseReason: 'superseded' }, error: null });
+    await expect(restoreCanceledOrderToCartAction(orderId)).resolves.toEqual({ ok: false, error: 'cart_retained' });
+    expect(mocks.retention).toHaveBeenCalledWith('service_get_order_cart_retention', { p_user_id: userId, p_order_id: orderId });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it('결제가 확정돼 장바구니에서 이미 뺀 주문(consumed)은 기존 다시 담기 흐름을 쓴다', async () => {
+    mocks.rows.orders = [{ id: orderId, user_id: userId, status: 'canceled', discount_total: 0, store_credit_total: 0 }];
+    mocks.retention.mockResolvedValue({ data: { state: 'consumed', releaseReason: null }, error: null });
+    const result = await restoreCanceledOrderToCartAction(orderId);
+    expect(result).not.toEqual({ ok: false, error: 'cart_retained' });
   });
 
   it('DB가 취소를 확정한 본인 주문의 품목을 장바구니 수량 RPC로 다시 담는다', async () => {

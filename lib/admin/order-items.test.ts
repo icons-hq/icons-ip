@@ -37,6 +37,11 @@ describe('상품주문별 조회 계약', () => {
     expect(sheet.rows[0][sheet.columns.findIndex(column => column.header === '상품금액 (혜택·배송비 배분 전)')]).toBe(2000);
     expect(sheet.notes.join(' ')).toContain('주문 전체');
     expect(sheet.filters).toMatchObject({ view: 'items', fingerprint: data.fingerprint });
+    const column = (header: string) => sheet.columns.findIndex(entry => entry.header === header);
+    expect(sheet.rows[0][column('배분 후 금액 (배송비 제외)')]).toBeNull();
+    const allocated = orderItemsExportSheet([{ ...data.rows[0], allocation: { source: 'legacy', volumeDiscount: 0, couponDiscount: 300, storeCreditDiscount: 100, paidGoodsTotal: 1600 } }], filters, data.fingerprint);
+    expect([column('쿠폰 할인 (품목 배분)'), column('적립금 사용 (품목 배분)'), column('배분 후 금액 (배송비 제외)')].map(index => allocated.rows[0][index])).toEqual([300, 100, 1600]);
+    expect(sheet.notes.join(' ')).toContain('거래확정 엑셀과 같은 규칙');
   });
 });
 

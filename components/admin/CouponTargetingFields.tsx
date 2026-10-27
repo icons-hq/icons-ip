@@ -5,13 +5,15 @@ import { useState, useTransition } from 'react';
 import { searchCouponTargetGoodsAction, type CouponTargetSearch } from '@/app/admin/coupon-target-actions';
 import { AdminField, AdminFormGrid } from '@/components/admin/console/AdminKit';
 import { SelectField } from '@/components/admin/fields';
-import type { CouponTargetCategory, CouponTargetGood } from '@/lib/coupon-targeting';
+import type { CouponTargetCategory, CouponTargetGood, CouponTargetIp } from '@/lib/coupon-targeting';
 import { CouponCategoryPicker } from './CouponCategoryPicker';
+import { CouponIpPicker } from './CouponIpPicker';
 
-export function CouponTargetingFields({ recipientSegment, goodsScope, targetIds, targetGoods, errors, showBenefitType = false, issuanceMode = 'code', modeLocked = false, categoryIds = '[]', targetCategories = [] }: {
+export function CouponTargetingFields({ recipientSegment, goodsScope, targetIds, targetGoods, errors, showBenefitType = false, issuanceMode = 'code', modeLocked = false, categoryIds = '[]', targetCategories = [], ipIds = '[]', targetIps = [] }: {
   recipientSegment: string; goodsScope: string; targetIds: string; targetGoods: CouponTargetGood[]; errors?: Record<string, string | undefined>;
   showBenefitType?: boolean;
   issuanceMode?: string; modeLocked?: boolean; categoryIds?: string; targetCategories?: CouponTargetCategory[];
+  ipIds?: string; targetIps?: CouponTargetIp[];
 }) {
   const [segment, setSegment] = useState(issuanceMode === 'targeted' ? 'targeted' : recipientSegment);
   const [scope, setScope] = useState(goodsScope);
@@ -35,7 +37,7 @@ export function CouponTargetingFields({ recipientSegment, goodsScope, targetIds,
       <input name="issuanceMode" type="hidden" value={segment === 'targeted' ? 'targeted' : 'code'} />
       {showBenefitType ? <div className="admin-coupon-benefit-kind"><span>혜택종류</span><span>쿠폰</span></div> : null}
       <SelectField name="goodsScope" label="할인 대상 상품" value={scope} onChange={event => setScope(event.target.value)} error={errors?.goodsScope}>
-        <option value="all">전체 상품</option><option value="selected_categories">선택한 카테고리</option><option value="selected_goods">선택한 상품</option>
+        <option value="all">전체 상품</option><option value="selected_ips">선택한 IP</option><option value="selected_categories">선택한 카테고리</option><option value="selected_goods">선택한 상품</option>
       </SelectField>
     </AdminFormGrid>
     <input type="hidden" name="targetGoodIds" value={JSON.stringify(scope === 'selected_goods' ? selected.map(item => item.id) : [])} />
@@ -55,5 +57,6 @@ export function CouponTargetingFields({ recipientSegment, goodsScope, targetIds,
       </> : result ? <p role="alert">{result.error}</p> : null}
     </> : null}
     <CouponCategoryPicker active={scope === 'selected_categories'} targetIds={categoryIds} categories={targetCategories} error={errors?.targetCategoryIds} />
+    <CouponIpPicker active={scope === 'selected_ips'} targetIds={ipIds} ips={targetIps} error={errors?.targetIpIds} />
   </div>;
 }

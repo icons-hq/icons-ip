@@ -3,7 +3,7 @@ import { ADMIN_COUPON_LIST_PATH } from '@/lib/admin/coupons';
 import { unstable_rethrow } from 'next/navigation';
 import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { createClient } from '@/lib/supabase/server';
-import { parseCouponTargetCategories, parseCouponTargetGoods, type CouponTargetCategory, type CouponTargetGood } from '@/lib/coupon-targeting';
+import { parseCouponTargetCategories, parseCouponTargetGoods, parseCouponTargetIps, type CouponTargetCategory, type CouponTargetGood, type CouponTargetIp } from '@/lib/coupon-targeting';
 
 export type CouponTargetSearch = { ok: true; items: CouponTargetGood[]; total: number; page: number; pageSize: number } | { ok: false; error: string };
 export type CouponCategorySearch = { ok: true; items: CouponTargetCategory[]; total: number; page: number; pageSize: number } | { ok: false; error: string };
@@ -16,6 +16,17 @@ export async function searchCouponCategoriesAction(queryValue: unknown, pageValu
     if (error || !items || data.page !== pageValue || data.pageSize !== 20 || !Number.isSafeInteger(data.total) || data.total < items.length || items.some(item => item.blocked)) return { ok: false, error: '카테고리 검색 결과를 확인할 수 없습니다.' };
     return { ok: true, items, total: data.total, page: data.page, pageSize: 20 };
   } catch (error) { unstable_rethrow(error); return { ok: false, error: '카테고리 검색 결과를 불러오지 못했습니다.' }; }
+}
+export type CouponIpSearch = { ok: true; items: CouponTargetIp[]; total: number; page: number; pageSize: number } | { ok: false; error: string };
+export async function searchCouponIpsAction(queryValue: unknown, pageValue: unknown = 1): Promise<CouponIpSearch> {
+  try {
+    if (!await requireAdminActionAccess(ADMIN_COUPON_LIST_PATH)) return { ok: false, error: 'IP 검색은 운영자만 할 수 있습니다.' };
+    if (typeof queryValue !== 'string' || queryValue.trim().length > 100 || typeof pageValue !== 'number' || !Number.isSafeInteger(pageValue) || pageValue < 1 || pageValue > 100_000) return { ok: false, error: '검색어와 페이지를 확인해주세요.' };
+    const { data, error } = await (await createClient()).rpc('admin_search_coupon_ips', { p_query: queryValue.trim(), p_page: pageValue });
+    const items = parseCouponTargetIps(data?.rows);
+    if (error || !items || data.page !== pageValue || data.pageSize !== 20 || !Number.isSafeInteger(data.total) || data.total < items.length || items.some(item => item.blocked)) return { ok: false, error: 'IP 검색 결과를 확인할 수 없습니다.' };
+    return { ok: true, items, total: data.total, page: data.page, pageSize: 20 };
+  } catch (error) { unstable_rethrow(error); return { ok: false, error: 'IP 검색 결과를 불러오지 못했습니다.' }; }
 }
 export async function searchCouponTargetGoodsAction(queryValue: unknown, pageValue: unknown = 1): Promise<CouponTargetSearch> {
   try {

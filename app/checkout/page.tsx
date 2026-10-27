@@ -15,7 +15,7 @@ import Link from 'next/link';
 
 export const metadata: Metadata = {
   title: '체크아웃 — ICONS',
-  description: '배송지와 주문 내용을 확인하고 결제를 준비하세요.',
+  description: '배송지와 주문 내용을 확인하고 결제하세요.',
 };
 
 interface PageProps {

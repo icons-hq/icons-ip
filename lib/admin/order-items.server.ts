@@ -1,8 +1,10 @@
 import 'server-only';
 import { createClient } from '@/lib/supabase/server';
 import { parseAdminOrderItemData, type AdminOrderItemFilters } from './order-items';
+import { loadOrderItemAllocations, loadOrderItemAllocationsForScreen } from './item-allocation.server';
 
-export async function getAdminOrderItemData(filters: AdminOrderItemFilters, limit = filters.pageSize ?? 20) {
+/** `strictAllocations`: 엑셀은 배분 조회가 실패하면 멈추고, 화면은 배분 칸만 비운다. */
+export async function getAdminOrderItemData(filters: AdminOrderItemFilters, limit = filters.pageSize ?? 20, options: { strictAllocations?: boolean } = {}) {
   const client = await createClient();
   const { data, error } = await client.rpc('admin_search_order_items_console', {
     p_status: filters.status === 'all' ? null : filters.status, p_from: filters.from, p_to: filters.to, p_query: filters.query || null,
@@ -11,5 +13,7 @@ export async function getAdminOrderItemData(filters: AdminOrderItemFilters, limi
   });
   const result = parseAdminOrderItemData(data, filters);
   if (error || !result) throw new Error('Failed to load order item console');
-  return result;
+  const orderIds = result.rows.map(row => row.orderId);
+  const allocations = options.strictAllocations ? await loadOrderItemAllocations(orderIds, client) : await loadOrderItemAllocationsForScreen(orderIds);
+  return { ...result, rows: result.rows.map(row => ({ ...row, allocation: allocations?.get(row.id)?.allocation ?? null })) };
 }

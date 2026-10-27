@@ -205,7 +205,7 @@ describe('GoodsPaymentCheckout', () => {
         providerOrderId: PROVIDER_ORDER_ID,
         callbackNonce: CALLBACK_NONCE,
         providerPayload: { resultCode: paymentOutcome },
-      })).resolves.toEqual(expected);
+      })).resolves.toEqual({ ...expected, orderId: ORDER_ID });
 
       expect(repository.finalizations).toEqual([
         expect.objectContaining({ attemptId: ATTEMPT_ID, outcome: expected }),
@@ -223,8 +223,9 @@ describe('GoodsPaymentCheckout', () => {
       providerPayload: { resultCode: '0000' },
     } as const;
 
-    await expect(checkout.confirm(callback)).resolves.toEqual(approved);
-    await expect(checkout.confirm(callback)).resolves.toEqual(approved);
+    /* 결과는 시도 원장의 주문을 함께 싣는다 — 콜백 라우트가 완료 화면으로 보낼 때 쓴다(D12). */
+    await expect(checkout.confirm(callback)).resolves.toEqual({ ...approved, orderId: ORDER_ID });
+    await expect(checkout.confirm(callback)).resolves.toEqual({ ...approved, orderId: ORDER_ID });
   });
 
   it('unknown order 또는 nonce는 provider 호출 전에 거부한다', async () => {
@@ -304,6 +305,7 @@ describe('GoodsPaymentCheckout', () => {
       provider: 'korpay',
       outcome: 'unknown',
       reasonCode: 'provider_confirm_error',
+      orderId: ORDER_ID,
     });
     expect(repository.finalizations).toHaveLength(1);
     expect(repository.finalizations[0]?.outcome.outcome).toBe('unknown');

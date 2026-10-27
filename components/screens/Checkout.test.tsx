@@ -17,6 +17,7 @@ vi.mock('@/components/checkout/PostcodeField', () => ({
   PostcodeField: () => <div data-postcode-field />,
 }));
 vi.mock('@/components/shell/CartProvider', () => ({
+  useReleaseUnpaidCartOrders: () => true,
   useCart: () => ({
     items: mocks.items,
     ready: true,
@@ -182,7 +183,7 @@ describe('Checkout 결제수단 게이트', () => {
     expect(methodRadio(html, 'bank_transfer')).toContain('checked');
     expect(methodRadio(html, 'bank_transfer')).not.toContain('disabled');
     expect(methodRadio(html, 'card')).toContain('disabled');
-    expect(html).toContain('주문 만들고 입금 안내 받기');
+    expect(html).toContain('주문하고 입금 안내 받기');
     expect(submitButton(html)).not.toContain('disabled');
     expect(html).not.toContain('선택한 결제수단을 지금은 쓸 수 없어요');
   });
@@ -194,7 +195,7 @@ describe('Checkout 결제수단 게이트', () => {
     expect(methodRadio(html, 'card')).not.toContain('disabled');
     expect(methodRadio(html, 'bank_transfer')).toContain('disabled');
     expect(html).toContain('지금은 무통장 입금을 받지 않습니다.');
-    expect(html).toContain('주문 만들고 결제하기');
+    expect(html).toContain('결제하기');
     expect(submitButton(html)).not.toContain('disabled');
   });
 

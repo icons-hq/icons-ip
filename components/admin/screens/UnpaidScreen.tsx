@@ -18,7 +18,7 @@ import { formatOrderDateTime } from '@/lib/orders';
 import {
   bankTransferDeadlineImminent,
   bankTransferDeadlineLabel,
-  bankTransferDepositName,
+  bankTransferDepositNameWithCode,
 } from '@/lib/payments/bank-transfer';
 
 const COLUMNS: ConsoleGridColumn[] = [
@@ -64,7 +64,7 @@ export function UnpaidScreen({
         <span className="mono" key="code">{row.depositCode}</span>,
         row.buyerName,
         <span className="mono" key="depositName">
-          {bankTransferDepositName(row.recipientName, row.id)}
+          {bankTransferDepositNameWithCode(row.recipientName, row.depositCode)}
         </span>,
         row.itemSummary || '품목 정보 없음',
         formatOrderDateTime(row.createdAt),

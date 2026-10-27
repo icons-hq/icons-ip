@@ -13,7 +13,7 @@ import { loyaltyProgressNote, parseLoyaltyPolicy, type LoyaltyCriterion } from '
 
 export type GradeBenefitKind = 'goods' | 'shipping';
 export type GradeBenefitRecipient = 'all' | 'first_purchase' | 'repeat_purchase';
-export type GradeBenefitScope = 'all' | 'selected_goods' | 'selected_categories';
+export type GradeBenefitScope = 'all' | 'selected_goods' | 'selected_categories' | 'selected_ips';
 
 export interface GradeBenefitCoupon {
   name: string;
@@ -103,7 +103,7 @@ function parseCoupon(value: unknown): GradeBenefitCoupon | null {
   if (value.maxDiscountAmount !== null && !wholeNumber(value.maxDiscountAmount, 1, MAX_MONEY)) return null;
   if (value.discountType === 'fixed' && value.maxDiscountAmount !== null) return null;
   if (!wholeNumber(value.minSubtotal, 0, MAX_MONEY)) return null;
-  if (value.goodsScope !== 'all' && value.goodsScope !== 'selected_goods' && value.goodsScope !== 'selected_categories') return null;
+  if (value.goodsScope !== 'all' && value.goodsScope !== 'selected_goods' && value.goodsScope !== 'selected_categories' && value.goodsScope !== 'selected_ips') return null;
   if (value.recipientSegment !== 'all' && value.recipientSegment !== 'first_purchase' && value.recipientSegment !== 'repeat_purchase') return null;
   if (!instant(value.startsAt) || (value.endsAt !== null && !instant(value.endsAt))) return null;
   if (value.validDays !== null && !wholeNumber(value.validDays, 1, 365)) return null;

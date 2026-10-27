@@ -48,10 +48,11 @@ export async function loadAdminGoodsList(filters: GoodsListFilters): Promise<Adm
     })(),
     loadGoodsFulfillmentOptions().then(rows => rows.map(origin => ({ id: origin.id, name: origin.name, active: origin.active }))),
   ]);
+  const inline = await loadGoodsListInlineValues((result.data.rows as WorkspaceRow[]).map(good => good.id));
   return { filters, total, pageSize, counts, ips, categories, origins, checkedAt: result.data.checkedAt,
     goods: (result.data.rows as WorkspaceRow[]).map(good => {
       const readiness = parseGoodsReadiness(good.readiness);
-      return { id: good.id, code: good.code, name: good.name, ipId: good.ipId, ipTitle: good.ipTitle,
+      return { ...inline.get(good.id), id: good.id, code: good.code, name: good.name, ipId: good.ipId, ipTitle: good.ipTitle,
         publishedAt: good.publishedAt, archivedAt: good.archivedAt, stock: good.stock, stockQty: good.stockQty,
         createdAt: good.createdAt, updatedAt: good.updatedAt,
         activeStockQty: good.readiness.activeStockQty, lowStockOptionCount: good.readiness.lowStockOptionCount,
@@ -60,6 +61,35 @@ export async function loadAdminGoodsList(filters: GoodsListFilters): Promise<Adm
         priceMin: good.readiness.priceMin, priceMax: good.readiness.priceMax, readiness };
     }),
   };
+}
+
+/* 목록 바로 수정(A9)에 필요한 현재 판매가·할인 상태와 단일 옵션 재고. 한 페이지(최대 100개)만 읽는다.
+   판매가 바로 수정은 상품 편집기와 같은 뜻(할인 없는 상품의 판매가)일 때만 연다 — 상품 할인(정가 표시)이나
+   진행·예정 즉시할인이 있으면 이유만 보여 준다. 읽기에 실패하면 바로 수정만 숨기고 목록은 그대로 보여 준다. */
+type InlineValues = { basePrice: number; compareAtPrice: number | null; activeDiscountEndsAt: string | null; activeVariantCount: number; inlineStock: { variantId: string; stockQty: number } | null };
+async function loadGoodsListInlineValues(ids: string[]) {
+  const values = new Map<string, InlineValues>();
+  if (!ids.length) return values;
+  try {
+    const client = await createClient();
+    const [goods, variants] = await Promise.all([
+      client.rpc('admin_goods_list_price_states', { p_good_ids: ids }),
+      client.from('goods_variants').select('id,good_id,stock_qty').in('good_id', ids).is('archived_at', null).order('good_id').order('id').limit(1000),
+    ]);
+    if (goods.error || variants.error || !Array.isArray(goods.data)) return values;
+    // A full page may be truncated by the API row cap; never infer a single option from a partial read.
+    const complete = (variants.data?.length ?? 0) < 1000;
+    const active = new Map<string, { id: string; stock_qty: number }[]>();
+    for (const row of variants.data ?? []) active.set(row.good_id, [...(active.get(row.good_id) ?? []), row]);
+    for (const row of goods.data as { id: string; price: number; compareAtPrice: number | null; activeDiscountEndsAt: string | null }[]) {
+      if (!Number.isSafeInteger(row.price) || !(row.compareAtPrice === null || Number.isSafeInteger(row.compareAtPrice))
+        || !(row.activeDiscountEndsAt === null || typeof row.activeDiscountEndsAt === 'string' && Number.isFinite(Date.parse(row.activeDiscountEndsAt)))) continue;
+      const options = active.get(row.id) ?? [];
+      values.set(row.id, { basePrice: row.price, compareAtPrice: row.compareAtPrice, activeDiscountEndsAt: row.activeDiscountEndsAt, activeVariantCount: complete ? options.length : -1,
+        inlineStock: complete && options.length === 1 && Number.isSafeInteger(options[0].stock_qty) ? { variantId: options[0].id, stockQty: options[0].stock_qty } : null });
+    }
+  } catch { values.clear(); }
+  return values;
 }
 
 /** Editor requests one good and its options; opening the list never loads these. */
