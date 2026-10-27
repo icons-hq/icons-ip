@@ -72,12 +72,21 @@ describe('CollectionBanners', () => {
     expect(html).not.toMatch(/일시정지|자동 넘김/);
   });
 
-  it('카드 리워드가 꺼진 배포에서는 카드팩으로 가는 배너를 걷는다', () => {
-    const html = renderToStaticMarkup(<CollectionBanners banners={[banner('packs', { href: '/packs' }), banner('shop', { href: '/shop/new' })]} slot="all" />);
+  it('BEST·NEW는 여러 장을 받아도 운영 순서 첫 장 하나만 — 슬라이더·이전·다음·위치 표시가 없다(l8b-data-1·l8b-ui-1)', () => {
+    const html = renderToStaticMarkup(<CollectionBanners banners={[banner('b1', { slot: 'best' }), banner('b2', { slot: 'best' })]} slot="best" />);
 
-    expect(html).not.toContain('배너 packs');
-    expect(html).toContain('배너 shop');
+    expect(html).toContain('배너 b1');
+    expect(html).not.toContain('배너 b2');
     expect(html).not.toContain('aria-roledescription="carousel"');
+    expect(html).not.toContain('aria-label="다음 배너"');
+    expect(html).not.toContain('wc-collection-banners__fraction');
+  });
+
+  it('목적지 게이트는 서버 로더가 이미 걸었다 — 받은 배너를 첫 HTML 에 그대로 그린다(컨텍스트 초기값으로 다시 걷지 않는다, l8b-ui-2)', () => {
+    const html = renderToStaticMarkup(<CollectionBanners banners={[banner('packs', { slot: 'best', href: '/packs' })]} slot="best" />);
+
+    expect(html).toContain('배너 packs');
+    expect(html).toContain('href="/packs"');
   });
 
   it('CSS: 레퍼런스 수치(전폭 72:29·모바일 375:302, 칸 59:13·15:7, 44×45 버튼, 모바일 위치 알약)와 대비 보정을 둔다', () => {

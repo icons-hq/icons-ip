@@ -411,6 +411,29 @@ describe('컬렉션 머리 배너 (11 CL-09 · L8b)', () => {
     expect(collectionBannerSlotFor('best', {})).toBe('best');
   });
 
+  it('머리말·여백 판정과 실제 배너가 어긋나지 않는다 — 카드팩으로 가는 배너도 받은 대로 그리고, 빈 목록이면 텍스트 제목과 여백이 남는다(l8b-ui-2·l8b-data-3)', () => {
+    /* 목적지 게이트는 서버 로더(getCollectionBanners)가 건다. 화면이 받은 배너를 클라이언트 컨텍스트(초기값 꺼짐)로 다시 걷으면
+       첫 HTML 에서 배너만 빠지고 h1 시각 숨김·padding-top 0 은 남는다 — 그 어긋남이 없어야 한다. */
+    const gatedOpen = renderWith('best', [banner('packs', 'best', { href: '/packs' })], {}, ['d', 'b']);
+    expect(gatedOpen).toContain('wc-collection-banners--contained');
+    expect(gatedOpen).toContain('href="/packs"');
+    expect(gatedOpen).toContain('wc-collection--banner');
+
+    const gatedClosed = renderWith('best', [], {}, ['d', 'b']);
+    expect(gatedClosed).not.toContain('wc-collection-banners');
+    expect(gatedClosed).not.toContain('wc-collection--banner');
+    expect(gatedClosed).toContain('wc-section-heading');
+    expect(gatedClosed).not.toMatch(/<h1 class="wc-sr-only">BEST<\/h1>/);
+  });
+
+  it('BEST 배너가 여러 장 와도 첫 장 하나만 — 슬라이더가 되지 않는다(l8b-ui-1)', () => {
+    const html = renderWith('best', [banner('b1', 'best'), banner('b2', 'best')], {}, ['d', 'b']);
+
+    expect(html).toContain('배너 b1');
+    expect(html).not.toContain('배너 b2');
+    expect(html).not.toContain('aria-roledescription="carousel"');
+  });
+
   it('스코프가 빈 BEST 도 배너는 그대로 두고 준비 중 안내를 잇는다', () => {
     const html = renderWith('best', [banner('b1', 'best')], {}, []);
 

@@ -2,20 +2,21 @@
 
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
-import { useCardRewardsEnabled } from '@/components/shell/CardRewardAvailability';
-import { wrapCollectionBannerIndex, type CollectionBanner, type CollectionBannerSlot } from '@/lib/collection-banners';
-import { COMMUNITY_ENABLED } from '@/lib/community-visibility';
-import { shellNoticeDestinationAllowed } from '@/lib/shell-notices';
+import {
+  collectionBannerDisplayLimit, wrapCollectionBannerIndex, type CollectionBanner, type CollectionBannerSlot,
+} from '@/lib/collection-banners';
 
 /*
  * 컬렉션 머리 배너(11 CL-09 · LFS 패리티 2차 L8b). 수치는 LFS 2026-10-27 실측:
  * - 굿즈샵 전체(`all`): 1440×580 전폭(모바일 375×302), 아래 44(모바일 24). 여러 장이면 수동 슬라이더 —
  *   레퍼런스는 자동 넘김이 꺼져 있고(swiper autoplay.enabled=false) 처음과 끝이 이어진다(loop). 그래서 정지 버튼이 없다.
  *   데스크톱은 콘텐츠 왼쪽 선에 붙은 44×45 이전·다음 버튼(배너 아래 끝), 모바일은 스와이프 + 오른쪽 아래 'n / N'.
- * - BEST·NEW(`best`·`new`): 콘텐츠 폭 1180×260, 위아래 40(모바일은 전폭 375×175, 여백 없음).
+ * - BEST·NEW(`best`·`new`): 콘텐츠 폭 1180×260, 위아래 40(모바일은 전폭 375×175, 여백 없음). 운영 순서 첫 장 하나만 —
+ *   슬라이더가 되지 않는다(레퍼런스 BEST도 한 장). 문구가 길면 배너가 문구만큼 길어진다(잘리지 않는다).
  * 문구는 이미지 위 텍스트 레이어다(이미지가 늦거나 실패해도 읽힌다). 이미지는 대체텍스트가 있을 때만 그림으로 읽히고,
  * 없으면 장식(alt="")이다. 첫 장 이미지는 LCP 후보라 eager + fetchpriority=high, 나머지 장은 lazy 다.
- * 카드 리워드·커뮤니티가 꺼진 배포에서는 그 목적지로 가는 배너를 걷는다(홈 히어로와 같은 게이트).
+ * 카드 리워드·커뮤니티 목적지 게이트는 서버 로더(lib/collection-banners.server)가 이미 걸었다 — 여기서 다시 걸면
+ * 첫 HTML(컨텍스트 초기값 꺼짐)에서 배너만 빠지고 머리말은 '배너 있음'으로 숨는다. 어드민 미리보기는 호출부가 건다.
  *
  * 트랙은 scroll-snap 이다 — 모바일 스와이프는 브라우저가 맡고, 스크립트는 현재 장을 스크롤 위치에서 읽고 버튼 때만 scrollTo 한다.
  */
@@ -138,11 +139,12 @@ export interface CollectionBannersProps {
   slot: CollectionBannerSlot;
 }
 
-/** 배너가 없으면 아무것도 그리지 않는다 — 컬렉션은 지금처럼 텍스트 머리말로 시작한다(빈 띠 없음). */
+/**
+ * 배너가 없으면 아무것도 그리지 않는다 — 컬렉션은 지금처럼 텍스트 머리말로 시작한다(빈 띠 없음).
+ * 받은 목록은 이미 게이트를 거친 그릴 배너다. 슬롯 몫(BEST·NEW 한 장)만은 여기서도 지켜 칸 배너가 슬라이더가 되지 않게 한다.
+ */
 export function CollectionBanners({ banners, slot }: CollectionBannersProps) {
-  const cardRewardsEnabled = useCardRewardsEnabled();
-  const visible = banners.filter((banner) => banner.slot === slot
-    && shellNoticeDestinationAllowed(banner.href, { cardRewardsEnabled, communityEnabled: COMMUNITY_ENABLED }));
+  const visible = banners.filter((banner) => banner.slot === slot).slice(0, collectionBannerDisplayLimit(slot));
   if (!visible.length) return null;
   const variant = slot === 'all' ? 'wide' : 'contained';
   return (

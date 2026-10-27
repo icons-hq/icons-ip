@@ -50,7 +50,11 @@ export interface ShopProps {
   paging?: { loading: boolean; error?: string; hasMore?: boolean; onLoadMore: () => void; onReload?: () => void };
   /** 목록 하트의 초기 상태(`lib/wishlist-ids.server`). 생략하면 하트를 그리지 않는다(어드민 미리보기). */
   wishlist?: ListingWishlist | null;
-  /** 이 컬렉션의 머리 배너(`lib/collection-banners.server`). 비었거나 생략하면 배너 없이 그린다. */
+  /**
+   * 이 컬렉션의 머리 배너(`lib/collection-banners.server`). 로더가 목적지 게이트·종료·페이지 몫을 이미 걸렀다 —
+   * 그래서 배너 유무로 정하는 머리말(BEST 텍스트 제목)·상단 여백이 실제로 그려지는 배너와 같은 판정을 쓴다.
+   * 비었거나 생략하면 배너 없이 그린다.
+   */
   banners?: readonly CollectionBanner[];
 }
 

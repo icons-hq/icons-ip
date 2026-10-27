@@ -1,5 +1,6 @@
-import { HOME_CURATION_IMAGE_PATTERN, isSafeInternalLink } from './home-catalog';
+import { HOME_CURATION_IMAGE_PATTERN, isCardRewardDestination, isSafeInternalLink } from './home-catalog';
 import { isHomeHeroImageDim, isHomeHeroTextColor, type HomeHeroImageDim, type HomeHeroTextColor } from './home-hero';
+import { shellNoticeDestinationAllowed, type ShellNoticeGates } from './shell-notices';
 
 /*
  * 컬렉션 배너(11 CL-09, LFS 패리티 2차 L8b).
@@ -10,8 +11,11 @@ import { isHomeHeroImageDim, isHomeHeroTextColor, type HomeHeroImageDim, type Ho
  * 이미지가 늦거나 실패해도 무엇을 여는 배너인지 읽힌다(캠페인 배너와 같은 규칙). 이미지 대체텍스트는 그림 자체의 의미만
  * 따로 담고(선택), 비우면 장식 이미지(alt="")다.
  *
- * 로더(lib/collection-banners.server.ts)는 쿠키 없는 캐시 읽기로 지금 노출 중인 행을 내려 주고, 요청마다 종료 시각을 다시 거른다.
+ * 로더(lib/collection-banners.server.ts)는 쿠키 없는 캐시 읽기로 지금 노출 중인 행을 내려 주고, 요청마다 종료 시각과
+ * 목적지 게이트(카드 리워드·커뮤니티)를 서버에서 다시 거른 뒤 페이지 몫(굿즈샵 전체 10장, BEST·NEW 운영 순서 첫 장)만 넘긴다.
+ * 그래서 화면(Shop)이 받은 목록이 곧 그릴 배너다 — 배너 유무로 정하는 머리말·여백이 실제 배너와 어긋나지 않는다.
  * DB 규칙(20261027020000 home_curations_collection_check)과 같은 한도로 한 번 더 검증한다 — 어긋난 행은 그리지 않는다.
+ * 한 컬렉션에서 노출 기간이 겹치는 배너는 DB 트리거가 10장까지만 받는다(20261027020200) — 노출 중인데 화면에서 빠지는 배너가 없다.
  */
 
 export const COLLECTION_BANNER_SLOTS = ['all', 'best', 'new'] as const;
@@ -20,8 +24,13 @@ export type CollectionBannerSlot = typeof COLLECTION_BANNER_SLOTS[number];
 export const COLLECTION_BANNER_TITLE_LIMIT = 40;
 export const COLLECTION_BANNER_SUBTITLE_LIMIT = 80;
 export const COLLECTION_BANNER_ALT_LIMIT = 100;
-/** 한 페이지에 그리는 배너 상한. 굿즈샵 전체 슬라이더도 이만큼만 넘긴다. */
+/** 굿즈샵 전체 슬라이더의 상한. 한 컬렉션에서 노출 기간이 겹치는 배너도 DB가 이만큼만 받는다(collection_banner_limit). */
 export const COLLECTION_BANNER_SLIDE_LIMIT = 10;
+
+/** 컬렉션 한 페이지에 그리는 배너 수 — 굿즈샵 전체는 슬라이드 10장, BEST·NEW는 운영 순서 첫 장 하나(레퍼런스 BEST도 한 장). */
+export function collectionBannerDisplayLimit(slot: CollectionBannerSlot): number {
+  return slot === 'all' ? COLLECTION_BANNER_SLIDE_LIMIT : 1;
+}
 
 export const COLLECTION_BANNER_SLOT_LABELS: Record<CollectionBannerSlot, string> = {
   all: '굿즈샵 전체(슬라이드)',
@@ -110,15 +119,35 @@ export function parseCollectionBannerRow(
   };
 }
 
-/** 페이지에 그릴 배너 — 요청 시각에 끝난 행을 거르고 상한까지 자른다(순서는 로더의 운영 순서 그대로). */
+function isLiveInSlot(banner: CollectionBanner, slot: CollectionBannerSlot, now: number): boolean {
+  return banner.slot === slot && (banner.endsAt === null || banner.endsAt > now);
+}
+
+/**
+ * 이 슬롯의 노출 중 배너 중 카드팩·게임으로 가는 것이 있는가 — 있을 때만 로더가 카드 리워드 게이트를 읽는다
+ * (게이트 읽기는 요청마다 DB 왕복이라 대부분의 요청에서는 건너뛴다).
+ */
+export function collectionBannersNeedCardRewardGate(
+  banners: readonly CollectionBanner[],
+  slot: CollectionBannerSlot,
+  now: number,
+): boolean {
+  return banners.some((banner) => isLiveInSlot(banner, slot, now) && banner.href !== null && isCardRewardDestination(banner.href));
+}
+
+/**
+ * 페이지에 그릴 배너 — 요청 시각에 끝난 행과 꺼진 목적지(카드 리워드·커뮤니티)로 가는 행을 거른 **뒤에** 페이지 몫까지 자른다.
+ * 게이트로 빠진 자리는 다음 순서 배너가 채운다. 순서는 로더의 운영 순서 그대로다.
+ */
 export function liveCollectionBanners(
   banners: readonly CollectionBanner[],
   slot: CollectionBannerSlot,
   now: number,
+  gates: ShellNoticeGates,
 ): CollectionBanner[] {
   return banners
-    .filter((banner) => banner.slot === slot && (banner.endsAt === null || banner.endsAt > now))
-    .slice(0, COLLECTION_BANNER_SLIDE_LIMIT);
+    .filter((banner) => isLiveInSlot(banner, slot, now) && shellNoticeDestinationAllowed(banner.href, gates))
+    .slice(0, collectionBannerDisplayLimit(slot));
 }
 
 /** 루프 슬라이더의 다음·이전 장. 레퍼런스 굿즈샵 배너는 처음과 끝이 이어진다(swiper loop). */
