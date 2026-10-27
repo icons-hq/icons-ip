@@ -89,6 +89,8 @@ describe('Supabase preview branch workflow contract', () => {
       "grep -q '^  sync-supabase-preview-main:' .github/workflows/pipeline.yml",
     );
     expect(gate.run).toContain('head_sha=${PR_BASE_SHA}');
+    // deploy-staging이 끝날 때까지 run 전체 완료를 기다리지 않는다. 증거는 아래 두 job 결론이다.
+    expect(gate.run).not.toContain('status=completed');
     expect(gate.run).toContain('.name == "deploy-supabase" and .conclusion == "success"');
     expect(gate.run).toContain(
       '.name == "sync-supabase-preview-main" and .conclusion == "success"',

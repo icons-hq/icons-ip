@@ -622,11 +622,13 @@ jobs:
             exit 0
           fi
 
+          # 증거는 두 job의 결론이다. 뒤따르는 deploy-staging까지 run 전체가 끝나기를
+          # 기다리지 않도록 실행 중인 run도 조회하고, 진행 중인 job은 success가 아니라 거부된다.
           runs_json="$(curl --fail --silent --show-error \
             --header "Authorization: Bearer $GH_TOKEN" \
             --header "Accept: application/vnd.github+json" \
             --header "X-GitHub-Api-Version: 2022-11-28" \
-            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/pipeline.yml/runs?event=push&head_sha=${PR_BASE_SHA}&status=completed&per_page=20")"
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/pipeline.yml/runs?event=push&head_sha=${PR_BASE_SHA}&per_page=20")"
 
           synchronized_run_id=""
           while IFS= read -r run_id; do
