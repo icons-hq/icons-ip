@@ -4,7 +4,7 @@ export const EVENTS_TICKETS_TOPIC: AdminGuideTopic = {
   slug: 'events-tickets',
   title: '이벤트·티켓·현장 검표',
   navLabel: '이벤트·티켓',
-  summary: 'IP·콘텐츠 운영의 이벤트·티켓 회차 등록에서 현장 운영의 검표까지, 예매·발권·실제 입장을 구분해 처리합니다.',
+  summary: '콘텐츠 운영 콘솔의 이벤트·티켓 회차 등록에서 현장 운영의 검표까지, 예매·발권·실제 입장을 구분해 처리합니다.',
   sections: [
     {
       id: 'events',

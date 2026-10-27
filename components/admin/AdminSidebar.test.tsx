@@ -6,9 +6,9 @@ const mocks = vi.hoisted(() => ({ pathname: '/admin' }));
 
 vi.mock('next/navigation', () => ({ usePathname: () => mocks.pathname }));
 
-function render(role = 'staff') {
+function render(role = 'staff', consoleId: 'commerce' | 'content' = 'commerce') {
   return renderToStaticMarkup(
-    <AdminSidebar collapsed={false} onCollapsedChange={() => {}} role={role} />,
+    <AdminSidebar collapsed={false} onCollapsedChange={() => {}} role={role} console={consoleId} />,
   );
 }
 
@@ -36,10 +36,25 @@ describe('AdminSidebar 2단 메뉴', () => {
 
   it('현재 화면만 aria-current를 단다', () => {
     mocks.pathname = '/admin/catalog/pools';
-    const html = render();
+    const html = render('staff', 'content');
 
     expect(html).toContain('aria-current="page"');
     expect(html.match(/aria-current="page"/g)).toHaveLength(1);
+  });
+
+  /* D9: 콘텐츠 운영은 커머스 사이드바에 숨기지 않고 별도 콘솔의 사이드바로 둔다. */
+  it('커머스와 콘텐츠 운영 콘솔은 서로의 메뉴를 섞지 않는다', () => {
+    const commerce = render();
+    expect(commerce).toContain('href="/admin/catalog/goods"');
+    expect(commerce).not.toContain('href="/admin/catalog/cards"');
+    expect(commerce).not.toContain('IP·콘텐츠 운영');
+    const content = render('staff', 'content');
+    for (const href of ['/admin/catalog/ips', '/admin/catalog/cards', '/admin/catalog/pools', '/admin/catalog/policies', '/admin/catalog/grants',
+      '/admin/catalog/games', '/admin/catalog/events', '/admin/catalog/ticket-types', '/admin/community/moderation', '/admin/check-in', '/admin/guide'])
+      expect(content).toContain(`href="${href}"`);
+    expect(content).not.toContain('href="/admin/catalog/goods"');
+    expect(content).not.toContain('data-admin-nav-screen="overview"');
+    expect(content).toContain('aria-label="콘텐츠 운영 메뉴"');
   });
 
   it('홈 링크와 즐겨찾기를 검색 위 바로가기에 유지한다', () => {
