@@ -267,6 +267,20 @@ describe('Settings', () => {
     expect(html.indexOf('id="settings-policy-heading"')).toBeLessThan(html.indexOf('wc-settings__danger'));
   });
 
+  /* L7 · MY-11: 레퍼런스 내 정보 수정의 '내 주소 관리' 자리는 주소록(배송지 관리)으로 들어가는 링크 행 하나다. */
+  it('enters the address book once from settings, before the login and policy rows', () => {
+    const html = render();
+    const address = html.slice(html.indexOf('id="settings-address-heading"'), html.indexOf('id="settings-login-heading"'));
+    const content = html.slice(html.indexOf('wc-mypage__content'));
+
+    expect(address).toContain('>배송지</h2>');
+    expect(address).toMatch(/<a class="wc-settings__link-row" href="\/my\/addresses">/);
+    expect(address).toContain('<strong>배송지 관리</strong>');
+    expect(address).toContain('주문서에서 불러올 배송지를 등록하고 기본 배송지를 정해요');
+    expect(content.match(/href="\/my\/addresses"/g)).toHaveLength(1);
+    expect(html.indexOf('id="settings-address-heading"')).toBeLessThan(html.indexOf('id="settings-login-heading"'));
+  });
+
   it('reports the reset mail result in its own region and blocks resubmission while sending', () => {
     const resetStatus = (html: string) => {
       const start = html.indexOf('aria-label="비밀번호 재설정 메일 상태"');

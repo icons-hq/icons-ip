@@ -49,6 +49,8 @@ const MYPAGE_MENU_GROUPS: MypageMenuGroup[] = [
   {
     title: '계정 설정',
     items: [
+      /* 배송지 관리는 등급 안내 앞 — 레퍼런스의 '배송지 관리 → 등급 안내' 순서다(L7 · MY-11). */
+      { href: '/my/addresses', label: '배송지 관리', description: '주문서에서 불러올 배송지를 등록하고 기본 배송지를 정하세요.' },
       /* 등급 안내는 쿠폰함 앞에 선다 — 레퍼런스의 '등급 안내 → 쿠폰' 순서이고, 등급 혜택 쿠폰이 쿠폰함으로 이어진다(L6 · MY-05). */
       { href: '/my/grade-benefits', label: '회원 등급 혜택', description: '회원 등급별 기준과 혜택을 확인하세요.' },
       { href: '/my/coupons', label: '쿠폰함', description: '보유한 쿠폰과 사용·만료 내역을 확인하세요.' },

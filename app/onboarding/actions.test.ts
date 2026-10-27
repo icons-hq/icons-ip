@@ -131,7 +131,7 @@ describe('completeOnboardingAction profile identity', () => {
     formData.set('birthDay', '31');
 
     await expect(completeOnboardingAction({}, formData)).rejects.toThrow(
-      'NEXT_REDIRECT:/community',
+      'NEXT_REDIRECT:/onboarding/address?next=%2Fcommunity',
     );
 
     expect(mocks.profilePayloads[0]).toMatchObject({ birth_date: '2000-01-31' });
@@ -209,7 +209,7 @@ describe('completeOnboardingAction profile identity', () => {
     const formData = onboardingForm('fan');
     formData.set('birthDate', birthDateForExactAge(14));
 
-    await expect(completeOnboardingAction({}, formData)).rejects.toThrow('NEXT_REDIRECT:/community');
+    await expect(completeOnboardingAction({}, formData)).rejects.toThrow('NEXT_REDIRECT:/onboarding/address?next=%2Fcommunity');
     expect(mocks.profilePayloads[0]?.birth_date).toBe(birthDateForExactAge(14));
   });
 
@@ -228,7 +228,7 @@ describe('completeOnboardingAction profile identity', () => {
     const nickname = familyEmoji.repeat(30);
 
     await expect(completeOnboardingAction({}, onboardingForm(nickname))).rejects.toThrow(
-      'NEXT_REDIRECT:/community',
+      'NEXT_REDIRECT:/onboarding/address?next=%2Fcommunity',
     );
 
     expect(mocks.identity).toHaveBeenCalledWith({
@@ -288,7 +288,7 @@ describe('completeOnboardingAction profile identity', () => {
       throw new Error(`Unexpected table ${table}`);
     });
 
-    await expect(completeOnboardingAction({}, onboardingForm('fan'))).rejects.toThrow('NEXT_REDIRECT:/community');
+    await expect(completeOnboardingAction({}, onboardingForm('fan'))).rejects.toThrow('NEXT_REDIRECT:/onboarding/address?next=%2Fcommunity');
 
     expect(mocks.rpc.mock.calls.filter(([name]) => name === 'follow_ip' || name === 'unfollow_ip')).toEqual([]);
     expect(mocks.profilePayloads.at(-1)).toEqual({ onboarded_at: expect.any(String) });
@@ -305,7 +305,7 @@ describe('completeOnboardingAction profile identity', () => {
     await expect(completeOnboardingAction({}, onboardingForm('fan', {
       recommended: [IP_ONE, IP_TWO],
       selected: [IP_TWO],
-    }))).rejects.toThrow('NEXT_REDIRECT:/community');
+    }))).rejects.toThrow('NEXT_REDIRECT:/onboarding/address?next=%2Fcommunity');
 
     expect(mocks.rpc.mock.calls).toEqual([
       ['set_my_marketing_consents', { p_email: true, p_sms: false, p_notice_version: 'marketing-channels-v1', p_source: 'onboarding' }],
@@ -335,7 +335,7 @@ describe('completeOnboardingAction optional consents', () => {
     formData.delete('marketingEmail');
     formData.set('marketingSms', 'on');
 
-    await expect(completeOnboardingAction({}, formData)).rejects.toThrow('NEXT_REDIRECT:/community');
+    await expect(completeOnboardingAction({}, formData)).rejects.toThrow('NEXT_REDIRECT:/onboarding/address?next=%2Fcommunity');
 
     expect(mocks.rpc).toHaveBeenCalledWith('set_my_marketing_consents', {
       p_email: false, p_sms: true, p_notice_version: 'marketing-channels-v1', p_source: 'onboarding',
@@ -382,7 +382,7 @@ describe('completeOnboardingAction optional consents', () => {
     formData.set('gender', 'female');
     formData.set('genderConsent', 'on');
 
-    await expect(completeOnboardingAction({}, formData)).rejects.toThrow('NEXT_REDIRECT:/community');
+    await expect(completeOnboardingAction({}, formData)).rejects.toThrow('NEXT_REDIRECT:/onboarding/address?next=%2Fcommunity');
 
     expect(mocks.rpc).toHaveBeenCalledWith('set_customer_demographic_consent', {
       p_choice: 'accepted', p_gender: 'female', p_expected_revision: 0, p_expected_actor: USER_ID,
@@ -392,7 +392,7 @@ describe('completeOnboardingAction optional consents', () => {
   });
 
   it('does not save gender without a choice and does not undo completion when the optional save fails', async () => {
-    await expect(completeOnboardingAction({}, onboardingForm('fan'))).rejects.toThrow('NEXT_REDIRECT:/community');
+    await expect(completeOnboardingAction({}, onboardingForm('fan'))).rejects.toThrow('NEXT_REDIRECT:/onboarding/address?next=%2Fcommunity');
     expect(mocks.rpc.mock.calls.map(([name]) => name)).not.toContain('customer_demographic_state');
 
     mocks.rpc.mockImplementation(async (name: string) => name === 'customer_demographic_state'
@@ -400,7 +400,7 @@ describe('completeOnboardingAction optional consents', () => {
     const formData = onboardingForm('fan');
     formData.set('gender', 'male');
     formData.set('genderConsent', 'on');
-    await expect(completeOnboardingAction({}, formData)).rejects.toThrow('NEXT_REDIRECT:/community');
+    await expect(completeOnboardingAction({}, formData)).rejects.toThrow('NEXT_REDIRECT:/onboarding/address?next=%2Fcommunity');
   });
 });
 
