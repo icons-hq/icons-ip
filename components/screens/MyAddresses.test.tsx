@@ -2,7 +2,7 @@ import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import type { AddressBookEntry } from '@/lib/address-book';
-import { MyAddresses } from './MyAddresses';
+import { MyAddresses, addressBookReturnFocusIds } from './MyAddresses';
 
 vi.mock('@/components/shell/CardRewardAvailability', () => ({ useCardRewardsEnabled: () => false }));
 vi.mock('next/navigation', () => ({ usePathname: () => '/my/addresses', useRouter: () => ({ refresh: vi.fn(), push: vi.fn(), replace: vi.fn() }) }));
@@ -24,7 +24,7 @@ describe('MyAddresses (/my/addresses · 11 §5.8)', () => {
 
     expect(html).toContain('aria-label="마이페이지 메뉴"');
     expect(html).toMatch(/<a aria-current="page" href="\/my\/addresses">배송지 관리<\/a>/);
-    expect(html).toContain('<h1 class="wc-mypage__headbar-title">배송지 관리</h1>');
+    expect(html).toContain('<h1 class="wc-mypage__headbar-title" id="address-book-heading" tabindex="-1">배송지 관리</h1>');
     expect(html).toContain('2 / 10');
     expect(html).toContain('<h2 class="wc-address-book__summary-title" id="address-book-default-heading">기본 배송지</h2>');
     expect(html).toContain('집 · (04524) 서울 중구 세종대로 110 101동 1203호');
@@ -67,6 +67,24 @@ describe('MyAddresses (/my/addresses · 11 §5.8)', () => {
     expect(html).toContain('배송지를 불러오지 못했어요');
     expect(html).not.toContain('저장한 배송지가 없어요');
     expect(html).not.toContain('배송지 추가');
+  });
+
+  it('펼친 영역을 닫으면 연 버튼으로, 그 버튼이 없거나 잠기면 다음 후보·화면 제목으로 포커스를 돌린다', () => {
+    expect(addressBookReturnFocusIds({ kind: 'edit', id: home.id })).toEqual([`address-book-edit-${home.id}`, 'address-book-add', 'address-book-heading']);
+    expect(addressBookReturnFocusIds({ kind: 'delete', id: home.id })).toEqual([`address-book-delete-${home.id}`, 'address-book-add', 'address-book-heading']);
+    expect(addressBookReturnFocusIds({ kind: 'default' })).toEqual(['address-book-default-toggle', 'address-book-add', 'address-book-heading']);
+    expect(addressBookReturnFocusIds({ kind: 'add' })).toEqual(['address-book-add', 'address-book-heading']);
+    /* 후보 id 가 실제 마크업에 있다. */
+    const html = render([home, office]);
+    for (const id of [`address-book-edit-${home.id}`, `address-book-delete-${office.id}`, 'address-book-default-toggle', 'address-book-add', 'address-book-heading']) {
+      expect(html).toContain(`id="${id}"`);
+    }
+  });
+
+  it('액션이 목록을 다시 읽지 못하면 서버 화면을 새로 받고, 새 목록(prop)으로 상태를 맞춘다', () => {
+    const source = readFileSync(new URL('./MyAddresses.tsx', import.meta.url), 'utf8');
+    expect(source).toContain('startRefresh(() => router.refresh())');
+    expect(source).toMatch(/if \(serverEntries !== initialEntries\) \{\s*setServerEntries\(initialEntries\);\s*setEntries\(initialEntries\);/);
   });
 
   it('오류 문구와 화면에 입력값을 늘어놓지 않는 규율을 소스에서도 지킨다', () => {

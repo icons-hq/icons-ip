@@ -137,6 +137,16 @@ describe('표시·오류·경로', () => {
     expect(maskAddressBookPhone('01012345678')).toBe('010-****-5678');
     expect(maskAddressBookPhone('0212345678')).toBe('02-****-5678');
     expect(maskAddressBookPhone('123')).toBe('****');
+    /* 짧은 번호도 4자리 이상을 가린다(8자리 대표번호·9자리 02 번호). */
+    expect(maskAddressBookPhone('15881234')).toBe('****-1234');
+    expect(maskAddressBookPhone('1588-1234')).toBe('****-1234');
+    expect(maskAddressBookPhone('021234567')).toBe('****-4567');
+    expect(maskAddressBookPhone('0311234567')).toBe('03-****-4567');
+    expect(maskAddressBookPhone('010123456789012')).toBe('010-****-9012');
+    for (const phone of ['15881234', '021234567', '0212345678', '0311234567', '01012345678', '010123456789012']) {
+      const shown = maskAddressBookPhone(phone).replace(/[^0-9]/g, '');
+      expect(phone.length - shown.length).toBeGreaterThanOrEqual(4);
+    }
     expect(addressBookAddressLine(home)).toBe('(04524) 서울 중구 세종대로 110 101동 1203호');
     expect(addressBookAddressLine(office)).toBe('(04524) 서울 강남구 테헤란로 152');
   });

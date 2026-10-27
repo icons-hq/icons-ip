@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { useRef, useState } from 'react';
+import { useRef, useState, useTransition } from 'react';
 import { deleteAddressBookEntryAction, setDefaultAddressBookEntryAction, type AddressBookActionResult } from '@/app/my/addresses/actions';
 import { AddressBookForm, type AddressBookFormSaved } from '@/components/address-book/AddressBookForm';
 import { MypageShell } from '@/components/wc/MypageShell';
@@ -21,14 +21,51 @@ import {
  * 연락처 180 · 관리 107) → '배송지 추가' 260×56 잉크 → 안내 박스. 모바일은 표를 배송지 블록으로 쌓는다.
  * 주소록은 주문서 입력 보조라 여기서 고치거나 지워도 이미 만든 주문의 배송지는 바뀌지 않는다.
  * 연락처는 목록에서 가운데를 가리고(전체 번호는 수정 폼에서만), 오류 문구에 입력값을 싣지 않는다.
+ * 포커스: 펼친 영역(기본 배송지 고르기·삭제 확인·추가/수정 폼)을 취소하거나 바꿀 것 없이 닫으면 그 영역을 연 버튼으로
+ * 돌아간다. 그 버튼이 없거나 잠겼으면(10개라 '배송지 추가'가 잠김 등) 다음 후보, 마지막은 화면 제목이다.
  */
 
 type Panel = { kind: 'closed' } | { kind: 'add' } | { kind: 'edit'; id: string };
 type Status = { tone: 'ok' | 'error'; text: string } | null;
 
+const HEADING_ID = 'address-book-heading';
+const ADD_ID = 'address-book-add';
+const DEFAULT_TOGGLE_ID = 'address-book-default-toggle';
+export const addressBookEditButtonId = (entryId: string) => `address-book-edit-${entryId}`;
+export const addressBookDeleteButtonId = (entryId: string) => `address-book-delete-${entryId}`;
+
+/** 펼친 영역을 닫을 때 포커스를 돌려줄 후보(앞에서부터, 있고 잠기지 않은 첫 요소). 마지막은 언제나 화면 제목이다. */
+export function addressBookReturnFocusIds(
+  closed: { kind: 'add' } | { kind: 'edit'; id: string } | { kind: 'delete'; id: string } | { kind: 'default' },
+): string[] {
+  if (closed.kind === 'edit') return [addressBookEditButtonId(closed.id), ADD_ID, HEADING_ID];
+  if (closed.kind === 'delete') return [addressBookDeleteButtonId(closed.id), ADD_ID, HEADING_ID];
+  if (closed.kind === 'default') return [DEFAULT_TOGGLE_ID, ADD_ID, HEADING_ID];
+  return [ADD_ID, HEADING_ID];
+}
+
+function focusFirstAvailable(ids: readonly string[]) {
+  window.requestAnimationFrame(() => {
+    for (const id of ids) {
+      const element = document.getElementById(id) as (HTMLElement & { disabled?: boolean }) | null;
+      if (element && !element.disabled) {
+        element.focus();
+        return;
+      }
+    }
+  });
+}
+
 export function MyAddresses({ entries: initialEntries }: { entries: AddressBookEntry[] | null }) {
   const router = useRouter();
   const [entries, setEntries] = useState<AddressBookEntry[] | null>(initialEntries);
+  /* 서버 화면을 새로 받으면(router.refresh) 새 목록으로 맞춘다 — useState 는 refresh 로 다시 초기화되지 않는다. */
+  const [serverEntries, setServerEntries] = useState(initialEntries);
+  if (serverEntries !== initialEntries) {
+    setServerEntries(initialEntries);
+    setEntries(initialEntries);
+  }
+  const [refreshing, startRefresh] = useTransition();
   const [panel, setPanel] = useState<Panel>({ kind: 'closed' });
   const [choosingDefault, setChoosingDefault] = useState(false);
   const [defaultChoice, setDefaultChoice] = useState<string | null>(null);
@@ -37,7 +74,8 @@ export function MyAddresses({ entries: initialEntries }: { entries: AddressBookE
   const [status, setStatus] = useState<Status>(null);
   const statusRef = useRef<HTMLParagraphElement>(null);
   const panelHeadingRef = useRef<HTMLHeadingElement>(null);
-  const addButtonRef = useRef<HTMLButtonElement>(null);
+  /* 새 목록을 받는 동안에는 행 버튼·추가를 잠근다(옛 목록으로 같은 배송지를 다시 저장하지 않게). */
+  const locked = busy || refreshing;
 
   const book = entries ?? [];
   const preferred = defaultAddressBookEntry(entries);
@@ -51,10 +89,10 @@ export function MyAddresses({ entries: initialEntries }: { entries: AddressBookE
     window.requestAnimationFrame(() => statusRef.current?.focus());
   };
 
-  /* 액션이 다시 읽은 목록으로 바꾼다. 다시 읽지 못했으면 서버 화면을 새로 받는다. */
+  /* 액션이 다시 읽은 목록으로 바꾼다. 다시 읽지 못했으면 서버 화면을 새로 받는다(위 동기화가 새 목록을 반영한다). */
   const applyEntries = (next: AddressBookEntry[] | null) => {
     if (next) setEntries(next);
-    else router.refresh();
+    else startRefresh(() => router.refresh());
   };
 
   const openPanel = (next: Panel) => {
@@ -66,8 +104,18 @@ export function MyAddresses({ entries: initialEntries }: { entries: AddressBookE
   };
 
   const closePanel = () => {
+    if (panel.kind !== 'closed') focusFirstAvailable(addressBookReturnFocusIds(panel));
     setPanel({ kind: 'closed' });
-    window.requestAnimationFrame(() => addButtonRef.current?.focus());
+  };
+
+  const closeChooser = () => {
+    setChoosingDefault(false);
+    focusFirstAvailable(addressBookReturnFocusIds({ kind: 'default' }));
+  };
+
+  const cancelDelete = (entryId: string) => {
+    setConfirmingDelete(null);
+    focusFirstAvailable(addressBookReturnFocusIds({ kind: 'delete', id: entryId }));
   };
 
   const onSaved = ({ entries: next }: AddressBookFormSaved) => {
@@ -78,7 +126,7 @@ export function MyAddresses({ entries: initialEntries }: { entries: AddressBookE
   };
 
   const run = async (work: () => Promise<AddressBookActionResult>, done: string) => {
-    if (busy) return;
+    if (locked) return;
     setBusy(true);
     try {
       const result = await work();
@@ -100,7 +148,7 @@ export function MyAddresses({ entries: initialEntries }: { entries: AddressBookE
   const changeDefault = () => {
     const target = defaultChoice ?? preferred?.id ?? null;
     if (!target || target === preferred?.id) {
-      setChoosingDefault(false);
+      closeChooser();
       return;
     }
     void run(() => setDefaultAddressBookEntryAction(target), '기본 배송지를 바꿨어요.');
@@ -109,7 +157,7 @@ export function MyAddresses({ entries: initialEntries }: { entries: AddressBookE
   return (
     <MypageShell active={ADDRESS_BOOK_PATH}>
       <div className="wc-mypage__headbar">
-        <h1 className="wc-mypage__headbar-title">배송지 관리</h1>
+        <h1 className="wc-mypage__headbar-title" id={HEADING_ID} tabIndex={-1}>배송지 관리</h1>
         {entries ? <span className="wc-address-book__count">{book.length} / {ADDRESS_BOOK_LIMIT}</span> : null}
       </div>
 
@@ -129,6 +177,7 @@ export function MyAddresses({ entries: initialEntries }: { entries: AddressBookE
                 aria-controls="address-book-default-chooser"
                 aria-expanded={choosingDefault}
                 className="wc-address-book__summary-action"
+                id={DEFAULT_TOGGLE_ID}
                 onClick={() => {
                   setChoosingDefault((open) => !open);
                   setDefaultChoice(preferred?.id ?? null);
@@ -142,7 +191,7 @@ export function MyAddresses({ entries: initialEntries }: { entries: AddressBookE
           </section>
 
           {choosingDefault ? (
-            <fieldset className="wc-address-book__chooser" disabled={busy} id="address-book-default-chooser">
+            <fieldset className="wc-address-book__chooser" disabled={locked} id="address-book-default-chooser">
               <legend>기본 배송지로 쓸 배송지를 골라주세요</legend>
               {book.map((entry) => (
                 <label className="wc-address-book__choice" key={entry.id}>
@@ -160,7 +209,7 @@ export function MyAddresses({ entries: initialEntries }: { entries: AddressBookE
                 </label>
               ))}
               <div className="wc-address-book__chooser-actions">
-                <button className="wc-btn" onClick={() => setChoosingDefault(false)} type="button">취소</button>
+                <button className="wc-btn" onClick={closeChooser} type="button">취소</button>
                 <button className="wc-btn primary" onClick={changeDefault} type="button">변경</button>
               </div>
             </fieldset>
@@ -197,7 +246,7 @@ export function MyAddresses({ entries: initialEntries }: { entries: AddressBookE
               <tbody>
                 {book.map((entry) => (
                   <AddressRow
-                    busy={busy}
+                    busy={locked}
                     confirming={confirmingDelete === entry.id}
                     entry={entry}
                     key={entry.id}
@@ -205,7 +254,7 @@ export function MyAddresses({ entries: initialEntries }: { entries: AddressBookE
                       setConfirmingDelete(entry.id);
                       setChoosingDefault(false);
                     }}
-                    onCancelDelete={() => setConfirmingDelete(null)}
+                    onCancelDelete={() => cancelDelete(entry.id)}
                     onDelete={() => void run(() => deleteAddressBookEntryAction(entry.id), '배송지를 삭제했어요.')}
                     onEdit={() => openPanel({ kind: 'edit', id: entry.id })}
                   />
@@ -219,9 +268,9 @@ export function MyAddresses({ entries: initialEntries }: { entries: AddressBookE
               aria-describedby={full ? 'address-book-full-note' : undefined}
               aria-expanded={panel.kind === 'add'}
               className="wc-btn primary"
-              disabled={full || panelOpen}
+              disabled={full || panelOpen || refreshing}
+              id={ADD_ID}
               onClick={() => openPanel({ kind: 'add' })}
-              ref={addButtonRef}
               type="button"
             >
               배송지 추가
@@ -298,12 +347,13 @@ function AddressRow({
           {maskAddressBookPhone(entry.phone)}
         </td>
         <td className="wc-address-book__actions">
-          <button aria-label={`${entry.label} 수정`} className="wc-address-book__row-action" disabled={busy} onClick={onEdit} type="button">수정</button>
+          <button aria-label={`${entry.label} 수정`} className="wc-address-book__row-action" disabled={busy} id={addressBookEditButtonId(entry.id)} onClick={onEdit} type="button">수정</button>
           <button
             aria-expanded={confirming}
             aria-label={`${entry.label} 삭제`}
             className="wc-address-book__row-action"
             disabled={busy}
+            id={addressBookDeleteButtonId(entry.id)}
             onClick={confirming ? onCancelDelete : onAskDelete}
             type="button"
           >

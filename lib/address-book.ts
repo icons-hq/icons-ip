@@ -254,13 +254,17 @@ export function matchingAddressBookEntry(
 
 /**
  * 목록·선택지에 보이는 연락처 — 가운데를 가린다(전체 번호는 수정 폼에서만 보인다).
- * 개인정보를 화면에 불필요하게 늘어놓지 않기 위해서다.
+ * 개인정보를 화면에 불필요하게 늘어놓지 않기 위해서다. 언제나 4자리 이상을 가린다: 앞자리(지역·통신 번호 2~3자리)는
+ * 가린 뒤에도 4자리 이상이 남을 때만 보이고, 짧은 번호(8~9자리)는 끝 4자리만 남긴다. '****'는 자릿수를 드러내지 않는
+ * 고정 표시다.
  */
 export function maskAddressBookPhone(phone: string): string {
   const digits = phone.replace(/\D/g, '');
   if (digits.length < 8) return '****';
-  const head = digits.startsWith('02') ? digits.slice(0, 2) : digits.slice(0, 3);
-  return `${head}-****-${digits.slice(-4)}`;
+  const tail = digits.slice(-4);
+  const prefix = digits.startsWith('02') ? 2 : 3;
+  const head = Math.min(prefix, digits.length - 8);
+  return head >= 2 ? `${digits.slice(0, head)}-****-${tail}` : `****-${tail}`;
 }
 
 /** '(04524) 서울 중구 세종대로 110 101동' — 우편번호와 주소 한 줄. */
