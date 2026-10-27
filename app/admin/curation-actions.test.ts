@@ -184,6 +184,8 @@ describe('admin curation action', () => {
     ['invalid_curation_collection_banner', { form: expect.stringContaining('컬렉션 배너') }],
     ['invalid_curation_search_terms', { searchTerms: expect.stringContaining('추천 검색어') }],
     ['invalid_curation_slot', { slot: expect.any(String) }],
+    /* l8b-data-4 — 겹치는 노출 10장 상한(DB 트리거)은 결과 불명이 아니라 폼 안내다. */
+    ['collection_banner_limit', { form: expect.stringContaining('노출 기간이 겹치는 배너가 이미 10장') }],
   ])('%s 거절은 결과 불명이 아니라 칸·폼 안내다', async (message, errors) => {
     mocks.rpc.mockResolvedValue({ data: null, error: { message } });
     const result = await upsertAdminCurationAction({}, curationForm());

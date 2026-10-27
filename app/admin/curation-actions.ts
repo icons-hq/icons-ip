@@ -64,6 +64,7 @@ export async function upsertAdminCurationAction(
     if (message.includes('home_mosaic_limit')) return { errors: { mosaic: '자유상품 모자이크는 최대 5개까지 등록할 수 있습니다. 기존 구성을 수정해주세요.' } };
     if (message.includes('home_free_product_limit')) return { errors: { form: '리스트·풀이미지·모자이크는 비노출과 종료를 포함해 합계 5개까지 등록할 수 있습니다. 기존 구성을 수정해주세요.' } };
     if (message.includes('curation_kind_change_not_allowed')) return { errors: { kind: '저장된 자유상품과 다른 종류의 구성은 서로 변환할 수 없습니다. 새 구성을 추가해주세요.' } };
+    if (message.includes('collection_banner_limit')) return { errors: { form: '이 컬렉션에는 노출 기간이 겹치는 배너가 이미 10장 있습니다. 노출 기간을 조정하거나 기존 배너를 비노출로 바꿔주세요.' } };
     if (message.includes('home_hero_limit')) return { errors: { form: '프로모션 배너는 비노출을 포함해 최대 10개까지 등록할 수 있습니다. 기존 배너를 수정해주세요.' } };
     if (message.includes('curation_archived')) return { errors: { form: '삭제된 배너입니다. 입력은 유지합니다. 최신 목록을 불러오고 삭제한 배너에서 복구한 뒤 편집해주세요.' }, conflict: true };
     if (message.includes('curation_conflict') || message.includes('operation_conflict')) return { errors: { form: '다른 저장이 먼저 반영되었습니다. 입력은 유지합니다. 최신 저장본을 불러온 뒤 다시 편집해주세요.' }, conflict: true };

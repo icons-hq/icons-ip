@@ -134,4 +134,45 @@ select 1/case when not exists(select 1 from public.home_curations where not (
  or (kind not in ('best_tab','collection_banner') and slot is null))) then 1 else 0 end as slot_rule_holds;
 select 1/case when (select count(*) from public.audit_log where actor_id='97400000-0000-4000-8000-000000000001' and action='admin.home_curation.upserted')=6
  then 1 else 0 end as each_save_audited_once;
+
+-- 8. Live cap per collection (review l8b-data-4): at most 10 enabled banners of
+--    one slot may overlap in time, so no "live" banner silently drops off the
+--    page. Windows are far in the future so the clamp to now() never matters.
+--    Banners that existed before this test (a seeded local stack) are turned off
+--    inside the transaction so the counts below are exact.
+select 1/case when exists(select 1 from pg_trigger where tgrelid='public.home_curations'::regclass
+ and tgname='home_curations_collection_banner_limit' and tgenabled='O') then 1 else 0 end as live_cap_trigger_enabled;
+select 1/case when bool_and(not has_function_privilege(r,'private.guard_home_collection_banner_limit()','execute')) then 1 else 0 end as live_cap_guard_sealed
+ from unnest(array['anon','authenticated','service_role'])r;
+select 1/case when exists(select 1 from private.operator_internal_contracts where signature='private.guard_home_collection_banner_limit()')
+ then 1 else 0 end as live_cap_guard_registered;
+insert into public.admin_artwork_upload_claims(path,actor_id,kind,mime_type,source_size,final_size,status,expires_at,processing_started_at,verified_at)
+ select 'catalog/curation/97410000-0000-4000-8000-'||lpad(n::text,12,'0')||'.webp','97400000-0000-4000-8000-000000000001','curation','image/webp',1024,1024,'verified',now()+interval '1 hour',now(),now() from generate_series(11,24)n;
+update public.home_curations set enabled=false where kind='collection_banner' and id::text not like '9742%';
+select set_config('request.jwt.claim.sub','97400000-0000-4000-8000-000000000001',true);
+set local role authenticated;
+select count(pg_temp.save(gen_random_uuid(),('97430000-0000-4000-8000-'||lpad(n::text,12,'0'))::uuid,'collection_banner','신상 '||n,
+ 'public-media/catalog/curation/97410000-0000-4000-8000-'||lpad((10+n)::text,12,'0')||'.webp',null,'new',null,true,'2030-01-01','2030-02-01'))
+ from generate_series(1,10)n;
+-- An 11th banner overlapping all ten is refused (the save rolls back whole).
+select pg_temp.expect_error($q$select pg_temp.save(gen_random_uuid(),'97430000-0000-4000-8000-000000000011','collection_banner','열한 번째','public-media/catalog/curation/97410000-0000-4000-8000-000000000021.webp',null,'new',null,true,'2030-01-15','2030-03-01')$q$,'collection_banner_limit');
+-- A disabled one, one in the next (half-open, adjacent) window and one in another collection save.
+select pg_temp.save(gen_random_uuid(),'97430000-0000-4000-8000-000000000011','collection_banner','열한 번째','public-media/catalog/curation/97410000-0000-4000-8000-000000000021.webp',null,'new',null,false,'2030-01-15','2030-03-01');
+select pg_temp.save(gen_random_uuid(),'97430000-0000-4000-8000-000000000012','collection_banner','다음 달','public-media/catalog/curation/97410000-0000-4000-8000-000000000022.webp',null,'new',null,true,'2030-02-01','2030-03-01');
+select pg_temp.save(gen_random_uuid(),'97430000-0000-4000-8000-000000000013','collection_banner','BEST 1월','public-media/catalog/curation/97410000-0000-4000-8000-000000000023.webp',null,'best',null,true,'2030-01-01','2030-02-01');
+-- Turning the disabled overlapping banner on is refused like a new one.
+select pg_temp.expect_error($q$select pg_temp.save(gen_random_uuid(),'97430000-0000-4000-8000-000000000011','collection_banner','열한 번째','public-media/catalog/curation/97410000-0000-4000-8000-000000000021.webp',null,'new',null,true,'2030-01-15','2030-03-01',
+ (select updated_at from public.home_curations where id='97430000-0000-4000-8000-000000000011'))$q$,'collection_banner_limit');
+-- Moving a February banner into the full January is refused; copy edits inside a full collection still save.
+select pg_temp.expect_error($q$select pg_temp.save(gen_random_uuid(),'97430000-0000-4000-8000-000000000012','collection_banner','다음 달','public-media/catalog/curation/97410000-0000-4000-8000-000000000022.webp',null,'new',null,true,'2030-01-20','2030-03-01',
+ (select updated_at from public.home_curations where id='97430000-0000-4000-8000-000000000012'))$q$,'collection_banner_limit');
+select pg_temp.save(gen_random_uuid(),'97430000-0000-4000-8000-000000000001','collection_banner','신상 1 문구 수정','public-media/catalog/curation/97410000-0000-4000-8000-000000000011.webp',null,'new',null,true,'2030-01-01','2030-02-01',
+ (select updated_at from public.home_curations where id='97430000-0000-4000-8000-000000000001'));
+reset role;
+-- Direct writes that bypass the RPC hit the same trigger.
+select pg_temp.expect_error($q$insert into public.home_curations(id,kind,title,image_path,slot,active_from,active_to) values(gen_random_uuid(),'collection_banner','직접','public-media/catalog/curation/97410000-0000-4000-8000-000000000024.webp','new','2030-01-10','2030-01-20')$q$,'collection_banner_limit');
+select 1/case when (select count(*) from public.home_curations where kind='collection_banner' and slot='new' and enabled
+ and active_from<'2030-02-01' and coalesce(active_to,'infinity')>'2030-01-15')=10 then 1 else 0 end as at_most_ten_live_in_new;
+select 1/case when (select title from public.home_curations where id='97430000-0000-4000-8000-000000000001')='신상 1 문구 수정'
+ then 1 else 0 end as full_collection_copy_edit_saved;
 rollback;
