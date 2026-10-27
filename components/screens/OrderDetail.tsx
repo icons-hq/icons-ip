@@ -139,8 +139,9 @@ function OrderReviewEntry({
 /*
  * 단순 변심 반품·교환 기한 안내(법정 청약철회 기한).
  *
- * 화면 문구는 고객이 실제로 누르는 절차 이름(반품·교환)으로 말한다(10/14 회의 S19).
- * 법정 용어와 전체 고지는 취소 패널의 접힌 법정 안내(LEGAL_WITHDRAWAL_NOTICE)에 그대로 있다.
+ * 화면 문구는 고객이 실제로 누르는 절차 이름으로 말한다(10/14 회의 S19) — 실물은 반품·교환,
+ * 디지털 전용 주문은 교환을 받지 않으므로 취소·환불 검토 요청이다. 법정 용어와 전체 고지는
+ * 취소 패널의 접힌 법정 안내(LEGAL_WITHDRAWAL_NOTICE)에 그대로 있다.
  *
  * 기산점은 delivered_at(재화를 공급받은 날)이다 — 주문일도, 발송일도 아니다(#189).
  * 판정의 진실원은 DB의 order_withdrawal_deadline_passed이고 이 블록은 같은 규칙의
@@ -158,11 +159,12 @@ function WithdrawalDeadlineNotice({
   digitalOnly?: boolean;
 }) {
   if (status === 'canceled') return null;
+  const procedure = digitalOnly ? '취소·환불 검토 요청' : '반품·교환';
 
   if (!deliveredAt) {
     return (
       <p className="order-detail-withdrawal faint">
-        단순 변심 반품·교환 기한({ORDER_WITHDRAWAL_DEADLINE_LABELS.change_of_mind})은
+        단순 변심 {procedure} 기한({ORDER_WITHDRAWAL_DEADLINE_LABELS.change_of_mind})은
         {' '}{digitalOnly ? '파일 제공이 시작된 날부터 확인합니다.' : '배송이 완료된 날부터 시작됩니다.'}
       </p>
     );
@@ -179,13 +181,13 @@ function WithdrawalDeadlineNotice({
       <span> · </span>
       {daysLeft > 0 ? (
         <>
-          <span>단순 변심 반품·교환 </span>
+          <span>단순 변심 {procedure} </span>
           <time dateTime={deadline.toISOString()}>{formatOrderDate(deadline.toISOString())}</time>
           <span>까지 (약 {daysLeft}일 남음)</span>
         </>
       ) : (
         <span>
-          단순 변심 반품·교환 기한이 지났습니다. 굿즈 하자·오배송은
+          단순 변심 {procedure} 기한이 지났습니다. {digitalOnly ? '파일 하자·오제공은' : '굿즈 하자·오배송은'}
           {' '}{ORDER_WITHDRAWAL_DEADLINE_LABELS.defect} 이내에 요청할 수 있습니다.
         </span>
       )}

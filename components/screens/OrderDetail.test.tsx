@@ -364,3 +364,19 @@ describe('OrderDetail claim badge and line totals', () => {
   });
 });
 
+/* 디지털 전용 주문은 교환을 받지 않는다 — 기한 안내도 실제 절차(취소·환불 검토 요청)로 말한다. */
+describe('OrderDetail digital-only deadline wording', () => {
+  const downloads = { orderId: ORDER_ID, canCancel: false, reviewRequired: false,
+    items: [{ itemId: 'item-1', name: '디지털 파일', files: [], available: true, firstProvidedAt: '2026-08-03T06:00:00.000Z' }] };
+
+  it('names the cancel and refund review instead of return or exchange', () => {
+    const before = renderToStaticMarkup(<OrderDetail downloads={downloads} order={order({ status: 'paid' })} />);
+    expect(before).toContain('단순 변심 취소·환불 검토 요청 기한');
+    expect(before).not.toContain('반품·교환 기한');
+
+    const expired = renderToStaticMarkup(<OrderDetail downloads={downloads} now={new Date('2026-08-20T06:00:00.000Z')}
+      order={order({ status: 'done', deliveredAt: '2026-08-03T06:00:00.000Z' })} />);
+    expect(expired).toContain('단순 변심 취소·환불 검토 요청 기한이 지났습니다. 파일 하자·오제공은');
+  });
+});
+
