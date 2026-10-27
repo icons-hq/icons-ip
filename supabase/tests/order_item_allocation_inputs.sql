@@ -39,15 +39,33 @@ select 1/case when jsonb_array_length(:'inputs'::jsonb)=1
  and :'inputs'::jsonb->0 @> '{"orderId":"54000000-0000-4000-8000-000000000001","calculationVersion":1,"couponDiscount":1000,"storeCredits":500,"volumeDiscount":0,
    "coupon":{"discountAmount":1000,"eligibleSubtotal":10000,"terms":{"goodsScope":"all"}}}'
  and :'inputs'::jsonb#>'{0,items}'=jsonb_build_array(
-   jsonb_build_object('id','74000000-0000-4000-8000-000000000001','goodId','allocation-input','qty',1,'unitPrice',6000,'regularUnitPrice',7000,'allocation',null),
-   jsonb_build_object('id','74000000-0000-4000-8000-000000000002','goodId','allocation-input','qty',2,'unitPrice',2000,'regularUnitPrice',null,'allocation',null))
+   jsonb_build_object('id','74000000-0000-4000-8000-000000000001','goodId','allocation-input','ipId','allocation-input','qty',1,'unitPrice',6000,'regularUnitPrice',7000,'couponEligible',true,'allocation',null),
+   jsonb_build_object('id','74000000-0000-4000-8000-000000000002','goodId','allocation-input','ipId','allocation-input','qty',2,'unitPrice',2000,'regularUnitPrice',null,'couponEligible',true,'allocation',null))
  then 1 else 0 end as assert_legacy_inputs;
 do $$begin perform public.admin_order_item_allocation_inputs('{}');raise exception 'empty allocation ids accepted';
 exception when invalid_parameter_value then if sqlerrm<>'invalid_order_allocation_ids' then raise;end if;end$$;
 do $$begin perform public.admin_order_item_allocation_inputs(array[null]::uuid[]);raise exception 'null allocation id accepted';
 exception when invalid_parameter_value then null;end$$;
 
--- 3) 버전 2 주문은 기록된 배분 원장을 준다(쿠폰 기록은 버전 1에만 싣는다).
+-- 3) 쿠폰 대상 판정: 상품(그룹 포함)·IP(주문 당시 IP)·카테고리(현재 분류, 상위 포함)·알 수 없는 범위.
+reset role;
+insert into public.catalog_categories(id,code,name) values('30000000-0000-4000-8000-000000271601','alloc-top','배분 상위');
+insert into public.catalog_categories(id,code,name,parent_id,depth) values('30000000-0000-4000-8000-000000271602','alloc-child','배분 하위','30000000-0000-4000-8000-000000271601',2);
+update public.goods set category_id='30000000-0000-4000-8000-000000271602' where id='allocation-input';
+select 1/case when private.coupon_line_eligible_now('{"goodsScope":"selected_goods","targetGoodIds":["allocation-input"]}','allocation-input',null)
+ and not private.coupon_line_eligible_now('{"goodsScope":"selected_goods","targetGoodIds":["other"]}','allocation-input',null)
+ and private.coupon_line_eligible_now('{"goodsScope":"selected_ips","targetGoodIds":[],"targetIpIds":["allocation-input"]}','allocation-input','allocation-input')
+ and not private.coupon_line_eligible_now('{"goodsScope":"selected_ips","targetGoodIds":[],"targetIpIds":["allocation-input"]}','allocation-input','other-ip')
+ and private.coupon_line_eligible_now('{"goodsScope":"selected_categories","targetGoodIds":[],"targetCategoryIds":["30000000-0000-4000-8000-000000271601"]}','allocation-input',null)
+ and not private.coupon_line_eligible_now('{"goodsScope":"selected_categories","targetGoodIds":[],"targetCategoryIds":["30000000-0000-4000-8000-000000271699"]}','allocation-input',null)
+ and private.coupon_line_eligible_now('{"goodsScope":"selected_brands","targetGoodIds":[]}','allocation-input',null) is null
+ and private.coupon_line_eligible_now(null,'allocation-input',null) is null
+ and not has_function_privilege('authenticated','private.coupon_line_eligible_now(jsonb,text,text)','execute')
+ and (select bool_and(position('couponEligible' in pg_get_functiondef(f::regprocedure))>0) from unnest(array['private.collect_settled_export(date,date,text)',
+   'private.collect_settled_export_for_date(date,date,text,text)','private.collect_settled_export_for_search(date,date,text,text,text)']) f)
+ then 1 else 0 end as assert_coupon_scope_eligibility;
+
+-- 4) 버전 2 주문은 기록된 배분 원장을 준다(쿠폰 기록은 버전 1에만 싣는다).
 reset role;
 update public.orders set calculation_version=2 where id='54000000-0000-4000-8000-000000000001';
 insert into private.order_price_allocations(order_item_id,order_id,calculation_version,subtotal,volume_discount,net_subtotal,coupon_discount,store_credit_discount,paid_goods_total)

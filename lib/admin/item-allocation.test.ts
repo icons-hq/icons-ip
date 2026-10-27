@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { settledExportFixture } from '@/test/fixtures/settled-export';
 import { buildSettledExportModel } from './settled-export';
 import {
-  allocateLegacyOrderDiscounts, LEGACY_ALLOCATION_ISSUES, orderItemAllocations, parseOrderAllocationInputs, smartStoreItemDiscount,
+  allocateLegacyOrderDiscounts, LEGACY_ALLOCATION_ISSUES, orderItemAllocations, parseLegacyCouponTerms, parseOrderAllocationInputs, smartStoreItemDiscount,
   type OrderAllocationInput,
 } from './item-allocation';
 
@@ -56,6 +56,27 @@ describe('품목별 쿠폰·적립금 배분(10/14 회의 A5)', () => {
     expect(smartStoreItemDiscount({ qty: 2, unitPrice: 5000, regularUnitPrice: 6000 }, allocation)).toBe(2840);
     expect(smartStoreItemDiscount({ qty: 2, unitPrice: 5000, regularUnitPrice: null }, allocation)).toBeNull();
     expect(smartStoreItemDiscount({ qty: 2, unitPrice: 5000, regularUnitPrice: 4000 }, allocation)).toBeNull();
+  });
+
+  it('카테고리·IP 쿠폰은 주문 당시 스냅샷 판정(couponEligible·당시 IP)으로 대상 품목을 고른다', () => {
+    const input = legacyInputFromSettled();
+    const [first, second, third] = input.items;
+    const settled = buildSettledExportModel(settledExportFixture());
+    // 같은 두 품목이 대상이면 상품 쿠폰과 같은 값이 나온다.
+    const category = orderItemAllocations({ ...input, coupon: { ...input.coupon!, terms: { goodsScope: 'selected_categories', targetGoodIds: [], targetCategoryIds: ['c1'] } },
+      items: [{ ...first, couponEligible: true }, { ...second, couponEligible: true }, { ...third, couponEligible: false }] });
+    expect(settled.lines.map(line => category.get(line.itemId)?.couponDiscount)).toEqual([501, 500, 0]);
+    const ip = orderItemAllocations({ ...input, coupon: { ...input.coupon!, terms: { goodsScope: 'selected_ips', targetGoodIds: [], targetIpIds: ['maple'] } },
+      items: [{ ...first, ipId: 'maple' }, { ...second, ipId: 'maple' }, { ...third, ipId: 'other' }] });
+    expect(settled.lines.map(line => ip.get(line.itemId)?.couponDiscount)).toEqual([501, 500, 0]);
+    // 판정 근거가 없는 카테고리 쿠폰(이전 수집본)은 추정하지 않는다.
+    expect(allocateLegacyOrderDiscounts({ couponDiscount: 1000, storeCredits: 0, coupon: { discountAmount: 1000, eligibleSubtotal: 5000,
+      terms: { goodsScope: 'selected_categories', targetGoodIds: [], targetCategoryIds: ['c1'] } }, items: [{ id: 'a', goodId: 'g', amount: 5000 }] }))
+      .toEqual({ coupon: null, credits: null, issues: [LEGACY_ALLOCATION_ISSUES.couponUnrecorded] });
+    // 분류가 바뀌어 대상 합계가 기록과 다르면 배분하지 않는다.
+    expect(orderItemAllocations({ ...input, coupon: { ...input.coupon!, terms: { goodsScope: 'selected_categories', targetGoodIds: [], targetCategoryIds: ['c1'] } },
+      items: input.items.map(item => ({ ...item, couponEligible: true })) }).size).toBe(0);
+    expect(parseLegacyCouponTerms({ goodsScope: 'selected_brands', targetGoodIds: [] })).toBeUndefined();
   });
 
   it('DB 응답에서 형식이 어긋난 주문만 버린다', () => {
