@@ -20,6 +20,9 @@
 --    막는다(이중 결제 방지). 결과를 자동으로 확정할 수 없는 이전 주문(unknown·needs_review·
 --    결제 원장 존재)은 닫지 않고, 그 보류만 장바구니에서 떼어 낸다(늦게 확정돼도 새
 --    장바구니를 건드리지 않는다).
+-- 잠금 순서: 계정 advisory(사용자 id) → 주문 행 → account-action → profiles → 장바구니.
+--    claim·prepare·finalize(주문 → account-action → profiles)와 같은 방향이다. 닫기는 계정
+--    advisory만 쥔 채 주문 행을 먼저 잠그고, account-action·장바구니는 그 뒤에 잡는다.
 -- 5. 고객이 장바구니·주문서로 돌아오면 앱이 같은 닫기를 먼저 요청한다
 --    (public.release_unpaid_cart_orders). 미결제 주문이 쿠폰·구매 한도를 잡은 채로
 --    견적이 막히는 막다른 길을 없앤다.
@@ -133,6 +136,10 @@ begin
   if not found or v_order.status <> 'pending' or v_order.payment_method <> 'card' then
     return 'not_pending';
   end if;
+  -- finalize·claim과 같은 순서(주문 → account-action → profiles). 취소 트리거(등급 재계산)가
+  -- profiles를 잠그기 전에 account-action을 먼저 쥐어, 같은 계정의 다른 주문 finalize와 엇갈려
+  -- 기다리지 않게 한다.
+  perform private.lock_account_action_subject(v_order.user_id);
 
   -- 같은 임계 구역: order → request → attempt (claim·finalizer·sweep과 같은 순서).
   select request.id, request.reason, request.status
@@ -219,8 +226,10 @@ $$;
 revoke all on function private.close_unpaid_cart_order(uuid, text, text) from public, anon, authenticated, service_role;
 grant execute on function private.close_unpaid_cart_order(uuid, text, text) to postgres;
 
--- 계정의 미결제 카드 장바구니 주문을 닫는다. 호출자는 계정 advisory lock을 쥐고
--- 장바구니 잠금은 아직 쥐지 않아야 한다(finalizer는 order → cart 순서로 잠근다).
+-- 계정의 미결제 카드 장바구니 주문을 닫는다. 호출자는 계정 advisory lock만 쥐고 있어야 한다.
+-- account-action·profiles·장바구니 잠금은 아직 쥐지 않아야 한다(finalizer·claim은 주문 →
+-- account-action → profiles → 장바구니 순서로 잠근다). 대상 주문 행을 모두 먼저 잠근 뒤에
+-- account-action을 잡는다.
 -- p_new_order=true: 새 장바구니 주문 직전. 승인 확인 중인 이전 주문이 있으면 막고,
 --   자동으로 확정할 수 없는 이전 주문의 보류는 장바구니에서 떼어 낸다.
 -- p_new_order=false: 고객이 장바구니·주문서로 돌아왔을 때. 닫을 수 있는 것만 닫는다.
@@ -239,6 +248,16 @@ begin
   if p_user_id is null or p_new_order is null then
     raise invalid_parameter_value using message = 'cart_order_supersede_invalid';
   end if;
+  perform 1
+  from public.orders as o
+  join private.cart_order_holds as hold on hold.order_id = o.id
+  where hold.user_id = p_user_id and hold.state = 'awaiting_payment'
+  order by o.id
+  for update of o;
+  if not found then
+    return 0;
+  end if;
+  perform private.lock_account_action_subject(p_user_id);
   for r in
     select hold.order_id
     from private.cart_order_holds as hold
@@ -313,8 +332,7 @@ grant execute on function public.service_get_order_cart_retention(uuid, uuid) to
 
 -- 결제 확정(pending → paid) 또는 닫힘(pending → canceled)에서 보류를 정산한다. 이름은
 -- 다른 AFTER 트리거(적립금·쿠폰·등급 등)보다 먼저 실행되도록 고른다 — finalizer의 잠금
--- 순서가 order → attempt → payments → cart → (적립금·쿠폰)이 되어, 장바구니를 쥔 채 적립금을
--- 기다리는 주문 생성과 교착하지 않는다.
+-- 순서가 order → attempt → account-action → payments(profiles) → 장바구니 줄 → (적립금·쿠폰)이 된다.
 create function private.settle_cart_order_hold()
 returns trigger
 language plpgsql
@@ -347,8 +365,11 @@ begin
   end if;
 
   -- 결제는 이미 확정됐다. 장바구니 정리가 어떤 이유로 실패해도 결제 확정을 되돌리지 않는다.
+  -- 장바구니 advisory('cart:')는 잡지 않고 해당 줄의 행 잠금만 쓴다. 장바구니 변경 RPC는 'cart:'를
+  -- 쥔 채 INSERT 계정 fence에서 account-action을 기다리는데, finalizer는 이미 account-action을 쥐고
+  -- 있으므로 여기서 'cart:'를 기다리면 교착한다. 새 장바구니 주문은 이전 주문 행을 먼저 잠그므로
+  -- 이 정리와 스냅샷 비교가 엇갈리지 않는다.
   begin
-    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended('cart:' || v_hold.user_id::text, 0));
     for v_line in select value from pg_catalog.jsonb_array_elements(v_hold.lines) loop
       v_ordered := (v_line ->> 'qty')::integer;
       select cart.* into v_cart
@@ -464,6 +485,8 @@ begin
  end loop;
  -- 이전 미결제 장바구니 주문의 재고·쿠폰·적립금·구매 한도를 먼저 돌려준다(ADR-0026).
  perform private.supersede_unpaid_cart_orders(p_user_id,true);
+ -- 주문 → account-action → 장바구니 순서. 새 주문 INSERT의 계정 fence도 같은 키를 다시 잡는다.
+ perform private.lock_account_action_subject(p_user_id);
  -- Compare canonical values, not labels or hashes supplied by the browser.
  select coalesce(jsonb_agg(value order by value->>'good_id',(value->>'variant_id')::uuid,value->>'input_revision',(value->'input_values')::text),'[]')
    into expected_cart from jsonb_array_elements(p_expected_cart);
@@ -490,7 +513,10 @@ CREATE OR REPLACE FUNCTION public.place_cart_goods_transaction(p_user_id uuid, p
 AS $function$
 declare selection jsonb;source jsonb;selected_coupon uuid;quoted_coupon uuid;combined boolean;result uuid;begin
  selection:=private.cart_goods_transaction_expected_selection(p_expected_cart);source:=private.goods_cart_transaction_source(p_user_id,selection);
- perform private.lock_goods_transaction_actor(p_user_id);
+ -- 계정 단위 직렬화는 사용자 advisory만 먼저 잡는다. account-action·profiles(actor 잠금)는
+ -- 이전 주문 행을 잠근 뒤에 잡아야 claim·prepare·finalize(주문 → account-action)와 엇갈리지 않는다.
+ if p_user_id is null then raise invalid_parameter_value using message='invalid_transaction_actor';end if;
+ perform pg_advisory_xact_lock(hashtextextended(p_user_id::text,0));
  if exists(select 1 from private.order_goods_transactions where actor_id=p_user_id and checkout_key=p_checkout_key) then
   perform private.lock_goods_transaction_source(p_user_id,source);
   return private.place_goods_transaction(p_user_id,source,selection,p_address,p_quote_id,p_checkout_key,p_payment_method);end if;
@@ -518,7 +544,37 @@ end $function$;
 revoke all on function public.place_cart_goods_transaction(uuid,jsonb,jsonb,uuid,uuid,public.order_payment_method) from public,anon,authenticated,service_role;
 grant execute on function public.place_cart_goods_transaction(uuid,jsonb,jsonb,uuid,uuid,public.order_payment_method) to service_role;
 
+-- 복구 진입점도 같은 순서를 따른다. 새 주문이면 place_cart_goods_transaction이 사용자 advisory →
+-- 이전 주문 닫기 → actor/장바구니 잠금을 한다. 여기서 actor(account-action·profiles)를 먼저 잡으면
+-- 그 순서가 뒤집힌다. 원래 영수증 재생은 종전처럼 actor 잠금 아래에서 한다(20261020085341).
+create or replace function public.resume_cart_goods_transaction(p_user_id uuid,p_quote_id uuid,p_checkout_key uuid,p_payment_method public.order_payment_method,
+ p_allow_new boolean default false) returns uuid language plpgsql volatile security definer set search_path='' as $$
+declare existing private.order_goods_transactions;quoted private.goods_transaction_quotes;source jsonb;receipt jsonb;expected_cart jsonb;begin
+ if p_user_id is null then raise invalid_parameter_value using message='invalid_transaction_actor';end if;
+ perform pg_advisory_xact_lock(hashtextextended(p_user_id::text,0));
+ if p_quote_id is null or p_checkout_key is null or p_payment_method is null or p_allow_new is null then
+  raise invalid_parameter_value using message='invalid_transaction_resume';end if;
+ select * into existing from private.order_goods_transactions where actor_id=p_user_id and checkout_key=p_checkout_key;
+ if found then
+  perform private.lock_goods_transaction_actor(p_user_id);
+  if existing.source_kind<>'cart' then raise sqlstate 'PT409' using message='checkout_key_conflict';end if;
+  source:=jsonb_build_object('kind',existing.source_kind,'id',existing.source_id,'revision',existing.source_revision);
+  receipt:=private.replay_goods_transaction_receipt(p_user_id,source,p_quote_id,p_checkout_key,p_payment_method);
+  return (receipt->>'orderId')::uuid;
+ end if;
+ if not p_allow_new then raise check_violation using message='transaction_new_payment_disabled';end if;
+ select * into quoted from private.goods_transaction_quotes where id=p_quote_id and actor_id=p_user_id;
+ if not found or quoted.source->>'kind'<>'cart' or quoted.source->>'id'<>p_user_id::text then
+  raise sqlstate 'PT409' using message='transaction_quote_expired';end if;
+ select jsonb_agg(jsonb_build_object('good_id',value->'goodId','variant_id',value->'variantId','qty',value->'qty',
+  'input_revision',value->'inputRevision','input_values',value->'inputValues')) into expected_cart from jsonb_array_elements(quoted.selection);
+ return public.place_cart_goods_transaction(p_user_id,expected_cart,quoted.address,p_quote_id,p_checkout_key,p_payment_method);
+end $$;
+revoke all on function public.resume_cart_goods_transaction(uuid,uuid,uuid,public.order_payment_method,boolean) from public,anon,authenticated,service_role;
+grant execute on function public.resume_cart_goods_transaction(uuid,uuid,uuid,public.order_payment_method,boolean) to service_role;
+
 select private.register_operator_internal_contract('private.place_order_before_shipments(jsonb,uuid,public.order_payment_method)'::regprocedure);
+select private.register_operator_internal_contract('public.resume_cart_goods_transaction(uuid,uuid,uuid,public.order_payment_method,boolean)'::regprocedure);
 select private.register_operator_internal_contract('public.place_cart_goods_transaction(uuid,jsonb,jsonb,uuid,uuid,public.order_payment_method)'::regprocedure);
 
 notify pgrst, 'reload schema';
