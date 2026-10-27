@@ -7,6 +7,8 @@ import { DELIVERY_METHOD_LABELS, deliveryStatusLabel } from '@/lib/shipment-deli
 import { ShipmentReceiptConfirmation } from './ShipmentReceiptConfirmation';
 import type { GoodsTransactionShippingGroup } from '@/lib/goods-transaction';
 import { ShippingChargeDetailsDisplay } from './ShippingChargeDetailsDisplay';
+import { shippingGroupLabel } from '@/lib/fulfillment';
+import { commerceReferenceLabel } from '@/lib/commerce-number';
 
 export function ShipmentDetails({ shipments, items = [], admin = false, transactionShipping }: {
   shipments: readonly ShipmentRecord[];
@@ -15,13 +17,16 @@ export function ShipmentDetails({ shipments, items = [], admin = false, transact
   transactionShipping?: readonly GoodsTransactionShippingGroup[];
 }) {
   const names = Object.fromEntries(items.flatMap(item => item.goodId ? [[item.goodId, item.name]] : []));
-  return <div aria-label="배송 건별 정보">{shipments.map(shipment => {
+  /* 출고지 이름(김포·남양주)은 운영 개념이라 고객 화면에는 내지 않는다(10/14 회의 S7).
+     어드민은 출고지별로 처리하므로 이름을 그대로 본다. */
+  return <div aria-label="배송 건별 정보">{shipments.map((shipment, index) => {
+    const groupName = admin ? shipment.originName : shippingGroupLabel(index, shipments.length);
     const candidates = transactionShipping?.filter(group => group.originId === shipment.originId) ?? [];
     const charge = candidates.length === 1 ? candidates[0] : candidates.find(group => group.components.every(component => items.some(item => item.goodId === component.goodId && shipment.orderItemIds.includes(item.id))));
     return <section className={admin ? 'admin-order-detail__shipment' : 'order-receipt-section wc-shipment-details'} key={shipment.id}>
-    <h3>{shipment.originName} · {shipment.delivery ? deliveryStatusLabel(shipment.delivery.method, shipment.status) : shipmentStatusLabel(shipment.status)}</h3>
+    <h3>{groupName} · {shipment.delivery ? deliveryStatusLabel(shipment.delivery.method, shipment.status) : shipmentStatusLabel(shipment.status)}</h3>
     <dl className={admin ? 'admin-order-detail__facts' : 'order-payment-summary'}>
-      <div><dt>배송 건 번호</dt><dd>{shipment.id}</dd></div>
+      <div><dt>배송건번호</dt><dd className="mono">{commerceReferenceLabel(shipment.id, shipment.shipmentNumber)}</dd></div>
       <div><dt>{transactionShipping ? '선불 배송비' : '배송비'}</dt><dd>{krw(shipment.shippingFee)}</dd></div>
       {charge && charge.collectFee > 0 && <div><dt>착불 배송비 · 수령 시 별도</dt><dd>{krw(charge.collectFee)}</dd></div>}
       <div><dt>배송 방식</dt><dd>{shipment.delivery ? DELIVERY_METHOD_LABELS[shipment.delivery.method] : shipment.delivery === undefined ? '택배' : '확인 필요'}</dd></div>
@@ -57,6 +62,6 @@ export function ShipmentDetails({ shipments, items = [], admin = false, transact
     </div> : null}
     {items.some(item => shipment.orderItemIds.includes(item.id)) ? <ul>{items.filter(item => shipment.orderItemIds.includes(item.id)).map(item => <li key={item.id}>{item.name}{item.variantName ? ` · ${item.variantName}` : ''} × {item.qty}
       {item.supplySource === 'preorder' ? ` · 예약판매 (${goodsShipDateLabel(item.preorderExpectedShipDate)})` : ''}</li>)}</ul> : null}
-    {shipment.trackingUrl && (shipment.delivery === undefined || shipment.delivery?.method === 'parcel') ? <a className={admin ? 'admin-order-detail__link' : 'btn btn-ghost order-tracking-link'} href={shipment.trackingUrl} rel="noreferrer" target="_blank">{shipment.originName} 배송조회</a> : null}
+    {shipment.trackingUrl && (shipment.delivery === undefined || shipment.delivery?.method === 'parcel') ? <a className={admin ? 'admin-order-detail__link' : 'btn btn-ghost order-tracking-link'} href={shipment.trackingUrl} rel="noreferrer" target="_blank">{admin || shipments.length > 1 ? `${groupName} 배송조회` : '배송조회'}</a> : null}
   </section>; })}</div>;
 }

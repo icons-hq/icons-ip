@@ -43,4 +43,10 @@ export function trafficDifference(current: number | null, previous: number | nul
  if(current==null||previous==null)return '비교 불가';const difference=Math.round((current-previous)*100)/100;
  return `${difference>0?'+':''}${difference.toLocaleString('ko-KR')}${percent?'%p':''}`;
 }
+/** 셸 공지 노출·클릭 집계(admin_store_analytics_notice_report) — 같은 조회 기간을 쓴다. */
+export type NoticeTrafficPlacement = 'notice_bar' | 'notice_strip';
+export const NOTICE_PLACEMENT_LABELS: Record<NoticeTrafficPlacement,string> = { notice_bar: '텍스트 공지 바', notice_strip: '상단 띠배너' };
+export interface NoticeTrafficRow { curationId: string; placement: NoticeTrafficPlacement; title: string | null; impressions: number; clicks: number; impressionSessions: number; clickSessions: number; clickRate: number | null }
+export interface NoticeTrafficReport { from: string; to: string; observedAt: string; rows: NoticeTrafficRow[] }
+export function noticeTrafficTitle(row: Pick<NoticeTrafficRow,'title'>) { return row.title?.trim() || '삭제된 공지'; }
 export const TRAFFIC_STATE_LABELS: Record<string,string> = { observed:'정상 관측',collecting:'수집 중',partial:'일부 관측',unmeasured:'수집 전',paused:'수집 중단',expired:'보존 만료',future:'미래' };

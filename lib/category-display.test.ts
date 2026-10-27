@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { categoryDisplayQueryKey, defaultCategoryDisplayValues, parseCategoryDisplayRequest, parseCategoryDisplayValues } from './category-display';
+import { categoryDisplayQueryKey, categoryDisplayReviewSummaries, defaultCategoryDisplayValues, parseCategoryDisplayRequest, parseCategoryDisplayValues } from './category-display';
+import { SHOP_VIEW_SORTS } from './shop-catalog';
 const categoryId = '92930000-0000-4000-8000-000000000001';
 
 describe('카테고리 전시 저장 계약', () => {
@@ -44,5 +45,29 @@ describe('공개 전시 조건', () => {
     const second = parseCategoryDisplayRequest({ displayCategory: categoryId, ip: ['ip1', 'unknown'], type: '키링', min: '100', sort: 'price_asc' })!;
     expect(first.query.ips).toEqual(['unknown', 'ip1']);
     expect(categoryDisplayQueryKey(categoryId, first.query)).toBe(categoryDisplayQueryKey(categoryId, second.query));
+  });
+});
+
+describe('카테고리 전시 목록 문법 (LFS 패리티 2차 L5 — CL-10·CL-11·CL-02 잔여)', () => {
+  it('컬렉션과 같은 정렬 7종을 받고 그 밖의 값은 거절한다', () => {
+    for (const sort of SHOP_VIEW_SORTS.all) {
+      expect(parseCategoryDisplayRequest({ displayCategory: categoryId, sort })?.query.sort, sort).toBe(sort);
+    }
+    for (const sort of ['relevance', 'sales', 'best']) expect(parseCategoryDisplayRequest({ displayCategory: categoryId, sort }), sort).toBeNull();
+  });
+  it("타입 축에 '예약판매'를 받아 notFound 로 떨어지지 않고, 분류 밖 값은 여전히 거절한다", () => {
+    expect(parseCategoryDisplayRequest({ displayCategory: categoryId, type: '예약판매' })?.query.types).toEqual(['예약판매']);
+    expect(parseCategoryDisplayRequest({ displayCategory: categoryId, type: ['키링', '예약판매', '예약판매'] })?.query.types).toEqual(['키링', '예약판매']);
+    expect(parseCategoryDisplayRequest({ displayCategory: categoryId, type: ['피규어', '인형', '키링', '아크릴', '문구', '쿠션', '파우치', '세트', '예약판매'] })?.query.types).toHaveLength(9);
+    expect(parseCategoryDisplayRequest({ displayCategory: categoryId, type: '중고' })).toBeNull();
+    expect(parseCategoryDisplayRequest({ displayCategory: categoryId, type: 'PRE-ORDER' })).toBeNull();
+  });
+  it('다음 묶음의 별점은 그 묶음 굿즈 몫의 올바른 값만 받는다', () => {
+    const summaries = categoryDisplayReviewSummaries({
+      g1: { count: 3, average: 4.33 }, g2: { count: 0, average: 4 }, g3: { count: 2, average: 6 }, outside: { count: 1, average: 5 }, g4: 'bad',
+    }, ['g1', 'g2', 'g3', 'g4']);
+    expect(summaries).toEqual({ g1: { count: 3, average: 4.33 } });
+    expect(categoryDisplayReviewSummaries(undefined, ['g1'])).toEqual({});
+    expect(categoryDisplayReviewSummaries([{ goodId: 'g1' }], ['g1'])).toEqual({});
   });
 });

@@ -1,5 +1,5 @@
-import { acceptStoreAnalytics, declineStoreAnalytics, recordStoreAnalytics, storeAnalyticsState } from '@/lib/store-analytics.server';
-import { parseAnalyticsEvent } from '@/lib/store-analytics';
+import { acceptStoreAnalytics, declineStoreAnalytics, recordStoreAnalytics, recordStoreAnalyticsNotice, storeAnalyticsState } from '@/lib/store-analytics.server';
+import { parseAnalyticsEvent, parseAnalyticsNoticeEvent } from '@/lib/store-analytics';
 export const runtime = 'nodejs';
 export const dynamic = 'force-dynamic';
 const headers = { 'Cache-Control': 'private, no-store, max-age=0', 'X-Content-Type-Options': 'nosniff' };
@@ -37,6 +37,11 @@ export async function POST(request: Request) {
   try {
     if (Object.keys(body).length === 1 && body.action === 'accept') { const result = await acceptStoreAnalytics(); return json(result, result.status); }
     if (Object.keys(body).length === 1 && body.action === 'decline') { const result = await declineStoreAnalytics(); return json(result, result.status); }
+    if (Object.keys(body).length === 2 && body.action === 'notice') {
+      const notice = parseAnalyticsNoticeEvent(body.event);
+      if (!notice) return json({ ok: false }, 400);
+      const result = await recordStoreAnalyticsNotice(notice); return json(result, result.status);
+    }
     const event = Object.keys(body).length === 2 && body.action === 'record' ? parseAnalyticsEvent(body.event) : null;
     if (!event) return json({ ok: false }, 400);
     const result = await recordStoreAnalytics(event); return json(result, result.status);

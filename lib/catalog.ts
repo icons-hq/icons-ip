@@ -2,6 +2,8 @@ import { parseGoodsSalePeriod } from './goods-sale-period';
 import { loadPublicGoodsAttributeRows } from '@/lib/goods-attributes.server';
 import 'server-only';
 import { loadGoodsListingAppearance } from './goods-listing-appearance.server';
+import { pickGoodsReviewSummaries, type GoodsReviewSummaries } from './goods-review-summary';
+import { loadGoodsReviewSummaries } from './goods-review-summary.server';
 import { loadGoodsTransactionOffers } from './goods-transaction-offers.server';
 import { applyGoodsAggregationPolicy } from './goods-aggregation';
 import { loadPublicGoodsGroupReference } from './goods-groups.server';
@@ -62,10 +64,21 @@ export interface CatalogSnapshot {
   goods: Good[];
   cards: Card[];
   events: FandomEvent[];
+  /**
+   * 목록 카드 별점(LFS 패리티 2차 L4 · CL-02) — 굿즈 ID → 공개 리뷰 수·평균(굿즈 상세와 같은 그룹 범위).
+   * 리뷰 0건 굿즈는 키가 없고 카드는 별점을 숨긴다. mock 카탈로그와 읽기 실패는 비어 있다.
+   */
+  reviewSummaries?: GoodsReviewSummaries;
 }
 
 export interface CatalogSnapshotOptions {
   previewDefaultSource?: CatalogSource;
+  /**
+   * 목록 카드 별점(CL-02)을 함께 읽는다. 별점을 그리는 목록 경로(굿즈샵·NEW·BEST·검색·홈)만 켠다 —
+   * 주문서·장바구니·바인더처럼 별점을 쓰지 않는 경로가 공개 굿즈 전체의 집계 RPC를 기다리지 않게 한다.
+   * IP 관은 스냅샷 대신 그 IP 굿즈 몫만 따로 읽는다(getCatalogIpDetail).
+   */
+  includeReviewSummaries?: boolean;
 }
 
 export function getCatalogSource(options: CatalogSnapshotOptions = {}): CatalogSource {
@@ -102,6 +115,8 @@ export interface CatalogIpDetail {
   cards: Card[];
   events: FandomEvent[];
   posts: CatalogPostPreview[];
+  /** 이 IP 굿즈 몫의 목록 카드 별점(CL-02). */
+  reviewSummaries?: GoodsReviewSummaries;
 }
 
 export interface HomeSnapshot {
@@ -226,6 +241,7 @@ interface HomeCurationRow {
     | 'featured_ip'
     | 'announcement'
     | 'notice_strip'
+    | 'notice_bar'
     | 'editor_pick'
     | 'band_banner'
     | 'best_tab'
@@ -538,7 +554,7 @@ async function getActiveHomeCurationSnapshot(): Promise<LoadedHomeCuration> {
         } satisfies HomeBenefitTile);
         break;
       }
-      /* notice_strip 은 전역 셸 전용 데이터라 홈 스냅샷에서는 다루지 않는다
+      /* notice_strip·notice_bar 는 전역 셸 전용 데이터라 홈 스냅샷에서는 다루지 않는다
          (lib/notice-strip.server.ts). 미래 kind 는 여기 닿기 전에 무시된다. */
       default:
         break;
@@ -850,9 +866,12 @@ export async function getCatalogSnapshot(options: CatalogSnapshotOptions = {}): 
     .filter((row) => belongsToPublicIp(row.ip_id))
     .map((row) => toGood(row, imageUrlForPath))
     .sort(compareGoodsDisplayOrder);
-  const [listingAppearance, transactionOffers] = await Promise.all([
+  /* 목록 카드 별점은 별점을 그리는 경로가 요청할 때만 공개 굿즈 전체를 한 번(500개 묶음)에 읽는다 — 카드마다
+     부르지 않는다(CL-02). */
+  const [listingAppearance, transactionOffers, reviewSummaries] = await Promise.all([
     loadGoodsListingAppearance(supabase, goods.map(good => good.id)),
     loadGoodsTransactionOffers(goods.map(good => good.id)),
+    options.includeReviewSummaries ? loadGoodsReviewSummaries(supabase, goods.map(good => good.id)) : Promise.resolve(undefined),
   ]);
   const offersByGood = new Map(transactionOffers?.map(offer => [offer.goodId, offer]));
   const transactionCalculatedAt = new Date().toISOString();
@@ -877,6 +896,7 @@ export async function getCatalogSnapshot(options: CatalogSnapshotOptions = {}): 
     goods,
     cards,
     events,
+    ...(reviewSummaries ? { reviewSummaries } : {}),
   };
 }
 
@@ -1121,11 +1141,13 @@ export function buildCatalogIpDetail(
 ): CatalogIpDetail | null {
   const ip = catalog.ips.find((item) => item.id === id);
   if (!ip) return null;
+  const goods = sortGoodsDisplayOrder(catalog.goods.filter((good) => good.ip === id));
 
   return {
     source: catalog.source,
     ip,
-    goods: sortGoodsDisplayOrder(catalog.goods.filter((good) => good.ip === id)),
+    goods,
+    reviewSummaries: pickGoodsReviewSummaries(catalog.reviewSummaries, goods.map((good) => good.id)),
     cards: catalog.cards.filter((card) => card.ip === id),
     events: catalog.events.filter((event) => event.ip === id),
     posts: posts
@@ -1206,14 +1228,24 @@ export async function getCatalogIpDetail(
   const ip = catalog.ips.find((item) => item.id === id);
   if (!ip) return null;
 
-  const posts = catalog.source === 'mock' ? mockPostPreviews() : await getCatalogPostPreviewsForIp(id, ip, options);
-  return buildCatalogIpDetail(catalog, id, posts);
+  /* IP 관 카드 별점은 공개 굿즈 전체가 아니라 이 IP 굿즈 몫만 읽는다(CL-02). */
+  const ipGoodIds = catalog.goods.filter((good) => good.ip === id).map((good) => good.id);
+  const [posts, reviewSummaries] = await Promise.all([
+    catalog.source === 'mock' ? Promise.resolve(mockPostPreviews()) : getCatalogPostPreviewsForIp(id, ip, options),
+    catalog.source === 'supabase' && ipGoodIds.length
+      ? (async () => loadGoodsReviewSummaries(await createClient(), ipGoodIds))()
+      : Promise.resolve(undefined),
+  ]);
+  const detail = buildCatalogIpDetail(catalog, id, posts);
+  return detail && reviewSummaries ? { ...detail, reviewSummaries } : detail;
 }
 
-export async function getHomeSnapshot(options: CatalogIpDetailOptions = {}): Promise<HomeSnapshot> {
+export async function getHomeSnapshot(
+  options: CatalogIpDetailOptions & Pick<CatalogSnapshotOptions, 'includeReviewSummaries'> = {},
+): Promise<HomeSnapshot> {
   const source = getCatalogSource();
   const [catalog, loadedCuration, storyList] = await Promise.all([
-    getCatalogSnapshot(),
+    getCatalogSnapshot({ includeReviewSummaries: options.includeReviewSummaries }),
     source === 'supabase'
       ? getActiveHomeCurationSnapshot()
       : Promise.resolve(emptyLoadedHomeCuration()),

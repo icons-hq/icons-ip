@@ -42,6 +42,20 @@ describe('admin curation targets', () => {
     expect(available).not.toContain('/offline-popups/e200');
   });
 
+  /* 텍스트 공지 바가 '약관 개정 안내 → 내용 보기'처럼 이벤트·쇼핑스토리·법적 문서로 보낼 수 있어야 한다(L8a). */
+  it('offers the event hub, shopping stories and legal documents as fixed destinations', () => {
+    const fixed = adminCurationTargetGroups({ events: [], goods: [], ips: [] })[0];
+
+    expect(fixed.label).toBe('주요 화면');
+    expect(fixed.options).toEqual(expect.arrayContaining([
+      { label: '이벤트', path: '/events' },
+      { label: '쇼핑스토리', path: '/stories' },
+      { label: '이용약관', path: '/legal/terms' },
+      { label: '개인정보처리방침', path: '/legal/privacy' },
+      { label: '배송·반품 정책', path: '/legal/shipping' },
+    ]));
+  });
+
   /*
    * 상품 상세가 목록에 없으면 첫 판매 굿즈를 홈에서 상세로 바로 보낼 수 없다.
    * 경로는 공개 화면과 같은 헬퍼로 만들어 두 곳이 어긋나지 않게 한다.

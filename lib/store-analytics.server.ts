@@ -5,7 +5,7 @@ import { cookies } from 'next/headers';
 import { createClient } from '@/lib/supabase/server';
 import { createServiceClient } from '@/lib/supabase/service';
 import { getProfileForUser } from '@/lib/auth/server';
-import { analyticsChoice, analyticsCookieNames, STORE_ANALYTICS_NOTICE_VERSION, type AnalyticsEvent } from './store-analytics';
+import { analyticsChoice, analyticsCookieNames, STORE_ANALYTICS_NOTICE_VERSION, type AnalyticsEvent, type AnalyticsNoticeEvent } from './store-analytics';
 
 const SESSION_TOKEN = /^[A-Za-z0-9_-]{43}$/;
 const hash = (value: string) => createHash('sha256').update(value).digest('hex');
@@ -85,6 +85,24 @@ export async function recordStoreAnalytics(event: AnalyticsEvent) {
   });
   if (error) return { ok: false, status: error.code === 'P0429' ? 429 : ['analytics_session_unavailable', 'analytics_session_expired'].includes(error.message) ? 409 : 400,
     code: ['analytics_session_unavailable', 'analytics_session_expired'].includes(error.message) ? 'session_expired' : 'not_recorded' } as const;
+  return { ok: true, status: 200, code: 'recorded' } as const;
+}
+
+/* Global-shell notice impressions/clicks reuse the page-view consent, eligibility and session boundary. A notice
+   event never starts a session: without a usable one it is dropped as session_expired and the page-view flow renews. */
+export async function recordStoreAnalyticsNotice(event: AnalyticsNoticeEvent) {
+  if (analyticsChoice((await cookies()).get(names().choice)?.value) !== 'accepted' || !await eligible()) {
+    return { ok: false, status: 403, code: 'consent_required' } as const;
+  }
+  const token = await tokenHash();
+  if (!token) return { ok: false, status: 409, code: 'session_expired' } as const;
+  const { error } = await createServiceClient().rpc('record_store_analytics_notice_event', {
+    p_token_hash: token, p_event_id: event.eventId, p_curation_id: event.curationId, p_interaction: event.interaction,
+  });
+  if (error) {
+    const expired = ['analytics_session_unavailable', 'analytics_session_expired'].includes(error.message);
+    return { ok: false, status: error.code === 'P0429' ? 429 : expired ? 409 : 400, code: expired ? 'session_expired' : 'not_recorded' } as const;
+  }
   return { ok: true, status: 200, code: 'recorded' } as const;
 }
 

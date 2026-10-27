@@ -144,6 +144,20 @@ describe('어드민 가이드 콘텐츠 무결성', () => {
       }
     }
   });
+  /* 같은 제품의 판매 구성을 묶은 상품군은 CONTEXT.md의 정본 이름 '그룹상품'으로 부른다 — 어드민 메뉴(그룹상품 등록·
+     그룹상품 조회/수정)와 같은 말이어야 운영자가 같은 것인지 추측하지 않는다. 홈 베스트리뷰의 리뷰 합산 범위와
+     리뷰도움수의 한 표 집계 범위가 이 그룹이다. 모든 안내 주제·오류 사례·업데이트 내역을 검사한다. */
+  it('모든 안내 주제와 업데이트 내역은 그룹 개념을 정본 용어(그룹상품)로 부른다', () => {
+    expect(plainText(ADMIN_GUIDE_TOPICS['display-messaging'])).toContain('같은 그룹상품으로 묶인 상품들의 공개 리뷰를 합쳐');
+    expect(plainText(ADMIN_GUIDE_TOPICS['inquiries-reviews'])).toContain('같은 그룹상품의 여러 상세 페이지에 보이는 동일 리뷰');
+    const sources: (readonly [string, string])[] = [
+      ...topics.map((topic) => [topic.slug, plainText(topic)] as const),
+      ['troubleshooting · 오류 사례', JSON.stringify(ADMIN_GUIDE_ERROR_CASES)] as const,
+      ...ADMIN_WEEKLY_CHANGES.map((entry) => [`업데이트 내역 ${entry.week}`, [entry.title, ...entry.changes].join('\n')] as const),
+    ];
+    expect(sources.length).toBeGreaterThan(ADMIN_GUIDE_TOPIC_SLUGS.length);
+    for (const [label, text] of sources) expect(text, label).not.toContain('상품그룹');
+  });
   it('운영 안내는 매핑표에 결속하고 카드·티켓 안내는 상품이라 부르지 않는다', () => {
     expect(ADMIN_GUIDE_TOPICS['goods-sales'].title).toContain(ADMIN_VOCABULARY.goods);
     expect(ADMIN_GUIDE_TOPICS.claims.title).toBe(ADMIN_VOCABULARY.claims);
@@ -235,6 +249,11 @@ describe('어드민 가이드 인용·수치 정합', () => {
     expect(repoFile('lib/admin/roles.server.ts')).toContain('PROFILE_LIMIT = 50');
     /* 일괄 발주확인 상한 — orders-shipping의 "한 번에 100건". */
     expect(repoFile('app/admin/order-actions.ts')).toContain('BULK_CONFIRM_LIMIT = 100');
+    /* 자동 발주확인 기본 시각 — orders-shipping·dev-requests·bank-transfer의 "기본 16:30"(ADR-0025). */
+    expect(repoFile('lib/admin/auto-order-confirmation.ts')).toContain("AUTO_ORDER_CONFIRMATION_DEFAULT_TIME = '16:30'");
+    expect(repoFile('supabase/migrations/20261027130000_auto_order_confirmation.sql')).toContain("values(true,true,'16:30',clock_timestamp())");
+    /* 자동 구매확정 소급 — orders-shipping의 "이미 배송완료된 주문도"(D11). */
+    expect(repoFile('components/admin/PurchaseConfirmationPolicyForm.tsx')).toContain('켜면 이미 배송완료된 주문도 배송완료일 기준으로 확정됩니다');
     /* 자동 확정은 운영자가 기간을 설정해 활성화한 뒤 적용한다. */
     expect(repoFile('components/admin/screens/SettledScreen.tsx')).toContain('자동 확정은 기본 꺼짐');
     /* 추가 이미지 상한 — goods-sales·주간 변경의 "추가 이미지 최대 9장"·"갤러리 1~9". */
@@ -242,5 +261,23 @@ describe('어드민 가이드 인용·수치 정합', () => {
     expect(repoFile('lib/admin/goods-workbook.ts')).toContain("galleryUrl8: '갤러리 9 URL'");
     /* 무통장 기한 연장 폭 — bank-transfer의 "24시간 연장". */
     expect(repoFile('app/admin/unpaid-actions.ts')).toContain('입금 기한을 24시간 연장했습니다.');
+  });
+
+  /* 출고지시 양식 기본값(10/14 회의 A2·T4) — 화면은 양식을 고르지 않으면 출고지 기본 양식을 쓰고 버튼마다 실제 양식을 적는다.
+     안내가 "기본은 74열"로 되돌아가면 남양주 담당자가 74열을 받는다고 오해한다. */
+  it('출고지시 기본 양식과 입금 확인 뒤 발주확인 안내가 화면 계약과 같다', () => {
+    const grid = repoFile('components/admin/screens/ShipmentConsoleGrid.tsx');
+    expect(grid).toContain('출고지 기본 양식 (남양주만 고르면 서원 송장양식 · 그 밖·여러 출고지는 스마트스토어 74열)');
+    expect(grid).toContain('CSV를 골라도 남양주(서원) 송장양식은 XLSX로 받습니다.');
+    for (const slug of ['orders-shipping', 'store-settings'] as const) {
+      const text = plainText(ADMIN_GUIDE_TOPICS[slug]);
+      expect(text, slug).toContain('출고지 기본 양식');
+      expect(text, slug).toContain('서원 송장양식 XLSX(비밀번호 없음)');
+      expect(text, slug).not.toMatch(/기본은 스마트스토어|기본 내보내기는 스마트스토어|위에서 고른 양식/);
+    }
+    expect(plainText(ADMIN_GUIDE_TOPICS['orders-shipping'])).toContain('버튼에 적힌 양식');
+    const bank = plainText(ADMIN_GUIDE_TOPICS['bank-transfer']);
+    expect(bank).toContain('다음 실행 시각(기본 매일 16:30)에 시스템이 발주확인');
+    expect(bank).toContain('직접 발주확인하면 고객 직접 취소가 그때 닫힙니다');
   });
 });

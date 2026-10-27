@@ -12,6 +12,8 @@ export interface AdminOrderItemRow {
   qty: number; unitPrice: number; itemAmount: number; shipmentId: string | null; shipmentStatus: string | null;
   originName: string | null; trackingNumber: string | null; carrierLabel: string | null;
   claim: { id: string; type: OrderClaimType; stage: OrderClaimStage } | null;
+  /** 주문 쿠폰·적립금·복수구매 할인을 품목에 나눈 값(`lib/admin/item-allocation`). 나눌 수 없으면 null. */
+  allocation?: import('./item-allocation').OrderItemAllocation | null;
 }
 export interface AdminOrderItemData {
   filters: AdminOrderItemFilters; rows: AdminOrderItemRow[]; total: number; orderCount: number; qty: number;

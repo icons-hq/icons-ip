@@ -9,6 +9,7 @@ const mocks = vi.hoisted(() => ({
   auth: null as unknown,
   loadOrders: vi.fn(),
   loadFocus: vi.fn(),
+  loadReviewEvents: vi.fn(),
   onboarded: true,
 }));
 
@@ -22,16 +23,19 @@ vi.mock('@/lib/auth/onboarding', () => ({
 }));
 vi.mock('@/lib/orders.server', () => ({ loadOrders: mocks.loadOrders }));
 vi.mock('@/lib/checkout.server', () => ({ loadLatestCardPaymentResultFocus: mocks.loadFocus }));
+vi.mock('@/lib/order-review-events.server', () => ({ loadOrderReviewEvents: mocks.loadReviewEvents }));
 vi.mock('@/components/screens/Orders', () => ({
-  Orders: ({ orders, paymentResult, paymentFocus }: {
+  Orders: ({ orders, paymentResult, paymentFocus, reviewEvents }: {
     orders: OrderListItem[];
     paymentResult?: OrdersPaymentResult;
     paymentFocus?: CheckoutPaymentResultFocus | null;
+    reviewEvents?: { id: string }[];
   }) => (
     <div
       data-orders={orders.length}
       data-payment-result={paymentResult ?? 'none'}
       data-focus={paymentFocus ? `${paymentFocus.orderId}:${paymentFocus.outcome}` : 'none'}
+      data-review-events={(reviewEvents ?? []).map((event) => event.id).join(',') || 'none'}
     />
   ),
 }));
@@ -53,6 +57,20 @@ describe('/orders', () => {
     mocks.loadOrders.mockResolvedValue([]);
     mocks.loadFocus.mockReset();
     mocks.loadFocus.mockResolvedValue(null);
+    mocks.loadReviewEvents.mockReset();
+    mocks.loadReviewEvents.mockResolvedValue([]);
+  });
+
+  /* MY-08: 화면에 실린 주문으로 진행 중 리뷰 이벤트를 묻고 그대로 넘긴다. */
+  it('asks for review events of the listed orders and passes them to the screen', async () => {
+    const listed = [{ id: '20000000-0000-4000-8000-000000000301', status: 'delivered' }];
+    mocks.loadOrders.mockResolvedValue(listed);
+    mocks.loadReviewEvents.mockResolvedValue([{ id: 'event-1' }]);
+
+    const html = renderToStaticMarkup(await render(undefined));
+
+    expect(mocks.loadReviewEvents).toHaveBeenCalledWith(listed);
+    expect(html).toContain('data-review-events="event-1"');
   });
 
   it('payment 쿼리의 결제 결과를 Orders에 전달한다', async () => {

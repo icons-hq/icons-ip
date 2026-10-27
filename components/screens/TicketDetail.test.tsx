@@ -34,6 +34,22 @@ const order: TicketOrderDetail = {
 };
 
 describe('TicketDetail', () => {
+  /* MY-01: 티켓 상세도 데스크톱 좌 메뉴 셸 안에 선다 — QR·취소·예매 정보 영수증은 셸 안 콘텐츠 그대로다. */
+  it('sits inside the mypage shell with tickets as the current menu, keeping the receipt surface', () => {
+    const html = renderToStaticMarkup(<TicketDetail now={Date.parse('2026-07-15T03:00:00.000Z')} order={order} />);
+    const aside = html.slice(html.indexOf('aria-label="마이페이지 메뉴"'), html.indexOf('wc-mypage__content'));
+
+    expect(html).toContain('<main class="wc-root wc-mypage">');
+    expect(html.match(/<main/g)).toHaveLength(1);
+    expect(aside).toMatch(/aria-current="page" href="\/tickets"|href="\/tickets"[^>]*aria-current="page"/);
+    expect(html).toContain('class="wc-receipt ticket-detail-page"');
+    expect(html.indexOf('wc-mypage__content')).toBeLessThan(html.indexOf('wc-receipt ticket-detail-page'));
+    expect(html.indexOf('wc-receipt ticket-detail-page')).toBeLessThan(html.indexOf('class="wrap ticket-detail-layout"'));
+    expect(html).toContain('aria-label="예매 정보"');
+    expect(html).toContain(`data-cancellation-order="${order.id}"`);
+    expect(html.match(/<h1/g)).toHaveLength(1);
+  });
+
   it('renders event, session, amount, payment, cancellation, and per-ticket state without secrets', () => {
     const html = renderToStaticMarkup(
       <TicketDetail now={Date.parse('2026-07-15T03:00:00.000Z')} order={order} />,

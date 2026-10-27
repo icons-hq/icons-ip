@@ -466,6 +466,80 @@ describe('admin curation form normalization', () => {
     });
   });
 
+  /* L8a (#573) — 텍스트 공지 바: 한 줄 문구·선택 버튼·대상 화면. 띠배너도 대상 화면을 받는다. */
+  function noticeForm(entries: Record<string, string> = {}, pageTypes: string[] | null = ['other', 'home']) {
+    const formData = curationForm({ kind: 'notice_bar', title: '  이용약관 개정 안내  ', imagePath: '', linkPath: '/legal/terms', ctaLabel: '  자세히 보기 ', ...entries });
+    if (pageTypes) {
+      formData.set('pageTypesField', '1');
+      for (const type of pageTypes) formData.append('pageTypes', type);
+    }
+    return formData;
+  }
+
+  it('텍스트 공지 바는 버튼 문구·대상 화면을 정해진 순서로 싣고 이미지를 쓰지 않는다', () => {
+    expect(normalizeAdminCurationForm(noticeForm())).toEqual({
+      ok: true,
+      value: expect.objectContaining({
+        kind: 'notice_bar', title: '이용약관 개정 안내', imagePath: null, linkPath: '/legal/terms', slot: null,
+        payload: { page_types: ['home', 'other'], cta_label: '자세히 보기' },
+      }),
+    });
+  });
+
+  it('링크 없는 공지 바는 버튼 문구를 버리고, 링크가 있으면 버튼 문구가 필수다', () => {
+    expect(normalizeAdminCurationForm(noticeForm({ linkPath: '', ctaLabel: '남은 버튼' }))).toMatchObject({
+      ok: true, value: { linkPath: null, payload: { page_types: ['home', 'other'] } },
+    });
+    for (const ctaLabel of ['', '   ', '열세글자가넘는버튼이름입니다']) {
+      expect(normalizeAdminCurationForm(noticeForm({ ctaLabel }))).toMatchObject({ ok: false, errors: { ctaLabel: '버튼 문구는 줄바꿈 없이 1자 이상 12자 이하로 입력해주세요.' } });
+    }
+  });
+
+  /* 셸 로더와 DB([[:cntrl:]])는 C0·DEL과 함께 C1(U+0080~U+009F)도 제어 문자로 거절한다 — 폼이 먼저 칸 오류로 막아야
+     '홈 큐레이션을 저장하지 못했습니다' 같은 일반 실패로 새지 않는다. trim은 U+0085(NEL)를 지우지 않는다. */
+  it.each([
+    ['U+0085', '\u0085', true], ['U+0080', '\u0080', true], ['U+009F', '\u009f', true], ['U+007F', '\u007f', true],
+    /* 끝의 탭은 trim이 지워 저장되지 않는다(DB에도 가지 않는다) — 문구 안의 탭만 막으면 된다. */
+    ['U+0009', '\t', false],
+  ])('공지 문구·버튼 문구의 제어 문자 %s를 칸 오류로 막는다', (_name, control, keptByTrim) => {
+    const titleError = { ok: false, errors: { title: '공지 문구는 줄바꿈 없이 1자 이상 60자 이하로 입력해주세요.' } };
+    const labelError = { ok: false, errors: { ctaLabel: '버튼 문구는 줄바꿈 없이 1자 이상 12자 이하로 입력해주세요.' } };
+    expect(normalizeAdminCurationForm(noticeForm({ title: `배송${control}안내` }))).toMatchObject(titleError);
+    expect(normalizeAdminCurationForm(noticeForm({ ctaLabel: `자세히${control}보기` }))).toMatchObject(labelError);
+    if (keptByTrim) {
+      expect(normalizeAdminCurationForm(noticeForm({ title: `배송 안내${control}` }))).toMatchObject(titleError);
+      expect(normalizeAdminCurationForm(noticeForm({ ctaLabel: `보기${control}` }))).toMatchObject(labelError);
+    }
+  });
+
+  it('제어 문자가 아닌 C1 바로 다음 문자(U+00A0)는 문구 안에서 받는다', () => {
+    expect(normalizeAdminCurationForm(noticeForm({ title: '배송 안내', ctaLabel: '자세히 보기' }))).toMatchObject({
+      ok: true, value: { title: '배송 안내', payload: { cta_label: '자세히 보기' } },
+    });
+  });
+
+  it('공지 바 문구는 줄바꿈 없이 60자까지, 이미지와 빈 대상은 거절한다', () => {
+    expect(normalizeAdminCurationForm(noticeForm({ title: '😀'.repeat(60) }))).toMatchObject({ ok: true });
+    for (const title of ['😀'.repeat(61), '배송\n공지', '']) {
+      expect(normalizeAdminCurationForm(noticeForm({ title }))).toMatchObject({ ok: false, errors: { title: expect.any(String) } });
+    }
+    expect(normalizeAdminCurationForm(noticeForm({ imagePath: IMAGE_PATH }))).toMatchObject({ ok: false, errors: { imagePath: '텍스트 공지 바는 이미지를 쓰지 않습니다.' } });
+    /* 체크박스를 모두 끄면 '전 화면'이 아니라 오류다(표식은 있고 값이 없다). 표식 없이 온 요청도 공지 바는 거절한다. */
+    for (const pageTypes of [[], ['checkout'], ['home', 'home']]) {
+      expect(normalizeAdminCurationForm(noticeForm({}, pageTypes))).toMatchObject({ ok: false, errors: { pageTypes: '공지를 보일 화면을 하나 이상 선택해주세요.' } });
+    }
+    expect(normalizeAdminCurationForm(noticeForm({}, null))).toMatchObject({ ok: false, errors: { pageTypes: expect.any(String) } });
+  });
+
+  it('띠배너는 고른 대상 화면을 싣고, 대상 표식 없이 온 이전 요청은 모든 화면 동작을 유지한다', () => {
+    const strip = curationForm({ kind: 'notice_strip', mobileImagePath: MOBILE_IMAGE_PATH, pageTypesField: '1' });
+    strip.append('pageTypes', 'product');
+    strip.append('pageTypes', 'home');
+    expect(normalizeAdminCurationForm(strip)).toMatchObject({ ok: true, value: { payload: { mobile_image_path: MOBILE_IMAGE_PATH, page_types: ['home', 'product'] } } });
+    expect(normalizeAdminCurationForm(curationForm({ kind: 'notice_strip', pageTypesField: '1' }))).toMatchObject({ ok: false, errors: { pageTypes: expect.any(String) } });
+    expect(normalizeAdminCurationForm(curationForm({ kind: 'notice_strip' }))).toMatchObject({ ok: true, value: { payload: null } });
+  });
+
   /* payload 키가 없는 kind 에 남은 입력이 실려 RPC 화이트리스트에 걸리면 안 된다. */
   it('payload 를 쓰지 않는 kind 는 남은 입력을 버린다', () => {
     expect(normalizeAdminCurationForm(curationForm({

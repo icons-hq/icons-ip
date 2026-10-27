@@ -513,7 +513,8 @@ describe('requestPasswordResetAction', () => {
     expect(latestCookieSet(AUTH_PASSWORD_RESET_COOKIE_NAME)?.options).toMatchObject({
       httpOnly: true,
       maxAge: 10 * 60,
-      path: '/login',
+      // 설정 화면(/settings)의 재설정 버튼도 이 action을 쓴다 — /login 경로로 묶으면 그 요청은 제한을 세지 않는다.
+      path: '/',
       sameSite: 'lax',
       secure: true,
     });

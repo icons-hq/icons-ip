@@ -21,6 +21,10 @@ import { CouponCodeClaim } from '@/components/shop/CouponCodeClaim';
  * 레퍼런스 순서를 따른다: 배지 → 코드 → 이름 → 유효기간 → 사용조건.
  * 등급 혜택 쿠폰은 등급 뱃지 색(DESIGN.md §2 예외 토큰)을, 일반 쿠폰은
  * 무채색을 쓴다. 사용·만료 카드는 잉크를 낮춰 구분한다.
+ *
+ * 등급 혜택 쿠폰은 코드 줄을 그리지 않는다. 승급 때 자동 지급되고 주문서에서 보유 쿠폰으로 고르므로 회원이
+ * 코드를 쓸 일이 없다. 반면 코드 입력 발급은 회원 등급을 묻지 않아, 보유한 등급 쿠폰 코드에서 운영 코드
+ * 규칙이 드러나면 상위 등급 코드를 짐작해 받을 수 있다(L6 리뷰 l6-data-1). 일반 쿠폰은 코드를 그대로 보여 준다.
  */
 
 const STATE_LABELS: Record<CouponDisplayState, string> = {
@@ -45,12 +49,12 @@ function CouponTicketCard({ held }: { held: UserCouponSummary }) {
         ) : null}
         <span className="wc-coupon-card__state">{STATE_LABELS[state]}</span>
       </div>
-      <p className="wc-coupon-card__code">{held.coupon.code}</p>
+      {grade ? null : <p className="wc-coupon-card__code">{held.coupon.code}</p>}
       <p className="wc-coupon-card__name">{held.coupon.name}</p>
       <p className="wc-coupon-card__benefit">{couponBenefitLabel(held.coupon)}</p>
       <dl className="wc-coupon-card__meta">
         <div><dt>유효기간</dt><dd>{couponValidityLabel(held)}</dd></div>
-        <div><dt>사용조건</dt><dd>{couponConditionLabel(held.coupon)}</dd></div>
+        <div><dt>사용조건</dt><dd className="wc-coupon-card__condition">{couponConditionLabel(held.coupon)}</dd></div>
         <div><dt>할인 대상</dt><dd>{held.coupon.benefitKind === 'shipping' ? '선결제 배송비 · 설치비와 착불 제외' : '굿즈 금액'}</dd></div>
         <div><dt>중복 사용</dt><dd>{held.coupon.stackable ? '허용 · 주문서에서 조합 확인' : '단독 사용'}</dd></div>
         <div><dt>사용 대상</dt><dd>{couponTargetingLabel(held.coupon)}</dd></div>
@@ -78,12 +82,16 @@ export function MyCoupons({ coupons }: { coupons: UserCouponSummary[] | null }) 
           {coupons.map((held) => <CouponTicketCard held={held} key={held.id} />)}
         </ul>
       )}
+      {/* 안내 박스 — 레퍼런스처럼 굵은 소제목 두 묶음(쿠폰 안내 / 취소·반품 안내, 11 §5.4). */}
       <div className="wc-coupon-guide">
         <p>쿠폰 안내</p>
         <ul>
           <li>회원 등급 혜택 쿠폰은 승급 시 자동 지급돼요.</li>
           <li>주문서에서 굿즈 쿠폰의 적용 순서와 배송비 쿠폰을 선택할 수 있어요. 중복 사용은 스토어 정책과 각 쿠폰의 허용 조건을 따릅니다.</li>
           <li>굿즈 쿠폰은 남은 굿즈 금액에, 배송비 쿠폰은 선결제 운송비에 적용돼요. 설치비와 착불 운송비는 배송비 할인에서 제외됩니다.</li>
+        </ul>
+        <p>취소·반품 안내</p>
+        <ul>
           <li>주문 취소가 확정되면 사용한 쿠폰이 돌아옵니다. 실제 환불 송금과는 처리 시점이 다를 수 있습니다. 현재의 기간·고객 자격·대상 굿즈 조건을 다시 확인해주세요.</li>
         </ul>
       </div>

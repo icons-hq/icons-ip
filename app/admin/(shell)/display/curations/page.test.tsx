@@ -40,7 +40,7 @@ vi.mock('@/lib/admin/orders.server', () => ({ getAdminOrderRecords: mocks.orders
 vi.mock('@/lib/catalog', () => ({ getHomeSnapshot: mocks.home }));
 vi.mock('@/lib/admin/home-layout.server', () => ({ getAdminHomeLayout: mocks.homeLayout }));
 vi.mock('@/lib/card-rewards/gate.server', () => ({ readCardRewardsEnabled: vi.fn(async () => false) }));
-vi.mock('@/lib/notice-strip.server', () => ({ getActiveNoticeStrip: vi.fn(async () => null) }));
+vi.mock('@/lib/notice-strip.server', () => ({ getShellNotices: vi.fn(async () => ({ bars: [], strips: [] })) }));
 vi.mock('@/lib/home-ranking.server', () => ({ loadHomeProductRankings: vi.fn(async () => ({ sales: { realtime: [], daily: [], weekly: [], monthly: [] }, reviewStatistics: [], salesAvailable: true, reviewsAvailable: true })) }));
 vi.mock('@/lib/auth/admin', () => ({
   getCurrentAdminAuthState: vi.fn(async () => mocks.authState),
@@ -129,5 +129,19 @@ describe('AdminDisplayCurationsPage', () => {
     expect(mocks.notifications).not.toHaveBeenCalled();
     expect(mocks.orders).not.toHaveBeenCalled();
     expect(mocks.home).toHaveBeenCalledOnce();
+  });
+
+  /* L4b(2026-10-26 리드 결정) — 리뷰 BEST 선정·정렬·표시가 그룹 범위 요약을 쓰므로 공개 홈(app/page.tsx)과 같은 옵션으로 읽고,
+     요약을 미리보기 카드에 실어 편집 미리보기·노출 가능 수·상품 선택기가 공개 홈과 같은 판정을 하게 한다. */
+  it('공개 홈과 같은 리뷰 요약 옵션으로 홈을 읽어 미리보기 카드에 그룹 범위 별점을 싣는다', async () => {
+    mocks.home.mockResolvedValueOnce({
+      catalog: { goods: [{ id: 'g13', name: '홍실 아크릴 블록', ip: 'ip-1', price: 12000, img: '#eee', stock: 'instock' }], ips: [],
+        reviewSummaries: { g13: { count: 3, average: 2.33 } } },
+      curation: { hero: null, announcement: null, featuredIpIds: [], heroSlides: [], editorPicks: [], goodsBands: [], categoryBestTabs: [], popularTabs: [], benefitTiles: [] },
+    } as never);
+    const screen = await AdminDisplayCurationsPage();
+
+    expect(mocks.home).toHaveBeenCalledWith({ includeReviewSummaries: true });
+    expect(screen.props.preview.goods).toEqual([expect.objectContaining({ id: 'g13', reviewSummary: { count: 3, average: 2.33 } })]);
   });
 });

@@ -38,6 +38,10 @@
 .wc-admin .admin-category-display__save button[type='submit'] { min-height: 40px; color: var(--wc-surface); background: var(--wc-success); border-color: var(--wc-success); }
 .wc-admin .admin-category-display__artwork { display: grid; gap: 8px; }
 .wc-admin .admin-category-display__artwork img { width: 100%; max-height: 180px; object-fit: contain; border: 1px solid var(--wc-hairline); }
+.wc-admin .admin-category-display__node-image { display: grid; gap: 8px; padding-top: 14px; border-top: 1px solid var(--wc-hairline); }
+.wc-admin .admin-category-display__node-image h3 { margin: 0; font-size: 13px; font-weight: 600; color: var(--wc-ink); }
+/* 고객 화면의 아이콘 칸(60px 정사각, 칸 안에 맞춤)과 같은 모양으로 미리 본다. */
+.wc-admin .admin-category-display__node-image .admin-category-display__artwork img { width: 60px; height: 60px; padding: 6px; object-fit: contain; border-radius: 10px; background: var(--wc-surface-icon-tile); }
 .wc-admin .admin-category-display__preview { min-width: 0; border: 1px solid var(--wc-line-control); padding: 16px; background: var(--wc-surface); }
 .wc-admin .admin-category-display__preview h2 { font-size: 15px; margin: 0; }
 .wc-admin .admin-category-display__preview-stage { margin-top: 16px; width: 100%; overflow: hidden; background: var(--wc-surface-grey); }

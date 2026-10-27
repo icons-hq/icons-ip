@@ -7,17 +7,31 @@ import {
   useState,
   type FormEvent,
 } from 'react';
+import { requestPasswordResetAction, type AuthActionState } from '@/app/login/actions';
 import {
   updateMarketingConsentAction,
   updateProfileAction,
   type SettingsActionState,
 } from '@/app/settings/actions';
+import Link from 'next/link';
 import { AccountDeletionPanel } from '@/components/account/AccountDeletionPanel';
 import { MemberActivityConsent } from '@/components/account/MemberActivityConsent';
 import { CustomerDemographicConsent } from '@/components/account/CustomerDemographicConsent';
+import { Icon } from '@/components/ui/Icon';
 import { MypageShell } from '@/components/wc/MypageShell';
 import { WcButton } from '@/components/wc/WcButton';
 import type { AccountDeletionPresentation } from '@/lib/account-deletion';
+import { LEGAL_DOCUMENT_LABELS, legalDocumentHref } from '@/lib/legal/links';
+import {
+  marketingChannelConsentLabel,
+  MARKETING_CHANNEL_FIELDS,
+  MARKETING_CHANNEL_LABELS,
+  MARKETING_CHANNELS,
+  MARKETING_CONSENT_NOTICE,
+  type MarketingChannel,
+  type MarketingChannelConsent,
+  type MarketingConsentState,
+} from '@/lib/marketing-consent';
 import { PROFILE_IMAGE_ACCEPT } from '@/lib/profile';
 import { uploadProfileAvatar } from '@/lib/profile-upload.client';
 
@@ -27,12 +41,16 @@ interface SettingsProps {
   avatarInitial: string;
   avatarUrl: string | null;
   email: string;
-  initialMarketing: boolean;
+  /** 수단별 마케팅 정보 수신 동의. 읽지 못하면 null — 미동의로 그리고 저장은 서버가 판정한다. */
+  marketingConsent: MarketingConsentState | null;
+  /** 동의 상태를 읽지 못했다. 미동의로 그려 저장하면 실제 동의를 철회하게 되므로 폼을 잠근다. */
+  marketingConsentUnavailable?: boolean;
   isConfigured: boolean;
   nickname: string;
 }
 
 const emptyState: SettingsActionState = {};
+const emptyResetState: AuthActionState = {};
 
 /* 필수 동의(이용약관·개인정보)는 변경 불가 — 동의 완료 상태만 읽기 전용으로 표시 */
 function RequiredConsentRow({ label }: { label: string }) {
@@ -47,20 +65,90 @@ function RequiredConsentRow({ label }: { label: string }) {
   );
 }
 
-function MarketingConsentRow({ defaultChecked }: { defaultChecked: boolean }) {
+/* 설정에서 나가는 링크 행(11 §5.7 ④ 약관 및 정책 — 16/700 + ›). */
+function SettingsLinkRow({ href, label, hint }: { href: string; label: string; hint?: string }) {
+  return (
+    <li>
+      <Link className="wc-settings__link-row" href={href}>
+        <span>
+          <strong>{label}</strong>
+          {hint ? <span className="wc-settings__link-hint">{hint}</span> : null}
+        </span>
+        <span aria-hidden className="wc-settings__link-arrow"><Icon name="chevronRight" size={18} /></span>
+      </Link>
+    </li>
+  );
+}
+
+/*
+ * 비밀번호 변경 진입(MY-09). 로그인 세션만으로 비밀번호를 바꾸는 화면을 열지 않는다 — 세션을 가진 사람이
+ * 현재 비밀번호 없이 비밀번호를 바꾸고 소유자를 모든 기기에서 로그아웃시킬 수 있기 때문이다(L6 리뷰 l6-data-2).
+ * 대신 로그인 화면의 '비밀번호 재설정'과 같은 서버 액션으로 계정 이메일에 재설정 링크를 보낸다. 링크(recovery
+ * 콜백)를 연 사람만 새 비밀번호를 저장할 수 있어 메일함 소유가 재인증이 되고, 저장 뒤 설정으로 돌아온다.
+ *
+ * 보내는 동안은 disabled 대신 aria-disabled 로 두고 onSubmit 에서 다시 보내기를 막는다 — 포커스된 버튼이
+ * disabled 가 되면 브라우저가 포커스를 body 로 떨궈, 키보드로 보낸 사람이 결과 행에서 이어가지 못한다(L6 QA
+ * l6-qa-2). 계정 이메일·Supabase 설정이 없을 때는 처음부터 누를 수 없으니 그대로 disabled 다.
+ */
+export function PasswordResetRow({ email, isConfigured }: { email: string; isConfigured: boolean }) {
+  const [state, action, pending] = useActionState(requestPasswordResetAction, emptyResetState);
+  const error = state.errors?.form ?? state.errors?.email;
+
+  return (
+    <li>
+      <form
+        action={action}
+        className="wc-settings__reset-form"
+        onSubmit={(event) => {
+          /* 기본 동작을 막으면 React 가 폼 action 을 부르지 않는다 — 보내는 중의 두 번째 제출은 메일을 또 보내지 않는다. */
+          if (pending) event.preventDefault();
+        }}
+      >
+        <input name="email" type="hidden" value={email} />
+        <input name="next" type="hidden" value="/settings" />
+        <button
+          className="wc-settings__link-row"
+          aria-busy={pending || undefined}
+          aria-disabled={pending ? 'true' : undefined}
+          disabled={!isConfigured || !email}
+          type="submit"
+        >
+          <span>
+            <strong>비밀번호 변경</strong>
+            <span className="wc-settings__link-hint">
+              가입한 이메일로 재설정 링크를 보내요. 링크에서 새 비밀번호를 저장하면 모든 기기에서 로그아웃되고 새 비밀번호로 다시 로그인해요.
+            </span>
+          </span>
+          <span className="wc-settings__link-action">{pending ? '보내는 중' : '메일 받기'}</span>
+        </button>
+      </form>
+      <div aria-label="비밀번호 재설정 메일 상태" aria-live="polite" role="group">
+        {error ? <div className="wc-auth__alert" role="alert">{error}</div> : null}
+        {!error && state.message ? <div className="wc-auth__status" role="status">{state.message}</div> : null}
+      </div>
+    </li>
+  );
+}
+
+/* 수단별 마케팅 정보 수신 동의(10/14 회의 S4 — LFS 설정의 메일·SMS 수신 동의와 같은 두 줄).
+   동의 중이면 동의일을 함께 보여 준다(2년 재확인의 기준일). 이관 동의는 날짜 대신 "기존 동의(기록 전)". */
+function MarketingConsentRow({ channel, consent, disabled }: { channel: MarketingChannel; consent: MarketingChannelConsent | null; disabled: boolean }) {
+  const consentLabel = marketingChannelConsentLabel(consent);
   return (
     <div className="wc-auth__agree-row">
       <label>
         <input
           className="settings-marketing-input"
-          defaultChecked={defaultChecked}
-          name="marketing"
+          defaultChecked={consent?.agreed === true}
+          disabled={disabled}
+          name={MARKETING_CHANNEL_FIELDS[channel]}
           type="checkbox"
         />
         <span>
-          마케팅 정보 수신 동의 <em className="wc-auth__opt">선택</em>
+          {MARKETING_CONSENT_NOTICE.title} ({MARKETING_CHANNEL_LABELS[channel]}) <em className="wc-auth__opt">선택</em>
         </span>
       </label>
+      {consentLabel ? <span className="wc-settings__consent-state">{consentLabel}</span> : null}
     </div>
   );
 }
@@ -71,7 +159,8 @@ export function Settings({
   avatarInitial,
   avatarUrl,
   email,
-  initialMarketing,
+  marketingConsent,
+  marketingConsentUnavailable = false,
   isConfigured,
   nickname,
 }: SettingsProps) {
@@ -187,13 +276,26 @@ export function Settings({
 
       <MemberActivityConsent />
       <CustomerDemographicConsent />
-      <form action={marketingAction} className="wc-mypage__form">
-        <h2 className="wc-mypage__subtitle">약관 동의</h2>
+      {/* 알림함 마케팅 소식의 '마케팅 수신 동의 관리' 링크가 이 폼(#marketing-consent)으로 온다. */}
+      <form action={marketingAction} aria-labelledby="settings-consent-heading" className="wc-mypage__form" id="marketing-consent">
+        <h2 className="wc-mypage__subtitle" id="settings-consent-heading">약관 동의</h2>
         <ul className="wc-auth__agree">
           <li><RequiredConsentRow label="이용약관 동의" /></li>
           <li><RequiredConsentRow label="개인정보 처리방침 동의" /></li>
-          <li><MarketingConsentRow defaultChecked={initialMarketing} /></li>
+          {MARKETING_CHANNELS.map((channel) => (
+            <li key={channel}>
+              <MarketingConsentRow channel={channel} consent={marketingConsent?.[channel] ?? null} disabled={marketingConsentUnavailable} />
+            </li>
+          ))}
         </ul>
+        {marketingConsentUnavailable ? (
+          <div className="wc-auth__alert" role="alert">
+            마케팅 정보 수신 동의를 불러오지 못했어요. 지금은 변경할 수 없으니 새로고침한 뒤 다시 확인해주세요.
+          </div>
+        ) : null}
+        <p className="wc-mypage__note">
+          {MARKETING_CONSENT_NOTICE.summary} {MARKETING_CONSENT_NOTICE.sms} {MARKETING_CONSENT_NOTICE.inApp}
+        </p>
 
         <div aria-label="마케팅 동의 저장 상태" aria-live="polite" role="group">
           {marketingState.errors?.form && (
@@ -208,13 +310,30 @@ export function Settings({
           )}
         </div>
 
-        <WcButton className="settings-marketing-submit" disabled={!isConfigured || marketingPending} type="submit" variant="primary">
+        <WcButton className="settings-marketing-submit" disabled={!isConfigured || marketingPending || marketingConsentUnavailable} type="submit" variant="primary">
           {marketingPending ? '저장 중' : '변경사항 저장'}
         </WcButton>
         <p className="wc-mypage__note">
           필수 동의는 서비스 이용을 위해 유지돼요 · 마케팅 수신 동의는 언제든 변경할 수 있어요
         </p>
       </form>
+
+      {/* 로그인 정보 — 비밀번호 변경은 계정 이메일로 보내는 재설정 링크로만 들어간다(PasswordResetRow).
+          저장하면 모든 기기에서 로그아웃되므로 보내기 전에 미리 알린다. */}
+      <section aria-labelledby="settings-login-heading" className="wc-settings__links">
+        <h2 className="wc-mypage__subtitle" id="settings-login-heading">로그인 정보</h2>
+        <ul>
+          <PasswordResetRow email={email} isConfigured={isConfigured} />
+        </ul>
+      </section>
+
+      <section aria-labelledby="settings-policy-heading" className="wc-settings__links">
+        <h2 className="wc-mypage__subtitle" id="settings-policy-heading">약관 및 정책</h2>
+        <ul>
+          <SettingsLinkRow href={legalDocumentHref('terms')} label={LEGAL_DOCUMENT_LABELS.terms} />
+          <SettingsLinkRow href={legalDocumentHref('privacy')} label={LEGAL_DOCUMENT_LABELS.privacy} />
+        </ul>
+      </section>
 
       <div className="wc-settings__danger">
         <AccountDeletionPanel

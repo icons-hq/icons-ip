@@ -36,6 +36,62 @@
   margin-top: 16px;
 }
 
+/* 모바일 피처드 위치는 점이다(R-03 §3.2 · 11 IP-04). PDP 갤러리 점과 같은 문법 — 24×44 버튼 상자가
+   터치 영역이고 보이는 점(8px)은 의사 요소가 그린다. 흐린 점은 opacity 대신 반투명 잉크로 그린다. */
+.wc-ipdir__featured .wc-slider__dots {
+  display: flex;
+  justify-content: center;
+  margin-top: 6px;
+}
+
+.wc-ipdir__featured .wc-slider__dot {
+  position: relative;
+  flex: none;
+  width: 24px;
+  height: 44px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.wc-ipdir__featured .wc-slider__dot::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--wc-ink) 30%, transparent);
+  transform: translate(-50%, -50%);
+}
+
+.wc-ipdir__featured .wc-slider__dot[aria-current='true']::before {
+  background: var(--wc-ink);
+}
+
+/* 포커스 링은 세로로 긴 터치 상자가 아니라 보이는 점을 감싼다. */
+.wc-root .wc-ipdir__featured .wc-slider__dot:focus-visible {
+  outline: none;
+}
+
+.wc-root .wc-ipdir__featured .wc-slider__dot:focus-visible::before {
+  outline: 2px solid var(--wc-focus);
+  outline-offset: 2px;
+}
+
+@media (forced-colors: active) {
+  .wc-ipdir__featured .wc-slider__dot::before {
+    forced-color-adjust: none;
+    background: GrayText;
+  }
+
+  .wc-ipdir__featured .wc-slider__dot[aria-current='true']::before {
+    background: CanvasText;
+  }
+}
+
 /* 정사각 타일 — 키아트 bg 위 하단 스크림, 좌하단 IP명. 모바일 슬라이드는 700 28px,
    데스크톱 그리드 타일은 700 14px(아래 990px 블록에서 축소). */
 .wc-ipdir__tile {
@@ -71,14 +127,12 @@
    디렉토리 — A–Z 인덱스 바 (R-03 §3.1-2)
    ------------------------------------------------------------------ */
 
-/* 상하 헤어라인의 얇은 바. 모바일은 한 줄 가로 스크롤(스크롤바 숨김),
-   데스크톱은 줄바꿈 없이 28항목을 배분한다. 레터 버튼과 카운트는 바의 직계 자식이다. */
-/* 보더 행은 밴드가 소유한다 — 바(가로 스크롤)와 카운트가 한 행/두 줄로 재배치돼도
-   상하 헤어라인은 항상 둘을 함께 감싼다(R-03 §3.1 데스크톱 / §3.2 모바일). */
+/* 바 위쪽만 2px 잉크 선이다(R-03 §3.1 2026-10-22 정정 · 11 IP-03) — 아래 선은 없다.
+   모바일은 한 줄 가로 스크롤(스크롤바 숨김), 데스크톱은 글자 폭 그대로 왼쪽부터 늘어선다.
+   선은 밴드가 소유한다 — 바(가로 스크롤)와 카운트가 한 행/두 줄로 재배치돼도 둘을 함께 덮는다. */
 .wc-alpha-index-band {
-  padding: 4px 0;
-  border-top: 1px solid var(--wc-hairline);
-  border-bottom: 1px solid var(--wc-hairline);
+  padding: 4px 0 0;
+  border-top: 2px solid var(--wc-ink);
 }
 
 .wc-alpha-index {
@@ -215,21 +269,46 @@
     max-width: none;
   }
 
-  /* 그리드 한 줄이라 스크롤 위치가 없다 — SSR 근사값(자식 수)으로 그려진 컨트롤도 숨긴다. */
-  .wc-ipdir__featured .wc-slider__controls {
+  /* 그리드 한 줄이라 스크롤 위치가 없다 — SSR 근사값(자식 수)으로 그려진 컨트롤·점도 숨긴다. */
+  .wc-ipdir__featured .wc-slider__controls,
+  .wc-ipdir__featured .wc-slider__dots {
     display: none;
   }
 
+  /* 212 타일 하단 36px 띠(검정 30% = scrim 토큰) 위 16/700 흰 이름(R-03 §3.1 정정 · 11 IP-02).
+     데스크톱 그리드 타일은 그라데이션 스크림을 걷고 띠 하나로 이름 대비를 만든다. */
   .wc-ipdir__tile {
-    padding: 12px;
-    font-size: 14px;
+    padding: 0;
+    font-size: 16px;
+  }
+
+  .wc-ipdir__tile::before {
+    content: none;
+  }
+
+  .wc-ipdir__tile > span {
+    position: absolute;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    display: flex;
+    align-items: center;
+    height: 36px;
+    padding: 0 14px;
+    overflow: hidden;
+    background: var(--wc-scrim);
+    font-size: 16px;
+    font-weight: 700;
+    line-height: 1.2;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .wc-alpha-index-band {
     display: flex;
     align-items: center;
     gap: 16px;
-    padding: 0;
+    padding: 4px 0 0;
   }
 
   .wc-alpha-index {
@@ -238,10 +317,15 @@
     overflow-x: visible;
   }
 
-  /* 줄바꿈 없는 배분 — 항목이 남는 폭을 균등하게 나눠 가진다. */
+  /* 글자 폭 그대로 늘어선다(레퍼런스 바 848.5 · 15px · 패딩 0/10) — 1180 을 균등 배분하지 않는다. */
   .wc-alpha-index__letter {
-    flex: 1 1 0;
+    flex: none;
     min-width: 0;
+    padding: 0 10px;
+  }
+
+  .wc-alpha-index__letter:first-child {
+    padding-left: 0;
   }
 
   .wc-alpha-index__count {
@@ -379,6 +463,40 @@
   color: #FFFFFF;
 }
 
+/* 모바일 IP관 배너는 글자를 가운데 세우고 해시태그를 배너 아래 흰 지면으로 내린다(11 IP-05).
+   같은 해시태그 목록을 배너 안(데스크톱)·아래(모바일) 두 자리에 두고 폭마다 하나만 보인다. */
+.wc-iphall__tags-band {
+  display: none;
+}
+
+@media (max-width: 749px) {
+  .wc-iphall__banner .wc-container {
+    align-items: center;
+    text-align: center;
+  }
+
+  .wc-iphall__follow {
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .wc-iphall__hashtags--banner {
+    display: none;
+  }
+
+  .wc-iphall__tags-band {
+    display: block;
+    padding-top: 16px;
+  }
+
+  .wc-iphall__hashtags--below > * {
+    height: 31px;
+    font-size: 14px;
+    border-color: var(--wc-line-control);
+    color: var(--wc-ink);
+  }
+}
+
 /* ------------------------------------------------------------------
    개별 관 — 굿즈 섹션·연결 밴드·인라인 상태
    ------------------------------------------------------------------ */
@@ -387,36 +505,21 @@
   padding-top: 48px;
 }
 
-/* 카운트 행 우측의 "굿즈샵에서 전체 보기" — PDP 브랜드 링크와 같은 얇은 밑줄 링크 문법. */
-.wc-iphall__goods .wc-collection__toolbar a {
+/* 섹션 제목 우측의 "굿즈샵에서 전체 보기" — PDP 브랜드 링크와 같은 얇은 밑줄 링크 문법.
+   아래 본문은 굿즈샵과 같은 컬렉션(사이드바·수량·정렬 줄·212 카드·VIEW MORE)이다(11 IP-01). */
+.wc-iphall__goods-head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.wc-iphall__shop-link {
+  flex: none;
   font-size: 13px;
   font-weight: 400;
   text-decoration: underline;
   color: var(--wc-ink-sub);
-}
-
-/* 타입 축약 필터 칩 — 아웃라인, 활성은 잉크 채움(aria-pressed 가 상태원). */
-.wc-iphall__filter-chip {
-  display: inline-flex;
-  align-items: center;
-  min-height: 32px;
-  padding: 0 12px;
-  font-family: inherit;
-  font-size: 14px;
-  font-weight: 400;
-  border: 1px solid var(--wc-line-control);
-  border-radius: var(--wc-radius-form);
-  background: var(--wc-surface);
-  color: var(--wc-ink);
-  cursor: pointer;
-}
-
-.wc-iphall__filter-chip[aria-pressed='true'],
-.wc-iphall__filter-chip.is-active {
-  font-weight: 700;
-  border-color: var(--wc-ink);
-  background: var(--wc-ink);
-  color: #FFFFFF;
 }
 
 .wc-iphall__links {

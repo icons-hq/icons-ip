@@ -19,12 +19,14 @@ export function AddToCartButton({ good, variant = 'card' }: { good: Good; varian
   const atStockLimit = quantity >= stockQty;
   const detail = variant === 'detail';
   const saleLabel = goodsSaleUnavailableLabel(good.salePeriod);
+  /* 이미 담은 굿즈는 장바구니 기준으로 말한다 — '담김'이 생소하다는 10/14 회의 지적(S14).
+     N은 장바구니에 든 이 옵션의 수량이고, 누르면 한 개 더 담는다(aria-label이 같은 사실을 말한다). */
   const label = sold
     ? '품절'
     : !ready
       ? '준비 중'
       : quantity > 0
-        ? `담김 · ${quantity}`
+        ? `장바구니 · ${quantity}`
         : '담기';
   const conditionProblem = goodsPurchaseConditionProblem(good);
   const ariaLabel = sold
@@ -53,7 +55,7 @@ export function AddToCartButton({ good, variant = 'card' }: { good: Good; varian
         borderRadius: 999,
         fontWeight: 700,
         fontSize: detail ? 15 : 12.5,
-        /* HM 다크 전제 인라인(--text·#110D22·흰 오버레이)의 WC 번역. 담김(quantity>0)
+        /* HM 다크 전제 인라인(--text·#110D22·흰 오버레이)의 WC 번역. 담은 상태(quantity>0)
            상태가 흰 지면에서 흰 글자로 사라지던 결함을 잉크 아웃라인 문법으로 바로잡는다
            — .wc-btn / .wc-btn.primary(wc-foundation.css)와 같은 쌍. */
         background: quantity > 0 ? 'var(--wc-surface)' : 'var(--wc-ink)',

@@ -6,6 +6,7 @@ import { getCurrentAuthState } from '@/lib/auth/server';
 import { getAccountDeletionPresentation } from '@/lib/account-deletion.server';
 import { UNAVAILABLE_ACCOUNT_DELETION_PRESENTATION } from '@/lib/account-deletion';
 import { getProfileAvatarPresentation } from '@/lib/profile-avatar.server';
+import { readMyMarketingConsentState } from '@/lib/marketing-consent.server';
 
 export const metadata: Metadata = {
   title: '설정 — ICONS',
@@ -24,7 +25,7 @@ export default async function Page() {
   }
 
   const nickname = auth.profile?.nickname ?? '';
-  const [avatar, accountDeletion] = await Promise.all([
+  const [avatar, accountDeletion, marketingConsent] = await Promise.all([
     getProfileAvatarPresentation({
       avatarPath: auth.profile?.avatar_path ?? null,
       nickname,
@@ -32,6 +33,7 @@ export default async function Page() {
     auth.isConfigured
       ? getAccountDeletionPresentation()
       : UNAVAILABLE_ACCOUNT_DELETION_PRESENTATION,
+    auth.isConfigured && auth.user ? readMyMarketingConsentState() : Promise.resolve(null),
   ]);
 
   return (
@@ -41,7 +43,8 @@ export default async function Page() {
       avatarInitial={avatar.avatarInitial}
       avatarUrl={avatar.avatarUrl}
       email={auth.profile?.email ?? auth.user?.email ?? ''}
-      initialMarketing={auth.profile?.consents?.marketing === true}
+      marketingConsent={marketingConsent}
+      marketingConsentUnavailable={auth.isConfigured && Boolean(auth.user) && marketingConsent === null}
       isConfigured={auth.isConfigured}
       nickname={nickname}
     />

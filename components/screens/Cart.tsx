@@ -9,9 +9,10 @@ import {
   clearCouponAction,
   type CouponActionResult,
 } from '@/app/cart/coupon-actions';
-import { useCart } from '@/components/shell/CartProvider';
+import { CartEmptyState } from '@/components/cart/CartEmptyState';
+import { CartSubheader } from '@/components/cart/CartSubheader';
+import { useCart, useReleaseUnpaidCartOrders } from '@/components/shell/CartProvider';
 import { Icon } from '@/components/ui/Icon';
-import { EmptyState } from '@/components/wc/EmptyState';
 import { PriceBlock } from '@/components/wc/PriceBlock';
 import { QuantityStepper } from '@/components/wc/QuantityStepper';
 import { WcButton } from '@/components/wc/WcButton';
@@ -36,6 +37,7 @@ import { goodsSalesQuoteProblem } from '@/lib/goods-sales';
 import { shippingFeeLabel } from '@/lib/shipping';
 import { useGoodsSalesPrecheckoutQuote, useShippingQuote } from '@/components/shop/useShippingQuote';
 import { ShippingGroupSummary } from '@/components/shop/ShippingGroupSummary';
+import { shippingGroupLabel } from '@/lib/fulfillment';
 import { goodsShipDateLabel, preorderSupplyLabel, type GoodsVariantSupply } from '@/lib/goods-preorders';
 import { GoodsSalePeriodRefresh } from '@/components/shop/GoodsSalePeriodRefresh';
 import { goodsSaleUnavailableLabel } from '@/lib/goods-sale-period';
@@ -69,6 +71,8 @@ function lineStateLabel(good: Good, qty: number) {
   return null;
 }
 
+/* 행 = [썸네일 64(모바일 80) · 브랜드·이름·단가·상태] 다음 줄에 회색 옵션 밴드 [옵션·직접 입력 | 수량 | ×],
+   그 아래 오른쪽에 줄 금액(CT-04 · 레퍼런스 실측). 표시 배치만 바꾼다 — 수량·삭제 호출과 금액 계산은 그대로다. */
 function CartLineRow({ line }: { line: CartLine }) {
   const { pending, remove, setQuantity } = useCart();
   const { good, goodId, variantId, ip, qty, optionName, supply,customInputs } = line;
@@ -81,15 +85,18 @@ function CartLineRow({ line }: { line: CartLine }) {
           <p className="wc-cart__line-name">판매 종료된 굿즈 ({goodId})</p>
           <p className="wc-cart__line-state">판매 종료</p>
         </div>
-        <button
-          aria-label={`판매 종료된 굿즈 ${goodId} 삭제`}
-          className="wc-cart__remove"
-          disabled={pending}
-          onClick={() => void remove(goodId, variantId,customInputs)}
-          type="button"
-        >
-          <Icon name="close" size={18} />
-        </button>
+        <div className="wc-cart__line-band">
+          <div className="wc-cart__line-detail" />
+          <button
+            aria-label={`판매 종료된 굿즈 ${goodId} 삭제`}
+            className="wc-cart__remove"
+            disabled={pending}
+            onClick={() => void remove(goodId, variantId,customInputs)}
+            type="button"
+          >
+            <Icon name="close" size={18} />
+          </button>
+        </div>
       </li>
     );
   }
@@ -111,14 +118,16 @@ function CartLineRow({ line }: { line: CartLine }) {
       <div className="wc-cart__line-info">
         <p className="wc-cart__line-brand">{ip?.title ?? 'ICONS'}</p>
         <Link className="wc-cart__line-name" href={href}>{good.name}</Link>
-        {optionName ? <p className="wc-cart__line-option">{optionName}</p> : null}
-        <GoodsCustomInputsSummary selection={customInputs} />
-        {goodsCustomInputProblem(good.customInputs,customInputs) && <p className="wc-cart__line-state">{goodsCustomInputProblem(good.customInputs,customInputs)} <Link href={href}>내용 다시 확인</Link></p>}
         <PriceBlock showDiscountRate={good.showDiscountRate} compareAtPrice={good.compareAtPrice} price={good.price} />
+        {goodsCustomInputProblem(good.customInputs,customInputs) && <p className="wc-cart__line-state">{goodsCustomInputProblem(good.customInputs,customInputs)} <Link href={href}>내용 다시 확인</Link></p>}
         {stateLabel ? <p className="wc-cart__line-state">{stateLabel}</p> : null}
         {supply?.mode === 'preorder' ? <p className="wc-cart__line-state">{goodsShipDateLabel(supply.expectedShipDate)}</p> : null}
       </div>
-      <div className="wc-cart__line-controls">
+      <div className="wc-cart__line-band">
+        <div className="wc-cart__line-detail">
+          {optionName ? <p className="wc-cart__line-option">{optionName}</p> : null}
+          <GoodsCustomInputsSummary selection={customInputs} />
+        </div>
         {/* 품절 라인은 늘릴 수도 줄일 수도 없다 — 스테퍼 대신 삭제만 남긴다. */}
         {soldOut ? null : (
           <QuantityStepper
@@ -128,17 +137,17 @@ function CartLineRow({ line }: { line: CartLine }) {
             value={qty}
           />
         )}
-        <p className="wc-cart__line-total">{krw(good.price * qty)}</p>
+        <button
+          aria-label={`${good.name} 장바구니에서 삭제`}
+          className="wc-cart__remove"
+          disabled={pending}
+          onClick={() => void remove(goodId, variantId,customInputs)}
+          type="button"
+        >
+          <Icon name="close" size={18} />
+        </button>
       </div>
-      <button
-        aria-label={`${good.name} 장바구니에서 삭제`}
-        className="wc-cart__remove"
-        disabled={pending}
-        onClick={() => void remove(goodId, variantId,customInputs)}
-        type="button"
-      >
-        <Icon name="close" size={18} />
-      </button>
+      <p className="wc-cart__line-total">{krw(good.price * qty)}</p>
     </li>
   );
 }
@@ -279,8 +288,10 @@ export function Cart({
 }) {
   const { count, error, items, mode, pending, ready, legacyItems = [], removeLegacyItem, refresh } = useCart();
   const transactionActive = transactionMode === 'transaction';
-  const shipping = useShippingQuote(items, ready && transactionMode === 'legacy', couponState.selectedUserCouponId ?? '');
-  const precheckout = useGoodsSalesPrecheckoutQuote(items, ready && transactionActive);
+  /* 결제를 마치지 않은 이전 주문이 쿠폰·구매 한도를 잡고 있으면 견적 전에 닫는다(ADR-0026). */
+  const released = useReleaseUnpaidCartOrders();
+  const shipping = useShippingQuote(items, ready && released && transactionMode === 'legacy', couponState.selectedUserCouponId ?? '');
+  const precheckout = useGoodsSalesPrecheckoutQuote(items, ready && released && transactionActive);
   const productQuote = transactionActive ? precheckout : shipping;
   const sales = productQuote.sales;
 
@@ -319,10 +330,13 @@ export function Cart({
     (held) => held.id === couponState.selectedUserCouponId,
   ) ?? null;
   const couponDiscount = shipping.sales?.coupon?.discount ?? 0;
+  /* 예상 총액은 배송비가 확정된 기존 계약에서만 숫자다 — 요약 표와 모바일 주문 바가 같은 값을 보인다. */
+  const estimatedTotal = !transactionActive && shippingFinal ? subtotal + shippingFee - couponDiscount : null;
 
   return (
     <div className="wc-root wc-cart">
       <GoodsSalePeriodRefresh goods={lines.flatMap(line => line.good ? [line.good] : [])} />
+      <CartSubheader />
       <div className="wc-container">
         <h1 className="wc-cart__title">장바구니</h1>
         {ready ? (
@@ -344,18 +358,13 @@ export function Cart({
             {legacyItems.length && !pending ? '이전 장바구니를 확인해주세요.' : '장바구니를 불러오는 중이에요.'}
           </p>
         ) : lines.length === 0 ? (
-          <EmptyState
-            action={<WcButton href="/shop" variant="primary">굿즈샵 둘러보기</WcButton>}
-            className="wc-cart__empty"
-            title="장바구니가 비어 있어요"
-            titleAs="h2"
-          />
+          <CartEmptyState />
         ) : (
           <div className="wc-cart__layout">
             <div aria-busy={pending} className="wc-cart__list-col">
-              {shipping.quote?.groups.map(group => (
-                <section className="wc-shipping-group" key={group.originId} aria-label={`${group.originName} 출고 굿즈`}>
-                  <h2>{group.originName} 출고</h2>
+              {shipping.quote?.groups.map((group, index, groups) => (
+                <section className="wc-shipping-group" key={group.originId} aria-label={`${shippingGroupLabel(index, groups.length)} 굿즈`}>
+                  <h2>{shippingGroupLabel(index, groups.length)}</h2>
                   <ul className="wc-cart__list">
                     {lines.filter(line => line.good?.originId === group.originId).map(line => <CartLineRow key={cartItemKey(line.goodId, line.variantId,line.customInputs)} line={line} />)}
                   </ul>
@@ -387,11 +396,14 @@ export function Cart({
                 <tfoot>
                   <tr>
                     <th scope="row">예상 총액</th>
-                    <td>{transactionActive ? '주문서에서 할인·배송비 확인 후 표시' : shippingFinal ? krw(subtotal + shippingFee - couponDiscount) : '배송비 확인 후 표시'}</td>
+                    {/* 금액이면 26/700 으로 키우고(CT-01), 안내 문구면 금액 서체로 키우지 않는다. */}
+                    <td className={estimatedTotal !== null ? 'wc-cart__total' : 'wc-cart__total wc-cart__total--pending'}>
+                      {estimatedTotal !== null ? krw(estimatedTotal) : transactionActive ? '주문서에서 할인·배송비 확인 후 표시' : '배송비 확인 후 표시'}
+                    </td>
                   </tr>
                 </tfoot>
               </table>
-              <p className="wc-cart__summary-note">{transactionActive ? '복수구매 할인과 수량별 배송비는 주문서에서 계산합니다. 착불 배송비는 수령 시 별도로 납부합니다.' : '출고지별 배송비를 합산합니다. 주문을 만들 때 서버가 최종 금액을 확인합니다.'}</p>
+              <p className="wc-cart__summary-note">{transactionActive ? '복수구매 할인과 수량별 배송비는 주문서에서 계산합니다. 착불 배송비는 수령 시 별도로 납부합니다.' : '배송 묶음별 배송비를 합산합니다. 주문을 만들 때 서버가 최종 금액을 확인합니다.'}</p>
               {transactionMode === 'unavailable' && <p role="alert">주문 조건을 확인하지 못했습니다. 새로고침 후 다시 확인해주세요.</p>}
               {productQuote.loading ? <p role="status">{transactionActive ? '현재 가격과 구매 조건을 확인하고 있어요.' : '현재 가격과 배송비를 확인하고 있어요.'}</p> : null}
               {productQuote.error ? <div role="alert"><p>{productQuote.error}</p><button type="button" onClick={productQuote.refresh}>{transactionActive ? '가격·구매 조건 다시 확인' : '가격·배송비 다시 확인'}</button></div> : null}
@@ -423,15 +435,21 @@ export function Cart({
                 </p>
               ) : null}
 
-              <WcButton
-                className="wc-cart__checkout"
-                disabled={!canCheckout}
-                href="/checkout"
-                variant="primary"
-              >
-                {`${count}개 굿즈 주문하기`}
-              </WcButton>
-              {giftAvailable ? <Link href="/gifts/new">장바구니에서 선물 준비</Link> : null}
+              {/* 데스크톱은 요약 박스 안 312×56, 모바일은 이 묶음이 하단 고정 바가 된다(CT-03). 모바일 바는 예상 총액이
+                  확정된 동안 금액을 싣고(레퍼런스 "₩금액 주문하기"), 아니면 데스크톱과 같은 수량 문구다 — 화면에 보이는 문구
+                  하나만 접근 이름이 된다(나머지는 display:none). */}
+              <div className="wc-cart__cta-bar">
+                <WcButton
+                  className={`wc-cart__checkout${estimatedTotal !== null ? ' wc-cart__checkout--amount' : ''}`}
+                  disabled={!canCheckout}
+                  href="/checkout"
+                  variant="primary"
+                >
+                  <span className="wc-cart__checkout-count">{`${count}개 굿즈 주문하기`}</span>
+                  {estimatedTotal !== null ? <span className="wc-cart__checkout-amount">{`${krw(estimatedTotal)} 주문하기`}</span> : null}
+                </WcButton>
+              </div>
+              {giftAvailable ? <Link className="wc-cart__gift" href="/gifts/new">장바구니에서 선물 준비</Link> : null}
             </aside>
           </div>
         )}

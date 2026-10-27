@@ -21,6 +21,22 @@
     html:has(.wc-chrome .wc-header[data-condensed='false']),
     html:has(.wc-chrome .wc-header[data-condensed='true'] :is(.wc-header__bar, .wc-gnb-wrap) :focus-visible) { scroll-padding-top: 123px; }
   }
+  /* The same scrolling also stops above what is fixed to the bottom of the viewport (WCAG 2.2 SC 2.4.11) — without it a
+     focused control under a bottom layer counts as on screen and never scrolls. The line is the higher of two:
+     - --wc-bottom-fixed-h, the bars below 990. The tab bar (wc-chrome.css .wc-tabbar: 62 + safe area) or, on a goods detail,
+       the buy bar (wc-catalog.css .wc-buybar: 72) carries the inquiry launcher at 80 + safe area, 48 tall
+       (wc-inquiry-widget.css), so the line is the launcher's top. It stays while the tab bar slides away (B3): that only
+       leaves room, and keeps the bar from covering focus the moment it comes back. The admin preview of a goods detail
+       (.is-embedded) floats no buy bar. The mobile cart pins its order bar instead (wc-catalog.css .wc-cart__cta-bar:
+       93 + safe area); 16 more keeps the focus ring clear of it, the same line the launcher stands on there.
+     - --wc-store-analytics-clearance, the analytics notice or its settings button. The notice wraps with its text, so
+       StoreAnalytics measures its top edge onto html while it shows (store-analytics-clearance.ts). */
+  @media (max-width: 989px) {
+    html:has(.wc-chrome .wc-tabbar),
+    html:has(.wc-pdp:not(.is-embedded) .wc-buybar) { --wc-bottom-fixed-h: calc(128px + env(safe-area-inset-bottom)); }
+    html:has(.wc-cart__cta-bar) { --wc-bottom-fixed-h: calc(109px + env(safe-area-inset-bottom)); }
+  }
+  html { scroll-padding-bottom: max(var(--wc-bottom-fixed-h, 0px), var(--wc-store-analytics-clearance, 0px)); }
   body {
     min-width: 320px;
     background: #fff;

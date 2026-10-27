@@ -85,12 +85,41 @@ describe('MyCoupons 티켓 카드', () => {
     expect(html).toContain('GOLD');
   });
 
+  /* 코드 입력 발급은 회원 등급을 묻지 않는다 — 보유한 등급 쿠폰 코드로 상위 등급 코드 규칙을 짐작하지 못하게 한다. */
+  it('등급 혜택 쿠폰은 코드 줄을 그리지 않고 일반 쿠폰은 코드를 보여 준다', () => {
+    const html = renderToStaticMarkup(
+      <MyCoupons
+        coupons={[
+          heldCoupon({ id: 'g', gradeBenefit: 'silver', name: 'SILVER 달성 쿠폰' }),
+          heldCoupon({ id: 'plain', name: '일반 쿠폰' }),
+        ]}
+      />,
+    );
+    const cards = html.split('<li class="wc-coupon-card').slice(1);
+
+    expect(cards).toHaveLength(2);
+    expect(cards[0]).toContain('SILVER 달성 쿠폰');
+    expect(cards[0]).not.toContain('wc-coupon-card__code');
+    expect(cards[0]).not.toContain('CPNFIX5K');
+    expect(cards[1]).toContain('<p class="wc-coupon-card__code">CPNFIX5K</p>');
+  });
+
   it('빈 쿠폰함은 카트의 코드 입력으로 안내한다', () => {
     const html = renderToStaticMarkup(<MyCoupons coupons={[]} />);
 
     expect(html).toContain('보유한 쿠폰이 없어요');
     expect(html).toContain('href="/cart"');
     expect(html).not.toContain('wc-coupon-card ');
+  });
+
+  /* MY-14(11 §5.4): 사용조건 값만 굵게, 안내 박스는 굵은 소제목 두 묶음. */
+  it('사용조건 값을 강조하고 안내를 쿠폰 안내·취소·반품 안내 두 묶음으로 나눈다', () => {
+    const html = renderToStaticMarkup(<MyCoupons coupons={[heldCoupon({ id: 'a' })]} />);
+    const guide = html.slice(html.indexOf('wc-coupon-guide'));
+
+    expect(html).toContain('<dt>사용조건</dt><dd class="wc-coupon-card__condition">₩20,000 이상 구매 시</dd>');
+    expect(guide.indexOf('<p>쿠폰 안내</p>')).toBeLessThan(guide.indexOf('<p>취소·반품 안내</p>'));
+    expect(guide.slice(guide.indexOf('<p>취소·반품 안내</p>'))).toContain('주문 취소가 확정되면 사용한 쿠폰이 돌아옵니다.');
   });
 
   it('정책 안내 박스를 늘 남긴다', () => {

@@ -943,6 +943,9 @@ describe('주문 패널 취소 처리 결과', () => {
     expect(html).toContain(success);
     expect(html).toContain(ORDER_ID.replaceAll('-', '').slice(-8).toUpperCase());
     expect(html).toContain(`href="/admin/sales/orders?query=${ORDER_ID}"`);
+    // 보낼 때 함께 실은 16자리 주문번호가 있으면 그 번호로 적는다.
+    const numbered = await renderAfterStaffCancellation({ intent: 'staffCancel', orderId: ORDER_ID, orderNumber: '2026102710000042', message: success }, data);
+    expect(numbered).toContain('주문 2026102710000042 취소 처리 결과');
   });
 
   it('목록에 있지만 선택하지 않은 다른 주문의 결과는 지금 패널에 그리지 않는다', async () => {
@@ -979,6 +982,10 @@ describe('runOrderCancellationAction', () => {
       message: '완료',
       orderId: ORDER_ID,
     });
+    form.set('cancellationOrderNumber', '2026102710000042');
+    await expect(runOrderCancellationAction({}, form)).resolves.toMatchObject({ orderNumber: '2026102710000042' });
+    form.set('cancellationOrderNumber', 'not-a-number');
+    expect(await runOrderCancellationAction({}, form)).not.toHaveProperty('orderNumber');
     expect(orderActions.startAdminOrderCancellationAction).toHaveBeenCalledWith({}, form);
     expect(orderActions.approveAdminOrderCancellationAction).not.toHaveBeenCalled();
   });

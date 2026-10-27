@@ -20,7 +20,7 @@ export function PurchaseConfirmationPolicyForm({ initial, actorId, sessionId }: 
     });
   }
   return <form className="purchase-confirmation" onSubmit={e => { e.preventDefault(); save(); }}>
-    <p>자동 구매확정은 기본 꺼짐입니다. 활성화 이후 처음 배송완료되는 주문에 당시 기간을 저장합니다. 기존 주문에 새 기한을 소급하지 않습니다. 자동 확정을 끄면 이전 정책이 적용된 주문의 자동 처리도 멈춥니다.</p>
+    <p>자동 구매확정은 기본 꺼짐입니다. 켜면 이미 배송완료된 주문도 배송완료일 기준으로 확정됩니다 — 기한이 없던 배송완료 주문에 배송완료일 + 설정 기간을 저장하므로, 그 날짜가 이미 지난 주문은 다음 자동 처리(매일 오전 3시)에 확정됩니다. 이미 기한을 받은 주문은 그때의 기간을 유지합니다. 자동 확정을 끄면 이전 정책이 적용된 주문의 자동 처리도 멈춥니다.</p>
     <fieldset disabled={disabled}><legend>자동 확정·구매자 연장</legend><label className="purchase-confirmation__ack"><input type="checkbox" checked={draft.autoEnabled} onChange={e => setDraft({ ...draft, autoEnabled: e.target.checked })} />자동 구매확정 사용</label>
       <div className="wc-admin-kit__form-grid"><AdminField label="배송완료 후 자동 확정까지 (일)" inputId="confirmation-auto-days"><input id="confirmation-auto-days" type="number" min="1" max="36500" step="1" value={draft.days} onChange={e => setDraft({ ...draft, days: e.target.value })} /></AdminField>
         <AdminField label="구매자 1회 연장 기간 (일, 비우면 연장 미제공)" inputId="confirmation-extension"><input id="confirmation-extension" type="number" min="1" max="36500" step="1" value={draft.extension} onChange={e => setDraft({ ...draft, extension: e.target.value })} /></AdminField></div>

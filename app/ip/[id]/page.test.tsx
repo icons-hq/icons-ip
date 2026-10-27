@@ -22,6 +22,8 @@ vi.mock('@/lib/auth/server', () => ({ getCurrentAuthState: () => mocks.auth }));
 vi.mock('@/lib/catalog', () => ({ getCatalogIpDetail: () => mocks.detail }));
 vi.mock('@/lib/ip-identity.server', () => ({ resolvePublicIpIdentity: () => mocks.identity }));
 vi.mock('@/lib/ip-follow.server', () => ({ getIpFollowState: () => mocks.followState }));
+vi.mock('@/lib/catalog-categories.server', () => ({ loadPublicCatalogCategories: async () => [] }));
+vi.mock('@/lib/wishlist-ids.server', () => ({ loadListingWishlist: async () => ({ viewerId: 'viewer-1', goodIds: ['g2'] }) }));
 
 const ip = {
   id: 'ip-1',
@@ -95,5 +97,35 @@ describe('/ip/[id] page', () => {
       searchParams: Promise.resolve({ follow_error: '1', notification_saved: '1', unknown: 'drop-me' }),
     })).rejects.toThrow('NEXT_REDIRECT:/ip/mountain-fire?follow_error=1&notification_saved=1');
     expect(mocks.ipDetail).not.toHaveBeenCalled();
+  });
+
+  it('carries the goods collection filters and sort across the alias redirect', async () => {
+    mocks.identity = { internalId: 'ip-1', publicSlug: 'mountain-fire', isAlias: true };
+
+    await expect(Page({
+      params: Promise.resolve({ id: 'hwasan' }),
+      searchParams: Promise.resolve({ type: ['키링', '인형'], sort: 'price_asc', ip: 'other-ip' }),
+    })).rejects.toThrow(`NEXT_REDIRECT:/ip/mountain-fire?type=${encodeURIComponent('키링')}&type=${encodeURIComponent('인형')}&sort=price_asc`);
+  });
+
+  /* 굿즈 영역은 IP로 좁힌 굿즈샵 컬렉션이다(11 IP-01) — 스코프가 이미 IP 하나라 ip 파라미터는 버린다. */
+  it('computes the IP-scoped collection from the URL and passes the listing wish set', async () => {
+    mocks.detail = {
+      source: 'mock', ip, cards: [], events: [], posts: [],
+      goods: [
+        { id: 'g1', name: '화산 키링', ip: 'ip-1', type: '키링', price: 12000, badge: null, stock: 'ok', stockQty: 3, img: 'none' },
+        { id: 'g2', name: '화산 인형', ip: 'ip-1', type: '인형', price: 30000, badge: null, stock: 'ok', stockQty: 3, img: 'none' },
+      ],
+    };
+    renderToStaticMarkup(await Page({
+      params: Promise.resolve({ id: 'ip-1' }),
+      searchParams: Promise.resolve({ type: '인형', ip: 'ip-1', sort: 'price_desc' }),
+    }));
+
+    const props = mocks.ipDetail.mock.calls[0]?.[0] as { collection: { query: { ips: string[]; types: string[]; sort: string; view: string }; result: { goods: { id: string }[]; total: number } }; wishlist: unknown };
+    expect(props.collection.query).toMatchObject({ ips: [], types: ['인형'], sort: 'price_desc', view: 'ip' });
+    expect(props.collection.result.goods.map((good) => good.id)).toEqual(['g2']);
+    expect(props.collection.result.total).toBe(2);
+    expect(props.wishlist).toEqual({ viewerId: 'viewer-1', goodIds: ['g2'] });
   });
 });

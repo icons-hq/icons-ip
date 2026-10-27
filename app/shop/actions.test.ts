@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CurrentAuthState } from '@/lib/auth/server';
-import { requestRestockAlertAction, toggleWishlistAction } from './actions';
+import { requestRestockAlertAction, requestVariantRestockAlertAction, toggleWishlistAction } from './actions';
 
 const mocks = vi.hoisted(() => ({
   auth: { isConfigured: true, user: null, profile: null, isStaff: false } as CurrentAuthState,
@@ -228,6 +228,77 @@ describe('shop engagement Server Actions', () => {
         ok: false,
         error: 'unavailable',
       });
+    });
+  });
+
+  /* PD-11 — 고른 품절 옵션의 재입고 알림. 기존 굿즈 단위 액션의 시그니처는 그대로다. */
+  describe('requestVariantRestockAlertAction', () => {
+    const VARIANT_ID = '00000000-0000-4000-8000-000000056711';
+
+    it('gates guests, suspended accounts and an unconfigured backend before the RPC', async () => {
+      mocks.auth = { isConfigured: true, user: null, profile: null, isStaff: false };
+      await expect(requestVariantRestockAlertAction('g100', VARIANT_ID)).resolves.toEqual({ ok: false, error: 'auth_required' });
+
+      mocks.auth = {
+        ...signedInAuth(),
+        profile: { ...signedInAuth().profile!, suspended_at: '2026-08-01T00:00:00.000Z' },
+      };
+      await expect(requestVariantRestockAlertAction('g100', VARIANT_ID)).resolves.toEqual({ ok: false, error: 'account_suspended' });
+
+      mocks.auth = { isConfigured: false, user: null, profile: null, isStaff: false };
+      await expect(requestVariantRestockAlertAction('g100', VARIANT_ID)).resolves.toEqual({ ok: false, error: 'unavailable' });
+      expect(mocks.rpc).not.toHaveBeenCalled();
+    });
+
+    it('rejects a missing good or a malformed option id without calling the RPC', async () => {
+      await expect(requestVariantRestockAlertAction('   ', VARIANT_ID)).resolves.toEqual({ ok: false, error: 'invalid_request' });
+      await expect(requestVariantRestockAlertAction('g100', 'not-a-uuid')).resolves.toEqual({ ok: false, error: 'invalid_request' });
+      await expect(requestVariantRestockAlertAction('g100', null)).resolves.toEqual({ ok: false, error: 'invalid_request' });
+      expect(mocks.rpc).not.toHaveBeenCalled();
+    });
+
+    it('delegates the sold-out check and upsert to the option RPC with normalized ids', async () => {
+      await expect(requestVariantRestockAlertAction('  g100  ', ` ${VARIANT_ID.toUpperCase()} `)).resolves.toEqual({
+        ok: true,
+        status: 'pending',
+      });
+      expect(mocks.rpc).toHaveBeenCalledWith('request_variant_restock_alert', {
+        target_good_id: 'g100',
+        target_variant_id: VARIANT_ID,
+      });
+      /* 굿즈 단위 RPC 는 부르지 않는다 — 옵션 신청이 "모든 옵션" 신청으로 넓어지면 다른 옵션 재입고에도 알린다. */
+      expect(mocks.rpc).not.toHaveBeenCalledWith('request_restock_alert', expect.anything());
+    });
+
+    it('re-requesting the same option stays pending', async () => {
+      const first = await requestVariantRestockAlertAction('g100', VARIANT_ID);
+      const second = await requestVariantRestockAlertAction('g100', VARIANT_ID);
+
+      expect(first).toEqual({ ok: true, status: 'pending' });
+      expect(second).toEqual(first);
+      expect(mocks.rpc).toHaveBeenCalledTimes(2);
+    });
+
+    it.each([
+      ['22023', 'variant_available'],
+      ['22023', 'variant_preorder'],
+      ['P0002', 'variant_missing'],
+      ['P0002', 'good_missing'],
+    ])('reports %s %s as an invalid request', async (code, message) => {
+      mocks.rpcResult = { error: { code, message } };
+      await expect(requestVariantRestockAlertAction('g100', VARIANT_ID)).resolves.toEqual({ ok: false, error: 'invalid_request' });
+    });
+
+    it('sends an expired session back to login and hides other database details', async () => {
+      mocks.rpcResult = { error: { code: '28000', message: 'auth_required' } };
+      await expect(requestVariantRestockAlertAction('g100', VARIANT_ID)).resolves.toEqual({ ok: false, error: 'auth_required' });
+
+      /* 탈퇴 신청으로 쓰기가 봉인된 계정(55000)도 저장하지 않고 일반 실패로 접는다. */
+      mocks.rpcResult = { error: { code: '55000', message: 'account_deletion_write_fenced' } };
+      await expect(requestVariantRestockAlertAction('g100', VARIANT_ID)).resolves.toEqual({ ok: false, error: 'unavailable' });
+
+      mocks.rpcResult = { error: { code: 'XX000', message: 'sensitive database detail' } };
+      await expect(requestVariantRestockAlertAction('g100', VARIANT_ID)).resolves.toEqual({ ok: false, error: 'unavailable' });
     });
   });
 });

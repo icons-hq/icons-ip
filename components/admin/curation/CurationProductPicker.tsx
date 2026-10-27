@@ -2,10 +2,12 @@
 
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { AdminCurationTargetRecord } from '@/lib/admin/curation-targets';
+import { GOOD_URL_ERRORS } from '@/lib/admin/good-url';
+import { GoodUrlAddField } from '@/components/admin/GoodUrlAddField';
 import type { HomeGoodsCard } from '@/lib/home-catalog';
 import { imageUrlFromBg } from '@/lib/media';
 import { krw } from '@/lib/format';
-import type { HomeReviewStatistic } from '@/lib/home-ranking';
+import { homeReviewBandRating, type HomeReviewStatistic } from '@/lib/home-ranking';
 
 export function CurationEditorDialog({ title, children, onClose, closeDisabled = false }: {
   title: string;
@@ -45,7 +47,9 @@ export function CurationProductPicker({ options, goods, selectedIds, limit, onAp
   const [selection, setSelection] = useState(selectedIds);
   const [page, setPage] = useState(1);
   const goodsById = useMemo(() => new Map(goods.map((good) => [good.id, good])), [goods]);
-  const ratingsById = useMemo(() => new Map((reviewStatistics ?? []).map((row) => [row.goodId, row])), [reviewStatistics]);
+  /* 평점 열은 공개 홈 리뷰 BEST가 선정·표시에 쓰는 값이다 — 그룹 범위 요약(reviewSummary)이 있으면 그것, 없으면 굿즈 단위 집계. */
+  const ratingsById = useMemo(() => new Map((reviewStatistics ?? []).map((row) => [row.goodId,
+    homeReviewBandRating({ ratingAverage: row.ratingAverage, reviewCount: row.reviewCount, reviewSummary: goodsById.get(row.goodId)?.reviewSummary })])), [reviewStatistics, goodsById]);
   const matches = options.filter((option) => !option.archivedAt
     && `${option.title} ${option.id}`.toLocaleLowerCase().includes(query.toLocaleLowerCase().trim()));
   const pageCount = Math.max(1, Math.ceil(matches.length / 20));
@@ -57,6 +61,14 @@ export function CurationProductPicker({ options, goods, selectedIds, limit, onAp
       <label>상품명 / 상품코드<input onChange={(event) => { setQuery(event.target.value); setPage(1); }} placeholder="상품명 또는 상품코드를 입력하세요" value={query} /></label>
       <button onClick={() => { setQuery(''); setPage(1); }} type="button">초기화</button>
     </div>
+    <GoodUrlAddField onAdd={(id) => {
+      const option = options.find((candidate) => candidate.id === id && !candidate.archivedAt);
+      if (!option) return { ok: false, message: GOOD_URL_ERRORS.notFound };
+      if (selection.includes(id)) return { ok: false, message: GOOD_URL_ERRORS.exists };
+      if (selection.length >= limit) return { ok: false, message: `최대 ${limit}개까지 선택할 수 있습니다.` };
+      setSelection((current) => current.includes(id) ? current : [...current, id]);
+      return { ok: true, message: `'${option.title}' 상품을 선택했습니다. 선택 완료를 눌러 반영해주세요.` };
+    }} />
     <div className="admin-store-editor__picker-summary"><span>조회 결과 <strong>{matches.length}</strong>개</span><span>선택 <strong>{selection.length}</strong> / {limit}개</span></div>
     <div className="admin-store-editor__picker-table">
       <table>
@@ -74,7 +86,7 @@ export function CurationProductPicker({ options, goods, selectedIds, limit, onAp
               <img alt="" src={image} />
             ) : <span className="admin-store-editor__no-image">이미지 없음</span>}</td>
             <td><strong>{option.title}</strong><span>{option.id}</span></td>
-            {reviewStatistics ? <td>{ratingsById.get(option.id)?.ratingAverage.toFixed(2) ?? '—'} / {ratingsById.get(option.id)?.reviewCount ?? 0}개</td> : null}
+            {reviewStatistics ? <td>{ratingsById.get(option.id)?.average.toFixed(2) ?? '—'} / {ratingsById.get(option.id)?.count ?? 0}개</td> : null}
             <td>{good ? krw(good.price) : '—'}</td>
             <td>{good ? good.soldOut ? '품절' : '노출 중' : '비노출'}</td>
           </tr>;

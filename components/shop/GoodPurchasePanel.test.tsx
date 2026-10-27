@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import type { Good } from '@/lib/data';
@@ -9,11 +10,14 @@ import {
   addToCartResultStep,
   addedCartItems,
   buyNowNavigation,
+  foldedPurchaseInputsNote,
   isGoodSoldOut,
   mergedCartQuantity,
   purchaseBlockReason,
+  purchaseCtaState,
   purchaseSubtotal,
   purchaseTotalDisplay,
+  type AdditionalPurchaseChoice,
   type GoodPurchaseController,
 } from './GoodPurchasePanel';
 
@@ -27,8 +31,8 @@ vi.mock('next/navigation', () => ({
 }));
 
 vi.mock('@/components/shop/RestockCta', () => ({
-  RestockCta: ({ initialRequested }: { initialRequested: boolean }) => (
-    <button className="wc-restock-cta" type="button">
+  RestockCta: ({ initialRequested, optionName, variantId }: { initialRequested: boolean; optionName?: string | null; variantId?: string | null }) => (
+    <button className="wc-restock-cta" data-option={optionName ?? ''} data-variant={variantId ?? ''} type="button">
       {initialRequested ? '재입고 알림 신청됨' : '재입고 알림 받기'}
     </button>
   ),
@@ -131,11 +135,17 @@ describe('buyNowNavigation', () => {
     expect(buyNowNavigation({ requested: true, cartPending: true, cartError: null })).toBe('wait');
   });
 
-  it('반영이 정착하고 오류가 없을 때만 체크아웃으로 간다', () => {
+  it('반영이 정착하고 오류가 없을 때만 장바구니로 간다', () => {
     expect(buyNowNavigation({ requested: true, cartPending: false, cartError: null })).toBe('navigate');
   });
 
-  it('카트가 오류를 냈으면 이동을 접는다 — 담기지 않은 채 결제 화면에 서지 않는다', () => {
+  it('구매하기는 LFS처럼 담은 뒤 주문서가 아니라 장바구니로 이동한다(D2)', () => {
+    const source = readFileSync('components/shop/GoodPurchasePanel.tsx', 'utf8');
+    expect(source).toContain("if (navigation === 'navigate') router.push('/cart');");
+    expect(source).not.toContain("router.push('/checkout')");
+  });
+
+  it('카트가 오류를 냈으면 이동을 접는다 — 담기지 않은 채 장바구니로 가지 않는다', () => {
     expect(
       buyNowNavigation({ requested: true, cartPending: false, cartError: '재고 초과' }),
     ).toBe('abort');
@@ -221,6 +231,39 @@ describe('purchaseTotalDisplay', () => {
     expect(purchaseTotalDisplay({ ...base, good: { ...good, stock: 'soldout', stockQty: 0 }, selectionRequired: true, subtotal: 0, soldOut: true, quantity: 1 }).amount)
       .toBe('₩12,000');
   });
+
+  /* PD-10 — 고른 품절 옵션은 담기 대상이 아니라 subtotal 이 0 이어도 그 옵션 가격으로 합계를 보인다. */
+  it('고른 품절 옵션은 그 옵션 가격으로 합계를 보인다', () => {
+    const red = { id: 'red', name: '빨강', price: 15000, stockQty: 0, code: 'RED', attributes: {}, isDefault: false };
+    expect(purchaseTotalDisplay({ ...base, restockOption: red, selectionRequired: true, subtotal: 0, quantity: 1 }))
+      .toEqual({ label: '총 금액', amount: '₩15,000', numeric: true });
+    /* 모든 옵션이 품절인 굿즈에서 직접 고른 옵션도 첫 옵션 대신 그 옵션 가격이다. */
+    expect(purchaseTotalDisplay({ ...base, good: { ...good, stock: 'soldout', stockQty: 0 }, restockOption: red, selectionRequired: true, subtotal: 0, soldOut: true, quantity: 1 }).amount)
+      .toBe('₩15,000');
+    /* 판매 상태 안내가 먼저다. */
+    expect(purchaseTotalDisplay({ ...base, restockOption: red, unavailableLabel: '판매 종료' }).amount).toBe('판매 종료');
+  });
+});
+
+describe('purchaseCtaState (PD-10 · DESIGN restock-cta)', () => {
+  const blue = { id: 'blue', name: '파랑', price: 12000, stockQty: 3, code: 'BLUE', attributes: {}, isDefault: true };
+  const red = { id: 'red', name: '빨강', price: 15000, stockQty: 0, code: 'RED', attributes: {}, isDefault: false };
+  const multi = { ...good, options: [blue, red] };
+  const base = { good: multi, unavailableLabel: null, soldOut: false, restockRequested: false, restockVariantIds: [] as string[] };
+
+  it('판매 불가 안내 → 굿즈 전체 품절(모든 옵션) → 고른 옵션만 품절(그 옵션) → 담기·구매 순이다', () => {
+    expect(purchaseCtaState({ ...base, unavailableLabel: '판매 종료', soldOut: true, restockOption: red })).toEqual({ kind: 'unavailable', label: '판매 종료' });
+    expect(purchaseCtaState({ ...base, soldOut: true, restockOption: red, restockRequested: true }))
+      .toEqual({ kind: 'restock', variantId: null, optionName: null, requested: true });
+    expect(purchaseCtaState({ ...base, restockOption: red })).toEqual({ kind: 'restock', variantId: 'red', optionName: '빨강', requested: false });
+    expect(purchaseCtaState(base)).toEqual({ kind: 'buy' });
+  });
+
+  /* 옵션 신청의 신청됨 표시는 그 옵션의 대기 신청으로만 정해진다 — 굿즈 단위 신청과 섞지 않는다. */
+  it('옵션 신청 상태는 그 옵션의 대기 신청만 본다', () => {
+    expect(purchaseCtaState({ ...base, restockOption: red, restockVariantIds: ['red'] })).toMatchObject({ requested: true });
+    expect(purchaseCtaState({ ...base, restockOption: red, restockVariantIds: ['other'], restockRequested: true })).toMatchObject({ requested: false });
+  });
 });
 
 describe('GoodRailBuyBox', () => {
@@ -241,11 +284,45 @@ describe('GoodRailBuyBox', () => {
     expect(html).toMatch(/class="wc-pdp-railbox__buy" disabled=""/);
   });
 
+  /* 담는 동안(카트 반영 중)에는 disabled 로 바꾸지 않는다 — 누른 버튼이 포커스를 잃으면 담기 결과 모달이 body 를
+     복귀 대상으로 기억해, 닫은 뒤 포커스가 사라진다(L2 QA l2-qa-4). 상태는 aria-disabled 로 알리고 클릭은 inert 가 막는다. */
+  it('담는 동안에는 CTA 를 aria-disabled 로 잠그고 포커스를 지킨다(옵션 전 잠금은 그대로 disabled)', () => {
+    const busy = renderToStaticMarkup(<GoodRailBuyBox purchase={controller({ inert: true, inFlight: true, quantity: 1, subtotal: 12000 })} />);
+
+    expect(busy).toContain('<button aria-disabled="true" aria-label="장바구니에 담기" class="wc-pdp-railbox__cart" type="button">');
+    expect(busy).toContain('<button aria-disabled="true" class="wc-pdp-railbox__buy" type="button">구매하기</button>');
+    expect(busy).not.toMatch(/wc-pdp-railbox__(cart|buy)" disabled=""/);
+  });
+
   it('품절이면 두 버튼 자리를 재입고 알림 하나로 바꾼다', () => {
     const html = renderToStaticMarkup(<GoodRailBuyBox purchase={controller({ good: { ...good, stock: 'soldout', stockQty: 0 }, soldOut: true })} />);
 
     expect(html).toContain('재입고 알림 받기');
+    expect(html).toContain('data-variant=""');
     expect(html).not.toContain('wc-pdp-railbox__ctas');
+  });
+
+  it('고른 옵션만 품절이면 레일 박스도 그 옵션의 재입고 알림과 그 옵션 합계다', () => {
+    const red = { id: 'red', name: '빨강', price: 15000, stockQty: 0, code: 'RED', attributes: {}, isDefault: false };
+    const blue = { ...red, id: 'blue', name: '파랑', price: 12000, stockQty: 3, isDefault: true };
+    const html = renderToStaticMarkup(<GoodRailBuyBox purchase={controller({ good: { ...good, options: [blue, red] }, restockOption: red, selectionRequired: true, inert: true, subtotal: 0 })} />);
+
+    expect(html).toContain('<strong class="wc-pdp-railbox__amount">₩15,000</strong>');
+    expect(html).toContain('data-option="빨강" data-variant="red"');
+    expect(html).not.toContain('wc-pdp-railbox__ctas');
+  });
+});
+
+describe('GoodPurchasePanel 담는 동안의 CTA', () => {
+  it('카트 반영 중에는 장바구니·구매하기를 aria-disabled 로 잠그고 disabled 는 옵션 전처럼 실제로 막을 때만 쓴다', () => {
+    const busy = renderToStaticMarkup(<GoodPurchasePanel purchase={controller({ inert: true, inFlight: true, quantity: 1, subtotal: 12000 })} />);
+    expect(busy).toMatch(/<button aria-disabled="true" class="wc-btn wc-buy-panel__cart" type="button">/);
+    expect(busy).toMatch(/<button aria-disabled="true" class="wc-btn primary wc-buy-panel__buy" type="button">/);
+
+    const locked = renderToStaticMarkup(<GoodPurchasePanel purchase={controller({ selectionRequired: true, inert: true, subtotal: 0 })} />);
+    expect(locked).toMatch(/<button class="wc-btn wc-buy-panel__cart" disabled="" type="button">/);
+    expect(locked).toMatch(/<button class="wc-btn primary wc-buy-panel__buy" disabled="" type="button">/);
+    expect(locked).not.toContain('aria-disabled="true" class="wc-btn wc-buy-panel__cart"');
   });
 });
 
@@ -276,16 +353,60 @@ describe('GoodPurchasePanel', () => {
     expect(defaultHtml).not.toContain('wc-buy-panel__option');
   });
 
-  it('keeps sold-out options visible and prevents choosing them', () => {
+  /* LD-5 — #427 수용 기준("품절 옵션은 선택 불가")을 번복했다. 품절 옵션도 `· 품절`로 보이고 고를 수 있다. */
+  it('품절 옵션도 `· 품절`로 보이고 고를 수 있으며, 닫힌 예약판매 옵션만 고르지 못한다', () => {
     const options = [
       {id:'blue',name:'파랑',price:12000,stockQty:0,code:'BLUE',attributes:{},isDefault:true},
       {id:'red',name:'빨강',price:15000,stockQty:2,code:'RED',attributes:{},isDefault:false},
+      {id:'pre',name:'예약',price:16000,stockQty:0,code:'PRE',attributes:{},isDefault:false,supply:{mode:'preorder' as const,state:'closed' as const,availableQty:0,
+        policyId:'00000000-0000-4000-8000-000000000009',policyRevision:1,startsAt:'2026-10-01T00:00:00Z',endsAt:'2026-10-21T00:00:00Z',
+        expectedShipDate:'2026-11-20',calculatedAt:'2026-10-22T00:00:00Z',nextChangeAt:null}},
     ];
-    const html = renderToStaticMarkup(<GoodPurchasePanel purchase={controller({good:{...good,options},selectionRequired:true,inert:true})} />);
-    expect(html).toContain('옵션을 선택해주세요');
-    expect(html).toMatch(/<option[^>]*value="blue"[^>]*disabled=""/);
-    expect(html).toContain('파랑 · ₩12,000 · 품절');
-    expect(html).toContain('빨강 · ₩15,000');
+    const html = renderToStaticMarkup(<GoodPurchasePanel purchase={controller({good:{...good,options},selectedOption:options[1]})} />);
+    expect(html).toMatch(/<option value="blue">파랑 · ₩12,000 · 품절<\/option>/);
+    expect(html).toMatch(/<option value="red" selected="">빨강 · ₩15,000<\/option>/);
+    expect(html).toMatch(/<option value="pre" disabled="">예약 · ₩16,000 · 예약 접수 종료<\/option>/);
+    expect(html).toContain('wc-buy-panel__ctas');
+    /* R-04 §3.5 — 고른 옵션이 있으면 빈 옵션(placeholder) 행을 두지 않는다. 첫 옵션이 고른 옵션이다. */
+    expect(html).not.toContain('옵션을 선택해주세요');
+    expect(html).toMatch(/<select>(<option value="blue">)/);
+  });
+
+  /* 고른 품절 옵션(재입고 알림 대상)도 고른 옵션이라 빈 옵션이 없다. 고른 옵션이 사라졌을 때만 빈 옵션이 선택된 채 남는다. */
+  it('빈 옵션은 고른 옵션이 없을 때만 둔다', () => {
+    const options = [
+      {id:'blue',name:'파랑',price:12000,stockQty:0,code:'BLUE',attributes:{},isDefault:true},
+      {id:'red',name:'빨강',price:15000,stockQty:0,code:'RED',attributes:{},isDefault:false},
+    ];
+    const soldOut = { ...good, stock: 'soldout' as const, stockQty: 0, options };
+    const chosen = renderToStaticMarkup(<GoodPurchasePanel purchase={controller({ good: soldOut, soldOut: true, restockOption: options[0], selectionRequired: true, inert: true, subtotal: 0 })} />);
+    expect(chosen).not.toContain('옵션을 선택해주세요');
+    expect(chosen).toMatch(/<option value="blue" selected="">파랑 · ₩12,000 · 품절<\/option>/);
+    expect(chosen).toContain('<strong class="wc-buy-panel__total-amount">₩12,000</strong>');
+
+    const gone = renderToStaticMarkup(<GoodPurchasePanel purchase={controller({ good: { ...good, options: [{ ...options[0], stockQty: 3 }, options[1]] }, selectionRequired: true, inert: true, subtotal: 0 })} />);
+    expect(gone).toContain('<option value="" disabled="" selected="">옵션을 선택해주세요</option>');
+  });
+
+  /* PD-10 — 고른 품절 옵션: 셀렉트는 그 옵션을 가리키고, CTA 쌍 대신 그 옵션의 재입고 알림, 합계는 그 옵션 가격. */
+  it('품절 옵션을 고르면 CTA 가 그 옵션의 재입고 알림으로 바뀌고 합계는 그 옵션 가격이다', () => {
+    const options = [
+      {id:'blue',name:'파랑',price:12000,stockQty:3,code:'BLUE',attributes:{},isDefault:true},
+      {id:'red',name:'빨강',price:15000,stockQty:0,code:'RED',attributes:{},isDefault:false},
+    ];
+    const html = renderToStaticMarkup(<GoodPurchasePanel purchase={controller({
+      good:{...good,options}, selectedOption: undefined, restockOption: options[1], selectionRequired: true, inert: true, subtotal: 0,
+    })} />);
+    expect(html).toMatch(/<option value="red" selected="">빨강 · ₩15,000 · 품절<\/option>/);
+    expect(html).toContain('<button class="wc-restock-cta" data-option="빨강" data-variant="red" type="button">재입고 알림 받기</button>');
+    expect(html).not.toContain('wc-buy-panel__ctas');
+    expect(html).toContain('<strong class="wc-buy-panel__total-amount">₩15,000</strong>');
+    expect(html).not.toContain('옵션 선택 후 표시');
+
+    const requested = renderToStaticMarkup(<GoodPurchasePanel purchase={controller({
+      good:{...good,options}, restockOption: options[1], restockVariantIds: ['red'], selectionRequired: true, inert: true, subtotal: 0,
+    })} />);
+    expect(requested).toContain('data-variant="red" type="button">재입고 알림 신청됨</button>');
   });
 
   it('합계는 단가가 아니라 수량을 반영한 금액이다', () => {
@@ -331,6 +452,20 @@ describe('GoodPurchasePanel', () => {
     expect(html).toContain('현재 재고보다 많이 담을 수 없습니다.');
   });
 
+  /* QA l2-qa-2 — 실패·거절 안내가 성공색으로 그려지던 결함. 성공(담았어요)만 기본 상태 줄이고 나머지는 실패 표시다. */
+  it('상태 줄은 담기 성공만 성공 표시이고 카트·검증 오류는 실패 표시(is-error)다', () => {
+    const status = (html: string) => /<p aria-atomic="true" aria-live="polite" class="([^"]*)" role="status">([^<]*)<\/p>/.exec(html)?.slice(1);
+
+    expect(status(renderToStaticMarkup(<GoodPurchasePanel purchase={controller({ message: CART_ADDED_STATUS })} />)))
+      .toEqual(['wc-buy-panel__status', CART_ADDED_STATUS]);
+    expect(status(renderToStaticMarkup(<GoodPurchasePanel purchase={controller({ message: '현재 재고보다 많이 담을 수 없습니다.' })} />)))
+      .toEqual(['wc-buy-panel__status is-error', '현재 재고보다 많이 담을 수 없습니다.']);
+    expect(status(renderToStaticMarkup(<GoodPurchasePanel purchase={controller({ message: '아크릴 블록: 각인 문구을(를) 1~100자로 입력해주세요.' })} />)))
+      .toEqual(['wc-buy-panel__status is-error', '아크릴 블록: 각인 문구을(를) 1~100자로 입력해주세요.']);
+    /* 비어 있으면 기본 상태 줄 그대로(빈 줄은 CSS 가 자리를 접는다). */
+    expect(status(renderToStaticMarkup(<GoodPurchasePanel purchase={controller()} />))).toEqual(['wc-buy-panel__status', '']);
+  });
+
   it('추가상품은 선택형이며 선택한 상품의 옵션과 독립 수량을 표시한다', () => {
     const extraOption = { id: 'extra-blue', name: '파랑', price: 3000, stockQty: 4, code: 'EXTRA-BLUE', attributes: { 색상: '파랑' }, isDefault: false };
     const unavailableOption = { ...extraOption, id: 'extra-red', name: '빨강', stockQty: 0 };
@@ -347,6 +482,75 @@ describe('GoodPurchasePanel', () => {
     expect(html).toContain('aria-label="추가 스티커 추가 수량"');
     expect(html).toMatch(/<option[^>]*value="extra-red"[^>]*disabled=""/);
     expect(html).toContain('₩18,000');
+  });
+
+  /*
+   * QA l2-qa-3 — 할 수 있는 일이 재입고 알림뿐인 상태에서 직접 입력(필수)·추가 구성 체크박스가 그대로 남아, 체크해도 합계가
+   * 움직이지 않는 반응 없는 컨트롤이었다. 재입고 상태는 두 칸을 접고, 고른 옵션만 품절이면 돌아갈 길을 한 줄로 알린다.
+   */
+  describe('재입고 알림만 할 수 있는 상태의 구매 전용 칸 (QA l2-qa-3)', () => {
+    const blue = { id: 'blue', name: '파랑', price: 12000, stockQty: 3, code: 'BLUE', attributes: {}, isDefault: true };
+    const red = { id: 'red', name: '빨강', price: 15000, stockQty: 0, code: 'RED', attributes: {}, isDefault: false };
+    const extraOption = { id: 'extra-blue', name: '파랑', price: 3000, stockQty: 4, code: 'EXTRA-BLUE', attributes: {}, isDefault: true };
+    const extra: Good = { ...good, id: 'g14', name: '추가 스티커', price: 3000, options: [extraOption],
+      transactionOffer: { goodId: 'g14', volume: null, delivery: null, collectReady: false, collector: null,
+        production: { version: 1, goodId: 'g14', revision: 1, leadDays: 3, dayBasis: 'business', closedDates: [], publicNote: '스티커는 주문 후 인쇄합니다.' } } };
+    const engraved: Good = { ...good, options: [blue, red], customInputs: { enabled: true, revision: 1, fields: [{ id: 'engrave', name: '각인 문구', active: true }] } };
+    const choices: AdditionalPurchaseChoice[] = [{ goodId: extra.id, name: extra.name, good: extra, selected: true, selectedOption: extraOption, quantity: 2 }];
+    const NOTE = '품절 옵션은 재입고 알림만 신청할 수 있어요. 직접 입력 옵션·추가 구성 굿즈는 판매 중인 옵션을 고르면 보여요.';
+
+    it('고른 옵션만 품절이면 직접 입력·추가 구성(과 그 거래 조건)을 접고 판매 중인 옵션을 고르면 보인다고 알린다', () => {
+      const html = renderToStaticMarkup(<GoodPurchasePanel purchase={controller({
+        good: engraved, restockOption: red, selectionRequired: true, inert: true, subtotal: 0,
+        additionalChoices: choices, toggleAdditional: vi.fn(), customInputValues: { g13: { engrave: '적어 둔 문구' } }, setCustomInputValue: vi.fn(),
+      })} />);
+
+      expect(html).not.toContain('직접 입력 옵션</legend>');
+      expect(html).not.toContain('good-custom-g13-engrave');
+      expect(html).not.toContain('aria-label="추가 구성 굿즈"');
+      expect(html).not.toContain('스티커는 주문 후 인쇄합니다.');
+      expect(html).toContain(`<p class="wc-buy-panel__state">${NOTE}</p>`);
+      /* 안내는 셀렉트 바로 아래(예약판매 안내와 같은 자리)이고, 수량·합계·그 옵션의 재입고 CTA 는 그대로다. */
+      expect(html.indexOf(NOTE)).toBeGreaterThan(html.indexOf('</select>'));
+      expect(html.indexOf(NOTE)).toBeLessThan(html.indexOf('wc-buy-panel__row'));
+      expect(html).toContain('<strong class="wc-buy-panel__total-amount">₩15,000</strong>');
+      expect(html).toContain('data-option="빨강" data-variant="red"');
+    });
+
+    it('판매 중인 옵션이면 같은 칸을 그대로 보이고 안내는 없다', () => {
+      const html = renderToStaticMarkup(<GoodPurchasePanel purchase={controller({
+        good: engraved, selectedOption: blue, additionalChoices: choices, toggleAdditional: vi.fn(), setAdditionalQuantity: vi.fn(),
+        customInputValues: { g13: { engrave: '적어 둔 문구' } }, setCustomInputValue: vi.fn(),
+      })} />);
+
+      expect(html).toContain('직접 입력 옵션</legend>');
+      expect(html).toContain('value="적어 둔 문구"');
+      expect(html).toContain('aria-label="추가 구성 굿즈"');
+      expect(html).toContain('스티커는 주문 후 인쇄합니다.');
+      expect(html).not.toContain('품절 옵션은 재입고 알림만');
+    });
+
+    it('모든 옵션이 품절이면 칸을 접되 돌아갈 옵션이 없으니 안내하지 않는다', () => {
+      const html = renderToStaticMarkup(<GoodPurchasePanel purchase={controller({
+        good: { ...engraved, stock: 'soldout', stockQty: 0, options: [{ ...blue, stockQty: 0 }, red] }, soldOut: true, restockOption: { ...blue, stockQty: 0 },
+        selectionRequired: true, inert: true, subtotal: 0, additionalChoices: choices, toggleAdditional: vi.fn(),
+      })} />);
+
+      expect(html).not.toContain('직접 입력 옵션</legend>');
+      expect(html).not.toContain('aria-label="추가 구성 굿즈"');
+      expect(html).not.toContain('품절 옵션은 재입고 알림만');
+      expect(html).toContain('data-variant=""');
+    });
+
+    it('접을 칸이 없으면 안내도 없고, 접은 칸만 이름으로 말한다', () => {
+      const plain = renderToStaticMarkup(<GoodPurchasePanel purchase={controller({ good: { ...good, options: [blue, red] }, restockOption: red, selectionRequired: true, inert: true, subtotal: 0 })} />);
+      expect(plain).not.toContain('품절 옵션은 재입고 알림만');
+
+      expect(foldedPurchaseInputsNote([])).toBeNull();
+      expect(foldedPurchaseInputsNote(['직접 입력 옵션'])).toBe('품절 옵션은 재입고 알림만 신청할 수 있어요. 직접 입력 옵션은 판매 중인 옵션을 고르면 보여요.');
+      expect(foldedPurchaseInputsNote(['추가 구성 굿즈'])).toBe('품절 옵션은 재입고 알림만 신청할 수 있어요. 추가 구성 굿즈는 판매 중인 옵션을 고르면 보여요.');
+      expect(foldedPurchaseInputsNote(['직접 입력 옵션', '추가 구성 굿즈'])).toBe(NOTE);
+    });
   });
 
   it('없어진 추가 선택을 숨기지 않고 해제할 체크박스와 구매 불가 상태를 남긴다', () => {

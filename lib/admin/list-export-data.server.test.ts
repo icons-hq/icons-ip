@@ -16,6 +16,7 @@ const mocks = vi.hoisted(() => ({
 vi.mock('@/lib/order-delivery.server', () => ({ loadAdminOrderDeliveries: async (ids: string[]) => new Map(ids.map(id => [id, { orderId: id, address: (mocks.tables.orders as Record<string, unknown>[] | undefined)?.find(row => row.id === id)?.address ?? null, isGift: false }])) }));
 vi.mock('./orders.server', () => ({ getAdminOrderRecords: mocks.orders }));
 vi.mock('./order-items.server', () => ({ getAdminOrderItemData: mocks.orderItems }));
+vi.mock('./item-allocation.server', () => ({ loadOrderItemAllocations: async () => new Map() }));
 vi.mock('./unpaid.server', () => ({ getAdminUnpaidOrders: mocks.unpaid }));
 vi.mock('./shipment-dispatch.server', () => ({ getShipmentConsoleData: mocks.shipments }));
 vi.mock('./claims.server', () => ({ getAdminClaimConsoleData: mocks.claims }));

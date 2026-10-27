@@ -50,10 +50,11 @@ export function IpDirectory({
           <EmptyState description="곧 새로운 IP가 공개될 예정이에요." title="등록된 IP가 아직 없습니다" />
         ) : (
           <>
-            {/* 모바일 캐러셀의 위치 표시·키보드 이동은 Slider 프리미티브 몫이다(스토리 14).
-                데스크톱은 CSS 가 트랙을 5열 그리드로 바꿔 컨트롤 없는 한 줄이 된다. */}
+            {/* 모바일 캐러셀의 위치 표시·키보드 이동은 Slider 프리미티브 몫이다(스토리 14) — 레퍼런스처럼
+                점으로 위치를 보인다(R-03 §3.2 · 11 IP-04). 데스크톱은 CSS 가 트랙을 5열 그리드로 바꿔
+                컨트롤 없는 한 줄이 되고, 타일 하단 36px 띠에 이름을 얹는다(IP-02). */}
             {featured.length > 0 ? (
-              <Slider className="wc-ipdir__featured" label="피처드 IP">
+              <Slider className="wc-ipdir__featured" indicator="dots" label="피처드 IP">
                 {featured.map((ip) => (
                   <Link
                     key={ip.id}

@@ -2,12 +2,14 @@ import { parseHomeMosaicPayload } from '@/lib/home-mosaic';
 import { HOME_REVIEW_MANUAL_LIMIT, isHomeSalesPeriod } from '@/lib/home-ranking';
 import { HOME_HERO_CONTENT_LIMIT, HOME_HERO_TITLE_LIMIT, isHomeHeroImageDim, isHomeHeroTextColor, normalizeHeroNewlines } from '@/lib/home-hero';
 import { HOME_PRODUCT_CANDIDATE_LIMIT, homeProductCountRange, isHomeProductCollectionTitle, isHomeProductImageShape, isHomeProductLayout } from '@/lib/home-product-collection';
+import { parseShellNoticePageTypes } from '@/lib/shell-notices';
 
 export type AdminCurationKind =
   | 'hero'
   | 'featured_ip'
   | 'announcement'
   | 'notice_strip'
+  | 'notice_bar'
   | 'editor_pick'
   | 'band_banner'
   | 'best_tab'
@@ -67,6 +69,8 @@ export type AdminCurationFieldErrors = Partial<Record<
   | 'productImageShape'
   | 'productItemCount'
   | 'mobileImagePath'
+  | 'ctaLabel'
+  | 'pageTypes'
   | 'form',
   string
 >>;
@@ -87,6 +91,7 @@ const CURATION_KINDS = new Set<AdminCurationKind>([
   'featured_ip',
   'announcement',
   'notice_strip',
+  'notice_bar',
   'editor_pick',
   'band_banner',
   'best_tab',
@@ -115,6 +120,12 @@ const DATE_TIME_ERROR = '일시는 YYYY-MM-DDTHH:mm 형식이어야 합니다.';
 const INT32_MAX = 2147483647;
 const AMBIGUOUS_LINK_CHARACTER_PATTERN =
   /[\u0000-\u001f\u007f-\u009f\u061c\u200e\u200f\u2028-\u202e\u2066-\u2069]/;
+/* C0·DEL·C1 — 셸 로더(lib/notice-strip.server.ts)와 DB의 [[:cntrl:]](ICU)와 같은 범위다. trim이 지우지 않는 U+0085(NEL)도 잡는다. */
+const CONTROL_CHARACTER_PATTERN = /[\u0000-\u001f\u007f-\u009f]/;
+/* 텍스트 공지 바는 셸 맨 위의 한 줄 문구와 짧은 버튼이다 — DB home_curations_notice_check와 같은 한도. */
+export const NOTICE_BAR_MESSAGE_LIMIT = 60;
+export const NOTICE_BAR_CTA_LIMIT = 12;
+const NOTICE_PAGE_TYPES_ERROR = '공지를 보일 화면을 하나 이상 선택해주세요.';
 
 type PayloadTextField = 'badge' | 'description' | 'subcopy' | 'subtitle';
 
@@ -280,6 +291,31 @@ function readMobileImagePath(
   payload.mobile_image_path = mobileImagePath;
 }
 
+/*
+ * 공지 대상 화면 유형. 체크박스는 아무것도 고르지 않으면 값이 전송되지 않으므로 폼은 pageTypesField 표식을 함께 보낸다 —
+ * 표식이 있는데 값이 없으면 '전 화면'이 아니라 오류다. 표식 없이 온 스트립 요청(이전 클라이언트)은 대상을 싣지 않아
+ * 지금처럼 모든 화면에 보인다. 공지 바는 대상이 필수다.
+ */
+function readNoticePageTypes(
+  formData: FormData,
+  kind: 'notice_bar' | 'notice_strip',
+  errors: AdminCurationFieldErrors,
+  payload: Record<string, unknown>,
+) {
+  if (!formData.has('pageTypesField')) {
+    if (kind === 'notice_bar') errors.pageTypes = NOTICE_PAGE_TYPES_ERROR;
+    return;
+  }
+  const pageTypes = parseShellNoticePageTypes(
+    formData.getAll('pageTypes').map((value) => (typeof value === 'string' ? value.trim() : value)),
+  );
+  if (!pageTypes) {
+    errors.pageTypes = NOTICE_PAGE_TYPES_ERROR;
+    return;
+  }
+  payload.page_types = pageTypes;
+}
+
 function readCurationPayload(
   formData: FormData,
   kind: AdminCurationKind | null,
@@ -329,6 +365,18 @@ function readCurationPayload(
   } else if (kind === 'notice_strip') {
     /* PC 비율 스트립은 모바일 폭에서 붕괴한다 — 히어로와 같은 모바일 아트웍을 나른다. */
     readMobileImagePath(formData, errors, payload);
+    readNoticePageTypes(formData, kind, errors, payload);
+  } else if (kind === 'notice_bar') {
+    readNoticePageTypes(formData, kind, errors, payload);
+    /* 버튼 문구는 이동할 화면이 있을 때만 싣는다 — 링크 없는 공지 바는 문구와 닫기만 보인다. */
+    if (readString(formData, 'linkPath')) {
+      const label = readString(formData, 'ctaLabel');
+      if (!label || characterLength(label) > NOTICE_BAR_CTA_LIMIT || CONTROL_CHARACTER_PATTERN.test(label)) {
+        errors.ctaLabel = `버튼 문구는 줄바꿈 없이 1자 이상 ${NOTICE_BAR_CTA_LIMIT}자 이하로 입력해주세요.`;
+      } else {
+        payload.cta_label = label;
+      }
+    }
   } else if (kind === 'editor_pick') {
     readPayloadText(formData, 'badge', errors, payload);
     readPayloadText(formData, 'description', errors, payload);
@@ -433,7 +481,8 @@ export function normalizeAdminCurationForm(formData: FormData): AdminCurationFor
   }
 
   const title = readString(formData, 'title');
-  const titleLimit = ['sales_best', 'review_best', 'product_mosaic', 'product_collection'].includes(kind ?? '') ? 15 : 120;
+  const titleLimit = ['sales_best', 'review_best', 'product_mosaic', 'product_collection'].includes(kind ?? '') ? 15
+    : kind === 'notice_bar' ? NOTICE_BAR_MESSAGE_LIMIT : 120;
   if (characterLength(title) < (kind === 'hero' ? 0 : 1) || characterLength(title) > titleLimit) {
     errors.title = kind === 'hero' ? '제목은 40자 이하로 입력해주세요.' : `제목은 1자 이상 ${titleLimit}자 이하로 입력해주세요.`;
   }
@@ -441,6 +490,9 @@ export function normalizeAdminCurationForm(formData: FormData): AdminCurationFor
     errors.title = '제목은 40자 이하로 입력해주세요. 기존 제목은 그대로 유지할 수 있습니다.';
   }
   if (kind === 'product_collection' && !isHomeProductCollectionTitle(title)) errors.title = '제목은 제어 문자 없이 1자 이상 15자 이하로 입력해주세요.';
+  if (kind === 'notice_bar' && (CONTROL_CHARACTER_PATTERN.test(title) || characterLength(title) < 1 || characterLength(title) > NOTICE_BAR_MESSAGE_LIMIT)) {
+    errors.title = `공지 문구는 줄바꿈 없이 1자 이상 ${NOTICE_BAR_MESSAGE_LIMIT}자 이하로 입력해주세요.`;
+  }
 
   const rawImagePath = readString(formData, 'imagePath');
   const imagePath = rawImagePath || null;
@@ -452,6 +504,7 @@ export function normalizeAdminCurationForm(formData: FormData): AdminCurationFor
     errors.imagePath = CURATION_IMAGE_ERROR;
   }
   if (kind === 'product_collection' && imagePath) errors.imagePath = '자유상품은 선택한 상품의 대표이미지를 사용합니다.';
+  if (kind === 'notice_bar' && imagePath) errors.imagePath = '텍스트 공지 바는 이미지를 쓰지 않습니다.';
 
   const rawSlot = readString(formData, 'slot');
   let slot: string | null = null;
@@ -465,7 +518,7 @@ export function normalizeAdminCurationForm(formData: FormData): AdminCurationFor
   const rawLinkValue = formData.get('linkPath');
   const rawLinkPath = typeof rawLinkValue === 'string' ? rawLinkValue : '';
   const trimmedLinkPath = rawLinkPath.trim();
-  const linkPath = (kind === 'hero' || kind === 'product_collection') && !trimmedLinkPath ? null : trimmedLinkPath;
+  const linkPath = (kind === 'hero' || kind === 'product_collection' || kind === 'notice_bar') && !trimmedLinkPath ? null : trimmedLinkPath;
   const decodedLinkPath = decodeInternalLink(trimmedLinkPath);
   if (AMBIGUOUS_LINK_CHARACTER_PATTERN.test(rawLinkPath) || (linkPath !== null && (
     characterLength(linkPath) < 1

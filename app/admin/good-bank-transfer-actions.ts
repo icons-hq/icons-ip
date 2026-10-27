@@ -1,8 +1,10 @@
 'use server';
 
+import { after } from 'next/server';
 import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import { revalidateGoodsSurfaces } from '@/lib/admin/revalidate-goods.server';
 import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
+import { sendRestockAlertEmails } from '@/lib/email/transactional.server';
 import { createClient } from '@/lib/supabase/server';
 
 /*
@@ -44,6 +46,10 @@ export async function setGoodBankTransferAction(
   }
 
   revalidateGoodsSurfaces();
+  /* 결제수단이 모두 닫힌 채 재고가 들어왔다면 재입고 신청은 pending 으로 남아 있다가, 무통장을 다시 여는
+     이 편집에서 굿즈 트리거가 깨운다(알림함은 즉시). 메일은 굿즈 저장·실재고 조정처럼 응답 뒤 보낸다 —
+     보낼 신청이 없으면 producer 가 조용히 넘어간다(L2 Codex 리뷰). */
+  if (allowed) after(() => sendRestockAlertEmails(id));
   return {
     message: allowed
       ? adminGoodsCopy('이 굿즈로 무통장 입금 주문을 받습니다.')

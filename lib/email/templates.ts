@@ -1,5 +1,6 @@
 import type { CheckoutAddress } from '../checkout';
 import { krw } from '../format';
+import { commerceReferenceLabel } from '../commerce-number';
 import { formatOrderDateTime, LEGAL_WITHDRAWAL_NOTICE, orderReferenceLabel } from '../orders';
 import type { GoodsTransactionDisplay } from '../goods-transaction';
 
@@ -27,6 +28,8 @@ export interface OrderConfirmationEmailInput {
   transaction?: GoodsTransactionDisplay;
   giftDelivery?: boolean;
   orderId: string;
+  /** 16자리 주문번호. 번호가 없는 옛 기록만 UUID 뒤 8자리로 표기한다. */
+  orderNumber?: string | null;
   orderedAt: string;
   items: OrderEmailItem[];
   itemsSubtotal: number;
@@ -39,11 +42,13 @@ export interface OrderConfirmationEmailInput {
   orderUrl: string;
 }
 
+/* 고객 메일에는 출고지(창고) 이름을 싣지 않는다(10/14 회의 S7). 배송 건은 배송건번호로만 가리킨다. */
 export interface OrderShippedEmailInput {
   giftDelivery?: boolean;
   orderId: string;
+  orderNumber?: string | null;
   shipmentId: string;
-  originName: string;
+  shipmentNumber?: string | null;
   items: OrderEmailItem[];
   address: CheckoutAddress | null;
   carrierName?: string | null;
@@ -170,7 +175,7 @@ function htmlDocument(reference: string, body: string, referenceLabel = '주문�
 }
 
 export function renderOrderConfirmationEmail(input: OrderConfirmationEmailInput): RenderedEmail {
-  const reference = orderReferenceLabel(input.orderId);
+  const reference = orderReferenceLabel(input.orderId, input.orderNumber);
   const orderedAt = formatOrderDateTime(input.orderedAt);
   const subject = `[ICONS] 주문이 접수됐어요 (주문번호 ${reference})`;
   const totals = input.transaction?.totals;
@@ -234,8 +239,9 @@ export function renderOrderConfirmationEmail(input: OrderConfirmationEmailInput)
 }
 
 export function renderOrderShippedEmail(input: OrderShippedEmailInput): RenderedEmail {
-  const reference = orderReferenceLabel(input.orderId);
-  const subject = `[ICONS] ${input.originName} 굿즈가 배송을 시작했어요 (주문번호 ${reference})`;
+  const reference = orderReferenceLabel(input.orderId, input.orderNumber);
+  const shipmentReference = commerceReferenceLabel(input.shipmentId, input.shipmentNumber);
+  const subject = `[ICONS] 굿즈가 배송을 시작했어요 (주문번호 ${reference})`;
   const carrierName = input.giftDelivery ? null : input.carrierName?.trim() || null;
   const trackingNumber = input.giftDelivery ? null : input.trackingNumber?.trim() || null;
   const trackingUrl = input.giftDelivery ? null : safeLinkUrl(input.trackingUrl);
@@ -243,8 +249,7 @@ export function renderOrderShippedEmail(input: OrderShippedEmailInput): Rendered
 
   const trackingRows: [string, string][] = [
     ['주문번호', reference],
-    ['배송 건 번호', input.shipmentId],
-    ['출고지', input.originName],
+    ['배송건번호', shipmentReference],
     ...(carrierName ? [['택배사', carrierName] as [string, string]] : []),
     ...(trackingNumber ? [['운송장번호', trackingNumber] as [string, string]] : []),
   ];
@@ -253,8 +258,7 @@ export function renderOrderShippedEmail(input: OrderShippedEmailInput): Rendered
     'ICONS 굿즈가 배송을 시작했어요.',
     '',
     `주문번호: ${reference}`,
-    `배송 건 번호: ${input.shipmentId}`,
-    `출고지: ${input.originName}`,
+    `배송건번호: ${shipmentReference}`,
     ...(carrierName ? [`택배사: ${carrierName}`] : []),
     ...(trackingNumber ? [`운송장번호: ${trackingNumber}`] : []),
     ...(trackingUrl ? [`배송 조회: ${trackingUrl}`] : []),
@@ -288,6 +292,7 @@ export function renderOrderShippedEmail(input: OrderShippedEmailInput): Rendered
 
 export interface GiftRecipientEmailInput {
   orderId: string;
+  orderNumber?: string | null;
   stage: 'confirmation' | 'shipped';
   items: { name: string; variantName?: string | null; qty: number }[];
   address: CheckoutAddress;
@@ -298,7 +303,7 @@ export interface GiftRecipientEmailInput {
 }
 /** Recipient messages accept no money, payment, coupon or sender fields. */
 export function renderGiftRecipientEmail(input: GiftRecipientEmailInput): RenderedEmail {
-  const reference = orderReferenceLabel(input.orderId), shipped = input.stage === 'shipped';
+  const reference = orderReferenceLabel(input.orderId, input.orderNumber), shipped = input.stage === 'shipped';
   const title = shipped ? '받을 선물의 배송이 시작됐어요' : '받을 선물이 주문됐어요';
   const itemLines = input.items.map(item => `${item.name}${item.variantName ? ` · ${item.variantName}` : ''} × ${item.qty}`);
   const trackingUrl = shipped ? safeLinkUrl(input.trackingUrl) : null;
@@ -323,11 +328,19 @@ export interface InquiryAnsweredEmailInput {
 
 export interface RestockAlertEmailInput {
   goodName: string;
+  /** 옵션 단위 신청이면 그 옵션 이름(PD-11). 굿즈 단위(모든 옵션) 신청은 비운다. */
+  optionName?: string | null;
   /**
    * 굿즈 상세로 가는 **절대** URL. 메일에는 우리 사이트의 상대 경로를 이어 붙일
    * 기준 문서가 없어 http(s) 여야 하고, `safeLinkUrl` 이 그 조건을 강제한다.
    */
   goodPath: string;
+}
+
+/** 재입고 알림 첫 문장. 알림함 본문(DB 트리거)과 같은 문장이다. */
+export function restockAlertSentence(goodName: string, optionName?: string | null): string {
+  const option = optionName?.trim();
+  return option ? `${goodName} · ${option} 옵션이 다시 판매를 시작했어요.` : `${goodName} 굿즈가 다시 판매를 시작했어요.`;
 }
 
 /**
@@ -340,17 +353,20 @@ export interface RestockAlertEmailInput {
  * 참이었고, 재품절은 재신청이라는 자기 경로를 갖는다.
  */
 export function renderRestockAlertEmail(input: RestockAlertEmailInput): RenderedEmail {
-  /* 굿즈명은 길이 무제한 text 다. claim_email_delivery 가 제목 200자를 넘기면 거부하는데,
+  /* 굿즈명·옵션명은 길이 무제한 text 다. claim_email_delivery 가 제목 200자를 넘기면 거부하는데,
      트리거는 이미 notified 로 넘긴 뒤라 그 메일은 영영 못 나간다 — 제목만 자르고
-     전체 이름은 본문이 말한다. */
-  const subjectName = input.goodName.length > 60
-    ? `${input.goodName.slice(0, 59)}…`
-    : input.goodName;
+     전체 이름은 본문이 말한다. 옵션 단위 신청은 어느 옵션인지 제목에서도 보인다. */
+  const option = input.optionName?.trim();
+  const subjectLabel = option ? `${input.goodName} · ${option}` : input.goodName;
+  const subjectName = subjectLabel.length > 60
+    ? `${subjectLabel.slice(0, 59)}…`
+    : subjectLabel;
   const subject = `[ICONS] 재입고 알림 — ${subjectName}`;
   const goodUrl = safeLinkUrl(input.goodPath);
+  const sentence = restockAlertSentence(input.goodName, option);
 
   const text = textBlock([
-    `${input.goodName} 굿즈가 다시 판매를 시작했어요.`,
+    sentence,
     '',
     '수량이 한정적이라 다시 품절될 수 있어요.',
     ...(goodUrl ? ['', `굿즈 보러 가기: ${goodUrl}`] : []),
@@ -358,7 +374,7 @@ export function renderRestockAlertEmail(input: RestockAlertEmailInput): Rendered
 
   const html = htmlDocument(input.goodName, [
     htmlHeading('재입고 알림'),
-    htmlParagraph(`${input.goodName} 굿즈가 다시 판매를 시작했어요.`, INK),
+    htmlParagraph(sentence, INK),
     htmlParagraph('수량이 한정적이라 다시 품절될 수 있어요.'),
     ...(goodUrl ? [htmlButton(goodUrl, '굿즈 보러 가기')] : []),
   ].join(''), '굿즈');

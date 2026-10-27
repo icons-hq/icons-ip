@@ -46,7 +46,8 @@ describe('첨부한 스마트스토어 배송현황관리 양식', () => {
       expect(actual.getCell('AW2').value).toBe('01000000000');
       expect(actual.getCell('BA2').value).toBe('00123');
     }
-  });
+    /* 두 워크북을 만들고 다시 읽는 무거운 왕복이라, 부하가 큰 CI 러너에서 기본 5초를 넘긴 적이 있다(PR #608). */
+  }, 20_000);
   it('상품별 실제 결제금액을 쓰고 배송비를 묶음의 첫 행에 한 번만 기록한다', () => {
     const sheet = smartStoreDeliveryListSheet(base, [smartStoreDeliveryLine(), smartStoreDeliveryLine({ itemId: '60000000-0000-4000-8000-000000000004', productOrderNumber: '2026102120000002', itemTotal: 7000 })]);
     expect(values(sheet)).toMatchObject({ '최종 상품별 총 주문금액': 19000, '배송비 합계': 3000, '배송비 묶음번호': '2026102130000001' });

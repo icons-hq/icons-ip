@@ -3,7 +3,10 @@ import { describe, expect, it, vi } from 'vitest';
 import { COMMUNITY_ENABLED } from '@/lib/community-visibility';
 import type { CatalogIpDetail } from '@/lib/catalog';
 import type { IpFollowState } from '@/lib/ip-follow';
-import { IpDetail } from './IpDetail';
+import type { ListingWishlist } from '@/lib/listing-wishlist';
+import { parseShopSearchParams, selectCollectionGoods } from '@/lib/shop-catalog';
+import { shopQueryString } from '@/components/shop/collection-filters';
+import { IpDetail, type IpGoodsCollection } from './IpDetail';
 
 /* R-03 §1.9 개별 관 행동 단언 — 팔로우·알림 폼의 hidden 필드 계약(app/ip/actions.ts),
  * 해시태그 실데이터 파생, 품절 포함 굿즈 카운트 행, 연결 밴드 경로. */
@@ -16,6 +19,11 @@ const actions = vi.hoisted(() => ({
 vi.mock('@/app/ip/actions', () => ({
   setIpNotificationPreferencesAction: actions.setPreferences,
   toggleIpFollowAction: actions.toggleFollow,
+}));
+vi.mock('@/app/shop/actions', () => ({ toggleWishlistAction: vi.fn() }));
+vi.mock('next/navigation', () => ({
+  usePathname: () => '/ip/maplestory',
+  useRouter: () => ({ push: vi.fn(), replace: vi.fn(), refresh: vi.fn() }),
 }));
 
 const ip = {
@@ -57,16 +65,26 @@ function render(overrides: {
   followError?: boolean;
   notificationError?: boolean;
   notificationSaved?: boolean;
+  collection?: IpGoodsCollection;
+  wishlist?: ListingWishlist | null;
 } = {}) {
   return renderToStaticMarkup(
     <IpDetail
+      collection={overrides.collection}
       detail={overrides.detail ?? detail}
       followError={overrides.followError ?? false}
       followState={overrides.followState ?? notFollowed}
       notificationError={overrides.notificationError ?? false}
       notificationSaved={overrides.notificationSaved ?? false}
+      wishlist={overrides.wishlist}
     />,
   );
+}
+
+/* 페이지가 URL 로 계산해 내려주는 IP관 컬렉션을 테스트에서도 같은 함수로 만든다. */
+function collectionOf(params: Record<string, string | string[]>, source: CatalogIpDetail = detail): IpGoodsCollection {
+  const query = parseShopSearchParams(params, { view: 'ip', validIpIds: new Set() });
+  return { query, result: selectCollectionGoods(source.goods, { ips: [source.ip] }, query) };
 }
 
 function inputNamed(html: string, name: string) {
@@ -116,6 +134,27 @@ describe('IpDetail follow form', () => {
     );
     expect(inputNamed(html, 'ipId')).toContain('value="maplestory"');
     expect(inputNamed(html, 'next')).toContain('value="/ip/maple-world"');
+  });
+});
+
+/* 팔로우·알림 저장(성공·실패·로그인 왕복) 뒤에도 고른 굿즈 필터·정렬이 남아야 한다(Codex #598). */
+describe('IpDetail form return path', () => {
+  it('sends the current filtered hall URL as next from every follow and notification form', () => {
+    const collection = collectionOf({ sort: 'name_asc', type: '키링' });
+    const expected = `/ip/maplestory?${shopQueryString(collection.query)}`.replace(/&/g, '&amp;');
+    expect(expected).toContain('sort=name_asc');
+
+    const follower = render({ collection, followState: { isFollowed: true, notifyDrops: true, notifyEvents: false } });
+    const guest = render({ collection });
+    const nextValues = (html: string) => [...html.matchAll(/<input[^>]*name="next"[^>]*value="([^"]*)"/g)].map((match) => match[1]);
+
+    expect(nextValues(follower)).toEqual([expected, expected]);
+    expect(nextValues(guest)).toEqual([expected, expected]);
+  });
+
+  it('keeps the bare hall path when no collection filter is chosen', () => {
+    const nextValues = [...render().matchAll(/<input[^>]*name="next"[^>]*value="([^"]*)"/g)].map((match) => match[1]);
+    expect(nextValues).toEqual(['/ip/maplestory', '/ip/maplestory']);
   });
 });
 
@@ -173,6 +212,18 @@ describe('IpDetail banner', () => {
     expect(hashtagList.match(/<li>/g)).toHaveLength(2);
   });
 
+  /* 데스크톱은 배너 안, 모바일은 배너 아래 흰 지면에 해시태그가 선다(11 IP-05) — 같은 목록을 폭마다 하나만 보인다. */
+  it('places the same hashtag list inside the banner and below it for the mobile layout', () => {
+    const html = render();
+    const banner = html.match(/<ul class="wc-iphall__hashtags wc-iphall__hashtags--banner">[\s\S]*?<\/ul>/)?.[0] ?? '';
+    const below = html.match(/<div class="wc-container wc-iphall__tags-band"><ul class="wc-iphall__hashtags wc-iphall__hashtags--below">[\s\S]*?<\/ul>/)?.[0] ?? '';
+
+    expect(banner.match(/<li>/g)).toHaveLength(2);
+    expect(below.match(/<li>/g)).toHaveLength(2);
+    expect(html.indexOf('wc-iphall__hashtags--banner')).toBeLessThan(html.indexOf('</section>'));
+    expect(html.indexOf('wc-iphall__hashtags--below')).toBeGreaterThan(html.indexOf('</section>'));
+  });
+
   it('renders the ip name as the page heading with its description', () => {
     const html = render();
 
@@ -185,7 +236,7 @@ describe('IpDetail goods section', () => {
   it('counts every good including sold-out ones and keeps the sold-out band', () => {
     const html = render();
 
-    expect(text(html)).toContain('전체 3개 굿즈');
+    expect(text(html)).toContain('전체 › 3개 굿즈');
     expect(html).toContain('SOLD OUT');
     expect(html).toContain('href="/shop/g1"');
   });
@@ -197,24 +248,62 @@ describe('IpDetail goods section', () => {
     expect(html).toContain('href="/shop?ip=maplestory"');
   });
 
-  it('renders a single-axis type chip row with 전체 pressed by default', () => {
+  /* IP-01: 상품 영역은 IP로 좁힌 굿즈샵 컬렉션이다 — 사이드바(타입·가격)·정렬·212 카드·VIEW MORE.
+     IP 그룹은 값이 하나뿐이라 그리지 않는다(레퍼런스 브랜드관의 1항목 브랜드 그룹 생략). */
+  it('replaces the type chips with the collection sidebar narrowed to this ip', () => {
     const html = render();
-    const allChip = html.match(/<button[^>]*aria-pressed="true"[^>]*>전체<\/button>/)?.[0];
 
-    expect(allChip).toContain('wc-iphall__filter-chip');
-    expect(html).toContain('>키링</button>');
-    expect(html).toContain('>인형</button>');
+    expect(html).toContain('aria-label="굿즈 필터"');
+    expect(html).toContain('타입 (0)');
+    expect(text(html)).toContain('키링 (2)');
+    expect(text(html)).toContain('인형 (1)');
+    expect(html).not.toContain('IP (0)');
+    expect(html).not.toContain('wc-iphall__filter-chip');
+    expect(html).toContain('class="wc-product-grid"');
   });
 
-  it('hides the chip row when a hall has a single type, and shows the empty state without goods', () => {
-    const single = render({
-      detail: { ...detail, goods: detail.goods.filter((good) => good.type === '키링') },
-    });
-    expect(single).not.toContain('wc-iphall__filter-chip');
+  it('offers the seven collection sorts with recommended selected by default', () => {
+    const html = render();
+    const values = [...html.matchAll(/<option[^>]*value="([^"]+)"/g)].map((match) => match[1]);
 
+    expect(values).toEqual(['recommended', 'name_asc', 'name_desc', 'price_asc', 'price_desc', 'oldest', 'newest']);
+    expect(html).toMatch(/<option[^>]*value="recommended"[^>]*selected/);
+  });
+
+  it('renders the server-computed collection with its filters and sort applied', () => {
+    const html = render({ collection: collectionOf({ type: '키링', sort: 'price_asc' }) });
+
+    expect(text(html)).toContain('전체 › 2/3개 굿즈');
+    expect(html.indexOf('버섯 키링')).toBeLessThan(html.indexOf('단풍 키링'));
+    expect(html).not.toContain('슬라임 인형');
+    expect(html).toMatch(/<input[^>]*checked=""[^>]*value="키링"/);
+  });
+
+  it('pages beyond twenty goods with VIEW MORE', () => {
+    const many: CatalogIpDetail = {
+      ...detail,
+      goods: Array.from({ length: 25 }, (_, index) => ({ ...detail.goods[0], id: `m${index}`, name: `굿즈 ${index}` })),
+    };
+    const html = render({ detail: many });
+
+    expect((html.match(/wc-product-card__name-link/g) ?? []).length).toBe(20);
+    expect(html).toContain('>VIEW MORE</button>');
+  });
+
+  it('puts a listing heart on every card when the wish set is passed', () => {
+    const html = render({ wishlist: { viewerId: 'viewer-1', goodIds: ['g3'] } });
+
+    expect((html.match(/<button[^>]*class="wc-list-heart[ "]/g) ?? []).length).toBe(3);
+    expect(html).toContain('aria-label="버섯 키링 위시리스트에서 빼기"');
+  });
+
+  it('shows only the empty state when the hall has no goods', () => {
     const empty = render({ detail: { ...detail, goods: [] } });
+
     expect(empty).toContain('등록된 굿즈가 아직 없습니다');
-    expect(text(empty)).toContain('전체 0개 굿즈');
+    expect(empty).toContain('id="iphall-goods-heading"');
+    expect(empty).not.toContain('aria-label="굿즈 필터"');
+    expect(empty).not.toContain('wc-product-grid');
   });
 });
 

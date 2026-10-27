@@ -136,6 +136,11 @@ jobs:
       - name: Apply local migrations
         run: supabase db reset --local --no-seed
 
+      - name: Pause automatic order confirmation in the CI database
+        # 매분 cron 틱이 KST 16:30을 걸친 CI 실행에서 다른 스모크가 커밋한 결제완료 주문을 발주확인하지 않게 한다.
+        # 꺼진 설정이면 틱은 잠금 없이 끝난다. 자동 발주확인 스모크는 자기 트랜잭션 안에서 설정을 켜고 검증한다.
+        run: docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 -c "update private.auto_order_confirmation_settings set enabled=false, revision=revision+1 where singleton"
+
       - name: Install database smoke test tools
         run: |
           sudo apt-get update
@@ -187,6 +192,7 @@ jobs:
           cat supabase/tests/helpers/goods_kc_fixture.sql supabase/tests/home_review_helpful_priority.sql | docker exec -i supabase_db_icons-ip psql -X -U supabase_admin -d postgres -v ON_ERROR_STOP=1
           cat supabase/tests/helpers/goods_kc_fixture.sql supabase/tests/category_display_compositions.sql | docker exec -i supabase_db_icons-ip psql -X -U supabase_admin -d postgres -v ON_ERROR_STOP=1
           cat supabase/tests/helpers/goods_kc_fixture.sql supabase/tests/category_display_tree.sql | docker exec -i supabase_db_icons-ip psql -X -U supabase_admin -d postgres -v ON_ERROR_STOP=1
+          cat supabase/tests/helpers/goods_kc_fixture.sql supabase/tests/category_display_menu.sql | docker exec -i supabase_db_icons-ip psql -X -U supabase_admin -d postgres -v ON_ERROR_STOP=1
           CATEGORY_DISPLAY_TEST_SCOPE=ci SUPABASE_DB_CONTAINER=supabase_db_icons-ip bash supabase/tests/category_display_concurrency.sh
           docker exec -i supabase_db_icons-ip psql -X -U supabase_admin -d postgres -v ON_ERROR_STOP=1 < supabase/tests/admin_body_templates.sql
           BODY_TEMPLATE_TEST_SCOPE=ci SUPABASE_DB_CONTAINER=supabase_db_icons-ip bash supabase/tests/admin_body_templates_concurrency.sh
@@ -222,6 +228,14 @@ jobs:
           HOME_BANNER_ARCHIVE_TEST_SCOPE=ci SUPABASE_DB_CONTAINER=supabase_db_icons-ip bash supabase/tests/home_banner_style_archive_concurrency.sh
           cat supabase/tests/helpers/goods_kc_fixture.sql supabase/tests/home_free_product_collections.sql | docker exec -i supabase_db_icons-ip psql -X -U supabase_admin -d postgres -v ON_ERROR_STOP=1
           HOME_FREE_PRODUCTS_TEST_SCOPE=ci SUPABASE_DB_CONTAINER=supabase_db_icons-ip bash supabase/tests/home_free_product_collections_concurrency.sh
+          docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/customer_marketing_consents.sql
+          docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/auto_order_confirmation.sql
+          AUTO_ORDER_CONFIRM_TEST_SCOPE=ci SUPABASE_DB_CONTAINER=supabase_db_icons-ip bash supabase/tests/auto_order_confirmation_concurrency.sh
+          docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/staging_test_delivery.sql
+          docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/commerce_number_labels.sql
+          docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/bank_transfer_order_number_code.sql
+          docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/order_item_allocation_inputs.sql
+          cat supabase/tests/helpers/goods_kc_fixture.sql supabase/tests/cart_retained_until_payment.sql | docker exec -i supabase_db_icons-ip psql -X -U supabase_admin -d postgres -v ON_ERROR_STOP=1
 
       - name: Check story and marketing workflows
         run: |
@@ -248,6 +262,7 @@ jobs:
           REVIEW_EVENTS_TEST_SCOPE=ci SUPABASE_DB_CONTAINER=supabase_db_icons-ip bash supabase/tests/review_events_concurrency.sh
           cat supabase/tests/helpers/goods_kc_fixture.sql supabase/tests/store_analytics.sql | docker exec -i supabase_db_icons-ip psql -X -U supabase_admin -d postgres -v ON_ERROR_STOP=1
           STORE_ANALYTICS_TEST_SCOPE=ci SUPABASE_DB_CONTAINER=supabase_db_icons-ip bash supabase/tests/store_analytics_concurrency.sh
+          docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/store_analytics_notice_events.sql
           docker exec -i supabase_db_icons-ip psql -X -U supabase_admin -d postgres -v ON_ERROR_STOP=1 < supabase/tests/admin_customer_purchase_report.sql
           docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/admin_sales_goods_page.sql
           docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/admin_sales_hourly_report.sql
@@ -316,6 +331,10 @@ jobs:
       # PRUNE: preview는 2026-08-11부터 전용 Supabase 프로젝트를 보므로(ADR-0006) 운영
       # allow-list에 preview wildcard가 남아 있을 이유가 없다. 게다가 이 패턴은 실제
       # preview 호스트(`icons-<hash>-<team>.vercel.app`)와 애초에 맞지도 않았다.
+      #
+      # 비밀번호 변경 가드는 앱 handler와 무관하게 recovery 흐름을 유지하므로 앱 배포 전에 켠다.
+      # 변경 알림 메일은 custom SMTP가 있는 production에서만 켠다 — preview 계열은 기본 메일
+      # 발송 한도를 recovery 메일과 나눠 쓰게 된다.
       - name: Sync and verify Supabase Auth configuration
         env:
           PROJECT_REF: ${{ secrets.SUPABASE_PROJECT_ID }}
@@ -323,6 +342,9 @@ jobs:
           REQUIRE_SMTP: "true"
           ENFORCE_MAILER: "true"
           EMAIL_OTP_EXPIRY_SECONDS: "3600"
+          PASSWORD_UPDATE_GUARDS: "true"
+          PASSWORD_CHANGED_TEMPLATE_PATH: supabase/templates/password_changed_notification.html
+          PASSWORD_CHANGED_SUBJECT: ICONS 비밀번호 변경 안내
           REDIRECT_URLS: |
             https://iconsip.com/auth/callback
             https://iconsip.com/auth/recovery/callback
@@ -669,6 +691,7 @@ jobs:
           REQUIRE_SMTP: "false"
           ENFORCE_MAILER: "false"
           EMAIL_OTP_EXPIRY_SECONDS: "3600"
+          PASSWORD_UPDATE_GUARDS: "true"
           REDIRECT_URLS: |
             https://icons-ip.vercel.app/auth/callback
             https://icons-ip.vercel.app/auth/recovery/callback
@@ -969,6 +992,7 @@ jobs:
           REQUIRE_SMTP: "false"
           ENFORCE_MAILER: "false"
           EMAIL_OTP_EXPIRY_SECONDS: "3600"
+          PASSWORD_UPDATE_GUARDS: "true"
           RECOVERY_TEMPLATE_PATH: supabase/templates/recovery.html
           REDIRECT_URLS: |
             https://icons-ip.vercel.app/auth/callback
@@ -1071,6 +1095,7 @@ jobs:
           REQUIRE_SMTP: "false"
           ENFORCE_MAILER: "false"
           EMAIL_OTP_EXPIRY_SECONDS: "3600"
+          PASSWORD_UPDATE_GUARDS: "true"
         run: |
           export SITE_URL="https://$STAGING_ALIAS"
           export REDIRECT_URLS="https://$STAGING_ALIAS/auth/callback

@@ -4,6 +4,7 @@ import { Orders, type OrdersPaymentResult } from '@/components/screens/Orders';
 import { isOnboarded, onboardingPath } from '@/lib/auth/onboarding';
 import { getCurrentAuthState } from '@/lib/auth/server';
 import { loadLatestCardPaymentResultFocus } from '@/lib/checkout.server';
+import { loadOrderReviewEvents } from '@/lib/order-review-events.server';
 import { loadOrders } from '@/lib/orders.server';
 
 export const metadata: Metadata = {
@@ -46,5 +47,7 @@ export default async function Page({
       : loadOrders(auth.user.id),
     paymentResult ? loadLatestCardPaymentResultFocus(auth.user.id) : Promise.resolve(null),
   ]);
-  return <Orders orders={orders} paymentResult={paymentResult} paymentFocus={paymentFocus} />;
+  /* 리뷰 보상 배너(MY-08)는 화면에 실린 주문의 굿즈로 진행 중 리뷰 이벤트를 묻는다 — 장식이라 실패해도 배너만 빠진다. */
+  const reviewEvents = await loadOrderReviewEvents(orders);
+  return <Orders orders={orders} paymentResult={paymentResult} paymentFocus={paymentFocus} reviewEvents={reviewEvents} />;
 }
