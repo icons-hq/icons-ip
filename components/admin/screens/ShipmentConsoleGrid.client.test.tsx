@@ -107,6 +107,20 @@ it('남양주(서원) 출고지는 원형 송장양식이 기본이고, 74열을
  expect(mocks.export).not.toHaveBeenCalled();expect(reset).toHaveBeenCalledOnce();expect(input.has('password')).toBe(false);
  expect(text(ready())).toContain('합성 재시도 안내');expect(text(ready())).toContain('비밀번호 확인');
 });
+it('CSV를 골라도 남양주(서원) 송장양식은 XLSX로 받는다고 알리고, 74열을 고르면 그 안내를 거둔다',()=>{
+ const origin={id:'00000000-0000-4000-8000-000000042202',name:'남양주',template:'seowon_xlsx',active:true};
+ const readyRow={...row,status:'ready' as const,pack:null,originId:origin.id};
+ for(const rows of [[],[readyRow]]){
+  mocks.states=[];
+  const ready=()=>{mocks.index=0;return ShipmentConsoleGrid({...props,tab:'ready',rows,origins:[origin]});};
+  const selects=()=>nodes(ready()).filter(node=>node.type==='select');
+  expect(text(ready())).not.toContain('XLSX로 받습니다');
+  (selects()[1].props.onChange as (event:unknown)=>void)({target:{value:'csv'}});
+  expect(text(ready())).toContain('CSV를 골라도 남양주(서원) 송장양식은 XLSX로 받습니다.');
+  (selects()[0].props.onChange as (event:unknown)=>void)({target:{value:'smartstore'}});
+  expect(text(ready())).not.toContain('XLSX로 받습니다');
+ }
+});
 it('김포 등 다른 출고지와 섞이면 스마트스토어 74열이 기본이다',()=>{
  const origins=[{id:'seowon',name:'남양주',template:'seowon_xlsx',active:true},{id:'gimpo',name:'김포',template:'wms_csv',active:true}];
  const readyRow={...row,status:'ready' as const,pack:null};

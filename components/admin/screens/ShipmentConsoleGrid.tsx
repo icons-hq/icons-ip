@@ -47,6 +47,8 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
  const selectedOrigins=rows.filter(row=>ids.includes(row.id)).map(row=>row.originId);
  const originTemplate=(id:string)=>origins.find(origin=>origin.id===id)?.template;
  const layout=layoutChoice??defaultExportLayout(origins,selectedOrigins.length?selectedOrigins:originId?[originId]:exportOrigins.map(origin=>origin.id));
+ // 서원 송장양식은 XLSX로만 주고받으므로 CSV를 골라도 남양주(서원) 파일은 XLSX로 만든다(출고지 기본 양식·기존 창고 양식일 때).
+ const seowonCsvNote=format==='csv'&&layoutChoice!=='smartstore'&&origins.some(origin=>origin.active!==false&&origin.template==='seowon_xlsx')?<span>CSV를 골라도 남양주(서원) 송장양식은 XLSX로 받습니다.</span>:null;
  const hasBatchActions=tab==='new'||tab==='delayed'||rows.some(isParcelShipment)||Boolean(retainedIds?.length);
  const exportEligible=ids.length>0&&ids.every(id=>{const row=rows.find(item=>item.id===id);return row?shipmentConsoleSelectable(row,tab):Boolean(retainedIds?.includes(id));});
  function select(next:string[]){setConfirmedSelection(null);setSelected(next.filter(id=>selectableIds.has(id)));}
@@ -118,6 +120,7 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
      <button className="wc-admin-kit__button" disabled={pending||!ids.length} onClick={reviewCompletion}>선택 배송완료</button>:
      <><label>엑셀 양식 <select value={layoutChoice??'auto'} disabled={pending} onChange={event=>setLayout(event.target.value==='auto'?null:event.target.value as ShipmentExportLayout)}><option value="auto">출고지 기본 양식 (남양주: 서원 송장양식 · 그 밖: 스마트스토어 74열)</option><option value="smartstore">스마트스토어 양식 (74열)</option><option value="warehouse">기존 창고 양식</option></select></label>
      <label>파일 형식 <select value={format} disabled={pending} onChange={event=>setFormat(event.target.value as 'xlsx'|'csv')}><option value="xlsx">Excel (.xlsx)</option><option value="csv">CSV</option></select></label>
+     {seowonCsvNote}
      {ids.length?<span>선택한 배송 건 내려받기 양식: {layoutLabel(layout,selectedOrigins.length>0&&selectedOrigins.every(id=>originTemplate(id)==='seowon_xlsx'))}</span>:null}
      <button className="wc-admin-kit__button" disabled={pending||!exportEligible} onClick={requestExport}>출고지시 내보내기</button></>}
     {actorId&&(tab==='ready'||tab==='delayed')?<button type="button" className="wc-admin-kit__button" disabled={pending||ids.length<1||ids.length>100} onClick={()=>setPackSelection([...ids])}>합포장 관리</button>:null}
@@ -126,7 +129,7 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
    </div>:null}
    {exportOrigins.length?<div className="wc-admin-kit__actions" role="group" aria-label="출고지별 새 출고지시 내려받기" style={{padding:'0 12px 12px'}}>
     {!hasBatchActions?<><label>엑셀 양식 <select value={layoutChoice??'auto'} disabled={pending} onChange={event=>setLayout(event.target.value==='auto'?null:event.target.value as ShipmentExportLayout)}><option value="auto">출고지 기본 양식 (남양주: 서원 송장양식 · 그 밖: 스마트스토어 74열)</option><option value="smartstore">스마트스토어 양식 (74열)</option><option value="warehouse">기존 창고 양식</option></select></label>
-     <label>파일 형식 <select value={format} disabled={pending} onChange={event=>setFormat(event.target.value as 'xlsx'|'csv')}><option value="xlsx">Excel (.xlsx)</option><option value="csv">CSV</option></select></label></>:null}
+     <label>파일 형식 <select value={format} disabled={pending} onChange={event=>setFormat(event.target.value as 'xlsx'|'csv')}><option value="xlsx">Excel (.xlsx)</option><option value="csv">CSV</option></select></label>{seowonCsvNote}</>:null}
     <span>선택 없이 출고지별 미전달 발송 대기 건을 버튼에 적힌 양식으로 받습니다(품목 1,000줄까지, 남으면 다시 눌러 이어 받기).</span>
     {exportOrigins.map(origin=><button key={origin.id} type="button" className="wc-admin-kit__button" disabled={pending} onClick={()=>exportOrigin(origin)}>{origin.name} 새 출고지시 전체 내려받기 ({layoutLabel(layoutChoice??defaultExportLayout(origins,[origin.id]),origin.template==='seowon_xlsx')})</button>)}
    </div>:null}
