@@ -383,4 +383,15 @@ select 1/case when has_function_privilege('service_role','public.release_unpaid_
  and has_function_privilege('service_role','public.place_order_with_cart_snapshot(uuid,jsonb,uuid,public.order_payment_method,bigint,uuid,jsonb)','execute')
  and not has_function_privilege('authenticated','public.place_order_with_cart_snapshot(uuid,jsonb,uuid,public.order_payment_method,bigint,uuid,jsonb)','execute')
  then 1 else 0 end as assert_cart_retention_acl;
+-- 'cart:' advisory를 잡는 모든 경로는 그 전에 account-action을 잡는다(계정 advisory → 주문 → account-action →
+-- profiles → 'cart:' → 장바구니 행). 장바구니 변경 RPC는 20261020085341이 lock_goods_transaction_actor를 앞에 넣었고,
+-- legacy 주문 코어는 주문 INSERT의 계정 fence가 장바구니 잠금보다 먼저 account-action을 잡는다.
+select 1/case when exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+  where n.nspname in ('public','private') and p.prosrc ~ 'pg_advisory_xact_lock\(.*''cart:''')
+ and not exists(select 1 from pg_proc p join pg_namespace n on n.oid=p.pronamespace
+  where n.nspname in ('public','private') and p.prosrc ~ 'pg_advisory_xact_lock\(.*''cart:'''
+   and not (strpos(p.prosrc,'lock_goods_transaction_actor(') between 1 and strpos(p.prosrc,'''cart:''')
+    or strpos(p.prosrc,'lock_account_action_subject(') between 1 and strpos(p.prosrc,'''cart:''')
+    or (p.proname='place_order_before_shipments' and strpos(p.prosrc,'insert into public.orders') between 1 and strpos(p.prosrc,'''cart:'''))))
+ then 1 else 0 end as assert_every_cart_lock_follows_account_action;
 rollback;

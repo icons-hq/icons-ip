@@ -87,7 +87,10 @@ fixture = (root / 'cart_retained_until_payment.sql').read_text().split('-- ─�
 fixture = fixture.replace('\\set ON_ERROR_STOP on', '').replace('begin;', '', 1).replace('pg_temp.', 'cart_retained_test.')
 kc = (root / 'helpers/goods_kc_fixture.sql').read_text().replace('pg_temp.', 'cart_retained_test.')
 sql('begin;create schema cart_retained_test;grant usage on schema cart_retained_test to authenticated,service_role;' + kc + fixture
-    + 'reset role;update private.goods_transaction_runtime set enabled=true where singleton;commit;')
+    + 'reset role;update private.goods_transaction_runtime set enabled=true where singleton;'
+    # 운영자 설정 완료 상태에는 소유자 1명이 필요하다. 같은 clone의 앞선 경합 스모크가 이미 정했으면 그대로 둔다.
+    + "update private.operator_memberships set manager_role='owner' where profile_id='cc270000-0000-4000-8000-000000000001'"
+    + " and not exists(select 1 from private.operator_memberships where manager_role='owner');commit;")
 variant = sql("select id from public.goods_variants where good_id='retained-a' and is_default;")
 
 # 1. 거래 런타임: 새 주문(사용자 advisory → 이전 주문 행 대기)과 그 이전 주문 finalize(주문 행 →
@@ -164,4 +167,50 @@ assert sql(f"select status from public.orders where id='{pending}';") == 'paid'
 assert sql(f"select consumption#>>'{{lines,0,outcome}}' from private.cart_order_holds where order_id='{pending}';") == 'removed'
 assert sql(f"select qty from public.cart_items where user_id='{buyer}' and variant_id='{variant}';") == '3'
 print('PASS cart mutation waiting on account-action does not deadlock with finalize cart cleanup', flush=True)
-print(json.dumps({'cases': 4, 'database': database, 'sourceDatabaseWrites': 0}, ensure_ascii=False), flush=True)
+
+# 5. 주문 생성과 다른 탭의 장바구니 수량 변경. 장바구니 변경 RPC도 사용자 advisory → account-action →
+#    profiles → 'cart:' 순서로 잠그므로(lock_goods_transaction_actor) 어느 쪽이 먼저 'cart:'를 쥐어도
+#    다른 쪽은 그보다 앞의 잠금에서 기다리고 교착하지 않는다. 테스트 전용 트리거로 각 경로를 'cart:'를
+#    쥔 지점에서 멈춘다.
+sql("""create function private.test_cart_retained_cart_pause() returns trigger language plpgsql as $$begin
+ if new.user_id='cc270000-0000-4000-8000-000000000002'::uuid then perform pg_advisory_xact_lock(2710051);end if;
+ return new;end$$;
+create function private.test_cart_retained_order_pause() returns trigger language plpgsql as $$begin
+ if exists(select 1 from public.orders where id=new.order_id and checkout_key='dd270000-0000-4000-8000-000000000008'::uuid) then
+  perform pg_advisory_xact_lock(2710052);end if;
+ return new;end$$;
+create trigger aaa_test_cart_retained_pause before insert on public.cart_items for each row execute function private.test_cart_retained_cart_pause();
+create trigger aaa_test_cart_retained_pause before insert on public.order_items for each row execute function private.test_cart_retained_order_pause();""")
+sql('begin;' + as_buyer(f"select public.set_cart_item_quantity('retained-a','{variant}',0);") + 'commit;')
+sql('begin;' + as_buyer(f"select public.set_cart_item_quantity('retained-a','{variant}',2);") + 'commit;')
+selection = cart()
+# 5a. 다른 탭의 수량 변경이 'cart:'를 쥔 채 멈춰 있는 동안 주문을 만든다.
+holder = start('cart-hold-a', 'select pg_advisory_xact_lock(2710051);select pg_sleep(1.5);')
+wait_state('cart-hold-a', 'Timeout', holder)
+mutation = start('cart-change-a', as_buyer(f"select public.set_cart_item_quantity('retained-a','{variant}',0);select public.set_cart_item_quantity('retained-a','{variant}',3);"))
+wait_state('cart-change-a', 'Lock', mutation)
+placer = start('order-a', service(f"select public.place_order_with_cart_snapshot('{buyer}',{literal(address)},'dd270000-0000-4000-8000-000000000007','card',0,null,{literal(selection)});"))
+wait_state('order-a', 'Lock', placer)
+finish(holder)
+finish(mutation)
+finish(placer, 'cart_snapshot_changed')
+assert sql(f"select qty from public.cart_items where user_id='{buyer}' and variant_id='{variant}';") == '3'
+assert sql(f"select count(*) from public.orders where user_id='{buyer}' and checkout_key='dd270000-0000-4000-8000-000000000007';") == '0'
+# 5b. 주문이 'cart:'와 장바구니 행을 쥔 채 품목을 쓰는 동안 다른 탭이 수량을 바꾼다.
+selection = cart()
+holder = start('cart-hold-b', 'select pg_advisory_xact_lock(2710052);select pg_sleep(1.5);')
+wait_state('cart-hold-b', 'Timeout', holder)
+placer = start('order-b', service(f"select public.place_order_with_cart_snapshot('{buyer}',{literal(address)},'dd270000-0000-4000-8000-000000000008','card',0,null,{literal(selection)});"))
+wait_state('order-b', 'Lock', placer)
+mutation = start('cart-change-b', as_buyer(f"select public.set_cart_item_quantity('retained-a','{variant}',1);"))
+wait_state('cart-change-b', 'Lock', mutation)
+finish(holder)
+created = finish(placer).strip().splitlines()[-1]
+finish(mutation)
+assert sql(f"select status from public.orders where id='{created}';") == 'pending'
+assert sql(f"select (lines->0->>'qty') from private.cart_order_holds where order_id='{created}';") == '3'
+assert sql(f"select qty from public.cart_items where user_id='{buyer}' and variant_id='{variant}';") == '1'
+sql('drop trigger aaa_test_cart_retained_pause on public.cart_items;drop trigger aaa_test_cart_retained_pause on public.order_items;'
+    'drop function private.test_cart_retained_cart_pause();drop function private.test_cart_retained_order_pause();')
+print('PASS order creation and other-tab cart quantity change wait in lock order either way; no deadlock', flush=True)
+print(json.dumps({'cases': 5, 'database': database, 'sourceDatabaseWrites': 0}, ensure_ascii=False), flush=True)
