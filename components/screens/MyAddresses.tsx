@@ -43,6 +43,8 @@ export function MyAddresses({ entries: initialEntries }: { entries: AddressBookE
   const preferred = defaultAddressBookEntry(entries);
   const full = book.length >= ADDRESS_BOOK_LIMIT;
   const editing = panel.kind === 'edit' ? book.find((entry) => entry.id === panel.id) ?? null : null;
+  /* 고치던 배송지를 지우면(다른 기기 포함) 폼은 닫힌 것으로 본다 — 추가 버튼이 잠긴 채 남지 않게. */
+  const panelOpen = panel.kind === 'add' || editing !== null;
 
   const announce = (next: Status) => {
     setStatus(next);
@@ -217,7 +219,7 @@ export function MyAddresses({ entries: initialEntries }: { entries: AddressBookE
               aria-describedby={full ? 'address-book-full-note' : undefined}
               aria-expanded={panel.kind === 'add'}
               className="wc-btn primary"
-              disabled={full || panel.kind !== 'closed'}
+              disabled={full || panelOpen}
               onClick={() => openPanel({ kind: 'add' })}
               ref={addButtonRef}
               type="button"
@@ -231,7 +233,7 @@ export function MyAddresses({ entries: initialEntries }: { entries: AddressBookE
             ) : null}
           </div>
 
-          {panel.kind !== 'closed' && (panel.kind === 'add' || editing) ? (
+          {panelOpen ? (
             <section aria-labelledby="address-book-panel-heading" className="wc-address-book__panel">
               <h2 className="wc-address-book__panel-title" id="address-book-panel-heading" ref={panelHeadingRef} tabIndex={-1}>
                 {panel.kind === 'add' ? '배송지 추가' : '배송지 수정'}
