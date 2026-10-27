@@ -554,7 +554,7 @@ describe('admin curation form normalization', () => {
     });
   });
 
-  /* L8b (#574) — 컬렉션 배너(CL-09)와 추천 검색어(CH-10). DB(20261027020000)와 같은 한도를 폼이 먼저 잡는다. */
+  /* L8b (#574) — 컬렉션 배너(CL-09)와 추천 검색어(CH-10). DB(20261027170000)와 같은 한도를 폼이 먼저 잡는다. */
   function bannerForm(entries: Record<string, string> = {}) {
     return curationForm({ kind: 'collection_banner', title: '  가을 신상 굿즈  ', linkPath: '', slot: 'all', imageDim: 'none', textColor: 'black', ...entries });
   }

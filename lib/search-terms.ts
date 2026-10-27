@@ -19,7 +19,7 @@ export const SUGGESTED_SEARCH_TERMS = [
   '아크릴',
 ] as const;
 
-/** 운영 목록 한도 — DB(20261027020000 private.is_valid_home_search_terms)와 같은 값이다. */
+/** 운영 목록 한도 — DB(20261027170000 private.is_valid_home_search_terms)와 같은 값이다. */
 export const SEARCH_TERM_LIMIT = 10;
 export const SEARCH_TERM_MAX_LENGTH = 20;
 export const SEARCH_TERM_LIST_NAME_LIMIT = 40;
