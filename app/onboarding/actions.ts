@@ -221,7 +221,7 @@ export async function completeOnboardingAction(
     .update({
       birth_date: birthDate,
       /* consents.marketing은 채널별 수신 동의 원장의 파생값이라 여기서 쓰지 않는다 — 아래 RPC가
-         원장과 함께 바꾸고, DB 트리거가 이 직접 쓰기의 marketing 값을 무시한다(S4). */
+         원장과 함께 바꾸고, 키가 빠진 이 덮어쓰기에는 DB 트리거가 이전 값을 그대로 둔다(S4). */
       consents: { terms, privacy },
     })
     .eq('id', user.id)

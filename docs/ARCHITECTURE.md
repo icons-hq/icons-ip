@@ -641,6 +641,6 @@ docs/
 
 ### 수단별 마케팅 수신 동의(2026-10-27)
 
-마케팅 정보 수신 동의는 이메일·SMS 수단별로 `private.customer_marketing_consents`(현재 선택·동의/철회 시각·안내 버전·출처·revision)와 이력 `private.customer_marketing_consent_events`에 남긴다. 네 롤의 직접 접근을 봉인하고 본인 RPC `set_my_marketing_consents`(회원 행 잠금·같은 선택 재저장 무변경)와 `my_marketing_consent_state`만 연다. `profiles.consents.marketing`은 "하나라도 동의 = true" 파생값으로 유지해 세그먼트·인앱 메시지·어드민 회원 상세가 그대로 읽고, Data API 직접 쓰기(`authenticated`)는 트리거가 이 값을 바꾸지 못하게 한다. 기존 단일 동의는 채널을 나누지 않았으므로 이메일 동의(`marketing-legacy-v0`, 동의 시각=온보딩 완료 시각의 보수적 하한)로만 이관했다. 2년 재확인 발송·SMS 번호 수집은 이 원장 위의 후속 작업이다.
+마케팅 정보 수신 동의는 이메일·SMS 수단별로 `private.customer_marketing_consents`(현재 선택·동의/철회 시각·안내 버전·출처·revision)와 이력 `private.customer_marketing_consent_events`에 남긴다. 네 롤의 직접 접근을 봉인하고 본인 RPC `set_my_marketing_consents`(회원 행 잠금·같은 선택 재저장 무변경)와 `my_marketing_consent_state`만 연다. `profiles.consents.marketing`은 "하나라도 동의 = true" 파생값으로 유지해 세그먼트·인앱 메시지(알림함)·어드민 회원 상세가 그대로 읽는다. 원장 밖에서 이 값을 바꾸는 쓰기(배포 창의 옛 앱 Data API 쓰기·운영 SQL)는 무시하지 않고 트리거가 원장에 반영한다 — false는 동의 중인 수단 전부 철회, true는 이메일 동의(`legacy_app`, `marketing-legacy-v0`). 키를 지우거나 boolean이 아닌 값은 이전 값을 유지한다. 기존 단일 동의는 채널을 나누지 않았으므로 이메일 동의(`marketing-legacy-v0`, 동의 시각=온보딩 완료 시각의 보수적 하한)로만 이관했다. 2년 재확인 발송·SMS 번호 수집은 이 원장 위의 후속 작업이다.
 
 디지털 파일이 포함된 주문은 교환 접수와 유형 변경을 거절하고, 구매 당시 파일 재다운로드 및 문의·전체 취소/환불 심사를 사용한다. 고객 신청 조건, 판매자 직접 접수, 클레임 행 트리거가 같은 정책을 검사한다. 기존 구매 파일·결제·다운로드·환불 원장은 변경하지 않는다. 상세 계약은 [성별·연령 및 디지털 정책](research/smartstore-admin/customer-demographics.md)을 따른다.

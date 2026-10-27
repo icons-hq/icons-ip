@@ -23,6 +23,8 @@ select 1/case when not has_table_privilege('authenticated','private.customer_mar
  and not has_function_privilege('service_role','public.set_my_marketing_consents(boolean,boolean,text,text)','execute')
  and has_function_privilege('authenticated','public.set_my_marketing_consents(boolean,boolean,text,text)','execute')
  and not has_function_privilege('authenticated','private.customer_marketing_consent_document(uuid)','execute')
+ and not has_function_privilege('authenticated','private.write_customer_marketing_consent(uuid,text,boolean,text,text,timestamptz)','execute')
+ and not has_function_privilege('service_role','private.write_customer_marketing_consent(uuid,text,boolean,text,text,timestamptz)','execute')
  then 1 else 0 end as sealed;
 
 select pg_temp.marketing_consent_actor(1); set local role authenticated;
@@ -46,21 +48,47 @@ select 1/case when (select consents from public.profiles where id='a6271100-0000
  and (select source from private.customer_marketing_consents where user_id='a6271100-0000-4000-8000-000000000001' and channel='sms')='onboarding'
  then 1 else 0 end as derived_and_ledger_match;
 
--- Data API 직접 쓰기(온보딩 약관 저장처럼 consents 전체 덮어쓰기)는 파생값을 바꾸지 못한다.
+-- 새 온보딩처럼 marketing 키 없이 consents를 덮어쓰거나 boolean이 아닌 값을 쓰면 이전 값을 유지한다.
 select pg_temp.marketing_consent_actor(1); set local role authenticated;
-update public.profiles set consents='{"terms":true,"privacy":true,"marketing":false}' where id='a6271100-0000-4000-8000-000000000001';
 update public.profiles set consents='{"terms":true,"privacy":true}' where id='a6271100-0000-4000-8000-000000000001';
+update public.profiles set consents='{"terms":true,"privacy":true,"marketing":"yes"}' where id='a6271100-0000-4000-8000-000000000001';
 reset role;
 select 1/case when (select consents from public.profiles where id='a6271100-0000-4000-8000-000000000001')='{"terms":true,"privacy":true,"marketing":true}'::jsonb
- then 1 else 0 end as direct_write_keeps_derived_value;
+ and (select count(*) from private.customer_marketing_consent_events where user_id='a6271100-0000-4000-8000-000000000001')=2
+ then 1 else 0 end as missing_or_invalid_value_keeps_derived;
+
+-- 배포 창의 옛 앱(Data API 직접 쓰기)이 false를 쓰면 동의 중인 수단을 모두 철회로 원장에 남긴다.
+select pg_temp.marketing_consent_actor(1); set local role authenticated;
+update public.profiles set consents=jsonb_set(consents,'{marketing}','false') where id='a6271100-0000-4000-8000-000000000001';
+reset role;
+select 1/case when (select consents->'marketing' from public.profiles where id='a6271100-0000-4000-8000-000000000001')='false'::jsonb
+ and not exists(select 1 from private.customer_marketing_consents where user_id='a6271100-0000-4000-8000-000000000001' and agreed)
+ and (select source||'/'||notice_version from private.customer_marketing_consents where user_id='a6271100-0000-4000-8000-000000000001' and channel='email')='legacy_app/marketing-legacy-v0'
+ and (select withdrawn_at is not null and agreed_at is null from private.customer_marketing_consents where user_id='a6271100-0000-4000-8000-000000000001' and channel='email')
+ -- SMS는 이미 거부였으므로 이력이 늘지 않는다.
+ and (select count(*) from private.customer_marketing_consent_events where user_id='a6271100-0000-4000-8000-000000000001')=3
+ then 1 else 0 end as legacy_false_withdraws_all;
+
+-- 옛 앱이 true를 쓰면 옛 단일 안내와 같은 이메일 동의로 기록한다.
 select pg_temp.marketing_consent_actor(2); set local role authenticated;
 update public.profiles set consents='{"terms":true,"privacy":true,"marketing":true}' where id='a6271100-0000-4000-8000-000000000002';
 reset role;
-select 1/case when (select consents->'marketing' from public.profiles where id='a6271100-0000-4000-8000-000000000002')='false'::jsonb
- then 1 else 0 end as direct_write_cannot_self_consent;
+select 1/case when (select consents->'marketing' from public.profiles where id='a6271100-0000-4000-8000-000000000002')='true'::jsonb
+ and (select agreed and agreed_at is not null and source='legacy_app' and notice_version='marketing-legacy-v0'
+  from private.customer_marketing_consents where user_id='a6271100-0000-4000-8000-000000000002' and channel='email')
+ and not exists(select 1 from private.customer_marketing_consents where user_id='a6271100-0000-4000-8000-000000000002' and channel='sms')
+ then 1 else 0 end as legacy_true_agrees_email;
+select pg_temp.marketing_consent_actor(2); set local role authenticated;
+select 1/case when public.my_marketing_consent_state()->'email'->>'noticeVersion'='marketing-legacy-v0'
+ and public.my_marketing_consent_state()->'marketing'='true'::jsonb then 1 else 0 end as legacy_state_visible;
+reset role;
 
--- 설정: 이메일 철회·SMS 동의. 철회 시각을 남기고 동의 시각은 지운다. 파생값은 SMS로 true 유지.
+-- 설정: 이메일 동의·SMS 동의. 원장을 먼저 쓰고 파생값을 맞추므로 동기화 트리거는 아무것도 더하지 않는다.
 select pg_temp.marketing_consent_actor(1); set local role authenticated;
+select public.set_my_marketing_consents(true,true,'marketing-channels-v1','settings') as both_agreed \gset
+select 1/case when (:'both_agreed'::jsonb)->'email'->'agreed'='true'::jsonb and (:'both_agreed'::jsonb)->'sms'->'agreed'='true'::jsonb
+ and (:'both_agreed'::jsonb)->'marketing'='true'::jsonb then 1 else 0 end as settings_agreed;
+-- 이메일 철회·SMS 유지. 철회 시각을 남기고 동의 시각은 지운다. 파생값은 SMS로 true 유지.
 select public.set_my_marketing_consents(false,true,'marketing-channels-v1','settings') as changed \gset
 select 1/case when (:'changed'::jsonb)->'email'->'agreed'='false'::jsonb and (:'changed'::jsonb)->'email'->'withdrawnAt'<>'null'::jsonb
  and (:'changed'::jsonb)->'email'->'agreedAt'='null'::jsonb and (:'changed'::jsonb)->'sms'->'agreed'='true'::jsonb
@@ -70,15 +98,18 @@ select public.set_my_marketing_consents(false,false,'marketing-channels-v1','set
 reset role;
 select 1/case when (:'withdrawn'::jsonb)->'marketing'='false'::jsonb
  and (select consents->'marketing' from public.profiles where id='a6271100-0000-4000-8000-000000000001')='false'::jsonb
- and (select count(*) from private.customer_marketing_consent_events where user_id='a6271100-0000-4000-8000-000000000001')=5
- and (select array_agg(agreed order by id) from private.customer_marketing_consent_events where user_id='a6271100-0000-4000-8000-000000000001' and channel='email')=array[true,false]
+ and (select count(*) from private.customer_marketing_consent_events where user_id='a6271100-0000-4000-8000-000000000001')=7
+ and (select array_agg(source order by id) from private.customer_marketing_consent_events where user_id='a6271100-0000-4000-8000-000000000001' and channel='email')
+  =array['onboarding','legacy_app','settings','settings']
  and (select revision from private.customer_marketing_consents where user_id='a6271100-0000-4000-8000-000000000001' and channel='sms')=3
  then 1 else 0 end as withdrawal_derives_false;
 
--- 운영 SQL(postgres)과 기존 스모크의 직접 설정은 막지 않는다.
+-- 운영 SQL(postgres)과 기존 스모크의 직접 설정도 막지 않고 같은 규칙으로 원장에 반영한다.
+update public.profiles set consents=consents||'{"marketing":false}' where id='a6271100-0000-4000-8000-000000000002';
 update public.profiles set consents=consents||'{"marketing":true}' where id='a6271100-0000-4000-8000-000000000002';
 select 1/case when (select consents->'marketing' from public.profiles where id='a6271100-0000-4000-8000-000000000002')='true'::jsonb
- then 1 else 0 end as privileged_write_unchanged;
+ and (select array_agg(agreed order by id) from private.customer_marketing_consent_events where user_id='a6271100-0000-4000-8000-000000000002')=array[true,false,true]
+ then 1 else 0 end as privileged_write_synced;
 
 -- 비로그인은 상태를 읽지 못한다.
 select set_config('request.jwt.claim.sub','',true); select set_config('request.jwt.claims','{"role":"anon"}',true);

@@ -4,8 +4,9 @@
  * 원장은 DB `private.customer_marketing_consents`(현재 선택·동의/철회 시각·안내 버전)와
  * 이력 `private.customer_marketing_consent_events`다. 기존 `profiles.consents.marketing`은
  * "어느 채널이든 하나라도 동의 = true"인 파생값으로 남아 고객 세그먼트·인앱 메시지·어드민
- * 회원 상세가 그대로 읽는다(migration 20261027110000). 바꾸는 길은
- * `set_my_marketing_consents` RPC 하나다.
+ * 회원 상세가 그대로 읽는다(migration 20261027110000). 앱이 바꾸는 길은
+ * `set_my_marketing_consents` RPC 하나다. 원장 밖의 직접 쓰기(배포 창의 옛 앱·운영 SQL)는 DB 트리거가
+ * 원장에 반영한다(false=전 수단 철회, true=이메일 동의 legacy_app).
  *
  * 안내 문구를 바꾸면 버전도 올린다 — DB가 받는 버전 목록과 함께 바꿔야 한다.
  */
