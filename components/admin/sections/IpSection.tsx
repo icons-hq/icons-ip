@@ -1,7 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useActionState, useState } from 'react';
 import type { AdminCatalogActionState } from '@/app/admin/actions';
+import { saveAdminIpHallBannerAction, type AdminIpHallBannerActionState } from '@/app/admin/ip-banner-actions';
 import type { AdminIpRecord } from '@/lib/admin/catalog.server';
 import { adminFormRemountKey, preservedFormValues, resolveArtworkDefault, resolveFieldDefault } from '@/lib/admin/form-state';
 import { withLocalRecoveryValues } from '@/lib/admin/local-autosave';
@@ -17,11 +18,61 @@ import { Icon } from '@/components/ui/Icon';
 import { ArtworkUploadField } from '../ArtworkUploadField';
 import { CatalogArchiveControl, CatalogArchiveFilter } from '../CatalogArchiveControls';
 import { IpPublishControl, IpPublishStateBadge } from '../IpPublishControls';
-import { ActionNotice, Field, RecordList, SelectField, TextArea } from '../fields';
+import { ActionNotice, ErrorText, Field, RecordList, SelectField, TextArea } from '../fields';
 import { AdminLocalDraftNotice } from '../AdminLocalDraftNotice';
 import { useAdminLocalAutosave } from '../useAdminLocalAutosave';
 
 const LOCAL_DRAFT_FIELDS = ['id', 'title', 'sub', 'verticalKey', 'tagline', 'glyph', 'synopsis', 'imagePath'] as const;
+const EMPTY_BANNER_STATE: AdminIpHallBannerActionState = {};
+
+/*
+ * IP관 PC/MO 배너(11 IP-06 · L8b). 기본정보 폼과 따로 저장한다(admin_save_ip_hall_banner) — 저장된 IP 에만 보인다.
+ * 둘 다 선택이고, 비우면 공개 IP관은 키아트를 배경으로 쓴다. 모바일 배너가 없으면 모바일에서도 PC 배너를 쓴다.
+ */
+export function IpHallBannerForm({ ip }: { ip: AdminIpRecord }) {
+  const [state, action, pending] = useActionState(saveAdminIpHallBannerAction, EMPTY_BANNER_STATE);
+  return (
+    <form action={action} aria-label="IP관 배너" className="card col" key={`${ip.id}:${ip.hallBannerImagePath ?? ''}:${ip.hallBannerMobileImagePath ?? ''}`} style={{ gap: 14, padding: 18 }}>
+      <div className="col" style={{ gap: 4 }}>
+        <strong>IP관 배너</strong>
+        <span className="muted" style={{ fontSize: 12 }}>
+          온라인 팝업 IP관 맨 위 배너 그림입니다. 비워 두면 IP 키아트를 씁니다. IP 이름·설명·해시태그는 그림 위에 글자로 얹히니 그림에 넣지 마세요.
+        </span>
+      </div>
+      <input name="ipId" type="hidden" value={ip.id} />
+      <ArtworkUploadField
+        allowRemove
+        currentPath={ip.hallBannerImagePath ?? null}
+        currentUrl={ip.hallBannerImageUrl ?? null}
+        fieldId="ip-hall-banner-pc"
+        helpText="PC 배너는 2880×1080px(화면 1440×540)를 권장합니다. 가운데를 기준으로 잘립니다."
+        kind="ip"
+        label="PC 배너"
+        name="hallBannerImagePath"
+        showCropGuide={false}
+      />
+      <ErrorText>{state.errors?.imagePath}</ErrorText>
+      <ArtworkUploadField
+        allowRemove
+        currentPath={ip.hallBannerMobileImagePath ?? null}
+        currentUrl={ip.hallBannerMobileImageUrl ?? null}
+        fieldId="ip-hall-banner-mobile"
+        helpText="모바일 배너는 750×840px(화면 375×420)를 권장합니다. 비우면 모바일에서도 PC 배너를 씁니다."
+        kind="ip"
+        label="모바일 배너"
+        name="hallBannerMobileImagePath"
+        showCropGuide={false}
+      />
+      <ErrorText>{state.errors?.mobileImagePath}</ErrorText>
+      <ActionNotice state={state} />
+      <div className="row" style={{ justifyContent: 'flex-start' }}>
+        <button className="btn btn-holo" disabled={pending} style={{ minWidth: 150 }} type="submit">
+          <Icon name="check" size={15} /> {pending ? '저장 중' : 'IP관 배너 저장'}
+        </button>
+      </div>
+    </form>
+  );
+}
 
 export function IpSection({
   accountId,
@@ -157,6 +208,7 @@ export function IpSection({
             )}
           </div>
         </form>
+        {selected && <IpHallBannerForm ip={selected} key={selected.id} />}
         {selected && (
           <IpPublishControl
             id={selected.id}
