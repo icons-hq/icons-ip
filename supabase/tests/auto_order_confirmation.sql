@@ -37,7 +37,8 @@ select 1/case when (
     and command='select private.tick_auto_order_confirmation()')=1
 ) then 1 else 0 end as assert_sealed_acl_and_minute_tick;
 
-select 1/case when (select enabled and run_time='16:30' and enabled_at is not null from private.auto_order_confirmation_settings where singleton)
+-- 운영자가 아직 바꾸지 않은(revision 1) DB는 migration 기본값 그대로다.
+select 1/case when (select revision>1 or (enabled and run_time='16:30' and enabled_at is not null) from private.auto_order_confirmation_settings where singleton)
  then 1 else 0 end as assert_starts_enabled_at_1630;
 
 -- ---------------------------------------------------------------------------
