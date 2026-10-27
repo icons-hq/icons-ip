@@ -2672,7 +2672,8 @@ button.wc-settings__link-row[aria-disabled="true"] strong {
   text-underline-offset: 3px;
 }
 
-.wc-receipt .order-detail-status-row {
+.wc-receipt .order-detail-status-row,
+.wc-receipt .ticket-detail-status-row {
   margin-bottom: 10px;
 }
 

@@ -1,4 +1,5 @@
 import { isCardRewardDestination, isCommunityDestination, type NoticeStrip } from './home-catalog';
+import type { ImageSize } from './image-size';
 import { isGoodDetailPath } from './routes';
 
 /*
@@ -26,6 +27,9 @@ export interface ShellNoticeBar {
 }
 
 export interface ShellNoticeStrip extends NoticeStrip {
+  /** 이미지 고유 크기 — 띠 자리를 첫 페인트 전에 잡는다(notice-strip.server.ts). 읽지 못했으면 null. */
+  imageSize?: ImageSize | null;
+  mobileImageSize?: ImageSize | null;
   /** null = 대상을 지정하지 않은 기존 스트립(모든 셸 화면). */
   pageTypes: readonly ShellNoticePageType[] | null;
   /** 노출 종료 시각(epoch ms, active_to). null = 종료 없음. */
@@ -38,6 +42,18 @@ export interface ShellNotices {
 }
 
 export const EMPTY_SHELL_NOTICES: ShellNotices = { bars: [], strips: [] };
+
+/**
+ * 띠배너 <img>·모바일 <source> 에 달 크기. 브라우저는 고른 <source> 에 크기가 없으면 <img> 의 크기로 비율을 잡는다 —
+ * 모바일 소스 크기를 모르면 PC 비율이 모바일 이미지에 쓰여 자리가 틀리게 잡히므로(다시 밀린다) <img> 에도 달지 않는다.
+ */
+export function noticeStripDimensions(
+  strip: Pick<ShellNoticeStrip, 'mobileImageUrl' | 'imageSize' | 'mobileImageSize'>,
+): { image: ImageSize | null; mobile: ImageSize | null } {
+  const mobile = strip.mobileImageUrl ? strip.mobileImageSize ?? null : null;
+  const image = strip.imageSize && (!strip.mobileImageUrl || mobile) ? strip.imageSize : null;
+  return { image, mobile };
+}
 
 export const SHELL_NOTICE_ROOT_ID = 'wc-shell-notices';
 export const SHELL_NOTICE_DISMISSED_KEY = 'icons:notice-dismissed:v1';
