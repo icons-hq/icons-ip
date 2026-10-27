@@ -14,7 +14,7 @@ import { kstDay } from '../admin/kst';
  * 배포일이 바뀌면 두 날짜를 함께 고친다. 문구·시행일·고지 방식은 사람 검토 대상이다.
  */
 export const PRIVACY_ADDRESS_BOOK_REVISION = {
-  announcedDate: '2026-10-28',
+  announcedDate: '2026-10-27',
   effectiveDate: '2026-11-06',
 } as const;
 

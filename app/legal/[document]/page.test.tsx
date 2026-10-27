@@ -93,7 +93,7 @@ describe('/legal/[document] 라우트', () => {
         }
         expect(html).toContain('<p class="wc-document__effective">시행일 2026-10-19</p>');
         expect(html).toContain('<p class="wc-document__notice-kicker">개정 사전 공지</p>');
-        expect(html).toContain('공지일 2026-10-28');
+        expect(html).toContain('공지일 2026-10-27');
         expect(html).toContain('시행 예정일 2026-11-06');
         expect(html).toContain('이전 정책 본문 (시행일 2026-08-22)');
         expect(html).not.toContain('2026-11-06 개정 안내');
