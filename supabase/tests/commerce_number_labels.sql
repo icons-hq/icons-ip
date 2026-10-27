@@ -47,6 +47,46 @@ select 1/case when (select array_agg(value->>'shipmentNumber' order by value->>'
    =array[:'first_number',:'second_number']
  then 1 else 0 end as assert_reply_candidates_carry_shipment_number;
 
+-- 2-1) 서원 원형 양식 접미사는 출고지시 전달 표시와 같은 호출에서 배송 건별로 기록한다.
+select (select jsonb_agg(jsonb_build_object('id',id,'updatedAt',updated_at) order by id) from public.order_shipments
+  where id in ('62000000-0000-4000-8000-000000000001','62000000-0000-4000-8000-000000000002')) as versions \gset
+do $$begin
+ perform public.admin_mark_seowon_shipments_exported((select jsonb_agg(jsonb_build_object('id',id,'updatedAt',updated_at)) from public.order_shipments where id='62000000-0000-4000-8000-000000000001'),
+  '00000000-0000-4000-8000-000000271471','[{"shipmentId":"62000000-0000-4000-8000-000000000002","suffix":"01"}]');
+ raise exception 'label outside the marked versions accepted';
+exception when invalid_parameter_value then if sqlerrm<>'invalid_seowon_export_labels' then raise; end if; end$$;
+do $$begin
+ perform public.admin_mark_seowon_shipments_exported((select jsonb_agg(jsonb_build_object('id',id,'updatedAt',updated_at)) from public.order_shipments where id='62000000-0000-4000-8000-000000000001'),
+  '00000000-0000-4000-8000-000000271471','[{"shipmentId":"62000000-0000-4000-8000-000000000001","suffix":"1a"}]');
+ raise exception 'invalid suffix accepted';
+exception when invalid_parameter_value then if sqlerrm<>'invalid_seowon_export_labels' then raise; end if; end$$;
+select 1/case when public.admin_mark_seowon_shipments_exported(:'versions'::jsonb,'00000000-0000-4000-8000-000000271471',
+  '[{"shipmentId":"62000000-0000-4000-8000-000000000001","suffix":"01"},{"shipmentId":"62000000-0000-4000-8000-000000000002","suffix":"02"}]')=2
+ then 1 else 0 end as assert_seowon_labels_marked_with_handover;
+select public.admin_origin_tracking_candidates('00000000-0000-4000-8000-000000042202','{}',array['01012342714']) as labeled \gset
+select 1/case when (select array_agg(value->'seowonLabel'->>'suffix' order by value->>'id') from jsonb_array_elements(:'labeled'::jsonb->'shipments'))=array['01','02']
+ and (select bool_and(value->'seowonLabel'->>'batch'='00000000-0000-4000-8000-000000271471' and value->'pack'='null'::jsonb) from jsonb_array_elements(:'labeled'::jsonb->'shipments'))
+ then 1 else 0 end as assert_reply_candidates_carry_recorded_suffix;
+reset role;
+select 1/case when (select count(*)=2 from private.seowon_export_labels where export_batch='00000000-0000-4000-8000-000000271471')
+ and exists(select 1 from public.audit_log where action='admin.shipment.seowon_labels_recorded' and target='seowon_export:00000000-0000-4000-8000-000000271471' and diff->>'suffixed'='2')
+ and (select count(*)=2 from public.audit_log where action='admin.shipment.exported' and diff->>'shipmentId' in ('62000000-0000-4000-8000-000000000001','62000000-0000-4000-8000-000000000002'))
+ and not has_function_privilege('anon','public.admin_mark_seowon_shipments_exported(jsonb,uuid,jsonb)','execute')
+ then 1 else 0 end as assert_seowon_labels_recorded_and_audited;
+-- 김포 양식 출고지의 배송 건은 서원 접미사를 기록하지 않는다.
+update public.order_shipments set origin_id='00000000-0000-4000-8000-000000042201' where id='62000000-0000-4000-8000-000000000002';
+set local role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000271401',true);
+do $$begin
+ perform public.admin_mark_seowon_shipments_exported((select jsonb_agg(jsonb_build_object('id',id,'updatedAt',updated_at)) from public.order_shipments where id='62000000-0000-4000-8000-000000000002'),
+  '00000000-0000-4000-8000-000000271472','[{"shipmentId":"62000000-0000-4000-8000-000000000002","suffix":""}]');
+ raise exception 'non-seowon label accepted';
+exception when check_violation then if sqlerrm<>'invalid_seowon_export_labels' then raise; end if; end$$;
+reset role;
+update public.order_shipments set origin_id='00000000-0000-4000-8000-000000042202' where id='62000000-0000-4000-8000-000000000002';
+set local role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000271401',true);
+
 -- 3) 발송 지연 안내: 어드민 표기는 출고지 · 배송건번호, 고객 본문과 메일은 번호만.
 select public.admin_prepare_order_delay_notice('00000000-0000-4000-8000-000000271431',
  array['62000000-0000-4000-8000-000000000001']::uuid[],'발송 지연 안내','입고 일정을 확인하고 있습니다.',null);
@@ -66,6 +106,16 @@ select 1/case when :'job'::jsonb->>'orderNumber'=:'order_number'
  and :'job'::jsonb->'shipmentLabels'=jsonb_build_array(:'first_number')
  and :'job'::text not like '%남양주%'
  then 1 else 0 end as assert_delay_email_job_numbers_without_origin;
+reset role;
+
+-- 3-1) 주문 상세 타임라인은 시스템 감사 기록의 출처(trigger)를 함께 낸다(자동 발주확인).
+insert into public.audit_log(actor_id,action,target,diff) values(null,'admin.order.status_updated','order:52000000-0000-4000-8000-000000000002',
+ jsonb_build_object('from','paid','to','confirmed','trigger','auto_order_confirmation','runDate','2026-10-27','cutoffAt','2026-10-27T07:30:00Z'));
+set local role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000271401',true);
+select 1/case when exists(select 1 from jsonb_array_elements(public.admin_order_detail('52000000-0000-4000-8000-000000000002')->'timeline') entry
+  where entry->>'action'='admin.order.status_updated' and entry->>'trigger'='auto_order_confirmation' and entry->>'toStatus'='confirmed')
+ then 1 else 0 end as assert_timeline_carries_audit_trigger;
 reset role;
 
 -- 4) 권한 계약은 그대로다.

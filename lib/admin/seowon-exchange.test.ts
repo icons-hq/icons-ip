@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  formatSeowonPhone, matchSeowonReply, seowonExportRows, seowonExportTable, seowonItemName, SEOWON_REPLY_REASONS,
+  formatSeowonPhone, matchSeowonReply, seowonExportLabels, seowonExportRows, seowonExportTable, seowonItemName, SEOWON_REPLY_REASONS,
   type SeowonReplyCandidate, type SeowonReplyRow,
 } from './seowon-exchange';
 
@@ -44,6 +44,11 @@ describe('서원 합배송 방지 접미사와 배송건번호 열', () => {
     expect(rows.map(row => row.recipient)).toEqual(['합성 수취인01', '합성 수취인01', '합성 수취인02']);
     expect(seowonExportTable([shipment('a', '2026102730000001', { packId: 'p' }), shipment('b', '2026102730000002', { packId: 'p' })]).map(row => row.recipient)).toEqual(['합성 수취인', '합성 수취인']);
   });
+  it('접미사 기록은 출고지별 파일마다 정하고 서원 양식 출고지만 남긴다', () => {
+    const at = (id: string, number: string, originId: string, template = 'seowon_xlsx') => ({ ...shipment(id, number), originId, template });
+    expect(seowonExportLabels([at('a', '2026102730000001', 'n1'), at('b', '2026102730000002', 'n1'), at('c', '2026102730000003', 'n2'), at('g', '2026102730000004', 'gimpo', 'wms_csv')]))
+      .toEqual([{ shipmentId: 'a', suffix: '01' }, { shipmentId: 'b', suffix: '02' }, { shipmentId: 'c', suffix: '' }]);
+  });
 });
 
 describe('서원 회신 대조', () => {
@@ -82,15 +87,66 @@ describe('서원 회신 대조', () => {
     expect(single.commands).toEqual([]);
     expect(single.issues.map(issue => issue.reason)).toEqual([SEOWON_REPLY_REASONS.splitIdentical]);
   });
-  it('받는 분·품목이 같아도 서원이 송장을 따로 냈으면 받는분성명 접미사 순서로 배송건번호 순의 배송 건에 등록한다', () => {
-    const twins = [candidate('b', { shipmentNumber: '2026102730000002' }), candidate('a', { shipmentNumber: '2026102730000001' })];
+  it('받는 분·품목이 같아도 서원이 송장을 따로 냈으면 내보낼 때 기록한 접미사와 정확히 맞춰 등록한다', () => {
+    const label = (suffix: string, batch = 'batch-1') => ({ batch, suffix });
+    const twins = [candidate('b', { shipmentNumber: '2026102730000002', seowonLabel: label('02') }), candidate('a', { shipmentNumber: '2026102730000001', seowonLabel: label('01') })];
     const match = matchSeowonReply([reply(2, 'T2', { recipient: '합성 수취인02' }), reply(3, 'T1', { recipient: '합성 수취인01' })], twins);
     expect(match.issues).toEqual([]);
     expect(match.commands.map(command => [command.shipmentId, command.shipmentNumber, command.trackingNumber, command.lines])).toEqual([['b', '2026102730000002', 'T2', [2]], ['a', '2026102730000001', 'T1', [3]]]);
-    // 접미사가 없거나 수가 맞지 않으면 넘겨짚지 않는다.
+    // 기록이 없으면(이 변경 전 내보내기) 순위로 추정하지 않고 사람에게 넘긴다.
+    const unlabeled = [candidate('b', { shipmentNumber: '2026102730000002' }), candidate('a', { shipmentNumber: '2026102730000001' })];
+    const guessed = matchSeowonReply([reply(2, 'T2', { recipient: '합성 수취인02' }), reply(3, 'T1', { recipient: '합성 수취인01' })], unlabeled);
+    expect(guessed.commands).toEqual([]);
+    expect(guessed.issues.map(issue => issue.reason)).toEqual([SEOWON_REPLY_REASONS.splitIdentical, SEOWON_REPLY_REASONS.splitIdentical]);
+    // 접미사가 없거나 서로 다른 내보내기의 같은 접미사면 넘겨짚지 않는다.
     expect(matchSeowonReply([reply(2, 'T2', { recipient: '합성 수취인' }), reply(3, 'T1', { recipient: '합성 수취인' })], twins).commands).toEqual([]);
-    expect(matchSeowonReply([reply(2, 'T2', { recipient: '합성 수취인01' }), reply(3, 'T1', { recipient: '합성 수취인01' })], twins).issues.map(issue => issue.reason))
-      .toEqual([SEOWON_REPLY_REASONS.splitIdentical, SEOWON_REPLY_REASONS.splitIdentical]);
+    const otherBatch = [candidate('b', { seowonLabel: label('01', 'batch-2') }), candidate('a', { seowonLabel: label('01') })];
+    expect(matchSeowonReply([reply(2, 'T2', { recipient: '합성 수취인01' }), reply(3, 'T1', { recipient: '합성 수취인02' })], otherBatch).commands).toEqual([]);
+  });
+  it('내보낸 뒤 한 건이 취소되고 같은 내용의 새 건이 다른 파일로 나가도, 회신 줄을 남은 순위로 새 건에 붙이지 않는다', () => {
+    // 파일 1: A01·B02(A는 취소됨), 파일 2: C(혼자라 접미사 없음).
+    const b = candidate('b', { shipmentNumber: '2026102730000002', seowonLabel: { batch: 'file-1', suffix: '02' } });
+    const c = candidate('c', { shipmentNumber: '2026102730000003', seowonLabel: { batch: 'file-2', suffix: '' } });
+    const match = matchSeowonReply([reply(2, 'T1', { recipient: '합성 수취인01' }), reply(3, 'T2', { recipient: '합성 수취인02' })], [b, c]);
+    expect(match.commands.map(command => [command.shipmentId, command.trackingNumber])).toEqual([['b', 'T2']]);
+    expect(match.issues).toEqual([{ line: 2, reference: '전화 끝 5678 · 합성 키링_빨강', reason: SEOWON_REPLY_REASONS.splitIdentical }]);
+    // 같은 내용의 발송 대기 건이 하나뿐이어도 접미사가 기록과 다르면 그 줄은 다른 배송 건의 것이다.
+    const alone = matchSeowonReply([reply(2, 'T1', { recipient: '합성 수취인01' }), reply(3, 'T2', { recipient: '합성 수취인02' })], [b]);
+    expect(alone.commands.map(command => [command.shipmentId, command.trackingNumber])).toEqual([['b', 'T2']]);
+    expect(alone.issues.map(issue => [issue.line, issue.reason])).toEqual([[2, SEOWON_REPLY_REASONS.suffixMismatch]]);
+  });
+  it('합포장 구성원과 다른 배송 건이 같은 내용이어도 기록한 접미사로 가르고, 합포장이 다 모이지 않으면 그 묶음만 멈춘다', () => {
+    const pack = { id: 'pack-1', shipmentIds: ['a', 'd'] };
+    const a = candidate('a', { shipmentNumber: '2026102730000001', pack, seowonLabel: { batch: 'f', suffix: '01' }, lines: [{ ...line, goodName: '합성 엽서', optionName: '', qty: 1 }] });
+    const d = candidate('d', { shipmentNumber: '2026102730000004', pack, seowonLabel: { batch: 'f', suffix: '01' } });
+    const b = candidate('b', { shipmentNumber: '2026102730000002', seowonLabel: { batch: 'f', suffix: '02' } });
+    const rows = [reply(2, 'T1', { recipient: '합성 수취인01', items: '합성 엽서_', quantity: 1 }), reply(3, 'T2', { recipient: '합성 수취인02' }), reply(4, 'T1', { recipient: '합성 수취인01' })];
+    const match = matchSeowonReply(rows, [a, b, d]);
+    expect(match.issues).toEqual([]);
+    expect(match.commands.map(command => [command.shipmentId, command.trackingNumber])).toEqual([['a', 'T1'], ['b', 'T2'], ['d', 'T1']]);
+    // 합포장의 한 줄이 빠지면 그 합포장만 멈추고 다른 배송 건은 등록한다.
+    const partial = matchSeowonReply(rows.filter(row => row.line !== 4), [a, b, d]);
+    expect(partial.commands.map(command => command.shipmentId)).toEqual(['b']);
+    expect(partial.issues).toEqual([{ line: 2, reference: '2026102730000001', reason: SEOWON_REPLY_REASONS.packIncomplete }]);
+    // 접미사 기록이 없으면(이 기록 도입 전 내보내기) 같은 내용 줄은 사람에게 넘기고, 그 때문에 덜 모인 합포장도 멈춘다.
+    const unlabeled = [a, b, d].map(entry => ({ ...entry, seowonLabel: null }));
+    const guessed = matchSeowonReply(rows, unlabeled);
+    expect(guessed.commands).toEqual([]);
+    expect(guessed.issues.map(issue => [issue.line, issue.reason])).toEqual([[2, SEOWON_REPLY_REASONS.packIncomplete], [3, SEOWON_REPLY_REASONS.splitIdentical], [4, SEOWON_REPLY_REASONS.splitIdentical]]);
+    // 합포장 구성원의 송장이 갈려도 그 합포장만 멈춘다.
+    const split = matchSeowonReply([rows[0], rows[1], { ...rows[2], trackingNumber: 'T9' }], [a, b, d]);
+    expect(split.commands.map(command => command.shipmentId)).toEqual(['b']);
+    expect(split.issues.map(issue => [issue.line, issue.reason])).toEqual([[2, SEOWON_REPLY_REASONS.packIncomplete], [4, SEOWON_REPLY_REASONS.packIncomplete]]);
+  });
+  it('송장 하나로 함께 온 같은 내용의 줄은 기록된 접미사와 맞을 때만 함께 등록한다', () => {
+    const twins = [candidate('a', { seowonLabel: { batch: 'f', suffix: '01' } }), candidate('c', { seowonLabel: { batch: 'g', suffix: '' } })];
+    // 파일 1의 A01·B02(B는 취소)가 한 송장으로 왔다 — A만 등록하고 B02 줄을 다른 파일의 C에 붙이지 않는다.
+    const merged = matchSeowonReply([reply(2, 'T1', { recipient: '합성 수취인01' }), reply(3, 'T1', { recipient: '합성 수취인02' })], twins);
+    expect(merged.commands.map(command => [command.shipmentId, command.trackingNumber])).toEqual([['a', 'T1']]);
+    expect(merged.issues.map(issue => [issue.line, issue.reason])).toEqual([[3, SEOWON_REPLY_REASONS.splitIdentical]]);
+    // 기록과 맞으면 종전처럼 함께 등록한다.
+    const agreed = matchSeowonReply([reply(2, 'T1', { recipient: '합성 수취인01' }), reply(3, 'T1', { recipient: '합성 수취인' })], twins);
+    expect(agreed.commands.map(command => [command.shipmentId, command.trackingNumber])).toEqual([['a', 'T1'], ['c', 'T1']]);
   });
   it('회신에 배송건번호가 남아 있으면 그 배송 건만 보고, 줄 내용이 다르거나 없는 번호면 등록하지 않는다', () => {
     const twins = [candidate('a', { shipmentNumber: '2026102730000001' }), candidate('b', { shipmentNumber: '2026102730000002' })];

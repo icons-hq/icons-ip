@@ -5,6 +5,8 @@ import {getCurrentAdminAuthState} from '@/lib/auth/admin';
 import {createClient} from '@/lib/supabase/server';
 import {buildShipmentExport} from '@/lib/admin/shipment-workbook.server';
 import {withSmartStoreLegacyAllocations} from '@/lib/admin/item-allocation.server';
+import {seowonExportLabels} from '@/lib/admin/seowon-exchange';
+import {randomUUID} from 'node:crypto';
 import {shipmentMutationError,type ShipmentExportData} from '@/lib/admin/shipment-dispatch';
 import {parseShipmentExportColumns,type ShipmentExportLayout} from '@/lib/admin/shipment-workbook';
 import {exportPasswordError} from '@/lib/admin/export-password';
@@ -35,7 +37,12 @@ async function exportShipments(client:Client,keys:string[],format:'xlsx'|'csv',l
    try{const protectedFile=encryptAdminWorkbook(plain,credentials!.password);file={...file,bytes:protectedFile.bytes};sha256=protectedFile.sha256;}
    finally{plain.fill(0);}
   }
-  const mark=await client.rpc('admin_mark_shipments_exported',{target_versions:data.shipments.map(shipment=>({id:shipment.id,updatedAt:shipment.updatedAt}))});
+  const versions=data.shipments.map(shipment=>({id:shipment.id,updatedAt:shipment.updatedAt}));
+  // 서원 원형 양식의 이름 접미사는 파일 구성으로 정해진다. 전달 표시와 같은 트랜잭션에서 배송 건별로 기록해 회신과 정확히 맞춘다.
+  const labels=layout==='warehouse'?seowonExportLabels(data.shipments.map(shipment=>({id:shipment.id,shipmentNumber:shipment.shipmentNumber??null,packId:shipment.pack?.id??null,originId:shipment.originId,template:shipment.template,lines:shipment.lines}))):[];
+  const mark=labels.length
+   ?await client.rpc('admin_mark_seowon_shipments_exported',{target_versions:versions,target_batch:randomUUID(),target_labels:labels})
+   :await client.rpc('admin_mark_shipments_exported',{target_versions:versions});
   if(mark.error||mark.data!==keys.length)return {error:'배송 상태가 변경되었습니다. 목록을 새로고침한 뒤 다시 내보내주세요.'};
   const multipleOrigins=layout==='warehouse'&&new Set(data.shipments.map(shipment=>shipment.originId)).size>1;
   const operational=data.shipments.some(shipment=>shipment.isGift||(shipment.shippingCollectFee??0)>0||shipment.pack);

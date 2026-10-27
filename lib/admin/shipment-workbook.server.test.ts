@@ -7,7 +7,7 @@ import type { ShipmentExportData } from './shipment-dispatch';
 import { parseTrackingWorkbook, type TrackingWorkbookParseResult } from './tracking-workbook.server';
 import { trackingImportCommand, type SeowonTrackingParseResult, type WarehouseTrackingParseResult } from './warehouse-templates.server';
 import { SEOWON_EXPORT_HEADERS } from './warehouse-templates';
-import { matchSeowonReply } from './seowon-exchange';
+import { matchSeowonReply, seowonExportLabels } from './seowon-exchange';
 
 function native<T extends WarehouseTrackingParseResult | SeowonTrackingParseResult>(parsed: TrackingWorkbookParseResult, kind: T['kind']): T {
   if (!('kind' in parsed) || parsed.kind !== kind) throw new Error(`expected ${kind} reply`);
@@ -122,12 +122,18 @@ describe('shipment workbook exchange', () => {
     sheet.spliceColumns(10, 1);
     sheet.getCell('J1').value = '송장번호'; sheet.getCell('J2').value = '6012345678902'; sheet.getCell('J3').value = '6012345678901';
     const parsed = native<SeowonTrackingParseResult>(await parseTrackingWorkbook(Buffer.from(await workbook.xlsx.writeBuffer()), []), 'seowon');
-    const match = matchSeowonReply(parsed.rows, [
-      { id: first.id, shipmentNumber: first.shipmentNumber, orderId: line.orderId, status: 'ready', trackingNumber: null, lines: first.lines },
-      { id: second.id, shipmentNumber: second.shipmentNumber, orderId: '00000000-0000-4000-8000-000000000004', status: 'ready', trackingNumber: null, lines: second.lines },
-    ]);
+    // 내보낼 때 기록하는 접미사(admin_mark_seowon_shipments_exported)와 같은 값이다.
+    const labels = new Map(seowonExportLabels([second, first]).map(label => [label.shipmentId, { batch: 'export-1', suffix: label.suffix }]));
+    expect([...labels.values()].map(label => label.suffix)).toEqual(['02', '01']);
+    const candidates = [
+      { id: first.id, shipmentNumber: first.shipmentNumber, orderId: line.orderId, status: 'ready' as const, trackingNumber: null, lines: first.lines, seowonLabel: labels.get(first.id) },
+      { id: second.id, shipmentNumber: second.shipmentNumber, orderId: '00000000-0000-4000-8000-000000000004', status: 'ready' as const, trackingNumber: null, lines: second.lines, seowonLabel: labels.get(second.id) },
+    ];
+    const match = matchSeowonReply(parsed.rows, candidates);
     expect(match.issues).toEqual([]);
     expect(match.commands.map(command => [command.shipmentNumber, command.trackingNumber])).toEqual([['2026102730000002', '6012345678902'], ['2026102730000001', '6012345678901']]);
+    // 기록이 없으면 순위로 추정하지 않는다.
+    expect(matchSeowonReply(parsed.rows, candidates.map(candidate => ({ ...candidate, seowonLabel: null }))).commands).toEqual([]);
   });
   it('exports the exact Gimpo columns from order snapshots and charges shipping only on each shipment first line', async () => {
     const gimpo = { ...shipment, template: 'wms_csv', lines: [

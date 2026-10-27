@@ -60,7 +60,7 @@ it('김포·남양주에 스마트스토어 양식을 기본으로 보내고 기
     const target = nodes(ready()).find(node => node.type === 'button' && text(node.props.children as ReactNode) === '출고지시 내보내기')!;
     (target.props.onClick as () => void)();
   }
-  expect(nodes(ready()).find(node => node.type === 'select')!.props.value).toBe('smartstore');
+  expect(nodes(ready()).find(node => node.type === 'select')!.props.value).toBe('auto');
   exportFile();
   expect(mocks.export).not.toHaveBeenCalled();
   expect(text(ready())).toContain('비밀번호 확인');
@@ -89,13 +89,15 @@ it('남양주(서원) 출고지는 원형 송장양식이 기본이고, 74열을
  const origin={id:'00000000-0000-4000-8000-000000042202',name:'남양주',template:'seowon_xlsx',active:true};
  const readyProps={...props,tab:'ready' as const,rows:[],origins:[origin]};
  function ready(){mocks.index=0;return ShipmentConsoleGrid(readyProps);}
- function clickOrigin(){const target=nodes(ready()).find(node=>node.type==='button'&&text(node.props.children as ReactNode)==='남양주 새 출고지시 전체 내려받기')!;(target.props.onClick as ()=>void)();}
+ function clickOrigin(){const target=nodes(ready()).find(node=>node.type==='button'&&text(node.props.children as ReactNode).startsWith('남양주 새 출고지시 전체 내려받기'))!;(target.props.onClick as ()=>void)();}
  mocks.exportOrigin.mockResolvedValue({error:'합성 재시도 안내'});
- expect(nodes(ready()).find(node=>node.type==='select')!.props.value).toBe('warehouse');
- expect(text(ready())).toContain('출고지 기본 양식(남양주는 서원 송장양식');
+ expect(nodes(ready()).find(node=>node.type==='select')!.props.value).toBe('auto');
+ // 버튼이 실제로 받을 양식을 적는다.
+ expect(text(ready())).toContain('남양주 새 출고지시 전체 내려받기 (서원 송장양식)');
  clickOrigin();await Promise.all(mocks.work);
  expect(mocks.exportOrigin).toHaveBeenLastCalledWith(origin.id,'xlsx','warehouse',undefined);
  const layout=nodes(ready()).find(node=>node.type==='select')!;(layout.props.onChange as (event:unknown)=>void)({target:{value:'smartstore'}});
+ expect(text(ready())).toContain('남양주 새 출고지시 전체 내려받기 (스마트스토어 74열)');
  clickOrigin();expect(text(ready())).toContain('남양주의 아직 전달하지 않은 발송 대기 건');
  const input=new FormData();input.set('password','1234');input.set('passwordConfirmation','1234');
  vi.stubGlobal('FormData',vi.fn(function(){return input;}));
@@ -109,11 +111,16 @@ it('김포 등 다른 출고지와 섞이면 스마트스토어 74열이 기본�
  const origins=[{id:'seowon',name:'남양주',template:'seowon_xlsx',active:true},{id:'gimpo',name:'김포',template:'wms_csv',active:true}];
  const readyRow={...row,status:'ready' as const,pack:null};
  function ready(rows:ShipmentConsoleRow[]){mocks.index=0;return ShipmentConsoleGrid({...props,tab:'ready',origins,rows});}
- expect(nodes(ready([{...readyRow,originId:'gimpo'}])).find(node=>node.type==='select')!.props.value).toBe('smartstore');
+ const gimpo=[{...readyRow,originId:'gimpo'}];
+ let grid=nodes(ready(gimpo)).find(node=>node.type===ConsoleGrid)!;(grid.props.onSelectionChange as (ids:string[])=>void)([ids[0]]);
+ expect(text(ready(gimpo))).toContain('선택한 배송 건 내려받기 양식: 스마트스토어 74열');
  mocks.states=[];
  const seowonOnly=[{...readyRow,originId:'seowon'}];
- const grid=nodes(ready(seowonOnly)).find(node=>node.type===ConsoleGrid)!;(grid.props.onSelectionChange as (ids:string[])=>void)([ids[0]]);
- expect(nodes(ready(seowonOnly)).find(node=>node.type==='select')!.props.value).toBe('warehouse');
+ grid=nodes(ready(seowonOnly)).find(node=>node.type===ConsoleGrid)!;(grid.props.onSelectionChange as (ids:string[])=>void)([ids[0]]);
+ expect(text(ready(seowonOnly))).toContain('선택한 배송 건 내려받기 양식: 서원 송장양식');
+ expect(nodes(ready(seowonOnly)).find(node=>node.type==='select')!.props.value).toBe('auto');
+ // 버튼마다 실제 양식을 적는다.
+ expect(text(ready(seowonOnly))).toContain('김포 새 출고지시 전체 내려받기 (스마트스토어 74열)');
 });
 it('이미 전달한 선택 건은 중복 출고 경고를 확인해야 다운로드 단계로 간다',()=>{
  const readyProps={...props,tab:'ready' as const,rows:[{...row,status:'ready' as const,exportedAt:'2026-10-20T00:00:00Z'}]};
