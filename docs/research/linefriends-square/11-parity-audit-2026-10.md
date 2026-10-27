@@ -302,7 +302,7 @@ grid **2열 451px, gap 20(행)/18(열)**. 카드 451×141: 1px `#DCDEE0`, r2, p 
 | MY-08 | 주문 목록 상단 리뷰 보상 배너·배송과정 안내 | §5.3 | 없음. 리뷰 이벤트는 굿즈 대상별(`get_goods_review_events`)이고 `ReviewEventBanner`(`components/screens/MyReviews.tsx:76`)가 있다. 보상 명칭은 이벤트 기준(적립금 등) | GAP-UI | P2 | L6 ✅ #602 |
 | MY-09 | 내 정보 수정 범위 | §5.7 | /settings: 아바타·이메일·닉네임·동의·탈퇴. 약관 링크·비밀번호 변경 진입 없음(`components/screens/Settings.tsx:37-226`) | GAP-UI | P2 | L6 ✅ #602 |
 | MY-10 | 메일·SMS 수신 동의 분리 | §5.7 ③ | 마케팅 단일 토글 | GAP-DATA | P2 | 10/14 트랙(S4·D4·H4) |
-| MY-11 | **주소록(배송지 관리)** | §5.8 | 없음 — 주문서가 직전 주문 주소 1건을 미리 채움(`lib/checkout.server.ts:131-143`) | GAP-DATA(10/14 S6b·S3·S6a) | P1 | L7 |
+| MY-11 | **주소록(배송지 관리)** | §5.8 | 없음 — 주문서가 직전 주문 주소 1건을 미리 채움(`lib/checkout.server.ts:131-143`) | GAP-DATA(10/14 S6b·S3·S6a) | P1 | L7 ✅ #610 |
 | MY-12 | 최근 본 굿즈 | 대시보드 ④(클라이언트 5개) | 관심 굿즈 선반이 계정별 localStorage(최대 30)에 기록하지만, 서버가 상세 경험 `interests` 스위치를 켰다고 답할 때만 기록·렌더한다(`ProductInterestShelf.tsx:41-42,58`, `lib/product-detail-experiences.server.ts:31`, `GoodDetail.tsx:425`) | 운영 스위치 의존 | P2 | L6(LD-16) ✅ #602 |
 | MY-13 | 데스크톱 위시 진입 | 대시보드 좋아요 타일 | 헤더·유틸바에 없음(10/14 S14) | GAP-UI | P1 | L6 ✅ #602 |
 | MY-14 | 쿠폰함 수치 | §5.4(2열 451, 카드 p 13/23, 안내 박스) | 2열 티켓형 보유(`components/screens/MyCoupons.tsx:18-87`) — 수치 대조 필요 | GAP-UI(수치) | P2 | L6 ✅ #602 |
