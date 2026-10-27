@@ -227,7 +227,7 @@ describe('Cart 주문 요약 테이블', () => {
     expect(html).toContain('−₩0');
     expect(html).toContain('배송비');
     expect(html).toContain('예상 총액');
-    expect(html).toContain('출고지별 배송비를 합산합니다.');
+    expect(html).toContain('배송 묶음별 배송비를 합산합니다.');
   });
 
   it('주문 CTA에 담긴 수량을 싣는다', () => {

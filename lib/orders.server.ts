@@ -153,9 +153,10 @@ export async function loadOrders(userId: string, {includePending=false}:{include
     }
   }
 
-  /* 결제 대기 주문은 복구 목록(includePending)이 아니면 취소 요청이 남아 있는 것만 보인다. */
+  /* 결제 대기 카드 주문은 복구 목록(includePending)이 아니면 취소 요청이 남아 있는 것만 보인다.
+     무통장 입금 대기는 접수 = 주문 완료(ADR-0026)라 기본 목록에 '입금 대기'로 보인다. */
   const orderRows = userOrderRows.filter((order) => (
-    includePending || order.status !== 'pending' || requestedOrderIds.has(order.id)
+    includePending || order.status !== 'pending' || order.payment_method === 'bank_transfer' || requestedOrderIds.has(order.id)
   ));
 
   orderRows.sort((left, right) => (

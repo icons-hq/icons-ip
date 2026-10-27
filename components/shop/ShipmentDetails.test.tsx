@@ -44,4 +44,10 @@ describe('origin names on customer and admin shipment displays', () => {
     const admin = renderToStaticMarkup(<ShipmentDetails admin shipments={[shipmentFixture()]} />);
     expect(admin).toContain('<h3>김포 · 배송 중</h3>'); expect(admin).toContain('김포 배송조회');
   });
+
+  it('shows the 16-digit shipment number used by mails and delay notices instead of the raw id', () => {
+    const html = renderToStaticMarkup(<ShipmentDetails shipments={[{ ...shipmentFixture(), shipmentNumber: '2026102730000012' }]} />);
+    expect(html).toContain('<dt>배송건번호</dt><dd class="mono">2026102730000012</dd>');
+    expect(html).not.toContain(shipmentFixture().id);
+  });
 });

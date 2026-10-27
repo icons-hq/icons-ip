@@ -141,6 +141,12 @@ describe('loadOrders', () => {
     expect(await loadOrders(userId,{includePending:true})).toMatchObject([{id:orderId,status:'pending'}]);
     expect(await loadOrders(userId)).toEqual([]);
   });
+  it('무통장 입금 대기 주문은 접수 = 주문 완료라 기본 목록에도 보인다(ADR-0026)', async () => {
+    mocks.client=createClient({records:[],rows:{orders:[
+      {id:orderId,user_id:userId,status:'pending',total:10000,created_at:'2026-09-28T00:00:00Z',payment_method:'bank_transfer'},
+    ],order_items:[]}});
+    expect(await loadOrders(userId)).toMatchObject([{id:orderId,status:'pending',paymentMethod:'bank_transfer'}]);
+  });
   it('loads only the viewer visible history and summarizes immutable item snapshots', async () => {
     const records: QueryRecord[] = [];
     mocks.client = createClient({

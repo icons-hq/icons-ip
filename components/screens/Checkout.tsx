@@ -312,7 +312,7 @@ export function Checkout({
       <header className="wc-receipt__head">
         <div className="wrap">
           <h1 className="wc-receipt__title">배송지와 결제 금액을 확인해주세요</h1>
-          <p className="wc-receipt__subcopy">결제하기를 누르면 바로 결제 화면이 열려요. 결제를 마치기 전까지 장바구니는 그대로예요.</p>
+          <p className="wc-receipt__subcopy">{paymentMethod === 'bank_transfer' ? '주문을 접수하면 입금 계좌와 기한을 안내해요. 접수한 굿즈는 장바구니에서 빠져요.' : '결제하기를 누르면 바로 결제 화면이 열려요. 결제를 마치기 전까지 장바구니는 그대로예요.'}</p>
           {paymentFailNotice}
         </div>
       </header>

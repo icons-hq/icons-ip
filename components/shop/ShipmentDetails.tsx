@@ -8,6 +8,7 @@ import { ShipmentReceiptConfirmation } from './ShipmentReceiptConfirmation';
 import type { GoodsTransactionShippingGroup } from '@/lib/goods-transaction';
 import { ShippingChargeDetailsDisplay } from './ShippingChargeDetailsDisplay';
 import { shippingGroupLabel } from '@/lib/fulfillment';
+import { commerceReferenceLabel } from '@/lib/commerce-number';
 
 export function ShipmentDetails({ shipments, items = [], admin = false, transactionShipping }: {
   shipments: readonly ShipmentRecord[];
@@ -25,7 +26,7 @@ export function ShipmentDetails({ shipments, items = [], admin = false, transact
     return <section className={admin ? 'admin-order-detail__shipment' : 'order-receipt-section wc-shipment-details'} key={shipment.id}>
     <h3>{groupName} · {shipment.delivery ? deliveryStatusLabel(shipment.delivery.method, shipment.status) : shipmentStatusLabel(shipment.status)}</h3>
     <dl className={admin ? 'admin-order-detail__facts' : 'order-payment-summary'}>
-      <div><dt>배송 건 번호</dt><dd>{shipment.id}</dd></div>
+      <div><dt>배송건번호</dt><dd className="mono">{commerceReferenceLabel(shipment.id, shipment.shipmentNumber)}</dd></div>
       <div><dt>{transactionShipping ? '선불 배송비' : '배송비'}</dt><dd>{krw(shipment.shippingFee)}</dd></div>
       {charge && charge.collectFee > 0 && <div><dt>착불 배송비 · 수령 시 별도</dt><dd>{krw(charge.collectFee)}</dd></div>}
       <div><dt>배송 방식</dt><dd>{shipment.delivery ? DELIVERY_METHOD_LABELS[shipment.delivery.method] : shipment.delivery === undefined ? '택배' : '확인 필요'}</dd></div>

@@ -219,7 +219,9 @@ export async function loadCheckoutOrder(
       if (attemptError || requestError || (claim !== null && (!transactionRecord(claim) || typeof claim.status !== 'string' || !isOrderCancellationRequestStatus(claim.status)))) return null;
       return { ...gift.order, paymentAttempt: paymentAttemptSnapshot(attempt),
         paymentStatus: checkoutEffectivePaymentStatus(attempt?.state, gift.order.paymentStatus),
-        hasActiveCancellationRequest: claim !== null && ACTIVE_CANCELLATION_REQUEST_STATUSES.includes(claim.status as string) };
+        hasActiveCancellationRequest: claim !== null && ACTIVE_CANCELLATION_REQUEST_STATUSES.includes(claim.status as string),
+        /* 선물 주문도 결제자(orders.user_id)의 무통장 주문이라 같은 공식 입금코드를 쓴다. */
+        ...(gift.order.paymentMethod === 'bank_transfer' ? await loadBankTransferDepositCode(client, orderId) : {}) };
     }
     if (gift.kind !== 'ordinary') return null;
   } catch { return null; }

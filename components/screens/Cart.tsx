@@ -403,7 +403,7 @@ export function Cart({
                   </tr>
                 </tfoot>
               </table>
-              <p className="wc-cart__summary-note">{transactionActive ? '복수구매 할인과 수량별 배송비는 주문서에서 계산합니다. 착불 배송비는 수령 시 별도로 납부합니다.' : '출고지별 배송비를 합산합니다. 주문을 만들 때 서버가 최종 금액을 확인합니다.'}</p>
+              <p className="wc-cart__summary-note">{transactionActive ? '복수구매 할인과 수량별 배송비는 주문서에서 계산합니다. 착불 배송비는 수령 시 별도로 납부합니다.' : '배송 묶음별 배송비를 합산합니다. 주문을 만들 때 서버가 최종 금액을 확인합니다.'}</p>
               {transactionMode === 'unavailable' && <p role="alert">주문 조건을 확인하지 못했습니다. 새로고침 후 다시 확인해주세요.</p>}
               {productQuote.loading ? <p role="status">{transactionActive ? '현재 가격과 구매 조건을 확인하고 있어요.' : '현재 가격과 배송비를 확인하고 있어요.'}</p> : null}
               {productQuote.error ? <div role="alert"><p>{productQuote.error}</p><button type="button" onClick={productQuote.refresh}>{transactionActive ? '가격·구매 조건 다시 확인' : '가격·배송비 다시 확인'}</button></div> : null}
