@@ -86,15 +86,21 @@ export function Shop({ query, result, view, title, onQueryChange, paging, refres
   /* 굿즈샵 전체 배너는 전폭이라 컨테이너 밖, BEST·NEW 배너는 콘텐츠 폭이라 컨테이너 안 머리말 자리에 선다. */
   const wideBanner = bannerSlot === 'all' && hasBanner ? <CollectionBanners banners={slotBanners} slot="all" /> : null;
   const containedBanner = bannerSlot && bannerSlot !== 'all' && hasBanner ? <CollectionBanners banners={slotBanners} slot={bannerSlot} /> : null;
+  /* 페이지 제목(h1)은 머리 배너보다 먼저 읽힌다 — 전폭 배너가 컨테이너 밖 맨 앞에 서도 시각 숨김 h1 을 그 앞에 둔다
+     (BEST·NEW 와 같은 순서, l8b-qa-5). 보이는 제목(title)은 컨테이너 안 제자리에 둔다. */
+  const headingBeforeWideBanner = Boolean(wideBanner) && !title;
+  const leadHeading = headingBeforeWideBanner ? headingNode : null;
+  const containerHeading = headingBeforeWideBanner ? null : headingNode;
   const rootClass = `wc-root wc-collection${hasBanner ? ' wc-collection--banner' : ''}`;
 
   /* 스코프가 통째로 비면 필터·정렬을 그릴 이유가 없다. 가짜 목록 대신 안내만 남긴다. */
   if (result.total === 0) {
     return (
       <div className={rootClass}>
+        {leadHeading}
         {wideBanner}
         <div className="wc-container">
-          {headingNode}
+          {containerHeading}
           {containedBanner}
           <div className="wc-collection__empty">
             <EmptyState
@@ -112,9 +118,10 @@ export function Shop({ query, result, view, title, onQueryChange, paging, refres
   return (
     <div className={rootClass}>
       {refreshScheduledContent ? <GoodsSalePeriodRefresh goods={result.goods} /> : null}
+      {leadHeading}
       {wideBanner}
       <div className="wc-container">
-        {headingNode}
+        {containerHeading}
         {containedBanner}
         <CollectionBrowser
           countNoun="굿즈"

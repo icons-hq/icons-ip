@@ -376,6 +376,18 @@ describe('컬렉션 머리 배너 (11 CL-09 · L8b)', () => {
     /* 다른 컬렉션 슬롯의 배너는 섞이지 않는다. */
     expect(html).not.toContain('배너 b1');
     expect(html).toMatch(/<h1 class="wc-sr-only">굿즈샵<\/h1>/);
+    /* 페이지 제목이 배너보다 먼저 읽힌다(l8b-qa-5) — BEST·NEW 와 같은 순서. */
+    expect(html.indexOf('<h1 class="wc-sr-only">굿즈샵</h1>')).toBeLessThan(html.indexOf('wc-collection-banners--wide'));
+    expect(html.match(/<h1/g)).toHaveLength(1);
+  });
+
+  it('스코프가 빈 굿즈샵 전체도 시각 숨김 h1 이 전폭 배너 앞이다(l8b-qa-5)', () => {
+    const query = parseShopSearchParams({}, { view: 'all', validIpIds: new Set() });
+    const html = renderToStaticMarkup(<Shop banners={[banner('a1', 'all')]} query={query} result={selectShopGoods({ ...catalog, goods: [] }, query)} view="all" />);
+
+    expect(html).toContain('아직 준비 중이에요');
+    expect(html.indexOf('<h1 class="wc-sr-only">굿즈샵</h1>')).toBeLessThan(html.indexOf('wc-collection-banners--wide'));
+    expect(html.match(/<h1/g)).toHaveLength(1);
   });
 
   it('BEST 배너가 있으면 보이는 텍스트 제목을 걷고 콘텐츠 폭 배너가 머리말이 된다', () => {
