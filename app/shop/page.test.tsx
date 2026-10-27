@@ -142,6 +142,21 @@ describe('굿즈샵 컬렉션 배너 (LFS 패리티 2차 L8b)', () => {
     expect(html).toContain('배너 a1');
   });
 
+  /* l8b-qa-4 결정 — 고객 카테고리 전시 내비가 공개되면 내비가 헤더 바로 아래, 배너가 그 아래다. 카테고리 전시 페이지
+     (내비 → 전시 배너 → 목록)와 같은 순서라 '전체 굿즈'와 전시를 오가도 내비 자리가 흔들리지 않는다. */
+  it('카테고리 전시 내비가 있으면 내비 → 제목(h1) → 전폭 배너 → 목록 순서다', async () => {
+    mocks.banners = [collectionBanner('a1', 'all')];
+    const html = await render();
+
+    const nav = html.indexOf('wc-category-display__navigation');
+    const heading = html.indexOf('<h1 class="wc-sr-only">굿즈샵</h1>');
+    const banner = html.indexOf('wc-collection-banners--wide');
+    expect(nav).toBeGreaterThan(-1);
+    expect(nav).toBeLessThan(heading);
+    expect(heading).toBeLessThan(banner);
+    expect(banner).toBeLessThan(html.indexOf('class="wc-container"', banner));
+  });
+
   it('카테고리 전시 페이지는 배너를 읽지 않는다', async () => {
     mocks.banners = [collectionBanner('a1', 'all')];
     mocks.page = displayPage([good('a', { name: '전시 굿즈' })]);
