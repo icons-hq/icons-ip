@@ -7,6 +7,8 @@ import { imageBg } from '@/lib/media';
 import { homeHeroAltText, homeHeroStyle, normalizeHeroNewlines, type HomeHeroImageDim, type HomeHeroTextColor } from '@/lib/home-hero';
 import { buildHomeReviewBestBand, buildHomeSalesBestBand, emptyHomeProductRankings, isHomeSalesPeriod, selectHomeReviewGoods, type HomeProductRankings, type HomeSalesPeriod } from '@/lib/home-ranking';
 import { parseShellNoticePageTypes, SHELL_NOTICE_PAGE_TYPES, type ShellNoticeBar, type ShellNoticePageType } from '@/lib/shell-notices';
+import { isCollectionBannerSlot, type CollectionBanner } from '@/lib/collection-banners';
+import { parseSuggestedSearchTerms } from '@/lib/search-terms';
 
 export const CURATION_KIND_LABELS: Record<AdminCurationKind, string> = {
   hero: '프로모션 배너',
@@ -20,12 +22,14 @@ export const CURATION_KIND_LABELS: Record<AdminCurationKind, string> = {
   product_mosaic: '자유상품 모자이크',
   product_collection: '자유상품 리스트·풀이미지',
   benefit: '혜택 타일',
+  collection_banner: '컬렉션 배너',
+  search_terms: '추천 검색어',
   featured_ip: '특집 IP',
   announcement: '공지 배너',
 };
 
 export const CURATION_KIND_ORDER: AdminCurationKind[] = [
-  'notice_bar', 'notice_strip', 'hero', 'editor_pick', 'best_tab', 'sales_best', 'review_best', 'product_collection', 'product_mosaic', 'band_banner', 'benefit', 'featured_ip', 'announcement',
+  'notice_bar', 'notice_strip', 'search_terms', 'hero', 'editor_pick', 'best_tab', 'sales_best', 'review_best', 'product_collection', 'product_mosaic', 'band_banner', 'benefit', 'collection_banner', 'featured_ip', 'announcement',
 ];
 
 export const CURATION_STATUS_LABELS: Record<AdminCurationRecord['status'], string> = {
@@ -90,6 +94,22 @@ export interface CurationEditorValues {
   mobileImageUrl: string | null;
   ctaLabel: string;
   pageTypes: ShellNoticePageType[];
+  /** 컬렉션 배너 이미지 대체텍스트(선택). */
+  imageAlt: string;
+  /** 추천 검색어 입력 칸 — 빈 칸은 저장할 때 버린다. */
+  searchTerms: string[];
+}
+
+/** 종류마다 slot 시작값 — BEST 탭은 카테고리 BEST, 컬렉션 배너는 굿즈샵 전체. */
+function defaultCurationSlot(kind: AdminCurationKind): string {
+  return kind === 'collection_banner' ? 'all' : 'category';
+}
+
+/** 저장된 slot 이 그 종류에 맞으면 그대로, 아니면 그 종류의 시작값. */
+function curationSlotFor(kind: AdminCurationKind, slot: string | null | undefined): string {
+  if (kind === 'collection_banner') return isCollectionBannerSlot(slot) ? slot : 'all';
+  if (kind === 'best_tab') return slot === 'category' || slot === 'popular' ? slot : 'category';
+  return slot ?? defaultCurationSlot(kind);
 }
 
 export interface CurationPublicPreview {
@@ -129,13 +149,16 @@ export function createCurationEditorValues(
     activeFrom: curationKstInput(record?.activeFrom ?? draftActiveFrom),
     activeTo: curationKstInput(record?.activeTo ?? null),
     enabled: record?.enabled ?? true,
-    slot: record?.slot ?? 'category',
+    slot: curationSlotFor(record?.kind ?? initialKind, record?.slot),
     subtitle: normalizeHeroNewlines(curationPayloadText(record, 'subtitle')),
     altEnabled: record?.payload?.alt_enabled === true,
     altTitle: curationPayloadText(record, 'alt_title'),
     altContent: normalizeHeroNewlines(curationPayloadText(record, 'alt_content')),
-    imageDim: record ? homeHeroStyle(record.payload).imageDim ?? '' : 'none',
-    textColor: record ? homeHeroStyle(record.payload).textColor ?? '' : 'white',
+    /* 컬렉션 배너는 새 종류라 옛 표시 보존('')이 없다 — 비어 있으면 레퍼런스처럼 딤 없음·잉크 글자다. */
+    imageDim: record?.kind === 'collection_banner' ? homeHeroStyle(record.payload).imageDim ?? 'none'
+      : record ? homeHeroStyle(record.payload).imageDim ?? '' : 'none',
+    textColor: (record?.kind ?? initialKind) === 'collection_banner' ? homeHeroStyle(record?.payload ?? null).textColor ?? 'black'
+      : record ? homeHeroStyle(record.payload).textColor ?? '' : 'white',
     badge: curationPayloadText(record, 'badge'),
     description: curationPayloadText(record, 'description'),
     subcopy: curationPayloadText(record, 'subcopy'),
@@ -158,11 +181,13 @@ export function createCurationEditorValues(
     mobileImageUrl: record?.mobileImageUrl ?? null,
     ctaLabel: record ? curationPayloadText(record, 'cta_label') : NOTICE_BAR_DEFAULT_CTA,
     pageTypes: initialNoticePageTypes(record, record?.kind ?? initialKind),
+    imageAlt: curationPayloadText(record, 'image_alt'),
+    searchTerms: record?.kind === 'search_terms' ? parseSuggestedSearchTerms(record.payload?.terms) ?? [] : [],
   };
 }
 
 /** 종류마다 시작값이 다른 칸 — 새 구성에서 영역(kind)을 바꾸면 운영자가 손대지 않은 칸은 새 종류의 시작값을 따른다. */
-export const CURATION_KIND_DEFAULT_FIELDS = ['linkPath', 'pageTypes', 'ctaLabel'] as const satisfies readonly (keyof CurationEditorValues)[];
+export const CURATION_KIND_DEFAULT_FIELDS = ['linkPath', 'pageTypes', 'ctaLabel', 'slot'] as const satisfies readonly (keyof CurationEditorValues)[];
 
 /**
  * 새 구성(selected 없음)에서 '홈에 보일 영역'을 바꿀 때의 입력값. 기본 새 폼은 프로모션 배너로 시작하므로, 바꾼 종류의
@@ -181,6 +206,8 @@ export function curationValuesForKindChange(
     ...(touched.has('linkPath') ? {} : { linkPath: defaults.linkPath }),
     ...(touched.has('pageTypes') ? {} : { pageTypes: defaults.pageTypes }),
     ...(touched.has('ctaLabel') ? {} : { ctaLabel: defaults.ctaLabel }),
+    /* slot 은 종류마다 값의 집합이 다르다 — 고친 값이라도 새 종류에 없는 값(BEST 탭 '인기템' → 컬렉션 배너)이면 시작값으로 돌린다. */
+    slot: touched.has('slot') ? curationSlotFor(nextKind, current.slot) : defaults.slot,
   };
 }
 
@@ -206,7 +233,13 @@ export function buildDraftCurationPreview(
   publicGoods: readonly HomeGoodsCard[],
   latestGoods: readonly HomeGoodsCard[] = [],
   productRankings: HomeProductRankings = emptyHomeProductRankings(),
-): { curation: HomeCurationSnapshot; noticeStrip: NoticeStrip | null; noticeBar: ShellNoticeBar | null; missingGoodIds: string[]; reviewEligibleCount: number } {
+): {
+  curation: HomeCurationSnapshot; noticeStrip: NoticeStrip | null; noticeBar: ShellNoticeBar | null; missingGoodIds: string[]; reviewEligibleCount: number;
+  /** 컬렉션 배너 초안 — 홈이 아니라 컬렉션 머리 배너로 미리 본다. */
+  collectionBanner: CollectionBanner | null;
+  /** 추천 검색어 초안 — 검색 오버레이 칩 행으로 미리 본다(빈 칸 제외). */
+  searchTerms: string[] | null;
+} {
   const curation = emptyCurationPreview();
   const title = values.title.trim();
   const href = values.linkPath;
@@ -219,6 +252,8 @@ export function buildDraftCurationPreview(
   let noticeStrip: NoticeStrip | null = null;
   let noticeBar: ShellNoticeBar | null = null;
   let reviewEligibleCount = 0;
+  let collectionBanner: CollectionBanner | null = null;
+  let searchTerms: string[] | null = null;
 
   if (title || values.kind === 'hero') {
     switch (values.kind) {
@@ -282,6 +317,16 @@ export function buildDraftCurationPreview(
       case 'benefit':
         curation.benefitTiles = [{ id, title, href, description: values.description || null }];
         break;
+      case 'collection_banner':
+        if (values.imageUrl && isCollectionBannerSlot(values.slot)) collectionBanner = {
+          id, slot: values.slot, title, subtitle: values.subtitle.trim() || null, imageUrl: values.imageUrl,
+          mobileImageUrl: values.mobileImageUrl, href: href || null, imageAlt: values.imageAlt.trim(),
+          imageDim: values.imageDim || 'none', textColor: values.textColor || 'black', endsAt: null,
+        };
+        break;
+      case 'search_terms':
+        searchTerms = values.searchTerms.map((term) => term.replace(/\s+/g, ' ').trim()).filter(Boolean);
+        break;
       case 'sales_best':
         curation.salesBestBands = [buildHomeSalesBestBand(id, title,
           { exposure: values.salesExposure, period: values.salesPeriod }, publicGoods, productRankings)];
@@ -308,5 +353,7 @@ export function buildDraftCurationPreview(
     noticeBar,
     missingGoodIds: selectedIds.filter((goodId) => !goodsById.has(goodId)),
     reviewEligibleCount,
+    collectionBanner,
+    searchTerms,
   };
 }

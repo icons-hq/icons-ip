@@ -553,4 +553,58 @@ describe('admin curation form normalization', () => {
       value: expect.objectContaining({ kind: 'announcement', slot: null, payload: null }),
     });
   });
+
+  /* L8b (#574) — 컬렉션 배너(CL-09)와 추천 검색어(CH-10). DB(20261027020000)와 같은 한도를 폼이 먼저 잡는다. */
+  function bannerForm(entries: Record<string, string> = {}) {
+    return curationForm({ kind: 'collection_banner', title: '  가을 신상 굿즈  ', linkPath: '', slot: 'all', imageDim: 'none', textColor: 'black', ...entries });
+  }
+
+  it('컬렉션 배너는 슬롯·한 줄 부제·대체텍스트·모바일 이미지·스타일을 싣고 링크는 선택이다', () => {
+    expect(normalizeAdminCurationForm(bannerForm({ subtitle: '  새로 나온 굿즈  ', imageAlt: ' 리락쿠마 키링 ', mobileImagePath: MOBILE_IMAGE_PATH }))).toEqual({
+      ok: true,
+      value: expect.objectContaining({
+        kind: 'collection_banner', title: '가을 신상 굿즈', imagePath: IMAGE_PATH, linkPath: null, slot: 'all',
+        payload: { image_dim: 'none', text_color: 'black', subtitle: '새로 나온 굿즈', image_alt: '리락쿠마 키링', mobile_image_path: MOBILE_IMAGE_PATH },
+      }),
+    });
+    expect(normalizeAdminCurationForm(bannerForm({ slot: 'best', linkPath: '/shop/best' }))).toMatchObject({ ok: true, value: { slot: 'best', linkPath: '/shop/best' } });
+  });
+
+  it('컬렉션 배너의 슬롯·문구·부제·대체텍스트·이미지 한도를 칸 오류로 막는다', () => {
+    expect(normalizeAdminCurationForm(bannerForm({ slot: 'category' }))).toMatchObject({ ok: false, errors: { slot: '배너를 보일 컬렉션을 선택해주세요.' } });
+    expect(normalizeAdminCurationForm(bannerForm({ slot: '' }))).toMatchObject({ ok: false, errors: { slot: expect.any(String) } });
+    for (const title of ['', '가'.repeat(41), '두 줄\n문구']) {
+      expect(normalizeAdminCurationForm(bannerForm({ title }))).toMatchObject({ ok: false, errors: { title: expect.any(String) } });
+    }
+    expect(normalizeAdminCurationForm(bannerForm({ title: '가'.repeat(40) }))).toMatchObject({ ok: true });
+    expect(normalizeAdminCurationForm(bannerForm({ subtitle: '가'.repeat(81) }))).toMatchObject({ ok: false, errors: { subtitle: '부제는 줄바꿈 없이 80자 이하로 입력해주세요.' } });
+    expect(normalizeAdminCurationForm(bannerForm({ imageAlt: '가'.repeat(101) }))).toMatchObject({ ok: false, errors: { imageAlt: expect.any(String) } });
+    expect(normalizeAdminCurationForm(bannerForm({ imagePath: '' }))).toMatchObject({ ok: false, errors: { imagePath: '이미지를 등록해주세요.' } });
+    expect(normalizeAdminCurationForm(bannerForm({ textColor: 'pink' }))).toMatchObject({ ok: false, errors: { textColor: expect.any(String) } });
+  });
+
+  function termsForm(terms: string[], entries: Record<string, string> = {}) {
+    const formData = curationForm({ kind: 'search_terms', title: '11월 추천 검색어', imagePath: '', linkPath: '', ...entries });
+    for (const term of terms) formData.append('searchTerm', term);
+    return formData;
+  }
+
+  it('추천 검색어는 빈 칸을 버리고 검색 질의처럼 정규화한 목록 하나를 싣는다', () => {
+    expect(normalizeAdminCurationForm(termsForm(['  리락쿠마 ', '', '키링\t  세트', '100%_굿즈']))).toEqual({
+      ok: true,
+      value: expect.objectContaining({ kind: 'search_terms', imagePath: null, linkPath: null, slot: null, payload: { terms: ['리락쿠마', '키링 세트', '100%_굿즈'] } }),
+    });
+  });
+
+  it('추천 검색어 개수·길이·중복과 이미지·링크를 거절한다', () => {
+    const error = { ok: false, errors: { searchTerms: '추천 검색어는 줄바꿈 없이 1~20자로, 겹치지 않게 1~10개 입력해주세요.' } };
+    expect(normalizeAdminCurationForm(termsForm([]))).toMatchObject(error);
+    expect(normalizeAdminCurationForm(termsForm(['', '  ']))).toMatchObject(error);
+    expect(normalizeAdminCurationForm(termsForm(Array.from({ length: 11 }, (_, index) => `검색어${index}`)))).toMatchObject(error);
+    expect(normalizeAdminCurationForm(termsForm(['가'.repeat(21)]))).toMatchObject(error);
+    expect(normalizeAdminCurationForm(termsForm(['BT21', 'bt21']))).toMatchObject(error);
+    expect(normalizeAdminCurationForm(termsForm(['키링'], { imagePath: IMAGE_PATH }))).toMatchObject({ ok: false, errors: { imagePath: '추천 검색어는 이미지를 쓰지 않습니다.' } });
+    expect(normalizeAdminCurationForm(termsForm(['키링'], { linkPath: '/search' }))).toMatchObject({ ok: false, errors: { linkPath: '추천 검색어는 각 검색어의 검색 결과로 이동합니다.' } });
+    expect(normalizeAdminCurationForm(termsForm(['키링'], { title: '' }))).toMatchObject({ ok: false, errors: { title: expect.any(String) } });
+  });
 });

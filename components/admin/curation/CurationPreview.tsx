@@ -3,9 +3,12 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Home } from '@/components/screens/Home';
+import { CollectionBanners } from '@/components/shop/CollectionBanners';
+import type { CollectionBanner } from '@/lib/collection-banners';
 import { Icon } from '@/components/ui/Icon';
 import { COMMUNITY_ENABLED } from '@/lib/community-visibility';
 import { isCardRewardDestination, isCommunityDestination, type HomeCurationSnapshot, type NoticeStrip } from '@/lib/home-catalog';
+import { suggestedSearchHref } from '@/lib/search-terms';
 import { shellNoticeDestinationAllowed, type ShellNoticeBar } from '@/lib/shell-notices';
 
 export type CurationPreviewDevice = 'mobile' | 'desktop';
@@ -15,16 +18,22 @@ const PREVIEW_DOCUMENT = '<!doctype html><html lang="ko"><head><meta charset="ut
 /** A script-free document gives public CSS and picture sources their real viewport. */
 export function CurationPreview({
   cardRewardsEnabled,
+  collectionBanner = null,
   curation,
   device,
   noticeBar = null,
   noticeStrip,
+  searchTerms = null,
 }: {
   cardRewardsEnabled: boolean;
+  /** 컬렉션 배너 초안(L8b) — 홈 대신 컬렉션 머리 배너로 보여 준다. */
+  collectionBanner?: CollectionBanner | null;
   curation: HomeCurationSnapshot;
   device: CurationPreviewDevice;
   noticeBar?: ShellNoticeBar | null;
   noticeStrip: NoticeStrip | null;
+  /** 추천 검색어 초안(L8b) — 홈 대신 검색 오버레이의 칩 행으로 보여 준다. */
+  searchTerms?: readonly string[] | null;
 }) {
   const frameRef = useRef<HTMLIFrameElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
@@ -109,7 +118,24 @@ export function CurationPreview({
                 </a>
               </div>
             ) : null}
-            <Home cardRewardsEnabled={cardRewardsEnabled} curation={curation} refreshScheduledContent={false} />
+            {collectionBanner ? (
+              /* 공개 컬렉션과 같은 마크업·CSS — BEST·NEW 배너는 콘텐츠 폭 안에 선다. */
+              <div className="wc-root wc-collection wc-collection--banner">
+                {collectionBanner.slot === 'all' ? <CollectionBanners banners={[collectionBanner]} slot="all" /> : null}
+                <div className="wc-container">
+                  {collectionBanner.slot !== 'all' ? <CollectionBanners banners={[collectionBanner]} slot={collectionBanner.slot} /> : null}
+                  <p className="admin-store-editor__preview-note">배너 아래에는 이 컬렉션의 상품 목록이 이어집니다.</p>
+                </div>
+              </div>
+            ) : searchTerms ? (
+              /* 검색 오버레이 패널의 칩 행만 그린다(입력·포커스 잠금 없이 모양만). */
+              <div className="wc-root wc-chrome">
+                <div className="wc-container wc-search__chips">
+                  <p className="wc-search__chips-label">추천</p>
+                  {searchTerms.map((term, index) => <a className="wc-search__chip" href={suggestedSearchHref(term)} key={`${term}-${index}`}>{term}</a>)}
+                </div>
+              </div>
+            ) : <Home cardRewardsEnabled={cardRewardsEnabled} curation={curation} refreshScheduledContent={false} />}
           </div>,
           portalRoot,
         ) : null}

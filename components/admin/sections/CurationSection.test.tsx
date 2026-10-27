@@ -251,4 +251,47 @@ describe('CurationSection', () => {
     expect(events).not.toContain('카드 리워드가 비활성 상태여서');
     expect(renderSection(benefit('/games/runner'))).toContain('카드팩·게임으로 가는 이 혜택 타일은 노출되지 않습니다');
   });
+
+  /* L8b(#574) — 컬렉션 배너(CL-09): 슬롯·한 줄 문구·부제·PC/MO 이미지·딤/글자색·대체텍스트, 링크는 선택. */
+  it('컬렉션 배너는 컬렉션 선택·문구·부제·PC/MO 이미지·스타일·대체텍스트를 편집한다', () => {
+    const banner: AdminCurationRecord = { ...record, kind: 'collection_banner', title: 'BEST 아이템', slot: 'best', linkPath: null,
+      payload: { subtitle: '지금 많이 찾는 굿즈', image_alt: '키링 세 종', image_dim: 'none', text_color: 'black', mobile_image_path: 'public-media/catalog/curation/99999999-9999-4999-8999-999999999999.webp' } };
+    const html = renderSection(banner);
+    expect(html).toContain('컬렉션 배너 관리');
+    expect(html).toContain('배너를 보일 컬렉션');
+    expect(html).toContain('<option value="best" selected="">BEST</option>');
+    expect(html).toContain('<option value="all">굿즈샵 전체(슬라이드)</option>');
+    expect(html).toContain('배너 문구');
+    expect(html).toContain('8 / 40자');
+    expect(html).toContain('name="subtitle"');
+    expect(html).toContain('11 / 80자');
+    expect(html).toContain('name="imageAlt"');
+    expect(html).toContain('value="키링 세 종"');
+    expect(html).toContain('<option value="" selected="">링크 없음</option>');
+    expect(html).toContain('name="mobileImagePath"');
+    expect(html).toContain('name="imageDim"');
+    /* 새 종류라 '기존 표시 유지' 같은 옛 선택지가 없다. */
+    expect(html).not.toContain('기존 표시 유지');
+    expect(html).not.toContain('기존 흰색 유지');
+    expect(html).not.toContain('배너 삭제');
+  });
+
+  /* CH-10 — 추천 검색어: 칸 하나가 칩 하나, 최대 10개, 이미지·링크 없음. */
+  it('추천 검색어는 목록 이름과 검색어 칸을 편집하고 이미지·이동 화면 입력을 두지 않는다', () => {
+    const terms: AdminCurationRecord = { ...record, kind: 'search_terms', title: '11월 추천 검색어', imagePath: null, imageUrl: null, mobileImageUrl: null,
+      linkPath: null, payload: { terms: ['리락쿠마', '키링'] } };
+    const html = renderSection(terms);
+    expect(html).toContain('추천 검색어 관리');
+    expect(html).toContain('목록 이름 (관리용)');
+    expect(html.match(/name="searchTerm"/g)).toHaveLength(2);
+    expect(html).toContain('value="리락쿠마"');
+    expect(html).toContain('aria-label="추천 검색어 2 삭제"');
+    expect(html).toContain('2 / 10');
+    expect(html).toContain('type="hidden" name="linkPath" value=""');
+    expect(html).toContain('type="hidden" name="imagePath" value=""');
+    expect(html).not.toContain('data-artwork-kind="curation"');
+    expect(html).not.toContain('눌렀을 때 이동할 화면');
+    /* 빈 목록도 입력 칸 하나로 시작한다. */
+    expect(renderSection({ ...terms, payload: { terms: [] } }).match(/name="searchTerm"/g)).toHaveLength(1);
+  });
 });
