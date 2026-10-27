@@ -31,10 +31,12 @@ grant execute on function public.admin_staging_test_tools() to authenticated;
 
 -- 발주확인 이후 택배 주문의 남은 배송 건을 운송장 없이 배송완료로 기록한다. 발송 메일 대기열은
 -- 준비 → 배송중 전이에서만 생기므로 준비 → 배송완료로 바로 옮기면 메일이 생기지 않는다.
--- 주문 상태는 기존 배송 건 집계 트리거가 파생하고, 구매확정 기한도 기존 트리거가 저장한다.
+-- 합포장 소속이면 운영 배송완료와 같이 묶음 전체를 함께 처리한다(lock_shipment_pack_scope:
+-- 주문 id 순 → 배송 건 id 순 잠금). 주문 상태는 기존 배송 건 집계 트리거가 파생하고,
+-- 구매확정 기한도 기존 트리거가 저장한다.
 create function public.admin_mark_staging_test_delivered(p_order_number text,p_operation_id uuid) returns jsonb
 language plpgsql security definer set search_path='' as $$
-declare actor uuid;purchase public.orders;shipment record;delivered integer:=0;at_value timestamptz;request jsonb;receipt jsonb;
+declare actor uuid;purchase public.orders;targets uuid[];ids uuid[];shipment record;delivered integer:=0;at_value timestamptz;request jsonb;receipt jsonb;
 begin
  actor:=private.require_operator_capability('sales.manage',false);
  if not private.staging_test_tools_available() then raise insufficient_privilege using message='staging_test_delivery_unavailable';end if;
@@ -44,25 +46,34 @@ begin
  perform pg_advisory_xact_lock(hashtextextended('staging-test-delivery:'||p_operation_id::text,0));
  receipt:=private.operator_lifecycle_replay(actor,p_operation_id,'admin.staging.test_delivered',request);
  if receipt is not null then return receipt;end if;
- select * into purchase from public.orders where order_number=p_order_number for update;
+ select * into purchase from public.orders where order_number=p_order_number;
  if not found then raise no_data_found using message='order_not_found';end if;
- perform id from public.order_shipments where order_id=purchase.id order by id for update;
- if purchase.status not in ('confirmed','shipping') then raise check_violation using message='staging_test_delivery_requires_confirmed';end if;
- perform private.assert_order_dispatch_allowed(purchase.id);
- if exists(select 1 from public.order_shipments where order_id=purchase.id and status in ('ready','shipping') and delivery_method<>'parcel') then
+ select coalesce(array_agg(id order by id),'{}'::uuid[]) into targets from public.order_shipments where order_id=purchase.id and status in ('ready','shipping');
+ if cardinality(targets)=0 then
+  select * into purchase from public.orders where id=purchase.id for update;
+  if purchase.status not in ('confirmed','shipping') then raise check_violation using message='staging_test_delivery_requires_confirmed';end if;
+  raise check_violation using message='staging_test_delivery_nothing_to_deliver';
+ end if;
+ ids:=private.lock_shipment_pack_scope(targets);
+ if exists(select 1 from public.order_shipments where order_id=purchase.id and status in ('ready','shipping') and id<>all(ids)) then
+  raise sqlstate 'PT409' using message='shipment_pack_changed';end if;
+ if exists(select 1 from public.orders o where o.id in(select order_id from public.order_shipments where id=any(ids)) and o.status not in ('confirmed','shipping')) then
+  raise check_violation using message='staging_test_delivery_requires_confirmed';end if;
+ perform private.assert_order_dispatch_allowed(order_id) from (select distinct order_id from public.order_shipments where id=any(ids) order by order_id) packed;
+ if exists(select 1 from public.order_shipments where id=any(ids) and status in ('ready','shipping') and delivery_method<>'parcel') then
   raise check_violation using message='staging_test_delivery_parcel_only';end if;
  at_value:=clock_timestamp();
- for shipment in select id from public.order_shipments where order_id=purchase.id and status in ('ready','shipping') order by id loop
+ for shipment in select id from public.order_shipments where id=any(ids) and status in ('ready','shipping') order by id loop
   perform private.assert_shipment_preorder_ready(shipment.id);
   update public.order_shipments set status='delivered',shipped_at=coalesce(shipped_at,at_value),delivered_at=at_value where id=shipment.id;
   delivered:=delivered+1;
  end loop;
  if delivered=0 then raise check_violation using message='staging_test_delivery_nothing_to_deliver';end if;
  select * into purchase from public.orders where id=purchase.id;
- receipt:=jsonb_build_object('orderId',purchase.id,'orderNumber',purchase.order_number,'status',purchase.status,
-  'deliveredShipments',delivered,'deliveredAt',at_value);
+ receipt:=jsonb_build_object('orderId',purchase.id,'orderNumber',purchase.order_number,'status',purchase.status,'deliveredShipments',delivered,
+  'orderCount',(select count(distinct order_id) from public.order_shipments where id=any(ids))::integer,'deliveredAt',at_value);
  insert into public.audit_log(id,actor_id,action,target,diff) values(p_operation_id,actor,'admin.staging.test_delivered','order:'||purchase.id,
-  jsonb_build_object('request',request,'result',receipt,'staging',true));
+  jsonb_build_object('request',request,'result',receipt,'staging',true,'shipmentIds',to_jsonb(ids)));
  return receipt;
 end $$;
 revoke all on function public.admin_mark_staging_test_delivered(text,uuid) from public,anon,authenticated,service_role;

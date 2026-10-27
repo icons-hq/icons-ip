@@ -110,4 +110,21 @@ select pg_temp.as_actor('a0c20000-0000-4000-8000-000000000001');
 set local role authenticated;
 select pg_temp.expect_error(format('select public.admin_mark_staging_test_delivered(%L,gen_random_uuid())',:'ready_number'),'staging_test_delivery_requires_confirmed');
 reset role;
+
+-- 합포장 소속 배송 건은 운영 배송완료와 같이 묶음 전체를 함께 옮기고, 묶음을 쪼개지 않는다.
+select pg_temp.order_with(4,'confirmed') as packed_one \gset
+select order_number as packed_one_number from public.orders where id=:'packed_one' \gset
+select pg_temp.order_with(5,'confirmed') as packed_two \gset
+insert into private.shipment_packs(id,created_by) values('a0c20000-0000-4000-8000-0000000000b1','a0c20000-0000-4000-8000-000000000001');
+insert into private.shipment_pack_members(pack_id,shipment_id,identity_digest)
+ select 'a0c20000-0000-4000-8000-0000000000b1',id,'TEST' from public.order_shipments where order_id in(:'packed_one',:'packed_two');
+select pg_temp.as_actor('a0c20000-0000-4000-8000-000000000001');
+set local role authenticated;
+select public.admin_mark_staging_test_delivered(:'packed_one_number',gen_random_uuid()) as packed \gset
+reset role;
+select 1/case when (:'packed'::jsonb->>'orderCount')='2' and (:'packed'::jsonb->>'deliveredShipments')='2'
+ and (select count(*)=2 from public.orders where id in(:'packed_one',:'packed_two') and status='delivered')
+ and not exists(select 1 from public.order_shipments where order_id in(:'packed_one',:'packed_two') and status<>'delivered')
+ and not exists(select 1 from public.order_shipment_email_jobs where order_id in(:'packed_one',:'packed_two'))
+ then 1 else 0 end as assert_pack_moves_together;
 rollback;

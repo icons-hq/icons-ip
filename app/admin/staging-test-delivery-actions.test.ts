@@ -7,7 +7,7 @@ vi.mock('@/lib/supabase/server', () => ({ createClient: async () => ({ rpc: mock
 vi.mock('next/cache', () => ({ revalidatePath: mocks.revalidate }));
 vi.mock('next/navigation', () => ({ unstable_rethrow: () => {} }));
 const id = 'a0c20000-0000-4000-8000-0000000000a1', orderId = 'a0c20000-0000-4001-8000-000000000001', orderNumber = '2026102710000001';
-const receipt = { orderId, orderNumber, status: 'delivered', deliveredShipments: 1, deliveredAt: '2026-10-27T02:00:00Z' };
+const receipt = { orderId, orderNumber, status: 'delivered', deliveredShipments: 1, orderCount: 1, deliveredAt: '2026-10-27T02:00:00Z' };
 beforeEach(() => { vi.clearAllMocks(); mocks.runtime.mockReturnValue(true); mocks.access.mockResolvedValue(true); mocks.rpc.mockResolvedValue({ data: receipt, error: null }); });
 describe('스테이징 테스트 배송완료', () => {
   it('운영 런타임에서는 권한·DB 확인 전에 거절한다', async () => {

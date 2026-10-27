@@ -24,10 +24,11 @@ export function StagingTestDeliveryPanel() {
     setPending(false);
     if ('error' in result) { setMessage(result.error); setError(true); return; }
     request.current = null; setError(false); setAcknowledged(false);
-    setMessage(`주문 ${result.receipt.orderNumber}의 배송 건 ${result.receipt.deliveredShipments}건을 배송완료로 기록했습니다. 배송 메일은 보내지 않았습니다.`);
+    const packed = result.receipt.orderCount > 1 ? ` 합포장으로 묶인 주문 ${result.receipt.orderCount}건을 함께 처리했습니다.` : '';
+    setMessage(`주문 ${result.receipt.orderNumber}의 배송 건 ${result.receipt.deliveredShipments}건을 배송완료로 기록했습니다.${packed} 배송 메일은 보내지 않았습니다.`);
   }
   return <AdminSectionCard title="테스트 배송완료 (스테이징 전용)" summary="운영 환경에는 표시되지 않으며 서버와 DB가 모두 거절합니다.">
-    <p>구매확정·리뷰를 시험하려고 발주확인 이후 택배 주문의 남은 배송 건을 운송장 없이 배송완료로 기록합니다. 실제 발송·배송 메일은 없으며, 배송완료 시각부터 구매확정 기한과 반품 기한이 계산됩니다.</p>
+    <p>구매확정·리뷰를 시험하려고 발주확인 이후 택배 주문의 남은 배송 건을 운송장 없이 배송완료로 기록합니다. 합포장으로 묶인 배송 건은 묶음 전체를 함께 처리합니다. 실제 발송·배송 메일은 없으며, 배송완료 시각부터 구매확정 기한과 반품 기한이 계산됩니다.</p>
     <form onSubmit={event => { event.preventDefault(); void submit(); }}>
       <fieldset disabled={pending}>
         <legend className="wc-admin-kit__hint">테스트 주문 선택</legend>
