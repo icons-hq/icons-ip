@@ -429,7 +429,7 @@
   align-items: baseline;
   justify-content: space-between;
   gap: 8px;
-  margin-bottom: 12px;
+  margin-bottom: 4px;
 }
 
 .wc-auth__picks-title {
@@ -440,8 +440,24 @@
 }
 
 .wc-auth__picks-sub {
+  margin: 0 0 12px;
   font-size: 12px;
   color: var(--wc-ink-tertiary);
+}
+
+/* 관심 IP는 선택 단계다 — 건너뛰기/다시 고르기는 약관 행의 문서 링크와 같은 텍스트 버튼 문법. */
+.wc-auth__picks-skip {
+  flex: none;
+  min-height: 32px;
+  padding: 0 2px;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 13px;
+  color: var(--wc-ink-tertiary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
 }
 
 /* IP 타일 — 각진 이미지 체크박스. 선택 상태는 잉크 링 하나로만 말한다. */

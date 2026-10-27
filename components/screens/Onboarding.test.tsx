@@ -91,6 +91,21 @@ describe('Onboarding form contracts', () => {
     expect(html).toContain('class="onboarding-ip-title"');
   });
 
+  /* 10/14 회의 S2 · D5 — 관심 IP는 선택 단계다. 필수로 읽히는 문구를 두지 않고, 건너뛰기를 단다. */
+  it('관심 IP 단계를 선택으로 표기하고 건너뛰기를 제공한다', () => {
+    const html = render({
+      recommendedIps: [{ bg: 'none', color: '#000', fans: 1, id: 'ip-one', sub: 'IP', tagline: '', title: '아이피 원' }],
+    });
+    const component = source();
+
+    expect(html).not.toContain('최애가 필요해요');
+    expect(html).toMatch(/관심 IP 고르기 <em class="wc-auth__opt">선택<\/em>/);
+    expect(html).toContain('고르지 않아도 시작할 수 있어요');
+    expect(html).toMatch(/<button class="wc-auth__picks-skip" type="button">건너뛰기<\/button>/);
+    /* 건너뛰면 타일과 추천 목록 입력을 함께 내려 서버가 팔로우를 바꾸지 않는다. */
+    expect(component).toMatch(/ipPicksSkipped \? \([\s\S]*관심 IP 고르기를 건너뛰었어요[\s\S]*\) : \([\s\S]*<IpPickTile/);
+  });
+
   it('필수 동의 항목에서 동의 대상 문서를 바로 열 수 있다', () => {
     const html = render();
 

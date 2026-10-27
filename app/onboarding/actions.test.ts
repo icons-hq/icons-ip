@@ -278,6 +278,22 @@ describe('completeOnboardingAction profile identity', () => {
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
+  /* 10/14 회의 S2 · D5 — 관심 IP는 선택이다. 건너뛰면 화면이 추천 목록 입력을 보내지 않고,
+     서버는 팔로우를 바꾸지 않은 채 온보딩을 끝낸다(이미 팔로우한 IP를 풀지 않는다). */
+  it('completes onboarding without IP picks and leaves existing follows untouched', async () => {
+    mocks.from.mockImplementation((table: string) => {
+      if (table === 'profiles') return profileQuery();
+      if (table === 'ips') return ipQuery([{ id: IP_ONE }]);
+      if (table === 'ip_follows') return followsQuery([{ ip_id: IP_ONE }]);
+      throw new Error(`Unexpected table ${table}`);
+    });
+
+    await expect(completeOnboardingAction({}, onboardingForm('fan'))).rejects.toThrow('NEXT_REDIRECT:/community');
+
+    expect(mocks.rpc.mock.calls.filter(([name]) => name === 'follow_ip' || name === 'unfollow_ip')).toEqual([]);
+    expect(mocks.profilePayloads.at(-1)).toEqual({ onboarded_at: expect.any(String) });
+  });
+
   it('keeps the existing recommended follow, consent, and completion flow', async () => {
     mocks.from.mockImplementation((table: string) => {
       if (table === 'profiles') return profileQuery();

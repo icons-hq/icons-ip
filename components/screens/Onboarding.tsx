@@ -1,6 +1,6 @@
 'use client';
 
-import { startTransition, useActionState, type FormEvent } from 'react';
+import { startTransition, useActionState, useState, type FormEvent } from 'react';
 import { completeOnboardingAction, type OnboardingActionState } from '@/app/onboarding/actions';
 import { WcButton } from '@/components/wc/WcButton';
 import { LEGAL_DOCUMENT_LABELS, legalDocumentHref, type LegalDocumentSlug } from '@/lib/legal/links';
@@ -122,6 +122,9 @@ export function Onboarding({
   recommendedIps,
 }: OnboardingProps) {
   const [state, action, pending] = useActionState(completeOnboardingAction, emptyState);
+  /* 관심 IP는 선택 단계다(10/14 회의 S2 · D5). 건너뛰면 타일과 추천 목록 입력을 함께 내려
+     서버가 팔로우를 바꾸지 않는다 — 고르지 않은 채 제출해 이미 팔로우한 IP가 풀리는 일도 없다. */
+  const [ipPicksSkipped, setIpPicksSkipped] = useState(false);
   const initiallyFollowed = new Set(followedIpIds);
   const [birthYear = '', birthMonth = '', birthDay = ''] = birthDate.split('-');
 
@@ -137,7 +140,7 @@ export function Onboarding({
     <main className="wc-root wc-auth">
       <div className="wc-auth__panel">
         <h1 className="wc-auth__title">프로필을 완성해요</h1>
-        <p className="wc-auth__lede">서비스에서 쓸 닉네임과 생년월일, 그리고 최애가 필요해요.</p>
+        <p className="wc-auth__lede">서비스에서 쓸 닉네임과 생년월일을 알려주세요. 관심 IP는 골라도 되고 건너뛰어도 돼요.</p>
 
         <form action={action} className="wc-auth__form" data-onboarding-form onSubmit={handleSubmit}>
           <input type="hidden" name="next" value={next} />
@@ -225,22 +228,39 @@ export function Onboarding({
           </ul>
 
           {recommendedIps.length > 0 && (
-            <div className="wc-auth__picks">
+            <div className="wc-auth__picks" data-onboarding-ip-picks={ipPicksSkipped ? 'skipped' : 'open'}>
               <div className="wc-auth__picks-head">
-                <span className="wc-auth__picks-title">최애를 골라보세요</span>
-                <span className="wc-auth__picks-sub">팔로우한 IP 기준으로 홈과 알림이 맞춰져요</span>
+                <span className="wc-auth__picks-title" id="onboarding-ip-picks-title">
+                  관심 IP 고르기 <em className="wc-auth__opt">선택</em>
+                </span>
+                {ipPicksSkipped ? (
+                  <button autoFocus className="wc-auth__picks-skip" type="button" onClick={() => setIpPicksSkipped(false)}>
+                    다시 고르기
+                  </button>
+                ) : (
+                  <button className="wc-auth__picks-skip" type="button" onClick={() => setIpPicksSkipped(true)}>
+                    건너뛰기
+                  </button>
+                )}
               </div>
-              <div className="wc-auth__choice-grid">
-                {recommendedIps.map((ip) => (
-                  <IpPickTile
-                    key={ip.id}
-                    bg={ip.bg}
-                    defaultChecked={initiallyFollowed.has(ip.id)}
-                    id={ip.id}
-                    title={ip.title}
-                  />
-                ))}
-              </div>
+              {ipPicksSkipped ? (
+                <p className="wc-auth__picks-sub" role="status">관심 IP 고르기를 건너뛰었어요. 나중에 IP 페이지에서 팔로우할 수 있어요.</p>
+              ) : (
+                <>
+                  <p className="wc-auth__picks-sub">팔로우한 IP 기준으로 홈과 알림이 맞춰져요. 고르지 않아도 시작할 수 있어요.</p>
+                  <div aria-labelledby="onboarding-ip-picks-title" className="wc-auth__choice-grid" role="group">
+                    {recommendedIps.map((ip) => (
+                      <IpPickTile
+                        key={ip.id}
+                        bg={ip.bg}
+                        defaultChecked={initiallyFollowed.has(ip.id)}
+                        id={ip.id}
+                        title={ip.title}
+                      />
+                    ))}
+                  </div>
+                </>
+              )}
             </div>
           )}
 
