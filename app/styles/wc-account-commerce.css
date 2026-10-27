@@ -4922,6 +4922,763 @@ button.wc-settings__link-row[aria-disabled="true"] strong {
   }
 }
 
+/* ------------------------------------------------------------------
+   주소록 — /my/addresses · 주문서 배송지 선택·추가 · 온보딩 안내
+   (LFS 패리티 2차 L7 · MY-11, 11 §5.8, 10/14 S6b·S3·S6a)
+   배송지 관리: 헤딩 바 → 요약 박스 920×62(grey·1px hairline-soft·r2: 기본 배송지 15/700 + '기본 배송지 변경'
+   106×30 12/700 흰 바탕 1px line.control-soft r2) → 표(배송지 이름 240 · 주소 393 · 연락처 180 · 관리 107,
+   머리 13/400, 아래 1px 잉크) → '배송지 추가' 260×56 잉크 18/700 r2 가운데 → 안내 박스.
+   액센트를 쓰지 않는다(DESIGN §2 사용처 폐쇄) — 기본 배송지 표시는 잉크 아웃라인 글자 배지다.
+   ------------------------------------------------------------------ */
+
+.wc-address-book__count {
+  flex: none;
+  font-size: 13px;
+  letter-spacing: -0.2px;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-address-book__error {
+  margin: 0;
+  padding: 40px 0;
+  font-size: 15px;
+  text-align: center;
+  color: var(--wc-danger);
+}
+
+.wc-address-book__summary {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-height: 62px;
+  margin: 0 0 24px;
+  padding: 15px 24px;
+  border: 1px solid var(--wc-hairline-soft);
+  border-radius: 2px;
+  background: var(--wc-surface-grey);
+}
+
+.wc-address-book__summary-copy {
+  display: flex;
+  flex: 1 1 auto;
+  align-items: baseline;
+  gap: 12px;
+  min-width: 0;
+}
+
+.wc-address-book__summary-title {
+  flex: none;
+  margin: 0;
+  font-size: 15px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+  color: var(--wc-ink);
+}
+
+.wc-address-book__summary-value {
+  min-width: 0;
+  margin: 0;
+  overflow: hidden;
+  font-size: 14px;
+  letter-spacing: -0.2px;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+  color: var(--wc-ink-sub);
+}
+
+.wc-address-book__summary-action,
+.wc-address-book__row-action {
+  flex: none;
+  height: 30px;
+  padding: 0 10px;
+  font-family: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+  border: 1px solid var(--wc-line-control-soft);
+  border-radius: 2px;
+  background: var(--wc-surface);
+  color: var(--wc-ink);
+  cursor: pointer;
+}
+
+.wc-address-book__summary-action {
+  min-width: 106px;
+}
+
+.wc-address-book__summary-action[aria-expanded='true'] {
+  border-color: var(--wc-ink);
+}
+
+.wc-address-book__row-action:disabled {
+  color: var(--wc-ink-disabled);
+  cursor: not-allowed;
+}
+
+/* 기본 배송지 고르기 — 요약 박스 바로 아래 인라인 라디오 목록(모달 없이). */
+.wc-address-book__chooser {
+  margin: -12px 0 24px;
+  padding: 20px 24px;
+  border: 1px solid var(--wc-hairline);
+  border-radius: 2px;
+}
+
+.wc-address-book__chooser legend {
+  padding: 0 4px;
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--wc-ink);
+}
+
+.wc-address-book__choice {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--wc-hairline-soft);
+  cursor: pointer;
+}
+
+.wc-address-book__choice input[type='radio'] {
+  margin-top: 2px;
+}
+
+.wc-address-book__choice > span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  font-size: 14px;
+  color: var(--wc-ink-sub);
+  overflow-wrap: anywhere;
+}
+
+.wc-address-book__choice strong {
+  font-weight: 700;
+  color: var(--wc-ink);
+}
+
+.wc-address-book__chooser-actions,
+.wc-address-book__confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  margin-top: 16px;
+}
+
+.wc-address-book__chooser-actions .wc-btn,
+.wc-address-book__confirm-actions .wc-btn {
+  width: auto;
+  min-width: 96px;
+  height: 40px;
+  margin-top: 0;
+  border-radius: 2px;
+  font-size: 14px;
+}
+
+/* 결과 안내 — 비어 있으면 자리를 차지하지 않는다(포커스 대상이라 요소는 남긴다). */
+.wc-address-book__status {
+  margin: 0 0 12px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--wc-success);
+}
+
+.wc-address-book__status:empty {
+  margin: 0;
+}
+
+.wc-address-book__status.is-error {
+  color: var(--wc-danger);
+}
+
+.wc-address-book__empty {
+  margin: 0;
+  padding: 40px 0;
+  border-bottom: 1px solid var(--wc-ink);
+  font-size: 15px;
+  text-align: center;
+  color: var(--wc-ink-sub);
+}
+
+/* 주소록을 여는 날 전(처리방침 개정 시행일 전) 안내 — 빈 목록과 같은 자리·선. */
+.wc-address-book__opening {
+  padding: 40px 0;
+  border-bottom: 1px solid var(--wc-ink);
+  font-size: 15px;
+  text-align: center;
+  color: var(--wc-ink-sub);
+}
+
+.wc-address-book__opening p {
+  margin: 0;
+}
+
+.wc-address-book__opening p + p {
+  margin-top: 6px;
+}
+
+.wc-address-book__opening-title {
+  font-weight: 700;
+  color: var(--wc-ink);
+}
+
+.wc-address-book__guide a {
+  color: inherit;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
+.wc-address-book__table {
+  width: 100%;
+  border-collapse: collapse;
+  border-bottom: 1px solid var(--wc-ink);
+  table-layout: fixed;
+}
+
+/* LFS 실측 240/393/180/107(합 920)을 콘텐츠 폭 920에서 그대로 낸다. 셸 콘텐츠가 920보다 좁은 데스크톱(990–1211)에서
+   표가 칼럼을 넘지 않게 이름·연락처는 920 기준 비율, 관리(버튼 두 개)는 107 고정, 주소는 나머지를 쓴다. */
+.wc-address-book__col-name { width: 26.087%; }
+.wc-address-book__col-address { width: auto; }
+.wc-address-book__col-phone { width: 19.565%; }
+.wc-address-book__col-actions { width: 107px; }
+
+.wc-address-book__table thead th {
+  padding: 13px 16px;
+  border-bottom: 1px solid var(--wc-hairline);
+  font-size: 13px;
+  font-weight: 400;
+  text-align: left;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-address-book__table tbody th,
+.wc-address-book__table tbody td {
+  padding: 20px 16px;
+  border-bottom: 1px solid var(--wc-hairline);
+  vertical-align: top;
+  text-align: left;
+  font-size: 14px;
+  font-weight: 400;
+  line-height: 1.6;
+  letter-spacing: -0.2px;
+  color: var(--wc-ink-sub);
+  overflow-wrap: anywhere;
+}
+
+.wc-address-book__table tbody tr:last-child > * {
+  border-bottom: 0;
+}
+
+.wc-address-book__name {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.wc-address-book__name strong {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--wc-ink);
+}
+
+.wc-address-book__badge {
+  padding: 1px 4px;
+  border: 1px solid var(--wc-ink);
+  border-radius: 1px;
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.4;
+  color: var(--wc-ink);
+}
+
+.wc-address-book__recipient {
+  display: block;
+  margin-top: 4px;
+  font-size: 13px;
+  color: var(--wc-ink-tertiary);
+}
+
+/* 표 칸 머리가 보이는 데스크톱에서는 칸 안 라벨을 걷는다(모바일 블록에서만 읽힌다). */
+.wc-address-book__cell-label {
+  display: none;
+}
+
+.wc-address-book__table tbody td.wc-address-book__actions {
+  padding-right: 0;
+  padding-left: 8px;
+  white-space: nowrap;
+}
+
+.wc-address-book__actions .wc-address-book__row-action + .wc-address-book__row-action {
+  margin-left: 5px;
+}
+
+.wc-address-book__confirm td {
+  padding: 0 16px 20px !important;
+  border-bottom: 1px solid var(--wc-hairline);
+}
+
+.wc-address-book__confirm p {
+  margin: 0;
+  padding: 14px 16px;
+  background: var(--wc-surface-grey);
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--wc-ink);
+}
+
+.wc-address-book__add {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  margin: 40px 0 0;
+}
+
+.wc-address-book__add .wc-btn {
+  width: 260px;
+  height: 56px;
+  border-radius: 2px;
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.wc-address-book__note {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  text-align: center;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-address-book__panel {
+  margin-top: 32px;
+  padding: 28px 24px;
+  border: 1px solid var(--wc-hairline);
+  border-radius: 2px;
+}
+
+.wc-address-book__panel-title {
+  margin: 0 0 20px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--wc-ink);
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+  color: var(--wc-ink);
+}
+
+.wc-address-book__guide {
+  margin-top: 40px;
+  padding: 20px;
+  background: var(--wc-surface-grey);
+}
+
+.wc-address-book__guide-title {
+  margin: 0;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--wc-ink-sub);
+}
+
+.wc-address-book__guide ul {
+  margin: 6px 0 0;
+  padding-left: 16px;
+}
+
+.wc-address-book__guide li {
+  font-size: 13px;
+  line-height: 1.8;
+  color: var(--wc-ink-tertiary);
+}
+
+/* 주소록 폼 — 배송지 관리(마이 셸)와 온보딩 안내(인증 1칼럼)가 함께 쓴다. 인풋 모양은 각 지면의 폼 문법을
+   따르고, 여기서는 칸 배치·우편번호 칸·오류·동작만 정한다(우편번호 칸은 주문서 .wc-receipt 규칙과 같은 모양). */
+.wc-address-form__fields {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.wc-address-form__field,
+.wc-address-form .postcode-field {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-width: 0;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+  color: var(--wc-ink-sub);
+}
+
+.wc-address-form__field em {
+  font-style: normal;
+  font-weight: 400;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-address-form__field--wide,
+.wc-address-form .postcode-field {
+  grid-column: 1 / -1;
+}
+
+.wc-address-form input[aria-invalid='true'] {
+  border-color: var(--wc-danger);
+}
+
+.wc-address-form .postcode-field-label {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--wc-ink-sub);
+}
+
+.wc-address-form .postcode-field-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+
+.wc-address-form .postcode-field-row input {
+  flex: 1 1 140px;
+  max-width: 180px;
+}
+
+.wc-address-form .postcode-field-open {
+  flex: none;
+  min-width: 94px;
+  /* 같은 줄 우편번호 칸과 높이를 맞춘다 — 인증 1칼럼(온보딩) 입력은 40, 마이 셸 입력은 44(아래). */
+  height: 40px;
+  padding: 0 14px;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  border: 1px solid var(--wc-ink);
+  border-radius: 2px;
+  background: var(--wc-surface);
+  color: var(--wc-ink);
+  cursor: pointer;
+}
+
+.wc-mypage .wc-address-form .postcode-field-open {
+  height: 44px;
+}
+
+.wc-address-form .postcode-field-hint {
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-address-form .postcode-layer {
+  position: relative;
+  overflow: hidden;
+  margin-top: 4px;
+  border: 1px solid var(--wc-line-control);
+  background: var(--wc-surface);
+}
+
+.wc-address-form .postcode-layer-frame {
+  width: 100%;
+  height: 420px;
+}
+
+.wc-address-form .postcode-layer-state {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  padding: 20px;
+  background: var(--wc-surface);
+  font-size: 13px;
+  line-height: 1.6;
+  text-align: center;
+  color: var(--wc-ink-sub);
+}
+
+.wc-address-form__error,
+.wc-address-form .checkout-field-error {
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.5;
+  color: var(--wc-danger);
+}
+
+.wc-address-form__check {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--wc-ink-sub);
+  cursor: pointer;
+}
+
+.wc-address-form__check > span {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.wc-address-form__check small {
+  font-size: 12.5px;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-address-form__alert {
+  margin: 16px 0 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--wc-danger);
+}
+
+.wc-address-form__actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 20px;
+}
+
+.wc-address-form__actions .wc-btn {
+  flex: 1 1 0;
+  margin-top: 0;
+  border-radius: 2px;
+}
+
+.wc-address-form__actions .wc-btn[aria-disabled='true'] {
+  opacity: .6;
+  cursor: progress;
+}
+
+/* 온보딩 안내 — 인증 1칼럼(448) 위. '나중에 할게요'는 저장 CTA 아래 아웃라인. */
+.wc-address-onboarding__lede {
+  margin: 0 0 24px;
+  font-size: 14px;
+  line-height: 1.7;
+  letter-spacing: -0.2px;
+  text-align: center;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-address-onboarding .wc-address-form__fields {
+  grid-template-columns: minmax(0, 1fr);
+}
+
+.wc-address-onboarding .wc-address-onboarding__skip {
+  margin-top: 10px;
+}
+
+/* 주문서의 배송지 선택·추가 — 영수증 지면(.wc-receipt) 안. 필드 그리드 위 한 줄: 주소록 select + 저장·관리. */
+.wc-receipt .checkout-address-prefill {
+  margin: 0 0 12px;
+  font-size: 13px;
+  letter-spacing: -0.2px;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-receipt .checkout-address-book {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 0 0 16px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--wc-hairline);
+}
+
+.wc-receipt .checkout-address-book__pick,
+.wc-receipt .checkout-address-book__label {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+  color: var(--wc-ink-sub);
+}
+
+.wc-receipt .checkout-address-book__pick select {
+  padding-right: 32px;
+  background-image: url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6' viewBox='0 0 10 6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23111111' stroke-width='1.5'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 12px center;
+  text-overflow: ellipsis;
+}
+
+.wc-receipt .checkout-address-book__row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px 16px;
+}
+
+.wc-receipt .checkout-address-book__toggle {
+  min-height: 44px;
+  padding: 0;
+  border: 0;
+  background: none;
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+  color: var(--wc-ink);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
+}
+
+.wc-receipt .checkout-address-book__manage {
+  display: inline-flex;
+  align-items: center;
+  min-height: 44px;
+  margin-left: auto;
+  font-size: 13px;
+  letter-spacing: -0.2px;
+  color: var(--wc-ink-tertiary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.wc-receipt .checkout-address-book__save {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 16px;
+  background: var(--wc-surface-grey);
+}
+
+.wc-receipt .checkout-address-book__check {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  font-size: 13px;
+  color: var(--wc-ink-sub);
+  cursor: pointer;
+}
+
+.wc-receipt .checkout-address-book__save-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.wc-receipt .checkout-address-book__note,
+.wc-receipt .checkout-address-book__message {
+  margin: 0;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-receipt .checkout-address-book__message {
+  color: var(--wc-success);
+}
+
+.wc-receipt .checkout-address-book__message.is-error {
+  color: var(--wc-danger);
+}
+
+@media (max-width: 989px) {
+  .wc-address-book__summary {
+    flex-wrap: wrap;
+    padding: 14px 16px;
+  }
+
+  .wc-address-book__summary-copy {
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .wc-address-book__summary-value {
+    white-space: normal;
+  }
+
+  /* 모바일은 표를 배송지 블록으로 쌓는다 — 이름·받는 분 위, 주소·연락처 아래, 관리 버튼은 블록 오른쪽 위.
+     머리 행은 시각에서 걷는다(caption·th scope 는 남는다). */
+  .wc-address-book__table,
+  .wc-address-book__table tbody,
+  .wc-address-book__table tr,
+  .wc-address-book__table tbody th,
+  .wc-address-book__table tbody td {
+    display: block;
+    width: auto;
+  }
+
+  .wc-address-book__table thead {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    overflow: hidden;
+    clip-path: inset(50%);
+    white-space: nowrap;
+  }
+
+  .wc-address-book__table tbody tr:not(.wc-address-book__confirm) {
+    position: relative;
+    padding: 18px 0;
+    border-top: 1px solid var(--wc-hairline);
+  }
+
+  .wc-address-book__table tbody tr:first-child {
+    border-top: 0;
+  }
+
+  .wc-address-book__table tbody th,
+  .wc-address-book__table tbody td {
+    padding: 0;
+    border-bottom: 0;
+  }
+
+  .wc-address-book__table tbody th {
+    padding-right: 110px;
+  }
+
+  .wc-address-book__table tbody td.wc-address-book__address {
+    margin-top: 8px;
+  }
+
+  .wc-address-book__table tbody td.wc-address-book__phone {
+    margin-top: 2px;
+  }
+
+  .wc-address-book__cell-label {
+    display: inline;
+    color: var(--wc-ink-tertiary);
+  }
+
+  .wc-address-book__table tbody td.wc-address-book__actions {
+    position: absolute;
+    top: 18px;
+    right: 0;
+    padding: 0;
+  }
+
+  .wc-address-book__confirm td {
+    padding: 0 0 18px !important;
+  }
+
+  .wc-address-book__add .wc-btn {
+    width: 100%;
+  }
+
+  .wc-address-book__panel {
+    padding: 20px 16px;
+  }
+
+  .wc-address-form__fields {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .wc-address-form .postcode-layer-frame {
+    height: 380px;
+  }
+}
+
 /* 마이 › 성인 인증 — 상태 박스 → 인증 버튼 → 회색 안내 박스. 코인·쿠폰함과 같은
    마이페이지 지면 문법이고, 인증 완료만 액센트 띠로 구분한다(색만으로 구분하지 않도록
    배지 문구를 함께 쓴다). 결과 화면은 팝업(410×500)에서도 읽히는 한 열 패널이다. */
