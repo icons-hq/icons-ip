@@ -83,9 +83,9 @@ language sql stable security definer set search_path='' as $$
  select jsonb_build_object(
   'noticeVersion','marketing-channels-v1',
   'marketing',exists(select 1 from private.customer_marketing_consents c where c.user_id=p_user and c.agreed),
-  'email',(select jsonb_build_object('agreed',c.agreed,'agreedAt',c.agreed_at,'withdrawnAt',c.withdrawn_at,'noticeVersion',c.notice_version)
+  'email',(select jsonb_build_object('agreed',c.agreed,'agreedAt',c.agreed_at,'withdrawnAt',c.withdrawn_at,'noticeVersion',c.notice_version,'source',c.source)
    from private.customer_marketing_consents c where c.user_id=p_user and c.channel='email'),
-  'sms',(select jsonb_build_object('agreed',c.agreed,'agreedAt',c.agreed_at,'withdrawnAt',c.withdrawn_at,'noticeVersion',c.notice_version)
+  'sms',(select jsonb_build_object('agreed',c.agreed,'agreedAt',c.agreed_at,'withdrawnAt',c.withdrawn_at,'noticeVersion',c.notice_version,'source',c.source)
    from private.customer_marketing_consents c where c.user_id=p_user and c.channel='sms'));
 $$;
 

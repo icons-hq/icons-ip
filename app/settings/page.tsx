@@ -44,6 +44,7 @@ export default async function Page() {
       avatarUrl={avatar.avatarUrl}
       email={auth.profile?.email ?? auth.user?.email ?? ''}
       marketingConsent={marketingConsent}
+      marketingConsentUnavailable={auth.isConfigured && Boolean(auth.user) && marketingConsent === null}
       isConfigured={auth.isConfigured}
       nickname={nickname}
     />

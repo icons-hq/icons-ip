@@ -80,6 +80,7 @@ select 1/case when (select consents->'marketing' from public.profiles where id='
  then 1 else 0 end as legacy_true_agrees_email;
 select pg_temp.marketing_consent_actor(2); set local role authenticated;
 select 1/case when public.my_marketing_consent_state()->'email'->>'noticeVersion'='marketing-legacy-v0'
+ and public.my_marketing_consent_state()->'email'->>'source'='legacy_app'
  and public.my_marketing_consent_state()->'marketing'='true'::jsonb then 1 else 0 end as legacy_state_visible;
 reset role;
 

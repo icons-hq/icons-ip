@@ -13,6 +13,10 @@
 import { transactionInstant, transactionRecord } from './goods-transaction-values';
 
 export const MARKETING_CONSENT_NOTICE_VERSION = 'marketing-channels-v1';
+/** 채널을 나누기 전 단일 동의의 안내 버전. 이관 동의(source legacy)는 실제 동의 시각이 기록된 적이 없다. */
+export const MARKETING_LEGACY_NOTICE_VERSION = 'marketing-legacy-v0';
+export const MARKETING_CONSENT_SOURCES = ['legacy', 'legacy_app', 'onboarding', 'settings'] as const;
+export type MarketingConsentRecordSource = (typeof MARKETING_CONSENT_SOURCES)[number];
 export const MARKETING_CHANNELS = ['email', 'sms'] as const;
 export type MarketingChannel = (typeof MARKETING_CHANNELS)[number];
 export type MarketingConsentSource = 'onboarding' | 'settings';
@@ -33,6 +37,8 @@ export const MARKETING_CONSENT_NOTICE = {
   summary: '신상품·이벤트·할인 혜택 같은 광고성 정보를 동의한 수단으로 보내 드려요. 동의하지 않아도 가입과 구매에 불이익이 없고, 주문·배송 같은 거래 안내는 동의와 관계없이 보내 드려요.',
   sms: 'SMS는 휴대폰 번호가 등록된 경우에만 보내 드려요.',
   change: '설정에서 수단별로 언제든 바꿀 수 있어요.',
+  /* 인앱 알림함의 마케팅 소식은 수단과 무관한 파생값(하나라도 동의 = true)을 따른다. */
+  inApp: '알림함의 마케팅 소식은 이메일·SMS 중 하나라도 수신에 동의하면 받아요. 두 수단을 모두 끄면 알림함 마케팅 소식도 받지 않아요.',
 } as const;
 
 export interface MarketingChannelConsent {
@@ -40,6 +46,7 @@ export interface MarketingChannelConsent {
   agreedAt: string | null;
   withdrawnAt: string | null;
   noticeVersion: string;
+  source: MarketingConsentRecordSource;
 }
 
 export interface MarketingConsentState {
@@ -58,8 +65,10 @@ function parseChannel(value: unknown): MarketingChannelConsent | null | undefine
   if (value === null) return null;
   if (!transactionRecord(value) || typeof value.agreed !== 'boolean' || typeof value.noticeVersion !== 'string'
     || !nullableInstant(value.agreedAt) || !nullableInstant(value.withdrawnAt)
+    || !MARKETING_CONSENT_SOURCES.includes(value.source as MarketingConsentRecordSource)
     || value.agreed !== (value.agreedAt !== null)) return undefined;
-  return { agreed: value.agreed, agreedAt: value.agreedAt, withdrawnAt: value.withdrawnAt, noticeVersion: value.noticeVersion };
+  return { agreed: value.agreed, agreedAt: value.agreedAt, withdrawnAt: value.withdrawnAt, noticeVersion: value.noticeVersion,
+    source: value.source as MarketingConsentRecordSource };
 }
 
 /** RPC 응답을 검증한다. 모양이 다르면 null — 화면은 기본값(미동의)으로 그린다. */
@@ -96,5 +105,16 @@ export function formatMarketingConsentDate(value: string | Date): string {
  */
 export function marketingConsentResultMessage(choices: MarketingChannelChoices, at: Date): string {
   const parts = MARKETING_CHANNELS.map((channel) => `${MARKETING_CHANNEL_LABELS[channel]} ${choices[channel] ? '수신 동의' : '수신 거부'}`);
-  return `ICONS 마케팅 정보 수신 설정을 저장했어요 · ${parts.join(' · ')} · ${formatMarketingConsentDate(at)} 처리`;
+  const inApp = choices.email || choices.sms ? '' : ' · 알림함 마케팅 소식도 받지 않아요';
+  return `ICONS 마케팅 정보 수신 설정을 저장했어요 · ${parts.join(' · ')} · ${formatMarketingConsentDate(at)} 처리${inApp}`;
+}
+
+/**
+ * 설정 화면의 동의 표시. 이관 동의(source legacy)는 동의 시각이 기록된 적이 없어 날짜 대신
+ * "기존 동의(기록 전)"로 말한다 — 원장의 agreed_at은 2년 재확인용 보수적 하한일 뿐 실제 동의일이 아니다.
+ */
+export function marketingChannelConsentLabel(consent: MarketingChannelConsent | null | undefined): string | null {
+  if (!consent?.agreed || !consent.agreedAt) return null;
+  if (consent.source === 'legacy') return '기존 동의(기록 전)';
+  return `${formatMarketingConsentDate(consent.agreedAt)} 동의`;
 }

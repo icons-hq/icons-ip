@@ -244,7 +244,7 @@ export function Onboarding({
             ))}
           </ul>
           <p className="onboarding-consent-note">
-            {MARKETING_CONSENT_NOTICE.summary} {MARKETING_CONSENT_NOTICE.sms} {MARKETING_CONSENT_NOTICE.change}
+            {MARKETING_CONSENT_NOTICE.summary} {MARKETING_CONSENT_NOTICE.inApp} {MARKETING_CONSENT_NOTICE.sms} {MARKETING_CONSENT_NOTICE.change}
           </p>
 
           {/* 선택 성별(10/14 회의 S5). 기본은 미선택이고, 고른 경우에만 별도 수집·이용 동의를 받는다.

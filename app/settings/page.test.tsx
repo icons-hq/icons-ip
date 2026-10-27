@@ -82,12 +82,20 @@ describe('/settings page', () => {
 
   /* 10/14 회의 S4 — 설정 화면은 수단별 수신 동의 원장 상태를 그대로 넘긴다. */
   it('passes the channel marketing consent state to the settings screen', async () => {
-    const consent = { marketing: true, email: { agreed: true, agreedAt: '2026-10-27T00:00:00.000Z', withdrawnAt: null, noticeVersion: 'marketing-channels-v1' }, sms: null };
+    const consent = { marketing: true, email: { agreed: true, agreedAt: '2026-10-27T00:00:00.000Z', withdrawnAt: null, noticeVersion: 'marketing-channels-v1', source: 'settings' }, sms: null };
     mocks.marketingConsent.mockResolvedValue(consent);
 
     renderToStaticMarkup(await Page());
 
-    expect(mocks.settings.mock.calls[0]?.[0]).toMatchObject({ marketingConsent: consent });
+    expect(mocks.settings.mock.calls[0]?.[0]).toMatchObject({ marketingConsent: consent, marketingConsentUnavailable: false });
+  });
+
+  it('marks the marketing consent unavailable when a signed-in state cannot be read', async () => {
+    mocks.marketingConsent.mockResolvedValue(null);
+
+    renderToStaticMarkup(await Page());
+
+    expect(mocks.settings.mock.calls[0]?.[0]).toMatchObject({ marketingConsent: null, marketingConsentUnavailable: true });
   });
 
   it('retains the exact authentication and onboarding return paths', async () => {

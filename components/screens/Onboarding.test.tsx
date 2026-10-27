@@ -142,6 +142,7 @@ describe('Onboarding optional consents', () => {
     expect(html).not.toMatch(/<input[^>]*name="marketingSms"[^>]*checked=""/);
     expect(html).not.toContain('name="marketing"');
     expect(html).toContain('거래 안내는 동의와 관계없이');
+    expect(html).toContain('알림함의 마케팅 소식은 이메일·SMS 중 하나라도 수신에 동의하면 받아요');
   });
 
   it('offers an unselected optional gender with its own consent and notice', () => {
