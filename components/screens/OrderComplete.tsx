@@ -84,7 +84,7 @@ export function OrderComplete({ order, bankTransferAccount }: OrderCompleteProps
                     <div><dt>입금 금액</dt><dd className="mono">{krw(order.total)}</dd></div>
                     <div>
                       <dt>입금자명</dt>
-                      <dd className="mono">{bankTransferDepositName(order.address?.recipientName ?? '', order.id)}</dd>
+                      <dd className="mono">{bankTransferDepositName(order.address?.recipientName ?? '', order.orderNumber ?? order.id)}</dd>
                     </div>
                   </dl>
                   <p className="money-caption">

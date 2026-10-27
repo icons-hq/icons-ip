@@ -235,7 +235,7 @@ export function CheckoutOrder({
                     <div>
                       <dt>입금자명</dt>
                       <dd className="mono">
-                        {bankTransferDepositName(order.address?.recipientName ?? '', order.id)}
+                        {bankTransferDepositName(order.address?.recipientName ?? '', order.orderNumber ?? order.id)}
                       </dd>
                     </div>
                   </dl>

@@ -5,6 +5,7 @@ import type { CheckoutOrderSnapshot } from '@/lib/checkout.server';
 import type { PreparedCheckout } from '@/lib/payments/gateway';
 import { transactionDisplay, transactionLineId } from '@/test/fixtures/cart-transaction';
 import { checkoutStatusCopy } from '@/lib/checkout-status-copy';
+import { bankTransferDepositName } from '@/lib/payments/bank-transfer';
 import {
   CheckoutOrder,
   effectiveGoodsCheckoutExpiry,
@@ -327,6 +328,13 @@ describe('CheckoutOrder 무통장 입금 안내', () => {
     expect(html).toContain('15,000');
     /* 입금자명 코드는 DB private.bank_transfer_deposit_code와 같은 규칙이다. */
     expect(html).toContain('홍길동7AD4C967');
+  });
+
+  it('16자리 주문번호가 있으면 입금자명 코드를 주문번호로 만든다(알림 코드와 같은 근거)', () => {
+    const html = renderToStaticMarkup(
+      <CheckoutOrder bankTransferAccount={account} order={{ ...bankOrder, orderNumber: '2026102720000001' }} />,
+    );
+    expect(html).toContain(bankTransferDepositName('홍길동', '2026102720000001'));
   });
 
   /*
