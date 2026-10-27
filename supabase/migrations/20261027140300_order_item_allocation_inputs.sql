@@ -45,7 +45,11 @@ revoke all on function private.coupon_line_eligible_now(jsonb,text,text) from pu
 create function public.admin_order_item_allocation_inputs(p_order_ids uuid[]) returns jsonb
 language plpgsql stable security definer set search_path='' as $$
 begin
-  perform private.require_operator_capability('sales.read',false);
+  -- STABLE 조회는 PostgREST가 읽기 전용 트랜잭션으로 부르므로 잠금을 잡는 require_* 대신 잠금 없는 판정을 쓴다
+  -- (20261020085358_goods_order_readers_readonly_authorization과 같은 관례).
+  if not coalesce(private.has_operator_capability(auth.uid(),'sales.read',false),false) then
+    raise insufficient_privilege using message='operator_capability_required';
+  end if;
   if p_order_ids is null or cardinality(p_order_ids) not between 1 and 1000 or array_position(p_order_ids,null) is not null then
     raise invalid_parameter_value using message='invalid_order_allocation_ids';
   end if;

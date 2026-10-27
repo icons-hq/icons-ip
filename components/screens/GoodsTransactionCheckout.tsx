@@ -209,9 +209,13 @@ export function GoodsTransactionCheckout({ accountId, catalog, latestAddress, pa
         {quotes.result && !quotes.result.ok && quotes.result.error === 'cart_changed' && !recovery && <button type="button" onClick={() => void cart.refresh()}>장바구니 새로 불러오기</button>}
         {quotes.result && !quotes.result.ok && quotes.result.error === 'coupon_changed' && !recovery && <button type="button" onClick={() => router.refresh()}>현재 쿠폰 다시 확인</button>}
         {!recovery && <>
-          <fieldset disabled={busy} className="checkout-payment-methods"><legend>결제수단</legend>{(['card', 'bank_transfer'] as const).map(value => <label key={value}><input type="radio" name="paymentMethod" value={value} checked={effectiveMethod === value} disabled={!selectable[value]} onChange={() => setMethod(value)} />{value === 'card' ? '카드' : '무통장 입금'}
-            {/* 두 주문서가 같은 사유 문구를 쓴다(S26). */}
-            {value === 'bank_transfer' && <small>{bankTransferMethodNote({ accountConfigured: bankTransferAvailable, goodsAllow: currentDisplay ? currentDisplay.paymentMethods.bankTransfer : null })}</small>}
+          {/* legacy 주문서와 같은 결제수단 선택지 마크업·스타일을 쓴다 — 사유 문구가 선택지 이름과 붙지 않게(10/14 S26). */}
+          <fieldset disabled={busy} className="checkout-method"><legend>결제수단</legend>{(['card', 'bank_transfer'] as const).map(value => <label className="checkout-method-option" key={value}><input type="radio" name="paymentMethod" value={value} checked={effectiveMethod === value} disabled={!selectable[value]} onChange={() => setMethod(value)} />
+            <span>
+              <strong>{value === 'card' ? '카드' : '무통장 입금'}</strong>
+              {/* 두 주문서가 같은 사유 문구를 쓴다(S26). */}
+              {value === 'bank_transfer' && <small>{bankTransferMethodNote({ accountConfigured: bankTransferAvailable, goodsAllow: currentDisplay ? currentDisplay.paymentMethods.bankTransfer : null })}</small>}
+            </span>
           </label>)}</fieldset>
           <button type="button" className="btn btn-ghost" disabled={!input || busy || cart.pending} onClick={quotes.refresh}>금액 다시 확인</button>
           <button className="btn btn-holo checkout-submit" disabled={!canSubmit}>{busy ? '주문 확인 중' : effectiveMethod === 'bank_transfer' ? '주문하고 입금 안내 받기' : '결제하기'}</button>

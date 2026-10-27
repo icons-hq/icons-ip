@@ -23,7 +23,8 @@ vi.mock('react', async () => {
   };
 });
 
-import { BankTransferDeadlineGate, bankTransferDeadlinePassed } from './BankTransferDeadline';
+import { BankTransferDeadlineGate } from './BankTransferDeadline';
+import { bankTransferDeadlinePassed } from '@/lib/payments/bank-transfer';
 
 function Probe({ expiresAt, initiallyPassed }: { expiresAt: string | null; initiallyPassed: boolean }) {
   return BankTransferDeadlineGate({ expiresAt, initiallyPassed, children: <p>계좌 안내</p> });

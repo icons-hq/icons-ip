@@ -1,3 +1,5 @@
+import { readFileSync } from 'node:fs';
+import { join } from 'node:path';
 import type { ReactNode } from 'react';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
@@ -95,5 +97,17 @@ describe('OrderComplete', () => {
     expect(html).toContain('입금 기한이 지났어요');
     expect(html).not.toContain('123456-01-789012');
     expect(html).not.toContain('주문이 접수됐어요');
+  });
+});
+
+/*
+ * 주문 완료 화면은 서버 컴포넌트다. 'use client' 모듈의 일반 함수를 서버에서 부르면 운영 빌드에서
+ * "Attempted to call … from the server"로 오류 페이지가 뜬다(PR #608 브라우저 QA). 기한 판정은 lib에서 가져온다.
+ */
+describe('OrderComplete 서버 경계', () => {
+  it('클라이언트 모듈에서는 컴포넌트만 가져온다', () => {
+    const source = readFileSync(join(process.cwd(), 'components/screens/OrderComplete.tsx'), 'utf8');
+    expect(source).toMatch(/import \{ BankTransferDeadlineGate \} from '@\/components\/checkout\/BankTransferDeadline';/);
+    expect(source).toMatch(/bankTransferDeadlinePassed[^;]*from '@\/lib\/payments\/bank-transfer'/);
   });
 });

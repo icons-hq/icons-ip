@@ -267,7 +267,7 @@ describe('어드민 가이드 인용·수치 정합', () => {
      안내가 "기본은 74열"로 되돌아가면 남양주 담당자가 74열을 받는다고 오해한다. */
   it('출고지시 기본 양식과 입금 확인 뒤 발주확인 안내가 화면 계약과 같다', () => {
     const grid = repoFile('components/admin/screens/ShipmentConsoleGrid.tsx');
-    expect(grid).toContain('출고지 기본 양식 (남양주: 서원 송장양식 · 그 밖: 스마트스토어 74열)');
+    expect(grid).toContain('출고지 기본 양식 (남양주만 고르면 서원 송장양식 · 그 밖·여러 출고지는 스마트스토어 74열)');
     expect(grid).toContain('CSV를 골라도 남양주(서원) 송장양식은 XLSX로 받습니다.');
     for (const slug of ['orders-shipping', 'store-settings'] as const) {
       const text = plainText(ADMIN_GUIDE_TOPICS[slug]);

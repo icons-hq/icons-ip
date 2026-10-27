@@ -87,3 +87,12 @@ export function bankTransferDeadlineImminent(
     && remaining > 0
     && remaining <= thresholdHours * 3_600_000;
 }
+
+/**
+ * 무통장 입금 기한이 지났는지. 기한을 모르면 지난 것으로 본다(입금을 약속하지 않는다).
+ * 서버 화면(주문 완료)과 클라이언트 시계(BankTransferDeadlineGate)가 함께 쓰므로 'use client' 모듈에 두지 않는다.
+ */
+export function bankTransferDeadlinePassed(expiresAt: string | null, now: number): boolean {
+  const deadline = expiresAt ? Date.parse(expiresAt) : Number.NaN;
+  return !Number.isFinite(deadline) || deadline <= now;
+}

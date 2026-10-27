@@ -1,13 +1,13 @@
 import Link from 'next/link';
 import { GoodsCustomInputsSummary } from '@/components/shop/GoodsCustomInputs';
 import { ListingReturnLink } from '@/components/shell/ListingReturn';
-import { BankTransferDeadlineGate, bankTransferDeadlinePassed } from '@/components/checkout/BankTransferDeadline';
+import { BankTransferDeadlineGate } from '@/components/checkout/BankTransferDeadline';
 import { checkoutDeadlineTimeLabel } from '@/lib/checkout';
 import { BANK_TRANSFER_EXPIRED_COPY } from '@/lib/checkout-status-copy';
 import type { CheckoutOrderSnapshot } from '@/lib/checkout.server';
 import { krw } from '@/lib/format';
 import { formatOrderDateTime, orderReferenceLabel } from '@/lib/orders';
-import { bankTransferDepositName, bankTransferDepositNameWithCode, type BankTransferAccount } from '@/lib/payments/bank-transfer';
+import { bankTransferDeadlinePassed, bankTransferDepositName, bankTransferDepositNameWithCode, type BankTransferAccount } from '@/lib/payments/bank-transfer';
 
 /**
  * 완료 화면을 그릴지, 어디로 보낼지. 결제 콜백·무통장 접수 뒤에 오는 화면이지만 주소는 누구나

@@ -2,12 +2,8 @@
 
 import { useEffect, useState, type ReactNode } from 'react';
 import { BANK_TRANSFER_EXPIRED_COPY } from '@/lib/checkout-status-copy';
+import { bankTransferDeadlinePassed } from '@/lib/payments/bank-transfer';
 
-/** 무통장 입금 기한이 지났는지. 기한을 모르면 지난 것으로 본다(입금을 약속하지 않는다). */
-export function bankTransferDeadlinePassed(expiresAt: string | null, now: number): boolean {
-  const deadline = expiresAt ? Date.parse(expiresAt) : Number.NaN;
-  return !Number.isFinite(deadline) || deadline <= now;
-}
 
 /*
  * 화면을 연 뒤 입금 기한이 지나면 계좌 안내를 닫는다. 결제 화면(CheckoutOrder)과 같은 방식으로
