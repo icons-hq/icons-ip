@@ -3,6 +3,7 @@ import { describe, expect, it, vi } from 'vitest';
 import { COMMUNITY_ENABLED } from '@/lib/community-visibility';
 import type { CatalogIpDetail } from '@/lib/catalog';
 import type { IpFollowState } from '@/lib/ip-follow';
+import { IP_HALL_BANNER_EMPTY_SOURCE, type IpHallBanner } from '@/lib/ip-hall-banner';
 import type { ListingWishlist } from '@/lib/listing-wishlist';
 import { parseShopSearchParams, selectCollectionGoods } from '@/lib/shop-catalog';
 import { shopQueryString } from '@/components/shop/collection-filters';
@@ -67,9 +68,11 @@ function render(overrides: {
   notificationSaved?: boolean;
   collection?: IpGoodsCollection;
   wishlist?: ListingWishlist | null;
+  banner?: IpHallBanner | null;
 } = {}) {
   return renderToStaticMarkup(
     <IpDetail
+      banner={overrides.banner}
       collection={overrides.collection}
       detail={overrides.detail ?? detail}
       followError={overrides.followError ?? false}
@@ -229,6 +232,43 @@ describe('IpDetail banner', () => {
 
     expect(html.match(/<h1[^>]*>메이플스토리<\/h1>/)).toBeTruthy();
     expect(html).toContain('작은 용사들의 큰 모험 메이플 월드의 이야기');
+  });
+});
+
+/* IP-06(L8b): IP관 PC/MO 배너. 없으면 키아트 배경 그대로(마크업 불변), 있으면 폭별 picture 가 배경 위·스크림 아래에 선다. */
+describe('IpDetail hall banner artwork', () => {
+  const sectionOf = (html: string) => html.match(/<section class="wc-iphall__banner"[^>]*>/)?.[0] ?? '';
+
+  it('keeps the key-art background exactly as before when the IP has no hall banner', () => {
+    for (const banner of [undefined, null, { imageUrl: null, mobileImageUrl: null }]) {
+      const html = render({ banner });
+
+      expect(sectionOf(html)).toBe('<section class="wc-iphall__banner" style="background:linear-gradient(#111, #222);background-size:cover;background-position:center">');
+      expect(html).not.toContain('wc-iphall__banner-media');
+    }
+  });
+
+  it('draws the PC banner for every width and swaps in the mobile banner below 750px', () => {
+    const html = render({ banner: { imageUrl: 'https://cdn.test/pc.webp', mobileImageUrl: 'https://cdn.test/mo.webp' } });
+
+    expect(sectionOf(html)).toBe('<section class="wc-iphall__banner" data-banner="all">');
+    expect(html).toContain('<picture class="wc-iphall__banner-media"><source media="(max-width: 749px)" srcSet="https://cdn.test/mo.webp"/><img alt="" decoding="async" fetchPriority="high" loading="eager" sizes="100vw" src="https://cdn.test/pc.webp"/></picture>');
+    expect(html.indexOf('wc-iphall__banner-media')).toBeLessThan(html.indexOf('<h1'));
+  });
+
+  it('uses the PC banner on mobile too when no mobile banner exists', () => {
+    const html = render({ banner: { imageUrl: 'https://cdn.test/pc.webp', mobileImageUrl: null } });
+
+    expect(html).not.toContain('<source');
+    expect(html).toContain('src="https://cdn.test/pc.webp"');
+  });
+
+  it('keeps the key art on desktop for a mobile-only banner without downloading the mobile art there', () => {
+    const html = render({ banner: { imageUrl: null, mobileImageUrl: 'https://cdn.test/mo.webp' } });
+
+    expect(sectionOf(html)).toBe('<section class="wc-iphall__banner" data-banner="mobile" style="--wc-iphall-keyart:linear-gradient(#111, #222)">');
+    expect(html).toContain(`<source media="(min-width: 750px)" srcSet="${IP_HALL_BANNER_EMPTY_SOURCE}"/>`);
+    expect(html).toContain('src="https://cdn.test/mo.webp"');
   });
 });
 

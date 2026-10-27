@@ -33,7 +33,6 @@ function BannerSlide({ banner, first }: { banner: CollectionBanner; first: boole
   const content = <>
     <picture className="wc-collection-banner__media">
       {banner.mobileImageUrl ? <source media="(max-width: 749px)" srcSet={banner.mobileImageUrl} /> : null}
-      {/* eslint-disable-next-line @next/next/no-img-element -- Storage 공개 URL 원본을 그대로 쓴다(히어로와 같은 picture 계약). */}
       <img
         alt={banner.imageAlt}
         decoding="async"

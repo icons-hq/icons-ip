@@ -372,6 +372,25 @@
   position: relative;
 }
 
+/* IP관 PC/MO 배너(11 IP-06 · L8b). 그림은 섹션 배경 바로 위·스크림 아래에 깐다 — 섹션을 쌓임 맥락으로 묶어
+   z-index -1 이 섹션 밖으로 새지 않게 한다. 배너가 없는 IP 는 data-banner 가 없어 이 규칙이 걸리지 않는다(키아트 배경 그대로). */
+.wc-iphall__banner[data-banner] {
+  isolation: isolate;
+}
+
+.wc-iphall__banner > .wc-iphall__banner-media {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+}
+
+.wc-iphall__banner-media img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
 .wc-iphall__banner .wc-container {
   display: flex;
   width: 100%;
@@ -564,6 +583,18 @@
 @media (min-width: 750px) {
   .wc-iphall__banner {
     min-height: 540px;
+  }
+
+  /* 모바일 배너만 있는 IP 의 데스크톱은 키아트 그대로다 — 키아트를 이 폭에서만 깔아 모바일에서는 내려받지 않는다. */
+  .wc-iphall__banner[data-banner='mobile'] {
+    background: var(--wc-iphall-keyart, none);
+    background-color: var(--wc-ink);
+    background-size: cover;
+    background-position: center;
+  }
+
+  .wc-iphall__banner[data-banner='mobile'] > .wc-iphall__banner-media {
+    display: none;
   }
 
   .wc-iphall__links {
