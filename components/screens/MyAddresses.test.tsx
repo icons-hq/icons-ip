@@ -87,6 +87,20 @@ describe('MyAddresses (/my/addresses · 11 §5.8)', () => {
     expect(source).toMatch(/if \(serverEntries !== initialEntries\) \{\s*setServerEntries\(initialEntries\);\s*setEntries\(initialEntries\);/);
   });
 
+  it('표 칸은 920 폭에서 LFS 실측(240/393/180/107)이고, 더 좁은 데스크톱 칼럼에서는 칼럼을 넘지 않게 줄어든다', () => {
+    const css = readFileSync(new URL('../../app/styles/wc-account-commerce.css', import.meta.url), 'utf8');
+    const width = (col: string) => css.match(new RegExp(`\\.wc-address-book__col-${col} \\{ width: ([^;]+); \\}`))?.[1];
+    /* 920 × 26.087% = 240, 920 × 19.565% = 180, 관리 107 고정, 주소는 나머지(920 − 527 = 393). */
+    expect(width('name')).toBe('26.087%');
+    expect(width('phone')).toBe('19.565%');
+    expect(width('actions')).toBe('107px');
+    expect(width('address')).toBe('auto');
+    expect(Math.round(920 * 0.26087) + Math.round(920 * 0.19565) + 107).toBe(920 - 393);
+    /* 마이 셸 입력(44)과 같은 줄의 '주소 검색' 버튼 높이를 맞춘다(인증 1칼럼은 40끼리). */
+    expect(css).toMatch(/\.wc-mypage \.wc-address-form \.postcode-field-open \{\s*height: 44px;\s*\}/);
+    expect(css).toMatch(/\.wc-mypage input:not\(\[type='hidden'\]\)[^{]*\{[^}]*min-height: 44px;/);
+  });
+
   it('오류 문구와 화면에 입력값을 늘어놓지 않는 규율을 소스에서도 지킨다', () => {
     const source = readFileSync(new URL('./MyAddresses.tsx', import.meta.url), 'utf8');
     expect(source).toContain('maskAddressBookPhone(entry.phone)');

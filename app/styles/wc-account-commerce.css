@@ -5011,9 +5011,11 @@ button.wc-settings__link-row[aria-disabled="true"] strong {
   table-layout: fixed;
 }
 
-.wc-address-book__col-name { width: 240px; }
-.wc-address-book__col-address { width: 393px; }
-.wc-address-book__col-phone { width: 180px; }
+/* LFS 실측 240/393/180/107(합 920)을 콘텐츠 폭 920에서 그대로 낸다. 셸 콘텐츠가 920보다 좁은 데스크톱(990–1211)에서
+   표가 칼럼을 넘지 않게 이름·연락처는 920 기준 비율, 관리(버튼 두 개)는 107 고정, 주소는 나머지를 쓴다. */
+.wc-address-book__col-name { width: 26.087%; }
+.wc-address-book__col-address { width: auto; }
+.wc-address-book__col-phone { width: 19.565%; }
 .wc-address-book__col-actions { width: 107px; }
 
 .wc-address-book__table thead th {
@@ -5223,6 +5225,7 @@ button.wc-settings__link-row[aria-disabled="true"] strong {
 .wc-address-form .postcode-field-open {
   flex: none;
   min-width: 94px;
+  /* 같은 줄 우편번호 칸과 높이를 맞춘다 — 인증 1칼럼(온보딩) 입력은 40, 마이 셸 입력은 44(아래). */
   height: 40px;
   padding: 0 14px;
   font-family: inherit;
@@ -5233,6 +5236,10 @@ button.wc-settings__link-row[aria-disabled="true"] strong {
   background: var(--wc-surface);
   color: var(--wc-ink);
   cursor: pointer;
+}
+
+.wc-mypage .wc-address-form .postcode-field-open {
+  height: 44px;
 }
 
 .wc-address-form .postcode-field-hint {
