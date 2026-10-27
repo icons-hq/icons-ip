@@ -84,8 +84,15 @@ export function parseShippingQuoteItems(value: unknown): ShippingQuoteItem[] | n
   }
   return result;
 }
+/* 고객 화면은 출고지 이름(김포·남양주)을 말하지 않는다(10/14 회의 S7). 출고지는 운영 개념이고
+ * 고객에게 필요한 것은 배송비 조건과 "함께 오는 묶음"뿐이다. 어드민은 이름을 그대로 쓴다. */
 export function shippingPolicyDescription(policy: GoodShippingPolicy): string {
   if (policy.feeType === 'free') return '무료배송';
   if (policy.feeType === 'individual') return `${krw(policy.individualFee)} · 수량·옵션과 관계없이 굿즈당 1회`;
-  return `${policy.originName} 출고 · 배송비 ${krw(policy.baseFee)}${policy.freeThreshold === null ? '' : ` · 정책 적용 굿즈 ${krw(policy.freeThreshold)} 이상 무료`}`;
+  return `배송비 ${krw(policy.baseFee)}${policy.freeThreshold === null ? '' : ` · 정책 적용 굿즈 ${krw(policy.freeThreshold)} 이상 무료`}`;
+}
+
+/** 고객 화면의 배송 묶음 이름. 묶음이 하나면 번호를 붙이지 않는다(선례: GoodsTransactionSummary). */
+export function shippingGroupLabel(index: number, count: number): string {
+  return count > 1 ? `배송 묶음 ${index + 1}` : '배송 묶음';
 }

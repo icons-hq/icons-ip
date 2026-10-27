@@ -49,7 +49,7 @@ describe('김포 원본 운송장 회신',()=>{
 });
 
 describe('남양주(서원) 송장양식 회신',()=>{
- const seowon=(phone:unknown,quantity:unknown,tracking:unknown,items='합성 키링_빨강')=>[phone,'','04524','서울 중구 세종대로 110','',quantity,items,'합성 받는분','',tracking];
+ const seowon=(phone:unknown,quantity:unknown,tracking:unknown,items='합성 키링_빨강',shipmentNumber:unknown='')=>[phone,'','04524','서울 중구 세종대로 110','',quantity,items,'합성 받는분','',shipmentNumber,tracking];
  async function workbook(rows:unknown[][],extraSheets:unknown[][][]=[]){
   const w=new ExcelJS.Workbook();w.addWorksheet('송장양식').addRows(rows);
   extraSheets.forEach((sheet,i)=>w.addWorksheet(`Sheet${i+1}`).addRows(sheet));return Buffer.from(await w.xlsx.writeBuffer());
@@ -58,8 +58,15 @@ describe('남양주(서원) 송장양식 회신',()=>{
   const parsed=await parseTrackingWorkbook(await workbook([[...SEOWON_EXPORT_HEADERS,'등기 번호'],seowon(1012345678,2,6012345678901),seowon('010-1234-5678','1,000','6012-3456-78902')],[[],[]]),carriers);
   expect(parsed).toMatchObject({kind:'seowon',issues:[]});
   expect((parsed as {rows:unknown[]}).rows).toEqual([
-   {line:2,phone:'01012345678',address:'서울 중구 세종대로 110',items:'합성 키링_빨강',quantity:2,trackingNumber:'6012345678901'},
-   {line:3,phone:'010-1234-5678',address:'서울 중구 세종대로 110',items:'합성 키링_빨강',quantity:1000,trackingNumber:'6012345678902'},
+   {line:2,phone:'01012345678',address:'서울 중구 세종대로 110',items:'합성 키링_빨강',quantity:2,trackingNumber:'6012345678901',recipient:'합성 받는분'},
+   {line:3,phone:'010-1234-5678',address:'서울 중구 세종대로 110',items:'합성 키링_빨강',quantity:1000,trackingNumber:'6012345678902',recipient:'합성 받는분'},
+  ]);
+ });
+ it('덧붙인 배송건번호는 텍스트 16자리일 때만 대조에 쓰고 숫자 칸·다른 값은 버린다',async()=>{
+  const parsed=await parseTrackingWorkbook(await workbook([[...SEOWON_EXPORT_HEADERS,'송장번호'],seowon('010-1','1','6012345678901','합성 키링_빨강','2026102730000001'),
+   seowon('010-2','1','6012345678902','합성 키링_빨강',2026102730000002),seowon('010-3','1','6012345678903','합성 키링_빨강','2026102710000003')]),carriers);
+  expect((parsed as {rows:{line:number;shipmentNumber?:string;error?:string}[]}).rows.map(row=>[row.line,row.shipmentNumber,row.error])).toEqual([
+   [2,'2026102730000001',undefined],[3,undefined,undefined],[4,undefined,undefined],
   ]);
  });
  it('빈 송장·자릿수가 유실될 수 있는 숫자 송장·잘못된 수량은 줄 오류로 남긴다',async()=>{
@@ -70,7 +77,7 @@ describe('남양주(서원) 송장양식 회신',()=>{
   ]);
  });
  it('송장번호 열이 없거나 내용이 있는 시트가 둘이면 파일 단계에서 거절한다',async()=>{
-  await expect(parseTrackingWorkbook(await workbook([[...SEOWON_EXPORT_HEADERS],seowon('010','1','6012345678901').slice(0,9)]),carriers)).rejects.toThrow('송장번호 열');
+  await expect(parseTrackingWorkbook(await workbook([[...SEOWON_EXPORT_HEADERS],seowon('010','1','6012345678901').slice(0,10)]),carriers)).rejects.toThrow('송장번호 열');
   await expect(parseTrackingWorkbook(await workbook([[...SEOWON_EXPORT_HEADERS,'송장번호']],[[['다른 내용']]]),carriers)).rejects.toThrow('시트 하나');
  });
 });

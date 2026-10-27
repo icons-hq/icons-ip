@@ -26,6 +26,18 @@ describe('배송 목록과 엑셀 행의 연결 검증', () => {
     rpc.mockResolvedValue({ data, error: null });
     await expect(loadSmartStoreDeliveryLines([row])).rejects.toBeInstanceOf(AdminListExportChangedError);
   });
+  it('버전 1 할인 주문의 비어 있는 품목 금액은 거래확정 엑셀과 같은 공통 배분으로 채운다', async () => {
+    const legacy = { ...line, itemTotal: null, itemDiscount: null, sellerDiscount: null };
+    rpc.mockImplementation(async (name: string) => name === 'admin_delivery_list_export_lines' ? { data: [legacy], error: null } : { data: [{
+      orderId: line.orderId, calculationVersion: 1, couponDiscount: 2000, storeCredits: 0, volumeDiscount: 0,
+      coupon: { discountAmount: 2000, eligibleSubtotal: 20000, terms: { goodsScope: 'all', targetGoodIds: [] } },
+      items: [{ id: line.itemId, goodId: line.goodId, qty: 2, unitPrice: 10000, regularUnitPrice: 11000, allocation: null }],
+    }], error: null });
+    expect(await loadSmartStoreDeliveryLines([row])).toEqual([{ ...legacy, itemTotal: 18000, itemDiscount: 4000, sellerDiscount: 4000 }]);
+    expect(rpc).toHaveBeenLastCalledWith('admin_order_item_allocation_inputs', { p_order_ids: [line.orderId] });
+    rpc.mockImplementation(async (name: string) => name === 'admin_delivery_list_export_lines' ? { data: [legacy], error: null } : { data: null, error: { message: 'boom' } });
+    await expect(loadSmartStoreDeliveryLines([row])).rejects.toBeInstanceOf(AdminListExportLoadError);
+  });
   it('권한·조회 오류를 파일로 바꾸지 않는다', async () => {
     rpc.mockResolvedValue({ data: null, error: { message: 'operator_capability_required' } });
     await expect(loadSmartStoreDeliveryLines([row])).rejects.toBeInstanceOf(AdminListExportLoadError);

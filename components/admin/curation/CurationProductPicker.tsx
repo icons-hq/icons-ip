@@ -2,6 +2,8 @@
 
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react';
 import type { AdminCurationTargetRecord } from '@/lib/admin/curation-targets';
+import { GOOD_URL_ERRORS } from '@/lib/admin/good-url';
+import { GoodUrlAddField } from '@/components/admin/GoodUrlAddField';
 import type { HomeGoodsCard } from '@/lib/home-catalog';
 import { imageUrlFromBg } from '@/lib/media';
 import { krw } from '@/lib/format';
@@ -59,6 +61,14 @@ export function CurationProductPicker({ options, goods, selectedIds, limit, onAp
       <label>상품명 / 상품코드<input onChange={(event) => { setQuery(event.target.value); setPage(1); }} placeholder="상품명 또는 상품코드를 입력하세요" value={query} /></label>
       <button onClick={() => { setQuery(''); setPage(1); }} type="button">초기화</button>
     </div>
+    <GoodUrlAddField onAdd={(id) => {
+      const option = options.find((candidate) => candidate.id === id && !candidate.archivedAt);
+      if (!option) return { ok: false, message: GOOD_URL_ERRORS.notFound };
+      if (selection.includes(id)) return { ok: false, message: GOOD_URL_ERRORS.exists };
+      if (selection.length >= limit) return { ok: false, message: `최대 ${limit}개까지 선택할 수 있습니다.` };
+      setSelection((current) => current.includes(id) ? current : [...current, id]);
+      return { ok: true, message: `'${option.title}' 상품을 선택했습니다. 선택 완료를 눌러 반영해주세요.` };
+    }} />
     <div className="admin-store-editor__picker-summary"><span>조회 결과 <strong>{matches.length}</strong>개</span><span>선택 <strong>{selection.length}</strong> / {limit}개</span></div>
     <div className="admin-store-editor__picker-table">
       <table>

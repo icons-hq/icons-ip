@@ -13,7 +13,7 @@ import { loadGoodsTransactionOffers } from '@/lib/goods-transaction-offers.serve
 import type { GoodsTransactionOffer } from '@/lib/goods-transaction-offers';
 import { loadGoodsTransactionRuntimeMode } from '@/lib/checkout-transaction.server';
 
-export type CartTransactionError = 'invalid_request' | 'order_too_large' | 'auth_changed' | 'account_unavailable' | 'checkout_unavailable' | 'payment_unavailable' | 'cart_changed' | 'coupon_changed' | 'quote_changed' | 'checkout_conflict' | 'unavailable';
+export type CartTransactionError = 'invalid_request' | 'order_too_large' | 'auth_changed' | 'account_unavailable' | 'checkout_unavailable' | 'payment_unavailable' | 'cart_changed' | 'coupon_changed' | 'quote_changed' | 'checkout_conflict' | 'payment_in_progress' | 'unavailable';
 export type CartTransactionQuoteResult = { ok: true; quote: GoodsTransactionQuote; offers: GoodsTransactionOffer[] } | { ok: false; error: CartTransactionError };
 export type CartTransactionPlaceResult = { ok: true; orderId: string } | { ok: false; error: CartTransactionError; uncertain: boolean };
 
@@ -24,6 +24,8 @@ async function authorize(expectedActorId: string, allowExisting = false): Promis
   return null;
 }
 function rpcError(message: string): CartTransactionError {
+  // 이전 장바구니 주문의 결제를 승인 확인하는 중이면 새 주문을 받지 않는다(ADR-0026).
+  if (message.includes('checkout_payment_in_progress')) return 'payment_in_progress';
   if (message.includes('transaction_quote_too_large')) return 'order_too_large';
   if (message.includes('transaction_runtime_disabled')) return 'checkout_unavailable';
   if (message.includes('cart_snapshot_changed')) return 'cart_changed';

@@ -11,7 +11,8 @@ export const metadata = {
 };
 
 /*
- * 어드민 셸 레이아웃.
+ * 어드민 셸 레이아웃 — 커머스 콘솔. IP·콘텐츠 운영 화면은 `(content)` route group의
+ * 별도 콘솔 레이아웃이 그린다(D9, A14). 상단의 콘솔 전환으로 오간다.
  *
  * `/admin/check-in`은 이 route group 밖에 있어 사이드바 없이 전체화면으로 뜬다 —
  * 현장 검표는 태블릿을 들고 쓰는 화면이라 셸이 방해가 된다.
@@ -36,6 +37,7 @@ export default async function AdminShellLayout({ children }: { children: ReactNo
 
   return (
     <AdminShell
+      console="commerce"
       admin={{ id: auth.user?.id ?? '', email: auth.user?.email ?? null, role: auth.role ?? 'staff', operatorAccess: auth.operatorAccess }}
       badges={<AdminOpenInquiryBadge count={openInquiryCount} />}
     >

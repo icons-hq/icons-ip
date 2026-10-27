@@ -124,6 +124,14 @@ export function hrefFor(route: string, param?: string | PublicIpReference | null
   return PATHS[route] ?? '/';
 }
 
+/**
+ * 주문 완료 화면(D12 · S18). 결제 승인·무통장 접수 뒤 보내는 곳이며 `app/orders/[orderId]/complete/page.tsx`
+ * → `components/screens/OrderComplete.tsx`가 그린다. 주문 식별자는 본인 확인을 거친 뒤에만 읽힌다.
+ */
+export function orderCompleteHref(orderId: string): string {
+  return `/orders/${encodeURIComponent(orderId)}/complete`;
+}
+
 /** hrefFor가 실제 경로를 돌려주는 id인지 — '/' 폴백과 진짜 홈('/')을 구분한다. */
 function hasPath(route: string): boolean {
   return route === 'ip' || route === 'reviewEvent' || route in PATHS;

@@ -2,6 +2,7 @@ import { SHIPPING_COLLECT_STATES, SHIPPING_COLLECT_STATE_LABEL, type ShippingCol
 import { isUuid } from '@/lib/uuid';
 import { normalizeAdminSettledFilters } from './settled';
 import { SALES_DATE_FIELDS, SALES_ORDER_SEARCH_FIELDS, type SalesDateField, type SalesOrderSearchField } from './sales-list';
+import { allocateLegacyOrderDiscounts, allocateSettledAmount, parseLegacyCouponTerms, type LegacyCouponTerms } from './item-allocation';
 
 export interface SettledExportFilters { from: string | null; to: string | null; query: string; dateField?: SalesDateField; field?: Exclude<SalesOrderSearchField, 'all'> }
 export interface SettledExportReceipt { id: string; capturedAt: string; orderCount: number }
@@ -9,6 +10,8 @@ export interface SettledPriceAllocation { subtotal: number; volumeDiscount: numb
 export interface SettledShippingComponent { shippingCouponDiscount?: number; installationFee?: number; id: string; shipmentId: string; paymentMode: 'prepaid' | 'collect'; baseFee: number; regionalFee: number; totalFee: number }
 export interface SettledExportItem {
   allocation?: SettledPriceAllocation | null;
+  /** 주문 당시 IP와 쿠폰 대상 판정(2026-10-27 이후 수집본). 이전 수집본은 없다. */
+  ipId?: string | null; couponEligible?: boolean | null;
   id: string; goodId: string; variantId: string | null; goodName: string | null; variantName: string | null;
   qty: number; unitPrice: number; regularUnitPrice: number | null; shipmentId: string | null;
   erpCode: string | null; erpName: string | null; barcode: string | null; erpCapturedAt: string | null;
@@ -17,7 +20,7 @@ export interface SettledExportOrder {
   shippingCouponDiscount?: number; coupons?: { code: string; discountAmount: number; benefitKind: 'goods' | 'shipping'; applicationIndex: number }[];
   calculationVersion?: 1 | 2; volumeDiscount?: number; shippingCollectTotal?: number; shippingComponents?: SettledShippingComponent[];
   id: string; createdAt: string; doneAt: string | null; total: number; shippingFee: number; couponDiscount: number; storeCredits: number;
-  coupon: { code: string; discountAmount: number; eligibleSubtotal: number | null; terms: { goodsScope: 'all' | 'selected_goods'; targetGoodIds: string[] } | null } | null;
+  coupon: { code: string; discountAmount: number; eligibleSubtotal: number | null; terms: LegacyCouponTerms | null } | null;
   payments: { id: string; amount: number; status: string; provider: string; approvedAt: string | null; timeSource: 'bank_confirmation' | 'provider_approval' | null }[];
   shipments: { id: string; trackingNumber: string | null; shippingFee: number; status: string; shippingCollectFee?: number; collectState?: ShippingCollectState | null }[];
   items: SettledExportItem[];
@@ -95,9 +98,9 @@ export function parseSettledExportSnapshot(value: unknown): SettledExportSnapsho
     if (row.coupon !== null) {
       const source = record(row.coupon); let terms: NonNullable<SettledExportOrder['coupon']>['terms'] = null;
       if (source.terms !== null) {
-        const saved = record(source.terms);
-        if (saved.goodsScope !== 'all' && saved.goodsScope !== 'selected_goods') invalid();
-        terms = { goodsScope: saved.goodsScope, targetGoodIds: array(saved.targetGoodIds).map(text) };
+        // 상품·카테고리·IP 쿠폰 모두 받는다. 대상 품목 판정은 배분 공통 함수가 한다.
+        const saved = record(source.terms); array(saved.targetGoodIds).map(text);
+        terms = parseLegacyCouponTerms(saved) ?? invalid();
       }
       coupon = { code: text(source.code), discountAmount: money(source.discountAmount), eligibleSubtotal: source.eligibleSubtotal === null ? null : money(source.eligibleSubtotal), terms };
     }
@@ -110,7 +113,10 @@ export function parseSettledExportSnapshot(value: unknown): SettledExportSnapsho
       }
       if (calculationVersion === 2 && allocation === null) invalid();
       return {
-        ...(v2 ? { allocation } : {}), id: text(item.id), goodId: text(item.goodId), variantId: nullableText(item.variantId), goodName: nullableText(item.goodName), variantName: nullableText(item.variantName), qty,
+        ...(v2 ? { allocation } : {}),
+        ...(item.ipId === undefined ? {} : { ipId: nullableText(item.ipId) }),
+        ...(item.couponEligible === undefined ? {} : { couponEligible: item.couponEligible === null ? null : typeof item.couponEligible === 'boolean' ? item.couponEligible : invalid() }),
+        id: text(item.id), goodId: text(item.goodId), variantId: nullableText(item.variantId), goodName: nullableText(item.goodName), variantName: nullableText(item.variantName), qty,
         unitPrice: money(item.unitPrice), regularUnitPrice: item.regularUnitPrice === null ? null : money(item.regularUnitPrice), shipmentId: nullableText(item.shipmentId),
         erpCode: nullableText(item.erpCode), erpName: nullableText(item.erpName), barcode: nullableText(item.barcode), erpCapturedAt: nullableDate(item.erpCapturedAt),
       };
@@ -139,17 +145,8 @@ function sum(values: number[]): number { return safeNumber(values.reduce((total,
 function sumKnown(values: (number | null)[]): number | null { return values.some(value => value === null) ? null : sum(values as number[]); }
 function multiply(left: number, right: number) { return safeNumber(BigInt(left) * BigInt(right)); }
 
-/** Largest remainder allocation. UUID order is the deterministic tie breaker. */
-export function allocateSettledAmount(amount: number, weights: { id: string; amount: number }[]): number[] | null {
-  const total = weights.reduce((value, weight) => value + BigInt(weight.amount), BigInt(0));
-  if (amount === 0) return weights.map(() => 0);
-  if (total < BigInt(amount) || total <= BigInt(0)) return null;
-  const shares = weights.map((weight, index) => ({ index, id: weight.id, base: BigInt(amount) * BigInt(weight.amount) / total, remainder: BigInt(amount) * BigInt(weight.amount) % total }));
-  let remaining = BigInt(amount) - shares.reduce((value, share) => value + share.base, BigInt(0));
-  const ranked = [...shares].sort((a, b) => a.remainder === b.remainder ? a.id.localeCompare(b.id, 'en') : a.remainder > b.remainder ? -1 : 1);
-  for (const share of ranked) { if (!remaining) break; share.base += BigInt(1); remaining -= BigInt(1); }
-  return shares.map(share => safeNumber(share.base));
-}
+/** 배분 규칙은 주문 상세·상품주문 화면·스마트스토어 엑셀과 같은 공통 함수다(`./item-allocation`). */
+export { allocateSettledAmount };
 
 export function buildSettledExportModel(snapshot: SettledExportSnapshot): SettledExportModel {
   const lines: SettledExportLine[] = []; const summaries: SettledExportOrderSummary[] = [];
@@ -179,21 +176,12 @@ export function buildSettledExportModel(snapshot: SettledExportSnapshot): Settle
     if (!payment) issues.push(order.payments.length ? '결제 원장 중복: 금액·시각 확인 필요' : '결제 원장 미기록');
     if (!paidAt) issues.push('결제 승인·입금확인 시각 미기록');
     if (payment && payment.status !== 'paid') issues.push(`결제 상태 확인 필요: ${payment.status}`);
-    let coupon: number[] | null = items.map(() => 0);
-    if (!isV2 && order.couponDiscount) {
-      const source = order.coupon;
-      if (!source?.terms || source.eligibleSubtotal === null || source.discountAmount !== order.couponDiscount) {
-        coupon = null; issues.push('쿠폰 대상·금액의 주문 당시 기록 미기록 또는 불일치');
-      } else {
-        const weights = items.map((item, index) => ({ id: item.id, amount: source.terms!.goodsScope === 'all' || source.terms!.targetGoodIds.includes(item.goodId) ? before[index] : 0 }));
-        coupon = sum(weights.map(weight => weight.amount)) === source.eligibleSubtotal ? allocateSettledAmount(order.couponDiscount, weights) : null;
-        if (!coupon) issues.push('쿠폰 대상 품목 합계 불일치');
-      }
-    }
-    if (isV2) coupon = saved.map(a => a!.couponDiscount);
+    const legacy = isV2 ? null : allocateLegacyOrderDiscounts({ couponDiscount: order.couponDiscount, storeCredits: order.storeCredits, coupon: order.coupon,
+      items: items.map((item, index) => ({ id: item.id, goodId: item.goodId, ipId: item.ipId, couponEligible: item.couponEligible, amount: before[index] })) });
+    if (legacy) issues.push(...legacy.issues);
+    const coupon = isV2 ? saved.map(a => a!.couponDiscount) : legacy!.coupon;
     const afterCoupon = coupon ? before.map((amount, index) => amount - coupon[index]) : null;
-    const credits = isV2 ? saved.map(a => a!.storeCreditDiscount) : afterCoupon ? allocateSettledAmount(order.storeCredits, items.map((item, index) => ({ id: item.id, amount: afterCoupon[index] }))) : null;
-    if (afterCoupon && !credits) issues.push('사용 적립금과 상품 금액 불일치');
+    const credits = isV2 ? saved.map(a => a!.storeCreditDiscount) : legacy!.credits;
     const shipmentMap = new Map(order.shipments.map(shipment => [shipment.id, shipment]));
     const assigned = new Set<string>();
     const orderLines = items.map((item, index): SettledExportLine => {

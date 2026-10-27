@@ -105,6 +105,18 @@ describe('shipment action boundaries', () => {
     expect(mocks.build).toHaveBeenCalledWith({ shipments: [{ id: ID, updatedAt: STAMP }] }, 'xlsx', 'warehouse');
     expect(mocks.encrypt).not.toHaveBeenCalled();
   });
+  it('records the Seowon name suffixes of the exported file in the same call that marks the handover', async () => {
+    const line = { shipmentId: ID, orderId: 'o', recipient: '김영생', phone: '01012345678', postalCode: '04524', address: '서울', goodCode: '', variantCode: '', goodName: '키링', optionName: '', qty: 1, unitPrice: 1000, deliveryNote: '', carrier: 'epost' };
+    const seowon = (id: string, shipmentNumber: string) => ({ id, shipmentNumber, updatedAt: STAMP, originId: 'namyangju', originName: '남양주', shippingFee: 0, template: 'seowon_xlsx', columns: [], lines: [{ ...line, shipmentId: id }] });
+    mocks.rpc.mockImplementation(async (name: string) => ({ error: null, data: name === 'admin_shipment_export'
+      ? { shipments: [seowon(SECOND, '2026102730000002'), seowon(ID, '2026102730000001')] } : 2 }));
+    expect(await exportShipmentsAction([ID, SECOND], 'xlsx', 'warehouse')).toHaveProperty('file');
+    const call = mocks.rpc.mock.calls.find(([name]) => name === 'admin_mark_seowon_shipments_exported')!;
+    expect(call[1]).toMatchObject({ target_versions: [{ id: SECOND, updatedAt: STAMP }, { id: ID, updatedAt: STAMP }],
+      target_labels: [{ shipmentId: SECOND, suffix: '02' }, { shipmentId: ID, suffix: '01' }] });
+    expect(call[1].target_batch).toMatch(/^[0-9a-f-]{36}$/);
+    expect(mocks.rpc).not.toHaveBeenCalledWith('admin_mark_shipments_exported', expect.anything());
+  });
   it('requires a matching password before reading personal data for the default XLSX', async () => {
     expect(await exportShipmentsAction([ID], 'xlsx')).toHaveProperty('error');
     expect(await exportShipmentsAction([ID], 'xlsx', 'smartstore', { ...credentials, passwordConfirmation: 'Mismatch-1234' })).toHaveProperty('error');

@@ -105,8 +105,8 @@ export function purchaseBlockReason(state: PurchaseBlockState): PurchaseBlockRea
 
 /**
  * 바로구매의 이동 판정. 클라이언트 성공 신호는 확정의 진실원이 아니다 —
- * 카트 반영이 서버에서 정착(pending 해제)된 뒤, 오류가 없을 때만 체크아웃으로 간다.
- * 실패했는데 이동하면 방금 담은 수량이 빠진 카트로 결제 화면에 서는 셈이다.
+ * 카트 반영이 서버에서 정착(pending 해제)된 뒤, 오류가 없을 때만 장바구니로 간다.
+ * 실패했는데 이동하면 방금 담은 수량이 빠진 장바구니를 보여 주는 셈이다.
  */
 export function buyNowNavigation(state: {
   requested: boolean;
@@ -226,7 +226,7 @@ export function useGoodPurchase({
     });
     if (navigation === 'wait' || checkoutGen === handledCheckoutGenRef.current) return;
     handledCheckoutGenRef.current = checkoutGen;
-    if (navigation === 'navigate') router.push('/checkout');
+    if (navigation === 'navigate') router.push('/cart');
   }, [checkoutGen, cartPending, cartError, router]);
 
   const soldOut = isGoodSoldOut(good);
@@ -322,9 +322,9 @@ export function useGoodPurchase({
       setStatus(null);
       void commit().then((ok) => { if (ok) setStatus(CART_ADDED_STATUS); });
     },
-    /* 바로구매는 장바구니 화면을 건너뛸 뿐이다. 담기와 같은 카트 계약을 거쳐
-       기존 주문 경로(체크아웃 → placeOrderAction → place_order)로 들어간다.
-       이동은 즉시 하지 않는다 — buyNowNavigation 이 카트 정착·오류를 본 뒤 결정한다. */
+    /* 바로구매는 LINE FRIENDS SQUARE와 같다(D2): 담기와 같은 카트 계약으로 담은 뒤 장바구니
+       (/cart)로 간다. 주문은 장바구니 전체로 만든다(주문 = 장바구니 전체). 같은 상품을 다시 담으면
+       수량이 합산된다. 이동은 즉시 하지 않는다 — buyNowNavigation 이 카트 정착·오류를 본 뒤 결정한다. */
     buyNow: () => {
       if (inert) return;
       setStatus(null);

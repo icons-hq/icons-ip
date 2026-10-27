@@ -84,9 +84,10 @@ function profileForm(nickname: string, avatarPath?: string | File) {
   return formData;
 }
 
-function marketingForm(marketing: boolean) {
+function marketingForm(email: boolean, sms = false) {
   const formData = new FormData();
-  if (marketing) formData.set('marketing', 'on');
+  if (email) formData.set('marketingEmail', 'on');
+  if (sms) formData.set('marketingSms', 'on');
   return formData;
 }
 
@@ -743,40 +744,32 @@ describe('updateMarketingConsentAction', () => {
     );
   });
 
-  it('updates only marketing while preserving required consent values', async () => {
-    const formData = marketingForm(true);
+  /* 10/14 회의 S4 — 수단별 선택을 원장 RPC 하나로 저장한다. terms·privacy와 파생값은 DB가 지킨다. */
+  it('saves email and SMS choices through the channel consent RPC without touching required consents', async () => {
+    mocks.rpc.mockResolvedValue({ data: null, error: null });
+    const formData = marketingForm(true, false);
     formData.set('terms', 'off');
     formData.set('privacy', 'off');
 
-    await expect(updateMarketingConsentAction({}, formData)).resolves.toEqual({
-      message: '마케팅 정보 수신 동의 설정을 저장했어요.',
+    const result = await updateMarketingConsentAction({}, formData);
+    expect(result.message).toMatch(/^ICONS 마케팅 정보 수신 설정을 저장했어요 · 이메일 수신 동의 · SMS 수신 거부 · \d{4}\. \d{1,2}\. \d{1,2}\. 처리$/);
+    expect(mocks.rpc).toHaveBeenCalledWith('set_my_marketing_consents', {
+      p_email: true, p_sms: false, p_notice_version: 'marketing-channels-v1', p_source: 'settings',
     });
-    expect(mocks.dbUpdate).toHaveBeenCalledWith({
-      consents: { terms: true, privacy: true, marketing: true },
-    });
-    expect(mocks.dbEq).toHaveBeenCalledWith('id', USER_ID);
+    expect(mocks.dbUpdate).not.toHaveBeenCalled();
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/settings');
   });
 
-  it('turns marketing off when the checkbox is absent', async () => {
-    mocks.getCurrentAuthState.mockResolvedValue(
-      onboardedAuth({ terms: true, privacy: true, marketing: true }),
-    );
+  it('withdraws both channels when the checkboxes are absent', async () => {
+    mocks.rpc.mockResolvedValue({ data: null, error: null });
 
-    await expect(updateMarketingConsentAction({}, marketingForm(false))).resolves.toEqual({
-      message: '마케팅 정보 수신 동의 설정을 저장했어요.',
-    });
-    expect(mocks.dbUpdate).toHaveBeenCalledWith({
-      consents: { terms: true, privacy: true, marketing: false },
-    });
+    const result = await updateMarketingConsentAction({}, marketingForm(false));
+    expect(result.message).toContain('이메일 수신 거부 · SMS 수신 거부');
+    expect(mocks.rpc).toHaveBeenCalledWith('set_my_marketing_consents', expect.objectContaining({ p_email: false, p_sms: false }));
   });
 
-  it('returns a safe form error when the DB update fails', async () => {
-    mocks.dbEq.mockReturnValue({
-      select: () => ({
-        single: async () => ({ data: null, error: { message: 'private DB error' } }),
-      }),
-    });
+  it('returns a safe form error when the consent RPC fails', async () => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'private DB error' } });
 
     await expect(updateMarketingConsentAction({}, marketingForm(true))).resolves.toEqual({
       errors: { form: '설정을 저장하지 못했습니다. 다시 시도해주세요.' },

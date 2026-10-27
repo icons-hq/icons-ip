@@ -21,11 +21,24 @@ export interface AdminScreen {
   adminOnly?: boolean;
 }
 
+/*
+ * 콘솔(D9, A14): 커머스와 IP·콘텐츠 운영은 각자의 레이아웃·사이드바를 가진 별도 콘솔이다.
+ * URL은 그대로이고(route group은 경로에 영향이 없다) 파일 위치가 콘솔을 정한다 —
+ * `app/admin/(shell)` = 커머스, `app/admin/(content)` = 콘텐츠 운영. 상단에서 전환한다.
+ */
+export type AdminConsoleId = 'commerce' | 'content';
+export const ADMIN_CONSOLES: { id: AdminConsoleId; label: string }[] = [
+  { id: 'commerce', label: '커머스' },
+  { id: 'content', label: '콘텐츠 운영' },
+];
+
 export interface AdminNavGroup {
   id: string;
   label: string;
   icon: string;
   screens: AdminScreen[];
+  /** 이 메뉴 그룹이 보이는 콘솔. 생략하면 커머스 전용이다. */
+  consoles?: AdminConsoleId[];
 }
 
 export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
@@ -173,6 +186,7 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
     id: 'content',
     label: 'IP·콘텐츠 운영',
     icon: 'spark',
+    consoles: ['content'],
     screens: [
       { id: 'ips', label: 'IP', href: '/admin/catalog/ips', status: 'ready' },
       { id: 'cards', label: '카드', href: '/admin/catalog/cards', status: 'ready' },
@@ -189,8 +203,9 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
     id: 'field',
     label: '현장 운영',
     icon: 'event',
+    consoles: ['content'],
     screens: [
-      /* 검표는 `(shell)` route group 밖이라 사이드바 없이 전체화면으로 뜬다. */
+      /* 검표는 `(shell)`·`(content)` route group 밖이라 사이드바 없이 전체화면으로 뜬다. */
       { id: 'check-in', label: '티켓 검표', href: '/admin/check-in', status: 'ready' },
     ],
   },
@@ -198,6 +213,7 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
     id: 'help',
     label: '도움말',
     icon: 'spark',
+    consoles: ['commerce', 'content'],
     screens: [
       { id: 'guide', label: '사용 가이드', href: '/admin/guide', status: 'ready' },
     ],
@@ -281,9 +297,21 @@ export function legacyAdminSectionHref(value: unknown): string | null {
   return href && href !== '/admin' ? href : null;
 }
 
-/** 역할이 볼 수 있는 메뉴만 남긴다. `planned`는 자리 표시로 남겨 둔다. */
-export function visibleAdminNavGroups(role: string, operatorAccess?: OperatorAccess): AdminNavGroup[] {
+export function adminGroupConsoles(group: Pick<AdminNavGroup, 'consoles'>): AdminConsoleId[] {
+  return group.consoles ?? ['commerce'];
+}
+
+/** 화면이 속한 콘솔. 두 콘솔이 공유하는 화면(도움말)과 모르는 경로는 커머스로 본다. */
+export function adminConsoleForPath(pathname: string): AdminConsoleId {
+  const group = adminGroupForPath(pathname);
+  const consoles = group ? adminGroupConsoles(group) : ['commerce'];
+  return consoles.length === 1 && consoles[0] === 'content' ? 'content' : 'commerce';
+}
+
+/** 역할이 볼 수 있는 메뉴만 남긴다. `planned`는 자리 표시로 남겨 둔다. 콘솔을 주면 그 콘솔의 메뉴만 남긴다. */
+export function visibleAdminNavGroups(role: string, operatorAccess?: OperatorAccess, consoleId?: AdminConsoleId): AdminNavGroup[] {
   return ADMIN_NAV_GROUPS
+    .filter((group) => !consoleId || adminGroupConsoles(group).includes(consoleId))
     .map((group) => ({
       ...group,
       screens: group.screens.filter((screen) => operatorAccess
@@ -291,4 +319,14 @@ export function visibleAdminNavGroups(role: string, operatorAccess?: OperatorAcc
         : !screen.adminOnly || role === 'admin'),
     }))
     .filter((group) => group.screens.length > 0);
+}
+
+/** 콘솔 전환 링크의 목적지. 콘텐츠 콘솔은 볼 수 있는 첫 화면이며, 하나도 없으면 null(전환 숨김). */
+export function adminConsoleHomeHref(consoleId: AdminConsoleId, role: string, operatorAccess?: OperatorAccess): string | null {
+  if (consoleId === 'commerce') return '/admin';
+  const screen = visibleAdminNavGroups(role, operatorAccess, 'content')
+    .filter((group) => !adminGroupConsoles(group).includes('commerce'))
+    .flatMap((group) => group.screens)
+    .find((item) => item.status === 'ready' && item.id !== 'check-in');
+  return screen?.href ?? null;
 }

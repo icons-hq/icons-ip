@@ -50,13 +50,21 @@ select pg_temp.bulk_assert((select count(*)=3 and min(discount_price)=9450 and m
 set local role authenticated;
 select public.admin_save_goods_price_period('bulk-b',(select id from public.goods_variants where good_id='bulk-b'),null,
  jsonb_build_object('state','active','discountPrice',20000,'startsAt',now()+interval '4 days','endsAt',now()+interval '5 days'),null);
--- Second product overlap rejects the entire transaction, including first product.
-select pg_temp.bulk_preview(6,'discount',jsonb_build_object('mode','amount','value',100,'startsAt',now()+interval '4 days','endsAt',now()+interval '5 days'));
-select pg_temp.bulk_assert(pg_temp.bulk_commit(6)->>'state'='rejected','overlap rejects');
-select pg_temp.bulk_assert(pg_temp.bulk_commit(6)->>'state'='rejected','rejection is terminal');
+-- Second product overlap is frozen as a skip in the preview; the first product still applies.
+select pg_temp.bulk_assert((select r->>'skip' from jsonb_array_elements(pg_temp.bulk_preview(6,'discount',jsonb_build_object('mode','amount','value',100,'startsAt',now()+interval '4 days','endsAt',now()+interval '5 days'))->'goods') r where r->>'id'='bulk-b')='price_period_overlap'
+ and (select r->'skip'='null'::jsonb from jsonb_array_elements(pg_temp.bulk_preview(6,'discount',jsonb_build_object('mode','amount','value',100,'startsAt',now()+interval '4 days','endsAt',now()+interval '5 days'))->'goods') r where r->>'id'='bulk-a'),'overlap skip is frozen in preview');
+select pg_temp.bulk_assert(pg_temp.bulk_commit(6)->>'state'='completed' and pg_temp.bulk_commit(6)->>'goodsCount'='1'
+ and pg_temp.bulk_commit(6)->'skipped' @> '[{"id":"bulk-b","name":"TEST 일괄 B","reason":"price_period_overlap"}]'::jsonb
+ and jsonb_array_length(pg_temp.bulk_commit(6)->'skipped')=1,'overlap skipped, rest applied');
+reset role;
+select pg_temp.bulk_assert((select count(*)=2 from private.goods_variant_price_periods where good_id='bulk-a' and state='active' and discount_price in (10400,12400))
+ and (select count(*)=1 from private.goods_variant_price_periods where good_id='bulk-b' and state='active' and starts_at=now()+interval '4 days' and discount_price=20000),'skipped good keeps its own discount');
+set local role authenticated;
+-- Every good skipped: nothing to apply, the preview itself is refused.
+select pg_temp.bulk_error($q$select pg_temp.bulk_preview(18,'discount',jsonb_build_object('mode','amount','value',100,'startsAt',now()+interval '4 days','endsAt',now()+interval '5 days'),'["bulk-b"]')$q$,'goods_bulk_all_skipped');
 select pg_temp.bulk_preview(7,'discount_stop');select pg_temp.bulk_assert(pg_temp.bulk_commit(7)->>'state'='completed','discount stop');
 reset role;
-select pg_temp.bulk_assert((select count(*)=4 and bool_and(state='disabled') from private.goods_variant_price_periods where good_id in ('bulk-a','bulk-b')),'no partial overlap additions');
+select pg_temp.bulk_assert((select count(*)=6 and bool_and(state='disabled') from private.goods_variant_price_periods where good_id in ('bulk-a','bulk-b')),'discount stop disables every active period');
 set local role authenticated;
 select pg_temp.bulk_preview(8,'price','{"mode":"set","value":15000}');
 reset role;

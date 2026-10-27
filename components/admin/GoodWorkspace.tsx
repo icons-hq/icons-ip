@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, type ReactNode } from 'react';
+import { useEffect, useRef, type ReactNode } from 'react';
 import { Icon } from '@/components/ui/Icon';
 import { GOOD_EDITOR_SECTIONS, goodFieldSection, orderedGoodErrors } from '@/lib/admin/good-workspace';
 
@@ -24,6 +24,23 @@ export function focusGoodWorkspaceTarget(id: string, field?: string) {
   // 입력칸은 가운데로, 영역 자체(긴 KC 패널 등)는 머리(상태·주요 버튼)가 보이게 위쪽에 맞춘다.
   target.scrollIntoView({ block: target === section ? 'start' : 'center', behavior: 'instant' });
   target.focus({ preventScroll: true });
+}
+
+/**
+ * 서버 검증에 실패한 저장 시도마다 한 번, 첫 오류 필드로 스크롤·포커스한다(10/14 회의 A12).
+ * 상단 오류 요약의 링크는 그대로 두고, 어느 섹션에도 속하지 않는 오류(form 등)만 있으면 요약으로 간다.
+ */
+export function useFocusFirstGoodError(attempt: number | undefined, errors?: Record<string, string | undefined>) {
+  const handled = useRef<number | undefined>(undefined);
+  useEffect(() => {
+    if (attempt === undefined || handled.current === attempt) return;
+    handled.current = attempt;
+    const entries = orderedGoodErrors(errors);
+    if (!entries.length) return;
+    const field = entries.find(([name]) => GOOD_EDITOR_SECTIONS.some(section => (section.fields as readonly string[]).includes(name)))?.[0];
+    if (field) focusGoodWorkspaceTarget(`good-section-${goodFieldSection(field).key}`, field);
+    else document.querySelector<HTMLElement>('.admin-good-workspace__errors')?.focus();
+  }, [attempt, errors]);
 }
 
 export function GoodWorkspaceNavigation() {
