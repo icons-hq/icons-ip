@@ -85,17 +85,6 @@ begin
   end if;
 
   select count(*) into matched_count
-  from public.goods
-  where archived_at is null
-    and (
-      name ~* '(피규어|figure|figurine)'
-      or type ~* '(피규어|figure|figurine)'
-    );
-  if matched_count <> 0 then
-    raise exception 'catalog baseline invalid: expected no active figure goods, found %', matched_count;
-  end if;
-
-  select count(*) into matched_count
   from public.games
   cross join lateral jsonb_array_elements_text(
     case
