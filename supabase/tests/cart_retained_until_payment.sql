@@ -21,6 +21,9 @@ insert into public.fulfillment_origins(id,code,name,default_carrier,base_fee,ret
 insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,origin_id,shipping_fee_type,member_purchase_limit_enabled,member_lifetime_qty_limit) values
  ('retained-a','retained-ip','TEST 유지 A','문구',10000,'ok',20,'cc270000-0000-4000-8000-000000000010','policy',false,null),
  ('retained-c','retained-ip','TEST 유지 C 한정','문구',5000,'ok',20,'cc270000-0000-4000-8000-000000000010','policy',true,2);
+insert into public.goods(id,ip_id,name,type,price,stock,stock_qty,origin_id,shipping_fee_type,custom_inputs_enabled,custom_inputs_revision,custom_input_fields) values
+ ('retained-input','retained-ip','TEST 유지 각인','문구',4000,'ok',20,'cc270000-0000-4000-8000-000000000010','policy',true,1,
+  '[{"id":"cc270000-0000-4000-8000-000000000061","name":"각인 문구","active":true}]');
 insert into private.operator_memberships(profile_id,manager_role) values('cc270000-0000-4000-8000-000000000001','primary');
 update private.operator_access_state set configured=true where id;
 insert into auth.users(id,aud,role,email,raw_app_meta_data,created_at,updated_at)
@@ -30,6 +33,7 @@ insert into private.operator_memberships(profile_id,manager_role) select ('47c47
 select pg_temp.publish_goods_kc_fixture(id) from public.goods where ip_id='retained-ip';
 select id as variant_a from public.goods_variants where good_id='retained-a' and is_default \gset
 select id as variant_c from public.goods_variants where good_id='retained-c' and is_default \gset
+select id as variant_input from public.goods_variants where good_id='retained-input' and is_default \gset
 select set_config('request.jwt.claim.sub','cc270000-0000-4000-8000-000000000001',true);
 set local role authenticated;
 select public.admin_save_store_credit_policy('cc270000-0000-4000-8000-000000000020',(public.admin_get_store_credit_policy()->>'version')::integer,
@@ -242,6 +246,66 @@ select 1/case when (select status='pending' from public.orders where id=:'order_
  and (select qty=4 from public.cart_items where user_id='cc270000-0000-4000-8000-000000000002' and variant_id=:'variant_a')
  then 1 else 0 end as assert_unresolved_order_detached_not_closed;
 
+-- ── 7b. 결제 중 접수된 고객 취소 요청은 닫을 때 sweep처럼 결제 없이 종결하고 알린다 ─────────
+set local role service_role;
+select public.prepare_goods_payment_attempt('cc270000-0000-4000-8000-000000000002',:'order_8','toss')->>'id' as attempt_8 \gset
+select public.request_order_cancellation(:'order_8','cc270000-0000-4000-8000-000000000002','TEST 결제 중 취소','change_of_mind') as request_8_result \gset
+reset role;
+select id as request_8 from public.order_cancellation_requests where order_id=:'order_8' \gset
+select 1/case when (select status='requested' from public.order_cancellation_requests where id=:'request_8')
+ and (select status='pending' from public.orders where id=:'order_8')
+ then 1 else 0 end as assert_cancel_requested_while_attempt_prepared;
+set local role service_role;
+select 1/case when public.release_unpaid_cart_orders('cc270000-0000-4000-8000-000000000002')=1 then 1 else 0 end as assert_return_closes_requested_unpaid_order;
+reset role;
+select 1/case when (select status='canceled' from public.orders where id=:'order_8')
+ and (select status='completed' from public.order_cancellation_requests where id=:'request_8')
+ and (select state='canceled' from public.payment_attempts where id=:'attempt_8')
+ and (select state='released' and release_reason='superseded' from private.cart_order_holds where order_id=:'order_8')
+ and exists(select 1 from public.audit_log where action='system.order.unpaid_cart_order_closed' and target='order:'||:'order_8'
+  and diff->>'requestId'=:'request_8')
+ and (select qty=4 from public.cart_items where user_id='cc270000-0000-4000-8000-000000000002' and variant_id=:'variant_a')
+ then 1 else 0 end as assert_requested_cancellation_completed_without_payment;
+
+-- ── 7c. 장바구니 정리가 실패해도 결제 확정은 되돌리지 않는다 ─────────────────────────────
+set local role authenticated;
+select set_config('request.jwt.claim.sub','cc270000-0000-4000-8000-000000000002',true);
+select public.set_cart_item_quantity('retained-a',:'variant_a',0);
+select public.set_cart_item_quantity_with_inputs('retained-input',:'variant_input',2,1,'{"cc270000-0000-4000-8000-000000000061":"TEST 각인"}');
+select jsonb_agg(jsonb_build_object('good_id',good_id,'variant_id',variant_id,'qty',qty,'input_revision',input_revision,'input_values',input_values)) as cart_input
+ from public.cart_items where user_id='cc270000-0000-4000-8000-000000000002' \gset
+reset role;
+set local role service_role;
+select public.place_order_with_cart_snapshot('cc270000-0000-4000-8000-000000000002',:'address','cc270000-0000-4000-8000-000000000040','card',0,null,:'cart_input') as order_input \gset
+select public.prepare_goods_payment_attempt('cc270000-0000-4000-8000-000000000002',:'order_input','toss')->>'id' as attempt_input \gset
+select public.bind_goods_payment_callback_nonce(:'attempt_input',repeat('8',64));
+reset role;
+set local role authenticated;
+select public.set_cart_item_quantity_with_inputs('retained-input',:'variant_input',3,1,'{"cc270000-0000-4000-8000-000000000061":"TEST 각인"}');
+reset role;
+-- 장바구니 쓰기가 어떤 이유로든 실패하는 상황을 테스트 전용 트리거로 만든다(트랜잭션과 함께 사라진다).
+create function public.test_retained_cart_write_failure() returns trigger language plpgsql as $$begin
+ raise exception 'TEST cart write failure';
+end $$;
+create trigger test_retained_cart_write_failure before update on public.cart_items
+ for each row when (old.good_id='retained-input') execute function public.test_retained_cart_write_failure();
+select provider_order_id as provider_input from public.payment_attempts where id=:'attempt_input' \gset
+set local role service_role;
+select public.claim_goods_payment_attempt('toss',:'provider_input',repeat('8',64),'cc270000-0000-4000-8000-000000000048');
+select 1/case when public.finalize_goods_payment_attempt(:'attempt_input','cc270000-0000-4000-8000-000000000048','approved',null,'TEST-RETAINED-INPUT')='approved'
+ then 1 else 0 end as assert_payment_approved_despite_cart_write_failure;
+reset role;
+select 1/case when (select status='paid' from public.orders where id=:'order_input')
+ and (select qty=3 from public.cart_items where user_id='cc270000-0000-4000-8000-000000000002' and variant_id=:'variant_input')
+ and (select state='consumed' and consumption#>>'{lines,0,outcome}'='kept' from private.cart_order_holds where order_id=:'order_input')
+ then 1 else 0 end as assert_unchangeable_cart_line_is_kept_and_recorded;
+drop trigger test_retained_cart_write_failure on public.cart_items;
+drop function public.test_retained_cart_write_failure();
+-- 다음 절은 빈 장바구니에서 시작한다.
+set local role authenticated;
+select public.set_cart_item_quantity_with_inputs('retained-input',:'variant_input',0,1,'{"cc270000-0000-4000-8000-000000000061":"TEST 각인"}');
+reset role;
+
 -- ── 8. 거래 런타임 장바구니 어댑터도 같은 규칙을 따른다 ───────────────────────────────
 update private.goods_transaction_runtime set enabled=true where singleton;
 set local role authenticated;
@@ -252,17 +316,15 @@ select jsonb_agg(jsonb_build_object('good_id',good_id,'variant_id',variant_id,'q
  from public.cart_items where user_id='cc270000-0000-4000-8000-000000000002' \gset
 reset role;
 set local role service_role;
--- 앞 절에서 남은 보류(order_8)는 새 거래 주문이 닫는다.
 select public.quote_cart_goods_transaction('cc270000-0000-4000-8000-000000000002',:'cart_9',:'address','{}',null,0) as quote_9 \gset
 select public.place_cart_goods_transaction('cc270000-0000-4000-8000-000000000002',:'cart_9',:'address',(:'quote_9'::jsonb->>'quoteId')::uuid,
  'cc270000-0000-4000-8000-000000000051','card') as order_9 \gset
 reset role;
 select 1/case when (select status='canceled' from public.orders where id=:'order_8')
- and (select state='released' and release_reason='superseded' from private.cart_order_holds where order_id=:'order_8')
  and (select status='pending' and calculation_version=2 from public.orders where id=:'order_9')
  and (select state='awaiting_payment' and source='cart_transaction' and (lines->0->>'qty')::int=2 from private.cart_order_holds where order_id=:'order_9')
  and (select qty=2 from public.cart_items where user_id='cc270000-0000-4000-8000-000000000002' and variant_id=:'variant_a')
- then 1 else 0 end as assert_transaction_card_order_keeps_cart_and_closes_legacy;
+ then 1 else 0 end as assert_transaction_card_order_keeps_cart;
 set local role service_role;
 select public.quote_cart_goods_transaction('cc270000-0000-4000-8000-000000000002',:'cart_9',:'address','{}',null,0) as quote_10 \gset
 select public.place_cart_goods_transaction('cc270000-0000-4000-8000-000000000002',:'cart_9',:'address',(:'quote_10'::jsonb->>'quoteId')::uuid,
