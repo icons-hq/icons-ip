@@ -35,3 +35,13 @@ describe('non-parcel customer shipment display', () => {
     expect(html).not.toContain('굿즈 1');
   });
 });
+
+/* 10/14 회의 S7 — 출고지 이름은 운영 개념이라 고객 화면에 내지 않는다. 어드민은 그대로 본다. */
+describe('origin names on customer and admin shipment displays', () => {
+  it('labels customer shipments as delivery bundles and keeps origin names for operators', () => {
+    const one = renderToStaticMarkup(<ShipmentDetails shipments={[shipmentFixture()]} />);
+    expect(one).toContain('<h3>배송 묶음 · 배송 중</h3>'); expect(one).toContain('>배송조회</a>'); expect(one).not.toContain('김포');
+    const admin = renderToStaticMarkup(<ShipmentDetails admin shipments={[shipmentFixture()]} />);
+    expect(admin).toContain('<h3>김포 · 배송 중</h3>'); expect(admin).toContain('김포 배송조회');
+  });
+});

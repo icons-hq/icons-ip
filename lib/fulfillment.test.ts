@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseGoodShippingPolicy, parseShippingNoticeSnapshot, parseShippingQuote, parseShippingQuoteItems, shippingPolicyDescription } from './fulfillment';
+import { parseGoodShippingPolicy, parseShippingNoticeSnapshot, parseShippingQuote, parseShippingQuoteItems, shippingGroupLabel, shippingPolicyDescription } from './fulfillment';
 
 describe('shipping quote contract', () => {
   it('accepts server groups and rejects inconsistent or missing totals', () => {
@@ -11,6 +11,8 @@ describe('shipping quote contract', () => {
   it('describes policy/free/individual terms without hardcoded fee rules', () => {
     const policy={originId:'origin',originName:'김포',baseFee:4200,freeThreshold:65000,feeType:'policy' as const,individualFee:0};
     expect(shippingPolicyDescription(policy)).toContain('4,200');
+    /* 고객 화면은 출고지 이름을 말하지 않는다(10/14 회의 S7). */
+    expect(shippingPolicyDescription(policy)).not.toContain('김포');
     expect(shippingPolicyDescription({...policy,feeType:'free'})).toBe('무료배송');
     expect(shippingPolicyDescription({...policy,feeType:'individual',individualFee:2700})).toContain('굿즈당 1회');
   });
@@ -35,4 +37,9 @@ it('requires a canonical option UUID before quoting a cart', () => {
   expect(parseGoodShippingPolicy(policy)).not.toHaveProperty('confirmationEvidence');
   expect(parseGoodShippingPolicy(policy)?.shippingNotice).toBe(snapshot.shippingNotice);
   expect(parseGoodShippingPolicy({ ...policy, cs: { name: 42 } })).toBeNull();
+});
+
+it('names customer delivery bundles without origin names and drops the number for a single bundle', () => {
+  expect(shippingGroupLabel(0, 1)).toBe('배송 묶음');
+  expect([0, 1].map(index => shippingGroupLabel(index, 2))).toEqual(['배송 묶음 1', '배송 묶음 2']);
 });

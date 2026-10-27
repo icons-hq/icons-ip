@@ -494,7 +494,9 @@ describe('origin quote and option lines', () => {
     mocks.items=[{goodId:'g13',variantId:DEFAULT_VARIANT,qty:1},{goodId:'g14',variantId:SOLD_VARIANT,qty:1}];
     mocks.quote={...defaultQuote,totalFee:7000,finalTotalFee:7000,groups:[gimpoGroup,{...gimpoGroup,originId:'namyangju',originCode:'NAMYANGJU',originName:'남양주',baseFee:4000,policyFee:4000,totalFee:4000,finalFee:4000,policySubtotal:9000,freeThreshold:30000}]};
     const html=renderToStaticMarkup(<Cart catalog={{goods:[goods[0],{...goods[1],stock:'ok',stockQty:5,originId:'namyangju',options:goods[1].options!.map(option=>({...option,stockQty:5}))}],ips:[]}} couponState={emptyCouponState} />);
-    expect(html).toContain('김포 출고');expect(html).toContain('남양주 출고');
+    /* 고객 화면은 출고지 이름 대신 배송 묶음 번호로 구분한다(10/14 회의 S7). */
+    expect(html).toContain('<h2>배송 묶음 1</h2>');expect(html).toContain('<h2>배송 묶음 2</h2>');
+    expect(html).not.toContain('김포');expect(html).not.toContain('남양주');
     expect(html).toContain('38,000원 더 담으면');expect(html).toContain('21,000원 더 담으면');
     expect(html).toContain('₩7,000');expect(html).toContain('₩28,000');
   });
