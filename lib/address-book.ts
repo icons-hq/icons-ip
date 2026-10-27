@@ -6,7 +6,7 @@ import { checkoutAddressErrors, normalizeCheckoutAddress, type CheckoutAddress }
  *
  * 회원이 저장해 두는 배송지 목록이다. 주문서에서 골라 채우는 입력 보조일 뿐이고, 주문에 저장되는 배송지는
  * 주문할 때 폼에 적힌 사본이다(주문 주소 JSON 계약 그대로). 선물 수령인 주소는 담지 않는다.
- * DB 계약(본인만 읽기·RPC 쓰기·회원당 10개·기본 배송지 1개·탈퇴 신청 시 삭제)은
+ * DB 계약(본인만 읽기·RPC 쓰기·온보딩 회원만 저장·회원당 10개·기본 배송지 1개·탈퇴 시 삭제)은
  * supabase/migrations/20261027010000_address_book.sql 이 정본이다. 이 모듈은 화면·액션이 함께 쓰는
  * 순수 규칙(검증·정규화·표시·오류 문구)만 둔다.
  */
@@ -259,6 +259,8 @@ export function addressBookAddressLine(entry: Pick<AddressBookEntry, 'postalCode
 
 export type AddressBookErrorCode =
   | 'auth_required'
+  | 'onboarding_required'
+  | 'account_suspended'
   | 'account_deletion_write_fenced'
   | 'address_book_full'
   | 'address_book_invalid'
@@ -268,6 +270,8 @@ export type AddressBookErrorCode =
 /* 연락처·주소 같은 입력값은 오류 문구에 싣지 않는다. */
 export const ADDRESS_BOOK_ERROR_COPY: Record<AddressBookErrorCode, string> = {
   auth_required: '로그인이 만료됐어요. 다시 로그인해주세요.',
+  onboarding_required: '프로필 설정을 먼저 완료해주세요.',
+  account_suspended: '정지된 계정은 배송지를 저장하거나 바꿀 수 없어요.',
   account_deletion_write_fenced: '탈퇴 처리 중인 계정에서는 이용할 수 없어요.',
   address_book_full: `배송지는 최대 ${ADDRESS_BOOK_LIMIT}개까지 저장할 수 있어요. 쓰지 않는 배송지를 지운 뒤 다시 시도해주세요.`,
   address_book_invalid: '배송지 정보를 다시 확인해주세요.',
@@ -278,7 +282,7 @@ export const ADDRESS_BOOK_ERROR_COPY: Record<AddressBookErrorCode, string> = {
 /** RPC 오류 메시지 → 화면 코드. 모르는 오류는 unavailable(원문을 노출하지 않는다). */
 export function mapAddressBookError(message: unknown): AddressBookErrorCode {
   const text = typeof message === 'string' ? message : '';
-  for (const code of ['auth_required', 'account_deletion_write_fenced', 'address_book_full', 'address_book_invalid', 'address_book_entry_missing'] as const) {
+  for (const code of ['auth_required', 'onboarding_required', 'account_suspended', 'account_deletion_write_fenced', 'address_book_full', 'address_book_invalid', 'address_book_entry_missing'] as const) {
     if (text.includes(code)) return code;
   }
   return 'unavailable';

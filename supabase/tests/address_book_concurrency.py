@@ -119,6 +119,10 @@ def pair(name, first_body, second_body, expected_second):
 run('\n'.join(
     f"insert into auth.users(id,aud,role,email,raw_app_meta_data,raw_user_meta_data) values('{uid}','authenticated','authenticated','l7-concurrency-{key.replace('_', '-')}@example.test','{{}}','{{}}');"
     for key, uid in members.items()), 'fixture')
+# 주소록 저장은 온보딩(처리방침 동의)을 마친 회원만 한다.
+run("update public.profiles set nickname='L7 동시성 '||right(id::text,2), birth_date='1990-01-01', onboarded_at=now(), "
+    "consents='{\"terms\":true,\"privacy\":true}'::jsonb where id in (" + ','.join(f"'{uid}'" for uid in members.values()) + ");",
+    'fixture-onboarding')
 
 # 1. 서로 다른 주소를 동시에 기본으로 지정 — 나중 요청이 앞 요청의 커밋을 기다리고, 끝나면 기본은 1개(나중 것)다.
 run(tx(save('switch', 'A', 1, False) + save('switch', 'B', 2, False)), 'switch-fixture')

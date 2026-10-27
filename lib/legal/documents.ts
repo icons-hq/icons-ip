@@ -664,10 +664,13 @@ privacy.articles.splice(2, 0, {
 
 // 2026-11-06 개정 — 주소록(배송지 관리). 2026-10-19 공개 본문을 이전 판으로 보존한 뒤 주소록 항목을 더한다.
 // 주소록은 주문서 입력 보조라 주문에 저장되는 배송지(굿즈 주문·배송 행)와 따로 적는다. 선물 수령인 주소는 담지 않는다.
+// 파기 시점은 약관 제7조('탈퇴를 처리하면 … 지체 없이 파기')와 같은 말로 적는다. 탈퇴 신청 기능이 꺼져 있는 동안
+// 탈퇴는 문의로 받아 회사가 처리한다(WITHDRAWAL_ROUTE_NOTICE) — 그때 운영자가 private.erase_member_address_book 으로
+// 지운다. 신청 기능이 켜지면 신청 시점(계정 봉인)에 지워지므로 '처리하면'보다 이르다.
 privacy.previousVersion = { effectiveDate: '2026-10-19', articles: structuredClone(privacy.articles) };
 privacy.revisionChanges = [
   '주소록(배송지 관리)에 저장하는 배송지 이름·받는 분 이름·연락처·주소의 수집 시점, 이용 목적과 보유 기간을 추가합니다.',
-  '주소록은 회원이 직접 삭제하거나 회원 탈퇴를 요청하면 지체 없이 파기하며, 이미 한 주문의 배송지는 주문 정보로 따로 보관한다는 점을 밝힙니다.',
+  '주소록은 회원이 직접 삭제하거나 회사가 회원 탈퇴를 처리하면 지체 없이 파기하며, 이미 한 주문의 배송지는 주문 정보로 따로 보관한다는 점을 밝힙니다.',
 ];
 {
   const article = (prefix: string) => privacy.articles.find((item) => item.heading.startsWith(prefix))!;
@@ -678,7 +681,7 @@ privacy.revisionChanges = [
   const retention = article('제3조 ');
   retention.closing = [
     ...(retention.closing ?? []),
-    '주소록에 저장한 배송지는 회원이 배송지 관리에서 직접 삭제하거나 회원 탈퇴를 요청하면 지체 없이 파기합니다. 이미 한 주문의 배송지는 주문 정보의 일부로 위 표의 거래 기록 보존 기간 동안 따로 보관합니다.',
+    '주소록에 저장한 배송지는 회원이 배송지 관리에서 언제든 직접 삭제할 수 있으며, 회사가 회원 탈퇴를 처리하면 지체 없이 파기합니다. 이미 한 주문의 배송지는 주문 정보의 일부로 위 표의 거래 기록 보존 기간 동안 따로 보관합니다.',
   ];
   const rights = article('제7조 ').paragraphs!;
   rights.splice(rights.findIndex((paragraph) => paragraph.includes('설정 화면에서 직접 열람·수정')) + 1, 0,

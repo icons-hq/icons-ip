@@ -258,7 +258,7 @@ export function MyAddresses({ entries: initialEntries }: { entries: AddressBookE
           <li>기본 배송지는 주문서를 열 때 배송지로 먼저 채워져요. 주문서에서 다른 배송지를 고르거나 새로 입력할 수 있어요.</li>
           <li>주문에는 주문할 때의 배송지가 따로 저장돼요. 여기서 고치거나 지워도 이미 한 주문의 배송지는 바뀌지 않아요.</li>
           <li>선물 받는 분의 주소는 주소록에 저장하지 않아요.</li>
-          <li>회원 탈퇴를 신청하면 주소록은 바로 삭제돼요.</li>
+          <li>회원 탈퇴가 처리되면 주소록도 바로 삭제돼요. 그 전에 여기서 언제든 직접 지울 수 있어요.</li>
         </ul>
       </div>
     </MypageShell>
@@ -316,7 +316,7 @@ function AddressRow({
           <td colSpan={4}>
             <p role="alert">
               {`'${entry.label}' 배송지를 삭제할까요?`}
-              {entry.isDefault ? ' 기본 배송지라서, 지우면 남은 배송지 가운데 가장 최근에 고친 배송지가 기본 배송지가 돼요.' : null}
+              {entry.isDefault ? ' 기본 배송지라서, 지우면 남은 배송지 가운데 가장 최근에 추가하거나 고친 배송지가 기본 배송지가 돼요.' : null}
             </p>
             <div className="wc-address-book__confirm-actions">
               <button className="wc-btn" disabled={busy} onClick={onCancelDelete} type="button">취소</button>

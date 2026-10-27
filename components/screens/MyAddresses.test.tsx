@@ -43,7 +43,7 @@ describe('MyAddresses (/my/addresses · 11 §5.8)', () => {
     expect(html).toContain('aria-label="회사 삭제"');
     expect(html).toMatch(/<button[^>]*class="wc-btn primary"[^>]*>배송지 추가<\/button>/);
     expect(html).not.toContain('wc-address-book__panel');
-    expect(html).toContain('회원 탈퇴를 신청하면 주소록은 바로 삭제돼요.');
+    expect(html).toContain('회원 탈퇴가 처리되면 주소록도 바로 삭제돼요. 그 전에 여기서 언제든 직접 지울 수 있어요.');
   });
 
   it('배송지가 하나면 기본 배송지 변경 버튼이 없고, 없으면 빈 상태를 보인다', () => {
