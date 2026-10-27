@@ -21,7 +21,8 @@ function render(overrides: Partial<React.ComponentProps<typeof Onboarding>> = {}
       birthDate=""
       email="fan@icons.gg"
       followedIpIds={[]}
-      initialMarketing={false}
+      genderEligible
+      initialMarketing={{ email: false, sms: false }}
       isConfigured
       next="/"
       nickname=""
@@ -91,6 +92,21 @@ describe('Onboarding form contracts', () => {
     expect(html).toContain('class="onboarding-ip-title"');
   });
 
+  /* 10/14 회의 S2 · D5 — 관심 IP는 선택 단계다. 필수로 읽히는 문구를 두지 않고, 건너뛰기를 단다. */
+  it('관심 IP 단계를 선택으로 표기하고 건너뛰기를 제공한다', () => {
+    const html = render({
+      recommendedIps: [{ bg: 'none', color: '#000', fans: 1, id: 'ip-one', sub: 'IP', tagline: '', title: '아이피 원' }],
+    });
+    const component = source();
+
+    expect(html).not.toContain('최애가 필요해요');
+    expect(html).toMatch(/관심 IP 고르기 <em class="wc-auth__opt">선택<\/em>/);
+    expect(html).toContain('고르지 않아도 시작할 수 있어요');
+    expect(html).toMatch(/<button class="wc-auth__picks-skip" type="button">건너뛰기<\/button>/);
+    /* 건너뛰면 타일과 추천 목록 입력을 함께 내려 서버가 팔로우를 바꾸지 않는다. */
+    expect(component).toMatch(/ipPicksSkipped \? \([\s\S]*관심 IP 고르기를 건너뛰었어요[\s\S]*\) : \([\s\S]*<IpPickTile/);
+  });
+
   it('필수 동의 항목에서 동의 대상 문서를 바로 열 수 있다', () => {
     const html = render();
 
@@ -115,3 +131,37 @@ describe('Onboarding form contracts', () => {
     expect(new Set(names).size).toBe(names.length);
   });
 });
+
+/* 10/14 회의 S4·S5 — 수단별 마케팅 수신 동의와 선택 성별. */
+describe('Onboarding optional consents', () => {
+  it('asks email and SMS marketing consent separately as optional rows', () => {
+    const html = render({ initialMarketing: { email: true, sms: false } });
+
+    expect(html).toContain('마케팅 정보 수신 동의 (이메일) <em class="wc-auth__opt">선택</em>');
+    expect(html).toContain('마케팅 정보 수신 동의 (SMS) <em class="wc-auth__opt">선택</em>');
+    expect(html).toMatch(/<input[^>]*checked=""[^>]*name="marketingEmail"|<input[^>]*name="marketingEmail"[^>]*checked=""/);
+    expect(html).not.toMatch(/<input[^>]*name="marketingSms"[^>]*checked=""/);
+    expect(html).not.toContain('name="marketing"');
+    expect(html).toContain('거래 안내는 동의와 관계없이');
+    expect(html).toContain('알림함의 마케팅 소식은 이메일·SMS 중 하나라도 수신에 동의하면 받아요');
+  });
+
+  it('offers an unselected optional gender with its own consent and notice', () => {
+    const html = render();
+
+    expect(html).toContain('<legend>성별 <em class="wc-auth__opt">선택</em></legend>');
+    expect(html).toMatch(/<select[^>]*name="gender"[^>]*>[\s\S]*<option value="" selected="">선택 안 함<\/option>/);
+    expect(html).toContain('<option value="female">여성</option>');
+    expect(html).toContain('<input type="checkbox" name="genderConsent"/>');
+    expect(html).not.toMatch(/name="genderConsent"[^>]*checked/);
+    expect(html).toContain('<summary>수집 항목·보관·철회 안내</summary>');
+  });
+
+  it('does not ask gender from accounts whose demographic consent is not stored (staff·admin, like settings)', () => {
+    const html = render({ genderEligible: false });
+
+    expect(html).not.toContain('name="gender"');
+    expect(html).not.toContain('name="genderConsent"');
+  });
+});
+

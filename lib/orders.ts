@@ -1,7 +1,7 @@
 import type { CheckoutPaymentMethod, CheckoutAddress } from './checkout';
 import { commerceReferenceLabel } from './commerce-number';
 import type { ShipmentRecord } from './orders/shipments';
-import type { OrderClaimEligibility, OrderClaimStage, OrderClaimType } from './orders/claims';
+import { isOpenOrderClaimStage, ORDER_CLAIM_TYPE_LABELS, type OrderClaimEligibility, type OrderClaimStage, type OrderClaimType } from './orders/claims';
 
 // 주문 목록에 보이는 상태. pending은 결제가 끝나지 않은 선점이라 별도 취급한다.
 // 사다리는 pending → paid → confirmed → shipping → delivered → done이고
@@ -79,7 +79,7 @@ const STATUS_PRESENTATION: Record<OrderDetailStatus, OrderStatusPresentation> = 
   delivered: {
     label: '배송완료',
     title: '굿즈가 배송 완료됐어요',
-    body: '배송이 완료됐습니다. 문제가 있으면 아래에서 청약철회를 요청할 수 있어요.',
+    body: '배송이 완료됐습니다. 문제가 있으면 아래에서 반품·교환을 요청할 수 있어요.',
     tone: 'delivered',
   },
   done: {
@@ -109,6 +109,8 @@ export interface OrderListItem {
   itemCount: number;
   /** 주문 생성 시점에 고정된 결제수단(#256). */
   paymentMethod: CheckoutPaymentMethod;
+  /** 가장 최근 클레임의 유형·단계. 목록 배지가 상세 헤더와 같은 규칙으로 진행 중 클레임을 말한다. */
+  claim?: Pick<OrderCancellationRequestSummary, 'claimType' | 'stage'> | null;
 }
 
 export interface OrderDetailItem {
@@ -269,6 +271,36 @@ export function orderDetailHeaderPresentation(
     case 'rejected':
     case 'withdrawn':
       return base;
+  }
+}
+
+/**
+ * 진행 중인 클레임 배지(10/14 회의 S20).
+ *
+ * 주문 상태 배지는 실제 주문 상태 그대로 둔다(결제완료·발주확인은 취소가 끝날 때까지 남는다).
+ * 그 옆에 진행 중인 취소·반품·교환의 단계를 덧붙여, 취소를 요청한 구매자가 목록에서도
+ * 상태를 본다. 주문 목록과 주문 상세 헤더가 이 함수 하나를 쓴다 — 한쪽만 바꾸면 같은 주문을
+ * 두 화면이 다르게 말한다. 끝난 클레임(완료·거절·철회)은 배지를 달지 않는다.
+ */
+export function orderClaimProgressLabel(
+  status: OrderDetailStatus,
+  claim: Pick<OrderCancellationRequestSummary, 'claimType' | 'stage'> | null | undefined,
+): string | null {
+  if (!claim || status === 'canceled' || !isOpenOrderClaimStage(claim.stage)) return null;
+  const type = ORDER_CLAIM_TYPE_LABELS[claim.claimType];
+  switch (claim.stage) {
+    case 'collecting':
+      return `${type} 회수 중`;
+    case 'collected':
+      return `${type} 입고 완료`;
+    case 'on_hold':
+      return `${type} 보류`;
+    case 'processing':
+      return `${type} 처리 중`;
+    case 'needs_review':
+      return `${type} 확인 중`;
+    default:
+      return `${type} 요청`;
   }
 }
 

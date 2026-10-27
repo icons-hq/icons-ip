@@ -257,6 +257,8 @@ describe('passwordUpdateErrorMessage', () => {
     ['session_expired', '세션이 만료'],
     ['session_not_found', '세션이 만료'],
     ['reauthentication_needed', '세션이 만료'],
+    ['current_password_required', '세션이 만료'],
+    ['current_password_invalid', '세션이 만료'],
     ['unknown', '비밀번호를 변경하지 못했습니다'],
   ])('maps %s without exposing provider details', (code, expected) => {
     expect(passwordUpdateErrorMessage({ code, message: 'private provider detail' })).toContain(expected);

@@ -142,7 +142,7 @@ URL과 public key 둘 중 하나라도 없으면 인증 미들웨어는 세션 �
 
 ## Supabase Auth URL 설정
 
-Auth URL·email link TTL·recovery template 설정은 손으로 관리하지 않는다. `scripts/sync-supabase-auth.mjs`, workflow, `supabase/templates/recovery.html`이 진실원이다. workflow는 URL과 TTL을 production·preview 프로젝트에 각각 적용·검증하고, recovery template는 각 대상 앱 handler 배포가 성공한 뒤 production, shared preview main, isolated preview branch에 활성화·readback한다. 관리 대상 값을 대시보드에서 직접 바꾸면 해당 동기화 단계가 있는 다음 배포에서 되돌아간다.
+Auth URL·email link TTL·recovery template·비밀번호 변경 가드와 변경 알림 설정은 손으로 관리하지 않는다. `scripts/sync-supabase-auth.mjs`, workflow, `supabase/templates/recovery.html`·`password_changed_notification.html`이 진실원이다. 비밀번호 변경 가드(현재 비밀번호·24시간 재인증)는 production·preview·staging 모두, 변경 알림은 custom SMTP가 있는 production에만 켠다 — 실측과 남은 위험은 [비밀번호 변경 가드 runbook](docs/runbooks/supabase-auth-password-update-guards.md)을 따른다. workflow는 URL과 TTL을 production·preview 프로젝트에 각각 적용·검증하고, recovery template는 각 대상 앱 handler 배포가 성공한 뒤 production, shared preview main, isolated preview branch에 활성화·readback한다. 관리 대상 값을 대시보드에서 직접 바꾸면 해당 동기화 단계가 있는 다음 배포에서 되돌아간다.
 
 **Production** (`deploy-supabase`, `main` push):
 
@@ -275,7 +275,7 @@ push하는 설정은 아니다.
 
 Vercel Git 연결은 프로젝트 메타데이터용으로 유지하지만, `vercel.json`의 `git.deploymentEnabled: false`로 Vercel Git 자동 배포는 생성하지 않는다. Preview와 production 배포 경로는 GitHub Actions의 Vercel CLI deploy만 사용한다.
 
-`deploy-supabase`는 Supabase Auth Site URL, shared/recovery Redirect URLs, email link/OTP TTL 3,600초와 confirmation/rate-limit 설정을 먼저 확인·동기화하고, custom SMTP 필수 설정이 누락되면 migration을 원격에 push하기 전에 실패한다. Auth 설정 검증이 끝나면 linked Supabase project에 immutable migration만 push하고, 같은 read-only catalog canary로 production baseline을 즉시 확인한다. 이 단계가 Vercel 배포보다 먼저 실행되므로, 이후 `deploy-vercel` secret preflight나 Vercel 배포가 실패해도 migration과 template를 제외한 Auth 설정은 이미 적용됐을 수 있다. 새 token-hash handler가 Production에 성공적으로 배포된 뒤에만 `deploy-vercel`의 마지막 단계가 version-controlled recovery template를 활성화하고 read-back한다.
+`deploy-supabase`는 Supabase Auth Site URL, shared/recovery Redirect URLs, email link/OTP TTL 3,600초, confirmation/rate-limit, 비밀번호 변경 가드와 변경 알림 설정을 먼저 확인·동기화하고, custom SMTP 필수 설정이 누락되면 migration을 원격에 push하기 전에 실패한다. Auth 설정 검증이 끝나면 linked Supabase project에 immutable migration만 push하고, 같은 read-only catalog canary로 production baseline을 즉시 확인한다. 이 단계가 Vercel 배포보다 먼저 실행되므로, 이후 `deploy-vercel` secret preflight나 Vercel 배포가 실패해도 migration과 template를 제외한 Auth 설정은 이미 적용됐을 수 있다. 새 token-hash handler가 Production에 성공적으로 배포된 뒤에만 `deploy-vercel`의 마지막 단계가 version-controlled recovery template를 활성화하고 read-back한다.
 
 배포 workflow에는 다음 GitHub Secrets가 필요하다.
 

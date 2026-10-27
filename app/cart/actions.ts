@@ -12,6 +12,7 @@ import {
   type CartItem,
 } from '@/lib/cart';
 import { createClient } from '@/lib/supabase/server';
+import { createServiceClient } from '@/lib/supabase/service';
 import { parseCartAdditionRequest, parseCartAdditionSnapshot } from '@/lib/cart-additions';
 import { readCompleteIdPages } from '@/lib/supabase/complete-id-pages';
 import { adultGoodsRestrictions } from '@/lib/adult-goods';
@@ -182,4 +183,22 @@ export async function addCartSelectionAction(baseGoodIdValue: unknown, entriesVa
   const items = parseCartAdditionSnapshot(data);
   return items ? { ok: true, mode: 'server', items }
     : { ok: false, mode: 'server', error: '장바구니 반영 결과를 확인하지 못했습니다. 현재 수량을 새로고침한 뒤 다시 확인해주세요.' };
+}
+
+/**
+ * 고객이 장바구니·주문서로 돌아왔을 때 결제를 마치지 않은 이전 카드 장바구니 주문을 닫는다
+ * (ADR-0026). 장바구니는 결제가 끝날 때까지 그대로 남으므로, 그 주문이 잡고 있던 재고·쿠폰·
+ * 적립금·구매 한도를 돌려줘야 견적이 막히지 않는다. 승인 확인 중이거나 결과가 확정되지 않은
+ * 주문은 DB가 닫지 않는다. 실패해도 장바구니 화면은 그대로 쓸 수 있다 — 새 주문 생성이 같은
+ * 정리를 다시 한다.
+ */
+export async function releaseUnpaidCartOrdersAction(): Promise<{ released: number }> {
+  const user = authenticatedCartUser(await getCurrentAuthState());
+  if (!user) return { released: 0 };
+  try {
+    const { data, error } = await createServiceClient().rpc('release_unpaid_cart_orders', { p_user_id: user.id });
+    return { released: !error && typeof data === 'number' && Number.isSafeInteger(data) && data > 0 ? data : 0 };
+  } catch {
+    return { released: 0 };
+  }
 }

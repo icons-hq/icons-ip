@@ -12,6 +12,8 @@ import { Icon } from '@/components/ui/Icon';
 import { ADMIN_VOCABULARY as V } from '@/lib/admin/vocabulary';
 import { GOODS_LIST_PAGE_SIZE, GOODS_LIST_PAGE_SIZES, GOODS_LIST_SORT_OPTIONS, goodsListHref, goodEditorHref, type AdminGoodsListData } from '@/lib/admin/goods-list';
 import type { GoodsGroupIdentity } from '@/lib/admin/goods-groups';
+import { GoodsInlinePrice, GoodsInlineSale, GoodsInlineStock } from '../GoodsInlineEdit';
+import { GoodsIpBulkDiscount } from '../GoodsIpBulkDiscount';
 
 function priceLabel(min: number | null | undefined, max: number | null | undefined) {
   if (!Number.isSafeInteger(min) || !Number.isSafeInteger(max)) return '가격 확인 필요';
@@ -21,6 +23,9 @@ function priceLabel(min: number | null | undefined, max: number | null | undefin
 export function GoodsListScreen({ data, shippingRegionExpiry, canIssueMarketingLinks = false, bulkIdentity }: { data: AdminGoodsListData; shippingRegionExpiry?: ShippingRegionExpiryState; canIssueMarketingLinks?: boolean; bulkIdentity?: GoodsGroupIdentity }) {
   const { filters, goods, total, counts } = data;
   const pageSize = data.pageSize ?? filters.pageSize ?? GOODS_LIST_PAGE_SIZE;
+  /* 바로 수정과 IP 전체 할인은 상품 관리 권한과 현재 로그인 세션이 확인된 경우에만 연다. */
+  const inlineIdentity = canIssueMarketingLinks ? bulkIdentity : undefined;
+  const filteredIp = filters.ipId ? data.ips.find(ip => ip.id === filters.ipId && !ip.archivedAt) : undefined;
   return <section className="wc-admin-kit wc-admin-kit__screen admin-goods-worklist">
     <nav className="admin-goods-worklist__tabs" aria-label="상품 관리 화면"><span aria-current="page">전체 상품 조회/수정</span><Link href="/admin/catalog/groups">{V.goodsGroups}</Link></nav>
     <ShippingRegionExpiryNotice state={shippingRegionExpiry} />
@@ -30,27 +35,44 @@ export function GoodsListScreen({ data, shippingRegionExpiry, canIssueMarketingL
     <GoodsListFiltersForm data={data} />
     <section className="admin-goods-worklist__results" aria-label="상품목록">
       <div className="admin-goods-worklist__result-header"><h3>상품목록 <span>(총 <strong>{total.toLocaleString('ko-KR')}</strong>개)</span></h3><div className="admin-goods-worklist__result-controls"><CustomerServiceListSelect label="상품 정렬" value={filters.sort ?? "created_desc"} options={GOODS_LIST_SORT_OPTIONS.map(option => ({ ...option, href: goodsListHref({ ...filters, sort: option.value }, 1) }))} /><CustomerServiceListSelect label="상품 목록수" value={String(pageSize)} options={GOODS_LIST_PAGE_SIZES.map(size => ({ value: String(size), label: `${size}개씩`, href: goodsListHref({ ...filters, pageSize: size }, 1) }))} /><details className="admin-goods-worklist__export"><summary>엑셀 일괄작업</summary><div><Link href="/admin/catalog/goods/import">엑셀 등록·수정</Link><Link href={goodsListHref(filters).replace('/catalog/goods?', '/catalog/goods/export?')}>현재 필터 전체 내보내기</Link></div></details></div></div>
-      <div className="admin-goods-worklist__toolbar"><Link className="wc-admin-kit__button" href={`${goodsListHref(filters)}&create=1`}>상품 등록</Link><Link className="wc-admin-kit__button" href="/admin/catalog/goods/import">상품 일괄등록·수정</Link><p>상품명 또는 수정 버튼을 눌러 상품 정보를 변경할 수 있습니다.</p></div>
+      <div className="admin-goods-worklist__toolbar"><Link className="wc-admin-kit__button" href={`${goodsListHref(filters)}&create=1`}>상품 등록</Link><Link className="wc-admin-kit__button" href="/admin/catalog/goods/import">상품 일괄등록·수정</Link><p>상품명 또는 수정 버튼을 눌러 상품 정보를 변경할 수 있습니다.{inlineIdentity ? ' 판매가·재고수량·판매상태는 목록에서 값을 눌러 바로 고칠 수 있습니다.' : ''}</p></div>
+    {inlineIdentity && filteredIp ? <GoodsIpBulkDiscount key={`${filteredIp.id}:${inlineIdentity.actorId}:${inlineIdentity.sessionId}`} ipId={filteredIp.id} ipTitle={filteredIp.title} identity={inlineIdentity} /> : null}
     <MarketingLinksGoodsGrid key={`${goodsListHref(filters)}:${bulkIdentity?.actorId}:${bulkIdentity?.sessionId}`} canIssue={canIssueMarketingLinks} bulkIdentity={bulkIdentity} caption="상품 목록" preferencesKey="catalog-goods" columns={[
       { key: 'name', label: '상품명 · 판매자상품코드', width: '280px' }, { key: 'edit', label: '수정', width: '76px' }, { key: 'price', label: '판매가', align: 'end', width: '130px' },
       { key: 'readiness', label: '전시상태 · 판매 준비', width: '220px' }, { key: 'qty', label: '재고수량', align: 'end', width: '100px' },
       { key: 'ip', label: 'IP · 카테고리' }, { key: 'createdAt', label: '상품등록일', width: '130px' }, { key: 'updatedAt', label: '상품수정일', width: '130px' }, { key: 'details', label: '추가 정보' },
     ]} rows={goods.map(good => {
       const readiness = good.readiness ?? unknownGoodsReadiness();
+      const editable = Boolean(inlineIdentity) && !good.archivedAt;
+      const qtyLabel = readiness.availableQty === null ? '확인 필요' : `${readiness.availableQty.toLocaleString('ko-KR')}개`;
       return { id: good.id, href: goodEditorHref(filters, good.id), cells: [
         <span className="admin-goods-worklist__identity" key="identity">
           {good.imageUrl ? <Image src={good.imageUrl} alt="" width={52} height={52} unoptimized /> : <span className="admin-goods-worklist__image-empty" aria-label="대표 이미지 없음">이미지<br />없음</span>}
           <span><strong>{good.name}</strong><small>{good.code}</small></span>
         </span>,
         <Link key="edit" className="admin-goods-worklist__edit" href={goodEditorHref(filters, good.id)}>수정</Link>,
-        <span key="price" className="admin-goods-worklist__price">{priceLabel(good.priceMin, good.priceMax)}</span>,
+        editable && inlineIdentity && typeof good.basePrice === 'number' && good.compareAtPrice == null && !good.activeDiscountEndsAt
+          ? <GoodsInlinePrice key="price" goodId={good.id} basePrice={good.basePrice} identity={inlineIdentity} hasOptions={(good.activeVariantCount ?? 0) !== 1}
+            display={<span className="admin-goods-worklist__price">{priceLabel(good.priceMin, good.priceMax)}</span>} />
+          : editable && typeof good.basePrice === 'number' && (good.compareAtPrice != null || good.activeDiscountEndsAt)
+            ? <span key="price" className="admin-goods-worklist__qty"><span className="admin-goods-worklist__price">{priceLabel(good.priceMin, good.priceMax)}</span>
+              {good.activeDiscountEndsAt
+                ? <small className="admin-goods-worklist__secondary">즉시할인 진행·예정 중(~{new Date(good.activeDiscountEndsAt).toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul' })}) · 할인을 중지한 뒤 판매가를 바꿀 수 있습니다</small>
+                : <Link className="admin-goods-worklist__secondary" href={`${goodEditorHref(filters, good.id)}#good-section-price`}>상품 할인 중 · 판매가는 상품 수정에서 변경</Link>}</span>
+            : <span key="price" className="admin-goods-worklist__price">{priceLabel(good.priceMin, good.priceMax)}</span>,
         <div key="readiness" className="admin-goods-worklist__readiness">
           <div><AdminStatusBadge tone={good.publishedAt && !good.archivedAt ? 'success' : 'neutral'}>{good.archivedAt ? '보관' : good.publishedAt ? '전시중' : '임시저장'}</AdminStatusBadge>
             <span>{GOODS_READINESS_STATE_LABELS[readiness.state]}</span></div>
+          {editable && inlineIdentity ? <GoodsInlineSale goodId={good.id} stopped={good.stock === 'soldout'} identity={inlineIdentity} /> : null}
           {readiness.reasons.slice(0, 2).map(reason => <Link key={reason.code} href={goodEditorHref(filters, good.id, reason.target)}>{reason.label} →</Link>)}
           {readiness.reasons.length > 2 ? <details><summary>사유 {readiness.reasons.length - 2}개 더 보기</summary>{readiness.reasons.slice(2).map(reason => <Link key={reason.code} href={goodEditorHref(filters, good.id, reason.target)}>{reason.label} →</Link>)}</details> : null}
         </div>,
-        readiness.availableQty === null ? '확인 필요' : `${readiness.availableQty.toLocaleString('ko-KR')}개`,
+        editable && good.inlineStock
+          ? <span key="qty" className="admin-goods-worklist__qty"><GoodsInlineStock goodId={good.id} ipId={good.ipId} variantId={good.inlineStock.variantId} stockQty={good.inlineStock.stockQty} />
+            {qtyLabel !== `${good.inlineStock.stockQty.toLocaleString('ko-KR')}개` ? <small className="admin-goods-worklist__secondary">판매 가능 {qtyLabel}</small> : null}</span>
+          : editable && (good.activeVariantCount ?? 0) > 1
+            ? <span key="qty" className="admin-goods-worklist__qty">{qtyLabel}<Link className="admin-goods-worklist__secondary" href={goodEditorHref(filters, good.id, 'variants')}>옵션별 재고 수정</Link></span>
+            : qtyLabel,
         <span key="category">{good.ipTitle}<small className="admin-goods-worklist__secondary">{good.categoryName || '분류 미지정'}</small></span>,
         <span key="createdAt">{good.createdAt ? new Date(good.createdAt).toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul' }) : '—'}</span>,
         <span key="updatedAt">{good.updatedAt ? new Date(good.updatedAt).toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul' }) : '—'}</span>,

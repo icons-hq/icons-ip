@@ -4,6 +4,9 @@ import {revalidatePath} from 'next/cache';
 import {getCurrentAdminAuthState} from '@/lib/auth/admin';
 import {createClient} from '@/lib/supabase/server';
 import {buildShipmentExport} from '@/lib/admin/shipment-workbook.server';
+import {withSmartStoreLegacyAllocations} from '@/lib/admin/item-allocation.server';
+import {seowonExportLabels} from '@/lib/admin/seowon-exchange';
+import {randomUUID} from 'node:crypto';
 import {shipmentMutationError,type ShipmentExportData} from '@/lib/admin/shipment-dispatch';
 import {parseShipmentExportColumns,type ShipmentExportLayout} from '@/lib/admin/shipment-workbook';
 import {exportPasswordError} from '@/lib/admin/export-password';
@@ -24,7 +27,9 @@ async function exportShipments(client:Client,keys:string[],format:'xlsx'|'csv',l
  const result=await client.rpc(layout==='smartstore'?'admin_smartstore_shipment_export':'admin_shipment_export',{p_ids:keys});
  const exportError=result.error?.message??'';
  if(result.error||!result.data)return {error:exportError.startsWith('shipment_pack_')||exportError.startsWith('production_')||['shipment_item_export_mismatch','shipment_price_allocation_missing'].includes(exportError)?shipmentMutationError(exportError):'발송 대기 상태와 취소 요청을 확인해주세요. 출고지시를 만들지 못했습니다.'};
- const data=result.data as ShipmentExportData;
+ let data=result.data as ShipmentExportData;
+ // 버전 1 할인 주문의 품목 금액은 거래확정 엑셀과 같은 공통 배분으로 채운다(10/14 회의 A5).
+ if(layout==='smartstore'){try{data=await withSmartStoreLegacyAllocations(data,client);}catch{return {error:'주문 당시 금액 배분을 확인하지 못했습니다. 잠시 후 다시 내려받아 주세요.'};}}
  try{
   let file=await buildShipmentExport(data,format,layout);let sha256:string|undefined;
   if(layout==='smartstore'&&format==='xlsx'){
@@ -32,7 +37,12 @@ async function exportShipments(client:Client,keys:string[],format:'xlsx'|'csv',l
    try{const protectedFile=encryptAdminWorkbook(plain,credentials!.password);file={...file,bytes:protectedFile.bytes};sha256=protectedFile.sha256;}
    finally{plain.fill(0);}
   }
-  const mark=await client.rpc('admin_mark_shipments_exported',{target_versions:data.shipments.map(shipment=>({id:shipment.id,updatedAt:shipment.updatedAt}))});
+  const versions=data.shipments.map(shipment=>({id:shipment.id,updatedAt:shipment.updatedAt}));
+  // 서원 원형 양식의 이름 접미사는 파일 구성으로 정해진다. 전달 표시와 같은 트랜잭션에서 배송 건별로 기록해 회신과 정확히 맞춘다.
+  const labels=layout==='warehouse'?seowonExportLabels(data.shipments.map(shipment=>({id:shipment.id,shipmentNumber:shipment.shipmentNumber??null,packId:shipment.pack?.id??null,originId:shipment.originId,template:shipment.template,lines:shipment.lines}))):[];
+  const mark=labels.length
+   ?await client.rpc('admin_mark_seowon_shipments_exported',{target_versions:versions,target_batch:randomUUID(),target_labels:labels})
+   :await client.rpc('admin_mark_shipments_exported',{target_versions:versions});
   if(mark.error||mark.data!==keys.length)return {error:'배송 상태가 변경되었습니다. 목록을 새로고침한 뒤 다시 내보내주세요.'};
   const multipleOrigins=layout==='warehouse'&&new Set(data.shipments.map(shipment=>shipment.originId)).size>1;
   const operational=data.shipments.some(shipment=>shipment.isGift||(shipment.shippingCollectFee??0)>0||shipment.pack);

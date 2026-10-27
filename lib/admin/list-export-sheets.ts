@@ -54,7 +54,8 @@ import {
 } from '@/lib/orders/claims';
 import { shippingCarrierLabel, type ShippingCarrierRegistry } from '@/lib/orders/shipment';
 import { shipmentStatusLabel, type ShipmentRecord, type ShipmentStatus } from '@/lib/orders/shipments';
-import { bankTransferDepositName } from '@/lib/payments/bank-transfer';
+import { bankTransferDepositNameWithCode } from '@/lib/payments/bank-transfer';
+import type { OrderItemAllocation } from './item-allocation';
 import { DELIVERY_METHOD_LABELS, deliveryStatusLabel, type ShipmentDeliverySummary } from '@/lib/shipment-delivery';
 
 interface ColumnSpec<Row> extends ListExportColumn {
@@ -143,7 +144,15 @@ export function ordersListExportSheet(input: {
   records: AdminOrderRecord[];
   paymentMethods: ReadonlyMap<string, string | null>;
   filters: AdminOrderFilters;
+  /** 품목별 쿠폰·적립금 배분(`lib/admin/item-allocation`). 계산 버전 1 주문도 거래확정 엑셀과 같은 규칙으로 채운다. */
+  allocations?: ReadonlyMap<string, OrderItemAllocation>;
 }): AdminListExportSheet {
+  const allocated = (order: AdminOrderRecord, item: AdminOrderRecord['items'][number] | null) => {
+    if (!item) return null;
+    const line = order.transaction?.lines.find(entry => entry.lineId === item.id);
+    if (line) return { volumeDiscount: line.volumeDiscountTotal, couponDiscount: line.couponDiscount, storeCreditDiscount: line.storeCreditDiscount, paidGoodsTotal: line.paidGoodsTotal };
+    return input.allocations?.get(item.id) ?? null;
+  };
   const lines = input.records.flatMap<OrderLine>((order) => {
     const paymentMethod = input.paymentMethods.get(order.id) ?? null;
     if (!order.items.length) return [{ order, item: null, shipment: null, paymentMethod }];
@@ -178,10 +187,10 @@ export function ordersListExportSheet(input: {
     column('수량', 'count', 8, ({ item }) => item?.qty ?? null),
     column('판매가', 'amount', 12, ({ item }) => item?.unitPrice ?? null),
     column(`${V.goods} 금액`, 'amount', 12, ({ item }) => (item ? item.unitPrice * item.qty : null)),
-    column('복수구매 할인(품목)', 'amount', 18, ({ order, item }) => order.transaction?.lines.find(line => line.lineId === item?.id)?.volumeDiscountTotal ?? 0),
-    column('쿠폰 할인(품목)', 'amount', 18, ({ order, item }) => order.transaction?.lines.find(line => line.lineId === item?.id)?.couponDiscount ?? null),
-    column('적립금 사용(품목)', 'amount', 18, ({ order, item }) => order.transaction?.lines.find(line => line.lineId === item?.id)?.storeCreditDiscount ?? null),
-    column('품목 실결제액(배송비 제외)', 'amount', 24, ({ order, item }) => order.transaction?.lines.find(line => line.lineId === item?.id)?.paidGoodsTotal ?? null),
+    column('복수구매 할인(품목)', 'amount', 18, ({ order, item }) => allocated(order, item)?.volumeDiscount ?? 0),
+    column('쿠폰 할인(품목)', 'amount', 18, ({ order, item }) => allocated(order, item)?.couponDiscount ?? null),
+    column('적립금 사용(품목)', 'amount', 18, ({ order, item }) => allocated(order, item)?.storeCreditDiscount ?? null),
+    column('품목 실결제액(배송비 제외)', 'amount', 24, ({ order, item }) => allocated(order, item)?.paidGoodsTotal ?? null),
     column('출고지', 'text', 10, ({ shipment }) => blank(shipment?.originName)),
     column('배송 방식', 'text', 10, ({ shipment }) => (shipment ? deliveryLabels(shipment.delivery, shipment.status).method : null)),
     column('배송 상태', 'text', 12, ({ shipment }) => (shipment ? nullable(deliveryLabels(shipment.delivery, shipment.status).status) : null)),
@@ -209,7 +218,7 @@ export function ordersListExportSheet(input: {
     ],
     notes: [
       `한 행은 주문의 ${V.goods} 한 줄입니다. 결제금액과 (주문) 열은 같은 주문의 행마다 반복되므로 주문번호별로 한 번만 합산해주세요.`,
-      `${V.goods} 금액은 복수구매·쿠폰·적립금 차감 전 품목 소계입니다. 계산 버전 2의 품목 실결제액은 해당 할인과 적립금을 차감하며 배송비를 제외합니다. 버전 1의 미기록 배분액은 빈칸입니다.`,
+      `${V.goods} 금액은 복수구매·쿠폰·적립금 차감 전 품목 소계입니다. 품목 실결제액은 해당 할인과 적립금을 차감하며 배송비를 제외합니다. 계산 버전 2는 주문 당시 배분 기록을, 버전 1은 주문 당시 쿠폰 기록으로 거래확정 엑셀과 같은 규칙(대상 품목 금액 비례)으로 나눈 값을 쓰고, 기록이 없거나 합계가 맞지 않으면 빈칸입니다.`,
       '착불 배송비는 온라인 결제금액·PG 매출·PG 환급액에 포함하지 않습니다. 이 금액만으로 실제 수납 완료를 판단하지 마세요.',
       '선물 주문은 내부 운영용 주소를 포함합니다. 수령인에게 가격·결제정보가 있는 이 파일을 동봉하지 마세요.',
     ],
@@ -237,7 +246,7 @@ export function unpaidListExportSheet(input: {
     column('입금확인코드', 'code', 12, (row) => row.depositCode),
     column('전체 주문번호', 'code', 38, (row) => row.orderNumber ?? row.id),
     column('구매자', 'text', 16, (row) => row.buyerName),
-    column('안내된 입금자명', 'text', 20, (row) => bankTransferDepositName(row.recipientName, row.id)),
+    column('안내된 입금자명', 'text', 20, (row) => bankTransferDepositNameWithCode(row.recipientName, row.depositCode)),
     column('품목', 'text', 40, (row) => blank(row.itemSummary)),
     column('주문일시', 'text', 17, (row) => nullable(kstDateTimeText(row.createdAt))),
     column('입금 기한', 'text', 17, (row) => nullable(kstDateTimeText(row.expiresAt))),

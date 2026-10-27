@@ -80,6 +80,8 @@ interface OrderRow {
   discount_total: number | null;
   store_credit_total: number | null;
   id: string;
+  /** 16자리 주문번호. 발급 전 옛 행만 null이다. */
+  order_number?: string | null;
   user_id: string;
   status: string;
   total: number;
@@ -101,6 +103,7 @@ interface OrderEmailContext {
   giftDelivery: boolean;
   transaction?: GoodsTransactionDisplay;
   orderId: string;
+  orderNumber: string | null;
   orderStatus: string;
   orderedAt: string;
   items: (OrderEmailItem & {id:string})[];
@@ -123,7 +126,7 @@ async function loadOrderEmailContext(
 ): Promise<OrderEmailContext | { skipped: string }> {
   const { data: orderData, error: orderError } = await service
     .from('orders')
-    .select('id,user_id,status,total,shipping_fee,discount_total,store_credit_total,volume_discount_total,shipping_collect_total,calculation_version,created_at')
+    .select('id,order_number,user_id,status,total,shipping_fee,discount_total,store_credit_total,volume_discount_total,shipping_collect_total,calculation_version,created_at')
     .eq('id', orderId)
     .maybeSingle();
   if (orderError) throw new Error('order_email_load_failed');
@@ -180,6 +183,7 @@ async function loadOrderEmailContext(
     recipient, giftRecipient, giftDelivery: delivery.isGift,
     ...(receipt ? { transaction: receipt.display } : {}),
     orderId: order.id,
+    orderNumber: order.order_number ?? null,
     orderStatus: order.status,
     orderedAt: order.created_at,
     items,
@@ -343,7 +347,7 @@ export function sendOrderConfirmationEmail(orderId: string, audience?: OrderEmai
       dedupeKey: orderEmailDedupeKey('order_confirmation', orderId, target),
       template: 'order_confirmation', recipient: email,
       rendered: target === 'payer' ? renderOrderConfirmationEmail({ ...context, address: context.giftDelivery ? null : context.address })
-        : renderGiftRecipientEmail({ orderId, stage: 'confirmation', items: context.items.map(({ name, variantName, qty }) => ({ name, variantName, qty })),
+        : renderGiftRecipientEmail({ orderId, orderNumber: context.orderNumber, stage: 'confirmation', items: context.items.map(({ name, variantName, qty }) => ({ name, variantName, qty })),
           address: context.address!, giftUrl: `${siteUrl()}/gifts` }),
     }));
   });
@@ -373,12 +377,12 @@ export function sendOrderShippedEmail(input: {
       dedupeKey: shipmentEmailDedupeKey(input.orderId, shipment.id, target),
       template: 'order_shipped', recipient: email,
       rendered: target === 'payer' ? renderOrderShippedEmail({
-        orderId: context.orderId, shipmentId: shipment.id, originName: shipment.originName, giftDelivery: context.giftDelivery,
+        orderId: context.orderId, orderNumber: context.orderNumber, shipmentId: shipment.id, shipmentNumber: shipment.shipmentNumber ?? null, giftDelivery: context.giftDelivery,
         items, address: context.giftDelivery ? null : context.address,
         carrierName: context.giftDelivery ? null : shipment.carrierLabel,
         trackingNumber: context.giftDelivery ? null : shipment.trackingNumber,
         trackingUrl: context.giftDelivery ? null : shipment.trackingUrl, orderUrl: context.orderUrl,
-      }) : renderGiftRecipientEmail({ orderId: context.orderId, stage: 'shipped',
+      }) : renderGiftRecipientEmail({ orderId: context.orderId, orderNumber: context.orderNumber, stage: 'shipped',
         items: items.map(({ name, variantName, qty }) => ({ name, variantName, qty })),
         address: context.address!, giftUrl: `${siteUrl()}/gifts`, carrierName: shipment.carrierLabel,
         trackingNumber: shipment.trackingNumber, trackingUrl: shipment.trackingUrl }),

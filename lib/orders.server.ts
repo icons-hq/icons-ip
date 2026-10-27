@@ -14,7 +14,6 @@ import {
   isOrderCancellationRequestStatus,
   ORDER_DETAIL_STATUSES,
   summarizeOrderItems,
-  VISIBLE_ORDER_STATUSES,
   type OrderDetail,
   type OrderCancellationRequestStatus,
   type OrderListItem,
@@ -54,6 +53,8 @@ interface OrderListItemRow {
 
 interface CancellationRequestOrderRow {
   order_id: string;
+  claim_type: string;
+  stage: string;
 }
 
 interface OrderDetailItemRow extends OrderListItemRow {
@@ -110,44 +111,53 @@ function requireDetailStatus(status: string) {
 
 export async function loadOrders(userId: string, {includePending=false}:{includePending?:boolean}={}): Promise<OrderListItem[]> {
   const supabase = await createClient();
-  const [orderResult, requestResult, giftOrders] = await Promise.all([
+  const [orderResult, giftOrders] = await Promise.all([
     supabase
       .from('orders')
       .select('id,order_number,user_id,status,total,created_at,payment_method')
       .eq('user_id', userId)
-      .in('status', includePending?[...ORDER_DETAIL_STATUSES]:[...VISIBLE_ORDER_STATUSES])
+      .in('status', [...ORDER_DETAIL_STATUSES])
       .order('created_at', { ascending: false })
       .order('id', { ascending: false }),
-    supabase
-      .from('order_cancellation_requests')
-      .select('order_id'),
     loadGiftOrderList(includePending),
   ]);
 
   if (orderResult.error) {
     throw new Error(`Failed to load orders: ${orderResult.error.message}`);
   }
-  if (requestResult.error) {
-    throw new Error(`Failed to load order cancellation requests: ${requestResult.error.message}`);
-  }
 
-  let orderRows = (orderResult.data ?? []) as OrderListRow[];
-  const requestedOrderIds = [...new Set(
-    ((requestResult.data ?? []) as CancellationRequestOrderRow[]).map((request) => request.order_id),
-  )];
-
-  if (requestedOrderIds.length && !includePending) {
-    const { data: pendingData, error: pendingError } = await supabase
-      .from('orders')
-      .select('id,order_number,user_id,status,total,created_at,payment_method')
-      .eq('user_id', userId)
-      .eq('status', 'pending')
-      .in('id', requestedOrderIds)
-      .order('created_at', { ascending: false })
+  const userOrderRows = (orderResult.data ?? []) as OrderListRow[];
+  /* 클레임은 이 회원의 주문 id로만 읽는다. 운영자 계정은 RLS로 전체 클레임을 읽을 수 있어서, 조건 없이
+     읽으면 자기 /orders에서 남의 클레임까지 받아 온다. 요청자(requested_by)로는 거르지 않는다 —
+     운영자 전액 취소처럼 운영자가 접수한 클레임도 고객 목록에 보여야 한다. */
+  const latestClaimByOrderId = new Map<string, NonNullable<OrderListItem['claim']>>();
+  const requestedOrderIds = new Set<string>();
+  if (userOrderRows.length) {
+    /* 주문마다 가장 최근 클레임 하나가 목록 배지가 된다 — 상세와 같은 기준(requested_at 최신). */
+    const { data: requestData, error: requestError } = await supabase
+      .from('order_cancellation_requests')
+      .select('order_id,claim_type,stage')
+      .in('order_id', userOrderRows.map((order) => order.id))
+      .order('requested_at', { ascending: false })
       .order('id', { ascending: false });
-    if (pendingError) throw new Error(`Failed to load requested orders: ${pendingError.message}`);
-    orderRows = [...orderRows, ...((pendingData ?? []) as OrderListRow[])];
+    if (requestError) {
+      throw new Error(`Failed to load order cancellation requests: ${requestError.message}`);
+    }
+    for (const request of (requestData ?? []) as CancellationRequestOrderRow[]) {
+      requestedOrderIds.add(request.order_id);
+      if (latestClaimByOrderId.has(request.order_id)) continue;
+      /* 모르는 값은 배지를 만들지 않는다 — 상세가 판정을 보여준다. */
+      if (isOrderClaimType(request.claim_type) && isOrderClaimStage(request.stage)) {
+        latestClaimByOrderId.set(request.order_id, { claimType: request.claim_type, stage: request.stage });
+      }
+    }
   }
+
+  /* 결제 대기 카드 주문은 복구 목록(includePending)이 아니면 취소 요청이 남아 있는 것만 보인다.
+     무통장 입금 대기는 접수 = 주문 완료(ADR-0026)라 기본 목록에 '입금 대기'로 보인다. */
+  const orderRows = userOrderRows.filter((order) => (
+    includePending || order.status !== 'pending' || order.payment_method === 'bank_transfer' || requestedOrderIds.has(order.id)
+  ));
 
   orderRows.sort((left, right) => (
     right.created_at.localeCompare(left.created_at) || right.id.localeCompare(left.id)
@@ -192,6 +202,7 @@ export async function loadOrders(userId: string, {includePending=false}:{include
       itemLabel: summary.label,
       itemCount: summary.itemCount,
       paymentMethod: normalizeCheckoutPaymentMethod(order.payment_method) ?? 'card',
+      claim: latestClaimByOrderId.get(order.id) ?? null,
     };
   })].sort((a, b) => b.createdAt.localeCompare(a.createdAt) || b.id.localeCompare(a.id));
 }

@@ -83,6 +83,8 @@ export async function runReorder(
   mode: CheckoutReorderMode,
   deps: ReorderDependencies = defaultDependencies,
 ): Promise<ReorderOutcome> {
+  /* 장바구니가 그대로 남은 주문은 다시 담지 않는다(중복 재담기 금지, ADR-0026). */
+  if (mode === 'retry_from_cart') return { kind: 'restore_failed' };
   if (mode === 'cancel_then_reorder') {
     let canceled: CancelResult;
     try {
@@ -307,6 +309,11 @@ export function ReorderAction({ orderId, mode, onCanceled, onRequested }: Reorde
   }
 
   const label = mode === 'cancel_then_reorder' ? '이 주문 취소하고 다시 주문하기' : '같은 굿즈 다시 담기';
+
+  /* 장바구니가 그대로 남은 주문(ADR-0026)은 다시 담지 않는다. 주문서가 이 주문을 닫고 새로 결제한다. */
+  if (mode === 'retry_from_cart') {
+    return <div className="checkout-reorder"><Link className="btn btn-holo" href="/checkout">다시 결제하기</Link></div>;
+  }
 
   if (outcome) {
     return <ReorderOutcomeNotice mode={mode} onRetry={() => void start()} orderId={orderId} outcome={outcome} />;

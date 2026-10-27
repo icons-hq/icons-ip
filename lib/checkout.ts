@@ -35,6 +35,7 @@ export type PlaceOrderErrorCode =
   | 'preorder_capacity_exceeded'
   | 'preorder_policy_not_configured'
   | 'payment_below_minimum'
+  | 'checkout_payment_in_progress'
   | 'unavailable';
 
 /** 주문서에서 고르는 결제수단. DB `public.order_payment_method`와 같은 값. */
@@ -78,8 +79,14 @@ export interface CheckoutPaymentAttemptSnapshot {
  */
 export type CheckoutPaymentClosure = 'not_approved' | 'attempt_expired' | 'cancellation_requested';
 
-/** 닫힌 결제 화면에서 고객에게 줄 수 있는 정리 액션. */
-export type CheckoutReorderMode = 'cancel_then_reorder' | 'reorder';
+/**
+ * 닫힌 결제 화면에서 고객에게 줄 수 있는 정리 액션.
+ * - `retry_from_cart`: 결제가 끝날 때까지 장바구니가 남는 주문(ADR-0026). 장바구니에 굿즈가
+ *   그대로 있으므로 다시 담지 않고 주문서로 보낸다. 주문서가 이 주문을 결제 없이 닫는다.
+ * - `cancel_then_reorder`·`reorder`: 주문 생성 때 장바구니를 비운 이전 주문. 취소한 뒤
+ *   품목을 장바구니에 다시 담는다.
+ */
+export type CheckoutReorderMode = 'cancel_then_reorder' | 'reorder' | 'retry_from_cart';
 
 export interface CheckoutClosureInput {
   readonly status: string;
@@ -87,6 +94,36 @@ export interface CheckoutClosureInput {
   readonly paymentStatus: string | null;
   readonly paymentAttempt: CheckoutPaymentAttemptSnapshot | null;
   readonly hasActiveCancellationRequest: boolean;
+  /** 결제가 끝날 때까지 장바구니를 남긴 카드 장바구니 주문인지(ADR-0026). */
+  readonly cartRetained?: boolean;
+}
+
+/**
+ * 보류 원장의 상태로 본 "결제 없이 장바구니를 남긴 주문"인지(ADR-0026). 결제를 기다리는 보류와 결제 없이
+ * 닫혀 풀린 보류만 해당한다 — 결제가 확정돼 장바구니에서 이미 뺀 보류(consumed)와, 새 주문이 장바구니를
+ * 넘겨받아 떼어 낸 보류(detached)는 아니다.
+ */
+export function cartRetentionKeepsCart(value: unknown): boolean {
+  if (typeof value !== 'object' || value === null) return false;
+  const { state, releaseReason } = value as { state?: unknown; releaseReason?: unknown };
+  return state === 'awaiting_payment' || (state === 'released' && releaseReason !== 'detached');
+}
+
+/**
+ * 무통장 입금 선택지 아래 안내. 두 주문서(legacy·거래 런타임)가 같은 사유 문구를 쓴다(S26).
+ * `goodsAllow`는 서버 견적의 결제수단 판정이다. 아직 견적 전이면 null.
+ */
+export function bankTransferMethodNote({
+  accountConfigured,
+  goodsAllow,
+}: {
+  accountConfigured: boolean;
+  goodsAllow: boolean | null;
+}): string {
+  if (!accountConfigured) return '지금은 무통장 입금을 받지 않습니다.';
+  if (goodsAllow === false) return '이 주문에는 무통장을 쓸 수 없는 굿즈가 있어요.';
+  if (goodsAllow === null) return '배송지와 결제 금액을 확인한 뒤 고를 수 있어요.';
+  return '안내된 계좌로 24시간 안에 입금하면 확인 후 확정됩니다.';
 }
 
 const ADDRESS_KEYS = new Set([
@@ -200,6 +237,9 @@ export function checkoutOrderName(itemNames: readonly string[]) {
 
 export function mapPlaceOrderError(message: unknown): PlaceOrderErrorCode {
   const normalized = typeof message === 'string' ? message.toLowerCase() : '';
+  /* 같은 계정의 이전 장바구니 주문 결제를 승인 확인하는 중이다(ADR-0026). 이중 결제를 막으려고
+     새 주문을 받지 않는다 — 확인이 끝나면 다시 주문할 수 있다. */
+  if (normalized.includes('checkout_payment_in_progress')) return 'checkout_payment_in_progress';
   if (/cart_snapshot_changed/.test(normalized)) return 'cart_changed';
   if (/goods_custom_inputs|invalid_goods_custom_inputs/.test(normalized)) return 'goods_custom_inputs_changed';
   if (normalized.includes('goods_purchase_restricted')) return 'goods_purchase_restricted';
@@ -325,6 +365,21 @@ export function checkoutReorderMode(
   now: number,
 ): CheckoutReorderMode | null {
   if (order.paymentMethod !== 'card') return null;
+  /* 장바구니가 그대로 있는 주문은 다시 담지 않는다. 결제 없이 끝났거나(취소·시도 만료·승인
+     거절) 결제 기한이 지난 주문이면 주문서에서 새로 결제한다. */
+  if (order.cartRetained) {
+    if (order.status === 'canceled') return 'retry_from_cart';
+    if (
+      order.status !== 'pending'
+      || order.paymentStatus !== null
+      || (state !== 'payment_closed' && state !== 'closed')
+    ) return null;
+    /* 처리 중인 취소 요청은 그 흐름이 끝내게 둔다. 결제와 겹칠 수 있는 시도가 남아 있으면
+       주문서도 이 주문을 닫지 않으므로(승인 확인 중) 다시 결제하기를 권하지 않는다. */
+    if (order.hasActiveCancellationRequest) return null;
+    if (order.paymentAttempt && !checkoutAttemptSettledBeforeApproval(order.paymentAttempt, now)) return null;
+    return 'retry_from_cart';
+  }
   if (order.status === 'canceled') return 'reorder';
   if (
     order.status !== 'pending'
@@ -419,6 +474,8 @@ export function checkoutPaymentResultFollowsApproval(outcome: CheckoutPaymentRes
 export interface CheckoutPaymentResultFocus {
   readonly orderId: string;
   readonly outcome: CheckoutPaymentResultOutcome;
+  /** 결제 없이 장바구니를 남긴 주문인지(ADR-0026). 다시 담지 않고 주문서에서 다시 결제하게 한다. */
+  readonly cartRetained?: boolean;
 }
 
 export function checkoutPaymentResultOutcome(

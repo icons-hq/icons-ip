@@ -23,7 +23,8 @@ import {
   rejectProfileAvatarClaim,
   updateProfileIdentity,
 } from '@/lib/profile.server';
-import { mergeMarketingConsent } from '@/lib/settings';
+import { marketingConsentResultMessage, readMarketingChannelChoices } from '@/lib/marketing-consent';
+import { saveMyMarketingConsents } from '@/lib/marketing-consent.server';
 import { createClient } from '@/lib/supabase/server';
 import { cleanupFencedGoodsAccount } from '@/lib/account-goods-cleanup.server';
 
@@ -354,28 +355,21 @@ export async function updateProfileAction(
   return { message: '프로필을 저장했어요.' };
 }
 
+/* 수단별(이메일·SMS) 마케팅 정보 수신 동의(10/14 회의 S4). 원장 기록·동의/철회 시각·파생값
+   consents.marketing 갱신은 RPC가 한 트랜잭션으로 한다 — terms·privacy는 건드리지 않는다. */
 export async function updateMarketingConsentAction(
   _state: SettingsActionState,
   formData: FormData,
 ): Promise<SettingsActionState> {
-  const marketing = formData.get('marketing') === 'on';
+  const choices = readMarketingChannelChoices(formData);
 
   const required = await requireSettingsAuth();
   if (!required.ok) return required.state;
 
-  const { auth, user } = required;
-
-  // terms·privacy는 클라이언트 입력을 신뢰하지 않고 DB 현재 값을 보존한다
   const supabase = await createClient();
-  const { error } = await supabase
-    .from('profiles')
-    .update({ consents: mergeMarketingConsent(auth.profile?.consents, marketing) })
-    .eq('id', user.id)
-    .select('id')
-    .single();
-
-  if (error) return { errors: { form: '설정을 저장하지 못했습니다. 다시 시도해주세요.' } };
+  const result = await saveMyMarketingConsents(supabase, choices, 'settings');
+  if (!result.ok) return { errors: { form: '설정을 저장하지 못했습니다. 다시 시도해주세요.' } };
 
   revalidatePath(SETTINGS_PATH);
-  return { message: '마케팅 정보 수신 동의 설정을 저장했어요.' };
+  return { message: marketingConsentResultMessage(choices, new Date()) };
 }

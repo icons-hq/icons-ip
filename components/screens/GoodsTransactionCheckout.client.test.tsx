@@ -11,7 +11,7 @@ vi.mock('react', async () => ({ ...await vi.importActual<typeof import('react')>
 }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ push: mocks.push, refresh: vi.fn() }) }));
 vi.mock('@/app/checkout/transaction-actions', () => ({ placeCartTransactionAction: mocks.place, resumeCartTransactionAction: mocks.resume }));
-vi.mock('@/components/shell/CartProvider', () => ({ useCart: () => mocks.cart }));
+vi.mock('@/components/shell/CartProvider', () => ({ useCart: () => mocks.cart, useReleaseUnpaidCartOrders: () => true }));
 vi.mock('@/components/checkout/useCartTransactionQuote', () => ({ useCartTransactionQuote: () => ({ result: mocks.quote, offers: [], loading: false, refresh: mocks.reprice }) }));
 vi.mock('@/lib/supabase/client', () => ({ createClient: () => ({ auth: { onAuthStateChange: (callback: typeof mocks.auth) => { mocks.auth = callback; return { data: { subscription: { unsubscribe: vi.fn() } } }; } } }) }));
 import { GoodsTransactionCheckout } from './GoodsTransactionCheckout';
@@ -43,7 +43,7 @@ it('중복 클릭은 한 요청이며 응답 불명 복구에는 원 식별자�
   const saved = JSON.parse([...storage.values()][0]); expect(Object.keys(saved).sort()).toEqual(['checkoutKey', 'expectedActorId', 'paymentMethod', 'quoteId', 'sessionId', 'version']);
   expect([...storage.values()][0]).not.toContain('123호'); expect([...storage.values()][0]).not.toContain('transaction-good');
   pending.resolve({ ok: false, error: 'unavailable', uncertain: true }); await first; await flush();
-  expect(button('주문 만들고 결제하기')).toBeUndefined();
+  expect(button('결제하기')).toBeUndefined();
   await (button('같은 주문 다시 확인').props.onClick as () => Promise<void>)(); await flush(); expect(mocks.resume).toHaveBeenCalledWith(saved);
 });
 it('요청 중 외부 장바구니가 바뀌어도 원 품목과 견적을 함께 유지한다', async () => {
@@ -56,7 +56,7 @@ it('요청 중 외부 장바구니가 바뀌어도 원 품목과 견적을 함�
 it('재로드는 같은 세션의 원 요청을 복구하고 새 주문 제출을 잠근다', async () => {
   await submit(); await flush(); const original = JSON.parse([...storage.values()][0]);
   for (const effect of hooks.effects) effect.cleanup?.(); resetHooks(); render(); effects(); authenticate(); await flush();
-  expect(button('주문 만들고 결제하기')).toBeUndefined(); expect(text(render())).not.toContain('2개');
+  expect(button('결제하기')).toBeUndefined(); expect(text(render())).not.toContain('2개');
   await (button('같은 주문 다시 확인').props.onClick as () => Promise<void>)(); await flush(); expect(mocks.resume).toHaveBeenCalledWith(original);
 });
 it.each(['account', 'session', 'signout'])('%s 변경 뒤 늦은 주문 응답은 화면 이동과 개인정보 표시를 하지 않는다', async kind => {
@@ -77,7 +77,7 @@ it('복구 성공은 저장 식별자를 지우고 원 주문의 결제를 이�
 });
 it('명시적 견적 만료 거절 후에만 원 요청을 해제한다', async () => {
   await submit(); await flush(); mocks.resume.mockResolvedValueOnce({ ok: false, error: 'quote_changed', uncertain: false });
-  await (button('같은 주문 다시 확인').props.onClick as () => Promise<void>)(); await flush(); expect(storage.size).toBe(0); expect(button('주문 만들고 결제하기')).toBeDefined();
+  await (button('같은 주문 다시 확인').props.onClick as () => Promise<void>)(); await flush(); expect(storage.size).toBe(0); expect(button('결제하기')).toBeDefined();
 });
 it('새 세션은 이전 세션의 복구 식별자를 재사용하지 않는다', async () => {
   storage.set(`icons.cart-order-recovery.v1:${transactionActor}`, JSON.stringify(transactionRecovery));

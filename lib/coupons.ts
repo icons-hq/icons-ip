@@ -128,7 +128,7 @@ export function couponConditionLabel(coupon: Pick<CouponSummary, 'minSubtotal' |
   const scope = coupon.goodsScope && coupon.goodsScope !== 'all' ? '대상 굿즈 합계 ' : '';
   return coupon.minSubtotal > 0
     ? `${scope}${krw(coupon.minSubtotal)} 이상 구매 시`
-    : coupon.goodsScope === 'selected_categories' ? '선택한 카테고리의 굿즈에만 사용' : coupon.goodsScope === 'selected_goods' ? '선택한 대상 굿즈에만 사용' : '금액 제한 없음';
+    : coupon.goodsScope === 'selected_categories' ? '선택한 카테고리의 굿즈에만 사용' : coupon.goodsScope === 'selected_ips' ? '선택한 IP의 굿즈에만 사용' : coupon.goodsScope === 'selected_goods' ? '선택한 대상 굿즈에만 사용' : '금액 제한 없음';
 }
 
 /** 유효기간 한 줄 표기 — 실효 만료(정의 단축 반영) 기준. */
@@ -207,6 +207,7 @@ export function parseCouponDefinitionRow(definition: unknown): CouponSummary | n
   if (!object(definition) || definition.benefit_kind !== undefined && !['goods', 'shipping'].includes(String(definition.benefit_kind)) || definition.stackable !== undefined && typeof definition.stackable !== 'boolean') return null;
   const targeting = parseCouponTargetingRecord({ recipientSegment: definition.recipient_segment, goodsScope: definition.goods_scope, targetGoodIds: definition.target_good_ids,
     ...(definition.target_category_ids === undefined ? {} : { targetCategoryIds: definition.target_category_ids }),
+    ...(definition.target_ip_ids === undefined ? {} : { targetIpIds: definition.target_ip_ids }),
     ...(definition.issuance_mode === undefined ? {} : { issuanceMode: definition.issuance_mode }),
   });
   if (!targeting || typeof definition.code !== 'string' || !/^[A-Z0-9][A-Z0-9-]{2,23}$/.test(definition.code)
@@ -223,6 +224,7 @@ export function parseCouponDefinitionRow(definition: unknown): CouponSummary | n
     || !(definition.grade_benefit === null || typeof definition.grade_benefit === 'string' && ['welcome', 'silver', 'gold', 'platinum'].includes(definition.grade_benefit))) return null;
   if (definition.status === 'active' && targeting.goodsScope === 'selected_goods' && targeting.targetGoodIds.length === 0) return null;
   if (definition.status === 'active' && targeting.goodsScope === 'selected_categories' && !targeting.targetCategoryIds?.length) return null;
+  if (definition.status === 'active' && targeting.goodsScope === 'selected_ips' && !targeting.targetIpIds?.length) return null;
   return { ...targeting, ...(definition.benefit_kind === undefined ? {} : { benefitKind: definition.benefit_kind as 'goods' | 'shipping', stackable: definition.stackable as boolean }), code: definition.code, name: definition.name, discountType: definition.discount_type as 'fixed' | 'percent',
     discountValue: definition.discount_value, maxDiscountAmount: definition.max_discount_amount as number | null,
     minSubtotal: definition.min_subtotal, startsAt: definition.starts_at, endsAt: definition.ends_at as string | null,

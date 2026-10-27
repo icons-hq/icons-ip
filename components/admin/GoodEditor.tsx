@@ -59,7 +59,7 @@ import { GoodIdentifierFields } from './GoodIdentifierFields';
 import { GoodsDraftLibraryDialog } from './GoodsDraftLibraryDialog';
 import { saveGoodsDraftAction } from '@/app/admin/goods-draft-actions';
 import { collectGoodsDraftValues, validGoodsDraftIdentity, type GoodsDraft, type GoodsDraftIdentity } from '@/lib/admin/goods-drafts';
-import { GoodWorkspaceNavigation, GoodWorkspaceErrors, GoodOptionalFields, GoodEditorSection, focusGoodWorkspaceTarget } from './GoodWorkspace';
+import { GoodWorkspaceNavigation, GoodWorkspaceErrors, GoodOptionalFields, GoodEditorSection, focusGoodWorkspaceTarget, useFocusFirstGoodError } from './GoodWorkspace';
 import { GOOD_EDITOR_SECTIONS, GOOD_PUBLISHED_LOCKS, changedGoodLockedFields, goodFieldSection } from '@/lib/admin/good-workspace';
 import { ADMIN_STOCK_LABELS, ADMIN_VOCABULARY, adminGoodsCopy } from '@/lib/admin/vocabulary';
 import { ActionNotice, ErrorText, Field, SelectField, TextArea } from './fields';
@@ -512,6 +512,7 @@ export function GoodEditor({ accountId, ...props }: GoodEditorProps) {
   const state = !props.selected && serverRecovery && serverRecovery.attempt === (props.state.attempt ?? 0)
     ? { ...props.state, errors: undefined, message: undefined, values: { ...serverRecovery.draft.values, previousId: '', serverDraftId: serverRecovery.draft.id, serverDraftRevision: String(serverRecovery.draft.revision) } }
     : localState;
+  useFocusFirstGoodError(props.state.attempt, state.errors);
   return <>
     <AdminLocalDraftNotice onDiscard={local.discard} onRestore={() => { setServerRecovery(null); local.restore(); }} pending={props.pending}
       recovery={Boolean(local.snapshot.recovery) && !preservedFormValues(props.state, props.selected?.id)} unavailable={local.snapshot.unavailable} />

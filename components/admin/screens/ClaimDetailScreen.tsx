@@ -56,6 +56,8 @@ const TIMELINE_LABELS: Record<string, string> = {
   /* 결제 가능 시간이 지난 결제 준비 건을 결제 없이 닫은 취소. 주문 상세 타임라인과 같은 이름이다. */
   'order.prepared_goods_cancellation_completed': '결제 준비 건 취소 완료 (구매자 취소)',
   'system.order.prepared_goods_cancellation_completed': '결제 준비 건 취소 완료 (자동)',
+  'system.order.unpaid_cart_order_closed': '결제 대기 주문 자동 취소 (재주문·장바구니 복귀)',
+  'system.order.cart_hold_detached': '장바구니 보류 해제 (결제 확인 필요 주문)',
   'admin.order.prepared_goods_cancellation_completed': '결제 준비 건 취소 완료',
   'admin.order.claim_in_review': '검토중으로 변경',
   'admin.order.claim_approved': '승인',

@@ -423,13 +423,71 @@
   color: var(--wc-ink-tertiary);
 }
 
+/* 마케팅 수신 동의 안내(수단별 선택, 10/14 회의 S4) — 약관 목록 바로 아래 작은 회색 문단. */
+.wc-auth .onboarding-consent-note {
+  margin: -4px 0 0;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--wc-ink-tertiary);
+}
+
+/* 선택 성별(10/14 회의 S5) — 생년월일 fieldset 문법을 그대로 쓰고 셀렉트만 인풋과 같은 40px 필드로 맞춘다. */
+.wc-auth .onboarding-gender-fieldset select {
+  width: 100%;
+  min-height: 0;
+  height: 40px;
+  padding: 0 14px;
+  font-family: inherit;
+  font-size: 15px;
+  letter-spacing: -0.2px;
+  border: 1px solid var(--wc-line-control);
+  border-radius: 2px;
+  box-shadow: none;
+  background: var(--wc-surface);
+  color: var(--wc-ink);
+}
+
+.wc-auth .onboarding-gender-consent {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  font-size: 13px;
+  line-height: 1.5;
+  color: var(--wc-ink-sub);
+  cursor: pointer;
+}
+
+.wc-auth .onboarding-gender-consent input[type='checkbox'] {
+  width: 18px;
+  height: 18px;
+  flex: none;
+  margin: 0;
+  accent-color: var(--wc-ink);
+}
+
+.wc-auth .onboarding-gender-notice {
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--wc-ink-tertiary);
+}
+
+.wc-auth .onboarding-gender-notice > summary {
+  cursor: pointer;
+  text-decoration: underline;
+  text-underline-offset: 3px;
+}
+
+.wc-auth .onboarding-gender-notice p {
+  margin: 6px 0 0;
+}
+
 /* 추천 IP 선택 */
 .wc-auth__picks-head {
   display: flex;
   align-items: baseline;
   justify-content: space-between;
   gap: 8px;
-  margin-bottom: 12px;
+  margin-bottom: 4px;
 }
 
 .wc-auth__picks-title {
@@ -440,8 +498,24 @@
 }
 
 .wc-auth__picks-sub {
+  margin: 0 0 12px;
   font-size: 12px;
   color: var(--wc-ink-tertiary);
+}
+
+/* 관심 IP는 선택 단계다 — 건너뛰기/다시 고르기는 약관 행의 문서 링크와 같은 텍스트 버튼 문법. */
+.wc-auth__picks-skip {
+  flex: none;
+  min-height: 32px;
+  padding: 0 2px;
+  border: 0;
+  background: none;
+  font: inherit;
+  font-size: 13px;
+  color: var(--wc-ink-tertiary);
+  text-decoration: underline;
+  text-underline-offset: 3px;
+  cursor: pointer;
 }
 
 /* IP 타일 — 각진 이미지 체크박스. 선택 상태는 잉크 링 하나로만 말한다. */
@@ -2672,8 +2746,23 @@ button.wc-settings__link-row[aria-disabled="true"] strong {
   text-underline-offset: 3px;
 }
 
+/* 주문 상세 상태 줄은 주문 상태 배지 옆에 진행 중인 클레임 배지를 함께 둔다. */
 .wc-receipt .order-detail-status-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.wc-receipt .order-detail-status-row,
+.wc-receipt .ticket-detail-status-row {
   margin-bottom: 10px;
+}
+
+/* 진행 중인 클레임 배지(취소 요청·처리 중 등) — 주문 목록과 상세 헤더가 같은 표시를 쓴다. */
+.wc-receipt .order-claim-badge {
+  border-color: var(--wc-ink-sub);
+  color: var(--wc-ink);
 }
 
 .wc-receipt .order-detail-meta,
@@ -3329,6 +3418,14 @@ button.wc-settings__link-row[aria-disabled="true"] strong {
 
 .wc-receipt .checkout-reorder .btn {
   align-self: flex-start;
+}
+
+/* 주문 완료 화면(D12)의 [주문 상세]·[쇼핑 계속] — 버튼 두 개를 한 줄로, 좁으면 줄바꿈. */
+.wc-receipt .order-complete-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 20px;
 }
 
 .wc-receipt .checkout-state-mark {
@@ -5182,6 +5279,17 @@ button.wc-settings__link-row[aria-disabled="true"] strong {
   font-size: 13px;
   line-height: 1.6;
   color: var(--wc-ink-tertiary);
+}
+
+/* 법정 안내는 접어서 제공한다(10/14 회의 S21) — 요약 줄만 보이고 펼치면 고지 전문. */
+.wc-receipt .order-cancellation-notice > summary {
+  font-weight: 600;
+  color: var(--wc-ink-sub);
+  cursor: pointer;
+}
+
+.wc-receipt .order-cancellation-notice[open] > summary {
+  margin-bottom: 8px;
 }
 
 /* 원본: globals. 취소 안내 본문은 읽기 폭을 제한한다. */

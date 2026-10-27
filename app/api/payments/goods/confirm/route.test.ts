@@ -72,6 +72,14 @@ describe('POST /api/payments/goods/confirm', () => {
     });
   });
 
+  it('승인 결과가 주문을 가리키면 그 주문의 완료 화면으로 보낸다(D12)', async () => {
+    mocks.confirm.mockResolvedValue({ ...outcome('approved'), orderId: '40000000-0000-4000-8000-000000000205' });
+    const result = await POST(request());
+
+    expect(result.status).toBe(303);
+    expect(result.headers.get('location')).toBe('/orders/40000000-0000-4000-8000-000000000205/complete');
+  });
+
   it.each([
     ['unknown', '/orders?payment=checking'],
     ['needs_review', '/orders?payment=checking'],

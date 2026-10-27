@@ -24,9 +24,10 @@ export const GIMPO_COLUMNS = [
 ] as const;
 /**
  * 서원(남양주) `260908_우체국 송장 입력 양식.xlsx`의 `송장양식` 시트. 7열의 헤더·순서·너비와
- * 헤더 색(`fill`: 노랑=필수, 회색=선택, 초록=피킹)은 원본 그대로다. 원본에는 받는 분 이름 칸이
- * 없지만 서원 회신(C3·C8)은 이름을 송장과 합배송 판정에 쓴다 — 7열은 건드리지 않고 오른쪽에
- * 덧붙인다(`appended`). 서원 프로그램이 7열만 읽으면 덧붙인 열은 무시된다.
+ * 헤더 색(`fill`: 노랑=필수, 회색=선택, 초록=피킹)은 원본 그대로다. 원본에는 받는 분 이름·주문 번호
+ * 칸이 없다 — 7열은 건드리지 않고 오른쪽에 받는분성명·배송메시지·배송건번호를 덧붙인다(`appended`).
+ * 서원 프로그램이 7열만 읽으면 덧붙인 열은 무시된다. 배송건번호는 송장이 등록되는 단위(배송 건)의
+ * 16자리 번호라 회신에 남아 있으면 내용 대조 없이 그 배송 건을 바로 찾는다.
  */
 export const SEOWON_SHEET_NAME = '송장양식';
 export const SEOWON_COLUMNS = [
@@ -39,6 +40,7 @@ export const SEOWON_COLUMNS = [
   { key: 'items', header: '품목명', width: 62.5, fill: 'picking', text: true },
   { key: 'recipient', header: '받는분성명', width: 16, fill: 'optional', text: true, appended: true },
   { key: 'deliveryNote', header: '배송메시지', width: 40, fill: 'optional', text: true, appended: true },
+  { key: 'shipmentNumber', header: '배송건번호', width: 20, fill: 'optional', text: true, appended: true },
 ] as const;
 /** 회신 파일에서 송장번호 열로 인정하는 헤더. 공백은 비교 전에 지운다. */
 export const SEOWON_REPLY_TRACKING_HEADERS = ['송장번호', '운송장번호', '등기번호', '운송장', '송장', '택배송장번호', '우체국송장번호'] as const;

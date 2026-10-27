@@ -60,6 +60,7 @@ import {
 import { formatKrwExact } from '../format';
 import { ADMIN_VOCABULARY } from '@/lib/admin/vocabulary';
 import { isParcelShipment } from '@/lib/admin/shipment-dispatch';
+import { commerceReferenceLabel, isCommerceNumber } from '@/lib/commerce-number';
 import { DELIVERY_METHOD_LABELS, deliveryStatusLabel } from '@/lib/shipment-delivery';
 import { adminListExportHref } from '@/lib/admin/list-export';
 import { AdminListExportButton } from '@/components/admin/AdminListExportButton';
@@ -165,6 +166,8 @@ type OrderCancellationIntent = keyof typeof ORDER_CANCELLATION_ACTIONS;
 export interface OrderCancellationActionState extends AdminOrderActionState {
   intent?: OrderCancellationIntent;
   orderId?: string;
+  /** 표시 전용 16자리 주문번호. 처리 대상은 orderId다. */
+  orderNumber?: string;
 }
 
 const EMPTY_CANCELLATION_STATE: OrderCancellationActionState = {};
@@ -180,11 +183,13 @@ export async function runOrderCancellationAction(
 ): Promise<OrderCancellationActionState> {
   const intent = formData.get('cancellationIntent');
   const orderId = String(formData.get('cancellationOrderId') ?? '');
+  const number = formData.get('cancellationOrderNumber');
+  const orderNumber = isCommerceNumber(number, 'order') ? { orderNumber: number as string } : {};
   if (!isOrderCancellationIntent(intent)) {
-    return { errors: { form: '처리할 작업을 확인하지 못했습니다. 새로고침한 뒤 다시 시도해주세요.' }, orderId };
+    return { errors: { form: '처리할 작업을 확인하지 못했습니다. 새로고침한 뒤 다시 시도해주세요.' }, orderId, ...orderNumber };
   }
   const result = await ORDER_CANCELLATION_ACTIONS[intent](EMPTY_ACTION_STATE, formData);
-  return { ...result, intent, orderId };
+  return { ...result, intent, orderId, ...orderNumber };
 }
 
 type CancellationFormValidator = (formData: FormData) => AdminOrderFieldErrors | null;
@@ -1005,13 +1010,13 @@ function OrderDetail({
             청약철회 창을 사람 손으로 조기 종료시킬 수 있다. */}
         {hasShipped ? order.shipments.filter(shipment=>isParcelShipment(shipment)&&(shipment.status==='shipping'||shipment.status==='delivered')).map(shipment=>(
           <section key={shipment.id} aria-label={`${shipment.originName} 운송장 수정`}>
-            <h4>{shipment.originName} · {shipment.id.slice(-8).toUpperCase()}</h4>
+            <h4>{shipment.originName} · {commerceReferenceLabel(shipment.id, shipment.shipmentNumber)}</h4>
             <UpdateTrackingForm carriers={carriers} orderId={order.id} shipmentId={shipment.id} shipment={orderShipment(carriers,shipment.carrier,shipment.trackingNumber)} />
           </section>
         )) : null}
         {order.shipments.filter(shipment=>!isParcelShipment(shipment)).map(shipment=>(
           <section key={shipment.id} aria-label={`${shipment.originName} 인계·수령 확인`}>
-            <h4>{shipment.originName} · {shipment.id.slice(-8).toUpperCase()}</h4>
+            <h4>{shipment.originName} · {commerceReferenceLabel(shipment.id, shipment.shipmentNumber)}</h4>
             <p>{shipment.delivery ? deliveryStatusLabel(shipment.delivery.method,shipment.status) : '배송 방식 확인 필요'}</p>
             <Link href={adminOrderDetailHref(order.id,filters)} target="_blank" rel="noopener noreferrer">
               {shipment.delivery ? DELIVERY_METHOD_LABELS[shipment.delivery.method] : '배송 방식'} 인계·수령 확인
@@ -1135,6 +1140,9 @@ export function OrdersSection({ data, canManage = true }: { data: AdminOrderCons
       }
       if (plan.kind === 'dismissed') return;
       setCancellationClientErrors(null);
+      // 처리 뒤 목록에서 빠질 수 있는 주문의 결과 배너를 16자리 주문번호로 적도록 함께 보낸다(표시 전용).
+      const orderNumber = data.items.find((order) => order.id === orderId)?.orderNumber;
+      if (orderNumber) formData.set('cancellationOrderNumber', orderNumber);
       setSubmittedCancellation({ intent, orderId });
       startTransition(() => cancellationAction(formData));
     },
@@ -1157,7 +1165,7 @@ export function OrdersSection({ data, canManage = true }: { data: AdminOrderCons
       <OrderFilters filters={data.filters} />
       {canManage && resultOutsideList ? (
         <section aria-label="취소 처리 결과" className="admin-order-cancellation-result">
-          <p>주문 {orderReferenceLabel(resultOutsideList)} 취소 처리 결과 · 지금 검색 조건의 목록에는 없는 주문입니다.</p>
+          <p>주문 {orderReferenceLabel(resultOutsideList, cancellationState.orderNumber)} 취소 처리 결과 · 지금 검색 조건의 목록에는 없는 주문입니다.</p>
           <CancellationResultBody state={cancellationState} />
           <Link className="btn btn-sm btn-ghost" href={adminOrderSearchHref(resultOutsideList)}>이 주문 열기</Link>
         </section>

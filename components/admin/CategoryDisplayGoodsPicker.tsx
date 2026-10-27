@@ -4,6 +4,8 @@ import { searchCategoryDisplayGoodsAction } from '@/app/admin/category-display-a
 import { CustomerServiceDialog } from './screens/CustomerServiceDialog';
 import type { StoryGoodCandidates, StoryGoodCandidate } from '@/lib/admin/shopping-story-picker';
 import { krw } from '@/lib/format';
+import { findGoodById, GOOD_URL_ERRORS } from '@/lib/admin/good-url';
+import { GoodUrlAddField } from './GoodUrlAddField';
 
 export function CategoryDisplayGoodsPicker({ selected, limit, onlyPublished = false, onApply, onClose }: {
   selected: string[]; limit: number; onlyPublished?: boolean; onApply: (ids: string[], rows: StoryGoodCandidate[]) => void; onClose: () => void;
@@ -38,6 +40,19 @@ export function CategoryDisplayGoodsPicker({ selected, limit, onlyPublished = fa
         <label>상품 카테고리<select value={categoryId} onChange={event => setCategoryId(event.target.value)}><option value="">전체</option>{data?.categories.map(category => <option key={category.id} value={category.id}>{category.path}</option>)}</select></label>
         <button type="submit" disabled={pending}>검색</button>
       </form>
+      <GoodUrlAddField disabled={pending} onAdd={async id => {
+        if (picked.includes(id)) return { ok: false, message: GOOD_URL_ERRORS.exists };
+        if (picked.length >= limit) return { ok: false, message: `최대 ${limit.toLocaleString()}개까지 선택할 수 있습니다.` };
+        const row = await findGoodById(id, async page => {
+          const result = await searchCategoryDisplayGoodsAction(id, page, null, onlyPublished);
+          if ('error' in result) throw new Error(result.error);
+          return result.data;
+        });
+        if (!row) return { ok: false, message: GOOD_URL_ERRORS.notFound };
+        known.current.set(row.id, row);
+        setPicked(current => current.includes(row.id) ? current : [...current, row.id]);
+        return { ok: true, message: `'${row.name}' 상품을 선택했습니다. 선택 완료를 눌러 반영해주세요.` };
+      }} />
       <p>조회 {data?.total.toLocaleString() ?? '—'}개 · 선택 {picked.length.toLocaleString()} / {limit.toLocaleString()}개</p>
       {error ? <p role="alert">{error}</p> : null}
       <div className="admin-category-display__table"><table><caption className="sr-only">전시할 상품 선택</caption><thead><tr><th>선택</th><th>상품명 / 상품코드</th><th>판매가</th><th>노출 상태</th></tr></thead>

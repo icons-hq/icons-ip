@@ -10,11 +10,17 @@ import { InquiryChatConversation } from './InquiryChatConversation';
 import { InquiryAssignmentPanel, InquiryInternalNotesPanel } from './InquiryWorkspacePanel';
 import { CustomerHistoryPanel } from './CustomerHistoryPanel';
 import { InquiryChatTags } from './InquiryChatTags';
+import type { CustomerHistoryState } from '@/app/admin/customer-actions';
 
-export function InquiryChatScreen({ accountId, filters, data, detail, chatContext, selected, canReadOrders, canViewCustomer }: {
+type PurchaseHistory = NonNullable<CustomerHistoryState['history']>;
+
+/* 구매이력(A7, ADR-0020 그대로): sales.read 역할이면 page가 고객 주문 첫 페이지를 미리 읽어
+   버튼 없이 바로 보여 준다. 권한이 없으면 카드 자체를 만들지 않는다. */
+export function InquiryChatScreen({ accountId, filters, data, detail, chatContext, selected, canReadOrders, canViewCustomer, purchaseHistory, purchaseHistoryError = false }: {
   accountId: string; filters: InquiryChatFilters; data: InquiryChatData; detail: AdminInquiryDetail | null;
   chatContext?: InquiryChatContext | null;
   selected: boolean; canReadOrders: boolean; canViewCustomer: boolean;
+  purchaseHistory?: PurchaseHistory | null; purchaseHistoryError?: boolean;
 }) {
   const pages = Math.max(1, Math.ceil(data.total / ADMIN_INQUIRY_CHAT_PAGE_SIZE));
   return <section className="admin-inquiry-chat" data-selected={selected ? 'true' : 'false'} aria-label="ICONS 실시간 상담">
@@ -69,7 +75,9 @@ export function InquiryChatScreen({ accountId, filters, data, detail, chatContex
         {canReadOrders ? <section className="admin-inquiry-chat__context-card"><h2>구매이력</h2>
           {detail.order ? <><p>연결 주문 {orderReferenceLabel(detail.order.id, detail.order.orderNumber)}</p><p>{detail.order.leadItemName ?? '주문 상품'} · {detail.order.itemCount}개</p>
             <Link href={`/admin/sales/orders/${detail.order.id}`}>주문 상세 보기</Link></> : <p>연결된 주문이 없습니다.</p>}
-          <details><summary>전체 구매이력 보기</summary><CustomerHistoryPanel key={detail.buyer.id} userId={detail.buyer.id} canReadClaims={false} /></details>
+          {purchaseHistoryError ? <p role="alert">구매이력을 자동으로 불러오지 못했습니다. 아래에서 다시 불러와 주세요.</p> : null}
+          <CustomerHistoryPanel key={detail.buyer.id} userId={detail.buyer.id} canReadClaims={false} title="전체 구매이력"
+            initialHistory={purchaseHistory?.userId === detail.buyer.id ? purchaseHistory : null} />
         </section> : null}
         <section className="admin-inquiry-chat__context-card"><h2>이전 대화이력</h2>
           {chatContext ? <>{chatContext.previous.length ? <ul className="admin-inquiry-chat__previous">{chatContext.previous.map(previous => <li key={previous.id}>

@@ -38,3 +38,14 @@ it('fulfillment-specific snapshots are not cast into a parcel regional policy', 
  const result=await getAdminOrderDetail('order');
  expect(result?.shipments[0].regionalShipping).toBeNull();
 });
+
+it('품목 배분 조회가 실패하면 나눌 수 없는 주문과 구분해 불러오지 못했다고 표시한다', async () => {
+ const detail={data:{order:{id:'order'},items:[],shipments:[],timeline:[]},error:null};
+ mocks.rpc.mockImplementation(async(name:string)=>name==='admin_order_item_allocation_inputs'?{data:null,error:{message:'statement_timeout'}}:detail);
+ const failed=await getAdminOrderDetail('10000000-0000-4000-8000-000000002714');
+ expect(mocks.rpc).toHaveBeenCalledWith('admin_order_item_allocation_inputs',{p_order_ids:['10000000-0000-4000-8000-000000002714']});
+ expect(failed?.itemAllocationsUnavailable).toBe(true);expect(failed?.itemAllocations).toEqual({});
+ mocks.rpc.mockImplementation(async(name:string)=>name==='admin_order_item_allocation_inputs'?{data:[],error:null}:detail);
+ const loaded=await getAdminOrderDetail('10000000-0000-4000-8000-000000002714');
+ expect(loaded).not.toHaveProperty('itemAllocationsUnavailable');expect(loaded?.itemAllocations).toEqual({});
+});

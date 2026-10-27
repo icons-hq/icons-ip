@@ -11,6 +11,7 @@ import { SalesFilterField, SalesFilterPanel, SalesGuide, SalesResultsHeader, Sal
 import { formatKrwExact } from '@/components/admin/format';
 import { adminListExportHref } from '@/lib/admin/list-export';
 import { adminOrderItemsHref, selectedConfirmableOrderIds, type AdminOrderItemData } from '@/lib/admin/order-items';
+import type { OrderItemAllocation } from '@/lib/admin/item-allocation';
 import { adminOrderDetailHrefFromBack, ADMIN_ORDER_SEARCH_FIELDS, ADMIN_ORDER_STATUSES, ADMIN_ORDER_STATUS_LABELS } from '@/lib/admin/orders';
 import { SALES_DATE_FIELDS } from '@/lib/admin/sales-list';
 import { formatOrderDateTime, orderReferenceLabel } from '@/lib/orders';
@@ -23,10 +24,19 @@ const columns: ConsoleGridColumn[] = [
   { key: 'status', label: '주문상태', width: '100px' }, { key: 'created', label: '주문일시', width: '160px' },
   { key: 'good', label: '상품명', width: '240px' }, { key: 'variant', label: '옵션 / 옵션코드', width: '180px' },
   { key: 'qty', label: '수량', width: '65px', align: 'end' }, { key: 'unitPrice', label: '단가', width: '100px', align: 'end' },
-  { key: 'amount', label: '상품금액', width: '120px', align: 'end' }, { key: 'buyer', label: '구매자명', width: '110px' },
+  { key: 'amount', label: '상품금액', width: '120px', align: 'end' },
+  { key: 'allocation', label: '할인·적립금 배분', width: '170px', align: 'end' }, { key: 'paid', label: '배분 후 금액', width: '120px', align: 'end' },
+  { key: 'buyer', label: '구매자명', width: '110px' },
   { key: 'recipient', label: '수취인명', width: '110px' }, { key: 'shipment', label: '출고지 / 배송', width: '180px' },
   { key: 'claim', label: '취소·반품·교환', width: '140px' }, { key: 'action', label: '주문 전체 상세', width: '120px' },
 ];
+/** 품목에 나눈 할인 합계와 구성. 나눌 수 없는 주문은 —로 둔다. */
+function OrderItemAllocationCell({ allocation }: { allocation?: OrderItemAllocation | null }) {
+  if (!allocation) return <>—</>;
+  const total = allocation.couponDiscount + allocation.storeCreditDiscount + allocation.volumeDiscount;
+  return <div className="admin-order-items-meta">{total ? `−${formatKrwExact(total)}` : formatKrwExact(0)}
+    <small>쿠폰 {formatKrwExact(allocation.couponDiscount)} · 적립금 {formatKrwExact(allocation.storeCreditDiscount)}{allocation.volumeDiscount ? ` · 복수구매 ${formatKrwExact(allocation.volumeDiscount)}` : ''}</small></div>;
+}
 export function OrderItemsScreen({ data, canManage }: { data: AdminOrderItemData; canManage: boolean }) {
   const router = useRouter(); const [selected, setSelected] = useState<string[]>([]); const [pending, startTransition] = useTransition();
   const [message, setMessage] = useState(''); const [error, setError] = useState('');
@@ -49,7 +59,7 @@ export function OrderItemsScreen({ data, canManage }: { data: AdminOrderItemData
     <OrderViewTabs filters={filters} view="items" />
     <SalesGuide title="상품주문별 번호·옵션·수량과 연결된 주문·배송을 확인합니다.">
       <p>상품주문번호는 주문에 포함된 개별 품목의 고유 번호입니다. 같은 주문번호가 여러 행에 표시될 수 있습니다. 상품명·옵션은 주문 당시 기록이며 현재 상품 정보로 바뀌지 않습니다.</p>
-      <p>상품금액은 주문 당시 단가 × 수량이며 주문 쿠폰·적립금과 배송비를 배분한 결제금액이 아닙니다. 취소·반품은 주문 전체·전액으로 처리합니다.</p>
+      <p>상품금액은 주문 당시 단가 × 수량입니다. 주문 쿠폰·적립금·복수구매 할인은 거래확정 엑셀과 같은 규칙으로 품목에 나눠 배분 후 금액(배송비 제외)에 표시합니다. 주문 당시 기록이 없어 나눌 수 없으면 —로 둡니다. 취소·반품은 주문 전체·전액으로 처리합니다.</p>
     </SalesGuide>
     <SalesStatusSummary label="상품주문 처리 단계" items={statuses.map(option => ({ label: option.label, active: filters.status === option.value,
       count: option.value === 'all' ? Object.values(data.counts).reduce((sum, value) => sum + value, 0) : data.counts[option.value as keyof typeof data.counts],
@@ -74,7 +84,9 @@ export function OrderItemsScreen({ data, canManage }: { data: AdminOrderItemData
           <span key="status" className={`order-status order-status--${row.status}`}>{ADMIN_ORDER_STATUS_LABELS[row.status]}</span>,
           formatOrderDateTime(row.createdAt), row.goodName,
           <div key="variant" className="admin-order-items-meta">{row.variantName ?? '기본 옵션'}<small>{row.variantCode ?? ''}</small><GoodsCustomInputsSummary selection={row.customInputs} /></div>,
-          row.qty, formatKrwExact(row.unitPrice), formatKrwExact(row.itemAmount), row.buyerName, row.recipientName ?? '—',
+          row.qty, formatKrwExact(row.unitPrice), formatKrwExact(row.itemAmount),
+          <OrderItemAllocationCell key="allocation" allocation={row.allocation} />, row.allocation ? formatKrwExact(row.allocation.paidGoodsTotal) : '—',
+          row.buyerName, row.recipientName ?? '—',
           <div key="shipment" className="admin-order-items-meta">{row.originName ?? '출고지 미연결'}<small>{({ ready: '발송대기', shipping: '배송중', delivered: '배송완료', canceled: '취소' } as Record<string, string>)[row.shipmentStatus ?? ''] ?? ''}</small><small>{row.carrierLabel} {row.trackingNumber}</small></div>,
           row.claim ? (canManage ? <Link key="claim" href={`/admin/sales/claims/${ORDER_CLAIM_TYPE_SLUGS[row.claim.type]}/${row.claim.id}`}>{ORDER_CLAIM_TYPE_LABELS[row.claim.type]} · {ORDER_CLAIM_STAGE_LABELS[row.claim.stage]}</Link> : `${ORDER_CLAIM_TYPE_LABELS[row.claim.type]} · ${ORDER_CLAIM_STAGE_LABELS[row.claim.stage]}`) : '—',
           <Link key="detail" href={adminOrderDetailHrefFromBack(row.orderId, currentHref)}>{canManage ? '전체 상세·처리' : '전체 상세'}</Link>,

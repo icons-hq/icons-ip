@@ -134,10 +134,12 @@ describe('submitOrderCancellation', () => {
       actionLabel: '주문 취소',
     });
     expect(cancellationPresentation('pending', null, null, { eligibility: { cancel: true, return: false, exchange: false } }).body).toContain('결제 내역');
+    /* 10/14 회의 S19 — 결제완료 주문의 고객 액션은 '주문 취소'다. 법정 용어는 접힌 안내에만 남는다. */
     expect(cancellationPresentation('paid', null, null, { eligibility: { cancel: true, return: false, exchange: false } })).toMatchObject({
       canCancel: true,
-      heading: '청약철회 요청',
-      actionLabel: '청약철회 요청',
+      heading: '주문 취소',
+      actionLabel: '주문 취소',
+      confirmTitle: '이 주문을 취소할까요?',
     });
   });
 
@@ -154,7 +156,7 @@ describe('submitOrderCancellation', () => {
   });
 
   it.each([
-    ['requested', '청약철회 요청 접수', '검토'],
+    ['requested', '주문 취소 요청 접수', '검토'],
     ['processing', '결제 취소 처리 중', '처리'],
     ['needs_review', '결제 취소 확인 중', '확인'],
     ['completed', '취소·환불 처리 완료', '완료'],
@@ -249,8 +251,8 @@ describe('submitOrderCancellation', () => {
 
     expect(cancellationPresentation('paid', null, rejectedRequest, { eligibility: { cancel: true, return: false, exchange: false } })).toMatchObject({
       canCancel: true,
-      heading: '청약철회 재요청',
-      actionLabel: '다시 청약철회 요청',
+      heading: '주문 취소 재요청',
+      actionLabel: '다시 주문 취소 요청',
       requestLabel: '이전 요청 거절',
       requestRequestedAt: '2026-07-14T07:30:00.000Z',
       requestDecidedAt: '2026-07-14T08:00:00.000Z',
@@ -269,12 +271,28 @@ describe('submitOrderCancellation', () => {
     expect(markup).toContain('요청 시각');
     expect(markup).toContain('승인·결정 시각');
     expect(markup).toContain('2026-07-14T08:00:00.000Z');
-    expect(markup).toContain('다시 청약철회 요청');
+    expect(markup).toContain('다시 주문 취소 요청');
 
     expect(cancellationPresentation('canceled', null, rejectedRequest)).toMatchObject({
       canCancel: false,
       heading: '취소·환불 상태',
     });
+  });
+
+  /* 10/14 회의 S19·S21 — 결제완료 화면의 액션·상태 문구에서 '청약철회'를 빼고, 법정 고지는
+     문구 그대로 접은 안내(<details>) 안에 둔다. */
+  it('keeps the statutory notice verbatim inside a collapsed section and out of paid-order actions', () => {
+    const markup = renderToStaticMarkup(createElement(OrderCancellation, { deliveredAt: null,
+      orderId: '11111111-1111-4111-8111-111111111111',
+      status: 'paid',
+      refund: null,
+      cancellationRequest: null,
+      eligibility: { cancel: true, return: false, exchange: false },
+    }));
+    expect(markup).toMatch(/<details class="order-cancellation-notice"><summary>취소·반품 법정 안내<\/summary><p class="money-caption">[^<]+<\/p>/);
+    expect(markup).toContain(LEGAL_WITHDRAWAL_NOTICE);
+    expect(markup.replace(LEGAL_WITHDRAWAL_NOTICE, '')).not.toContain('청약철회');
+    expect(markup).not.toContain('<details class="order-cancellation-notice" open');
   });
 
   it('keeps the statutory notice and fail-closed error copy exact', () => {

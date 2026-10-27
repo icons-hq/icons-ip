@@ -11,11 +11,12 @@ import { placeCartTransactionAction, resumeCartTransactionAction, type CartTrans
 import { PostcodeField } from '@/components/checkout/PostcodeField';
 import { GoodsTransactionSummary } from '@/components/checkout/GoodsTransactionSummary';
 import { useCartTransactionQuote } from '@/components/checkout/useCartTransactionQuote';
-import { useCart } from '@/components/shell/CartProvider';
+import { useCart, useReleaseUnpaidCartOrders } from '@/components/shell/CartProvider';
 import { GoodsCustomInputsSummary } from '@/components/shop/GoodsCustomInputs';
 import { cartItemKey, type CartItem } from '@/lib/cart';
 import type { CatalogSnapshot } from '@/lib/catalog';
-import { checkoutAddressErrors, type CheckoutAddress, type CheckoutPaymentMethod } from '@/lib/checkout';
+import { bankTransferMethodNote, checkoutAddressErrors, type CheckoutAddress, type CheckoutPaymentMethod } from '@/lib/checkout';
+import { orderCompleteHref } from '@/lib/routes';
 import { cartTransactionRequestTooLarge, parseCartTransactionInput, parseCartTransactionRecovery, transactionIssueCopy, type CartTransactionRecovery, type CheckoutDeliveryChoices } from '@/lib/checkout-transaction';
 import { krw } from '@/lib/format';
 import type { GoodsTransactionDisplay } from '@/lib/goods-transaction';
@@ -33,6 +34,7 @@ export const cartTransactionErrorCopy: Record<CartTransactionError, string> = {
   cart_changed: '장바구니가 변경되었어요. 최신 품목과 수량을 확인해주세요.', coupon_changed: '선택한 쿠폰이 변경되었어요. 장바구니에서 다시 확인해주세요.',
   quote_changed: '가격이나 배송 조건이 변경되었어요. 새로 확인한 금액으로 다시 주문해주세요.',
   checkout_conflict: '이미 요청한 주문을 확인해주세요. 같은 요청으로 다른 주문을 만들 수 없어요.', unavailable: '주문을 확인하지 못했어요. 잠시 후 다시 시도해주세요.',
+  payment_in_progress: '앞서 결제한 주문의 승인 결과를 확인하고 있어요. 확인이 끝난 뒤 다시 시도해주세요.',
 };
 
 interface Props {
@@ -44,6 +46,8 @@ interface Props {
 
 export function GoodsTransactionCheckout({ accountId, catalog, latestAddress, paymentAvailable, bankTransferAvailable, resumeOrderId, userCouponId, coupons = [], couponPolicy, paymentFailCode }: Props) {
   const router = useRouter(), cart = useCart();
+  /* 결제를 마치지 않은 이전 장바구니 주문이 쿠폰·적립금·구매 한도를 잡고 있으면 견적 전에 닫는다(ADR-0026). */
+  const released = useReleaseUnpaidCartOrders();
   const [address, setAddress] = useState<CheckoutAddress>(latestAddress ?? { recipientName: '', phone: '', postalCode: '', address1: '', address2: '', deliveryNote: '' });
   const [selectedCoupons, setSelectedCoupons] = useState<string[]>(userCouponId ? [userCouponId] : []), [shippingCoupon, setShippingCoupon] = useState('');
   const [verifiedOffers, setVerifiedOffers] = useState<GoodsTransactionOffer[]>([]);
@@ -100,7 +104,7 @@ export function GoodsTransactionCheckout({ accountId, catalog, latestAddress, pa
   const combinedIds = [...selectedCoupons, ...(shippingCoupon ? [shippingCoupon] : [])];
   const rawInput = { expectedActorId: accountId, items: cart.items, address: needsAddress ? address : { kind: 'none' }, deliveryChoices: currentChoices, userCouponId: couponPolicy ? combinedIds[0] ?? null : userCouponId, ...(couponPolicy ? { userCouponIds: combinedIds } : {}), storeCreditAmount: amount };
   const input = parseCartTransactionInput(rawInput), tooLarge = cartTransactionRequestTooLarge(rawInput);
-  const quotes = useCartTransactionQuote(input, Boolean(session && !authBlocked && cart.ready && cart.mode === 'server' && !cart.pending), busy || recovery !== null, setVerifiedOffers);
+  const quotes = useCartTransactionQuote(input, Boolean(session && !authBlocked && cart.ready && cart.mode === 'server' && !cart.pending && released), busy || recovery !== null, setVerifiedOffers);
   const quote = quotes.result?.ok ? quotes.result.quote : null;
   const currentDisplay = quote?.state === 'quoted' ? quote.display : null, display = recovery ? frozen?.display : currentDisplay;
   const visibleItems = recovery ? frozen?.items ?? [] : cart.items;
@@ -113,11 +117,14 @@ export function GoodsTransactionCheckout({ accountId, catalog, latestAddress, pa
     setRecovery(value);
     try { if (value) sessionStorage.setItem(storageKey, JSON.stringify(value)); else sessionStorage.removeItem(storageKey); } catch { /* server receipt remains recoverable from order history */ }
   }
-  async function acceptResult(result: CartTransactionPlaceResult, capturedEpoch: number) {
+  async function acceptResult(result: CartTransactionPlaceResult, capturedEpoch: number, paymentMethod: CheckoutPaymentMethod) {
     if (capturedEpoch !== epoch.current) return;
     if (result.ok) {
       remember(null); setFrozen(null);
-      try { await cart.refresh(); } finally { if (capturedEpoch === epoch.current) router.push(`/checkout/${result.orderId}`); }
+      /* 카드는 결제 화면이 바로 결제를 준비하고(S8) 장바구니는 결제 확정까지 남는다. 무통장은 접수가 곧
+         주문 완료라 완료 화면에서 입금 안내를 본다(D12). */
+      const next = paymentMethod === 'bank_transfer' ? orderCompleteHref(result.orderId) : `/checkout/${result.orderId}`;
+      try { await cart.refresh(); } finally { if (capturedEpoch === epoch.current) router.push(next); }
       return;
     }
     if (result.uncertain) setError('주문 생성 결과를 확인 중이에요. 아래 버튼으로 같은 주문을 다시 확인해주세요.');
@@ -133,22 +140,22 @@ export function GoodsTransactionCheckout({ accountId, catalog, latestAddress, pa
     lane.current = true; setBusy(true); setError(''); const capturedEpoch = epoch.current;
     const marker: CartTransactionRecovery = { version: 1, expectedActorId: accountId, sessionId: session, quoteId: quote.quoteId, checkoutKey: crypto.randomUUID(), paymentMethod: effectiveMethod };
     remember(marker); setFrozen({ display: quote.display, items: input.items });
-    try { await acceptResult(await placeCartTransactionAction({ ...input, quoteId: marker.quoteId, checkoutKey: marker.checkoutKey, paymentMethod: marker.paymentMethod }), capturedEpoch); }
+    try { await acceptResult(await placeCartTransactionAction({ ...input, quoteId: marker.quoteId, checkoutKey: marker.checkoutKey, paymentMethod: marker.paymentMethod }), capturedEpoch, marker.paymentMethod); }
     catch { if (capturedEpoch === epoch.current) setError('주문 생성 결과를 확인하지 못했어요. 같은 주문 다시 확인을 눌러주세요.'); }
     finally { lane.current = false; if (capturedEpoch === epoch.current) setBusy(false); }
   }
   async function resume() {
     if (!recovery || !session || authBlocked || lane.current) return;
     lane.current = true; setBusy(true); setError(''); const capturedEpoch = epoch.current;
-    try { await acceptResult(await resumeCartTransactionAction(recovery), capturedEpoch); }
+    try { await acceptResult(await resumeCartTransactionAction(recovery), capturedEpoch, recovery.paymentMethod); }
     catch { if (capturedEpoch === epoch.current) setError('주문 결과를 확인하지 못했어요. 잠시 후 같은 주문을 다시 확인해주세요.'); }
     finally { lane.current = false; if (capturedEpoch === epoch.current) setBusy(false); }
   }
 
   if (authBlocked) return <main className="wc-root checkout-page"><div className="wrap card"><h1>로그인 상태를 다시 확인해주세요</h1><p>{cartTransactionErrorCopy.auth_changed}</p><button type="button" className="btn btn-holo" onClick={() => window.location.reload()}>새로고침</button></div></main>;
-  if (!session || !cart.ready) return <main className="wc-root checkout-page"><p className="wrap" role="status">계정과 장바구니를 확인하고 있어요.</p></main>;
+  if (!session || !cart.ready || !released) return <main className="wc-root checkout-page"><p className="wrap" role="status">계정과 장바구니를 확인하고 있어요.</p></main>;
   if (cart.mode !== 'server') return <main className="wc-root checkout-page"><div className="wrap card"><h1>장바구니를 계정에 연결해주세요</h1><p>{cart.error}</p><button type="button" onClick={() => void cart.refresh()}>다시 연결</button></div></main>;
-  if (!cart.items.length && !recovery) return <main className="wc-root checkout-page"><div className="wrap card"><h1>{resumeOrderId ? '진행 중인 주문이 있어요' : '주문할 굿즈가 없어요'}</h1>{resumeOrderId && <Link className="btn btn-holo" href={`/checkout/${resumeOrderId}`}>결제 이어가기</Link>}<Link href="/cart">장바구니로 돌아가기</Link></div></main>;
+  if (!cart.items.length && !recovery) return <main className="wc-root checkout-page"><div className="wrap card"><h1>{resumeOrderId ? '진행 중인 주문이 있어요' : '주문할 굿즈가 없어요'}</h1>{resumeOrderId && <><p>결제를 기다리거나 입금을 기다리는 주문이 있어요. 이어서 결제하거나 입금 안내를 확인할 수 있어요.</p><Link className="btn btn-holo" href={`/checkout/${resumeOrderId}`}>주문 이어가기</Link></>}<Link href="/cart">장바구니로 돌아가기</Link></div></main>;
 
   return <main className="wc-root wc-receipt checkout-page">
     <header className="wc-receipt__head"><div className="wrap"><h1 className="wc-receipt__title">받을 방식과 최종 결제금액을 확인해주세요</h1><p className="wc-receipt__subcopy">복수구매 할인, 쿠폰, 적립금과 배송비를 함께 확인합니다.</p>{paymentFailCode && <p role="alert">{paymentFailNoticeCopy(paymentFailCode)}</p>}</div></header>
@@ -202,9 +209,16 @@ export function GoodsTransactionCheckout({ accountId, catalog, latestAddress, pa
         {quotes.result && !quotes.result.ok && quotes.result.error === 'cart_changed' && !recovery && <button type="button" onClick={() => void cart.refresh()}>장바구니 새로 불러오기</button>}
         {quotes.result && !quotes.result.ok && quotes.result.error === 'coupon_changed' && !recovery && <button type="button" onClick={() => router.refresh()}>현재 쿠폰 다시 확인</button>}
         {!recovery && <>
-          <fieldset disabled={busy} className="checkout-payment-methods"><legend>결제수단</legend>{(['card', 'bank_transfer'] as const).map(value => <label key={value}><input type="radio" name="paymentMethod" value={value} checked={effectiveMethod === value} disabled={!selectable[value]} onChange={() => setMethod(value)} />{value === 'card' ? '카드' : '무통장 입금'}</label>)}</fieldset>
+          {/* legacy 주문서와 같은 결제수단 선택지 마크업·스타일을 쓴다 — 사유 문구가 선택지 이름과 붙지 않게(10/14 S26). */}
+          <fieldset disabled={busy} className="checkout-method"><legend>결제수단</legend>{(['card', 'bank_transfer'] as const).map(value => <label className="checkout-method-option" key={value}><input type="radio" name="paymentMethod" value={value} checked={effectiveMethod === value} disabled={!selectable[value]} onChange={() => setMethod(value)} />
+            <span>
+              <strong>{value === 'card' ? '신용·체크카드' : '무통장 입금'}</strong>
+              {/* 두 주문서가 같은 사유 문구를 쓴다(S26). */}
+              {value === 'bank_transfer' && <small>{bankTransferMethodNote({ accountConfigured: bankTransferAvailable, goodsAllow: currentDisplay ? currentDisplay.paymentMethods.bankTransfer : null })}</small>}
+            </span>
+          </label>)}</fieldset>
           <button type="button" className="btn btn-ghost" disabled={!input || busy || cart.pending} onClick={quotes.refresh}>금액 다시 확인</button>
-          <button className="btn btn-holo checkout-submit" disabled={!canSubmit}>{busy ? '주문 확인 중' : effectiveMethod === 'bank_transfer' ? '주문 만들고 입금 안내 받기' : '주문 만들고 결제하기'}</button>
+          <button className="btn btn-holo checkout-submit" disabled={!canSubmit}>{busy ? '주문 확인 중' : effectiveMethod === 'bank_transfer' ? '주문하고 입금 안내 받기' : '결제하기'}</button>
         </>}
         {recovery && <section aria-label="주문 요청 복구"><p>앞서 요청한 주문을 확인한 뒤 진행해주세요.</p><button type="button" className="btn btn-holo" disabled={busy} onClick={() => void resume()}>{busy ? '같은 주문 확인 중' : '같은 주문 다시 확인'}</button><Link href="/orders?pending=1">진행 중인 주문 보기</Link></section>}
         {error && <p className="checkout-error" role="alert">{error}</p>}<Link href="/cart">장바구니 확인</Link>

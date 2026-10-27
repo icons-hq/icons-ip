@@ -127,6 +127,20 @@ describe('Orders', () => {
       expect(html).toContain('role="alert"');
     });
 
+    it('장바구니가 남은 주문의 결제 실패는 다시 담지 않고 주문서에서 다시 결제하게 한다(ADR-0026)', () => {
+      const html = renderToStaticMarkup(
+        <Orders orders={[]} paymentResult="failed" paymentFocus={{ orderId, outcome: 'not_approved', cartRetained: true }} />,
+      );
+      expect(html).toContain('장바구니는 그대로 있으니');
+      expect(html).toContain('href="/checkout"');
+      expect(html).not.toContain('주문 정리하고 다시 주문하기');
+      const canceled = renderToStaticMarkup(
+        <Orders orders={[]} paymentResult="failed" paymentFocus={{ orderId, outcome: 'canceled', cartRetained: true }} />,
+      );
+      expect(canceled).toContain('href="/cart"');
+      expect(canceled).not.toContain('같은 굿즈 다시 담기');
+    });
+
     it('아직 유효한 시도만 같은 주문 재시도를 안내한다', () => {
       const retryable = renderToStaticMarkup(
         <Orders orders={[]} paymentResult="failed" paymentFocus={{ orderId, outcome: 'retryable' }} />,
@@ -252,3 +266,14 @@ describe('Orders', () => {
     expect(flow).toContain('단순 변심은 공급받은 날부터 7일, 하자·오배송은 공급받은 날부터 3개월 안에 신청해주세요.');
   });
 });
+
+/* 10/14 회의 S20 — 취소를 요청한 주문은 목록에서도 상세 헤더와 같은 배지로 보인다. */
+describe('Orders claim badge', () => {
+  it('shows the open claim stage next to the order status with the detail header rule', () => {
+    const html = renderToStaticMarkup(<Orders orders={[orderItem({ claim: { claimType: 'cancel', stage: 'processing' } })]} />);
+    expect(html).toContain('<span class="order-list-badge order-claim-badge">취소 처리 중</span>');
+    expect(html).toContain('결제완료');
+    expect(renderToStaticMarkup(<Orders orders={[orderItem({ claim: { claimType: 'cancel', stage: 'rejected' } })]} />)).not.toContain('order-claim-badge');
+  });
+});
+
