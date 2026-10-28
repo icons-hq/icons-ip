@@ -7,7 +7,8 @@ import { AdminSidebar } from './AdminSidebar';
 import { Header } from './Header';
 import { AdminPreferencesProvider } from './console/AdminPreferences';
 import { OperationsDock } from './OperationsDock';
-import { NO_OPERATOR_ACCESS, type OperatorAccess } from '@/lib/admin/access';
+import { AdminInquiryNotifier } from './AdminInquiryNotifier';
+import { hasAdminCapability, NO_OPERATOR_ACCESS, type OperatorAccess } from '@/lib/admin/access';
 
 export function AdminShell({
   admin,
@@ -28,6 +29,8 @@ export function AdminShell({
   const group = adminGroupForPath(currentPath);
   const isChat = screen?.id === 'inquiry-chat';
   const access = admin.operatorAccess ?? NO_OPERATOR_ACCESS;
+  /* R2(D2①): 새 1:1 문의 PC 알림은 커머스 콘솔의 문의 담당(cs.manage)에게만. 켜고 끄기는 업무 도구 '알림'에 둔다. */
+  const inquiryNotifications = consoleId === 'commerce' && Boolean(admin.id) && hasAdminCapability(access, 'cs.manage');
   /* 전환 링크는 그 콘솔에서 볼 수 있는 화면이 있을 때만 만든다. */
   const consoles = ADMIN_CONSOLES.map((item) => ({ ...item, href: adminConsoleHomeHref(item.id, admin.role, access) }))
     .filter((item): item is typeof item & { href: string } => Boolean(item.href));
@@ -60,7 +63,8 @@ export function AdminShell({
           </div>
         </main>
       </div>
-      <OperationsDock accountId={admin.id} access={admin.operatorAccess} />
+      <OperationsDock accountId={admin.id} access={admin.operatorAccess} inquiryNotifications={inquiryNotifications} />
+      {inquiryNotifications ? <AdminInquiryNotifier accountId={admin.id} /> : null}
     </div>
     </AdminPreferencesProvider>
   );

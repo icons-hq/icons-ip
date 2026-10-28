@@ -6,6 +6,7 @@ import { AdminShell } from './AdminShell';
 const mocks = vi.hoisted(() => ({ pathname: '/admin', search: '' }));
 
 vi.mock('next/navigation', () => ({ usePathname: () => mocks.pathname, useSearchParams: () => new URLSearchParams(mocks.search) }));
+vi.mock('./AdminInquiryNotifier', () => ({ AdminInquiryNotifier: ({ accountId }: { accountId: string }) => <i data-inquiry-notifier={accountId} /> }));
 
 const admin = { id: 'admin-1', email: 'ops@example.test', role: 'staff', operatorAccess: legacyOperatorAccessFixture('staff') };
 
@@ -96,6 +97,20 @@ describe('AdminShell', () => {
     mocks.pathname = '/admin/sales/orders';
     mocks.search = '';
     expect(render()).not.toContain('admin-shell-badge');
+  });
+
+  /* R2(D2①): 새 문의 PC 알림은 커머스 콘솔의 cs.manage 운영자에게만, 화면마다 다시 마운트되는 본문 밖에 상시 둔다. */
+  it('커머스 콘솔의 문의 담당 운영자에게만 문의 알림기를 본문 밖에 마운트한다', () => {
+    const commerce = render(<p>본문</p>);
+    expect(commerce).toContain('data-inquiry-notifier="admin-1"');
+    expect(commerce.indexOf('data-inquiry-notifier')).toBeGreaterThan(commerce.indexOf('</main>'));
+
+    mocks.pathname = '/admin/catalog/cards';
+    expect(renderToStaticMarkup(<AdminShell admin={admin} console="content"><p>카드</p></AdminShell>)).not.toContain('data-inquiry-notifier');
+
+    const logistics = { ...admin, operatorAccess: { mode: 'configured' as const, managerRole: 'logistics' as const, capabilities: ['home'] as ('home')[], revision: 1, setupRequired: false } };
+    mocks.pathname = '/admin';
+    expect(renderToStaticMarkup(<AdminShell admin={logistics}><p>본문</p></AdminShell>)).not.toContain('data-inquiry-notifier');
   });
 
   it('본문을 그대로 렌더한다', () => {
