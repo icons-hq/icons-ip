@@ -48,6 +48,7 @@ import { sendRestockAlertEmails } from '@/lib/email/transactional.server';
 import type { AdminCapability } from '@/lib/admin/access';
 import { loadGoodsIpOptions } from '@/lib/admin/goods-list.server';
 import { createClient } from '@/lib/supabase/server';
+import { RANDOM_OPTION_PROBLEMS, goodsOptionSaleModeErrorMessage } from '@/lib/goods-option-sale-mode';
 
 /*
  * `values`·`attempt` 는 실패한 제출을 폼이 되살리기 위한 값이다(lib/admin/form-state.ts).
@@ -165,6 +166,16 @@ function compareAtPriceFailure(message: string): AdminCatalogActionState | null 
   return message.includes('goods_compare_at_price_invalid')
     ? rpcFailure('할인은 0원보다 크고 판매가보다 작아야 해요. 판매가와 할인을 확인해주세요.')
     : null;
+}
+
+/*
+ * D5② 랜덤 판매 상품의 조건(옵션 2개 이상·같은 가격·옵션별 제한 없음·직접입력 없음 등)을 깨는 저장은 DB가 커밋에서
+ * random_option_*로 거절한다. 직접입력 조건은 직접입력 칸, 나머지는 옵션 칸에 이유를 붙인다.
+ */
+function randomOptionSaleModeFailure(message: string): AdminCatalogActionState | null {
+  const problem = RANDOM_OPTION_PROBLEMS.find((code) => message.includes(code));
+  if (!problem) return null;
+  return { errors: { [problem === 'random_option_custom_inputs' ? 'customInputs' : 'variants']: goodsOptionSaleModeErrorMessage(problem) } };
 }
 
 const ERP_IDENTITY_TAKEN = {
@@ -454,12 +465,14 @@ async function saveAdminGood(
     if (/invalid_goods_custom_input/.test(error.message)) return { errors:{customInputs:'직접입력형 옵션명과 사용여부를 확인해주세요.'} };
     if (/category_not_leaf|category_archived|category_not_found|invalid_good_category|invalid_additional_categories/.test(error.message)) return { errors: { form: '카테고리가 변경되었거나 연결할 수 없는 상태입니다. 대표·추가 분류의 활성 말단을 확인해주세요. 입력값은 유지됩니다.' } };
     if (/goods_description_/.test(error.message)) return { errors: { description: '상세페이지 형식과 정리 후 길이, 업로드한 HTML 이미지 20장 제한을 확인해주세요. 입력한 원문은 유지됩니다.' } };
+    const randomOptionFailure = randomOptionSaleModeFailure(error.message);
+    if (randomOptionFailure) return randomOptionFailure;
     if (/stock_changed|goods_options_changed|goods_variant_external_identity_changed/.test(error.message)) return { errors: { variants: '다른 작업에서 옵션이나 재고가 바뀌었습니다. 입력값은 유지됩니다. 최신 내용을 확인하고 다시 저장해주세요.' } };
     if (/goods_kc_reassessment_required|goods_kc_published_edit_requires_draft/.test(error.message)) return { errors: { form: '모델·옵션·고시정보 변경에는 KC 재검토가 필요합니다. 상품을 먼저 초안으로 전환한 뒤 수정해주세요.' } };
     if (error.message.includes('goods_kc_')) return { errors: { form: "KC 정보에서 검토를 완료한 뒤 공개해주세요. KC 대상이 아니면 '상품 전체 KC 해당 없음'으로 바로 끝낼 수 있습니다." } };
     if (error.message.includes('active_price_period_requires_reset')) return { errors: { price: '활성 기간 할인을 중지한 뒤 판매가·할인·옵션가를 변경해주세요.' } };
     if (/purchase_limit_not_configured|goods_order_quantity_activation|goods_member_quantity_activation/.test(error.message)) return { errors: { minOrderQty: '구매 제한을 설정하려면 최소·최대 구매수량 또는 1인 최대 구매수량을 모두 입력해주세요.' } };
-    if (/invalid_goods_options/.test(error.message)) return { errors: { variants: '옵션 이름·코드·금액·재고를 확인해주세요.' } };
+    if (/invalid_goods_options/.test(error.message)) return { errors: { variants: '옵션 이름·코드·금액·재고·옵션별 구매 제한(양의 정수)을 확인해주세요.' } };
     if (/invalid_good_origin|fulfillment_origin_required|fulfillment_origin_inactive/.test(error.message)) return { errors: { originId: '공개하려면 활성 출고지를 선택해주세요.' } };
     if (/invalid_good_shipping|invalid_individual_fee/.test(error.message)) return { errors: { shippingFeeType: '배송비 유형과 금액을 확인해주세요.' } };
     if (error.message.includes('goods_publish_incomplete')) return { errors: { form: '상품 유형·대표 이미지·상품정보제공고시와 옵션을 채운 뒤 공개해주세요.' } };

@@ -8,6 +8,7 @@ import { revalidateGoodsSurfaces } from '@/lib/admin/revalidate-goods.server';
 import { parseGoodsGroupIdentity, type GoodsGroupIdentity, type GoodsGroupResult } from '@/lib/admin/goods-groups';
 import { goodsBulkError, parseGoodsBulkPreview, parseGoodsBulkReceipt, parseGoodsBulkRequest, type GoodsBulkPreview, type GoodsBulkReceipt } from '@/lib/admin/goods-bulk';
 import { transactionExactKeys, transactionRecord } from '@/lib/goods-transaction-values';
+import { RANDOM_OPTION_PROBLEMS, goodsOptionSaleModeErrorMessage } from '@/lib/goods-option-sale-mode';
 
 async function access(value: unknown) {
   const identity = transactionRecord(value) && transactionExactKeys(value, ['actorId', 'sessionId']) ? parseGoodsGroupIdentity(value) : null;
@@ -17,7 +18,9 @@ async function access(value: unknown) {
 }
 const args = (id: string, identity: GoodsGroupIdentity) => ({ p_id: id, p_actor: identity.actorId, p_session: identity.sessionId });
 function failure(message: string, code?: string, uncertain = false) {
-  return { error: goodsBulkError(message), authChanged: code === '42501', uncertain };
+  /* D5② 랜덤 판매 상품의 조건을 깨는 변경은 커밋에서 random_option_*로 거절된다(일괄 변경·목록 바로 수정 공통). */
+  const error = RANDOM_OPTION_PROBLEMS.some((problem) => message.includes(problem)) ? goodsOptionSaleModeErrorMessage(message) : goodsBulkError(message);
+  return { error, authChanged: code === '42501', uncertain };
 }
 function refresh() {
   try { revalidateGoodsSurfaces(); revalidatePath('/admin/catalog/groups'); }
