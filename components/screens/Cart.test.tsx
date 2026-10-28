@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
   quote: null as AddressShippingQuote | null,
   quotePrices: new Map<string, number>(),
   quotePeriods: new Map<string, Pick<GoodsSalesQuoteLine, 'regularPrice' | 'pricePeriodId' | 'startsAt' | 'endsAt'>>(),
+  quoteLineExtras: new Map<string, Partial<GoodsSalesQuoteLine>>(),
   coupon: null as CouponQuote | null,
   precheckout: null as GoodsSalesPrecheckoutQuote | null,
   precheckoutError: null as string | null,
@@ -32,7 +33,7 @@ vi.mock('@/components/shop/useShippingQuote', () => ({
     return {quote:enabled ? mocks.quote : null,sales:enabled && mocks.quote ? {
     calculatedAt:'2026-09-10T00:00:00Z', shipping:mocks.quote,
     subtotal:mocks.items.reduce((sum,item)=>sum+(mocks.quotePrices.get(item.variantId) ?? goods.find(good=>good.id===item.goodId)?.price??0)*item.qty,0),
-    lines:mocks.items.map(item=>({...item,regularPrice:mocks.quotePrices.get(item.variantId) ?? goods.find(good=>good.id===item.goodId)?.price??0,effectivePrice:mocks.quotePrices.get(item.variantId) ?? goods.find(good=>good.id===item.goodId)?.price??0,pricePeriodId:null,startsAt:null,endsAt:null,...mocks.quotePeriods.get(item.variantId),available:true})),
+    lines:mocks.items.map(item=>({...item,regularPrice:mocks.quotePrices.get(item.variantId) ?? goods.find(good=>good.id===item.goodId)?.price??0,effectivePrice:mocks.quotePrices.get(item.variantId) ?? goods.find(good=>good.id===item.goodId)?.price??0,pricePeriodId:null,startsAt:null,endsAt:null,...mocks.quotePeriods.get(item.variantId),available:true,...mocks.quoteLineExtras.get(item.variantId)})),
     goods:[],paymentMethods:{card:true,bankTransfer:true},
     coupon:mocks.coupon,
     } : null,loading:enabled && !mocks.quote,error:null,refresh:vi.fn()};
@@ -50,7 +51,7 @@ const gimpoGroup: AddressShippingQuote['groups'][number] = {originId:'gimpo',ori
 const defaultQuote: AddressShippingQuote = {totalFee:3000,groups:[gimpoGroup],checkoutAllowed:true,finalTotalFee:3000,destination:null,nextChangeAt:null};
 mocks.quote = defaultQuote;
 beforeEach(() => {
-  mocks.quote = defaultQuote; mocks.legacyItems = []; mocks.ready = true; mocks.quotePrices.clear(); mocks.quotePeriods.clear(); mocks.coupon = null;
+  mocks.quote = defaultQuote; mocks.legacyItems = []; mocks.ready = true; mocks.quotePrices.clear(); mocks.quotePeriods.clear(); mocks.quoteLineExtras.clear(); mocks.coupon = null;
   mocks.precheckout = null; mocks.precheckoutError = null; mocks.legacyEnabled = false; mocks.precheckoutEnabled = false;
 });
 
@@ -85,6 +86,8 @@ vi.mock('next/navigation', () => ({ useRouter: () => ({ back: vi.fn(), push: vi.
 
 const DEFAULT_VARIANT = '00000000-0000-4000-8000-000000000013';
 const SOLD_VARIANT = '00000000-0000-4000-8000-000000000014';
+const RANDOM_VARIANT = '00000000-0000-4000-8000-000000000015';
+const BLUE_VARIANT = '00000000-0000-4000-8000-000000000016';
 const goods: Good[] = [
   {
     id: 'g13',
@@ -109,6 +112,19 @@ const goods: Good[] = [
     stock: 'soldout',
     stockQty: 0,
     options: [{id:SOLD_VARIANT,name:'기본 옵션',code:'G14',price:9000,stockQty:0,isDefault:true,attributes:{}}],
+    img: 'none',
+  },
+  /* D5② 랜덤 판매 — 카탈로그가 옵션을 기본 옵션 키 하나('랜덤')로 접은 모양. */
+  {
+    id: 'g15', originId: 'gimpo', name: '랜덤 포토카드', ip: 'hong-sil-quest', type: '포토카드', price: 5000, badge: null, stock: 'ok', stockQty: 6,
+    optionSaleMode: 'random', options: [{id:RANDOM_VARIANT,name:'랜덤',code:'',price:5000,stockQty:6,isDefault:true,attributes:{},orderMaxQty:null,memberMaxQty:null}],
+    img: 'none',
+  },
+  /* D7② 옵션별 구매 제한 — 주문당 최대 2개·1인 최대 3개. */
+  {
+    id: 'g16', originId: 'gimpo', name: '아크릴 키링', ip: 'hong-sil-quest', type: '키링', price: 7000, badge: null, stock: 'ok', stockQty: 9,
+    options: [{id:BLUE_VARIANT,name:'파랑',code:'BLUE',price:7000,stockQty:9,isDefault:true,attributes:{},orderMaxQty:2,memberMaxQty:3},
+      {id:'00000000-0000-4000-8000-000000000017',name:'빨강',code:'RED',price:7000,stockQty:0,isDefault:false,attributes:{}}],
     img: 'none',
   },
 ];
@@ -328,6 +344,29 @@ describe('Cart 라인 상태', () => {
     expect(html).toContain('wc-stepper');
     expect(html).toContain('홍실 아크릴 블록 수량');
     expect(html).toContain('href="/shop/g13"');
+  });
+});
+
+describe('Cart 랜덤 판매·옵션별 구매 제한 품목 줄', () => {
+  it('랜덤 판매 굿즈는 옵션명을 랜덤으로 보이고 수량 상한은 풀 합계다', () => {
+    const html = render([{ goodId: 'g15', variantId: RANDOM_VARIANT, qty: 6 }]);
+    expect(html).toContain('<p class="wc-cart__line-option">랜덤</p>');
+    expect(html).toMatch(/aria-disabled="true" aria-label="수량 늘리기"/);
+  });
+
+  it('옵션별 주문당 최대 수량이 스테퍼 상한이다', () => {
+    const html = render([{ goodId: 'g16', variantId: BLUE_VARIANT, qty: 2 }]);
+    expect(html).toMatch(/aria-disabled="true" aria-label="수량 늘리기"/);
+    expect(html).not.toContain('까지 주문할 수 있습니다');
+  });
+
+  it('견적이 옵션 한도 위반을 알리면 품목 줄에 확정 카피를 보이고 주문을 막는다', () => {
+    mocks.quoteLineExtras.set(BLUE_VARIANT, { optionLimit: { orderMaxQty: 2, memberMaxQty: 3, memberReservedQty: 2, memberRemainingQty: 1,
+      reason: 'option_member_limit_exceeded' } });
+    const html = render([{ goodId: 'g16', variantId: BLUE_VARIANT, qty: 2 }]);
+    expect(html).toContain('&#x27;파랑&#x27;은 1인당 3개까지 구매할 수 있습니다.');
+    expect(html).toContain('1인당 구매 수량이 정해진 옵션이 있어요.');
+    expect(html).not.toContain('href="/checkout"');
   });
 });
 

@@ -33,7 +33,7 @@ import { GoodsCustomInputsSummary } from '@/components/shop/GoodsCustomInputs';
 import { goodsCustomInputProblem, type GoodsCustomInputSelection } from '@/lib/goods-custom-inputs';
 import { cartItemKey } from '@/lib/cart';
 import { cartOptionGood, goodAtQuotedPrice, optionLabel } from '@/lib/goods-options';
-import { goodsSalesQuoteProblem } from '@/lib/goods-sales';
+import { goodsSalesQuoteProblem, quoteLineOptionLimitMessage } from '@/lib/goods-sales';
 import { shippingFeeLabel } from '@/lib/shipping';
 import { useGoodsSalesPrecheckoutQuote, useShippingQuote } from '@/components/shop/useShippingQuote';
 import { ShippingGroupSummary } from '@/components/shop/ShippingGroupSummary';
@@ -51,6 +51,10 @@ interface CartLine {
   good?: Good;
   ip?: Ip;
   supply?: GoodsVariantSupply;
+  /** 옵션별 주문당 최대 수량(D7②) — 수량 스테퍼 상한. */
+  orderMaxQty?: number | null;
+  /** 견적이 알린 옵션별 구매 제한 위반 안내(확정 카피). */
+  optionLimitMessage?: string | null;
 }
 
 function isSoldOut(good: Good) {
@@ -75,7 +79,7 @@ function lineStateLabel(good: Good, qty: number) {
    그 아래 오른쪽에 줄 금액(CT-04 · 레퍼런스 실측). 표시 배치만 바꾼다 — 수량·삭제 호출과 금액 계산은 그대로다. */
 function CartLineRow({ line }: { line: CartLine }) {
   const { pending, remove, setQuantity } = useCart();
-  const { good, goodId, variantId, ip, qty, optionName, supply,customInputs } = line;
+  const { good, goodId, variantId, ip, qty, optionName, supply,customInputs, orderMaxQty, optionLimitMessage } = line;
 
   if (!good) {
     return (
@@ -121,6 +125,7 @@ function CartLineRow({ line }: { line: CartLine }) {
         <PriceBlock showDiscountRate={good.showDiscountRate} compareAtPrice={good.compareAtPrice} price={good.price} />
         {goodsCustomInputProblem(good.customInputs,customInputs) && <p className="wc-cart__line-state">{goodsCustomInputProblem(good.customInputs,customInputs)} <Link href={href}>내용 다시 확인</Link></p>}
         {stateLabel ? <p className="wc-cart__line-state">{stateLabel}</p> : null}
+        {optionLimitMessage ? <p className="wc-cart__line-state">{optionLimitMessage}</p> : null}
         {supply?.mode === 'preorder' ? <p className="wc-cart__line-state">{goodsShipDateLabel(supply.expectedShipDate)}</p> : null}
       </div>
       <div className="wc-cart__line-band">
@@ -132,7 +137,7 @@ function CartLineRow({ line }: { line: CartLine }) {
         {soldOut ? null : (
           <QuantityStepper
             label={`${good.name} 수량`}
-            max={good.stockQty}
+            max={orderMaxQty ? Math.min(good.stockQty, orderMaxQty) : good.stockQty}
             onChange={(next) => void setQuantity(goodId, next, good.stockQty, variantId,customInputs)}
             value={qty}
           />
@@ -301,14 +306,19 @@ export function Cart({
     const prices = new Map(sales?.lines.map(line => [cartItemKey(line.goodId, line.variantId), line]));
 
     return items.map((item) => {
-      const good = goodAtQuotedPrice(cartOptionGood(goodsById.get(item.goodId), item.variantId), prices.get(cartItemKey(item.goodId, item.variantId)));
+      const quoteLine = prices.get(cartItemKey(item.goodId, item.variantId));
+      const good = goodAtQuotedPrice(cartOptionGood(goodsById.get(item.goodId), item.variantId), quoteLine);
       const option = good?.options?.find(option => option.id === item.variantId);
+      /* 랜덤 판매 굿즈(D5②)는 카탈로그가 옵션을 '랜덤' 하나로 접어 두었다 — 옵션명이 그대로 '랜덤'이다. */
+      const optionName = optionLabel(option, good?.options?.length ?? 0);
       return {
         ...item,
-        optionName: optionLabel(option, good?.options?.length ?? 0),
+        optionName,
         good,
-        supply: prices.get(cartItemKey(item.goodId, item.variantId))?.supply ?? option?.supply,
+        supply: quoteLine?.supply ?? option?.supply,
         ip: good ? ipsById.get(good.ip) : undefined,
+        orderMaxQty: quoteLine?.optionLimit?.orderMaxQty ?? option?.orderMaxQty ?? null,
+        optionLimitMessage: good ? quoteLineOptionLimitMessage(quoteLine, optionName ?? good.name) : null,
       };
     });
   }, [catalog.goods, catalog.ips, items, sales]);

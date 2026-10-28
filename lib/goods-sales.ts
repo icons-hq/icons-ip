@@ -3,6 +3,10 @@ import { parseShippingQuote, type ShippingQuote } from './fulfillment';
 import { parseCouponQuote, type CouponQuote } from './coupon-targeting';
 import { MIN_PAYABLE_TOTAL } from './coupons';
 import { parseGoodsVariantSupply, type GoodsVariantSupply } from './goods-preorders';
+import {
+  goodsOptionLimitMessage, isGoodsOptionSaleMode, parseGoodsOptionLimit, PLACE_ORDER_OPTION_LIMIT_MESSAGES,
+  type GoodsOptionLimit, type GoodsOptionSaleMode,
+} from './goods-option-sale-mode';
 
 /** Server-derived catalog/cart prices. The client displays this quote; place_order
  * still evaluates the same SQL rule under its quantity and catalog locks. */
@@ -28,6 +32,10 @@ export interface GoodsSalesQuoteLine extends Omit<GoodsVariantPricing, 'calculat
   qty: number;
   available: boolean;
   supply?: GoodsVariantSupply;
+  /** legacy 견적의 옵션 판매 방식(D5②). 랜덤 줄의 supply.availableQty는 판매 중 옵션 가용 수량의 합(풀)이다. */
+  optionSaleMode?: GoodsOptionSaleMode;
+  /** legacy 견적의 옵션별 구매 제한(D7②). 진실원은 주문 생성 트리거고 이 값은 안내다. */
+  optionLimit?: GoodsOptionLimit;
 }
 
 export interface GoodsSalesQuoteGood {
@@ -115,6 +123,13 @@ function parseGoodsSalesConditions(value: unknown): GoodsSalesConditions | null 
       const supply = parseGoodsVariantSupply(line.supply);
       if (!supply || (line.available && line.qty > supply.availableQty)) return null;
     }
+    if (line.optionSaleMode !== undefined && !isGoodsOptionSaleMode(line.optionSaleMode)) return null;
+    if (line.optionLimit !== undefined) {
+      const limit = parseGoodsOptionLimit(line.optionLimit);
+      /* 사유는 같은 줄의 한도에서 나온다 — 한도 없이 사유만 오면 견적을 믿지 않는다. */
+      if (!limit || (limit.reason === 'option_order_limit_exceeded' && limit.orderMaxQty === null)
+        || (limit.reason === 'option_member_limit_exceeded' && (limit.memberMaxQty === null || limit.memberReservedQty === null))) return null;
+    }
     const key = `${line.goodId}:${line.variantId}`;
     if (identities.has(key)) return null;
     identities.add(key);
@@ -182,9 +197,18 @@ export function goodsSalesQuoteProblem(quote: GoodsSalesConditions & { coupon?: 
   if (quote.lines.some((line) => !line.available)) return '현재 판매 상태나 재고가 변경된 굿즈가 있어요. 수량을 다시 확인해주세요.';
   const reason = quote.goods.find((good) => good.reason)?.reason;
   if (reason) return goodsPurchaseReasonMessage(reason);
+  /* 옵션별 구매 제한(D7②) — 어느 옵션인지는 품목 줄(quoteLineOptionLimitMessage)이 말한다. */
+  const optionReason = quote.lines.find((line) => line.optionLimit?.reason)?.optionLimit?.reason;
+  if (optionReason) return PLACE_ORDER_OPTION_LIMIT_MESSAGES[optionReason];
   if (quote.coupon?.reason) return '선택한 쿠폰의 적용 조건이 바뀌었어요. 장바구니에서 쿠폰을 다시 확인해주세요.';
   if (quote.lines.length && !quote.paymentMethods.card && !quote.paymentMethods.bankTransfer) {
     return '함께 결제할 수 있는 공통 결제수단이 없어요. 굿즈를 나누어 주문해주세요.';
   }
   return null;
+}
+
+/** 장바구니·주문서 품목 줄의 옵션별 구매 제한 위반 안내(확정 카피). 위반이 없으면 null. */
+export function quoteLineOptionLimitMessage(line: Pick<GoodsSalesQuoteLine, 'optionLimit'> | undefined, optionName: string): string | null {
+  const limit = line?.optionLimit;
+  return limit?.reason ? goodsOptionLimitMessage(limit.reason, optionName, limit) : null;
 }
