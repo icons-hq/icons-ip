@@ -49,7 +49,7 @@ describe('김포 원본 운송장 회신',()=>{
 });
 
 describe('남양주(서원) 송장양식 회신',()=>{
- const seowon=(phone:unknown,quantity:unknown,tracking:unknown,items='합성 키링_빨강',shipmentNumber:unknown='')=>[phone,'','04524','서울 중구 세종대로 110','',quantity,items,'합성 받는분','',shipmentNumber,tracking];
+ const seowon=(phone:unknown,quantity:unknown,tracking:unknown,items='합성 키링_빨강',shipmentNumber:unknown='')=>[phone,'','04524','서울 중구 세종대로 110','',quantity,items,'합성 받는분','',shipmentNumber,'빨강','0880123456789','합성 키링 빨강',tracking];
  async function workbook(rows:unknown[][],extraSheets:unknown[][][]=[]){
   const w=new ExcelJS.Workbook();w.addWorksheet('송장양식').addRows(rows);
   extraSheets.forEach((sheet,i)=>w.addWorksheet(`Sheet${i+1}`).addRows(sheet));return Buffer.from(await w.xlsx.writeBuffer());
@@ -77,7 +77,7 @@ describe('남양주(서원) 송장양식 회신',()=>{
   ]);
  });
  it('송장번호 열이 없거나 내용이 있는 시트가 둘이면 파일 단계에서 거절한다',async()=>{
-  await expect(parseTrackingWorkbook(await workbook([[...SEOWON_EXPORT_HEADERS],seowon('010','1','6012345678901').slice(0,10)]),carriers)).rejects.toThrow('송장번호 열');
+  await expect(parseTrackingWorkbook(await workbook([[...SEOWON_EXPORT_HEADERS],seowon('010','1','6012345678901').slice(0,13)]),carriers)).rejects.toThrow('송장번호 열');
   await expect(parseTrackingWorkbook(await workbook([[...SEOWON_EXPORT_HEADERS,'송장번호']],[[['다른 내용']]]),carriers)).rejects.toThrow('시트 하나');
  });
 });

@@ -6,7 +6,7 @@ import { DEFAULT_SHIPMENT_EXPORT_COLUMNS } from './shipment-workbook';
 import type { ShipmentExportData } from './shipment-dispatch';
 import { parseTrackingWorkbook, type TrackingWorkbookParseResult } from './tracking-workbook.server';
 import { trackingImportCommand, type SeowonTrackingParseResult, type WarehouseTrackingParseResult } from './warehouse-templates.server';
-import { SEOWON_EXPORT_HEADERS } from './warehouse-templates';
+import { GIMPO_EXPORT_HEADERS, SEOWON_EXPORT_HEADERS } from './warehouse-templates';
 import { matchSeowonReply, seowonExportLabels } from './seowon-exchange';
 
 function native<T extends WarehouseTrackingParseResult | SeowonTrackingParseResult>(parsed: TrackingWorkbookParseResult, kind: T['kind']): T {
@@ -62,19 +62,23 @@ describe('shipment workbook exchange', () => {
   });
   it('exports the Seowon 송장양식 exactly: sheet, 7 original headers, widths, colours and one row per item', async () => {
     const file = await buildShipmentExport({ shipments: [{ ...shipment, shipmentNumber: '2026102730000001', originName: '남양주', template: 'seowon_xlsx', lines: [
-      { ...line, recipient: '합성 수취인', goodName: '합성 키링', optionName: '빨강' },
+      { ...line, recipient: '합성 수취인', goodName: '합성 키링', optionName: '빨강', barcode: '0880123456789', erpName: '합성 키링 빨강(ERP)' },
       { ...line, recipient: '합성 수취인', goodName: '합성 엽서', optionName: '', qty: 1 },
     ] }] }, 'xlsx', 'warehouse', '2026-10-12');
     expect(file.name).toBe('ICONS-출고지시-2026-10-12-남양주.xlsx');
     const workbook = await loadXlsx(file.bytes);
     expect(workbook.worksheets.map(sheet => sheet.name)).toEqual(['송장양식']);
     const sheet = workbook.worksheets[0];
-    expect(sheet.getRow(1).values).toEqual([undefined, '받는분전화번호', '받는분기타연락처', '받는분우편번호', '받는분주소(전체,분할)', '운임Type', '수량', '품목명', '받는분성명', '배송메시지', '배송건번호']);
+    expect(sheet.getRow(1).values).toEqual([undefined, '받는분전화번호', '받는분기타연락처', '받는분우편번호', '받는분주소(전체,분할)', '운임Type', '수량', '품목명', '받는분성명', '배송메시지', '배송건번호', '옵션명', '바코드', 'ERP 품명']);
     expect(sheet.rowCount).toBe(3);
-    expect(sheet.getRow(2).values).toEqual([undefined, '010-0123-4567', '', '00123', '서울시, 상세주소', '', 2, '합성 키링_빨강', '합성 수취인', '문 앞 부탁합니다', '2026102730000001']);
-    expect(sheet.getRow(3).values).toEqual([undefined, '010-0123-4567', '', '00123', '서울시, 상세주소', '', 1, '합성 엽서_', '합성 수취인', '문 앞 부탁합니다', '2026102730000001']);
+    expect(sheet.getRow(2).values).toEqual([undefined, '010-0123-4567', '', '00123', '서울시, 상세주소', '', 2, '합성 키링_빨강', '합성 수취인', '문 앞 부탁합니다', '2026102730000001', '빨강', '0880123456789', '합성 키링 빨강(ERP)']);
+    expect(sheet.getRow(3).values).toEqual([undefined, '010-0123-4567', '', '00123', '서울시, 상세주소', '', 1, '합성 엽서_', '합성 수취인', '문 앞 부탁합니다', '2026102730000001', '', '', '']);
     expect(sheet.getCell('J2').numFmt).toBe('@');
     expect(sheet.getCell('J2').type).toBe(ExcelJS.ValueType.String);
+    // 바코드는 앞자리 0이 있어도 숫자로 바뀌지 않도록 텍스트 서식이다.
+    expect(sheet.getCell('L1').numFmt).toBe('@');
+    expect(sheet.getCell('L2').numFmt).toBe('@');
+    expect(sheet.getCell('L2').type).toBe(ExcelJS.ValueType.String);
     expect([1, 2, 3, 4, 5, 6, 7].map(column => sheet.getColumn(column).width)).toEqual([18.3984375, 21, 18.3984375, 83.3984375, 11.69921875, 6.59765625, 62.5]);
     const fill = (address: string) => (sheet.getCell(address).fill as ExcelJS.FillPattern).fgColor;
     expect(['A1', 'D1'].map(fill)).toEqual([{ argb: 'FFFFFF00' }, { argb: 'FFFFFF00' }]);
@@ -90,15 +94,17 @@ describe('shipment workbook exchange', () => {
     expect(sheet.getCell('F2').type).toBe(ExcelJS.ValueType.Number);
   });
   it('round-trips a Seowon export with a 송장번호 column back to the exported shipments without order numbers', async () => {
-    const lines = [{ ...line, goodName: '합성 키링', optionName: '빨강' }, { ...line, goodName: '합성 엽서', optionName: '', qty: 1 }];
+    const lines = [{ ...line, goodName: '합성 키링', optionName: '빨강', barcode: '0880123456789', erpName: '합성 키링 빨강' }, { ...line, goodName: '합성 엽서', optionName: '', qty: 1 }];
     const second = { ...line, shipmentId: '00000000-0000-4000-8000-000000000003', orderId: '00000000-0000-4000-8000-000000000004', phone: '0212345678', goodName: '합성 키링', optionName: '빨강', qty: 1 };
     const seowon = { ...shipment, template: 'seowon_xlsx', lines };
     const file = await buildShipmentExport({ shipments: [seowon, { ...seowon, id: second.shipmentId, lines: [second] }] }, 'xlsx');
     const workbook = await loadXlsx(file.bytes);
     const sheet = workbook.worksheets[0];
     expect(sheet.getCell('A4').value).toBe('02-1234-5678');
-    sheet.getCell('K1').value = '송장번호';
-    sheet.getCell('K2').value = '6012345678901'; sheet.getCell('K3').value = 6012345678901; sheet.getCell('K4').value = '6012-3456-7890-2';
+    // 송장번호 열은 덧붙인 6열(받는분성명~ERP 품명) 오른쪽에 둔다. 옵션명·바코드·ERP 품명 헤더는 송장번호로 읽지 않는다.
+    expect(sheet.columnCount).toBe(13);
+    sheet.getCell('N1').value = '송장번호';
+    sheet.getCell('N2').value = '6012345678901'; sheet.getCell('N3').value = 6012345678901; sheet.getCell('N4').value = '6012-3456-7890-2';
     const parsed = native<SeowonTrackingParseResult>(await parseTrackingWorkbook(Buffer.from(await workbook.xlsx.writeBuffer()), []), 'seowon');
     expect(parsed.rows.map(row => [row.line, row.trackingNumber, row.error])).toEqual([[2, '6012345678901', undefined], [3, '6012345678901', undefined], [4, '6012345678902', undefined]]);
     const match = matchSeowonReply(parsed.rows, [
@@ -168,6 +174,19 @@ describe('shipment workbook exchange', () => {
       expect(sheet.getCell(address).numFmt).not.toBe('@');
     }
   });
+  it('김포 21열은 ERP 품명이 있으면 상품명(확정)에만 쓰고 옵션(확정)·열 수·헤더는 그대로 둔다', async () => {
+    const gimpo = { ...shipment, template: 'wms_csv', lines: [
+      { ...line, goodName: '합성 키링', optionName: '빨강', erpName: '키링-빨강(ERP)', barcode: '0880123456789', erpCode: 'ERP-1' },
+      { ...line, goodName: '합성 키링', optionName: '파랑', erpName: '' },
+    ] };
+    const sheet = (await loadXlsx((await buildShipmentExport({ shipments: [gimpo] }, 'xlsx')).bytes)).worksheets[0];
+    expect(sheet.columnCount).toBe(21);
+    expect(sheet.getRow(1).values).toEqual([undefined, ...GIMPO_EXPORT_HEADERS]);
+    expect([sheet.getCell('K2').value, sheet.getCell('L2').value, sheet.getCell('M2').value]).toEqual(['키링-빨강(ERP)', '빨강', '빨강']);
+    expect([sheet.getCell('K3').value, sheet.getCell('L3').value, sheet.getCell('M3').value]).toEqual(['합성 키링', '파랑', '파랑']);
+    // 조합 열과 회신 대조 열(주문번호(쇼핑몰))은 바꾸지 않는다.
+    expect([sheet.getCell('A2').value, sheet.getCell('B2').value, sheet.getCell('I2').value]).toEqual(['합성 키링/빨강(2)', ' 합성 키링/빨강(2)', line.orderId]);
+  });
   it('uses the same native profiles in CSV, retaining blanks and escaping formula-looking item names', async () => {
     const nativeShipment = { ...shipment, lines: [{ ...line, recipient: '합성 수취인', goodName: '=합성,상품', optionName: '파랑', deliveryNote: '문 앞' }] };
     // 서원 송장양식은 XLSX 양식이고 회신도 XLSX로만 받으므로 CSV를 골라도 XLSX로 만든다.
@@ -201,6 +220,16 @@ describe('shipment workbook exchange', () => {
     expect(sheet.getCell('A2').numFmt).toBe('@');
     expect(sheet.getCell('H2').value).toBe('000123');
     expect(sheet.getCell('H3').value).toBe('000123');
+  });
+  it('표준 양식의 바코드·ERP 코드·ERP 품명 선택 열은 텍스트로 앞자리 0을 보존한다', async () => {
+    const columns=[...DEFAULT_SHIPMENT_EXPORT_COLUMNS,{key:'barcode' as const,header:'바코드'},{key:'erpCode' as const,header:'ERP 코드'},{key:'erpName' as const,header:'ERP 품명'}];
+    const file=await buildShipmentExport({shipments:[{...shipment,columns,lines:[{...line,barcode:'0880123456789',erpCode:'00ERP',erpName:'키링'},line]}]},'xlsx');
+    const sheet=(await loadXlsx(file.bytes)).worksheets[0];
+    expect([sheet.getCell('M1').value,sheet.getCell('N1').value,sheet.getCell('O1').value]).toEqual(['바코드','ERP 코드','ERP 품명']);
+    expect([sheet.getCell('M2').value,sheet.getCell('N2').value,sheet.getCell('O2').value]).toEqual(['0880123456789','00ERP','키링']);
+    expect(sheet.getCell('M2').type).toBe(ExcelJS.ValueType.String);
+    expect(sheet.getCell('M2').numFmt).toBe('@');
+    expect([sheet.getCell('M3').value,sheet.getCell('N3').value,sheet.getCell('O3').value]).toEqual(['','','']);
   });
   it('exports valid warehouse names that end in a quotation mark', async () => {
     const file = await buildShipmentExport({ shipments: [{ ...shipment, originName: "작가 '창고'" }] }, 'xlsx');
@@ -285,8 +314,8 @@ it('keeps a Seowon gift reply readable with its validated operational supplement
  const gift={...shipment,template:'seowon_xlsx',originName:'남양주',isGift:true,lines:[{...line,recipient:'합성 선물 수령인'}]};
  const file=await buildShipmentExport({shipments:[gift]},'xlsx');const book=await loadXlsx(file.bytes);
  expect(book.worksheets.map(sheet=>sheet.name)).toEqual(['송장양식','배송 운영 안내']);
- expect(book.worksheets[0].columnCount).toBe(10);expect(book.worksheets[0].getCell('F2').value).toBe(2);
- book.worksheets[0].getCell('K1').value='송장번호';book.worksheets[0].getCell('K2').value='001234567890';
+ expect(book.worksheets[0].columnCount).toBe(13);expect(book.worksheets[0].getCell('F2').value).toBe(2);
+ book.worksheets[0].getCell('N1').value='송장번호';book.worksheets[0].getCell('N2').value='001234567890';
  book.addWorksheet('Sheet1');
  const reply=native<SeowonTrackingParseResult>(await parseTrackingWorkbook(Buffer.from(await book.xlsx.writeBuffer()),[]),'seowon');
  expect(reply.rows).toHaveLength(1);expect(reply.rows[0]).toMatchObject({trackingNumber:'001234567890',quantity:2});

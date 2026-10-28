@@ -1,11 +1,11 @@
 'use client';
-import {useState,useTransition} from 'react';
+import {useEffect,useState,useTransition} from 'react';
 import {useRouter} from 'next/navigation';
 import {bulkConfirmAdminOrdersAction} from '@/app/admin/order-actions';
-import {completeShipmentsAction,exportPendingOriginShipmentsAction,exportShipmentsAction} from '@/app/admin/shipment-actions';
+import {completeShipmentsAction,exportPendingOriginShipmentsAction,exportShipmentsAction,originBarcodeGapsAction,shipmentBarcodeGapsAction} from '@/app/admin/shipment-actions';
 import {ConsoleGrid,type ConsoleGridColumn,type ConsoleGridRow} from '@/components/admin/console';
 import {isParcelShipment,shipmentConsoleSelectable,type ShipmentConsoleOrigin,type ShipmentConsoleRow,type ShipmentConsoleTab} from '@/lib/admin/shipment-dispatch';
-import type {ShipmentExportLayout} from '@/lib/admin/shipment-workbook';
+import {SHIPMENT_BARCODE_TEMPLATES,shipmentBarcodeGapWarning,type ShipmentExportLayout} from '@/lib/admin/shipment-workbook';
 import {EXPORT_PASSWORD_HINT,EXPORT_PASSWORD_MAX_LENGTH,EXPORT_PASSWORD_MIN_LENGTH,exportPasswordError} from '@/lib/admin/export-password';
 import {ShipmentPackPanel} from './ShipmentPackPanel';
 import {OrderDelayNoticePanel} from './OrderDelayNoticePanel';
@@ -35,6 +35,9 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
  const [completion,setCompletion]=useState<{ids:string[];total:number;acknowledged:boolean}|null>(null);
  const [exportRequest,setExportRequest]=useState<ExportRequest|null>(null);
  const [downloadedIds,setDownloadedIds]=useState<Set<string>>(()=>new Set());
+ const [exportRound,setExportRound]=useState(0);
+ const [barcodeGaps,setBarcodeGaps]=useState<{key:string;missing:number}|null>(null);
+ const [originBarcodeGaps,setOriginBarcodeGaps]=useState<{key:string;counts:Record<string,number>}|null>(null);
  // Revalidation can move just-confirmed shipments behind an existing ready backlog.
  // Keep that successful batch for the immediate export without putting UUIDs in the URL.
  const retainedIds=confirmedSelection?.href===currentHref?confirmedSelection.ids:null;
@@ -51,6 +54,27 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
  const seowonCsvNote=format==='csv'&&layoutChoice!=='smartstore'&&origins.some(origin=>origin.active!==false&&origin.template==='seowon_xlsx')?<span>CSV를 골라도 남양주(서원) 송장양식은 XLSX로 받습니다.</span>:null;
  const hasBatchActions=tab==='new'||tab==='delayed'||rows.some(isParcelShipment)||Boolean(retainedIds?.length);
  const exportEligible=ids.length>0&&ids.every(id=>{const row=rows.find(item=>item.id===id);return row?shipmentConsoleSelectable(row,tab):Boolean(retainedIds?.includes(id));});
+ // 10/27 회의 D10: 바코드 칸이 있는 기존 창고 양식(서원·표준)으로 받을 때만, 바코드가 없는 옵션 수를 내보내기 전에 알린다.
+ // 경고일 뿐 내보내기를 막지 않는다. 조회는 선택·출고지 구성이 바뀔 때와 내보낸 뒤에만 다시 한다.
+ const barcodeTemplate=(originId:string)=>SHIPMENT_BARCODE_TEMPLATES.includes(originTemplate(originId)??'');
+ const exportTab=tab==='ready'||tab==='delayed';
+ const barcodeKey=exportTab&&layout==='warehouse'&&exportEligible
+  ?ids.filter(id=>{const row=rows.find(item=>item.id===id);return Boolean(row&&barcodeTemplate(row.originId));}).sort().join(','):'';
+ const barcodeOrigins=exportOrigins.filter(origin=>barcodeTemplate(origin.id)&&(layoutChoice??defaultExportLayout(origins,[origin.id]))==='warehouse');
+ const originBarcodeKey=barcodeOrigins.map(origin=>origin.id).join(',');
+ useEffect(()=>{
+  if(!barcodeKey)return;let live=true;
+  shipmentBarcodeGapsAction(barcodeKey.split(',')).then(missing=>{if(live&&missing!==null)setBarcodeGaps({key:`${barcodeKey}#${exportRound}`,missing});},()=>{});
+  return()=>{live=false;};
+ },[barcodeKey,exportRound]);
+ useEffect(()=>{
+  if(!originBarcodeKey)return;let live=true;
+  Promise.all(originBarcodeKey.split(',').map(id=>originBarcodeGapsAction(id).then(missing=>[id,missing] as const)))
+   .then(entries=>{if(live)setOriginBarcodeGaps({key:`${originBarcodeKey}#${exportRound}`,counts:Object.fromEntries(entries.filter(([,missing])=>missing!==null))});},()=>{});
+  return()=>{live=false;};
+ },[originBarcodeKey,exportRound]);
+ const selectionBarcodeGap=barcodeKey&&barcodeGaps?.key===`${barcodeKey}#${exportRound}`?barcodeGaps.missing:0;
+ const originBarcodeGap=(id:string)=>originBarcodeKey&&originBarcodeGaps?.key===`${originBarcodeKey}#${exportRound}`?originBarcodeGaps.counts[id]??0:0;
  function select(next:string[]){setConfirmedSelection(null);setSelected(next.filter(id=>selectableIds.has(id)));}
  function reviewCompletion(){
   if(!ids.length||pending)return;
@@ -102,7 +126,7 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
      if(result.error)setError(result.error);
      else if(result.file){
       if(request.layout==='smartstore'&&request.format==='xlsx'&&result.file.encryption!=='ECMA-376-Agile'){setError('파일 암호화를 확인하지 못했습니다. 다시 내려받아 주세요.');return;}
-      download(result.file);setExportRequest(null);setMessage(result.message??(request.kind==='selection'?`${request.ids.length}건의 출고지시를 내려받았습니다.`:'출고지시를 내려받았습니다.'));
+      download(result.file);setExportRequest(null);setExportRound(round=>round+1);setMessage(result.message??(request.kind==='selection'?`${request.ids.length}건의 출고지시를 내려받았습니다.`:'출고지시를 내려받았습니다.'));
       if(request.kind==='selection')setDownloadedIds(current=>new Set([...current,...request.ids]));
      }
     }
@@ -122,6 +146,7 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
      <label>파일 형식 <select value={format} disabled={pending} onChange={event=>setFormat(event.target.value as 'xlsx'|'csv')}><option value="xlsx">Excel (.xlsx)</option><option value="csv">CSV</option></select></label>
      {seowonCsvNote}
      {ids.length?<span>선택한 배송 건 내려받기 양식: {layoutLabel(layout,selectedOrigins.length>0&&selectedOrigins.every(id=>originTemplate(id)==='seowon_xlsx'))}</span>:null}
+     {selectionBarcodeGap>0?<span role="status">{shipmentBarcodeGapWarning(selectionBarcodeGap)}</span>:null}
      <button className="wc-admin-kit__button" disabled={pending||!exportEligible} onClick={requestExport}>출고지시 내보내기</button></>}
     {actorId&&(tab==='ready'||tab==='delayed')?<button type="button" className="wc-admin-kit__button" disabled={pending||ids.length<1||ids.length>100} onClick={()=>setPackSelection([...ids])}>합포장 관리</button>:null}
     {tab==='delayed'?<button className="wc-admin-kit__button" disabled={pending||!ids.length} onClick={()=>setNoticeSelection([...ids])}>선택 주문 {orderIds.length}건 고객 지연 안내</button>:null}
@@ -132,6 +157,7 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
      <label>파일 형식 <select value={format} disabled={pending} onChange={event=>setFormat(event.target.value as 'xlsx'|'csv')}><option value="xlsx">Excel (.xlsx)</option><option value="csv">CSV</option></select></label>{seowonCsvNote}</>:null}
     <span>선택 없이 출고지별 미전달 발송 대기 건을 버튼에 적힌 양식으로 받습니다(품목 1,000줄까지, 남으면 다시 눌러 이어 받기).</span>
     {exportOrigins.map(origin=><button key={origin.id} type="button" className="wc-admin-kit__button" disabled={pending} onClick={()=>exportOrigin(origin)}>{origin.name} 새 출고지시 전체 내려받기 ({layoutLabel(layoutChoice??defaultExportLayout(origins,[origin.id]),origin.template==='seowon_xlsx')})</button>)}
+    {barcodeOrigins.map(origin=>originBarcodeGap(origin.id)>0?<span key={`barcode-${origin.id}`} role="status">{`${origin.name} 새 출고지시: ${shipmentBarcodeGapWarning(originBarcodeGap(origin.id))}`}</span>:null)}
    </div>:null}
   </ConsoleGrid>
   {tab==='delayed'?<button className="wc-admin-kit__button" type="button" onClick={()=>setNoticeSelection([])}>고객 지연 안내 이력·결과</button>:null}

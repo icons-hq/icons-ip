@@ -1,6 +1,6 @@
 import { legacyOperatorAccessFixture } from '@/lib/admin/access.test-fixtures';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { completeShipmentsAction, exportPendingOriginShipmentsAction, exportShipmentsAction, saveShipmentExportColumnsAction } from './shipment-actions';
+import { completeShipmentsAction, exportPendingOriginShipmentsAction, exportShipmentsAction, originBarcodeGapsAction, saveShipmentExportColumnsAction, shipmentBarcodeGapsAction } from './shipment-actions';
 import { DEFAULT_SHIPMENT_EXPORT_COLUMNS } from '@/lib/admin/shipment-workbook';
 
 const ID = '00000000-0000-4000-8000-000000000001';
@@ -142,5 +142,36 @@ describe('shipment action boundaries', () => {
   it('limits warehouse template changes to admins', async () => {
     expect(await saveShipmentExportColumnsAction(ID, DEFAULT_SHIPMENT_EXPORT_COLUMNS, STAMP)).toEqual({ error: '관리자 권한이 필요합니다.' });
     expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+});
+
+describe('내보내기 전 바코드 경고 조회', () => {
+  it('선택한 배송 건의 바코드가 비는 옵션 수를 읽는다', async () => {
+    mocks.rpc.mockResolvedValue({ error: null, data: 3 });
+    expect(await shipmentBarcodeGapsAction([ID, ID.toUpperCase(), SECOND])).toBe(3);
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_shipment_barcode_gaps', { p_ids: [ID, SECOND] });
+  });
+  it('경고는 출고를 막지 않으므로 권한·입력·조회 실패는 숫자 대신 null이다', async () => {
+    expect(await shipmentBarcodeGapsAction([])).toBeNull();
+    expect(await shipmentBarcodeGapsAction(['not-a-uuid'])).toBeNull();
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    mocks.rpc.mockResolvedValue({ error: { message: 'operator_capability_required' }, data: null });
+    expect(await shipmentBarcodeGapsAction([ID])).toBeNull();
+    mocks.rpc.mockResolvedValue({ error: null, data: -1 });
+    expect(await shipmentBarcodeGapsAction([ID])).toBeNull();
+    mocks.auth.mockResolvedValue({ isConfigured: true, user: { id: 'buyer' }, isStaff: false });
+    mocks.rpc.mockClear();
+    expect(await shipmentBarcodeGapsAction([ID])).toBeNull();
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+  it('출고지 전체 내려받기는 다음에 받을 미전달 묶음과 같은 배송 건으로 센다', async () => {
+    mocks.rpc.mockImplementation(async (name: string) => ({ error: null, data: name === 'admin_origin_pending_export_ids' ? { ids: [ID, SECOND], total: 5 } : 2 }));
+    expect(await originBarcodeGapsAction(ID)).toBe(2);
+    expect(mocks.rpc.mock.calls).toEqual([['admin_origin_pending_export_ids', { target_origin_id: ID }], ['admin_shipment_barcode_gaps', { p_ids: [ID, SECOND] }]]);
+    mocks.rpc.mockClear();
+    mocks.rpc.mockResolvedValue({ error: null, data: { ids: [], total: 0 } });
+    expect(await originBarcodeGapsAction(ID)).toBe(0);
+    expect(mocks.rpc).toHaveBeenCalledTimes(1);
+    expect(await originBarcodeGapsAction('gimpo')).toBeNull();
   });
 });
