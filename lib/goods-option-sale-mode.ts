@@ -7,6 +7,11 @@
  * - 고객은 기본 옵션(is_default) 한 줄로 담고, 주문 생성 때 DB(`private.allocate_random_option_items`)가 같은 굿즈의 활성 옵션
  *   재고에 비례해 무작위로 배정한다. 배정 결과는 고객에게 숨긴다 — `order_items`의 랜덤 행은 고객 직접 select에서 빠지고
  *   (restrictive RLS), 고객 화면은 `my_order_items` RPC(옵션명 '랜덤')로 읽는다.
+ * - 옵션별 재고도 숨긴다(주문 전후 재고 차이로 배정이 드러나 재추첨할 수 있어서다). 랜덤 굿즈의 `goods_variants` 행은
+ *   익명·고객 select에서 빠지고(restrictive RLS, 운영자 catalog.read는 그대로), 고객 화면은 공개 계산 열
+ *   `goods_random_option`(goods)으로 랜덤 한 줄을 읽는다 — GoodOptionRow 모양, id = 장바구니 키(기본 옵션), 이름 '랜덤',
+ *   코드 '', stock_qty·supply.availableQty = 풀 합계. `goods_variant_supply`·카테고리 전시·배송비 절약 추천·옵션 재입고 신청도
+ *   풀 기준이다.
  * - 운영자 setter `admin_set_goods_option_sale_mode(p_good_id, p_mode, p_expected_updated_at)`, 조회 `admin_goods_option_sale_mode(p_good_id)`.
  *
  * 옵션별 구매 제한:

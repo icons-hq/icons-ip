@@ -4,6 +4,7 @@ import { useEffect, useState, type FormEvent } from 'react';
 import {
   readGoodsOptionSaleModeAction,
   setGoodsOptionSaleModeAction,
+  type GoodsOptionSaleModeActionState,
 } from '@/app/admin/goods-option-sale-mode-actions';
 import {
   goodsOptionSaleModeErrorMessage,
@@ -11,14 +12,25 @@ import {
   type GoodsOptionSaleModeState,
 } from '@/lib/goods-option-sale-mode';
 
+const SAVE_FAILED = '판매 방식을 바꾸지 못했습니다. 잠시 후 다시 시도하세요.';
+const GOODS_CHANGED = goodsOptionSaleModeErrorMessage('goods_changed');
+const GOODS_CHANGED_RELOADED = '다른 곳에서 상품이 바뀌어 최신 상태를 다시 불러왔습니다. 확인한 뒤 다시 저장하세요.';
+
 /**
  * 상품 판매 방식 — 옵션 선택 / 랜덤 판매(D5②).
  *
  * 상품 편집기 운영 섹션(예약판매 앞)에 둔다. 저장된 상품에만 쓴다(goodId 필수). 기본 정보에 저장하지 않은 변경이 있으면
  * 부모가 disabled로 막는다 — 옵션·가격을 바꾸는 저장과 판매 방식 전환이 서로의 낙관 잠금(goods.updated_at)을 깨기 때문이다.
+ * 같은 이유로 부모는 상품을 저장한 뒤 바뀐 리비전(예: goods.updated_at)을 `revision`으로 넘긴다. 바뀌면 다시 읽는다.
+ * 저장이 거절돼도 다시 읽는다 — 옛 낙관 잠금 값으로 다시 보내면 계속 거절되기 때문이다.
  * 랜덤 조건은 DB가 판정한다(admin_goods_option_sale_mode.randomProblem). 여기서는 그 결과로 선택만 막는다.
  */
-export function GoodsOptionSaleModePanel({ goodId, disabled = false }: { goodId: string; disabled?: boolean }) {
+export function GoodsOptionSaleModePanel({ goodId, revision, disabled = false }: {
+  goodId: string;
+  /** 부모가 아는 상품 리비전(goods.updated_at 등). 바뀌면 판매 방식과 낙관 잠금 값을 다시 읽는다. */
+  revision?: string | number;
+  disabled?: boolean;
+}) {
   const [current, setCurrent] = useState<GoodsOptionSaleModeState | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [selected, setSelected] = useState<GoodsOptionSaleMode | null>(null);
@@ -33,12 +45,32 @@ export function GoodsOptionSaleModePanel({ goodId, disabled = false }: { goodId:
         setCurrent(loaded.state);
         setSelected(loaded.state.optionSaleMode);
         setLoadError(null);
+        setResult({});
       } else {
         setLoadError(loaded.error ?? '판매 방식을 불러오지 못했습니다.');
       }
     }, () => { if (alive) setLoadError('판매 방식을 불러오지 못했습니다.'); });
     return () => { alive = false; };
-  }, [goodId]);
+  }, [goodId, revision]);
+
+  /* 거절 뒤 최신 상태(낙관 잠금 값·랜덤 조건)를 다시 읽는다. 고른 값은 두되, 이제 랜덤을 쓸 수 없으면 현재 방식으로 되돌린다. */
+  async function reloadAfterError(error: string) {
+    let loaded: GoodsOptionSaleModeActionState;
+    try {
+      loaded = await readGoodsOptionSaleModeAction(goodId);
+    } catch {
+      loaded = {};
+    }
+    const state = loaded.state;
+    if (!state) {
+      setResult({ error });
+      return;
+    }
+    setCurrent(state);
+    setSelected((previous) => previous === 'random' && state.optionSaleMode !== 'random' && state.randomProblem
+      ? state.optionSaleMode : previous);
+    setResult({ error: error === GOODS_CHANGED ? GOODS_CHANGED_RELOADED : error });
+  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -49,14 +81,21 @@ export function GoodsOptionSaleModePanel({ goodId, disabled = false }: { goodId:
     form.set('mode', selected);
     form.set('expectedUpdatedAt', current.updatedAt);
     try {
-      const saved = await setGoodsOptionSaleModeAction({}, form);
-      setResult({ error: saved.error, message: saved.message });
+      let saved: GoodsOptionSaleModeActionState;
+      try {
+        saved = await setGoodsOptionSaleModeAction({}, form);
+      } catch {
+        saved = { error: SAVE_FAILED };
+      }
+      if (saved.error) {
+        await reloadAfterError(saved.error);
+        return;
+      }
+      setResult({ message: saved.message });
       if (saved.state) {
         setCurrent(saved.state);
         setSelected(saved.state.optionSaleMode);
       }
-    } catch {
-      setResult({ error: '판매 방식을 바꾸지 못했습니다. 잠시 후 다시 시도하세요.' });
     } finally {
       setPending(false);
     }
@@ -70,7 +109,8 @@ export function GoodsOptionSaleModePanel({ goodId, disabled = false }: { goodId:
         <strong>판매 방식</strong>
         <p className="admin-note">
           랜덤 판매는 고객이 옵션을 고르지 않고 &apos;랜덤&apos;으로 주문합니다. 주문할 때 남은 재고에 비례해 옵션이 무작위로 정해지고,
-          주문 상세와 출고 파일에는 정해진 옵션이 보입니다. 고객 화면에는 끝까지 &apos;랜덤&apos;으로만 보입니다.
+          주문 상세와 출고 파일에는 정해진 옵션이 보입니다. 고객의 상품·장바구니·주문·메일·리뷰에는 &apos;랜덤&apos;으로 보이고
+          옵션별 재고도 보이지 않습니다. 교환으로 다시 보내는 상품은 보내는 옵션이 고객에게 안내됩니다.
         </p>
       </div>
       {loadError && <p className="admin-error" role="alert">{loadError}</p>}

@@ -26,6 +26,7 @@
 --   order_items에 restrictive select 정책(랜덤 행은 sales.read 운영자만). 고객 화면은 마스킹 RPC public.my_order_items(uuid[])로 읽는다
 --   (랜덤 행은 옵션명 '랜덤', variant_id = 주문 때의 장바구니 키(기본 옵션), 옵션 코드 null). 공개 리뷰의 구매 옵션명도 '랜덤'이다.
 --   service role 경로(메일)는 앱 코드가 option_sale_mode_snapshot으로 마스킹한다.
+--   옵션별 재고(배정 전후 차이로 배정 옵션이 드러나는 경로)의 은닉은 20261028160200이 맡는다.
 begin;
 
 -- 1. 스키마 ---------------------------------------------------------------------------------------------
@@ -396,7 +397,7 @@ grant execute on function private.cart_variant_key(text,uuid) to postgres;
 create or replace function private.set_cart_quantity_with_inputs(p_good_id text,p_variant_id uuid,p_qty integer,p_input_revision integer,p_input_values jsonb)
 returns void language plpgsql security definer set search_path='' as $$
 declare actor uuid:=auth.uid(); available_stock integer; other_qty bigint; key_value text; snapshot jsonb;
-  sale_mode text; cart_variant uuid;
+  sale_mode text; cart_variant uuid; target_qty bigint:=p_qty;
 begin
   if actor is null then raise insufficient_privilege using message='auth required'; end if;
   perform private.lock_goods_transaction_actor(actor);
@@ -434,29 +435,38 @@ begin
       where variant.good_id=p_good_id and variant.archived_at is null and supply.mode='stock';
     select coalesce(sum(qty::bigint),0) into other_qty from public.cart_items where user_id=actor and good_id=p_good_id
       and not (variant_id in (cart_variant,p_variant_id) and input_key=key_value);
-    if cart_variant<>p_variant_id then
+    -- 랜덤 전환 전에 담긴 비기본 옵션 줄(p_variant_id)을 고객이 바꾸면 그 줄의 새 수량을 기본 옵션(키) 줄에 더해 합친다.
+    -- 키 줄의 기존 수량은 보존한다. 병합·추가 담기는 키 줄 기준 수량을 키 id로 넘기므로 이 분기를 타지 않는다.
+    if cart_variant<>p_variant_id and exists(select 1 from public.cart_items
+      where user_id=actor and good_id=p_good_id and variant_id=p_variant_id and input_key=key_value) then
+      select p_qty+coalesce(sum(qty::bigint),0) into target_qty from public.cart_items
+        where user_id=actor and variant_id=cart_variant and input_key=key_value;
       delete from public.cart_items where user_id=actor and good_id=p_good_id and variant_id=p_variant_id and input_key=key_value;
     end if;
   else
     select coalesce(sum(qty::bigint),0) into other_qty from public.cart_items where user_id=actor and variant_id=p_variant_id and input_key<>key_value;
   end if;
-  if other_qty+p_qty>available_stock then raise check_violation using message='out of stock'; end if;
+  if other_qty+target_qty>available_stock or target_qty>2147483647 then raise check_violation using message='out of stock'; end if;
   insert into public.cart_items(user_id,good_id,variant_id,qty,input_revision,input_values,input_snapshot)
-    values(actor,p_good_id,cart_variant,p_qty,p_input_revision,p_input_values,snapshot)
+    values(actor,p_good_id,cart_variant,target_qty::integer,p_input_revision,p_input_values,snapshot)
     on conflict(user_id,variant_id,input_key) do update set qty=excluded.qty;
 end $$;
 revoke all on function private.set_cart_quantity_with_inputs(text,uuid,integer,integer,jsonb) from public,anon,authenticated,service_role;
 grant execute on function private.set_cart_quantity_with_inputs(text,uuid,integer,integer,jsonb) to postgres;
 select private.register_operator_internal_contract('private.set_cart_quantity_with_inputs(text,uuid,integer,integer,jsonb)'::regprocedure);
 
--- 병합·추가 담기가 현재 수량을 읽는 줄도 장바구니 키로 찾는다.
+-- 병합·추가 담기가 현재 수량을 읽는 줄도 장바구니 키로 찾고, 그 키 줄의 새 수량을 키 id로 넘긴다
+-- (랜덤 전환 전에 남은 비기본 옵션 줄을 합치는 분기는 고객이 그 줄을 직접 바꿀 때만 탄다).
 do $patch$
 declare definition text; anchor text;
 begin
   definition:=pg_get_functiondef('public.merge_cart_items(jsonb)'::regprocedure);
   anchor:=$old$select qty into current_qty from public.cart_items where user_id=actor and variant_id=item.variant_id and input_key=key_value;$old$;
   if (length(definition)-length(replace(definition,anchor,'')))/length(anchor)<>1 then raise exception 'merge_cart_random_anchor_changed'; end if;
-  execute replace(definition,anchor,$new$select qty into current_qty from public.cart_items where user_id=actor and variant_id=private.cart_variant_key(item.good_id,item.variant_id) and input_key=key_value;$new$);
+  definition:=replace(definition,anchor,$new$select qty into current_qty from public.cart_items where user_id=actor and variant_id=private.cart_variant_key(item.good_id,item.variant_id) and input_key=key_value;$new$);
+  anchor:=$old$perform private.set_cart_quantity_with_inputs(item.good_id,item.variant_id,$old$;
+  if (length(definition)-length(replace(definition,anchor,'')))/length(anchor)<>1 then raise exception 'merge_cart_random_set_anchor_changed'; end if;
+  execute replace(definition,anchor,$new$perform private.set_cart_quantity_with_inputs(item.good_id,private.cart_variant_key(item.good_id,item.variant_id),$new$);
   perform private.register_operator_internal_contract('public.merge_cart_items(jsonb)'::regprocedure);
 
   definition:=pg_get_functiondef('public.add_cart_selection(text,jsonb)'::regprocedure);
@@ -465,7 +475,10 @@ begin
   definition:=replace(definition,anchor,$new$private.cart_variant_key(item.good_id,item.variant_id)::text||':'||key_value$new$);
   anchor:=$old$and good_id=item.good_id and variant_id=item.variant_id and input_key=key_value),0) into actual_qty;$old$;
   if (length(definition)-length(replace(definition,anchor,'')))/length(anchor)<>1 then raise exception 'add_cart_random_qty_anchor_changed'; end if;
-  execute replace(definition,anchor,$new$and good_id=item.good_id and variant_id=private.cart_variant_key(item.good_id,item.variant_id) and input_key=key_value),0) into actual_qty;$new$);
+  definition:=replace(definition,anchor,$new$and good_id=item.good_id and variant_id=private.cart_variant_key(item.good_id,item.variant_id) and input_key=key_value),0) into actual_qty;$new$);
+  anchor:=$old$perform private.set_cart_quantity_with_inputs(item.good_id,item.variant_id,$old$;
+  if (length(definition)-length(replace(definition,anchor,'')))/length(anchor)<>1 then raise exception 'add_cart_random_set_anchor_changed'; end if;
+  execute replace(definition,anchor,$new$perform private.set_cart_quantity_with_inputs(item.good_id,private.cart_variant_key(item.good_id,item.variant_id),$new$);
   perform private.register_operator_internal_contract('public.add_cart_selection(text,jsonb)'::regprocedure);
 end $patch$;
 

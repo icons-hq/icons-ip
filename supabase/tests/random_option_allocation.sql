@@ -303,6 +303,71 @@ select public.admin_set_goods_option_sale_mode('random-main','select',(select up
 reset role;
 select 1/case when exists(select 1 from public.goods where id='random-main' and option_sale_mode='select') then 1 else 0 end as assert_switch_back_to_select;
 
+-- 랜덤 전환 전에 담긴 비기본 옵션 줄(B)은 그 줄의 수량으로 바꾼 뒤 기본 옵션 줄에 합친다. 기본 옵션 줄 수량은 보존된다(T6-R3).
+-- 병합·추가 담기는 장바구니 키(기본 옵션) 줄의 수량을 기준으로 하므로, 남은 B 줄을 두 번 세지 않는다.
+set local role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000162001',true);
+select public.admin_save_good('{"id":"random-cart","ip_id":"random-option-tests","name":"랜덤 장바구니","price":5000,
+ "variant_baseline":[],"variants":[
+  {"name":"A","code":"RANDOM-CA","attributes":{"멤버":"A"},"extraPrice":0,"stockQty":20},
+  {"name":"B","code":"RANDOM-CB","attributes":{"멤버":"B"},"extraPrice":0,"stockQty":20}]}');
+reset role;
+select id as cart_a from public.goods_variants where code='RANDOM-CA' \gset
+select id as cart_b from public.goods_variants where code='RANDOM-CB' \gset
+select set_config('request.jwt.claim.sub','',true);
+update public.goods set type='문구',image_path='public-media/random-option-fixture.webp',
+ notice_maker='제조사',notice_origin='한국',notice_material='종이',notice_size='A5',notice_made_on='2026-10',
+ notice_as_manager='CS',notice_as_contact='02-000',origin_id='00000000-0000-4000-8000-000000162030'
+ where id='random-cart';
+select pg_temp.publish_goods_kc_fixture('random-cart');
+set local role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000162002',true);
+select public.set_cart_item_quantity('random-cart',:'cart_a',1);
+select public.set_cart_item_quantity('random-cart',:'cart_b',2);
+select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000162001',true);
+select public.admin_set_goods_option_sale_mode('random-cart','random',(select updated_at from public.goods where id='random-cart'));
+select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000162002',true);
+-- 추가 담기: 기대 수량은 키 줄(A=1)이고 키 줄만 늘어난다. 남은 B 줄(2)은 그대로다.
+select public.add_cart_selection('random-cart',jsonb_build_array(jsonb_build_object('good_id','random-cart','variant_id',:'cart_b','qty',1,'expected_qty',1)));
+reset role;
+select 1/case when (select qty from public.cart_items where user_id='00000000-0000-4000-8000-000000162002' and variant_id=:'cart_a')=2
+ and (select qty from public.cart_items where user_id='00000000-0000-4000-8000-000000162002' and variant_id=:'cart_b')=2
+ then 1 else 0 end as assert_add_selection_targets_cart_key_line;
+-- 병합: 키 줄(2)과 들어온 수량(2) 중 큰 값이다. B 줄을 더하지 않는다.
+set local role authenticated;
+select public.merge_cart_items(jsonb_build_array(jsonb_build_object('good_id','random-cart','variant_id',:'cart_b','qty',2)));
+reset role;
+select 1/case when (select qty from public.cart_items where user_id='00000000-0000-4000-8000-000000162002' and variant_id=:'cart_a')=2
+ and (select qty from public.cart_items where user_id='00000000-0000-4000-8000-000000162002' and variant_id=:'cart_b')=2
+ then 1 else 0 end as assert_merge_targets_cart_key_line;
+-- 고객이 남은 B 줄(2개)을 3개로 바꾼다 → A 2 + B 3 = 기본 옵션 한 줄 5개.
+set local role authenticated;
+select public.set_cart_item_quantity('random-cart',:'cart_b',3);
+reset role;
+select 1/case when (select count(*) from public.cart_items where user_id='00000000-0000-4000-8000-000000162002' and good_id='random-cart')=1
+ and (select qty from public.cart_items where user_id='00000000-0000-4000-8000-000000162002' and good_id='random-cart' and variant_id=:'cart_a')=5
+ then 1 else 0 end as assert_stale_line_folds_into_cart_key;
+-- 합친 수량이 풀(40)을 넘으면 거절되고 줄은 그대로다.
+set local role authenticated;
+select public.set_cart_item_quantity('random-cart',:'cart_a',1);
+reset role;
+insert into public.cart_items(user_id,good_id,variant_id,qty) values('00000000-0000-4000-8000-000000162002','random-cart',:'cart_b',30);
+set local role authenticated;
+select pg_temp.expect_error(format('select public.set_cart_item_quantity(%L,%L,40)','random-cart',:'cart_b'),'out of stock','23514');
+select public.set_cart_item_quantity('random-cart',:'cart_b',39);
+reset role;
+select 1/case when (select count(*) from public.cart_items where user_id='00000000-0000-4000-8000-000000162002' and good_id='random-cart')=1
+ and (select qty from public.cart_items where user_id='00000000-0000-4000-8000-000000162002' and good_id='random-cart' and variant_id=:'cart_a')=40
+ then 1 else 0 end as assert_folded_line_checks_pool;
+-- 0으로 바꾸면 그 줄만 지운다.
+insert into public.cart_items(user_id,good_id,variant_id,qty) values('00000000-0000-4000-8000-000000162002','random-cart',:'cart_b',1);
+set local role authenticated;
+select public.set_cart_item_quantity('random-cart',:'cart_b',0);
+reset role;
+select 1/case when not exists(select 1 from public.cart_items where user_id='00000000-0000-4000-8000-000000162002' and variant_id=:'cart_b')
+ and (select qty from public.cart_items where user_id='00000000-0000-4000-8000-000000162002' and variant_id=:'cart_a')=40
+ then 1 else 0 end as assert_stale_line_removal_keeps_key_line;
+
 -- 계약: 내부 함수·증빙 테이블 봉인, 고객 RPC grant, 정책 계약 등록.
 select 1/case when not has_table_privilege('authenticated','private.order_item_random_allocations','select')
  and not has_table_privilege('service_role','private.order_item_random_allocations','select')
