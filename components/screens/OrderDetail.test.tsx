@@ -8,6 +8,12 @@ import { reasonReceipt } from '@/lib/orders/claim-reason-change.fixture';
 import { parseClaimReasonHistory } from '@/lib/orders/claim-reason-change';
 import { transactionDisplay, transactionLineId } from '@/test/fixtures/cart-transaction';
 
+/* 회수 계획은 서버 액션으로 문서를 읽는다 — 여기서는 주문 상세가 넘기는 배송 건 이름표만 본다(m27 CUST-2). */
+vi.mock('@/components/orders/ClaimCollectionPlan', () => ({
+  ClaimCollectionPlan: ({ shipmentLabels }: { shipmentLabels?: Readonly<Record<string, string>> }) =>
+    <ul aria-label="회수 계획 이름표">{Object.entries(shipmentLabels ?? {}).map(([id, label]) => <li key={id}>{`${id}=${label}`}</li>)}</ul>,
+}));
+
 vi.mock('next/navigation', () => ({
   usePathname: () => '/orders/11111111-1111-4111-8111-111111111111',
   useRouter: () => ({ refresh: () => undefined }),
@@ -290,6 +296,39 @@ describe('OrderDetail 무통장 입금 대기', () => {
     expect(html).not.toContain('입금을 기다리고 있어요');
   });
 });
+
+ it('회수 계획은 배송 건 머리와 같은 택배사 이름표를 받는다(m27 CUST-2)', () => {
+  const gimpo = shipmentFixture({ status: 'delivered', deliveredAt: '2026-09-08T00:00:00Z' });
+  const namyangju = shipmentFixture({ id: '00000000-0000-4000-8000-000000044702', originName: '남양주', status: 'delivered', deliveredAt: '2026-09-09T00:00:00Z',
+    carrier: 'epost', carrierLabel: '우체국택배', trackingNumber: '9876543210', trackingUrl: 'https://carrier.example.test/9876543210' });
+  const claim = { id: '22222222-2222-4222-8222-222222222222', status: 'requested' as const, claimType: 'return' as const, stage: 'requested' as const, reference: 3,
+    requestedAt: '2026-09-10T00:00:00.000Z', decidedAt: null, decisionNote: null, reshipCarrier: null, reshipTrackingNumber: null };
+  const html = renderToStaticMarkup(<OrderDetail viewerId="33333333-3333-4333-8333-333333333333"
+    order={order({ status: 'delivered', shipments: [gimpo, namyangju], cancellationRequest: claim })} />);
+  expect(html).toContain('한진택배 배송 · 배송 완료');
+  expect(html).toContain('우체국택배 배송 · 배송 완료');
+  expect(html).toContain(`<li>${gimpo.id}=한진택배 배송</li>`);
+  expect(html).toContain(`<li>${namyangju.id}=우체국택배 배송</li>`);
+  expect(html).not.toContain('배송 묶음');
+ });
+
+ it('회수 계획 이름표는 배송 건 머리와 같은 규칙이다 — 같은 택배사 번호·택배 아닌 수령·택배사 모름', () => {
+  const pickup = { method: 'pickup' as const, policy: null, providerName: null, canIssueReceipt: false };
+  const shipments = [
+    shipmentFixture({ id: '00000000-0000-4000-8000-000000044711' }),
+    shipmentFixture({ id: '00000000-0000-4000-8000-000000044712', delivery: pickup }),
+    shipmentFixture({ id: '00000000-0000-4000-8000-000000044713' }),
+    shipmentFixture({ id: '00000000-0000-4000-8000-000000044714', carrier: null, carrierLabel: null, status: 'ready', trackingNumber: null, trackingUrl: null, shippedAt: null }),
+  ];
+  const claim = { id: '22222222-2222-4222-8222-222222222222', status: 'requested' as const, claimType: 'exchange' as const, stage: 'requested' as const, reference: 4,
+    requestedAt: '2026-09-10T00:00:00.000Z', decidedAt: null, decisionNote: null, reshipCarrier: null, reshipTrackingNumber: null };
+  const html = renderToStaticMarkup(<OrderDetail viewerId="33333333-3333-4333-8333-333333333333"
+    order={order({ status: 'delivered', shipments, cancellationRequest: claim })} />);
+  const headings = [...html.matchAll(/<section class="order-receipt-section wc-shipment-details"><h3>(.+?) · /g)].map(match => match[1]);
+  const labels = [...html.matchAll(/<li>([0-9a-f-]{36})=(.+?)<\/li>/g)].map(match => match[2]);
+  expect(headings).toEqual(['한진택배 배송 1', '배송 묶음 2', '한진택배 배송 2', '배송 묶음 4']);
+  expect(labels).toEqual(headings);
+ });
 
  it('두 출고지 배송을 각각 추적하고 각 배송 완료시각을 분리한다', () => {
   const shipments = [shipmentFixture({status:'delivered',deliveredAt:'2026-09-08T00:00:00Z'}),shipmentFixture({id:'00000000-0000-4000-8000-000000044702',originName:'남양주',trackingNumber:'9876543210',trackingUrl:'https://carrier.example.test/9876543210'})];

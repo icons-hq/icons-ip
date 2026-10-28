@@ -21,6 +21,8 @@
  * - 주문 생성 거절: `option_order_limit_exceeded: <variantId>`·`option_member_limit_exceeded: <variantId>`.
  */
 
+import { topicParticle } from './korean-particle';
+
 export type GoodsOptionSaleMode = 'select' | 'random';
 
 export function isGoodsOptionSaleMode(value: unknown): value is GoodsOptionSaleMode {
@@ -154,20 +156,22 @@ export function parseGoodsOptionLimit(value: unknown): GoodsOptionLimit | null {
   };
 }
 
-/** 상품 상세의 정적 안내(확정 카피). 남은 수량은 보이지 않는다. */
+/** 상품 상세의 정적 안내(확정 카피). 남은 수량은 보이지 않는다. 조사 은/는은 옵션명 끝 받침을 따른다(m27 QA-1). */
 export function goodsOptionLimitNotices(optionName: string, limit: GoodsOptionLimitPolicy): string[] {
   const notices: string[] = [];
-  if (limit.orderMaxQty !== null) notices.push(`'${optionName}'은 한 번에 ${limit.orderMaxQty}개까지 주문할 수 있습니다.`);
-  if (limit.memberMaxQty !== null) notices.push(`'${optionName}'은 1인당 ${limit.memberMaxQty}개까지 구매할 수 있습니다.`);
+  const particle = topicParticle(optionName);
+  if (limit.orderMaxQty !== null) notices.push(`'${optionName}'${particle} 한 번에 ${limit.orderMaxQty}개까지 주문할 수 있습니다.`);
+  if (limit.memberMaxQty !== null) notices.push(`'${optionName}'${particle} 1인당 ${limit.memberMaxQty}개까지 구매할 수 있습니다.`);
   return notices;
 }
 
 /** 장바구니 품목 줄 안내. 견적 사유에 맞는 확정 카피 한 문장. */
 export function goodsOptionLimitMessage(reason: GoodsOptionLimitReason, optionName: string, limit: GoodsOptionLimitPolicy): string {
   const max = reason === 'option_order_limit_exceeded' ? limit.orderMaxQty : limit.memberMaxQty;
+  const particle = topicParticle(optionName);
   return reason === 'option_order_limit_exceeded'
-    ? `'${optionName}'은 한 번에 ${max}개까지 주문할 수 있습니다.`
-    : `'${optionName}'은 1인당 ${max}개까지 구매할 수 있습니다.`;
+    ? `'${optionName}'${particle} 한 번에 ${max}개까지 주문할 수 있습니다.`
+    : `'${optionName}'${particle} 1인당 ${max}개까지 구매할 수 있습니다.`;
 }
 
 /** 주문 생성이 거절됐을 때(장바구니 안내 뒤의 경합) 주문서 문구. DB 오류에는 옵션 이름이 없다. */

@@ -102,6 +102,6 @@ describe('상품 상세 담기의 옵션별 주문당 최대 수량', () => {
     render({ good, additionalGoods: [extra], initialVariantId: 'b' }).addToCart();
     await flush();
     expect(cart.addSelection).not.toHaveBeenCalled();
-    expect(render({ good, additionalGoods: [extra], initialVariantId: 'b' }).message).toBe("'스티커'은 한 번에 1개까지 주문할 수 있습니다.");
+    expect(render({ good, additionalGoods: [extra], initialVariantId: 'b' }).message).toBe("'스티커'는 한 번에 1개까지 주문할 수 있습니다.");
   });
 });

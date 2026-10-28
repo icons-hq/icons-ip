@@ -29,6 +29,7 @@ import type { CheckoutPaymentReading } from '@/lib/checkout';
 import { orderDetailCardPaymentNotice } from '@/lib/checkout-status-copy';
 import { krw } from '@/lib/format';
 import { shippingFeeLabel } from '@/lib/shipping';
+import { customerShipmentGroupLabels } from '@/lib/fulfillment';
 import { GoodsTransactionSummary } from '@/components/checkout/GoodsTransactionSummary';
 import { transactionReceiptNames } from '@/lib/checkout-transaction';
 import {
@@ -375,7 +376,7 @@ export function OrderDetail({
           {viewerId && claimRequest && !order.giftId && order.paymentMethod === 'bank_transfer' && claimRequest.claimType !== 'exchange'
             && isOpenOrderClaimStage(claimRequest.stage) ? <ClaimRefundAccount actorId={viewerId} orderId={order.id} claimId={claimRequest.id} /> : null}
           {viewerId && hasPhysicalItems && claimRequest && (claimRequest.claimType === 'return' || claimRequest.claimType === 'exchange')
-            ? <><ClaimCollectionPlan actorId={viewerId} claimId={claimRequest.id} /><ClaimContactHistory key={`contact:${claimRequest.id}`} actorId={viewerId} orderId={order.id} claimId={claimRequest.id} /></> : null}
+            ? <><ClaimCollectionPlan actorId={viewerId} claimId={claimRequest.id} shipmentLabels={customerShipmentGroupLabels(order.shipments)} /><ClaimContactHistory key={`contact:${claimRequest.id}`} actorId={viewerId} orderId={order.id} claimId={claimRequest.id} /></> : null}
           {viewerId ? <OrderClaimFees actorId={viewerId} orderId={order.id} /> : null}
           {claimTypeHistory === null ? <p role="status">반품·교환 유형 변경 이력을 읽지 못했습니다. 잠시 후 새로고침해주세요.</p> : claimTypeHistory.length ? <section className="order-claim-type-history" aria-label="반품·교환 유형 변경 이력">
             <h3>요청 유형 변경 이력</h3><ol>{claimTypeHistory.map(row => <li key={row.id}><time dateTime={row.createdAt}>{formatOrderDateTime(row.createdAt)}</time> · {ORDER_CLAIM_TYPE_LABELS[row.fromType]} → {ORDER_CLAIM_TYPE_LABELS[row.toType]} · 고객 합의 확인</li>)}</ol>

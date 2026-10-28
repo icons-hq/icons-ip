@@ -95,6 +95,19 @@ describe('옵션별 구매 제한 문구', () => {
     expect(goodsOptionLimitNotices('파랑', { orderMaxQty: null, memberMaxQty: null })).toEqual([]);
   });
 
+  it('옵션명 끝 받침에 맞춰 은/는을 고르고, 판정할 수 없으면 은(는)이다(m27 QA-1)', () => {
+    expect(goodsOptionLimitNotices('레드', { orderMaxQty: 2, memberMaxQty: 3 })).toEqual([
+      "'레드'는 한 번에 2개까지 주문할 수 있습니다.",
+      "'레드'는 1인당 3개까지 구매할 수 있습니다.",
+    ]);
+    expect(goodsOptionLimitMessage('option_order_limit_exceeded', '레드', { orderMaxQty: 2, memberMaxQty: null }))
+      .toBe("'레드'는 한 번에 2개까지 주문할 수 있습니다.");
+    expect(goodsOptionLimitMessage('option_member_limit_exceeded', '포토카드 2', { orderMaxQty: null, memberMaxQty: 1 }))
+      .toBe("'포토카드 2'는 1인당 1개까지 구매할 수 있습니다.");
+    expect(goodsOptionLimitMessage('option_order_limit_exceeded', 'Red', { orderMaxQty: 2, memberMaxQty: null }))
+      .toBe("'Red'은(는) 한 번에 2개까지 주문할 수 있습니다.");
+  });
+
   it('사유별 장바구니 안내는 같은 문장을 쓴다', () => {
     expect(goodsOptionLimitMessage('option_order_limit_exceeded', '빨강', { orderMaxQty: 2, memberMaxQty: 3 }))
       .toBe("'빨강'은 한 번에 2개까지 주문할 수 있습니다.");
