@@ -313,7 +313,7 @@ export function Cart({
                   href="/checkout"
                   variant="primary"
                 >
-                  <span className="wc-cart__checkout-count">{`${count}개 굿즈 주문하기`}</span>
+                  <span className="wc-cart__checkout-count">{`${count}개 주문하기`}</span>
                   {estimatedTotal !== null ? <span className="wc-cart__checkout-amount">{`${krw(estimatedTotal)} 주문하기`}</span> : null}
                 </WcButton>
               </div>

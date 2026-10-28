@@ -230,9 +230,13 @@ describe('Cart 주문 요약 테이블', () => {
     expect(html).toContain('배송 묶음별 배송비를 합산합니다.');
   });
 
-  it('주문 CTA에 담긴 수량을 싣는다', () => {
-    expect(html).toContain('1개 굿즈 주문하기');
+  /* R28(MD-0006): 'N개 주문하기' — N은 지금처럼 담긴 총 수량이다. */
+  it('주문 CTA에 담긴 총 수량을 싣는다', () => {
+    expect(html).toContain('<span class="wc-cart__checkout-count">1개 주문하기</span>');
+    expect(html).not.toContain('굿즈 주문하기');
     expect(html).toContain('href="/checkout"');
+    const several = render([{ goodId: 'g13', variantId: DEFAULT_VARIANT, qty: 3 }]);
+    expect(several).toContain('<span class="wc-cart__checkout-count">3개 주문하기</span>');
   });
 });
 
@@ -411,7 +415,7 @@ describe('Cart 모바일 크롬 (CT-03)', () => {
     const bar = html.slice(html.indexOf('<div class="wc-cart__cta-bar">'));
 
     expect(bar).toMatch(/^<div class="wc-cart__cta-bar"><a class="wc-btn primary wc-cart__checkout wc-cart__checkout--amount" href="\/checkout">/);
-    expect(bar).toContain('<span class="wc-cart__checkout-count">1개 굿즈 주문하기</span>');
+    expect(bar).toContain('<span class="wc-cart__checkout-count">1개 주문하기</span>');
     expect(bar).toContain('<span class="wc-cart__checkout-amount">₩15,000 주문하기</span>');
   });
 
@@ -424,7 +428,7 @@ describe('Cart 모바일 크롬 (CT-03)', () => {
 
     mocks.precheckout = transactionPrecheckout();
     html = renderTransaction();
-    expect(html).toContain('<span class="wc-cart__checkout-count">1개 굿즈 주문하기</span>');
+    expect(html).toContain('<span class="wc-cart__checkout-count">1개 주문하기</span>');
     expect(html).not.toContain('wc-cart__checkout-amount');
   });
 
