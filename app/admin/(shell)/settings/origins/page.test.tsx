@@ -26,6 +26,16 @@ it('keeps legacy staff read-only and forwards only origin history', async () => 
   expect(origins.props.history).toEqual([{ action: 'admin.fulfillment_origin.saved', id: 'origin' }]);
   expect(groups.props.canEdit).toBe(true); expect(groups.props.canManageRegional).toBe(false);
 });
+it('?origin=을 출고지 탭으로 넘기고 모르는 값은 첫 출고지로 돌린다', async () => {
+  mocks.guard.mockResolvedValue({ role: 'admin', user: { id: '91000000-0000-4000-8000-000000000001' }, operatorAccess: legacyOperatorAccessFixture('admin') });
+  mocks.origins.mockResolvedValue([{ id: 'a', code: 'gimpo', name: '김포' }, { id: 'b', code: 'namyangju', name: '남양주' }]);
+  const tab = async (origin?: string) => (await Page({ searchParams: Promise.resolve(origin === undefined ? {} : { origin }) })).props.children[1].props.selected;
+  expect(await tab('namyangju')).toBe('namyangju');
+  expect(await tab('_new')).toBe('_new');
+  expect(await tab('new')).toBe('gimpo');
+  expect(await tab('other')).toBe('gimpo');
+  expect(await tab()).toBe('gimpo');
+});
 it('configured deputy loads shipping options without warehouse settings or audit records', async () => {
   mocks.guard.mockResolvedValue({ role: 'staff', user: { id: '91000000-0000-4000-8000-000000000002' }, operatorAccess: configuredOperatorAccessFixture('deputy') });
   const result = await Page();

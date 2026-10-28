@@ -24,7 +24,17 @@ describe('manager authorization contract', () => {
   it.each(MANAGER_ROLES)('%s sidebar grants exactly the same screens as direct access', managerRole => {
     const operatorAccess = configuredOperatorAccessFixture(managerRole);
     const visible = new Set(visibleAdminNavGroups('staff', operatorAccess).flatMap(group => group.screens.map(screen => screen.id)));
-    for (const screen of ADMIN_SCREENS) expect(visible.has(screen.id), screen.id).toBe(canAccessAdminScreen(operatorAccess, screen));
+    // 사이드바에서만 숨긴 화면(R21 그룹상품)은 메뉴에 없지만 직접 경로 권한은 그대로다.
+    for (const screen of ADMIN_SCREENS) expect(visible.has(screen.id), screen.id).toBe(!screen.navHidden && canAccessAdminScreen(operatorAccess, screen));
+  });
+  it('사이드바에서 숨긴 그룹상품 화면도 같은 권한으로 직접 열고 쓸 수 있다', () => {
+    const owner = configuredOperatorAccessFixture('owner');
+    for (const path of ['/admin/catalog/groups', '/admin/catalog/groups/new?mode=assemble']) {
+      const screen = adminScreenForPath(path);
+      expect(screen?.navHidden, path).toBe(true);
+      expect(canAccessAdminScreen(owner, screen), path).toBe(true);
+      expect(canAccessAdminScreen(owner, screen, { intent: 'write' }), path).toBe(true);
+    }
   });
   it('influencer can search orders and manage restrictions without fulfilling or refunding', () => {
     const auth = configuredOperatorAccessFixture('influencer');

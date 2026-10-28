@@ -73,6 +73,29 @@ export async function exportPendingOriginShipmentsAction(originId:unknown,format
  const rest=Number(value.total)-keys.length;
  return exportShipments(client,keys,format,layout,credentials,rest>0?` 남은 ${rest.toLocaleString('ko-KR')}건은 다시 눌러 이어서 받아주세요.`:'');
 }
+/**
+ * 내보내기 전 경고(10/27 회의 D10): 선택한 배송 건에서 출고 파일의 바코드 칸이 비는 옵션 수.
+ * 경고는 출고를 막지 않으므로 권한·입력·조회 실패는 숫자 대신 null로 돌려 경고만 생략한다.
+ */
+export async function shipmentBarcodeGapsAction(ids:unknown):Promise<number|null>{
+ if(!await staff())return null;const keys=selection(ids);if(!keys)return null;
+ return barcodeGaps(await createClient(),keys);
+}
+/** 출고지 전체 내려받기 버튼이 다음에 받을 미전달 묶음(최대 1,000줄)과 같은 배송 건으로 센다. */
+export async function originBarcodeGapsAction(originId:unknown):Promise<number|null>{
+ if(!await staff()||typeof originId!=='string'||!UUID.test(originId))return null;
+ const client=await createClient();
+ const pending=await client.rpc('admin_origin_pending_export_ids',{target_origin_id:originId.toLowerCase()});
+ const value=pending.data as {ids?:unknown}|null;
+ if(pending.error||!value||!Array.isArray(value.ids))return null;
+ if(!value.ids.length)return 0;
+ const keys=selection(value.ids);
+ return keys?barcodeGaps(client,keys):null;
+}
+async function barcodeGaps(client:Client,keys:string[]):Promise<number|null>{
+ const result=await client.rpc('admin_shipment_barcode_gaps',{p_ids:keys});
+ return !result.error&&Number.isSafeInteger(result.data)&&Number(result.data)>=0?Number(result.data):null;
+}
 export async function completeShipmentsAction(ids:unknown){
  if(!await staff())return {error:'직원 권한이 필요합니다.'};const keys=selection(ids);
  if(!keys)return {error:'배송완료 처리할 배송 건을 1~1,000개 선택해주세요.'};

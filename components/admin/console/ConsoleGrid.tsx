@@ -230,14 +230,15 @@ export function ConsoleGrid({
             <tr>
               {selectable ? (
                 <th className="admin-console-grid-check" data-frozen={frozenCount > 0 || undefined} style={frozenStyle(0)} scope="col">
-                  <input
+                  {/* 칸 전체가 클릭 영역이다(label이 칸을 채운다). */}
+                  <label className="admin-console-grid-check-hit"><input
                     aria-label="전체 선택"
                     checked={allSelected}
                     disabled={selectableIds.length === 0}
                     onChange={(event) => toggleAll(event.target.checked)}
                     ref={selectAllRef}
                     type="checkbox"
-                  />
+                  /></label>
                 </th>
               ) : null}
               {visibleColumns.map((column, displayIndex) => {
@@ -294,13 +295,13 @@ export function ConsoleGrid({
                   {selectable ? (
                     <td className="admin-console-grid-check" data-frozen={frozenCount > 0 || undefined} style={frozenStyle(0)}>
                       {rowSelectable ? (
-                        <input
+                        <label className="admin-console-grid-check-hit"><input
                           aria-label={row.selectLabel ?? `${row.id} 선택`}
                           checked={rowSelected}
                           onChange={(event) => toggleRow(row.id, event.target.checked)}
                           type="checkbox"
                           value={row.id}
-                        />
+                        /></label>
                       ) : null}
                     </td>
                   ) : null}

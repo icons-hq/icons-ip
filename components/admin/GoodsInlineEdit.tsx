@@ -38,14 +38,15 @@ export async function runSingleGoodBulk(identity: GoodsGroupIdentity, goodId: st
   return { ok: false, message: goodsBulkError(receipt.value.error) };
 }
 
-function InlineEditor({ label, display, children, onSubmit, pending, error, recovery, onRecover, editing, setEditing }: {
+/** `fillCell`: 그 칸의 주 내용이면 셀 어디를 눌러도 수정이 열린다(R11). 다른 링크와 한 칸을 쓰면 그 줄만 채운다. */
+function InlineEditor({ label, display, children, onSubmit, pending, error, recovery, onRecover, editing, setEditing, fillCell = false }: {
   label: string; display: ReactNode; children: ReactNode; onSubmit: (form: FormData) => void; pending: boolean; error: string;
-  recovery: boolean; onRecover: () => void; editing: boolean; setEditing: (value: boolean) => void;
+  recovery: boolean; onRecover: () => void; editing: boolean; setEditing: (value: boolean) => void; fillCell?: boolean;
 }) {
   const formRef = useRef<HTMLFormElement>(null);
   const errorId = useId();
   function submit(event: FormEvent<HTMLFormElement>) { event.preventDefault(); onSubmit(new FormData(event.currentTarget)); }
-  if (!editing) return <span className="admin-goods-inline">
+  if (!editing) return <span className={fillCell ? 'admin-goods-inline admin-goods-inline--cell' : 'admin-goods-inline'}>
     <button type="button" className="admin-goods-inline__value" aria-label={`${label} 바로 수정`} onClick={() => setEditing(true)}>{display}<span aria-hidden="true" className="admin-goods-inline__pen">✎</span></button>
     {error ? <small role="alert" className="admin-goods-inline__error">{error}</small> : null}
     {recovery ? <button type="button" className="admin-goods-inline__link" disabled={pending} onClick={onRecover}>처리 결과 조회</button> : null}
@@ -100,7 +101,7 @@ export function GoodsInlinePrice({ goodId, basePrice, display, identity, hasOpti
       if (result.value.state === 'completed') state.router.refresh();
     });
   }
-  return <InlineEditor label="판매가" display={display} onSubmit={save} pending={state.pending} error={state.error} recovery={Boolean(state.recovery)} onRecover={recover} editing={state.editing} setEditing={state.setEditing}>
+  return <InlineEditor fillCell label="판매가" display={display} onSubmit={save} pending={state.pending} error={state.error} recovery={Boolean(state.recovery)} onRecover={recover} editing={state.editing} setEditing={state.setEditing}>
     <label htmlFor={inputId} className="sr-only">기본 판매가 (원)</label>
     <input id={inputId} name="price" inputMode="numeric" defaultValue={basePrice} autoFocus className="admin-goods-inline__input" />
     <small>{hasOptions ? '기본 판매가 · 옵션 추가금 유지' : '판매가'}</small>
@@ -167,7 +168,7 @@ export function GoodsInlineStock({ goodId, ipId, variantId, stockQty }: {
       } catch { state.setError('재고수량을 저장하지 못했습니다. 새로고침 후 수량을 확인해주세요.'); }
     });
   }
-  return <InlineEditor label="재고수량" display={`${stockQty.toLocaleString('ko-KR')}개`} onSubmit={save} pending={state.pending} error={state.error} recovery={false} onRecover={() => undefined} editing={state.editing} setEditing={state.setEditing}>
+  return <InlineEditor fillCell label="재고수량" display={`${stockQty.toLocaleString('ko-KR')}개`} onSubmit={save} pending={state.pending} error={state.error} recovery={false} onRecover={() => undefined} editing={state.editing} setEditing={state.setEditing}>
     <label htmlFor={inputId} className="sr-only">재고수량 (개)</label>
     <input id={inputId} name="stockQty" inputMode="numeric" defaultValue={stockQty} autoFocus className="admin-goods-inline__input" />
     <small>실재고 조정 기록이 남습니다.</small>
