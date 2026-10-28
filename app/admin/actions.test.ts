@@ -1874,11 +1874,38 @@ describe('상품 등록 원자 저장', () => {
     ['goods_kc_attestation_required', 'workspaceKc'],
     ['preorder_policy_not_configured', 'workspacePreorders'],
     ['goods_workspace_operation_conflict', 'form'],
+    /* 리뷰 T3a-3: 옵션 해석 실패는 그 섹션 카드에 붙인다. */
+    ['goods_workspace_preorder_variant_unresolved', 'workspacePreorders'],
+    ['goods_workspace_kc_variant_unresolved', 'workspaceKc'],
+    /* 리뷰 T3a-8: 다른 요청이 끝낸 임시저장에 섹션을 실으면 성공으로 알리지 않는다. */
+    ['goods_workspace_draft_completed_sections_skipped', 'form'],
   ])('래퍼 오류 %s는 %s 칸에 붙이고 저장되지 않았음을 알린다', async (message, field) => {
     mocks.rpc.mockResolvedValueOnce({ data: null, error: { message } });
     const result = await upsertAdminGoodAction({ attempt: 2 }, workspaceForm({ kc: null, preorders: [] }));
     expect(result.errors?.[field as 'form']).toEqual(expect.any(String));
     expect(result.attempt).toBe(3);
+  });
+
+  /* 리뷰 T3a-3 — 예약 조건의 옵션 해석 실패가 KC 카드로 가지 않는다. */
+  it('예약 대상 옵션 해석 실패는 예약판매 카드에만 안내한다', async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: null, error: { message: 'goods_workspace_preorder_variant_unresolved' } });
+    const result = await upsertAdminGoodAction({}, workspaceForm({ kc: null, preorders: [] }));
+    expect(result.errors).toEqual({ workspacePreorders: expect.stringContaining('예약 대상 옵션') });
+  });
+
+  /* 리뷰 T3a-9 — 등록 화면의 판매기간·예약 활성화 충돌은 저장된 상품 전용 안내('일반재고로 전환') 대신 등록 화면에서 할 일을 알린다. */
+  it('판매기간과 예약 활성화 충돌은 예약판매 카드와 판매기간 칸에 등록 화면 안내를 붙인다', async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: null, error: { message: 'goods_sale_period_preorder_conflict' } });
+    const result = await upsertAdminGoodAction({}, workspaceForm({ kc: null, preorders: [] }));
+    expect(result.errors?.workspacePreorders).toContain('예약 조건을 초안으로 바꾸거나 판매기간을 설정안함으로');
+    expect(result.errors?.saleStartsAt).toContain('판매기간');
+    expect(JSON.stringify(result.errors)).not.toContain('일반재고로 전환');
+  });
+
+  /* 리뷰 T3a-8 — 섹션 없는 저장이 다른 요청이 끝낸 임시저장을 만나면 등록된 상품을 알린다(섹션 입력이 없으니 잃을 것이 없다). */
+  it('섹션 없는 저장이 이미 등록된 임시저장을 만나면 등록된 상품으로 안내한다', async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: { id: 'g100', created: false, draftAlreadyCompleted: true, kc: null, preorders: [] }, error: null });
+    await expect(upsertAdminGoodAction({}, workspaceForm({ kc: null, preorders: [] }))).resolves.toMatchObject({ savedGoodId: 'g100', message: expect.stringContaining('이미 상품으로 등록한 임시저장') });
   });
 
   it('기본 입력 오류는 기존 매핑을 그대로 쓰고, 잘못된 작업 ID·공개 요청은 저장하지 않는다', async () => {

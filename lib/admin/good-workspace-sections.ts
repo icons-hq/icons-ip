@@ -8,7 +8,8 @@ import { parseGoodsPreorderInput, type GoodsPreorderInput } from './goods-preord
  *
  * 등록 화면은 KC·예약판매를 1단계 입력과 함께 받아 public.admin_save_good_workspace 하나로 저장한다.
  * 새 옵션은 저장 전 id가 없으므로 화면은 옵션을 행 키로 가리키고, 제출할 때 저장된 옵션은 {id},
- * 새 옵션은 {attributes}(옵션값 조합) 참조로 바꾼다. DB가 저장 직후 활성 옵션 하나로 해석한다.
+ * 새 옵션은 {attributes}(옵션값 조합) 참조로 바꾼다. DB가 저장 직후 활성 옵션, 없으면 이번 저장이 만든 옵션(사용 중지로
+ * 등록해 바로 보관된 새 옵션 포함) 하나로 해석한다.
  * 섹션 입력은 브라우저 자동복구·서버 임시저장에 담지 않는다(KC 근거 참조 보호, DQ3).
  */
 
@@ -76,8 +77,14 @@ export type GoodWorkspaceSectionsResult =
   | { ok: true; value: GoodWorkspaceSectionsSubmission }
   | { ok: false; field: GoodWorkspaceErrorField; error: string };
 
-/** 화면 상태 + 현재 옵션 행 → 제출 JSON. 입력이 없는 섹션은 빼서 기존 저장과 같은 결과를 낸다. */
-export function prepareGoodWorkspaceSections(draft: GoodWorkspaceSectionsDraft, rows: readonly GoodsOptionRow[], canActivate: boolean): GoodWorkspaceSectionsResult {
+export const GOOD_WORKSPACE_SALE_PERIOD_PREORDER_CONFLICT = '판매기간을 설정한 상품은 예약판매를 활성화할 수 없습니다. 예약 조건을 초안으로 바꾸거나 판매기간을 설정안함으로 바꿔주세요.';
+
+/**
+ * 화면 상태 + 현재 옵션 행 → 제출 JSON. 입력이 없는 섹션은 빼서 기존 저장과 같은 결과를 낸다.
+ * `salePeriodEnabled`: 이번 제출의 판매기간 설정 여부. 판매기간과 활성 예약은 함께 저장할 수 없다(DB가 다시 막는다).
+ */
+export function prepareGoodWorkspaceSections(draft: GoodWorkspaceSectionsDraft, rows: readonly GoodsOptionRow[], canActivate: boolean,
+  { salePeriodEnabled = false }: { salePeriodEnabled?: boolean } = {}): GoodWorkspaceSectionsResult {
   const byId = new Map(rows.map((row) => [goodWorkspaceVariantId(row), row]));
   let kc: GoodWorkspaceSectionsSubmission['kc'] = null;
   if (draft.kc.models.length || draft.kc.attested) {
@@ -103,6 +110,7 @@ export function prepareGoodWorkspaceSections(draft: GoodWorkspaceSectionsDraft, 
     if (used.has(entry.optionKey)) return { ok: false, field: 'workspacePreorders', error: `${label}: 한 옵션에는 예약 조건을 하나만 입력합니다.` };
     used.add(entry.optionKey);
     if (entry.state === 'active' && !canActivate) return { ok: false, field: 'workspacePreorders', error: `${label}: 예약 활성화는 관리자 계정에서 할 수 있습니다. 초안으로 저장해주세요.` };
+    if (entry.state === 'active' && salePeriodEnabled) return { ok: false, field: 'workspacePreorders', error: `${label}: ${GOOD_WORKSPACE_SALE_PERIOD_PREORDER_CONFLICT}` };
     const values = { state: entry.state, capacityQty: entry.capacityQty.trim(), startsAt: entry.startsAt, endsAt: entry.endsAt,
       expectedShipDate: entry.expectedShipDate, approvalReference: entry.approvalReference };
     if (!parseGoodsPreorderInput(values)) {
@@ -175,15 +183,29 @@ export function parseGoodWorkspaceSections(raw: FormDataEntryValue | null, canAc
 }
 
 /** admin_save_good_workspace 오류 → 섹션 칸 안내. 섹션과 무관한 오류는 null(기본 저장 매핑이 맡는다). */
-export function goodWorkspaceSectionFailure(message: string): Partial<Record<GoodWorkspaceErrorField | 'form', string>> | null {
-  /* 판매기간·예약 충돌은 기본 저장 매핑(판매기간 칸)이 안내한다. */
+export function goodWorkspaceSectionFailure(message: string): Partial<Record<GoodWorkspaceErrorField | 'form' | 'saleStartsAt', string>> | null {
+  /*
+   * 등록 화면에서 판매기간·예약 충돌은 이번 제출의 예약 활성화 때문이다. 저장된 상품의 '일반재고로 전환'은 여기 없으므로
+   * 예약 조건 카드와 판매기간 칸에 등록 화면에서 할 수 있는 방법을 알린다. 다른 판매기간 오류는 기본 저장 매핑이 맡는다.
+   */
+  if (message.includes('goods_sale_period_preorder_conflict')) {
+    return { saleStartsAt: '판매기간을 설정하면 이번에 함께 저장하는 예약판매를 활성화할 수 없습니다. 판매기간을 설정안함으로 바꾸거나 아래 예약 조건을 초안으로 바꿔주세요.',
+      workspacePreorders: `${GOOD_WORKSPACE_SALE_PERIOD_PREORDER_CONFLICT} 상품은 저장되지 않았고 입력은 유지됩니다.` };
+  }
   if (message.includes('goods_sale_period')) return null;
   if (message.includes('goods_workspace_operation_conflict')) {
     return { form: '이미 처리된 저장 요청입니다. 입력은 유지됩니다. 목록을 새로고침해 저장된 상품을 확인해주세요.' };
   }
+  if (message.includes('goods_workspace_draft_completed_sections_skipped')) {
+    return { form: '이 임시저장은 다른 저장에서 이미 상품으로 등록됐습니다. 이번 KC·예약판매 입력은 저장되지 않았고 입력은 유지됩니다. 상품 목록에서 등록된 상품을 열어 KC·예약판매를 확인한 뒤 입력해주세요.' };
+  }
   if (message.includes('goods_workspace_publish_unsupported')) return { form: '새 상품은 저장한 뒤 게시 상태에서 공개해주세요.' };
-  if (message.includes('goods_workspace_variant_unresolved') || message.includes('invalid_goods_workspace_variant')) {
-    return { workspaceKc: 'KC·예약판매에서 고른 옵션을 저장된 옵션목록에서 찾지 못했습니다. 옵션을 다시 선택해주세요. 입력은 유지됩니다.' };
+  /* 옵션 참조 해석 실패는 래퍼가 섹션(kc·preorder)을 담아 알린다. 아래 예약판매 일반 매핑(preorder_)보다 먼저 본다. */
+  if (message.includes('goods_workspace_preorder_variant_unresolved') || message.includes('invalid_goods_workspace_preorder_variant')) {
+    return { workspacePreorders: '예약 대상 옵션을 저장된 옵션목록에서 찾지 못했습니다. 예약 대상 옵션을 다시 선택해주세요. 상품은 저장되지 않았고 입력은 유지됩니다.' };
+  }
+  if (message.includes('goods_workspace_kc_variant_unresolved') || message.includes('invalid_goods_workspace_kc_variant')) {
+    return { workspaceKc: 'KC 모델에 연결한 옵션을 저장된 옵션목록에서 찾지 못했습니다. 적용 옵션을 다시 선택해주세요. 상품은 저장되지 않았고 입력은 유지됩니다.' };
   }
   if (message.includes('goods_kc_review_changed')) return { workspaceKc: '다른 작업에서 KC 검토가 바뀌었습니다. 입력은 유지됩니다. 새로고침 후 KC 정보를 확인해주세요.' };
   if (message.includes('goods_kc_attestation_required') || message.includes('goods_kc_review_incomplete')) {

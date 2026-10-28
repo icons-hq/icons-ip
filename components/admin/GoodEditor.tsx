@@ -320,7 +320,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
     }
     if (atomicSections) {
       /* 등록 화면: KC·예약판매 입력과 작업 ID를 이번 제출에 싣는다. FormData는 이 capture 단계 뒤에 만들어진다. */
-      const prepared = prepareGoodWorkspaceSections(atomicSections.sections, rows, canActivatePreorders);
+      const prepared = prepareGoodWorkspaceSections(atomicSections.sections, rows, canActivatePreorders, { salePeriodEnabled: submitted.get('salePeriodEnabled') === 'true' });
       if (!prepared.ok) {
         event.preventDefault(); atomicSections.setSectionErrors({ [prepared.field]: prepared.error }); setClientErrors({ [prepared.field]: prepared.error });
         focusGoodWorkspaceTarget(`good-operation-${GOOD_WORKSPACE_ERROR_SECTIONS[prepared.field]}`); return;
