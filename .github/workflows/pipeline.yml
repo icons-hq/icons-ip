@@ -100,7 +100,70 @@ jobs:
         with:
           fetch-depth: 0
 
+      # tree에는 이 workflow와 lockfile까지 들어 있으므로, 같은 tree를 통과한 PR·merge queue
+      # run은 같은 validate 정의를 같은 입력으로 실행한 증거다. main push는 그 증거가 있으면
+      # 검사를 다시 돌리지 않는다. fork PR이 올린 아티팩트는 출처 repo 대조로 거부하고,
+      # 조회가 실패하거나 증거가 없으면 전체 검사를 실행한다.
+      - name: Reuse validation of the identical tree
+        id: reuse
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          tree="$(git rev-parse 'HEAD^{tree}')"
+          api() {
+            curl --fail --silent --show-error \
+              --header "Authorization: Bearer $GH_TOKEN" \
+              --header "Accept: application/vnd.github+json" \
+              --header "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/${GITHUB_REPOSITORY}/$1"
+          }
+          run_full_validation() {
+            echo "hit=false" >> "$GITHUB_OUTPUT"
+            echo "Full validation for tree \`$tree\`: $1" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          }
+
+          if ! artifacts_json="$(api "actions/artifacts?name=validated-tree-${tree}&per_page=100")"; then
+            echo "::warning title=Validation reuse lookup failed::Running full validation"
+            run_full_validation "evidence lookup failed"
+          fi
+
+          while IFS= read -r run_id; do
+            [ -n "$run_id" ] || continue
+            run_json="$(api "actions/runs/${run_id}")" || continue
+            if ! jq -e --arg repo "$GITHUB_REPOSITORY_ID" '
+              (.event == "pull_request" or .event == "merge_group")
+              and .path == ".github/workflows/pipeline.yml"
+              and (.repository.id | tostring) == $repo
+              and (.head_repository.id | tostring) == $repo
+            ' <<<"$run_json" >/dev/null; then
+              continue
+            fi
+            # 재실행에서 validate가 실패했다면 이전 시도의 아티팩트는 증거로 쓰지 않는다.
+            jobs_json="$(api "actions/runs/${run_id}/jobs?filter=latest&per_page=100")" || continue
+            if ! jq -e 'any(.jobs[]; .name == "validate" and .conclusion == "success")' \
+              <<<"$jobs_json" >/dev/null; then
+              continue
+            fi
+
+            echo "hit=true" >> "$GITHUB_OUTPUT"
+            {
+              echo "### Validation reused"
+              echo
+              echo "- tree: \`$tree\`"
+              echo "- evidence: [$(jq -r '.event' <<<"$run_json") run ${run_id}]($(jq -r '.html_url' <<<"$run_json"))"
+              echo "- 같은 tree의 lint·typecheck·test·build·DB 검증을 위 run의 \`validate\`가 통과해 다시 실행하지 않았습니다."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          done < <(jq -r '.artifacts[] | select(.expired == false) | .workflow_run.id' <<<"$artifacts_json" | sort -u)
+
+          run_full_validation "no same-repository PR or merge queue run validated it"
+
       - name: Set up Node.js
+        if: steps.reuse.outputs.hit != 'true'
         uses: actions/setup-node@v6
         with:
           node-version: ${{ env.NODE_VERSION }}
@@ -111,37 +174,47 @@ jobs:
         run: node scripts/check-admin-guide-changelog.mjs
 
       - name: Install dependencies
+        if: steps.reuse.outputs.hit != 'true'
         run: npm ci
 
       - name: Run lint
+        if: steps.reuse.outputs.hit != 'true'
         run: npm run lint
 
       - name: Run TypeScript checks
+        if: steps.reuse.outputs.hit != 'true'
         run: npm run typecheck
 
       - name: Run tests
+        if: steps.reuse.outputs.hit != 'true'
         run: npm run test
 
       - name: Build application
+        if: steps.reuse.outputs.hit != 'true'
         run: npm run build
 
       - name: Set up Supabase CLI
+        if: steps.reuse.outputs.hit != 'true'
         uses: supabase/setup-cli@v2
         with:
           version: ${{ env.SUPABASE_CLI_VERSION }}
 
       - name: Start local Supabase database
+        if: steps.reuse.outputs.hit != 'true'
         run: supabase db start
 
       - name: Apply local migrations
+        if: steps.reuse.outputs.hit != 'true'
         run: supabase db reset --local --no-seed
 
       - name: Pause automatic order confirmation in the CI database
         # 매분 cron 틱이 KST 16:30을 걸친 CI 실행에서 다른 스모크가 커밋한 결제완료 주문을 발주확인하지 않게 한다.
         # 꺼진 설정이면 틱은 잠금 없이 끝난다. 자동 발주확인 스모크는 자기 트랜잭션 안에서 설정을 켜고 검증한다.
+        if: steps.reuse.outputs.hit != 'true'
         run: docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 -c "update private.auto_order_confirmation_settings set enabled=false, revision=revision+1 where singleton"
 
       - name: Install database smoke test tools
+        if: steps.reuse.outputs.hit != 'true'
         run: |
           sudo apt-get update
           sudo apt-get install --yes ripgrep python3
@@ -151,6 +224,7 @@ jobs:
           docker tag ghcr.io/supabase/postgrest:v14.14 public.ecr.aws/supabase/postgrest:v14.14
 
       - name: Check manager permission boundaries
+        if: steps.reuse.outputs.hit != 'true'
         run: |
           docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/operator_capability_coverage.sql
           docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/operator_capability_guards.sql
@@ -240,6 +314,7 @@ jobs:
           docker exec -i supabase_db_icons-ip psql -X -U supabase_admin -d postgres -v ON_ERROR_STOP=1 < supabase/tests/ip_hall_banners.sql
 
       - name: Check story and marketing workflows
+        if: steps.reuse.outputs.hit != 'true'
         run: |
           cat supabase/tests/helpers/goods_kc_fixture.sql supabase/tests/shopping_stories.sql | docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1
           cat supabase/tests/helpers/goods_kc_fixture.sql supabase/tests/shopping_story_goods_picker.sql | docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1
@@ -274,28 +349,60 @@ jobs:
           GOODS_RELATION_VISUAL_TEST_SCOPE=ci SUPABASE_DB_CONTAINER=supabase_db_icons-ip bash supabase/tests/goods_relation_visual_concurrency.sh
 
       - name: Check full admin fulfillment and benefit contracts
+        if: steps.reuse.outputs.hit != 'true'
         run: python3 scripts/run-full-admin-sql-tests.py --scope ci --container supabase_db_icons-ip --output-dir output/full-admin-sql
 
       - name: Check goods transaction, gift and recurring billing boundaries
+        if: steps.reuse.outputs.hit != 'true'
         run: |
           GOODS_TRANSACTION_TEST_SCOPE=ci SUPABASE_DB_CONTAINER=supabase_db_icons-ip bash supabase/tests/goods_transaction_isolated.sh
           GIFT_ORDER_TEST_SCOPE=ci SUPABASE_DB_CONTAINER=supabase_db_icons-ip bash supabase/tests/gift_orders_isolated.sh
           SUBSCRIPTION_TEST_SCOPE=ci SUPABASE_DB_CONTAINER=supabase_db_icons-ip bash supabase/tests/goods_subscriptions_isolated.sh
 
       - name: Run database smoke tests
+        if: steps.reuse.outputs.hit != 'true'
         env:
           OPERATOR_LEGACY_FIXTURE_TEST_SCOPE: "1"
         run: node scripts/with-legacy-operator-fixtures.mjs --project icons-ip --container supabase_db_icons-ip -- bash scripts/run-database-smoke-tests.sh
 
       - name: Verify manager boundaries after legacy fixtures
-        if: always()
+        if: always() && steps.reuse.outputs.hit != 'true'
         run: |
           docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/release_main_admin_contracts.sql
           docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/operator_capability_coverage.sql
           docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/operator_capability_guards.sql
 
       - name: Lint local database
+        if: steps.reuse.outputs.hit != 'true'
         run: supabase db lint --local --fail-on error
+
+      # PR·merge queue가 통과시킨 정확한 merge tree를 남긴다. 같은 tree의 main push는 위
+      # reuse step이 이 증거를 찾아 검사를 건너뛴다. 실패한 검사는 이 step까지 오지 않는다.
+      - name: Record validated tree
+        if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
+        run: |
+          set -euo pipefail
+
+          tree="$(git rev-parse 'HEAD^{tree}')"
+          jq -n \
+            --arg tree "$tree" \
+            --arg sha "$GITHUB_SHA" \
+            --arg event "$GITHUB_EVENT_NAME" \
+            --arg run_id "$GITHUB_RUN_ID" \
+            --arg run_attempt "$GITHUB_RUN_ATTEMPT" \
+            '{tree: $tree, sha: $sha, event: $event, runId: $run_id, runAttempt: $run_attempt}' \
+            > "$RUNNER_TEMP/validated-tree.json"
+          echo "VALIDATED_TREE=$tree" >> "$GITHUB_ENV"
+
+      - name: Upload validated tree evidence
+        if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
+        uses: actions/upload-artifact@v7
+        with:
+          name: validated-tree-${{ env.VALIDATED_TREE }}
+          path: ${{ runner.temp }}/validated-tree.json
+          retention-days: 14
+          if-no-files-found: error
+          overwrite: true
 
   deploy-supabase:
     name: deploy-supabase
@@ -516,11 +623,13 @@ jobs:
             exit 0
           fi
 
+          # 증거는 두 job의 결론이다. 뒤따르는 deploy-staging까지 run 전체가 끝나기를
+          # 기다리지 않도록 실행 중인 run도 조회하고, 진행 중인 job은 success가 아니라 거부된다.
           runs_json="$(curl --fail --silent --show-error \
             --header "Authorization: Bearer $GH_TOKEN" \
             --header "Accept: application/vnd.github+json" \
             --header "X-GitHub-Api-Version: 2022-11-28" \
-            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/pipeline.yml/runs?event=push&head_sha=${PR_BASE_SHA}&status=completed&per_page=20")"
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/pipeline.yml/runs?event=push&head_sha=${PR_BASE_SHA}&per_page=20")"
 
           synchronized_run_id=""
           while IFS= read -r run_id; do
