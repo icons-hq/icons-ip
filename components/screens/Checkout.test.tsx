@@ -56,6 +56,19 @@ const goods: Good[] = [
     img: 'none',
     allowBankTransfer: false,
   },
+  /* D5② 랜덤 판매 — 카탈로그가 옵션을 기본 옵션 키 하나('랜덤')로 접은 모양. */
+  {
+    id: 'g15', name: '랜덤 포토카드', ip: 'hong-sil-quest', type: '포토카드', price: 5000, badge: null, stock: 'ok', stockQty: 6, optionSaleMode: 'random',
+    options: [{id:'00000000-0000-4000-8000-000000000015',name:'랜덤',price:5000,stockQty:6,code:'',isDefault:true,attributes:{},orderMaxQty:null,memberMaxQty:null}],
+    img: 'none',
+  },
+  /* D7② 옵션별 구매 제한. */
+  {
+    id: 'g16', name: '아크릴 키링', ip: 'hong-sil-quest', type: '키링', price: 7000, badge: null, stock: 'ok', stockQty: 9,
+    options: [{id:'00000000-0000-4000-8000-000000000016',name:'파랑',price:7000,stockQty:9,code:'BLUE',isDefault:true,attributes:{},orderMaxQty:2,memberMaxQty:3},
+      {id:'00000000-0000-4000-8000-000000000017',name:'빨강',price:7000,stockQty:9,code:'RED',isDefault:false,attributes:{}}],
+    img: 'none',
+  },
 ];
 
 function render({
@@ -309,5 +322,22 @@ describe('Checkout 배송지 미리 채우기·주소록', () => {
     expect(html).not.toContain('checkout-address-book');
     expect(html).not.toContain('href="/my/addresses"');
     expect(html).toContain('id="checkout-recipientName"');
+  });
+});
+
+describe('Checkout 랜덤 판매·옵션별 구매 제한 품목 줄', () => {
+  it('랜덤 판매 굿즈는 옵션명을 랜덤으로 보인다', () => {
+    const html = render({ paymentAvailable: true, bankTransferAvailable: true, items: [{ goodId: 'g15', variantId: '00000000-0000-4000-8000-000000000015', qty: 2 }] });
+    expect(html).toContain('<span>랜덤</span>');
+  });
+
+  it('견적이 옵션 한도 위반을 알리면 품목 줄에 확정 카피를 보이고 제출을 막는다', () => {
+    const item = { goodId: 'g16', variantId: '00000000-0000-4000-8000-000000000016', qty: 3 };
+    const html = render({ paymentAvailable: true, bankTransferAvailable: true, items: [item], quote: { lines: [{ ...item, regularPrice: 7000, effectivePrice: 7000,
+      pricePeriodId: null, startsAt: null, endsAt: null, available: true,
+      optionLimit: { orderMaxQty: 2, memberMaxQty: 3, memberReservedQty: null, memberRemainingQty: null, reason: 'option_order_limit_exceeded' } }] } });
+    expect(html).toContain('&#x27;파랑&#x27;은 한 번에 2개까지 주문할 수 있습니다.');
+    expect(html).toContain('한 번에 주문할 수 있는 수량이 정해진 옵션이 있어요.');
+    expect(submitButton(html)).toContain('disabled');
   });
 });

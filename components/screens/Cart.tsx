@@ -32,8 +32,8 @@ import { krw } from '@/lib/format';
 import { GoodsCustomInputsSummary } from '@/components/shop/GoodsCustomInputs';
 import { goodsCustomInputProblem, type GoodsCustomInputSelection } from '@/lib/goods-custom-inputs';
 import { cartItemKey } from '@/lib/cart';
-import { cartOptionGood, goodAtQuotedPrice, optionLabel } from '@/lib/goods-options';
-import { goodsSalesQuoteProblem } from '@/lib/goods-sales';
+import { cartLineOption, cartOptionGood, goodAtQuotedPrice, optionLabel, randomCartLineFold, type CartQuantityStep } from '@/lib/goods-options';
+import { goodsSalesQuoteProblem, quoteLineOptionLimitMessage } from '@/lib/goods-sales';
 import { shippingFeeLabel } from '@/lib/shipping';
 import { useGoodsSalesPrecheckoutQuote, useShippingQuote } from '@/components/shop/useShippingQuote';
 import { ShippingGroupSummary } from '@/components/shop/ShippingGroupSummary';
@@ -51,7 +51,16 @@ interface CartLine {
   good?: Good;
   ip?: Ip;
   supply?: GoodsVariantSupply;
+  /** 옵션별 주문당 최대 수량(D7②) — 수량 스테퍼 상한. */
+  orderMaxQty?: number | null;
+  /** 견적이 알린 옵션별 구매 제한 위반 안내(확정 카피). */
+  optionLimitMessage?: string | null;
+  /** 랜덤 전환 전에 비기본 옵션 키로 담은 줄(D5②)을 '랜덤' 한 줄로 다시 담는 호출 순서. 있으면 스테퍼 대신 다시 담기다. */
+  refold?: CartQuantityStep[] | null;
 }
+
+/* 랜덤 전환 전에 담은 줄의 안내. 이 줄의 수량을 바꾸면 DB가 키 줄로 합쳐 화면이 갑자기 바뀌므로 다시 담기 하나만 둔다. */
+const RANDOM_REFOLD_NOTICE = '판매 방식이 바뀌기 전에 담은 줄이에요. 다시 담으면 랜덤 한 줄로 합쳐집니다.';
 
 function isSoldOut(good: Good) {
   return good.stock === 'soldout' || good.stockQty <= 0;
@@ -75,7 +84,7 @@ function lineStateLabel(good: Good, qty: number) {
    그 아래 오른쪽에 줄 금액(CT-04 · 레퍼런스 실측). 표시 배치만 바꾼다 — 수량·삭제 호출과 금액 계산은 그대로다. */
 function CartLineRow({ line }: { line: CartLine }) {
   const { pending, remove, setQuantity } = useCart();
-  const { good, goodId, variantId, ip, qty, optionName, supply,customInputs } = line;
+  const { good, goodId, variantId, ip, qty, optionName, supply,customInputs, orderMaxQty, optionLimitMessage, refold } = line;
 
   if (!good) {
     return (
@@ -121,6 +130,8 @@ function CartLineRow({ line }: { line: CartLine }) {
         <PriceBlock showDiscountRate={good.showDiscountRate} compareAtPrice={good.compareAtPrice} price={good.price} />
         {goodsCustomInputProblem(good.customInputs,customInputs) && <p className="wc-cart__line-state">{goodsCustomInputProblem(good.customInputs,customInputs)} <Link href={href}>내용 다시 확인</Link></p>}
         {stateLabel ? <p className="wc-cart__line-state">{stateLabel}</p> : null}
+        {optionLimitMessage ? <p className="wc-cart__line-state">{optionLimitMessage}</p> : null}
+        {refold && !soldOut ? <p className="wc-cart__line-state">{RANDOM_REFOLD_NOTICE}</p> : null}
         {supply?.mode === 'preorder' ? <p className="wc-cart__line-state">{goodsShipDateLabel(supply.expectedShipDate)}</p> : null}
       </div>
       <div className="wc-cart__line-band">
@@ -128,11 +139,24 @@ function CartLineRow({ line }: { line: CartLine }) {
           {optionName ? <p className="wc-cart__line-option">{optionName}</p> : null}
           <GoodsCustomInputsSummary selection={customInputs} />
         </div>
-        {/* 품절 라인은 늘릴 수도 줄일 수도 없다 — 스테퍼 대신 삭제만 남긴다. */}
-        {soldOut ? null : (
+        {/* 품절 라인은 늘릴 수도 줄일 수도 없다 — 스테퍼 대신 삭제만 남긴다. 랜덤 전환 전에 담은 줄은 다시 담기로 키 줄에 합친다. */}
+        {soldOut ? null : refold ? (
+          <button
+            aria-label={`${good.name} 랜덤 한 줄로 다시 담기`}
+            disabled={pending}
+            onClick={() => void (async () => {
+              for (const step of refold) await setQuantity(goodId, step.qty, good.stockQty, step.variantId, customInputs);
+            })()}
+            style={{ flex: 'none', height: 32, padding: '0 12px', border: '1px solid var(--wc-line-control)', background: 'var(--wc-surface)',
+              color: 'var(--wc-ink)', font: 'inherit', fontSize: 13, cursor: 'pointer' }}
+            type="button"
+          >
+            다시 담기
+          </button>
+        ) : (
           <QuantityStepper
             label={`${good.name} 수량`}
-            max={good.stockQty}
+            max={orderMaxQty ? Math.min(good.stockQty, orderMaxQty) : good.stockQty}
             onChange={(next) => void setQuantity(goodId, next, good.stockQty, variantId,customInputs)}
             value={qty}
           />
@@ -301,17 +325,24 @@ export function Cart({
     const prices = new Map(sales?.lines.map(line => [cartItemKey(line.goodId, line.variantId), line]));
 
     return items.map((item) => {
-      const good = goodAtQuotedPrice(cartOptionGood(goodsById.get(item.goodId), item.variantId), prices.get(cartItemKey(item.goodId, item.variantId)));
-      const option = good?.options?.find(option => option.id === item.variantId);
+      const quoteLine = prices.get(cartItemKey(item.goodId, item.variantId));
+      const catalogGood = goodsById.get(item.goodId);
+      const good = goodAtQuotedPrice(cartOptionGood(catalogGood, item.variantId), quoteLine);
+      const option = cartLineOption(good, item.variantId);
+      /* 랜덤 판매 굿즈(D5②)는 카탈로그가 옵션을 '랜덤' 하나로 접어 두었다 — 옵션명이 그대로 '랜덤'이다. */
+      const optionName = optionLabel(option, good?.options?.length ?? 0);
       return {
         ...item,
-        optionName: optionLabel(option, good?.options?.length ?? 0),
+        optionName,
         good,
-        supply: prices.get(cartItemKey(item.goodId, item.variantId))?.supply ?? option?.supply,
+        supply: quoteLine?.supply ?? option?.supply,
         ip: good ? ipsById.get(good.ip) : undefined,
+        orderMaxQty: quoteLine?.optionLimit?.orderMaxQty ?? option?.orderMaxQty ?? null,
+        optionLimitMessage: good ? quoteLineOptionLimitMessage(quoteLine, optionName ?? good.name) : null,
+        refold: good ? randomCartLineFold(catalogGood, items, item, mode === 'server' ? 'server' : 'local', good.stockQty) : null,
       };
     });
-  }, [catalog.goods, catalog.ips, items, sales]);
+  }, [catalog.goods, catalog.ips, items, mode, sales]);
 
   const subtotal = sales?.subtotal ?? lines.reduce((total, line) => (
     total + (line.good ? line.good.price * line.qty : 0)

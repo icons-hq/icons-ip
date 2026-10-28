@@ -13,12 +13,15 @@ const mocks = vi.hoisted(() => ({
 
 vi.mock('@/lib/supabase/config', () => ({ getSupabaseConfig: () => ({ isConfigured: mocks.configured }) }));
 vi.mock('@/lib/review-events.server', () => ({ loadGoodsReviewEvents: mocks.loadGoodsReviewEvents }));
+/* 랜덤 판매 굿즈(D5②)의 배정 행은 order_items 직접 읽기에서 빠진다 — 굿즈 목록은 마스킹 RPC(my_order_items)로 읽는다.
+   직접 읽기를 부르면 실패하게 해 둔다. */
 vi.mock('@/lib/supabase/server', () => ({
   createClient: async () => ({
-    from(table: string) {
+    from(table: string) { throw new Error(`direct_read_forbidden:${table}`); },
+    rpc(fn: string, args: { p_order_ids: unknown }) {
+      mocks.filters.push([fn, 'p_order_ids', args.p_order_ids]);
       const query = {
         select: () => query,
-        in: (column: string, values: unknown) => { mocks.filters.push([table, column, values]); return query; },
         order: () => query,
         limit: () => query,
         gt: () => query,
@@ -45,7 +48,7 @@ describe('loadOrderReviewEvents', () => {
 
   it("asks events for the distinct goods of the member's reviewable orders", async () => {
     expect(await loadOrderReviewEvents([order('o1', 'delivered'), order('o2', 'canceled')])).toEqual([EVENT]);
-    expect(mocks.filters).toEqual([['order_items', 'order_id', ['o1']]]);
+    expect(mocks.filters).toEqual([['my_order_items', 'p_order_ids', ['o1']]]);
     expect(mocks.loadGoodsReviewEvents).toHaveBeenCalledWith(['g1', 'g2']);
   });
 

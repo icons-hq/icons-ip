@@ -22,8 +22,9 @@ import { krw } from '@/lib/format';
 import { GoodsCustomInputsSummary } from '@/components/shop/GoodsCustomInputs';
 import { goodsCustomInputProblem } from '@/lib/goods-custom-inputs';
 import { cartItemKey } from '@/lib/cart';
-import { cartOptionGood, goodAtQuotedPrice, optionLabel } from '@/lib/goods-options';
-import { goodsPurchaseReasonMessage, goodsSalesQuoteProblem } from '@/lib/goods-sales';
+import { cartLineOption, cartOptionGood, goodAtQuotedPrice, optionLabel } from '@/lib/goods-options';
+import { goodsPurchaseReasonMessage, goodsSalesQuoteProblem, quoteLineOptionLimitMessage } from '@/lib/goods-sales';
+import { PLACE_ORDER_OPTION_LIMIT_MESSAGES, PLACE_ORDER_RANDOM_OPTION_MESSAGE } from '@/lib/goods-option-sale-mode';
 import { couponErrorNeedsPendingOrder, MIN_PAYABLE_TOTAL, type UserCouponSummary } from '@/lib/coupons';
 import { normalizeStoreCreditAmount } from '@/lib/store-credits';
 import { goodsShipDateLabel } from '@/lib/goods-preorders';
@@ -57,6 +58,10 @@ const actionErrors = {
   order_quantity_below_minimum: goodsPurchaseReasonMessage('order_quantity_below_minimum'),
   order_quantity_above_maximum: goodsPurchaseReasonMessage('order_quantity_above_maximum'),
   member_purchase_limit_exceeded: goodsPurchaseReasonMessage('member_purchase_limit_exceeded'),
+  /* 옵션별 구매 제한(D7②)·랜덤 판매(D5②) — 장바구니 안내 뒤의 경합으로 주문 생성이 거절된 경우. */
+  option_order_limit_exceeded: PLACE_ORDER_OPTION_LIMIT_MESSAGES.option_order_limit_exceeded,
+  option_member_limit_exceeded: PLACE_ORDER_OPTION_LIMIT_MESSAGES.option_member_limit_exceeded,
+  random_option_unavailable: PLACE_ORDER_RANDOM_OPTION_MESSAGE,
   restricted_good_blocked: '지금은 구매할 수 없는 굿즈가 담겨 있어요. 장바구니에서 빼고 다시 시도해주세요.',
   empty_cart: '장바구니가 비어 있어요.',
   out_of_stock: '결제 직전 재고가 변경됐어요. 장바구니에서 수량을 다시 확인해주세요.',
@@ -159,10 +164,14 @@ export function Checkout({
     const ipsById = new Map(catalog.ips.map((ip) => [ip.id, ip]));
     const prices = new Map(shipping.sales?.lines.map(line => [cartItemKey(line.goodId, line.variantId), line]));
     return items.map((item) => {
-      const good = goodAtQuotedPrice(cartOptionGood(goodsById.get(item.goodId), item.variantId), prices.get(cartItemKey(item.goodId, item.variantId)));
-      const option = good?.options?.find(option => item.variantId ? option.id === item.variantId : option.isDefault);
-      return { ...item, good, supply: prices.get(cartItemKey(item.goodId, item.variantId))?.supply ?? option?.supply,
-        optionName: optionLabel(option, good?.options?.length ?? 0), ip: good ? ipsById.get(good.ip) : undefined };
+      const quoteLine = prices.get(cartItemKey(item.goodId, item.variantId));
+      const good = goodAtQuotedPrice(cartOptionGood(goodsById.get(item.goodId), item.variantId), quoteLine);
+      const option = item.variantId ? cartLineOption(good, item.variantId) : good?.options?.find(option => option.isDefault);
+      /* 랜덤 판매 굿즈(D5②)는 카탈로그가 옵션을 '랜덤' 하나로 접어 두었다. 옵션별 구매 제한(D7②) 위반은 품목 줄이 말한다. */
+      const optionName = optionLabel(option, good?.options?.length ?? 0);
+      return { ...item, good, supply: quoteLine?.supply ?? option?.supply,
+        optionName, ip: good ? ipsById.get(good.ip) : undefined,
+        optionLimitMessage: good ? quoteLineOptionLimitMessage(quoteLine, optionName ?? good.name) : null };
     });
   }, [catalog.goods, catalog.ips, items, shipping.sales]);
   const subtotal = shipping.sales?.subtotal ?? lines.reduce((sum, line) => sum + (line.good?.price ?? 0) * line.qty, 0);
@@ -386,7 +395,7 @@ export function Checkout({
             <h2>주문 확인</h2>
           </div>
           <div className="checkout-items">
-            {lines.map(({ goodId, variantId, good, ip, qty, optionName, supply,customInputs }) => (
+            {lines.map(({ goodId, variantId, good, ip, qty, optionName, supply,customInputs, optionLimitMessage }) => (
               <div className="checkout-item" key={cartItemKey(goodId, variantId,customInputs)}>
                 <div>
                   <span>{ip?.title ?? 'ICONS'} · {good?.type ?? '판매 종료'}</span>
@@ -395,6 +404,7 @@ export function Checkout({
                   <GoodsCustomInputsSummary selection={customInputs} />
                   {good && goodsCustomInputProblem(good.customInputs,customInputs) && <span>{goodsCustomInputProblem(good.customInputs,customInputs)}</span>}
                   {supply?.mode === 'preorder' ? <span>예약판매 · {goodsShipDateLabel(supply.expectedShipDate)}</span> : null}
+                  {optionLimitMessage ? <span>{optionLimitMessage}</span> : null}
                 </div>
                 <span className="mono">{qty} × {krw(good?.price ?? 0)}</span>
               </div>

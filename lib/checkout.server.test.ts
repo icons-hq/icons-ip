@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { transactionActor, transactionDisplay, transactionInput, transactionLineId, transactionOrder, transactionQuoteId } from '@/test/fixtures/cart-transaction';
 import { cartRetentionKeepsCart } from './checkout';
+import { myOrderItemsFixture } from './orders/my-order-items.fixture';
 import {
   loadCheckoutOrder,
   loadLatestCardPaymentResultFocus,
@@ -13,13 +14,25 @@ const mocks = vi.hoisted(() => ({
   gift: vi.fn(),
 }));
 
-vi.mock('./supabase/server', () => ({ createClient: () => mocks.client }));
+/* 고객 세션 클라이언트에는 마스킹 RPC(my_order_items)를 붙인다 — 테스트가 준 from 흉내의 'order_items:masked' 표로 보낸다. */
+function withMaskedItemsRpc(client: unknown) {
+  if (!client || typeof client !== 'object') return client;
+  const target = client as { from: (table: string) => { in: (column: string, values: unknown[]) => unknown }; rpc?: (...args: unknown[]) => unknown };
+  return new Proxy(target, { get(object, property, receiver) {
+    if (property !== 'rpc') return Reflect.get(object, property, receiver);
+    return (...call: unknown[]) => call[0] === 'my_order_items'
+      ? object.from('order_items:masked').in('order_id', (call[1] as { p_order_ids?: string[] } | undefined)?.p_order_ids ?? [])
+      : object.rpc?.(...call);
+  } });
+}
+vi.mock('./supabase/server', () => ({ createClient: () => withMaskedItemsRpc(mocks.client) }));
 vi.mock('./supabase/service', () => ({ createServiceClient: () => mocks.serviceClient }));
 vi.mock('./gifts-order.server', () => ({ loadGiftCheckoutOrder: mocks.gift }));
 beforeEach(() => { mocks.gift.mockReset().mockResolvedValue({ kind: 'ordinary' }); });
 
 interface QueryRecord {
   table: string;
+  rpc?: string;
   select?: string;
   eq: [string, unknown][];
   afterId?:string;
@@ -33,11 +46,16 @@ function createQuery(
   records: QueryRecord[],
   rowsByTable: Record<string, Record<string, unknown>[]>,
 ) {
-  const record: QueryRecord = { table, eq: [] };
+  /* 직접 읽기(order_items)는 랜덤 배정 행이 restrictive RLS로 빠지고, 마스킹 RPC는 랜덤 행을 주문·굿즈 한 줄로 합쳐 옵션을 가린다. */
+  const masked = table === 'order_items:masked';
+  const record: QueryRecord = masked ? { table: 'order_items', rpc: 'my_order_items', eq: [] } : { table, eq: [] };
   records.push(record);
 
   const result = () => {
-    let rows = (rowsByTable[table] ?? []).map((row,index)=>table==='order_items'?{...row,id:row.id??String(index).padStart(12,'0')}:row);
+    let rows = (rowsByTable[record.table] ?? []).map((row,index)=>record.table==='order_items'?{...row,id:row.id??String(index).padStart(12,'0')}:row);
+    if (record.table === 'order_items') {
+      rows = masked ? myOrderItemsFixture(rows) : rows.filter((row) => row.option_sale_mode_snapshot !== 'random');
+    }
     for (const [column, value] of record.eq) rows = rows.filter((row) => row[column] === value);
     rows=rows.filter(row=>record.afterId===undefined||String(row.id)>record.afterId);
     for (const [column, values] of record.in ?? []) rows = rows.filter((row) => values.includes(row[column]));
@@ -149,8 +167,8 @@ describe('loadCheckoutOrder', () => {
       supplySource: 'stock',
       preorderExpectedShipDate: null,
     }]);
-    expect(records.find((record) => record.table === 'order_items')?.select)
-      .toBe('id,good_id,qty,unit_price,good_name_snapshot,good_type_snapshot,variant_id,variant_name_snapshot,variant_code_snapshot,custom_inputs_snapshot,supply_source,preorder_expected_ship_date');
+    expect(records.find((record) => record.table === 'order_items')).toMatchObject({ rpc: 'my_order_items', in: [['order_id', [orderId]]],
+      select: 'id,good_id,qty,unit_price,good_name_snapshot,good_type_snapshot,variant_id,variant_name_snapshot,variant_code_snapshot,custom_inputs_snapshot,supply_source,preorder_expected_ship_date,option_sale_mode,shipment_id' });
     expect(records.some((record) => record.table === 'goods')).toBe(false);
   });
 
@@ -662,6 +680,53 @@ it('신규 주문은 저장된 온라인·착불·할인·품목 원장과 일�
   expect(await loadCheckoutOrder(transactionActor, transactionOrder)).toBeNull();
   rows.order_items[0].qty = 2; rpc.mockResolvedValueOnce({ data: null, error: null });
   expect(await loadCheckoutOrder(transactionActor, transactionOrder)).toBeNull();
+});
+
+it('결제 대기 주문서는 랜덤 판매 굿즈를 장바구니 키·옵션명 랜덤 한 줄로만 보인다(D5②)', async () => {
+  const records: QueryRecord[] = [];
+  const orderId = '7ad4c967-3d48-44da-a665-64731ac33f62', userId = '1cc4d399-8e70-4f06-979d-8fb0f9c43fde';
+  const secret = { good_id: 'random-good', unit_price: 5000, good_name_snapshot: '랜덤 포토카드', good_type_snapshot: '포토카드',
+    option_sale_mode_snapshot: 'random', cart_variant_id: '00000000-0000-4000-8000-00000000000a' };
+  const rows: Record<string, Record<string, unknown>[]> = {
+    orders: [{ id: orderId, user_id: userId, status: 'pending', total: 15000, address: {}, created_at: '2026-10-28T00:00:00Z', payment_method: 'card' }],
+    order_items: [
+      { ...secret, id: '00000000-0000-4000-8000-0000000000a1', order_id: orderId, qty: 2, variant_id: '00000000-0000-4000-8000-00000000000b', variant_name_snapshot: '배정-비밀', variant_code_snapshot: 'SECRET-B' },
+      { ...secret, id: '00000000-0000-4000-8000-0000000000a2', order_id: orderId, qty: 1, variant_id: '00000000-0000-4000-8000-00000000000c', variant_name_snapshot: '배정-비밀2', variant_code_snapshot: 'SECRET-C' },
+    ],
+    payment_summaries: [],
+  };
+  mocks.client = { from: (table: string) => createQuery(table, records, rows), rpc: vi.fn(async () => ({ data: null, error: null })) };
+  mocks.serviceClient = { from: (table: string) => createQuery(table, records, rows), rpc: vi.fn(async () => ({ data: null, error: null })) };
+  const order = await loadCheckoutOrder(userId, orderId);
+  expect(order?.items).toEqual([expect.objectContaining({ id: '00000000-0000-4000-8000-0000000000a1', goodId: 'random-good',
+    variantId: '00000000-0000-4000-8000-00000000000a', variantName: '랜덤', variantCode: null, qty: 3, unitPrice: 5000 })]);
+  expect(JSON.stringify(order)).not.toMatch(/비밀|SECRET|00000000000b|00000000000c/);
+});
+
+/* 고객은 배송 건 품목의 랜덤 배정 행을 읽지 못한다(restrictive RLS) — 결제 완료·주문서 화면도 my_order_items.shipment_id로 붙인다. */
+it('주문서의 배송 건은 배송 건 품목에서 빠진 랜덤 줄을 my_order_items 의 배송 건으로 붙인다(D5②)', async () => {
+  const records: QueryRecord[] = [];
+  const orderId = '7ad4c967-3d48-44da-a665-64731ac33f62', userId = '1cc4d399-8e70-4f06-979d-8fb0f9c43fde';
+  const rows: Record<string, Record<string, unknown>[]> = {
+    orders: [{ id: orderId, user_id: userId, status: 'paid', total: 15000, address: {}, created_at: '2026-10-28T00:00:00Z', payment_method: 'card' }],
+    order_items: [
+      { id: '00000000-0000-4000-8000-0000000000a2', order_id: orderId, good_id: 'random-good', qty: 1, unit_price: 5000, good_name_snapshot: '랜덤 포토카드',
+        good_type_snapshot: '포토카드', variant_id: '00000000-0000-4000-8000-00000000000c', option_sale_mode_snapshot: 'random',
+        cart_variant_id: '00000000-0000-4000-8000-00000000000a', shipment_id: 'shipment-1' },
+      { id: '00000000-0000-4000-8000-0000000000a1', order_id: orderId, good_id: 'random-good', qty: 2, unit_price: 5000, good_name_snapshot: '랜덤 포토카드',
+        good_type_snapshot: '포토카드', variant_id: '00000000-0000-4000-8000-00000000000b', option_sale_mode_snapshot: 'random',
+        cart_variant_id: '00000000-0000-4000-8000-00000000000a', shipment_id: 'shipment-1' },
+    ],
+    order_shipments: [{ id: 'shipment-1', order_id: orderId, origin_id: 'origin', origin_name_snapshot: '김포', shipping_fee: 3000, status: 'ready',
+      carrier: null, tracking_number: null, shipped_at: null, delivered_at: null, exported_at: null, order_shipment_items: [] }],
+    payment_summaries: [],
+  };
+  mocks.client = { from: (table: string) => createQuery(table, records, rows), rpc: vi.fn(async () => ({ data: null, error: null })) };
+  mocks.serviceClient = { from: (table: string) => createQuery(table, records, rows), rpc: vi.fn(async () => ({ data: null, error: null })) };
+  const order = await loadCheckoutOrder(userId, orderId);
+  expect(order?.items.map((item) => [item.id, item.qty])).toEqual([['00000000-0000-4000-8000-0000000000a1', 3]]);
+  expect(order?.shipments[0]?.orderItemIds).toEqual(['00000000-0000-4000-8000-0000000000a1']);
+  expect(records.find((record) => record.rpc === 'my_order_items')?.select?.split(',')).toContain('shipment_id');
 });
 
 describe('cartRetentionKeepsCart', () => {

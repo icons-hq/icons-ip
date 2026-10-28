@@ -71,6 +71,21 @@ describe('wishCartState', () => {
   });
 });
 
+/* D7② 옵션별 주문당 최대 수량 — 목록 담기 버튼과 같은 한도에서 멈춘다. D5② 랜덤 판매는 카탈로그가 접은 옵션 하나라 바로 담는다. */
+describe('wishCartState 옵션별 구매 제한·랜덤 판매', () => {
+  it('옵션별 주문당 최대 수량까지 담으면 더 담지 않는다', () => {
+    const limited = good({ stockQty: 9, options: [{ id: VARIANT, name: '기본', code: 'G13', price: 12000, stockQty: 9, isDefault: true, attributes: {}, orderMaxQty: 2 }] });
+    expect(wishCartState(limited, { ...READY, quantityInCart: 2 })).toMatchObject({ kind: 'add', unavailable: true,
+      label: '장바구니 · 2', ariaLabel: '홍실 아크릴 블록, 장바구니 2개, 구매 한도 2개' });
+    expect(wishCartState(limited, { ...READY, quantityInCart: 1 })).toMatchObject({ kind: 'add', unavailable: false, stockQty: 9 });
+  });
+  it('랜덤 판매 굿즈는 접힌 기본 옵션 키로 바로 담는다', () => {
+    const random = good({ optionSaleMode: 'random', stockQty: 6,
+      options: [{ id: VARIANT, name: '랜덤', code: '', price: 12000, stockQty: 6, isDefault: true, attributes: {}, orderMaxQty: null, memberMaxQty: null }] });
+    expect(wishCartState(random, READY)).toMatchObject({ kind: 'add', variantId: VARIANT, stockQty: 6, unavailable: false });
+  });
+});
+
 describe('addWishGoodToCart', () => {
   it('adds exactly one unit through the cart selection contract and reports only a confirmed add', async () => {
     const addSelection = vi.fn(async () => true);
