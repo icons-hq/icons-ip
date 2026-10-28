@@ -14,6 +14,9 @@ import { getSupabaseConfig } from '@/lib/supabase/config';
  *   켜짐은 계정·기기별(localStorage, 키에 계정 id)로 저장한다. 탭을 모두 닫으면 알림이 오지 않는다(Web Push 아님).
  * - 원천: Realtime `inquiries` INSERT(즉시, 문의 제목을 알림 본문으로). Realtime은 배경 탭 타이머 제한·재연결
  *   사이에 이벤트를 놓칠 수 있어, 리더 탭이 1분마다 마지막으로 본 접수 시각 이후 문의를 다시 확인한다.
+ *   그 기준점은 계정별로 공유(localStorage)한다. 리더가 확인 전에 닫혀도 다음 리더가 이어서 확인해야
+ *   팔로워 탭만 받았던 새 문의가 빠지지 않는다. 5분 넘게 갱신되지 않은 기준점(탭을 모두 닫았던 경우)은
+ *   버리고 최근 1건부터 다시 센다 — 밤새 쌓인 문의를 한꺼번에 알리지 않는다.
  * - 중복 방지: Web Locks로 한 탭만 리더(알림 담당)가 되고, 탭 간 '알림 차례' 기록(localStorage)과
  *   Notification tag(문의 id)로 같은 문의는 한 번만 알린다.
  * - 알림을 누르면 그 탭이 앞으로 오고 문의 상세(/admin/cs/inquiries/<id>)로 이동한다.
@@ -27,9 +30,11 @@ export const INQUIRY_NOTIFICATION_DENIED = '브라우저에서 알림이 차단�
 const INQUIRY_NOTIFICATION_UNSUPPORTED = '이 브라우저는 알림을 지원하지 않습니다. 크롬·엣지·사파리 최신 버전에서 켜 주세요.';
 const PREFERENCE_PREFIX = 'icons:admin:inquiry-notifications:v1:';
 const CLAIM_PREFIX = 'icons:admin:inquiry-notified:v1:';
+const CURSOR_PREFIX = 'icons:admin:inquiry-notifier-cursor:v1:';
 const CHANGE_EVENT = 'icons:admin:inquiry-notifications:change';
 const CATCH_UP_MS = 60_000;
 const COUNT_DEBOUNCE_MS = 1_000;
+const CURSOR_FRESH_MS = 5 * 60_000;
 
 type StorageLike = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
 type NotificationLike = { permission: NotificationPermission; requestPermission: () => Promise<NotificationPermission> };
@@ -98,6 +103,23 @@ export function claimInquiryNotification(accountId: string, inquiryId: string, s
   return true;
 }
 
+/** 리더가 마지막으로 확인한 접수 시각. 리더가 1분마다 다시 쓰므로 5분 넘게 묵은 값은 살아 있는 리더가 없었다는 뜻이다. */
+export function readInquiryNotifierCursor(accountId: string, storage: StorageLike | null = browserStorage(), now = Date.now()): string | null {
+  if (!accountId || !storage) return null;
+  try {
+    const parsed: unknown = JSON.parse(storage.getItem(`${CURSOR_PREFIX}${accountId}`) ?? 'null');
+    if (!parsed || typeof parsed !== 'object') return null;
+    const { cursor, savedAt } = parsed as { cursor?: unknown; savedAt?: unknown };
+    if (typeof cursor !== 'string' || !cursor || typeof savedAt !== 'number') return null;
+    return now - savedAt <= CURSOR_FRESH_MS ? cursor : null;
+  } catch { return null; }
+}
+
+export function writeInquiryNotifierCursor(accountId: string, cursor: string, storage: StorageLike | null = browserStorage(), now = Date.now()): void {
+  if (!accountId || !storage) return;
+  try { storage.setItem(`${CURSOR_PREFIX}${accountId}`, JSON.stringify({ cursor, savedAt: now })); } catch { /* This tab still keeps its own cursor. */ }
+}
+
 export function titleWithInquiryCount(title: string, count: number | null): string {
   const base = title.replace(/^\(\d+\+?\) /, '');
   return count && count > 0 ? `(${count > 99 ? '99+' : count}) ${base}` : base;
@@ -123,6 +145,8 @@ export function startInquiryNotifier(options: {
   onCount: (count: number | null) => void;
   claim: (inquiryId: string) => boolean;
   leader: (onLead: () => void) => () => void;
+  /** 탭 간 공유 기준점. 새 리더는 여기서부터 확인하고, 리더는 확인할 때마다 갱신한다. */
+  cursor?: { read: () => string | null; write: (cursor: string) => void };
 }): () => void {
   let active = true, leading = false, baseline = false, checking = false;
   let cursor: string | null = null;
@@ -142,15 +166,20 @@ export function startInquiryNotifier(options: {
     if (!active || !leading || checking) return;
     checking = true;
     try {
+      if (!baseline) {
+        const shared = options.cursor?.read() ?? null;
+        if (shared) { cursor = shared; baseline = true; }
+      }
       const rows = await options.loadSince(baseline ? cursor : null);
       if (!active || !leading || !rows) return;
       if (!baseline) {
         rows.forEach((row) => seen.add(row.id));
         cursor = rows.at(-1)?.createdAt ?? new Date().toISOString();
         baseline = true;
-        return;
+      } else {
+        for (const row of rows) { announce(row); cursor = row.createdAt; }
       }
-      for (const row of rows) { announce(row); cursor = row.createdAt; }
+      if (cursor) options.cursor?.write(cursor);
     } catch { /* The next interval retries. */ } finally { checking = false; }
   };
   const stopRealtime = observeInquiryChanges(options.realtime, {
@@ -203,6 +232,7 @@ function useNotifierEffect(accountId: string, enabled: boolean, onCount: (count:
       },
       onCount,
       claim: (inquiryId) => claimInquiryNotification(accountId, inquiryId),
+      cursor: { read: () => readInquiryNotifierCursor(accountId), write: (value) => writeInquiryNotifierCursor(accountId, value) },
       leader: (onLead) => acquireInquiryNotifierLeadership(accountId, onLead),
     });
   }, [accountId, enabled, onCount, router]);

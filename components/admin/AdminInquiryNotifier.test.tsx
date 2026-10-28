@@ -11,9 +11,11 @@ import {
   claimInquiryNotification,
   enableInquiryNotifications,
   inquiryNotificationsEnabled,
+  readInquiryNotifierCursor,
   setInquiryNotificationsEnabled,
   startInquiryNotifier,
   titleWithInquiryCount,
+  writeInquiryNotifierCursor,
 } from './AdminInquiryNotifier';
 
 function memoryStorage(initial: Record<string, string> = {}) {
@@ -163,6 +165,74 @@ describe('새 문의 알림 엔진 (R2)', () => {
     vi.advanceTimersByTime(120_000); await settle();
     expect(run.test.removeChannel).toHaveBeenCalledOnce();
     expect(run.loadSince).toHaveBeenCalledTimes(2);
+  });
+});
+
+describe('리더 교대 (R2)', () => {
+  const OLD = { id: 'old', title: '기존', createdAt: '2026-10-28T00:00:00Z' };
+  const Q1 = { id: 'q1', title: '새 문의', createdAt: '2026-10-28T00:01:00Z' };
+  function tab(storage: ReturnType<typeof memoryStorage>, loadSince: (cursor: string | null) => Promise<typeof OLD[]>, now = () => Date.parse('2026-10-28T00:01:30Z')) {
+    const test = transport();
+    const notify = vi.fn();
+    let becomeLeader: (() => void) | undefined;
+    const stop = startInquiryNotifier({
+      realtime: test.client, loadOpenCount: async () => 1, loadSince: vi.fn(loadSince), notify, onCount: vi.fn(),
+      claim: (id) => claimInquiryNotification('acc', id, storage),
+      cursor: { read: () => readInquiryNotifierCursor('acc', storage, now()), write: (value) => writeInquiryNotifierCursor('acc', value, storage, now()) },
+      leader: (onLead) => { becomeLeader = onLead; return () => {}; },
+    });
+    return { test, notify, stop, lead: () => becomeLeader!() };
+  }
+
+  /* 리더 A가 실시간 연결이 끊긴 채 1분 확인 전에 닫히면, 그 사이 팔로워 B만 받은 새 문의를 B가 '최근 1건'
+     기준점으로 삼아 영영 알리지 않았다. 새 리더는 이전 리더가 남긴 공유 기준점부터 확인한다. */
+  it('새 리더는 이전 리더가 남긴 기준점부터 확인해, 리더가 놓치고 닫힌 새 문의를 알린다', async () => {
+    const storage = memoryStorage();
+    const a = tab(storage, async (cursor) => cursor === null ? [OLD] : []);
+    a.lead(); await settle();
+    const bLoad = vi.fn(async (cursor: string | null) => cursor === null ? [Q1] : cursor === OLD.createdAt ? [Q1] : []);
+    const b = tab(storage, bLoad);
+    await settle();
+    b.test.thread('INSERT', { id: Q1.id, title: Q1.title });
+    expect(b.notify).not.toHaveBeenCalled();
+    a.stop();
+    b.lead(); await settle();
+    expect(bLoad).not.toHaveBeenCalledWith(null);
+    expect(bLoad).toHaveBeenCalledWith(OLD.createdAt);
+    expect(b.notify).toHaveBeenCalledOnce();
+    expect(b.notify).toHaveBeenCalledWith(expect.objectContaining({ id: Q1.id, title: Q1.title }));
+    b.stop();
+  });
+
+  it('이전 리더가 이미 알린 문의는 새 리더가 다시 알리지 않는다', async () => {
+    const storage = memoryStorage();
+    const a = tab(storage, async (cursor) => cursor === null ? [OLD] : []);
+    a.lead(); await settle();
+    a.test.thread('INSERT', { id: Q1.id, title: Q1.title });
+    expect(a.notify).toHaveBeenCalledOnce();
+    a.stop();
+    const b = tab(storage, async (cursor) => cursor === OLD.createdAt ? [Q1] : []);
+    b.lead(); await settle();
+    expect(b.notify).not.toHaveBeenCalled();
+    b.stop();
+  });
+
+  /* 탭을 모두 닫았다가 다음 날 다시 열면 밤새 들어온 문의를 한꺼번에 알리지 않는다(Web Push 아님). */
+  it('오래된 기준점(리더가 5분 넘게 확인하지 않음)은 버리고 최근 1건을 새 기준점으로 삼는다', async () => {
+    const storage = memoryStorage();
+    writeInquiryNotifierCursor('acc', OLD.createdAt, storage, Date.parse('2026-10-28T00:00:00Z'));
+    expect(readInquiryNotifierCursor('acc', storage, Date.parse('2026-10-28T00:04:59Z'))).toBe(OLD.createdAt);
+    expect(readInquiryNotifierCursor('acc', storage, Date.parse('2026-10-28T00:05:01Z'))).toBeNull();
+    expect(readInquiryNotifierCursor('other', storage, Date.parse('2026-10-28T00:01:00Z'))).toBeNull();
+    const load = vi.fn(async (cursor: string | null) => cursor === null ? [Q1] : [OLD, Q1]);
+    const next = tab(storage, load, () => Date.parse('2026-10-29T09:00:00Z'));
+    next.lead(); await settle();
+    expect(load).toHaveBeenCalledWith(null);
+    expect(next.notify).not.toHaveBeenCalled();
+    next.stop();
+    storage.setItem('icons:admin:inquiry-notifier-cursor:v1:acc', '{broken');
+    expect(readInquiryNotifierCursor('acc', storage, Date.parse('2026-10-29T09:00:00Z'))).toBeNull();
+    expect(readInquiryNotifierCursor('acc', null)).toBeNull();
   });
 });
 
