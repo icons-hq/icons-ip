@@ -70,7 +70,7 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
  useEffect(()=>{
   if(!originBarcodeKey)return;let live=true;
   Promise.all(originBarcodeKey.split(',').map(id=>originBarcodeGapsAction(id).then(missing=>[id,missing] as const)))
-   .then(entries=>{if(live)setOriginBarcodeGaps({key:`${originBarcodeKey}#${exportRound}`,counts:Object.fromEntries(entries.filter(([,missing])=>missing!==null))});},()=>{});
+   .then(entries=>{if(live)setOriginBarcodeGaps({key:`${originBarcodeKey}#${exportRound}`,counts:Object.fromEntries(entries.filter((entry):entry is readonly [string,number]=>entry[1]!==null))});},()=>{});
   return()=>{live=false;};
  },[originBarcodeKey,exportRound]);
  const selectionBarcodeGap=barcodeKey&&barcodeGaps?.key===`${barcodeKey}#${exportRound}`?barcodeGaps.missing:0;
