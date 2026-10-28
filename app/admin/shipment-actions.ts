@@ -8,7 +8,7 @@ import {withSmartStoreLegacyAllocations} from '@/lib/admin/item-allocation.serve
 import {seowonExportLabels} from '@/lib/admin/seowon-exchange';
 import {randomUUID} from 'node:crypto';
 import {shipmentMutationError,type ShipmentExportData} from '@/lib/admin/shipment-dispatch';
-import {parseShipmentExportColumns,type ShipmentExportLayout} from '@/lib/admin/shipment-workbook';
+import {parseShipmentExportColumns,shipmentBarcodeGapWarning,type ShipmentExportLayout} from '@/lib/admin/shipment-workbook';
 import {exportPasswordError} from '@/lib/admin/export-password';
 import {encryptAdminWorkbook} from '@/lib/admin/encrypted-workbook.server';
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -48,8 +48,11 @@ async function exportShipments(client:Client,keys:string[],format:'xlsx'|'csv',l
   const operational=data.shipments.some(shipment=>shipment.isGift||(shipment.shippingCollectFee??0)>0||shipment.pack);
   const extra=operational?(file.extension==='xlsx'?' 별도 배송 운영 안내 시트에서 합포장·선물 포장·착불 조건을 함께 확인해주세요.':' ZIP에 포함된 각 출고 파일과 배송 운영 안내에서 합포장·선물 포장·착불 조건을 함께 확인해주세요.'):' ';
   refresh();
+  // 화면의 바코드 경고는 내보내기 전에 읽은 값이라 그 사이 바코드가 바뀌었을 수 있다(리뷰 M27-SHIP-1).
+  // 기존 창고 양식이면 실제로 내보낸 배송 건으로 누른 시점에 다시 세어 상태 문구에 싣는다. 경고라 조회 실패는 생략한다.
+  const missing=layout==='warehouse'?await barcodeGaps(client,keys):null;
   return {file:{base64:file.bytes.toString('base64'),mime:file.mime,name:file.name,...(sha256?{encryption:'ECMA-376-Agile' as const,sha256}:{})},
-   message:`${keys.length}건의 출고지시를 내려받았습니다.${multipleOrigins?' 출고지별 파일을 ZIP으로 묶었습니다. 각 파일을 해당 창고에 전달해주세요.':''}${extra}${note}`.trim()};
+   message:`${`${keys.length}건의 출고지시를 내려받았습니다.${multipleOrigins?' 출고지별 파일을 ZIP으로 묶었습니다. 각 파일을 해당 창고에 전달해주세요.':''}${extra}${note}`.trim()}${missing?` ${shipmentBarcodeGapWarning(missing)}`:''}`};
  }catch(error){return {error:error instanceof Error?error.message:'출고지시 파일을 만들지 못했습니다.'};}
 }
 export async function exportShipmentsAction(ids:unknown,format:'xlsx'|'csv',layout:ShipmentExportLayout='smartstore',credentials?:ExportCredentials):Promise<ExportResult>{
@@ -93,8 +96,10 @@ export async function originBarcodeGapsAction(originId:unknown):Promise<number|n
  return keys?barcodeGaps(client,keys):null;
 }
 async function barcodeGaps(client:Client,keys:string[]):Promise<number|null>{
- const result=await client.rpc('admin_shipment_barcode_gaps',{p_ids:keys});
- return !result.error&&Number.isSafeInteger(result.data)&&Number(result.data)>=0?Number(result.data):null;
+ try{
+  const result=await client.rpc('admin_shipment_barcode_gaps',{p_ids:keys});
+  return !result.error&&Number.isSafeInteger(result.data)&&Number(result.data)>=0?Number(result.data):null;
+ }catch{return null;}
 }
 export async function completeShipmentsAction(ids:unknown){
  if(!await staff())return {error:'직원 권한이 필요합니다.'};const keys=selection(ids);

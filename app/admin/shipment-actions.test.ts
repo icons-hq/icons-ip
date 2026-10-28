@@ -17,7 +17,7 @@ beforeEach(() => {
   vi.clearAllMocks();
   mocks.auth.mockResolvedValue({ operatorAccess: legacyOperatorAccessFixture(), isConfigured: true, user: { id: 'staff' }, isStaff: true, role: 'staff' });
   mocks.rpc.mockImplementation(async (name: string) => ({ error: null, data: name === 'admin_shipment_export' || name === 'admin_smartstore_shipment_export'
-    ? { shipments: [{ id: ID, updatedAt: STAMP }] } : 1 }));
+    ? { shipments: [{ id: ID, updatedAt: STAMP }] } : name === 'admin_shipment_barcode_gaps' ? 0 : 1 }));
   mocks.build.mockResolvedValue({ bytes: Buffer.from('workbook'), mime: 'test/workbook', extension: 'xlsx', name: 'ICONS-출고지시-2026-10-12-남양주.xlsx' });
   mocks.encrypt.mockReturnValue({ bytes: Buffer.from('encrypted-workbook'), sha256: 'a'.repeat(64) });
 });
@@ -72,7 +72,10 @@ describe('shipment action boundaries', () => {
     mocks.rpc.mockImplementation(async (name: string) => ({ error: null, data: name === 'admin_origin_pending_export_ids' ? { ids: [ID], total: 1201 }
       : name === 'admin_shipment_export' ? { shipments: [{ id: ID, updatedAt: STAMP }] } : 1 }));
     const result = await exportPendingOriginShipmentsAction(SECOND, 'xlsx', 'warehouse');
-    expect(mocks.rpc.mock.calls.map(([name]) => name)).toEqual(['admin_origin_pending_export_ids', 'admin_shipment_export', 'admin_mark_shipments_exported']);
+    expect(mocks.rpc.mock.calls.map(([name]) => name)).toEqual(['admin_origin_pending_export_ids', 'admin_shipment_export', 'admin_mark_shipments_exported', 'admin_shipment_barcode_gaps']);
+    // 바코드 빈칸은 이번에 실제로 내보낸 묶음으로 다시 센다(리뷰 M27-SHIP-1).
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_shipment_barcode_gaps', { p_ids: [ID] });
+    expect(result.message).toContain('바코드가 없는 옵션 1개 — 파일의 바코드 칸이 비어 있습니다.');
     expect(mocks.rpc).toHaveBeenCalledWith('admin_origin_pending_export_ids', { target_origin_id: SECOND });
     expect(mocks.rpc).toHaveBeenCalledWith('admin_shipment_export', { p_ids: [ID] });
     expect(result).toMatchObject({ file: { name: 'ICONS-출고지시-2026-10-12-남양주.xlsx' } });
@@ -163,6 +166,35 @@ describe('내보내기 전 바코드 경고 조회', () => {
     mocks.rpc.mockClear();
     expect(await shipmentBarcodeGapsAction([ID])).toBeNull();
     expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+  it('기존 창고 양식 내보내기는 누른 시점에 실제로 내보낸 배송 건으로 다시 세어 상태 문구에 싣는다', async () => {
+    // 리뷰 M27-SHIP-1: 화면의 경고는 선택이 바뀔 때만 다시 읽어, 그 사이 바코드를 고치거나 지우면 옛 개수가 남는다.
+    let missing: number | null = 2;
+    mocks.rpc.mockImplementation(async (name: string) => name === 'admin_shipment_barcode_gaps'
+      ? (missing === null ? { error: { message: 'boom' }, data: null } : { error: null, data: missing })
+      : { error: null, data: name === 'admin_shipment_export' ? { shipments: [{ id: ID, updatedAt: STAMP }, { id: SECOND, updatedAt: STAMP }] } : 2 });
+    const result = await exportShipmentsAction([ID, SECOND], 'xlsx', 'warehouse');
+    expect(result.file).toBeDefined();
+    expect(result.message).toBe('2건의 출고지시를 내려받았습니다. 바코드가 없는 옵션 2개 — 파일의 바코드 칸이 비어 있습니다.');
+    const names = mocks.rpc.mock.calls.map(([name]) => name);
+    expect(names).toEqual(['admin_shipment_export', 'admin_mark_shipments_exported', 'admin_shipment_barcode_gaps']);
+    expect(mocks.rpc).toHaveBeenLastCalledWith('admin_shipment_barcode_gaps', { p_ids: [ID, SECOND] });
+    // 바코드를 다 채웠으면 경고를 싣지 않는다. 경고 조회가 실패해도 내려받기는 그대로 성공한다.
+    missing = 0;
+    expect((await exportShipmentsAction([ID, SECOND], 'xlsx', 'warehouse')).message).toBe('2건의 출고지시를 내려받았습니다.');
+    missing = null;
+    const failedLookup = await exportShipmentsAction([ID, SECOND], 'xlsx', 'warehouse');
+    expect(failedLookup.file).toBeDefined();
+    expect(failedLookup.message).toBe('2건의 출고지시를 내려받았습니다.');
+  });
+  it('스마트스토어 74열과 실패한 내보내기는 바코드 빈칸을 세지 않는다', async () => {
+    await exportShipmentsAction([ID], 'xlsx', 'smartstore', credentials);
+    expect(mocks.rpc).not.toHaveBeenCalledWith('admin_shipment_barcode_gaps', expect.anything());
+    mocks.rpc.mockImplementation(async (name: string) => name === 'admin_shipment_export'
+      ? { error: null, data: { shipments: [{ id: ID, updatedAt: STAMP }] } }
+      : { error: { message: 'shipment_changed' }, data: null });
+    expect(await exportShipmentsAction([ID], 'xlsx', 'warehouse')).toEqual({ error: '배송 상태가 변경되었습니다. 목록을 새로고침한 뒤 다시 내보내주세요.' });
+    expect(mocks.rpc).not.toHaveBeenCalledWith('admin_shipment_barcode_gaps', expect.anything());
   });
   it('출고지 전체 내려받기는 다음에 받을 미전달 묶음과 같은 배송 건으로 센다', async () => {
     mocks.rpc.mockImplementation(async (name: string) => ({ error: null, data: name === 'admin_origin_pending_export_ids' ? { ids: [ID, SECOND], total: 5 } : 2 }));
