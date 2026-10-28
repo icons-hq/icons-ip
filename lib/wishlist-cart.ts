@@ -1,5 +1,5 @@
 import type { Good } from './data';
-import { goodsPurchaseConditionProblem, initialGoodOption } from './goods-options';
+import { goodsPurchaseConditionProblem, initialGoodOption, purchasableOptionQty } from './goods-options';
 import { goodsSaleUnavailableLabel } from './goods-sale-period';
 import type { CartSelectionItem } from './cart-additions';
 
@@ -32,7 +32,9 @@ export function wishCartState(good: Good, cart: { quantityInCart: number; ready:
   const stockQty = option?.stockQty ?? 0;
   const soldOut = good.stock === 'soldout' || !option || stockQty <= 0;
   const conditionProblem = goodsPurchaseConditionProblem(good);
-  const atLimit = Boolean(option) && cart.quantityInCart >= stockQty;
+  /* 옵션별 주문당 최대 수량(D7②)이 재고보다 작으면 그 수량이 담기 한도다(목록 담기 버튼과 같다). */
+  const limitQty = option ? purchasableOptionQty(option) : 0;
+  const atLimit = Boolean(option) && cart.quantityInCart >= limitQty;
   const unavailable = soldOut || Boolean(saleLabel) || Boolean(conditionProblem) || atLimit || !cart.ready || cart.working || Boolean(cart.pending);
 
   const label = saleLabel ?? (soldOut ? '품절'
@@ -44,7 +46,7 @@ export function wishCartState(good: Good, cart: { quantityInCart: number; ready:
   const ariaLabel = saleLabel ? `${good.name} ${saleLabel}`
     : soldOut ? `${good.name} 품절`
       : conditionProblem ? `${good.name} ${conditionProblem}`
-        : atLimit ? `${good.name}, 장바구니 ${cart.quantityInCart}개, 재고 한도 ${stockQty}개`
+        : atLimit ? `${good.name}, 장바구니 ${cart.quantityInCart}개, ${limitQty < stockQty ? '구매' : '재고'} 한도 ${limitQty}개`
           : `${good.name} 장바구니에 한 개 담기`;
 
   return { kind: 'add', variantId: option?.id ?? null, stockQty, label, ariaLabel, unavailable };
