@@ -7,6 +7,7 @@ const mocks = vi.hoisted(() => ({ pathname: '/admin', search: '' }));
 
 vi.mock('next/navigation', () => ({ usePathname: () => mocks.pathname, useSearchParams: () => new URLSearchParams(mocks.search) }));
 vi.mock('./AdminInquiryNotifier', () => ({ AdminInquiryNotifier: ({ accountId }: { accountId: string }) => <i data-inquiry-notifier={accountId} /> }));
+vi.mock('./AdminNumberWheelGuard', () => ({ AdminNumberWheelGuard: () => <i data-number-wheel-guard="" /> }));
 
 const admin = { id: 'admin-1', email: 'ops@example.test', role: 'staff', operatorAccess: legacyOperatorAccessFixture('staff') };
 
@@ -111,6 +112,16 @@ describe('AdminShell', () => {
     const logistics = { ...admin, operatorAccess: { mode: 'configured' as const, managerRole: 'logistics' as const, capabilities: ['home'] as ('home')[], revision: 1, setupRequired: false } };
     mocks.pathname = '/admin';
     expect(renderToStaticMarkup(<AdminShell admin={logistics}><p>본문</p></AdminShell>)).not.toContain('data-inquiry-notifier');
+  });
+
+  /* R18: 포커스된 어드민 number 입력의 휠 변경 방지는 셸 루트 안, 화면마다 다시 마운트되는 본문 밖에 한 번만 둔다. */
+  it('숫자 입력 휠 방지기를 모든 콘솔의 셸 루트 안 본문 밖에 한 번만 마운트한다', () => {
+    for (const html of [render(<p>본문</p>), renderToStaticMarkup(<AdminShell admin={admin} console="content"><p>카드</p></AdminShell>)]) {
+      expect(html.match(/data-number-wheel-guard/g)).toHaveLength(1);
+      expect(html.indexOf('data-number-wheel-guard')).toBeGreaterThan(html.indexOf('</main>'));
+      expect(html.lastIndexOf('</div>')).toBeGreaterThan(html.indexOf('data-number-wheel-guard'));
+      expect(html.slice(0, html.indexOf('data-number-wheel-guard'))).toContain('class="admin-shell wc-root wc-admin"');
+    }
   });
 
   it('본문을 그대로 렌더한다', () => {
