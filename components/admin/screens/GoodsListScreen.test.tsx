@@ -86,6 +86,21 @@ describe('goods list screen', () => {
     // 상품번호는 열로 옮겼으므로 접힌 추가 정보에 다시 두지 않는다.
     expect(html).not.toContain('<dt>상품번호</dt>');
   });
+  it('상품번호 보조 문구는 고객 화면에 안 보이는 사유와 같은 행의 상태 배지와 어긋나지 않는다', () => {
+    // 리뷰 T4-R15-1: 보관·전시 중 성인·IP 비공개 상품에 '공개 전'이라고 쓰면 '보관'·'전시중' 배지와 모순된다.
+    const base = { code: 'A', name: '상품', ipId: 'ip', ipTitle: 'IP', stock: 'ok' as const, stockQty: 1, activeStockQty: 1, lowStockOptionCount: 0, noticeComplete: true, customerVisible: false };
+    const html = renderToStaticMarkup(<GoodsListScreen data={{ filters: normalizeGoodsListFilters({}), total: 3, ips: [], goods: [
+      { ...base, id: 'draft-good', publishedAt: null, archivedAt: null },
+      { ...base, id: 'archived-good', publishedAt: '2026-10-01T00:00:00Z', archivedAt: '2026-10-20T00:00:00Z' },
+      { ...base, id: 'adult-good', publishedAt: '2026-10-01T00:00:00Z', archivedAt: null },
+    ] }} />);
+    const secondary = (id: string) => new RegExp(`>${id}<small class="admin-goods-worklist__secondary">([^<]+)</small>`).exec(html)?.[1];
+    expect(secondary('draft-good')).toBe('공개 전 · 미리보기');
+    expect(secondary('archived-good')).toBe('보관 · 미리보기');
+    // 전시 중이지만 판매 제한(성인)·IP 비공개 등으로 고객 상세가 열리지 않는 상품.
+    expect(secondary('adult-good')).toBe('고객 화면 비노출 · 미리보기');
+    expect(html.match(/공개 전 · 미리보기/g)).toHaveLength(1);
+  });
   it('빈 상품 목록에서도 지역 배송 정책 만료를 알린다', () => {
     const html = renderToStaticMarkup(<GoodsListScreen data={{ filters: normalizeGoodsListFilters({}), goods: [], ips: [], total: 0 }}
       shippingRegionExpiry={{ warnings: [{ originName: "김포", carrierLabel: "한진택배", id: 'policy', name: '지역 정책', version: 1, endsAt: '2026-09-27T00:00:00Z', status: 'expired' }] }} />);

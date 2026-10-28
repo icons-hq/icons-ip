@@ -51,10 +51,11 @@ export function GoodsListScreen({ data, shippingRegionExpiry, canIssueMarketingL
           {good.imageUrl ? <Image src={good.imageUrl} alt="" width={52} height={52} unoptimized /> : <span className="admin-goods-worklist__image-empty" aria-label="대표 이미지 없음">이미지<br />없음</span>}
           <span><strong>{good.name}</strong><small>{good.code}</small></span>
         </span>,
-        /* R15: 고객에게 보이는 상품은 고객 화면을 새 탭으로, 공개 전·보관·판매 제한 상품은 편집기 미리보기로 연다. */
+        /* R15: 고객에게 보이는 상품은 고객 화면을 새 탭으로, 공개 전·보관·판매 제한 상품은 편집기 미리보기로 연다.
+           보조 문구는 같은 행의 상태 배지(임시저장·보관·전시중)와 같은 사유로 쓴다. 전시 중인데 안 보이면 판매 제한·IP 비공개다. */
         good.customerVisible
           ? <a key="goodId" className="admin-goods-worklist__good-id" href={goodDetailHref(good.id)} target="_blank" rel="noopener noreferrer">{good.id}<span className="sr-only"> 고객 화면 새 탭으로 열기</span><span aria-hidden="true"> ↗</span></a>
-          : <Link key="goodId" className="admin-goods-worklist__good-id" href={goodPreviewHref(filters, good.id)}>{good.id}<small className="admin-goods-worklist__secondary">공개 전 · 미리보기</small></Link>,
+          : <Link key="goodId" className="admin-goods-worklist__good-id" href={goodPreviewHref(filters, good.id)}>{good.id}<small className="admin-goods-worklist__secondary">{good.archivedAt ? '보관' : good.publishedAt ? '고객 화면 비노출' : '공개 전'} · 미리보기</small></Link>,
         <Link key="edit" className="admin-goods-worklist__edit" href={goodEditorHref(filters, good.id)}>수정</Link>,
         editable && inlineIdentity && typeof good.basePrice === 'number' && good.compareAtPrice == null && !good.activeDiscountEndsAt
           ? <GoodsInlinePrice key="price" goodId={good.id} basePrice={good.basePrice} identity={inlineIdentity} hasOptions={(good.activeVariantCount ?? 0) !== 1}
