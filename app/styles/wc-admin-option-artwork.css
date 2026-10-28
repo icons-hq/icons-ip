@@ -746,8 +746,9 @@
 .wc-admin .admin-good-section .goods-price-editor > .goods-choice,
 .wc-admin .admin-good-section .goods-purchase-limits__group > .goods-choice { display: flex; flex-wrap: wrap; gap: 0; margin: 0; padding: 18px 0 18px 185px; border: 0; border-top: 1px solid var(--wc-hairline); position: relative; }
 .wc-admin .admin-good-section .goods-price-editor > .goods-choice > legend,
-.wc-admin .admin-good-section .goods-purchase-limits__group > .goods-choice > legend { position: absolute; left: 0; top: 26px; color: var(--wc-ink-sub); font-size: 13px; }
-.wc-admin .admin-good-section .goods-choice label { min-width: 100px; min-height: 34px; padding: 7px 16px; border: 1px solid var(--wc-line-control); text-align: center; background: var(--wc-surface); cursor: pointer; }
+.wc-admin .admin-good-section .goods-purchase-limits__group > .goods-choice > legend { position: absolute; left: 0; top: 26px; width: 170px; color: var(--wc-ink-sub); font-size: 13px; pointer-events: none; }
+/* R11: 절대배치 legend가 기본 규칙의 width:100%로 버튼 가운데 띠를 덮어 클릭을 가로챘다. legend 폭을 왼쪽 라벨 칸(185px 패딩)으로 줄이고 클릭을 통과시키며, 버튼을 위에 그린다. */
+.wc-admin .admin-good-section .goods-choice label { position: relative; z-index: 1; min-width: 100px; min-height: 34px; padding: 7px 16px; border: 1px solid var(--wc-line-control); text-align: center; background: var(--wc-surface); cursor: pointer; }
 .wc-admin .admin-good-section .goods-choice label:has(input:checked) { background: var(--wc-admin-success-aa); color: var(--wc-surface); border-color: var(--wc-admin-success-aa); }
 .wc-admin .admin-good-section .goods-choice label input { position: absolute; width: 1px; height: 1px; opacity: 0; }
 .wc-admin .admin-good-section .goods-choice label:has(input:focus-visible) { outline: 2px solid var(--wc-focus); outline-offset: 2px; }
