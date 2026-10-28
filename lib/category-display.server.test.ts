@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { parseCategoryDisplayGood, parseCategoryDisplayPage, hydrateCategoryDisplayPage, loadCategoryDisplayPage } from './category-display.server';
 import { toGood, type GoodRow } from './catalog';
+import { initialGoodOption, purchasableOptionQty } from './goods-options';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 const mocks = vi.hoisted(() => ({ rpc: vi.fn(), appearance: vi.fn(), rewards: vi.fn(), summaries: vi.fn() }));
@@ -33,6 +34,20 @@ describe('전시 공개 DTO', () => {
     expect(parseCategoryDisplayGood(source)).toBeNull();
     const badSupply = row(); badSupply.goods_variants[0].supply.state = 'closed';
     expect(parseCategoryDisplayGood(badSupply)).toBeNull();
+  });
+  it('랜덤 판매 굿즈는 전시 RPC가 싣는 랜덤 한 줄 하나로 목록 빠른 담기가 된다(D5②)', () => {
+    // private.category_display_public_variants 는 랜덤 굿즈의 옵션 행 대신 goods_random_option 한 줄(장바구니 키·풀 합계)만 싣는다.
+    const base = row(), key = '93930000-0000-4000-8000-000000000077';
+    const supply = { mode: 'stock', availableQty: 60, policyId: null, policyRevision: null, state: 'stock',
+      startsAt: null, endsAt: null, expectedShipDate: null, calculatedAt: now, nextChangeAt: null };
+    const source = { ...base, stock_qty: 60, stock: 'ok',
+      goods_variants: [{ ...base.goods_variants[0], id: key, name: '랜덤', code: '', stock_qty: 60, supply }] };
+    const good = parseCategoryDisplayGood(source);
+    expect(good?.options).toHaveLength(1);
+    expect(good?.options?.[0]).toMatchObject({ id: key, name: '랜덤', stockQty: 60 });
+    // AddToCartButton 은 옵션이 하나면 '옵션 선택' 대신 바로 담고, 키(기본 옵션)로 담는다.
+    expect(initialGoodOption(good!)?.id).toBe(key);
+    expect(purchasableOptionQty(good!.options![0])).toBe(60);
   });
   it('페이지 개수·전체 수·토큰·중복 ID 불일치를 거절한다', () => {
     expect(parseCategoryDisplayPage(page(), query)?.result.goods).toHaveLength(1);
