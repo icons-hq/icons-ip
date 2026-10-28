@@ -138,7 +138,8 @@ export function GoodWorkspaceNavigation() {
   useEffect(() => {
     const openHash = () => {
       const id = window.location.hash.slice(1);
-      if (id.startsWith('good-section-') || id.startsWith('good-operation-')) focusGoodWorkspaceTarget(id);
+      /* R15: 목록의 상품번호(공개 전 상품)는 #good-preview로 온다 — 접힌 공개 화면 미리보기를 연다. */
+      if (id.startsWith('good-section-') || id.startsWith('good-operation-') || id === 'good-preview') focusGoodWorkspaceTarget(id);
     };
     openHash();
     window.addEventListener('hashchange', openHash);
