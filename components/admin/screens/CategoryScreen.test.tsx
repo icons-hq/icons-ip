@@ -19,7 +19,7 @@ describe('CategoryScreen', () => {
     expect(html).toContain('실제 ERP 코드·품명');
     expect(html).toContain('>미분류</option>');
     expect(html).toContain('비워도 기존 유형과 전체 상품 판매는 유지됩니다.');
-    expect(html).toContain('기존 8종 이관 메모');
+    expect(html).toContain('기존 유형 이관 메모');
     expect(html).toContain('키링');
   });
 
@@ -35,7 +35,7 @@ describe('CategoryScreen', () => {
 it('basic category managers keep CRUD and assignment without platform configuration', () => {
   const html = renderToStaticMarkup(<CategoryScreen data={{ categories, mappings: [], migrations: [], activation: { customerEnabled: false, erpEnabled: false, customerEvidence: null, erpEvidence: null, updatedAt: null } }} canManagePlatform={false} />);
   expect(html).toContain('카테고리 추가'); expect(html).toContain('대표 분류 저장'); expect(html).toContain('분류 CSV');
-  for (const text of ['ERP 매핑 저장', '활성화 상태 저장', '이관 메모 저장', '기존 8종 이관 메모', '분류·ERP CSV']) expect(html).not.toContain(text);
+  for (const text of ['ERP 매핑 저장', '활성화 상태 저장', '이관 메모 저장', '기존 유형 이관 메모', '분류·ERP CSV']) expect(html).not.toContain(text);
 });
 
 it('카테고리 관리에서 `대>중>소` 경로를 붙여넣어 일괄 등록할 수 있다', () => {

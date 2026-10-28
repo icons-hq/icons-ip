@@ -58,7 +58,7 @@ describe('카테고리 전시 목록 문법 (LFS 패리티 2차 L5 — CL-10·CL
   it("타입 축에 '예약판매'를 받아 notFound 로 떨어지지 않고, 분류 밖 값은 여전히 거절한다", () => {
     expect(parseCategoryDisplayRequest({ displayCategory: categoryId, type: '예약판매' })?.query.types).toEqual(['예약판매']);
     expect(parseCategoryDisplayRequest({ displayCategory: categoryId, type: ['키링', '예약판매', '예약판매'] })?.query.types).toEqual(['키링', '예약판매']);
-    expect(parseCategoryDisplayRequest({ displayCategory: categoryId, type: ['피규어', '인형', '키링', '아크릴', '문구', '쿠션', '파우치', '세트', '예약판매'] })?.query.types).toHaveLength(9);
+    expect(parseCategoryDisplayRequest({ displayCategory: categoryId, type: ['피규어', '인형', '키링', '아크릴', '문구', '쿠션', '파우치', '세트', '기타', '예약판매'] })?.query.types).toHaveLength(10);
     expect(parseCategoryDisplayRequest({ displayCategory: categoryId, type: '중고' })).toBeNull();
     expect(parseCategoryDisplayRequest({ displayCategory: categoryId, type: 'PRE-ORDER' })).toBeNull();
   });

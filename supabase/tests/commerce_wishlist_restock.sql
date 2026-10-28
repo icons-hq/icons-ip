@@ -39,7 +39,7 @@ select 1 / case when not exists (
 
 select 1 / case when not exists (
   select 1 from public.goods
-  where (type <> '' or published_at is not null) and type not in ('피규어', '인형', '키링', '아크릴', '문구', '쿠션', '파우치', '세트')
+  where (type <> '' or published_at is not null) and type not in ('피규어', '인형', '키링', '아크릴', '문구', '쿠션', '파우치', '세트', '기타')
 ) then 1 else 0 end as assert_goods_types_standardized;
 
 select 1 / case when (
@@ -59,6 +59,12 @@ select 1 / case when (
       and conname = 'goods_compare_at_price_above_price'
   )
 ) then 1 else 0 end as assert_goods_value_constraints_exist;
+
+-- MD-0003(R10): 상품 유형 '기타'를 CHECK가 받는다.
+select 1 / case when (
+  select pg_get_constraintdef(oid) from pg_constraint
+  where conrelid = 'public.goods'::regclass and conname = 'goods_type_check'
+) like '%기타%' then 1 else 0 end as assert_goods_type_other_allowed;
 
 -- admin_upsert_good 은 compare_at_price 를 맨 끝 default 인자로 받는다 —
 -- 기존 positional 호출(다른 스모크 3곳)이 그대로 성립해야 한다.
