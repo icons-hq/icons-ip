@@ -127,6 +127,23 @@ export function shipmentGroupLabel(groups: readonly CarrierNamedGroup[], index: 
   return carrierGroupLabel(names.map(other => other ?? ''), index);
 }
 
+/** 주문 상세의 배송 건. 택배(parcel) 배송 건만 택배사로 부른다 — 수령 방식을 모르는 옛 배송 건(delivery 없음)은 택배다. */
+export interface CustomerShipmentLabelSource extends CarrierNamedGroup { id: string; delivery?: { method: string } | null }
+
+/** 고객 주문 상세의 배송 건별 이름표(shipmentId → 이름). 배송 건 머리(ShipmentDetails)와 같은 규칙이라 회수 계획 행이
+ *  이 이름표를 받으면 같은 화면의 배송 건과 대응된다(m27 CUST-2). */
+export function customerShipmentGroupLabels(shipments: readonly CustomerShipmentLabelSource[]): Record<string, string> {
+  const carriers = shipments.map(shipment => ({
+    carrierLabel: shipment.delivery === undefined || shipment.delivery?.method === 'parcel' ? shipment.carrierLabel : null,
+  }));
+  return Object.fromEntries(shipments.map((shipment, index) => [shipment.id, shipmentGroupLabel(carriers, index)]));
+}
+
+/** 고객 회수 계획 행 이름 — 주문 상세가 넘긴 배송 건 이름표를 쓰고, 없으면 회수 행 순서의 '배송 묶음 N'이다. */
+export function claimCollectionRowLabel(shipmentId: string, index: number, count: number, labels?: Readonly<Record<string, string>>): string {
+  return (labels && Object.hasOwn(labels, shipmentId) ? labels[shipmentId] : null) ?? numberedShippingGroupLabel(index, count);
+}
+
 /** 묶음이 둘 이상일 때 배송비가 따로 붙는 이유(R27). 택배사가 모두 다를 때만 '택배사가 달라'라고 말한다. */
 export function shippingGroupsNotice(groups: readonly CarrierNamedGroup[]): string | null {
   if (groups.length < 2) return null;

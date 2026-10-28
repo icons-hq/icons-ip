@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseGoodShippingPolicy, parseShippingNoticeSnapshot, parseShippingQuote, parseShippingQuoteItems, shipmentGroupLabel, shippingGroupLabel, shippingGroupsNotice, shippingPolicyDescription } from './fulfillment';
+import { claimCollectionRowLabel, customerShipmentGroupLabels, parseGoodShippingPolicy, parseShippingNoticeSnapshot, parseShippingQuote, parseShippingQuoteItems, shipmentGroupLabel, shippingGroupLabel, shippingGroupsNotice, shippingPolicyDescription } from './fulfillment';
 
 describe('shipping quote contract', () => {
   it('accepts server groups and rejects inconsistent or missing totals', () => {
@@ -58,6 +58,21 @@ describe('배송 묶음 이름', () => {
     expect([0, 1].map(index => shipmentGroupLabel([none, none], index))).toEqual(['배송 묶음 1', '배송 묶음 2']);
     expect([0, 1].map(index => shipmentGroupLabel([hanjin, none], index))).toEqual(['한진택배 배송', '배송 묶음 2']);
     expect([0, 1].map(index => shipmentGroupLabel([hanjin, hanjin], index))).toEqual(['한진택배 배송 1', '한진택배 배송 2']);
+  });
+  /* m27 CUST-2: 같은 주문 상세 안에서 배송 건 머리(ShipmentDetails)와 회수 계획 행(ClaimCollectionPlan)이 같은 이름을 쓴다. */
+  it('주문 상세의 배송 건 이름표는 택배 배송 건만 택배사로 부르고, 회수 계획 행이 그 이름을 그대로 쓴다', () => {
+    const shipment = (id: string, carrierLabel: string | null, method?: string) => ({ id, carrierLabel, ...(method ? { delivery: { method } } : {}) });
+    expect(customerShipmentGroupLabels([shipment('a', '한진택배'), shipment('b', '우체국택배')])).toEqual({ a: '한진택배 배송', b: '우체국택배 배송' });
+    expect(customerShipmentGroupLabels([shipment('a', '한진택배', 'parcel'), shipment('b', '한진택배')])).toEqual({ a: '한진택배 배송 1', b: '한진택배 배송 2' });
+    /* 택배가 아닌 수령 방식·택배사를 모르는 건은 기존 '배송 묶음 N'이다. */
+    expect(customerShipmentGroupLabels([shipment('a', '한진택배', 'pickup'), shipment('b', null)])).toEqual({ a: '배송 묶음 1', b: '배송 묶음 2' });
+    expect(customerShipmentGroupLabels([{ id: 'a', carrierLabel: '한진택배', delivery: null }])).toEqual({ a: '배송 묶음' });
+    const labels = { a: '한진택배 배송 1', b: '한진택배 배송 2' };
+    /* 회수 문서가 배송 건 일부만 실어도 배송 건 머리의 번호를 그대로 따른다. */
+    expect(claimCollectionRowLabel('b', 0, 1, labels)).toBe('한진택배 배송 2');
+    /* 이름표가 없거나(어드민 밖 다른 화면) 모르는 배송 건이면 회수 행 순서로 번호를 붙인다. */
+    expect(claimCollectionRowLabel('c', 1, 2, labels)).toBe('배송 묶음 2');
+    expect(claimCollectionRowLabel('a', 0, 1)).toBe('배송 묶음');
   });
   it('묶음이 둘 이상이면 배송비가 따로 계산되는 이유를 한 줄로 알린다', () => {
     expect(shippingGroupsNotice([hanjin])).toBeNull();
