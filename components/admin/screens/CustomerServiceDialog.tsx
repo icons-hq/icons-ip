@@ -30,7 +30,13 @@ export function CustomerServiceDialog({ title, children, onClose, busy = false, 
   return <dialog
     aria-labelledby={titleId}
     className={`admin-cs-dialog${wide ? ' admin-cs-dialog--wide' : ''}`}
-    onCancel={(event) => { event.preventDefault(); if (!busy) onClose(); }}
+    onCancel={(event) => {
+      /* React는 버블링하지 않는 native cancel도 컴포넌트 트리로 전달한다. 안쪽 dialog(답변 템플릿 등)의
+         Esc가 바깥 팝업까지 닫지 않게 자기 dialog의 cancel만 처리한다. */
+      if (event.target !== event.currentTarget) return;
+      event.preventDefault();
+      if (!busy) onClose();
+    }}
     ref={ref}
   >
     <header className="admin-cs-dialog__header">
