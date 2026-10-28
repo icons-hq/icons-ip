@@ -42,6 +42,8 @@ export interface GoodsListFilters {
   saleType?: 'all' | 'stock' | 'preorder';
   image?: 'all' | 'with' | 'without';
   restriction?: 'all' | 'none' | 'adult';
+  /** 판매기간 기준(R16): 판매대기(시작 전)·판매기간 종료. 판매 중·기간 없음은 'all'에 들어 있다. */
+  salePeriod?: 'all' | 'scheduled' | 'ended';
 }
 export interface AdminGoodSummary {
   id: string;
@@ -114,6 +116,7 @@ export function normalizeGoodsListFilters(values: Record<string, string | string
   const saleType = single(values.saleType);
   const image = single(values.image);
   const restriction = single(values.restriction);
+  const salePeriod = single(values.salePeriod);
   return {
     categoryId: /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(categoryId) ? categoryId.toLowerCase() : '',
     readiness: ['ready', 'review_required'].includes(readiness) || Object.hasOwn(GOODS_READINESS_REASONS, readiness) ? readiness as GoodsReadinessFilter : 'all',
@@ -133,6 +136,7 @@ export function normalizeGoodsListFilters(values: Record<string, string | string
     saleType: ['stock', 'preorder'].includes(saleType) ? saleType as 'stock' | 'preorder' : 'all',
     image: ['with', 'without'].includes(image) ? image as 'with' | 'without' : 'all',
     restriction: ['none', 'adult'].includes(restriction) ? restriction as 'none' | 'adult' : 'all',
+    salePeriod: ['scheduled', 'ended'].includes(salePeriod) ? salePeriod as 'scheduled' | 'ended' : 'all',
   };
 }
 export function goodsListHref(filters: GoodsListFilters, page = filters.page): string {
@@ -148,7 +152,7 @@ export function goodsListHref(filters: GoodsListFilters, page = filters.page): s
   if (filters.sort && filters.sort !== 'created_desc') params.set('sort', filters.sort);
   if (filters.pageSize && filters.pageSize !== GOODS_LIST_PAGE_SIZE) params.set('pageSize', String(filters.pageSize));
   if (filters.originId) params.set('originId', filters.originId);
-  for (const key of ['payment', 'saleType', 'image', 'restriction'] as const) if (filters[key] && filters[key] !== 'all') params.set(key, filters[key]);
+  for (const key of ['payment', 'saleType', 'image', 'restriction', 'salePeriod'] as const) if (filters[key] && filters[key] !== 'all') params.set(key, filters[key]);
   return `${GOODS_LIST_PATH}?${params}`;
 }
 
@@ -159,6 +163,7 @@ export function goodsConsoleFilterValues(filters: GoodsListFilters) {
     from: filters.from ?? null, to: filters.to ?? null, sort: filters.sort ?? 'created_desc',
     originId: filters.originId || null, payment: filters.payment ?? 'all',
     saleType: filters.saleType ?? 'all', image: filters.image ?? 'all', restriction: filters.restriction ?? 'all',
+    salePeriod: filters.salePeriod ?? 'all',
   };
 }
 export function goodEditorHref(filters: GoodsListFilters, id: string, target?: GoodsReadinessTarget): string {

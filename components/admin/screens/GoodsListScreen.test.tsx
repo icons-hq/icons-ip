@@ -60,6 +60,14 @@ describe('goods list screen', () => {
     expect(active).toContain('href="/admin/catalog/goods">초기화');
     expect(render({})).not.toContain('class="admin-goods-search__advanced" open=""');
   });
+  it('판매상태 줄에 판매기간(판매대기·종료) 필터를 둔다', () => {
+    const html = renderToStaticMarkup(<GoodsListFiltersForm data={{ filters: normalizeGoodsListFilters({ salePeriod: 'ended' }), goods: [], ips: [], total: 0 }} />);
+    expect(html).toContain('aria-label="판매기간"');
+    expect(html).toContain('name="salePeriod"');
+    expect(html).toContain('<option value="scheduled">판매대기 (시작 전)</option>');
+    expect(html).toContain('<option value="ended" selected="">판매기간 종료</option>');
+    expect(html.indexOf('name="salePeriod"')).toBeLessThan(html.indexOf('admin-goods-search__advanced'));
+  });
   it('상품번호 열: 고객에게 보이는 상품은 고객 화면을 새 탭으로, 아니면 편집기 미리보기로 연다. 상품명은 지금처럼 수정 화면이다', () => {
     const base = { code: 'A', name: '상품 A', ipId: 'maple', ipTitle: '메이플', archivedAt: null, stock: 'ok' as const, stockQty: 1, activeStockQty: 1, lowStockOptionCount: 0, noticeComplete: true };
     const filters = normalizeGoodsListFilters({ q: '상품' });
