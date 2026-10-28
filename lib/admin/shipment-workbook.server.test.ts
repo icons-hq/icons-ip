@@ -2,7 +2,7 @@ import ExcelJS from 'exceljs';
 import JSZip from 'jszip';
 import { describe, expect, it } from 'vitest';
 import { buildShipmentExport } from './shipment-workbook.server';
-import { DEFAULT_SHIPMENT_EXPORT_COLUMNS } from './shipment-workbook';
+import { DEFAULT_SHIPMENT_EXPORT_COLUMNS, type ShipmentExportLine } from './shipment-workbook';
 import type { ShipmentExportData } from './shipment-dispatch';
 import { parseTrackingWorkbook, type TrackingWorkbookParseResult } from './tracking-workbook.server';
 import { trackingImportCommand, type SeowonTrackingParseResult, type WarehouseTrackingParseResult } from './warehouse-templates.server';
@@ -15,7 +15,8 @@ function native<T extends WarehouseTrackingParseResult | SeowonTrackingParseResu
 }
 async function loadXlsx(bytes: Buffer) { const workbook = new ExcelJS.Workbook(); await workbook.xlsx.load(bytes as never); return workbook; }
 
-const line = { shipmentId: '00000000-0000-4000-8000-000000000001', orderId: '00000000-0000-4000-8000-000000000002',
+// 출고 행 계약 타입으로 고정한다. 선택 열(바코드·ERP)이 늘어도 열 키로 픽스처를 읽을 수 있다.
+const line: ShipmentExportLine = { shipmentId: '00000000-0000-4000-8000-000000000001', orderId: '00000000-0000-4000-8000-000000000002',
   recipient: '=HYPERLINK("https://example.test")', phone: '01001234567', postalCode: '00123', address: '서울시, 상세주소',
   goodCode: '000123', variantCode: '000123-RED', goodName: '상품', optionName: '파랑', qty: 2, unitPrice: 12500, deliveryNote: '문 앞\n부탁합니다', carrier: '한진택배' };
 const shipment = { id: line.shipmentId, updatedAt: '2026-09-08T00:00:00Z', originId: 'gimpo', originName: '김포', template: 'standard', shippingFee: 3000, columns: [...DEFAULT_SHIPMENT_EXPORT_COLUMNS], lines: [line] };
