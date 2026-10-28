@@ -258,6 +258,18 @@ select 1/case when (select count(*) from public.my_order_items(array[:'random_or
 -- 운영자(sales.read)는 배정 옵션 행을 그대로 읽는다.
 select 1/case when (select sum(qty) from public.order_items where order_id=:'random_order' and good_id='random-main')=4
  then 1 else 0 end as assert_staff_reads_allocated_rows;
+-- 어드민 주문 상세 품목은 배정 옵션 그대로이고, 랜덤 배정 행은 optionSaleMode='random', 고른 옵션 행은 'select'다.
+select public.admin_order_detail(:'random_order')->'items' as admin_detail_items \gset
+select 1/case when (select count(*) from jsonb_array_elements(:'admin_detail_items'::jsonb) line
+     join public.order_items item on item.id=(line->>'id')::uuid and item.order_id=:'random_order'
+     where line->>'variantId'=item.variant_id::text
+       and line->>'variantName' is not distinct from item.variant_name_snapshot
+       and line->>'optionSaleMode'=case when item.option_sale_mode_snapshot='random' then 'random' else 'select' end)
+   =(select count(*) from public.order_items where order_id=:'random_order')
+ and (select count(*) from jsonb_array_elements(:'admin_detail_items'::jsonb) line where line->>'optionSaleMode'='random')
+   =(select count(*) from public.order_items where order_id=:'random_order' and good_id='random-main')
+ and (select count(*) from jsonb_array_elements(:'admin_detail_items'::jsonb) line where line->>'optionSaleMode'='select')=1
+ then 1 else 0 end as assert_admin_order_detail_marks_random_allocation;
 reset role;
 select pg_temp.expect_error($sql$update public.order_items set option_sale_mode_snapshot=null where option_sale_mode_snapshot='random'$sql$,
  'order_item_option_sale_mode_immutable');

@@ -26,6 +26,19 @@ const detail: AdminOrderDetail = {
   ],
 };
 describe('주문 상세', () => {
+  /* m27 D5②: 랜덤 판매 품목은 배정된 옵션명 옆에 '랜덤 배정' 배지를 둔다. 고른 옵션 품목에는 두지 않는다. */
+  it('랜덤 배정 품목은 배정된 옵션명 옆에 랜덤 배정 배지를 표시한다', () => {
+    const html = renderToStaticMarkup(<OrderDetailScreen detail={{ ...detail, items: [
+      { ...detail.items[0], id: 'random-item', variantName: 'B', variantCode: 'RANDOM-B', optionSaleMode: 'random' },
+      { ...detail.items[0], id: 'select-item', variantName: '빨강', variantCode: 'RED', optionSaleMode: 'select' },
+    ] }} noteOperationId="operation" />);
+    const randomLine = html.slice(html.indexOf('id="item-random-item"'), html.indexOf('id="item-select-item"'));
+    const selectLine = html.slice(html.indexOf('id="item-select-item"'), html.indexOf('</ul>', html.indexOf('id="item-select-item"')));
+    expect(randomLine).toContain('B · RANDOM-B');
+    expect(randomLine).toContain('랜덤 배정');
+    expect(selectLine).toContain('빨강 · RED');
+    expect(selectLine).not.toContain('랜덤 배정');
+  });
   it('디지털 주문은 실제 제공 기록과 주소 불필요 상태를 표시하고 택배 발송 이력으로 오인시키지 않는다', () => {
     const shipment=shipmentFixture({delivery:shipmentDeliveryFixture({method:'digital'}),status:'delivered'});
     const at='2026-10-16T00:00:00Z';

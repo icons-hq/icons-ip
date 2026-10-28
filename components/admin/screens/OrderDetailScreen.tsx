@@ -207,7 +207,7 @@ export function OrderDetailScreen({
     </AdminSectionCard>
     <AdminSectionCard title="주문 상품">
       <ul className="admin-order-detail__items">{items.map((item) => <li key={item.id} id={`item-${item.id}`}>
-        <div><strong>{item.name}</strong>{item.variantName ? <span>{item.variantName} · {item.variantCode}</span> : null}<GoodsCustomInputsSummary selection={item.customInputs} /><span>{item.type} · {item.qty}개</span></div>
+        <div><strong>{item.name}</strong>{item.variantName ? <span>{item.variantName} · {item.variantCode}{item.optionSaleMode === 'random' ? <> <AdminStatusBadge>랜덤 배정</AdminStatusBadge></> : null}</span> : item.optionSaleMode === 'random' ? <span><AdminStatusBadge>랜덤 배정</AdminStatusBadge></span> : null}<GoodsCustomInputsSummary selection={item.customInputs} /><span>{item.type} · {item.qty}개</span></div>
         <div><strong>{money(item.unitPrice * item.qty)}</strong><span>개당 {money(item.unitPrice)}</span><ItemAllocationSummary allocation={detail.itemAllocations?.[item.id]} discounted={orderDiscounted} unavailable={detail.itemAllocationsUnavailable} /></div>
       </li>)}</ul>
       {!items.length ? <p>주문 상품 기록이 없습니다.</p> : null}
