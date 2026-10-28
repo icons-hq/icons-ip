@@ -39,6 +39,18 @@ it('fulfillment-specific snapshots are not cast into a parcel regional policy', 
  expect(result?.shipments[0].regionalShipping).toBeNull();
 });
 
+/* m27 D5②: 랜덤 판매 주문은 운영자에게 배정된 옵션 그대로 보이되, 그 옵션이 DB가 무작위로 배정한 것인지 구분한다.
+   admin_order_detail 품목의 optionSaleMode(coalesce(option_sale_mode_snapshot,'select'))를 읽고, 모르는 값·없는 키(옛 응답)는 'select'다. */
+it('품목의 판매 방식(optionSaleMode)을 랜덤 배정과 고른 옵션으로 읽고 모르는 값은 고른 옵션으로 둔다', async () => {
+ const item=(id:string,extra:Record<string,unknown>)=>({id,variantId:`variant-${id}`,name:'랜덤 포토카드',variantName:'B',variantCode:'RANDOM-B',type:'포토카드',qty:1,unitPrice:4000,...extra});
+ mocks.rpc.mockResolvedValue({data:{order:{id:'order'},shipments:[],timeline:[],items:[
+  item('random',{optionSaleMode:'random'}),item('select',{optionSaleMode:'select'}),item('legacy',{}),item('unknown',{optionSaleMode:'lucky'}),
+ ]},error:null});
+ const result=await getAdminOrderDetail('order');
+ expect(result?.items.map(entry=>[entry.id,entry.optionSaleMode])).toEqual([['random','random'],['select','select'],['legacy','select'],['unknown','select']]);
+ expect(result?.items[0]).toMatchObject({variantName:'B',variantCode:'RANDOM-B',variantId:'variant-random'});
+});
+
 it('품목 배분 조회가 실패하면 나눌 수 없는 주문과 구분해 불러오지 못했다고 표시한다', async () => {
  const detail={data:{order:{id:'order'},items:[],shipments:[],timeline:[]},error:null};
  mocks.rpc.mockImplementation(async(name:string)=>name==='admin_order_item_allocation_inputs'?{data:null,error:{message:'statement_timeout'}}:detail);

@@ -8,13 +8,16 @@ import type { GoodsAfterSalesWorkbookInputRow, GoodsAfterSalesWorkbookRow, Goods
 import { readBoundedZip } from './bounded-zip.server';
 import { GOODS_KC_WORKBOOK_HEADERS, GOODS_KC_WORKBOOK_SHEET, emptyGoodsKcWorkbookRow,
   goodsKcWorkbookOrphanErrors, type GoodsKcWorkbookInputRow, type GoodsKcWorkbookKey, type GoodsKcWorkbookRow } from './goods-kc-workbook';
+import { GOODS_HTML_MAX_LENGTH } from '@/lib/goods-description';
 import {
   emptyGoodsWorkbookRow,
   GOODS_WORKBOOK_BYTES_LIMIT,
+  GOODS_WORKBOOK_CELL_MAX,
   GOODS_WORKBOOK_HEADERS,
   GOODS_WORKBOOK_KEYS,
   GOODS_WORKBOOK_ROW_LIMIT,
   GOODS_WORKBOOK_VERSION,
+  goodsWorkbookDescriptionCell,
   goodsWorkbookLayout,
   type GoodsWorkbookInputRow,
   type GoodsWorkbookKey,
@@ -133,12 +136,15 @@ export async function buildGoodsWorkbook(
   }
   for (const [index, values] of rows.entries()) {
     const row = sheet.getRow(index + 5);
+    // 실패 행 파일처럼 행을 그대로 받아도 엑셀 한 칸보다 긴 설명은 다시 읽을 수 없는 칸 대신 표식으로 쓴다.
     row.values = GOODS_WORKBOOK_KEYS.map((key) =>
       values[key] === ''
         ? null
         : NUMERIC_KEYS.has(key)
           ? Number(values[key])
-          : values[key],
+          : key === 'description'
+            ? goodsWorkbookDescriptionCell(values[key])
+            : values[key],
     );
     row.height = values.description.includes('\n') ? 32 : 22;
     row.eachCell((cell) => {
@@ -247,7 +253,7 @@ export async function buildGoodsWorkbook(
     ],
     [
       '상세 설명',
-      '상세 설명 형식은 plain(일반 텍스트) 또는 html입니다. HTML은 정리된 코드까지 30,000자입니다. https 호스팅 이미지 주소는 그대로 표시되고, CSS·스크립트와 확인할 수 없는 이미지는 제거됩니다. 상품 편집에서 업로드한 HTML 이미지는 내보낸 경로를 그대로 유지해주세요.',
+      `상세 설명 형식은 plain(일반 텍스트) 또는 html입니다. HTML은 정리된 코드까지 ${GOODS_HTML_MAX_LENGTH.toLocaleString('ko-KR')}자입니다. 엑셀 한 칸에는 ${GOODS_WORKBOOK_CELL_MAX.toLocaleString('ko-KR')}자까지 들어가므로 더 긴 상세 설명은 '[상품 편집에서만 수정]' 문구로 내보냅니다. 이 문구를 그대로 두면 기존 설명을 유지하며, 긴 설명은 상품 편집에서 고쳐주세요. https 호스팅 이미지 주소는 그대로 표시되고, CSS·스크립트와 확인할 수 없는 이미지는 제거됩니다. 상품 편집에서 업로드한 HTML 이미지는 내보낸 경로를 그대로 유지해주세요.`,
     ],
     [
       '오류 처리',

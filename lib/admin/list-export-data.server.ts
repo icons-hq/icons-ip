@@ -266,7 +266,8 @@ async function claimOrders(claimType: OrderClaimType, orderIds: readonly string[
 }
 
 async function claimsSheet(claimType: OrderClaimType, params: SearchParams, now: Date) {
-  const filters = normalizeAdminClaimFilters(params);
+  // 화면(sales/claims/[claimType])과 같은 유형별 사유 필터 규칙을 써서 화면과 파일의 조건을 맞춘다(R7).
+  const filters = normalizeAdminClaimFilters(params, claimType);
   const rows = await collectAdminListExportPages(
     CLAIM_PAGE_SIZE,
     async (page) => {
