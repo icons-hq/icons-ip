@@ -49,6 +49,8 @@ export interface CouponPickerProps {
 
 const LEGACY_SHIPPING_COUPON_COPY = '배송비 쿠폰은 지금 주문에 쓸 수 없어요.';
 const EMPTY_COPY = '사용할 수 있는 쿠폰이 없어요. 쿠폰 코드가 있으면 아래에 입력해주세요.';
+/* 보유 쿠폰 조회가 실패하면 목록이 비어도 '없다'고 단정하지 않는다(장바구니·주문서 공통). */
+const UNAVAILABLE_COPY = '보유 쿠폰을 불러오지 못했습니다. 새로고침 후 다시 확인해주세요.';
 
 function couponDescription(surface: CouponPickerSurface, shippingCouponsAtCheckout: boolean): string {
   if (surface === 'checkout') return '장바구니에서 고른 쿠폰이 이어져요. 바꾸면 결제 금액을 다시 계산해요.';
@@ -150,6 +152,8 @@ export function CouponPicker({
             ))}
           </select>
         </>
+      ) : couponState.unavailable ? (
+        <p className="wc-cart__coupon-warning" role="alert">{UNAVAILABLE_COPY}</p>
       ) : (
         <p className="wc-cart__coupon-desc">{EMPTY_COPY}</p>
       )}

@@ -82,6 +82,15 @@ describe('CouponPicker — 표시', () => {
     expect(markup).toContain('id="checkout-coupon-code"');
   });
 
+  /* 보유 쿠폰 조회가 실패하면 목록이 비어 있어도 '없다'고 단정하지 않는다 — 장바구니·주문서가 같은 문구를 쓴다. */
+  it.each(['cart', 'checkout'] as const)('보유 쿠폰을 불러오지 못했으면 없다고 하지 않고 그 사실을 알린다(%s)', (surface) => {
+    const markup = html({ surface, couponState: { selectedUserCouponId: null, coupons: [], unavailable: true } });
+    expect(markup).toContain('보유 쿠폰을 불러오지 못했습니다. 새로고침 후 다시 확인해주세요.');
+    expect(markup).not.toContain('사용할 수 있는 쿠폰이 없어요');
+    expect(markup).not.toContain('<select');
+    expect(markup).toContain(`id="${surface}-coupon-code"`);
+  });
+
   it('지금 계약에서 쓸 수 없는 배송비 쿠폰은 목록에서 빼고 장수만 알린다', () => {
     const markup = html({ couponState: state([fix5k, shipFree]) });
     expect(markup).not.toContain(shipFree.id);

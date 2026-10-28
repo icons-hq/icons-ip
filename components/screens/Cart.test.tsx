@@ -267,6 +267,13 @@ describe('Cart 쿠폰 슬롯 (S7)', () => {
     expect(html).not.toContain('id="cart-coupon-select"');
   });
 
+  it('보유 쿠폰을 불러오지 못했으면 그 사실을 한 번만 알리고 없다고 하지 않는다', () => {
+    const html = render([{ goodId: 'g13', variantId: DEFAULT_VARIANT, qty: 1 }], { selectedUserCouponId: null, coupons: [], unavailable: true });
+    expect(html.match(/보유 쿠폰을 불러오지 못했습니다/g)).toHaveLength(1);
+    expect(html).not.toContain('사용할 수 있는 쿠폰이 없어요');
+    expect(html).toContain('id="cart-coupon-code"');
+  });
+
   it('적용된 쿠폰은 할인 행과 예상 총액에 반영된다', () => {
     mocks.quote = {...defaultQuote,totalFee:0,finalTotalFee:0,groups:[{...gimpoGroup,policySubtotal:60000,policyFee:0,totalFee:0,finalFee:0}]};
     mocks.coupon = { userCouponId: fix5k.id, couponCode: 'TEST-COUPON', eligibleSubtotal: 60000, discount: 5000, reason: null };

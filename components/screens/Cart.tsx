@@ -281,13 +281,13 @@ export function Cart({
               </p>)}
 
               {mode === 'server' ? (
-                <>{couponState.unavailable ? <p className="wc-cart__coupon-warning" role="alert">보유 쿠폰을 불러오지 못했습니다. 새로고침 후 다시 확인해주세요.</p> : null}<CouponPicker
+                <CouponPicker
                   appliedCoupon={appliedCoupon}
                   couponState={couponState}
                   quote={transactionActive ? null : shipping.sales?.coupon ?? null}
                   shippingCouponsAtCheckout={transactionActive}
                   surface="cart"
-                /></>
+                />
               ) : (
                 <div className="wc-cart__coupon-slot">
                   <p className="wc-cart__coupon-title">쿠폰</p>

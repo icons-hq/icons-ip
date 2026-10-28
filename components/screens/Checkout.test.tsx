@@ -348,6 +348,12 @@ describe('Checkout 쿠폰', () => {
     expect(html).toContain('사용할 수 있는 쿠폰이 없어요.');
     expect(html).toContain('id="checkout-coupon-code"');
   });
+
+  it('보유 쿠폰을 불러오지 못했으면 없다고 하지 않고 그 사실을 알린다', () => {
+    const html = render({ paymentAvailable: true, bankTransferAvailable: true, couponState: { selectedUserCouponId: null, coupons: [], unavailable: true } });
+    expect(html).toContain('보유 쿠폰을 불러오지 못했습니다. 새로고침 후 다시 확인해주세요.');
+    expect(html).not.toContain('사용할 수 있는 쿠폰이 없어요');
+  });
 });
 
 /* R26·R27(D4①): 주문서도 배송 묶음을 택배사로 부르고, 묶음이 둘 이상이면 따로 계산되는 이유를 알린다. */
