@@ -12,15 +12,19 @@ export function CustomerServiceDialog({ title, children, onClose, busy = false, 
   wide?: boolean;
 }) {
   const ref = useRef<HTMLDialogElement>(null);
+  /** 정리 단계에서 우리가 직접 닫는 중. 그 close 이벤트는 브라우저가 닫은 것이 아니라 맞출 상태가 없다. */
+  const closingRef = useRef(false);
   const titleId = useId();
   useEffect(() => {
     const dialog = ref.current;
     if (!dialog) return;
     const previousFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
     const overflow = document.body.style.overflow;
+    closingRef.current = false;
     dialog.showModal();
     document.body.style.overflow = 'hidden';
     return () => {
+      closingRef.current = true;
       dialog.close();
       document.body.style.overflow = overflow;
       if (previousFocus?.isConnected) previousFocus.focus({ preventScroll: true });
@@ -35,7 +39,24 @@ export function CustomerServiceDialog({ title, children, onClose, busy = false, 
          Esc가 바깥 팝업까지 닫지 않게 자기 dialog의 cancel만 처리한다. */
       if (event.target !== event.currentTarget) return;
       event.preventDefault();
+      /* Chrome close watcher는 사용자 활성화 없이 다시 누른 Esc의 cancel을 취소할 수 없게 보낸다. 그때는
+         dialog가 그대로 닫히므로 뒤따르는 close에서 상태를 맞춘다(여기서도 닫으면 onClose가 두 번 불린다). */
+      if (event.cancelable === false) return;
       if (!busy) onClose();
+    }}
+    onClose={(event) => {
+      /* 브라우저가 dialog를 직접 닫은 경우(close watcher·Android 뒤로 가기 등). 열림 상태가 React에만 남으면
+         화면에서는 사라졌는데 같은 버튼으로 다시 열 수 없다. 안쪽 dialog의 close, 다시 열린 dialog
+         (StrictMode 재마운트), 언마운트 정리로 닫힌 dialog는 맞출 상태가 없다. */
+      if (event.target !== event.currentTarget || closingRef.current) return;
+      const dialog = event.currentTarget;
+      if (dialog.open || !dialog.isConnected) return;
+      if (busy) {
+        /* 처리 중에는 닫지 않는다. 다시 열어 서버 처리 결과(실패 사유·다음 할 일)를 볼 수 있게 한다. */
+        try { dialog.showModal(); } catch { /* 문서에서 빠지는 중이면 언마운트 정리가 상태를 맞춘다. */ }
+        return;
+      }
+      onClose();
     }}
     ref={ref}
   >

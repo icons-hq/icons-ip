@@ -10,6 +10,7 @@ import { claimContactError, normalizeClaimContactChangeRequest, normalizeClaimCo
 import type { AdminClaimReshipItem } from '@/lib/admin/claims.server';
 import type { ShippingCarrierRegistry } from '@/lib/orders/shipment';
 import { formatOrderDateTime } from '@/lib/orders';
+import { useClaimPreviewBusy } from '@/components/admin/screens/ClaimPreviewDialog';
 
 type Props = { actorId: string; orderId: string; claimId: string; canReship: boolean; carriers: ShippingCarrierRegistry; reshipItems: readonly AdminClaimReshipItem[] };
 type Draft = { recipientName: string; phone: string; postalCode: string; address1: string; address2: string; agreement: string; customerConfirmed: boolean; handoffConfirmed: boolean;
@@ -44,6 +45,7 @@ export function ClaimContactOperationPanel({ identity, scope, orderId, claimId, 
   const [context, setContext] = useState<ContextResponse | null>(null), [draft, setDraft] = useState<Draft>(blank);
   const [recovery, setRecovery] = useState<ClaimContactJournal | null>(() => readJournal(key, identity, orderId, claimId));
   const [pending, setPending] = useState(false), [error, setError] = useState(''), [message, setMessage] = useState('');
+  useClaimPreviewBusy(pending); /* 목록 위 클레임 팝업(R8)에서 기다리는 동안 팝업이 닫히지 않게 알린다. 팝업 밖에서는 아무 일도 하지 않는다. */
   const [canRetry, setCanRetry] = useState(false);
   const alive = useRef(true), busy = useRef(false), generation = useRef(0), controller = useRef<AbortController | null>(null);
   const dispatched = useRef<Dispatched | null>(null);

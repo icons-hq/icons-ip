@@ -6,12 +6,14 @@ import { claimReasonError, claimReasonReceiptMatches, normalizeClaimReasonReques
 import { formatOrderDateTime, ORDER_WITHDRAWAL_REASON_LABELS, ORDER_WITHDRAWAL_REASON_TYPES, type OrderWithdrawalReasonType } from '@/lib/orders';
 import { ORDER_CLAIM_TYPE_SLUGS } from '@/lib/orders/claims';
 import { adminGoodsCopy } from '@/lib/admin/vocabulary';
+import { useClaimPreviewBusy } from '@/components/admin/screens/ClaimPreviewDialog';
 
 export function ClaimReasonChangePanel({ initial, onClose }: { initial: ClaimReasonContext; onClose: () => void }) {
   const router = useRouter(); const [context, setContext] = useState(initial);
   const [reasonType, setReasonType] = useState(initial.reasonType); const [reason, setReason] = useState(initial.reason);
   const [agreement, setAgreement] = useState(''); const [confirmed, setConfirmed] = useState(false); const [feeReviewed, setFeeReviewed] = useState(false);
   const [pending, setPending] = useState(false); const [uncertain, setUncertain] = useState(false); const [conflict, setConflict] = useState(false);
+  useClaimPreviewBusy(pending); /* 목록 위 클레임 팝업(R8)에서 기다리는 동안 팝업이 닫히지 않게 알린다. 팝업 밖에서는 아무 일도 하지 않는다. */
   const [receipt, setReceipt] = useState<ClaimReasonReceipt | null>(null); const [error, setError] = useState(''); const [message, setMessage] = useState('');
   const dispatched = useRef<ClaimReasonRequest | null>(null); const inFlight = useRef(false); const errorRef = useRef<HTMLParagraphElement>(null);
   useEffect(() => { if (error) errorRef.current?.focus(); }, [error]);
@@ -102,6 +104,7 @@ export function ClaimReasonChangePanel({ initial, onClose }: { initial: ClaimRea
 }
 export function ClaimReasonChange({ claimId }: { claimId: string }) {
   const [context, setContext] = useState<ClaimReasonContext | null>(null); const [pending, setPending] = useState(false); const [error, setError] = useState(''); const loading = useRef(false);
+  useClaimPreviewBusy(pending);
   async function open() {
     if (loading.current) return; loading.current = true; setPending(true); setError('');
     try {
