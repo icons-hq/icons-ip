@@ -333,6 +333,17 @@ select 1/case when not (public.get_product_shipping_savings('random-mask',:'vari
  then 1 else 0 end as assert_shipping_savings_uses_pool;
 reset role;
 
+-- 8. 랜덤 전환 전에 신청한 옵션 단위 재입고 알림(RV-7)은 깨어날 때 굿즈 단위 문구·링크로 남는다(고를 수 없는 옵션을 말하지 않는다).
+update public.goods_variants set stock_qty=0 where id=:'variant_b';
+insert into public.restock_alerts(user_id,good_id,variant_id) values('00000000-0000-4000-8000-000000163004','random-mask',:'variant_b');
+update public.goods_variants set stock_qty=4 where id=:'variant_b';
+select 1/case when (select status from public.restock_alerts where user_id='00000000-0000-4000-8000-000000163004' and good_id='random-mask')='notified'
+ and (select count(*) from public.notifications where user_id='00000000-0000-4000-8000-000000163004' and type='restock_available'
+   and body='랜덤 은닉 굿즈가 다시 판매를 시작했어요.' and link_path='/shop/random-mask')=1
+ and not exists(select 1 from public.notifications where user_id='00000000-0000-4000-8000-000000163004' and type='restock_available'
+   and (body like '%· B%' or link_path like '%variant=%'))
+ then 1 else 0 end as assert_random_restock_notification_is_good_level;
+
 -- 계약: 공개 계산 열 grant, 정책 계약 등록.
 select 1/case when has_function_privilege('anon','public.goods_random_option(public.goods)','execute')
  and has_function_privilege('authenticated','public.goods_random_option(public.goods)','execute')
