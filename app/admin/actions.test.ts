@@ -1145,13 +1145,13 @@ describe('admin catalog actions', () => {
     }) });
   });
 
-  it('HTML이 정제되며 늘어난 길이까지 30,000자를 넘으면 저장하지 않고 원문을 복구한다', async () => {
+  it('HTML이 정제되며 늘어난 길이까지 200,000자를 넘으면 저장하지 않고 원문을 복구한다', async () => {
     const form = goodForm();
     form.set('descriptionFormat', 'html');
-    form.set('description', '&'.repeat(7000));
+    form.set('description', '&'.repeat(45000));
     const result = await upsertAdminGoodAction({}, form);
-    expect(result.errors?.description).toContain('30,000');
-    expect(result.values?.description).toBe('&'.repeat(7000));
+    expect(result.errors?.description).toContain('200,000');
+    expect(result.values?.description).toBe('&'.repeat(45000));
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
