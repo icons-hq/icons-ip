@@ -46,6 +46,17 @@ it('목록 썸네일은 화면에 들어올 때 불러온다', () => {
   expect(image?.props.loading).toBe('lazy');
 });
 
+/*
+ * 리뷰 재현(T3B-RV-7): height={180} 속성이 CSS의 aspect-ratio:1보다 먼저 높이를 정해, 칸이 180px보다 넓은
+ * 데스크톱 그리드에서 정사각 썸네일이 213x180 직사각형이 됐다. 크기는 CSS(width:100%·aspect-ratio:1)만 정한다.
+ */
+it('목록 썸네일에 높이 속성을 두지 않아 CSS의 정사각 비율을 따른다', () => {
+  const image = all(render()).find(item => item.type === 'img') as ReactElement<Record<string, unknown>> | undefined;
+  expect(image).toBeDefined();
+  expect(image?.props).not.toHaveProperty('height');
+  expect(image?.props).not.toHaveProperty('width');
+});
+
 /* MD-0025: 검색어가 남은 채 업로드하면 새 사진이 검색 조건에 걸러져 '사라진' 것처럼 보였다. */
 it('업로드 뒤 검색어를 비우고 전체 목록을 다시 읽어 새 사진을 맨 앞에 보인다', async () => {
   const first = photo('11', 'a.png');

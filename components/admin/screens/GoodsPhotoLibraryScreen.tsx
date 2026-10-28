@@ -93,9 +93,10 @@ export function GoodsPhotoLibraryScreen({ initial = emptyPage, onSelect }: { ini
     {uploadFailures.length ? <ul role="alert">{uploadFailures.map((failure,index) => <li key={index}>{failure}</li>)}</ul> : null}
     <p>총 {data.total}장</p>
     <ul className="admin-photo-library__grid">{pinRecentGoodsPhotos(data.rows, recent).map(photo => <li key={photo.id}>
-      {/* 원본 이미지라 화면에 들어올 때만 내려받고, 디코딩은 메인 스레드를 막지 않게 한다. */}
+      {/* 원본 이미지라 화면에 들어올 때만 내려받고, 디코딩은 메인 스레드를 막지 않게 한다.
+          크기는 CSS(width:100%·aspect-ratio:1)가 정한다 — height 속성은 정사각 비율보다 먼저 높이를 고정한다. */}
       {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img alt={photo.name} src={publicMediaUrl(photo.imagePath) ?? ''} loading="lazy" decoding="async" width={180} height={180} />
+      <img alt={photo.name} src={publicMediaUrl(photo.imagePath) ?? ''} loading="lazy" decoding="async" />
       <strong>{photo.name}</strong><span>{recent.includes(photo.id) ? '방금 올림 · ' : ''}버전 {photo.revision} · 연결 {photo.references.length}건</span>
       {photo.references.length ? <details><summary>사용처 확인</summary><ul>{photo.references.map(ref => <li key={`${ref.kind}:${ref.id}`}>{goodsPhotoReferenceLabel(ref.kind)} · {ref.kind==='good' ? <Link href={`/admin/catalog/goods?goodId=${encodeURIComponent(ref.id)}`}>{ref.name}</Link> : ref.name}</li>)}</ul></details> : null}
       <div className="admin-photo-library__actions">{onSelect ? <button type="button" disabled={busy || photo.archived} onClick={() => onSelect(photo)}>이 사진 선택</button> : <>
