@@ -71,6 +71,66 @@ export function parseReviewEventValues(value: unknown, allowRemovedTargets = fal
     startsOn: value.startsOn, endsOn: value.endsOn, announcesOn: value.announcesOn, plannedWinners: value.plannedWinners, creditAmount: value.creditAmount,
     creditValidityDays: value.creditValidityDays, bannerStyle: value.bannerStyle as ReviewEventValues['bannerStyle'] };
 }
+/* R6: 등록 화면이 저장 전에 같은 규칙으로 필드별 이유를 보여 준다. parseReviewEventValues·DB
+   private.review_event_values_valid·admin_save_review_event와 기준이 같아야 한다. */
+export type ReviewEventField = 'title' | 'description' | 'target' | 'startsOn' | 'endsOn' | 'announcesOn' | 'plannedWinners' | 'creditAmount' | 'creditValidityDays';
+export type ReviewEventFieldErrors = Partial<Record<ReviewEventField | 'form', string>>;
+export interface ReviewEventCreditPolicy { enabled: boolean; maxBalance: number | null; validityDays: number | null }
+export const REVIEW_EVENT_CREDIT_POLICY_OFF = '적립금 정책이 꺼져 있어 리뷰이벤트를 저장할 수 없습니다. 설정 > 적립금 정책에서 켠 뒤 저장하세요.';
+const daysBetween = (from: string, to: string) => Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86400000);
+const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
+/** 제목·내용 앞뒤 공백 때문에 저장 전체가 실패하지 않도록, 검증 전에 잘라 낸다. 내부 공백은 그대로 둔다. */
+export function trimReviewEventText(values: ReviewEventValues): ReviewEventValues {
+  return { ...values, title: values.title.trim(), description: values.description.trim() };
+}
+export function reviewEventFieldErrors(values: ReviewEventValues, today = reviewEventToday()): ReviewEventFieldErrors {
+  const errors: ReviewEventFieldErrors = {};
+  if (!text(values.title, 1, 15)) errors.title = '이벤트명은 1~15자로 입력하세요. 줄바꿈·제어 문자는 쓸 수 없습니다.';
+  if (!text(values.description, 1, 30)) errors.description = '내용은 1~30자로 입력하세요. 줄바꿈·제어 문자는 쓸 수 없습니다.';
+  if (values.targetType === 'goods' && !values.goodIds.length) errors.target = '이벤트 대상 상품을 1개 이상 고르세요.';
+  if (values.targetType === 'categories' && !values.categoryIds.length) errors.target = '이벤트 대상 카테고리를 1개 이상 고르세요.';
+  if (!isReviewEventDate(values.startsOn) || values.startsOn <= today) errors.startsOn = '시작일은 내일(한국 시각)부터 고를 수 있습니다.';
+  if (!isReviewEventDate(values.endsOn) || !isReviewEventDate(values.startsOn)
+    || values.endsOn < reviewEventDayOffset(values.startsOn, 1) || values.endsOn > reviewEventDayOffset(values.startsOn, 31)) errors.endsOn = '종료일은 시작일 +1~31일 사이로 고르세요.';
+  if (!isReviewEventDate(values.announcesOn) || !isReviewEventDate(values.endsOn)
+    || values.announcesOn < reviewEventDayOffset(values.endsOn, 3) || values.announcesOn > reviewEventDayOffset(values.endsOn, 10)) errors.announcesOn = '발표일은 종료일 +3~10일 사이로 고르세요.';
+  if (!integer(values.plannedWinners, 1, 1000)) errors.plannedWinners = '선정 예정 인원은 1~1,000명 사이 정수로 입력하세요.';
+  if (!integer(values.creditAmount, 1, 999999999999)) errors.creditAmount = '1인당 적립금은 1원 이상 정수로 입력하세요.';
+  if (!integer(values.creditValidityDays, 1, 36500)) errors.creditValidityDays = '지급 후 유효기간은 1일 이상 정수로 입력하세요.';
+  return errors;
+}
+/** 시작일을 바꾸면 종료·발표일이 기존 간격을 유지한 채 허용 범위(+1~31일, +3~10일) 안으로 따라 움직인다. */
+export function withReviewEventStartsOn(values: ReviewEventValues, startsOn: string): ReviewEventValues {
+  if (!isReviewEventDate(startsOn)) return { ...values, startsOn };
+  const duration = isReviewEventDate(values.startsOn) && isReviewEventDate(values.endsOn) ? daysBetween(values.startsOn, values.endsOn) : 7;
+  const endsOn = reviewEventDayOffset(startsOn, clamp(duration, 1, 31));
+  const wait = isReviewEventDate(values.endsOn) && isReviewEventDate(values.announcesOn) ? daysBetween(values.endsOn, values.announcesOn) : 3;
+  return { ...values, startsOn, endsOn, announcesOn: reviewEventDayOffset(endsOn, clamp(wait, 3, 10)) };
+}
+/** 종료일을 바꿨을 때 발표일이 범위(+3~10일)를 벗어나면 가장 이른 발표일로 옮긴다. 범위 안이면 그대로 둔다. */
+export function withReviewEventEndsOn(values: ReviewEventValues, endsOn: string): ReviewEventValues {
+  if (!isReviewEventDate(endsOn)) return { ...values, endsOn };
+  const inRange = isReviewEventDate(values.announcesOn) && values.announcesOn >= reviewEventDayOffset(endsOn, 3) && values.announcesOn <= reviewEventDayOffset(endsOn, 10);
+  return { ...values, endsOn, announcesOn: inRange ? values.announcesOn : reviewEventDayOffset(endsOn, 3) };
+}
+export function parseReviewEventCreditPolicy(value: unknown): ReviewEventCreditPolicy | null {
+  if (!object(value) || typeof value.enabled !== 'boolean' || value.maxBalance !== null && !integer(value.maxBalance)
+    || value.validityDays !== null && !integer(value.validityDays, 1, 36500)) return null;
+  return { enabled: value.enabled, maxBalance: value.maxBalance as number | null, validityDays: value.validityDays as number | null };
+}
+export function reviewEventCreditPolicyLabel(policy: ReviewEventCreditPolicy): string {
+  if (!policy.enabled) return '적립금 정책: 꺼짐';
+  return `적립금 정책: 켜짐 · 보유 상한 ${policy.maxBalance === null ? '-' : `${policy.maxBalance.toLocaleString('ko-KR')}원`} · 유효기간 ${policy.validityDays === null ? '-' : `${policy.validityDays.toLocaleString('ko-KR')}일`}`;
+}
+/** DB가 거절할 정책 조건(꺼짐·적립금 > 보유 상한·유효기간 > 정책 유효기간)을 저장 전에 알린다. 정책을 못 읽었으면(null) 서버 판단에 맡긴다. */
+export function reviewEventCreditPolicyProblem(values: ReviewEventValues, policy: ReviewEventCreditPolicy | null): ReviewEventFieldErrors {
+  if (!policy) return {};
+  if (!policy.enabled) return { form: REVIEW_EVENT_CREDIT_POLICY_OFF };
+  const errors: ReviewEventFieldErrors = {};
+  if (policy.maxBalance !== null && values.creditAmount > policy.maxBalance) errors.creditAmount = `1인당 적립금이 적립금 정책의 보유 상한 ${policy.maxBalance.toLocaleString('ko-KR')}원을 넘습니다.`;
+  if (policy.validityDays !== null && values.creditValidityDays > policy.validityDays) errors.creditValidityDays = `지급 후 유효기간이 적립금 정책의 유효기간 ${policy.validityDays.toLocaleString('ko-KR')}일을 넘습니다.`;
+  return errors;
+}
 export function parseReviewEvent(value: unknown): ReviewEvent | null {
   if (!object(value) || !isUuid(value.id) || !integer(value.number, 1) || !integer(value.revision, 1) || !instant(value.createdAt) || !instant(value.updatedAt)
     || !nullableInstant(value.archivedAt) || !nullableInstant(value.announcedAt) || !REVIEW_EVENT_STATES.includes(value.state as ReviewEventState)
@@ -126,6 +186,7 @@ export function reviewEventError(message: string | undefined): string {
     review_event_terms_locked: '이벤트가 시작되면 조건을 바꾸거나 보관할 수 없습니다.',
     review_event_start_tomorrow: '이벤트는 한국 시각으로 내일부터 시작할 수 있습니다.',
     review_event_credit_policy: '적립금 정책의 활성 여부·보유 상한·유효기간을 확인해주세요.',
+    invalid_review_event: '입력값을 확인해주세요. 이벤트명 1~15자, 내용 1~30자, 종료일은 시작일 +1~31일, 발표일은 종료일 +3~10일입니다.',
     review_event_selection_closed: '응모 마감 후, 발표 전에만 선정을 저장할 수 있습니다.',
     review_event_publish_not_ready: '발표일 이후에만 발표 및 지급할 수 있습니다.',
     review_event_entry_ineligible: '선정 대상의 리뷰·구매·고객 상태가 바뀌었습니다. 최신 응모 현황에서 확인해주세요.',

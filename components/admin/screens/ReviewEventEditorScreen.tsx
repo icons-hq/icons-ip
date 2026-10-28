@@ -4,7 +4,9 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState, useTransition } from 'react';
 import { archiveReviewEventAction, publishReviewEventAction, revokeReviewEventAwardAction, saveReviewEventAction, selectReviewEventEntriesAction } from '@/app/admin/review-event-actions';
-import { REVIEW_EVENTS_ADMIN_PATH, REVIEW_EVENTS_PATH, newReviewEventValues, parseReviewEventValues, reviewEventDayOffset, reviewEventToday, reviewEventStateLabel, reviewEventProblemLabel, type ReviewEventValues, type ReviewEventWorkspace, type ReviewEventSelection, type ReviewEventTarget } from '@/lib/review-events';
+import { REVIEW_EVENTS_ADMIN_PATH, REVIEW_EVENTS_PATH, REVIEW_EVENT_CREDIT_POLICY_OFF, isReviewEventDate, newReviewEventValues, parseReviewEventValues, reviewEventCreditPolicyLabel, reviewEventCreditPolicyProblem, reviewEventDayOffset, reviewEventFieldErrors,
+  reviewEventToday, reviewEventStateLabel, reviewEventProblemLabel, trimReviewEventText, withReviewEventEndsOn, withReviewEventStartsOn,
+  type ReviewEventCreditPolicy, type ReviewEventField, type ReviewEventFieldErrors, type ReviewEventValues, type ReviewEventWorkspace, type ReviewEventSelection, type ReviewEventTarget } from '@/lib/review-events';
 import { AdminPageHeader } from '../console/AdminKit';
 import { ConsolePagination } from '../console';
 import { ReviewEventTargetPicker } from '../ReviewEventTargetPicker';
@@ -13,11 +15,28 @@ import { ReviewEventExportButton } from '../ReviewEventExportButton';
 import { REVIEW_EVENT_ENTRY_FILTERS, reviewEventExportHref } from '@/lib/admin/review-event-export';
 
 type Request = { operationId: string; revision: number } & ({ kind: 'save'; values: ReviewEventValues } | { kind: 'archive'; archived: boolean } | { kind: 'select'; entries: ReviewEventSelection[]; reason: string } | { kind: 'publish' } | { kind: 'revoke'; entryId: string; reason: string });
-export function ReviewEventEditorScreen({ id, workspace, targetLabels = [], query = '', filter = 'all' }: { id: string; workspace: ReviewEventWorkspace | null; targetLabels?: ReviewEventTarget[]; query?: string; filter?: string }) {
+/*
+ * R6(10/27 회의): 등록이 막히는 이유를 저장 전에 보인다.
+ * - 상단에 적립금 정책 상태(cs.manage로 읽는 admin_review_event_credit_policy, 상세는 같은 값을 workspace로 받는다).
+ *   설정 링크는 그 화면을 열 수 있는 운영자에게만(policyHref).
+ * - 1인당 적립금·유효기간은 정책과 바로 비교해 필드 옆에 알리고, 저장을 누르면 나머지 필드도 필드별로 알린다.
+ * - 제목·내용 앞뒤 공백은 잘라서 검증한다. 시작일을 바꾸면 종료·발표일이 범위 안으로 따라 움직인다.
+ */
+export function ReviewEventEditorScreen({ id, workspace, targetLabels = [], query = '', filter = 'all', creditPolicy, policyHref = null }: {
+  id: string; workspace: ReviewEventWorkspace | null; targetLabels?: ReviewEventTarget[]; query?: string; filter?: string;
+  /** 생략하면 workspace.creditPolicy. null은 정책을 읽지 못한 상태(저장 판단은 서버가 한다). */
+  creditPolicy?: ReviewEventCreditPolicy | null;
+  policyHref?: string | null;
+}) {
   const router = useRouter(), [saved, setSaved] = useState(workspace?.event ?? null), [values, setValues] = useState<ReviewEventValues>(workspace?.event ?? newReviewEventValues());
   const [selected, setSelected] = useState(workspace?.selected ?? []), [reason, setReason] = useState(''), [dirtySelection, setDirtySelection] = useState(false), [dirtyTerms, setDirtyTerms] = useState(false);
   const [error, setError] = useState(''), [notice, setNotice] = useState(''), [retry, setRetry] = useState<Request | null>(null), [pending, start] = useTransition();
+  const [attempted, setAttempted] = useState(false);
   const blocked = pending || !!retry, editable = !saved || saved.canEdit, canSelect = !!saved && ['closed', 'ready'].includes(saved.state), selectedAmount = selected.length * values.creditAmount;
+  const policy = creditPolicy === undefined ? workspace?.creditPolicy ?? null : creditPolicy;
+  const fieldErrors: ReviewEventFieldErrors = editable ? { ...(attempted ? reviewEventFieldErrors(trimReviewEventText(values)) : {}), ...reviewEventCreditPolicyProblem(values, policy) } : {};
+  const invalid = (name: ReviewEventField) => fieldErrors[name] ? { 'aria-invalid': true as const, 'aria-describedby': `review-event-${name}-error` } : {};
+  const fieldError = (name: ReviewEventField) => fieldErrors[name] ? <small className="wc-admin-kit__error" id={`review-event-${name}-error`}>{fieldErrors[name]}</small> : null;
   function change<K extends keyof ReviewEventValues>(key: K, value: ReviewEventValues[K]) { setValues(current => ({ ...current, [key]: value })); setDirtyTerms(true); }
   function request(kind: Request['kind']) { return { kind, operationId: crypto.randomUUID(), revision: saved?.revision ?? 0 }; }
   function run(input: Request) { setError(''); setNotice(''); start(async () => {
@@ -31,20 +50,38 @@ export function ReviewEventEditorScreen({ id, workspace, targetLabels = [], quer
     setNotice(input.kind === 'publish' ? '발표와 적립금 지급을 저장 후 다시 확인했습니다.' : input.kind === 'revoke' ? '선정 혜택 회수를 저장 후 다시 확인했습니다.' : '저장한 내용을 다시 확인했습니다.');
     if (!workspace) router.replace(`${REVIEW_EVENTS_ADMIN_PATH}/${id}`); router.refresh();
   }); }
-  function save() { const normalized = parseReviewEventValues(values); if (!normalized) { setError('제목·내용·대상·기간·선정수·혜택 금액을 확인해주세요.'); return; } run({ ...request('save'), kind: 'save', values: normalized }); }
+  function save() {
+    const trimmed = trimReviewEventText(values);
+    const errors = { ...reviewEventFieldErrors(trimmed), ...reviewEventCreditPolicyProblem(trimmed, policy) };
+    setAttempted(true); setValues(trimmed); setNotice('');
+    if (Object.keys(errors).length) { setError(errors.form ?? '표시된 항목을 확인해주세요.'); return; }
+    const normalized = parseReviewEventValues(trimmed);
+    if (!normalized) { setError('제목·내용·대상·기간·선정수·혜택 금액을 확인해주세요.'); return; }
+    run({ ...request('save'), kind: 'save', values: normalized });
+  }
   function select(entry: ReviewEventWorkspace['rows'][number], checked: boolean) { if (checked && entry.reviewUpdatedAt) setSelected(current => [...current.filter(item => item.id !== entry.id), { id: entry.id, reviewUpdatedAt: entry.reviewUpdatedAt!, reviewFingerprint: entry.reviewFingerprint }]); else setSelected(current => current.filter(item => item.id !== entry.id)); setDirtySelection(true); }
   const detailPath = `${REVIEW_EVENTS_ADMIN_PATH}/${id}`;
   return <section className="wc-admin-kit wc-admin-kit__screen admin-review-events">
     <AdminPageHeader title={saved ? '리뷰이벤트 상세' : '리뷰이벤트 등록'} description={saved ? `#${saved.number} · ${reviewEventStateLabel[saved.state]}` : '시작 전에는 수정할 수 있으며, 시작 후에는 조건이 고정됩니다.'} actions={<Link className="btn btn-ghost" href={REVIEW_EVENTS_ADMIN_PATH}>목록</Link>} />
+    <div className="admin-review-events__policy" aria-label="적립금 정책 상태">
+      <p><strong>{policy ? reviewEventCreditPolicyLabel(policy) : '적립금 정책 상태를 확인하지 못했습니다. 저장할 때 다시 확인합니다.'}</strong>{policyHref ? <> · <Link href={policyHref}>적립금 정책 설정</Link></> : null}</p>
+      {policy && !policy.enabled && editable ? <p className="admin-review-events__help">{REVIEW_EVENT_CREDIT_POLICY_OFF}</p> : null}
+    </div>
     {error ? <p className="admin-review-events__error" role="alert">{error} {saved ? <a href={detailPath} target="_blank" rel="noopener noreferrer">최신 내용 별도 창에서 확인</a> : null}</p> : null}{notice ? <p role="status">{notice}</p> : null}
     {retry ? <button type="button" disabled={pending} className="btn btn-primary" onClick={() => run(retry)}>같은 요청으로 저장 결과 확인</button> : null}
     <fieldset className="admin-review-events__fields" disabled={blocked || !editable}>
-      <section className="admin-review-events__panel"><h2>이벤트 정보</h2><div className="admin-review-events__form-grid"><label>이벤트명 ({[...values.title].length}/15)<input value={values.title} onChange={event => change('title', event.target.value)} placeholder="최대 15자" /></label><label>내용 ({[...values.description].length}/30)<input value={values.description} onChange={event => change('description', event.target.value)} placeholder="최대 30자" /></label></div>
+      <section className="admin-review-events__panel"><h2>이벤트 정보</h2><div className="admin-review-events__form-grid"><label>이벤트명 ({[...values.title].length}/15)<input value={values.title} onChange={event => change('title', event.target.value)} placeholder="최대 15자" {...invalid('title')} />{fieldError('title')}</label><label>내용 ({[...values.description].length}/30)<input value={values.description} onChange={event => change('description', event.target.value)} placeholder="최대 30자" {...invalid('description')} />{fieldError('description')}</label></div>
         <label>이벤트 대상<select value={values.targetType} onChange={event => { const targetType = event.target.value as ReviewEventValues['targetType']; setValues(current => ({ ...current, targetType, goodIds: [], categoryIds: [] })); setDirtyTerms(true); }}><option value="all">전체 상품</option><option value="goods">상품 지정</option><option value="categories">카테고리 지정</option></select></label>
         {values.targetType !== 'all' ? <ReviewEventTargetPicker key={values.targetType} type={values.targetType} ids={values.targetType === 'goods' ? values.goodIds : values.categoryIds} initialLabels={targetLabels} onChange={ids => change(values.targetType === 'goods' ? 'goodIds' : 'categoryIds', ids)} /> : null}
+        {fieldError('target')}
         <p className="admin-review-events__help">공개된 상품의 유효 결제·배송완료 주문으로 기간 안에 새로 작성한 리뷰가 자동 응모됩니다. 같은 리뷰는 적립금이 가장 큰 이벤트 한 건에만 응모되며, 같으면 시작일·이벤트 순서로 결정됩니다.</p>
       </section>
-      <section className="admin-review-events__panel"><h2>기간과 선정 혜택</h2><div className="admin-review-events__form-grid"><label>시작일 (한국 시각)<input type="date" min={reviewEventDayOffset(reviewEventToday(), 1)} value={values.startsOn} onChange={event => change('startsOn', event.target.value)} /></label><label>종료일 (시작일 +1~31일)<input type="date" value={values.endsOn} onChange={event => change('endsOn', event.target.value)} /></label><label>발표일 (종료일 +3~10일)<input type="date" value={values.announcesOn} onChange={event => change('announcesOn', event.target.value)} /></label><label>선정 예정 인원<input type="number" min={1} max={1000} value={values.plannedWinners} onChange={event => change('plannedWinners', Number(event.target.value))} /></label><label>1인당 적립금 (원)<input type="number" min={1} max={999999999999} value={values.creditAmount} onChange={event => change('creditAmount', Number(event.target.value))} /></label><label>지급 후 유효기간 (일)<input type="number" min={1} max={36500} value={values.creditValidityDays} onChange={event => change('creditValidityDays', Number(event.target.value))} /></label></div>
+      <section className="admin-review-events__panel"><h2>기간과 선정 혜택</h2><div className="admin-review-events__form-grid"><label>시작일 (한국 시각)<input type="date" min={reviewEventDayOffset(reviewEventToday(), 1)} value={values.startsOn} onChange={event => { const next = event.target.value; setValues(current => withReviewEventStartsOn(current, next)); setDirtyTerms(true); }} {...invalid('startsOn')} />{fieldError('startsOn')}</label>
+        <label>종료일 (시작일 +1~31일)<input type="date" min={isReviewEventDate(values.startsOn) ? reviewEventDayOffset(values.startsOn, 1) : undefined} max={isReviewEventDate(values.startsOn) ? reviewEventDayOffset(values.startsOn, 31) : undefined} value={values.endsOn} onChange={event => { const next = event.target.value; setValues(current => withReviewEventEndsOn(current, next)); setDirtyTerms(true); }} {...invalid('endsOn')} />{fieldError('endsOn')}</label>
+        <label>발표일 (종료일 +3~10일)<input type="date" min={isReviewEventDate(values.endsOn) ? reviewEventDayOffset(values.endsOn, 3) : undefined} max={isReviewEventDate(values.endsOn) ? reviewEventDayOffset(values.endsOn, 10) : undefined} value={values.announcesOn} onChange={event => change('announcesOn', event.target.value)} {...invalid('announcesOn')} />{fieldError('announcesOn')}</label>
+        <label>선정 예정 인원<input type="number" min={1} max={1000} value={values.plannedWinners} onChange={event => change('plannedWinners', Number(event.target.value))} {...invalid('plannedWinners')} />{fieldError('plannedWinners')}</label>
+        <label>1인당 적립금 (원)<input type="number" min={1} max={policy?.enabled && policy.maxBalance !== null ? policy.maxBalance : 999999999999} value={values.creditAmount} onChange={event => change('creditAmount', Number(event.target.value))} {...invalid('creditAmount')} />{fieldError('creditAmount')}</label>
+        <label>지급 후 유효기간 (일)<input type="number" min={1} max={policy?.enabled && policy.validityDays !== null ? policy.validityDays : 36500} value={values.creditValidityDays} onChange={event => change('creditValidityDays', Number(event.target.value))} {...invalid('creditValidityDays')} />{fieldError('creditValidityDays')}</label></div>
         <p>예상 지급액 <strong>{(values.plannedWinners * values.creditAmount).toLocaleString('ko-KR')}원</strong></p><p className="admin-review-events__help">별점과 무관하게 선정하세요. 실제 선정 수는 예정 인원과 달라도 되며, 고객 한 명당 한 번 지급합니다. 발표일 이후 지급 권한이 있는 운영자가 발표·지급을 실행해야 합니다. 적립금 정책의 상한과 유효기간 제한이 적용됩니다.</p>
         <label>배너 디자인<select value={values.bannerStyle} onChange={event => change('bannerStyle', event.target.value as 'basic' | 'emphasis')}><option value="basic">기본형</option><option value="emphasis">강조형</option></select></label>
       </section>
