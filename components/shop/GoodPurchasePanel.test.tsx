@@ -377,6 +377,28 @@ describe('GoodPurchasePanel', () => {
     expect(free).not.toMatch(/aria-disabled="true" aria-label="수량 늘리기"/);
   });
 
+  /* T7 리뷰 RV-5: 추가 구성 굿즈도 본품과 같은 판매 방식·옵션별 제한 안내(확정 카피)를 보인다. */
+  it('추가 구성 굿즈가 랜덤 판매면 무작위 배정 안내를, 옵션별 제한이 있으면 고른 옵션의 안내를 보인다', () => {
+    const random = {id:'00000000-0000-4000-8000-0000000000a1',name:'랜덤',price:5000,stockQty:6,code:'',attributes:{},isDefault:true,orderMaxQty:null,memberMaxQty:null};
+    const randomGood: Good = { ...good, id: 'rnd', name: '랜덤 캔뱃지', optionSaleMode: 'random', options: [random] };
+    const limitOptions = [
+      {id:'blue',name:'파랑',price:3000,stockQty:5,code:'BLUE',attributes:{},isDefault:true,orderMaxQty:2,memberMaxQty:4},
+      {id:'red',name:'빨강',price:3000,stockQty:5,code:'RED',attributes:{},isDefault:false,orderMaxQty:null,memberMaxQty:null},
+    ];
+    const limitedGood: Good = { ...good, id: 'lim', name: '스티커', options: limitOptions };
+    const additionalChoices: AdditionalPurchaseChoice[] = [
+      { goodId: 'rnd', name: randomGood.name, good: randomGood, selected: true, selectedOption: random, quantity: 1 },
+      { goodId: 'lim', name: limitedGood.name, good: limitedGood, selected: true, selectedOption: limitOptions[0], quantity: 1 },
+    ];
+    const html = renderToStaticMarkup(<GoodPurchasePanel purchase={controller({ additionalChoices })} />);
+    const section = html.slice(html.indexOf('aria-label="추가 구성 굿즈"'));
+    expect(section).toContain('옵션은 주문 후 재고에서 무작위로 정해져 발송됩니다. 같은 옵션이 중복될 수 있습니다.');
+    expect(section).toContain('&#x27;파랑&#x27;은 한 번에 2개까지 주문할 수 있습니다.');
+    expect(section).toContain('&#x27;파랑&#x27;은 1인당 4개까지 구매할 수 있습니다.');
+    const unselected = renderToStaticMarkup(<GoodPurchasePanel purchase={controller({ additionalChoices: additionalChoices.map(choice => ({ ...choice, selected: false })) })} />);
+    expect(unselected).not.toContain('무작위로 정해져');
+  });
+
   it('단일 옵션은 선택기를 숨기고 기본값이 아닌 옵션명만 표시한다', () => {
     const option = {id:'blue',name:'파랑',price:12000,stockQty:3,code:'BLUE',attributes:{색상:'파랑'},isDefault:true};
     const html = renderToStaticMarkup(<GoodPurchasePanel purchase={controller({good:{...good,options:[option]},selectedOption:option})} />);

@@ -433,6 +433,8 @@ function AdditionalChoices({ purchase }: { purchase: GoodPurchaseController }) {
         </label> : optionLabel(choice.selectedOption, 1) ? <p className="wc-buy-panel__state">{choice.selectedOption?.name}</p> : null}
         {!choice.selectedOption && (choice.good.options?.length ?? 0) <= 1 ? <p className="wc-buy-panel__state">현재 구매할 수 없는 옵션입니다. 추가 선택을 해제해주세요.</p> : null}
         {choice.selectedOption?.supply?.mode === 'preorder' ? <p className="wc-buy-panel__state">예약판매 · {goodsShipDateLabel(choice.selectedOption.supply.expectedShipDate)}</p> : null}
+        {/* 본품과 같은 판매 방식(D5② 랜덤)·옵션별 구매 제한(D7②) 안내 — 확정 카피. */}
+        {goodOptionPurchaseNotices(choice.good, choice.selectedOption).map(notice => <p className="wc-buy-panel__state" key={notice}>{notice}</p>)}
         <GoodsCustomInputsFields goodId={choice.goodId} config={choice.good.customInputs} values={purchase.customInputValues?.[choice.goodId]} disabled={purchase.disabled || purchase.busy} onChange={(id,value)=>purchase.setCustomInputValue?.(choice.goodId,id,value)} />
         <div className="wc-buy-panel__row">
           <span>추가 수량</span>
