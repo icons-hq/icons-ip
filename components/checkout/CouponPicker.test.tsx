@@ -103,6 +103,18 @@ describe('CouponPicker — 표시', () => {
     expect(markup).not.toContain('최소 주문 금액');
   });
 
+  /* 만료·대상 없음 같은 사유에서 견적은 eligibleSubtotal 을 0으로 준다 — 최소 금액이 있는 쿠폰이라도 금액 미달로 안내하면 안 된다. */
+  it.each([
+    ['coupon_expired', '사용 기간이 지난 쿠폰이에요.'],
+    ['coupon_no_eligible_goods', '쿠폰 대상 굿즈를 담으면 사용할 수 있어요.'],
+    ['coupon_not_started', '아직 사용 기간이 시작되지 않은 쿠폰이에요.'],
+  ])('최소 주문 금액이 있는 쿠폰도 견적 사유(%s)대로 알린다', (reason, copy) => {
+    const markup = html({ couponState: state([fix5k], fix5k.id), appliedCoupon: fix5k,
+      quote: { userCouponId: fix5k.id, couponCode: 'CPNFIX5K', eligibleSubtotal: 0, discount: 0, reason } });
+    expect(markup).toContain(copy);
+    expect(markup).not.toContain('최소 주문 금액');
+  });
+
   it('대상 굿즈가 없으면 그 사유를 쿠폰 칸에서 알린다', () => {
     const markup = html({ couponState: state([fix5k], fix5k.id), appliedCoupon: { ...fix5k, coupon: { ...fix5k.coupon, minSubtotal: 0 } },
       quote: { userCouponId: fix5k.id, couponCode: 'CPNFIX5K', eligibleSubtotal: 0, discount: 0, reason: 'coupon_no_eligible_goods' } });

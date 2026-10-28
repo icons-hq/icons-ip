@@ -57,11 +57,13 @@ function couponDescription(surface: CouponPickerSurface, shippingCouponsAtChecko
     : '보유 쿠폰 1장을 고르거나 코드를 입력해주세요. 주문서에서도 바꿀 수 있어요.';
 }
 
-/** 쿠폰 칸에서 따로 알릴 견적 사유. 첫구매 선점은 화면의 주문 차단 문구가 진행 중 주문 링크와 함께 알린다. */
+/** 쿠폰 칸에서 따로 알릴 견적 사유. 첫구매 선점은 화면의 주문 차단 문구가 진행 중 주문 링크와 함께 알린다.
+ *  금액이 든 최소 금액 문구는 견적 사유가 최소 금액 미달일 때만 쓴다 — 만료·대상 없음 같은 사유에서도
+ *  견적은 eligibleSubtotal 을 0으로 주므로 금액 비교로 판정하면 사유를 잘못 알린다. */
 function quoteNotice(applied: UserCouponSummary | null, quote: CouponQuote | null | undefined): string | null {
   if (!applied || !quote || quote.userCouponId !== applied.id || !quote.reason) return null;
   if (couponErrorNeedsPendingOrder(quote.reason)) return null;
-  if (quote.eligibleSubtotal < applied.coupon.minSubtotal) {
+  if (quote.reason === 'coupon_min_subtotal' && applied.coupon.minSubtotal > 0) {
     return `쿠폰 대상 굿즈 금액이 최소 주문 금액(${krw(applied.coupon.minSubtotal)})에 못 미쳐 지금은 할인이 적용되지 않아요.`;
   }
   return mapCouponActionError(quote.reason);
