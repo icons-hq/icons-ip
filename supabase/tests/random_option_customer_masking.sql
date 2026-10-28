@@ -324,6 +324,15 @@ select 1/case when (select count(*) from public.cart_items where user_id='000000
  and (select qty from public.cart_items where user_id='00000000-0000-4000-8000-000000163004' and variant_id=:'variant_a')=5
  then 1 else 0 end as assert_merge_sums_lines_sharing_random_key;
 
+-- 7. 배송비 절약 위젯(RV-6): 랜덤 굿즈 선택은 기본 옵션 재고가 아니라 풀 합계로 판정한다(A 1·B 3·C 3, 3개).
+update public.goods_variants set stock_qty=case when id=:'variant_a' then 1 else 3 end where good_id='random-mask';
+set local role anon;
+select set_config('request.jwt.claim.sub','',true);
+select 1/case when not (public.get_product_shipping_savings('random-mask',:'variant_a',3) ? 'selectionUnavailable')
+ and public.get_product_shipping_savings('random-mask',:'variant_a',8) ? 'selectionUnavailable'
+ then 1 else 0 end as assert_shipping_savings_uses_pool;
+reset role;
+
 -- 계약: 공개 계산 열 grant, 정책 계약 등록.
 select 1/case when has_function_privilege('anon','public.goods_random_option(public.goods)','execute')
  and has_function_privilege('authenticated','public.goods_random_option(public.goods)','execute')
