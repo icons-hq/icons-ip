@@ -41,6 +41,7 @@ vi.mock('@/lib/goods-description', async () => {
 import { GoodEditor } from './GoodEditor';
 import { GoodsAttributeEditor } from './GoodsAttributeEditor';
 import { GoodsImageGrid } from './GoodsImageGrid';
+import { GoodWorkspaceErrors } from './GoodWorkspace';
 import { createGoodEditorDraft } from '@/lib/admin/good-editor';
 
 type Element = ReactElement<Record<string, unknown>>;
@@ -126,4 +127,35 @@ it('입력이 그대로면 다시 그려도 상세 HTML 정리·미리보기를 
   expect(preview.spy).toHaveBeenCalledOnce();
   h.entries.set('description', '<p>바뀐 본문</p>'); h.capture(); h.render();
   expect(sanitize.spy).toHaveBeenCalled();
+});
+
+/*
+ * 리뷰 T3a-6 — 옵션별 구매 제한 표의 입력은 이름 없이(aria-label만) 옵션 행 JSON으로 제출된다. 브라우저 검증에 걸리면
+ * 'form'으로 묶여 카테고리로 연결됐다. data-error-field로 구매 제한 칸에 붙이고 보이는 이름(aria-label)으로 안내한다.
+ */
+it('이름 없는 옵션별 제한 입력의 브라우저 검증 오류를 구매 제한 칸에 보이는 이름으로 붙인다', () => {
+  class FakeElement {
+    parentElement = null; hidden = false; labels: { textContent: string }[] = [];
+    willValidate = true; validity = { valid: false, customError: false };
+    scrollIntoView = vi.fn(); focus = vi.fn();
+    constructor(public name: string, public dataset: Record<string, string>, private label: string, public validationMessage: string) {}
+    getAttribute(attribute: string) { return attribute === 'aria-label' ? this.label : null; }
+    closest() { return null; }
+  }
+  vi.stubGlobal('HTMLInputElement', FakeElement); vi.stubGlobal('HTMLSelectElement', class {}); vi.stubGlobal('HTMLTextAreaElement', class {}); vi.stubGlobal('HTMLDetailsElement', class {});
+  const h = setup(false, false, null);
+  const first = new FakeElement('', { errorField: 'optionLimits' }, '빨강 최대 구매수량(주문당)', '값은 1 이상이어야 합니다.');
+  const second = new FakeElement('', { errorField: 'optionLimits' }, '파랑 1인 최대 구매수량', '유효한 값을 입력하세요.');
+  const unnamed = new FakeElement('', {}, '', '값을 입력하세요.');
+  const errors = (tree: Element[]) => tree.find(node => node.type === GoodWorkspaceErrors)!.props.errors;
+  const invalid = (tree: Element[], elements: FakeElement[]) => (tree.find(node => node.type === 'form')!.props.onInvalidCapture as (event: unknown) => void)({ preventDefault: vi.fn(), currentTarget: { elements } });
+  invalid(h.render(), [first, second]);
+  let tree = h.render();
+  expect(errors(tree)).toMatchObject({ optionLimits: '빨강 최대 구매수량(주문당) 입력값을 확인해주세요. 값은 1 이상이어야 합니다.' });
+  expect(errors(tree)).not.toHaveProperty('form');
+  expect(first.focus).toHaveBeenCalled();
+  /* 이름도 오류 칸도 없는 입력은 지금처럼 form으로 남는다. */
+  invalid(tree, [unnamed]);
+  tree = h.render();
+  expect(errors(tree)).toMatchObject({ form: 'form 입력값을 확인해주세요. 값을 입력하세요.' });
 });

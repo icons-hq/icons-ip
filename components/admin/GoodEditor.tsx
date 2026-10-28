@@ -344,11 +344,16 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
     event.preventDefault();
     const invalid = Array.from(event.currentTarget.elements).filter((element): element is HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement =>
       (element instanceof HTMLInputElement || element instanceof HTMLSelectElement || element instanceof HTMLTextAreaElement) && element.willValidate && !element.validity.valid);
-    setClientErrors(Object.fromEntries(invalid.map((input) => {
+    const fieldErrors: Record<string, string> = {};
+    for (const input of invalid) {
       const artworkName = input.closest('.wc-admin-artwork-upload-field')?.querySelector<HTMLInputElement>('input[type="hidden"][name]')?.name;
-      const name = input.name || artworkName || (input.closest('.admin-option-editor') ? 'variants' : 'form');
-      return [name, input.validity.customError ? input.validationMessage : `${input.labels?.[0]?.textContent?.trim() || name} 입력값을 확인해주세요. ${input.validationMessage}`];
-    })));
+      /* 이름 없이 JSON으로 제출하는 입력(옵션별 구매 제한 표)은 data-error-field로 자기 섹션의 오류 칸에 붙인다. */
+      const name = input.name || artworkName || input.dataset.errorField || (input.closest('.admin-option-editor') ? 'variants' : 'form');
+      const label = input.labels?.[0]?.textContent?.trim() || input.getAttribute('aria-label')?.trim() || name;
+      /* 같은 칸에 오류가 여럿이면 포커스가 가는 첫 입력의 안내를 보인다. */
+      fieldErrors[name] ??= input.validity.customError ? input.validationMessage : `${label} 입력값을 확인해주세요. ${input.validationMessage}`;
+    }
+    setClientErrors(fieldErrors);
     for (const input of invalid) {
       for (let ancestor: HTMLElement | null = input.parentElement; ancestor && ancestor !== event.currentTarget; ancestor = ancestor.parentElement) {
         if (ancestor.hidden) ancestor.hidden = false;
@@ -440,7 +445,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
       <GoodEditorSection title="판매기간" id="good-section-period" requirement="선택 · 일반 판매" errorCount={errorCount('period')} summary={values.salePeriodEnabled === 'true' ? `${values.saleStartsAt?.replace('T', ' ') || '시작 미입력'} ~ ${values.saleEndsAt?.replace('T', ' ') || '종료 미입력'} · 한국시간` : '설정안함'}>
         <GoodsSalePeriodFields values={values} error={errors.saleStartsAt} onChange={patch => { setValues(current => ({ ...current, ...patch })); setDirty(true); }} />
       </GoodEditorSection>
-      <GoodsPurchaseLimitFields quantityReadOnly={aggregationOwned} values={initial} errors={errors} rows={rows} onRowsChange={setRows} randomSale={randomSale} />
+      <GoodsPurchaseLimitFields quantityReadOnly={aggregationOwned} values={initial} current={values} errors={errors} rows={rows} onRowsChange={setRows} randomSale={randomSale} />
       <GoodEditorSection title="재고수량 / 옵션" id="good-section-variants" requirement="공개 필수 · 옵션 없이 팔면 재고수량만 입력" status="옵션 확인" errorCount={errorCount('variants')} summary={`${isSingleGoodsOption(rows) ? '옵션 없음 · 재고수량' : `옵션 ${rows.length.toLocaleString('ko-KR')}개 · 재고수량 합계`} ${goodsOptionStockTotals(rows).total.toLocaleString('ko-KR')}개`}>
         <GoodsOptionEditor structureLocked={groupOwned} onRowsChange={setRows} codePrefix={values.code || suggestedCode} rows={rows} baseline={baseline} basePrice={priceResult.salePrice ?? 0}
           priceDraft={priceDraft} error={errors.variants} axisValues={initial}

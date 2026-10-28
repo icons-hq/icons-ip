@@ -2,11 +2,14 @@
 
 import { useState, type Dispatch, type SetStateAction } from 'react';
 import { goodsOptionRowKey, isSingleGoodsOption, type GoodsOptionRow } from '@/lib/admin/goods-option-editor';
+import { GOOD_OPTION_LIMIT_ERROR_FIELD } from '@/lib/admin/good-workspace';
 import { AdminField, AdminFormGrid } from './console/AdminKit';
 import { GoodEditorSection } from './GoodWorkspace';
-import { SelectField } from './fields';
+import { ErrorText, SelectField } from './fields';
 
 const QUANTITY_FIELDS = ['orderQuantityLimitEnabled', 'minOrderQty', 'maxOrderQty', 'memberPurchaseLimitEnabled', 'memberLifetimeQtyLimit'] as const;
+/** 구매 제한 카드의 오류 개수에 세는 칸(상품 단위 수량 + 옵션별 제한 표). */
+const LIMIT_ERROR_FIELDS: readonly string[] = [...QUANTITY_FIELDS, GOOD_OPTION_LIMIT_ERROR_FIELD];
 const PAYMENT_FIELDS = ['allowCardPayment', 'allowBankTransfer', 'saleRestriction'] as const;
 export const GOODS_RANDOM_OPTION_LIMIT_BLOCKED = '랜덤 판매 상품은 옵션별 구매 제한을 쓸 수 없습니다.';
 
@@ -37,8 +40,8 @@ function optionLimitValue(raw: string): number | null {
 }
 
 /** 옵션마다 주문 1건·회원 1명의 최대 수량. 행 JSON(`variants`)의 orderMaxQty·memberMaxQty로 저장된다(D7②). */
-function GoodsOptionLimitTable({ rows, onRowsChange, randomSale }: {
-  rows: GoodsOptionRow[]; onRowsChange: Dispatch<SetStateAction<GoodsOptionRow[]>>; randomSale: boolean;
+function GoodsOptionLimitTable({ rows, onRowsChange, randomSale, error }: {
+  rows: GoodsOptionRow[]; onRowsChange: Dispatch<SetStateAction<GoodsOptionRow[]>>; randomSale: boolean; error?: string;
 }) {
   const single = isSingleGoodsOption(rows);
   function update(key: string, field: 'orderMaxQty' | 'memberMaxQty', raw: string) {
@@ -59,14 +62,16 @@ function GoodsOptionLimitTable({ rows, onRowsChange, randomSale }: {
           const name = single ? '기본 옵션' : row.name.trim() || `옵션 ${index + 1}`;
           return <tr key={key} data-variant-id={row.id ?? undefined}>
             <td>{name}{row.isActive === false ? <small className="goods-option-row-status"> · 사용 중지</small> : null}</td>
-            <td><input aria-label={`${name} 최대 구매수량(주문당)`} type="number" min={1} max={2147483647} step={1} inputMode="numeric" placeholder="제한 없음"
+            {/* 옵션 행 JSON으로 제출하므로 name이 없다. 브라우저 검증 오류는 data-error-field로 구매 제한 카드에 붙인다(GoodEditor). */}
+            <td><input aria-label={`${name} 최대 구매수량(주문당)`} data-error-field={GOOD_OPTION_LIMIT_ERROR_FIELD} type="number" min={1} max={2147483647} step={1} inputMode="numeric" placeholder="제한 없음"
               value={row.orderMaxQty ?? ''} onChange={(event) => update(key, 'orderMaxQty', event.target.value)} /></td>
-            <td><input aria-label={`${name} 1인 최대 구매수량`} type="number" min={1} max={2147483647} step={1} inputMode="numeric" placeholder="제한 없음"
+            <td><input aria-label={`${name} 1인 최대 구매수량`} data-error-field={GOOD_OPTION_LIMIT_ERROR_FIELD} type="number" min={1} max={2147483647} step={1} inputMode="numeric" placeholder="제한 없음"
               value={row.memberMaxQty ?? ''} onChange={(event) => update(key, 'memberMaxQty', event.target.value)} /></td>
           </tr>;
         })}</tbody>
       </table>
     </div>
+    <ErrorText>{error}</ErrorText>
   </fieldset>;
 }
 
@@ -75,8 +80,11 @@ function GoodsOptionLimitTable({ rows, onRowsChange, randomSale }: {
  * 스마트스토어 어휘(최소/최대 구매수량·1인 최대 구매수량)를 쓰되, DB는 주문당 제한을 켜면 최소·최대를 함께 요구한다
  * (goods_order_quantity_activation). 저장 계약(폼 이름)은 그대로다.
  */
-export function GoodsPurchaseLimitFields({ values, errors, quantityReadOnly = false, rows, onRowsChange, randomSale = false }: {
+export function GoodsPurchaseLimitFields({ values, current, errors, quantityReadOnly = false, rows, onRowsChange, randomSale = false }: {
+  /** 마운트 때 값(비제어 입력의 기본값). */
   values: Record<string, string>;
+  /** 편집 중인 현재 입력값(편집기 폼 캡처). 섹션 요약의 수량은 이 값으로 보인다. 없으면 values를 쓴다. */
+  current?: Record<string, string>;
   errors?: Record<string, string | undefined>;
   quantityReadOnly?: boolean;
   rows: GoodsOptionRow[];
@@ -86,11 +94,12 @@ export function GoodsPurchaseLimitFields({ values, errors, quantityReadOnly = fa
 }) {
   const [orderLimit, setOrderLimit] = useState(values.orderQuantityLimitEnabled === 'true');
   const [memberLimit, setMemberLimit] = useState(values.memberPurchaseLimitEnabled === 'true');
-  const errorCount = Object.keys(errors ?? {}).filter((key) => errors?.[key] && (QUANTITY_FIELDS as readonly string[]).includes(key)).length;
+  const errorCount = Object.keys(errors ?? {}).filter((key) => errors?.[key] && LIMIT_ERROR_FIELDS.includes(key)).length;
   const optionLimited = rows.filter((row) => row.orderMaxQty != null || row.memberMaxQty != null).length;
+  const live = current ?? values;
   const summary = [
-    orderLimit ? `최소 ${values.minOrderQty || '?'}·최대 ${values.maxOrderQty || '?'}개` : '최소/최대 구매수량 설정안함',
-    memberLimit ? `1인 최대 ${values.memberLifetimeQtyLimit || '?'}개` : '1인 최대 구매수량 설정안함',
+    orderLimit ? `최소 ${live.minOrderQty?.trim() || '?'}·최대 ${live.maxOrderQty?.trim() || '?'}개` : '최소/최대 구매수량 설정안함',
+    memberLimit ? `1인 최대 ${live.memberLifetimeQtyLimit?.trim() || '?'}개` : '1인 최대 구매수량 설정안함',
     ...(optionLimited ? [`옵션별 제한 ${optionLimited}개`] : []),
   ].join(' · ');
   return <GoodEditorSection title="구매 제한" id="good-section-limits" requirement="선택 · 설정하면 수량 입력 필요" errorCount={errorCount} summary={summary}>
@@ -110,7 +119,7 @@ export function GoodsPurchaseLimitFields({ values, errors, quantityReadOnly = fa
       </fieldset>
       {quantityReadOnly ? QUANTITY_FIELDS.map((name) => <input key={name} type="hidden" name={name} value={values[name] ?? ''} />) : null}
       <p className="muted">수량은 같은 상품의 모든 옵션을 합산합니다.</p>
-      <GoodsOptionLimitTable rows={rows} onRowsChange={onRowsChange} randomSale={randomSale} />
+      <GoodsOptionLimitTable rows={rows} onRowsChange={onRowsChange} randomSale={randomSale} error={errors?.[GOOD_OPTION_LIMIT_ERROR_FIELD]} />
     </div>
   </GoodEditorSection>;
 }
