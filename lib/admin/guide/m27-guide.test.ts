@@ -129,6 +129,18 @@ describe('m27 가이드 — 클레임(R7·R8)', () => {
     expect(text).toContain('한 건씩 순서대로');
   });
 
+  it('일괄 거부 사유 칸의 위치를 화면 그대로(목록 위, 일괄 처리 버튼 바로 아래) 적는다(R8·ADM-5)', () => {
+    const bulk = repoFile('components/admin/screens/ClaimQueueBulk.tsx');
+    /* 일괄 처리 버튼 줄과 거부 사유 칸은 ConsoleGrid의 children이고, ConsoleGrid는 children을 표보다 먼저 그린다. */
+    const grid = bulk.slice(bulk.indexOf('<ConsoleGrid'), bulk.indexOf('</ConsoleGrid>'));
+    expect(grid.indexOf('admin-claim-bulk-bar')).toBeGreaterThan(-1);
+    expect(grid.indexOf('admin-claim-bulk-reason')).toBeGreaterThan(grid.indexOf('admin-claim-bulk-bar'));
+    const consoleGrid = repoFile('components/admin/console/ConsoleGrid.tsx');
+    expect(consoleGrid.indexOf('{children}')).toBeLessThan(consoleGrid.indexOf('<table className="admin-console-grid-table"'));
+    expect(text).toContain('목록 위 일괄 처리 버튼 바로 아래의 거부 사유 칸');
+    expect(text).not.toContain('목록 아래 거부 사유 칸');
+  });
+
   it('거부 사유 프리셋과 유형별 사유, 운영자 철회 버튼 제거를 안내한다(R7)', () => {
     expect(repoFile('components/admin/screens/ClaimRejectionReasonField.tsx')).toContain('자주 쓰는 거부 사유');
     expect(ORDER_CLAIM_BUYER_REASON_TYPES.cancel).toEqual(['change_of_mind']);
@@ -202,6 +214,22 @@ describe('m27 가이드 — 상품 등록·목록·카테고리·랜덤 판매(R
     const purpose = repoFile('components/admin/screens/GoodsPhotoLibraryScreen.tsx').match(/GOODS_PHOTO_LIBRARY_PURPOSE = '([^']+)'/)?.[1];
     expect(purpose).toBeTruthy();
     expect(text).toContain(purpose!);
+  });
+
+  it('목록 바로 수정은 판매가·재고수량만 칸 전체를 누르고 판매상태는 값 버튼을 누른다(R11·ADM-5)', () => {
+    const inline = repoFile('components/admin/GoodsInlineEdit.tsx');
+    const editor = (name: string) => inline.slice(inline.indexOf(`export function ${name}`)).split('</InlineEditor>')[0];
+    expect(editor('GoodsInlinePrice')).toContain('<InlineEditor fillCell label="판매가"');
+    expect(editor('GoodsInlineStock')).toContain('<InlineEditor fillCell label="재고수량"');
+    expect(editor('GoodsInlineSale')).toContain('<InlineEditor label="판매상태"');
+    expect(editor('GoodsInlineSale')).not.toContain('fillCell');
+    expect(text).toContain('판매가·재고수량은 상품 목록에서 값 칸 어디를 눌러도 바로 고칠 수 있고, 판매상태는 칸 안의 판매중·판매중지 값 버튼을 눌러 고칩니다.');
+    const changes = ADMIN_WEEKLY_CHANGES[0].changes.join('\n');
+    expect(changes).toContain('판매가·재고수량은 값 칸 어디를 눌러도 바로 고치고 판매상태는 값 버튼을 눌러 고치며');
+    for (const stale of ['판매가·재고수량·판매상태는 상품 목록에서 값 칸 어디를', '값 칸이나 체크 칸 어디를 눌러도 바로 수정']) {
+      expect(text).not.toContain(stale);
+      expect(changes).not.toContain(stale);
+    }
   });
 
   it('상품 목록의 선택 유지·상품번호 열·판매기간 필터·그룹상품 메뉴 숨김을 안내한다(R11·R15·R16·R21)', () => {
