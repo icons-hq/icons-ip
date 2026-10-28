@@ -370,6 +370,23 @@ describe('GoodSection', () => {
     expect(random).toMatch(/<fieldset[^>]*disabled=""[^>]*class="goods-option-limits"|<fieldset[^>]*class="goods-option-limits"[^>]*disabled=""/);
   });
 
+  /* 리뷰 T3a-2 — 편집기 안 접이식 영역도 키 밖 펼침 상태(stateId)로 그려 저장 시도마다 다시 접히지 않는다. */
+  it('편집기 안 접이식 영역(상세설명 편집·긴 상세 이미지·검색설정·옵션 상세 정보·미리보기·저장 안내)도 펼침 상태를 기억한다', () => {
+    const html = renderGoodSection(good, { errors: { nameEn: '영문명 오류' } });
+    const opening = (pattern: RegExp) => html.match(pattern)?.[0] ?? '';
+    for (const summary of ['상세설명 편집', '긴 상세 이미지 (선택)', '검색설정·판매자상품코드']) {
+      const start = html.indexOf(`<summary>${summary}`);
+      expect(start).toBeGreaterThan(0);
+      expect(html.slice(html.lastIndexOf('<details', start), start)).toContain('data-known-open=');
+    }
+    /* 오류가 있는 선택 영역은 강제로 연다. */
+    const search = html.lastIndexOf('<details', html.indexOf('<summary>검색설정·판매자상품코드'));
+    expect(html.slice(search, html.indexOf('>', search))).toContain('open=""');
+    expect(opening(/<details class="goods-option-secondary"[^>]*>/)).toContain('data-known-open="false"');
+    expect(opening(/<details id="good-preview"[^>]*>/)).toContain('data-known-open="false"');
+    expect(opening(/<details class="admin-good-workspace__save-info"[^>]*>/)).toContain('data-known-open="false"');
+  });
+
   /* 10/27 회의 R14 — 기본 입력 상태로 잠긴 운영 패널은 맨 위에 공통 이유를 보인다(서버 렌더는 확인 중 상태). */
   it('기본 입력 상태로 잠기는 운영 패널 5개는 패널 맨 위에 공통 잠금 이유를 둔다', () => {
     const html = renderGoodSection({ ...good, publishedAt: null }, {}, { accountId: 'operator-1' });

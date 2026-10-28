@@ -59,7 +59,7 @@ import { GoodIdentifierFields } from './GoodIdentifierFields';
 import { GoodsDraftLibraryDialog } from './GoodsDraftLibraryDialog';
 import { saveGoodsDraftAction } from '@/app/admin/goods-draft-actions';
 import { collectGoodsDraftValues, validGoodsDraftIdentity, type GoodsDraft, type GoodsDraftIdentity } from '@/lib/admin/goods-drafts';
-import { GoodWorkspaceNavigation, GoodWorkspaceErrors, GoodOptionalFields, GoodEditorSection, focusGoodWorkspaceTarget, useFocusFirstGoodError, useGoodWorkspaceSections } from './GoodWorkspace';
+import { GoodWorkspaceNavigation, GoodWorkspaceErrors, GoodOptionalFields, GoodEditorSection, GoodWorkspaceDetails, focusGoodWorkspaceTarget, useFocusFirstGoodError, useGoodWorkspaceSections } from './GoodWorkspace';
 import { GOOD_WORKSPACE_ERROR_SECTIONS, GOOD_WORKSPACE_OPERATION_FIELD, GOOD_WORKSPACE_SECTIONS_FIELD, prepareGoodWorkspaceSections } from '@/lib/admin/good-workspace-sections';
 import { GOOD_EDITOR_SECTIONS, GOOD_PUBLISHED_LOCKS, changedGoodLockedFields, goodFieldSection } from '@/lib/admin/good-workspace';
 import { ADMIN_STOCK_LABELS, ADMIN_VOCABULARY, adminGoodsCopy } from '@/lib/admin/vocabulary';
@@ -118,16 +118,16 @@ function GoodsNoticeFields({
  * 조건이 첫 수정에서 깨진다. `embedded` 가 구매 패널·위시 하트를 비활성으로 그려
  * 미리보기가 장바구니나 카탈로그를 건드리지 않게 한다.
  */
-/* R19: 미리보기 입력(detail·ip·배송 정책)이 그대로면 편집기의 다른 상태 변화에 다시 그리지 않는다. */
-const GoodPreviewPanel = memo(function GoodPreviewPanel({ detail, ip, shippingPolicy }: { detail: GoodDetailContent; ip: Ip | null; shippingPolicy?: GoodShippingPolicy | null }) {
+/*
+ * R19: 미리보기 입력(detail·ip·배송 정책)이 그대로면 편집기의 다른 상태 변화에 다시 그리지 않는다.
+ * 펼침 상태(R14)는 바깥 details가 키 밖 상태로 기억하고, 펼침이 바뀌어도 이 내용은 다시 그리지 않는다.
+ */
+const GoodPreviewContent = memo(function GoodPreviewContent({ detail, ip, shippingPolicy }: { detail: GoodDetailContent; ip: Ip | null; shippingPolicy?: GoodShippingPolicy | null }) {
   const good = detail.good;
   /* 아직 저장하지 않은 신규 굿즈는 갈 곳이 없다 — 없는 상세로 보내는 대신 목록으로 둔다. */
   const href = good.id ? `/shop/${good.id}` : '/shop';
 
   return (
-    /* details 에 display 를 덮어쓰면 접힘이 깨지는 브라우저가 있어 기본 display 를 유지한다. */
-    <details id="good-preview" className="admin-good-preview">
-      <summary style={{ cursor: 'pointer', fontWeight: 700 }}>공개 화면 미리보기</summary>
       <div className="col" style={{ gap: 14, marginTop: 14 }}>
         <p className="muted" style={{ fontSize: 12, lineHeight: 1.6, margin: 0 }}>
           지금 폼에 입력된 값으로 그린 화면입니다. 저장하기 전 모습이며, 미리보기는 카탈로그를 바꾸지 않습니다.
@@ -157,9 +157,16 @@ const GoodPreviewPanel = memo(function GoodPreviewPanel({ detail, ip, shippingPo
           </div>
         </div>
       </div>
-    </details>
   );
 });
+
+function GoodPreviewPanel(props: { detail: GoodDetailContent; ip: Ip | null; shippingPolicy?: GoodShippingPolicy | null }) {
+  /* details 에 display 를 덮어쓰면 접힘이 깨지는 브라우저가 있어 기본 display 를 유지한다. */
+  return <GoodWorkspaceDetails stateId="good-preview" id="good-preview" className="admin-good-preview">
+    <summary style={{ cursor: 'pointer', fontWeight: 700 }}>공개 화면 미리보기</summary>
+    <GoodPreviewContent {...props} />
+  </GoodWorkspaceDetails>;
+}
 
 function OwnedFields({ locked, fields, values, children }: { locked: boolean; fields: readonly string[]; values: Record<string,string>; children: ReactNode }) {
   return <><fieldset disabled={locked} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>{children}</fieldset>
@@ -449,7 +456,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
       <GoodEditorSection title="상품이미지" id="good-section-images" requirement="대표이미지 · 공개 필수 / 추가이미지 · 선택" summary={`대표이미지 ${values.imagePath ? '등록됨' : '미등록'} · 추가이미지 ${Array.from({ length: GOODS_GALLERY_MAX }, (_, i) => values[`galleryPath${i}`]).filter(Boolean).length}장`} errorCount={errorCount('images')}>
         <GoodsImageGrid accountId={accountId} recordId={selected?.id ?? 'new'} editingDisabled={pending || draftBusy || Boolean(selected?.archivedAt)} errors={errors} initialPaths={GOODS_IMAGE_FIELD_NAMES.map((name) => initial[name])} initialUrls={GOODS_IMAGE_FIELD_NAMES.map((name) => imageUrls[name])} onPreviewChange={setImageUrl} />      </GoodEditorSection>
       <GoodEditorSection title="상세설명" id="good-section-description" summary={values.description ? '상세설명 작성됨' : '입력 안 함'} errorCount={errorCount('description')}>
-        <OwnedFields locked={groupOwned} fields={['description','descriptionFormat']} values={initial}><GoodOptionalFields title="상세설명 편집" summary={htmlDescription && descriptionCheck ? `상세페이지 HTML · 원문 ${(values.description?.length ?? 0).toLocaleString('ko-KR')}자 · 정리 후 ${descriptionCheck.html.length.toLocaleString('ko-KR')}자` : `일반 텍스트 · ${values.description?.length || 0}자`} hasErrors={Boolean(errors.description || errors.descriptionFormat)}>
+        <OwnedFields locked={groupOwned} fields={['description','descriptionFormat']} values={initial}><GoodOptionalFields id="good-optional-description" title="상세설명 편집" summary={htmlDescription && descriptionCheck ? `상세페이지 HTML · 원문 ${(values.description?.length ?? 0).toLocaleString('ko-KR')}자 · 정리 후 ${descriptionCheck.html.length.toLocaleString('ko-KR')}자` : `일반 텍스트 · ${values.description?.length || 0}자`} hasErrors={Boolean(errors.description || errors.descriptionFormat)}>
         <SelectField defaultValue={initial.descriptionFormat} error={errors.descriptionFormat} label="상세 설명 형식" name="descriptionFormat"><option value="plain">일반 텍스트</option><option value="html">HTML 문서 (상세페이지 소스)</option></SelectField>
         <p className="muted">형식을 바꿔도 입력 원문은 유지됩니다. 일반 텍스트에서는 태그도 글자로 표시됩니다.</p>
         <div className="admin-goods-html-tools" hidden={!htmlDescription}>
@@ -472,7 +479,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
         </fieldset>
         </GoodOptionalFields>
         </OwnedFields>
-        <GoodOptionalFields title="긴 상세 이미지 (선택)" summary={values.detailImagePath ? '이미지 연결됨' : '이미지 없음'} hasErrors={Boolean(errors.detailImagePath)}>
+        <GoodOptionalFields id="good-optional-detail-image" title="긴 상세 이미지 (선택)" summary={values.detailImagePath ? '이미지 연결됨' : '이미지 없음'} hasErrors={Boolean(errors.detailImagePath)}>
         <ArtworkUploadField compact showPath={false} showGuidance={false} showCropGuide={false} autoUpload allowRemove currentPath={initial.detailImagePath || null} currentUrl={imageUrls.detailImagePath} fieldId="good-detail" helpText="상세페이지(상세 설명) 아래에 원래 비율로 붙는 이미지 파일 1장입니다. 호스팅 HTML로 상세페이지를 만들었다면 비워 두어도 됩니다." kind="good" label="상세 이미지" name="detailImagePath" onPreviewChange={(url) => setImageUrl('detailImagePath', url)} />
         <ErrorText>{errors.detailImagePath}</ErrorText>
         </GoodOptionalFields>
@@ -488,7 +495,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
         </div>
         <p className="muted">연결 IP는 브랜드·작품, 고객용 카테고리는 쇼핑 분류, 유형은 상품의 형태를 나타냅니다.</p>
         {canSearchErp && values.ipId && <a href={`/admin/catalog/ips/${encodeURIComponent(values.ipId)}`} target="_blank" rel="noreferrer">연결 IP의 공개 상태 확인 (새 탭)</a>}
-        <GoodOptionalFields title="검색설정·판매자상품코드" summary={`${values.nameEn || '영문명 없음'} · 진열 ${values.displayOrder || '기본'} · ${values.code || suggestedCode || '판매자상품코드 자동 생성'} · ${values.id || 'URL 자동 생성'}`} hasErrors={['nameEn', 'displayOrder', 'searchKeywords', 'code', 'id', 'defaultVariantCode'].some((key) => Boolean(errors[key]))}>
+        <GoodOptionalFields id="good-optional-search" title="검색설정·판매자상품코드" summary={`${values.nameEn || '영문명 없음'} · 진열 ${values.displayOrder || '기본'} · ${values.code || suggestedCode || '판매자상품코드 자동 생성'} · ${values.id || 'URL 자동 생성'}`} hasErrors={['nameEn', 'displayOrder', 'searchKeywords', 'code', 'id', 'defaultVariantCode'].some((key) => Boolean(errors[key]))}>
         <AdminFormGrid>          <Field readOnly={groupOwned} defaultValue={initial.nameEn} error={errors.nameEn} label="영문 상품명 (선택)" name="nameEn" maxLength={200} />
           <Field defaultValue={initial.displayOrder} error={errors.displayOrder} label="진열 순서 (선택)" name="displayOrder" min={0} type="number" />
         </AdminFormGrid>
@@ -512,7 +519,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
       <GoodsClaimPolicyFields values={initial} errors={errors} />
       <GoodsSalePolicyFields values={initial} errors={errors} />
       <div className="admin-good-workspace__save" aria-label="기본 상품 저장">
-        <details className="admin-good-workspace__save-info"><summary><strong role="status">{pending ? '저장 중…' : Object.keys(errors).length ? '저장 실패 · 입력값 유지' : dirty ? '미저장 변경 있음' : state.kcPublishBlocked ? (selected?.publishedAt ? '서버 저장값과 동일' : '초안 저장 완료 · 공개 보류') : state.message ? '기본 상품 저장 완료' : selected ? '서버 저장값과 동일' : '새 초안 · 아직 저장 전'}</strong><span>저장 안내</span></summary>
+        <GoodWorkspaceDetails stateId="good-save-info" className="admin-good-workspace__save-info"><summary><strong role="status">{pending ? '저장 중…' : Object.keys(errors).length ? '저장 실패 · 입력값 유지' : dirty ? '미저장 변경 있음' : state.kcPublishBlocked ? (selected?.publishedAt ? '서버 저장값과 동일' : '초안 저장 완료 · 공개 보류') : state.message ? '기본 상품 저장 완료' : selected ? '서버 저장값과 동일' : '새 초안 · 아직 저장 전'}</strong><span>저장 안내</span></summary>
           <div><p>{atomicSections ? '기본 상품·이미지·옵션·고시·배송·구매 제한·판매 조건과 아래 KC·예약판매 입력을 한 번에 저장합니다. 하나라도 실패하면 아무것도 저장되지 않고 입력은 유지됩니다. 나머지 운영 섹션은 저장 뒤 같은 자리에서 입력합니다.'
             : '기본 상품·이미지·옵션·고시·배송·구매 제한·판매 조건만 저장합니다. KC·재고 조정·혜택은 각 영역에서 별도 저장합니다.'}</p>
           <p>{selected ? '입력 임시저장은 현재 브라우저에 보관합니다.' : '임시저장은 내 계정에 최대 40건을 보관합니다. 업로드를 마친 이미지와 입력값을 불러올 수 있으며, 상품 등록·공개는 저장하기에서 따로 확정합니다.'} 브라우저 자동 복구도 함께 유지됩니다.</p>
@@ -521,7 +528,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
           {atomicSections ? <p>1. 기본 정보·유형·고시정보·옵션과 KC까지 입력해 저장 → 2. 게시 상태에서 공개. KC를 검토 완료로 함께 저장했더라도 그 뒤 상품명·유형·IP·고시정보(제조자·제조국·소재·크기)나 옵션 구성을 바꾸면 KC를 다시 검토합니다.</p>
             : !selected?.publishedAt && !selected?.archivedAt && <p>1. 기본 정보·유형·고시정보·옵션까지 입력해 초안 저장 → 2. KC 검토 → 3. 공개. KC 검토 뒤 상품명·유형·IP·고시정보(제조자·제조국·소재·크기)나 옵션 구성을 바꾸면 KC를 다시 검토합니다.</p>}
           </div>
-        </details>
+        </GoodWorkspaceDetails>
         <div className="admin-good-workspace__save-actions">
           <button className="wc-admin-kit__button" type="button" onClick={() => { const preview = document.getElementById('good-preview'); if (preview instanceof HTMLDetailsElement) { preview.open = true; preview.scrollIntoView({ block: 'start', behavior: 'instant' }); preview.querySelector('summary')?.focus(); } }}>미리보기</button>
           {selected ? <button className="wc-admin-kit__button admin-good-workspace__draft-button" type="button" disabled={pending} onClick={() => { if (editorRef.current) setLocalSaveMessage(onSaveLocalDraft(editorRef.current) ? '입력 내용을 이 브라우저에 임시저장했습니다.' : '브라우저에 임시저장할 수 없습니다. 저장하기를 이용해주세요.'); }}>입력 임시저장</button> : <>

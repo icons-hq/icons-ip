@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type Dispatch, type ReactNode, type SetStateAction, type SyntheticEvent } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ComponentProps, type Dispatch, type ReactNode, type SetStateAction, type SyntheticEvent } from 'react';
 import { Icon } from '@/components/ui/Icon';
 import { GOOD_EDITOR_SECTIONS, goodFieldSection, orderedGoodErrors } from '@/lib/admin/good-workspace';
 import { EMPTY_GOOD_WORKSPACE_SECTIONS, GOOD_WORKSPACE_ERROR_SECTIONS, type GoodWorkspaceErrorField, type GoodWorkspaceSectionsDraft } from '@/lib/admin/good-workspace-sections';
@@ -58,16 +58,35 @@ export function GoodWorkspaceProvider({ completedKey = null, children }: { compl
 /** 등록 화면 섹션 상태. provider 밖(다른 화면·테스트)에서는 null이다. */
 export function useGoodWorkspaceSections() { return useContext(Sections); }
 
-/** 펼침 상태를 키 밖 상태에 맞추고, 사용자가 바꾼 것만 기록한다(마운트 때 React가 여는 것은 기록하지 않는다). */
+/**
+ * 펼침 상태를 키 밖 상태에 맞추고, 사용자가 바꾼 것만 기록한다(10/27 회의 R14).
+ *
+ * React가 open 값을 바꿔 그린 변화(마운트, 오류로 강제로 열림·오류 해소)는 기록하지 않는다. 구분은 details에 그린
+ * `data-known-open`으로 한다: React는 open prop이 바뀐 커밋에서만 open과 이 값을 함께 고치고, 사용자가 접거나 펼치면
+ * toggle 핸들러가 고친다. 그래서 오류로 강제로 열린 섹션을 접었다 다시 펼쳐도(prop은 계속 열림) 다시 펼친 것이 기록된다.
+ */
 function useSectionOpen(id: string | undefined, fallback: boolean, forced: boolean) {
   const context = useContext(OpenState);
   const stored = id ? context?.open[id] : undefined;
   const open = forced || (stored ?? fallback);
   const onToggle = (event: SyntheticEvent<HTMLDetailsElement>) => {
-    const next = event.currentTarget.open;
-    if (id && next !== open) context?.setOpen(id, next);
+    const details = event.currentTarget, next = details.open;
+    if (details.dataset.knownOpen === String(next)) return;
+    details.dataset.knownOpen = String(next);
+    if (id) context?.setOpen(id, next);
   };
-  return { open, onToggle };
+  return { open, onToggle, 'data-known-open': String(open) };
+}
+
+/**
+ * 편집기 안 접이식 영역(공개 화면 미리보기·옵션 상세 정보·저장 안내 등). 저장 시도마다 폼이 다시 마운트돼도
+ * `stateId`로 키 밖 펼침 상태를 이어 쓴다(R14). provider 밖에서는 `defaultOpen`으로 그린다.
+ */
+export function GoodWorkspaceDetails({ stateId, defaultOpen = false, forceOpen = false, children, ...props }: Omit<ComponentProps<'details'>, 'open' | 'onToggle'> & {
+  stateId: string; defaultOpen?: boolean; forceOpen?: boolean;
+}) {
+  const openProps = useSectionOpen(stateId, defaultOpen, forceOpen);
+  return <details {...props} {...openProps}>{children}</details>;
 }
 
 const operationTarget = (field: string) => (GOOD_WORKSPACE_ERROR_SECTIONS as Record<string, string>)[field];
@@ -144,11 +163,12 @@ export function GoodWorkspaceErrors({ errors }: { errors?: Record<string, string
   </section>;
 }
 
-export function GoodOptionalFields({ title, summary, children, hasErrors = false }: { title: string; summary: string; children: ReactNode; hasErrors?: boolean }) {
-  return <details className="admin-good-workspace__optional" open={hasErrors || undefined}>
+/** 섹션 안의 선택 입력 묶음. `id`로 펼침 상태를 키 밖에 기억해 저장 시도 뒤에도 유지한다(R14). */
+export function GoodOptionalFields({ id, title, summary, children, hasErrors = false }: { id: string; title: string; summary: string; children: ReactNode; hasErrors?: boolean }) {
+  return <GoodWorkspaceDetails stateId={id} className="admin-good-workspace__optional" forceOpen={hasErrors}>
     <summary>{title}<span>{summary}</span>{hasErrors ? <strong>오류 확인</strong> : null}</summary>
     <div className="col">{children}</div>
-  </details>;
+  </GoodWorkspaceDetails>;
 }
 
 export const GOOD_OPERATION_PLACEHOLDER_COPY = '상품을 저장하면 이 자리에서 바로 입력할 수 있습니다.';
@@ -183,14 +203,14 @@ export function GoodOperationSection({ id, title, description, children, mode = 
   /** 패널 맨 위에 보일 잠금 이유(GoodOperationDisabledNotice). */
   notice?: ReactNode;
 }) {
-  const { open, onToggle } = useSectionOpen(`good-operation-${id}`, defaultOpen, false);
+  const openProps = useSectionOpen(`good-operation-${id}`, defaultOpen, false);
   const setOpen = useContext(OpenState)?.setOpen;
   const rememberOpen = mode === 'inline' && defaultOpen;
   /* 등록 화면에서 펼쳐 두고 입력한 KC·예약판매는 저장 뒤 같은 자리의 독립 패널도 펼친 채로 이어 보인다. */
   useEffect(() => { if (rememberOpen) setOpen?.(`good-operation-${id}`, true); }, [rememberOpen, setOpen, id]);
   const placeholder = mode === 'placeholder';
   return <details id={`good-operation-${id}`} className={`admin-good-workspace__operation${placeholder ? ' admin-good-workspace__operation--placeholder' : ''}`}
-    tabIndex={-1} open={open} onToggle={onToggle} aria-disabled={placeholder || undefined}>
+    tabIndex={-1} {...openProps} aria-disabled={placeholder || undefined}>
     <summary>{title}<span>{placeholder ? GOOD_OPERATION_PLACEHOLDER_COPY : mode === 'inline' ? '상품과 함께 저장' : '별도 저장'}</span></summary>
     {placeholder ? <p className="admin-good-workspace__placeholder" role="note">{GOOD_OPERATION_PLACEHOLDER_COPY} {description}</p>
       : <p>{description} {mode === 'inline' ? '저장하기를 누르면 기본 상품 입력과 함께 한 번에 저장됩니다. 하나라도 실패하면 아무것도 저장되지 않고 입력은 유지됩니다.' : '기본 상품 입력은 함께 저장되지 않습니다.'}</p>}
@@ -203,8 +223,8 @@ export function GoodOperationSection({ id, title, description, children, mode = 
 export function GoodEditorSection({ id, title, requirement, status, summary, errorCount = 0, children, defaultOpen = true }: {
   id?: string; title: string; requirement?: string; status?: string; summary?: string; errorCount?: number; children: ReactNode; defaultOpen?: boolean;
 }) {
-  const { open, onToggle } = useSectionOpen(id, defaultOpen, errorCount > 0);
-  return <details id={id} className="admin-good-section" aria-label={title} open={open} onToggle={onToggle}>
+  const openProps = useSectionOpen(id, defaultOpen, errorCount > 0);
+  return <details id={id} className="admin-good-section" aria-label={title} {...openProps}>
     <summary><span className="admin-good-section__title">{title}{requirement?.includes('필수') ? <span className="admin-good-section__required" aria-label="필수">*</span> : null}</span>
       <span className="admin-good-section__summary">{errorCount ? <strong>{errorCount}개 확인 필요</strong> : summary || status}</span><span className="admin-good-section__chevron" aria-hidden="true"><Icon name="chevronRight" size={17} /></span></summary>
     <div className="admin-good-section__body">{requirement ? <p className="admin-good-section__requirement">{requirement}</p> : null}{children}</div>
