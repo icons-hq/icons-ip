@@ -206,13 +206,25 @@ select 1/case when (select count(*) from private.order_item_random_allocations a
      and a.user_id='00000000-0000-4000-8000-000000162002' and a.rng='pgcrypto.gen_random_bytes:rejection')
    =(select count(*) from public.order_items where order_id=:'random_order' and good_id='random-main')
  and (select count(distinct draw_id) from private.order_item_random_allocations where order_id=:'random_order')=1
- and (select jsonb_array_length(draws) from private.order_item_random_allocations where order_id=:'random_order' limit 1)=4
+ and (select sum(jsonb_array_length(draws)) from private.order_item_random_allocations where order_id=:'random_order')=4
  and (select pool_before from private.order_item_random_allocations where order_id=:'random_order' limit 1)
    =(select jsonb_agg(jsonb_build_object('variantId',id,'availableQty',case id when :'variant_a'::uuid then 2 when :'variant_b'::uuid then 3 else 5 end) order by id)
      from public.goods_variants where good_id='random-main')
  and exists(select 1 from public.audit_log where target='order:'||:'random_order' and action='order.random_option_allocated'
    and actor_id='00000000-0000-4000-8000-000000162002' and (diff->>'qty')::integer=4)
  then 1 else 0 end as assert_allocation_evidence;
+-- 추출 근거는 배정 행마다 그 옵션에 떨어진 추출만 담는다(같은 근거를 행마다 중복 저장하지 않는다, SEC-DB-2).
+-- 같은 draw_id의 행을 step 순으로 합치면 전체 추출 순서이고, step k의 bound는 남은 풀 합계(10-(k-1))다.
+select 1/case when not exists(select 1 from private.order_item_random_allocations a where a.order_id=:'random_order'
+     and (jsonb_array_length(a.draws)<>a.qty
+       or exists(select 1 from jsonb_array_elements(a.draws) d where (d->>'variantId')::uuid<>a.variant_id)))
+ and (select array_agg((d->>'step')::integer order by (d->>'step')::integer)
+   from private.order_item_random_allocations a cross join lateral jsonb_array_elements(a.draws) d
+   where a.order_id=:'random_order')='{1,2,3,4}'::integer[]
+ and not exists(select 1 from private.order_item_random_allocations a cross join lateral jsonb_array_elements(a.draws) d
+   where a.order_id=:'random_order'
+     and ((d->>'bound')::bigint<>11-(d->>'step')::integer or (d->>'roll')::bigint not between 0 and (d->>'bound')::bigint-1))
+ then 1 else 0 end as assert_allocation_draws_partitioned;
 -- 각 배정 옵션의 재고 감소 = 그 옵션 배정 수량.
 select 1/case when not exists(select 1 from public.goods_variants v where v.good_id='random-main'
    and v.stock_qty<>(case v.id when :'variant_a'::uuid then 2 when :'variant_b'::uuid then 3 else 5 end)
@@ -379,6 +391,78 @@ reset role;
 select 1/case when not exists(select 1 from public.cart_items where user_id='00000000-0000-4000-8000-000000162002' and variant_id=:'cart_b')
  and (select qty from public.cart_items where user_id='00000000-0000-4000-8000-000000162002' and variant_id=:'cart_a')=40
  then 1 else 0 end as assert_stale_line_removal_keeps_key_line;
+
+-- 큰 수량 주문: 추출 근거를 수량에 선형인 비용으로 쌓는다. 수량 10,000(풀 3×4,000)을 배정하는 동안 굿즈·옵션 행 잠금을
+-- 몇 초씩 쥐지 않는다(SEC-DB-2: 추출마다 jsonb 배열 전체를 복사하면 6.8초가 걸렸다). 시간 상한은 선형 비용의 수십 배 여유다.
+insert into auth.users(id,aud,role,email,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at) values
+ ('00000000-0000-4000-8000-000000162003','authenticated','authenticated','random-option-bulk@example.test',now(),'{}','{}',now(),now());
+update public.profiles set nickname='랜덤대량',birth_date='2000-01-01',onboarded_at=now(),consents='{"terms":true,"privacy":true}'
+ where id='00000000-0000-4000-8000-000000162003';
+set local role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000162001',true);
+select public.admin_save_good('{"id":"random-bulk","ip_id":"random-option-tests","name":"랜덤 대량","price":5000,
+ "variant_baseline":[],"variants":[
+  {"name":"A","code":"RANDOM-BA","attributes":{"멤버":"A"},"extraPrice":0,"stockQty":4000},
+  {"name":"B","code":"RANDOM-BB","attributes":{"멤버":"B"},"extraPrice":0,"stockQty":4000},
+  {"name":"C","code":"RANDOM-BC","attributes":{"멤버":"C"},"extraPrice":0,"stockQty":4000}],
+ "allow_card_payment":true,"allow_bank_transfer":true,"sale_restriction":"none"}');
+reset role;
+select id as bulk_a from public.goods_variants where code='RANDOM-BA' \gset
+select set_config('request.jwt.claim.sub','',true);
+update public.goods set type='문구',image_path='public-media/random-option-fixture.webp',
+ notice_maker='제조사',notice_origin='한국',notice_material='종이',notice_size='A5',notice_made_on='2026-10',
+ notice_as_manager='CS',notice_as_contact='02-000',origin_id='00000000-0000-4000-8000-000000162030'
+ where id='random-bulk';
+select pg_temp.publish_goods_kc_fixture('random-bulk');
+set local role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000162001',true);
+select public.admin_set_goods_option_sale_mode('random-bulk','random',(select updated_at from public.goods where id='random-bulk'));
+select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000162003',true);
+select public.set_cart_item_quantity('random-bulk',:'bulk_a',10000);
+reset role;
+select clock_timestamp() as bulk_started \gset
+set local role service_role;
+select public.place_order('00000000-0000-4000-8000-000000162003'::uuid,'{"recipientName":"검증 구매자","phone":"01012345678","postalCode":"00000","address1":"배송 금지 검증 주소"}'::jsonb,
+ '00000000-0000-4000-8000-000000162023'::uuid,'card'::public.order_payment_method) as bulk_order \gset
+reset role;
+select 1/case when clock_timestamp()-:'bulk_started'::timestamptz<interval '3 seconds'
+ and (select sum(qty) from public.order_items where order_id=:'bulk_order')=10000
+ and (select sum(stock_qty) from public.goods_variants where good_id='random-bulk')=2000
+ and (select sum(jsonb_array_length(draws)) from private.order_item_random_allocations where order_id=:'bulk_order')=10000
+ and not exists(select 1 from private.order_item_random_allocations a where a.order_id=:'bulk_order' and jsonb_array_length(a.draws)<>a.qty)
+ then 1 else 0 end as assert_bulk_allocation_is_linear;
+
+-- 선물·정기배송은 랜덤 판매 굿즈를 받지 않는다(CUST-1). 선물 준비는 생성 시점에 거절해 기본 옵션의 실제 이름이 선물에
+-- 남지 않고, 정기배송 제안에서 빠지며, 정기배송 신청은 거절된다. 각 런타임이 켜진 운영 상태를 흉내 낸다.
+update private.gift_runtime set enabled=true,privacy_ready=true where singleton;
+update private.goods_transaction_runtime set enabled=true where singleton;
+update private.goods_subscription_runtime set public_enabled=true,charge_enabled=true,worker_enabled=true where singleton;
+insert into private.goods_subscription_policies(good_id,enabled,intervals) values('random-bulk',true,'["month_1"]'),('select-main',true,'["month_1"]');
+set local role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000162003',true);
+select pg_temp.expect_error(format($sql$select public.create_my_gift(%L,%L::jsonb,'랜덤 선물',gen_random_uuid(),%L)$sql$,
+ '00000000-0000-4000-8000-000000162040',
+ jsonb_build_array(jsonb_build_object('goodId','random-bulk','variantId',:'bulk_a','qty',1,'inputRevision',0,'inputValues','{}'::jsonb)),
+ '00000000-0000-4000-8000-000000162003'),'gift_random_option_unsupported','23514');
+-- 고른 옵션 굿즈는 그대로 선물로 준비된다(차단은 랜덤 굿즈에만 걸린다).
+select public.create_my_gift('00000000-0000-4000-8000-000000162041',
+ jsonb_build_array(jsonb_build_object('goodId','select-main','variantId',:'select_variant','qty',1,'inputRevision',0,'inputValues','{}'::jsonb)),
+ '일반 선물',gen_random_uuid(),'00000000-0000-4000-8000-000000162003') is not null as select_gift_created;
+select pg_temp.expect_error(format($sql$select public.prepare_my_goods_subscription(%L,%L,%L::jsonb,%L::jsonb,%L::jsonb,'{}')$sql$,
+ '00000000-0000-4000-8000-000000162003','00000000-0000-4000-8000-000000162042',
+ jsonb_build_array(jsonb_build_object('goodId','random-bulk','variantId',:'bulk_a','qty',1,'inputRevision',0,'inputValues','{}'::jsonb)),
+ '{"recipientName":"검증 구매자","phone":"01012345678","postalCode":"00000","address1":"배송 금지 검증 주소"}',
+ jsonb_build_object('unit','month','interval',1,'anchorDate',(clock_timestamp() at time zone 'Asia/Seoul')::date,'time','09:00','monthEnd',false)),
+ 'subscription_random_option_unsupported','23514');
+select public.get_goods_subscription_offers(array['random-bulk','select-main']) as subscription_offers \gset
+reset role;
+select 1/case when not exists(select 1 from private.gift_intents where id='00000000-0000-4000-8000-000000162040')
+ and not exists(select 1 from private.gift_items where good_id='random-bulk')
+ and exists(select 1 from private.gift_items where gift_id='00000000-0000-4000-8000-000000162041' and good_id='select-main')
+ then 1 else 0 end as assert_gift_rejects_random_goods;
+select 1/case when not exists(select 1 from private.goods_subscription_plans where creation_operation_id='00000000-0000-4000-8000-000000162042')
+ and (select jsonb_agg(offer->>'goodId') from jsonb_array_elements(:'subscription_offers'::jsonb) offer)='["select-main"]'::jsonb
+ then 1 else 0 end as assert_subscription_excludes_random_goods;
 
 -- 계약: 내부 함수·증빙 테이블 봉인, 고객 RPC grant, 정책 계약 등록.
 select 1/case when not has_table_privilege('authenticated','private.order_item_random_allocations','select')
