@@ -24,6 +24,7 @@ import { goodsCustomInputProblem } from '@/lib/goods-custom-inputs';
 import { cartItemKey } from '@/lib/cart';
 import { cartOptionGood, goodAtQuotedPrice, optionLabel } from '@/lib/goods-options';
 import { goodsPurchaseReasonMessage, goodsSalesQuoteProblem } from '@/lib/goods-sales';
+import { PLACE_ORDER_OPTION_LIMIT_MESSAGES, PLACE_ORDER_RANDOM_OPTION_MESSAGE } from '@/lib/goods-option-sale-mode';
 import { couponErrorNeedsPendingOrder, MIN_PAYABLE_TOTAL, type UserCouponSummary } from '@/lib/coupons';
 import { normalizeStoreCreditAmount } from '@/lib/store-credits';
 import { goodsShipDateLabel } from '@/lib/goods-preorders';
@@ -57,6 +58,9 @@ const actionErrors = {
   order_quantity_below_minimum: goodsPurchaseReasonMessage('order_quantity_below_minimum'),
   order_quantity_above_maximum: goodsPurchaseReasonMessage('order_quantity_above_maximum'),
   member_purchase_limit_exceeded: goodsPurchaseReasonMessage('member_purchase_limit_exceeded'),
+  option_order_limit_exceeded: PLACE_ORDER_OPTION_LIMIT_MESSAGES.option_order_limit_exceeded,
+  option_member_limit_exceeded: PLACE_ORDER_OPTION_LIMIT_MESSAGES.option_member_limit_exceeded,
+  random_option_unavailable: PLACE_ORDER_RANDOM_OPTION_MESSAGE,
   restricted_good_blocked: '지금은 구매할 수 없는 굿즈가 담겨 있어요. 장바구니에서 빼고 다시 시도해주세요.',
   empty_cart: '장바구니가 비어 있어요.',
   out_of_stock: '결제 직전 재고가 변경됐어요. 장바구니에서 수량을 다시 확인해주세요.',
