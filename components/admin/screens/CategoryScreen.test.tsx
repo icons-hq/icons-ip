@@ -44,3 +44,11 @@ it('카테고리 관리에서 `대>중>소` 경로를 붙여넣어 일괄 등록
   expect(html).toContain('aria-label="카테고리 경로"');
   expect(html).toContain('같은 부모 아래 같은 이름은 새로 만들지 않고 건너뜁니다.');
 });
+
+/* 리뷰 재현(T3B-RV-6): 0건 안내가 카테고리 관리 화면의 '굿즈 기본 카테고리 적용' 카드에도 나와 같은 화면을 새 탭으로 열었다. */
+it('카테고리가 없을 때 이 화면의 기본 카테고리 적용 카드는 같은 화면 링크 대신 위 등록 카드를 가리킨다', () => {
+  const html = renderToStaticMarkup(<CategoryScreen data={{ categories: [], mappings: [], migrations: [], activation: { customerEnabled: false, erpEnabled: false, customerEvidence: null, erpEvidence: null, updatedAt: null } }} />);
+  expect(html).not.toContain('카테고리 관리에서 먼저 등록하세요');
+  expect(html).not.toMatch(/href="\/admin\/catalog\/categories"[^>]*target="_blank"/);
+  expect(html).toContain('등록된 카테고리가 없습니다. 위 카테고리 일괄 등록이나 새 카테고리에서 먼저 등록하세요.');
+});

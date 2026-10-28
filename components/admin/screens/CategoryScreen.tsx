@@ -115,7 +115,8 @@ function AssignmentForm({ categories }: { categories: AdminCategoryNode[] }) {
     <input name="operationId" type="hidden" value="" />
     <input name="expectedUpdatedAt" type="hidden" value="" />
     <label className="col" style={{ gap: 5 }}>{adminGoodsCopy("굿즈 ID")}<input className="admin-field-control" name="goodId" placeholder="goods-id" required /></label>
-    <CategoryAssignmentField categories={categories} error={state.errors?.categoryId} />
+    {/* 이 화면 위에 일괄 등록·새 카테고리 카드가 있어 0건 안내가 같은 화면을 새 탭으로 열지 않게 한다. */}
+    <CategoryAssignmentField categories={categories} error={state.errors?.categoryId} emptyGuide="here" />
     {state.errors?.form ? <p role="alert" style={{ color: 'var(--pink)', margin: 0 }}>{state.errors.form}</p> : null}
     {state.message ? <p role="status" style={{ color: 'var(--mint)', margin: 0 }}>{state.message}</p> : null}
     <button className="wc-admin-kit__button" disabled={pending} type="submit">{pending ? '저장 중' : '대표 분류 저장'}</button>

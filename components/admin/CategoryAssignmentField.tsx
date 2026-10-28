@@ -48,6 +48,7 @@ export function CategoryAssignmentField({
   additionalError,
   primary: controlledPrimary,
   onPrimaryChange,
+  emptyGuide = 'link',
 }: {
   categories: AdminCategoryNode[];
   /** 비제어 모드의 초기 대표 카테고리 */
@@ -58,6 +59,11 @@ export function CategoryAssignmentField({
   /** 제어 모드의 현재 대표 카테고리 */
   primary?: string;
   onPrimaryChange?: (id: string) => void;
+  /**
+   * 카테고리가 하나도 없을 때의 안내. 상품 편집처럼 다른 화면이면 카테고리 관리 링크(새 탭)를,
+   * 카테고리 관리 화면 안이면 같은 화면을 다시 열지 않고 위의 등록 카드를 가리킨다.
+   */
+  emptyGuide?: 'link' | 'here';
 }) {
   const [uncontrolledPrimary, setUncontrolledPrimary] = useState(value);
   const [templatePicker, setTemplatePicker] = useState(false), [templateError, setTemplateError] = useState('');
@@ -91,7 +97,9 @@ export function CategoryAssignmentField({
         <button type="button" onClick={() => setTemplatePicker(true)}>카테고리 템플릿</button>
       </div>
       {/* R9: 카테고리가 하나도 없으면 검색·선택이 빈 채로 막히므로 먼저 등록할 곳을 알린다. 작성 중인 상품을 잃지 않게 새 탭으로 연다. */}
-      {!activeLeaves.length ? <p role="status" className="admin-good-category__empty">등록된 카테고리가 없습니다. 카테고리 관리에서 먼저 등록하세요. <Link href={CATEGORY_PATH} target="_blank" rel="noreferrer">카테고리 관리</Link></p> : null}
+      {!activeLeaves.length ? <p role="status" className="admin-good-category__empty">{emptyGuide === 'here'
+        ? '등록된 카테고리가 없습니다. 위 카테고리 일괄 등록이나 새 카테고리에서 먼저 등록하세요.'
+        : <>등록된 카테고리가 없습니다. 카테고리 관리에서 먼저 등록하세요. <Link href={CATEGORY_PATH} target="_blank" rel="noreferrer">카테고리 관리</Link></>}</p> : null}
       {mode === 'search' ? <div className="admin-good-category__search">
         <input id="category-assignment-search" type="search" aria-label="카테고리명 또는 코드" aria-describedby="category-assignment-hint" value={query} maxLength={120} placeholder="카테고리명 또는 코드 입력"
           onChange={event => setQuery(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') event.preventDefault(); }} />
