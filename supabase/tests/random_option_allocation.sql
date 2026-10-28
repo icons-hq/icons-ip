@@ -432,6 +432,38 @@ select 1/case when clock_timestamp()-:'bulk_started'::timestamptz<interval '3 se
  and not exists(select 1 from private.order_item_random_allocations a where a.order_id=:'bulk_order' and jsonb_array_length(a.draws)<>a.qty)
  then 1 else 0 end as assert_bulk_allocation_is_linear;
 
+-- 선물·정기배송은 랜덤 판매 굿즈를 받지 않는다(CUST-1). 선물 준비는 생성 시점에 거절해 기본 옵션의 실제 이름이 선물에
+-- 남지 않고, 정기배송 제안에서 빠지며, 정기배송 신청은 거절된다. 각 런타임이 켜진 운영 상태를 흉내 낸다.
+update private.gift_runtime set enabled=true,privacy_ready=true where singleton;
+update private.goods_transaction_runtime set enabled=true where singleton;
+update private.goods_subscription_runtime set public_enabled=true,charge_enabled=true,worker_enabled=true where singleton;
+insert into private.goods_subscription_policies(good_id,enabled,intervals) values('random-bulk',true,'["month_1"]'),('select-main',true,'["month_1"]');
+set local role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000162003',true);
+select pg_temp.expect_error(format($sql$select public.create_my_gift(%L,%L::jsonb,'랜덤 선물',gen_random_uuid(),%L)$sql$,
+ '00000000-0000-4000-8000-000000162040',
+ jsonb_build_array(jsonb_build_object('goodId','random-bulk','variantId',:'bulk_a','qty',1,'inputRevision',0,'inputValues','{}'::jsonb)),
+ '00000000-0000-4000-8000-000000162003'),'gift_random_option_unsupported','23514');
+-- 고른 옵션 굿즈는 그대로 선물로 준비된다(차단은 랜덤 굿즈에만 걸린다).
+select public.create_my_gift('00000000-0000-4000-8000-000000162041',
+ jsonb_build_array(jsonb_build_object('goodId','select-main','variantId',:'select_variant','qty',1,'inputRevision',0,'inputValues','{}'::jsonb)),
+ '일반 선물',gen_random_uuid(),'00000000-0000-4000-8000-000000162003') is not null as select_gift_created;
+select pg_temp.expect_error(format($sql$select public.prepare_my_goods_subscription(%L,%L,%L::jsonb,%L::jsonb,%L::jsonb,'{}')$sql$,
+ '00000000-0000-4000-8000-000000162003','00000000-0000-4000-8000-000000162042',
+ jsonb_build_array(jsonb_build_object('goodId','random-bulk','variantId',:'bulk_a','qty',1,'inputRevision',0,'inputValues','{}'::jsonb)),
+ '{"recipientName":"검증 구매자","phone":"01012345678","postalCode":"00000","address1":"배송 금지 검증 주소"}',
+ jsonb_build_object('unit','month','interval',1,'anchorDate',(clock_timestamp() at time zone 'Asia/Seoul')::date,'time','09:00','monthEnd',false)),
+ 'subscription_random_option_unsupported','23514');
+select public.get_goods_subscription_offers(array['random-bulk','select-main']) as subscription_offers \gset
+reset role;
+select 1/case when not exists(select 1 from private.gift_intents where id='00000000-0000-4000-8000-000000162040')
+ and not exists(select 1 from private.gift_items where good_id='random-bulk')
+ and exists(select 1 from private.gift_items where gift_id='00000000-0000-4000-8000-000000162041' and good_id='select-main')
+ then 1 else 0 end as assert_gift_rejects_random_goods;
+select 1/case when not exists(select 1 from private.goods_subscription_plans where creation_operation_id='00000000-0000-4000-8000-000000162042')
+ and (select jsonb_agg(offer->>'goodId') from jsonb_array_elements(:'subscription_offers'::jsonb) offer)='["select-main"]'::jsonb
+ then 1 else 0 end as assert_subscription_excludes_random_goods;
+
 -- 계약: 내부 함수·증빙 테이블 봉인, 고객 RPC grant, 정책 계약 등록.
 select 1/case when not has_table_privilege('authenticated','private.order_item_random_allocations','select')
  and not has_table_privilege('service_role','private.order_item_random_allocations','select')
