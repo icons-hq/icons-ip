@@ -352,6 +352,16 @@ describe('GoodPurchasePanel', () => {
     expect(html).toMatch(/aria-disabled="true" aria-label="수량 늘리기"/);
   });
 
+  /* 선물·정기배송(거래 런타임)은 랜덤 판매 굿즈를 주문하지 않는다 — 막다른 진입을 보이지 않는다. */
+  it('랜덤 판매 굿즈는 선물·정기배송 진입을 두지 않는다', () => {
+    const random = {id:'00000000-0000-4000-8000-0000000000a1',name:'랜덤',price:5000,stockQty:6,code:'',attributes:{},isDefault:true};
+    const html = renderToStaticMarkup(<GoodPurchasePanel otherPurchases={{ gift: true, subscription: true }}
+      purchase={controller({good:{...good,optionSaleMode:'random',options:[random]},selectedOption:random})} />);
+    expect(html).not.toContain('wc-buy-panel__other-purchases');
+    const plain = renderToStaticMarkup(<GoodPurchasePanel otherPurchases={{ gift: true, subscription: true }} purchase={controller()} />);
+    expect(plain).toContain('wc-buy-panel__other-purchases');
+  });
+
   /* D7② — 고른 옵션의 정적 안내(확정 카피), 스테퍼 최대는 재고와 주문당 최대 중 작은 값. */
   it('옵션별 구매 제한은 고른 옵션의 안내와 스테퍼 최대로 보인다', () => {
     const options = [

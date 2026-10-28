@@ -654,7 +654,8 @@ export function GoodPurchasePanel({ otherPurchases, purchase }: { otherPurchases
           </WcButton>
         </div>
       )}
-      {!disabled ? <div className="wc-buy-panel__other-purchases"><SubscriptionPurchaseEntry available={otherPurchases?.subscription} goodId={good.id} />{good.transactionOffer?.fulfillment?.mode !== 'digital' ? <GiftPurchaseEntry available={otherPurchases?.gift} /> : null}</div> : null}
+      {/* 선물·정기배송은 거래 런타임 주문이라 랜덤 판매 굿즈(D5②)를 받지 않는다 — 막다른 진입을 두지 않는다. */}
+      {!disabled && good.optionSaleMode !== 'random' ? <div className="wc-buy-panel__other-purchases"><SubscriptionPurchaseEntry available={otherPurchases?.subscription} goodId={good.id} />{good.transactionOffer?.fulfillment?.mode !== 'digital' ? <GiftPurchaseEntry available={otherPurchases?.gift} /> : null}</div> : null}
       {/* 서버 확인 전에는 "완료"라고 하지 않는다(DESIGN §9) — 카트 저장이 끝난 뒤에만 채운다. 재입고 신청이 바뀐
           판매 상태로 거절되면 그 이유도 여기 남는다(신청 버튼은 담기·구매로 바뀌며 사라진다). */}
       <p aria-atomic="true" aria-live="polite" className={`wc-buy-panel__status${statusIsError ? ' is-error' : ''}`} role="status">
