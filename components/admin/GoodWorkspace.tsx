@@ -152,13 +152,36 @@ export function GoodOptionalFields({ title, summary, children, hasErrors = false
 }
 
 export const GOOD_OPERATION_PLACEHOLDER_COPY = '상품을 저장하면 이 자리에서 바로 입력할 수 있습니다.';
+export const GOOD_UNSAVED_BASE_COPY = '위 기본 정보에 저장하지 않은 변경이 있습니다. 먼저 저장하세요.';
+
+/** 고정 저장 영역의 저장하기 버튼으로 포커스를 옮긴다(Enter로 바로 저장할 수 있게). */
+export function focusGoodWorkspaceSave() {
+  const button = document.querySelector<HTMLButtonElement>('.admin-good-workspace__save button[name="intent"][value="save"]');
+  if (!button) return;
+  button.scrollIntoView({ block: 'nearest', behavior: 'instant' });
+  button.focus({ preventScroll: true });
+}
+
+/**
+ * 운영 패널이 기본 입력 상태 때문에 잠겼을 때 패널 맨 위에 이유를 보인다(R14).
+ * 미저장 변경 때문이면 저장 위치로 가는 바로가기를 붙인다.
+ */
+export function GoodOperationDisabledNotice({ reason, unsaved = false }: { reason: string; unsaved?: boolean }) {
+  if (!reason) return null;
+  return <div className="admin-good-workspace__disabled" role="status">
+    <p>{unsaved ? GOOD_UNSAVED_BASE_COPY : reason}</p>
+    {unsaved ? <button type="button" className="wc-admin-kit__button" onClick={focusGoodWorkspaceSave}>저장 위치로 이동</button> : null}
+  </div>;
+}
 
 /**
  * 운영 섹션. `mode`가 'placeholder'면 저장 전 등록 화면의 비활성 자리표시 카드(같은 id·같은 순서)이고,
  * 'inline'이면 기본 입력과 함께 원자 저장되는 등록 화면 섹션(KC·예약판매)이다.
  */
-export function GoodOperationSection({ id, title, description, children, mode = 'separate', defaultOpen = false }: {
+export function GoodOperationSection({ id, title, description, children, mode = 'separate', defaultOpen = false, notice }: {
   id: string; title: string; description: string; children?: ReactNode; mode?: 'separate' | 'placeholder' | 'inline'; defaultOpen?: boolean;
+  /** 패널 맨 위에 보일 잠금 이유(GoodOperationDisabledNotice). */
+  notice?: ReactNode;
 }) {
   const { open, onToggle } = useSectionOpen(`good-operation-${id}`, defaultOpen, false);
   const setOpen = useContext(OpenState)?.setOpen;
@@ -171,6 +194,7 @@ export function GoodOperationSection({ id, title, description, children, mode = 
     <summary>{title}<span>{placeholder ? GOOD_OPERATION_PLACEHOLDER_COPY : mode === 'inline' ? '상품과 함께 저장' : '별도 저장'}</span></summary>
     {placeholder ? <p className="admin-good-workspace__placeholder" role="note">{GOOD_OPERATION_PLACEHOLDER_COPY} {description}</p>
       : <p>{description} {mode === 'inline' ? '저장하기를 누르면 기본 상품 입력과 함께 한 번에 저장됩니다. 하나라도 실패하면 아무것도 저장되지 않고 입력은 유지됩니다.' : '기본 상품 입력은 함께 저장되지 않습니다.'}</p>}
+    {placeholder ? null : notice}
     {placeholder ? null : children}
   </details>;
 }

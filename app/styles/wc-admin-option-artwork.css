@@ -763,6 +763,9 @@
 .wc-admin .admin-good-workspace__operation--placeholder { background: var(--wc-surface-grey); }
 .wc-admin .admin-good-workspace__operation--placeholder > summary { color: var(--wc-ink-tertiary); }
 .wc-admin .admin-good-workspace__placeholder { margin: 12px 35px 16px; color: var(--wc-ink-sub); font-size: 13px; line-height: 1.7; }
+/* 기본 입력 상태 때문에 잠긴 운영 패널의 이유와 저장 바로가기(R14). */
+.wc-admin .admin-good-workspace__disabled { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin: 0 0 16px; padding: 12px 16px; border: 1px solid var(--wc-line-control); background: var(--wc-surface-grey); }
+.wc-admin .admin-good-workspace__disabled > p { margin: 0; color: var(--wc-ink); font-size: 13px; line-height: 1.6; }
 .wc-admin .admin-good-workspace__save { position: fixed; bottom: 0; left: 210px; right: 72px; z-index: 65; display: grid; grid-template-columns: minmax(160px, 1fr) auto; align-items: center; gap: 8px 20px; margin: 0; padding: 12px 24px; border: 0; border-top: 1px solid var(--wc-line-control); border-radius: 0; background: var(--wc-surface-grey-2); box-shadow: none; }
 .wc-admin.collapsed .admin-good-workspace__save { left: 64px; }
 .wc-admin .admin-good-workspace__save-info { position: relative; min-width: 0; }

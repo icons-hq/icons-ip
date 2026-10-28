@@ -370,6 +370,16 @@ describe('GoodSection', () => {
     expect(random).toMatch(/<fieldset[^>]*disabled=""[^>]*class="goods-option-limits"|<fieldset[^>]*class="goods-option-limits"[^>]*disabled=""/);
   });
 
+  /* 10/27 회의 R14 — 기본 입력 상태로 잠긴 운영 패널은 맨 위에 공통 이유를 보인다(서버 렌더는 확인 중 상태). */
+  it('기본 입력 상태로 잠기는 운영 패널 5개는 패널 맨 위에 공통 잠금 이유를 둔다', () => {
+    const html = renderGoodSection({ ...good, publishedAt: null }, {}, { accountId: 'operator-1' });
+    const card = (id: string) => { const start = html.indexOf(`id="good-operation-${id}"`); return html.slice(start, html.indexOf('<details id="good-operation-', start + 1)); };
+    for (const id of ['transaction-terms', 'shipping-charge-group', 'subscription-policy', 'fulfillment', 'production']) {
+      expect(card(id)).toMatch(/class="admin-good-workspace__disabled" role="status"><p>기본 상품의 입력 상태를 확인하고 있습니다.<\/p>/);
+    }
+    expect(card('prices')).not.toContain('admin-good-workspace__disabled');
+  });
+
   it('uses the shared artwork upload field', () => {
     const html = renderGoodSection(good);
 
