@@ -1,5 +1,6 @@
 'use client';
 
+import { unstable_rethrow } from 'next/navigation';
 import { startTransition, useActionState, useId, useState, type FormEvent } from 'react';
 import { ConsoleGrid, type ConsoleGridColumn, type ConsoleGridRow } from '@/components/admin/console';
 import { bulkDecideOrderClaimsAction } from '@/app/admin/claim-actions';
@@ -27,6 +28,8 @@ import { ClaimRejectionReasonField } from './ClaimRejectionReasonField';
  */
 
 const EMPTY_STATE: AdminClaimBulkState = {};
+/* 함수 시간 초과·네트워크 끊김으로 결과를 받지 못하면 어떤 건이 처리됐는지 모른다. */
+const BULK_RESULT_LOST = '처리 결과를 받지 못했습니다. 목록을 새로고침해 각 건의 상태를 확인하세요.';
 
 /* 확인 창을 거치지 않은 제출(하이드레이션 전 재생)은 버린다. 보내는 쪽은 onSubmit이다. */
 function ignoreUnconfirmedBulkSubmit() {}
@@ -74,7 +77,14 @@ export function ClaimQueueBulkGrid({
   const [note, setNote] = useState('');
   const [clientError, setClientError] = useState('');
   const [state, run, pending] = useActionState(async (previous: AdminClaimBulkState, formData: FormData) => {
-    const next = await bulkDecideOrderClaimsAction(previous, formData);
+    let next: AdminClaimBulkState;
+    try {
+      next = await bulkDecideOrderClaimsAction(previous, formData);
+    } catch (error) {
+      unstable_rethrow(error);
+      /* 선택은 그대로 둔다 — 다시 실행해도 건마다 단건 경로의 멱등 처리를 탄다. */
+      return { error: BULK_RESULT_LOST };
+    }
     /* 시간 예산으로 남은 건만 선택에 남겨 그대로 다시 실행할 수 있게 한다. */
     if (next.results) setSelection(next.results.filter((result) => result.outcome === 'skipped').map((result) => result.claimId));
     return next;

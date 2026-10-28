@@ -6,6 +6,8 @@ import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import { revalidatePath } from 'next/cache';
 import { redirect, unstable_rethrow } from 'next/navigation';
 import {
+  ADMIN_CLAIM_BULK_DB_ITEM_RESERVE_MS,
+  ADMIN_CLAIM_BULK_PROVIDER_ITEM_RESERVE_MS,
   adminClaimBulkSummary,
   normalizeAdminClaimBulkForm,
   runAdminClaimBulkSequentially,
@@ -268,22 +270,24 @@ export async function decideOrderClaimAction(
 interface BulkClaimRow {
   id: string;
   reference: number | string | null;
-  claim_type: string;
-  order_id: string;
 }
 
 /**
  * 목록 일괄 처리(R8 · D8) — 승인·거부(공통 사유)·검토중.
  *
  * 새 배열 RPC 없이 건마다 단건 경로(decideOneOrderClaim)를 그대로 탄다. 토스 취소 API는
- * 결제 단건이라 앞 건의 결제사 취소가 끝난 뒤에 다음 건을 시작하고(전체 직렬), 시간 예산을
- * 넘기면 남은 건은 시작하지 않고 '미처리'로 돌려준다. 건마다 요청의 유형을 다시 읽어 다른
- * 목록의 요청(그 사이 유형이 바뀐 요청)을 이 화면의 결정으로 처리하지 않는다.
+ * 결제 단건이라 앞 건의 결제사 취소가 끝난 뒤에 다음 건을 시작하고(전체 직렬), 시간은 액션
+ * 진입부터 잰다. 경과가 예산을 넘었거나 다음 건의 최악 시간(취소 승인 = 결제사 왕복 셋)이 목록
+ * maxDuration 안에 끝나지 않으면 남은 건은 시작하지 않고 '미처리'로 돌려준다.
+ *
+ * 요청번호는 처음에 한 번 읽고, 유형은 건을 시작하기 직전에 다시 읽는다 — 그 사이 다른
+ * 운영자가 반품↔교환을 전환한 요청을 이 목록의 결정으로 처리하지 않는다.
  */
 export async function bulkDecideOrderClaimsAction(
   _state: AdminClaimBulkState,
   formData: FormData,
 ): Promise<AdminClaimBulkState> {
+  const startedAt = Date.now();
   const access = await requireStaffAction();
   if (access.error || !access.userId) return { error: access.error?.error ?? DECIDE_FAILED };
   const actorId = access.userId;
@@ -298,7 +302,7 @@ export async function bulkDecideOrderClaimsAction(
   const supabase = await createClient();
   const { data: rows, error: readError } = await supabase
     .from('order_cancellation_requests')
-    .select('id,reference,claim_type,order_id')
+    .select('id,reference')
     .in('id', claimIds);
   if (readError || !Array.isArray(rows)) {
     return { error: '선택한 요청을 읽지 못했습니다. 새로고침한 뒤 다시 실행해주세요.' };
@@ -309,10 +313,21 @@ export async function bulkDecideOrderClaimsAction(
     return Number.isSafeInteger(reference) && reference > 0 ? orderClaimReferenceLabel(reference) : null;
   };
 
+  /* 취소 승인만 결정 직후 결제사 취소(사전 조회·취소·사후 조회)까지 간다. */
+  const reserveMs = claimType === 'cancel' && decision === 'approve'
+    ? ADMIN_CLAIM_BULK_PROVIDER_ITEM_RESERVE_MS
+    : ADMIN_CLAIM_BULK_DB_ITEM_RESERVE_MS;
+
   const outcomes = await runAdminClaimBulkSequentially(claimIds, async (claimId) => {
-    const claim = claims.get(claimId);
-    if (!claim) return { ok: false, message: '클레임을 찾을 수 없습니다.' };
-    if (claim.claim_type !== claimType) {
+    if (!claims.has(claimId)) return { ok: false, message: '클레임을 찾을 수 없습니다.' };
+    const { data: latest, error: latestError } = await supabase
+      .from('order_cancellation_requests')
+      .select('claim_type')
+      .eq('id', claimId)
+      .maybeSingle<{ claim_type: string }>();
+    if (latestError) return { ok: false, message: '요청을 다시 읽지 못했습니다. 최신 상태를 확인해주세요.' };
+    if (!latest) return { ok: false, message: '클레임을 찾을 수 없습니다.' };
+    if (latest.claim_type !== claimType) {
       return { ok: false, message: `${ORDER_CLAIM_TYPE_LABELS[claimType]} 요청이 아닙니다. 해당 목록에서 처리해주세요.` };
     }
     const { decided, state } = await decideOneOrderClaim(supabase, actorId, { claimId, decision, note });
@@ -320,7 +335,7 @@ export async function bulkDecideOrderClaimsAction(
     return state.error
       ? { ok: false, message: state.error }
       : { ok: true, message: state.message ?? DECISION_MESSAGES[decision] ?? '클레임을 처리했습니다.' };
-  });
+  }, { startedAt, reserveMs, clock: () => Date.now() });
 
   return {
     summary: adminClaimBulkSummary(outcomes.map((outcome) => outcome.outcome)),

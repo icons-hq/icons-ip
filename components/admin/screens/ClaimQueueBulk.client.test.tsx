@@ -138,6 +138,23 @@ it('시간 예산으로 남은 건만 선택에 남긴다', async () => {
   expect(hidden).toEqual([B]);
 });
 
+it('서버 액션이 실패해도(함수 시간 초과 등) 오류 경계로 올리지 않고 새로고침 안내를 돌려준다', async () => {
+  select([A, B]);
+  mocks.bulk.mockRejectedValue(new Error('FUNCTION_INVOCATION_TIMEOUT'));
+  await expect(hooks.action?.({}, new FormData())).resolves.toEqual({
+    error: '처리 결과를 받지 못했습니다. 목록을 새로고침해 각 건의 상태를 확인하세요.',
+  });
+  /* 어떤 건이 처리됐는지 모르므로 선택은 그대로 둔다(같은 건을 다시 실행해도 단건 경로가 멱등이다). */
+  const hidden = all(render()).filter((element) => element.props.name === 'claimIds').map((element) => element.props.value);
+  expect(hidden).toEqual([A, B]);
+});
+
+it('로그인 만료 같은 Next 리디렉션은 삼키지 않는다', async () => {
+  const redirect = Object.assign(new Error('NEXT_REDIRECT'), { digest: 'NEXT_REDIRECT;replace;/login;307;' });
+  mocks.bulk.mockRejectedValue(redirect);
+  await expect(hooks.action?.({}, new FormData())).rejects.toBe(redirect);
+});
+
 it('결과표는 번호·결과·사유 세 열이고 요청번호가 같은 목록 위 팝업을 연다', () => {
   const html = renderToStaticMarkup(<ClaimBulkResultTable previewHrefBase="/admin/sales/claims/returns?stage=open&page=1" state={{
     summary: '처리됨 1건 · 실패 1건',

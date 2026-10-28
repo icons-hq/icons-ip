@@ -1,6 +1,9 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import {
+  ADMIN_CLAIM_BULK_DB_ITEM_RESERVE_MS,
+  ADMIN_CLAIM_BULK_DEADLINE_MS,
   ADMIN_CLAIM_BULK_LIMIT,
+  ADMIN_CLAIM_BULK_PROVIDER_ITEM_RESERVE_MS,
   ADMIN_CLAIM_BULK_TIME_BUDGET_MS,
   adminClaimBulkConfirmation,
   adminClaimBulkSelectable,
@@ -112,11 +115,55 @@ describe('runAdminClaimBulkSequentially', () => {
         now += 20_000;
         return { ok: true, message: '처리했습니다.' };
       },
-      { clock: () => now },
+      { clock: () => now, reserveMs: ADMIN_CLAIM_BULK_DB_ITEM_RESERVE_MS },
     );
     expect(started).toEqual(['a', 'b', 'c']);
     expect(results.map((result) => result.outcome)).toEqual(['done', 'done', 'done', 'skipped']);
     expect(results[3].message).toBe('처리 시간이 길어 처리하지 않았습니다. 다시 실행하세요.');
+  });
+
+  it('건당 최악 시간이 마감(목록 maxDuration 60초 − 응답 여유) 안에 끝날 때만 다음 건을 시작한다', async () => {
+    expect(ADMIN_CLAIM_BULK_DEADLINE_MS).toBe(55_000);
+    expect(ADMIN_CLAIM_BULK_PROVIDER_ITEM_RESERVE_MS).toBe(30_000);
+    expect(ADMIN_CLAIM_BULK_TIME_BUDGET_MS + ADMIN_CLAIM_BULK_DB_ITEM_RESERVE_MS).toBeLessThanOrEqual(ADMIN_CLAIM_BULK_DEADLINE_MS);
+    /* 리뷰 재현: 44.9초에 토스 취소 건을 시작하면 사전 조회·취소·사후 조회가 길어질 때 60초를 넘긴다. */
+    let now = 0;
+    const durations: Record<string, number> = { a: 44_900, b: 24_500, c: 1_000 };
+    const started: string[] = [];
+    const results = await runAdminClaimBulkSequentially(['a', 'b', 'c'], async (item) => {
+      started.push(item);
+      now += durations[item];
+      return { ok: true, message: '처리했습니다.' };
+    }, { clock: () => now });
+    expect(started).toEqual(['a']);
+    expect(now).toBeLessThanOrEqual(60_000);
+    expect(results.map((result) => result.outcome)).toEqual(['done', 'skipped', 'skipped']);
+  });
+
+  it('시계는 액션 진입 시점(startedAt)부터 잰다 — 인증·조회에 쓴 시간도 예산에 든다', async () => {
+    let now = 26_000;
+    const worker = vi.fn(async () => ({ ok: true, message: '처리했습니다.' }));
+    const late = await runAdminClaimBulkSequentially(['a', 'b'], worker, { clock: () => now, startedAt: 0 });
+    expect(worker).not.toHaveBeenCalled();
+    expect(late.map((result) => result.outcome)).toEqual(['skipped', 'skipped']);
+
+    now = 24_000;
+    const inTime = await runAdminClaimBulkSequentially(['a'], worker, { clock: () => now, startedAt: 0 });
+    expect(worker).toHaveBeenCalledTimes(1);
+    expect(inTime[0].outcome).toBe('done');
+  });
+
+  it('한 번 미처리가 나오면 남은 건은 시작하지 않는다(순서를 건너뛰지 않는다)', async () => {
+    let now = 0;
+    const reserves: Record<string, number> = { a: 1_000, b: 30_000, c: 1_000 };
+    const started: string[] = [];
+    const results = await runAdminClaimBulkSequentially(['a', 'b', 'c'], async (item) => {
+      started.push(item);
+      now += 30_000;
+      return { ok: true, message: '처리했습니다.' };
+    }, { clock: () => now, reserveMs: (item) => reserves[item] });
+    expect(started).toEqual(['a']);
+    expect(results.map((result) => result.outcome)).toEqual(['done', 'skipped', 'skipped']);
   });
 });
 

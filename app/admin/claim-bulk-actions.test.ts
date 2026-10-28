@@ -16,6 +16,8 @@ const mocks = vi.hoisted(() => ({
   rpc: vi.fn(),
   select: vi.fn(),
   inFilter: vi.fn(),
+  eqFilter: vi.fn(),
+  maybeSingle: vi.fn(),
   from: vi.fn(),
   revalidatePath: vi.fn(),
   redirect: vi.fn(),
@@ -45,11 +47,13 @@ function bulkForm(ids: string[], decision: string, claimType = 'cancel', note?: 
   return form;
 }
 
+/* 처음 한 번 읽는 행(요청번호·유형)과, 건을 시작하기 직전에 다시 읽는 유형(current)을 따로 둔다. */
+const current = new Map<string, string>();
 function claimRows(rows: { id: string; reference: number; claim_type?: string; order_id?: string }[]) {
-  mocks.inFilter.mockResolvedValue({
-    data: rows.map((row, index) => ({ claim_type: 'cancel', order_id: ORDER(index), ...row })),
-    error: null,
-  });
+  const data = rows.map((row, index) => ({ claim_type: 'cancel', order_id: ORDER(index), ...row }));
+  mocks.inFilter.mockResolvedValue({ data, error: null });
+  current.clear();
+  for (const row of data) current.set(row.id, row.claim_type);
 }
 
 beforeEach(() => {
@@ -61,7 +65,14 @@ beforeEach(() => {
     role: 'staff',
     isStaff: true,
   });
-  mocks.select.mockReturnValue({ in: mocks.inFilter });
+  mocks.select.mockReturnValue({ in: mocks.inFilter, eq: mocks.eqFilter });
+  mocks.eqFilter.mockImplementation((_column: string, id: string) => {
+    mocks.maybeSingle.mockImplementationOnce(async () => ({
+      data: current.has(id) ? { claim_type: current.get(id) } : null,
+      error: null,
+    }));
+    return { maybeSingle: mocks.maybeSingle };
+  });
   mocks.from.mockReturnValue({ select: mocks.select });
   mocks.createClient.mockResolvedValue({ rpc: mocks.rpc, from: mocks.from });
   mocks.redirect.mockImplementation((path: string) => {
@@ -81,7 +92,8 @@ describe('bulkDecideOrderClaimsAction', () => {
     const state = await bulkDecideOrderClaimsAction({}, bulkForm([ID(1), ID(2)], 'review'));
 
     expect(mocks.from).toHaveBeenCalledWith('order_cancellation_requests');
-    expect(mocks.select).toHaveBeenCalledWith('id,reference,claim_type,order_id');
+    expect(mocks.select).toHaveBeenCalledWith('id,reference');
+    expect(mocks.select).toHaveBeenCalledWith('claim_type');
     expect(mocks.inFilter).toHaveBeenCalledWith('id', [ID(1), ID(2)]);
     expect(mocks.rpc.mock.calls).toEqual([
       ['admin_decide_order_claim', { p_claim_id: ID(1), p_decision: 'review', p_note: null }],
@@ -159,6 +171,62 @@ describe('bulkDecideOrderClaimsAction', () => {
     expect(state.results?.map((result) => result.outcome)).toEqual(['done', 'done', 'skipped']);
     expect(state.summary).toBe('처리됨 2건 · 실패 0건 · 처리 시간이 길어 1건은 처리하지 않았습니다. 다시 실행하세요.');
     expect(mocks.revalidatePath).not.toHaveBeenCalledWith(`/admin/sales/claims/cancels/${ID(3)}`);
+  });
+
+  it('취소 승인은 액션 진입부터 잰 시간에 결제사 최악 시간을 더해 마감 안일 때만 다음 건을 시작한다', async () => {
+    claimRows([{ id: ID(1), reference: 1 }, { id: ID(2), reference: 2 }]);
+    let now = 1_000_000;
+    vi.spyOn(Date, 'now').mockImplementation(() => now);
+    const auth = mocks.getCurrentAdminAuthState.getMockImplementation();
+    mocks.getCurrentAdminAuthState.mockImplementation(async () => {
+      now += 20_000; /* 인증·세션 갱신이 느린 경우 */
+      return auth?.();
+    });
+    mocks.rpc.mockResolvedValue({ data: 'processing', error: null });
+    mocks.loadAdminClaimDetail.mockResolvedValue({ payment: { provider: 'toss' } });
+    mocks.reconcileOrderCancellation.mockImplementation(async () => {
+      now += 10_000;
+      return { ok: true, status: 'completed' };
+    });
+
+    const state = await bulkDecideOrderClaimsAction({}, bulkForm([ID(1), ID(2)], 'approve'));
+
+    /* 둘째 건 시작 시점 경과 30초 + 결제사 최악 30초 > 마감 55초 → 시작하지 않는다. */
+    expect(mocks.rpc).toHaveBeenCalledTimes(1);
+    expect(state.results?.map((result) => result.outcome)).toEqual(['done', 'skipped']);
+    expect(now - 1_000_000).toBeLessThanOrEqual(60_000);
+  });
+
+  it('DB 결정만 하는 일괄 처리(반품 승인)는 짧은 최악 시간으로 45초 예산까지 시작한다', async () => {
+    claimRows([1, 2, 3, 4, 5].map((n) => ({ id: ID(n), reference: n, claim_type: 'return' })));
+    let now = 1_000_000;
+    vi.spyOn(Date, 'now').mockImplementation(() => now);
+    mocks.rpc.mockImplementation(async () => {
+      now += 12_000;
+      return { data: 'collecting', error: null };
+    });
+
+    const state = await bulkDecideOrderClaimsAction({}, bulkForm([1, 2, 3, 4, 5].map(ID), 'approve', 'return'));
+
+    expect(mocks.rpc).toHaveBeenCalledTimes(4);
+    expect(mocks.reconcileOrderCancellation).not.toHaveBeenCalled();
+    expect(state.results?.map((result) => result.outcome)).toEqual(['done', 'done', 'done', 'done', 'skipped']);
+  });
+
+  it('건을 시작하기 직전에 유형을 다시 읽어, 그 사이 다른 유형으로 바뀐 요청은 처리하지 않는다', async () => {
+    claimRows([{ id: ID(1), reference: 1, claim_type: 'return' }, { id: ID(2), reference: 2, claim_type: 'return' }]);
+    mocks.rpc.mockImplementation(async () => {
+      current.set(ID(2), 'exchange'); /* 첫 건을 처리하는 동안 다른 운영자가 둘째 건을 교환으로 전환 */
+      return { data: 'collecting', error: null };
+    });
+
+    const state = await bulkDecideOrderClaimsAction({}, bulkForm([ID(1), ID(2)], 'approve', 'return'));
+
+    expect(mocks.eqFilter).toHaveBeenCalledWith('id', ID(2));
+    expect(mocks.rpc).toHaveBeenCalledTimes(1);
+    expect(state.results?.[1]).toEqual({
+      claimId: ID(2), reference: 'C00002', outcome: 'failed', message: '반품 요청이 아닙니다. 해당 목록에서 처리해주세요.',
+    });
   });
 
   it('목록 유형과 다른 요청·사라진 요청은 처리하지 않는다', async () => {

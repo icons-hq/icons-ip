@@ -9,13 +9,26 @@ import type { OrderClaimStage, OrderClaimType } from '@/lib/orders/claims';
  *
  * 토스 취소 API는 결제(paymentKey) 단건이고 일괄 API가 없다. 같은 결제의 취소를 동시에 보내면
  * 안 되므로 앞 건이 끝난 뒤에 다음 건을 시작한다(전체 직렬 = 주문·결제별 직렬). 한 건에 사전
- * 조회·취소·사후 조회가 최악 8초씩 걸릴 수 있어 시간 예산을 넘기면 남은 건은 시작하지 않고
- * '미처리'로 돌려준다. 같은 건을 다시 실행해도 단건 경로의 멱등 처리가 그대로 적용된다.
+ * 조회·취소·사후 조회가 최악 8초씩 걸릴 수 있어, 시작한 건이 목록 maxDuration(60초) 안에 끝날 수
+ * 없으면 남은 건은 시작하지 않고 '미처리'로 돌려준다. 같은 건을 다시 실행해도 단건 경로의 멱등
+ * 처리가 그대로 적용된다.
  */
 
 export const ADMIN_CLAIM_BULK_LIMIT = 50;
-/** 목록 페이지 maxDuration(60초) 안에서 마지막 건이 끝날 여유를 남긴 예산. */
+/** 다음 건을 시작할 수 있는 마지막 시점(액션 진입부터). 지나면 남은 건은 '미처리'다. */
 export const ADMIN_CLAIM_BULK_TIME_BUDGET_MS = 45_000;
+/**
+ * 시작한 건이 끝나야 하는 시점(액션 진입부터) — 목록 페이지 maxDuration 60초에서 결과 직렬화·
+ * 화면 갱신 여유 5초를 뺐다. 함수가 잘리면 서버 액션이 실패해 결과표를 받지 못한다.
+ */
+export const ADMIN_CLAIM_BULK_DEADLINE_MS = 55_000;
+/**
+ * 결제사 취소까지 가는 한 건(취소 승인)의 최악 시간: 토스 사전 조회·취소·사후 조회 각 8초 +
+ * 결정·정합화 DB. 다음 건은 '경과 + 이 값 ≤ 마감'일 때만 시작한다.
+ */
+export const ADMIN_CLAIM_BULK_PROVIDER_ITEM_RESERVE_MS = 30_000;
+/** DB 결정만 하는 한 건(검토중·거부·반품·교환 승인)의 최악 시간(문장 제한 시간 8초 + 왕복). */
+export const ADMIN_CLAIM_BULK_DB_ITEM_RESERVE_MS = 10_000;
 
 export const ADMIN_CLAIM_BULK_DECISIONS = ['approve', 'reject', 'review'] as const;
 export type AdminClaimBulkDecision = (typeof ADMIN_CLAIM_BULK_DECISIONS)[number];
@@ -129,21 +142,40 @@ export function normalizeAdminClaimBulkForm(
 /**
  * 선택한 건을 한 건씩 순서대로 처리한다. 앞 건이 끝나기 전에 다음 건을 시작하지 않는다.
  *
- * 예산은 다음 건을 **시작하기 전**에 본다. 이미 시작한 건은 끝까지 기다린다 — 결제사 취소를
- * 중간에 버리면 결과를 모르는 취소가 남는다.
+ * 시간은 다음 건을 **시작하기 전**에 본다. 이미 시작한 건은 끝까지 기다린다 — 결제사 취소를
+ * 중간에 버리면 결과를 모르는 취소가 남는다. 그래서 시작 조건에 그 건의 최악 시간을 넣는다:
+ * 경과 < 예산(45초)이고 경과 + 최악 시간 ≤ 마감(55초)일 때만 시작한다. 시계는 `startedAt`(액션
+ * 진입 시점)부터 잰다 — 인증·폼 확인·요청 조회도 같은 함수 시간 안에서 쓴다. 한 건이 미처리가
+ * 되면 남은 건도 시작하지 않는다(선택 순서를 건너뛰어 처리하지 않는다).
  */
 export async function runAdminClaimBulkSequentially<T>(
   items: readonly T[],
   worker: (item: T) => Promise<{ ok: boolean; message: string }>,
-  options: { budgetMs?: number; clock?: () => number } = {},
+  options: {
+    budgetMs?: number;
+    deadlineMs?: number;
+    /** 한 건의 최악 시간. 생략하면 결제사 취소까지 가는 건(가장 긴 경우)으로 본다. */
+    reserveMs?: number | ((item: T) => number);
+    /** 액션 진입 시점(clock 기준). 생략하면 지금부터 잰다. */
+    startedAt?: number;
+    clock?: () => number;
+  } = {},
 ): Promise<{ item: T; outcome: AdminClaimBulkOutcome; message: string }[]> {
   const clock = options.clock ?? Date.now;
   const budget = options.budgetMs ?? ADMIN_CLAIM_BULK_TIME_BUDGET_MS;
-  const started = clock();
+  const deadline = options.deadlineMs ?? ADMIN_CLAIM_BULK_DEADLINE_MS;
+  const reserve = options.reserveMs ?? ADMIN_CLAIM_BULK_PROVIDER_ITEM_RESERVE_MS;
+  const reserveOf = typeof reserve === 'function' ? reserve : () => reserve;
+  const started = options.startedAt ?? clock();
   const results: { item: T; outcome: AdminClaimBulkOutcome; message: string }[] = [];
+  let exhausted = false;
 
   for (const item of items) {
-    if (clock() - started >= budget) {
+    if (!exhausted) {
+      const elapsed = clock() - started;
+      exhausted = elapsed >= budget || elapsed + reserveOf(item) > deadline;
+    }
+    if (exhausted) {
       results.push({ item, outcome: 'skipped', message: BULK_SKIPPED });
       continue;
     }
