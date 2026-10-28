@@ -116,6 +116,7 @@ describe('m27 가이드 — 클레임(R7·R8)', () => {
     expect(text).toContain('취소는 단순 변심 사유만 받습니다');
     expect(text).not.toContain('고객과 합의한 담당자가 요청만 종결');
     expect(text).toContain('운영자 화면에는 철회 버튼이 없');
+    expect(guide('orders-shipping')).not.toContain('요청 철회는 실제 요청자의 의사를 확인합니다');
   });
 });
 
