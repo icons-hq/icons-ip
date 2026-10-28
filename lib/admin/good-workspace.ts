@@ -22,9 +22,13 @@ export function goodFieldSection(name: string) {
   return GOOD_EDITOR_SECTIONS.find((section) => (section.fields as readonly string[]).includes(name)) ?? GOOD_EDITOR_SECTIONS[0];
 }
 
+/* 등록 화면 원자 저장 섹션(KC·예약판매)의 오류는 기본 입력 섹션 뒤, 운영 섹션 순서대로 놓는다. */
+const OPERATION_ERROR_ORDER = ['workspaceKc', 'workspacePreorders'];
+const errorOrder = (field: string) => OPERATION_ERROR_ORDER.includes(field)
+  ? GOOD_EDITOR_SECTIONS.length + OPERATION_ERROR_ORDER.indexOf(field) : GOOD_EDITOR_SECTIONS.indexOf(goodFieldSection(field));
+
 export function orderedGoodErrors(errors: Record<string, string | undefined> = {}) {
-  return Object.entries(errors).filter((entry): entry is [string, string] => Boolean(entry[1])).sort(([a], [b]) =>
-    GOOD_EDITOR_SECTIONS.indexOf(goodFieldSection(a)) - GOOD_EDITOR_SECTIONS.indexOf(goodFieldSection(b)));
+  return Object.entries(errors).filter((entry): entry is [string, string] => Boolean(entry[1])).sort(([a], [b]) => errorOrder(a) - errorOrder(b));
 }
 
 export const GOOD_PUBLISHED_LOCKS = {

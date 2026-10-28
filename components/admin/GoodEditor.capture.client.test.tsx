@@ -9,6 +9,9 @@ vi.mock('react', async () => ({ ...await vi.importActual<typeof import('react')>
   useState: (initial: unknown) => { const index = hooks.index++; if (!(index in hooks.values)) hooks.values[index] = typeof initial === 'function' ? initial() : initial; return [hooks.values[index], (value: unknown) => { hooks.values[index] = typeof value === 'function' ? value(hooks.values[index]) : value; }]; },
   useRef: (initial: unknown) => { const index = hooks.index++; return hooks.values[index] ??= { current: initial }; },
   useCallback: (callback: unknown) => callback,
+  useMemo: (factory: () => unknown) => factory(),
+  /* 편집기 밖 provider(등록 화면 섹션·펼침 상태)가 없는 단독 렌더다. */
+  useContext: () => null,
   useEffect: (callback: () => void) => { hooks.jobs.push(callback); },
 }));
 vi.mock('./useAdminLocalAutosave', () => ({ useAdminLocalAutosave: () => ({ snapshot: {}, scopeKey: 'capture-test',

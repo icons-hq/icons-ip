@@ -759,6 +759,10 @@
 .wc-admin .admin-good-workspace__optional > summary span { font-size: 12px; }
 .wc-admin .admin-good-workspace__operation { border-radius: 0; }
 .wc-admin .admin-good-workspace__operation > summary { min-height: 74px; padding: 20px 35px; font-size: 14px; }
+/* 등록 화면의 저장 전 자리표시 카드(R13): 같은 자리·같은 id, 입력 없이 이유만 보인다. */
+.wc-admin .admin-good-workspace__operation--placeholder { background: var(--wc-surface-grey); }
+.wc-admin .admin-good-workspace__operation--placeholder > summary { color: var(--wc-ink-tertiary); }
+.wc-admin .admin-good-workspace__placeholder { margin: 12px 35px 16px; color: var(--wc-ink-sub); font-size: 13px; line-height: 1.7; }
 .wc-admin .admin-good-workspace__save { position: fixed; bottom: 0; left: 210px; right: 72px; z-index: 65; display: grid; grid-template-columns: minmax(160px, 1fr) auto; align-items: center; gap: 8px 20px; margin: 0; padding: 12px 24px; border: 0; border-top: 1px solid var(--wc-line-control); border-radius: 0; background: var(--wc-surface-grey-2); box-shadow: none; }
 .wc-admin.collapsed .admin-good-workspace__save { left: 64px; }
 .wc-admin .admin-good-workspace__save-info { position: relative; min-width: 0; }

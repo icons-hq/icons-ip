@@ -6,6 +6,12 @@ import { readAdminGoodsCustomInputs } from '@/lib/admin/goods-custom-inputs';
 import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import { goodSaveFields } from '@/lib/admin/good-save';
 import { goodsDraftIdentity, goodsDraftError, type GoodsDraftIdentity } from '@/lib/admin/goods-drafts';
+import {
+  GOOD_WORKSPACE_OPERATION_FIELD, GOOD_WORKSPACE_SECTIONS_FIELD, goodWorkspaceSectionFailure, parseGoodWorkspaceSections,
+  type GoodWorkspaceRpcSections,
+} from '@/lib/admin/good-workspace-sections';
+import { canAccessAdminScreen } from '@/lib/admin/access';
+import { isUuid } from '@/lib/uuid';
 
 import { revalidatePath } from 'next/cache';
 import { unstable_rethrow } from 'next/navigation';
@@ -51,6 +57,8 @@ export interface AdminCatalogActionState extends AdminFormValuesState {
   savedGoodId?: string;
   /** 저장 후 공개가 KC 검토에 막혀 같은 입력을 초안으로만 저장했다. `message`가 그 이유다. */
   kcPublishBlocked?: true;
+  /** 등록 화면 원자 저장이 KC 섹션을 함께 저장했다. 첫 저장 뒤 KC 유형 틀을 다시 얹지 않는다. */
+  workspaceKcSaved?: true;
   stockAdjustment?: { variantId: string; stockQty: number; adjustmentId: string };
   errors?: AdminFieldErrors & { form?: string };
   message?: string;
@@ -344,13 +352,16 @@ export async function upsertAdminIpAction(
   return { message: value.publish ? 'IP를 저장하고 공개했습니다.' : 'IP를 저장했습니다.' };
 }
 
+/* 섹션 입력(KC 근거 참조 포함)과 작업 ID는 화면의 키 밖 상태가 보존한다. 실패 상태 값에 되싣지 않는다. */
+const GOOD_WORKSPACE_FORM_FIELDS = [GOOD_WORKSPACE_SECTIONS_FIELD, GOOD_WORKSPACE_OPERATION_FIELD];
+
 export async function upsertAdminGoodAction(state: AdminCatalogActionState, formData: FormData): Promise<AdminCatalogActionState> {
   try {
     const result = await saveAdminGood(state, formData);
-    return result.errors ? withPreservedFormValues(result, state, formData) : { ...result, attempt: (state.attempt ?? 0) + 1 };
+    return result.errors ? withPreservedFormValues(result, state, formData, { exclude: GOOD_WORKSPACE_FORM_FIELDS }) : { ...result, attempt: (state.attempt ?? 0) + 1 };
   } catch (error) {
     unstable_rethrow(error);
-    return withPreservedFormValues(rpcFailure('상품을 저장하지 못했습니다. 다시 시도해주세요.'), state, formData);
+    return withPreservedFormValues(rpcFailure('상품을 저장하지 못했습니다. 다시 시도해주세요.'), state, formData, { exclude: GOOD_WORKSPACE_FORM_FIELDS });
   }
 }
 
@@ -358,8 +369,8 @@ async function saveAdminGood(
   _state: AdminCatalogActionState,
   formData: FormData,
 ): Promise<AdminCatalogActionState> {
-  const authError = await requireStaffAction('catalog.manage');
-  if (authError) return authError;
+  const auth = await requireAdminActionAccess('/admin', { capability: 'catalog.manage' });
+  if (!auth) return { errors: { form: '관리자 권한이 필요합니다.' } };
 
   const serverDraft = goodsDraftIdentity(formData);
   if (serverDraft === 'invalid') return { errors: { form: '임시저장 정보를 확인하지 못했습니다. 임시저장을 다시 불러와주세요.' } };
@@ -391,6 +402,21 @@ async function saveAdminGood(
   if (formData.has('originId')) fulfillmentFields.origin_id = String(formData.get('originId') ?? '').trim() || null;
   if (formData.has('shippingFeeType')) fulfillmentFields.shipping_fee_type = String(formData.get('shippingFeeType'));
   if (formData.has('individualFee')) fulfillmentFields.individual_fee = String(formData.get('individualFee'));
+  /*
+   * 등록 화면(R13·D6②)은 작업 ID와 KC·예약판매 섹션을 함께 보낸다. 작업 ID가 있으면 기본 입력과 섹션을
+   * admin_save_good_workspace 한 트랜잭션으로 저장한다(재시도 중복 방지 영수증 포함). 작업 ID가 없는
+   * 수정 화면·이전 화면은 지금처럼 admin_save_good으로 저장한다. 공개는 래퍼에서 하지 않는다.
+   */
+  const workspaceOperation = formData.get(GOOD_WORKSPACE_OPERATION_FIELD);
+  let workspaceSections: GoodWorkspaceRpcSections | null = null;
+  if (workspaceOperation !== null) {
+    if (!isUuid(workspaceOperation)) return { errors: { form: '저장 요청을 확인하지 못했습니다. 새로고침 후 다시 시도해주세요. 입력은 유지됩니다.' } };
+    if (value.publish) return { errors: { form: '새 상품은 저장한 뒤 게시 상태에서 공개해주세요.' } };
+    const sections = parseGoodWorkspaceSections(formData.get(GOOD_WORKSPACE_SECTIONS_FIELD),
+      canAccessAdminScreen(auth, null, { capability: 'platform.manage', adminOnly: true }));
+    if (!sections.ok) return { errors: { [sections.field]: sections.error } };
+    workspaceSections = sections.sections;
+  }
   const previousIpPath = readPreviousIpPath(formData);
   const supabase = await createClient();
   const targetGood = {
@@ -402,14 +428,18 @@ async function saveAdminGood(
     ...goodSaveFields(value),
     default_variant_code: value.defaultVariantCode,
   };
-  let { data, error } = await saveGoodWithServerDraft(supabase, targetGood, serverDraft);
+  let { data, error } = workspaceSections
+    ? await supabase.rpc('admin_save_good_workspace', { p_request: { operationId: workspaceOperation, good: targetGood, draft: serverDraft, sections: workspaceSections } })
+    : await saveGoodWithServerDraft(supabase, targetGood, serverDraft);
   let kcPublishBlocked: string | null = null;
-  if (error && value.publish === true && error.message.includes('goods_kc_review_required')) {
+  if (!workspaceSections && error && value.publish === true && error.message.includes('goods_kc_review_required')) {
     const draft = await saveDraftAfterKcPublishBlock(supabase, targetGood, value.previousId, serverDraft);
     if (draft) ({ data, error, message: kcPublishBlocked } = draft);
   }
 
   if (error) {
+    const sectionFailure = workspaceSections ? goodWorkspaceSectionFailure(error.message) : null;
+    if (sectionFailure) return { errors: sectionFailure as AdminFieldErrors };
     if (/goods_group_common_owned_by_group|goods_group_name_owned_by_group|goods_group_identity_immutable|goods_group_single_variant_required/.test(error.message)) return { errors: { form: '그룹의 공통정보 또는 옵션 구성은 그룹상품에서 수정해주세요. 입력은 유지됩니다. 최신 상품 상태를 다시 확인해주세요.' } };
     if (/goods_aggregation_policy_owned_by_root|goods_aggregation_policy_owned/.test(error.message)) return { errors: { form: '합산 배송·구매수량 조건은 합산 기준 상품에서 수정해주세요. 최신 상품 상태를 다시 확인해주세요.' } };
     if (/shipping_charge_group_origin_mismatch/.test(error.message)) return { errors: { originId: '현재 배송비 묶음그룹과 출고지가 다릅니다. 묶음그룹 배정을 먼저 해제하거나 배송정보 템플릿에서 출고지와 그룹을 함께 적용해주세요. 입력은 유지됩니다.' } };
@@ -453,7 +483,8 @@ async function saveAdminGood(
   revalidateCatalog([...relatedIpPaths(value.ipId, previousIpPath), `/admin/catalog/ips/${value.ipId}`, `/shop/${savedId}`, ...(value.previousId ? [`/shop/${value.previousId}`] : [])]);
   if (data?.draftAlreadyCompleted) return { message: '이미 상품으로 등록한 임시저장입니다. 저장된 상품을 확인해주세요.', savedGoodId: savedId };
   if (kcPublishBlocked) return { message: kcPublishBlocked, kcPublishBlocked: true, savedGoodId: savedId };
-  return { message: value.publish ? adminGoodsCopy('굿즈를 저장하고 공개했습니다.') : adminGoodsCopy('굿즈를 저장했습니다.'), savedGoodId: savedId };
+  return { message: value.publish ? adminGoodsCopy('굿즈를 저장하고 공개했습니다.') : adminGoodsCopy('굿즈를 저장했습니다.'), savedGoodId: savedId,
+    ...(workspaceSections && data?.kc ? { workspaceKcSaved: true as const } : {}) };
 }
 
 type AdminSupabase = Awaited<ReturnType<typeof createClient>>;

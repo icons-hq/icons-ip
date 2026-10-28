@@ -104,7 +104,7 @@ const good: AdminGoodRecord = {
 function renderGoodSection(
   selected: AdminGoodRecord | null,
   state: Parameters<typeof GoodSection>[0]['state'] = {},
-  options: Pick<Parameters<typeof GoodSection>[0],'initialQuery'|'initialIpId'|'variants'|'canSearchErp'|'ownership'> = {},
+  options: Pick<Parameters<typeof GoodSection>[0],'initialQuery'|'initialIpId'|'variants'|'canSearchErp'|'ownership'|'accountId'|'cloneOperationId'|'canManageCosts'> = {},
 ) {
   return renderToStaticMarkup(
     <GoodsKcTemplateProvider selectionKey={selected ? `good:${selected.id}` : 'create:any'}>
@@ -198,12 +198,15 @@ describe('GoodSection', () => {
   it('초안 저장 영역은 KC 검토 전에 KC 맥락을 먼저 채우는 순서와 재검토 조건을 안내한다', () => {
     const order = '1. 기본 정보·유형·고시정보·옵션까지 입력해 초안 저장 → 2. KC 검토 → 3. 공개. KC 검토 뒤 상품명·유형·IP·고시정보(제조자·제조국·소재·크기)나 옵션 구성을 바꾸면 KC를 다시 검토합니다.';
     const draft = { ...good, publishedAt: null };
-    for (const html of [renderGoodSection(null), renderGoodSection(draft)]) {
-      const save = html.slice(html.indexOf('aria-label="기본 상품 저장"'));
-      expect(save).toContain(order);
-      expect(save).not.toContain('1. 초안 생성 → 2. KC 검토 → 3. 공개 요청');
-    }
+    const save = (html: string) => html.slice(html.indexOf('aria-label="기본 상품 저장"'));
+    expect(save(renderGoodSection(draft))).toContain(order);
+    expect(save(renderGoodSection(draft))).not.toContain('1. 초안 생성 → 2. KC 검토 → 3. 공개 요청');
     expect(renderGoodSection(good)).not.toContain(order);
+    /* R13·D6② — 등록 화면은 KC를 기본 입력과 함께 저장하므로 순서 안내가 둘로 줄어든다. */
+    const create = save(renderGoodSection(null));
+    expect(create).toContain('1. 기본 정보·유형·고시정보·옵션과 KC까지 입력해 저장 → 2. 게시 상태에서 공개');
+    expect(create).toContain('아래 KC·예약판매 입력을 한 번에 저장합니다. 하나라도 실패하면 아무것도 저장되지 않고 입력은 유지됩니다.');
+    expect(create).not.toContain(order);
   });
   it('저장 후 공개가 KC에 막혀 초안으로만 저장되면 성공이 아니라 공개 보류로 알리고 KC 정보로 안내한다', () => {
     const draft = { ...good, publishedAt: null };
@@ -284,8 +287,45 @@ describe('GoodSection', () => {
     expect(html).not.toContain('현재 실재고');
     expect(html).not.toContain('name="delta"');
     expect(html).not.toContain('name="reason"');
-    expect(html).not.toContain('id="good-operation-stock"');
+    /* 자리표시 카드만 있고 입력·폼은 없다(R13). */
+    const stock = html.slice(html.indexOf('id="good-operation-stock"'), html.indexOf('id="good-operation-publish"'));
+    expect(stock).toContain('상품을 저장하면 이 자리에서 바로 입력할 수 있습니다.');
+    expect(stock).not.toMatch(/<input|<select|<textarea|<button/);
     expect(html.match(/<form/g)).toHaveLength(1);
+  });
+
+  /* 10/27 회의 R13·D6② — 등록 화면에서 운영 섹션을 같은 순서·같은 id로 보이고, KC·예약판매는 기본 입력과 함께 저장한다. */
+  it('등록 화면은 저장 뒤 운영 섹션을 같은 순서·같은 id의 자리표시로 보이고 KC·예약판매는 함께 입력한다', () => {
+    const props = { accountId: 'operator-1', cloneOperationId: '33333333-3333-4333-8333-333333333333', canManageCosts: true };
+    const ids = (html: string) => [...html.matchAll(/<details id="good-operation-([a-z-]+)"/g)].map((match) => match[1]);
+    const saved = renderGoodSection({ ...good, publishedAt: null }, {}, props);
+    const create = renderGoodSection(null, {}, props);
+    expect(ids(create)).toEqual(ids(saved));
+    expect(ids(create)).toEqual(expect.arrayContaining(['kc', 'prices', 'transaction-terms', 'benefits', 'preorders']));
+    const card = (html: string, id: string) => { const start = html.indexOf(`id="good-operation-${id}"`); const next = html.indexOf('<details id="good-operation-', start); return html.slice(start, next < 0 ? undefined : next); };
+    for (const id of ['prices', 'transaction-terms', 'benefits', 'stock']) {
+      expect(card(create, id)).toContain('admin-good-workspace__operation--placeholder');
+      expect(card(create, id)).toContain('상품을 저장하면 이 자리에서 바로 입력할 수 있습니다.');
+    }
+    expect(card(create, 'kc')).toContain('상품과 함께 저장');
+    expect(card(create, 'kc')).toContain('상품 전체 KC 해당 없음');
+    expect(card(create, 'kc')).toContain('KC 모델 추가');
+    expect(card(create, 'preorders')).toContain('예약 조건 추가');
+    expect(create).toMatch(/<details id="good-operation-kc"[^>]*open=""/);
+    const form = create.slice(create.indexOf('<form'), create.indexOf('</form>'));
+    expect(form).toContain('type="hidden" name="workspaceOperationId" value=""');
+    expect(form).toContain('type="hidden" name="workspaceSections" value=""');
+    expect(form).not.toContain('KC 모델 추가');
+    expect(saved).not.toContain('name="workspaceOperationId"');
+    expect(card(saved, 'kc')).toContain('별도 저장');
+  });
+
+  it('등록 화면 섹션 저장 오류는 같은 자리 카드와 상단 요약에서 그 카드로 안내한다', () => {
+    const html = renderGoodSection(null, { attempt: 1, errors: { workspacePreorders: '예약 활성화는 관리자 계정에서 할 수 있습니다. 상품은 저장되지 않았고 입력은 유지됩니다.', name: '이름 오류' } });
+    const summary = html.slice(html.indexOf('aria-label="저장 오류 요약"')).split('</section>')[0];
+    expect([...summary.matchAll(/href="#([a-z-]+)"/g)].map((match) => match[1])).toEqual(['good-section-basic', 'good-operation-preorders']);
+    const preorders = html.slice(html.indexOf('id="good-operation-preorders"'));
+    expect(preorders).toMatch(/role="alert">예약 활성화는 관리자 계정에서 할 수 있습니다/);
   });
 
   it('keeps the stored sale restriction in the same goods form as payment methods', () => {
