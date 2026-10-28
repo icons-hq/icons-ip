@@ -5,6 +5,7 @@ import { loadAdminClaimWithdrawalAction, readAdminClaimWithdrawalAction, submitA
 import { claimWithdrawalError, claimWithdrawalReceiptMatches, normalizeClaimWithdrawalRequest, parseClaimWithdrawalContext, parseClaimWithdrawalReceipt, type ClaimWithdrawalContext, type ClaimWithdrawalRequest, type ClaimWithdrawalReceipt, type ClaimWithdrawalResult } from '@/lib/orders/claim-withdrawal';
 import { ORDER_CLAIM_TYPE_LABELS, type OrderClaimStage } from '@/lib/orders/claims';
 import { formatOrderDateTime } from '@/lib/orders';
+import { useClaimPreviewBusy } from '@/components/admin/screens/ClaimPreviewDialog';
 
 async function customerRequest(claimId: string, operation?: string, payload?: ClaimWithdrawalRequest): Promise<ClaimWithdrawalResult> {
   try {
@@ -21,6 +22,7 @@ async function customerRequest(claimId: string, operation?: string, payload?: Cl
 export function ClaimWithdrawalPanel({ initial, operator = false, onClose }: { initial: ClaimWithdrawalContext; operator?: boolean; onClose: () => void }) {
   const router = useRouter(); const [context, setContext] = useState(initial); const [reason, setReason] = useState(''); const [confirmed, setConfirmed] = useState(false);
   const [pending, setPending] = useState(false); const [uncertain, setUncertain] = useState(false); const [conflict, setConflict] = useState(false);
+  useClaimPreviewBusy(pending); /* 목록 위 클레임 팝업(R8)에서 기다리는 동안 팝업이 닫히지 않게 알린다. 팝업 밖에서는 아무 일도 하지 않는다. */
   const [receipt, setReceipt] = useState<ClaimWithdrawalReceipt | null>(null); const [error, setError] = useState(''); const [message, setMessage] = useState('');
   const dispatched = useRef<ClaimWithdrawalRequest | null>(null); const inFlight = useRef(false); const errorRef = useRef<HTMLParagraphElement>(null);
   useEffect(() => { if (error) errorRef.current?.focus(); }, [error]);
@@ -86,6 +88,7 @@ export function ClaimWithdrawalPanel({ initial, operator = false, onClose }: { i
 }
 export function ClaimWithdrawal({ claimId, stage, operator = false }: { claimId: string; stage: OrderClaimStage; operator?: boolean }) {
   const [context, setContext] = useState<ClaimWithdrawalContext | null>(null); const [pending, setPending] = useState(false); const [error, setError] = useState(''); const loading = useRef(false);
+  useClaimPreviewBusy(pending);
   if (!['requested', 'in_review', 'collecting', 'on_hold', 'withdrawn'].includes(stage)) return null;
   /* 철회는 구매자 몫이다(10/27 회의 R7, 스마트스토어 기준). 운영자 화면은 철회 이력만 본다. */
   if (operator && stage !== 'withdrawn') return null;

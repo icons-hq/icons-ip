@@ -9,7 +9,9 @@ vi.mock('react', async () => ({ ...await vi.importActual<typeof import('react')>
 }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: mocks.refresh, replace: mocks.replace }) }));
 vi.mock('@/app/admin/claim-hold-actions', () => ({ changeClaimHoldAction: mocks.save, readClaimHoldAction: mocks.read, loadClaimHoldContextAction: mocks.load }));
-import { ClaimHoldPanel } from './ClaimHoldControl';
+const busy = vi.hoisted(() => vi.fn());
+vi.mock('@/components/admin/screens/ClaimPreviewDialog', () => ({ useClaimPreviewBusy: busy }));
+import { ClaimHoldControl, ClaimHoldPanel } from './ClaimHoldControl';
 import { holdContext as context, holdReceipt as receipt } from '@/lib/orders/claim-hold.fixture';
 type Element = ReactElement<{ children?: ReactNode; disabled?: boolean; value?: string; checked?: boolean;
   onClick?: () => void; onSubmit?: (event: unknown) => void; onChange?: (event: unknown) => void }>;
@@ -57,4 +59,23 @@ it('연속 제출을 막고 다른 주문의 receipt를 성공으로 표시하�
   form.props.onSubmit?.({ preventDefault: () => {} }); form.props.onSubmit?.({ preventDefault: () => {} }); expect(mocks.save).toHaveBeenCalledOnce();
   finish({ receipt: { ...receipt, id: mocks.save.mock.calls[0][0].id, orderId: receipt.claimId } }); await settle();
   expect(text(render())).toContain('현재 요청과 다른 저장 결과'); expect(mocks.refresh).not.toHaveBeenCalled();
+});
+
+/* m27 G4-5: 목록 위 클레임 팝업(R8) 안에서 보류 처리를 기다리는 동안 팝업이 Esc·×로 닫히지 않게 알린다. */
+it('보류 저장과 요청 확인을 기다리는 동안 팝업에 처리 중을 알린다', async () => {
+  let finish!: (value: unknown) => void; mocks.save.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+  render(); expect(busy).toHaveBeenLastCalledWith(false);
+  change('보류 사유', receipt.note!); change('현재 반품 요청', true);
+  all(render()).find(element => element.type === 'form')!.props.onSubmit?.({ preventDefault: () => {} });
+  render(); expect(busy).toHaveBeenLastCalledWith(true);
+  finish({ error: '다른 처리', conflict: true }); await settle();
+  render(); expect(busy).toHaveBeenLastCalledWith(false);
+
+  hooks.state = []; hooks.refs = []; busy.mockClear();
+  let loaded!: (value: unknown) => void; mocks.load.mockImplementationOnce(() => new Promise(resolve => { loaded = resolve; }));
+  const entry = () => { hooks.index = 0; hooks.refIndex = 0; return ClaimHoldControl({ claimId: context.claimId, claimType: context.claimType, held: false }); };
+  all(entry()).find(element => element.type === 'button')!.props.onClick?.();
+  entry(); expect(busy).toHaveBeenLastCalledWith(true);
+  loaded({ error: '읽기 실패' }); await settle();
+  entry(); expect(busy).toHaveBeenLastCalledWith(false);
 });

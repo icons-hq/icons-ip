@@ -6,6 +6,8 @@ vi.mock('react', async () => ({ ...await vi.importActual<typeof import('react')>
   useState: (initial: unknown) => { const index = hooks.index++; if (!(index in hooks.state)) hooks.state[index] = initial; return [hooks.state[index], (next: unknown) => { hooks.state[index] = typeof next === 'function' ? next(hooks.state[index]) : next; }]; } }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: mocks.refresh }) }));
 vi.mock('@/app/admin/claim-withdrawal-actions', () => ({ submitAdminClaimWithdrawalAction: mocks.save, readAdminClaimWithdrawalAction: mocks.read, loadAdminClaimWithdrawalAction: mocks.load }));
+const busy = vi.hoisted(() => vi.fn());
+vi.mock('@/components/admin/screens/ClaimPreviewDialog', () => ({ useClaimPreviewBusy: busy }));
 import { ClaimWithdrawal, ClaimWithdrawalPanel } from './ClaimWithdrawal';
 import { withdrawalContextFixture as context, withdrawalReceiptFixture as receipt } from '@/lib/orders/claim-withdrawal.fixture';
 type Element = ReactElement<{ children?: ReactNode; disabled?: boolean; type?: string; busy?: boolean; onClose?: () => void; onClick?: () => void; onSubmit?: (event: unknown) => void; onChange?: (event: unknown) => void }>;
@@ -45,4 +47,23 @@ it('운영자 화면에는 철회 버튼 없이 철회된 요청의 이력만 �
  expect(text(ClaimWithdrawal({ claimId: receipt.claimId, stage: 'withdrawn', operator: true }))).toContain('요청 철회 이력');
  hooks.index = 0; hooks.refIndex = 0;
  expect(text(ClaimWithdrawal({ claimId: receipt.claimId, stage: 'requested' }))).toContain('요청 철회하기');
+});
+/* m27 G4-5: 목록 위 클레임 팝업(R8) 안에서 철회 처리·이력 확인을 기다리는 동안 팝업이 닫히지 않게 알린다.
+   구매자 화면처럼 팝업 밖에서는 훅이 아무 일도 하지 않는다(ClaimPreviewDialog 테스트). */
+it('철회 저장과 이력 확인을 기다리는 동안 팝업에 처리 중을 알린다', async () => {
+ let finish!: (value: unknown) => void; mocks.save.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+ render(); expect(busy).toHaveBeenLastCalledWith(false);
+ change('철회 사유', receipt.reason); change('고객과 철회', true);
+ all(render()).find(e => e.type === 'form')!.props.onSubmit?.({ preventDefault: () => {} });
+ render(); expect(busy).toHaveBeenLastCalledWith(true);
+ finish({ error: '다른 처리', conflict: true }); await settle();
+ render(); expect(busy).toHaveBeenLastCalledWith(false);
+
+ hooks.state = []; hooks.refs = []; busy.mockClear();
+ let loaded!: (value: unknown) => void; mocks.load.mockImplementationOnce(() => new Promise(resolve => { loaded = resolve; }));
+ const entry = () => { hooks.index = 0; hooks.refIndex = 0; return ClaimWithdrawal({ claimId: receipt.claimId, stage: 'withdrawn', operator: true }); };
+ all(entry()).find(e => e.type === 'button')!.props.onClick?.();
+ entry(); expect(busy).toHaveBeenLastCalledWith(true);
+ loaded({ error: '읽기 실패' }); await settle();
+ entry(); expect(busy).toHaveBeenLastCalledWith(false);
 });

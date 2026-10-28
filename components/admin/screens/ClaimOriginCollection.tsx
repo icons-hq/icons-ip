@@ -7,6 +7,7 @@ import { adminClaimCopy } from '@/lib/admin/vocabulary';
 import { adminFormRemountKey, preservedFormValues } from '@/lib/admin/form-state';
 import { formatOrderDateTime } from '@/lib/orders';
 import type { OrderClaimType } from '@/lib/orders/claims';
+import { useClaimPreviewBusy } from './ClaimPreviewDialog';
 
 export function ClaimOriginCollection({ claimId, claimType, collection, canRecord }: {
   claimId: string;
@@ -15,6 +16,7 @@ export function ClaimOriginCollection({ claimId, claimType, collection, canRecor
   canRecord: boolean;
 }) {
   const [state, action, pending] = useActionState(recordOrderClaimOriginCollectionAction, {});
+  useClaimPreviewBusy(pending); /* 목록 위 클레임 팝업(R8)에서 기다리는 동안 팝업이 닫히지 않게 알린다. 팝업 밖에서는 아무 일도 하지 않는다. */
   const restored = preservedFormValues(state, collection.shipmentId, { scopeKey: 'shipmentId' });
   const evidenceId = `claim-collection-${collection.shipmentId}`;
   return <section className="card admin-claim-origin-collection" aria-label={`${collection.originName} 회수 현황`}>

@@ -11,6 +11,7 @@ import {
   type AdminClaimOperationalFee,
 } from '@/lib/admin/claims';
 import type { OrderClaimType } from '@/lib/orders/claims';
+import { useClaimPreviewBusy } from './ClaimPreviewDialog';
 
 const EMPTY_STATE: AdminClaimActionState = {};
 const KIND_LABELS: Record<(typeof ADMIN_CLAIM_OPERATIONAL_FEE_KINDS)[number], string> = {
@@ -29,6 +30,7 @@ export function ClaimOperationalFeePanel({
   fee: AdminClaimOperationalFee;
 }) {
   const [state, action, pending] = useActionState(recordOrderClaimOperationalFeeAction, EMPTY_STATE);
+  useClaimPreviewBusy(pending); /* 목록 위 클레임 팝업(R8)에서 기다리는 동안 팝업이 닫히지 않게 알린다. 팝업 밖에서는 아무 일도 하지 않는다. */
   const values = preservedFormValues(state, claimId, { scopeKey: 'claimId' });
   return <section aria-label="운영 확인액 기록" className="admin-claim-operational-fee">
     <h3 style={{ marginTop: 0 }}>운영 확인액</h3>

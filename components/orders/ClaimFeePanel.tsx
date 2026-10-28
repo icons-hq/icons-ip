@@ -7,6 +7,7 @@ import { changeClaimFeeAction, readClaimFeesAction, readOrderClaimFeesAction } f
 import { CLAIM_FEE_ACTIONS, CLAIM_FEE_POLICY_PATH, CLAIM_FEE_STATES, normalizeClaimFeeValues, type ClaimFeeDocument, type ClaimFeeInvoice, type ClaimFeeKind, type ClaimFeeValues } from '@/lib/orders/claim-fees';
 import { formatOrderDateTime } from '@/lib/orders';
 import { krw } from '@/lib/format';
+import { useClaimPreviewBusy } from '@/components/admin/screens/ClaimPreviewDialog';
 type Props = { actorId: string; claimId: string; operator?: boolean };
 type Request = { invoiceId: string | null; kind: ClaimFeeKind; values: ClaimFeeValues; revision: number; claimRevision: number; operationId: string };
 export function ClaimFeePanel(props: Props) {
@@ -37,6 +38,7 @@ function FeePanel({ claimId, operator = false, initial = null, identity, scope }
  const [document, setDocument] = useState<ClaimFeeDocument | null>(initial), [selected, setSelected] = useState<{ kind: ClaimFeeKind; invoice: ClaimFeeInvoice | null } | null>(null);
  const [amount, setAmount] = useState(''), [payerRole, setPayerRole] = useState<'buyer' | 'requester'>('buyer'), [customerNote, setCustomerNote] = useState(''), [evidence, setEvidence] = useState(''), [occurredAt, setOccurredAt] = useState(''), [confirmed, setConfirmed] = useState(false);
  const [pending, setPending] = useState(false), [uncertain, setUncertain] = useState(false), [error, setError] = useState(''), [message, setMessage] = useState('');
+ useClaimPreviewBusy(pending); /* 목록 위 클레임 팝업(R8)에서 기다리는 동안 팝업이 닫히지 않게 알린다. 팝업 밖에서는 아무 일도 하지 않는다. */
  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
  async function read() {
   if (busy.current) return; const ticket = scope.capture(); if (!ticket) return;
