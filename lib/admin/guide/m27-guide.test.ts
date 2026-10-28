@@ -1,7 +1,9 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
+import { ADMIN_CLAIM_BULK_ACTION_LABELS, ADMIN_CLAIM_BULK_LIMIT, ADMIN_CLAIM_BULK_OUTCOME_LABELS } from '@/lib/admin/claim-bulk';
 import { REPLY_TEMPLATE_REPLACE_CONFIRM, REPLY_TEMPLATE_REPLACE_HINT } from '@/lib/admin/inquiry-reply-templates';
+import { ORDER_CLAIM_BUYER_REASON_TYPES } from '@/lib/orders/claims';
 import { ADMIN_GUIDE_TOPICS, type AdminGuideTopic, type AdminGuideTopicSlug } from './topics';
 
 /*
@@ -81,5 +83,32 @@ describe('m27 가이드 — 고객문의·상담·리뷰(R1~R6)', () => {
     expect(repoFile('lib/admin/navigation.ts')).toContain("label: '적립금 정책', href: '/admin/settings/store-credits', status: 'ready', adminOnly: true");
     expect(text).toContain('혜택/마케팅 → 적립금 정책');
     expect(text).toContain('보유 상한');
+  });
+});
+
+describe('m27 가이드 — 클레임(R7·R8)', () => {
+  const text = guide('claims');
+
+  it('요청번호는 목록 위 팝업을 열고, 전체 화면 상세는 팝업 버튼으로 연다(R8)', () => {
+    expect(repoFile('components/admin/screens/ClaimQueueScreen.tsx')).toContain('요청번호를 누르면 목록 위에 상세가 열리고');
+    expect(repoFile('components/admin/screens/ClaimPreviewDialog.tsx')).toContain('전체 화면으로 열기');
+    expect(text).toContain('요청번호를 누르면 목록 위');
+    expect(text).toContain('"전체 화면으로 열기"');
+  });
+
+  it('선택 건 일괄 처리의 버튼·상한·결과 표기가 화면 계약과 같다(R8)', () => {
+    for (const label of Object.values(ADMIN_CLAIM_BULK_ACTION_LABELS)) expect(text).toContain(`"${label}"`);
+    expect(text).toContain(`최대 ${ADMIN_CLAIM_BULK_LIMIT}건`);
+    expect(text).toContain(Object.values(ADMIN_CLAIM_BULK_OUTCOME_LABELS).join('·'));
+    expect(text).toContain('한 건씩 순서대로');
+  });
+
+  it('거부 사유 프리셋과 유형별 사유, 운영자 철회 버튼 제거를 안내한다(R7)', () => {
+    expect(repoFile('components/admin/screens/ClaimRejectionReasonField.tsx')).toContain('자주 쓰는 거부 사유');
+    expect(ORDER_CLAIM_BUYER_REASON_TYPES.cancel).toEqual(['change_of_mind']);
+    expect(text).toContain('자주 쓰는 거부 사유');
+    expect(text).toContain('취소는 단순 변심 사유만 받습니다');
+    expect(text).not.toContain('고객과 합의한 담당자가 요청만 종결');
+    expect(text).toContain('운영자 화면에는 철회 버튼이 없');
   });
 });
