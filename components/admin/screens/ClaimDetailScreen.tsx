@@ -121,6 +121,8 @@ export function ClaimDetailScreen({
   carriers,
   cancellationForm,
   detail,
+  detailHref,
+  embedded = false,
   now = new Date(),
 }: {
   actorId?: string;
@@ -129,6 +131,13 @@ export function ClaimDetailScreen({
   /** 코페이 취소 접수 양식. 카드 결제가 아니면 null이다. */
   cancellationForm: string | null;
   detail: AdminClaimDetail;
+  /** 팝업(embedded)에서 같은 요청을 전체 화면 상세로 여는 주소. */
+  detailHref?: string;
+  /**
+   * 목록 위 팝업으로 그린다(R8). 대화상자가 제목과 닫기를 맡으므로 뒤로가기 링크와 h2를
+   * 빼고, 처리 패널·유형 전환은 상세 화면과 같은 것을 그대로 쓴다.
+   */
+  embedded?: boolean;
   now?: Date;
 }) {
   const { cardPacks, claim, order, payment, refund, refundAccount, timeline } = detail;
@@ -212,10 +221,12 @@ export function ClaimDetailScreen({
     <section className="admin-console admin-sales-console admin-claim-detail">
       <div className="admin-sales-detail-header">
         <div>
-          <Link className="btn btn-sm btn-ghost" href={backHref}>← 목록으로</Link>
-          <h2>
-            {ORDER_CLAIM_TYPE_LABELS[claim.claimType]} {orderClaimReferenceLabel(claim.reference)}
-          </h2>
+          {embedded ? null : <>
+            <Link className="btn btn-sm btn-ghost" href={backHref}>← 목록으로</Link>
+            <h2>
+              {ORDER_CLAIM_TYPE_LABELS[claim.claimType]} {orderClaimReferenceLabel(claim.reference)}
+            </h2>
+          </>}
           <p>
             {adminClaimStageLabel(claim.claimType, claim.stage)}
             {' · '}
@@ -227,6 +238,7 @@ export function ClaimDetailScreen({
         <p data-sla-tone={sla.tone}>
           환급 기한 {sla.label}
         </p>
+        {embedded && detailHref ? <Link className="btn btn-sm btn-ghost" href={detailHref}>전체 화면으로 열기</Link> : null}
       </div>
       <nav className="admin-sales-detail-tabs" aria-label="클레임 상세 항목">
         <Link href="#claim-order">주문정보</Link><Link href="#claim-request">요청·처리이력</Link><Link href="#claim-process">처리</Link>
@@ -348,7 +360,7 @@ export function ClaimDetailScreen({
           />
           <ClaimReshipmentDelivery claim={claim} />
           <ClaimWithdrawal claimId={claim.id} stage={claim.stage} operator />
-          {claim.claimType !== 'cancel' ? <ClaimTypeConversion key={`${claim.id}-${claim.claimType}`} claimId={claim.id} /> : null}
+          {claim.claimType !== 'cancel' ? <ClaimTypeConversion embedded={embedded} key={`${claim.id}-${claim.claimType}`} claimId={claim.id} /> : null}
           {claim.claimType === 'exchange' ? <ClaimReasonChange key={`reason-${claim.id}`} claimId={claim.id} /> : null}
         </div>
         </div>

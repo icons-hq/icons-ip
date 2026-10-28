@@ -6,7 +6,8 @@ import { claimTypeError, claimTypeReceiptMatches, normalizeClaimTypeRequest, typ
 import { ORDER_CLAIM_TYPE_LABELS, ORDER_CLAIM_TYPE_SLUGS } from '@/lib/orders/claims';
 import { formatOrderDateTime } from '@/lib/orders';
 
-export function ClaimTypeConversionPanel({ initial, onClose }: { initial: ClaimTypeContext; onClose: () => void }) {
+/** embedded: 목록 위 상세 팝업(R8)에서 열렸다. 전환 뒤에도 독립 상세가 아니라 전환된 유형의 목록 팝업으로 연다. */
+export function ClaimTypeConversionPanel({ initial, onClose, embedded = false }: { initial: ClaimTypeContext; onClose: () => void; embedded?: boolean }) {
   const router = useRouter(); const [context, setContext] = useState(initial); const [agreement, setAgreement] = useState(''); const [confirmed, setConfirmed] = useState(false);
   const [bankName, setBankName] = useState(''); const [accountNumber, setAccountNumber] = useState(''); const [accountHolder, setAccountHolder] = useState('');
   const [pending, setPending] = useState(false); const [uncertain, setUncertain] = useState(false); const [conflict, setConflict] = useState(false);
@@ -20,7 +21,9 @@ export function ClaimTypeConversionPanel({ initial, onClose }: { initial: ClaimT
     if (!claimTypeReceiptMatches(saved, request) || saved.orderId !== context.orderId || saved.fromType !== context.claimType) { setError('현재 요청과 다른 저장 결과입니다. 같은 요청의 결과를 다시 확인해주세요.'); setUncertain(true); return; }
     dispatched.current = null; setReceipt(saved); setUncertain(false); setError(''); setMessage('');
     setBankName(''); setAccountNumber(''); setAccountHolder('');
-    router.replace(`/admin/sales/claims/${ORDER_CLAIM_TYPE_SLUGS[saved.toType]}/${saved.claimId}`); router.refresh();
+    if (embedded) router.replace(`/admin/sales/claims/${ORDER_CLAIM_TYPE_SLUGS[saved.toType]}?claimId=${saved.claimId}`, { scroll: false });
+    else router.replace(`/admin/sales/claims/${ORDER_CLAIM_TYPE_SLUGS[saved.toType]}/${saved.claimId}`);
+    router.refresh();
   }
   async function save() {
     if (inFlight.current || receipt || !context.allowed || conflict && !uncertain) return;
@@ -75,11 +78,11 @@ export function ClaimTypeConversionPanel({ initial, onClose }: { initial: ClaimT
     <button className="btn btn-ghost" type="button" disabled={pending || uncertain} onClick={() => { if (!inFlight.current && !dispatched.current) onClose(); }}>닫기</button>
   </section>;
 }
-export function ClaimTypeConversion({ claimId }: { claimId: string }) {
+export function ClaimTypeConversion({ claimId, embedded = false }: { claimId: string; embedded?: boolean }) {
   const [context, setContext] = useState<ClaimTypeContext | null>(null); const [pending, setPending] = useState(false); const [error, setError] = useState(''); const loading = useRef(false);
   async function open() { if (loading.current) return; loading.current = true; setPending(true); setError('');
     try { const result = await loadClaimTypeContextAction(claimId); if ('error' in result) setError(result.error); else if ('context' in result) setContext(result.context); }
     catch { setError('최신 요청을 읽지 못했습니다.'); } finally { loading.current = false; setPending(false); }
   }
-  return context ? <ClaimTypeConversionPanel initial={context} onClose={() => setContext(null)} /> : <div className="claim-withdrawal-entry"><button className="btn btn-ghost" disabled={pending} type="button" onClick={() => { void open(); }}>{pending ? '요청 확인 중…' : '반품·교환 전환 및 이력'}</button>{error ? <p role="alert">{error}</p> : null}</div>;
+  return context ? <ClaimTypeConversionPanel embedded={embedded} initial={context} onClose={() => setContext(null)} /> : <div className="claim-withdrawal-entry"><button className="btn btn-ghost" disabled={pending} type="button" onClick={() => { void open(); }}>{pending ? '요청 확인 중…' : '반품·교환 전환 및 이력'}</button>{error ? <p role="alert">{error}</p> : null}</div>;
 }

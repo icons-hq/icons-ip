@@ -256,6 +256,27 @@ export function adminClaimDetailHref(
   return back ? `${base}?back=${encodeURIComponent(back)}` : base;
 }
 
+/**
+ * 목록 위 상세 팝업(R8). 독립 상세 라우트 대신 같은 목록 URL에 `claimId`만 더한다 —
+ * 팝업을 닫으면 `adminClaimHref`로 같은 조건의 목록에 그대로 돌아온다.
+ */
+export function adminClaimPreviewHref(
+  claimType: OrderClaimType,
+  claimId: string,
+  filters?: AdminClaimFilters,
+) {
+  if (!filters) return `${adminClaimBasePath(claimType)}?claimId=${encodeURIComponent(claimId)}`;
+  return `${adminClaimHref(claimType, filters)}&claimId=${encodeURIComponent(claimId)}`;
+}
+
+const PREVIEW_ID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+
+/** `?claimId=`에서 팝업으로 열 요청 id. 형식이 아니면 팝업을 열지 않는다. */
+export function adminClaimPreviewId(value: SearchParamValue): string | null {
+  const candidate = singleParam(value).trim().toLowerCase();
+  return PREVIEW_ID_PATTERN.test(candidate) ? candidate : null;
+}
+
 const BACK_PARAM_KEYS = ['stage', 'reasonType', 'from', 'to', 'query', 'page', 'field', 'dateField', 'sort', 'pageSize'] as const;
 
 /**

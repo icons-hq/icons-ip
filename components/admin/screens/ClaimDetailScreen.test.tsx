@@ -472,6 +472,28 @@ describe('ClaimDetailScreen', () => {
 
     expect(html).toContain('/admin/sales/claims/returns');
   });
+
+  /* R8: 목록 위 팝업에서는 대화상자가 제목·닫기를 맡는다. 같은 처리 패널을 그대로 쓴다. */
+  it('팝업(embedded)에서는 뒤로가기·제목 대신 전체 화면 링크를 두고 처리 패널은 그대로 그린다', () => {
+    const html = renderToStaticMarkup(
+      <ClaimDetailScreen
+        backHref="/admin/sales/claims/returns?stage=open&page=1"
+        cancellationForm={null}
+        carriers={CARRIERS}
+        detail={detail()}
+        detailHref={`/admin/sales/claims/returns/${CLAIM_ID}?back=stage%3Dopen`}
+        embedded
+        now={NOW}
+      />,
+    );
+    expect(html).not.toContain('← 목록으로');
+    expect(html).not.toContain('<h2>');
+    expect(html).toContain(`href="/admin/sales/claims/returns/${CLAIM_ID}?back=stage%3Dopen"`);
+    expect(html).toContain('전체 화면으로 열기');
+    expect(html).toContain('id="claim-process"');
+    expect(html).toContain('반품 단계별 처리');
+    expect(html).toContain('반품·교환 전환 및 이력');
+  });
 });
 
 it('shows the actual gift requester and separate COD without suggesting a recipient refund', async () => {

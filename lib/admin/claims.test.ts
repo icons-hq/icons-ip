@@ -6,6 +6,8 @@ import {
   adminClaimDetailHref,
   adminClaimHref,
   adminClaimOpenCount,
+  adminClaimPreviewHref,
+  adminClaimPreviewId,
   adminClaimReasonText,
   ADMIN_CLAIM_REASON_OPTIONS,
   normalizeAdminClaimCollectionForm,
@@ -82,6 +84,20 @@ describe('클레임 콘솔 경로', () => {
 
   it('back이 비면 목록 기본값으로 돌아간다', () => {
     expect(adminClaimBackHref('cancel', undefined)).toBe('/admin/sales/claims/cancels');
+  });
+  /* R8: 상세는 같은 목록 위 팝업으로 연다. 닫으면 claimId만 빠진 같은 조건의 목록이다. */
+  it('목록 위 팝업 주소는 목록 조건 뒤에 claimId만 더한다', () => {
+    const current = filters({ page: 3, stage: 'collecting' });
+    expect(adminClaimPreviewHref('return', CLAIM_ID, current)).toBe(`${adminClaimHref('return', current)}&claimId=${CLAIM_ID}`);
+    expect(adminClaimPreviewHref('exchange', CLAIM_ID)).toBe(`/admin/sales/claims/exchanges?claimId=${CLAIM_ID}`);
+    expect(normalizeAdminClaimFilters({ stage: 'collecting', page: '3', claimId: CLAIM_ID })).toEqual(current);
+  });
+
+  it('팝업으로 열 claimId는 UUID 하나만 받는다', () => {
+    expect(adminClaimPreviewId(CLAIM_ID.toUpperCase())).toBe(CLAIM_ID);
+    expect(adminClaimPreviewId([CLAIM_ID, CLAIM_ID])).toBeNull();
+    expect(adminClaimPreviewId('../evil')).toBeNull();
+    expect(adminClaimPreviewId(undefined)).toBeNull();
   });
 });
 

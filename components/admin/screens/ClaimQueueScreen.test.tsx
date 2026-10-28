@@ -80,7 +80,8 @@ describe('ClaimQueueScreen', () => {
     const html = renderToStaticMarkup(<ClaimQueueScreen data={source} now={NOW} />);
     expect(html).toContain(`<option value="${field}" selected="">${label}</option>`);
     expect(html).toContain(`field=${field}`);
-    expect(html).toContain(`field%3D${field}`);
+    /* 상세 팝업 링크도 같은 조건의 목록 위에서 열린다. */
+    expect(html).toMatch(new RegExp(`href="[^"]*field=${field}[^"]*claimId=${CLAIM_ID}"`));
     expect(html).toContain('품목으로 찾아도 처리와 엑셀은 요청 주문 전체를 대상으로 합니다.');
     expect(html).toContain('screen=claims-returns');
   });
@@ -90,7 +91,7 @@ describe('ClaimQueueScreen', () => {
     const html = renderToStaticMarkup(<ClaimQueueScreen data={source} now={NOW} />);
     expect(html).toContain('<option value="paid" selected="">결제일</option>');
     expect(html).toContain('dateField=paid');
-    expect(html).toContain('dateField%3Dpaid');
+    expect(html).toMatch(new RegExp(`href="[^"]*dateField=paid[^"]*claimId=${CLAIM_ID}"`));
     expect(html).toContain('screen=claims-returns');
   });
   it('이슈가 요구한 그리드 컬럼을 순서대로 보여준다', () => {
@@ -159,10 +160,25 @@ describe('ClaimQueueScreen', () => {
     expect(html).toContain('반품보류 1건');
   });
 
-  it('상세 링크가 목록 조건을 함께 들고 간다', () => {
+  /* R8: 요청번호는 독립 상세 라우트가 아니라 같은 목록 위의 팝업(?claimId=)으로 연다. */
+  it('요청번호가 목록 조건을 유지한 채 상세 팝업을 연다', () => {
     const html = renderToStaticMarkup(<ClaimQueueScreen data={data()} now={NOW} />);
 
-    expect(html).toContain(`/admin/sales/claims/returns/${CLAIM_ID}?back=`);
+    expect(html).toContain(`href="/admin/sales/claims/returns?stage=open&amp;page=1&amp;claimId=${CLAIM_ID}"`);
+    expect(html).not.toContain(`/admin/sales/claims/returns/${CLAIM_ID}?back=`);
+    expect(html).toContain('여는 중');
+  });
+
+  /* R8 · D8: 선택 → 건별 순차 처리 → 결과표. 처리 단계가 끝난 건은 고를 수 없다. */
+  it('처리할 수 있는 단계의 행만 체크박스로 고르고 일괄 버튼 셋을 둔다', () => {
+    const html = renderToStaticMarkup(<ClaimQueueScreen data={data()} now={NOW} />);
+
+    expect(html).toContain('aria-label="요청 C00011 선택"');
+    expect(html).not.toContain('aria-label="요청 C00012 선택"');
+    expect(html).toContain('aria-label="전체 선택"');
+    for (const label of ['선택 건 승인', '선택 건 거부', '선택 건 검토중']) expect(html).toContain(label);
+    expect(html).toContain('최대 50건');
+    expect(html).toContain('name="claimType" value="return"');
   });
 
   /* 부분 환불은 계획의 명시적 제외 항목이다. 화면이 약속하는 순간 운영이 따라간다. */
