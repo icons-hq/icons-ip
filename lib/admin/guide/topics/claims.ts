@@ -106,7 +106,7 @@ export const CLAIMS_TOPIC: AdminGuideTopic = {
         {
           text: `여러 건은 목록에서 선택한 뒤 "${ADMIN_CLAIM_BULK_ACTION_LABELS.approve}"·"${ADMIN_CLAIM_BULK_ACTION_LABELS.reject}"·"${ADMIN_CLAIM_BULK_ACTION_LABELS.review}"으로 한 번에 처리합니다(한 번에 최대 ${ADMIN_CLAIM_BULK_LIMIT}건).`,
           detail: [
-            '결제사 취소가 겹치지 않도록 한 건씩 순서대로 처리합니다. 토스 결제의 취소 승인은 건마다 토스 전액 취소를 발행하고, 반품·교환 승인은 수거를 시작합니다. 선택 건 거부는 목록 아래 거부 사유 칸의 사유를 선택한 모든 건에 씁니다.',
+            '결제사 취소가 겹치지 않도록 한 건씩 순서대로 처리합니다. 토스 결제의 취소 승인은 건마다 토스 전액 취소를 발행하고, 반품·교환 승인은 수거를 시작합니다. 선택 건 거부는 목록 위 일괄 처리 버튼 바로 아래의 거부 사유 칸에 적은 사유를 선택한 모든 건에 씁니다.',
             `건별 결과는 목록 아래 표에서 번호·결과(${Object.values(ADMIN_CLAIM_BULK_OUTCOME_LABELS).join('·')})·사유로 확인합니다. 처리 시간이 길어 남은 건은 처리하지 않고 미처리로 표시하며, 미처리 건은 선택된 채로 남으니 다시 실행합니다.`,
             '반품·교환의 회수 확인·재출고·환불 완료 확정과 반품↔교환 전환은 상세에서 한 건씩 처리합니다.',
           ],

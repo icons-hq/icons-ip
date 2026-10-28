@@ -3,6 +3,7 @@
 import { useActionState, useRef } from 'react';
 import { useInquiryDraft } from '@/components/admin/useInquiryDraft';
 import { InquiryDraftNotice } from './InquiryDraftNotice';
+import { useInquiryPreviewBusy } from './CustomerServiceDialog';
 import {
   answerInquiryAction,
   closeInquiryAction,
@@ -62,6 +63,7 @@ export function InquiryReplyPanel({
 }) {
   const [answerState, answerAction, answerPending] = useActionState(answerInquiryAction, EMPTY_STATE);
   const [closeState, closeAction, closePending] = useActionState(closeInquiryAction, EMPTY_STATE);
+  useInquiryPreviewBusy(answerPending || closePending); /* 목록 위 문의 팝업(R4)에서 발송·종결을 기다리는 동안 팝업이 닫히지 않게 알린다. 팝업 밖에서는 아무 일도 하지 않는다. */
   const draft = useInquiryDraft(accountId, inquiryId, 'reply', answerState.resultKey);
   const { body, change: setBody } = draft;
   const bodyRef = useRef<HTMLTextAreaElement>(null);

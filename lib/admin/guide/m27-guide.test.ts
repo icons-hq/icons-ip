@@ -8,6 +8,7 @@ import { ADMIN_NAV_GROUPS, ADMIN_SCREENS } from '@/lib/admin/navigation';
 import { shipmentBarcodeGapWarning } from '@/lib/admin/shipment-workbook';
 import { GOODS_HTML_MAX_LENGTH } from '@/lib/goods-description';
 import { RANDOM_OPTION_NOTICE } from '@/lib/goods-option-sale-mode';
+import { REVIEW_EVENT_CREDIT_POLICY_OFF } from '@/lib/review-events';
 import { GOOD_TYPES } from '@/lib/goods-taxonomy';
 import { ORDER_CLAIM_BUYER_REASON_TYPES } from '@/lib/orders/claims';
 import { ADMIN_WEEKLY_CHANGES } from './changes';
@@ -76,6 +77,15 @@ describe('m27 가이드 — 고객문의·상담·리뷰(R1~R6)', () => {
     expect(text).not.toContain('선택 닫기');
   });
 
+  it('팝업 안 처리를 기다리는 동안에는 닫히지 않는다(R4·ADM-4)', () => {
+    const dialog = repoFile('components/admin/screens/CustomerServiceDialog.tsx');
+    expect(dialog).toContain('export function useInquiryPreviewBusy');
+    for (const panel of ['InquiryReplyPanel.tsx', 'InquiryWorkspacePanel.tsx']) {
+      expect(repoFile(`components/admin/screens/${panel}`)).toContain('useInquiryPreviewBusy(');
+    }
+    expect(text).toContain('답변 발송·종결·담당자 변경·내부 메모 저장을 처리하는 동안에는 팝업이 닫히지 않습니다');
+  });
+
   it('상담하기는 Enter로 보내고 고객문의 답변은 버튼으로 보낸다(R5)', () => {
     expect(repoFile('components/admin/screens/InquiryChatConversation.tsx')).toMatch(/event\.shiftKey/);
     expect(repoFile('components/admin/screens/InquiryReplyPanel.tsx')).toContain("'답변 발송'");
@@ -90,6 +100,15 @@ describe('m27 가이드 — 고객문의·상담·리뷰(R1~R6)', () => {
     expect(repoFile('lib/admin/navigation.ts')).toContain("label: '적립금 정책', href: '/admin/settings/store-credits', status: 'ready', adminOnly: true");
     expect(text).toContain('혜택/마케팅 → 적립금 정책');
     expect(text).toContain('보유 상한');
+  });
+
+  it('정책 꺼짐 안내의 메뉴 경로가 실제 사이드바(대분류 > 메뉴, 관리자 전용)와 같다(R6·ADM-2)', () => {
+    const group = ADMIN_NAV_GROUPS.find((item) => item.screens.some((screen) => screen.href === '/admin/settings/store-credits'))!;
+    const screen = group.screens.find((item) => item.href === '/admin/settings/store-credits')!;
+    expect(screen.adminOnly).toBe(true);
+    expect(REVIEW_EVENT_CREDIT_POLICY_OFF).toBe(`적립금 정책이 꺼져 있어 리뷰이벤트를 저장할 수 없습니다. ${group.label} > ${screen.label}(관리자)에서 켠 뒤 저장하세요.`);
+    expect(REVIEW_EVENT_CREDIT_POLICY_OFF).not.toContain('설정 >');
+    expect(text).toContain(`${group.label} → ${screen.label}(관리자)에서 켠 뒤 저장`);
   });
 });
 
@@ -108,6 +127,18 @@ describe('m27 가이드 — 클레임(R7·R8)', () => {
     expect(text).toContain(`최대 ${ADMIN_CLAIM_BULK_LIMIT}건`);
     expect(text).toContain(Object.values(ADMIN_CLAIM_BULK_OUTCOME_LABELS).join('·'));
     expect(text).toContain('한 건씩 순서대로');
+  });
+
+  it('일괄 거부 사유 칸의 위치를 화면 그대로(목록 위, 일괄 처리 버튼 바로 아래) 적는다(R8·ADM-5)', () => {
+    const bulk = repoFile('components/admin/screens/ClaimQueueBulk.tsx');
+    /* 일괄 처리 버튼 줄과 거부 사유 칸은 ConsoleGrid의 children이고, ConsoleGrid는 children을 표보다 먼저 그린다. */
+    const grid = bulk.slice(bulk.indexOf('<ConsoleGrid'), bulk.indexOf('</ConsoleGrid>'));
+    expect(grid.indexOf('admin-claim-bulk-bar')).toBeGreaterThan(-1);
+    expect(grid.indexOf('admin-claim-bulk-reason')).toBeGreaterThan(grid.indexOf('admin-claim-bulk-bar'));
+    const consoleGrid = repoFile('components/admin/console/ConsoleGrid.tsx');
+    expect(consoleGrid.indexOf('{children}')).toBeLessThan(consoleGrid.indexOf('<table className="admin-console-grid-table"'));
+    expect(text).toContain('목록 위 일괄 처리 버튼 바로 아래의 거부 사유 칸');
+    expect(text).not.toContain('목록 아래 거부 사유 칸');
   });
 
   it('거부 사유 프리셋과 유형별 사유, 운영자 철회 버튼 제거를 안내한다(R7)', () => {
@@ -183,6 +214,22 @@ describe('m27 가이드 — 상품 등록·목록·카테고리·랜덤 판매(R
     const purpose = repoFile('components/admin/screens/GoodsPhotoLibraryScreen.tsx').match(/GOODS_PHOTO_LIBRARY_PURPOSE = '([^']+)'/)?.[1];
     expect(purpose).toBeTruthy();
     expect(text).toContain(purpose!);
+  });
+
+  it('목록 바로 수정은 판매가·재고수량만 칸 전체를 누르고 판매상태는 값 버튼을 누른다(R11·ADM-5)', () => {
+    const inline = repoFile('components/admin/GoodsInlineEdit.tsx');
+    const editor = (name: string) => inline.slice(inline.indexOf(`export function ${name}`)).split('</InlineEditor>')[0];
+    expect(editor('GoodsInlinePrice')).toContain('<InlineEditor fillCell label="판매가"');
+    expect(editor('GoodsInlineStock')).toContain('<InlineEditor fillCell label="재고수량"');
+    expect(editor('GoodsInlineSale')).toContain('<InlineEditor label="판매상태"');
+    expect(editor('GoodsInlineSale')).not.toContain('fillCell');
+    expect(text).toContain('판매가·재고수량은 상품 목록에서 값 칸 어디를 눌러도 바로 고칠 수 있고, 판매상태는 칸 안의 판매중·판매중지 값 버튼을 눌러 고칩니다.');
+    const changes = ADMIN_WEEKLY_CHANGES[0].changes.join('\n');
+    expect(changes).toContain('판매가·재고수량은 값 칸 어디를 눌러도 바로 고치고 판매상태는 값 버튼을 눌러 고치며');
+    for (const stale of ['판매가·재고수량·판매상태는 상품 목록에서 값 칸 어디를', '값 칸이나 체크 칸 어디를 눌러도 바로 수정']) {
+      expect(text).not.toContain(stale);
+      expect(changes).not.toContain(stale);
+    }
   });
 
   it('상품 목록의 선택 유지·상품번호 열·판매기간 필터·그룹상품 메뉴 숨김을 안내한다(R11·R15·R16·R21)', () => {

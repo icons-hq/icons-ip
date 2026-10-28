@@ -82,7 +82,14 @@ function GoodScreenForm({
   const router=useRouter();
   const { bindSavedGood, discard: discardKcTemplate } = useGoodsKcTemplate();
   const [selection,setSelection]=useState<{id:string|null;savedId?:string}>({id:initialSelectedId??null});
-  const selectedId=state.savedGoodId && selection.savedId!==state.savedGoodId?state.savedGoodId:selection.id;
+  /*
+   * 상세 화면(hideRecordList)에는 목록 선택이 없어 선택은 주소의 goodId를 따른다. 등록 화면에서 처음 저장해 key를 이어 받은 뒤에도
+   * 마운트 때 값(신규)이 아니라 지금 주소를 본다 — 이어서 저장이 실패해 상태에서 savedGoodId가 빠져도 저장된 상품을 계속 고치고,
+   * 실패 입력(previousId=그 상품)을 되살리며, 다시 저장해도 새 상품으로 한 번 더 등록되지 않는다.
+   */
+  const selectedId=hideRecordList
+    ? state.savedGoodId ?? initialSelectedId ?? null
+    : state.savedGoodId && selection.savedId!==state.savedGoodId?state.savedGoodId:selection.id;
   const selected=records.find((record)=>record.id===selectedId)??null;
   useEffect(()=>{
     if (!hideRecordList || !state.savedGoodId || initialSelectedId === state.savedGoodId) return;

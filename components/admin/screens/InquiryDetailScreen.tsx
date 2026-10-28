@@ -16,6 +16,7 @@ import { orderReferenceLabel } from '@/lib/orders';
 import { isAdminInquiryOverdue, type AdminInquiryNavigation } from '@/lib/admin/inquiries';
 import { InquiryAssignmentPanel, InquiryInternalNotesPanel } from './InquiryWorkspacePanel';
 import { InquiryReplyPanel } from './InquiryReplyPanel';
+import { InquiryPreviewBackLink } from './CustomerServiceDialog';
 import { CustomerHistoryPanel } from './CustomerHistoryPanel';
 import { InquiryLiveUpdates } from '@/components/screens/InquiryLiveUpdates';
 import { InquirySatisfactionContext } from './InquirySatisfactionContext';
@@ -104,8 +105,8 @@ export function InquiryDetailScreen({
         {navigation.nextHref ? <Link className="btn btn-sm btn-ghost" href={navigation.nextHref} scroll={false}>다음 문의</Link> : <button className="btn btn-sm btn-ghost" disabled>다음 문의</button>}
       </nav> : null}
       <div className="col" style={{ gap: 6 }}>
-        {/* 팝업(embedded) 안에서는 닫기와 같다 — X·Esc처럼 목록 스크롤을 두고 기록을 바꿔 쓴다(R4). */}
-        <Link className="mono" href={backHref} style={{ fontSize: 12 }} {...(embedded ? { replace: true, scroll: false } : {})}>← 문의 목록</Link>
+        {/* 팝업(embedded) 안에서는 닫기와 같다 — X·Esc처럼 목록 스크롤을 두고 기록을 바꿔 쓰고, 패널이 기다리는 동안에는 누를 수 없다(R4). */}
+        {embedded ? <InquiryPreviewBackLink href={backHref} /> : <Link className="mono" href={backHref} style={{ fontSize: 12 }}>← 문의 목록</Link>}
         <div className="row" style={{ alignItems: 'baseline', gap: 8, justifyContent: 'flex-start' }}>
           <span className="mono">{inquiryReferenceLabel(inquiry.reference)}</span>
           <span className="muted">·</span>

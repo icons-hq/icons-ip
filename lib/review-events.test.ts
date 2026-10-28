@@ -70,7 +70,7 @@ describe('review event editor guidance (R6)', () => {
     expect(reviewEventCreditPolicyLabel({ enabled: true, maxBalance: 100000, validityDays: 30 })).toBe('적립금 정책: 켜짐 · 보유 상한 100,000원 · 유효기간 30일');
     expect(reviewEventCreditPolicyLabel({ enabled: false, maxBalance: null, validityDays: null })).toBe('적립금 정책: 꺼짐');
     expect(reviewEventCreditPolicyProblem(base(), { enabled: false, maxBalance: null, validityDays: null })).toEqual({
-      form: '적립금 정책이 꺼져 있어 리뷰이벤트를 저장할 수 없습니다. 설정 > 적립금 정책에서 켠 뒤 저장하세요.' });
+      form: '적립금 정책이 꺼져 있어 리뷰이벤트를 저장할 수 없습니다. 혜택/마케팅 > 적립금 정책(관리자)에서 켠 뒤 저장하세요.' });
     const policy = { enabled: true, maxBalance: 500, validityDays: 10 };
     const problem = reviewEventCreditPolicyProblem(base(), policy);
     expect(problem.creditAmount).toContain('500원');
