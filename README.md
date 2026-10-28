@@ -239,7 +239,7 @@ npm run hong-sil:download -- \
 
 GitHub Actions의 `CI/CD Pipeline`은 PR 검증(lint/typecheck/test/build/Supabase local lint), Vercel preview 배포, production 배포를 처리하고 `Supabase Preview Cleanup`은 PR close 시 최종 base와 무관하게 deterministic isolated branch만 정리한다. 운영팀용 `deploy-staging`은 성공한 main shared-preview 동기화 뒤 영구 `staging` branch에 앱을 배포한다. 고정 alias·test 키·생성 계정·연습 데이터 보존 절차와 실제 활성화 상태는 [스테이징 런북](docs/runbooks/staging.md)을 따른다.
 
-CI의 HTTP DB 검증용 PostgREST v14.14는 ECR의 비인증 다운로드 한도 영향을 피하도록 Supabase 공식 GHCR 이미지에서 받는다. 동일 이미지를 기존 HTTP fixture가 확인하는 ECR 이름으로 로컬 태그하며, 검증 항목과 운영 DB·앱 버전은 바꾸지 않는다.
+CI의 HTTP DB 검증용 PostgREST v14.14는 ECR의 비인증 다운로드 한도 영향을 피하도록 Supabase 공식 GHCR 이미지에서 받는다. 동일 이미지를 기존 HTTP fixture가 확인하는 ECR 이름으로 로컬 태그하며, 검증 항목과 운영 DB·앱 버전은 바꾸지 않는다. DB 샤드는 run마다 각자 로컬 DB 이미지를 받으므로 `SUPABASE_INTERNAL_IMAGE_REGISTRY=ghcr.io`로 Supabase CLI가 같은 GHCR 미러만 쓰게 한다.
 
 두 workflow는 Supabase CLI `2.109.1`을 사용한다. 이전 `2.101.0`의 로컬 DB 이미지
 `17.6.1.106`에는 함수 실행 권한 거절 시 DB 연결이 비정상 종료되는

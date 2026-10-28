@@ -56,6 +56,7 @@ describe('CI database shard manifest', () => {
       'Lint local database',
     ];
     expect(names.filter((name) => order.includes(name))).toEqual(order);
+    expect(shardJob.env).toEqual({ SUPABASE_INTERNAL_IMAGE_REGISTRY: 'ghcr.io' });
     expect(shardJob.steps.find((step) => step.name === 'Apply local migrations').run).toBe(
       'supabase db reset --local --no-seed',
     );

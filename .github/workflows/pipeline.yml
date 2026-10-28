@@ -212,6 +212,10 @@ jobs:
     timeout-minutes: 30
     needs: validate-plan
     if: needs.validate-plan.outputs.reuse_hit != 'true'
+    env:
+      # 샤드마다 DB 이미지를 새로 받으므로 ECR 비인증 데이터 한도(Data limit exceeded) 대신
+      # Supabase 공식 GHCR 이미지만 쓴다. 이 값이 있으면 CLI는 다른 레지스트리로 넘어가지 않는다.
+      SUPABASE_INTERNAL_IMAGE_REGISTRY: ghcr.io
     strategy:
       fail-fast: false
       matrix:
