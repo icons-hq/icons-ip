@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { MY_ORDER_ITEM_COLUMNS, mergeRandomOrderItemRows, readMyOrderItems } from './customer-items.server';
+import { MY_ORDER_ITEM_COLUMNS, attachRandomItemsToShipments, mergeRandomOrderItemRows, readMyOrderItems } from './customer-items.server';
 
 type Row = { id: string; order_id: string; option_sale_mode: 'select' | 'random' };
 
@@ -78,5 +78,24 @@ describe('mergeRandomOrderItemRows', () => {
       { id: 'c2', good_id: 'g', qty: 4, option_sale_mode_snapshot: 'random' as const }];
     expect(mergeRandomOrderItemRows(rows, (item) => item.option_sale_mode_snapshot === 'random'))
       .toEqual([{ id: 'c1', good_id: 'g', qty: 5, option_sale_mode_snapshot: 'random' }]);
+  });
+});
+
+describe('attachRandomItemsToShipments', () => {
+  const shipment = (id: string, orderItemIds: string[]) => ({ id, orderItemIds, status: 'ready' as const });
+
+  it('배송 건 품목에서 빠진 랜덤 줄을 my_order_items 의 배송 건 끝에 붙이고 선택 판매 줄·이미 있는 줄은 두지 않는다', () => {
+    const shipments = [shipment('s1', ['plain-1']), shipment('s2', ['plain-2'])];
+    expect(attachRandomItemsToShipments(shipments, [
+      { id: 'plain-1', option_sale_mode: 'select', shipment_id: 's1' },
+      { id: 'random-1', option_sale_mode: 'random', shipment_id: 's2' },
+      { id: 'random-2', option_sale_mode: 'random', shipment_id: null },
+      { id: 'plain-2', option_sale_mode: 'random', shipment_id: 's2' },
+    ])).toEqual([shipment('s1', ['plain-1']), shipment('s2', ['plain-2', 'random-1'])]);
+    expect(shipments[1].orderItemIds).toEqual(['plain-2']);
+  });
+
+  it('고객 행 열 목록은 배송 건(shipment_id)을 함께 읽는다', () => {
+    expect(MY_ORDER_ITEM_COLUMNS.split(',')).toContain('shipment_id');
   });
 });

@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { loadOrderDetail, loadOrders } from './orders.server';
+import { myOrderItemsFixture } from './orders/my-order-items.fixture';
 
 const mocks = vi.hoisted(() => ({ client: null as unknown, gift: vi.fn(), giftList: vi.fn(), giftDetail: vi.fn() }));
 
@@ -50,13 +51,7 @@ interface ClientOptions {
 }
 
 /* 고객 세션에서 order_items 를 직접 읽으면 랜덤 배정 행은 restrictive RLS(random_items_private_read)로 빠진다.
-   마스킹 RPC(my_order_items)는 같은 행을 1:1로 돌려주되 랜덤 행의 옵션을 가린다 — 이 흉내가 그 차이를 재현한다. */
-function maskedOrderItem(row: Row): Row {
-  const { option_sale_mode_snapshot: mode, cart_variant_id: cartVariantId, ...rest } = row;
-  return mode === 'random'
-    ? { ...rest, variant_id: cartVariantId ?? null, variant_name_snapshot: '랜덤', variant_code_snapshot: null, option_sale_mode: 'random' }
-    : { ...rest, option_sale_mode: 'select' };
-}
+   마스킹 RPC(my_order_items)는 랜덤 행을 주문·굿즈 한 줄로 합치고 옵션을 가린다 — 이 흉내가 그 차이를 재현한다. */
 
 function createQuery(table: string, options: ClientOptions, initial: Partial<QueryRecord> = {}) {
   const record: QueryRecord = {
@@ -75,7 +70,7 @@ function createQuery(table: string, options: ClientOptions, initial: Partial<Que
 
     let rows = (options.rows[table] ?? []).map((row,index)=>table==='order_items'?{...row,id:row.id??String(index).padStart(12,'0')}:row);
     if (table === 'order_items') {
-      rows = record.rpc === 'my_order_items' ? rows.map(maskedOrderItem) : rows.filter((row) => row.option_sale_mode_snapshot !== 'random');
+      rows = record.rpc === 'my_order_items' ? myOrderItemsFixture(rows) : rows.filter((row) => row.option_sale_mode_snapshot !== 'random');
     }
     for (const [column, value] of record.eq) rows = rows.filter((row) => row[column] === value);
     for (const [column, values] of record.in) rows = rows.filter((row) => values.includes(row[column]));
@@ -565,5 +560,29 @@ describe('랜덤 판매 굿즈(D5②) 고객 은닉', () => {
     ]);
     expect(detail?.items.find((item) => item.goodId === 'plain-good')).toMatchObject({ variantName: '파랑', variantCode: 'BLUE' });
     expect(JSON.stringify(detail)).not.toMatch(/비밀|SECRET|00000000000b|00000000000c/);
+  });
+
+  it('주문 상세는 RPC가 합친 줄을 그대로 쓰고 상세 열에 배송 건을 함께 읽는다', async () => {
+    const records: QueryRecord[] = [];
+    mocks.client = createClient({ records, rows: {
+      orders: [{ id: orderId, user_id: userId, status: 'pending', total: 18000, address: null, created_at: '2026-10-28T00:00:00Z', payment_method: 'card' }],
+      order_items: randomRows,
+    } });
+    await loadOrderDetail(userId, orderId);
+    expect(records.find((record) => record.table === 'order_items')).toMatchObject({ rpc: 'my_order_items' });
+    expect(records.find((record) => record.table === 'order_items')?.select?.split(',')).toContain('shipment_id');
+  });
+
+  /* 고객은 배송 건 품목(order_shipment_items)의 랜덤 배정 행을 읽지 못한다(restrictive RLS) — 배송 건 대응은 my_order_items.shipment_id. */
+  it('배송 건 품목에서 빠진 랜덤 줄을 my_order_items 의 배송 건에 붙인다', async () => {
+    mocks.client = createClient({ records: [], rows: {
+      orders: [{ id: orderId, user_id: userId, status: 'paid', total: 18000, address: null, created_at: '2026-10-28T00:00:00Z', payment_method: 'card' }],
+      order_items: randomRows.map((row) => ({ ...row, shipment_id: 'shipment-1' })),
+      order_shipments: [{ id: 'shipment-1', order_id: orderId, origin_id: 'origin', origin_name_snapshot: '김포', shipping_fee: 3000, status: 'ready',
+        carrier: null, tracking_number: null, shipped_at: null, delivered_at: null, exported_at: null,
+        order_shipment_items: [{ order_item_id: '00000000-0000-4000-8000-0000000000a3' }] }],
+    } });
+    const detail = await loadOrderDetail(userId, orderId);
+    expect(detail?.shipments?.[0]?.orderItemIds).toEqual(['00000000-0000-4000-8000-0000000000a3', '00000000-0000-4000-8000-0000000000a1']);
   });
 });
