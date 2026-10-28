@@ -349,3 +349,25 @@ describe('Checkout 쿠폰', () => {
     expect(html).toContain('id="checkout-coupon-code"');
   });
 });
+
+/* R26·R27(D4①): 주문서도 배송 묶음을 택배사로 부르고, 묶음이 둘 이상이면 따로 계산되는 이유를 알린다. */
+describe('Checkout 배송 묶음 이름', () => {
+  const group = { originId: '00000000-0000-4000-8000-000000042201', originCode: 'gimpo', originName: '김포', policySubtotal: 12000, baseFee: 3000,
+    freeThreshold: 50000, policyFee: 3000, individualFee: 0, totalFee: 3000, regionMode: 'legacy_base_only' as const, regionStatus: 'unconfigured' as const,
+    regionalContractFee: null, regionalFee: 0, finalFee: 3000, policyId: null, policyVersion: null, ruleId: null, regionLabel: null,
+    carrierCode: 'hanjin', carrierLabel: '한진택배', feeUnit: null, unitCount: 0, destinationPostalCode: null, matchedAddressPrefix: null };
+  it('택배사가 다른 두 묶음은 각 택배사 이름과 이유 한 줄을 보인다', () => {
+    const html = render({ paymentAvailable: true, bankTransferAvailable: true, quote: { shipping: { totalFee: 6000, finalTotalFee: 6000, checkoutAllowed: true,
+      destination: null, nextChangeAt: null, groups: [group, { ...group, originId: '00000000-0000-4000-8000-000000042202', originCode: 'namyangju', originName: '남양주', carrierCode: 'epost', carrierLabel: '우체국택배' }] } } });
+    expect(html).toContain('<h3>한진택배 배송</h3>');
+    expect(html).toContain('<h3>우체국택배 배송</h3>');
+    expect(html).toContain('택배사가 달라 배송비가 각각 계산됩니다.');
+    expect(html).not.toContain('김포');
+  });
+  it('묶음이 하나면 이유 줄을 두지 않는다', () => {
+    const html = render({ paymentAvailable: true, bankTransferAvailable: true, quote: { shipping: { totalFee: 3000, finalTotalFee: 3000, checkoutAllowed: true,
+      destination: null, nextChangeAt: null, groups: [group] } } });
+    expect(html).toContain('<h3>한진택배 배송</h3>');
+    expect(html).not.toContain('배송비가 각각 계산됩니다');
+  });
+});

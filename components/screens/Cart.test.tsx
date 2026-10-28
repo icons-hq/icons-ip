@@ -507,13 +507,23 @@ describe('Cart 목록 행 (CT-04)', () => {
 describe('origin quote and option lines', () => {
   it('keeps each origin fee and free-shipping remainder separate', () => {
     mocks.items=[{goodId:'g13',variantId:DEFAULT_VARIANT,qty:1},{goodId:'g14',variantId:SOLD_VARIANT,qty:1}];
-    mocks.quote={...defaultQuote,totalFee:7000,finalTotalFee:7000,groups:[gimpoGroup,{...gimpoGroup,originId:'namyangju',originCode:'NAMYANGJU',originName:'남양주',baseFee:4000,policyFee:4000,totalFee:4000,finalFee:4000,policySubtotal:9000,freeThreshold:30000}]};
+    mocks.quote={...defaultQuote,totalFee:7000,finalTotalFee:7000,groups:[{...gimpoGroup,carrierLabel:'한진택배'},{...gimpoGroup,originId:'namyangju',originCode:'NAMYANGJU',originName:'남양주',carrierCode:'epost',carrierLabel:'우체국택배',baseFee:4000,policyFee:4000,totalFee:4000,finalFee:4000,policySubtotal:9000,freeThreshold:30000}]};
     const html=renderToStaticMarkup(<Cart catalog={{goods:[goods[0],{...goods[1],stock:'ok',stockQty:5,originId:'namyangju',options:goods[1].options!.map(option=>({...option,stockQty:5}))}],ips:[]}} couponState={emptyCouponState} />);
-    /* 고객 화면은 출고지 이름 대신 배송 묶음 번호로 구분한다(10/14 회의 S7). */
-    expect(html).toContain('<h2>배송 묶음 1</h2>');expect(html).toContain('<h2>배송 묶음 2</h2>');
+    /* 고객 화면은 출고지 이름 대신 택배사로 부른다(10/14 회의 S7 · R26). 묶음이 둘이면 따로 계산되는 이유를 한 줄로(R27). */
+    expect(html).toContain('<h2>한진택배 배송</h2>');expect(html).toContain('<h2>우체국택배 배송</h2>');
+    expect(html).toContain('aria-label="한진택배 배송 굿즈"');
+    expect(html).toContain('택배사가 달라 배송비가 각각 계산됩니다.');
+    expect(html.indexOf('택배사가 달라')).toBeLessThan(html.indexOf('<h2>한진택배 배송</h2>'));
     expect(html).not.toContain('김포');expect(html).not.toContain('남양주');
     expect(html).toContain('38,000원 더 담으면');expect(html).toContain('21,000원 더 담으면');
     expect(html).toContain('₩7,000');expect(html).toContain('₩28,000');
+  });
+  it('묶음이 하나면 이유 줄 없이 택배사 이름만, 택배사를 모르면 택배 배송으로 부른다', () => {
+    const one=render([{goodId:'g13',variantId:DEFAULT_VARIANT,qty:1}]);
+    expect(one).toContain('<h2>택배 배송</h2>');
+    expect(one).not.toContain('배송비가 각각 계산됩니다');
+    mocks.quote={...defaultQuote,groups:[{...gimpoGroup,carrierLabel:'한진택배'}]};
+    expect(render([{goodId:'g13',variantId:DEFAULT_VARIANT,qty:1}])).toContain('<h2>한진택배 배송</h2>');
   });
   it('blocks checkout while the current cart has no server quote', () => {
     mocks.quote=null;

@@ -40,9 +40,19 @@ describe('non-parcel customer shipment display', () => {
 describe('origin names on customer and admin shipment displays', () => {
   it('labels customer shipments as delivery bundles and keeps origin names for operators', () => {
     const one = renderToStaticMarkup(<ShipmentDetails shipments={[shipmentFixture()]} />);
-    expect(one).toContain('<h3>배송 묶음 · 배송 중</h3>'); expect(one).toContain('>배송조회</a>'); expect(one).not.toContain('김포');
+    expect(one).toContain('<h3>한진택배 배송 · 배송 중</h3>'); expect(one).toContain('>배송조회</a>'); expect(one).not.toContain('김포');
     const admin = renderToStaticMarkup(<ShipmentDetails admin shipments={[shipmentFixture()]} />);
     expect(admin).toContain('<h3>김포 · 배송 중</h3>'); expect(admin).toContain('김포 배송조회');
+  });
+
+  /* R26: 배송 건의 택배사를 알면 장바구니와 같은 규칙, 모르면(발송 전·택배 아님) 기존 '배송 묶음 N'. */
+  it('names customer shipments by their carrier when known and keeps the bundle number otherwise', () => {
+    const two = renderToStaticMarkup(<ShipmentDetails shipments={[shipmentFixture(), shipmentFixture({ id: '00000000-0000-4000-8000-000000044702', carrier: null, carrierLabel: null, status: 'ready', trackingNumber: null, trackingUrl: null })]} />);
+    expect(two).toContain('<h3>한진택배 배송 · 배송 중</h3>');
+    expect(two).toContain('<h3>배송 묶음 2 · 배송 준비</h3>');
+    expect(two).toContain('한진택배 배송 배송조회');
+    const pickup = renderToStaticMarkup(<ShipmentDetails shipments={[shipmentFixture({ status: 'ready', delivery: shipmentDeliveryFixture() })]} />);
+    expect(pickup).not.toContain('한진택배 배송');
   });
 
   it('shows the 16-digit shipment number used by mails and delay notices instead of the raw id', () => {

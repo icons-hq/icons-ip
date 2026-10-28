@@ -35,7 +35,7 @@ import { shippingFeeLabel } from '@/lib/shipping';
 import { addressBookEntryToCheckout, checkoutAddressPrefillNotice, sameCheckoutDestination, type AddressBookEntry, type CheckoutAddressPrefill } from '@/lib/address-book';
 import { useShippingQuote } from '@/components/shop/useShippingQuote';
 import { ShippingGroupSummary } from '@/components/shop/ShippingGroupSummary';
-import { shippingGroupLabel } from '@/lib/fulfillment';
+import { shippingGroupLabel, shippingGroupsNotice } from '@/lib/fulfillment';
 import { parseShippingDestination } from '@/lib/shipping-regions';
 import { orderCompleteHref } from '@/lib/routes';
 
@@ -441,7 +441,8 @@ export function Checkout({
             {(requestedStoreCredits ?? 0) > 0 && <button type="button" onClick={() => setStoreCreditInput('')}>적립금 사용 취소</button>}
           </fieldset>
 
-          {shipping.quote?.groups.map((group, index, groups) => <section className="wc-shipping-group" key={group.originId}><h3>{shippingGroupLabel(index, groups.length)}</h3><ShippingGroupSummary group={group} /></section>)}
+          {shipping.quote && shippingGroupsNotice(shipping.quote.groups) ? <p className="money-caption">{shippingGroupsNotice(shipping.quote.groups)}</p> : null}
+          {shipping.quote?.groups.map((group, index, groups) => <section className="wc-shipping-group" key={group.originId}><h3>{shippingGroupLabel(groups, index)}</h3><ShippingGroupSummary group={group} /></section>)}
           {shipping.loading ? <p role="status">현재 가격과 배송비를 확인하고 있어요.</p> : null}
           {shipping.error ? <div role="alert"><p>{shipping.error}</p><button type="button" onClick={shipping.refresh}>가격·배송비 다시 확인</button></div> : null}
           {purchaseProblem ? <p className="checkout-error" role="alert">{purchaseProblem}
