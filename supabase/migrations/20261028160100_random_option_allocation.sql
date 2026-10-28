@@ -9,6 +9,8 @@
 --   extensions.gen_random_bytes 4바이트를 거부 추출해 [0, 남은 합계) 균등 정수로 쓴다(random()은 암호학적 난수가 아니다).
 --   옵션별로 묶어 change_goods_variant_stock(-k)와 order_items(variant_id=배정 옵션, option_sale_mode_snapshot='random')를
 --   만들고, 증빙 private.order_item_random_allocations(풀 스냅샷·추출 근거)와 감사 order.random_option_allocated를 남긴다.
+--   추출 근거는 루프에서 배열로 모아 끝에 한 번만 jsonb로 만들고, 배정 행마다 그 옵션에 떨어진 추출만 담는다(중복 저장 없음).
+--   같은 draw_id의 행을 step 순으로 합치면 전체 추출 순서다. 그래서 비용은 수량에 선형이고 잠금을 오래 쥐지 않는다.
 --   checkout_key 재생은 배정보다 앞에서 끝나므로 같은 요청 재시도는 다시 뽑지 않는다. 실패하면 트랜잭션 전체가 롤백된다.
 --   재고 복원·어드민 주문·출고 파일·ERP 식별자는 order_items.variant_id(배정 옵션)를 그대로 쓴다.
 --
@@ -54,6 +56,9 @@ create table private.order_item_random_allocations (
   allocated_at timestamptz not null default clock_timestamp()
 );
 create index order_item_random_allocations_order_idx on private.order_item_random_allocations(order_id);
+comment on column private.order_item_random_allocations.pool_before is '배정 직전 활성 옵션 풀(variantId·availableQty, id 순). 같은 draw_id의 행은 같은 값이다.';
+comment on column private.order_item_random_allocations.draws is
+  '이 행(배정 옵션)에 떨어진 추출만 step 순으로 담는다({step,roll,bound,variantId}). 같은 draw_id의 행을 step 순으로 합치면 전체 추출 순서다.';
 alter table private.order_item_random_allocations enable row level security;
 revoke all on table private.order_item_random_allocations from public,anon,authenticated,service_role;
 
@@ -227,7 +232,8 @@ create function private.allocate_random_option_items(p_order_id uuid,p_user_id u
 language plpgsql security definer set search_path='' as $$
 declare good public.goods; key_price record; candidate record; supply record; price record;
   pool_ids uuid[]:='{}'; pool_left integer[]:='{}'; pool_before jsonb:='[]'; counts integer[];
-  remaining bigint:=0; roll bigint; walk bigint; slot integer; draws jsonb:='[]'; allocated jsonb:='[]';
+  remaining bigint:=0; roll bigint; walk bigint; slot integer; allocated jsonb:='[]';
+  draw_rolls bigint[]; draw_bounds bigint[]; draw_slots integer[]; slot_draws jsonb[];
   draw uuid:=pg_catalog.gen_random_uuid(); item_id uuid; subtotal bigint:=0; step integer;
   rng constant text:='pgcrypto.gen_random_bytes:rejection';
 begin
@@ -253,13 +259,22 @@ begin
   if cardinality(pool_ids)<2 then raise check_violation using message=format('random_option_unavailable: %s',p_good_id); end if;
   if remaining<p_qty then raise check_violation using message=format('out of stock: %s',p_good_id); end if;
   counts:=array_fill(0,array[cardinality(pool_ids)]);
+  -- 추출 근거는 고정 길이 배열에 모은다(원소 대입은 제자리라 수량에 선형). jsonb 변환은 루프 뒤 한 번이다.
+  draw_rolls:=array_fill(0::bigint,array[p_qty]); draw_bounds:=array_fill(0::bigint,array[p_qty]); draw_slots:=array_fill(0,array[p_qty]);
   for step in 1..p_qty loop
     roll:=private.random_below(remaining);
     walk:=roll; slot:=1;
     while walk>=pool_left[slot] loop walk:=walk-pool_left[slot]; slot:=slot+1; end loop;
-    draws:=draws||jsonb_build_array(jsonb_build_object('step',step,'roll',roll,'bound',remaining,'variantId',pool_ids[slot]));
+    draw_rolls[step]:=roll; draw_bounds[step]:=remaining; draw_slots[step]:=slot;
     pool_left[slot]:=pool_left[slot]-1; counts[slot]:=counts[slot]+1; remaining:=remaining-1;
   end loop;
+  -- 배정 행마다 그 옵션에 떨어진 추출만 담는다(같은 근거를 행마다 복사하지 않는다). 풀 순서(slot)대로 한 번에 묶는다.
+  select array_agg(coalesce(grouped.steps,'[]'::jsonb) order by slot_index.value) into slot_draws
+  from generate_series(1,cardinality(pool_ids)) slot_index(value)
+  left join (select drawn.slot_no,jsonb_agg(jsonb_build_object('step',drawn.step,'roll',drawn.roll,'bound',drawn.bound,
+        'variantId',pool_ids[drawn.slot_no]) order by drawn.step) steps
+      from unnest(draw_rolls,draw_bounds,draw_slots) with ordinality drawn(roll,bound,slot_no,step)
+      group by drawn.slot_no) grouped on grouped.slot_no=slot_index.value;
   for slot in 1..cardinality(pool_ids) loop
     continue when counts[slot]=0;
     select * into price from private.resolve_goods_variant_price(pool_ids[slot],p_at);
@@ -272,7 +287,7 @@ begin
     returning id into item_id;
     insert into private.order_item_random_allocations(order_item_id,order_id,user_id,good_id,draw_id,cart_item_id,cart_variant_id,
       variant_id,qty,pool_before,draws,rng)
-    values(item_id,p_order_id,p_user_id,p_good_id,draw,p_cart_item_id,p_cart_variant_id,pool_ids[slot],counts[slot],pool_before,draws,rng);
+    values(item_id,p_order_id,p_user_id,p_good_id,draw,p_cart_item_id,p_cart_variant_id,pool_ids[slot],counts[slot],pool_before,slot_draws[slot],rng);
     allocated:=allocated||jsonb_build_array(jsonb_build_object('orderItemId',item_id,'variantId',pool_ids[slot],'qty',counts[slot]));
     subtotal:=subtotal+price.effective_price::bigint*counts[slot];
   end loop;
