@@ -201,6 +201,10 @@
   .wc-admin .admin-goods-inline__input { min-height: 44px; width: 100%; }
   .wc-admin .admin-goods-inline__save, .wc-admin .admin-goods-inline__link, .wc-admin .admin-goods-inline__value { min-height: 44px; }
 }
+/* 인쇄에서는 고정 칸이 static이 되어 덮개가 칸 밖으로 번지므로 덮개를 걷는다(누를 일도 없다). */
+@media print {
+  .wc-admin .admin-goods-inline--cell .admin-goods-inline__value::after { content: none; }
+}
 @media (forced-colors: active) {
   .wc-admin .admin-goods-inline__value { border-color: CanvasText; }
   .wc-admin .admin-goods-inline__save { border-color: CanvasText; }

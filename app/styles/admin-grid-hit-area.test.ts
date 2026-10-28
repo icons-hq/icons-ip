@@ -40,3 +40,15 @@ describe('상품 목록 바로 수정 값 버튼', () => {
     expect(declarations('./admin-goods-worklist.css', '.wc-admin .admin-console-grid-table td:has(.admin-goods-inline--cell) a')).toEqual({});
   });
 });
+
+describe('인쇄', () => {
+  /*
+   * 인쇄에서는 틀고정 칸이 `position: static`이 되어(admin-console-controls.css) 칸이 절대배치의 기준 상자가 아니다.
+   * 칸 전체 클릭 영역(체크박스 label, 바로 수정 덮개)은 인쇄에서 쓸 일이 없으므로 흐름 배치로 되돌린다(리뷰 T4-R11-2).
+   */
+  it('체크박스 클릭 영역과 바로 수정 덮개는 칸 밖으로 번지지 않는다', () => {
+    expect(declarations('./admin-console-controls.css', '.wc-admin .admin-console-grid-table :is(th, td)[data-frozen]', 'print')).toMatchObject({ position: 'static' });
+    expect(declarations('./wc-admin-surfaces.css', '.wc-admin .admin-console-grid-check-hit', 'print')).toMatchObject({ position: 'static' });
+    expect(declarations('./admin-goods-worklist.css', '.wc-admin .admin-goods-inline--cell .admin-goods-inline__value::after', 'print')).toMatchObject({ content: 'none' });
+  });
+});
