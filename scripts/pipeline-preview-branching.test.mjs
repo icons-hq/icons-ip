@@ -193,7 +193,9 @@ describe('Supabase preview branch workflow contract', () => {
     const check = findStep(job, 'Check shared preview sync secrets');
 
     expect(job.needs).toEqual(['deploy-supabase', 'deploy-vercel']);
-    expect(job.if).toBe("github.event_name == 'push' && github.ref == 'refs/heads/main'");
+    expect(job.if.replace(/\s+/g, ' ').trim()).toBe(
+      "!cancelled() && needs.deploy-supabase.result == 'success' && needs.deploy-vercel.result == 'success' && github.event_name == 'push' && github.ref == 'refs/heads/main'",
+    );
     expect(freshness.run).toContain('git fetch --no-tags origin main');
     expect(freshness.run).toContain('current_main_sha="$(git rev-parse origin/main)"');
     expect(freshness.run).toContain('[ "$GITHUB_SHA" != "$current_main_sha" ]');
