@@ -8,7 +8,7 @@ import { SELLER_CLAIM_COLLECTION_METHODS, SELLER_CLAIM_SOURCES, sellerClaimBlock
   sellerClaimReceiptMatchesInput,
   type SellerClaimAddress, type SellerClaimContext, type SellerClaimInput, type SellerClaimReceipt } from '@/lib/admin/seller-claim-intake';
 import { formatOrderDateTime, ORDER_WITHDRAWAL_REASON_LABELS, orderReferenceLabel } from '@/lib/orders';
-import { ORDER_CLAIM_STAGE_LABELS, ORDER_CLAIM_TYPE_SLUGS, ORDER_CLAIM_TYPE_LABELS } from '@/lib/orders/claims';
+import { ORDER_CLAIM_BUYER_REASON_TYPES, ORDER_CLAIM_STAGE_LABELS, ORDER_CLAIM_TYPE_SLUGS, ORDER_CLAIM_TYPE_LABELS } from '@/lib/orders/claims';
 import { selectableShippingCarriers, type ShippingCarrierRegistry } from '@/lib/orders/shipment';
 import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import { formatKrwExact } from '@/components/admin/format';
@@ -102,8 +102,8 @@ export function SellerClaimIntakeForm({ context, carriers, onClose }: {
         <fieldset disabled={locked}>
           <legend>요청 내용</legend>
           <div className="admin-seller-claim-intake__fields">
-            <label htmlFor="seller-claim-type">접수 유형<select id="seller-claim-type" value={input.claimType} onChange={event => update({ claimType: event.target.value as SellerClaimInput['claimType'], refundAccount: null, agreementConfirmed: false })}>{cancellation ? <option value="cancel">취소 · 주문 전체</option> : <><option value="return">반품 · 주문 전체</option>{!context.digitalExchangeBlocked ? <option value="exchange">교환 · 주문 전체</option> : null}</>}</select></label>
-            <label htmlFor="seller-claim-reason-type">신청 사유 구분<select id="seller-claim-reason-type" value={input.reasonType} onChange={event => change('reasonType', event.target.value as SellerClaimInput['reasonType'])}>{Object.entries(ORDER_WITHDRAWAL_REASON_LABELS).map(([value, label]) => <option key={value} value={value}>{adminGoodsCopy(label)}</option>)}</select></label>
+            <label htmlFor="seller-claim-type">접수 유형<select id="seller-claim-type" value={input.claimType} onChange={event => { const claimType = event.target.value as SellerClaimInput['claimType']; update({ claimType, refundAccount: null, agreementConfirmed: false, ...(ORDER_CLAIM_BUYER_REASON_TYPES[claimType].includes(input.reasonType) ? {} : { reasonType: 'change_of_mind' }) }); }}>{cancellation ? <option value="cancel">취소 · 주문 전체</option> : <><option value="return">반품 · 주문 전체</option>{!context.digitalExchangeBlocked ? <option value="exchange">교환 · 주문 전체</option> : null}</>}</select></label>
+            <label htmlFor="seller-claim-reason-type">신청 사유 구분<select id="seller-claim-reason-type" value={input.reasonType} onChange={event => change('reasonType', event.target.value as SellerClaimInput['reasonType'])}>{ORDER_CLAIM_BUYER_REASON_TYPES[input.claimType].map(value => <option key={value} value={value}>{adminGoodsCopy(ORDER_WITHDRAWAL_REASON_LABELS[value])}</option>)}</select></label>
             <label className="admin-seller-claim-intake__wide" htmlFor="seller-claim-reason">접수 사유<textarea id="seller-claim-reason" required maxLength={200} rows={3} value={input.reason} onChange={event => change('reason', event.target.value)} /></label>
           </div>
           {blocked ? <p className="admin-seller-claim-intake__error" role="status">{blocked}</p> : null}

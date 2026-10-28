@@ -18,6 +18,8 @@ export const GOOD_TYPES = [
   '쿠션',
   '파우치',
   '세트',
+  /* MD-0003(R10): 위 분류에 맞지 않는 상품. 20261028131000_goods_type_other.sql에서 CHECK·필터 RPC와 함께 추가했다. */
+  '기타',
 ] as const;
 
 export type GoodType = (typeof GOOD_TYPES)[number];

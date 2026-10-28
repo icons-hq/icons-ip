@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { loadAdminGoodsList } from './goods-list.server';
 import { goodsConsoleFilterValues, normalizeGoodsListFilters } from './goods-list';
-const mocks = vi.hoisted(() => ({ rpc: vi.fn(), from: vi.fn() }));
+const mocks = vi.hoisted(() => ({ rpc: vi.fn(), from: vi.fn(), visible: [] as string[], visibleError: false, selects: [] as string[], filters: [] as string[] }));
 const priceStates = [{ id: 'g1', price: 12000, compareAtPrice: null, activeDiscountEndsAt: null }, { id: 'g2', price: 9000, compareAtPrice: 11000, activeDiscountEndsAt: '2026-10-30T00:00:00Z' }];
 vi.mock('@/lib/supabase/server', () => ({ createClient: async () => ({ ...mocks, rpc: (name: string, args: unknown) => ['admin_goods_ip_options', 'admin_goods_origin_options'].includes(name) ? Promise.resolve({ data: [], error: null })
   : name === 'admin_goods_list_price_states' ? Promise.resolve({ data: priceStates, error: null }) : mocks.rpc(name, args) }) }));
@@ -14,11 +14,15 @@ const counts = { all: 1000, active: 900, draft: 600, published: 300, archived: 1
 const row = { id: 'g1', code: 'CODE-1', name: '상품', ipId: 'ip', ipTitle: 'IP', imagePath: null, categoryName: '문구',
   publishedAt: null, archivedAt: null, stock: 'ok', stockQty: 0, readiness: decision };
 beforeEach(() => {
-  vi.clearAllMocks();
+  vi.clearAllMocks(); mocks.visible = []; mocks.visibleError = false; mocks.selects = []; mocks.filters = [];
   mocks.from.mockImplementation((table: string) => {
-    const rows = table === 'goods_variants' ? [{ id: 'v1', good_id: 'g1', stock_qty: 7 }, { id: 'v2', good_id: 'g2', stock_qty: 1 }, { id: 'v3', good_id: 'g2', stock_qty: 2 }] : [];
-    const result = Promise.resolve({ data: rows, error: null });
-    const builder = { select: () => builder, order: () => builder, in: () => builder, is: () => builder,
+    const rows = table === 'goods_variants' ? [{ id: 'v1', good_id: 'g1', stock_qty: 7 }, { id: 'v2', good_id: 'g2', stock_qty: 1 }, { id: 'v3', good_id: 'g2', stock_qty: 2 }]
+      : table === 'goods' ? mocks.visible.map(id => ({ id })) : [];
+    const result = Promise.resolve(table === 'goods' && mocks.visibleError ? { data: null, error: { message: 'denied' } } : { data: rows, error: null });
+    const builder = { select: (columns: string) => { mocks.selects.push(`${table}:${columns}`); return builder; }, order: () => builder, in: () => builder,
+      is: (column: string, value: unknown) => { mocks.filters.push(`${table}:is:${column}:${value}`); return builder; },
+      not: (column: string, op: string, value: unknown) => { mocks.filters.push(`${table}:not:${column}:${op}:${value}`); return builder; },
+      eq: (column: string, value: unknown) => { mocks.filters.push(`${table}:eq:${column}:${value}`); return builder; },
       limit: () => result, range: () => Promise.resolve({ data: [], error: null }), then: result.then.bind(result) };
     return builder;
   });
@@ -39,7 +43,19 @@ describe('goods workspace server boundary', () => {
     expect(mocks.rpc).toHaveBeenCalledWith('admin_search_goods_console', { p_query: 'CODE', p_ip_id: 'ip', p_status: 'draft', p_stock: 'soldout',
       p_category_id: '00000000-0000-4000-8000-000000000001', p_readiness: 'stock_unavailable', p_filters: goodsConsoleFilterValues(normalizeGoodsListFilters({})), p_limit: 20, p_offset: 20 });
     // Besides the category filter, only the current page's base prices and active options are read (inline edit).
-    expect(mocks.from.mock.calls.map(call => call[0]).sort()).toEqual(['catalog_categories', 'goods_variants']);
+    expect(mocks.from.mock.calls.map(call => call[0]).sort()).toEqual(['catalog_categories', 'goods', 'goods_variants']);
+  });
+  it('상품번호 링크 목적지: 고객 화면과 같은 공개 조건(전시·미보관·판매 제한 없음·IP 공개)을 만족하는 상품만 고객 화면으로 연다', async () => {
+    mocks.visible = ['g1'];
+    mocks.rpc.mockResolvedValue({ data: { statusCounts: counts, rows: [row, { ...row, id: 'g2' }], total: 2 }, error: null });
+    const result = await loadAdminGoodsList(normalizeGoodsListFilters({}));
+    expect(result.goods.map(good => [good.id, good.customerVisible])).toEqual([['g1', true], ['g2', false]]);
+    expect(mocks.selects).toContain('goods:id,ips!inner(id)');
+    for (const filter of ['goods:is:archived_at:null', 'goods:not:published_at:is:null', 'goods:eq:sale_restriction:none', 'goods:is:ips.archived_at:null', 'goods:not:ips.published_at:is:null'])
+      expect(mocks.filters).toContain(filter);
+    // 읽기에 실패하면 모두 미리보기로 보낸다(목록은 그대로).
+    mocks.visibleError = true;
+    expect((await loadAdminGoodsList(normalizeGoodsListFilters({}))).goods.map(good => good.customerVisible)).toEqual([false, false]);
   });
   it('enables inline stock editing only for goods with exactly one active option', async () => {
     mocks.rpc.mockResolvedValue({ data: { statusCounts: counts, rows: [row, { ...row, id: 'g2' }], total: 2 }, error: null });

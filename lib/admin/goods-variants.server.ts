@@ -9,7 +9,7 @@ export async function loadAdminGoodsVariants(goodId?: string): Promise<AdminGood
   const pageSize = 1000;
   for (let offset = 0; ; offset += pageSize) {
     let query = supabase.from('goods_variants')
-      .select('id,code,good_id,name,attributes,price,stock_qty,low_stock_threshold,is_default,archived_at,updated_at')
+      .select('id,code,good_id,name,attributes,price,stock_qty,low_stock_threshold,is_default,archived_at,updated_at,order_max_qty,member_max_qty')
       .order('good_id').order('sort_order').order('id');
     if (goodId) query = query.eq('good_id', goodId);
     const { data, error } = await query.range(offset, offset + pageSize - 1);
@@ -18,6 +18,8 @@ export async function loadAdminGoodsVariants(goodId?: string): Promise<AdminGood
       attributes: row.attributes, id: row.id, code: row.code, goodId: row.good_id, name: row.name, price: row.price,
       stockQty: row.stock_qty, lowStockThreshold: row.low_stock_threshold,
       isDefault: row.is_default, archivedAt: row.archived_at, updatedAt: row.updated_at,
+      /* D7② 옵션별 구매 제한. 읽어 온 값(null = 제한 없음)이 저장 행 JSON의 키로 그대로 돌아간다. */
+      orderMaxQty: row.order_max_qty ?? null, memberMaxQty: row.member_max_qty ?? null,
     })));
     if (!data || data.length < pageSize) break;
   }

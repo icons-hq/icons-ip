@@ -45,6 +45,20 @@ describe('applyCouponCodeAction', () => {
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/cart');
   });
 
+  /* R25: 주문서도 같은 선택 상태를 보인다 — 주문서에서 바꾸면 주문서 화면이 같은 응답으로 다시 그려져 재견적한다. */
+  it('장바구니와 주문서를 함께 재검증한다', async () => {
+    await applyCouponCodeAction('WELCOME-5000');
+    expect(mocks.revalidatePath).toHaveBeenCalledWith('/cart');
+    expect(mocks.revalidatePath).toHaveBeenCalledWith('/checkout');
+  });
+
+  it('배송비 쿠폰 거절은 화면이 계약별 문구를 고를 수 있게 표시한다', async () => {
+    mocks.rpc.mockResolvedValue({ error: { message: 'coupon_checkout_required' } });
+    const result = await applyCouponCodeAction('SHIP-FREE');
+    expect(result).toMatchObject({ ok: false, shippingCoupon: true });
+    expect(result.pendingOrder).toBeUndefined();
+  });
+
   it('로그인 전에는 RPC를 부르지 않는다', async () => {
     mocks.auth = { isConfigured: true, user: null };
 
@@ -80,6 +94,8 @@ describe('applyCouponAction', () => {
 
     expect(result).toEqual({ ok: true });
     expect(mocks.rpc).toHaveBeenCalledWith('apply_cart_coupon', { p_user_coupon_id: userCouponId });
+    expect(mocks.revalidatePath).toHaveBeenCalledWith('/cart');
+    expect(mocks.revalidatePath).toHaveBeenCalledWith('/checkout');
   });
 
   it('uuid가 아닌 입력은 RPC 전에 거른다', async () => {
@@ -106,6 +122,7 @@ describe('clearCouponAction', () => {
     expect(result).toEqual({ ok: true });
     expect(mocks.rpc).toHaveBeenCalledWith('clear_cart_coupon');
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/cart');
+    expect(mocks.revalidatePath).toHaveBeenCalledWith('/checkout');
   });
 
   it('알 수 없는 실패는 일반 문구로 접는다', async () => {

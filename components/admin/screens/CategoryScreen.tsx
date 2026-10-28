@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { MarketingLinkIssuer } from '../marketing/MarketingLinkIssuer';
 import { AdminPageHeader, AdminSectionCard, AdminStatusBadge } from '../console/AdminKit';
 import { CategoryAssignmentField } from '../CategoryAssignmentField';
+import { CategoryBulkCreatePanel } from '../CategoryBulkCreatePanel';
 import { CategoryTree } from '../CategoryTree';
 import { AdminSelect } from '../console/AdminSelect';
 import {
@@ -114,7 +115,8 @@ function AssignmentForm({ categories }: { categories: AdminCategoryNode[] }) {
     <input name="operationId" type="hidden" value="" />
     <input name="expectedUpdatedAt" type="hidden" value="" />
     <label className="col" style={{ gap: 5 }}>{adminGoodsCopy("굿즈 ID")}<input className="admin-field-control" name="goodId" placeholder="goods-id" required /></label>
-    <CategoryAssignmentField categories={categories} error={state.errors?.categoryId} />
+    {/* 이 화면 위에 일괄 등록·새 카테고리 카드가 있어 0건 안내가 같은 화면을 새 탭으로 열지 않게 한다. */}
+    <CategoryAssignmentField categories={categories} error={state.errors?.categoryId} emptyGuide="here" />
     {state.errors?.form ? <p role="alert" style={{ color: 'var(--pink)', margin: 0 }}>{state.errors.form}</p> : null}
     {state.message ? <p role="status" style={{ color: 'var(--mint)', margin: 0 }}>{state.message}</p> : null}
     <button className="wc-admin-kit__button" disabled={pending} type="submit">{pending ? '저장 중' : '대표 분류 저장'}</button>
@@ -127,12 +129,13 @@ export function CategoryScreen({ data, legacyTypes = [], canManagePlatform = tru
   return <section className="wc-admin-kit wc-admin-kit__screen">
     <AdminPageHeader title="고객 카테고리" description="최대 4단계 트리와 상품의 대표·추가 말단 분류를 관리합니다. 기존 유형과 미분류 상품은 계속 유지됩니다." actions={<Link className="wc-admin-kit__button" href={categoryExportHref()}>{canManagePlatform ? '분류·ERP CSV' : '분류 CSV'}</Link>} />
     {canManagePlatform ? <AdminSectionCard title="활성화 상태"><AdminStatusBadge tone={data.activation.customerEnabled ? 'success' : 'neutral'}>{categoryActivationLabel(data.activation)}</AdminStatusBadge><ActivationForm activation={data.activation} /></AdminSectionCard> : null}
+    <AdminSectionCard title="카테고리 일괄 등록"><CategoryBulkCreatePanel /></AdminSectionCard>
     <div className="admin-master-detail">
       <AdminSectionCard title={`카테고리 트리 ${data.categories.length}개`}><CategoryTree categories={data.categories} /></AdminSectionCard>
       <div className="col" style={{ gap: 16 }}><AdminSectionCard title="새 카테고리"><CategoryForm categories={data.categories} /></AdminSectionCard>{data.categories.map((category) => <AdminSectionCard key={category.id} title={`${category.name} · ${category.code}`}><CategoryForm category={category} categories={data.categories} /><ArchiveForm category={category} /><MarketingLinkIssuer source="category" targetIds={[category.id]} /></AdminSectionCard>)}</div>
     </div>
     {canManagePlatform ? <AdminSectionCard title={`ERP 분류 매핑 ${activeLeaves.length}개 말단`}><p className="muted">실제 ERP 코드·품명·출처·검증 시각이 없는 매핑은 활성화하지 않습니다. 미매핑은 export에서 미설정으로 표시합니다.</p>{activeLeaves.map((category) => <MappingForm category={category} key={category.id} mapping={mappings.get(category.id)} />)}</AdminSectionCard> : null}
-    {canManagePlatform ? <AdminSectionCard title="기존 8종 이관 메모"><p className="muted">유사 이름으로 자동 이관하지 않습니다. 확인된 항목만 선택적으로 기록하며, 전체 category 기능의 활성화 조건은 아닙니다.</p><MigrationForm categories={data.categories} types={legacyTypes} />{data.migrations.length ? <ul>{data.migrations.map((migration) => <li key={migration.type}>{migration.type} · {migration.status} · {migration.categoryId ?? '미설정'}</li>)}</ul> : null}</AdminSectionCard> : null}
+    {canManagePlatform ? <AdminSectionCard title="기존 유형 이관 메모"><p className="muted">유사 이름으로 자동 이관하지 않습니다. 확인된 항목만 선택적으로 기록하며, 전체 category 기능의 활성화 조건은 아닙니다.</p><MigrationForm categories={data.categories} types={legacyTypes} />{data.migrations.length ? <ul>{data.migrations.map((migration) => <li key={migration.type}>{migration.type} · {migration.status} · {migration.categoryId ?? '미설정'}</li>)}</ul> : null}</AdminSectionCard> : null}
     <AdminSectionCard title={adminGoodsCopy("굿즈 기본 카테고리 적용")}><p className="muted">대표 분류 하나를 바로 변경합니다. 추가 분류는 상품 편집에서 확인하고 저장하며 ERP는 대표 분류를 사용합니다.</p><AssignmentForm categories={data.categories} /></AdminSectionCard>
   </section>;
 }

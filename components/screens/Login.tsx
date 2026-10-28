@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { useActionState, useId, useState, type KeyboardEvent as ReactKeyboardEvent } from 'react';
+import { useActionState, useId, useState, useSyncExternalStore, type FormEvent, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import {
   requestPasswordResetAction,
   signInWithEmailAction,
@@ -23,9 +23,51 @@ interface LoginProps {
 
 const emptyState: AuthActionState = {};
 
+/* '이메일 저장'(R29 · MD-0004) — 이 기기 localStorage 에 이메일만 둔다. 비밀번호·세션은 저장하지 않는다
+   (로그인 유지는 이미 @supabase/ssr 기본 쿠키가 한다). 저장소를 못 쓰는 브라우저에서는 조용히 넘어간다. */
+export const SAVED_LOGIN_EMAIL_KEY = 'icons:login:saved-email';
+const MAX_SAVED_EMAIL_LENGTH = 254;
+const savedEmailListeners = new Set<() => void>();
+
+function savableEmail(value: string): string | null {
+  const email = value.trim();
+  return email.length <= MAX_SAVED_EMAIL_LENGTH && /^[^\s@]+@[^\s@]+$/.test(email) ? email : null;
+}
+
+export function readSavedLoginEmail(): string | null {
+  try {
+    const value = window.localStorage.getItem(SAVED_LOGIN_EMAIL_KEY);
+    return value === null ? null : savableEmail(value);
+  } catch {
+    return null;
+  }
+}
+
+/** 로그인 제출 직전(서버 redirect 전)에 부른다 — 체크했으면 이메일을 남기고, 해제했으면 지운다. */
+export function saveLoginEmailChoice(email: string, remember: boolean): void {
+  try {
+    const value = remember ? savableEmail(email) : null;
+    if (value) window.localStorage.setItem(SAVED_LOGIN_EMAIL_KEY, value);
+    else window.localStorage.removeItem(SAVED_LOGIN_EMAIL_KEY);
+  } catch {
+    /* 사생활 보호 모드 등 — 이 기기에 남기지 않을 뿐 로그인은 그대로 진행한다. */
+  }
+  savedEmailListeners.forEach((listener) => listener());
+}
+
+function subscribeSavedLoginEmail(listener: () => void) {
+  savedEmailListeners.add(listener);
+  window.addEventListener('storage', listener);
+  return () => {
+    savedEmailListeners.delete(listener);
+    window.removeEventListener('storage', listener);
+  };
+}
+
 function Field({
   error,
   autoComplete,
+  defaultValue,
   label,
   name,
   placeholder,
@@ -33,6 +75,8 @@ function Field({
 }: {
   error?: string;
   autoComplete: string;
+  /** 비제어 입력의 처음 값 — 폼 액션이 끝나 폼이 초기화돼도 이 값으로 돌아온다. */
+  defaultValue?: string;
   label: string;
   name: string;
   placeholder: string;
@@ -59,6 +103,7 @@ function Field({
           aria-label={label}
           autoComplete={autoComplete}
           aria-describedby={describedBy}
+          defaultValue={defaultValue}
           aria-invalid={Boolean(error)}
           id={inputId}
           name={name}
@@ -116,6 +161,16 @@ export function Login({ initialError, initialMessage, initialMode, isConfigured,
 
   const isSignUp = initialMode === 'signup';
   const isReset = initialMode === 'reset';
+  const isSignIn = !isSignUp && !isReset;
+  /* 서버 렌더·하이드레이션은 null 이고, 이 기기에 저장된 이메일은 그 뒤에 읽는다 — 키가 바뀌어 이메일 칸이 그 값으로 다시 선다. */
+  const savedEmail = useSyncExternalStore(subscribeSavedLoginEmail, readSavedLoginEmail, () => null);
+  const [rememberChoice, setRememberChoice] = useState<boolean | null>(null);
+  const rememberEmail = rememberChoice ?? Boolean(savedEmail);
+  const rememberOnSubmit = (event: FormEvent<HTMLFormElement>) => {
+    if (!isSignIn) return;
+    const email = new FormData(event.currentTarget).get('email');
+    saveLoginEmailChoice(typeof email === 'string' ? email : '', rememberEmail);
+  };
   const state = isReset ? resetState : isSignUp ? signUpState : signInState;
   const pending = isReset ? resetPending : isSignUp ? signUpPending : signInPending;
   const formError = state.errors?.form
@@ -144,9 +199,18 @@ export function Login({ initialError, initialMessage, initialMode, isConfigured,
           </p>
         ) : null}
 
-        <form action={isReset ? resetAction : isSignUp ? signUpAction : signInAction} className="wc-auth__form">
+        <form action={isReset ? resetAction : isSignUp ? signUpAction : signInAction} className="wc-auth__form" onSubmit={rememberOnSubmit}>
           <input type="hidden" name="next" value={next} />
-          <Field autoComplete="email" error={state.errors?.email} label="이메일" name="email" placeholder="이메일" type="email" />
+          <Field
+            autoComplete="email"
+            defaultValue={isSignIn ? savedEmail ?? undefined : undefined}
+            error={state.errors?.email}
+            key={isSignIn ? `email:${savedEmail ?? ''}` : 'email'}
+            label="이메일"
+            name="email"
+            placeholder="이메일"
+            type="email"
+          />
           {!isReset && (
             <Field
               autoComplete={isSignUp ? 'new-password' : 'current-password'}
@@ -157,7 +221,15 @@ export function Login({ initialError, initialMessage, initialMode, isConfigured,
               type="password"
             />
           )}
-          {!isSignUp && !isReset && (
+          {isSignIn && (
+            <div className="wc-auth__agree-row">
+              <label>
+                <input checked={rememberEmail} onChange={(event) => setRememberChoice(event.target.checked)} type="checkbox" />
+                <span>이메일 저장</span>
+              </label>
+            </div>
+          )}
+          {isSignIn && (
             <p className="wc-auth__aside-link">
               <Link href={resetHref}>비밀번호를 잊으셨나요?</Link>
             </p>

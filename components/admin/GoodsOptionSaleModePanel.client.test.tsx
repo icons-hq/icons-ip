@@ -1,0 +1,172 @@
+import { isValidElement, type ReactElement, type ReactNode } from 'react';
+import { beforeEach, expect, it, vi } from 'vitest';
+
+const hooks = vi.hoisted(() => ({ state: [] as unknown[], index: 0, effects: [] as Array<() => void | (() => void)>, deps: [] as unknown[][] }));
+const mocks = vi.hoisted(() => ({ read: vi.fn(), save: vi.fn() }));
+vi.mock('react', async () => ({
+  ...await vi.importActual<typeof import('react')>('react'),
+  useEffect: (effect: () => void | (() => void), deps?: unknown[]) => { hooks.effects.push(effect); hooks.deps.push(deps ?? []); },
+  useState: (initial: unknown) => {
+    const index = hooks.index++;
+    if (!(index in hooks.state)) hooks.state[index] = initial;
+    return [hooks.state[index], (next: unknown) => { hooks.state[index] = typeof next === 'function' ? (next as (value: unknown) => unknown)(hooks.state[index]) : next; }];
+  },
+}));
+vi.mock('@/app/admin/goods-option-sale-mode-actions', () => ({ readGoodsOptionSaleModeAction: mocks.read, setGoodsOptionSaleModeAction: mocks.save }));
+import { GoodsOptionSaleModePanel } from './GoodsOptionSaleModePanel';
+
+type Element = ReactElement<{ children?: ReactNode; disabled?: boolean; value?: string; checked?: boolean;
+  onChange?: (event: unknown) => void; onSubmit?: (event: unknown) => void }>;
+function all(node: ReactNode): Element[] {
+  return Array.isArray(node) ? node.flatMap(all)
+    : isValidElement(node) ? [node as Element, ...all((node.props as { children?: ReactNode }).children)] : [];
+}
+function text(node: ReactNode): string {
+  return Array.isArray(node) ? node.map(text).join('')
+    : isValidElement(node) ? text((node.props as { children?: ReactNode }).children)
+    : typeof node === 'string' || typeof node === 'number' ? String(node) : '';
+}
+let props: { goodId: string; revision?: string; disabled?: boolean } = { goodId: 'random-main' };
+function render() { hooks.index = 0; hooks.effects = []; hooks.deps = []; return GoodsOptionSaleModePanel(props); }
+async function settle() { for (let n = 0; n < 8; n++) await Promise.resolve(); }
+async function mount() { render(); for (const effect of hooks.effects) effect(); await settle(); }
+function radio(value: string) { const found = all(render()).find((element) => element.type === 'input' && element.props.value === value); if (!found) throw new Error(value); return found; }
+function submitButton() { return all(render()).find((element) => element.type === 'button')!; }
+
+const SELECT_STATE = { goodId: 'random-main', optionSaleMode: 'select', updatedAt: '2026-10-28T01:00:00+00:00', randomProblem: null, activeOptionCount: 3 };
+
+beforeEach(() => {
+  hooks.state = []; vi.resetAllMocks(); props = { goodId: 'random-main' };
+  mocks.read.mockResolvedValue({ state: SELECT_STATE });
+});
+
+it('불러오기 전에는 안내만 보이고, 불러온 뒤 현재 판매 방식이 선택돼 있다', async () => {
+  expect(text(render())).toContain('판매 방식을 불러오는 중입니다.');
+  await mount();
+  expect(mocks.read).toHaveBeenCalledWith('random-main');
+  expect(radio('select').props.checked).toBe(true);
+  expect(radio('random').props.checked).toBe(false);
+  expect(submitButton().props.disabled).toBe(true);
+});
+
+it('랜덤 판매로 바꾸면 낙관 잠금 값과 함께 저장하고 결과 상태를 반영한다', async () => {
+  await mount();
+  radio('random').props.onChange?.({ target: { value: 'random' } });
+  expect(submitButton().props.disabled).toBe(false);
+  mocks.save.mockResolvedValue({ message: '랜덤 판매로 바꿨습니다.', state: { ...SELECT_STATE, optionSaleMode: 'random', updatedAt: '2026-10-28T01:05:00+00:00' } });
+  all(render()).find((element) => element.type === 'form')!.props.onSubmit?.({ preventDefault: () => {} });
+  await settle();
+  const form = mocks.save.mock.calls[0][1] as FormData;
+  expect(Object.fromEntries(form.entries())).toEqual({ id: 'random-main', mode: 'random', expectedUpdatedAt: SELECT_STATE.updatedAt });
+  expect(text(render())).toContain('랜덤 판매로 바꿨습니다.');
+  expect(radio('random').props.checked).toBe(true);
+});
+
+it('랜덤 조건을 못 맞추면 랜덤 선택을 막고 이유를 보여 준다', async () => {
+  mocks.read.mockResolvedValue({ state: { ...SELECT_STATE, randomProblem: 'random_option_price_mismatch' } });
+  await mount();
+  expect(radio('random').props.disabled).toBe(true);
+  expect(text(render())).toContain('판매가와 기간 할인이 같아야');
+});
+
+it('부모가 막으면(저장하지 않은 기본 정보) 바꿀 수 없다', async () => {
+  props = { goodId: 'random-main', disabled: true };
+  await mount();
+  expect(all(render()).find((element) => element.type === 'fieldset')?.props.disabled).toBe(true);
+});
+
+it('저장이 거절되면(다른 곳에서 상품 변경) 최신 상태를 다시 읽고, 다음 저장은 새 낙관 잠금 값을 쓴다', async () => {
+  await mount();
+  radio('random').props.onChange?.({ target: { value: 'random' } });
+  const T1 = '2026-10-28T01:10:00+00:00';
+  mocks.save.mockResolvedValueOnce({ error: '다른 곳에서 상품이 바뀌었습니다. 새로고침한 뒤 다시 시도하세요.' });
+  mocks.read.mockResolvedValueOnce({ state: { ...SELECT_STATE, updatedAt: T1 } });
+  all(render()).find((element) => element.type === 'form')!.props.onSubmit?.({ preventDefault: () => {} });
+  await settle();
+  expect(mocks.read).toHaveBeenCalledTimes(2);
+  expect(text(render())).toContain('최신 상태를 다시 불러왔습니다');
+  expect(radio('random').props.checked).toBe(true);
+  mocks.save.mockResolvedValueOnce({ message: '랜덤 판매로 바꿨습니다.', state: { ...SELECT_STATE, optionSaleMode: 'random', updatedAt: '2026-10-28T01:11:00+00:00' } });
+  all(render()).find((element) => element.type === 'form')!.props.onSubmit?.({ preventDefault: () => {} });
+  await settle();
+  expect(Object.fromEntries((mocks.save.mock.calls[1][1] as FormData).entries())).toMatchObject({ expectedUpdatedAt: T1 });
+  expect(text(render())).toContain('랜덤 판매로 바꿨습니다.');
+});
+
+it('다시 읽은 상태가 랜덤 조건을 못 맞추면 랜덤 선택을 현재 판매 방식으로 되돌린다', async () => {
+  await mount();
+  radio('random').props.onChange?.({ target: { value: 'random' } });
+  mocks.save.mockResolvedValueOnce({ error: '랜덤 판매 상품은 판매 중인 모든 옵션의 판매가와 기간 할인이 같아야 합니다.' });
+  mocks.read.mockResolvedValueOnce({ state: { ...SELECT_STATE, updatedAt: '2026-10-28T01:10:00+00:00', randomProblem: 'random_option_price_mismatch' } });
+  all(render()).find((element) => element.type === 'form')!.props.onSubmit?.({ preventDefault: () => {} });
+  await settle();
+  expect(radio('random').props.disabled).toBe(true);
+  expect(radio('select').props.checked).toBe(true);
+  expect(text(render())).toContain('판매가와 기간 할인이 같아야');
+});
+
+it('부모가 넘긴 상품 리비전이 바뀌면(기본 정보 저장) 판매 방식을 다시 읽는다', async () => {
+  props = { goodId: 'random-main', revision: '2026-10-28T01:00:00+00:00' };
+  render();
+  expect(hooks.deps[0]).toEqual(['random-main', '2026-10-28T01:00:00+00:00']);
+  props = { goodId: 'random-main', revision: '2026-10-28T01:20:00+00:00' };
+  render();
+  expect(hooks.deps[0]).toEqual(['random-main', '2026-10-28T01:20:00+00:00']);
+});
+
+/* 저장하면 서버가 상품 화면을 다시 그리고 goods.updated_at이 바뀌어 부모 리비전도 바뀐다. 그 재조회가 방금 저장한 상태와
+   같으면 저장 확인 문구를 지우지 않는다. 그사이 다른 곳에서 상품이 바뀌었으면 지금처럼 문구를 지우고 새 상태를 보인다. */
+async function saveRandom(savedAt: string) {
+  props = { goodId: 'random-main', revision: `${SELECT_STATE.updatedAt}:0` };
+  await mount();
+  radio('random').props.onChange?.({ target: { value: 'random' } });
+  mocks.save.mockResolvedValueOnce({ message: '랜덤 판매로 바꿨습니다.', state: { ...SELECT_STATE, optionSaleMode: 'random', updatedAt: savedAt } });
+  all(render()).find((element) => element.type === 'form')!.props.onSubmit?.({ preventDefault: () => {} });
+  await settle();
+  expect(text(render())).toContain('랜덤 판매로 바꿨습니다.');
+}
+
+it('저장 뒤 리비전이 바뀌어 다시 읽은 상태가 방금 저장한 상태와 같으면 저장 확인 문구를 유지한다', async () => {
+  const savedAt = '2026-10-28T01:05:00.123456+00:00';
+  await saveRandom(savedAt);
+  mocks.read.mockResolvedValueOnce({ state: { ...SELECT_STATE, optionSaleMode: 'random', updatedAt: savedAt } });
+  props = { goodId: 'random-main', revision: `${savedAt}:0` };
+  await mount();
+  expect(text(render())).toContain('랜덤 판매로 바꿨습니다.');
+  expect(radio('random').props.checked).toBe(true);
+});
+
+it('저장 뒤 다시 읽은 상태가 다른 곳에서 바뀌었으면 저장 확인 문구를 지우고 새 상태를 보인다', async () => {
+  const savedAt = '2026-10-28T01:05:00.123456+00:00';
+  await saveRandom(savedAt);
+  mocks.read.mockResolvedValueOnce({ state: { ...SELECT_STATE, optionSaleMode: 'select', updatedAt: '2026-10-28T01:06:00+00:00' } });
+  props = { goodId: 'random-main', revision: '2026-10-28T01:06:00+00:00:0' };
+  await mount();
+  expect(text(render())).not.toContain('랜덤 판매로 바꿨습니다.');
+  expect(radio('select').props.checked).toBe(true);
+});
+
+it('거절 문구는 리비전이 바뀌어 다시 읽으면 지운다', async () => {
+  await mount();
+  radio('random').props.onChange?.({ target: { value: 'random' } });
+  mocks.save.mockResolvedValueOnce({ error: '판매 방식을 바꾸지 못했습니다. 잠시 후 다시 시도하세요.' });
+  all(render()).find((element) => element.type === 'form')!.props.onSubmit?.({ preventDefault: () => {} });
+  await settle();
+  expect(text(render())).toContain('바꾸지 못했습니다');
+  await mount();
+  expect(text(render())).not.toContain('바꾸지 못했습니다');
+});
+
+it('운영자 안내는 고객에게 숨는 범위만 말한다(교환 재발송 옵션은 고객에게 안내된다)', () => {
+  const note = text(render());
+  expect(note).not.toContain('끝까지');
+  expect(note).toContain('옵션별 재고');
+  expect(note).toContain('교환으로 다시 보내는 상품은 보내는 옵션이 고객에게 안내됩니다.');
+});
+
+it('불러오기 오류는 경고로 보이고 폼을 그리지 않는다', async () => {
+  mocks.read.mockResolvedValue({ error: '상품 판매 방식을 바꿀 권한이 없습니다.' });
+  await mount();
+  expect(text(render())).toContain('권한이 없습니다');
+  expect(all(render()).some((element) => element.type === 'form')).toBe(false);
+});

@@ -14,7 +14,7 @@ import {
   type GoodsKcFamily, type GoodsKcScheme,
 } from '@/lib/goods-kc';
 
-function ModelFields({ model, index, variants, disabled, onChange, onRemove }: {
+export function ModelFields({ model, index, variants, disabled, onChange, onRemove }: {
   model: GoodsKcModelInput; index: number; variants: readonly GoodsKcVariant[]; disabled: boolean;
   onChange: (model: GoodsKcModelInput) => void; onRemove: () => void;
 }) {
@@ -78,9 +78,11 @@ export const GOODS_KC_NOT_APPLICABLE_ATTESTATION = '이 상품은 KC 안전인�
 /** "상품 전체 KC 해당 없음": one confirmation and one action replace the model
  * list with a single not-applicable model covering every active option, then
  * save it as reviewed through the same attested save contract. */
-function ProductNotApplicable({ variants, models, disabled, onNoteChange, onComplete }: {
+export function ProductNotApplicable({ variants, models, disabled, onNoteChange, onComplete, completeLabel = '해당 없음으로 검토 완료' }: {
   variants: readonly GoodsKcVariant[]; models: readonly GoodsKcModelInput[]; disabled: boolean;
   onNoteChange: (publicNote: string) => void; onComplete: (models: GoodsKcModelInput[]) => void;
+  /** 등록 화면은 상품과 함께 저장하므로 버튼이 '검토 완료로 채우기'다. */
+  completeLabel?: string;
 }) {
   const active = variants.filter((variant) => variant.active);
   const [confirmed, setConfirmed] = useState(false);
@@ -105,7 +107,7 @@ function ProductNotApplicable({ variants, models, disabled, onNoteChange, onComp
       <textarea aria-label="해당 없음 고객 안내" rows={2} maxLength={1000} value={note} style={{ marginTop: 8, width: '100%' }}
         onChange={(event) => (sole ? onNoteChange : setDraftNote)(event.target.value)} />
     </details>
-    <div><button type="button" className="btn" disabled={!active.length || !confirmed} onClick={complete}>해당 없음으로 검토 완료</button></div>
+    <div><button type="button" className="btn" disabled={!active.length || !confirmed} onClick={complete}>{completeLabel}</button></div>
   </fieldset>;
 }
 

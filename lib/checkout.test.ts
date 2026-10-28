@@ -110,6 +110,29 @@ describe('checkout copy and safe errors', () => {
     expect(mapPlaceOrderError('payment amount below provider minimum')).toBe('payment_below_minimum');
     expect(mapPlaceOrderError('sensitive database failure')).toBe('unavailable');
   });
+
+  it('옵션별 구매 제한 오류를 상품 단위 제한과 섞지 않는다', () => {
+    const variant = '00000000-0000-4000-8000-000000161001';
+    expect(mapPlaceOrderError(`option_order_limit_exceeded: ${variant}`)).toBe('option_order_limit_exceeded');
+    expect(mapPlaceOrderError(`option_member_limit_exceeded: ${variant}`)).toBe('option_member_limit_exceeded');
+    expect(mapPlaceOrderError('order_quantity_above_maximum: good-id')).toBe('order_quantity_above_maximum');
+    expect(mapPlaceOrderError('member_purchase_limit_exceeded: good-id')).toBe('member_purchase_limit_exceeded');
+  });
+
+  it('견적 뒤 쿠폰 선택이 바뀐 거절을 이미 만든 주문과의 충돌과 나눈다', () => {
+    // DB place_order_with_store_credits 는 표시한 쿠폰과 현재 선택이 다르면 PT409 coupon_selection_changed 로 거절한다.
+    // 만든 주문이 없는 경우가 대부분이라 '이미 만든 주문과 요청 내용이 달라요'(checkout_changed)로 안내하면 틀린다.
+    expect(mapPlaceOrderError('coupon_selection_changed')).toBe('coupon_selection_changed');
+    expect(mapPlaceOrderError('checkout key conflict')).toBe('checkout_changed');
+    // 일반 쿠폰 거절(coupon_*)에 묻히지 않는다.
+    expect(mapPlaceOrderError('coupon_expired')).toBe('coupon_rejected');
+  });
+
+  it('랜덤 판매 굿즈를 주문할 수 없게 된 경우를 재고 변경과 나눈다', () => {
+    expect(mapPlaceOrderError('random_option_unavailable: good-id')).toBe('random_option_unavailable');
+    expect(mapPlaceOrderError('random_option_checkout_unsupported: good-id')).toBe('random_option_unavailable');
+    expect(mapPlaceOrderError('out of stock: good-id')).toBe('out_of_stock');
+  });
 });
 
 describe('checkoutOrderState', () => {

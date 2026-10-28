@@ -58,6 +58,16 @@ describe('접수 폼 정규화', () => {
     expect(result.value.orderId).toBe(ORDER_ID);
   });
 
+  it('CRLF 줄바꿈은 LF 한 글자로 세고 저장한다', () => {
+    const lines = Array.from({ length: 900 }, () => '가').join('\r\n');
+    const result = normalizeInquiryForm(form({ body: lines, category: 'order', title: '여러 줄' }));
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.value.body).not.toContain('\r');
+    expect(result.value.body).toHaveLength(1799);
+  });
+
   it('빈 제목·본문과 모르는 유형을 각각 알린다', () => {
     const result = normalizeInquiryForm(form({ body: ' ', category: 'refund', title: '' }));
 

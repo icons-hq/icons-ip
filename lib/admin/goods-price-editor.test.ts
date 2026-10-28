@@ -1,8 +1,26 @@
 import { describe, expect, it } from 'vitest';
-import { goodsPriceDraftFromValues, planErpSalePrice, resolveGoodsPrice, type GoodsPriceDraft } from './goods-price-editor';
+import { goodsDiscountRate, goodsDiscountResultText, goodsPriceDraftFromValues, planErpSalePrice, resolveGoodsPrice, type GoodsPriceDraft } from './goods-price-editor';
 
 const draft = (changes: Partial<GoodsPriceDraft> = {}): GoodsPriceDraft => ({
   regularPrice: '10000', discountEnabled: false, discountValue: '', discountUnit: 'won', ...changes,
+});
+
+/* 10/27 회의 R18 — 원 단위 할인에도 할인율을 함께 보인다. 고객 화면(PriceBlock)과 같은 반올림이다. */
+describe('할인 결과 문구', () => {
+  it('할인가 X원 (Y원, Z% 할인), Z는 할인액÷판매가×100 반올림', () => {
+    expect(goodsDiscountRate(26000, 22000)).toBe(15);
+    expect(goodsDiscountRate(9900, 8415)).toBe(15);
+    expect(goodsDiscountRate(10000, 9950)).toBe(1);
+    expect(goodsDiscountRate(10000, 9960)).toBe(0);
+    expect(goodsDiscountRate(10000, 8350)).toBe(17);
+    expect(goodsDiscountRate(0, 0)).toBe(0);
+    for (const [regular, sale] of [[3000, 2550], [19900, 14925], [7, 3], [12345, 6789]]) {
+      expect(goodsDiscountRate(regular, sale)).toBe(Math.round((1 - sale / regular) * 100));
+    }
+    const result = resolveGoodsPrice(draft({ regularPrice: '26000', discountEnabled: true, discountValue: '4000' }));
+    expect(goodsDiscountResultText(result)).toBe('할인가 22,000원 (4,000원, 15% 할인)');
+    expect(goodsDiscountResultText(resolveGoodsPrice(draft({ discountEnabled: true, discountValue: '' })))).toBeNull();
+  });
 });
 
 describe('판매가·할인 입력 변환', () => {

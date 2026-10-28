@@ -2,7 +2,8 @@ import { QnaConsoleScreen } from '../../components/admin/screens/QnaConsoleScree
 import { ReviewConsoleScreen } from '../../components/admin/screens/ReviewConsoleScreen';
 import { InquiryQueueScreen } from '../../components/admin/screens/InquiryQueueScreen';
 import { InquiryDetailScreen } from '../../components/admin/screens/InquiryDetailScreen';
-import { InquiryPreviewWorkspace } from '../../components/admin/screens/CustomerServiceDialog';
+import { InquiryPreviewDialog } from '../../components/admin/screens/CustomerServiceDialog';
+import { AdminOpenInquiryBadge } from '../../components/admin/AdminOpenInquiryBadge';
 import { normalizeAdminProductQuestionFilters, type AdminProductQuestionRow } from '../../lib/admin/product-questions';
 import { normalizeAdminReviewFilters, type AdminReviewRow } from '../../lib/admin/reviews';
 import { adminInquiryHref, normalizeAdminInquiryFilters, type AdminInquiryRow } from '../../lib/admin/inquiries';
@@ -52,8 +53,13 @@ export function CustomerServiceFixture({ view }: { view: 'cs-qna' | 'cs-reviews'
     return <ReviewConsoleScreen now={NOW} data={{ filters, rows: [REVIEW], total: 1, pageSize: filters.pageSize ?? 20, counts: { total: 1, lowRating: 0, awaitingReply: 1, hidden: 0, reported: 0 } }} />;
   }
   const filters = normalizeAdminInquiryFilters(params);
+  const counts = { open: 1, answered: 0, closed: 0 };
+  /* 실제 페이지(app/admin/(shell)/cs/inquiries/page.tsx)와 같게 `?inquiryId=`는 목록 위 팝업으로 연다(R4). */
   return <>
-    <InquiryQueueScreen now={NOW} data={{ filters, rows: [INQUIRY], total: 1, pageSize: filters.pageSize ?? 20, counts: { open: 1, answered: 0, closed: 0 } }} />
-    <InquiryPreviewWorkspace closeHref={adminInquiryHref(filters)} selected={Boolean(params.inquiryId)}>{params.inquiryId ? <InquiryDetailScreen embedded now={NOW} backHref={adminInquiryHref(filters)} detail={DETAIL} /> : null}</InquiryPreviewWorkspace>
+    <AdminOpenInquiryBadge count={counts.open} />
+    <InquiryQueueScreen now={NOW} data={{ filters, rows: [INQUIRY], total: 1, pageSize: filters.pageSize ?? 20, counts }} />
+    {params.inquiryId ? <InquiryPreviewDialog closeHref={adminInquiryHref(filters)}>
+      <InquiryDetailScreen embedded now={NOW} backHref={adminInquiryHref(filters)} detail={DETAIL} />
+    </InquiryPreviewDialog> : null}
   </>;
 }

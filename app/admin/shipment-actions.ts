@@ -8,7 +8,7 @@ import {withSmartStoreLegacyAllocations} from '@/lib/admin/item-allocation.serve
 import {seowonExportLabels} from '@/lib/admin/seowon-exchange';
 import {randomUUID} from 'node:crypto';
 import {shipmentMutationError,type ShipmentExportData} from '@/lib/admin/shipment-dispatch';
-import {parseShipmentExportColumns,type ShipmentExportLayout} from '@/lib/admin/shipment-workbook';
+import {parseShipmentExportColumns,shipmentBarcodeGapWarning,type ShipmentExportLayout} from '@/lib/admin/shipment-workbook';
 import {exportPasswordError} from '@/lib/admin/export-password';
 import {encryptAdminWorkbook} from '@/lib/admin/encrypted-workbook.server';
 const UUID=/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
@@ -48,8 +48,11 @@ async function exportShipments(client:Client,keys:string[],format:'xlsx'|'csv',l
   const operational=data.shipments.some(shipment=>shipment.isGift||(shipment.shippingCollectFee??0)>0||shipment.pack);
   const extra=operational?(file.extension==='xlsx'?' 별도 배송 운영 안내 시트에서 합포장·선물 포장·착불 조건을 함께 확인해주세요.':' ZIP에 포함된 각 출고 파일과 배송 운영 안내에서 합포장·선물 포장·착불 조건을 함께 확인해주세요.'):' ';
   refresh();
+  // 화면의 바코드 경고는 내보내기 전에 읽은 값이라 그 사이 바코드가 바뀌었을 수 있다(리뷰 M27-SHIP-1).
+  // 기존 창고 양식이면 실제로 내보낸 배송 건으로 누른 시점에 다시 세어 상태 문구에 싣는다. 경고라 조회 실패는 생략한다.
+  const missing=layout==='warehouse'?await barcodeGaps(client,keys):null;
   return {file:{base64:file.bytes.toString('base64'),mime:file.mime,name:file.name,...(sha256?{encryption:'ECMA-376-Agile' as const,sha256}:{})},
-   message:`${keys.length}건의 출고지시를 내려받았습니다.${multipleOrigins?' 출고지별 파일을 ZIP으로 묶었습니다. 각 파일을 해당 창고에 전달해주세요.':''}${extra}${note}`.trim()};
+   message:`${`${keys.length}건의 출고지시를 내려받았습니다.${multipleOrigins?' 출고지별 파일을 ZIP으로 묶었습니다. 각 파일을 해당 창고에 전달해주세요.':''}${extra}${note}`.trim()}${missing?` ${shipmentBarcodeGapWarning(missing)}`:''}`};
  }catch(error){return {error:error instanceof Error?error.message:'출고지시 파일을 만들지 못했습니다.'};}
 }
 export async function exportShipmentsAction(ids:unknown,format:'xlsx'|'csv',layout:ShipmentExportLayout='smartstore',credentials?:ExportCredentials):Promise<ExportResult>{
@@ -72,6 +75,29 @@ export async function exportPendingOriginShipmentsAction(originId:unknown,format
  if(!keys.length)return {error:'이 출고지에 아직 전달하지 않은 발송 대기 배송 건이 없습니다. 발주확인과 예약 재고 할당·제작·취소 요청을 확인해주세요.'};
  const rest=Number(value.total)-keys.length;
  return exportShipments(client,keys,format,layout,credentials,rest>0?` 남은 ${rest.toLocaleString('ko-KR')}건은 다시 눌러 이어서 받아주세요.`:'');
+}
+/**
+ * 내보내기 전 경고(10/27 회의 D10): 선택한 배송 건에서 출고 파일의 바코드 칸이 비는 옵션 수.
+ * 경고는 출고를 막지 않으므로 권한·입력·조회 실패는 숫자 대신 null로 돌려 경고만 생략한다.
+ */
+export async function shipmentBarcodeGapsAction(ids:unknown):Promise<number|null>{
+ if(!await staff())return null;const keys=selection(ids);if(!keys)return null;
+ return barcodeGaps(await createClient(),keys);
+}
+/**
+ * 출고지 경고: 그 출고지의 미전달 발송 대기 건 전체에서 바코드가 비는 옵션 수.
+ * 탭을 열 때마다 부르므로 무거운 admin_origin_pending_export_ids(다음 파일 한 묶음 계산)를 거치지 않고 출고지 단위로 바로 센다
+ * (리뷰 M27-SHIP-2). 다음 파일의 정확한 개수는 내려받을 때 실제로 내보낸 배송 건으로 다시 세어 결과 문구에 싣는다.
+ */
+export async function originBarcodeGapsAction(originId:unknown):Promise<number|null>{
+ if(!await staff()||typeof originId!=='string'||!UUID.test(originId))return null;
+ return barcodeGaps(await createClient(),{p_origin_id:originId.toLowerCase()});
+}
+async function barcodeGaps(client:Client,target:string[]|{p_origin_id:string}):Promise<number|null>{
+ try{
+  const result=await client.rpc('admin_shipment_barcode_gaps',Array.isArray(target)?{p_ids:target}:target);
+  return !result.error&&Number.isSafeInteger(result.data)&&Number(result.data)>=0?Number(result.data):null;
+ }catch{return null;}
 }
 export async function completeShipmentsAction(ids:unknown){
  if(!await staff())return {error:'직원 권한이 필요합니다.'};const keys=selection(ids);

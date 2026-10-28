@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cartOptionGood, defaultGoodOption, goodAtQuotedPrice, goodCompareAtPrice, initialGoodOption, isRestockableGoodOption, isSelectableGoodOption, optionLabel, optionPriceRange, selectableGoodOptionId, soldOutPreviewPrice, variantSearchForSelection, variantSyncDefault } from './goods-options';
+import { cartLineOption, cartOptionGood, collapseRandomGoodOptions, randomCartLineFold, defaultGoodOption, goodOptionPurchaseNotices, purchasableOptionQty, goodAtQuotedPrice, goodCompareAtPrice, initialGoodOption, isRestockableGoodOption, isSelectableGoodOption, optionLabel, optionPriceRange, selectableGoodOptionId, soldOutPreviewPrice, variantSearchForSelection, variantSyncDefault } from './goods-options';
 import type { GoodsSalesQuoteLine } from './goods-sales';
 import type { Good, GoodOption } from './data';
 
@@ -180,5 +180,68 @@ describe('옵션 정가 — 소비자가 + 옵션 추가금액', () => {
   it('저장값이 없는 굿즈는 표시 가격을 기준 판매가와 소비자가로 본다', () => {
     const legacy = { ...good, compareAtPrice: 20000 };
     expect(cartOptionGood(legacy, options[1].id)).toMatchObject({ price: 15000, compareAtPrice: 23000, catalogPrice: 12000, catalogCompareAtPrice: 20000 });
+  });
+});
+
+describe('랜덤 판매(D5②)·옵션별 구매 제한(D7②) 표시 규칙', () => {
+  it('랜덤 판매 굿즈는 기본 옵션 키 하나로 접혀 자동 선택·빠른 담기 대상이 된다', () => {
+    const collapsed = collapseRandomGoodOptions([{ ...options[1], isDefault: false }, { ...options[0], stockQty: 0 }]);
+    expect(collapsed).toEqual([expect.objectContaining({ id: options[0].id, name: '랜덤', stockQty: 3, price: 12000, code: '' })]);
+    const random: Good = { ...good, optionSaleMode: 'random', options: collapsed };
+    expect(initialGoodOption(random)?.id).toBe(options[0].id);
+    expect(defaultGoodOption(random)?.id).toBe(options[0].id);
+    expect(optionLabel(random.options?.[0], 1)).toBe('랜덤');
+    expect(collapseRandomGoodOptions([])).toEqual([]);
+  });
+
+  /* 랜덤 전환 전에 다른 옵션 키로 담은 장바구니 줄도 '랜덤' 줄이다 — DB는 같은 굿즈의 옵션 줄을 기본 옵션 키로 모은다. */
+  it('랜덤 판매 굿즈의 장바구니 줄은 어느 옵션 키로 담겼든 접힌 랜덤 옵션이다', () => {
+    const random: Good = { ...good, optionSaleMode: 'random', options: collapseRandomGoodOptions(options) };
+    expect(cartLineOption(random, options[1].id)?.name).toBe('랜덤');
+    expect(cartOptionGood(random, options[1].id)).toMatchObject({ price: 12000, stockQty: 3, stock: 'ok' });
+    expect(cartLineOption(good, options[1].id)).toEqual(options[1]);
+    expect(cartLineOption(good, '00000000-0000-4000-8000-0000000000ff')).toBeUndefined();
+    expect(cartLineOption(undefined, options[1].id)).toBeUndefined();
+  });
+
+  /* T7 리뷰 RV-2: 랜덤 전환 전에 담은 비기본 옵션 줄의 수량을 고치면 DB가 그 줄을 기본 옵션(키) 줄로 합친다 — 같은
+     '랜덤' 두 줄 중 하나가 사라지고 다른 줄 수량이 뛰는 것처럼 보인다. 그 줄은 스테퍼 대신 '다시 담기'로 합친다. */
+  it('랜덤 굿즈의 비기본 옵션 줄만 키 줄로 다시 담을 대상이고, 계정 장바구니는 그 줄을 한 번 다시 저장해 DB가 합친다', () => {
+    const random: Good = { ...good, optionSaleMode: 'random', options: collapseRandomGoodOptions(options) };
+    const items = [{ goodId: 'g1', variantId: options[0].id, qty: 2 }, { goodId: 'g1', variantId: options[1].id, qty: 3 }];
+    expect(randomCartLineFold(random, items, items[0], 'server')).toBeNull();
+    expect(randomCartLineFold(good, items, items[1], 'server')).toBeNull();
+    expect(randomCartLineFold(random, items, items[1], 'server')).toEqual([{ variantId: options[1].id, qty: 3 }]);
+  });
+
+  it('이 기기 장바구니는 키 줄에 수량을 더한 뒤 옛 줄을 지운다(키 줄이 없으면 새로 만든다)', () => {
+    const random: Good = { ...good, optionSaleMode: 'random', options: collapseRandomGoodOptions(options) };
+    const items = [{ goodId: 'g1', variantId: options[0].id, qty: 2 }, { goodId: 'g1', variantId: options[1].id, qty: 3 }];
+    expect(randomCartLineFold(random, items, items[1], 'local')).toEqual([{ variantId: options[0].id, qty: 5 }, { variantId: options[1].id, qty: 0 }]);
+    expect(randomCartLineFold(random, [items[1]], items[1], 'local')).toEqual([{ variantId: options[0].id, qty: 3 }, { variantId: options[1].id, qty: 0 }]);
+    /* 합친 수량이 풀을 넘으면 키 줄 호출만 남긴다 — 장바구니가 재고 오류로 거절하고 옛 줄은 지우지 않는다. */
+    expect(randomCartLineFold(random, items, items[1], 'local', 4)).toEqual([{ variantId: options[0].id, qty: 5 }]);
+  });
+
+  it('수량 최대는 재고와 옵션별 주문당 최대 수량 중 작은 값이다', () => {
+    expect(purchasableOptionQty({ stockQty: 5, orderMaxQty: 2 })).toBe(2);
+    expect(purchasableOptionQty({ stockQty: 1, orderMaxQty: 2 })).toBe(1);
+    expect(purchasableOptionQty({ stockQty: 5, orderMaxQty: null })).toBe(5);
+    expect(purchasableOptionQty({ stockQty: 5 })).toBe(5);
+    expect(purchasableOptionQty({ stockQty: -1, orderMaxQty: 2 })).toBe(0);
+  });
+
+  it('상세 안내는 랜덤 안내와 고른 옵션의 옵션별 제한(확정 카피)이다', () => {
+    const random: Good = { ...good, optionSaleMode: 'random', options: collapseRandomGoodOptions(options) };
+    expect(goodOptionPurchaseNotices(random, random.options?.[0])).toEqual(['옵션은 주문 후 재고에서 무작위로 정해져 발송됩니다. 같은 옵션이 중복될 수 있습니다.']);
+    const limited = { ...options[1], orderMaxQty: 2, memberMaxQty: 5 };
+    expect(goodOptionPurchaseNotices({ ...good, options: [options[0], limited] }, limited)).toEqual([
+      "'빨강'은 한 번에 2개까지 주문할 수 있습니다.", "'빨강'은 1인당 5개까지 구매할 수 있습니다.",
+    ]);
+    /* 하나뿐인 '기본 옵션'은 이름을 숨기므로 굿즈 이름으로 말한다. */
+    const sole = { ...options[0], name: '기본 옵션', stockQty: 3, memberMaxQty: 1 };
+    expect(goodOptionPurchaseNotices({ ...good, options: [sole] }, sole)).toEqual(["'키링'은 1인당 1개까지 구매할 수 있습니다."]);
+    expect(goodOptionPurchaseNotices(good, undefined)).toEqual([]);
+    expect(goodOptionPurchaseNotices(good, options[1])).toEqual([]);
   });
 });

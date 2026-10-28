@@ -2,13 +2,8 @@
 
 import Link from 'next/link';
 import { PendingOrderResolution } from '@/components/checkout/PendingOrderResolution';
-import { useMemo, useState, useTransition, type FormEvent } from 'react';
-import {
-  applyCouponAction,
-  applyCouponCodeAction,
-  clearCouponAction,
-  type CouponActionResult,
-} from '@/app/cart/coupon-actions';
+import { useMemo } from 'react';
+import { CouponPicker } from '@/components/checkout/CouponPicker';
 import { CartEmptyState } from '@/components/cart/CartEmptyState';
 import { CartSubheader } from '@/components/cart/CartSubheader';
 import { useCart, useReleaseUnpaidCartOrders } from '@/components/shell/CartProvider';
@@ -18,26 +13,19 @@ import { QuantityStepper } from '@/components/wc/QuantityStepper';
 import { WcButton } from '@/components/wc/WcButton';
 import type { CatalogSnapshot } from '@/lib/catalog';
 import { goodsImageBackground } from '@/lib/goods-image';
-import {
-  couponBenefitLabel,
-  couponConditionLabel,
-  couponDisplayState,
-  couponErrorNeedsPendingOrder,
-  couponExpiryLabel,
-  type UserCouponSummary,
-} from '@/lib/coupons';
+import { couponErrorNeedsPendingOrder } from '@/lib/coupons';
 import type { CartCouponState } from '@/lib/coupons.server';
 import type { Good, Ip } from '@/lib/data';
 import { krw } from '@/lib/format';
 import { GoodsCustomInputsSummary } from '@/components/shop/GoodsCustomInputs';
 import { goodsCustomInputProblem, type GoodsCustomInputSelection } from '@/lib/goods-custom-inputs';
 import { cartItemKey } from '@/lib/cart';
-import { cartOptionGood, goodAtQuotedPrice, optionLabel } from '@/lib/goods-options';
-import { goodsSalesQuoteProblem } from '@/lib/goods-sales';
+import { cartLineOption, cartOptionGood, goodAtQuotedPrice, optionLabel, randomCartLineFold, type CartQuantityStep } from '@/lib/goods-options';
+import { goodsSalesQuoteProblem, quoteLineOptionLimitMessage } from '@/lib/goods-sales';
 import { shippingFeeLabel } from '@/lib/shipping';
 import { useGoodsSalesPrecheckoutQuote, useShippingQuote } from '@/components/shop/useShippingQuote';
 import { ShippingGroupSummary } from '@/components/shop/ShippingGroupSummary';
-import { shippingGroupLabel } from '@/lib/fulfillment';
+import { shippingGroupLabel, shippingGroupsNotice } from '@/lib/fulfillment';
 import { goodsShipDateLabel, preorderSupplyLabel, type GoodsVariantSupply } from '@/lib/goods-preorders';
 import { GoodsSalePeriodRefresh } from '@/components/shop/GoodsSalePeriodRefresh';
 import { goodsSaleUnavailableLabel } from '@/lib/goods-sale-period';
@@ -51,7 +39,16 @@ interface CartLine {
   good?: Good;
   ip?: Ip;
   supply?: GoodsVariantSupply;
+  /** 옵션별 주문당 최대 수량(D7②) — 수량 스테퍼 상한. */
+  orderMaxQty?: number | null;
+  /** 견적이 알린 옵션별 구매 제한 위반 안내(확정 카피). */
+  optionLimitMessage?: string | null;
+  /** 랜덤 전환 전에 비기본 옵션 키로 담은 줄(D5②)을 '랜덤' 한 줄로 다시 담는 호출 순서. 있으면 스테퍼 대신 다시 담기다. */
+  refold?: CartQuantityStep[] | null;
 }
+
+/* 랜덤 전환 전에 담은 줄의 안내. 이 줄의 수량을 바꾸면 DB가 키 줄로 합쳐 화면이 갑자기 바뀌므로 다시 담기 하나만 둔다. */
+const RANDOM_REFOLD_NOTICE = '판매 방식이 바뀌기 전에 담은 줄이에요. 다시 담으면 랜덤 한 줄로 합쳐집니다.';
 
 function isSoldOut(good: Good) {
   return good.stock === 'soldout' || good.stockQty <= 0;
@@ -75,7 +72,7 @@ function lineStateLabel(good: Good, qty: number) {
    그 아래 오른쪽에 줄 금액(CT-04 · 레퍼런스 실측). 표시 배치만 바꾼다 — 수량·삭제 호출과 금액 계산은 그대로다. */
 function CartLineRow({ line }: { line: CartLine }) {
   const { pending, remove, setQuantity } = useCart();
-  const { good, goodId, variantId, ip, qty, optionName, supply,customInputs } = line;
+  const { good, goodId, variantId, ip, qty, optionName, supply,customInputs, orderMaxQty, optionLimitMessage, refold } = line;
 
   if (!good) {
     return (
@@ -121,6 +118,8 @@ function CartLineRow({ line }: { line: CartLine }) {
         <PriceBlock showDiscountRate={good.showDiscountRate} compareAtPrice={good.compareAtPrice} price={good.price} />
         {goodsCustomInputProblem(good.customInputs,customInputs) && <p className="wc-cart__line-state">{goodsCustomInputProblem(good.customInputs,customInputs)} <Link href={href}>내용 다시 확인</Link></p>}
         {stateLabel ? <p className="wc-cart__line-state">{stateLabel}</p> : null}
+        {optionLimitMessage ? <p className="wc-cart__line-state">{optionLimitMessage}</p> : null}
+        {refold && !soldOut ? <p className="wc-cart__line-state">{RANDOM_REFOLD_NOTICE}</p> : null}
         {supply?.mode === 'preorder' ? <p className="wc-cart__line-state">{goodsShipDateLabel(supply.expectedShipDate)}</p> : null}
       </div>
       <div className="wc-cart__line-band">
@@ -128,11 +127,24 @@ function CartLineRow({ line }: { line: CartLine }) {
           {optionName ? <p className="wc-cart__line-option">{optionName}</p> : null}
           <GoodsCustomInputsSummary selection={customInputs} />
         </div>
-        {/* 품절 라인은 늘릴 수도 줄일 수도 없다 — 스테퍼 대신 삭제만 남긴다. */}
-        {soldOut ? null : (
+        {/* 품절 라인은 늘릴 수도 줄일 수도 없다 — 스테퍼 대신 삭제만 남긴다. 랜덤 전환 전에 담은 줄은 다시 담기로 키 줄에 합친다. */}
+        {soldOut ? null : refold ? (
+          <button
+            aria-label={`${good.name} 랜덤 한 줄로 다시 담기`}
+            disabled={pending}
+            onClick={() => void (async () => {
+              for (const step of refold) await setQuantity(goodId, step.qty, good.stockQty, step.variantId, customInputs);
+            })()}
+            style={{ flex: 'none', height: 32, padding: '0 12px', border: '1px solid var(--wc-line-control)', background: 'var(--wc-surface)',
+              color: 'var(--wc-ink)', font: 'inherit', fontSize: 13, cursor: 'pointer' }}
+            type="button"
+          >
+            다시 담기
+          </button>
+        ) : (
           <QuantityStepper
             label={`${good.name} 수량`}
-            max={good.stockQty}
+            max={orderMaxQty ? Math.min(good.stockQty, orderMaxQty) : good.stockQty}
             onChange={(next) => void setQuantity(goodId, next, good.stockQty, variantId,customInputs)}
             value={qty}
           />
@@ -149,129 +161,6 @@ function CartLineRow({ line }: { line: CartLine }) {
       </div>
       <p className="wc-cart__line-total">{krw(good.price * qty)}</p>
     </li>
-  );
-}
-
-/* 쿠폰 select·코드 입력 (R-05 §1.5 문법 · S7).
- * 여기 상태는 전부 서버(cart_coupon_selections)에 있다 — 액션이 끝나면
- * revalidatePath('/cart') 가 목록·선택을 새로 내려준다. CartProvider 에는
- * 아무것도 넣지 않는다(DESIGN.md §11 동결). */
-function CartCouponSection({
-  appliedCoupon,
-  couponState,
-  eligibleSubtotal,
-}: {
-  appliedCoupon: UserCouponSummary | null;
-  couponState: CartCouponState;
-  eligibleSubtotal: number | null;
-}) {
-  const [pending, startTransition] = useTransition();
-  const [message, setMessage] = useState<string | null>(null);
-  const [pendingOrder, setPendingOrder] = useState(false);
-  const [code, setCode] = useState('');
-
-  const selectableCoupons = couponState.coupons.filter((held) => (
-    held.coupon.benefitKind !== 'shipping' && (couponDisplayState(held) === 'usable' || held.id === appliedCoupon?.id)
-  ));
-
-  function runAction(action: () => Promise<CouponActionResult>) {
-    setMessage(null);
-    setPendingOrder(false);
-    startTransition(async () => {
-      const result = await action();
-      setMessage(result.ok ? null : result.message ?? null);
-      setPendingOrder(!result.ok && result.pendingOrder === true);
-    });
-  }
-
-  function handleSelect(nextId: string) {
-    if (nextId === (appliedCoupon?.id ?? '')) return;
-    runAction(() => (nextId ? applyCouponAction(nextId) : clearCouponAction()));
-  }
-
-  function handleCodeSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!code.trim()) {
-      setMessage('쿠폰 코드를 입력해주세요.');
-      setPendingOrder(false);
-      return;
-    }
-    runAction(async () => {
-      const result = await applyCouponCodeAction(code);
-      if (result.ok) setCode('');
-      return result;
-    });
-  }
-
-  const belowMinimum = Boolean(
-    appliedCoupon && eligibleSubtotal !== null && eligibleSubtotal < appliedCoupon.coupon.minSubtotal,
-  );
-
-  return (
-    <div className="wc-cart__coupon-slot">
-      <p className="wc-cart__coupon-title" id="cart-coupon-title">쿠폰</p><p>굿즈 쿠폰을 미리 선택할 수 있어요. 중복 적용과 배송비 쿠폰은 주문서에서 확인해주세요.</p>
-
-      <label className="wc-cart__coupon-label" htmlFor="cart-coupon-select">보유 쿠폰</label>
-      <select
-        className="wc-cart__coupon-select"
-        disabled={pending}
-        id="cart-coupon-select"
-        onChange={(event) => handleSelect(event.target.value)}
-        value={appliedCoupon?.id ?? ''}
-      >
-        <option value="">쿠폰 선택 안 함</option>
-        {selectableCoupons.map((held) => (
-          <option key={held.id} value={held.id}>
-            {held.coupon.name} · {couponBenefitLabel(held.coupon)}
-          </option>
-        ))}
-      </select>
-
-      {appliedCoupon ? (
-        <dl className="wc-cart__coupon-detail">
-          <div><dt>혜택</dt><dd>{couponBenefitLabel(appliedCoupon.coupon)}</dd></div>
-          <div><dt>유효기간</dt><dd>{couponExpiryLabel(appliedCoupon)}</dd></div>
-          <div><dt>사용조건</dt><dd>{couponConditionLabel(appliedCoupon.coupon)}</dd></div>
-        </dl>
-      ) : null}
-
-      {belowMinimum ? (
-        <p className="wc-cart__coupon-warning" role="alert">
-          쿠폰 대상 굿즈의 최소 주문 금액 미달로 지금은 할인이 적용되지 않아요.
-        </p>
-      ) : null}
-
-      {appliedCoupon ? (
-        <button
-          className="wc-cart__coupon-clear"
-          disabled={pending}
-          onClick={() => runAction(() => clearCouponAction())}
-          type="button"
-        >
-          적용 해제
-        </button>
-      ) : null}
-
-      <form className="wc-cart__coupon-code" onSubmit={handleCodeSubmit}>
-        <label className="wc-sr-only" htmlFor="cart-coupon-code">쿠폰 코드</label>
-        <input
-          autoComplete="off"
-          className="wc-cart__coupon-input"
-          disabled={pending}
-          id="cart-coupon-code"
-          name="couponCode"
-          onChange={(event) => setCode(event.target.value)}
-          placeholder="쿠폰 코드 직접 입력"
-          type="text"
-          value={code}
-        />
-        <button className="wc-cart__coupon-apply" disabled={pending} type="submit">
-          쿠폰 적용
-        </button>
-      </form>
-
-      {message ? <p className="wc-cart__coupon-warning" role="alert">{message}{pendingOrder ? <PendingOrderResolution /> : null}</p> : null}
-    </div>
   );
 }
 
@@ -301,17 +190,24 @@ export function Cart({
     const prices = new Map(sales?.lines.map(line => [cartItemKey(line.goodId, line.variantId), line]));
 
     return items.map((item) => {
-      const good = goodAtQuotedPrice(cartOptionGood(goodsById.get(item.goodId), item.variantId), prices.get(cartItemKey(item.goodId, item.variantId)));
-      const option = good?.options?.find(option => option.id === item.variantId);
+      const quoteLine = prices.get(cartItemKey(item.goodId, item.variantId));
+      const catalogGood = goodsById.get(item.goodId);
+      const good = goodAtQuotedPrice(cartOptionGood(catalogGood, item.variantId), quoteLine);
+      const option = cartLineOption(good, item.variantId);
+      /* 랜덤 판매 굿즈(D5②)는 카탈로그가 옵션을 '랜덤' 하나로 접어 두었다 — 옵션명이 그대로 '랜덤'이다. */
+      const optionName = optionLabel(option, good?.options?.length ?? 0);
       return {
         ...item,
-        optionName: optionLabel(option, good?.options?.length ?? 0),
+        optionName,
         good,
-        supply: prices.get(cartItemKey(item.goodId, item.variantId))?.supply ?? option?.supply,
+        supply: quoteLine?.supply ?? option?.supply,
         ip: good ? ipsById.get(good.ip) : undefined,
+        orderMaxQty: quoteLine?.optionLimit?.orderMaxQty ?? option?.orderMaxQty ?? null,
+        optionLimitMessage: good ? quoteLineOptionLimitMessage(quoteLine, optionName ?? good.name) : null,
+        refold: good ? randomCartLineFold(catalogGood, items, item, mode === 'server' ? 'server' : 'local', good.stockQty) : null,
       };
     });
-  }, [catalog.goods, catalog.ips, items, sales]);
+  }, [catalog.goods, catalog.ips, items, mode, sales]);
 
   const subtotal = sales?.subtotal ?? lines.reduce((total, line) => (
     total + (line.good ? line.good.price * line.qty : 0)
@@ -362,9 +258,10 @@ export function Cart({
         ) : (
           <div className="wc-cart__layout">
             <div aria-busy={pending} className="wc-cart__list-col">
+              {shipping.quote && shippingGroupsNotice(shipping.quote.groups) ? <p className="wc-cart__summary-note">{shippingGroupsNotice(shipping.quote.groups)}</p> : null}
               {shipping.quote?.groups.map((group, index, groups) => (
-                <section className="wc-shipping-group" key={group.originId} aria-label={`${shippingGroupLabel(index, groups.length)} 굿즈`}>
-                  <h2>{shippingGroupLabel(index, groups.length)}</h2>
+                <section className="wc-shipping-group" key={group.originId} aria-label={`${shippingGroupLabel(groups, index)} 굿즈`}>
+                  <h2>{shippingGroupLabel(groups, index)}</h2>
                   <ul className="wc-cart__list">
                     {lines.filter(line => line.good?.originId === group.originId).map(line => <CartLineRow key={cartItemKey(line.goodId, line.variantId,line.customInputs)} line={line} />)}
                   </ul>
@@ -415,11 +312,13 @@ export function Cart({
               </p>)}
 
               {mode === 'server' ? (
-                <>{couponState.unavailable ? <p className="wc-cart__coupon-warning" role="alert">보유 쿠폰을 불러오지 못했습니다. 새로고침 후 다시 확인해주세요.</p> : null}<CartCouponSection
+                <CouponPicker
                   appliedCoupon={appliedCoupon}
                   couponState={couponState}
-                  eligibleSubtotal={!transactionActive && shipping.sales?.coupon?.userCouponId === appliedCoupon?.id ? shipping.sales?.coupon?.eligibleSubtotal ?? null : null}
-                /></>
+                  quote={transactionActive ? null : shipping.sales?.coupon ?? null}
+                  shippingCouponsAtCheckout={transactionActive}
+                  surface="cart"
+                />
               ) : (
                 <div className="wc-cart__coupon-slot">
                   <p className="wc-cart__coupon-title">쿠폰</p>
@@ -445,7 +344,7 @@ export function Cart({
                   href="/checkout"
                   variant="primary"
                 >
-                  <span className="wc-cart__checkout-count">{`${count}개 굿즈 주문하기`}</span>
+                  <span className="wc-cart__checkout-count">{`${count}개 주문하기`}</span>
                   {estimatedTotal !== null ? <span className="wc-cart__checkout-amount">{`${krw(estimatedTotal)} 주문하기`}</span> : null}
                 </WcButton>
               </div>

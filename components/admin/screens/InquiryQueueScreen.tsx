@@ -3,6 +3,7 @@ import { CUSTOMER_SERVICE_PAGE_SIZES } from '@/lib/admin/customer-service-list';
 import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import Link from 'next/link';
 import { InquiryLiveUpdates } from '@/components/screens/InquiryLiveUpdates';
+import { InquiryPreviewLink } from './InquiryPreviewLink';
 import {
   ConsoleCountChips,
   ConsoleFilterPanel,
@@ -86,7 +87,7 @@ export function InquiryQueueScreen({
         <span className="mono" key="reference">{inquiryReferenceLabel(row.reference)}</span>,
         <span key="category">{adminGoodsCopy(INQUIRY_CATEGORY_LABELS[row.category])}</span>,
         <span className="admin-cs-inquiry-title" key="title">
-          <Link href={adminInquiryPreviewHref(row.id, filters)} scroll={false}>{row.title}</Link>
+          <InquiryPreviewLink href={adminInquiryPreviewHref(row.id, filters)}>{row.title}</InquiryPreviewLink>
           {isAdminInquiryOverdue(row, now) ? <span data-sla-tone="danger"> · 미답변 24시간 경과</span> : null}
           {row.messageCount > 1 ? (
             <span className="muted"> · {row.messageCount}건</span>
@@ -110,7 +111,7 @@ export function InquiryQueueScreen({
         row.assigneeName
           ? <span key="handler">@{row.assigneeName}</span>
           : <span className="muted" key="handler">미배정</span>,
-        <Link className="admin-cs-open" href={adminInquiryPreviewHref(row.id, filters)} key="action" scroll={false}>답변처리</Link>,
+        <InquiryPreviewLink className="admin-cs-open" href={adminInquiryPreviewHref(row.id, filters)} key="action">답변처리</InquiryPreviewLink>,
       ],
     };
   });
@@ -172,7 +173,7 @@ export function InquiryQueueScreen({
 
       <section className="admin-cs-results" aria-label="고객문의 목록">
       <CustomerServiceResultsHeader title="고객문의 목록" total={total} pageSize={pageSize} pageSizeOptions={CUSTOMER_SERVICE_PAGE_SIZES.map(size => ({ value: String(size), label: `${size}개씩`, href: adminInquiryHref(filters, { pageSize: size, page: 1 }) }))}></CustomerServiceResultsHeader>
-      <div className="admin-cs-results__toolbar">문의 제목 또는 답변처리를 눌러 문의와 연결 주문을 함께 확인할 수 있습니다.</div>
+      <div className="admin-cs-results__toolbar">문의 제목 또는 답변처리를 누르면 목록 위 팝업에서 문의·연결 주문을 보고 바로 답변할 수 있습니다.</div>
       <ConsoleGrid
         caption="1:1 문의 목록"
         preferencesKey="cs-inquiries"

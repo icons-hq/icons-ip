@@ -1,5 +1,4 @@
 import 'server-only';
-import { readCompleteIdPages } from '@/lib/supabase/complete-id-pages';
 import { readGoodsCustomInputSnapshot } from '@/lib/goods-custom-inputs';
 import type { ShipmentRecord } from './orders/shipments';
 import { loadOrderShipments } from './orders/shipments.server';
@@ -27,6 +26,7 @@ import {
 } from './checkout';
 import { createClient } from './supabase/server';
 import { createServiceClient } from './supabase/service';
+import { attachRandomItemsToShipments, readMyOrderItems } from './orders/customer-items.server';
 
 interface OrderRow {
   id: string;
@@ -59,6 +59,10 @@ interface OrderItemRow {
   variant_code_snapshot?: string | null;
   supply_source?: 'stock' | 'preorder';
   preorder_expected_ship_date?: string | null;
+  /** 마스킹 RPC(my_order_items)의 판매 방식. 'random' 줄은 주문·굿즈마다 합친 한 줄이고 옵션명 '랜덤'·장바구니 키 옵션으로만 온다(D5②). */
+  option_sale_mode?: 'select' | 'random';
+  /** 그 줄의 배송 건(my_order_items). 고객이 못 읽는 배송 건 품목의 랜덤 행 대신 쓴다. */
+  shipment_id?: string | null;
 }
 
 export interface CheckoutOrderItem {
@@ -269,13 +273,9 @@ export async function loadCheckoutOrder(
     receiptResult,
     { data: requestData, error: requestError },
   ] = await Promise.all([
-    readCompleteIdPages<OrderItemRow>((afterId,pageSize)=>{
-      let query=supabase.from('order_items')
-        .select('id,good_id,qty,unit_price,good_name_snapshot,good_type_snapshot,variant_id,variant_name_snapshot,variant_code_snapshot,custom_inputs_snapshot,supply_source,preorder_expected_ship_date',{count:'exact'})
-        .eq('order_id',orderId).order('id',{ascending:true}).limit(pageSize);
-      if(afterId)query=query.gt('id',afterId);
-      return query;
-    }),
+    /* 결제 전 주문서도 랜덤 판매 굿즈의 배정 옵션을 보이지 않는다 — 결제 전에 보이면 미결제 주문을 닫고 다시 뽑을 수 있다. */
+    readMyOrderItems<OrderItemRow>(supabase, [orderId],
+      'id,good_id,qty,unit_price,good_name_snapshot,good_type_snapshot,variant_id,variant_name_snapshot,variant_code_snapshot,custom_inputs_snapshot,supply_source,preorder_expected_ship_date,option_sale_mode,shipment_id'),
     supabase
       .from('payment_summaries')
       .select('status,created_at')
@@ -322,7 +322,9 @@ export async function loadCheckoutOrder(
     ...(orderData.payment_method === 'bank_transfer' ? await loadBankTransferDepositCode(supabase, orderId) : {}),
     cartRetained: orderData.payment_method === 'card' ? await loadOrderCartRetained(userId, orderId) : false,
     paidAt: paymentData?.status === 'paid' ? paymentData.created_at : null,
-    shipments: await loadOrderShipments(supabase, [orderId], await getShippingCarrierRegistry()),
+    /* 고객은 배송 건 품목의 랜덤 배정 행을 읽지 못한다 — 합친 줄을 my_order_items 의 배송 건에 붙인다. */
+    shipments: attachRandomItemsToShipments(await loadOrderShipments(supabase, [orderId], await getShippingCarrierRegistry()), itemRows),
+    /* 랜덤 배정 행은 DB(my_order_items)가 주문·굿즈마다 한 줄로 합쳐 준다 — 나뉜 개수도 배정 결과의 일부다. */
     items: itemRows.map((item) => ({
       id: item.id,
       goodId: item.good_id,

@@ -12,7 +12,11 @@ const Panel = dynamic(() => import('./OperationsDockPanel').then(module => modul
 export type OperationsDockSection = 'alerts' | 'tasks' | 'help';
 const tools = [{ id: 'alerts', label: '알림', icon: 'bell' }, { id: 'tasks', label: '할 일', icon: 'check' }, { id: 'help', label: '도움말', icon: 'help' }] as const;
 
-export function OperationsDock({ accountId, access }: { accountId: string; access?: OperatorAccess }) {
+export function OperationsDock({ accountId, access, inquiryNotifications = false }: {
+  accountId: string; access?: OperatorAccess;
+  /** 커머스 콘솔 cs.manage 운영자에게 '알림' 패널 안 '새 1:1 문의 PC 알림' 켜기·끄기를 보인다(R2). */
+  inquiryNotifications?: boolean;
+}) {
   const pathname = usePathname();
   const [section, setSection] = useState<OperationsDockSection | null>(null);
   const [badge, setBadge] = useState<number | null>(null);
@@ -51,6 +55,6 @@ export function OperationsDock({ accountId, access }: { accountId: string; acces
         <span className="admin-operations-rail-icon admin-operations-rail-icon-chat"><Icon name="chat" size={23} /></span><span>상담하기</span>
       </Link> : null}
     </aside>
-    {section ? <Panel key={`${accountId}:${access?.revision}:${section}`} section={section} pathname={pathname} categories={allowedAdminAlertCategories(access)} onClose={close} onAlertRead={page => { setBadge(page.unreadCount); setBadgeEnabled(page.badgeEnabled); }} /> : null}
+    {section ? <Panel key={`${accountId}:${access?.revision}:${section}`} section={section} pathname={pathname} categories={allowedAdminAlertCategories(access)} inquiryNotificationAccountId={inquiryNotifications && accountId ? accountId : undefined} onClose={close} onAlertRead={page => { setBadge(page.unreadCount); setBadgeEnabled(page.badgeEnabled); }} /> : null}
   </>;
 }

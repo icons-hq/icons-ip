@@ -9,8 +9,9 @@ vi.mock('next/navigation', () => ({ unstable_rethrow: vi.fn() }));
 beforeEach(() => { mocks.allowed = true; mocks.rpc.mockReset(); mocks.revalidate.mockReset(); });
 describe('판매자 직접 접수 액션', () => {
   it('대리 취소 요청을 별도 조회로 확인하고 취소 관리 목록을 갱신한다', async () => {
-    const input = { ...sellerClaimInputFixture, claimType: 'cancel', collectionAddress: null, collections: [] };
-    const receipt = { ...sellerClaimReceiptFixture, claimType: 'cancel', collectionAddress: null, collections: [] };
+    /* R7: 취소 대리 접수는 단순 변심만 받는다. */
+    const input = { ...sellerClaimInputFixture, claimType: 'cancel', reasonType: 'change_of_mind', collectionAddress: null, collections: [] };
+    const receipt = { ...sellerClaimReceiptFixture, claimType: 'cancel', reasonType: 'change_of_mind', collectionAddress: null, collections: [] };
     mocks.rpc.mockResolvedValueOnce({ error: null }).mockResolvedValueOnce({ data: receipt, error: null });
     expect(await submitSellerClaimIntakeAction(input)).toEqual({ receipt });
     expect(mocks.rpc.mock.calls[0][1].p_payload).toMatchObject({ claimType: 'cancel', collectionAddress: null, collections: [] });

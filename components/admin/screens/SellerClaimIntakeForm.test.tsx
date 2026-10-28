@@ -17,6 +17,9 @@ describe('판매자 반품·교환 접수 화면', () => {
     expect(html).not.toContain('출고지별 수거 계획');
     expect(html).not.toContain('반품 · 주문 전체');
     expect(html).toContain('disabled="">취소 요청 접수');
+    /* R7: 취소 접수에는 하자·오배송 사유를 보이지 않는다. */
+    expect(html).toContain('<option value="change_of_mind" selected="">단순 변심</option>');
+    expect(html).not.toContain('value="defect"');
     const evidence = renderToStaticMarkup(<SellerClaimIntakeEvidence intake={{ ...sellerClaimReceiptFixture, claimType: 'cancel', collectionAddress: null, collections: [] }} />);
     expect(evidence).toContain('주문 전체 취소의 접수 근거');
     expect(evidence).not.toContain('수거 안내 주소');

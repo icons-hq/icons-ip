@@ -144,7 +144,8 @@ const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{
 
 function readString(formData: FormData, name: string) {
   const value = formData.get(name);
-  return typeof value === 'string' ? value.trim() : '';
+  /* 브라우저 폼 본문은 줄바꿈을 CRLF로 보낸다. textarea maxLength처럼 줄바꿈을 1자로 세고 LF로 저장한다. */
+  return typeof value === 'string' ? value.replace(/\r\n?/g, '\n').trim() : '';
 }
 
 function readUuid(formData: FormData, name: string) {

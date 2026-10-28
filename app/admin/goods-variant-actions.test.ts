@@ -72,6 +72,16 @@ describe('옵션 사용·복원 액션', () => {
     expect((await setGoodsVariantActiveAction({}, form())).error).toContain('잠시 후');
     expect(mocks.revalidatePath).not.toHaveBeenCalled();
   });
+  /* D5② 랜덤 판매 상품의 옵션을 판매중지·복원해 조건(옵션 2개 이상·기본 옵션 판매·같은 가격)이 깨지면 커밋에서 거절된다. */
+  it.each([
+    ['random_option_count', '판매 중인 옵션이 2개 이상이어야 랜덤 판매를 쓸 수 있습니다.'],
+    ['random_option_default_inactive', '첫 번째(기본) 옵션이 판매 중이어야 랜덤 판매를 쓸 수 있습니다.'],
+    ['random_option_price_mismatch', '랜덤 판매 상품은 판매 중인 모든 옵션의 판매가와 기간 할인이 같아야 합니다. 기간 할인은 모든 옵션에 한 번에 넣으세요.'],
+  ])('랜덤 판매 조건 거절 %s 는 이유를 알리고 캐시를 갱신하지 않는다', async (message, copy) => {
+    mocks.rpc.mockResolvedValueOnce({ error: { code: '23514', message } });
+    expect(await setGoodsVariantActiveAction({}, form({ active: 'false' }))).toEqual({ error: copy });
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
   it('프레임워크 제어 예외는 폼 오류로 삼키지 않는다', async () => {
     mocks.rpc.mockRejectedValue(mocks.signal);
     await expect(setGoodsVariantActiveAction({}, form())).rejects.toBe(mocks.signal);

@@ -69,3 +69,11 @@ it('상위에서 바꾼 대표 카테고리만 select의 change 이벤트로 폼
   expect(announcer.committed('primary', select)).toBe(false);
   expect(seen).toHaveLength(1);
 });
+
+/* R9: 카테고리가 하나도 없으면 검색칸이 빈 채로 막히지 않게 카테고리 관리로 안내한다. */
+it('사용할 수 있는 카테고리가 없으면 카테고리 관리 링크와 먼저 등록하라는 안내를 보인다', () => {
+  const html = renderToStaticMarkup(<CategoryAssignmentField categories={[]} value="" />);
+  expect(html).toContain('등록된 카테고리가 없습니다. 카테고리 관리에서 먼저 등록하세요.');
+  expect(html).toMatch(/<a [^>]*href="\/admin\/catalog\/categories"[^>]*>카테고리 관리<\/a>/);
+  expect(renderToStaticMarkup(<CategoryAssignmentField categories={categories} value="" />)).not.toContain('등록된 카테고리가 없습니다');
+});

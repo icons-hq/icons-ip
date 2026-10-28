@@ -1,6 +1,14 @@
 import 'server-only';
 import { createClient } from '@/lib/supabase/server';
-import { parseReviewEvent, parseReviewEventWorkspace, type ReviewEventFilters, type ReviewEventList, type ReviewEventWorkspace } from '@/lib/review-events';
+import { parseReviewEvent, parseReviewEventCreditPolicy, parseReviewEventWorkspace, type ReviewEventCreditPolicy, type ReviewEventFilters, type ReviewEventList, type ReviewEventWorkspace } from '@/lib/review-events';
+
+/** R6: 등록 화면 상단의 적립금 정책 상태. cs.manage로 읽는다. 못 읽으면 null(화면은 열리고 저장 판단은 서버에 맡긴다). */
+export async function loadReviewEventCreditPolicy(): Promise<ReviewEventCreditPolicy | null> {
+  try {
+    const { data, error } = await (await createClient()).rpc('admin_review_event_credit_policy');
+    return error ? null : parseReviewEventCreditPolicy(data);
+  } catch { return null; }
+}
 
 export async function loadAdminReviewEvents(filters: ReviewEventFilters): Promise<ReviewEventList> {
   const client = await createClient();

@@ -25,6 +25,16 @@ describe('review event action authorization and durable results', () => {
     expect(mocks.rpc).toHaveBeenNthCalledWith(2, 'admin_get_review_event', expect.objectContaining({ p_id: id }));
     expect(mocks.revalidate).toHaveBeenCalledWith('/my/store-credits');
   });
+  /* R6: 제목 끝 띄어쓰기 같은 앞뒤 공백 때문에 등록이 통째로 실패하지 않는다. */
+  it('trims title and description before validating and saving', async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: event(), error: null }).mockResolvedValueOnce({ data: { event: event() }, error: null });
+    expect(await saveReviewEventAction(id, 0, operation, { ...values(), title: ' 합성 이벤트 ', description: '별점과 무관한 후기 ' })).toEqual({ event: event() });
+    expect(mocks.rpc).toHaveBeenNthCalledWith(1, 'admin_save_review_event', expect.objectContaining({ p_values: expect.objectContaining({ title: '합성 이벤트', description: '별점과 무관한 후기' }) }));
+  });
+  it('explains a rejected value check as an input problem', async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: null, error: { code: '22023', message: 'invalid_review_event' } });
+    expect(await saveReviewEventAction(id, 0, operation, values())).toEqual({ error: expect.stringContaining('입력값을 확인해주세요') });
+  });
   it('keeps the same operation retry contract when save or readback is ambiguous', async () => {
     mocks.rpc.mockResolvedValueOnce({ data: event(), error: null }).mockResolvedValueOnce({ data: null, error: { message: 'offline' } });
     expect(await saveReviewEventAction(id, 0, operation, values())).toMatchObject({ uncertain: true });

@@ -35,8 +35,10 @@ export function GoodsSubscriptionPolicyFields({ value, onChange }: { value: Good
   </div>;
 }
 
-export function GoodsSubscriptionPolicyPanel({ goodId, accountId, disabledReason = '', onBusyChange }: {
+export function GoodsSubscriptionPolicyPanel({ goodId, accountId, disabledReason = '', showDisabledReason = true, onBusyChange }: {
   goodId: string; accountId: string; disabledReason?: string; onBusyChange?: (busy: boolean) => void;
+  /** false면 잠금 이유 문장을 본문에 그리지 않는다(상품 편집기가 패널 위에 공통 잠금 안내를 보일 때). 잠금은 disabledReason이 그대로 맡는다. */
+  showDisabledReason?: boolean;
 }) {
   const scope = useMemo(() => ({ ...createGoodsDescriptionToolScope(accountId), goodId, lane: createGoodsSubscriptionRequestLane() }), [accountId, goodId]);
   const auth = useSyncExternalStore(scope.subscribe, scope.getSnapshot, scope.getServerSnapshot);
@@ -172,7 +174,7 @@ export function GoodsSubscriptionPolicyPanel({ goodId, accountId, disabledReason
     {!auth.ready ? <p role="status">로그인 상태를 확인하는 중입니다…</p> : auth.blocked ? <p role="alert">로그인 계정 또는 세션이 바뀌었습니다. 현재 계정으로 상품 화면을 다시 열어주세요.</p> : <>
       {ui?.error && <p role="alert">{ui.error}</p>}{ui?.message && <p role="status">{ui.message}</p>}
       {stored.unavailable && <p role="status">브라우저 임시저장을 사용할 수 없습니다. 화면을 나가기 전에 저장해주세요.</p>}
-      {disabledReason && <p role="status">{disabledReason}</p>}
+      {showDisabledReason && disabledReason && <p role="status">{disabledReason}</p>}
       {workspace?.recoveryPending && <div className="card col" style={{ padding: 12, gap: 8 }}>
         <p>{recoveryValid ? '같은 로그인 세션에서 저장하지 않은 정기배송 입력이 있습니다.' : '이전 로그인 세션이거나 확인할 수 없는 임시 입력입니다.'}</p>
         {recoveryValid && <button type="button" className="btn" disabled={busy} onClick={restore}>임시 입력 복원</button>}

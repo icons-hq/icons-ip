@@ -33,7 +33,8 @@ function gimpoCells(shipment: Shipment, line: Line, index: number): Cell[] {
     collectedItem: itemLabel(line), confirmedItem: ` ${itemLabel(line)}`,
     address: line.address, recipientShop: `${line.recipient}/ICONS/`, phone: line.phone,
     otherPhone: '', deliveryNote: line.deliveryNote, sabangnetOrder: '', orderId: line.orderId,
-    optionAlias: '', goodName: line.goodName, collectedOption: line.optionName, confirmedOption: line.optionName,
+    // 10/27 회의(D10②): 상품명(확정)은 ERP 품명이 있으면 ERP 품명이다. ERP 품명이 옵션 단위라 옵션(확정)은 그대로 둔다.
+    optionAlias: '', goodName: line.erpName?.trim() || line.goodName, collectedOption: line.optionName, confirmedOption: line.optionName,
     supplyPrice: '', unitPrice: line.unitPrice, qty: line.qty, ea: '', postalCode: postalCode(line.postalCode),
     recipient: line.recipient, shippingFee: index === 0 ? shipment.shippingFee : 0, trackingNumber: '',
   };
@@ -112,19 +113,21 @@ const SEOWON_FILLS = {
 } as unknown as Record<'required' | 'optional' | 'picking', ExcelJS.Fill>;
 const SEOWON_QUANTITY_FORMAT = '#,##0_);[Red]\\(#,##0\\)';
 type SeowonColumn = typeof SEOWON_COLUMNS[number];
+/** 숫자로 읽히면 앞자리 0·자릿수를 잃는 칸은 텍스트 서식이다. */
+const SEOWON_TEXT_KEYS = new Set<SeowonColumn['key']>(['phone', 'shipmentNumber', 'barcode']);
 function seowonHeaderStyle(column: SeowonColumn): Partial<ExcelJS.Style> {
   const centered = column.fill === 'optional' || column.key === 'quantity';
   return {
     font: { ...SEOWON_FONT, bold: true }, fill: SEOWON_FILLS[column.fill],
     alignment: { vertical: 'middle', ...(centered ? { horizontal: 'center' } : column.key === 'items' ? { horizontal: 'left' } : {}) },
-    ...(column.key === 'phone' || column.key === 'shipmentNumber' ? { numFmt: '@' } : column.key === 'quantity' ? { numFmt: SEOWON_QUANTITY_FORMAT } : {}),
+    ...(SEOWON_TEXT_KEYS.has(column.key) ? { numFmt: '@' } : column.key === 'quantity' ? { numFmt: SEOWON_QUANTITY_FORMAT } : {}),
   };
 }
 function seowonCellStyle(column: SeowonColumn): Partial<ExcelJS.Style> {
   return {
     font: { ...SEOWON_FONT }, alignment: { vertical: 'middle', ...(column.key === 'items' ? { horizontal: 'left' } : {}) },
     ...(column.fill === 'picking' ? { fill: SEOWON_FILLS.picking } : {}),
-    ...(column.key === 'quantity' ? { numFmt: SEOWON_QUANTITY_FORMAT } : column.key === 'phone' || column.key === 'shipmentNumber' ? { numFmt: '@' } : {}),
+    ...(column.key === 'quantity' ? { numFmt: SEOWON_QUANTITY_FORMAT } : SEOWON_TEXT_KEYS.has(column.key) ? { numFmt: '@' } : {}),
   };
 }
 

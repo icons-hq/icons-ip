@@ -13,6 +13,8 @@ vi.mock('react', async () => ({ ...await vi.importActual<typeof import('react')>
 }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: mocks.refresh }) }));
 vi.mock('@/app/admin/bank-transfer-refund-actions', () => ({ loadBankRefundContextAction: mocks.load, recordBankRefundAction: mocks.save, readBankRefundAction: mocks.read }));
+const busy = vi.hoisted(() => vi.fn());
+vi.mock('@/components/admin/screens/ClaimPreviewDialog', () => ({ useClaimPreviewBusy: busy }));
 vi.mock('@/lib/admin/bank-transfer-refund-account', () => ({ requestBankRefundAccount: mocks.view }));
 vi.mock('@/lib/supabase/client', () => ({ createClient: () => ({ auth: { onAuthStateChange: (callback: typeof mocks.auth) => { mocks.auth = callback; return { data: { subscription: { unsubscribe() {} } } }; } } }) }));
 import { BankTransferRefund } from './BankTransferRefund';
@@ -153,4 +155,14 @@ it('계좌 조회 실패와 다른 작업 receipt는 원문이나 성공 상태�
   mocks.save.mockImplementationOnce(async (original: BankRefundRequest) => ({ receipt: { ...makeReceipt(original), claimId: other } }));
   fill(); submit(); await flush(); expect(storage.size).toBe(1); expect(mocks.refresh).not.toHaveBeenCalled();
   expect(nodes.some(node => node.props.role === 'alert' && text(node).includes('다른 결과'))).toBe(true);
+});
+
+/* m27 G4-5: 목록 위 클레임 팝업(R8) 안에서 무통장 환불 기록을 기다리는 동안 팝업이 닫히지 않게 알린다. */
+it('환불 기록을 기다리는 동안 팝업에 처리 중을 알린다', async () => {
+  const pending = deferred(); mocks.save.mockReturnValueOnce(pending.promise);
+  render(); expect(busy).toHaveBeenLastCalledWith(false);
+  fill(); submit(); render();
+  expect(busy).toHaveBeenLastCalledWith(true);
+  pending.resolve({ error: '응답 유실', uncertain: true }); await flush();
+  expect(busy).toHaveBeenLastCalledWith(false);
 });

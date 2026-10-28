@@ -29,6 +29,9 @@ function rpcError(message: string): CartTransactionError {
   if (message.includes('transaction_quote_too_large')) return 'order_too_large';
   if (message.includes('transaction_runtime_disabled')) return 'checkout_unavailable';
   if (message.includes('cart_snapshot_changed')) return 'cart_changed';
+  // 옵션별 구매 제한(D7②)·랜덤 판매 굿즈(D5②)는 order_items 경계가 거절한다. 계산 단계 이슈(purchase_limit·goods_unavailable)를
+  // 지나친 경합이므로 장바구니에서 최신 수량·품목을 확인하게 한다.
+  if (/option_(?:order|member)_limit_exceeded|random_option_/.test(message)) return 'cart_changed';
   if (message.includes('coupon_snapshot_changed')) return 'coupon_changed';
   if (message.includes('transaction_quote_')) return 'quote_changed';
   if (message.includes('checkout_key_conflict')) return 'checkout_conflict';
