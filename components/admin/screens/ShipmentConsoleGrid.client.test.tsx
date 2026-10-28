@@ -159,7 +159,9 @@ it('바코드 칸이 있는 기존 창고 양식이면 내보내기 전에 바�
  ready();await settle();
  // 출고지 전체 내려받기 버튼: 서원 양식 출고지만 센다(김포는 기본이 74열이라 바코드 칸이 없다).
  expect(mocks.originGaps.mock.calls).toEqual([[seowon.id]]);
- expect(text(ready())).toContain('남양주 새 출고지시: 바코드가 없는 옵션 1개 — 파일의 바코드 칸이 비어 있습니다.');
+ // 출고지 경고는 다음 파일 한 묶음이 아니라 그 출고지의 미전달 발송 대기 건 전체를 센다(리뷰 M27-SHIP-2).
+ expect(text(ready())).toContain('남양주 미전달 발송 대기 건: 바코드가 없는 옵션 1개 — 파일의 바코드 칸이 비어 있습니다.');
+ expect(text(ready())).not.toContain('남양주 새 출고지시:');
  const grid=nodes(ready()).find(node=>node.type===ConsoleGrid)!;(grid.props.onSelectionChange as (ids:string[])=>void)(ids.slice(0,2));
  ready();await settle();
  // 섞인 선택은 기본이 74열이라 경고하지 않는다. 기존 창고 양식을 고르면 선택 전체를 넘기고,
@@ -196,4 +198,35 @@ it('방금 발주확인해 다른 페이지로 밀린 배송 건도 바코드 �
  await Promise.all([...mocks.gaps.mock.results,...mocks.originGaps.mock.results].map(result=>result.value));await new Promise(resolve=>setTimeout(resolve,0));
  expect(mocks.gaps).toHaveBeenLastCalledWith([confirmedId]);
  expect(text(ready())).toContain('바코드가 없는 옵션 1개 — 파일의 바코드 칸이 비어 있습니다.');
+});
+
+it('데이터를 바꾼 처리가 끝나면 이전 바코드 경고를 거두고 다시 조회한다(실패한 내보내기 포함)',async()=>{
+ // 리뷰 M27-SHIP-1: 경고는 선택·성공한 내보내기 회차가 바뀔 때만 다시 읽어, 상태가 바뀐 뒤에도 옛 개수가 남았다.
+ const seowon={id:'00000000-0000-4000-8000-000000042202',name:'남양주',template:'seowon_xlsx',active:true};
+ const rows=[{...row,status:'ready' as const,pack:null,originId:seowon.id}];
+ const ready=()=>{mocks.index=0;mocks.effects=[];return ShipmentConsoleGrid({...props,tab:'ready',rows,origins:[seowon]});};
+ async function settle(){for(const effect of mocks.effects)effect();await Promise.all([...mocks.gaps.mock.results,...mocks.originGaps.mock.results].map(result=>result.value));await new Promise(resolve=>setTimeout(resolve,0));}
+ mocks.gaps.mockResolvedValue(2);mocks.originGaps.mockResolvedValue(0);
+ (nodes(ready()).find(node=>node.type===ConsoleGrid)!.props.onSelectionChange as (ids:string[])=>void)([ids[0]]);
+ ready();await settle();
+ expect(text(ready())).toContain('바코드가 없는 옵션 2개 — 파일의 바코드 칸이 비어 있습니다.');
+ // 다른 운영자가 먼저 바꿔 내보내기가 거절됐다. 목록은 새로 고치고, 바코드 개수도 지금 값으로 다시 센다.
+ mocks.export.mockResolvedValue({error:'배송 상태가 변경되었습니다. 목록을 새로고침한 뒤 다시 내보내주세요.'});
+ (nodes(ready()).find(node=>node.type==='button'&&text(node.props.children as ReactNode)==='출고지시 내보내기')!.props.onClick as ()=>void)();
+ await Promise.all(mocks.work);
+ expect(mocks.export).toHaveBeenLastCalledWith([ids[0]],'xlsx','warehouse',undefined);
+ expect(text(ready())).not.toContain('바코드가 없는 옵션 2개');
+ const before=mocks.gaps.mock.calls.length;
+ mocks.gaps.mockResolvedValue(0);
+ ready();await settle();
+ expect(mocks.gaps.mock.calls.length).toBeGreaterThan(before);
+ expect(text(ready())).not.toContain('바코드가 없는 옵션');
+ // 내보내기에 성공하면 서버가 실제로 내보낸 배송 건으로 다시 센 결과를 상태 문구로 보여 준다.
+ mocks.export.mockResolvedValue({file:{base64:'',mime:'application/octet-stream',name:'f.xlsx'},message:'1건의 출고지시를 내려받았습니다. 바코드가 없는 옵션 1개 — 파일의 바코드 칸이 비어 있습니다.'});
+ const anchor={click:vi.fn(),href:'',download:''};
+ vi.stubGlobal('document',{createElement:()=>anchor});vi.stubGlobal('URL',{createObjectURL:()=>'blob:x',revokeObjectURL:vi.fn()});
+ (nodes(ready()).find(node=>node.type==='button'&&text(node.props.children as ReactNode)==='출고지시 내보내기')!.props.onClick as ()=>void)();
+ await Promise.all(mocks.work);
+ expect(anchor.click).toHaveBeenCalledOnce();
+ expect(text(ready())).toContain('1건의 출고지시를 내려받았습니다. 바코드가 없는 옵션 1개 — 파일의 바코드 칸이 비어 있습니다.');
 });

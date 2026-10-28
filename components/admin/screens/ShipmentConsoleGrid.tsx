@@ -35,7 +35,8 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
  const [completion,setCompletion]=useState<{ids:string[];total:number;acknowledged:boolean}|null>(null);
  const [exportRequest,setExportRequest]=useState<ExportRequest|null>(null);
  const [downloadedIds,setDownloadedIds]=useState<Set<string>>(()=>new Set());
- const [exportRound,setExportRound]=useState(0);
+ // 이 화면의 처리(발주확인·내보내기·배송완료)가 끝날 때마다 오른다. 성공·실패와 관계없이 바코드 경고를 지금 값으로 다시 센다(리뷰 M27-SHIP-1).
+ const [dataRound,setDataRound]=useState(0);
  const [barcodeGaps,setBarcodeGaps]=useState<{key:string;missing:number}|null>(null);
  const [originBarcodeGaps,setOriginBarcodeGaps]=useState<{key:string;counts:Record<string,number>}|null>(null);
  // Revalidation can move just-confirmed shipments behind an existing ready backlog.
@@ -56,24 +57,26 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
  const exportEligible=ids.length>0&&ids.every(id=>{const row=rows.find(item=>item.id===id);return row?shipmentConsoleSelectable(row,tab):Boolean(retainedIds?.includes(id));});
  // 10/27 회의 D10: 기존 창고 양식으로 받을 때, 바코드가 없는 옵션 수를 내보내기 전에 알린다. 경고일 뿐 내보내기를 막지 않는다.
  // 파일에 바코드 칸이 있는지(서원 송장양식, 바코드 열을 고른 표준 양식)는 서버가 배송 건 출고지의 설정으로 판정하므로
- // 선택한 배송 건 전체(화면 밖의 방금 발주확인한 묶음 포함)를 넘긴다. 조회는 선택·출고지 구성이 바뀔 때와 내보낸 뒤에만 다시 한다.
+ // 선택한 배송 건 전체(화면 밖의 방금 발주확인한 묶음 포함)를 넘긴다. 조회는 선택·출고지 구성이 바뀔 때와 이 화면의 처리가
+ // 끝날 때(dataRound)마다 다시 한다. 다른 탭에서 바코드를 고친 경우는 내보내기 결과 문구가 실제로 내보낸 배송 건으로 다시 센 값을 알린다.
+ // 출고지 경고는 탭을 열 때마다 부르므로 다음 파일 한 묶음 대신 그 출고지의 미전달 발송 대기 건 전체를 가볍게 센다(리뷰 M27-SHIP-2).
  const exportTab=tab==='ready'||tab==='delayed';
  const barcodeKey=exportTab&&layout==='warehouse'&&exportEligible?[...ids].sort().join(','):'';
  const barcodeOrigins=exportOrigins.filter(origin=>(layoutChoice??defaultExportLayout(origins,[origin.id]))==='warehouse');
  const originBarcodeKey=barcodeOrigins.map(origin=>origin.id).join(',');
  useEffect(()=>{
   if(!barcodeKey)return;let live=true;
-  shipmentBarcodeGapsAction(barcodeKey.split(',')).then(missing=>{if(live&&missing!==null)setBarcodeGaps({key:`${barcodeKey}#${exportRound}`,missing});},()=>{});
+  shipmentBarcodeGapsAction(barcodeKey.split(',')).then(missing=>{if(live&&missing!==null)setBarcodeGaps({key:`${barcodeKey}#${dataRound}`,missing});},()=>{});
   return()=>{live=false;};
- },[barcodeKey,exportRound]);
+ },[barcodeKey,dataRound]);
  useEffect(()=>{
   if(!originBarcodeKey)return;let live=true;
   Promise.all(originBarcodeKey.split(',').map(id=>originBarcodeGapsAction(id).then(missing=>[id,missing] as const)))
-   .then(entries=>{if(live)setOriginBarcodeGaps({key:`${originBarcodeKey}#${exportRound}`,counts:Object.fromEntries(entries.filter((entry):entry is readonly [string,number]=>entry[1]!==null))});},()=>{});
+   .then(entries=>{if(live)setOriginBarcodeGaps({key:`${originBarcodeKey}#${dataRound}`,counts:Object.fromEntries(entries.filter((entry):entry is readonly [string,number]=>entry[1]!==null))});},()=>{});
   return()=>{live=false;};
- },[originBarcodeKey,exportRound]);
- const selectionBarcodeGap=barcodeKey&&barcodeGaps?.key===`${barcodeKey}#${exportRound}`?barcodeGaps.missing:0;
- const originBarcodeGap=(id:string)=>originBarcodeKey&&originBarcodeGaps?.key===`${originBarcodeKey}#${exportRound}`?originBarcodeGaps.counts[id]??0:0;
+ },[originBarcodeKey,dataRound]);
+ const selectionBarcodeGap=barcodeKey&&barcodeGaps?.key===`${barcodeKey}#${dataRound}`?barcodeGaps.missing:0;
+ const originBarcodeGap=(id:string)=>originBarcodeKey&&originBarcodeGaps?.key===`${originBarcodeKey}#${dataRound}`?originBarcodeGaps.counts[id]??0:0;
  function select(next:string[]){setConfirmedSelection(null);setSelected(next.filter(id=>selectableIds.has(id)));}
  function reviewCompletion(){
   if(!ids.length||pending)return;
@@ -125,12 +128,13 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
      if(result.error)setError(result.error);
      else if(result.file){
       if(request.layout==='smartstore'&&request.format==='xlsx'&&result.file.encryption!=='ECMA-376-Agile'){setError('파일 암호화를 확인하지 못했습니다. 다시 내려받아 주세요.');return;}
-      download(result.file);setExportRequest(null);setExportRound(round=>round+1);setMessage(result.message??(request.kind==='selection'?`${request.ids.length}건의 출고지시를 내려받았습니다.`:'출고지시를 내려받았습니다.'));
+      download(result.file);setExportRequest(null);setMessage(result.message??(request.kind==='selection'?`${request.ids.length}건의 출고지시를 내려받았습니다.`:'출고지시를 내려받았습니다.'));
       if(request.kind==='selection')setDownloadedIds(current=>new Set([...current,...request.ids]));
      }
     }
     router.refresh();
    }catch{setCompletion(null);setError('처리 중 연결이 끊겼습니다. 최신 상태를 확인한 뒤 다시 시도해주세요.');}
+   finally{setDataRound(round=>round+1);}
   });
  }
  return <div className="wc-admin-kit">
@@ -156,7 +160,7 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
      <label>파일 형식 <select value={format} disabled={pending} onChange={event=>setFormat(event.target.value as 'xlsx'|'csv')}><option value="xlsx">Excel (.xlsx)</option><option value="csv">CSV</option></select></label>{seowonCsvNote}</>:null}
     <span>선택 없이 출고지별 미전달 발송 대기 건을 버튼에 적힌 양식으로 받습니다(품목 1,000줄까지, 남으면 다시 눌러 이어 받기).</span>
     {exportOrigins.map(origin=><button key={origin.id} type="button" className="wc-admin-kit__button" disabled={pending} onClick={()=>exportOrigin(origin)}>{origin.name} 새 출고지시 전체 내려받기 ({layoutLabel(layoutChoice??defaultExportLayout(origins,[origin.id]),origin.template==='seowon_xlsx')})</button>)}
-    {barcodeOrigins.map(origin=>originBarcodeGap(origin.id)>0?<span key={`barcode-${origin.id}`} role="status">{`${origin.name} 새 출고지시: ${shipmentBarcodeGapWarning(originBarcodeGap(origin.id))}`}</span>:null)}
+    {barcodeOrigins.map(origin=>originBarcodeGap(origin.id)>0?<span key={`barcode-${origin.id}`} role="status">{`${origin.name} 미전달 발송 대기 건: ${shipmentBarcodeGapWarning(originBarcodeGap(origin.id))}`}</span>:null)}
    </div>:null}
   </ConsoleGrid>
   {tab==='delayed'?<button className="wc-admin-kit__button" type="button" onClick={()=>setNoticeSelection([])}>고객 지연 안내 이력·결과</button>:null}
