@@ -7,7 +7,7 @@ import { changeClaimFeeAction, readClaimFeesAction, readOrderClaimFeesAction } f
 import { CLAIM_FEE_ACTIONS, CLAIM_FEE_POLICY_PATH, CLAIM_FEE_STATES, normalizeClaimFeeValues, type ClaimFeeDocument, type ClaimFeeInvoice, type ClaimFeeKind, type ClaimFeeValues } from '@/lib/orders/claim-fees';
 import { formatOrderDateTime } from '@/lib/orders';
 import { krw } from '@/lib/format';
-import { useClaimPreviewBusy } from '@/components/admin/screens/ClaimPreviewDialog';
+import { useClaimPreviewBusy } from '@/components/orders/claim-preview-busy';
 type Props = { actorId: string; claimId: string; operator?: boolean };
 type Request = { invoiceId: string | null; kind: ClaimFeeKind; values: ClaimFeeValues; revision: number; claimRevision: number; operationId: string };
 export function ClaimFeePanel(props: Props) {

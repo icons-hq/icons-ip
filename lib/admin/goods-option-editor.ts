@@ -29,7 +29,7 @@ export type GoodsOptionAxis = { name: string; values: string };
 export const GOODS_OPTION_AXIS_LIMIT = 3;
 export const GOODS_OPTION_ROW_LIMIT = 100;
 type Result = { ok: true; rows: GoodsOptionRow[] } | { ok: false; error: string };
-const INVALID = '옵션명·관리코드·ERP 식별자·옵션가·재고수량·안전재고·사용여부를 확인해주세요. 옵션은 1~100개까지 저장할 수 있습니다.';
+const INVALID = '옵션명·관리코드·ERP 식별자·옵션가·재고수량·안전재고·사용여부·옵션별 구매 제한(1 이상의 정수)을 확인해주세요. 옵션은 1~100개까지 저장할 수 있습니다.';
 const signature = (attributes: Record<string, string>) => JSON.stringify(Object.entries(attributes).sort(([a], [b]) => a.localeCompare(b)));
 export function generateGoodsOptionRows(axes: GoodsOptionAxis[], previous: GoodsOptionRow[]): Result {
   if (axes.length < 1 || axes.length > GOODS_OPTION_AXIS_LIMIT) return { ok: false, error: `옵션명은 1~${GOODS_OPTION_AXIS_LIMIT}개 입력해주세요.` };

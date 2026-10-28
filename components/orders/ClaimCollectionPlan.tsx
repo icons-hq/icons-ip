@@ -7,6 +7,7 @@ import { COLLECTION_METHODS, normalizeClaimCollectionValues, type ClaimCollectio
 import type { ShippingCarrierRegistry } from '@/lib/orders/shipment';
 import { formatOrderDateTime } from '@/lib/orders';
 import { numberedShippingGroupLabel } from '@/lib/fulfillment';
+import { useClaimPreviewBusy } from '@/components/orders/claim-preview-busy';
 type Props = { actorId: string; claimId: string; operator?: boolean; carriers?: ShippingCarrierRegistry };
 type Request = { shipmentId: string; revision: number; claimRevision: number; values: ClaimCollectionValues; operationId: string };
 export function ClaimCollectionPlan(props: Props) {
@@ -18,6 +19,7 @@ function CollectionPanel({ claimId, operator = false, carriers = [], identity, s
   const [method, setMethod] = useState<CollectionMethod>('not_requested'), [carrier, setCarrier] = useState(''), [tracking, setTracking] = useState(''), [evidence, setEvidence] = useState(''), [confirmed, setConfirmed] = useState(false);
   const [pending, setPending] = useState(false), [error, setError] = useState(''), [message, setMessage] = useState(''), [uncertain, setUncertain] = useState(false);
   const alive = useRef(true), busy = useRef(false), dispatched = useRef<Request | null>(null);
+  useClaimPreviewBusy(pending); /* 목록 위 클레임 팝업(R8)에서 기다리는 동안 팝업이 닫히지 않게 알린다. 팝업 밖에서는 아무 일도 하지 않는다. */
   useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
   async function read() {
     if (busy.current) return; const ticket = scope.capture(); if (!ticket) return;

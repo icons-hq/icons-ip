@@ -5,7 +5,7 @@ import { loadAdminClaimWithdrawalAction, readAdminClaimWithdrawalAction, submitA
 import { claimWithdrawalError, claimWithdrawalReceiptMatches, normalizeClaimWithdrawalRequest, parseClaimWithdrawalContext, parseClaimWithdrawalReceipt, type ClaimWithdrawalContext, type ClaimWithdrawalRequest, type ClaimWithdrawalReceipt, type ClaimWithdrawalResult } from '@/lib/orders/claim-withdrawal';
 import { ORDER_CLAIM_TYPE_LABELS, type OrderClaimStage } from '@/lib/orders/claims';
 import { formatOrderDateTime } from '@/lib/orders';
-import { useClaimPreviewBusy } from '@/components/admin/screens/ClaimPreviewDialog';
+import { useClaimPreviewBusy } from '@/components/orders/claim-preview-busy';
 
 async function customerRequest(claimId: string, operation?: string, payload?: ClaimWithdrawalRequest): Promise<ClaimWithdrawalResult> {
   try {

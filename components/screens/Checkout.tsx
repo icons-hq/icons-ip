@@ -71,7 +71,7 @@ const actionErrors = {
   store_credit_rejected: '적립금 잔액이나 사용 조건이 바뀌었어요. 사용 금액을 다시 확인해주세요.',
   checkout_changed: '이미 만든 주문과 요청 내용이 달라요. 내 주문에서 결제를 이어가거나 기존 주문을 취소한 뒤 다시 주문해주세요.',
   /* 견적 뒤 다른 화면에서 쿠폰 선택이 바뀐 경우(DB coupon_selection_changed). 만든 주문이 없으므로 checkout_changed 문구를 쓰지 않는다.
-     lib/checkout.ts 의 mapPlaceOrderError 가 이 코드로 나눌 때 쓰인다 — 그 전까지는 checkout_changed 로 묶인다. */
+     lib/checkout.ts 의 mapPlaceOrderError 가 이 코드로 돌려준다. */
   coupon_selection_changed: '쿠폰 선택이 바뀌었어요. 바뀐 쿠폰으로 결제 금액을 다시 확인한 뒤 주문해주세요.',
   goods_sale_not_open: '판매기간이 시작되지 않았거나 종료된 굿즈이 있어요. 장바구니를 확인해주세요.',
   preorder_sale_not_open: '예약 접수가 종료되거나 중지된 굿즈가 있어요. 장바구니를 확인해주세요.',

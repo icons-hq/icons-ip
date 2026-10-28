@@ -30,12 +30,18 @@ vi.mock('react', async () => {
 
 import { useInquiryDraft } from './useInquiryDraft';
 
-function run(accountId: string) {
-  mocks.memoIndex = 0;
-  const result = useInquiryDraft(accountId, 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'reply');
-  mocks.effects.splice(0).forEach((effect) => effect());
-  mocks.memoIndex = 0;
+function Harness(accountId: string) {
+  // Drives the mocked hook runtime; it is never rendered by React.
   return useInquiryDraft(accountId, 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'reply');
+}
+function render(accountId: string) {
+  mocks.memoIndex = 0;
+  return Harness(accountId);
+}
+function run(accountId: string) {
+  render(accountId);
+  mocks.effects.splice(0).forEach((effect) => effect());
+  return render(accountId);
 }
 
 beforeEach(() => {
@@ -50,8 +56,7 @@ it('Supabase 미설정 환경에서도 답변 입력이 열린다', () => {
   expect(draft.ready).toBe(true);
   expect(draft.blocked).toBe(false);
   draft.change('안녕하세요');
-  mocks.memoIndex = 0;
-  expect(useInquiryDraft('11111111-1111-4111-8111-111111111111', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'reply').body).toBe('안녕하세요');
+  expect(render('11111111-1111-4111-8111-111111111111').body).toBe('안녕하세요');
 });
 
 it('계정 id가 없는 미리보기에서도 잠기지 않는다', () => {

@@ -38,6 +38,7 @@ import {
   validateSabangnetTargets,
   type SabangnetTarget,
 } from '@/lib/admin/sabangnet-goods-format';
+import { RANDOM_OPTION_PROBLEMS, goodsOptionSaleModeErrorMessage } from '@/lib/goods-option-sale-mode';
 
 async function requireStaff() {
   const auth = await requireAdminActionAccess(GOODS_IMPORT_PATH);
@@ -47,6 +48,8 @@ async function requireStaff() {
 function safeError(error: unknown) {
   unstable_rethrow(error);
   const message = error instanceof Error ? error.message : '';
+  /* D5② 랜덤 판매 상품의 옵션 가격·개수를 깨는 반입은 커밋에서 random_option_*로 거절된다. */
+  if (RANDOM_OPTION_PROBLEMS.some((code) => message.includes(code))) return { ok: false as const, error: goodsOptionSaleModeErrorMessage(message) };
   return {
     ok: false as const,
     error: /[가-힣]/.test(message)

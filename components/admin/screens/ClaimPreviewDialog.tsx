@@ -2,7 +2,8 @@
 
 import Link, { useLinkStatus } from 'next/link';
 import { useRouter } from 'next/navigation';
-import { createContext, useCallback, useContext, useEffect, useId, useState, type ReactNode } from 'react';
+import { useCallback, useContext, useState, type ReactNode } from 'react';
+import { ClaimPreviewBusy, ClaimPreviewBusyReporter, useClaimPreviewBusy, type ClaimPreviewBusyReport } from '@/components/orders/claim-preview-busy';
 import { CustomerServiceDialog } from './CustomerServiceDialog';
 
 /*
@@ -16,10 +17,6 @@ import { CustomerServiceDialog } from './CustomerServiceDialog';
  * 못한다. 닫으면 router.replace가 Next 액션 큐의 대기 중인 액션 상태를 버리고 패널이 사라져,
  * 서버에서 끝난 처리의 결과 문구(실패 코드·다음 할 일)를 운영자가 보지 못한다.
  */
-type BusyReporter = (source: string, busy: boolean) => void;
-const ClaimPreviewBusyReporter = createContext<BusyReporter | null>(null);
-const ClaimPreviewBusy = createContext(false);
-
 export function ClaimPreviewDialog({ children, closeHref, title }: {
   children: ReactNode;
   closeHref: string;
@@ -27,7 +24,7 @@ export function ClaimPreviewDialog({ children, closeHref, title }: {
 }) {
   const router = useRouter();
   const [busySources, setBusySources] = useState<readonly string[]>([]);
-  const report = useCallback<BusyReporter>((source, busy) => {
+  const report = useCallback<ClaimPreviewBusyReport>((source, busy) => {
     setBusySources((current) => {
       if (current.includes(source) === busy) return current;
       return busy ? [...current, source] : current.filter((value) => value !== source);
@@ -43,19 +40,8 @@ export function ClaimPreviewDialog({ children, closeHref, title }: {
   </ClaimPreviewBusyReporter.Provider>;
 }
 
-/**
- * 팝업 안 처리 패널이 서버 액션을 기다리는 동안(busy) 팝업을 닫지 못하게 알린다. 팝업 밖(독립
- * 상세 라우트)에서는 아무 일도 하지 않는다.
- */
-export function useClaimPreviewBusy(busy: boolean) {
-  const report = useContext(ClaimPreviewBusyReporter);
-  const source = useId();
-  useEffect(() => {
-    if (!report || !busy) return;
-    report(source, true);
-    return () => report(source, false);
-  }, [busy, report, source]);
-}
+/** 처리 패널은 중립 모듈의 훅을 직접 불러도 된다. 기존 import 경로를 위해 다시 내보낸다. */
+export { useClaimPreviewBusy };
 
 /** 팝업의 '전체 화면으로 열기'. 처리 패널이 기다리는 동안에는 누를 수 없다(이동도 대기 중인 액션 상태를 버린다). */
 export function ClaimPreviewFullScreenLink({ href }: { href: string }) {

@@ -7,7 +7,7 @@ vi.mock('react', async () => ({ ...await vi.importActual<typeof import('react')>
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: mocks.refresh }) }));
 vi.mock('@/app/admin/claim-withdrawal-actions', () => ({ submitAdminClaimWithdrawalAction: mocks.save, readAdminClaimWithdrawalAction: mocks.read, loadAdminClaimWithdrawalAction: mocks.load }));
 const busy = vi.hoisted(() => vi.fn());
-vi.mock('@/components/admin/screens/ClaimPreviewDialog', () => ({ useClaimPreviewBusy: busy }));
+vi.mock('@/components/orders/claim-preview-busy', () => ({ useClaimPreviewBusy: busy }));
 import { ClaimWithdrawal, ClaimWithdrawalPanel } from './ClaimWithdrawal';
 import { withdrawalContextFixture as context, withdrawalReceiptFixture as receipt } from '@/lib/orders/claim-withdrawal.fixture';
 type Element = ReactElement<{ children?: ReactNode; disabled?: boolean; type?: string; busy?: boolean; onClose?: () => void; onClick?: () => void; onSubmit?: (event: unknown) => void; onChange?: (event: unknown) => void }>;
