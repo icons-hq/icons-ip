@@ -118,6 +118,24 @@ end $$;
 revoke all on function private.goods_random_option_problem(text) from public,anon,authenticated,service_role;
 grant execute on function private.goods_random_option_problem(text) to postgres;
 
+-- 판매 방식을 랜덤으로 '바꿀 때만' 보는 조건. 정기배송(정책 사용 또는 진행 중 계약)과 수락 대기 선물은 랜덤 굿즈를 받지 않으므로
+-- 이미 걸린 굿즈를 바꾸면 갱신·수락이 조용히 실패한다. 그룹상품 전환 차단(private.goods_group_conversion_blockers)과 같은 판정이다.
+-- 랜덤 굿즈가 된 뒤의 옵션 수정까지 막지 않도록 지연 제약 트리거가 쓰는 goods_random_option_problem과 나눈다.
+create function private.goods_random_option_switch_problem(p_good_id text) returns text
+language sql stable security definer set search_path='' as $$
+  select coalesce(private.goods_random_option_problem(p_good_id),
+    case when exists(select 1 from private.goods_subscription_policies where good_id=p_good_id and enabled)
+      or exists(select 1 from private.goods_subscription_plans plan join private.goods_subscription_terms terms on terms.id=plan.current_terms_id
+        where plan.state in ('awaiting_first_payment','active','paused','needs_confirmation')
+          and exists(select 1 from jsonb_array_elements(terms.selection) line where line->>'goodId'=p_good_id))
+      then 'random_option_subscription' end,
+    case when exists(select 1 from private.gift_items item join private.gift_intents gift on gift.id=item.gift_id
+        where item.good_id=p_good_id and gift.state in ('awaiting_acceptance','accepted') and gift.order_id is null)
+      then 'random_option_gift_pending' end)
+$$;
+revoke all on function private.goods_random_option_switch_problem(text) from public,anon,authenticated,service_role;
+grant execute on function private.goods_random_option_switch_problem(text) to postgres;
+
 -- 랜덤 굿즈의 조건을 깨는 쓰기를 커밋에서 거절한다. 옵션 저장은 행을 하나씩 바꾸므로 문장 끝이 아니라 커밋에서 판정한다.
 create function private.guard_goods_option_sale_mode() returns trigger
 language plpgsql security definer set search_path='' as $$
@@ -177,7 +195,7 @@ begin
   perform 1 from public.goods_variants where good_id=p_good_id order by id for update;
   if good.option_sale_mode<>p_mode then
     if p_mode='random' then
-      problem:=private.goods_random_option_problem(p_good_id);
+      problem:=private.goods_random_option_switch_problem(p_good_id);
       if problem is not null then raise check_violation using message=problem; end if;
     end if;
     before_mode:=good.option_sale_mode;
@@ -202,7 +220,8 @@ begin
   select * into good from public.goods where id=p_good_id;
   if not found then raise no_data_found using message='good_not_found'; end if;
   return jsonb_build_object('goodId',good.id,'optionSaleMode',good.option_sale_mode,'updatedAt',good.updated_at,
-    'randomProblem',private.goods_random_option_problem(good.id),
+    'randomProblem',case when good.option_sale_mode='random' then private.goods_random_option_problem(good.id)
+      else private.goods_random_option_switch_problem(good.id) end,
     'activeOptionCount',(select count(*) from public.goods_variants where good_id=good.id and archived_at is null));
 end $$;
 revoke all on function public.admin_goods_option_sale_mode(text) from public,anon,authenticated,service_role;

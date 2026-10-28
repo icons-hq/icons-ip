@@ -122,6 +122,20 @@ select 1/case when public.admin_goods_option_sale_mode('random-priced')->>'rando
  and public.admin_goods_option_sale_mode('random-main')->>'optionSaleMode'='select'
  and (public.admin_goods_option_sale_mode('random-main')->>'activeOptionCount')::integer=3
  then 1 else 0 end as assert_admin_reader_reports_eligibility;
+-- 정기배송 정책이 켜졌거나 진행 중인 정기배송·수락 대기 선물이 걸린 굿즈는 랜덤으로 바꿀 수 없다(전환 때만 판정).
+reset role;
+insert into private.goods_subscription_policies(good_id,enabled) values('random-main',true)
+ on conflict (good_id) do update set enabled=true;
+set local role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000162001',true);
+select pg_temp.expect_error(format('select public.admin_set_goods_option_sale_mode(%L,%L,%L)','random-main','random',(select updated_at from public.goods where id='random-main')),
+ 'random_option_subscription','23514');
+select 1/case when public.admin_goods_option_sale_mode('random-main')->>'randomProblem'='random_option_subscription'
+ then 1 else 0 end as assert_reader_reports_subscription_block;
+reset role;
+update private.goods_subscription_policies set enabled=false where good_id='random-main';
+set local role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000162001',true);
 select public.admin_set_goods_option_sale_mode('random-main','random',(select updated_at from public.goods where id='random-main')) as switched \gset
 reset role;
 select 1/case when (:'switched'::jsonb->>'optionSaleMode')='random'

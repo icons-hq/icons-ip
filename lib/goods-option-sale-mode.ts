@@ -46,6 +46,8 @@ export const RANDOM_OPTION_PROBLEMS = [
   'random_option_custom_inputs',
   'random_option_aggregation',
   'random_option_group',
+  'random_option_subscription',
+  'random_option_gift_pending',
 ] as const;
 export type RandomOptionProblem = typeof RANDOM_OPTION_PROBLEMS[number];
 
@@ -59,6 +61,8 @@ const RANDOM_OPTION_PROBLEM_MESSAGES: Record<RandomOptionProblem, string> = {
   random_option_custom_inputs: '직접 입력 옵션이 있으면 랜덤 판매를 쓸 수 없습니다.',
   random_option_aggregation: '옵션을 상품으로 나눈 이력이 있는 상품은 랜덤 판매를 쓸 수 없습니다.',
   random_option_group: '그룹상품에 묶인 상품은 랜덤 판매를 쓸 수 없습니다.',
+  random_option_subscription: '정기배송을 쓰는 상품은 랜덤 판매로 바꿀 수 없습니다. 정기배송 정책을 끄고 진행 중인 정기배송이 끝난 뒤 바꾸세요.',
+  random_option_gift_pending: '수락 대기 중인 선물에 담긴 상품은 랜덤 판매로 바꿀 수 없습니다. 선물이 주문되거나 끝난 뒤 바꾸세요.',
 };
 
 /**
