@@ -76,6 +76,15 @@ describe('m27 가이드 — 고객문의·상담·리뷰(R1~R6)', () => {
     expect(text).not.toContain('선택 닫기');
   });
 
+  it('팝업 안 처리를 기다리는 동안에는 닫히지 않는다(R4·ADM-4)', () => {
+    const dialog = repoFile('components/admin/screens/CustomerServiceDialog.tsx');
+    expect(dialog).toContain('export function useInquiryPreviewBusy');
+    for (const panel of ['InquiryReplyPanel.tsx', 'InquiryWorkspacePanel.tsx']) {
+      expect(repoFile(`components/admin/screens/${panel}`)).toContain('useInquiryPreviewBusy(');
+    }
+    expect(text).toContain('답변 발송·종결·담당자 변경·내부 메모 저장을 처리하는 동안에는 팝업이 닫히지 않습니다');
+  });
+
   it('상담하기는 Enter로 보내고 고객문의 답변은 버튼으로 보낸다(R5)', () => {
     expect(repoFile('components/admin/screens/InquiryChatConversation.tsx')).toMatch(/event\.shiftKey/);
     expect(repoFile('components/admin/screens/InquiryReplyPanel.tsx')).toContain("'답변 발송'");

@@ -10,6 +10,7 @@ import type { AdminInquiryInternalNote, AdminInquiryStaffOption } from '@/lib/ad
 import { formatInquiryDateTime, MAX_INQUIRY_BODY_LENGTH } from '@/lib/inquiries';
 import { useInquiryDraft } from '@/components/admin/useInquiryDraft';
 import { InquiryDraftNotice } from './InquiryDraftNotice';
+import { useInquiryPreviewBusy } from './CustomerServiceDialog';
 
 const EMPTY_STATE: AdminInquiryActionState = {};
 
@@ -28,6 +29,7 @@ export function InquiryAssignmentPanel({ inquiryId, assigneeId, assigneeName, st
   staffOptions: AdminInquiryStaffOption[];
 }) {
   const [state, action, pending] = useActionState(reassignInquiryAction, EMPTY_STATE);
+  useInquiryPreviewBusy(pending); /* 목록 위 문의 팝업(R4)에서 기다리는 동안 팝업이 닫히지 않게 알린다. 팝업 밖에서는 아무 일도 하지 않는다. */
   const [selected, setSelected] = useState(assigneeId ?? '');
   const [reason, setReason] = useState('');
   const [clearedKey, setClearedKey] = useState<string | null>(null);
@@ -71,6 +73,7 @@ export function InquiryInternalNotesPanel({ inquiryId, notes, accountId = '' }: 
   accountId?: string;
 }) {
   const [state, action, pending] = useActionState(addInquiryInternalNoteAction, EMPTY_STATE);
+  useInquiryPreviewBusy(pending); /* 목록 위 문의 팝업(R4)에서 기다리는 동안 팝업이 닫히지 않게 알린다. 팝업 밖에서는 아무 일도 하지 않는다. */
   const draft = useInquiryDraft(accountId, inquiryId, 'note', state.resultKey);
   const { body, change: setBody } = draft;
   const busy = pending || !draft.ready || draft.blocked;
