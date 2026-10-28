@@ -393,6 +393,8 @@ describe('GoodSection', () => {
     const card = (id: string) => { const start = html.indexOf(`id="good-operation-${id}"`); return html.slice(start, html.indexOf('<details id="good-operation-', start + 1)); };
     for (const id of ['transaction-terms', 'shipping-charge-group', 'subscription-policy', 'fulfillment', 'production']) {
       expect(card(id)).toMatch(/class="admin-good-workspace__disabled" role="status"><p>기본 상품의 입력 상태를 확인하고 있습니다.<\/p>/);
+      /* 리뷰 T3a-7 — 패널 본문은 같은 문장을 되풀이하지 않고 위 안내를 가리킨다(한 패널에 이유가 두 번 나오지 않는다). */
+      expect(card(id).split('기본 상품의 입력 상태를 확인하고 있습니다.')).toHaveLength(2);
     }
     expect(card('prices')).not.toContain('admin-good-workspace__disabled');
   });
