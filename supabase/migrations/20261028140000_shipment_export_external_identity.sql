@@ -5,7 +5,7 @@
 --    둘 다 없으면 빈 문자열이다. 스냅샷은 읽기만 한다 — 정산 내보내기(collect_settled_export*)의 원천은 바뀌지 않는다.
 --    live 정의는 20261020085140 원문 + 20261020085347의 o.address 치환이므로 원문 복사 대신 앵커 치환으로 고친다.
 -- 2) 표준 양식 선택 열에 barcode·erpCode·erpName을 더한다(12~16열). 검증 함수만 넓히고 CHECK 제약은 그대로 쓴다.
--- 3) 내보내기 전 경고용 조회 public.admin_shipment_barcode_gaps: 선택한 배송 건에서 바코드가 비는 옵션 수.
+-- 3) 내보내기 전 경고용 조회 public.admin_shipment_barcode_gaps: 선택한 배송 건에서 바코드가 비는 옵션 수(바코드 칸이 있는 출고지 양식만).
 --    출고를 막지 않는다. 기존 주문·스냅샷·출고지 설정은 바꾸지 않는다.
 begin;
 
@@ -45,6 +45,8 @@ revoke all on function private.valid_shipment_export_columns(jsonb) from public,
 
 -- 내보내기 전 경고: 선택한 배송 건의 품목 가운데 출고 파일의 바코드 칸이 비는 옵션 수(옵션 단위로 한 번씩).
 -- 출고 파일과 같은 규칙(스냅샷 우선, 비면 지금 값)으로 센다. 옵션이 지워진 품목은 상품·옵션 이름으로 센다.
+-- 바코드 칸은 기존 창고 양식으로 받을 때 배송 건 출고지의 양식이 정한다(출고 행 함수와 같은 order_shipments.origin_id 기준):
+-- 서원 송장양식은 늘 있고, 표준 양식은 바코드 선택 열을 고른 경우만 있다. 김포 21열에는 없다. 그 밖의 배송 건은 세지 않는다.
 create function public.admin_shipment_barcode_gaps(p_ids uuid[]) returns integer
 language plpgsql stable security definer set search_path='' as $$
 begin
@@ -53,10 +55,16 @@ begin
   raise invalid_parameter_value using message='invalid_export_selection';
  end if;
  return (select count(distinct coalesce(i.variant_id::text,i.good_id||'/'||coalesce(i.variant_name_snapshot,'')))
-  from public.order_shipment_items link join public.order_items i on i.id=link.order_item_id
+  from public.order_shipment_items link
+  join public.order_shipments s on s.id=link.shipment_id
+  join public.fulfillment_origins origin on origin.id=s.origin_id
+  join public.order_items i on i.id=link.order_item_id
   left join private.order_item_external_identity_snapshots identity_snapshot on identity_snapshot.order_item_id=i.id
   left join private.goods_variant_external_identity identity_live on identity_live.variant_id=i.variant_id
-  where link.shipment_id=any(p_ids) and coalesce(identity_snapshot.barcode,identity_live.barcode) is null)::integer;
+  where link.shipment_id=any(p_ids)
+   and (origin.export_template='seowon_xlsx'
+    or (origin.export_template='standard' and origin.export_columns @> '[{"key":"barcode"}]'::jsonb))
+   and coalesce(identity_snapshot.barcode,identity_live.barcode) is null)::integer;
 end $$;
 revoke all on function public.admin_shipment_barcode_gaps(uuid[]) from public,anon,authenticated,service_role;
 grant execute on function public.admin_shipment_barcode_gaps(uuid[]) to authenticated;

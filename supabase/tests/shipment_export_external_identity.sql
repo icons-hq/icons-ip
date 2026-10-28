@@ -69,14 +69,29 @@ select 1/case when (select count(*) from private.order_item_external_identity_sn
  then 1 else 0 end as assert_snapshots_unchanged_by_export;
 
 -- 내보내기 전 경고: 바코드가 비는 옵션 수(노랑 1개). 같은 옵션이 여러 배송 건에 있어도 한 번만 센다.
+-- 출고 파일에 바코드 칸이 있는 출고지 양식(서원 송장양식, 바코드 열을 고른 표준 양식)의 배송 건만 센다.
 insert into public.order_shipments(id,order_id,origin_id,origin_name_snapshot,shipping_fee,shipping_fee_snapshot)
  values('60000000-0000-4000-8000-000000052802','50000000-0000-4000-8000-000000052801','00000000-0000-4000-8000-000000042202','남양주',0,'{}');
+set local role authenticated;
+-- 김포 21열(wms_csv)에는 바코드 칸이 없다.
+select 1/case when public.admin_shipment_barcode_gaps(array['60000000-0000-4000-8000-000000052801'::uuid])=0
+ and public.admin_shipment_barcode_gaps(array['60000000-0000-4000-8000-000000052801'::uuid,'60000000-0000-4000-8000-000000052802'::uuid])=0
+ and public.admin_shipment_barcode_gaps(array[]::uuid[])=0
+ then 1 else 0 end as assert_gimpo_template_has_no_barcode_column;
+reset role;
+update public.fulfillment_origins set export_template='seowon_xlsx' where id='00000000-0000-4000-8000-000000042201';
 set local role authenticated;
 select 1/case when public.admin_shipment_barcode_gaps(array['60000000-0000-4000-8000-000000052801'::uuid])=1
  and public.admin_shipment_barcode_gaps(array['60000000-0000-4000-8000-000000052801'::uuid,'60000000-0000-4000-8000-000000052802'::uuid])=1
  and public.admin_shipment_barcode_gaps(array['60000000-0000-4000-8000-000000052802'::uuid])=0
  and public.admin_shipment_barcode_gaps(array[]::uuid[])=0
- then 1 else 0 end as assert_barcode_gap_counts_distinct_options;
+ then 1 else 0 end as assert_seowon_barcode_gap_counts_distinct_options;
+reset role;
+update public.fulfillment_origins set export_template='standard' where id='00000000-0000-4000-8000-000000042201';
+set local role authenticated;
+-- 표준 기본 12열에는 바코드 칸이 없다(바코드 선택 열을 고른 경우는 아래 표준 양식 절에서 센다).
+select 1/case when public.admin_shipment_barcode_gaps(array['60000000-0000-4000-8000-000000052801'::uuid])=0
+ then 1 else 0 end as assert_standard_twelve_columns_has_no_barcode_column;
 do $$ begin
  begin perform public.admin_shipment_barcode_gaps(null); raise exception 'null selection accepted';
  exception when invalid_parameter_value then null; end;
@@ -92,7 +107,10 @@ select public.admin_save_origin_export_columns('00000000-0000-4000-8000-00000004
  :'original_columns'::jsonb||'[{"key":"variantCode","header":"옵션코드"},{"key":"barcode","header":"바코드"},{"key":"erpCode","header":"ERP 코드"},{"key":"erpName","header":"ERP 품명"}]',
  :'origin_stamp') as optional_stamp \gset
 select 1/case when jsonb_array_length(public.admin_shipment_export(array['60000000-0000-4000-8000-000000052801'::uuid])#>'{shipments,0,columns}')=16
+ and public.admin_shipment_export(array['60000000-0000-4000-8000-000000052801'::uuid])#>>'{shipments,0,template}'='standard'
  then 1 else 0 end as assert_sixteen_standard_columns_saved;
+select 1/case when public.admin_shipment_barcode_gaps(array['60000000-0000-4000-8000-000000052801'::uuid])=1
+ then 1 else 0 end as assert_standard_barcode_column_counts_gaps;
 do $$ declare columns_value jsonb; invalid jsonb; stamp timestamptz; begin
  select export_columns,updated_at into columns_value,stamp from public.fulfillment_origins where id='00000000-0000-4000-8000-000000042201';
  foreach invalid in array array[
@@ -109,6 +127,8 @@ do $$ declare columns_value jsonb; invalid jsonb; stamp timestamptz; begin
  end loop;
 end $$;
 select public.admin_save_origin_export_columns('00000000-0000-4000-8000-000000042201',:'original_columns',:'optional_stamp');
+select 1/case when public.admin_shipment_barcode_gaps(array['60000000-0000-4000-8000-000000052801'::uuid])=0
+ then 1 else 0 end as assert_standard_without_barcode_column_stops_counting;
 
 -- 판매 권한이 없는 계정은 경고 조회도 못 한다.
 reset role;
