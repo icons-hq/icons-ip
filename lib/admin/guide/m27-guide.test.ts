@@ -4,7 +4,8 @@ import { describe, expect, it } from 'vitest';
 import { CATEGORY_BULK_LINE_LIMIT, categoryBulkResultLabel } from '@/lib/admin/category-bulk';
 import { ADMIN_CLAIM_BULK_ACTION_LABELS, ADMIN_CLAIM_BULK_LIMIT, ADMIN_CLAIM_BULK_OUTCOME_LABELS } from '@/lib/admin/claim-bulk';
 import { REPLY_TEMPLATE_REPLACE_CONFIRM, REPLY_TEMPLATE_REPLACE_HINT } from '@/lib/admin/inquiry-reply-templates';
-import { ADMIN_SCREENS } from '@/lib/admin/navigation';
+import { ADMIN_NAV_GROUPS, ADMIN_SCREENS } from '@/lib/admin/navigation';
+import { shipmentBarcodeGapWarning } from '@/lib/admin/shipment-workbook';
 import { GOODS_HTML_MAX_LENGTH } from '@/lib/goods-description';
 import { RANDOM_OPTION_NOTICE } from '@/lib/goods-option-sale-mode';
 import { GOOD_TYPES } from '@/lib/goods-taxonomy';
@@ -213,5 +214,46 @@ describe('m27 가이드 — 상품 등록·목록·카테고리·랜덤 판매(R
     expect(repoFile('components/screens/Checkout.tsx')).toContain('CouponPicker');
     expect(text).toContain('장바구니나 주문서에서');
     expect(text).not.toContain('쿠폰은 장바구니에서 고객이 직접 선택하거나');
+  });
+});
+
+describe('m27 가이드 — 메뉴·배송정보·출고 파일(R21~R23·R26·R27)', () => {
+  it('시작하기의 메뉴 목록이 커머스 콘솔 사이드바 대분류와 같다(R21)', () => {
+    const labels = ADMIN_NAV_GROUPS
+      .filter((group) => (group.consoles ?? ['commerce']).includes('commerce') && !['home', 'help'].includes(group.id))
+      .map((group) => group.label);
+    expect(labels).toEqual(expect.arrayContaining(['상품관리', '배송관리', '템플릿 관리']));
+    expect(guide('getting-started')).toContain(`메뉴는 ${labels.join(', ')}로 나뉩니다.`);
+  });
+
+  it('배송정보·템플릿 화면을 새 대분류 경로로 부른다(R21·R22)', () => {
+    const group = (href: string) => ADMIN_NAV_GROUPS.find((item) => item.screens.some((screen) => screen.href === href))?.label;
+    expect(group('/admin/settings/origins')).toBe('배송관리');
+    expect(group('/admin/settings/shipping-templates')).toBe('템플릿 관리');
+    expect(group('/admin/settings/shipping-notices')).toBe('템플릿 관리');
+    const all = Object.values(ADMIN_GUIDE_TOPICS).map(plainText).join('\n');
+    for (const stale of ['상품관리 → 배송정보', '상품관리 → 배송 안내', '상품관리의 배송 안내']) expect(all).not.toContain(stale);
+    expect(guide('store-settings')).toContain('배송관리 → 배송정보 관리');
+    expect(guide('orders-shipping')).toContain('템플릿 관리 → 배송정보 템플릿 관리');
+    expect(guide('orders-shipping')).toContain('템플릿 관리 → 배송 안내 템플릿 관리');
+    expect(repoFile('components/admin/screens/FulfillmentOriginsScreen.tsx')).toContain('>출고지 추가</Link>');
+    expect(guide('store-settings')).toContain('출고지 추가');
+  });
+
+  it('출고 파일의 바코드·ERP 품명 열과 바코드 경고를 화면 문구 그대로 안내한다(R23)', () => {
+    expect(shipmentBarcodeGapWarning(3)).toBe('바코드가 없는 옵션 3개 — 파일의 바코드 칸이 비어 있습니다.');
+    const text = guide('orders-shipping');
+    expect(text).toContain('"바코드가 없는 옵션 N개 — 파일의 바코드 칸이 비어 있습니다."');
+    expect(text).toContain('받는분성명·배송메시지·배송건번호·옵션명·바코드·ERP 품명');
+    expect(text).toContain('옵션코드·바코드·ERP 코드·ERP 품명');
+  });
+
+  it('출고지 기본 택배사가 고객 배송 묶음 이름이 된다는 사실을 안내한다(R26·R27)', () => {
+    const fulfillment = repoFile('lib/fulfillment.ts');
+    expect(fulfillment).toContain('택배사가 달라 배송비가 각각 계산됩니다.');
+    expect(fulfillment).toContain("const UNKNOWN_CARRIER = '택배';");
+    const text = guide('store-settings');
+    expect(text).toContain('한진택배 배송');
+    expect(text).toContain('택배사가 달라 배송비가 각각 계산됩니다');
   });
 });
