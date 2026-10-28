@@ -8,7 +8,7 @@ import { RestockCta } from '@/components/shop/RestockCta';
 import { QuantityStepper } from '@/components/wc/QuantityStepper';
 import { WcButton } from '@/components/wc/WcButton';
 import type { Good, GoodOption } from '@/lib/data';
-import { defaultGoodOption, goodOptionPurchaseNotices, goodsPurchaseConditionProblem, initialGoodOption, isSelectableGoodOption, optionLabel, purchasableOptionQty, selectableGoodOptionId, soldOutPreviewPrice } from '@/lib/goods-options';
+import { defaultGoodOption, goodOptionPurchaseNotices, goodsPurchaseConditionProblem, initialGoodOption, isSelectableGoodOption, optionLabel, optionOrderLimitMessage, purchasableOptionQty, selectableGoodOptionId, soldOutPreviewPrice } from '@/lib/goods-options';
 import { goodsAggregationUnavailableLabel } from '@/lib/goods-aggregation';
 import { prepareGoodsCustomInputSelection } from '@/lib/goods-custom-inputs';
 import { GoodsCustomInputsFields } from './GoodsCustomInputs';
@@ -76,7 +76,7 @@ export function mergedCartQuantity(currentQuantity: number, addedQuantity: numbe
   return Math.max(0, Math.trunc(currentQuantity)) + Math.max(1, Math.trunc(addedQuantity));
 }
 
-export type PurchaseBlockReason = 'disabled' | 'soldout' | 'not_ready' | 'pending' | 'stock' | null;
+export type PurchaseBlockReason = 'disabled' | 'soldout' | 'not_ready' | 'pending' | 'stock' | 'limit' | null;
 
 export interface PurchaseBlockState {
   disabled: boolean;
@@ -85,6 +85,8 @@ export interface PurchaseBlockState {
   pending: boolean;
   nextQuantity: number;
   stockQty: number;
+  /** 고른 옵션의 주문당 최대 수량(D7②). null·없음 = 제한 없음. */
+  orderMaxQty?: number | null;
 }
 
 /**
@@ -92,13 +94,16 @@ export interface PurchaseBlockState {
  *
  * 이유를 하나로 모으는 것은 버튼의 비활성 조건과 "눌렀을 때 무슨 일이 일어나는가"가
  * 어긋나지 않게 하기 위해서다. `stock` 만은 버튼을 잠그지 않는다 — 재고를 넘겼다는
- * 사실은 카트가 자기 오류 문구로 말해야 사용자가 이유를 안다.
+ * 사실은 카트가 자기 오류 문구로 말해야 사용자가 이유를 안다. `limit`(담긴 수량을 합쳐 옵션별 주문당 최대 수량을
+ * 넘음, D7②)도 잠그지 않는다 — 누르면 카트에 보내지 않고 구매 블록이 확정 카피로 이유를 말한다. 재고가 한도보다
+ * 작으면 재고가 먼저 막으므로 `stock` 이다.
  */
 export function purchaseBlockReason(state: PurchaseBlockState): PurchaseBlockReason {
   if (state.disabled) return 'disabled';
   if (state.soldOut) return 'soldout';
   if (!state.ready) return 'not_ready';
   if (state.pending) return 'pending';
+  if (state.orderMaxQty && state.orderMaxQty <= state.stockQty && state.nextQuantity > state.orderMaxQty) return 'limit';
   if (state.nextQuantity > state.stockQty) return 'stock';
   return null;
 }
@@ -245,11 +250,19 @@ export function useGoodPurchase({
     ready: cart.ready,
     soldOut,
     stockQty,
+    orderMaxQty: selectedOption?.orderMaxQty ?? null,
   });
-  const inert = selectionRequired || (blocked !== null && blocked !== 'stock');
+  const inert = selectionRequired || (blocked !== null && blocked !== 'stock' && blocked !== 'limit');
+  /* 옵션별 주문당 최대 수량(D7②): 장바구니에 담긴 수량을 합쳐 넘으면 카트에 보내지 않는다 — 목록 담기·위시 카드와 같은
+     한도다(T7 리뷰 RV-4). 본품과 함께 고른 추가 구성 굿즈도 같은 규칙이다. */
+  const limitMessage = (selectedOption ? optionOrderLimitMessage(good, selectedOption, nextQuantity) : null)
+    ?? chosenAdditions.reduce<string | null>((found, choice) => found ?? (choice.good && choice.selectedOption
+      ? optionOrderLimitMessage(choice.good, choice.selectedOption,
+        mergedCartQuantity(cart.getQuantity(choice.goodId, choice.selectedOption.id), choice.quantity)) : null), null);
 
   const commit = async () => {
     if (!selectedOption || selectionRequired || committingRef.current) return false;
+    if (limitMessage) { setStatus(limitMessage); return false; }
     const selections = new Map(selectedGoods.map(item=>[item.id,prepareGoodsCustomInputSelection(item.customInputs,customInputValues[item.id] ?? {})]));
     for (const item of selectedGoods) {
       const prepared=selections.get(item.id)!;

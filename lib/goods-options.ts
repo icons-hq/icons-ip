@@ -1,5 +1,5 @@
 import { goodsSaleUnavailableLabel } from './goods-sale-period';
-import { goodsOptionLimitNotices, RANDOM_OPTION_LABEL, RANDOM_OPTION_NOTICE } from './goods-option-sale-mode';
+import { goodsOptionLimitMessage, goodsOptionLimitNotices, RANDOM_OPTION_LABEL, RANDOM_OPTION_NOTICE } from './goods-option-sale-mode';
 import type { Good, GoodOption } from './data';
 import type { GoodsSalesQuoteLine, GoodsVariantPricing } from './goods-sales';
 
@@ -233,6 +233,17 @@ export function goodAtQuotedPrice(good: Good | undefined, line: GoodsSalesQuoteL
 export function purchasableOptionQty(option: Pick<GoodOption, 'stockQty' | 'orderMaxQty'>): number {
   const stock = Math.max(0, option.stockQty);
   return option.orderMaxQty ? Math.min(stock, option.orderMaxQty) : stock;
+}
+
+/**
+ * 담기 전 옵션별 주문당 최대 수량(D7②) 판정: 장바구니에 이미 담긴 수량을 합친 `totalQty`가 한도를 넘으면 확정 카피,
+ * 아니면 null. 상품 상세 담기·바로구매가 목록 담기(AddToCartButton)·위시 카드와 같은 한도에서 멈추게 한다(T7 리뷰 RV-4).
+ * 1인 누적 한도는 결제 대기 주문을 포함해 화면에서 계산하지 않는다 — 장바구니 견적과 주문 생성 트리거가 판정한다.
+ */
+export function optionOrderLimitMessage(good: Pick<Good, 'name' | 'options'>, option: GoodOption | undefined, totalQty: number): string | null {
+  if (!option?.orderMaxQty || totalQty <= option.orderMaxQty) return null;
+  return goodsOptionLimitMessage('option_order_limit_exceeded', optionLabel(option, good.options?.length ?? 0) ?? good.name,
+    { orderMaxQty: option.orderMaxQty, memberMaxQty: option.memberMaxQty ?? null });
 }
 
 /**
