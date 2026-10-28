@@ -17,7 +17,7 @@ describe('complete admin WC cutover (#433)', () => {
     expect(select).not.toContain("color: 'var(--wc-ink-sub)'");
     expect(read('./styles/wc-admin.css')).toContain('.wc-admin .wc-admin-kit__select-hint');
   });
-  it('keeps the actionable unanswered-inquiry badge spaced inside the WC shell', () => {
+  it('keeps the actionable unanswered-inquiry badge spaced inside the inquiry pages', () => {
     const css=postcss.parse(read('./styles/wc-admin.css'));
     const rules=new Map<string,Map<string,string>>();
     css.walkRules(rule=>{
@@ -25,7 +25,8 @@ describe('complete admin WC cutover (#433)', () => {
       rule.walkDecls(decl=>{declarations.set(decl.prop,decl.value);});
       rules.set(rule.selector,declarations);
     });
-    expect(rules.get('.wc-admin .admin-shell-badges')?.get('padding')).toBe('16px 32px 0');
+    /* R1(D1①): 배지는 셸 헤더 아래가 아니라 고객문의 페이지 본문(.admin-content 여백 안)에 그려진다. */
+    expect(rules.get('.wc-admin .admin-shell-badges')?.get('padding')).toBe('0 0 12px');
     expect(rules.get('.wc-admin .admin-shell-badge')?.get('display')).toBe('inline-flex');
     expect(rules.get('.wc-admin .admin-shell-badge')?.get('gap')).toBe('8px');
     expect(rules.get('.wc-admin .admin-shell-badge')?.get('border')).toBe('1px solid var(--wc-warning)');

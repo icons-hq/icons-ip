@@ -1,4 +1,5 @@
 import { configuredOperatorAccessFixture, legacyOperatorAccessFixture } from '@/lib/admin/access.test-fixtures';
+import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import AdminCsInquiriesPage from './page';
 
@@ -15,7 +16,7 @@ const mocks = vi.hoisted(() => ({
     isStaff: boolean;
   },
   screen: vi.fn(() => null),
-  inquiries: vi.fn(async () => ({ rows: [] })),
+  inquiries: vi.fn(async () => ({ rows: [], counts: { open: 0, answered: 0, closed: 0 } })),
   detail: vi.fn(async () => null),
   orders: vi.fn(async () => ({})),
 }));
@@ -38,6 +39,7 @@ vi.mock('next/navigation', () => ({
   notFound: () => {
     throw new Error('NEXT_NOT_FOUND');
   },
+  useRouter: () => ({ replace: vi.fn(), refresh: vi.fn() }),
 }));
 
 describe('AdminCsInquiriesPage', () => {
@@ -109,5 +111,17 @@ describe('AdminCsInquiriesPage', () => {
     Object.assign(mocks.authState, { operatorAccess: configuredOperatorAccessFixture('deputy') });
     await AdminCsInquiriesPage({ searchParams: Promise.resolve({ inquiryId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' }) });
     expect(mocks.detail).toHaveBeenCalledWith('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', { canReadOrders: false, canManageSales: false });
+  });
+
+  /* R1(D1①): 미답변 배지는 셸 공통이 아니라 고객문의 목록·상세에서만, 그 화면이 이미 읽은 집계로 그린다. */
+  it('목록 응답의 미답변 수로 배지를 그리고 0건이면 그리지 않는다', async () => {
+    mocks.inquiries.mockResolvedValueOnce({ rows: [], counts: { open: 7, answered: 2, closed: 1 } });
+    const html = renderToStaticMarkup(await AdminCsInquiriesPage({ searchParams: Promise.resolve({}) }));
+    expect(html).toContain('<span>미답변 1:1 문의</span>');
+    expect(html).toContain('<strong>7건</strong>');
+    expect(mocks.inquiries).toHaveBeenCalledTimes(1);
+
+    const empty = renderToStaticMarkup(await AdminCsInquiriesPage({ searchParams: Promise.resolve({}) }));
+    expect(empty).not.toContain('미답변 1:1 문의');
   });
 });

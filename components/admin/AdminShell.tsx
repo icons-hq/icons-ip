@@ -11,13 +11,10 @@ import { NO_OPERATOR_ACCESS, type OperatorAccess } from '@/lib/admin/access';
 
 export function AdminShell({
   admin,
-  badges,
   children,
   console: consoleId = 'commerce',
 }: {
   admin: { id: string; email: string | null; role: string; operatorAccess?: OperatorAccess };
-  /** 사이드바 배지 슬롯. 후속 이슈(미답변 문의 수 등)가 채운다. */
-  badges?: ReactNode;
   children: ReactNode;
   /** 이 셸을 그리는 route group의 콘솔. 사이드바 메뉴와 상단 전환 상태를 정한다. */
   console?: AdminConsoleId;
@@ -56,7 +53,6 @@ export function AdminShell({
       <div className="wc-admin__main">
         <Header admin={admin} next={currentPath} title={title} groupLabel={groupLabel} immersive={isChat} consoles={consoleLinks}
           root={consoleId === 'content' ? { label: '콘텐츠 운영', href: consoles.find((item) => item.id === 'content')?.href ?? '/admin' } : undefined} />
-        {!isChat && badges}
         <main className="admin-content">
           {/* key로 화면 전환마다 진입 애니메이션을 다시 태운다 */}
           <div key={pathname} className="rise">

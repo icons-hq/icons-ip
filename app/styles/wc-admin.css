@@ -134,8 +134,8 @@
 .wc-admin .wc-admin__account-logout:hover { background: var(--wc-surface-grey); }
 .wc-admin .wc-admin__account-logout:disabled { border-color: var(--wc-line-control); background: var(--wc-surface-grey); color: var(--wc-ink-tertiary); cursor: default; }
 .wc-admin .wc-admin__account-error { margin: 0; color: var(--wc-danger); font-size: 12px; line-height: 1.5; }
-/* This slot renders only when an unanswered inquiry needs attention. */
-.wc-admin .admin-shell-badges { display: flex; flex-wrap: wrap; gap: 8px; padding: 16px 32px 0; }
+/* Rendered only on the customer-inquiry list/detail pages (inside .admin-content padding) when an unanswered inquiry needs attention. */
+.wc-admin .admin-shell-badges { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 0 12px; }
 .wc-admin .admin-shell-badge { display: inline-flex; min-height: 34px; align-items: center; gap: 8px; padding: 7px 14px; border: 1px solid var(--wc-warning); border-radius: var(--wc-radius-badge); background: var(--wc-surface); color: var(--wc-ink); font-size: 13px; }
 .wc-admin .admin-shell-badge strong { color: var(--wc-warning); font-weight: 700; }
 .wc-admin .admin-shell-badge:hover { background: var(--wc-surface-grey); }
@@ -247,7 +247,6 @@
   .wc-admin .wc-admin__collapse-btn { display: none; }
   .wc-admin .wc-admin__header { padding-inline: 16px; }
   .wc-admin .wc-admin__page-context { min-height: 56px; padding: 10px 16px; }
-  .wc-admin .admin-shell-badges { padding-inline: 16px; }
   .wc-admin .wc-admin-kit :where(input:not([type='checkbox']):not([type='radio']):not([type='hidden']), select, textarea),
   .wc-admin .wc-admin-kit__field :is(input, select, textarea),
   .wc-admin .wc-admin-kit__button, .wc-admin .wc-admin__account-logout { min-height: 44px; }

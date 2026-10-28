@@ -1,4 +1,5 @@
 import { hasAdminCapability } from '@/lib/admin/access';
+import { AdminOpenInquiryBadge } from '@/components/admin/AdminOpenInquiryBadge';
 import { InquiryQueueScreen } from '@/components/admin/screens/InquiryQueueScreen';
 import { InquiryDetailScreen } from '@/components/admin/screens/InquiryDetailScreen';
 import { InquiryPreviewWorkspace } from '@/components/admin/screens/CustomerServiceDialog';
@@ -31,6 +32,7 @@ export default async function AdminCsInquiriesPage({
   const navigation = detail ? await getAdminInquiryNavigation(detail.inquiry.id, data, 'preview') : undefined;
 
   return <>
+    <AdminOpenInquiryBadge count={data.counts.open} />
     <InquiryQueueScreen data={data} />
     <InquiryPreviewWorkspace closeHref={closeHref} selected={Boolean(inquiryId)}>
       {detail ? <InquiryDetailScreen embedded key={`${auth.user.id}:${detail.inquiry.id}`} accountId={auth.user.id} navigation={navigation} backHref={closeHref} detail={detail} {...access} canViewCustomer={canViewCustomer} /> : inquiryId ? <p role="alert">문의를 찾을 수 없습니다. 삭제되었거나 접근 권한이 변경되었을 수 있습니다.</p> : null}
