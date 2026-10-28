@@ -85,8 +85,8 @@ interface CheckoutProps {
   resumeOrderId: string | null;
   /** 카트에 적용해 둔 쿠폰. 할인 확정은 place_order 가 한다 — 여기서는 미리보기다. */
   appliedCoupon: UserCouponSummary | null;
-  /** 보유 쿠폰과 선택(장바구니와 같은 cart_coupon_selections) — 주문서 쿠폰 칸(R25). 없으면 적용한 쿠폰만으로 그린다. */
-  couponState?: CartCouponState;
+  /** 보유 쿠폰과 선택(장바구니와 같은 cart_coupon_selections) — 주문서 쿠폰 칸(R25). 필수다: 빠지면 보유 쿠폰을 고를 수 없다. */
+  couponState: CartCouponState;
   /** 토스 failUrl 쿼리에서 서버가 형식 검증까지 마친 실패 코드. */
   paymentFailCode?: string | null;
 }
@@ -418,7 +418,7 @@ export function Checkout({
 
           <CouponPicker
             appliedCoupon={appliedCoupon}
-            couponState={couponState ?? { selectedUserCouponId: appliedCoupon?.id ?? null, coupons: appliedCoupon ? [appliedCoupon] : [] }}
+            couponState={couponState}
             disabled={submitting}
             quote={shipping.sales?.coupon ?? null}
             surface="checkout"

@@ -69,7 +69,7 @@ function render({
   paymentFailCode = null,
   quote = {},
   addressPrefill = EMPTY_CHECKOUT_ADDRESS_PREFILL,
-  couponState,
+  couponState = { selectedUserCouponId: null, coupons: [] },
 }: {
   addressPrefill?: CheckoutAddressPrefill;
   couponState?: CartCouponState;
@@ -97,7 +97,7 @@ function render({
       paymentAvailable={paymentAvailable}
       bankTransferAvailable={bankTransferAvailable}
       resumeOrderId={resumeOrderId}
-      appliedCoupon={couponState?.coupons.find(held => held.id === couponState?.selectedUserCouponId) ?? null}
+      appliedCoupon={couponState.coupons.find(held => held.id === couponState.selectedUserCouponId) ?? null}
       couponState={couponState}
       paymentFailCode={paymentFailCode}
     />,
