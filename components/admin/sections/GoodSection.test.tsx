@@ -6,6 +6,8 @@ import { GOODS_HTML_MAX_LENGTH, sanitizeGoodsDescription } from '@/lib/goods-des
 import { GOODS_NOTICE_FIELDS } from '@/lib/goods-notice';
 import { GOOD_BADGES, GOOD_TYPES } from '@/lib/goods-taxonomy';
 import { GoodSection } from './GoodSection';
+import { groupGoodsEntryVisible } from '../GoodEditor';
+import { ADMIN_SCREENS, adminScreenForPath } from '@/lib/admin/navigation';
 import { commonTestOwnership } from '@/lib/admin/goods-group-common.test-fixtures';
 import { parseGoodsEditorOwnership } from '@/lib/admin/goods-group-common';
 import { GoodsKcTemplateProvider } from '../useGoodsKcTemplate';
@@ -530,6 +532,17 @@ describe('GoodSection', () => {
     expect(html).toContain('상품 등록');
     expect(html).not.toContain('groups/new?mode=assemble');
     expect(html).not.toContain('그룹상품 등록</a>');
+  });
+
+  /* R21: 편집기 탭의 그룹상품 등록 링크는 메뉴 숨김(navHidden)과 한 값으로 묶는다. 기존 그룹은 주소로 계속 열린다. */
+  it('그룹상품 등록 탭은 메뉴 숨김과 짝을 이루고, 숨겨도 그룹상품 화면은 주소로 열린다', () => {
+    const create = ADMIN_SCREENS.find((screen) => screen.id === 'goods-groups-create')!;
+    expect(create.navHidden).toBe(true);
+    expect(groupGoodsEntryVisible()).toBe(false);
+    expect(groupGoodsEntryVisible(ADMIN_SCREENS.map((screen) => screen.id === create.id ? { ...screen, navHidden: false } : screen))).toBe(true);
+    expect(groupGoodsEntryVisible(ADMIN_SCREENS.filter((screen) => screen.id !== create.id))).toBe(false);
+    expect(adminScreenForPath('/admin/catalog/groups/new?mode=assemble')?.id).toBe('goods-groups-create');
+    expect(adminScreenForPath('/admin/catalog/groups/11111111-1111-4111-8111-111111111111')?.id).toBe('goods-groups');
   });
 
   it('prefills gallery slots in stored order and keeps the detail image', () => {

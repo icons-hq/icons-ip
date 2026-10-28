@@ -63,6 +63,7 @@ import { GoodWorkspaceNavigation, GoodWorkspaceErrors, GoodOptionalFields, GoodE
 import { GOOD_WORKSPACE_ERROR_SECTIONS, GOOD_WORKSPACE_OPERATION_FIELD, GOOD_WORKSPACE_SECTIONS_FIELD, prepareGoodWorkspaceSections } from '@/lib/admin/good-workspace-sections';
 import { GOOD_EDITOR_SECTIONS, GOOD_PUBLISHED_LOCKS, changedGoodLockedFields, goodFieldSection } from '@/lib/admin/good-workspace';
 import { ADMIN_STOCK_LABELS, ADMIN_VOCABULARY, adminGoodsCopy } from '@/lib/admin/vocabulary';
+import { ADMIN_SCREENS, type AdminScreen } from '@/lib/admin/navigation';
 import { ActionNotice, ErrorText, Field, SelectField, TextArea } from './fields';
 
 
@@ -172,8 +173,13 @@ function OwnedFields({ locked, fields, values, children }: { locked: boolean; fi
   return <><fieldset disabled={locked} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>{children}</fieldset>
     {locked ? fields.map(name => <input key={name} type="hidden" name={name} value={values[name] ?? ''} />) : null}</>;
 }
-/** R21(D9①): 그룹상품 등록 진입점은 숨기고 라우트·권한은 유지한다. */
-const GROUP_GOODS_ENTRY_VISIBLE = false;
+/**
+ * R21(D9①): 편집기 탭의 그룹상품 등록 진입점은 메뉴 숨김(`navHidden`)과 같은 값을 따른다. 라우트·권한은 유지하므로
+ * 기존 그룹은 주소로 계속 열린다. 메뉴에서 다시 보이게 하면 이 탭도 함께 돌아온다.
+ */
+export function groupGoodsEntryVisible(screens: readonly AdminScreen[] = ADMIN_SCREENS) {
+  return screens.some((screen) => screen.id === 'goods-groups-create' && !screen.navHidden);
+}
 const SHARED_SHIPPING_FIELDS = ['originId','shippingFeeType','individualFee'];
 const SHARED_QUANTITY_FIELDS = ['orderQuantityLimitEnabled','minOrderQty','maxOrderQty','memberPurchaseLimitEnabled','memberLifetimeQtyLimit'];
 
@@ -415,8 +421,8 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
   const errorCount = (key: string) => GOOD_EDITOR_SECTIONS.find((section) => section.key === key)?.fields.filter((field) => errors[field]).length ?? 0;
   return <>
     <nav className="admin-good-editor-tabs" aria-label="상품 등록 방식"><span aria-current="page">{selected ? '상품 수정' : '상품 등록'}</span>
-      {/* R21(D9①): 그룹상품 등록은 메뉴·탭에서 숨기고 라우트(/admin/catalog/groups/new)만 유지한다. 되살리려면 GROUP_GOODS_ENTRY_VISIBLE을 켠다. */}
-      {GROUP_GOODS_ENTRY_VISIBLE && !selected ? <Link href="/admin/catalog/groups/new?mode=assemble" aria-disabled={pending || draftBusy} onNavigate={event => {
+      {/* R21(D9①): 그룹상품 등록은 메뉴 숨김과 짝으로 탭에서도 숨기고 라우트(/admin/catalog/groups/new)만 유지한다. */}
+      {groupGoodsEntryVisible() && !selected ? <Link href="/admin/catalog/groups/new?mode=assemble" aria-disabled={pending || draftBusy} onNavigate={event => {
         if (pending || draftBusy || dirty && !window.confirm('저장하지 않은 상품 입력을 두고 그룹상품 등록으로 이동할까요?')) event.preventDefault();
       }}>그룹상품 등록</Link> : null}
       <small><span aria-hidden="true">*</span> 필수항목</small></nav>
