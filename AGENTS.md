@@ -22,6 +22,7 @@ This version has breaking changes — APIs, conventions, and file structure may 
 - DB, Auth, 결제, 권한, 라우팅 구조, mock→real 이전 작업은 `docs/ARCHITECTURE.md`를 먼저 읽는다.
 - 카드 리워드, 뽑기권, RNG, 참여형 게임이 걸린 작업은 `docs/adr/0003-free-reward-pivot.md`·`docs/adr/0004-draw-ticket-card-packs.md`를 함께 읽는다. `docs/adr/0002-cross-platform-popup-game-miniapps.md`는 superseded 이력이며 Expo나 범용 게임 미니앱 구현의 근거로 쓰지 않는다. 유료 가챠 유물(`wallets`·`pulls` 등)을 다루면 `docs/adr/0001-paid-digital-gacha.md`(superseded)를 참조한다.
 - 19+ 유한 실물 쿠지는 기존 디지털 카드·뽑기권·참여형 게임과 분리된 `prize_sale` 도메인이다. 현재 구현 범위와 선행 증거는 GitHub #212·#213을 따른다.
+- 블라인드 포장 굿즈의 `랜덤 판매`(주문 생성 때 DB가 옵션을 무작위 배정, 고객에게 배정 결과 은닉)는 `docs/adr/0027-random-option-sale-goods.md`를 따른다. 실물 쿠지·판매 제한 값 `random_box`와 섞지 않는다.
 - issue tracker, triage label, agent skill 운영 작업은 `docs/agents/`를 먼저 읽는다.
 
 문서가 서로 충돌하면 조용히 덮어쓰지 말고, 어떤 문서와 충돌하는지 먼저 밝힌다. 코드와 문서가 충돌하면 현재 동작은 코드가 진실이고, 문서는 별도 요청이 있을 때 갱신한다.

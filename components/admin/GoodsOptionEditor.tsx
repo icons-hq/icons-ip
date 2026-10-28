@@ -13,6 +13,7 @@ import { ADMIN_VOCABULARY } from '@/lib/admin/vocabulary';
 import { AdminField } from './console/AdminKit';
 import { ErpItemNameInput } from './ErpItemNameInput';
 import { GoodsOptionImportPicker } from './GoodsOptionImportDialog';
+import { GoodWorkspaceDetails } from './GoodWorkspace';
 import type { GoodsOptionImportContext } from '@/lib/admin/goods-option-import';
 
 type GoodsOptionEditorProps = {
@@ -74,7 +75,8 @@ function OptionDetailTable({ rows, single, update, erpRows, onErpChange, onErpSe
   canSearchErp: boolean;
   structureLocked?: boolean;
 }) {
-  return <details className="goods-option-secondary">
+  /* 펼침 상태는 저장 시도 뒤에도 유지한다(R14). */
+  return <GoodWorkspaceDetails stateId="good-option-details" className="goods-option-secondary">
     <summary>옵션 상세 정보 · ERP 품명·ERP 코드·바코드·안전재고</summary>
     <p id="goods-option-external-identity-guidance" className="wc-admin-option-artwork__secondary-hint">
       ERP 품명을 입력해 반입된 ERP 품목을 고르면 ERP 코드·바코드를 채우고 카테고리·판매가를 제안합니다. ERP 코드·바코드는 관리코드와 따로 저장하며 선행 0을 유지합니다. 비워 두면 미설정입니다.
@@ -116,7 +118,7 @@ function OptionDetailTable({ rows, single, update, erpRows, onErpChange, onErpSe
       </table>
     </div>
     {notice}
-  </details>;
+  </GoodWorkspaceDetails>;
 }
 
 function OptionInputs({ axes, rows, hidden, setAxes, setRows }: {

@@ -229,3 +229,20 @@ describe('ClaimActionPanel 확인과 취소 안내', () => {
     expect(unused).not.toHaveBeenCalled();
   });
 });
+
+/* R8: 목록 위 팝업에서 처리 패널이 서버 액션(토스 승인·환불 완료 확정)을 기다리는 동안 팝업을 닫지 못하게 알린다. */
+describe('ClaimActionPanel 팝업 대기 알림', () => {
+  it.each([true, false])('처리 중(pending=%s)을 팝업에 그대로 알린다', async (pending) => {
+    vi.resetModules();
+    const busy = vi.fn();
+    vi.doMock('./ClaimPreviewDialog', () => ({ useClaimPreviewBusy: busy }));
+    vi.doMock('react', async () => {
+      const actual = await vi.importActual<typeof import('react')>('react');
+      return { ...actual, useActionState: (_fn: unknown, initial: unknown) => [initial, () => {}, pending] };
+    });
+    const { ClaimActionPanel } = await import('./ClaimActionPanel');
+    renderToStaticMarkup(<ClaimActionPanel {...props({ stage: 'requested', paymentProvider: 'toss' })} />);
+    expect(busy).toHaveBeenCalledWith(pending);
+    vi.doUnmock('./ClaimPreviewDialog');
+  });
+});

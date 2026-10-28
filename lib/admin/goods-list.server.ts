@@ -48,7 +48,8 @@ export async function loadAdminGoodsList(filters: GoodsListFilters): Promise<Adm
     })(),
     loadGoodsFulfillmentOptions().then(rows => rows.map(origin => ({ id: origin.id, name: origin.name, active: origin.active }))),
   ]);
-  const inline = await loadGoodsListInlineValues((result.data.rows as WorkspaceRow[]).map(good => good.id));
+  const pageIds = (result.data.rows as WorkspaceRow[]).map(good => good.id);
+  const [inline, customerVisible] = await Promise.all([loadGoodsListInlineValues(pageIds), loadGoodsListCustomerVisibility(pageIds)]);
   return { filters, total, pageSize, counts, ips, categories, origins, checkedAt: result.data.checkedAt,
     goods: (result.data.rows as WorkspaceRow[]).map(good => {
       const readiness = parseGoodsReadiness(good.readiness);
@@ -58,9 +59,25 @@ export async function loadAdminGoodsList(filters: GoodsListFilters): Promise<Adm
         activeStockQty: good.readiness.activeStockQty, lowStockOptionCount: good.readiness.lowStockOptionCount,
         saleAvailableQty: readiness.availableQty ?? undefined, noticeComplete: good.readiness.noticeComplete,
         imageUrl: good.imagePath ? publicMediaUrl(good.imagePath) : null, categoryName: good.categoryName,
-        priceMin: good.readiness.priceMin, priceMax: good.readiness.priceMax, readiness };
+        priceMin: good.readiness.priceMin, priceMax: good.readiness.priceMax, readiness, customerVisible: customerVisible.has(good.id) };
     }),
   };
+}
+
+/* 상품번호 링크(R15)의 목적지. 고객 상세(`getCatalogGoodDetail`)와 같은 공개 조건으로 한 페이지만 읽는다.
+   읽기에 실패하면 모두 편집기 미리보기로 보낸다(고객 화면 404로 보내지 않는다). */
+async function loadGoodsListCustomerVisibility(ids: string[]) {
+  const visible = new Set<string>();
+  if (!ids.length) return visible;
+  try {
+    const client = await createClient();
+    const result = await client.from('goods').select('id,ips!inner(id)').in('id', ids)
+      .is('archived_at', null).not('published_at', 'is', null).eq('sale_restriction', 'none')
+      .is('ips.archived_at', null).not('ips.published_at', 'is', null);
+    if (result.error) return visible;
+    for (const row of (result.data ?? []) as { id: string }[]) visible.add(row.id);
+  } catch { visible.clear(); }
+  return visible;
 }
 
 /* 목록 바로 수정(A9)에 필요한 현재 판매가·할인 상태와 단일 옵션 재고. 한 페이지(최대 100개)만 읽는다.

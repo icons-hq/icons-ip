@@ -1,3 +1,4 @@
+import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it } from 'vitest';
 import { resolveGoodsPrice, type GoodsPriceDraft } from '@/lib/admin/goods-price-editor';
@@ -15,6 +16,15 @@ const discountBlock = (html: string) => {
 };
 
 describe('판매가·할인 입력', () => {
+  /* 리뷰 T3a-10 — R18 할인 결과 문구('할인가 X원 (Y원, Z% 할인)')를 어드민 비주얼 픽스처 QA가 찾는 문구와 맞춘다(판매가 2,000원·할인 1,000원). */
+  it('비주얼 픽스처 QA가 기다리는 할인 결과 문구가 실제 화면 문구와 같다', () => {
+    const qa = readFileSync(new URL('../../scripts/admin-visual-fixture/good-editor-qa.mjs', import.meta.url), 'utf8');
+    const expected = qa.match(/getByText\('(\([^']*할인\))'\)/)?.[1];
+    expect(expected).toBe('(1,000원, 50% 할인)');
+    const text = render({ regularPrice: '2000', discountEnabled: true, discountValue: '1000' }).replace(/<[^>]+>/g, '');
+    expect(text).toContain(`할인가 1,000원 ${expected}`);
+  });
+
   /* 2026-10-07 리뷰: 할인율 표시는 기간 할인에도 쓰인다. 할인 설정안함 상품에서도 바꿀 수 있어야 한다. */
   it('고객 화면에 할인율 표시는 할인 설정과 상관없이 늘 보이고 기간 할인에도 적용된다고 안내한다', () => {
     for (const discountEnabled of [false, true]) {

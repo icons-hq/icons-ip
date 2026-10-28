@@ -4,7 +4,7 @@ vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }));
 import { GoodsListScreen } from './GoodsListScreen';
 import { GoodsListFiltersForm } from './GoodsListFiltersForm';
 import { GOODS_READINESS_REASONS, unknownGoodsReadiness } from '@/lib/admin/goods-readiness';
-import { normalizeGoodsListFilters } from '@/lib/admin/goods-list';
+import { goodEditorHref, normalizeGoodsListFilters } from '@/lib/admin/goods-list';
 
 describe('goods list screen', () => {
   it('상품 관리 권한과 현재 세션이 있으면 판매가·재고수량·판매상태를 목록에서 바로 고치고, IP 필터에서는 IP 전체 즉시할인을 연다', () => {
@@ -41,7 +41,9 @@ describe('goods list screen', () => {
     expect(html).not.toContain('wc-admin-kit__page-header');
     expect(html).toContain('create=1');
     expect(html).toContain('상품 일괄등록·수정');
-    expect(html).toContain('href="/admin/catalog/groups">그룹상품 조회/수정</a>');
+    // R21: 그룹상품 탭 링크는 숨긴다(라우트는 그대로).
+    expect(html).not.toContain('href="/admin/catalog/groups"');
+    expect(html).toContain('<span aria-current="page">전체 상품 조회/수정</span>');
     expect(html).toContain('from=2026-10-01');
   });
   it('상세 조건을 하단 검색 동작 앞에 유지하고 지정된 조건이 있으면 펼친다', () => {
@@ -59,6 +61,45 @@ describe('goods list screen', () => {
     expect(active.indexOf('name="image"')).toBeLessThan(active.indexOf('type="submit"'));
     expect(active).toContain('href="/admin/catalog/goods">초기화');
     expect(render({})).not.toContain('class="admin-goods-search__advanced" open=""');
+  });
+  it('판매상태 줄에 판매기간(판매대기·종료) 필터를 둔다', () => {
+    const html = renderToStaticMarkup(<GoodsListFiltersForm data={{ filters: normalizeGoodsListFilters({ salePeriod: 'ended' }), goods: [], ips: [], total: 0 }} />);
+    expect(html).toContain('aria-label="판매기간"');
+    expect(html).toContain('name="salePeriod"');
+    expect(html).toContain('<option value="scheduled">판매대기 (시작 전)</option>');
+    expect(html).toContain('<option value="ended" selected="">판매기간 종료</option>');
+    expect(html.indexOf('name="salePeriod"')).toBeLessThan(html.indexOf('admin-goods-search__advanced'));
+  });
+  it('상품번호 열: 고객에게 보이는 상품은 고객 화면을 새 탭으로, 아니면 편집기 미리보기로 연다. 상품명은 지금처럼 수정 화면이다', () => {
+    const base = { code: 'A', name: '상품 A', ipId: 'maple', ipTitle: '메이플', archivedAt: null, stock: 'ok' as const, stockQty: 1, activeStockQty: 1, lowStockOptionCount: 0, noticeComplete: true };
+    const filters = normalizeGoodsListFilters({ q: '상품' });
+    const html = renderToStaticMarkup(<GoodsListScreen data={{ filters, total: 2, ips: [], goods: [
+      { ...base, id: 'good-public', publishedAt: '2026-10-01T00:00:00Z', customerVisible: true },
+      { ...base, id: 'good-draft', publishedAt: null, customerVisible: false },
+    ] }} />);
+    expect(html).toContain('>상품번호</th>');
+    expect(html).toMatch(/<a class="admin-goods-worklist__good-id" href="\/shop\/good-public" target="_blank" rel="noopener noreferrer">good-public/);
+    expect(html).toContain(`href="${goodEditorHref(filters, 'good-draft').replaceAll('&', '&amp;')}#good-preview"`);
+    expect(html).toContain('공개 전 · 미리보기');
+    // 상품명(첫 열)은 수정 화면으로 간다.
+    expect(html).toContain(`<a class="admin-console-grid-link" href="${goodEditorHref(filters, 'good-public').replaceAll('&', '&amp;')}">`);
+    // 상품번호는 열로 옮겼으므로 접힌 추가 정보에 다시 두지 않는다.
+    expect(html).not.toContain('<dt>상품번호</dt>');
+  });
+  it('상품번호 보조 문구는 고객 화면에 안 보이는 사유와 같은 행의 상태 배지와 어긋나지 않는다', () => {
+    // 리뷰 T4-R15-1: 보관·전시 중 성인·IP 비공개 상품에 '공개 전'이라고 쓰면 '보관'·'전시중' 배지와 모순된다.
+    const base = { code: 'A', name: '상품', ipId: 'ip', ipTitle: 'IP', stock: 'ok' as const, stockQty: 1, activeStockQty: 1, lowStockOptionCount: 0, noticeComplete: true, customerVisible: false };
+    const html = renderToStaticMarkup(<GoodsListScreen data={{ filters: normalizeGoodsListFilters({}), total: 3, ips: [], goods: [
+      { ...base, id: 'draft-good', publishedAt: null, archivedAt: null },
+      { ...base, id: 'archived-good', publishedAt: '2026-10-01T00:00:00Z', archivedAt: '2026-10-20T00:00:00Z' },
+      { ...base, id: 'adult-good', publishedAt: '2026-10-01T00:00:00Z', archivedAt: null },
+    ] }} />);
+    const secondary = (id: string) => new RegExp(`>${id}<small class="admin-goods-worklist__secondary">([^<]+)</small>`).exec(html)?.[1];
+    expect(secondary('draft-good')).toBe('공개 전 · 미리보기');
+    expect(secondary('archived-good')).toBe('보관 · 미리보기');
+    // 전시 중이지만 판매 제한(성인)·IP 비공개 등으로 고객 상세가 열리지 않는 상품.
+    expect(secondary('adult-good')).toBe('고객 화면 비노출 · 미리보기');
+    expect(html.match(/공개 전 · 미리보기/g)).toHaveLength(1);
   });
   it('빈 상품 목록에서도 지역 배송 정책 만료를 알린다', () => {
     const html = renderToStaticMarkup(<GoodsListScreen data={{ filters: normalizeGoodsListFilters({}), goods: [], ips: [], total: 0 }}

@@ -51,7 +51,11 @@ export function parseInquiryTemplateReceipt(value: unknown): InquiryTemplateRece
   const template = parseInquiryReplyTemplate(value.template);
   return template?.id === value.templateId ? { operationId: value.operationId, templateId: value.templateId, action: value.action as InquiryTemplateMutation['action'], template } : null;
 }
-export function insertInquiryReplyTemplate(current: string, template: string): { ok: true; body: string } | { ok: false; error: string } {
-  const body = current.trim() ? `${current}\n\n${template}` : template;
-  return body.length <= INQUIRY_TEMPLATE_BODY_LIMIT ? { ok: true, body } : { ok: false, error: '추가하면 답변의 2,000자 제한을 넘습니다. 작성 중인 내용을 먼저 정리해주세요.' };
+/** R3(MD-0011): 답변 템플릿 공통 안내·확인 문구. 고객문의·상담하기·상품문의·리뷰 답변이 같은 문구를 쓴다. */
+export const REPLY_TEMPLATE_REPLACE_HINT = '템플릿을 고르면 작성 중인 내용을 템플릿으로 바꿉니다.';
+export const REPLY_TEMPLATE_REPLACE_CONFIRM = '작성 중인 내용을 템플릿으로 바꿀까요?';
+/** 템플릿은 작성 중인 답변을 대체한다. 작성 중인 내용이 있으면(replaces) 화면이 확인을 거친 뒤에만 적용한다. */
+export function applyInquiryReplyTemplate(current: string, template: string): { ok: true; body: string; replaces: boolean } | { ok: false; error: string } {
+  if (template.length > INQUIRY_TEMPLATE_BODY_LIMIT) return { ok: false, error: '템플릿이 답변의 2,000자 제한을 넘어 불러올 수 없습니다. 템플릿을 줄여주세요.' };
+  return { ok: true, body: template, replaces: Boolean(current.trim()) && current !== template };
 }

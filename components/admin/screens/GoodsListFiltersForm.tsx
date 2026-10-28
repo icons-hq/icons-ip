@@ -25,6 +25,7 @@ export function GoodsListFiltersForm({ data }: { data: AdminGoodsListData }) {
     </fieldset></div>
     <div className="admin-goods-search__row"><label htmlFor="goods-list-stock">판매상태</label><div className="admin-goods-search__content admin-goods-search__selects">
       <AdminSelect id="goods-list-stock" name="stock" defaultValue={filters.stock}><option value="all">전체</option><option value="ok">판매중</option><option value="low">소량 재고</option><option value="soldout">품절·판매 중지</option></AdminSelect>
+      <AdminSelect aria-label="판매기간" id="goods-list-sale-period" name="salePeriod" defaultValue={filters.salePeriod ?? 'all'}><option value="all">전체 판매기간</option><option value="scheduled">판매대기 (시작 전)</option><option value="ended">판매기간 종료</option></AdminSelect>
       <AdminSelect aria-label="판매 준비 상태" id="goods-list-readiness" name="readiness" defaultValue={filters.readiness}><option value="all">전체 준비 상태</option><option value="review_required">확인할 상품 전체</option><option value="ready">설정 준비 완료</option>{Object.entries(GOODS_READINESS_REASONS).map(([code, reason]) => <option key={code} value={code}>{reason.label}</option>)}</AdminSelect>
     </div></div>
     <div className="admin-goods-search__row"><label htmlFor="goods-list-category">카테고리</label><div className="admin-goods-search__content admin-goods-search__selects">

@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   configured: true,
   tables: {} as Record<string, TableResult>,
   filters: [] as [string, string, unknown][],
+  selects: [] as [string, string][],
   rpcCalls: [] as [string, unknown][],
   rpcResult: { data: [], error: null } as TableResult,
 }));
@@ -26,7 +27,10 @@ vi.mock('@/lib/supabase/server', () => ({
     from(table: string) {
       const result = () => mocks.tables[table] ?? { data: null, error: null };
       const query = {
-        select: () => query,
+        select: (columns: string) => {
+          mocks.selects.push([table, columns]);
+          return query;
+        },
         eq: (column: string, value: unknown) => {
           mocks.filters.push([table, column, value]);
           return query;
@@ -88,6 +92,7 @@ beforeEach(() => {
   mocks.configured = true;
   mocks.tables = {};
   mocks.filters = [];
+  mocks.selects = [];
   mocks.rpcCalls = [];
   mocks.rpcResult = { data: [], error: null };
 });
@@ -247,6 +252,51 @@ describe('loadCampaignDetail', () => {
     };
     const detail = await loadCampaignDetail('period-price');
     expect(detail?.resolvedSections[0]).toMatchObject({ type: 'goods', goods: [{ price: 12000, priceMax: 15000, compareAtPrice: 13800 }] });
+  });
+  /* 랜덤 판매(D5②) 굿즈의 옵션 행은 고객·익명에게 숨는다(goods_variants 빈 배열). 가격은 공개 랜덤 한 줄(goods_random_option)에서 읽는다. */
+  it('랜덤 판매 굿즈 카드는 숨겨진 옵션 행 대신 랜덤 한 줄의 기간 할인가를 보인다', async () => {
+    const calculatedAt = '2026-10-08T00:00:00Z';
+    mocks.tables.campaigns = {
+      data: { ...hubRow('random-price'), hero_image_path: null, sections: [{ type: 'goods', good_ids: ['random-price'] }] },
+      error: null,
+    };
+    mocks.tables.goods = {
+      data: [{
+        id: 'random-price', ips: { published_at: '2026-07-01', archived_at: null }, name: '랜덤 굿즈', price: 13800, compare_at_price: null,
+        badge: null, stock: 'ok', stock_qty: 9, bg: null, image_path: null, option_sale_mode: 'random', goods_variants: [],
+        random_option: { id: '00000000-0000-4000-8000-000000000501', name: '랜덤', code: '', price: 13800, stock_qty: 9, is_default: true,
+          attributes: {}, archived_at: null, sort_order: 0,
+          pricing: { regularPrice: 13800, effectivePrice: 12000, pricePeriodId: '00000000-0000-4000-8000-000000000402',
+            startsAt: '2026-10-01T00:00:00Z', endsAt: '2026-10-31T00:00:00Z', calculatedAt } },
+      }],
+      error: null,
+    };
+    const detail = await loadCampaignDetail('random-price');
+    expect(detail?.resolvedSections[0]).toMatchObject({ type: 'goods', goods: [{ price: 12000, priceMax: 12000, compareAtPrice: 13800, soldOut: false }] });
+    expect(mocks.selects.find(([table]) => table === 'goods')?.[1]).toContain('option_sale_mode,random_option:goods_random_option');
+  });
+  /* 운영자 세션은 원본 옵션 행을 읽지만 고객 화면과 같은 랜덤 한 줄을 쓴다. 랜덤 한 줄이 없으면(판매 방식 전환 직후 등) 옵션 행으로 계산한다. */
+  it('랜덤 한 줄이 있으면 운영자에게 보이는 옵션 행보다 우선하고, 없으면 옵션 행으로 계산한다', async () => {
+    mocks.tables.campaigns = {
+      data: { ...hubRow('random-staff'), hero_image_path: null, sections: [{ type: 'goods', good_ids: ['random-staff', 'random-fallback'] }] },
+      error: null,
+    };
+    const base = { ips: { published_at: '2026-07-01', archived_at: null }, name: '랜덤 굿즈', price: 13800, compare_at_price: null,
+      badge: null, stock: 'ok', stock_qty: 9, bg: null, image_path: null, option_sale_mode: 'random' };
+    mocks.tables.goods = {
+      data: [
+        { ...base, id: 'random-staff', goods_variants: [{ price: 9000, archived_at: null }, { price: 9000, archived_at: null }],
+          random_option: { id: '00000000-0000-4000-8000-000000000502', name: '랜덤', code: '', price: 13800, stock_qty: 9, is_default: true,
+            attributes: {}, archived_at: null, sort_order: 0 } },
+        { ...base, id: 'random-fallback', goods_variants: [{ price: 14800, archived_at: null }], random_option: null },
+      ],
+      error: null,
+    };
+    const detail = await loadCampaignDetail('random-staff');
+    expect(detail?.resolvedSections[0]).toMatchObject({ type: 'goods', goods: [
+      { id: 'random-staff', price: 13800, priceMax: 13800 },
+      { id: 'random-fallback', price: 14800, priceMax: 14800 },
+    ] });
   });
   it('supabase 미구성이면 null이다', async () => {
     mocks.configured = false;

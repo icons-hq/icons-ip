@@ -10,7 +10,9 @@ const steps = job.steps;
 describe('staging release and preservation contract', () => {
   it('runs only after successful current-main preview synchronization', () => {
     expect(job.needs).toBe('sync-supabase-preview-main');
-    expect(job.if).toBe("github.event_name == 'push' && github.ref == 'refs/heads/main'");
+    expect(job.if.replace(/\s+/g, ' ').trim()).toBe(
+      "!cancelled() && needs.sync-supabase-preview-main.result == 'success' && github.event_name == 'push' && github.ref == 'refs/heads/main'",
+    );
     const preflight = steps.find((step) => step.name === 'Check staging configuration and current main');
     expect(preflight.run).toContain('"$GITHUB_SHA" != "$(git rev-parse origin/main)"');
     expect(steps.indexOf(preflight)).toBeLessThan(steps.findIndex((step) => step.run === 'node scripts/staging-environment.mjs'));

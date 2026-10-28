@@ -1,7 +1,7 @@
 import { configuredOperatorAccessFixture } from '@/lib/admin/access.test-fixtures';
 const { legacyOperatorAccessFixture } = await vi.hoisted(() => import('@/lib/admin/access.test-fixtures'));
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { saveAdminCategoryAction, saveAdminCategoryErpMappingAction, setAdminCategoryActivationAction } from './category-actions';
+import { bulkCreateAdminCategoriesAction, saveAdminCategoryAction, saveAdminCategoryErpMappingAction, setAdminCategoryActivationAction } from './category-actions';
 import { STOREFRONT_MEGA_MENU_CACHE_TAG } from '@/lib/storefront-mega-menu';
 
 const mocks = vi.hoisted(() => ({
@@ -101,4 +101,47 @@ it('configured deputy can save categories but cannot change ERP mappings or acti
   expect((await saveAdminCategoryErpMappingAction({}, form())).errors?.form).toContain('권한');
   expect((await setAdminCategoryActivationAction({}, form())).errors?.form).toContain('권한');
   expect(mocks.rpc).not.toHaveBeenCalled();
+});
+
+/* R9(10/27 회의): 카테고리 관리 일괄 등록 — 붙여넣은 `대>중>소` 경로를 한 번의 감사 RPC로 보내고, 결과표 줄 번호는 붙여넣은 원래 줄을 가리킨다. */
+describe('카테고리 일괄 등록', () => {
+  const operationId = '00000000-0000-4000-8000-000000047450';
+  const rpcResult = {
+    createdCategories: 3, createdLines: 1, skippedLines: 1, failedLines: 0,
+    lines: [
+      { line: 1, path: '문구>노트>스프링노트', status: 'created', created: 3, reason: null },
+      { line: 2, path: '문구>노트>스프링노트', status: 'skipped', created: 0, reason: null },
+    ],
+  };
+
+  it('빈 줄을 뺀 경로만 보내고 결과 줄 번호를 붙여넣은 줄로 되돌린다', async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: rpcResult, error: null });
+    const result = await bulkCreateAdminCategoriesAction({ operationId, text: '\n문구>노트>스프링노트\n\n문구>노트>스프링노트' });
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_bulk_create_categories', { p_operation_id: operationId, p_paths: ['문구>노트>스프링노트', '문구>노트>스프링노트'] });
+    expect(result).toEqual({ ok: true, result: { ...rpcResult, lines: [{ ...rpcResult.lines[0], line: 2 }, { ...rpcResult.lines[1], line: 4 }] } });
+    expect(mocks.revalidatePath).toHaveBeenCalledWith('/admin/catalog/categories');
+    expect(mocks.updateTag).toHaveBeenCalledWith(STOREFRONT_MEGA_MENU_CACHE_TAG);
+  });
+
+  it('새로 만든 카테고리가 없으면 화면 캐시를 건드리지 않는다', async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: { ...rpcResult, createdCategories: 0, createdLines: 0, skippedLines: 2 }, error: null });
+    expect(await bulkCreateAdminCategoriesAction({ operationId, text: '문구>노트' })).toMatchObject({ ok: true });
+    expect(mocks.revalidatePath).not.toHaveBeenCalled();
+  });
+
+  it('입력·권한·응답 형식을 RPC 전후로 확인한다', async () => {
+    expect(await bulkCreateAdminCategoriesAction({ operationId, text: ' \n ' })).toEqual({ ok: false, error: '등록할 경로를 한 줄에 하나씩 입력하세요.' });
+    expect(await bulkCreateAdminCategoriesAction({ operationId: 'nope', text: '문구' })).toMatchObject({ ok: false });
+    expect(await bulkCreateAdminCategoriesAction({ operationId, text: Array.from({ length: 1001 }, (_, index) => `분류${index}`).join('\n') }))
+      .toEqual({ ok: false, error: '한 번에 1,000줄까지 등록할 수 있습니다. 나눠서 등록하세요.' });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    mocks.rpc.mockResolvedValueOnce({ data: { lines: 'broken' }, error: null });
+    expect(await bulkCreateAdminCategoriesAction({ operationId, text: '문구' })).toMatchObject({ ok: false, error: expect.stringContaining('결과를 확인하지 못했습니다') });
+    mocks.rpc.mockResolvedValueOnce({ data: null, error: { code: '23505', message: 'operation_conflict' } });
+    expect(await bulkCreateAdminCategoriesAction({ operationId, text: '문구' })).toMatchObject({ ok: false, error: expect.stringContaining('다시 시도') });
+    mocks.getAuth.mockResolvedValue({ ...mocks.auth, isStaff: false, user: { id: 'user-1' }, role: 'user' });
+    mocks.rpc.mockClear();
+    expect(await bulkCreateAdminCategoriesAction({ operationId, text: '문구' })).toEqual({ ok: false, error: '관리자 권한이 필요합니다.' });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
 });

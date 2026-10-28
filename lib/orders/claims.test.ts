@@ -5,6 +5,7 @@ import {
   canRejectOrderClaim,
   isOpenOrderClaimStage,
   normalizeRefundAccount,
+  ORDER_CLAIM_INTAKE_NOTICES,
   ORDER_CLAIM_STAGES,
   ORDER_CLAIM_TYPES,
   orderClaimAvailability,
@@ -273,4 +274,11 @@ describe('구매자 접수 가능 여부', () => {
     expect(blocked.every((entry) => entry.available)).toBe(false);
     expect(blocked[0].blockedReason).toContain('처리 중인 클레임');
   });
+});
+
+/* R26: 고객 접수 안내는 '출고지'를 말하지 않는다. 반송지는 배송 묶음마다 안내된다. */
+it('고객 접수 안내는 출고지 대신 배송 묶음별 반송지로 말한다', () => {
+  for (const notice of Object.values(ORDER_CLAIM_INTAKE_NOTICES)) expect(notice).not.toContain('출고지');
+  expect(ORDER_CLAIM_INTAKE_NOTICES.return).toContain('안내된 배송 묶음별 반송지에서');
+  expect(ORDER_CLAIM_INTAKE_NOTICES.exchange).toContain('안내된 배송 묶음별 반송지에서');
 });

@@ -5,7 +5,9 @@ import { emptyGoodsKcWorkbookRow, GOODS_KC_WORKBOOK_SHEET } from './goods-kc-wor
 import { emptyGoodsCustomInputWorkbookRow, GOODS_CUSTOM_INPUT_WORKBOOK_HEADERS, GOODS_CUSTOM_INPUT_WORKBOOK_SHEET } from './goods-custom-input-workbook';
 import {
   emptyGoodsWorkbookRow,
+  GOODS_WORKBOOK_CELL_MAX,
   GOODS_WORKBOOK_HEADERS,
+  GOODS_WORKBOOK_LONG_DESCRIPTION_MARKER,
   GOODS_WORKBOOK_V3_VERSION,
   GOODS_WORKBOOK_V5_VERSION,
   GOODS_WORKBOOK_VERSION,
@@ -29,6 +31,13 @@ describe('real xlsx boundary', () => {
     const description = `<h2>상세</h2><p>${'가'.repeat(29980)}</p>`;
     const html = { ...values, descriptionFormat: 'html', description };
     expect(await parseGoodsWorkbook(await buildGoodsWorkbook([html]))).toEqual([{ row: 5, values: html, errors: [] }]);
+  });
+  /* 리뷰 재현(T3B-RV-1): 실패 행 파일처럼 행을 그대로 받아도 엑셀 한 칸(32,767자)을 넘는 설명은 다시 읽을 수 없는 칸으로 쓰지 않는다. */
+  it('엑셀 한 칸보다 긴 상품 설명은 읽을 수 없는 칸 대신 표식으로 써서 다시 올릴 수 있다', async () => {
+    const description = `<h2>상세</h2><p>${'가'.repeat(39980)}</p>`;
+    expect(description.length).toBeGreaterThan(GOODS_WORKBOOK_CELL_MAX);
+    const rows = await parseGoodsWorkbook(await buildGoodsWorkbook([{ ...values, descriptionFormat: 'html', description }]));
+    expect(rows).toEqual([{ row: 5, values: { ...values, descriptionFormat: 'html', description: GOODS_WORKBOOK_LONG_DESCRIPTION_MARKER }, errors: [] }]);
   });
   it('keeps KC model rows and textual option identifiers in a separate re-uploadable sheet', async () => {
     const kc = { ...emptyGoodsKcWorkbookRow(), goodCode: values.code, modelIndex: '1', variantCodes: '00001-01\n00001-02',
@@ -171,6 +180,17 @@ describe('real xlsx boundary', () => {
     const detail = rows.find((row) => row[1] === '상세 설명');
     expect(detail?.[2]).toContain('https 호스팅 이미지 주소는 그대로 표시되고, CSS·스크립트와 확인할 수 없는 이미지는 제거됩니다.');
     expect(detail?.[2]).not.toContain('외부 이미지는 제거됩니다');
+  });
+  /* 리뷰 재현(T3B-RV-4): 작성 안내가 'HTML은 정리된 코드까지 30,000자입니다'라고 해 실제 상한(200,000자)·엑셀 한 칸 상한과 달랐다. */
+  it('작성 안내 시트는 상세 HTML 상한과 엑셀 한 칸 상한, 긴 설명 표식을 안내한다', async () => {
+    const book = new ExcelJS.Workbook();
+    await book.xlsx.load((await buildGoodsWorkbook([values])) as never);
+    const rows = book.getWorksheet('작성 안내')!.getSheetValues().filter(Boolean) as unknown[][];
+    const detail = String(rows.find((row) => row[1] === '상세 설명')?.[2] ?? '');
+    expect(detail).toContain('HTML은 정리된 코드까지 200,000자입니다.');
+    expect(detail).toContain('엑셀 한 칸에는 32,767자까지 들어가므로');
+    expect(detail).toContain('[상품 편집에서만 수정]');
+    expect(detail).not.toContain('30,000자');
   });
   it('round trips the full 500-row limit within the server processing budget', async () => {
     const rows = Array.from({ length: 500 }, (_, index) => ({

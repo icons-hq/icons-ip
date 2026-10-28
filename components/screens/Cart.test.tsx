@@ -19,6 +19,7 @@ const mocks = vi.hoisted(() => ({
   quote: null as AddressShippingQuote | null,
   quotePrices: new Map<string, number>(),
   quotePeriods: new Map<string, Pick<GoodsSalesQuoteLine, 'regularPrice' | 'pricePeriodId' | 'startsAt' | 'endsAt'>>(),
+  quoteLineExtras: new Map<string, Partial<GoodsSalesQuoteLine>>(),
   coupon: null as CouponQuote | null,
   precheckout: null as GoodsSalesPrecheckoutQuote | null,
   precheckoutError: null as string | null,
@@ -32,7 +33,7 @@ vi.mock('@/components/shop/useShippingQuote', () => ({
     return {quote:enabled ? mocks.quote : null,sales:enabled && mocks.quote ? {
     calculatedAt:'2026-09-10T00:00:00Z', shipping:mocks.quote,
     subtotal:mocks.items.reduce((sum,item)=>sum+(mocks.quotePrices.get(item.variantId) ?? goods.find(good=>good.id===item.goodId)?.price??0)*item.qty,0),
-    lines:mocks.items.map(item=>({...item,regularPrice:mocks.quotePrices.get(item.variantId) ?? goods.find(good=>good.id===item.goodId)?.price??0,effectivePrice:mocks.quotePrices.get(item.variantId) ?? goods.find(good=>good.id===item.goodId)?.price??0,pricePeriodId:null,startsAt:null,endsAt:null,...mocks.quotePeriods.get(item.variantId),available:true})),
+    lines:mocks.items.map(item=>({...item,regularPrice:mocks.quotePrices.get(item.variantId) ?? goods.find(good=>good.id===item.goodId)?.price??0,effectivePrice:mocks.quotePrices.get(item.variantId) ?? goods.find(good=>good.id===item.goodId)?.price??0,pricePeriodId:null,startsAt:null,endsAt:null,...mocks.quotePeriods.get(item.variantId),available:true,...mocks.quoteLineExtras.get(item.variantId)})),
     goods:[],paymentMethods:{card:true,bankTransfer:true},
     coupon:mocks.coupon,
     } : null,loading:enabled && !mocks.quote,error:null,refresh:vi.fn()};
@@ -50,7 +51,7 @@ const gimpoGroup: AddressShippingQuote['groups'][number] = {originId:'gimpo',ori
 const defaultQuote: AddressShippingQuote = {totalFee:3000,groups:[gimpoGroup],checkoutAllowed:true,finalTotalFee:3000,destination:null,nextChangeAt:null};
 mocks.quote = defaultQuote;
 beforeEach(() => {
-  mocks.quote = defaultQuote; mocks.legacyItems = []; mocks.ready = true; mocks.quotePrices.clear(); mocks.quotePeriods.clear(); mocks.coupon = null;
+  mocks.quote = defaultQuote; mocks.legacyItems = []; mocks.ready = true; mocks.quotePrices.clear(); mocks.quotePeriods.clear(); mocks.quoteLineExtras.clear(); mocks.coupon = null;
   mocks.precheckout = null; mocks.precheckoutError = null; mocks.legacyEnabled = false; mocks.precheckoutEnabled = false;
 });
 
@@ -85,6 +86,8 @@ vi.mock('next/navigation', () => ({ useRouter: () => ({ back: vi.fn(), push: vi.
 
 const DEFAULT_VARIANT = '00000000-0000-4000-8000-000000000013';
 const SOLD_VARIANT = '00000000-0000-4000-8000-000000000014';
+const RANDOM_VARIANT = '00000000-0000-4000-8000-000000000015';
+const BLUE_VARIANT = '00000000-0000-4000-8000-000000000016';
 const goods: Good[] = [
   {
     id: 'g13',
@@ -109,6 +112,19 @@ const goods: Good[] = [
     stock: 'soldout',
     stockQty: 0,
     options: [{id:SOLD_VARIANT,name:'기본 옵션',code:'G14',price:9000,stockQty:0,isDefault:true,attributes:{}}],
+    img: 'none',
+  },
+  /* D5② 랜덤 판매 — 카탈로그가 옵션을 기본 옵션 키 하나('랜덤')로 접은 모양. */
+  {
+    id: 'g15', originId: 'gimpo', name: '랜덤 포토카드', ip: 'hong-sil-quest', type: '포토카드', price: 5000, badge: null, stock: 'ok', stockQty: 6,
+    optionSaleMode: 'random', options: [{id:RANDOM_VARIANT,name:'랜덤',code:'',price:5000,stockQty:6,isDefault:true,attributes:{},orderMaxQty:null,memberMaxQty:null}],
+    img: 'none',
+  },
+  /* D7② 옵션별 구매 제한 — 주문당 최대 2개·1인 최대 3개. */
+  {
+    id: 'g16', originId: 'gimpo', name: '아크릴 키링', ip: 'hong-sil-quest', type: '키링', price: 7000, badge: null, stock: 'ok', stockQty: 9,
+    options: [{id:BLUE_VARIANT,name:'파랑',code:'BLUE',price:7000,stockQty:9,isDefault:true,attributes:{},orderMaxQty:2,memberMaxQty:3},
+      {id:'00000000-0000-4000-8000-000000000017',name:'빨강',code:'RED',price:7000,stockQty:0,isDefault:false,attributes:{}}],
     img: 'none',
   },
 ];
@@ -230,9 +246,13 @@ describe('Cart 주문 요약 테이블', () => {
     expect(html).toContain('배송 묶음별 배송비를 합산합니다.');
   });
 
-  it('주문 CTA에 담긴 수량을 싣는다', () => {
-    expect(html).toContain('1개 굿즈 주문하기');
+  /* R28(MD-0006): 'N개 주문하기' — N은 지금처럼 담긴 총 수량이다. */
+  it('주문 CTA에 담긴 총 수량을 싣는다', () => {
+    expect(html).toContain('<span class="wc-cart__checkout-count">1개 주문하기</span>');
+    expect(html).not.toContain('굿즈 주문하기');
     expect(html).toContain('href="/checkout"');
+    const several = render([{ goodId: 'g13', variantId: DEFAULT_VARIANT, qty: 3 }]);
+    expect(several).toContain('<span class="wc-cart__checkout-count">3개 주문하기</span>');
   });
 });
 
@@ -247,6 +267,27 @@ describe('Cart 쿠폰 슬롯 (S7)', () => {
     expect(html).toContain('쿠폰 선택 안 함');
     expect(html).toContain('5천원 할인');
     expect(html).toContain('쿠폰 적용</button>');
+  });
+
+  /* R25: 운영(legacy) 주문서도 같은 선택을 보이고, 배송비 쿠폰은 어느 화면에서도 받지 않는다 — 사실대로 안내한다. */
+  it('주문서에서도 바꿀 수 있다고 안내하고 배송비 쿠폰을 주문서로 미루지 않는다', () => {
+    const html = render([{ goodId: 'g13', variantId: DEFAULT_VARIANT, qty: 1 }], { selectedUserCouponId: null, coupons: [fix5k] });
+    expect(html).toContain('주문서에서도 바꿀 수 있어요.');
+    expect(html).not.toContain('배송비 쿠폰은 주문서에서 확인');
+  });
+
+  it('보유 쿠폰이 없으면 안내와 코드 입력만 둔다', () => {
+    const html = render([{ goodId: 'g13', variantId: DEFAULT_VARIANT, qty: 1 }], emptyCouponState);
+    expect(html).toContain('사용할 수 있는 쿠폰이 없어요.');
+    expect(html).toContain('id="cart-coupon-code"');
+    expect(html).not.toContain('id="cart-coupon-select"');
+  });
+
+  it('보유 쿠폰을 불러오지 못했으면 그 사실을 한 번만 알리고 없다고 하지 않는다', () => {
+    const html = render([{ goodId: 'g13', variantId: DEFAULT_VARIANT, qty: 1 }], { selectedUserCouponId: null, coupons: [], unavailable: true });
+    expect(html.match(/보유 쿠폰을 불러오지 못했습니다/g)).toHaveLength(1);
+    expect(html).not.toContain('사용할 수 있는 쿠폰이 없어요');
+    expect(html).toContain('id="cart-coupon-code"');
   });
 
   it('적용된 쿠폰은 할인 행과 예상 총액에 반영된다', () => {
@@ -331,6 +372,43 @@ describe('Cart 라인 상태', () => {
   });
 });
 
+describe('Cart 랜덤 판매·옵션별 구매 제한 품목 줄', () => {
+  it('랜덤 판매 굿즈는 옵션명을 랜덤으로 보이고 수량 상한은 풀 합계다', () => {
+    const html = render([{ goodId: 'g15', variantId: RANDOM_VARIANT, qty: 6 }]);
+    expect(html).toContain('<p class="wc-cart__line-option">랜덤</p>');
+    expect(html).toMatch(/aria-disabled="true" aria-label="수량 늘리기"/);
+  });
+
+  it('랜덤 전환 전에 다른 옵션 키로 담은 줄도 판매 종료가 아니라 랜덤 줄로 보인다', () => {
+    const html = render([{ goodId: 'g15', variantId: '00000000-0000-4000-8000-0000000000ee', qty: 1 }]);
+    expect(html).toContain('<p class="wc-cart__line-option">랜덤</p>');
+    expect(html).not.toContain('판매 종료');
+  });
+
+  it('랜덤 전환 전에 담은 줄은 수량 스테퍼 대신 다시 담기로 키 줄에 합치게 한다(키 줄은 그대로 스테퍼)', () => {
+    const html = render([{ goodId: 'g15', variantId: RANDOM_VARIANT, qty: 1 }, { goodId: 'g15', variantId: '00000000-0000-4000-8000-0000000000ee', qty: 2 }]);
+    expect(html.match(/wc-stepper"/g)).toHaveLength(1);
+    expect(html).toContain('aria-label="랜덤 포토카드 랜덤 한 줄로 다시 담기"');
+    expect(html).toContain('판매 방식이 바뀌기 전에 담은 줄이에요. 다시 담으면 랜덤 한 줄로 합쳐집니다.');
+    expect(html).toContain('랜덤 포토카드 장바구니에서 삭제');
+  });
+
+  it('옵션별 주문당 최대 수량이 스테퍼 상한이다', () => {
+    const html = render([{ goodId: 'g16', variantId: BLUE_VARIANT, qty: 2 }]);
+    expect(html).toMatch(/aria-disabled="true" aria-label="수량 늘리기"/);
+    expect(html).not.toContain('까지 주문할 수 있습니다');
+  });
+
+  it('견적이 옵션 한도 위반을 알리면 품목 줄에 확정 카피를 보이고 주문을 막는다', () => {
+    mocks.quoteLineExtras.set(BLUE_VARIANT, { optionLimit: { orderMaxQty: 2, memberMaxQty: 3, memberReservedQty: 2, memberRemainingQty: 1,
+      reason: 'option_member_limit_exceeded' } });
+    const html = render([{ goodId: 'g16', variantId: BLUE_VARIANT, qty: 2 }]);
+    expect(html).toContain('&#x27;파랑&#x27;은 1인당 3개까지 구매할 수 있습니다.');
+    expect(html).toContain('1인당 구매 수량이 정해진 옵션이 있어요.');
+    expect(html).not.toContain('href="/checkout"');
+  });
+});
+
 describe('Cart 빈 상태 (CT-02)', () => {
   it('굿즈샵으로 돌려보낸다', () => {
     const html = render([]);
@@ -397,7 +475,7 @@ describe('Cart 모바일 크롬 (CT-03)', () => {
     const bar = html.slice(html.indexOf('<div class="wc-cart__cta-bar">'));
 
     expect(bar).toMatch(/^<div class="wc-cart__cta-bar"><a class="wc-btn primary wc-cart__checkout wc-cart__checkout--amount" href="\/checkout">/);
-    expect(bar).toContain('<span class="wc-cart__checkout-count">1개 굿즈 주문하기</span>');
+    expect(bar).toContain('<span class="wc-cart__checkout-count">1개 주문하기</span>');
     expect(bar).toContain('<span class="wc-cart__checkout-amount">₩15,000 주문하기</span>');
   });
 
@@ -410,7 +488,7 @@ describe('Cart 모바일 크롬 (CT-03)', () => {
 
     mocks.precheckout = transactionPrecheckout();
     html = renderTransaction();
-    expect(html).toContain('<span class="wc-cart__checkout-count">1개 굿즈 주문하기</span>');
+    expect(html).toContain('<span class="wc-cart__checkout-count">1개 주문하기</span>');
     expect(html).not.toContain('wc-cart__checkout-amount');
   });
 
@@ -493,13 +571,23 @@ describe('Cart 목록 행 (CT-04)', () => {
 describe('origin quote and option lines', () => {
   it('keeps each origin fee and free-shipping remainder separate', () => {
     mocks.items=[{goodId:'g13',variantId:DEFAULT_VARIANT,qty:1},{goodId:'g14',variantId:SOLD_VARIANT,qty:1}];
-    mocks.quote={...defaultQuote,totalFee:7000,finalTotalFee:7000,groups:[gimpoGroup,{...gimpoGroup,originId:'namyangju',originCode:'NAMYANGJU',originName:'남양주',baseFee:4000,policyFee:4000,totalFee:4000,finalFee:4000,policySubtotal:9000,freeThreshold:30000}]};
+    mocks.quote={...defaultQuote,totalFee:7000,finalTotalFee:7000,groups:[{...gimpoGroup,carrierLabel:'한진택배'},{...gimpoGroup,originId:'namyangju',originCode:'NAMYANGJU',originName:'남양주',carrierCode:'epost',carrierLabel:'우체국택배',baseFee:4000,policyFee:4000,totalFee:4000,finalFee:4000,policySubtotal:9000,freeThreshold:30000}]};
     const html=renderToStaticMarkup(<Cart catalog={{goods:[goods[0],{...goods[1],stock:'ok',stockQty:5,originId:'namyangju',options:goods[1].options!.map(option=>({...option,stockQty:5}))}],ips:[]}} couponState={emptyCouponState} />);
-    /* 고객 화면은 출고지 이름 대신 배송 묶음 번호로 구분한다(10/14 회의 S7). */
-    expect(html).toContain('<h2>배송 묶음 1</h2>');expect(html).toContain('<h2>배송 묶음 2</h2>');
+    /* 고객 화면은 출고지 이름 대신 택배사로 부른다(10/14 회의 S7 · R26). 묶음이 둘이면 따로 계산되는 이유를 한 줄로(R27). */
+    expect(html).toContain('<h2>한진택배 배송</h2>');expect(html).toContain('<h2>우체국택배 배송</h2>');
+    expect(html).toContain('aria-label="한진택배 배송 굿즈"');
+    expect(html).toContain('택배사가 달라 배송비가 각각 계산됩니다.');
+    expect(html.indexOf('택배사가 달라')).toBeLessThan(html.indexOf('<h2>한진택배 배송</h2>'));
     expect(html).not.toContain('김포');expect(html).not.toContain('남양주');
     expect(html).toContain('38,000원 더 담으면');expect(html).toContain('21,000원 더 담으면');
     expect(html).toContain('₩7,000');expect(html).toContain('₩28,000');
+  });
+  it('묶음이 하나면 이유 줄 없이 택배사 이름만, 택배사를 모르면 택배 배송으로 부른다', () => {
+    const one=render([{goodId:'g13',variantId:DEFAULT_VARIANT,qty:1}]);
+    expect(one).toContain('<h2>택배 배송</h2>');
+    expect(one).not.toContain('배송비가 각각 계산됩니다');
+    mocks.quote={...defaultQuote,groups:[{...gimpoGroup,carrierLabel:'한진택배'}]};
+    expect(render([{goodId:'g13',variantId:DEFAULT_VARIANT,qty:1}])).toContain('<h2>한진택배 배송</h2>');
   });
   it('blocks checkout while the current cart has no server quote', () => {
     mocks.quote=null;

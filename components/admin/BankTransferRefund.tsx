@@ -8,6 +8,7 @@ import { inquiryDraftSessionId } from '@/lib/admin/inquiry-drafts';
 import { INQUIRY_DRAFT_SIGN_OUT_EVENT } from '@/lib/admin/inquiry-draft-lifecycle';
 import { createGoodsDescriptionToolScope } from '@/lib/admin/goods-description-tools';
 import { formatOrderDateTime } from '@/lib/orders';
+import { useClaimPreviewBusy } from '@/components/admin/screens/ClaimPreviewDialog';
 import {
   BANK_REFUND_LABELS, BANK_REFUND_RECOVERY_PREFIX, bankRefundError, bankRefundMetadata, bankRefundReceiptMatches,
   bankRefundRecoveryKey, normalizeBankRefundRequest, parseBankRefundRecovery,
@@ -44,6 +45,7 @@ function RefundPanel({ identity, scope }: { identity: BankRefundIdentity; scope:
   const router = useRouter(), key = bankRefundRecoveryKey(identity);
   const [context, setContext] = useState<BankRefundContext | null>(null);
   const [draft, setDraft] = useState(empty), [pending, setPending] = useState(false), [needsRefresh, setNeedsRefresh] = useState(false);
+  useClaimPreviewBusy(pending); /* 목록 위 클레임 팝업(R8)에서 기다리는 동안 팝업이 닫히지 않게 알린다. 팝업 밖에서는 아무 일도 하지 않는다. */
   const [error, setError] = useState(''), [message, setMessage] = useState(''), [reload, setReload] = useState(0), [canRetry, setCanRetry] = useState(false);
   const [account, setAccount] = useState<BankRefundAccountView | null>(null);
   const [recovery, setRecovery] = useState<BankRefundRecovery | null>(() => {

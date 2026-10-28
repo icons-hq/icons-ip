@@ -9,6 +9,8 @@ import { readCompleteIdPages } from '../supabase/complete-id-pages';
 import type { ShipmentRecord } from '../orders/shipments';
 import { loadOrderShipments } from '../orders/shipments.server';
 import { loadShippingCarrierRegistry } from '../orders/shipment.server';
+import { mergeRandomOrderItemRows } from '../orders/customer-items.server';
+import { maskCustomerOrderItem } from '../goods-option-sale-mode';
 import { createServiceClient, getServiceRoleConfig } from '../supabase/service';
 import {
   inquiryEmailDedupeKey,
@@ -90,11 +92,14 @@ interface OrderRow {
 
 interface OrderItemRow {
   id: string;
-  variant_id: string;
+  good_id: string;
+  variant_id: string | null;
   good_name_snapshot: string;
-  variant_name_snapshot?: string | null;
+  variant_name_snapshot: string | null;
   qty: number;
   unit_price: number;
+  /** 랜덤 판매 굿즈(D5②)의 배정 행이면 'random'. service role은 RLS가 걸리지 않아 코드에서 가린다. */
+  option_sale_mode_snapshot: 'random' | null;
 }
 
 interface OrderEmailContext {
@@ -135,7 +140,7 @@ async function loadOrderEmailContext(
 
   const { data: itemData, error: itemError } = await readCompleteIdPages<OrderItemRow>((after, size) => {
     let query = service.from('order_items')
-      .select('id,variant_id,good_name_snapshot,variant_name_snapshot,qty,unit_price', { count: 'exact' })
+      .select('id,good_id,variant_id,good_name_snapshot,variant_name_snapshot,qty,unit_price,option_sale_mode_snapshot', { count: 'exact' })
       .eq('order_id', orderId).order('id', { ascending: true }).limit(size);
     if (after) query = query.gt('id', after);
     return query;
@@ -170,7 +175,9 @@ async function loadOrderEmailContext(
      이미 들고 있는 service 클라이언트로 그대로 읽는다(#251). */
   const carriers = await loadShippingCarrierRegistry(service);
 
-  const items = ((itemData ?? []) as OrderItemRow[]).map((row) => ({
+  /* 고객에게 가는 메일이다 — 랜덤 판매 굿즈의 배정 옵션은 '랜덤'으로 가리고, 나뉜 배정 행은 한 줄로 합친다. */
+  const items = mergeRandomOrderItemRows(((itemData ?? []) as OrderItemRow[]).map((row) => maskCustomerOrderItem(row, null)),
+    (row) => row.option_sale_mode_snapshot === 'random').map((row) => ({
     id: row.id,
     name: row.good_name_snapshot,
     ...(row.variant_name_snapshot ? { variantName: row.variant_name_snapshot } : {}),
@@ -490,7 +497,7 @@ export async function sendRestockAlertEmails(
 
     const { data: goodData, error: goodError } = await service
       .from('goods')
-      .select('name,published_at,archived_at,sale_restriction,ips:ip_id(published_at,archived_at)')
+      .select('name,published_at,archived_at,sale_restriction,option_sale_mode,ips:ip_id(published_at,archived_at)')
       .eq('id', goodId)
       .maybeSingle();
     if (goodError) throw new Error('restock_email_good_load_failed');
@@ -500,7 +507,7 @@ export async function sendRestockAlertEmails(
     }
     // A notification may have been queued before the operator hid this good.
     const current = goodData as unknown as {
-      published_at: string | null; archived_at: string | null; sale_restriction: string;
+      published_at: string | null; archived_at: string | null; sale_restriction: string; option_sale_mode?: string | null;
       ips: { published_at: string | null; archived_at: string | null } | null;
     };
     if (!current.published_at || current.archived_at || current.sale_restriction !== 'none'
@@ -510,9 +517,13 @@ export async function sendRestockAlertEmails(
 
     const rows = await loadNotifiedRestockAlerts(service, goodId);
     if (!rows.length) return { status: 'skipped', reason: 'no_notified_alerts' };
+    /* 랜덤 판매 굿즈(D5②)는 고객이 옵션을 고르지 않는다 — 랜덤으로 바꾸기 전에 옵션 단위로 신청한 알림도 굿즈 단위
+       문구·링크로 보낸다(상세는 ?variant= 를 무시하고 '랜덤'으로 판다, T7 리뷰 RV-7). 인앱 알림도 같은 규칙이다
+       (private.wake_restock_alerts). 신청별 dedupe 키는 그대로다. */
+    const randomSale = current.option_sale_mode === 'random';
     /* 옵션 신청이 있을 때만 옵션 이름을 읽는다. 못 읽으면 옵션을 말하지 않는 메일을 보내지 않고 이번 배치를
        접는다 — 클레임 전이라 다음 재고 접점에서 다시 보낸다. */
-    const optionNames = rows.some((row) => rowVariantId(row)) ? await restockOptionNames(service, goodId) : new Map<string, string>();
+    const optionNames = !randomSale && rows.some((row) => rowVariantId(row)) ? await restockOptionNames(service, goodId) : new Map<string, string>();
 
     /* 본문은 수신자와 무관하고 옵션마다 다르다 — 옵션(없으면 굿즈 단위)별로 한 번 그려 재사용한다.
        옵션 신청의 링크는 그 옵션을 고른 상세다(?variant=, PD-14). */
@@ -545,7 +556,7 @@ export async function sendRestockAlertEmails(
         dedupeKey: restockAlertEmailDedupeKey(row.id, notifiedAt, variantId),
         template: 'restock_alert',
         recipient,
-        rendered: renderedFor(variantId, variantId ? optionNames.get(variantId) ?? null : null),
+        rendered: randomSale ? renderedFor(null, null) : renderedFor(variantId, variantId ? optionNames.get(variantId) ?? null : null),
       })));
     }
 

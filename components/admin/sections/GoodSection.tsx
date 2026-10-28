@@ -19,7 +19,8 @@ import { RecordList } from '../fields';
 import { GoodEditor } from '../GoodEditor';
 import { CatalogArchiveControl, CatalogArchiveFilter } from '../CatalogArchiveControls';
 import { GoodsListingColorsPanel } from '../GoodsListingColorsPanel';
-import { GoodOperationSection, focusGoodWorkspaceTarget } from '../GoodWorkspace';
+import { GOOD_UNSAVED_BASE_COPY, GoodOperationDisabledNotice, GoodOperationSection, GoodWorkspaceProvider, focusGoodWorkspaceTarget } from '../GoodWorkspace';
+import { GoodWorkspaceKcCard, GoodWorkspacePreorderCard } from '../GoodWorkspaceSections';
 import { VariantStockAdjustmentForm } from '../VariantStockAdjustmentForm';
 import { GoodVariantsPanel } from '../GoodVariantsPanel';
 import { GoodPublishControls } from '../GoodPublishControls';
@@ -39,6 +40,36 @@ import { GoodsFulfillmentPanel } from '../GoodsFulfillmentPanel';
 import { GoodsProductionPanel } from '../GoodsProductionPanel';
 import { GoodsSubscriptionPolicyPanel } from '../GoodsSubscriptionPolicyPanel';
 import { GoodShippingChargeGroupPanel } from '../GoodShippingChargeGroupPanel';
+import { GoodsOptionSaleModePanel } from '../GoodsOptionSaleModePanel';
+
+/** 운영 섹션 제목·설명. 저장된 상품의 독립 패널과 등록 화면의 자리표시 카드가 같은 문구·같은 id를 쓴다. */
+const OPERATION = {
+  stock: ['할당 재고 조정', '대상 옵션·변경 수량·사유를 확인해 재고 조정만 즉시 반영합니다.'],
+  publish: ['게시 상태 · 공개·초안 전환', '현재 서버 저장값으로 게시 상태만 전환합니다.'],
+  variants: ['옵션 사용·보관', '옵션 사용 상태만 별도로 반영합니다.'],
+  kc: ['KC 자료·검토', 'KC 대상이 아니면 상품 전체 KC 해당 없음으로 바로 검토하고, KC 대상이면 모델·근거·적용 옵션을 검토합니다. KC만 저장합니다.'],
+  costs: ['매입단가', '권한이 있는 관리자만 매입단가를 저장합니다.'],
+  'listing-colors': ['목록 색상칩', '상품목록에 표시할 실제 색상을 별도로 저장합니다.'],
+  additional: [adminGoodsCopy('추가 구성 상품'), '추가 구성 연결만 저장합니다.'],
+  benefits: ['사은품·이벤트 안내', '사은품 설명·사진과 이벤트 문구를 별도로 저장합니다.'],
+  'after-sales': ['A/S 안내·판매자 특이사항', '상품별 A/S 안내와 판매자 특이사항을 상품정보고시와 별도로 저장합니다.'],
+  'size-chart': ['사이즈 안내', '측정 치수와 공개 표시 여부만 별도로 저장합니다. 구매 옵션·고시 크기와 구분됩니다.'],
+  prices: ['기간 할인', '기간과 옵션별 할인 설정만 저장합니다.'],
+  'transaction-terms': ['복수구매 할인·착불·수량별 배송비', '저장된 상품을 기준으로 할인과 확장 배송비를 각각 저장합니다.'],
+  'shipping-charge-group': ['배송비 묶음그룹', '저장된 상품의 묶음그룹 배정만 별도로 저장합니다.'],
+  'subscription-policy': ['정기배송', '신청 가능한 주기와 정기배송 안내를 별도로 저장합니다.'],
+  fulfillment: ['수령 방식·설치비·디지털 파일', '주문서의 수령 방식과 선결제 비용·제공 파일을 별도로 저장합니다.'],
+  production: ['주문 후 제작', '상품별 제작 여부와 발송 예정 기간·휴무일을 저장합니다.'],
+  'option-sale-mode': ['판매 방식', '고객이 옵션을 고르는 판매와 랜덤 판매 중 판매 방식만 별도로 저장합니다.'],
+  preorders: ['예약판매', '예약판매 설정과 물량을 별도로 저장합니다.'],
+  clone: ['상품 복사', '서버에 저장된 상품으로 새로운 초안을 만듭니다.'],
+  archive: ['상품 보관·복원', '게시와 보관 상태만 변경합니다.'],
+} as const;
+type OperationId = keyof typeof OPERATION;
+
+function Placeholder({ id }: { id: OperationId }) {
+  return <GoodOperationSection id={id} title={OPERATION[id][0]} description={OPERATION[id][1]} mode="placeholder" />;
+}
 
 export function GoodSection({
   action,
@@ -80,16 +111,31 @@ export function GoodSection({
   const [transactionBusy, setTransactionBusy] = useState(false);
   const [subscriptionBusy, setSubscriptionBusy] = useState(false);
   const [chargeBusy, setChargeBusy] = useState(false);
+  const policyUnsaved = !(pending || editingState?.busy) && editingState?.goodId === selected?.id && Boolean(editingState?.dirty);
   const policyDisabled = pending || editingState?.busy ? '기본 상품을 저장하는 중입니다. 저장이 끝난 뒤 별도 설정을 저장해주세요.'
     : editingState?.goodId !== selected?.id ? '기본 상품의 입력 상태를 확인하고 있습니다.'
-    : editingState?.dirty ? '기본 상품에 미저장 변경이 있습니다. 먼저 기본 상품을 저장한 뒤 별도 설정을 저장해주세요.' : '';
+    : editingState?.dirty ? GOOD_UNSAVED_BASE_COPY : '';
+  /*
+   * R14: 기본 입력 상태 때문에 잠긴 운영 패널은 맨 위에 같은 이유와 저장 바로가기를 보인다. 그때 패널은 잠그기만 하고
+   * 같은 이유를 본문에 다시 그리지 않는다(showDisabledReason=false, 리뷰 T3a-7). 다른 패널 저장을 기다리느라 공통 안내를
+   * 보이지 않을 때는 패널이 자기 이유를 직접 보인다.
+   */
+  const policyNotice = <GoodOperationDisabledNotice reason={policyDisabled} unsaved={policyUnsaved} />;
+  const transactionOwnReason = ownership && !ownership.aggregation.editable ? '할인·수량별 배송비는 합산 기준 상품에서 관리합니다.'
+    : chargeBusy ? '묶음그룹 저장 결과를 확인한 뒤 할인·배송 설정을 저장해주세요.'
+    : subscriptionBusy ? '정기배송 저장 결과를 확인한 뒤 할인·배송 설정을 저장해주세요.' : '';
+  const chargeOwnReason = transactionBusy || subscriptionBusy ? '할인·배송 또는 정기배송 요청의 결과를 확인한 뒤 배정해주세요.' : '';
+  const subscriptionOwnReason = transactionBusy || chargeBusy ? '할인·배송 저장 결과를 확인한 뒤 정기배송 설정을 저장해주세요.' : '';
   const kcTemplate = useGoodsKcTemplate(selected?.id ?? null);
   const normalizedQuery=query.trim().toLocaleLowerCase();
   const visibleRecords = filterAdminCatalogRecords(records, archiveFilter).filter((good)=>!normalizedQuery
     || `${good.name} ${good.code} ${(good.searchKeywords ?? []).join(' ')}`.toLocaleLowerCase().includes(normalizedQuery)
     || variants.some((variant)=>variant.goodId===good.id && `${variant.code} ${variant.erpCode ?? ''} ${variant.erpName ?? ''} ${variant.barcode ?? ''}`.toLocaleLowerCase().includes(normalizedQuery)));
+  /* 저장에 성공한 시도. 등록 화면의 KC·예약판매 입력은 서버로 들어갔으므로 provider가 비우고 작업 ID를 새로 만든다. */
+  const completedKey = state.savedGoodId && !state.errors ? `${state.savedGoodId}:${state.attempt ?? 0}` : null;
 
   return (
+    <GoodWorkspaceProvider completedKey={completedKey}>
     <div className={hideRecordList?'col':'admin-master-detail'}>
       {!hideRecordList && <div className="col" style={{ gap: 12, minWidth: 0 }}>
         <label className="col" style={{gap:7}}>
@@ -142,6 +188,7 @@ export function GoodSection({
           onEditingStateChange={setEditingState}
           listHref={listHref}
           canSearchErp={canSearchErp}
+          canActivatePreorders={canManageCosts}
           onApplyKcTemplate={kcTemplate.apply}
           regionSummaries={regionSummaries} origins={origins} noticeDefaults={noticeDefaults} categories={categories} shippingNoticeOptions={shippingNoticeOptions} accountId={accountId}
           variants={variants.filter((variant) => variant.goodId === selected?.id)}
@@ -154,35 +201,65 @@ export function GoodSection({
           initialIpId={initialIpId}
         />
         </fieldset>
-        {selected && !selected.archivedAt && (
-          <GoodOperationSection id="stock" title="할당 재고 조정" description="대상 옵션·변경 수량·사유를 확인해 재고 조정만 즉시 반영합니다." ><VariantStockAdjustmentForm adjustmentId={adjustmentId} good={selected} variants={variants} key={`stock-${selected.id}`} /></GoodOperationSection>
-        )}
-        {selected && <GoodOperationSection id="publish" title="게시 상태 · 공개·초안 전환" description="현재 서버 저장값으로 게시 상태만 전환합니다."><GoodPublishControls id={selected.id} publishedAt={selected.publishedAt} archivedAt={selected.archivedAt} key={`publish-${selected.id}-${selected.publishedAt}-${selected.archivedAt}`}/></GoodOperationSection>}
-        {selected && !ownership?.group && <GoodOperationSection id="variants" title="옵션 사용·보관" description="옵션 사용 상태만 별도로 반영합니다."><GoodVariantsPanel goodId={selected.id} variants={variants} basePrice={selected.price} /></GoodOperationSection>}
-        {selected && !selected.archivedAt && <GoodOperationSection id="kc" title="KC 자료·검토" description="KC 대상이 아니면 상품 전체 KC 해당 없음으로 바로 검토하고, KC 대상이면 모델·근거·적용 옵션을 검토합니다. KC만 저장합니다."><GoodsKcPanel goodId={selected.id} refreshKey={state.attempt ?? 0} templateRequest={kcTemplate.request} onTemplateApplied={kcTemplate.consume} key={`kc-${selected.id}-${selected.publishedAt}-${selected.archivedAt}`} /></GoodOperationSection>}
-        {selected && !selected.archivedAt && canManageCosts && <GoodOperationSection id="costs" title="매입단가" description="권한이 있는 관리자만 매입단가를 저장합니다."><GoodsPurchaseCostsPanel goodId={selected.id} variants={variants} key={`costs-${selected.id}`} /></GoodOperationSection>}
-        {selected && !selected.archivedAt && <GoodOperationSection id="listing-colors" title="목록 색상칩" description="상품목록에 표시할 실제 색상을 별도로 저장합니다."><GoodsListingColorsPanel goodId={selected.id} key={`listing-colors-${selected.id}`} /></GoodOperationSection>}
-        {selected && !selected.archivedAt && <GoodOperationSection id="additional" title={adminGoodsCopy("추가 구성 상품")} description="추가 구성 연결만 저장합니다."><GoodsAdditionalPanel goodId={selected.id} key={`additional-${selected.id}`} /></GoodOperationSection>}
-        {selected && !selected.archivedAt && <GoodOperationSection id="benefits" title="사은품·이벤트 안내" description="사은품 설명·사진과 이벤트 문구를 별도로 저장합니다."><GoodsBenefitsPanel goodId={selected.id} key={`benefits-${accountId}-${selected.id}`} /></GoodOperationSection>}
-        {selected && !selected.archivedAt && !ownership?.group && <GoodOperationSection id="after-sales" title="A/S 안내·판매자 특이사항" description="상품별 A/S 안내와 판매자 특이사항을 상품정보고시와 별도로 저장합니다."><GoodsAfterSalesPanel goodId={selected.id} key={`after-sales-${accountId}-${selected.id}`} /></GoodOperationSection>}
-        {selected && !selected.archivedAt && !ownership?.group && <GoodOperationSection id="size-chart" title="사이즈 안내" description="측정 치수와 공개 표시 여부만 별도로 저장합니다. 구매 옵션·고시 크기와 구분됩니다."><GoodSizeChartPanel goodId={selected.id} accountId={accountId} key={`size-chart-${accountId}-${selected.id}`} /></GoodOperationSection>}
-        {selected && !selected.archivedAt && <GoodOperationSection id="prices" title="기간 할인" description="기간과 옵션별 할인 설정만 저장합니다."><GoodsPricePeriodsPanel goodId={selected.id} variants={variants} key={`prices-${selected.id}`} /></GoodOperationSection>}
-        {selected && !selected.archivedAt && <GoodOperationSection id="transaction-terms" title="복수구매 할인·착불·수량별 배송비" description="저장된 상품을 기준으로 할인과 확장 배송비를 각각 저장합니다."><GoodsTransactionTermsPanel goodId={selected.id} accountId={accountId} disabledReason={ownership && !ownership.aggregation.editable ? '할인·수량별 배송비는 합산 기준 상품에서 관리합니다.' : chargeBusy ? '묶음그룹 저장 결과를 확인한 뒤 할인·배송 설정을 저장해주세요.' : subscriptionBusy ? '정기배송 저장 결과를 확인한 뒤 할인·배송 설정을 저장해주세요.' : policyDisabled} onBusyChange={setTransactionBusy} key={`transaction-${accountId}-${selected.id}`} /></GoodOperationSection>}
-        {selected && !selected.archivedAt && <GoodOperationSection id="shipping-charge-group" title="배송비 묶음그룹" description="저장된 상품의 묶음그룹 배정만 별도로 저장합니다."><GoodShippingChargeGroupPanel goodId={selected.id} accountId={accountId} disabledReason={transactionBusy || subscriptionBusy ? '할인·배송 또는 정기배송 요청의 결과를 확인한 뒤 배정해주세요.' : policyDisabled} onBusyChange={setChargeBusy} key={`shipping-charge-${accountId}-${selected.id}`} /></GoodOperationSection>}
-        {selected && !selected.archivedAt && <GoodOperationSection id="subscription-policy" title="정기배송" description="신청 가능한 주기와 정기배송 안내를 별도로 저장합니다."><GoodsSubscriptionPolicyPanel goodId={selected.id} accountId={accountId} disabledReason={transactionBusy || chargeBusy ? '할인·배송 저장 결과를 확인한 뒤 정기배송 설정을 저장해주세요.' : policyDisabled} onBusyChange={setSubscriptionBusy} key={`subscription-${accountId}-${selected.id}`} /></GoodOperationSection>}
-        {selected && !selected.archivedAt && accountId ? <GoodOperationSection id="fulfillment" title="수령 방식·설치비·디지털 파일" description="주문서의 수령 방식과 선결제 비용·제공 파일을 별도로 저장합니다."><GoodsFulfillmentPanel key={`fulfillment-${accountId}-${selected.id}`} goodId={selected.id} accountId={accountId} disabledReason={policyDisabled} /></GoodOperationSection> : null}
-        {selected && !selected.archivedAt && accountId ? <GoodOperationSection id="production" title="주문 후 제작" description="상품별 제작 여부와 발송 예정 기간·휴무일을 저장합니다."><GoodsProductionPanel key={`production-${accountId}-${selected.id}`} goodId={selected.id} accountId={accountId} disabledReason={policyDisabled} /></GoodOperationSection> : null}
-        {selected && !selected.archivedAt && <GoodOperationSection id="preorders" title="예약판매" description="예약판매 설정과 물량을 별도로 저장합니다."><GoodsPreordersPanel goodId={selected.id} variants={variants} canActivate={canManageCosts} canReadOrders={canReadOrders} canAllocate={canManageSales} key={`preorders-${selected.id}`} /></GoodOperationSection>}
-        {selected && !selected.archivedAt && cloneOperationId && <GoodOperationSection id="clone" title="상품 복사" description="서버에 저장된 상품으로 새로운 초안을 만듭니다."><GoodClonePanel operationId={cloneOperationId} goodId={selected.id} goodName={selected.name} goodCode={selected.code} key={`clone-${selected.id}`} /></GoodOperationSection>}
-        {selected && (
-          <GoodOperationSection id="archive" title="상품 보관·복원" description="게시와 보관 상태만 변경합니다."><CatalogArchiveControl
+        {selected ? <>
+          {!selected.archivedAt && (
+            <GoodOperationSection id="stock" title={OPERATION.stock[0]} description={OPERATION.stock[1]}><VariantStockAdjustmentForm adjustmentId={adjustmentId} good={selected} variants={variants} key={`stock-${selected.id}`} /></GoodOperationSection>
+          )}
+          <GoodOperationSection id="publish" title={OPERATION.publish[0]} description={OPERATION.publish[1]}><GoodPublishControls id={selected.id} publishedAt={selected.publishedAt} archivedAt={selected.archivedAt} key={`publish-${selected.id}-${selected.publishedAt}-${selected.archivedAt}`}/></GoodOperationSection>
+          {!ownership?.group && <GoodOperationSection id="variants" title={OPERATION.variants[0]} description={OPERATION.variants[1]}><GoodVariantsPanel goodId={selected.id} variants={variants} basePrice={selected.price} /></GoodOperationSection>}
+          {!selected.archivedAt && <GoodOperationSection id="kc" title={OPERATION.kc[0]} description={OPERATION.kc[1]}><GoodsKcPanel goodId={selected.id} refreshKey={state.attempt ?? 0} templateRequest={kcTemplate.request} onTemplateApplied={kcTemplate.consume} key={`kc-${selected.id}-${selected.publishedAt}-${selected.archivedAt}`} /></GoodOperationSection>}
+          {!selected.archivedAt && canManageCosts && <GoodOperationSection id="costs" title={OPERATION.costs[0]} description={OPERATION.costs[1]}><GoodsPurchaseCostsPanel goodId={selected.id} variants={variants} key={`costs-${selected.id}`} /></GoodOperationSection>}
+          {!selected.archivedAt && <GoodOperationSection id="listing-colors" title={OPERATION['listing-colors'][0]} description={OPERATION['listing-colors'][1]}><GoodsListingColorsPanel goodId={selected.id} key={`listing-colors-${selected.id}`} /></GoodOperationSection>}
+          {!selected.archivedAt && <GoodOperationSection id="additional" title={OPERATION.additional[0]} description={OPERATION.additional[1]}><GoodsAdditionalPanel goodId={selected.id} key={`additional-${selected.id}`} /></GoodOperationSection>}
+          {!selected.archivedAt && <GoodOperationSection id="benefits" title={OPERATION.benefits[0]} description={OPERATION.benefits[1]}><GoodsBenefitsPanel goodId={selected.id} key={`benefits-${accountId}-${selected.id}`} /></GoodOperationSection>}
+          {!selected.archivedAt && !ownership?.group && <GoodOperationSection id="after-sales" title={OPERATION['after-sales'][0]} description={OPERATION['after-sales'][1]}><GoodsAfterSalesPanel goodId={selected.id} key={`after-sales-${accountId}-${selected.id}`} /></GoodOperationSection>}
+          {!selected.archivedAt && !ownership?.group && <GoodOperationSection id="size-chart" title={OPERATION['size-chart'][0]} description={OPERATION['size-chart'][1]}><GoodSizeChartPanel goodId={selected.id} accountId={accountId} key={`size-chart-${accountId}-${selected.id}`} /></GoodOperationSection>}
+          {!selected.archivedAt && <GoodOperationSection id="prices" title={OPERATION.prices[0]} description={OPERATION.prices[1]}><GoodsPricePeriodsPanel goodId={selected.id} variants={variants} key={`prices-${selected.id}`} /></GoodOperationSection>}
+          {!selected.archivedAt && <GoodOperationSection notice={transactionOwnReason ? undefined : policyNotice} id="transaction-terms" title={OPERATION['transaction-terms'][0]} description={OPERATION['transaction-terms'][1]}><GoodsTransactionTermsPanel goodId={selected.id} accountId={accountId} disabledReason={transactionOwnReason || policyDisabled} showDisabledReason={Boolean(transactionOwnReason)} onBusyChange={setTransactionBusy} key={`transaction-${accountId}-${selected.id}`} /></GoodOperationSection>}
+          {!selected.archivedAt && <GoodOperationSection notice={chargeOwnReason ? undefined : policyNotice} id="shipping-charge-group" title={OPERATION['shipping-charge-group'][0]} description={OPERATION['shipping-charge-group'][1]}><GoodShippingChargeGroupPanel goodId={selected.id} accountId={accountId} disabledReason={chargeOwnReason || policyDisabled} showDisabledReason={Boolean(chargeOwnReason)} onBusyChange={setChargeBusy} key={`shipping-charge-${accountId}-${selected.id}`} /></GoodOperationSection>}
+          {!selected.archivedAt && <GoodOperationSection notice={subscriptionOwnReason ? undefined : policyNotice} id="subscription-policy" title={OPERATION['subscription-policy'][0]} description={OPERATION['subscription-policy'][1]}><GoodsSubscriptionPolicyPanel goodId={selected.id} accountId={accountId} disabledReason={subscriptionOwnReason || policyDisabled} showDisabledReason={Boolean(subscriptionOwnReason)} onBusyChange={setSubscriptionBusy} key={`subscription-${accountId}-${selected.id}`} /></GoodOperationSection>}
+          {!selected.archivedAt && accountId ? <GoodOperationSection notice={policyNotice} id="fulfillment" title={OPERATION.fulfillment[0]} description={OPERATION.fulfillment[1]}><GoodsFulfillmentPanel key={`fulfillment-${accountId}-${selected.id}`} goodId={selected.id} accountId={accountId} disabledReason={policyDisabled} showDisabledReason={false} /></GoodOperationSection> : null}
+          {!selected.archivedAt && accountId ? <GoodOperationSection notice={policyNotice} id="production" title={OPERATION.production[0]} description={OPERATION.production[1]}><GoodsProductionPanel key={`production-${accountId}-${selected.id}`} goodId={selected.id} accountId={accountId} disabledReason={policyDisabled} showDisabledReason={false} /></GoodOperationSection> : null}
+          {/* D5② 판매 방식(랜덤 판매): 옵션·가격 저장과 낙관 잠금(goods.updated_at)을 나눠 쓰므로 기본 입력이 잠기면 함께 잠그고,
+              상품을 저장해 수정 시각이 바뀌면 다시 읽는다. */}
+          {!selected.archivedAt && <GoodOperationSection notice={policyNotice} id="option-sale-mode" title={OPERATION['option-sale-mode'][0]} description={OPERATION['option-sale-mode'][1]}><GoodsOptionSaleModePanel key={`option-sale-mode-${selected.id}`} goodId={selected.id} revision={`${selected.updatedAt ?? ''}:${state.attempt ?? 0}`} disabled={Boolean(policyDisabled)} /></GoodOperationSection>}
+          {!selected.archivedAt && <GoodOperationSection id="preorders" title={OPERATION.preorders[0]} description={OPERATION.preorders[1]}><GoodsPreordersPanel goodId={selected.id} variants={variants} canActivate={canManageCosts} canReadOrders={canReadOrders} canAllocate={canManageSales} key={`preorders-${selected.id}`} /></GoodOperationSection>}
+          {!selected.archivedAt && cloneOperationId && <GoodOperationSection id="clone" title={OPERATION.clone[0]} description={OPERATION.clone[1]}><GoodClonePanel operationId={cloneOperationId} goodId={selected.id} goodName={selected.name} goodCode={selected.code} key={`clone-${selected.id}`} /></GoodOperationSection>}
+          <GoodOperationSection id="archive" title={OPERATION.archive[0]} description={OPERATION.archive[1]}><CatalogArchiveControl
             archivedAt={selected.archivedAt}
             id={selected.id}
             key={`${selected.id}:${selected.archivedAt ?? 'active'}`}
             kind="good"
           /></GoodOperationSection>
-        )}
+        </> : <>
+          {/* 등록 화면(R13·D6②): 저장 뒤 나오는 운영 섹션을 같은 순서·같은 id로 보인다. KC·예약판매는 기본 입력과 함께 원자 저장한다. */}
+          <Placeholder id="stock" />
+          <Placeholder id="publish" />
+          {!ownership?.group && <Placeholder id="variants" />}
+          <GoodOperationSection id="kc" title={OPERATION.kc[0]} description="KC 자료와 검토 상태를 상품과 함께 입력합니다." mode="inline" defaultOpen>
+            <GoodWorkspaceKcCard serverError={state.errors?.workspaceKc} disabled={pending} />
+          </GoodOperationSection>
+          {canManageCosts && <Placeholder id="costs" />}
+          <Placeholder id="listing-colors" />
+          <Placeholder id="additional" />
+          <Placeholder id="benefits" />
+          {!ownership?.group && <Placeholder id="after-sales" />}
+          {!ownership?.group && <Placeholder id="size-chart" />}
+          <Placeholder id="prices" />
+          <Placeholder id="transaction-terms" />
+          <Placeholder id="shipping-charge-group" />
+          <Placeholder id="subscription-policy" />
+          {accountId ? <Placeholder id="fulfillment" /> : null}
+          {accountId ? <Placeholder id="production" /> : null}
+          <Placeholder id="option-sale-mode" />
+          <GoodOperationSection id="preorders" title={OPERATION.preorders[0]} description="옵션별 예약 조건을 상품과 함께 입력합니다." mode="inline" defaultOpen>
+            <GoodWorkspacePreorderCard canActivate={canManageCosts} serverError={state.errors?.workspacePreorders} disabled={pending} />
+          </GoodOperationSection>
+          {cloneOperationId && <Placeholder id="clone" />}
+          <Placeholder id="archive" />
+        </>}
       </div>
     </div>
+    </GoodWorkspaceProvider>
   );
 }

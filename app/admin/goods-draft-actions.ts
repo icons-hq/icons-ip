@@ -2,7 +2,7 @@
 import { unstable_rethrow } from 'next/navigation';
 import { requireAdminActionAccess } from '@/lib/admin/action-access.server';
 import { createClient } from '@/lib/supabase/server';
-import { GOODS_DRAFT_PATH, goodsDraftError, parseGoodsDraft, parseGoodsDraftPage, parseGoodsDraftSummary, validGoodsDraftIdentity, validateGoodsDraftValues, type GoodsDraftIdentity } from '@/lib/admin/goods-drafts';
+import { GOODS_DRAFT_INVALID_VALUES_MESSAGE, GOODS_DRAFT_PATH, goodsDraftError, parseGoodsDraft, parseGoodsDraftPage, parseGoodsDraftSummary, validGoodsDraftIdentity, validateGoodsDraftValues, type GoodsDraftIdentity } from '@/lib/admin/goods-drafts';
 
 export async function findGoodsDraftsAction(query: string, archived: boolean, page: number) {
   if (!await requireAdminActionAccess(GOODS_DRAFT_PATH)) return { error: '관리자 권한이 필요합니다.' };
@@ -28,7 +28,7 @@ export async function getGoodsDraftAction(id: string) {
 }
 export async function saveGoodsDraftAction(identity: GoodsDraftIdentity, values: Record<string, string>) {
   if (!await requireAdminActionAccess(GOODS_DRAFT_PATH)) return { error: '관리자 권한이 필요합니다.' };
-  if (!validGoodsDraftIdentity(identity, true) || !validateGoodsDraftValues(values)) return { error: '상품명을 1~100자로 입력하고 등록 중인 상품의 입력 크기(512KB)와 이미지 업로드 상태를 확인해주세요.' };
+  if (!validGoodsDraftIdentity(identity, true) || !validateGoodsDraftValues(values)) return { error: GOODS_DRAFT_INVALID_VALUES_MESSAGE };
   try {
     const client = await createClient();
     const { data, error } = await client.rpc('admin_save_goods_draft', { p_id: identity.id, p_values: values, p_expected_revision: identity.revision });

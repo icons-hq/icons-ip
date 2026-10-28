@@ -21,7 +21,7 @@ export async function verifyGoodEditor(page, origin, output) {
   await page.waitForFunction(()=>JSON.parse(document.querySelector('input[name="variants"]').value)[0].name==='수정 기본 옵션');
   assert.equal(await page.locator('input[name="price"]').inputValue(),'1000');
   assert.equal(await page.locator('input[name="compareAtPrice"]').inputValue(),'2000');
-  await page.getByText('(1,000원 할인)').waitFor();
+  await page.getByText('(1,000원, 50% 할인)').waitFor();
   assert.match(await page.locator('.wc-product-card').innerText(),/1,000/);
   assert.match(await page.locator('.wc-product-card').innerText(),/2,000/);
   await page.getByText('미저장 변경 있음',{exact:true}).waitFor();

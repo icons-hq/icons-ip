@@ -21,7 +21,8 @@ export function GoodsGroupsScreen({ initialPage, initialGroup, initialQuery = ''
   const [pending, startTransition] = useTransition(); const sequence = useRef(0);
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set());
   const [selected, setSelected] = useState<string[]>([]);
-  function load(next: GoodsGroupFilters = { ...filters, page: 1 }) {
+  /** `keepSelection`: 일괄 변경 확정 뒤 다시 읽을 때 선택을 유지한다(R11). 다시 읽은 페이지에 없거나 보관된 그룹은 뺀다. */
+  function load(next: GoodsGroupFilters = { ...filters, page: 1 }, keepSelection = false) {
     if (!identity || !session.current() || pending) return;
     const ticket = ++sequence.current; setError(''); startTransition(async () => {
       try { let result = await searchGoodsGroupConsoleAction(next, identity); if (!session.current() || ticket !== sequence.current) return;
@@ -30,7 +31,9 @@ export function GoodsGroupsScreen({ initialPage, initialGroup, initialQuery = ''
         }
         if (!session.current() || ticket !== sequence.current) return;
         if ('error' in result) { setError(result.error); if (result.authChanged) session.deny(); } else {
-          setPage(result.value); setConsoleData(result.value); setApplied(next); setFilters(next); setExpanded(new Set()); setSelected([]);
+          const kept = new Set(result.value.rows.filter(group => !group.archivedAt).map(group => group.id));
+          setPage(result.value); setConsoleData(result.value); setApplied(next); setFilters(next); setExpanded(new Set());
+          setSelected(current => keepSelection ? current.filter(id => kept.has(id)) : []);
           window.history.replaceState(null, '', goodsGroupConsoleHref(next));
         }
       } catch { if (session.current()) setError('그룹상품 목록을 불러오지 못했습니다. 현재 목록을 유지합니다.'); }
@@ -74,7 +77,8 @@ export function GoodsGroupsScreen({ initialPage, initialGroup, initialQuery = ''
       <div className="admin-goods-worklist__toolbar"><Link className={GROUP_BUTTON} href={goodsGroupConversionHref()}>선택형 옵션에서 그룹 전환</Link><Link className={GROUP_BUTTON} href={`${GOODS_GROUPS_PATH}/new?mode=assemble`}>기존 상품으로 그룹 구성</Link><p>그룹상품명을 눌러 구성·공통정보 수정 또는 그룹 해제를 진행할 수 있습니다.</p></div>
       {identity ? <GoodsBulkToolbar kind="groups" identity={identity} selectedIds={selected} disabled={pending}
         shippingGoodIds={[...new Set(page.rows.filter(group => selected.includes(group.id)).flatMap(group => group.members.map(member => member.goodId)))]}
-        onCompleted={() => { setSelected([]); load(applied); }} /> : null}
+        onCompleted={() => load(applied, true)} /> : null}
+      {identity && selected.length ? <div className="admin-marketing-links__selection"><span>{selected.length}개 선택</span><button className={GROUP_BUTTON} type="button" disabled={pending} onClick={() => setSelected([])}>선택 해제</button></div> : null}
       <GroupTable label="그룹상품 목록"><thead><tr><th><input type="checkbox" aria-label="현재 페이지 그룹상품 전체 선택" disabled={pending || !page.rows.some(group => !group.archivedAt)} checked={page.rows.some(group => !group.archivedAt) && page.rows.filter(group => !group.archivedAt).every(group => selected.includes(group.id))}
         onChange={event => setSelected(event.target.checked ? page.rows.filter(group => !group.archivedAt).map(group => group.id) : [])} /></th><th>그룹상품</th><th>옵션명</th><th>판매옵션</th><th>공개 상품</th><th>상태</th><th>카테고리</th><th>그룹상품등록일</th><th>그룹상품수정일</th></tr></thead><tbody>
       {page.rows.map(group => <Fragment key={group.id}><tr><td><input type="checkbox" aria-label={`${group.name} 선택`} disabled={pending || Boolean(group.archivedAt)} checked={selected.includes(group.id)} onChange={event => setSelected(current => event.target.checked ? [...current, group.id] : current.filter(id => id !== group.id))} /></td><td><Link className="admin-console-grid-link" href={goodsGroupHref(group.id)}>{group.name}</Link><br /><small>{group.id}</small>

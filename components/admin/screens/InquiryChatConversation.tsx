@@ -1,6 +1,6 @@
 'use client';
 
-import { useActionState, useEffect, useRef, useState } from 'react';
+import { useActionState, useEffect, useRef, useState, type KeyboardEvent } from 'react';
 import { useRouter } from 'next/navigation';
 import { closeInquiryAction, type AdminInquiryActionState } from '@/app/admin/inquiry-actions';
 import { sendInquiryChatMessageAction } from '@/app/admin/inquiry-file-actions';
@@ -92,6 +92,16 @@ export function InquiryChatConversation({ accountId, detail }: { accountId: stri
     return () => observer.disconnect();
   }, []);
   function insertTemplate(body: string) { draft.change(body); textarea.current?.focus(); }
+  const sendDisabled = busy || filesPending || !answerState.uncertain && emptyMessage;
+  /* R5(MD-0022): 상담하기는 메신저처럼 Enter 전송·Shift+Enter 줄바꿈이다. 한글 조합 중 Enter(isComposing·keyCode 229)는
+     글자 확정에 쓰이므로 막지 않고 전송하지 않는다. 전송 버튼과 같은 조건을 통과할 때만 같은 폼을 제출한다.
+     고객문의 답변 패널은 실수 발송을 막기 위해 이 동작을 쓰지 않는다. */
+  function sendOnEnter(event: KeyboardEvent<HTMLTextAreaElement>) {
+    if (event.key !== 'Enter' || event.shiftKey || event.altKey || event.ctrlKey || event.metaKey) return;
+    if (event.nativeEvent.isComposing || event.keyCode === 229) return;
+    event.preventDefault();
+    if (!sendDisabled) event.currentTarget.form?.requestSubmit();
+  }
   return <div className="admin-inquiry-chat__conversation">
     <header className="admin-inquiry-chat__thread-header">
       <span className="admin-inquiry-chat__avatar" aria-hidden="true">{inquiry.buyerName.slice(0, 1)}</span>
@@ -131,12 +141,13 @@ export function InquiryChatConversation({ accountId, detail }: { accountId: stri
         </div>
         <label className="sr-only" htmlFor={`chat-reply-${inquiry.id}`}>메시지</label>
         <textarea id={`chat-reply-${inquiry.id}`} ref={textarea} name="body" placeholder="메시지를 입력해 주세요" rows={3} maxLength={MAX_INQUIRY_BODY_LENGTH}
-          value={draft.body} disabled={editingBlocked} onChange={event => draft.change(event.target.value)} />
+          value={draft.body} disabled={editingBlocked} onChange={event => draft.change(event.target.value)} onKeyDown={sendOnEnter}
+          aria-describedby={`chat-reply-${inquiry.id}-keys`} />
         <div className="admin-inquiry-chat__send-row">
-          <span>{draft.body.length}/{MAX_INQUIRY_BODY_LENGTH}</span><button className="admin-inquiry-chat__send" type="submit" disabled={busy || filesPending || !answerState.uncertain && emptyMessage}>{answerPending ? '전송 중' : answerState.uncertain ? '전송 결과 다시 확인' : '전송'}</button>
+          <span>{draft.body.length}/{MAX_INQUIRY_BODY_LENGTH}</span><span id={`chat-reply-${inquiry.id}-keys`}>Enter 전송 · Shift+Enter 줄바꿈</span><button className="admin-inquiry-chat__send" type="submit" disabled={sendDisabled}>{answerPending ? '전송 중' : answerState.uncertain ? '전송 결과 다시 확인' : '전송'}</button>
         </div>
         <Feedback state={answerState} />
-        {draft.blocked || draft.recovery !== null || draft.unavailable ? <InquiryDraftNotice draft={draft} pending={busy} /> : null}
+        {!draft.ready || draft.blocked || draft.recovery !== null || draft.unavailable ? <InquiryDraftNotice draft={draft} pending={busy} loadingLabel="메시지 입력을 불러오는 중입니다." /> : null}
       </form>}
   </div>;
 }
