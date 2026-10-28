@@ -137,6 +137,38 @@ describe('MyCoupons 티켓 카드', () => {
   });
 });
 
+/* 카드의 '중복 사용' 표기는 주문서가 쿠폰을 조합할 수 있을 때만 의미가 있다. 운영 주문서(legacy)는 굿즈 쿠폰 1장만 받으므로
+   '허용 · 주문서에서 조합 확인'은 사실이 아니다 — 거래 런타임의 쿠폰 조합 정책이 실제로 여러 장을 받을 때만 보인다. */
+describe('MyCoupons 카드 중복 사용 표기', () => {
+  const stackable = { ...heldCoupon({ id: 's', name: '중복 쿠폰' }) };
+  stackable.coupon = { ...stackable.coupon, benefitKind: 'goods', stackable: true };
+  const single = { ...heldCoupon({ id: 'o', name: '단독 쿠폰' }) };
+  single.coupon = { ...single.coupon, benefitKind: 'goods', stackable: false };
+  const card = (checkoutRules: MyCouponsCheckoutRules) => renderToStaticMarkup(<MyCoupons checkoutRules={checkoutRules} coupons={[stackable, single]} />)
+    .split('<li class="wc-coupon-card').slice(1);
+  const policy = (stackingEnabled: boolean, maxGoodsCoupons: number, shippingEnabled: boolean) => ({ revision: 1, stackingEnabled, maxGoodsCoupons, shippingEnabled });
+
+  it('거래 런타임에서 중복 사용이 켜져 여러 장을 받으면 쿠폰별 허용·단독을 보인다', () => {
+    for (const couponPolicy of [policy(true, 3, false), policy(true, 1, true)]) {
+      const [stack, one] = card({ transactionMode: 'transaction', couponPolicy });
+      expect(stack).toContain('<dt>중복 사용</dt><dd>허용 · 주문서에서 조합 확인</dd>');
+      expect(one).toContain('<dt>중복 사용</dt><dd>단독 사용</dd>');
+    }
+  });
+
+  it.each([
+    ['운영 주문서(legacy)', LEGACY],
+    ['중복 사용 꺼짐', { transactionMode: 'transaction', couponPolicy: policy(false, 3, true) }],
+    ['중복 사용이 켜졌지만 굿즈 쿠폰 1장·배송비 쿠폰 없음', { transactionMode: 'transaction', couponPolicy: policy(true, 1, false) }],
+    ['정책 미확인', { transactionMode: 'transaction', couponPolicy: null }],
+    ['런타임 미확인', { transactionMode: 'unavailable', couponPolicy: null }],
+  ] as const)('%s이면 조합 표기를 그리지 않는다', (_label, checkoutRules) => {
+    const html = card(checkoutRules).join('');
+    expect(html).not.toContain('중복 사용');
+    expect(html).not.toContain('주문서에서 조합 확인');
+  });
+});
+
 /* R25: 쿠폰 안내는 지금 주문서 계약을 따른다 — 거래 런타임이 켜지면 주문서가 쿠폰 조합 정책대로 굿즈 쿠폰 여러 장·배송비 쿠폰을 받는다. */
 describe('MyCoupons 쿠폰 안내 — 주문서 계약', () => {
   const guide = (checkoutRules: MyCouponsCheckoutRules) => {
