@@ -36,7 +36,7 @@ import { GoodsCustomInputEditor } from './GoodsCustomInputEditor';
 import { GoodsOptionEditor } from './GoodsOptionEditor';
 import { GoodsPriceFields } from './GoodsPriceFields';
 import { GoodsErpCategoryNotice } from './GoodsErpCategoryNotice';
-import { GoodsSalePolicyFields } from './GoodsSalePolicyFields';
+import { GoodsPurchaseLimitFields, GoodsSalePolicyFields } from './GoodsSalePolicyFields';
 import { GoodNoticePicker } from './GoodNoticePicker';
 import { GoodsOriginField } from './CountryNameFinder';
 import type { GoodsKcPresetTemplate } from '@/lib/admin/goods-notice-presets';
@@ -180,6 +180,8 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
   onSaveLocalDraft: (form: HTMLFormElement) => boolean; onLoadServerDraft: (draft: GoodsDraft) => void; listHref?: string;
 }) {
   const groupOwned = Boolean(ownership?.group), aggregationOwned = Boolean(ownership && !ownership.aggregation.editable);
+  /* 랜덤 판매(D5②) 여부는 T6 저장 계약의 goods.option_sale_mode다. 조회가 아직 싣지 않으면 일반 판매로 본다. */
+  const randomSale = (selected as (AdminGoodRecord & { optionSaleMode?: string }) | null)?.optionSaleMode === 'random';
   const [draft] = useState(() => {
     const next = createGoodEditorDraft(selected, state, variants, initialIpId, noticeDefaults);
     const saved = goodEditorValues(selected, {}, initialIpId, noticeDefaults);
@@ -388,6 +390,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
       <GoodEditorSection title="판매기간" id="good-section-period" requirement="선택 · 일반 판매" errorCount={errorCount('period')} summary={values.salePeriodEnabled === 'true' ? `${values.saleStartsAt?.replace('T', ' ') || '시작 미입력'} ~ ${values.saleEndsAt?.replace('T', ' ') || '종료 미입력'} · 한국시간` : '설정안함'}>
         <GoodsSalePeriodFields values={values} error={errors.saleStartsAt} onChange={patch => { setValues(current => ({ ...current, ...patch })); setDirty(true); }} />
       </GoodEditorSection>
+      <GoodsPurchaseLimitFields quantityReadOnly={aggregationOwned} values={initial} errors={errors} rows={rows} onRowsChange={setRows} randomSale={randomSale} />
       <GoodEditorSection title="재고수량 / 옵션" id="good-section-variants" requirement="공개 필수 · 옵션 없이 팔면 재고수량만 입력" status="옵션 확인" errorCount={errorCount('variants')} summary={`${isSingleGoodsOption(rows) ? '옵션 없음 · 재고수량' : `옵션 ${rows.length.toLocaleString('ko-KR')}개 · 재고수량 합계`} ${goodsOptionStockTotals(rows).total.toLocaleString('ko-KR')}개`}>
         <GoodsOptionEditor structureLocked={groupOwned} onRowsChange={setRows} codePrefix={values.code || suggestedCode} rows={rows} baseline={baseline} basePrice={priceResult.salePrice ?? 0}
           priceDraft={priceDraft} error={errors.variants} axisValues={initial}
@@ -464,7 +467,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
       </GoodEditorSection>
       <GoodEditorSection title="배송" id="good-section-shipping" requirement="출고지 · 공개 필수" status={values.originId ? '출고지 선택됨' : '미입력'} errorCount={errorCount('shipping')} summary={`${previewOrigin?.name || '출고지 확인 필요'} · ${values.shippingFeeType === 'policy' ? '출고지 정책' : values.shippingFeeType === 'free' ? '무료배송' : '개별 배송비'}`}><OwnedFields locked={aggregationOwned} fields={SHARED_SHIPPING_FIELDS} values={initial}><GoodsFulfillmentFields regionSummaries={regionSummaries} origins={origins} value={{ originId: initial.originId || null, shippingFeeType: initial.shippingFeeType as 'policy' | 'free' | 'individual', individualFee: Number(initial.individualFee) }} errors={errors} /></OwnedFields><p>배송비 묶음그룹을 지정하면 위 기본료와 수량 조건을 묶음 대상 전체에 적용합니다. {selected ? <a href="#good-operation-shipping-charge-group">현재 묶음그룹 확인·배정</a> : '상품을 먼저 저장한 뒤 묶음그룹을 배정할 수 있습니다.'}</p><GoodsShippingNoticeField options={shippingNoticeOptions} value={initial.shippingNoticeTemplate} error={errors.shippingNoticeTemplate} /></GoodEditorSection>
       <GoodsClaimPolicyFields values={initial} errors={errors} />
-      <GoodsSalePolicyFields quantityReadOnly={aggregationOwned} values={initial} errors={errors} />
+      <GoodsSalePolicyFields values={initial} errors={errors} />
       <div className="admin-good-workspace__save" aria-label="기본 상품 저장">
         <details className="admin-good-workspace__save-info"><summary><strong role="status">{pending ? '저장 중…' : Object.keys(errors).length ? '저장 실패 · 입력값 유지' : dirty ? '미저장 변경 있음' : state.kcPublishBlocked ? (selected?.publishedAt ? '서버 저장값과 동일' : '초안 저장 완료 · 공개 보류') : state.message ? '기본 상품 저장 완료' : selected ? '서버 저장값과 동일' : '새 초안 · 아직 저장 전'}</strong><span>저장 안내</span></summary>
           <div><p>기본 상품·이미지·옵션·고시·배송·판매 조건만 저장합니다. KC·재고 조정·혜택은 각 영역에서 별도 저장합니다.</p>

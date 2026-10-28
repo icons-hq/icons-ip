@@ -148,7 +148,7 @@ describe('GoodSection', () => {
   });
   it('keeps the task order and error links in the same authoring sequence', () => {
     const html = renderGoodSection(null, { errors: { maxOrderQty: '수량 오류', originId: '배송 오류', noticeMaker: '고시 오류', variants: '옵션 오류', price: '가격 오류', name: '이름 오류' } });
-    const sections = ['basic', 'price', 'variants', 'notice', 'shipping', 'sale'];
+    const sections = ['basic', 'price', 'limits', 'variants', 'notice', 'shipping'];
     const positions = sections.map((key) => html.indexOf(`id="good-section-${key}"`));
     expect(positions.every((position) => position >= 0)).toBe(true);
     expect(positions).toEqual([...positions].sort((a, b) => a - b));
@@ -291,12 +291,43 @@ describe('GoodSection', () => {
   it('keeps the stored sale restriction in the same goods form as payment methods', () => {
     const html = renderGoodSection({ ...good, saleRestriction: 'adult' });
 
-    expect(html).toContain('구매수량·결제 설정');
+    expect(html).toContain('결제·판매 제한');
+    expect(html).not.toContain('구매수량·결제 설정');
     expect(html).toContain('name="saleRestriction"');
     expect(html).toContain('name="allowCardPayment"');
     expect(html).toContain('성인(19금)');
     expect(html).toMatch(/<option[^>]*value="adult"[^>]*selected|<option[^>]*selected[^>]*value="adult"/);
     expect(html).toContain('성인인증을 도입하기 전까지 공개되지 않고 구매가 차단됩니다');
+  });
+
+  /* 10/27 회의 R12·D7② — 구매 제한은 판매가·판매기간 바로 아래에 펼친 채, 스마트스토어 어휘로 보인다. */
+  it('구매 제한 카드는 판매기간 바로 아래 펼친 채 최소/최대·1인 최대 구매수량과 옵션별 제한을 보여준다', () => {
+    const html = renderGoodSection({ ...good, orderQuantityLimitEnabled: true, minOrderQty: 1, maxOrderQty: 3 } as typeof good);
+    const period = html.indexOf('id="good-section-period"');
+    const limits = html.indexOf('id="good-section-limits"');
+    const variants = html.indexOf('id="good-section-variants"');
+    expect(period).toBeGreaterThan(0);
+    expect(limits).toBeGreaterThan(period);
+    expect(variants).toBeGreaterThan(limits);
+    const card = html.slice(html.lastIndexOf('<details', limits), variants);
+    expect(card).toMatch(/<details[^>]*id="good-section-limits"[^>]*open=""|<details[^>]*open=""[^>]*id="good-section-limits"/);
+    for (const text of ['구매 제한', '최소/최대 구매수량', '최소 구매수량', '최대 구매수량', '1인 최대 구매수량', '옵션별 구매 제한']) expect(card).toContain(text);
+    expect(card).toContain('최소·최대 구매수량을 모두 입력');
+    expect(card).toMatch(/<input type="radio" name="orderQuantityLimitEnabled" checked="" value="true"\/>설정함/);
+    expect(card).toMatch(/<input[^>]*name="maxOrderQty"[^>]*value="3"/);
+    expect(card).toContain('aria-label="기본 옵션 최대 구매수량(주문당)"');
+    expect(card).toContain('aria-label="기본 옵션 1인 최대 구매수량"');
+    expect(html.indexOf('name="allowCardPayment"')).toBeGreaterThan(variants);
+  });
+
+  it('저장된 옵션별 제한을 보여주고, 랜덤 판매 상품은 옵션별 제한 입력을 막는다', () => {
+    const variant = { id: '11111111-1111-4111-8111-111111111111', goodId: good.id, name: '기본 옵션', code: 'HW-0100-01', price: good.price, stockQty: 12, isDefault: true, archivedAt: null, orderMaxQty: 2, memberMaxQty: null };
+    const html = renderGoodSection(good, {}, { variants: [variant] });
+    expect(html).toMatch(/<input[^>]*aria-label="기본 옵션 최대 구매수량\(주문당\)"[^>]*value="2"/);
+    expect(html).not.toContain('랜덤 판매 상품은 옵션별 구매 제한을 쓸 수 없습니다.');
+    const random = renderGoodSection({ ...good, optionSaleMode: 'random' } as typeof good, {}, { variants: [variant] });
+    expect(random).toContain('랜덤 판매 상품은 옵션별 구매 제한을 쓸 수 없습니다.');
+    expect(random).toMatch(/<fieldset[^>]*disabled=""[^>]*class="goods-option-limits"|<fieldset[^>]*class="goods-option-limits"[^>]*disabled=""/);
   });
 
   it('uses the shared artwork upload field', () => {
@@ -476,7 +507,8 @@ describe('GoodSection', () => {
     expect(html).toContain('2. 상품속성');
     expect(html).toContain('4. 판매가');
     expect(html).toContain('5. 판매기간');
-    expect(html).toContain('6. 재고수량·옵션');
+    expect(html).toContain('6. 구매 제한');
+    expect(html).toContain('7. 재고수량·옵션');
   });
 
   /* #326 — 유형·배지는 자유 입력이 아니라 표준 값 select 다(DB CHECK 와 같은 목록). */

@@ -7,6 +7,7 @@ export const GOOD_EDITOR_SECTIONS = [
   { key: 'basic', label: '상품명', fields: ['name'] },
   { key: 'price', label: '판매가', fields: ['price', 'compareAtPrice', 'showDiscountRate', 'regularPrice', 'discountEnabled', 'discountValue', 'discountUnit'] },
   { key: 'period', label: '판매기간', fields: ['salePeriodEnabled', 'saleStartsAt', 'saleEndsAt', 'salePeriodRevision'] },
+  { key: 'limits', label: '구매 제한', fields: ['orderQuantityLimitEnabled', 'minOrderQty', 'maxOrderQty', 'memberPurchaseLimitEnabled', 'memberLifetimeQtyLimit'] },
   { key: 'variants', label: '재고수량·옵션', fields: ['variants', 'variantBaseline', 'optionUsage', 'optionAxisName0', 'optionAxisValues0', 'optionAxisName1', 'optionAxisValues1', 'optionAxisName2', 'optionAxisValues2', 'customInputs', 'customInputsExpectedRevision'] },
   { key: 'images', label: '상품이미지', fields: ['imagePath', 'galleryPath0', 'galleryPath1', 'galleryPath2', 'galleryPath3', 'galleryPath4', 'galleryPath5', 'galleryPath6', 'galleryPath7', 'galleryPath8'] },
   { key: 'description', label: '상세설명', fields: ['description', 'descriptionFormat', 'detailImagePath', 'descriptionUploadPath', 'descriptionImageAlt'] },
@@ -14,7 +15,7 @@ export const GOOD_EDITOR_SECTIONS = [
   { key: 'notice', label: '상품정보제공고시', fields: GOODS_NOTICE_FIELDS.map((field) => field.formName) },
   { key: 'shipping', label: '배송', fields: ['originId', 'shippingFeeType', 'individualFee', 'shippingNoticeTemplate'] },
   { key: 'claims', label: '반품·교환', fields: [ 'claimReturnAllowed', 'claimExchangeAllowed', 'claimReturnFee', 'claimReturnFreeShippingFee', 'claimExchangeFee', 'claimRestrictionReason'] },
-  { key: 'sale', label: '판매 조건', fields: ['allowCardPayment', 'allowBankTransfer', 'saleRestriction', 'orderQuantityLimitEnabled', 'minOrderQty', 'maxOrderQty', 'memberPurchaseLimitEnabled', 'memberLifetimeQtyLimit'] },
+  { key: 'sale', label: '판매 조건', fields: ['allowCardPayment', 'allowBankTransfer', 'saleRestriction'] },
 ] as const;
 
 export function goodFieldSection(name: string) {

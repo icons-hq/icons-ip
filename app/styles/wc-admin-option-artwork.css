@@ -736,8 +736,17 @@
 .wc-admin .admin-good-section .wc-admin-kit__field textarea { min-height: 160px; font-size: 13px; }
 .wc-admin .admin-good-section .wc-admin-kit__field :is(.wc-admin-kit__hint, .wc-admin-kit__error) { font-size: 12px; }
 .wc-admin .admin-good-section .goods-price-editor { gap: 18px; }
-.wc-admin .admin-good-section .goods-price-editor > .goods-choice { display: flex; flex-wrap: wrap; gap: 0; margin: 0; padding: 18px 0 18px 185px; border: 0; border-top: 1px solid var(--wc-hairline); position: relative; }
-.wc-admin .admin-good-section .goods-price-editor > .goods-choice > legend { position: absolute; left: 0; top: 26px; color: var(--wc-ink-sub); font-size: 13px; }
+.wc-admin .goods-purchase-limits__group { display: grid; gap: 18px; min-width: 0; margin: 0; padding: 0; border: 0; }
+.wc-admin .goods-purchase-limits__group > p { margin: 0; }
+.wc-admin .goods-option-limits { display: grid; gap: 10px; min-width: 0; margin: 0; padding: 18px 0 0; border: 0; border-top: 1px solid var(--wc-hairline); }
+.wc-admin .goods-option-limits > legend { float: left; width: 100%; margin: 0 0 6px; padding: 0; color: var(--wc-ink); font-size: 13px; font-weight: 600; }
+.wc-admin .goods-option-limits__blocked { margin: 0; color: var(--wc-warning); font-size: 13px; font-weight: 600; }
+.wc-admin .goods-option-limits__table { max-width: 100%; overflow-x: auto; }
+.wc-admin .goods-option-limits__table input { width: 100%; max-width: 160px; min-height: 34px; }
+.wc-admin .admin-good-section .goods-price-editor > .goods-choice,
+.wc-admin .admin-good-section .goods-purchase-limits__group > .goods-choice { display: flex; flex-wrap: wrap; gap: 0; margin: 0; padding: 18px 0 18px 185px; border: 0; border-top: 1px solid var(--wc-hairline); position: relative; }
+.wc-admin .admin-good-section .goods-price-editor > .goods-choice > legend,
+.wc-admin .admin-good-section .goods-purchase-limits__group > .goods-choice > legend { position: absolute; left: 0; top: 26px; color: var(--wc-ink-sub); font-size: 13px; }
 .wc-admin .admin-good-section .goods-choice label { min-width: 100px; min-height: 34px; padding: 7px 16px; border: 1px solid var(--wc-line-control); text-align: center; background: var(--wc-surface); cursor: pointer; }
 .wc-admin .admin-good-section .goods-choice label:has(input:checked) { background: var(--wc-admin-success-aa); color: var(--wc-surface); border-color: var(--wc-admin-success-aa); }
 .wc-admin .admin-good-section .goods-choice label input { position: absolute; width: 1px; height: 1px; opacity: 0; }
@@ -781,8 +790,10 @@
   .wc-admin .admin-good-section .wc-admin-kit__field > :not(label) { grid-column: 1; }
   .wc-admin .admin-good-section .wc-admin-kit__field :is(input:not([type='radio']):not([type='checkbox']), select),
   .wc-admin .admin-good-section .goods-choice label { min-height: 44px; }
-  .wc-admin .admin-good-section .goods-price-editor > .goods-choice { padding-left: 0; padding-top: 42px; }
-  .wc-admin .admin-good-section .goods-price-editor > .goods-choice > legend { top: 14px; }
+  .wc-admin .admin-good-section .goods-price-editor > .goods-choice,
+  .wc-admin .admin-good-section .goods-purchase-limits__group > .goods-choice { padding-left: 0; padding-top: 42px; }
+  .wc-admin .admin-good-section .goods-price-editor > .goods-choice > legend,
+  .wc-admin .admin-good-section .goods-purchase-limits__group > .goods-choice > legend { top: 14px; }
   .wc-admin .admin-good-section .goods-price-editor__result { margin-left: 0; }
   .wc-admin .admin-good-workspace__nav { padding: 8px 16px; }
   .wc-admin .admin-good-workspace__save { left: 56px; padding-inline: 10px; }
