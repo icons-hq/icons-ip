@@ -114,6 +114,13 @@ it('부모가 넘긴 상품 리비전이 바뀌면(기본 정보 저장) 판매 
   expect(hooks.deps[0]).toEqual(['random-main', '2026-10-28T01:20:00+00:00']);
 });
 
+it('운영자 안내는 고객에게 숨는 범위만 말한다(교환 재발송 옵션은 고객에게 안내된다)', () => {
+  const note = text(render());
+  expect(note).not.toContain('끝까지');
+  expect(note).toContain('옵션별 재고');
+  expect(note).toContain('교환으로 다시 보내는 상품은 보내는 옵션이 고객에게 안내됩니다.');
+});
+
 it('불러오기 오류는 경고로 보이고 폼을 그리지 않는다', async () => {
   mocks.read.mockResolvedValue({ error: '상품 판매 방식을 바꿀 권한이 없습니다.' });
   await mount();

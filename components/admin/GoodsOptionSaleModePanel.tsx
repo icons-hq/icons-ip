@@ -109,7 +109,8 @@ export function GoodsOptionSaleModePanel({ goodId, revision, disabled = false }:
         <strong>판매 방식</strong>
         <p className="admin-note">
           랜덤 판매는 고객이 옵션을 고르지 않고 &apos;랜덤&apos;으로 주문합니다. 주문할 때 남은 재고에 비례해 옵션이 무작위로 정해지고,
-          주문 상세와 출고 파일에는 정해진 옵션이 보입니다. 고객 화면에는 끝까지 &apos;랜덤&apos;으로만 보입니다.
+          주문 상세와 출고 파일에는 정해진 옵션이 보입니다. 고객의 상품·장바구니·주문·메일·리뷰에는 &apos;랜덤&apos;으로 보이고
+          옵션별 재고도 보이지 않습니다. 교환으로 다시 보내는 상품은 보내는 옵션이 고객에게 안내됩니다.
         </p>
       </div>
       {loadError && <p className="admin-error" role="alert">{loadError}</p>}
