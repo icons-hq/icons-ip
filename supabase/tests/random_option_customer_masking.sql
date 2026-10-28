@@ -312,6 +312,17 @@ select 1/case when (select count(*) from public.my_order_items(array[:'pre_switc
  and (select variant_id from public.my_order_items(array[:'pre_switch_order'::uuid]) where good_id='random-mask')=:'variant_a'::uuid
  then 1 else 0 end as assert_pre_switch_order_is_one_key_row;
 reset role;
+-- 한 번에 병합하는 줄(이 기기 장바구니 동기화)이 같은 장바구니 키로 모이면 수량을 더한다 — 줄마다 greatest를 쓰면 앞 줄이 사라진다.
+delete from public.cart_items where user_id='00000000-0000-4000-8000-000000163004';
+set local role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000163004',true);
+select public.merge_cart_items(jsonb_build_array(jsonb_build_object('good_id','random-mask','variant_id',:'variant_a','qty',2),
+  jsonb_build_object('good_id','random-mask','variant_id',:'variant_b','qty',3)));
+select public.merge_cart_items(jsonb_build_array(jsonb_build_object('good_id','random-mask','variant_id',:'variant_c','qty',4)));
+reset role;
+select 1/case when (select count(*) from public.cart_items where user_id='00000000-0000-4000-8000-000000163004' and good_id='random-mask')=1
+ and (select qty from public.cart_items where user_id='00000000-0000-4000-8000-000000163004' and variant_id=:'variant_a')=5
+ then 1 else 0 end as assert_merge_sums_lines_sharing_random_key;
 
 -- 계약: 공개 계산 열 grant, 정책 계약 등록.
 select 1/case when has_function_privilege('anon','public.goods_random_option(public.goods)','execute')

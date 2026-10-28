@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { myOrderItemsFixture } from '@/lib/orders/my-order-items.fixture';
 import type { CurrentAuthState } from '@/lib/auth/server';
 import { restoreCanceledOrderToCartAction } from './reorder-actions';
 
@@ -7,6 +8,7 @@ const mocks = vi.hoisted(() => ({
   rows: {} as Record<string, Record<string, unknown>[]>,
   failingTables: new Set<string>(),
   queries: [] as { table: string; rpc?: string; eq: [string, unknown][]; in: [string, unknown[]][] }[],
+  oneRowPerAllocation: false,
   rpc: vi.fn(),
   quote: vi.fn(),
   gift: vi.fn(),
@@ -29,7 +31,8 @@ vi.mock('@/lib/gifts-order.server', () => ({ loadGiftCheckoutOrder: (...args: un
 vi.mock('@/lib/checkout-transaction.server', () => ({ loadGoodsTransactionRuntimeMode: () => mocks.runtime() }));
 vi.mock('./transaction-actions', () => ({ quoteCartTransactionAction: (...args: unknown[]) => mocks.transactionQuote(...args) }));
 /* 고객 세션에서 order_items 를 직접 읽으면 랜덤 배정 행은 restrictive RLS로 빠진다. 마스킹 RPC(my_order_items)는
-   같은 행을 1:1로 돌려주되 랜덤 행을 옵션명 '랜덤'·장바구니 키 옵션으로 가린다(D5②) — 이 흉내가 그 차이를 재현한다. */
+   랜덤 행을 주문·굿즈 한 줄로 합쳐 옵션명 '랜덤'·장바구니 키 옵션으로 가린다(D5②) — 이 흉내가 그 차이를 재현한다.
+   mocks.oneRowPerAllocation 이면 행을 합치지 않는 응답(옛 계약)을 흉내 내 코드 쪽 묶음도 확인한다. */
 vi.mock('@/lib/supabase/server', () => {
   function tableQuery(table: string, masked?: { orderIds: unknown[] }) {
     const record = { table, rpc: masked ? 'my_order_items' : undefined, eq: [] as [string, unknown][],
@@ -40,11 +43,12 @@ vi.mock('@/lib/supabase/server', () => {
       if (mocks.failingTables.has(table)) return { data: null, error: { message: 'boom' }, count: null };
       let rows = mocks.rows[table] ?? [];
       if (table === 'order_items') {
-        rows = masked
-          ? rows.map(({ option_sale_mode_snapshot: mode, cart_variant_id: cartVariantId, ...row }) => mode === 'random'
-            ? { ...row, variant_id: cartVariantId ?? null, variant_name_snapshot: '랜덤', variant_code_snapshot: null, option_sale_mode: 'random' }
-            : { ...row, option_sale_mode: 'select' })
-          : rows.filter((row) => row.option_sale_mode_snapshot !== 'random');
+        rows = !masked ? rows.filter((row) => row.option_sale_mode_snapshot !== 'random')
+          : mocks.oneRowPerAllocation
+            ? rows.map(({ option_sale_mode_snapshot: mode, cart_variant_id: cartVariantId, ...row }) => mode === 'random'
+              ? { ...row, variant_id: cartVariantId ?? null, variant_name_snapshot: '랜덤', variant_code_snapshot: null, option_sale_mode: 'random' }
+              : { ...row, option_sale_mode: 'select' })
+            : myOrderItemsFixture(rows);
       }
       for (const [column, value] of record.eq) rows = rows.filter((row) => row[column] === value);
       for (const [column, values] of record.in) rows = rows.filter((row) => values.includes(row[column]));
@@ -208,6 +212,35 @@ describe('restoreCanceledOrderToCartAction', () => {
     await expect(restoreCanceledOrderToCartAction(orderId)).resolves.toMatchObject({ ok: true, restoredLines: 1, skipped: [] });
     expect(rpcCalls('merge_cart_items')).toEqual([['merge_cart_items', { p_items: [{ good_id: 'rnd', variant_id: defaultVariant, qty: 3, input_revision: 0, input_values: {} }] }]]);
     expect(mocks.queries.filter(query => query.table === 'order_items').every(query => query.rpc === 'my_order_items')).toBe(true);
+  });
+
+  /* T7 리뷰 RV-3: 랜덤 전환 전 비기본 옵션 줄(B)로 만든 주문은 배정 행의 장바구니 키가 A·B로 갈린다. 키마다 따로
+     merge_cart_items(greatest)를 부르면 DB가 둘을 같은 키 줄로 모으며 앞 수량이 사라지는데도 두 줄을 복원했다고 보고했다. */
+  it('랜덤 행은 장바구니 키가 갈려 와도 굿즈마다 수량을 더해 한 번만 다시 담는다', async () => {
+    mocks.oneRowPerAllocation = true;
+    const keyA = '10000000-0000-4000-8000-0000000000a0', keyB = '10000000-0000-4000-8000-0000000000b0';
+    mocks.rows.order_items = [
+      { id: rowId(1), order_id: orderId, good_id: 'rnd', variant_id: '10000000-0000-4000-8000-0000000000d1', qty: 2, good_name_snapshot: '랜덤 포토카드',
+        variant_name_snapshot: '배정-비밀', option_sale_mode_snapshot: 'random', cart_variant_id: keyA },
+      { id: rowId(2), order_id: orderId, good_id: 'rnd', variant_id: '10000000-0000-4000-8000-0000000000d2', qty: 3, good_name_snapshot: '랜덤 포토카드',
+        variant_name_snapshot: '배정-비밀2', option_sale_mode_snapshot: 'random', cart_variant_id: keyB },
+    ];
+    try {
+      await expect(restoreCanceledOrderToCartAction(orderId)).resolves.toMatchObject({ ok: true, restoredLines: 1, skipped: [] });
+    } finally { mocks.oneRowPerAllocation = false; }
+    expect(rpcCalls('merge_cart_items')).toEqual([['merge_cart_items', { p_items: [{ good_id: 'rnd', variant_id: keyA, qty: 5, input_revision: 0, input_values: {} }] }]]);
+  });
+
+  it('DB가 합친 랜덤 줄(장바구니 키 한 줄)은 그대로 한 번 다시 담는다', async () => {
+    const keyA = '10000000-0000-4000-8000-0000000000a0', keyB = '10000000-0000-4000-8000-0000000000b0';
+    mocks.rows.order_items = [
+      { id: rowId(1), order_id: orderId, good_id: 'rnd', variant_id: '10000000-0000-4000-8000-0000000000d1', qty: 2, good_name_snapshot: '랜덤 포토카드',
+        variant_name_snapshot: '배정-비밀', option_sale_mode_snapshot: 'random', cart_variant_id: keyA },
+      { id: rowId(2), order_id: orderId, good_id: 'rnd', variant_id: '10000000-0000-4000-8000-0000000000d2', qty: 3, good_name_snapshot: '랜덤 포토카드',
+        variant_name_snapshot: '배정-비밀2', option_sale_mode_snapshot: 'random', cart_variant_id: keyB },
+    ];
+    await expect(restoreCanceledOrderToCartAction(orderId)).resolves.toMatchObject({ ok: true, restoredLines: 1, skipped: [] });
+    expect(rpcCalls('merge_cart_items')).toEqual([['merge_cart_items', { p_items: [{ good_id: 'rnd', variant_id: keyA, qty: 5, input_revision: 0, input_values: {} }] }]]);
   });
 
   it('취소되지 않은 주문은 담지 않는다', async () => {
