@@ -128,9 +128,15 @@ export function GoodsImageGrid({ errors = {}, initialPaths, initialUrls, onPrevi
   }
 
   function commit(next: Slots, message?: string) {
+    const previous = slotsRef.current;
     slotsRef.current = next;
     setSlots(next);
-    GOODS_IMAGE_FIELD_NAMES.forEach((name, position) => onPreviewChange(name, next[position]?.url ?? null));
+    // R19: 미리보기 주소가 실제로 바뀐 자리만 편집기에 알린다. 업로드 완료·실패 표시처럼 상태만 바뀐 커밋까지
+    // 10개 자리를 모두 알리면 상품 편집기 전체(미리보기·상세 HTML 정리)가 업로드 진행마다 다시 렌더된다.
+    GOODS_IMAGE_FIELD_NAMES.forEach((name, position) => {
+      const url = next[position]?.url ?? null;
+      if (url !== (previous[position]?.url ?? null)) onPreviewChange(name, url);
+    });
     if (message) setAnnouncement(message);
   }
 
@@ -379,7 +385,7 @@ export function GoodsImageGrid({ errors = {}, initialPaths, initialUrls, onPrevi
         {tile?.url ? (
           // 선택 직후의 object URL도 즉시 보여야 한다.
           // eslint-disable-next-line @next/next/no-img-element
-          <img alt="" draggable={false} src={tile.url} />
+          <img alt="" decoding="async" draggable={false} src={tile.url} />
         ) : tile ? (
           <span className="wc-admin-image-tile__placeholder">미리보기 없음</span>
         ) : (
