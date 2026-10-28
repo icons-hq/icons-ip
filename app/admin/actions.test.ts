@@ -1821,6 +1821,105 @@ describe('상품 임시저장 완료 경로', () => {
   });
 });
 
+/* 10/27 회의 R13·D6② — 등록 화면은 기본 입력·KC·예약판매를 원자 래퍼 하나로 저장한다. */
+describe('상품 등록 원자 저장', () => {
+  const OPERATION = '12000000-0000-4000-8000-000000000010';
+  const VARIANT = '11111111-1111-4111-8111-111111111111';
+  const kcModel = { family: 'other', scheme: 'not_applicable', productCategory: '', modelName: '', businessRole: '', businessName: '', identifier: '',
+    publicNote: '', basis: '', evidence: { applicability: '', certificate: '', testReport: '', declaration: '' }, variantRefs: [{ id: VARIANT }] };
+  beforeEach(() => {
+    mocks.adminState = { isConfigured: true, user: { id: 'staff-1', email: 'staff@icons.gg' }, role: 'staff', isStaff: true, operatorAccess: legacyOperatorAccessFixture() };
+    mocks.getCurrentAdminAuthState.mockImplementation(() => mocks.adminState);
+    mocks.rpc.mockReset();
+    mocks.rpc.mockResolvedValue({ data: null, error: null });
+  });
+  function workspaceForm(sections: unknown) {
+    const form = goodForm();
+    form.set('workspaceOperationId', OPERATION);
+    form.set('workspaceSections', JSON.stringify(sections));
+    return form;
+  }
+
+  it('작업 ID·임시저장·섹션을 한 RPC로 보내고 저장 결과를 돌려준다', async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: { id: 'g100', created: true, kc: { status: 'reviewed' }, preorders: [] }, error: null });
+    const form = workspaceForm({ kc: { status: 'reviewed', attested: true, models: [kcModel] }, preorders: [] });
+    form.set('serverDraftId', '76000000-0000-4000-8000-000000000020'); form.set('serverDraftRevision', '4');
+    await expect(upsertAdminGoodAction({}, form)).resolves.toMatchObject({ savedGoodId: 'g100', workspaceKcSaved: true, message: '상품을 저장했습니다.' });
+    expect(mocks.rpc).toHaveBeenCalledTimes(1);
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_save_good_workspace', { p_request: {
+      operationId: OPERATION,
+      good: expect.objectContaining({ id: 'g100', previous_id: null, name: '화산강림 아크릴 스탠드' }),
+      draft: { id: '76000000-0000-4000-8000-000000000020', revision: 4 },
+      sections: { kc: { status: 'reviewed', attested: true, expectedRevision: null, expectedContextFingerprint: null, models: [kcModel] } },
+    } });
+  });
+
+  it('섹션 입력이 없어도 작업 ID가 있으면 래퍼로 저장해 재시도 중복을 막는다', async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: { id: 'g100', created: true, kc: null, preorders: [] }, error: null });
+    await expect(upsertAdminGoodAction({}, workspaceForm({ kc: null, preorders: [] }))).resolves.toMatchObject({ savedGoodId: 'g100' });
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_save_good_workspace', { p_request: expect.objectContaining({ operationId: OPERATION, draft: null, sections: {} }) });
+  });
+
+  it('관리자가 아니면 예약 활성화를 RPC 전에 막고 입력을 보존한다', async () => {
+    const values = { state: 'active', capacityQty: '3', startsAt: '2026-11-01T10:00', endsAt: '2026-11-10T18:00', expectedShipDate: '2026-11-20', approvalReference: '승인' };
+    const result = await upsertAdminGoodAction({}, workspaceForm({ kc: null, preorders: [{ variant: { id: VARIANT }, values }] }));
+    expect(result.errors?.workspacePreorders).toContain('관리자');
+    expect(mocks.rpc).not.toHaveBeenCalledWith('admin_save_good_workspace', expect.anything());
+    expect(result.values?.name).toBe('화산강림 아크릴 스탠드');
+    expect(result.values).not.toHaveProperty('workspaceSections');
+    expect(result.values).not.toHaveProperty('workspaceOperationId');
+  });
+
+  it.each([
+    ['goods_kc_attestation_required', 'workspaceKc'],
+    ['preorder_policy_not_configured', 'workspacePreorders'],
+    ['goods_workspace_operation_conflict', 'form'],
+    /* 리뷰 T3a-3: 옵션 해석 실패는 그 섹션 카드에 붙인다. */
+    ['goods_workspace_preorder_variant_unresolved', 'workspacePreorders'],
+    ['goods_workspace_kc_variant_unresolved', 'workspaceKc'],
+    /* 리뷰 T3a-8: 다른 요청이 끝낸 임시저장에 섹션을 실으면 성공으로 알리지 않는다. */
+    ['goods_workspace_draft_completed_sections_skipped', 'form'],
+  ])('래퍼 오류 %s는 %s 칸에 붙이고 저장되지 않았음을 알린다', async (message, field) => {
+    mocks.rpc.mockResolvedValueOnce({ data: null, error: { message } });
+    const result = await upsertAdminGoodAction({ attempt: 2 }, workspaceForm({ kc: null, preorders: [] }));
+    expect(result.errors?.[field as 'form']).toEqual(expect.any(String));
+    expect(result.attempt).toBe(3);
+  });
+
+  /* 리뷰 T3a-3 — 예약 조건의 옵션 해석 실패가 KC 카드로 가지 않는다. */
+  it('예약 대상 옵션 해석 실패는 예약판매 카드에만 안내한다', async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: null, error: { message: 'goods_workspace_preorder_variant_unresolved' } });
+    const result = await upsertAdminGoodAction({}, workspaceForm({ kc: null, preorders: [] }));
+    expect(result.errors).toEqual({ workspacePreorders: expect.stringContaining('예약 대상 옵션') });
+  });
+
+  /* 리뷰 T3a-9 — 등록 화면의 판매기간·예약 활성화 충돌은 저장된 상품 전용 안내('일반재고로 전환') 대신 등록 화면에서 할 일을 알린다. */
+  it('판매기간과 예약 활성화 충돌은 예약판매 카드와 판매기간 칸에 등록 화면 안내를 붙인다', async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: null, error: { message: 'goods_sale_period_preorder_conflict' } });
+    const result = await upsertAdminGoodAction({}, workspaceForm({ kc: null, preorders: [] }));
+    expect(result.errors?.workspacePreorders).toContain('예약 조건을 초안으로 바꾸거나 판매기간을 설정안함으로');
+    expect(result.errors?.saleStartsAt).toContain('판매기간');
+    expect(JSON.stringify(result.errors)).not.toContain('일반재고로 전환');
+  });
+
+  /* 리뷰 T3a-8 — 섹션 없는 저장이 다른 요청이 끝낸 임시저장을 만나면 등록된 상품을 알린다(섹션 입력이 없으니 잃을 것이 없다). */
+  it('섹션 없는 저장이 이미 등록된 임시저장을 만나면 등록된 상품으로 안내한다', async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: { id: 'g100', created: false, draftAlreadyCompleted: true, kc: null, preorders: [] }, error: null });
+    await expect(upsertAdminGoodAction({}, workspaceForm({ kc: null, preorders: [] }))).resolves.toMatchObject({ savedGoodId: 'g100', message: expect.stringContaining('이미 상품으로 등록한 임시저장') });
+  });
+
+  it('기본 입력 오류는 기존 매핑을 그대로 쓰고, 잘못된 작업 ID·공개 요청은 저장하지 않는다', async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: null, error: { message: 'goods_compare_at_price_invalid' } });
+    expect((await upsertAdminGoodAction({}, workspaceForm({ kc: null, preorders: [] }))).errors?.form).toContain('할인은 0원보다 크고');
+    const bad = workspaceForm({ kc: null, preorders: [] }); bad.set('workspaceOperationId', 'not-a-uuid');
+    expect((await upsertAdminGoodAction({}, bad)).errors?.form).toContain('새로고침');
+    const publish = workspaceForm({ kc: null, preorders: [] }); publish.set('intent', 'publish');
+    publish.set('imagePath', 'public-media/catalog/good/22222222-2222-4222-8222-222222222222.webp');
+    expect((await upsertAdminGoodAction({}, publish)).errors?.form).toContain('게시 상태에서 공개');
+    expect(mocks.rpc).toHaveBeenCalledTimes(1);
+  });
+});
+
 describe('일반 상품 판매기간 제출', () => {
   it('한국시간과 CAS 리비전을 기존 상품 트랜잭션에 보내고 구버전 폼은 생략한다', async () => {
     const form = goodForm();
