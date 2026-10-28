@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cartLineOption, cartOptionGood, collapseRandomGoodOptions, defaultGoodOption, goodOptionPurchaseNotices, purchasableOptionQty, goodAtQuotedPrice, goodCompareAtPrice, initialGoodOption, isRestockableGoodOption, isSelectableGoodOption, optionLabel, optionPriceRange, selectableGoodOptionId, soldOutPreviewPrice, variantSearchForSelection, variantSyncDefault } from './goods-options';
+import { cartLineOption, cartOptionGood, collapseRandomGoodOptions, randomCartLineFold, defaultGoodOption, goodOptionPurchaseNotices, purchasableOptionQty, goodAtQuotedPrice, goodCompareAtPrice, initialGoodOption, isRestockableGoodOption, isSelectableGoodOption, optionLabel, optionPriceRange, selectableGoodOptionId, soldOutPreviewPrice, variantSearchForSelection, variantSyncDefault } from './goods-options';
 import type { GoodsSalesQuoteLine } from './goods-sales';
 import type { Good, GoodOption } from './data';
 
@@ -202,6 +202,25 @@ describe('랜덤 판매(D5②)·옵션별 구매 제한(D7②) 표시 규칙', (
     expect(cartLineOption(good, options[1].id)).toEqual(options[1]);
     expect(cartLineOption(good, '00000000-0000-4000-8000-0000000000ff')).toBeUndefined();
     expect(cartLineOption(undefined, options[1].id)).toBeUndefined();
+  });
+
+  /* T7 리뷰 RV-2: 랜덤 전환 전에 담은 비기본 옵션 줄의 수량을 고치면 DB가 그 줄을 기본 옵션(키) 줄로 합친다 — 같은
+     '랜덤' 두 줄 중 하나가 사라지고 다른 줄 수량이 뛰는 것처럼 보인다. 그 줄은 스테퍼 대신 '다시 담기'로 합친다. */
+  it('랜덤 굿즈의 비기본 옵션 줄만 키 줄로 다시 담을 대상이고, 계정 장바구니는 그 줄을 한 번 다시 저장해 DB가 합친다', () => {
+    const random: Good = { ...good, optionSaleMode: 'random', options: collapseRandomGoodOptions(options) };
+    const items = [{ goodId: 'g1', variantId: options[0].id, qty: 2 }, { goodId: 'g1', variantId: options[1].id, qty: 3 }];
+    expect(randomCartLineFold(random, items, items[0], 'server')).toBeNull();
+    expect(randomCartLineFold(good, items, items[1], 'server')).toBeNull();
+    expect(randomCartLineFold(random, items, items[1], 'server')).toEqual([{ variantId: options[1].id, qty: 3 }]);
+  });
+
+  it('이 기기 장바구니는 키 줄에 수량을 더한 뒤 옛 줄을 지운다(키 줄이 없으면 새로 만든다)', () => {
+    const random: Good = { ...good, optionSaleMode: 'random', options: collapseRandomGoodOptions(options) };
+    const items = [{ goodId: 'g1', variantId: options[0].id, qty: 2 }, { goodId: 'g1', variantId: options[1].id, qty: 3 }];
+    expect(randomCartLineFold(random, items, items[1], 'local')).toEqual([{ variantId: options[0].id, qty: 5 }, { variantId: options[1].id, qty: 0 }]);
+    expect(randomCartLineFold(random, [items[1]], items[1], 'local')).toEqual([{ variantId: options[0].id, qty: 3 }, { variantId: options[1].id, qty: 0 }]);
+    /* 합친 수량이 풀을 넘으면 키 줄 호출만 남긴다 — 장바구니가 재고 오류로 거절하고 옛 줄은 지우지 않는다. */
+    expect(randomCartLineFold(random, items, items[1], 'local', 4)).toEqual([{ variantId: options[0].id, qty: 5 }]);
   });
 
   it('수량 최대는 재고와 옵션별 주문당 최대 수량 중 작은 값이다', () => {

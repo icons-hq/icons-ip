@@ -360,6 +360,14 @@ describe('Cart 랜덤 판매·옵션별 구매 제한 품목 줄', () => {
     expect(html).not.toContain('판매 종료');
   });
 
+  it('랜덤 전환 전에 담은 줄은 수량 스테퍼 대신 다시 담기로 키 줄에 합치게 한다(키 줄은 그대로 스테퍼)', () => {
+    const html = render([{ goodId: 'g15', variantId: RANDOM_VARIANT, qty: 1 }, { goodId: 'g15', variantId: '00000000-0000-4000-8000-0000000000ee', qty: 2 }]);
+    expect(html.match(/wc-stepper"/g)).toHaveLength(1);
+    expect(html).toContain('aria-label="랜덤 포토카드 랜덤 한 줄로 다시 담기"');
+    expect(html).toContain('판매 방식이 바뀌기 전에 담은 줄이에요. 다시 담으면 랜덤 한 줄로 합쳐집니다.');
+    expect(html).toContain('랜덤 포토카드 장바구니에서 삭제');
+  });
+
   it('옵션별 주문당 최대 수량이 스테퍼 상한이다', () => {
     const html = render([{ goodId: 'g16', variantId: BLUE_VARIANT, qty: 2 }]);
     expect(html).toMatch(/aria-disabled="true" aria-label="수량 늘리기"/);

@@ -165,6 +165,34 @@ export function cartLineOption(good: Pick<Good, 'options' | 'optionSaleMode'> | 
   return good.options?.find(option => option.id === variantId);
 }
 
+/** 장바구니 수량 호출 한 번(`setQuantity(goodId, qty, …, variantId)` — qty 0은 그 줄 삭제). */
+export interface CartQuantityStep { variantId: string; qty: number }
+
+/**
+ * 랜덤 전환 전에 비기본 옵션 키로 담은 장바구니 줄(D5②)을 '랜덤' 한 줄(장바구니 키)로 다시 담는 호출 순서.
+ * 랜덤 줄이 아니거나 이미 키 줄이면 null — 그 줄은 평소처럼 수량을 바꾼다.
+ *
+ * 이 줄의 수량을 스테퍼로 바꾸면 DB(`set_cart_quantity_with_inputs`)가 새 수량을 키 줄에 더하고 이 줄을 지워, 화면에서는
+ * 같은 '랜덤' 두 줄 중 하나가 사라지고 다른 줄 수량이 뛴다(T7 리뷰 RV-2). 그래서 이 줄은 스테퍼 대신 '다시 담기' 하나로
+ * 합친다. 계정 장바구니는 이 줄을 같은 수량으로 한 번 다시 저장하면 DB가 키 줄로 합친다(풀 초과면 DB가 거절하고
+ * 그대로 둔다). 이 기기 장바구니는 키 줄에 수량을 더한 뒤 이 줄을 지운다. 합친 수량이 풀(`stockQty`)을 넘으면 키 줄
+ * 호출만 남긴다 — 장바구니가 재고 오류로 거절하고, 이 줄을 지우지 않아 수량이 사라지지 않는다.
+ */
+export function randomCartLineFold(
+  good: Pick<Good, 'options' | 'optionSaleMode'> | undefined,
+  items: readonly { goodId: string; variantId: string; qty: number; customInputs?: unknown }[],
+  line: { goodId: string; variantId: string; qty: number },
+  mode: 'server' | 'local',
+  stockQty: number = Number.MAX_SAFE_INTEGER,
+): CartQuantityStep[] | null {
+  const key = good?.optionSaleMode === 'random' ? good.options?.[0] : undefined;
+  if (!key || line.variantId === key.id) return null;
+  if (mode === 'server') return [{ variantId: line.variantId, qty: line.qty }];
+  const keyQty = items.find((item) => item.goodId === line.goodId && item.variantId === key.id && !item.customInputs)?.qty ?? 0;
+  const merged = { variantId: key.id, qty: keyQty + line.qty };
+  return merged.qty > stockQty ? [merged] : [merged, { variantId: line.variantId, qty: 0 }];
+}
+
 /** Cart identities are canonical before this display projection runs. */
 export function cartOptionGood(good: Good | undefined, variantId: string): Good | undefined {
   if (!good) return undefined;
