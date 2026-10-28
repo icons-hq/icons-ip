@@ -5,7 +5,7 @@ import {bulkConfirmAdminOrdersAction} from '@/app/admin/order-actions';
 import {completeShipmentsAction,exportPendingOriginShipmentsAction,exportShipmentsAction,originBarcodeGapsAction,shipmentBarcodeGapsAction} from '@/app/admin/shipment-actions';
 import {ConsoleGrid,type ConsoleGridColumn,type ConsoleGridRow} from '@/components/admin/console';
 import {isParcelShipment,shipmentConsoleSelectable,type ShipmentConsoleOrigin,type ShipmentConsoleRow,type ShipmentConsoleTab} from '@/lib/admin/shipment-dispatch';
-import {SHIPMENT_BARCODE_TEMPLATES,shipmentBarcodeGapWarning,type ShipmentExportLayout} from '@/lib/admin/shipment-workbook';
+import {shipmentBarcodeGapWarning,type ShipmentExportLayout} from '@/lib/admin/shipment-workbook';
 import {EXPORT_PASSWORD_HINT,EXPORT_PASSWORD_MAX_LENGTH,EXPORT_PASSWORD_MIN_LENGTH,exportPasswordError} from '@/lib/admin/export-password';
 import {ShipmentPackPanel} from './ShipmentPackPanel';
 import {OrderDelayNoticePanel} from './OrderDelayNoticePanel';
@@ -54,13 +54,12 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
  const seowonCsvNote=format==='csv'&&layoutChoice!=='smartstore'&&origins.some(origin=>origin.active!==false&&origin.template==='seowon_xlsx')?<span>CSV를 골라도 남양주(서원) 송장양식은 XLSX로 받습니다.</span>:null;
  const hasBatchActions=tab==='new'||tab==='delayed'||rows.some(isParcelShipment)||Boolean(retainedIds?.length);
  const exportEligible=ids.length>0&&ids.every(id=>{const row=rows.find(item=>item.id===id);return row?shipmentConsoleSelectable(row,tab):Boolean(retainedIds?.includes(id));});
- // 10/27 회의 D10: 바코드 칸이 있는 기존 창고 양식(서원·표준)으로 받을 때만, 바코드가 없는 옵션 수를 내보내기 전에 알린다.
- // 경고일 뿐 내보내기를 막지 않는다. 조회는 선택·출고지 구성이 바뀔 때와 내보낸 뒤에만 다시 한다.
- const barcodeTemplate=(originId:string)=>SHIPMENT_BARCODE_TEMPLATES.includes(originTemplate(originId)??'');
+ // 10/27 회의 D10: 기존 창고 양식으로 받을 때, 바코드가 없는 옵션 수를 내보내기 전에 알린다. 경고일 뿐 내보내기를 막지 않는다.
+ // 파일에 바코드 칸이 있는지(서원 송장양식, 바코드 열을 고른 표준 양식)는 서버가 배송 건 출고지의 설정으로 판정하므로
+ // 선택한 배송 건 전체(화면 밖의 방금 발주확인한 묶음 포함)를 넘긴다. 조회는 선택·출고지 구성이 바뀔 때와 내보낸 뒤에만 다시 한다.
  const exportTab=tab==='ready'||tab==='delayed';
- const barcodeKey=exportTab&&layout==='warehouse'&&exportEligible
-  ?ids.filter(id=>{const row=rows.find(item=>item.id===id);return Boolean(row&&barcodeTemplate(row.originId));}).sort().join(','):'';
- const barcodeOrigins=exportOrigins.filter(origin=>barcodeTemplate(origin.id)&&(layoutChoice??defaultExportLayout(origins,[origin.id]))==='warehouse');
+ const barcodeKey=exportTab&&layout==='warehouse'&&exportEligible?[...ids].sort().join(','):'';
+ const barcodeOrigins=exportOrigins.filter(origin=>(layoutChoice??defaultExportLayout(origins,[origin.id]))==='warehouse');
  const originBarcodeKey=barcodeOrigins.map(origin=>origin.id).join(',');
  useEffect(()=>{
   if(!barcodeKey)return;let live=true;

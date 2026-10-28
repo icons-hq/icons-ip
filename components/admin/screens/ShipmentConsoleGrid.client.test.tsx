@@ -19,6 +19,7 @@ vi.mock('react', async () => ({
   useEffect: (effect: () => void | (() => void)) => { mocks.effects.push(effect); },
 }));
 import { ConsoleGrid } from '@/components/admin/console';
+import { bulkConfirmAdminOrdersAction } from '@/app/admin/order-actions';
 import { CustomerServiceDialog } from './CustomerServiceDialog';
 import { ShipmentConsoleGrid } from './ShipmentConsoleGrid';
 type Element = ReactElement<Record<string, unknown>>;
@@ -161,15 +162,38 @@ it('바코드 칸이 있는 기존 창고 양식이면 내보내기 전에 바�
  expect(text(ready())).toContain('남양주 새 출고지시: 바코드가 없는 옵션 1개 — 파일의 바코드 칸이 비어 있습니다.');
  const grid=nodes(ready()).find(node=>node.type===ConsoleGrid)!;(grid.props.onSelectionChange as (ids:string[])=>void)(ids.slice(0,2));
  ready();await settle();
- // 섞인 선택은 기본이 74열이라 경고하지 않는다. 기존 창고 양식을 고르면 바코드 칸이 있는 서원 건만 센다.
+ // 섞인 선택은 기본이 74열이라 경고하지 않는다. 기존 창고 양식을 고르면 선택 전체를 넘기고,
+ // 바코드 칸이 있는 출고지(서원)의 건만 세는 판정은 서버(admin_shipment_barcode_gaps)가 한다.
  expect(mocks.gaps).not.toHaveBeenCalled();
  const layout=nodes(ready()).find(node=>node.type==='select')!;(layout.props.onChange as (event:unknown)=>void)({target:{value:'warehouse'}});
  ready();await settle();
- expect(mocks.gaps).toHaveBeenLastCalledWith([ids[0]]);
+ expect(mocks.gaps).toHaveBeenLastCalledWith([ids[0],ids[1]]);
  expect(text(ready())).toContain('바코드가 없는 옵션 2개 — 파일의 바코드 칸이 비어 있습니다.');
  const exportButton=nodes(ready()).find(node=>node.type==='button'&&text(node.props.children as ReactNode)==='출고지시 내보내기')!;
  expect(exportButton.props.disabled).toBe(false);
  // 스마트스토어 74열에는 바코드 칸이 없어 경고하지 않는다.
  (nodes(ready()).find(node=>node.type==='select')!.props.onChange as (event:unknown)=>void)({target:{value:'smartstore'}});
  expect(text(ready())).not.toContain('바코드가 없는 옵션');
+});
+
+it('방금 발주확인해 다른 페이지로 밀린 배송 건도 바코드 경고 대상에 넣고, 바코드 칸 판정은 서버에 맡긴다',async()=>{
+ // 리뷰 T4-R23-2: 경고 대상을 현재 페이지 행(rows)으로 거르면, 내보내기에는 들어가는 화면 밖 확인 묶음이 경고에서 빠진다.
+ const seowon={id:'00000000-0000-4000-8000-000000042202',name:'남양주',template:'seowon_xlsx',active:true};
+ const confirmedId='60000000-0000-4000-8000-000000000009';
+ const readyHref='/admin/sales/dispatch?tab=ready&origin=namyangju';
+ const base={...props,origins:[seowon],originId:seowon.id,readyHref};
+ vi.mocked(bulkConfirmAdminOrdersAction).mockResolvedValue({message:'1건 발주확인했습니다.',confirmedOrderIds:[confirmedId]} as never);
+ const fresh=()=>{mocks.index=0;mocks.effects=[];return ShipmentConsoleGrid({...base,tab:'new',currentHref:'/admin/sales/dispatch?tab=new',rows:[{...row,id:confirmedId,orderId:confirmedId,status:'confirmed' as never,pack:null,originId:seowon.id}]});};
+ (nodes(fresh()).find(node=>node.type===ConsoleGrid)!.props.onSelectionChange as (ids:string[])=>void)([confirmedId]);
+ const confirm=nodes(fresh()).find(node=>node.type==='button'&&text(node.props.children as ReactNode)==='선택 주문 1건 발주확인')!;
+ (confirm.props.onClick as ()=>void)();await Promise.all(mocks.work);
+ // 발송 대기 탭의 첫 페이지는 앞선 대기 건으로 차 있어 방금 확인한 배송 건이 보이지 않는다.
+ const backlog={...row,id:ids[2],status:'ready' as const,pack:null,originId:seowon.id};
+ const ready=()=>{mocks.index=0;mocks.effects=[];return ShipmentConsoleGrid({...base,tab:'ready',currentHref:readyHref,rows:[backlog]});};
+ expect(text(ready())).toContain('방금 발주확인한 다른 페이지의 1건 포함');
+ mocks.gaps.mockResolvedValue(1);mocks.originGaps.mockResolvedValue(0);
+ for(const effect of mocks.effects)effect();
+ await Promise.all([...mocks.gaps.mock.results,...mocks.originGaps.mock.results].map(result=>result.value));await new Promise(resolve=>setTimeout(resolve,0));
+ expect(mocks.gaps).toHaveBeenLastCalledWith([confirmedId]);
+ expect(text(ready())).toContain('바코드가 없는 옵션 1개 — 파일의 바코드 칸이 비어 있습니다.');
 });

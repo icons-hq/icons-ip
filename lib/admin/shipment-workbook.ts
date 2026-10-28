@@ -23,8 +23,6 @@ export const OPTIONAL_SHIPMENT_EXPORT_COLUMNS:readonly ShipmentExportColumn[]=[
 ];
 /** 내보내기 전 경고 문구(10/27 회의 D10). 출고는 막지 않는다. */
 export const shipmentBarcodeGapWarning=(missing:number)=>`바코드가 없는 옵션 ${missing.toLocaleString('ko-KR')}개 — 파일의 바코드 칸이 비어 있습니다.`;
-/** 바코드 칸이 있는 기존 창고 양식(서원 송장양식은 늘, 표준 양식은 선택 열). 김포 21열·스마트스토어 74열에는 바코드 칸이 없다. */
-export const SHIPMENT_BARCODE_TEMPLATES:readonly string[]=['seowon_xlsx','standard'];
 export function parseShipmentExportColumns(value:unknown):ShipmentExportColumn[]|null {
   if(!Array.isArray(value)||value.length<DEFAULT_SHIPMENT_EXPORT_COLUMNS.length||value.length>DEFAULT_SHIPMENT_EXPORT_COLUMNS.length+OPTIONAL_SHIPMENT_EXPORT_COLUMNS.length)return null;
   const keys=new Set([...DEFAULT_SHIPMENT_EXPORT_COLUMNS,...OPTIONAL_SHIPMENT_EXPORT_COLUMNS].map(column=>column.key));
