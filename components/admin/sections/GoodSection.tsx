@@ -40,6 +40,7 @@ import { GoodsFulfillmentPanel } from '../GoodsFulfillmentPanel';
 import { GoodsProductionPanel } from '../GoodsProductionPanel';
 import { GoodsSubscriptionPolicyPanel } from '../GoodsSubscriptionPolicyPanel';
 import { GoodShippingChargeGroupPanel } from '../GoodShippingChargeGroupPanel';
+import { GoodsOptionSaleModePanel } from '../GoodsOptionSaleModePanel';
 
 /** 운영 섹션 제목·설명. 저장된 상품의 독립 패널과 등록 화면의 자리표시 카드가 같은 문구·같은 id를 쓴다. */
 const OPERATION = {
@@ -59,6 +60,7 @@ const OPERATION = {
   'subscription-policy': ['정기배송', '신청 가능한 주기와 정기배송 안내를 별도로 저장합니다.'],
   fulfillment: ['수령 방식·설치비·디지털 파일', '주문서의 수령 방식과 선결제 비용·제공 파일을 별도로 저장합니다.'],
   production: ['주문 후 제작', '상품별 제작 여부와 발송 예정 기간·휴무일을 저장합니다.'],
+  'option-sale-mode': ['판매 방식', '고객이 옵션을 고르는 판매와 랜덤 판매 중 판매 방식만 별도로 저장합니다.'],
   preorders: ['예약판매', '예약판매 설정과 물량을 별도로 저장합니다.'],
   clone: ['상품 복사', '서버에 저장된 상품으로 새로운 초안을 만듭니다.'],
   archive: ['상품 보관·복원', '게시와 보관 상태만 변경합니다.'],
@@ -210,8 +212,9 @@ export function GoodSection({
           {!selected.archivedAt && <GoodOperationSection notice={transactionBusy || chargeBusy ? undefined : policyNotice} id="subscription-policy" title={OPERATION['subscription-policy'][0]} description={OPERATION['subscription-policy'][1]}><GoodsSubscriptionPolicyPanel goodId={selected.id} accountId={accountId} disabledReason={transactionBusy || chargeBusy ? '할인·배송 저장 결과를 확인한 뒤 정기배송 설정을 저장해주세요.' : policyPointer} onBusyChange={setSubscriptionBusy} key={`subscription-${accountId}-${selected.id}`} /></GoodOperationSection>}
           {!selected.archivedAt && accountId ? <GoodOperationSection notice={policyNotice} id="fulfillment" title={OPERATION.fulfillment[0]} description={OPERATION.fulfillment[1]}><GoodsFulfillmentPanel key={`fulfillment-${accountId}-${selected.id}`} goodId={selected.id} accountId={accountId} disabledReason={policyPointer} /></GoodOperationSection> : null}
           {!selected.archivedAt && accountId ? <GoodOperationSection notice={policyNotice} id="production" title={OPERATION.production[0]} description={OPERATION.production[1]}><GoodsProductionPanel key={`production-${accountId}-${selected.id}`} goodId={selected.id} accountId={accountId} disabledReason={policyPointer} /></GoodOperationSection> : null}
-          {/* T7 랜덤 판매 패널 자리(D5②): 통합 때 예약판매 바로 앞인 이 자리에
-              <GoodOperationSection id="option-sale-mode" …><GoodsOptionSaleModePanel goodId={selected.id} disabled={…} /></GoodOperationSection>을 마운트한다. */}
+          {/* D5② 판매 방식(랜덤 판매): 옵션·가격 저장과 낙관 잠금(goods.updated_at)을 나눠 쓰므로 기본 입력이 잠기면 함께 잠그고,
+              상품을 저장해 수정 시각이 바뀌면 다시 읽는다. */}
+          {!selected.archivedAt && <GoodOperationSection notice={policyNotice} id="option-sale-mode" title={OPERATION['option-sale-mode'][0]} description={OPERATION['option-sale-mode'][1]}><GoodsOptionSaleModePanel key={`option-sale-mode-${selected.id}`} goodId={selected.id} revision={`${selected.updatedAt ?? ''}:${state.attempt ?? 0}`} disabled={Boolean(policyDisabled)} /></GoodOperationSection>}
           {!selected.archivedAt && <GoodOperationSection id="preorders" title={OPERATION.preorders[0]} description={OPERATION.preorders[1]}><GoodsPreordersPanel goodId={selected.id} variants={variants} canActivate={canManageCosts} canReadOrders={canReadOrders} canAllocate={canManageSales} key={`preorders-${selected.id}`} /></GoodOperationSection>}
           {!selected.archivedAt && cloneOperationId && <GoodOperationSection id="clone" title={OPERATION.clone[0]} description={OPERATION.clone[1]}><GoodClonePanel operationId={cloneOperationId} goodId={selected.id} goodName={selected.name} goodCode={selected.code} key={`clone-${selected.id}`} /></GoodOperationSection>}
           <GoodOperationSection id="archive" title={OPERATION.archive[0]} description={OPERATION.archive[1]}><CatalogArchiveControl
@@ -240,6 +243,7 @@ export function GoodSection({
           <Placeholder id="subscription-policy" />
           {accountId ? <Placeholder id="fulfillment" /> : null}
           {accountId ? <Placeholder id="production" /> : null}
+          <Placeholder id="option-sale-mode" />
           <GoodOperationSection id="preorders" title={OPERATION.preorders[0]} description="옵션별 예약 조건을 상품과 함께 입력합니다." mode="inline" defaultOpen>
             <GoodWorkspacePreorderCard canActivate={canManageCosts} serverError={state.errors?.workspacePreorders} disabled={pending} />
           </GoodOperationSection>
