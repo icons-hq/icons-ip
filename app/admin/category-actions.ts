@@ -15,6 +15,13 @@ import {
   isCategoryId,
   normalizeCategoryForm,
 } from '@/lib/admin/category';
+import {
+  CATEGORY_BULK_LINE_LIMIT,
+  CATEGORY_BULK_TEXT_LIMIT,
+  parseCategoryBulkResult,
+  parseCategoryBulkText,
+  type CategoryBulkResult,
+} from '@/lib/admin/category-bulk';
 import { createClient } from '@/lib/supabase/server';
 import { STOREFRONT_MEGA_MENU_CACHE_TAG } from '@/lib/storefront-mega-menu';
 
@@ -66,6 +73,8 @@ function mapRpcError(error: { code?: unknown; message?: unknown }): string {
   if (descriptor.includes('category_activation_unready')) return '실제 분류·ERP 값과 운영 확인 근거를 채운 뒤 활성화해주세요.';
   if (descriptor.includes('category_not_found') || descriptor.includes('goods_not_found')) return '최신 카테고리 목록을 확인한 뒤 다시 시도해주세요.';
   if (descriptor.includes('category_changed') || descriptor.includes('pt409')) return '다른 운영자가 카테고리를 변경했습니다. 새로고침 후 다시 시도해주세요.';
+  if (descriptor.includes('invalid_category_paths')) return `경로 목록을 확인하세요. 한 줄은 1,000자, 한 번에 ${CATEGORY_BULK_LINE_LIMIT.toLocaleString('ko-KR')}줄까지 등록할 수 있습니다.`;
+  if (descriptor.includes('operation_conflict')) return '같은 요청 번호로 다른 내용이 이미 처리됐습니다. 카테고리 트리를 새로고침한 뒤 다시 시도하세요.';
   if (code === '42501' || code === '28000' || descriptor.includes('forbidden') || descriptor.includes('auth_required')) return '관리자 권한이 필요합니다.';
   return '카테고리 저장을 완료하지 못했습니다. 최신 내용을 확인해주세요.';
 }
@@ -118,6 +127,40 @@ export async function saveAdminCategoryAction(
   } catch (error) {
     unstable_rethrow(error);
     return preserve(state, formData, { form: RETRY });
+  }
+}
+
+export type AdminCategoryBulkActionResult =
+  | { ok: true; result: CategoryBulkResult }
+  | { ok: false; error: string };
+
+/**
+ * 붙여넣은 `대>중>소` 경로를 한 번에 등록한다(R9). 같은 operationId로 다시 보내면 DB가 첫 결과를 그대로 돌려준다.
+ * 결과표 번호는 빈 줄을 뺀 배열 순서가 아니라 붙여넣은 원래 줄 번호다.
+ */
+export async function bulkCreateAdminCategoriesAction(input: { operationId: string; text: string }): Promise<AdminCategoryBulkActionResult> {
+  let access: Awaited<ReturnType<typeof requireCategoryStaff>>;
+  try { access = await requireCategoryStaff(); } catch (error) { unstable_rethrow(error); return { ok: false, error: RETRY }; }
+  if ('error' in access) return { ok: false, error: access.error ?? RETRY };
+  if (!input || !isUuid(input.operationId) || typeof input.text !== 'string') return { ok: false, error: '요청을 확인하지 못했습니다. 화면을 새로고침한 뒤 다시 시도하세요.' };
+  if (input.text.length > CATEGORY_BULK_TEXT_LIMIT) return { ok: false, error: '붙여넣은 내용이 너무 깁니다. 나눠서 등록하세요.' };
+  const parsed = parseCategoryBulkText(input.text);
+  if (!parsed.paths.length) return { ok: false, error: '등록할 경로를 한 줄에 하나씩 입력하세요.' };
+  if (parsed.paths.length > CATEGORY_BULK_LINE_LIMIT) return { ok: false, error: `한 번에 ${CATEGORY_BULK_LINE_LIMIT.toLocaleString('ko-KR')}줄까지 등록할 수 있습니다. 나눠서 등록하세요.` };
+  try {
+    const supabase = await createClient();
+    const { data, error } = await supabase.rpc('admin_bulk_create_categories', { p_operation_id: input.operationId, p_paths: parsed.paths });
+    if (error) return { ok: false, error: mapRpcError(error) };
+    const result = parseCategoryBulkResult(data);
+    if (!result) return { ok: false, error: '등록 결과를 확인하지 못했습니다. 카테고리 트리를 새로고침해 반영 여부를 확인하세요.' };
+    if (result.createdCategories > 0) revalidateCategorySurfaces();
+    return {
+      ok: true,
+      result: { ...result, lines: result.lines.map((line) => ({ ...line, line: parsed.sourceLines[line.line - 1] ?? line.line })) },
+    };
+  } catch (error) {
+    unstable_rethrow(error);
+    return { ok: false, error: RETRY };
   }
 }
 

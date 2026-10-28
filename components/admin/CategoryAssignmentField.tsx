@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
-import { categoryPath, type AdminCategoryNode } from '@/lib/admin/category';
+import { CATEGORY_PATH, categoryPath, type AdminCategoryNode } from '@/lib/admin/category';
 import { CATEGORY_TEMPLATES_PATH, usableTemplateCategory } from '@/lib/admin/category-templates';
 import { CategoryTemplatePicker } from './screens/CategoryTemplatesScreen';
 
@@ -90,6 +90,8 @@ export function CategoryAssignmentField({
         <button type="button" aria-pressed={mode === 'select'} onClick={() => setMode('select')}>카테고리명 선택</button>
         <button type="button" onClick={() => setTemplatePicker(true)}>카테고리 템플릿</button>
       </div>
+      {/* R9: 카테고리가 하나도 없으면 검색·선택이 빈 채로 막히므로 먼저 등록할 곳을 알린다. 작성 중인 상품을 잃지 않게 새 탭으로 연다. */}
+      {!activeLeaves.length ? <p role="status" className="admin-good-category__empty">등록된 카테고리가 없습니다. 카테고리 관리에서 먼저 등록하세요. <Link href={CATEGORY_PATH} target="_blank" rel="noreferrer">카테고리 관리</Link></p> : null}
       {mode === 'search' ? <div className="admin-good-category__search">
         <input id="category-assignment-search" type="search" aria-label="카테고리명 또는 코드" aria-describedby="category-assignment-hint" value={query} maxLength={120} placeholder="카테고리명 또는 코드 입력"
           onChange={event => setQuery(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') event.preventDefault(); }} />

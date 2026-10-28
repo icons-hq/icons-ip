@@ -133,14 +133,68 @@ select public.admin_set_category_type_migration('00000000-0000-4000-8000-0000000
 select 1 / case when exists(select 1 from public.goods_type_category_migrations where type = '문구' and status = 'suggested')
 then 1 else 0 end as assert_legacy_type_migration_is_optional;
 
+-- R9: 붙여넣기 일괄 등록. 같은 부모 아래 같은 이름(공백·전각·대소문자 무시)은 건너뛰고, 줄마다 실패를 따로 돌려주며,
+-- 이름의 '/'는 구분자가 아니다. 코드는 ASCII slug로 자동 생성하고, 같은 작업 ID 재시도는 같은 결과를 돌려준다.
+select public.admin_bulk_create_categories('00000000-0000-4000-8000-000000047430', jsonb_build_array(
+  '일괄문구>노트>스프링노트',
+  ' 일괄문구 > 노트 > 중철/무선철노트 ',
+  '일괄문구>메모/수첩>메모지',
+  '일괄화장품/미용>뷰티소품2',
+  '일괄문구>노트>스프링 노트',
+  '가>나>다>라>마',
+  '일괄문구>>펜',
+  'ＡＢＣ일괄>노트',
+  'abc일괄>노트'
+)) as bulk_result \gset
+select 1 / case when (:'bulk_result'::jsonb ->> 'createdCategories')::int = 10
+  and (:'bulk_result'::jsonb ->> 'createdLines')::int = 5
+  and (:'bulk_result'::jsonb ->> 'skippedLines')::int = 2
+  and (:'bulk_result'::jsonb ->> 'failedLines')::int = 2
+  and :'bulk_result'::jsonb -> 'lines' @> '[{"line":1,"status":"created","created":3},{"line":2,"status":"created","created":1,"path":"일괄문구>노트>중철/무선철노트"},{"line":3,"status":"created","created":2},{"line":4,"status":"created","created":2},{"line":5,"status":"skipped","created":0},{"line":6,"status":"failed","reason":"category_depth_exceeded"},{"line":7,"status":"failed","reason":"invalid_category_path"},{"line":8,"status":"created","created":2},{"line":9,"status":"skipped"}]'::jsonb
+  and (select count(*) from public.catalog_categories where name = '중철/무선철노트' and depth = 3) = 1
+  and (select count(*) from public.catalog_categories where name in ('일괄문구', '노트', '스프링노트', '중철/무선철노트', '메모/수첩', '메모지', '일괄화장품/미용', '뷰티소품2', 'ＡＢＣ일괄')) = 10
+  and not exists (select 1 from public.catalog_categories where name in ('가', '펜', 'abc일괄', '스프링 노트'))
+  and not exists (select 1 from public.catalog_categories where name in ('노트', '메모/수첩', '뷰티소품2') and code !~ '^[a-z0-9][a-z0-9-]*$')
+  and (select count(distinct code) from public.catalog_categories) = (select count(*) from public.catalog_categories)
+  and (select array_agg(name order by sort_order) from public.catalog_categories
+       where parent_id = (select id from public.catalog_categories where name = '노트' and depth = 2 and parent_id = (select id from public.catalog_categories where name = '일괄문구'))) = array['스프링노트', '중철/무선철노트']
+then 1 else 0 end as assert_bulk_category_paths;
+select public.admin_bulk_create_categories('00000000-0000-4000-8000-000000047430', jsonb_build_array(
+  '일괄문구>노트>스프링노트', ' 일괄문구 > 노트 > 중철/무선철노트 ', '일괄문구>메모/수첩>메모지', '일괄화장품/미용>뷰티소품2',
+  '일괄문구>노트>스프링 노트', '가>나>다>라>마', '일괄문구>>펜', 'ＡＢＣ일괄>노트', 'abc일괄>노트'
+)) as bulk_replay \gset
+select 1 / case when :'bulk_replay'::jsonb = :'bulk_result'::jsonb
+  and (select count(*) from public.audit_log where id = '00000000-0000-4000-8000-000000047430' and action = 'admin.catalog.category.bulk_created') = 1
+  and (select count(*) from public.catalog_categories where name = '스프링노트') = 1
+then 1 else 0 end as assert_bulk_category_replay;
+select pg_temp.expect_error($sql$select public.admin_bulk_create_categories('00000000-0000-4000-8000-000000047430', '["다른 경로"]'::jsonb)$sql$, 'operation_conflict', '23505');
+select pg_temp.expect_error($sql$select public.admin_bulk_create_categories('00000000-0000-4000-8000-000000047431', '[]'::jsonb)$sql$, 'invalid_category_paths', '22023');
+select pg_temp.expect_error($sql$select public.admin_bulk_create_categories('00000000-0000-4000-8000-000000047431', '[1]'::jsonb)$sql$, 'invalid_category_paths', '22023');
+-- 상품이 연결된 말단 아래로 넣는 줄만 실패하고, 같은 요청의 다른 줄은 들어간다.
+select public.admin_assign_good_category('00000000-0000-4000-8000-000000047432', 'category-good-0474',
+  (select id from public.catalog_categories where name = '뷰티소품2'), null);
+select public.admin_bulk_create_categories('00000000-0000-4000-8000-000000047433', jsonb_build_array(
+  '일괄화장품/미용>뷰티소품2>하위', '일괄리빙>수납'
+)) as bulk_partial \gset
+select 1 / case when :'bulk_partial'::jsonb -> 'lines' @> '[{"line":1,"status":"failed","reason":"category_has_goods"},{"line":2,"status":"created","created":2}]'::jsonb
+  and not exists (select 1 from public.catalog_categories where name = '하위')
+  and exists (select 1 from public.catalog_categories where name = '수납' and depth = 2)
+then 1 else 0 end as assert_bulk_category_partial_failure;
+select public.admin_assign_good_category('00000000-0000-4000-8000-000000047434', 'category-good-0474', null, null);
+
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000047472', true);
 select pg_temp.expect_error($sql$select public.admin_upsert_category('00000000-0000-4000-8000-000000047420',null,'buyer-category-0474','불허',null,1,null)$sql$, 'forbidden', '42501');
 select pg_temp.expect_error($sql$insert into public.catalog_categories(code,name) values ('direct-write-0474','직접 쓰기')$sql$, 'permission denied', '42501');
+select pg_temp.expect_error($sql$select public.admin_bulk_create_categories('00000000-0000-4000-8000-000000047435', '["불허>경로"]'::jsonb)$sql$, 'forbidden', '42501');
 select 1 / case when not has_function_privilege('anon', 'public.admin_upsert_category(uuid,uuid,text,text,uuid,integer,timestamptz)', 'execute')
   and has_function_privilege('authenticated', 'public.admin_upsert_category(uuid,uuid,text,text,uuid,integer,timestamptz)', 'execute')
   and not has_function_privilege('service_role', 'public.admin_upsert_category(uuid,uuid,text,text,uuid,integer,timestamptz)', 'execute')
   and not has_table_privilege('authenticated', 'public.catalog_categories', 'insert')
+  and not has_function_privilege('anon', 'public.admin_bulk_create_categories(uuid,jsonb)', 'execute')
+  and has_function_privilege('authenticated', 'public.admin_bulk_create_categories(uuid,jsonb)', 'execute')
+  and not has_function_privilege('service_role', 'public.admin_bulk_create_categories(uuid,jsonb)', 'execute')
+  and not has_function_privilege('authenticated', 'private.catalog_category_path_target(text)', 'execute')
 then 1 else 0 end as assert_category_acl;
 
 rollback;

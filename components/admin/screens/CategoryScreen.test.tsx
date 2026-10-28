@@ -37,3 +37,10 @@ it('basic category managers keep CRUD and assignment without platform configurat
   expect(html).toContain('카테고리 추가'); expect(html).toContain('대표 분류 저장'); expect(html).toContain('분류 CSV');
   for (const text of ['ERP 매핑 저장', '활성화 상태 저장', '이관 메모 저장', '기존 8종 이관 메모', '분류·ERP CSV']) expect(html).not.toContain(text);
 });
+
+it('카테고리 관리에서 `대>중>소` 경로를 붙여넣어 일괄 등록할 수 있다', () => {
+  const html = renderToStaticMarkup(<CategoryScreen data={{ categories, mappings: [], migrations: [], activation: { customerEnabled: false, erpEnabled: false, customerEvidence: null, erpEvidence: null, updatedAt: null } }} canManagePlatform={false} />);
+  expect(html).toContain('카테고리 일괄 등록');
+  expect(html).toContain('aria-label="카테고리 경로"');
+  expect(html).toContain('같은 부모 아래 같은 이름은 새로 만들지 않고 건너뜁니다.');
+});

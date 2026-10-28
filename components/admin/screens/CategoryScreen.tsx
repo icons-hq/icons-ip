@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { MarketingLinkIssuer } from '../marketing/MarketingLinkIssuer';
 import { AdminPageHeader, AdminSectionCard, AdminStatusBadge } from '../console/AdminKit';
 import { CategoryAssignmentField } from '../CategoryAssignmentField';
+import { CategoryBulkCreatePanel } from '../CategoryBulkCreatePanel';
 import { CategoryTree } from '../CategoryTree';
 import { AdminSelect } from '../console/AdminSelect';
 import {
@@ -127,6 +128,7 @@ export function CategoryScreen({ data, legacyTypes = [], canManagePlatform = tru
   return <section className="wc-admin-kit wc-admin-kit__screen">
     <AdminPageHeader title="고객 카테고리" description="최대 4단계 트리와 상품의 대표·추가 말단 분류를 관리합니다. 기존 유형과 미분류 상품은 계속 유지됩니다." actions={<Link className="wc-admin-kit__button" href={categoryExportHref()}>{canManagePlatform ? '분류·ERP CSV' : '분류 CSV'}</Link>} />
     {canManagePlatform ? <AdminSectionCard title="활성화 상태"><AdminStatusBadge tone={data.activation.customerEnabled ? 'success' : 'neutral'}>{categoryActivationLabel(data.activation)}</AdminStatusBadge><ActivationForm activation={data.activation} /></AdminSectionCard> : null}
+    <AdminSectionCard title="카테고리 일괄 등록"><CategoryBulkCreatePanel /></AdminSectionCard>
     <div className="admin-master-detail">
       <AdminSectionCard title={`카테고리 트리 ${data.categories.length}개`}><CategoryTree categories={data.categories} /></AdminSectionCard>
       <div className="col" style={{ gap: 16 }}><AdminSectionCard title="새 카테고리"><CategoryForm categories={data.categories} /></AdminSectionCard>{data.categories.map((category) => <AdminSectionCard key={category.id} title={`${category.name} · ${category.code}`}><CategoryForm category={category} categories={data.categories} /><ArchiveForm category={category} /><MarketingLinkIssuer source="category" targetIds={[category.id]} /></AdminSectionCard>)}</div>
