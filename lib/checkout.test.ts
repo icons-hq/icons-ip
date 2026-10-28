@@ -110,6 +110,14 @@ describe('checkout copy and safe errors', () => {
     expect(mapPlaceOrderError('payment amount below provider minimum')).toBe('payment_below_minimum');
     expect(mapPlaceOrderError('sensitive database failure')).toBe('unavailable');
   });
+
+  it('옵션별 구매 제한 오류를 상품 단위 제한과 섞지 않는다', () => {
+    const variant = '00000000-0000-4000-8000-000000161001';
+    expect(mapPlaceOrderError(`option_order_limit_exceeded: ${variant}`)).toBe('option_order_limit_exceeded');
+    expect(mapPlaceOrderError(`option_member_limit_exceeded: ${variant}`)).toBe('option_member_limit_exceeded');
+    expect(mapPlaceOrderError('order_quantity_above_maximum: good-id')).toBe('order_quantity_above_maximum');
+    expect(mapPlaceOrderError('member_purchase_limit_exceeded: good-id')).toBe('member_purchase_limit_exceeded');
+  });
 });
 
 describe('checkoutOrderState', () => {
