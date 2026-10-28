@@ -9,6 +9,8 @@ import { readCompleteIdPages } from '../supabase/complete-id-pages';
 import type { ShipmentRecord } from '../orders/shipments';
 import { loadOrderShipments } from '../orders/shipments.server';
 import { loadShippingCarrierRegistry } from '../orders/shipment.server';
+import { mergeRandomOrderItemRows } from '../orders/customer-items.server';
+import { maskCustomerOrderItem } from '../goods-option-sale-mode';
 import { createServiceClient, getServiceRoleConfig } from '../supabase/service';
 import {
   inquiryEmailDedupeKey,
@@ -90,11 +92,14 @@ interface OrderRow {
 
 interface OrderItemRow {
   id: string;
-  variant_id: string;
+  good_id: string;
+  variant_id: string | null;
   good_name_snapshot: string;
-  variant_name_snapshot?: string | null;
+  variant_name_snapshot: string | null;
   qty: number;
   unit_price: number;
+  /** 랜덤 판매 굿즈(D5②)의 배정 행이면 'random'. service role은 RLS가 걸리지 않아 코드에서 가린다. */
+  option_sale_mode_snapshot: 'random' | null;
 }
 
 interface OrderEmailContext {
@@ -135,7 +140,7 @@ async function loadOrderEmailContext(
 
   const { data: itemData, error: itemError } = await readCompleteIdPages<OrderItemRow>((after, size) => {
     let query = service.from('order_items')
-      .select('id,variant_id,good_name_snapshot,variant_name_snapshot,qty,unit_price', { count: 'exact' })
+      .select('id,good_id,variant_id,good_name_snapshot,variant_name_snapshot,qty,unit_price,option_sale_mode_snapshot', { count: 'exact' })
       .eq('order_id', orderId).order('id', { ascending: true }).limit(size);
     if (after) query = query.gt('id', after);
     return query;
@@ -170,7 +175,9 @@ async function loadOrderEmailContext(
      이미 들고 있는 service 클라이언트로 그대로 읽는다(#251). */
   const carriers = await loadShippingCarrierRegistry(service);
 
-  const items = ((itemData ?? []) as OrderItemRow[]).map((row) => ({
+  /* 고객에게 가는 메일이다 — 랜덤 판매 굿즈의 배정 옵션은 '랜덤'으로 가리고, 나뉜 배정 행은 한 줄로 합친다. */
+  const items = mergeRandomOrderItemRows(((itemData ?? []) as OrderItemRow[]).map((row) => maskCustomerOrderItem(row, null)),
+    (row) => row.option_sale_mode_snapshot === 'random').map((row) => ({
     id: row.id,
     name: row.good_name_snapshot,
     ...(row.variant_name_snapshot ? { variantName: row.variant_name_snapshot } : {}),

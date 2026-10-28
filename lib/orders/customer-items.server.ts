@@ -55,3 +55,30 @@ export async function readMyOrderItems<T extends { id: string } = MyOrderItemRow
     return query;
   });
 }
+
+/**
+ * 화면·메일 표시용: 같은 주문·같은 굿즈·같은 단가의 랜덤 배정 행을 첫 행(가장 작은 id) 하나로 합친다.
+ * 주문 코어는 배정 옵션마다 `order_items` 행을 나눠 넣으므로, 그대로 보이면 "2개 + 1개"처럼 나뉜 모양이
+ * 배정 결과의 일부를 드러낸다. 합친 행의 id는 첫 행 id다 — 같은 굿즈의 랜덤 행은 출고지·배송 방식이 같아
+ * 같은 배송 건에 묶이므로(예약판매·직접입력은 랜덤 판매에서 금지) 배송 건의 `order_item_id` 대응이 유지된다.
+ * 선택 판매 행은 건드리지 않는다. 행 순서는 첫 등장 순서다.
+ */
+export function mergeRandomOrderItemRows<T extends { id: string; good_id: string; qty: number; order_id?: string; unit_price?: number }>(
+  rows: readonly T[],
+  isRandom: (row: T) => boolean = (row) => (row as { option_sale_mode?: unknown }).option_sale_mode === 'random',
+): T[] {
+  const merged: T[] = [];
+  const firstByKey = new Map<string, number>();
+  for (const row of rows) {
+    if (!isRandom(row)) { merged.push(row); continue; }
+    const key = JSON.stringify([row.order_id ?? null, row.good_id, row.unit_price ?? null]);
+    const index = firstByKey.get(key);
+    if (index === undefined) {
+      firstByKey.set(key, merged.length);
+      merged.push({ ...row });
+    } else {
+      merged[index] = { ...merged[index], qty: merged[index].qty + row.qty };
+    }
+  }
+  return merged;
+}

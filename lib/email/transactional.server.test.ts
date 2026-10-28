@@ -188,6 +188,25 @@ describe('sendOrderConfirmationEmail', () => {
     });
   });
 
+  /* 메일은 service role로 order_items를 읽어 RLS가 걸리지 않는다 — 랜덤 판매 굿즈(D5②)의 배정 옵션은 코드에서 가린다. */
+  it('랜덤 판매 굿즈는 배정 옵션 대신 랜덤 한 줄로 적는다', async () => {
+    mocks.order = { ...mocks.order, total: 15_000 };
+    mocks.items = [
+      { id: 'item-1', good_id: 'rnd', variant_id: '00000000-0000-4000-8000-00000000000b', good_name_snapshot: '랜덤 포토카드',
+        variant_name_snapshot: '배정-비밀', option_sale_mode_snapshot: 'random', qty: 2, unit_price: 5000 },
+      { id: 'item-2', good_id: 'rnd', variant_id: '00000000-0000-4000-8000-00000000000c', good_name_snapshot: '랜덤 포토카드',
+        variant_name_snapshot: '배정-비밀2', option_sale_mode_snapshot: 'random', qty: 1, unit_price: 5000 },
+    ];
+
+    await sendOrderConfirmationEmail(ORDER_ID);
+
+    const { text, html } = mocks.send.mock.calls[0][0] as { text: string; html: string };
+    expect(`${text}${html}`).not.toMatch(/비밀/);
+    expect(text).toContain('랜덤 포토카드 · 랜덤');
+    expect(text.match(/랜덤 포토카드/g)).toHaveLength(1);
+    expect(text).toContain('굿즈 합계: ₩15,000');
+  });
+
   it('배송비와 쿠폰 할인은 주문 당시 저장값을 별도로 표시한다', async () => {
     mocks.order = { ...mocks.order, total: 22_000, shipping_fee: 3000, discount_total: 5000 };
     mocks.items = [{ id: 'item-1', good_name_snapshot: '홍실 아크릴 블록', qty: 2, unit_price: 12_000 }];

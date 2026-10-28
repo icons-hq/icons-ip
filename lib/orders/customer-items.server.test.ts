@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { MY_ORDER_ITEM_COLUMNS, readMyOrderItems } from './customer-items.server';
+import { MY_ORDER_ITEM_COLUMNS, mergeRandomOrderItemRows, readMyOrderItems } from './customer-items.server';
 
 type Row = { id: string; order_id: string; option_sale_mode: 'select' | 'random' };
 
@@ -53,5 +53,30 @@ describe('readMyOrderItems', () => {
     const { client: supabase, calls } = client([{ data: [], count: 0, error: null }]);
     await readMyOrderItems(supabase, ['order-1'], 'id,good_id');
     expect(calls[0].select).toBe('id,good_id');
+  });
+});
+
+describe('mergeRandomOrderItemRows', () => {
+  const row = (id: string, goodId: string, qty: number, mode: 'select' | 'random', extra: Record<string, unknown> = {}) =>
+    ({ id, order_id: 'order-1', good_id: goodId, qty, unit_price: 5000, option_sale_mode: mode, ...extra });
+
+  it('같은 주문·굿즈의 랜덤 배정 행을 첫 행 하나로 합쳐 나뉜 개수를 보이지 않는다', () => {
+    expect(mergeRandomOrderItemRows([
+      row('a1', 'random-good', 2, 'random'), row('a2', 'plain', 1, 'select'), row('a3', 'random-good', 1, 'random'),
+      row('a4', 'plain', 3, 'select'),
+    ])).toEqual([row('a1', 'random-good', 3, 'random'), row('a2', 'plain', 1, 'select'), row('a4', 'plain', 3, 'select')]);
+  });
+
+  it('다른 주문·다른 단가의 랜덤 행은 합치지 않고, 선택 판매 행은 그대로 둔다', () => {
+    const rows = [row('b1', 'g', 1, 'random'), { ...row('b2', 'g', 1, 'random'), order_id: 'order-2' },
+      row('b3', 'g', 1, 'random', { unit_price: 4000 }), row('b4', 'h', 1, 'select'), row('b5', 'h', 1, 'select')];
+    expect(mergeRandomOrderItemRows(rows)).toEqual(rows);
+  });
+
+  it('판정 함수를 바꿔 서비스 롤 행(option_sale_mode_snapshot)도 합친다', () => {
+    const rows = [{ id: 'c1', good_id: 'g', qty: 1, option_sale_mode_snapshot: 'random' as const },
+      { id: 'c2', good_id: 'g', qty: 4, option_sale_mode_snapshot: 'random' as const }];
+    expect(mergeRandomOrderItemRows(rows, (item) => item.option_sale_mode_snapshot === 'random'))
+      .toEqual([{ id: 'c1', good_id: 'g', qty: 5, option_sale_mode_snapshot: 'random' }]);
   });
 });

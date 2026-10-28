@@ -30,6 +30,8 @@ type QueryResult = { data: Row[] | Row | null; error: { message: string } | null
 
 interface QueryRecord {
   table: string;
+  /** 마스킹 RPC(my_order_items)로 읽었으면 그 이름. */
+  rpc?: string;
   select?: string;
   eq: [string, unknown][];
   in: [string, unknown[]][];
@@ -47,13 +49,23 @@ interface ClientOptions {
   rows: Record<string, Row[]>;
 }
 
-function createQuery(table: string, options: ClientOptions) {
+/* 고객 세션에서 order_items 를 직접 읽으면 랜덤 배정 행은 restrictive RLS(random_items_private_read)로 빠진다.
+   마스킹 RPC(my_order_items)는 같은 행을 1:1로 돌려주되 랜덤 행의 옵션을 가린다 — 이 흉내가 그 차이를 재현한다. */
+function maskedOrderItem(row: Row): Row {
+  const { option_sale_mode_snapshot: mode, cart_variant_id: cartVariantId, ...rest } = row;
+  return mode === 'random'
+    ? { ...rest, variant_id: cartVariantId ?? null, variant_name_snapshot: '랜덤', variant_code_snapshot: null, option_sale_mode: 'random' }
+    : { ...rest, option_sale_mode: 'select' };
+}
+
+function createQuery(table: string, options: ClientOptions, initial: Partial<QueryRecord> = {}) {
   const record: QueryRecord = {
     table,
     eq: [],
     in: [],
     order: [],
     maybeSingle: false,
+    ...initial,
   };
   options.records.push(record);
 
@@ -62,6 +74,9 @@ function createQuery(table: string, options: ClientOptions) {
     if (message) return { data: null, error: { message } };
 
     let rows = (options.rows[table] ?? []).map((row,index)=>table==='order_items'?{...row,id:row.id??String(index).padStart(12,'0')}:row);
+    if (table === 'order_items') {
+      rows = record.rpc === 'my_order_items' ? rows.map(maskedOrderItem) : rows.filter((row) => row.option_sale_mode_snapshot !== 'random');
+    }
     for (const [column, value] of record.eq) rows = rows.filter((row) => row[column] === value);
     for (const [column, values] of record.in) rows = rows.filter((row) => values.includes(row[column]));
     for (const [column, settings] of record.order) {
@@ -116,9 +131,11 @@ function createQuery(table: string, options: ClientOptions) {
 
 function createClient(options: ClientOptions) {
   return {
-    rpc: vi.fn().mockImplementation(async (name: string) => name === 'get_my_order_claim_reshipment_items'
-      ? { data: [], error: null }
-      : { data: options.claimEligibility ?? null, error: options.eligibilityError ? { message: 'unavailable' } : null }),
+    rpc: vi.fn().mockImplementation((name: string, args?: { p_order_ids?: string[] }) => name === 'my_order_items'
+      ? createQuery('order_items', options, { rpc: name, in: [['order_id', args?.p_order_ids ?? []]] })
+      : Promise.resolve(name === 'get_my_order_claim_reshipment_items'
+        ? { data: [], error: null }
+        : { data: options.claimEligibility ?? null, error: options.eligibilityError ? { message: 'unavailable' } : null })),
     from(table: string) {
       return createQuery(table, options);
     },
@@ -178,7 +195,8 @@ describe('loadOrders', () => {
       order: [['created_at', { ascending: false }], ['id', { ascending: false }]],
     });
     expect(records.find((record) => record.table === 'order_items')).toMatchObject({
-      select: 'id,order_id,qty,good_name_snapshot',
+      rpc: 'my_order_items',
+      select: 'id,order_id,good_id,qty,unit_price,good_name_snapshot,option_sale_mode',
       in: [['order_id', [orderId]]],
     });
   });
@@ -511,4 +529,41 @@ it('1001행 주문을 고객 주문 상세와 주문 목록 수량 요약에서 
   expect(detail?.items).toHaveLength(1001);
   expect(detail?.items.at(-1)?.customInputs?.fields[0].value).toBe('입력 1000');
   expect((await loadOrders(userId))[0]?.itemCount).toBe(1001);
+});
+
+describe('랜덤 판매 굿즈(D5②) 고객 은닉', () => {
+  const randomRows = [
+    { id: '00000000-0000-4000-8000-0000000000a1', order_id: orderId, good_id: 'random-good', qty: 2, unit_price: 5000, good_name_snapshot: '랜덤 포토카드',
+      good_type_snapshot: '포토카드', variant_id: '00000000-0000-4000-8000-00000000000b', variant_name_snapshot: '배정옵션-비밀', variant_code_snapshot: 'SECRET-CODE',
+      option_sale_mode_snapshot: 'random', cart_variant_id: '00000000-0000-4000-8000-00000000000a' },
+    { id: '00000000-0000-4000-8000-0000000000a2', order_id: orderId, good_id: 'random-good', qty: 1, unit_price: 5000, good_name_snapshot: '랜덤 포토카드',
+      good_type_snapshot: '포토카드', variant_id: '00000000-0000-4000-8000-00000000000c', variant_name_snapshot: '다른배정-비밀', variant_code_snapshot: 'SECRET-CODE-2',
+      option_sale_mode_snapshot: 'random', cart_variant_id: '00000000-0000-4000-8000-00000000000a' },
+    { id: '00000000-0000-4000-8000-0000000000a3', order_id: orderId, good_id: 'plain-good', qty: 1, unit_price: 3000, good_name_snapshot: '틴케이스',
+      good_type_snapshot: '문구', variant_id: '00000000-0000-4000-8000-00000000000d', variant_name_snapshot: '파랑', variant_code_snapshot: 'BLUE' },
+  ];
+
+  it('주문 목록 요약은 직접 읽기에서 빠지는 랜덤 행까지 마스킹 RPC로 센다', async () => {
+    const records: QueryRecord[] = [];
+    mocks.client = createClient({ records, rows: {
+      orders: [{ id: orderId, user_id: userId, status: 'paid', total: 18000, created_at: '2026-10-28T00:00:00Z', payment_method: 'card' }],
+      order_items: randomRows,
+    } });
+    await expect(loadOrders(userId)).resolves.toMatchObject([{ id: orderId, itemCount: 4, itemLabel: '랜덤 포토카드 외 1건' }]);
+    expect(records.filter((record) => record.table === 'order_items').every((record) => record.rpc === 'my_order_items')).toBe(true);
+  });
+
+  it('주문 상세는 랜덤 행을 장바구니 키·옵션명 랜덤 한 줄로만 보이고 배정 옵션·나뉜 개수를 싣지 않는다', async () => {
+    mocks.client = createClient({ records: [], rows: {
+      orders: [{ id: orderId, user_id: userId, status: 'pending', total: 18000, address: null, created_at: '2026-10-28T00:00:00Z', payment_method: 'card' }],
+      order_items: randomRows,
+    } });
+    const detail = await loadOrderDetail(userId, orderId);
+    expect(detail?.items).toHaveLength(2);
+    expect(detail?.items.filter((item) => item.goodId === 'random-good')).toEqual([
+      expect.objectContaining({ id: '00000000-0000-4000-8000-0000000000a1', variantId: '00000000-0000-4000-8000-00000000000a', variantName: '랜덤', variantCode: null, qty: 3 }),
+    ]);
+    expect(detail?.items.find((item) => item.goodId === 'plain-good')).toMatchObject({ variantName: '파랑', variantCode: 'BLUE' });
+    expect(JSON.stringify(detail)).not.toMatch(/비밀|SECRET|00000000000b|00000000000c/);
+  });
 });

@@ -9,6 +9,7 @@ import { loadGiftCheckoutOrder } from '@/lib/gifts-order.server';
 import { goodsCustomInputSummary, goodsCustomInputValues, readGoodsCustomInputSnapshot } from '@/lib/goods-custom-inputs';
 import { loadGoodsSalesQuote } from '@/lib/goods-sales.server';
 import { readCompleteIdPages } from '@/lib/supabase/complete-id-pages';
+import { readMyOrderItems } from '@/lib/orders/customer-items.server';
 import { createClient } from '@/lib/supabase/server';
 import { createServiceClient } from '@/lib/supabase/service';
 import { quoteCartTransactionAction } from './transaction-actions';
@@ -377,13 +378,9 @@ export async function restoreCanceledOrderToCartAction(
     if (cartRetentionKeepsCart(retention)) return { ok: false, error: 'cart_retained' };
 
     const [{ data: itemData, error: itemError }, cartItems] = await Promise.all([
-      readCompleteIdPages<OrderItemRow>((afterId, pageSize) => {
-        let query = supabase.from('order_items')
-          .select('id,good_id,variant_id,qty,good_name_snapshot,variant_name_snapshot,custom_inputs_snapshot', { count: 'exact' })
-          .eq('order_id', orderId).order('id', { ascending: true }).limit(pageSize);
-        if (afterId) query = query.gt('id', afterId);
-        return query;
-      }),
+      /* 마스킹 RPC로 읽는다 — 랜덤 판매 굿즈(D5②)의 배정 행은 직접 읽기에서 빠지고, RPC는 그 행의 variant_id를
+         장바구니 키(기본 옵션)로 돌려준다. 배정 옵션을 다시 담으면 고객이 옵션을 고르는 우회로가 된다. */
+      readMyOrderItems<OrderItemRow>(supabase, [orderId], 'id,good_id,variant_id,qty,good_name_snapshot,variant_name_snapshot,custom_inputs_snapshot'),
       readCartItems(supabase, auth.user.id),
     ]);
     if (itemError || !itemData || !cartItems) return { ok: false, error: 'failed' };
