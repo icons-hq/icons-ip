@@ -6,6 +6,7 @@
 --    live 정의는 20261020085140 원문 + 20261020085347의 o.address 치환이므로 원문 복사 대신 앵커 치환으로 고친다.
 -- 2) 표준 양식 선택 열에 barcode·erpCode·erpName을 더한다(12~16열). 검증 함수만 넓히고 CHECK 제약은 그대로 쓴다.
 -- 3) 내보내기 전 경고용 조회 public.admin_shipment_barcode_gaps: 선택한 배송 건에서 바코드가 비는 옵션 수(바코드 칸이 있는 출고지 양식만).
+--    읽기 전용 트랜잭션에서 도는 잠금 없는 STABLE 조회다.
 --    출고를 막지 않는다. 기존 주문·스냅샷·출고지 설정은 바꾸지 않는다.
 begin;
 
@@ -47,10 +48,16 @@ revoke all on function private.valid_shipment_export_columns(jsonb) from public,
 -- 출고 파일과 같은 규칙(스냅샷 우선, 비면 지금 값)으로 센다. 옵션이 지워진 품목은 상품·옵션 이름으로 센다.
 -- 바코드 칸은 기존 창고 양식으로 받을 때 배송 건 출고지의 양식이 정한다(출고 행 함수와 같은 order_shipments.origin_id 기준):
 -- 서원 송장양식은 늘 있고, 표준 양식은 바코드 선택 열을 고른 경우만 있다. 김포 21열에는 없다. 그 밖의 배송 건은 세지 않는다.
+-- PostgREST는 STABLE RPC를 POST여도 READ ONLY 트랜잭션에서 실행한다. 잠금(SELECT … FOR SHARE)을 잡는
+-- require_operator_capability는 거기서 25006으로 실패하므로, 같은 화면의 다른 조회(admin_search_shipments_console·
+-- admin_origin_pending_export_ids)처럼 잠금 없는 판정을 쓴다(리뷰 SEC-DB-1). 경고는 어떤 쓰기도 허락하지 않아
+-- 권한 회수와의 잠금 순서 보장(fence)이 필요 없다.
 create function public.admin_shipment_barcode_gaps(p_ids uuid[]) returns integer
 language plpgsql stable security definer set search_path='' as $$
 begin
- perform private.require_operator_capability('sales.manage',false);
+ if not coalesce(private.has_operator_capability(auth.uid(),'sales.manage',false),false) then
+  raise insufficient_privilege using message='operator_capability_required';
+ end if;
  if p_ids is null or cardinality(p_ids)>1000 or array_position(p_ids,null) is not null then
   raise invalid_parameter_value using message='invalid_export_selection';
  end if;

@@ -138,4 +138,25 @@ do $$ begin
  perform public.admin_shipment_barcode_gaps(array['60000000-0000-4000-8000-000000052801'::uuid]);
  raise exception 'customer read barcode gaps';
 exception when insufficient_privilege then null; end $$;
+
+-- PostgREST는 STABLE RPC를 POST여도 READ ONLY 트랜잭션에서 실행한다(리뷰 SEC-DB-1).
+-- 경고 조회는 잠금 없는 권한 판정(has_operator_capability)만 써야 읽기 전용 트랜잭션에서 25006 없이 센다.
+reset role;
+select 1/case when (select provolatile='s' and prosecdef
+   and prosrc!~'private\.(require_operator_capability|require_actor_operator_capability|lock_operator_subjects|lock_account_action_subject)'
+   and prosrc~'private\.has_operator_capability[[:space:]]*[(]'
+  from pg_proc where oid='public.admin_shipment_barcode_gaps(uuid[])'::regprocedure)
+ and has_function_privilege('authenticated','public.admin_shipment_barcode_gaps(uuid[])','execute')
+ and not has_function_privilege('anon','public.admin_shipment_barcode_gaps(uuid[])','execute')
+ and not has_function_privilege('service_role','public.admin_shipment_barcode_gaps(uuid[])','execute')
+ then 1 else 0 end as assert_barcode_gaps_is_lock_free_stable_read;
+update public.profiles set role='admin' where id='00000000-0000-4000-8000-000000052801';
+update public.fulfillment_origins set export_template='seowon_xlsx' where id='00000000-0000-4000-8000-000000042201';
+-- 이 아래로는 쓰기를 하지 않는다(읽기 전용으로 바꾼 트랜잭션은 다시 읽기·쓰기로 돌릴 수 없다).
+set local transaction_read_only=on;
+set local role authenticated;
+select 1/case when current_setting('transaction_read_only')='on'
+ and public.admin_shipment_barcode_gaps(array['60000000-0000-4000-8000-000000052801'::uuid])=1
+ then 1 else 0 end as assert_barcode_gaps_counts_in_read_only_transaction;
+reset role;
 rollback;
