@@ -10,7 +10,8 @@ import { GoodsListFiltersForm } from './GoodsListFiltersForm';
 import { CustomerServiceListSelect } from './CustomerServiceListControls';
 import { Icon } from '@/components/ui/Icon';
 import { ADMIN_VOCABULARY as V } from '@/lib/admin/vocabulary';
-import { GOODS_LIST_PAGE_SIZE, GOODS_LIST_PAGE_SIZES, GOODS_LIST_SORT_OPTIONS, goodsListHref, goodEditorHref, type AdminGoodsListData } from '@/lib/admin/goods-list';
+import { GOODS_LIST_PAGE_SIZE, GOODS_LIST_PAGE_SIZES, GOODS_LIST_SORT_OPTIONS, goodsListHref, goodEditorHref, goodPreviewHref, type AdminGoodsListData } from '@/lib/admin/goods-list';
+import { goodDetailHref } from '@/lib/goods-display';
 import type { GoodsGroupIdentity } from '@/lib/admin/goods-groups';
 import { GoodsInlinePrice, GoodsInlineSale, GoodsInlineStock } from '../GoodsInlineEdit';
 import { GoodsIpBulkDiscount } from '../GoodsIpBulkDiscount';
@@ -38,7 +39,7 @@ export function GoodsListScreen({ data, shippingRegionExpiry, canIssueMarketingL
       <div className="admin-goods-worklist__toolbar"><Link className="wc-admin-kit__button" href={`${goodsListHref(filters)}&create=1`}>상품 등록</Link><Link className="wc-admin-kit__button" href="/admin/catalog/goods/import">상품 일괄등록·수정</Link><p>상품명 또는 수정 버튼을 눌러 상품 정보를 변경할 수 있습니다.{inlineIdentity ? ' 판매가·재고수량·판매상태는 목록에서 값을 눌러 바로 고칠 수 있습니다.' : ''}</p></div>
     {inlineIdentity && filteredIp ? <GoodsIpBulkDiscount key={`${filteredIp.id}:${inlineIdentity.actorId}:${inlineIdentity.sessionId}`} ipId={filteredIp.id} ipTitle={filteredIp.title} identity={inlineIdentity} /> : null}
     <MarketingLinksGoodsGrid key={`${goodsListHref(filters)}:${bulkIdentity?.actorId}:${bulkIdentity?.sessionId}`} canIssue={canIssueMarketingLinks} bulkIdentity={bulkIdentity} caption="상품 목록" preferencesKey="catalog-goods" columns={[
-      { key: 'name', label: '상품명 · 판매자상품코드', width: '280px' }, { key: 'edit', label: '수정', width: '76px' }, { key: 'price', label: '판매가', align: 'end', width: '130px' },
+      { key: 'name', label: '상품명 · 판매자상품코드', width: '280px' }, { key: 'goodId', label: '상품번호', width: '160px' }, { key: 'edit', label: '수정', width: '76px' }, { key: 'price', label: '판매가', align: 'end', width: '130px' },
       { key: 'readiness', label: '전시상태 · 판매 준비', width: '220px' }, { key: 'qty', label: '재고수량', align: 'end', width: '100px' },
       { key: 'ip', label: 'IP · 카테고리' }, { key: 'createdAt', label: '상품등록일', width: '130px' }, { key: 'updatedAt', label: '상품수정일', width: '130px' }, { key: 'details', label: '추가 정보' },
     ]} rows={goods.map(good => {
@@ -50,6 +51,10 @@ export function GoodsListScreen({ data, shippingRegionExpiry, canIssueMarketingL
           {good.imageUrl ? <Image src={good.imageUrl} alt="" width={52} height={52} unoptimized /> : <span className="admin-goods-worklist__image-empty" aria-label="대표 이미지 없음">이미지<br />없음</span>}
           <span><strong>{good.name}</strong><small>{good.code}</small></span>
         </span>,
+        /* R15: 고객에게 보이는 상품은 고객 화면을 새 탭으로, 공개 전·보관·판매 제한 상품은 편집기 미리보기로 연다. */
+        good.customerVisible
+          ? <a key="goodId" className="admin-goods-worklist__good-id" href={goodDetailHref(good.id)} target="_blank" rel="noopener noreferrer">{good.id}<span className="sr-only"> 고객 화면 새 탭으로 열기</span><span aria-hidden="true"> ↗</span></a>
+          : <Link key="goodId" className="admin-goods-worklist__good-id" href={goodPreviewHref(filters, good.id)}>{good.id}<small className="admin-goods-worklist__secondary">공개 전 · 미리보기</small></Link>,
         <Link key="edit" className="admin-goods-worklist__edit" href={goodEditorHref(filters, good.id)}>수정</Link>,
         editable && inlineIdentity && typeof good.basePrice === 'number' && good.compareAtPrice == null && !good.activeDiscountEndsAt
           ? <GoodsInlinePrice key="price" goodId={good.id} basePrice={good.basePrice} identity={inlineIdentity} hasOptions={(good.activeVariantCount ?? 0) !== 1}
@@ -76,12 +81,11 @@ export function GoodsListScreen({ data, shippingRegionExpiry, canIssueMarketingL
         <span key="category">{good.ipTitle}<small className="admin-goods-worklist__secondary">{good.categoryName || '분류 미지정'}</small></span>,
         <span key="createdAt">{good.createdAt ? new Date(good.createdAt).toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul' }) : '—'}</span>,
         <span key="updatedAt">{good.updatedAt ? new Date(good.updatedAt).toLocaleDateString('ko-KR', { timeZone: 'Asia/Seoul' }) : '—'}</span>,
-        <details key="details"><summary>상세 재고·ID</summary><dl className="admin-goods-worklist__details">
+        <details key="details"><summary>상세 재고</summary><dl className="admin-goods-worklist__details">
           <dt>전체 할당 재고</dt><dd>{good.stockQty.toLocaleString('ko-KR')}개</dd>
           <dt>사용 옵션 재고</dt><dd>{good.activeStockQty.toLocaleString('ko-KR')}개</dd>
           <dt>안전재고</dt><dd>{good.lowStockOptionCount > 0 ? `부족 ${good.lowStockOptionCount}개 옵션` : '부족 경보 없음'}</dd>
           <dt>운영 상태</dt><dd>{readiness.operation === 'stopped' ? '판매 중지' : readiness.operation === 'active' ? '운영 중' : '확인 필요'}</dd>
-          <dt>상품번호</dt><dd>{good.id}</dd>
         </dl></details>,
       ] };
     })} />

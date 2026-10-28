@@ -4,7 +4,7 @@ vi.mock('next/navigation', () => ({ useRouter: () => ({ push: vi.fn() }) }));
 import { GoodsListScreen } from './GoodsListScreen';
 import { GoodsListFiltersForm } from './GoodsListFiltersForm';
 import { GOODS_READINESS_REASONS, unknownGoodsReadiness } from '@/lib/admin/goods-readiness';
-import { normalizeGoodsListFilters } from '@/lib/admin/goods-list';
+import { goodEditorHref, normalizeGoodsListFilters } from '@/lib/admin/goods-list';
 
 describe('goods list screen', () => {
   it('상품 관리 권한과 현재 세션이 있으면 판매가·재고수량·판매상태를 목록에서 바로 고치고, IP 필터에서는 IP 전체 즉시할인을 연다', () => {
@@ -59,6 +59,22 @@ describe('goods list screen', () => {
     expect(active.indexOf('name="image"')).toBeLessThan(active.indexOf('type="submit"'));
     expect(active).toContain('href="/admin/catalog/goods">초기화');
     expect(render({})).not.toContain('class="admin-goods-search__advanced" open=""');
+  });
+  it('상품번호 열: 고객에게 보이는 상품은 고객 화면을 새 탭으로, 아니면 편집기 미리보기로 연다. 상품명은 지금처럼 수정 화면이다', () => {
+    const base = { code: 'A', name: '상품 A', ipId: 'maple', ipTitle: '메이플', archivedAt: null, stock: 'ok' as const, stockQty: 1, activeStockQty: 1, lowStockOptionCount: 0, noticeComplete: true };
+    const filters = normalizeGoodsListFilters({ q: '상품' });
+    const html = renderToStaticMarkup(<GoodsListScreen data={{ filters, total: 2, ips: [], goods: [
+      { ...base, id: 'good-public', publishedAt: '2026-10-01T00:00:00Z', customerVisible: true },
+      { ...base, id: 'good-draft', publishedAt: null, customerVisible: false },
+    ] }} />);
+    expect(html).toContain('>상품번호</th>');
+    expect(html).toMatch(/<a class="admin-goods-worklist__good-id" href="\/shop\/good-public" target="_blank" rel="noopener noreferrer">good-public/);
+    expect(html).toContain(`href="${goodEditorHref(filters, 'good-draft').replaceAll('&', '&amp;')}#good-preview"`);
+    expect(html).toContain('공개 전 · 미리보기');
+    // 상품명(첫 열)은 수정 화면으로 간다.
+    expect(html).toContain(`<a class="admin-console-grid-link" href="${goodEditorHref(filters, 'good-public').replaceAll('&', '&amp;')}">`);
+    // 상품번호는 열로 옮겼으므로 접힌 추가 정보에 다시 두지 않는다.
+    expect(html).not.toContain('<dt>상품번호</dt>');
   });
   it('빈 상품 목록에서도 지역 배송 정책 만료를 알린다', () => {
     const html = renderToStaticMarkup(<GoodsListScreen data={{ filters: normalizeGoodsListFilters({}), goods: [], ips: [], total: 0 }}

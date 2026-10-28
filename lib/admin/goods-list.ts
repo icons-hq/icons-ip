@@ -76,6 +76,8 @@ export interface AdminGoodSummary {
   /** 사용 중인 옵션 수(-1: 확인 불가). 1개일 때만 목록에서 재고수량을 바로 고친다(옵션 재고는 옵션 단위). */
   activeVariantCount?: number;
   inlineStock?: { variantId: string; stockQty: number } | null;
+  /** 고객 상세(`/shop/<id>`)가 열리는 상품(전시·미보관·판매 제한 없음·IP 공개). 아니면 상품번호가 편집기 미리보기로 간다(R15). */
+  customerVisible?: boolean;
 }
 export interface AdminGoodsListData {
   filters: GoodsListFilters;
@@ -161,4 +163,8 @@ export function goodsConsoleFilterValues(filters: GoodsListFilters) {
 }
 export function goodEditorHref(filters: GoodsListFilters, id: string, target?: GoodsReadinessTarget): string {
   return `${goodsListHref(filters)}&${new URLSearchParams({ goodId: id })}${target ? `#${goodsReadinessAnchor(target)}` : ""}`;
+}
+/** 공개 전 상품의 상품번호 목적지: 편집기의 '공개 화면 미리보기'(`<details id="good-preview">`). */
+export function goodPreviewHref(filters: GoodsListFilters, id: string): string {
+  return `${goodEditorHref(filters, id)}#good-preview`;
 }
