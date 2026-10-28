@@ -186,6 +186,13 @@ describe('bulkDecideOrderClaimsAction', () => {
     expect(mocks.revalidatePath).toHaveBeenCalledWith('/admin/sales/claims/returns');
   });
 
+  it('DB가 거부 사유를 거절하면 운영자 문구로 옮긴다', async () => {
+    claimRows([{ id: ID(1), reference: 1 }]);
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'invalid rejection reason' } });
+    const state = await bulkDecideOrderClaimsAction({}, bulkForm([ID(1)], 'reject', 'cancel', '이미 발송되어 취소할 수 없습니다.'));
+    expect(state.results?.[0]).toMatchObject({ outcome: 'failed', message: '거부 사유는 앞뒤 공백 없이 10자 이상 200자 이하로 입력해주세요.' });
+  });
+
   it('50건을 넘기거나 권한이 없으면 아무 건도 처리하지 않는다', async () => {
     const ids = Array.from({ length: 51 }, (_, index) => ID(index));
     expect(await bulkDecideOrderClaimsAction({}, bulkForm(ids, 'review'))).toEqual({

@@ -28,6 +28,7 @@ import { ClaimOriginCollection } from './ClaimOriginCollection';
 import { ClaimHoldControl } from '@/components/admin/ClaimHoldControl';
 import { BankTransferRefund } from '@/components/admin/BankTransferRefund';
 import { ReturnClaimWorkspace } from './ReturnClaimWorkspace';
+import { ClaimRejectionReasonField } from './ClaimRejectionReasonField';
 
 /* 클레임 액션 패널(#252).
  *
@@ -495,10 +496,7 @@ export function ClaimActionPanel({
           <input name="claimId" type="hidden" value={claimId} />
           <input name="claimType" type="hidden" value={claimType} />
           <input name="decision" type="hidden" value="reject" />
-          <label htmlFor="claim-reject-note">
-            <span>거부 사유 (10~200자, 구매자에게 전달됩니다)</span>
-            <input id="claim-reject-note" maxLength={200} name="note" type="text" />
-          </label>
+          <ClaimRejectionReasonField claimType={claimType} id="claim-reject-note" label="거부 사유 (10~200자, 구매자에게 전달됩니다)" />
           <button className="btn btn-sm btn-ghost" disabled={pending} type="submit">
             거부
           </button>

@@ -14,6 +14,7 @@ import {
 import { adminClaimCopy } from '@/lib/admin/vocabulary';
 import type { OrderClaimType } from '@/lib/orders/claims';
 import { ClaimPreviewLink } from './ClaimPreviewDialog';
+import { ClaimRejectionReasonField } from './ClaimRejectionReasonField';
 
 /*
  * 취소·반품·교환 목록의 선택 → 건별 순차 처리 → 결과표(R8 · D8).
@@ -128,14 +129,12 @@ export function ClaimQueueBulkGrid({
         {pending ? <span className="admin-claim-bulk-progress" role="status">처리 중… 한 건씩 순서대로 처리합니다.</span> : null}
       </div>
       <div className="admin-claim-bulk-reason">
-        <label htmlFor={reasonId}>거부 사유 (선택 건 거부에 함께 씁니다 · 10~200자, 구매자에게 전달됩니다)</label>
-        <input
+        <ClaimRejectionReasonField
+          claimType={claimType}
           id={reasonId}
-          maxLength={200}
-          name="note"
-          onChange={(event) => setNote(event.target.value)}
-          onKeyDown={(event) => { if (event.key === 'Enter' && !event.nativeEvent.isComposing) event.preventDefault(); }}
-          type="text"
+          label="거부 사유 (선택 건 거부에 함께 씁니다 · 10~200자, 구매자에게 전달됩니다)"
+          onChange={setNote}
+          suppressEnter
           value={note}
         />
       </div>

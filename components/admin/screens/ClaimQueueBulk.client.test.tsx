@@ -63,8 +63,10 @@ function select(ids: string[]) {
 
 function submit(decision: string, note = '') {
   select([A, B, C]);
-  const reason = all(render()).find((element) => element.props.name === 'note');
-  (reason?.props.onChange as (event: unknown) => void)({ target: { value: note } });
+  /* 거부 사유 칸(프리셋 포함)은 문자열 값을 올려 준다. */
+  const reason = all(render()).find((element) => element.props.id === 'reason' && typeof element.type === 'function');
+  expect(reason?.props.suppressEnter).toBe(true);
+  (reason?.props.onChange as (value: string) => void)(note);
   const form = all(render()).find((element) => element.type === 'form');
   const formElement = {
     getAttribute: () => null,

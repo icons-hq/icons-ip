@@ -118,6 +118,8 @@ function rpcErrorMessage(message: string | null | undefined, fallback: string) {
   if (value.includes('reshipment_conflict')) return '이미 다른 운송장이나 상품으로 재출고한 교환입니다. 처리 이력을 확인해주세요.';
   if (value.includes('insufficient_or_overflowing_stock') || value.includes('stock_aggregate_overflow')) return '재고 수량을 적용할 수 없습니다. 최신 재고와 회수 수량을 확인해주세요.';
   if (value.includes('stock_out_of_range')) return '재출고할 옵션 재고가 부족합니다. 최신 옵션 수량을 확인해주세요.';
+  if (value.includes('invalid rejection reason')) return '거부 사유는 앞뒤 공백 없이 10자 이상 200자 이하로 입력해주세요.';
+  if (value.includes('invalid hold reason')) return '보류 사유는 앞뒤 공백 없이 10자 이상 200자 이하로 입력해주세요.';
   if (value.includes('claim_not_held')) return '보류 상태가 아닙니다.';
   if (value.includes('claim_not_found')) return '클레임을 찾을 수 없습니다.';
   if (value.includes('claim_operational_fee_conflict')) return '다른 운영자가 금액을 변경했습니다. 최신 클레임을 다시 열어주세요.';

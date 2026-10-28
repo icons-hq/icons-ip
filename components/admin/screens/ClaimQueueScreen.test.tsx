@@ -128,6 +128,16 @@ describe('ClaimQueueScreen', () => {
     expect(html).toContain('<option value="staff">운영자 전액 취소 전체</option>');
   });
 
+  /* R7: 취소에는 하자·오배송 사유를, 반품·교환에는 운영자 전액 취소를 고르지 않는다. */
+  it('유형에 생길 수 없는 사유는 필터 선택지에 없다', () => {
+    const cancel = renderToStaticMarkup(<ClaimQueueScreen data={data({ claimType: 'cancel', rows: [], total: 0 })} now={NOW} />);
+    expect(cancel).not.toContain('<option value="defect">');
+    expect(cancel).toContain('<option value="change_of_mind">단순 변심</option>');
+    const returns = renderToStaticMarkup(<ClaimQueueScreen data={data({ rows: [], total: 0 })} now={NOW} />);
+    expect(returns).toContain('<option value="defect">상품 하자·오배송</option>');
+    expect(returns).not.toContain('운영자 전액 취소 전체');
+  });
+
   /* SLA는 목록에서 가장 먼저 보는 값이다. 색만이 아니라 톤 속성으로 강조가 남아야 한다. */
   it('환급 기한을 넘긴 행을 danger 톤으로 표시한다', () => {
     const html = renderToStaticMarkup(<ClaimQueueScreen data={data()} now={NOW} />);
@@ -178,6 +188,8 @@ describe('ClaimQueueScreen', () => {
     expect(html).toContain('aria-label="전체 선택"');
     for (const label of ['선택 건 승인', '선택 건 거부', '선택 건 검토중']) expect(html).toContain(label);
     expect(html).toContain('최대 50건');
+    /* R7 거부 프리셋을 선택 건 거부에도 쓴다. */
+    expect(html).toContain('<option value="반품 가능 기간이 지났습니다.">반품 가능 기간이 지났습니다.</option>');
     expect(html).toContain('name="claimType" value="return"');
   });
 

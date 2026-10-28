@@ -40,6 +40,19 @@ export const ORDER_CLAIM_REASON_TYPES = ['change_of_mind', 'defect', 'staff'] as
 export type OrderClaimReasonType = (typeof ORDER_CLAIM_REASON_TYPES)[number];
 
 /**
+ * 유형별로 새로 받을 수 있는 구매자 사유(10/27 회의 R7).
+ *
+ * 하자·오배송은 굿즈를 받은 뒤에야 알 수 있으므로 취소(발주확인 전)에는 받지 않고 반품·교환으로
+ * 받는다. 고객 화면은 원래 취소에 단순 변심만 보냈고, 판매자 대리 접수·고객 취소 API·목록 필터가
+ * 이 표를 따른다. 이미 저장된 요청의 사유는 바꾸지 않고 그대로 표시한다.
+ */
+export const ORDER_CLAIM_BUYER_REASON_TYPES: Record<OrderClaimType, readonly Exclude<OrderClaimReasonType, 'staff'>[]> = {
+  cancel: ['change_of_mind'],
+  return: ['change_of_mind', 'defect'],
+  exchange: ['change_of_mind', 'defect'],
+};
+
+/**
  * 운영자 전액 취소 사유(ADR-0018). DB `admin_start_order_cancellation`의 허용 목록·
  * `order_cancellation_requests_staff_origin_shape` 제약과 같아야 한다 — 한쪽만 늘리면
  * 고를 수 있는데 항상 거절되는 선택지가 생긴다.

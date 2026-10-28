@@ -44,7 +44,7 @@ export default async function AdminSalesClaimsPage({
      layout과 page를 병렬로 렌더하므로 layout의 redirect가 클레임 조회를 막지 못한다. */
   const auth = await requireAdminScreenAccess(adminClaimBasePath(claimType));
   const query = await searchParams;
-  const filters = normalizeAdminClaimFilters(query);
+  const filters = normalizeAdminClaimFilters(query, claimType);
   const previewId = adminClaimPreviewId(query.claimId);
 
   const [data, workspace] = await Promise.all([

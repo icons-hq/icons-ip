@@ -6,13 +6,13 @@ import {
   type ConsoleGridRow,
 } from '@/components/admin/console';
 import {
-  ADMIN_CLAIM_REASON_OPTIONS,
   ADMIN_CLAIM_DATE_FIELDS,
   ADMIN_CLAIM_SEARCH_FIELDS,
   adminClaimStageLabel,
   adminClaimStageOptions,
   adminClaimHref,
   adminClaimPreviewHref,
+  adminClaimReasonOptions,
   adminClaimReasonText,
   type AdminClaimConsoleData,
 } from '@/lib/admin/claims';
@@ -166,7 +166,7 @@ export function ClaimQueueScreen({
           <SalesSelect id="sales-claim-stage" name="stage" value={filters.stage} options={adminClaimStageOptions(claimType)} />
         </SalesFilterField>
         <SalesFilterField label={`${typeLabel}사유`} htmlFor="sales-claim-reason">
-          <SalesSelect id="sales-claim-reason" name="reasonType" value={filters.reasonType} options={ADMIN_CLAIM_REASON_OPTIONS} />
+          <SalesSelect id="sales-claim-reason" name="reasonType" value={filters.reasonType} options={adminClaimReasonOptions(claimType)} />
         </SalesFilterField>
       </SalesFilterPanel>
       <div className="admin-sales-results">
