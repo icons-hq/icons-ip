@@ -159,7 +159,9 @@ it('바코드 칸이 있는 기존 창고 양식이면 내보내기 전에 바�
  ready();await settle();
  // 출고지 전체 내려받기 버튼: 서원 양식 출고지만 센다(김포는 기본이 74열이라 바코드 칸이 없다).
  expect(mocks.originGaps.mock.calls).toEqual([[seowon.id]]);
- expect(text(ready())).toContain('남양주 새 출고지시: 바코드가 없는 옵션 1개 — 파일의 바코드 칸이 비어 있습니다.');
+ // 출고지 경고는 다음 파일 한 묶음이 아니라 그 출고지의 미전달 발송 대기 건 전체를 센다(리뷰 M27-SHIP-2).
+ expect(text(ready())).toContain('남양주 미전달 발송 대기 건: 바코드가 없는 옵션 1개 — 파일의 바코드 칸이 비어 있습니다.');
+ expect(text(ready())).not.toContain('남양주 새 출고지시:');
  const grid=nodes(ready()).find(node=>node.type===ConsoleGrid)!;(grid.props.onSelectionChange as (ids:string[])=>void)(ids.slice(0,2));
  ready();await settle();
  // 섞인 선택은 기본이 74열이라 경고하지 않는다. 기존 창고 양식을 고르면 선택 전체를 넘기고,

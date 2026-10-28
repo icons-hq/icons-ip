@@ -86,6 +86,37 @@ select 1/case when public.admin_shipment_barcode_gaps(array['60000000-0000-4000-
  and public.admin_shipment_barcode_gaps(array['60000000-0000-4000-8000-000000052802'::uuid])=0
  and public.admin_shipment_barcode_gaps(array[]::uuid[])=0
  then 1 else 0 end as assert_seowon_barcode_gap_counts_distinct_options;
+-- 출고지 경고(리뷰 M27-SHIP-2): 화면을 열 때마다 무거운 admin_origin_pending_export_ids를 거치지 않고,
+-- 그 출고지의 미전달 발송 대기 건(발송 대기·전달 전·택배·주문 확정/배송 중) 전체를 바로 센다.
+select 1/case when public.admin_shipment_barcode_gaps(p_origin_id=>'00000000-0000-4000-8000-000000042201')=1
+ and public.admin_shipment_barcode_gaps(p_origin_id=>'00000000-0000-4000-8000-000000042202')=0
+ and public.admin_shipment_barcode_gaps(p_origin_id=>gen_random_uuid())=0
+ then 1 else 0 end as assert_origin_barcode_gap_counts_pending_shipments;
+reset role;
+update public.order_shipments set exported_at=now() where id='60000000-0000-4000-8000-000000052801';
+set local role authenticated;
+-- 이미 전달한 배송 건은 출고지 경고에서 빠지지만, 고른 배송 건(다시 내려받기)은 그대로 센다.
+select 1/case when public.admin_shipment_barcode_gaps(p_origin_id=>'00000000-0000-4000-8000-000000042201')=0
+ and public.admin_shipment_barcode_gaps(array['60000000-0000-4000-8000-000000052801'::uuid])=1
+ then 1 else 0 end as assert_origin_barcode_gap_skips_handed_over_shipments;
+reset role;
+update public.order_shipments set exported_at=null where id='60000000-0000-4000-8000-000000052801';
+update public.orders set status='paid' where id='50000000-0000-4000-8000-000000052801';
+set local role authenticated;
+-- 발주확인 전(주문 확정·배송 중이 아닌) 주문의 배송 건은 출고지 경고에서 빠진다.
+select 1/case when public.admin_shipment_barcode_gaps(p_origin_id=>'00000000-0000-4000-8000-000000042201')=0
+ then 1 else 0 end as assert_origin_barcode_gap_needs_confirmed_order;
+reset role;
+update public.orders set status='confirmed' where id='50000000-0000-4000-8000-000000052801';
+set local role authenticated;
+select 1/case when public.admin_shipment_barcode_gaps(p_origin_id=>'00000000-0000-4000-8000-000000042201')=1
+ then 1 else 0 end as assert_origin_barcode_gap_restored;
+do $$ begin
+ begin perform public.admin_shipment_barcode_gaps(array[]::uuid[],'00000000-0000-4000-8000-000000042201'); raise exception 'selection and origin accepted together';
+ exception when invalid_parameter_value then null; end;
+ begin perform public.admin_shipment_barcode_gaps(); raise exception 'missing target accepted';
+ exception when invalid_parameter_value then null; end;
+end $$;
 reset role;
 update public.fulfillment_origins set export_template='standard' where id='00000000-0000-4000-8000-000000042201';
 set local role authenticated;
@@ -145,10 +176,10 @@ reset role;
 select 1/case when (select provolatile='s' and prosecdef
    and prosrc!~'private\.(require_operator_capability|require_actor_operator_capability|lock_operator_subjects|lock_account_action_subject)'
    and prosrc~'private\.has_operator_capability[[:space:]]*[(]'
-  from pg_proc where oid='public.admin_shipment_barcode_gaps(uuid[])'::regprocedure)
- and has_function_privilege('authenticated','public.admin_shipment_barcode_gaps(uuid[])','execute')
- and not has_function_privilege('anon','public.admin_shipment_barcode_gaps(uuid[])','execute')
- and not has_function_privilege('service_role','public.admin_shipment_barcode_gaps(uuid[])','execute')
+  from pg_proc where oid='public.admin_shipment_barcode_gaps(uuid[],uuid)'::regprocedure)
+ and has_function_privilege('authenticated','public.admin_shipment_barcode_gaps(uuid[],uuid)','execute')
+ and not has_function_privilege('anon','public.admin_shipment_barcode_gaps(uuid[],uuid)','execute')
+ and not has_function_privilege('service_role','public.admin_shipment_barcode_gaps(uuid[],uuid)','execute')
  then 1 else 0 end as assert_barcode_gaps_is_lock_free_stable_read;
 update public.profiles set role='admin' where id='00000000-0000-4000-8000-000000052801';
 update public.fulfillment_origins set export_template='seowon_xlsx' where id='00000000-0000-4000-8000-000000042201';
@@ -157,6 +188,7 @@ set local transaction_read_only=on;
 set local role authenticated;
 select 1/case when current_setting('transaction_read_only')='on'
  and public.admin_shipment_barcode_gaps(array['60000000-0000-4000-8000-000000052801'::uuid])=1
+ and public.admin_shipment_barcode_gaps(p_origin_id=>'00000000-0000-4000-8000-000000042201')=1
  then 1 else 0 end as assert_barcode_gaps_counts_in_read_only_transaction;
 reset role;
 rollback;

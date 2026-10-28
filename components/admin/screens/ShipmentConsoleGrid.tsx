@@ -59,6 +59,7 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
  // 파일에 바코드 칸이 있는지(서원 송장양식, 바코드 열을 고른 표준 양식)는 서버가 배송 건 출고지의 설정으로 판정하므로
  // 선택한 배송 건 전체(화면 밖의 방금 발주확인한 묶음 포함)를 넘긴다. 조회는 선택·출고지 구성이 바뀔 때와 이 화면의 처리가
  // 끝날 때(dataRound)마다 다시 한다. 다른 탭에서 바코드를 고친 경우는 내보내기 결과 문구가 실제로 내보낸 배송 건으로 다시 센 값을 알린다.
+ // 출고지 경고는 탭을 열 때마다 부르므로 다음 파일 한 묶음 대신 그 출고지의 미전달 발송 대기 건 전체를 가볍게 센다(리뷰 M27-SHIP-2).
  const exportTab=tab==='ready'||tab==='delayed';
  const barcodeKey=exportTab&&layout==='warehouse'&&exportEligible?[...ids].sort().join(','):'';
  const barcodeOrigins=exportOrigins.filter(origin=>(layoutChoice??defaultExportLayout(origins,[origin.id]))==='warehouse');
@@ -159,7 +160,7 @@ export function ShipmentConsoleGrid({rows,columns,gridRows,tab,currentHref,ready
      <label>파일 형식 <select value={format} disabled={pending} onChange={event=>setFormat(event.target.value as 'xlsx'|'csv')}><option value="xlsx">Excel (.xlsx)</option><option value="csv">CSV</option></select></label>{seowonCsvNote}</>:null}
     <span>선택 없이 출고지별 미전달 발송 대기 건을 버튼에 적힌 양식으로 받습니다(품목 1,000줄까지, 남으면 다시 눌러 이어 받기).</span>
     {exportOrigins.map(origin=><button key={origin.id} type="button" className="wc-admin-kit__button" disabled={pending} onClick={()=>exportOrigin(origin)}>{origin.name} 새 출고지시 전체 내려받기 ({layoutLabel(layoutChoice??defaultExportLayout(origins,[origin.id]),origin.template==='seowon_xlsx')})</button>)}
-    {barcodeOrigins.map(origin=>originBarcodeGap(origin.id)>0?<span key={`barcode-${origin.id}`} role="status">{`${origin.name} 새 출고지시: ${shipmentBarcodeGapWarning(originBarcodeGap(origin.id))}`}</span>:null)}
+    {barcodeOrigins.map(origin=>originBarcodeGap(origin.id)>0?<span key={`barcode-${origin.id}`} role="status">{`${origin.name} 미전달 발송 대기 건: ${shipmentBarcodeGapWarning(originBarcodeGap(origin.id))}`}</span>:null)}
    </div>:null}
   </ConsoleGrid>
   {tab==='delayed'?<button className="wc-admin-kit__button" type="button" onClick={()=>setNoticeSelection([])}>고객 지연 안내 이력·결과</button>:null}

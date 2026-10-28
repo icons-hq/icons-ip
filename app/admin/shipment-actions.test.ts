@@ -196,14 +196,18 @@ describe('내보내기 전 바코드 경고 조회', () => {
     expect(await exportShipmentsAction([ID], 'xlsx', 'warehouse')).toEqual({ error: '배송 상태가 변경되었습니다. 목록을 새로고침한 뒤 다시 내보내주세요.' });
     expect(mocks.rpc).not.toHaveBeenCalledWith('admin_shipment_barcode_gaps', expect.anything());
   });
-  it('출고지 전체 내려받기는 다음에 받을 미전달 묶음과 같은 배송 건으로 센다', async () => {
-    mocks.rpc.mockImplementation(async (name: string) => ({ error: null, data: name === 'admin_origin_pending_export_ids' ? { ids: [ID, SECOND], total: 5 } : 2 }));
-    expect(await originBarcodeGapsAction(ID)).toBe(2);
-    expect(mocks.rpc.mock.calls).toEqual([['admin_origin_pending_export_ids', { target_origin_id: ID }], ['admin_shipment_barcode_gaps', { p_ids: [ID, SECOND] }]]);
+  it('출고지 경고는 무거운 미전달 목록 RPC 없이 출고지 단위로 한 번에 센다', async () => {
+    // 리뷰 M27-SHIP-2: 탭을 열 때마다 admin_origin_pending_export_ids(대기 3,000건에서 약 0.3~0.4초)를 부르던 경로.
+    mocks.rpc.mockResolvedValue({ error: null, data: 2 });
+    expect(await originBarcodeGapsAction(ID.toUpperCase())).toBe(2);
+    expect(mocks.rpc.mock.calls).toEqual([['admin_shipment_barcode_gaps', { p_origin_id: ID }]]);
+    expect(mocks.rpc).not.toHaveBeenCalledWith('admin_origin_pending_export_ids', expect.anything());
+    mocks.rpc.mockResolvedValue({ error: { message: 'operator_capability_required' }, data: null });
+    expect(await originBarcodeGapsAction(ID)).toBeNull();
     mocks.rpc.mockClear();
-    mocks.rpc.mockResolvedValue({ error: null, data: { ids: [], total: 0 } });
-    expect(await originBarcodeGapsAction(ID)).toBe(0);
-    expect(mocks.rpc).toHaveBeenCalledTimes(1);
     expect(await originBarcodeGapsAction('gimpo')).toBeNull();
+    mocks.auth.mockResolvedValue({ isConfigured: true, user: { id: 'buyer' }, isStaff: false });
+    expect(await originBarcodeGapsAction(ID)).toBeNull();
+    expect(mocks.rpc).not.toHaveBeenCalled();
   });
 });
