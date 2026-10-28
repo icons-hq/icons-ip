@@ -68,6 +68,10 @@ const operators = [
   sql('goods_sale_period', { kc: true }),
   sql('goods_clone_attributes'),
   script('goods_sale_period_concurrency.sh', 'GOODS_SALE_PERIOD_TEST_SCOPE'),
+  // 예전 story/marketing 단계 후반부의 매장 분석이다.
+  sql('store_analytics', { admin: true, kc: true }),
+  script('store_analytics_concurrency.sh', 'STORE_ANALYTICS_TEST_SCOPE'),
+  sql('store_analytics_notice_events'),
 ];
 
 const catalog = [
@@ -98,13 +102,7 @@ const catalog = [
   script('goods_after_sales_content_concurrency.sh', 'GOODS_AFTER_SALES_TEST_SCOPE'),
   sql('goods_size_charts', { admin: true, kc: true }),
   script('goods_size_charts_concurrency.sh', 'GOODS_SIZE_CHART_TEST_SCOPE'),
-  // 예전 story/marketing 단계의 후반부(리뷰 이벤트·매장 분석·관리자 리포트)다.
-  sql('review_events', { admin: true, kc: true }),
-  sql('review_event_exports', { admin: true, kc: true }),
-  script('review_events_concurrency.sh', 'REVIEW_EVENTS_TEST_SCOPE'),
-  sql('store_analytics', { admin: true, kc: true }),
-  script('store_analytics_concurrency.sh', 'STORE_ANALYTICS_TEST_SCOPE'),
-  sql('store_analytics_notice_events'),
+  // 예전 story/marketing 단계 후반부의 관리자 리포트다.
   sql('admin_customer_purchase_report', { admin: true }),
   sql('admin_sales_goods_page'),
   sql('admin_sales_hourly_report'),
@@ -148,7 +146,7 @@ const storefront = [
   sql('cart_retained_until_payment', { admin: true, kc: true }),
   sql('home_collection_banners', { admin: true }),
   sql('ip_hall_banners', { admin: true }),
-  // 예전 story/marketing 단계의 전반부(쇼핑 스토리·마케팅·상품 상세 연출)다.
+  // 예전 story/marketing 단계의 쇼핑 스토리·마케팅·상품 상세 연출·리뷰 이벤트다.
   sql('shopping_stories', { kc: true }),
   sql('shopping_story_goods_picker', { kc: true }),
   sql('goods_relation_visual_compositions', { kc: true }),
@@ -167,6 +165,9 @@ const storefront = [
   sql('product_detail_experiences', { admin: true, kc: true }),
   script('product_detail_experiences_concurrency.sh', 'PRODUCT_DETAIL_EXPERIENCES_TEST_SCOPE'),
   script('product_detail_presentation_concurrency.sh', 'PRODUCT_DETAIL_PRESENTATION_TEST_SCOPE'),
+  sql('review_events', { admin: true, kc: true }),
+  sql('review_event_exports', { admin: true, kc: true }),
+  script('review_events_concurrency.sh', 'REVIEW_EVENTS_TEST_SCOPE'),
   script('goods_relation_visual_concurrency.sh', 'GOODS_RELATION_VISUAL_TEST_SCOPE'),
 ];
 
@@ -177,11 +178,12 @@ const commerce = [
     `python3 scripts/run-full-admin-sql-tests.py --scope ci --container ${databaseContainer} --output-dir output/full-admin-sql`,
   ),
   script('goods_transaction_isolated.sh', 'GOODS_TRANSACTION_TEST_SCOPE'),
-  script('gift_orders_isolated.sh', 'GIFT_ORDER_TEST_SCOPE'),
-  script('goods_subscriptions_isolated.sh', 'SUBSCRIPTION_TEST_SCOPE'),
 ];
 
 const legacy = [
+  // 굿즈 거래 격리 검사(약 5.5분)가 commerce 샤드의 하한이라 선물·정기결제는 이쪽에서 먼저 돈다.
+  script('gift_orders_isolated.sh', 'GIFT_ORDER_TEST_SCOPE'),
+  script('goods_subscriptions_isolated.sh', 'SUBSCRIPTION_TEST_SCOPE'),
   run(
     'run-database-smoke-tests.sh',
     `OPERATOR_LEGACY_FIXTURE_TEST_SCOPE=1 node scripts/with-legacy-operator-fixtures.mjs --project icons-ip --container ${databaseContainer} -- bash scripts/run-database-smoke-tests.sh`,
@@ -193,11 +195,11 @@ const legacy = [
 ];
 
 export const databaseTestShards = [
-  { id: 'operators', title: '운영자 권한·주문 클레임·정산', entries: operators },
-  { id: 'catalog', title: '카탈로그·리뷰·매장 분석', entries: catalog },
-  { id: 'storefront', title: '고객 응대·홈 전시·쇼핑 스토리', entries: storefront },
-  { id: 'commerce', title: '관리자 계약·굿즈 거래·선물·정기결제', entries: commerce },
-  { id: 'legacy', title: 'legacy 운영자 fixture 회귀', entries: legacy },
+  { id: 'operators', title: '운영자 권한·주문 클레임·정산·매장 분석', entries: operators },
+  { id: 'catalog', title: '카탈로그·리뷰·관리자 리포트', entries: catalog },
+  { id: 'storefront', title: '고객 응대·홈 전시·쇼핑 스토리·리뷰 이벤트', entries: storefront },
+  { id: 'commerce', title: '관리자 계약·굿즈 거래', entries: commerce },
+  { id: 'legacy', title: '선물·정기결제·legacy 운영자 fixture 회귀', entries: legacy },
 ];
 
 export function findShard(id) {
