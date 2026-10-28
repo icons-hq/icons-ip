@@ -23,10 +23,13 @@ import { getSupabaseConfig } from '@/lib/supabase/config';
  * - 켜져 있는 동안 모든 탭의 제목 앞에 미답변 1:1 문의 수 `(N)`을 붙인다. Next 메타데이터가 이동 때 제목을
  *   다시 쓰므로 pathname 변경과 <title> 변경을 감지해 다시 붙인다.
  * - 권한 거부·미지원 브라우저는 안내만 한다. 알림은 포커스를 빼앗지 않아 입력·IME를 방해하지 않는다.
+ *   Android Chrome처럼 Notification은 있어도 생성자가 막힌(서비스 워커 알림만 허용) 브라우저도 미지원이다 —
+ *   켤 때 시험 알림을 만들어 보고, 실제 알림이 실패해도 끄고 미지원 안내로 바꾼다.
  */
 
 export const INQUIRY_NOTIFICATION_TITLE = '새 1:1 문의';
 export const INQUIRY_NOTIFICATION_DENIED = '브라우저에서 알림이 차단되어 있습니다. 주소창의 사이트 설정에서 알림을 허용하세요.';
+const INQUIRY_NOTIFICATION_ENABLED = '문의 알림을 켰습니다.';
 const INQUIRY_NOTIFICATION_UNSUPPORTED = '이 브라우저는 알림을 지원하지 않습니다. 크롬·엣지·사파리 최신 버전에서 켜 주세요.';
 const PREFERENCE_PREFIX = 'icons:admin:inquiry-notifications:v1:';
 const CLAIM_PREFIX = 'icons:admin:inquiry-notified:v1:';
@@ -37,7 +40,8 @@ const COUNT_DEBOUNCE_MS = 1_000;
 const CURSOR_FRESH_MS = 5 * 60_000;
 
 type StorageLike = Pick<Storage, 'getItem' | 'setItem' | 'removeItem'>;
-type NotificationLike = { permission: NotificationPermission; requestPermission: () => Promise<NotificationPermission> };
+export type NotificationLike = Pick<typeof Notification, 'permission' | 'requestPermission'>
+  & (new (title: string, options?: NotificationOptions) => Pick<Notification, 'close' | 'onclick'>);
 export type InquiryNotificationSupport = 'unsupported' | NotificationPermission;
 export interface NewInquiry { id: string; title: string }
 
@@ -73,20 +77,54 @@ export function useInquiryNotificationsEnabled(accountId: string): boolean {
   return useSyncExternalStore(subscribePreference, () => inquiryNotificationsEnabled(accountId), () => false);
 }
 
+/** 생성자로 알림을 만들 수 없는 것으로 확인된 브라우저(이 페이지 동안). */
+const constructorBlocked = new WeakSet<object>();
+
 export function inquiryNotificationSupport(notification: NotificationLike | undefined = browserNotification()): InquiryNotificationSupport {
-  return notification ? notification.permission : 'unsupported';
+  return !notification || constructorBlocked.has(notification) ? 'unsupported' : notification.permission;
+}
+
+/* 권한이 없을 때 만든 알림은 표시되지 않는다(오류 이벤트만) — 권한을 묻기 전에 생성자부터 시험한다.
+   이미 허용된 상태라면 켜짐 확인 문구로 만들고 바로 닫는다. */
+function notificationConstructorWorks(notification: NotificationLike): boolean {
+  try {
+    new notification(INQUIRY_NOTIFICATION_ENABLED, { silent: true, tag: 'icons-inquiry:enabled' }).close();
+    return true;
+  } catch { return false; }
+}
+
+/** 생성자 알림이 막힌 브라우저로 기록하고 이 계정의 알림을 끈다. 설정 화면은 미지원 안내로 바뀐다. */
+export function markInquiryNotificationsUnsupported(accountId: string, notification: NotificationLike | undefined = browserNotification(),
+  storage: StorageLike | null = browserStorage()): void {
+  if (notification) constructorBlocked.add(notification);
+  setInquiryNotificationsEnabled(accountId, false, storage);
 }
 
 /** 클릭(사용자 동작) 안에서 부른다. 허용되면 켜고, 아니면 이유를 돌려준다. */
 export async function enableInquiryNotifications(accountId: string, notification: NotificationLike | undefined = browserNotification(),
   storage: StorageLike | null = browserStorage()): Promise<InquiryNotificationSupport | 'storage_unavailable'> {
   if (!notification) return 'unsupported';
+  if (!notificationConstructorWorks(notification)) {
+    constructorBlocked.add(notification);
+    return 'unsupported';
+  }
   let permission = notification.permission;
   if (permission === 'default') {
     try { permission = await notification.requestPermission(); } catch { permission = notification.permission; }
   }
   if (permission !== 'granted') return permission;
   return setInquiryNotificationsEnabled(accountId, true, storage) ? 'granted' : 'storage_unavailable';
+}
+
+/** 새 문의 OS 알림. 누르면 onOpen 후 닫는다. 생성자가 막혀 띄우지 못하면 false. */
+export function showInquiryNotification(inquiry: NewInquiry, onOpen: () => void,
+  notification: NotificationLike | undefined = browserNotification()): boolean {
+  if (!notification) return false;
+  try {
+    const shown = new notification(INQUIRY_NOTIFICATION_TITLE, { body: inquiry.title, tag: `icons-inquiry:${inquiry.id}` });
+    shown.onclick = () => { onOpen(); shown.close(); };
+    return true;
+  } catch { return false; }
 }
 
 /** 같은 문의는 계정의 모든 탭을 통틀어 한 번만 알린다. 기록을 못 읽으면 알린다(누락보다 중복이 낫다, tag가 OS에서 합친다). */
@@ -225,10 +263,10 @@ function useNotifierEffect(accountId: string, enabled: boolean, onCount: (count:
           .map((row) => ({ id: row.id, title: row.title, createdAt: row.created_at }));
       },
       notify: (inquiry) => {
-        try {
-          const notification = new Notification(INQUIRY_NOTIFICATION_TITLE, { body: inquiry.title, tag: `icons-inquiry:${inquiry.id}` });
-          notification.onclick = () => { window.focus(); router.push(`/admin/cs/inquiries/${inquiry.id}`); notification.close(); };
-        } catch { /* Permission revoked or OS refused; the title count still shows. */ }
+        // 권한 회수·OS 거부는 생성자가 던지지 않는다(오류 이벤트). 던지면 생성자 자체가 막힌 브라우저다.
+        if (!showInquiryNotification(inquiry, () => { window.focus(); router.push(`/admin/cs/inquiries/${inquiry.id}`); })) {
+          markInquiryNotificationsUnsupported(accountId);
+        }
       },
       onCount,
       claim: (inquiryId) => claimInquiryNotification(accountId, inquiryId),
@@ -266,8 +304,8 @@ export function InquiryNotificationSettingsView({ support, enabled, message, bus
     : '꺼짐 · 켜면 새 1:1 문의가 올 때 PC 알림을 띄웁니다. 알림을 누르면 그 문의가 열립니다.';
   return <section className="admin-operations-settings" aria-label="새 1:1 문의 PC 알림">
     <h3>새 1:1 문의 PC 알림</h3>
-    <p>{status}</p>
-    {message ? <p role="status">{message}</p> : null}
+    <p role="status">{status}</p>
+    {message && message !== status ? <p role="status">{message}</p> : null}
     <div>{on
       ? <button type="button" disabled={busy} onClick={onDisable}>문의 알림 끄기</button>
       : <button type="button" disabled={busy || support === 'unsupported'} onClick={onEnable}>문의 알림 받기</button>}</div>
@@ -285,7 +323,7 @@ export function InquiryNotificationToggle({ accountId }: { accountId: string }) 
     setBusy(true);
     try {
       const result = await enableInquiryNotifications(accountId);
-      setMessage(result === 'granted' ? '문의 알림을 켰습니다.' : result === 'denied' ? INQUIRY_NOTIFICATION_DENIED
+      setMessage(result === 'granted' ? INQUIRY_NOTIFICATION_ENABLED : result === 'denied' ? INQUIRY_NOTIFICATION_DENIED
         : result === 'storage_unavailable' ? '이 브라우저에 설정을 저장할 수 없습니다. 사이트 데이터 저장을 허용한 뒤 다시 켜 주세요.'
         : result === 'unsupported' ? INQUIRY_NOTIFICATION_UNSUPPORTED : '알림 허용 창을 닫았습니다. 다시 누르면 허용 창이 열립니다.');
     } finally { setBusy(false); setPermissionCheck((value) => value + 1); }

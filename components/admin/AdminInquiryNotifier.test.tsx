@@ -10,13 +10,17 @@ import {
   acquireInquiryNotifierLeadership,
   claimInquiryNotification,
   enableInquiryNotifications,
+  inquiryNotificationSupport,
   inquiryNotificationsEnabled,
+  markInquiryNotificationsUnsupported,
   readInquiryNotifierCursor,
   setInquiryNotificationsEnabled,
+  showInquiryNotification,
   startInquiryNotifier,
   titleWithInquiryCount,
   writeInquiryNotifierCursor,
 } from './AdminInquiryNotifier';
+import type { NotificationLike } from './AdminInquiryNotifier';
 
 function memoryStorage(initial: Record<string, string> = {}) {
   const data = new Map(Object.entries(initial));
@@ -34,6 +38,26 @@ function transport() {
     handlers.find((handler) => handler.filter.table === 'inquiries' && handler.filter.event === event)!.callback({ new: row });
   const ready = () => handlers.find((handler) => handler.type === 'system')?.callback({ extension: 'postgres_changes', status: 'ok' });
   return { thread, ready, removeChannel, client: { channel: () => channel, removeChannel } as unknown as InquiryRealtimeClient };
+}
+
+/** 브라우저 Notification 생성자 흉내. constructs=false는 Android Chrome처럼 생성자가 TypeError를 던진다. */
+function fakeNotification(permission: NotificationPermission, options: { request?: NotificationPermission; constructs?: boolean } = {}) {
+  const created: { title: string; init?: NotificationOptions; closed: boolean; instance: { onclick: ((event: Event) => unknown) | null } }[] = [];
+  const requestPermission = vi.fn(async () => { state.permission = options.request ?? state.permission; return state.permission; });
+  const state = { permission };
+  class Fake {
+    static get permission() { return state.permission; }
+    static requestPermission = requestPermission;
+    onclick: ((event: Event) => unknown) | null = null;
+    private record: (typeof created)[number];
+    constructor(title: string, init?: NotificationOptions) {
+      if (options.constructs === false) throw new TypeError("Failed to construct 'Notification': Illegal constructor. Use ServiceWorkerRegistration.showNotification() instead.");
+      this.record = { title, init, closed: false, instance: this };
+      created.push(this.record);
+    }
+    close() { this.record.closed = true; }
+  }
+  return { api: Fake as unknown as NotificationLike, created, requestPermission };
 }
 
 async function settle() { for (let index = 0; index < 10; index++) await Promise.resolve(); }
@@ -79,16 +103,58 @@ describe('계정·기기별 켜짐 저장 (R2)', () => {
 describe('브라우저 권한 요청 (R2)', () => {
   it('허용하면 켜고, 거부·미지원이면 켜지 않고 안내 상태를 돌려준다', async () => {
     const storage = memoryStorage();
-    const granted = { permission: 'default' as NotificationPermission, requestPermission: vi.fn(async () => 'granted' as NotificationPermission) };
-    expect(await enableInquiryNotifications('a', granted, storage)).toBe('granted');
+    const granted = fakeNotification('default', { request: 'granted' });
+    expect(await enableInquiryNotifications('a', granted.api, storage)).toBe('granted');
     expect(inquiryNotificationsEnabled('a', storage)).toBe(true);
-    const denied = { permission: 'default' as NotificationPermission, requestPermission: vi.fn(async () => 'denied' as NotificationPermission) };
-    expect(await enableInquiryNotifications('b', denied, storage)).toBe('denied');
+    const denied = fakeNotification('default', { request: 'denied' });
+    expect(await enableInquiryNotifications('b', denied.api, storage)).toBe('denied');
     expect(inquiryNotificationsEnabled('b', storage)).toBe(false);
-    const blocked = { permission: 'denied' as NotificationPermission, requestPermission: vi.fn() };
-    expect(await enableInquiryNotifications('c', blocked, storage)).toBe('denied');
+    const blocked = fakeNotification('denied');
+    expect(await enableInquiryNotifications('c', blocked.api, storage)).toBe('denied');
     expect(blocked.requestPermission).not.toHaveBeenCalled();
     expect(await enableInquiryNotifications('d', undefined, storage)).toBe('unsupported');
+  });
+
+  /* Android Chrome은 Notification이 있어도 생성자가 TypeError를 던진다(서비스 워커 알림만 허용). 권한·켜짐만 보고
+     켜면 설정은 '켜짐'인데 실제 알림은 조용히 버려진다. */
+  it('생성자 알림을 막은 브라우저는 권한을 묻지 않고 미지원으로 안내한다', async () => {
+    const storage = memoryStorage();
+    const android = fakeNotification('default', { request: 'granted', constructs: false });
+    expect(inquiryNotificationSupport(android.api)).toBe('default');
+    expect(await enableInquiryNotifications('a', android.api, storage)).toBe('unsupported');
+    expect(android.requestPermission).not.toHaveBeenCalled();
+    expect(inquiryNotificationsEnabled('a', storage)).toBe(false);
+    expect(inquiryNotificationSupport(android.api)).toBe('unsupported');
+  });
+
+  it('이미 허용된 브라우저도 켤 때 시험 알림을 만들어 보고 바로 닫는다', async () => {
+    const storage = memoryStorage();
+    const blocked = fakeNotification('granted', { constructs: false });
+    expect(await enableInquiryNotifications('a', blocked.api, storage)).toBe('unsupported');
+    expect(inquiryNotificationsEnabled('a', storage)).toBe(false);
+    expect(inquiryNotificationSupport(blocked.api)).toBe('unsupported');
+    const desktop = fakeNotification('granted');
+    expect(await enableInquiryNotifications('b', desktop.api, storage)).toBe('granted');
+    expect(inquiryNotificationsEnabled('b', storage)).toBe(true);
+    expect(desktop.created).toHaveLength(1);
+    expect(desktop.created[0]).toMatchObject({ title: '문의 알림을 켰습니다.', closed: true });
+    expect(inquiryNotificationSupport(desktop.api)).toBe('granted');
+  });
+
+  it('새 문의 알림을 띄우고 누르면 문의를 연다. 생성이 막히면 알림을 끄고 미지원 안내로 바꾼다', () => {
+    const desktop = fakeNotification('granted');
+    const onOpen = vi.fn();
+    expect(showInquiryNotification({ id: 'q1', title: '배송 문의' }, onOpen, desktop.api)).toBe(true);
+    expect(desktop.created[0]).toMatchObject({ title: '새 1:1 문의', init: { body: '배송 문의', tag: 'icons-inquiry:q1' }, closed: false });
+    desktop.created[0].instance.onclick?.(new Event('click'));
+    expect(onOpen).toHaveBeenCalledOnce();
+    expect(desktop.created[0].closed).toBe(true);
+    const storage = memoryStorage({ 'icons:admin:inquiry-notifications:v1:a': 'on' });
+    const blocked = fakeNotification('granted', { constructs: false });
+    expect(showInquiryNotification({ id: 'q1', title: '배송 문의' }, onOpen, blocked.api)).toBe(false);
+    markInquiryNotificationsUnsupported('a', blocked.api, storage);
+    expect(inquiryNotificationsEnabled('a', storage)).toBe(false);
+    expect(inquiryNotificationSupport(blocked.api)).toBe('unsupported');
   });
 
   it('설정 화면은 확정 문구로 켜기·끄기와 차단·미지원 안내만 보인다', () => {
@@ -99,6 +165,11 @@ describe('브라우저 권한 요청 (R2)', () => {
     const unsupported = view({ support: 'unsupported' });
     expect(unsupported).toContain('이 브라우저는 알림을 지원하지 않습니다');
     expect(unsupported).toMatch(/<button[^>]*disabled=""[^>]*>문의 알림 받기<\/button>/);
+    /* 켜기를 눌러 미지원·차단으로 확인되면 같은 안내를 두 번 읽히지 않는다. */
+    const pressed = view({ support: 'unsupported', message: '이 브라우저는 알림을 지원하지 않습니다. 크롬·엣지·사파리 최신 버전에서 켜 주세요.' });
+    expect(pressed.match(/이 브라우저는 알림을 지원하지 않습니다/g)).toHaveLength(1);
+    expect(pressed).toContain('<p role="status">이 브라우저는 알림을 지원하지 않습니다');
+    expect(view({ support: 'denied', message: INQUIRY_NOTIFICATION_DENIED }).split(INQUIRY_NOTIFICATION_DENIED)).toHaveLength(2);
   });
 });
 
