@@ -70,7 +70,16 @@ function couponGuideLines({ transactionMode, couponPolicy }: MyCouponsCheckoutRu
   ];
 }
 
-function CouponTicketCard({ held }: { held: UserCouponSummary }) {
+/**
+ * 주문서가 쿠폰을 조합할 수 있는가 — 거래 런타임 주문서의 조합 정책이 중복 사용을 켜고 실제로 두 장 이상(굿즈 쿠폰 여러 장 또는
+ * 굿즈 쿠폰 + 배송비 쿠폰)을 받을 때뿐이다. 운영 주문서(legacy)는 굿즈 쿠폰 1장만 받는다. 안내 줄(couponGuideLines)과 같은 판정이다.
+ */
+function couponCombinationAvailable({ transactionMode, couponPolicy }: MyCouponsCheckoutRules): boolean {
+  if (transactionMode !== 'transaction' || !couponPolicy?.stackingEnabled) return false;
+  return couponPolicy.maxGoodsCoupons > 1 || couponPolicy.shippingEnabled;
+}
+
+function CouponTicketCard({ held, combinable }: { held: UserCouponSummary; combinable: boolean }) {
   const state = couponDisplayState(held);
   const grade = held.coupon.gradeBenefit;
   const gradeBadge = grade && isLoyaltyGrade(grade)
@@ -92,7 +101,8 @@ function CouponTicketCard({ held }: { held: UserCouponSummary }) {
         <div><dt>유효기간</dt><dd>{couponValidityLabel(held)}</dd></div>
         <div><dt>사용조건</dt><dd className="wc-coupon-card__condition">{couponConditionLabel(held.coupon)}</dd></div>
         <div><dt>할인 대상</dt><dd>{held.coupon.benefitKind === 'shipping' ? '선결제 배송비 · 설치비와 착불 제외' : '굿즈 금액'}</dd></div>
-        <div><dt>중복 사용</dt><dd>{held.coupon.stackable ? '허용 · 주문서에서 조합 확인' : '단독 사용'}</dd></div>
+        {/* 조합할 수 없는 주문서에서 '허용 · 주문서에서 조합 확인'은 사실이 아니다 — 조합 가능할 때만 쿠폰별 허용·단독을 보인다. */}
+        {combinable ? <div><dt>중복 사용</dt><dd>{held.coupon.stackable ? '허용 · 주문서에서 조합 확인' : '단독 사용'}</dd></div> : null}
         <div><dt>사용 대상</dt><dd>{couponTargetingLabel(held.coupon)}</dd></div>
       </dl>
       {state === 'ineligible' ? <p>{mapCouponActionError(held.coupon.status === 'archived' ? 'coupon_archived' : held.eligibilityReason ?? 'coupon_not_started')}</p> : null}
@@ -102,6 +112,7 @@ function CouponTicketCard({ held }: { held: UserCouponSummary }) {
 
 export function MyCoupons({ coupons, checkoutRules }: { coupons: UserCouponSummary[] | null; checkoutRules: MyCouponsCheckoutRules }) {
   const [whereLine, targetLine] = couponGuideLines(checkoutRules);
+  const combinable = couponCombinationAvailable(checkoutRules);
   return (
     <MypageShell active="/my/coupons">
       <h1 className="wc-mypage__heading">쿠폰</h1>
@@ -116,7 +127,7 @@ export function MyCoupons({ coupons, checkoutRules }: { coupons: UserCouponSumma
         />
       ) : (
         <ul className="wc-coupon-list">
-          {coupons.map((held) => <CouponTicketCard held={held} key={held.id} />)}
+          {coupons.map((held) => <CouponTicketCard combinable={combinable} held={held} key={held.id} />)}
         </ul>
       )}
       {/* 안내 박스 — 레퍼런스처럼 굵은 소제목 두 묶음(쿠폰 안내 / 취소·반품 안내, 11 §5.4). */}

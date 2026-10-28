@@ -48,6 +48,8 @@ describe('authoritative goods sales quote', () => {
     const blocked = parseGoodsSalesQuote({ ...quote, coupon: { ...coupon, discount: 0, reason: 'coupon_first_purchase_only' } });
     expect(blocked).not.toBeNull();
     expect(goodsSalesQuoteProblem(blocked!)).toContain('쿠폰');
+    // R25 이후 주문서에서도 쿠폰을 바꿀 수 있다 — 장바구니로 돌려보내지 않는다.
+    expect(goodsSalesQuoteProblem(blocked!)).toBe('선택한 쿠폰의 적용 조건이 바뀌었어요. 쿠폰을 다시 선택하거나 적용을 해제해주세요.');
   });
 });
 

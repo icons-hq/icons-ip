@@ -2,6 +2,8 @@ import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import type { Good } from '@/lib/data';
+import { toGood, type GoodRow } from '@/lib/catalog';
+import { pendingRestockState } from '@/lib/wishlist.server';
 import { activeGalleryIndex } from './PdpGallery';
 import {
   CART_ADDED_STATUS,
@@ -263,6 +265,30 @@ describe('purchaseCtaState (PD-10 · DESIGN restock-cta)', () => {
   it('옵션 신청 상태는 그 옵션의 대기 신청만 본다', () => {
     expect(purchaseCtaState({ ...base, restockOption: red, restockVariantIds: ['red'] })).toMatchObject({ requested: true });
     expect(purchaseCtaState({ ...base, restockOption: red, restockVariantIds: ['other'], restockRequested: true })).toMatchObject({ requested: false });
+  });
+});
+
+/* D5② — 랜덤 판매 굿즈의 재입고 신청은 DB(request_variant_restock_alert·request_restock_alert)가 굿즈 단위(variant_id null)로
+   저장한다. 상세의 신청 상태·버튼도 굿즈 단위를 봐야 신청 뒤 '신청됨'이 그대로 보인다. */
+describe('랜덤 판매 굿즈 재입고 알림 상태', () => {
+  const key = '00000000-0000-4000-8000-0000000000b1';
+  const row = (poolQty: number) => ({ id: 'random-restock', ip_id: 'ip1', name: '랜덤 굿즈', type: '문구', price: 5000, compare_at_price: null,
+    stock: poolQty > 0 ? 'ok' : 'soldout', stock_qty: poolQty, bg: '#fff', image_path: null, badge: null, option_sale_mode: 'random', goods_variants: [],
+    random_option: { id: key, name: '랜덤', code: '', price: 5000, stock_qty: poolQty, is_default: true, attributes: {}, archived_at: null, sort_order: 0 } });
+
+  it('풀이 비면 굿즈 전체 품절로 보고 굿즈 단위 신청 상태를 쓴다', () => {
+    const random = toGood(row(0) as unknown as GoodRow, () => '');
+    expect(random.options).toEqual([expect.objectContaining({ id: key, stockQty: 0 })]);
+    expect(isGoodSoldOut(random)).toBe(true);
+    const engagement = pendingRestockState([{ variant_id: null, status: 'pending' }]);
+    expect(purchaseCtaState({ good: random, unavailableLabel: null, soldOut: isGoodSoldOut(random), restockOption: random.options![0], ...engagement }))
+      .toEqual({ kind: 'restock', variantId: null, optionName: null, requested: true });
+  });
+
+  it('풀이 남아 있으면 재입고 대신 담기·구매다', () => {
+    const random = toGood(row(3) as unknown as GoodRow, () => '');
+    expect(isGoodSoldOut(random)).toBe(false);
+    expect(purchaseCtaState({ good: random, unavailableLabel: null, soldOut: false, restockRequested: true, restockVariantIds: [] })).toEqual({ kind: 'buy' });
   });
 });
 

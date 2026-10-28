@@ -33,6 +33,8 @@ export type PlaceOrderErrorCode =
   | 'coupon_rejected'
   | 'store_credit_rejected'
   | 'checkout_changed'
+  /** 견적·표시 뒤 다른 화면에서 장바구니 쿠폰 선택이 바뀌었다(DB `coupon_selection_changed`, PT409). 만든 주문은 없다. */
+  | 'coupon_selection_changed'
   | 'shipping_region_unresolved'
   | 'goods_sale_not_open'
   | 'preorder_sale_not_open'
@@ -248,9 +250,10 @@ export function mapPlaceOrderError(message: unknown): PlaceOrderErrorCode {
   if (/goods_custom_inputs|invalid_goods_custom_inputs/.test(normalized)) return 'goods_custom_inputs_changed';
   if (normalized.includes('goods_purchase_restricted')) return 'goods_purchase_restricted';
   if (normalized.includes('account_suspended')) return 'account_suspended';
-  if (normalized.includes('checkout key conflict') || normalized.includes('coupon_selection_changed')) {
-    return 'checkout_changed';
-  }
+  if (normalized.includes('checkout key conflict')) return 'checkout_changed';
+  /* 표시한 쿠폰과 주문 순간의 선택(cart_coupon_selections)이 다르다 — 대개 다른 탭에서 쿠폰을 바꾼 경우라
+     만든 주문이 없다. 아래 coupon_ 일반 거절보다 먼저 나눈다. */
+  if (normalized.includes('coupon_selection_changed')) return 'coupon_selection_changed';
   if (normalized.includes('shipping_region_')) return 'shipping_region_unresolved';
   if (normalized.includes('store_credit_')) return 'store_credit_rejected';
   for (const code of ['goods_sale_not_open', 'preorder_sale_not_open', 'preorder_capacity_exceeded', 'preorder_policy_not_configured'] as const) {

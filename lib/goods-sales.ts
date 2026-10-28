@@ -200,7 +200,7 @@ export function goodsSalesQuoteProblem(quote: GoodsSalesConditions & { coupon?: 
   /* 옵션별 구매 제한(D7②) — 어느 옵션인지는 품목 줄(quoteLineOptionLimitMessage)이 말한다. */
   const optionReason = quote.lines.find((line) => line.optionLimit?.reason)?.optionLimit?.reason;
   if (optionReason) return PLACE_ORDER_OPTION_LIMIT_MESSAGES[optionReason];
-  if (quote.coupon?.reason) return '선택한 쿠폰의 적용 조건이 바뀌었어요. 장바구니에서 쿠폰을 다시 확인해주세요.';
+  if (quote.coupon?.reason) return '선택한 쿠폰의 적용 조건이 바뀌었어요. 쿠폰을 다시 선택하거나 적용을 해제해주세요.';
   if (quote.lines.length && !quote.paymentMethods.card && !quote.paymentMethods.bankTransfer) {
     return '함께 결제할 수 있는 공통 결제수단이 없어요. 굿즈를 나누어 주문해주세요.';
   }
