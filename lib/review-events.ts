@@ -76,7 +76,8 @@ export function parseReviewEventValues(value: unknown, allowRemovedTargets = fal
 export type ReviewEventField = 'title' | 'description' | 'target' | 'startsOn' | 'endsOn' | 'announcesOn' | 'plannedWinners' | 'creditAmount' | 'creditValidityDays';
 export type ReviewEventFieldErrors = Partial<Record<ReviewEventField | 'form', string>>;
 export interface ReviewEventCreditPolicy { enabled: boolean; maxBalance: number | null; validityDays: number | null }
-export const REVIEW_EVENT_CREDIT_POLICY_OFF = '적립금 정책이 꺼져 있어 리뷰이벤트를 저장할 수 없습니다. 설정 > 적립금 정책에서 켠 뒤 저장하세요.';
+/** 메뉴 경로는 사이드바 그대로다(대분류 > 메뉴). 적립금 정책은 관리자 전용 메뉴라 그렇게 밝힌다 — 매니저는 메뉴가 보이지 않는다. */
+export const REVIEW_EVENT_CREDIT_POLICY_OFF = '적립금 정책이 꺼져 있어 리뷰이벤트를 저장할 수 없습니다. 혜택/마케팅 > 적립금 정책(관리자)에서 켠 뒤 저장하세요.';
 const daysBetween = (from: string, to: string) => Math.round((Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / 86400000);
 const clamp = (value: number, min: number, max: number) => Math.min(max, Math.max(min, value));
 /** 제목·내용 앞뒤 공백 때문에 저장 전체가 실패하지 않도록, 검증 전에 잘라 낸다. 내부 공백은 그대로 둔다. */

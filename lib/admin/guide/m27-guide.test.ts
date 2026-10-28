@@ -8,6 +8,7 @@ import { ADMIN_NAV_GROUPS, ADMIN_SCREENS } from '@/lib/admin/navigation';
 import { shipmentBarcodeGapWarning } from '@/lib/admin/shipment-workbook';
 import { GOODS_HTML_MAX_LENGTH } from '@/lib/goods-description';
 import { RANDOM_OPTION_NOTICE } from '@/lib/goods-option-sale-mode';
+import { REVIEW_EVENT_CREDIT_POLICY_OFF } from '@/lib/review-events';
 import { GOOD_TYPES } from '@/lib/goods-taxonomy';
 import { ORDER_CLAIM_BUYER_REASON_TYPES } from '@/lib/orders/claims';
 import { ADMIN_WEEKLY_CHANGES } from './changes';
@@ -99,6 +100,15 @@ describe('m27 가이드 — 고객문의·상담·리뷰(R1~R6)', () => {
     expect(repoFile('lib/admin/navigation.ts')).toContain("label: '적립금 정책', href: '/admin/settings/store-credits', status: 'ready', adminOnly: true");
     expect(text).toContain('혜택/마케팅 → 적립금 정책');
     expect(text).toContain('보유 상한');
+  });
+
+  it('정책 꺼짐 안내의 메뉴 경로가 실제 사이드바(대분류 > 메뉴, 관리자 전용)와 같다(R6·ADM-2)', () => {
+    const group = ADMIN_NAV_GROUPS.find((item) => item.screens.some((screen) => screen.href === '/admin/settings/store-credits'))!;
+    const screen = group.screens.find((item) => item.href === '/admin/settings/store-credits')!;
+    expect(screen.adminOnly).toBe(true);
+    expect(REVIEW_EVENT_CREDIT_POLICY_OFF).toBe(`적립금 정책이 꺼져 있어 리뷰이벤트를 저장할 수 없습니다. ${group.label} > ${screen.label}(관리자)에서 켠 뒤 저장하세요.`);
+    expect(REVIEW_EVENT_CREDIT_POLICY_OFF).not.toContain('설정 >');
+    expect(text).toContain(`${group.label} → ${screen.label}(관리자)에서 켠 뒤 저장`);
   });
 });
 
