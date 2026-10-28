@@ -34,7 +34,8 @@ export function GoodsOptionSaleModePanel({ goodId, revision, disabled = false }:
   const [current, setCurrent] = useState<GoodsOptionSaleModeState | null>(null);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [selected, setSelected] = useState<GoodsOptionSaleMode | null>(null);
-  const [result, setResult] = useState<{ error?: string; message?: string }>({});
+  /** savedAt: 저장 성공 직후 받은 상태의 수정 시각. 리비전이 바뀌어 다시 읽은 상태가 이 시각이면 방금 저장의 반영이라 문구를 둔다. */
+  const [result, setResult] = useState<{ error?: string; message?: string; savedAt?: string }>({});
   const [pending, setPending] = useState(false);
 
   useEffect(() => {
@@ -45,7 +46,10 @@ export function GoodsOptionSaleModePanel({ goodId, revision, disabled = false }:
         setCurrent(loaded.state);
         setSelected(loaded.state.optionSaleMode);
         setLoadError(null);
-        setResult({});
+        /* 저장하면 서버가 상품 화면을 다시 그리고 수정 시각이 바뀌어 리비전도 바뀐다. 그 재조회가 방금 저장한 상태 그대로면
+           저장 확인 문구를 지우지 않는다. 다른 곳에서 상품이 바뀌었거나 거절 문구였으면 지운다. */
+        const savedAt = loaded.state.updatedAt;
+        setResult((previous) => (previous.message && previous.savedAt === savedAt ? previous : {}));
       } else {
         setLoadError(loaded.error ?? '판매 방식을 불러오지 못했습니다.');
       }
@@ -91,7 +95,7 @@ export function GoodsOptionSaleModePanel({ goodId, revision, disabled = false }:
         await reloadAfterError(saved.error);
         return;
       }
-      setResult({ message: saved.message });
+      setResult({ message: saved.message, savedAt: saved.state?.updatedAt });
       if (saved.state) {
         setCurrent(saved.state);
         setSelected(saved.state.optionSaleMode);

@@ -114,6 +114,49 @@ it('부모가 넘긴 상품 리비전이 바뀌면(기본 정보 저장) 판매 
   expect(hooks.deps[0]).toEqual(['random-main', '2026-10-28T01:20:00+00:00']);
 });
 
+/* 저장하면 서버가 상품 화면을 다시 그리고 goods.updated_at이 바뀌어 부모 리비전도 바뀐다. 그 재조회가 방금 저장한 상태와
+   같으면 저장 확인 문구를 지우지 않는다. 그사이 다른 곳에서 상품이 바뀌었으면 지금처럼 문구를 지우고 새 상태를 보인다. */
+async function saveRandom(savedAt: string) {
+  props = { goodId: 'random-main', revision: `${SELECT_STATE.updatedAt}:0` };
+  await mount();
+  radio('random').props.onChange?.({ target: { value: 'random' } });
+  mocks.save.mockResolvedValueOnce({ message: '랜덤 판매로 바꿨습니다.', state: { ...SELECT_STATE, optionSaleMode: 'random', updatedAt: savedAt } });
+  all(render()).find((element) => element.type === 'form')!.props.onSubmit?.({ preventDefault: () => {} });
+  await settle();
+  expect(text(render())).toContain('랜덤 판매로 바꿨습니다.');
+}
+
+it('저장 뒤 리비전이 바뀌어 다시 읽은 상태가 방금 저장한 상태와 같으면 저장 확인 문구를 유지한다', async () => {
+  const savedAt = '2026-10-28T01:05:00.123456+00:00';
+  await saveRandom(savedAt);
+  mocks.read.mockResolvedValueOnce({ state: { ...SELECT_STATE, optionSaleMode: 'random', updatedAt: savedAt } });
+  props = { goodId: 'random-main', revision: `${savedAt}:0` };
+  await mount();
+  expect(text(render())).toContain('랜덤 판매로 바꿨습니다.');
+  expect(radio('random').props.checked).toBe(true);
+});
+
+it('저장 뒤 다시 읽은 상태가 다른 곳에서 바뀌었으면 저장 확인 문구를 지우고 새 상태를 보인다', async () => {
+  const savedAt = '2026-10-28T01:05:00.123456+00:00';
+  await saveRandom(savedAt);
+  mocks.read.mockResolvedValueOnce({ state: { ...SELECT_STATE, optionSaleMode: 'select', updatedAt: '2026-10-28T01:06:00+00:00' } });
+  props = { goodId: 'random-main', revision: '2026-10-28T01:06:00+00:00:0' };
+  await mount();
+  expect(text(render())).not.toContain('랜덤 판매로 바꿨습니다.');
+  expect(radio('select').props.checked).toBe(true);
+});
+
+it('거절 문구는 리비전이 바뀌어 다시 읽으면 지운다', async () => {
+  await mount();
+  radio('random').props.onChange?.({ target: { value: 'random' } });
+  mocks.save.mockResolvedValueOnce({ error: '판매 방식을 바꾸지 못했습니다. 잠시 후 다시 시도하세요.' });
+  all(render()).find((element) => element.type === 'form')!.props.onSubmit?.({ preventDefault: () => {} });
+  await settle();
+  expect(text(render())).toContain('바꾸지 못했습니다');
+  await mount();
+  expect(text(render())).not.toContain('바꾸지 못했습니다');
+});
+
 it('운영자 안내는 고객에게 숨는 범위만 말한다(교환 재발송 옵션은 고객에게 안내된다)', () => {
   const note = text(render());
   expect(note).not.toContain('끝까지');
