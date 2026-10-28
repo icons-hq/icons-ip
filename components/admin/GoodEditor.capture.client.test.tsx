@@ -9,7 +9,14 @@ vi.mock('react', async () => ({ ...await vi.importActual<typeof import('react')>
   useState: (initial: unknown) => { const index = hooks.index++; if (!(index in hooks.values)) hooks.values[index] = typeof initial === 'function' ? initial() : initial; return [hooks.values[index], (value: unknown) => { hooks.values[index] = typeof value === 'function' ? value(hooks.values[index]) : value; }]; },
   useRef: (initial: unknown) => { const index = hooks.index++; return hooks.values[index] ??= { current: initial }; },
   useCallback: (callback: unknown) => callback,
-  useMemo: (factory: () => unknown) => factory(),
+  /* 의존값이 그대로면 이전 값을 돌려준다(R19 미리보기 재계산 검증). */
+  useMemo: (factory: () => unknown, deps: unknown[]) => {
+    const index = hooks.index++;
+    const slot = hooks.values[index] as { deps: unknown[]; value: unknown } | undefined;
+    if (slot && slot.deps.length === deps.length && slot.deps.every((dep, position) => Object.is(dep, deps[position]))) return slot.value;
+    const value = factory(); hooks.values[index] = { deps, value }; return value;
+  },
+  useDeferredValue: (value: unknown) => value,
   /* 편집기 밖 provider(등록 화면 섹션·펼침 상태)가 없는 단독 렌더다. */
   useContext: () => null,
   useEffect: (callback: () => void) => { hooks.jobs.push(callback); },
@@ -19,8 +26,21 @@ vi.mock('./useAdminLocalAutosave', () => ({ useAdminLocalAutosave: () => ({ snap
   onSubmitCapture: mocks.submit, saveDraft: mocks.saveLocal, discard: vi.fn(), restore: vi.fn(),
 }) }));
 vi.mock('@/app/admin/goods-draft-actions', () => ({ saveGoodsDraftAction: mocks.saveServer }));
+const sanitize = vi.hoisted(() => ({ spy: null as null | ReturnType<typeof vi.fn> }));
+const preview = vi.hoisted(() => ({ spy: null as null | ReturnType<typeof vi.fn> }));
+vi.mock('@/lib/admin/good-editor', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/admin/good-editor')>('@/lib/admin/good-editor');
+  preview.spy = vi.fn(actual.buildGoodEditorPreview);
+  return { ...actual, buildGoodEditorPreview: preview.spy };
+});
+vi.mock('@/lib/goods-description', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/goods-description')>('@/lib/goods-description');
+  sanitize.spy = vi.fn(actual.sanitizeGoodsDescription);
+  return { ...actual, sanitizeGoodsDescription: sanitize.spy };
+});
 import { GoodEditor } from './GoodEditor';
 import { GoodsAttributeEditor } from './GoodsAttributeEditor';
+import { GoodsImageGrid } from './GoodsImageGrid';
 import { createGoodEditorDraft } from '@/lib/admin/good-editor';
 
 type Element = ReactElement<Record<string, unknown>>;
@@ -88,4 +108,22 @@ it('외부 잠금 중 프로그램 제출과 서버 초안 임시저장을 막�
   expect(preventDefault).toHaveBeenCalledOnce(); expect(mocks.submit).not.toHaveBeenCalled();
   const save = tree.find(node => node.type === 'button' && text(node.props.children as ReactNode) === '임시저장')!;
   await (save.props.onClick as () => Promise<void>)(); expect(mocks.saveServer).not.toHaveBeenCalled(); expect(h.reads).not.toHaveBeenCalled();
+});
+
+/* 10/27 회의 R19 — 업로드 진행·안내 같은 상태 변화마다 상세 HTML 정리와 공개 미리보기를 다시 만들지 않는다. */
+it('입력이 그대로면 다시 그려도 상세 HTML 정리·미리보기를 다시 계산하지 않고, 같은 이미지 알림은 상태를 바꾸지 않는다', () => {
+  const htmlGood = { ...good, descriptionFormat: 'html' as const, description: '<p>저장된 본문</p>' };
+  const h = setup(false, false, htmlGood);
+  expect(sanitize.spy).toHaveBeenCalled();
+  sanitize.spy!.mockClear(); preview.spy!.mockClear();
+  let tree = h.render(); tree = h.render();
+  expect(sanitize.spy).not.toHaveBeenCalled();
+  expect(preview.spy).not.toHaveBeenCalled();
+  const notify = tree.find(node => node.type === GoodsImageGrid)!.props.onPreviewChange as (name: string, url: string | null) => void;
+  notify('imagePath', htmlGood.imageUrl!); notify('galleryPath0', null); tree = h.render();
+  expect(preview.spy).not.toHaveBeenCalled();
+  notify('imagePath', 'blob:new-preview'); tree = h.render();
+  expect(preview.spy).toHaveBeenCalledOnce();
+  h.entries.set('description', '<p>바뀐 본문</p>'); h.capture(); h.render();
+  expect(sanitize.spy).toHaveBeenCalled();
 });

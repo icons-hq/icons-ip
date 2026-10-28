@@ -8,7 +8,7 @@ import type { GoodShippingRegionSummary } from '@/lib/admin/good-shipping-summar
 import type { AdminCategoryNode } from '@/lib/admin/category';
 import type { GoodsShippingNoticeOption } from '@/components/admin/GoodsShippingNoticeField';
 
-import { useCallback, useEffect, useRef, useState, type FormEvent, type Dispatch, type SetStateAction } from 'react';
+import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type FormEvent, type Dispatch, type SetStateAction } from 'react';
 import type { AdminCatalogActionState } from '@/app/admin/actions';
 import { GOODS_DESCRIPTION_MAX_LENGTH, GOODS_GALLERY_MAX } from '@/lib/admin/catalog';
 import type { AdminGoodRecord } from '@/lib/admin/catalog.server';
@@ -118,7 +118,8 @@ function GoodsNoticeFields({
  * 조건이 첫 수정에서 깨진다. `embedded` 가 구매 패널·위시 하트를 비활성으로 그려
  * 미리보기가 장바구니나 카탈로그를 건드리지 않게 한다.
  */
-function GoodPreviewPanel({ detail, ip, shippingPolicy }: { detail: GoodDetailContent; ip: Ip | null; shippingPolicy?: GoodShippingPolicy | null }) {
+/* R19: 미리보기 입력(detail·ip·배송 정책)이 그대로면 편집기의 다른 상태 변화에 다시 그리지 않는다. */
+const GoodPreviewPanel = memo(function GoodPreviewPanel({ detail, ip, shippingPolicy }: { detail: GoodDetailContent; ip: Ip | null; shippingPolicy?: GoodShippingPolicy | null }) {
   const good = detail.good;
   /* 아직 저장하지 않은 신규 굿즈는 갈 곳이 없다 — 없는 상세로 보내는 대신 목록으로 둔다. */
   const href = good.id ? `/shop/${good.id}` : '/shop';
@@ -158,12 +159,14 @@ function GoodPreviewPanel({ detail, ip, shippingPolicy }: { detail: GoodDetailCo
       </div>
     </details>
   );
-}
+});
 
 function OwnedFields({ locked, fields, values, children }: { locked: boolean; fields: readonly string[]; values: Record<string,string>; children: ReactNode }) {
   return <><fieldset disabled={locked} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>{children}</fieldset>
     {locked ? fields.map(name => <input key={name} type="hidden" name={name} value={values[name] ?? ''} />) : null}</>;
 }
+/** R21(D9①): 그룹상품 등록 진입점은 숨기고 라우트·권한은 유지한다. */
+const GROUP_GOODS_ENTRY_VISIBLE = false;
 const SHARED_SHIPPING_FIELDS = ['originId','shippingFeeType','individualFee'];
 const SHARED_QUANTITY_FIELDS = ['orderQuantityLimitEnabled','minOrderQty','maxOrderQty','memberPurchaseLimitEnabled','memberLifetimeQtyLimit'];
 
@@ -364,7 +367,8 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
     input.dispatchEvent(new Event('input', { bubbles: true }));
     input.focus();
   }
-  function setImageUrl(name: string, url: string | null) { setImageUrls((current) => ({ ...current, [name]: url })); }
+  /* 이미지 그리드는 커밋마다 모든 칸을 알린다(R19). 바뀐 칸이 없으면 같은 상태를 돌려 편집기 전체를 다시 그리지 않는다. */
+  function setImageUrl(name: string, url: string | null) { setImageUrls((current) => current[name] === url ? current : { ...current, [name]: url }); }
   function applyNotice(notice: GoodsNoticeInfo,kcTemplate?:GoodsKcPresetTemplate|null) {
     const form = editorRef.current;
     if (!form) return;
@@ -375,17 +379,32 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
     // Omitted means notice-only copy; explicit null cancels a queued classification.
     if (kcTemplate !== undefined) onApplyKcTemplate?.(kcTemplate);
   }
-  const { origin: previewOrigin, ip: previewIp, detail: previewDetail, shippingPolicy } = buildGoodEditorPreview({
-    values, imageUrls, selected, catalogIps, origins, shippingNoticeOptions,
-  });
+  /*
+   * 공개 미리보기·상세 HTML 정리는 무겁다(R19). 입력과 무관한 상태 변화(오류·안내·업로드 진행)에는 다시 계산하지 않고,
+   * 입력 변화도 지연 값으로 받아 입력칸 응답을 먼저 그린 뒤 미리보기를 낮은 우선순위로 다시 그린다.
+   */
+  const previewValues = useDeferredValue(values);
+  const previewImageUrls = useDeferredValue(imageUrls);
+  const { origin: previewOrigin, ip: previewIp, detail: previewDetail, shippingPolicy } = useMemo(() => buildGoodEditorPreview({
+    values: previewValues, imageUrls: previewImageUrls, selected, catalogIps, origins, shippingNoticeOptions,
+  }), [previewValues, previewImageUrls, selected, catalogIps, origins, shippingNoticeOptions]);
+  const previewWithAttributes = useMemo(() => ({ ...previewDetail, attributes: attributePreview }), [previewDetail, attributePreview]);
   const notice = Object.fromEntries(GOODS_NOTICE_FIELDS.map((field) => [field.key, initial[field.formName]])) as GoodsNoticeInfo;
   const htmlDescription = values.descriptionFormat === 'html';
-  const descriptionCheck = htmlDescription ? sanitizeGoodsDescription(values.description ?? '') : null;
-  const descriptionWarnings = descriptionCheck ? [...descriptionCheck.warnings, ...(descriptionCheck.html.length > GOODS_HTML_MAX_LENGTH ? [goodsHtmlCleanedLengthWarning(descriptionCheck.html.length)] : [])] : [];
+  const previewHtmlDescription = previewValues.descriptionFormat === 'html';
+  const previewDescription = previewValues.description;
+  const descriptionCheck = useMemo(() => previewHtmlDescription ? sanitizeGoodsDescription(previewDescription ?? '') : null, [previewHtmlDescription, previewDescription]);
+  /* R17: 붙여넣기가 잘리지 않게 글자 수 제한을 두지 않는다. 상한(lib/goods-description)을 넘으면 저장 전에 알린다(서버도 같은 상한으로 거절한다). */
+  const rawDescriptionLength = values.description?.length ?? 0;
+  const descriptionWarnings = [
+    ...(htmlDescription && rawDescriptionLength > GOODS_HTML_MAX_LENGTH ? [`원문이 ${rawDescriptionLength.toLocaleString('ko-KR')}자로 최대 ${GOODS_HTML_MAX_LENGTH.toLocaleString('ko-KR')}자를 넘어 저장할 수 없습니다. 붙여넣은 내용은 잘리지 않고 그대로 있으니 줄여주세요.`] : []),
+    ...(htmlDescription && descriptionCheck ? [...descriptionCheck.warnings, ...(descriptionCheck.html.length > GOODS_HTML_MAX_LENGTH ? [goodsHtmlCleanedLengthWarning(descriptionCheck.html.length)] : [])] : []),
+  ];
   const errorCount = (key: string) => GOOD_EDITOR_SECTIONS.find((section) => section.key === key)?.fields.filter((field) => errors[field]).length ?? 0;
   return <>
     <nav className="admin-good-editor-tabs" aria-label="상품 등록 방식"><span aria-current="page">{selected ? '상품 수정' : '상품 등록'}</span>
-      {!selected ? <Link href="/admin/catalog/groups/new?mode=assemble" aria-disabled={pending || draftBusy} onNavigate={event => {
+      {/* R21(D9①): 그룹상품 등록은 메뉴·탭에서 숨기고 라우트(/admin/catalog/groups/new)만 유지한다. 되살리려면 GROUP_GOODS_ENTRY_VISIBLE을 켠다. */}
+      {GROUP_GOODS_ENTRY_VISIBLE && !selected ? <Link href="/admin/catalog/groups/new?mode=assemble" aria-disabled={pending || draftBusy} onNavigate={event => {
         if (pending || draftBusy || dirty && !window.confirm('저장하지 않은 상품 입력을 두고 그룹상품 등록으로 이동할까요?')) event.preventDefault();
       }}>그룹상품 등록</Link> : null}
       <small><span aria-hidden="true">*</span> 필수항목</small></nav>
@@ -430,7 +449,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
       <GoodEditorSection title="상품이미지" id="good-section-images" requirement="대표이미지 · 공개 필수 / 추가이미지 · 선택" summary={`대표이미지 ${values.imagePath ? '등록됨' : '미등록'} · 추가이미지 ${Array.from({ length: GOODS_GALLERY_MAX }, (_, i) => values[`galleryPath${i}`]).filter(Boolean).length}장`} errorCount={errorCount('images')}>
         <GoodsImageGrid accountId={accountId} recordId={selected?.id ?? 'new'} editingDisabled={pending || draftBusy || Boolean(selected?.archivedAt)} errors={errors} initialPaths={GOODS_IMAGE_FIELD_NAMES.map((name) => initial[name])} initialUrls={GOODS_IMAGE_FIELD_NAMES.map((name) => imageUrls[name])} onPreviewChange={setImageUrl} />      </GoodEditorSection>
       <GoodEditorSection title="상세설명" id="good-section-description" summary={values.description ? '상세설명 작성됨' : '입력 안 함'} errorCount={errorCount('description')}>
-        <OwnedFields locked={groupOwned} fields={['description','descriptionFormat']} values={initial}><GoodOptionalFields title="상세설명 편집" summary={descriptionCheck ? `상세페이지 HTML · 원문 ${(values.description?.length ?? 0).toLocaleString('ko-KR')}자 · 정리 후 ${descriptionCheck.html.length.toLocaleString('ko-KR')}자` : `일반 텍스트 · ${values.description?.length || 0}자`} hasErrors={Boolean(errors.description || errors.descriptionFormat)}>
+        <OwnedFields locked={groupOwned} fields={['description','descriptionFormat']} values={initial}><GoodOptionalFields title="상세설명 편집" summary={htmlDescription && descriptionCheck ? `상세페이지 HTML · 원문 ${(values.description?.length ?? 0).toLocaleString('ko-KR')}자 · 정리 후 ${descriptionCheck.html.length.toLocaleString('ko-KR')}자` : `일반 텍스트 · ${values.description?.length || 0}자`} hasErrors={Boolean(errors.description || errors.descriptionFormat)}>
         <SelectField defaultValue={initial.descriptionFormat} error={errors.descriptionFormat} label="상세 설명 형식" name="descriptionFormat"><option value="plain">일반 텍스트</option><option value="html">HTML 문서 (상세페이지 소스)</option></SelectField>
         <p className="muted">형식을 바꿔도 입력 원문은 유지됩니다. 일반 텍스트에서는 태그도 글자로 표시됩니다.</p>
         <div className="admin-goods-html-tools" hidden={!htmlDescription}>
@@ -443,7 +462,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
           </div>
           <GoodsDescriptionTools accountId={accountId} formRef={editorRef} disabled={groupOwned || !htmlDescription || pending || draftBusy || Boolean(selected?.archivedAt)} />
         </div>
-        <TextArea defaultValue={initial.description} error={errors.description} label={htmlDescription ? '상세페이지 HTML (정리된 코드 포함 최대 30,000자)' : '상세 설명 (최대 2,000자)'} maxLength={htmlDescription ? GOODS_HTML_MAX_LENGTH : GOODS_DESCRIPTION_MAX_LENGTH} name="description" placeholder={htmlDescription ? '<h2>상품 특징</h2><p>상세 내용을 입력해주세요.</p>' : adminGoodsCopy('굿즈 구성과 특징을 짧게 설명해주세요.')} />
+        <TextArea defaultValue={initial.description} error={errors.description} label={htmlDescription ? `상세페이지 HTML (정리된 코드 포함 최대 ${GOODS_HTML_MAX_LENGTH.toLocaleString('ko-KR')}자)` : '상세 설명 (최대 2,000자)'} maxLength={htmlDescription ? undefined : GOODS_DESCRIPTION_MAX_LENGTH} name="description" placeholder={htmlDescription ? '<h2>상품 특징</h2><p>상세 내용을 입력해주세요.</p>' : adminGoodsCopy('굿즈 구성과 특징을 짧게 설명해주세요.')} />
         {descriptionWarnings.length > 0 && <div className="admin-goods-html-review" role="status"><p>저장 전 확인: 입력 원문은 편집기에 남아 있으며 아래 미리보기의 결과가 저장됩니다.</p><ul>{descriptionWarnings.map((warning) => <li key={warning}>{warning}</li>)}</ul></div>}
         <fieldset className="admin-goods-html-tools" disabled={!htmlDescription} hidden={!htmlDescription}>
           <ArtworkUploadField autoUpload allowRemove currentPath={initial.descriptionUploadPath || null} currentUrl={initial.descriptionUploadPath ? publicMediaUrl(initial.descriptionUploadPath) : null} fieldId="good-description-image" helpText="이미지 검증이 끝나면 대체 설명을 적고 설명에 넣기를 누릅니다. HTML 본문에는 최대 20장을 넣을 수 있습니다." kind="good" label="HTML 이미지 업로드" name="descriptionUploadPath" />
@@ -523,7 +542,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
       if (dirty && !window.confirm('현재 입력을 선택한 임시저장 내용으로 바꾸시겠습니까? 저장하지 않은 입력은 이 화면에서 사라집니다.')) return false;
       onLoadServerDraft(loaded); return true;
     }}/> : null}
-    <GoodPreviewPanel detail={{...previewDetail,attributes:attributePreview}} ip={previewIp} shippingPolicy={shippingPolicy} />
+    <GoodPreviewPanel detail={previewWithAttributes} ip={previewIp} shippingPolicy={shippingPolicy} />
   </>;
 }
 

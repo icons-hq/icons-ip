@@ -2,7 +2,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import type { AdminGoodRecord } from '@/lib/admin/catalog.server';
 import type { Ip } from '@/lib/data';
-import { sanitizeGoodsDescription } from '@/lib/goods-description';
+import { GOODS_HTML_MAX_LENGTH, sanitizeGoodsDescription } from '@/lib/goods-description';
 import { GOODS_NOTICE_FIELDS } from '@/lib/goods-notice';
 import { GOOD_BADGES, GOOD_TYPES } from '@/lib/goods-taxonomy';
 import { GoodSection } from './GoodSection';
@@ -462,14 +462,34 @@ describe('GoodSection', () => {
   /* 리뷰 재현: 요약이 원문 길이만 보여 줘 정리된 코드가 30,000자를 넘어 저장이 거부될 때 이유를 알 수 없었다. */
   it('상세페이지 HTML 요약에 정리 후 길이를 함께 보여주고, 정리 결과가 상한을 넘으면 저장 전에 알린다', () => {
     const images = Array.from({ length: 100 }, (_, index) => `<img src="https://img.example.com/${index}.jpg">`).join('');
-    const description = `<p>${'가'.repeat(25000)}</p>${images}`;
+    const description = `<p>${'가'.repeat(GOODS_HTML_MAX_LENGTH - 5000)}</p>${images}`;
     const html = renderGoodSection(good, { attempt: 1, values: { previousId: good.id, descriptionFormat: 'html', description } });
     const cleaned = sanitizeGoodsDescription(description).html.length;
 
-    expect(description.length).toBeLessThanOrEqual(30000);
-    expect(cleaned).toBeGreaterThan(30000);
+    expect(description.length).toBeLessThanOrEqual(GOODS_HTML_MAX_LENGTH);
+    expect(cleaned).toBeGreaterThan(GOODS_HTML_MAX_LENGTH);
     expect(html).toContain(`상세페이지 HTML · 원문 ${description.length.toLocaleString('ko-KR')}자 · 정리 후 ${cleaned.toLocaleString('ko-KR')}자`);
-    expect(html).toContain(`정리된 코드가 ${cleaned.toLocaleString('ko-KR')}자로 최대 30,000자를 넘어 저장할 수 없습니다.`);
+    expect(html).toContain(`정리된 코드가 ${cleaned.toLocaleString('ko-KR')}자로 최대 ${GOODS_HTML_MAX_LENGTH.toLocaleString('ko-KR')}자를 넘어 저장할 수 없습니다.`);
+  });
+
+  /* 10/27 회의 R17 — 붙여넣은 상세 HTML이 잘리지 않게 글자 수 제한(maxLength)을 두지 않고, 상한은 공용 상수로 표시·경고한다. */
+  it('상세 HTML 입력은 잘리지 않고 상한을 넘으면 저장 전에 경고한다', () => {
+    const description = `<p>${'가'.repeat(GOODS_HTML_MAX_LENGTH + 10)}</p>`;
+    const html = renderGoodSection(good, { attempt: 1, values: { previousId: good.id, descriptionFormat: 'html', description } });
+    const textarea = html.match(/<textarea[^>]*name="description"[^>]*>/)?.[0];
+    expect(textarea).toBeDefined();
+    expect(textarea).not.toContain('maxLength');
+    expect(html).toContain(`상세페이지 HTML (정리된 코드 포함 최대 ${GOODS_HTML_MAX_LENGTH.toLocaleString('ko-KR')}자)`);
+    expect(html).toContain(`원문이 ${description.length.toLocaleString('ko-KR')}자로 최대 ${GOODS_HTML_MAX_LENGTH.toLocaleString('ko-KR')}자를 넘어 저장할 수 없습니다.`);
+    expect(renderGoodSection(good).match(/<textarea[^>]*name="description"[^>]*>/)?.[0]).toContain('maxLength="2000"');
+  });
+
+  /* 10/27 회의 R21(D9①) — 그룹상품 등록은 메뉴·탭에서 숨기고 라우트만 유지한다. */
+  it('등록 화면 탭에 그룹상품 등록 링크를 두지 않는다', () => {
+    const html = renderGoodSection(null);
+    expect(html).toContain('상품 등록');
+    expect(html).not.toContain('groups/new?mode=assemble');
+    expect(html).not.toContain('그룹상품 등록</a>');
   });
 
   it('prefills gallery slots in stored order and keeps the detail image', () => {
