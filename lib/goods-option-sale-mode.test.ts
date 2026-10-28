@@ -2,9 +2,63 @@ import { describe, expect, it } from 'vitest';
 import {
   goodsOptionLimitMessage,
   goodsOptionLimitNotices,
+  goodsOptionSaleModeErrorMessage,
+  isGoodsOptionSaleMode,
+  maskCustomerOrderItem,
   parseGoodsOptionLimit,
+  parseGoodsOptionSaleModeState,
   PLACE_ORDER_OPTION_LIMIT_MESSAGES,
+  PLACE_ORDER_RANDOM_OPTION_MESSAGE,
+  RANDOM_OPTION_LABEL,
+  RANDOM_OPTION_NOTICE,
+  RANDOM_OPTION_PROBLEMS,
 } from './goods-option-sale-mode';
+
+describe('랜덤 판매 계약', () => {
+  it('판매 방식은 select·random 두 값이다', () => {
+    expect(isGoodsOptionSaleMode('select')).toBe(true);
+    expect(isGoodsOptionSaleMode('random')).toBe(true);
+    expect(isGoodsOptionSaleMode('lucky')).toBe(false);
+    expect(isGoodsOptionSaleMode(null)).toBe(false);
+  });
+
+  it('고객 표기는 확정 카피를 쓴다', () => {
+    expect(RANDOM_OPTION_LABEL).toBe('랜덤');
+    expect(RANDOM_OPTION_NOTICE).toBe('옵션은 주문 후 재고에서 무작위로 정해져 발송됩니다. 같은 옵션이 중복될 수 있습니다.');
+    expect(PLACE_ORDER_RANDOM_OPTION_MESSAGE).toContain('장바구니');
+  });
+
+  it('운영자 조회 결과를 읽는다', () => {
+    const state = { goodId: 'random-main', optionSaleMode: 'select', updatedAt: '2026-10-28T01:00:00+00:00', randomProblem: 'random_option_price_mismatch', activeOptionCount: 3 };
+    expect(parseGoodsOptionSaleModeState(state)).toEqual(state);
+    expect(parseGoodsOptionSaleModeState({ ...state, randomProblem: null })?.randomProblem).toBeNull();
+    expect(parseGoodsOptionSaleModeState({ ...state, optionSaleMode: 'lucky' })).toBeNull();
+    expect(parseGoodsOptionSaleModeState({ ...state, randomProblem: 'unknown_code' })).toBeNull();
+    expect(parseGoodsOptionSaleModeState({ ...state, updatedAt: 'not-a-date' })).toBeNull();
+  });
+
+  it('DB 사유 코드마다 운영자 문구가 있고, 메시지 접두로도 찾는다', () => {
+    for (const code of RANDOM_OPTION_PROBLEMS) expect(goodsOptionSaleModeErrorMessage(code)).toMatch(/[가-힣]/);
+    expect(goodsOptionSaleModeErrorMessage('random_option_price_mismatch')).toContain('판매가');
+    expect(goodsOptionSaleModeErrorMessage('ERROR: random_option_variant_limits')).toBe(goodsOptionSaleModeErrorMessage('random_option_variant_limits'));
+    expect(goodsOptionSaleModeErrorMessage('goods_changed')).toContain('다른 곳에서');
+    expect(goodsOptionSaleModeErrorMessage('operator_capability_required')).toContain('권한');
+    expect(goodsOptionSaleModeErrorMessage('sensitive failure')).toBe('판매 방식을 바꾸지 못했습니다. 잠시 후 다시 시도하세요.');
+  });
+});
+
+describe('maskCustomerOrderItem', () => {
+  const row = { id: 'item-1', variant_id: 'allocated', variant_name_snapshot: 'C', variant_code_snapshot: 'RANDOM-C', option_sale_mode_snapshot: 'random' as const };
+
+  it('service role로 읽은 랜덤 행을 고객 표기로 바꾼다', () => {
+    expect(maskCustomerOrderItem(row, 'cart-key')).toEqual({ id: 'item-1', variant_id: 'cart-key', variant_name_snapshot: '랜덤', variant_code_snapshot: null, option_sale_mode_snapshot: 'random' });
+  });
+
+  it('랜덤이 아닌 행은 그대로 둔다', () => {
+    const plain = { ...row, option_sale_mode_snapshot: null };
+    expect(maskCustomerOrderItem(plain, 'cart-key')).toBe(plain);
+  });
+});
 
 describe('parseGoodsOptionLimit', () => {
   it('견적 line.optionLimit을 그대로 읽는다', () => {

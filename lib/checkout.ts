@@ -27,6 +27,8 @@ export type PlaceOrderErrorCode =
   /** 옵션별 구매 제한(D7②). DB `option_order_limit_exceeded: <variantId>`·`option_member_limit_exceeded: <variantId>`. */
   | 'option_order_limit_exceeded'
   | 'option_member_limit_exceeded'
+  /** 랜덤 판매 굿즈(D5②)의 배정 조건이 주문 순간 깨졌다(옵션 가격 불일치·판매 방식 변경 등). 재고 부족은 out_of_stock. */
+  | 'random_option_unavailable'
   | 'restricted_good_blocked'
   | 'coupon_rejected'
   | 'store_credit_rejected'
@@ -262,6 +264,9 @@ export function mapPlaceOrderError(message: unknown): PlaceOrderErrorCode {
   /* 옵션별 구매 제한(주문당·1인 누적)은 order_items 트리거가 막는다. 상품 단위 코드와 이름이 겹치지 않는다. */
   for (const code of ['option_order_limit_exceeded', 'option_member_limit_exceeded'] as const) {
     if (normalized.includes(code)) return code;
+  }
+  if (normalized.includes('random_option_unavailable') || normalized.includes('random_option_checkout_unsupported')) {
+    return 'random_option_unavailable';
   }
   for (const code of ['purchase_limit_not_configured', 'order_quantity_below_minimum', 'order_quantity_above_maximum', 'member_purchase_limit_exceeded'] as const) {
     if (normalized.includes(code)) return code;

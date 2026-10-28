@@ -118,6 +118,12 @@ describe('checkout copy and safe errors', () => {
     expect(mapPlaceOrderError('order_quantity_above_maximum: good-id')).toBe('order_quantity_above_maximum');
     expect(mapPlaceOrderError('member_purchase_limit_exceeded: good-id')).toBe('member_purchase_limit_exceeded');
   });
+
+  it('랜덤 판매 굿즈를 주문할 수 없게 된 경우를 재고 변경과 나눈다', () => {
+    expect(mapPlaceOrderError('random_option_unavailable: good-id')).toBe('random_option_unavailable');
+    expect(mapPlaceOrderError('random_option_checkout_unsupported: good-id')).toBe('random_option_unavailable');
+    expect(mapPlaceOrderError('out of stock: good-id')).toBe('out_of_stock');
+  });
 });
 
 describe('checkoutOrderState', () => {
