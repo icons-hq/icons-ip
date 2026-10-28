@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseGoodShippingPolicy, parseShippingNoticeSnapshot, parseShippingQuote, parseShippingQuoteItems, shippingGroupLabel, shippingPolicyDescription } from './fulfillment';
+import { parseGoodShippingPolicy, parseShippingNoticeSnapshot, parseShippingQuote, parseShippingQuoteItems, shipmentGroupLabel, shippingGroupLabel, shippingGroupsNotice, shippingPolicyDescription } from './fulfillment';
 
 describe('shipping quote contract', () => {
   it('accepts server groups and rejects inconsistent or missing totals', () => {
@@ -39,7 +39,39 @@ it('requires a canonical option UUID before quoting a cart', () => {
   expect(parseGoodShippingPolicy({ ...policy, cs: { name: 42 } })).toBeNull();
 });
 
-it('names customer delivery bundles without origin names and drops the number for a single bundle', () => {
-  expect(shippingGroupLabel(0, 1)).toBe('배송 묶음');
-  expect([0, 1].map(index => shippingGroupLabel(index, 2))).toEqual(['배송 묶음 1', '배송 묶음 2']);
+/* R26(D4①): 고객 화면 배송 묶음 이름은 출고지 기본 택배사다. 출고지 이름(김포·남양주)은 여전히 내지 않는다. */
+describe('배송 묶음 이름', () => {
+  const hanjin = { carrierLabel: '한진택배' }, epost = { carrierLabel: '우체국택배' }, none = { carrierLabel: null };
+  it('택배사 이름으로 부르고, 같은 택배사 묶음이 둘 이상일 때만 번호를 붙인다', () => {
+    expect(shippingGroupLabel([hanjin], 0)).toBe('한진택배 배송');
+    expect([0, 1].map(index => shippingGroupLabel([hanjin, epost], index))).toEqual(['한진택배 배송', '우체국택배 배송']);
+    expect([0, 1, 2].map(index => shippingGroupLabel([hanjin, epost, hanjin], index))).toEqual(['한진택배 배송 1', '우체국택배 배송', '한진택배 배송 2']);
+  });
+  it('택배사를 모르면 택배 배송으로 부르고, 그런 묶음이 둘 이상이면 번호를 붙인다', () => {
+    expect(shippingGroupLabel([none], 0)).toBe('택배 배송');
+    expect(shippingGroupLabel([{}], 0)).toBe('택배 배송');
+    expect(shippingGroupLabel([{ carrierLabel: '  ' }], 0)).toBe('택배 배송');
+    expect([0, 1, 2].map(index => shippingGroupLabel([none, hanjin, none], index))).toEqual(['택배 배송 1', '한진택배 배송', '택배 배송 2']);
+  });
+  it('주문 상세는 배송 건의 택배사를 알면 같은 규칙, 모르면 기존 배송 묶음 번호를 쓴다', () => {
+    expect(shipmentGroupLabel([none], 0)).toBe('배송 묶음');
+    expect([0, 1].map(index => shipmentGroupLabel([none, none], index))).toEqual(['배송 묶음 1', '배송 묶음 2']);
+    expect([0, 1].map(index => shipmentGroupLabel([hanjin, none], index))).toEqual(['한진택배 배송', '배송 묶음 2']);
+    expect([0, 1].map(index => shipmentGroupLabel([hanjin, hanjin], index))).toEqual(['한진택배 배송 1', '한진택배 배송 2']);
+  });
+  it('묶음이 둘 이상이면 배송비가 따로 계산되는 이유를 한 줄로 알린다', () => {
+    expect(shippingGroupsNotice([hanjin])).toBeNull();
+    expect(shippingGroupsNotice([hanjin, epost])).toBe('택배사가 달라 배송비가 각각 계산됩니다.');
+    /* 택배사가 같거나 모르면 '택배사가 달라'는 사실이 아니다 — 묶음별 계산만 알린다. */
+    expect(shippingGroupsNotice([hanjin, hanjin])).toBe('배송 묶음마다 배송비가 각각 계산됩니다.');
+    expect(shippingGroupsNotice([hanjin, none])).toBe('배송 묶음마다 배송비가 각각 계산됩니다.');
+  });
+});
+
+it('견적 묶음의 택배사 이름은 문자열이거나 null 이다', () => {
+  const group={originId:'00000000-0000-4000-8000-000000042201',originCode:'gimpo',originName:'김포',policySubtotal:20000,baseFee:3000,freeThreshold:50000,policyFee:3000,individualFee:0,totalFee:3000};
+  expect(parseShippingQuote({totalFee:3000,groups:[{...group,carrierLabel:'한진택배'}]})?.groups[0].carrierLabel).toBe('한진택배');
+  expect(parseShippingQuote({totalFee:3000,groups:[{...group,carrierLabel:null}]})?.groups[0].carrierLabel).toBeNull();
+  expect(parseShippingQuote({totalFee:3000,groups:[group]})).not.toBeNull();
+  expect(parseShippingQuote({totalFee:3000,groups:[{...group,carrierLabel:42}]})).toBeNull();
 });

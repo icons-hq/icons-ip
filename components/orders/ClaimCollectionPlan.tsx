@@ -6,7 +6,7 @@ import { ClaimContactSession, type ClaimContactIdentity, type ClaimContactScope 
 import { COLLECTION_METHODS, normalizeClaimCollectionValues, type ClaimCollectionDocument, type ClaimCollectionRow, type ClaimCollectionValues, type CollectionMethod } from '@/lib/orders/claim-collection';
 import type { ShippingCarrierRegistry } from '@/lib/orders/shipment';
 import { formatOrderDateTime } from '@/lib/orders';
-import { shippingGroupLabel } from '@/lib/fulfillment';
+import { numberedShippingGroupLabel } from '@/lib/fulfillment';
 type Props = { actorId: string; claimId: string; operator?: boolean; carriers?: ShippingCarrierRegistry };
 type Request = { shipmentId: string; revision: number; claimRevision: number; values: ClaimCollectionValues; operationId: string };
 export function ClaimCollectionPlan(props: Props) {
@@ -51,9 +51,9 @@ function CollectionPanel({ claimId, operator = false, carriers = [], identity, s
     <h3>회수 방법·택배사·송장</h3>
     <p>{operator ? '택배사에 별도로 접수한 회수 정보와 정정 근거를 기록합니다. 이 저장만으로 수거 요청이나 입고 처리가 실행되지는 않습니다.' : '판매자가 안내한 회수 방법과 송장 정보를 확인할 수 있습니다.'}</p>
     <button type="button" className="btn btn-sm btn-ghost" disabled={pending} onClick={() => { void read(); }}>회수 정보 확인</button>
-    {/* 고객에게는 출고지 이름 대신 배송 묶음으로 구분한다(10/14 회의 S7). */}
+    {/* 고객에게는 출고지 이름 대신 배송 묶음으로 구분한다(10/14 회의 S7). 회수 문서에는 출고 택배사가 없어 번호로 부른다(R26). */}
     {document?.rows.map((row, index, rows) => <div className="claim-collection-plan__row" key={row.shipmentId}>
-      <strong>{operator ? row.originName : shippingGroupLabel(index, rows.length)}</strong><p>{COLLECTION_METHODS[row.method]} · {row.collectedAt ? `회수 확인 ${formatOrderDateTime(row.collectedAt)}` : '회수 확인 전'}</p>
+      <strong>{operator ? row.originName : numberedShippingGroupLabel(index, rows.length)}</strong><p>{COLLECTION_METHODS[row.method]} · {row.collectedAt ? `회수 확인 ${formatOrderDateTime(row.collectedAt)}` : '회수 확인 전'}</p>
       {row.carrier ? <p>{row.carrierLabel ?? carriers.find(c => c.code === row.carrier)?.label ?? row.carrier} · {row.trackingNumber}</p> : null}
       {operator && row.evidence ? <p>{row.evidence}</p> : null}
       {operator && document.editable ? <button className="btn btn-sm btn-ghost" disabled={pending || uncertain} type="button" onClick={() => edit(row)}>회수 정보 정정 · {row.originName}</button> : null}

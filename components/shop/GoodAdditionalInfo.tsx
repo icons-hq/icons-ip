@@ -12,7 +12,7 @@ import { LEGAL_DOCUMENT_LABELS, legalDocumentHref } from '@/lib/legal/links';
  * 굿즈 상세 '추가정보' 탭 (PD-06 · 11 §3 Δ4).
  *
  * `<details>` 아코디언 4개 — 고시정보 / 배송 안내 / 교환 · 반품 안내 / 판매자 정보. 내용은 기존
- * 데이터 그대로다: 고시정보(상세 패널에서 옮김 — 표는 호출부가 그려 넘긴다), 출고지 배송 정책·
+ * 데이터 그대로다: 고시정보(상세 패널에서 옮김 — 표는 호출부가 그려 넘긴다), 배송 정책(고객에게는 출고지 대신 배송 묶음·택배사로 말한다 — R26)·
  * 예약 발송일, 기존 교환·반품 안내, 공개 사업자 정보(푸터와 같은 소스 — 비어 있는 칸은 행이 사라진다).
  * 펼침 제목은 각 절의 이름이다 — 용어는 CONTEXT.md(고시정보)를 따른다.
  */
@@ -40,14 +40,14 @@ function ShippingGuide({ goods, policy }: { goods: readonly Good[]; policy?: Goo
         <li>{goods[0]?.transactionOffer?.delivery?.quantityTerms ? goodsQuantityDeliveryLabel(goods[0].transactionOffer.delivery.quantityTerms)
           : policy ? shippingPolicyDescription(policy) : '배송 정책을 확인하지 못했습니다. 주문 전에 배송비를 확인해주세요.'}</li>
         {policy?.shippingNotice && <li style={{ whiteSpace: 'pre-wrap' }}>{policy.shippingNotice}</li>}
-        <li>출고지별 정책 적용 굿즈의 기간 할인 적용 후, 복수구매 할인·쿠폰·적립금 차감 전 소계로 무료배송 조건을 확인합니다. 수량별 배송비에는 별도 무료 기준이 적용되지 않으며 다른 출고지의 배송비는 각각 더합니다.</li>
+        <li>배송 묶음마다 정책 적용 굿즈의 기간 할인 적용 후, 복수구매 할인·쿠폰·적립금 차감 전 소계로 무료배송 조건을 확인합니다. 수량별 배송비에는 별도 무료 기준이 적용되지 않으며, 택배사가 달라 따로 배송되는 굿즈의 배송비는 각각 더합니다.</li>
         {/*
          * 출고 기한의 진실원은 배송·반품 정책(/legal/shipping 1. 배송 안내)이다. 여기서 더 짧은
          * 영업일 수를 따로 적으면 약관 제13조 3항이 손해배상 기준으로 삼는 "약정 배송기간"이
          * 두 개가 되어, 어느 쪽이 약정인지 정할 수 없다. 그래서 정책 문장을 그대로 싣는다.
          */}
         {preorders.length ? <>
-          <li>예약판매 옵션은 아래 발송 예정일에 맞춰 공급을 준비합니다. 같은 출고지의 일반 굿즈와 예약 굿즈를 함께 주문하면 가장 늦은 예정일에 함께 발송합니다. 주문서에서 최종 발송 예정일을 확인해주세요.</li>
+          <li>예약판매 옵션은 아래 발송 예정일에 맞춰 공급을 준비합니다. 같은 배송 묶음의 일반 굿즈와 예약 굿즈를 함께 주문하면 가장 늦은 예정일에 함께 발송합니다. 주문서에서 최종 발송 예정일을 확인해주세요.</li>
           {preorders.map(option => <li key={option.id}>{option.label}: {goodsShipDateLabel(option.date)}</li>)}
           <li>일반 판매 옵션만 주문한 경우에는 기본 배송 정책을 따릅니다. 예약 공급 일정이 바뀌면 주문 상세에서 변경된 예정일을 확인할 수 있습니다.</li>
         </> : <li>대금을 먼저 지급하는 선지급 주문이므로, 결제가 확정된 날부터 3영업일 이내에 배송에 필요한 조치를 취합니다. 무통장 입금 주문은 입금이 확인된 날이 결제 확정일입니다. 공급 절차가 늦어지면 그 진행 상황을 알립니다.</li>}

@@ -66,3 +66,11 @@ describe('주소별 배송비 견적 계약', () => {
     expect(parseAddressGoodsSalesQuote({ ...sale, shipping: { ...sale.shipping, nextChangeAt: '2026-09-09T00:00:00Z' } })).toBeNull();
   });
 });
+
+/* R26: 고객 화면은 '출고지'를 말하지 않는다. */
+it('배송 가능 여부 안내는 출고지를 말하지 않는다', () => {
+  for (const status of ['unconfigured', 'standard', 'surcharge', 'address_required', 'unavailable', 'manual_review', 'policy_unavailable', 'carrier_mismatch'] as const) {
+    expect(shippingRegionStatusMessage(status)).not.toContain('출고지');
+  }
+  expect(shippingRegionStatusMessage('unavailable')).toBe('이 배송 묶음은 입력한 주소로 배송할 수 없습니다. 다른 배송지를 선택해주세요.');
+});

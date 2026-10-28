@@ -246,9 +246,13 @@ describe('Cart 주문 요약 테이블', () => {
     expect(html).toContain('배송 묶음별 배송비를 합산합니다.');
   });
 
-  it('주문 CTA에 담긴 수량을 싣는다', () => {
-    expect(html).toContain('1개 굿즈 주문하기');
+  /* R28(MD-0006): 'N개 주문하기' — N은 지금처럼 담긴 총 수량이다. */
+  it('주문 CTA에 담긴 총 수량을 싣는다', () => {
+    expect(html).toContain('<span class="wc-cart__checkout-count">1개 주문하기</span>');
+    expect(html).not.toContain('굿즈 주문하기');
     expect(html).toContain('href="/checkout"');
+    const several = render([{ goodId: 'g13', variantId: DEFAULT_VARIANT, qty: 3 }]);
+    expect(several).toContain('<span class="wc-cart__checkout-count">3개 주문하기</span>');
   });
 });
 
@@ -263,6 +267,27 @@ describe('Cart 쿠폰 슬롯 (S7)', () => {
     expect(html).toContain('쿠폰 선택 안 함');
     expect(html).toContain('5천원 할인');
     expect(html).toContain('쿠폰 적용</button>');
+  });
+
+  /* R25: 운영(legacy) 주문서도 같은 선택을 보이고, 배송비 쿠폰은 어느 화면에서도 받지 않는다 — 사실대로 안내한다. */
+  it('주문서에서도 바꿀 수 있다고 안내하고 배송비 쿠폰을 주문서로 미루지 않는다', () => {
+    const html = render([{ goodId: 'g13', variantId: DEFAULT_VARIANT, qty: 1 }], { selectedUserCouponId: null, coupons: [fix5k] });
+    expect(html).toContain('주문서에서도 바꿀 수 있어요.');
+    expect(html).not.toContain('배송비 쿠폰은 주문서에서 확인');
+  });
+
+  it('보유 쿠폰이 없으면 안내와 코드 입력만 둔다', () => {
+    const html = render([{ goodId: 'g13', variantId: DEFAULT_VARIANT, qty: 1 }], emptyCouponState);
+    expect(html).toContain('사용할 수 있는 쿠폰이 없어요.');
+    expect(html).toContain('id="cart-coupon-code"');
+    expect(html).not.toContain('id="cart-coupon-select"');
+  });
+
+  it('보유 쿠폰을 불러오지 못했으면 그 사실을 한 번만 알리고 없다고 하지 않는다', () => {
+    const html = render([{ goodId: 'g13', variantId: DEFAULT_VARIANT, qty: 1 }], { selectedUserCouponId: null, coupons: [], unavailable: true });
+    expect(html.match(/보유 쿠폰을 불러오지 못했습니다/g)).toHaveLength(1);
+    expect(html).not.toContain('사용할 수 있는 쿠폰이 없어요');
+    expect(html).toContain('id="cart-coupon-code"');
   });
 
   it('적용된 쿠폰은 할인 행과 예상 총액에 반영된다', () => {
@@ -450,7 +475,7 @@ describe('Cart 모바일 크롬 (CT-03)', () => {
     const bar = html.slice(html.indexOf('<div class="wc-cart__cta-bar">'));
 
     expect(bar).toMatch(/^<div class="wc-cart__cta-bar"><a class="wc-btn primary wc-cart__checkout wc-cart__checkout--amount" href="\/checkout">/);
-    expect(bar).toContain('<span class="wc-cart__checkout-count">1개 굿즈 주문하기</span>');
+    expect(bar).toContain('<span class="wc-cart__checkout-count">1개 주문하기</span>');
     expect(bar).toContain('<span class="wc-cart__checkout-amount">₩15,000 주문하기</span>');
   });
 
@@ -463,7 +488,7 @@ describe('Cart 모바일 크롬 (CT-03)', () => {
 
     mocks.precheckout = transactionPrecheckout();
     html = renderTransaction();
-    expect(html).toContain('<span class="wc-cart__checkout-count">1개 굿즈 주문하기</span>');
+    expect(html).toContain('<span class="wc-cart__checkout-count">1개 주문하기</span>');
     expect(html).not.toContain('wc-cart__checkout-amount');
   });
 
@@ -546,13 +571,23 @@ describe('Cart 목록 행 (CT-04)', () => {
 describe('origin quote and option lines', () => {
   it('keeps each origin fee and free-shipping remainder separate', () => {
     mocks.items=[{goodId:'g13',variantId:DEFAULT_VARIANT,qty:1},{goodId:'g14',variantId:SOLD_VARIANT,qty:1}];
-    mocks.quote={...defaultQuote,totalFee:7000,finalTotalFee:7000,groups:[gimpoGroup,{...gimpoGroup,originId:'namyangju',originCode:'NAMYANGJU',originName:'남양주',baseFee:4000,policyFee:4000,totalFee:4000,finalFee:4000,policySubtotal:9000,freeThreshold:30000}]};
+    mocks.quote={...defaultQuote,totalFee:7000,finalTotalFee:7000,groups:[{...gimpoGroup,carrierLabel:'한진택배'},{...gimpoGroup,originId:'namyangju',originCode:'NAMYANGJU',originName:'남양주',carrierCode:'epost',carrierLabel:'우체국택배',baseFee:4000,policyFee:4000,totalFee:4000,finalFee:4000,policySubtotal:9000,freeThreshold:30000}]};
     const html=renderToStaticMarkup(<Cart catalog={{goods:[goods[0],{...goods[1],stock:'ok',stockQty:5,originId:'namyangju',options:goods[1].options!.map(option=>({...option,stockQty:5}))}],ips:[]}} couponState={emptyCouponState} />);
-    /* 고객 화면은 출고지 이름 대신 배송 묶음 번호로 구분한다(10/14 회의 S7). */
-    expect(html).toContain('<h2>배송 묶음 1</h2>');expect(html).toContain('<h2>배송 묶음 2</h2>');
+    /* 고객 화면은 출고지 이름 대신 택배사로 부른다(10/14 회의 S7 · R26). 묶음이 둘이면 따로 계산되는 이유를 한 줄로(R27). */
+    expect(html).toContain('<h2>한진택배 배송</h2>');expect(html).toContain('<h2>우체국택배 배송</h2>');
+    expect(html).toContain('aria-label="한진택배 배송 굿즈"');
+    expect(html).toContain('택배사가 달라 배송비가 각각 계산됩니다.');
+    expect(html.indexOf('택배사가 달라')).toBeLessThan(html.indexOf('<h2>한진택배 배송</h2>'));
     expect(html).not.toContain('김포');expect(html).not.toContain('남양주');
     expect(html).toContain('38,000원 더 담으면');expect(html).toContain('21,000원 더 담으면');
     expect(html).toContain('₩7,000');expect(html).toContain('₩28,000');
+  });
+  it('묶음이 하나면 이유 줄 없이 택배사 이름만, 택배사를 모르면 택배 배송으로 부른다', () => {
+    const one=render([{goodId:'g13',variantId:DEFAULT_VARIANT,qty:1}]);
+    expect(one).toContain('<h2>택배 배송</h2>');
+    expect(one).not.toContain('배송비가 각각 계산됩니다');
+    mocks.quote={...defaultQuote,groups:[{...gimpoGroup,carrierLabel:'한진택배'}]};
+    expect(render([{goodId:'g13',variantId:DEFAULT_VARIANT,qty:1}])).toContain('<h2>한진택배 배송</h2>');
   });
   it('blocks checkout while the current cart has no server quote', () => {
     mocks.quote=null;

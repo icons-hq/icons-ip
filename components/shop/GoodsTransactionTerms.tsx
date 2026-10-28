@@ -21,9 +21,9 @@ export function GoodsTransactionTerms({ good, quantity }: { good: Good; quantity
       {delivery.paymentMode !== 'prepaid' ? offer.collector ? <p>{offer.collector.name} · {offer.collector.method}<br />환급 문의: {offer.collector.refundContact}<br />{offer.collector.instructions}</p>
         : <p>착불 수납 조건을 확인 중입니다. 주문서에서 주문 가능 여부를 확인해주세요.</p> : null}</> : null}
     {offer.chargeGroup ? <><strong>묶음배송</strong>
-      <p>같은 출고지의 묶음 대상 굿즈를 함께 구매하면 {offer.chargeGroup.calculationMode === 'min' ? '가장 작은' : '가장 큰'} 기본 배송비를 한 번 부과합니다. 무료배송 조건을 충족하면 기본 배송비는 무료입니다.</p>
+      <p>같은 배송 묶음의 묶음 대상 굿즈를 함께 구매하면 {offer.chargeGroup.calculationMode === 'min' ? '가장 작은' : '가장 큰'} 기본 배송비를 한 번 부과합니다. 무료배송 조건을 충족하면 기본 배송비는 무료입니다.</p>
       <p>수량별 배송비와 무료 기준은 실제 구매한 묶음 대상의 합계로 계산합니다. 정확한 선불·착불 배송비는 주문서에서 확인해주세요.</p>
-      <p>{offer.chargeGroup.regionalMode === 'override' ? '지역 추가 배송비는 해당 묶음 정책으로 한 번 계산합니다.' : '지역 추가 배송비는 출고지 정책을 따릅니다.'}</p>
+      <p>{offer.chargeGroup.regionalMode === 'override' ? '지역 추가 배송비는 해당 묶음 정책으로 한 번 계산합니다.' : '지역 추가 배송비는 배송 묶음의 지역 정책을 따릅니다.'}</p>
       {!offer.chargeGroup.available ? <p role="status">묶음배송 조건을 확인 중입니다. 주문서에서 주문 가능 여부를 확인해주세요.</p> : null}
     </> : null}
   </section>;

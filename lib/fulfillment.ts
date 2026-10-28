@@ -21,6 +21,8 @@ export interface ShippingQuoteGroup {
   originId: string; originCode: string; originName: string; policySubtotal: number;
   baseFee: number; freeThreshold: number | null; policyFee: number; individualFee: number; totalFee: number;
   expectedShipDate?: string | null; hasPreorder?: boolean; hasStockItems?: boolean;
+  /** 출고지 기본 택배사의 표시 이름 — legacy 견적 주소 래퍼만 싣는다(R26). 없거나 꺼진 택배사면 null. */
+  carrierLabel?: string | null;
 }
 export interface ShippingQuote { totalFee: number; groups: ShippingQuoteGroup[] }
 export interface ShippingQuoteItem { goodId: string; variantId: string; qty: number }
@@ -48,7 +50,8 @@ export function parseShippingQuote(value: unknown): ShippingQuote | null {
     if ((row.expectedShipDate != null && !isGoodsShipDate(row.expectedShipDate))
       || (row.hasPreorder !== undefined && typeof row.hasPreorder !== 'boolean')
       || (row.hasStockItems !== undefined && typeof row.hasStockItems !== 'boolean')
-      || (row.hasPreorder === true && !isGoodsShipDate(row.expectedShipDate))) return null;
+      || (row.hasPreorder === true && !isGoodsShipDate(row.expectedShipDate))
+      || (row.carrierLabel !== undefined && row.carrierLabel !== null && typeof row.carrierLabel !== 'string')) return null;
     groups.push(row as unknown as ShippingQuoteGroup);
   }
   if (groups.reduce((sum, group) => sum + group.totalFee, 0) !== value.totalFee) return null;
@@ -92,7 +95,43 @@ export function shippingPolicyDescription(policy: GoodShippingPolicy): string {
   return `배송비 ${krw(policy.baseFee)}${policy.freeThreshold === null ? '' : ` · 정책 적용 굿즈 ${krw(policy.freeThreshold)} 이상 무료`}`;
 }
 
-/** 고객 화면의 배송 묶음 이름. 묶음이 하나면 번호를 붙이지 않는다(선례: GoodsTransactionSummary). */
-export function shippingGroupLabel(index: number, count: number): string {
+/** 택배사 이름을 아는 배송 묶음(견적 묶음·배송 건). */
+export interface CarrierNamedGroup { carrierLabel?: string | null }
+
+const carrierName = (group: CarrierNamedGroup | undefined) => group?.carrierLabel?.trim() || null;
+const UNKNOWN_CARRIER = '택배';
+
+function carrierGroupLabel(names: readonly string[], index: number): string {
+  const name = names[index];
+  const peers = names.filter(other => other === name).length;
+  if (peers < 2) return `${name} 배송`;
+  return `${name} 배송 ${names.slice(0, index + 1).filter(other => other === name).length}`;
+}
+
+/** 고객 화면(장바구니·주문서)의 배송 묶음 이름 — 출고지 기본 택배사로 부른다(R26 · D4①). 같은 택배사 묶음이
+ *  둘 이상이면 번호를 붙이고, 택배사를 모르면 '택배 배송'이다. 출고지 이름은 내지 않는다(10/14 회의 S7). */
+export function shippingGroupLabel(groups: readonly CarrierNamedGroup[], index: number): string {
+  return carrierGroupLabel(groups.map(group => carrierName(group) ?? UNKNOWN_CARRIER), index);
+}
+
+/** 택배사를 모르는 묶음의 기존 이름. 묶음이 하나면 번호를 붙이지 않는다(선례: GoodsTransactionSummary). */
+export function numberedShippingGroupLabel(index: number, count: number): string {
   return count > 1 ? `배송 묶음 ${index + 1}` : '배송 묶음';
+}
+
+/** 고객 주문 상세의 배송 건 이름 — 배송 건의 택배사를 알면 장바구니와 같은 규칙, 모르면 기존 '배송 묶음 N'. */
+export function shipmentGroupLabel(groups: readonly CarrierNamedGroup[], index: number): string {
+  const names = groups.map(carrierName);
+  const name = names[index];
+  if (!name) return numberedShippingGroupLabel(index, groups.length);
+  return carrierGroupLabel(names.map(other => other ?? ''), index);
+}
+
+/** 묶음이 둘 이상일 때 배송비가 따로 붙는 이유(R27). 택배사가 모두 다를 때만 '택배사가 달라'라고 말한다. */
+export function shippingGroupsNotice(groups: readonly CarrierNamedGroup[]): string | null {
+  if (groups.length < 2) return null;
+  const names = groups.map(carrierName);
+  return names.every(Boolean) && new Set(names).size === names.length
+    ? '택배사가 달라 배송비가 각각 계산됩니다.'
+    : '배송 묶음마다 배송비가 각각 계산됩니다.';
 }

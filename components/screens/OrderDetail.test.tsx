@@ -294,13 +294,13 @@ describe('OrderDetail 무통장 입금 대기', () => {
  it('두 출고지 배송을 각각 추적하고 각 배송 완료시각을 분리한다', () => {
   const shipments = [shipmentFixture({status:'delivered',deliveredAt:'2026-09-08T00:00:00Z'}),shipmentFixture({id:'00000000-0000-4000-8000-000000044702',originName:'남양주',trackingNumber:'9876543210',trackingUrl:'https://carrier.example.test/9876543210'})];
   const html = renderToStaticMarkup(<OrderDetail order={order({shipments})} />);
-  /* 고객 화면은 출고지 이름 대신 배송 묶음 번호로 구분한다(10/14 회의 S7). */
-  expect(html).toContain('배송 묶음 1 · 배송 완료');
-  expect(html).toContain('배송 묶음 2 · 배송 중');
+  /* 고객 화면은 출고지 이름 대신 배송 건의 택배사로 부르고, 같은 택배사면 번호를 붙인다(10/14 회의 S7 · R26). */
+  expect(html).toContain('한진택배 배송 1 · 배송 완료');
+  expect(html).toContain('한진택배 배송 2 · 배송 중');
   expect(html).toContain('123456789012');
   expect(html).toContain('9876543210');
-  expect(html).toContain('배송 묶음 1 배송조회');
-  expect(html).toContain('배송 묶음 2 배송조회');
+  expect(html).toContain('한진택배 배송 1 배송조회');
+  expect(html).toContain('한진택배 배송 2 배송조회');
   expect(html).not.toContain('김포');
   expect(html).not.toContain('남양주');
  });

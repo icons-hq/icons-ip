@@ -13,6 +13,8 @@ import {
 import { loyaltyGradeLabel, isLoyaltyGrade } from '@/lib/loyalty';
 import { couponTargetingLabel } from '@/lib/coupon-targeting';
 import { CouponCodeClaim } from '@/components/shop/CouponCodeClaim';
+import type { GoodsTransactionRuntimeMode } from '@/lib/checkout-transaction.server';
+import type { CouponCombinationPolicy } from '@/lib/coupon-combinations';
 
 /*
  * 마이 쿠폰함 (R-05 §4.4 coupon-ticket-card, S7 #329).
@@ -33,6 +35,40 @@ const STATE_LABELS: Record<CouponDisplayState, string> = {
   expired: '기간 만료',
   ineligible: '사용 조건 미충족',
 };
+
+/** 지금 주문서 계약. 쿠폰 안내는 이것을 따른다 — 장바구니·주문서 쿠폰 칸과 같은 판정이다(R25). */
+export interface MyCouponsCheckoutRules {
+  transactionMode: GoodsTransactionRuntimeMode;
+  /** 거래 런타임 주문서의 쿠폰 조합 정책. 읽지 못했으면 null. */
+  couponPolicy: CouponCombinationPolicy | null;
+}
+
+const LEGACY_SHIPPING_LINE = '굿즈 쿠폰은 대상 굿즈 금액에 적용돼요. 배송비 쿠폰은 지금 주문에 쓸 수 없어요.';
+
+/** 쿠폰 안내 두 줄 — 어디서 고르고 몇 장 쓰는지, 무엇에 적용되는지. 계약을 모르면 장수와 배송비 쿠폰을 단정하지 않는다. */
+function couponGuideLines({ transactionMode, couponPolicy }: MyCouponsCheckoutRules): [string, string] {
+  /* 운영 주문서(legacy): 주문 1건에 굿즈 쿠폰 1장, 배송비 쿠폰은 선택 RPC 가 받지 않는다. */
+  if (transactionMode === 'legacy') {
+    return ['장바구니와 주문서에서 보유 쿠폰을 고르거나 코드를 입력할 수 있어요. 한 주문에 굿즈 쿠폰 1장을 쓸 수 있어요.', LEGACY_SHIPPING_LINE];
+  }
+  if (transactionMode !== 'transaction' || !couponPolicy) {
+    return ['장바구니에서 보유 쿠폰을 고르거나 코드를 입력할 수 있어요. 함께 쓸 수 있는 쿠폰 수와 배송비 쿠폰 사용 여부는 주문서에서 확인해주세요.',
+      '굿즈 쿠폰은 대상 굿즈 금액에 적용돼요.'];
+  }
+  /* 거래 런타임 주문서: 중복 사용이 꺼져 있으면 쿠폰 1장(굿즈 또는 배송비), 켜져 있으면 굿즈 쿠폰 최대 N장 + 배송비 쿠폰 1장. */
+  const { stackingEnabled, maxGoodsCoupons, shippingEnabled } = couponPolicy;
+  const ONE_GOODS_COUPON = '한 주문에 굿즈 쿠폰 1장을 쓸 수 있어요.';
+  let count: string;
+  if (!stackingEnabled) count = shippingEnabled ? '한 주문에 굿즈 쿠폰 또는 배송비 쿠폰 1장을 쓸 수 있어요.' : ONE_GOODS_COUPON;
+  else if (shippingEnabled) count = `중복 사용을 허용한 쿠폰끼리 굿즈 쿠폰 ${maxGoodsCoupons > 1 ? `최대 ${maxGoodsCoupons}장` : '1장'}과 배송비 쿠폰 1장을 함께 쓸 수 있어요.`;
+  else count = maxGoodsCoupons > 1 ? `중복 사용을 허용한 굿즈 쿠폰끼리 최대 ${maxGoodsCoupons}장까지 함께 쓸 수 있어요.` : ONE_GOODS_COUPON;
+  return [
+    `장바구니에서 굿즈 쿠폰을 미리 고르거나 코드를 입력하고, 주문서에서 함께 쓸 쿠폰을 확정해요. ${count}`,
+    shippingEnabled
+      ? '굿즈 쿠폰은 남은 굿즈 금액에, 배송비 쿠폰은 선결제 운송비에 적용돼요. 설치비와 착불 운송비는 배송비 할인에서 제외됩니다.'
+      : LEGACY_SHIPPING_LINE,
+  ];
+}
 
 function CouponTicketCard({ held }: { held: UserCouponSummary }) {
   const state = couponDisplayState(held);
@@ -64,7 +100,8 @@ function CouponTicketCard({ held }: { held: UserCouponSummary }) {
   );
 }
 
-export function MyCoupons({ coupons }: { coupons: UserCouponSummary[] | null }) {
+export function MyCoupons({ coupons, checkoutRules }: { coupons: UserCouponSummary[] | null; checkoutRules: MyCouponsCheckoutRules }) {
+  const [whereLine, targetLine] = couponGuideLines(checkoutRules);
   return (
     <MypageShell active="/my/coupons">
       <h1 className="wc-mypage__heading">쿠폰</h1>
@@ -87,8 +124,8 @@ export function MyCoupons({ coupons }: { coupons: UserCouponSummary[] | null }) 
         <p>쿠폰 안내</p>
         <ul>
           <li>회원 등급 혜택 쿠폰은 승급 시 자동 지급돼요.</li>
-          <li>주문서에서 굿즈 쿠폰의 적용 순서와 배송비 쿠폰을 선택할 수 있어요. 중복 사용은 스토어 정책과 각 쿠폰의 허용 조건을 따릅니다.</li>
-          <li>굿즈 쿠폰은 남은 굿즈 금액에, 배송비 쿠폰은 선결제 운송비에 적용돼요. 설치비와 착불 운송비는 배송비 할인에서 제외됩니다.</li>
+          <li>{whereLine}</li>
+          <li>{targetLine}</li>
         </ul>
         <p>취소·반품 안내</p>
         <ul>
