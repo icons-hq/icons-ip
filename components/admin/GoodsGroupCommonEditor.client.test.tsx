@@ -16,6 +16,7 @@ import { GoodsGroupCommonEditor } from './GoodsGroupCommonEditor';
 import { GoodsAttributeEditor } from './GoodsAttributeEditor';
 import { GroupCompleted, GroupOperationStatus } from './GoodsGroupOperation';
 import { AdminSectionCard } from './console/AdminKit';
+import { TextArea } from './fields';
 import { commonTestForm, commonTestSnapshot, commonTestReceipt } from '@/lib/admin/goods-group-common.test-fixtures';
 import { groupTestIdentity as identity, groupTestId as id } from '@/lib/admin/goods-groups.test-fixtures';
 import { goodsGroupRecoveryKey, type GoodsGroupRecovery } from '@/lib/admin/goods-groups';
@@ -144,4 +145,19 @@ describe('그룹 공통정보 편집 복구',()=>{
     const metadata={...identity,version:1 as const,command:'common' as const,groupId:commonTestSnapshot().group.id,expectedRevision:1,operationId:id(888)};
     storage.set(`${goodsGroupRecoveryKey(identity,`common:${metadata.groupId}`)}:${metadata.operationId}`,JSON.stringify(metadata));submit();await flush();expect(mocks.save).not.toHaveBeenCalled();expect(saved()).toEqual(metadata);
   });
+});
+
+/* R17(MD-0002): 그룹 공통 상세 HTML도 붙여넣기를 자르지 않고, 200,000자 상한을 넘으면 저장 전에 알린다. */
+it('HTML 상세설명은 maxLength로 자르지 않고 상한 초과를 경고한다', () => {
+  hooks.values = []; hooks.effects.clear(); hooks.jobs = [];
+  const snapshot = commonTestSnapshot();
+  const long = { ...snapshot, fields: { ...snapshot.fields, descriptionFormat: 'html', description: '가'.repeat(200001) } };
+  const tree = render(long);
+  const area = tree.find(node => node.type === TextArea && node.props.name === 'description')!;
+  expect(area.props.maxLength).toBeUndefined();
+  expect(area.props.label).toBe('상세설명 (정리된 코드 포함 최대 200,000자)');
+  expect(tree.filter(node => node.type === 'li').map(node => text(node))).toContain('상세페이지 HTML이 200,001자로 최대 200,000자를 넘어 저장할 수 없습니다. 내용을 줄여주세요.');
+  hooks.values = []; hooks.effects.clear(); hooks.jobs = [];
+  const plain = render({ ...snapshot, fields: { ...snapshot.fields, descriptionFormat: 'plain', description: '설명' } }).find(node => node.type === TextArea && node.props.name === 'description')!;
+  expect(plain.props.maxLength).toBe(2000);
 });

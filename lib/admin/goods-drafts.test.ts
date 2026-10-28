@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { collectGoodsDraftValues, goodsDraftIdentity, parseGoodsDraft, parseGoodsDraftPage, validateGoodsDraftValues } from './goods-drafts';
+import { GOODS_DRAFT_MAX_BYTES, collectGoodsDraftValues, goodsDraftIdentity, parseGoodsDraft, parseGoodsDraftPage, validateGoodsDraftValues } from './goods-drafts';
 import { GOOD_LOCAL_DRAFT_FIELDS, createGoodEditorDraft } from './good-editor';
 const id='76000000-0000-4000-8000-000000000001';
 const summary={id,name:'미완성 상품',imagePath:null,revision:2,updatedAt:'2026-10-13T01:00:00Z',archived:false,completedGoodId:null};
@@ -12,7 +12,10 @@ describe('server registration drafts',()=>{
     expect(validateGoodsDraftValues({...values,price:500})).toBe(false);
     expect(validateGoodsDraftValues({...values,imagePath:'blob:temporary'})).toBe(false);
     expect(validateGoodsDraftValues({...values,variantBaseline:'["existing-option"]'})).toBe(false);
-    expect(validateGoodsDraftValues({...values,description:'한'.repeat(180000)})).toBe(false);
+    /* R17: 상세 HTML 상한(200,000자, 한글 약 600KB)을 담은 작성 내용도 서버 임시저장된다. 상한은 2MB(DB와 같다). */
+    expect(GOODS_DRAFT_MAX_BYTES).toBe(2 * 1024 * 1024);
+    expect(validateGoodsDraftValues({...values,descriptionFormat:'html',description:'한'.repeat(200000)})).toBe(true);
+    expect(validateGoodsDraftValues({...values,description:'한'.repeat(800000)})).toBe(false);
   });
   it('restores selected draft with its identity and option payload, without confusing it with a saved product',()=>{
     expect(GOOD_LOCAL_DRAFT_FIELDS).toEqual(expect.arrayContaining(['serverDraftId','serverDraftRevision']));

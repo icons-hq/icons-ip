@@ -93,7 +93,11 @@ select 1/case when exists(select 1 from public.goods where id='goods-html-rename
 select pg_temp.expect_html_error($sql$select public.admin_save_good('{"id":"goods-html-stolen-0478","ip_id":"goods-html-0478","name":"무단 재사용","type":"문구","price":1000,"stock":"ok","description":"<p>무단 이미지</p>","description_format":"html","description_image_paths":["public-media/catalog/good/00000000-0000-4000-8000-000000047803.webp"]}')$sql$,'unverified_artwork');
 select pg_temp.expect_html_error($sql$select public.admin_save_good('{"id":"goods-html-unverified-0478","ip_id":"goods-html-0478","name":"미검증 이미지","type":"문구","price":1000,"stock":"ok","description":"<p>미검증</p>","description_format":"html","description_image_paths":["public-media/catalog/good/00000000-0000-4000-8000-000000047899.webp"]}')$sql$,'unverified_artwork');
 select 1/case when not exists(select 1 from public.goods where id in ('goods-html-stolen-0478','goods-html-unverified-0478')) then 1 else 0 end as assert_invalid_images_rollback_the_whole_draft;
-select pg_temp.expect_html_error($sql$select public.admin_save_good(jsonb_build_object('id','goods-html-overlong-0478','ip_id','goods-html-0478','name','너무 긴 HTML','price',0,'description_format','html','description',repeat('가',30001)))$sql$,'goods_description_length');
+-- R17(MD-0002): 상세페이지 HTML 상한은 200,000자다(한글이면 UTF-8 약 600KB, 서버 액션 본문 3MB 안).
+select public.admin_save_good(jsonb_build_object('id','goods-html-long-0478','ip_id','goods-html-0478','name','긴 상세 HTML','type','문구','price',1000,'stock','ok',
+ 'description_format','html','description','<p>'||repeat('가',199993)||'</p>','description_image_paths','[]'::jsonb));
+select 1/case when (select char_length(description) from public.goods where id='goods-html-long-0478')=200000 then 1 else 0 end as assert_detail_html_accepts_200000_characters;
+select pg_temp.expect_html_error($sql$select public.admin_save_good(jsonb_build_object('id','goods-html-overlong-0478','ip_id','goods-html-0478','name','너무 긴 HTML','price',0,'description_format','html','description',repeat('가',200001)))$sql$,'goods_description_length');
 select pg_temp.expect_html_error($sql$select public.admin_save_good('{"ip_id":"goods-html-0478","name":"잘못된 형식","price":0,"description_format":"css"}')$sql$,'goods_description_format');
 select pg_temp.expect_html_error($sql$select public.admin_save_good('{"ip_id":"goods-html-0478","name":"배열 오류","price":0,"description_format":"html","description_image_paths":[null]}')$sql$,'goods_description_images');
 

@@ -537,7 +537,7 @@ export function normalizeAdminGoodForm(
   const description = descriptionFormat === 'html' ? htmlContent?.html || null : rawDescription;
   if (!['plain', 'html'].includes(descriptionFormat)) errors.descriptionFormat = '일반 텍스트 또는 HTML을 선택해주세요.';
   if (descriptionFormat === 'html' && ((rawDescription?.length ?? 0) > GOODS_HTML_MAX_LENGTH || (description?.length ?? 0) > GOODS_HTML_MAX_LENGTH)) {
-    errors.description = 'HTML 설명은 정리된 코드까지 30,000자 이하로 입력해주세요.';
+    errors.description = `HTML 설명은 정리된 코드까지 ${GOODS_HTML_MAX_LENGTH.toLocaleString('ko-KR')}자 이하로 입력해주세요.`;
   }
   if ((htmlContent?.imagePaths.length ?? 0) > GOODS_HTML_IMAGE_MAX) errors.description = 'HTML 설명 이미지는 최대 20장입니다.';
   const nameEn = nullableString(formData, 'nameEn');

@@ -2,7 +2,8 @@ import { GOOD_LOCAL_DRAFT_FIELDS } from './good-editor';
 
 export const GOODS_DRAFT_PATH = '/admin/catalog/goods?create=1';
 export const GOODS_DRAFT_LIMIT = 40;
-export const GOODS_DRAFT_MAX_BYTES = 512 * 1024;
+/** DB admin_goods_drafts.form_values 상한과 같다. 상세 HTML 상한(200,000자, 한글 약 600KB)을 담을 수 있게 2MB(R17). */
+export const GOODS_DRAFT_MAX_BYTES = 2 * 1024 * 1024;
 export const GOODS_DRAFT_META_FIELDS = ['serverDraftId', 'serverDraftRevision'] as const;
 const allowed = new Set(GOOD_LOCAL_DRAFT_FIELDS.filter(name => !(GOODS_DRAFT_META_FIELDS as readonly string[]).includes(name)));
 const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
