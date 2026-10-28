@@ -42,10 +42,14 @@ const good: Good = { id: 'g1', name: '키링', ip: 'ip', type: '키링', price: 
 const extraOption: GoodOption = { id: 'x', name: '기본 옵션', code: 'X', price: 3000, stockQty: 5, isDefault: true, attributes: {}, orderMaxQty: 1, memberMaxQty: null };
 const extra: Good = { id: 'g2', name: '스티커', ip: 'ip', type: '스티커', price: 3000, badge: null, stock: 'ok', stockQty: 5, img: '', options: [extraOption] };
 
+/* 훅을 부르는 자리는 컴포넌트 함수로 감싸고, 렌더마다 훅 순번을 되돌리는 일은 바깥 함수가 한다. */
+function Purchase(props: Parameters<typeof useGoodPurchase>[0]) {
+  return useGoodPurchase(props);
+}
 function render(props: Parameters<typeof useGoodPurchase>[0]) {
   hooks.stateIndex = 0;
   hooks.refIndex = 0;
-  return useGoodPurchase(props);
+  return Purchase(props);
 }
 const flush = () => new Promise((resolve) => setTimeout(resolve, 0));
 

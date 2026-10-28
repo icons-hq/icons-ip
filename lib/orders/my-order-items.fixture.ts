@@ -6,18 +6,25 @@
  * 것, 수량 = 합계, variant_id = 장바구니 키, 옵션명 '랜덤', 코드 null. 선택 판매 행은 그대로(`option_sale_mode`='select')다.
  */
 export function myOrderItemsFixture(rows: readonly Record<string, unknown>[]): Record<string, unknown>[] {
+  const withoutEvidence = (row: Record<string, unknown>) => {
+    const visible = { ...row };
+    delete visible.option_sale_mode_snapshot;
+    delete visible.cart_variant_id;
+    return visible;
+  };
   const visible: Record<string, unknown>[] = [];
   const groups = new Map<string, Record<string, unknown>[]>();
   for (const row of rows) {
-    const { option_sale_mode_snapshot: mode, cart_variant_id: _cartVariantId, ...rest } = row;
-    if (mode !== 'random') { visible.push({ ...rest, option_sale_mode: 'select', shipment_id: row.shipment_id ?? null }); continue; }
+    if (row.option_sale_mode_snapshot !== 'random') {
+      visible.push({ ...withoutEvidence(row), option_sale_mode: 'select', shipment_id: row.shipment_id ?? null });
+      continue;
+    }
     const key = JSON.stringify([row.order_id, row.good_id]);
     groups.set(key, [...(groups.get(key) ?? []), row]);
   }
   for (const group of groups.values()) {
-    const sorted = [...group].sort((left, right) => String(left.id).localeCompare(String(right.id)));
-    const { option_sale_mode_snapshot: _mode, cart_variant_id: cartVariantId, ...first } = sorted[0];
-    visible.push({ ...first, qty: sorted.reduce((total, row) => total + Number(row.qty), 0), variant_id: cartVariantId ?? null,
+    const [first] = [...group].sort((left, right) => String(left.id).localeCompare(String(right.id)));
+    visible.push({ ...withoutEvidence(first), qty: group.reduce((total, row) => total + Number(row.qty), 0), variant_id: first.cart_variant_id ?? null,
       variant_name_snapshot: '랜덤', variant_code_snapshot: null, option_sale_mode: 'random', shipment_id: first.shipment_id ?? null });
   }
   return visible;
