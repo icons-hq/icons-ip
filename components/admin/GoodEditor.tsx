@@ -193,8 +193,8 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
   onSaveLocalDraft: (form: HTMLFormElement) => boolean; onLoadServerDraft: (draft: GoodsDraft) => void; listHref?: string;
 }) {
   const groupOwned = Boolean(ownership?.group), aggregationOwned = Boolean(ownership && !ownership.aggregation.editable);
-  /* 랜덤 판매(D5②) 여부는 T6 저장 계약의 goods.option_sale_mode다. 조회가 아직 싣지 않으면 일반 판매로 본다. */
-  const randomSale = (selected as (AdminGoodRecord & { optionSaleMode?: string }) | null)?.optionSaleMode === 'random';
+  /* 랜덤 판매(D5②) 여부는 goods.option_sale_mode(AdminGoodRecord.optionSaleMode)다. 싣지 않은 기록은 일반 판매로 본다. */
+  const randomSale = selected?.optionSaleMode === 'random';
   const [draft] = useState(() => {
     const next = createGoodEditorDraft(selected, state, variants, initialIpId, noticeDefaults);
     const saved = goodEditorValues(selected, {}, initialIpId, noticeDefaults);

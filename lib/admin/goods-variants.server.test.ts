@@ -12,7 +12,7 @@ describe('admin goods variants server boundary', () => {
       id: '11111111-1111-4111-8111-111111111111',
       code: 'OWN-01', good_id: 'good-1', name: '기본 옵션', attributes: {}, price: 1000,
       stock_qty: 5, low_stock_threshold: 2, is_default: true, archived_at: null,
-      updated_at: '2026-09-10T07:00:00.000Z',
+      updated_at: '2026-09-10T07:00:00.000Z', order_max_qty: 2, member_max_qty: null,
     }], error: null });
     const query = {
       select: vi.fn(() => query), order: vi.fn(() => query), eq: vi.fn(() => query), range,
@@ -28,8 +28,10 @@ describe('admin goods variants server boundary', () => {
       id: '11111111-1111-4111-8111-111111111111', code: 'OWN-01', goodId: 'good-1', name: '기본 옵션', attributes: {},
       price: 1000, stockQty: 5, lowStockThreshold: 2, isDefault: true, archivedAt: null,
       updatedAt: '2026-09-10T07:00:00.000Z', erpCode: '0000123', erpName: 'ERP 품명', barcode: '0007',
-      externalUpdatedAt: '2026-09-10T07:01:00.000Z',
+      externalUpdatedAt: '2026-09-10T07:01:00.000Z', orderMaxQty: 2, memberMaxQty: null,
     }]);
+    /* D7②: 옵션별 구매 제한을 읽어야 수정 화면에 저장값이 보이고, 저장 행 JSON에 키가 실린다. */
+    expect(query.select).toHaveBeenCalledWith(expect.stringMatching(/(^|,)order_max_qty,member_max_qty(,|$)/));
     expect(rpc).toHaveBeenCalledWith('admin_list_goods_variant_external_identities', { target_good_id: 'good-1' });
   });
 
