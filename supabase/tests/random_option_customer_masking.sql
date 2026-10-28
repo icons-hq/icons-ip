@@ -220,11 +220,107 @@ select 1/case when (select count(*) from public.goods_variants where good_id='ra
  then 1 else 0 end as assert_reroll_stays_hidden;
 reset role;
 
+-- 6. 주문 품목 행 분할(T7 리뷰 RV-1): 주문 코어는 배정 옵션마다 order_items 행을 나눠 넣으므로 행 수·행별 수량도 배정
+--    결과다(모두 다른 옵션이 나왔는지 = 중복이 없는지). 고객 품목 조회(my_order_items)는 같은 주문·같은 굿즈의 랜덤 행을
+--    한 줄로 합치고, 고객의 배송 건 품목 직접 읽기(order_shipment_items)에서는 랜덤 행이 빠진다(배송 건 대응은
+--    my_order_items.shipment_id). 세 옵션이 하나씩 나온 주문과 한 옵션만 세 개 나온 주문이 고객에게 같아야 한다.
+insert into auth.users(id,aud,role,email,email_confirmed_at,raw_app_meta_data,raw_user_meta_data,created_at,updated_at) values
+ ('00000000-0000-4000-8000-000000163003','authenticated','authenticated','random-mask-buyer2@example.test',now(),'{}','{}',now(),now()),
+ ('00000000-0000-4000-8000-000000163004','authenticated','authenticated','random-mask-buyer3@example.test',now(),'{}','{}',now(),now());
+update public.profiles set nickname='랜덤은닉'||right(id::text,1),birth_date='2000-01-01',onboarded_at=now(),consents='{"terms":true,"privacy":true}'
+ where id in ('00000000-0000-4000-8000-000000163003','00000000-0000-4000-8000-000000163004');
+create function pg_temp.place_cart_order(p_user uuid,p_checkout uuid) returns uuid language plpgsql as $$
+declare cart jsonb; placed uuid;
+begin
+  select coalesce(jsonb_agg(jsonb_build_object('good_id',good_id,'variant_id',variant_id,'qty',qty,'input_revision',input_revision,'input_values',input_values)),'[]')
+    into cart from public.cart_items where user_id=p_user;
+  execute 'set local role service_role';
+  placed:=public.place_order_with_cart_snapshot(p_user,'{"recipientName":"검증 구매자","phone":"01012345678","postalCode":"00000","address1":"배송 금지 검증 주소"}',
+    p_checkout,'card',0,null,cart);
+  execute 'reset role';
+  return placed;
+end $$;
+-- 고객 세션에서 보이는 주문 품목 모양. 품목 id·상품주문번호·배송 건 id는 주문마다 달라 뺀다.
+create function pg_temp.customer_order_rows(p_order uuid) returns jsonb language sql as $$
+  select jsonb_build_object(
+    'items',(select jsonb_agg(jsonb_build_object('good',item.good_id,'qty',item.qty,'variant',item.variant_id,'name',item.variant_name_snapshot,
+       'code',item.variant_code_snapshot,'mode',item.option_sale_mode,'unitPrice',item.unit_price,'shipped',item.shipment_id is not null)
+       order by item.good_id) from public.my_order_items(array[p_order]) item),
+    'shipmentItems',(select coalesce(jsonb_agg(shipment_item.qty order by shipment_item.qty),'[]') from public.order_shipment_items shipment_item
+       where shipment_item.order_id=p_order));
+$$;
+
+update public.goods_variants set stock_qty=1 where good_id='random-mask';
+set local role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000163003',true);
+select public.set_cart_item_quantity('random-mask',:'variant_a',3);
+select public.set_cart_item_quantity('random-mask-neighbor',:'neighbor_variant',1);
+reset role;
+select pg_temp.place_cart_order('00000000-0000-4000-8000-000000163003','00000000-0000-4000-8000-000000163022') as spread_order \gset
+update public.goods_variants set stock_qty=case when id=:'variant_a' then 3 else 0 end where good_id='random-mask';
+set local role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000163004',true);
+select public.set_cart_item_quantity('random-mask',:'variant_a',3);
+select public.set_cart_item_quantity('random-mask-neighbor',:'neighbor_variant',1);
+reset role;
+select pg_temp.place_cart_order('00000000-0000-4000-8000-000000163004','00000000-0000-4000-8000-000000163023') as same_order \gset
+-- 운영자 진실: 앞 주문은 세 옵션으로 나뉘었고, 뒤 주문은 한 옵션만 나왔다.
+select 1/case when (select count(*) from public.order_items where order_id=:'spread_order' and good_id='random-mask')=3
+ and (select count(*) from public.order_items where order_id=:'same_order' and good_id='random-mask')=1
+ and (select count(*) from public.order_shipment_items where order_id=:'spread_order')=4
+ then 1 else 0 end as assert_allocation_rows_split;
+
+set local role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000163003',true);
+select pg_temp.customer_order_rows(:'spread_order') as spread_view \gset
+select item.id as spread_item, item.shipment_id as spread_shipment, item.qty as spread_qty, item.variant_id as spread_variant
+ from public.my_order_items(array[:'spread_order'::uuid]) item where item.good_id='random-mask' \gset
+select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000163004',true);
+select pg_temp.customer_order_rows(:'same_order') as same_view \gset
+reset role;
+select 1/case when :'spread_view'::jsonb=:'same_view'::jsonb then 1 else 0 end as assert_customer_rows_hide_allocation_split;
+-- 합친 줄: 수량 합계, 장바구니 키, 가장 작은 배정 행 id, 그 행의 배송 건. 고객 배송 건 품목에는 선택 판매 줄만 남는다.
+select 1/case when :'spread_qty'::integer=3 and :'spread_variant'::uuid=:'variant_a'::uuid
+ and :'spread_item'::uuid=(select min(id::text)::uuid from public.order_items where order_id=:'spread_order' and good_id='random-mask')
+ and :'spread_shipment'::uuid=(select shipment_id from public.order_shipment_items where order_item_id=:'spread_item'::uuid)
+ and jsonb_array_length(:'spread_view'::jsonb->'items')=2 and :'spread_view'::jsonb->'shipmentItems'='[1]'::jsonb
+ then 1 else 0 end as assert_merged_random_row_shape;
+set local role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000163001',true);
+select 1/case when (select count(*) from public.order_shipment_items where order_id=:'spread_order')=4
+ then 1 else 0 end as assert_staff_reads_random_shipment_items;
+reset role;
+
+-- 랜덤 전환 전에 담은 비기본 옵션 줄(B)로 만든 주문도 고객에게는 장바구니 키 한 줄이다(다시 담기가 키 하나로 합친다, RV-3).
+update public.goods_variants set stock_qty=20 where good_id='random-mask';
+set local role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000163001',true);
+select public.admin_set_goods_option_sale_mode('random-mask','select',(select updated_at from public.goods where id='random-mask'));
+select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000163003',true);
+select public.set_cart_item_quantity('random-mask',:'variant_a',2);
+select public.set_cart_item_quantity('random-mask',:'variant_b',3);
+select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000163001',true);
+select public.admin_set_goods_option_sale_mode('random-mask','random',(select updated_at from public.goods where id='random-mask'));
+reset role;
+select 1/case when (select count(*) from public.cart_items where user_id='00000000-0000-4000-8000-000000163003' and good_id='random-mask')=2
+ then 1 else 0 end as assert_pre_switch_cart_lines_remain;
+select pg_temp.place_cart_order('00000000-0000-4000-8000-000000163003','00000000-0000-4000-8000-000000163024') as pre_switch_order \gset
+set local role authenticated;
+select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000163003',true);
+select 1/case when (select count(*) from public.my_order_items(array[:'pre_switch_order'::uuid]) where good_id='random-mask')=1
+ and (select qty from public.my_order_items(array[:'pre_switch_order'::uuid]) where good_id='random-mask')=5
+ and (select variant_id from public.my_order_items(array[:'pre_switch_order'::uuid]) where good_id='random-mask')=:'variant_a'::uuid
+ then 1 else 0 end as assert_pre_switch_order_is_one_key_row;
+reset role;
+
 -- 계약: 공개 계산 열 grant, 정책 계약 등록.
 select 1/case when has_function_privilege('anon','public.goods_random_option(public.goods)','execute')
  and has_function_privilege('authenticated','public.goods_random_option(public.goods)','execute')
  and exists(select 1 from private.operator_policy_contracts where table_name='goods_variants' and policy_name='goods_variants_random_private_read')
  and not has_function_privilege('authenticated','private.random_option_pool_qty(text,timestamp with time zone)','execute')
+ and exists(select 1 from private.operator_policy_contracts where table_name='order_shipment_items' and policy_name='random_shipment_items_private_read')
+ and has_function_privilege('authenticated','public.my_order_items(uuid[])','execute')
+ and not has_function_privilege('anon','public.my_order_items(uuid[])','execute')
  then 1 else 0 end as assert_masking_contracts;
 
 rollback;
