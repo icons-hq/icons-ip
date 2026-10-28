@@ -648,6 +648,29 @@ describe('sendRestockAlertEmails (#326)', () => {
       expect(goodsMail.text).not.toContain('variant=');
     });
 
+    /* T7 리뷰 RV-7: 랜덤 전환 전에 옵션 단위로 신청한 알림. 상세는 랜덤 굿즈의 ?variant= 를 무시하고 '랜덤'으로 판다 —
+       고객이 고를 수 없는 옵션의 재입고를 알리지 않는다. 신청별 dedupe 키는 그대로다. */
+    it('랜덤 판매 굿즈는 옵션 신청도 굿즈 단위 문구·링크로 보내고 옵션 이름을 읽지 않는다', async () => {
+      withOptionNames([{ variant_id: VARIANT_ID, option_name: '빨강' }]);
+      mocks.good = { ...mocks.good, option_sale_mode: 'random' };
+      mocks.restockRows = [
+        { id: SECOND_ALERT, notified_at: '2026-10-23T01:00:00.000Z', variant_id: VARIANT_ID, profiles: { email: 'fan2@example.com' } },
+      ];
+
+      const results = await sendRestockAlertEmails('g13');
+
+      expect(results).toEqual([{ status: 'sent' }]);
+      expect(rpcCalls('service_restock_alert_option_names')).toHaveLength(0);
+      expect(rpcCalls('claim_email_delivery')[0][1]).toMatchObject({
+        target_dedupe_key: `restock_alert:${SECOND_ALERT}:${VARIANT_ID}:2026-10-23T01:00:00.000Z`,
+        target_subject: '[ICONS] 재입고 알림 — 홍실 아크릴 블록',
+      });
+      const mail = mocks.send.mock.calls[0][0];
+      expect(mail.text).toContain('홍실 아크릴 블록 굿즈가 다시 판매를 시작했어요.');
+      expect(mail.text).not.toContain('variant=');
+      expect(mail.text).not.toContain('빨강');
+    });
+
     it('옵션 이름을 못 읽으면 이번 배치를 보내지 않고 실패로 남긴다(클레임 전이라 다음 접점에서 다시 보낸다)', async () => {
       withOptionNames(null, { message: 'permission denied' });
       mocks.restockRows = [
