@@ -5,7 +5,8 @@ import type { UserCouponSummary } from '@/lib/coupons';
 import type { CartCouponState } from '@/lib/coupons.server';
 
 /* 정적 마크업(실제 React)과, 적용 흐름을 위한 훅 대체 렌더(CheckoutAddressBook.test 와 같은 방식)를 함께 쓴다. */
-const hooks = vi.hoisted(() => ({ fake: false, states: [] as unknown[], index: 0, pending: [] as Promise<unknown>[] }));
+const hooks = vi.hoisted(() => ({ fake: false, states: [] as unknown[], index: 0, pending: [] as Promise<unknown>[], transitionPending: false,
+  effects: [] as { effect: () => void | (() => void); deps: unknown[]; cleanup?: () => void }[], effectIndex: 0 }));
 const mocks = vi.hoisted(() => ({ apply: vi.fn(), applyCode: vi.fn(), clear: vi.fn() }));
 vi.mock('react', async () => {
   const actual = await vi.importActual<typeof import('react')>('react');
@@ -19,7 +20,16 @@ vi.mock('react', async () => {
     },
     useTransition: () => {
       if (!hooks.fake) return actual.useTransition();
-      return [false, (callback: () => Promise<unknown> | unknown) => { const result = callback(); if (result instanceof Promise) hooks.pending.push(result); }];
+      return [hooks.transitionPending, (callback: () => Promise<unknown> | unknown) => { const result = callback(); if (result instanceof Promise) hooks.pending.push(result); }];
+    },
+    /* 의존값이 바뀐 effect 만 바로 돌린다(앞선 정리 함수를 먼저 부른다). */
+    useEffect: (effect: () => void | (() => void), deps: unknown[]) => {
+      if (!hooks.fake) return actual.useEffect(effect, deps);
+      const i = hooks.effectIndex++;
+      const previous = hooks.effects[i];
+      if (previous && deps.every((dep, j) => dep === previous.deps[j])) return;
+      previous?.cleanup?.();
+      hooks.effects[i] = { effect, deps, cleanup: effect() || undefined };
     },
   };
 });
@@ -45,7 +55,7 @@ let props: CouponPickerProps;
 const html = (overrides: Partial<CouponPickerProps> = {}) => renderToStaticMarkup(<CouponPicker {...props} {...overrides} />);
 
 beforeEach(() => {
-  hooks.fake = false; hooks.states = []; hooks.pending = [];
+  hooks.fake = false; hooks.states = []; hooks.pending = []; hooks.transitionPending = false; hooks.effects = [];
   mocks.apply.mockReset(); mocks.applyCode.mockReset(); mocks.clear.mockReset();
   props = { surface: 'checkout', couponState: state([fix5k]), appliedCoupon: null, quote: null };
 });
@@ -142,7 +152,7 @@ describe('CouponPicker — 적용·해제', () => {
   beforeEach(() => { hooks.fake = true; });
   afterEach(() => { hooks.fake = false; });
 
-  const tree = () => { hooks.index = 0; return CouponPicker(props); };
+  const tree = () => { hooks.index = 0; hooks.effectIndex = 0; return CouponPicker(props); };
   const find = (predicate: (node: Element) => boolean) => all(tree()).find(predicate);
   const settle = async () => { await Promise.all(hooks.pending); hooks.pending = []; };
 
@@ -190,6 +200,32 @@ describe('CouponPicker — 적용·해제', () => {
     const rendered = text(tree());
     expect(rendered).toContain('배송비 쿠폰은 지금 주문에 쓸 수 없어요.');
     expect(rendered).not.toContain('주문서에서 받을 방식');
+  });
+
+  /* 주문서가 쿠폰 변경이 끝나기 전 결제를 막으려면 쿠폰 칸이 바쁜지 알아야 한다(서버 액션은 한 번에 하나씩 나간다). */
+  it('쿠폰 변경이 진행되는 동안 바쁘다고 알리고, 끝나면 다시 알린다', () => {
+    const onPendingChange = vi.fn();
+    props = { ...props, onPendingChange };
+    tree();
+    expect(onPendingChange).toHaveBeenLastCalledWith(false);
+
+    hooks.transitionPending = true;
+    tree();
+    expect(onPendingChange).toHaveBeenLastCalledWith(true);
+
+    hooks.transitionPending = false;
+    tree();
+    expect(onPendingChange).toHaveBeenLastCalledWith(false);
+  });
+
+  it('바쁜 채로 사라지면 잠금을 풀어 둔다', () => {
+    const onPendingChange = vi.fn();
+    props = { ...props, onPendingChange };
+    hooks.transitionPending = true;
+    tree();
+    expect(onPendingChange).toHaveBeenLastCalledWith(true);
+    for (const effect of hooks.effects) effect.cleanup?.();
+    expect(onPendingChange).toHaveBeenLastCalledWith(false);
   });
 
   it('첫구매 선점 거절은 진행 중 주문 링크를 함께 둔다', async () => {

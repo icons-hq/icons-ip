@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useTransition, type KeyboardEvent } from 'react';
+import { useEffect, useState, useTransition, type KeyboardEvent } from 'react';
 import {
   applyCouponAction,
   applyCouponCodeAction,
@@ -45,6 +45,9 @@ export interface CouponPickerProps {
   /** 주문서에서 배송비 쿠폰·중복 적용을 따로 고르는 계약(거래 런타임)인지. */
   shippingCouponsAtCheckout?: boolean;
   disabled?: boolean;
+  /** 쿠폰 변경 액션이 진행 중인지 알린다. 주문서는 이 동안 결제를 잠근다 — 서버 액션은 한 번에 하나씩
+   *  나가므로, 끝나기 전에 낸 주문은 이전 쿠폰으로 실행되어 DB 가 coupon_selection_changed 로 거절한다. */
+  onPendingChange?: (pending: boolean) => void;
 }
 
 const LEGACY_SHIPPING_COUPON_COPY = '배송비 쿠폰은 지금 주문에 쓸 수 없어요.';
@@ -78,8 +81,15 @@ export function CouponPicker({
   quote = null,
   shippingCouponsAtCheckout = false,
   disabled = false,
+  onPendingChange,
 }: CouponPickerProps) {
   const [pending, startTransition] = useTransition();
+  useEffect(() => {
+    if (!onPendingChange) return;
+    onPendingChange(pending);
+    /* 바쁜 채로 사라져도 주문서의 결제 잠금이 남지 않게 푼다. */
+    return () => onPendingChange(false);
+  }, [onPendingChange, pending]);
   const [message, setMessage] = useState<string | null>(null);
   const [pendingOrder, setPendingOrder] = useState(false);
   const [code, setCode] = useState('');

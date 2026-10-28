@@ -65,6 +65,9 @@ const actionErrors = {
   coupon_rejected: '적용한 쿠폰을 쓸 수 없게 됐어요. 쿠폰을 다시 선택해주세요.',
   store_credit_rejected: '적립금 잔액이나 사용 조건이 바뀌었어요. 사용 금액을 다시 확인해주세요.',
   checkout_changed: '이미 만든 주문과 요청 내용이 달라요. 내 주문에서 결제를 이어가거나 기존 주문을 취소한 뒤 다시 주문해주세요.',
+  /* 견적 뒤 다른 화면에서 쿠폰 선택이 바뀐 경우(DB coupon_selection_changed). 만든 주문이 없으므로 checkout_changed 문구를 쓰지 않는다.
+     lib/checkout.ts 의 mapPlaceOrderError 가 이 코드로 나눌 때 쓰인다 — 그 전까지는 checkout_changed 로 묶인다. */
+  coupon_selection_changed: '쿠폰 선택이 바뀌었어요. 바뀐 쿠폰으로 결제 금액을 다시 확인한 뒤 주문해주세요.',
   goods_sale_not_open: '판매기간이 시작되지 않았거나 종료된 굿즈이 있어요. 장바구니를 확인해주세요.',
   preorder_sale_not_open: '예약 접수가 종료되거나 중지된 굿즈가 있어요. 장바구니를 확인해주세요.',
   preorder_capacity_exceeded: '예약 가능한 수량이 변경됐어요. 장바구니에서 수량을 다시 확인해주세요.',
@@ -129,6 +132,8 @@ export function Checkout({
   const released = useReleaseUnpaidCartOrders();
   const checkoutKey = useRef<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  /* 쿠폰 칸의 변경 액션이 진행 중이면 결제를 잠근다(R25) — 끝나기 전의 주문은 이전 쿠폰으로 나가 거절된다. */
+  const [couponPending, setCouponPending] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [pendingOrder, setPendingOrder] = useState(false);
   const [fieldErrors, setFieldErrors] = useState<CheckoutAddressErrors>({});
@@ -239,7 +244,7 @@ export function Checkout({
 
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (submitting || cartPending || mode !== 'server' || unavailable || !methodAvailable || !shippingReady || !shipping.sales || purchaseProblem || !creditReady || couponSelectionChanged) return;
+    if (submitting || cartPending || couponPending || mode !== 'server' || unavailable || !methodAvailable || !shippingReady || !shipping.sales || purchaseProblem || !creditReady || couponSelectionChanged) return;
 
     const nextFieldErrors = checkoutAddressErrors(address);
     if (Object.keys(nextFieldErrors).length > 0) {
@@ -420,6 +425,7 @@ export function Checkout({
             appliedCoupon={appliedCoupon}
             couponState={couponState}
             disabled={submitting}
+            onPendingChange={setCouponPending}
             quote={shipping.sales?.coupon ?? null}
             surface="checkout"
           />
@@ -495,7 +501,7 @@ export function Checkout({
           {unavailable && <p className="checkout-error" role="alert">재고가 변경된 굿즈가 있어요. 장바구니에서 수량을 확인해주세요.</p>}
           {!methodAvailable && <p className="checkout-error" role="alert">선택한 결제수단을 지금은 쓸 수 없어요. 다른 수단을 골라주세요.</p>}
           {submitError && <p className="checkout-error" role="alert">{submitError}{pendingOrder ? <PendingOrderResolution /> : null}</p>}
-          <button className="btn btn-holo checkout-submit" disabled={submitting || cartPending || unavailable || !methodAvailable || !shippingReady || !shipping.sales || Boolean(purchaseProblem) || !creditReady || couponSelectionChanged}>
+          <button className="btn btn-holo checkout-submit" disabled={submitting || cartPending || couponPending || unavailable || !methodAvailable || !shippingReady || !shipping.sales || Boolean(purchaseProblem) || !creditReady || couponSelectionChanged}>
             {submitting
               ? '재고를 확인하는 중'
               : selectedPaymentMethod === 'bank_transfer' ? '주문하고 입금 안내 받기' : '결제하기'}
