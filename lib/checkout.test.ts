@@ -119,6 +119,15 @@ describe('checkout copy and safe errors', () => {
     expect(mapPlaceOrderError('member_purchase_limit_exceeded: good-id')).toBe('member_purchase_limit_exceeded');
   });
 
+  it('견적 뒤 쿠폰 선택이 바뀐 거절을 이미 만든 주문과의 충돌과 나눈다', () => {
+    // DB place_order_with_store_credits 는 표시한 쿠폰과 현재 선택이 다르면 PT409 coupon_selection_changed 로 거절한다.
+    // 만든 주문이 없는 경우가 대부분이라 '이미 만든 주문과 요청 내용이 달라요'(checkout_changed)로 안내하면 틀린다.
+    expect(mapPlaceOrderError('coupon_selection_changed')).toBe('coupon_selection_changed');
+    expect(mapPlaceOrderError('checkout key conflict')).toBe('checkout_changed');
+    // 일반 쿠폰 거절(coupon_*)에 묻히지 않는다.
+    expect(mapPlaceOrderError('coupon_expired')).toBe('coupon_rejected');
+  });
+
   it('랜덤 판매 굿즈를 주문할 수 없게 된 경우를 재고 변경과 나눈다', () => {
     expect(mapPlaceOrderError('random_option_unavailable: good-id')).toBe('random_option_unavailable');
     expect(mapPlaceOrderError('random_option_checkout_unsupported: good-id')).toBe('random_option_unavailable');
