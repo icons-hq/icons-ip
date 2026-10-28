@@ -44,7 +44,7 @@ GET·HEAD를 제공한다. 기존 글로벌 CDN import는 fixture에서 제거�
 node scripts/admin-visual-fixture/import-boundary-qa.mjs
 ```
 
-`cs-qna`는 상품 이미지와 행 안 답변 펼침, `cs-inquiries`는 문의 선택 후 목록 아래 좌우 응대 영역도 렌더한다. 답변·메모·고객 조회는 기존 fixture 경계로 차단하며 실제 저장 성공을 재현하지 않는다.
+`cs-qna`는 상품 이미지와 행 안 답변 펼침, `cs-inquiries`는 실제 페이지처럼 `inquiryId`가 있으면 목록 위 팝업에 좌우 응대 영역을 렌더한다. 답변·메모·고객 조회는 기존 fixture 경계로 차단하며 실제 저장 성공을 재현하지 않는다.
 
 이 검사는 화면 코드를 실행하지 않고 변환된 모듈의 named export 연결과
 `/api`·`/auth` 차단 응답을 확인한다. `overview`는 합성 문의·리뷰 데이터도 표시한다.

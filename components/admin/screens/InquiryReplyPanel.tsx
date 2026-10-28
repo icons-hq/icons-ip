@@ -3,6 +3,7 @@
 import { useActionState, useRef } from 'react';
 import { useInquiryDraft } from '@/components/admin/useInquiryDraft';
 import { InquiryDraftNotice } from './InquiryDraftNotice';
+import { useInquiryPreviewBusy } from './CustomerServiceDialog';
 import {
   answerInquiryAction,
   closeInquiryAction,
@@ -18,12 +19,15 @@ import {
 
 /* 답변 작성 패널(#253).
  *
- * 템플릿은 "삽입"이지 "치환"이 아니다. 이미 쓰던 문장을 지우고 덮어쓰면 운영자가
- * 작성 중이던 내용을 잃는다 — 커서 위치를 모르는 서버 렌더 폼에서는 뒤에 붙이는 편이
- * 유일하게 안전한 삽입이다.
+ * 템플릿은 작성 중인 답변을 "대체"한다(10/27 회의 후속 R3, MD-0011). 뒤에 덧붙이면 운영자가
+ * 매번 기존 문장을 지워야 했다. 작성 중인 내용이 있으면 템플릿 도구가 "작성 중인 내용을
+ * 템플릿으로 바꿀까요?" 확인을 거친 뒤에만 바꾸므로, 실수로 쓰던 답변을 잃지 않는다.
+ * 고객문의·상담하기·상품문의·리뷰 답변이 같은 도구(InquiryReplyTemplateTools·CsReplyTemplateTools)로
+ * 같은 동작과 안내 문구를 쓴다.
  *
  * [답변 발송]과 [종결]은 다른 폼이다. 하나의 폼에 두 버튼을 두면 브라우저 기본 제출
- * (엔터)이 어느 쪽으로 갈지 마크업 순서에 좌우된다. */
+ * (엔터)이 어느 쪽으로 갈지 마크업 순서에 좌우된다. 고객문의 답변은 실수 발송을 막기 위해
+ * Enter 전송을 쓰지 않는다(상담하기만 Enter 전송, R5). */
 
 const EMPTY_STATE: AdminInquiryActionState = {};
 
@@ -59,6 +63,7 @@ export function InquiryReplyPanel({
 }) {
   const [answerState, answerAction, answerPending] = useActionState(answerInquiryAction, EMPTY_STATE);
   const [closeState, closeAction, closePending] = useActionState(closeInquiryAction, EMPTY_STATE);
+  useInquiryPreviewBusy(answerPending || closePending); /* 목록 위 문의 팝업(R4)에서 발송·종결을 기다리는 동안 팝업이 닫히지 않게 알린다. 팝업 밖에서는 아무 일도 하지 않는다. */
   const draft = useInquiryDraft(accountId, inquiryId, 'reply', answerState.resultKey);
   const { body, change: setBody } = draft;
   const bodyRef = useRef<HTMLTextAreaElement>(null);

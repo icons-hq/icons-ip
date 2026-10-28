@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  formatSeowonPhone, matchSeowonReply, seowonExportLabels, seowonExportRows, seowonExportTable, seowonItemName, SEOWON_REPLY_REASONS,
+  formatSeowonPhone, matchSeowonReply, seowonExportLabels, seowonExportRows, seowonExportTable, seowonItemName, seowonRowKey, SEOWON_REPLY_REASONS,
   type SeowonReplyCandidate, type SeowonReplyRow,
 } from './seowon-exchange';
 
@@ -23,9 +23,16 @@ describe('서원 송장양식 행 규칙', () => {
   });
   it('품목 하나가 한 행이고 줄바꿈·연속 공백을 한 칸으로 줄이며 5자리가 아닌 우편번호는 비운다', () => {
     expect(seowonExportRows([{ ...line, address: '서울  중구\n세종대로', deliveryNote: '문 앞\n부탁', postalCode: '123' }, { ...line, optionName: '', qty: 1 }])).toEqual([
-      { phone: '010-1234-5678', otherPhone: '', postalCode: '', address: '서울 중구 세종대로', freightType: '', quantity: 2, items: '합성 키링_빨강', recipient: '합성 수취인', deliveryNote: '문 앞 부탁', shipmentNumber: '' },
-      { phone: '010-1234-5678', otherPhone: '', postalCode: '04524', address: line.address, freightType: '', quantity: 1, items: '합성 키링_', recipient: '합성 수취인', deliveryNote: '', shipmentNumber: '' },
+      { phone: '010-1234-5678', otherPhone: '', postalCode: '', address: '서울 중구 세종대로', freightType: '', quantity: 2, items: '합성 키링_빨강', recipient: '합성 수취인', deliveryNote: '문 앞 부탁', shipmentNumber: '', optionName: '빨강', barcode: '', erpName: '' },
+      { phone: '010-1234-5678', otherPhone: '', postalCode: '04524', address: line.address, freightType: '', quantity: 1, items: '합성 키링_', recipient: '합성 수취인', deliveryNote: '', shipmentNumber: '', optionName: '', barcode: '', erpName: '' },
     ]);
+  });
+  it('덧붙인 옵션명·바코드·ERP 품명 열은 품목명과 회신 대조 키를 바꾸지 않는다', () => {
+    const [plain] = seowonExportRows([line]);
+    const [identified] = seowonExportRows([{ ...line, optionName: ' 빨강  ', barcode: '0880123456789', erpName: ' 합성 키링 빨강(ERP) ' }]);
+    expect([identified.optionName, identified.barcode, identified.erpName]).toEqual(['빨강', '0880123456789', '합성 키링 빨강(ERP)']);
+    expect(identified.items).toBe(plain.items);
+    expect(seowonRowKey(identified)).toBe(seowonRowKey(plain));
   });
 });
 

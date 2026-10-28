@@ -25,14 +25,14 @@ const seowonShipment='60000000-0000-4000-8000-0000000000a1',seowonOrder='5000000
 const seowonLine={recipient:'합성 수취인',phone:'01012345678',postalCode:'04524',address:'서울특별시 중구 세종대로 110 101호',deliveryNote:'',qty:2};
 const seowonCandidate=(overrides:Record<string,unknown>={})=>({id:seowonShipment,orderId:seowonOrder,status:'ready',carrier:null,trackingNumber:null,
   lines:[{...seowonLine,goodName:'합성 키링',optionName:'빨강'},{...seowonLine,goodName:'합성 엽서',optionName:'',qty:1}],...overrides});
-/** 내려받은 송장양식(7열+덧붙인 3열) 오른쪽에 송장번호 열을 채운 서원 회신. */
+/** 내려받은 송장양식(7열+덧붙인 6열) 오른쪽에 송장번호 열을 채운 서원 회신. */
 async function seowonForm(rows:(string|number)[][],origin=''){
  const workbook=new ExcelJS.Workbook(),sheet=workbook.addWorksheet('송장양식');sheet.addRow([...SEOWON_EXPORT_HEADERS,'송장번호']);
  for(const row of rows)sheet.addRow(row);
  for(let i=0;i<5;i++)workbook.addWorksheet(`Sheet${i+1}`);
  const data=new FormData();data.set('file',new File([await workbook.xlsx.writeBuffer() as ArrayBuffer],'seowon-reply.xlsx'));data.set('originId',origin);return data;
 }
-const seowonRow=(items:string,quantity:number,tracking:string|number,phone='010-1234-5678',shipmentNumber='')=>[phone,'','04524','서울특별시 중구 세종대로 110 101호','',quantity,items,'합성 수취인','',shipmentNumber,tracking];
+const seowonRow=(items:string,quantity:number,tracking:string|number,phone='010-1234-5678',shipmentNumber='')=>[phone,'','04524','서울특별시 중구 세종대로 110 101호','',quantity,items,'합성 수취인','',shipmentNumber,'','','',tracking];
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.origins.mockImplementation(async (template: string) => ({ error: null, data: template === 'wms_csv' ? [{ id: warehouseOrigin, name: '김포' }] : [{ id: seowonOrigin, name: '남양주' }] }));

@@ -23,11 +23,17 @@ describe('whole-order claim request boundary',()=>{
   }
   expect(mocks.createClient).not.toHaveBeenCalled();expect(mocks.rpc).not.toHaveBeenCalled();
  });
- it.each(['cancel','return','exchange'])('preserves valid existing %s requests and whole-order RPC arguments',async claimType=>{
-  const response=await POST(request({claimType,reasonType:'defect'}),context());
+ it.each([['cancel','change_of_mind'],['return','defect'],['exchange','defect']])('preserves valid existing %s requests and whole-order RPC arguments',async (claimType,reasonType)=>{
+  const response=await POST(request({claimType,reasonType}),context());
   expect(response.status).toBe(202);
-  expect(mocks.rpc).toHaveBeenCalledWith('request_order_claim',expect.objectContaining({p_order_id:orderId,p_user_id:'buyer',p_claim_type:claimType,p_reason_type:'defect'}));
+  expect(mocks.rpc).toHaveBeenCalledWith('request_order_claim',expect.objectContaining({p_order_id:orderId,p_user_id:'buyer',p_claim_type:claimType,p_reason_type:reasonType}));
   expect(Object.keys(mocks.rpc.mock.calls[0][1])).not.toContain('p_amount');
+ });
+ // R7: 취소(발주확인 전)는 단순 변심만 받는다. 하자·오배송은 반품·교환으로 받는다.
+ it('rejects defect cancellation before auth/DB',async()=>{
+  const response=await POST(request({claimType:'cancel',reasonType:'defect'}),context());
+  expect(response.status).toBe(400);expect(await response.json()).toEqual({error:{code:'invalid_reason_type'}});
+  expect(mocks.createClient).not.toHaveBeenCalled();expect(mocks.rpc).not.toHaveBeenCalled();
  });
  it('rejects array bodies',async()=>{expect((await POST(request([]),context())).status).toBe(400);expect(mocks.rpc).not.toHaveBeenCalled();});
 });

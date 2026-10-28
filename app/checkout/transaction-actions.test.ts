@@ -46,7 +46,11 @@ it('주문 생성은 견적 UUID로 금액을 확정하며 분석 기록 실패�
   expect(await placeCartTransactionAction(placeInput)).toEqual({ ok: true, orderId: transactionOrder });
   expect(mocks.rpc.mock.calls[0][1]).toEqual({ p_user_id: transactionActor, p_expected_cart: [{ good_id: 'transaction-good', variant_id: transactionInput.items[0].variantId, qty: 2, input_revision: 0, input_values: {} }], p_address: transactionInput.address, p_quote_id: transactionRecovery.quoteId, p_checkout_key: transactionRecovery.checkoutKey, p_payment_method: 'card' });
 });
-it.each([['PT409', 'transaction_quote_expired', 'quote_changed', false], ['PT409', 'cart_snapshot_changed', 'cart_changed', false], ['', 'network failed', 'unavailable', true]])('DB 거절과 결과 불명을 구분한다: %s %s', async (code, message, error, uncertain) => {
+it.each([['PT409', 'transaction_quote_expired', 'quote_changed', false], ['PT409', 'cart_snapshot_changed', 'cart_changed', false], ['', 'network failed', 'unavailable', true],
+  // 옵션별 구매 제한·랜덤 판매 굿즈는 order_items 경계가 거절한다(계산 단계 이슈를 지나친 경합). 장바구니 확인으로 돌려보낸다.
+  ['23514', 'option_order_limit_exceeded: 00000000-0000-4000-8000-000000000001', 'cart_changed', false],
+  ['23514', 'option_member_limit_exceeded: 00000000-0000-4000-8000-000000000001', 'cart_changed', false],
+  ['23514', 'random_option_checkout_unsupported: transaction-good', 'cart_changed', false]])('DB 거절과 결과 불명을 구분한다: %s %s', async (code, message, error, uncertain) => {
   mocks.rpc.mockResolvedValue({ data: null, error: { code, message } });
   expect(await placeCartTransactionAction(placeInput)).toEqual({ ok: false, error, uncertain });
 });

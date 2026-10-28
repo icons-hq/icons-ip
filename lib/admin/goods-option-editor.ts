@@ -15,12 +15,21 @@ export type GoodsOptionRow = {
   erpName?: string | null;
   barcode?: string | null;
   externalUpdatedAt?: string | null;
+  /**
+   * 옵션별 구매 제한(D7②). 주문 1건의 최대 수량·회원 1명의 누적 최대 수량, null은 제한 없음.
+   * 키가 없으면 DB가 기존 값을 유지한다(private.save_goods_options). 읽어 온 값·입력한 값만 키로 싣는다.
+   */
+  orderMaxQty?: number | null;
+  memberMaxQty?: number | null;
 };
+/** 어드민 옵션 조회가 옵션별 구매 제한을 읽어 오면 채워지는 값. 읽지 않았으면 undefined라 저장 키에서 빠진다. */
+export type GoodsVariantPurchaseLimits = { orderMaxQty?: number | null; memberMaxQty?: number | null };
+export const GOODS_OPTION_LIMIT_KEYS = ['orderMaxQty', 'memberMaxQty'] as const;
 export type GoodsOptionAxis = { name: string; values: string };
 export const GOODS_OPTION_AXIS_LIMIT = 3;
 export const GOODS_OPTION_ROW_LIMIT = 100;
 type Result = { ok: true; rows: GoodsOptionRow[] } | { ok: false; error: string };
-const INVALID = '옵션명·관리코드·ERP 식별자·옵션가·재고수량·안전재고·사용여부를 확인해주세요. 옵션은 1~100개까지 저장할 수 있습니다.';
+const INVALID = '옵션명·관리코드·ERP 식별자·옵션가·재고수량·안전재고·사용여부·옵션별 구매 제한(1 이상의 정수)을 확인해주세요. 옵션은 1~100개까지 저장할 수 있습니다.';
 const signature = (attributes: Record<string, string>) => JSON.stringify(Object.entries(attributes).sort(([a], [b]) => a.localeCompare(b)));
 export function generateGoodsOptionRows(axes: GoodsOptionAxis[], previous: GoodsOptionRow[]): Result {
   if (axes.length < 1 || axes.length > GOODS_OPTION_AXIS_LIMIT) return { ok: false, error: `옵션명은 1~${GOODS_OPTION_AXIS_LIMIT}개 입력해주세요.` };
@@ -33,7 +42,7 @@ export function generateGoodsOptionRows(axes: GoodsOptionAxis[], previous: Goods
   return { ok: true, rows: combinations.map((attributes) => previous.find((row) => signature(row.attributes) === signature(attributes))
     ?? { name: Object.values(attributes).join(' / '), code: '', attributes, extraPrice: 0, stockQty: 0 }) };
 }
-export function initialGoodsOptionRows(variants: AdminGoodsVariant[], basePrice: number): GoodsOptionRow[] {
+export function initialGoodsOptionRows(variants: (AdminGoodsVariant & GoodsVariantPurchaseLimits)[], basePrice: number): GoodsOptionRow[] {
   const rows = variants.filter((variant) => !variant.archivedAt || variant.isDefault)
     .sort((left, right) => Number(right.isDefault) - Number(left.isDefault)).map((variant) => ({
     id: variant.id, name: variant.name, code: variant.code, attributes: variant.attributes ?? {},
@@ -41,6 +50,7 @@ export function initialGoodsOptionRows(variants: AdminGoodsVariant[], basePrice:
     lowStockThreshold: variant.lowStockThreshold ?? null, isActive: !variant.archivedAt,
     erpCode: variant.erpCode ?? null, erpName: variant.erpName ?? null, barcode: variant.barcode ?? null,
     externalUpdatedAt: variant.externalUpdatedAt ?? null,
+    ...Object.fromEntries(GOODS_OPTION_LIMIT_KEYS.filter((key) => variant[key] !== undefined).map((key) => [key, variant[key]])),
   }));
   return rows.length ? rows : [{ name: '기본 옵션', code: '', attributes: {}, extraPrice: 0, stockQty: 0,
     erpCode: null, erpName: null, barcode: null, externalUpdatedAt: null }];
@@ -58,6 +68,7 @@ export function parseGoodsOptionRows(raw: string, basePrice: number): Result {
         || (row.lowStockThreshold !== undefined && row.lowStockThreshold !== null
           && (!Number.isSafeInteger(row.lowStockThreshold) || row.lowStockThreshold < 0 || row.lowStockThreshold > 2147483647))
         || (row.isActive !== undefined && typeof row.isActive !== 'boolean')
+        || GOODS_OPTION_LIMIT_KEYS.some((key) => !validOptionLimit(row[key]))
         || !validExternalText(row.erpCode, GOODS_VARIANT_EXTERNAL_IDENTITY_LIMITS.erpCode)
         || !validExternalText(row.erpName, GOODS_VARIANT_EXTERNAL_IDENTITY_LIMITS.erpName)
         || !validExternalText(row.barcode, GOODS_VARIANT_EXTERNAL_IDENTITY_LIMITS.barcode)
@@ -83,11 +94,17 @@ export function restoreGoodsOptionRows(raw?: string): GoodsOptionRow[] | null {
     return Array.isArray(rows) && rows.length > 0 && rows.length <= 100 && rows.every((row) => row && typeof row === 'object'
       && typeof row.name === 'string' && typeof row.code === 'string' && typeof row.extraPrice === 'number'
       && typeof row.stockQty === 'number' && row.attributes && typeof row.attributes === 'object' && !Array.isArray(row.attributes)
+      && GOODS_OPTION_LIMIT_KEYS.every((key) => row[key] === undefined || row[key] === null || typeof row[key] === 'number')
       && validExternalText(row.erpCode, GOODS_VARIANT_EXTERNAL_IDENTITY_LIMITS.erpCode)
       && validExternalText(row.erpName, GOODS_VARIANT_EXTERNAL_IDENTITY_LIMITS.erpName)
       && validExternalText(row.barcode, GOODS_VARIANT_EXTERNAL_IDENTITY_LIMITS.barcode)
       && validExternalUpdatedAt(row.externalUpdatedAt)) ? rows : null;
   } catch { return null; }
+}
+
+/** 옵션별 구매 제한: 키 없음(기존 값 유지)·null(제한 없음)·1 이상의 정수. */
+function validOptionLimit(value: unknown): boolean {
+  return value === undefined || value === null || (Number.isSafeInteger(value) && (value as number) >= 1 && (value as number) <= 2147483647);
 }
 
 function validExternalText(value: unknown, maxLength: number): value is string | null | undefined {

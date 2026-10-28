@@ -2,6 +2,8 @@ import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import type { Good } from '@/lib/data';
+import { toGood, type GoodRow } from '@/lib/catalog';
+import { pendingRestockState } from '@/lib/wishlist.server';
 import { activeGalleryIndex } from './PdpGallery';
 import {
   CART_ADDED_STATUS,
@@ -266,6 +268,30 @@ describe('purchaseCtaState (PD-10 · DESIGN restock-cta)', () => {
   });
 });
 
+/* D5② — 랜덤 판매 굿즈의 재입고 신청은 DB(request_variant_restock_alert·request_restock_alert)가 굿즈 단위(variant_id null)로
+   저장한다. 상세의 신청 상태·버튼도 굿즈 단위를 봐야 신청 뒤 '신청됨'이 그대로 보인다. */
+describe('랜덤 판매 굿즈 재입고 알림 상태', () => {
+  const key = '00000000-0000-4000-8000-0000000000b1';
+  const row = (poolQty: number) => ({ id: 'random-restock', ip_id: 'ip1', name: '랜덤 굿즈', type: '문구', price: 5000, compare_at_price: null,
+    stock: poolQty > 0 ? 'ok' : 'soldout', stock_qty: poolQty, bg: '#fff', image_path: null, badge: null, option_sale_mode: 'random', goods_variants: [],
+    random_option: { id: key, name: '랜덤', code: '', price: 5000, stock_qty: poolQty, is_default: true, attributes: {}, archived_at: null, sort_order: 0 } });
+
+  it('풀이 비면 굿즈 전체 품절로 보고 굿즈 단위 신청 상태를 쓴다', () => {
+    const random = toGood(row(0) as unknown as GoodRow, () => '');
+    expect(random.options).toEqual([expect.objectContaining({ id: key, stockQty: 0 })]);
+    expect(isGoodSoldOut(random)).toBe(true);
+    const engagement = pendingRestockState([{ variant_id: null, status: 'pending' }]);
+    expect(purchaseCtaState({ good: random, unavailableLabel: null, soldOut: isGoodSoldOut(random), restockOption: random.options![0], ...engagement }))
+      .toEqual({ kind: 'restock', variantId: null, optionName: null, requested: true });
+  });
+
+  it('풀이 남아 있으면 재입고 대신 담기·구매다', () => {
+    const random = toGood(row(3) as unknown as GoodRow, () => '');
+    expect(isGoodSoldOut(random)).toBe(false);
+    expect(purchaseCtaState({ good: random, unavailableLabel: null, soldOut: false, restockRequested: true, restockVariantIds: [] })).toEqual({ kind: 'buy' });
+  });
+});
+
 describe('GoodRailBuyBox', () => {
   it('합계와 [카트 50][구매 226] 버튼을 같은 컨트롤러 함수에 묶는다', () => {
     const html = renderToStaticMarkup(<GoodRailBuyBox purchase={controller({ quantity: 2, subtotal: 24000 })} />);
@@ -342,6 +368,63 @@ describe('activeGalleryIndex', () => {
 });
 
 describe('GoodPurchasePanel', () => {
+  /* D5② — 랜덤 판매 굿즈는 옵션 선택기 대신 '랜덤'과 확정 안내를 보이고, 수량 최대는 풀 합계다. */
+  it('랜덤 판매 굿즈는 옵션 대신 랜덤과 무작위 배정 안내를 보인다', () => {
+    const random = {id:'00000000-0000-4000-8000-0000000000a1',name:'랜덤',price:5000,stockQty:6,code:'',attributes:{},isDefault:true,orderMaxQty:null,memberMaxQty:null};
+    const html = renderToStaticMarkup(<GoodPurchasePanel purchase={controller({good:{...good,optionSaleMode:'random',options:[random]},selectedOption:random,quantity:6})} />);
+    expect(html).not.toContain('<select');
+    expect(html).toMatch(/<p class="wc-buy-panel__option">랜덤<\/p>/);
+    expect(html).toContain('옵션은 주문 후 재고에서 무작위로 정해져 발송됩니다. 같은 옵션이 중복될 수 있습니다.');
+    expect(html).toMatch(/aria-disabled="true" aria-label="수량 늘리기"/);
+  });
+
+  /* 선물·정기배송(거래 런타임)은 랜덤 판매 굿즈를 주문하지 않는다 — 막다른 진입을 보이지 않는다. */
+  it('랜덤 판매 굿즈는 선물·정기배송 진입을 두지 않는다', () => {
+    const random = {id:'00000000-0000-4000-8000-0000000000a1',name:'랜덤',price:5000,stockQty:6,code:'',attributes:{},isDefault:true};
+    const html = renderToStaticMarkup(<GoodPurchasePanel otherPurchases={{ gift: true, subscription: true }}
+      purchase={controller({good:{...good,optionSaleMode:'random',options:[random]},selectedOption:random})} />);
+    expect(html).not.toContain('wc-buy-panel__other-purchases');
+    const plain = renderToStaticMarkup(<GoodPurchasePanel otherPurchases={{ gift: true, subscription: true }} purchase={controller()} />);
+    expect(plain).toContain('wc-buy-panel__other-purchases');
+  });
+
+  /* D7② — 고른 옵션의 정적 안내(확정 카피), 스테퍼 최대는 재고와 주문당 최대 중 작은 값. */
+  it('옵션별 구매 제한은 고른 옵션의 안내와 스테퍼 최대로 보인다', () => {
+    const options = [
+      {id:'blue',name:'파랑',price:12000,stockQty:5,code:'BLUE',attributes:{},isDefault:true,orderMaxQty:2,memberMaxQty:4},
+      {id:'red',name:'빨강',price:12000,stockQty:5,code:'RED',attributes:{},isDefault:false,orderMaxQty:null,memberMaxQty:null},
+    ];
+    const limited = renderToStaticMarkup(<GoodPurchasePanel purchase={controller({good:{...good,options},selectedOption:options[0],quantity:2})} />);
+    expect(limited).toContain('&#x27;파랑&#x27;은 한 번에 2개까지 주문할 수 있습니다.');
+    expect(limited).toContain('&#x27;파랑&#x27;은 1인당 4개까지 구매할 수 있습니다.');
+    expect(limited).toMatch(/aria-disabled="true" aria-label="수량 늘리기"/);
+    const free = renderToStaticMarkup(<GoodPurchasePanel purchase={controller({good:{...good,options},selectedOption:options[1],quantity:2})} />);
+    expect(free).not.toContain('까지 주문할 수 있습니다');
+    expect(free).not.toMatch(/aria-disabled="true" aria-label="수량 늘리기"/);
+  });
+
+  /* T7 리뷰 RV-5: 추가 구성 굿즈도 본품과 같은 판매 방식·옵션별 제한 안내(확정 카피)를 보인다. */
+  it('추가 구성 굿즈가 랜덤 판매면 무작위 배정 안내를, 옵션별 제한이 있으면 고른 옵션의 안내를 보인다', () => {
+    const random = {id:'00000000-0000-4000-8000-0000000000a1',name:'랜덤',price:5000,stockQty:6,code:'',attributes:{},isDefault:true,orderMaxQty:null,memberMaxQty:null};
+    const randomGood: Good = { ...good, id: 'rnd', name: '랜덤 캔뱃지', optionSaleMode: 'random', options: [random] };
+    const limitOptions = [
+      {id:'blue',name:'파랑',price:3000,stockQty:5,code:'BLUE',attributes:{},isDefault:true,orderMaxQty:2,memberMaxQty:4},
+      {id:'red',name:'빨강',price:3000,stockQty:5,code:'RED',attributes:{},isDefault:false,orderMaxQty:null,memberMaxQty:null},
+    ];
+    const limitedGood: Good = { ...good, id: 'lim', name: '스티커', options: limitOptions };
+    const additionalChoices: AdditionalPurchaseChoice[] = [
+      { goodId: 'rnd', name: randomGood.name, good: randomGood, selected: true, selectedOption: random, quantity: 1 },
+      { goodId: 'lim', name: limitedGood.name, good: limitedGood, selected: true, selectedOption: limitOptions[0], quantity: 1 },
+    ];
+    const html = renderToStaticMarkup(<GoodPurchasePanel purchase={controller({ additionalChoices })} />);
+    const section = html.slice(html.indexOf('aria-label="추가 구성 굿즈"'));
+    expect(section).toContain('옵션은 주문 후 재고에서 무작위로 정해져 발송됩니다. 같은 옵션이 중복될 수 있습니다.');
+    expect(section).toContain('&#x27;파랑&#x27;은 한 번에 2개까지 주문할 수 있습니다.');
+    expect(section).toContain('&#x27;파랑&#x27;은 1인당 4개까지 구매할 수 있습니다.');
+    const unselected = renderToStaticMarkup(<GoodPurchasePanel purchase={controller({ additionalChoices: additionalChoices.map(choice => ({ ...choice, selected: false })) })} />);
+    expect(unselected).not.toContain('무작위로 정해져');
+  });
+
   it('단일 옵션은 선택기를 숨기고 기본값이 아닌 옵션명만 표시한다', () => {
     const option = {id:'blue',name:'파랑',price:12000,stockQty:3,code:'BLUE',attributes:{색상:'파랑'},isDefault:true};
     const html = renderToStaticMarkup(<GoodPurchasePanel purchase={controller({good:{...good,options:[option]},selectedOption:option})} />);

@@ -3,13 +3,16 @@ import { commerceReferenceLabel, isCommerceNumber } from '@/lib/commerce-number'
 
 /**
  * 서원(남양주) 송장양식 교환 규칙. 내보내기와 회신 대조가 같은 행 규칙을 써야
- * 회신이 배송 건으로 돌아온다. 원형 7열 오른쪽에 받는분성명·배송메시지·배송건번호를
+ * 회신이 배송 건으로 돌아온다. 원형 7열 오른쪽에 받는분성명·배송메시지·배송건번호·옵션명·바코드·ERP 품명을
  * 덧붙이고, 회신에 배송건번호가 남아 있으면 그 번호로 정확히 대조한다.
  */
-export type SeowonLine = Pick<ShipmentExportLine, 'recipient' | 'phone' | 'postalCode' | 'address' | 'goodName' | 'optionName' | 'qty' | 'deliveryNote'>;
+export type SeowonLine = Pick<ShipmentExportLine, 'recipient' | 'phone' | 'postalCode' | 'address' | 'goodName' | 'optionName' | 'qty' | 'deliveryNote'>
+  & Partial<Pick<ShipmentExportLine, 'barcode' | 'erpName'>>;
 export interface SeowonExportRow {
   phone: string; otherPhone: ''; postalCode: string; address: string; freightType: '';
   quantity: number; items: string; recipient: string; deliveryNote: string; shipmentNumber: string;
+  /** 덧붙인 열. 품목명(`items`)·회신 대조 키(`seowonRowKey`)에는 쓰지 않는다. */
+  optionName: string; barcode: string; erpName: string;
 }
 /** 한 파일에 싣는 배송 건. 합포장(`packId`)은 운영자가 일부러 묶은 한 상자라 접미사를 함께 쓴다. */
 export interface SeowonExportShipment { id: string; shipmentNumber?: string | null; packId?: string | null; lines: readonly SeowonLine[] }
@@ -41,6 +44,7 @@ export function seowonExportRows(lines: readonly SeowonLine[], recipientSuffix =
     phone: formatSeowonPhone(line.phone), otherPhone: '', postalCode: /^\d{5}$/.test(line.postalCode) ? line.postalCode : '',
     address: squash(line.address), freightType: '', quantity: line.qty, items: seowonItemName(line.goodName, line.optionName),
     recipient: `${squash(line.recipient)}${recipientSuffix}`, deliveryNote: squash(line.deliveryNote), shipmentNumber,
+    optionName: squash(line.optionName), barcode: (line.barcode ?? '').trim(), erpName: squash(line.erpName ?? ''),
   }));
 }
 

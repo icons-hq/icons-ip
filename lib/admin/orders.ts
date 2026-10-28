@@ -1,6 +1,7 @@
 import { isUuid } from '@/lib/uuid';
 import type { ShipmentRecord } from '@/lib/orders/shipments';
 import type { OrderWithdrawalReasonType } from '@/lib/orders';
+import type { GoodsOptionSaleMode } from '@/lib/goods-option-sale-mode';
 import {
   ORDER_STAFF_CANCELLATION_REASON_CODES,
   ORDER_STAFF_CANCELLATION_REASON_LABELS,
@@ -112,6 +113,11 @@ export interface AdminOrderItemRecord {
   variantName?: string | null;
   customInputs?: import('@/lib/goods-custom-inputs').GoodsCustomInputSelection | null;
   variantCode?: string | null;
+  /**
+   * 판매 방식(D5②). 'random'이면 고객이 고른 옵션이 아니라 주문 생성 때 DB가 재고 비례로 무작위 배정한 옵션이다.
+   * variantId·variantName·variantCode는 배정된 옵션 그대로다. 주문 상세(admin_order_detail)만 싣는다.
+   */
+  optionSaleMode?: GoodsOptionSaleMode;
   id: string;
   name: string;
   type: string;

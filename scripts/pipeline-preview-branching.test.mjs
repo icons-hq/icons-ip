@@ -21,7 +21,8 @@ function findStep(job, name) {
 describe('Supabase preview branch workflow contract', () => {
   it('revalidates every edit while only base retargets redeploy preview', async () => {
     const workflow = await loadWorkflow(pipelinePath);
-    const validate = workflow.jobs.validate;
+    const validationJobs = ['validate-plan', 'validate-app', 'validate-db', 'validate']
+      .map((name) => workflow.jobs[name]);
 
     expect(workflow.on.pull_request.types).toEqual([
       'opened',
@@ -29,7 +30,10 @@ describe('Supabase preview branch workflow contract', () => {
       'reopened',
       'edited',
     ]);
-    expect(validate.if).toBeUndefined();
+    // 검증 job은 제목·본문 edited 이벤트도 걸러내지 않는다.
+    for (const job of validationJobs) {
+      expect(job.if ?? '', job.name).not.toContain('github.event');
+    }
     expect(workflow.jobs['deploy-supabase-preview'].if).toContain("github.event.action != 'edited'");
     expect(workflow.jobs['deploy-supabase-preview'].if).toContain('github.event.changes.base != null');
     expect(workflow.concurrency['cancel-in-progress']).toContain(
@@ -89,6 +93,8 @@ describe('Supabase preview branch workflow contract', () => {
       "grep -q '^  sync-supabase-preview-main:' .github/workflows/pipeline.yml",
     );
     expect(gate.run).toContain('head_sha=${PR_BASE_SHA}');
+    // deploy-staging이 끝날 때까지 run 전체 완료를 기다리지 않는다. 증거는 아래 두 job 결론이다.
+    expect(gate.run).not.toContain('status=completed');
     expect(gate.run).toContain('.name == "deploy-supabase" and .conclusion == "success"');
     expect(gate.run).toContain(
       '.name == "sync-supabase-preview-main" and .conclusion == "success"',
@@ -187,7 +193,9 @@ describe('Supabase preview branch workflow contract', () => {
     const check = findStep(job, 'Check shared preview sync secrets');
 
     expect(job.needs).toEqual(['deploy-supabase', 'deploy-vercel']);
-    expect(job.if).toBe("github.event_name == 'push' && github.ref == 'refs/heads/main'");
+    expect(job.if.replace(/\s+/g, ' ').trim()).toBe(
+      "!cancelled() && needs.deploy-supabase.result == 'success' && needs.deploy-vercel.result == 'success' && github.event_name == 'push' && github.ref == 'refs/heads/main'",
+    );
     expect(freshness.run).toContain('git fetch --no-tags origin main');
     expect(freshness.run).toContain('current_main_sha="$(git rev-parse origin/main)"');
     expect(freshness.run).toContain('[ "$GITHUB_SHA" != "$current_main_sha" ]');

@@ -4,10 +4,13 @@ import { normalizeCheckoutAddress, normalizeCheckoutPaymentMethod, type Checkout
 import { parseGoodsCustomInputSelection, type GoodsCustomInputSelection } from './goods-custom-inputs';
 import { parseGoodsTransactionSelection, type GoodsTransactionSelection } from './goods-transaction';
 import { transactionExactKeys, transactionInstant, transactionInteger, transactionRecord } from './goods-transaction-values';
+import { RANDOM_OPTION_LABEL } from './goods-option-sale-mode';
 
 export const GIFT_MESSAGE_LIMIT = 300;
 export const GIFT_CLAIM_COOKIE = 'icons_gift_claim';
 export const GIFT_TOKEN_PATTERN = /^[A-Za-z0-9_-]{43}$/;
+/** 선물은 랜덤 판매 굿즈를 받지 않는다(ADR-0027 · m27 CUST-1). 선물 준비 목록의 비활성 이유이자 DB 거절 문구다. */
+export const GIFT_RANDOM_OPTION_UNSUPPORTED_MESSAGE = '랜덤 판매 굿즈는 선물할 수 없어요.';
 export const GIFT_STATES = ['awaiting_acceptance', 'accepted', 'ordered', 'declined', 'expired', 'canceled'] as const;
 export type GiftState = typeof GIFT_STATES[number];
 export type GiftParty = 'sender' | 'recipient';
@@ -100,6 +103,15 @@ export function parseGiftPage(value: unknown): GiftPage | null {
   return { items: items as GiftDetail[], hasMore: value.hasMore };
 }
 
+/**
+ * 랜덤 판매 굿즈 품목의 옵션명을 '랜덤'으로 가린다. 선물은 만들 때 랜덤 판매 굿즈를 거절하지만(gift_random_option_unsupported),
+ * 만든 뒤 판매 방식이 랜덤으로 바뀐 굿즈는 품목 스냅샷에 기본 옵션의 실제 이름이 남는다(ADR-0027 · m27 CUST-1).
+ */
+export function maskRandomGiftItems<T extends { items: GiftItem[] }>(value: T, randomGoodIds: ReadonlySet<string>): T {
+  if (!value.items.some(item => randomGoodIds.has(item.goodId))) return value;
+  return { ...value, items: value.items.map(item => randomGoodIds.has(item.goodId) ? { ...item, variantName: RANDOM_OPTION_LABEL } : item) };
+}
+
 export function giftSelectionFromCart(items: readonly { goodId: string; variantId: string; qty: number; customInputs?: GoodsCustomInputSelection }[]): GoodsTransactionSelection[] | null {
   if (items.length > 100) return null;
   return parseGoodsTransactionSelection(items.map(item => ({ goodId: item.goodId, variantId: item.variantId, qty: item.qty, inputRevision: item.customInputs?.revision ?? 0,
@@ -134,6 +146,8 @@ export function giftError(error?: { code?: string; message?: string }): GiftFail
     goods_custom_inputs_changed: '굿즈의 직접입력 항목이 바뀌었습니다. 굿즈를 다시 선택해주세요.',
   };
   if (error?.message && messages[error.message]) return { error: messages[error.message] };
+  /* DB가 거절한 굿즈 id를 접미로 붙여도 같은 문구다. */
+  if (error?.message?.startsWith('gift_random_option_unsupported')) return { error: GIFT_RANDOM_OPTION_UNSUPPORTED_MESSAGE };
   if (['22023', '23514', '23505', '23503', '42501', '28000', 'P0002', '55000'].includes(error?.code ?? '')) return { error: '입력과 현재 선물 상태를 확인해주세요. 작성한 내용은 유지됩니다.' };
   return { error: '처리 결과를 확인하지 못했습니다. 같은 요청으로 다시 확인해주세요.', uncertain: true };
 }

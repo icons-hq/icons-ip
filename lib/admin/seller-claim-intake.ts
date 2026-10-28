@@ -1,7 +1,7 @@
 import { isUuid } from '@/lib/uuid';
 import { isCommerceNumber } from '@/lib/commerce-number';
 import { isOrderWithdrawalReasonType, type OrderWithdrawalReasonType } from '@/lib/orders';
-import { isOrderClaimStage, isOrderClaimType, normalizeRefundAccount, type OrderClaimStage, type OrderClaimType, type RefundAccountInput } from '@/lib/orders/claims';
+import { ORDER_CLAIM_BUYER_REASON_TYPES, isOrderClaimStage, isOrderClaimType, normalizeRefundAccount, type OrderClaimStage, type OrderClaimType, type RefundAccountInput } from '@/lib/orders/claims';
 import { isShippingCarrierCodeFormat, isTrackingNumber, normalizeTrackingNumber, type ShippingCarrierRegistry } from '@/lib/orders/shipment';
 
 export const SELLER_CLAIM_PATH = '/admin/sales/orders';
@@ -80,6 +80,10 @@ export function parseSellerClaimInput(input: unknown): { ok: true; requestId: st
   if (!record(input) || !exactKeys(input, ['requestId','orderId','claimType','reasonType','reason','source','inquiryId','customerRequestedAt','agreementEvidence','agreementConfirmed','collectionAddress','collections','refundAccount'])
     || !isUuid(input.requestId) || !isUuid(input.orderId) || !isOrderClaimType(input.claimType)
     || typeof input.reasonType !== 'string' || !isOrderWithdrawalReasonType(input.reasonType) || !known(SELLER_CLAIM_SOURCES, input.source)) return fail('주문과 접수 유형을 다시 확인해주세요.');
+  /* R7: 취소(발주확인 전)는 단순 변심만 받는다. DB(private.validate_seller_claim_intake)도 같은 규칙으로 거절한다. */
+  if (!(ORDER_CLAIM_BUYER_REASON_TYPES[input.claimType] as readonly string[]).includes(input.reasonType)) {
+    return fail('취소 접수 사유는 단순 변심만 선택할 수 있습니다. 상품 하자·오배송은 반품·교환으로 접수해주세요.');
+  }
   const reason = string(input.reason); const agreementEvidence = string(input.agreementEvidence);
   if (!reason || reason.length > 200 || controls.test(reason)) return fail('접수 사유를 1~200자로 입력해주세요.');
   if (!agreementEvidence || agreementEvidence.length > 1000 || controls.test(agreementEvidence)) return fail('고객 합의 근거를 1~1,000자로 입력해주세요.');

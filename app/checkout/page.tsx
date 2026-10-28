@@ -52,7 +52,7 @@ export default async function Page({ searchParams }: PageProps) {
   const cardProvider = await deriveUserCartProvider(auth.user.id).catch(() => 'toss' as const);
   const paymentAvailable = goodsCheckoutPaymentsEnabled(auth.user.id, cardProvider);
 
-  /* 확정은 place_order 가 한다 — 주문서는 카트에 적용해 둔 선택을 미리 보여줄 뿐이다. */
+  /* 확정은 place_order 가 한다 — 주문서는 카트에 적용해 둔 선택을 미리 보여주고, 같은 선택(cart_coupon_selections)을 바꾸게 한다(R25). */
   const appliedCoupon = couponState.coupons.find(
     (held) => held.id === couponState.selectedUserCouponId,
   ) ?? null;
@@ -72,6 +72,7 @@ export default async function Page({ searchParams }: PageProps) {
       paymentAvailable={paymentAvailable}
       bankTransferAvailable={await bankTransferCheckoutEnabled()}
       appliedCoupon={appliedCoupon}
+      couponState={couponState}
       paymentFailCode={paymentFailCode}
     />
   );

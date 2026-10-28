@@ -17,8 +17,10 @@ it('기본료 무료와 지역료 상속을 구별하고 추가 합산으로 안
   expect(html).toContain('기간 할인 후, 복수구매 할인·쿠폰·적립금 적용 전');
   expect(html).toContain('키링 · 인형');
   expect(html).toContain('묶음 기본 배송비</dt><dd>무료');
-  expect(html).toContain('출고지 지역 정책에 포함');
-  expect(html).toContain('출고지 지역 추가 배송비: ₩3,000');
+  /* 고객 화면은 '출고지'를 말하지 않는다(R26). */
+  expect(html).not.toContain('출고지');
+  expect(html).toContain('배송 묶음 지역 정책에 포함');
+  expect(html).toContain('배송 묶음 지역 추가 배송비: ₩3,000 · 배송 건당 부과');
   expect(html).toContain('₩4,000 · 묶음당 1회');
   expect(html).toContain('묶음 외 기본 배송비: ₩1,200');
   expect(html).not.toContain('버전 3');
@@ -34,4 +36,10 @@ it('명시된 0원 그룹 지역료는 보존하고 관리자에게 저장 당�
   expect(html).toContain('상품 1');
   expect(html).not.toContain('출고지 지역 추가 배송비:');
   expect(html).not.toContain('묶음 외 기본 배송비:');
+});
+
+it('관리자 화면은 출고지 어휘를 그대로 쓴다', () => {
+  const html = renderToStaticMarkup(<ShippingChargeDetailsDisplay details={details} admin />);
+  expect(html).toContain('출고지 지역 정책에 포함');
+  expect(html).toContain('출고지 지역 추가 배송비: ₩3,000 · 출고지 배송 건당 부과');
 });

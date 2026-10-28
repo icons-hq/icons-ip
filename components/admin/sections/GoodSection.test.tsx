@@ -2,10 +2,12 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import type { AdminGoodRecord } from '@/lib/admin/catalog.server';
 import type { Ip } from '@/lib/data';
-import { sanitizeGoodsDescription } from '@/lib/goods-description';
+import { GOODS_HTML_MAX_LENGTH, sanitizeGoodsDescription } from '@/lib/goods-description';
 import { GOODS_NOTICE_FIELDS } from '@/lib/goods-notice';
 import { GOOD_BADGES, GOOD_TYPES } from '@/lib/goods-taxonomy';
 import { GoodSection } from './GoodSection';
+import { groupGoodsEntryVisible } from '../GoodEditor';
+import { ADMIN_SCREENS, adminScreenForPath } from '@/lib/admin/navigation';
 import { commonTestOwnership } from '@/lib/admin/goods-group-common.test-fixtures';
 import { parseGoodsEditorOwnership } from '@/lib/admin/goods-group-common';
 import { GoodsKcTemplateProvider } from '../useGoodsKcTemplate';
@@ -104,7 +106,7 @@ const good: AdminGoodRecord = {
 function renderGoodSection(
   selected: AdminGoodRecord | null,
   state: Parameters<typeof GoodSection>[0]['state'] = {},
-  options: Pick<Parameters<typeof GoodSection>[0],'initialQuery'|'initialIpId'|'variants'|'canSearchErp'|'ownership'> = {},
+  options: Pick<Parameters<typeof GoodSection>[0],'initialQuery'|'initialIpId'|'variants'|'canSearchErp'|'ownership'|'accountId'|'cloneOperationId'|'canManageCosts'> = {},
 ) {
   return renderToStaticMarkup(
     <GoodsKcTemplateProvider selectionKey={selected ? `good:${selected.id}` : 'create:any'}>
@@ -148,7 +150,7 @@ describe('GoodSection', () => {
   });
   it('keeps the task order and error links in the same authoring sequence', () => {
     const html = renderGoodSection(null, { errors: { maxOrderQty: '수량 오류', originId: '배송 오류', noticeMaker: '고시 오류', variants: '옵션 오류', price: '가격 오류', name: '이름 오류' } });
-    const sections = ['basic', 'price', 'variants', 'notice', 'shipping', 'sale'];
+    const sections = ['basic', 'price', 'limits', 'variants', 'notice', 'shipping'];
     const positions = sections.map((key) => html.indexOf(`id="good-section-${key}"`));
     expect(positions.every((position) => position >= 0)).toBe(true);
     expect(positions).toEqual([...positions].sort((a, b) => a - b));
@@ -198,12 +200,15 @@ describe('GoodSection', () => {
   it('초안 저장 영역은 KC 검토 전에 KC 맥락을 먼저 채우는 순서와 재검토 조건을 안내한다', () => {
     const order = '1. 기본 정보·유형·고시정보·옵션까지 입력해 초안 저장 → 2. KC 검토 → 3. 공개. KC 검토 뒤 상품명·유형·IP·고시정보(제조자·제조국·소재·크기)나 옵션 구성을 바꾸면 KC를 다시 검토합니다.';
     const draft = { ...good, publishedAt: null };
-    for (const html of [renderGoodSection(null), renderGoodSection(draft)]) {
-      const save = html.slice(html.indexOf('aria-label="기본 상품 저장"'));
-      expect(save).toContain(order);
-      expect(save).not.toContain('1. 초안 생성 → 2. KC 검토 → 3. 공개 요청');
-    }
+    const save = (html: string) => html.slice(html.indexOf('aria-label="기본 상품 저장"'));
+    expect(save(renderGoodSection(draft))).toContain(order);
+    expect(save(renderGoodSection(draft))).not.toContain('1. 초안 생성 → 2. KC 검토 → 3. 공개 요청');
     expect(renderGoodSection(good)).not.toContain(order);
+    /* R13·D6② — 등록 화면은 KC를 기본 입력과 함께 저장하므로 순서 안내가 둘로 줄어든다. */
+    const create = save(renderGoodSection(null));
+    expect(create).toContain('1. 기본 정보·유형·고시정보·옵션과 KC까지 입력해 저장 → 2. 게시 상태에서 공개');
+    expect(create).toContain('아래 KC·예약판매 입력을 한 번에 저장합니다. 하나라도 실패하면 아무것도 저장되지 않고 입력은 유지됩니다.');
+    expect(create).not.toContain(order);
   });
   it('저장 후 공개가 KC에 막혀 초안으로만 저장되면 성공이 아니라 공개 보류로 알리고 KC 정보로 안내한다', () => {
     const draft = { ...good, publishedAt: null };
@@ -284,19 +289,137 @@ describe('GoodSection', () => {
     expect(html).not.toContain('현재 실재고');
     expect(html).not.toContain('name="delta"');
     expect(html).not.toContain('name="reason"');
-    expect(html).not.toContain('id="good-operation-stock"');
+    /* 자리표시 카드만 있고 입력·폼은 없다(R13). */
+    const stock = html.slice(html.indexOf('id="good-operation-stock"'), html.indexOf('id="good-operation-publish"'));
+    expect(stock).toContain('상품을 저장하면 이 자리에서 바로 입력할 수 있습니다.');
+    expect(stock).not.toMatch(/<input|<select|<textarea|<button/);
     expect(html.match(/<form/g)).toHaveLength(1);
+  });
+
+  /* 10/27 회의 R13·D6② — 등록 화면에서 운영 섹션을 같은 순서·같은 id로 보이고, KC·예약판매는 기본 입력과 함께 저장한다. */
+  it('등록 화면은 저장 뒤 운영 섹션을 같은 순서·같은 id의 자리표시로 보이고 KC·예약판매는 함께 입력한다', () => {
+    const props = { accountId: 'operator-1', cloneOperationId: '33333333-3333-4333-8333-333333333333', canManageCosts: true };
+    const ids = (html: string) => [...html.matchAll(/<details id="good-operation-([a-z-]+)"/g)].map((match) => match[1]);
+    const saved = renderGoodSection({ ...good, publishedAt: null }, {}, props);
+    const create = renderGoodSection(null, {}, props);
+    expect(ids(create)).toEqual(ids(saved));
+    expect(ids(create)).toEqual(expect.arrayContaining(['kc', 'prices', 'transaction-terms', 'benefits', 'preorders']));
+    const card = (html: string, id: string) => { const start = html.indexOf(`id="good-operation-${id}"`); const next = html.indexOf('<details id="good-operation-', start); return html.slice(start, next < 0 ? undefined : next); };
+    for (const id of ['prices', 'transaction-terms', 'benefits', 'stock']) {
+      expect(card(create, id)).toContain('admin-good-workspace__operation--placeholder');
+      expect(card(create, id)).toContain('상품을 저장하면 이 자리에서 바로 입력할 수 있습니다.');
+    }
+    expect(card(create, 'kc')).toContain('상품과 함께 저장');
+    expect(card(create, 'kc')).toContain('상품 전체 KC 해당 없음');
+    expect(card(create, 'kc')).toContain('KC 모델 추가');
+    expect(card(create, 'preorders')).toContain('예약 조건 추가');
+    expect(create).toMatch(/<details id="good-operation-kc"[^>]*open=""/);
+    const form = create.slice(create.indexOf('<form'), create.indexOf('</form>'));
+    expect(form).toContain('type="hidden" name="workspaceOperationId" value=""');
+    expect(form).toContain('type="hidden" name="workspaceSections" value=""');
+    expect(form).not.toContain('KC 모델 추가');
+    expect(saved).not.toContain('name="workspaceOperationId"');
+    expect(card(saved, 'kc')).toContain('별도 저장');
+  });
+
+  /* 10/27 회의 D5② — 판매 방식(랜덤 판매) 패널은 예약판매 바로 앞에 두고, 등록 화면에는 같은 자리에 자리표시를 둔다. */
+  it('판매 방식 패널을 예약판매 바로 앞에 별도 저장 섹션으로 두고, 기본 입력 잠금 규칙을 다른 운영 패널과 같이 따른다', () => {
+    const props = { accountId: 'operator-1' };
+    const ids = (html: string) => [...html.matchAll(/<details id="good-operation-([a-z-]+)"/g)].map((match) => match[1]);
+    const card = (html: string, id: string) => { const start = html.indexOf(`id="good-operation-${id}"`); const next = html.indexOf('<details id="good-operation-', start); return html.slice(start, next < 0 ? undefined : next); };
+    const saved = renderGoodSection({ ...good, publishedAt: null }, {}, props);
+    expect(ids(saved).slice(ids(saved).indexOf('option-sale-mode'), ids(saved).indexOf('option-sale-mode') + 2)).toEqual(['option-sale-mode', 'preorders']);
+    expect(card(saved, 'option-sale-mode')).toContain('<summary>판매 방식<span>별도 저장</span></summary>');
+    expect(card(saved, 'option-sale-mode')).toContain('aria-label="판매 방식"');
+    /* 서버 렌더는 기본 입력 상태를 확인하는 중이라 잠긴다 — 다른 잠금 패널과 같은 공통 안내를 패널 맨 위에 보인다. */
+    expect(card(saved, 'option-sale-mode')).toMatch(/class="admin-good-workspace__disabled" role="status"><p>기본 상품의 입력 상태를 확인하고 있습니다.<\/p>/);
+
+    const create = renderGoodSection(null, {}, props);
+    expect(ids(create).slice(ids(create).indexOf('option-sale-mode'), ids(create).indexOf('option-sale-mode') + 2)).toEqual(['option-sale-mode', 'preorders']);
+    expect(card(create, 'option-sale-mode')).toContain('admin-good-workspace__operation--placeholder');
+    expect(card(create, 'option-sale-mode')).toContain('상품을 저장하면 이 자리에서 바로 입력할 수 있습니다.');
+    expect(card(create, 'option-sale-mode')).not.toMatch(/<input|<button|<form/);
+
+    expect(renderGoodSection({ ...good, archivedAt: '2026-10-01T00:00:00Z' })).not.toContain('id="good-operation-option-sale-mode"');
+  });
+
+  it('등록 화면 섹션 저장 오류는 같은 자리 카드와 상단 요약에서 그 카드로 안내한다', () => {
+    const html = renderGoodSection(null, { attempt: 1, errors: { workspacePreorders: '예약 활성화는 관리자 계정에서 할 수 있습니다. 상품은 저장되지 않았고 입력은 유지됩니다.', name: '이름 오류' } });
+    const summary = html.slice(html.indexOf('aria-label="저장 오류 요약"')).split('</section>')[0];
+    expect([...summary.matchAll(/href="#([a-z-]+)"/g)].map((match) => match[1])).toEqual(['good-section-basic', 'good-operation-preorders']);
+    const preorders = html.slice(html.indexOf('id="good-operation-preorders"'));
+    expect(preorders).toMatch(/role="alert">예약 활성화는 관리자 계정에서 할 수 있습니다/);
   });
 
   it('keeps the stored sale restriction in the same goods form as payment methods', () => {
     const html = renderGoodSection({ ...good, saleRestriction: 'adult' });
 
-    expect(html).toContain('구매수량·결제 설정');
+    expect(html).toContain('결제·판매 제한');
+    expect(html).not.toContain('구매수량·결제 설정');
     expect(html).toContain('name="saleRestriction"');
     expect(html).toContain('name="allowCardPayment"');
     expect(html).toContain('성인(19금)');
     expect(html).toMatch(/<option[^>]*value="adult"[^>]*selected|<option[^>]*selected[^>]*value="adult"/);
     expect(html).toContain('성인 인증을 마친 회원에게만 공개·판매됩니다');
+  });
+
+  /* 10/27 회의 R12·D7② — 구매 제한은 판매가·판매기간 바로 아래에 펼친 채, 스마트스토어 어휘로 보인다. */
+  it('구매 제한 카드는 판매기간 바로 아래 펼친 채 최소/최대·1인 최대 구매수량과 옵션별 제한을 보여준다', () => {
+    const html = renderGoodSection({ ...good, orderQuantityLimitEnabled: true, minOrderQty: 1, maxOrderQty: 3 } as typeof good);
+    const period = html.indexOf('id="good-section-period"');
+    const limits = html.indexOf('id="good-section-limits"');
+    const variants = html.indexOf('id="good-section-variants"');
+    expect(period).toBeGreaterThan(0);
+    expect(limits).toBeGreaterThan(period);
+    expect(variants).toBeGreaterThan(limits);
+    const card = html.slice(html.lastIndexOf('<details', limits), variants);
+    expect(card).toMatch(/<details[^>]*id="good-section-limits"[^>]*open=""|<details[^>]*open=""[^>]*id="good-section-limits"/);
+    for (const text of ['구매 제한', '최소/최대 구매수량', '최소 구매수량', '최대 구매수량', '1인 최대 구매수량', '옵션별 구매 제한']) expect(card).toContain(text);
+    expect(card).toContain('최소·최대 구매수량을 모두 입력');
+    expect(card).toMatch(/<input type="radio" name="orderQuantityLimitEnabled" checked="" value="true"\/>설정함/);
+    expect(card).toMatch(/<input[^>]*name="maxOrderQty"[^>]*value="3"/);
+    expect(card).toContain('aria-label="기본 옵션 최대 구매수량(주문당)"');
+    expect(card).toContain('aria-label="기본 옵션 1인 최대 구매수량"');
+    expect(html.indexOf('name="allowCardPayment"')).toBeGreaterThan(variants);
+  });
+
+  it('저장된 옵션별 제한을 보여주고, 랜덤 판매 상품은 옵션별 제한 입력을 막는다', () => {
+    const variant = { id: '11111111-1111-4111-8111-111111111111', goodId: good.id, name: '기본 옵션', code: 'HW-0100-01', price: good.price, stockQty: 12, isDefault: true, archivedAt: null, orderMaxQty: 2, memberMaxQty: null };
+    const html = renderGoodSection(good, {}, { variants: [variant] });
+    expect(html).toMatch(/<input[^>]*aria-label="기본 옵션 최대 구매수량\(주문당\)"[^>]*value="2"/);
+    expect(html).not.toContain('랜덤 판매 상품은 옵션별 구매 제한을 쓸 수 없습니다.');
+    const random = renderGoodSection({ ...good, optionSaleMode: 'random' } as typeof good, {}, { variants: [variant] });
+    expect(random).toContain('랜덤 판매 상품은 옵션별 구매 제한을 쓸 수 없습니다.');
+    expect(random).toMatch(/<fieldset[^>]*disabled=""[^>]*class="goods-option-limits"|<fieldset[^>]*class="goods-option-limits"[^>]*disabled=""/);
+  });
+
+  /* 리뷰 T3a-2 — 편집기 안 접이식 영역도 키 밖 펼침 상태(stateId)로 그려 저장 시도마다 다시 접히지 않는다. */
+  it('편집기 안 접이식 영역(상세설명 편집·긴 상세 이미지·검색설정·옵션 상세 정보·미리보기·저장 안내)도 펼침 상태를 기억한다', () => {
+    const html = renderGoodSection(good, { errors: { nameEn: '영문명 오류' } });
+    const opening = (pattern: RegExp) => html.match(pattern)?.[0] ?? '';
+    for (const summary of ['상세설명 편집', '긴 상세 이미지 (선택)', '검색설정·판매자상품코드']) {
+      const start = html.indexOf(`<summary>${summary}`);
+      expect(start).toBeGreaterThan(0);
+      expect(html.slice(html.lastIndexOf('<details', start), start)).toContain('data-known-open=');
+    }
+    /* 오류가 있는 선택 영역은 강제로 연다. */
+    const search = html.lastIndexOf('<details', html.indexOf('<summary>검색설정·판매자상품코드'));
+    expect(html.slice(search, html.indexOf('>', search))).toContain('open=""');
+    expect(opening(/<details class="goods-option-secondary"[^>]*>/)).toContain('data-known-open="false"');
+    expect(opening(/<details id="good-preview"[^>]*>/)).toContain('data-known-open="false"');
+    expect(opening(/<details class="admin-good-workspace__save-info"[^>]*>/)).toContain('data-known-open="false"');
+  });
+
+  /* 10/27 회의 R14 — 기본 입력 상태로 잠긴 운영 패널은 맨 위에 공통 이유를 보인다(서버 렌더는 확인 중 상태). */
+  it('기본 입력 상태로 잠기는 운영 패널 5개는 패널 맨 위에 공통 잠금 이유를 둔다', () => {
+    const html = renderGoodSection({ ...good, publishedAt: null }, {}, { accountId: 'operator-1' });
+    const card = (id: string) => { const start = html.indexOf(`id="good-operation-${id}"`); return html.slice(start, html.indexOf('<details id="good-operation-', start + 1)); };
+    for (const id of ['transaction-terms', 'shipping-charge-group', 'subscription-policy', 'fulfillment', 'production']) {
+      expect(card(id)).toMatch(/class="admin-good-workspace__disabled" role="status"><p>기본 상품의 입력 상태를 확인하고 있습니다.<\/p>/);
+      /* 리뷰 T3a-7 — 패널 본문은 같은 문장을 되풀이하지 않고 위 안내를 가리킨다(한 패널에 이유가 두 번 나오지 않는다). */
+      expect(card(id).split('기본 상품의 입력 상태를 확인하고 있습니다.')).toHaveLength(2);
+    }
+    expect(card('prices')).not.toContain('admin-good-workspace__disabled');
   });
 
   it('uses the shared artwork upload field', () => {
@@ -381,14 +504,45 @@ describe('GoodSection', () => {
   /* 리뷰 재현: 요약이 원문 길이만 보여 줘 정리된 코드가 30,000자를 넘어 저장이 거부될 때 이유를 알 수 없었다. */
   it('상세페이지 HTML 요약에 정리 후 길이를 함께 보여주고, 정리 결과가 상한을 넘으면 저장 전에 알린다', () => {
     const images = Array.from({ length: 100 }, (_, index) => `<img src="https://img.example.com/${index}.jpg">`).join('');
-    const description = `<p>${'가'.repeat(25000)}</p>${images}`;
+    const description = `<p>${'가'.repeat(GOODS_HTML_MAX_LENGTH - 5000)}</p>${images}`;
     const html = renderGoodSection(good, { attempt: 1, values: { previousId: good.id, descriptionFormat: 'html', description } });
     const cleaned = sanitizeGoodsDescription(description).html.length;
 
-    expect(description.length).toBeLessThanOrEqual(30000);
-    expect(cleaned).toBeGreaterThan(30000);
+    expect(description.length).toBeLessThanOrEqual(GOODS_HTML_MAX_LENGTH);
+    expect(cleaned).toBeGreaterThan(GOODS_HTML_MAX_LENGTH);
     expect(html).toContain(`상세페이지 HTML · 원문 ${description.length.toLocaleString('ko-KR')}자 · 정리 후 ${cleaned.toLocaleString('ko-KR')}자`);
-    expect(html).toContain(`정리된 코드가 ${cleaned.toLocaleString('ko-KR')}자로 최대 30,000자를 넘어 저장할 수 없습니다.`);
+    expect(html).toContain(`정리된 코드가 ${cleaned.toLocaleString('ko-KR')}자로 최대 ${GOODS_HTML_MAX_LENGTH.toLocaleString('ko-KR')}자를 넘어 저장할 수 없습니다.`);
+  });
+
+  /* 10/27 회의 R17 — 붙여넣은 상세 HTML이 잘리지 않게 글자 수 제한(maxLength)을 두지 않고, 상한은 공용 상수로 표시·경고한다. */
+  it('상세 HTML 입력은 잘리지 않고 상한을 넘으면 저장 전에 경고한다', () => {
+    const description = `<p>${'가'.repeat(GOODS_HTML_MAX_LENGTH + 10)}</p>`;
+    const html = renderGoodSection(good, { attempt: 1, values: { previousId: good.id, descriptionFormat: 'html', description } });
+    const textarea = html.match(/<textarea[^>]*name="description"[^>]*>/)?.[0];
+    expect(textarea).toBeDefined();
+    expect(textarea).not.toContain('maxLength');
+    expect(html).toContain(`상세페이지 HTML (정리된 코드 포함 최대 ${GOODS_HTML_MAX_LENGTH.toLocaleString('ko-KR')}자)`);
+    expect(html).toContain(`원문이 ${description.length.toLocaleString('ko-KR')}자로 최대 ${GOODS_HTML_MAX_LENGTH.toLocaleString('ko-KR')}자를 넘어 저장할 수 없습니다.`);
+    expect(renderGoodSection(good).match(/<textarea[^>]*name="description"[^>]*>/)?.[0]).toContain('maxLength="2000"');
+  });
+
+  /* 10/27 회의 R21(D9①) — 그룹상품 등록은 메뉴·탭에서 숨기고 라우트만 유지한다. */
+  it('등록 화면 탭에 그룹상품 등록 링크를 두지 않는다', () => {
+    const html = renderGoodSection(null);
+    expect(html).toContain('상품 등록');
+    expect(html).not.toContain('groups/new?mode=assemble');
+    expect(html).not.toContain('그룹상품 등록</a>');
+  });
+
+  /* R21: 편집기 탭의 그룹상품 등록 링크는 메뉴 숨김(navHidden)과 한 값으로 묶는다. 기존 그룹은 주소로 계속 열린다. */
+  it('그룹상품 등록 탭은 메뉴 숨김과 짝을 이루고, 숨겨도 그룹상품 화면은 주소로 열린다', () => {
+    const create = ADMIN_SCREENS.find((screen) => screen.id === 'goods-groups-create')!;
+    expect(create.navHidden).toBe(true);
+    expect(groupGoodsEntryVisible()).toBe(false);
+    expect(groupGoodsEntryVisible(ADMIN_SCREENS.map((screen) => screen.id === create.id ? { ...screen, navHidden: false } : screen))).toBe(true);
+    expect(groupGoodsEntryVisible(ADMIN_SCREENS.filter((screen) => screen.id !== create.id))).toBe(false);
+    expect(adminScreenForPath('/admin/catalog/groups/new?mode=assemble')?.id).toBe('goods-groups-create');
+    expect(adminScreenForPath('/admin/catalog/groups/11111111-1111-4111-8111-111111111111')?.id).toBe('goods-groups');
   });
 
   it('prefills gallery slots in stored order and keeps the detail image', () => {
@@ -438,7 +592,7 @@ describe('GoodSection', () => {
     expect(card).toMatch(/<input[^>]*name="regularPrice"[^>]*value="26000"/);
     expect(card).toMatch(/<input type="radio" name="discountEnabled" checked="" value="true"\/>설정함/);
     expect(card).toMatch(/<input[^>]*name="discountValue"[^>]*value="4000"/);
-    expect(card).toContain('할인가 <strong>22,000원</strong> (4,000원 할인)');
+    expect(card).toContain('할인가 <strong>22,000원</strong> (4,000원, 15% 할인)');
     expect(card).toContain('<input type="hidden" name="price" value="22000"/>');
     expect(card).toContain('<input type="hidden" name="compareAtPrice" value="26000"/>');
     expect(card).toContain('고객 화면에 할인율 표시');
@@ -464,7 +618,7 @@ describe('GoodSection', () => {
     expect(html).toMatch(/<input[^>]*name="discountValue"[^>]*value="15"/);
     expect(html).toMatch(/<option value="percent" selected="">%<\/option>/);
     expect(html).toContain('<input type="hidden" name="price" value="8415"/>');
-    expect(html).toContain('할인가 <strong>8,415원</strong> (1,485원 할인)');
+    expect(html).toContain('할인가 <strong>8,415원</strong> (1,485원, 15% 할인)');
   });
 
   it('재고수량·옵션 카드는 옵션 없는 상품의 재고수량을 먼저 보여준다', () => {
@@ -476,7 +630,8 @@ describe('GoodSection', () => {
     expect(html).toContain('2. 상품속성');
     expect(html).toContain('4. 판매가');
     expect(html).toContain('5. 판매기간');
-    expect(html).toContain('6. 재고수량·옵션');
+    expect(html).toContain('6. 구매 제한');
+    expect(html).toContain('7. 재고수량·옵션');
   });
 
   /* #326 — 유형·배지는 자유 입력이 아니라 표준 값 select 다(DB CHECK 와 같은 목록). */

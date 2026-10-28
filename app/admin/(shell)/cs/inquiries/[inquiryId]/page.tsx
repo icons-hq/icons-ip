@@ -1,5 +1,6 @@
 import { hasAdminCapability } from '@/lib/admin/access';
 import { notFound } from 'next/navigation';
+import { AdminOpenInquiryBadge } from '@/components/admin/AdminOpenInquiryBadge';
 import { InquiryDetailScreen } from '@/components/admin/screens/InquiryDetailScreen';
 import { requireAdminScreenAccess } from '@/lib/admin/guard.server';
 import { adminInquiryBackFilters, adminInquiryBackHref } from '@/lib/admin/inquiries';
@@ -27,7 +28,8 @@ export default async function AdminCsInquiryDetailPage({
   if (!detail) notFound();
   const navigation = await getAdminInquiryNavigation(inquiryId, data, 'detail');
 
-  return (
+  return <>
+    <AdminOpenInquiryBadge count={data.counts.open} />
     <InquiryDetailScreen key={`${auth.user.id}:${inquiryId}`} accountId={auth.user.id} navigation={navigation} backHref={adminInquiryBackHref(query.back)} detail={detail} {...access} canViewCustomer={canViewCustomer} />
-  );
+  </>;
 }

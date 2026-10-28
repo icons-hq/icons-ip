@@ -251,7 +251,7 @@ npm run hong-sil:download -- \
 
 GitHub Actions의 `CI/CD Pipeline`은 PR 검증(lint/typecheck/test/build/Supabase local lint), Vercel preview 배포, production 배포를 처리하고 `Supabase Preview Cleanup`은 PR close 시 최종 base와 무관하게 deterministic isolated branch만 정리한다. 운영팀용 `deploy-staging`은 성공한 main shared-preview 동기화 뒤 영구 `staging` branch에 앱을 배포한다. 고정 alias·test 키·생성 계정·연습 데이터 보존 절차와 실제 활성화 상태는 [스테이징 런북](docs/runbooks/staging.md)을 따른다.
 
-CI의 HTTP DB 검증용 PostgREST v14.14는 ECR의 비인증 다운로드 한도 영향을 피하도록 Supabase 공식 GHCR 이미지에서 받는다. 동일 이미지를 기존 HTTP fixture가 확인하는 ECR 이름으로 로컬 태그하며, 검증 항목과 운영 DB·앱 버전은 바꾸지 않는다.
+CI의 HTTP DB 검증용 PostgREST v14.14는 ECR의 비인증 다운로드 한도 영향을 피하도록 Supabase 공식 GHCR 이미지에서 받는다. 동일 이미지를 기존 HTTP fixture가 확인하는 ECR 이름으로 로컬 태그하며, 검증 항목과 운영 DB·앱 버전은 바꾸지 않는다. DB 샤드는 run마다 각자 로컬 DB 이미지를 받으므로 `SUPABASE_INTERNAL_IMAGE_REGISTRY=ghcr.io`로 Supabase CLI가 같은 GHCR 미러만 쓰게 한다.
 
 두 workflow는 Supabase CLI `2.109.1`을 사용한다. 이전 `2.101.0`의 로컬 DB 이미지
 `17.6.1.106`에는 함수 실행 권한 거절 시 DB 연결이 비정상 종료되는
@@ -265,10 +265,13 @@ GRANT를 완화하지 않고 수정된 이미지가 포함된 CLI로 검증한�
 기존 migration의 누락된 명시적 GRANT를 별도 보완해야 한다. hosted `config.toml` 전체를
 push하는 설정은 아니다.
 
-- `pull_request`: open·commit 갱신·reopen, base branch retarget, 제목·본문 변경에서 `validate`를 실행하고, 같은 repo 브랜치의 코드·base 변경 PR이면 preview DB mode를 고른다. 제목·본문만 편집한 `edited` 이벤트는 다시 배포하거나 실행 중인 Preview run을 취소하지 않는다. `main` 대상은 merge-base 기준 전체 diff를 rename 비탐지로 읽고, Supabase 배포 변경이 없을 때만 base SHA의 main→shared sync 성공 증거를 확인한 뒤 shared main을 변경 없이 사용한다. shared Vercel 배포 직전에도 원격 `main`이 검증한 base SHA와 같은지 다시 확인하며, 달라졌으면 새 base run을 기다리도록 실패한다. 통합 브랜치 대상 PR은 선행 stage의 누적 DB 상태를 놓치지 않도록 앱 전용 diff여도 항상 isolated다. isolated head는 현재 `main`을 포함해야 하며, 무데이터 `pr-<number>` branch를 재생성한 직후에도 `main` ancestry를 다시 확인해 동시 main sync 경쟁을 차단한다. 그 뒤 migration·custom roles·seed·repo Edge Functions·baseline 검증을 마치고 Vercel preview와 recovery template를 순서대로 배포한다. Hosted `config.toml` 전체 push는 이 경로가 소유하지 않는다. fork PR은 secret 경계 때문에 preview 배포 없이 검증만 실행한다.
+`validate`는 검사 결과를 모으는 집계 job이다. `validate-plan`이 main 재사용 증거와 수동 재배포 출처를 먼저 확인한 뒤 `validate-app`(lint·typecheck·test·build)과 DB 샤드 `validate-db` 5개가 병렬로 돈다. 각 DB 샤드는 새 러너에서 로컬 Supabase를 띄우고 migration만 적용한 빈 DB에서 시작하므로 샤드 사이에 상태를 공유하지 않는다. 샤드별 실행 목록과 순서는 `scripts/database-test-shards.mjs` 매니페스트가 소유한다. 새 DB 테스트는 이 매니페스트의 한 샤드에 등록하고, 샤드 균형은 각 샤드 step summary의 검사별 소요 시간 표를 보고 맞춘다. `validate`는 두 검사 job이 모두 성공했거나 main 재사용으로 건너뛰었을 때만 성공하고, deploy job은 이 집계 결과만 본다.
+
+- `pull_request`: open·commit 갱신·reopen, base branch retarget, 제목·본문 변경에서 `validate`를 실행하고, 같은 repo 브랜치의 코드·base 변경 PR이면 preview DB mode를 고른다. 제목·본문만 편집한 `edited` 이벤트는 다시 배포하거나 실행 중인 Preview run을 취소하지 않는다. `main` 대상은 merge-base 기준 전체 diff를 rename 비탐지로 읽고, Supabase 배포 변경이 없을 때만 base SHA의 main→shared sync 성공 증거(`deploy-supabase`·`sync-supabase-preview-main` job 성공이며, 뒤따르는 `deploy-staging`까지 run 전체가 끝나기를 기다리지 않는다)를 확인한 뒤 shared main을 변경 없이 사용한다. shared Vercel 배포 직전에도 원격 `main`이 검증한 base SHA와 같은지 다시 확인하며, 달라졌으면 새 base run을 기다리도록 실패한다. 통합 브랜치 대상 PR은 선행 stage의 누적 DB 상태를 놓치지 않도록 앱 전용 diff여도 항상 isolated다. isolated head는 현재 `main`을 포함해야 하며, 무데이터 `pr-<number>` branch를 재생성한 직후에도 `main` ancestry를 다시 확인해 동시 main sync 경쟁을 차단한다. 그 뒤 migration·custom roles·seed·repo Edge Functions·baseline 검증을 마치고 Vercel preview와 recovery template를 순서대로 배포한다. Hosted `config.toml` 전체 push는 이 경로가 소유하지 않는다. fork PR은 secret 경계 때문에 preview 배포 없이 검증만 실행한다.
 - `pull_request: closed`: 최종 base와 무관하게 Preview pipeline과 같은 per-PR concurrency key에서 대기한 뒤 non-default `pr-<number>` branch가 있으면 삭제한다.
 - `merge_group`: `validate` job만 실행한다.
-- `push` to `main`: `validate` 통과 후 production migration·roles·Edge Functions, Vercel 앱·recovery template를 순서대로 배포한다. 두 경로가 모두 성공한 동일 main의 migration·roles·seed·Auth template·Edge Functions를 `sync-supabase-preview-main`이 shared preview main에도 적용한다. sync 직전에 run SHA가 현재 원격 `main`과 정확히 같은지 확인하므로 과거 run 재실행은 shared preview를 되돌리지 못한다.
+- PR·`merge_group`의 `validate`가 모든 검사를 통과하면 검증한 merge commit의 tree를 `validated-tree-<tree>` 아티팩트(14일 보관)로 남긴다.
+- `push` to `main`: `validate-plan`이 먼저 같은 tree의 아티팩트를 찾는다. 같은 repo의 PR·`merge_group` run이 남긴 것이고 그 run의 최신 `validate`가 성공했다면, `validate-app`·`validate-db`를 건너뛰고 `validate`가 그 run을 증거로 성공한다. tree에는 workflow와 lockfile도 들어 있어 같은 정의의 검사를 같은 입력으로 통과했다는 뜻이다. 증거가 없거나 조회가 실패하면 전체 검사를 실행한다. `validate` 통과 후 production migration·roles·Edge Functions, Vercel 앱·recovery template를 순서대로 배포한다. 두 경로가 모두 성공한 동일 main의 migration·roles·seed·Auth template·Edge Functions를 `sync-supabase-preview-main`이 shared preview main에도 적용한다. sync 직전에 run SHA가 현재 원격 `main`과 정확히 같은지 확인하므로 과거 run 재실행은 shared preview를 되돌리지 못한다.
 - `workflow_dispatch`: 기본은 `validate`만 실행한다. `production_redeploy=true`와 현재 main의
   exact SHA에서 `deploy-supabase`·`deploy-vercel`이 모두 성공한 push run ID를 함께 전달한 경우에만
   Supabase/Auth mutation 없이 Vercel Production을 설정 변경분으로 다시 배포한다.

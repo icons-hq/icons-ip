@@ -1,5 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
-import { buildCatalogIpDetail, getBinderCatalogOverlay, getCatalogIpDetail, getCatalogGoodDetail, getCatalogSnapshot, getHomeSnapshot, type CatalogPostPreview, type CatalogSnapshot } from './catalog';
+import { buildCatalogIpDetail, getBinderCatalogOverlay, getCatalogIpDetail, getCatalogGoodDetail, getCatalogSnapshot, getHomeSnapshot, toGood, type CatalogPostPreview, type CatalogSnapshot, type GoodRow } from './catalog';
 import { getHomeSelectableIps } from './home-catalog';
 import type { Ip } from './data';
 
@@ -1857,5 +1857,95 @@ describe('goods detail publication races', () => {
     mocks.isConfigured = true; mocks.client = client;
     try { expect(await getCatalogGoodDetail('g-race')).toBeNull(); }
     finally { mocks.isConfigured = false; mocks.client = null; }
+  });
+});
+
+/* D5② 랜덤 판매 · D7② 옵션별 구매 제한 — 카탈로그 매핑. */
+describe('옵션 판매 방식과 옵션별 구매 제한', () => {
+  const calculatedAt = '2026-10-28T00:00:00Z';
+  const supply = (availableQty: number, nextChangeAt: string | null = null) => ({ mode: 'stock', availableQty, policyId: null, policyRevision: null,
+    state: 'stock', startsAt: null, endsAt: null, expectedShipDate: null, calculatedAt, nextChangeAt });
+  const pricing = (price: number) => ({ regularPrice: price, effectivePrice: price, pricePeriodId: null, startsAt: null, endsAt: null, calculatedAt });
+  const variant = (id: string, name: string, stockQty: number, sortOrder: number, extra: Record<string, unknown> = {}) => ({
+    id, name, code: `CODE-${id}`, price: 5000, stock_qty: stockQty, is_default: sortOrder === 0, attributes: { 종류: name }, archived_at: null,
+    sort_order: sortOrder, pricing: pricing(5000), supply: supply(stockQty), order_max_qty: null, member_max_qty: null, ...extra });
+  const row = (extra: Partial<GoodRow> & Record<string, unknown>): GoodRow => ({ id: 'photo', ip_id: 'hwasan', name: '랜덤 포토카드', type: '포토카드',
+    price: 5000, badge: null, stock: 'ok', stock_qty: 6, bg: null, image_path: null, allow_bank_transfer: true, sale_restriction: 'none', ...extra } as GoodRow);
+
+  it('랜덤 판매 굿즈는 옵션을 기본 옵션 키 하나(랜덤)로 접고 수량 최대는 판매 중인 옵션 재고 합이다', () => {
+    const good = toGood(row({ option_sale_mode: 'random', goods_variants: [
+      variant('00000000-0000-4000-8000-0000000000a2', '흑', 4, 1, { supply: supply(4, '2026-10-29T00:00:00Z') }),
+      variant('00000000-0000-4000-8000-0000000000a1', '백', 0, 0),
+      variant('00000000-0000-4000-8000-0000000000a3', '적', 2, 2, { supply: supply(2, '2026-10-28T12:00:00Z') }),
+      variant('00000000-0000-4000-8000-0000000000a4', '보관', 9, 3, { archived_at: '2026-10-01T00:00:00Z' }),
+    ] }), () => '');
+    expect(good.optionSaleMode).toBe('random');
+    expect(good.options).toEqual([expect.objectContaining({ id: '00000000-0000-4000-8000-0000000000a1', name: '랜덤', isDefault: true, attributes: {},
+      price: 5000, stockQty: 6, orderMaxQty: null, memberMaxQty: null })]);
+    expect(good.options?.[0].supply).toMatchObject({ mode: 'stock', availableQty: 6, nextChangeAt: '2026-10-28T12:00:00Z' });
+    expect(good).toMatchObject({ stockQty: 6, stock: 'ok', price: 5000, priceMax: 5000 });
+    expect(JSON.stringify(good.options)).not.toMatch(/흑|백|적|CODE-/);
+  });
+
+  it('랜덤 판매 굿즈의 모든 옵션이 품절이면 굿즈 단위 품절(굿즈 재입고 알림)이다', () => {
+    const good = toGood(row({ option_sale_mode: 'random', goods_variants: [
+      variant('00000000-0000-4000-8000-0000000000b1', '백', 0, 0), variant('00000000-0000-4000-8000-0000000000b2', '흑', 0, 1),
+    ] }), () => '');
+    expect(good.options).toEqual([expect.objectContaining({ id: '00000000-0000-4000-8000-0000000000b1', name: '랜덤', stockQty: 0 })]);
+    expect(good.stock).toBe('soldout');
+  });
+
+  it('선택 판매 굿즈는 옵션을 그대로 두고 옵션별 주문당·1인 최대 수량을 싣는다', () => {
+    const good = toGood(row({ goods_variants: [
+      variant('00000000-0000-4000-8000-0000000000c1', '백', 4, 0, { order_max_qty: 2, member_max_qty: 5 }),
+      variant('00000000-0000-4000-8000-0000000000c2', '흑', 4, 1),
+    ] }), () => '');
+    expect(good.optionSaleMode).toBe('select');
+    expect(good.options?.map(({ name, orderMaxQty, memberMaxQty }) => ({ name, orderMaxQty, memberMaxQty }))).toEqual([
+      { name: '백', orderMaxQty: 2, memberMaxQty: 5 }, { name: '흑', orderMaxQty: null, memberMaxQty: null },
+    ]);
+  });
+
+  it('공개 굿즈 읽기는 판매 방식과 옵션 한도 열을 함께 읽는다', async () => {
+    const records: QueryRecord[] = [];
+    mocks.isConfigured = true;
+    mocks.client = createSupabaseClient(records, { goods: [] });
+    await getCatalogSnapshot();
+    const select = records.find((record) => record.table === 'goods')?.select ?? '';
+    expect(select.split(',')).toContain('option_sale_mode');
+    expect(select).toMatch(/goods_variants\([^)]*order_max_qty,member_max_qty/);
+    /* 랜덤 굿즈의 옵션 행은 고객에게 숨는다(T7 리뷰 RV-1) — 랜덤 한 줄은 공개 계산 열로 읽는다. */
+    expect(select.split(',')).toContain('random_option:goods_random_option');
+    mocks.isConfigured = false;
+    mocks.client = null;
+  });
+
+  /* 고객 세션: goods_variants 의 랜덤 굿즈 행은 restrictive RLS 로 빠지고(옵션별 재고 = 배정 단서), 공개 계산 열
+     goods_random_option 이 랜덤 한 줄(장바구니 키·풀 합계)을 준다. 옵션별 재고·이름·코드가 Good 에 실리지 않아야 한다. */
+  const randomOption = (stockQty: number, extra: Record<string, unknown> = {}) => ({ id: '00000000-0000-4000-8000-0000000000d1', name: '랜덤', code: '',
+    price: 5000, stock_qty: stockQty, is_default: true, attributes: {}, archived_at: null, sort_order: 0, pricing: pricing(5000), supply: supply(stockQty), ...extra });
+
+  it('고객 세션의 랜덤 판매 굿즈는 공개 계산 열의 랜덤 한 줄을 옵션으로 쓴다(옵션 행이 숨어도 품절로 보지 않는다)', () => {
+    const good = toGood(row({ option_sale_mode: 'random', goods_variants: [], random_option: randomOption(7) }), () => '');
+    expect(good.options).toEqual([expect.objectContaining({ id: '00000000-0000-4000-8000-0000000000d1', name: '랜덤', code: '', isDefault: true,
+      attributes: {}, price: 5000, stockQty: 7, orderMaxQty: null, memberMaxQty: null })]);
+    expect(good.options?.[0].supply).toMatchObject({ mode: 'stock', availableQty: 7 });
+    expect(good).toMatchObject({ optionSaleMode: 'random', stockQty: 7, stock: 'ok' });
+  });
+
+  it('운영자 세션이 옵션 행을 함께 받아도 랜덤 굿즈는 공개 계산 열의 랜덤 한 줄만 쓴다', () => {
+    const good = toGood(row({ option_sale_mode: 'random', random_option: randomOption(5), goods_variants: [
+      variant('00000000-0000-4000-8000-0000000000d1', '백', 1, 0), variant('00000000-0000-4000-8000-0000000000d2', '흑', 2, 1),
+    ] }), () => '');
+    expect(good.options).toHaveLength(1);
+    expect(good.options?.[0]).toMatchObject({ id: '00000000-0000-4000-8000-0000000000d1', name: '랜덤', stockQty: 5 });
+    expect(JSON.stringify(good.options)).not.toMatch(/흑|백|CODE-/);
+  });
+
+  it('랜덤 한 줄을 읽지 못하면(공개 조건 밖·옛 투영) 옵션 행을 접는 기존 규칙으로 돌아간다', () => {
+    const good = toGood(row({ option_sale_mode: 'random', random_option: null, goods_variants: [
+      variant('00000000-0000-4000-8000-0000000000e1', '백', 1, 0), variant('00000000-0000-4000-8000-0000000000e2', '흑', 2, 1),
+    ] }), () => '');
+    expect(good.options).toEqual([expect.objectContaining({ id: '00000000-0000-4000-8000-0000000000e1', name: '랜덤', stockQty: 3 })]);
   });
 });

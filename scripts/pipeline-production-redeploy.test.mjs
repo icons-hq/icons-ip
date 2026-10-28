@@ -46,7 +46,7 @@ describe('production config redeploy workflow contract', () => {
     expect(condition).toContain('!cancelled()');
     expect(condition).not.toContain('always()');
     expect(workflow.permissions).toEqual({ contents: 'read' });
-    expect(workflow.jobs.validate.permissions).toEqual({
+    expect(workflow.jobs['validate-plan'].permissions).toEqual({
       actions: 'read',
       contents: 'read',
     });
@@ -59,9 +59,12 @@ describe('production config redeploy workflow contract', () => {
     const condition = normalizeExpression(deployVercel.if);
 
     expect(deploySupabase.needs).toBe('validate');
-    expect(deploySupabase.if).toBe(
-      "github.event_name == 'push' && github.ref == 'refs/heads/main'",
-    );
+    expect(normalizeExpression(deploySupabase.if)).toBe(normalizeExpression(`
+      !cancelled()
+      && needs.validate.result == 'success'
+      && github.event_name == 'push'
+      && github.ref == 'refs/heads/main'
+    `));
     expect(
       deploySupabase.steps.find((step) => step.name === 'Push Supabase migrations').run,
     ).toBe('supabase db push --linked --include-roles');
@@ -76,7 +79,9 @@ describe('production config redeploy workflow contract', () => {
 
   it('keeps the production Vercel path and skips every Supabase mutation on dispatch', async () => {
     const workflow = yaml.load(await readFile(workflowPath, 'utf8'));
-    const validationSteps = workflow.jobs.validate.steps;
+    // 출처 확인이 실패하면 검사 job과 집계 validate가 실패해 deploy-vercel이 실행되지 않는다.
+    expect(workflow.jobs.validate.needs).toContain('validate-plan');
+    const validationSteps = workflow.jobs['validate-plan'].steps;
     const steps = workflow.jobs['deploy-vercel'].steps;
     const sourceCheck = validationSteps.find(
       (step) => step.name === 'Verify deployed Production source',

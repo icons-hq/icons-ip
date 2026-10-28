@@ -54,11 +54,11 @@ describe('ERP 품목 화면', () => {
     expect(html).not.toMatch(/슬롯|가챠|충전/);
   });
 
-  it('ERP 분류마다 활성 말단 경로를 고르고, 같은 이름 말단이 있으면 한 번에 연결하게 한다', () => {
+  it('ERP 분류마다 활성 말단 경로를 고르고, 같은 경로 말단이 있으면 한 번에 연결하게 한다', () => {
     const html = renderToStaticMarkup(<ErpItemsScreen data={data()} />);
     expect(html).toContain('ERP 분류 3개 중 2개 연결됨');
     expect(html).toContain('aria-label="문구 &gt; 포토카드 고객 카테고리"');
-    expect(html).toContain('같은 이름으로 연결 · 문구 &gt; 포토카드');
+    expect(html).toContain('같은 경로로 연결 · 문구 &gt; 포토카드');
     expect(html).toContain(`<option value="${KEYRING}" selected="">문구 &gt; 키링</option>`);
     expect(html).toContain('문구 &gt; 단종 · 지금은 연결할 수 없음');
     expect(html).not.toContain(`<option value="${ARCHIVED}">문구 &gt; 단종</option>`);

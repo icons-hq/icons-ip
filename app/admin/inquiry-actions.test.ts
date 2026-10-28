@@ -147,6 +147,45 @@ describe('answerInquiryAction', () => {
     expect(state.errors?.form).toContain('종결된 문의');
     expect(mocks.sendInquiryEmail).not.toHaveBeenCalled();
   });
+
+  /* 브라우저 폼은 textarea 줄바꿈을 CRLF(2자)로 보낸다. textarea maxLength는 줄바꿈을 1자로 세므로,
+     서버도 LF로 맞춘 뒤 세지 않으면 줄이 많은 2,000자 답변이 서버에서만 거절된다(m27 G4-1). */
+  it('줄이 많은 2,000자 이내 답변은 CRLF로 와도 거절하지 않고 LF로 저장·발송한다', async () => {
+    const lines = Array.from({ length: 200 }, () => '배송 안내 문장임');
+    const lf = lines.join('\n');
+    expect(lf.length).toBeLessThanOrEqual(2000);
+    const crlf = lines.join('\r\n');
+    expect(crlf.length).toBeGreaterThan(2000);
+
+    const state = await answerInquiryAction({}, answerForm(`${crlf}\r\n`));
+
+    expect(state.errors).toBeUndefined();
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_answer_inquiry', expect.objectContaining({ target_body: lf }));
+    expect(mocks.sendInquiryEmail).toHaveBeenCalledWith(expect.objectContaining({ answerBody: lf }));
+  });
+
+  it('줄바꿈을 맞춰도 첨부 이미지는 그대로 올린다', async () => {
+    const form = answerForm('사진 확인 부탁드립니다.\r\n감사합니다.');
+    const image = new File([new Uint8Array([1, 2, 3])], 'proof.png', { type: 'image/png' });
+    form.append('images', image);
+
+    const state = await answerInquiryAction({}, form);
+
+    expect(state.errors).toBeUndefined();
+    expect(mocks.upload).toHaveBeenCalledOnce();
+    const uploaded = mocks.upload.mock.calls[0][1] as File;
+    expect(uploaded.name).toBe('proof.png');
+    expect(uploaded.type).toBe('image/png');
+    expect(uploaded.size).toBe(3);
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_answer_inquiry', expect.objectContaining({ target_body: '사진 확인 부탁드립니다.\n감사합니다.' }));
+  });
+
+  it('줄바꿈만 다른 2,000자 초과 답변은 그대로 거절한다', async () => {
+    const state = await answerInquiryAction({}, answerForm(`${'가'.repeat(1000)}\r\n${'나'.repeat(1000)}`));
+
+    expect(state.errors?.body).toBeTruthy();
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
 });
 
 describe('closeInquiryAction', () => {
@@ -201,5 +240,14 @@ describe('문의 담당자와 내부 메모', () => {
     expect(state.message).toContain('내부 메모');
     expect(state.resultKey).toBeTruthy();
     expect(mocks.sendInquiryEmail).not.toHaveBeenCalled();
+  });
+
+  it('내부 메모도 CRLF 줄바꿈을 LF로 세고 저장한다', async () => {
+    const lines = Array.from({ length: 200 }, () => '내부 확인 메모임');
+    const state = await addInquiryInternalNoteAction({}, answerForm(lines.join('\r\n')));
+    expect(state.errors).toBeUndefined();
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_add_inquiry_internal_note', {
+      target_inquiry_id: INQUIRY_ID, target_body: lines.join('\n'),
+    });
   });
 });

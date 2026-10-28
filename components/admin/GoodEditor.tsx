@@ -8,7 +8,7 @@ import type { GoodShippingRegionSummary } from '@/lib/admin/good-shipping-summar
 import type { AdminCategoryNode } from '@/lib/admin/category';
 import type { GoodsShippingNoticeOption } from '@/components/admin/GoodsShippingNoticeField';
 
-import { useCallback, useEffect, useRef, useState, type FormEvent, type Dispatch, type SetStateAction } from 'react';
+import { memo, useCallback, useDeferredValue, useEffect, useMemo, useRef, useState, type FormEvent, type Dispatch, type SetStateAction } from 'react';
 import type { AdminCatalogActionState } from '@/app/admin/actions';
 import { GOODS_DESCRIPTION_MAX_LENGTH, GOODS_GALLERY_MAX } from '@/lib/admin/catalog';
 import type { AdminGoodRecord } from '@/lib/admin/catalog.server';
@@ -36,7 +36,7 @@ import { GoodsCustomInputEditor } from './GoodsCustomInputEditor';
 import { GoodsOptionEditor } from './GoodsOptionEditor';
 import { GoodsPriceFields } from './GoodsPriceFields';
 import { GoodsErpCategoryNotice } from './GoodsErpCategoryNotice';
-import { GoodsSalePolicyFields } from './GoodsSalePolicyFields';
+import { GoodsPurchaseLimitFields, GoodsSalePolicyFields } from './GoodsSalePolicyFields';
 import { GoodNoticePicker } from './GoodNoticePicker';
 import { GoodsOriginField } from './CountryNameFinder';
 import type { GoodsKcPresetTemplate } from '@/lib/admin/goods-notice-presets';
@@ -59,9 +59,11 @@ import { GoodIdentifierFields } from './GoodIdentifierFields';
 import { GoodsDraftLibraryDialog } from './GoodsDraftLibraryDialog';
 import { saveGoodsDraftAction } from '@/app/admin/goods-draft-actions';
 import { collectGoodsDraftValues, validGoodsDraftIdentity, type GoodsDraft, type GoodsDraftIdentity } from '@/lib/admin/goods-drafts';
-import { GoodWorkspaceNavigation, GoodWorkspaceErrors, GoodOptionalFields, GoodEditorSection, focusGoodWorkspaceTarget, useFocusFirstGoodError } from './GoodWorkspace';
+import { GoodWorkspaceNavigation, GoodWorkspaceErrors, GoodOptionalFields, GoodEditorSection, GoodWorkspaceDetails, focusGoodWorkspaceTarget, useFocusFirstGoodError, useGoodWorkspaceSections } from './GoodWorkspace';
+import { GOOD_WORKSPACE_ERROR_SECTIONS, GOOD_WORKSPACE_OPERATION_FIELD, GOOD_WORKSPACE_SECTIONS_FIELD, prepareGoodWorkspaceSections } from '@/lib/admin/good-workspace-sections';
 import { GOOD_EDITOR_SECTIONS, GOOD_PUBLISHED_LOCKS, changedGoodLockedFields, goodFieldSection } from '@/lib/admin/good-workspace';
 import { ADMIN_STOCK_LABELS, ADMIN_VOCABULARY, adminGoodsCopy } from '@/lib/admin/vocabulary';
+import { ADMIN_SCREENS, type AdminScreen } from '@/lib/admin/navigation';
 import { ActionNotice, ErrorText, Field, SelectField, TextArea } from './fields';
 
 
@@ -117,15 +119,16 @@ function GoodsNoticeFields({
  * 조건이 첫 수정에서 깨진다. `embedded` 가 구매 패널·위시 하트를 비활성으로 그려
  * 미리보기가 장바구니나 카탈로그를 건드리지 않게 한다.
  */
-function GoodPreviewPanel({ detail, ip, shippingPolicy }: { detail: GoodDetailContent; ip: Ip | null; shippingPolicy?: GoodShippingPolicy | null }) {
+/*
+ * R19: 미리보기 입력(detail·ip·배송 정책)이 그대로면 편집기의 다른 상태 변화에 다시 그리지 않는다.
+ * 펼침 상태(R14)는 바깥 details가 키 밖 상태로 기억하고, 펼침이 바뀌어도 이 내용은 다시 그리지 않는다.
+ */
+const GoodPreviewContent = memo(function GoodPreviewContent({ detail, ip, shippingPolicy }: { detail: GoodDetailContent; ip: Ip | null; shippingPolicy?: GoodShippingPolicy | null }) {
   const good = detail.good;
   /* 아직 저장하지 않은 신규 굿즈는 갈 곳이 없다 — 없는 상세로 보내는 대신 목록으로 둔다. */
   const href = good.id ? `/shop/${good.id}` : '/shop';
 
   return (
-    /* details 에 display 를 덮어쓰면 접힘이 깨지는 브라우저가 있어 기본 display 를 유지한다. */
-    <details id="good-preview" className="admin-good-preview">
-      <summary style={{ cursor: 'pointer', fontWeight: 700 }}>공개 화면 미리보기</summary>
       <div className="col" style={{ gap: 14, marginTop: 14 }}>
         <p className="muted" style={{ fontSize: 12, lineHeight: 1.6, margin: 0 }}>
           지금 폼에 입력된 값으로 그린 화면입니다. 저장하기 전 모습이며, 미리보기는 카탈로그를 바꾸지 않습니다.
@@ -155,23 +158,39 @@ function GoodPreviewPanel({ detail, ip, shippingPolicy }: { detail: GoodDetailCo
           </div>
         </div>
       </div>
-    </details>
   );
+});
+
+function GoodPreviewPanel(props: { detail: GoodDetailContent; ip: Ip | null; shippingPolicy?: GoodShippingPolicy | null }) {
+  /* details 에 display 를 덮어쓰면 접힘이 깨지는 브라우저가 있어 기본 display 를 유지한다. */
+  return <GoodWorkspaceDetails stateId="good-preview" id="good-preview" className="admin-good-preview">
+    <summary style={{ cursor: 'pointer', fontWeight: 700 }}>공개 화면 미리보기</summary>
+    <GoodPreviewContent {...props} />
+  </GoodWorkspaceDetails>;
 }
 
 function OwnedFields({ locked, fields, values, children }: { locked: boolean; fields: readonly string[]; values: Record<string,string>; children: ReactNode }) {
   return <><fieldset disabled={locked} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}>{children}</fieldset>
     {locked ? fields.map(name => <input key={name} type="hidden" name={name} value={values[name] ?? ''} />) : null}</>;
 }
+/**
+ * R21(D9①): 편집기 탭의 그룹상품 등록 진입점은 메뉴 숨김(`navHidden`)과 같은 값을 따른다. 라우트·권한은 유지하므로
+ * 기존 그룹은 주소로 계속 열린다. 메뉴에서 다시 보이게 하면 이 탭도 함께 돌아온다.
+ */
+export function groupGoodsEntryVisible(screens: readonly AdminScreen[] = ADMIN_SCREENS) {
+  return screens.some((screen) => screen.id === 'goods-groups-create' && !screen.navHidden);
+}
 const SHARED_SHIPPING_FIELDS = ['originId','shippingFeeType','individualFee'];
 const SHARED_QUANTITY_FIELDS = ['orderQuantityLimitEnabled','minOrderQty','maxOrderQty','memberPurchaseLimitEnabled','memberLifetimeQtyLimit'];
 
-function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, pending, selected, state, initialIpId, variants, origins, noticeDefaults, categories, shippingNoticeOptions, regionSummaries, formRef, onSubmitCapture, onApplyKcTemplate, onSaveLocalDraft, onLoadServerDraft, onEditingStateChange, canSearchErp = true, listHref = '/admin/catalog/goods' }: {
+function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, pending, selected, state, initialIpId, variants, origins, noticeDefaults, categories, shippingNoticeOptions, regionSummaries, formRef, onSubmitCapture, onApplyKcTemplate, onSaveLocalDraft, onLoadServerDraft, onEditingStateChange, canSearchErp = true, canActivatePreorders = false, listHref = '/admin/catalog/goods' }: {
   accountId: string; ownership?: GoodsEditorOwnership | null;
   action: (payload: FormData) => void; catalogIps: Ip[];
   ipOptions: { id: string; title: string; archivedAt: string | null }[];
   pending: boolean; selected: AdminGoodRecord | null; state: AdminCatalogActionState;
   canSearchErp?: boolean;
+  /** 등록 화면 예약판매 활성화 권한(platform.manage+admin). 서버·DB가 다시 검사한다. */
+  canActivatePreorders?: boolean;
   initialIpId?: string; variants: AdminGoodsVariant[]; origins: GoodsFulfillmentOrigin[]; noticeDefaults?: GoodNoticeDefaults;
   categories: AdminCategoryNode[]; shippingNoticeOptions: GoodsShippingNoticeOption[]; regionSummaries: GoodShippingRegionSummary[];
   formRef: ReturnType<typeof useAdminLocalAutosave>['formRef']; onSubmitCapture: (event: FormEvent<HTMLFormElement>) => void;
@@ -180,6 +199,8 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
   onSaveLocalDraft: (form: HTMLFormElement) => boolean; onLoadServerDraft: (draft: GoodsDraft) => void; listHref?: string;
 }) {
   const groupOwned = Boolean(ownership?.group), aggregationOwned = Boolean(ownership && !ownership.aggregation.editable);
+  /* 랜덤 판매(D5②) 여부는 goods.option_sale_mode(AdminGoodRecord.optionSaleMode)다. 싣지 않은 기록은 일반 판매로 본다. */
+  const randomSale = selected?.optionSaleMode === 'random';
   const [draft] = useState(() => {
     const next = createGoodEditorDraft(selected, state, variants, initialIpId, noticeDefaults);
     const saved = goodEditorValues(selected, {}, initialIpId, noticeDefaults);
@@ -193,6 +214,11 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
   const { initial, baseline } = draft;
   const [values, setValues] = useState<Record<string, string>>(draft.values);
   const rows = restoreGoodsOptionRows(values.variants)!;
+  /* 등록 화면의 KC·예약판매 섹션(R13·D6②)은 폼 키 밖 provider에 있다. 옵션 행을 알려 적용 옵션을 고르게 한다. */
+  const workspace = useGoodWorkspaceSections();
+  const atomicSections = !selected && workspace ? workspace : null;
+  const publishOptionRows = workspace?.publishOptionRows;
+  useEffect(() => { const current = restoreGoodsOptionRows(values.variants); if (current) publishOptionRows?.(current); }, [values.variants, publishOptionRows]);
   const editorRef = useRef<HTMLFormElement | null>(null);
   const baselineFingerprint = useRef<string | null>(null);
   const recovered = Boolean(preservedFormValues(state, selected?.id));
@@ -253,12 +279,14 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
       setDirty(recoveryUnsaved.current || goodEditorFingerprint(data) !== baselineFingerprint.current);
     });
   }, [formRef]);
+  /* 등록 화면 KC·예약판매 입력은 폼 밖이라 폼 지문에 잡히지 않는다. 떠나기 경고에는 함께 센다. */
+  const sectionsDirty = Boolean(atomicSections && (atomicSections.sections.kc.models.length || atomicSections.sections.kc.attested || atomicSections.sections.preorders.length));
   useEffect(() => {
-    if (!dirty || pending || draftBusy) return;
+    if (!(dirty || sectionsDirty) || pending || draftBusy) return;
     const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); };
     window.addEventListener('beforeunload', warn);
     return () => window.removeEventListener('beforeunload', warn);
-  }, [dirty, pending, draftBusy]);
+  }, [dirty, sectionsDirty, pending, draftBusy]);
   const [suggestedCode, setSuggestedCode] = useState(selected?.code ?? '');
   const setRows: Dispatch<SetStateAction<GoodsOptionRow[]>> = useCallback((update) => {
     setValues((current) => {
@@ -303,17 +331,35 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
       event.preventDefault(); setClientErrors(Object.fromEntries(changes));
       focusGoodWorkspaceTarget(`good-section-${goodFieldSection(changes[0][0]).key}`, changes[0][0]); return;
     }
+    if (atomicSections) {
+      /* 등록 화면: KC·예약판매 입력과 작업 ID를 이번 제출에 싣는다. FormData는 이 capture 단계 뒤에 만들어진다. */
+      const prepared = prepareGoodWorkspaceSections(atomicSections.sections, rows, canActivatePreorders, { salePeriodEnabled: submitted.get('salePeriodEnabled') === 'true' });
+      if (!prepared.ok) {
+        event.preventDefault(); atomicSections.setSectionErrors({ [prepared.field]: prepared.error }); setClientErrors({ [prepared.field]: prepared.error });
+        focusGoodWorkspaceTarget(`good-operation-${GOOD_WORKSPACE_ERROR_SECTIONS[prepared.field]}`); return;
+      }
+      atomicSections.setSectionErrors({});
+      const form = event.currentTarget;
+      const sectionsInput = form.elements.namedItem(GOOD_WORKSPACE_SECTIONS_FIELD), operationInput = form.elements.namedItem(GOOD_WORKSPACE_OPERATION_FIELD);
+      if (sectionsInput instanceof HTMLInputElement) sectionsInput.value = JSON.stringify(prepared.value);
+      if (operationInput instanceof HTMLInputElement) operationInput.value = atomicSections.operationId();
+    }
     setClientErrors({}); onSubmitCapture(event);
   }
   function showInvalidFields(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const invalid = Array.from(event.currentTarget.elements).filter((element): element is HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement =>
       (element instanceof HTMLInputElement || element instanceof HTMLSelectElement || element instanceof HTMLTextAreaElement) && element.willValidate && !element.validity.valid);
-    setClientErrors(Object.fromEntries(invalid.map((input) => {
+    const fieldErrors: Record<string, string> = {};
+    for (const input of invalid) {
       const artworkName = input.closest('.wc-admin-artwork-upload-field')?.querySelector<HTMLInputElement>('input[type="hidden"][name]')?.name;
-      const name = input.name || artworkName || (input.closest('.admin-option-editor') ? 'variants' : 'form');
-      return [name, input.validity.customError ? input.validationMessage : `${input.labels?.[0]?.textContent?.trim() || name} 입력값을 확인해주세요. ${input.validationMessage}`];
-    })));
+      /* 이름 없이 JSON으로 제출하는 입력(옵션별 구매 제한 표)은 data-error-field로 자기 섹션의 오류 칸에 붙인다. */
+      const name = input.name || artworkName || input.dataset.errorField || (input.closest('.admin-option-editor') ? 'variants' : 'form');
+      const label = input.labels?.[0]?.textContent?.trim() || input.getAttribute('aria-label')?.trim() || name;
+      /* 같은 칸에 오류가 여럿이면 포커스가 가는 첫 입력의 안내를 보인다. */
+      fieldErrors[name] ??= input.validity.customError ? input.validationMessage : `${label} 입력값을 확인해주세요. ${input.validationMessage}`;
+    }
+    setClientErrors(fieldErrors);
     for (const input of invalid) {
       for (let ancestor: HTMLElement | null = input.parentElement; ancestor && ancestor !== event.currentTarget; ancestor = ancestor.parentElement) {
         if (ancestor.hidden) ancestor.hidden = false;
@@ -339,7 +385,8 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
     input.dispatchEvent(new Event('input', { bubbles: true }));
     input.focus();
   }
-  function setImageUrl(name: string, url: string | null) { setImageUrls((current) => ({ ...current, [name]: url })); }
+  /* 이미지 그리드는 커밋마다 모든 칸을 알린다(R19). 바뀐 칸이 없으면 같은 상태를 돌려 편집기 전체를 다시 그리지 않는다. */
+  function setImageUrl(name: string, url: string | null) { setImageUrls((current) => current[name] === url ? current : { ...current, [name]: url }); }
   function applyNotice(notice: GoodsNoticeInfo,kcTemplate?:GoodsKcPresetTemplate|null) {
     const form = editorRef.current;
     if (!form) return;
@@ -350,17 +397,32 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
     // Omitted means notice-only copy; explicit null cancels a queued classification.
     if (kcTemplate !== undefined) onApplyKcTemplate?.(kcTemplate);
   }
-  const { origin: previewOrigin, ip: previewIp, detail: previewDetail, shippingPolicy } = buildGoodEditorPreview({
-    values, imageUrls, selected, catalogIps, origins, shippingNoticeOptions,
-  });
+  /*
+   * 공개 미리보기·상세 HTML 정리는 무겁다(R19). 입력과 무관한 상태 변화(오류·안내·업로드 진행)에는 다시 계산하지 않고,
+   * 입력 변화도 지연 값으로 받아 입력칸 응답을 먼저 그린 뒤 미리보기를 낮은 우선순위로 다시 그린다.
+   */
+  const previewValues = useDeferredValue(values);
+  const previewImageUrls = useDeferredValue(imageUrls);
+  const { origin: previewOrigin, ip: previewIp, detail: previewDetail, shippingPolicy } = useMemo(() => buildGoodEditorPreview({
+    values: previewValues, imageUrls: previewImageUrls, selected, catalogIps, origins, shippingNoticeOptions,
+  }), [previewValues, previewImageUrls, selected, catalogIps, origins, shippingNoticeOptions]);
+  const previewWithAttributes = useMemo(() => ({ ...previewDetail, attributes: attributePreview }), [previewDetail, attributePreview]);
   const notice = Object.fromEntries(GOODS_NOTICE_FIELDS.map((field) => [field.key, initial[field.formName]])) as GoodsNoticeInfo;
   const htmlDescription = values.descriptionFormat === 'html';
-  const descriptionCheck = htmlDescription ? sanitizeGoodsDescription(values.description ?? '') : null;
-  const descriptionWarnings = descriptionCheck ? [...descriptionCheck.warnings, ...(descriptionCheck.html.length > GOODS_HTML_MAX_LENGTH ? [goodsHtmlCleanedLengthWarning(descriptionCheck.html.length)] : [])] : [];
+  const previewHtmlDescription = previewValues.descriptionFormat === 'html';
+  const previewDescription = previewValues.description;
+  const descriptionCheck = useMemo(() => previewHtmlDescription ? sanitizeGoodsDescription(previewDescription ?? '') : null, [previewHtmlDescription, previewDescription]);
+  /* R17: 붙여넣기가 잘리지 않게 글자 수 제한을 두지 않는다. 상한(lib/goods-description)을 넘으면 저장 전에 알린다(서버도 같은 상한으로 거절한다). */
+  const rawDescriptionLength = values.description?.length ?? 0;
+  const descriptionWarnings = [
+    ...(htmlDescription && rawDescriptionLength > GOODS_HTML_MAX_LENGTH ? [`원문이 ${rawDescriptionLength.toLocaleString('ko-KR')}자로 최대 ${GOODS_HTML_MAX_LENGTH.toLocaleString('ko-KR')}자를 넘어 저장할 수 없습니다. 붙여넣은 내용은 잘리지 않고 그대로 있으니 줄여주세요.`] : []),
+    ...(htmlDescription && descriptionCheck ? [...descriptionCheck.warnings, ...(descriptionCheck.html.length > GOODS_HTML_MAX_LENGTH ? [goodsHtmlCleanedLengthWarning(descriptionCheck.html.length)] : [])] : []),
+  ];
   const errorCount = (key: string) => GOOD_EDITOR_SECTIONS.find((section) => section.key === key)?.fields.filter((field) => errors[field]).length ?? 0;
   return <>
     <nav className="admin-good-editor-tabs" aria-label="상품 등록 방식"><span aria-current="page">{selected ? '상품 수정' : '상품 등록'}</span>
-      {!selected ? <Link href="/admin/catalog/groups/new?mode=assemble" aria-disabled={pending || draftBusy} onNavigate={event => {
+      {/* R21(D9①): 그룹상품 등록은 메뉴 숨김과 짝으로 탭에서도 숨기고 라우트(/admin/catalog/groups/new)만 유지한다. */}
+      {groupGoodsEntryVisible() && !selected ? <Link href="/admin/catalog/groups/new?mode=assemble" aria-disabled={pending || draftBusy} onNavigate={event => {
         if (pending || draftBusy || dirty && !window.confirm('저장하지 않은 상품 입력을 두고 그룹상품 등록으로 이동할까요?')) event.preventDefault();
       }}>그룹상품 등록</Link> : null}
       <small><span aria-hidden="true">*</span> 필수항목</small></nav>
@@ -371,6 +433,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
       <input name="published" type="hidden" value={String(Boolean(selected?.publishedAt))} />
       <input name="bg" type="hidden" value={selected?.bg ?? ''} />
       {!selected && draftIdentity ? <><input type="hidden" name="serverDraftId" value={draftIdentity.id}/><input type="hidden" name="serverDraftRevision" value={draftIdentity.revision}/></> : null}
+      {atomicSections ? <><input type="hidden" name={GOOD_WORKSPACE_OPERATION_FIELD} defaultValue="" /><input type="hidden" name={GOOD_WORKSPACE_SECTIONS_FIELD} defaultValue="" /></> : null}
       <GoodWorkspaceErrors errors={errors} />
       <GoodEditorSection title="카테고리" id="good-section-category" summary={categories.find((category) => category.id === categoryId)?.name || '선택 안 함'} errorCount={errorCount('category')}>
           <OwnedFields locked={groupOwned} fields={['categoryId','additionalCategoryIds']} values={initial}><CategoryAssignmentField categories={categories} value={initial.categoryId} primary={categoryId} onPrimaryChange={setCategoryId} error={errors.categoryId} additionalValue={initial.additionalCategoryIds} additionalError={errors.additionalCategoryIds} /></OwnedFields>
@@ -388,6 +451,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
       <GoodEditorSection title="판매기간" id="good-section-period" requirement="선택 · 일반 판매" errorCount={errorCount('period')} summary={values.salePeriodEnabled === 'true' ? `${values.saleStartsAt?.replace('T', ' ') || '시작 미입력'} ~ ${values.saleEndsAt?.replace('T', ' ') || '종료 미입력'} · 한국시간` : '설정안함'}>
         <GoodsSalePeriodFields values={values} error={errors.saleStartsAt} onChange={patch => { setValues(current => ({ ...current, ...patch })); setDirty(true); }} />
       </GoodEditorSection>
+      <GoodsPurchaseLimitFields quantityReadOnly={aggregationOwned} values={initial} current={values} errors={errors} rows={rows} onRowsChange={setRows} randomSale={randomSale} />
       <GoodEditorSection title="재고수량 / 옵션" id="good-section-variants" requirement="공개 필수 · 옵션 없이 팔면 재고수량만 입력" status="옵션 확인" errorCount={errorCount('variants')} summary={`${isSingleGoodsOption(rows) ? '옵션 없음 · 재고수량' : `옵션 ${rows.length.toLocaleString('ko-KR')}개 · 재고수량 합계`} ${goodsOptionStockTotals(rows).total.toLocaleString('ko-KR')}개`}>
         <GoodsOptionEditor structureLocked={groupOwned} onRowsChange={setRows} codePrefix={values.code || suggestedCode} rows={rows} baseline={baseline} basePrice={priceResult.salePrice ?? 0}
           priceDraft={priceDraft} error={errors.variants} axisValues={initial}
@@ -403,7 +467,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
       <GoodEditorSection title="상품이미지" id="good-section-images" requirement="대표이미지 · 공개 필수 / 추가이미지 · 선택" summary={`대표이미지 ${values.imagePath ? '등록됨' : '미등록'} · 추가이미지 ${Array.from({ length: GOODS_GALLERY_MAX }, (_, i) => values[`galleryPath${i}`]).filter(Boolean).length}장`} errorCount={errorCount('images')}>
         <GoodsImageGrid accountId={accountId} recordId={selected?.id ?? 'new'} editingDisabled={pending || draftBusy || Boolean(selected?.archivedAt)} errors={errors} initialPaths={GOODS_IMAGE_FIELD_NAMES.map((name) => initial[name])} initialUrls={GOODS_IMAGE_FIELD_NAMES.map((name) => imageUrls[name])} onPreviewChange={setImageUrl} />      </GoodEditorSection>
       <GoodEditorSection title="상세설명" id="good-section-description" summary={values.description ? '상세설명 작성됨' : '입력 안 함'} errorCount={errorCount('description')}>
-        <OwnedFields locked={groupOwned} fields={['description','descriptionFormat']} values={initial}><GoodOptionalFields title="상세설명 편집" summary={descriptionCheck ? `상세페이지 HTML · 원문 ${(values.description?.length ?? 0).toLocaleString('ko-KR')}자 · 정리 후 ${descriptionCheck.html.length.toLocaleString('ko-KR')}자` : `일반 텍스트 · ${values.description?.length || 0}자`} hasErrors={Boolean(errors.description || errors.descriptionFormat)}>
+        <OwnedFields locked={groupOwned} fields={['description','descriptionFormat']} values={initial}><GoodOptionalFields id="good-optional-description" title="상세설명 편집" summary={htmlDescription && descriptionCheck ? `상세페이지 HTML · 원문 ${(values.description?.length ?? 0).toLocaleString('ko-KR')}자 · 정리 후 ${descriptionCheck.html.length.toLocaleString('ko-KR')}자` : `일반 텍스트 · ${values.description?.length || 0}자`} hasErrors={Boolean(errors.description || errors.descriptionFormat)}>
         <SelectField defaultValue={initial.descriptionFormat} error={errors.descriptionFormat} label="상세 설명 형식" name="descriptionFormat"><option value="plain">일반 텍스트</option><option value="html">HTML 문서 (상세페이지 소스)</option></SelectField>
         <p className="muted">형식을 바꿔도 입력 원문은 유지됩니다. 일반 텍스트에서는 태그도 글자로 표시됩니다.</p>
         <div className="admin-goods-html-tools" hidden={!htmlDescription}>
@@ -416,7 +480,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
           </div>
           <GoodsDescriptionTools accountId={accountId} formRef={editorRef} disabled={groupOwned || !htmlDescription || pending || draftBusy || Boolean(selected?.archivedAt)} />
         </div>
-        <TextArea defaultValue={initial.description} error={errors.description} label={htmlDescription ? '상세페이지 HTML (정리된 코드 포함 최대 30,000자)' : '상세 설명 (최대 2,000자)'} maxLength={htmlDescription ? GOODS_HTML_MAX_LENGTH : GOODS_DESCRIPTION_MAX_LENGTH} name="description" placeholder={htmlDescription ? '<h2>상품 특징</h2><p>상세 내용을 입력해주세요.</p>' : adminGoodsCopy('굿즈 구성과 특징을 짧게 설명해주세요.')} />
+        <TextArea defaultValue={initial.description} error={errors.description} label={htmlDescription ? `상세페이지 HTML (정리된 코드 포함 최대 ${GOODS_HTML_MAX_LENGTH.toLocaleString('ko-KR')}자)` : '상세 설명 (최대 2,000자)'} maxLength={htmlDescription ? undefined : GOODS_DESCRIPTION_MAX_LENGTH} name="description" placeholder={htmlDescription ? '<h2>상품 특징</h2><p>상세 내용을 입력해주세요.</p>' : adminGoodsCopy('굿즈 구성과 특징을 짧게 설명해주세요.')} />
         {descriptionWarnings.length > 0 && <div className="admin-goods-html-review" role="status"><p>저장 전 확인: 입력 원문은 편집기에 남아 있으며 아래 미리보기의 결과가 저장됩니다.</p><ul>{descriptionWarnings.map((warning) => <li key={warning}>{warning}</li>)}</ul></div>}
         <fieldset className="admin-goods-html-tools" disabled={!htmlDescription} hidden={!htmlDescription}>
           <ArtworkUploadField autoUpload allowRemove currentPath={initial.descriptionUploadPath || null} currentUrl={initial.descriptionUploadPath ? publicMediaUrl(initial.descriptionUploadPath) : null} fieldId="good-description-image" helpText="이미지 검증이 끝나면 대체 설명을 적고 설명에 넣기를 누릅니다. HTML 본문에는 최대 20장을 넣을 수 있습니다." kind="good" label="HTML 이미지 업로드" name="descriptionUploadPath" />
@@ -426,7 +490,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
         </fieldset>
         </GoodOptionalFields>
         </OwnedFields>
-        <GoodOptionalFields title="긴 상세 이미지 (선택)" summary={values.detailImagePath ? '이미지 연결됨' : '이미지 없음'} hasErrors={Boolean(errors.detailImagePath)}>
+        <GoodOptionalFields id="good-optional-detail-image" title="긴 상세 이미지 (선택)" summary={values.detailImagePath ? '이미지 연결됨' : '이미지 없음'} hasErrors={Boolean(errors.detailImagePath)}>
         <ArtworkUploadField compact showPath={false} showGuidance={false} showCropGuide={false} autoUpload allowRemove currentPath={initial.detailImagePath || null} currentUrl={imageUrls.detailImagePath} fieldId="good-detail" helpText="상세페이지(상세 설명) 아래에 원래 비율로 붙는 이미지 파일 1장입니다. 호스팅 HTML로 상세페이지를 만들었다면 비워 두어도 됩니다." kind="good" label="상세 이미지" name="detailImagePath" onPreviewChange={(url) => setImageUrl('detailImagePath', url)} />
         <ErrorText>{errors.detailImagePath}</ErrorText>
         </GoodOptionalFields>
@@ -442,7 +506,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
         </div>
         <p className="muted">연결 IP는 브랜드·작품, 고객용 카테고리는 쇼핑 분류, 유형은 상품의 형태를 나타냅니다.</p>
         {canSearchErp && values.ipId && <a href={`/admin/catalog/ips/${encodeURIComponent(values.ipId)}`} target="_blank" rel="noreferrer">연결 IP의 공개 상태 확인 (새 탭)</a>}
-        <GoodOptionalFields title="검색설정·판매자상품코드" summary={`${values.nameEn || '영문명 없음'} · 진열 ${values.displayOrder || '기본'} · ${values.code || suggestedCode || '판매자상품코드 자동 생성'} · ${values.id || 'URL 자동 생성'}`} hasErrors={['nameEn', 'displayOrder', 'searchKeywords', 'code', 'id', 'defaultVariantCode'].some((key) => Boolean(errors[key]))}>
+        <GoodOptionalFields id="good-optional-search" title="검색설정·판매자상품코드" summary={`${values.nameEn || '영문명 없음'} · 진열 ${values.displayOrder || '기본'} · ${values.code || suggestedCode || '판매자상품코드 자동 생성'} · ${values.id || 'URL 자동 생성'}`} hasErrors={['nameEn', 'displayOrder', 'searchKeywords', 'code', 'id', 'defaultVariantCode'].some((key) => Boolean(errors[key]))}>
         <AdminFormGrid>          <Field readOnly={groupOwned} defaultValue={initial.nameEn} error={errors.nameEn} label="영문 상품명 (선택)" name="nameEn" maxLength={200} />
           <Field defaultValue={initial.displayOrder} error={errors.displayOrder} label="진열 순서 (선택)" name="displayOrder" min={0} type="number" />
         </AdminFormGrid>
@@ -458,22 +522,24 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
         <GoodIdentifierFields code={initial.code} defaultVariantCode={initial.defaultVariantCode ?? variants.find((v) => v.isDefault)?.code} hideVariantCode onCodeSuggestion={setSuggestedCode} errors={state.errors ?? {}} ipId={values.ipId} name={values.name} slug={initial.id} slugLocked={groupOwned || Boolean(selected?.firstPublishedAt)} />
         </GoodOptionalFields>
       </GoodEditorSection>
-      <GoodEditorSection title={ADMIN_VOCABULARY.noticeInfo} id="good-section-notice" requirement="공개 필수 · 초안에는 일부 저장 가능" status={GOODS_NOTICE_FIELDS.every((field) => values[field.formName]?.trim()) ? '입력 완료 · KC 별도 검토' : '미입력'} errorCount={errorCount('notice')} summary={`${GOODS_NOTICE_FIELDS.filter((field) => values[field.formName]?.trim()).length}/${GOODS_NOTICE_FIELDS.length}개 작성 · KC는 저장 후 검토`}>
+      <GoodEditorSection title={ADMIN_VOCABULARY.noticeInfo} id="good-section-notice" requirement="공개 필수 · 초안에는 일부 저장 가능" status={GOODS_NOTICE_FIELDS.every((field) => values[field.formName]?.trim()) ? '입력 완료 · KC 별도 검토' : '미입력'} errorCount={errorCount('notice')} summary={`${GOODS_NOTICE_FIELDS.filter((field) => values[field.formName]?.trim()).length}/${GOODS_NOTICE_FIELDS.length}개 작성 · ${atomicSections ? 'KC는 아래 KC 정보에서 함께 저장' : 'KC는 저장 후 검토'}`}>
         <OwnedFields locked={groupOwned} fields={GOODS_NOTICE_FIELDS.map(field => field.formName)} values={initial}><GoodNoticePicker onApply={applyNotice} readOnly={locked||Boolean(selected?.archivedAt)} /><GoodsNoticeFields notice={notice} required={Boolean(selected?.publishedAt)} locked={locked} originFinderDisabled={pending || draftBusy || Boolean(selected?.archivedAt)} state={{ ...state, errors }} /></OwnedFields>
-        <p>{selected ? <><a href="#good-operation-kc" onClick={(event) => { event.preventDefault(); focusGoodWorkspaceTarget('good-operation-kc'); }}>KC 정보 열기</a> · KC 대상이 아니면 상품 전체 KC 해당 없음으로 바로 검토를 끝냅니다.</> : '초안 저장 후 KC 정보에서 검토합니다. KC 대상이 아니면 해당 없음 확인 한 번으로 끝납니다.'}</p>
+        <p>{selected ? <><a href="#good-operation-kc" onClick={(event) => { event.preventDefault(); focusGoodWorkspaceTarget('good-operation-kc'); }}>KC 정보 열기</a> · KC 대상이 아니면 상품 전체 KC 해당 없음으로 바로 검토를 끝냅니다.</> : atomicSections ? <>아래 <a href="#good-operation-kc" onClick={(event) => { event.preventDefault(); focusGoodWorkspaceTarget('good-operation-kc'); }}>KC 정보</a>에서 상품과 함께 저장합니다. KC 대상이 아니면 해당 없음 확인 한 번으로 끝납니다.</> : '초안 저장 후 KC 정보에서 검토합니다. KC 대상이 아니면 해당 없음 확인 한 번으로 끝납니다.'}</p>
       </GoodEditorSection>
       <GoodEditorSection title="배송" id="good-section-shipping" requirement="출고지 · 공개 필수" status={values.originId ? '출고지 선택됨' : '미입력'} errorCount={errorCount('shipping')} summary={`${previewOrigin?.name || '출고지 확인 필요'} · ${values.shippingFeeType === 'policy' ? '출고지 정책' : values.shippingFeeType === 'free' ? '무료배송' : '개별 배송비'}`}><OwnedFields locked={aggregationOwned} fields={SHARED_SHIPPING_FIELDS} values={initial}><GoodsFulfillmentFields regionSummaries={regionSummaries} origins={origins} value={{ originId: initial.originId || null, shippingFeeType: initial.shippingFeeType as 'policy' | 'free' | 'individual', individualFee: Number(initial.individualFee) }} errors={errors} /></OwnedFields><p>배송비 묶음그룹을 지정하면 위 기본료와 수량 조건을 묶음 대상 전체에 적용합니다. {selected ? <a href="#good-operation-shipping-charge-group">현재 묶음그룹 확인·배정</a> : '상품을 먼저 저장한 뒤 묶음그룹을 배정할 수 있습니다.'}</p><GoodsShippingNoticeField options={shippingNoticeOptions} value={initial.shippingNoticeTemplate} error={errors.shippingNoticeTemplate} /></GoodEditorSection>
       <GoodsClaimPolicyFields values={initial} errors={errors} />
-      <GoodsSalePolicyFields quantityReadOnly={aggregationOwned} values={initial} errors={errors} />
+      <GoodsSalePolicyFields values={initial} errors={errors} />
       <div className="admin-good-workspace__save" aria-label="기본 상품 저장">
-        <details className="admin-good-workspace__save-info"><summary><strong role="status">{pending ? '저장 중…' : Object.keys(errors).length ? '저장 실패 · 입력값 유지' : dirty ? '미저장 변경 있음' : state.kcPublishBlocked ? (selected?.publishedAt ? '서버 저장값과 동일' : '초안 저장 완료 · 공개 보류') : state.message ? '기본 상품 저장 완료' : selected ? '서버 저장값과 동일' : '새 초안 · 아직 저장 전'}</strong><span>저장 안내</span></summary>
-          <div><p>기본 상품·이미지·옵션·고시·배송·판매 조건만 저장합니다. KC·재고 조정·혜택은 각 영역에서 별도 저장합니다.</p>
+        <GoodWorkspaceDetails stateId="good-save-info" className="admin-good-workspace__save-info"><summary><strong role="status">{pending ? '저장 중…' : Object.keys(errors).length ? '저장 실패 · 입력값 유지' : dirty ? '미저장 변경 있음' : state.kcPublishBlocked ? (selected?.publishedAt ? '서버 저장값과 동일' : '초안 저장 완료 · 공개 보류') : state.message ? '기본 상품 저장 완료' : selected ? '서버 저장값과 동일' : '새 초안 · 아직 저장 전'}</strong><span>저장 안내</span></summary>
+          <div><p>{atomicSections ? '기본 상품·이미지·옵션·고시·배송·구매 제한·판매 조건과 아래 KC·예약판매 입력을 한 번에 저장합니다. 하나라도 실패하면 아무것도 저장되지 않고 입력은 유지됩니다. 나머지 운영 섹션은 저장 뒤 같은 자리에서 입력합니다.'
+            : '기본 상품·이미지·옵션·고시·배송·구매 제한·판매 조건만 저장합니다. KC·재고 조정·혜택은 각 영역에서 별도 저장합니다.'}</p>
           <p>{selected ? '입력 임시저장은 현재 브라우저에 보관합니다.' : '임시저장은 내 계정에 최대 40건을 보관합니다. 업로드를 마친 이미지와 입력값을 불러올 수 있으며, 상품 등록·공개는 저장하기에서 따로 확정합니다.'} 브라우저 자동 복구도 함께 유지됩니다.</p>
           {dirty && <p>브라우저 복구 기록은 서버 저장이 아닙니다.</p>}
           {selected?.publishedAt && <p>저장하면 공개 중인 상품 화면에 반영됩니다.</p>}
-          {!selected?.publishedAt && !selected?.archivedAt && <p>1. 기본 정보·유형·고시정보·옵션까지 입력해 초안 저장 → 2. KC 검토 → 3. 공개. KC 검토 뒤 상품명·유형·IP·고시정보(제조자·제조국·소재·크기)나 옵션 구성을 바꾸면 KC를 다시 검토합니다.</p>}
+          {atomicSections ? <p>1. 기본 정보·유형·고시정보·옵션과 KC까지 입력해 저장 → 2. 게시 상태에서 공개. KC를 검토 완료로 함께 저장했더라도 그 뒤 상품명·유형·IP·고시정보(제조자·제조국·소재·크기)나 옵션 구성을 바꾸면 KC를 다시 검토합니다.</p>
+            : !selected?.publishedAt && !selected?.archivedAt && <p>1. 기본 정보·유형·고시정보·옵션까지 입력해 초안 저장 → 2. KC 검토 → 3. 공개. KC 검토 뒤 상품명·유형·IP·고시정보(제조자·제조국·소재·크기)나 옵션 구성을 바꾸면 KC를 다시 검토합니다.</p>}
           </div>
-        </details>
+        </GoodWorkspaceDetails>
         <div className="admin-good-workspace__save-actions">
           <button className="wc-admin-kit__button" type="button" onClick={() => { const preview = document.getElementById('good-preview'); if (preview instanceof HTMLDetailsElement) { preview.open = true; preview.scrollIntoView({ block: 'start', behavior: 'instant' }); preview.querySelector('summary')?.focus(); } }}>미리보기</button>
           {selected ? <button className="wc-admin-kit__button admin-good-workspace__draft-button" type="button" disabled={pending} onClick={() => { if (editorRef.current) setLocalSaveMessage(onSaveLocalDraft(editorRef.current) ? '입력 내용을 이 브라우저에 임시저장했습니다.' : '브라우저에 임시저장할 수 없습니다. 저장하기를 이용해주세요.'); }}>입력 임시저장</button> : <>
@@ -494,7 +560,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
       if (dirty && !window.confirm('현재 입력을 선택한 임시저장 내용으로 바꾸시겠습니까? 저장하지 않은 입력은 이 화면에서 사라집니다.')) return false;
       onLoadServerDraft(loaded); return true;
     }}/> : null}
-    <GoodPreviewPanel detail={{...previewDetail,attributes:attributePreview}} ip={previewIp} shippingPolicy={shippingPolicy} />
+    <GoodPreviewPanel detail={previewWithAttributes} ip={previewIp} shippingPolicy={shippingPolicy} />
   </>;
 }
 

@@ -41,8 +41,17 @@ export interface GoodOption {
   attributes: Record<string, string>;
   pricing?: import('./goods-sales').GoodsVariantPricing;
   supply?: import('./goods-preorders').GoodsVariantSupply;
+  /** 옵션별 주문당 최대 수량(D7②). null·없음 = 제한 없음. 진실원은 주문 생성 트리거다. */
+  orderMaxQty?: number | null;
+  /** 옵션별 1인 누적 최대 수량(결제 대기 포함·취소 완료 제외). null·없음 = 제한 없음. */
+  memberMaxQty?: number | null;
 }
 export interface Good {
+  /**
+   * 옵션 판매 방식(D5②). 'random'이면 카탈로그가 옵션을 기본 옵션 키 하나('랜덤')로 접는다 — 고객은 옵션을 고르지
+   * 않고, 주문 생성 때 DB가 재고 비례로 배정한다. 없으면 'select'(목업·옛 투영).
+   */
+  optionSaleMode?: import('./goods-option-sale-mode').GoodsOptionSaleMode;
   /** undefined: legacy/mock catalog; null: terms could not be read safely. */
   transactionOffer?: import('./goods-transaction-offers').GoodsTransactionOffer | null;
   transactionCalculatedAt?: string;

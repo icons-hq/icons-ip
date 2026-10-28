@@ -17,10 +17,10 @@ import { HOME_HERO_LIMIT, homeHeroAltText, homeHeroStyle } from './home-hero';
 
 import { blockedUserIds } from '@/lib/blocks.server';
 import { canViewCommunityPost, formatPostTime, type CommunityPostStatus } from '@/lib/community';
-import { DATA, type Card, type FandomEvent, type Good, type Ip, type Stock, type Vertical } from '@/lib/data';
+import { DATA, type Card, type FandomEvent, type Good, type GoodOption, type Ip, type Stock, type Vertical } from '@/lib/data';
 import type { GoodDetailContent } from '@/lib/goods-detail';
 import { EMPTY_GOODS_NOTICE } from '@/lib/goods-notice';
-import { goodCompareAtPrice, optionPriceRange } from '@/lib/goods-options';
+import { collapseRandomGoodOptions, goodCompareAtPrice, optionPriceRange } from '@/lib/goods-options';
 import { parseGoodsVariantPricing } from '@/lib/goods-sales';
 import { parseGoodsVariantSupply } from '@/lib/goods-preorders';
 import { parseGoodsKcDisclosures } from '@/lib/goods-kc';
@@ -164,9 +164,20 @@ interface GoodOptionRow {
   is_default: boolean; attributes: Record<string, string>; archived_at: string | null; sort_order: number;
   pricing?: unknown;
   supply?: unknown;
+  /* D7② 옵션별 구매 제한. 옛 투영(카테고리 전시 RPC 등)에는 없다. */
+  order_max_qty?: number | null;
+  member_max_qty?: number | null;
 }
 
 export interface GoodRow {
+  /** D5② 옵션 판매 방식. 옛 투영(카테고리 전시 RPC 등)에는 없어 'select'로 읽는다. */
+  option_sale_mode?: string;
+  /**
+   * D5② 랜덤 판매 굿즈의 고객용 옵션 한 줄(공개 계산 열 `goods_random_option`, GoodOptionRow 모양: id = 장바구니 키,
+   * 이름 '랜덤', 재고 = 풀 합계). 랜덤 굿즈의 `goods_variants` 행은 고객·익명에게 숨으므로(옵션별 재고가 배정 단서다)
+   * 고객 화면은 이 값으로만 랜덤 굿즈를 판다. 랜덤이 아니거나 공개 조건 밖이면 null, 옛 투영에는 없다.
+   */
+  random_option?: unknown;
   sale_period?: unknown;
   custom_inputs_enabled?: boolean; custom_inputs_revision?: number; custom_input_fields?: unknown;
   origin_id?: string;
@@ -613,8 +624,8 @@ function toIp(row: IpRow, verticalsByKey: Map<string, Vertical>, imageUrlForPath
   };
 }
 
-export function toGood(row: GoodRow, imageUrlForPath: (path: string) => string): Good {
-  const options = row.goods_variants?.filter(option => option.archived_at === null)
+function toGoodOptions(rows: readonly GoodOptionRow[]): GoodOption[] {
+  return rows.filter(option => option.archived_at === null)
     .sort((left, right) => left.sort_order - right.sort_order || left.id.localeCompare(right.id))
     .flatMap(option => {
       const pricing = option.pricing === undefined ? undefined : parseGoodsVariantPricing(option.pricing);
@@ -622,12 +633,35 @@ export function toGood(row: GoodRow, imageUrlForPath: (path: string) => string):
       if (pricing === null || supply === null) return [];
       return [{id: option.id, name: option.name, code: option.code, price: pricing?.effectivePrice ?? option.price,
         stockQty: supply?.availableQty ?? option.stock_qty, isDefault: option.is_default, attributes: option.attributes,
-        ...(pricing ? { pricing } : {}), ...(supply ? { supply } : {})}];
+        ...(pricing ? { pricing } : {}), ...(supply ? { supply } : {}),
+        orderMaxQty: option.order_max_qty ?? null, memberMaxQty: option.member_max_qty ?? null}];
     });
+}
+
+/** 공개 계산 열 `goods_random_option`의 값. 모양이 GoodOptionRow가 아니면 버린다(옵션 없음으로 읽는다). */
+function randomOptionRow(value: unknown): GoodOptionRow | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const row = value as Record<string, unknown>;
+  return typeof row.id === 'string' && typeof row.name === 'string' && typeof row.code === 'string'
+    && typeof row.price === 'number' && typeof row.stock_qty === 'number' && typeof row.is_default === 'boolean'
+    && Boolean(row.attributes) && typeof row.attributes === 'object' && row.archived_at === null && typeof row.sort_order === 'number'
+    ? row as unknown as GoodOptionRow : null;
+}
+
+export function toGood(row: GoodRow, imageUrlForPath: (path: string) => string): Good {
+  /* 랜덤 판매(D5②)는 고객이 옵션을 고르지 않는다 — 공개 계산 열의 랜덤 한 줄(장바구니 키, 풀 합계)을 쓴다. 고객 세션은
+     옵션 행을 받지 못하고, 운영자 세션이 받은 옵션 행도 고객 화면에는 쓰지 않는다. 랜덤 한 줄이 없는 옛 투영·목업만
+     옵션 행을 기본 옵션 키 하나로 접는다. */
+  const optionSaleMode = row.option_sale_mode === 'random' ? 'random' as const : 'select' as const;
+  const randomOption = optionSaleMode === 'random' ? randomOptionRow(row.random_option) : null;
+  const selectableOptions = randomOption ? toGoodOptions([randomOption])
+    : row.goods_variants ? toGoodOptions(row.goods_variants) : undefined;
+  const options = optionSaleMode === 'random' && !randomOption && selectableOptions ? collapseRandomGoodOptions(selectableOptions) : selectableOptions;
   const catalogPricing = { price: row.price, compareAtPrice: row.compare_at_price ?? null };
   const stockQty = options ? options.reduce((total, option) => total + option.stockQty, 0) : row.stock_qty ?? 0;
   return {
     id: row.id,
+    optionSaleMode,
     salePeriod: parseGoodsSalePeriod(row.sale_period) ?? undefined,
     ip: row.ip_id,
     name: row.name,
@@ -851,7 +885,7 @@ export async function getCatalogSnapshot(options: CatalogSnapshotOptions = {}): 
       .order('fans_count', { ascending: false }),
     supabase
       .from('goods')
-      .select('id,ip_id,name,name_en,search_keywords,display_order,category_id,additional_good_ids:goods_additional_ids,type,price,compare_at_price,show_discount_rate,created_at,badge,stock,stock_qty,bg,image_path,sale_period:goods_sale_period,custom_inputs_enabled,custom_inputs_revision,custom_input_fields,allow_bank_transfer,allow_card_payment,sale_restriction,order_quantity_limit_enabled,min_order_qty,max_order_qty,member_purchase_limit_enabled,member_lifetime_qty_limit,origin_id,goods_variants(id,name,code,price,stock_qty,is_default,attributes,archived_at,sort_order,pricing:goods_variant_pricing,supply:goods_variant_supply)')
+      .select('id,ip_id,name,name_en,search_keywords,display_order,category_id,additional_good_ids:goods_additional_ids,type,price,compare_at_price,show_discount_rate,created_at,badge,stock,stock_qty,bg,image_path,sale_period:goods_sale_period,custom_inputs_enabled,custom_inputs_revision,custom_input_fields,allow_bank_transfer,allow_card_payment,sale_restriction,order_quantity_limit_enabled,min_order_qty,max_order_qty,member_purchase_limit_enabled,member_lifetime_qty_limit,origin_id,option_sale_mode,random_option:goods_random_option,goods_variants(id,name,code,price,stock_qty,is_default,attributes,archived_at,sort_order,order_max_qty,member_max_qty,pricing:goods_variant_pricing,supply:goods_variant_supply)')
       .is('archived_at', null)
       .not('published_at', 'is', null)
       /* 판매 제한(19금) 상품은 요청한 표면이 노출 모드를 넘길 때만 읽는다(ADR-0024).
@@ -1055,7 +1089,7 @@ async function readPublicGoodsByIds(
   if (selected.length > 1000 || selected.some(id => !/^[a-z0-9][a-z0-9-]{0,199}$/.test(id))) throw new Error('Invalid selected goods');
   const result = await readCompleteIdPages<GoodRow>((afterId, pageSize) => {
     let query = supabase.from('goods')
-      .select('id,ip_id,name,name_en,search_keywords,display_order,category_id,additional_good_ids:goods_additional_ids,type,price,compare_at_price,show_discount_rate,created_at,badge,stock,stock_qty,bg,image_path,allow_bank_transfer,allow_card_payment,sale_restriction,origin_id,sale_period:goods_sale_period,custom_inputs_enabled,custom_inputs_revision,custom_input_fields,order_quantity_limit_enabled,min_order_qty,max_order_qty,member_purchase_limit_enabled,member_lifetime_qty_limit,goods_variants(id,name,code,price,stock_qty,is_default,attributes,archived_at,sort_order,pricing:goods_variant_pricing,supply:goods_variant_supply),ips!inner(id)', { count: 'exact' })
+      .select('id,ip_id,name,name_en,search_keywords,display_order,category_id,additional_good_ids:goods_additional_ids,type,price,compare_at_price,show_discount_rate,created_at,badge,stock,stock_qty,bg,image_path,allow_bank_transfer,allow_card_payment,sale_restriction,origin_id,sale_period:goods_sale_period,custom_inputs_enabled,custom_inputs_revision,custom_input_fields,order_quantity_limit_enabled,min_order_qty,max_order_qty,member_purchase_limit_enabled,member_lifetime_qty_limit,option_sale_mode,random_option:goods_random_option,goods_variants(id,name,code,price,stock_qty,is_default,attributes,archived_at,sort_order,order_max_qty,member_max_qty,pricing:goods_variant_pricing,supply:goods_variant_supply),ips!inner(id)', { count: 'exact' })
       .in('id', selected).is('archived_at', null).not('published_at', 'is', null).in('sale_restriction', adultGoodsRestrictions(adultGoods))
       .is('ips.archived_at', null).not('ips.published_at', 'is', null).order('id').limit(pageSize);
     if (afterId) query = query.gt('id', afterId);

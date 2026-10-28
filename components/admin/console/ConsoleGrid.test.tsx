@@ -245,6 +245,17 @@ describe('ConsoleGrid 선택', () => {
     expect(html).not.toContain('type="hidden"');
   });
 
+  it('체크박스는 칸 전체를 채우는 label 안에 있어 칸 어디를 눌러도 선택된다', () => {
+    const html = tableMarkup(renderToStaticMarkup(
+      <ConsoleGrid caption="주문 목록" columns={COLUMNS} rows={[ROWS[0], { ...ROWS[1], selectable: false }]} selectable />,
+    ));
+    expect(html.match(/<label class="admin-console-grid-check-hit"><input/g)).toHaveLength(2);
+    expect(html).toContain('<label class="admin-console-grid-check-hit"><input aria-label="전체 선택"');
+    expect(html).toContain('<label class="admin-console-grid-check-hit"><input aria-label="o1 선택"');
+    /* 선택할 수 없는 행은 빈 칸이다. */
+    expect(html).not.toContain('o2 선택');
+  });
+
   it('일괄 액션 바 슬롯을 표 위에 렌더한다', () => {
     const html = renderToStaticMarkup(
       <ConsoleGrid caption="주문 목록" columns={COLUMNS} rows={ROWS} selectable>

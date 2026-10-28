@@ -5,7 +5,7 @@ import { getCurrentAuthState } from '@/lib/auth/server';
 import { isOnboarded, isAccountSuspended } from '@/lib/auth/onboarding';
 import { createClient } from '@/lib/supabase/server';
 import { normalizeCheckoutAddress, normalizeCheckoutPaymentMethod } from '@/lib/checkout';
-import { giftClaimSessionHash, giftSecretHash, loadGift } from '@/lib/gifts.server';
+import { giftClaimSessionHash, giftSecretHash, loadGift, maskRandomGiftOptions } from '@/lib/gifts.server';
 import { GIFT_MESSAGE_LIMIT, giftError, parseGiftOutcome, type GiftDetail, type GiftFailure, type GiftReceipt } from '@/lib/gifts';
 import { parseGoodsTransactionSelection, parseGoodsTransactionQuote, type GoodsTransactionQuote } from '@/lib/goods-transaction';
 import { isUuid } from '@/lib/uuid';
@@ -25,7 +25,9 @@ async function mutate(name: string, args: Record<string, unknown>, id: string): 
     const client = await createClient(), { data, error } = await client.rpc(name, args);
     if (error) return giftError(error);
     const outcome = parseGiftOutcome(data); if (!outcome || outcome.gift.id !== id || outcome.receipt.operationId !== args.p_operation_id) return giftError();
-    revalidatePath('/gifts'); return outcome;
+    /* 랜덤 판매로 바뀐 굿즈의 옵션명은 응답에서도 가린다(m27 CUST-1). 읽지 못하면 catch가 같은 요청 재확인으로 돌린다. */
+    const [gift] = await maskRandomGiftOptions([outcome.gift], client);
+    revalidatePath('/gifts'); return { ...outcome, gift };
   } catch (error) { unstable_rethrow(error); return giftError(); }
 }
 export async function createGiftAction(id: string, selection: unknown, message: string, operationId: string, expectedActorId: string): Promise<GiftResult> {
@@ -45,7 +47,8 @@ export async function issueGiftLinkAction(id: string, revision: number, token: s
     const outcome = parseGiftOutcome(data && { gift: data.gift, receipt: data.receipt });
     if (!outcome || outcome.gift.id !== id || outcome.gift.party !== 'sender' || outcome.receipt.operationId !== operationId || outcome.receipt.kind !== 'link_issued'
       || !Number.isSafeInteger(data.generation) || data.generation < 1) return giftError();
-    revalidatePath('/gifts'); return { ...outcome, generation: data.generation };
+    const [gift] = await maskRandomGiftOptions([outcome.gift], client);
+    revalidatePath('/gifts'); return { ...outcome, gift, generation: data.generation };
   } catch (error) { unstable_rethrow(error); return giftError(); }
 }
 export async function respondGiftAction(id: string, revision: number, accept: boolean, inputAddress: unknown, operationId: string, expectedActorId: string): Promise<GiftResult> {

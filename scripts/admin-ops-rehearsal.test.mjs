@@ -95,5 +95,6 @@ describe('reproducible rehearsal fixtures', () => {
       mediaUrl: (path) => path,
     }).every((group) => !Object.hasOwn(group.target ?? {}, 'kc_update'))).toBe(true);
     expect(files['goods-images.zip'].subarray(0, 2).toString()).toBe('PK');
-  });
+    // 30개 상품 엑셀·이미지 ZIP 왕복은 보통 3초 안팎이지만 느린 CI 러너에서 기본 5초를 넘긴다.
+  }, 20_000);
 });

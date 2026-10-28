@@ -467,10 +467,52 @@ describe('ClaimDetailScreen', () => {
     expect(held('processing')).not.toContain('거부 사유');
   });
 
+  /* R7: 거부 사유는 유형에 맞는 확정 프리셋을 고르면 채워지고 고쳐 쓸 수 있다. */
+  it('거부 사유 프리셋을 요청 유형에 맞게 보인다', () => {
+    const returns = render({ claim: { ...detail().claim, stage: 'requested' } });
+    expect(returns).toContain('자주 쓰는 거부 사유');
+    expect(returns).toContain('<option value="반품 가능 기간이 지났습니다.">반품 가능 기간이 지났습니다.</option>');
+    expect(returns).not.toContain('이미 발송되어 취소할 수 없습니다.');
+    expect(returns).toMatch(/<input id="claim-reject-note" maxLength="200" type="text" name="note" value=""\/>/);
+    const cancel = render({ claim: { ...detail().claim, claimType: 'cancel', stage: 'requested' } });
+    expect(cancel).toContain('<option value="이미 발송되어 취소할 수 없습니다.">이미 발송되어 취소할 수 없습니다.</option>');
+  });
+
+  /* R7: 철회는 구매자 몫이다(스마트스토어 기준). 운영자 화면에는 철회 버튼을 두지 않고 이력만 본다. */
+  it('운영자 화면에 고객 요청 철회 버튼을 두지 않고 철회 이력은 남긴다', () => {
+    const open = render({ claim: { ...detail().claim, stage: 'requested' } });
+    expect(open).not.toContain('고객 요청으로 철회');
+    expect(open).not.toContain('요청 철회하기');
+    const withdrawn = render({ claim: { ...detail().claim, stage: 'withdrawn' } });
+    expect(withdrawn).toContain('요청 철회 이력');
+  });
+
   it('목록으로 돌아가는 링크를 남긴다', () => {
     const html = render();
 
     expect(html).toContain('/admin/sales/claims/returns');
+  });
+
+  /* R8: 목록 위 팝업에서는 대화상자가 제목·닫기를 맡는다. 같은 처리 패널을 그대로 쓴다. */
+  it('팝업(embedded)에서는 뒤로가기·제목 대신 전체 화면 링크를 두고 처리 패널은 그대로 그린다', () => {
+    const html = renderToStaticMarkup(
+      <ClaimDetailScreen
+        backHref="/admin/sales/claims/returns?stage=open&page=1"
+        cancellationForm={null}
+        carriers={CARRIERS}
+        detail={detail()}
+        detailHref={`/admin/sales/claims/returns/${CLAIM_ID}?back=stage%3Dopen`}
+        embedded
+        now={NOW}
+      />,
+    );
+    expect(html).not.toContain('← 목록으로');
+    expect(html).not.toContain('<h2>');
+    expect(html).toContain(`href="/admin/sales/claims/returns/${CLAIM_ID}?back=stage%3Dopen"`);
+    expect(html).toContain('전체 화면으로 열기');
+    expect(html).toContain('id="claim-process"');
+    expect(html).toContain('반품 단계별 처리');
+    expect(html).toContain('반품·교환 전환 및 이력');
   });
 });
 

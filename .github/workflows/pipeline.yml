@@ -45,12 +45,17 @@ env:
   VERCEL_CLI_VERSION: "54.17.2"
 
 jobs:
-  validate:
-    name: validate
+  # 검증은 재사용 판정(validate-plan) 뒤에 앱 검사(validate-app)와 DB 샤드(validate-db)로
+  # 병렬 실행하고, 이름이 그대로인 집계 job(validate)이 모두 통과했을 때만 성공한다.
+  # deploy job의 `needs: validate`와 main의 재사용 증거 조회는 집계 job만 본다.
+  validate-plan:
+    name: validate-plan
     runs-on: ubuntu-latest
     permissions:
       actions: read
       contents: read
+    outputs:
+      reuse_hit: ${{ steps.reuse.outputs.hit }}
 
     steps:
       - name: Verify deployed Production source
@@ -96,6 +101,80 @@ jobs:
           fi
 
       - name: Check out repository
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/checkout@v6
+
+      # tree에는 이 workflow와 lockfile까지 들어 있으므로, 같은 tree를 통과한 PR·merge queue
+      # run은 같은 validate 정의를 같은 입력으로 실행한 증거다. main push는 그 증거가 있으면
+      # 검사를 다시 돌리지 않는다. fork PR이 올린 아티팩트는 출처 repo 대조로 거부하고,
+      # 조회가 실패하거나 증거가 없으면 전체 검사를 실행한다.
+      - name: Reuse validation of the identical tree
+        id: reuse
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          tree="$(git rev-parse 'HEAD^{tree}')"
+          api() {
+            curl --fail --silent --show-error \
+              --header "Authorization: Bearer $GH_TOKEN" \
+              --header "Accept: application/vnd.github+json" \
+              --header "X-GitHub-Api-Version: 2022-11-28" \
+              "https://api.github.com/repos/${GITHUB_REPOSITORY}/$1"
+          }
+          run_full_validation() {
+            echo "hit=false" >> "$GITHUB_OUTPUT"
+            echo "Full validation for tree \`$tree\`: $1" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          }
+
+          if ! artifacts_json="$(api "actions/artifacts?name=validated-tree-${tree}&per_page=100")"; then
+            echo "::warning title=Validation reuse lookup failed::Running full validation"
+            run_full_validation "evidence lookup failed"
+          fi
+
+          while IFS= read -r run_id; do
+            [ -n "$run_id" ] || continue
+            run_json="$(api "actions/runs/${run_id}")" || continue
+            if ! jq -e --arg repo "$GITHUB_REPOSITORY_ID" '
+              (.event == "pull_request" or .event == "merge_group")
+              and .path == ".github/workflows/pipeline.yml"
+              and (.repository.id | tostring) == $repo
+              and (.head_repository.id | tostring) == $repo
+            ' <<<"$run_json" >/dev/null; then
+              continue
+            fi
+            # 재실행에서 validate가 실패했다면 이전 시도의 아티팩트는 증거로 쓰지 않는다.
+            jobs_json="$(api "actions/runs/${run_id}/jobs?filter=latest&per_page=100")" || continue
+            if ! jq -e 'any(.jobs[]; .name == "validate" and .conclusion == "success")' \
+              <<<"$jobs_json" >/dev/null; then
+              continue
+            fi
+
+            echo "hit=true" >> "$GITHUB_OUTPUT"
+            {
+              echo "### Validation reused"
+              echo
+              echo "- tree: \`$tree\`"
+              echo "- evidence: [$(jq -r '.event' <<<"$run_json") run ${run_id}]($(jq -r '.html_url' <<<"$run_json"))"
+              echo "- 같은 tree의 lint·typecheck·test·build·DB 검증을 위 run의 \`validate\`가 통과해 다시 실행하지 않았습니다."
+            } >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          done < <(jq -r '.artifacts[] | select(.expired == false) | .workflow_run.id' <<<"$artifacts_json" | sort -u)
+
+          run_full_validation "no same-repository PR or merge queue run validated it"
+
+  validate-app:
+    name: validate-app
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: validate-plan
+    if: needs.validate-plan.outputs.reuse_hit != 'true'
+
+    steps:
+      - name: Check out repository
         uses: actions/checkout@v6
         with:
           fetch-depth: 0
@@ -125,6 +204,42 @@ jobs:
       - name: Build application
         run: npm run build
 
+  # 샤드 목록과 순서는 scripts/database-test-shards.mjs가 소유한다. 샤드마다 새 DB에서 시작하므로
+  # 매분 pg_cron sweep과 자동 발주확인 정지도 샤드 DB마다 같은 조건으로 적용된다.
+  validate-db:
+    name: validate-db (${{ matrix.shard }})
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    needs: validate-plan
+    if: needs.validate-plan.outputs.reuse_hit != 'true'
+    env:
+      # 샤드마다 DB 이미지를 새로 받으므로 ECR 비인증 데이터 한도(Data limit exceeded) 대신
+      # Supabase 공식 GHCR 이미지만 쓴다. 이 값이 있으면 CLI는 다른 레지스트리로 넘어가지 않는다.
+      SUPABASE_INTERNAL_IMAGE_REGISTRY: ghcr.io
+    strategy:
+      fail-fast: false
+      matrix:
+        shard:
+          - operators
+          - catalog
+          - storefront
+          - commerce
+          - legacy
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v6
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v6
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+
+      # 일부 DB 회귀는 실제 route·DTO 경계를 node_modules의 vitest로 함께 실행한다.
+      - name: Install dependencies
+        run: npm ci
+
       - name: Set up Supabase CLI
         uses: supabase/setup-cli@v2
         with:
@@ -150,158 +265,97 @@ jobs:
           # Existing HTTP fixtures inspect this local tag before starting PostgREST.
           docker tag ghcr.io/supabase/postgrest:v14.14 public.ecr.aws/supabase/postgrest:v14.14
 
-      - name: Check manager permission boundaries
-        run: |
-          docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/operator_capability_coverage.sql
-          docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/operator_capability_guards.sql
-          docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/operator_manager_lifecycle.sql
-          docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/operator_email_invitations.sql
-          docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/operator_member_loyalty_projection.sql
-          docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/operator_manual_recovery_guards.sql
-          docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/admin_operator_directory.sql
-          docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/readable_order_numbers.sql
-          READABLE_ORDER_TEST_SCOPE=ci SUPABASE_DB_CONTAINER=supabase_db_icons-ip PGDATABASE=postgres python3 supabase/tests/readable_order_numbers_concurrency.py
-          docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/smartstore_shipment_workbook.sql
-          docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/admin_seller_cancel_intake.sql
-          docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/purchase_restriction_bulk_release.sql
-          cat supabase/tests/helpers/goods_kc_fixture.sql supabase/tests/admin_order_item_console.sql | docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1
-          docker exec -i supabase_db_icons-ip psql -X -U supabase_admin -d postgres -v ON_ERROR_STOP=1 < supabase/tests/admin_order_address_changes.sql
-          OPERATOR_CAPABILITY_TEST_SCOPE=1 SUPABASE_DB_CONTAINER=supabase_db_icons-ip bash supabase/tests/operator_capability_concurrency.sh
-          OPERATOR_INVITATION_TEST_SCOPE=ci SUPABASE_DB_CONTAINER=supabase_db_icons-ip bash supabase/tests/operator_email_invitation_concurrency.sh
-          SELLER_CANCEL_TEST_SCOPE=ci SUPABASE_DB_CONTAINER=supabase_db_icons-ip bash supabase/tests/seller_cancel_intake_concurrency.sh
-          RESTRICTION_RELEASE_TEST_SCOPE=ci SUPABASE_DB_CONTAINER=supabase_db_icons-ip bash supabase/tests/purchase_restriction_release_concurrency.sh
-          docker exec -i supabase_db_icons-ip psql -X -U supabase_admin -d postgres -v ON_ERROR_STOP=1 < supabase/tests/order_claim_withdrawal.sql
-          CLAIM_WITHDRAWAL_TEST_SCOPE=ci SUPABASE_DB_CONTAINER=supabase_db_icons-ip bash supabase/tests/order_claim_withdrawal_concurrency.sh
-          docker exec -i supabase_db_icons-ip psql -X -U supabase_admin -d postgres -v ON_ERROR_STOP=1 < supabase/tests/order_claim_type_conversion.sql
-          CLAIM_CONVERSION_TEST_SCOPE=ci SUPABASE_DB_CONTAINER=supabase_db_icons-ip bash supabase/tests/order_claim_type_conversion_concurrency.sh
-          docker exec -i supabase_db_icons-ip psql -X -U supabase_admin -d postgres -v ON_ERROR_STOP=1 < supabase/tests/order_claim_hold_operations.sql
-          CLAIM_HOLD_TEST_SCOPE=ci SUPABASE_DB_CONTAINER=supabase_db_icons-ip bash supabase/tests/order_claim_hold_operations_concurrency.sh
-          docker exec -i supabase_db_icons-ip psql -X -U supabase_admin -d postgres -v ON_ERROR_STOP=1 < supabase/tests/order_claim_reason_changes.sql
-          CLAIM_REASON_TEST_SCOPE=ci SUPABASE_DB_CONTAINER=supabase_db_icons-ip bash supabase/tests/order_claim_reason_changes_concurrency.sh
-          ORDER_ADDRESS_TEST_SCOPE=ci SUPABASE_DB_CONTAINER=supabase_db_icons-ip bash supabase/tests/order_address_concurrency.sh
-          cat supabase/tests/helpers/goods_kc_fixture.sql supabase/tests/goods_media.sql | docker exec -i supabase_db_icons-ip psql -X -U supabase_admin -d postgres -v ON_ERROR_STOP=1
-          GOODS_MEDIA_TEST_SCOPE=ci SUPABASE_DB_CONTAINER=supabase_db_icons-ip bash supabase/tests/goods_media_concurrency.sh
-          docker exec -i supabase_db_icons-ip psql -X -U supabase_admin -d postgres -v ON_ERROR_STOP=1 < supabase/tests/pg_settlement_ledger.sql
-          PG_SETTLEMENT_TEST_SCOPE=ci SUPABASE_DB_CONTAINER=supabase_db_icons-ip bash supabase/tests/pg_settlement_ledger_concurrency.sh
-          cat supabase/tests/helpers/goods_kc_fixture.sql supabase/tests/goods_sale_period.sql | docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1
-          docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/goods_clone_attributes.sql
-          GOODS_SALE_PERIOD_TEST_SCOPE=ci SUPABASE_DB_CONTAINER=supabase_db_icons-ip bash supabase/tests/goods_sale_period_concurrency.sh
-          docker exec -i supabase_db_icons-ip psql -X -U supabase_admin -d postgres -v ON_ERROR_STOP=1 < supabase/tests/goods_draft_optional_revision.sql
-          cat supabase/tests/helpers/goods_kc_fixture.sql supabase/tests/review_best.sql | docker exec -i supabase_db_icons-ip psql -X -U supabase_admin -d postgres -v ON_ERROR_STOP=1
-          cat supabase/tests/helpers/goods_kc_fixture.sql supabase/tests/home_review_best_priority.sql | docker exec -i supabase_db_icons-ip psql -X -U supabase_admin -d postgres -v ON_ERROR_STOP=1
-          cat supabase/tests/helpers/goods_kc_fixture.sql supabase/tests/home_review_helpful_priority.sql | docker exec -i supabase_db_icons-ip psql -X -U supabase_admin -d postgres -v ON_ERROR_STOP=1
-          cat supabase/tests/helpers/goods_kc_fixture.sql supabase/tests/category_display_compositions.sql | docker exec -i supabase_db_icons-ip psql -X -U supabase_admin -d postgres -v ON_ERROR_STOP=1
-          cat supabase/tests/helpers/goods_kc_fixture.sql supabase/tests/category_display_tree.sql | docker exec -i supabase_db_icons-ip psql -X -U supabase_admin -d postgres -v ON_ERROR_STOP=1
-          cat supabase/tests/helpers/goods_kc_fixture.sql supabase/tests/category_display_menu.sql | docker exec -i supabase_db_icons-ip psql -X -U supabase_admin -d postgres -v ON_ERROR_STOP=1
-          CATEGORY_DISPLAY_TEST_SCOPE=ci SUPABASE_DB_CONTAINER=supabase_db_icons-ip bash supabase/tests/category_display_concurrency.sh
-          docker exec -i supabase_db_icons-ip psql -X -U supabase_admin -d postgres -v ON_ERROR_STOP=1 < supabase/tests/admin_body_templates.sql
-          BODY_TEMPLATE_TEST_SCOPE=ci SUPABASE_DB_CONTAINER=supabase_db_icons-ip bash supabase/tests/admin_body_templates_concurrency.sh
-          REVIEW_BEST_TEST_SCOPE=ci SUPABASE_DB_CONTAINER=supabase_db_icons-ip bash supabase/tests/review_best_concurrency.sh
-          docker exec -i supabase_db_icons-ip psql -X -U supabase_admin -d postgres -v ON_ERROR_STOP=1 < supabase/tests/shipment_delay_notice_filter.sql
-          docker exec -i supabase_db_icons-ip psql -X -U supabase_admin -d postgres -v ON_ERROR_STOP=1 < supabase/tests/admin_review_sorting.sql
-          python3 -B supabase/tests/review_helpful_regression.py --container supabase_db_icons-ip --scope ci --output-dir output/review-helpful-regression
-          cat supabase/tests/helpers/goods_kc_fixture.sql supabase/tests/admin_review_export.sql | docker exec -i supabase_db_icons-ip psql -X -U supabase_admin -d postgres -v ON_ERROR_STOP=1
-          cat supabase/tests/helpers/goods_kc_fixture.sql supabase/tests/review_rating_history.sql | docker exec -i supabase_db_icons-ip psql -X -U supabase_admin -d postgres -v ON_ERROR_STOP=1
-          cat supabase/tests/helpers/goods_kc_fixture.sql supabase/tests/goods_benefit_content.sql | docker exec -i supabase_db_icons-ip psql -X -U supabase_admin -d postgres -v ON_ERROR_STOP=1
-          GOODS_BENEFITS_TEST_SCOPE=ci SUPABASE_DB_CONTAINER=supabase_db_icons-ip bash supabase/tests/goods_benefit_content_concurrency.sh
-          docker exec -i supabase_db_icons-ip psql -X -U supabase_admin -d postgres -v ON_ERROR_STOP=1 < supabase/tests/catalog_category_templates.sql
-          CATEGORY_TEMPLATES_TEST_SCOPE=ci SUPABASE_DB_CONTAINER=supabase_db_icons-ip bash supabase/tests/catalog_category_templates_concurrency.sh
-          cat supabase/tests/helpers/goods_kc_fixture.sql supabase/tests/goods_after_sales_content.sql | docker exec -i supabase_db_icons-ip psql -X -U supabase_admin -d postgres -v ON_ERROR_STOP=1
-          GOODS_AFTER_SALES_TEST_SCOPE=ci SUPABASE_DB_CONTAINER=supabase_db_icons-ip bash supabase/tests/goods_after_sales_content_concurrency.sh
-          cat supabase/tests/helpers/goods_kc_fixture.sql supabase/tests/goods_size_charts.sql | docker exec -i supabase_db_icons-ip psql -X -U supabase_admin -d postgres -v ON_ERROR_STOP=1
-          GOODS_SIZE_CHART_TEST_SCOPE=ci SUPABASE_DB_CONTAINER=supabase_db_icons-ip bash supabase/tests/goods_size_charts_concurrency.sh
-          docker exec -i supabase_db_icons-ip psql -X -U supabase_admin -d postgres -v ON_ERROR_STOP=1 < supabase/tests/goods_import_guidance.sql
-          python3 supabase/tests/goods_import_guidance_concurrency.py --container supabase_db_icons-ip --output-dir output/goods-import-guidance-concurrency
-          docker exec -i supabase_db_icons-ip psql -X -U supabase_admin -d postgres -v ON_ERROR_STOP=1 < supabase/tests/store_profile_image.sql
-          cat supabase/tests/helpers/goods_kc_fixture.sql supabase/tests/goods_announcement_period_popup.sql | docker exec -i supabase_db_icons-ip psql -X -U supabase_admin -d postgres -v ON_ERROR_STOP=1
-          GOODS_ANNOUNCEMENT_POPUP_TEST_SCOPE=ci SUPABASE_DB_CONTAINER=supabase_db_icons-ip bash supabase/tests/goods_announcement_period_popup_concurrency.sh
-          docker exec -i supabase_db_icons-ip psql -X -U supabase_admin -d postgres -v ON_ERROR_STOP=1 < supabase/tests/cs_single_reply_cas.sql
-          docker exec -i supabase_db_icons-ip psql -X -U supabase_admin -d postgres -v ON_ERROR_STOP=1 < supabase/tests/cs_reply_read_transaction_mode.sql
-          CS_SINGLE_REPLY_TEST_SCOPE=ci SUPABASE_DB_CONTAINER=supabase_db_icons-ip bash supabase/tests/cs_single_reply_concurrency.sh
-          python3 -B supabase/tests/inquiry_satisfaction_regression.py --container supabase_db_icons-ip --scope ci --output-dir output/inquiry-satisfaction-regression
-          docker exec -i supabase_db_icons-ip psql -X -U supabase_admin -d postgres -v ON_ERROR_STOP=1 < supabase/tests/admin_sales_read_contract_gaps.sql
-          SALES_READ_GAP_TEST_SCOPE=ci SUPABASE_DB_CONTAINER=supabase_db_icons-ip bash supabase/tests/admin_sales_read_contract_gaps_concurrency.sh
-          docker exec -i supabase_db_icons-ip psql -X -U supabase_admin -d postgres -v ON_ERROR_STOP=1 < supabase/tests/admin_claim_detail_search.sql
-          docker exec -i supabase_db_icons-ip psql -X -U supabase_admin -d postgres -v ON_ERROR_STOP=1 < supabase/tests/home_promotion_banner_settings.sql
-          HOME_PROMOTION_BANNER_TEST_SCOPE=ci SUPABASE_DB_CONTAINER=supabase_db_icons-ip bash supabase/tests/home_promotion_banner_concurrency.sh
-          docker exec -i supabase_db_icons-ip psql -X -U supabase_admin -d postgres -v ON_ERROR_STOP=1 < supabase/tests/home_banner_style_archive.sql
-          HOME_BANNER_ARCHIVE_TEST_SCOPE=ci SUPABASE_DB_CONTAINER=supabase_db_icons-ip bash supabase/tests/home_banner_style_archive_concurrency.sh
-          cat supabase/tests/helpers/goods_kc_fixture.sql supabase/tests/home_free_product_collections.sql | docker exec -i supabase_db_icons-ip psql -X -U supabase_admin -d postgres -v ON_ERROR_STOP=1
-          HOME_FREE_PRODUCTS_TEST_SCOPE=ci SUPABASE_DB_CONTAINER=supabase_db_icons-ip bash supabase/tests/home_free_product_collections_concurrency.sh
-          docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/customer_marketing_consents.sql
-          docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/auto_order_confirmation.sql
-          AUTO_ORDER_CONFIRM_TEST_SCOPE=ci SUPABASE_DB_CONTAINER=supabase_db_icons-ip bash supabase/tests/auto_order_confirmation_concurrency.sh
-          docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/staging_test_delivery.sql
-          docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/commerce_number_labels.sql
-          docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/bank_transfer_order_number_code.sql
-          docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/order_item_allocation_inputs.sql
-          cat supabase/tests/helpers/goods_kc_fixture.sql supabase/tests/cart_retained_until_payment.sql | docker exec -i supabase_db_icons-ip psql -X -U supabase_admin -d postgres -v ON_ERROR_STOP=1
-          docker exec -i supabase_db_icons-ip psql -X -U supabase_admin -d postgres -v ON_ERROR_STOP=1 < supabase/tests/home_collection_banners.sql
-          docker exec -i supabase_db_icons-ip psql -X -U supabase_admin -d postgres -v ON_ERROR_STOP=1 < supabase/tests/ip_hall_banners.sql
-
-      - name: Check story and marketing workflows
-        run: |
-          cat supabase/tests/helpers/goods_kc_fixture.sql supabase/tests/shopping_stories.sql | docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1
-          cat supabase/tests/helpers/goods_kc_fixture.sql supabase/tests/shopping_story_goods_picker.sql | docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1
-          cat supabase/tests/helpers/goods_kc_fixture.sql supabase/tests/goods_relation_visual_compositions.sql | docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1
-          cat supabase/tests/helpers/goods_kc_fixture.sql supabase/tests/goods_other_compositions.sql | docker exec -i supabase_db_icons-ip psql -X -U supabase_admin -d postgres -v ON_ERROR_STOP=1
-          docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/story_navigation_and_home_layout.sql
-          cat supabase/tests/helpers/goods_kc_fixture.sql supabase/tests/marketing_links.sql | docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1
-          SHOPPING_STORIES_TEST_SCOPE=ci SUPABASE_DB_CONTAINER=supabase_db_icons-ip bash supabase/tests/shopping_stories_concurrency.sh
-          MARKETING_LINKS_TEST_SCOPE=ci SUPABASE_DB_CONTAINER=supabase_db_icons-ip bash supabase/tests/marketing_links_concurrency.sh
-          cat supabase/tests/helpers/goods_kc_fixture.sql supabase/tests/marketing_in_app_campaigns.sql | docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1
-          MARKETING_MESSAGES_TEST_SCOPE=ci SUPABASE_DB_CONTAINER=supabase_db_icons-ip bash supabase/tests/marketing_in_app_campaigns_concurrency.sh
-          docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/customer_target_segments.sql
-          CUSTOMER_SEGMENTS_TEST_SCOPE=ci SUPABASE_DB_CONTAINER=supabase_db_icons-ip bash supabase/tests/customer_target_segments_concurrency.sh
-          cat supabase/tests/helpers/goods_kc_fixture.sql supabase/tests/store_presentation_settings.sql | docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1
-          STORE_PRESENTATION_TEST_SCOPE=ci SUPABASE_DB_CONTAINER=supabase_db_icons-ip bash supabase/tests/store_presentation_concurrency.sh
-          cat supabase/tests/helpers/goods_kc_fixture.sql supabase/tests/product_detail_presentation.sql | docker exec -i supabase_db_icons-ip psql -X -U supabase_admin -d postgres -v ON_ERROR_STOP=1
-          cat supabase/tests/helpers/goods_kc_fixture.sql supabase/tests/product_detail_experiences.sql | docker exec -i supabase_db_icons-ip psql -X -U supabase_admin -d postgres -v ON_ERROR_STOP=1
-          PRODUCT_DETAIL_EXPERIENCES_TEST_SCOPE=ci SUPABASE_DB_CONTAINER=supabase_db_icons-ip bash supabase/tests/product_detail_experiences_concurrency.sh
-          PRODUCT_DETAIL_PRESENTATION_TEST_SCOPE=ci SUPABASE_DB_CONTAINER=supabase_db_icons-ip bash supabase/tests/product_detail_presentation_concurrency.sh
-          cat supabase/tests/helpers/goods_kc_fixture.sql supabase/tests/review_events.sql | docker exec -i supabase_db_icons-ip psql -X -U supabase_admin -d postgres -v ON_ERROR_STOP=1
-          cat supabase/tests/helpers/goods_kc_fixture.sql supabase/tests/review_event_exports.sql | docker exec -i supabase_db_icons-ip psql -X -U supabase_admin -d postgres -v ON_ERROR_STOP=1
-          REVIEW_EVENTS_TEST_SCOPE=ci SUPABASE_DB_CONTAINER=supabase_db_icons-ip bash supabase/tests/review_events_concurrency.sh
-          cat supabase/tests/helpers/goods_kc_fixture.sql supabase/tests/store_analytics.sql | docker exec -i supabase_db_icons-ip psql -X -U supabase_admin -d postgres -v ON_ERROR_STOP=1
-          STORE_ANALYTICS_TEST_SCOPE=ci SUPABASE_DB_CONTAINER=supabase_db_icons-ip bash supabase/tests/store_analytics_concurrency.sh
-          docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/store_analytics_notice_events.sql
-          docker exec -i supabase_db_icons-ip psql -X -U supabase_admin -d postgres -v ON_ERROR_STOP=1 < supabase/tests/admin_customer_purchase_report.sql
-          docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/admin_sales_goods_page.sql
-          docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/admin_sales_hourly_report.sql
-          docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/admin_benefit_issuances.sql
-          docker exec -i supabase_db_icons-ip psql -X -U supabase_admin -d postgres -v ON_ERROR_STOP=1 < supabase/tests/admin_encrypted_export_audit.sql
-          docker exec -i supabase_db_icons-ip psql -X -U supabase_admin -d postgres -v ON_ERROR_STOP=1 < supabase/tests/goods_custom_input_workbook.sql
-          GOODS_RELATION_VISUAL_TEST_SCOPE=ci SUPABASE_DB_CONTAINER=supabase_db_icons-ip bash supabase/tests/goods_relation_visual_concurrency.sh
-
-      - name: Check full admin fulfillment and benefit contracts
-        run: python3 scripts/run-full-admin-sql-tests.py --scope ci --container supabase_db_icons-ip --output-dir output/full-admin-sql
-
-      - name: Check goods transaction, gift and recurring billing boundaries
-        run: |
-          GOODS_TRANSACTION_TEST_SCOPE=ci SUPABASE_DB_CONTAINER=supabase_db_icons-ip bash supabase/tests/goods_transaction_isolated.sh
-          GIFT_ORDER_TEST_SCOPE=ci SUPABASE_DB_CONTAINER=supabase_db_icons-ip bash supabase/tests/gift_orders_isolated.sh
-          SUBSCRIPTION_TEST_SCOPE=ci SUPABASE_DB_CONTAINER=supabase_db_icons-ip bash supabase/tests/goods_subscriptions_isolated.sh
-
-      - name: Run database smoke tests
+      - name: Run database test shard
         env:
-          OPERATOR_LEGACY_FIXTURE_TEST_SCOPE: "1"
-        run: node scripts/with-legacy-operator-fixtures.mjs --project icons-ip --container supabase_db_icons-ip -- bash scripts/run-database-smoke-tests.sh
-
-      - name: Verify manager boundaries after legacy fixtures
-        if: always()
-        run: |
-          docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/release_main_admin_contracts.sql
-          docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/operator_capability_coverage.sql
-          docker exec -i supabase_db_icons-ip psql -X -U postgres -d postgres -v ON_ERROR_STOP=1 < supabase/tests/operator_capability_guards.sql
+          SHARD: ${{ matrix.shard }}
+        run: node scripts/database-test-shards.mjs --shard "$SHARD"
 
       - name: Lint local database
         run: supabase db lint --local --fail-on error
 
+  validate:
+    name: validate
+    runs-on: ubuntu-latest
+    needs:
+      - validate-plan
+      - validate-app
+      - validate-db
+    if: ${{ !cancelled() }}
+
+    steps:
+      # 재사용이 적중한 main push만 검사 job을 건너뛸 수 있다. 그 밖에는 앱 검사와 모든 DB 샤드가
+      # 성공해야 하며, 건너뛰었거나 실패한 job이 하나라도 있으면 deploy job도 실행되지 않는다.
+      - name: Require every validation job
+        env:
+          PLAN_RESULT: ${{ needs.validate-plan.result }}
+          REUSE_HIT: ${{ needs.validate-plan.outputs.reuse_hit }}
+          APP_RESULT: ${{ needs.validate-app.result }}
+          DB_RESULT: ${{ needs.validate-db.result }}
+        run: |
+          set -euo pipefail
+
+          if [ "$PLAN_RESULT" != "success" ]; then
+            echo "::error title=Validation plan failed::validate-plan finished as $PLAN_RESULT"
+            exit 1
+          fi
+          if [ "$REUSE_HIT" = "true" ]; then
+            echo "Validation reused; validate-app and validate-db were skipped." >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          failed=0
+          for job in "validate-app:$APP_RESULT" "validate-db:$DB_RESULT"; do
+            if [ "${job#*:}" != "success" ]; then
+              echo "::error title=Validation job did not pass::${job%%:*} finished as ${job#*:}"
+              failed=1
+            fi
+          done
+          exit "$failed"
+
+      - name: Check out repository
+        if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
+        uses: actions/checkout@v6
+
+      # PR·merge queue가 통과시킨 정확한 merge tree를 남긴다. 같은 tree의 main push는
+      # validate-plan의 reuse step이 이 증거를 찾아 검사 job을 건너뛴다. 앱 검사나 DB 샤드가
+      # 하나라도 통과하지 못하면 위 step에서 끝나 이 step까지 오지 않는다.
+      - name: Record validated tree
+        if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
+        run: |
+          set -euo pipefail
+
+          tree="$(git rev-parse 'HEAD^{tree}')"
+          jq -n \
+            --arg tree "$tree" \
+            --arg sha "$GITHUB_SHA" \
+            --arg event "$GITHUB_EVENT_NAME" \
+            --arg run_id "$GITHUB_RUN_ID" \
+            --arg run_attempt "$GITHUB_RUN_ATTEMPT" \
+            '{tree: $tree, sha: $sha, event: $event, runId: $run_id, runAttempt: $run_attempt}' \
+            > "$RUNNER_TEMP/validated-tree.json"
+          echo "VALIDATED_TREE=$tree" >> "$GITHUB_ENV"
+
+      - name: Upload validated tree evidence
+        if: github.event_name == 'pull_request' || github.event_name == 'merge_group'
+        uses: actions/upload-artifact@v7
+        with:
+          name: validated-tree-${{ env.VALIDATED_TREE }}
+          path: ${{ runner.temp }}/validated-tree.json
+          retention-days: 14
+          if-no-files-found: error
+          overwrite: true
+
+  # main 재사용이 적중하면 validate-app·validate-db는 skipped다. job if의 암묵적 success()는
+  # 간접 의존 job까지 보므로 skipped 조상 때문에 배포가 조용히 건너뛰어진다. main 배포 사슬은
+  # !cancelled()와 직접 의존 job의 결과로만 판정한다.
   deploy-supabase:
     name: deploy-supabase
     runs-on: ubuntu-latest
     needs: validate
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: >-
+      !cancelled()
+      && needs.validate.result == 'success'
+      && github.event_name == 'push'
+      && github.ref == 'refs/heads/main'
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
@@ -516,11 +570,13 @@ jobs:
             exit 0
           fi
 
+          # 증거는 두 job의 결론이다. 뒤따르는 deploy-staging까지 run 전체가 끝나기를
+          # 기다리지 않도록 실행 중인 run도 조회하고, 진행 중인 job은 success가 아니라 거부된다.
           runs_json="$(curl --fail --silent --show-error \
             --header "Authorization: Bearer $GH_TOKEN" \
             --header "Accept: application/vnd.github+json" \
             --header "X-GitHub-Api-Version: 2022-11-28" \
-            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/pipeline.yml/runs?event=push&head_sha=${PR_BASE_SHA}&status=completed&per_page=20")"
+            "https://api.github.com/repos/${GITHUB_REPOSITORY}/actions/workflows/pipeline.yml/runs?event=push&head_sha=${PR_BASE_SHA}&per_page=20")"
 
           synchronized_run_id=""
           while IFS= read -r run_id; do
@@ -942,7 +998,12 @@ jobs:
     needs:
       - deploy-supabase
       - deploy-vercel
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: >-
+      !cancelled()
+      && needs.deploy-supabase.result == 'success'
+      && needs.deploy-vercel.result == 'success'
+      && github.event_name == 'push'
+      && github.ref == 'refs/heads/main'
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_PREVIEW_DB_PASSWORD }}
@@ -1037,7 +1098,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 40
     needs: sync-supabase-preview-main
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: >-
+      !cancelled()
+      && needs.sync-supabase-preview-main.result == 'success'
+      && github.event_name == 'push'
+      && github.ref == 'refs/heads/main'
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       SUPABASE_PREVIEW_PROJECT_ID: ${{ secrets.SUPABASE_PREVIEW_PROJECT_ID }}

@@ -76,3 +76,22 @@ it('저장 완료 뒤 목록 실패에서도 저장한 초안을 다시 불확�
   mocks.list.mockRejectedValueOnce(new Error('list lost')); submit(); await settle();
   expect(mocks.persisted).toBeNull(); expect(text(render())).toContain('저장본은 확인했지만'); expect(button(render(), '템플릿 저장').props.disabled).toBe(false);
 });
+/* R3(MD-0011): 리뷰·상품문의 답변도 같은 대체 동작과 안내 문구를 쓴다. */
+it('작성 중인 답글이 있으면 확인 뒤에만 템플릿으로 바꾸고, 비어 있으면 바로 바꾼다', async () => {
+  const onInsert = vi.fn(); const confirm = vi.fn(() => false);
+  vi.stubGlobal('window', { confirm });
+  const draw = (body: string) => { mocks.index = 0; return CsReplyTemplateTools({ accountId: 'staff', surface: 'review', body, onInsert }) as Element; };
+  click(button(draw('미저장 리뷰 답글'), '답변 템플릿 불러오기')); await settle();
+  expect(text(draw('미저장 리뷰 답글'))).toContain('템플릿을 고르면 작성 중인 내용을 템플릿으로 바꿉니다.');
+  const pick = (body: string) => click(button(nodes(draw(body)).find(node => node.type === 'article' && text(node).includes('기존 A'))!, '불러오기'));
+  pick('미저장 리뷰 답글');
+  expect(confirm).toHaveBeenCalledWith('작성 중인 내용을 템플릿으로 바꿀까요?');
+  expect(onInsert).not.toHaveBeenCalled();
+  confirm.mockReturnValue(true); pick('미저장 리뷰 답글');
+  expect(onInsert).toHaveBeenLastCalledWith('A 본문');
+  mocks.states = []; confirm.mockClear();
+  click(button(draw(''), '답변 템플릿 불러오기')); await settle(); pick('');
+  expect(confirm).not.toHaveBeenCalled();
+  expect(onInsert).toHaveBeenLastCalledWith('A 본문');
+  vi.unstubAllGlobals();
+});

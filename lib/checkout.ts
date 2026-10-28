@@ -24,11 +24,18 @@ export type PlaceOrderErrorCode =
   | 'order_quantity_below_minimum'
   | 'order_quantity_above_maximum'
   | 'member_purchase_limit_exceeded'
+  /** 옵션별 구매 제한(D7②). DB `option_order_limit_exceeded: <variantId>`·`option_member_limit_exceeded: <variantId>`. */
+  | 'option_order_limit_exceeded'
+  | 'option_member_limit_exceeded'
+  /** 랜덤 판매 굿즈(D5②)의 배정 조건이 주문 순간 깨졌다(옵션 가격 불일치·판매 방식 변경 등). 재고 부족은 out_of_stock. */
+  | 'random_option_unavailable'
   | 'restricted_good_blocked'
   | 'adult_verification_required'
   | 'coupon_rejected'
   | 'store_credit_rejected'
   | 'checkout_changed'
+  /** 견적·표시 뒤 다른 화면에서 장바구니 쿠폰 선택이 바뀌었다(DB `coupon_selection_changed`, PT409). 만든 주문은 없다. */
+  | 'coupon_selection_changed'
   | 'shipping_region_unresolved'
   | 'goods_sale_not_open'
   | 'preorder_sale_not_open'
@@ -244,9 +251,10 @@ export function mapPlaceOrderError(message: unknown): PlaceOrderErrorCode {
   if (/goods_custom_inputs|invalid_goods_custom_inputs/.test(normalized)) return 'goods_custom_inputs_changed';
   if (normalized.includes('goods_purchase_restricted')) return 'goods_purchase_restricted';
   if (normalized.includes('account_suspended')) return 'account_suspended';
-  if (normalized.includes('checkout key conflict') || normalized.includes('coupon_selection_changed')) {
-    return 'checkout_changed';
-  }
+  if (normalized.includes('checkout key conflict')) return 'checkout_changed';
+  /* 표시한 쿠폰과 주문 순간의 선택(cart_coupon_selections)이 다르다 — 대개 다른 탭에서 쿠폰을 바꾼 경우라
+     만든 주문이 없다. 아래 coupon_ 일반 거절보다 먼저 나눈다. */
+  if (normalized.includes('coupon_selection_changed')) return 'coupon_selection_changed';
   if (normalized.includes('shipping_region_')) return 'shipping_region_unresolved';
   if (normalized.includes('store_credit_')) return 'store_credit_rejected';
   for (const code of ['goods_sale_not_open', 'preorder_sale_not_open', 'preorder_capacity_exceeded', 'preorder_policy_not_configured'] as const) {
@@ -257,6 +265,13 @@ export function mapPlaceOrderError(message: unknown): PlaceOrderErrorCode {
   if (normalized.includes('invalid checkout address')) return 'invalid_address';
   if (normalized.includes('bank transfer blocked')) return 'bank_transfer_blocked';
   if (normalized.includes('card_payment_blocked') || normalized.includes('card payment blocked')) return 'card_payment_blocked';
+  /* 옵션별 구매 제한(주문당·1인 누적)은 order_items 트리거가 막는다. 상품 단위 코드와 이름이 겹치지 않는다. */
+  for (const code of ['option_order_limit_exceeded', 'option_member_limit_exceeded'] as const) {
+    if (normalized.includes(code)) return code;
+  }
+  if (normalized.includes('random_option_unavailable') || normalized.includes('random_option_checkout_unsupported')) {
+    return 'random_option_unavailable';
+  }
   for (const code of ['purchase_limit_not_configured', 'order_quantity_below_minimum', 'order_quantity_above_maximum', 'member_purchase_limit_exceeded'] as const) {
     if (normalized.includes(code)) return code;
   }
