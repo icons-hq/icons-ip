@@ -519,7 +519,7 @@ describe('GoodSection', () => {
     expect(card).toMatch(/<input[^>]*name="regularPrice"[^>]*value="26000"/);
     expect(card).toMatch(/<input type="radio" name="discountEnabled" checked="" value="true"\/>설정함/);
     expect(card).toMatch(/<input[^>]*name="discountValue"[^>]*value="4000"/);
-    expect(card).toContain('할인가 <strong>22,000원</strong> (4,000원 할인)');
+    expect(card).toContain('할인가 <strong>22,000원</strong> (4,000원, 15% 할인)');
     expect(card).toContain('<input type="hidden" name="price" value="22000"/>');
     expect(card).toContain('<input type="hidden" name="compareAtPrice" value="26000"/>');
     expect(card).toContain('고객 화면에 할인율 표시');
@@ -545,7 +545,7 @@ describe('GoodSection', () => {
     expect(html).toMatch(/<input[^>]*name="discountValue"[^>]*value="15"/);
     expect(html).toMatch(/<option value="percent" selected="">%<\/option>/);
     expect(html).toContain('<input type="hidden" name="price" value="8415"/>');
-    expect(html).toContain('할인가 <strong>8,415원</strong> (1,485원 할인)');
+    expect(html).toContain('할인가 <strong>8,415원</strong> (1,485원, 15% 할인)');
   });
 
   it('재고수량·옵션 카드는 옵션 없는 상품의 재고수량을 먼저 보여준다', () => {

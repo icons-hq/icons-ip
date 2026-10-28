@@ -304,6 +304,11 @@
 /* Long native select values remain readable without widening their grid track. */
 .wc-admin .wc-admin-kit__select-hint { display: block; width: 100%; min-width: 0; max-width: 100%; margin-top: 4px; color: var(--wc-ink-sub); font-size: 13px; line-height: 1.65; overflow-wrap: anywhere; white-space: normal; }
 
+/* 10/27 회의 R18: 어드민 금액·수량 입력은 스피너 없이 직접 입력한다. 포커스된 입력의 휠 변경은 AdminNumberWheelGuard가 막는다. */
+.wc-admin input[type='number'] { -moz-appearance: textfield; appearance: textfield; }
+.wc-admin input[type='number']::-webkit-inner-spin-button,
+.wc-admin input[type='number']::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+
 @media (forced-colors: active) {
   .wc-admin:is(.admin-shell, .check-in-shell) .wc-admin-kit :is(input, select, textarea),
   .wc-admin:is(.admin-shell, .check-in-shell) .wc-admin-kit__card { border-color: CanvasText; background: Canvas; color: CanvasText; }
