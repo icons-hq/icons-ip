@@ -6,7 +6,7 @@ import { InquiryDetailScreen } from './InquiryDetailScreen';
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
 /* next/link의 이동 옵션(scroll·replace)은 DOM에 남지 않아 data 속성으로 드러낸다. */
 vi.mock('next/link', () => ({
-  default: ({ children, href, scroll, replace, prefetch: _prefetch, ...rest }: { children?: React.ReactNode; href: string; scroll?: boolean; replace?: boolean; prefetch?: unknown } & Record<string, unknown>) => (
+  default: ({ children, href, scroll, replace, ...rest }: { children?: React.ReactNode; href: string; scroll?: boolean; replace?: boolean } & Record<string, unknown>) => (
     <a href={href} data-scroll={scroll === false ? 'false' : undefined} data-replace={replace ? 'true' : undefined} {...rest}>{children}</a>
   ),
 }));
