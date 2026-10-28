@@ -193,25 +193,31 @@ export function formatErpSalePrice(value: number | null): string {
   return value === null ? '없음' : `${value.toLocaleString('ko-KR')}원`;
 }
 
+/* DB private.catalog_category_name_key와 같은 키: NFKC, 소문자, 공백 제거. */
 function comparable(value: string): string {
-  return value.normalize('NFKC').toLowerCase().replace(/\s+/g, '');
+  return value.normalize('NFKC').toLowerCase().replace(/[\s\u00a0\u1680\u2000-\u200b\u2028\u2029\u202f\u205f\u3000\ufeff]+/g, '');
 }
 
+/* ERP 분류 경로는 `>`로만 단계를 나눈다. '메모/수첩'처럼 이름에 든 '/'는 이름의 일부다(DB private.catalog_category_path_segments). */
 function segments(value: string): string[] {
-  return value.split(/\s*[>›/|]\s*/).map((part) => part.trim()).filter(Boolean);
+  return value.split('>').map((part) => part.trim()).filter(Boolean);
+}
+
+function pathKey(value: string): string {
+  return segments(value).map(comparable).join('>');
 }
 
 export type ErpCategorySuggestion = {
   categoryId: string;
-  /** 'erp_mapping' = 고객 카테고리의 ERP 분류 매핑과 일치, 'same_path' = 경로 일치, 'same_name' = 말단 이름 일치 */
-  basis: 'erp_mapping' | 'same_path' | 'same_name';
+  /** 'erp_mapping' = 고객 카테고리의 ERP 분류 매핑과 일치, 'same_path' = `대>중>소` 전체 경로 일치 */
+  basis: 'erp_mapping' | 'same_path';
   label: string;
 };
 
 /**
  * ERP 분류 원문에 맞는 고객 카테고리 활성 말단을 하나 제안한다.
- * 고객 카테고리 화면의 ERP 분류 매핑 → 경로 전체 → 말단 이름 순으로 보고,
- * 후보가 둘 이상이면 추정하지 않고 null을 돌려준다.
+ * 고객 카테고리 화면의 ERP 분류 매핑 → 전체 경로 순으로 보고, 후보가 둘 이상이면 추정하지 않고 null을 돌려준다.
+ * 말단 이름만 같은 다른 경로는 제안하지 않는다(사이트 카테고리 ≠ ERP 1:1, 10/27 회의).
  */
 export function suggestErpCategoryTarget(
   erpCategory: string,
@@ -234,12 +240,17 @@ export function suggestErpCategoryTarget(
     .map((mapping) => mapping.categoryId);
   if (mapped.length) return unique(mapped, 'erp_mapping');
 
-  const parts = segments(erpCategory).map(comparable);
-  const pathKey = parts.join('>');
-  const samePath = leaves.filter((leaf) => categoryPath(categories, leaf.id).map(comparable).join('>') === pathKey).map((leaf) => leaf.id);
-  if (samePath.length) return unique(samePath, 'same_path');
+  const key = pathKey(erpCategory);
+  if (!key) return null;
+  return unique(leaves.filter((leaf) => categoryPath(categories, leaf.id).map(comparable).join('>') === key).map((leaf) => leaf.id), 'same_path');
+}
 
-  const last = parts.at(-1);
-  if (!last) return null;
-  return unique(leaves.filter((leaf) => comparable(leaf.name) === last).map((leaf) => leaf.id), 'same_name');
+/** DB가 돌려준 제안 말단(fallback_category_id)이 전체 경로 일치인지, 고객 카테고리 화면의 정본 ERP 매핑인지. */
+export function erpCategoryFallbackBasis(
+  erpCategory: string,
+  fallbackCategoryId: string,
+  categories: readonly AdminCategoryNode[],
+): ErpCategorySuggestion['basis'] {
+  const key = pathKey(erpCategory);
+  return key && categoryPath(categories, fallbackCategoryId).map(comparable).join('>') === key ? 'same_path' : 'erp_mapping';
 }

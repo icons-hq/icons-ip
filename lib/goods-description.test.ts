@@ -1,7 +1,10 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import {
   GOODS_HTML_EXTERNAL_IMAGE_MAX,
+  GOODS_HTML_MAX_LENGTH,
   GOODS_HTML_WARNINGS,
+  goodsHtmlCleanedLengthWarning,
+  goodsHtmlSourceLengthWarning,
   sanitizeGoodsDescription,
 } from './goods-description';
 
@@ -131,5 +134,30 @@ describe('sanitizeGoodsDescription · 저장소 이미지 규칙 유지', () => 
 
     expect(result.html).toBe('<div>가운데</div><div>첫 줄</div><span>둘째</span>');
     expect(result.warnings).toEqual([]);
+  });
+});
+
+/* R17(MD-0002): 실제 상세페이지 HTML(호스팅 이미지 60장 이상)이 잘리지 않게 상한을 200,000자로 올렸다. */
+describe('상세페이지 HTML 상한', () => {
+  it('한글로 꽉 채워도 서버 액션 본문 3MB 안에 든다', () => {
+    expect(GOODS_HTML_MAX_LENGTH).toBe(200000);
+    const bytes = new TextEncoder().encode('가'.repeat(GOODS_HTML_MAX_LENGTH)).length;
+    expect(bytes).toBe(600000);
+    /* 원문과 서버 임시저장 사본이 함께 실려도 3MB 안이다. */
+    expect(bytes * 2).toBeLessThan(3 * 1024 * 1024);
+  });
+
+  it('이미지 60장짜리 합성 상세 HTML이 상한 안에서 정리된다', () => {
+    const images = Array.from({ length: 60 }, (_, index) => `<p><img src="https://img.example.com/detail/${String(index + 1).padStart(2, '0')}.jpg" alt="상세 ${index + 1}"></p>`).join('\n');
+    const source = `<div style="text-align:center">${images}<p>${'상품 상세 설명 '.repeat(5000)}</p></div>`;
+    const cleaned = sanitizeGoodsDescription(source).html;
+    expect(source.length).toBeGreaterThan(30000);
+    expect(cleaned.length).toBeLessThan(GOODS_HTML_MAX_LENGTH);
+    expect(cleaned.match(/<img /g)).toHaveLength(60);
+  });
+
+  it('원문·정리 결과가 상한을 넘을 때의 안내에 상한을 함께 쓴다', () => {
+    expect(goodsHtmlSourceLengthWarning(200001)).toBe('상세페이지 HTML이 200,001자로 최대 200,000자를 넘어 저장할 수 없습니다. 내용을 줄여주세요.');
+    expect(goodsHtmlCleanedLengthWarning(200500)).toContain('정리된 코드가 200,500자로 최대 200,000자를 넘어 저장할 수 없습니다.');
   });
 });

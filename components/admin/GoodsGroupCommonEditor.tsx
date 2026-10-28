@@ -8,7 +8,7 @@ import { GOOD_TYPES } from '@/lib/goods-taxonomy';
 import { GOODS_NOTICE_FIELDS, type GoodsNoticeInfo } from '@/lib/goods-notice';
 import { EMPTY_GOODS_AFTER_SALES, type GoodsAfterSalesValues } from '@/lib/goods-after-sales';
 import { parseGoodsSizeChart } from '@/lib/goods-size-chart';
-import { GOODS_HTML_MAX_LENGTH, sanitizeGoodsDescription } from '@/lib/goods-description';
+import { GOODS_HTML_MAX_LENGTH, goodsHtmlCleanedLengthWarning, goodsHtmlSourceLengthWarning, sanitizeGoodsDescription } from '@/lib/goods-description';
 import { goodsAttributeSubmissionReady } from '@/lib/admin/goods-attributes';
 import { GroupCompleted, GroupOperationStatus, useGoodsGroupOperation, useGoodsGroupSession, GROUP_BUTTON, GROUP_PRIMARY } from './GoodsGroupOperation';
 import { AdminSectionCard } from './console/AdminKit';
@@ -79,6 +79,11 @@ export function GoodsGroupCommonEditor({ snapshot: initialSnapshot, actorId, ses
     setDirty(true);
   }
   const preview = format === 'html' ? sanitizeGoodsDescription(description) : null;
+  /* R17: HTML 붙여넣기는 자르지 않고(maxLength 없음) 상한을 넘으면 저장 전에 알린다. 서버·DB가 같은 상한을 다시 건다. */
+  const descriptionLimitWarnings = preview ? [
+    ...(description.length > GOODS_HTML_MAX_LENGTH ? [goodsHtmlSourceLengthWarning(description.length)] : []),
+    ...(description.length <= GOODS_HTML_MAX_LENGTH && preview.html.length > GOODS_HTML_MAX_LENGTH ? [goodsHtmlCleanedLengthWarning(preview.html.length)] : []),
+  ] : [];
   return <div className="wc-admin-kit col">
     <AdminSectionCard title={`${snapshot.group.name} · 공통정보 편집`}>
       <p>연결된 {snapshot.group.members.length}개 상품에 아래 정보를 한 번에 적용합니다. 저장하면 모두 미공개로 전환되고 KC를 다시 검토해야 합니다.</p>
@@ -109,7 +114,7 @@ export function GoodsGroupCommonEditor({ snapshot: initialSnapshot, actorId, ses
         <AdminSectionCard title="상세설명">
           <SelectField name="descriptionFormat" label="상세설명 형식" value={format} onChange={event => setFormat(event.target.value)}><option value="plain">일반 텍스트</option><option value="html">HTML 문서</option></SelectField>
           {format === 'html' ? <GoodsDescriptionTools accountId={actorId} formRef={formRef} disabled={locked} /> : null}
-          <TextArea name="description" label="상세설명" defaultValue={snapshot.fields.description} maxLength={format === 'html' ? GOODS_HTML_MAX_LENGTH : 2000} error={errors.description} />
+          <TextArea name="description" label={format === 'html' ? `상세설명 (정리된 코드 포함 최대 ${GOODS_HTML_MAX_LENGTH.toLocaleString('ko-KR')}자)` : '상세설명 (최대 2,000자)'} defaultValue={snapshot.fields.description} maxLength={format === 'html' ? undefined : 2000} error={errors.description} />
           {format === 'html' ? <><ArtworkUploadField autoUpload allowRemove currentPath={null} currentUrl={null} fieldId="group-description-image" kind="good" label="HTML 이미지 업로드" name="descriptionUploadPath" />
             <Field name="descriptionImageAlt" label="HTML 이미지 대체 설명" maxLength={300} />
             <button className={GROUP_BUTTON} type="button" onClick={() => {
@@ -118,7 +123,7 @@ export function GoodsGroupCommonEditor({ snapshot: initialSnapshot, actorId, ses
               const fragment = sanitizeGoodsDescription(`<img src="${String(data.get('descriptionUploadPath') ?? '')}" alt="${alt}">`).html;
               if (!fragment) return; input.setRangeText(fragment, input.selectionStart, input.selectionEnd, 'end'); input.dispatchEvent(new Event('input', { bubbles: true })); setDescription(input.value);
             }}>업로드한 이미지를 설명에 넣기</button></> : null}
-          {preview?.warnings.length ? <ul>{preview.warnings.map(warning => <li key={warning}>{warning}</li>)}</ul> : null}
+          {preview?.warnings.length || descriptionLimitWarnings.length ? <ul>{[...descriptionLimitWarnings, ...(preview?.warnings ?? [])].map(warning => <li key={warning}>{warning}</li>)}</ul> : null}
           <details><summary>상세설명 미리보기</summary><GoodsDescription description={description} format={format === 'html' ? 'html' : 'plain'} imagePaths={preview?.imagePaths} /></details>
         </AdminSectionCard>
         <AdminSectionCard title="A/S 안내·판매자 특이사항">

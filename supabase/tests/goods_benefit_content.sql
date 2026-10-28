@@ -92,6 +92,14 @@ update public.goods set image_path='public-media/catalog/good/93800000-0000-4000
 set local role authenticated;
 select 1/case when jsonb_array_length(public.admin_list_goods_photos('메인 사진')->'rows'->0->'references')=1 and jsonb_array_length(public.admin_list_goods_photos('혜택 사진')->'rows'->0->'references')=2 then 1 else 0 end as existing_main_and_gift_only_references_preserved;
 select pg_temp.expect_benefit_error($q$select public.admin_save_goods_photo('93800000-0000-4000-8000-000000000780','public-media/catalog/good/93800000-0000-4000-8000-000000000779.webp','메인 사진',1,true)$q$,'goods_photo_in_use');
+-- R19: 참조처 조회를 색인·조인으로 바꿔도 같은 상품이 갤러리와 사은품 양쪽에서 같은 사진을 쓰면 한 번만 센다.
+savepoint r19_gallery_and_gift;
+reset role;
+update public.goods set gallery_paths=array['public-media/catalog/good/93800000-0000-4000-8000-000000000777.webp'] where id='benefit-content-good';
+set local role authenticated;
+select 1/case when (select count(*) from jsonb_array_elements(public.admin_list_goods_photos('혜택 사진')->'rows'->0->'references') ref where ref->>'id'='benefit-content-good')=1
+ and jsonb_array_length(public.admin_list_goods_photos('혜택 사진')->'rows'->0->'references')=2 then 1 else 0 end as gallery_and_gift_reference_listed_once;
+rollback to savepoint r19_gallery_and_gift;
 select pg_temp.expect_benefit_error($q$select public.admin_save_goods_photo('93800000-0000-4000-8000-000000000778','public-media/catalog/good/93800000-0000-4000-8000-000000000777.webp','혜택 사진',1,true)$q$,'goods_photo_in_use');
 reset role;
 
