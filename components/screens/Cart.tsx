@@ -32,7 +32,7 @@ import { krw } from '@/lib/format';
 import { GoodsCustomInputsSummary } from '@/components/shop/GoodsCustomInputs';
 import { goodsCustomInputProblem, type GoodsCustomInputSelection } from '@/lib/goods-custom-inputs';
 import { cartItemKey } from '@/lib/cart';
-import { cartOptionGood, goodAtQuotedPrice, optionLabel } from '@/lib/goods-options';
+import { cartLineOption, cartOptionGood, goodAtQuotedPrice, optionLabel } from '@/lib/goods-options';
 import { goodsSalesQuoteProblem, quoteLineOptionLimitMessage } from '@/lib/goods-sales';
 import { shippingFeeLabel } from '@/lib/shipping';
 import { useGoodsSalesPrecheckoutQuote, useShippingQuote } from '@/components/shop/useShippingQuote';
@@ -308,7 +308,7 @@ export function Cart({
     return items.map((item) => {
       const quoteLine = prices.get(cartItemKey(item.goodId, item.variantId));
       const good = goodAtQuotedPrice(cartOptionGood(goodsById.get(item.goodId), item.variantId), quoteLine);
-      const option = good?.options?.find(option => option.id === item.variantId);
+      const option = cartLineOption(good, item.variantId);
       /* 랜덤 판매 굿즈(D5②)는 카탈로그가 옵션을 '랜덤' 하나로 접어 두었다 — 옵션명이 그대로 '랜덤'이다. */
       const optionName = optionLabel(option, good?.options?.length ?? 0);
       return {

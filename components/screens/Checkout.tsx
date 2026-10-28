@@ -22,7 +22,7 @@ import { krw } from '@/lib/format';
 import { GoodsCustomInputsSummary } from '@/components/shop/GoodsCustomInputs';
 import { goodsCustomInputProblem } from '@/lib/goods-custom-inputs';
 import { cartItemKey } from '@/lib/cart';
-import { cartOptionGood, goodAtQuotedPrice, optionLabel } from '@/lib/goods-options';
+import { cartLineOption, cartOptionGood, goodAtQuotedPrice, optionLabel } from '@/lib/goods-options';
 import { goodsPurchaseReasonMessage, goodsSalesQuoteProblem, quoteLineOptionLimitMessage } from '@/lib/goods-sales';
 import { PLACE_ORDER_OPTION_LIMIT_MESSAGES, PLACE_ORDER_RANDOM_OPTION_MESSAGE } from '@/lib/goods-option-sale-mode';
 import { couponErrorNeedsPendingOrder, MIN_PAYABLE_TOTAL, type UserCouponSummary } from '@/lib/coupons';
@@ -166,7 +166,7 @@ export function Checkout({
     return items.map((item) => {
       const quoteLine = prices.get(cartItemKey(item.goodId, item.variantId));
       const good = goodAtQuotedPrice(cartOptionGood(goodsById.get(item.goodId), item.variantId), quoteLine);
-      const option = good?.options?.find(option => item.variantId ? option.id === item.variantId : option.isDefault);
+      const option = item.variantId ? cartLineOption(good, item.variantId) : good?.options?.find(option => option.isDefault);
       /* 랜덤 판매 굿즈(D5②)는 카탈로그가 옵션을 '랜덤' 하나로 접어 두었다. 옵션별 구매 제한(D7②) 위반은 품목 줄이 말한다. */
       const optionName = optionLabel(option, good?.options?.length ?? 0);
       return { ...item, good, supply: quoteLine?.supply ?? option?.supply,

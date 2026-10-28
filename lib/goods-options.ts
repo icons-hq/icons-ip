@@ -155,10 +155,20 @@ export function optionLabel(option: GoodOption | undefined, count: number): stri
     ? null : option.name;
 }
 
+/**
+ * 장바구니 줄의 옵션. 랜덤 판매 굿즈(D5②)는 어느 옵션 키로 담겼든(랜덤 전환 전에 담은 줄 포함) 접힌 '랜덤' 옵션이다 —
+ * DB 장바구니 RPC는 같은 굿즈의 어떤 옵션 id가 와도 기본 옵션 줄로 모으고, 견적·주문은 풀로 판정한다.
+ */
+export function cartLineOption(good: Pick<Good, 'options' | 'optionSaleMode'> | undefined, variantId: string): GoodOption | undefined {
+  if (!good) return undefined;
+  if (good.optionSaleMode === 'random') return good.options?.[0];
+  return good.options?.find(option => option.id === variantId);
+}
+
 /** Cart identities are canonical before this display projection runs. */
 export function cartOptionGood(good: Good | undefined, variantId: string): Good | undefined {
   if (!good) return undefined;
-  const option = good.options?.find(option => option.id === variantId);
+  const option = cartLineOption(good, variantId);
   if (!option) return undefined;
   const catalog = catalogPricing(good);
   return { ...good, price: option.price, priceMax: option.price, stockQty: option.stockQty,

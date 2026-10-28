@@ -354,6 +354,12 @@ describe('Cart 랜덤 판매·옵션별 구매 제한 품목 줄', () => {
     expect(html).toMatch(/aria-disabled="true" aria-label="수량 늘리기"/);
   });
 
+  it('랜덤 전환 전에 다른 옵션 키로 담은 줄도 판매 종료가 아니라 랜덤 줄로 보인다', () => {
+    const html = render([{ goodId: 'g15', variantId: '00000000-0000-4000-8000-0000000000ee', qty: 1 }]);
+    expect(html).toContain('<p class="wc-cart__line-option">랜덤</p>');
+    expect(html).not.toContain('판매 종료');
+  });
+
   it('옵션별 주문당 최대 수량이 스테퍼 상한이다', () => {
     const html = render([{ goodId: 'g16', variantId: BLUE_VARIANT, qty: 2 }]);
     expect(html).toMatch(/aria-disabled="true" aria-label="수량 늘리기"/);

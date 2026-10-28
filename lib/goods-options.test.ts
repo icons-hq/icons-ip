@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { cartOptionGood, collapseRandomGoodOptions, defaultGoodOption, goodOptionPurchaseNotices, purchasableOptionQty, goodAtQuotedPrice, goodCompareAtPrice, initialGoodOption, isRestockableGoodOption, isSelectableGoodOption, optionLabel, optionPriceRange, selectableGoodOptionId, soldOutPreviewPrice, variantSearchForSelection, variantSyncDefault } from './goods-options';
+import { cartLineOption, cartOptionGood, collapseRandomGoodOptions, defaultGoodOption, goodOptionPurchaseNotices, purchasableOptionQty, goodAtQuotedPrice, goodCompareAtPrice, initialGoodOption, isRestockableGoodOption, isSelectableGoodOption, optionLabel, optionPriceRange, selectableGoodOptionId, soldOutPreviewPrice, variantSearchForSelection, variantSyncDefault } from './goods-options';
 import type { GoodsSalesQuoteLine } from './goods-sales';
 import type { Good, GoodOption } from './data';
 
@@ -192,6 +192,16 @@ describe('랜덤 판매(D5②)·옵션별 구매 제한(D7②) 표시 규칙', (
     expect(defaultGoodOption(random)?.id).toBe(options[0].id);
     expect(optionLabel(random.options?.[0], 1)).toBe('랜덤');
     expect(collapseRandomGoodOptions([])).toEqual([]);
+  });
+
+  /* 랜덤 전환 전에 다른 옵션 키로 담은 장바구니 줄도 '랜덤' 줄이다 — DB는 같은 굿즈의 옵션 줄을 기본 옵션 키로 모은다. */
+  it('랜덤 판매 굿즈의 장바구니 줄은 어느 옵션 키로 담겼든 접힌 랜덤 옵션이다', () => {
+    const random: Good = { ...good, optionSaleMode: 'random', options: collapseRandomGoodOptions(options) };
+    expect(cartLineOption(random, options[1].id)?.name).toBe('랜덤');
+    expect(cartOptionGood(random, options[1].id)).toMatchObject({ price: 12000, stockQty: 3, stock: 'ok' });
+    expect(cartLineOption(good, options[1].id)).toEqual(options[1]);
+    expect(cartLineOption(good, '00000000-0000-4000-8000-0000000000ff')).toBeUndefined();
+    expect(cartLineOption(undefined, options[1].id)).toBeUndefined();
   });
 
   it('수량 최대는 재고와 옵션별 주문당 최대 수량 중 작은 값이다', () => {
