@@ -10,6 +10,7 @@ import { GOODS_HTML_MAX_LENGTH } from '@/lib/goods-description';
 import { RANDOM_OPTION_NOTICE } from '@/lib/goods-option-sale-mode';
 import { GOOD_TYPES } from '@/lib/goods-taxonomy';
 import { ORDER_CLAIM_BUYER_REASON_TYPES } from '@/lib/orders/claims';
+import { ADMIN_WEEKLY_CHANGES } from './changes';
 import { ADMIN_GUIDE_TOPICS, type AdminGuideTopic, type AdminGuideTopicSlug } from './topics';
 
 /*
@@ -256,5 +257,36 @@ describe('m27 가이드 — 메뉴·배송정보·출고 파일(R21~R23·R26·R2
     const text = guide('store-settings');
     expect(text).toContain('한진택배 배송');
     expect(text).toContain('택배사가 달라 배송비가 각각 계산됩니다');
+  });
+});
+
+describe('m27 업데이트 내역(2026-10-28)', () => {
+  const entry = ADMIN_WEEKLY_CHANGES[0];
+  const all = [entry.title, ...entry.changes].join('\n');
+
+  it('맨 앞 항목이 10/27 온라인몰 2차 회의 후속이다', () => {
+    expect(entry.week).toBe('2026-10-28');
+    expect(entry.title).toContain('10/27 온라인몰 2차 회의 후속');
+  });
+
+  it('항목마다 2~4문장으로 지금 쓸 수 있는 동작만 적고 사람 확인 대기를 미리 알리지 않는다', () => {
+    for (const change of entry.changes) {
+      const sentences = change.match(/다\.(?=\s|$)/g)?.length ?? 0;
+      expect(sentences, change).toBeGreaterThanOrEqual(2);
+      expect(sentences, change).toBeLessThanOrEqual(4);
+      expect(change.endsWith('다.'), change).toBe(true);
+    }
+    for (const pending of ['토스', 'H4', 'H6', '확인 중', '확인하지 못', '예정', '매칭 기준', '되돌릴']) expect(all).not.toContain(pending);
+  });
+
+  it('운영자가 알아야 할 바뀐 동작(R1~R29·D5②·D7②)을 빠짐없이 담는다', () => {
+    for (const keyword of [
+      '미답변 1:1 문의', '새 1:1 문의 PC 알림', '템플릿으로 바꾸', 'Shift+Enter', '적립금 정책',
+      ADMIN_CLAIM_BULK_ACTION_LABELS.approve, '자주 쓰는 문장', '단순 변심',
+      'KC·예약판매', '자리표시', '구매 제한', '옵션별 구매 제한', '할인가 X원 (Y원, Z% 할인)',
+      '선택 해제', '상품번호', '판매대기(시작 전)', '배송관리', '템플릿 관리', '출고지 추가',
+      '카테고리 일괄 등록', '전체 경로', '기타', '200,000자', '[상품 편집에서만 수정]', '2MB', '사진 보관함',
+      '바코드', 'ERP 품명', '주문서', '한진택배 배송', '개 주문하기', '이메일 저장', '판매 방식', '랜덤 판매',
+    ]) expect(all, keyword).toContain(keyword);
   });
 });
