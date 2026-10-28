@@ -9,7 +9,6 @@ import { ConsolePagination } from '../console/ConsolePagination';
 import { GoodsListFiltersForm } from './GoodsListFiltersForm';
 import { CustomerServiceListSelect } from './CustomerServiceListControls';
 import { Icon } from '@/components/ui/Icon';
-import { ADMIN_VOCABULARY as V } from '@/lib/admin/vocabulary';
 import { GOODS_LIST_PAGE_SIZE, GOODS_LIST_PAGE_SIZES, GOODS_LIST_SORT_OPTIONS, goodsListHref, goodEditorHref, goodPreviewHref, type AdminGoodsListData } from '@/lib/admin/goods-list';
 import { goodDetailHref } from '@/lib/goods-display';
 import type { GoodsGroupIdentity } from '@/lib/admin/goods-groups';
@@ -28,7 +27,8 @@ export function GoodsListScreen({ data, shippingRegionExpiry, canIssueMarketingL
   const inlineIdentity = canIssueMarketingLinks ? bulkIdentity : undefined;
   const filteredIp = filters.ipId ? data.ips.find(ip => ip.id === filters.ipId && !ip.archivedAt) : undefined;
   return <section className="wc-admin-kit wc-admin-kit__screen admin-goods-worklist">
-    <nav className="admin-goods-worklist__tabs" aria-label="상품 관리 화면"><span aria-current="page">전체 상품 조회/수정</span><Link href="/admin/catalog/groups">{V.goodsGroups}</Link></nav>
+    {/* R21: 그룹상품 탭 링크는 메뉴와 함께 숨긴다(그룹상품 라우트·권한은 그대로). */}
+    <nav className="admin-goods-worklist__tabs" aria-label="상품 관리 화면"><span aria-current="page">전체 상품 조회/수정</span></nav>
     <ShippingRegionExpiryNotice state={shippingRegionExpiry} />
     <div className="admin-goods-worklist__status-strip" aria-label="상품 조회 현황">
       {([{ label: '전체', status: 'all' }, { label: '임시저장', status: 'draft' }, { label: '전시중', status: 'published' }, { label: '보관', status: 'archived' }] as const).map(item => <Link key={item.status} aria-current={filters.status === item.status ? 'page' : undefined} href={goodsListHref({ ...filters, status: item.status }, 1)}><span className="admin-goods-worklist__status-icon"><Icon name={item.status === 'all' ? 'grid' : item.status === 'published' ? 'shop' : item.status === 'draft' ? 'clock' : 'bag'} size={24} /></span><span>{item.label}<strong>{counts ? counts[item.status].toLocaleString('ko-KR') : '—'}<small>{counts ? '건' : '집계 없음'}</small></strong></span></Link>)}

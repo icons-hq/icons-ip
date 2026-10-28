@@ -19,6 +19,11 @@ export interface AdminScreen {
   status: AdminScreenStatus;
   /** `admin` 역할만 볼 수 있는 화면. staff에게는 메뉴에서도 감춘다. */
   adminOnly?: boolean;
+  /**
+   * 사이드바(메뉴 목록)에서만 숨긴다. 라우트·화면 판정(`adminScreenForPath`)·가드·권한은 그대로라
+   * 직접 경로·북마크·다른 화면의 링크로는 계속 열린다(10/27 회의 R21: 그룹상품).
+   */
+  navHidden?: boolean;
 }
 
 /*
@@ -50,6 +55,7 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
       { id: 'overview', label: '홈', href: '/admin', status: 'ready' },
     ],
   },
+  /* 10/27 회의 R21(D9①, MD-0007): 21개였던 상품관리를 상품·배송·템플릿 세 대분류로 나눈다. 화면 id·경로·권한은 그대로다. */
   {
     id: 'catalog',
     label: '상품관리',
@@ -57,17 +63,10 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
     screens: [
       { id: 'goods', label: ADMIN_VOCABULARY.goodsList, href: '/admin/catalog/goods', status: 'ready' },
       { id: 'goods-create', label: ADMIN_VOCABULARY.goodsRegister, href: '/admin/catalog/goods?create=1', status: 'ready' },
-      { id: 'goods-groups-create', label: ADMIN_VOCABULARY.goodsGroupsCreate, href: '/admin/catalog/groups/new?mode=assemble', status: 'ready' },
-      { id: 'goods-groups', label: ADMIN_VOCABULARY.goodsGroups, href: '/admin/catalog/groups', status: 'ready' },
+      /* 그룹상품은 회의에서 필요 없다고 했다. 기존 그룹 데이터를 다룰 수 있게 라우트·권한은 두고 메뉴에서만 숨긴다. */
+      { id: 'goods-groups-create', label: ADMIN_VOCABULARY.goodsGroupsCreate, href: '/admin/catalog/groups/new?mode=assemble', status: 'ready', navHidden: true },
+      { id: 'goods-groups', label: ADMIN_VOCABULARY.goodsGroups, href: '/admin/catalog/groups', status: 'ready', navHidden: true },
       { id: 'goods-import', label: ADMIN_VOCABULARY.goodsImport, href: '/admin/catalog/goods/import', status: 'ready' },
-      { id: 'fulfillment-origins', label: '배송정보 관리', href: '/admin/settings/origins', status: 'ready' },
-      { id: 'shipping-settings-templates', label: '배송정보 템플릿 관리', href: '/admin/settings/shipping-templates', status: 'ready' },
-      { id: 'shipping-notice-templates', label: '배송 안내 템플릿 관리', href: '/admin/settings/shipping-notices', status: 'ready' },
-      { id: 'notice-presets', label: `${ADMIN_VOCABULARY.noticeInfo} 템플릿 관리`, href: '/admin/catalog/notice-presets', status: 'ready' },
-      { id: 'goods-event-templates', label: '이벤트 템플릿 관리', href: '/admin/catalog/event-templates', status: 'ready' },
-      { id: 'category-templates', label: '카테고리 템플릿 관리', href: '/admin/catalog/category-templates', status: 'ready' },
-      { id: 'goods-after-sales-templates', label: 'A/S 템플릿 관리', href: '/admin/catalog/after-sales-templates', status: 'ready' },
-      { id: 'size-templates', label: '사이즈 템플릿 관리', href: '/admin/catalog/size-templates', status: 'ready' },
       { id: 'categories', label: '카테고리 관리', href: '/admin/catalog/categories', status: 'ready' },
       /* ERP 반입과 카테고리 연결은 ICONS 운영에 필요한 별도 메뉴로 유지한다. */
       { id: 'erp-items', label: 'ERP 품목', href: '/admin/catalog/erp-items', status: 'ready' },
@@ -75,8 +74,30 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
       { id: 'goods-photos', label: '사진 보관함', href: '/admin/catalog/photos', status: 'ready' },
       { id: 'related-goods', label: '연관상품 관리', href: '/admin/catalog/related-goods', status: 'ready' },
       { id: 'goods-attributes', label: '상품속성 관리', href: '/admin/catalog/attributes', status: 'ready', adminOnly: true },
+    ],
+  },
+  {
+    id: 'shipping',
+    label: '배송관리',
+    icon: 'globe',
+    screens: [
+      { id: 'fulfillment-origins', label: '배송정보 관리', href: '/admin/settings/origins', status: 'ready' },
       { id: 'shipping-regions', label: '지역별 추가배송비 관리', href: '/admin/settings/shipping-regions', status: 'ready' },
       { id: 'shipping-carriers', label: '택배사 관리', href: '/admin/settings/carriers', status: 'ready' },
+    ],
+  },
+  {
+    id: 'templates',
+    label: '템플릿 관리',
+    icon: 'settings',
+    screens: [
+      { id: 'shipping-settings-templates', label: '배송정보 템플릿 관리', href: '/admin/settings/shipping-templates', status: 'ready' },
+      { id: 'shipping-notice-templates', label: '배송 안내 템플릿 관리', href: '/admin/settings/shipping-notices', status: 'ready' },
+      { id: 'notice-presets', label: `${ADMIN_VOCABULARY.noticeInfo} 템플릿 관리`, href: '/admin/catalog/notice-presets', status: 'ready' },
+      { id: 'goods-event-templates', label: '이벤트 템플릿 관리', href: '/admin/catalog/event-templates', status: 'ready' },
+      { id: 'category-templates', label: '카테고리 템플릿 관리', href: '/admin/catalog/category-templates', status: 'ready' },
+      { id: 'goods-after-sales-templates', label: 'A/S 템플릿 관리', href: '/admin/catalog/after-sales-templates', status: 'ready' },
+      { id: 'size-templates', label: '사이즈 템플릿 관리', href: '/admin/catalog/size-templates', status: 'ready' },
     ],
   },
   {
@@ -308,15 +329,18 @@ export function adminConsoleForPath(pathname: string): AdminConsoleId {
   return consoles.length === 1 && consoles[0] === 'content' ? 'content' : 'commerce';
 }
 
-/** 역할이 볼 수 있는 메뉴만 남긴다. `planned`는 자리 표시로 남겨 둔다. 콘솔을 주면 그 콘솔의 메뉴만 남긴다. */
+/**
+ * 역할이 볼 수 있는 메뉴만 남긴다. `planned`는 자리 표시로 남겨 둔다. 콘솔을 주면 그 콘솔의 메뉴만 남긴다.
+ * 메뉴에서만 숨긴 화면(`navHidden`)은 빠지지만 접근 판정은 `canAccessAdminScreen`이 그대로 한다.
+ */
 export function visibleAdminNavGroups(role: string, operatorAccess?: OperatorAccess, consoleId?: AdminConsoleId): AdminNavGroup[] {
   return ADMIN_NAV_GROUPS
     .filter((group) => !consoleId || adminGroupConsoles(group).includes(consoleId))
     .map((group) => ({
       ...group,
-      screens: group.screens.filter((screen) => operatorAccess
+      screens: group.screens.filter((screen) => !screen.navHidden && (operatorAccess
         ? canAccessAdminScreen({ role, operatorAccess }, screen)
-        : !screen.adminOnly || role === 'admin'),
+        : !screen.adminOnly || role === 'admin')),
     }))
     .filter((group) => group.screens.length > 0);
 }

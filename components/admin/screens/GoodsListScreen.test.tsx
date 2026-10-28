@@ -41,7 +41,9 @@ describe('goods list screen', () => {
     expect(html).not.toContain('wc-admin-kit__page-header');
     expect(html).toContain('create=1');
     expect(html).toContain('상품 일괄등록·수정');
-    expect(html).toContain('href="/admin/catalog/groups">그룹상품 조회/수정</a>');
+    // R21: 그룹상품 탭 링크는 숨긴다(라우트는 그대로).
+    expect(html).not.toContain('href="/admin/catalog/groups"');
+    expect(html).toContain('<span aria-current="page">전체 상품 조회/수정</span>');
     expect(html).toContain('from=2026-10-01');
   });
   it('상세 조건을 하단 검색 동작 앞에 유지하고 지정된 조건이 있으면 펼친다', () => {
