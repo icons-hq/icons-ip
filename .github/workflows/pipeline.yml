@@ -344,11 +344,18 @@ jobs:
           if-no-files-found: error
           overwrite: true
 
+  # main 재사용이 적중하면 validate-app·validate-db는 skipped다. job if의 암묵적 success()는
+  # 간접 의존 job까지 보므로 skipped 조상 때문에 배포가 조용히 건너뛰어진다. main 배포 사슬은
+  # !cancelled()와 직접 의존 job의 결과로만 판정한다.
   deploy-supabase:
     name: deploy-supabase
     runs-on: ubuntu-latest
     needs: validate
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: >-
+      !cancelled()
+      && needs.validate.result == 'success'
+      && github.event_name == 'push'
+      && github.ref == 'refs/heads/main'
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_DB_PASSWORD }}
@@ -991,7 +998,12 @@ jobs:
     needs:
       - deploy-supabase
       - deploy-vercel
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: >-
+      !cancelled()
+      && needs.deploy-supabase.result == 'success'
+      && needs.deploy-vercel.result == 'success'
+      && github.event_name == 'push'
+      && github.ref == 'refs/heads/main'
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       SUPABASE_DB_PASSWORD: ${{ secrets.SUPABASE_PREVIEW_DB_PASSWORD }}
@@ -1086,7 +1098,11 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 40
     needs: sync-supabase-preview-main
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: >-
+      !cancelled()
+      && needs.sync-supabase-preview-main.result == 'success'
+      && github.event_name == 'push'
+      && github.ref == 'refs/heads/main'
     env:
       SUPABASE_ACCESS_TOKEN: ${{ secrets.SUPABASE_ACCESS_TOKEN }}
       SUPABASE_PREVIEW_PROJECT_ID: ${{ secrets.SUPABASE_PREVIEW_PROJECT_ID }}

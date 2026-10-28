@@ -59,9 +59,12 @@ describe('production config redeploy workflow contract', () => {
     const condition = normalizeExpression(deployVercel.if);
 
     expect(deploySupabase.needs).toBe('validate');
-    expect(deploySupabase.if).toBe(
-      "github.event_name == 'push' && github.ref == 'refs/heads/main'",
-    );
+    expect(normalizeExpression(deploySupabase.if)).toBe(normalizeExpression(`
+      !cancelled()
+      && needs.validate.result == 'success'
+      && github.event_name == 'push'
+      && github.ref == 'refs/heads/main'
+    `));
     expect(
       deploySupabase.steps.find((step) => step.name === 'Push Supabase migrations').run,
     ).toBe('supabase db push --linked --include-roles');

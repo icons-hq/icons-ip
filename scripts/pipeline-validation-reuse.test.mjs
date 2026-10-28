@@ -182,6 +182,27 @@ describe('main validation reuse contract', () => {
     expect(reuse.run).toContain('actions/artifacts?name=validated-tree-${tree}');
   });
 
+  it('keeps main deployments running after reuse skips the check jobs', () => {
+    const needsOf = (name) => [jobs[name].needs ?? []].flat();
+    const isDownstream = (name) => needsOf(name).some((need) => checkJobs.includes(need) || isDownstream(need));
+    // job if의 암묵적 success()는 skipped 간접 의존(재사용된 검사 job)까지 실패로 본다.
+    const mainJobs = Object.keys(jobs).filter((name) => (
+      isDownstream(name) && !String(jobs[name].if ?? '').includes("github.event_name == 'pull_request'")
+    ));
+
+    expect(mainJobs).toEqual(expect.arrayContaining([
+      'validate', 'deploy-supabase', 'deploy-vercel', 'sync-supabase-preview-main', 'deploy-staging',
+    ]));
+    for (const name of mainJobs) {
+      const condition = String(jobs[name].if ?? '');
+      expect(condition, name).toMatch(/!cancelled\(\)|always\(\)/);
+      if (name === 'validate') continue;
+      for (const need of needsOf(name)) {
+        expect(condition, `${name} -> ${need}`).toContain(`needs.${need}.result == 'success'`);
+      }
+    }
+  });
+
   it('passes the aggregate only when every check job passed or main reuse skipped them', () => {
     expect(requireEveryValidationJob({}).status).toBe(0);
     const reused = requireEveryValidationJob({
