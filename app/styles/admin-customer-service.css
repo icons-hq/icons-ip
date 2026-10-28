@@ -123,7 +123,8 @@
 .wc-admin .admin-inquiry-preview__header h2 { margin: 0; font-size: 16px; font-weight: 500; }
 .wc-admin .admin-inquiry-preview__empty { margin: 0; padding: 30px 24px; color: var(--wc-ink-tertiary); font-size: 13px; }
 .wc-admin .admin-inquiry-preview > .admin-console { padding: 20px 24px; }
-.wc-admin .admin-inquiry-preview .admin-inquiry-layout--embedded { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+.wc-admin :is(.admin-inquiry-preview, .admin-cs-dialog) .admin-inquiry-layout--embedded { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 24px; }
+.wc-admin .admin-cs-open__pending:not(:empty) { margin-left: 6px; color: var(--wc-ink-tertiary); font-size: 11px; }
 .wc-admin .admin-inquiry-reply-column { min-width: 0; }
 .wc-admin .admin-inquiry-workspace-title { margin: 0 0 12px; padding-bottom: 10px; border-bottom: 1px solid var(--wc-line-control); color: var(--wc-ink-sub); font-size: 14px; font-weight: 500; }
 .wc-admin .admin-inquiry-context--embedded { grid-column: 1 / -1; display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); }
@@ -160,7 +161,7 @@
   .wc-admin .admin-cs-console--inquiries .admin-console-filter-period { grid-template-columns: 110px minmax(0, 1fr); }
 }
 @media (max-width: 900px) {
-  .wc-admin .admin-inquiry-preview .admin-inquiry-layout--embedded, .wc-admin .admin-inquiry-context--embedded { grid-template-columns: minmax(0, 1fr); }
+  .wc-admin :is(.admin-inquiry-preview, .admin-cs-dialog) .admin-inquiry-layout--embedded, .wc-admin .admin-inquiry-context--embedded { grid-template-columns: minmax(0, 1fr); }
   .wc-admin .admin-cs-console--seller .admin-console-filter-actions .btn,
   .wc-admin .admin-cs-console--seller .admin-console-filter-field :is(input, select),
   .wc-admin .admin-cs-console--seller .admin-console-filter-presets .btn,

@@ -17,15 +17,20 @@ const mocks = vi.hoisted(() => ({
   },
   screen: vi.fn(() => null),
   inquiries: vi.fn(async () => ({ rows: [], counts: { open: 0, answered: 0, closed: 0 } })),
-  detail: vi.fn(async () => null),
+  detail: vi.fn(async (): Promise<unknown> => null),
+  navigation: vi.fn(async () => undefined),
   orders: vi.fn(async () => ({})),
 }));
 
 vi.mock('@/components/admin/screens/InquiryQueueScreen', () => ({
   InquiryQueueScreen: mocks.screen,
 }));
+vi.mock('@/components/admin/screens/InquiryDetailScreen', () => ({
+  InquiryDetailScreen: ({ detail, embedded }: { detail: { inquiry: { id: string } }; embedded?: boolean }) => <p>상세 {detail.inquiry.id} {embedded ? 'embedded' : 'page'}</p>,
+}));
 vi.mock('@/lib/admin/inquiries.server', () => ({
   getAdminInquiryConsoleData: mocks.inquiries,
+  getAdminInquiryNavigation: mocks.navigation,
   loadAdminInquiryDetail: mocks.detail,
 }));
 vi.mock('@/lib/admin/orders.server', () => ({ getAdminOrderRecords: mocks.orders }));
@@ -123,5 +128,24 @@ describe('AdminCsInquiriesPage', () => {
 
     const empty = renderToStaticMarkup(await AdminCsInquiriesPage({ searchParams: Promise.resolve({}) }));
     expect(empty).not.toContain('미답변 1:1 문의');
+  });
+
+  /* R4: '답변처리'는 목록 아래 화면 밖 섹션이 아니라 목록 위 팝업(native dialog)으로 상세와 답변 패널을 연다. */
+  it('선택한 문의를 목록 위 넓은 팝업으로 열고, 선택이 없으면 팝업을 그리지 않는다', async () => {
+    mocks.detail.mockResolvedValueOnce({ inquiry: { id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' } });
+    const html = renderToStaticMarkup(await AdminCsInquiriesPage({ searchParams: Promise.resolve({ inquiryId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' }) }));
+    expect(html).toMatch(/<dialog[^>]*class="admin-cs-dialog admin-cs-dialog--wide"/);
+    expect(html).toContain('고객문의 상세 · 답변');
+    expect(html).toContain('상세 aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa embedded');
+    expect(html).not.toContain('admin-inquiry-preview');
+
+    const list = renderToStaticMarkup(await AdminCsInquiriesPage({ searchParams: Promise.resolve({}) }));
+    expect(list).not.toContain('<dialog');
+    expect(list).not.toContain('admin-inquiry-preview');
+  });
+
+  it('찾을 수 없는 문의를 고르면 팝업 안에서 이유를 알린다', async () => {
+    const html = renderToStaticMarkup(await AdminCsInquiriesPage({ searchParams: Promise.resolve({ inquiryId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' }) }));
+    expect(html).toMatch(/<dialog[^>]*>[\s\S]*role="alert"[^>]*>문의를 찾을 수 없습니다/);
   });
 });

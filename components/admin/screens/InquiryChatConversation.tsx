@@ -136,7 +136,7 @@ export function InquiryChatConversation({ accountId, detail }: { accountId: stri
           <span>{draft.body.length}/{MAX_INQUIRY_BODY_LENGTH}</span><button className="admin-inquiry-chat__send" type="submit" disabled={busy || filesPending || !answerState.uncertain && emptyMessage}>{answerPending ? '전송 중' : answerState.uncertain ? '전송 결과 다시 확인' : '전송'}</button>
         </div>
         <Feedback state={answerState} />
-        {draft.blocked || draft.recovery !== null || draft.unavailable ? <InquiryDraftNotice draft={draft} pending={busy} /> : null}
+        {!draft.ready || draft.blocked || draft.recovery !== null || draft.unavailable ? <InquiryDraftNotice draft={draft} pending={busy} loadingLabel="메시지 입력을 불러오는 중입니다." /> : null}
       </form>}
   </div>;
 }

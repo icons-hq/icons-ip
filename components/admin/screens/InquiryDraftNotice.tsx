@@ -1,8 +1,14 @@
 import type { useInquiryDraft } from '@/components/admin/useInquiryDraft';
 
-export function InquiryDraftNotice({ draft, pending }: { draft: ReturnType<typeof useInquiryDraft>; pending: boolean }) {
+export function InquiryDraftNotice({ draft, pending, loadingLabel = '답변 입력을 불러오는 중입니다.' }: {
+  draft: ReturnType<typeof useInquiryDraft>;
+  pending: boolean;
+  /** 초안 보관소가 준비되기 전(입력·버튼 잠김) 이유. 잠금만 있고 이유가 없으면 '무반응'으로 보인다(R4). */
+  loadingLabel?: string;
+}) {
   if (draft.blocked) return <p role="alert">로그인 계정 또는 세션이 바뀌어 초안을 지웠습니다. 화면을 새로고침해 주세요.</p>;
   return <div className="admin-inquiry-draft">
+    {!draft.ready ? <p role="status">{loadingLabel}</p> : null}
     <p className="muted">작성 문구는 이 탭의 현재 로그인에서 최대 24시간 복구할 수 있습니다. 로그아웃·계정 변경 후에는 복구되지 않습니다. 첨부파일은 다시 선택해 주세요.</p>
     {draft.unavailable ? <p role="status">이 브라우저에서 초안을 보관할 수 없습니다. 이동하기 전에 내용을 복사해 주세요.</p> : null}
     {draft.recovery !== null ? <div className="admin-cs-reply__actions">
