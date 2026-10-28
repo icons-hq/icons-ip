@@ -7,7 +7,7 @@ import { REPLY_TEMPLATE_REPLACE_CONFIRM, REPLY_TEMPLATE_REPLACE_HINT } from '@/l
 import { ADMIN_NAV_GROUPS, ADMIN_SCREENS } from '@/lib/admin/navigation';
 import { shipmentBarcodeGapWarning } from '@/lib/admin/shipment-workbook';
 import { GOODS_HTML_MAX_LENGTH } from '@/lib/goods-description';
-import { RANDOM_OPTION_NOTICE } from '@/lib/goods-option-sale-mode';
+import { goodsOptionLimitNotices, RANDOM_OPTION_NOTICE } from '@/lib/goods-option-sale-mode';
 import { GOOD_TYPES } from '@/lib/goods-taxonomy';
 import { ORDER_CLAIM_BUYER_REASON_TYPES } from '@/lib/orders/claims';
 import { ADMIN_WEEKLY_CHANGES } from './changes';
@@ -150,7 +150,8 @@ describe('m27 가이드 — 상품 등록·목록·카테고리·랜덤 판매(R
     }
     expect(text).not.toContain('판매 조건의 주문당 수량 제한');
     expect(text).toContain(`'옵션명'은 한 번에 N개까지 주문할 수 있습니다.`);
-    expect(repoFile('lib/goods-option-sale-mode.ts')).toContain("은 한 번에 ${limit.orderMaxQty}개까지 주문할 수 있습니다.");
+    /* 고객 화면 문구는 옵션명 끝 받침에 맞춰 은/는을 고른다(m27 QA-1). 가이드의 '옵션명'은 받침이 있어 '은'이다. */
+    expect(goodsOptionLimitNotices('옵션명', { orderMaxQty: 7, memberMaxQty: null })).toEqual([`'옵션명'은 한 번에 7개까지 주문할 수 있습니다.`]);
   });
 
   it('할인 결과 표기와 숫자 입력 동작을 안내한다(R18)', () => {
