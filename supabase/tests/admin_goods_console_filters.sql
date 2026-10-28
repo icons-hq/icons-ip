@@ -43,7 +43,21 @@ select 1/case when (public.admin_search_goods_console(p_ip_id=>'goods-console-te
  then 1 else 0 end as assert_combined_details_and_sort_before_offset;
 select 1/case when (public.admin_search_goods_console(p_ip_id=>'goods-console-test',p_filters=>'{"dateField":"published","from":"2000-01-01"}')->>'total')::int=1
  then 1 else 0 end as assert_published_date_excludes_unpublished_rows;
+reset role;
+-- R16 판매기간: A=시작 전(판매대기), B=종료, D=판매 중, C=기간 없음(무제한).
+update public.goods set sale_starts_at=now()+interval '1 day',sale_ends_at=now()+interval '10 days' where id='console-a';
+update public.goods set sale_starts_at=now()-interval '10 days',sale_ends_at=now()-interval '1 day' where id='console-b';
+update public.goods set sale_starts_at=now()-interval '1 day',sale_ends_at=now()+interval '1 day' where id='console-d';
+set local role authenticated;
+select 1/case when (public.admin_search_goods_console(p_ip_id=>'goods-console-test',p_status=>'all',p_filters=>'{"salePeriod":"scheduled"}')->>'total')::int=1
+ and public.admin_search_goods_console(p_ip_id=>'goods-console-test',p_status=>'all',p_filters=>'{"salePeriod":"scheduled"}')->'rows'->0->>'id'='console-a'
+ and (public.admin_search_goods_console(p_ip_id=>'goods-console-test',p_status=>'all',p_filters=>'{"salePeriod":"ended"}')->>'total')::int=1
+ and public.admin_search_goods_console(p_ip_id=>'goods-console-test',p_status=>'all',p_filters=>'{"salePeriod":"ended"}')->'rows'->0->>'id'='console-b'
+ and (public.admin_search_goods_console(p_ip_id=>'goods-console-test',p_status=>'all',p_filters=>'{"salePeriod":"all"}')->>'total')::int=4
+ and (select count(*) from public.admin_goods_console_export_candidates(p_ip_id=>'goods-console-test',p_status=>'all',p_filters=>'{"salePeriod":"ended"}'))=1
+ then 1 else 0 end as assert_sale_period_filter_matches_list_and_export;
 do $$ begin
+ begin perform public.admin_search_goods_console(p_filters=>'{"salePeriod":"open"}'); raise exception 'unsupported sale period accepted'; exception when invalid_parameter_value then null; end;
  begin perform public.admin_search_goods_console(p_filters=>'{"sort":"injected"}'); raise exception 'invalid sort accepted'; exception when invalid_parameter_value then null; end;
  begin perform public.admin_search_goods_console(p_filters=>'{"from":"2026-10-12","to":"2026-10-01"}'); raise exception 'invalid date range accepted'; exception when invalid_parameter_value then null; end;
  begin perform public.admin_search_goods_console(p_filters=>'{"unknown":true}'); raise exception 'unknown predicate accepted'; exception when invalid_parameter_value then null; end;

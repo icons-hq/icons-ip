@@ -6,6 +6,14 @@ import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import { revalidatePath } from 'next/cache';
 import { redirect, unstable_rethrow } from 'next/navigation';
 import {
+  ADMIN_CLAIM_BULK_DB_ITEM_RESERVE_MS,
+  ADMIN_CLAIM_BULK_PROVIDER_ITEM_RESERVE_MS,
+  adminClaimBulkSummary,
+  normalizeAdminClaimBulkForm,
+  runAdminClaimBulkSequentially,
+  type AdminClaimBulkState,
+} from '@/lib/admin/claim-bulk';
+import {
   adminClaimBasePath,
   normalizeAdminClaimCollectionForm,
   normalizeAdminClaimOriginCollectionForm,
@@ -20,7 +28,9 @@ import { ADMIN_CANCELLATION_RECHECK_LABELS } from '@/lib/admin/orders';
 import { withPreservedFormValues, type AdminFormValuesState } from '@/lib/admin/form-state';
 import { getCurrentAdminAuthState } from '@/lib/auth/admin';
 import {
+  ORDER_CLAIM_TYPE_LABELS,
   isOrderClaimType,
+  orderClaimReferenceLabel,
   orderClaimRefundMethodForProvider,
   type OrderClaimRefundMethod,
   type OrderClaimType,
@@ -110,6 +120,8 @@ function rpcErrorMessage(message: string | null | undefined, fallback: string) {
   if (value.includes('reshipment_conflict')) return '이미 다른 운송장이나 상품으로 재출고한 교환입니다. 처리 이력을 확인해주세요.';
   if (value.includes('insufficient_or_overflowing_stock') || value.includes('stock_aggregate_overflow')) return '재고 수량을 적용할 수 없습니다. 최신 재고와 회수 수량을 확인해주세요.';
   if (value.includes('stock_out_of_range')) return '재출고할 옵션 재고가 부족합니다. 최신 옵션 수량을 확인해주세요.';
+  if (value.includes('invalid rejection reason')) return '거부 사유는 앞뒤 공백 없이 10자 이상 200자 이하로 입력해주세요.';
+  if (value.includes('invalid hold reason')) return '보류 사유는 앞뒤 공백 없이 10자 이상 200자 이하로 입력해주세요.';
   if (value.includes('claim_not_held')) return '보류 상태가 아닙니다.';
   if (value.includes('claim_not_found')) return '클레임을 찾을 수 없습니다.';
   if (value.includes('claim_operational_fee_conflict')) return '다른 운영자가 금액을 변경했습니다. 최신 클레임을 다시 열어주세요.';
@@ -213,6 +225,29 @@ async function issueApprovedClaimCancellation(
   };
 }
 
+/**
+ * 결정 한 건의 단건 경로. 상세 패널과 목록 일괄 처리가 같은 함수를 지난다(R8 · D8).
+ *
+ * 승인 결과 단계는 폼이 아니라 DB가 돌려준 값으로 읽는다. 취소는 회수할 물건이 없어
+ * 곧장 processing이 되고, 그 순간 결제사 취소를 발행한다.
+ */
+async function decideOneOrderClaim(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  actorId: string,
+  input: { claimId: string; decision: string; note: string | null },
+): Promise<{ decided: boolean; state: AdminClaimActionState }> {
+  const { data, error } = await supabase.rpc('admin_decide_order_claim', {
+    p_claim_id: input.claimId,
+    p_decision: input.decision,
+    p_note: input.note,
+  });
+  if (error) return { decided: false, state: { error: rpcErrorMessage(error.message, DECIDE_FAILED) } };
+  if (input.decision === 'approve' && data === 'processing') {
+    return { decided: true, state: await issueApprovedClaimCancellation(input.claimId, actorId) };
+  }
+  return { decided: true, state: { message: DECISION_MESSAGES[input.decision] ?? '클레임을 처리했습니다.' } };
+}
+
 export async function decideOrderClaimAction(
   _state: AdminClaimActionState,
   formData: FormData,
@@ -227,23 +262,90 @@ export async function decideOrderClaimAction(
   }
 
   const supabase = await createClient();
-  const { data, error } = await supabase.rpc('admin_decide_order_claim', {
-    p_claim_id: normalized.value.claimId,
-    p_decision: normalized.value.decision,
-    p_note: normalized.value.note,
-  });
-  if (error) return { error: rpcErrorMessage(error.message, DECIDE_FAILED) };
+  const { decided, state } = await decideOneOrderClaim(supabase, access.userId, normalized.value);
+  if (decided) revalidateClaimSurfaces(normalized.value.claimId, readClaimType(formData));
+  return state;
+}
 
-  /* 승인 결과 단계는 폼이 아니라 DB가 돌려준 값으로 읽는다. 취소는 회수할 물건이
-     없어 곧장 processing이 되고, 그 순간 결제사 취소를 발행한다. */
-  if (normalized.value.decision === 'approve' && data === 'processing') {
-    const issued = await issueApprovedClaimCancellation(normalized.value.claimId, access.userId);
-    revalidateClaimSurfaces(normalized.value.claimId, readClaimType(formData));
-    return issued;
+interface BulkClaimRow {
+  id: string;
+  reference: number | string | null;
+}
+
+/**
+ * 목록 일괄 처리(R8 · D8) — 승인·거부(공통 사유)·검토중.
+ *
+ * 새 배열 RPC 없이 건마다 단건 경로(decideOneOrderClaim)를 그대로 탄다. 토스 취소 API는
+ * 결제 단건이라 앞 건의 결제사 취소가 끝난 뒤에 다음 건을 시작하고(전체 직렬), 시간은 액션
+ * 진입부터 잰다. 경과가 예산을 넘었거나 다음 건의 최악 시간(취소 승인 = 결제사 왕복 셋)이 목록
+ * maxDuration 안에 끝나지 않으면 남은 건은 시작하지 않고 '미처리'로 돌려준다.
+ *
+ * 요청번호는 처음에 한 번 읽고, 유형은 건을 시작하기 직전에 다시 읽는다 — 그 사이 다른
+ * 운영자가 반품↔교환을 전환한 요청을 이 목록의 결정으로 처리하지 않는다.
+ */
+export async function bulkDecideOrderClaimsAction(
+  _state: AdminClaimBulkState,
+  formData: FormData,
+): Promise<AdminClaimBulkState> {
+  const startedAt = Date.now();
+  const access = await requireStaffAction();
+  if (access.error || !access.userId) return { error: access.error?.error ?? DECIDE_FAILED };
+  const actorId = access.userId;
+
+  const claimType = readClaimType(formData);
+  if (!claimType) return { error: '목록을 새로고침한 뒤 다시 실행해주세요.' };
+
+  const normalized = normalizeAdminClaimBulkForm(formData);
+  if (!normalized.ok) return { error: normalized.error };
+  const { claimIds, decision, note } = normalized.value;
+
+  const supabase = await createClient();
+  const { data: rows, error: readError } = await supabase
+    .from('order_cancellation_requests')
+    .select('id,reference')
+    .in('id', claimIds);
+  if (readError || !Array.isArray(rows)) {
+    return { error: '선택한 요청을 읽지 못했습니다. 새로고침한 뒤 다시 실행해주세요.' };
   }
+  const claims = new Map((rows as BulkClaimRow[]).map((row) => [String(row.id).toLowerCase(), row]));
+  const referenceOf = (id: string) => {
+    const reference = Number(claims.get(id)?.reference);
+    return Number.isSafeInteger(reference) && reference > 0 ? orderClaimReferenceLabel(reference) : null;
+  };
 
-  revalidateClaimSurfaces(normalized.value.claimId, readClaimType(formData));
-  return { message: DECISION_MESSAGES[normalized.value.decision] ?? '클레임을 처리했습니다.' };
+  /* 취소 승인만 결정 직후 결제사 취소(사전 조회·취소·사후 조회)까지 간다. */
+  const reserveMs = claimType === 'cancel' && decision === 'approve'
+    ? ADMIN_CLAIM_BULK_PROVIDER_ITEM_RESERVE_MS
+    : ADMIN_CLAIM_BULK_DB_ITEM_RESERVE_MS;
+
+  const outcomes = await runAdminClaimBulkSequentially(claimIds, async (claimId) => {
+    if (!claims.has(claimId)) return { ok: false, message: '클레임을 찾을 수 없습니다.' };
+    const { data: latest, error: latestError } = await supabase
+      .from('order_cancellation_requests')
+      .select('claim_type')
+      .eq('id', claimId)
+      .maybeSingle<{ claim_type: string }>();
+    if (latestError) return { ok: false, message: '요청을 다시 읽지 못했습니다. 최신 상태를 확인해주세요.' };
+    if (!latest) return { ok: false, message: '클레임을 찾을 수 없습니다.' };
+    if (latest.claim_type !== claimType) {
+      return { ok: false, message: `${ORDER_CLAIM_TYPE_LABELS[claimType]} 요청이 아닙니다. 해당 목록에서 처리해주세요.` };
+    }
+    const { decided, state } = await decideOneOrderClaim(supabase, actorId, { claimId, decision, note });
+    if (decided) revalidateClaimSurfaces(claimId, claimType);
+    return state.error
+      ? { ok: false, message: state.error }
+      : { ok: true, message: state.message ?? DECISION_MESSAGES[decision] ?? '클레임을 처리했습니다.' };
+  }, { startedAt, reserveMs, clock: () => Date.now() });
+
+  return {
+    summary: adminClaimBulkSummary(outcomes.map((outcome) => outcome.outcome)),
+    results: outcomes.map(({ item, outcome, message }) => ({
+      claimId: item,
+      reference: referenceOf(item),
+      outcome,
+      message,
+    })),
+  };
 }
 
 export async function recordOrderClaimCollectionAction(

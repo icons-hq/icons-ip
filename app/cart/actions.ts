@@ -31,6 +31,13 @@ interface CartRow {
   input_snapshot?: unknown;
 }
 
+/** 공개 계산 열 `goods_random_option`의 장바구니 키. 랜덤이 아니거나(null) 모양이 틀리면 null — 항목은 미해결로 남는다. */
+function randomOptionKey(value: unknown): string | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const id = (value as { id?: unknown }).id;
+  return typeof id === 'string' && /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id) ? id.toLowerCase() : null;
+}
+
 function authenticatedCartUser(auth: CurrentAuthState) {
   if (!auth.isConfigured || !auth.user) return null;
   if (!isOnboarded(auth.profile, auth.user.email)) return null;
@@ -78,6 +85,20 @@ export async function syncCartAction(localItemsValue: unknown): Promise<CartActi
       .not('goods.ips.published_at', 'is', null).is('goods.ips.archived_at', null);
     if (error) return { ok: false, mode: 'local', error: SYNC_ERROR, unresolvedItems: legacy };
     for (const row of data ?? []) defaults.set(row.good_id, row.id);
+    // 랜덤 판매 굿즈(D5②)의 옵션 행은 기본 옵션까지 고객·익명에게 숨는다(restrictive RLS). 장바구니 키는 공개 계산 열
+    // goods_random_option의 id(= 기본 옵션)로 받는다. 위에서 찾은 굿즈(옵션 선택 판매, 또는 원본을 읽는 운영자)는 다시 묻지 않는다.
+    const randomGoodIds = [...new Set(legacy.map((item) => item.goodId))].filter((goodId) => !defaults.has(goodId));
+    if (randomGoodIds.length) {
+      const { data: randomGoods, error: randomError } = await supabase.from('goods')
+        .select('id,random_option:goods_random_option')
+        .in('id', randomGoodIds).eq('option_sale_mode', 'random')
+        .not('published_at', 'is', null).is('archived_at', null).eq('sale_restriction', 'none');
+      if (randomError) return { ok: false, mode: 'local', error: SYNC_ERROR, unresolvedItems: legacy };
+      for (const row of (randomGoods ?? []) as { id: string; random_option: unknown }[]) {
+        const key = randomOptionKey(row.random_option);
+        if (key) defaults.set(row.id, key);
+      }
+    }
   }
   const normalized = canonicalizeStoredCartItems(stored, defaults);
   if (!normalized.ok) return { ok: false, mode: 'local', unresolvedItems: normalized.unresolved,

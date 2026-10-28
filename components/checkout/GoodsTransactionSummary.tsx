@@ -1,7 +1,7 @@
 import { productionLeadLabel } from '@/lib/order-production';
 import { krw } from '@/lib/format';
 import { FULFILLMENT_METHOD_LABELS } from '@/lib/goods-fulfillment';
-import { shippingGroupLabel } from '@/lib/fulfillment';
+import { numberedShippingGroupLabel } from '@/lib/fulfillment';
 import { componentCollectFee, componentPrepaidFee } from '@/lib/goods-transaction';
 import type { GoodsTransactionDisplay } from '@/lib/goods-transaction';
 import { ShippingChargeDetailsDisplay } from '@/components/shop/ShippingChargeDetailsDisplay';
@@ -25,8 +25,8 @@ export function GoodsTransactionSummary({ display, names = {} }: { display: Good
     </dl>
     {display.coupons?.length ? <ul aria-label="적용된 쿠폰">{display.coupons.map(c => <li key={c.userCouponId}>{c.applicationIndex}. {c.name} · {c.benefitKind === 'shipping' ? '배송비' : '굿즈'} −{krw(c.discount)}</li>)}</ul> : null}
     {display.lines.filter(line => line.production).map(line => <p className="checkout-collect-notice" key={`production:${line.lineId}`}>{names[line.goodId] ?? '굿즈'} · 주문 후 제작 · 결제 확인 후 {productionLeadLabel(line.production!)} 내 발송 예정. {line.production!.publicNote} 제작 시작 후 취소는 담당자 검토가 필요합니다.</p>)}
-    {display.shipping.map((group, index) => <section className="wc-shipping-group" key={`${group.originId}:${group.deliveryMethod ?? 'parcel'}`} aria-label={shippingGroupLabel(index, display.shipping.length)}>
-      <h3>{shippingGroupLabel(index, display.shipping.length)} · {FULFILLMENT_METHOD_LABELS[group.deliveryMethod ?? 'parcel']}</h3>
+    {display.shipping.map((group, index) => <section className="wc-shipping-group" key={`${group.originId}:${group.deliveryMethod ?? 'parcel'}`} aria-label={numberedShippingGroupLabel(index, display.shipping.length)}>
+      <h3>{numberedShippingGroupLabel(index, display.shipping.length)} · {FULFILLMENT_METHOD_LABELS[group.deliveryMethod ?? 'parcel']}</h3>
       <ul>{group.components.map(component => <li key={component.goodId}>
         {names[component.goodId] ?? '굿즈'} · 선결제 {krw(componentPrepaidFee(component))}
         {componentCollectFee(component) > 0 ? ` · 착불 별도 ${krw(componentCollectFee(component))}` : ''}

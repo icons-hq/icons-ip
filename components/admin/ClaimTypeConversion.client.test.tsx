@@ -6,17 +6,20 @@ vi.mock('react', async () => ({ ...await vi.importActual<typeof import('react')>
   useState: (initial: unknown) => { const index = hooks.index++; if (!(index in hooks.state)) hooks.state[index] = initial; return [hooks.state[index], (next: unknown) => { hooks.state[index] = typeof next === 'function' ? next(hooks.state[index]) : next; }]; } }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: mocks.refresh, replace: mocks.replace }) }));
 vi.mock('@/app/admin/claim-type-conversion-actions', () => ({ convertClaimTypeAction: mocks.save, readClaimTypeChangeAction: mocks.read, loadClaimTypeContextAction: mocks.load }));
+const busy = vi.hoisted(() => vi.fn());
+vi.mock('@/components/admin/screens/ClaimPreviewDialog', () => ({ useClaimPreviewBusy: busy }));
 import { ClaimTypeConversionPanel } from './ClaimTypeConversion';
 import { conversionContext as context, conversionReceipt as receipt } from '@/lib/orders/claim-type-conversion.fixture';
 type Element = ReactElement<{ children?: ReactNode; disabled?: boolean; type?: string; busy?: boolean; onClose?: () => void; onClick?: () => void; onSubmit?: (event: unknown) => void; onChange?: (event: unknown) => void }>;
 function all(node: ReactNode): Element[] { return Array.isArray(node) ? node.flatMap(all) : isValidElement(node) ? [node as Element, ...all((node.props as { children?: ReactNode }).children)] : []; }
 function text(node: ReactNode): string { return Array.isArray(node) ? node.map(text).join('') : isValidElement(node) ? text((node.props as { children?: ReactNode }).children) : typeof node === 'string' ? node : ''; }
-function render() { hooks.index = 0; hooks.refIndex = 0; return ClaimTypeConversionPanel({ initial: context, onClose: mocks.close }); }
+let embedded = false;
+function render() { hooks.index = 0; hooks.refIndex = 0; return ClaimTypeConversionPanel({ initial: context, onClose: mocks.close, embedded }); }
 function change(label: string, value: string | boolean) { const parent = all(render()).find(e => e.type === 'label' && text(e).startsWith(label)); const input = all(parent).find(e => e.type === 'input'); if (!input) throw new Error(label); input.props.onChange?.({ target: { value, checked: value } }); }
 async function settle() { for (let n = 0; n < 8; n++) await Promise.resolve(); }
 async function click(label: string) { const button = all(render()).find(e => e.type === 'button' && text(e) === label); if (!button) throw new Error(label); button.props.onClick?.(); await settle(); }
 async function submit() { all(render()).find(e => e.type === 'form')!.props.onSubmit?.({ preventDefault: () => {} }); await settle(); }
-beforeEach(() => { hooks.state = []; hooks.refs = []; vi.clearAllMocks(); mocks.read.mockResolvedValue({ receipt: null }); });
+beforeEach(() => { hooks.state = []; hooks.refs = []; embedded = false; vi.clearAllMocks(); mocks.read.mockResolvedValue({ receipt: null }); });
 it('저장 응답 소실 후 재조회 없음과 확정 오류에도 첫 본문을 고정한다', async () => {
  mocks.save.mockResolvedValueOnce({ error: 'response lost', uncertain: true }).mockResolvedValueOnce({ error: '권한 변경', uncertain: false });
  change('고객 합의 근거', receipt.agreement); change('고객과 교환', true); await submit();
@@ -38,4 +41,17 @@ it('같은 렌더의 연속 제출을 한 번으로 제한하고 다른 주문 �
  form.props.onSubmit?.({ preventDefault: () => {} }); form.props.onSubmit?.({ preventDefault: () => {} }); expect(mocks.save).toHaveBeenCalledOnce();
  finish({ receipt: { ...receipt, id: mocks.save.mock.calls[0][0].id, orderId: receipt.claimId } }); await settle();
  expect(text(render())).toContain('현재 요청과 다른 저장 결과'); expect(mocks.refresh).not.toHaveBeenCalled();
+});
+it('목록 위 팝업(R8)에서 전환하면 전환된 유형의 목록 위 팝업으로 다시 연다', async () => {
+ embedded = true; mocks.save.mockImplementationOnce(async (request: { id: string }) => ({ receipt: { ...receipt, id: request.id } }));
+ change('고객 합의 근거', receipt.agreement); change('고객과 교환', true); await submit();
+ expect(mocks.replace).toHaveBeenCalledWith(`/admin/sales/claims/exchanges?claimId=${receipt.claimId}`, { scroll: false });
+ expect(mocks.refresh).toHaveBeenCalled();
+});
+it('목록 위 팝업(R8)에서 전환을 기다리는 동안 팝업을 닫지 못하게 알린다', async () => {
+ let finish!: (value: unknown) => void; mocks.save.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+ render(); expect(busy).toHaveBeenLastCalledWith(false);
+ change('고객 합의 근거', receipt.agreement); change('고객과 교환', true); all(render()).find(e => e.type === 'form')!.props.onSubmit?.({ preventDefault: () => {} });
+ render(); expect(busy).toHaveBeenLastCalledWith(true);
+ finish({ error: '권한 변경', uncertain: false }); await settle(); render(); expect(busy).toHaveBeenLastCalledWith(false);
 });

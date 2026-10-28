@@ -3,7 +3,14 @@ import { publicMediaUrl } from './media';
 import { cleanContentFormat, invalidContentFormat, sanitizedContentFormat, withContentFormatAllowlist } from './content-format';
 
 export type GoodsDescriptionFormat = 'plain' | 'html';
-export const GOODS_HTML_MAX_LENGTH = 30000;
+/*
+ * 상세페이지 HTML 상한(원문·정리된 코드 모두, 글자 수). R17(MD-0002, 10/27 회의): 호스팅 이미지 60장 이상인 실제
+ * 상세페이지가 30,000자에서 잘려 200,000자로 올렸다. 한글로 꽉 채워도 UTF-8 약 600KB라 서버 액션 본문 상한
+ * 3MB(next.config.ts) 안에 들고, 서버 임시저장 상한(2MB, lib/admin/goods-drafts.ts)과도 맞는다.
+ * DB CHECK goods_description_html_length·private.admin_save_good_before_discount_display와 같은 값이다
+ * (20261028132000_goods_description_html_limit.sql).
+ */
+export const GOODS_HTML_MAX_LENGTH = 200000;
 /** 업로드한 저장소 이미지 상한. DB `goods_description_images` 제약과 같은 값이다. */
 export const GOODS_HTML_IMAGE_MAX = 20;
 /** 이미지 호스팅 URL 상한. 저장소 소유 검증 대상이 아니라 DB 목록에 넣지 않는다. */
@@ -29,6 +36,11 @@ export const GOODS_HTML_WARNINGS = {
   insecureImage: 'http로 시작하는 이미지 주소는 https로 바꿔 저장합니다. 호스팅 이미지가 https 주소로 열리는지 확인해주세요.',
   externalImageLimit: `호스팅 이미지는 최대 ${GOODS_HTML_EXTERNAL_IMAGE_MAX}장까지 표시됩니다. 초과한 이미지는 제거됩니다.`,
 } as const;
+
+/** 편집기 경고용. 붙여넣기를 자르지 않고(maxLength 없음) 저장 전에 원문 길이가 상한을 넘었음을 알린다. */
+export function goodsHtmlSourceLengthWarning(length: number) {
+  return `상세페이지 HTML이 ${length.toLocaleString('ko-KR')}자로 최대 ${GOODS_HTML_MAX_LENGTH.toLocaleString('ko-KR')}자를 넘어 저장할 수 없습니다. 내용을 줄여주세요.`;
+}
 
 /** 편집기 저장 전 확인용. 서버는 정리된 코드에도 같은 상한을 건다(이미지마다 표시용 속성이 붙어 원문보다 길어질 수 있다). */
 export function goodsHtmlCleanedLengthWarning(length: number) {

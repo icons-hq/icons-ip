@@ -5,7 +5,7 @@ import { useCsEditorDraft } from '@/components/admin/useCsEditorDraft';
 import { CS_TEMPLATE_DRAFT_LIMIT, EMPTY_CS_TEMPLATE_WORKSPACE, parseInquiryTemplateWorkspace, type CsTemplateWorkspace } from '@/lib/admin/cs-editor-drafts';
 import { listInquiryReplyTemplatesAction, mutateInquiryReplyTemplateAction, readInquiryReplyTemplateAction, readInquiryTemplateOperationAction } from '@/app/admin/inquiry-reply-template-actions';
 import { INQUIRY_TEMPLATE_CATEGORIES, INQUIRY_TEMPLATE_PAGE_SIZE, INQUIRY_TEMPLATE_TITLE_LIMIT, INQUIRY_TEMPLATE_BODY_LIMIT,
-  insertInquiryReplyTemplate, type InquiryTemplateDraft, type InquiryTemplateList, type InquiryTemplateMutation,
+  REPLY_TEMPLATE_REPLACE_CONFIRM, REPLY_TEMPLATE_REPLACE_HINT, applyInquiryReplyTemplate, type InquiryTemplateDraft, type InquiryTemplateList, type InquiryTemplateMutation,
   type InquiryTemplateReceipt, type InquiryReplyTemplate } from '@/lib/admin/inquiry-reply-templates';
 import { CustomerServiceDialog } from './CustomerServiceDialog';
 import { CsEditorDraftNotice, CsTemplateDraftList } from './CsEditorDraftNotice';
@@ -97,14 +97,15 @@ export function InquiryReplyTemplateTools({ body, onInsert, disabled = false, ac
     });
   }
   function insert(row: InquiryReplyTemplate) {
-    const result = insertInquiryReplyTemplate(body, row.body);
+    const result = applyInquiryReplyTemplate(body, row.body);
     if (!result.ok) { setError(result.error); return; }
+    if (result.replaces && !window.confirm(REPLY_TEMPLATE_REPLACE_CONFIRM)) return;
     onInsert(result.body); setOpen(false);
   }
   return <>
     <button className="btn btn-sm btn-ghost" disabled={disabled} type="button" onClick={() => { setOpen(true); void run(() => load()); }}>{label}</button>
     {open ? <CustomerServiceDialog title="고객문의 답변 템플릿" busy={locked} onClose={() => { if (!locked) setOpen(false); }} wide>
-      <p className="muted">운영자가 공유하는 고객문의용 문구입니다. 불러오면 작성 중인 답변 뒤에 추가하고, 템플릿 관리만으로 메일·알림을 보내지 않습니다.</p>
+      <p className="muted">운영자가 공유하는 고객문의용 문구입니다. {REPLY_TEMPLATE_REPLACE_HINT} 템플릿 관리만으로 메일·알림을 보내지 않습니다.</p>
       <CsEditorDraftNotice draft={recovery} pending={pending} onRestore={restore} onDiscard={discard} discardLabel="보관 초안 모두 버리기"
         discardDisabled={uncertain || Boolean(recovery.recovery?.pending)} />
       <CsTemplateDraftList drafts={workspace.drafts} disabled={locked} onSelect={id => { setSelected(id); setLatest(null); setAttempt(null); setError(''); setMessage(''); }} />

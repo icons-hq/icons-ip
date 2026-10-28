@@ -9,6 +9,7 @@ import { loadGiftCheckoutOrder } from '@/lib/gifts-order.server';
 import { goodsCustomInputSummary, goodsCustomInputValues, readGoodsCustomInputSnapshot } from '@/lib/goods-custom-inputs';
 import { loadGoodsSalesQuote } from '@/lib/goods-sales.server';
 import { readCompleteIdPages } from '@/lib/supabase/complete-id-pages';
+import { readMyOrderItems } from '@/lib/orders/customer-items.server';
 import { createClient } from '@/lib/supabase/server';
 import { createServiceClient } from '@/lib/supabase/service';
 import { quoteCartTransactionAction } from './transaction-actions';
@@ -115,6 +116,8 @@ interface OrderItemRow {
   good_name_snapshot: string;
   variant_name_snapshot: string | null;
   custom_inputs_snapshot?: unknown;
+  /** 마스킹 RPC의 판매 방식. 'random' 줄은 굿즈마다 한 장바구니 키로 다시 담는다(D5②). */
+  option_sale_mode?: 'select' | 'random';
 }
 
 interface CartRow {
@@ -377,13 +380,9 @@ export async function restoreCanceledOrderToCartAction(
     if (cartRetentionKeepsCart(retention)) return { ok: false, error: 'cart_retained' };
 
     const [{ data: itemData, error: itemError }, cartItems] = await Promise.all([
-      readCompleteIdPages<OrderItemRow>((afterId, pageSize) => {
-        let query = supabase.from('order_items')
-          .select('id,good_id,variant_id,qty,good_name_snapshot,variant_name_snapshot,custom_inputs_snapshot', { count: 'exact' })
-          .eq('order_id', orderId).order('id', { ascending: true }).limit(pageSize);
-        if (afterId) query = query.gt('id', afterId);
-        return query;
-      }),
+      /* 마스킹 RPC로 읽는다 — 랜덤 판매 굿즈(D5②)의 배정 행은 직접 읽기에서 빠지고, RPC는 그 행의 variant_id를
+         장바구니 키(기본 옵션)로 돌려준다. 배정 옵션을 다시 담으면 고객이 옵션을 고르는 우회로가 된다. */
+      readMyOrderItems<OrderItemRow>(supabase, [orderId], 'id,good_id,variant_id,qty,good_name_snapshot,variant_name_snapshot,custom_inputs_snapshot,option_sale_mode'),
       readCartItems(supabase, auth.user.id),
     ]);
     if (itemError || !itemData || !cartItems) return { ok: false, error: 'failed' };
@@ -403,13 +402,16 @@ export async function restoreCanceledOrderToCartAction(
         failures.push({ goodId: item.good_id, line: { name: lineName(item), reason: 'custom_inputs_changed' } });
         continue;
       }
-      const key = cartItemKey(item.good_id, item.variant_id, customInputs);
+      /* 랜덤 판매 굿즈(D5②)는 굿즈마다 장바구니 키 하나로 모인다 — 주문 때 장바구니 키가 갈렸어도(랜덤 전환 전에 담은
+         옵션 줄) 키마다 따로 merge_cart_items(greatest)를 부르면 DB가 같은 키 줄로 모으며 앞 수량이 사라진다. 굿즈로
+         묶어 수량을 더하고 첫 줄의 키로 한 번만 다시 담는다. */
+      const key = item.option_sale_mode === 'random' ? `random:${item.good_id}` : cartItemKey(item.good_id, item.variant_id, customInputs);
       const previous = lines.get(key);
       const qty = (previous?.qty ?? 0) + item.qty;
       if (!Number.isSafeInteger(qty) || qty > MAX_CART_QUANTITY) return { ok: false, error: 'failed' };
       lines.set(key, {
         goodId: item.good_id,
-        variantId: item.variant_id,
+        variantId: previous?.variantId ?? item.variant_id,
         qty,
         name: previous?.name ?? lineName(item, customInputs),
         ...(customInputs ? { customInputs } : {}),

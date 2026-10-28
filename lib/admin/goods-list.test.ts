@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { goodsListHref, goodEditorHref, normalizeGoodsListFilters } from './goods-list';
+import { goodsConsoleFilterValues, goodsListHref, goodEditorHref, normalizeGoodsListFilters } from './goods-list';
 
 describe('goods list navigation', () => {
   it('validates detail filters and retains them through editor, paging and export links', () => {
@@ -9,6 +9,20 @@ describe('goods list navigation', () => {
     for (const key of ['field', 'dateField', 'from', 'to', 'sort', 'originId', 'payment', 'saleType', 'image', 'restriction'] as const) expect(editor.searchParams.get(key)).toBe(filters[key]);
     expect(editor.searchParams.get('pageSize')).toBe('50');
     expect(normalizeGoodsListFilters({ from: '2026-02-30', to: '2026-10-12', sort: 'random', pageSize: '1000', originId: 'bad', payment: 'bad' })).toMatchObject({ from: null, sort: 'created_desc', pageSize: 20, originId: '', payment: 'all' });
+  });
+  it('판매기간(판매대기·판매기간 종료) 필터를 정규화하고 목록·편집기·내보내기 조건에 그대로 싣는다', () => {
+    const filters = normalizeGoodsListFilters({ salePeriod: 'scheduled' });
+    expect(filters.salePeriod).toBe('scheduled');
+    expect(new URL(goodsListHref(filters), 'https://icons.test').searchParams.get('salePeriod')).toBe('scheduled');
+    expect(new URL(goodEditorHref(filters, 'g100'), 'https://icons.test').searchParams.get('salePeriod')).toBe('scheduled');
+    expect(goodsConsoleFilterValues(filters)).toMatchObject({ salePeriod: 'scheduled' });
+    expect(goodsConsoleFilterValues(normalizeGoodsListFilters({ salePeriod: 'ended' })).salePeriod).toBe('ended');
+    for (const value of ['open', 'unlimited', '', 'all']) {
+      const normalized = normalizeGoodsListFilters({ salePeriod: value });
+      expect(normalized.salePeriod).toBe('all');
+      expect(goodsListHref(normalized)).not.toContain('salePeriod');
+      expect(goodsConsoleFilterValues(normalized).salePeriod).toBe('all');
+    }
   });
   it('normalizes hostile and repeated filters and keeps stable list URLs', () => {
     expect(normalizeGoodsListFilters({q:' 스탠드 ',ipId:'hwasan',page:'2',status:'draft',stock:'soldout'}))

@@ -1,19 +1,18 @@
 import Link from 'next/link';
 import { ADMIN_VOCABULARY as V, adminGoodsCopy } from '@/lib/admin/vocabulary';
 import {
-  ConsoleGrid,
   ConsolePagination,
   type ConsoleGridColumn,
   type ConsoleGridRow,
 } from '@/components/admin/console';
 import {
-  ADMIN_CLAIM_REASON_OPTIONS,
   ADMIN_CLAIM_DATE_FIELDS,
   ADMIN_CLAIM_SEARCH_FIELDS,
   adminClaimStageLabel,
   adminClaimStageOptions,
-  adminClaimDetailHref,
   adminClaimHref,
+  adminClaimPreviewHref,
+  adminClaimReasonOptions,
   adminClaimReasonText,
   type AdminClaimConsoleData,
 } from '@/lib/admin/claims';
@@ -30,6 +29,9 @@ import { adminListExportClaimScreenId, adminListExportHref } from '@/lib/admin/l
 import { AdminListExportButton } from '@/components/admin/AdminListExportButton';
 import { SalesFilterField, SalesFilterPanel, SalesGuide, SalesResultsHeader, SalesSelect, SalesStatusSummary } from '@/components/admin/sales/SalesConsole';
 import { REFUND_TRANSFERS_PATH } from '@/lib/admin/refund-transfers';
+import { adminClaimBulkSelectable } from '@/lib/admin/claim-bulk';
+import { ClaimPreviewLink } from './ClaimPreviewDialog';
+import { ClaimQueueBulkGrid } from './ClaimQueueBulk';
 
 /* 어드민 클레임 콘솔 목록(#252) — 취소·반품·교환 3화면이 이 컴포넌트를 공유한다.
  *
@@ -91,11 +93,16 @@ export function ClaimQueueScreen({
       now,
     );
 
+    const reference = orderClaimReferenceLabel(row.reference);
     return {
       id: row.id,
-      href: adminClaimDetailHref(claimType, row.id, filters),
+      selectable: adminClaimBulkSelectable(claimType, row.stage),
+      selectLabel: `요청 ${reference} 선택`,
       cells: [
-        <span className="mono" key="reference">{orderClaimReferenceLabel(row.reference)}</span>,
+        /* R8: 독립 상세 라우트 대신 같은 목록 위 팝업으로 연다. 첫 열이라 그리드 링크 모양을 그대로 쓴다. */
+        <ClaimPreviewLink href={adminClaimPreviewHref(claimType, row.id, filters)} key="reference" label={`요청 ${reference} 상세 열기`}>
+          <span className="mono">{reference}</span>
+        </ClaimPreviewLink>,
         <span className="mono" key="order">{orderReferenceLabel(row.orderId, row.orderNumber)}</span>,
         <span key="type">{ORDER_CLAIM_TYPE_LABELS[row.claimType]}</span>,
         <span key="reason">{adminGoodsCopy(adminClaimReasonText(row.reasonType, row.staffReasonCode))}</span>,
@@ -126,7 +133,8 @@ export function ClaimQueueScreen({
         {claimType !== 'cancel' ? <p>별도 배송비 청구는 <Link href="/admin/sales/claims/returns/fee-policy">반품·교환 배송비 정책</Link>을 설정한 뒤 각 요청 상세에서 처리합니다.</p> : null}
         {claimType !== 'cancel' ? <p><Link href="/admin/sales/claims/returns/fees">배송비 입금·반환 대기 목록</Link></p> : null}
         {canViewRefundTransfers && claimType !== 'exchange' ? <p>실제 송금이 남은 무통장 환불은 <a href={REFUND_TRANSFERS_PATH}>환불 송금 대기</a>에서 확인합니다.</p> : null}
-        <p>주문번호와 요청 내용을 확인한 뒤 상세 화면에서 {typeLabel} 처리를 진행합니다. 회수·결제사 확인이 필요한 단계는 해당 근거를 확인해야 완료할 수 있습니다.</p>
+        <p>요청번호를 누르면 목록 위에 상세가 열리고 그 자리에서 {typeLabel} 처리를 진행합니다. 회수·결제사 확인이 필요한 단계는 해당 근거를 확인해야 완료할 수 있습니다.</p>
+        <p>여러 건을 선택하면 승인·거부·검토중을 한 번에 처리합니다(최대 50건). 결제사 취소가 겹치지 않게 한 건씩 순서대로 처리하고, 건별 결과를 표로 보여 줍니다. {claimType === 'cancel' ? '' : '회수 확인·재출고·환불 확정과 반품·교환 전환은 상세에서 한 건씩 처리합니다.'}</p>
         <p>수취인명과 번호는 입력한 내용이 포함된 요청을 찾습니다. 상품주문번호는 주문 품목, 상품번호는 등록 상품의 식별값입니다. 품목으로 찾아도 처리와 엑셀은 요청 주문 전체를 대상으로 합니다.</p>
       </SalesGuide>
       <SalesStatusSummary label="단계별 건수" items={CHIP_STAGES
@@ -158,7 +166,7 @@ export function ClaimQueueScreen({
           <SalesSelect id="sales-claim-stage" name="stage" value={filters.stage} options={adminClaimStageOptions(claimType)} />
         </SalesFilterField>
         <SalesFilterField label={`${typeLabel}사유`} htmlFor="sales-claim-reason">
-          <SalesSelect id="sales-claim-reason" name="reasonType" value={filters.reasonType} options={ADMIN_CLAIM_REASON_OPTIONS} />
+          <SalesSelect id="sales-claim-reason" name="reasonType" value={filters.reasonType} options={adminClaimReasonOptions(claimType)} />
         </SalesFilterField>
       </SalesFilterPanel>
       <div className="admin-sales-results">
@@ -169,11 +177,14 @@ export function ClaimQueueScreen({
       />
       </SalesResultsHeader>
 
-      <ConsoleGrid
+      <ClaimQueueBulkGrid
         caption={`${typeLabel} 요청 목록`}
-        preferencesKey={`sales-claims-${claimType}`}
+        claimType={claimType}
         columns={COLUMNS}
         emptyLabel={`조건에 맞는 ${typeLabel} 요청이 없습니다.`}
+        key={claimType}
+        preferencesKey={`sales-claims-${claimType}`}
+        previewHrefBase={currentHref}
         rows={rowsForGrid}
       />
 

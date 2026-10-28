@@ -96,3 +96,41 @@ describe('옵션 상세 정보의 ERP 안내 색', () => {
     expect(computed(lowStock, 'font-size')).toBe('11px');
   });
 });
+
+/*
+ * 10/27 회의 R11: 상품 편집기의 '설정함/설정안함' 버튼은 가운데를 눌러도 선택되지 않았다. 절대배치한 legend가
+ * 기본 규칙의 width:100%를 그대로 가져가 버튼 가운데 띠를 덮고 클릭을 가로챘다(데스크톱 폭).
+ */
+describe('편집기 설정함/설정안함 버튼 클릭 영역', () => {
+  function declarationsFor(fragment: string, inMedia: boolean) {
+    const found: Map<string, string>[] = [];
+    css.walkRules((rule) => {
+      if ((rule.parent?.type === 'atrule') !== inMedia || !rule.selectors.some((selector) => selector.includes(fragment))) return;
+      const declarations = new Map<string, string>();
+      rule.walkDecls((decl) => { declarations.set(decl.prop, decl.value); });
+      found.push(declarations);
+    });
+    return found;
+  }
+
+  it('절대배치 legend는 버튼 영역까지 넓어지지 않고 클릭을 가로채지 않는다', () => {
+    const legends = declarationsFor('.goods-choice > legend', false).filter((declarations) => declarations.get('position') === 'absolute');
+    expect(legends.length).toBeGreaterThan(0);
+    for (const legend of legends) {
+      expect(legend.get('width')).not.toBe('100%');
+      expect(legend.get('width')).toBeDefined();
+      expect(legend.get('pointer-events')).toBe('none');
+    }
+  });
+
+  it('판매가·판매기간과 구매 제한의 설정함/설정안함 묶음 모두 같은 배치 규칙을 쓴다', () => {
+    const selectors: string[] = [];
+    css.walkRules((rule) => { if (rule.parent?.type === 'root') selectors.push(...rule.selectors); });
+    for (const group of ['.goods-price-editor > .goods-choice > legend', '.goods-purchase-limits__group > .goods-choice > legend']) {
+      expect(selectors.some((selector) => selector.endsWith(group))).toBe(true);
+    }
+    // 버튼(label)은 legend 위에 그려진다.
+    const labels = declarationsFor('.admin-good-section .goods-choice label', false).filter((declarations) => declarations.has('z-index'));
+    expect(labels[0]?.get('position')).toBe('relative');
+  });
+});

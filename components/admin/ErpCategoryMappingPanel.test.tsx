@@ -75,15 +75,15 @@ beforeEach(() => {
 });
 
 describe('ERP 분류 연결 표', () => {
-  it('같은 이름 말단 제안을 한 번에 저장하고 목록을 새로 고친다', async () => {
+  it('같은 경로 말단 제안을 한 번에 저장하고 목록을 새로 고친다', async () => {
     hooks.save.mockResolvedValue({ ok: true, changed: true, categoryId: PHOTO, message: 'ERP 분류를 고객 카테고리에 연결했습니다.' });
-    button(await renderRow(), '같은 이름으로 연결 · 문구 > 포토카드').props.onClick?.();
+    button(await renderRow(), '같은 경로로 연결 · 문구 > 포토카드').props.onClick?.();
     await Promise.all(hooks.pending.splice(0));
     expect(hooks.save).toHaveBeenCalledWith({ erpCategory: '문구 > 포토카드', categoryId: PHOTO });
     const tree = await renderRow();
     expect(text(tree)).toContain('ERP 분류를 고객 카테고리에 연결했습니다.');
     expect(button(tree, '연결').props.disabled).toBe(true);
-    expect(find(tree, (element) => element.type === 'button' && text(element).includes('같은 이름으로 연결'))).toHaveLength(0);
+    expect(find(tree, (element) => element.type === 'button' && text(element).includes('같은 경로로 연결'))).toHaveLength(0);
     expect(hooks.refresh).toHaveBeenCalledOnce();
   });
 
@@ -134,6 +134,19 @@ describe('ERP 분류 연결 표', () => {
     const tree = await renderRow({ rows: fallbackRows, categoryErpMappings: mappings });
     expect(text(tree)).toContain('고객 카테고리의 ERP 분류 매핑에 따라 ‘문구 > 키링’ 카테고리를 제안합니다.');
     expect(find(tree, (element) => element.type === 'button' && text(element).includes('ERP 분류 매핑대로 연결'))).toHaveLength(0);
+  });
+
+  /* R9: DB가 전체 경로로 자동 연결한 분류는 '연결됨'으로 세고, 연결 필요 개수와 필터를 따로 보인다. */
+  it('같은 경로로 자동 연결된 분류를 연결됨으로 세고 연결 필요만 골라 본다', async () => {
+    const pathRows: Row[] = [
+      { erpCategory: '문구>키링', itemCount: 2, categoryId: null, updatedAt: null, fallbackCategoryId: KEYRING },
+      { erpCategory: '문구>스티커', itemCount: 1, categoryId: null, updatedAt: null, fallbackCategoryId: null },
+    ];
+    const panel = ErpCategoryMappingPanel({ rows: pathRows, categories, categoryErpMappings: [] });
+    expect(text(panel)).toContain('ERP 분류 2개 중 1개 연결됨 · 연결 필요 1개');
+    expect(text(panel)).toContain('연결 필요만');
+    const tree = await renderRow({ rows: pathRows });
+    expect(text(tree)).toContain('같은 경로의 ‘문구 > 키링’ 카테고리에 자동으로 연결됩니다. 다른 카테고리를 쓰려면 골라 저장해주세요.');
   });
 
   it('고른 말단의 정본 ERP 분류 매핑이 이 ERP 분류와 다르면 저장 전에 경고한다', async () => {

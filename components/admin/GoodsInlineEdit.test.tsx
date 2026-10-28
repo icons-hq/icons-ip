@@ -48,4 +48,10 @@ describe('상품 목록 바로 수정 (A9)', () => {
     for (const label of ['판매가 바로 수정', '판매상태 바로 수정', '재고수량 바로 수정']) expect(html).toContain(`aria-label="${label}"`);
     expect(html).toContain('판매중지'); expect(html).toContain('7개');
   });
+  it('판매가·재고수량은 셀 전체가 수정 버튼이고, 다른 링크와 함께 있는 판매상태는 그 줄을 채운다', () => {
+    const cell = (markup: string) => /class="admin-goods-inline( admin-goods-inline--cell)?"/.exec(markup)?.[1] === ' admin-goods-inline--cell';
+    expect(cell(renderToStaticMarkup(<GoodsInlinePrice goodId="good-a" basePrice={10000} identity={identity} hasOptions={false} display="10,000원" />))).toBe(true);
+    expect(cell(renderToStaticMarkup(<GoodsInlineStock goodId="good-a" ipId="ip-a" variantId="b9000000-0000-4000-8000-000000000010" stockQty={7} />))).toBe(true);
+    expect(cell(renderToStaticMarkup(<GoodsInlineSale goodId="good-a" stopped identity={identity} />))).toBe(false);
+  });
 });

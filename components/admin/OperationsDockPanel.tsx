@@ -6,6 +6,7 @@ import { setAdminOperationAlertBadgeAction, updateAdminOperationAlertsAction } f
 import { ADMIN_ALERT_CATEGORIES, type AdminAlertCategory, type AdminAlertFilterState, type AdminAlertPage, type AdminHelpResult, type AdminOperationTask } from '@/lib/admin/operations-dock';
 import { Icon } from '@/components/ui/Icon';
 import type { OperationsDockSection } from './OperationsDock';
+import { InquiryNotificationToggle } from './AdminInquiryNotifier';
 
 async function read<T>(query: URLSearchParams, signal?: AbortSignal): Promise<T> {
   const response = await fetch(`/api/admin/operations-dock?${query}`, { cache: 'no-store', signal });
@@ -13,7 +14,7 @@ async function read<T>(query: URLSearchParams, signal?: AbortSignal): Promise<T>
   return response.json() as Promise<T>;
 }
 
-export function OperationsDockPanel({ section, pathname, onClose, onAlertRead, categories = ADMIN_ALERT_CATEGORIES }: { section: OperationsDockSection; pathname: string; onClose: () => void; onAlertRead: (page: AdminAlertPage) => void; categories?: ReadonlyArray<typeof ADMIN_ALERT_CATEGORIES[number]> }) {
+export function OperationsDockPanel({ section, pathname, onClose, onAlertRead, categories = ADMIN_ALERT_CATEGORIES, inquiryNotificationAccountId }: { section: OperationsDockSection; pathname: string; onClose: () => void; onAlertRead: (page: AdminAlertPage) => void; categories?: ReadonlyArray<typeof ADMIN_ALERT_CATEGORIES[number]>; inquiryNotificationAccountId?: string }) {
   const router = useRouter();
   const [category, setCategory] = useState<AdminAlertCategory>('all');
   const [state, setState] = useState<AdminAlertFilterState>('all');
@@ -72,6 +73,7 @@ export function OperationsDockPanel({ section, pathname, onClose, onAlertRead, c
       {error ? <p role="alert" className="admin-operations-error">{error}</p> : null}
       <div className="admin-operations-refresh"><button type="button" disabled={loading || pending} onClick={reload}>새로고침</button></div>
       {section === 'alerts' ? <>
+        {inquiryNotificationAccountId ? <InquiryNotificationToggle accountId={inquiryNotificationAccountId} /> : null}
         {settings && alerts ? <form className="admin-operations-settings" onSubmit={event => { event.preventDefault(); const enabled = new FormData(event.currentTarget).get('badge') === 'on'; startTransition(async () => { try { const result = await setAdminOperationAlertBadgeAction(enabled); if (result.error) setError(result.error); else { setSettings(false); reload(); } } catch { setError('알림 설정을 저장하지 못했습니다.'); } }); }}>
           <h3>알림 설정</h3><label><input name="badge" type="checkbox" defaultChecked={alerts.badgeEnabled} /> 새 알림 건수 표시</label><p>현재 계정에 적용됩니다. 알림 목록은 계속 보관됩니다.</p><div><button disabled={pending} type="submit">저장</button><button type="button" onClick={() => setSettings(false)}>취소</button></div>
         </form> : null}

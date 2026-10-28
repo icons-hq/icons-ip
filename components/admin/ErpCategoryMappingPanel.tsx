@@ -6,6 +6,7 @@ import { setErpCategoryMappingAction } from '@/app/admin/erp-item-actions';
 import { categoryPath, type AdminCategoryErpMapping, type AdminCategoryNode } from '@/lib/admin/category';
 import {
   conflictingCategoryErpMapping,
+  erpCategoryFallbackBasis,
   suggestErpCategoryTarget,
   type ErpCategoryMappingRow,
   type ErpCategorySuggestion,
@@ -16,7 +17,7 @@ const VISIBLE_LIMIT = 200;
 type CategoryOption = { id: string; label: string };
 
 function suggestionText(basis: ErpCategorySuggestion['basis']) {
-  return basis === 'erp_mapping' ? '고객 카테고리의 ERP 분류 매핑대로 연결' : '같은 이름으로 연결';
+  return basis === 'erp_mapping' ? '고객 카테고리의 ERP 분류 매핑대로 연결' : '같은 경로로 연결';
 }
 
 function MappingRow({ row, options, categories, categoryErpMappings }: {
@@ -30,8 +31,9 @@ function MappingRow({ row, options, categories, categoryErpMappings }: {
   const [selected, setSelected] = useState(row.categoryId ?? '');
   const [status, setStatus] = useState<{ tone: 'ok' | 'error'; text: string } | null>(null);
   const [pending, startTransition] = useTransition();
-  /* 새 연결이 없으면 DB가 고객 카테고리의 정본 ERP 분류 매핑으로 제안하는 말단(이름·코드 정확히 일치, 하나뿐). */
+  /* 새 연결이 없으면 DB가 자동으로 잇는 말단: 고객 카테고리의 정본 ERP 분류 매핑(이름·코드 정확히 일치, 하나뿐) → `대>중>소` 전체 경로 일치. */
   const fallback = !saved && row.fallbackCategoryId ? row.fallbackCategoryId : null;
+  const fallbackBasis = fallback ? erpCategoryFallbackBasis(row.erpCategory, fallback, categories) : null;
   const suggestion = useMemo(() => saved || fallback ? null : suggestErpCategoryTarget(row.erpCategory, categories, categoryErpMappings), [saved, fallback, row.erpCategory, categories, categoryErpMappings]);
   const conflict = selected ? conflictingCategoryErpMapping(row.erpCategory, selected, categoryErpMappings) : null;
   const pathOf = (id: string) => categories.some((category) => category.id === id) ? categoryPath(categories, id).join(' > ') : '삭제된 카테고리';
@@ -63,7 +65,9 @@ function MappingRow({ row, options, categories, categoryErpMappings }: {
         {options.map((option) => <option key={option.id} value={option.id}>{option.label}</option>)}
       </select>
       {fallback && !selected ? <p className="wc-admin-kit__hint admin-erp-items__mapping-note">
-        고객 카테고리의 ERP 분류 매핑에 따라 ‘{pathOf(fallback)}’ 카테고리를 제안합니다. 다른 카테고리를 쓰려면 골라 저장해주세요.
+        {fallbackBasis === 'same_path'
+          ? <>같은 경로의 ‘{pathOf(fallback)}’ 카테고리에 자동으로 연결됩니다. 다른 카테고리를 쓰려면 골라 저장해주세요.</>
+          : <>고객 카테고리의 ERP 분류 매핑에 따라 ‘{pathOf(fallback)}’ 카테고리를 제안합니다. 다른 카테고리를 쓰려면 골라 저장해주세요.</>}
       </p> : null}
       {conflict ? <p className="admin-erp-items__mapping-warning" role="status">
         고른 카테고리는 고객 카테고리 화면에서 다른 ERP 분류(‘{conflict.erpName}’, {conflict.erpCode})에 매핑돼 있습니다. 맞는 카테고리인지 확인해주세요.
@@ -107,13 +111,13 @@ export function ErpCategoryMappingPanel({ rows, categories, categoryErpMappings 
     return <p className="wc-admin-kit__hint">반입한 품목에 ERP 분류가 없습니다. 반입할 때 ERP 분류 열을 골라주세요.</p>;
   }
   return <div className="admin-erp-items__mapping">
-    <p className="wc-admin-kit__hint">ERP 분류 {rows.length.toLocaleString('ko-KR')}개 중 {linked.toLocaleString('ko-KR')}개 연결됨. 연결은 상품에 바로 적용되지 않고, 옵션에서 ERP 품목을 고를 때 카테고리 제안으로만 쓰입니다.</p>
-    <p className="wc-admin-kit__hint">여기서 연결하지 않은 분류는 고객 카테고리 화면의 ERP 분류 매핑에서 이름이나 코드가 똑같은 말단이 하나뿐이면 그 말단을 제안합니다. 여기서 연결하면 이 연결이 먼저입니다.</p>
+    <p className="wc-admin-kit__hint">ERP 분류 {rows.length.toLocaleString('ko-KR')}개 중 {linked.toLocaleString('ko-KR')}개 연결됨 · 연결 필요 {(rows.length - linked).toLocaleString('ko-KR')}개. 연결은 상품에 바로 적용되지 않고, 옵션에서 ERP 품목을 고를 때 카테고리 제안으로만 쓰입니다.</p>
+    <p className="wc-admin-kit__hint">여기서 연결하지 않은 분류는 고객 카테고리 화면의 ERP 분류 매핑에서 이름이나 코드가 똑같은 말단이 하나뿐이면 그 말단을, 없으면 ‘대&gt;중&gt;소’ 전체 경로가 같은 고객 카테고리 말단을 자동으로 연결합니다. 말단 이름만 같은 다른 경로는 연결하지 않습니다. 여기서 연결하면 이 연결이 먼저입니다.</p>
     {!options.length ? <p className="wc-admin-kit__error" role="alert">연결할 고객 카테고리 말단이 없습니다. 고객 카테고리 화면에서 먼저 만들어주세요.</p> : null}
     <div className="admin-erp-items__mapping-filters">
       <label htmlFor="erp-category-filter">ERP 분류 찾기</label>
       <input id="erp-category-filter" type="search" value={query} maxLength={200} onChange={(event) => setQuery(event.target.value)} />
-      <label className="admin-erp-items__check"><input type="checkbox" checked={unlinkedOnly} onChange={(event) => setUnlinkedOnly(event.target.checked)} /> 연결 안 된 분류만</label>
+      <label className="admin-erp-items__check"><input type="checkbox" checked={unlinkedOnly} onChange={(event) => setUnlinkedOnly(event.target.checked)} /> 연결 필요만</label>
     </div>
     <div className="admin-erp-items__table-scroll" role="region" aria-label="ERP 분류 연결" tabIndex={0}>
       <table className="admin-erp-items__table">

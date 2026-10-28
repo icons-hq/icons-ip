@@ -40,6 +40,19 @@ export const ORDER_CLAIM_REASON_TYPES = ['change_of_mind', 'defect', 'staff'] as
 export type OrderClaimReasonType = (typeof ORDER_CLAIM_REASON_TYPES)[number];
 
 /**
+ * 유형별로 새로 받을 수 있는 구매자 사유(10/27 회의 R7).
+ *
+ * 하자·오배송은 굿즈를 받은 뒤에야 알 수 있으므로 취소(발주확인 전)에는 받지 않고 반품·교환으로
+ * 받는다. 고객 화면은 원래 취소에 단순 변심만 보냈고, 판매자 대리 접수·고객 취소 API·목록 필터가
+ * 이 표를 따른다. 이미 저장된 요청의 사유는 바꾸지 않고 그대로 표시한다.
+ */
+export const ORDER_CLAIM_BUYER_REASON_TYPES: Record<OrderClaimType, readonly Exclude<OrderClaimReasonType, 'staff'>[]> = {
+  cancel: ['change_of_mind'],
+  return: ['change_of_mind', 'defect'],
+  exchange: ['change_of_mind', 'defect'],
+};
+
+/**
  * 운영자 전액 취소 사유(ADR-0018). DB `admin_start_order_cancellation`의 허용 목록·
  * `order_cancellation_requests_staff_origin_shape` 제약과 같아야 한다 — 한쪽만 늘리면
  * 고를 수 있는데 항상 거절되는 선택지가 생긴다.
@@ -478,6 +491,6 @@ export function orderClaimAvailability(input: {
 /** 유형별 접수 안내. 부분 환불을 약속하지 않는 문구를 한 곳에 모아 둔다. */
 export const ORDER_CLAIM_INTAKE_NOTICES: Record<OrderClaimType, string> = {
   cancel: '일반 배송 상품은 발주확인 전에 직접 취소할 수 있습니다. 주문제작·배송없음·디지털 상품은 현재 이행 상태에 따라 주문 전체 취소 검토를 요청합니다. 일부 굿즈나 수량만 취소하는 처리는 제공하지 않습니다. 승인되면 최초 배송비를 포함한 결제금액 전액이 취소되고, 지급된 카드팩 중 개봉하지 않은 것은 회수됩니다.',
-  return: '배송 중부터 주문 전체 반품을 직접 신청할 수 있습니다. 일부 굿즈만 반품하는 처리는 제공하지 않습니다. 실물 상품은 안내된 출고지별 반송지에서 전체 회수를 확인하며, 디지털 상품은 제공 이력과 요청 사유를 검토합니다. 승인된 환불은 최초 선결제 배송비를 포함한 결제금액 전액으로 처리합니다. 환급 기한은 반환받은 날부터 영업일 기준 3일 이내이며 담당자의 확인이 늦어져도 연장되지 않습니다.',
-  exchange: '배송 중부터 주문 전체 교환을 직접 신청할 수 있습니다. 안내된 출고지별 반송지에서 모든 굿즈의 회수를 확인한 뒤 같은 굿즈를 다시 보내드립니다. 결제는 유지되고 카드팩도 회수하지 않습니다.',
+  return: '배송 중부터 주문 전체 반품을 직접 신청할 수 있습니다. 일부 굿즈만 반품하는 처리는 제공하지 않습니다. 실물 상품은 안내된 배송 묶음별 반송지에서 전체 회수를 확인하며, 디지털 상품은 제공 이력과 요청 사유를 검토합니다. 승인된 환불은 최초 선결제 배송비를 포함한 결제금액 전액으로 처리합니다. 환급 기한은 반환받은 날부터 영업일 기준 3일 이내이며 담당자의 확인이 늦어져도 연장되지 않습니다.',
+  exchange: '배송 중부터 주문 전체 교환을 직접 신청할 수 있습니다. 안내된 배송 묶음별 반송지에서 모든 굿즈의 회수를 확인한 뒤 같은 굿즈를 다시 보내드립니다. 결제는 유지되고 카드팩도 회수하지 않습니다.',
 };

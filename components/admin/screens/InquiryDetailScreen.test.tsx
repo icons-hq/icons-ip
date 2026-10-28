@@ -4,6 +4,12 @@ import { describe, expect, it, vi } from 'vitest';
 import type { AdminInquiryDetail } from '@/lib/admin/inquiries.server';
 import { InquiryDetailScreen } from './InquiryDetailScreen';
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: vi.fn() }) }));
+/* next/link의 이동 옵션(scroll·replace)은 DOM에 남지 않아 data 속성으로 드러낸다. */
+vi.mock('next/link', () => ({
+  default: ({ children, href, scroll, replace, ...rest }: { children?: React.ReactNode; href: string; scroll?: boolean; replace?: boolean } & Record<string, unknown>) => (
+    <a href={href} data-scroll={scroll === false ? 'false' : undefined} data-replace={replace ? 'true' : undefined} {...rest}>{children}</a>
+  ),
+}));
 
 vi.mock('react', async () => {
   const actual = await vi.importActual<typeof import('react')>('react');
@@ -102,6 +108,14 @@ describe('InquiryDetailScreen', () => {
     expect(html).toContain('주문한 지 일주일이 지났어요');
     expect(html).toContain(`/admin/sales/orders/${ORDER_ID}`);
     expect(html).not.toContain('<dialog');
+  });
+
+  /* 팝업 안 '← 문의 목록'은 닫기와 같다. 기본 이동(scroll=true)은 목록을 맨 위로 올려, 80번째 행에서
+     연 팝업을 닫으면 보던 위치를 잃는다(R4). X·Esc처럼 스크롤을 두고 기록을 바꿔 쓴다. */
+  it('팝업 안 문의 목록 링크는 스크롤을 건드리지 않고 닫는다', () => {
+    const embedded = renderToStaticMarkup(<InquiryDetailScreen embedded backHref="/admin/cs/inquiries?page=3" detail={detail()} now={NOW} />);
+    expect(embedded).toMatch(/<a href="\/admin\/cs\/inquiries\?page=3" data-scroll="false" data-replace="true"[^>]*>← 문의 목록<\/a>/);
+    expect(render()).toMatch(/<a href="\/admin\/cs\/inquiries\?status=open&amp;page=1" class="mono"[^>]*>← 문의 목록<\/a>/);
   });
 
   it('자동 안내가 있어도 답변자·담당자로 표시하지 않고 미답변 기한을 유지한다', () => {

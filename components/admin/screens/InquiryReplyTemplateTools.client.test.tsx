@@ -117,3 +117,22 @@ it('저장 결과 불명확 상태를 새로고침해도 원래 operation을 확
   expect(fieldValue(render(), '템플릿 제목')).toBe('불명확 저장');
   expect(mocks.persisted!.pending).toBeNull();
 });
+/* R3(MD-0011): 템플릿은 작성 중인 답변을 대체한다. 내용이 있으면 확인을 거치고, 비어 있으면 바로 바꾼다. */
+it('작성 중인 답변이 있으면 확인 뒤에만 템플릿으로 바꾸고, 비어 있으면 바로 바꾼다', async () => {
+  const onInsert = vi.fn(); const confirm = vi.fn(() => false);
+  vi.stubGlobal('window', { confirm });
+  const draw = (body: string) => { mocks.index = 0; return InquiryReplyTemplateTools({ body, onInsert }) as Element; };
+  click(button(draw('고객별 미저장 답변'), '답변 템플릿 불러오기')); await settle();
+  expect(text(draw('고객별 미저장 답변'))).toContain('템플릿을 고르면 작성 중인 내용을 템플릿으로 바꿉니다.');
+  const pick = (body: string) => click(button(nodes(draw(body)).find(node => node.type === 'article' && text(node).includes('기존 A'))!, '불러오기'));
+  pick('고객별 미저장 답변');
+  expect(confirm).toHaveBeenCalledWith('작성 중인 내용을 템플릿으로 바꿀까요?');
+  expect(onInsert).not.toHaveBeenCalled();
+  confirm.mockReturnValue(true); pick('고객별 미저장 답변');
+  expect(onInsert).toHaveBeenLastCalledWith('A 본문');
+  mocks.states = []; confirm.mockClear();
+  click(button(draw(''), '답변 템플릿 불러오기')); await settle(); pick('');
+  expect(confirm).not.toHaveBeenCalled();
+  expect(onInsert).toHaveBeenLastCalledWith('A 본문');
+  vi.unstubAllGlobals();
+});

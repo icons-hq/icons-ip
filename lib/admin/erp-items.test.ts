@@ -3,6 +3,7 @@ import type { AdminCategoryNode } from './category';
 import {
   ERP_ITEMS_PATH,
   conflictingCategoryErpMapping,
+  erpCategoryFallbackBasis,
   erpItemRejectReasonLabel,
   erpItemsHref,
   formatErpSalePrice,
@@ -70,14 +71,33 @@ describe('목록 주소', () => {
 describe('ERP 분류 → 고객 카테고리 제안', () => {
   it('경로가 같은 활성 말단을 제안한다', () => {
     expect(suggestErpCategoryTarget('문구 > 키링', categories)).toEqual({ categoryId: 'keyring', basis: 'same_path', label: '문구 > 키링' });
-    expect(suggestErpCategoryTarget('문구/포토카드', categories)).toMatchObject({ categoryId: 'photo', basis: 'same_path' });
+    expect(suggestErpCategoryTarget('문구>포토 카드', categories)).toMatchObject({ categoryId: 'photo', basis: 'same_path' });
   });
 
-  it('말단 이름이 같으면 제안하되, 후보가 둘 이상이면 추정하지 않는다', () => {
-    expect(suggestErpCategoryTarget('포토 카드', categories)).toMatchObject({ categoryId: 'photo', basis: 'same_name' });
+  /* R9(10/27 회의): ERP 분류는 전체 경로로만 맞춘다. 말단 이름만 같은 다른 대분류('쿠션')로 잘못 이어지면 안 되고,
+     '메모/수첩'처럼 이름에 든 '/'는 구분자가 아니다. */
+  it('말단 이름만 같으면 제안하지 않고, 이름의 /로 경로를 자르지 않는다', () => {
+    const slashTree = [
+      node('st', '문구', null, { childCount: 1 }),
+      node('memo', '메모/수첩', 'st', { childCount: 1 }),
+      node('sticky', '점착메모지', 'memo', { depth: 3 }),
+      node('living', '리빙', null, { childCount: 1 }),
+      node('cushion', '쿠션', 'living'),
+    ];
+    expect(suggestErpCategoryTarget('문구>메모/수첩>점착메모지', slashTree)).toMatchObject({ categoryId: 'sticky', basis: 'same_path' });
+    expect(suggestErpCategoryTarget('문구 > 메모/수첩 > 점착 메모지', slashTree)).toMatchObject({ categoryId: 'sticky', basis: 'same_path' });
+    expect(suggestErpCategoryTarget('문구/메모/수첩/점착메모지', slashTree)).toBeNull();
+    expect(suggestErpCategoryTarget('쿠션', slashTree)).toBeNull();
+    expect(suggestErpCategoryTarget('패션>쿠션', slashTree)).toBeNull();
+    expect(suggestErpCategoryTarget('포토 카드', categories)).toBeNull();
     expect(suggestErpCategoryTarget('키링', categories)).toBeNull();
     expect(suggestErpCategoryTarget('보관 분류', categories)).toBeNull();
     expect(suggestErpCategoryTarget('  ', categories)).toBeNull();
+  });
+
+  it('DB가 제안한 말단이 같은 경로인지 정본 매핑인지 구분한다', () => {
+    expect(erpCategoryFallbackBasis('문구 > 키링', 'keyring', categories)).toBe('same_path');
+    expect(erpCategoryFallbackBasis('KR-01', 'keyring', categories)).toBe('erp_mapping');
   });
 
   it('고객 카테고리에 저장된 ERP 분류 매핑을 가장 먼저 본다', () => {

@@ -1,10 +1,34 @@
 import { goodsSaleUnavailableLabel } from './goods-sale-period';
+import { goodsOptionLimitMessage, goodsOptionLimitNotices, RANDOM_OPTION_LABEL, RANDOM_OPTION_NOTICE } from './goods-option-sale-mode';
 import type { Good, GoodOption } from './data';
 import type { GoodsSalesQuoteLine, GoodsVariantPricing } from './goods-sales';
 
 export function optionPriceRange(options: readonly GoodOption[]) {
   const prices = options.map(option => option.price);
   return { price: Math.min(...prices), priceMax: Math.max(...prices) };
+}
+
+/**
+ * 랜덤 판매 굿즈(D5②)의 고객 옵션: 판매 중인 옵션들을 장바구니 키(기본 옵션) 하나로 접는다.
+ *
+ * 이름은 '랜덤', 수량은 판매 중인 옵션 가용 수량의 합(풀)이다 — DB 장바구니 담기·견적·주문이 같은 풀로 판정한다.
+ * 가격은 기본 옵션 가격이다(랜덤 판매는 모든 판매 중 옵션의 판매가·기간 할인이 같아야 켜진다). 개별 옵션의 이름·코드·
+ * 속성은 싣지 않는다. 옵션별 구매 제한은 랜덤 판매에서 금지라 없다. 기본 옵션을 못 찾으면(정렬상) 첫 옵션을 키로 쓴다 —
+ * DB는 같은 굿즈의 어떤 옵션 id가 와도 기본 옵션 줄로 모은다.
+ */
+export function collapseRandomGoodOptions(options: readonly GoodOption[]): GoodOption[] {
+  const key = options.find(option => option.isDefault) ?? options[0];
+  if (!key) return [];
+  const pool = options.reduce((total, option) => total + Math.max(0, option.stockQty), 0);
+  const nextChangeAt = options.map(option => option.supply?.nextChangeAt ?? null)
+    .filter((value): value is string => value !== null)
+    .sort((left, right) => Date.parse(left) - Date.parse(right))[0] ?? null;
+  return [{
+    id: key.id, name: RANDOM_OPTION_LABEL, code: '', price: key.price, stockQty: pool, isDefault: true, attributes: {},
+    ...(key.pricing ? { pricing: key.pricing } : {}),
+    ...(key.supply ? { supply: { ...key.supply, availableQty: pool, nextChangeAt } } : {}),
+    orderMaxQty: null, memberMaxQty: null,
+  }];
 }
 
 /** 굿즈 행에 저장된 기준 판매가(`goods.price`)와 소비자가(`goods.compare_at_price`). */
@@ -131,10 +155,48 @@ export function optionLabel(option: GoodOption | undefined, count: number): stri
     ? null : option.name;
 }
 
+/**
+ * 장바구니 줄의 옵션. 랜덤 판매 굿즈(D5②)는 어느 옵션 키로 담겼든(랜덤 전환 전에 담은 줄 포함) 접힌 '랜덤' 옵션이다 —
+ * DB 장바구니 RPC는 같은 굿즈의 어떤 옵션 id가 와도 기본 옵션 줄로 모으고, 견적·주문은 풀로 판정한다.
+ */
+export function cartLineOption(good: Pick<Good, 'options' | 'optionSaleMode'> | undefined, variantId: string): GoodOption | undefined {
+  if (!good) return undefined;
+  if (good.optionSaleMode === 'random') return good.options?.[0];
+  return good.options?.find(option => option.id === variantId);
+}
+
+/** 장바구니 수량 호출 한 번(`setQuantity(goodId, qty, …, variantId)` — qty 0은 그 줄 삭제). */
+export interface CartQuantityStep { variantId: string; qty: number }
+
+/**
+ * 랜덤 전환 전에 비기본 옵션 키로 담은 장바구니 줄(D5②)을 '랜덤' 한 줄(장바구니 키)로 다시 담는 호출 순서.
+ * 랜덤 줄이 아니거나 이미 키 줄이면 null — 그 줄은 평소처럼 수량을 바꾼다.
+ *
+ * 이 줄의 수량을 스테퍼로 바꾸면 DB(`set_cart_quantity_with_inputs`)가 새 수량을 키 줄에 더하고 이 줄을 지워, 화면에서는
+ * 같은 '랜덤' 두 줄 중 하나가 사라지고 다른 줄 수량이 뛴다(T7 리뷰 RV-2). 그래서 이 줄은 스테퍼 대신 '다시 담기' 하나로
+ * 합친다. 계정 장바구니는 이 줄을 같은 수량으로 한 번 다시 저장하면 DB가 키 줄로 합친다(풀 초과면 DB가 거절하고
+ * 그대로 둔다). 이 기기 장바구니는 키 줄에 수량을 더한 뒤 이 줄을 지운다. 합친 수량이 풀(`stockQty`)을 넘으면 키 줄
+ * 호출만 남긴다 — 장바구니가 재고 오류로 거절하고, 이 줄을 지우지 않아 수량이 사라지지 않는다.
+ */
+export function randomCartLineFold(
+  good: Pick<Good, 'options' | 'optionSaleMode'> | undefined,
+  items: readonly { goodId: string; variantId: string; qty: number; customInputs?: unknown }[],
+  line: { goodId: string; variantId: string; qty: number },
+  mode: 'server' | 'local',
+  stockQty: number = Number.MAX_SAFE_INTEGER,
+): CartQuantityStep[] | null {
+  const key = good?.optionSaleMode === 'random' ? good.options?.[0] : undefined;
+  if (!key || line.variantId === key.id) return null;
+  if (mode === 'server') return [{ variantId: line.variantId, qty: line.qty }];
+  const keyQty = items.find((item) => item.goodId === line.goodId && item.variantId === key.id && !item.customInputs)?.qty ?? 0;
+  const merged = { variantId: key.id, qty: keyQty + line.qty };
+  return merged.qty > stockQty ? [merged] : [merged, { variantId: line.variantId, qty: 0 }];
+}
+
 /** Cart identities are canonical before this display projection runs. */
 export function cartOptionGood(good: Good | undefined, variantId: string): Good | undefined {
   if (!good) return undefined;
-  const option = good.options?.find(option => option.id === variantId);
+  const option = cartLineOption(good, variantId);
   if (!option) return undefined;
   const catalog = catalogPricing(good);
   return { ...good, price: option.price, priceMax: option.price, stockQty: option.stockQty,
@@ -162,4 +224,35 @@ export function goodAtQuotedPrice(good: Good | undefined, line: GoodsSalesQuoteL
     ...(line.supply ? { stockQty: line.supply.availableQty,
       stock: line.supply.availableQty > 0 && (line.available || line.qty > line.supply.availableQty) ? 'ok' : 'soldout' } as const : {}),
     compareAtPrice: optionCompareAtPrice(catalogPricing(good), line) };
+}
+
+/**
+ * 한 번에 고를 수 있는 최대 수량(D7②): 재고와 옵션별 주문당 최대 수량 중 작은 값. 표시·스테퍼용이고, 주문당·1인 누적
+ * 한도의 최종 판정은 주문 생성 트리거다(1인 누적은 결제 대기 주문을 포함하므로 여기서 계산하지 않는다).
+ */
+export function purchasableOptionQty(option: Pick<GoodOption, 'stockQty' | 'orderMaxQty'>): number {
+  const stock = Math.max(0, option.stockQty);
+  return option.orderMaxQty ? Math.min(stock, option.orderMaxQty) : stock;
+}
+
+/**
+ * 담기 전 옵션별 주문당 최대 수량(D7②) 판정: 장바구니에 이미 담긴 수량을 합친 `totalQty`가 한도를 넘으면 확정 카피,
+ * 아니면 null. 상품 상세 담기·바로구매가 목록 담기(AddToCartButton)·위시 카드와 같은 한도에서 멈추게 한다(T7 리뷰 RV-4).
+ * 1인 누적 한도는 결제 대기 주문을 포함해 화면에서 계산하지 않는다 — 장바구니 견적과 주문 생성 트리거가 판정한다.
+ */
+export function optionOrderLimitMessage(good: Pick<Good, 'name' | 'options'>, option: GoodOption | undefined, totalQty: number): string | null {
+  if (!option?.orderMaxQty || totalQty <= option.orderMaxQty) return null;
+  return goodsOptionLimitMessage('option_order_limit_exceeded', optionLabel(option, good.options?.length ?? 0) ?? good.name,
+    { orderMaxQty: option.orderMaxQty, memberMaxQty: option.memberMaxQty ?? null });
+}
+
+/**
+ * 굿즈 상세 구매 블록의 판매 방식·옵션 제한 안내(확정 카피). 랜덤 판매는 무작위 배정 안내, 옵션별 제한은 고른 옵션의
+ * 정적 안내다(남은 수량은 보이지 않는다). 하나뿐인 '기본 옵션'은 이름을 숨기므로 굿즈 이름으로 말한다.
+ */
+export function goodOptionPurchaseNotices(good: Pick<Good, 'name' | 'options' | 'optionSaleMode'>, option: GoodOption | undefined): string[] {
+  if (good.optionSaleMode === 'random') return [RANDOM_OPTION_NOTICE];
+  if (!option) return [];
+  return goodsOptionLimitNotices(optionLabel(option, good.options?.length ?? 0) ?? good.name,
+    { orderMaxQty: option.orderMaxQty ?? null, memberMaxQty: option.memberMaxQty ?? null });
 }

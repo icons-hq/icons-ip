@@ -54,6 +54,32 @@ describe('어드민 IA 정의', () => {
     expect(adminGroupForPath('/admin/catalog/groups/new')?.id).toBe('catalog');
   });
 
+  /* 10/27 회의 R21(D9①, MD-0007): 상품관리 21개 메뉴를 상품관리·배송관리·템플릿 관리로 나누고 그룹상품 두 메뉴는 사이드바에서만 숨긴다. */
+  it('상품관리를 상품관리·배송관리·템플릿 관리 세 대분류로 나눈다', () => {
+    const ids = (groupId: string) => ADMIN_NAV_GROUPS.find((group) => group.id === groupId)?.screens.map((screen) => screen.id);
+    expect(ADMIN_NAV_GROUPS.map((group) => group.id).slice(1, 4)).toEqual(['catalog', 'shipping', 'templates']);
+    expect(ADMIN_NAV_GROUPS.find((group) => group.id === 'shipping')).toMatchObject({ label: '배송관리' });
+    expect(ADMIN_NAV_GROUPS.find((group) => group.id === 'templates')).toMatchObject({ label: '템플릿 관리' });
+    expect(ids('catalog')).toEqual(['goods', 'goods-create', 'goods-groups-create', 'goods-groups', 'goods-import', 'categories', 'erp-items',
+      'announcements', 'goods-photos', 'related-goods', 'goods-attributes']);
+    expect(ids('shipping')).toEqual(['fulfillment-origins', 'shipping-regions', 'shipping-carriers']);
+    expect(ids('templates')).toEqual(['shipping-settings-templates', 'shipping-notice-templates', 'notice-presets', 'goods-event-templates',
+      'category-templates', 'goods-after-sales-templates', 'size-templates']);
+    for (const group of ['shipping', 'templates']) expect(ADMIN_NAV_GROUPS.find((item) => item.id === group)?.consoles).toBeUndefined();
+    expect(adminGroupForPath('/admin/settings/origins')?.id).toBe('shipping');
+    expect(adminGroupForPath('/admin/settings/shipping-notices')?.id).toBe('templates');
+    expect(adminConsoleForPath('/admin/settings/shipping-templates')).toBe('commerce');
+  });
+
+  it('그룹상품 등록·조회는 사이드바에서만 숨기고 라우트·화면 판정은 그대로 둔다', () => {
+    const hidden = ADMIN_SCREENS.filter((screen) => screen.navHidden).map((screen) => screen.id);
+    expect(hidden).toEqual(['goods-groups-create', 'goods-groups']);
+    const visible = visibleAdminNavGroups('admin').flatMap((group) => group.screens.map((screen) => screen.id));
+    for (const id of hidden) expect(visible).not.toContain(id);
+    expect(adminScreenForPath('/admin/catalog/groups')?.id).toBe('goods-groups');
+    expect(adminScreenForPath('/admin/catalog/groups/new')?.id).toBe('goods-groups-create');
+  });
+
   it('상담하기는 문의 관리와 구분되는 실시간 상담 화면으로 연결된다', () => {
     expect(adminScreenForPath('/admin/cs/chat?inquiry=case-a')).toMatchObject({ id: 'inquiry-chat', label: '상담하기', status: 'ready' });
     expect(adminGroupForPath('/admin/cs/chat')?.id).toBe('cs');

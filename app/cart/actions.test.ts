@@ -31,6 +31,8 @@ const mocks = vi.hoisted(() => ({
   goodsNot: vi.fn(),
   goodsRestrictionEq: vi.fn(),
   goodsMaybeSingle: vi.fn(),
+  randomGoodsQuery: vi.fn(),
+  randomGoodsRows: { data: [], error: null } as { data: { id: string; random_option: unknown }[]; error: { message: string } | null },
 }));
 
 vi.mock('@/lib/auth/server', () => ({
@@ -74,6 +76,8 @@ describe('cart Server Actions', () => {
     mocks.auth = onboardedAuth();
     mocks.variantRows = {data:[{id:VARIANT_ID,good_id:'g1'}],error:null};
     mocks.variantQuery.mockReset();
+    mocks.randomGoodsQuery.mockReset();
+    mocks.randomGoodsRows = { data: [], error: null };
     mocks.cartRows = { data: [{ good_id: 'g1', variant_id: '00000000-0000-4000-8000-000000000001', qty: 4 }], error: null };
     mocks.goodRow = { data: { stock: 'ok', stock_qty: 5 }, error: null };
     mocks.upsertResult = { error: null };
@@ -106,7 +110,11 @@ describe('cart Server Actions', () => {
     mocks.goodsIs.mockReturnValue(goodsFilters);
     mocks.goodsNot.mockReturnValue(goodsFilters);
     mocks.goodsEq.mockReturnValue(goodsFilters);
-    mocks.goodsSelect.mockReturnValue({ eq: mocks.goodsEq });
+    // 옛 장바구니의 랜덤 판매 굿즈 기본 키 조회(goods.in → 필터 → 결과). 재고 확인 경로(goods.eq → maybeSingle)와 나뉜다.
+    const randomGoodsQuery = { in: mocks.randomGoodsQuery, eq: mocks.randomGoodsQuery, is: mocks.randomGoodsQuery, not: mocks.randomGoodsQuery,
+      then: (resolve: (value: typeof mocks.randomGoodsRows) => unknown) => Promise.resolve(mocks.randomGoodsRows).then(resolve) };
+    mocks.randomGoodsQuery.mockReturnValue(randomGoodsQuery);
+    mocks.goodsSelect.mockReturnValue({ eq: mocks.goodsEq, in: mocks.randomGoodsQuery });
     mocks.from.mockImplementation((table: string) => {
       if (table === 'cart_items') {
         let afterId:string|null=null,pageSize=1000;
@@ -261,6 +269,36 @@ describe('cart Server Actions', () => {
     expect(mocks.variantQuery).toHaveBeenCalledWith('goods.sale_restriction', 'none');
     expect(mocks.variantQuery).toHaveBeenCalledWith('goods.ips.published_at', 'is', null);
     expect(mocks.variantQuery).toHaveBeenCalledWith('goods.ips.archived_at', null);
+  });
+
+  it('옛 장바구니의 랜덤 판매 굿즈는 숨겨진 옵션 행 대신 공개 랜덤 한 줄의 키로 옮긴다', async () => {
+    // T6 restrictive 정책으로 랜덤 굿즈의 goods_variants 행(기본 옵션 포함)은 고객·익명에게 보이지 않는다.
+    const randomKey = '00000000-0000-4000-8000-000000000077';
+    mocks.variantRows = { data: [{ id: VARIANT_ID, good_id: 'g1' }], error: null };
+    mocks.randomGoodsRows = { data: [{ id: 'g-random', random_option: { id: randomKey, name: '랜덤' } }], error: null };
+    await syncCartAction([{ goodId: 'g1', qty: 1 }, { goodId: 'g-random', qty: 2 }]);
+    expect(mocks.rpc).toHaveBeenCalledWith('merge_cart_items', { p_items: [
+      { good_id: 'g1', variant_id: VARIANT_ID, qty: 1 },
+      { good_id: 'g-random', variant_id: randomKey, qty: 2 },
+    ] });
+    // 옵션 행에서 기본 옵션을 찾은 굿즈는 다시 묻지 않고, 공개 굿즈만 본다.
+    expect(mocks.goodsSelect).toHaveBeenCalledWith('id,random_option:goods_random_option');
+    expect(mocks.randomGoodsQuery).toHaveBeenCalledWith('id', ['g-random']);
+    expect(mocks.randomGoodsQuery).toHaveBeenCalledWith('option_sale_mode', 'random');
+    expect(mocks.randomGoodsQuery).toHaveBeenCalledWith('published_at', 'is', null);
+    expect(mocks.randomGoodsQuery).toHaveBeenCalledWith('archived_at', null);
+    expect(mocks.randomGoodsQuery).toHaveBeenCalledWith('sale_restriction', 'none');
+  });
+
+  it('랜덤 한 줄이 없거나 모양이 틀리면 옛 항목을 확인할 수 없는 항목으로 남긴다', async () => {
+    mocks.variantRows = { data: [], error: null };
+    mocks.randomGoodsRows = { data: [{ id: 'g-random', random_option: { id: 'not-a-uuid' } }, { id: 'g-gone', random_option: null }], error: null };
+    await expect(syncCartAction([{ goodId: 'g-random', qty: 1 }, { goodId: 'g-gone', qty: 1 }])).resolves.toMatchObject({
+      ok: false, mode: 'local', unresolvedItems: [{ goodId: 'g-random', qty: 1 }, { goodId: 'g-gone', qty: 1 }],
+    });
+    mocks.randomGoodsRows = { data: [], error: { message: 'db detail' } };
+    await expect(syncCartAction([{ goodId: 'g-random', qty: 1 }])).resolves.toMatchObject({ ok: false, mode: 'local', unresolvedItems: [{ goodId: 'g-random', qty: 1 }] });
+    expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
   it('keeps unmigrated items when their public default cannot be resolved', async () => {

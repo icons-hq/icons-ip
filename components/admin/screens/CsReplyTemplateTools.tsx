@@ -5,8 +5,9 @@ import { archiveCsReplyTemplateAction, listCsReplyTemplatesAction, readCsReplyTe
 import { useCsEditorDraft } from '@/components/admin/useCsEditorDraft';
 import { CS_TEMPLATE_DRAFT_LIMIT, EMPTY_CS_TEMPLATE_WORKSPACE, parseQuestionTemplateWorkspace, parseReviewTemplateWorkspace,
   type CsTemplateDraft, type CsTemplateWorkspace } from '@/lib/admin/cs-editor-drafts';
-import { CS_REPLY_SURFACE_LABELS, CS_REPLY_TEMPLATE_CATEGORIES, CS_REPLY_TEMPLATE_PAGE_SIZE, csReplyBodyLimit, insertCsReplyTemplate,
+import { CS_REPLY_SURFACE_LABELS, CS_REPLY_TEMPLATE_CATEGORIES, CS_REPLY_TEMPLATE_PAGE_SIZE, csReplyBodyLimit, applyCsReplyTemplate,
   type CsReplySurface, type CsReplyTemplate, type CsReplyTemplateCategory, type CsReplyTemplateList } from '@/lib/admin/cs-reply-tools';
+import { REPLY_TEMPLATE_REPLACE_CONFIRM, REPLY_TEMPLATE_REPLACE_HINT } from '@/lib/admin/inquiry-reply-templates';
 import { CustomerServiceDialog } from './CustomerServiceDialog';
 import { CsEditorDraftNotice, CsTemplateDraftList } from './CsEditorDraftNotice';
 
@@ -59,8 +60,9 @@ export function CsReplyTemplateTools({ surface, body, onInsert, disabled = false
   }
   function discard() { recovery.discard(); setSelected(null); setLatest(null); setError(''); setMessage(''); }
   function insert(template: CsReplyTemplate) {
-    const result = insertCsReplyTemplate(body, template.body, limit);
+    const result = applyCsReplyTemplate(body, template.body, limit);
     if (!result.ok) { setError(result.error); return; }
+    if (result.replaces && !window.confirm(REPLY_TEMPLATE_REPLACE_CONFIRM)) return;
     onInsert(result.body); setOpen(false);
   }
   async function accept(template: CsReplyTemplate, readback = false) {
@@ -105,7 +107,7 @@ export function CsReplyTemplateTools({ surface, body, onInsert, disabled = false
   return <>
     <button className="btn btn-sm btn-ghost" disabled={disabled} type="button" onClick={() => { setOpen(true); run(() => load()); }}>답변 템플릿 불러오기</button>
     {open ? <CustomerServiceDialog title={`${CS_REPLY_SURFACE_LABELS[surface]} 답변 템플릿`} busy={pending || uncertain} onClose={() => setOpen(false)} wide>
-      <p className="muted">상품 상세에 공개할 답변을 준비합니다. 템플릿을 불러오면 작성 중인 내용 뒤에 추가합니다.</p>
+      <p className="muted">상품 상세에 공개할 답변을 준비합니다. {REPLY_TEMPLATE_REPLACE_HINT}</p>
       <CsEditorDraftNotice draft={recovery} pending={pending} onRestore={restore} onDiscard={discard} discardLabel="보관 초안 모두 버리기"
         discardDisabled={uncertain || Boolean(recovery.recovery?.pending)} />
       <CsTemplateDraftList drafts={workspace.drafts} disabled={locked} onSelect={id => { setSelected(id); setLatest(null); setError(''); setMessage(''); }} />

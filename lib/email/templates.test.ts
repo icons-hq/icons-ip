@@ -224,6 +224,20 @@ describe('renderInquiryAnsweredEmail (#253)', () => {
     expect(renderInquiryAnsweredEmail(input).html).toContain('안녕하세요.<br />오늘 발송 예정입니다.');
   });
 
+  /* R5(MD-0022): 운영자가 넣은 빈 줄·들여쓰기·연속 공백이 HTML 메일에서 접히지 않는다. */
+  it('빈 줄과 연속 공백을 접지 않도록 답변 칸에 pre-wrap을 둔다', () => {
+    const html = renderInquiryAnsweredEmail({ ...input, answerBody: '안내\n\n  1) 교환  접수' }).html;
+    expect(html).toMatch(/<td style="[^"]*white-space:pre-wrap;[^"]*">안내<br \/><br \/>  1\) 교환  접수<\/td>/);
+  });
+
+  /* 브라우저 폼은 줄바꿈을 CRLF로 보낸다. CR이 남으면 HTML 파서가 LF로 바꾸고 pre-wrap이 그 LF를
+     <br />과 함께 한 번 더 줄바꿈해, 줄마다 빈 줄이 하나씩 생긴다. */
+  it('CRLF·CR 줄바꿈도 줄마다 한 번만 바꾼다', () => {
+    const html = renderInquiryAnsweredEmail({ ...input, answerBody: '안녕하세요.\r\n오늘 발송 예정입니다.\r\r\n\r\n감사합니다.\r끝' }).html;
+    expect(html).toMatch(/white-space:pre-wrap;[^"]*">안녕하세요\.<br \/>오늘 발송 예정입니다\.<br \/><br \/><br \/>감사합니다\.<br \/>끝<\/td>/);
+    expect(html).not.toContain('\r');
+  });
+
   /* 푸터 라벨을 고정하면 문의 메일이 "주문번호 #12"라고 거짓말을 한다. */
   it('푸터가 주문번호가 아니라 문의번호를 가리킨다', () => {
     const html = renderInquiryAnsweredEmail(input).html;

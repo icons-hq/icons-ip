@@ -383,13 +383,17 @@ export function renderRestockAlertEmail(input: RestockAlertEmailInput): Rendered
 }
 
 /* 답변 본문의 줄바꿈만 살린다. 문단 태그로 감싸지 않는 이유는 운영자가 목록·인사말을
-   자유롭게 쓰기 때문이다 — 빈 줄을 문단으로 해석하면 의도한 간격이 사라진다. */
+   자유롭게 쓰기 때문이다 — 빈 줄을 문단으로 해석하면 의도한 간격이 사라진다.
+   white-space:pre-wrap으로 들여쓰기·연속 공백도 접지 않는다(R5, MD-0022). 줄바꿈은 <br />로도
+   남겨 pre-wrap을 무시하는 메일 클라이언트에서도 줄이 유지된다. 브라우저 폼이 보낸 본문은 CRLF라
+   먼저 LF로 맞춘다 — CR이 <br /> 앞에 남으면 HTML 파서가 LF로 바꾸고 pre-wrap이 한 번 더 줄을 바꾼다. */
 function htmlAnswerBody(body: string) {
   const lines = body
+    .replace(/\r\n?/g, '\n')
     .split('\n')
     .map((line) => escapeHtml(line))
     .join('<br />');
-  return `<tr><td style="padding:0 24px 12px 24px;font-size:14px;line-height:1.8;color:${INK};">${lines}</td></tr>`;
+  return `<tr><td style="padding:0 24px 12px 24px;font-size:14px;line-height:1.8;color:${INK};white-space:pre-wrap;word-break:break-word;">${lines}</td></tr>`;
 }
 
 /**

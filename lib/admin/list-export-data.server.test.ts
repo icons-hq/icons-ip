@@ -252,6 +252,19 @@ describe('화면별 로더 재사용', () => {
     expect(sheet.rows).toHaveLength(1500);
   });
 
+  /* 화면(sales/claims/[claimType])은 유형별 사유 필터 규칙으로 그 유형에 생길 수 없는 사유를 '전체'로 돌린다(R7).
+     엑셀도 같은 조건으로 읽어야 화면과 파일의 건수가 갈라지지 않는다. */
+  it.each([
+    ['claims-cancels', 'cancel', 'defect', 'all'],
+    ['claims-returns', 'return', 'staff:other', 'all'],
+    ['claims-exchanges', 'exchange', 'defect', 'defect'],
+  ] as const)('%s 엑셀은 화면과 같은 유형별 사유 필터 규칙을 쓴다', async (screen, claimType, reasonType, expected) => {
+    mocks.claims.mockResolvedValue({ rows: [], total: 0, claimType, counts: {}, filters: {}, pageSize: 100 });
+    const sheet = await loadAdminListExportSheet(screen, { stage: 'all', reasonType }, new Date());
+    expect(mocks.claims).toHaveBeenCalledWith(claimType, expect.objectContaining({ reasonType: expected, page: 1 }), { pageSize: 100, includeCounts: false });
+    expect(sheet.filters).toMatchObject({ reasonType: expected });
+  });
+
   it('취소 화면은 배송지·운송장을 읽지 않는다', async () => {
     mocks.claims.mockResolvedValue({ rows: [], total: 0, claimType: 'cancel', counts: {}, filters: {}, pageSize: 100 });
     await loadAdminListExportSheet('claims-cancels', {}, new Date());

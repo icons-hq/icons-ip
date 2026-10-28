@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { parseGoodsSalesQuote, parseGoodsSalesPrecheckoutQuote, goodsSalesQuoteProblem } from './goods-sales';
+import { parseGoodsSalesQuote, parseGoodsSalesPrecheckoutQuote, goodsSalesQuoteProblem, quoteLineOptionLimitMessage } from './goods-sales';
 import { goodsSalesPrecheckoutQuote as precheckout } from '@/test/fixtures/goods-sales-precheckout';
 import { parseAddressGoodsSalesQuote } from './shipping-regions';
 
@@ -48,6 +48,8 @@ describe('authoritative goods sales quote', () => {
     const blocked = parseGoodsSalesQuote({ ...quote, coupon: { ...coupon, discount: 0, reason: 'coupon_first_purchase_only' } });
     expect(blocked).not.toBeNull();
     expect(goodsSalesQuoteProblem(blocked!)).toContain('쿠폰');
+    // R25 이후 주문서에서도 쿠폰을 바꿀 수 있다 — 장바구니로 돌려보내지 않는다.
+    expect(goodsSalesQuoteProblem(blocked!)).toBe('선택한 쿠폰의 적용 조건이 바뀌었어요. 쿠폰을 다시 선택하거나 적용을 해제해주세요.');
   });
 });
 
@@ -82,5 +84,37 @@ describe('precheckout product conditions', () => {
       { ...precheckout, nextChangeAt: precheckout.calculatedAt },
     ];
     for (const value of invalid) expect(parseGoodsSalesPrecheckoutQuote(value)).toBeNull();
+  });
+});
+
+/* D5② 랜덤 판매·D7② 옵션별 구매 제한 — legacy 견적 line의 optionSaleMode·optionLimit. */
+describe('옵션 판매 방식·옵션별 구매 제한 견적', () => {
+  const limit = { orderMaxQty: 3, memberMaxQty: 5, memberReservedQty: 4, memberRemainingQty: 1, reason: null };
+  const withLine = (line: Record<string, unknown>) => ({ ...quote, lines: [{ ...quote.lines[0], ...line }] });
+
+  it('판매 방식과 옵션 한도를 line에 싣고, 망가진 값은 견적 전체를 버린다', () => {
+    const parsed = parseGoodsSalesQuote(withLine({ optionSaleMode: 'random', optionLimit: { ...limit, orderMaxQty: null, memberMaxQty: null, memberReservedQty: null, memberRemainingQty: null } }));
+    expect(parsed?.lines[0]).toMatchObject({ optionSaleMode: 'random', optionLimit: { orderMaxQty: null, reason: null } });
+    expect(parseGoodsSalesQuote(withLine({ optionSaleMode: 'select', optionLimit: limit }))?.lines[0].optionLimit).toEqual(limit);
+    expect(parseGoodsSalesQuote(withLine({ optionSaleMode: 'lucky' }))).toBeNull();
+    expect(parseGoodsSalesQuote(withLine({ optionLimit: { ...limit, memberRemainingQty: 3 } }))).toBeNull();
+    expect(parseGoodsSalesQuote(withLine({ optionLimit: { ...limit, reason: 'unknown' } }))).toBeNull();
+    /* 사유는 같은 line의 한도와 맞아야 한다 — 한도가 없는 사유는 받지 않는다. */
+    expect(parseGoodsSalesQuote(withLine({ optionLimit: { ...limit, orderMaxQty: null, reason: 'option_order_limit_exceeded' } }))).toBeNull();
+    expect(parseGoodsSalesQuote(withLine({ optionLimit: { orderMaxQty: 1, memberMaxQty: null, memberReservedQty: null, memberRemainingQty: null,
+      reason: 'option_member_limit_exceeded' } }))).toBeNull();
+    /* 옛 견적(키 없음)은 그대로 받는다. */
+    expect(parseGoodsSalesQuote(quote)?.lines[0].optionLimit).toBeUndefined();
+  });
+
+  it('옵션 한도를 넘긴 line이 있으면 주문을 막고 품목 줄은 확정 카피로 말한다', () => {
+    const order = parseGoodsSalesQuote(withLine({ optionLimit: { ...limit, orderMaxQty: 1, reason: 'option_order_limit_exceeded' } }))!;
+    expect(goodsSalesQuoteProblem(order)).toBe('한 번에 주문할 수 있는 수량이 정해진 옵션이 있어요. 장바구니에서 수량을 다시 확인해주세요.');
+    expect(quoteLineOptionLimitMessage(order.lines[0], '파랑')).toBe("'파랑'은 한 번에 1개까지 주문할 수 있습니다.");
+    const member = parseGoodsSalesQuote(withLine({ optionLimit: { ...limit, reason: 'option_member_limit_exceeded' } }))!;
+    expect(goodsSalesQuoteProblem(member)).toContain('1인당 구매 수량');
+    expect(quoteLineOptionLimitMessage(member.lines[0], '파랑')).toBe("'파랑'은 1인당 5개까지 구매할 수 있습니다.");
+    expect(quoteLineOptionLimitMessage(parseGoodsSalesQuote(withLine({ optionLimit: limit }))!.lines[0], '파랑')).toBeNull();
+    expect(quoteLineOptionLimitMessage(undefined, '파랑')).toBeNull();
   });
 });

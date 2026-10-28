@@ -30,6 +30,15 @@ insert into public.catalog_category_erp_mappings(category_id,erp_code,erp_name,s
  ('00000000-0000-4000-8000-000000071112','ERP-ARCH','보관 분류','erp-smoke',now(),'00000000-0000-4000-8000-000000071101');
 update public.catalog_categories set archived_at=now() where id='00000000-0000-4000-8000-000000071112';
 
+-- R9 전체 경로 자동 연결용 트리. 같은 말단 이름('점착메모지')이 다른 경로에도 있다.
+insert into public.catalog_categories(id,code,name,parent_id,depth) values
+ ('00000000-0000-4000-8000-000000071120','erp-path-root','경로검증문구',null,1),
+ ('00000000-0000-4000-8000-000000071121','erp-path-memo','메모/수첩','00000000-0000-4000-8000-000000071120',2),
+ ('00000000-0000-4000-8000-000000071122','erp-path-sticky','점착 메모지','00000000-0000-4000-8000-000000071121',3),
+ ('00000000-0000-4000-8000-000000071123','erp-path-other','경로검증다른',null,1),
+ ('00000000-0000-4000-8000-000000071124','erp-path-other-memo','메모/수첩','00000000-0000-4000-8000-000000071123',2),
+ ('00000000-0000-4000-8000-000000071125','erp-path-other-sticky','점착메모지','00000000-0000-4000-8000-000000071124',3);
+
 -- 실행 권한은 인증 사용자에게만 열고, 테이블 직접 쓰기는 누구에게도 열지 않는다.
 select 1/case when
   not has_function_privilege('anon','public.admin_import_erp_items(jsonb)','execute')
@@ -283,6 +292,43 @@ select 1/case when
   and (select count(*) from public.audit_log where action='admin.erp_items.category_mapping_updated'
     and actor_id='00000000-0000-4000-8000-000000071101' and target='erp_category_mappings:문구 > 포토카드')=2
 then 1 else 0 end as assert_erp_audit_log;
+
+-- R9: 따로 연결하지 않은 ERP 분류는 정본 매핑이 없으면 `>`로 나눈 전체 경로가 같은 활성 말단 하나에 자동 연결된다.
+-- 이름의 '/'는 구분자가 아니고 공백은 무시한다. 말단 이름만 같거나, 말단이 아니거나, 없는 경로는 '연결 필요'로 남는다.
+select public.admin_import_erp_items(jsonb_build_array(
+  jsonb_build_object('code','PATH-1','name','경로 일치','category','경로검증문구>메모/수첩>점착메모지'),
+  jsonb_build_object('code','PATH-2','name','경로 공백','category',' 경로검증문구 > 메모/수첩 >  점착 메모지 '),
+  jsonb_build_object('code','PATH-3','name','말단 이름만','category','점착메모지'),
+  jsonb_build_object('code','PATH-4','name','중간 경로','category','경로검증문구>메모/수첩'),
+  jsonb_build_object('code','PATH-5','name','없는 경로','category','경로검증문구>메모/수첩>스프링노트'),
+  jsonb_build_object('code','PATH-6','name','슬래시 분리 아님','category','경로검증문구>메모>수첩>점착메모지')
+))->>'inserted' as path_inserted \gset
+select 1/case when :'path_inserted'='6'
+  and (select mapped_category_id from public.admin_search_erp_items('PATH-1',8) limit 1)='00000000-0000-4000-8000-000000071122'
+  and (select mapped_category_id from public.admin_search_erp_items('PATH-2',8) limit 1)='00000000-0000-4000-8000-000000071122'
+  and (select mapped_category_id from public.admin_search_erp_items('PATH-3',8) limit 1) is null
+  and (select mapped_category_id from public.admin_search_erp_items('PATH-4',8) limit 1) is null
+  and (select mapped_category_id from public.admin_search_erp_items('PATH-5',8) limit 1) is null
+  and (select mapped_category_id from public.admin_search_erp_items('PATH-6',8) limit 1) is null
+  and public.admin_list_erp_items('PATH-1',0,20)->'items'->0->>'mapped_category_id'='00000000-0000-4000-8000-000000071122'
+  and (select category_id from public.admin_list_erp_categories() where erp_category='경로검증문구>메모/수첩>점착메모지') is null
+  and (select fallback_category_id from public.admin_list_erp_categories() where erp_category='경로검증문구>메모/수첩>점착메모지')='00000000-0000-4000-8000-000000071122'
+  and (select fallback_category_id from public.admin_list_erp_categories() where erp_category='점착메모지') is null
+  and not exists(select 1 from public.erp_category_mappings where erp_category like '경로검증%')
+then 1 else 0 end as assert_erp_full_path_auto_link;
+-- ERP 품목 화면에서 다른 말단을 골라 저장하면 그 연결이 먼저이고, 해제하면 경로 연결로 돌아간다. 말단을 보관하면 연결이 빠진다.
+select public.admin_set_erp_category_mapping('경로검증문구>메모/수첩>점착메모지','00000000-0000-4000-8000-000000071125')->>'changed' as path_override \gset
+select 1/case when :'path_override'='true'
+  and (select mapped_category_id from public.admin_search_erp_items('PATH-1',8) limit 1)='00000000-0000-4000-8000-000000071125'
+  and (select mapped_category_id from public.admin_search_erp_items('PATH-2',8) limit 1)='00000000-0000-4000-8000-000000071122'
+then 1 else 0 end as assert_erp_path_link_editable;
+select public.admin_set_erp_category_mapping('경로검증문구>메모/수첩>점착메모지',null)->>'changed' as path_override_cleared \gset
+reset role;
+update public.catalog_categories set archived_at=now() where id='00000000-0000-4000-8000-000000071122';
+set local role authenticated;
+select 1/case when :'path_override_cleared'='true'
+  and (select mapped_category_id from public.admin_search_erp_items('PATH-1',8) limit 1) is null
+then 1 else 0 end as assert_erp_path_link_needs_active_leaf;
 
 -- 비스태프: 직접 조회는 RLS가 비우고, 모든 RPC는 함수 가드에서 거절한다.
 select set_config('request.jwt.claim.sub','00000000-0000-4000-8000-000000071102',true);

@@ -722,7 +722,9 @@ describe('GoodDetail', () => {
         expectedShipDate: '2026-10-10', calculatedAt: '2026-09-10T00:00:00Z', nextChangeAt: '2026-09-30T00:00:00Z' } }] } });
     const section = html.slice(html.indexOf('pdp-shipping-heading'), html.indexOf('pdp-return-heading'));
     expect(section).toContain('2026년 10월 10일 발송 예정');
-    expect(section).toContain('같은 출고지');
+    // R26: 고객 화면은 출고지 대신 배송 묶음·택배사로 말한다(GoodAdditionalInfo 예약 안내).
+    expect(section).toContain('같은 배송 묶음의 일반 굿즈와 예약 굿즈를 함께 주문하면 가장 늦은 예정일에 함께 발송합니다.');
+    expect(section).not.toContain('출고지');
     expect(section).not.toContain(SHIPPING_PERIOD_NOTICE);
   });
 

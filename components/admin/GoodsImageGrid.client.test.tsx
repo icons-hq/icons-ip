@@ -73,3 +73,22 @@ it('변경 없음과 편집 취소는 파일과 상품 경로를 바꾸지 않�
   button('대표 이미지 사진 편집').props.onClick?.(); editor().props.onApply?.(null); button('대표 이미지 사진 편집').props.onClick?.(); editor().props.onCancel?.(); await settle();
   expect(path()).toBe(original); expect(mocks.upload).not.toHaveBeenCalled(); expect(mocks.preview).not.toHaveBeenCalled();
 });
+/* R19(MD-0030) 측정: 10장을 한 번에 올리면 커밋마다 10개 자리 전부를 상품 편집기 미리보기로 다시 알려 편집기 전체가
+   업로드 진행마다 다시 렌더됐다(시작 1회 + 완료 10회 = 11회 × 10자리 = 110회). 바뀐 자리만 알리면 시작 때 10회뿐이다. */
+it('10장 업로드는 미리보기가 실제로 바뀐 자리만 한 번씩 알리고 업로드 완료는 편집기를 다시 그리지 않는다', async () => {
+  hooks.states = []; hooks.refs = []; hooks.memos = []; hooks.effects = []; hooks.changed = [];
+  const empty = { ...props, initialPaths: [], initialUrls: [] };
+  const renderEmpty = () => { hooks.stateIndex = 0; hooks.refIndex = 0; hooks.memoIndex = 0; hooks.effectIndex = 0; return GoodsImageGrid(empty); };
+  renderEmpty(); effects(); auth(); mocks.preview.mockClear();
+  let blob = 0; vi.mocked(URL.createObjectURL).mockImplementation(() => `blob:${++blob}`);
+  let uploaded = 0; mocks.upload.mockImplementation(async () => ({ ok: true, imagePath: `public-media/catalog/good/99000000-0000-4000-8000-0000000001${String(++uploaded).padStart(2, '0')}.png` }));
+  const files = Array.from({ length: 10 }, (_, index) => new File([`f${index}`], `f${index}.png`, { type: 'image/png' }));
+  const input = all(renderEmpty()).find(item => item.type === 'input' && item.props['aria-label'] === '대표 이미지 추가')!;
+  (input.props as unknown as { onChange: (event: unknown) => void }).onChange({ currentTarget: { files, value: 'x' } });
+  for (let i = 0; i < 400; i++) await Promise.resolve();
+  expect(mocks.upload).toHaveBeenCalledTimes(10);
+  const paths = all(renderEmpty()).filter(item => item.type === 'input' && typeof item.props.name === 'string' && /^(imagePath|galleryPath\d)$/.test(item.props.name)).map(item => item.props.value);
+  expect(paths.filter(Boolean)).toHaveLength(10);
+  expect(mocks.preview).toHaveBeenCalledTimes(10);
+  expect(Math.max(...mocks.preview.mock.invocationCallOrder)).toBeLessThan(mocks.upload.mock.invocationCallOrder[0]);
+});

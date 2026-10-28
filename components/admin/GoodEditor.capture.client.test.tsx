@@ -9,6 +9,16 @@ vi.mock('react', async () => ({ ...await vi.importActual<typeof import('react')>
   useState: (initial: unknown) => { const index = hooks.index++; if (!(index in hooks.values)) hooks.values[index] = typeof initial === 'function' ? initial() : initial; return [hooks.values[index], (value: unknown) => { hooks.values[index] = typeof value === 'function' ? value(hooks.values[index]) : value; }]; },
   useRef: (initial: unknown) => { const index = hooks.index++; return hooks.values[index] ??= { current: initial }; },
   useCallback: (callback: unknown) => callback,
+  /* 의존값이 그대로면 이전 값을 돌려준다(R19 미리보기 재계산 검증). */
+  useMemo: (factory: () => unknown, deps: unknown[]) => {
+    const index = hooks.index++;
+    const slot = hooks.values[index] as { deps: unknown[]; value: unknown } | undefined;
+    if (slot && slot.deps.length === deps.length && slot.deps.every((dep, position) => Object.is(dep, deps[position]))) return slot.value;
+    const value = factory(); hooks.values[index] = { deps, value }; return value;
+  },
+  useDeferredValue: (value: unknown) => value,
+  /* 편집기 밖 provider(등록 화면 섹션·펼침 상태)가 없는 단독 렌더다. */
+  useContext: () => null,
   useEffect: (callback: () => void) => { hooks.jobs.push(callback); },
 }));
 vi.mock('./useAdminLocalAutosave', () => ({ useAdminLocalAutosave: () => ({ snapshot: {}, scopeKey: 'capture-test',
@@ -16,8 +26,22 @@ vi.mock('./useAdminLocalAutosave', () => ({ useAdminLocalAutosave: () => ({ snap
   onSubmitCapture: mocks.submit, saveDraft: mocks.saveLocal, discard: vi.fn(), restore: vi.fn(),
 }) }));
 vi.mock('@/app/admin/goods-draft-actions', () => ({ saveGoodsDraftAction: mocks.saveServer }));
+const sanitize = vi.hoisted(() => ({ spy: null as null | ReturnType<typeof vi.fn> }));
+const preview = vi.hoisted(() => ({ spy: null as null | ReturnType<typeof vi.fn> }));
+vi.mock('@/lib/admin/good-editor', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/admin/good-editor')>('@/lib/admin/good-editor');
+  preview.spy = vi.fn(actual.buildGoodEditorPreview);
+  return { ...actual, buildGoodEditorPreview: preview.spy };
+});
+vi.mock('@/lib/goods-description', async () => {
+  const actual = await vi.importActual<typeof import('@/lib/goods-description')>('@/lib/goods-description');
+  sanitize.spy = vi.fn(actual.sanitizeGoodsDescription);
+  return { ...actual, sanitizeGoodsDescription: sanitize.spy };
+});
 import { GoodEditor } from './GoodEditor';
 import { GoodsAttributeEditor } from './GoodsAttributeEditor';
+import { GoodsImageGrid } from './GoodsImageGrid';
+import { GoodWorkspaceErrors } from './GoodWorkspace';
 import { createGoodEditorDraft } from '@/lib/admin/good-editor';
 
 type Element = ReactElement<Record<string, unknown>>;
@@ -85,4 +109,53 @@ it('외부 잠금 중 프로그램 제출과 서버 초안 임시저장을 막�
   expect(preventDefault).toHaveBeenCalledOnce(); expect(mocks.submit).not.toHaveBeenCalled();
   const save = tree.find(node => node.type === 'button' && text(node.props.children as ReactNode) === '임시저장')!;
   await (save.props.onClick as () => Promise<void>)(); expect(mocks.saveServer).not.toHaveBeenCalled(); expect(h.reads).not.toHaveBeenCalled();
+});
+
+/* 10/27 회의 R19 — 업로드 진행·안내 같은 상태 변화마다 상세 HTML 정리와 공개 미리보기를 다시 만들지 않는다. */
+it('입력이 그대로면 다시 그려도 상세 HTML 정리·미리보기를 다시 계산하지 않고, 같은 이미지 알림은 상태를 바꾸지 않는다', () => {
+  const htmlGood = { ...good, descriptionFormat: 'html' as const, description: '<p>저장된 본문</p>' };
+  const h = setup(false, false, htmlGood);
+  expect(sanitize.spy).toHaveBeenCalled();
+  sanitize.spy!.mockClear(); preview.spy!.mockClear();
+  let tree = h.render(); tree = h.render();
+  expect(sanitize.spy).not.toHaveBeenCalled();
+  expect(preview.spy).not.toHaveBeenCalled();
+  const notify = tree.find(node => node.type === GoodsImageGrid)!.props.onPreviewChange as (name: string, url: string | null) => void;
+  notify('imagePath', htmlGood.imageUrl!); notify('galleryPath0', null); tree = h.render();
+  expect(preview.spy).not.toHaveBeenCalled();
+  notify('imagePath', 'blob:new-preview'); tree = h.render();
+  expect(preview.spy).toHaveBeenCalledOnce();
+  h.entries.set('description', '<p>바뀐 본문</p>'); h.capture(); h.render();
+  expect(sanitize.spy).toHaveBeenCalled();
+});
+
+/*
+ * 리뷰 T3a-6 — 옵션별 구매 제한 표의 입력은 이름 없이(aria-label만) 옵션 행 JSON으로 제출된다. 브라우저 검증에 걸리면
+ * 'form'으로 묶여 카테고리로 연결됐다. data-error-field로 구매 제한 칸에 붙이고 보이는 이름(aria-label)으로 안내한다.
+ */
+it('이름 없는 옵션별 제한 입력의 브라우저 검증 오류를 구매 제한 칸에 보이는 이름으로 붙인다', () => {
+  class FakeElement {
+    parentElement = null; hidden = false; labels: { textContent: string }[] = [];
+    willValidate = true; validity = { valid: false, customError: false };
+    scrollIntoView = vi.fn(); focus = vi.fn();
+    constructor(public name: string, public dataset: Record<string, string>, private label: string, public validationMessage: string) {}
+    getAttribute(attribute: string) { return attribute === 'aria-label' ? this.label : null; }
+    closest() { return null; }
+  }
+  vi.stubGlobal('HTMLInputElement', FakeElement); vi.stubGlobal('HTMLSelectElement', class {}); vi.stubGlobal('HTMLTextAreaElement', class {}); vi.stubGlobal('HTMLDetailsElement', class {});
+  const h = setup(false, false, null);
+  const first = new FakeElement('', { errorField: 'optionLimits' }, '빨강 최대 구매수량(주문당)', '값은 1 이상이어야 합니다.');
+  const second = new FakeElement('', { errorField: 'optionLimits' }, '파랑 1인 최대 구매수량', '유효한 값을 입력하세요.');
+  const unnamed = new FakeElement('', {}, '', '값을 입력하세요.');
+  const errors = (tree: Element[]) => tree.find(node => node.type === GoodWorkspaceErrors)!.props.errors;
+  const invalid = (tree: Element[], elements: FakeElement[]) => (tree.find(node => node.type === 'form')!.props.onInvalidCapture as (event: unknown) => void)({ preventDefault: vi.fn(), currentTarget: { elements } });
+  invalid(h.render(), [first, second]);
+  let tree = h.render();
+  expect(errors(tree)).toMatchObject({ optionLimits: '빨강 최대 구매수량(주문당) 입력값을 확인해주세요. 값은 1 이상이어야 합니다.' });
+  expect(errors(tree)).not.toHaveProperty('form');
+  expect(first.focus).toHaveBeenCalled();
+  /* 이름도 오류 칸도 없는 입력은 지금처럼 form으로 남는다. */
+  invalid(tree, [unnamed]);
+  tree = h.render();
+  expect(errors(tree)).toMatchObject({ form: 'form 입력값을 확인해주세요. 값을 입력하세요.' });
 });

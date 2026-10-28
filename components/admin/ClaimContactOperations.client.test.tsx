@@ -17,7 +17,9 @@ vi.mock('react', async () => ({ ...await vi.importActual<typeof import('react')>
 }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: mocks.refresh }) }));
 vi.mock('@/lib/claim-contact/client', () => ({ fetchClaimContactContext: mocks.context, changeClaimContact: mocks.change,
-  readOrSealClaimContactOperation: mocks.read, recordClaimReshipmentV2: mocks.reship }));
+  readOrSealClaimContactOperation: mocks.read, recordClaimReshipmentV2: mocks.reship }));const busy = vi.hoisted(() => vi.fn());
+vi.mock('@/components/admin/screens/ClaimPreviewDialog', () => ({ useClaimPreviewBusy: busy }));
+
 vi.mock('@/lib/supabase/client', () => ({ createClient: () => ({ auth: { onAuthStateChange: (callback: typeof mocks.auth) => {
   mocks.auth = callback; return { data: { subscription: { unsubscribe() {} } } };
 } } }) }));

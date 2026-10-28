@@ -9,6 +9,7 @@ import {
 } from '@/lib/orders/claim-hold';
 import { ORDER_CLAIM_STAGE_LABELS, ORDER_CLAIM_TYPE_LABELS, ORDER_CLAIM_TYPE_SLUGS, type OrderClaimType } from '@/lib/orders/claims';
 import { formatOrderDateTime } from '@/lib/orders';
+import { useClaimPreviewBusy } from '@/components/admin/screens/ClaimPreviewDialog';
 
 export function ClaimHoldPanel({ initial, onClose }: { initial: ClaimHoldContext; onClose: () => void }) {
   const router = useRouter();
@@ -16,6 +17,7 @@ export function ClaimHoldPanel({ initial, onClose }: { initial: ClaimHoldContext
   const [note, setNote] = useState('');
   const [confirmed, setConfirmed] = useState(false);
   const [pending, setPending] = useState(false);
+  useClaimPreviewBusy(pending); /* 목록 위 클레임 팝업(R8)에서 기다리는 동안 팝업이 닫히지 않게 알린다. 팝업 밖에서는 아무 일도 하지 않는다. */
   const [uncertain, setUncertain] = useState(false);
   const [conflict, setConflict] = useState(false);
   const [receipt, setReceipt] = useState<ClaimHoldReceipt | null>(null);
@@ -131,6 +133,7 @@ export function ClaimHoldPanel({ initial, onClose }: { initial: ClaimHoldContext
 export function ClaimHoldControl({ claimId, claimType, held }: { claimId: string; claimType: OrderClaimType; held: boolean }) {
   const [context, setContext] = useState<ClaimHoldContext | null>(null);
   const [pending, setPending] = useState(false);
+  useClaimPreviewBusy(pending);
   const [error, setError] = useState('');
   const loading = useRef(false);
   async function open() {

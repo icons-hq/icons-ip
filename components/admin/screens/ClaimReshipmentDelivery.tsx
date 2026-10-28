@@ -6,9 +6,11 @@ import type { AdminClaimDetail } from '@/lib/admin/claims.server';
 import { adminFormRemountKey, preservedFormValues } from '@/lib/admin/form-state';
 import { adminClaimCopy } from '@/lib/admin/vocabulary';
 import { formatOrderDateTime } from '@/lib/orders';
+import { useClaimPreviewBusy } from './ClaimPreviewDialog';
 
 export function ClaimReshipmentDelivery({ claim }: { claim: AdminClaimDetail['claim'] }) {
   const [state, action, pending] = useActionState(recordOrderClaimReshipmentDeliveryAction, {});
+  useClaimPreviewBusy(pending); /* 목록 위 클레임 팝업(R8)에서 기다리는 동안 팝업이 닫히지 않게 알린다. 팝업 밖에서는 아무 일도 하지 않는다. */
   const restored = preservedFormValues(state, claim.id, { scopeKey: 'claimId' });
   if (claim.claimType !== 'exchange' || !claim.reshipTrackingNumber) return null;
   const canConfirm = claim.stage === 'completed' && Boolean(claim.reshipCarrier && claim.reshippedAt);
