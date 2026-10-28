@@ -12,10 +12,12 @@ const repoRoot = fileURLToPath(new URL('..', import.meta.url));
 const pipeline = yaml.load(
   await readFile(new URL('../.github/workflows/pipeline.yml', import.meta.url), 'utf8'),
 );
-const steps = pipeline.jobs.validate.steps;
-const stepNamed = (name) => steps.find((step) => step.name === name);
-const reuse = stepNamed('Reuse validation of the identical tree');
-const fullValidation = "steps.reuse.outputs.hit != 'true'";
+const { jobs } = pipeline;
+const planSteps = jobs['validate-plan'].steps;
+const stepNamed = (job, name) => jobs[job].steps.find((step) => step.name === name);
+const reuse = stepNamed('validate-plan', 'Reuse validation of the identical tree');
+const fullValidation = "needs.validate-plan.outputs.reuse_hit != 'true'";
+const checkJobs = ['validate-app', 'validate-db'];
 const evidenceEvents = "github.event_name == 'pull_request' || github.event_name == 'merge_group'";
 const repositoryId = '1271792989';
 
@@ -51,9 +53,14 @@ function workflowRun(id, overrides = {}) {
   };
 }
 
-function runReuse(api) {
-  const directory = mkdtempSync(path.join(tmpdir(), 'validation-reuse-'));
+function temporaryDirectory(prefix) {
+  const directory = mkdtempSync(path.join(tmpdir(), prefix));
   temporaryDirectories.push(directory);
+  return directory;
+}
+
+function runReuse(api) {
+  const directory = temporaryDirectory('validation-reuse-');
   const curl = path.join(directory, 'curl');
   writeFileSync(curl, fakeCurl);
   chmodSync(curl, 0o755);
@@ -89,44 +96,80 @@ function runReuse(api) {
   };
 }
 
+function requireEveryValidationJob(results) {
+  const directory = temporaryDirectory('validation-gate-');
+  const summary = path.join(directory, 'summary');
+  writeFileSync(summary, '');
+  const result = spawnSync(
+    'bash',
+    ['--noprofile', '--norc', '-eo', 'pipefail', '-c', stepNamed('validate', 'Require every validation job').run],
+    {
+      encoding: 'utf8',
+      env: {
+        ...process.env,
+        PLAN_RESULT: 'success',
+        REUSE_HIT: '',
+        APP_RESULT: 'success',
+        DB_RESULT: 'success',
+        ...results,
+        GITHUB_STEP_SUMMARY: summary,
+      },
+    },
+  );
+  return { status: result.status, stdout: result.stdout, summary: readFileSync(summary, 'utf8') };
+}
+
 describe('main validation reuse contract', () => {
   it('looks for evidence only on push to main, right after checkout', () => {
     expect(reuse.id).toBe('reuse');
     expect(reuse.if).toBe("github.event_name == 'push' && github.ref == 'refs/heads/main'");
     expect(reuse.env).toEqual({ GH_TOKEN: '${{ github.token }}' });
-    expect(steps.indexOf(reuse)).toBe(steps.indexOf(stepNamed('Check out repository')) + 1);
-    expect(pipeline.jobs.validate.permissions).toEqual({ actions: 'read', contents: 'read' });
+    const checkout = stepNamed('validate-plan', 'Check out repository');
+    expect(checkout.if).toBe(reuse.if);
+    expect(planSteps.indexOf(reuse)).toBe(planSteps.indexOf(checkout) + 1);
+    expect(planSteps.at(-1)).toBe(reuse);
+    expect(jobs['validate-plan'].permissions).toEqual({ actions: 'read', contents: 'read' });
+    expect(jobs['validate-plan'].outputs).toEqual({ reuse_hit: '${{ steps.reuse.outputs.hit }}' });
   });
 
-  it('skips every check after the reuse step only when evidence was found', () => {
-    const exempt = new Set([
-      'Check admin guide changelog',
-      'Record validated tree',
-      'Upload validated tree evidence',
-    ]);
-    const checks = steps.slice(steps.indexOf(reuse) + 1).filter((step) => !exempt.has(step.name));
-
-    expect(checks.map((step) => step.name)).toEqual(expect.arrayContaining([
-      'Run lint', 'Run TypeScript checks', 'Run tests', 'Build application',
-      'Apply local migrations', 'Check manager permission boundaries', 'Run database smoke tests',
-      'Lint local database',
-    ]));
-    for (const step of checks) {
-      expect(step.if, step.name).toContain(fullValidation);
+  it('skips every check job only when evidence was found', () => {
+    for (const name of checkJobs) {
+      expect(jobs[name].needs, name).toBe('validate-plan');
+      expect(jobs[name].if, name).toBe(fullValidation);
     }
-    expect(stepNamed('Verify manager boundaries after legacy fixtures').if).toBe(
-      `always() && ${fullValidation}`,
+    const checks = checkJobs.flatMap((name) => jobs[name].steps.map((step) => step.name));
+    expect(checks).toEqual(expect.arrayContaining([
+      'Run lint', 'Run TypeScript checks', 'Run tests', 'Build application',
+      'Apply local migrations', 'Pause automatic order confirmation in the CI database',
+      'Run database test shard', 'Lint local database',
+    ]));
+    expect(stepNamed('validate-app', 'Check admin guide changelog').if).toBe(
+      "github.event_name == 'pull_request'",
     );
-    expect(stepNamed('Check admin guide changelog').if).toBe("github.event_name == 'pull_request'");
   });
 
-  it('records the merge tree only after a PR or merge queue run passes every check', () => {
-    const record = stepNamed('Record validated tree');
-    const upload = stepNamed('Upload validated tree evidence');
+  it('records the merge tree only after a PR or merge queue run passes every check job', () => {
+    const validate = jobs.validate;
+    const gate = stepNamed('validate', 'Require every validation job');
+    const checkout = stepNamed('validate', 'Check out repository');
+    const record = stepNamed('validate', 'Record validated tree');
+    const upload = stepNamed('validate', 'Upload validated tree evidence');
 
-    expect(steps.slice(-2)).toEqual([record, upload]);
-    expect(record.if).toBe(evidenceEvents);
-    expect(upload.if).toBe(evidenceEvents);
+    // main의 reuse step은 이 집계 job의 이름으로 증거 run을 판정한다.
+    expect(validate.name).toBe('validate');
+    expect(reuse.run).toContain('.name == "validate" and .conclusion == "success"');
+    expect(validate.needs).toEqual(['validate-plan', ...checkJobs]);
+    expect(validate.if).toBe('${{ !cancelled() }}');
+    expect(validate.steps).toEqual([gate, checkout, record, upload]);
+    expect(gate.env).toEqual({
+      PLAN_RESULT: '${{ needs.validate-plan.result }}',
+      REUSE_HIT: '${{ needs.validate-plan.outputs.reuse_hit }}',
+      APP_RESULT: '${{ needs.validate-app.result }}',
+      DB_RESULT: '${{ needs.validate-db.result }}',
+    });
+    for (const step of [checkout, record, upload]) {
+      expect(step.if, step.name).toBe(evidenceEvents);
+    }
     expect(record.run).toContain("git rev-parse 'HEAD^{tree}'");
     expect(record.run).toContain('VALIDATED_TREE=$tree');
     expect(upload.uses).toBe('actions/upload-artifact@v7');
@@ -137,6 +180,28 @@ describe('main validation reuse contract', () => {
       overwrite: true,
     });
     expect(reuse.run).toContain('actions/artifacts?name=validated-tree-${tree}');
+  });
+
+  it('passes the aggregate only when every check job passed or main reuse skipped them', () => {
+    expect(requireEveryValidationJob({}).status).toBe(0);
+    const reused = requireEveryValidationJob({
+      REUSE_HIT: 'true',
+      APP_RESULT: 'skipped',
+      DB_RESULT: 'skipped',
+    });
+    expect(reused.status).toBe(0);
+    expect(reused.summary).toContain('Validation reused');
+
+    for (const results of [
+      { DB_RESULT: 'failure' },
+      { APP_RESULT: 'failure' },
+      { DB_RESULT: 'cancelled' },
+      { APP_RESULT: 'skipped', DB_RESULT: 'skipped' },
+      { PLAN_RESULT: 'failure', APP_RESULT: 'skipped', DB_RESULT: 'skipped' },
+      { PLAN_RESULT: 'failure', REUSE_HIT: 'true' },
+    ]) {
+      expect(requireEveryValidationJob(results).status, JSON.stringify(results)).toBe(1);
+    }
   });
 
   it('reuses only a same-repository PR or merge queue run whose latest validate passed', () => {

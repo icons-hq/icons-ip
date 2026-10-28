@@ -21,7 +21,8 @@ function findStep(job, name) {
 describe('Supabase preview branch workflow contract', () => {
   it('revalidates every edit while only base retargets redeploy preview', async () => {
     const workflow = await loadWorkflow(pipelinePath);
-    const validate = workflow.jobs.validate;
+    const validationJobs = ['validate-plan', 'validate-app', 'validate-db', 'validate']
+      .map((name) => workflow.jobs[name]);
 
     expect(workflow.on.pull_request.types).toEqual([
       'opened',
@@ -29,7 +30,10 @@ describe('Supabase preview branch workflow contract', () => {
       'reopened',
       'edited',
     ]);
-    expect(validate.if).toBeUndefined();
+    // 검증 job은 제목·본문 edited 이벤트도 걸러내지 않는다.
+    for (const job of validationJobs) {
+      expect(job.if ?? '', job.name).not.toContain('github.event');
+    }
     expect(workflow.jobs['deploy-supabase-preview'].if).toContain("github.event.action != 'edited'");
     expect(workflow.jobs['deploy-supabase-preview'].if).toContain('github.event.changes.base != null');
     expect(workflow.concurrency['cancel-in-progress']).toContain(
