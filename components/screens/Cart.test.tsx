@@ -249,6 +249,20 @@ describe('Cart 쿠폰 슬롯 (S7)', () => {
     expect(html).toContain('쿠폰 적용</button>');
   });
 
+  /* R25: 운영(legacy) 주문서도 같은 선택을 보이고, 배송비 쿠폰은 어느 화면에서도 받지 않는다 — 사실대로 안내한다. */
+  it('주문서에서도 바꿀 수 있다고 안내하고 배송비 쿠폰을 주문서로 미루지 않는다', () => {
+    const html = render([{ goodId: 'g13', variantId: DEFAULT_VARIANT, qty: 1 }], { selectedUserCouponId: null, coupons: [fix5k] });
+    expect(html).toContain('주문서에서도 바꿀 수 있어요.');
+    expect(html).not.toContain('배송비 쿠폰은 주문서에서 확인');
+  });
+
+  it('보유 쿠폰이 없으면 안내와 코드 입력만 둔다', () => {
+    const html = render([{ goodId: 'g13', variantId: DEFAULT_VARIANT, qty: 1 }], emptyCouponState);
+    expect(html).toContain('사용할 수 있는 쿠폰이 없어요.');
+    expect(html).toContain('id="cart-coupon-code"');
+    expect(html).not.toContain('id="cart-coupon-select"');
+  });
+
   it('적용된 쿠폰은 할인 행과 예상 총액에 반영된다', () => {
     mocks.quote = {...defaultQuote,totalFee:0,finalTotalFee:0,groups:[{...gimpoGroup,policySubtotal:60000,policyFee:0,totalFee:0,finalFee:0}]};
     mocks.coupon = { userCouponId: fix5k.id, couponCode: 'TEST-COUPON', eligibleSubtotal: 60000, discount: 5000, reason: null };

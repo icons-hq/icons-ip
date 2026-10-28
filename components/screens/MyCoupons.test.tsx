@@ -125,7 +125,10 @@ describe('MyCoupons 티켓 카드', () => {
   it('정책 안내 박스를 늘 남긴다', () => {
     const html = renderToStaticMarkup(<MyCoupons coupons={[]} />);
 
-    expect(html).toContain('중복 사용은 스토어 정책과 각 쿠폰의 허용 조건');
-    expect(html).toContain('설치비와 착불 운송비는 배송비 할인에서 제외');
+    /* R25: 운영 주문서(legacy)는 주문 1건에 굿즈 쿠폰 1장이고 배송비 쿠폰 선택을 받지 않는다 — 사실대로 안내한다. */
+    expect(html).toContain('장바구니와 주문서에서 보유 쿠폰을 고르거나 코드를 입력할 수 있어요.');
+    expect(html).toContain('한 주문에 굿즈 쿠폰 1장을 쓸 수 있어요.');
+    expect(html).toContain('배송비 쿠폰은 지금 주문에 쓸 수 없어요.');
+    expect(html).not.toContain('주문서에서 굿즈 쿠폰의 적용 순서');
   });
 });

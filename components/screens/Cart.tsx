@@ -2,13 +2,8 @@
 
 import Link from 'next/link';
 import { PendingOrderResolution } from '@/components/checkout/PendingOrderResolution';
-import { useMemo, useState, useTransition, type FormEvent } from 'react';
-import {
-  applyCouponAction,
-  applyCouponCodeAction,
-  clearCouponAction,
-  type CouponActionResult,
-} from '@/app/cart/coupon-actions';
+import { useMemo } from 'react';
+import { CouponPicker } from '@/components/checkout/CouponPicker';
 import { CartEmptyState } from '@/components/cart/CartEmptyState';
 import { CartSubheader } from '@/components/cart/CartSubheader';
 import { useCart, useReleaseUnpaidCartOrders } from '@/components/shell/CartProvider';
@@ -18,14 +13,7 @@ import { QuantityStepper } from '@/components/wc/QuantityStepper';
 import { WcButton } from '@/components/wc/WcButton';
 import type { CatalogSnapshot } from '@/lib/catalog';
 import { goodsImageBackground } from '@/lib/goods-image';
-import {
-  couponBenefitLabel,
-  couponConditionLabel,
-  couponDisplayState,
-  couponErrorNeedsPendingOrder,
-  couponExpiryLabel,
-  type UserCouponSummary,
-} from '@/lib/coupons';
+import { couponErrorNeedsPendingOrder } from '@/lib/coupons';
 import type { CartCouponState } from '@/lib/coupons.server';
 import type { Good, Ip } from '@/lib/data';
 import { krw } from '@/lib/format';
@@ -149,129 +137,6 @@ function CartLineRow({ line }: { line: CartLine }) {
       </div>
       <p className="wc-cart__line-total">{krw(good.price * qty)}</p>
     </li>
-  );
-}
-
-/* 쿠폰 select·코드 입력 (R-05 §1.5 문법 · S7).
- * 여기 상태는 전부 서버(cart_coupon_selections)에 있다 — 액션이 끝나면
- * revalidatePath('/cart') 가 목록·선택을 새로 내려준다. CartProvider 에는
- * 아무것도 넣지 않는다(DESIGN.md §11 동결). */
-function CartCouponSection({
-  appliedCoupon,
-  couponState,
-  eligibleSubtotal,
-}: {
-  appliedCoupon: UserCouponSummary | null;
-  couponState: CartCouponState;
-  eligibleSubtotal: number | null;
-}) {
-  const [pending, startTransition] = useTransition();
-  const [message, setMessage] = useState<string | null>(null);
-  const [pendingOrder, setPendingOrder] = useState(false);
-  const [code, setCode] = useState('');
-
-  const selectableCoupons = couponState.coupons.filter((held) => (
-    held.coupon.benefitKind !== 'shipping' && (couponDisplayState(held) === 'usable' || held.id === appliedCoupon?.id)
-  ));
-
-  function runAction(action: () => Promise<CouponActionResult>) {
-    setMessage(null);
-    setPendingOrder(false);
-    startTransition(async () => {
-      const result = await action();
-      setMessage(result.ok ? null : result.message ?? null);
-      setPendingOrder(!result.ok && result.pendingOrder === true);
-    });
-  }
-
-  function handleSelect(nextId: string) {
-    if (nextId === (appliedCoupon?.id ?? '')) return;
-    runAction(() => (nextId ? applyCouponAction(nextId) : clearCouponAction()));
-  }
-
-  function handleCodeSubmit(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-    if (!code.trim()) {
-      setMessage('쿠폰 코드를 입력해주세요.');
-      setPendingOrder(false);
-      return;
-    }
-    runAction(async () => {
-      const result = await applyCouponCodeAction(code);
-      if (result.ok) setCode('');
-      return result;
-    });
-  }
-
-  const belowMinimum = Boolean(
-    appliedCoupon && eligibleSubtotal !== null && eligibleSubtotal < appliedCoupon.coupon.minSubtotal,
-  );
-
-  return (
-    <div className="wc-cart__coupon-slot">
-      <p className="wc-cart__coupon-title" id="cart-coupon-title">쿠폰</p><p>굿즈 쿠폰을 미리 선택할 수 있어요. 중복 적용과 배송비 쿠폰은 주문서에서 확인해주세요.</p>
-
-      <label className="wc-cart__coupon-label" htmlFor="cart-coupon-select">보유 쿠폰</label>
-      <select
-        className="wc-cart__coupon-select"
-        disabled={pending}
-        id="cart-coupon-select"
-        onChange={(event) => handleSelect(event.target.value)}
-        value={appliedCoupon?.id ?? ''}
-      >
-        <option value="">쿠폰 선택 안 함</option>
-        {selectableCoupons.map((held) => (
-          <option key={held.id} value={held.id}>
-            {held.coupon.name} · {couponBenefitLabel(held.coupon)}
-          </option>
-        ))}
-      </select>
-
-      {appliedCoupon ? (
-        <dl className="wc-cart__coupon-detail">
-          <div><dt>혜택</dt><dd>{couponBenefitLabel(appliedCoupon.coupon)}</dd></div>
-          <div><dt>유효기간</dt><dd>{couponExpiryLabel(appliedCoupon)}</dd></div>
-          <div><dt>사용조건</dt><dd>{couponConditionLabel(appliedCoupon.coupon)}</dd></div>
-        </dl>
-      ) : null}
-
-      {belowMinimum ? (
-        <p className="wc-cart__coupon-warning" role="alert">
-          쿠폰 대상 굿즈의 최소 주문 금액 미달로 지금은 할인이 적용되지 않아요.
-        </p>
-      ) : null}
-
-      {appliedCoupon ? (
-        <button
-          className="wc-cart__coupon-clear"
-          disabled={pending}
-          onClick={() => runAction(() => clearCouponAction())}
-          type="button"
-        >
-          적용 해제
-        </button>
-      ) : null}
-
-      <form className="wc-cart__coupon-code" onSubmit={handleCodeSubmit}>
-        <label className="wc-sr-only" htmlFor="cart-coupon-code">쿠폰 코드</label>
-        <input
-          autoComplete="off"
-          className="wc-cart__coupon-input"
-          disabled={pending}
-          id="cart-coupon-code"
-          name="couponCode"
-          onChange={(event) => setCode(event.target.value)}
-          placeholder="쿠폰 코드 직접 입력"
-          type="text"
-          value={code}
-        />
-        <button className="wc-cart__coupon-apply" disabled={pending} type="submit">
-          쿠폰 적용
-        </button>
-      </form>
-
-      {message ? <p className="wc-cart__coupon-warning" role="alert">{message}{pendingOrder ? <PendingOrderResolution /> : null}</p> : null}
-    </div>
   );
 }
 
@@ -415,10 +280,12 @@ export function Cart({
               </p>)}
 
               {mode === 'server' ? (
-                <>{couponState.unavailable ? <p className="wc-cart__coupon-warning" role="alert">보유 쿠폰을 불러오지 못했습니다. 새로고침 후 다시 확인해주세요.</p> : null}<CartCouponSection
+                <>{couponState.unavailable ? <p className="wc-cart__coupon-warning" role="alert">보유 쿠폰을 불러오지 못했습니다. 새로고침 후 다시 확인해주세요.</p> : null}<CouponPicker
                   appliedCoupon={appliedCoupon}
                   couponState={couponState}
-                  eligibleSubtotal={!transactionActive && shipping.sales?.coupon?.userCouponId === appliedCoupon?.id ? shipping.sales?.coupon?.eligibleSubtotal ?? null : null}
+                  quote={transactionActive ? null : shipping.sales?.coupon ?? null}
+                  shippingCouponsAtCheckout={transactionActive}
+                  surface="cart"
                 /></>
               ) : (
                 <div className="wc-cart__coupon-slot">
