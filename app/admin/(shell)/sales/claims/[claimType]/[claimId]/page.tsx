@@ -4,15 +4,9 @@ import {
   adminClaimBackHref,
   adminClaimBasePath,
 } from '@/lib/admin/claims';
-import { loadAdminClaimDetail } from '@/lib/admin/claims.server';
+import { loadAdminClaimWorkspace } from '@/lib/admin/claim-preview.server';
 import { requireAdminScreenAccess } from '@/lib/admin/guard.server';
-import { getBusinessInfo } from '@/lib/legal/business-info.server';
-import { orderReferenceLabel } from '@/lib/orders';
-import {
-  buildKorpayCancellationForm,
-  orderClaimTypeForSlug,
-} from '@/lib/orders/claims';
-import { getShippingCarrierRegistry } from '@/lib/orders/shipment.server';
+import { orderClaimTypeForSlug } from '@/lib/orders/claims';
 
 /* 이 화면의 서버 액션은 결제사 취소를 바로 발행하고 결과를 조회로 확인한다
    (사전 조회·취소·사후 조회 각 8초 + DB). 페이지 단위 maxDuration이 액션 예산이다. */
@@ -34,26 +28,12 @@ export default async function AdminSalesClaimDetailPage({
   if (!UUID_PATTERN.test(claimId)) notFound();
 
   const query = await searchParams;
-  const [detail, carriers] = await Promise.all([
-    loadAdminClaimDetail(claimId),
-    getShippingCarrierRegistry(),
-  ]);
-  if (!detail) notFound();
+  /* 목록 위 팝업(?claimId=)과 같은 로더다(R8). */
+  const workspace = await loadAdminClaimWorkspace(claimId);
+  if (!workspace) notFound();
+  const { cancellationForm, carriers, detail } = workspace;
   /* 유형 전환 전의 링크도 현재 요청의 큐로 연결한다. */
   if (detail.claim.claimType !== claimType) redirect(`${adminClaimBasePath(detail.claim.claimType)}/${claimId}`);
-
-  /* 코페이 취소 접수는 API가 아니라 이메일이다(#208). 결제가 코페이일 때만
-     양식을 만든다 — 상호명이 비어 있으면 지어내지 않고 "확인 필요"로 남긴다. */
-  const cancellationForm = detail.payment?.provider === 'korpay' && detail.order
-    ? buildKorpayCancellationForm({
-      amount: detail.payment.amount,
-      merchantName: (await getBusinessInfo()).companyName.trim() || '확인 필요',
-      orderId: detail.order.id,
-      orderReference: orderReferenceLabel(detail.order.id, detail.order.orderNumber),
-      paidAt: detail.payment.createdAt,
-      reason: detail.claim.reason,
-    })
-    : null;
 
   return (
     <ClaimDetailScreen
