@@ -138,7 +138,8 @@ export function GoodWorkspaceNavigation() {
   useEffect(() => {
     const openHash = () => {
       const id = window.location.hash.slice(1);
-      if (id.startsWith('good-section-') || id.startsWith('good-operation-')) focusGoodWorkspaceTarget(id);
+      /* R15: 목록의 상품번호(공개 전 상품)는 #good-preview로 온다 — 접힌 공개 화면 미리보기를 연다. */
+      if (id.startsWith('good-section-') || id.startsWith('good-operation-') || id === 'good-preview') focusGoodWorkspaceTarget(id);
     };
     openHash();
     window.addEventListener('hashchange', openHash);
@@ -173,11 +174,6 @@ export function GoodOptionalFields({ id, title, summary, children, hasErrors = f
 
 export const GOOD_OPERATION_PLACEHOLDER_COPY = '상품을 저장하면 이 자리에서 바로 입력할 수 있습니다.';
 export const GOOD_UNSAVED_BASE_COPY = '위 기본 정보에 저장하지 않은 변경이 있습니다. 먼저 저장하세요.';
-/*
- * 공통 잠금 안내(GoodOperationDisabledNotice)를 패널 위에 보일 때 패널에 넘기는 이유. 패널은 disabledReason을 본문에
- * 다시 그리므로 같은 문장을 넘기면 한 패널에 이유가 두 번 보이고 두 번 읽힌다(리뷰 T3a-7). 잠금은 유지하고 위 안내만 가리킨다.
- */
-export const GOOD_OPERATION_LOCKED_POINTER = '위 안내를 확인한 뒤 저장할 수 있습니다.';
 
 /** 고정 저장 영역의 저장하기 버튼으로 포커스를 옮긴다(Enter로 바로 저장할 수 있게). */
 export function focusGoodWorkspaceSave() {

@@ -6,6 +6,8 @@ import { GOODS_HTML_MAX_LENGTH, sanitizeGoodsDescription } from '@/lib/goods-des
 import { GOODS_NOTICE_FIELDS } from '@/lib/goods-notice';
 import { GOOD_BADGES, GOOD_TYPES } from '@/lib/goods-taxonomy';
 import { GoodSection } from './GoodSection';
+import { groupGoodsEntryVisible } from '../GoodEditor';
+import { ADMIN_SCREENS, adminScreenForPath } from '@/lib/admin/navigation';
 import { commonTestOwnership } from '@/lib/admin/goods-group-common.test-fixtures';
 import { parseGoodsEditorOwnership } from '@/lib/admin/goods-group-common';
 import { GoodsKcTemplateProvider } from '../useGoodsKcTemplate';
@@ -320,6 +322,27 @@ describe('GoodSection', () => {
     expect(card(saved, 'kc')).toContain('별도 저장');
   });
 
+  /* 10/27 회의 D5② — 판매 방식(랜덤 판매) 패널은 예약판매 바로 앞에 두고, 등록 화면에는 같은 자리에 자리표시를 둔다. */
+  it('판매 방식 패널을 예약판매 바로 앞에 별도 저장 섹션으로 두고, 기본 입력 잠금 규칙을 다른 운영 패널과 같이 따른다', () => {
+    const props = { accountId: 'operator-1' };
+    const ids = (html: string) => [...html.matchAll(/<details id="good-operation-([a-z-]+)"/g)].map((match) => match[1]);
+    const card = (html: string, id: string) => { const start = html.indexOf(`id="good-operation-${id}"`); const next = html.indexOf('<details id="good-operation-', start); return html.slice(start, next < 0 ? undefined : next); };
+    const saved = renderGoodSection({ ...good, publishedAt: null }, {}, props);
+    expect(ids(saved).slice(ids(saved).indexOf('option-sale-mode'), ids(saved).indexOf('option-sale-mode') + 2)).toEqual(['option-sale-mode', 'preorders']);
+    expect(card(saved, 'option-sale-mode')).toContain('<summary>판매 방식<span>별도 저장</span></summary>');
+    expect(card(saved, 'option-sale-mode')).toContain('aria-label="판매 방식"');
+    /* 서버 렌더는 기본 입력 상태를 확인하는 중이라 잠긴다 — 다른 잠금 패널과 같은 공통 안내를 패널 맨 위에 보인다. */
+    expect(card(saved, 'option-sale-mode')).toMatch(/class="admin-good-workspace__disabled" role="status"><p>기본 상품의 입력 상태를 확인하고 있습니다.<\/p>/);
+
+    const create = renderGoodSection(null, {}, props);
+    expect(ids(create).slice(ids(create).indexOf('option-sale-mode'), ids(create).indexOf('option-sale-mode') + 2)).toEqual(['option-sale-mode', 'preorders']);
+    expect(card(create, 'option-sale-mode')).toContain('admin-good-workspace__operation--placeholder');
+    expect(card(create, 'option-sale-mode')).toContain('상품을 저장하면 이 자리에서 바로 입력할 수 있습니다.');
+    expect(card(create, 'option-sale-mode')).not.toMatch(/<input|<button|<form/);
+
+    expect(renderGoodSection({ ...good, archivedAt: '2026-10-01T00:00:00Z' })).not.toContain('id="good-operation-option-sale-mode"');
+  });
+
   it('등록 화면 섹션 저장 오류는 같은 자리 카드와 상단 요약에서 그 카드로 안내한다', () => {
     const html = renderGoodSection(null, { attempt: 1, errors: { workspacePreorders: '예약 활성화는 관리자 계정에서 할 수 있습니다. 상품은 저장되지 않았고 입력은 유지됩니다.', name: '이름 오류' } });
     const summary = html.slice(html.indexOf('aria-label="저장 오류 요약"')).split('</section>')[0];
@@ -509,6 +532,17 @@ describe('GoodSection', () => {
     expect(html).toContain('상품 등록');
     expect(html).not.toContain('groups/new?mode=assemble');
     expect(html).not.toContain('그룹상품 등록</a>');
+  });
+
+  /* R21: 편집기 탭의 그룹상품 등록 링크는 메뉴 숨김(navHidden)과 한 값으로 묶는다. 기존 그룹은 주소로 계속 열린다. */
+  it('그룹상품 등록 탭은 메뉴 숨김과 짝을 이루고, 숨겨도 그룹상품 화면은 주소로 열린다', () => {
+    const create = ADMIN_SCREENS.find((screen) => screen.id === 'goods-groups-create')!;
+    expect(create.navHidden).toBe(true);
+    expect(groupGoodsEntryVisible()).toBe(false);
+    expect(groupGoodsEntryVisible(ADMIN_SCREENS.map((screen) => screen.id === create.id ? { ...screen, navHidden: false } : screen))).toBe(true);
+    expect(groupGoodsEntryVisible(ADMIN_SCREENS.filter((screen) => screen.id !== create.id))).toBe(false);
+    expect(adminScreenForPath('/admin/catalog/groups/new?mode=assemble')?.id).toBe('goods-groups-create');
+    expect(adminScreenForPath('/admin/catalog/groups/11111111-1111-4111-8111-111111111111')?.id).toBe('goods-groups');
   });
 
   it('prefills gallery slots in stored order and keeps the detail image', () => {

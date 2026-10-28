@@ -8,6 +8,7 @@ import { Header } from './Header';
 import { AdminPreferencesProvider } from './console/AdminPreferences';
 import { OperationsDock } from './OperationsDock';
 import { AdminInquiryNotifier } from './AdminInquiryNotifier';
+import { AdminNumberWheelGuard } from './AdminNumberWheelGuard';
 import { hasAdminCapability, NO_OPERATOR_ACCESS, type OperatorAccess } from '@/lib/admin/access';
 
 export function AdminShell({
@@ -65,6 +66,8 @@ export function AdminShell({
       </div>
       <OperationsDock accountId={admin.id} access={admin.operatorAccess} inquiryNotifications={inquiryNotifications} />
       {inquiryNotifications ? <AdminInquiryNotifier accountId={admin.id} /> : null}
+      {/* R18: 포커스된 어드민 number 입력 위의 휠은 값을 바꾸지 않고 페이지만 스크롤한다(셸에 한 번). */}
+      <AdminNumberWheelGuard />
     </div>
     </AdminPreferencesProvider>
   );

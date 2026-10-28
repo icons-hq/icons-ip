@@ -1076,6 +1076,23 @@ describe('admin catalog actions', () => {
     expect(await upsertAdminGoodAction({},goodForm())).toMatchObject({errors:{[field]:copy}});
   });
 
+  /* D5② 랜덤 판매: 옵션 가격·판매중지·옵션별 제한·직접입력 저장은 커밋에서 random_option_*로 거절된다. 일반 실패 문구 대신 이유를 알린다. */
+  it.each([
+    ['random_option_price_mismatch', 'variants', '랜덤 판매 상품은 판매 중인 모든 옵션의 판매가와 기간 할인이 같아야 합니다. 기간 할인은 모든 옵션에 한 번에 넣으세요.'],
+    ['random_option_variant_limits', 'variants', '랜덤 판매 상품은 옵션별 구매 제한을 쓸 수 없습니다.'],
+    ['random_option_count', 'variants', '판매 중인 옵션이 2개 이상이어야 랜덤 판매를 쓸 수 있습니다.'],
+    ['random_option_custom_inputs', 'customInputs', '직접 입력 옵션이 있으면 랜덤 판매를 쓸 수 없습니다.'],
+  ])('랜덤 판매 조건 거절 %s 를 이유와 함께 해당 칸에 알린다', async (message, field, copy) => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { message, code: '23514' } });
+    const form = goodForm();
+    expect(await upsertAdminGoodAction({}, form)).toMatchObject({ errors: { [field]: copy }, values: collectFormValues(form) });
+  });
+
+  it('옵션 저장 거절(invalid_goods_options)은 옵션별 구매 제한도 확인하라고 알린다', async () => {
+    mocks.rpc.mockResolvedValue({ data: null, error: { message: 'invalid_goods_options' } });
+    expect(await upsertAdminGoodAction({}, goodForm())).toMatchObject({ errors: { variants: expect.stringContaining('옵션별 구매 제한(양의 정수)') } });
+  });
+
   /* 2026-10-07 3차 리뷰: 같은 ERP 품목을 두 옵션에 고르거나 맞바꾸면 전역 unique 위반이 원인 없는 일반 오류로 떨어졌다. */
   describe('옵션 ERP 식별자 중복', () => {
     const erpForm = () => {
@@ -1145,13 +1162,13 @@ describe('admin catalog actions', () => {
     }) });
   });
 
-  it('HTML이 정제되며 늘어난 길이까지 30,000자를 넘으면 저장하지 않고 원문을 복구한다', async () => {
+  it('HTML이 정제되며 늘어난 길이까지 200,000자를 넘으면 저장하지 않고 원문을 복구한다', async () => {
     const form = goodForm();
     form.set('descriptionFormat', 'html');
-    form.set('description', '&'.repeat(7000));
+    form.set('description', '&'.repeat(45000));
     const result = await upsertAdminGoodAction({}, form);
-    expect(result.errors?.description).toContain('30,000');
-    expect(result.values?.description).toBe('&'.repeat(7000));
+    expect(result.errors?.description).toContain('200,000');
+    expect(result.values?.description).toBe('&'.repeat(45000));
     expect(mocks.rpc).not.toHaveBeenCalled();
   });
 

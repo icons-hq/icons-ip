@@ -7,9 +7,10 @@ import { AdminField } from './console/AdminKit';
 import '@/app/styles/admin-order-production.css';
 const draftOf = (p: GoodsProductionPolicy) => ({ enabled: p.enabled, leadDays: p.leadDays?.toString() ?? '', dayBasis: p.dayBasis, closedDates: p.closedDates.join('\n'), publicNote: p.publicNote, evidence: p.evidence, confirmed: false });
 type Draft = ReturnType<typeof draftOf>;
-type Props = { goodId: string; accountId: string; disabledReason?: string };
+/** showDisabledReason=false면 잠금 이유 문장을 본문에 그리지 않는다(상품 편집기가 패널 위에 공통 잠금 안내를 보일 때). 잠금은 disabledReason이 맡는다. */
+type Props = { goodId: string; accountId: string; disabledReason?: string; showDisabledReason?: boolean };
 export function GoodsProductionPanel(props: Props) { return <ClaimContactSession actorId={props.accountId} pendingMessage="로그인 상태를 확인하고 있습니다.">{(identity, scope) => <Panel {...props} identity={identity} scope={scope} />}</ClaimContactSession>; }
-function Panel({ goodId, disabledReason, identity, scope }: Props & { identity: ClaimContactIdentity; scope: ClaimContactScope }) {
+function Panel({ goodId, disabledReason, showDisabledReason = true, identity, scope }: Props & { identity: ClaimContactIdentity; scope: ClaimContactScope }) {
  const [policy, setPolicy] = useState<GoodsProductionPolicy | null>(null), [draft, setDraft] = useState<Draft | null>(null), [pending, setPending] = useState(false), [uncertain, setUncertain] = useState(false), [message, setMessage] = useState('');
  const alive = useRef(true), busy = useRef(false), dispatched = useRef<{ values: unknown; revision: number; operation: string } | null>(null);
  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
@@ -40,6 +41,6 @@ function Panel({ goodId, disabledReason, identity, scope }: Props & { identity: 
    <p>결제 확인 당일은 계산에서 제외하고 마지막 날 한국 시간 자정 전까지를 발송 예정 기한으로 표시합니다. 기존 주문의 기간·휴무일은 바뀌지 않습니다. 제작 시작 후 취소도 접수하며 담당자가 검토합니다. 예약판매와 동시에 적용할 수 없습니다.</p>
    <label className="admin-order-production__check"><input type="checkbox" checked={draft.confirmed} onChange={e => setDraft({ ...draft, confirmed: e.target.checked })} required />발송 예정 기간·계산 기준·취소 검토 절차를 확인했습니다.</label>
   </fieldset><button type="submit" className="wc-admin-kit__button wc-admin-kit__button--primary" disabled={pending || !draft.confirmed || Boolean(disabledReason)}>{uncertain ? '같은 요청으로 저장 결과 확인' : '주문제작 설정 저장'}</button></form> : null}
-  {disabledReason ? <p role="status">{disabledReason}</p> : null}{message ? <p role="status">{message}</p> : null}
+  {showDisabledReason && disabledReason ? <p role="status">{disabledReason}</p> : null}{message ? <p role="status">{message}</p> : null}
  </div>;
 }
