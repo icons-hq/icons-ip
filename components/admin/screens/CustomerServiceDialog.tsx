@@ -30,7 +30,13 @@ export function CustomerServiceDialog({ title, children, onClose, busy = false, 
   return <dialog
     aria-labelledby={titleId}
     className={`admin-cs-dialog${wide ? ' admin-cs-dialog--wide' : ''}`}
-    onCancel={(event) => { event.preventDefault(); if (!busy) onClose(); }}
+    onCancel={(event) => {
+      /* React는 버블링하지 않는 native cancel도 컴포넌트 트리로 전달한다. 안쪽 dialog(답변 템플릿 등)의
+         Esc가 바깥 팝업까지 닫지 않게 자기 dialog의 cancel만 처리한다. */
+      if (event.target !== event.currentTarget) return;
+      event.preventDefault();
+      if (!busy) onClose();
+    }}
     ref={ref}
   >
     <header className="admin-cs-dialog__header">
@@ -67,13 +73,5 @@ export function CustomerServiceInlinePanel({ title, children, onClose, busy = fa
   }}>
     <header className="admin-cs-inline__header"><h3 id={titleId} ref={heading} tabIndex={-1}>{title}</h3><button type="button" className="btn btn-sm btn-ghost" disabled={busy} onClick={onClose}>답변 접기</button></header>
     <div className="admin-cs-inline__body">{children}</div>
-  </section>;
-}
-
-export function InquiryPreviewWorkspace({ children, closeHref, selected = false }: { children?: ReactNode; closeHref: string; selected?: boolean }) {
-  const router = useRouter();
-  return <section className="admin-inquiry-preview" aria-label="고객문의 내용 · 판매자 답변">
-    <header className="admin-inquiry-preview__header"><h2>고객문의 내용 · 판매자 답변</h2>{selected ? <button type="button" className="btn btn-sm btn-ghost" onClick={() => router.replace(closeHref, { scroll: false })}>선택 닫기</button> : null}</header>
-    {selected ? children : <p className="admin-inquiry-preview__empty">목록에서 문의 제목 또는 답변처리를 선택하면 문의 내용과 답변 영역을 함께 볼 수 있습니다.</p>}
   </section>;
 }

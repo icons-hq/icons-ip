@@ -57,8 +57,8 @@ export function reviewBatchFailureLabel(code:string|null) {
   if(code==='invalid_review_reply') return '답글 길이를 확인해주세요.';
   return '저장하지 못했습니다. 최신 상태를 확인해주세요.';
 }
-/** Inserting a template never discards the operator's existing draft. */
-export function insertCsReplyTemplate(current:string,template:string,limit:number):{ok:true;body:string}|{ok:false;error:string} {
-  const body=current.trim()?`${current}\n\n${template}`:template;
-  return [...body].length<=limit?{ok:true,body}:{ok:false,error:`템플릿을 추가하면 ${limit.toLocaleString('ko-KR')}자를 넘습니다. 작성 중인 내용을 먼저 정리해주세요.`};
+/** R3(MD-0011): 템플릿은 작성 중인 답글을 대체한다. 작성 중인 내용이 있으면(replaces) 화면이 확인을 거친 뒤에만 적용한다. */
+export function applyCsReplyTemplate(current:string,template:string,limit:number):{ok:true;body:string;replaces:boolean}|{ok:false;error:string} {
+  if([...template].length>limit) return {ok:false,error:`템플릿이 ${limit.toLocaleString('ko-KR')}자를 넘어 불러올 수 없습니다. 템플릿을 줄여주세요.`};
+  return {ok:true,body:template,replaces:Boolean(current.trim())&&current!==template};
 }

@@ -29,7 +29,12 @@ async function execute(name: string, args: Record<string, unknown>, eventId?: st
 }
 export async function saveReviewEventAction(id: string, revision: number, operationId: string, input: unknown): Promise<ReviewEventActionResult> {
   if (!await requireAdminActionAccess(REVIEW_EVENTS_ADMIN_PATH, { capability: 'cs.manage' })) return { error: '리뷰 관리 권한이 필요합니다.' };
-  const values = parseReviewEventValues(input);
+  /* 제목·내용의 앞뒤 공백만으로 저장 전체를 거절하지 않는다(R6). DB 검증도 trim 결과를 기준으로 한다. */
+  const values = parseReviewEventValues(input && typeof input === 'object' && !Array.isArray(input) ? {
+    ...input,
+    ...(typeof (input as { title?: unknown }).title === 'string' ? { title: (input as { title: string }).title.trim() } : {}),
+    ...(typeof (input as { description?: unknown }).description === 'string' ? { description: (input as { description: string }).description.trim() } : {}),
+  } : input);
   if (!isUuid(id) || !isUuid(operationId) || !validRevision(revision) || !values) return { error: '제목·내용·대상·기간·선정수·혜택 금액을 확인해주세요.' };
   return execute('admin_save_review_event', { p_id: id, p_expected_revision: revision, p_operation_id: operationId, p_values: values }, id);
 }

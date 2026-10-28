@@ -83,7 +83,7 @@ export function InquiryInternalNotesPanel({ inquiryId, notes, accountId = '' }: 
         <p style={{ margin: 0, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{note.body}</p>
       </li>)}
     </ol> : <span className="muted">등록된 내부 메모가 없습니다.</span>}
-    <InquiryDraftNotice draft={draft} pending={busy} />
+    <InquiryDraftNotice draft={draft} pending={busy} loadingLabel="메모 입력을 불러오는 중입니다." />
     <form action={action} className="col" style={{ gap: 8 }}>
       <input name="inquiryId" type="hidden" value={inquiryId} />
       <label className="col" style={{ gap: 4 }}>

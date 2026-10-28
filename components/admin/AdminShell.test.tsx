@@ -6,6 +6,7 @@ import { AdminShell } from './AdminShell';
 const mocks = vi.hoisted(() => ({ pathname: '/admin', search: '' }));
 
 vi.mock('next/navigation', () => ({ usePathname: () => mocks.pathname, useSearchParams: () => new URLSearchParams(mocks.search) }));
+vi.mock('./AdminInquiryNotifier', () => ({ AdminInquiryNotifier: ({ accountId }: { accountId: string }) => <i data-inquiry-notifier={accountId} /> }));
 
 const admin = { id: 'admin-1', email: 'ops@example.test', role: 'staff', operatorAccess: legacyOperatorAccessFixture('staff') };
 
@@ -43,12 +44,11 @@ describe('AdminShell', () => {
   it('상담 화면은 대화 영역을 넓게 쓰고 상담 자체의 상태를 표시한다', () => {
     mocks.pathname = '/admin/cs/chat';
     mocks.search = 'inquiry=case-a';
-    const html = renderToStaticMarkup(<AdminShell admin={admin} badges={<p>공통 미답변 배지</p>}><p>대화 영역</p></AdminShell>);
+    const html = renderToStaticMarkup(<AdminShell admin={admin}><p>대화 영역</p></AdminShell>);
 
     expect(html).toContain('admin-shell--chat');
     expect(html).toContain('<h1 class="sr-only">상담하기</h1>');
     expect(html).not.toContain('class="wc-admin__page-context"');
-    expect(html).not.toContain('공통 미답변 배지');
     expect(html).toContain('대화 영역');
     expect(html).toMatch(/aria-current="page"[^>]*data-admin-nav-screen="inquiry-chat"/);
     expect(html).toContain('value="/admin/cs/chat?inquiry=case-a"');
@@ -87,6 +87,30 @@ describe('AdminShell', () => {
     const limited = { ...admin, operatorAccess: { mode: 'configured' as const, managerRole: 'deputy' as const, capabilities: ['home', 'catalog.read', 'cs.manage'] as ('home' | 'catalog.read' | 'cs.manage')[], revision: 1, setupRequired: false } };
     const html = renderToStaticMarkup(<AdminShell admin={limited}><p>본문</p></AdminShell>);
     expect(html).not.toContain('aria-label="콘솔 전환"');
+  });
+
+  /* R1(D1①): 미답변 문의 배지는 고객문의 목록·상세 페이지가 그린다. 셸은 공통 배지 슬롯을 두지 않는다. */
+  it('상품 등록·주문 화면 셸에는 미답변 문의 배지가 없다', () => {
+    mocks.pathname = '/admin/catalog/goods';
+    mocks.search = 'create=1';
+    expect(render()).not.toContain('admin-shell-badge');
+    mocks.pathname = '/admin/sales/orders';
+    mocks.search = '';
+    expect(render()).not.toContain('admin-shell-badge');
+  });
+
+  /* R2(D2①): 새 문의 PC 알림은 커머스 콘솔의 cs.manage 운영자에게만, 화면마다 다시 마운트되는 본문 밖에 상시 둔다. */
+  it('커머스 콘솔의 문의 담당 운영자에게만 문의 알림기를 본문 밖에 마운트한다', () => {
+    const commerce = render(<p>본문</p>);
+    expect(commerce).toContain('data-inquiry-notifier="admin-1"');
+    expect(commerce.indexOf('data-inquiry-notifier')).toBeGreaterThan(commerce.indexOf('</main>'));
+
+    mocks.pathname = '/admin/catalog/cards';
+    expect(renderToStaticMarkup(<AdminShell admin={admin} console="content"><p>카드</p></AdminShell>)).not.toContain('data-inquiry-notifier');
+
+    const logistics = { ...admin, operatorAccess: { mode: 'configured' as const, managerRole: 'logistics' as const, capabilities: ['home'] as ('home')[], revision: 1, setupRequired: false } };
+    mocks.pathname = '/admin';
+    expect(renderToStaticMarkup(<AdminShell admin={logistics}><p>본문</p></AdminShell>)).not.toContain('data-inquiry-notifier');
   });
 
   it('본문을 그대로 렌더한다', () => {
