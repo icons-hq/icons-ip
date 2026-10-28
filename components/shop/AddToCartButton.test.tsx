@@ -44,3 +44,20 @@ describe('담은 굿즈 표시', () => {
   });
 });
 
+
+/* D5② 랜덤 판매·D7② 옵션별 구매 제한. */
+describe('랜덤 판매·옵션별 구매 제한 담기', () => {
+  it('랜덤 판매 굿즈는 접힌 기본 옵션 키 하나라 목록에서 바로 담는다', () => {
+    const random = { ...option, name: '랜덤', code: '', attributes: {}, stockQty: 6, orderMaxQty: null, memberMaxQty: null };
+    const html = renderToStaticMarkup(<AddToCartButton good={{ ...good, optionSaleMode: 'random', options: [random] }} />);
+    expect(html).not.toContain('옵션 선택');
+    expect(html).toContain('>담기</button>');
+  });
+  it('옵션별 주문당 최대 수량까지 담으면 더 담지 않는다', () => {
+    mocks.getQuantity.mockReturnValue(2);
+    const html = renderToStaticMarkup(<AddToCartButton good={{ ...good, options: [{ ...option, stockQty: 5, orderMaxQty: 2 }] }} />);
+    expect(html).toContain('disabled=""');
+    expect(html).toContain('aria-label="키링, 장바구니 2개, 구매 한도 2개"');
+    mocks.getQuantity.mockReturnValue(0);
+  });
+});

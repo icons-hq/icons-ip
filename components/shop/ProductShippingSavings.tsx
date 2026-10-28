@@ -6,6 +6,7 @@ import type { ShippingSavings } from '@/lib/product-detail-experiences';
 import { ProductCard } from '@/components/wc/ProductCard';
 import { goodDisplayBadges } from '@/lib/goods-taxonomy';
 import { krw } from '@/lib/format';
+import { RANDOM_OPTION_LABEL } from '@/lib/goods-option-sale-mode';
 import type { ListingWishlist } from '@/lib/listing-wishlist';
 import { listingHeartsFor } from './listing-hearts';
 import { ProductDetailRefresh } from './ProductDetailRefresh';
@@ -39,7 +40,8 @@ export function ProductShippingSavings({ goodId, option, quantity, wishlist }: {
         return <article key={item.goodId}><ProductCard href={`/shop/${good.id}`} name={good.name} imageBackground={good.img} price={candidateOption?.price ?? good.price}
           action={heartFor(good)} reviewSummary={reviewSummaries[good.id]}
           listSurface="standard" listingAppearance={good.listingAppearance} badges={goodDisplayBadges(good)} salePeriod={good.salePeriod} soldOut={good.stock === 'soldout'} />
-          <p>{item.variantName || '기본 옵션'} {item.qty}개와 함께</p><strong>배송비 {krw(item.savings)} 절약</strong>
+          {/* 랜덤 판매 굿즈(D5②)는 옵션을 고르지 않는다 — DB 후보 옵션 이름 대신 '랜덤'으로 말한다. */}
+          <p>{good.optionSaleMode === 'random' ? RANDOM_OPTION_LABEL : item.variantName || '기본 옵션'} {item.qty}개와 함께</p><strong>배송비 {krw(item.savings)} 절약</strong>
           <p>따로 주문 {krw(item.separateFee)} → 함께 주문 {item.combinedFee === 0 ? '무료' : krw(item.combinedFee)}</p></article>;
       })}</div></>}
   </section>;

@@ -8,7 +8,7 @@ import { RestockCta } from '@/components/shop/RestockCta';
 import { QuantityStepper } from '@/components/wc/QuantityStepper';
 import { WcButton } from '@/components/wc/WcButton';
 import type { Good, GoodOption } from '@/lib/data';
-import { defaultGoodOption, goodsPurchaseConditionProblem, initialGoodOption, isSelectableGoodOption, optionLabel, selectableGoodOptionId, soldOutPreviewPrice } from '@/lib/goods-options';
+import { defaultGoodOption, goodOptionPurchaseNotices, goodsPurchaseConditionProblem, initialGoodOption, isSelectableGoodOption, optionLabel, purchasableOptionQty, selectableGoodOptionId, soldOutPreviewPrice } from '@/lib/goods-options';
 import { goodsAggregationUnavailableLabel } from '@/lib/goods-aggregation';
 import { prepareGoodsCustomInputSelection } from '@/lib/goods-custom-inputs';
 import { GoodsCustomInputsFields } from './GoodsCustomInputs';
@@ -423,7 +423,7 @@ function AdditionalChoices({ purchase }: { purchase: GoodPurchaseController }) {
         <GoodsCustomInputsFields goodId={choice.goodId} config={choice.good.customInputs} values={purchase.customInputValues?.[choice.goodId]} disabled={purchase.disabled || purchase.busy} onChange={(id,value)=>purchase.setCustomInputValue?.(choice.goodId,id,value)} />
         <div className="wc-buy-panel__row">
           <span>추가 수량</span>
-          <QuantityStepper label={`${choice.name} 추가 수량`} max={Math.max(1, choice.selectedOption?.stockQty ?? 1)}
+          <QuantityStepper label={`${choice.name} 추가 수량`} max={Math.max(1, choice.selectedOption ? purchasableOptionQty(choice.selectedOption) : 1)}
             value={choice.quantity} onChange={(next) => purchase.setAdditionalQuantity?.(choice.goodId, next)} />
         </div>
       </div> : null}
@@ -620,13 +620,16 @@ export function GoodPurchasePanel({ otherPurchases, purchase }: { otherPurchases
         </label>
       ) : singleOptionLabel ? <p className="wc-buy-panel__option">{singleOptionLabel}</p> : null}
       {displayOption?.supply?.mode === 'preorder' ? <p className="wc-buy-panel__state">예약판매 · 주문 시 결제 · {goodsShipDateLabel(displayOption.supply.expectedShipDate)}</p> : null}
+      {/* 랜덤 판매(D5②)의 무작위 배정 안내, 옵션별 구매 제한(D7②)의 고른 옵션 안내 — 확정 카피. 남은 수량은 보이지 않는다. */}
+      {goodOptionPurchaseNotices(good, chosenOption ?? displayOption).map(notice => <p className="wc-buy-panel__state" key={notice}>{notice}</p>)}
       {foldedNote ? <p className="wc-buy-panel__state">{foldedNote}</p> : null}
       {restockOnly ? null : <GoodsCustomInputsFields goodId={good.id} config={good.customInputs} values={purchase.customInputValues?.[good.id]} disabled={disabled || purchase.busy} onChange={(id,value)=>purchase.setCustomInputValue?.(good.id,id,value)} />}
       <div className="wc-buy-panel__row" inert={purchase.busy || undefined}>
         <span className="wc-buy-panel__label">수량</span>
         {/* 재고가 0인데 판매중인 데이터는 없다. 그래도 max 0 이면 스테퍼가 0에 잠겨
             수량을 고를 수 없는 컨트롤이 되므로 최소 1은 남긴다. */}
-        <QuantityStepper max={Math.max(1, selectedOption?.stockQty ?? (good.options ? 0 : good.stockQty))} onChange={setQuantity} value={quantity} />
+        {/* 옵션별 주문당 최대 수량(D7②)이 있으면 재고보다 작은 쪽이 상한이다. 랜덤 판매는 풀 합계가 재고다. */}
+        <QuantityStepper max={Math.max(1, selectedOption ? purchasableOptionQty(selectedOption) : (good.options ? 0 : good.stockQty))} onChange={setQuantity} value={quantity} />
       </div>
       {restockOnly ? null : <AdditionalChoices purchase={purchase} />}
       <GoodsTransactionTerms good={good} quantity={quantity} />

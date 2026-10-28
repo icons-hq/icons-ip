@@ -342,6 +342,31 @@ describe('activeGalleryIndex', () => {
 });
 
 describe('GoodPurchasePanel', () => {
+  /* D5② — 랜덤 판매 굿즈는 옵션 선택기 대신 '랜덤'과 확정 안내를 보이고, 수량 최대는 풀 합계다. */
+  it('랜덤 판매 굿즈는 옵션 대신 랜덤과 무작위 배정 안내를 보인다', () => {
+    const random = {id:'00000000-0000-4000-8000-0000000000a1',name:'랜덤',price:5000,stockQty:6,code:'',attributes:{},isDefault:true,orderMaxQty:null,memberMaxQty:null};
+    const html = renderToStaticMarkup(<GoodPurchasePanel purchase={controller({good:{...good,optionSaleMode:'random',options:[random]},selectedOption:random,quantity:6})} />);
+    expect(html).not.toContain('<select');
+    expect(html).toMatch(/<p class="wc-buy-panel__option">랜덤<\/p>/);
+    expect(html).toContain('옵션은 주문 후 재고에서 무작위로 정해져 발송됩니다. 같은 옵션이 중복될 수 있습니다.');
+    expect(html).toMatch(/aria-disabled="true" aria-label="수량 늘리기"/);
+  });
+
+  /* D7② — 고른 옵션의 정적 안내(확정 카피), 스테퍼 최대는 재고와 주문당 최대 중 작은 값. */
+  it('옵션별 구매 제한은 고른 옵션의 안내와 스테퍼 최대로 보인다', () => {
+    const options = [
+      {id:'blue',name:'파랑',price:12000,stockQty:5,code:'BLUE',attributes:{},isDefault:true,orderMaxQty:2,memberMaxQty:4},
+      {id:'red',name:'빨강',price:12000,stockQty:5,code:'RED',attributes:{},isDefault:false,orderMaxQty:null,memberMaxQty:null},
+    ];
+    const limited = renderToStaticMarkup(<GoodPurchasePanel purchase={controller({good:{...good,options},selectedOption:options[0],quantity:2})} />);
+    expect(limited).toContain('&#x27;파랑&#x27;은 한 번에 2개까지 주문할 수 있습니다.');
+    expect(limited).toContain('&#x27;파랑&#x27;은 1인당 4개까지 구매할 수 있습니다.');
+    expect(limited).toMatch(/aria-disabled="true" aria-label="수량 늘리기"/);
+    const free = renderToStaticMarkup(<GoodPurchasePanel purchase={controller({good:{...good,options},selectedOption:options[1],quantity:2})} />);
+    expect(free).not.toContain('까지 주문할 수 있습니다');
+    expect(free).not.toMatch(/aria-disabled="true" aria-label="수량 늘리기"/);
+  });
+
   it('단일 옵션은 선택기를 숨기고 기본값이 아닌 옵션명만 표시한다', () => {
     const option = {id:'blue',name:'파랑',price:12000,stockQty:3,code:'BLUE',attributes:{색상:'파랑'},isDefault:true};
     const html = renderToStaticMarkup(<GoodPurchasePanel purchase={controller({good:{...good,options:[option]},selectedOption:option})} />);

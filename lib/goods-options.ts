@@ -1,10 +1,34 @@
 import { goodsSaleUnavailableLabel } from './goods-sale-period';
+import { goodsOptionLimitNotices, RANDOM_OPTION_LABEL, RANDOM_OPTION_NOTICE } from './goods-option-sale-mode';
 import type { Good, GoodOption } from './data';
 import type { GoodsSalesQuoteLine, GoodsVariantPricing } from './goods-sales';
 
 export function optionPriceRange(options: readonly GoodOption[]) {
   const prices = options.map(option => option.price);
   return { price: Math.min(...prices), priceMax: Math.max(...prices) };
+}
+
+/**
+ * 랜덤 판매 굿즈(D5②)의 고객 옵션: 판매 중인 옵션들을 장바구니 키(기본 옵션) 하나로 접는다.
+ *
+ * 이름은 '랜덤', 수량은 판매 중인 옵션 가용 수량의 합(풀)이다 — DB 장바구니 담기·견적·주문이 같은 풀로 판정한다.
+ * 가격은 기본 옵션 가격이다(랜덤 판매는 모든 판매 중 옵션의 판매가·기간 할인이 같아야 켜진다). 개별 옵션의 이름·코드·
+ * 속성은 싣지 않는다. 옵션별 구매 제한은 랜덤 판매에서 금지라 없다. 기본 옵션을 못 찾으면(정렬상) 첫 옵션을 키로 쓴다 —
+ * DB는 같은 굿즈의 어떤 옵션 id가 와도 기본 옵션 줄로 모은다.
+ */
+export function collapseRandomGoodOptions(options: readonly GoodOption[]): GoodOption[] {
+  const key = options.find(option => option.isDefault) ?? options[0];
+  if (!key) return [];
+  const pool = options.reduce((total, option) => total + Math.max(0, option.stockQty), 0);
+  const nextChangeAt = options.map(option => option.supply?.nextChangeAt ?? null)
+    .filter((value): value is string => value !== null)
+    .sort((left, right) => Date.parse(left) - Date.parse(right))[0] ?? null;
+  return [{
+    id: key.id, name: RANDOM_OPTION_LABEL, code: '', price: key.price, stockQty: pool, isDefault: true, attributes: {},
+    ...(key.pricing ? { pricing: key.pricing } : {}),
+    ...(key.supply ? { supply: { ...key.supply, availableQty: pool, nextChangeAt } } : {}),
+    orderMaxQty: null, memberMaxQty: null,
+  }];
 }
 
 /** 굿즈 행에 저장된 기준 판매가(`goods.price`)와 소비자가(`goods.compare_at_price`). */
@@ -162,4 +186,24 @@ export function goodAtQuotedPrice(good: Good | undefined, line: GoodsSalesQuoteL
     ...(line.supply ? { stockQty: line.supply.availableQty,
       stock: line.supply.availableQty > 0 && (line.available || line.qty > line.supply.availableQty) ? 'ok' : 'soldout' } as const : {}),
     compareAtPrice: optionCompareAtPrice(catalogPricing(good), line) };
+}
+
+/**
+ * 한 번에 고를 수 있는 최대 수량(D7②): 재고와 옵션별 주문당 최대 수량 중 작은 값. 표시·스테퍼용이고, 주문당·1인 누적
+ * 한도의 최종 판정은 주문 생성 트리거다(1인 누적은 결제 대기 주문을 포함하므로 여기서 계산하지 않는다).
+ */
+export function purchasableOptionQty(option: Pick<GoodOption, 'stockQty' | 'orderMaxQty'>): number {
+  const stock = Math.max(0, option.stockQty);
+  return option.orderMaxQty ? Math.min(stock, option.orderMaxQty) : stock;
+}
+
+/**
+ * 굿즈 상세 구매 블록의 판매 방식·옵션 제한 안내(확정 카피). 랜덤 판매는 무작위 배정 안내, 옵션별 제한은 고른 옵션의
+ * 정적 안내다(남은 수량은 보이지 않는다). 하나뿐인 '기본 옵션'은 이름을 숨기므로 굿즈 이름으로 말한다.
+ */
+export function goodOptionPurchaseNotices(good: Pick<Good, 'name' | 'options' | 'optionSaleMode'>, option: GoodOption | undefined): string[] {
+  if (good.optionSaleMode === 'random') return [RANDOM_OPTION_NOTICE];
+  if (!option) return [];
+  return goodsOptionLimitNotices(optionLabel(option, good.options?.length ?? 0) ?? good.name,
+    { orderMaxQty: option.orderMaxQty ?? null, memberMaxQty: option.memberMaxQty ?? null });
 }

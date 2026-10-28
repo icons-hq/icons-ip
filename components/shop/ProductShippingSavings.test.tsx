@@ -77,3 +77,23 @@ describe('ProductShippingSavings listing cards', () => {
     expect(cardProps(render()).map(card => card.action)).toEqual([undefined, undefined]);
   });
 });
+
+/* D5② — 랜덤 판매 후보 굿즈는 DB 후보 옵션 이름 대신 '랜덤'으로 말한다. */
+describe('ProductShippingSavings random candidates', () => {
+  it('랜덤 판매 후보는 옵션 이름 대신 랜덤으로 말한다', () => {
+    const texts = (node: unknown): string[] => {
+      if (Array.isArray(node)) return node.flatMap(texts);
+      if (typeof node === 'string' || typeof node === 'number') return [String(node)];
+      if (!node || typeof node !== 'object') return [];
+      const children = (node as { props?: { children?: unknown } }).props?.children;
+      if (children === undefined) return [];
+      const own = Array.isArray(children) && children.every(child => typeof child !== 'object' || child === null) ? [children.join('')] : [];
+      return [...own, ...texts(children)];
+    };
+    const random = { ...savings.items[0], variantName: '배정 후보 옵션', good: { ...candidate('s1'), optionSaleMode: 'random' as const } };
+    hooks.state[0] = { key: `g13:${option.id}:1`, value: { ...savings, items: [random] } };
+    const lines = texts(render());
+    expect(lines).toContain('랜덤 1개와 함께');
+    expect(lines.join('\n')).not.toContain('배정 후보 옵션');
+  });
+});
