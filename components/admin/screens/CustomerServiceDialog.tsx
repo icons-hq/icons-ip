@@ -69,11 +69,3 @@ export function CustomerServiceInlinePanel({ title, children, onClose, busy = fa
     <div className="admin-cs-inline__body">{children}</div>
   </section>;
 }
-
-export function InquiryPreviewWorkspace({ children, closeHref, selected = false }: { children?: ReactNode; closeHref: string; selected?: boolean }) {
-  const router = useRouter();
-  return <section className="admin-inquiry-preview" aria-label="고객문의 내용 · 판매자 답변">
-    <header className="admin-inquiry-preview__header"><h2>고객문의 내용 · 판매자 답변</h2>{selected ? <button type="button" className="btn btn-sm btn-ghost" onClick={() => router.replace(closeHref, { scroll: false })}>선택 닫기</button> : null}</header>
-    {selected ? children : <p className="admin-inquiry-preview__empty">목록에서 문의 제목 또는 답변처리를 선택하면 문의 내용과 답변 영역을 함께 볼 수 있습니다.</p>}
-  </section>;
-}
