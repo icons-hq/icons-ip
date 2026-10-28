@@ -5,6 +5,7 @@ import { convertClaimTypeAction, loadClaimTypeContextAction, readClaimTypeChange
 import { claimTypeError, claimTypeReceiptMatches, normalizeClaimTypeRequest, type ClaimTypeContext, type ClaimTypeRequest, type ClaimTypeReceipt } from '@/lib/orders/claim-type-conversion';
 import { ORDER_CLAIM_TYPE_LABELS, ORDER_CLAIM_TYPE_SLUGS } from '@/lib/orders/claims';
 import { formatOrderDateTime } from '@/lib/orders';
+import { useClaimPreviewBusy } from '@/components/admin/screens/ClaimPreviewDialog';
 
 /** embedded: 목록 위 상세 팝업(R8)에서 열렸다. 전환 뒤에도 독립 상세가 아니라 전환된 유형의 목록 팝업으로 연다. */
 export function ClaimTypeConversionPanel({ initial, onClose, embedded = false }: { initial: ClaimTypeContext; onClose: () => void; embedded?: boolean }) {
@@ -14,6 +15,7 @@ export function ClaimTypeConversionPanel({ initial, onClose, embedded = false }:
   const [receipt, setReceipt] = useState<ClaimTypeReceipt | null>(null); const [error, setError] = useState(''); const [message, setMessage] = useState('');
   const dispatched = useRef<ClaimTypeRequest | null>(null); const inFlight = useRef(false); const errorRef = useRef<HTMLParagraphElement>(null);
   useEffect(() => { if (error) errorRef.current?.focus(); }, [error]);
+  useClaimPreviewBusy(pending); /* 목록 위 팝업(R8)에서 전환을 기다리는 동안 팝업이 닫히지 않게 한다. */
   const toType = context.claimType === 'return' ? 'exchange' : 'return'; const targetLabel = ORDER_CLAIM_TYPE_LABELS[toType]; const sourceLabel = ORDER_CLAIM_TYPE_LABELS[context.claimType];
   const locked = pending || uncertain || Boolean(receipt); const editable = () => !inFlight.current && !dispatched.current && !receipt;
   const accountRequired = toType === 'return' && context.bankRequired && !context.savedAccount;

@@ -6,6 +6,8 @@ vi.mock('react', async () => ({ ...await vi.importActual<typeof import('react')>
   useState: (initial: unknown) => { const index = hooks.index++; if (!(index in hooks.state)) hooks.state[index] = initial; return [hooks.state[index], (next: unknown) => { hooks.state[index] = typeof next === 'function' ? next(hooks.state[index]) : next; }]; } }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: mocks.refresh, replace: mocks.replace }) }));
 vi.mock('@/app/admin/claim-type-conversion-actions', () => ({ convertClaimTypeAction: mocks.save, readClaimTypeChangeAction: mocks.read, loadClaimTypeContextAction: mocks.load }));
+const busy = vi.hoisted(() => vi.fn());
+vi.mock('@/components/admin/screens/ClaimPreviewDialog', () => ({ useClaimPreviewBusy: busy }));
 import { ClaimTypeConversionPanel } from './ClaimTypeConversion';
 import { conversionContext as context, conversionReceipt as receipt } from '@/lib/orders/claim-type-conversion.fixture';
 type Element = ReactElement<{ children?: ReactNode; disabled?: boolean; type?: string; busy?: boolean; onClose?: () => void; onClick?: () => void; onSubmit?: (event: unknown) => void; onChange?: (event: unknown) => void }>;
@@ -45,4 +47,11 @@ it('목록 위 팝업(R8)에서 전환하면 전환된 유형의 목록 위 팝�
  change('고객 합의 근거', receipt.agreement); change('고객과 교환', true); await submit();
  expect(mocks.replace).toHaveBeenCalledWith(`/admin/sales/claims/exchanges?claimId=${receipt.claimId}`, { scroll: false });
  expect(mocks.refresh).toHaveBeenCalled();
+});
+it('목록 위 팝업(R8)에서 전환을 기다리는 동안 팝업을 닫지 못하게 알린다', async () => {
+ let finish!: (value: unknown) => void; mocks.save.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
+ render(); expect(busy).toHaveBeenLastCalledWith(false);
+ change('고객 합의 근거', receipt.agreement); change('고객과 교환', true); all(render()).find(e => e.type === 'form')!.props.onSubmit?.({ preventDefault: () => {} });
+ render(); expect(busy).toHaveBeenLastCalledWith(true);
+ finish({ error: '권한 변경', uncertain: false }); await settle(); render(); expect(busy).toHaveBeenLastCalledWith(false);
 });

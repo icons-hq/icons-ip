@@ -26,6 +26,7 @@ import { ClaimWithdrawal } from '@/components/orders/ClaimWithdrawal';
 import { ClaimTypeConversion } from '@/components/admin/ClaimTypeConversion';
 import { ClaimReasonChange } from '@/components/admin/ClaimReasonChange';
 import { ClaimActionPanel } from './ClaimActionPanel';
+import { ClaimPreviewFullScreenLink } from './ClaimPreviewDialog';
 import { ClaimOperationalFeePanel } from './ClaimOperationalFeePanel';
 import { ClaimReshipmentDelivery } from './ClaimReshipmentDelivery';
 import { SellerClaimIntakeEvidence } from './SellerClaimIntakeEvidence';
@@ -238,7 +239,7 @@ export function ClaimDetailScreen({
         <p data-sla-tone={sla.tone}>
           환급 기한 {sla.label}
         </p>
-        {embedded && detailHref ? <Link className="btn btn-sm btn-ghost" href={detailHref}>전체 화면으로 열기</Link> : null}
+        {embedded && detailHref ? <ClaimPreviewFullScreenLink href={detailHref} /> : null}
       </div>
       <nav className="admin-sales-detail-tabs" aria-label="클레임 상세 항목">
         <Link href="#claim-order">주문정보</Link><Link href="#claim-request">요청·처리이력</Link><Link href="#claim-process">처리</Link>

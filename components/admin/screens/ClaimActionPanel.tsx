@@ -28,6 +28,7 @@ import { ClaimOriginCollection } from './ClaimOriginCollection';
 import { ClaimHoldControl } from '@/components/admin/ClaimHoldControl';
 import { BankTransferRefund } from '@/components/admin/BankTransferRefund';
 import { ReturnClaimWorkspace } from './ReturnClaimWorkspace';
+import { useClaimPreviewBusy } from './ClaimPreviewDialog';
 import { ClaimRejectionReasonField } from './ClaimRejectionReasonField';
 
 /* 클레임 액션 패널(#252).
@@ -240,6 +241,8 @@ export function ClaimActionPanel({
   returnRefundSummary,
 }: ClaimActionPanelProps) {
   const [result, panelAction, pending] = useActionState(runClaimPanelAction, EMPTY_STATE);
+  /* 목록 위 팝업(R8)에서는 결제사 취소·환불 완료 확정을 기다리는 동안 팝업이 닫히지 않게 한다. */
+  useClaimPreviewBusy(pending);
   const [formCopied, setFormCopied] = useState(false);
   /* 확인을 통과한 제출만 보낸다. 누른 버튼의 name·value(결정)를 함께 싣는다. */
   const submitConfirmed = (event: React.FormEvent<HTMLFormElement>) => {
