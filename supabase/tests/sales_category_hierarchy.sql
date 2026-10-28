@@ -181,6 +181,20 @@ select 1 / case when :'bulk_partial'::jsonb -> 'lines' @> '[{"line":1,"status":"
   and exists (select 1 from public.catalog_categories where name = '수납' and depth = 2)
 then 1 else 0 end as assert_bulk_category_partial_failure;
 select public.admin_assign_good_category('00000000-0000-4000-8000-000000047434', 'category-good-0474', null, null);
+-- 리뷰 재현(T3B-RV-5): 제로폭 공백(U+200B)만 있는 단계는 이름 키가 비어(null) 같은 부모·같은 이름 판정이 늘 거짓이었고,
+-- 같은 줄을 붙여넣을 때마다 보이지 않는 카테고리가 쌓였다. 보이지 않는 단계는 빈 단계처럼 줄 전체를 실패시킨다.
+select public.admin_bulk_create_categories('00000000-0000-4000-8000-000000047436', jsonb_build_array(
+  '일괄제로폭>' || U&'\200B' || '>말단제로폭', '일괄제로폭>' || U&'\200B\200B', '일괄제로폭>보이는말단'
+)) as bulk_zero_width \gset
+select public.admin_bulk_create_categories('00000000-0000-4000-8000-000000047437', jsonb_build_array(
+  '일괄제로폭>' || U&'\200B' || '>말단제로폭'
+)) as bulk_zero_width_again \gset
+select 1 / case when :'bulk_zero_width'::jsonb -> 'lines' @> '[{"line":1,"status":"failed","reason":"invalid_category_path"},{"line":2,"status":"failed","reason":"invalid_category_path"},{"line":3,"status":"created","created":2}]'::jsonb
+  and :'bulk_zero_width_again'::jsonb -> 'lines' @> '[{"line":1,"status":"failed","reason":"invalid_category_path"}]'::jsonb
+  and not exists (select 1 from public.catalog_categories where pg_catalog.regexp_replace(name, '[[:space:]' || U&'\200B' || ']', '', 'g') = '')
+  and not exists (select 1 from public.catalog_categories where name = '말단제로폭')
+  and (select count(*) from public.catalog_categories where parent_id = (select id from public.catalog_categories where name = '일괄제로폭')) = 1
+then 1 else 0 end as assert_bulk_category_invisible_name;
 
 set local role authenticated;
 select set_config('request.jwt.claim.sub', '00000000-0000-4000-8000-000000047472', true);

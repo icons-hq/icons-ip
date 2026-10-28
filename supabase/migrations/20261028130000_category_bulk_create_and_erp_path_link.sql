@@ -22,7 +22,9 @@ as $$
 $$;
 
 -- `대>중>소` 원문 → 이름 배열. 각 이름은 ERP 원문과 같은 규칙(private.erp_item_text)으로 다듬는다.
--- 빈 이름이 하나라도 있으면 null(잘못된 경로).
+-- 빈 이름이 하나라도 있으면 null(잘못된 경로). erp_item_text가 남기는 제로폭 공백(U+200B)만으로 된 이름도
+-- 비교 키(catalog_category_name_key)가 비므로 빈 이름이다 — 남기면 '같은 부모·같은 이름' 판정이 늘 거짓이라
+-- 보이지 않는 카테고리가 붙여넣을 때마다 쌓인다.
 create function private.catalog_category_path_segments(p_path text)
 returns text[]
 language plpgsql
@@ -36,7 +38,7 @@ begin
   if p_path is null then return null; end if;
   foreach part in array pg_catalog.string_to_array(p_path, '>') loop
     part := private.erp_item_text(part, true);
-    if part is null then return null; end if;
+    if part is null or private.catalog_category_name_key(part) is null then return null; end if;
     result := pg_catalog.array_append(result, part);
   end loop;
   return case when pg_catalog.cardinality(result) > 0 then result end;
