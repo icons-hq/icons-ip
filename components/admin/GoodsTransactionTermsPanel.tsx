@@ -80,8 +80,10 @@ export function GoodsDeliveryPricingFields({ value, onChange }: { value: GoodsTe
   </div>;
 }
 
-export function GoodsTransactionTermsPanel({ goodId, accountId, disabledReason = '', onBusyChange }: {
+export function GoodsTransactionTermsPanel({ goodId, accountId, disabledReason = '', showDisabledReason = true, onBusyChange }: {
   goodId: string; accountId: string; disabledReason?: string; onBusyChange?: (busy: boolean) => void;
+  /** false면 잠금 이유 문장을 본문에 그리지 않는다(상품 편집기가 패널 위에 공통 잠금 안내를 보일 때). 잠금은 disabledReason이 그대로 맡는다. */
+  showDisabledReason?: boolean;
 }) {
   const scope = useMemo(() => ({ ...createGoodsDescriptionToolScope(accountId), goodId }), [accountId, goodId]);
   const auth = useSyncExternalStore(scope.subscribe, scope.getSnapshot, scope.getServerSnapshot);
@@ -211,7 +213,7 @@ export function GoodsTransactionTermsPanel({ goodId, accountId, disabledReason =
       {workspace?.recoveryPending && <div className="card col" style={{ padding: 12, gap: 8 }}><p>{recoveryValid ? '같은 로그인 세션에서 저장하지 않은 할인·배송 입력이 있습니다.' : '이전 로그인 세션이거나 형식을 확인할 수 없는 임시 입력입니다.'}</p>
         {recoveryValid && <button type="button" className="btn" onClick={restore} disabled={busy}>임시 입력 복원</button>}
         <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => { storage.discard(); setWorkspace({ ...workspace, recoveryPending: false }); }}>임시 입력 버리기</button></div>}
-      {disabledReason && <p role="status">{disabledReason}</p>}
+      {showDisabledReason && disabledReason && <p role="status">{disabledReason}</p>}
       {!workspace ? <button className="btn btn-ghost" type="button" onClick={() => void readLatest()} disabled={busy}>설정 다시 불러오기</button> : <>
         {workspace.retry && <div role="alert"><p>이전 저장의 결과가 아직 확인되지 않았습니다. 입력과 요청 번호를 보존했습니다.</p><button type="button" className="btn" disabled={busy || Boolean(disabledReason)} onClick={() => void save(workspace.retry!.volume ? 'volume' : 'delivery', workspace.retry!)}>같은 요청으로 결과 확인</button></div>}
         {workspace.latest && <section className="card col" aria-label="할인·배송 최신 저장본 비교" style={{ padding: 14, gap: 10 }}>

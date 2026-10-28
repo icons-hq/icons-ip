@@ -24,9 +24,11 @@ function PendingAssignment({ context, identity, scope, disabled, onReceipt }: {
   </div>;
 }
 
-export function GoodShippingChargeGroupAssignmentEditor({ goodId, identity, scope, disabledReason, onBusyChange }: {
+export function GoodShippingChargeGroupAssignmentEditor({ goodId, identity, scope, disabledReason, showDisabledReason = true, onBusyChange }: {
   goodId: string; identity: ShippingChargeGroupIdentity; scope: ShippingChargeGroupScope;
   disabledReason: string; onBusyChange?: (busy: boolean) => void;
+  /** false면 잠금 이유 문장을 본문에 그리지 않는다(상품 편집기가 패널 위에 공통 잠금 안내를 보일 때). 잠금은 disabledReason이 그대로 맡는다. */
+  showDisabledReason?: boolean;
 }) {
   const [data, setData] = useState<ShippingChargeGroupGoodData | null>(null), [loading, setLoading] = useState(true);
   const [targetId, setTargetId] = useState<string | null>(null), [target, setTarget] = useState<ShippingChargeGroup | null>(null);
@@ -109,18 +111,20 @@ export function GoodShippingChargeGroupAssignmentEditor({ goodId, identity, scop
     </> : null}
     <div><button className="btn btn-sm" type="button" disabled={locked || !canEdit} onClick={() => { void prepare(); }}>배정 미리보기</button>{' '}
       <button className="btn btn-sm btn-ghost" type="button" disabled={locked} onClick={() => { if (!locked) void reload(); }}>최신 배정 불러오기</button></div>
-    {disabledReason ? <p>{disabledReason}</p> : null}
+    {showDisabledReason && disabledReason ? <p>{disabledReason}</p> : null}
     {loading || operation.busy ? <p role="status">묶음배송 설정을 확인하고 있습니다.</p> : null}
     {error || operation.error ? <p role="alert">{error || operation.error}</p> : null}
     {message || operation.message ? <p role="status">{message || operation.message}</p> : null}
   </div>;
 }
 
-export function GoodShippingChargeGroupPanel({ goodId, accountId, disabledReason = '', onBusyChange }: {
+export function GoodShippingChargeGroupPanel({ goodId, accountId, disabledReason = '', showDisabledReason = true, onBusyChange }: {
   goodId: string; accountId: string; disabledReason?: string; onBusyChange?: (busy: boolean) => void;
+  /** false면 잠금 이유 문장을 본문에 그리지 않는다(상품 편집기가 패널 위에 공통 잠금 안내를 보일 때). 잠금은 disabledReason이 그대로 맡는다. */
+  showDisabledReason?: boolean;
 }) {
   const { identity, scope, blocked } = useShippingChargeGroupSession(accountId);
   return identity ? <GoodShippingChargeGroupAssignmentEditor key={`${identity.expectedActorId}:${identity.expectedSessionId}:${goodId}`} goodId={goodId} identity={identity}
-    scope={scope} disabledReason={disabledReason} onBusyChange={onBusyChange} />
+    scope={scope} disabledReason={disabledReason} showDisabledReason={showDisabledReason} onBusyChange={onBusyChange} />
     : <p role={blocked ? 'alert' : 'status'}>{blocked ? '로그인 계정 또는 세션이 바뀌었습니다. 현재 계정으로 화면을 다시 열어주세요.' : '현재 로그인 상태를 확인하고 있습니다.'}</p>;
 }

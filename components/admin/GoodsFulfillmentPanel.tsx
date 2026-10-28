@@ -9,9 +9,10 @@ import '@/app/styles/admin-goods-fulfillment.css';
 const shippingMethods = ['parcel', 'quick', 'pickup', 'direct', 'freight'] as const;
 const draftOf = (s: GoodsFulfillmentSettings) => ({ mode: s.mode, methods: shippingMethods.map(method => { const terms = s.methods.find(m => m.method === method); return { method, enabled: Boolean(terms), amount: terms?.feeAmount?.toString() ?? '0', basis: terms?.feeBasis ?? 'per_order', installation: terms?.installationFee.toString() ?? '0' }; }), files: s.files, publicNote: s.publicNote, evidence: '', confirmed: false });
 type Draft = ReturnType<typeof draftOf>;
-type Props = { goodId: string; accountId: string; disabledReason?: string };
+/** showDisabledReason=false면 잠금 이유 문장을 본문에 그리지 않는다(상품 편집기가 패널 위에 공통 잠금 안내를 보일 때). 잠금은 disabledReason이 맡는다. */
+type Props = { goodId: string; accountId: string; disabledReason?: string; showDisabledReason?: boolean };
 export function GoodsFulfillmentPanel(props: Props) { return <ClaimContactSession actorId={props.accountId} pendingMessage="로그인 상태를 확인하고 있습니다.">{(identity, scope) => <Panel {...props} identity={identity} scope={scope} />}</ClaimContactSession>; }
-function Panel({ goodId, disabledReason, identity, scope }: Props & { identity: ClaimContactIdentity; scope: ClaimContactScope }) {
+function Panel({ goodId, disabledReason, showDisabledReason = true, identity, scope }: Props & { identity: ClaimContactIdentity; scope: ClaimContactScope }) {
  const [settings, setSettings] = useState<GoodsFulfillmentSettings | null>(null), [draft, setDraft] = useState<Draft | null>(null), [pending, setPending] = useState(false), [uncertain, setUncertain] = useState(false), [message, setMessage] = useState(''), [pendingFile, setPendingFile] = useState<DigitalFile | null>(null);
  const alive = useRef(true), busy = useRef(false), dispatched = useRef<{ values: unknown; revision: number; operation: string } | null>(null);
  useEffect(() => { alive.current = true; return () => { alive.current = false; }; }, []);
@@ -80,6 +81,6 @@ function Panel({ goodId, disabledReason, identity, scope }: Props & { identity: 
   </fieldset><button type="submit" className="wc-admin-kit__button wc-admin-kit__button--primary" disabled={pending || !draft.confirmed || Boolean(pendingFile) || Boolean(disabledReason)}>{uncertain ? '같은 요청으로 저장 결과 확인' : '배송·제공 설정 저장'}</button></form> : null}
   {pendingFile ? <p role="status">{pendingFile.name}의 전송·검증 결과를 확인해주세요. <button type="button" className="wc-admin-kit__button" disabled={pending} onClick={() => { void verify(); }}>같은 업로드 결과 확인</button></p> : null}
   {settings ? <p>저장된 방식: {settings.methods.map(m => `${FULFILLMENT_METHOD_LABELS[m.method]}${m.feeAmount === null ? '' : ` ${krw(m.feeAmount)}`}`).join(', ')}</p> : null}
-  {disabledReason ? <p role="status">{disabledReason}</p> : null}{message ? <p role="status">{message}</p> : null}
+  {showDisabledReason && disabledReason ? <p role="status">{disabledReason}</p> : null}{message ? <p role="status">{message}</p> : null}
  </div>;
 }

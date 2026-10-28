@@ -19,7 +19,7 @@ import { RecordList } from '../fields';
 import { GoodEditor } from '../GoodEditor';
 import { CatalogArchiveControl, CatalogArchiveFilter } from '../CatalogArchiveControls';
 import { GoodsListingColorsPanel } from '../GoodsListingColorsPanel';
-import { GOOD_OPERATION_LOCKED_POINTER, GOOD_UNSAVED_BASE_COPY, GoodOperationDisabledNotice, GoodOperationSection, GoodWorkspaceProvider, focusGoodWorkspaceTarget } from '../GoodWorkspace';
+import { GOOD_UNSAVED_BASE_COPY, GoodOperationDisabledNotice, GoodOperationSection, GoodWorkspaceProvider, focusGoodWorkspaceTarget } from '../GoodWorkspace';
 import { GoodWorkspaceKcCard, GoodWorkspacePreorderCard } from '../GoodWorkspaceSections';
 import { VariantStockAdjustmentForm } from '../VariantStockAdjustmentForm';
 import { GoodVariantsPanel } from '../GoodVariantsPanel';
@@ -115,9 +115,17 @@ export function GoodSection({
   const policyDisabled = pending || editingState?.busy ? '기본 상품을 저장하는 중입니다. 저장이 끝난 뒤 별도 설정을 저장해주세요.'
     : editingState?.goodId !== selected?.id ? '기본 상품의 입력 상태를 확인하고 있습니다.'
     : editingState?.dirty ? GOOD_UNSAVED_BASE_COPY : '';
-  /* R14: 기본 입력 상태 때문에 잠긴 5개 패널은 맨 위에 같은 이유와 저장 바로가기를 보인다. 패널 본문에는 짧은 가리킴만 넘긴다. */
+  /*
+   * R14: 기본 입력 상태 때문에 잠긴 운영 패널은 맨 위에 같은 이유와 저장 바로가기를 보인다. 그때 패널은 잠그기만 하고
+   * 같은 이유를 본문에 다시 그리지 않는다(showDisabledReason=false, 리뷰 T3a-7). 다른 패널 저장을 기다리느라 공통 안내를
+   * 보이지 않을 때는 패널이 자기 이유를 직접 보인다.
+   */
   const policyNotice = <GoodOperationDisabledNotice reason={policyDisabled} unsaved={policyUnsaved} />;
-  const policyPointer = policyDisabled ? GOOD_OPERATION_LOCKED_POINTER : '';
+  const transactionOwnReason = ownership && !ownership.aggregation.editable ? '할인·수량별 배송비는 합산 기준 상품에서 관리합니다.'
+    : chargeBusy ? '묶음그룹 저장 결과를 확인한 뒤 할인·배송 설정을 저장해주세요.'
+    : subscriptionBusy ? '정기배송 저장 결과를 확인한 뒤 할인·배송 설정을 저장해주세요.' : '';
+  const chargeOwnReason = transactionBusy || subscriptionBusy ? '할인·배송 또는 정기배송 요청의 결과를 확인한 뒤 배정해주세요.' : '';
+  const subscriptionOwnReason = transactionBusy || chargeBusy ? '할인·배송 저장 결과를 확인한 뒤 정기배송 설정을 저장해주세요.' : '';
   const kcTemplate = useGoodsKcTemplate(selected?.id ?? null);
   const normalizedQuery=query.trim().toLocaleLowerCase();
   const visibleRecords = filterAdminCatalogRecords(records, archiveFilter).filter((good)=>!normalizedQuery
@@ -207,11 +215,11 @@ export function GoodSection({
           {!selected.archivedAt && !ownership?.group && <GoodOperationSection id="after-sales" title={OPERATION['after-sales'][0]} description={OPERATION['after-sales'][1]}><GoodsAfterSalesPanel goodId={selected.id} key={`after-sales-${accountId}-${selected.id}`} /></GoodOperationSection>}
           {!selected.archivedAt && !ownership?.group && <GoodOperationSection id="size-chart" title={OPERATION['size-chart'][0]} description={OPERATION['size-chart'][1]}><GoodSizeChartPanel goodId={selected.id} accountId={accountId} key={`size-chart-${accountId}-${selected.id}`} /></GoodOperationSection>}
           {!selected.archivedAt && <GoodOperationSection id="prices" title={OPERATION.prices[0]} description={OPERATION.prices[1]}><GoodsPricePeriodsPanel goodId={selected.id} variants={variants} key={`prices-${selected.id}`} /></GoodOperationSection>}
-          {!selected.archivedAt && <GoodOperationSection notice={ownership && !ownership.aggregation.editable || chargeBusy || subscriptionBusy ? undefined : policyNotice} id="transaction-terms" title={OPERATION['transaction-terms'][0]} description={OPERATION['transaction-terms'][1]}><GoodsTransactionTermsPanel goodId={selected.id} accountId={accountId} disabledReason={ownership && !ownership.aggregation.editable ? '할인·수량별 배송비는 합산 기준 상품에서 관리합니다.' : chargeBusy ? '묶음그룹 저장 결과를 확인한 뒤 할인·배송 설정을 저장해주세요.' : subscriptionBusy ? '정기배송 저장 결과를 확인한 뒤 할인·배송 설정을 저장해주세요.' : policyPointer} onBusyChange={setTransactionBusy} key={`transaction-${accountId}-${selected.id}`} /></GoodOperationSection>}
-          {!selected.archivedAt && <GoodOperationSection notice={transactionBusy || subscriptionBusy ? undefined : policyNotice} id="shipping-charge-group" title={OPERATION['shipping-charge-group'][0]} description={OPERATION['shipping-charge-group'][1]}><GoodShippingChargeGroupPanel goodId={selected.id} accountId={accountId} disabledReason={transactionBusy || subscriptionBusy ? '할인·배송 또는 정기배송 요청의 결과를 확인한 뒤 배정해주세요.' : policyPointer} onBusyChange={setChargeBusy} key={`shipping-charge-${accountId}-${selected.id}`} /></GoodOperationSection>}
-          {!selected.archivedAt && <GoodOperationSection notice={transactionBusy || chargeBusy ? undefined : policyNotice} id="subscription-policy" title={OPERATION['subscription-policy'][0]} description={OPERATION['subscription-policy'][1]}><GoodsSubscriptionPolicyPanel goodId={selected.id} accountId={accountId} disabledReason={transactionBusy || chargeBusy ? '할인·배송 저장 결과를 확인한 뒤 정기배송 설정을 저장해주세요.' : policyPointer} onBusyChange={setSubscriptionBusy} key={`subscription-${accountId}-${selected.id}`} /></GoodOperationSection>}
-          {!selected.archivedAt && accountId ? <GoodOperationSection notice={policyNotice} id="fulfillment" title={OPERATION.fulfillment[0]} description={OPERATION.fulfillment[1]}><GoodsFulfillmentPanel key={`fulfillment-${accountId}-${selected.id}`} goodId={selected.id} accountId={accountId} disabledReason={policyPointer} /></GoodOperationSection> : null}
-          {!selected.archivedAt && accountId ? <GoodOperationSection notice={policyNotice} id="production" title={OPERATION.production[0]} description={OPERATION.production[1]}><GoodsProductionPanel key={`production-${accountId}-${selected.id}`} goodId={selected.id} accountId={accountId} disabledReason={policyPointer} /></GoodOperationSection> : null}
+          {!selected.archivedAt && <GoodOperationSection notice={transactionOwnReason ? undefined : policyNotice} id="transaction-terms" title={OPERATION['transaction-terms'][0]} description={OPERATION['transaction-terms'][1]}><GoodsTransactionTermsPanel goodId={selected.id} accountId={accountId} disabledReason={transactionOwnReason || policyDisabled} showDisabledReason={Boolean(transactionOwnReason)} onBusyChange={setTransactionBusy} key={`transaction-${accountId}-${selected.id}`} /></GoodOperationSection>}
+          {!selected.archivedAt && <GoodOperationSection notice={chargeOwnReason ? undefined : policyNotice} id="shipping-charge-group" title={OPERATION['shipping-charge-group'][0]} description={OPERATION['shipping-charge-group'][1]}><GoodShippingChargeGroupPanel goodId={selected.id} accountId={accountId} disabledReason={chargeOwnReason || policyDisabled} showDisabledReason={Boolean(chargeOwnReason)} onBusyChange={setChargeBusy} key={`shipping-charge-${accountId}-${selected.id}`} /></GoodOperationSection>}
+          {!selected.archivedAt && <GoodOperationSection notice={subscriptionOwnReason ? undefined : policyNotice} id="subscription-policy" title={OPERATION['subscription-policy'][0]} description={OPERATION['subscription-policy'][1]}><GoodsSubscriptionPolicyPanel goodId={selected.id} accountId={accountId} disabledReason={subscriptionOwnReason || policyDisabled} showDisabledReason={Boolean(subscriptionOwnReason)} onBusyChange={setSubscriptionBusy} key={`subscription-${accountId}-${selected.id}`} /></GoodOperationSection>}
+          {!selected.archivedAt && accountId ? <GoodOperationSection notice={policyNotice} id="fulfillment" title={OPERATION.fulfillment[0]} description={OPERATION.fulfillment[1]}><GoodsFulfillmentPanel key={`fulfillment-${accountId}-${selected.id}`} goodId={selected.id} accountId={accountId} disabledReason={policyDisabled} showDisabledReason={false} /></GoodOperationSection> : null}
+          {!selected.archivedAt && accountId ? <GoodOperationSection notice={policyNotice} id="production" title={OPERATION.production[0]} description={OPERATION.production[1]}><GoodsProductionPanel key={`production-${accountId}-${selected.id}`} goodId={selected.id} accountId={accountId} disabledReason={policyDisabled} showDisabledReason={false} /></GoodOperationSection> : null}
           {/* D5② 판매 방식(랜덤 판매): 옵션·가격 저장과 낙관 잠금(goods.updated_at)을 나눠 쓰므로 기본 입력이 잠기면 함께 잠그고,
               상품을 저장해 수정 시각이 바뀌면 다시 읽는다. */}
           {!selected.archivedAt && <GoodOperationSection notice={policyNotice} id="option-sale-mode" title={OPERATION['option-sale-mode'][0]} description={OPERATION['option-sale-mode'][1]}><GoodsOptionSaleModePanel key={`option-sale-mode-${selected.id}`} goodId={selected.id} revision={`${selected.updatedAt ?? ''}:${state.attempt ?? 0}`} disabled={Boolean(policyDisabled)} /></GoodOperationSection>}
