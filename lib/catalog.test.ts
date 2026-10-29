@@ -1835,7 +1835,7 @@ describe('goods detail publication races', () => {
       const selectedRead = records.find(record => record.table === 'goods' && record.in.some(([key]) => key === 'id'));
       expect(selectedRead?.select?.split(',')).toContain('allow_card_payment');
       expect(selectedRead?.selectOptions).toEqual({ count: 'exact' });
-      expect(selectedRead?.eq).toContainEqual(['sale_restriction', 'none']);
+      expect(selectedRead?.in).toContainEqual(['sale_restriction', ['none']]);
       expect(selectedRead?.not).toContainEqual(['ips.published_at', 'is', null]);
     } finally { mocks.isConfigured = false; mocks.client = null; }
   });

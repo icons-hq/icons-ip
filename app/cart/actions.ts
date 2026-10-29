@@ -15,11 +15,15 @@ import { createClient } from '@/lib/supabase/server';
 import { createServiceClient } from '@/lib/supabase/service';
 import { parseCartAdditionRequest, parseCartAdditionSnapshot } from '@/lib/cart-additions';
 import { readCompleteIdPages } from '@/lib/supabase/complete-id-pages';
+import { adultGoodsRestrictions } from '@/lib/adult-goods';
+import { getAdultGoodsAccess } from '@/lib/adult-goods-access.server';
 
 const SYNC_ERROR = '장바구니를 동기화하지 못했습니다. 다시 시도해주세요.';
 const SAVE_ERROR = '장바구니를 저장하지 못했습니다. 다시 시도해주세요.';
 const STOCK_ERROR = '현재 재고보다 많이 담을 수 없습니다.';
 const INPUT_ERROR = '장바구니 수량을 확인해주세요.';
+/* 19금 굿즈는 유효한 성인 인증이 있어야 담긴다(ADR-0024) — DB가 adult_verification_required로 알린다. */
+const ADULT_VERIFICATION_ERROR = '19금 굿즈는 성인 인증을 마친 회원만 담을 수 있어요. 마이 > 성인 인증에서 인증해주세요.';
 
 type CartSupabaseClient = Awaited<ReturnType<typeof createClient>>;
 
@@ -81,7 +85,9 @@ export async function syncCartAction(localItemsValue: unknown): Promise<CartActi
     const { data, error } = await supabase.from('goods_variants')
       .select('id,good_id,goods!inner(id,ips!inner(id))')
       .in('good_id', [...new Set(legacy.map((item) => item.goodId))]).eq('is_default', true).is('archived_at', null)
-      .not('goods.published_at', 'is', null).is('goods.archived_at', null).eq('goods.sale_restriction', 'none')
+      .not('goods.published_at', 'is', null).is('goods.archived_at', null)
+      // 19금 굿즈는 인증 성인에게만 기본 옵션을 찾는다(ADR-0024). 옵션 RLS도 같은 판정이다.
+      .in('goods.sale_restriction', adultGoodsRestrictions(await getAdultGoodsAccess() === 'full' ? 'full' : 'hidden'))
       .not('goods.ips.published_at', 'is', null).is('goods.ips.archived_at', null);
     if (error) return { ok: false, mode: 'local', error: SYNC_ERROR, unresolvedItems: legacy };
     for (const row of data ?? []) defaults.set(row.good_id, row.id);
@@ -168,7 +174,7 @@ export async function setCartItemQuantityAction(
   const { error } = customInputs
     ? await context.supabase.rpc('set_cart_item_quantity_with_inputs', { p_good_id:goodId,p_variant_id:variantId,p_qty:qty,p_input_revision:customInputs.revision,p_input_values:goodsCustomInputValues(customInputs) })
     : await context.supabase.rpc('set_cart_item_quantity', {p_good_id:goodId,p_variant_id:variantId,p_qty:qty});
-  if (error) return { ok: false, mode: 'server', error: error.message === 'goods_sale_not_open' ? '판매기간이 시작되지 않았거나 종료된 굿즈입니다.' : error.message === 'out of stock' ? STOCK_ERROR : /goods_custom_inputs/.test(error.message) ? '직접입력형 옵션 설정이 변경되었습니다. 굿즈에서 내용을 다시 확인해주세요.' : SAVE_ERROR };
+  if (error) return { ok: false, mode: 'server', error: error.message === 'goods_sale_not_open' ? '판매기간이 시작되지 않았거나 종료된 굿즈입니다.' : error.message === 'adult_verification_required' ? ADULT_VERIFICATION_ERROR : error.message === 'out of stock' ? STOCK_ERROR : /goods_custom_inputs/.test(error.message) ? '직접입력형 옵션 설정이 변경되었습니다. 굿즈에서 내용을 다시 확인해주세요.' : SAVE_ERROR };
   return serverMutationResult(context.supabase, context.user.id);
 }
 
@@ -189,7 +195,7 @@ export async function addCartSelectionAction(baseGoodIdValue: unknown, entriesVa
     p_items: entries.map((entry) => ({ good_id: entry.goodId, variant_id: entry.variantId, qty: entry.qty, expected_qty: entry.expectedQty, ...(entry.customInputs ? {input_revision:entry.customInputs.revision,input_values:goodsCustomInputValues(entry.customInputs)} : {}) })),
   });
   if (error) {
-    return { ok: false, mode: 'server', error: error.message === 'goods_sale_not_open' ? '판매기간이 시작되지 않았거나 종료된 굿즈입니다.' : error.message === 'out of stock' ? STOCK_ERROR
+    return { ok: false, mode: 'server', error: error.message === 'goods_sale_not_open' ? '판매기간이 시작되지 않았거나 종료된 굿즈입니다.' : error.message === 'adult_verification_required' ? ADULT_VERIFICATION_ERROR : error.message === 'out of stock' ? STOCK_ERROR
       : /goods_custom_inputs/.test(error.message) ? '직접입력형 옵션 설정이 변경되었습니다. 굿즈에서 내용을 다시 확인해주세요.'
       : error.message === 'cart_selection_changed' ? '장바구니가 변경되었습니다. 현재 수량을 확인하고 다시 담아주세요.'
         : error.message === 'additional_good_unavailable' ? '추가 구성 굿즈의 판매 또는 연결 상태가 변경되었습니다. 선택을 다시 확인해주세요.'

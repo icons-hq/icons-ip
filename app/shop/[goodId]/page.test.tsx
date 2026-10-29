@@ -3,6 +3,8 @@ import { beforeEach, describe, expect, it, vi } from 'vitest';
 import type { CatalogGoodDetail } from '@/lib/catalog';
 import type { GoodsSizeChart } from '@/lib/goods-size-chart';
 import type { PublicGoodOtherCompositions } from '@/lib/good-other-compositions';
+import type { AdultGoodsAccess } from '@/lib/adult-goods';
+import { adultVerificationHref } from '@/lib/identity/adult-verification-routes';
 import type { GoodsReviewSummary } from '@/lib/goods-review-summary';
 import type { ListingWishlist } from '@/lib/listing-wishlist';
 import type { PublicDetailPresentation } from '@/lib/product-detail-presentation';
@@ -12,6 +14,11 @@ const summary = { average: 4.5, count: 3, distribution: [0, 0, 0, 1, 2], photoCo
 
 const mocks = vi.hoisted(() => ({
   details: [] as CatalogGoodDetail[],
+  adultGoods: 'hidden' as AdultGoodsAccess,
+  adultGates: [] as string[],
+  auth: { user: null as { id: string } | null },
+  catalogDetail: vi.fn(),
+  adultGate: vi.fn(),
   shipping: vi.fn(async () => ({originId:'gimpo',originName:'김포',baseFee:4700,freeThreshold:62000,feeType:'policy',individualFee:0})),
   businessInfo: vi.fn(async () => ({ companyName: '(주)아이콘스', representative: '', registrationNumber: '109-86-27576', mailOrderNumber: '', address: '', phone: '', email: '', hostingProvider: 'Vercel, Inc.' })),
   engagement: vi.fn(async () => ({ restockRequested: false, wished: true })),
@@ -59,8 +66,11 @@ vi.mock('@/lib/product-detail-presentation.server', () => ({ loadPublicDetailPre
 vi.mock('@/lib/wishlist-ids.server', () => ({ loadListingWishlist: mocks.wishlist }));
 vi.mock('@/lib/listing-review-summaries.server', () => ({ loadListingReviewSummaries: mocks.shelfReviewSummaries }));
 vi.mock('@/lib/catalog', () => ({
-  getCatalogGoodDetail: async (id: string) => mocks.details.find((item) => item.good.id === id) ?? null,
+  getCatalogGoodDetail: mocks.catalogDetail,
+  isPublishedAdultGood: mocks.adultGate,
 }));
+vi.mock('@/lib/adult-goods-access.server', () => ({ getAdultGoodsAccess: async () => mocks.adultGoods }));
+vi.mock('@/lib/auth/server', () => ({ getCurrentAuthState: async () => mocks.auth }));
 
 function detailFor(id: string, name: string, price: number): CatalogGoodDetail {
   return {
@@ -92,6 +102,17 @@ function detailFor(id: string, name: string, price: number): CatalogGoodDetail {
   };
 }
 
+/* 실제 카탈로그 로더처럼 19금 굿즈 상세는 인증 성인(full)에게만 돌려준다. */
+function catalogDetailFor(id: string, options?: { adultGoods?: AdultGoodsAccess }) {
+  const detail = mocks.details.find((item) => item.good.id === id) ?? null;
+  return detail?.good.saleRestriction === 'adult' && options?.adultGoods !== 'full' ? null : detail;
+}
+
+function adultDetail(): CatalogGoodDetail {
+  const base = detailFor('g15', '한정 아크릴 스탠드', 30000);
+  return { ...base, good: { ...base.good, saleRestriction: 'adult' } };
+}
+
 beforeEach(() => {
   mocks.goodDetail.mockClear();
   mocks.goodQna.mockClear();
@@ -102,6 +123,11 @@ beforeEach(() => {
   mocks.sizeChart.mockReset().mockResolvedValue(null);
   mocks.otherCompositions.mockReset().mockResolvedValue({ groups: [], nextChangeAt: null });
   mocks.refresh.mockClear();
+  mocks.adultGoods = 'hidden';
+  mocks.adultGates = [];
+  mocks.auth = { user: null };
+  mocks.catalogDetail.mockReset().mockImplementation(async (id: string, options?: { adultGoods?: AdultGoodsAccess }) => catalogDetailFor(id, options));
+  mocks.adultGate.mockReset().mockImplementation(async (id: string) => mocks.adultGates.includes(id));
   mocks.presentation.mockReset().mockResolvedValue(null);
   mocks.wishlist.mockReset().mockResolvedValue(null);
   mocks.shelfReviewSummaries.mockReset().mockResolvedValue({});
@@ -317,5 +343,61 @@ describe('/shop/[goodId] page', () => {
     await expect(
       generateMetadata({ params: Promise.resolve({ goodId: 'g999' }), searchParams: Promise.resolve({}) }),
     ).rejects.toThrow('NEXT_NOT_FOUND');
+  });
+
+  /* 19금 굿즈(ADR-0024) — 인증 전 방문자는 이름·이미지·가격 없이 성인 인증 안내만 본다. */
+  it('인증 전 비로그인 방문자에게 19금 굿즈 대신 로그인·성인 인증 안내를 낸다', async () => {
+    mocks.adultGoods = 'masked';
+    mocks.adultGates = ['g15'];
+    mocks.details.push(adultDetail());
+
+    const html = renderToStaticMarkup(await Page({ params: Promise.resolve({ goodId: 'g15' }), searchParams: Promise.resolve({}) }));
+    const metadata = await generateMetadata({ params: Promise.resolve({ goodId: 'g15' }), searchParams: Promise.resolve({}) });
+
+    expect(mocks.catalogDetail).toHaveBeenCalledWith('g15', { adultGoods: 'masked' });
+    expect(mocks.goodDetail).not.toHaveBeenCalled();
+    expect(html).toContain('19세 이상만 볼 수 있는 굿즈예요');
+    expect(html).toContain(`href="/login?next=${encodeURIComponent('/shop/g15')}"`);
+    expect(html).not.toContain('한정 아크릴 스탠드');
+    expect(html).not.toContain('application/ld+json');
+    expect(metadata).toEqual({ title: '19금 굿즈 — ICONS', robots: { index: false, follow: false } });
+  });
+
+  it('로그인한 인증 전 회원은 19금 굿즈 안내에서 성인 인증으로 바로 보낸다', async () => {
+    mocks.adultGoods = 'masked';
+    mocks.adultGates = ['g15'];
+    mocks.auth = { user: { id: 'u1' } };
+    mocks.details.push(adultDetail());
+
+    const html = renderToStaticMarkup(await Page({ params: Promise.resolve({ goodId: 'g15' }), searchParams: Promise.resolve({}) }));
+
+    expect(html).toContain(`href="${adultVerificationHref('/shop/g15')}"`);
+    expect(html).not.toContain('/login?next=');
+  });
+
+  /* 성인 인증이 닫혀 있으면 19금 굿즈는 지금처럼 없는 굿즈다 — 존재 여부도 묻지 않는다. */
+  it('성인 인증이 닫혀 있으면 19금 굿즈를 404 로 보낸다', async () => {
+    mocks.adultGates = ['g15'];
+    mocks.details.push(adultDetail());
+
+    await expect(Page({ params: Promise.resolve({ goodId: 'g15' }), searchParams: Promise.resolve({}) })).rejects.toThrow('NEXT_NOT_FOUND');
+    await expect(
+      generateMetadata({ params: Promise.resolve({ goodId: 'g15' }), searchParams: Promise.resolve({}) }),
+    ).rejects.toThrow('NEXT_NOT_FOUND');
+    expect(mocks.adultGate).not.toHaveBeenCalled();
+  });
+
+  it('인증 성인에게는 19금 굿즈 상세를 열되 검색 색인은 막는다', async () => {
+    mocks.adultGoods = 'full';
+    mocks.details.push(adultDetail());
+
+    renderToStaticMarkup(await Page({ params: Promise.resolve({ goodId: 'g15' }), searchParams: Promise.resolve({}) }));
+    const adult = await generateMetadata({ params: Promise.resolve({ goodId: 'g15' }), searchParams: Promise.resolve({}) });
+    const general = await generateMetadata({ params: Promise.resolve({ goodId: 'g13' }), searchParams: Promise.resolve({}) });
+
+    expect(mocks.goodDetail.mock.calls[0]?.[0]?.detail).toMatchObject({ good: { id: 'g15', saleRestriction: 'adult' } });
+    expect(adult.title).toBe('한정 아크릴 스탠드 — ICONS');
+    expect(adult.robots).toEqual({ index: false, follow: false });
+    expect(general).not.toHaveProperty('robots');
   });
 });

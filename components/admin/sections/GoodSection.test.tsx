@@ -360,7 +360,7 @@ describe('GoodSection', () => {
     expect(html).toContain('name="allowCardPayment"');
     expect(html).toContain('성인(19금)');
     expect(html).toMatch(/<option[^>]*value="adult"[^>]*selected|<option[^>]*selected[^>]*value="adult"/);
-    expect(html).toContain('성인인증을 도입하기 전까지 공개되지 않고 구매가 차단됩니다');
+    expect(html).toContain('성인 인증을 마친 회원에게만 공개·판매됩니다');
   });
 
   /* 10/27 회의 R12·D7② — 구매 제한은 판매가·판매기간 바로 아래에 펼친 채, 스마트스토어 어휘로 보인다. */

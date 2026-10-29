@@ -37,7 +37,7 @@ export interface AdminIpRecord {
 
 /**
  * 굿즈 판매 제한 유형 (#392). DB enum `public.goods_sale_restriction` 과 같은 목록이다.
- * 'adult' 는 성인인증 도입 전까지 스토어에서 숨기고 결제를 전용 PG로 분기한다.
+ * 'adult' 는 성인 인증을 마친 회원에게만 노출·판매하고(ADR-0024) 결제를 전용 PG로 분기한다.
  */
 export type AdminGoodSaleRestriction = 'none' | 'adult';
 
@@ -79,7 +79,7 @@ export interface AdminGoodRecord {
   maxOrderQty?: number | null;
   memberPurchaseLimitEnabled?: boolean;
   memberLifetimeQtyLimit?: number | null;
-  /** 판매 제한 유형 (#392). 'adult' 는 노출·구매를 막고 결제 PG를 코페이로 분기한다. */
+  /** 판매 제한 유형 (#392). 'adult' 는 인증 성인에게만 노출·판매하고 결제 PG를 코페이로 분기한다. */
   saleRestriction: AdminGoodSaleRestriction;
   /** 옵션 판매 방식(D5②). 'random'이면 옵션별 구매 제한을 쓸 수 없다. 조회가 싣지 않은 기록은 옵션 선택 판매로 본다. */
   optionSaleMode?: GoodsOptionSaleMode;

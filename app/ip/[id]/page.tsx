@@ -7,6 +7,7 @@ import { notFound, permanentRedirect } from 'next/navigation';
 import { IpDetail } from '@/components/screens/IpDetail';
 import { getCurrentAuthState } from '@/lib/auth/server';
 import { getCatalogIpDetail } from '@/lib/catalog';
+import { getAdultGoodsAccess } from '@/lib/adult-goods-access.server';
 import { loadPublicCatalogCategories } from '@/lib/catalog-categories.server';
 import { publicIpHref } from '@/lib/ip-identity';
 import { resolvePublicIpIdentity } from '@/lib/ip-identity.server';
@@ -50,7 +51,7 @@ export default async function Page({ params, searchParams }: PageProps) {
 
   const auth = await getCurrentAuthState();
   const [detail, followState, wishlist, banner] = await Promise.all([
-    getCatalogIpDetail(identity.internalId, { viewerId: auth.user?.id ?? null, isStaff: auth.isStaff }),
+    getAdultGoodsAccess().then(adultGoods => getCatalogIpDetail(identity.internalId, { viewerId: auth.user?.id ?? null, isStaff: auth.isStaff, adultGoods })),
     getIpFollowState(identity.internalId),
     loadListingWishlist(),
     /* IP관 PC/MO 배너(IP-06). 없거나 못 읽으면 null — 배너는 키아트 그대로다. */

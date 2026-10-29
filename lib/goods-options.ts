@@ -211,7 +211,8 @@ export function goodsPurchaseConditionProblem(good: Pick<Good,
   if (good.transactionOffer?.aggregation?.runtimeEnabled === false) return '구매 준비 중인 굿즈입니다.';
   const periodLabel = goodsSaleUnavailableLabel(good.salePeriod);
   if (periodLabel) return `${periodLabel} 굿즈입니다.`;
-  if (good.saleRestriction === 'adult') return '현재 판매 준비 중인 굿즈입니다.';
+  /* 19금 굿즈의 구매 자격은 상품 조건이 아니라 구매자의 성인 인증이다(ADR-0024). 인증 전
+     방문자는 상세 대신 인증 안내를 보고, 담기·주문은 DB가 증거로 다시 판정한다. */
   if (good.allowCardPayment === false && good.allowBankTransfer === false) return '현재 주문을 받지 않는 굿즈입니다.';
   if ((good.orderQuantityLimitEnabled && (!good.minOrderQty || !good.maxOrderQty || good.minOrderQty > good.maxOrderQty))
     || (good.memberPurchaseLimitEnabled && !good.memberLifetimeQtyLimit)) return '구매 조건을 확인 중인 굿즈입니다.';

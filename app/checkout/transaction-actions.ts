@@ -7,6 +7,7 @@ import { normalizeOrderReference } from '@/lib/checkout';
 import { parseGoodsTransactionQuote, type GoodsTransactionQuote } from '@/lib/goods-transaction';
 import { bankTransferCheckoutEnabled } from '@/lib/payments/bank-transfer.server';
 import { goodsCheckoutPaymentsEnabled } from '@/lib/payments/goods-checkout-availability';
+import { deriveGoodsCartProvider, deriveUserCartProvider } from '@/lib/payments/goods-sale-restriction.server';
 import { createServiceClient } from '@/lib/supabase/service';
 import { bindStoreAnalyticsOrder } from '@/lib/store-analytics.server';
 import { loadGoodsTransactionOffers } from '@/lib/goods-transaction-offers.server';
@@ -71,7 +72,12 @@ export async function placeCartTransactionAction(value: unknown): Promise<CartTr
   const input = parseCartTransactionOrderInput(value); if (!input) return { ok: false, error: 'invalid_request', uncertain: false };
   const denied = await authorize(input.expectedActorId); if (denied) return { ok: false, error: denied, uncertain: false };
   if (await loadGoodsTransactionRuntimeMode() !== 'transaction') return { ok: false, error: 'checkout_unavailable', uncertain: false };
-  const available = input.paymentMethod === 'bank_transfer' ? await bankTransferCheckoutEnabled() : goodsCheckoutPaymentsEnabled(input.expectedActorId);
+  let available: boolean;
+  try {
+    // 카드 gate는 카트 구성으로 파생한 provider의 것이다 — 19금 굿즈가 섞이면 코페이다.
+    available = input.paymentMethod === 'bank_transfer' ? await bankTransferCheckoutEnabled()
+      : goodsCheckoutPaymentsEnabled(input.expectedActorId, await deriveGoodsCartProvider(input.items.map(item => item.goodId)));
+  } catch { return { ok: false, error: 'unavailable', uncertain: false }; }
   if (!available) return { ok: false, error: 'payment_unavailable', uncertain: false };
   try {
     const { data, error } = await createServiceClient().rpc('place_cart_goods_transaction', {
@@ -93,7 +99,8 @@ export async function resumeCartTransactionAction(value: unknown): Promise<CartT
   const denied = await authorize(input.expectedActorId, true); if (denied) return { ok: false, error: denied, uncertain: false };
   try {
     const runtimeReady = await loadGoodsTransactionRuntimeMode() === 'transaction';
-    const allowNew = runtimeReady && (input.paymentMethod === 'bank_transfer' ? await bankTransferCheckoutEnabled() : goodsCheckoutPaymentsEnabled(input.expectedActorId));
+    const allowNew = runtimeReady && (input.paymentMethod === 'bank_transfer' ? await bankTransferCheckoutEnabled()
+      : goodsCheckoutPaymentsEnabled(input.expectedActorId, await deriveUserCartProvider(input.expectedActorId)));
     const { data, error } = await createServiceClient().rpc('resume_cart_goods_transaction', {
       p_user_id: input.expectedActorId, p_quote_id: input.quoteId, p_checkout_key: input.checkoutKey,
       p_payment_method: input.paymentMethod, p_allow_new: allowNew,

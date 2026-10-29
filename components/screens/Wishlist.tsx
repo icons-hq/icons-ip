@@ -83,6 +83,22 @@ function WishCard({ line, onAdded, viewerId }: { line: WishlistLine; onAdded: (i
     );
   }
 
+  /* 성인 인증 전 19금 굿즈는 가림 카드로만 보인다(ADR-0024). 찜 해제는 되지만 담기는 두지 않는다 —
+     DB도 인증 전 담기를 거절한다. */
+  if (good.masked) {
+    return (
+      <ProductCard
+        action={<ListingWishHeart goodId={good.id} initialWished label={good.name} viewerId={viewerId} />}
+        brand={brand}
+        href={`/shop/${good.id}`}
+        listSurface="standard"
+        masked
+        name={good.name}
+        price={good.price}
+      />
+    );
+  }
+
   return (
     <>
       <ProductCard

@@ -23,6 +23,7 @@ const mocks = vi.hoisted(() => ({
   rpc: vi.fn(),
 }));
 
+vi.mock('@/lib/adult-goods-access.server', () => ({ getAdultGoodsAccess: async () => 'hidden' }));
 vi.mock('@/lib/supabase/server', () => ({
   createClient: async () => ({
     rpc: mocks.rpc,
@@ -43,6 +44,9 @@ vi.mock('@/lib/supabase/server', () => ({
         neq: (column: string, value: unknown) => {
           mocks.filters.push([table, column, value]);
           return query;
+        },
+        in: (column: string, values: unknown[]) => {
+          mocks.filters.push([table, column, `in.${values.join(',')}`]); return query;
         },
         order: () => query,
         limit: () => Promise.resolve(result()),
@@ -181,6 +185,8 @@ describe('resolveInquiryLinkTargets', () => {
     expect(mocks.filters).toContainEqual(['goods', 'archived_at', null]);
     expect(mocks.filters).toContainEqual(['goods', 'ips.published_at', 'not.is.null']);
     expect(mocks.filters).toContainEqual(['goods', 'ips.archived_at', null]);
+    // 19금 굿즈는 인증 성인에게만 문의 대상 이름을 돌려준다(ADR-0024).
+    expect(mocks.filters).toContainEqual(['goods', 'sale_restriction', 'in.none']);
   });
 });
 
