@@ -444,7 +444,8 @@ jobs:
   deploy-supabase-preview:
     name: deploy-supabase-preview
     runs-on: ubuntu-latest
-    timeout-minutes: 30
+    # branch 생성(최대 10분)과 플랫폼 migration run 대기(최대 15분)가 들어간다.
+    timeout-minutes: 45
     needs: validate
     if: >-
       github.event_name == 'pull_request'
@@ -700,9 +701,17 @@ jobs:
             exit 1
           fi
 
-          # The parent snapshot is fixed once branch creation finishes. Fetch main again
-          # afterward so a concurrent push/main sync cannot move the parent between the
-          # earlier ancestry gate and this branch fork.
+          # git 없이 만든 branch는 ACTIVE_HEALTHY 뒤에도 플랫폼 run이 parent 이력을 migration으로
+          # 다시 적용한다. 그 run과 db push가 같은 migration을 동시에 적용하지 않도록, run이
+          # 끝난 뒤에만 Auth 동기화와 db push로 넘어간다.
+          BRANCH_NAME="$branch_name" \
+            BRANCH_ID="$(jq -r '.id // empty' <<<"$branch_json")" \
+            PROJECT_REF="$branch_project_ref" \
+            node scripts/wait-supabase-branch-deployment.mjs
+
+          # Parent snapshot은 branch 생성이 아니라 플랫폼 pull이 parent 이력을 읽을 때 정해진다.
+          # 그 run이 끝난 뒤 main을 다시 읽어, 최초 ancestry 검사 뒤 push/main sync가 parent를
+          # 전진시켰다면 fail closed한다.
           git fetch --no-tags origin main
           latest_main_sha="$(git rev-parse origin/main)"
           if ! git merge-base --is-ancestor "$latest_main_sha" "$PR_HEAD_SHA"; then
@@ -765,9 +774,66 @@ jobs:
             http://127.0.0.1:3000/auth/recovery/callback
         run: node scripts/sync-supabase-auth.mjs
 
+      # 플랫폼이 기록한 이력 다음부터 push한다. production `db push --linked`처럼 --include-all
+      # 없이 실행하므로 기록된 최신 이력보다 이른 PR migration은 여기서도 거부된다.
       - name: Apply migrations and seed to isolated preview
         if: steps.check.outputs.configured == 'true' && steps.mode.outputs.database_mode == 'isolated'
-        run: supabase db push --db-url "$POSTGRES_URL" --include-roles --include-seed --yes
+        run: |
+          set -euo pipefail
+
+          recorded_versions() {
+            docker run --rm -i postgres:17-alpine \
+              psql "$POSTGRES_URL" -X -A -t -q -v ON_ERROR_STOP=1 <<'SQL'
+          select to_regclass('supabase_migrations.schema_migrations') is not null as has_history \gset
+          \if :has_history
+          select version from supabase_migrations.schema_migrations order by version;
+          \endif
+          SQL
+          }
+
+          before="$(mktemp)"
+          after="$(mktemp)"
+          push_log="$(mktemp)"
+          trap 'rm -f "$before" "$after" "$push_log"' EXIT
+
+          recorded_versions > "$before"
+          recorded_count="$(wc -l < "$before" | tr -d ' ')"
+          recorded_latest="$(tail -n 1 "$before")"
+          echo "Migration history before db push: ${recorded_count} version(s), latest ${recorded_latest:-none}"
+
+          set +e
+          supabase db push --db-url "$POSTGRES_URL" --include-roles --include-seed --yes 2>&1 \
+            | tee "$push_log"
+          push_status="${PIPESTATUS[0]}"
+          set -e
+          if [ "$push_status" -ne 0 ]; then
+            if grep -q 'inserted before the last migration' "$push_log"; then
+              echo "::error title=PR migration predates recorded main history::Rename it after ${recorded_latest}; production db push rejects it the same way, so do not add --include-all"
+            fi
+            exit "$push_status"
+          fi
+
+          recorded_versions > "$after"
+          pushed_versions="$(LC_ALL=C comm -13 "$before" "$after")"
+          pushed_count="$(grep -c . <<<"$pushed_versions" || true)"
+          echo "::group::Migrations applied by this db push (${pushed_count})"
+          {
+            echo "### Isolated preview migration 적용"
+            echo
+            echo "- push 전 기록된 이력: ${recorded_count}개 (마지막 \`${recorded_latest:-없음}\`)"
+            echo "- 이 단계의 \`db push\`가 적용: ${pushed_count}개"
+            echo
+            echo "<details><summary>적용 목록</summary>"
+            echo
+          } >> "$GITHUB_STEP_SUMMARY"
+          for version in $pushed_versions; do
+            for file in supabase/migrations/"${version}"_*.sql; do
+              echo "${file##*/}"
+              echo "- \`${file##*/}\`" >> "$GITHUB_STEP_SUMMARY"
+            done
+          done
+          printf '\n</details>\n' >> "$GITHUB_STEP_SUMMARY"
+          echo "::endgroup::"
 
       - name: Reconcile Edge Functions in isolated preview
         if: steps.check.outputs.configured == 'true' && steps.mode.outputs.database_mode == 'isolated'
@@ -789,7 +855,7 @@ jobs:
             echo
             echo "- 모드: isolated \`pr-${PR_NUMBER}\`"
             echo "- 프로젝트: \`${PROJECT_REF}\` (운영·shared preview와 분리, 운영 데이터 복제 없음)"
-            echo "- 이 PR head의 migration, roles, seed와 repo Edge Functions를 새 branch에 적용했습니다."
+            echo "- 플랫폼이 parent(shared main) migration 이력을 먼저 적용했고, 그 run이 끝난 뒤 이 PR head의 나머지 migration과 roles, seed, repo Edge Functions를 새 branch에 적용했습니다."
             echo "- 새 커밋에서는 branch를 재생성하고 PR close 때 삭제합니다."
           } >> "$GITHUB_STEP_SUMMARY"
 
