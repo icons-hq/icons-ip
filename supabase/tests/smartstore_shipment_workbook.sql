@@ -232,5 +232,11 @@ select public.admin_import_item_tracking_batch(jsonb_build_array(
 )) as pack_import \gset
 select pg_temp.ss_assert((select bool_and(value->>'ok'='true') from jsonb_array_elements(:'pack_import'))
   and (select bool_and(status='shipping' and tracking_number='005555555555') from public.order_shipments where id in(pg_temp.ss_id(4002,5),pg_temp.ss_id(4002,6))),'matching item assignments reuse whole-pack atomic transition');
+-- PostgREST opens a READ ONLY transaction for STABLE/IMMUTABLE RPCs even over POST.
+-- Replay the packing panel read and its post-change re-read in the mode it picks.
+select set_config('transaction_read_only',(select (provolatile<>'v')::text from pg_proc
+  where oid='public.admin_get_shipment_packs_numbered(uuid[])'::regprocedure),true);
+select pg_temp.ss_assert(public.admin_get_shipment_packs_numbered(array[pg_temp.ss_id(4002,5),pg_temp.ss_id(4002,6)])#>>'{rows,0,shipmentNumber}' ~ '^202610183[0-9]{7}$',
+  'numbered packing read succeeds in the transaction mode PostgREST picks for it');
 reset role;
 rollback;
