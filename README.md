@@ -255,7 +255,7 @@ push하는 설정은 아니다.
 
 `validate`는 검사 결과를 모으는 집계 job이다. `validate-plan`이 main 재사용 증거와 수동 재배포 출처를 먼저 확인한 뒤 `validate-app`(lint·typecheck·test·build)과 DB 샤드 `validate-db` 5개가 병렬로 돈다. 각 DB 샤드는 새 러너에서 로컬 Supabase를 띄우고 migration만 적용한 빈 DB에서 시작하므로 샤드 사이에 상태를 공유하지 않는다. 샤드별 실행 목록과 순서는 `scripts/database-test-shards.mjs` 매니페스트가 소유한다. 새 DB 테스트는 이 매니페스트의 한 샤드에 등록하고, 샤드 균형은 각 샤드 step summary의 검사별 소요 시간 표를 보고 맞춘다. `validate`는 두 검사 job이 모두 성공했거나 main 재사용으로 건너뛰었을 때만 성공하고, deploy job은 이 집계 결과만 본다.
 
-- `pull_request`: open·commit 갱신·reopen, base branch retarget, 제목·본문 변경에서 `validate`를 실행하고, 같은 repo 브랜치의 코드·base 변경 PR이면 preview DB mode를 고른다. 제목·본문만 편집한 `edited` 이벤트는 다시 배포하거나 실행 중인 Preview run을 취소하지 않는다. `main` 대상은 merge-base 기준 전체 diff를 rename 비탐지로 읽고, Supabase 배포 변경이 없을 때만 base SHA의 main→shared sync 성공 증거(`deploy-supabase`·`sync-supabase-preview-main` job 성공이며, 뒤따르는 `deploy-staging`까지 run 전체가 끝나기를 기다리지 않는다)를 확인한 뒤 shared main을 변경 없이 사용한다. shared Vercel 배포 직전에도 원격 `main`이 검증한 base SHA와 같은지 다시 확인하며, 달라졌으면 새 base run을 기다리도록 실패한다. 통합 브랜치 대상 PR은 선행 stage의 누적 DB 상태를 놓치지 않도록 앱 전용 diff여도 항상 isolated다. isolated head는 현재 `main`을 포함해야 하며, 무데이터 `pr-<number>` branch를 재생성한 직후에도 `main` ancestry를 다시 확인해 동시 main sync 경쟁을 차단한다. 그 뒤 migration·custom roles·seed·repo Edge Functions·baseline 검증을 마치고 Vercel preview와 recovery template를 순서대로 배포한다. Hosted `config.toml` 전체 push는 이 경로가 소유하지 않는다. fork PR은 secret 경계 때문에 preview 배포 없이 검증만 실행한다.
+- `pull_request`: open·commit 갱신·reopen, base branch retarget, 제목·본문 변경에서 `validate`를 실행하고, 같은 repo 브랜치의 코드·base 변경 PR이면 preview DB mode를 고른다. 제목·본문만 편집한 `edited` 이벤트는 다시 배포하거나 실행 중인 Preview run을 취소하지 않는다. `main` 대상은 merge-base 기준 전체 diff를 rename 비탐지로 읽고, Supabase 배포 변경이 없을 때만 base SHA의 main→shared sync 성공 증거(`deploy-supabase`·`sync-supabase-preview-main` job 성공이며, 뒤따르는 `deploy-staging`까지 run 전체가 끝나기를 기다리지 않는다)를 확인한 뒤 shared main을 변경 없이 사용한다. shared Vercel 배포 직전에도 원격 `main`이 검증한 base SHA와 같은지 다시 확인하며, 달라졌으면 새 base run을 기다리도록 실패한다. 통합 브랜치 대상 PR은 선행 stage의 누적 DB 상태를 놓치지 않도록 앱 전용 diff여도 항상 isolated다. isolated head는 현재 `main`을 포함해야 한다. 무데이터 `pr-<number>` branch를 재생성하면 Supabase 플랫폼이 parent(shared main)의 migration 이력을 그 branch에 스스로 적용하므로, workflow는 그 배포 run이 끝날 때까지 기다린다. 그 뒤 `main` ancestry를 다시 확인해 동시 main sync 경쟁을 차단하고, 기록된 이력 다음의 migration·custom roles·seed·repo Edge Functions 적용과 baseline 검증을 마친 뒤 Vercel preview와 recovery template를 순서대로 배포한다. Hosted `config.toml` 전체 push는 이 경로가 소유하지 않는다. fork PR은 secret 경계 때문에 preview 배포 없이 검증만 실행한다.
 - `pull_request: closed`: 최종 base와 무관하게 Preview pipeline과 같은 per-PR concurrency key에서 대기한 뒤 non-default `pr-<number>` branch가 있으면 삭제한다.
 - `merge_group`: `validate` job만 실행한다.
 - PR·`merge_group`의 `validate`가 모든 검사를 통과하면 검증한 merge commit의 tree를 `validated-tree-<tree>` 아티팩트(14일 보관)로 남긴다.
@@ -298,6 +298,8 @@ Production `icons-ip`와 Preview `icons-ip-preview`는 계속 분리한다. **Pr
 - `shared`: `main` 대상이며 앱·UI·문서·테스트만 바뀐 PR. base SHA의 push/main run에서 production migration과 `sync-supabase-preview-main`이 성공했을 때만 `icons-ip-preview/main`을 읽으며, PR workflow가 migration·seed·Auth 설정을 쓰지 않는다.
 - `isolated`: `main` 대상에서 `supabase/migrations/**`, custom roles, seed, repo Edge Function, Auth/template sync, preview lifecycle처럼 이 workflow가 소유하는 Supabase 배포 상태를 바꾸는 PR과, base가 `main`이 아닌 모든 통합 브랜치 PR. PR head가 현재 `main`을 포함하는지 먼저 확인하고 무데이터 `pr-<number>` Supabase Preview Branch를 재생성해 migration·seed를 적용한다. Hosted `supabase/config.toml` 전체 push는 이 분류와 배포 계약에서 제외한다.
 
+git 연결 없이 만든 branch는 parent의 migration 이력을 플랫폼이 항목마다 다시 적용한다. 이 배포 run이 도는 중에 `supabase db push`를 실행하면 같은 migration을 두 쪽이 동시에 적용해 한쪽이 실패한다(2026-10-28 PR #596). 그래서 `scripts/wait-supabase-branch-deployment.mjs`가 Management API의 action run 단계 상태를 보고 run이 끝날 때까지 기다린다. branch의 `status` 필드는 deprecated라 로그에만 남긴다. 플랫폼 migrate가 실패해도 branch를 다시 만들지 않는다. migration마다 이력 행과 한 트랜잭션으로 커밋되므로 `db push`가 기록된 이력 다음부터 나머지를 적용한다. 이 push는 production처럼 `--include-all` 없이 실행되므로, main 최신 migration보다 이른 timestamp의 PR migration은 preview에서도 거부된다. job summary에는 플랫폼 run 결과와 push가 적용한 migration 목록이 남는다.
+
 Vercel CLI는 배포 직전에 선택된 `main` 또는 `pr-<number>`의 URL·publishable key·service role key를 다시 읽어 build/runtime에 주입한다. PR close 때 isolated branch를 삭제한다. 따라서 #321 같은 미머지 migration이 shared main이나 다른 PR branch에 누적되지 않는다.
 
 프리뷰 Supabase secret이 없으면 `deploy-vercel-preview`는 **건너뛴다**. 프리뷰가 운영 DB에 붙는 상태로 배포하지 않기 위한 기본값이며, 이유는 workflow warning과 job summary에 남는다.
@@ -328,7 +330,7 @@ Auth Site URL, redirect allow-list, recovery template와 email link/OTP TTL은 �
 printf '%s' glwypjldklwpgdtymktm | gh secret set SUPABASE_PREVIEW_PROJECT_ID
 ```
 
-`public-media`·`admin-artwork-staging` 버킷은 migration이 만들기 때문에 isolated branch의 첫 `supabase db push`에서 함께 생성된다. Branch는 무데이터이고 재실행 때 다시 만들어지므로 프리뷰에서 업로드한 임시 객체를 보존 대상으로 취급하지 않는다.
+`public-media`·`admin-artwork-staging` 버킷은 migration이 만들기 때문에 isolated branch의 migration 적용(플랫폼의 parent 이력 재적용이나 이어지는 `supabase db push`)에서 함께 생성된다. Branch는 무데이터이고 재실행 때 다시 만들어지므로 프리뷰에서 업로드한 임시 객체를 보존 대상으로 취급하지 않는다.
 
 ### 구성 확인
 

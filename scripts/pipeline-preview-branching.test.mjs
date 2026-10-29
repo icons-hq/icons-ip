@@ -116,9 +116,15 @@ describe('Supabase preview branch workflow contract', () => {
     expect(prepare.run).toContain(
       'git merge-base --is-ancestor "$latest_main_sha" "$PR_HEAD_SHA"',
     );
-    expect(prepare.run.indexOf('supabase branches create "$branch_name"')).toBeLessThan(
-      prepare.run.indexOf('latest_main_sha="$(git rev-parse origin/main)"'),
-    );
+    // 플랫폼 run이 parent 이력을 다 읽고 적용한 뒤에야 parent snapshot과 main을 비교할 수 있다.
+    const createAt = prepare.run.indexOf('supabase branches create "$branch_name"');
+    const platformWaitAt = prepare.run.indexOf('node scripts/wait-supabase-branch-deployment.mjs');
+    const mainRecheckAt = prepare.run.indexOf('latest_main_sha="$(git rev-parse origin/main)"');
+    expect(createAt).toBeGreaterThan(-1);
+    expect(createAt).toBeLessThan(platformWaitAt);
+    expect(platformWaitAt).toBeLessThan(mainRecheckAt);
+    expect(prepare.run).toContain('BRANCH_ID="$(jq -r \'.id // empty\' <<<"$branch_json")"');
+    expect(prepare.run).toContain('PROJECT_REF="$branch_project_ref"');
     expect(prepare.run).toContain('--region ap-northeast-2');
     expect(prepare.run).toContain('--size micro');
     expect(prepare.run).not.toContain('--with-data');
@@ -127,15 +133,30 @@ describe('Supabase preview branch workflow contract', () => {
       '.SUPABASE_PUBLISHABLE_KEY // .SUPABASE_ANON_KEY // empty',
     );
     expect(push.if).toContain("database_mode == 'isolated'");
-    expect(push.run).toBe(
-      'supabase db push --db-url "$POSTGRES_URL" --include-roles --include-seed --yes',
+    // production db push처럼 --include-all 없이 한 번만 push해 기록된 이력보다 이른 migration을 거부한다.
+    expect(push.run.match(/^supabase db push .*$/gm)).toEqual([
+      'supabase db push --db-url "$POSTGRES_URL" --include-roles --include-seed --yes 2>&1 \\',
+    ]);
+    expect(push.run).toContain('push_status="${PIPESTATUS[0]}"');
+    expect(push.run).toContain('exit "$push_status"');
+    expect(push.run).toContain("to_regclass('supabase_migrations.schema_migrations')");
+    expect(push.run.indexOf('recorded_versions > "$before"')).toBeLessThan(
+      push.run.indexOf('supabase db push'),
+    );
+    expect(push.run.indexOf('supabase db push')).toBeLessThan(
+      push.run.indexOf('recorded_versions > "$after"'),
+    );
+    expect(push.run).toContain('comm -13 "$before" "$after"');
+    expect(job.steps.indexOf(prepare)).toBeLessThan(
+      job.steps.indexOf(findStep(job, 'Sync isolated Supabase preview Auth URLs')),
     );
     expect(functions.if).toContain("database_mode == 'isolated'");
     expect(functions.run).toBe('node scripts/reconcile-supabase-functions.mjs');
     expect(verify.if).toContain("database_mode == 'isolated'");
     expect(verify.run).toContain('postgres:17-alpine');
     expect(job.steps.some((step) => step.run?.includes('db push --linked'))).toBe(false);
-    expect(job['timeout-minutes']).toBeGreaterThanOrEqual(30);
+    // branch 생성 대기 10분 + 플랫폼 run 대기 기본 15분 + push 여유.
+    expect(job['timeout-minutes']).toBeGreaterThanOrEqual(45);
   });
 
   it('injects the selected branch credentials into Vercel build and runtime', async () => {
