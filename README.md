@@ -88,6 +88,15 @@ KORPAY_TICKET_CHECKOUT_ENABLED=false
 # Optional Production-only UUID for one authenticated canary actor; leave unset by default.
 KORPAY_ORDER_CANARY_USER_ID=
 KORPAY_TICKET_CANARY_USER_ID=
+# NHN KCP mobile identity verification (adult verification). Production uses production mode;
+# Preview/local use test mode only. Never commit the site code, web site id or ENC_KEY.
+KCP_CERT_MODE=
+KCP_CERT_SITE_CODE=
+KCP_CERT_ENC_KEY=
+KCP_CERT_WEB_SITE_ID=
+ADULT_VERIFICATION_DIGEST_SECRET=
+ADULT_VERIFICATION_ENABLED=false
+ADULT_VERIFICATION_CANARY_USER_ID=
 ```
 
 - `NEXT_PUBLIC_SUPABASE_URL`: Supabase 프로젝트 URL.
@@ -109,6 +118,9 @@ KORPAY_TICKET_CANARY_USER_ID=
 - `KORPAY_MID`·`KORPAY_KEY`: 판매 제한 상품 전용 PG인 코페이의 운영 자격 증명이다. Vercel Production에만 sensitive 값으로 두고 Preview/CI에는 만들지 않는다. 두 변수 모두 서버 환경변수이며 `NEXT_PUBLIC_` 접두사를 쓰지 않는다. MKEY인 `KORPAY_KEY`는 브라우저로 보내지 않는다. `KORPAY_MID`는 정적 클라이언트 설정이 아니라 서버가 hash를 포함해 만든 일회성 SDK payload의 provider 필드로만 전달한다.
 - `KORPAY_ORDER_CHECKOUT_ENABLED`·`KORPAY_TICKET_CHECKOUT_ENABLED`: 신규 굿즈·티켓 코페이 provider session을 목적별로 여는 정확한 `true`/`false` gate다. 기본값은 `false`이고, 기본 PG 지위가 토스로 넘어간 뒤에는 판매 제한 상품 트랙에서 재개방될 때까지 닫아 둔다. gate를 내려도 이미 durable하게 준비된 known order+nonce callback은 계속 drain한다.
 - `KORPAY_ORDER_CANARY_USER_ID`·`KORPAY_TICKET_CANARY_USER_ID`: public gate가 `false`인 동안 목적별로 인증된 단일 UUID actor만 허용하는 선택적 Production canary allowlist다. 기본값은 미설정이고 Preview/CI에는 두지 않는다. 현재 provision됐다고 가정하지 않는다.
+- `KCP_CERT_MODE`·`KCP_CERT_SITE_CODE`·`KCP_CERT_ENC_KEY`·`KCP_CERT_WEB_SITE_ID`: 성인 인증용 NHN KCP 휴대폰 본인확인 V2 설정이다. Production은 `production` 모드·계약 사이트코드·상점관리자에서 발급한 인증키·웹사이트코드(필수)만, Preview/로컬은 `test` 모드만 받는다 — 짝이 어긋나거나 하나라도 비면 인증 전체가 닫힌다. 공개 저장소이므로 값은 문서·이슈·PR에 남기지 않는다. 테스트 인증키는 KCP 샘플에서 읽어 저장소 밖 env에만 둔다.
+- `ADULT_VERIFICATION_DIGEST_SECRET`: DI(중복가입확인정보)와 KCP 거래번호를 HMAC으로 바꾸는 32자 이상 서버 secret이다. 바꾸면 1명의 1계정 판정이 이어지지 않으므로 Production 값은 회전하지 않는다(ADR-0024).
+- `ADULT_VERIFICATION_ENABLED`·`ADULT_VERIFICATION_CANARY_USER_ID`: 새 성인 인증 시작을 여는 정확한 `true` gate와 단일 UUID canary다. 기본은 닫힘이고, KCP 콜백 처리는 gate가 아니라 설정 여부를 본다. 개방 순서·선행 조건(개인정보처리방침 개정, 상점관리자 V2 전환·인증키)은 [`docs/runbooks/kcp-adult-verification.md`](./docs/runbooks/kcp-adult-verification.md)를 따른다.
 
 #191 코드는 dark deploy 상태다. DB gate는 기본 OFF이고 Supabase Send Email Hook도 사람이 운영 증거를 확인하기 전에는 활성화하지 않는다. 기존 Supabase custom SMTP와 주문 메일 경로는 실제 Auth 흐름 canary와 direct SMTP 0 증거가 끝날 때까지 유지한다. 상세 순서는 [`docs/transactional-email.md`](./docs/transactional-email.md)에 있다.
 

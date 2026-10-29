@@ -5,6 +5,7 @@ import type { ReactNode } from 'react';
 import { useCardRewardsEnabled } from '@/components/shell/CardRewardAvailability';
 import { useSubscriptionMenuAvailable } from '@/components/subscriptions/SubscriptionMenuAvailability';
 import { useGiftMenuAvailable } from '@/components/gifts/GiftMenuAvailability';
+import { useAdultVerificationMenuAvailable } from '@/components/identity/AdultVerificationMenuAvailability';
 import type { LoyaltyGrade } from '@/lib/loyalty';
 
 /*
@@ -21,8 +22,9 @@ export interface MypageMenuItem {
   label: string;
   /** 목적지 한 줄 설명 — 구 /my 메뉴 허브의 문구다. 대시보드 전환(L6) 뒤로 셸은 그리지 않는다. */
   description: string;
-  /** 카드 리워드 게이트(DB 소유)가 닫혀 있으면 숨긴다 — 현 /packs 노출 규칙과 동일. */
-  gated?: 'card-rewards' | 'gifts' | 'subscriptions';
+  /** 카드 리워드 게이트(DB 소유)가 닫혀 있으면 숨긴다 — 현 /packs 노출 규칙과 동일.
+      성인 인증은 시작할 수 있거나 이미 인증 기록이 있는 회원에게만 보인다. */
+  gated?: 'card-rewards' | 'gifts' | 'subscriptions' | 'adult-verification';
 }
 
 export interface MypageMenuGroup {
@@ -58,6 +60,7 @@ const MYPAGE_MENU_GROUPS: MypageMenuGroup[] = [
          두 재화가 여기서부터 갈라진다(CONTEXT.md 코인 vs 쿠폰 vs 뽑기권). */
       { href: '/my/store-credits', label: '적립금', description: '주문 할인용 적립금 잔액과 사용·복원 이력을 확인하세요.' },
       { href: '/my/coins', label: '코인', description: '출석·이벤트 참여로 모은 코인을 확인하세요.' },
+      { href: '/my/adult-verification', label: '성인 인증', description: '19금 굿즈 구매를 위한 휴대폰 본인확인 상태를 확인하세요.', gated: 'adult-verification' },
       { href: '/notifications', label: '알림함', description: '주문, 카드팩, 팔로우한 IP의 새 소식을 확인하세요.' },
       { href: '/settings', label: '설정', description: '프로필과 정보 수신 동의를 관리하세요.' },
     ],
@@ -77,9 +80,10 @@ export function useMypageMenuGroups(): MypageMenuGroup[] {
   const cardRewardsEnabled = useCardRewardsEnabled();
   const giftsEnabled = useGiftMenuAvailable();
   const subscriptionsEnabled = useSubscriptionMenuAvailable();
+  const adultVerificationVisible = useAdultVerificationMenuAvailable();
   return MYPAGE_MENU_GROUPS.map((group) => ({
     ...group,
-    items: group.items.filter((item) => (!item.gated || item.gated === 'card-rewards' && cardRewardsEnabled || item.gated === 'gifts' && giftsEnabled || item.gated === 'subscriptions' && subscriptionsEnabled)),
+    items: group.items.filter((item) => (!item.gated || item.gated === 'card-rewards' && cardRewardsEnabled || item.gated === 'gifts' && giftsEnabled || item.gated === 'subscriptions' && subscriptionsEnabled || item.gated === 'adult-verification' && adultVerificationVisible)),
   }));
 }
 
