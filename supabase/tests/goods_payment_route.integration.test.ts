@@ -59,7 +59,7 @@ describe.skipIf(!runLocalIntegration)('goods payment confirm route local integra
 
     const userSupabase = createClient(
       requiredEnvironment('NEXT_PUBLIC_SUPABASE_URL'),
-      requiredEnvironment('NEXT_PUBLIC_SUPABASE_ANON_KEY'),
+      requiredEnvironment('NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY'),
       { auth: { autoRefreshToken: false, persistSession: false } },
     );
     const { error: signInError } = await userSupabase.auth.signInWithPassword({ email, password });
