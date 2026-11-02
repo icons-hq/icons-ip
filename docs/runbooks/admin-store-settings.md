@@ -6,7 +6,7 @@
 
 담당자 정보는 `private.operations_contacts`에 보관하고 `platform.manage` 권한의 조회·저장 RPC만 허용한다([ADR-0020](../adr/0020-store-manager-capabilities.md)). 일반 고객·anon·service_role 및 앱의 직접 테이블 접근은 봉인한다. 담당자별 버전 비교와 잠금으로 동시 덮어쓰기를 막으며 입력 실패 시 폼을 보존한다. `admin.operations_contact.updated` 감사 기록은 변경자·대상·시각·변경 필드 이름과 버전만 남겨 연락처·문서 경로 원문을 복제하지 않는다. 화면에는 최근 30건을 표시한다. 담당자 저장은 공개 카탈로그·기존 주문·판매 및 발송 gate를 변경하지 않는다.
 
-`/admin/settings/store`에서 사업자·CS 연락처, 무통장 계좌 표시값, 스토어 브랜드·SNS와 공개 메뉴를, `/admin/settings/carriers`에서 택배사를 관리한다. 화면은 `seller.read` 권한으로 열고, 저장은 정지되지 않은 계정의 현재 업무 능력으로 판정한다: 사업자·CS 연락처와 무통장 계좌 표시값은 `seller.manage`, 스토어 브랜드·SNS·공개 메뉴·문의 자동 안내는 `store.manage`, 택배사는 `platform.manage`다. `profiles.role`의 staff/admin은 이 권한을 대신하지 않으며, 매니저 권한 전환 전 호환 단계는 [ADR-0020](../adr/0020-store-manager-capabilities.md)을 따른다. 직접 테이블 쓰기는 봉인되어 있고 저장 RPC가 감사 이력을 남긴다.
+`/admin/settings/store`에서 사업자·CS 연락처, 무통장 계좌 표시값, 스토어 브랜드·SNS와 공개 메뉴를, `/admin/settings/carriers`에서 택배사를 관리한다. 탭마다 조회 권한이 다르다(사업자·CS 연락처 `seller.read`, 무통장 계좌 `seller.manage`, 브랜드·메뉴·문의 자동 안내 `store.manage`). 권한이 없는 탭은 보이지 않고 직접 주소는 404다. 저장은 정지되지 않은 계정의 현재 업무 능력으로 판정한다: 사업자·CS 연락처와 무통장 계좌 표시값은 `seller.manage`, 스토어 브랜드·SNS·공개 메뉴·문의 자동 안내는 `store.manage`, 택배사는 `platform.manage`다. `profiles.role`의 staff/admin은 이 권한을 대신하지 않으며, 매니저 권한 전환 전 호환 단계는 [ADR-0020](../adr/0020-store-manager-capabilities.md)을 따른다. 직접 테이블 쓰기는 봉인되어 있고 저장 RPC가 감사 이력을 남긴다.
 
 - 기존 사업자·CS 정보는 자동 변경하지 않는다. DB에 설정하지 않은 키는 기존 공개값을 사용한다. 관리자가 빈 문자열을 저장한 키는 공개 행에서 생략한다. 실제 연락처 값은 이 문서에 복사하지 않는다.
 - 저장하면 공개 캐시와 법정 문서 경로를 갱신한다. 다음 조회에서 푸터·법정 문서가 같은 설정을 읽는지 확인한다. 이미 열려 있는 브라우저는 새로고침한다.
@@ -24,7 +24,7 @@
 
 ## 문의 자동 안내
 
-`/admin/settings/store?section=inquiry_auto_replies`에서 다섯 문의 유형의 안내를 한 번에 저장한다. 기본은 모두 꺼짐이며 기존 문의를 변경하지 않는다. `store.manage` 권한이 있는 계정만 저장하고, 그 밖의 판매자 정보 조회 권한은 읽기만 한다. 문구는 앞뒤 공백을 정리한 2,000자 이내이며 켠 안내는 비어 있을 수 없다. HTTPS FAQ 주소는 텍스트 안에서 링크로 표시하고 HTML을 실행하지 않는다. 변경 전후는 기존 `admin.store_settings.updated` 감사 이력에 남는다.
+`/admin/settings/store?section=inquiry_auto_replies`에서 다섯 문의 유형의 안내를 한 번에 저장한다. 기본은 모두 꺼짐이며 기존 문의를 변경하지 않는다. 탭 조회와 저장 모두 `store.manage` 권한이 필요하다. 권한이 없으면 탭이 보이지 않고 직접 주소도 404다. 매니저 권한 전환 전 호환 단계에서는 호환 대상 기존 운영자가 탭을 조회하고 admin만 저장한다([ADR-0020](../adr/0020-store-manager-capabilities.md)). 문구는 앞뒤 공백을 정리한 2,000자 이내이며 켠 안내는 비어 있을 수 없다. HTTPS FAQ 주소는 텍스트 안에서 링크로 표시하고 HTML을 실행하지 않는다. 변경 전후는 기존 `admin.store_settings.updated` 감사 이력에 남는다.
 
 새 문의 생성 RPC는 사용자 메시지 뒤에 `author=system`, `author_id=null`인 안내를 같은 트랜잭션에서 추가한다. 자동 안내 기록 실패 시 문의 생성도 롤백된다. 추가 질문에는 다시 넣지 않으며, 담당자·사람의 답변·첫 답변 기한·미답변 통계·인앱 알림·메일 발송은 기존 흐름을 유지한다. Realtime에서는 메시지를 다시 읽어 자동 안내로 표시하되 새 사람 답글 수에 포함하지 않는다. 운영 적용은 별도 승인 후 기본 꺼짐 상태로 배포한다. 실제 안내 문구의 활성화는 관리자 업무다.
 
