@@ -8,6 +8,7 @@ import type { CatalogSnapshot } from '@/lib/catalog';
 import type { FandomEvent, Ip } from '@/lib/data';
 import type { EventGameLink } from '@/lib/games/catalog';
 import { ALL_IPS, ALL_MODES, ALL_STATUSES, eventModeOptions, eventStatusOptions, selectFandomEvents } from '@/lib/events-catalog';
+import { imageUrlFromBg } from '@/lib/media';
 
 /* 오프라인 팝업 목록 (DESIGN §8 오프라인 팝업 · 11 §8 EV-04).
  *
@@ -54,6 +55,7 @@ export function OfflinePopupStateBadge({ status }: { status: string }) {
 }
 
 function OfflinePopupCard({ e, ip, games }: { e: FandomEvent; ip: Ip | null; games: EventGameLink[] }) {
+  const posterUrl = imageUrlFromBg(e.img);
   return (
     <li className="wc-offline-card">
       {/* 카드 본체는 상세로 가는 링크 하나다(R-06 §1.4). 참여형 게임 진입은 다른 목적지라
@@ -62,7 +64,7 @@ function OfflinePopupCard({ e, ip, games }: { e: FandomEvent; ip: Ip | null; gam
         {/* 썸네일 아트는 장식이지만 유형 뱃지 텍스트는 정보다 — 미디어 통째로 aria-hidden 하지 않는다. */}
         <div
           className="wc-offline-card__media"
-          style={{ background: e.img, backgroundSize: 'contain', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }}
+          style={{ background: posterUrl ? `url("${posterUrl}") center / contain no-repeat` : e.img }}
         >
           <span className="wc-offline-card__kind">{e.mode}</span>
         </div>

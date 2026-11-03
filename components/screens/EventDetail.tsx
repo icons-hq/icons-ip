@@ -11,6 +11,7 @@ import type { FandomEvent, Ip } from '@/lib/data';
 import { krw } from '@/lib/format';
 import type { IpFollowState } from '@/lib/ip-follow';
 import { hrefFor } from '@/lib/routes';
+import { imageUrlFromBg } from '@/lib/media';
 import type { PublicTicketType } from '@/lib/ticketing.server';
 
 /* 오프라인 팝업 상세 (DESIGN §8 오프라인 팝업 · 11 §8 EV-04).
@@ -135,6 +136,7 @@ export function EventDetail({
   sessions: PublicTicketType[];
 }) {
   const router = useRouter();
+  const posterUrl = imageUrlFromBg(event.img);
   const firstBookable = sessions.find((session) => !disabledReason(event, session, paymentAvailable));
   const [selectedId, setSelectedId] = useState(firstBookable?.id ?? '');
   const [qty, setQty] = useState(firstBookable ? minimumPayableQuantity(firstBookable) : 1);
@@ -210,7 +212,7 @@ export function EventDetail({
           <div
             aria-hidden
             className="wc-offline-detail__art"
-            style={{ background: event.img, backgroundPosition: 'center', backgroundSize: 'contain', backgroundRepeat: 'no-repeat' }}
+            style={{ background: posterUrl ? `url("${posterUrl}") center / contain no-repeat` : event.img }}
           />
 
           <div className="wc-offline-detail__info">
