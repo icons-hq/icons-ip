@@ -125,6 +125,7 @@ export function EventSection({
         <ArtworkUploadField
           currentPath={artwork.currentPath}
           currentUrl={artwork.currentUrl}
+          helpText="이미지는 잘리지 않게 전체가 표시되며, 비율에 따라 여백이 생길 수 있습니다."
           kind="event"
         />
         <FormShell pending={pending} state={state} />

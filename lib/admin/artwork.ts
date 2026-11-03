@@ -43,8 +43,8 @@ export type AdminArtworkMetadataResult =
   | { ok: false; error: string };
 
 /*
- * 아트워크가 실제로 놓이는 자리의 비율. 업로드 미리보기와 목록 썸네일이
- * 같은 크롭을 보여줘야 운영자가 저장 전에 잘림을 판단할 수 있다.
+ * 아트워크 업로드 미리보기 영역의 비율. 이벤트 포스터는 이 영역 안에
+ * 원본 전체를 표시하고, 나머지 아트워크는 영역을 채워 잘림을 미리 확인한다.
  */
 export function adminArtworkAspectRatio(kind: AdminArtworkKind) {
   return kind === 'ip' || kind === 'curation' ? '16 / 9' : '4 / 3';
