@@ -300,6 +300,15 @@ describe('m27 가이드 — 메뉴·배송정보·출고 파일(R21~R23·R26·R2
     expect(guide('store-settings')).toContain('출고지 추가');
   });
 
+  it('운영에서 꺼진 선물 수락 대기·정기구매 관리 메뉴는 사이드바에서만 숨기고 주소로 여는 방법을 안내한다', () => {
+    const hidden = ADMIN_SCREENS.filter((screen) => screen.href === '/admin/sales/gifts' || screen.href === '/admin/sales/subscriptions');
+    expect(hidden.map((screen) => screen.label)).toEqual(['선물 수락 대기', '정기구매 관리']);
+    expect(hidden.every((screen) => screen.navHidden && screen.status === 'ready')).toBe(true);
+    const text = guide('orders-shipping');
+    expect(text).toContain('선물 수락 대기 메뉴는 사이드바에서 숨겼습니다. 화면 주소(/admin/sales/gifts)와 권한은 그대로라');
+    expect(text).toContain('정기구매 관리 메뉴는 사이드바에서 숨겼습니다. 화면 주소(/admin/sales/subscriptions)와 권한은 그대로라');
+  });
+
   it('출고 파일의 바코드·ERP 품명 열과 바코드 경고를 화면 문구 그대로 안내한다(R23)', () => {
     expect(shipmentBarcodeGapWarning(3)).toBe('바코드가 없는 옵션 3개 — 파일의 바코드 칸이 비어 있습니다.');
     const text = guide('orders-shipping');
