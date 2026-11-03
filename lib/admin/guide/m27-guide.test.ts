@@ -226,7 +226,7 @@ describe('m27 가이드 — 상품 등록·목록·카테고리·랜덤 판매(R
     expect(editor('GoodsInlineSale')).toContain('<InlineEditor label="판매상태"');
     expect(editor('GoodsInlineSale')).not.toContain('fillCell');
     expect(text).toContain('판매가·재고수량은 상품 목록에서 값 칸 어디를 눌러도 바로 고칠 수 있고, 판매상태는 칸 안의 판매중·판매중지 값 버튼을 눌러 고칩니다.');
-    const changes = ADMIN_WEEKLY_CHANGES[0].changes.join('\n');
+    const changes = ADMIN_WEEKLY_CHANGES.find((entry) => entry.week === '2026-10-28')!.changes.join('\n');
     expect(changes).toContain('판매가·재고수량은 값 칸 어디를 눌러도 바로 고치고 판매상태는 값 버튼을 눌러 고치며');
     for (const stale of ['판매가·재고수량·판매상태는 상품 목록에서 값 칸 어디를', '값 칸이나 체크 칸 어디를 눌러도 바로 수정']) {
       expect(text).not.toContain(stale);
@@ -328,10 +328,10 @@ describe('m27 가이드 — 메뉴·배송정보·출고 파일(R21~R23·R26·R2
 });
 
 describe('m27 업데이트 내역(2026-10-28)', () => {
-  const entry = ADMIN_WEEKLY_CHANGES[0];
+  const entry = ADMIN_WEEKLY_CHANGES.find((item) => item.week === '2026-10-28')!;
   const all = [entry.title, ...entry.changes].join('\n');
 
-  it('맨 앞 항목이 10/27 온라인몰 2차 회의 후속이다', () => {
+  it('2026-10-28 항목이 10/27 온라인몰 2차 회의 후속이다', () => {
     expect(entry.week).toBe('2026-10-28');
     expect(entry.title).toContain('10/27 온라인몰 2차 회의 후속');
   });
