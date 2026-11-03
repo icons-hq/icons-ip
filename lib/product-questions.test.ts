@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest';
 import {
   MAX_PRODUCT_QUESTION_BODY_LENGTH,
   goodQuestionsHref,
+  maskedQuestionStateLabel,
   normalizeGoodQuestionOptions,
   normalizeProductQuestionForm,
   productQuestionAuthorName,
@@ -23,6 +24,14 @@ describe('questionStateLabel', () => {
   it('블라인드가 답변 여부를 이긴다', () => {
     expect(productQuestionState({ status: 'hidden', answerBody: '답변' })).toBe('hidden');
     expect(questionStateLabel({ status: 'hidden', answerBody: '답변' })).toBe('비공개 처리됨');
+  });
+});
+
+describe('maskedQuestionStateLabel', () => {
+  /* 가린 비밀글도 답변 여부는 남는다 — 이 굿즈의 질문에 답이 달리는지는 누구나 읽을 수 있어야 한다. */
+  it('가린 줄은 답변 여부만으로 대기·완료를 가른다', () => {
+    expect(maskedQuestionStateLabel({ answered: false })).toBe('답변 대기');
+    expect(maskedQuestionStateLabel({ answered: true })).toBe('답변 완료');
   });
 });
 
@@ -75,7 +84,16 @@ describe('normalizeProductQuestionForm', () => {
   it('앞뒤 공백을 지우고 굿즈와 본문을 넘긴다', () => {
     const result = normalizeProductQuestionForm(formOf({ goodId: ' g13 ', body: '  재입고 예정이 있나요?  ' }));
 
-    expect(result).toEqual({ ok: true, value: { goodId: 'g13', body: '재입고 예정이 있나요?' } });
+    expect(result).toEqual({ ok: true, value: { goodId: 'g13', body: '재입고 예정이 있나요?', isSecret: false } });
+  });
+
+  /* 비밀글(MD-0023). 체크박스는 `secret=true` 를 보낸다. 체크하지 않은 폼에는 값이 아예 없다. */
+  it('비밀글 선택이 있을 때만 비밀글로 넘긴다', () => {
+    const secret = normalizeProductQuestionForm(formOf({ goodId: 'g13', body: '배송지를 바꿀 수 있나요?', secret: 'true' }));
+    expect(secret).toEqual({ ok: true, value: { goodId: 'g13', body: '배송지를 바꿀 수 있나요?', isSecret: true } });
+
+    const blank = normalizeProductQuestionForm(formOf({ goodId: 'g13', body: '질문', secret: '  ' }));
+    expect(blank.ok && blank.value.isSecret).toBe(false);
   });
 
   it('빈 본문과 굿즈 없는 제출을 막는다', () => {

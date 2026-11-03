@@ -146,6 +146,17 @@ describe('getAdminProductQuestionConsoleData', () => {
     expect(data.pageSize).toBe(20);
   });
 
+  /* 비밀글(MD-0023)은 운영 콘솔에서 원문을 그대로 본다 — 표시만 붙인다. 읽기 자체는 cs.manage 세션에
+     열린 비밀글 정책이 허락하고, 공개 화면의 가림은 이 로더와 무관하다. */
+  it('비밀글 여부를 함께 읽어 원문과 같이 넘긴다', async () => {
+    mocks.questions = [{ ...QUESTION_ROW, is_secret: true }, { ...QUESTION_ROW, id: '66666666-6666-4666-8666-666666666666' }];
+
+    const data = await getAdminProductQuestionConsoleData({ status: 'all', page: 1 });
+
+    expect(listCall()?.select).toContain('is_secret');
+    expect(data.rows.map((row) => [row.secret, row.body])).toEqual([[true, '사이즈가 궁금해요'], [false, '사이즈가 궁금해요']]);
+  });
+
   it('페이지 크기만큼만 읽는다', async () => {
     await getAdminProductQuestionConsoleData({ status: 'all', page: 2 });
 
