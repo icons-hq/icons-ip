@@ -73,11 +73,24 @@ describe('어드민 IA 정의', () => {
 
   it('그룹상품 등록·조회는 사이드바에서만 숨기고 라우트·화면 판정은 그대로 둔다', () => {
     const hidden = ADMIN_SCREENS.filter((screen) => screen.navHidden).map((screen) => screen.id);
-    expect(hidden).toEqual(['goods-groups-create', 'goods-groups']);
+    expect(hidden).toEqual(['goods-groups-create', 'goods-groups', 'gifts', 'subscriptions']);
     const visible = visibleAdminNavGroups('admin').flatMap((group) => group.screens.map((screen) => screen.id));
     for (const id of hidden) expect(visible).not.toContain(id);
     expect(adminScreenForPath('/admin/catalog/groups')?.id).toBe('goods-groups');
     expect(adminScreenForPath('/admin/catalog/groups/new')?.id).toBe('goods-groups-create');
+  });
+
+  it('운영에서 꺼진 선물 수락 대기·정기구매 관리는 사이드바에서만 숨기고 판매관리 화면 판정은 그대로 둔다', () => {
+    const sales = ADMIN_NAV_GROUPS.find((group) => group.id === 'sales');
+    expect(sales?.screens.filter((screen) => screen.navHidden).map((screen) => screen.label)).toEqual(['선물 수락 대기', '정기구매 관리']);
+    const visibleSales = visibleAdminNavGroups('admin').find((group) => group.id === 'sales')?.screens.map((screen) => screen.id) ?? [];
+    expect(visibleSales).not.toContain('gifts');
+    expect(visibleSales).not.toContain('subscriptions');
+    expect(visibleSales).toContain('orders');
+    expect(adminScreenForPath('/admin/sales/gifts?status=pending')).toMatchObject({ id: 'gifts', status: 'ready' });
+    expect(adminScreenForPath('/admin/sales/subscriptions/plan-id')).toMatchObject({ id: 'subscriptions', status: 'ready' });
+    expect(adminGroupForPath('/admin/sales/gifts')?.id).toBe('sales');
+    expect(adminGroupForPath('/admin/sales/subscriptions')?.id).toBe('sales');
   });
 
   it('상담하기는 문의 관리와 구분되는 실시간 상담 화면으로 연결된다', () => {

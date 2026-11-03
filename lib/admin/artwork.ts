@@ -4,6 +4,8 @@ export type AdminArtworkMimeType = 'image/jpeg' | 'image/png' | 'image/webp';
 export const ADMIN_ARTWORK_ACCEPT = 'image/jpeg,image/png,image/webp';
 export const ADMIN_ARTWORK_MAX_BYTES = 5 * 1024 * 1024;
 export const ADMIN_ARTWORK_MAX_DIMENSION = 8192;
+/** 공개 원본의 사진형 긴 변·띠형 짧은 변 상한(artwork-image.server.ts의 adminArtworkOutputBox). */
+export const ADMIN_ARTWORK_OUTPUT_MAX_EDGE = 2560;
 /**
  * 운영자별 1분 동안 시작할 수 있는 아트워크 검증 수. DB service_begin_admin_artwork_verification의
  * 남용 억제 창(20261007160000)과 같은 값이다 — 굿즈 폼 11칸(대표 1 + 추가 이미지 9 + 상세 1) × 2.
@@ -11,6 +13,27 @@ export const ADMIN_ARTWORK_MAX_DIMENSION = 8192;
 export const ADMIN_ARTWORK_VERIFICATIONS_PER_MINUTE = 22;
 export const ADMIN_ARTWORK_ERROR =
   '이미지는 JPEG, PNG, WebP 형식의 5MB 이하, 가로·세로 8192px 이하 파일만 업로드할 수 있습니다.';
+
+/**
+ * 운영자별 업로드 한도에 걸린 이유(DB service_admin_artwork_upload_block_reason, 20261103120000).
+ * 예전에는 모두 "이미지 파일을 확인하지 못했습니다"로 보여 사진이 조용히 사라진 것처럼 보였다(R20).
+ */
+export type AdminArtworkUploadBlockReason =
+  | 'verification_in_progress'
+  | 'verification_rate_limited'
+  | 'staging_full'
+  | 'unsaved_full';
+export const ADMIN_ARTWORK_BLOCK_MESSAGES: Record<AdminArtworkUploadBlockReason, string> = {
+  verification_in_progress: '다른 사진을 올리는 중입니다. 끝난 뒤 다시 시도해주세요.',
+  verification_rate_limited: '1분에 올릴 수 있는 사진 수를 넘었습니다. 잠시 뒤 다시 시도해주세요.',
+  staging_full: '확인을 기다리는 사진이 너무 많습니다. 올리는 중인 사진이 끝난 뒤 다시 시도해주세요.',
+  unsaved_full: '저장하지 않고 올려 둔 사진이 너무 많습니다. 작성 중인 화면을 먼저 저장한 뒤 다시 시도해주세요.',
+};
+export function parseAdminArtworkUploadBlockReason(value: unknown): AdminArtworkUploadBlockReason | null {
+  return typeof value === 'string' && Object.hasOwn(ADMIN_ARTWORK_BLOCK_MESSAGES, value)
+    ? value as AdminArtworkUploadBlockReason
+    : null;
+}
 
 const ADMIN_ARTWORK_KINDS = new Set<AdminArtworkKind>(['ip', 'good', 'card', 'event', 'curation']);
 const ADMIN_ARTWORK_EXTENSIONS: Record<AdminArtworkMimeType, 'jpg' | 'png' | 'webp'> = {

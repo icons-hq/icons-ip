@@ -217,6 +217,7 @@ run_sql_test supabase/tests/purchase_restriction_batches.sql
 run_sql_test supabase/tests/coupon_issue_schedule.sql
 run_sql_test supabase/tests/store_branding_settings.sql
 run_sql_test supabase/tests/admin_goods_photo_library.sql
+run_sql_test supabase/tests/admin_artwork_upload_feedback.sql
 run_sql_test supabase/tests/admin_seller_claim_intake.sql
 run_sql_test supabase/tests/admin_optimistic_conflicts_http409.sql
 run_sql_test supabase/tests/admin_review_insights.sql

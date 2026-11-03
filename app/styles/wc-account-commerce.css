@@ -1671,6 +1671,15 @@ a.wc-mypage__card:hover .wc-mypage__card-title {
   flex: none;
 }
 
+/* 한 카드에 뱃지가 둘 이상 설 때(내 Q&A의 비밀글 + 상태) 제목 옆에서 한 덩어리로 줄바꿈한다. */
+.wc-mypage__card-badges {
+  display: flex;
+  flex: none;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  gap: 4px;
+}
+
 .wc-mypage__card-body {
   margin: 0;
   font-size: 14px;

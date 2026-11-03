@@ -131,7 +131,8 @@ async function promoteImage(
       .upload(path, bytes, { contentType: mimeType, upsert: false });
     if (uploaded.error) throw new Error('이미지를 저장하지 못했습니다.');
     const promoted = await verifyAndPromoteAdminArtwork(input);
-    if (!promoted) {
+    // 운영자별 확인 한도(blockedReason)도 예전처럼 1분 창 대기 여부로 판정한다.
+    if (!promoted || 'blockedReason' in promoted) {
       const retry = await verificationWait(batch.actor_id);
       if (retry) {
         await rejectAdminArtworkUpload({ actorId: batch.actor_id, path });

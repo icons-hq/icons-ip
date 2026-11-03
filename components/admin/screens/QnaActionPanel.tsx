@@ -49,7 +49,7 @@ export function QnaActionPanel({ question, triggerLabel, accountId = '', inline 
           <div><dt>상품번호</dt><dd>{question.goodId}</dd></div>
           <div><dt>작성자</dt><dd>@{question.authorName}</dd></div>
           <div><dt>작성일</dt><dd>{formatAdminProductQuestionDateTime(question.createdAt)}</dd></div>
-          <div><dt>노출 상태</dt><dd>{hidden ? '비노출' : '공개'}</dd></div>
+          <div><dt>노출 상태</dt><dd>{hidden ? '비노출' : '공개'}{question.secret ? <> <span className="admin-cs-secret-badge">비밀글</span></> : null}</dd></div>
           <div><dt>답변 등록일</dt><dd>{draft.source.replyAt ? formatAdminProductQuestionDateTime(draft.source.replyAt) : '미등록'}</dd></div>
         </dl>
         <section className="admin-cs-record__content"><h3>문의 내용</h3><p>{draft.source.body}</p></section>
@@ -64,7 +64,7 @@ export function QnaActionPanel({ question, triggerLabel, accountId = '', inline 
         <CsReplyTemplateTools accountId={accountId} surface="product_question" body={answer} onInsert={setAnswer} disabled={editingLocked} />
         <form action={draft.submit} className="admin-cs-reply" onSubmit={event => { if (editingLocked || changedSource || answer.trim() === (draft.source.reply ?? '').trim()) event.preventDefault(); }}>
           <input name="questionId" type="hidden" value={question.id} />
-          <label htmlFor={`qna-answer-${question.id}`}>운영자 답변 (상품 상세에 공개)</label>
+          <label htmlFor={`qna-answer-${question.id}`}>{question.secret ? '운영자 답변 (비밀글 · 작성자에게만 표시)' : '운영자 답변 (상품 상세에 공개)'}</label>
           <textarea disabled={editingLocked} id={`qna-answer-${question.id}`} maxLength={ANSWER_MAX_LENGTH*2} name="answer" onChange={(event) => setAnswer([...event.target.value].slice(0,ANSWER_MAX_LENGTH).join(''))} required rows={6} value={answer} />
           <span className="admin-cs-reply__counter">{[...answer].length.toLocaleString('ko-KR')} / {ANSWER_MAX_LENGTH.toLocaleString('ko-KR')}자</span>
           <p className="muted">답변 저장 시 작성자에게 알림이 발송됩니다.</p>

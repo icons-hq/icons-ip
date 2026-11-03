@@ -32,7 +32,8 @@ import { CustomerServiceRecordProvider } from './CustomerServiceRecordNavigation
  * 열 설정을 유지한다. 검색은 조건이 있을 때 펼치고 미답변 집계와 바로가기를
  * 결과 영역에 함께 보존한다.
  *
- * 비공개 1:1 문의와 어휘를 섞지 않는다. 여기서 다는 답변은 굿즈 상세에 공개된다. */
+ * 비공개 1:1 문의와 어휘를 섞지 않는다. 여기서 다는 답변은 굿즈 상세에 공개된다 — 비밀글
+ * (MD-0023)만 예외로, 원문과 답변이 작성자와 운영자에게만 보이고 공개 화면에는 자리만 남는다. */
 
 const COLUMNS: ConsoleGridColumn[] = [
   { key: 'createdAt', label: '작성일', width: '140px' },
@@ -61,6 +62,8 @@ export function QnaConsoleScreen({ data, now = new Date(), initialDetail, accoun
       <span key="author">@{row.authorName}</span>,
       <span data-question-status={row.hidden ? 'hidden' : 'visible'} key="status">
         {row.hidden ? '비노출' : '공개'}
+        {/* 비밀글(MD-0023)은 콘솔에서 원문이 보이므로, 공개 화면에서는 가려진다는 것을 여기서 표시한다. */}
+        {row.secret ? <><br /><span className="admin-cs-secret-badge">비밀글</span></> : null}
       </span>,
       row.answerBody
         ? (
@@ -117,7 +120,7 @@ export function QnaConsoleScreen({ data, now = new Date(), initialDetail, accoun
       <CustomerServiceListView list={rows.length ? <ul className="admin-cs-question-list">{rows.map(row => <li key={row.id} data-has-image={Boolean(row.goodImageUrl)}>
         {row.goodImageUrl ? <Link className="admin-cs-question-list__image" href={goodQuestionsHref(row.goodId)}><Image src={row.goodImageUrl} alt={row.goodName} width={110} height={110} unoptimized /></Link> : null}
         <div className="admin-cs-question-list__content">
-        <header><span className="admin-cs-question-list__state">{row.answerBody ? '답변 등록됨' : '답변 미등록'}</span><Link href={goodQuestionsHref(row.goodId)}>{row.goodName}</Link><span data-question-status={row.hidden ? 'hidden' : 'visible'}>{row.hidden ? '비노출' : '공개'}</span></header>
+        <header><span className="admin-cs-question-list__state">{row.answerBody ? '답변 등록됨' : '답변 미등록'}</span><Link href={goodQuestionsHref(row.goodId)}>{row.goodName}</Link><span data-question-status={row.hidden ? 'hidden' : 'visible'}>{row.hidden ? '비노출' : '공개'}</span>{row.secret ? <span className="admin-cs-secret-badge">비밀글</span> : null}</header>
         <p className="admin-cs-question-list__meta"><span>상품번호 {row.goodId}</span><span>@{row.authorName}</span><time dateTime={row.createdAt}>{formatAdminProductQuestionDateTime(row.createdAt)}</time></p>
         <p className="admin-cs-question-list__body">{productQuestionBodyPreview(row.body, 180)}</p>
         <div className="admin-cs-question-list__actions"><QnaActionPanel inline accountId={accountId} question={row} triggerLabel={row.answerBody ? '답변 확인 · 수정' : '답변 등록'} />{row.answeredByName ? <span>@{row.answeredByName}{row.answeredAt ? ` · ${formatAdminProductQuestionDateTime(row.answeredAt)}` : ''}</span> : null}</div>
