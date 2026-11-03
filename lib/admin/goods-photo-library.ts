@@ -24,6 +24,25 @@ export interface GoodsPhoto { id: string; name: string; imagePath: string; revis
 export interface GoodsPhotoPage { rows: GoodsPhoto[]; total: number; page: number; pageSize: 20 }
 export interface GoodsPhotoInput { id: string; name: string; imagePath: string; revision: number; archived: boolean }
 export const GOODS_PHOTO_UPLOAD_LIMIT = 10;
+export const GOODS_PHOTO_NAME_MAX = 100;
+export const GOODS_PHOTO_FALLBACK_NAME = '상품 이미지';
+/**
+ * 파일 이름을 보관함 이름으로 바꾼다. macOS는 한글 파일 이름을 NFD(자모 분리)로 넘겨 NFC 검색어와 맞지 않으므로
+ * NFC로 맞추고(R20), 100자를 넘으면 자른다. 이모지 같은 서로게이트 쌍을 반으로 자르지 않는다 — DB(char_length)와
+ * 화면 검사(문자열 길이) 양쪽 모두 100 이하가 되게 코드 포인트 단위로 자른다.
+ */
+export function goodsPhotoNameFromFileName(fileName: string): string {
+  let name = '';
+  for (const character of fileName.normalize('NFC').trim()) {
+    if (name.length + character.length > GOODS_PHOTO_NAME_MAX) break;
+    name += character;
+  }
+  return name.trim() || GOODS_PHOTO_FALLBACK_NAME;
+}
+/** 사진 이름 검색어. 저장된 이름과 같은 NFC로 비교한다(DB도 양쪽을 NFC로 맞춘다). */
+export function normalizeGoodsPhotoQuery(query: string): string {
+  return query.normalize('NFC').trim();
+}
 export function validGoodsPhotoInput(value: GoodsPhotoInput): boolean {
   if (!value || !isUuid(value.id) || typeof value.name !== 'string' || !value.name.trim() || value.name.trim().length > 100
     || typeof value.imagePath !== 'string' || !value.imagePath.startsWith('public-media/') || !Number.isSafeInteger(value.revision)
