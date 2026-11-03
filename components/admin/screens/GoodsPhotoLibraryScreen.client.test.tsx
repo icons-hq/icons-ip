@@ -2,13 +2,13 @@ import { isValidElement, type ReactElement, type ReactNode } from 'react';
 import { beforeEach, expect, it, vi } from 'vitest';
 
 const hooks = vi.hoisted(() => ({ state: [] as unknown[], index: 0, refs: [] as { current: unknown }[], refIndex: 0 }));
-const mocks = vi.hoisted(() => ({ find: vi.fn(), save: vi.fn(), upload: vi.fn() }));
+const mocks = vi.hoisted(() => ({ find: vi.fn(), finish: vi.fn(), save: vi.fn(), upload: vi.fn() }));
 vi.mock('react', async () => ({ ...await vi.importActual<typeof import('react')>('react'),
   useEffect: () => {},
   useRef: (initial: unknown) => { const index = hooks.refIndex++; hooks.refs[index] ??= { current: initial }; return hooks.refs[index]; },
   useState: (initial: unknown) => { const index = hooks.index++; if (!(index in hooks.state)) hooks.state[index] = typeof initial === 'function' ? (initial as () => unknown)() : initial; return [hooks.state[index], (next: unknown) => { hooks.state[index] = typeof next === 'function' ? (next as (value: unknown) => unknown)(hooks.state[index]) : next; }]; },
 }));
-vi.mock('@/app/admin/goods-photo-library-actions', () => ({ findGoodsPhotosAction: mocks.find, saveGoodsPhotoAction: mocks.save }));
+vi.mock('@/app/admin/goods-photo-library-actions', () => ({ findGoodsPhotosAction: mocks.find, finishGoodsPhotoUploadsAction: mocks.finish, saveGoodsPhotoAction: mocks.save }));
 vi.mock('@/lib/admin/artwork-upload.client', () => ({ uploadAdminArtwork: mocks.upload }));
 vi.mock('./CustomerServiceDialog', () => ({ CustomerServiceDialog: ({ children }: { children: ReactNode }) => children }));
 
@@ -28,9 +28,10 @@ async function settle() { for (let i = 0; i < 30; i++) await Promise.resolve(); 
 
 beforeEach(() => { vi.clearAllMocks(); hooks.state = []; hooks.refs = []; });
 
-it('보관함 상단에 용도와 편집기 업로드가 자동 등록되지 않는다는 안내를 보인다', () => {
+it('보관함 상단에 용도와 상품 이미지 타일 업로드도 자동 등록된다는 안내를 보인다', () => {
   const tree = render();
-  expect(text(tree)).toContain('여러 상품에 다시 쓸 사진을 모아 두는 곳입니다. 상품 편집기에서 직접 올린 사진은 여기에 자동으로 등록되지 않습니다.');
+  expect(text(tree)).toContain('여러 상품에 다시 쓸 사진을 모아 두는 곳입니다. 상품 편집기의 상품 이미지 타일에 올린 사진도 여기에 자동으로 등록됩니다.');
+  expect(text(tree)).not.toContain('자동으로 등록되지 않습니다');
   /* 상품 편집기의 선택 팝업에는 보관함 용도 안내를 다시 보이지 않는다. */
   expect(text(render(() => {}))).not.toContain('여러 상품에 다시 쓸 사진을');
 });
@@ -79,6 +80,29 @@ it('업로드 뒤 검색어를 비우고 전체 목록을 다시 읽어 새 사�
   expect(names.slice(0, 2).sort()).toEqual(['a.png', 'b.png']);
   expect(names).toContain('다른 운영자 사진');
   expect(text(render())).toContain('2장 저장');
+  /* R19: 사진마다 서버 화면 전체를 다시 그리지 않고 마지막에 한 번만 갱신한다. */
+  expect(mocks.save.mock.calls.map(([, options]) => options)).toEqual([{ revalidate: false }, { revalidate: false }]);
+  expect(mocks.finish).toHaveBeenCalledOnce();
+  expect(mocks.finish.mock.invocationCallOrder[0]).toBeGreaterThan(Math.max(...mocks.save.mock.invocationCallOrder));
+});
+
+/* R20: macOS는 한글 파일 이름을 NFD로 넘겨 NFC 검색어에 걸리지 않았다. */
+it('파일 이름을 NFC로 바꿔 저장하고, 저장한 사진이 없으면 화면 갱신을 부르지 않는다', async () => {
+  const nfd = '메이플 키링.png'.normalize('NFD');
+  mocks.upload.mockResolvedValueOnce({ ok: true, imagePath: photo('31', 'x').imagePath }).mockResolvedValueOnce({ ok: false, error: '1분에 올릴 수 있는 사진 수를 넘었습니다. 잠시 뒤 다시 시도해주세요.' });
+  mocks.save.mockImplementation(async (value: { id: string }) => ({ id: value.id, revision: 1 }));
+  mocks.find.mockResolvedValue({ data: page });
+  input('사진 업로드').props.onChange?.({ currentTarget: { files: [new File(['a'], nfd), new File(['b'], 'b.png')], value: '' } });
+  await settle();
+  expect(mocks.save).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ name: '메이플 키링.png'.normalize('NFC') }), { revalidate: false });
+  expect(text(render())).toContain('b.png: 1분에 올릴 수 있는 사진 수를 넘었습니다.');
+
+  vi.clearAllMocks(); hooks.state = []; hooks.refs = [];
+  mocks.upload.mockResolvedValue({ ok: false, error: '다른 사진을 올리는 중입니다. 끝난 뒤 다시 시도해주세요.' });
+  mocks.find.mockResolvedValue({ data: page });
+  input('사진 업로드').props.onChange?.({ currentTarget: { files: [new File(['c'], 'c.png')], value: '' } });
+  await settle();
+  expect(mocks.finish).not.toHaveBeenCalled();
 });
 
 it('직접 다시 조회하면 방금 올린 사진 고정을 풀고 검색 결과 순서를 그대로 보인다', async () => {

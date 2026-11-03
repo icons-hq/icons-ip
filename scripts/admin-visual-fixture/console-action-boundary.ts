@@ -13,6 +13,7 @@ export async function replyReviewsBatchAction() { return { ok: false as const, e
 export async function readReviewReplyBatchAction() { return { ok: false as const, error }; }
 export async function findGoodsPhotosAction() { return { error }; }
 export async function saveGoodsPhotoAction() { return { error }; }
+export async function finishGoodsPhotoUploadsAction() {}
 
 export async function findGoodsDraftsAction() { return { error }; }
 export async function getGoodsDraftAction() { return { error }; }

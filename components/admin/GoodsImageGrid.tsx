@@ -4,7 +4,9 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalS
 import { ADMIN_ARTWORK_ACCEPT, ADMIN_ARTWORK_ERROR, normalizeAdminArtworkMetadata, parseAdminArtworkPath } from '@/lib/admin/artwork';
 // 상대 경로는 ArtworkUploadField와 같은 모듈 지정자다 — 시각 fixture가 이 지정자로 합성 업로드를 끼운다.
 import { uploadAdminArtwork } from '../../lib/admin/artwork-upload.client';
+import { createAdminArtworkPreviewUrl } from '@/lib/admin/artwork-preview.client';
 import { GOODS_GALLERY_MAX } from '@/lib/admin/catalog';
+import { goodsPhotoNameFromFileName } from '@/lib/admin/goods-photo-library';
 import {
   GOODS_IMAGE_FIELD_NAMES,
   GOODS_IMAGE_SLOT_COUNT,
@@ -35,6 +37,9 @@ import { GoodsPhotoEditor } from './GoodsPhotoEditor';
 
 export const GOODS_IMAGE_GUIDANCE_ID = 'goods-image-upload-guidance';
 export const GOODS_IMAGE_RATIO_GUIDANCE = '1000×1000(1:1) 이미지를 권장합니다. 올린 원본 비율 그대로, 잘리지 않고 표시됩니다.';
+/** R20(MD-0025): 타일에 직접 올린 사진은 사진 보관함에도 등록되어, 상품을 저장하지 않고 떠나도 다시 고를 수 있다. */
+export const GOODS_IMAGE_LIBRARY_NOTICE = '타일에 올린 사진은 사진 보관함에도 자동으로 등록됩니다.';
+export const GOODS_IMAGE_LIBRARY_FAILURE = '사진 보관함에 등록하지 못한 사진이 있습니다. 상품 이미지는 그대로 저장할 수 있고, 사진 보관함에서 직접 올릴 수 있습니다.';
 
 type Slots = GoodsImageSlots<File>;
 type Tile = GoodsImageTile<File>;
@@ -81,6 +86,8 @@ export function GoodsImageGrid({ errors = {}, initialPaths, initialUrls, onPrevi
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
   const controlRefs = useRef<Record<string, HTMLButtonElement | null>>({});
   const objectUrls = useRef(new Set<string>());
+  // 만들고 있는 축소 미리보기. 타일 key마다 마지막으로 고른 파일만 미리보기를 붙인다.
+  const pendingPreviews = useRef(new Map<string, File>());
   const keyCounter = useRef(0);
   // DB는 운영자별로 동시에 하나의 이미지 검증만 허용한다(service_begin_admin_artwork_verification).
   // 여러 장을 한 번에 골라도 업로드·검증을 한 장씩 차례로 돌려 서로의 검증을 막지 않게 한다.
@@ -105,9 +112,11 @@ export function GoodsImageGrid({ errors = {}, initialPaths, initialUrls, onPrevi
     mounted.current = true;
     const urls = objectUrls.current;
     const uploads = photoUploads.current;
+    const previews = pendingPreviews.current;
     return () => {
       mounted.current = false;
       uploads.clear();
+      previews.clear();
       for (const url of urls) URL.revokeObjectURL(url);
       urls.clear();
     };
@@ -152,7 +161,10 @@ export function GoodsImageGrid({ errors = {}, initialPaths, initialUrls, onPrevi
     if (!waiting || waiting.file !== file) { photoUploads.current.delete(file); return; }
     const edit = photoUploads.current.get(file);
     if (edit && !photoGuard.isCurrent(edit)) { photoUploads.current.delete(file); return; }
-    const result = await uploadAdminArtwork({ kind: 'good', file, ...(edit ? { expectedActorId: edit.actorId } : {}) });
+    // 직접 고른 파일은 사진 보관함에도 등록한다(R20). 사진 편집 결과는 원래 사진의 편집본이라 등록하지 않는다.
+    const result = await uploadAdminArtwork(edit
+      ? { kind: 'good', file, expectedActorId: edit.actorId }
+      : { kind: 'good', file, library: { name: goodsPhotoNameFromFileName(file.name) } });
     photoUploads.current.delete(file);
     if (!mounted.current || edit && !photoGuard.isCurrent(edit)) return;
     const current = slotsRef.current;
@@ -163,22 +175,47 @@ export function GoodsImageGrid({ errors = {}, initialPaths, initialUrls, onPrevi
     if (result.ok) {
       const tile = current[position]!;
       releaseUrl(tile.previous?.url);
+      const library = result.library?.ok ? ' · 사진 보관함에 등록' : result.library ? ' · 사진 보관함 등록 실패' : '';
+      if (result.library && !result.library.ok) setNotice(GOODS_IMAGE_LIBRARY_FAILURE);
       commit(replaceGoodsImageTile(current, key, (value) => ({ key: value.key, path: result.imagePath, url: value.url, status: 'uploaded' })),
-        `${label}${edit ? ' 편집 이미지' : ''} 업로드 완료 · 상품 저장 전입니다.`);
+        `${label}${edit ? ' 편집 이미지' : ''} 업로드 완료${library} · 상품 저장 전입니다.`);
       return;
     }
     commit(replaceGoodsImageTile(current, key, (value) => {
       if (!value.previous) return { ...value, status: 'failed', error: result.error };
+      // 원래 이미지로 되돌린 타일에는 만들던 새 미리보기를 붙이지 않는다.
+      pendingPreviews.current.delete(key);
       releaseUrl(value.url);
       return { key: value.key, ...value.previous, error: `${result.error} 원래 이미지를 유지합니다.` };
     }), `${label} 업로드 실패. ${result.error}`);
   }
 
+  /*
+   * R19: 미리보기는 축소 사본으로 그린다(createAdminArtworkPreviewUrl). 사본이 준비되는 동안 타일은 '미리보기 준비 중'이고,
+   * 그사이 삭제·교체·원래 이미지로 복구된 타일에는 붙이지 않는다. 업로드가 먼저 끝나도(파일 참조가 빠져도) 같은 key면 붙인다.
+   */
+  function attachPreview(key: string, file: File) {
+    pendingPreviews.current.set(key, file);
+    void createAdminArtworkPreviewUrl(file).then((url) => {
+      const current = slotsRef.current;
+      const position = findGoodsImagePosition(current, key);
+      const tile = position < 0 ? null : current[position];
+      if (!mounted.current || pendingPreviews.current.get(key) !== file || !tile || tile.url) {
+        if (pendingPreviews.current.get(key) === file) pendingPreviews.current.delete(key);
+        URL.revokeObjectURL(url);
+        return;
+      }
+      pendingPreviews.current.delete(key);
+      objectUrls.current.add(url);
+      commit(replaceGoodsImageTile(current, key, (value) => ({ ...value, url })));
+    }, () => {
+      if (pendingPreviews.current.get(key) === file) pendingPreviews.current.delete(key);
+    });
+  }
+
   function newTile(file: File): Tile {
-    const url = URL.createObjectURL(file);
-    objectUrls.current.add(url);
     keyCounter.current += 1;
-    return { key: `new-${keyCounter.current}`, path: '', url, status: 'uploading', file };
+    return { key: `new-${keyCounter.current}`, path: '', url: null, status: 'uploading', file };
   }
 
   function addFiles(files: File[], fromMain: boolean) {
@@ -202,7 +239,10 @@ export function GoodsImageGrid({ errors = {}, initialPaths, initialUrls, onPrevi
       return;
     }
     commit(next, `${started.length}장 업로드를 시작했습니다.${messages.length ? ` ${messages.join(' ')}` : ''}`);
-    for (const tile of started) enqueueUpload(tile.key, tile.file!);
+    for (const tile of started) {
+      attachPreview(tile.key, tile.file!);
+      enqueueUpload(tile.key, tile.file!);
+    }
   }
 
   function replaceFile(position: number, file: File, photoEditing = false) {
@@ -213,12 +253,11 @@ export function GoodsImageGrid({ errors = {}, initialPaths, initialUrls, onPrevi
       commit(replaceGoodsImageTile(slotsRef.current, tile.key, (value) => ({ ...value, error: metadata.error })), `${goodsImageLabel(position)}: ${metadata.error}`);
       return false;
     }
-    const url = URL.createObjectURL(file);
-    objectUrls.current.add(url);
     const previous = tile.status === 'saved' || tile.status === 'uploaded' ? { path: tile.path, url: tile.url, status: tile.status } : undefined;
     if (!previous) releaseUrl(tile.url);
-    commit(replaceGoodsImageTile(slotsRef.current, tile.key, (value) => ({ key: value.key, path: previous?.path ?? '', url, status: 'uploading', file, previous, ...(photoEditing ? { uploadSource: 'photo-edit' as const } : {}) })),
+    commit(replaceGoodsImageTile(slotsRef.current, tile.key, (value) => ({ key: value.key, path: previous?.path ?? '', url: null, status: 'uploading', file, previous, ...(photoEditing ? { uploadSource: 'photo-edit' as const } : {}) })),
       `${goodsImageLabel(position)} 교체 업로드를 시작했습니다.`);
+    attachPreview(tile.key, file);
     enqueueUpload(tile.key, file);
     return true;
   }
@@ -241,7 +280,7 @@ export function GoodsImageGrid({ errors = {}, initialPaths, initialUrls, onPrevi
   function cancelPhotoUpload(position: number) {
     const tile = slotsRef.current[position];
     if (!tile?.file || !tile.previous || !photoUploads.current.has(tile.file)) return;
-    photoUploads.current.delete(tile.file); releaseUrl(tile.url);
+    photoUploads.current.delete(tile.file); pendingPreviews.current.delete(tile.key); releaseUrl(tile.url);
     commit(replaceGoodsImageTile(slotsRef.current, tile.key, () => ({ key: tile.key, ...tile.previous! })), '사진 편집 업로드를 취소하고 원래 사진을 유지합니다.');
   }
 
@@ -266,6 +305,7 @@ export function GoodsImageGrid({ errors = {}, initialPaths, initialUrls, onPrevi
   function remove(position: number) {
     const tile = slotsRef.current[position];
     if (!tile) return;
+    pendingPreviews.current.delete(tile.key);
     releaseUrl(tile.url);
     releaseUrl(tile.previous?.url);
     // 지운 자리에는 다음 이미지나 "이미지 추가" 타일이 온다.
@@ -383,11 +423,11 @@ export function GoodsImageGrid({ errors = {}, initialPaths, initialUrls, onPrevi
         onPointerUp={(event) => pointerEnd(event)}
       >
         {tile?.url ? (
-          // 선택 직후의 object URL도 즉시 보여야 한다.
+          // 선택한 파일의 축소 미리보기(object URL)도 바로 보여야 한다.
           // eslint-disable-next-line @next/next/no-img-element
           <img alt="" decoding="async" draggable={false} src={tile.url} />
         ) : tile ? (
-          <span className="wc-admin-image-tile__placeholder">미리보기 없음</span>
+          <span className="wc-admin-image-tile__placeholder">{tile.file ? '미리보기 준비 중…' : '미리보기 없음'}</span>
         ) : (
           <span className="wc-admin-image-tile__placeholder" aria-hidden="true"><b>+</b>{isMain ? '대표 이미지' : '이미지 추가'}</span>
         )}
@@ -457,7 +497,7 @@ export function GoodsImageGrid({ errors = {}, initialPaths, initialUrls, onPrevi
   return <fieldset className="wc-admin-image-grid">
     <legend>상품 이미지 · 대표 이미지 1장 + 추가 이미지 최대 {GOODS_GALLERY_MAX}장</legend>
     <p className="wc-admin-image-grid__guidance" id={GOODS_IMAGE_GUIDANCE_ID}>{GOODS_IMAGE_RATIO_GUIDANCE} 공통 파일 규격: {COMMON_ARTWORK_GUIDANCE}.</p>
-    <p className="wc-admin-image-grid__intro">이미지를 누르면 다른 파일로 바꿉니다. 추가 이미지는 왼쪽 위 손잡이(⋮⋮)를 끌거나 ←·→ 키로 순서를 바꾸며(마우스는 이미지를 바로 끌어도 됩니다), 이 순서대로 상품 상세 상단 이미지에서 대표 이미지 다음에 표시됩니다. 파일은 고르는 즉시 업로드되며, 상품 저장 후 공개 화면에 반영됩니다.</p>
+    <p className="wc-admin-image-grid__intro">이미지를 누르면 다른 파일로 바꿉니다. 추가 이미지는 왼쪽 위 손잡이(⋮⋮)를 끌거나 ←·→ 키로 순서를 바꾸며(마우스는 이미지를 바로 끌어도 됩니다), 이 순서대로 상품 상세 상단 이미지에서 대표 이미지 다음에 표시됩니다. 파일은 고르는 즉시 업로드되며, 상품 저장 후 공개 화면에 반영됩니다. {GOODS_IMAGE_LIBRARY_NOTICE}</p>
     <button type="button" disabled={slots.every(Boolean)} onClick={() => setPhotoPicker(true)}>사진 보관함에서 선택</button>
     {photoPicker ? <GoodsPhotoPicker onClose={() => setPhotoPicker(false)} onSelect={photo => {
       const current = slotsRef.current;
