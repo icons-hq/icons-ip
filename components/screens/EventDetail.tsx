@@ -210,7 +210,7 @@ export function EventDetail({
           <div
             aria-hidden
             className="wc-offline-detail__art"
-            style={{ background: event.img, backgroundPosition: 'center', backgroundSize: 'cover' }}
+            style={{ background: event.img, backgroundPosition: 'center', backgroundSize: 'contain', backgroundRepeat: 'no-repeat' }}
           />
 
           <div className="wc-offline-detail__info">

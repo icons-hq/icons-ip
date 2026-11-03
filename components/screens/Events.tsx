@@ -62,7 +62,7 @@ function OfflinePopupCard({ e, ip, games }: { e: FandomEvent; ip: Ip | null; gam
         {/* 썸네일 아트는 장식이지만 유형 뱃지 텍스트는 정보다 — 미디어 통째로 aria-hidden 하지 않는다. */}
         <div
           className="wc-offline-card__media"
-          style={{ background: e.img, backgroundSize: 'cover', backgroundPosition: 'center' }}
+          style={{ background: e.img, backgroundSize: 'contain', backgroundPosition: 'center', backgroundRepeat: 'no-repeat' }}
         >
           <span className="wc-offline-card__kind">{e.mode}</span>
         </div>
