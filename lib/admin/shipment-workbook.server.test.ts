@@ -175,7 +175,7 @@ describe('shipment workbook exchange', () => {
       expect(sheet.getCell(address).numFmt).not.toBe('@');
     }
   });
-  it('김포 21열은 ERP 품명이 있으면 상품명(확정)에만 쓰고 옵션(확정)·열 수·헤더는 그대로 둔다', async () => {
+  it('김포 21열은 ERP 품명이 있으면 상품명(확정)·옵션(확정)·조합 열에 쓰고 옵션(수집)·열 수·헤더는 그대로 둔다', async () => {
     const gimpo = { ...shipment, template: 'wms_csv', lines: [
       { ...line, goodName: '합성 키링', optionName: '빨강', erpName: '키링-빨강(ERP)', barcode: '0880123456789', erpCode: 'ERP-1' },
       { ...line, goodName: '합성 키링', optionName: '파랑', erpName: '' },
@@ -183,10 +183,11 @@ describe('shipment workbook exchange', () => {
     const sheet = (await loadXlsx((await buildShipmentExport({ shipments: [gimpo] }, 'xlsx')).bytes)).worksheets[0];
     expect(sheet.columnCount).toBe(21);
     expect(sheet.getRow(1).values).toEqual([undefined, ...GIMPO_EXPORT_HEADERS]);
-    expect([sheet.getCell('K2').value, sheet.getCell('L2').value, sheet.getCell('M2').value]).toEqual(['키링-빨강(ERP)', '빨강', '빨강']);
+    expect([sheet.getCell('K2').value, sheet.getCell('L2').value, sheet.getCell('M2').value]).toEqual(['키링-빨강(ERP)', '빨강', '키링-빨강(ERP)']);
     expect([sheet.getCell('K3').value, sheet.getCell('L3').value, sheet.getCell('M3').value]).toEqual(['합성 키링', '파랑', '파랑']);
-    // 조합 열과 회신 대조 열(주문번호(쇼핑몰))은 바꾸지 않는다.
-    expect([sheet.getCell('A2').value, sheet.getCell('B2').value, sheet.getCell('I2').value]).toEqual(['합성 키링/빨강(2)', ' 합성 키링/빨강(2)', line.orderId]);
+    // 조합 열은 헤더가 가리키는 칸(상품명(확정)+옵션(수집/확정))을 따른다. 회신 대조 열(주문번호(쇼핑몰))은 그대로다.
+    expect([sheet.getCell('A2').value, sheet.getCell('B2').value, sheet.getCell('I2').value]).toEqual(['키링-빨강(ERP)/빨강(2)', ' 키링-빨강(ERP)/키링-빨강(ERP)(2)', line.orderId]);
+    expect([sheet.getCell('A3').value, sheet.getCell('B3').value]).toEqual(['합성 키링/파랑(2)', ' 합성 키링/파랑(2)']);
   });
   it('uses the same native profiles in CSV, retaining blanks and escaping formula-looking item names', async () => {
     const nativeShipment = { ...shipment, lines: [{ ...line, recipient: '합성 수취인', goodName: '=합성,상품', optionName: '파랑', deliveryNote: '문 앞' }] };

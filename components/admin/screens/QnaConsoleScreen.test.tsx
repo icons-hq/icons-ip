@@ -25,6 +25,7 @@ function row(overrides: Partial<AdminProductQuestionRow> = {}): AdminProductQues
     authorName: 'fan_777777',
     body: '사이즈가 궁금해요',
     hidden: false,
+    secret: false,
     answerBody: null,
     answeredAt: null,
     answeredByName: null,
@@ -127,6 +128,16 @@ describe('QnaConsoleScreen', () => {
 
     expect(markup).toContain('data-question-status="hidden"');
     expect(markup).toContain('비노출');
+  });
+
+  /* 비밀글(MD-0023)은 콘솔에서 원문이 보인다. 공개 화면에서는 가려진다는 것을 같은 줄에서 문구로 알린다. */
+  it('비밀글 질문에 비밀글 표시를 붙이고 원문은 그대로 보여 준다', () => {
+    const markup = render({ rows: [row({ secret: true, body: '배송지를 바꿀 수 있나요?' })] });
+
+    expect(markup).toContain('admin-cs-secret-badge');
+    expect(markup).toContain('>비밀글<');
+    expect(markup).toContain('배송지를 바꿀 수 있나요?');
+    expect(render()).not.toContain('admin-cs-secret-badge');
   });
 
   it('조건에 맞는 질문이 없으면 그 사실을 말한다', () => {

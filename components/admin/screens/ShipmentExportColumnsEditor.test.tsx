@@ -24,9 +24,9 @@ describe('shipment export optional warehouse SKU', () => {
   for(const header of ['<li>옵션명</li>','<li>바코드</li>','<li>ERP 품명</li>'])expect(seowon).toContain(header);
   expect(seowon).toContain('받는분성명·배송메시지·배송건번호·옵션명·바코드·ERP 품명');
   const gimpo=renderToStaticMarkup(<ShipmentExportColumnsEditor origin={{...origin,exportTemplate:'wms_csv'}} canEdit />);
-  expect(gimpo).toContain('상품명(확정)은 ERP 품명이 있으면 ERP 품명');
-  // 리뷰 T4-R23-3: 앞의 두 조합 열은 헤더가 '상품명(확정)+…'이어도 주문 당시 상품명이라 ERP 품명과 다를 수 있음을 알린다.
-  expect(gimpo).toContain('앞의 두 조합 열(상품명(확정)+옵션+수량)은 주문 당시 상품명으로 만들어, ERP 품명이 있으면 상품명(확정) 칸과 다릅니다.');
+  // 11/03 결정: ERP 품명이 있으면 상품명(확정)·옵션(확정)·두 조합 열이 모두 ERP 품명을 따른다.
+  expect(gimpo).toContain('옵션에 ERP 품명이 있으면 상품명(확정)·옵션(확정)과 앞의 두 조합 열(상품명(확정)+옵션+수량)에 ERP 품명을 쓰고');
+  expect(gimpo).toContain('옵션(수집)은 늘 주문 당시 옵션명입니다.');
  });
  it('shows a stored optional mapping with its custom header and keeps staff read-only', () => {
   const html=renderToStaticMarkup(<ShipmentExportColumnsEditor origin={{...origin,exportColumns:[...DEFAULT_SHIPMENT_EXPORT_COLUMNS,{key:'variantCode',header:'WMS SKU'}]}} canEdit={false} />);

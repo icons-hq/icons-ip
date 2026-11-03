@@ -21,7 +21,7 @@ export interface AdminScreen {
   adminOnly?: boolean;
   /**
    * 사이드바(메뉴 목록)에서만 숨긴다. 라우트·화면 판정(`adminScreenForPath`)·가드·권한은 그대로라
-   * 직접 경로·북마크·다른 화면의 링크로는 계속 열린다(10/27 회의 R21: 그룹상품).
+   * 직접 경로·북마크·다른 화면의 링크로는 계속 열린다(10/27 회의 R21: 그룹상품, 운영에서 꺼진 선물하기·정기구매).
    */
   navHidden?: boolean;
 }
@@ -106,8 +106,9 @@ export const ADMIN_NAV_GROUPS: AdminNavGroup[] = [
     icon: 'bag',
     screens: [
       { id: 'orders', label: ADMIN_VOCABULARY.orderSearch, href: '/admin/sales/orders', status: 'ready' },
-      { id: 'gifts', label: '선물 수락 대기', href: '/admin/sales/gifts', status: 'ready' },
-      { id: 'subscriptions', label: '정기구매 관리', href: '/admin/sales/subscriptions', status: 'ready' },
+      /* 선물하기·정기구매는 운영에서 꺼져 있다. 기존 데이터를 다룰 수 있게 라우트·권한은 두고 메뉴에서만 숨긴다(그룹상품과 같은 방식). */
+      { id: 'gifts', label: '선물 수락 대기', href: '/admin/sales/gifts', status: 'ready', navHidden: true },
+      { id: 'subscriptions', label: '정기구매 관리', href: '/admin/sales/subscriptions', status: 'ready', navHidden: true },
       { id: 'unpaid', label: ADMIN_VOCABULARY.unpaidOrders, href: '/admin/sales/unpaid', status: 'ready' },
       { id: 'dispatch', label: ADMIN_VOCABULARY.dispatch, href: '/admin/sales/dispatch', status: 'ready' },
       { id: 'shipping', label: ADMIN_VOCABULARY.shipping, href: '/admin/sales/shipping', status: 'ready' },

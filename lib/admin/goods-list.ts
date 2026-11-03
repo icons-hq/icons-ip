@@ -18,11 +18,20 @@ export const GOODS_LIST_SORT_OPTIONS = [
   { value: 'price_asc', label: '판매가 낮은순' }, { value: 'price_desc', label: '판매가 높은순' },
   { value: 'stock_asc', label: '재고 적은순' }, { value: 'stock_desc', label: '재고 많은순' },
 ] as const;
+/**
+ * 판매상태 필터(MD-0026). 판매중지(운영자가 판매상태를 판매중지로 바꾼 상품, goods.stock='soldout')와
+ * 품절(판매중지가 아닌데 사용 옵션 할당 재고 0)을 나눈다. 'soldout'은 둘 다를 찾는 이전 값으로,
+ * 저장된 주소와 홈 요약 링크가 그대로 열리도록 남긴다. 고객 화면은 둘 다 '품절'이다.
+ */
+export const GOODS_LIST_STOCK_OPTIONS = [
+  { value: 'all', label: '전체' }, { value: 'ok', label: '판매중' }, { value: 'low', label: '소량 재고' },
+  { value: 'out_of_stock', label: '품절' }, { value: 'stopped', label: '판매중지' }, { value: 'soldout', label: '품절·판매중지 모두' },
+] as const;
 export type GoodsListSearchField = (typeof GOODS_LIST_SEARCH_FIELDS)[number]['value'];
 export type GoodsListDateField = (typeof GOODS_LIST_DATE_FIELDS)[number]['value'];
 export type GoodsListSort = (typeof GOODS_LIST_SORT_OPTIONS)[number]['value'];
 export type GoodsListStatus = 'active' | 'all' | 'draft' | 'published' | 'archived';
-export type GoodsListStock = Stock | 'all';
+export type GoodsListStock = (typeof GOODS_LIST_STOCK_OPTIONS)[number]['value'];
 export interface GoodsListFilters {
   query: string;
   ipId: string;
@@ -124,7 +133,7 @@ export function normalizeGoodsListFilters(values: Record<string, string | string
     ipId: /^[a-z0-9][a-z0-9-]*$/.test(ipId) ? ipId.slice(0, 100) : '',
     page: Number.isSafeInteger(page) && page > 0 ? Math.min(page, 100000) : 1,
     status: ['active', 'all', 'draft', 'published', 'archived'].includes(status) ? status as GoodsListStatus : 'active',
-    stock: ['ok', 'low', 'soldout'].includes(stock) ? stock as Stock : 'all',
+    stock: GOODS_LIST_STOCK_OPTIONS.some(option => option.value === stock) ? stock as GoodsListStock : 'all',
     field: GOODS_LIST_SEARCH_FIELDS.some(option => option.value === field) ? field as GoodsListSearchField : 'all',
     dateField: GOODS_LIST_DATE_FIELDS.some(option => option.value === dateField) ? dateField as GoodsListDateField : 'created',
     from,

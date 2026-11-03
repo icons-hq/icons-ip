@@ -22,19 +22,22 @@ type Cell = string | number;
 
 
 const postalCode = (value: string) => /^\d{5}$/.test(value) ? value : '';
-const itemLabel = (line: Line) => `${line.goodName}/${line.optionName}(${line.qty})`;
+const itemLabel = (good: string, option: string, qty: number) => `${good}/${option}(${qty})`;
 function validCollector(value: unknown) {
   return transactionRecord(value) && transactionExactKeys(value, ['name', 'method', 'refundContact', 'instructions'])
     && ['name', 'method', 'refundContact', 'instructions'].every(key => typeof value[key] === 'string' && value[key].trim() && !/[\u0000-\u001f\u007f]/.test(value[key]));
 }
 
 function gimpoCells(shipment: Shipment, line: Line, index: number): Cell[] {
+  // 10/27 회의(D10②)·11/03 결정: ERP 품명이 있으면 상품명(확정)·옵션(확정)과 두 조합 열을 ERP 품명으로 맞춘다.
+  // 옵션(수집)은 쇼핑몰에서 수집한 옵션명 그대로다. 회신 대조는 주문번호(쇼핑몰)로만 하므로 조합 열이 바뀌어도 된다.
+  const erpName = line.erpName?.trim();
+  const confirmedGood = erpName || line.goodName, confirmedOption = erpName || line.optionName;
   const values: Record<typeof GIMPO_COLUMNS[number]['key'], Cell> = {
-    collectedItem: itemLabel(line), confirmedItem: ` ${itemLabel(line)}`,
+    collectedItem: itemLabel(confirmedGood, line.optionName, line.qty), confirmedItem: ` ${itemLabel(confirmedGood, confirmedOption, line.qty)}`,
     address: line.address, recipientShop: `${line.recipient}/ICONS/`, phone: line.phone,
     otherPhone: '', deliveryNote: line.deliveryNote, sabangnetOrder: '', orderId: line.orderId,
-    // 10/27 회의(D10②): 상품명(확정)은 ERP 품명이 있으면 ERP 품명이다. ERP 품명이 옵션 단위라 옵션(확정)은 그대로 둔다.
-    optionAlias: '', goodName: line.erpName?.trim() || line.goodName, collectedOption: line.optionName, confirmedOption: line.optionName,
+    optionAlias: '', goodName: confirmedGood, collectedOption: line.optionName, confirmedOption,
     supplyPrice: '', unitPrice: line.unitPrice, qty: line.qty, ea: '', postalCode: postalCode(line.postalCode),
     recipient: line.recipient, shippingFee: index === 0 ? shipment.shippingFee : 0, trackingNumber: '',
   };
