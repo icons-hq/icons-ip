@@ -62,6 +62,16 @@ describe('goods list screen', () => {
     expect(active).toContain('href="/admin/catalog/goods">초기화');
     expect(render({})).not.toContain('class="admin-goods-search__advanced" open=""');
   });
+  it('판매상태 필터는 품절과 판매중지를 따로 고르고, 이전 주소(stock=soldout)는 둘 다 찾는 선택지로 보여 준다(MD-0026)', () => {
+    const form = (stock: string) => renderToStaticMarkup(<GoodsListFiltersForm data={{ filters: normalizeGoodsListFilters({ stock }), goods: [], ips: [], total: 0 }} />);
+    const stopped = form('stopped');
+    expect(stopped).toContain('<option value="out_of_stock">품절</option>');
+    expect(stopped).toContain('<option value="stopped" selected="">판매중지</option>');
+    expect(stopped).toContain('<option value="soldout">품절·판매중지 모두</option>');
+    expect(form('out_of_stock')).toContain('<option value="out_of_stock" selected="">품절</option>');
+    expect(form('soldout')).toContain('<option value="soldout" selected="">품절·판매중지 모두</option>');
+    expect(stopped).not.toContain('품절·판매 중지');
+  });
   it('판매상태 줄에 판매기간(판매대기·종료) 필터를 둔다', () => {
     const html = renderToStaticMarkup(<GoodsListFiltersForm data={{ filters: normalizeGoodsListFilters({ salePeriod: 'ended' }), goods: [], ips: [], total: 0 }} />);
     expect(html).toContain('aria-label="판매기간"');

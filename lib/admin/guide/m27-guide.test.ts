@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { CATEGORY_BULK_LINE_LIMIT, categoryBulkResultLabel } from '@/lib/admin/category-bulk';
 import { ADMIN_CLAIM_BULK_ACTION_LABELS, ADMIN_CLAIM_BULK_LIMIT, ADMIN_CLAIM_BULK_OUTCOME_LABELS } from '@/lib/admin/claim-bulk';
 import { REPLY_TEMPLATE_REPLACE_CONFIRM, REPLY_TEMPLATE_REPLACE_HINT } from '@/lib/admin/inquiry-reply-templates';
+import { GOODS_LIST_STOCK_OPTIONS } from '@/lib/admin/goods-list';
 import { ADMIN_NAV_GROUPS, ADMIN_SCREENS } from '@/lib/admin/navigation';
 import { shipmentBarcodeGapWarning } from '@/lib/admin/shipment-workbook';
 import { GOODS_HTML_MAX_LENGTH } from '@/lib/goods-description';
@@ -246,6 +247,15 @@ describe('m27 가이드 — 상품 등록·목록·카테고리·랜덤 판매(R
     expect(text).toContain('사이드바에서 숨겼습니다');
   });
 
+  it('판매상태 필터의 품절·판매중지 구분을 필터 선택지 그대로 안내한다(MD-0026)', () => {
+    const labels = Object.fromEntries(GOODS_LIST_STOCK_OPTIONS.map((option) => [option.value, option.label]));
+    expect(labels).toMatchObject({ out_of_stock: '품절', stopped: '판매중지', soldout: '품절·판매중지 모두' });
+    expect(repoFile('components/admin/screens/GoodsListFiltersForm.tsx')).toContain('GOODS_LIST_STOCK_OPTIONS.map');
+    expect(text).toContain('판매상태 필터는 품절과 판매중지를 나눠 찾습니다');
+    expect(text).toContain(`${labels.soldout}를 고릅니다`);
+    expect(text).toContain('고객 화면에는 둘 다 품절로 보입니다');
+  });
+
   it('판매 방식(랜덤 판매) 절이 패널의 선택지·고객 은닉 범위·조건과 같다(R24·D5②)', () => {
     const panel = repoFile('components/admin/GoodsOptionSaleModePanel.tsx').replace(/&apos;/g, "'").replace(/\s+/g, ' ');
     const hidden = "고객의 상품·장바구니·주문·메일·리뷰에는 '랜덤'으로 보이고 옵션별 재고도 보이지 않습니다. 교환으로 다시 보내는 상품은 보내는 옵션이 고객에게 안내됩니다.";
@@ -288,6 +298,15 @@ describe('m27 가이드 — 메뉴·배송정보·출고 파일(R21~R23·R26·R2
     expect(guide('orders-shipping')).toContain('템플릿 관리 → 배송 안내 템플릿 관리');
     expect(repoFile('components/admin/screens/FulfillmentOriginsScreen.tsx')).toContain('>출고지 추가</Link>');
     expect(guide('store-settings')).toContain('출고지 추가');
+  });
+
+  it('운영에서 꺼진 선물 수락 대기·정기구매 관리 메뉴는 사이드바에서만 숨기고 주소로 여는 방법을 안내한다', () => {
+    const hidden = ADMIN_SCREENS.filter((screen) => screen.href === '/admin/sales/gifts' || screen.href === '/admin/sales/subscriptions');
+    expect(hidden.map((screen) => screen.label)).toEqual(['선물 수락 대기', '정기구매 관리']);
+    expect(hidden.every((screen) => screen.navHidden && screen.status === 'ready')).toBe(true);
+    const text = guide('orders-shipping');
+    expect(text).toContain('선물 수락 대기 메뉴는 사이드바에서 숨겼습니다. 화면 주소(/admin/sales/gifts)와 권한은 그대로라');
+    expect(text).toContain('정기구매 관리 메뉴는 사이드바에서 숨겼습니다. 화면 주소(/admin/sales/subscriptions)와 권한은 그대로라');
   });
 
   it('출고 파일의 바코드·ERP 품명 열과 바코드 경고를 화면 문구 그대로 안내한다(R23)', () => {
