@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { CATEGORY_BULK_LINE_LIMIT, categoryBulkResultLabel } from '@/lib/admin/category-bulk';
 import { ADMIN_CLAIM_BULK_ACTION_LABELS, ADMIN_CLAIM_BULK_LIMIT, ADMIN_CLAIM_BULK_OUTCOME_LABELS } from '@/lib/admin/claim-bulk';
 import { REPLY_TEMPLATE_REPLACE_CONFIRM, REPLY_TEMPLATE_REPLACE_HINT } from '@/lib/admin/inquiry-reply-templates';
+import { GOODS_LIST_STOCK_OPTIONS } from '@/lib/admin/goods-list';
 import { ADMIN_NAV_GROUPS, ADMIN_SCREENS } from '@/lib/admin/navigation';
 import { shipmentBarcodeGapWarning } from '@/lib/admin/shipment-workbook';
 import { GOODS_HTML_MAX_LENGTH } from '@/lib/goods-description';
@@ -244,6 +245,15 @@ describe('m27 가이드 — 상품 등록·목록·카테고리·랜덤 판매(R
     expect(text).toContain('상품번호를 누르면');
     expect(text).toContain('판매대기(시작 전)');
     expect(text).toContain('사이드바에서 숨겼습니다');
+  });
+
+  it('판매상태 필터의 품절·판매중지 구분을 필터 선택지 그대로 안내한다(MD-0026)', () => {
+    const labels = Object.fromEntries(GOODS_LIST_STOCK_OPTIONS.map((option) => [option.value, option.label]));
+    expect(labels).toMatchObject({ out_of_stock: '품절', stopped: '판매중지', soldout: '품절·판매중지 모두' });
+    expect(repoFile('components/admin/screens/GoodsListFiltersForm.tsx')).toContain('GOODS_LIST_STOCK_OPTIONS.map');
+    expect(text).toContain('판매상태 필터는 품절과 판매중지를 나눠 찾습니다');
+    expect(text).toContain(`${labels.soldout}를 고릅니다`);
+    expect(text).toContain('고객 화면에는 둘 다 품절로 보입니다');
   });
 
   it('판매 방식(랜덤 판매) 절이 패널의 선택지·고객 은닉 범위·조건과 같다(R24·D5②)', () => {
