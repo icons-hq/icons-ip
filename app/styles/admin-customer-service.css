@@ -85,6 +85,8 @@
 .wc-admin .admin-cs-question-list header, .wc-admin .admin-cs-question-list__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; font-size: 13px; }
 .wc-admin .admin-cs-question-list header > [data-question-status], .wc-admin .admin-cs-question-list__actions > span { color: var(--wc-ink-tertiary); font-size: 12px; }
 .wc-admin .admin-cs-question-list__state { flex: none; padding: 1px 5px; border: 1px solid var(--wc-line-control); color: var(--wc-ink-tertiary); font-size: 11px; }
+/* 비밀글(MD-0023): 콘솔에는 원문이 보이지만 굿즈 상세에서는 작성자·운영자 외에 가려진다는 표시. */
+.wc-admin .admin-cs-secret-badge { display: inline-block; flex: none; padding: 1px 5px; border: 1px solid var(--wc-ink-sub); color: var(--wc-ink-sub); font-size: 11px; font-weight: 600; line-height: 1.4; }
 .wc-admin .admin-cs-question-list__meta { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 12px; margin: 0; color: var(--wc-ink-tertiary); font-size: 12px; }
 .wc-admin .admin-cs-question-list__meta > :not(:first-child) { padding-left: 12px; border-left: 1px solid var(--wc-hairline); }
 .wc-admin .admin-cs-question-list__body { margin: 0; color: var(--wc-ink-sub); font-size: 13px; line-height: 1.65; overflow-wrap: anywhere; }

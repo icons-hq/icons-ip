@@ -61,6 +61,8 @@ export interface AdminProductQuestionRow {
   body: string;
   /** 운영자 블라인드 상태. 작성자 삭제는 행 자체를 지운다(리뷰와 같은 분리). */
   hidden: boolean;
+  /** 비밀글(MD-0023). 굿즈 상세에서는 작성자·운영자 외에 가려진다. 콘솔은 원문을 그대로 보여 준다. */
+  secret: boolean;
   answerBody: string | null;
   answeredAt: string | null;
   answeredByName: string | null;

@@ -14,7 +14,7 @@ const NOW = new Date('2026-10-12T08:00:00Z');
 const QUESTION: AdminProductQuestionRow = {
   id: '00000000-0000-4000-8000-000000070001', goodId: 'fixture-goods', goodName: '[합성] 아크릴 스탠드 상품', userId: '00000000-0000-4000-8000-000000070099', authorName: '합성구매자',
   goodImageUrl: '/generated/goods/g13.webp',
-  body: '스탠드의 크기와 재질이 궁금합니다. 선물 포장도 가능한가요?\n실제 고객 문의가 아닌 UI 검수용 합성 문장입니다.', hidden: false, answerBody: null, answeredAt: null, answeredByName: null, createdAt: '2026-10-10T02:00:00Z',
+  body: '스탠드의 크기와 재질이 궁금합니다. 선물 포장도 가능한가요?\n실제 고객 문의가 아닌 UI 검수용 합성 문장입니다.', hidden: false, secret: false, answerBody: null, answeredAt: null, answeredByName: null, createdAt: '2026-10-10T02:00:00Z',
 };
 const REVIEW: AdminReviewRow = {
   helpfulCount: 0,

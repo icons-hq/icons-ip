@@ -15,6 +15,7 @@ function myQuestion(overrides: Partial<MyProductQuestion> = {}): MyProductQuesti
     userId: '33333333-3333-4333-8333-333333333333',
     body: '재입고 예정이 있나요?',
     status: 'visible',
+    isSecret: false,
     answerBody: null,
     answeredAt: null,
     createdAt: '2026-08-30T01:00:00.000Z',
@@ -98,6 +99,31 @@ describe('MyQuestions', () => {
     const html = render([myQuestion({ status: 'hidden' })]);
 
     expect(html).toContain('aria-label="아크릴 블록에 남긴 질문 삭제"');
+  });
+
+  /* 비밀글(MD-0023): 내 화면에서는 원문과 답변이 그대로다. 남에게는 가려진다는 것을 같은 카드에서 알린다. */
+  it('내 비밀글은 원문·답변과 함께 비밀글 표시와 공개 범위를 적는다', () => {
+    const html = render([myQuestion({
+      isSecret: true,
+      body: '배송지를 바꿀 수 있나요?',
+      answerBody: '출고 전이면 바꿀 수 있습니다.',
+      answeredAt: '2026-08-31T02:00:00.000Z',
+    })]);
+
+    expect(html).toContain('배송지를 바꿀 수 있나요?');
+    expect(html).toContain('출고 전이면 바꿀 수 있습니다.');
+    expect(html).toContain('wc-qna-badge wc-qna-badge--secret');
+    expect(html).toContain('>비밀글<');
+    expect(html).toContain('답변 완료');
+    expect(html).toContain('판매자와 나만 볼 수 있는 비밀글입니다.');
+    expect(html).toContain('‘비밀글입니다.’로만 보입니다.');
+  });
+
+  it('비밀글이 아닌 질문에는 비밀글 표시가 없다', () => {
+    const html = render([myQuestion()]);
+
+    expect(html).not.toContain('wc-qna-badge--secret');
+    expect(html).not.toContain('판매자와 나만 볼 수 있는 비밀글입니다.');
   });
 
   it('남긴 질문이 없으면 굿즈로 가는 길을 준다', () => {
