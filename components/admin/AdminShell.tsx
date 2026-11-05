@@ -6,6 +6,7 @@ import { ADMIN_CONSOLES, adminConsoleHomeHref, adminGroupConsoles, adminGroupFor
 import { AdminSidebar } from './AdminSidebar';
 import { Header } from './Header';
 import { AdminPreferencesProvider } from './console/AdminPreferences';
+import { AdminKitPortalHost } from './kit/portal-container';
 import { OperationsDock } from './OperationsDock';
 import { AdminInquiryNotifier } from './AdminInquiryNotifier';
 import { AdminNumberWheelGuard } from './AdminNumberWheelGuard';
@@ -43,6 +44,7 @@ export function AdminShell({
 
   return (
     <AdminPreferencesProvider accountId={admin.id || admin.email || admin.role}>
+    <AdminKitPortalHost>
     <div className={`admin-shell wc-root wc-admin${collapsed ? ' collapsed' : ''}${isChat ? ' admin-shell--chat' : ''}`} data-admin-console={consoleId}>
       <AdminSidebar
         accountId={admin.id || admin.email || admin.role}
@@ -69,6 +71,7 @@ export function AdminShell({
       {/* R18: 포커스된 어드민 number 입력 위의 휠은 값을 바꾸지 않고 페이지만 스크롤한다(셸에 한 번). */}
       <AdminNumberWheelGuard />
     </div>
+    </AdminKitPortalHost>
     </AdminPreferencesProvider>
   );
 }

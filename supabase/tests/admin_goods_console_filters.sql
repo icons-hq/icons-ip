@@ -56,7 +56,25 @@ select 1/case when (public.admin_search_goods_console(p_ip_id=>'goods-console-te
  and (public.admin_search_goods_console(p_ip_id=>'goods-console-test',p_status=>'all',p_filters=>'{"salePeriod":"all"}')->>'total')::int=4
  and (select count(*) from public.admin_goods_console_export_candidates(p_ip_id=>'goods-console-test',p_status=>'all',p_filters=>'{"salePeriod":"ended"}'))=1
  then 1 else 0 end as assert_sale_period_filter_matches_list_and_export;
+reset role;
+-- MD-0026 판매상태: B·D=판매중지(B 재고 8, D 재고 0), A=판매중지 아님·재고 0(품절), C=보관·판매중(재고 4).
+update public.goods set stock='soldout' where id in ('console-b','console-d');
+update public.goods_variants set stock_qty=0 where good_id in ('console-a','console-d');
+set local role authenticated;
+select 1/case when (public.admin_search_goods_console(p_ip_id=>'goods-console-test',p_status=>'all',p_stock=>'stopped')->>'total')::int=2
+ and (select jsonb_agg(item->>'id' order by item->>'id') from jsonb_array_elements(
+   public.admin_search_goods_console(p_ip_id=>'goods-console-test',p_status=>'all',p_stock=>'stopped')->'rows') item)='["console-b","console-d"]'::jsonb
+ and (public.admin_search_goods_console(p_ip_id=>'goods-console-test',p_status=>'all',p_stock=>'out_of_stock')->>'total')::int=1
+ and public.admin_search_goods_console(p_ip_id=>'goods-console-test',p_status=>'all',p_stock=>'out_of_stock')->'rows'->0->>'id'='console-a'
+ and (public.admin_search_goods_console(p_ip_id=>'goods-console-test',p_status=>'all',p_stock=>'soldout')->>'total')::int=3
+ and (public.admin_search_goods_console(p_ip_id=>'goods-console-test',p_status=>'all',p_stock=>'ok')->>'total')::int=1
+ and (select count(*) from public.admin_goods_console_export_candidates(p_ip_id=>'goods-console-test',p_status=>'all',p_stock=>'out_of_stock'))=1
+ and (select count(*) from public.admin_goods_console_export_candidates(p_ip_id=>'goods-console-test',p_status=>'all',p_stock=>'stopped'))=2
+ and (public.admin_search_goods_workspace(p_ip_id=>'goods-console-test',p_status=>'all',p_stock=>'stopped')->>'total')::int=2
+ and (public.admin_search_goods_workspace(p_ip_id=>'goods-console-test',p_status=>'all',p_stock=>'out_of_stock')->>'total')::int=1
+ then 1 else 0 end as assert_stock_filter_separates_stopped_from_out_of_stock;
 do $$ begin
+ begin perform public.admin_search_goods_console(p_stock=>'sold_out'); raise exception 'unsupported stock filter accepted'; exception when invalid_parameter_value then null; end;
  begin perform public.admin_search_goods_console(p_filters=>'{"salePeriod":"open"}'); raise exception 'unsupported sale period accepted'; exception when invalid_parameter_value then null; end;
  begin perform public.admin_search_goods_console(p_filters=>'{"sort":"injected"}'); raise exception 'invalid sort accepted'; exception when invalid_parameter_value then null; end;
  begin perform public.admin_search_goods_console(p_filters=>'{"from":"2026-10-12","to":"2026-10-01"}'); raise exception 'invalid date range accepted'; exception when invalid_parameter_value then null; end;

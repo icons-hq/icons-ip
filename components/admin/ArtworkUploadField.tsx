@@ -316,7 +316,7 @@ export function ArtworkUploadField({
             <img
               alt={display.previewAlt}
               src={display.previewUrl}
-              style={{ height: '100%', objectFit: 'cover', width: '100%' }}
+              style={{ height: '100%', objectFit: kind === 'event' ? 'contain' : 'cover', width: '100%' }}
             />
           ) : (
             <span className="mono" style={{ color: 'var(--faint)', fontSize: 11 }}>이미지 없음</span>

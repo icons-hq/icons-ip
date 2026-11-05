@@ -16,14 +16,15 @@ import {
  *
  * product_questions 는 staff RLS select 가 열려 있고(블라인드된 글도 staff 에게는
  * 보인다) 목록·집계 전용 RPC 가 없어 테이블을 직접 읽는다 — service role 은 화면
- * 로드에 끌어들이지 않는다.
+ * 로드에 끌어들이지 않는다. 비밀글(MD-0023)도 cs.manage 세션에는 비밀글 정책
+ * (product_questions_secret_read)이 열려 있어 원문 그대로 읽힌다.
  *
  * 작성자 이름은 profiles 가 아니라 public_profiles 에서 읽는다. profiles 는 컬럼
  * 화이트리스트 grant 위에 self-only select 정책이 걸려 있어 staff 세션도 남의 행을
  * 읽지 못한다 — 콘솔에 작성자 이메일이 없는 이유다(리뷰·문의 콘솔은 전용 staff RPC
  * 가 그 값을 실어 준다). */
 
-const LIST_SELECT = 'id,good_id,user_id,body,status,answer_body,answered_at,answered_by,created_at,updated_at';
+const LIST_SELECT = 'id,good_id,user_id,body,status,is_secret,answer_body,answered_at,answered_by,created_at,updated_at';
 
 interface QuestionRow {
   id: string;
@@ -31,6 +32,7 @@ interface QuestionRow {
   user_id: string;
   body: string;
   status: string;
+  is_secret?: boolean | null;
   answer_body: string | null;
   answered_at: string | null;
   answered_by: string | null;
@@ -192,6 +194,7 @@ export async function getAdminProductQuestionConsoleData(
       ),
       body: row.body,
       hidden: row.status === 'hidden',
+      secret: row.is_secret === true,
       answerBody: row.answer_body,
       answeredAt: row.answered_at,
       updatedAt: row.updated_at ?? null,

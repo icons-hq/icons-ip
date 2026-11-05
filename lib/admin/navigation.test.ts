@@ -54,30 +54,79 @@ describe('어드민 IA 정의', () => {
     expect(adminGroupForPath('/admin/catalog/groups/new')?.id).toBe('catalog');
   });
 
-  /* 10/27 회의 R21(D9①, MD-0007): 상품관리 21개 메뉴를 상품관리·배송관리·템플릿 관리로 나누고 그룹상품 두 메뉴는 사이드바에서만 숨긴다. */
-  it('상품관리를 상품관리·배송관리·템플릿 관리 세 대분류로 나눈다', () => {
+  /*
+   * 2026-11-05 IA 재정의(10/27 R21·D9①·MD-0007 확장): 화면 라벨·id·경로는 그대로 두고 묶음과 순서만 운영 업무 기준으로 바꾼다.
+   * 매일 쓰는 업무 그룹이 위, 설정 구역(배송관리·템플릿 관리·판매자 정보)이 아래다.
+   */
+  it('커머스 대분류를 업무 순서로 세우고 설정 구역을 맨 아래에 둔다', () => {
+    const commerce = ADMIN_NAV_GROUPS.filter((group) => !group.consoles || group.consoles.includes('commerce'));
+    expect(commerce.map((group) => [group.id, group.label])).toEqual([
+      ['home', '홈'], ['sales', '주문관리'], ['claims', '취소·반품·교환'], ['catalog', '상품관리'], ['cs', '문의/리뷰관리'],
+      ['customers', '고객관리'], ['store', '스토어 전시관리'], ['display', '혜택/마케팅'], ['stats', '데이터분석'],
+      ['settlements', '정산관리'], ['shipping', '배송관리'], ['templates', '템플릿 관리'], ['seller', '판매자 정보'], ['help', '도움말'],
+    ]);
     const ids = (groupId: string) => ADMIN_NAV_GROUPS.find((group) => group.id === groupId)?.screens.map((screen) => screen.id);
-    expect(ADMIN_NAV_GROUPS.map((group) => group.id).slice(1, 4)).toEqual(['catalog', 'shipping', 'templates']);
-    expect(ADMIN_NAV_GROUPS.find((group) => group.id === 'shipping')).toMatchObject({ label: '배송관리' });
-    expect(ADMIN_NAV_GROUPS.find((group) => group.id === 'templates')).toMatchObject({ label: '템플릿 관리' });
-    expect(ids('catalog')).toEqual(['goods', 'goods-create', 'goods-groups-create', 'goods-groups', 'goods-import', 'categories', 'erp-items',
-      'announcements', 'goods-photos', 'related-goods', 'goods-attributes']);
-    expect(ids('shipping')).toEqual(['fulfillment-origins', 'shipping-regions', 'shipping-carriers']);
-    expect(ids('templates')).toEqual(['shipping-settings-templates', 'shipping-notice-templates', 'notice-presets', 'goods-event-templates',
-      'category-templates', 'goods-after-sales-templates', 'size-templates']);
-    for (const group of ['shipping', 'templates']) expect(ADMIN_NAV_GROUPS.find((item) => item.id === group)?.consoles).toBeUndefined();
+    expect(ids('sales')).toEqual(['orders', 'unpaid', 'dispatch', 'shipping', 'settled', 'gifts', 'subscriptions']);
+    expect(ids('claims')).toEqual(['claims-cancels', 'claims-returns', 'claims-exchanges', 'refund-transfers']);
+    expect(ids('catalog')).toEqual(['goods', 'goods-create', 'goods-groups-create', 'goods-groups', 'goods-import', 'goods-photos', 'categories',
+      'erp-items', 'related-goods', 'announcements']);
+    expect(ids('cs')).toEqual(['inquiries', 'inquiry-chat', 'qna', 'reviews', 'review-events', 'review-insights', 'faq']);
+    expect(ids('customers')).toEqual(['members', 'customer-grades', 'customer-segments', 'purchase-restrictions']);
+    expect(ids('store')).toEqual(['curations', 'category-display', 'campaigns', 'shopping-stories', 'product-detail-presentation', 'store-presentation']);
+    expect(ids('display')).toEqual(['coupon-register', 'coupons', 'store-credit-console', 'marketing-messages', 'notifications', 'emails', 'marketing-links']);
+    expect(ids('stats')).toEqual(['stats-sales', 'stats-claims', 'stats-customers', 'stats-traffic', 'stats-marketing', 'benefit-report']);
+    expect(ids('shipping')).toEqual(['fulfillment-origins', 'shipping-regions', 'shipping-carriers', 'shipping-settings-templates', 'shipping-notice-templates']);
+    expect(ids('templates')).toEqual(['notice-presets', 'goods-event-templates', 'category-templates', 'goods-after-sales-templates', 'size-templates',
+      'goods-attributes']);
+    expect(ids('seller')).toEqual(['operations-settings', 'store-settings', 'roles', 'store-credits']);
+    expect(ADMIN_NAV_GROUPS.some((group) => group.id === 'promotion')).toBe(false);
+    for (const group of commerce.filter((item) => item.id !== 'help')) expect(group.consoles).toBeUndefined();
+    /* 한 그룹은 한 업무 — 사이드바에 보이는 화면은 그룹당 8개 이하다. */
+    for (const group of visibleAdminNavGroups('admin', undefined, 'commerce')) expect(group.screens.length).toBeLessThanOrEqual(8);
     expect(adminGroupForPath('/admin/settings/origins')?.id).toBe('shipping');
-    expect(adminGroupForPath('/admin/settings/shipping-notices')?.id).toBe('templates');
+    expect(adminGroupForPath('/admin/settings/shipping-notices')?.id).toBe('shipping');
+    expect(adminGroupForPath('/admin/sales/claims/returns')?.id).toBe('claims');
+    expect(adminGroupForPath('/admin/sales/purchase-restrictions')?.id).toBe('customers');
+    expect(adminGroupForPath('/admin/settings/store-credits')?.id).toBe('seller');
+    expect(adminGroupForPath('/admin/sales/benefit-report')?.id).toBe('stats');
     expect(adminConsoleForPath('/admin/settings/shipping-templates')).toBe('commerce');
+  });
+
+  it('IA 재정의는 화면 id·라벨·경로를 바꾸지 않는다', () => {
+    const before = [
+      ['overview', '/admin'], ['goods', '/admin/catalog/goods'], ['goods-create', '/admin/catalog/goods?create=1'],
+      ['claims-cancels', '/admin/sales/claims/cancels'], ['refund-transfers', '/admin/sales/claims/refund-transfers'],
+      ['members', '/admin/community/members'], ['customer-grades', '/admin/marketing/customer-grades'], ['campaigns', '/admin/display/campaigns'],
+      ['benefit-report', '/admin/sales/benefit-report'], ['shipping-notice-templates', '/admin/settings/shipping-notices'],
+      ['goods-attributes', '/admin/catalog/attributes'], ['store-credits', '/admin/settings/store-credits'],
+    ];
+    for (const [id, href] of before) expect(ADMIN_SCREENS.find((screen) => screen.id === id)?.href).toBe(href);
+    expect(ADMIN_SCREENS.find((screen) => screen.id === 'purchase-restrictions')?.label).toBe('판매방해 고객관리');
+    expect(ADMIN_SCREENS.filter((screen) => screen.adminOnly).map((screen) => screen.id).sort()).toEqual([
+      'customer-grades', 'goods-attributes', 'pg-settlements', 'refund-transfers', 'roles', 'store-credit-console', 'store-credits',
+    ]);
   });
 
   it('그룹상품 등록·조회는 사이드바에서만 숨기고 라우트·화면 판정은 그대로 둔다', () => {
     const hidden = ADMIN_SCREENS.filter((screen) => screen.navHidden).map((screen) => screen.id);
-    expect(hidden).toEqual(['goods-groups-create', 'goods-groups']);
+    expect(hidden).toEqual(['gifts', 'subscriptions', 'goods-groups-create', 'goods-groups']);
     const visible = visibleAdminNavGroups('admin').flatMap((group) => group.screens.map((screen) => screen.id));
     for (const id of hidden) expect(visible).not.toContain(id);
     expect(adminScreenForPath('/admin/catalog/groups')?.id).toBe('goods-groups');
     expect(adminScreenForPath('/admin/catalog/groups/new')?.id).toBe('goods-groups-create');
+  });
+
+  it('운영에서 꺼진 선물 수락 대기·정기구매 관리는 사이드바에서만 숨기고 주문관리 화면 판정은 그대로 둔다', () => {
+    const sales = ADMIN_NAV_GROUPS.find((group) => group.id === 'sales');
+    expect(sales?.screens.filter((screen) => screen.navHidden).map((screen) => screen.label)).toEqual(['선물 수락 대기', '정기구매 관리']);
+    const visibleSales = visibleAdminNavGroups('admin').find((group) => group.id === 'sales')?.screens.map((screen) => screen.id) ?? [];
+    expect(visibleSales).not.toContain('gifts');
+    expect(visibleSales).not.toContain('subscriptions');
+    expect(visibleSales).toContain('orders');
+    expect(adminScreenForPath('/admin/sales/gifts?status=pending')).toMatchObject({ id: 'gifts', status: 'ready' });
+    expect(adminScreenForPath('/admin/sales/subscriptions/plan-id')).toMatchObject({ id: 'subscriptions', status: 'ready' });
+    expect(adminGroupForPath('/admin/sales/gifts')?.id).toBe('sales');
+    expect(adminGroupForPath('/admin/sales/subscriptions')?.id).toBe('sales');
   });
 
   it('상담하기는 문의 관리와 구분되는 실시간 상담 화면으로 연결된다', () => {
@@ -125,7 +174,7 @@ describe('어드민 IA 정의', () => {
 
     expect(campaigns).toMatchObject({ href: '/admin/display/campaigns', status: 'ready' });
     expect(qna).toMatchObject({ href: '/admin/cs/qna', status: 'ready' });
-    expect(adminGroupForPath('/admin/display/campaigns')?.id).toBe('promotion');
+    expect(adminGroupForPath('/admin/display/campaigns')?.id).toBe('store');
     expect(adminGroupForPath('/admin/cs/qna')?.id).toBe('cs');
   });
 });
@@ -142,7 +191,7 @@ describe('adminScreenForPath', () => {
     expect(adminScreenForPath('/admin/sales/claims/cancels')?.id).toBe('claims-cancels');
     expect(adminScreenForPath('/admin/catalog/goods/some-id')?.id).toBe('goods');
     expect(adminScreenForPath('/admin/customers/customer-id')?.id).toBe('members');
-    expect(adminGroupForPath('/admin/customers/customer-id')?.id).toBe('cs');
+    expect(adminGroupForPath('/admin/customers/customer-id')?.id).toBe('customers');
   });
 
   it('끝 슬래시를 붙여도 같은 화면을 고른다', () => {

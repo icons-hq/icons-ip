@@ -207,7 +207,7 @@ export function ReviewConsoleScreen({
         <div className="col" style={{ gap: 4, minWidth: 0 }}>
           <strong style={{ fontSize: 14 }}>저평점 리뷰 {counts.lowRating.toLocaleString('ko-KR')}건</strong>
           <span className="muted" style={{ fontSize: 12.5 }}>
-            {LOW_REVIEW_RATING_MAX}점 이하 리뷰입니다. 답글이 늦을수록 그대로 굳습니다.
+            {LOW_REVIEW_RATING_MAX}점 이하 리뷰입니다. 빨리 답글을 달면 다른 고객도 판매자의 대응을 함께 봅니다.
           </span>
         </div>
         <Link

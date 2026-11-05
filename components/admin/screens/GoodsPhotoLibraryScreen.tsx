@@ -1,15 +1,15 @@
 'use client';
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import Link from 'next/link';
-import { findGoodsPhotosAction, saveGoodsPhotoAction } from '@/app/admin/goods-photo-library-actions';
+import { findGoodsPhotosAction, finishGoodsPhotoUploadsAction, saveGoodsPhotoAction } from '@/app/admin/goods-photo-library-actions';
 import { ADMIN_ARTWORK_ACCEPT, ADMIN_ARTWORK_ERROR } from '@/lib/admin/artwork';
 import { uploadAdminArtwork } from '@/lib/admin/artwork-upload.client';
-import { GOODS_PHOTO_UPLOAD_LIMIT, goodsPhotoReferenceLabel, type GoodsPhoto, type GoodsPhotoPage } from '@/lib/admin/goods-photo-library';
+import { GOODS_PHOTO_UPLOAD_LIMIT, goodsPhotoNameFromFileName, goodsPhotoReferenceLabel, type GoodsPhoto, type GoodsPhotoPage } from '@/lib/admin/goods-photo-library';
 import { publicMediaUrl } from '@/lib/media';
 import { CustomerServiceDialog } from './CustomerServiceDialog';
 
 const emptyPage: GoodsPhotoPage = { rows: [], total: 0, page: 1, pageSize: 20 };
-export const GOODS_PHOTO_LIBRARY_PURPOSE = '여러 상품에 다시 쓸 사진을 모아 두는 곳입니다. 상품 편집기에서 직접 올린 사진은 여기에 자동으로 등록되지 않습니다.';
+export const GOODS_PHOTO_LIBRARY_PURPOSE = '여러 상품에 다시 쓸 사진을 모아 두는 곳입니다. 상품 편집기의 상품 이미지 타일에 올린 사진도 여기에 자동으로 등록됩니다.';
 
 /** 방금 올린 사진을 목록 맨 앞에 둔다. 같은 순간 다른 운영자가 올린 사진이 더 최신이어도 내 업로드가 먼저 보인다. */
 export function pinRecentGoodsPhotos(rows: GoodsPhoto[], recent: readonly string[]): GoodsPhoto[] {
@@ -55,8 +55,13 @@ export function GoodsPhotoLibraryScreen({ initial = emptyPage, onSelect }: { ini
         setMessage(`${files.length}장 중 ${savedIds.length + failures.length + 1}번째 사진을 확인하고 있습니다.`);
         const uploaded = await uploadAdminArtwork({ kind: 'good', file });
         if (!uploaded.ok) { failures.push(`${file.name}: ${uploaded.error}`); continue; }
-        const result = await saveGoodsPhotoAction({ id: crypto.randomUUID(), name: file.name.slice(0,100), imagePath: uploaded.imagePath, revision: 0, archived: false });
+        // R20: macOS 파일 이름(NFD 한글)을 NFC로 저장해 이름 검색에 걸리게 한다. R19: 저장마다 화면을 다시 그리지 않는다.
+        const result = await saveGoodsPhotoAction({ id: crypto.randomUUID(), name: goodsPhotoNameFromFileName(file.name), imagePath: uploaded.imagePath, revision: 0, archived: false }, { revalidate: false });
         if ('error' in result) failures.push(`${file.name}: ${result.error}`); else savedIds.push(result.id);
+      }
+      if (savedIds.length) {
+        try { await finishGoodsPhotoUploadsAction(); }
+        catch { /* 화면 캐시 갱신은 부가 단계다. 목록은 아래에서 다시 읽는다. */ }
       }
       /* 검색어가 남아 있으면 새 사진(파일 이름)이 걸러져 사라진 것처럼 보인다. 검색어를 비우고 전체 목록 첫 페이지를 읽는다. */
       const saved = savedIds.length;

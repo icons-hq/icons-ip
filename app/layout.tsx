@@ -115,7 +115,7 @@ const spaceMono = Space_Mono({
 });
 
 export const metadata: Metadata = {
-  title: 'ICONS — 서브컬처 팬덤 플랫폼',
+  title: 'ICONS',
   description:
     '공식 라이선스 굿즈 · 팝업 & 티케팅 · 팬 커뮤니티 · 수집형 카드까지. 모든 서브컬처가 모이는 디지털 팬덤 허브.',
 };

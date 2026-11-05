@@ -2165,6 +2165,38 @@
   margin-top: 8px;
 }
 
+/* 비밀글 선택(MD-0023). 입력 칸 바로 아래에 서서, 쓰는 사람이 등록 전에 공개 범위를 고른다. */
+.wc-qna-form__secret {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 12px;
+  margin-top: 8px;
+}
+
+.wc-qna-form__secret-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--wc-ink);
+  cursor: pointer;
+}
+
+.wc-qna-form__secret-label input {
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  accent-color: var(--wc-ink);
+}
+
+.wc-qna-form__secret-hint {
+  font-size: 12px;
+  font-weight: 400;
+  color: var(--wc-ink-tertiary);
+}
+
 .wc-qna-form__note {
   flex: 1 1 240px;
   margin: 0;
@@ -2255,6 +2287,22 @@
 .wc-qna-badge--hidden {
   border-color: var(--wc-danger);
   color: var(--wc-danger);
+}
+
+/* 비밀글 표시(MD-0023). 상태 뱃지와 같은 크기의 회색 글자로 둔다 — 상태가 아니라 공개 범위다. */
+.wc-qna-item__secret,
+.wc-qna-badge--secret {
+  padding: 2px 8px;
+  font-size: 12px;
+  font-weight: 400;
+  border: 1px solid transparent;
+  background: var(--wc-surface-grey);
+  color: var(--wc-ink-sub);
+}
+
+/* 가려진 비밀글의 본문 자리. 다른 질문의 본문처럼 읽히지 않게 흐리게 둔다. */
+.wc-qna-item__body--secret {
+  color: var(--wc-ink-tertiary);
 }
 
 .wc-qna-item__author {

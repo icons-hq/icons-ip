@@ -31,12 +31,33 @@ export interface ProductQuestion {
   userId: string;
   body: string;
   status: ProductQuestionStatus;
+  /** 비밀글(MD-0023). 본문·답변은 작성자와 운영자만 읽는다. */
+  isSecret: boolean;
   answerBody: string | null;
   answeredAt: string | null;
   createdAt: string;
   /** 목록에 그릴 작성자 표시명. */
   authorName: string;
 }
+
+/**
+ * 굿즈 상세 목록에서 가려진 비밀글 한 줄.
+ *
+ * 본문·답변·작성자 필드가 아예 없다 — DB(good_product_questions)가 그 값을 싣지 않고, 타입에도
+ * 자리가 없어야 화면이 실수로 빈 문자열이나 다른 사람의 이름을 그리지 않는다. 남는 것은 줄의
+ * 자리(작성일)와 답변 여부뿐이다.
+ */
+export interface MaskedProductQuestion {
+  id: string;
+  goodId: string;
+  masked: true;
+  isSecret: true;
+  answered: boolean;
+  createdAt: string;
+}
+
+/** 굿즈 상세 Q&A 목록의 한 줄 — 읽을 수 있는 질문이거나, 가려진 비밀글이다. */
+export type GoodQuestionItem = (ProductQuestion & { masked: false }) | MaskedProductQuestion;
 
 /**
  * 내 Q&A 목록의 한 줄 — 질문에 대상 굿즈를 붙인다.
@@ -104,6 +125,30 @@ export function questionStateLabel(question: {
   answerBody: string | null;
 }): string {
   return PRODUCT_QUESTION_STATE_LABELS[productQuestionState(question)];
+}
+
+/* ---------------------------------------------------------------------------
+ * 비밀글 (MD-0023)
+ * ------------------------------------------------------------------------- */
+
+/** 비밀글 표시. 공개 목록·내 Q&A·작성 폼이 같은 낱말을 쓴다. */
+export const SECRET_PRODUCT_QUESTION_LABEL = '비밀글';
+
+/** 가려진 비밀글 줄이 본문 자리에 그리는 문장. */
+export const SECRET_PRODUCT_QUESTION_PLACEHOLDER = '비밀글입니다.';
+
+/** 작성 폼의 비밀글 선택지와 그 범위 안내. */
+export const SECRET_PRODUCT_QUESTION_OPTION_LABEL = '비밀글로 질문하기';
+export const SECRET_PRODUCT_QUESTION_HINT = '판매자와 작성자만 볼 수 있습니다.';
+
+/**
+ * 가려진 비밀글 줄의 상태 표기.
+ *
+ * 답변 본문은 없지만 답변 여부는 남는다 — 작성자가 아닌 사람도 "이 굿즈는 질문에 답이 달리는가"를
+ * 읽을 수 있어야 한다. 블라인드된 글은 공개 목록에 실리지 않으므로 여기에 hidden 은 없다.
+ */
+export function maskedQuestionStateLabel(question: Pick<MaskedProductQuestion, 'answered'>): string {
+  return PRODUCT_QUESTION_STATE_LABELS[question.answered ? 'answered' : 'awaiting'];
 }
 
 /* ---------------------------------------------------------------------------
@@ -179,6 +224,8 @@ export interface ProductQuestionFormErrors {
 export interface ProductQuestionFormValue {
   goodId: string;
   body: string;
+  /** 비밀글 선택. 체크박스가 실어 보낸 `secret=true` 일 때만 켜진다. */
+  isSecret: boolean;
 }
 
 export type ProductQuestionFormResult =
@@ -193,6 +240,9 @@ function readString(formData: FormData, name: string) {
 export function normalizeProductQuestionForm(formData: FormData): ProductQuestionFormResult {
   const goodId = readString(formData, 'goodId');
   const body = readString(formData, 'body');
+  /* 값이 비어 있지 않으면 켠다. 체크박스는 `true` 하나만 보내지만, 다른 값이 와도 비밀 쪽으로
+     틀리는 편이 작성자가 숨기려던 본문을 공개하는 쪽으로 틀리는 것보다 덜 위험하다. */
+  const isSecret = readString(formData, 'secret') !== '';
   const errors: ProductQuestionFormErrors = {};
 
   if (!goodId) errors.form = '질문을 남길 굿즈를 찾을 수 없습니다.';
@@ -202,5 +252,5 @@ export function normalizeProductQuestionForm(formData: FormData): ProductQuestio
   }
 
   if (Object.keys(errors).length || !goodId) return { ok: false, errors };
-  return { ok: true, value: { goodId, body } };
+  return { ok: true, value: { goodId, body, isSecret } };
 }
