@@ -99,7 +99,7 @@ describe('m27 가이드 — 고객문의·상담·리뷰(R1~R6)', () => {
     expect(lib).toContain('적립금 정책: 켜짐 · 보유 상한');
     expect(lib).toContain('적립금 정책: 꺼짐');
     expect(repoFile('lib/admin/navigation.ts')).toContain("label: '적립금 정책', href: '/admin/settings/store-credits', status: 'ready', adminOnly: true");
-    expect(text).toContain('혜택/마케팅 → 적립금 정책');
+    expect(text).toContain('판매자 정보 → 적립금 정책');
     expect(text).toContain('보유 상한');
   });
 
@@ -289,13 +289,16 @@ describe('m27 가이드 — 메뉴·배송정보·출고 파일(R21~R23·R26·R2
   it('배송정보·템플릿 화면을 새 대분류 경로로 부른다(R21·R22)', () => {
     const group = (href: string) => ADMIN_NAV_GROUPS.find((item) => item.screens.some((screen) => screen.href === href))?.label;
     expect(group('/admin/settings/origins')).toBe('배송관리');
-    expect(group('/admin/settings/shipping-templates')).toBe('템플릿 관리');
-    expect(group('/admin/settings/shipping-notices')).toBe('템플릿 관리');
+    /* 2026-11-05 IA 재정의: 배송 템플릿 두 화면은 배송관리로 모았다. */
+    expect(group('/admin/settings/shipping-templates')).toBe('배송관리');
+    expect(group('/admin/settings/shipping-notices')).toBe('배송관리');
+    expect(group('/admin/catalog/notice-presets')).toBe('템플릿 관리');
     const all = Object.values(ADMIN_GUIDE_TOPICS).map(plainText).join('\n');
     for (const stale of ['상품관리 → 배송정보', '상품관리 → 배송 안내', '상품관리의 배송 안내']) expect(all).not.toContain(stale);
     expect(guide('store-settings')).toContain('배송관리 → 배송정보 관리');
-    expect(guide('orders-shipping')).toContain('템플릿 관리 → 배송정보 템플릿 관리');
-    expect(guide('orders-shipping')).toContain('템플릿 관리 → 배송 안내 템플릿 관리');
+    expect(guide('orders-shipping')).toContain('배송관리 → 배송정보 템플릿 관리');
+    expect(guide('orders-shipping')).toContain('배송관리 → 배송 안내 템플릿 관리');
+    for (const stale of ['템플릿 관리 → 배송정보', '템플릿 관리 → 배송 안내', '템플릿 관리의 배송 안내']) expect(all).not.toContain(stale);
     expect(repoFile('components/admin/screens/FulfillmentOriginsScreen.tsx')).toContain('>출고지 추가</Link>');
     expect(guide('store-settings')).toContain('출고지 추가');
   });
