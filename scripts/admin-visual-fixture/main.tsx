@@ -136,7 +136,7 @@ function OverviewFixture() {
     dailyRevenue: Array.from({ length: days }, (_, index) => ({ date: `2026-09-${String(index + 1).padStart(2, '0')}`, goods: index % 3 === 0 ? 85000 : 42000, tickets: index % 2 ? 12000 : 0 })),
     pipeline: [{ status: 'paid', count: 16 }, { status: 'confirmed', count: 85 }, { status: 'shipping', count: 32 }, { status: 'delivered', count: 154 }, { status: 'done', count: 906 }],
     recentOrders: [], topIps: [],
-  }} workQueue={{ checkedAt: '2026-10-12T08:00:00Z', counts: { orders: { state: 'ready', count: 16 }, ready: { state: 'ready', count: 92 }, delayed: { state: 'ready', count: 3 }, inquiries: { state: 'ready', count: 5 }, goods: { state: 'ready', count: 8 } }, goodsReasons: [] }} summary={{
+  }} workQueue={{ checkedAt: '2026-10-12T08:00:00Z', counts: { orders: { state: 'ready', count: 16 }, ready: { state: 'ready', count: 92 }, delayed: { state: 'ready', count: 3 }, inquiries: { state: 'ready', count: 5 }, goods: { state: 'ready', count: 8 }, unpaid: { state: 'ready', count: 4 }, refundTransfers: { state: 'ready', count: 1 } }, goodsReasons: [] }} summary={{
     claims: { cancel: 2, return: 1, exchange: 3 }, goods: { published: 186, soldout: 12 }, reviews: { total: 342, lowRating: 2, awaitingReply: 8 },
   }} />;
 }

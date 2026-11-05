@@ -2,6 +2,8 @@ import { notFound, redirect } from 'next/navigation';
 import { ClaimDetailScreen } from '@/components/admin/screens/ClaimDetailScreen';
 import { ClaimPreviewDialog } from '@/components/admin/screens/ClaimPreviewDialog';
 import { ClaimQueueScreen } from '@/components/admin/screens/ClaimQueueScreen';
+import { ClaimPreviewKitDialog } from '@/components/admin/screens/ClaimPreviewKitDialog';
+import { ClaimQueueKitScreen } from '@/components/admin/screens/ClaimQueueKitScreen';
 import {
   adminClaimBasePath,
   adminClaimDetailHref,
@@ -58,11 +60,15 @@ export default async function AdminSalesClaimsPage({
 
   const closeHref = adminClaimHref(claimType, filters);
   const typeLabel = ORDER_CLAIM_TYPE_LABELS[claimType];
+  /* ADR-0028: 취소 목록은 템플릿 룩 kit 화면으로 옮겼다. 반품·교환은 옮기기 전까지 기존 화면이다. */
+  const kit = claimType === 'cancel';
+  const Queue = kit ? ClaimQueueKitScreen : ClaimQueueScreen;
+  const Preview = kit ? ClaimPreviewKitDialog : ClaimPreviewDialog;
 
   return <>
-    <ClaimQueueScreen data={data} canViewRefundTransfers={canAccessAdminScreen(auth, adminScreenForPath(REFUND_TRANSFERS_PATH))} />
+    <Queue data={data} canViewRefundTransfers={canAccessAdminScreen(auth, adminScreenForPath(REFUND_TRANSFERS_PATH))} />
     {previewId ? (
-      <ClaimPreviewDialog
+      <Preview
         closeHref={closeHref}
         key={previewId}
         title={workspace
@@ -82,7 +88,7 @@ export default async function AdminSalesClaimsPage({
         ) : (
           <p role="alert">요청을 찾을 수 없습니다. 처리됐거나 접근 권한이 바뀌었을 수 있습니다. 목록을 새로고침해주세요.</p>
         )}
-      </ClaimPreviewDialog>
+      </Preview>
     ) : null}
   </>;
 }

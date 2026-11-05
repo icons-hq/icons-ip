@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { goodsConsoleFilterValues, goodsListHref, goodEditorHref, normalizeGoodsListFilters } from './goods-list';
+import { GOODS_LIST_STOCK_OPTIONS, goodsConsoleFilterValues, goodsListHref, goodEditorHref, normalizeGoodsListFilters } from './goods-list';
 
 describe('goods list navigation', () => {
   it('validates detail filters and retains them through editor, paging and export links', () => {
@@ -23,6 +23,18 @@ describe('goods list navigation', () => {
       expect(goodsListHref(normalized)).not.toContain('salePeriod');
       expect(goodsConsoleFilterValues(normalized).salePeriod).toBe('all');
     }
+  });
+  it('판매상태 필터는 품절(out_of_stock)·판매중지(stopped)를 따로 받고, 이전 값 soldout(둘 다)도 저장된 주소 그대로 연다(MD-0026)', () => {
+    for (const stock of ['out_of_stock', 'stopped', 'soldout'] as const) {
+      const filters = normalizeGoodsListFilters({ stock });
+      expect(filters.stock).toBe(stock);
+      expect(new URL(goodsListHref(filters), 'https://icons.test').searchParams.get('stock')).toBe(stock);
+      expect(new URL(goodEditorHref(filters, 'g100'), 'https://icons.test').searchParams.get('stock')).toBe(stock);
+    }
+    expect(GOODS_LIST_STOCK_OPTIONS.map(option => option.value)).toEqual(['all', 'ok', 'low', 'out_of_stock', 'stopped', 'soldout']);
+    expect(GOODS_LIST_STOCK_OPTIONS.find(option => option.value === 'out_of_stock')?.label).toBe('품절');
+    expect(GOODS_LIST_STOCK_OPTIONS.find(option => option.value === 'stopped')?.label).toBe('판매중지');
+    for (const stock of ['sold_out', 'STOPPED', 'empty']) expect(normalizeGoodsListFilters({ stock }).stock).toBe('all');
   });
   it('normalizes hostile and repeated filters and keeps stable list URLs', () => {
     expect(normalizeGoodsListFilters({q:' 스탠드 ',ipId:'hwasan',page:'2',status:'draft',stock:'soldout'}))

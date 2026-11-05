@@ -94,6 +94,9 @@ describe('ReviewConsoleScreen', () => {
     expect(pinnedIndex).toBeLessThan(html.indexOf('admin-console-grid-table'));
     expect(html).toContain('저평점 리뷰 3건');
     expect(html).toContain('저평점만 보기');
+    // MD-0017: 저평점 안내는 왜 빨리 답해야 하는지를 쉬운 말로 적는다.
+    expect(html).toContain('빨리 답글을 달면 다른 고객도 판매자의 대응을 함께 봅니다.');
+    expect(html).not.toContain('그대로 굳습니다');
   });
 
   it('저평점 필터가 켜져 있으면 해제 링크로 바뀐다', () => {

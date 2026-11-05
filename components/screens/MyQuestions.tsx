@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { EmptyState } from '@/components/wc/EmptyState';
 import { MypageShell } from '@/components/wc/MypageShell';
 import {
+  SECRET_PRODUCT_QUESTION_LABEL,
   formatProductQuestionDate,
   productQuestionState,
   questionStateLabel,
@@ -33,7 +34,13 @@ function QuestionCard({ question }: { question: MyProductQuestion }) {
             <time dateTime={question.createdAt}>{formatProductQuestionDate(question.createdAt)}</time>
           </span>
         </div>
-        <span className={`wc-qna-badge wc-qna-badge--${state}`}>{questionStateLabel(question)}</span>
+        <span className="wc-mypage__card-badges">
+          {/* 비밀글은 내 화면에서는 원문 그대로다. 남에게는 가려져 보인다는 것을 같은 줄에서 알린다. */}
+          {question.isSecret ? (
+            <span className="wc-qna-badge wc-qna-badge--secret">{SECRET_PRODUCT_QUESTION_LABEL}</span>
+          ) : null}
+          <span className={`wc-qna-badge wc-qna-badge--${state}`}>{questionStateLabel(question)}</span>
+        </span>
       </div>
 
       {/* 줄바꿈은 작성자가 넣은 내용이다 — 접으면 문단이 한 덩어리가 된다. */}
@@ -61,6 +68,12 @@ function QuestionCard({ question }: { question: MyProductQuestion }) {
         </p>
       ) : null}
 
+      {question.isSecret && state !== 'hidden' ? (
+        <p className="wc-mypage__hint">
+          판매자와 나만 볼 수 있는 비밀글입니다. 다른 사람에게는 굿즈 상세에 ‘비밀글입니다.’로만 보입니다.
+        </p>
+      ) : null}
+
       {/* 답변이 달린 뒤에도 열어 둔다 — 자기가 남긴 글을 거두는 것은 답변 여부와
           무관한 작성자의 권리다. 답변은 같은 행이라 함께 사라진다. */}
       <QuestionDeleteButton goodName={question.goodName} questionId={question.id} />
@@ -75,7 +88,7 @@ export function MyQuestions({ questions }: { questions: MyProductQuestion[] }) {
         <h1 className="wc-mypage__headbar-title">내 굿즈 Q&amp;A</h1>
       </div>
       <p className="wc-mypage__lede">
-        굿즈 상세에 남긴 질문과 운영자 답변입니다. 질문과 답변은 굿즈 상세에 공개됩니다.
+        굿즈 상세에 남긴 질문과 운영자 답변입니다. 비밀글이 아닌 질문과 답변은 굿즈 상세에 공개됩니다.
       </p>
 
       {questions.length === 0 ? (

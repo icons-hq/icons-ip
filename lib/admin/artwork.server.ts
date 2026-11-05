@@ -3,8 +3,10 @@ import 'server-only';
 import {
   normalizeAdminArtworkMetadata,
   parseAdminArtworkPath,
+  parseAdminArtworkUploadBlockReason,
   type AdminArtworkKind,
   type AdminArtworkMimeType,
+  type AdminArtworkUploadBlockReason,
 } from './artwork';
 import { normalizeAdminArtworkImage } from './artwork-image.server';
 import { createServiceClient } from '@/lib/supabase/service';
@@ -178,6 +180,26 @@ export async function createAdminArtworkUploadClaim(
   }
 }
 
+/**
+ * 준비(false)·확인 시작(빈 결과)이 막힌 뒤에만 부른다. 한도 때문이 아니면 null이고, 호출자는 기존 일반 오류를 쓴다.
+ * 조회 자체가 실패해도 원래 실패를 가리지 않는다.
+ */
+export async function readAdminArtworkUploadBlockReason(input: {
+  actorId: string;
+  stage: 'prepare' | 'verify';
+}): Promise<AdminArtworkUploadBlockReason | null> {
+  if (!input.actorId) return null;
+  try {
+    const { data, error } = await createServiceClient().rpc('service_admin_artwork_upload_block_reason', {
+      p_actor_id: input.actorId,
+      p_stage: input.stage,
+    });
+    return error ? null : parseAdminArtworkUploadBlockReason(data);
+  } catch {
+    return null;
+  }
+}
+
 export async function rejectAdminArtworkUpload(input: {
   actorId: string;
   path: string;
@@ -216,9 +238,10 @@ export async function cancelAdminArtworkUpload(input: {
   });
 }
 
+/** 확인 시작이 운영자별 한도(동시 1건·1분 22건)에 걸리면 blockedReason, 그 밖의 실패는 null이다. */
 export async function verifyAndPromoteAdminArtwork(
   input: AdminArtworkClaimInput,
-): Promise<{ imagePath: string } | null> {
+): Promise<{ imagePath: string } | { blockedReason: AdminArtworkUploadBlockReason } | null> {
   if (!validClaimInput(input)) return null;
 
   let service: ReturnType<typeof createServiceClient>;
@@ -229,7 +252,11 @@ export async function verifyAndPromoteAdminArtwork(
       p_path: input.path,
     });
     const claim = firstRpcRow(data);
-    if (error || !claim) return null;
+    if (error) return null;
+    if (!claim) {
+      const blockedReason = await readAdminArtworkUploadBlockReason({ actorId: input.actorId, stage: 'verify' });
+      return blockedReason ? { blockedReason } : null;
+    }
     if (
       claim.kind !== input.kind
       || claim.mime_type !== input.mimeType

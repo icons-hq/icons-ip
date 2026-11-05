@@ -1,10 +1,16 @@
 import Link from 'next/link';
 import { QuestionComposer } from '@/components/shop/QuestionComposer';
 import {
+  SECRET_PRODUCT_QUESTION_LABEL,
+  SECRET_PRODUCT_QUESTION_PLACEHOLDER,
   formatProductQuestionDate,
   goodQuestionsHref,
+  maskedQuestionStateLabel,
   productQuestionPageWindow,
   questionStateLabel,
+  type GoodQuestionItem,
+  type MaskedProductQuestion,
+  type ProductQuestion,
 } from '@/lib/product-questions';
 import type { GoodQuestionSection } from '@/lib/product-questions.server';
 
@@ -22,14 +28,42 @@ import type { GoodQuestionSection } from '@/lib/product-questions.server';
  * 낱말이 겹치면 사용자는 자기 글이 공개인지 비공개인지 구분할 수 없다(CONTEXT.md).
  */
 
-function QuestionItem({ question }: { question: GoodQuestionSection['questions'][number] }) {
+/**
+ * 가려진 비밀글(MD-0023). 줄은 자리를 지키고 작성일과 답변 여부만 남는다.
+ *
+ * 작성자 이름도 그리지 않는다 — 누가 숨겨 물었는지도 비밀의 일부다. 본문·답변은 이 줄의 데이터에
+ * 애초에 없다(DB 가 싣지 않는다).
+ */
+function MaskedQuestionItem({ question }: { question: MaskedProductQuestion }) {
   return (
-    <li className="wc-qna-item">
+    <li className="wc-qna-item is-secret">
+      <div className="wc-qna-item__meta">
+        <span className={`wc-qna-item__state${question.answered ? ' is-answered' : ''}`}>
+          {maskedQuestionStateLabel(question)}
+        </span>
+        <span className="wc-qna-item__secret">{SECRET_PRODUCT_QUESTION_LABEL}</span>
+        <time className="wc-qna-item__date" dateTime={question.createdAt}>
+          {formatProductQuestionDate(question.createdAt)}
+        </time>
+      </div>
+      <p className="wc-qna-item__body wc-qna-item__body--secret">{SECRET_PRODUCT_QUESTION_PLACEHOLDER}</p>
+    </li>
+  );
+}
+
+function QuestionItem({ question }: { question: ProductQuestion }) {
+  return (
+    <li className={`wc-qna-item${question.isSecret ? ' is-secret' : ''}`}>
       <div className="wc-qna-item__meta">
         {/* 답변 여부는 색이 아니라 글자로도 읽혀야 한다. */}
         <span className={`wc-qna-item__state${question.answerBody ? ' is-answered' : ''}`}>
           {questionStateLabel(question)}
         </span>
+        {/* 작성자 본인(또는 운영자)에게만 원문이 열린 비밀글이다. 다른 사람에게는 가려져 보인다는
+            것을 같은 자리에서 알린다. */}
+        {question.isSecret ? (
+          <span className="wc-qna-item__secret">{SECRET_PRODUCT_QUESTION_LABEL}</span>
+        ) : null}
         <span className="wc-qna-item__author">@{question.authorName}</span>
         <time className="wc-qna-item__date" dateTime={question.createdAt}>
           {formatProductQuestionDate(question.createdAt)}
@@ -84,8 +118,10 @@ export function GoodQna({
             <p className="wc-pdp-panel__note">이 페이지에는 질문이 없습니다.</p>
           ) : (
             <ul className="wc-qna-list">
-              {questions.map((question) => (
-                <QuestionItem key={question.id} question={question} />
+              {questions.map((question: GoodQuestionItem) => (
+                question.masked
+                  ? <MaskedQuestionItem key={question.id} question={question} />
+                  : <QuestionItem key={question.id} question={question} />
               ))}
             </ul>
           )}

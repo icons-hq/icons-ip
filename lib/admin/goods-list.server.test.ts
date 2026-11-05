@@ -45,6 +45,13 @@ describe('goods workspace server boundary', () => {
     // Besides the category filter, only the current page's base prices and active options are read (inline edit).
     expect(mocks.from.mock.calls.map(call => call[0]).sort()).toEqual(['catalog_categories', 'goods', 'goods_variants']);
   });
+  it('품절(out_of_stock)·판매중지(stopped) 판매상태 필터를 목록 RPC의 p_stock 그대로 보낸다(MD-0026)', async () => {
+    mocks.rpc.mockResolvedValue({ data: { statusCounts: counts, rows: [], total: 0 }, error: null });
+    for (const stock of ['out_of_stock', 'stopped']) {
+      await loadAdminGoodsList(normalizeGoodsListFilters({ stock }));
+      expect(mocks.rpc).toHaveBeenLastCalledWith('admin_search_goods_console', expect.objectContaining({ p_stock: stock }));
+    }
+  });
   it('상품번호 링크 목적지: 고객 화면과 같은 공개 조건(전시·미보관·판매 제한 없음·IP 공개)을 만족하는 상품만 고객 화면으로 연다', async () => {
     mocks.visible = ['g1'];
     mocks.rpc.mockResolvedValue({ data: { statusCounts: counts, rows: [row, { ...row, id: 'g2' }], total: 2 }, error: null });

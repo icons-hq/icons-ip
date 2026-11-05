@@ -86,8 +86,10 @@ it('다른 유형으로 바뀐 요청은 그 유형의 목록 팝업으로 보�
 it('찾을 수 없는 요청은 팝업 안에서 알린다', async () => {
   mocks.workspace.mockResolvedValue(null);
   const tree = await Page({ params: Promise.resolve({ claimType: 'cancels' }), searchParams: Promise.resolve({ claimId: CLAIM_ID }) } as never);
-  const dialog = named(tree, 'ClaimPreviewDialog');
+  /* 취소 목록은 템플릿 룩 kit 화면·팝업이다(ADR-0028). 반품·교환은 기존 화면 그대로다. */
+  const dialog = named(tree, 'ClaimPreviewKitDialog');
   expect(dialog).toBeDefined();
+  expect(named(tree, 'ClaimQueueKitScreen')).toBeDefined();
   expect(named(tree, 'ClaimDetailScreen')).toBeUndefined();
   expect(JSON.stringify(dialog?.props.children)).toContain('요청을 찾을 수 없습니다');
 });
@@ -95,4 +97,17 @@ it('찾을 수 없는 요청은 팝업 안에서 알린다', async () => {
 it('형식이 아닌 claimId는 무시한다', async () => {
   await Page({ params: Promise.resolve({ claimType: 'cancels' }), searchParams: Promise.resolve({ claimId: 'x' }) } as never);
   expect(mocks.workspace).not.toHaveBeenCalled();
+});
+
+it('ADR-0028: 취소 목록만 kit 화면이고, 비교용 기존 화면 스위치는 없다', async () => {
+  mocks.workspace.mockResolvedValue(null);
+  const cancels = await Page({ params: Promise.resolve({ claimType: 'cancels' }), searchParams: Promise.resolve({ claimId: CLAIM_ID, ui: 'classic' }) } as never);
+  expect(named(cancels, 'ClaimQueueKitScreen')).toBeDefined();
+  expect(named(cancels, 'ClaimQueueScreen')).toBeUndefined();
+  expect(named(cancels, 'ClaimPreviewDialog')).toBeUndefined();
+
+  const returns = await Page({ params: Promise.resolve({ claimType: 'returns' }), searchParams: Promise.resolve({ claimId: CLAIM_ID }) } as never);
+  expect(named(returns, 'ClaimQueueScreen')).toBeDefined();
+  expect(named(returns, 'ClaimPreviewDialog')).toBeDefined();
+  expect(named(returns, 'ClaimQueueKitScreen')).toBeUndefined();
 });

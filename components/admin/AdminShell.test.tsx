@@ -81,7 +81,7 @@ describe('AdminShell', () => {
     expect(crumbs(content)).toEqual(['콘텐츠 운영', '카드']);
 
     mocks.pathname = '/admin/sales/orders';
-    expect(crumbs(render())).toEqual(['홈', '판매관리', '주문통합검색']);
+    expect(crumbs(render())).toEqual(['홈', '주문관리', '주문통합검색']);
   });
 
   it('콘텐츠 운영 화면을 볼 수 없는 역할에는 콘솔 전환을 만들지 않는다', () => {

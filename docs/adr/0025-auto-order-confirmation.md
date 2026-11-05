@@ -1,6 +1,6 @@
 # 자동 발주확인 — 매일 정한 시각에 그때까지 결제된 주문을 시스템이 발주확인한다
 
-- Status: proposed (2026-10-27) — 사용자 확정 D1·D11(2026-10-27), PR 리뷰·merge 승인 시 accepted로 바꾼다
+- Status: accepted (2026-10-27) — 사용자 확정 D1·D11, PR #608 merge
 - 보완: [ADR-0017](./0017-order-claim-intake-and-origin-collections.md)의 직접 취소 경계("발주확인 전까지")는 그대로 두고, 발주확인을 일으키는 주체에 시스템을 더한다
 - 관련: 2026-10-14 실사용 QA 회의 A1·S23·A15, [ADR-0018](./0018-staff-initiated-order-cancellation.md), [클레임 런북](../runbooks/order-claim-intake.md)
 

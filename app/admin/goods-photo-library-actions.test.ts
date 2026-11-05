@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { findGoodsPhotosAction, saveGoodsPhotoAction } from './goods-photo-library-actions';
+import { findGoodsPhotosAction, finishGoodsPhotoUploadsAction, saveGoodsPhotoAction } from './goods-photo-library-actions';
 const mocks = vi.hoisted(() => ({ access: vi.fn(), rpc: vi.fn(), load: vi.fn(), revalidate: vi.fn() }));
 vi.mock('@/lib/admin/action-access.server', () => ({ requireAdminActionAccess: mocks.access }));
 vi.mock('@/lib/supabase/server', () => ({ createClient: async () => ({ rpc: mocks.rpc }) }));
@@ -34,5 +34,29 @@ describe('공용 사진 서버 액션', () => {
     mocks.load.mockRejectedValue(new Error('offline'));
     expect(await findGoodsPhotosAction(' 사진 ',true,2)).toMatchObject({ error: expect.stringContaining('불러오지 못했습니다') });
     expect(mocks.load).toHaveBeenCalledWith('사진',true,2);
+  });
+});
+describe('사진 보관함 NFC·일괄 갱신 (R19·R20)', () => {
+  it('macOS NFD 이름과 검색어를 NFC로 맞춘다', async () => {
+    const nfd = ' 메이플 키링.png '.normalize('NFD');
+    expect(await saveGoodsPhotoAction({ ...photo, name: nfd })).toEqual({ id: photo.id, revision: 5 });
+    expect(mocks.rpc).toHaveBeenCalledWith('admin_save_goods_photo', expect.objectContaining({ p_name: '메이플 키링.png'.normalize('NFC') }));
+    mocks.load.mockResolvedValue({ rows: [], total: 0, page: 1, pageSize: 20 });
+    await findGoodsPhotosAction(' 키링 '.normalize('NFD'), false, 1);
+    expect(mocks.load).toHaveBeenCalledWith('키링'.normalize('NFC'), false, 1);
+  });
+  it('NFC로 100자 이하인 NFD 이름은 길이 검사에서 떨어뜨리지 않는다', async () => {
+    const name = '가'.repeat(100).normalize('NFD');
+    expect(name.length).toBeGreaterThan(100);
+    expect(await saveGoodsPhotoAction({ ...photo, name })).toEqual({ id: photo.id, revision: 5 });
+  });
+  it('여러 장 업로드 중에는 저장마다 화면을 다시 그리지 않고 끝에 한 번만 갱신한다', async () => {
+    expect(await saveGoodsPhotoAction(photo, { revalidate: false })).toEqual({ id: photo.id, revision: 5 });
+    expect(mocks.revalidate).not.toHaveBeenCalled();
+    await finishGoodsPhotoUploadsAction();
+    expect(mocks.revalidate).toHaveBeenCalledExactlyOnceWith('/admin/catalog/photos');
+    mocks.access.mockResolvedValue(null); mocks.revalidate.mockClear();
+    await finishGoodsPhotoUploadsAction();
+    expect(mocks.revalidate).not.toHaveBeenCalled();
   });
 });

@@ -91,7 +91,7 @@ export function GoodsListScreen({ data, shippingRegionExpiry, canIssueMarketingL
       ] };
     })} />
     <ConsolePagination page={filters.page} pageSize={pageSize} total={total} hrefForPage={page => goodsListHref(filters, page)} />
-      <details className="admin-goods-worklist__help"><summary>재고수량·판매 준비 안내</summary><p>표시한 수량은 예약판매 물량을 포함한 판매 가용 수량입니다. 재고 필터는 사용 옵션의 할당 재고 기준이며, 설정 준비 완료는 실제 결제 성공을 보증하지 않습니다.{data.checkedAt ? <> 확인 시각: <time dateTime={data.checkedAt}>{new Date(data.checkedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}</time>.</> : null}</p></details>
+      <details className="admin-goods-worklist__help"><summary>재고수량·판매 준비 안내</summary><p>표시한 수량은 예약판매 물량을 포함한 판매 가용 수량입니다. 판매상태 필터의 품절은 판매중지가 아닌 상품 중 사용 옵션의 할당 재고가 0인 상품이고, 판매중지는 수량과 관계없이 판매상태를 판매중지로 바꾼 상품입니다. 고객 화면에는 둘 다 품절로 보입니다. 설정 준비 완료는 실제 결제 성공을 보증하지 않습니다.{data.checkedAt ? <> 확인 시각: <time dateTime={data.checkedAt}>{new Date(data.checkedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })}</time>.</> : null}</p></details>
     </section>
   </section>;
 }

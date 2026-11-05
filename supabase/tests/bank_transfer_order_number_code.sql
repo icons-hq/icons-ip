@@ -22,6 +22,14 @@ select 1/case when private.bank_transfer_deposit_code_for_number('20261027100000
  then 1 else 0 end as assert_depositor_name_fits_bank_limit;
 
 -- 4) 입금 대기 주문 사이 코드가 겹치지 않는다: 자정을 넘긴 사흘(같은 일련번호 포함)과 같은 날 여러 건.
+--    사흘은 6)의 전환 구간 주문(실제 전환 시각 직후, 자정을 넘으면 다음 날)과 7)의 공유 코드(자리 0)와
+--    10일 주기 자리가 겹치지 않게 고른다. 고정 날짜면 열흘 중 사흘은 코드가 같아져 "그 주문만 찾는다"가 날짜 따라 깨진다.
+select ((switched_at at time zone 'Asia/Seoul')::date - date '2000-01-01') % 10 as switch_cycle
+ from private.bank_transfer_deposit_code_switch \gset
+select day::date as code_day from generate_series(date '2031-01-01',date '2031-01-10',interval '1 day') day
+ where not exists(select 1 from generate_series(0,2) k
+   where (day::date+k - date '2000-01-01') % 10 in (0,:switch_cycle,(:switch_cycle+1)%10))
+ limit 1 \gset
 insert into auth.users(id,aud,role,email,raw_app_meta_data,raw_user_meta_data,created_at,updated_at) values
  ('00000000-0000-4000-8000-000000271501','authenticated','authenticated','deposit-code-buyer@example.test','{}','{}',now(),now()),
  ('00000000-0000-4000-8000-000000271502','authenticated','authenticated','deposit-code-staff@example.test','{}','{}',now(),now());
@@ -30,8 +38,8 @@ insert into private.operator_memberships(profile_id,manager_role) values('000000
 insert into public.orders(id,user_id,status,total,address,payment_method,created_at,expires_at)
 select ('5'||n||'000000-0000-4000-8000-0000002715'||lpad(n::text,2,'0'))::uuid,'00000000-0000-4000-8000-000000271501','pending',10000+n,
  jsonb_build_object('recipientName','입금 '||n),'bank_transfer',
- case when n<=3 then timestamptz '2031-01-30 23:59:00+09' when n<=6 then timestamptz '2031-01-31 23:59:00+09' else timestamptz '2031-02-01 00:01:00+09' end
-  +make_interval(secs=>n),now()+interval '1 day'
+ (:'code_day'::date+case when n<=3 then 0 when n<=6 then 1 else 2 end)::timestamp at time zone 'Asia/Seoul'
+  +case when n<=6 then interval '23 hours 59 minutes' else interval '1 minute' end+make_interval(secs=>n),now()+interval '1 day'
 from generate_series(1,9) n;
 select 1/case when (select count(*)=9 and count(distinct private.bank_transfer_deposit_code(id))=9
    and bool_and(private.bank_transfer_deposit_code(id)=private.bank_transfer_deposit_code_for_number(order_number))
