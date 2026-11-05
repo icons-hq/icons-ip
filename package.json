@@ -46,7 +46,6 @@
     "lucide-react": "^1.69.0",
     "mp4box": "2.4.1",
     "next": "16.3.0",
-    "nuqs": "^2.10.2",
     "officecrypto-tool": "0.0.19",
     "phaser": "4.2.1",
     "qr-scanner": "^1.4.2",
@@ -59,8 +58,7 @@
     "sharp": "^0.35.3",
     "standardwebhooks": "1.0.0",
     "svix": "1.99.1",
-    "yauzl": "^3.4.0",
-    "zod": "^4.6.7"
+    "yauzl": "^3.4.0"
   },
   "devDependencies": {
     "@tailwindcss/postcss": "^4.3.3",

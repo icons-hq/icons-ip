@@ -60,8 +60,8 @@ export default async function AdminSalesClaimsPage({
 
   const closeHref = adminClaimHref(claimType, filters);
   const typeLabel = ORDER_CLAIM_TYPE_LABELS[claimType];
-  /* PoC: 취소 목록만 admin kit 화면으로 바꾼다. `?ui=classic`은 비교용 기존 화면이다. */
-  const kit = claimType === 'cancel' && query.ui !== 'classic';
+  /* ADR-0028: 취소 목록은 템플릿 룩 kit 화면으로 옮겼다. 반품·교환은 옮기기 전까지 기존 화면이다. */
+  const kit = claimType === 'cancel';
   const Queue = kit ? ClaimQueueKitScreen : ClaimQueueScreen;
   const Preview = kit ? ClaimPreviewKitDialog : ClaimPreviewDialog;
 

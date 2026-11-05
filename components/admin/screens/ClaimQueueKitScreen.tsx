@@ -6,10 +6,8 @@ import {
   ADMIN_CLAIM_SEARCH_FIELDS,
   adminClaimHref,
   adminClaimPreviewHref,
-  adminClaimReasonOptions,
   adminClaimReasonText,
   adminClaimStageLabel,
-  adminClaimStageOptions,
   type AdminClaimConsoleData,
 } from '@/lib/admin/claims';
 import { adminListExportClaimScreenId, adminListExportHref } from '@/lib/admin/list-export';
@@ -27,7 +25,7 @@ import {
 import { ClaimQueueKitTable, type ClaimKitRow } from './ClaimQueueKitTable';
 
 /*
- * 취소관리 목록의 admin kit PoC 화면. 데이터·URL 계약·처리 액션은 ClaimQueueScreen과 같고,
+ * 취소관리 목록의 admin kit 화면(ADR-0028). 데이터·URL 계약·처리 액션은 ClaimQueueScreen과 같고,
  * 화면 전체를 kit 부품과 템플릿 룩(ADR-0028)으로 그린다. 엑셀 다운로드만 기존 부품이다.
  */
 
@@ -112,10 +110,8 @@ export function ClaimQueueKitScreen({
         filters={filters}
         key={claimType}
         pageSize={pageSize}
-        reasonOptions={adminClaimReasonOptions(claimType).filter((option) => option.value !== 'all')}
         rows={kitRows}
         searchFieldOptions={ADMIN_CLAIM_SEARCH_FIELDS}
-        stageOptions={adminClaimStageOptions(claimType).filter((option) => option.value !== 'all')}
         total={total}
       />
       <p className="text-muted-foreground">

@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { adminClaimHref, normalizeAdminClaimFilters, type AdminClaimConsoleData, type AdminClaimFilters } from '@/lib/admin/claims';
+import { KitDatePresets } from '@/components/admin/kit/date-presets';
 import { ClaimQueueKitScreen } from './ClaimQueueKitScreen';
 import { claimKitFiltersFor, claimKitStateFor } from './ClaimQueueKitTable';
 
@@ -39,7 +40,7 @@ function data(overrides: Partial<AdminClaimConsoleData> = {}): AdminClaimConsole
   };
 }
 
-describe('ClaimQueueKitScreen (admin kit PoC)', () => {
+describe('ClaimQueueKitScreen (admin kit)', () => {
   it('서버 렌더에서 운영팀 어휘로 그리고 영어 부품 문구를 남기지 않는다', () => {
     const html = renderToStaticMarkup(<ClaimQueueKitScreen data={data()} now={NOW} />);
     expect(html).toContain('요청번호');
@@ -71,6 +72,34 @@ describe('ClaimQueueKitScreen (admin kit PoC)', () => {
     const html = renderToStaticMarkup(<ClaimQueueKitScreen data={data({ rows: [], total: 0 })} now={NOW} />);
     expect(html).toContain('조건에 맞는 취소 요청이 없습니다.');
   });
+
+  it('스마트스토어식 기간 프리셋(오늘·1주·1개월·3개월)을 기간 기준 옆에 둔다', () => {
+    const html = renderToStaticMarkup(<ClaimQueueKitScreen data={data()} now={NOW} />);
+    const group = html.match(/<div[^>]*aria-label="조회기간 빠른 선택"[^>]*>[\s\S]*?<\/div>/)?.[0] ?? '';
+    expect(group).not.toBe('');
+    expect([...group.matchAll(/<button[^>]*>([^<]+)<\/button>/g)].map((match) => match[1])).toEqual(['오늘', '1주', '1개월', '3개월']);
+    expect(html.indexOf('aria-label="기간 기준"')).toBeLessThan(html.indexOf('aria-label="조회기간 빠른 선택"'));
+  });
+
+  it('고른 기간은 운영팀 표기(숫자 날짜 ~ 숫자 날짜)로 보이고 영어 날짜를 남기지 않는다', () => {
+    const html = renderToStaticMarkup(<ClaimQueueKitScreen data={data({ filters: { ...FILTERS, from: '2026-10-30', to: '2026-11-05' } })} now={NOW} />);
+    expect(html).toContain('2026. 10. 30. ~ 2026. 11. 05.');
+    expect(html).not.toMatch(/October|November/);
+  });
+});
+
+describe('KitDatePresets', () => {
+  it('지금 조건과 같은 KST 기간의 프리셋만 눌린 상태다', () => {
+    /* NOW = 2026-11-05 15:00 KST. 1주 = 오늘 포함 7일. */
+    const html = renderToStaticMarkup(<KitDatePresets from="2026-10-30" now={NOW} onSelect={() => undefined} to="2026-11-05" />);
+    const pressed = [...html.matchAll(/<button[^>]*aria-pressed="true"[^>]*>([^<]+)<\/button>/g)].map((match) => match[1]);
+    expect(pressed).toEqual(['1주']);
+  });
+
+  it('기간이 없으면 아무 프리셋도 눌려 있지 않다', () => {
+    const html = renderToStaticMarkup(<KitDatePresets from={null} now={NOW} onSelect={() => undefined} to={null} />);
+    expect(html).not.toContain('aria-pressed="true"');
+  });
 });
 
 describe('kit 표 상태 ↔ 기존 URL 계약', () => {
@@ -93,5 +122,20 @@ describe('kit 표 상태 ↔ 기존 URL 계약', () => {
     const next = claimKitFiltersFor(FILTERS, { columnFilters: [{ id: 'requested', value: [later, earlier] }], pagination: { pageIndex: 0, pageSize: 20 }, sorting: [] });
     expect(next.from).toBe('2026-11-01');
     expect(next.to).toBe('2026-11-05');
+  });
+
+  it('KST보다 동쪽 시간대 브라우저에서도 고른 달력 날짜 그대로 URL에 남는다', () => {
+    const original = process.env.TZ;
+    process.env.TZ = 'Pacific/Kiritimati'; /* UTC+14 — 그 자정은 KST로 전날 19시다. */
+    try {
+      const filters = normalizeAdminClaimFilters({ stage: 'all', from: '2026-11-01', to: '2026-11-05' }, 'cancel');
+      const state = claimKitStateFor(filters, 20);
+      const next = claimKitFiltersFor(filters, state);
+      expect([next.from, next.to]).toEqual(['2026-11-01', '2026-11-05']);
+      const picked = claimKitFiltersFor(FILTERS, { columnFilters: [{ id: 'requested', value: [new Date(2026, 10, 3).getTime(), new Date(2026, 10, 4).getTime()] }], pagination: { pageIndex: 0, pageSize: 20 }, sorting: [] });
+      expect([picked.from, picked.to]).toEqual(['2026-11-03', '2026-11-04']);
+    } finally {
+      if (original === undefined) delete process.env.TZ; else process.env.TZ = original;
+    }
   });
 });

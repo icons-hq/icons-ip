@@ -1,5 +1,5 @@
 /*
- * Admin kit (shadcn/ui base-nova · Base UI · Dice UI data table) — template look (ADR-0028, PoC).
+ * Admin kit (shadcn/ui base-nova · Base UI · Dice UI data table) — template look (ADR-0028).
  *
  * Imported from globals.css so Tailwind compiles the utilities the kit sources use.
  * The theme only maps utility names to shadcn's variable names; the variables themselves

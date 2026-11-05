@@ -219,7 +219,7 @@ function DataTableSliderFilterContent<TData extends RowData>({
         ) : null}
       </PopoverTrigger>
       <PopoverContent
-        aria-label={`${title} filter`}
+        aria-label={`${title} 필터`}
         dir={dir}
         align="start"
         className="flex w-auto flex-col gap-4"
@@ -293,7 +293,7 @@ function DataTableSliderFilterContent<TData extends RowData>({
           />
         </div>
         <Button
-          aria-label={`Clear ${title} filter`}
+          aria-label={`${title} 필터 지우기`}
           variant="outline"
           onClick={onReset}
         >

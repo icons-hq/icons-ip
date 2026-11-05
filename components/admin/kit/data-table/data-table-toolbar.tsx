@@ -33,12 +33,15 @@ interface DataTableToolbarProps<
   TData extends RowData,
 > extends React.ComponentProps<"div"> {
   table: ReactTable<DataTableFeatures, TData, unknown>;
+  /** ICONS: 열 필터 바로 뒤(초기화 앞)에 둘 화면 고유 조회 요소 — 기간 기준·기간 프리셋 등. */
+  filtersEnd?: React.ReactNode;
 }
 
 export function DataTableToolbar<TData extends RowData>({
   table,
   children,
   className,
+  filtersEnd,
   ...props
 }: DataTableToolbarProps<TData>) {
   const columns = React.useMemo(
@@ -64,6 +67,7 @@ export function DataTableToolbar<TData extends RowData>({
         {columns.map((column) => (
           <DataTableToolbarFilter key={column.id} column={column} />
         ))}
+        {filtersEnd}
         <Subscribe
           source={table.atoms.columnFilters}
           selector={(filters) => filters.length > 0}

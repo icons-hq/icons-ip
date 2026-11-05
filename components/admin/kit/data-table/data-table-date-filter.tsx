@@ -170,7 +170,7 @@ function DataTableDateFilterContent<TData extends RowData>({
         {hasValue && (
           <div className="border-t p-3">
             <Button
-              aria-label={`Clear ${title} filter`}
+              aria-label={`${title} 필터 지우기`}
               variant="outline"
               className="w-full"
               onClick={onReset}
@@ -208,7 +208,7 @@ function getIsDateRange(value: DateSelection): value is DateRange {
 
 function formatDateRange(range: DateRange) {
   if (range.from && range.to) {
-    return `${formatDate(range.from)} - ${formatDate(range.to)}`;
+    return `${formatDate(range.from)} ~ ${formatDate(range.to)}`;
   }
   return formatDate(range.from ?? range.to);
 }

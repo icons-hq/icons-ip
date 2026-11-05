@@ -136,7 +136,7 @@ function DataTableFacetedFilterContent<TData extends RowData, TValue>({
           </>
         )}
       </FacetedTrigger>
-      <FacetedContent aria-label={`${title} filter`} dir={dir} className="w-50">
+      <FacetedContent aria-label={`${title} 필터`} dir={dir} className="w-50">
         <FacetedInput placeholder={title} />
         <FacetedList className="max-h-full">
           <FacetedEmpty>찾는 항목이 없습니다.</FacetedEmpty>

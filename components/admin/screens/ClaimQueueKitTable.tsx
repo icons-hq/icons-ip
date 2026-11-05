@@ -8,6 +8,8 @@ import { DataTable } from '@/components/admin/kit/data-table/data-table';
 import { DataTableColumnHeader } from '@/components/admin/kit/data-table/data-table-column-header';
 import { DataTablePagination } from '@/components/admin/kit/data-table/data-table-pagination';
 import { DataTableToolbar } from '@/components/admin/kit/data-table/data-table-toolbar';
+import type { ConsoleDateRange } from '@/components/admin/console/date-presets';
+import { KitDatePresets } from '@/components/admin/kit/date-presets';
 import type { DataTableFeatures } from '@/components/admin/kit/lib/data-table-features';
 import { ActionBar, ActionBarClose, ActionBarGroup, ActionBarItem, ActionBarSelection, ActionBarSeparator } from '@/components/admin/kit/ui/action-bar';
 import { Button } from '@/components/admin/kit/ui/button';
@@ -26,7 +28,15 @@ import {
   type AdminClaimBulkDecision,
   type AdminClaimBulkState,
 } from '@/lib/admin/claim-bulk';
-import { adminClaimHref, adminClaimRejectionPresets, type AdminClaimFilters, type AdminClaimReasonFilter, type AdminClaimStageFilter } from '@/lib/admin/claims';
+import {
+  adminClaimHref,
+  adminClaimReasonOptions,
+  adminClaimRejectionPresets,
+  adminClaimStageOptions,
+  type AdminClaimFilters,
+  type AdminClaimReasonFilter,
+  type AdminClaimStageFilter,
+} from '@/lib/admin/claims';
 import type { SalesListSort } from '@/lib/admin/sales-list';
 import { adminClaimCopy } from '@/lib/admin/vocabulary';
 import type { OrderClaimType } from '@/lib/orders/claims';
@@ -34,7 +44,7 @@ import { X } from 'lucide-react';
 import { ClaimPreviewLink } from './ClaimPreviewDialog';
 
 /*
- * 취소관리 목록 — admin kit(shadcn/ui · Base UI · Dice UI data table) PoC.
+ * 취소관리 목록 — admin kit(shadcn/ui · Base UI · Dice UI data table, ADR-0028).
  *
  * 판정은 바뀌지 않는다: 조회는 서버가 `admin_search_order_claims_console`로, 처리는
  * `bulkDecideOrderClaimsAction`이 한 건씩 기존 단건 경로로 한다. 이 파일은 화면만 바꾼다.
@@ -69,7 +79,6 @@ interface Option<T extends string = string> { value: T; label: string }
 const EMPTY_STATE: AdminClaimBulkState = {};
 const BULK_RESULT_LOST = '처리 결과를 받지 못했습니다. 목록을 새로고침해 각 건의 상태를 확인하세요.';
 const PAGE_SIZE_OPTIONS = [20, 50, 100];
-const KST_DATE = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit' });
 
 /* 정렬 ↔ RPC p_sort. RPC가 아는 정렬은 네 가지뿐이라 그 밖의 열은 정렬을 끈다. */
 function sortingFor(sort: SalesListSort | undefined): SortingState {
@@ -85,14 +94,20 @@ function sortFor(sorting: SortingState): SalesListSort | undefined {
   return undefined;
 }
 
-/* 기간 ↔ 날짜 필터. 달력은 브라우저 자정의 ms를 주고, URL은 KST 달력 날짜다. */
+/*
+ * 기간 ↔ 날짜 필터. URL의 `YYYY-MM-DD`는 KST 달력 날짜이고, 달력은 고른 칸의 브라우저 자정 ms를 준다.
+ * 두 변환은 같은 날짜 글자를 브라우저 달력 칸 하나에 맞대는 역함수다. ms를 KST로 다시 환산하면
+ * KST보다 동쪽 시간대(UTC+10 이상) 브라우저에서 고른 날의 전날이 된다.
+ */
 function dayToMs(day: string | null) {
   if (!day) return undefined;
   const [year, month, date] = day.split('-').map(Number);
   return new Date(year, month - 1, date).getTime();
 }
 function msToDay(value: unknown) {
-  return typeof value === 'number' && Number.isFinite(value) ? KST_DATE.format(new Date(value)) : null;
+  if (typeof value !== 'number' || !Number.isFinite(value)) return null;
+  const date = new Date(value);
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
 
 /** 서버 필터 → 표 상태. */
@@ -308,20 +323,16 @@ export function ClaimQueueKitTable({
   dateFieldOptions,
   filters,
   pageSize,
-  reasonOptions,
   rows,
   searchFieldOptions,
-  stageOptions,
   total,
 }: {
   claimType: OrderClaimType;
   dateFieldOptions: readonly Option[];
   filters: AdminClaimFilters;
   pageSize: number;
-  reasonOptions: Option[];
   rows: ClaimKitRow[];
   searchFieldOptions: readonly Option[];
-  stageOptions: Option[];
   total: number;
 }) {
   const router = useRouter();
@@ -332,7 +343,16 @@ export function ClaimQueueKitTable({
   const [rejectOpen, setRejectOpen] = useState(false);
   const dateField = filters.dateField ?? 'requested';
   const dateLabel = dateFieldOptions.find((option) => option.value === dateField)?.label ?? '요청일';
-  const columns = useMemo(() => buildColumns(stageOptions, reasonOptions, dateLabel), [stageOptions, reasonOptions, dateLabel]);
+  /*
+   * 열 정의는 유형·기간 기준이 바뀔 때만 새로 만든다. flexRender는 셀 함수를 컴포넌트로 그리므로 열이 새로
+   * 만들어지면 모든 셀이 다시 마운트되고, 상세 팝업을 연 요청번호 링크도 교체돼 닫은 뒤 포커스를 돌려줄 곳이
+   * 사라진다. 그래서 서버가 이동마다 새로 보내는 옵션 배열을 받지 않고 여기서 유형으로 만든다.
+   */
+  const columns = useMemo(() => buildColumns(
+    adminClaimStageOptions(claimType).filter((option) => option.value !== 'all'),
+    adminClaimReasonOptions(claimType).filter((option) => option.value !== 'all'),
+    dateLabel,
+  ), [claimType, dateLabel]);
   const currentHref = adminClaimHref(claimType, filters);
 
   const { pending, table } = useConsoleTable({
@@ -403,6 +423,13 @@ export function ClaimQueueKitTable({
     });
   }
 
+  /* 기간 프리셋은 기간 기준(요청일 등)을 그대로 두고 기간만 바꾼다. 기존 화면의 프리셋과 같은 KST 기간이다. */
+  function onDatePreset(range: ConsoleDateRange) {
+    startSearch(() => {
+      router.push(adminClaimHref(claimType, { ...filters, from: range.from, page: 1, to: range.to }), { scroll: false });
+    });
+  }
+
   const error = clientError || state.error;
   const busy = pending || searching;
 
@@ -421,14 +448,18 @@ export function ClaimQueueKitTable({
       pagination={<DataTablePagination pageSizeOptions={PAGE_SIZE_OPTIONS} table={table} />}
       table={table}
     >
-      <DataTableToolbar table={table}>
-        <Select items={dateFieldOptions} onValueChange={(value) => { if (typeof value === 'string') onDateField(value); }} value={dateField}>
-          <SelectTrigger aria-label="기간 기준" className="w-32"><SelectValue /></SelectTrigger>
-          <SelectContent>
-            {dateFieldOptions.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}
-          </SelectContent>
-        </Select>
-      </DataTableToolbar>
+      <DataTableToolbar
+        filtersEnd={<>
+          <Select items={dateFieldOptions} onValueChange={(value) => { if (typeof value === 'string') onDateField(value); }} value={dateField}>
+            <SelectTrigger aria-label="기간 기준" className="w-32"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {dateFieldOptions.map((option) => <SelectItem key={option.value} value={option.value}>{option.label}</SelectItem>)}
+            </SelectContent>
+          </Select>
+          <KitDatePresets disabled={busy} from={filters.from} onSelect={onDatePreset} to={filters.to} />
+        </>}
+        table={table}
+      />
     </DataTable>
 
     <ActionBar
