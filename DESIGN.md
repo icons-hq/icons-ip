@@ -44,6 +44,7 @@ authority:
     document: app/styles/wc-document.css              # document-page — /legal/*
   admin:
     typography: app/styles/admin-font.css  # 어드민 전용 로컬 Pretendard 1.3.9
+    template-kit: app/styles/admin-kit.css  # ADR-0028 shadcn/ui 템플릿 룩 토큰·cascade 다리(전환한 화면)
     shell-and-kit: app/styles/wc-admin.css
     surfaces: app/styles/wc-admin-surfaces.css
     boundary: .wc-admin
@@ -397,7 +398,9 @@ protected-boundaries:
 
 1차 개편(S1~S9)의 단계·PR 구조는 [docs/research/linefriends-square/09-implementation-plan.md](docs/research/linefriends-square/09-implementation-plan.md)가 정본이고, 2026-09-01 main 전환(#333)으로 라이브됐다. 2차 패리티(2026-10)의 차이 목록과 단계는 [11-parity-audit-2026-10.md](docs/research/linefriends-square/11-parity-audit-2026-10.md)·[12-parity-plan-2026-10.md](docs/research/linefriends-square/12-parity-plan-2026-10.md)가 정본이다. 완료 조건: 각 표면이 §8 플레이북과 R-스펙 수치(11의 정정 포함)를 만족하고, §11 계약 테스트가 통과하며, `npm run lint`·`npm run build`·`npm run test` 통과 + preview 검수.
 
-## 어드민 콘솔 (ADR-0014 · 판매자센터 표면 확장)
+## 어드민 콘솔 (ADR-0014 · ADR-0028 · 판매자센터 표면 확장)
+
+- **룩 전환(ADR-0028, 2026-11-05):** 어드민 룩은 shadcn/ui base-nova·neutral 템플릿 기본값으로 화면 단위 전환한다. 전환한 화면은 `components/admin/kit/`·`app/styles/admin-kit.css`·`.admin-kit-island` 경계를 쓰고, 서체만 로컬 Pretendard를 유지한다. 아래의 White Catalog 토큰 규칙과 「판매자센터 기준」의 색·표 밀도는 **미전환 화면**에만 적용된다. 어휘·IA·조회 조건·처리 동선은 전환 뒤에도 스마트스토어 기준이다. 관리자 CSS는 cascade layer 밖이라 kit 유틸리티(`@layer utilities`)를 덮는다 — 전환 1단계에서 관리자 CSS를 utilities 아래 layer로 내리기 전까지 kit 부품(`data-slot`)은 `all: revert-layer` 다리로 보호한다.
 
 - 범위: 셸·2단 IA·audited RPC·원장·테스트는 유지한다. 재설계 대상은 워크플로 표면 — 폼·목록·상세·설정.
 - 다섯 패턴이 합격 기준이다: 모든 자원에 전용 상세 페이지와 타임라인 / 모든 목록에 검색·필터·페이지·일괄 액션 / 초안→공개→보관 게시 상태와 실패에 살아남는 폼 / 설정 섹션(코드 상수→DB 설정) / 엑셀 가져오기·내보내기.
