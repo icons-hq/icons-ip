@@ -140,6 +140,12 @@ describe('m27 가이드 — 클레임(R7·R8)', () => {
     expect(consoleGrid.indexOf('{children}')).toBeLessThan(consoleGrid.indexOf('<table className="admin-console-grid-table"'));
     expect(text).toContain('목록 위 일괄 처리 버튼 바로 아래의 거부 사유 칸');
     expect(text).not.toContain('목록 아래 거부 사유 칸');
+    /* ADR-0028: 취소 관리(kit)는 아래 처리 막대의 거부 버튼이 거부 사유 팝오버를 연다. */
+    const kit = repoFile('components/admin/screens/ClaimQueueKitTable.tsx');
+    const actionBar = kit.slice(kit.indexOf('<ActionBar'), kit.indexOf('</ActionBar>'));
+    expect(actionBar.indexOf('ADMIN_CLAIM_BULK_ACTION_LABELS.reject')).toBeGreaterThan(-1);
+    expect(actionBar.indexOf('<KitRejectionReasonField')).toBeGreaterThan(actionBar.indexOf('<PopoverContent'));
+    expect(text).toContain(`취소 관리에서는 아래 처리 막대의 "${ADMIN_CLAIM_BULK_ACTION_LABELS.reject}"를 누르면 뜨는 거부 사유 칸`);
   });
 
   it('거부 사유 프리셋과 유형별 사유, 운영자 철회 버튼 제거를 안내한다(R7)', () => {
