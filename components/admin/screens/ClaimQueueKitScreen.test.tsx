@@ -81,6 +81,15 @@ describe('ClaimQueueKitScreen (admin kit)', () => {
     expect(html.indexOf('aria-label="기간 기준"')).toBeLessThan(html.indexOf('aria-label="조회기간 빠른 선택"'));
   });
 
+  it('표 도구 막대의 열 설정은 순서·틀고정까지 다루는 조회항목 설정이다(DESIGN.md §어드민 콘솔)', () => {
+    const html = renderToStaticMarkup(<ClaimQueueKitScreen data={data()} now={NOW} />);
+    expect(html).toContain('조회항목 설정');
+    expect(html).not.toContain('표시할 열 선택');
+    const trigger = html.match(/<button[^>]*>(?:(?!<\/button>)[\s\S])*조회항목 설정<\/button>/)?.[0] ?? '';
+    expect(trigger).not.toBe('');
+    expect(trigger).not.toMatch(/class="[^"]*\bhidden\b/);
+  });
+
   it('고른 기간은 운영팀 표기(숫자 날짜 ~ 숫자 날짜)로 보이고 영어 날짜를 남기지 않는다', () => {
     const html = renderToStaticMarkup(<ClaimQueueKitScreen data={data({ filters: { ...FILTERS, from: '2026-10-30', to: '2026-11-05' } })} now={NOW} />);
     expect(html).toContain('2026. 10. 30. ~ 2026. 11. 05.');

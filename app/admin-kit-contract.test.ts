@@ -53,6 +53,12 @@ describe('admin kit 경계 (ADR-0028)', () => {
     expect(outside.map((path) => relative('.', path))).toEqual([]);
   });
 
+  it('열 설정 버튼은 좁은 화면에서도 숨기지 않는다 — 열 머리글에서 숨긴 열을 되살릴 곳은 여기뿐이다', () => {
+    for (const path of ['components/admin/kit/data-table/data-table-view-options.tsx', 'components/admin/kit/console-table-settings.tsx']) {
+      expect(read(path), path).not.toMatch(/className="[^"]*\bhidden\b[^"]*"/);
+    }
+  });
+
   it('Dice UI의 URL 상태(nuqs·useDataTable)를 쓰지 않는다 — 목록 URL은 화면의 기존 계약이 진실원이다', () => {
     const kit = sources(join('components', 'admin', 'kit'));
     for (const path of kit) {

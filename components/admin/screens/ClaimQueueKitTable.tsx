@@ -10,6 +10,7 @@ import { DataTablePagination } from '@/components/admin/kit/data-table/data-tabl
 import { DataTableToolbar } from '@/components/admin/kit/data-table/data-table-toolbar';
 import type { ConsoleDateRange } from '@/components/admin/console/date-presets';
 import { KitDatePresets } from '@/components/admin/kit/date-presets';
+import { ConsoleTableSettings, type ConsoleTableSettingsColumn } from '@/components/admin/kit/console-table-settings';
 import type { DataTableFeatures } from '@/components/admin/kit/lib/data-table-features';
 import { ActionBar, ActionBarClose, ActionBarGroup, ActionBarItem, ActionBarSelection, ActionBarSeparator } from '@/components/admin/kit/ui/action-bar';
 import { Button } from '@/components/admin/kit/ui/button';
@@ -228,10 +229,13 @@ function buildColumns(stageOptions: Option[], reasonOptions: Option[], dateLabel
   ];
 }
 
-const PREFERENCE_COLUMNS = [
-  { key: 'reference' }, { key: 'order' }, { key: 'type' }, { key: 'reason' }, { key: 'stage' }, { key: 'buyer' },
-  { key: 'amount' }, { key: 'requested' }, { key: 'sla' }, { key: 'refund' }, { key: 'handler' },
-] as const;
+/* 조회항목 설정의 열. 키는 기존 표(ClaimQueueScreen)와 같아, 같은 저장 키에서 운영자가 저장한 배치가 이어진다. */
+const PREFERENCE_COLUMNS: readonly ConsoleTableSettingsColumn[] = [
+  { key: 'reference', label: '요청번호' }, { key: 'order', label: '주문번호' }, { key: 'type', label: '유형' },
+  { key: 'reason', label: '사유' }, { key: 'stage', label: '상태' }, { key: 'buyer', label: '구매자' },
+  { key: 'amount', label: '주문금액' }, { key: 'requested', label: '접수일' }, { key: 'sla', label: '환급 기한' },
+  { key: 'refund', label: '환불 수단' }, { key: 'handler', label: '처리자' },
+];
 
 /**
  * 검색어는 조합이 끝난 뒤에만 확정한다. Dice UI의 텍스트 필터는 입력할 때마다 값을 올려 보내
@@ -355,7 +359,7 @@ export function ClaimQueueKitTable({
   ), [claimType, dateLabel]);
   const currentHref = adminClaimHref(claimType, filters);
 
-  const { pending, table } = useConsoleTable({
+  const { pending, preferences, savePreferences, table } = useConsoleTable({
     columns,
     data: rows,
     enableRowSelection: (row) => row.original.selectable,
@@ -364,7 +368,7 @@ export function ClaimQueueKitTable({
     onRowSelectionChange: setSelection,
     pageCount: Math.max(1, Math.ceil(total / pageSize)),
     preferenceColumns: PREFERENCE_COLUMNS,
-    preferencesKey: `kit-sales-claims-${claimType}`,
+    preferencesKey: `sales-claims-${claimType}`,
     rowSelection: selection,
     state: claimKitStateFor(filters, pageSize),
   });
@@ -459,6 +463,7 @@ export function ClaimQueueKitTable({
           <KitDatePresets disabled={busy} from={filters.from} onSelect={onDatePreset} to={filters.to} />
         </>}
         table={table}
+        viewOptions={<ConsoleTableSettings columns={PREFERENCE_COLUMNS} onSave={savePreferences} preferences={preferences} />}
       />
     </DataTable>
 

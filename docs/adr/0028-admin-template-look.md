@@ -38,7 +38,7 @@ PoC 1차는 kit에 White Catalog 관리자 토큰(판매자센터 초록·각진
 ## 결과
 
 - `AGENTS.md` 프론트엔드 규칙과 `DESIGN.md` §어드민 콘솔을 이 결정에 맞춰 개정했다. kit 경계 계약은 `app/admin-kit-contract.test.ts`가 지킨다 — shadcn 토큰 값은 `.wc-admin` 안에만, `revert-layer` 다리는 kit 섬·포털의 `data-slot` 부품에만, kit import는 어드민 코드에서만, Dice UI URL 상태(nuqs·`useDataTable`)는 쓰지 않는다.
-- kit vendor 소스에 얹은 ICONS 수정: 한국어 문구·`ko` 달력, 포털 컨테이너(`AdminKitPortalHost`), Dice/Base UI 타입 보정, ActionBar 선택 유지, 툴바의 `filtersEnd` 자리(열 필터 뒤에 화면 고유 조회 요소). 쓰지 않는 레지스트리 파일은 두지 않는다.
+- kit vendor 소스에 얹은 ICONS 수정: 한국어 문구·`ko` 달력, 포털 컨테이너(`AdminKitPortalHost`), Dice/Base UI 타입 보정, ActionBar 선택 유지, 툴바의 `filtersEnd` 자리(열 필터 뒤에 화면 고유 조회 요소)와 `viewOptions` 자리(열 표시 팝오버 대신 열 표시·순서·왼쪽 0~4열 고정을 다루는 조회항목 설정 `components/admin/kit/console-table-settings.tsx` — 기존 표와 같은 그리드 설정 저장 키), 열 표시 버튼을 좁은 화면에서도 노출. 쓰지 않는 레지스트리 파일은 두지 않는다.
 - 오픈 직전 운영팀 QA 기간에 룩이 바뀐다. 셸을 바꾸는 웨이브는 운영팀 일정과 맞춰 공지하고, 화면 단위로 바꿔 한 번에 전부 바뀌지 않게 한다.
 - 한글 입력은 우리가 지킨다: Dice UI 텍스트 필터는 조합 중에도 값을 확정해 쓰지 않고, cmdk #363·Base UI #5574가 열려 있는 동안 조합 회귀 테스트를 둔다.
 - Base UI·TanStack Table v9·`cn`(0.x)의 판 올림은 vendor 소스 갱신 작업이 된다. shadcn CLI 갱신은 diff로 받아 우리 수정(한국어 문구·포털 컨테이너·타입 보정)을 다시 얹는다.

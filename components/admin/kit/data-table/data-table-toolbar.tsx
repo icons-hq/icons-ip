@@ -35,6 +35,8 @@ interface DataTableToolbarProps<
   table: ReactTable<DataTableFeatures, TData, unknown>;
   /** ICONS: 열 필터 바로 뒤(초기화 앞)에 둘 화면 고유 조회 요소 — 기간 기준·기간 프리셋 등. */
   filtersEnd?: React.ReactNode;
+  /** ICONS: 열 표시 팝오버 대신 둘 열 설정 — 순서·틀고정까지 다루는 조회항목 설정(ConsoleTableSettings). */
+  viewOptions?: React.ReactNode;
 }
 
 export function DataTableToolbar<TData extends RowData>({
@@ -42,6 +44,7 @@ export function DataTableToolbar<TData extends RowData>({
   children,
   className,
   filtersEnd,
+  viewOptions,
   ...props
 }: DataTableToolbarProps<TData>) {
   const columns = React.useMemo(
@@ -89,7 +92,7 @@ export function DataTableToolbar<TData extends RowData>({
       </div>
       <div className="flex items-center gap-2">
         {children}
-        <DataTableViewOptions table={table} align="end" />
+        {viewOptions ?? <DataTableViewOptions table={table} align="end" />}
       </div>
     </div>
   );

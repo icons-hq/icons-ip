@@ -145,5 +145,6 @@ export function useConsoleTable<TData extends RowData>({
     },
   });
 
-  return { pending, table };
+  /* The screen's 조회항목 설정 (ConsoleTableSettings) edits the same preferences: order and frozen columns. */
+  return { pending, preferences, savePreferences: save, table };
 }
