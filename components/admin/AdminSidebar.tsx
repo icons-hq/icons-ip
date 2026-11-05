@@ -16,6 +16,8 @@ import {
 import {
   adminNavigationStorageKey,
   DEFAULT_ADMIN_NAVIGATION_PREFERENCES,
+  legacyAdminNavigationStorageKey,
+  migrateLegacyAdminNavigationPreferences,
   parseAdminNavigationPreferences,
   serializeAdminNavigationPreferences,
   type AdminNavigationPreferences,
@@ -39,14 +41,19 @@ function useAdminNavigationPreferences(
   defaults: AdminNavigationPreferences = DEFAULT_ADMIN_NAVIGATION_PREFERENCES,
 ) {
   const storageKey = adminNavigationStorageKey(accountId);
+  const legacyStorageKey = legacyAdminNavigationStorageKey(accountId);
   const readSnapshot = useCallback(() => {
     try {
-      return window.localStorage.getItem(storageKey) ?? '';
+      const current = window.localStorage.getItem(storageKey);
+      if (current) return current;
+      // v2(IA 재정의 전) 즐겨찾기를 이어받는다. 첫 변경 때 v3에 저장된다.
+      const migrated = migrateLegacyAdminNavigationPreferences(window.localStorage.getItem(legacyStorageKey), defaults);
+      return migrated ? serializeAdminNavigationPreferences(migrated) : '';
     } catch {
       // Private browsing and blocked storage keep the default in-memory state.
       return '';
     }
-  }, [storageKey]);
+  }, [defaults, legacyStorageKey, storageKey]);
   const subscribe = useCallback((onStoreChange: () => void) => {
     if (typeof window === 'undefined') return () => {};
     const eventName = 'icons-admin-navigation-change';
