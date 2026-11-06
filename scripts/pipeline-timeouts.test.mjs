@@ -15,6 +15,7 @@ const workflows = await Promise.all(
 // 가장 긴 job 상한(deploy-staging 40분)보다 길게 둘 이유가 생기면 이 상한과 근거를 함께 바꾼다.
 const MAX_JOB_MINUTES = 40;
 const MAX_SETUP_CLI_MINUTES = 5;
+const SUPABASE_CLI_INSTALLER = './.github/actions/setup-supabase-cli';
 
 describe('workflow time limits', () => {
   it('bounds every job well below the 360-minute GitHub default', () => {
@@ -33,7 +34,7 @@ describe('workflow time limits', () => {
     for (const { file, workflow } of workflows) {
       for (const [id, job] of Object.entries(workflow.jobs)) {
         for (const step of job.steps ?? []) {
-          if (!step.uses?.startsWith('supabase/setup-cli@')) continue;
+          if (step.uses !== SUPABASE_CLI_INSTALLER) continue;
           installs += 1;
           const minutes = step['timeout-minutes'];
           expect(Number.isInteger(minutes), `${file} ${id} setup-cli timeout-minutes`).toBe(true);

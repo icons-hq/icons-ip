@@ -253,6 +253,8 @@ GitHub Actions의 `CI/CD Pipeline`은 PR 검증(lint/typecheck/test/build/Supaba
 
 CI의 HTTP DB 검증용 PostgREST v14.14는 ECR의 비인증 다운로드 한도 영향을 피하도록 Supabase 공식 GHCR 이미지에서 받는다. 동일 이미지를 기존 HTTP fixture가 확인하는 ECR 이름으로 로컬 태그하며, 검증 항목과 운영 DB·앱 버전은 바꾸지 않는다. DB 샤드는 run마다 각자 로컬 DB 이미지를 받으므로 `SUPABASE_INTERNAL_IMAGE_REGISTRY=ghcr.io`로 Supabase CLI가 같은 GHCR 미러만 쓰게 한다.
 
+CLI는 `supabase/setup-cli` 대신 로컬 action `.github/actions/setup-supabase-cli`가 GitHub release tarball을 직접 받아 설치한다. 요청마다 60초 상한과 20초 정체 감지를 두고 180초 안에서 다시 받으며, 받은 tarball은 workflow env `SUPABASE_CLI_SHA256`과 대조한다. `setup-cli` v2가 쓰는 Bun 1.3.10에서는 응답 본문이 멈추면 다운로드가 끝없이 기다려 main 배포가 6시간 멈췄다(run 41991138701). CLI 버전을 올릴 때는 두 workflow의 `SUPABASE_CLI_VERSION`과 release `checksums.txt`의 `supabase_<version>_linux_amd64.tar.gz` 값을 함께 바꾼다.
+
 두 workflow는 Supabase CLI `2.109.1`을 사용한다. 이전 `2.101.0`의 로컬 DB 이미지
 `17.6.1.106`에는 함수 실행 권한 거절 시 DB 연결이 비정상 종료되는
 [upstream 결함](https://github.com/supabase/postgres/issues/2112)이 있었다. 권한 테스트나
@@ -299,7 +301,7 @@ CRON_SECRET
   성공한 Production source run을 기계적으로 확인한 위 `workflow_dispatch` 경로만 사용한다.
 - GitHub Actions의 앱 빌드는 Node 26을 사용한다. Vercel project/runtime Node.js Version은 Vercel production Functions 공식 지원 범위인 24.x로 유지한다.
 - deployment secret 검사는 각 deploy job 안에서 수행한다. 누락 시 job이 즉시 실패하며, 필요한 GitHub Secret을 설정한 뒤 rerun해야 한다.
-- 모든 job에는 `timeout-minutes`가 있다(5~40분). 상한을 넘긴 job은 `cancelled`로, 멈춘 Supabase CLI 설치 step은 5분 뒤 `failure`로 끝나고 뒤따르는 배포 job은 건너뛴다. 이렇게 끝난 run이 아직 최신 main run이면 `gh run rerun <run-id> --failed`로 실패·취소된 job과 그 뒤 job만 다시 실행한다. 더 새 main run이 있으면 옛 run을 재실행하지 않는다 — `deploy-vercel`은 현재 main 여부를 확인하지 않아 옛 앱을 운영에 되돌린다.
+- 모든 job에는 `timeout-minutes`가 있다(5~40분). 상한을 넘긴 job은 `cancelled`로, 재시도로도 받지 못한 Supabase CLI 설치 step은 늦어도 5분 상한에서 `failure`로 끝나고 뒤따르는 배포 job은 건너뛴다. 이렇게 끝난 run이 아직 최신 main run이면 `gh run rerun <run-id> --failed`로 실패·취소된 job과 그 뒤 job만 다시 실행한다. 더 새 main run이 있으면 옛 run을 재실행하지 않는다 — `deploy-vercel`은 현재 main 여부를 확인하지 않아 옛 앱을 운영에 되돌린다.
 - `.vercel/` 연결 파일은 commit하지 않고, workflow가 `VERCEL_ORG_ID`와 `VERCEL_PROJECT_ID`로 Vercel 원격 build/deploy를 요청한다.
 - `.vercelignore`가 로컬 제작 산출물 `outputs/`를 명시적으로 제외한다. Preview job은 Vercel dry-run manifest에서 `outputs/`, 900MB 이상, 15,000개 이상 source를 실제 업로드 전에 거부한다. 원본·실험·반복 렌더는 deploy context에 넣지 않고 최종 runtime asset만 repo의 공개 asset 경로로 배포한다.
 - Vercel이 원격에서 의존성 설치·build를 하고 업로드에서 `node_modules`를 빼므로 `deploy-vercel`·`deploy-vercel-preview`·`deploy-staging`은 `npm ci`를 하지 않는다. 이 job들이 실행하는 node 스크립트는 Node 내장 모듈만 import해야 한다(`scripts/pipeline-deploy-speed.test.mjs`가 확인).
