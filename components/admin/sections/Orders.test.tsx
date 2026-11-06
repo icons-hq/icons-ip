@@ -149,6 +149,10 @@ describe('OrdersSection', () => {
       expect(html).toContain('<option value="out_of_stock">품절·출고 불가</option>');
       expect(html).not.toContain('name="warehouseStopConfirmed"');
       expect(html).toContain('전액 취소 실행');
+      /* kit Button은 type이 없으면 button이 된다 — 처리 양식의 버튼은 모두 제출 버튼이어야 한다. */
+      expect(html).toMatch(/<button[^>]*type="submit"[^>]*>전액 취소 실행</);
+      expect(html).toMatch(/<button[^>]*type="submit"[^>]*>발주확인</);
+      expect(html).toMatch(/<button[^>]*type="submit"[^>]*>선택 주문 발주확인</);
     });
 
     it('출고지시가 나간 발주확인 주문은 창고 출고 중단 확인을 필수로 받는다', () => {
@@ -312,6 +316,7 @@ describe('OrdersSection', () => {
     );
     expect(html).toContain('Korpay 전액 취소 반영');
     expect(html).toContain('data-order-action="korpay-recovery-submit"');
+    expect(html).toMatch(/<button[^>]*type="submit"[^>]*data-order-action="korpay-recovery-submit"|<button[^>]*data-order-action="korpay-recovery-submit"[^>]*type="submit"/);
     expect(html).not.toContain('상태 다시 확인');
   });
 
@@ -710,6 +715,7 @@ describe('OrdersSection', () => {
 
     expect(html).toContain('123456789012');
     expect(html).toContain('운송장 수정');
+    expect(html).toMatch(/<button[^>]*type="submit"[^>]*>운송장 수정</);
     expect(html).toContain('data-confirm="운송장번호를 수정할까요? 변경 이력이 감사 로그에 남습니다."');
   });
 
@@ -748,6 +754,8 @@ describe('OrdersSection', () => {
     expect(html).toContain('data-confirm="청약철회를 승인하고 결제 취소를 시작할까요?"');
     expect(html).toContain('data-confirm="청약철회 요청을 거절할까요? 입력한 사유가 기록됩니다."');
     expect(html).toContain(`for="admin-order-reject-reason-${requestId}">거절 사유`);
+    expect(html).toMatch(/<button[^>]*type="submit"[^>]*>청약철회 승인</);
+    expect(html).toMatch(/<button[^>]*type="submit"[^>]*>요청 거절</);
     expect(html).toContain('minLength="10"');
     expect(html).toContain('maxLength="200"');
     expect(html).toContain('aria-live="polite"');

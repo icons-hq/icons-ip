@@ -114,6 +114,8 @@ describe('SettledScreen', () => {
     const html = renderToStaticMarkup(<SettledScreen data={data({ filters: { from: '2026-09-01', to: '2026-09-09', query: '0000', page: 3 } })}
       exportRequestId="10000000-0000-4000-8000-000000004951" now={NOW} />);
     expect(html).toContain('목록 엑셀 다운로드');
+    /* 보존 기록 생성은 서버 액션 폼 제출이다 — kit Button은 type이 없으면 button이 된다. */
+    expect(html).toMatch(/<button[^>]*type="submit"[^>]*>목록 엑셀 다운로드</);
     /* 다른 주문·배송 목록처럼 필터 바로 아래, 안내 문단보다 앞에 둔다. */
     expect(html.indexOf('목록 엑셀 다운로드')).toBeLessThan(html.indexOf('자동 확정은 기본 꺼짐'));
     expect(html).toContain('현재 조회 조건의 전체 페이지');

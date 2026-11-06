@@ -22,6 +22,8 @@ describe('혜택 리포트 발급 상세', () => {
     expect(html).not.toContain('order-1');
     expect(html).toContain('name="detail" value="issuances"');
     expect(html).toContain('name="code" value="ABC"');
+    /* 조회는 GET 폼 제출이다 — kit Button은 type이 없으면 button이 된다. */
+    expect(html).toMatch(/<button[^>]*type="submit"[^>]*>조회</);
     const previous = new URL(href(html, '이전'), 'https://example.test');
     expect(Object.fromEntries(previous.searchParams)).toMatchObject({ detail: 'issuances', code: 'ABC', q: '검수', bucket: 'month', compare: 'previous', from: '2026-10-01', to: '2026-10-12' });
     expect(previous.searchParams.has('page')).toBe(false);

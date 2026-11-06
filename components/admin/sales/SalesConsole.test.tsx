@@ -35,6 +35,8 @@ describe('sales filter and result forms', () => {
     expect(html).toContain('name="pageSize" value="50"');
     expect(html).not.toContain('name="page"');
     expect(html).toContain('type="button" aria-pressed="false">오늘');
+    /* kit Button은 type이 없으면 button이 된다 — 검색은 GET 폼을 제출해야 한다. */
+    expect(html).toMatch(/<button[^>]*type="submit"[^>]*>검색</);
     expect(html).not.toContain('href="/admin/sales/dispatch?tab=ready&amp;method=parcel&amp;sort=newest&amp;pageSize=50&amp;page=1&amp;from=');
   });
   it('applies sorting and list size while preserving the searched scope and dropping selection/page', () => {
@@ -46,6 +48,7 @@ describe('sales filter and result forms', () => {
     expect(html).not.toContain('name="page"');
     expect(html).not.toContain('name="order"');
     expect(html).toContain('<option value="50" selected="">50개씩 보기</option>');
+    expect(html).toMatch(/<button[^>]*type="submit"[^>]*>적용</);
   });
 
   it('keeps the operational guide expanded without submitting or loading any action', () => {

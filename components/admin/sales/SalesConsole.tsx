@@ -120,8 +120,3 @@ export function SalesStatusSummary({ items, label }: {
     </div>
   </nav>;
 }
-
-/** 목록 카드 아래의 짧은 안내. */
-export function SalesNote({ children, className }: { children: ReactNode; className?: string }) {
-  return <p className={`text-sm text-muted-foreground${className ? ` ${className}` : ''}`}>{children}</p>;
-}
