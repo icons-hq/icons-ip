@@ -8,7 +8,9 @@ import { fitPhotoMosaic } from '@/lib/admin/photo-editor-layers';
 import { PHOTO_MASKS, PHOTO_FRAME_STYLES, photoDecoratedFrameGeometry, photoFrameMaximum, photoFrameWidth, type PhotoMask } from '@/lib/admin/photo-editor-presentation';
 import { PHOTO_FILTERS, type PhotoFilter } from '@/lib/admin/photo-editor-filters';
 import { PHOTO_STRAIGHTEN_LIMIT } from '@/lib/admin/photo-editor-straighten';
-import { GoodsPhotoLayers, type PhotoLayerKind, type PhotoSelection } from './GoodsPhotoLayers';
+import { cn } from 'cn';
+import { buttonVariants } from '@/components/admin/kit/ui/button';
+import { GoodsPhotoLayers, PHOTO_BUTTONS_CLASS, PHOTO_BUTTON_CLASS, PHOTO_COLOR_CLASS, PHOTO_COORDINATES_CLASS, PHOTO_HINT_CLASS, PHOTO_INPUT_CLASS, PHOTO_LABEL_CLASS, PHOTO_PANEL_CLASS, PHOTO_PRESETS_CLASS, PHOTO_PRESET_CLASS, PHOTO_RANGE_CLASS, PHOTO_SELECT_CLASS, PHOTO_TOGGLE_CLASS, type PhotoLayerKind, type PhotoSelection } from './GoodsPhotoLayers';
 import { GoodsPhotoLogo } from './GoodsPhotoLogo';
 import { GoodsPhotoStickers } from './GoodsPhotoStickers';
 import { GoodsPhotoDecorationPreview } from './GoodsPhotoDecorationPreview';
@@ -21,10 +23,13 @@ type Aspect = 'original' | 'free' | '1:1' | '16:9' | '3:2' | '4:3' | '3:4' | '2:
 const aspects: readonly [Aspect, string][] = [['original', '원본 비율'], ['free', '자유'], ['1:1', '1:1'], ['16:9', '16:9'], ['3:2', '3:2'], ['4:3', '4:3'], ['3:4', '3:4'], ['2:3', '2:3'], ['9:16', '9:16']];
 const inverseAspect: Record<Aspect, Aspect> = { original: 'original', free: 'free', '1:1': '1:1', '16:9': '9:16', '9:16': '16:9', '3:2': '2:3', '2:3': '3:2', '4:3': '3:4', '3:4': '4:3' };
 const fullCrop = { x: 0, y: 0, width: 1, height: 1 };
+/** 슬라이더와 그 값 입력을 한 줄에 둔다(값 입력은 좁게). */
+const ADJUSTMENT_CLASS = 'grid min-w-0 grid-cols-[minmax(0,1fr)_5rem] items-end gap-3.5';
 
 export function GoodsPhotoEditor(props: Props) {
   if (typeof document === 'undefined') return null;
-  return createPortal(<div className="wc-admin admin-photo-editor-shell" onChange={event => event.stopPropagation()}
+  /* 상품 폼 바깥(body) portal이라 kit 토큰 경계(.wc-admin)를 래퍼가 다시 연다. */
+  return createPortal(<div className="wc-admin" data-photo-editor-portal="" onChange={event => event.stopPropagation()}
     onKeyDown={event => event.stopPropagation()} onSubmit={event => { event.preventDefault(); event.stopPropagation(); }}>
     <PhotoEditorBody key={props.sourcePath} {...props} />
   </div>, document.body);
@@ -231,115 +236,118 @@ function PhotoEditorBody({ sourcePath, onApply, onCancel }: Props) {
     const dy = event.key === 'ArrowUp' ? -step : event.key === 'ArrowDown' ? step : 0;
     if (dx || dy) { event.preventDefault(); changeCrop({ x: crop.x + dx, y: crop.y + dy }); }
   }
-  return <CustomerServiceDialog title="사진 편집" onClose={cancel}>
-    <section className="admin-photo-editor" aria-busy={busy || straightenBusy}>
-      <p>원본 사진은 바뀌지 않습니다. 완료 후 상품을 저장하면 편집한 사진으로 반영됩니다.</p>
-      <p className="admin-photo-editor__limit">사진 편집: 5MB 이하 · 400만 픽셀 이하 · 가로·세로 4096px 이하</p>
-      {error && <p role="alert">{error}</p>}
-      <div className="admin-photo-editor__stage" aria-label="사진 편집 미리보기">
-        {preview ? <div className="admin-photo-editor__frame" aria-busy={!ready}>
+  return <CustomerServiceDialog title="사진 편집" onClose={cancel} wide>
+    <section className="flex min-w-0 flex-col gap-3.5 text-sm" aria-busy={busy || straightenBusy} data-photo-editor="">
+      <p className="text-sm">원본 사진은 바뀌지 않습니다. 완료 후 상품을 저장하면 편집한 사진으로 반영됩니다.</p>
+      <p className={PHOTO_HINT_CLASS}>사진 편집: 5MB 이하 · 400만 픽셀 이하 · 가로·세로 4096px 이하</p>
+      {error && <p className="text-sm text-destructive" role="alert">{error}</p>}
+      {/* 투명 영역이 보이도록 바둑판 배경(토큰 색) 위에 미리보기를 놓는다. */}
+      <div className="grid min-h-40 min-w-0 place-items-center overflow-hidden rounded-lg border bg-muted bg-[conic-gradient(var(--border)_25%,transparent_0_50%,var(--border)_0_75%,transparent_0)] bg-size-[16px_16px]" aria-label="사진 편집 미리보기">
+        {preview ? <div className="relative inline-block max-w-full min-w-0 leading-none" aria-busy={!ready}>
           {/* Canvas output is an ephemeral local Blob, never a product path. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src={preview.url} alt={comparing ? '편집 시작 전 원본 사진' : cropping ? '자를 범위를 선택할 사진' : '편집 결과 미리보기'} draggable={false} />
-          {cropping && !comparing && ready && <div className="admin-photo-editor__crop-surface" role="group" tabIndex={busy ? -1 : 0}
+          <img className="block h-auto max-h-[min(50dvh,440px)] w-auto max-w-full max-md:max-h-[36dvh]" src={preview.url} alt={comparing ? '편집 시작 전 원본 사진' : cropping ? '자를 범위를 선택할 사진' : '편집 결과 미리보기'} draggable={false} />
+          {cropping && !comparing && ready && <div className="absolute inset-0 cursor-crosshair touch-none overflow-hidden outline-none focus-visible:ring-3 focus-visible:ring-ring/50" role="group" tabIndex={busy ? -1 : 0}
             aria-label="자를 범위 이동: 방향키 1픽셀, Shift와 방향키 10픽셀" onKeyDown={cropKey}
             onPointerDown={startCrop} onPointerMove={moveCrop} onPointerUp={event => stopCrop(event)} onPointerCancel={event => stopCrop(event, true)}>
-            <div className="admin-photo-editor__crop-box" style={{ left: `${recipe.crop.x * 100}%`, top: `${recipe.crop.y * 100}%`, width: `${recipe.crop.width * 100}%`, height: `${recipe.crop.height * 100}%` }} />
+            {/* 자를 범위 밖은 어둡게(넓은 그림자) 덮는다. 좌표·크기는 편집값이라 인라인으로 둔다. */}
+            <div className="pointer-events-none absolute border-2 border-background shadow-[0_0_0_1px_var(--foreground),0_0_0_9999px_color-mix(in_oklab,var(--foreground)_45%,transparent)] forced-colors:border-[Highlight] forced-colors:outline forced-colors:outline-[CanvasText]" data-photo-crop-box="" style={{ left: `${recipe.crop.x * 100}%`, top: `${recipe.crop.y * 100}%`, width: `${recipe.crop.width * 100}%`, height: `${recipe.crop.height * 100}%` }} />
           </div>}
-          {!cropping && !comparing && selected && anchor && (selection?.kind === tool || selection?.kind === 'text' && (tool === 'bubble' || tool === 'signature')) && <div className="admin-photo-editor__layer-surface">
-            {outline && <svg className="admin-photo-editor__layer-box" viewBox="0 0 1 1" preserveAspectRatio="none" aria-hidden="true"><polygon points={outline.map(point => `${point.x},${point.y}`).join(' ')} vectorEffect="non-scaling-stroke" /></svg>}
-            <button type="button" className="admin-photo-editor__layer-handle" disabled={busy || straightenBusy || selection?.kind === 'logo' && logoBusy} aria-label="선택 영역 이동: 드래그 또는 방향키" style={{ left: `${Math.min(.95, Math.max(.05, anchor.x)) * 100}%`, top: `${Math.min(.95, Math.max(.05, anchor.y)) * 100}%` }}
+          {!cropping && !comparing && selected && anchor && (selection?.kind === tool || selection?.kind === 'text' && (tool === 'bubble' || tool === 'signature')) && <div className="pointer-events-none absolute inset-0 overflow-hidden">
+            {outline && <svg className="pointer-events-none absolute inset-0 size-full overflow-visible fill-none stroke-primary stroke-2 [stroke-dasharray:5px_3px] forced-colors:stroke-[Highlight]" viewBox="0 0 1 1" preserveAspectRatio="none" aria-hidden="true"><polygon points={outline.map(point => `${point.x},${point.y}`).join(' ')} vectorEffect="non-scaling-stroke" /></svg>}
+            <button type="button" className="pointer-events-auto absolute size-11 -translate-x-1/2 -translate-y-1/2 cursor-move touch-none rounded-full border-2 border-primary bg-background p-0 text-base leading-none text-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50" data-photo-layer-handle="" disabled={busy || straightenBusy || selection?.kind === 'logo' && logoBusy} aria-label="선택 영역 이동: 드래그 또는 방향키" style={{ left: `${Math.min(.95, Math.max(.05, anchor.x)) * 100}%`, top: `${Math.min(.95, Math.max(.05, anchor.y)) * 100}%` }}
               onKeyDown={layerKey} onPointerDown={startLayer} onPointerMove={moveLayerPointer} onPointerUp={event => stopLayer(event)} onPointerCancel={event => stopLayer(event, true)}>↔</button>
           </div>}
-        </div> : <p role="status">{error ? '원래 사진은 유지됩니다.' : size ? '미리보기를 만드는 중…' : '사진을 불러오는 중…'}</p>}
+        </div> : <p className="rounded-md bg-background p-6 text-sm text-muted-foreground" role="status">{error ? '원래 사진은 유지됩니다.' : size ? '미리보기를 만드는 중…' : '사진을 불러오는 중…'}</p>}
       </div>
-      {preview && !ready && !error && <p role="status">미리보기 갱신 중… 갱신이 끝나면 완료할 수 있습니다.</p>}
-      <p role="status" className="admin-photo-editor__dimensions">{crop ? `${comparing ? '원본 비교 중 · ' : ''}편집 결과 ${crop.width} × ${crop.height}px` : '사진 정보를 확인하고 있습니다.'}</p>
-      <fieldset className="admin-photo-editor__controls" disabled={!size || busy || straightenBusy}>
-        <legend className="wc-sr-only">사진 편집 도구</legend>
-        <div className="admin-photo-editor__buttons">
-          <button type="button" aria-pressed={cropping} onClick={() => { setCropping(value => !value); setComparing(false); }}>{cropping ? '자르기 확인' : '자르기'}</button>
-          <button type="button" aria-pressed={comparing} onClick={() => { setComparing(value => !value); setCropping(false); }}>{comparing ? '편집 결과 보기' : '원본 보기'}</button>
-          <button type="button" onClick={() => { removeLogo(); edit(() => initialPhotoRecipe()); setAspect('original'); setCropping(false); setSelection(null); }}>편집 시작 상태로 재설정</button>
+      {preview && !ready && !error && <p className="text-sm text-muted-foreground" role="status">미리보기 갱신 중… 갱신이 끝나면 완료할 수 있습니다.</p>}
+      <p role="status" className="text-xs text-muted-foreground tabular-nums">{crop ? `${comparing ? '원본 비교 중 · ' : ''}편집 결과 ${crop.width} × ${crop.height}px` : '사진 정보를 확인하고 있습니다.'}</p>
+      <fieldset className="m-0 flex min-w-0 flex-col gap-3.5 border-0 p-0" disabled={!size || busy || straightenBusy}>
+        <legend className="sr-only">사진 편집 도구</legend>
+        <div className={PHOTO_BUTTONS_CLASS}>
+          <button type="button" className={PHOTO_TOGGLE_CLASS} data-slot="toggle" aria-pressed={cropping} onClick={() => { setCropping(value => !value); setComparing(false); }}>{cropping ? '자르기 확인' : '자르기'}</button>
+          <button type="button" className={PHOTO_TOGGLE_CLASS} data-slot="toggle" aria-pressed={comparing} onClick={() => { setComparing(value => !value); setCropping(false); }}>{comparing ? '편집 결과 보기' : '원본 보기'}</button>
+          <button type="button" className={PHOTO_BUTTON_CLASS} data-slot="button" onClick={() => { removeLogo(); edit(() => initialPhotoRecipe()); setAspect('original'); setCropping(false); setSelection(null); }}>편집 시작 상태로 재설정</button>
         </div>
-        <div className="admin-photo-editor__buttons">
-          <button type="button" onClick={() => { edit(current => rotatePhotoRecipe(current, -1)); setAspect(value => inverseAspect[value]); }}>왼쪽 90도 회전</button>
-          <button type="button" onClick={() => { edit(current => rotatePhotoRecipe(current, 1)); setAspect(value => inverseAspect[value]); }}>오른쪽 90도 회전</button>
-          <button type="button" onClick={() => edit(current => flipPhotoRecipe(current, 'x'))}>좌우 반전</button>
-          <button type="button" onClick={() => edit(current => flipPhotoRecipe(current, 'y'))}>상하 반전</button>
+        <div className={PHOTO_BUTTONS_CLASS}>
+          <button type="button" className={PHOTO_BUTTON_CLASS} data-slot="button" onClick={() => { edit(current => rotatePhotoRecipe(current, -1)); setAspect(value => inverseAspect[value]); }}>왼쪽 90도 회전</button>
+          <button type="button" className={PHOTO_BUTTON_CLASS} data-slot="button" onClick={() => { edit(current => rotatePhotoRecipe(current, 1)); setAspect(value => inverseAspect[value]); }}>오른쪽 90도 회전</button>
+          <button type="button" className={PHOTO_BUTTON_CLASS} data-slot="button" onClick={() => edit(current => flipPhotoRecipe(current, 'x'))}>좌우 반전</button>
+          <button type="button" className={PHOTO_BUTTON_CLASS} data-slot="button" onClick={() => edit(current => flipPhotoRecipe(current, 'y'))}>상하 반전</button>
         </div>
-        {cropping && crop && oriented && <div className="admin-photo-editor__crop-controls">
-          <p>사진 위에서 범위를 그리거나 아래 좌표를 입력하세요. 사진에 초점을 두고 방향키로 범위를 옮길 수도 있습니다.</p>
-          <label>자르기 비율<select value={aspect} onChange={event => {
+        {cropping && crop && oriented && <div className={PHOTO_PANEL_CLASS}>
+          <p className="text-sm">사진 위에서 범위를 그리거나 아래 좌표를 입력하세요. 사진에 초점을 두고 방향키로 범위를 옮길 수도 있습니다.</p>
+          <label className={PHOTO_LABEL_CLASS}>자르기 비율<select className={PHOTO_SELECT_CLASS} value={aspect} onChange={event => {
             const value = event.target.value as Aspect; setAspect(value);
             if (value !== 'free' && size) { const ratio = value === 'original' ? oriented.width / oriented.height : Number(value.split(':')[0]) / Number(value.split(':')[1]); edit(current => fitPhotoCrop(size, current, ratio)); }
           }}>{aspects.map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>
-          <div className="admin-photo-editor__coordinates">{([['x', '왼쪽 위치'], ['y', '위쪽 위치'], ['width', '자를 너비'], ['height', '자를 높이']] as const).map(([key, label]) => <label key={key}>{label} (px)<input type="number" min={key === 'width' || key === 'height' ? 1 : 0} max={key === 'x' || key === 'width' ? oriented.width : oriented.height} step={1} value={crop[key]}
+          <div className={PHOTO_COORDINATES_CLASS}>{([['x', '왼쪽 위치'], ['y', '위쪽 위치'], ['width', '자를 너비'], ['height', '자를 높이']] as const).map(([key, label]) => <label className={PHOTO_LABEL_CLASS} key={key}>{label} (px)<input className={PHOTO_INPUT_CLASS} data-slot="input" type="number" min={key === 'width' || key === 'height' ? 1 : 0} max={key === 'x' || key === 'width' ? oriented.width : oriented.height} step={1} value={crop[key]}
             onChange={event => { if (event.target.value !== '') changeCrop({ [key]: Number(event.target.value) }); }} /></label>)}</div>
         </div>}
-        <div className="admin-photo-editor__buttons" aria-label="보정과 추가 도구">{([['adjust', '색상 보정'], ['mosaic', '모자이크'], ['text', '텍스트'], ['bubble', '말풍선'], ['signature', '텍스트 서명'], ['sticker', '스티커'], ['logo', '로고·서명'], ['presentation', '액자·도형']] as const).map(([key, label]) => <button key={key} type="button" aria-pressed={!cropping && tool === key} onClick={() => { setTool(key); setCropping(false); setComparing(false); if (key === 'logo' && recipe.logo) setSelection({ kind: 'logo', id: recipe.logo.assetId }); }}>{label}</button>)}</div>
-        {!cropping && tool === 'adjust' && <div className="admin-photo-editor__adjustments">
-          <div className="admin-photo-editor__buttons">
-            <button type="button" disabled={logoBusy} onClick={() => void straighten()}>자동 수평 맞춤</button>
-            <button type="button" onClick={() => edit(current => ({ ...current, straightenDegrees: 0 }))}>수평 보정 해제</button>
+        <div className={PHOTO_BUTTONS_CLASS} aria-label="보정과 추가 도구">{([['adjust', '색상 보정'], ['mosaic', '모자이크'], ['text', '텍스트'], ['bubble', '말풍선'], ['signature', '텍스트 서명'], ['sticker', '스티커'], ['logo', '로고·서명'], ['presentation', '액자·도형']] as const).map(([key, label]) => <button className={PHOTO_TOGGLE_CLASS} data-slot="toggle" key={key} type="button" aria-pressed={!cropping && tool === key} onClick={() => { setTool(key); setCropping(false); setComparing(false); if (key === 'logo' && recipe.logo) setSelection({ kind: 'logo', id: recipe.logo.assetId }); }}>{label}</button>)}</div>
+        {!cropping && tool === 'adjust' && <div className="flex min-w-0 flex-col gap-2.5">
+          <div className={PHOTO_BUTTONS_CLASS}>
+            <button type="button" className={PHOTO_BUTTON_CLASS} data-slot="button" disabled={logoBusy} onClick={() => void straighten()}>자동 수평 맞춤</button>
+            <button type="button" className={PHOTO_BUTTON_CLASS} data-slot="button" onClick={() => edit(current => ({ ...current, straightenDegrees: 0 }))}>수평 보정 해제</button>
           </div>
-          <label>수평 보정 각도 (도)<input type="number" min={-PHOTO_STRAIGHTEN_LIMIT} max={PHOTO_STRAIGHTEN_LIMIT} step={.1} value={recipe.straightenDegrees}
+          <label className={PHOTO_LABEL_CLASS}>수평 보정 각도 (도)<input className={cn(PHOTO_INPUT_CLASS, 'sm:max-w-40')} data-slot="input" type="number" min={-PHOTO_STRAIGHTEN_LIMIT} max={PHOTO_STRAIGHTEN_LIMIT} step={.1} value={recipe.straightenDegrees}
             onChange={event => { const value = Number(event.target.value); if (event.target.value !== '' && Number.isFinite(value)) edit(current => ({ ...current, straightenDegrees: Math.round(Math.min(PHOTO_STRAIGHTEN_LIMIT, Math.max(-PHOTO_STRAIGHTEN_LIMIT, value)) * 10) / 10 || 0 })); }} /></label>
-          <p className="admin-photo-editor__limit">사진 속 직선을 기준으로 수평을 맞춥니다. 기울일 때 빈 모서리가 생기지 않도록 가장자리를 잘라내며 사진 크기는 유지합니다. 미리보기로 확인하고 직접 각도를 조절할 수 있습니다.</p>
-          {straightenStatus && <p role="status">{straightenStatus}</p>}
-          <label className="admin-photo-editor__toggle"><input type="checkbox" checked={recipe.automaticLevels} onChange={event => edit(current => ({ ...current, automaticLevels: event.target.checked }))} />자동 명암</label>
-          <p className="admin-photo-editor__limit">원본 전체의 명암 범위를 자동으로 넓힌 뒤 아래 보정을 적용합니다. 변화가 작은 사진은 그대로 유지합니다. 켜기·끄기로 비교해주세요.</p>
-          <label>색조 필터<select value={recipe.filter} onChange={event => edit(current => ({ ...current, filter: event.target.value as PhotoFilter }))}>
+          <p className={PHOTO_HINT_CLASS}>사진 속 직선을 기준으로 수평을 맞춥니다. 기울일 때 빈 모서리가 생기지 않도록 가장자리를 잘라내며 사진 크기는 유지합니다. 미리보기로 확인하고 직접 각도를 조절할 수 있습니다.</p>
+          {straightenStatus && <p className="text-sm" role="status">{straightenStatus}</p>}
+          <label className="flex min-h-8 cursor-pointer items-center gap-2.5 text-sm font-medium"><input type="checkbox" checked={recipe.automaticLevels} onChange={event => edit(current => ({ ...current, automaticLevels: event.target.checked }))} />자동 명암</label>
+          <p className={PHOTO_HINT_CLASS}>원본 전체의 명암 범위를 자동으로 넓힌 뒤 아래 보정을 적용합니다. 변화가 작은 사진은 그대로 유지합니다. 켜기·끄기로 비교해주세요.</p>
+          <label className={PHOTO_LABEL_CLASS}>색조 필터<select className={PHOTO_SELECT_CLASS} value={recipe.filter} onChange={event => edit(current => ({ ...current, filter: event.target.value as PhotoFilter }))}>
             {PHOTO_FILTERS.map(filter => <option key={filter.value} value={filter.value}>{filter.label}</option>)}
           </select></label>
-          <p className="admin-photo-editor__limit">필터를 적용한 뒤 아래 수동 보정값을 적용합니다. 필터를 바꾸거나 없애도 수동 보정값·자르기·추가한 요소는 유지합니다.</p>
-          {recipe.filter !== 'none' && <div className="admin-photo-editor__adjustment">
-            <label>필터 강도 · {recipe.filterStrength}%<input type="range" min={0} max={100} step={1} value={recipe.filterStrength} onChange={event => edit(current => ({ ...current, filterStrength: Number(event.target.value) }))} /></label>
-            <label><span className="wc-sr-only">필터 강도 값</span><input type="number" min={0} max={100} step={1} value={recipe.filterStrength} onChange={event => { const value = Number(event.target.value); if (event.target.value !== '' && Number.isFinite(value)) edit(current => ({ ...current, filterStrength: Math.round(Math.min(100, Math.max(0, value))) })); }} /></label>
+          <p className={PHOTO_HINT_CLASS}>필터를 적용한 뒤 아래 수동 보정값을 적용합니다. 필터를 바꾸거나 없애도 수동 보정값·자르기·추가한 요소는 유지합니다.</p>
+          {recipe.filter !== 'none' && <div className={ADJUSTMENT_CLASS}>
+            <label className={PHOTO_LABEL_CLASS}>필터 강도 · {recipe.filterStrength}%<input className={PHOTO_RANGE_CLASS} data-slot="input" type="range" min={0} max={100} step={1} value={recipe.filterStrength} onChange={event => edit(current => ({ ...current, filterStrength: Number(event.target.value) }))} /></label>
+            <label className={PHOTO_LABEL_CLASS}><span className="sr-only">필터 강도 값</span><input className={PHOTO_INPUT_CLASS} data-slot="input" type="number" min={0} max={100} step={1} value={recipe.filterStrength} onChange={event => { const value = Number(event.target.value); if (event.target.value !== '' && Number.isFinite(value)) edit(current => ({ ...current, filterStrength: Math.round(Math.min(100, Math.max(0, value))) })); }} /></label>
           </div>}
-          {recipe.filter !== 'none' && <p className="admin-photo-editor__limit">강도 0은 필터 효과 없음, 100은 선택한 필터를 최대로 적용합니다. 사진의 투명도는 바꾸지 않습니다.</p>}
+          {recipe.filter !== 'none' && <p className={PHOTO_HINT_CLASS}>강도 0은 필터 효과 없음, 100은 선택한 필터를 최대로 적용합니다. 사진의 투명도는 바꾸지 않습니다.</p>}
           {([
           ['brightness', '밝기', -100], ['contrast', '대비', -100], ['saturation', '채도', -100], ['temperature', '색온도', -100],
           ['sharpness', '선명도', -100], ['circularBlur', '원형 블러', 0], ['linearBlur', '선형 블러', 0], ['vignette', '비네팅', 0],
-        ] as const).map(([key, label, minimum]) => <div className="admin-photo-editor__adjustment" key={key}>
-          <label>{label}<input type="range" min={minimum} max={100} step={1} value={recipe[key]} onChange={event => edit(current => ({ ...current, [key]: Number(event.target.value) }))} /></label>
-          <label><span className="wc-sr-only">{label} 값</span><input type="number" min={minimum} max={100} step={1} value={recipe[key]} onChange={event => { const value = Number(event.target.value); if (event.target.value !== '' && Number.isFinite(value)) edit(current => ({ ...current, [key]: Math.round(Math.min(100, Math.max(minimum, value))) })); }} /></label>
+        ] as const).map(([key, label, minimum]) => <div className={ADJUSTMENT_CLASS} key={key}>
+          <label className={PHOTO_LABEL_CLASS}>{label}<input className={PHOTO_RANGE_CLASS} data-slot="input" type="range" min={minimum} max={100} step={1} value={recipe[key]} onChange={event => edit(current => ({ ...current, [key]: Number(event.target.value) }))} /></label>
+          <label className={PHOTO_LABEL_CLASS}><span className="sr-only">{label} 값</span><input className={PHOTO_INPUT_CLASS} data-slot="input" type="number" min={minimum} max={100} step={1} value={recipe[key]} onChange={event => { const value = Number(event.target.value); if (event.target.value !== '' && Number.isFinite(value)) edit(current => ({ ...current, [key]: Math.round(Math.min(100, Math.max(minimum, value))) })); }} /></label>
         </div>)}
-          <p className="admin-photo-editor__limit">색온도는 음수일수록 차갑게, 양수일수록 따뜻하게 바꿉니다. 선명도는 음수일수록 부드럽게, 양수일수록 윤곽을 강조합니다.</p>
-          <p className="admin-photo-editor__limit">원형 블러는 원본 중앙의 원 안을, 선형 블러는 중앙의 가로 띠 안을 선명하게 두고 바깥을 흐리게 합니다. 비네팅은 가장자리를 어둡게 합니다. 효과는 사진과 함께 회전하며 자르기에 따라 중심이 이동하지 않습니다. 수동 보정값 0은 해당 효과 없음입니다.</p>
+          <p className={PHOTO_HINT_CLASS}>색온도는 음수일수록 차갑게, 양수일수록 따뜻하게 바꿉니다. 선명도는 음수일수록 부드럽게, 양수일수록 윤곽을 강조합니다.</p>
+          <p className={PHOTO_HINT_CLASS}>원형 블러는 원본 중앙의 원 안을, 선형 블러는 중앙의 가로 띠 안을 선명하게 두고 바깥을 흐리게 합니다. 비네팅은 가장자리를 어둡게 합니다. 효과는 사진과 함께 회전하며 자르기에 따라 중심이 이동하지 않습니다. 수동 보정값 0은 해당 효과 없음입니다.</p>
         </div>}
-        {!cropping && tool === 'presentation' && crop && <div className="admin-photo-editor__presentation">
-          <p>테두리와 도형은 자르기를 마친 사진에 적용합니다. 사진 크기는 유지하며 테두리는 안쪽에 그립니다.</p>
-          <div className="admin-photo-editor__presets" aria-label="액자 스타일">{PHOTO_FRAME_STYLES.map(style => <button type="button" key={style.value} aria-pressed={(recipe.frameStyle ?? 'solid') === style.value}
+        {!cropping && tool === 'presentation' && crop && <div className={PHOTO_PANEL_CLASS}>
+          <p className="text-sm">테두리와 도형은 자르기를 마친 사진에 적용합니다. 사진 크기는 유지하며 테두리는 안쪽에 그립니다.</p>
+          <div className={PHOTO_PRESETS_CLASS} aria-label="액자 스타일">{PHOTO_FRAME_STYLES.map(style => <button className={PHOTO_PRESET_CLASS} type="button" key={style.value} aria-pressed={(recipe.frameStyle ?? 'solid') === style.value}
             onClick={() => edit(current => ({ ...current, frameStyle: style.value }))}>
             {style.value !== 'solid' && <GoodsPhotoDecorationPreview paths={photoDecoratedFrameGeometry({ width: 100, height: 100 }, { frameStyle: style.value, frameWidth: 9, frameColor: '#000000', mask: 'none' })} />}
             <span>{style.label}</span>
           </button>)}</div>
-          <p className="admin-photo-editor__limit">액자 스타일을 선택한 뒤 두께를 정하세요. 두께 0은 액자 없음이며, 3px 미만의 이중선은 한 줄로 표시됩니다.</p>
-          <label>도형 마스크<select value={recipe.mask} onChange={event => edit(current => ({ ...current, mask: event.target.value as PhotoMask }))}>
+          <p className={PHOTO_HINT_CLASS}>액자 스타일을 선택한 뒤 두께를 정하세요. 두께 0은 액자 없음이며, 3px 미만의 이중선은 한 줄로 표시됩니다.</p>
+          <label className={PHOTO_LABEL_CLASS}>도형 마스크<select className={PHOTO_SELECT_CLASS} value={recipe.mask} onChange={event => edit(current => ({ ...current, mask: event.target.value as PhotoMask }))}>
             {PHOTO_MASKS.map(mask => <option key={mask} value={mask}>{{ none: '적용 안 함', circle: '원형', rounded: '둥근 사각형', triangle: '삼각형', pentagon: '오각형', hexagon: '육각형', star: '별' }[mask]}</option>)}
           </select></label>
-          <div className="admin-photo-editor__buttons">
-            <button type="button" onClick={() => edit(current => ({ ...current, frameWidth: 0 }))}>테두리 없음</button>
-            <button type="button" disabled={photoFrameMaximum(crop) === 0} onClick={() => edit(current => ({ ...current, frameColor: '#ffffff', frameWidth: current.frameWidth || 8 }))}>흰 테두리</button>
-            <button type="button" disabled={photoFrameMaximum(crop) === 0} onClick={() => edit(current => ({ ...current, frameColor: '#000000', frameWidth: current.frameWidth || 8 }))}>검은 테두리</button>
+          <div className={PHOTO_BUTTONS_CLASS}>
+            <button type="button" className={PHOTO_BUTTON_CLASS} data-slot="button" onClick={() => edit(current => ({ ...current, frameWidth: 0 }))}>테두리 없음</button>
+            <button type="button" className={PHOTO_BUTTON_CLASS} data-slot="button" disabled={photoFrameMaximum(crop) === 0} onClick={() => edit(current => ({ ...current, frameColor: '#ffffff', frameWidth: current.frameWidth || 8 }))}>흰 테두리</button>
+            <button type="button" className={PHOTO_BUTTON_CLASS} data-slot="button" disabled={photoFrameMaximum(crop) === 0} onClick={() => edit(current => ({ ...current, frameColor: '#000000', frameWidth: current.frameWidth || 8 }))}>검은 테두리</button>
           </div>
-          <div className="admin-photo-editor__presentation-fields">
-            <label>테두리 두께 (px)<input type="number" min={0} max={photoFrameMaximum(crop)} step={1} value={recipe.frameWidth} disabled={photoFrameMaximum(crop) === 0}
+          <div className="grid min-w-0 grid-cols-2 gap-3">
+            <label className={PHOTO_LABEL_CLASS}>테두리 두께 (px)<input className={PHOTO_INPUT_CLASS} data-slot="input" type="number" min={0} max={photoFrameMaximum(crop)} step={1} value={recipe.frameWidth} disabled={photoFrameMaximum(crop) === 0}
               onChange={event => { const value = Number(event.target.value); if (event.target.value !== '' && Number.isFinite(value)) edit(current => ({ ...current, frameWidth: photoFrameWidth(crop, Math.round(value)) })); }} /></label>
-            <label>테두리 색<input type="color" value={recipe.frameColor} onChange={event => edit(current => ({ ...current, frameColor: event.target.value }))} /></label>
+            <label className={PHOTO_LABEL_CLASS}>테두리 색<input className={PHOTO_COLOR_CLASS} data-slot="input" type="color" value={recipe.frameColor} onChange={event => edit(current => ({ ...current, frameColor: event.target.value }))} /></label>
           </div>
-          <p className="admin-photo-editor__limit">두께 0은 테두리 없음입니다. 원형·다각형·별은 사진 중앙에서 짧은 변에 맞추며, 둥근 사각형의 모서리는 짧은 변의 10%입니다. 자르기 중에는 테두리·도형을 잠시 숨깁니다.</p>
-          {recipe.mask !== 'none' && <p role="status">도형 밖은 투명하게 처리하고 PNG로 저장합니다. JPG 사진도 PNG로 바뀝니다.</p>}
+          <p className={PHOTO_HINT_CLASS}>두께 0은 테두리 없음입니다. 원형·다각형·별은 사진 중앙에서 짧은 변에 맞추며, 둥근 사각형의 모서리는 짧은 변의 10%입니다. 자르기 중에는 테두리·도형을 잠시 숨깁니다.</p>
+          {recipe.mask !== 'none' && <p className="text-sm" role="status">도형 밖은 투명하게 처리하고 PNG로 저장합니다. JPG 사진도 PNG로 바뀝니다.</p>}
         </div>}
         {!cropping && (tool === 'mosaic' || tool === 'text' || tool === 'bubble' || tool === 'signature') && size && <GoodsPhotoLayers kind={tool === 'mosaic' ? 'mosaic' : 'text'} textMode={tool === 'bubble' || tool === 'signature' ? tool : 'plain'} size={size} recipe={recipe} selection={selection?.kind === 'mosaic' || selection?.kind === 'text' ? selection : null} select={setSelection} edit={edit} move={moveLayer} reportError={setError} />}
         {!cropping && tool === 'sticker' && size && <GoodsPhotoStickers size={size} recipe={recipe} selectedId={selection?.kind === 'sticker' ? selection.id : undefined} select={id => setSelection(id ? { kind: 'sticker', id } : null)} edit={edit} move={moveLayer} />}
         {!cropping && tool === 'logo' && size && <GoodsPhotoLogo size={size} recipe={recipe} asset={logoAsset} loading={logoBusy} error={logoError} choose={file => void chooseLogo(file)} remove={removeLogo} move={(dx, dy) => { if (recipe.logo) moveLayer(dx, dy, recipe, { kind: 'logo', id: recipe.logo.assetId }); }} edit={edit} />}
       </fieldset>
-      {cropping && <p>범위를 확인한 뒤 ‘자르기 확인’을 눌러 결과를 보세요.</p>}
-      <div className="admin-photo-editor__footer">
-        <button type="button" className="wc-admin-kit__button wc-admin-kit__button--primary" disabled={!size || !ready || busy || cropping || comparing || Boolean(error)} onClick={() => void apply()}>{busy ? '편집 결과 만드는 중…' : '완료'}</button>
-        <button type="button" className="wc-admin-kit__button" onClick={cancel}>취소</button>
+      {cropping && <p className="text-sm text-muted-foreground">범위를 확인한 뒤 ‘자르기 확인’을 눌러 결과를 보세요.</p>}
+      {/* 긴 도구 목록을 내려도 완료·취소가 보이도록 팝업 본문 아래에 붙인다. */}
+      <div className="sticky bottom-0 flex flex-wrap gap-2 border-t bg-popover py-3 max-md:*:flex-1" data-photo-editor-footer="">
+        <button type="button" className={cn(buttonVariants(), 'min-w-24')} data-slot="button" disabled={!size || !ready || busy || cropping || comparing || Boolean(error)} onClick={() => void apply()}>{busy ? '편집 결과 만드는 중…' : '완료'}</button>
+        <button type="button" className={buttonVariants({ variant: 'outline' })} data-slot="button" onClick={cancel}>취소</button>
       </div>
     </section>
   </CustomerServiceDialog>;

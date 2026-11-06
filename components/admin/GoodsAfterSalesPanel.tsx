@@ -5,6 +5,7 @@ import { loadGoodsAfterSalesAction, saveGoodsAfterSalesAction, type GoodsAfterSa
 import { GOODS_AFTER_SALES_TEMPLATES_PATH, parseGoodsAfterSalesValues, type GoodsAfterSalesSnapshot, type GoodsAfterSalesValues } from '@/lib/goods-after-sales';
 import { GoodsAfterSalesFields } from './GoodsAfterSalesFields';
 import { GoodsAfterSalesTemplatePicker } from './screens/GoodsAfterSalesTemplatesScreen';
+import { buttonVariants } from '@/components/admin/kit/ui/button';
 
 export function GoodsAfterSalesPanel({ goodId }: { goodId: string }) {
   const [snapshot, setSnapshot] = useState<GoodsAfterSalesSnapshot | null>(null), [values, setValues] = useState<GoodsAfterSalesValues>({ phone: '', guide: '', sellerSpecialNotes: '' });
@@ -45,18 +46,18 @@ export function GoodsAfterSalesPanel({ goodId }: { goodId: string }) {
     if (result.ok) { accept(result.value); setError(false); setMessage(result.value.phone ? 'A/S 안내와 판매자 특이사항을 저장했습니다.' : '상품 상세의 A/S 안내와 판매자 특이사항을 해제했습니다.'); }
     else { setError(true); setMessage(result.error); setUncertain(Boolean(result.uncertain)); if (!result.uncertain) request.current = null; if (result.conflict) setConflict(true); }
   }
-  return <div className="admin-goods-after-sales">
-    <p>상품별 A/S 안내입니다. 전화번호와 안내를 입력하고 상품에 맞는 템플릿을 불러올 수 있습니다.</p>
-    <form onSubmit={event => { event.preventDefault(); void save(); }}>
-      <fieldset disabled={!snapshot || pending || uncertain || conflict}>
+  return <div className="flex min-w-0 flex-col gap-4 text-sm" data-goods-after-sales="">
+    <p className="text-muted-foreground">상품별 A/S 안내입니다. 전화번호와 안내를 입력하고 상품에 맞는 템플릿을 불러올 수 있습니다.</p>
+    <form className="flex min-w-0 flex-col gap-4" onSubmit={event => { event.preventDefault(); void save(); }}>
+      <fieldset className="m-0 flex min-w-0 flex-col gap-4 border-0 p-0" disabled={!snapshot || pending || uncertain || conflict}>
         <GoodsAfterSalesFields values={values} onChange={setValues} />
-        <div className="admin-goods-after-sales__actions"><button className="btn" type="button" onClick={() => setTemplates(true)}>A/S 템플릿</button><Link href={GOODS_AFTER_SALES_TEMPLATES_PATH} target="_blank" rel="noreferrer">A/S 템플릿 관리 ↗</Link></div>
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-2"><button className={buttonVariants({ variant: 'outline' })} data-slot="button" type="button" onClick={() => setTemplates(true)}>A/S 템플릿</button><Link className="text-sm underline underline-offset-4" href={GOODS_AFTER_SALES_TEMPLATES_PATH} target="_blank" rel="noreferrer">A/S 템플릿 관리 ↗</Link></div>
       </fieldset>
-      {message ? <p role={error ? 'alert' : 'status'}>{message}</p> : null}
-      <div className="admin-goods-after-sales__actions">
-        {uncertain ? <button className="btn btn-primary" type="button" disabled={pending} onClick={() => void save()}>같은 요청 결과 확인</button> : <button className="btn btn-primary" disabled={!snapshot || pending || conflict}>안내 저장</button>}
-        <button className="btn" type="button" disabled={!snapshot || !snapshot.phone || pending || uncertain || conflict} onClick={() => void save(true)}>안내 해제</button>
-        <button className="btn" type="button" disabled={pending || uncertain} onClick={() => void reload()}>저장된 내용으로 다시 불러오기</button>
+      {message ? <p className={error ? 'text-sm text-destructive' : 'text-sm text-[var(--wc-success)]'} role={error ? 'alert' : 'status'}>{message}</p> : null}
+      <div className="flex flex-wrap gap-2">
+        {uncertain ? <button className={buttonVariants()} data-slot="button" type="button" disabled={pending} onClick={() => void save()}>같은 요청 결과 확인</button> : <button className={buttonVariants()} data-slot="button" disabled={!snapshot || pending || conflict}>안내 저장</button>}
+        <button className={buttonVariants({ variant: 'outline' })} data-slot="button" type="button" disabled={!snapshot || !snapshot.phone || pending || uncertain || conflict} onClick={() => void save(true)}>안내 해제</button>
+        <button className={buttonVariants({ variant: 'outline' })} data-slot="button" type="button" disabled={pending || uncertain} onClick={() => void reload()}>저장된 내용으로 다시 불러오기</button>
       </div>
     </form>
     {templates ? <GoodsAfterSalesTemplatePicker onClose={() => setTemplates(false)} onSelect={template => { setValues({ phone: template.phone, guide: template.guide, sellerSpecialNotes: template.sellerSpecialNotes }); setTemplates(false); }} /> : null}

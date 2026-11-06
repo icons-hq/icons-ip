@@ -1,6 +1,11 @@
 'use client';
 
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
+import { useEffect, useId, useMemo, useRef, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { buttonVariants } from '@/components/admin/kit/ui/button';
+import { NativeSelect } from '@/components/admin/kit/ui/native-select';
+import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/admin/kit/ui/table';
+import { AdminFormGrid } from './console/AdminKit';
+import { GOOD_INPUT_CLASS, GOOD_NOTE_CLASS, GOOD_NUMBER_INPUT_CLASS, GOOD_SUBPANEL_CLASS, GOOD_TABLE_FRAME_CLASS } from './GoodEditorParts';
 import { readGoodsTransactionTermsAction, saveGoodsTransactionTermsAction } from '@/app/admin/goods-transaction-terms-actions';
 import { createAdminLocalAutosave, EMPTY_LOCAL_AUTOSAVE_SNAPSHOT } from '@/lib/admin/local-autosave';
 import { createGoodsDescriptionToolScope } from '@/lib/admin/goods-description-tools';
@@ -14,7 +19,9 @@ import type { GoodsTransactionAdminTerms } from '@/lib/goods-transaction';
 
 type Workspace = { base: GoodsTransactionAdminTerms; draft: GoodsTermsDraft; retry: GoodsTermsRequest | null; latest: GoodsTransactionAdminTerms | null; recoveryPending: boolean };
 function browserStorage() { try { return window.localStorage; } catch { return null; } }
-const inputStyle = { minWidth: 0, width: '100%' } as const;
+const FIELD_LABEL_CLASS = 'flex min-w-0 flex-col gap-2 text-sm font-medium text-foreground';
+/** 결과 확인이 필요한 저장 요청(경고 톤). */
+const RETRY_NOTE_CLASS = 'flex flex-col items-start gap-2 rounded-lg border border-[color-mix(in_oklab,var(--wc-warning)_40%,transparent)] bg-[color-mix(in_oklab,var(--wc-warning)_8%,transparent)] px-3 py-2.5 text-sm text-foreground';
 const stateLabel = (value: string | undefined) => ({ draft: '초안 · 미적용', active: '사용 중', disabled: '사용 안 함' }[value ?? ''] ?? '미설정');
 function comparisonValues(draft: GoodsTermsDraft): Array<[string, string]> {
   const v = draft.volume.fields, d = draft.delivery.fields;
@@ -33,50 +40,60 @@ function comparisonValues(draft: GoodsTermsDraft): Array<[string, string]> {
 }
 function PolicyComparison({ draft, latest }: { draft: GoodsTermsDraft; latest: GoodsTermsDraft }) {
   const own = new Map(comparisonValues(draft)), saved = new Map(comparisonValues(latest));
-  return <div style={{ overflowX: 'auto' }}><table><caption>현재 입력과 최신 저장값</caption><thead><tr><th>항목</th><th>내 입력</th><th>최신 저장본</th></tr></thead><tbody>
-    {[...new Set([...own.keys(), ...saved.keys()])].map(key => <tr key={key}><th scope="row">{key}</th><td>{own.get(key) ?? '해당 없음'}</td><td>{saved.get(key) ?? '해당 없음'}</td></tr>)}
-  </tbody></table></div>;
+  return <div className={GOOD_TABLE_FRAME_CLASS}><Table className="min-w-[30rem] caption-top">
+    <TableCaption className="mt-0 px-3 pt-2.5 pb-1 text-left">현재 입력과 최신 저장값</TableCaption>
+    <TableHeader className="bg-muted/50"><TableRow className="hover:bg-transparent"><TableHead className="px-3">항목</TableHead><TableHead className="px-3">내 입력</TableHead><TableHead className="px-3">최신 저장본</TableHead></TableRow></TableHeader>
+    <TableBody>{[...new Set([...own.keys(), ...saved.keys()])].map(key => <TableRow key={key}><TableHead scope="row" className="h-auto px-3 py-2 align-top whitespace-normal text-muted-foreground">{key}</TableHead><TableCell className="px-3 py-2 align-top whitespace-normal wrap-anywhere">{own.get(key) ?? '해당 없음'}</TableCell><TableCell className="px-3 py-2 align-top whitespace-normal wrap-anywhere">{saved.get(key) ?? '해당 없음'}</TableCell></TableRow>)}</TableBody>
+  </Table></div>;
 }
 
+/** 라벨 + kit NativeSelect. NativeSelect는 div로 감싸므로 라벨로 감싸지 않고 htmlFor로 잇는다. */
+function SelectRow({ label, value, onChange, children, className = '' }: { label: string; value: string; onChange: (value: string) => void; children: ReactNode; className?: string }) {
+  const id = useId();
+  return <div className={`flex min-w-0 flex-col gap-2 ${className}`.trim()}>
+    <label className="text-sm font-medium text-foreground" htmlFor={id}>{label}</label>
+    <NativeSelect className="w-full" id={id} value={value} onChange={event => onChange(event.target.value)}>{children}</NativeSelect>
+  </div>;
+}
 function PolicyStatus({ label, value, onChange }: { label: string; value: string; onChange: (value: 'draft' | 'active' | 'disabled') => void }) {
-  return <label>{label}<select value={value} onChange={event => onChange(event.target.value as 'draft' | 'active' | 'disabled')}>
+  return <SelectRow className="sm:max-w-xs" label={label} value={value} onChange={next => onChange(next as 'draft' | 'active' | 'disabled')}>
     <option value="draft">초안 · 가격·배송비에 미적용</option><option value="active">사용</option><option value="disabled">사용 안 함</option>
-  </select></label>;
+  </SelectRow>;
 }
 function NumberField({ label, value, onChange, min = 0, max = 2147483647 }: { label: string; value: string; onChange: (value: string) => void; min?: number; max?: number }) {
-  return <label>{label}<input type="number" step="1" min={min} max={max} value={value} onChange={event => onChange(event.target.value)} style={inputStyle} /></label>;
+  return <label className={FIELD_LABEL_CLASS}>{label}<input className={GOOD_NUMBER_INPUT_CLASS} data-slot="input" type="number" step="1" min={min} max={max} value={value} onChange={event => onChange(event.target.value)} /></label>;
 }
 export function GoodsVolumeDiscountFields({ value, onChange }: { value: GoodsTermsDraft['volume']; onChange: (value: GoodsTermsDraft['volume']) => void }) {
   const fields = value.fields, patch = (key: keyof typeof fields, next: string) => onChange({ ...value, fields: { ...fields, [key]: next } });
-  return <div className="col" style={{ gap: 12 }}>
+  return <div className="flex min-w-0 flex-col gap-4">
     <PolicyStatus label="복수구매 할인 상태" value={value.status} onChange={status => onChange({ ...value, status })} />
-    <div className="admin-form-grid">
-      <label>할인 조건<select value={fields.condition} onChange={event => patch('condition', event.target.value)}><option value="quantity">같은 상품 구매 수량</option><option value="regular_subtotal">같은 상품 정상가 합계</option></select></label>
+    <AdminFormGrid>
+      <SelectRow label="할인 조건" value={fields.condition} onChange={next => patch('condition', next)}><option value="quantity">같은 상품 구매 수량</option><option value="regular_subtotal">같은 상품 정상가 합계</option></SelectRow>
       <NumberField label={fields.condition === 'quantity' ? '최소 구매 수량 (개)' : '최소 정상가 합계 (원)'} value={fields.threshold} min={fields.condition === 'quantity' ? 2 : 1} max={fields.condition === 'quantity' ? 2147483647 : 999999999999} onChange={next => patch('threshold', next)} />
-      <label>할인 방식<select value={fields.discountKind} onChange={event => patch('discountKind', event.target.value)}><option value="fixed">개당 정액 할인</option><option value="percent">개당 비율 할인</option></select></label>
+      <SelectRow label="할인 방식" value={fields.discountKind} onChange={next => patch('discountKind', next)}><option value="fixed">개당 정액 할인</option><option value="percent">개당 비율 할인</option></SelectRow>
       <NumberField label={fields.discountKind === 'percent' ? '개당 할인율 (%)' : '개당 할인액 (원)'} value={fields.discountValue} min={1} max={fields.discountKind === 'percent' ? 100 : 2147483647} onChange={next => patch('discountValue', next)} />
-      <label>할인 시작 (한국 시간)<input type="datetime-local" step="any" value={fields.startsAt} onChange={event => patch('startsAt', event.target.value)} style={inputStyle} /></label>
-      <label>할인 종료 (한국 시간)<input type="datetime-local" step="any" value={fields.endsAt} onChange={event => patch('endsAt', event.target.value)} style={inputStyle} /></label>
-    </div>
-    <p className="muted">같은 상품의 옵션별 수량을 합산합니다. 조건을 충족하면 기간 할인이 반영된 단가에서 개당 할인하고, 그다음 쿠폰·적립금을 적용합니다. 비율 할인은 개당 1원 미만을 버립니다. 기간을 모두 비우면 상시 적용합니다.</p>
+      <label className={FIELD_LABEL_CLASS}>할인 시작 (한국 시간)<input className={GOOD_INPUT_CLASS} data-slot="input" type="datetime-local" step="any" value={fields.startsAt} onChange={event => patch('startsAt', event.target.value)} /></label>
+      <label className={FIELD_LABEL_CLASS}>할인 종료 (한국 시간)<input className={GOOD_INPUT_CLASS} data-slot="input" type="datetime-local" step="any" value={fields.endsAt} onChange={event => patch('endsAt', event.target.value)} /></label>
+    </AdminFormGrid>
+    <p className="text-sm text-muted-foreground">같은 상품의 옵션별 수량을 합산합니다. 조건을 충족하면 기간 할인이 반영된 단가에서 개당 할인하고, 그다음 쿠폰·적립금을 적용합니다. 비율 할인은 개당 1원 미만을 버립니다. 기간을 모두 비우면 상시 적용합니다.</p>
   </div>;
 }
 export function GoodsDeliveryPricingFields({ value, onChange }: { value: GoodsTermsDraft['delivery']; onChange: (value: GoodsTermsDraft['delivery']) => void }) {
   const fields = value.fields, patch = (key: keyof typeof fields, next: string) => onChange({ ...value, fields: { ...fields, [key]: next } });
-  return <div className="col" style={{ gap: 12 }}>
+  return <div className="flex min-w-0 flex-col gap-4">
     <PolicyStatus label="확장 배송비 상태" value={value.status} onChange={status => onChange({ ...value, status })} />
-    <div className="admin-form-grid">
-      <label>배송비 결제<select value={fields.paymentMode} onChange={event => patch('paymentMode', event.target.value)}><option value="prepaid">선결제</option><option value="collect">착불</option><option value="buyer_choice">구매자 선택 · 선결제 또는 착불</option></select></label>
-      <label>수량별 배송비<select value={fields.kind} onChange={event => patch('kind', event.target.value)}><option value="existing">기본 상품의 배송비 설정 사용</option><option value="repeat">수량마다 배송비 반복</option><option value="tier2">2구간 배송비</option><option value="tier3">3구간 배송비</option></select></label>
+    <AdminFormGrid>
+      <SelectRow label="배송비 결제" value={fields.paymentMode} onChange={next => patch('paymentMode', next)}><option value="prepaid">선결제</option><option value="collect">착불</option><option value="buyer_choice">구매자 선택 · 선결제 또는 착불</option></SelectRow>
+      <SelectRow label="수량별 배송비" value={fields.kind} onChange={next => patch('kind', next)}><option value="existing">기본 상품의 배송비 설정 사용</option><option value="repeat">수량마다 배송비 반복</option><option value="tier2">2구간 배송비</option><option value="tier3">3구간 배송비</option></SelectRow>
       {fields.kind !== 'existing' && <NumberField label="기본 배송비 (원)" value={fields.baseFee} max={1000000} onChange={next => patch('baseFee', next)} />}
       {fields.kind === 'repeat' && <NumberField label="배송비 부과 단위 (개마다)" value={fields.interval} min={1} onChange={next => patch('interval', next)} />}
       {['tier2', 'tier3'].includes(fields.kind) && <><NumberField label="기본 배송비 적용 한도 (개 이하)" value={fields.firstLimit} min={1} onChange={next => patch('firstLimit', next)} />
         <NumberField label="첫 번째 한도 초과 추가금 (원)" value={fields.extra1} max={1000000} onChange={next => patch('extra1', next)} /></>}
       {fields.kind === 'tier3' && <><NumberField label="두 번째 수량 한도 (개 이하)" value={fields.secondLimit} min={2} onChange={next => patch('secondLimit', next)} />
         <NumberField label="두 번째 한도 초과 추가금 (원)" value={fields.extra2} max={1000000} onChange={next => patch('extra2', next)} /></>}
-    </div>
-    <p className="muted">수량은 같은 상품의 모든 옵션을 합산합니다. 반복 방식은 부과 단위마다 기본 배송비를 더하고, 구간 방식은 기본 배송비에 해당 구간의 추가금 하나를 더합니다. 지역 추가 배송비는 별도로 계산합니다.</p>
-    {fields.paymentMode !== 'prepaid' && <p>착불은 출고지의 수납 주체·방법·증빙·분쟁 연락처가 준비되어야 사용할 수 있습니다. 고객이 배송 시 별도로 낼 금액을 주문서에 표시하며 온라인 환급에 합산하지 않습니다.</p>}
+    </AdminFormGrid>
+    <p className="text-sm text-muted-foreground">수량은 같은 상품의 모든 옵션을 합산합니다. 반복 방식은 부과 단위마다 기본 배송비를 더하고, 구간 방식은 기본 배송비에 해당 구간의 추가금 하나를 더합니다. 지역 추가 배송비는 별도로 계산합니다.</p>
+    {fields.paymentMode !== 'prepaid' && <p className={GOOD_NOTE_CLASS}>착불은 출고지의 수납 주체·방법·증빙·분쟁 연락처가 준비되어야 사용할 수 있습니다. 고객이 배송 시 별도로 낼 금액을 주문서에 표시하며 온라인 환급에 합산하지 않습니다.</p>}
   </div>;
 }
 
@@ -205,32 +222,34 @@ export function GoodsTransactionTermsPanel({ goodId, accountId, disabledReason =
   }
   const locked = !ready || busy || Boolean(workspace?.retry) || Boolean(workspace?.recoveryPending);
   const recoveryValid = recovery?.sessionId === sessionId && recovery?.base.goodId === goodId && (!recovery.retry || recovery.retry.expectedActorId === accountId);
-  return <div className="wc-admin-kit col" ref={root} style={{ gap: 18, minWidth: 0 }}>
-    <p>할인과 확장 배송비는 각각 저장합니다. 초안은 결제에 적용되지 않으며, 기본 상품의 가격·배송 정보를 먼저 저장해야 합니다.</p>
-    {!auth.ready ? <p role="status">로그인 상태를 확인하는 중입니다…</p> : auth.blocked ? <p role="alert">로그인 계정 또는 세션이 바뀌었습니다. 현재 계정으로 상품 화면을 다시 열어주세요.</p> : <>
-      {error && <p role="alert">{error}</p>}{message && <p role="status">{message}</p>}
-      {stored.unavailable && <p role="status">브라우저 임시저장을 사용할 수 없습니다. 화면을 나가기 전에 설정을 저장해주세요.</p>}
-      {workspace?.recoveryPending && <div className="card col" style={{ padding: 12, gap: 8 }}><p>{recoveryValid ? '같은 로그인 세션에서 저장하지 않은 할인·배송 입력이 있습니다.' : '이전 로그인 세션이거나 형식을 확인할 수 없는 임시 입력입니다.'}</p>
-        {recoveryValid && <button type="button" className="btn" onClick={restore} disabled={busy}>임시 입력 복원</button>}
-        <button type="button" className="btn btn-ghost" disabled={busy} onClick={() => { storage.discard(); setWorkspace({ ...workspace, recoveryPending: false }); }}>임시 입력 버리기</button></div>}
-      {showDisabledReason && disabledReason && <p role="status">{disabledReason}</p>}
-      {!workspace ? <button className="btn btn-ghost" type="button" onClick={() => void readLatest()} disabled={busy}>설정 다시 불러오기</button> : <>
-        {workspace.retry && <div role="alert"><p>이전 저장의 결과가 아직 확인되지 않았습니다. 입력과 요청 번호를 보존했습니다.</p><button type="button" className="btn" disabled={busy || Boolean(disabledReason)} onClick={() => void save(workspace.retry!.volume ? 'volume' : 'delivery', workspace.retry!)}>같은 요청으로 결과 확인</button></div>}
-        {workspace.latest && <section className="card col" aria-label="할인·배송 최신 저장본 비교" style={{ padding: 14, gap: 10 }}>
-          <strong>최신 저장본 · 버전 {workspace.latest.revision}</strong>
-          <p>복수구매 할인: {stateLabel(workspace.latest.volume?.status)} · 확장 배송비: {stateLabel(workspace.latest.delivery?.status)}</p>
-          <details><summary>현재 입력과 최신 저장값 비교</summary><PolicyComparison draft={workspace.draft} latest={goodsTermsDraft(workspace.latest)} /></details>
-          <button type="button" className="btn" onClick={() => applyLatest(true)} disabled={busy || Boolean(workspace.retry)}>내 입력 유지 · 최신 버전을 저장 기준으로</button>
-          <button type="button" className="btn btn-ghost" onClick={() => applyLatest(false)} disabled={busy || Boolean(workspace.retry)}>내 입력 버리고 최신 저장본 불러오기</button>
+  return <div className="flex min-w-0 flex-col gap-4" data-goods-transaction-terms="" ref={root}>
+    <p className="text-sm text-muted-foreground">할인과 확장 배송비는 각각 저장합니다. 초안은 결제에 적용되지 않으며, 기본 상품의 가격·배송 정보를 먼저 저장해야 합니다.</p>
+    {!auth.ready ? <p className="text-sm text-muted-foreground" role="status">로그인 상태를 확인하는 중입니다…</p> : auth.blocked ? <p className="text-sm text-destructive" role="alert">로그인 계정 또는 세션이 바뀌었습니다. 현재 계정으로 상품 화면을 다시 열어주세요.</p> : <>
+      {error && <p className="text-sm text-destructive" role="alert">{error}</p>}{message && <p className="text-sm font-medium" role="status">{message}</p>}
+      {stored.unavailable && <p className="text-sm text-muted-foreground" role="status">브라우저 임시저장을 사용할 수 없습니다. 화면을 나가기 전에 설정을 저장해주세요.</p>}
+      {workspace?.recoveryPending && <div className={`${GOOD_NOTE_CLASS} flex flex-col items-start gap-2`}><p>{recoveryValid ? '같은 로그인 세션에서 저장하지 않은 할인·배송 입력이 있습니다.' : '이전 로그인 세션이거나 형식을 확인할 수 없는 임시 입력입니다.'}</p>
+        <div className="flex flex-wrap gap-2">{recoveryValid && <button type="button" className={buttonVariants({ size: 'sm' })} data-slot="button" onClick={restore} disabled={busy}>임시 입력 복원</button>}
+        <button type="button" className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" disabled={busy} onClick={() => { storage.discard(); setWorkspace({ ...workspace, recoveryPending: false }); }}>임시 입력 버리기</button></div></div>}
+      {showDisabledReason && disabledReason && <p className={GOOD_NOTE_CLASS} role="status">{disabledReason}</p>}
+      {!workspace ? <button className={`${buttonVariants({ variant: 'outline' })} self-start`} data-slot="button" type="button" onClick={() => void readLatest()} disabled={busy}>설정 다시 불러오기</button> : <>
+        {workspace.retry && <div className={RETRY_NOTE_CLASS} role="alert"><p>이전 저장의 결과가 아직 확인되지 않았습니다. 입력과 요청 번호를 보존했습니다.</p><button type="button" className={buttonVariants({ size: 'sm' })} data-slot="button" disabled={busy || Boolean(disabledReason)} onClick={() => void save(workspace.retry!.volume ? 'volume' : 'delivery', workspace.retry!)}>같은 요청으로 결과 확인</button></div>}
+        {workspace.latest && <section className={GOOD_SUBPANEL_CLASS} aria-label="할인·배송 최신 저장본 비교">
+          <strong className="text-sm font-medium">최신 저장본 · 버전 {workspace.latest.revision}</strong>
+          <p className="text-sm text-muted-foreground">복수구매 할인: {stateLabel(workspace.latest.volume?.status)} · 확장 배송비: {stateLabel(workspace.latest.delivery?.status)}</p>
+          <details className="min-w-0"><summary className="w-fit cursor-pointer rounded-md text-sm font-medium underline-offset-4 outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50">현재 입력과 최신 저장값 비교</summary><div className="mt-2"><PolicyComparison draft={workspace.draft} latest={goodsTermsDraft(workspace.latest)} /></div></details>
+          <div className="flex flex-wrap gap-2"><button type="button" className={buttonVariants({ size: 'sm' })} data-slot="button" onClick={() => applyLatest(true)} disabled={busy || Boolean(workspace.retry)}>내 입력 유지 · 최신 버전을 저장 기준으로</button>
+          <button type="button" className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" onClick={() => applyLatest(false)} disabled={busy || Boolean(workspace.retry)}>내 입력 버리고 최신 저장본 불러오기</button></div>
         </section>}
-        <section aria-label="복수구매 할인" className="card col" style={{ padding: 16, gap: 12, minWidth: 0 }}><h3>복수구매 할인 <small>저장 상태: {stateLabel(workspace.base.volume?.status)}</small></h3>
-          <fieldset disabled={locked} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}><GoodsVolumeDiscountFields value={workspace.draft.volume} onChange={value => edit('volume', value)} /></fieldset>
-          <button type="button" className="btn" disabled={locked || Boolean(disabledReason)} onClick={() => void save('volume')}>복수구매 할인 저장</button></section>
-        <section aria-label="착불·수량별 배송비" className="card col" style={{ padding: 16, gap: 12, minWidth: 0 }}><h3>착불·수량별 배송비 <small>저장 상태: {stateLabel(workspace.base.delivery?.status)}</small></h3>
-          <fieldset disabled={locked} style={{ border: 0, padding: 0, margin: 0, minWidth: 0 }}><GoodsDeliveryPricingFields value={workspace.draft.delivery} onChange={value => edit('delivery', value)} /></fieldset>
-          <button type="button" className="btn" disabled={locked || Boolean(disabledReason)} onClick={() => void save('delivery')}>확장 배송비 저장</button></section>
-        <button className="btn btn-ghost" type="button" onClick={() => void readLatest()} disabled={busy}>최신 저장본 비교</button>
-        <small role="status">{busy ? '요청 처리 중…' : workspace.retry ? '결과 확인 필요' : dirty ? '미저장 입력 · 이 브라우저에 7일 임시보관' : '서버 저장값과 동일'}</small>
+        <section aria-label="복수구매 할인" className={GOOD_SUBPANEL_CLASS}><h3 className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-base leading-snug font-medium">복수구매 할인 <small className="text-xs font-normal text-muted-foreground">저장 상태: {stateLabel(workspace.base.volume?.status)}</small></h3>
+          <fieldset disabled={locked} className="m-0 min-w-0 border-0 p-0"><GoodsVolumeDiscountFields value={workspace.draft.volume} onChange={value => edit('volume', value)} /></fieldset>
+          <button type="button" className={`${buttonVariants()} self-start`} data-slot="button" disabled={locked || Boolean(disabledReason)} onClick={() => void save('volume')}>복수구매 할인 저장</button></section>
+        <section aria-label="착불·수량별 배송비" className={GOOD_SUBPANEL_CLASS}><h3 className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-base leading-snug font-medium">착불·수량별 배송비 <small className="text-xs font-normal text-muted-foreground">저장 상태: {stateLabel(workspace.base.delivery?.status)}</small></h3>
+          <fieldset disabled={locked} className="m-0 min-w-0 border-0 p-0"><GoodsDeliveryPricingFields value={workspace.draft.delivery} onChange={value => edit('delivery', value)} /></fieldset>
+          <button type="button" className={`${buttonVariants()} self-start`} data-slot="button" disabled={locked || Boolean(disabledReason)} onClick={() => void save('delivery')}>확장 배송비 저장</button></section>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+          <button className={buttonVariants({ variant: 'outline' })} data-slot="button" type="button" onClick={() => void readLatest()} disabled={busy}>최신 저장본 비교</button>
+          <small className="text-xs text-muted-foreground" role="status">{busy ? '요청 처리 중…' : workspace.retry ? '결과 확인 필요' : dirty ? '미저장 입력 · 이 브라우저에 7일 임시보관' : '서버 저장값과 동일'}</small>
+        </div>
       </>}
     </>}
   </div>;

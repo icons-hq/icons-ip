@@ -51,7 +51,7 @@ try {
     assert.equal(await page.locator('body > div[aria-hidden=true]').count(),0);
   });
   await check('fixed opaque save bar occludes content but still detects collisions inside the bar', async () => {
-    const bar='<div class="admin-good-workspace__save" style="position:fixed;top:150px;left:0;width:390px;height:150px;background:rgb(255,255,255)"><button style="position:absolute;top:10px;left:16px">고정 저장</button></div>';
+    const bar='<div data-good-workspace-save="" style="position:fixed;top:150px;left:0;width:390px;height:150px;background:rgb(255,255,255)"><button style="position:absolute;top:10px;left:16px">고정 저장</button></div>';
     assert.ok(!(await measure(html('', '', body.replace('</main>',bar+'</main>')))).findings.some(f=>f.code==='control-collision'));
     const collision=bar.replace('</div>','<button style="position:absolute;top:10px;left:16px">다른 저장</button></div>');
     assert.ok((await measure(html('', '', body.replace('</main>',collision+'</main>')))).findings.some(f=>f.code==='control-collision'));

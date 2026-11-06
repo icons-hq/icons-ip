@@ -45,7 +45,6 @@ import '../../app/styles/admin-goods-announcements.css';
 import '../../app/styles/admin-photo-library.css';
 import '../../app/styles/admin-goods-relations.css';
 import '../../app/styles/admin-goods-attributes.css';
-import '../../app/styles/admin-goods-drafts.css';
 import '../../app/styles/admin-review-insights.css';
 import '../../app/styles/admin-coupons.css';
 import '../../app/styles/admin-shipping-settings.css';
@@ -55,6 +54,8 @@ import '../../app/styles/admin-goods-notice-presets.css';
 import '../../app/styles/admin-order-detail.css';
 import '../../app/styles/admin-customer-detail.css';
 import '../../app/styles/admin-store-settings.css';
+/* 앱 레이아웃처럼 옛 클래스 어휘의 kit 옷을 관리자 CSS 뒤에 싣는다(ADR-0028). */
+import '../../app/styles/admin-kit-vocabulary.css';
 
 type FixtureView = 'goods' | 'filter-date' | 'options' | 'editor' | 'inquiry-settings' | 'kc-presets' | 'kc-editor' | 'shell' | 'overview' | 'grid' | 'cs-qna' | 'cs-reviews' | 'cs-inquiries' | 'store-editor' | 'stats' | 'purchase-restrictions' | 'announcements' | 'announcement-public' | 'coupons' | 'claims' | 'orders';
 
