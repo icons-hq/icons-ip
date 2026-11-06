@@ -56,7 +56,7 @@ export function PgSettlementImportControl({ query, enabled, connectedMode, initi
     finally { active.current = false; continuing.current = false; if (mounted.current) setRunning(false); }
   };
   const completedOrFailed = job && (job.state === 'complete' || job.state === 'failed');
-  return <section className="flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4 text-sm leading-relaxed text-card-foreground sm:p-5" aria-label="PG 자료 가져오기">
+  return <section className="flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4 text-sm leading-relaxed text-card-foreground sm:p-5 print:hidden" aria-label="PG 자료 가져오기">
     <div className="flex flex-col gap-1.5"><strong className="text-base font-medium">PG 자료 가져오기</strong>
       <p className="text-muted-foreground">{enabled ? `토스페이먼츠 ${connectedMode === 'live' ? '실거래' : '테스트'} 연결` : 'PG 정산 연결 꺼짐'} · {query.startDate} ~ {query.endDate}</p>
       <p className="text-muted-foreground">각 페이지를 두 번 조회해 거래 내역을 대조합니다. 창을 닫아도 저장된 지점부터 다시 시작할 수 있습니다.</p>
@@ -65,7 +65,7 @@ export function PgSettlementImportControl({ query, enabled, connectedMode, initi
       {job.state === 'complete' ? '수집 완료' : job.state === 'failed' ? '수집 중단' : job.scan === 2 ? '자료 대조 중' : '자료 수집 중'}
       {' · '}{job.recordCount.toLocaleString('ko-KR')}건{unfinished ? ` · ${job.nextPage}페이지 대기` : ''}
     </p> : null}
-    <div className="flex flex-wrap items-center gap-2 print:hidden">
+    <div className="flex flex-wrap items-center gap-2">
       <Button disabled={running || !canCollect || recoveryRequired || Boolean(completedOrFailed)} type="button" onClick={() => void run()}>
         {running ? '조회 중…' : uncertain && !job ? '같은 수집 요청 확인' : unfinished ? '이어서 수집' : '자료 가져오기'}
       </Button>

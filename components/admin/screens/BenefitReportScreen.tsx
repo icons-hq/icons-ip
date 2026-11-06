@@ -32,7 +32,7 @@ export function BenefitReportControls({ filters, admin, now = new Date() }: { fi
   const dates = adminStatsDateInputs(filters, now);
   return <>
     <nav aria-label="혜택 종류" className={TABS}><Link className={TAB} aria-current="page" href={BENEFIT_REPORT_PATH}>쿠폰</Link>{admin ? <Link className={TAB} href="/admin/sales/store-credits">적립금 지급내역</Link> : null}</nav>
-    <form className="flex flex-col gap-3 rounded-xl border bg-card p-4 text-card-foreground" data-sales-filters="" action={BENEFIT_REPORT_PATH} method="get" key={benefitReportHref(filters)}>
+    <form className="flex flex-col gap-3 rounded-xl border bg-card p-4 text-card-foreground print:hidden" data-sales-filters="" action={BENEFIT_REPORT_PATH} method="get" key={benefitReportHref(filters)}>
       <h2 className={SECTION_TITLE}>혜택 지급 조회</h2>
       {filters.code ? <><input type="hidden" name="code" value={filters.code} /><input type="hidden" name="detail" value={filters.detail} /></> : null}
       <div className="flex flex-wrap items-end gap-x-5 gap-y-3">

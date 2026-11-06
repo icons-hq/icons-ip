@@ -15,7 +15,7 @@ import {Input} from '@/components/admin/kit/ui/input';
 import {Label} from '@/components/admin/kit/ui/label';
 import {NativeSelect} from '@/components/admin/kit/ui/native-select';
 /* 배송 건 처리 막대·출고지시 팝업(템플릿 룩, ADR-0028). 처리 순서·확인·양식 선택 계약은 그대로다. */
-const WORKBAR='flex flex-wrap items-center gap-2 rounded-lg border bg-muted/40 px-3 py-2';
+const WORKBAR='flex flex-wrap items-center gap-2 rounded-lg border bg-muted/40 px-3 py-2 print:hidden';
 const CONTROL='flex min-w-0 max-w-full items-center gap-1.5';
 const WARNING='text-[var(--wc-warning)]';
 const FIELD='flex min-w-0 flex-col gap-1.5 [&>span]:font-medium';

@@ -71,7 +71,7 @@ export function PgSettlementScreen({ filters, report, connection, operationId, a
       <p>승인과 취소, 통화를 각각 구분해 합산합니다. 취소 원문의 부호를 임의로 바꾸거나 순입금액으로 계산하지 않습니다.</p>
       <p>코페이 정산 원본 수집과 은행 입금 대사는 아직 연결되지 않았습니다. 이 화면의 자료는 토스페이먼츠 조회 결과입니다.</p>
     </SalesGuide>
-    <form action={PG_SETTLEMENT_PATH} className="flex flex-col gap-3 rounded-xl border bg-card p-4 text-card-foreground" data-sales-filters="" method="get" key={href}>
+    <form action={PG_SETTLEMENT_PATH} className="flex flex-col gap-3 rounded-xl border bg-card p-4 text-card-foreground print:hidden" data-sales-filters="" method="get" key={href}>
       <input type="hidden" name="tab" value={filters.tab} />
       {filters.importId ? <input type="hidden" name="import" value={filters.importId} /> : null}
       <div className="flex flex-wrap items-end gap-x-5 gap-y-3">

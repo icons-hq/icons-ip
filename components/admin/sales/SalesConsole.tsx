@@ -56,7 +56,7 @@ export function SalesFilterPanel({
   const action = currentHref.split('?')[0];
   const searchHint = ['검색어 입력', '검색어를 입력하세요'].includes(search.placeholder.trim()) ? null : search.placeholder;
   const hidden = salesListHiddenFields(currentHref, ['from', 'to', 'dateField', 'query', 'q', 'field', 'status', 'stage', 'reasonType', 'originId', 'method', 'paymentMethod', 'state', 'tab', ...hiddenFieldExclusions]);
-  return <form action={action} className="flex flex-col gap-3 rounded-xl border bg-card p-4 text-sm text-card-foreground" data-sales-filters="" method="get" key={currentHref}>
+  return <form action={action} className="flex flex-col gap-3 rounded-xl border bg-card p-4 text-sm text-card-foreground print:hidden" data-sales-filters="" method="get" key={currentHref}>
     {Object.entries(hidden).map(([name, value]) => <input key={name} type="hidden" name={name} value={value} />)}
     <div className="flex flex-wrap items-end gap-x-5 gap-y-3">
       {date ? <SalesFilterField label="조회기간" htmlFor={`${id}-date-field`}>
@@ -89,7 +89,7 @@ export function SalesResultsHeader({
   const hidden = salesListHiddenFields(currentHref, ['sort', 'pageSize']);
   return <div className="flex flex-wrap items-center gap-2" data-sales-results-heading="">
     <SalesResultsTitle total={total} unit={unit} />
-    <form action={currentHref.split('?')[0]} method="get" className="flex max-w-full flex-wrap items-center gap-1.5" key={currentHref}>
+    <form action={currentHref.split('?')[0]} method="get" className="flex max-w-full flex-wrap items-center gap-1.5 print:hidden" key={currentHref}>
       {Object.entries(hidden).map(([name, value]) => <input key={name} type="hidden" name={name} value={value} />)}
       <SalesSelect name="sort" value={sort} options={sortOptions} label="목록 정렬" size="sm" />
       <SalesSelect name="pageSize" value={String(pageSize)} options={pageSizes.map((size) => ({ value: String(size), label: `${size}개씩 보기` }))} label="목록 수" size="sm" />

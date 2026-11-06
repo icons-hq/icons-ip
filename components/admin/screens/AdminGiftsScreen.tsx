@@ -24,7 +24,7 @@ export function AdminGiftsScreen({ data }: { data: AdminGiftData }) {
         options={[{ value: 'all', label: '전체' }, ...ADMIN_GIFT_STATES.map(state => ({ value: state, label: ADMIN_GIFT_STATE_LABELS[state] }))]} /></SalesFilterField>
     </SalesFilterPanel>
     <div className="flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4 text-card-foreground" data-sales-results=""><div className="flex flex-wrap items-center gap-2" data-sales-results-heading=""><SalesResultsTitle total={data.total} />
-      <form method="get" action="/admin/sales/gifts" className="flex flex-wrap items-center gap-1.5" key={currentHref}>
+      <form method="get" action="/admin/sales/gifts" className="flex flex-wrap items-center gap-1.5 print:hidden" key={currentHref}>
         {[...query].map(([name, value]) => <input key={name} type="hidden" name={name} value={value} />)}
         <SalesSelect name="pageSize" value={String(filters.pageSize)} options={[50, 100, 200].map(size => ({ value: String(size), label: `${size}개씩 보기` }))} label="목록 수" size="sm" />
         <Button size="sm" type="submit" variant="outline">적용</Button></form>
