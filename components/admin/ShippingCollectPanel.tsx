@@ -10,6 +10,13 @@ import { createClient } from '@/lib/supabase/client';
 import { getSupabaseConfig } from '@/lib/supabase/config';
 import { krw } from '@/lib/format';
 import { formatOrderDateTime } from '@/lib/orders';
+import { buttonVariants } from '@/components/admin/kit/ui/button';
+/* 템플릿 룩(ADR-0028). 입력은 네이티브 그대로이고(어휘 CSS가 kit 모양을 입힌다), 버튼은 kit 버튼 모양이다. */
+const PRIMARY = buttonVariants({ size: 'sm' });
+const OUTLINE = buttonVariants({ size: 'sm', variant: 'outline' });
+const FIELD = 'flex min-w-0 flex-col gap-1.5';
+const FIELD_LABEL = 'font-medium';
+const HINT = 'text-xs text-muted-foreground';
 const blank = { event: '', amount: '', occurredAt: '', party: '', reference: '', note: '' };
 type CollectScope = ReturnType<typeof createGoodsDescriptionToolScope>;
 function CollectEvidenceForm({ context, obligation, onSaved, onReload, scope, sessionId, readReady }: {
@@ -82,29 +89,29 @@ function CollectEvidenceForm({ context, obligation, onSaved, onReload, scope, se
     window.addEventListener('beforeunload', unload);document.addEventListener('click', navigation, true);
     return () => { window.removeEventListener('beforeunload', unload);document.removeEventListener('click', navigation, true); };
   }, [unresolved, pending, draft]);
-  return <form className="col" onSubmit={submit} style={{ gap: 12 }}>
-    {recovery ? <p role="alert">이전 요청 {recovery.operationId}의 결과를 먼저 확인해주세요. 요청 번호만 이 탭에 보관하며 증빙 본문은 저장하지 않습니다.</p> : null}
-    {mustConfirm && !recovery ? <p role="status">현재 상태: {SHIPPING_COLLECT_STATE_LABEL[obligation.state]} · 기록 {obligation.revision}. <button className="btn btn--ghost" type="button" disabled={pending || !readReady} onClick={() => { setRevision(obligation.revision);setMustConfirm(false); }}>최신 상태 확인 · 새 증빙 입력</button></p> : null}
-    {changed ? <p role="alert">다른 기록이 추가됐습니다. 입력은 유지됩니다. 최신 이력을 확인한 뒤 <button className="btn btn--ghost" type="button" disabled={pending || unresolved} onClick={() => setRevision(obligation.revision)}>최신 기준 적용</button></p> : null}
-    <fieldset disabled={pending || unresolved || changed || mustConfirm || !readReady} className="col" style={{ border: 0, padding: 0, gap: 10 }}>
-      <legend>실제 수납·환급 증빙 추가</legend>
-      <label>기록 종류<select required value={draft.event} onChange={event => update('event', event.target.value)}><option value="">선택해주세요</option>
+  return <form className="flex min-w-0 flex-col gap-3" onSubmit={submit}>
+    {recovery ? <p className="text-destructive" role="alert">이전 요청 {recovery.operationId}의 결과를 먼저 확인해주세요. 요청 번호만 이 탭에 보관하며 증빙 본문은 저장하지 않습니다.</p> : null}
+    {mustConfirm && !recovery ? <p className="flex flex-wrap items-center gap-2" role="status">현재 상태: {SHIPPING_COLLECT_STATE_LABEL[obligation.state]} · 기록 {obligation.revision}. <button className={OUTLINE} data-slot="button" type="button" disabled={pending || !readReady} onClick={() => { setRevision(obligation.revision);setMustConfirm(false); }}>최신 상태 확인 · 새 증빙 입력</button></p> : null}
+    {changed ? <p className="flex flex-wrap items-center gap-2 text-destructive" role="alert">다른 기록이 추가됐습니다. 입력은 유지됩니다. 최신 이력을 확인한 뒤 <button className={OUTLINE} data-slot="button" type="button" disabled={pending || unresolved} onClick={() => setRevision(obligation.revision)}>최신 기준 적용</button></p> : null}
+    <fieldset disabled={pending || unresolved || changed || mustConfirm || !readReady} className="m-0 flex min-w-0 flex-col gap-3 border-0 p-0">
+      <legend className="mb-1 font-medium">실제 수납·환급 증빙 추가</legend>
+      <label className={FIELD}><span className={FIELD_LABEL}>기록 종류</span><select className="w-full sm:w-72" required value={draft.event} onChange={event => update('event', event.target.value)}><option value="">선택해주세요</option>
         {SHIPPING_COLLECT_WRITE_EVENTS.filter(value => value === 'correction' ? latest && latest.event !== 'planned' && latest.event !== 'correction' : !terminal).map(value => <option value={value} key={value}>{value === 'correction' ? '최신 기록 정정 (반대 기록 추가)' : SHIPPING_COLLECT_STATE_LABEL[value]}</option>)}</select></label>
-      {draft.event === 'correction' && latest ? <p>최근 기록 {latest.operationId}을 취소하는 반대 기록입니다. 정정 금액은 {krw(latest.amount)}이며 올바른 사실은 정정 후 새로 기록해주세요.</p> : null}
-      <label>실제 확인 금액 (원)<input required inputMode="numeric" pattern="[0-9]+" value={draft.amount} onChange={event => update('amount', event.target.value)} /></label>
-      <small>주문 당시 착불 금액 {krw(obligation.amount)}. 미수납 종료는 0원, 수납·전액 환급은 예정 금액과 일치해야 합니다.</small>
-      <label>실제 발생 시각 (한국 시간)<input required type="datetime-local" step="1" value={draft.occurredAt} onChange={event => update('occurredAt', event.target.value)} /></label>
-      <button className="btn btn--ghost" type="button" onClick={() => update('occurredAt', new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 19))}>현재 시각 입력</button>
-      <label>수납·반환 주체<input required maxLength={200} value={draft.party} onChange={event => update('party', event.target.value)} /></label>
-      <label>운송사 수납·환급 증빙 번호 또는 참조<input required maxLength={1000} value={draft.reference} onChange={event => update('reference', event.target.value)} /></label>
-      <label>확인 내용<input required maxLength={1000} value={draft.note} onChange={event => update('note', event.target.value)} /></label>
-      <small>카드번호·계좌번호·수령인 연락처는 입력하지 마세요. 배송 완료만으로 수납된 것으로 기록하지 않습니다.</small>
+      {draft.event === 'correction' && latest ? <p className="text-muted-foreground">최근 기록 {latest.operationId}을 취소하는 반대 기록입니다. 정정 금액은 {krw(latest.amount)}이며 올바른 사실은 정정 후 새로 기록해주세요.</p> : null}
+      <label className={FIELD}><span className={FIELD_LABEL}>실제 확인 금액 (원)</span><input className="w-full tabular-nums sm:w-48" required inputMode="numeric" pattern="[0-9]+" value={draft.amount} onChange={event => update('amount', event.target.value)} /></label>
+      <small className={HINT}>주문 당시 착불 금액 {krw(obligation.amount)}. 미수납 종료는 0원, 수납·전액 환급은 예정 금액과 일치해야 합니다.</small>
+      <label className={FIELD}><span className={FIELD_LABEL}>실제 발생 시각 (한국 시간)</span><input className="w-full sm:w-64" required type="datetime-local" step="1" value={draft.occurredAt} onChange={event => update('occurredAt', event.target.value)} /></label>
+      <button className={`${OUTLINE} w-fit`} data-slot="button" type="button" onClick={() => update('occurredAt', new Date(Date.now() + 9 * 3600000).toISOString().slice(0, 19))}>현재 시각 입력</button>
+      <label className={FIELD}><span className={FIELD_LABEL}>수납·반환 주체</span><input className="w-full" required maxLength={200} value={draft.party} onChange={event => update('party', event.target.value)} /></label>
+      <label className={FIELD}><span className={FIELD_LABEL}>운송사 수납·환급 증빙 번호 또는 참조</span><input className="w-full" required maxLength={1000} value={draft.reference} onChange={event => update('reference', event.target.value)} /></label>
+      <label className={FIELD}><span className={FIELD_LABEL}>확인 내용</span><input className="w-full" required maxLength={1000} value={draft.note} onChange={event => update('note', event.target.value)} /></label>
+      <small className={HINT}>카드번호·계좌번호·수령인 연락처는 입력하지 마세요. 배송 완료만으로 수납된 것으로 기록하지 않습니다.</small>
     </fieldset>
-    {message ? <p role={uncertain ? 'alert' : 'status'}>{message}</p> : null}
-    <div className="row" style={{ gap: 8 }}>
-      {unresolved ? <><button className="btn" type="button" disabled={pending} onClick={() => void checkPrevious()}>이전 결과 확인{request ? ' 후 같은 요청 재시도' : ''}</button>{!request ? <button className="btn btn--ghost" type="button" disabled={pending} onClick={() => void checkPrevious(true)}>이전 요청 봉인 후 다시 입력</button> : null}</>
-        : <button className="btn" disabled={pending || changed || mustConfirm || !readReady} type="submit">{pending ? '기록 중…' : '증빙 확인 후 기록'}</button>}
-      <button className="btn btn--ghost" type="button" disabled={pending} onClick={onReload}>최신 내역 불러오기</button>
+    {message ? <p className={uncertain ? 'text-destructive' : 'text-muted-foreground'} role={uncertain ? 'alert' : 'status'}>{message}</p> : null}
+    <div className="flex flex-wrap gap-2">
+      {unresolved ? <><button className={PRIMARY} data-slot="button" type="button" disabled={pending} onClick={() => void checkPrevious()}>이전 결과 확인{request ? ' 후 같은 요청 재시도' : ''}</button>{!request ? <button className={OUTLINE} data-slot="button" type="button" disabled={pending} onClick={() => void checkPrevious(true)}>이전 요청 봉인 후 다시 입력</button> : null}</>
+        : <button className={PRIMARY} data-slot="button" disabled={pending || changed || mustConfirm || !readReady} type="submit">{pending ? '기록 중…' : '증빙 확인 후 기록'}</button>}
+      <button className={OUTLINE} data-slot="button" type="button" disabled={pending} onClick={onReload}>최신 내역 불러오기</button>
     </div>
   </form>;
 }
@@ -125,15 +132,17 @@ function VerifiedShippingCollectPanel({ orderId, expectedActorId, canManage, sco
     setLoaded(previous => ({ key, rows: previous?.rows?.map(row => row.shipmentId === value.shipmentId && row.revision <= value.revision ? value : row) }));reload();
   };
   if (visible?.rows?.length === 0) return null;
-  return <section className="card col wc-admin-kit" aria-label="착불 수납 원장" style={{ padding: 16, gap: 16 }}>
-    <h3 style={{ margin: 0 }}>착불 수납 원장</h3><p>주문 시 온라인으로 결제하지 않은 배송비입니다. 실제 운송사 수납·환급 증빙을 별도로 기록합니다.</p>
-    {!visible || visible.key !== key ? <p role="status">착불 수납 내역을 확인하는 중입니다…</p> : null}
-    {visible?.error ? <><p role="alert">{visible.error}</p><button className="btn" onClick={reload}>다시 불러오기</button></> : null}
-    {visible?.rows?.map(obligation => <article className="col" key={`${contextKey}:${obligation.shipmentId}`} style={{ gap: 12 }}>
-        <h4 style={{ margin: 0 }}>{obligation.originName} · {krw(obligation.amount)}</h4><p>{SHIPPING_COLLECT_STATE_LABEL[obligation.state]} · 기록 {obligation.revision}</p>
-        <details><summary>수납·환급 이력 {obligation.events.length}건</summary><ol>{obligation.events.map(event => <li key={event.operationId}>
-          <strong>{event.event === 'correction' ? '증빙 정정' : SHIPPING_COLLECT_STATE_LABEL[event.event]}</strong> · {krw(event.amount)} · 기록 {formatOrderDateTime(event.recordedAt)}
-          {event.occurredAt ? <p>발생 {formatOrderDateTime(event.occurredAt)}</p> : null}{event.party ? <p>수납·반환 주체: {event.party}</p> : null}{event.reversesOperationId ? <p>정정 대상: {event.reversesOperationId}</p> : null}{event.reference ? <p>{event.reference}</p> : null}{event.note ? <p>{event.note}</p> : null}
+  return <section className="flex min-w-0 flex-col gap-4 rounded-xl border bg-card p-4 text-sm text-card-foreground break-words" aria-label="착불 수납 원장" data-shipping-collect="">
+    <div className="flex flex-col gap-1">
+      <h3 className="text-base leading-snug font-medium">착불 수납 원장</h3><p className="text-muted-foreground">주문 시 온라인으로 결제하지 않은 배송비입니다. 실제 운송사 수납·환급 증빙을 별도로 기록합니다.</p>
+    </div>
+    {!visible || visible.key !== key ? <p className="text-muted-foreground" role="status">착불 수납 내역을 확인하는 중입니다…</p> : null}
+    {visible?.error ? <><p className="text-destructive" role="alert">{visible.error}</p><button className={`${PRIMARY} w-fit`} data-slot="button" type="button" onClick={reload}>다시 불러오기</button></> : null}
+    {visible?.rows?.map(obligation => <article className="flex min-w-0 flex-col gap-3 rounded-lg border p-3" key={`${contextKey}:${obligation.shipmentId}`}>
+        <h4 className="font-medium">{obligation.originName} · <span className="tabular-nums">{krw(obligation.amount)}</span></h4><p>{SHIPPING_COLLECT_STATE_LABEL[obligation.state]} · 기록 {obligation.revision}</p>
+        <details className="rounded-lg bg-muted/40 px-3 py-2"><summary className="cursor-pointer font-medium">수납·환급 이력 {obligation.events.length}건</summary><ol className="mt-2 flex flex-col gap-2 border-l pl-4">{obligation.events.map(event => <li key={event.operationId}>
+          <strong className="font-medium">{event.event === 'correction' ? '증빙 정정' : SHIPPING_COLLECT_STATE_LABEL[event.event]}</strong> · {krw(event.amount)} · 기록 {formatOrderDateTime(event.recordedAt)}
+          {event.occurredAt ? <p>발생 {formatOrderDateTime(event.occurredAt)}</p> : null}{event.party ? <p>수납·반환 주체: {event.party}</p> : null}{event.reversesOperationId ? <p>정정 대상: {event.reversesOperationId}</p> : null}{event.reference ? <p>{event.reference}</p> : null}{event.note ? <p className="text-muted-foreground">{event.note}</p> : null}
         </li>)}</ol></details>
         {canManage ? <CollectEvidenceForm readReady={visible.key === key && !visible.error} scope={scope} sessionId={sessionId} context={{ orderId, expectedActorId }} obligation={obligation} onSaved={saved} onReload={reload} /> : null}
       </article>)}
@@ -157,7 +166,7 @@ export function ShippingCollectPanel(props: ShippingCollectEventContext & { canM
     }).data.subscription : null;
     return () => { scope.dispose();subscription?.unsubscribe();window.removeEventListener(INQUIRY_DRAFT_SIGN_OUT_EVENT, signOut); };
   }, [scope]);
-  if (!auth.ready) return <p role="status">착불 원장 조회를 위해 로그인 상태를 확인하는 중입니다…</p>;
-  if (auth.blocked || !sessionId) return <p role="alert">계정 또는 로그인 세션이 바뀌었습니다. 현재 계정으로 주문 화면을 다시 열어주세요.</p>;
+  if (!auth.ready) return <p className="text-sm text-muted-foreground" role="status">착불 원장 조회를 위해 로그인 상태를 확인하는 중입니다…</p>;
+  if (auth.blocked || !sessionId) return <p className="text-sm text-destructive" role="alert">계정 또는 로그인 세션이 바뀌었습니다. 현재 계정으로 주문 화면을 다시 열어주세요.</p>;
   return <VerifiedShippingCollectPanel {...props} key={`${props.orderId}:${props.expectedActorId}:${sessionId}`} scope={scope} sessionId={sessionId} />;
 }
