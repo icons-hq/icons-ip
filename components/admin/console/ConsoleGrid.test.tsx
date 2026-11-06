@@ -249,7 +249,7 @@ describe('ConsoleGrid 선택', () => {
     const html = tableMarkup(renderToStaticMarkup(
       <ConsoleGrid caption="주문 목록" columns={COLUMNS} rows={[ROWS[0], { ...ROWS[1], selectable: false }]} selectable />,
     ));
-    const hit = 'class="absolute inset-0 flex cursor-pointer items-center justify-center"';
+    const hit = 'class="absolute inset-0 flex cursor-pointer items-center justify-center print:static"';
     expect(html.match(new RegExp(`<label ${hit}><input`, 'g'))).toHaveLength(2);
     expect(html).toContain(`<label ${hit}><input aria-label="전체 선택"`);
     expect(html).toContain(`<label ${hit}><input aria-label="o1 선택"`);

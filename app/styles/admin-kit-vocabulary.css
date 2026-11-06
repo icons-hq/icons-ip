@@ -1,132 +1,56 @@
 /*
- * The console's older class vocabulary in kit dress (ADR-0028).
+ * Kit dress for markup the console renders but does not own (ADR-0028).
  *
- * Screens that still use `btn`·`card`·`chip`·`tag`, native form controls or the AdminKit class
- * names render with the same shapes, sizes and colours as the kit parts (components/admin/kit/ui),
- * so the whole console reads as one template while screens move to kit parts. Each rule copies the
- * kit part's class string through `@apply`; when a kit part changes, change its line here too.
- *
- * - Kit parts (`data-slot`) and storefront previews (`.wc-root`) are left alone.
- * - Loaded after the console stylesheets in the same layer, so it wins ties with them; a screen
- *   rule that is more specific still wins and is cleaned up when that screen moves to kit parts.
- * - Layout (width, margin, grid placement) stays with each screen. This file sets look only.
+ * Every console screen draws with kit parts. What remains here dresses the rest in the same shapes:
+ * - customer components the console embeds (ClaimWithdrawal·ClaimFeePanel·ClaimCollectionPlan use
+ *   `btn`·`btn-ghost`·`btn-sm`, ShipmentDetails uses `muted`·`mono`);
+ * - native form controls that screens keep native on purpose (FormData, defaultChecked, uncontrolled
+ *   checkboxes and radios) — they look like kit Input · NativeSelect · Textarea · Checkbox · RadioGroup.
+ * Each rule copies the kit part's class string through `@apply`; when a kit part changes, change it here.
+ * Kit parts (`data-slot`) and storefront previews (`.wc-root`) are left alone.
  */
 @reference "tailwindcss";
 @reference "./admin-kit.css";
 
 @layer components {
   /* ── Button (kit/ui/button.tsx) ───────────────────────────────────────── */
-  .wc-admin :is(.btn, .wc-admin-kit__button, .icon-btn):not([data-slot]):not(.wc-root *) {
-    @apply inline-flex h-8 min-h-0 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-transparent bg-clip-padding px-2.5 text-sm font-medium whitespace-nowrap shadow-none transition-all outline-none select-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 active:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20;
+  .wc-admin .btn:not([data-slot]):not(.wc-root *) {
+    @apply inline-flex h-8 min-h-0 shrink-0 items-center justify-center gap-1.5 rounded-lg border border-transparent bg-primary bg-clip-padding px-2.5 text-sm font-medium whitespace-nowrap text-primary-foreground shadow-none transition-all outline-none select-none hover:bg-primary/80 focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 active:translate-y-px disabled:pointer-events-none disabled:opacity-50 aria-disabled:pointer-events-none aria-disabled:opacity-50;
     filter: none;
     letter-spacing: normal;
     text-decoration: none;
     transform: none;
   }
-  .wc-admin :is(.btn, .btn-primary, .btn-holo, .wc-admin-kit__button--primary):not([data-slot]):not(.wc-root *) {
-    @apply bg-primary text-primary-foreground hover:bg-primary/80;
-  }
-  .wc-admin :is(.btn-ghost, .btn--ghost, .wc-admin-kit__button:not(.wc-admin-kit__button--primary)):not([data-slot]):not(.wc-root *) {
+  .wc-admin :is(.btn-ghost, .btn--ghost):not([data-slot]):not(.wc-root *) {
     @apply border-border bg-background text-foreground hover:bg-muted hover:text-foreground aria-expanded:bg-muted;
   }
-  .wc-admin :is(.btn-ghost, .btn--ghost, .wc-admin-kit__button):is(.active, .on, [aria-pressed='true'], [aria-current='true'], [aria-current='page']):not([data-slot]):not(.wc-root *) {
-    @apply border-primary bg-primary text-primary-foreground hover:bg-primary/80 hover:text-primary-foreground;
-  }
-  .wc-admin :is(.btn-danger, .btn--danger, .wc-admin-kit__button--danger):not([data-slot]):not(.wc-root *) {
-    @apply border-transparent bg-destructive/10 text-destructive hover:bg-destructive/20 focus-visible:border-destructive/40 focus-visible:ring-destructive/20;
-  }
-  .wc-admin :is(.btn-sm, .wc-admin-kit__button--sm):not([data-slot]):not(.wc-root *) {
+  .wc-admin .btn-sm:not([data-slot]):not(.wc-root *) {
     @apply h-7 gap-1 rounded-[min(var(--radius-md),12px)] px-2.5 text-[0.8rem];
-  }
-  .wc-admin .icon-btn:not([data-slot]):not(.wc-root *) {
-    @apply size-8 border-transparent bg-transparent p-0 text-foreground hover:bg-muted;
-  }
-  .wc-admin :is(.btn, .wc-admin-kit__button, .icon-btn):not([data-slot]):not(.wc-root *)::before,
-  .wc-admin :is(.btn, .wc-admin-kit__button, .icon-btn):not([data-slot]):not(.wc-root *)::after {
-    content: none;
-  }
-
-  /* ── Toggle chips (kit/ui/toggle.tsx, outline · sm) ───────────────────── */
-  .wc-admin .chip:not([data-slot]):not(.wc-root *) {
-    @apply inline-flex h-7 min-h-0 shrink-0 items-center justify-center gap-1 rounded-[min(var(--radius-md),12px)] border border-border bg-background px-2.5 text-[0.8rem] font-medium whitespace-nowrap text-foreground shadow-none transition-all outline-none hover:bg-muted focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50;
-    letter-spacing: normal;
-  }
-  .wc-admin .chip:is(.on, .active, [aria-current='true'], [aria-current='page'], [aria-pressed='true'], [aria-selected='true']):not([data-slot]):not(.wc-root *) {
-    @apply border-primary bg-primary text-primary-foreground hover:bg-primary/80;
-  }
-
-  /* ── Card (kit/ui/card.tsx) ───────────────────────────────────────────── */
-  .wc-admin :is(.card, .wc-admin-kit__card, .wc-admin-kit__panel, .admin-panel):not([data-slot]):not(.wc-root *) {
-    @apply rounded-xl border border-border bg-card text-sm text-card-foreground shadow-none;
-    background-image: none;
-  }
-  .wc-admin :is(.wc-admin-kit__card, .wc-admin-kit__panel):not([data-slot]):not(.wc-root *) {
-    @apply p-4;
-  }
-  .wc-admin :is(.wc-admin-kit__card, .wc-admin-kit__panel, .card) :is(h2, h3):not([data-slot]):not(.wc-root *) {
-    @apply text-base leading-snug font-medium text-foreground;
-  }
-  .wc-admin :is(.card, p, div)[role='alert']:not([data-slot]):not(.wc-root *) {
-    @apply border-destructive/30 text-destructive;
-  }
-
-  /* ── Badge (kit/ui/badge.tsx) ─────────────────────────────────────────── */
-  .wc-admin :is(.tag, .order-status, .wc-admin-kit__badge):not([data-slot]):not(.wc-root *) {
-    @apply inline-flex h-5 min-h-0 w-fit shrink-0 items-center justify-center gap-1 overflow-hidden rounded-4xl border px-2 py-0.5 text-xs font-medium whitespace-nowrap;
-    border-color: color-mix(in oklab, currentColor 30%, transparent);
-    letter-spacing: normal;
-  }
-  .wc-admin .wc-admin-kit__badge:not([data-slot]):not(.wc-root *) {
-    @apply border-transparent bg-secondary text-secondary-foreground;
-  }
-  .wc-admin .wc-admin-kit__badge[data-tone='success']:not([data-slot]):not(.wc-root *) {
-    background-color: color-mix(in oklab, var(--wc-success) 12%, transparent);
-    color: var(--wc-success);
-  }
-  .wc-admin .wc-admin-kit__badge[data-tone='warning']:not([data-slot]):not(.wc-root *) {
-    background-color: color-mix(in oklab, var(--wc-warning) 12%, transparent);
-    color: var(--wc-warning);
-  }
-  .wc-admin .wc-admin-kit__badge[data-tone='danger']:not([data-slot]):not(.wc-root *) {
-    @apply bg-destructive/10 text-destructive;
   }
 
   /* ── Text helpers ─────────────────────────────────────────────────────── */
-  .wc-admin :is(.muted, .dim, .faint, .money-caption):not([data-slot]):not(.wc-root *) {
+  .wc-admin .muted:not([data-slot]):not(.wc-root *) {
     @apply text-muted-foreground;
-  }
-  .wc-admin :is(.wc-admin-kit__hint, .wc-admin-kit__description):not([data-slot]):not(.wc-root *) {
-    @apply text-sm leading-normal font-normal text-muted-foreground;
-  }
-  .wc-admin :is(.wc-admin-kit__error, .admin-error, .admin-form-error):not([data-slot]):not(.wc-root *) {
-    @apply text-sm text-destructive;
-  }
-  .wc-admin .wc-admin-kit__heading:not([data-slot]):not(.wc-root *) {
-    @apply text-lg font-semibold tracking-tight text-foreground;
-  }
-  .wc-admin .wc-admin-kit__field-label:not([data-slot]):not(.wc-root *) {
-    @apply text-sm leading-snug font-medium text-foreground;
-  }
-  .wc-admin .eyebrow:not([data-slot]):not(.wc-root *) {
-    @apply text-xs font-medium text-muted-foreground normal-case;
-    letter-spacing: normal;
   }
   .wc-admin .mono:not([data-slot]):not(.wc-root *) {
     @apply tabular-nums;
   }
 
   /* ── Native text controls (kit/ui/input.tsx · textarea.tsx · native-select.tsx) ── */
-  .wc-admin :is(input:not([type='checkbox'], [type='radio'], [type='range'], [type='file'], [type='color'], [type='hidden'], [type='image'], [type='button'], [type='submit'], [type='reset']), select, textarea, .admin-field-control:not(.btn), .admin-notification-control):not([data-slot]):not(.wc-root *) {
+  .wc-admin :is(input:not([type='checkbox'], [type='radio'], [type='range'], [type='file'], [type='color'], [type='hidden'], [type='image'], [type='button'], [type='submit'], [type='reset']), select, textarea):not([data-slot]):not(.wc-root *) {
     @apply h-8 min-h-0 min-w-0 rounded-lg border border-input bg-transparent py-1 text-sm text-foreground shadow-none transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20;
     background-image: none;
     filter: none;
     letter-spacing: normal;
   }
+  .wc-admin :is(input:not([type='checkbox'], [type='radio'], [type='range'], [type='file'], [type='color'], [type='hidden'], [type='image'], [type='button'], [type='submit'], [type='reset']), textarea):not([data-slot]):not(.wc-root *) {
+    @apply px-2.5;
+  }
   .wc-admin :is(textarea, select[multiple], select[size]:not([size='1'])):not([data-slot]):not(.wc-root *) {
     @apply h-auto min-h-16 py-2;
   }
   .wc-admin select:not([multiple], [size]:not([size='1'])):not([data-slot]):not(.wc-root *) {
-    @apply appearance-none pr-8;
+    @apply appearance-none pr-8 pl-2.5;
     background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23737373' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
     background-position: right 0.625rem center;
     background-repeat: no-repeat;
@@ -163,7 +87,7 @@
     background-size: 100% 100%;
   }
 
-  /* ── Focus on older interactive markup ────────────────────────────────── */
+  /* ── Focus on links, summaries and other native interactive markup ────── */
   .wc-admin :is(a, summary, [tabindex]:not([tabindex='-1'])):not([data-slot]):not(.wc-root *):focus-visible {
     @apply rounded-sm;
     outline: 2px solid color-mix(in oklab, var(--ring) 70%, var(--foreground));

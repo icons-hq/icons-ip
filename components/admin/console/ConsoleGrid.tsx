@@ -211,7 +211,8 @@ export function ConsoleGrid({
 
   const columnCount = visibleColumns.length + (selectable ? 1 : 0);
   const hasWidths = visibleColumns.some((column) => column.width);
-  const frozenCellClass = 'data-[frozen]:sticky data-[frozen]:z-10';
+  /* 인쇄에서는 고정 칸이 흐름 배치로 돌아간다 — 종이에는 가로 스크롤이 없다. */
+  const frozenCellClass = 'data-[frozen]:sticky data-[frozen]:z-10 print:data-[frozen]:static';
 
   /*
    * kit 표 모양(components/admin/kit/ui/table.tsx의 클래스, ADR-0028). 표는 화면 고유 CSS가 닿지 않게 kit 부품
@@ -236,9 +237,9 @@ export function ConsoleGrid({
           <thead className="[&_tr]:border-b" data-slot="table-header">
             <tr className="border-b bg-muted/50" data-slot="table-row">
               {selectable ? (
-                <th className={`relative h-10 w-10 bg-muted p-0 align-middle ${frozenCellClass}`} data-frozen={frozenCount > 0 || undefined} data-slot="table-head" style={frozenStyle(0)} scope="col">
+                <th className={`relative h-10 w-10 min-w-10 bg-muted p-0 align-middle ${frozenCellClass}`} data-frozen={frozenCount > 0 || undefined} data-slot="table-head" style={frozenStyle(0)} scope="col">
                   {/* 칸 전체가 클릭 영역이다(label이 칸을 채운다). */}
-                  <label className="absolute inset-0 flex cursor-pointer items-center justify-center"><input
+                  <label className="absolute inset-0 flex cursor-pointer items-center justify-center print:static"><input
                     aria-label="전체 선택"
                     checked={allSelected}
                     disabled={selectableIds.length === 0}
@@ -267,7 +268,7 @@ export function ConsoleGrid({
                     data-align={column.align ?? 'start'}
                     data-frozen={displayIndex < frozenCount || undefined}
                     data-slot="table-head"
-                    style={frozenStyle(displayIndex + (selectable ? 1 : 0))}
+                    style={{ ...frozenStyle(displayIndex + (selectable ? 1 : 0)), ...(column.width ? { minWidth: column.width } : null) }}
                     key={column.key}
                     scope="col"
                   >
@@ -308,9 +309,9 @@ export function ConsoleGrid({
                   key={row.id}
                 >
                   {selectable ? (
-                    <td className={`relative w-10 bg-card p-0 align-middle group-hover/row:bg-[color-mix(in_oklab,var(--muted)_50%,var(--card))] group-data-[state=selected]/row:bg-muted ${frozenCellClass}`} data-frozen={frozenCount > 0 || undefined} data-slot="table-cell" style={frozenStyle(0)}>
+                    <td className={`relative w-10 min-w-10 bg-card p-0 align-middle group-hover/row:bg-[color-mix(in_oklab,var(--muted)_50%,var(--card))] group-data-[state=selected]/row:bg-muted ${frozenCellClass}`} data-frozen={frozenCount > 0 || undefined} data-slot="table-cell" style={frozenStyle(0)}>
                       {rowSelectable ? (
-                        <label className="absolute inset-0 flex cursor-pointer items-center justify-center"><input
+                        <label className="absolute inset-0 flex cursor-pointer items-center justify-center print:static"><input
                           aria-label={row.selectLabel ?? `${row.id} 선택`}
                           checked={rowSelected}
                           onChange={(event) => toggleRow(row.id, event.target.checked)}

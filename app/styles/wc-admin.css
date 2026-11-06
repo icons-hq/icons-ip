@@ -1,11 +1,10 @@
 /*
- * Seller operations theme, isolated from the public White Catalog storefront.
+ * Console tokens and the keyboard tooltip (ADR-0028).
  *
- * ADR-0028: the console wears the shadcn/ui template look. The console root is not a `.wc-root`
- * any more (the storefront's unlayered base and focus rules would beat this layer), so every
- * `--wc-*` name the console stylesheets read is defined here, mapped onto the shadcn tokens
- * from admin-kit.css. Screens that still use these names render in the template palette until
- * they move to kit parts. Storefront previews inside the console keep their own `.wc-root`.
+ * The console wears the shadcn/ui template look; its root is not a `.wc-root` (the storefront's unlayered
+ * base and focus rules would beat this layer). The `--wc-*` names that kit markup still reads for semantic
+ * tones (`text-[var(--wc-success)]` …) and that storefront previews inherit are defined here, mapped onto the
+ * shadcn tokens from admin-kit.css. Storefront previews inside the console keep their own `.wc-root`.
  */
 @layer components {
   .wc-admin:not([data-slot]) {
@@ -53,153 +52,16 @@
     --wc-radius-sheet: calc(var(--radius) * 1.4);
     --wc-container-max: 1212px;
     --wc-gutter: 16px;
-    --wc-admin-topbar: #2d3539;
-    --wc-admin-sidebar: #475161;
-    --wc-admin-sidebar-profile: #414b5a;
-    --wc-admin-sidebar-submenu: #414958;
-    --wc-admin-sidebar-search: #39404c;
-    --wc-admin-sidebar-line: #505965;
-    --wc-admin-sidebar-ink: #d3dadf;
-    --wc-admin-sidebar-muted: #aeb5bf;
-    --wc-admin-sidebar-active: #292f38;
-    --wc-admin-sidebar-hover: #4b5563;
-    --wc-admin-home-danger-icon: #e7676a;
-    --wc-admin-home-danger-count: #f00030;
-    --wc-admin-home-goods-icon: #0097a7;
-    --wc-admin-home-goods-count: #00a3b5;
-    --wc-admin-home-review-icon: #4abf9c;
-    --wc-admin-home-review-count: #00855b;
-    --wc-admin-sales-table-head: #f9f9f9;
-    --wc-admin-sales-table-line: #eeeeee;
-    --wc-admin-sales-table-stripe: #f6f6f6;
-    --wc-admin-success-aa: #147d3f;
-  }
-  /* Keep keyboard focus visible across the admin shell and operational surfaces. */
-  .wc-admin .wc-admin-kit :focus-visible:not([data-slot]) {
-    border-color: var(--wc-focus);
-    box-shadow: none;
-    outline: 2px solid var(--wc-focus);
-    outline-offset: 2px;
-  }
-
-  /* Shared screen kit for all operational surfaces. */
-  .wc-admin .wc-admin-kit:not([data-slot]) { color: var(--wc-ink); font-family: var(--wc-font); }
-  .wc-admin .wc-admin-kit__screen:not([data-slot]) {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr);
-    gap: 12px;
-    min-width: 0;
-  }
-  .wc-admin .wc-admin-kit__screen > *:not([data-slot]) { min-width: 0; }
-  .wc-admin .wc-admin-kit__screen > .wc-admin-kit__page-header:not([data-slot]),
-  .wc-admin .wc-admin-kit__screen > .admin-console-filters:not([data-slot]),
-  .wc-admin .wc-admin-kit__screen > .wc-admin-kit__description:not([data-slot]) {
-    margin: 0;
-  }
-  .wc-admin .wc-admin-kit__screen > .admin-dispatch-workflow:not([data-slot]),
-  .wc-admin .wc-admin-kit__screen > .admin-shipment-import-disclosure:not([data-slot]) {
-    margin-block: 0;
-  }
-  /* Desktop density follows the seller-center reference; touch controls stay 44px. */
-  .wc-admin .wc-admin-kit :where(input:not([type='checkbox']):not([type='radio']):not([type='hidden']), select, textarea):not([data-slot]) {
-    min-height: 34px;
-    border: 1px solid var(--wc-line-control);
-    border-radius: var(--wc-radius-form);
-    background: var(--wc-surface);
-    box-shadow: none;
-    color: var(--wc-ink);
-    font-family: var(--wc-font);
-    font-size: 13px;
-  }
-  .wc-admin .wc-admin-kit :where(input, select, textarea)[aria-invalid='true']:not([data-slot]) { border-color: var(--wc-danger); }
-  .wc-admin .wc-admin-kit__page-header:not([data-slot]) { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 24px; }
-  .wc-admin .wc-admin-kit__heading:not([data-slot]) { margin: 0; color: var(--wc-ink); font: 500 18px/1.5 var(--wc-font); }
-  .wc-admin .wc-admin-kit__description:not([data-slot]) { max-width: 80ch; margin: 6px 0 0; color: var(--wc-ink-sub); font-size: 13px; line-height: 1.7; word-break: keep-all; overflow-wrap: anywhere; }
-  .wc-admin .wc-admin-kit__actions:not([data-slot]) { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
-  .wc-admin .wc-admin-kit__card:not([data-slot]) { min-width: 0; padding: 20px 30px; border: 1px solid var(--wc-hairline); border-radius: var(--wc-radius-form); background: var(--wc-surface); }
-  .wc-admin .wc-admin-kit__card > header:not([data-slot]) { margin-bottom: 20px; }
-  .wc-admin .wc-admin-kit__card h3:not([data-slot]) { margin: 0; color: var(--wc-ink); font: 600 15px/1.5 var(--wc-font); }
-  .wc-admin .wc-admin-kit__section:not([data-slot]) { display: grid; grid-template-columns: minmax(0, 1fr); gap: 20px; align-content: start; }
-  .wc-admin .wc-admin-kit__section > header:not([data-slot]) { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0; }
-  .wc-admin .wc-admin-kit__section > header > h3:not([data-slot]), .wc-admin .wc-admin-kit__section > header > p:not([data-slot]) { flex-basis: 100%; }
-  .wc-admin .wc-admin-kit__section > p:not([data-slot]) { margin: 0; font-size: 13px; line-height: 1.7; }
-  .wc-admin .wc-admin-kit__form-grid:not([data-slot]) { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, max(260px, calc((100% - 24px) / 2))), 1fr)); gap: 20px 24px; }
-  .wc-admin .wc-admin-kit__field:not([data-slot]) { display: grid; align-content: start; gap: 8px; min-width: 0; font-size: 13px; }
-  .wc-admin .wc-admin-kit__field-label:not([data-slot]) { font-weight: 600; }
-  .wc-admin .wc-admin-kit__field :is(input, select, textarea):not([data-slot]) { width: 100%; min-height: 34px; padding: 6px 10px; border: 1px solid var(--wc-line-control); border-radius: var(--wc-radius-form); background: var(--wc-surface); color: var(--wc-ink); font: inherit; font-size: 13px; }
-  .wc-admin .wc-admin-kit__field textarea:not([data-slot]) { padding: 12px; }
-  .wc-admin .wc-admin-kit__field [aria-invalid='true']:not([data-slot]) { border-color: var(--wc-danger); }
-  .wc-admin .wc-admin-kit__hint:not([data-slot]) { margin: 0; color: var(--wc-ink-sub); font-size: 13px; line-height: 1.65; word-break: keep-all; overflow-wrap: anywhere; }
-  .wc-admin .wc-admin-kit__error:not([data-slot]) { margin: 0; color: var(--wc-danger); font-size: 12px; }
-  .wc-admin .wc-admin-kit__badge:not([data-slot]) { display: inline-flex; padding: 3px 8px; border: 1px solid var(--wc-hairline); border-radius: var(--wc-radius-badge); background: var(--wc-surface-grey); color: var(--wc-ink-sub); font-size: 12px; font-weight: 600; }
-  .wc-admin .wc-admin-kit__badge[data-tone='success']:not([data-slot]) { background: var(--wc-accent-tint); color: var(--wc-success); }
-  .wc-admin .wc-admin-kit__badge[data-tone='warning']:not([data-slot]) { color: var(--wc-warning); }
-  .wc-admin .wc-admin-kit__badge[data-tone='danger']:not([data-slot]) { color: var(--wc-danger); }
-  .wc-admin .wc-admin-kit__panel:not([data-slot]) { min-width: 0; padding: 20px 30px; border: 1px solid var(--wc-hairline); background: var(--wc-surface); }
-  .wc-admin .wc-admin-kit__panel > header:not([data-slot]) { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 20px; }
-  .wc-admin .wc-admin-kit__button:not([data-slot]) { display: inline-flex; min-height: 34px; max-width: 100%; align-items: center; justify-content: center; gap: 8px; padding: 6px 16px; border: 1px solid var(--wc-line-control); border-radius: var(--wc-radius-form); background: var(--wc-surface); color: var(--wc-ink-sub); font: 400 13px/1.5 var(--wc-font); word-break: keep-all; overflow-wrap: anywhere; cursor: pointer; }
-  .wc-admin .wc-admin-kit__button--primary:not([data-slot]) { border-color: var(--wc-accent); background: var(--wc-accent); color: var(--wc-surface); }
-  .wc-admin .wc-admin-kit__button:disabled:not([data-slot]) { border-color: var(--wc-line-control); background: var(--wc-surface-grey); color: var(--wc-ink-tertiary); cursor: default; }
-  .wc-admin .wc-admin-kit .admin-console-grid:not([data-slot]) { border: 1px solid var(--wc-hairline); border-radius: var(--wc-radius-form); background: var(--wc-surface); }
-  .wc-admin .wc-admin-kit .admin-console-grid-table :is(th, td):not([data-slot]) { min-height: 38px; padding: 10px 12px; border-color: var(--wc-hairline); color: var(--wc-ink-sub); font-family: var(--wc-font); }
-  .wc-admin .wc-admin-kit .admin-console-grid-table th:not([data-slot]) { background: var(--wc-surface-grey); color: var(--wc-ink-sub); font-weight: 400; }
-  .wc-admin .wc-admin-kit .admin-console-grid-table tr[data-selected='true']:not([data-slot]) { background: var(--wc-accent-tint); }
-  .wc-admin .wc-admin-kit .admin-console-bulk-bar:not([data-slot]) { border: 1px solid var(--wc-hairline); border-radius: var(--wc-radius-form); background: var(--wc-surface); color: var(--wc-ink); }
-  .wc-admin .wc-admin-kit .admin-console-bulk-action:not([data-slot]) { border: 1px solid var(--wc-line-control); border-radius: var(--wc-radius-form); background: var(--wc-surface); color: var(--wc-ink-sub); box-shadow: none; }
-  .wc-admin .wc-admin-kit .admin-console-bulk-action--danger:not([data-slot]) { background: var(--wc-danger); border-color: var(--wc-danger); }
-  .wc-admin .wc-admin-kit .admin-console-filters:not([data-slot]) { border: 1px solid var(--wc-hairline); border-radius: var(--wc-radius-form); background: var(--wc-surface); box-shadow: none; }
-  .wc-admin .wc-admin-kit .admin-console-filters :is(input, select):not([data-slot]) { border: 1px solid var(--wc-line-control); border-radius: var(--wc-radius-form); background: var(--wc-surface); color: var(--wc-ink); font: 400 13px/1.5 var(--wc-font); }
-  .wc-admin .wc-admin-kit .admin-console-filter-label:not([data-slot]) { color: var(--wc-ink-sub); font-family: var(--wc-font); }
-  .wc-admin .wc-admin-kit :is(.admin-console-filters, .admin-console-pagination) .btn:not([data-slot]) { border: 1px solid var(--wc-accent); border-radius: var(--wc-radius-form); background: var(--wc-accent); color: var(--wc-surface); box-shadow: none; font-family: var(--wc-font); }
-  .wc-admin .wc-admin-kit :is(.admin-console-filters, .admin-console-pagination) .btn-ghost:not([data-slot]) { border-color: var(--wc-line-control); background: var(--wc-surface); color: var(--wc-ink); }
-  .wc-admin .wc-admin-kit .admin-console-pagination-summary:not([data-slot]) { color: var(--wc-ink-tertiary); font-family: var(--wc-font); }
-  @media (max-width: 900px) {
-    .wc-admin .wc-admin-kit :where(input:not([type='checkbox']):not([type='radio']):not([type='hidden']), select, textarea):not([data-slot]), .wc-admin .wc-admin-kit__field :is(input, select, textarea):not([data-slot]), .wc-admin .wc-admin-kit__button:not([data-slot]) { min-height: 44px; }
-  }
-  @media (max-width: 600px) {
-    .wc-admin .wc-admin-kit__form-grid:not([data-slot]) { grid-template-columns: minmax(0, 1fr); }
-    .wc-admin .wc-admin-kit__card:not([data-slot]), .wc-admin .wc-admin-kit__panel:not([data-slot]) { padding: 16px; }
-  }
-  @media (max-width: 400px) {
-    .wc-admin .wc-admin-kit__card:not([data-slot]), .wc-admin .wc-admin-kit__panel:not([data-slot]) { padding: 12px; }
   }
 
   /* Keyboard focus exposes the same state explanation as pointer hover. */
   .wc-admin [data-admin-tooltip]:not([data-slot]) { position: relative; }
+  /* Keyboard-reachable hint on a status badge, drawn like the kit tooltip. */
   .wc-admin [data-admin-tooltip]:is(:hover,:focus-visible):not([data-slot])::after {
-    content: attr(data-admin-tooltip); position: absolute; z-index: 90; left: 0; top: calc(100% + 8px);
-    width: min(280px, 70vw); padding: 12px; border: 1px solid var(--wc-line-control);
-    background: var(--wc-surface); color: var(--wc-ink); font: 400 12px/1.6 var(--wc-font);
-    text-transform: none; white-space: normal; text-align: left;
-  }
-
-  .wc-admin .inquiry-live:empty:not([data-slot]) { display: none; }
-  .wc-admin .inquiry-live button:not([data-slot]) {
-    min-height: 44px;
-    padding: 8px 12px;
-    border: 1px solid var(--wc-line-control);
-    background: var(--wc-surface);
-    color: var(--wc-ink);
-    font: inherit;
-    font-size: 13px;
-    cursor: pointer;
-  }
-
-  /* 전시 상품 선택기 공통 "상품 URL로 추가"(큐레이션·쇼핑스토리·카테고리 전시·연관상품). */
-  .wc-admin .admin-good-url-add:not([data-slot]) { display: grid; gap: 6px; margin: 12px 0; font-size: 13px; }
-  .wc-admin .admin-good-url-add > label:not([data-slot]) { font-weight: 600; }
-  .wc-admin .admin-good-url-add__row:not([data-slot]) { display: flex; flex-wrap: wrap; gap: 8px; }
-  .wc-admin .admin-good-url-add__row input:not([data-slot]) { flex: 1 1 240px; min-width: 0; min-height: 34px; padding: 6px 10px; border: 1px solid var(--wc-line-control); border-radius: var(--wc-radius-form); background: var(--wc-surface); color: var(--wc-ink); font: inherit; font-size: 13px; }
-  .wc-admin .admin-good-url-add__status:not([data-slot]) { margin: 0; color: var(--wc-ink-sub); font-size: 12px; }
-  .wc-admin .admin-good-url-add__error:not([data-slot]) { margin: 0; color: var(--wc-danger); font-size: 12px; }
-
-  /* Long native select values remain readable without widening their grid track. */
-  .wc-admin .wc-admin-kit__select-hint:not([data-slot]) { display: block; width: 100%; min-width: 0; max-width: 100%; margin-top: 4px; color: var(--wc-ink-sub); font-size: 13px; line-height: 1.65; overflow-wrap: anywhere; white-space: normal; }
-
-  /* 10/27 회의 R18: 어드민 금액·수량 입력은 스피너 없이 직접 입력한다. 포커스된 입력의 휠 변경은 AdminNumberWheelGuard가 막는다. */
-
-  @media (forced-colors: active) {
-    .wc-admin:is(.admin-shell, .check-in-shell) .wc-admin-kit :is(input, select, textarea):not([data-slot]), .wc-admin:is(.admin-shell, .check-in-shell) .wc-admin-kit__card:not([data-slot]) { border-color: CanvasText; background: Canvas; color: CanvasText; }
+    content: attr(data-admin-tooltip); position: absolute; z-index: 90; left: 0; top: calc(100% + 6px);
+    width: min(280px, 70vw); padding: 6px 10px; border-radius: calc(var(--radius) * 0.8);
+    background: var(--foreground); color: var(--background); box-shadow: var(--wc-shadow-popup);
+    font: 400 12px/1.5 var(--wc-font); text-transform: none; white-space: normal; text-align: left;
   }
 
   @media (prefers-reduced-motion: reduce) {
