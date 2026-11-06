@@ -8,7 +8,7 @@ describe('unanswered inquiry shell badge', () => {
     const html=renderToStaticMarkup(<AdminOpenInquiryBadge count={10} />);
     expect(html).toContain('href="/admin/cs/inquiries?status=open&amp;page=1"');
     expect(html).toContain('data-open-inquiry-badge=""');
-    expect(html).toMatch(/<span[^>]*>미답변 1:1 문의<\/span>/);
-    expect(html).toMatch(/<strong[^>]*>10건<\/strong>/);
+    expect(html).toContain('<span>미답변 1:1 문의</span>');
+    expect(html).toContain('<strong>10건</strong>');
   });
 });
