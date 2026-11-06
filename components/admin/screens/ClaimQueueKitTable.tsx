@@ -81,6 +81,8 @@ interface Option<T extends string = string> { value: T; label: string }
 const EMPTY_STATE: AdminClaimBulkState = {};
 const BULK_RESULT_LOST = '처리 결과를 받지 못했습니다. 목록을 새로고침해 각 건의 상태를 확인하세요.';
 const PAGE_SIZE_OPTIONS = [20, 50, 100];
+/* SLA는 운영자가 가장 먼저 보는 값이라 톤을 데이터 속성으로 남기고, 임박·초과를 의미색으로 강조한다. */
+const SLA_TONE_CLASS = 'data-[sla-tone=warning]:font-semibold data-[sla-tone=warning]:text-[var(--wc-warning)] data-[sla-tone=danger]:font-bold data-[sla-tone=danger]:text-destructive';
 
 /* 정렬 ↔ RPC p_sort. RPC가 아는 정렬은 네 가지뿐이라 그 밖의 열은 정렬을 끈다. */
 function sortingFor(sort: SalesListSort | undefined): SortingState {
@@ -237,7 +239,7 @@ function buildColumns(claimType: OrderClaimType, dateLabel: string): ColumnDef<D
       meta: { label: dateLabel, variant: 'date', filter: 'range' },
       size: 150,
     },
-    { id: 'sla', accessorKey: 'slaLabel', enableSorting: false, header: '환급 기한', meta: { label: '환급 기한' }, cell: ({ row }) => <span data-sla-tone={row.original.slaTone}>{row.original.slaLabel}</span>, size: 116 },
+    { id: 'sla', accessorKey: 'slaLabel', enableSorting: false, header: '환급 기한', meta: { label: '환급 기한' }, cell: ({ row }) => <span className={SLA_TONE_CLASS} data-sla-tone={row.original.slaTone}>{row.original.slaLabel}</span>, size: 116 },
     { id: 'refund', accessorKey: 'refund', enableSorting: false, header: '환불 수단', meta: { label: '환불 수단' }, cell: ({ row }) => row.original.refund ?? <span className="text-muted-foreground">미접수</span>, size: 110 },
     { id: 'handler', accessorKey: 'handler', enableSorting: false, header: '처리자', meta: { label: '처리자' }, cell: ({ row }) => row.original.handler ? <>@{row.original.handler}</> : <span className="text-muted-foreground">미배정</span>, size: 104 },
   ];

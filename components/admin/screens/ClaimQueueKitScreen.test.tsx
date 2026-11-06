@@ -258,8 +258,8 @@ describe('ClaimQueueKitScreen — 반품·교환 목록', () => {
   /* SLA는 목록에서 가장 먼저 보는 값이다. 색만이 아니라 톤 속성으로 강조가 남아야 한다. */
   it('환급 기한을 넘긴 행을 danger 톤으로 표시하고, 입고 전 요청에는 기한을 지어내지 않는다', () => {
     const html = renderToStaticMarkup(<ClaimQueueKitScreen data={returns()} now={RETURN_NOW} />);
-    expect(html).toContain('<span data-sla-tone="danger">기한 초과</span>');
-    expect(html).toMatch(/<span data-sla-tone="[a-z]+">입고 전<\/span>/);
+    expect(html).toMatch(/<span[^>]* data-sla-tone="danger">기한 초과<\/span>/);
+    expect(html).toMatch(/<span[^>]* data-sla-tone="[a-z]+">입고 전<\/span>/);
   });
 
   /* 결제수단은 private.payment_provider_evidence에만 있고 staff 표면이 없다(#250).

@@ -473,7 +473,9 @@ describe('ClaimDetailScreen', () => {
     expect(returns).toContain('자주 쓰는 거부 사유');
     expect(returns).toContain('<option value="반품 가능 기간이 지났습니다.">반품 가능 기간이 지났습니다.</option>');
     expect(returns).not.toContain('이미 발송되어 취소할 수 없습니다.');
-    expect(returns).toMatch(/<input id="claim-reject-note" maxLength="200" type="text" name="note" value=""\/>/);
+    /* 사유 칸: 빈 값으로 시작하는 200자 입력이고, 폼에는 note로 실린다. 속성 순서는 보지 않는다. */
+    const rejectInput = returns.match(/<input[^>]*\bid="claim-reject-note"[^>]*\/>/)?.[0] ?? '';
+    for (const attribute of ['maxLength="200"', 'type="text"', 'name="note"', 'value=""']) expect(rejectInput).toContain(attribute);
     const cancel = render({ claim: { ...detail().claim, claimType: 'cancel', stage: 'requested' } });
     expect(cancel).toContain('<option value="이미 발송되어 취소할 수 없습니다.">이미 발송되어 취소할 수 없습니다.</option>');
   });
