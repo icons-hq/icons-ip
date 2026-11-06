@@ -53,9 +53,10 @@ describe('ModerationSection', () => {
     expect(html).toContain('포스트 숨김');
     expect(html).toContain('name="commentId"');
     expect(html).toContain('name="postId"');
-    expect(html).toContain('aria-label="댓글 신고 상태"');
-    expect(html).toContain('admin-field-control');
-    expect(html).toContain('min-height:44px');
+    expect(html).toMatch(/<select[^>]*data-slot="native-select"[^>]*aria-label="댓글 신고 상태"|<select[^>]*aria-label="댓글 신고 상태"[^>]*data-slot="native-select"/);
+    /* 처리 버튼·상태 선택은 터치 기기에서 44px(h-11) 높이를 지킨다. */
+    expect(html.match(/<button[^>]*type="submit"[^>]*pointer-coarse:h-11/g)).toHaveLength(3);
+    expect(html).toContain('[&amp;&gt;select]:pointer-coarse:h-11');
   });
 
   it('labels an already-hidden comment and disables repeat moderation', () => {

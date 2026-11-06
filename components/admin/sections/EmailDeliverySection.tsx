@@ -1,8 +1,13 @@
 'use client';
 
 import { useActionState } from 'react';
+import { RotateCw } from 'lucide-react';
 import { resendOrderEmailAction, type AdminOrderActionState } from '@/app/admin/order-actions';
 import type { EmailDeliveryRecord } from '@/lib/email/deliveries.server';
+import { Badge } from '@/components/admin/kit/ui/badge';
+import { Button } from '@/components/admin/kit/ui/button';
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/admin/kit/ui/empty';
+import { SECTION_CARD } from './SectionLayout';
 
 /* 트랜잭션 메일 발송 이력(#180 범위 5).
  *
@@ -34,16 +39,16 @@ function ResendForm({ delivery }: { delivery: EmailDeliveryRecord }) {
   const [state, action, pending] = useActionState(resendOrderEmailAction, EMPTY_ACTION_STATE);
 
   return (
-    <form action={action} className="col" style={{ gap: 6 }}>
+    <form action={action} className="flex flex-wrap items-center gap-x-3 gap-y-2">
       <input name="dedupeKey" type="hidden" value={delivery.dedupeKey} />
-      <button className="btn btn-sm" disabled={pending} type="submit">
-        {pending ? '보내는 중' : '다시 보내기'}
-      </button>
+      <Button disabled={pending} size="sm" type="submit">
+        <RotateCw aria-hidden="true" /> {pending ? '보내는 중' : '다시 보내기'}
+      </Button>
       {state.errors?.form ? (
-        <span role="alert" style={{ fontSize: 12 }}>{state.errors.form}</span>
+        <span className="text-sm text-destructive" role="alert">{state.errors.form}</span>
       ) : null}
       {state.message ? (
-        <span className="muted" role="status" style={{ fontSize: 12 }}>{state.message}</span>
+        <span className="text-sm text-muted-foreground" role="status">{state.message}</span>
       ) : null}
     </form>
   );
@@ -51,54 +56,55 @@ function ResendForm({ delivery }: { delivery: EmailDeliveryRecord }) {
 
 export function EmailDeliverySection({ deliveries }: { deliveries: EmailDeliveryRecord[] }) {
   return (
-    <section className="col" style={{ gap: 14 }}>
-      <p className="muted" style={{ fontSize: 13, margin: 0 }}>
+    <section className="flex min-w-0 flex-col gap-4">
+      <p className="max-w-prose text-sm text-muted-foreground">
         주문 확인·배송 시작·문의 답변 메일의 발송 이력입니다. 주문 확인 메일은 전자상거래법상
         계약내용에 관한 서면이라 실패한 건은 반드시 다시 보내야 합니다. 이미 발송된 건은 다시
         보내도 중복 발송되지 않습니다.
       </p>
 
       {!deliveries.length ? (
-        <div className="card col wc-admin-kit wc-admin-kit__card" role="status" style={{ gap: 6 }}>
-          <strong>다시 보낼 메일이 없습니다.</strong>
-          <span className="muted" style={{ fontSize: 13 }}>
-            실패했거나 결과를 확인하지 못한 발송이 생기면 여기에 쌓입니다.
-          </span>
-        </div>
+        <Empty className="border" role="status">
+          <EmptyHeader>
+            <EmptyTitle>다시 보낼 메일이 없습니다.</EmptyTitle>
+            <EmptyDescription>
+              실패했거나 결과를 확인하지 못한 발송이 생기면 여기에 쌓입니다.
+            </EmptyDescription>
+          </EmptyHeader>
+        </Empty>
       ) : (
-        <ul className="col" style={{ gap: 10, listStyle: 'none', margin: 0, padding: 0 }}>
+        <ul className="flex flex-col gap-3">
           {deliveries.map((delivery) => (
-            <li
-              className="card col wc-admin-kit wc-admin-kit__card"
-              key={delivery.dedupeKey}
-              style={{ gap: 8 }}
-            >
-              <div className="row" style={{ gap: 8, justifyContent: 'space-between' }}>
-                <strong>{delivery.templateLabel}</strong>
-                <span className="muted" style={{ fontSize: 12 }}>
-                  {statusLabel(delivery.status)} · {delivery.attemptCount}회 시도
+            <li className={SECTION_CARD} key={delivery.dedupeKey}>
+              <div className="flex flex-wrap items-start justify-between gap-2">
+                <strong className="text-base leading-snug font-medium text-foreground">{delivery.templateLabel}</strong>
+                <span className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <Badge variant={delivery.status === 'failed' ? 'destructive' : 'secondary'}>{statusLabel(delivery.status)}</Badge>
+                  <span className="tabular-nums">{delivery.attemptCount}회 시도</span>
                 </span>
               </div>
-              <span style={{ fontSize: 13 }}>{delivery.subject}</span>
-              <span className="muted" style={{ fontSize: 12 }}>
-                받는 사람 {delivery.recipient} · 마지막 시도 {formatAttemptedAt(delivery.claimedAt)}
-              </span>
-              {delivery.orderId ? (
-                <span className="muted mono" style={{ fontSize: 12 }}>
-                  주문 {delivery.orderId}
+              <div className="flex min-w-0 flex-col gap-1">
+                <span className="text-sm break-words">{delivery.subject}</span>
+                <span className="text-xs break-all text-muted-foreground">
+                  받는 사람 {delivery.recipient} · 마지막 시도 {formatAttemptedAt(delivery.claimedAt)}
                 </span>
-              ) : null}
-              {delivery.lastError ? (
-                <span className="muted" style={{ fontSize: 12 }}>
-                  실패 사유: {delivery.lastError}
-                </span>
-              ) : null}
+                {delivery.orderId ? (
+                  <span className="text-xs break-all text-muted-foreground tabular-nums">
+                    주문 {delivery.orderId}
+                  </span>
+                ) : null}
+                {delivery.lastError ? (
+                  <span className="text-xs break-words text-destructive">
+                    실패 사유: {delivery.lastError}
+                  </span>
+                ) : null}
+              </div>
               {delivery.resendable ? (
                 <ResendForm delivery={delivery} />
               ) : (
                 /* 문의 답변 메일은 주문 상태로 사실성을 판정할 수 없어 게이트가 거절한다.
                    재발송 경로는 운영자가 문의 상세에서 답변을 다시 등록하는 것이다. */
-                <span className="muted" style={{ fontSize: 12 }}>
+                <span className="text-sm text-muted-foreground">
                   이 메일은 발송 이력에서 다시 보낼 수 없습니다. 1:1 문의 화면에서 답변을 다시 등록해주세요.
                 </span>
               )}
