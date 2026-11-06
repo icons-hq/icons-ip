@@ -40,7 +40,6 @@ import './styles/admin-customer-detail.css';
 import './styles/admin-store-settings.css';
 import './styles/admin-shopping-stories.css';
 import './styles/admin-marketing-links.css';
-import './styles/admin-customer-segments.css';
 import './styles/admin-store-presentation.css';
 import './styles/admin-goods-media.css';
 import './styles/admin-pg-settlements.css';
