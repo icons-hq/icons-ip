@@ -247,7 +247,7 @@ describe('RewardPolicySection', () => {
     expect(html).toContain('회수 1');
     expect(html).toContain('주문 6');
     expect(html).toContain('최근 발급 2026-07-15 11:00 KST');
-    expect(html).toContain('class="admin-form-grid mono"');
+    expect(html).toContain('data-admin-summary="reward-policy"');
     expect(html).toContain('조건이 겹치는 활성 정책은 누적 적용');
     expect(html).toContain('정책 연결 정보가 없는 기존 뽑기권은 집계에서 제외');
   });

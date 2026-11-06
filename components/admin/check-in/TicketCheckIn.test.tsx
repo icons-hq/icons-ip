@@ -113,6 +113,10 @@ describe('TicketCheckIn presentation', () => {
     expect(html).toContain('autoComplete="off"');
     expect(html).toContain('autofocus=""');
     expect(html).toContain('aria-live="polite"');
+    /* 수동 입력은 Enter·버튼 모두 폼 제출이다(kit Button은 type을 주지 않으면 type="button"). */
+    expect(html).toMatch(/<button[^>]*type="submit"[^>]*>검표하기<\/button>/);
+    /* 현장 태블릿·휴대폰용 큰 터치 영역: 카메라·검표 버튼은 48px(h-12)이다. */
+    expect(html.match(/<button[^>]*\bh-12\b[^>]*>/g)).toHaveLength(2);
     expect(html).not.toContain(QR_TOKEN);
     expect(html).not.toMatch(/qrToken|paymentKey|attendee|email/i);
   });

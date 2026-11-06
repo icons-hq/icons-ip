@@ -32,7 +32,8 @@ describe('IpPublishControl', () => {
     expect(html).toContain('name="id"');
     expect(html).toContain('value="hwasan"');
     expect(html).toContain('온라인 팝업 디렉토리·IP관·홈 특집·검색');
-    expect(html).toMatch(/<button[^>]*btn-holo[^>]*>공개로 전환<\/button>/);
+    /* kit Button(Base UI)은 type을 주지 않으면 type="button"이 된다 — 제출 버튼임을 함께 확인한다. */
+    expect(html).toMatch(/<button[^>]*type="submit"[^>]*>공개로 전환<\/button>/);
     expect(html).not.toContain('초안으로 되돌리기');
   });
 
@@ -48,7 +49,7 @@ describe('IpPublishControl', () => {
     expect(html).toContain('type="checkbox"');
     expect(html).toContain('required=""');
     expect(html).toContain('초안 전환의 영향을 확인했습니다');
-    expect(html).toMatch(/<button[^>]*btn-ghost[^>]*>초안으로 되돌리기<\/button>/);
+    expect(html).toMatch(/<button[^>]*type="submit"[^>]*>초안으로 되돌리기<\/button>/);
   });
 
   it('explains that an archived IP has to be restored first and renders no form', () => {

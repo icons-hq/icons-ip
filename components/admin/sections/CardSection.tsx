@@ -16,6 +16,7 @@ import { RARITY_META } from '@/lib/rarity';
 import { ArtworkUploadField } from '../ArtworkUploadField';
 import { CatalogArchiveControl, CatalogArchiveFilter } from '../CatalogArchiveControls';
 import { Field, FormShell, RecordList, SelectField } from '../fields';
+import { MasterDetail, ReadOnlyField, SECTION_CARD } from './SectionLayout';
 
 export function CardSection({
   action,
@@ -54,36 +55,38 @@ export function CardSection({
   const visibleRecords = filterAdminCatalogRecords(records, archiveFilter);
 
   return (
-    <div className="admin-master-detail">
-      <div className="col" style={{ gap: 12, minWidth: 0 }}>
-        <CatalogArchiveFilter
-          counts={adminCatalogArchiveCounts(records)}
-          filter={archiveFilter}
-          onChange={(filter) => {
-            setArchiveFilter(filter);
-            if (selected && !filterAdminCatalogRecords([selected], filter).length) onSelect(null);
-          }}
-        />
-        <RecordList
-          activeId={selected?.id ?? null}
-          items={visibleRecords}
-          labelFor={(card) => formatAdminCatalogRecordLabel(`${card.id} · ${card.name}`, card.archivedAt)}
-          onNew={() => onSelect(null)}
-          onSelect={onSelect}
-          thumbnailKind="card"
-          thumbnailUrlFor={(card) => card.imageUrl}
-        />
-      </div>
-      <div className="col" style={{ gap: 16, minWidth: 0 }}>
-        <form action={action} className="card col wc-admin-kit wc-admin-kit__card" key={formKey} style={{ gap: 14 }}>
+    <MasterDetail
+      list={(
+        <>
+          <CatalogArchiveFilter
+            counts={adminCatalogArchiveCounts(records)}
+            filter={archiveFilter}
+            onChange={(filter) => {
+              setArchiveFilter(filter);
+              if (selected && !filterAdminCatalogRecords([selected], filter).length) onSelect(null);
+            }}
+          />
+          <RecordList
+            activeId={selected?.id ?? null}
+            items={visibleRecords}
+            labelFor={(card) => formatAdminCatalogRecordLabel(`${card.id} · ${card.name}`, card.archivedAt)}
+            onNew={() => onSelect(null)}
+            onSelect={onSelect}
+            thumbnailKind="card"
+            thumbnailUrlFor={(card) => card.imageUrl}
+          />
+        </>
+      )}
+    >
+      <form action={action} className={SECTION_CARD} key={formKey}>
         <input name="previousId" type="hidden" value={selected?.id ?? ''} />
         <input name="previousIpId" type="hidden" value={selected?.ipId ?? ''} />
         <AdminFormGrid>
           <Field defaultValue={field('id')} error={state.errors?.id} label="ID" name="id" placeholder="c100" readOnly={Boolean(selected)} />
           {pooled && selected ? (
-            <ReadOnlyCatalogField label="연결 IP" name="ipId" value={selected.ipId}>
+            <ReadOnlyField label="연결 IP" labelId="ipId-readonly-label" name="ipId" value={selected.ipId}>
               {ipOptions.find((ip) => ip.id === selected.ipId)?.title ?? selected.ipId}
-            </ReadOnlyCatalogField>
+            </ReadOnlyField>
           ) : (
             <SelectField
               error={state.errors?.ipId}
@@ -107,9 +110,9 @@ export function CardSection({
           <Field defaultValue={field('name')} error={state.errors?.name} label="카드 이름" name="name" />
           <Field defaultValue={field('no')} label="번호" name="no" placeholder="001/120" />
           {pooled && selected ? (
-            <ReadOnlyCatalogField label="등급" name="rarity" value={selected.rarity}>
+            <ReadOnlyField label="등급" labelId="rarity-readonly-label" name="rarity" value={selected.rarity}>
               {selected.rarity}
-            </ReadOnlyCatalogField>
+            </ReadOnlyField>
           ) : (
             <SelectField defaultValue={field('rarity') || 'N'} error={state.errors?.rarity} label="등급" name="rarity">
               {Object.keys(RARITY_META).map((rarity) => (
@@ -125,7 +128,7 @@ export function CardSection({
           </SelectField>
         </AdminFormGrid>
         {pooled && (
-          <p style={{ color: 'var(--wc-ink-tertiary)', fontSize: 12, margin: 0 }}>
+          <p className="text-sm text-muted-foreground">
             풀에 연결된 카드는 먼저 풀을 해제한 뒤 IP·등급을 변경할 수 있습니다.
           </p>
         )}
@@ -138,45 +141,15 @@ export function CardSection({
           kind="card"
         />
         <FormShell pending={pending} state={state} />
-        </form>
-        {selected && (
-          <CatalogArchiveControl
-            archivedAt={selected.archivedAt}
-            id={selected.id}
-            key={`${selected.id}:${selected.archivedAt ?? 'active'}`}
-            kind="card"
-          />
-        )}
-      </div>
-    </div>
-  );
-}
-
-function ReadOnlyCatalogField({
-  children,
-  label,
-  name,
-  value,
-}: {
-  children: React.ReactNode;
-  label: string;
-  name: string;
-  value: string;
-}) {
-  const labelId = `${name}-readonly-label`;
-  return (
-    <div className="col" style={{ gap: 7 }}>
-      <span className="mono" id={labelId} style={{ color: 'var(--wc-ink-tertiary)', fontSize: 11 }}>{label}</span>
-      <input name={name} type="hidden" value={value} />
-      <div
-        aria-labelledby={labelId}
-        aria-readonly="true"
-        className="admin-field-control"
-        role="textbox"
-        style={{ alignItems: 'center', display: 'flex', minHeight: 42, padding: '0 12px' }}
-      >
-        {children}
-      </div>
-    </div>
+      </form>
+      {selected && (
+        <CatalogArchiveControl
+          archivedAt={selected.archivedAt}
+          id={selected.id}
+          key={`${selected.id}:${selected.archivedAt ?? 'active'}`}
+          kind="card"
+        />
+      )}
+    </MasterDetail>
   );
 }
