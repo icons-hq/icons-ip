@@ -90,6 +90,15 @@ NICEPAY_ORDER_CANARY_USER_ID=
 # Korpay (retired: in-flight callback drain only): Production only. Checkout gates/canaries are no longer read.
 KORPAY_MID=
 KORPAY_KEY=
+# NHN KCP mobile identity verification (adult verification). Production uses production mode;
+# Preview/local use test mode only. Never commit the site code, web site id or ENC_KEY.
+KCP_CERT_MODE=
+KCP_CERT_SITE_CODE=
+KCP_CERT_ENC_KEY=
+KCP_CERT_WEB_SITE_ID=
+ADULT_VERIFICATION_DIGEST_SECRET=
+ADULT_VERIFICATION_ENABLED=false
+ADULT_VERIFICATION_CANARY_USER_ID=
 ```
 
 - `NEXT_PUBLIC_SUPABASE_URL`: Supabase 프로젝트 URL.
@@ -111,6 +120,9 @@ KORPAY_KEY=
 - `KORPAY_MID`·`KORPAY_KEY`: 판매 제한 상품 전용 PG인 코페이의 운영 자격 증명이다. Vercel Production에만 sensitive 값으로 두고 Preview/CI에는 만들지 않는다. 두 변수 모두 서버 환경변수이며 `NEXT_PUBLIC_` 접두사를 쓰지 않는다. MKEY인 `KORPAY_KEY`는 브라우저로 보내지 않는다. `KORPAY_MID`는 정적 클라이언트 설정이 아니라 서버가 hash를 포함해 만든 일회성 SDK payload의 provider 필드로만 전달한다.
 - `KORPAY_ORDER_CHECKOUT_ENABLED`·`KORPAY_TICKET_CHECKOUT_ENABLED`: 신규 굿즈·티켓 코페이 provider session을 목적별로 여는 정확한 `true`/`false` gate다. 기본값은 `false`이고, 기본 PG 지위가 토스로 넘어간 뒤에는 판매 제한 상품 트랙에서 재개방될 때까지 닫아 둔다. gate를 내려도 이미 durable하게 준비된 known order+nonce callback은 계속 drain한다.
 - `KORPAY_ORDER_CANARY_USER_ID`·`KORPAY_TICKET_CANARY_USER_ID`: public gate가 `false`인 동안 목적별로 인증된 단일 UUID actor만 허용하는 선택적 Production canary allowlist다. 기본값은 미설정이고 Preview/CI에는 두지 않는다. 현재 provision됐다고 가정하지 않는다.
+- `KCP_CERT_MODE`·`KCP_CERT_SITE_CODE`·`KCP_CERT_ENC_KEY`·`KCP_CERT_WEB_SITE_ID`: 성인 인증용 NHN KCP 휴대폰 본인확인 V2 설정이다. Production은 `production` 모드·계약 사이트코드·상점관리자에서 발급한 인증키·웹사이트코드(필수)만, Preview/로컬은 `test` 모드만 받는다 — 짝이 어긋나거나 하나라도 비면 인증 전체가 닫힌다. 공개 저장소이므로 값은 문서·이슈·PR에 남기지 않는다. 테스트 인증키는 KCP 샘플에서 읽어 저장소 밖 env에만 둔다.
+- `ADULT_VERIFICATION_DIGEST_SECRET`: DI(중복가입확인정보)와 KCP 거래번호를 HMAC으로 바꾸는 32자 이상 서버 secret이다. 바꾸면 1명의 1계정 판정이 이어지지 않으므로 Production 값은 회전하지 않는다(ADR-0024).
+- `ADULT_VERIFICATION_ENABLED`·`ADULT_VERIFICATION_CANARY_USER_ID`: 새 성인 인증 시작을 여는 정확한 `true` gate와 단일 UUID canary다. 기본은 닫힘이고, KCP 콜백 처리는 gate가 아니라 설정 여부를 본다. 개방 순서·선행 조건(개인정보처리방침 개정, 상점관리자 V2 전환·인증키)은 [`docs/runbooks/kcp-adult-verification.md`](./docs/runbooks/kcp-adult-verification.md)를 따른다.
 
 #191 코드는 dark deploy 상태다. DB gate는 기본 OFF이고 Supabase Send Email Hook도 사람이 운영 증거를 확인하기 전에는 활성화하지 않는다. 기존 Supabase custom SMTP와 주문 메일 경로는 실제 Auth 흐름 canary와 direct SMTP 0 증거가 끝날 때까지 유지한다. 상세 순서는 [`docs/transactional-email.md`](./docs/transactional-email.md)에 있다.
 
@@ -289,6 +301,7 @@ CRON_SECRET
   성공한 Production source run을 기계적으로 확인한 위 `workflow_dispatch` 경로만 사용한다.
 - GitHub Actions의 앱 빌드는 Node 26을 사용한다. Vercel project/runtime Node.js Version은 Vercel production Functions 공식 지원 범위인 24.x로 유지한다.
 - deployment secret 검사는 각 deploy job 안에서 수행한다. 누락 시 job이 즉시 실패하며, 필요한 GitHub Secret을 설정한 뒤 rerun해야 한다.
+- 모든 job에는 `timeout-minutes`가 있다(5~40분). 상한을 넘긴 job은 `cancelled`로, 멈춘 Supabase CLI 설치 step은 5분 뒤 `failure`로 끝나고 뒤따르는 배포 job은 건너뛴다. 이렇게 끝난 run이 아직 최신 main run이면 `gh run rerun <run-id> --failed`로 실패·취소된 job과 그 뒤 job만 다시 실행한다. 더 새 main run이 있으면 옛 run을 재실행하지 않는다 — `deploy-vercel`은 현재 main 여부를 확인하지 않아 옛 앱을 운영에 되돌린다.
 - `.vercel/` 연결 파일은 commit하지 않고, workflow가 `VERCEL_ORG_ID`와 `VERCEL_PROJECT_ID`로 Vercel 원격 build/deploy를 요청한다.
 - `.vercelignore`가 로컬 제작 산출물 `outputs/`를 명시적으로 제외한다. Preview job은 Vercel dry-run manifest에서 `outputs/`, 900MB 이상, 15,000개 이상 source를 실제 업로드 전에 거부한다. 원본·실험·반복 렌더는 deploy context에 넣지 않고 최종 runtime asset만 repo의 공개 asset 경로로 배포한다.
 - Vercel 환경변수는 sensitive 상태로 각 환경에 둔다. production deploy job은 기존 관리자 아트워크용 GitHub `CRON_SECRET`만 Vercel production에 동기화한다. Toss 키 페어·Korpay credential·optional canary actor는 Vercel Production에만 별도 등록하고 GitHub, Preview, CI에는 복제하지 않는다. public 목적별 gate의 기본값은 `false`이며 현재 Production에서 `true`인 것은 폐쇄 대기 중인 코페이 굿즈 gate 하나뿐이고 토스 gate 둘은 심사 트랙 전까지 `false`다. 결제 재조정 secret은 workflow가 provision/mutate하지 않으며, 값이 이미 있으면 원격 `prebuild` guard가 형식만 검증한다. Preview에는 구 v1 Toss 환경변수 잔여가 있지만 실 게이트웨이는 `VERCEL_ENV=production`에서만 생성되고 형식이 어긋난 키는 런타임이 거절한다. development 환경변수는 별도 요청 전까지 추가하지 않는다.

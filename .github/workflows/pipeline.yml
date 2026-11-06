@@ -45,12 +45,17 @@ env:
   VERCEL_CLI_VERSION: "54.17.2"
 
 jobs:
+  # 모든 job에 timeout-minutes를 둔다. 기본 상한 360분에서는 멈춘 설치 하나가 main 배포 사슬을
+  # 6시간 막았고 run은 failure가 아닌 cancelled로 끝났다(run 41991138701). job 상한은 최근 성공
+  # run 실측 최대치의 2배 이상이되 5분(migration을 쓰는 job은 10분)보다 낮추지 않는다. job 상한
+  # 초과는 cancel이므로, 정상 수 초인 Supabase CLI 설치 step은 5분에서 따로 끊어 failure로 남긴다.
   # 검증은 재사용 판정(validate-plan) 뒤에 앱 검사(validate-app)와 DB 샤드(validate-db)로
   # 병렬 실행하고, 이름이 그대로인 집계 job(validate)이 모두 통과했을 때만 성공한다.
   # deploy job의 `needs: validate`와 main의 재사용 증거 조회는 집계 job만 본다.
   validate-plan:
     name: validate-plan
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     permissions:
       actions: read
       contents: read
@@ -241,6 +246,7 @@ jobs:
         run: npm ci
 
       - name: Set up Supabase CLI
+        timeout-minutes: 5
         uses: supabase/setup-cli@v2
         with:
           version: ${{ env.SUPABASE_CLI_VERSION }}
@@ -276,6 +282,7 @@ jobs:
   validate:
     name: validate
     runs-on: ubuntu-latest
+    timeout-minutes: 5
     needs:
       - validate-plan
       - validate-app
@@ -350,6 +357,7 @@ jobs:
   deploy-supabase:
     name: deploy-supabase
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     needs: validate
     if: >-
       !cancelled()
@@ -366,6 +374,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Set up Supabase CLI
+        timeout-minutes: 5
         uses: supabase/setup-cli@v2
         with:
           version: ${{ env.SUPABASE_CLI_VERSION }}
@@ -612,6 +621,7 @@ jobs:
 
       - name: Set up Supabase CLI
         if: steps.check.outputs.configured == 'true'
+        timeout-minutes: 5
         uses: supabase/setup-cli@v2
         with:
           version: ${{ env.SUPABASE_CLI_VERSION }}
@@ -796,6 +806,7 @@ jobs:
   deploy-vercel-preview:
     name: deploy-vercel-preview
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     needs: deploy-supabase-preview
     if: >-
       github.event_name == 'pull_request'
@@ -829,6 +840,7 @@ jobs:
         run: npm install --global "vercel@${VERCEL_CLI_VERSION}"
 
       - name: Set up Supabase CLI
+        timeout-minutes: 5
         uses: supabase/setup-cli@v2
         with:
           version: ${{ env.SUPABASE_CLI_VERSION }}
@@ -995,6 +1007,7 @@ jobs:
   sync-supabase-preview-main:
     name: sync-supabase-preview-main
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     needs:
       - deploy-supabase
       - deploy-vercel
@@ -1016,6 +1029,7 @@ jobs:
         uses: actions/checkout@v6
 
       - name: Set up Supabase CLI
+        timeout-minutes: 5
         uses: supabase/setup-cli@v2
         with:
           version: ${{ env.SUPABASE_CLI_VERSION }}
@@ -1124,6 +1138,7 @@ jobs:
       - name: Install dependencies
         run: npm ci
       - name: Set up Supabase CLI
+        timeout-minutes: 5
         uses: supabase/setup-cli@v2
         with:
           version: ${{ env.SUPABASE_CLI_VERSION }}
@@ -1183,6 +1198,7 @@ jobs:
   deploy-vercel:
     name: deploy-vercel
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     needs:
       - validate
       - deploy-supabase
