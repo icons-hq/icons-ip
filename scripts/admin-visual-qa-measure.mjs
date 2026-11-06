@@ -234,7 +234,7 @@ export function measureAdminLayout(options = {}) {
     // The documented fixed/sticky save bars intentionally occlude scrolling content.
     // Its own controls remain collision candidates, and only an opaque bar
     // spanning the entire control width may clip the underlying painted area.
-    for (const bar of root?.querySelectorAll('[data-good-workspace-save], .admin-story-editor__footer') || []) {
+    for (const bar of root?.querySelectorAll('[data-good-workspace-save], [data-admin-savebar]') || []) {
       const style = getComputedStyle(bar), boundary = rect(bar);
       if (!bar.contains(element) && ['fixed', 'sticky'].includes(style.position) && opaque(style.backgroundColor)
         && box.left >= boundary.left && box.right <= boundary.right && box.top < boundary.bottom && box.bottom > boundary.top) box.bottom = Math.min(box.bottom, boundary.top);

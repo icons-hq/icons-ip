@@ -23,6 +23,12 @@
    follow the OS setting and half the controls turn dark. */
 @custom-variant dark (&:where(.dark, .dark *));
 
+/* ICONS: the kit sources (shadcn base-nova) style orientation with `data-horizontal:`/`data-vertical:`,
+   while Base UI 1.9 marks orientation as `data-orientation`. Map the two so Tabs·Separator·ButtonGroup·
+   ScrollArea·Slider lay out as designed (a vertical Separator had no width; Tabs lists lost their height). */
+@custom-variant data-horizontal (&[data-orientation="horizontal"]);
+@custom-variant data-vertical (&[data-orientation="vertical"]);
+
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
