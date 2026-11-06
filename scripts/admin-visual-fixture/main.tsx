@@ -48,7 +48,6 @@ import '../../app/styles/admin-goods-attributes.css';
 import '../../app/styles/admin-goods-drafts.css';
 import '../../app/styles/admin-review-insights.css';
 import '../../app/styles/admin-coupons.css';
-import '../../app/styles/admin-operations-dock.css';
 import '../../app/styles/admin-shipping-settings.css';
 import '../../app/styles/admin-store-credits.css';
 import '../../app/styles/admin-faq.css';
