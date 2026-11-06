@@ -9,6 +9,12 @@ import {
   type AdminGoodsPurchaseCost, type PurchaseCostChange,
 } from '@/lib/admin/goods-purchase-costs';
 import type { AdminGoodsVariant } from '@/lib/admin/goods-variants';
+import { Button } from '@/components/admin/kit/ui/button';
+import { NativeSelect } from '@/components/admin/kit/ui/native-select';
+import { GOOD_NUMBER_INPUT_CLASS } from './GoodEditorParts';
+
+/* 템플릿 룩(ADR-0028). 운영 섹션 안의 묶음 상자 하나에 옵션별 매입단가를 차례로 둔다. */
+const FIELD_LABEL_CLASS = 'flex min-w-0 flex-col gap-1.5 text-sm font-medium text-foreground';
 
 function CostEditor({ cost, variant, onSaved }: {
   cost: AdminGoodsPurchaseCost; variant: AdminGoodsVariant; onSaved: (message: string) => void;
@@ -25,29 +31,31 @@ function CostEditor({ cost, variant, onSaved }: {
       if (result.ok) { setError(null); onSaved(result.message); } else setError(result.error);
     });
   }
-  return <form className="wc-admin-kit col" onSubmit={save} style={{ gap: 10 }}>
+  const basisId = `purchase-cost-${cost.variantId}-basis`;
+  return <form className="flex min-w-0 flex-col gap-3" onSubmit={save}>
     <input type="hidden" name="goodId" value={cost.goodId} />
     <input type="hidden" name="variantId" value={cost.variantId} />
     <input type="hidden" name="expectedRevision" value={cost.revision ?? ''} />
-    <div className="grid" style={{ gridTemplateColumns: 'repeat(auto-fit,minmax(150px,1fr))', gap: 10 }}>
-      <label>매입단가 (원)
-        <input name="unitCostKrw" aria-label={`${variant.name} 매입단가`} type="number" min={0} max={2147483647} step={1}
+    <div className="grid min-w-0 gap-3 sm:grid-cols-2">
+      <label className={FIELD_LABEL_CLASS}>매입단가 (원)
+        <input className={GOOD_NUMBER_INPUT_CLASS} data-slot="input" name="unitCostKrw" aria-label={`${variant.name} 매입단가`} type="number" min={0} max={2147483647} step={1}
           value={amount} onChange={(event) => setAmount(event.target.value)} placeholder="미설정" disabled={pending} />
       </label>
-      <label>세금 구분
-        <select name="taxBasis" aria-label={`${variant.name} 매입단가 세금 구분`} value={basis}
+      <div className={FIELD_LABEL_CLASS}>
+        <label htmlFor={basisId}>세금 구분</label>
+        <NativeSelect className="w-full" id={basisId} name="taxBasis" aria-label={`${variant.name} 매입단가 세금 구분`} value={basis}
           onChange={(event) => setBasis(event.target.value)} disabled={pending}>
           <option value="">미설정</option>
           {Object.entries(PURCHASE_TAX_BASIS_LABELS).map(([value, label]) => <option key={value} value={value}>{label}</option>)}
-        </select>
-      </label>
+        </NativeSelect>
+      </div>
     </div>
-    <div className="row" style={{ gap: 8, flexWrap: 'wrap' }}>
-      <button className="btn" type="submit" disabled={pending}>{pending ? '저장 중…' : '매입단가 저장'}</button>
-      <button className="btn btn-ghost" type="button" disabled={pending} onClick={() => { setAmount(''); setBasis(''); }}>입력 비우기</button>
+    <div className="flex flex-wrap gap-2">
+      <Button type="submit" disabled={pending}>{pending ? '저장 중…' : '매입단가 저장'}</Button>
+      <Button type="button" variant="outline" disabled={pending} onClick={() => { setAmount(''); setBasis(''); }}>입력 비우기</Button>
     </div>
-    <small className="muted">저장된 값: {purchaseCostLabel(cost)}</small>
-    {error && <p role="alert">{error}</p>}
+    <small className="text-xs text-muted-foreground">저장된 값: {purchaseCostLabel(cost)}</small>
+    {error && <p className="text-sm text-destructive" role="alert">{error}</p>}
   </form>;
 }
 
@@ -65,21 +73,21 @@ function CostHistory({ goodId, variantId }: { goodId: string; variantId: string 
       setHistory((previous) => more ? [...(previous ?? []), ...result.history] : result.history);
     });
   }
-  return <div className="col" style={{ gap: 8 }}>
-    <button className="btn btn-ghost" type="button" onClick={() => load(false)} disabled={pending}>
+  return <div className="flex min-w-0 flex-col items-start gap-2">
+    <Button size="sm" type="button" variant="outline" onClick={() => load(false)} disabled={pending}>
       {pending ? '불러오는 중…' : history === null ? '변경 이력 보기' : '변경 이력 새로고침'}
-    </button>
-    {error && <p role="alert">{error}</p>}
-    {history?.length === 0 && <p className="muted">등록된 변경 이력이 없습니다.</p>}
-    {history && history.length > 0 && <ol style={{ margin: 0, paddingLeft: 20, display: 'grid', gap: 12 }}>
+    </Button>
+    {error && <p className="text-sm text-destructive" role="alert">{error}</p>}
+    {history?.length === 0 && <p className="text-sm text-muted-foreground">등록된 변경 이력이 없습니다.</p>}
+    {history && history.length > 0 && <ol className="flex list-decimal flex-col gap-3 pl-5 text-sm">
       {history.map((entry) => <li key={entry.id}>
-        <span>{purchaseCostLabel(entry.before)} → {purchaseCostLabel(entry.after)}</span>
-        <small className="muted" style={{ display: 'block', marginTop: 4 }}>
+        <span className="tabular-nums">{purchaseCostLabel(entry.before)} → {purchaseCostLabel(entry.after)}</span>
+        <small className="mt-1 block text-xs text-muted-foreground">
           {new Date(entry.changedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })} · {entry.actorName ?? '관리자'}
         </small>
       </li>)}
     </ol>}
-    {hasMore && <button type="button" className="btn btn-ghost" onClick={() => load(true)} disabled={pending}>이전 이력 더 보기</button>}
+    {hasMore && <Button size="sm" type="button" variant="outline" onClick={() => load(true)} disabled={pending}>이전 이력 더 보기</Button>}
   </div>;
 }
 
@@ -101,27 +109,27 @@ export function GoodsPurchaseCostsPanel({ goodId, variants }: { goodId: string; 
   const visible = loaded?.goodId === goodId ? loaded : null;
   const reload = () => setRefresh((value) => value + 1);
   const saved = (message: string) => { setNotice({ goodId, message }); reload(); };
-  return <section className="card col wc-admin-kit" aria-labelledby={`purchase-costs-${goodId}`} style={{ gap: 18, padding: 18 }}>
-    <div>
-      <h2 id={`purchase-costs-${goodId}`} style={{ fontSize: 18, margin: 0 }}>매입단가 · 관리자 전용</h2>
-      <p className="muted" style={{ fontSize: 12, lineHeight: 1.6 }}>공급처에서 사오는 옵션 1개의 매입단가를 원 단위로 입력합니다.
+  return <section className="flex min-w-0 flex-col gap-4 rounded-lg border p-4 text-sm" aria-labelledby={`purchase-costs-${goodId}`} data-good-purchase-costs="">
+    <div className="flex flex-col gap-1">
+      <h2 id={`purchase-costs-${goodId}`} className="text-base leading-snug font-medium">매입단가 · 관리자 전용</h2>
+      <p className="text-sm text-muted-foreground">공급처에서 사오는 옵션 1개의 매입단가를 원 단위로 입력합니다.
         금액과 세금 구분을 함께 저장하며, 실제 0원도 기록할 수 있습니다. 금액을 정하지 않은 옵션은 두 값을 모두 비워 미설정으로 두세요.</p>
     </div>
-    {notice?.goodId === goodId && <p role="status">{notice.message}</p>}
-    {!visible ? <p role="status">매입단가를 불러오는 중입니다…</p> : visible.error ? <div>
-      <p role="alert">{visible.error}</p><button className="btn btn-ghost" type="button" onClick={reload}>다시 불러오기</button>
+    {notice?.goodId === goodId && <p className="text-sm text-[var(--wc-success)]" role="status">{notice.message}</p>}
+    {!visible ? <p className="text-sm text-muted-foreground" role="status">매입단가를 불러오는 중입니다…</p> : visible.error ? <div className="flex flex-col items-start gap-2">
+      <p className="text-sm text-destructive" role="alert">{visible.error}</p><Button size="sm" type="button" variant="outline" onClick={reload}>다시 불러오기</Button>
     </div> : <>
       {visible.costs?.map((cost) => {
         const variant = variants.find((item) => item.id === cost.variantId && item.goodId === goodId);
         if (!variant) return null;
-        return <article key={`${cost.variantId}:${cost.revision ?? 'unset'}`} className="col" style={{ gap: 14, borderBottom: '1px solid var(--line)', paddingBottom: 18 }}>
-          <div><strong>{variant.name}{variant.archivedAt ? ' · 사용 중지' : ''}</strong><small className="muted" style={{ display: 'block' }}>{variant.code}</small></div>
+        return <article key={`${cost.variantId}:${cost.revision ?? 'unset'}`} className="flex min-w-0 flex-col gap-3 border-t pt-4">
+          <div className="min-w-0 wrap-anywhere"><strong className="font-medium">{variant.name}{variant.archivedAt ? ' · 사용 중지' : ''}</strong><small className="block text-xs text-muted-foreground">{variant.code}</small></div>
           <CostEditor cost={cost} variant={variant} onSaved={saved} />
           <CostHistory goodId={goodId} variantId={cost.variantId} />
         </article>;
       })}
-      {!visible.costs?.length && <p className="muted">매입단가를 입력할 옵션이 없습니다.</p>}
-      <button className="btn btn-ghost" type="button" onClick={reload}>매입단가 목록 새로고침</button>
+      {!visible.costs?.length && <p className="text-sm text-muted-foreground">매입단가를 입력할 옵션이 없습니다.</p>}
+      <Button className="self-start" type="button" variant="outline" onClick={reload}>매입단가 목록 새로고침</Button>
     </>}
   </section>;
 }

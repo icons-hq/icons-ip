@@ -13,6 +13,10 @@ describe('상품 옵션 확인', () => {
     expect(html).not.toContain('다른 상품 옵션');
     expect(html).toContain('name="active" value="false"');
     expect(html).toContain('name="active" value="true"');
+    /* kit Button은 type을 빼면 type="button"이 된다 — 사용 중지·복원은 폼을 제출해야 한다. */
+    const forms = html.match(/<form\b[\s\S]*?<\/form>/g) ?? [];
+    expect(forms.length).toBeGreaterThanOrEqual(2);
+    for (const form of forms) expect(form).toMatch(/<button[^>]*type="submit"[^>]*>(?:사용 중지|복원)<\/button>/);
   });
 
   it('백필이 없는 상품을 빈 목록으로 숨기지 않고 알린다', () => {

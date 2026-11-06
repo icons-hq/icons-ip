@@ -7,6 +7,9 @@ import { adminClaimCopy } from '@/lib/admin/vocabulary';
 import { adminFormRemountKey, preservedFormValues } from '@/lib/admin/form-state';
 import { formatOrderDateTime } from '@/lib/orders';
 import type { OrderClaimType } from '@/lib/orders/claims';
+import { Button } from '@/components/admin/kit/ui/button';
+import { Label } from '@/components/admin/kit/ui/label';
+import { Textarea } from '@/components/admin/kit/ui/textarea';
 import { useClaimPreviewBusy } from './ClaimPreviewDialog';
 
 export function ClaimOriginCollection({ claimId, claimType, collection, canRecord }: {
@@ -19,28 +22,31 @@ export function ClaimOriginCollection({ claimId, claimType, collection, canRecor
   useClaimPreviewBusy(pending); /* 목록 위 클레임 팝업(R8)에서 기다리는 동안 팝업이 닫히지 않게 알린다. 팝업 밖에서는 아무 일도 하지 않는다. */
   const restored = preservedFormValues(state, collection.shipmentId, { scopeKey: 'shipmentId' });
   const evidenceId = `claim-collection-${collection.shipmentId}`;
-  return <section className="card admin-claim-origin-collection" aria-label={`${collection.originName} 회수 현황`}>
-    <h4 style={{ margin: '0 0 8px' }}>{collection.originName} · {collection.collectedAt ? '회수 확인 완료' : '회수 대기'}</h4>
-    <p className="muted" style={{ fontSize: 12, margin: '0 0 4px' }}>반송 주소</p>
-    <p style={{ fontSize: 13, whiteSpace: 'pre-wrap', margin: 0 }}>{collection.returnAddress || '출고지 설정에서 반송 주소를 등록해주세요.'}</p>
-    <ul style={{ fontSize: 13, paddingLeft: 18 }}>
+  return <section className="flex min-w-0 flex-col gap-2 rounded-lg border bg-muted/30 p-3 text-sm" aria-label={`${collection.originName} 회수 현황`} data-claim-origin-collection="">
+    <h4 className="font-medium">{collection.originName} · {collection.collectedAt ? '회수 확인 완료' : '회수 대기'}</h4>
+    <div>
+      <p className="text-xs text-muted-foreground">반송 주소</p>
+      <p className="break-words whitespace-pre-wrap">{collection.returnAddress || '출고지 설정에서 반송 주소를 등록해주세요.'}</p>
+    </div>
+    <ul className="list-disc pl-5">
       {collection.items.map((item) => <li key={item.orderItemId}>{item.name} · {item.qty}개</li>)}
     </ul>
     {collection.collectedAt ? <>
-      <p style={{ fontSize: 12 }}>{formatOrderDateTime(collection.collectedAt)}{collection.collectorName ? ` · ${collection.collectorName}` : ''}</p>
-      <p style={{ fontSize: 13, whiteSpace: 'pre-wrap', overflowWrap: 'anywhere' }}>{collection.evidence}</p>
-    </> : canRecord ? <form action={action} key={adminFormRemountKey(state, { claimId, shipmentId: collection.shipmentId })}>
+      <p className="text-xs text-muted-foreground">{formatOrderDateTime(collection.collectedAt)}{collection.collectorName ? ` · ${collection.collectorName}` : ''}</p>
+      <p className="break-words whitespace-pre-wrap">{collection.evidence}</p>
+    </> : canRecord ? <form action={action} className="flex min-w-0 flex-col gap-3" key={adminFormRemountKey(state, { claimId, shipmentId: collection.shipmentId })}>
       <input type="hidden" name="claimId" value={claimId} />
       <input type="hidden" name="claimType" value={claimType} />
       <input type="hidden" name="shipmentId" value={collection.shipmentId} />
-      <label htmlFor={evidenceId}><span>회수 확인 근거</span>
-        <textarea id={evidenceId} name="evidence" required maxLength={500} rows={3}
+      <div className="flex flex-col gap-1.5">
+        <Label htmlFor={evidenceId}>회수 확인 근거</Label>
+        <Textarea id={evidenceId} name="evidence" required maxLength={500} rows={3}
           defaultValue={restored?.claimId === claimId ? restored.evidence : ''}
           placeholder="창고 회신 번호와 반송 상품·수량 대조 결과" disabled={pending} />
-      </label>
-      <button className="btn btn-sm" type="submit" disabled={pending}>{collection.originName} 회수 확인</button>
-      {state.error ? <p role="alert">{adminClaimCopy(state.error)}</p> : null}
-      {state.message ? <p role="status">{adminClaimCopy(state.message)}</p> : null}
+      </div>
+      <Button className="w-fit" size="sm" type="submit" disabled={pending}>{collection.originName} 회수 확인</Button>
+      {state.error ? <p className="text-destructive" role="alert">{adminClaimCopy(state.error)}</p> : null}
+      {state.message ? <p className="text-muted-foreground" role="status">{adminClaimCopy(state.message)}</p> : null}
     </form> : null}
   </section>;
 }

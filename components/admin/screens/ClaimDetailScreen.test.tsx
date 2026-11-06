@@ -220,6 +220,8 @@ describe('ClaimDetailScreen', () => {
       reshipCarrier: 'hanjin', reshipTrackingNumber: 'QA4530000001', reshippedAt: '2026-09-09T00:00:00Z',
       reshipDeliveredAt: null, reshipDeliveredBy: null, reshipDeliveredByName: null, reshipDeliveryEvidence: null };
     expect(render({ claim: exchanged })).toContain('교환품 배송완료 확인</button>');
+    /* kit 버튼은 type을 주지 않으면 type="button"이다 — 기록 버튼은 양식을 제출해야 한다. */
+    expect(render({ claim: exchanged })).toMatch(/<button[^>]*type="submit"[^>]*>교환품 배송완료 확인<\/button>/);
     const completed = render({ claim: { ...exchanged, reshipDeliveredAt: '2026-09-09T01:00:00Z',
       reshipDeliveredBy: 'staff-1', reshipDeliveredByName: '배송담당', reshipDeliveryEvidence: '배송 조회 D-001: 전체 수령 확인' } });
     expect(completed).toContain('배송 조회 D-001: 전체 수령 확인');
@@ -299,6 +301,7 @@ describe('ClaimDetailScreen', () => {
     expect(html).toContain('창고 회신 G-001, 수량 2개 확인');
     expect(html).toContain('김담당');
     expect(html).toContain('서원 회수 확인');
+    expect(html).toMatch(/<button[^>]*type="submit"[^>]*>서원 회수 확인<\/button>/);
     expect(html).not.toContain('김포 회수 확인</button>');
     expect(html).not.toContain('환불 완료 확정');
     expect(html).not.toContain('반송 상품 입고 확인');
@@ -473,7 +476,9 @@ describe('ClaimDetailScreen', () => {
     expect(returns).toContain('자주 쓰는 거부 사유');
     expect(returns).toContain('<option value="반품 가능 기간이 지났습니다.">반품 가능 기간이 지났습니다.</option>');
     expect(returns).not.toContain('이미 발송되어 취소할 수 없습니다.');
-    expect(returns).toMatch(/<input id="claim-reject-note" maxLength="200" type="text" name="note" value=""\/>/);
+    /* 사유 칸: 빈 값으로 시작하는 200자 입력이고, 폼에는 note로 실린다. 속성 순서는 보지 않는다. */
+    const rejectInput = returns.match(/<input[^>]*\bid="claim-reject-note"[^>]*\/>/)?.[0] ?? '';
+    for (const attribute of ['maxLength="200"', 'type="text"', 'name="note"', 'value=""']) expect(rejectInput).toContain(attribute);
     const cancel = render({ claim: { ...detail().claim, claimType: 'cancel', stage: 'requested' } });
     expect(cancel).toContain('<option value="이미 발송되어 취소할 수 없습니다.">이미 발송되어 취소할 수 없습니다.</option>');
   });
@@ -491,6 +496,10 @@ describe('ClaimDetailScreen', () => {
     const html = render();
 
     expect(html).toContain('/admin/sales/claims/returns');
+    /* 버튼 모양 링크(outline)는 테두리 색이 남는다 — buttonVariants를 cn으로 합치지 않으면 기본의 border-transparent가 이긴다. */
+    const back = html.match(/<a[^>]*>← 목록으로<\/a>/)?.[0] ?? '';
+    expect(back).toContain('border-border');
+    expect(back).not.toContain('border-transparent');
   });
 
   /* R8: 목록 위 팝업에서는 대화상자가 제목·닫기를 맡는다. 같은 처리 패널을 그대로 쓴다. */

@@ -1,7 +1,5 @@
 import 'server-only';
 
-import { kstToday } from '@/lib/legal/privacy-address-book-revision';
-import { privacyAdultVerificationRevisionInEffect } from '@/lib/legal/privacy-adult-verification-revision';
 import { isKorpayUuid, normalizeKorpaySiteUrl } from '@/lib/payments/korpay-config.mjs';
 
 /*
@@ -131,17 +129,15 @@ export function kcpCertConfigured(env: RuntimeEnvironment = process.env) {
  * 사용자가 단일 canary다. 결과 콜백 처리는 이 gate가 아니라 설정 여부만 본다 — gate를
  * 닫아도 이미 인증창에 들어간 사용자의 결과는 끝까지 처리된다.
  *
- * 공개 스위치는 개인정보처리방침 성인 인증 개정의 시행일(KST)부터만 효력이 있다 — 방침이
- * 고지하기 전에 일반 회원의 본인확인 정보를 받지 않는다. 스위치를 미리 켜 두면 시행일에
- * 배포 없이 열린다. canary는 내부 확인용이라 시행일과 무관하다.
+ * 개인정보처리방침은 2026-11-06 오픈 전 최초 판부터 성인 인증의 수집 항목·위탁(NHN KCP)·보관 항목을
+ * 본문에 담고 있다(lib/legal/documents.ts) — 공개 스위치를 켤 때 방침이 이미 고지하고 있다.
  */
 export function adultVerificationEnabledFor(
   userId: string | null | undefined,
   env: RuntimeEnvironment = process.env,
-  today: string = kstToday(),
 ) {
   if (!kcpCertConfigured(env)) return false;
-  if (env.ADULT_VERIFICATION_ENABLED === 'true' && privacyAdultVerificationRevisionInEffect(today)) return true;
+  if (env.ADULT_VERIFICATION_ENABLED === 'true') return true;
   const canary = env.ADULT_VERIFICATION_CANARY_USER_ID;
   return typeof userId === 'string'
     && isKorpayUuid(userId)

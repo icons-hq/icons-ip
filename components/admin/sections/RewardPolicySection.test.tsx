@@ -247,7 +247,7 @@ describe('RewardPolicySection', () => {
     expect(html).toContain('회수 1');
     expect(html).toContain('주문 6');
     expect(html).toContain('최근 발급 2026-07-15 11:00 KST');
-    expect(html).toContain('class="admin-form-grid mono"');
+    expect(html).toContain('data-admin-summary="reward-policy"');
     expect(html).toContain('조건이 겹치는 활성 정책은 누적 적용');
     expect(html).toContain('정책 연결 정보가 없는 기존 뽑기권은 집계에서 제외');
   });
@@ -257,9 +257,9 @@ describe('RewardPolicySection', () => {
     const noPoolHtml = renderPolicySection({ pools: [endedPool, unreadyPool] });
 
     expect(noIpHtml).toContain('먼저 IP를 등록해주세요.');
-    expect(noIpHtml).toMatch(/<button[^>]*disabled=""[^>]*>[^<]*(?:<[^>]+>[^<]*<\/[^>]+>)?\s*저장<\/button>/);
+    expect(noIpHtml).toMatch(/<button[^>]*disabled=""[^>]*>(?:<svg[\s\S]*?<\/svg>)?\s*저장<\/button>/);
     expect(noPoolHtml).toContain('확률과 카드 구성이 완료된 운영 예정/운영 중 카드풀을 먼저 준비해주세요.');
-    expect(noPoolHtml).toMatch(/<button[^>]*disabled=""[^>]*>[^<]*(?:<[^>]+>[^<]*<\/[^>]+>)?\s*저장<\/button>/);
+    expect(noPoolHtml).toMatch(/<button[^>]*disabled=""[^>]*>(?:<svg[\s\S]*?<\/svg>)?\s*저장<\/button>/);
   });
 
   it('defaults a new policy to the first active IP when an archived IP sorts first', () => {

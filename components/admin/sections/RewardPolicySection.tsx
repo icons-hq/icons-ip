@@ -12,6 +12,7 @@ import type {
   AdminRewardPolicyRecord,
 } from '@/lib/admin/catalog.server';
 import { ErrorText, Field, FormShell, RecordList, SelectField } from '../fields';
+import { MasterDetail, SECTION_CARD, SECTION_NOTE, SECTION_STAT, SECTION_STATS, SectionHeading } from './SectionLayout';
 
 const emptyState: AdminCatalogActionState = {};
 
@@ -104,37 +105,38 @@ export function RewardPolicySection({
   );
 
   return (
-    <div className="admin-master-detail">
-      <RecordList
-        activeId={selected?.id ?? null}
-        ariaLabel="발급 정책 목록"
-        emptyMessage="등록된 발급 정책이 없습니다."
-        items={records}
-        labelFor={(policy) => {
-          const target = policy.targetGoodId
-            ? (goodNames.get(policy.targetGoodId) ?? policy.targetGoodId)
-            : `${ipTitles.get(policy.targetIpId) ?? policy.targetIpId} 전체 굿즈`;
-          const pool = poolNames.get(policy.poolId) ?? policy.poolId;
-          return `${target} → ${pool} · ${POLICY_STATUS_LABELS[policy.status]}`;
-        }}
-        newLabel="새 발급 정책"
-        onNew={() => onSelect(null)}
-        onSelect={onSelect}
-      />
-      <div className="col" style={{ gap: 16 }}>
-        <RewardPolicyForm
-          draftActiveFrom={draftActiveFrom}
-          draftId={draftId}
-          goods={goods}
-          ipOptions={ipOptions}
-          key={getRewardPolicyFormKey(selected, draftId, operationId)}
-          operationId={operationId}
-          pools={pools}
-          selected={selected}
+    <MasterDetail
+      list={(
+        <RecordList
+          activeId={selected?.id ?? null}
+          ariaLabel="발급 정책 목록"
+          emptyMessage="등록된 발급 정책이 없습니다."
+          items={records}
+          labelFor={(policy) => {
+            const target = policy.targetGoodId
+              ? (goodNames.get(policy.targetGoodId) ?? policy.targetGoodId)
+              : `${ipTitles.get(policy.targetIpId) ?? policy.targetIpId} 전체 굿즈`;
+            const pool = poolNames.get(policy.poolId) ?? policy.poolId;
+            return `${target} → ${pool} · ${POLICY_STATUS_LABELS[policy.status]}`;
+          }}
+          newLabel="새 발급 정책"
+          onNew={() => onSelect(null)}
+          onSelect={onSelect}
         />
-        <RewardPolicySummary selected={selected} />
-      </div>
-    </div>
+      )}
+    >
+      <RewardPolicyForm
+        draftActiveFrom={draftActiveFrom}
+        draftId={draftId}
+        goods={goods}
+        ipOptions={ipOptions}
+        key={getRewardPolicyFormKey(selected, draftId, operationId)}
+        operationId={operationId}
+        pools={pools}
+        selected={selected}
+      />
+      <RewardPolicySummary selected={selected} />
+    </MasterDetail>
   );
 }
 
@@ -185,19 +187,13 @@ function RewardPolicyForm({
   return (
     <form
       action={action}
-      className="card col wc-admin-kit wc-admin-kit__card"
+      className={SECTION_CARD}
       onReset={(event) => event.preventDefault()}
-      style={{ gap: 14 }}
     >
       <input name="operationId" type="hidden" value={operationId} />
       <input name="id" type="hidden" value={selected?.id ?? draftId} />
       <input name="trigger" type="hidden" value="order_paid" />
-      <div>
-        <strong>주문 결제 완료 발급</strong>
-        <p style={{ color: 'var(--wc-ink-tertiary)', fontSize: 12, margin: '6px 0 0' }}>
-          결제 완료된 주문이 아래 조건을 충족하면 카드팩을 발급합니다.
-        </p>
-      </div>
+      <SectionHeading description="결제 완료된 주문이 아래 조건을 충족하면 카드팩을 발급합니다." title="주문 결제 완료 발급" />
       <AdminFormGrid>
         <SelectField
           disabled={noIps}
@@ -295,7 +291,7 @@ function RewardPolicyForm({
           type="datetime-local"
         />
       </AdminFormGrid>
-      <label className="row" style={{ alignItems: 'center', gap: 8 }}>
+      <label className="flex w-fit items-center gap-2 text-sm font-medium">
         <input
           aria-describedby={state.errors?.active ? 'active-error' : undefined}
           aria-invalid={Boolean(state.errors?.active)}
@@ -304,11 +300,11 @@ function RewardPolicyForm({
           onChange={(event) => setActive(event.target.checked)}
           type="checkbox"
         />
-        <span style={{ fontSize: 13, fontWeight: 700 }}>정책 활성화</span>
+        <span>정책 활성화</span>
       </label>
       <ErrorText id={state.errors?.active ? 'active-error' : undefined}>{state.errors?.active}</ErrorText>
       {disabledReason && (
-        <p role={unavailableActivePool ? 'alert' : 'status'} style={{ color: 'var(--wc-danger)', margin: 0 }}>
+        <p className="text-sm text-destructive" role={unavailableActivePool ? 'alert' : 'status'}>
           {disabledReason}
         </p>
       )}
@@ -319,26 +315,26 @@ function RewardPolicyForm({
 
 function RewardPolicySummary({ selected }: { selected: AdminRewardPolicyRecord | null }) {
   return (
-    <section aria-labelledby="reward-policy-summary-title" className="card col wc-admin-kit wc-admin-kit__card" style={{ gap: 12 }}>
-      <strong id="reward-policy-summary-title">발급 현황</strong>
+    <section aria-labelledby="reward-policy-summary-title" className={SECTION_CARD}>
+      <SectionHeading id="reward-policy-summary-title" title="발급 현황" />
       {selected ? (
-        <div className="admin-form-grid mono" style={{ fontSize: 13 }}>
-          <span>발급 {selected.issuedCount.toLocaleString('ko-KR')}</span>
-          <span>사용 가능 {selected.availableCount.toLocaleString('ko-KR')}</span>
-          <span>개봉 {selected.openedCount.toLocaleString('ko-KR')}</span>
-          <span>회수 {selected.revokedCount.toLocaleString('ko-KR')}</span>
-          <span>주문 {selected.orderCount.toLocaleString('ko-KR')}</span>
-          <span>최근 발급 {formatKstDateTime(selected.lastIssuedAt)}</span>
-        </div>
+        <ul className={SECTION_STATS} data-admin-summary="reward-policy">
+          <li className={SECTION_STAT}>발급 {selected.issuedCount.toLocaleString('ko-KR')}</li>
+          <li className={SECTION_STAT}>사용 가능 {selected.availableCount.toLocaleString('ko-KR')}</li>
+          <li className={SECTION_STAT}>개봉 {selected.openedCount.toLocaleString('ko-KR')}</li>
+          <li className={SECTION_STAT}>회수 {selected.revokedCount.toLocaleString('ko-KR')}</li>
+          <li className={SECTION_STAT}>주문 {selected.orderCount.toLocaleString('ko-KR')}</li>
+          <li className={SECTION_STAT}>최근 발급 {formatKstDateTime(selected.lastIssuedAt)}</li>
+        </ul>
       ) : (
-        <p role="status" style={{ color: 'var(--wc-ink-tertiary)', margin: 0 }}>
+        <p className="text-sm text-muted-foreground" role="status">
           정책을 선택하거나 새 정책을 저장하면 발급 현황을 확인할 수 있습니다.
         </p>
       )}
-      <div className="card wc-admin-kit wc-admin-kit__card" role="status" style={{ color: 'var(--wc-ink-tertiary)', fontSize: 12, lineHeight: 1.6 }}>
+      <div className={SECTION_NOTE} role="status">
         조건이 겹치는 활성 정책은 누적 적용됩니다.
       </div>
-      <div className="card wc-admin-kit wc-admin-kit__card" role="status" style={{ color: 'var(--wc-ink-tertiary)', fontSize: 12, lineHeight: 1.6 }}>
+      <div className={SECTION_NOTE} role="status">
         정책 연결 정보가 없는 기존 뽑기권은 집계에서 제외됩니다.
       </div>
     </section>

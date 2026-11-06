@@ -20,7 +20,12 @@ function sources(dir: string): string[] {
   });
 }
 
-const SHADCN_TOKENS = ['--background', '--foreground', '--primary', '--border', '--input', '--ring', '--radius'];
+const SHADCN_TOKENS = ['--background', '--foreground', '--primary', '--border', '--input', '--ring', '--radius', '--sidebar'];
+const KIT_GUARD = ':not([data-slot])';
+/** 아직 kit 부품으로 옮기지 않은 화면의 관리자 CSS(ADR-0028 순서 ⑤에서 퇴역한다). */
+const LEGACY_STYLESHEETS = readdirSync(join(ROOT, 'app', 'styles'))
+  .filter((name) => /^(admin-|wc-admin).*\.css$/.test(name))
+  .filter((name) => !['admin-kit.css', 'admin-kit-vocabulary.css'].includes(name));
 
 describe('admin kit 경계 (ADR-0028)', () => {
   const css = postcss.parse(read('app/styles/admin-kit.css'));
@@ -35,14 +40,41 @@ describe('admin kit 경계 (ADR-0028)', () => {
     expect([...owners]).toEqual(['.wc-admin']);
   });
 
-  it('revert-layer 다리는 kit 섬과 kit 포털 안의 kit 부품(data-slot)에만 건다', () => {
-    const bridges: string[] = [];
-    css.walkDecls('all', (declaration) => {
-      if (declaration.value === 'revert-layer') bridges.push((declaration.parent as postcss.Rule).selector);
+  it('revert-layer 다리 없이 kit 유틸리티가 이긴다 — 옛 관리자 CSS는 utilities 아래 layer에 있다', () => {
+    css.walkDecls('all', (declaration) => expect(declaration.value).not.toBe('revert-layer'));
+    for (const file of LEGACY_STYLESHEETS) {
+      const body = read(`app/styles/${file}`).replace(/\/\*[\s\S]*?\*\//g, '').trim();
+      postcss.parse(body).each((node) => {
+        /* 글꼴 선언(@font-face)만 layer 밖에 둘 수 있다. */
+        if (node.type === 'atrule' && node.name === 'font-face') return;
+        expect(node.type === 'atrule' && node.name === 'layer' && node.params === 'components', `${file}: ${node.toString().slice(0, 80)}`).toBe(true);
+      });
+    }
+  });
+
+  it('옛 관리자 CSS의 모든 선택자는 kit 부품(data-slot)을 비켜 간다', () => {
+    for (const file of LEGACY_STYLESHEETS) {
+      postcss.parse(read(`app/styles/${file}`)).walkRules((rule) => {
+        if (rule.parent?.type === 'atrule' && /keyframes$/i.test((rule.parent as postcss.AtRule).name)) return;
+        for (const selector of rule.selectors) expect(selector, `${file}: ${selector}`).toContain(KIT_GUARD);
+      });
+    }
+  });
+
+  it('옛 클래스 어휘의 kit 옷(admin-kit-vocabulary.css)은 kit 부품과 공개 미리보기를 건드리지 않고, 관리자 CSS 뒤에 싣는다', () => {
+    postcss.parse(read('app/styles/admin-kit-vocabulary.css')).walkRules((rule) => {
+      for (const selector of rule.selectors) {
+        expect(selector, selector).toMatch(/^\.wc-admin\b/);
+        expect(selector, selector).toContain(KIT_GUARD);
+        expect(selector, selector).toContain(':not(.wc-root *)');
+      }
     });
-    expect(bridges).not.toHaveLength(0);
-    for (const selector of bridges.flatMap((value) => value.split(',').map((part) => part.trim()))) {
-      expect(selector, selector).toMatch(/^\.wc-admin(?: \.admin-kit-island|\.admin-kit-portal) \[data-slot\]$/);
+    const layout = read('app/layout.tsx');
+    const vocabulary = layout.indexOf("'./styles/admin-kit-vocabulary.css'");
+    expect(vocabulary).toBeGreaterThan(0);
+    for (const file of LEGACY_STYLESHEETS) {
+      const at = layout.indexOf(`'./styles/${file}'`);
+      if (at >= 0) expect(at, file).toBeLessThan(vocabulary);
     }
   });
 

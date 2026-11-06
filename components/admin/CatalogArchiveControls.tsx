@@ -8,6 +8,8 @@ import {
   type AdminCatalogArchiveKind,
 } from '../../app/admin/archive-actions';
 import type { AdminCatalogArchiveFilter as ArchiveFilter } from '../../lib/admin/catalog-archive';
+import { AdminSelect } from './console/AdminSelect';
+import { Button } from './kit/ui/button';
 
 const initialState: AdminCatalogArchiveActionState = {};
 
@@ -28,19 +30,18 @@ export function CatalogArchiveFilter({
   onChange: (filter: ArchiveFilter) => void;
 }) {
   return (
-    <label className="col" style={{ gap: 7 }}>
-      <span className="mono" style={{ color: 'var(--dim)', fontSize: 11 }}>보관 상태</span>
-      <select
+    <label className="flex min-w-0 flex-col gap-1.5">
+      <span className="text-xs font-medium text-muted-foreground">보관 상태</span>
+      <AdminSelect
         aria-label="보관 상태"
-        className="admin-field-control"
         onChange={(event) => onChange(event.target.value as ArchiveFilter)}
         value={filter}
-        style={{ padding: '0 10px', width: '100%' }}
+        wrapperClassName="w-full"
       >
         <option value="active">운영 중 {counts.active}</option>
         <option value="archived">보관됨 {counts.archived}</option>
         <option value="all">전체 {counts.all}</option>
-      </select>
+      </AdminSelect>
     </label>
   );
 }
@@ -61,32 +62,32 @@ export function CatalogArchiveControl({
   const [state, formAction, pending] = useActionState(action, initialState);
 
   return (
-    <section className="card col" style={{ gap: 12, padding: 18 }}>
-      <div>
-        <span className="eyebrow">CATALOG VISIBILITY</span>
-        <h2 style={{ fontSize: 18, margin: '6px 0 0' }}>{archived ? '보관 복원' : '카탈로그 보관'}</h2>
+    <section className="flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4 text-card-foreground" data-catalog-archive="">
+      <div className="flex flex-col gap-1">
+        <span className="text-xs font-medium tracking-wide text-muted-foreground">CATALOG VISIBILITY</span>
+        <h2 className="text-base leading-snug font-medium">{archived ? '보관 복원' : '카탈로그 보관'}</h2>
       </div>
-      <p className="muted" style={{ fontSize: 12, lineHeight: 1.6, margin: 0 }}>
+      <p className="text-sm text-muted-foreground">
         {archived
           ? (kind === 'ip' || kind === 'good' ? '초안으로 복원합니다. 다시 노출하려면 내용을 확인한 뒤 공개로 전환해주세요.' : '보관된 항목을 공개 카탈로그로 복원합니다.')
           : ARCHIVE_WARNINGS[kind]}
       </p>
       {state.errors?.form && (
-        <div className="card" role="alert" style={{ color: 'var(--pink)', padding: 12 }}>
+        <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2.5 text-sm text-destructive" role="alert">
           {state.errors.form}
         </div>
       )}
       {state.message && (
-        <div className="card" role="status" style={{ color: 'var(--mint)', padding: 12 }}>
+        <div className="rounded-lg border bg-muted/40 px-3 py-2.5 text-sm text-[var(--wc-success)]" role="status">
           {state.message}
         </div>
       )}
       <form action={formAction}>
         <input name="kind" readOnly type="hidden" value={kind} />
         <input name="id" readOnly type="hidden" value={id} />
-        <button className={archived ? 'btn btn-holo' : 'btn btn-ghost'} disabled={pending}>
+        <Button disabled={pending} type="submit" variant={archived ? 'default' : 'outline'}>
           {pending ? '처리 중' : archived ? '복원' : '보관'}
-        </button>
+        </Button>
       </form>
     </section>
   );

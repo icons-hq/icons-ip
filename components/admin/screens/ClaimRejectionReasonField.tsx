@@ -42,10 +42,12 @@ export function ClaimRejectionReasonField({
     onChange?.(next);
   };
 
-  return <div className="admin-claim-reject-reason">
-    <label htmlFor={presetId}>
-      <span>자주 쓰는 거부 사유</span>
+  /* 네이티브 select·input을 그대로 둔다(제어 값·Enter 처리) — kit 모양은 어휘 CSS(admin-kit-vocabulary.css)가 입힌다. */
+  return <div className="grid min-w-0 gap-3" data-claim-reject-reason="">
+    <label className="flex min-w-0 flex-col gap-1.5" htmlFor={presetId}>
+      <span className="text-sm font-medium">자주 쓰는 거부 사유</span>
       <select
+        className="w-full"
         id={presetId}
         onChange={(event) => {
           const preset = event.target.value;
@@ -58,9 +60,10 @@ export function ClaimRejectionReasonField({
         {presets.map((preset) => <option key={preset} value={preset}>{preset}</option>)}
       </select>
     </label>
-    <label htmlFor={id}>
-      <span>{label}</span>
+    <label className="flex min-w-0 flex-col gap-1.5" htmlFor={id}>
+      <span className="text-sm font-medium">{label}</span>
       <input
+        className="w-full"
         id={id}
         maxLength={200}
         name={name}

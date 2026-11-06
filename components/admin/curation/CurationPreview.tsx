@@ -74,14 +74,14 @@ export function CurationPreview({
     && shellNoticeDestinationAllowed(collectionBanner.href, { cardRewardsEnabled, communityEnabled: COMMUNITY_ENABLED });
 
   return (
-    <div className="admin-store-editor__preview-stage" ref={stageRef}>
+    <div className="relative m-3 min-h-[620px] min-w-0 flex-1 md:m-5" data-store-preview-stage="" ref={stageRef}>
       <div
-        className="admin-store-editor__preview-viewport"
+        className="relative mx-auto h-full min-h-[620px] max-w-full overflow-hidden"
         data-device={device}
         style={{ width: stageWidth > 0 ? viewportWidth * scale : '100%' }}
       >
         {stageWidth > 0 ? <iframe
-          className="admin-store-editor__preview-frame"
+          className="absolute top-0 left-0 origin-top-left border bg-background"
           data-preview-ready={Boolean(portalRoot)}
           onLoad={mountFrame}
           ref={frameRef}
@@ -89,7 +89,7 @@ export function CurationPreview({
           srcDoc={PREVIEW_DOCUMENT}
           style={{ width: viewportWidth, height: `${100 / scale}%`, minHeight: 620 / scale, transform: `scale(${scale})` }}
           title={`${device === 'mobile' ? '모바일' : 'PC'} 스토어 미리보기`}
-        /> : <p role="status">미리보기 준비 중…</p>}
+        /> : <p className="p-4 text-sm text-muted-foreground" role="status">미리보기 준비 중…</p>}
         {portalRoot ? createPortal(
           <div
             onAuxClickCapture={(event) => {
@@ -127,7 +127,7 @@ export function CurationPreview({
                 {bannerAllowed && collectionBanner.slot === 'all' ? <CollectionBanners banners={[collectionBanner]} slot="all" /> : null}
                 <div className="wc-container">
                   {bannerAllowed && collectionBanner.slot !== 'all' ? <CollectionBanners banners={[collectionBanner]} slot={collectionBanner.slot} /> : null}
-                  <p className="admin-store-editor__preview-note">{bannerAllowed
+                  <p className="grid gap-[5px] border-b border-[var(--wc-hairline)] px-4 py-3 text-[11px] text-[var(--wc-ink-tertiary)]">{bannerAllowed
                     ? '배너 아래에는 이 컬렉션의 상품 목록이 이어집니다.'
                     : '이동할 화면이 지금 공개되지 않아 이 배너는 고객 화면에 보이지 않습니다.'}</p>
                 </div>

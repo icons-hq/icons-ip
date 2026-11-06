@@ -2,12 +2,17 @@ import { useId } from 'react';
 import { AdminField, AdminSidePanel } from './console/AdminKit';
 import { AdminSelect } from './console/AdminSelect';
 import type { AdminCatalogActionState } from '@/app/admin/actions';
-import { Icon } from '@/components/ui/Icon';
+import { Check, Plus } from 'lucide-react';
+import { buttonVariants } from '@/components/admin/kit/ui/button';
 import { adminArtworkAspectRatio, type AdminArtworkKind } from '@/lib/admin/artwork';
+
+/* kit Input · Textarea와 같은 모양(ADR-0028). 폼 제출·기본값·검증 속성은 네이티브 그대로다. */
+const CONTROL_CLASS = 'h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-sm transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 read-only:border-dashed read-only:bg-muted/50 read-only:text-muted-foreground aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20';
+const TEXTAREA_CLASS = 'flex min-h-16 w-full rounded-lg border border-input bg-transparent px-2.5 py-2 text-sm transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20';
 
 export function ErrorText({ children, id }: { children?: string; id?: string }) {
   if (!children) return null;
-  return <span id={id} role="alert" style={{ color: 'var(--wc-danger)', fontSize: 12, fontWeight: 700 }}>{children}</span>;
+  return <span className="text-sm text-destructive" id={id} role="alert">{children}</span>;
 }
 
 export function Field({
@@ -46,7 +51,8 @@ export function Field({
         id={inputId}
         aria-describedby={errorId}
         aria-invalid={Boolean(error)}
-        className="admin-field-control"
+        className={CONTROL_CLASS}
+        data-slot="input"
         defaultValue={defaultValue ?? ''}
         max={max}
         maxLength={maxLength}
@@ -88,7 +94,8 @@ export function TextArea({
         id={inputId}
         aria-describedby={errorId}
         aria-invalid={Boolean(error)}
-        className="admin-field-control"
+        className={TEXTAREA_CLASS}
+        data-slot="textarea"
         defaultValue={defaultValue ?? ''}
         maxLength={maxLength}
         name={name}
@@ -129,7 +136,8 @@ export function ColorField({
         id={inputId}
         aria-describedby={errorId}
         aria-invalid={Boolean(error)}
-        className="admin-field-control"
+        className="h-8 w-16 cursor-pointer rounded-lg border border-input bg-transparent p-1 outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 aria-invalid:border-destructive [&::-webkit-color-swatch-wrapper]:p-0 [&::-webkit-color-swatch]:rounded-md [&::-webkit-color-swatch]:border-0 [&::-moz-color-swatch]:rounded-md [&::-moz-color-swatch]:border-0"
+        data-slot="input"
         defaultValue={value}
         name={name}
         type="color"
@@ -168,7 +176,6 @@ export function SelectField({
         id={inputId}
         aria-describedby={errorId}
         aria-invalid={Boolean(error)}
-        className="admin-field-control"
         defaultValue={value === undefined ? (defaultValue ?? '') : undefined}
         disabled={disabled}
         name={name}
@@ -185,14 +192,14 @@ export function SelectField({
 export function ActionNotice({ state }: { state: AdminCatalogActionState }) {
   if (state.errors?.form) {
     return (
-      <div className="card" role="alert" style={{ color: 'var(--wc-danger)', padding: 12, borderRadius: 10, fontWeight: 700 }}>
+      <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2.5 text-sm font-medium text-destructive" role="alert">
         {state.errors.form}
       </div>
     );
   }
   if (state.message) {
     return (
-      <div className="card" role="status" style={{ color: 'var(--wc-success)', padding: 12, borderRadius: 10, fontWeight: 700 }}>
+      <div className="rounded-lg border bg-muted/40 px-3 py-2.5 text-sm font-medium text-[var(--wc-success)]" role="status">
         {state.message}
       </div>
     );
@@ -202,10 +209,10 @@ export function ActionNotice({ state }: { state: AdminCatalogActionState }) {
 
 export function InlineNotice({ state }: { state: AdminCatalogActionState }) {
   if (state.errors?.form) {
-    return <span role="alert" style={{ color: 'var(--wc-danger)', fontSize: 12, fontWeight: 700 }}>{state.errors.form}</span>;
+    return <span className="text-sm font-medium text-destructive" role="alert">{state.errors.form}</span>;
   }
   if (state.message) {
-    return <span role="status" style={{ color: 'var(--wc-success)', fontSize: 12, fontWeight: 700 }}>{state.message}</span>;
+    return <span className="text-sm font-medium text-[var(--wc-success)]" role="status">{state.message}</span>;
   }
   return null;
 }
@@ -222,8 +229,8 @@ export function FormShell({
   return (
     <>
       <ActionNotice state={state} />
-      <button className="wc-admin-kit wc-admin-kit__button" disabled={disabled || pending} style={{ justifySelf: 'start', minWidth: 150 }}>
-        <Icon name="check" size={15} /> {pending ? '저장 중' : '저장'}
+      <button className={`${buttonVariants()} min-w-28 justify-self-start self-start`} data-slot="button" disabled={disabled || pending}>
+        <Check aria-hidden="true" /> {pending ? '저장 중' : '저장'}
       </button>
     </>
   );
@@ -238,14 +245,8 @@ function RecordThumbnail({ kind, url }: { kind: AdminArtworkKind; url: string })
   return (
     <span
       aria-hidden="true"
-      style={{
-        aspectRatio: adminArtworkAspectRatio(kind),
-        background: 'var(--wc-surface-grey)',
-        borderRadius: 6,
-        flex: '0 0 auto',
-        overflow: 'hidden',
-        width: 52,
-      }}
+      className="w-[52px] flex-none overflow-hidden rounded-md bg-muted"
+      style={{ aspectRatio: adminArtworkAspectRatio(kind) }}
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
@@ -253,7 +254,7 @@ function RecordThumbnail({ kind, url }: { kind: AdminArtworkKind; url: string })
         decoding="async"
         loading="lazy"
         src={url}
-        style={{ display: 'block', height: '100%', objectFit: kind === 'event' ? 'contain' : 'cover', width: '100%' }}
+        className={`block size-full ${kind === 'event' ? 'object-contain' : 'object-cover'}`}
       />
     </span>
   );
@@ -286,12 +287,12 @@ export function RecordList<T extends { id: string }>({
 }) {
   return (
     <AdminSidePanel title={ariaLabel}>
-      <button className="wc-admin-kit wc-admin-kit__button" onClick={onNew} style={{ width: '100%' }} type="button">
-        <Icon name="plus" size={15} /> {newLabel}
+      <button className={`${buttonVariants({ variant: 'outline' })} w-full`} data-slot="button" onClick={onNew} type="button">
+        <Plus aria-hidden="true" /> {newLabel}
       </button>
-      <div className="col" style={{ gap: 8, marginTop: 14, maxHeight: 520, overflow: 'auto' }}>
+      <div className="flex max-h-[520px] flex-col gap-1 overflow-auto">
         {!items.length && emptyMessage && (
-          <p style={{ color: 'var(--wc-ink-tertiary)', fontSize: 13, margin: 0 }}>{emptyMessage}</p>
+          <p className="m-0 text-sm text-muted-foreground">{emptyMessage}</p>
         )}
         {items.map((item) => {
           const thumbnailUrl = thumbnailKind && thumbnailUrlFor ? thumbnailUrlFor(item) : null;
@@ -302,18 +303,18 @@ export function RecordList<T extends { id: string }>({
               key={item.id}
               aria-current={activeId === item.id ? 'true' : undefined}
               className={[
-                activeId === item.id ? 'chip on' : 'chip',
+                'flex min-h-9 w-full items-center justify-start gap-2.5 overflow-hidden rounded-lg px-2.5 py-1.5 text-left text-sm transition-colors outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 aria-[current=true]:bg-muted aria-[current=true]:font-medium',
                 itemClassName,
               ].filter(Boolean).join(' ')}
+              data-slot="button"
               onClick={() => onSelect(item)}
-              style={{ gap: 10, justifyContent: 'flex-start', minHeight: 38, overflow: 'hidden', textAlign: 'left' }}
               type="button"
             >
               {thumbnailKind && thumbnailUrl && (
                 <RecordThumbnail kind={thumbnailKind} url={thumbnailUrl} />
               )}
               {typeof label === 'string'
-                ? <span className="admin-record-label" title={label}>{label}</span>
+                ? <span className="min-w-0 truncate" title={label}>{label}</span>
                 : label}
             </button>
           );

@@ -9,6 +9,7 @@ import {
   nextErpItemHighlight,
   type ErpItemListPlacement,
 } from '@/lib/admin/erp-item-search';
+import { GOOD_INPUT_CLASS } from './GoodEditorParts';
 
 export type ErpItemNameInputProps = {
   value: string;
@@ -105,9 +106,11 @@ export function ErpItemNameInput({ value, onChange, onSelect, ariaLabel, ariaDes
     }
   };
 
-  return <div className="admin-erp-item-combobox">
+  return <div className="relative min-w-0" data-erp-item-combobox="">
     <input
       ref={inputRef}
+      className={GOOD_INPUT_CLASS}
+      data-slot="input"
       role="combobox"
       aria-autocomplete="list"
       aria-expanded={expanded}
@@ -139,7 +142,7 @@ export function ErpItemNameInput({ value, onChange, onSelect, ariaLabel, ariaDes
       id={listId}
       role="listbox"
       aria-label={`${ariaLabel} 제안`}
-      className="admin-erp-item-combobox__list"
+      className="fixed z-50 grid overflow-y-auto rounded-lg border bg-popover p-1 text-sm text-popover-foreground shadow-md print:hidden"
       hidden={!expanded}
       style={expanded && placement ? placement : undefined}
     >
@@ -148,12 +151,12 @@ export function ErpItemNameInput({ value, onChange, onSelect, ariaLabel, ariaDes
         id={optionId(index)}
         role="option"
         aria-selected={index === active}
-        className="admin-erp-item-combobox__option"
+        className="grid min-h-11 cursor-pointer content-center gap-0.5 rounded-md px-3 py-2 text-left hover:bg-accent hover:text-accent-foreground aria-selected:bg-accent aria-selected:text-accent-foreground forced-colors:aria-selected:outline-2 forced-colors:aria-selected:-outline-offset-2"
         onMouseDown={(event) => event.preventDefault()}
         onClick={() => choose(item)}
       >
-        <span className="admin-erp-item-combobox__name">{item.name}</span>
-        <span className="admin-erp-item-combobox__meta">{item.code}{item.category ? ` · ${item.category}` : ''}</span>
+        <span className="text-sm font-medium wrap-anywhere">{item.name}</span>
+        <span className="text-xs text-muted-foreground wrap-anywhere">{item.code}{item.category ? ` · ${item.category}` : ''}</span>
       </li>) : null}
     </ul>
   </div>;

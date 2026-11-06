@@ -112,7 +112,8 @@ describe('CardPoolSection', () => {
     const html = renderPool(pool, [{ ...card, id: 'c 100/&' }]);
 
     expect(html).toContain('href="/admin/catalog/cards?cardId=c%20100%2F%26"');
-    expect(html).not.toContain('<button class="btn"');
+    expect(html).toMatch(/<a[^>]*href="\/admin\/catalog\/cards\?cardId=c%20100%2F%26"[^>]*>카드 편집<\/a>/);
+    expect(html).not.toMatch(/<button[^>]*>카드 편집<\/button>/);
   });
 
   it('warns that odds changes affect unopened card packs immediately', () => {

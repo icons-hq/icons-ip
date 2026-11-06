@@ -22,7 +22,7 @@ describe('ConsoleFilterPanel', () => {
       <ConsoleFilterPanel action="/admin/orders" hiddenFields={{ tab: 'delivery' }} now={NOW} />,
     );
 
-    expect(html).toContain('<form class="admin-console-filters card" action="/admin/orders" method="get">');
+    expect(html).toMatch(/<form class="[^"]*" data-console-filters="" action="\/admin\/orders" method="get">/);
     expect(html).toContain('<input type="hidden" name="tab" value="delivery"/>');
   });
 
@@ -169,7 +169,7 @@ describe('ConsoleFilterPanel', () => {
       </ConsoleFilterPanel>,
     );
 
-    expect(html.indexOf('추가 컨트롤')).toBeLessThan(html.indexOf('admin-console-filter-actions'));
+    expect(html.indexOf('추가 컨트롤')).toBeLessThan(html.indexOf('>초기화<'));
     expect(html).toContain('조회');
   });
 });

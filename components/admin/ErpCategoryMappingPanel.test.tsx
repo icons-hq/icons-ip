@@ -29,6 +29,11 @@ vi.mock('react', async () => {
 });
 
 const { ErpCategoryMappingPanel } = await import('./ErpCategoryMappingPanel');
+const { AdminSelect } = await import('./console/AdminSelect');
+const { Button } = await import('./kit/ui/button');
+/* kit 버튼·선택도 네이티브와 같은 조작 부품으로 찾는다(ADR-0028). */
+const isButton = (element: ReactElement) => element.type === 'button' || element.type === Button;
+const isSelect = (element: ReactElement) => element.type === 'select' || element.type === AdminSelect;
 
 type Props = { children?: ReactNode; row?: { erpCategory: string }; value?: string; disabled?: boolean; onClick?: () => void; onChange?: (event: unknown) => void };
 
@@ -65,7 +70,7 @@ async function renderRow(options: { rows?: Row[]; categoryErpMappings?: Mapping[
   const component = rowElement.type as (props: Props) => ReactNode;
   return component(rowElement.props);
 }
-const button = (tree: ReactNode, label: string) => find(tree, (element) => element.type === 'button' && text(element).includes(label))[0];
+const button = (tree: ReactNode, label: string) => find(tree, (element) => isButton(element) && text(element).includes(label))[0];
 
 beforeEach(() => {
   hooks.state = [];
@@ -83,14 +88,14 @@ describe('ERP 분류 연결 표', () => {
     const tree = await renderRow();
     expect(text(tree)).toContain('ERP 분류를 고객 카테고리에 연결했습니다.');
     expect(button(tree, '연결').props.disabled).toBe(true);
-    expect(find(tree, (element) => element.type === 'button' && text(element).includes('같은 경로로 연결'))).toHaveLength(0);
+    expect(find(tree, (element) => isButton(element) && text(element).includes('같은 경로로 연결'))).toHaveLength(0);
     expect(hooks.refresh).toHaveBeenCalledOnce();
   });
 
   it('고른 값만 저장하고, 서버 거절 문구를 그 행에 보여 준다', async () => {
     hooks.save.mockResolvedValue({ ok: false, error: '보관된 카테고리에는 연결할 수 없습니다.' });
     let tree = await renderRow();
-    find(tree, (element) => element.type === 'select')[0].props.onChange?.({ target: { value: PHOTO } });
+    find(tree, (element) => isSelect(element))[0].props.onChange?.({ target: { value: PHOTO } });
     tree = await renderRow();
     button(tree, '연결 저장').props.onClick?.();
     await Promise.all(hooks.pending.splice(0));
@@ -100,8 +105,8 @@ describe('ERP 분류 연결 표', () => {
 
   /* 2026-10-07 QA: 연결 안 된 분류에도 비활성 '연결 해제' 버튼이 보여 이미 연결된 분류처럼 읽혔다. */
   it('연결도 선택도 없으면 저장 버튼을 숨기고, 저장된 연결을 비웠을 때만 연결 해제를 보여 준다', async () => {
-    const saveButtons = (tree: ReactNode) => find(tree, (element) => element.type === 'button' && /연결 (저장|해제)|저장 중/.test(text(element)));
-    const choose = (tree: ReactNode, value: string) => find(tree, (element) => element.type === 'select')[0].props.onChange?.({ target: { value } });
+    const saveButtons = (tree: ReactNode) => find(tree, (element) => isButton(element) && /연결 (저장|해제)|저장 중/.test(text(element)));
+    const choose = (tree: ReactNode, value: string) => find(tree, (element) => isSelect(element))[0].props.onChange?.({ target: { value } });
     let tree = await renderRow();
     expect(saveButtons(tree)).toHaveLength(0);
     choose(tree, PHOTO);
@@ -133,7 +138,7 @@ describe('ERP 분류 연결 표', () => {
     expect(text(panel)).toContain('ERP 분류 1개 중 1개 연결됨');
     const tree = await renderRow({ rows: fallbackRows, categoryErpMappings: mappings });
     expect(text(tree)).toContain('고객 카테고리의 ERP 분류 매핑에 따라 ‘문구 > 키링’ 카테고리를 제안합니다.');
-    expect(find(tree, (element) => element.type === 'button' && text(element).includes('ERP 분류 매핑대로 연결'))).toHaveLength(0);
+    expect(find(tree, (element) => isButton(element) && text(element).includes('ERP 분류 매핑대로 연결'))).toHaveLength(0);
   });
 
   /* R9: DB가 전체 경로로 자동 연결한 분류는 '연결됨'으로 세고, 연결 필요 개수와 필터를 따로 보인다. */
@@ -153,10 +158,10 @@ describe('ERP 분류 연결 표', () => {
     const mappings = [{ categoryId: KEYRING, erpCode: 'ST-01', erpName: '문구' }, { categoryId: PHOTO, erpCode: 'PC-01', erpName: '문구 > 포토카드' }];
     let tree = await renderRow({ categoryErpMappings: mappings });
     expect(text(tree)).not.toContain('다른 ERP 분류');
-    find(tree, (element) => element.type === 'select')[0].props.onChange?.({ target: { value: KEYRING } });
+    find(tree, (element) => isSelect(element))[0].props.onChange?.({ target: { value: KEYRING } });
     tree = await renderRow({ categoryErpMappings: mappings });
     expect(text(tree)).toContain('고른 카테고리는 고객 카테고리 화면에서 다른 ERP 분류(‘문구’, ST-01)에 매핑돼 있습니다. 맞는 카테고리인지 확인해주세요.');
-    find(tree, (element) => element.type === 'select')[0].props.onChange?.({ target: { value: PHOTO } });
+    find(tree, (element) => isSelect(element))[0].props.onChange?.({ target: { value: PHOTO } });
     expect(text(await renderRow({ categoryErpMappings: mappings }))).not.toContain('다른 ERP 분류');
   });
 });

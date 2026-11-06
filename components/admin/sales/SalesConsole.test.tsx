@@ -15,8 +15,10 @@ describe('sales filter and result forms', () => {
   it('same-day and open-ended date searches remain valid', () => {
     const sameDay = renderToStaticMarkup(<SalesDateRange id="same" from="2026-10-20" to="2026-10-20" />);
     const openEnded = renderToStaticMarkup(<SalesDateRange id="open" from="2026-10-20" to={null} />);
-    expect(sameDay).not.toContain('aria-invalid');
-    expect(openEnded).not.toContain('aria-invalid');
+    /* kit 입력의 클래스에는 aria-invalid: 변형 이름이 들어 있다 — 속성만 본다. */
+    expect(sameDay).not.toContain('aria-invalid=');
+    expect(sameDay).not.toContain('role="alert"');
+    expect(openEnded).not.toContain('aria-invalid=');
     expect(openEnded).not.toContain('max=');
     expect(openEnded).toContain('min="2026-10-20"');
   });
@@ -33,6 +35,8 @@ describe('sales filter and result forms', () => {
     expect(html).toContain('name="pageSize" value="50"');
     expect(html).not.toContain('name="page"');
     expect(html).toContain('type="button" aria-pressed="false">오늘');
+    /* kit Button은 type이 없으면 button이 된다 — 검색은 GET 폼을 제출해야 한다. */
+    expect(html).toMatch(/<button[^>]*type="submit"[^>]*>검색</);
     expect(html).not.toContain('href="/admin/sales/dispatch?tab=ready&amp;method=parcel&amp;sort=newest&amp;pageSize=50&amp;page=1&amp;from=');
   });
   it('applies sorting and list size while preserving the searched scope and dropping selection/page', () => {
@@ -44,11 +48,12 @@ describe('sales filter and result forms', () => {
     expect(html).not.toContain('name="page"');
     expect(html).not.toContain('name="order"');
     expect(html).toContain('<option value="50" selected="">50개씩 보기</option>');
+    expect(html).toMatch(/<button[^>]*type="submit"[^>]*>적용</);
   });
 
   it('keeps the operational guide expanded without submitting or loading any action', () => {
     const html = renderToStaticMarkup(<SalesGuide title="반품 처리 안내"><p>회수 근거를 확인한 뒤 처리합니다.</p></SalesGuide>);
-    expect(html).toContain('<details class="admin-sales-guide" open="">');
+    expect(html).toMatch(/<details [^>]*data-sales-guide=""[^>]*open=""/);
     expect(html).toContain('회수 근거를 확인한 뒤 처리합니다.');
     expect(html).toContain('메뉴설명 접기');
     expect(html).toContain('메뉴설명 보기');
@@ -69,7 +74,7 @@ describe('sales filter and result forms', () => {
   it('does not turn an unavailable summary count into zero', () => {
     const html = renderToStaticMarkup(<SalesStatusSummary label="주문 처리 단계" items={[{label:'전체',href:'/admin/sales/orders',active:true}]} />);
     expect(html).toContain('aria-label="전체"');
-    expect(html).not.toContain('<strong>');
+    expect(html).not.toContain('<strong');
     expect(html).not.toContain('0건');
   });
 });

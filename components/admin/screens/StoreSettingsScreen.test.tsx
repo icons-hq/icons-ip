@@ -38,4 +38,6 @@ it('문의 자동 안내는 다섯 유형을 제공하고 staff의 변경을 막
   expect(html).not.toContain('>문의 자동 안내 저장<');
   const admin = renderToStaticMarkup(<StoreSettingsScreen {...props} settings={settings} section="inquiry_auto_replies" canEdit/>);
   expect(admin).toContain('>문의 자동 안내 저장<');
+  /* kit 버튼의 기본 type은 button이다 — 폼 저장 버튼은 제출 버튼이어야 한다. */
+  expect(admin).toMatch(/<button[^>]*type="submit"[^>]*>(?:(?!<\/button>)[\s\S])*문의 자동 안내 저장<\/button>/);
 });

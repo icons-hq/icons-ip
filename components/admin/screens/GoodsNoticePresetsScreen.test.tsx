@@ -28,6 +28,8 @@ describe('상품정보제공고시 프리셋 관리 화면', () => {
     expect(html).toContain('프리셋 수정 저장');
     expect(html).toContain('기존 상품에 입력된 값은 바뀌지 않습니다.');
     expect(html).toContain('action="/admin/catalog/notice-presets"');
+    // 서버 액션 폼의 제출 버튼은 submit이다(kit 버튼의 기본 type은 button).
+    for (const label of ['프리셋 수정 저장', '프리셋 등록', '삭제 확정', '검색']) expect(html).toMatch(new RegExp(`<button(?=[^>]*type="submit")[^>]*>${label}</button>`));
   });
   it('결과가 없는 검색에서도 등록과 검색 초기화를 제공한다', () => {
     const html = renderToStaticMarkup(<GoodsNoticePresetsScreen data={{ total: 0, filters: { query: '없는 이름', page: 1 }, presets: [] }} />);

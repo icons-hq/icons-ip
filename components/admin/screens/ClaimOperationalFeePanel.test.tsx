@@ -15,5 +15,8 @@ describe('클레임 운영 확인액 패널', () => {
     expect(html).toContain('0원은 확인된 무료 비용으로 구분됩니다.');
     expect(html).toContain('추가 청구하거나 환불액에서 차감하지 않으며');
     expect(html).toContain('운영 확인액 갱신');
+    /* kit 버튼은 type을 주지 않으면 type="button"이다 — 기록 버튼은 양식을 제출해야 한다. */
+    expect(html).toMatch(/<button[^>]*type="submit"[^>]*>운영 확인액 갱신<\/button>/);
+    expect(html).toMatch(/<select[^>]*name="feeKind"/);
   });
 });

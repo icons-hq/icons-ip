@@ -91,6 +91,8 @@ describe('주문 상세', () => {
     expect(html).toContain(`query=${ORDER}&amp;order=${ORDER}`);
     expect(html).not.toContain('admin.order.status_updated');
     expect(html).toContain('배송 방식·인계 확인');
+    /* 운영자 메모는 서버 액션 폼 제출이다 — kit Button은 type이 없으면 button이 된다. */
+    expect(html).toMatch(/<button[^>]*type="submit"[^>]*>운영자 메모 저장</);
  });
 
  it('상세에서 목록으로 돌아갈 때 전달받은 필터와 선택 주문을 유지한다', () => {

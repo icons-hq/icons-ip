@@ -24,6 +24,8 @@ describe('발주 화면의 자동 발주확인 패널', () => {
     expect(html).toContain('/admin/sales/orders/a0c00000-0000-4001-8000-000000000005');
     expect(html).toContain('취소 요청 진행 중'); expect(html).toContain('예약 재고 할당 전');
     expect(html).toContain('type="time"'); expect(html).toContain('value="16:30"');
+    /* 저장은 양식 제출(onSubmit)로 간다 — kit Button은 type이 없으면 button이 된다. */
+    expect(html).toMatch(/<button[^>]*type="submit"[^>]*>설정 저장</);
   });
   it('꺼짐에는 다음 실행이 없고, 읽기 실패에도 직접 발주확인 안내를 남긴다', () => {
     const off = renderToStaticMarkup(<AutoOrderConfirmPanel initial={{ ...state, enabled: false, nextRunAt: null, lastRun: null, lastExclusions: [] }} />);

@@ -168,7 +168,7 @@ describe('브라우저 권한 요청 (R2)', () => {
     /* 켜기를 눌러 미지원·차단으로 확인되면 같은 안내를 두 번 읽히지 않는다. */
     const pressed = view({ support: 'unsupported', message: '이 브라우저는 알림을 지원하지 않습니다. 크롬·엣지·사파리 최신 버전에서 켜 주세요.' });
     expect(pressed.match(/이 브라우저는 알림을 지원하지 않습니다/g)).toHaveLength(1);
-    expect(pressed).toContain('<p role="status">이 브라우저는 알림을 지원하지 않습니다');
+    expect(pressed).toContain('role="status">이 브라우저는 알림을 지원하지 않습니다');
     expect(view({ support: 'denied', message: INQUIRY_NOTIFICATION_DENIED }).split(INQUIRY_NOTIFICATION_DENIED)).toHaveLength(2);
   });
 });

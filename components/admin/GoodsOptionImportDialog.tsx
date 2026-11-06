@@ -9,16 +9,23 @@ import { goodsOptionImportTargetVersion, planGoodsOptionImport, type GoodsOption
 import type { GoodsOptionRow } from '@/lib/admin/goods-option-editor';
 import { formatWon } from '@/lib/admin/goods-price-editor';
 import { CustomerServiceDialog } from './screens/CustomerServiceDialog';
+import { buttonVariants } from '@/components/admin/kit/ui/button';
+import { NativeSelect } from '@/components/admin/kit/ui/native-select';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/admin/kit/ui/table';
+import { GOOD_INPUT_CLASS, GOOD_TABLE_FRAME_CLASS } from './GoodEditorParts';
 
 const INITIAL_FILTERS: GoodsOptionImportFilters = { query: '', field: 'name', categoryId: '', page: 1 };
 const EMPTY: GoodsOptionImportPage = { rows: [], total: 0, page: 1, pageSize: 20 };
 const STALE = '비교 중인 가격·옵션 또는 상품 정보가 바뀌었습니다. 현재 입력을 유지했으니 다시 비교해주세요.';
 type Comparison = { source: GoodsOptionImportSource; targetVersion: string; fingerprint: string; includePrices: boolean; plan: GoodsOptionImportPlan };
+/* 템플릿 룩(ADR-0028). 테스트가 이 컴포넌트를 함수로 불러 네이티브 버튼·체크박스를 찾으므로 버튼은 네이티브에 kit 모양을 입힌다. */
+const FIELD_LABEL_CLASS = 'text-sm font-medium text-foreground';
+const HEAD_CLASS = 'px-3 text-xs font-medium text-muted-foreground';
 
 /** Keep picker inputs outside the product's native form and autosave listeners. */
 export function GoodsOptionImportPicker(props: Parameters<typeof GoodsOptionImportDialog>[0]) {
   if (typeof document === 'undefined') return null;
-  return createPortal(<div className="wc-root wc-admin" onChange={event => event.stopPropagation()} onSubmit={event => event.stopPropagation()}>
+  return createPortal(<div className="wc-admin" onChange={event => event.stopPropagation()} onSubmit={event => event.stopPropagation()}>
     <GoodsOptionImportDialog {...props} />
   </div>, document.body);
 }
@@ -104,54 +111,60 @@ export function GoodsOptionImportDialog({ context, categories, currentRows, base
   const blocked = Boolean(context.blockedReason) || context.pending;
   const pageCount = Math.max(1, Math.ceil(data.total / data.pageSize));
   return <CustomerServiceDialog title="다른 상품 옵션 불러오기" onClose={onClose} wide>
-    <section className="goods-option-import">
-      <p>상품 하나의 선택형 옵션을 현재 작성 중인 상품에 가져옵니다. 같은 조합은 기존 ID·재고·관리코드를 유지하고, 새 조합은 재고 0으로 만듭니다. 적용 후 상품을 저장해야 반영됩니다.</p>
-      {context.blockedReason && <p role="alert">{context.blockedReason}</p>}
-      <div className="goods-option-import__search" role="search" aria-label="옵션을 가져올 상품 검색">
-        <label>검색 대상<select value={filters.field} disabled={busy || blocked} onChange={event => setFilters(current => ({ ...current, field: event.target.value as GoodsOptionImportFilters['field'] }))}>
-          <option value="name">상품명</option><option value="code">상품코드·옵션코드</option><option value="id">상품번호</option>
-        </select></label>
-        <label>검색어<input maxLength={100} value={filters.query} disabled={busy || blocked} onChange={event => setFilters(current => ({ ...current, query: event.target.value }))}
+    <section className="flex min-w-0 flex-col gap-4 text-sm" data-good-option-import-dialog="">
+      <p className="text-muted-foreground">상품 하나의 선택형 옵션을 현재 작성 중인 상품에 가져옵니다. 같은 조합은 기존 ID·재고·관리코드를 유지하고, 새 조합은 재고 0으로 만듭니다. 적용 후 상품을 저장해야 반영됩니다.</p>
+      {context.blockedReason && <p className="text-destructive" role="alert">{context.blockedReason}</p>}
+      <div className="grid min-w-0 items-end gap-3 sm:grid-cols-[9.5rem_minmax(0,1fr)_minmax(0,1fr)_auto]" role="search" aria-label="옵션을 가져올 상품 검색">
+        <div className="flex min-w-0 flex-col gap-2">
+          <label className={FIELD_LABEL_CLASS} htmlFor="goods-option-import-field">검색 대상</label>
+          <NativeSelect className="w-full" id="goods-option-import-field" value={filters.field} disabled={busy || blocked} onChange={event => setFilters(current => ({ ...current, field: event.target.value as GoodsOptionImportFilters['field'] }))}>
+            <option value="name">상품명</option><option value="code">상품코드·옵션코드</option><option value="id">상품번호</option>
+          </NativeSelect>
+        </div>
+        <label className={`flex min-w-0 flex-col gap-2 ${FIELD_LABEL_CLASS}`}>검색어<input className={GOOD_INPUT_CLASS} data-slot="input" maxLength={100} value={filters.query} disabled={busy || blocked} onChange={event => setFilters(current => ({ ...current, query: event.target.value }))}
           onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); event.stopPropagation(); void run(sequence => search({ ...filters, page: 1 }, sequence)); } }} /></label>
-        <label>카테고리<select value={filters.categoryId} disabled={busy || blocked} onChange={event => setFilters(current => ({ ...current, categoryId: event.target.value }))}>
-          <option value="">전체</option>{categories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}
-        </select></label>
-        <button type="button" className="btn btn-ghost" disabled={busy || blocked} onClick={() => void run(sequence => search({ ...filters, page: 1 }, sequence))}>검색</button>
+        <div className="flex min-w-0 flex-col gap-2">
+          <label className={FIELD_LABEL_CLASS} htmlFor="goods-option-import-category">카테고리</label>
+          <NativeSelect className="w-full" id="goods-option-import-category" value={filters.categoryId} disabled={busy || blocked} onChange={event => setFilters(current => ({ ...current, categoryId: event.target.value }))}>
+            <option value="">전체</option>{categories.map(category => <option key={category.id} value={category.id}>{category.name}</option>)}
+          </NativeSelect>
+        </div>
+        <button type="button" className={buttonVariants({ variant: 'outline' })} data-slot="button" disabled={busy || blocked} onClick={() => void run(sequence => search({ ...filters, page: 1 }, sequence))}>검색</button>
       </div>
-      <p role="status">{busy ? '상품 정보를 확인하고 있습니다.' : `검색 결과 ${data.total.toLocaleString('ko-KR')}개`}</p>
-      {error && <p role="alert">{error}</p>}
-      <div className="goods-option-import__results">
-        {data.rows.map(row => <article key={row.id} data-selected={selectedId === row.id || undefined}>
-          {row.imageUrl && <img src={row.imageUrl} width={52} height={52} alt="" />}
-          <div><strong>{row.name}</strong><small>{row.code} · {row.categoryName ?? '미분류'} · {row.published ? '공개' : '비공개'}</small></div>
-          <button type="button" className="btn btn-sm btn-ghost" disabled={busy || blocked || row.id === context.target?.id} onClick={() => void run(sequence => compare(row.id, sequence))}>
+      <p className="text-muted-foreground" role="status">{busy ? '상품 정보를 확인하고 있습니다.' : `검색 결과 ${data.total.toLocaleString('ko-KR')}개`}</p>
+      {error && <p className="text-destructive" role="alert">{error}</p>}
+      <div className="flex min-w-0 flex-col gap-2">
+        {data.rows.map(row => <article key={row.id} className="flex min-w-0 flex-wrap items-center gap-3 rounded-lg border p-3 data-selected:border-primary data-selected:ring-1 data-selected:ring-primary sm:flex-nowrap" data-selected={selectedId === row.id || undefined}>
+          {row.imageUrl && <img className="size-13 shrink-0 rounded-md bg-muted object-cover" src={row.imageUrl} width={52} height={52} alt="" />}
+          <div className="min-w-0 flex-1 wrap-anywhere"><strong className="font-medium">{row.name}</strong><small className="mt-1 block text-xs text-muted-foreground">{row.code} · {row.categoryName ?? '미분류'} · {row.published ? '공개' : '비공개'}</small></div>
+          <button type="button" className={`${buttonVariants({ variant: 'outline', size: 'sm' })} ml-auto`} data-slot="button" disabled={busy || blocked || row.id === context.target?.id} onClick={() => void run(sequence => compare(row.id, sequence))}>
             {row.id === context.target?.id ? '현재 상품' : '옵션 비교'}
           </button>
         </article>)}
       </div>
-      <nav className="goods-option-import__actions" aria-label="옵션 원본 상품 목록 페이지">
-        <button type="button" className="btn btn-sm btn-ghost" disabled={busy || blocked || data.page <= 1} onClick={() => void run(sequence => search({ ...appliedFilters, page: data.page - 1 }, sequence))}>이전</button>
-        <span>{data.page} / {pageCount}</span>
-        <button type="button" className="btn btn-sm btn-ghost" disabled={busy || blocked || data.page >= pageCount} onClick={() => void run(sequence => search({ ...appliedFilters, page: data.page + 1 }, sequence))}>다음</button>
+      <nav className="flex flex-wrap items-center justify-end gap-3" aria-label="옵션 원본 상품 목록 페이지">
+        <button type="button" className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" disabled={busy || blocked || data.page <= 1} onClick={() => void run(sequence => search({ ...appliedFilters, page: data.page - 1 }, sequence))}>이전</button>
+        <span className="text-muted-foreground tabular-nums">{data.page} / {pageCount}</span>
+        <button type="button" className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" disabled={busy || blocked || data.page >= pageCount} onClick={() => void run(sequence => search({ ...appliedFilters, page: data.page + 1 }, sequence))}>다음</button>
       </nav>
-      <label className="goods-option-import__prices"><input type="checkbox" checked={includePrices} disabled={busy || blocked} onChange={event => setIncludePrices(event.target.checked)} />옵션가도 불러오기</label>
-      <p className="muted">선택하면 원본의 일반 저장 기준가와 옵션 금액의 차액을 적용합니다. 현재 상품의 판매가·할인·판매기간은 유지합니다. 원본 재고·관리코드·ERP·KC 정보와 직접입력형 옵션은 가져오지 않습니다.</p>
-      {stale && <p role="alert">{STALE}</p>}
-      {comparison && <section className="goods-option-import__comparison" aria-label="옵션 적용 전 비교">
-        <h3>{comparison.source.name} · 적용 전 비교</h3>
+      <label className="inline-flex w-fit cursor-pointer items-center gap-2 font-medium has-disabled:cursor-not-allowed has-disabled:opacity-50"><input type="checkbox" checked={includePrices} disabled={busy || blocked} onChange={event => setIncludePrices(event.target.checked)} />옵션가도 불러오기</label>
+      <p className="text-muted-foreground">선택하면 원본의 일반 저장 기준가와 옵션 금액의 차액을 적용합니다. 현재 상품의 판매가·할인·판매기간은 유지합니다. 원본 재고·관리코드·ERP·KC 정보와 직접입력형 옵션은 가져오지 않습니다.</p>
+      {stale && <p className="text-destructive" role="alert">{STALE}</p>}
+      {comparison && <section className="flex min-w-0 flex-col gap-3 border-t pt-4" aria-label="옵션 적용 전 비교">
+        <h3 className="text-base leading-snug font-medium">{comparison.source.name} · 적용 전 비교</h3>
         <p>기존 조합 {comparison.plan.retained}개 유지 · 새 옵션 {comparison.plan.added}개 · 기존 옵션 {comparison.plan.stopped}개 사용 중지 · 기존 옵션가 {comparison.plan.priceChanged}개 변경</p>
-        <p>원본에 없는 기존 옵션은 ID·재고·주문 기록을 보존하며 사용 중지합니다. 이미 중지된 옵션은 자동으로 사용 상태가 되지 않습니다. 옵션 구성이 바뀌면 저장 후 KC를 다시 검토해주세요.</p>
-        <div className="goods-option-import__table" role="region" aria-label="불러올 옵션과 보존할 기존 옵션" tabIndex={0}>
-          <table className="wc-admin-table"><thead><tr><th scope="col">옵션</th><th scope="col">처리</th><th scope="col">현재 옵션가</th><th scope="col">적용 옵션가</th><th scope="col">적용 판매금액</th><th scope="col">재고수량</th></tr></thead>
-            <tbody>{comparison.plan.changes.map((row, index) => <tr key={index}><td>{row.name}</td><td>{row.kind === 'added' ? '새 옵션' : row.kind === 'stopped' ? '사용 중지·보존' : row.active ? '기존 유지' : '기존 중지 유지'}</td>
-              <td>{row.oldExtraPrice === null ? '—' : formatWon(row.oldExtraPrice)}</td><td>{formatWon(row.extraPrice)}</td><td>{formatWon(basePrice + row.extraPrice)}</td><td>{row.stockQty.toLocaleString('ko-KR')}개</td></tr>)}</tbody>
-          </table>
+        <p className="text-muted-foreground">원본에 없는 기존 옵션은 ID·재고·주문 기록을 보존하며 사용 중지합니다. 이미 중지된 옵션은 자동으로 사용 상태가 되지 않습니다. 옵션 구성이 바뀌면 저장 후 KC를 다시 검토해주세요.</p>
+        <div className={GOOD_TABLE_FRAME_CLASS} role="region" aria-label="불러올 옵션과 보존할 기존 옵션" tabIndex={0}>
+          <Table className="min-w-[41rem]"><TableHeader className="bg-muted/50"><TableRow className="hover:bg-transparent"><TableHead scope="col" className={HEAD_CLASS}>옵션</TableHead><TableHead scope="col" className={HEAD_CLASS}>처리</TableHead><TableHead scope="col" className={`${HEAD_CLASS} text-right`}>현재 옵션가</TableHead><TableHead scope="col" className={`${HEAD_CLASS} text-right`}>적용 옵션가</TableHead><TableHead scope="col" className={`${HEAD_CLASS} text-right`}>적용 판매금액</TableHead><TableHead scope="col" className={`${HEAD_CLASS} text-right`}>재고수량</TableHead></TableRow></TableHeader>
+            <TableBody>{comparison.plan.changes.map((row, index) => <TableRow key={index}><TableCell className="px-3 whitespace-normal wrap-anywhere">{row.name}</TableCell><TableCell className="px-3">{row.kind === 'added' ? '새 옵션' : row.kind === 'stopped' ? '사용 중지·보존' : row.active ? '기존 유지' : '기존 중지 유지'}</TableCell>
+              <TableCell className="px-3 text-right tabular-nums">{row.oldExtraPrice === null ? '—' : formatWon(row.oldExtraPrice)}</TableCell><TableCell className="px-3 text-right tabular-nums">{formatWon(row.extraPrice)}</TableCell><TableCell className="px-3 text-right tabular-nums">{formatWon(basePrice + row.extraPrice)}</TableCell><TableCell className="px-3 text-right tabular-nums">{row.stockQty.toLocaleString('ko-KR')}개</TableCell></TableRow>)}</TableBody>
+          </Table>
         </div>
       </section>}
-      <div className="goods-option-import__actions">
-        {selectedId && <button type="button" className="btn btn-ghost" disabled={busy || blocked} onClick={() => void run(sequence => compare(selectedId, sequence))}>다시 비교</button>}
-        <button type="button" className="btn" disabled={busy || blocked || !comparison || stale} onClick={() => void run(apply)}>현재 초안에 적용</button>
-        <button type="button" className="btn btn-ghost" onClick={onClose}>취소</button>
+      <div className="flex flex-wrap items-center justify-end gap-2 border-t pt-4">
+        {selectedId && <button type="button" className={buttonVariants({ variant: 'outline' })} data-slot="button" disabled={busy || blocked} onClick={() => void run(sequence => compare(selectedId, sequence))}>다시 비교</button>}
+        <button type="button" className={buttonVariants()} data-slot="button" disabled={busy || blocked || !comparison || stale} onClick={() => void run(apply)}>현재 초안에 적용</button>
+        <button type="button" className={buttonVariants({ variant: 'ghost' })} data-slot="button" onClick={onClose}>취소</button>
       </div>
     </section>
   </CustomerServiceDialog>;

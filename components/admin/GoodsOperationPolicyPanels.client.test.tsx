@@ -18,7 +18,8 @@ const REASON = '기본 상품의 입력 상태를 확인하고 있습니다.';
 /* T3a-7 근본 정리: 상품 편집기가 패널 위에 공통 잠금 안내를 보이면 패널은 같은 이유를 다시 그리지 않는다. */
 describe.each([['수령 방식', GoodsFulfillmentPanel], ['주문 후 제작', GoodsProductionPanel]] as const)('%s 패널', (_name, Panel) => {
   it('잠금 이유 문장은 기본으로 보이고, 표시를 끄면 그리지 않는다', () => {
-    expect(renderToStaticMarkup(<Panel goodId="good-1" accountId="operator-1" disabledReason={REASON} />)).toContain(`<p role="status">${REASON}</p>`);
+    /* 이유는 상태 문단 하나로 그린다(모양 클래스는 상관없다). */
+    expect(renderToStaticMarkup(<Panel goodId="good-1" accountId="operator-1" disabledReason={REASON} />)).toMatch(new RegExp(`<p(?: class="[^"]*")? role="status">${REASON}</p>`));
     expect(renderToStaticMarkup(<Panel goodId="good-1" accountId="operator-1" disabledReason={REASON} showDisabledReason={false} />)).not.toContain(REASON);
   });
 });

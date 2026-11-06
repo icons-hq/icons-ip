@@ -10,12 +10,15 @@ describe('문의 안의 고객 이력', () => {
   it('페이지 이동 링크 대신 같은 화면에서 이력을 요청하는 버튼을 둔다', () => {
     const html = renderToStaticMarkup(<CustomerHistoryPanel userId="customer-a" />);
     expect(html).toContain('name="userId" value="customer-a"');
-    expect(html).toMatch(/<button(?=[^>]*name="tab")(?=[^>]*value="orders")/);
-    expect(html).toMatch(/<button(?=[^>]*name="tab")(?=[^>]*value="claims")/);
+    expect(html).toMatch(/<button(?=[^>]*type="submit")(?=[^>]*name="tab")(?=[^>]*value="orders")/);
+    expect(html).toMatch(/<button(?=[^>]*type="submit")(?=[^>]*name="tab")(?=[^>]*value="claims")/);
   });
   it('고객이 바뀌면 이전 고객의 지연 응답을 표시하지 않는다', () => {
     mocks.state = { history: { userId: 'customer-a', tab: 'orders', page: 1, pageSize: 20, total: 1, items: [{ id: 'order', title: '이전 고객의 비공개 이력', createdAt: '2026-09-01T00:00:00Z' }] } };
     expect(renderToStaticMarkup(<CustomerHistoryPanel userId="customer-b" />)).not.toContain('이전 고객의 비공개 이력');
-    expect(renderToStaticMarkup(<CustomerHistoryPanel userId="customer-a" />)).toContain('이전 고객의 비공개 이력');
+    const current = renderToStaticMarkup(<CustomerHistoryPanel userId="customer-a" />);
+    expect(current).toContain('이전 고객의 비공개 이력');
+    /* 페이지 이동도 같은 서버 액션을 제출한다(kit Button은 type을 주지 않으면 button이 된다). */
+    expect(current).toMatch(/<button(?=[^>]*type="submit")(?=[^>]*name="page")[^>]*>(?:<svg[\s\S]*?<\/svg>)?이전<\/button>/);
   });
 });

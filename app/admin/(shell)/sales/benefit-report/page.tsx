@@ -9,7 +9,7 @@ export default async function AdminBenefitReportPage({ searchParams }: { searchP
   const actor = await requireAdminScreenAccess(BENEFIT_REPORT_PATH);
   const filters = normalizeBenefitReportFilters(await searchParams);
   const admin = canAccessAdminScreen(actor, null, { capability: 'marketing.manage', adminOnly: true });
-  if (filters.rangeError) return <section className="admin-benefits-console wc-admin-kit"><BenefitReportControls filters={filters} admin={admin} /><p role="alert">{filters.rangeError}</p></section>;
+  if (filters.rangeError) return <section className="flex min-w-0 flex-col gap-4 text-sm"><BenefitReportControls filters={filters} admin={admin} /><p className="rounded-lg border border-destructive/30 bg-card px-3 py-2.5 text-destructive" role="alert">{filters.rangeError}</p></section>;
   const now = new Date();
   const [data, comparison, issuances] = await Promise.all([
     getBenefitReport(filters, now),

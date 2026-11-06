@@ -12,6 +12,7 @@ import type {
   AdminEventRecord,
   AdminGameRecord,
 } from '@/lib/admin/catalog.server';
+import { Button } from '@/components/admin/kit/ui/button';
 import {
   ActionNotice,
   Field,
@@ -19,6 +20,7 @@ import {
   RecordList,
   SelectField,
 } from '../fields';
+import { MasterDetail, ReadOnlyField, SECTION_CARD, SECTION_STAT, SECTION_STATS, SectionHeading } from './SectionLayout';
 
 const emptyState: AdminCatalogActionState = {};
 
@@ -107,42 +109,43 @@ export function GameSection({
     && (selected.status === 'active' || selected.status === 'pool-unavailable');
 
   return (
-    <div className="admin-master-detail">
-      <RecordList
-        activeId={selected?.id ?? null}
-        ariaLabel="게임 목록"
-        emptyMessage="등록된 게임이 없습니다."
-        items={records}
-        labelFor={(game) => (
-          `${game.title} · ${GAME_STATUS_LABELS[game.status]}`
-          + (game.variantKind === 'card' ? '' : ' · 읽기 전용')
-        )}
-        newLabel="새 게임 등록"
-        onNew={() => onSelect(null)}
-        onSelect={onSelect}
-      />
-      <div className="col" style={{ gap: 16 }}>
-        {editable ? (
-          <GameForm
-            events={events}
-            key={formKey}
-            operationId={operationId}
-            pools={pools}
-            selected={selected}
-          />
-        ) : (
-          <ReadOnlyVariantNotice selected={selected} />
-        )}
-        <GameSummary selected={selected} />
-        {canEnd ? (
-          <EndGameForm
-            gameId={selected.id}
-            key={`${selected.id}-${endOperationId}`}
-            operationId={endOperationId}
-          />
-        ) : null}
-      </div>
-    </div>
+    <MasterDetail
+      list={(
+        <RecordList
+          activeId={selected?.id ?? null}
+          ariaLabel="게임 목록"
+          emptyMessage="등록된 게임이 없습니다."
+          items={records}
+          labelFor={(game) => (
+            `${game.title} · ${GAME_STATUS_LABELS[game.status]}`
+            + (game.variantKind === 'card' ? '' : ' · 읽기 전용')
+          )}
+          newLabel="새 게임 등록"
+          onNew={() => onSelect(null)}
+          onSelect={onSelect}
+        />
+      )}
+    >
+      {editable ? (
+        <GameForm
+          events={events}
+          key={formKey}
+          operationId={operationId}
+          pools={pools}
+          selected={selected}
+        />
+      ) : (
+        <ReadOnlyVariantNotice selected={selected} />
+      )}
+      <GameSummary selected={selected} />
+      {canEnd ? (
+        <EndGameForm
+          gameId={selected.id}
+          key={`${selected.id}-${endOperationId}`}
+          operationId={endOperationId}
+        />
+      ) : null}
+    </MasterDetail>
   );
 }
 
@@ -174,18 +177,12 @@ function GameForm({
   return (
     <form
       action={action}
-      className="card col wc-admin-kit wc-admin-kit__card"
+      className={SECTION_CARD}
       onReset={(event) => event.preventDefault()}
-      style={{ gap: 14 }}
     >
       <input name="operationId" type="hidden" value={operationId} />
       <input name="previousGameId" type="hidden" value={selected?.id ?? ''} />
-      <div>
-        <strong>{selected ? '게임 설정' : '카드 보상형 게임 등록'}</strong>
-        <p style={{ color: 'var(--wc-ink-tertiary)', fontSize: 12, margin: '6px 0 0' }}>
-          마블 룰렛 · 카드 보상형 · 구슬 10개
-        </p>
-      </div>
+      <SectionHeading description="마블 룰렛 · 카드 보상형 · 구슬 10개" title={selected ? '게임 설정' : '카드 보상형 게임 등록'} />
       <AdminFormGrid>
         <Field
           defaultValue={selected?.id}
@@ -203,14 +200,15 @@ function GameForm({
           required
         />
         {fieldsLocked && selected ? (
-          <ReadOnlyControl
+          <ReadOnlyField
             describedBy={lockReasonId}
             label="보상 카드풀"
+            labelId={`rewardPoolId-${selected.rewardPoolId || 'none'}-label`}
             name="rewardPoolId"
             value={selected.rewardPoolId ?? ''}
           >
             {selected.rewardPoolName ?? '연결된 카드풀 없음'}
-          </ReadOnlyControl>
+          </ReadOnlyField>
         ) : (
           <SelectField
             disabled={!poolOptions.length}
@@ -235,14 +233,15 @@ function GameForm({
           </SelectField>
         )}
         {fieldsLocked && selected ? (
-          <ReadOnlyControl
+          <ReadOnlyField
             describedBy={lockReasonId}
             label="연결 이벤트"
+            labelId={`eventId-${selected.eventId || 'none'}-label`}
             name="eventId"
             value={selected.eventId ?? ''}
           >
             {selected.eventTitle ?? '연결하지 않음'}
-          </ReadOnlyControl>
+          </ReadOnlyField>
         ) : (
           <SelectField
             disabled={!poolId}
@@ -292,12 +291,12 @@ function GameForm({
         />
       </AdminFormGrid>
       {fieldsLocked ? (
-        <p id={lockReasonId} style={{ color: 'var(--wc-ink-tertiary)', fontSize: 12, margin: 0 }}>
+        <p className="text-sm text-muted-foreground" id={lockReasonId}>
           플레이 이력이 있어 slug·보상 카드풀·연결 이벤트는 변경할 수 없습니다.
         </p>
       ) : null}
       {noEligiblePool ? (
-        <p role="status" style={{ color: 'var(--wc-danger)', margin: 0 }}>
+        <p className="text-sm text-destructive" role="status">
           확률과 카드 구성이 완료된 운영 예정/운영 중 카드풀을 먼저 준비해주세요.
         </p>
       ) : null}
@@ -306,51 +305,17 @@ function GameForm({
   );
 }
 
-function ReadOnlyControl({
-  children,
-  describedBy,
-  label,
-  name,
-  value,
-}: {
-  children: React.ReactNode;
-  describedBy?: string;
-  label: string;
-  name: string;
-  value: string;
-}) {
-  const labelId = `${name}-${value || 'none'}-label`;
-
-  return (
-    <div className="col" style={{ gap: 7 }}>
-      <span className="mono" id={labelId} style={{ color: 'var(--wc-ink-tertiary)', fontSize: 11 }}>{label}</span>
-      <input name={name} type="hidden" value={value} />
-      <div
-        aria-describedby={describedBy}
-        aria-labelledby={labelId}
-        aria-readonly="true"
-        className="admin-field-control"
-        role="textbox"
-        style={{ alignItems: 'center', display: 'flex', minHeight: 42, padding: '0 12px' }}
-      >
-        {children}
-      </div>
-    </div>
-  );
-}
-
 function ReadOnlyVariantNotice({ selected }: { selected: AdminGameRecord }) {
   return (
     <section
       aria-labelledby={`game-readonly-${selected.id}`}
-      className="card col wc-admin-kit wc-admin-kit__card"
-      style={{ gap: 12 }}
+      className={SECTION_CARD}
     >
-      <strong id={`game-readonly-${selected.id}`}>{selected.title} · 읽기 전용</strong>
-      <p style={{ color: 'var(--wc-ink-tertiary)', fontSize: 13, margin: 0 }}>
+      <SectionHeading id={`game-readonly-${selected.id}`} title={`${selected.title} · 읽기 전용`} />
+      <p className="text-sm text-muted-foreground">
         {variantLabel(selected)}은 이 콘솔에서 등록하거나 편집할 수 없습니다.
       </p>
-      <p style={{ color: 'var(--wc-ink-tertiary)', fontSize: 13, margin: 0 }}>
+      <p className="text-sm text-muted-foreground">
         legacy 굿즈 variant는 현 로드맵에서 활성화하지 않으며 신규 실물 쿠지에 재사용하지 않습니다.
       </p>
     </section>
@@ -361,23 +326,22 @@ function GameSummary({ selected }: { selected: AdminGameRecord | null }) {
   return (
     <section
       aria-labelledby="game-summary-title"
-      className="card col wc-admin-kit wc-admin-kit__card"
-      style={{ gap: 12 }}
+      className={SECTION_CARD}
     >
-      <strong id="game-summary-title">게임 현황</strong>
+      <SectionHeading id="game-summary-title" title="게임 현황" />
       {selected ? (
-        <div className="admin-form-grid mono" style={{ fontSize: 13 }}>
-          <span>상태 {GAME_STATUS_LABELS[selected.status]}</span>
-          <span>유형 {variantLabel(selected)}</span>
-          <span>IP {selected.ipTitle ?? selected.ipId ?? '없음'}</span>
-          <span>카드풀 {selected.rewardPoolName ?? '없음'}</span>
-          <span>이벤트 {selected.eventTitle ?? '없음'}</span>
-          <span>구슬 {selected.marbleCount ?? '알 수 없음'}개</span>
-          <span>플레이 {selected.playCount.toLocaleString('ko-KR')}회</span>
-          <span>최근 플레이 {formatKstDateTime(selected.lastPlayedAt)}</span>
-        </div>
+        <ul className={SECTION_STATS} data-admin-summary="game">
+          <li className={SECTION_STAT}>상태 {GAME_STATUS_LABELS[selected.status]}</li>
+          <li className={SECTION_STAT}>유형 {variantLabel(selected)}</li>
+          <li className={SECTION_STAT}>IP {selected.ipTitle ?? selected.ipId ?? '없음'}</li>
+          <li className={SECTION_STAT}>카드풀 {selected.rewardPoolName ?? '없음'}</li>
+          <li className={SECTION_STAT}>이벤트 {selected.eventTitle ?? '없음'}</li>
+          <li className={SECTION_STAT}>구슬 {selected.marbleCount ?? '알 수 없음'}개</li>
+          <li className={SECTION_STAT}>플레이 {selected.playCount.toLocaleString('ko-KR')}회</li>
+          <li className={SECTION_STAT}>최근 플레이 {formatKstDateTime(selected.lastPlayedAt)}</li>
+        </ul>
       ) : (
-        <p role="status" style={{ color: 'var(--wc-ink-tertiary)', margin: 0 }}>
+        <p className="text-sm text-muted-foreground" role="status">
           게임을 선택하거나 새 카드 보상형 게임을 등록하면 운영 현황을 확인할 수 있습니다.
         </p>
       )}
@@ -393,26 +357,26 @@ function EndGameForm({ gameId, operationId }: { gameId: string; operationId: str
     <form
       action={action}
       aria-labelledby={`end-game-title-${gameId}`}
-      className="card col wc-admin-kit wc-admin-kit__card"
+      className={SECTION_CARD}
       onReset={(event) => event.preventDefault()}
-      style={{ gap: 12 }}
     >
       <input name="operationId" type="hidden" value={operationId} />
       <input name="gameId" type="hidden" value={gameId} />
-      <strong id={`end-game-title-${gameId}`}>게임 종료</strong>
-      <p id={descriptionId} style={{ color: 'var(--wc-ink-tertiary)', fontSize: 12, margin: 0 }}>
-        삭제하지 않고 서버의 현재 시각을 운영 종료로 기록합니다.
-      </p>
+      <header className="flex flex-col gap-1">
+        <h3 className="text-base leading-snug font-medium text-foreground" id={`end-game-title-${gameId}`}>게임 종료</h3>
+        <p className="text-sm text-muted-foreground" id={descriptionId}>
+          삭제하지 않고 서버의 현재 시각을 운영 종료로 기록합니다.
+        </p>
+      </header>
       <ActionNotice state={state} />
-      <button
+      <Button
         aria-describedby={descriptionId}
-        className="btn"
+        className="min-w-36 self-start"
         disabled={pending}
-        style={{ justifySelf: 'start', minWidth: 150 }}
         type="submit"
       >
         {pending ? '종료 중' : '지금 종료'}
-      </button>
+      </Button>
     </form>
   );
 }

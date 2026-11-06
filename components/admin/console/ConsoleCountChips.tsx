@@ -28,6 +28,18 @@ export interface ConsoleCountChipsProps {
  * 0건인 상태도 반드시 렌더한다. 0건 칩을 감추면 운영자가 "정말 0건인지"와 "집계를 못
  * 불러온 건지"를 구분할 수 없다. 건수가 없다는 사실 자체가 화면에 남아야 한다.
  */
+const TONE_COUNT_CLASS: Record<ConsoleChipTone, string> = {
+  default: '',
+  info: 'text-[var(--wc-info)]',
+  success: 'text-[var(--wc-success)]',
+  warning: 'text-[var(--wc-warning)]',
+  danger: 'text-destructive',
+};
+
+/*
+ * 상태별 건수 카드(템플릿 룩, ADR-0028 — 취소관리 kit 화면과 같은 모양). 0건도 숨기지 않고,
+ * 링크 카드는 누르면 그 상태로 거른다. 현재 상태는 테두리·고리로 강조한다.
+ */
 export function ConsoleCountChips({
   chips,
   className,
@@ -36,18 +48,20 @@ export function ConsoleCountChips({
   return (
     <div
       aria-label={label}
-      className={`${className ? `${className} ` : ''}admin-console-chips`}
+      className={`${className ? `${className} ` : ''}grid grid-cols-2 gap-2 sm:grid-cols-[repeat(auto-fill,minmax(8.5rem,1fr))]`}
+      data-console-chips=""
       role="group"
     >
       {chips.map((chip) => {
         const count = chip.count.toLocaleString('ko-KR');
-        const chipClassName = `admin-console-chip admin-console-chip--${chip.tone ?? 'default'}${
-          chip.active ? ' on' : ''
-        }`;
+        const tone = chip.tone ?? 'default';
+        const chipClassName = 'flex min-w-0 flex-col gap-1 rounded-lg border bg-card px-3 py-2.5 text-left transition-colors data-[active]:border-primary data-[active]:ring-1 data-[active]:ring-primary';
         const body = (
           <>
-            <span className="admin-console-chip-label">{chip.label}</span>
-            <strong className="admin-console-chip-count">{count}</strong>
+            <span className="truncate text-xs text-muted-foreground">{chip.label}</span>
+            <strong className={`text-xl leading-tight font-semibold tabular-nums ${chip.count > 0 ? TONE_COUNT_CLASS[tone] : ''}`}>
+              {count}<span className="ml-0.5 text-xs font-normal text-muted-foreground">건</span>
+            </strong>
           </>
         );
         /* 링크는 접근성 이름이 자식 텍스트를 이어붙인 "배송준비3"이 되어 단위가 사라진다.
@@ -57,14 +71,16 @@ export function ConsoleCountChips({
           <Link
             aria-current={chip.active ? 'true' : undefined}
             aria-label={`${chip.label} ${count}건`}
-            className={chipClassName}
+            className={`${chipClassName} hover:bg-accent`}
+            data-active={chip.active || undefined}
+            data-tone={tone}
             href={chip.href}
             key={chip.label}
           >
             {body}
           </Link>
         ) : (
-          <span className={chipClassName} key={chip.label}>
+          <span className={chipClassName} data-active={chip.active || undefined} data-tone={tone} key={chip.label}>
             {body}
           </span>
         );

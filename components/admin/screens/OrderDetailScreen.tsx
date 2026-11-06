@@ -7,6 +7,7 @@ import { shipmentStatusLabel, type ShipmentStatus } from '@/lib/orders/shipments
 import { ShipmentDetails } from '@/components/shop/ShipmentDetails';
 import Link from 'next/link';
 import { AdminPageHeader, AdminSectionCard, AdminStatusBadge } from '@/components/admin/console/AdminKit';
+import { buttonVariants } from '@/components/admin/kit/ui/button';
 import type { AdminOrderDetail, AdminOrderTimelineEntry, AdminOrderTimelineSource } from '@/lib/admin/order-detail';
 import type { OrderItemAllocation } from '@/lib/admin/item-allocation';
 import { ADMIN_VOCABULARY as V } from '@/lib/admin/vocabulary';
@@ -77,15 +78,23 @@ const dateTime = (value: string) => new Date(value).toLocaleString('ko-KR', {
   timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false,
 });
 
+/* 주문 상세의 사실 목록·품목 보조 줄(템플릿 룩, ADR-0028). 배송 건별 정보(ShipmentDetails)는 공개 부품이라 그 모양은 admin-order-detail.css가 맡는다. */
+const FACTS = 'grid gap-3';
+const FACT_ROW = 'grid grid-cols-[6.5rem_minmax(0,1fr)] gap-3 sm:grid-cols-[8rem_minmax(0,1fr)]';
+const FACT_TERM = 'text-muted-foreground';
+const FACT_VALUE = 'min-w-0 wrap-anywhere';
+const ITEM_NOTE = 'text-sm text-muted-foreground';
+const EVENT_TEXT = 'mt-1 text-sm leading-relaxed wrap-anywhere';
+
 /** 주문 할인·적립금을 품목에 나눈 값(거래확정 엑셀과 같은 규칙). 할인이 없는 주문은 표시하지 않는다.
  * 조회 실패(`unavailable`)는 나눌 수 없는 주문과 다르게 안내한다 — 기록이 없다고 잘못 알리지 않는다. */
 function ItemAllocationSummary({ allocation, discounted, unavailable = false }: { allocation?: OrderItemAllocation; discounted: boolean; unavailable?: boolean }) {
   if (!discounted) return null;
-  if (unavailable) return <span>할인·적립금 배분 · 배분을 불러오지 못했습니다. 잠시 후 새로고침해 다시 확인해주세요</span>;
-  if (!allocation) return <span>할인·적립금 배분 · 주문 당시 기록이 없어 나누지 않았습니다</span>;
+  if (unavailable) return <span className={ITEM_NOTE}>할인·적립금 배분 · 배분을 불러오지 못했습니다. 잠시 후 새로고침해 다시 확인해주세요</span>;
+  if (!allocation) return <span className={ITEM_NOTE}>할인·적립금 배분 · 주문 당시 기록이 없어 나누지 않았습니다</span>;
   const parts = [allocation.volumeDiscount ? `복수구매 −${money(allocation.volumeDiscount)}` : '', `쿠폰 −${money(allocation.couponDiscount)}`,
     `적립금 −${money(allocation.storeCreditDiscount)}`].filter(Boolean);
-  return <><span>{parts.join(' · ')}</span><span>배분 후 {money(allocation.paidGoodsTotal)} · 배송비 제외</span></>;
+  return <><span className={ITEM_NOTE}>{parts.join(' · ')}</span><span className={ITEM_NOTE}>배분 후 {money(allocation.paidGoodsTotal)} · 배송비 제외</span></>;
 }
 
 function entryTitle(entry: AdminOrderTimelineEntry) {
@@ -111,20 +120,20 @@ function TimelineEntry({ entry, digital = false }: { entry: AdminOrderTimelineEn
       ? `/admin/sales/claims/${ORDER_CLAIM_TYPE_SLUGS[entry.claimType]}/${entry.relatedId}` : null;
   const stateLabel = (value: string) => entry.action === 'admin.shipment.delivery_method_selected'
     ? (DELIVERY_METHOD_LABELS as Record<string, string>)[value] ?? '배송 방식' : entry.shipmentId ? shipmentState(value) : orderStatus(value);
-  return <li className="admin-order-detail__event">
-    <div className="admin-order-detail__event-meta">
+  return <li className="relative ml-1.5 border-l pb-7 pl-6 last:pb-0 before:absolute before:top-2 before:-left-[5px] before:size-[9px] before:rounded-full before:border before:border-foreground before:bg-background before:content-['']" data-order-timeline-entry="">
+    <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
       <AdminStatusBadge tone={entry.source === 'note' ? 'warning' : 'neutral'}>{digital && entry.source === 'shipment' ? '디지털 파일' : SOURCE_LABELS[entry.source]}</AdminStatusBadge>
-      <time dateTime={entry.occurredAt}>{dateTime(entry.occurredAt)}</time>
+      <time className="tabular-nums" dateTime={entry.occurredAt}>{dateTime(entry.occurredAt)}</time>
       {entry.actorName ? <span>{entry.actorName}</span> : null}
     </div>
-    <h4>{digital && entry.source === 'shipment' && entry.action === 'delivered' ? '파일 제공 시작' : entryTitle(entry)}</h4>
-    {entry.fromStatus && entry.toStatus ? <p>{stateLabel(entry.fromStatus)} → {stateLabel(entry.toStatus)}</p> : null}
-    {entry.amount != null ? <p>{money(entry.amount)}{entry.provider ? ` · ${entry.provider === 'korpay' ? 'Korpay' : entry.provider === 'toss' ? 'Toss' : entry.provider === 'nicepay' ? 'NICEPAY' : '결제사'}` : ''}</p> : null}
-    {status ? <p className="admin-order-detail__muted">현재 상태 · {status}</p> : null}
-    {entry.shipmentId ? <p>{entry.originName ?? '배송 건'} · {entry.shipmentId}</p> : null}
-    {entry.trackingNumber ? <p>운송장 · {entry.carrier} {entry.trackingNumber}</p> : null}
-    {entry.body ? <p className="admin-order-detail__body">{entry.body}</p> : null}
-    {href ? <Link href={href}>{entry.source === 'inquiry' ? '문의 상세 열기' : '요청 상세 열기'}</Link> : null}
+    <h4 className="mt-2.5 mb-1 text-sm font-medium text-foreground wrap-anywhere">{digital && entry.source === 'shipment' && entry.action === 'delivered' ? '파일 제공 시작' : entryTitle(entry)}</h4>
+    {entry.fromStatus && entry.toStatus ? <p className={EVENT_TEXT}>{stateLabel(entry.fromStatus)} → {stateLabel(entry.toStatus)}</p> : null}
+    {entry.amount != null ? <p className={`${EVENT_TEXT} tabular-nums`}>{money(entry.amount)}{entry.provider ? ` · ${entry.provider === 'korpay' ? 'Korpay' : entry.provider === 'toss' ? 'Toss' : entry.provider === 'nicepay' ? 'NICEPAY' : '결제사'}` : ''}</p> : null}
+    {status ? <p className={`${EVENT_TEXT} text-muted-foreground`}>현재 상태 · {status}</p> : null}
+    {entry.shipmentId ? <p className={EVENT_TEXT}>{entry.originName ?? '배송 건'} · {entry.shipmentId}</p> : null}
+    {entry.trackingNumber ? <p className={EVENT_TEXT}>운송장 · {entry.carrier} {entry.trackingNumber}</p> : null}
+    {entry.body ? <p className={`${EVENT_TEXT} whitespace-pre-wrap`}>{entry.body}</p> : null}
+    {href ? <Link className="inline-flex min-h-10 items-center text-sm underline underline-offset-4" href={href}>{entry.source === 'inquiry' ? '문의 상세 열기' : '요청 상세 열기'}</Link> : null}
   </li>;
 }
 
@@ -155,37 +164,37 @@ export function OrderDetailScreen({
   const timeline = (canManage ? detail.timeline : detail.timeline.filter(entry => ['order', 'shipment'].includes(entry.source)))
     .filter(entry => !(entry.source === 'shipment' && entry.action === 'shipped' && entry.shipmentId && digitalShipments.has(entry.shipmentId)));
   const addressNotRequired = detail.shipments.length > 0 && detail.shipments.every(shipment => shipment.delivery && ['pickup', 'none', 'digital'].includes(shipment.delivery.method));
-  return <div className="admin-order-detail">
+  return <div className="flex min-w-0 flex-col gap-6" data-order-detail-screen="">
     <AdminPageHeader title="주문 상세" description={order.orderNumber ?? order.id} actions={<>
-      <Link href={backHref} className="admin-order-detail__button admin-order-detail__button--secondary">{backLabel}</Link>
-      {canManage ? <Link href={`/admin/sales/orders?status=all&query=${order.id}&order=${order.id}`} className="admin-order-detail__button">주문 처리</Link> : null}
+      <Link href={backHref} className={buttonVariants({ variant: 'outline' })} data-slot="button">{backLabel}</Link>
+      {canManage ? <Link href={`/admin/sales/orders?status=all&query=${order.id}&order=${order.id}`} className={buttonVariants()} data-slot="button">주문 처리</Link> : null}
       {canManage && !addressNotRequired ? <OrderAddressButton orderId={order.id} /> : null}
       {canManage && ['shipping', 'delivered', 'done'].includes(order.status) ? <SellerClaimIntakeButton orderId={order.id} /> : null}
       {canManage && (order.status === 'pending' || order.status === 'paid') ? <SellerClaimIntakeButton orderId={order.id} mode="cancel" /> : null}
     </>} />
     {actorId && production !== undefined ? <OrderProductionPanel initial={production} actorId={actorId} canManage={canManage} /> : null}
-    <div className="admin-order-detail__overview">
+    <div className="grid min-w-0 gap-6 md:grid-cols-2">
       <AdminSectionCard title="주문 정보">
-        <dl className="admin-order-detail__facts">
-          <div><dt>현재 상태</dt><dd><AdminStatusBadge>{orderStatus(order.status)}</AdminStatusBadge></dd></div>
-          <div><dt>주문 일시</dt><dd>{dateTime(order.createdAt)}</dd></div>
-          <div><dt>주문자</dt><dd>{order.buyerName || '이름 미등록'}{order.buyerEmail ? <span>{order.buyerEmail}</span> : null}{canViewCustomer ? <Link href={`/admin/customers/${order.userId}`}>고객 상세 열기</Link> : null}</dd></div>
-          <div><dt>주문 금액</dt><dd>{money(order.total)}</dd></div>
-          <div><dt>배송비 / 쿠폰 할인 / 적립금 사용</dt><dd>{money(order.shippingFee)} / {money(order.discountTotal)} / {money(order.storeCreditTotal)}</dd></div>
+        <dl className={FACTS}>
+          <div className={FACT_ROW}><dt className={FACT_TERM}>현재 상태</dt><dd className={FACT_VALUE}><AdminStatusBadge>{orderStatus(order.status)}</AdminStatusBadge></dd></div>
+          <div className={FACT_ROW}><dt className={FACT_TERM}>주문 일시</dt><dd className={FACT_VALUE}>{dateTime(order.createdAt)}</dd></div>
+          <div className={FACT_ROW}><dt className={FACT_TERM}>주문자</dt><dd className={FACT_VALUE}>{order.buyerName || '이름 미등록'}{order.buyerEmail ? <span className="mt-1 block text-xs text-muted-foreground">{order.buyerEmail}</span> : null}{canViewCustomer ? <Link className="mt-1 block w-fit underline underline-offset-4" href={`/admin/customers/${order.userId}`}>고객 상세 열기</Link> : null}</dd></div>
+          <div className={FACT_ROW}><dt className={FACT_TERM}>주문 금액</dt><dd className={`${FACT_VALUE} tabular-nums`}>{money(order.total)}</dd></div>
+          <div className={FACT_ROW}><dt className={FACT_TERM}>배송비 / 쿠폰 할인 / 적립금 사용</dt><dd className={`${FACT_VALUE} tabular-nums`}>{money(order.shippingFee)} / {money(order.discountTotal)} / {money(order.storeCreditTotal)}</dd></div>
           {order.transaction && <>
-            <div><dt>복수구매 할인</dt><dd>{money(order.transaction.totals.volumeDiscountTotal)}</dd></div>
-            <div><dt>온라인 결제금액 / 착불 배송비</dt><dd>{money(order.transaction.totals.onlineTotal)} / {money(order.transaction.totals.collectShippingTotal)} · 착불은 별도 수납 원장으로 확인</dd></div>
+            <div className={FACT_ROW}><dt className={FACT_TERM}>복수구매 할인</dt><dd className={`${FACT_VALUE} tabular-nums`}>{money(order.transaction.totals.volumeDiscountTotal)}</dd></div>
+            <div className={FACT_ROW}><dt className={FACT_TERM}>온라인 결제금액 / 착불 배송비</dt><dd className={FACT_VALUE}>{money(order.transaction.totals.onlineTotal)} / {money(order.transaction.totals.collectShippingTotal)} · 착불은 별도 수납 원장으로 확인</dd></div>
           </>}
-          {order.isGift && <div><dt>선물 배송</dt><dd>수령인 배송지 · 수령인용 포장 명세에는 가격·결제정보를 제외합니다.</dd></div>}
+          {order.isGift && <div className={FACT_ROW}><dt className={FACT_TERM}>선물 배송</dt><dd className={FACT_VALUE}>수령인 배송지 · 수령인용 포장 명세에는 가격·결제정보를 제외합니다.</dd></div>}
         </dl>
       </AdminSectionCard>
       <AdminSectionCard title="배송 정보">
-        {order.addressNeedsReview && <p role="status">주문 당시 주소 형식 확인이 필요합니다. 배송 처리 전 원본 기록과 수령 주소를 확인해주세요.</p>}
-        {addressNotRequired ? <p>배송 주소가 필요하지 않은 수령 방식입니다.</p> : <dl className="admin-order-detail__facts">
-          <div><dt>수령자</dt><dd>{order.address.recipientName || '정보 없음'}</dd></div>
-          <div><dt>연락처</dt><dd>{order.address.phone || '정보 없음'}</dd></div>
-          <div><dt>배송지</dt><dd>{order.address.postalCode ? `(${order.address.postalCode}) ` : ''}{order.address.address1 || '정보 없음'} {order.address.address2}</dd></div>
-          <div><dt>배송 요청</dt><dd>{order.address.deliveryNote || '없음'}</dd></div>
+        {order.addressNeedsReview && <p className="rounded-lg border bg-muted/40 px-3 py-2.5" role="status">주문 당시 주소 형식 확인이 필요합니다. 배송 처리 전 원본 기록과 수령 주소를 확인해주세요.</p>}
+        {addressNotRequired ? <p className="text-muted-foreground">배송 주소가 필요하지 않은 수령 방식입니다.</p> : <dl className={FACTS}>
+          <div className={FACT_ROW}><dt className={FACT_TERM}>수령자</dt><dd className={FACT_VALUE}>{order.address.recipientName || '정보 없음'}</dd></div>
+          <div className={FACT_ROW}><dt className={FACT_TERM}>연락처</dt><dd className={FACT_VALUE}>{order.address.phone || '정보 없음'}</dd></div>
+          <div className={FACT_ROW}><dt className={FACT_TERM}>배송지</dt><dd className={FACT_VALUE}>{order.address.postalCode ? `(${order.address.postalCode}) ` : ''}{order.address.address1 || '정보 없음'} {order.address.address2}</dd></div>
+          <div className={FACT_ROW}><dt className={FACT_TERM}>배송 요청</dt><dd className={FACT_VALUE}>{order.address.deliveryNote || '없음'}</dd></div>
         </dl>}
       </AdminSectionCard>
     </div>
@@ -195,27 +204,27 @@ export function OrderDetailScreen({
       {actorId && (order.transaction?.totals.collectShippingTotal ?? 0) > 0 ? <ShippingCollectPanel key={`${actorId}:${order.id}`} orderId={order.id} expectedActorId={actorId} canManage={canManage} /> : null}
       {canManage ? detail.shipments.map(shipment => <ShipmentDeliveryPanel orderId={order.id} shipmentId={shipment.id} shipmentNumber={shipment.shipmentNumber} originName={shipment.originName} key={shipment.id} />) : null}
       {canManage ? detail.shipments.filter(shipment => shipment.originalExpectedShipDate).map(shipment => <ShipmentPreorderPromisePanel orderId={order.id} shipmentId={shipment.id} key={shipment.id} />) : null}
-      {canManage && detail.emailJobs.length ? <section aria-label="배송 메일 처리 상태">
-        <h3>배송 안내 메일</h3>
-        <ul>{detail.emailJobs.map(job=><li key={job.shipmentId}>
-          <strong>{detail.shipments.find(shipment=>shipment.id===job.shipmentId)?.originName ?? '배송 건'} · {detail.shipments.find(shipment=>shipment.id===job.shipmentId)?.shipmentNumber ?? job.shipmentId}</strong>
+      {canManage && detail.emailJobs.length ? <section className="flex flex-col gap-2 border-t pt-4" aria-label="배송 메일 처리 상태">
+        <h3 className="text-sm font-medium text-foreground">배송 안내 메일</h3>
+        <ul className="flex flex-col gap-2">{detail.emailJobs.map(job=><li className="flex flex-col gap-0.5 rounded-lg border px-3 py-2.5 wrap-anywhere" key={job.shipmentId}>
+          <strong className="font-medium">{detail.shipments.find(shipment=>shipment.id===job.shipmentId)?.originName ?? '배송 건'} · {detail.shipments.find(shipment=>shipment.id===job.shipmentId)?.shipmentNumber ?? job.shipmentId}</strong>
           <p>{{pending:'발송 대기',processing:'발송 처리 중',completed:'처리 완료',review:'운영자 확인 필요'}[job.status]} · 시도 {job.attempts}회</p>
-          {job.lastErrorCode ? <p>확인 코드 · {job.lastErrorCode}</p> : null}
-          <time dateTime={job.updatedAt}>{dateTime(job.updatedAt)}</time>
+          {job.lastErrorCode ? <p className="text-muted-foreground">확인 코드 · {job.lastErrorCode}</p> : null}
+          <time className="text-xs text-muted-foreground tabular-nums" dateTime={job.updatedAt}>{dateTime(job.updatedAt)}</time>
         </li>)}</ul>
       </section> : null}
     </AdminSectionCard>
     <AdminSectionCard title="주문 상품">
-      <ul className="admin-order-detail__items">{items.map((item) => <li key={item.id} id={`item-${item.id}`}>
-        <div><strong>{item.name}</strong>{item.variantName ? <span>{item.variantName} · {item.variantCode}{item.optionSaleMode === 'random' ? <> <AdminStatusBadge>랜덤 배정</AdminStatusBadge></> : null}</span> : item.optionSaleMode === 'random' ? <span><AdminStatusBadge>랜덤 배정</AdminStatusBadge></span> : null}<GoodsCustomInputsSummary selection={item.customInputs} /><span>{item.type} · {item.qty}개</span></div>
-        <div><strong>{money(item.unitPrice * item.qty)}</strong><span>개당 {money(item.unitPrice)}</span><ItemAllocationSummary allocation={detail.itemAllocations?.[item.id]} discounted={orderDiscounted} unavailable={detail.itemAllocationsUnavailable} /></div>
+      <ul className="flex flex-col divide-y">{items.map((item) => <li className="flex scroll-mt-4 justify-between gap-4 py-4 first:pt-0 last:pb-0" key={item.id} id={`item-${item.id}`}>
+        <div className="flex min-w-0 flex-col gap-1 wrap-anywhere"><strong className="font-medium">{item.name}</strong>{item.variantName ? <span className={ITEM_NOTE}>{item.variantName} · {item.variantCode}{item.optionSaleMode === 'random' ? <> <AdminStatusBadge>랜덤 배정</AdminStatusBadge></> : null}</span> : item.optionSaleMode === 'random' ? <span className={ITEM_NOTE}><AdminStatusBadge>랜덤 배정</AdminStatusBadge></span> : null}<GoodsCustomInputsSummary selection={item.customInputs} /><span className={ITEM_NOTE}>{item.type} · {item.qty}개</span></div>
+        <div className="flex shrink-0 flex-col items-end gap-1 text-right"><strong className="font-semibold tabular-nums">{money(item.unitPrice * item.qty)}</strong><span className={ITEM_NOTE}>개당 {money(item.unitPrice)}</span><ItemAllocationSummary allocation={detail.itemAllocations?.[item.id]} discounted={orderDiscounted} unavailable={detail.itemAllocationsUnavailable} /></div>
       </li>)}</ul>
-      {!items.length ? <p>주문 상품 기록이 없습니다.</p> : null}
+      {!items.length ? <p className="text-muted-foreground">주문 상품 기록이 없습니다.</p> : null}
     </AdminSectionCard>
-    <div className="admin-order-detail__workspace">
+    <div className="grid min-w-0 items-start gap-6 xl:grid-cols-[minmax(0,1.65fr)_minmax(17.5rem,1fr)]">
       <AdminSectionCard title="주문 타임라인">
-        <p className="admin-order-detail__muted">이른 기록부터 표시합니다. 각 원장의 현재 처리 상태를 함께 확인할 수 있습니다.</p>
-        <ol className="admin-order-detail__timeline">{timeline.map((entry) => <TimelineEntry key={entry.id} entry={entry} digital={Boolean(entry.shipmentId && digitalShipments.has(entry.shipmentId))} />)}</ol>
+        <p className="text-sm text-muted-foreground">이른 기록부터 표시합니다. 각 원장의 현재 처리 상태를 함께 확인할 수 있습니다.</p>
+        <ol className="mt-2 flex flex-col">{timeline.map((entry) => <TimelineEntry key={entry.id} entry={entry} digital={Boolean(entry.shipmentId && digitalShipments.has(entry.shipmentId))} />)}</ol>
       </AdminSectionCard>
       {canManage ? <AdminSectionCard title="구매확정·운영자 메모">
         {actorId && ['delivered', 'done'].includes(order.status) ? <PurchaseConfirmationPanel key={`confirmation:${order.id}`} orderId={order.id} actorId={actorId} admin /> : null}

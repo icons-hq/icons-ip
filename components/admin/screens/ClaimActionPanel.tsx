@@ -28,6 +28,11 @@ import {
 } from '@/lib/orders/claims';
 import type { ShippingCarrierRegistry } from '@/lib/orders/shipment';
 import type { AdminClaimCollection, AdminClaimReshipItem } from '@/lib/admin/claims.server';
+import { Button } from '@/components/admin/kit/ui/button';
+import { Input } from '@/components/admin/kit/ui/input';
+import { Label } from '@/components/admin/kit/ui/label';
+import { NativeSelect } from '@/components/admin/kit/ui/native-select';
+import { Textarea } from '@/components/admin/kit/ui/textarea';
 import { ClaimOriginCollection } from './ClaimOriginCollection';
 import { ClaimHoldControl } from '@/components/admin/ClaimHoldControl';
 import { BankTransferRefund } from '@/components/admin/BankTransferRefund';
@@ -54,9 +59,9 @@ import { ClaimRejectionReasonField } from './ClaimRejectionReasonField';
  * 재고는 그대로"가 된다. 이미 종결된 클레임에서는 정합화가 끝난 뒤이므로 남은
  * 일이 원장 기록뿐이고, 문구도 그렇게 말해야 한다.
  *
- * 토스 결제는 취소 승인과 [환불 완료 확정]이 토스 전액 취소를 직접 발행한다
- * (2026-10-12 점검 REF-2). 운영자가 결제사 원장에서 취소를 먼저 확인하는 순서가
- * 아니다. 환불 수단도 결제가 정한다 — 토스는 결제사 취소뿐이라 선택지를 그리지
+ * 토스·나이스페이 결제는 취소 승인과 [환불 완료 확정]이 결제사 전액 취소를 직접
+ * 발행한다(2026-10-12 점검 REF-2). 운영자가 결제사 원장에서 취소를 먼저 확인하는 순서가
+ * 아니다. 환불 수단도 결제가 정한다 — 두 결제사는 결제사 취소뿐이라 선택지를 그리지
  * 않는다(REF-8).
  *
  * 처리 결과는 양식 안에 그리지 않는다(2차 재검토 C2-1). 서버 액션의 revalidatePath가
@@ -151,16 +156,20 @@ function Feedback({ state }: { state: AdminClaimActionState }) {
   return (
     <>
       {state.error ? (
-        <p role="alert" style={{ fontSize: 12.5, margin: '6px 0 0' }}>{adminClaimCopy(state.error)}</p>
+        <p className="text-sm text-destructive" role="alert">{adminClaimCopy(state.error)}</p>
       ) : null}
       {state.message ? (
-        <p className="muted" role="status" style={{ fontSize: 12.5, margin: '6px 0 0' }}>
+        <p className="text-sm text-muted-foreground" role="status">
           {adminClaimCopy(state.message)}
         </p>
       ) : null}
     </>
   );
 }
+
+const FORM_CLASS = 'flex min-w-0 flex-col gap-3';
+const HINT_CLASS = 'text-xs text-muted-foreground';
+const SECTION_TITLE_CLASS = 'text-sm font-medium text-foreground';
 
 /** 환불 수단 입력. 결제가 정한 수단이 있으면 고르지 않고 그 값을 그대로 보낸다. */
 function RefundMethodField({
@@ -174,9 +183,9 @@ function RefundMethodField({
 }) {
   if (fixedMethod) {
     return (
-      <p style={{ fontSize: 13, margin: 0 }}>
+      <p className="text-sm">
         <input name="method" type="hidden" value={fixedMethod} />
-        <span className="muted">환불 수단 · </span>
+        <span className="text-muted-foreground">환불 수단 · </span>
         {fixedMethod === 'pg_cancel' && autoCancelLabel
           ? `결제사 취소 (${autoCancelLabel} 전액 취소)`
           : ORDER_CLAIM_REFUND_METHOD_LABELS[fixedMethod]}
@@ -184,16 +193,26 @@ function RefundMethodField({
     );
   }
   return (
-    <label htmlFor={id}>
-      <span>환불 수단</span>
-      <select defaultValue="pg_cancel" id={id} name="method">
+    <div className="flex flex-col gap-1.5">
+      <Label htmlFor={id}>환불 수단</Label>
+      <NativeSelect className="w-full sm:w-64" defaultValue="pg_cancel" id={id} name="method">
         {ORDER_CLAIM_REFUND_METHODS.map((method) => (
           <option key={method} value={method}>
             {ORDER_CLAIM_REFUND_METHOD_LABELS[method]}
           </option>
         ))}
-      </select>
-    </label>
+      </NativeSelect>
+    </div>
+  );
+}
+
+/** 상계·정산 메모. 환불 접수와 완료 확정 양식이 같은 칸을 쓴다. */
+function SettlementNoteField({ id, placeholder }: { id: string; placeholder?: string }) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <Label htmlFor={id}>상계·정산 메모 (선택)</Label>
+      <Input id={id} maxLength={300} name="note" placeholder={placeholder} type="text" />
+    </div>
   );
 }
 
@@ -306,56 +325,57 @@ export function ClaimActionPanel({
   /* 수단은 원장 기록 → 결제 provider 순으로 정해진다. 정해지지 않은 결제(Korpay)만
      운영자가 고른다. 서버 액션이 같은 규칙으로 다시 검사한다. */
   const fixedRefundMethod = recordedRefundMethod ?? orderClaimRefundMethodForProvider(paymentProvider);
-  if (stage === 'withdrawn' && claimType !== 'return') return <><h3>처리</h3><p>요청 철회로 처리가 종료됐습니다. 주문과 결제는 유지됩니다.</p></>;
+  if (stage === 'withdrawn' && claimType !== 'return') return <div className="flex flex-col gap-2"><h3 className="text-base font-medium">처리</h3><p>요청 철회로 처리가 종료됐습니다. 주문과 결제는 유지됩니다.</p></div>;
 
   const originCollection = <>
-    {cancellationWithoutCollection ? <p className="muted">상품 회수가 필요하지 않은 취소입니다.</p> : collectionPolicy === 'origin' ? <section aria-label="출고지별 회수 확인">
-        <h4 style={{ margin: '8px 0' }}>출고지별 회수 확인</h4>
-        <p style={{ fontSize: 13 }}>{collectionComplete && collections.length > 0
+    {cancellationWithoutCollection ? <p className="text-muted-foreground">상품 회수가 필요하지 않은 취소입니다.</p> : collectionPolicy === 'origin' ? <section aria-label="출고지별 회수 확인" className="flex min-w-0 flex-col gap-3">
+        <h4 className={SECTION_TITLE_CLASS}>출고지별 회수 확인</h4>
+        <p>{collectionComplete && collections.length > 0
           ? '모든 출고지의 회수를 확인했습니다.'
           : '모든 출고지의 상품과 수량을 회수 확인한 뒤 환불·재출고를 진행합니다.'}</p>
         {collections.length ? collections.map((collection) => <ClaimOriginCollection
           key={collection.shipmentId} claimId={claimId} claimType={claimType}
           collection={collection} canRecord={canRecordOrigin} />)
-          : <p className="muted">수거를 승인하면 출고지별 반송 주소와 상품이 표시됩니다.</p>}
-      </section> : collectionPolicy === null ? <p role="alert">회수 확인 기준을 불러오지 못했습니다. 새로고침한 뒤 다시 확인해주세요.</p> : null}
+          : <p className="text-muted-foreground">수거를 승인하면 출고지별 반송 주소와 상품이 표시됩니다.</p>}
+      </section> : collectionPolicy === null ? <p className="text-destructive" role="alert">회수 확인 기준을 불러오지 못했습니다. 새로고침한 뒤 다시 확인해주세요.</p> : null}
   </>;
 
   const decisionForm = <>
     {canReview || canApprove ? (
-        <form action={ignoreUnconfirmedClaimSubmit} onSubmit={submitConfirmed}>
+        <form action={ignoreUnconfirmedClaimSubmit} className={FORM_CLASS} onSubmit={submitConfirmed}>
           <PanelActionField kind="decision" />
           <input name="claimId" type="hidden" value={claimId} />
           <input name="claimType" type="hidden" value={claimType} />
-          <div className="row" style={{ gap: 8 }}>
+          <div className="flex flex-wrap gap-2">
             {canReview ? (
-              <button
-                className="btn btn-sm btn-ghost"
+              <Button
                 disabled={pending}
                 name="decision"
+                size="sm"
                 type="submit"
                 value="review"
+                variant="outline"
               >
                 검토중으로 표시
-              </button>
+              </Button>
             ) : null}
             {canApprove ? (
-              <button
-                className="btn btn-sm"
+              <Button
                 data-confirm={claimType === 'cancel' ? claimCancelApprovalConfirmation(paymentProvider) : undefined}
                 disabled={pending}
                 name="decision"
+                size="sm"
                 type="submit"
                 value="approve"
               >
                 {claimType !== 'cancel'
                   ? '승인하고 수거 시작'
                   : autoCancelLabel ? `승인하고 ${autoCancelLabel} 전액 취소` : '승인하고 환불 처리 시작'}
-              </button>
+              </Button>
             ) : null}
           </div>
           {canApprove && claimType === 'cancel' ? (
-            <p className="muted" style={{ fontSize: 12, margin: '6px 0 0' }}>
+            <p className={HINT_CLASS}>
               {autoCancelLabel
                 ? `승인하면 바로 ${autoCancelLabel} 전액 취소를 발행하고 결제사 조회로 결과를 확인합니다. 확인되면 주문 취소·재고 복원·카드팩 회수와 환불 원장 기록이 함께 끝납니다.`
                 : paymentProvider === 'korpay'
@@ -375,15 +395,15 @@ export function ClaimActionPanel({
 
   const legacyCollection = <>
     {canCollect ? (
-        <form action={panelAction}>
+        <form action={panelAction} className={FORM_CLASS}>
           <PanelActionField kind="collection" />
           <input name="claimId" type="hidden" value={claimId} />
           <input name="claimType" type="hidden" value={claimType} />
           <input name="stage" type="hidden" value="collected" />
-          <button className="btn btn-sm" disabled={pending} type="submit">
+          <Button className="w-fit" disabled={pending} size="sm" type="submit">
             반송 {V.goods} 입고 확인
-          </button>
-          <p className="muted" style={{ fontSize: 12, margin: '6px 0 0' }}>
+          </Button>
+          <p className={HINT_CLASS}>
             입고 확인 시점부터 환급 SLA(영업일 3일)가 시작됩니다.
           </p>
         </form>
@@ -392,61 +412,54 @@ export function ClaimActionPanel({
 
   const refundControls = <>
     {cancellationForm && collectionReady ? (
-        <section aria-labelledby="claim-cancellation-form-heading">
-          <h4 id="claim-cancellation-form-heading" style={{ margin: '0 0 6px' }}>
+        <section aria-labelledby="claim-cancellation-form-heading" className="flex min-w-0 flex-col gap-2">
+          <h4 className={SECTION_TITLE_CLASS} id="claim-cancellation-form-heading">
             결제사 취소 접수 양식
           </h4>
-          <p className="muted" style={{ fontSize: 12, margin: '0 0 6px' }}>
+          <p className={HINT_CLASS}>
             Korpay 취소는 API가 아니라 이메일 접수입니다. 아래 본문을 그대로 보낸 뒤
             [접수 완료]를 눌러 원장에 남겨주세요.
           </p>
-          <textarea
+          <Textarea
             aria-label="결제사 취소 접수 양식"
+            className="font-mono text-xs [field-sizing:fixed]"
             readOnly
             rows={9}
-            style={{ width: '100%' }}
             value={cancellationForm}
           />
-          <button
-            className="btn btn-sm btn-ghost"
+          <Button
+            className="w-fit"
             onClick={() => {
               void navigator.clipboard?.writeText(cancellationForm).then(
                 () => setFormCopied(true),
                 () => setFormCopied(false),
               );
             }}
+            size="sm"
             type="button"
+            variant="outline"
           >
             {formCopied ? '복사했습니다' : '양식 복사'}
-          </button>
+          </Button>
         </section>
       ) : null}
 
       {stage !== 'withdrawn' && bankTransfer && actorId && claimType !== 'exchange' ? <BankTransferRefund actorId={actorId} orderId={orderId} claimId={claimId} /> : null}
 
       {canFileRefund && !bankTransfer ? (
-        <form action={panelAction}>
+        <form action={panelAction} className={FORM_CLASS}>
           <PanelActionField kind="refund" />
           <input name="claimId" type="hidden" value={claimId} />
           <input name="claimType" type="hidden" value={claimType} />
           <input name="orderId" type="hidden" value={orderId} />
           <input name="stage" type="hidden" value="filed" />
           <RefundMethodField fixedMethod={fixedRefundMethod} id="claim-refund-method" autoCancelLabel={autoCancelLabel} />
-          <label htmlFor="claim-refund-note">
-            <span>상계·정산 메모 (선택)</span>
-            <input
-              id="claim-refund-note"
-              maxLength={300}
-              name="note"
-              placeholder="예: 정산 완료분이라 코페이 상계 처리"
-              type="text"
-            />
-          </label>
-          <button className="btn btn-sm" disabled={pending} type="submit">
+          <SettlementNoteField id="claim-refund-note" placeholder="예: 정산 완료분이라 코페이 상계 처리" />
+          <Button className="w-fit" disabled={pending} size="sm" type="submit">
             {refundFiled ? '환불 접수 정보 갱신' : '환불 접수 완료로 기록'}
-          </button>
+          </Button>
           {autoCancelLabel ? (
-            <p className="muted" style={{ fontSize: 12, margin: '6px 0 0' }}>
+            <p className={HINT_CLASS}>
               접수만 원장에 기록합니다. {autoCancelLabel} 전액 취소는 아래 [환불 완료 확정]을 누를 때 발행됩니다.
             </p>
           ) : null}
@@ -456,6 +469,7 @@ export function ClaimActionPanel({
       {canCompleteRefund && !bankTransfer ? (
         <form
           action={ignoreUnconfirmedClaimSubmit}
+          className={FORM_CLASS}
           data-confirm={claimRefundCompletionConfirmation(refundFinalizationPending, autoCancelLabel)}
           onSubmit={submitConfirmed}
         >
@@ -465,18 +479,15 @@ export function ClaimActionPanel({
           <input name="orderId" type="hidden" value={orderId} />
           <input name="stage" type="hidden" value="completed" />
           <RefundMethodField fixedMethod={fixedRefundMethod} id="claim-refund-complete-method" autoCancelLabel={autoCancelLabel} />
-          <label htmlFor="claim-refund-complete-note">
-            <span>상계·정산 메모 (선택)</span>
-            <input id="claim-refund-complete-note" maxLength={300} name="note" type="text" />
-          </label>
-          <button className="btn btn-sm" disabled={pending} type="submit">
+          <SettlementNoteField id="claim-refund-complete-note" />
+          <Button className="h-auto min-h-7 w-fit max-w-full py-1 whitespace-normal" disabled={pending} size="sm" type="submit">
             {!refundFinalizationPending
               ? '환불 완료를 원장에 기록'
               : autoCancelLabel
                 ? `환불 완료 확정 (${autoCancelLabel} 전액 취소 발행 · 재고 복원 · 카드팩 회수)`
                 : '환불 완료 확정 (재고 복원 · 카드팩 회수 포함)'}
-          </button>
-          <p className="muted" style={{ fontSize: 12, margin: '6px 0 0' }}>
+          </Button>
+          <p className={HINT_CLASS}>
             {!refundFinalizationPending
               ? `이 ${V.claimRequest}은 이미 종결됐습니다. 주문 취소·재고 복원·카드팩 회수는 끝났고, 여기서는 환불 원장에 완료 기록만 남깁니다.`
               : autoCancelLabel
@@ -487,15 +498,15 @@ export function ClaimActionPanel({
       ) : null}
 
       {refundLedgerMissing && orderPanelRecheckLabel ? (
-        <p className="muted" style={{ fontSize: 12.5, margin: 0 }}>
+        <p className="text-muted-foreground">
           이 주문에는 환불 원장이 없어 [환불 완료 확정]을 쓸 수 없습니다. 결제 내역이
           없는 주문(결제창만 열렸거나 결제 결과가 정해지기 전)의 취소는{' '}
-          <Link href={adminOrderSearchHref(orderId)}>주문 통합검색에서 이 주문을 열어</Link>
+          <Link className="text-foreground underline underline-offset-4" href={adminOrderSearchHref(orderId)}>주문 통합검색에서 이 주문을 열어</Link>
           {' '}[{orderPanelRecheckLabel}]으로 닫습니다. Korpay 결제창 주문은 그 자리의
           Korpay 버튼으로 처리합니다.
         </p>
       ) : refundLedgerMissing ? (
-        <p className="muted" style={{ fontSize: 12.5, margin: 0 }}>
+        <p className="text-muted-foreground">
           이 주문에는 환불 원장이 없어 완료를 기록할 수 없습니다. 결제 내역을 먼저
           확인해주세요.
         </p>
@@ -504,34 +515,34 @@ export function ClaimActionPanel({
 
   const rejectionForm = <>
     {canReject ? (
-        <form action={panelAction}>
+        <form action={panelAction} className={FORM_CLASS}>
           <PanelActionField kind="decision" />
           <input name="claimId" type="hidden" value={claimId} />
           <input name="claimType" type="hidden" value={claimType} />
           <input name="decision" type="hidden" value="reject" />
           <ClaimRejectionReasonField claimType={claimType} id="claim-reject-note" label="거부 사유 (10~200자, 구매자에게 전달됩니다)" />
-          <button className="btn btn-sm btn-ghost" disabled={pending} type="submit">
+          <Button className="w-fit" disabled={pending} size="sm" type="submit" variant="destructive">
             거부
-          </button>
+          </Button>
         </form>
       ) : null}
   </>;
 
   if (claimType === 'return') return <>
-    <div aria-live="polite" className="admin-claim-action-result"><Feedback state={result} /></div>
+    <div aria-live="polite" className="flex flex-col gap-1" data-claim-action-result=""><Feedback state={result} /></div>
     <ReturnClaimWorkspace
     progress={{ stage, heldFrom, collectionPolicy, collectionComplete, collectedAt,
       collectionCount: collections.length, collectedCount: collections.filter(item => item.collectedAt !== null).length,
       refundLedgerOpen, refundFiled, refundCompleted }}
     review={<>
       <p>주문 전체의 상품·금액과 반품 사유를 먼저 확인해주세요.</p>
-      <div className="row" style={{ gap: 12 }}><a href="#claim-order">주문정보 보기</a><a href="#claim-request">요청·처리이력 보기</a></div>
+      <div className="flex flex-wrap gap-3"><a className="underline underline-offset-4" href="#claim-order">주문정보 보기</a><a className="underline underline-offset-4" href="#claim-request">요청·처리이력 보기</a></div>
       {stage === 'withdrawn' ? <p>요청 철회로 처리가 종료됐습니다. 주문과 결제는 유지됩니다.</p> : decisionForm}
     </>}
     collection={<>{returnCollectionContact}{stage === 'withdrawn'
-      ? <p className="muted">철회된 요청의 회수 처리는 종료됐습니다.</p>
+      ? <p className="text-muted-foreground">철회된 요청의 회수 처리는 종료됐습니다.</p>
       : <>{originCollection}{legacyCollection}</>}</>}
-    hold={<>{holdControl}<p className="muted">{stage === 'withdrawn' || stage === 'rejected' || stage === 'completed'
+    hold={<>{holdControl}<p className="text-muted-foreground">{stage === 'withdrawn' || stage === 'rejected' || stage === 'completed'
       ? '종결된 요청은 보류하거나 보류를 해제할 수 없습니다.' : canResume
       ? '보류를 해제한 뒤 돌아온 단계에서 회수·환불을 별도로 확인해주세요.'
       : '추가 확인이 필요한 경우에만 보류합니다. 보류할 사유가 없으면 다음 작업을 진행하세요.'}</p></>}
@@ -539,10 +550,12 @@ export function ClaimActionPanel({
     exception={canReject ? rejectionForm : null}
   /></>;
 
-  return <div className="admin-claim-actions">
-    <h3 style={{ margin: 0 }}>처리</h3>
-    <p className="muted" style={{ fontSize: 12.5, margin: 0 }}>현재 단계: {ORDER_CLAIM_STAGE_LABELS[stage]}</p>
-    <div aria-live="polite" className="admin-claim-action-result"><Feedback state={result} /></div>
+  return <div className="flex min-w-0 flex-col gap-4" data-claim-actions="">
+    <div className="flex flex-col gap-1">
+      <h3 className="text-base leading-snug font-medium">처리</h3>
+      <p className="text-muted-foreground">현재 단계: {ORDER_CLAIM_STAGE_LABELS[stage]}</p>
+    </div>
+    <div aria-live="polite" className="flex flex-col gap-1" data-claim-action-result=""><Feedback state={result} /></div>
     {originCollection}{decisionForm}{holdControl}{legacyCollection}{refundControls}{rejectionForm}
   </div>;
 }

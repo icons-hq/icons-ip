@@ -3,18 +3,22 @@
 
 import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
+import { ChevronLeft, ChevronRight, Copy, Search } from 'lucide-react';
 import { searchGoodsOptionImportAction } from '@/app/admin/goods-option-import-actions';
 import type { GoodsOptionImportFilters, GoodsOptionImportPage } from '@/lib/admin/goods-option-import';
+import { Button, buttonVariants } from '@/components/admin/kit/ui/button';
+import { NativeSelect } from '@/components/admin/kit/ui/native-select';
 import { CustomerServiceDialog } from './screens/CustomerServiceDialog';
-import '@/app/styles/admin-good-copy-picker.css';
+import { GOOD_INPUT_CLASS } from './GoodEditorParts';
 
 const initial: GoodsOptionImportFilters = { query: '', field: 'name', categoryId: '', page: 1 };
+const LABEL_CLASS = 'text-sm leading-snug font-medium text-foreground';
 
 export function GoodCopySourcePicker({ accountId, disabledReason = '' }: { accountId: string; disabledReason?: string }) {
   const [open, setOpen] = useState(false);
-  return <section className="admin-good-copy-picker__entry" aria-label="기존 상품으로 복사등록">
-    <div><strong>기존 상품으로 복사등록</strong><p>최근 등록 상품이나 검색한 상품의 복사 설정을 열어 새 초안을 만듭니다. 재고는 0으로 시작하며 KC를 다시 검토합니다.</p>{disabledReason ? <p role="status">{disabledReason}</p> : null}</div>
-    <button type="button" className="wc-admin-kit__button" disabled={Boolean(disabledReason)} onClick={() => setOpen(true)}>복사할 상품 선택</button>
+  return <section className="flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4 text-sm text-card-foreground sm:flex-row sm:items-center sm:justify-between sm:p-5" aria-label="기존 상품으로 복사등록" data-good-copy-entry="">
+    <div className="flex min-w-0 flex-col gap-1"><strong className="text-base leading-snug font-medium">기존 상품으로 복사등록</strong><p className="text-sm text-muted-foreground">최근 등록 상품이나 검색한 상품의 복사 설정을 열어 새 초안을 만듭니다. 재고는 0으로 시작하며 KC를 다시 검토합니다.</p>{disabledReason ? <p className="text-sm font-medium text-foreground" role="status">{disabledReason}</p> : null}</div>
+    <Button type="button" variant="outline" className="self-start sm:self-auto" disabled={Boolean(disabledReason)} onClick={() => setOpen(true)}><Copy aria-hidden="true" />복사할 상품 선택</Button>
     {open ? <GoodCopySourceDialog accountId={accountId} blocked={Boolean(disabledReason)} onClose={() => setOpen(false)} /> : null}
   </section>;
 }
@@ -48,22 +52,22 @@ export function GoodCopySourceDialog({ accountId, blocked, onClose }: { accountI
   }
   const locked = busy || blocked || authChanged, pages = Math.max(1, Math.ceil((data?.total ?? 0) / 20));
   return <CustomerServiceDialog title="복사할 상품 선택" onClose={onClose} wide>
-    <div className="admin-good-copy-picker">
-      <p>보관하지 않은 상품을 등록일 최신순으로 20개씩 조회합니다. 선택하면 해당 상품의 복사 설정으로 이동하며, ‘새 초안으로 복사’를 눌러야 새 상품이 생성됩니다.</p>
-      <form className="admin-good-copy-picker__search" onSubmit={e => { e.preventDefault(); void search({ ...filters, page: 1 }); }}>
-        <label htmlFor="good-copy-field">검색 항목<select id="good-copy-field" value={filters.field} disabled={locked} onChange={e => setFilters({ ...filters, field: e.target.value as typeof filters.field })}><option value="name">상품명</option><option value="code">판매자상품코드·옵션코드</option><option value="id">상품번호</option></select></label>
-        <label htmlFor="good-copy-query">검색어<input id="good-copy-query" type="search" maxLength={100} value={filters.query} disabled={locked} onChange={e => setFilters({ ...filters, query: e.target.value })} /></label>
-        <button type="submit" className="wc-admin-kit__button" disabled={locked}>상품 검색</button>
+    <div className="flex min-w-0 flex-col gap-4 text-sm" data-good-copy-picker="">
+      <p className="text-muted-foreground">보관하지 않은 상품을 등록일 최신순으로 20개씩 조회합니다. 선택하면 해당 상품의 복사 설정으로 이동하며, ‘새 초안으로 복사’를 눌러야 새 상품이 생성됩니다.</p>
+      <form className="grid min-w-0 items-end gap-3 sm:grid-cols-[13rem_minmax(0,1fr)_auto]" onSubmit={e => { e.preventDefault(); void search({ ...filters, page: 1 }); }}>
+        <div className="flex min-w-0 flex-col gap-2"><label className={LABEL_CLASS} htmlFor="good-copy-field">검색 항목</label><NativeSelect className="w-full" id="good-copy-field" value={filters.field} disabled={locked} onChange={e => setFilters({ ...filters, field: e.target.value as typeof filters.field })}><option value="name">상품명</option><option value="code">판매자상품코드·옵션코드</option><option value="id">상품번호</option></NativeSelect></div>
+        <div className="flex min-w-0 flex-col gap-2"><label className={LABEL_CLASS} htmlFor="good-copy-query">검색어</label><input className={GOOD_INPUT_CLASS} data-slot="input" id="good-copy-query" type="search" maxLength={100} value={filters.query} disabled={locked} onChange={e => setFilters({ ...filters, query: e.target.value })} /></div>
+        <Button type="submit" disabled={locked}><Search aria-hidden="true" />상품 검색</Button>
       </form>
-      <p>조회 {data?.total.toLocaleString('ko-KR') ?? '—'}개 · 등록일 최신순</p>
-      <ul className="admin-good-copy-picker__list">{data?.rows.map(good => <li key={good.id}>
-        {good.imageUrl ? <img src={good.imageUrl} width={48} height={48} alt="" /> : <span className="admin-good-copy-picker__image" aria-hidden="true" />}
-        <div><strong>{good.name}</strong><small>{good.code} · {good.id}</small><small>{good.categoryName ?? '미분류'} · {good.published ? '공개' : '초안'}</small></div>
-        {locked ? <span>{busy ? '조회 중' : '선택 불가'}</span> : <Link className="wc-admin-kit__button" prefetch={false} href={`/admin/catalog/goods?goodId=${encodeURIComponent(good.id)}#good-operation-clone`} onClick={onClose} aria-label={`${good.name} 복사 설정 열기`}>복사 설정</Link>}
+      <p className="text-muted-foreground tabular-nums">조회 {data?.total.toLocaleString('ko-KR') ?? '—'}개 · 등록일 최신순</p>
+      <ul className="m-0 flex max-h-[440px] min-w-0 list-none flex-col overflow-auto rounded-lg border p-0 empty:hidden">{data?.rows.map(good => <li className="grid grid-cols-[3rem_minmax(0,1fr)_auto] items-center gap-3 border-b p-3 last:border-b-0" key={good.id}>
+        {good.imageUrl ? <img className="size-12 rounded-md bg-muted object-contain" src={good.imageUrl} width={48} height={48} alt="" /> : <span className="size-12 rounded-md bg-muted" aria-hidden="true" />}
+        <div className="flex min-w-0 flex-col gap-0.5 wrap-anywhere"><strong className="font-medium">{good.name}</strong><small className="text-xs text-muted-foreground">{good.code} · {good.id}</small><small className="text-xs text-muted-foreground">{good.categoryName ?? '미분류'} · {good.published ? '공개' : '초안'}</small></div>
+        {locked ? <span className="text-xs text-muted-foreground">{busy ? '조회 중' : '선택 불가'}</span> : <Link className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" prefetch={false} href={`/admin/catalog/goods?goodId=${encodeURIComponent(good.id)}#good-operation-clone`} onClick={onClose} aria-label={`${good.name} 복사 설정 열기`}>복사 설정</Link>}
       </li>)}</ul>
-      {!busy && data?.total === 0 ? <p>조건에 맞는 상품이 없습니다.</p> : null}
-      {error ? <p role="alert">{error}</p> : null}{busy ? <p role="status">상품을 불러오고 있습니다.</p> : null}
-      <nav className="admin-good-copy-picker__pages" aria-label="복사 상품 페이지"><button type="button" className="wc-admin-kit__button" disabled={locked || !data || data.page <= 1} onClick={() => void search({ ...applied, page: (data?.page ?? 1) - 1 })}>이전</button><span>{data?.page ?? 1} / {pages}</span><button type="button" className="wc-admin-kit__button" disabled={locked || !data || data.page >= pages} onClick={() => void search({ ...applied, page: (data?.page ?? 1) + 1 })}>다음</button></nav>
+      {!busy && data?.total === 0 ? <p className="py-6 text-center text-muted-foreground">조건에 맞는 상품이 없습니다.</p> : null}
+      {error ? <p className="text-destructive" role="alert">{error}</p> : null}{busy ? <p className="text-muted-foreground" role="status">상품을 불러오고 있습니다.</p> : null}
+      <nav className="flex items-center justify-center gap-3" aria-label="복사 상품 페이지"><Button type="button" variant="outline" size="sm" disabled={locked || !data || data.page <= 1} onClick={() => void search({ ...applied, page: (data?.page ?? 1) - 1 })}><ChevronLeft aria-hidden="true" />이전</Button><span className="tabular-nums">{data?.page ?? 1} / {pages}</span><Button type="button" variant="outline" size="sm" disabled={locked || !data || data.page >= pages} onClick={() => void search({ ...applied, page: (data?.page ?? 1) + 1 })}>다음<ChevronRight aria-hidden="true" /></Button></nav>
     </div>
   </CustomerServiceDialog>;
 }

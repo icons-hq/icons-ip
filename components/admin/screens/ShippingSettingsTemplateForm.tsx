@@ -12,6 +12,11 @@ import { useShippingSettingsOperation, type ShippingSettingsScope } from './useS
 import { shippingFulfillmentDraft, prepareShippingFulfillment } from '@/lib/admin/shipping-settings-fulfillment';
 import { ShippingSettingsFulfillmentFields, ShippingSettingsFulfillmentDirective } from './ShippingSettingsFulfillmentFields';
 import { ShippingChargeGroupField } from '@/components/admin/ShippingChargeGroupField';
+import { Button } from '@/components/admin/kit/ui/button';
+import { Input } from '@/components/admin/kit/ui/input';
+import { NativeSelect } from '@/components/admin/kit/ui/native-select';
+import { Textarea } from '@/components/admin/kit/ui/textarea';
+import { ACTIONS, ALERT_BOX, FIELD_ERROR, FIELD_HINT, FIELD_LABEL, INFO_PANEL, NOTE, STATUS_BOX } from '@/components/admin/settings-kit';
 
 export function ShippingSettingsTemplateForm({ template, newId, origins, regions, identity, scope, onClose, onSaved }: {
   template?: ShippingSettingsTemplate; newId?: string; origins: GoodsFulfillmentOrigin[]; regions: GoodShippingRegionSummary[];
@@ -39,7 +44,7 @@ export function ShippingSettingsTemplateForm({ template, newId, origins, regions
     delivery: extension.mode === 'replace' ? { ...extension.policy, id: templateId, goodId: 'shipping-template', revision: 1 } : null }).delivery);
   const origin = origins.find(item => item.id === originId); const region = regions.find(item => item.originId === originId);
   const policy = template?.settings.claimPolicy;
-  const error = (key: string) => errors[key] ? <span role="alert" className="admin-shipping-settings__error" id={`shipping-settings-${key}-error`}>{errors[key]}</span> : null;
+  const error = (key: string) => errors[key] ? <span role="alert" className={FIELD_ERROR} id={`shipping-settings-${key}-error`}>{errors[key]}</span> : null;
   const props = (key: string) => ({ id: `shipping-settings-${key}`, name: key, 'aria-invalid': Boolean(errors[key]), 'aria-describedby': errors[key] ? `shipping-settings-${key}-error` : undefined });
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault(); if (locked || needsRefresh) return;
@@ -72,43 +77,43 @@ export function ShippingSettingsTemplateForm({ template, newId, origins, regions
     finally { latestBusy.current = false; if (scope.canApply(ticket)) setLoadingLatest(false); }
   }
   return <CustomerServiceDialog title={template ? '배송정보 템플릿 수정' : '배송정보 템플릿 등록'} onClose={() => { if (!locked) onClose(); }} busy={locked} wide>
-    <form className="admin-shipping-settings__editor" onSubmit={submit}>
+    <form className="flex min-w-0 flex-col gap-4" data-shipping-editor="" onSubmit={submit}>
       <input type="hidden" name="id" value={templateId} /><input type="hidden" name="revision" value={revision} />
-      <fieldset disabled={locked}>
-        <label htmlFor="shipping-settings-name">템플릿 이름<input {...props('name')} defaultValue={template?.name ?? ''} maxLength={80} required placeholder="예: 기본 택배 배송" />{error('name')}</label>
-        <label htmlFor="shipping-settings-enabled">사용 여부<select {...props('enabled')} defaultValue={String(template?.enabled ?? true)}><option value="true">사용</option><option value="false">사용 안 함</option></select>{error('enabled')}</label>
-        <label htmlFor="shipping-settings-originId">출고지<select {...props('originId')} value={originId} onChange={event => setOriginId(event.target.value)} required><option value="">출고지를 선택해주세요</option>{origins.map(item => <option key={item.id} value={item.id}>{item.name}{item.active ? '' : ' · 비활성'}</option>)}</select>{error('originId')}</label>
-        <label htmlFor="shipping-settings-feeType">배송비 유형<select {...props('feeType')} value={feeType} onChange={event => setFeeType(event.target.value as typeof feeType)}><option value="policy">출고지 정책 따름</option><option value="free">무료배송</option><option value="individual">개별 배송비</option></select>{error('feeType')}</label>
-        <label htmlFor="shipping-settings-individualFee">개별 배송비 (원)<input {...props('individualFee')} type="number" min={0} max={1000000} step={1} defaultValue={template?.settings.individualFee ?? 0} required /><small>{feeType === 'individual' ? '같은 상품의 수량·옵션과 관계없이 한 번 부과합니다.' : '입력값은 보관하고, 개별 배송비 유형일 때만 계산합니다.'}</small>{error('individualFee')}</label>
-        <div className="admin-shipping-settings__full">
-          <label htmlFor="shipping-settings-deliveryMode">수량별·착불 설정 적용 방식<select id="shipping-settings-deliveryMode" value={deliveryMode} onChange={event => setDeliveryMode(event.target.value as typeof deliveryMode)}>
+      <fieldset disabled={locked} className="m-0 grid min-w-0 grid-cols-1 gap-x-5 gap-y-4 border-0 p-0 sm:grid-cols-2">
+        <label className={FIELD_LABEL} htmlFor="shipping-settings-name">템플릿 이름<Input {...props('name')} defaultValue={template?.name ?? ''} maxLength={80} required placeholder="예: 기본 택배 배송" />{error('name')}</label>
+        <label className={FIELD_LABEL} htmlFor="shipping-settings-enabled">사용 여부<NativeSelect className="w-full" {...props('enabled')} defaultValue={String(template?.enabled ?? true)}><option value="true">사용</option><option value="false">사용 안 함</option></NativeSelect>{error('enabled')}</label>
+        <label className={FIELD_LABEL} htmlFor="shipping-settings-originId">출고지<NativeSelect className="w-full" {...props('originId')} value={originId} onChange={event => setOriginId(event.target.value)} required><option value="">출고지를 선택해주세요</option>{origins.map(item => <option key={item.id} value={item.id}>{item.name}{item.active ? '' : ' · 비활성'}</option>)}</NativeSelect>{error('originId')}</label>
+        <label className={FIELD_LABEL} htmlFor="shipping-settings-feeType">배송비 유형<NativeSelect className="w-full" {...props('feeType')} value={feeType} onChange={event => setFeeType(event.target.value as typeof feeType)}><option value="policy">출고지 정책 따름</option><option value="free">무료배송</option><option value="individual">개별 배송비</option></NativeSelect>{error('feeType')}</label>
+        <label className={FIELD_LABEL} htmlFor="shipping-settings-individualFee">개별 배송비 (원)<Input {...props('individualFee')} type="number" min={0} max={1000000} step={1} defaultValue={template?.settings.individualFee ?? 0} required /><small className={FIELD_HINT}>{feeType === 'individual' ? '같은 상품의 수량·옵션과 관계없이 한 번 부과합니다.' : '입력값은 보관하고, 개별 배송비 유형일 때만 계산합니다.'}</small>{error('individualFee')}</label>
+        <div className="flex min-w-0 flex-col gap-2 sm:col-span-2">
+          <label className={FIELD_LABEL} htmlFor="shipping-settings-deliveryMode">수량별·착불 설정 적용 방식<NativeSelect className="w-full" id="shipping-settings-deliveryMode" value={deliveryMode} onChange={event => setDeliveryMode(event.target.value as typeof deliveryMode)}>
             <option value="preserve">상품에 저장된 확장 배송비 유지</option><option value="replace">이 템플릿의 확장 배송비로 변경</option>
-          </select></label>
-          {deliveryMode === 'preserve' ? <p>기존 템플릿도 이 방식으로 동작합니다. 상품의 수량별·착불 설정은 유지되며, 사용 중인 수량별 배송비가 있으면 위 기본 배송비보다 우선합니다.</p>
-            : <><GoodsDeliveryPricingFields value={deliveryDraft} onChange={setDeliveryDraft} /><p>‘사용 안 함’으로 적용하면 상품의 기존 확장 배송비를 명시적으로 비활성화합니다. 기본 배송비 설정과 선결제로 돌아갑니다. 초안도 실제 운임 계산에는 적용하지 않습니다.</p></>}
+          </NativeSelect></label>
+          {deliveryMode === 'preserve' ? <p className={NOTE}>기존 템플릿도 이 방식으로 동작합니다. 상품의 수량별·착불 설정은 유지되며, 사용 중인 수량별 배송비가 있으면 위 기본 배송비보다 우선합니다.</p>
+            : <><GoodsDeliveryPricingFields value={deliveryDraft} onChange={setDeliveryDraft} /><p className={NOTE}>‘사용 안 함’으로 적용하면 상품의 기존 확장 배송비를 명시적으로 비활성화합니다. 기본 배송비 설정과 선결제로 돌아갑니다. 초안도 실제 운임 계산에는 적용하지 않습니다.</p></>}
           {error('delivery')}
         </div>
-        <div className="admin-shipping-settings__full">
-          <label htmlFor="shipping-settings-chargeMode">배송비 묶음그룹 적용 방식<select id="shipping-settings-chargeMode" value={chargeMode} onChange={event => setChargeMode(event.target.value as typeof chargeMode)}>
+        <div className="flex min-w-0 flex-col gap-2 sm:col-span-2">
+          <label className={FIELD_LABEL} htmlFor="shipping-settings-chargeMode">배송비 묶음그룹 적용 방식<NativeSelect className="w-full" id="shipping-settings-chargeMode" value={chargeMode} onChange={event => setChargeMode(event.target.value as typeof chargeMode)}>
             <option value="preserve">상품의 현재 묶음그룹 유지</option><option value="assign">이 묶음그룹으로 지정</option><option value="clear">묶음그룹 배정 해제</option>
-          </select></label>
+          </NativeSelect></label>
           {chargeMode === 'assign' ? <ShippingChargeGroupField identity={identity} originId={originId} value={chargeId} onChange={setChargeId} disabled={locked} allowClear={false} error={errors.chargeGroup} />
-            : <p>{chargeMode === 'clear' ? '배정을 해제하면 상품·출고지의 기존 개별 계산으로 돌아갑니다. 상품의 복수구매 할인과 구매 합산군은 유지합니다.' : '기존 템플릿도 배정을 유지합니다. 출고지를 바꾸면 기존 묶음그룹과 호환되는지 적용 전에 확인합니다.'}</p>}
+            : <p className={NOTE}>{chargeMode === 'clear' ? '배정을 해제하면 상품·출고지의 기존 개별 계산으로 돌아갑니다. 상품의 복수구매 할인과 구매 합산군은 유지합니다.' : '기존 템플릿도 배정을 유지합니다. 출고지를 바꾸면 기존 묶음그룹과 호환되는지 적용 전에 확인합니다.'}</p>}
           {chargeMode !== 'assign' ? error('chargeGroup') : null}
         </div>
         <ShippingSettingsFulfillmentFields value={fulfillmentDraft} onChange={setFulfillmentDraft} error={errors.fulfillment} />
-        <div className="admin-shipping-settings__origin">
-          <strong>출고지의 현재 배송정보</strong>
-          {origin ? <><p>{origin.name} · {origin.active ? '활성' : '비활성'} · 기본 배송비 {shippingSettingsMoney(origin.baseFee)} · {origin.freeThreshold === null ? '무료 기준 없음' : `${shippingSettingsMoney(origin.freeThreshold)} 이상 무료`}</p><p>기본 택배사 {origin.defaultCarrier ?? '미설정'} · 반송 주소 {origin.returnAddress || '미설정'}</p></> : <p>선택한 출고지의 정보를 확인합니다.</p>}
-          <p>{region?.label ?? '지역 배송 정책에서 적용 상태를 확인해주세요.'} {region?.detail}</p>
-          <p>출고지와 묶음그룹의 지역 추가료 적용 범위를 함께 확인합니다. 최종 운임은 주문 주소와 상품 구성으로 계산합니다.</p>
+        <div className={`${INFO_PANEL} sm:col-span-2`}>
+          <strong className="font-medium">출고지의 현재 배송정보</strong>
+          {origin ? <><p className="text-muted-foreground">{origin.name} · {origin.active ? '활성' : '비활성'} · 기본 배송비 {shippingSettingsMoney(origin.baseFee)} · {origin.freeThreshold === null ? '무료 기준 없음' : `${shippingSettingsMoney(origin.freeThreshold)} 이상 무료`}</p><p className="text-muted-foreground">기본 택배사 {origin.defaultCarrier ?? '미설정'} · 반송 주소 {origin.returnAddress || '미설정'}</p></> : <p className="text-muted-foreground">선택한 출고지의 정보를 확인합니다.</p>}
+          <p className="text-muted-foreground">{region?.label ?? '지역 배송 정책에서 적용 상태를 확인해주세요.'} {region?.detail}</p>
+          <p className="text-muted-foreground">출고지와 묶음그룹의 지역 추가료 적용 범위를 함께 확인합니다. 최종 운임은 주문 주소와 상품 구성으로 계산합니다.</p>
         </div>
-        {(['claimReturnAllowed', 'claimExchangeAllowed'] as const).map((key, index) => <label key={key} htmlFor={`shipping-settings-${key}`}>{index ? '교환 조건' : '반품 조건'}<select {...props(key)} defaultValue={String((index ? policy?.exchangeAllowed : policy?.returnAllowed) ?? '')}><option value="">미검토 · 기본 정책 확인</option><option value="true">기본 정책에 따라 가능</option><option value="false">제한 사유와 개별 확인 필요</option></select>{error(key)}</label>)}
-        {([['claimReturnFee', '고객 귀책 반품비 · 편도 (원)', policy?.returnFee], ['claimReturnFreeShippingFee', '최초 무료배송 후 반품비 · 왕복 합계 (원)', policy?.returnFreeShippingFee], ['claimExchangeFee', '고객 귀책 교환비 · 왕복 합계 (원)', policy?.exchangeFee]] as const).map(([key, label, value]) => <label key={key} htmlFor={`shipping-settings-${key}`}>{label}<input {...props(key)} type="number" min={0} max={1000000} step={1} defaultValue={value ?? ''} placeholder="미확인이면 비워두세요" />{error(key)}</label>)}
-        <label className="admin-shipping-settings__full" htmlFor="shipping-settings-claimRestrictionReason">제한 사유와 적용 조건<textarea {...props('claimRestrictionReason')} rows={3} maxLength={2000} defaultValue={policy?.restrictionReason ?? ''} />{error('claimRestrictionReason')}</label>
-        <p className="admin-shipping-settings__full">비용을 비우면 미확인, 0원은 확인된 무료입니다. 반품·교환 조건은 고객 안내이며 접수 제한이나 환불 차감에 사용하지 않습니다.</p>
+        {(['claimReturnAllowed', 'claimExchangeAllowed'] as const).map((key, index) => <label className={FIELD_LABEL} key={key} htmlFor={`shipping-settings-${key}`}>{index ? '교환 조건' : '반품 조건'}<NativeSelect className="w-full" {...props(key)} defaultValue={String((index ? policy?.exchangeAllowed : policy?.returnAllowed) ?? '')}><option value="">미검토 · 기본 정책 확인</option><option value="true">기본 정책에 따라 가능</option><option value="false">제한 사유와 개별 확인 필요</option></NativeSelect>{error(key)}</label>)}
+        {([['claimReturnFee', '고객 귀책 반품비 · 편도 (원)', policy?.returnFee], ['claimReturnFreeShippingFee', '최초 무료배송 후 반품비 · 왕복 합계 (원)', policy?.returnFreeShippingFee], ['claimExchangeFee', '고객 귀책 교환비 · 왕복 합계 (원)', policy?.exchangeFee]] as const).map(([key, label, value]) => <label className={FIELD_LABEL} key={key} htmlFor={`shipping-settings-${key}`}>{label}<Input {...props(key)} type="number" min={0} max={1000000} step={1} defaultValue={value ?? ''} placeholder="미확인이면 비워두세요" />{error(key)}</label>)}
+        <label className={`${FIELD_LABEL} sm:col-span-2`} htmlFor="shipping-settings-claimRestrictionReason">제한 사유와 적용 조건<Textarea {...props('claimRestrictionReason')} rows={3} maxLength={2000} defaultValue={policy?.restrictionReason ?? ''} />{error('claimRestrictionReason')}</label>
+        <p className={`${NOTE} sm:col-span-2`}>비용을 비우면 미확인, 0원은 확인된 무료입니다. 반품·교환 조건은 고객 안내이며 접수 제한이나 환불 차감에 사용하지 않습니다.</p>
       </fieldset>
-      {latest !== undefined ? <div className="admin-shipping-settings__origin"><strong>최신 저장본</strong>
+      {latest !== undefined ? <div className={INFO_PANEL}><strong className="font-medium">최신 저장본</strong>
         {latest ? <><p>{latest.name} · 버전 {latest.revision} · {latest.enabled ? '사용' : '사용 안 함'} · {origins.find(item => item.id === latest.settings.originId)?.name ?? '출고지 확인 필요'}</p>
           <ShippingSettingsDeliverySummary effective={{ ...latest.settings, chargeGroup: undefined, fulfillment: undefined, delivery: latest.settings.delivery?.mode === 'replace' ? latest.settings.delivery.policy : null }} />
           <p>{latest.settings.delivery?.mode === 'replace' ? '이 템플릿의 확장 배송비로 변경' : '상품의 기존 확장 배송비 유지'}</p>
@@ -119,17 +124,17 @@ export function ShippingSettingsTemplateForm({ template, newId, origins, regions
             <p key={label}>{label}: {allowed === null ? '미검토 · 기본 정책 확인' : allowed ? '기본 정책에 따라 가능' : '제한 사유와 개별 확인 필요'}</p>)}
           <p>고객 귀책 반품비 · 편도: {shippingSettingsMoney(latest.settings.claimPolicy.returnFee)} / 최초 무료배송 후 반품비 · 왕복 합계: {shippingSettingsMoney(latest.settings.claimPolicy.returnFreeShippingFee)} / 고객 귀책 교환비 · 왕복 합계: {shippingSettingsMoney(latest.settings.claimPolicy.exchangeFee)}</p>
           <p>제한 사유와 적용 조건: {latest.settings.claimPolicy.restrictionReason ?? '미입력'}</p></> : <p>아직 저장된 템플릿이 없습니다.</p>}
-        <button className="btn btn-sm" type="button" disabled={locked} onClick={() => { setRevision(latest?.revision ?? 0); setNeedsRefresh(false); setLatest(undefined); setNotice('현재 입력을 유지하고 최신 버전을 저장 기준으로 선택했습니다.'); }}>내 입력 유지 · 최신 버전을 저장 기준으로</button>
+        <Button className="w-fit" disabled={locked} onClick={() => { setRevision(latest?.revision ?? 0); setNeedsRefresh(false); setLatest(undefined); setNotice('현재 입력을 유지하고 최신 버전을 저장 기준으로 선택했습니다.'); }} size="sm" type="button">내 입력 유지 · 최신 버전을 저장 기준으로</Button>
       </div> : null}
-      {errors.form || operation.error ? <p role="alert" className="admin-shipping-settings__error">{errors.form || operation.error}</p> : null}
-      {notice || operation.message ? <p role="status">{notice || operation.message}</p> : null}
-      {operation.context ? <div className="admin-shipping-settings__origin"><strong>진행한 요청의 결과를 먼저 확인해주세요.</strong><p>이 탭에는 요청번호와 저장 기준만 보관합니다. 새로고침 후에는 결과 확인 또는 미처리 요청 종료만 할 수 있습니다.</p>
-        <div className="admin-shipping-settings__actions"><button className="btn" type="button" disabled={pending} onClick={() => { void operation.recover(); }}>저장 결과 확인</button>
-          {operation.canRetry ? <button className="btn btn-ghost" type="button" disabled={pending} onClick={() => { void operation.retry(); }}>같은 입력으로 재시도</button> : null}
-          <button className="btn btn-ghost" type="button" disabled={pending} onClick={() => { void operation.recover(true); }}>미처리 요청 종료</button></div></div> : null}
-      <div className="admin-shipping-settings__actions"><button className="btn" type="submit" disabled={locked || needsRefresh}>{pending ? '처리 중…' : template ? '새 버전 저장' : '등록'}</button>
-        <button className="btn btn-ghost" type="button" disabled={locked} onClick={() => { void loadLatest(); }}>최신 저장본 불러오기</button><button className="btn btn-ghost" type="button" disabled={locked} onClick={onClose}>취소</button></div>
-      <p>저장하면 다음 버전이 생성됩니다. 기존 상품에 적용된 설정은 미리보기 후 다시 적용해야 변경됩니다.</p>
+      {errors.form || operation.error ? <p role="alert" className={ALERT_BOX}>{errors.form || operation.error}</p> : null}
+      {notice || operation.message ? <p className={STATUS_BOX} role="status">{notice || operation.message}</p> : null}
+      {operation.context ? <div className={INFO_PANEL}><strong className="font-medium">진행한 요청의 결과를 먼저 확인해주세요.</strong><p className="text-muted-foreground">이 탭에는 요청번호와 저장 기준만 보관합니다. 새로고침 후에는 결과 확인 또는 미처리 요청 종료만 할 수 있습니다.</p>
+        <div className={ACTIONS}><Button disabled={pending} onClick={() => { void operation.recover(); }} type="button">저장 결과 확인</Button>
+          {operation.canRetry ? <Button disabled={pending} onClick={() => { void operation.retry(); }} type="button" variant="outline">같은 입력으로 재시도</Button> : null}
+          <Button disabled={pending} onClick={() => { void operation.recover(true); }} type="button" variant="outline">미처리 요청 종료</Button></div></div> : null}
+      <div className={`${ACTIONS} border-t pt-4`}><Button disabled={locked || needsRefresh} type="submit">{pending ? '처리 중…' : template ? '새 버전 저장' : '등록'}</Button>
+        <Button disabled={locked} onClick={() => { void loadLatest(); }} type="button" variant="outline">최신 저장본 불러오기</Button><Button disabled={locked} onClick={onClose} type="button" variant="ghost">취소</Button></div>
+      <p className={NOTE}>저장하면 다음 버전이 생성됩니다. 기존 상품에 적용된 설정은 미리보기 후 다시 적용해야 변경됩니다.</p>
     </form>
   </CustomerServiceDialog>;
 }

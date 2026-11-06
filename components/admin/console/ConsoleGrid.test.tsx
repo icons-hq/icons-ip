@@ -84,7 +84,7 @@ describe('ConsoleGrid 정렬', () => {
       />,
     );
 
-    expect(html).not.toContain('admin-console-grid-sort');
+    expect(html).not.toContain('정렬"');
     expect(html).toContain('주문번호');
   });
 });
@@ -98,7 +98,7 @@ describe('ConsoleGrid 빈 상태', () => {
     expect(html).toContain('조건에 맞는 항목이 없습니다.');
     /* 체크박스 열 1 + 데이터 열 3 */
     expect(html).toContain('colSpan="4"');
-    expect(html).toContain('admin-console-grid-empty');
+    expect(html).toMatch(/<td class="[^"]*" colSpan="\d+" data-slot="table-cell">/);
   });
 
   it('빈 상태 문구를 콘솔별로 바꿀 수 있다', () => {
@@ -132,9 +132,9 @@ describe('ConsoleGrid 행', () => {
     );
 
     expect(html).toContain('href="/admin/orders/o1"');
-    expect(html).toContain('admin-console-grid-link');
+    expect(html).toMatch(/<td[^>]*><a class="[^"]*hover:underline[^"]*" href=/);
     /* href 없는 두 번째 행은 링크가 되지 않는다. */
-    expect(html.match(/admin-console-grid-link/g)).toHaveLength(1);
+    expect(html.match(/hover:underline/g)).toHaveLength(1);
     expect(html).toContain('2026081800002');
   });
 
@@ -152,7 +152,7 @@ describe('ConsoleGrid 행', () => {
       <ConsoleGrid caption="주문 목록" columns={COLUMNS} rows={ROWS} />,
     );
 
-    expect(html).toContain('<caption class="admin-console-grid-caption">주문 목록</caption>');
+    expect(html).toContain('<caption class="sr-only">주문 목록</caption>');
     expect(html).toContain('width:160px');
   });
 });
@@ -249,9 +249,10 @@ describe('ConsoleGrid 선택', () => {
     const html = tableMarkup(renderToStaticMarkup(
       <ConsoleGrid caption="주문 목록" columns={COLUMNS} rows={[ROWS[0], { ...ROWS[1], selectable: false }]} selectable />,
     ));
-    expect(html.match(/<label class="admin-console-grid-check-hit"><input/g)).toHaveLength(2);
-    expect(html).toContain('<label class="admin-console-grid-check-hit"><input aria-label="전체 선택"');
-    expect(html).toContain('<label class="admin-console-grid-check-hit"><input aria-label="o1 선택"');
+    const hit = 'class="absolute inset-0 flex cursor-pointer items-center justify-center print:static"';
+    expect(html.match(new RegExp(`<label ${hit}><input`, 'g'))).toHaveLength(2);
+    expect(html).toContain(`<label ${hit}><input aria-label="전체 선택"`);
+    expect(html).toContain(`<label ${hit}><input aria-label="o1 선택"`);
     /* 선택할 수 없는 행은 빈 칸이다. */
     expect(html).not.toContain('o2 선택');
   });

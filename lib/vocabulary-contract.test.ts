@@ -9,7 +9,7 @@ const ADMIN_COPY_EXCEPTIONS = [
   { file: 'lib/admin/guide/topics/cards-games.ts', reason: '카드·카드팩·게임 안내는 운영 상품 어휘 변환 대상이 아니다.' },
   { file: 'lib/admin/guide/topics/events-tickets.ts', reason: '티켓 안내는 운영 상품 어휘 변환 대상이 아니다.' },
   { file: 'lib/admin/good-preview.ts', text: '(굿즈 이름 미입력)', reason: '고객용 굿즈 미리보기에 쓰는 임시 이름이다.' },
-  { file: 'components/admin/screens/ClaimQueueScreen.tsx', text: '약관 제16조', reason: '굿즈를 반환받은 날부터 3영업일이라는 약관 원문 인용을 보존한다.' },
+  { file: 'components/admin/screens/ClaimQueueKitScreen.tsx', text: '약관 제16조', reason: '굿즈를 반환받은 날부터 3영업일이라는 약관 원문 인용을 보존한다.' },
   { file: 'app/admin/actions.ts', text: 'legacy 굿즈 게임은 읽기 전용이며 현 로드맵에서 운영하지 않습니다.', reason: '실물 판매와 구분하는 폐기된 게임 variant 안내다.' },
   { file: 'app/admin/actions.ts', text: '선택한 IP의 굿즈만 지정할 수 있습니다.', reason: '카드팩 리워드 정책의 결제 자격 검증 오류다.' },
   { file: 'app/admin/actions.ts', text: '연결할 굿즈를 찾을 수 없습니다.', reason: '카드팩 리워드 정책의 결제 자격 검증 오류다.' },

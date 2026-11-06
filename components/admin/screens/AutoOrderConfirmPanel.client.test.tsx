@@ -10,6 +10,8 @@ vi.mock('react', async () => ({ ...await vi.importActual<typeof import('react')>
 vi.mock('@/app/admin/auto-order-confirmation-actions', () => ({ saveAutoOrderConfirmationAction: mocks.save }));
 import { AutoOrderConfirmPanel } from './AutoOrderConfirmPanel';
 import type { AutoOrderConfirmationState } from '@/lib/admin/auto-order-confirmation';
+/* 실행 시각 입력은 kit Input(ADR-0028)이다 — 렌더 전 요소 트리에서는 그 부품 자체가 요소 종류다. */
+import { Input } from '@/components/admin/kit/ui/input';
 
 type Element = ReactElement<{ children?: ReactNode; summary?: string; value?: string; role?: string; tabIndex?: number;
   type?: string; onChange?: (event: unknown) => void; onSubmit?: (event: unknown) => void }>;
@@ -21,7 +23,7 @@ function render(initial: AutoOrderConfirmationState | null) {
   for (let pass = 0; pass < 2; pass++) { hooks.index = 0; hooks.refIndex = 0; out = AutoOrderConfirmPanel({ initial }); }
   return out as Element;
 }
-const timeInput = (tree: Element) => all(tree).find(element => element.type === 'input' && element.props.type === 'time')!;
+const timeInput = (tree: Element) => all(tree).find(element => (element.type === 'input' || element.type === Input) && element.props.type === 'time')!;
 const result = (tree: Element) => all(tree).find(element => element.type === 'p' && (element.props.role === 'status' || element.props.role === 'alert'));
 async function settle() { for (let n = 0; n < 8; n++) await Promise.resolve(); }
 

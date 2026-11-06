@@ -12,6 +12,7 @@ import {
   type ReactNode,
   type SelectHTMLAttributes,
 } from 'react';
+import { cn } from 'cn';
 
 type AdminSelectProps = SelectHTMLAttributes<HTMLSelectElement> & {
   children?: ReactNode;
@@ -35,15 +36,15 @@ function measureSelectedText(select: HTMLSelectElement) {
   const letterSpacing = Number.parseFloat(style.letterSpacing) || 0;
   const textWidth = context.measureText(selectedText).width
     + Math.max(0, selectedText.length - 1) * letterSpacing;
+  /* clientWidth already excludes the borders; only the padding narrows the text box. */
   const padding = (Number.parseFloat(style.paddingLeft) || 0)
-    + (Number.parseFloat(style.paddingRight) || 0)
-    + (Number.parseFloat(style.borderLeftWidth) || 0)
-    + (Number.parseFloat(style.borderRightWidth) || 0);
+    + (Number.parseFloat(style.paddingRight) || 0);
   /* Native select arrows occupy platform-dependent space. Keep the estimate
      conservative without changing the select width or its native appearance. */
-  const available = select.clientWidth - padding - 24;
+  const arrow = style.appearance === 'none' ? 0 : 24;
+  const available = select.clientWidth - padding - arrow;
 
-  return { clipped: textWidth > available + 1, selectedText };
+  return { clipped: textWidth > available + 2, selectedText };
 }
 
 export const AdminSelect = forwardRef<HTMLSelectElement, AdminSelectProps>(function AdminSelect({
@@ -137,12 +138,15 @@ export const AdminSelect = forwardRef<HTMLSelectElement, AdminSelectProps>(funct
   const describedBy = [ariaDescribedBy, clipped ? hintId : undefined].filter(Boolean).join(' ') || undefined;
 
   return (
+    /* kit NativeSelect와 같은 폭 규칙: 감싸개는 기본 내용 폭(w-fit), 화면이 폭을 주면 셀렉트가 그 폭을 채운다. */
     <span
-      className={wrapperClassName}
-      style={{ display: 'block', minWidth: 0, ...wrapperStyle }}
+      className={cn('block w-fit max-w-full min-w-0', wrapperClassName)}
+      data-admin-select=""
+      style={wrapperStyle}
     >
       <select
         {...selectProps}
+        className={cn('w-full', selectProps.className)}
         aria-describedby={describedBy}
         data-admin-select-measured={measured ? 'true' : undefined}
         onChange={handleChange}
@@ -152,7 +156,7 @@ export const AdminSelect = forwardRef<HTMLSelectElement, AdminSelectProps>(funct
       </select>
       {clipped && selectedText ? (
         <span
-          className="admin-select-hint wc-admin-kit__select-hint"
+          className="mt-1 block text-xs leading-snug text-muted-foreground"
           id={hintId}
 
         >

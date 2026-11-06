@@ -12,20 +12,23 @@ import {
   type AdminIpPublishableRecord,
   type AdminIpPublishState,
 } from '../../lib/admin/ip-publish';
+import { Button } from '@/components/admin/kit/ui/button';
+import { AdminStatusBadge } from './console/AdminKit';
+import { SECTION_CARD, SECTION_WARNING, SectionHeading } from './sections/SectionLayout';
 
 const initialState: AdminIpPublishActionState = {};
 
-const STATE_COLORS: Record<AdminIpPublishState, string> = {
-  draft: 'var(--amber)',
-  published: 'var(--mint)',
-  archived: 'var(--dim)',
-};
+const STATE_TONES = {
+  draft: 'warning',
+  published: 'success',
+  archived: 'neutral',
+} as const satisfies Record<AdminIpPublishState, 'neutral' | 'success' | 'warning'>;
 
-/** 폼 머리와 목록이 쓰는 게시 상태 배지. 색만 다르고 어휘는 기존 `.tag` 다. */
+/** 폼 머리와 목록이 쓰는 게시 상태 배지. 어휘는 게시 상태 이름이고, 색은 상태 톤이다. */
 export function IpPublishStateBadge({ state }: { state: AdminIpPublishState }) {
   return (
-    <span className="tag" data-publish-state={state} style={{ color: STATE_COLORS[state] }}>
-      {ADMIN_IP_PUBLISH_STATE_LABELS[state]}
+    <span className="inline-flex" data-publish-state={state}>
+      <AdminStatusBadge tone={STATE_TONES[state]}>{ADMIN_IP_PUBLISH_STATE_LABELS[state]}</AdminStatusBadge>
     </span>
   );
 }
@@ -49,47 +52,42 @@ export function IpPublishControl({
   const [actionState, formAction, pending] = useActionState(action, initialState);
 
   return (
-    <section className="card col" data-ip-publish-control={state} style={{ gap: 12, padding: 18 }}>
-      <div>
-        <span className="eyebrow">PUBLISH STATE</span>
-        <h2 style={{ fontSize: 18, margin: '6px 0 0' }}>
-          {state === 'archived' ? '게시 상태' : publishing ? '공개로 전환' : '초안으로 되돌리기'}
-        </h2>
-      </div>
-      <p className="muted" style={{ fontSize: 12, lineHeight: 1.6, margin: 0 }}>
-        {state === 'archived'
+    <section className={SECTION_CARD} data-ip-publish-control={state}>
+      <SectionHeading
+        description={state === 'archived'
           ? '보관된 IP는 게시 상태를 바꿀 수 없습니다. 복원하면 초안이 됩니다. 다시 노출하려면 공개로 전환해주세요.'
           : publishing
             ? '공개하면 온라인 팝업 디렉토리·IP관·홈 특집·검색에 바로 노출됩니다.'
             : '초안으로 되돌리면 IP와 소속 상품·카드가 공개 목록·검색에서 제외됩니다. 이미 담긴 상품은 장바구니에 판매 종료로 표시되고 결제할 수 없습니다. 연결된 이벤트 상세는 찾을 수 없는 페이지(404)가 됩니다. 기존 주문·보유 카드 이력은 유지됩니다.'}
-      </p>
+        title={state === 'archived' ? '게시 상태' : publishing ? '공개로 전환' : '초안으로 되돌리기'}
+      />
       {actionState.errors?.form && (
-        <div className="card" role="alert" style={{ color: 'var(--pink)', padding: 12 }}>
+        <div className={SECTION_WARNING} role="alert">
           {actionState.errors.form}
         </div>
       )}
       {actionState.errors?.id && (
-        <div className="card" role="alert" style={{ color: 'var(--pink)', padding: 12 }}>
+        <div className={SECTION_WARNING} role="alert">
           {actionState.errors.id}
         </div>
       )}
       {actionState.message && (
-        <div className="card" role="status" style={{ color: 'var(--mint)', padding: 12 }}>
+        <div className="rounded-lg border bg-muted/40 px-3 py-2.5 text-sm font-medium text-[var(--wc-success)]" role="status">
           {actionState.message}
         </div>
       )}
       {state !== 'archived' && (
-        <form action={formAction}>
+        <form action={formAction} className="flex flex-col items-start gap-3">
           <input name="id" readOnly type="hidden" value={id} />
           {!publishing && (
-            <label className="row" style={{ gap: 8, marginBottom: 12 }}>
+            <label className="flex items-center gap-2 text-sm">
               <input disabled={pending} name="confirmUnpublish" required type="checkbox" value="yes" />
               <span>초안 전환의 영향을 확인했습니다</span>
             </label>
           )}
-          <button className={publishing ? 'btn btn-holo' : 'btn btn-ghost'} disabled={pending}>
+          <Button disabled={pending} type="submit" variant={publishing ? 'default' : 'outline'}>
             {pending ? '처리 중' : publishing ? '공개로 전환' : '초안으로 되돌리기'}
-          </button>
+          </Button>
         </form>
       )}
     </section>

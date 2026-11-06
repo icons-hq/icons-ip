@@ -92,7 +92,7 @@ describe('CurationSection', () => {
     await mocks.reducer!({ uncertain: true }, changed);
     expect(mocks.action.mock.calls[1][1].get('title')).toBe('보낸 원본');
     mocks.state = { errors: { form: '결과 확인 필요' }, uncertain: true };
-    expect(renderSection()).toContain('<fieldset disabled="">');
+    expect(renderSection()).toMatch(/<fieldset disabled=""[ >]/);
     expect(renderSection()).toContain('같은 요청 결과 확인');
   });
 
@@ -112,7 +112,7 @@ describe('CurationSection', () => {
     mocks.state = { errors: { form: '저장본 충돌' }, conflict: true };
     const html = renderSection();
     expect(html).toContain('value="여름 신작"');
-    expect(html).toContain('<fieldset disabled="">');
+    expect(html).toMatch(/<fieldset disabled=""[ >]/);
     expect(html).toContain('입력을 취소하고 최신 저장본 불러오기');
   });
 
@@ -146,6 +146,13 @@ describe('CurationSection', () => {
     expect(html.match(/data-artwork-kind="curation"/g)).toHaveLength(2);
     expect(html).toContain('value="2026-07-15T09:00"');
     expect(html).toContain('이 구성 적용하기');
+  });
+
+  /* kit Button은 type을 주지 않으면 type="button"이라 폼을 제출하지 않는다 — 적용 버튼이 제출 버튼인지 지킨다. */
+  it('이 구성 적용하기 버튼은 홈 구성 폼을 제출한다', () => {
+    const html = renderSection();
+    expect(html).toMatch(/<button[^>]*type="submit"[^>]*>이 구성 적용하기<\/button>/);
+    expect(html).toMatch(/<button[^>]*type="button"[^>]*>전체보기<\/button>/);
   });
 
   it('이동 대상에 실재 상품을 표시하고 보관 상품을 새 선택지에서 제외한다', () => {

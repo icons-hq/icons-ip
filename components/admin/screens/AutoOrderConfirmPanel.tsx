@@ -6,6 +6,8 @@ import { AdminField, AdminSectionCard, AdminStatusBadge } from '@/components/adm
 import { AUTO_ORDER_CONFIRMATION_EXCLUSIONS, AUTO_ORDER_CONFIRMATION_PATH, isAutoOrderRunTime, type AutoOrderConfirmationState } from '@/lib/admin/auto-order-confirmation';
 import { adminOrderDetailHrefFromBack } from '@/lib/admin/orders';
 import { formatOrderDateTime, orderReferenceLabel } from '@/lib/orders';
+import { Button } from '@/components/admin/kit/ui/button';
+import { Input } from '@/components/admin/kit/ui/input';
 
 const UNKNOWN = '저장 결과를 확인하지 못했습니다. 같은 요청으로 다시 확인해주세요.';
 
@@ -37,7 +39,7 @@ export function AutoOrderConfirmPanel({ initial }: { initial: AutoOrderConfirmat
     const active = document.activeElement;
     if (!active || active === document.body || formRef.current?.contains(active)) resultRef.current?.focus();
   });
-  if (!state) return <AdminSectionCard title="자동 발주확인"><p role="alert">자동 발주확인 설정을 불러오지 못했습니다. 새로고침 후 다시 확인해주세요. 신규주문은 아래에서 직접 발주확인할 수 있습니다.</p></AdminSectionCard>;
+  if (!state) return <AdminSectionCard title="자동 발주확인"><p className="text-destructive" role="alert">자동 발주확인 설정을 불러오지 못했습니다. 새로고침 후 다시 확인해주세요. 신규주문은 아래에서 직접 발주확인할 수 있습니다.</p></AdminSectionCard>;
   const current = state;
   const changed = enabled !== current.enabled || runTime !== current.runTime;
   async function save() {
@@ -58,26 +60,26 @@ export function AutoOrderConfirmPanel({ initial }: { initial: AutoOrderConfirmat
     last ? `마지막 실행 ${formatOrderDateTime(last.finishedAt ?? last.startedAt)}${last.finishedAt ? '' : '(진행 중)'} · 발주확인 ${last.confirmedCount.toLocaleString('ko-KR')}건 · 제외 ${last.excludedCount.toLocaleString('ko-KR')}건` : '아직 실행 기록 없음',
     current.nextRunAt ? `다음 실행 ${formatOrderDateTime(current.nextRunAt)}` : null].filter(Boolean).join(' · ');
   return <AdminSectionCard title="자동 발주확인" status={current.enabled ? '켜짐' : '꺼짐'} summary={summary}>
-    <p>매일 설정한 시각까지 결제가 끝난 신규주문을 시스템이 발주확인합니다. 그 시각 뒤에 결제된 주문은 다음 날 처리하며, 발주확인 전까지 고객은 주문을 직접 취소할 수 있습니다.
+    <p className="text-muted-foreground">매일 설정한 시각까지 결제가 끝난 신규주문을 시스템이 발주확인합니다. 그 시각 뒤에 결제된 주문은 다음 날 처리하며, 발주확인 전까지 고객은 주문을 직접 취소할 수 있습니다.
       {current.enabled && current.enabledAt ? ` 켠 시각(${formatOrderDateTime(current.enabledAt)}) 전에 결제된 주문은 자동 대상이 아니므로 직접 발주확인합니다.` : ' 꺼져 있는 동안에는 신규주문을 직접 발주확인합니다.'}
       {' '}취소 요청이 진행 중이거나 예약 재고 할당 전인 주문은 신규주문에 남습니다.</p>
-    <form ref={formRef} onSubmit={event => { event.preventDefault(); void save(); }}>
-      <fieldset disabled={pending || uncertain}>
-        <legend className="wc-admin-kit__hint">자동 발주확인 설정</legend>
-        <label><input type="checkbox" checked={enabled} onChange={event => setEnabled(event.target.checked)} /> 자동 발주확인 사용</label>
+    <form className="flex flex-col gap-4" ref={formRef} onSubmit={event => { event.preventDefault(); void save(); }}>
+      <fieldset className="m-0 flex min-w-0 flex-col gap-4 border-0 p-0" disabled={pending || uncertain}>
+        <legend className="mb-3 text-sm text-muted-foreground">자동 발주확인 설정</legend>
+        <label className="flex items-center gap-2 font-medium"><input type="checkbox" checked={enabled} onChange={event => setEnabled(event.target.checked)} /> 자동 발주확인 사용</label>
         <AdminField label="매일 실행 시각 (한국 시간)" inputId="auto-order-confirmation-time" hint="이 시각까지 결제 완료된 주문이 대상입니다. 오늘 아직 실행 전이면 바꾼 시각에(이미 지난 시각이면 1분 안에) 실행하고, 이미 실행한 날은 다시 실행하지 않습니다. 다시 켜면 켠 뒤 결제된 주문부터 대상이 됩니다.">
-          <input id="auto-order-confirmation-time" type="time" step={60} required value={runTime} aria-describedby="auto-order-confirmation-time-hint" onChange={event => setRunTime(event.target.value.slice(0, 5))} />
+          <Input className="w-36" id="auto-order-confirmation-time" type="time" step={60} required value={runTime} aria-describedby="auto-order-confirmation-time-hint" onChange={event => setRunTime(event.target.value.slice(0, 5))} />
         </AdminField>
       </fieldset>
-      <div className="wc-admin-kit__actions">
-        <button type="submit" className="wc-admin-kit__button wc-admin-kit__button--primary" disabled={pending || (!changed && !uncertain)}>{pending ? '저장 중…' : uncertain ? '같은 요청 결과 확인' : '설정 저장'}</button>
-        {message ? <p role={error ? 'alert' : 'status'} ref={resultRef} tabIndex={-1}>{message}</p> : null}
+      <div className="flex flex-wrap items-center gap-3">
+        <Button type="submit" disabled={pending || (!changed && !uncertain)}>{pending ? '저장 중…' : uncertain ? '같은 요청 결과 확인' : '설정 저장'}</Button>
+        {message ? <p className={`text-sm outline-none ${error ? 'text-destructive' : 'text-[var(--wc-success)]'}`} role={error ? 'alert' : 'status'} ref={resultRef} tabIndex={-1}>{message}</p> : null}
       </div>
     </form>
-    {current.lastExclusions.length ? <div>
-      <p className="wc-admin-kit__hint">마지막 실행에서 신규주문에 남긴 주문 (최대 20건)</p>
-      <ul>{current.lastExclusions.map(row => <li key={row.orderId}>
-        <Link href={adminOrderDetailHrefFromBack(row.orderId, AUTO_ORDER_CONFIRMATION_PATH)}>주문 {orderReferenceLabel(row.orderId, row.orderNumber)}</Link>{' '}
+    {current.lastExclusions.length ? <div className="flex flex-col gap-2 border-t pt-4">
+      <p className="text-muted-foreground">마지막 실행에서 신규주문에 남긴 주문 (최대 20건)</p>
+      <ul className="flex flex-col gap-1.5">{current.lastExclusions.map(row => <li className="flex flex-wrap items-center gap-2" key={row.orderId}>
+        <Link className="tabular-nums underline underline-offset-4" href={adminOrderDetailHrefFromBack(row.orderId, AUTO_ORDER_CONFIRMATION_PATH)}>주문 {orderReferenceLabel(row.orderId, row.orderNumber)}</Link>{' '}
         <AdminStatusBadge tone={row.outcome === 'failed' ? 'danger' : 'warning'}>{AUTO_ORDER_CONFIRMATION_EXCLUSIONS[row.outcome]}</AdminStatusBadge>
       </li>)}</ul>
     </div> : null}

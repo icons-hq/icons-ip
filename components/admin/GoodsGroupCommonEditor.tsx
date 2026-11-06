@@ -10,8 +10,10 @@ import { EMPTY_GOODS_AFTER_SALES, type GoodsAfterSalesValues } from '@/lib/goods
 import { parseGoodsSizeChart } from '@/lib/goods-size-chart';
 import { GOODS_HTML_MAX_LENGTH, goodsHtmlCleanedLengthWarning, goodsHtmlSourceLengthWarning, sanitizeGoodsDescription } from '@/lib/goods-description';
 import { goodsAttributeSubmissionReady } from '@/lib/admin/goods-attributes';
-import { GroupCompleted, GroupOperationStatus, useGoodsGroupOperation, useGoodsGroupSession, GROUP_BUTTON, GROUP_PRIMARY } from './GoodsGroupOperation';
-import { AdminSectionCard } from './console/AdminKit';
+import { GroupCompleted, GroupOperationStatus, useGoodsGroupOperation, useGoodsGroupSession } from './GoodsGroupOperation';
+import { AdminFormGrid, AdminSectionCard } from './console/AdminKit';
+import { AdminSelect } from './console/AdminSelect';
+import { Button, buttonVariants } from './kit/ui/button';
 import { Field, SelectField, TextArea } from './fields';
 import { CategoryAssignmentField } from './CategoryAssignmentField';
 import { GoodsAttributeEditor } from './GoodsAttributeEditor';
@@ -84,64 +86,66 @@ export function GoodsGroupCommonEditor({ snapshot: initialSnapshot, actorId, ses
     ...(description.length > GOODS_HTML_MAX_LENGTH ? [goodsHtmlSourceLengthWarning(description.length)] : []),
     ...(description.length <= GOODS_HTML_MAX_LENGTH && preview.html.length > GOODS_HTML_MAX_LENGTH ? [goodsHtmlCleanedLengthWarning(preview.html.length)] : []),
   ] : [];
-  return <div className="wc-admin-kit col">
+  return <div className="flex min-w-0 flex-col gap-4" data-admin-screen="goods-group-common">
     <AdminSectionCard title={`${snapshot.group.name} · 공통정보 편집`}>
-      <p>연결된 {snapshot.group.members.length}개 상품에 아래 정보를 한 번에 적용합니다. 저장하면 모두 미공개로 전환되고 KC를 다시 검토해야 합니다.</p>
-      <p>그룹명·옵션명·옵션값은 <Link href={goodsGroupHref(snapshot.group.id)} onNavigate={leave}>그룹 구성</Link>에서 수정합니다.</p>
-      <p>가격·재고·상품이미지·결제 설정은 개별 상품에서 관리합니다. 입력 내용은 이 화면에만 유지되며 진행 내역에는 요청 식별 정보만 보관됩니다.</p>
+      <div className="flex flex-col gap-1.5 text-sm text-muted-foreground">
+        <p>연결된 {snapshot.group.members.length}개 상품에 아래 정보를 한 번에 적용합니다. 저장하면 모두 미공개로 전환되고 KC를 다시 검토해야 합니다.</p>
+        <p>그룹명·옵션명·옵션값은 <Link className="text-foreground underline underline-offset-4" href={goodsGroupHref(snapshot.group.id)} onNavigate={leave}>그룹 구성</Link>에서 수정합니다.</p>
+        <p>가격·재고·상품이미지·결제 설정은 개별 상품에서 관리합니다. 입력 내용은 이 화면에만 유지되며 진행 내역에는 요청 식별 정보만 보관됩니다.</p>
+      </div>
     </AdminSectionCard>
-    {session.blocked ? <p role="alert">로그인이 변경되었습니다. 화면을 다시 열어주세요.</p> : null}
+    {session.blocked ? <p className="text-sm text-destructive" role="alert">로그인이 변경되었습니다. 화면을 다시 열어주세요.</p> : null}
     <GroupOperationStatus operation={operation} disabled={session.blocked} />
-    {operation.receipt?.state === 'completed' ? <GroupCompleted receipt={operation.receipt}><a className={GROUP_BUTTON} href={goodsGroupCommonHref(operation.receipt.group)}>최신 공통정보 다시 열기</a></GroupCompleted>
-      : operation.receipt ? <a className={GROUP_BUTTON} href={goodsGroupCommonHref(snapshot.group)}>최신 공통정보 다시 열기</a> : null}
+    {operation.receipt?.state === 'completed' ? <GroupCompleted receipt={operation.receipt}><a className={buttonVariants({ variant: 'outline' })} data-slot="button" href={goodsGroupCommonHref(operation.receipt.group)}>최신 공통정보 다시 열기</a></GroupCompleted>
+      : operation.receipt ? <a className={`${buttonVariants({ variant: 'outline' })} self-start`} data-slot="button" href={goodsGroupCommonHref(snapshot.group)}>최신 공통정보 다시 열기</a> : null}
     <form ref={formRef} onSubmit={submit} onInput={event => { setDirty(true); if (event.target instanceof HTMLTextAreaElement && event.target.name === 'description') setDescription(event.target.value); }}>
-      <fieldset disabled={locked} className="col" style={{ border: 0, padding: 0, margin: 0, minWidth: 0, gap: 18 }}>
-        <legend className="wc-sr-only">그룹 공통정보 입력</legend>
+      <fieldset disabled={locked} className="flex min-w-0 flex-col gap-4">
+        <legend className="sr-only">그룹 공통정보 입력</legend>
         <AdminSectionCard title="카테고리·상품속성">
           <CategoryAssignmentField categories={categories} value={snapshot.fields.categoryId} primary={categoryId} onPrimaryChange={setCategoryId}
             additionalValue={snapshot.fields.additionalCategoryIds} error={errors.categoryId} additionalError={errors.additionalCategoryIds} />
           <GoodsAttributeEditor categoryId={categoryId} goodId={snapshot.group.commonGoodId} onChange={onAttributes} error={errors.productAttributes} />
         </AdminSectionCard>
-        <AdminSectionCard title="연결 IP·유형·검색 설정"><div className="admin-form-grid">
+        <AdminSectionCard title="연결 IP·유형·검색 설정"><AdminFormGrid>
           <SelectField name="ipId" label="연결 IP" defaultValue={snapshot.fields.ipId} error={errors.ipId}><option value="">선택</option>{ips.map(ip => <option key={ip.id} value={ip.id} disabled={Boolean(ip.archivedAt)}>{ip.title}</option>)}</SelectField>
           <SelectField name="type" label="상품 유형" defaultValue={snapshot.fields.type} error={errors.type}><option value="">선택</option>{GOOD_TYPES.map(type => <option key={type} value={type}>{type}</option>)}</SelectField>
           <Field name="nameEn" label="영문 상품명" defaultValue={snapshot.fields.nameEn} maxLength={200} error={errors.nameEn} />
-        </div><TextArea name="searchKeywords" label="검색 키워드" defaultValue={snapshot.fields.searchKeywords} maxLength={4200} error={errors.searchKeywords} /></AdminSectionCard>
-        <AdminSectionCard title="상품정보고시"><GoodNoticePicker copyKcTemplate={false} onApply={applyNotice} readOnly={locked} /><div className="admin-form-grid">
+        </AdminFormGrid><TextArea name="searchKeywords" label="검색 키워드" defaultValue={snapshot.fields.searchKeywords} maxLength={4200} error={errors.searchKeywords} /></AdminSectionCard>
+        <AdminSectionCard title="상품정보고시"><GoodNoticePicker copyKcTemplate={false} onApply={applyNotice} readOnly={locked} /><AdminFormGrid>
           {GOODS_NOTICE_FIELDS.map(field => field.key === 'origin' ? <GoodsOriginField key={field.key} defaultValue={snapshot.fields[field.formName]} label={field.label} error={errors[field.formName]} disabled={locked} readOnly={false} required={false} />
             : <Field key={field.key} name={field.formName} label={field.label} defaultValue={snapshot.fields[field.formName]} error={errors[field.formName]} />)}
-        </div></AdminSectionCard>
+        </AdminFormGrid></AdminSectionCard>
         <AdminSectionCard title="상세설명">
           <SelectField name="descriptionFormat" label="상세설명 형식" value={format} onChange={event => setFormat(event.target.value)}><option value="plain">일반 텍스트</option><option value="html">HTML 문서</option></SelectField>
           {format === 'html' ? <GoodsDescriptionTools accountId={actorId} formRef={formRef} disabled={locked} /> : null}
           <TextArea name="description" label={format === 'html' ? `상세설명 (정리된 코드 포함 최대 ${GOODS_HTML_MAX_LENGTH.toLocaleString('ko-KR')}자)` : '상세설명 (최대 2,000자)'} defaultValue={snapshot.fields.description} maxLength={format === 'html' ? undefined : 2000} error={errors.description} />
           {format === 'html' ? <><ArtworkUploadField autoUpload allowRemove currentPath={null} currentUrl={null} fieldId="group-description-image" kind="good" label="HTML 이미지 업로드" name="descriptionUploadPath" />
             <Field name="descriptionImageAlt" label="HTML 이미지 대체 설명" maxLength={300} />
-            <button className={GROUP_BUTTON} type="button" onClick={() => {
+            <Button className="self-start" variant="outline" type="button" onClick={() => {
               const form = formRef.current, input = form?.elements.namedItem('description'); if (!form || !(input instanceof HTMLTextAreaElement)) return;
               const data = new FormData(form), alt = String(data.get('descriptionImageAlt') ?? '').replaceAll('&','&amp;').replaceAll('"','&quot;').replaceAll('<','&lt;').replaceAll('>','&gt;');
               const fragment = sanitizeGoodsDescription(`<img src="${String(data.get('descriptionUploadPath') ?? '')}" alt="${alt}">`).html;
               if (!fragment) return; input.setRangeText(fragment, input.selectionStart, input.selectionEnd, 'end'); input.dispatchEvent(new Event('input', { bubbles: true })); setDescription(input.value);
-            }}>업로드한 이미지를 설명에 넣기</button></> : null}
-          {preview?.warnings.length || descriptionLimitWarnings.length ? <ul>{[...descriptionLimitWarnings, ...(preview?.warnings ?? [])].map(warning => <li key={warning}>{warning}</li>)}</ul> : null}
-          <details><summary>상세설명 미리보기</summary><GoodsDescription description={description} format={format === 'html' ? 'html' : 'plain'} imagePaths={preview?.imagePaths} /></details>
+            }}>업로드한 이미지를 설명에 넣기</Button></> : null}
+          {preview?.warnings.length || descriptionLimitWarnings.length ? <ul className="list-disc space-y-1 pl-5 text-sm text-destructive">{[...descriptionLimitWarnings, ...(preview?.warnings ?? [])].map(warning => <li key={warning}>{warning}</li>)}</ul> : null}
+          <details className="rounded-lg border px-3 py-2 text-sm"><summary className="cursor-pointer font-medium">상세설명 미리보기</summary><div className="mt-2"><GoodsDescription description={description} format={format === 'html' ? 'html' : 'plain'} imagePaths={preview?.imagePaths} /></div></details>
         </AdminSectionCard>
         <AdminSectionCard title="A/S 안내·판매자 특이사항">
-          <label><input type="checkbox" checked={afterSalesEnabled} onChange={event => { setAfterSalesEnabled(event.target.checked); setDirty(true); }} /> A/S 안내 사용</label>
-          {afterSalesEnabled ? <GoodsAfterSalesFields values={afterSales} onChange={value => { setAfterSales(value); setDirty(true); }} /> : <p>설정안함으로 저장하면 모든 연결 상품의 A/S 안내와 판매자 특이사항을 비웁니다.</p>}
-          <button className={GROUP_BUTTON} type="button" onClick={() => setAsTemplates(true)}>A/S 템플릿 불러오기</button>
+          <label className="flex cursor-pointer items-center gap-2 text-sm font-medium"><input type="checkbox" checked={afterSalesEnabled} onChange={event => { setAfterSalesEnabled(event.target.checked); setDirty(true); }} /> A/S 안내 사용</label>
+          {afterSalesEnabled ? <GoodsAfterSalesFields values={afterSales} onChange={value => { setAfterSales(value); setDirty(true); }} /> : <p className="text-sm text-muted-foreground">설정안함으로 저장하면 모든 연결 상품의 A/S 안내와 판매자 특이사항을 비웁니다.</p>}
+          <Button className="self-start" variant="outline" type="button" onClick={() => setAsTemplates(true)}>A/S 템플릿 불러오기</Button>
           <input type="hidden" name="groupAfterSales" value={JSON.stringify(afterSalesEnabled ? afterSales : EMPTY_GOODS_AFTER_SALES)} />
         </AdminSectionCard>
         <AdminSectionCard title="사이즈 안내">
-          <label>공개 표시<select value={String(sizeChart.enabled)} onChange={event => { setSizeChart({ ...sizeChart, enabled: event.target.value === 'true' }); setDirty(true); }}><option value="false">설정안함</option><option value="true">설정함</option></select></label>
-          <p>설정안함은 작성한 표를 보존하고 공개 표시만 중지합니다.</p>
+          <label className="flex flex-col gap-2 text-sm font-medium">공개 표시<AdminSelect value={String(sizeChart.enabled)} wrapperClassName="w-full sm:w-52" onChange={event => { setSizeChart({ ...sizeChart, enabled: event.target.value === 'true' }); setDirty(true); }}><option value="false">설정안함</option><option value="true">설정함</option></AdminSelect></label>
+          <p className="text-sm text-muted-foreground">설정안함은 작성한 표를 보존하고 공개 표시만 중지합니다.</p>
           <GoodsSizeChartFields chart={sizeChart.chart} onChange={chart => { setSizeChart({ ...sizeChart, chart }); setDirty(true); }} />
-          <button className={GROUP_BUTTON} type="button" onClick={() => setSizeTemplates(true)}>사이즈 템플릿 불러오기</button>
+          <Button className="self-start" variant="outline" type="button" onClick={() => setSizeTemplates(true)}>사이즈 템플릿 불러오기</Button>
           <input type="hidden" name="groupSizeChart" value={JSON.stringify(sizeChart)} />
           <GoodSizeChart chart={parseGoodsSizeChart(sizeChart.chart)} />
         </AdminSectionCard>
-        {Object.keys(errors).length ? <ul role="alert">{Object.entries(errors).map(([key, error]) => <li key={key}>{error}</li>)}</ul> : null}
-        <div className="wc-admin-kit__actions"><button className={GROUP_PRIMARY} disabled={!ready}>{operation.pending ? '저장 중…' : `연결된 ${snapshot.group.members.length}개 상품에 공통정보 적용`}</button><Link className={GROUP_BUTTON} href={goodsGroupHref(snapshot.group.id)} onNavigate={leave}>취소</Link></div>
+        {Object.keys(errors).length ? <ul className="list-disc space-y-1 pl-5 text-sm text-destructive" role="alert">{Object.entries(errors).map(([key, error]) => <li key={key}>{error}</li>)}</ul> : null}
+        <div className="flex flex-wrap items-center gap-2"><Button type="submit" disabled={!ready}>{operation.pending ? '저장 중…' : `연결된 ${snapshot.group.members.length}개 상품에 공통정보 적용`}</Button><Link className={buttonVariants({ variant: 'outline' })} data-slot="button" href={goodsGroupHref(snapshot.group.id)} onNavigate={leave}>취소</Link></div>
       </fieldset>
     </form>
     {asTemplates && !locked ? <GoodsAfterSalesTemplatePicker onClose={() => setAsTemplates(false)} onSelect={template => { setAfterSales(template); setAfterSalesEnabled(true); setAsTemplates(false); setDirty(true); }} /> : null}

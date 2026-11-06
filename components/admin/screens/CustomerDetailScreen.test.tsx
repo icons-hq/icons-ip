@@ -18,6 +18,8 @@ describe('고객 상세 작업 공간', () => {
     const html = render();
     for (const value of ['customer@example.test', 'SILVER', '개인정보', '미동의', '계정 정지', '내부 메모', '취소·반품·교환 관리']) expect(html).toContain(value);
     expect(html).toContain(`/admin/customers/${USER}?tab=orders`);
+    /* 정지·등급 보정·재산정은 각자의 폼을 제출한다(kit Button은 type을 주지 않으면 button이 된다). */
+    for (const label of ['계정 정지', '등급 보정', '실적으로 재산정']) expect(html).toMatch(new RegExp(`<button(?=[^>]*type="submit")[^>]*>${label}</button>`));
   });
   it('주문 탭은 지정 주문 상세와 고객 안의 다음 페이지로 이어진다', () => {
     const html = render({ ...detail, tab: 'orders', total: 25, items: [{ id: 'order-1', title: '주문 당시 상품', status: 'paid', amount: 12800, createdAt: '2026-09-01T00:00:00Z' }] });
@@ -34,6 +36,7 @@ describe('고객 상세 작업 공간', () => {
   it('메모는 작성자와 함께 별도 탭에 나타나고 staff 계정 제재 권한은 확장하지 않는다', () => {
     const html = render({ ...detail, tab: 'notes', total: 1, items: [{ id: 'note-1', createdAt: '2026-09-01T00:00:00Z', authorName: '수민', body: '내부 상담 메모' }] });
     expect(html).toContain('수민'); expect(html).toContain('내부 상담 메모'); expect(html).toContain('고객에게 전달되지 않습니다');
+    expect(html).toMatch(/<button(?=[^>]*type="submit")[^>]*>내부 메모 저장<\/button>/);
     expect(render({ ...detail, customer: { ...detail.customer, role: 'staff', moderation: { managerRole: 'primary', canModerate: false } } })).not.toContain('>계정 정지</button>');
   });
 });

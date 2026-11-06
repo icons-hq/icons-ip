@@ -4,6 +4,9 @@ import { useEffect, useId, useRef, useState, type FormEvent } from 'react';
 import { adminListExportFileNameFromDisposition } from '@/lib/admin/list-export';
 import { EXPORT_PASSWORD_HINT, EXPORT_PASSWORD_MAX_LENGTH, EXPORT_PASSWORD_MIN_LENGTH, exportPasswordError } from '@/lib/admin/export-password';
 import { CustomerServiceDialog } from './screens/CustomerServiceDialog';
+import { Download } from 'lucide-react';
+import { Button } from '@/components/admin/kit/ui/button';
+import { Input } from '@/components/admin/kit/ui/input';
 
 const SESSION_MESSAGE = '로그인이 만료되었거나 권한이 없습니다. 화면을 새로고침한 뒤 다시 시도해주세요.';
 const FALLBACK_MESSAGE = '파일을 만들지 못했습니다. 잠시 후 다시 내려받아 주세요.';
@@ -86,25 +89,26 @@ export function EncryptedWorkbookDownloadButton({ href, label, disabled = false,
     }
   }
   return <>
-    <button aria-describedby={describedBy} className="btn btn-sm" disabled={disabled || pending} type="button"
-      onClick={() => { setOpen(true); setMessage(''); setError(''); }}>{label}</button>
-    {message ? <span role="status">{message}</span> : null}
-    {open ? <div className="admin-encrypted-export"><CustomerServiceDialog title="엑셀 비밀번호 설정" busy={pending}
+    <Button aria-describedby={describedBy} disabled={disabled || pending} onClick={() => { setOpen(true); setMessage(''); setError(''); }} size="sm" type="button" variant="outline">
+      <Download aria-hidden="true" />{label}
+    </Button>
+    {message ? <span className="text-xs text-muted-foreground" role="status">{message}</span> : null}
+    {open ? <CustomerServiceDialog title="엑셀 비밀번호 설정" busy={pending}
       onClose={() => { setOpen(false); setError(''); }}>
-      <form autoComplete="off" className="admin-form-section" onSubmit={download}>
+      <form autoComplete="off" className="flex flex-col gap-4" data-admin-encrypted-export="" onSubmit={download}>
         <p>{snapshot ? '보존된 거래확정 기록을 새 비밀번호로 내려받습니다.' : '현재 검색 조건의 최신 목록을 암호화해 내려받습니다.'}</p>
-        <p className="muted" id={hintId}>{EXPORT_PASSWORD_HINT}</p>
-        <label>비밀번호<input aria-describedby={hintId} autoComplete="new-password" autoFocus disabled={pending}
+        <p className="text-muted-foreground" id={hintId}>{EXPORT_PASSWORD_HINT}</p>
+        <label className="flex flex-col gap-1.5 font-medium">비밀번호<Input aria-describedby={hintId} autoComplete="new-password" autoFocus disabled={pending}
           maxLength={EXPORT_PASSWORD_MAX_LENGTH} minLength={EXPORT_PASSWORD_MIN_LENGTH} name="password" required spellCheck={false} type="password" /></label>
-        <label>비밀번호 확인<input aria-describedby={hintId} autoComplete="new-password" disabled={pending}
+        <label className="flex flex-col gap-1.5 font-medium">비밀번호 확인<Input aria-describedby={hintId} autoComplete="new-password" disabled={pending}
           maxLength={EXPORT_PASSWORD_MAX_LENGTH} minLength={EXPORT_PASSWORD_MIN_LENGTH} name="passwordConfirmation" required spellCheck={false} type="password" /></label>
-        <p className="muted">비밀번호는 저장하지 않습니다. 잊어버리면 새 비밀번호로 다시 내려받아 주세요. 개인정보가 담긴 파일은 업무에 필요한 기간만 보관해주세요.</p>
-        {error ? <p className="wc-admin-kit__error" role="alert">{error}</p> : null}
-        <div className="wc-admin-kit__actions">
-          <button className="btn btn-sm" disabled={pending} type="button" onClick={() => { setOpen(false); setError(''); }}>취소</button>
-          <button className="btn btn-sm btn-primary" disabled={pending} type="submit">{pending ? '암호화 파일 만드는 중…' : '암호화 엑셀 다운로드'}</button>
+        <p className="text-xs text-muted-foreground">비밀번호는 저장하지 않습니다. 잊어버리면 새 비밀번호로 다시 내려받아 주세요. 개인정보가 담긴 파일은 업무에 필요한 기간만 보관해주세요.</p>
+        {error ? <p className="text-sm text-destructive" role="alert">{error}</p> : null}
+        <div className="flex justify-end gap-2">
+          <Button disabled={pending} onClick={() => { setOpen(false); setError(''); }} type="button" variant="outline">취소</Button>
+          <Button disabled={pending} type="submit">{pending ? '암호화 파일 만드는 중…' : '암호화 엑셀 다운로드'}</Button>
         </div>
       </form>
-    </CustomerServiceDialog></div> : null}
+    </CustomerServiceDialog> : null}
   </>;
 }

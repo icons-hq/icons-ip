@@ -30,7 +30,8 @@ describe('배송 건 콘솔',()=>{
   expect(html).toContain('발송지연 안내여부');expect(html).toContain('지연 안내 결과');expect(html).toContain('앱 발송 · 이메일 실패');
   expect(html).toContain('<option value="partial_failed" selected="">일부 채널 실패·제외</option>');
   expect(html).toContain('delayNotice=partial_failed');expect(html).toContain('고객의 수신·열람을 뜻하지 않습니다');
-  const searchForm=html.slice(html.indexOf('class="admin-sales-filters"'),html.indexOf('</form>'));
+  expect(html).toContain('data-sales-filters=""');
+  const searchForm=html.slice(html.indexOf('data-sales-filters=""'),html.indexOf('</form>'));
   expect((searchForm.match(/name="delayNotice"/g)??[])).toHaveLength(1);
   const shipping=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,surface:'shipping',filters:{...base.filters,tab:'transit'}}}/>);
   expect(shipping).not.toContain('name="delayNotice"');
@@ -88,9 +89,9 @@ describe('배송 건 콘솔',()=>{
  });
  it('운송장 가져오기는 목록과 분리된 접힌 작업으로 열고 닫아도 입력 상태를 보존한다',()=>{
   const html=renderToStaticMarkup(<ShipmentConsoleScreen data={{...base,rows:[row]}}/>);
-  expect(html).toContain('<details class="admin-shipment-import-disclosure">');
-  expect(html).toContain('<summary>운송장 가져오기 · 창고 회신 등록</summary>');
-  expect(html).not.toContain('<details open="">');
+  /* 접힌 채로 그린다 — 운송장 가져오기 disclosure에는 open이 없다. */
+  expect(html).toMatch(/<details (?:(?!open)[^>])*data-shipment-import=""(?:(?!open)[^>])*>/);
+  expect(html).toMatch(/<summary[^>]*>운송장 가져오기 · 창고 회신 등록</);
   expect(html).toContain('순서: 대상 선택 → 출고지시 내보내기 → 창고 회신 → 운송장 등록');
  });
 });
