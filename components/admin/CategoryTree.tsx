@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { goodsListHref, normalizeGoodsListFilters } from '@/lib/admin/goods-list';
 import type { AdminCategoryNode } from '@/lib/admin/category';
+import { AdminStatusBadge } from './console/AdminKit';
 
 export function CategoryTree({ categories }: { categories: AdminCategoryNode[] }) {
   const children = new Map<string | null, AdminCategoryNode[]>();
@@ -16,19 +17,19 @@ export function CategoryTree({ categories }: { categories: AdminCategoryNode[] }
   function branch(parentId: string | null, depth = 0): React.ReactNode {
     const entries = children.get(parentId) ?? [];
     if (!entries.length) return null;
-    return <ul style={{ display: 'grid', gap: 8, listStyle: 'none', margin: depth ? '8px 0 0 18px' : 0, padding: 0 }}>
+    return <ul className={`m-0 grid list-none gap-2 p-0${depth ? ' mt-2 ml-4 border-l pl-3' : ''}`}>
       {entries.map((category) => <li key={category.id}>
-        <div className="row" style={{ alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
-          <strong>{category.name}</strong>
-          <code>{category.code}</code>
-          <Link href={goodsListHref(normalizeGoodsListFilters({ categoryId: category.id }))}>{category.name} 상품 목록</Link>
-          <span className="muted">{category.depth}/4 · 직접 연결 상품 {category.assignedGoodCount}개</span>
-          {category.archivedAt ? <span className="muted">보관</span> : null}
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+          <strong className="font-medium">{category.name}</strong>
+          <code className="rounded bg-muted px-1 py-0.5 text-xs">{category.code}</code>
+          <Link className="underline-offset-4 hover:underline" href={goodsListHref(normalizeGoodsListFilters({ categoryId: category.id }))}>{category.name} 상품 목록</Link>
+          <span className="text-xs text-muted-foreground">{category.depth}/4 · 직접 연결 상품 {category.assignedGoodCount}개</span>
+          {category.archivedAt ? <AdminStatusBadge>보관</AdminStatusBadge> : null}
         </div>
         {branch(category.id, depth + 1)}
       </li>)}
     </ul>;
   }
 
-  return <div aria-label="고객 카테고리 트리">{branch(null) ?? <p className="muted">등록된 카테고리가 없습니다.</p>}</div>;
+  return <div aria-label="고객 카테고리 트리">{branch(null) ?? <p className="text-sm text-muted-foreground">등록된 카테고리가 없습니다.</p>}</div>;
 }

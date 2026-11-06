@@ -4,6 +4,8 @@ import { cancelGoodsMediaAction, verifyGoodsMediaAction } from '@/app/admin/good
 import { uploadGoodsMedia } from '@/lib/admin/goods-media-upload.client';
 import { GOODS_MEDIA_ACCEPT, GOODS_MEDIA_GUIDANCE, validGoodsMediaUpload, type GoodsMediaAsset, type GoodsMediaKind } from '@/lib/goods-media';
 import { GoodsVideoPlayer } from '@/components/shop/GoodsVideoPlayer';
+import { Button } from './kit/ui/button';
+import { Input } from './kit/ui/input';
 
 export function GoodsMediaUploadField({ kind, asset, disabled, onAsset, onBusy }: {
   kind: GoodsMediaKind; asset: GoodsMediaAsset | null; disabled: boolean;
@@ -28,16 +30,16 @@ export function GoodsMediaUploadField({ kind, asset, disabled, onAsset, onBusy }
     catch { setMessage('취소 결과를 확인하지 못했습니다. 다시 확인해주세요.'); }
     finally { setPending(false); }
   }
-  return <section className="admin-goods-media__upload" aria-labelledby={`goods-media-${kind}-heading`}>
-    <h3 id={`goods-media-${kind}-heading`}>{label}</h3>
-    <p>{GOODS_MEDIA_GUIDANCE}</p>
-    {asset ? <><GoodsVideoPlayer key={asset.id} asset={asset} /><p>{asset.width} × {asset.height}px · {(asset.durationMs / 1000).toFixed(1)}초 · {(asset.byteSize / 1024 / 1024).toFixed(2)}MB</p></> : <div className="admin-goods-media__empty">등록된 {label}이 없습니다.</div>}
-    <label htmlFor={`goods-media-${kind}-file`}>{label} 파일<input ref={field} id={`goods-media-${kind}-file`} type="file" accept={GOODS_MEDIA_ACCEPT} disabled={disabled || pending || Boolean(uncertainId)}
+  return <section className="flex min-w-0 flex-col gap-3" aria-labelledby={`goods-media-${kind}-heading`}>
+    <h3 className="text-base leading-snug font-medium" id={`goods-media-${kind}-heading`}>{label}</h3>
+    <p className="text-xs leading-relaxed text-muted-foreground">{GOODS_MEDIA_GUIDANCE}</p>
+    {asset ? <>{/* 플레이어(공개 부품)는 부모 높이를 채운다 — 480×270 틀을 준다. */}<div className="h-[270px] w-full max-w-[480px] overflow-hidden rounded-lg"><GoodsVideoPlayer key={asset.id} asset={asset} /></div><p className="text-xs text-muted-foreground tabular-nums">{asset.width} × {asset.height}px · {(asset.durationMs / 1000).toFixed(1)}초 · {(asset.byteSize / 1024 / 1024).toFixed(2)}MB</p></> : <div className="grid min-h-40 place-items-center rounded-lg border border-dashed text-sm text-muted-foreground">등록된 {label}이 없습니다.</div>}
+    <label className="flex flex-col gap-2 text-sm font-medium" htmlFor={`goods-media-${kind}-file`}>{label} 파일<Input ref={field} id={`goods-media-${kind}-file`} type="file" accept={GOODS_MEDIA_ACCEPT} disabled={disabled || pending || Boolean(uncertainId)}
       onChange={event => { const value = event.target.files?.[0] ?? null; setFile(value); setMessage(value && !validGoodsMediaUpload({ kind, mimeType: value.type, size: value.size }) ? 'MP4 50MB 이하 파일을 선택해주세요.' : ''); }} /></label>
-    <div className="admin-goods-media__upload-actions">
-      <button type="button" className="wc-admin-kit__button" disabled={disabled || pending || (!uncertainId && (!file || !validGoodsMediaUpload({ kind, mimeType: file.type, size: file.size })))} onClick={() => void upload(Boolean(uncertainId))}>{pending ? '영상 확인 중…' : uncertainId ? '같은 업로드 결과 확인' : '파일 업로드·확인'}</button>
-      {uncertainId ? <button type="button" className="wc-admin-kit__button" disabled={disabled || pending} onClick={() => void cancelUncertain()}>업로드 취소</button> : asset ? <button type="button" className="wc-admin-kit__button" disabled={disabled || pending} onClick={() => { onAsset(null); setMessage('저장하면 이 상품의 영상 연결을 해제합니다.'); }}>영상 연결 해제</button> : null}
+    <div className="flex flex-wrap gap-2">
+      <Button variant="outline" type="button" disabled={disabled || pending || (!uncertainId && (!file || !validGoodsMediaUpload({ kind, mimeType: file.type, size: file.size })))} onClick={() => void upload(Boolean(uncertainId))}>{pending ? '영상 확인 중…' : uncertainId ? '같은 업로드 결과 확인' : '파일 업로드·확인'}</Button>
+      {uncertainId ? <Button variant="outline" type="button" disabled={disabled || pending} onClick={() => void cancelUncertain()}>업로드 취소</Button> : asset ? <Button variant="ghost" type="button" disabled={disabled || pending} onClick={() => { onAsset(null); setMessage('저장하면 이 상품의 영상 연결을 해제합니다.'); }}>영상 연결 해제</Button> : null}
     </div>
-    {message ? <p role="status">{message}</p> : null}
+    {message ? <p className="text-sm" role="status">{message}</p> : null}
   </section>;
 }

@@ -16,6 +16,7 @@ import { GoodsGroupCommonEditor } from './GoodsGroupCommonEditor';
 import { GoodsAttributeEditor } from './GoodsAttributeEditor';
 import { GroupCompleted, GroupOperationStatus } from './GoodsGroupOperation';
 import { AdminSectionCard } from './console/AdminKit';
+import { Button } from './kit/ui/button';
 import { TextArea } from './fields';
 import { commonTestForm, commonTestSnapshot, commonTestReceipt } from '@/lib/admin/goods-group-common.test-fixtures';
 import { groupTestIdentity as identity, groupTestId as id } from '@/lib/admin/goods-groups.test-fixtures';
@@ -55,7 +56,7 @@ function authenticate(sessionId = identity.sessionId) { mocks.auth?.('SIGNED_IN'
 async function flush() { for (let i=0;i<10;i+=1) { await Promise.resolve(); render(); } }
 function remount() { for (const effect of hooks.effects.values()) effect.cleanup?.(); hooks.values=[]; hooks.effects.clear(); hooks.jobs=[]; hooks.pending=false; render(); authenticate(); }
 function submit() { const form = render().find(node => node.type==='form')!; (form.props.onSubmit as (event: unknown)=>void)({ preventDefault() {}, currentTarget: {} }); }
-function click(label: string) { const button = render().find(node => node.type==='button' && text(node)===label)!; expect(button).toBeDefined(); expect(button.props.disabled).not.toBe(true); (button.props.onClick as ()=>void)(); }
+function click(label: string) { const button = render().find(node => (node.type==='button' || node.type===Button) && text(node)===label)!; expect(button).toBeDefined(); expect(button.props.disabled).not.toBe(true); (button.props.onClick as ()=>void)(); }
 function saved() { return JSON.parse([...storage.values()][0]) as GoodsGroupRecovery; }
 beforeEach(async () => {
   hooks.values=[]; hooks.effects.clear(); hooks.jobs=[]; hooks.pending=false; storage.clear(); vi.clearAllMocks();
@@ -118,6 +119,10 @@ describe('그룹 공통정보 편집 복구',()=>{
     (form.props.onSubmit as (event: unknown) => void)({ preventDefault() {}, currentTarget: {} });
     await flush();
     expect(mocks.save).toHaveBeenCalledWith(expect.objectContaining({ expectedRevision: 1 }), expect.any(FormData));
+  });
+  it('공통정보 적용 버튼은 폼 제출이다(kit 버튼의 기본 type은 button)',()=>{
+    const apply = render().find(node=>node.type===Button && text(node).startsWith('연결된 '))!;
+    expect(apply.props.type).toBe('submit');
   });
   it('한 번의 원자적 action을 보내고 브라우저에는 payload를 보관하지 않는다',async()=>{
     submit(); await flush(); submit(); await flush(); expect(mocks.save).toHaveBeenCalledOnce();

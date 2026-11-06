@@ -6,6 +6,12 @@ import { describe, expect, it } from 'vitest';
 /*
  * R11(10/27 회의 05:30): 목록의 클릭 영역. 체크박스 칸은 칸 전체가, 판매가·재고수량 값은 셀 전체가 누를 수 있어야 한다.
  * 기본은 미디어 쿼리 밖(기본 화면)의 선언만, `media`를 주면 그 미디어 블록의 선언만 본다. 같은 선택자를 여러 규칙이 정의하면 뒤의 값이 이긴다.
+ *
+ * 상품 목록의 바로 수정 덮개는 kit 템플릿 룩으로 옮기며(ADR-0028) 관리자 CSS가 아니라 마크업 유틸리티가 맡는다. 같은 의도를 마크업에서 확인한다:
+ * - components/admin/GoodsInlineEdit.test.tsx — 값 버튼이 칸 폭을 채우고 오른쪽 정렬 칸에서 오른쪽에 선다, 덮개(::after)가 감싼 칸을
+ *   기준 상자로 세워 칸 전체를 덮는다, '처리 결과 조회' 버튼은 덮개 위에 남는다, 인쇄에서는 덮개를 걷는다.
+ * - components/admin/screens/GoodsListScreen.test.tsx — 판매가·재고수량 칸이 덮개형 값 버튼을 쓰고, 같은 칸의 보조 링크는 덮개 위에 남으며,
+ *   칸 전체가 선택 영역인 체크박스 칸이 좁은 화면에서 접히지 않는다.
  */
 function declarations(file: string, selector: string, media?: string) {
   const values: Record<string, string> = {};
@@ -25,31 +31,14 @@ describe('콘솔 그리드 체크박스 칸', () => {
   });
 });
 
-describe('상품 목록 바로 수정 값 버튼', () => {
-  it('값 버튼은 셀 폭을 채우고 오른쪽 정렬 칸에서는 값을 오른쪽에 둔다', () => {
-    expect(declarations('./admin-goods-worklist.css', '.wc-admin .admin-goods-inline')).toMatchObject({ display: 'grid', width: '100%', 'justify-items': 'stretch' });
-    expect(declarations('./admin-goods-worklist.css', '.wc-admin .admin-goods-inline__value')).toMatchObject({ display: 'flex', width: '100%', 'justify-content': 'flex-start' });
-    expect(declarations('./admin-goods-worklist.css', ".wc-admin td[data-align='end'] .admin-goods-inline__value")).toMatchObject({ 'justify-content': 'flex-end' });
-  });
-  it('판매가·재고수량 칸은 버튼의 덮개가 셀 전체를 덮고, 같은 칸의 링크는 그 위에 남는다', () => {
-    expect(declarations('./admin-goods-worklist.css', '.wc-admin .admin-console-grid-table td:has(.admin-goods-inline--cell)')).toMatchObject({ position: 'relative' });
-    expect(declarations('./admin-goods-worklist.css', '.wc-admin .admin-goods-inline--cell .admin-goods-inline__value::after')).toMatchObject({ content: "''", position: 'absolute', inset: '0' });
-    expect(declarations('./admin-goods-worklist.css', '.wc-admin .admin-console-grid-table td:has(.admin-goods-inline--cell) :is(a, button):not(.admin-goods-inline__value)')).toMatchObject({ position: 'relative', 'z-index': '1' });
-  });
-  it('결과가 불명확한 저장 뒤의 \'처리 결과 조회\' 버튼도 덮개 위에 남는다(덮개가 수정 폼을 열지 않는다)', () => {
-    // 덮개 예외가 링크(a)에만 걸리면 같은 칸의 복구 버튼을 눌러도 값 버튼이 눌린다(리뷰 T4-R11-1).
-    expect(declarations('./admin-goods-worklist.css', '.wc-admin .admin-console-grid-table td:has(.admin-goods-inline--cell) a')).toEqual({});
-  });
-});
-
 describe('인쇄', () => {
   /*
    * 인쇄에서는 틀고정 칸이 `position: static`이 되어(admin-console-controls.css) 칸이 절대배치의 기준 상자가 아니다.
-   * 칸 전체 클릭 영역(체크박스 label, 바로 수정 덮개)은 인쇄에서 쓸 일이 없으므로 흐름 배치로 되돌린다(리뷰 T4-R11-2).
+   * 칸 전체 클릭 영역(체크박스 label)은 인쇄에서 쓸 일이 없으므로 흐름 배치로 되돌린다(리뷰 T4-R11-2). 바로 수정 덮개는 값 버튼의
+   * `print:after:hidden`이 걷는다(GoodsInlineEdit.test.tsx).
    */
-  it('체크박스 클릭 영역과 바로 수정 덮개는 칸 밖으로 번지지 않는다', () => {
+  it('체크박스 클릭 영역은 칸 밖으로 번지지 않는다', () => {
     expect(declarations('./admin-console-controls.css', '.wc-admin .admin-console-grid-table :is(th, td)[data-frozen]', 'print')).toMatchObject({ position: 'static' });
     expect(declarations('./wc-admin-surfaces.css', '.wc-admin .admin-console-grid-check-hit', 'print')).toMatchObject({ position: 'static' });
-    expect(declarations('./admin-goods-worklist.css', '.wc-admin .admin-goods-inline--cell .admin-goods-inline__value::after', 'print')).toMatchObject({ content: 'none' });
   });
 });

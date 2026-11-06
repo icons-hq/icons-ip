@@ -17,12 +17,19 @@ vi.mock('@/app/admin/goods-relation-actions', () => ({ saveGoodsRelationAction: 
 vi.mock('../GoodsRelationVisualEditor', () => ({ GoodsRelationVisualEditor: () => null }));
 import { GoodsRelationEditor } from './GoodsRelationEditor';
 import { GoodsRelationProductPicker } from './GoodsRelationProductPicker';
+import { AdminSelect } from '../console/AdminSelect';
+import { Button } from '../kit/ui/button';
+import { Input } from '../kit/ui/input';
 import { GOODS_RELATION_KINDS, relationDefaultTitle } from '@/lib/admin/goods-relations';
 import { relationVisualDraft } from '@/lib/good-relation-visual';
 
 type Element = ReactElement<Record<string, unknown>>;
 type Request = { id: string; revision: number; operationId: string; values: GoodsRelationValues };
 const nodes = (node: ReactNode): Element[] => Children.toArray(node).flatMap(value => !isValidElement<Record<string, unknown>>(value) ? [] : [value, ...nodes(value.props.children as ReactNode)]);
+/* kit 버튼·입력·선택도 네이티브와 같은 조작 부품으로 찾는다(ADR-0028). */
+const isButton = (node: Element) => node.type === 'button' || node.type === Button;
+const isInput = (node: Element) => node.type === 'input' || node.type === Input;
+const isSelect = (node: Element) => node.type === 'select' || node.type === AdminSelect;
 const text = (node: ReactNode): string => Children.toArray(node).map(value => isValidElement<Record<string, unknown>>(value) ? text(value.props.children as ReactNode) : String(value)).join('');
 const good = (id: string, isPublic = true, compositionLabel: string | null = null): GoodsRelationGood => ({ id, name: `상품 ${id.toUpperCase()}`, code: `SKU-${id}`, imagePath: null, public: isPublic, compositionLabel });
 function initial(kind: GoodsRelationKind = 'other_composition'): GoodsRelationDraft {
@@ -32,10 +39,10 @@ function initial(kind: GoodsRelationKind = 'other_composition'): GoodsRelationDr
 }
 let draft = initial();
 function render() { hooks.index = 0; return nodes(GoodsRelationEditor({ initial: draft, backHref: '/admin/catalog/related-goods' })); }
-function field(name: string) { const result = render().find(node => node.type === 'input' && node.props['aria-label'] === name); expect(result, name).toBeDefined(); return result!; }
+function field(name: string) { const result = render().find(node => isInput(node) && node.props['aria-label'] === name); expect(result, name).toBeDefined(); return result!; }
 function change(name: string, value: string) { (field(name).props.onChange as (event: unknown) => void)({ target: { value } }); }
 function click(label: string) {
-  const button = render().find(node => node.type === 'button' && (node.props['aria-label'] === label || text(node) === label));
+  const button = render().find(node => isButton(node) && (node.props['aria-label'] === label || text(node) === label));
   expect(button, label).toBeDefined(); expect(button!.props.disabled).not.toBe(true); (button!.props.onClick as () => void)();
 }
 function changeKind(kind: GoodsRelationKind) {
@@ -55,7 +62,7 @@ function submit(period: Record<string, string> = { startsAt: '', endsAt: '' }) {
   (form.props.onSubmit as (event: unknown) => void)({ preventDefault() {}, currentTarget: period });
 }
 async function flush() { for (let index = 0; index < 5; index += 1) await Promise.resolve(); }
-function preview() { return render().find(node => node.props.className === 'admin-relation-preview__surface')!; }
+function preview() { return render().find(node => node.props['data-relation-preview'] === 'surface')!; }
 function saved(request: Request): GoodsRelation {
   return { id: request.id, revision: request.revision + 1, kind: request.values.kind, title: request.values.title, representativeGoodId: request.values.representativeGoodId,
     enabled: request.values.enabled, startsAt: null, endsAt: null, visual: request.values.visual, state: 'active', createdAt: null, updatedAt: null,
@@ -127,7 +134,7 @@ describe('다른 구성 편집 입력과 저장', () => {
 describe('다른 구성 공개 조건 미리보기', () => {
   it('비공개 대표 A와 공개 B/C에서 B와 C 상세를 대칭으로 확인한다', () => {
     click('노출 미리보기');
-    const current = render().find(node => node.type === 'select')!;
+    const current = render().find(isSelect)!;
     expect(current.props.value).toBe('b');
     expect(nodes(current).filter(node => node.type === 'option').map(node => node.props.value)).toEqual(['b', 'c']);
     expect(nodes(preview()).filter(node => node.type === 'li').map(text)).toEqual(['상품 C2개 세트']);
@@ -149,7 +156,7 @@ describe('다른 구성 공개 조건 미리보기', () => {
     expect(text(preview())).toContain('대표 상품을 포함해 공개 가능한 상품이 2개 이상이어야 표시됩니다.');
     expect(text(preview())).toContain('대표 상품 상세의 현재 입력 미리보기입니다.');
     expect(nodes(preview()).some(node => node.type === 'ul')).toBe(false);
-    expect(render().some(node => node.type === 'select')).toBe(false);
+    expect(render().some(isSelect)).toBe(false);
   });
 });
 
@@ -162,7 +169,7 @@ describe('다른 구성 저장 결과 복구', () => {
     submit(); await flush();
     const request = mocks.save.mock.calls[0][0] as Request;
     expect(render().find(node => node.type === 'fieldset')?.props.disabled).toBe(true);
-    expect(render().find(node => node.type === 'button' && node.props.type === 'submit')?.props.disabled).toBe(false);
+    expect(render().find(node => isButton(node) && node.props.type === 'submit')?.props.disabled).toBe(false);
     expect(text(render())).toContain('같은 요청으로 결과 확인');
     submit({ startsAt: '2099-01-01T00:00', endsAt: '2099-01-02T00:00' }); await flush();
     expect(mocks.save.mock.calls[1][0]).toBe(request);
