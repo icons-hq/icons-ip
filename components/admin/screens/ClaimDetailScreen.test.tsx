@@ -220,6 +220,8 @@ describe('ClaimDetailScreen', () => {
       reshipCarrier: 'hanjin', reshipTrackingNumber: 'QA4530000001', reshippedAt: '2026-09-09T00:00:00Z',
       reshipDeliveredAt: null, reshipDeliveredBy: null, reshipDeliveredByName: null, reshipDeliveryEvidence: null };
     expect(render({ claim: exchanged })).toContain('교환품 배송완료 확인</button>');
+    /* kit 버튼은 type을 주지 않으면 type="button"이다 — 기록 버튼은 양식을 제출해야 한다. */
+    expect(render({ claim: exchanged })).toMatch(/<button[^>]*type="submit"[^>]*>교환품 배송완료 확인<\/button>/);
     const completed = render({ claim: { ...exchanged, reshipDeliveredAt: '2026-09-09T01:00:00Z',
       reshipDeliveredBy: 'staff-1', reshipDeliveredByName: '배송담당', reshipDeliveryEvidence: '배송 조회 D-001: 전체 수령 확인' } });
     expect(completed).toContain('배송 조회 D-001: 전체 수령 확인');
@@ -299,6 +301,7 @@ describe('ClaimDetailScreen', () => {
     expect(html).toContain('창고 회신 G-001, 수량 2개 확인');
     expect(html).toContain('김담당');
     expect(html).toContain('서원 회수 확인');
+    expect(html).toMatch(/<button[^>]*type="submit"[^>]*>서원 회수 확인<\/button>/);
     expect(html).not.toContain('김포 회수 확인</button>');
     expect(html).not.toContain('환불 완료 확정');
     expect(html).not.toContain('반송 상품 입고 확인');

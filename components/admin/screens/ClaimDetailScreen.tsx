@@ -268,7 +268,7 @@ export function ClaimDetailScreen({
       </nav>
       <ClaimProgressSummary claim={claim} refund={refund} />
 
-      <div className="grid min-w-0 items-start gap-4 xl:grid-cols-2">
+      <div className="grid min-w-0 items-start gap-4 lg:grid-cols-[minmax(0,1.3fr)_minmax(18.75rem,1fr)]">
         <div className="flex min-w-0 flex-col gap-4">
           {actorId && claim.claimType !== 'cancel' ? <Card><CardContent className="min-w-0"><ClaimFeePanel actorId={actorId} claimId={claim.id} operator /></CardContent></Card> : null}
           <Card>

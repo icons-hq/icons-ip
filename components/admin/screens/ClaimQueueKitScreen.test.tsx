@@ -332,6 +332,8 @@ describe('ClaimQueueKitScreen — 반품·교환 목록', () => {
     expect(html).toContain('조건에 맞는 교환 요청이 없습니다.');
     expect(html).toContain('aria-label="교환 요청 목록"');
     expect(html).toContain('aria-label="교환 요청 검색"');
+    /* 검색은 양식 제출이다(kit 버튼은 type을 주지 않으면 button이다). */
+    expect(html).toMatch(/<form[^>]*aria-label="교환 요청 검색"[^>]*>(?:(?!<\/form>)[\s\S])*<button[^>]*type="submit"[^>]*>검색<\/button>/);
   });
 });
 
