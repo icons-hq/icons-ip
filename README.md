@@ -253,6 +253,8 @@ GitHub Actions의 `CI/CD Pipeline`은 PR 검증(lint/typecheck/test/build/Supaba
 
 CI의 HTTP DB 검증용 PostgREST v14.14는 ECR의 비인증 다운로드 한도 영향을 피하도록 Supabase 공식 GHCR 이미지에서 받는다. 동일 이미지를 기존 HTTP fixture가 확인하는 ECR 이름으로 로컬 태그하며, 검증 항목과 운영 DB·앱 버전은 바꾸지 않는다. DB 샤드는 run마다 각자 로컬 DB 이미지를 받으므로 `SUPABASE_INTERNAL_IMAGE_REGISTRY=ghcr.io`로 Supabase CLI가 같은 GHCR 미러만 쓰게 한다.
 
+CLI는 `supabase/setup-cli` 대신 로컬 action `.github/actions/setup-supabase-cli`가 GitHub release tarball을 직접 받아 설치한다. 요청마다 60초 상한과 20초 정체 감지를 두고 180초 안에서 다시 받으며, 받은 tarball은 workflow env `SUPABASE_CLI_SHA256`과 대조한다. `setup-cli` v2가 쓰는 Bun 1.3.10에서는 응답 본문이 멈추면 다운로드가 끝없이 기다려 main 배포가 6시간 멈췄다(run 41991138701). CLI 버전을 올릴 때는 두 workflow의 `SUPABASE_CLI_VERSION`과 release `checksums.txt`의 `supabase_<version>_linux_amd64.tar.gz` 값을 함께 바꾼다.
+
 두 workflow는 Supabase CLI `2.109.1`을 사용한다. 이전 `2.101.0`의 로컬 DB 이미지
 `17.6.1.106`에는 함수 실행 권한 거절 시 DB 연결이 비정상 종료되는
 [upstream 결함](https://github.com/supabase/postgres/issues/2112)이 있었다. 권한 테스트나
@@ -299,7 +301,7 @@ CRON_SECRET
   성공한 Production source run을 기계적으로 확인한 위 `workflow_dispatch` 경로만 사용한다.
 - GitHub Actions의 앱 빌드는 Node 26을 사용한다. Vercel project/runtime Node.js Version은 Vercel production Functions 공식 지원 범위인 24.x로 유지한다.
 - deployment secret 검사는 각 deploy job 안에서 수행한다. 누락 시 job이 즉시 실패하며, 필요한 GitHub Secret을 설정한 뒤 rerun해야 한다.
-- 모든 job에는 `timeout-minutes`가 있다(5~40분). 상한을 넘긴 job은 `cancelled`로, 멈춘 Supabase CLI 설치 step은 5분 뒤 `failure`로 끝나고 뒤따르는 배포 job은 건너뛴다. 이렇게 끝난 run이 아직 최신 main run이면 `gh run rerun <run-id> --failed`로 실패·취소된 job과 그 뒤 job만 다시 실행한다. 더 새 main run이 있으면 옛 run을 재실행하지 않는다 — `deploy-vercel`은 현재 main 여부를 확인하지 않아 옛 앱을 운영에 되돌린다.
+- 모든 job에는 `timeout-minutes`가 있다(5~40분). 상한을 넘긴 job은 `cancelled`로, 재시도로도 받지 못한 Supabase CLI 설치 step은 늦어도 5분 상한에서 `failure`로 끝나고 뒤따르는 배포 job은 건너뛴다. 이렇게 끝난 run이 아직 최신 main run이면 `gh run rerun <run-id> --failed`로 실패·취소된 job과 그 뒤 job만 다시 실행한다. 더 새 main run이 있으면 옛 run을 재실행하지 않는다 — `deploy-vercel`은 현재 main 여부를 확인하지 않아 옛 앱을 운영에 되돌린다.
 - `.vercel/` 연결 파일은 commit하지 않고, workflow가 `VERCEL_ORG_ID`와 `VERCEL_PROJECT_ID`로 Vercel 원격 build/deploy를 요청한다.
 - `.vercelignore`가 로컬 제작 산출물 `outputs/`를 명시적으로 제외한다. Preview job은 Vercel dry-run manifest에서 `outputs/`, 900MB 이상, 15,000개 이상 source를 실제 업로드 전에 거부한다. 원본·실험·반복 렌더는 deploy context에 넣지 않고 최종 runtime asset만 repo의 공개 asset 경로로 배포한다.
 - Vercel 환경변수는 sensitive 상태로 각 환경에 둔다. production deploy job은 기존 관리자 아트워크용 GitHub `CRON_SECRET`만 Vercel production에 동기화한다. Toss 키 페어·Korpay credential·optional canary actor는 Vercel Production에만 별도 등록하고 GitHub, Preview, CI에는 복제하지 않는다. public 목적별 gate의 기본값은 `false`이며 현재 Production에서 `true`인 것은 폐쇄 대기 중인 코페이 굿즈 gate 하나뿐이고 토스 gate 둘은 심사 트랙 전까지 `false`다. 결제 재조정 secret은 workflow가 provision/mutate하지 않으며, 값이 이미 있으면 원격 `prebuild` guard가 형식만 검증한다. Preview에는 구 v1 Toss 환경변수 잔여가 있지만 실 게이트웨이는 `VERCEL_ENV=production`에서만 생성되고 형식이 어긋난 키는 런타임이 거절한다. development 환경변수는 별도 요청 전까지 추가하지 않는다.
