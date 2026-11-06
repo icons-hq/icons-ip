@@ -34,14 +34,15 @@ try {
     const result = await measure(html()); assert.deepEqual(result.findings, []); assert.equal(result.identity.headingMatched, true); assert.equal(JSON.stringify(result).includes('PRIVATE-SENTINEL'), false);
   });
 
-  await check('desktop compact and normal field heights preserve the documented touch boundary', async () => {
+  await check('compact and normal field heights follow the kit control sizes (ADR-0028)', async () => {
     await page.setViewportSize({width:1440,height:1000});
-    const compact = body.replace('class="field"','class="field admin-sales-filters"');
-    assert.ok(!(await measure(html('input{height:30px;min-height:30px}', '', compact))).findings.some(f=>f.code==='field-height'));
-    assert.ok((await measure(html('input{height:30px;min-height:30px}'))).findings.some(f=>f.code==='field-height'));
-    assert.ok(!(await measure(html('input{height:34px;min-height:34px}'))).findings.some(f=>f.code==='field-height'));
+    const compact = body.replace('class="field"','class="field" data-sales-filters=""');
+    assert.ok(!(await measure(html('input{height:28px;min-height:28px}', '', compact))).findings.some(f=>f.code==='field-height'));
+    assert.ok((await measure(html('input{height:28px;min-height:28px}'))).findings.some(f=>f.code==='field-height'&&f.minimumHeight===32));
+    assert.ok(!(await measure(html('input{height:32px;min-height:32px}'))).findings.some(f=>f.code==='field-height'));
     await page.setViewportSize({width:390,height:844});
-    assert.ok((await measure(html('input{height:34px;min-height:34px}'))).findings.some(f=>f.code==='field-height'&&f.minimumHeight===44));
+    assert.ok(!(await measure(html('input{height:32px;min-height:32px}'))).findings.some(f=>f.code==='field-height'));
+    assert.ok((await measure(html('input{height:24px;min-height:24px}'))).findings.some(f=>f.code==='field-height'&&f.minimumHeight===32));
   });
   await check('intrinsic native selection is readable without reserving a second arrow', async () => {
     const select = '<select style="font-size:12px;padding:4px 9px;width:auto"><option>조회기준일 오래된순</option></select>';

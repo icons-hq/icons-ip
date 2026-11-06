@@ -172,7 +172,7 @@ export function measureAdminLayout(options = {}) {
       const minimum = textWidth(sample, style) + (kind === 'select' || ['date', 'datetime-local', 'month', 'week', 'time'].includes(type) ? 24 : 0);
       measurement.minimumContentWidth = rounded(minimum);
       if (contentWidth < minimum - tolerance) add('field-narrow', 'Control has too little visible editing space for its type and font.', element, { rect: box, contentWidth: rounded(contentWidth), minimumContentWidth: rounded(minimum), sample });
-      const minimumHeight = innerWidth <= 900 ? 44 : element.closest('.admin-sales-filters, .admin-sales-list-options') ? 30 : 34;
+      const minimumHeight = element.closest('[data-sales-filters], [data-sales-list-options], [data-size="sm"]') || element.matches('[data-size="sm"]') ? 28 : 32;
       if (box.height < minimumHeight - tolerance) add('field-height', `Admin input height is below the ${minimumHeight} px surface contract.`, element, { rect: box, minimumHeight });
     }
     if (!embeddedStorefrontPreview && kind === 'input' && ['text', 'search'].includes(type) && !element.value && element.placeholder && (type === 'search' || /검색|search/i.test(`${label(element)} ${element.name}`))) {
@@ -263,7 +263,7 @@ export function measureAdminLayout(options = {}) {
       if (width > tolerance && height > tolerance) add('control-collision', 'Painted portions of separate controls overlap.', left, { rect: rect(left), visibleRect: a, otherSelector: describe(right), otherLabel: label(right), otherRect: rect(right), otherVisibleRect: b, overlap: { width: rounded(width), height: rounded(height) } });
     }
   }
-  for (const element of elements.filter((element) => element.matches('label, .wc-admin-kit__field-label, .admin-console-filter-label') && !element.querySelector('input, select, textarea'))) {
+  for (const element of elements.filter((element) => element.matches('label, [data-slot="label"], [data-slot="field-label"]') && !element.querySelector('input, select, textarea'))) {
     const box = rect(element); const style = getComputedStyle(element); const text = normal(element.textContent);
     if (text.length >= 4 && box.width < number(style.fontSize) * 3.5 && box.height > (number(style.lineHeight) || number(style.fontSize) * 1.5) * 1.8) add('label-fragmented', 'Label wraps into a very narrow vertical column.', element, { rect: box, fontSize: style.fontSize, lineHeight: style.lineHeight });
   }
