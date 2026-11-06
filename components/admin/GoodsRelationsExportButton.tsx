@@ -1,7 +1,9 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
 import { GOODS_RELATIONS_EXPORT_LIMIT } from '@/lib/admin/goods-relations-export';
+import { Download } from 'lucide-react';
 import { adminListExportResponseError } from './AdminListExportButton';
+import { Button } from './kit/ui/button';
 
 export function GoodsRelationsExportButton({ href, total }: { href: string; total: number }) {
   const [pending, setPending] = useState(false), [message, setMessage] = useState(''), [error, setError] = useState('');
@@ -28,9 +30,9 @@ export function GoodsRelationsExportButton({ href, total }: { href: string; tota
     } catch { if (!controller.signal.aborted) setError('연결이 끊겨 파일을 받지 못했습니다. 다시 내려받아 주세요.'); }
     finally { if (!controller.signal.aborted) { request.current = null; setPending(false); } }
   }
-  return <div className="admin-goods-relations__export">
-    <button type="button" className="wc-admin-kit__button" disabled={pending || total > GOODS_RELATIONS_EXPORT_LIMIT} onClick={download}>{pending ? '엑셀 만드는 중…' : '목록 엑셀 다운로드'}</button>
-    <small>{total > GOODS_RELATIONS_EXPORT_LIMIT ? '최대 2,000개 편성입니다. 검색 조건을 좁혀주세요.' : `같은 조건의 전체 ${total.toLocaleString('ko-KR')}개 편성과 구성 상품을 받습니다.`}</small>
-    {message ? <p role="status">{message}</p> : null}{error ? <p role="alert" className="wc-admin-kit__error">{error}</p> : null}
+  return <div className="flex min-w-0 flex-wrap items-center gap-2" data-goods-relations="export">
+    <Button variant="outline" type="button" disabled={pending || total > GOODS_RELATIONS_EXPORT_LIMIT} onClick={download}><Download aria-hidden="true" />{pending ? '엑셀 만드는 중…' : '목록 엑셀 다운로드'}</Button>
+    <small className="text-xs text-muted-foreground wrap-anywhere">{total > GOODS_RELATIONS_EXPORT_LIMIT ? '최대 2,000개 편성입니다. 검색 조건을 좁혀주세요.' : `같은 조건의 전체 ${total.toLocaleString('ko-KR')}개 편성과 구성 상품을 받습니다.`}</small>
+    {message ? <p className="w-full text-sm" role="status">{message}</p> : null}{error ? <p role="alert" className="w-full text-sm text-destructive">{error}</p> : null}
   </div>;
 }
