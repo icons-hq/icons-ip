@@ -14,6 +14,8 @@ vi.mock('@/app/admin/shopping-story-actions', () => ({ deleteShoppingStoriesActi
 vi.mock('../marketing/MarketingLinkIssuer', () => ({ MarketingLinkIssuer: () => null }));
 import { ShoppingStoriesAdminScreen } from './ShoppingStoriesScreen';
 import { CustomerServiceDialog } from './CustomerServiceDialog';
+import { Button } from '@/components/admin/kit/ui/button';
+import { TableRow } from '@/components/admin/kit/ui/table';
 
 const data: AdminShoppingStoryList = {
   checkedAt: '2026-10-20T00:00:00Z', total: 2,
@@ -25,12 +27,15 @@ type Element = ReactElement<{ children?: ReactNode; onClick?: () => void; onClos
 function all(node: ReactNode): Element[] { return Array.isArray(node) ? node.flatMap(all) : isValidElement(node) ? [node as Element, ...all((node.props as { children?: ReactNode }).children)] : []; }
 function text(node: ReactNode): string { return Array.isArray(node) ? node.map(text).join('') : isValidElement(node) ? text((node.props as { children?: ReactNode }).children) : typeof node === 'string' || typeof node === 'number' ? String(node) : ''; }
 function render() { hooks.index = 0; hooks.refIndex = 0; return ShoppingStoriesAdminScreen({ data }); }
-function button(label: string) { const node = all(render()).find(item => item.type === 'button' && text(item).trim() === label); if (!node) throw new Error(label); return node; }
+/* 버튼·표 행은 kit 부품(ADR-0028)이다. */
+const isButton = (item: Element) => item.type === 'button' || item.type === Button;
+const isRow = (item: Element) => item.type === 'tr' || item.type === TableRow;
+function button(label: string) { const node = all(render()).find(item => isButton(item) && text(item).trim() === label); if (!node) throw new Error(label); return node; }
 function dialog() { return all(render()).find(item => item.type === CustomerServiceDialog); }
 function selectAAndDeleteB() {
   all(render()).find(item => item.type === 'input' && item.props['aria-label'] === 'A 선택')?.props.onChange?.({ target: { checked: true } });
-  const row = all(render()).find(item => item.type === 'tr' && text(item).includes('B'));
-  all(row).find(item => item.type === 'button' && text(item) === '삭제')?.props.onClick?.();
+  const row = all(render()).find(item => isRow(item) && text(item).includes('B'));
+  all(row).find(item => isButton(item) && text(item) === '삭제')?.props.onClick?.();
   button('스토리 1개 삭제').props.onClick?.();
 }
 async function settle() { for (let i = 0; i < 10; i++) await Promise.resolve(); }
@@ -56,6 +61,12 @@ it('treats a rejected transport as an uncertain outcome and retries the same ope
   expect(text(dialog())).toContain('삭제 결과를 확인하지 못했습니다.');
   button('같은 요청으로 삭제 결과 확인').props.onClick?.(); await settle();
   expect(mocks.remove.mock.calls[1]).toEqual(mocks.remove.mock.calls[0]);
+});
+
+/* kit Button은 type을 주지 않으면 type="button"이라 폼을 제출하지 않는다 — 조회 조건의 검색이 GET 폼을 제출하는지 지킨다. */
+it('조회 조건의 검색 버튼은 폼을 제출한다', () => {
+  const search = all(render()).find(item => isButton(item) && text(item) === '검색');
+  expect((search?.props as { type?: string } | undefined)?.type).toBe('submit');
 });
 
 it('starts a deletion only once before React commits the pending state', async () => {
