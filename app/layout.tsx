@@ -29,7 +29,6 @@ import './styles/admin-goods-attributes.css';
 import './styles/admin-goods-drafts.css';
 import './styles/admin-review-insights.css';
 import './styles/admin-coupons.css';
-import './styles/admin-shipping-settings.css';
 import './styles/admin-shipping-charge-groups.css';
 import './styles/admin-store-credits.css';
 import './styles/admin-faq.css';

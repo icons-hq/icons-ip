@@ -26,6 +26,10 @@ import { ShippingChargeGroupField, ShippingChargeGroupSummary, type ShippingChar
 import { ShippingChargeGroupEditor } from '../screens/ShippingChargeGroupsPanel';
 import { ShippingChargeGroupAssignmentDialog } from './ShippingChargeGroupAssignmentDialog';
 import { useShippingChargeGroupOperation, useShippingChargeGroupPending, useShippingChargeGroupSession } from './useShippingChargeGroupOperation';
+import { Button } from '@/components/admin/kit/ui/button';
+import { Input } from '@/components/admin/kit/ui/input';
+import { NativeSelect } from '@/components/admin/kit/ui/native-select';
+import { Textarea } from '@/components/admin/kit/ui/textarea';
 
 type Element = ReactElement<Record<string, unknown>>;
 const all = (node: ReactNode): Element[] => Children.toArray(node).flatMap(value => isValidElement<Record<string, unknown>>(value) ? [value, ...all(value.props.children as ReactNode)] : []);
@@ -52,9 +56,11 @@ function effects() { for (const index of hooks.changed.splice(0)) { const item =
 async function flush() { for (let i = 0; i < 7; i++) { await Promise.resolve(); render(); effects(); } }
 const operation = () => render() as ReturnType<typeof useShippingChargeGroupOperation>;
 const node = () => render() as ReactElement;
-const button = (label: string) => all(node()).find(item => item.type === 'button' && text(item) === label)!;
+/* 편집·배정 팝업은 kit Button·Input·NativeSelect·Textarea(ADR-0028)를 쓴다. 이 얕은 렌더는 kit 부품을 펼치지 않으므로 그 요소를 그대로 찾는다 — kit 부품은 onClick·disabled·onChange를 네이티브 요소에 그대로 넘긴다. */
+const CONTROL_TYPES: unknown[] = ['input', 'select', 'textarea', Input, NativeSelect, Textarea];
+const button = (label: string) => all(node()).find(item => (item.type === 'button' || item.type === Button) && text(item) === label)!;
 function click(label: string) { const item = button(label); expect(item).toBeDefined(); expect(item.props.disabled).not.toBe(true); (item.props.onClick as () => void)(); }
-function field(label: string) { const parent = all(node()).find(item => item.type === 'label' && text(item).startsWith(label)); return parent && all(parent.props.children as ReactNode).find(item => ['input', 'select', 'textarea'].includes(String(item.type))); }
+function field(label: string) { const parent = all(node()).find(item => item.type === 'label' && text(item).startsWith(label)); return parent && all(parent.props.children as ReactNode).find(item => CONTROL_TYPES.includes(item.type)); }
 function change(label: string, value: string | boolean) { const item = field(label)!; expect(item).toBeDefined(); (item.props.onChange as (event: unknown) => void)({ target: typeof value === 'boolean' ? { checked: value } : { value } }); }
 async function submit() { const form = all(node()).find(item => item.type === 'form')!; await (form.props.onSubmit as (event: unknown) => Promise<void>)({ preventDefault() {} }); await flush(); }
 function authenticate(actor = ids.actor, session = ids.session) { mocks.auth?.('SIGNED_IN', { user: { id: actor }, access_token: `x.${Buffer.from(JSON.stringify({ session_id: session })).toString('base64url')}.x` }); }

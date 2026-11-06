@@ -28,6 +28,11 @@ describe('배송정보 템플릿 관리 화면', () => {
     expect(html).toContain('상품 찾기');
     expect(html).toContain('value="1"');
     expect(html).toContain('/admin/settings/shipping-notices');
+    /* kit 버튼의 기본 type은 button이다 — 초안 저장·활성화는 제출 버튼이어야 한다. */
+    const submit = (label: string) => new RegExp(`<button[^>]*type="submit"[^>]*>(?:(?!</button>)[\\s\\S])*${label}</button>`);
+    expect(html).toMatch(submit('새 초안 저장'));
+    expect(html).toMatch(submit('초안 수정 저장'));
+    expect(html).toMatch(submit('활성화'));
   });
 
   it('활성 템플릿은 적용 대상에 적용 버튼을 노출한다', () => {
@@ -39,6 +44,7 @@ describe('배송정보 템플릿 관리 화면', () => {
       }], impactGoods: [{ id: 'good-1', name: '아크릴', templateId: null, templateVersion: null, publishedAt: '2026-09-10T00:00:00Z', updatedAt: '2026-09-10T01:00:00Z' }],
     }} />);
     expect(html).toContain('이 템플릿 적용');
+    expect(html).toMatch(/<button[^>]*type="submit"[^>]*>이 템플릿 적용<\/button>/);
     expect(html).toContain('동시에 수정된 상품에는 적용하지 않습니다.');
   });
 });
