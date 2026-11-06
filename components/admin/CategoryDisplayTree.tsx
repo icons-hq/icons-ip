@@ -154,12 +154,12 @@ export function CategoryDisplayTree({ initial, selectedId, actorId, sessionId }:
         {message ? <p className={`text-sm${error ? ' text-destructive' : ''}`} role={error ? 'alert' : 'status'}>{message}</p> : null}
         {createdId ? <Link className="text-sm underline underline-offset-4" href={`${CATEGORY_DISPLAY_ADMIN_PATH}?id=${createdId}`}>새 전시분류의 상품·상단 콘텐츠 구성하기</Link> : null}
         {!creating && selected ? (
-          /* 아이콘 미리보기는 모바일 시트의 60px 정사각 칸과 같은 모양으로 보인다(이미지 부품은 전시분류 화면 소유). */
-          <section className="flex flex-col gap-2 border-t pt-3.5 [&_img]:size-[60px] [&_img]:rounded-[10px] [&_img]:bg-muted [&_img]:object-contain [&_img]:p-1.5" aria-label="카테고리 아이콘">
+          /* 아이콘 미리보기는 모바일 시트의 60px 정사각 칸과 같은 모양으로 보인다(이미지 부품의 icon 모양). */
+          <section className="flex flex-col gap-2 border-t pt-3.5" aria-label="카테고리 아이콘">
             <h3 className="text-sm font-medium">카테고리 아이콘</h3>
             <p className="text-sm text-muted-foreground">모바일 카테고리 시트의 아이콘 칸(60px 정사각)에 맞춰 보입니다. 투명 배경의 정사각 PNG를 권장합니다. 올리면 바로 적용되고, 비우면 이름 첫 글자로 표시합니다.</p>
             {dirty ? <p className="text-sm text-muted-foreground">이름·상위 분류를 저장하거나 되돌린 뒤 아이콘을 바꿀 수 있습니다.</p> : null}
-            <CategoryDisplayArtwork key={`${selected.id}:${selected.imagePath ?? 'none'}`} label="아이콘 이미지" actorId={actorId} path={selected.imagePath}
+            <CategoryDisplayArtwork key={`${selected.id}:${selected.imagePath ?? 'none'}`} label="아이콘 이미지" variant="icon" actorId={actorId} path={selected.imagePath}
               disabled={locked || dirty} onChange={path => latestApplyImage.current(path)} onBusy={setImageBusy} />
             {imageUncertain ? <Button className="self-start" variant="outline" type="button" disabled={pending || blocked} onClick={retryImage}>아이콘 같은 요청 결과 확인</Button> : null}
           </section>

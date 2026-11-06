@@ -80,6 +80,8 @@ const ICON = 'public-media/catalog/curation/94933000-0000-4000-8000-000000000301
 const artwork = () => render().find(node => node.props.label === '아이콘 이미지')!;
 it('아이콘을 올리면 선택한 전시분류에 현재 revision 으로 바로 적용하고, 불명확한 결과는 같은 요청으로 재확인한다', async () => {
   expect(artwork()).toBeDefined();
+  // 아이콘 미리보기는 배너 폭이 아니라 모바일 시트의 60px 정사각 칸 모양이다.
+  expect(artwork().props.variant).toBe('icon');
   expect(artwork().props.disabled).toBe(false);
   mocks.image.mockResolvedValueOnce({ error: '저장 결과를 확인하지 못했습니다.', uncertain: true });
   (artwork().props.onChange as (path: string | null) => void)(ICON); await flush();

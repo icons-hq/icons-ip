@@ -1,4 +1,0 @@
-@layer components {
-  /* 카테고리 템플릿·코드 찾기 화면은 kit 템플릿 룩으로 옮겼다(ADR-0028). 남은 규칙은 상품 편집기의 카테고리 칸(CategoryAssignmentField)이 쓴다. */
-  .wc-admin .admin-good-category__templates:not([data-slot]) { display: flex; align-items: center; flex-wrap: wrap; gap: 12px; margin: 10px 0; font-size: 13px; }
-}
