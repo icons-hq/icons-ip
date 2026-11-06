@@ -327,7 +327,7 @@ export function TicketCheckIn() {
               <p className="text-sm text-muted-foreground">카메라는 버튼을 누른 뒤에만 켜지며, 인식 즉시 종료됩니다.</p>
             </div>
             <div
-              className={`relative aspect-square w-full overflow-hidden rounded-lg border bg-muted sm:aspect-[4/3]${flow.kind === 'scanning' ? ' border-[var(--wc-info)]' : ''}`}
+              className={`relative aspect-square w-full overflow-hidden rounded-lg border bg-muted sm:aspect-[4/3] ${flow.kind === 'scanning' ? 'border-[var(--wc-info)]' : ''}`}
               data-scanning={flow.kind === 'scanning' || undefined}
             >
               <video aria-label="티켓 QR 카메라 화면" className="block size-full object-cover" muted playsInline ref={videoRef} />
@@ -414,7 +414,7 @@ export function TicketCheckIn() {
                 {errorPresentation.title}
               </h2>
               <p className="text-sm text-muted-foreground">{errorPresentation.body}</p>
-              <Button className="mt-3 h-11 w-full text-base sm:w-auto" onClick={() => void startCamera()} size="lg" type="button" variant="outline">다시 스캔</Button>
+              <Button className="mt-3 h-11 w-full text-base sm:w-auto sm:self-start" onClick={() => void startCamera()} size="lg" type="button" variant="outline">다시 스캔</Button>
             </div>
           ) : (
             <div className={RESULT_CARD} data-check-in-result="idle">
@@ -452,7 +452,7 @@ function ResultCard({
           <div className="min-w-0 bg-card p-3"><dt className="text-xs text-muted-foreground">{value.result === 'already_used' ? '최초 검표' : '검표 시각'}</dt><dd className="mt-1 text-sm font-semibold tabular-nums">{formatTicketCheckInTime(value.checkedAt)}</dd></div>
         )}
       </dl>
-      <Button className="mt-3 h-11 w-full text-base sm:w-auto" onClick={onRescan} size="lg" type="button" variant="outline">다시 스캔</Button>
+      <Button className="mt-3 h-11 w-full text-base sm:w-auto sm:self-start" onClick={onRescan} size="lg" type="button" variant="outline">다시 스캔</Button>
     </div>
   );
 }
