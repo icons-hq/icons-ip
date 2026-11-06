@@ -8,6 +8,10 @@ import { parseReviewBatchRequest, reviewBatchFailureLabel, REVIEW_BATCH_MAX, typ
 import { CustomerServiceDialog } from './CustomerServiceDialog';
 import { CustomerServiceRecordProvider, type CustomerServiceRecordNavigationProps } from './CustomerServiceRecordNavigation';
 import { CsReplyTemplateTools } from './CsReplyTemplateTools';
+import { Button } from '@/components/admin/kit/ui/button';
+import { Label } from '@/components/admin/kit/ui/label';
+import { Textarea } from '@/components/admin/kit/ui/textarea';
+import { REPLY_FORM_CLASS } from './cs-kit-classes';
 
 const PENDING_EVENT='icons-review-batch-pending-change';
 function usePendingBatch(accountId:string) {
@@ -44,34 +48,36 @@ export function ReviewBulkGrid({columns,rows,reviews,accountId='',navigation}:{c
   return <CustomerServiceRecordProvider {...navigation}>
     <ConsoleGrid caption="리뷰 목록" preferencesKey="cs-reviews" columns={columns} rows={rows} emptyLabel="조건에 맞는 리뷰가 없습니다."
       selectable selectedIds={selected} onSelectionChange={ids=>setSelection({page:pageKey,ids})}>
-      <div className="admin-cs-results__toolbar"><span>선택 {selected.length}건 · 최대 {REVIEW_BATCH_MAX}건</span>
-        <button className="btn btn-sm btn-ghost" type="button" disabled={!request&&(selected.length<1||selected.length>REVIEW_BATCH_MAX)} onClick={launch}>{request&&!result?'이전 일괄답글 결과 확인':'일괄 답글 작성'}</button>
-        {selected.length>REVIEW_BATCH_MAX&&<span role="alert">리뷰는 최대 {REVIEW_BATCH_MAX}개까지 선택해주세요.</span>}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border bg-muted/40 px-3 py-2 text-sm" data-review-bulk=""><span className="tabular-nums">선택 {selected.length}건 · 최대 {REVIEW_BATCH_MAX}건</span>
+        <Button disabled={!request&&(selected.length<1||selected.length>REVIEW_BATCH_MAX)} onClick={launch} size="sm" type="button" variant="outline">{request&&!result?'이전 일괄답글 결과 확인':'일괄 답글 작성'}</Button>
+        {selected.length>REVIEW_BATCH_MAX&&<span className="text-destructive" role="alert">리뷰는 최대 {REVIEW_BATCH_MAX}개까지 선택해주세요.</span>}
       </div>
     </ConsoleGrid>
     {open&&<CustomerServiceDialog title="판매자 일괄 답글 작성" busy={pending} onClose={()=>setOpen(false)} wide>
+      <div className="flex min-w-0 flex-col gap-4 text-sm">
       {result?<>
-        <p role="status">등록 {result.items.filter(item=>item.status==='saved').length}건 · 같은 내용 {result.items.filter(item=>item.status==='unchanged').length}건 · 실패 {failures.length}건</p>
-        <ul className="admin-cs-batch__results">{result.items.map(item=><li key={item.reviewId}><code>{item.reviewId}</code> — {item.status==='saved'?'등록 완료':item.status==='unchanged'?'이미 같은 답글이 있습니다.':reviewBatchFailureLabel(item.code)}</li>)}</ul>
-        <p className="muted">완료된 항목에는 답글을 다시 등록하지 않습니다. 실패 항목은 최신 원문과 답글을 확인한 뒤 새로 선택해주세요.</p>
-        <button className="btn btn-sm" type="button" onClick={()=>{setSelection({page:pageKey,ids:failures.map(item=>item.reviewId).filter(id=>reviews.some(review=>review.id===id))});setFrozen(null);setResult(null);setReply('');setOpen(false);}}>결과 확인</button>
+        <p className="font-medium" role="status">등록 {result.items.filter(item=>item.status==='saved').length}건 · 같은 내용 {result.items.filter(item=>item.status==='unchanged').length}건 · 실패 {failures.length}건</p>
+        <ul className="flex max-h-60 flex-col gap-2 overflow-y-auto rounded-lg border p-3">{result.items.map(item=><li className="wrap-anywhere" key={item.reviewId}><code className="rounded bg-muted px-1 py-0.5 text-xs">{item.reviewId}</code> — {item.status==='saved'?'등록 완료':item.status==='unchanged'?'이미 같은 답글이 있습니다.':reviewBatchFailureLabel(item.code)}</li>)}</ul>
+        <p className="text-muted-foreground">완료된 항목에는 답글을 다시 등록하지 않습니다. 실패 항목은 최신 원문과 답글을 확인한 뒤 새로 선택해주세요.</p>
+        <Button className="self-start" onClick={()=>{setSelection({page:pageKey,ids:failures.map(item=>item.reviewId).filter(id=>reviews.some(review=>review.id===id))});setFrozen(null);setResult(null);setReply('');setOpen(false);}} size="sm" type="button">결과 확인</Button>
       </>:<>
         <p>선택한 {(request?.items.length??selected.length).toLocaleString('ko-KR')}개 리뷰에 같은 답글을 등록합니다.</p>
-        <p className="muted">상품 품질·배송·A/S 문의는 원문을 읽고 개별 답글을 작성해주세요. 리뷰 답글은 상품 상세에 공개됩니다.</p>
-        <details open className="admin-cs-batch__targets"><summary>대상 리뷰 확인</summary><ul>{request?request.items.map(item=><li key={item.id}><code>{item.id}</code>{item.expectedReplyAt?' · 기존 답글 수정':''}</li>):selectedReviews.map(review=><li key={review.id}><strong>{review.goodName}</strong> · @{review.authorName} · {review.rating}점<br />{review.body}<br /><code>{review.id}</code>{review.adminReply?' · 기존 답글 수정':''}</li>)}</ul></details>
-        {!request&&<CsReplyTemplateTools accountId={accountId} surface="review" body={reply} onInsert={changeReply} disabled={pending} />}
-        <form className="admin-cs-reply" onSubmit={event=>{event.preventDefault();if(!confirmed||request)return;const value=parseReviewBatchRequest({requestId:crypto.randomUUID(),reply,items:selectedReviews.map(review=>({id:review.id,expectedReplyAt:review.adminReplyAt,expectedEditedAt:review.editedAt,expectedStatus:review.status}))});if(!value){setError('리뷰는 1~50건, 답글은 5~1000자로 입력해주세요.');return;}run(()=>submit(value));}}>
-          <label htmlFor="review-batch-reply">답글 내용</label><textarea id="review-batch-reply" required minLength={5} maxLength={2000} rows={6} value={request?.reply??reply} disabled={pending||!!request} onChange={event=>changeReply([...event.target.value].slice(0,1000).join(''))} />
-          <span className="admin-cs-reply__counter">{[...(request?.reply??reply)].length} / 1,000자 · 5자 이상</span>
-          {!request&&<label className="admin-cs-batch__confirm"><input type="checkbox" checked={confirmed} onChange={event=>setConfirmed(event.target.checked)} disabled={pending} /> 대상과 답글을 확인했습니다. 기존 답글 {selectedReviews.filter(review=>review.adminReply).length}건은 새 내용으로 바뀝니다.</label>}
-          {error&&<p className="admin-form-error" role="alert">{error}</p>}
-          <div className="admin-cs-reply__actions">{request?<>
-            <button type="button" className="btn btn-sm" disabled={pending} onClick={()=>run(async()=>{const response=await readReviewReplyBatchAction(request.requestId);if(!response.ok){setError(response.error);return;}if(response.result){acceptResult(response.result);return;}setNotSubmitted(true);setError('완료된 처리 기록이 없습니다. 아래 버튼으로 같은 요청을 다시 등록할 수 있습니다.');})}>처리 결과 다시 확인</button>
-            {notSubmitted&&<button type="button" className="btn btn-sm btn-ghost" disabled={pending} onClick={()=>run(()=>submit(request))}>같은 요청으로 다시 등록</button>}
-          </>:<button type="submit" className="btn btn-sm" disabled={pending||!confirmed||[...reply.trim()].length<5||selected.length<1||selected.length>REVIEW_BATCH_MAX}>일괄 답글 등록</button>}
-          <button type="button" className="btn btn-sm btn-ghost" disabled={pending} onClick={()=>setOpen(false)}>닫기</button></div>
+        <p className="text-muted-foreground">상품 품질·배송·A/S 문의는 원문을 읽고 개별 답글을 작성해주세요. 리뷰 답글은 상품 상세에 공개됩니다.</p>
+        <details open className="rounded-lg border p-3"><summary className="cursor-pointer font-medium">대상 리뷰 확인</summary><ul className="mt-2 flex max-h-60 list-disc flex-col gap-2.5 overflow-y-auto pl-5">{request?request.items.map(item=><li className="wrap-anywhere" key={item.id}><code className="rounded bg-muted px-1 py-0.5 text-xs">{item.id}</code>{item.expectedReplyAt?' · 기존 답글 수정':''}</li>):selectedReviews.map(review=><li className="wrap-anywhere" key={review.id}><strong className="font-medium text-foreground">{review.goodName}</strong> · @{review.authorName} · {review.rating}점<br />{review.body}<br /><code className="rounded bg-muted px-1 py-0.5 text-xs">{review.id}</code>{review.adminReply?' · 기존 답글 수정':''}</li>)}</ul></details>
+        {!request&&<div className="flex justify-end"><CsReplyTemplateTools accountId={accountId} surface="review" body={reply} onInsert={changeReply} disabled={pending} /></div>}
+        <form className={REPLY_FORM_CLASS} onSubmit={event=>{event.preventDefault();if(!confirmed||request)return;const value=parseReviewBatchRequest({requestId:crypto.randomUUID(),reply,items:selectedReviews.map(review=>({id:review.id,expectedReplyAt:review.adminReplyAt,expectedEditedAt:review.editedAt,expectedStatus:review.status}))});if(!value){setError('리뷰는 1~50건, 답글은 5~1000자로 입력해주세요.');return;}run(()=>submit(value));}}>
+          <Label htmlFor="review-batch-reply">답글 내용</Label><Textarea className="max-h-[50vh] min-h-40 bg-background" id="review-batch-reply" required minLength={5} maxLength={2000} rows={6} value={request?.reply??reply} disabled={pending||!!request} onChange={event=>changeReply([...event.target.value].slice(0,1000).join(''))} />
+          <span className="-mt-1.5 self-end text-xs text-muted-foreground tabular-nums">{[...(request?.reply??reply)].length} / 1,000자 · 5자 이상</span>
+          {!request&&<label className="flex items-start gap-2 leading-relaxed"><input className="mt-0.5" type="checkbox" checked={confirmed} onChange={event=>setConfirmed(event.target.checked)} disabled={pending} /> 대상과 답글을 확인했습니다. 기존 답글 {selectedReviews.filter(review=>review.adminReply).length}건은 새 내용으로 바뀝니다.</label>}
+          {error&&<p className="bg-transparent text-destructive" role="alert">{error}</p>}
+          <div className="flex flex-wrap justify-center gap-2">{request?<>
+            <Button disabled={pending} onClick={()=>run(async()=>{const response=await readReviewReplyBatchAction(request.requestId);if(!response.ok){setError(response.error);return;}if(response.result){acceptResult(response.result);return;}setNotSubmitted(true);setError('완료된 처리 기록이 없습니다. 아래 버튼으로 같은 요청을 다시 등록할 수 있습니다.');})} size="sm" type="button">처리 결과 다시 확인</Button>
+            {notSubmitted&&<Button disabled={pending} onClick={()=>run(()=>submit(request))} size="sm" type="button" variant="outline">같은 요청으로 다시 등록</Button>}
+          </>:<Button disabled={pending||!confirmed||[...reply.trim()].length<5||selected.length<1||selected.length>REVIEW_BATCH_MAX} size="sm" type="submit">일괄 답글 등록</Button>}
+          <Button disabled={pending} onClick={()=>setOpen(false)} size="sm" type="button" variant="outline">닫기</Button></div>
         </form>
       </>}
+      </div>
     </CustomerServiceDialog>}
   </CustomerServiceRecordProvider>;
 }

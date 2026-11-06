@@ -35,6 +35,8 @@ describe('CategoryScreen', () => {
 it('basic category managers keep CRUD and assignment without platform configuration', () => {
   const html = renderToStaticMarkup(<CategoryScreen data={{ categories, mappings: [], migrations: [], activation: { customerEnabled: false, erpEnabled: false, customerEvidence: null, erpEvidence: null, updatedAt: null } }} canManagePlatform={false} />);
   expect(html).toContain('카테고리 추가'); expect(html).toContain('대표 분류 저장'); expect(html).toContain('분류 CSV');
+  // kit 버튼은 type을 주지 않으면 button이 된다 — 서버 액션 폼의 제출 버튼은 submit이어야 한다.
+  for (const label of ['카테고리 추가', '대표 분류 저장', '보관']) expect(html).toMatch(new RegExp(`<button(?=[^>]*type="submit")[^>]*>${label}</button>`));
   for (const text of ['ERP 매핑 저장', '활성화 상태 저장', '이관 메모 저장', '기존 유형 이관 메모', '분류·ERP CSV']) expect(html).not.toContain(text);
 });
 

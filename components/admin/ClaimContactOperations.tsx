@@ -11,6 +11,15 @@ import type { AdminClaimReshipItem } from '@/lib/admin/claims.server';
 import type { ShippingCarrierRegistry } from '@/lib/orders/shipment';
 import { formatOrderDateTime } from '@/lib/orders';
 import { useClaimPreviewBusy } from '@/components/admin/screens/ClaimPreviewDialog';
+import { buttonVariants } from '@/components/admin/kit/ui/button';
+import { cn } from 'cn';
+
+/* 템플릿 룩(ADR-0028). 입력은 네이티브 그대로이고(어휘 CSS가 kit 모양을 입힌다), 버튼은 kit 버튼 모양이다. */
+const PRIMARY = cn(buttonVariants({ size: 'sm' }));
+const OUTLINE = cn(buttonVariants({ size: 'sm', variant: 'outline' }));
+const FIELD = 'flex min-w-0 flex-col gap-1.5';
+const FIELD_LABEL = 'font-medium';
+const CHECK = 'flex items-start gap-2 leading-relaxed';
 
 type Props = { actorId: string; orderId: string; claimId: string; canReship: boolean; carriers: ShippingCarrierRegistry; reshipItems: readonly AdminClaimReshipItem[] };
 type Draft = { recipientName: string; phone: string; postalCode: string; address1: string; address2: string; agreement: string; customerConfirmed: boolean; handoffConfirmed: boolean;
@@ -166,59 +175,63 @@ export function ClaimContactOperationPanel({ identity, scope, orderId, claimId, 
   }
   const locked = pending || Boolean(recovery) || !context?.allowed || !context.address || !context.signedContext;
   const patch = (value: Partial<Draft>) => setDraft(previous => ({ ...previous, ...value }));
-  return <section aria-label="회수·재배송 연락처 처리" className="admin-claim-contact">
-    <h3>회수·재배송 연락처</h3>
-    <p>수거·재배송을 시작하기 전에 받는 분, 연락처와 주소 전체를 수정합니다. 지역 요금이 달라지거나 요금 근거를 확인할 수 없는 변경은 저장하지 않습니다.</p>
-    <div className="admin-claim-contact__buttons">
-      <button className="btn btn-sm btn-ghost" type="button" disabled={pending || Boolean(recovery)} onClick={() => { void load('collection', 'change'); }}>회수지 연락처 확인</button>
-      <button className="btn btn-sm btn-ghost" type="button" disabled={pending || Boolean(recovery)} onClick={() => { void load('reshipment', 'change'); }}>재배송지 연락처 확인</button>
-      {canReship ? <button className="btn btn-sm" type="button" disabled={pending || Boolean(recovery)} onClick={() => { void load('reshipment', 'reshipment'); }}>최종 주소 확인 후 재출고 등록</button> : null}
+  return <section aria-label="회수·재배송 연락처 처리" className="flex min-w-0 flex-col gap-3 text-sm break-words" data-claim-contact="">
+    <h3 className="text-base leading-snug font-medium">회수·재배송 연락처</h3>
+    <p className="text-muted-foreground">수거·재배송을 시작하기 전에 받는 분, 연락처와 주소 전체를 수정합니다. 지역 요금이 달라지거나 요금 근거를 확인할 수 없는 변경은 저장하지 않습니다.</p>
+    <div className="flex flex-wrap gap-2">
+      <button className={OUTLINE} data-slot="button" type="button" disabled={pending || Boolean(recovery)} onClick={() => { void load('collection', 'change'); }}>회수지 연락처 확인</button>
+      <button className={OUTLINE} data-slot="button" type="button" disabled={pending || Boolean(recovery)} onClick={() => { void load('reshipment', 'change'); }}>재배송지 연락처 확인</button>
+      {canReship ? <button className={PRIMARY} data-slot="button" type="button" disabled={pending || Boolean(recovery)} onClick={() => { void load('reshipment', 'reshipment'); }}>최종 주소 확인 후 재출고 등록</button> : null}
     </div>
-    {context ? <div data-private="true">
-      <h4>{context.command === 'reshipment' ? '재출고 최종 주소 확인' : `${targetLabel(context.target)} 연락처 수정`}</h4>
-      {context.referenceOnly ? <p>{context.sourceKind === 'seller_intake' ? '최초 접수 당시 주소를 참고합니다.' : '원주문 배송지를 참고합니다.'} 확인만으로 연락처가 수정되지는 않습니다.</p> : null}
-      {context.address ? <p className="admin-claim-contact__address">{context.address.recipientName} · {context.address.phone}<br />({context.address.postalCode}) {context.address.address1}<br />{context.address.address2}</p>
-        : <p>{context.piiState === 'purged' ? '주소 원문이 파기되어 표시하지 않습니다.' : context.unavailableReason === 'retention_due' ? '주소 보관기간이 지나 내용을 표시하지 않습니다.' : '현재 주소를 표시할 수 없습니다.'}</p>}
+    {context ? <div className="flex min-w-0 flex-col gap-3 rounded-lg border p-3" data-private="true">
+      <h4 className="font-medium">{context.command === 'reshipment' ? '재출고 최종 주소 확인' : `${targetLabel(context.target)} 연락처 수정`}</h4>
+      {context.referenceOnly ? <p className="text-muted-foreground">{context.sourceKind === 'seller_intake' ? '최초 접수 당시 주소를 참고합니다.' : '원주문 배송지를 참고합니다.'} 확인만으로 연락처가 수정되지는 않습니다.</p> : null}
+      {context.address ? <p className="rounded-lg bg-muted/50 px-3 py-2.5">{context.address.recipientName} · {context.address.phone}<br />({context.address.postalCode}) {context.address.address1}<br />{context.address.address2}</p>
+        : <p className="text-muted-foreground">{context.piiState === 'purged' ? '주소 원문이 파기되어 표시하지 않습니다.' : context.unavailableReason === 'retention_due' ? '주소 보관기간이 지나 내용을 표시하지 않습니다.' : '현재 주소를 표시할 수 없습니다.'}</p>}
       {!context.allowed ? <p role="status">{claimContactError('claim_contact_blocked').message}</p> : null}
-      {context.allowed && context.address ? <form autoComplete="off" onSubmit={event => { event.preventDefault(); void save(); }}>
-        <fieldset disabled={locked}>
-          <legend>{context.command === 'change' ? '연락처와 고객 확인' : '실제 발송 정보'}</legend>
+      {context.allowed && context.address ? <form autoComplete="off" className="flex min-w-0 flex-col gap-3" onSubmit={event => { event.preventDefault(); void save(); }}>
+        <fieldset className="m-0 flex min-w-0 flex-col gap-3 border-0 p-0" disabled={locked}>
+          <legend className="mb-1 font-medium">{context.command === 'change' ? '연락처와 고객 확인' : '실제 발송 정보'}</legend>
           {context.command === 'change' ? <>
-            <label>받는 분<input autoComplete="off" required value={draft.recipientName} onChange={event => patch({ recipientName: event.target.value })} /></label>
-            <label>연락처<input autoComplete="off" inputMode="tel" required value={draft.phone} onChange={event => patch({ phone: event.target.value })} /></label>
-            <label>우편번호<input autoComplete="off" inputMode="numeric" pattern={draft.postalCode.trim() !== context.address!.postalCode.trim() || draft.address1.trim() !== context.address!.address1.trim() ? "[0-9]{5}" : undefined} maxLength={20} required value={draft.postalCode} onChange={event => patch({ postalCode: event.target.value })} /></label>
-            <label>기본 주소<input autoComplete="off" maxLength={200} required value={draft.address1} onChange={event => patch({ address1: event.target.value })} /></label>
-            <label>상세주소<input autoComplete="off" value={draft.address2} onChange={event => patch({ address2: event.target.value })} /></label>
-            <label>고객 합의 근거<textarea required rows={3} value={draft.agreement} onChange={event => patch({ agreement: event.target.value })} /></label>
-            <p>받는 분 50자, 연락처 숫자 8~15자리, 우편번호 5자리, 기본·상세주소 각각 200자, 합의 근거 2~500자까지 입력할 수 있습니다.</p>
-            <label className="admin-claim-contact__check"><input type="checkbox" checked={draft.customerConfirmed} onChange={event => patch({ customerConfirmed: event.target.checked })} />고객과 변경 내용을 확인했습니다.</label>
-            <label className="admin-claim-contact__check"><input type="checkbox" checked={draft.handoffConfirmed} onChange={event => patch({ handoffConfirmed: event.target.checked })} />{context.target === 'collection' ? '택배사 수거가 시작되지 않은 것을 확인했습니다.' : '교환품을 아직 발송하지 않은 것을 확인했습니다.'}</label>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className={FIELD}><span className={FIELD_LABEL}>받는 분</span><input autoComplete="off" className="w-full" required value={draft.recipientName} onChange={event => patch({ recipientName: event.target.value })} /></label>
+              <label className={FIELD}><span className={FIELD_LABEL}>연락처</span><input autoComplete="off" className="w-full" inputMode="tel" required value={draft.phone} onChange={event => patch({ phone: event.target.value })} /></label>
+            </div>
+            <label className={FIELD}><span className={FIELD_LABEL}>우편번호</span><input autoComplete="off" className="w-full sm:w-40" inputMode="numeric" pattern={draft.postalCode.trim() !== context.address!.postalCode.trim() || draft.address1.trim() !== context.address!.address1.trim() ? "[0-9]{5}" : undefined} maxLength={20} required value={draft.postalCode} onChange={event => patch({ postalCode: event.target.value })} /></label>
+            <label className={FIELD}><span className={FIELD_LABEL}>기본 주소</span><input autoComplete="off" className="w-full" maxLength={200} required value={draft.address1} onChange={event => patch({ address1: event.target.value })} /></label>
+            <label className={FIELD}><span className={FIELD_LABEL}>상세주소</span><input autoComplete="off" className="w-full" value={draft.address2} onChange={event => patch({ address2: event.target.value })} /></label>
+            <label className={FIELD}><span className={FIELD_LABEL}>고객 합의 근거</span><textarea className="w-full" required rows={3} value={draft.agreement} onChange={event => patch({ agreement: event.target.value })} /></label>
+            <p className="text-xs text-muted-foreground">받는 분 50자, 연락처 숫자 8~15자리, 우편번호 5자리, 기본·상세주소 각각 200자, 합의 근거 2~500자까지 입력할 수 있습니다.</p>
+            <label className={CHECK}><input className="mt-0.5" type="checkbox" checked={draft.customerConfirmed} onChange={event => patch({ customerConfirmed: event.target.checked })} /><span>고객과 변경 내용을 확인했습니다.</span></label>
+            <label className={CHECK}><input className="mt-0.5" type="checkbox" checked={draft.handoffConfirmed} onChange={event => patch({ handoffConfirmed: event.target.checked })} /><span>{context.target === 'collection' ? '택배사 수거가 시작되지 않은 것을 확인했습니다.' : '교환품을 아직 발송하지 않은 것을 확인했습니다.'}</span></label>
           </> : <>
-            {reshipItems.map(item => <label key={item.id}>{item.name} · {item.qty}개 재출고 상품<select required value={draft.items[item.id] ?? ''} onChange={event => patch({ items: { ...draft.items, [item.id]: event.target.value } })}>
+            {reshipItems.map(item => <label className={FIELD} key={item.id}><span className={FIELD_LABEL}>{item.name} · {item.qty}개 재출고 상품</span><select className="w-full" required value={draft.items[item.id] ?? ''} onChange={event => patch({ items: { ...draft.items, [item.id]: event.target.value } })}>
               <option value="" disabled>재출고할 상품 선택</option>{item.options.map(option => <option key={option.id} value={option.id}>{option.goodName ? `${option.goodName} · ` : ''}{option.name} · {option.code} · 재고 {option.stockQty}개</option>)}
             </select></label>)}
-            <label>택배사<select required value={draft.carrier} onChange={event => patch({ carrier: event.target.value })}><option value="" disabled>택배사 선택</option>{carriers.filter(carrier => carrier.active).map(carrier => <option key={carrier.code} value={carrier.code}>{carrier.label}</option>)}</select></label>
-            <label>재출고 운송장번호<input autoComplete="off" required value={draft.trackingNumber} onChange={event => patch({ trackingNumber: event.target.value })} placeholder="영문과 숫자 8~30자" /></label>
-            <label className="admin-claim-contact__check"><input type="checkbox" checked={draft.destinationConfirmed} onChange={event => patch({ destinationConfirmed: event.target.checked })} />표시된 최종 주소가 실제 발송할 주소와 같습니다.</label>
-            <label className="admin-claim-contact__check"><input type="checkbox" checked={draft.dispatchConfirmed} onChange={event => patch({ dispatchConfirmed: event.target.checked })} />전체 수량과 실제 발송 정보를 확인했습니다.</label>
-            <p>회수한 상품의 재고를 복원하고 선택한 상품으로 전체 수량을 재출고합니다. 결제금액과 카드팩은 유지됩니다.</p>
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className={FIELD}><span className={FIELD_LABEL}>택배사</span><select className="w-full" required value={draft.carrier} onChange={event => patch({ carrier: event.target.value })}><option value="" disabled>택배사 선택</option>{carriers.filter(carrier => carrier.active).map(carrier => <option key={carrier.code} value={carrier.code}>{carrier.label}</option>)}</select></label>
+              <label className={FIELD}><span className={FIELD_LABEL}>재출고 운송장번호</span><input autoComplete="off" className="w-full" required value={draft.trackingNumber} onChange={event => patch({ trackingNumber: event.target.value })} placeholder="영문과 숫자 8~30자" /></label>
+            </div>
+            <label className={CHECK}><input className="mt-0.5" type="checkbox" checked={draft.destinationConfirmed} onChange={event => patch({ destinationConfirmed: event.target.checked })} /><span>표시된 최종 주소가 실제 발송할 주소와 같습니다.</span></label>
+            <label className={CHECK}><input className="mt-0.5" type="checkbox" checked={draft.dispatchConfirmed} onChange={event => patch({ dispatchConfirmed: event.target.checked })} /><span>전체 수량과 실제 발송 정보를 확인했습니다.</span></label>
+            <p className="text-muted-foreground">회수한 상품의 재고를 복원하고 선택한 상품으로 전체 수량을 재출고합니다. 결제금액과 카드팩은 유지됩니다.</p>
           </>}
         </fieldset>
-        {!recovery ? <button className="btn btn-sm" disabled={locked} type="submit">{context.command === 'change' ? '연락처 수정 저장' : '재출고 등록하고 교환 종결'}</button> : null}
+        {!recovery ? <button className={`${PRIMARY} w-fit`} data-slot="button" disabled={locked} type="submit">{context.command === 'change' ? '연락처 수정 저장' : '재출고 등록하고 교환 종결'}</button> : null}
       </form> : null}
-      <button className="btn btn-sm btn-ghost" type="button" onClick={closePrivate}>연락처 닫기</button>
+      <button className={`${OUTLINE} w-fit`} data-slot="button" type="button" onClick={closePrivate}>연락처 닫기</button>
     </div> : null}
-    {recovery ? <div className="admin-claim-contact__recovery">
-      <p role="alert">{targetLabel(recovery.target)} {recovery.command === 'reshipment' ? '재출고' : '연락처 수정'} 요청의 결과를 먼저 확인해주세요. 주소 원문 없이 요청번호만 이 탭에 보관합니다.</p>
-      <p>요청 시각 {formatOrderDateTime(recovery.startedAt)}</p>
-      <div className="admin-claim-contact__buttons">
-        <button className="btn btn-sm" type="button" disabled={pending} onClick={() => { void check(); }}>저장 결과 확인</button>
-        {canRetry ? <button className="btn btn-sm btn-ghost" type="button" disabled={pending} onClick={() => { void save(true); }}>같은 내용으로 다시 요청</button> : null}
-        <button className="btn btn-sm btn-ghost" type="button" disabled={pending} onClick={() => { void check(true); }}>미처리 요청 종료</button>
+    {recovery ? <div className="flex min-w-0 flex-col gap-2 rounded-lg border border-destructive/30 bg-destructive/5 p-3">
+      <p className="text-destructive" role="alert">{targetLabel(recovery.target)} {recovery.command === 'reshipment' ? '재출고' : '연락처 수정'} 요청의 결과를 먼저 확인해주세요. 주소 원문 없이 요청번호만 이 탭에 보관합니다.</p>
+      <p className="text-muted-foreground">요청 시각 {formatOrderDateTime(recovery.startedAt)}</p>
+      <div className="flex flex-wrap gap-2">
+        <button className={PRIMARY} data-slot="button" type="button" disabled={pending} onClick={() => { void check(); }}>저장 결과 확인</button>
+        {canRetry ? <button className={OUTLINE} data-slot="button" type="button" disabled={pending} onClick={() => { void save(true); }}>같은 내용으로 다시 요청</button> : null}
+        <button className={OUTLINE} data-slot="button" type="button" disabled={pending} onClick={() => { void check(true); }}>미처리 요청 종료</button>
       </div>
     </div> : null}
-    {pending ? <p role="status">처리 결과를 확인하고 있습니다.</p> : null}
-    {error ? <p role="alert">{error}</p> : null}{message ? <p role="status">{message}</p> : null}
+    {pending ? <p className="text-muted-foreground" role="status">처리 결과를 확인하고 있습니다.</p> : null}
+    {error ? <p className="text-destructive" role="alert">{error}</p> : null}{message ? <p className="text-muted-foreground" role="status">{message}</p> : null}
   </section>;
 }
 

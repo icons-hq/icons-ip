@@ -21,6 +21,8 @@ function navigate(href: string, replace = false) {
   else window.location.assign(url.href);
 }
 export const useRouter = () => ({ push: (href: string) => navigate(href), replace: (href: string) => navigate(href, true), refresh: () => window.location.reload() });
+/* 클레임 일괄 처리(kit 목록)가 부른다. fixture의 서버 액션은 Next 리디렉션을 던지지 않으므로 다시 던질 것이 없다. */
+export function unstable_rethrow() {}
 export function useSearchParams() {
   const params = new URLSearchParams(window.location.search);
   if (params.get('view') === 'editor' && !params.has('create') && !params.has('goodId')) params.set('create', '1');

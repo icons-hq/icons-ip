@@ -11,6 +11,7 @@ vi.mock('@/app/admin/goods-size-chart-actions', () => ({ saveGoodsSizeChartActio
 vi.mock('./useGoodsSizeRecovery', () => ({ useGoodsSizeRecovery: () => ({ recovery: mocks.recovery, invalidRecovery: false, unavailable: false, capture: mocks.capture, restore: mocks.restore, discard: mocks.discard }) }));
 import { GoodSizeChartPanel } from './GoodSizeChartPanel';
 import { GoodsSizeChartFields } from './GoodsSizeChartFields';
+import { NativeSelect } from '@/components/admin/kit/ui/native-select';
 import type { GoodsSizeChart } from '@/lib/goods-size-chart';
 const chart: GoodsSizeChart = { unit: 'cm', sizes: ['단일'], measurements: [{ name: '둘레', values: ['42.7'] }], note: '' };
 const values = { enabled: true, chart }, snapshot = { goodId: 'synthetic-size', goodName: '합성 상품', values, revision: 1, updatedAt: '2026-10-14T00:00:00Z' };
@@ -51,7 +52,7 @@ it('keeps losing input for comparison and requires explicit adoption of the fres
   expect(mocks.save.mock.calls[1]).toEqual(['synthetic-size', { ...values, chart: { ...chart, note: '작성 중 안내' } }, 2, expect.any(String)]);
 });
 it('disables public display without clearing measurements', async () => {
-  await mount(); all(render()).find(node => node.type === 'select' && node.props.value === 'enabled')?.props.onChange?.({ target: { value: 'disabled' } });
+  await mount(); all(render()).find(node => (node.type === 'select' || node.type === NativeSelect) && node.props.value === 'enabled')?.props.onChange?.({ target: { value: 'disabled' } });
   mocks.save.mockResolvedValue({ ok: true, value: { ...snapshot, revision: 2, values: { enabled: false, chart } } }); submit(); await settle();
   expect(mocks.save.mock.calls[0][1]).toEqual({ enabled: false, chart });
   expect(text(render())).toContain('작성한 표는 보존했습니다.');

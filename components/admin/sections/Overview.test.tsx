@@ -45,9 +45,11 @@ describe('OverviewSection', () => {
     const html = renderToStaticMarkup(<OverviewSection insights={null} reports={[]} summary={{
       claims: { cancel: null, return: 0, exchange: 0 }, goods: { published: 0, soldout: null }, reviews: { total: 0, lowRating: 0, awaitingReply: 0 },
     }} />);
-    expect(html).toContain('취소요청</span><strong>확인 필요');
+    expect(html).toMatch(/취소요청<\/span><strong[^>]*>확인 필요<\/strong>/);
     expect(html).toContain('aria-label="반품요청 0건"');
-    expect(html).toContain('반품요청</span><strong>0</strong>');
+    expect(html).toMatch(/반품요청<\/span><strong[^>]*>0<\/strong>/);
+    /* 확인된 0건은 처리할 건수가 아니므로 의미색을 입히지 않는다. */
+    expect(html).not.toMatch(/반품요청<\/span><strong[^>]*text-destructive/);
     expect(html).toContain('href="/admin/cs/reviews?low=1&amp;page=1"');
     expect(html).toContain('href="/admin/cs/reviews?reply=without&amp;page=1"');
   });
@@ -103,9 +105,13 @@ describe('OverviewSection', () => {
     expect(html).toContain('href="/admin/sales/unpaid"');
     expect(html).toContain('aria-label="환불 송금 대기 확인 필요"');
     expect(html).toContain('href="/admin/sales/claims/refund-transfers"');
-    const claims = html.slice(html.indexOf('admin-home-claims'), html.indexOf('admin-home-work'));
+    const panel = (id: string) => `data-home-panel="${id}"`;
+    expect(html).toContain(panel('claims'));
+    const claims = html.slice(html.indexOf(panel('claims')), html.indexOf(panel('work')));
     expect(claims).toContain('환불 송금 대기');
-    expect(html.slice(html.indexOf('admin-home-work'), html.indexOf('admin-home-goods'))).toContain('무통장 입금 대기');
+    expect(html.slice(html.indexOf(panel('work')), html.indexOf(panel('goods')))).toContain('무통장 입금 대기');
+    /* 처리할 건수가 0보다 크면 의미색 하나(destructive)로 보인다. */
+    expect(html).toMatch(/무통장 입금 대기<\/span><strong[^>]*text-destructive[^>]*>5<\/strong>/);
   });
 
   it('매출이 없는 기간에는 임의의 숫자 축 대신 빈 상태를 표시한다', () => {

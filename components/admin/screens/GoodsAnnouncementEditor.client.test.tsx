@@ -21,6 +21,10 @@ vi.mock('@/components/admin/useCsEditorDraft', () => ({ useCsEditorDraft: () => 
   return { ...store.getSnapshot(), ...store, getCurrentSnapshot: store.getSnapshot };
 } }));
 import { GoodsAnnouncementEditor } from './GoodsAnnouncementEditor';
+import { Button } from '../kit/ui/button';
+import { Input } from '../kit/ui/input';
+/* kit 입력도 네이티브 input과 같은 입력 부품으로 찾는다(ADR-0028). */
+const isInput = (node: ReactElement) => node.type === 'input' || node.type === Input;
 const ACCOUNT = '00000000-0000-4000-8000-000000062210';
 const ID = '00000000-0000-4000-8000-000000062211';
 const OTHER = '00000000-0000-4000-8000-000000062212';
@@ -82,7 +86,7 @@ it('내부 이동이나 새로고침 뒤 명시 복구 전에는 편집/전송�
   unmount(); resetComponent(); newStore();
   const reopened = mount(); expect(reopened.editor.uncertain).toBe(true); expect(reopened.editor.canResolve).toBe(false);
   reopened.editor.action(form()); reopened.editor.retry(); expect(mocks.save).toHaveBeenCalledTimes(1);
-  const restore = flatten(reopened.node).find(node => node.type === 'button' && (node.props as { children?: string }).children === '고정된 저장 요청 복구')!;
+  const restore = flatten(reopened.node).find(node => (node.type === 'button' || node.type === Button) && (node.props as { children?: string }).children === '고정된 저장 요청 복구')!;
   (restore.props as { onClick: () => void }).onClick();
   const restored = render(); expect(restored.editor.canResolve).toBe(true);
   expect(flatten(restored.node).some(node => node.type === 'dd' && (node.props as { children?: string }).children === '최초 입력\n둘째 줄 ')).toBe(true);
@@ -159,10 +163,10 @@ it('팝업 CAS 거절 후에도 submit 기본동작을 막아 선택과 기간·
   const initial = fields();
   const popupLabel = flatten(initial).find(node => node.type === 'label' && Array.isArray((node.props as { children?: ReactNode }).children)
     && ((node.props as { children: ReactNode[] }).children).includes('이 공지를 홈 팝업으로 표시'))!;
-  const checkbox = flatten(popupLabel).find(node => node.type === 'input')!;
+  const checkbox = flatten(popupLabel).find(node => isInput(node))!;
   (checkbox.props as { onChange: (event: { target: { checked: boolean } }) => void }).onChange({ target: { checked: true } });
   for (const [name, value] of [['popupStartsAt', '2026-10-14T09:00'], ['popupEndsAt', '2026-10-15T09:00']]) {
-    const field = flatten(fields()).find(node => node.type === 'input' && (node.props as { name?: string }).name === name)!;
+    const field = flatten(fields()).find(node => isInput(node) && (node.props as { name?: string }).name === name)!;
     (field.props as { onChange: (event: { target: { value: string } }) => void }).onChange({ target: { value } });
   }
   const renderedForm = fields();
@@ -181,8 +185,18 @@ it('팝업 CAS 거절 후에도 submit 기본동작을 막아 선택과 기간·
     const after = flatten(fields());
     const afterLabel = after.find(node => node.type === 'label' && Array.isArray((node.props as { children?: ReactNode }).children)
       && ((node.props as { children: ReactNode[] }).children).includes('이 공지를 홈 팝업으로 표시'))!;
-    expect((flatten(afterLabel).find(node => node.type === 'input')!.props as { checked: boolean }).checked).toBe(true);
-    expect((after.find(node => node.type === 'input' && (node.props as { name?: string }).name === 'popupStartsAt')!.props as { value: string }).value).toBe('2026-10-14T09:00');
-    expect((after.find(node => node.type === 'input' && (node.props as { name?: string }).name === 'popupIntent')!.props as { value: string }).value).toBe('set');
+    expect((flatten(afterLabel).find(node => isInput(node))!.props as { checked: boolean }).checked).toBe(true);
+    expect((after.find(node => isInput(node) && (node.props as { name?: string }).name === 'popupStartsAt')!.props as { value: string }).value).toBe('2026-10-14T09:00');
+    expect((after.find(node => isInput(node) && (node.props as { name?: string }).name === 'popupIntent')!.props as { value: string }).value).toBe('set');
   } finally { vi.unstubAllGlobals(); }
+});
+
+it('저장 버튼은 폼 제출이고 결과 확인·재저장은 제출하지 않는다(kit 버튼의 기본 type은 button)', () => {
+  const view = render();
+  const fields = (view.child!.type as (props: EditorProps) => ReactElement)(view.editor);
+  const save = flatten(fields).find(node => node.type === Button && (node.props as { children?: ReactNode }).children === '저장');
+  expect((save?.props as { type?: string } | undefined)?.type).toBe('submit');
+  const pending = (view.child!.type as (props: EditorProps) => ReactElement)({ ...view.editor, uncertain: true });
+  const types = flatten(pending).filter(node => node.type === Button).map(node => (node.props as { type?: string }).type);
+  expect(types).not.toContain('submit');
 });

@@ -16,6 +16,9 @@ describe('purchase restrictions screen',()=>{
  expect(html).toContain('f***@example.test');expect(html).toContain('등록 근거');expect(html).toContain('해제 근거');
  expect(html.match(/name="pageSize"/g)).toHaveLength(1);
  expect(html).not.toContain('name="restrictionId"');
+ /* 고객 조회·복수등록 대상 확인은 양식 제출이다 — kit Button은 type이 없으면 button이 된다. */
+ expect(html).toMatch(/<button[^>]*type="submit"[^>]*>고객 조회</);
+ expect(html).toMatch(/<button[^>]*type="submit"[^>]*>등록 대상 확인</);
  });
  it('선택 기록 해제 결과를 현재 고객의 다른 제한과 구분한다',()=>{
  const html=renderToStaticMarkup(<PurchaseRestrictionReleaseResult receipt={{id:'89200000-0000-7000-8000-000000000201',reason:'합의 근거',completedAt:'2026-10-13T00:00:00Z',rows:[

@@ -8,13 +8,27 @@ import {
   type AdminArtworkKind,
 } from '../../lib/admin/artwork';
 import { uploadAdminArtwork } from '../../lib/admin/artwork-upload.client';
+import { buttonVariants } from '@/components/admin/kit/ui/button';
 import { ArtworkCropGuide } from './ArtworkCropGuide';
+import { GOOD_INPUT_CLASS } from './GoodEditorParts';
 
 const CURRENT_PREVIEW_ALT = '현재 아트워크 미리보기';
 const SELECTED_PREVIEW_ALT = '선택한 아트워크 미리보기';
 const UPLOADED_PREVIEW_ALT = '업로드된 아트워크 미리보기';
 const UPLOAD_VALIDITY_MESSAGE = '이미지를 먼저 업로드해주세요.';
 export const COMMON_ARTWORK_GUIDANCE = 'JPEG, PNG, WebP · 최대 5MB · 가로·세로 최대 8192px · 총 4,000만 픽셀 이하 · 애니메이션 제외';
+
+/* 템플릿 룩(ADR-0028). 업로드 상태(data-upload-state)는 미리보기 테두리와 상태 글자 색으로 보인다. */
+const FILE_INPUT_CLASS = `${GOOD_INPUT_CLASS} cursor-pointer text-muted-foreground file:mr-3 file:inline-flex file:h-6 file:cursor-pointer file:items-center file:rounded-md file:border-0 file:bg-muted file:px-2 file:text-sm file:font-medium file:text-foreground`;
+const PREVIEW_STATE_CLASS: Record<string, string> = {
+  uploading: 'border-[var(--wc-info)]',
+  failed: 'border-destructive',
+  uploaded: 'border-[var(--wc-success)] forced-colors:border-[CanvasText]',
+};
+const STATUS_TONE_CLASS: Record<string, string> = {
+  failed: 'text-destructive',
+  uploaded: 'text-[var(--wc-success)]',
+};
 
 export interface ArtworkDisplayState {
   committedAlt: string;
@@ -299,38 +313,45 @@ export function ArtworkUploadField({
             ? 'saved'
             : 'empty';
 
+  /* GoodEditor·GoodWorkspace는 data-artwork-upload-field 경계 안의 hidden input으로 오류 칸 이름을 찾는다. */
   return (
     <section
       data-auto-upload={autoUpload || undefined}
       data-upload-state={uploadState}
-      className={`card col wc-admin-artwork-upload-field${compact ? ' wc-admin-artwork-upload-field--compact' : ''}`}
+      data-artwork-upload-field=""
+      className={`flex min-w-0 flex-col rounded-xl border bg-card text-sm text-card-foreground ${compact ? 'gap-2.5 p-3' : 'gap-3 p-4'}`}
+      data-artwork-compact={compact || undefined}
       data-artwork-kind={kind}
     >
-      <div className="row admin-artwork-layout">
+      <div className="flex min-w-0 flex-col items-stretch gap-3.5 md:flex-row md:items-start" data-artwork-layout="">
         <div
-          className="admin-artwork-preview"
+          className={['flex min-h-28 w-full max-w-[360px] shrink-0 items-center justify-center overflow-hidden rounded-lg border bg-background text-muted-foreground md:max-w-none',
+            compact ? 'md:w-[min(168px,34%)]' : 'md:w-[min(220px,42%)]', PREVIEW_STATE_CLASS[uploadState]].filter(Boolean).join(' ')}
+          data-artwork-preview=""
           style={{ aspectRatio: adminArtworkAspectRatio(kind) }}
         >
           {display.previewUrl ? (
             // eslint-disable-next-line @next/next/no-img-element
             <img
               alt={display.previewAlt}
+              className={`size-full ${kind === 'event' ? 'object-contain' : 'object-cover'}`}
               src={display.previewUrl}
-              style={{ height: '100%', objectFit: kind === 'event' ? 'contain' : 'cover', width: '100%' }}
             />
           ) : (
-            <span className="mono" style={{ color: 'var(--faint)', fontSize: 11 }}>이미지 없음</span>
+            <span className="text-xs text-muted-foreground">이미지 없음</span>
           )}
         </div>
-        <div className="col admin-artwork-controls" style={{ flex: 1, gap: 8, minWidth: 0 }}>
-          <label className="col" style={{ color: 'var(--dim)', fontSize: 13, gap: 7 }}>
+        <div className="flex min-w-0 flex-1 flex-col gap-2" data-artwork-controls="">
+          <label className="flex min-w-0 flex-col gap-2 text-sm font-medium text-foreground">
             {label}
             <input
               accept={ADMIN_ARTWORK_ACCEPT}
               aria-disabled={pending || undefined}
               aria-describedby={describedBy || undefined}
               aria-invalid={Boolean(error)}
-              className="admin-artwork-input"
+              className={FILE_INPUT_CLASS}
+              data-artwork-input=""
+              data-slot="input"
               data-upload-validity-message={UPLOAD_VALIDITY_MESSAGE}
               onChange={handleFileChange}
               onClick={(event) => {
@@ -338,14 +359,15 @@ export function ArtworkUploadField({
               }}
               ref={fileInputRef}
               type="file"
-              style={{ width: '100%' }}
             />
           </label>
-          {showGuidance && <span className="mono" id={helpId} style={{ color: 'var(--faint)', fontSize: 10 }}>{COMMON_ARTWORK_GUIDANCE}</span>}
-          {helpText && <span id={guidanceId} style={{ color: 'var(--dim)', fontSize: 12 }}>{helpText}</span>}
-          <div className="row admin-artwork-actions" style={{ flexWrap: 'wrap', justifyContent: 'flex-start' }}>
+          {showGuidance && <span className="text-xs text-muted-foreground" id={helpId}>{COMMON_ARTWORK_GUIDANCE}</span>}
+          {helpText && <span className="text-sm text-muted-foreground" id={guidanceId}>{helpText}</span>}
+          <div className="flex flex-wrap items-center justify-start gap-2" data-artwork-actions="">
             {(!autoUpload || Boolean(file && error)) && <button
-              className="btn btn-ghost admin-artwork-upload"
+              className={buttonVariants()}
+              data-artwork-upload=""
+              data-slot="button"
               disabled={!file || pending}
               onClick={() => void handleUpload()}
               type="button"
@@ -353,7 +375,8 @@ export function ArtworkUploadField({
               {pending ? '업로드 중' : error && file ? '다시 업로드' : display.imagePath ? '이미지 교체' : '이미지 업로드'}
             </button>}
             {(!autoUpload || Boolean(file && !pending)) && <button
-              className="btn btn-ghost"
+              className={buttonVariants({ variant: 'outline' })}
+              data-slot="button"
               disabled={!file || pending}
               onClick={handleSelectionCancel}
               type="button"
@@ -362,7 +385,9 @@ export function ArtworkUploadField({
             </button>}
             {allowRemove && (!autoUpload || Boolean(display.imagePath && !pending)) && (
               <button
-                className="btn btn-ghost admin-artwork-remove"
+                className={buttonVariants({ variant: 'destructive' })}
+                data-artwork-remove=""
+                data-slot="button"
                 disabled={!display.imagePath || pending}
                 onClick={handleRemove}
                 type="button"
@@ -375,16 +400,16 @@ export function ArtworkUploadField({
       </div>
       {showCropGuide && <ArtworkCropGuide kind={kind} src={display.previewUrl} />}
       <input name={name} readOnly type="hidden" value={display.imagePath} />
-      {showPath && <div className="mono" style={{ color: 'var(--faint)', fontSize: 10, overflowWrap: 'anywhere' }}>
+      {showPath && <div className="text-xs text-muted-foreground wrap-anywhere">
         현재 경로: {display.imagePath || '없음'}
       </div>}
       {error && (
-        <span id={errorId} role="alert" style={{ color: 'var(--pink)', fontSize: 12, fontWeight: 700 }}>
+        <span className="text-sm font-medium text-destructive" id={errorId} role="alert">
           {error}
         </span>
       )}
-      {status && <span aria-live="polite" data-upload-status={uploadState} role="status" style={{ color: error ? 'var(--pink)' : 'var(--mint)', fontSize: 12 }}>{status}</span>}
-      {!status && uploadState === 'saved' && <span aria-live="polite" data-upload-status="saved" role="status" style={{ color: 'var(--dim)', fontSize: 12 }}>현재 저장된 이미지</span>}
+      {status && <span aria-live="polite" className={`text-sm ${STATUS_TONE_CLASS[uploadState] ?? 'text-muted-foreground'}`} data-upload-status={uploadState} role="status">{status}</span>}
+      {!status && uploadState === 'saved' && <span aria-live="polite" className="text-sm text-muted-foreground" data-upload-status="saved" role="status">현재 저장된 이미지</span>}
     </section>
   );
 }

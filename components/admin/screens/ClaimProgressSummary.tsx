@@ -50,11 +50,19 @@ export function ClaimProgressSummary({ claim, refund }: Props) {
     settlement,
   ];
 
-  return <section className="admin-claim-progress" aria-label="클레임 처리 현황">
-    <div className="admin-claim-progress__heading"><h3>처리 현황</h3><p>처리 단계와 회수·환불·배송 기록을 각각 확인합니다.</p></div>
-    <dl>{facts.map(fact => <div key={fact.label}>
-      <dt>{fact.label}</dt><dd><strong>{fact.value}</strong><span>{fact.detail}</span><a href={fact.href}>{fact.link}</a></dd>
+  return <section aria-label="클레임 처리 현황" className="flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4 text-sm text-card-foreground" data-admin-kit="claim-progress">
+    <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
+      <h3 className="text-base leading-snug font-medium">처리 현황</h3>
+      <p className="text-muted-foreground">처리 단계와 회수·환불·배송 기록을 각각 확인합니다.</p>
+    </div>
+    <dl className="grid gap-3 sm:grid-cols-3">{facts.map(fact => <div className="flex min-w-0 flex-col gap-2 rounded-lg border bg-muted/30 p-3" key={fact.label}>
+      <dt className="text-xs text-muted-foreground">{fact.label}</dt>
+      <dd className="flex min-w-0 flex-col gap-1 break-words">
+        <strong className="text-base font-semibold">{fact.value}</strong>
+        <span className="text-muted-foreground">{fact.detail}</span>
+        <a className="w-fit py-1 underline underline-offset-4" href={fact.href}>{fact.link}</a>
+      </dd>
     </div>)}</dl>
-    {claim.stage === 'on_hold' && claim.holdReason ? <p className="admin-claim-progress__hold">보류 사유: {claim.holdReason}</p> : null}
+    {claim.stage === 'on_hold' && claim.holdReason ? <p className="break-words text-muted-foreground">보류 사유: {claim.holdReason}</p> : null}
   </section>;
 }

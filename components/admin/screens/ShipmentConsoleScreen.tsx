@@ -19,6 +19,11 @@ import {SALES_DATE_FIELDS,SHIPMENT_PAGE_SIZES} from '@/lib/admin/sales-list';
 import {SalesFilterField,SalesFilterPanel,SalesGuide,SalesResultsHeader,SalesSelect,SalesStatusSummary} from '@/components/admin/sales/SalesConsole';
 import {SHIPMENT_DELAY_NOTICE_OPTIONS,shipmentDelayNoticeLabel} from '@/lib/admin/shipment-delay-notice';
 import {ORDER_DELAY_STATUS_LABELS} from '@/lib/admin/order-delay-notices';
+import {ChevronDown} from 'lucide-react';
+/* 발주확인·발송관리와 배송현황 — 템플릿 룩(ADR-0028). 조회 조건·처리 단계·열 구성·처리 순서는 그대로이고 셀 보조 줄은 유틸리티다. */
+const CELL_STACK='flex flex-col items-start gap-0.5';
+const CELL_NOTE='text-xs text-muted-foreground';
+const CELL_LINK='underline underline-offset-4';
 export function ShipmentConsoleScreen({data,registeredCount,actorId}:{data:ShipmentConsoleData;registeredCount?:number|null;actorId?:string}){
  const {surface,filters,rows,origins,carriers}=data;const isDispatch=surface==='dispatch';
  const hasParcelRows=!rows.length||rows.some(isParcelShipment);
@@ -33,33 +38,33 @@ export function ShipmentConsoleScreen({data,registeredCount,actorId}:{data:Shipm
   const methodLabel=row.delivery?DELIVERY_METHOD_LABELS[row.delivery.method]:parcel?'택배':'확인 필요';
   const detailHref=adminOrderDetailHrefFromBack(row.orderId,shipmentConsoleHref(surface,filters));
   return {id:row.id,selectable:filters.tab==='delayed'||shipmentConsoleSelectable(row,filters.tab),selectLabel:`배송 건 ${commerceReferenceLabel(row.id, row.shipmentNumber)} 선택`,cells:[
-   <div key="id"><Link
+   <div key="id" className={CELL_STACK}><Link
     aria-label={`주문 ${orderReferenceLabel(row.orderId, row.orderNumber)} 상세 열기 (새 탭)`}
-    className="mono"
+    className="font-medium tabular-nums underline-offset-4 hover:underline"
     href={adminOrderDetailHrefFromBack(row.orderId,shipmentConsoleHref(surface,filters))}
     rel="noopener noreferrer"
     target="_blank"
-   >{commerceReferenceLabel(row.id, row.shipmentNumber)}</Link><br/><small>주문 {orderReferenceLabel(row.orderId, row.orderNumber)}</small>{row.pack?<p><AdminStatusBadge tone="neutral">합포장 {row.pack.id.slice(-8).toUpperCase()} · {row.pack.count}건</AdminStatusBadge></p>:null}</div>,
+   >{commerceReferenceLabel(row.id, row.shipmentNumber)}</Link><small className={`${CELL_NOTE} tabular-nums`}>주문 {orderReferenceLabel(row.orderId, row.orderNumber)}</small>{row.pack?<AdminStatusBadge tone="neutral">합포장 {row.pack.id.slice(-8).toUpperCase()} · {row.pack.count}건</AdminStatusBadge>:null}</div>,
    <span key="origin">{row.originName}</span>,<span key="method">{methodLabel}</span>,<span key="buyer">{row.buyerName}</span>,<span key="recipient">{row.recipientName||'미기록'}</span>,
-   <ul key="items">{row.items.map(item=><li key={item.id}>{item.name}{item.variantName?` · ${item.variantName}`:''} × {item.qty}<GoodsCustomInputsSummary selection={item.customInputs} /></li>)}</ul>,
-   <div key="time">{formatOrderDateTime(isDispatch?row.createdAt:row.shippedAt??row.createdAt)}<br/><small>{(isDispatch?row.confirmedAt:row.deliveredAt)?formatOrderDateTime((isDispatch?row.confirmedAt:row.deliveredAt)!):'미기록'}</small></div>,
-   !parcel?<div key="method-action"><span>{row.delivery?deliveryStatusLabel(row.delivery.method,row.status):'배송 방식 확인 필요'}</span><br/>
-    <Link href={detailHref} target="_blank" rel="noopener noreferrer">{row.delivery?.method==='digital'?'디지털 파일 제공 이력':`${methodLabel} 인계·수령 확인`}</Link></div>:
-    isDispatch?<div key="export"><AdminStatusBadge tone={row.exportedAt?'success':'neutral'}>{row.exportedAt?'출고지시 전달':'내보내기 전'}</AdminStatusBadge>
-      {row.preorderReady===false?<p className="muted">예약 재고 할당 필요</p>:null}{row.production&&row.production.count>0?<p><Link href={detailHref}>주문제작 {row.production.completed}/{row.production.count}건 완료{row.production.ready?'':' · 제작 완료 전 발송 불가'}</Link></p>:null}</div>:
-    <div key="tracking"><span>{shipmentStatusLabel(row.status)}</span><br/>{tracking?<a href={tracking.trackingUrl} target="_blank" rel="noreferrer noopener">{tracking.carrierLabel} {tracking.trackingNumber}</a>:'운송장 확인 필요'}</div>,
-   ...(isDispatch?[<div key="notice"><strong>{shipmentDelayNoticeLabel(row.delayNotice?.status)}</strong>
-    {row.delayNotice?.requestedAt?<><br/><small>앱 {ORDER_DELAY_STATUS_LABELS[row.delayNotice.inAppStatus??'prepared']} · 이메일 {ORDER_DELAY_STATUS_LABELS[row.delayNotice.emailStatus??'unknown']}</small><br/><small>{formatOrderDateTime(row.delayNotice.requestedAt)}</small></>:null}</div>]:[]),
+   <ul key="items" className="flex flex-col gap-0.5">{row.items.map(item=><li key={item.id}>{item.name}{item.variantName?` · ${item.variantName}`:''} × {item.qty}<GoodsCustomInputsSummary selection={item.customInputs} /></li>)}</ul>,
+   <div key="time" className={`${CELL_STACK} tabular-nums`}>{formatOrderDateTime(isDispatch?row.createdAt:row.shippedAt??row.createdAt)}<small className={CELL_NOTE}>{(isDispatch?row.confirmedAt:row.deliveredAt)?formatOrderDateTime((isDispatch?row.confirmedAt:row.deliveredAt)!):'미기록'}</small></div>,
+   !parcel?<div key="method-action" className={CELL_STACK}><span>{row.delivery?deliveryStatusLabel(row.delivery.method,row.status):'배송 방식 확인 필요'}</span>
+    <Link className={CELL_LINK} href={detailHref} target="_blank" rel="noopener noreferrer">{row.delivery?.method==='digital'?'디지털 파일 제공 이력':`${methodLabel} 인계·수령 확인`}</Link></div>:
+    isDispatch?<div key="export" className={CELL_STACK}><AdminStatusBadge tone={row.exportedAt?'success':'neutral'}>{row.exportedAt?'출고지시 전달':'내보내기 전'}</AdminStatusBadge>
+      {row.preorderReady===false?<p className={CELL_NOTE}>예약 재고 할당 필요</p>:null}{row.production&&row.production.count>0?<p><Link className={CELL_LINK} href={detailHref}>주문제작 {row.production.completed}/{row.production.count}건 완료{row.production.ready?'':' · 제작 완료 전 발송 불가'}</Link></p>:null}</div>:
+    <div key="tracking" className={CELL_STACK}><span>{shipmentStatusLabel(row.status)}</span>{tracking?<a className={`${CELL_LINK} tabular-nums`} href={tracking.trackingUrl} target="_blank" rel="noreferrer noopener">{tracking.carrierLabel} {tracking.trackingNumber}</a>:'운송장 확인 필요'}</div>,
+   ...(isDispatch?[<div key="notice" className={CELL_STACK}><strong className="font-medium">{shipmentDelayNoticeLabel(row.delayNotice?.status)}</strong>
+    {row.delayNotice?.requestedAt?<><small className={CELL_NOTE}>앱 {ORDER_DELAY_STATUS_LABELS[row.delayNotice.inAppStatus??'prepared']} · 이메일 {ORDER_DELAY_STATUS_LABELS[row.delayNotice.emailStatus??'unknown']}</small><small className={`${CELL_NOTE} tabular-nums`}>{formatOrderDateTime(row.delayNotice.requestedAt)}</small></>:null}</div>]:[]),
    ...(filters.tab==='delayed'?[<DispatchDelayNoteForm key="delay" orderId={row.orderId} reference={orderReferenceLabel(row.orderId, row.orderNumber)} note={row.delayReason?{reason:row.delayReason,expectedShipDate:row.expectedShipDate,updatedAt:row.updatedAt}:null}/>]:[]),
   ]};
  });
- return <section className="admin-sales-console wc-admin-kit">
+ return <section className="flex min-w-0 flex-col gap-4 text-sm" data-shipment-console={surface}>
   <SalesGuide title={isDispatch?'신규주문 확인부터 출고지별 발송까지 처리할 수 있습니다.':'발송한 배송 건과 실제 배송완료 상태를 확인할 수 있습니다.'}>
    <p>{isDispatch&&hasParcelRows?'순서: 대상 선택 → 출고지시 내보내기 → 창고 회신 → 운송장 등록. 출고지별 배송 건을 확인하며, 퀵·직접배송·화물배송·방문수령·배송없음은 주문 상세에서 실제 인계와 수령을 확인합니다.':isDispatch?'택배 외 배송 방식은 주문 상세에서 확인합니다. 디지털 파일은 구매자의 다운로드 제공 이력으로 처리 상태를 확인합니다.':'택배의 실제 도착을 확인해 배송완료로 처리합니다. 택배 외 실물 상품은 주문 상세에서 수령 확인값과 인계 근거를 기록합니다. 디지털 파일은 다운로드 제공 이력으로 확인합니다.'}</p>
    {isDispatch?<p>지연 안내 결과는 배송 건별 최근 발송 요청의 앱 알림과 이메일 기록입니다. 미리보기만 저장한 안내는 제외합니다. 발송 처리는 앱 알림 기록과 이메일 공급자 접수·발송 상태이며 고객의 수신·열람을 뜻하지 않습니다. 채널별 실패와 결과 불명은 안내 이력에서 확인합니다.</p>:null}
   </SalesGuide>
   <SalesStatusSummary label="배송 처리 단계" items={SHIPMENT_CONSOLE_TABS[surface].map(tab=>({active:tab.id===filters.tab,label:tab.label,count:data.counts[tab.id],urgent:tab.id==='delayed'&&data.counts.delayed>0,href:shipmentConsoleHref(surface,filters,{tab:tab.id,page:1})}))}/>
-  {!isDispatch&&registeredCount?<p role="status" className="wc-admin-kit__card">운송장 {registeredCount.toLocaleString('ko-KR')}건을 등록했습니다. 배송 메일은 대기열에서 처리됩니다.</p>:null}
+  {!isDispatch&&registeredCount?<p role="status" className="rounded-lg border bg-muted/40 px-3 py-2.5">운송장 {registeredCount.toLocaleString('ko-KR')}건을 등록했습니다. 배송 메일은 대기열에서 처리됩니다.</p>:null}
   <SalesFilterPanel currentHref={currentHref} id={`sales-${surface}`}
    hiddenFieldExclusions={['delayNotice']}
    date={{from:filters.from,to:filters.to,field:filters.dateField??'ordered',options:SALES_DATE_FIELDS.filter(option=>option.value!=='settled')}}
@@ -76,12 +81,12 @@ export function ShipmentConsoleScreen({data,registeredCount,actorId}:{data:Shipm
     options={[{value:'',label:'전체'},{value:'card',label:'카드'},{value:'bank_transfer',label:'무통장 입금'}]}/></SalesFilterField>
    {isDispatch?<SalesFilterField label="발송지연 안내여부" htmlFor="sales-shipment-delay-notice"><SalesSelect id="sales-shipment-delay-notice" name="delayNotice" value={filters.delayNotice??''} options={SHIPMENT_DELAY_NOTICE_OPTIONS}/></SalesFilterField>:null}
   </SalesFilterPanel>
-  <div className="admin-sales-results">
+  <div className="flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4 text-card-foreground" data-sales-results="">
   <SalesResultsHeader currentHref={currentHref} total={data.total} pageSize={data.pageSize} pageSizes={SHIPMENT_PAGE_SIZES} sort={filters.sort??'oldest'} unit="개 배송 건">
    <AdminListExportButton href={adminListExportHref(surface,currentHref)} total={data.total}/>
   </SalesResultsHeader>
-  <details className="admin-shipment-import-disclosure">
-   <summary>운송장 가져오기 · 창고 회신 등록</summary>
+  <details className="group rounded-lg border" data-shipment-import="">
+   <summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-3 py-2.5 font-medium [&::-webkit-details-marker]:hidden">운송장 가져오기 · 창고 회신 등록<ChevronDown aria-hidden="true" className="size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180"/></summary>
    <DispatchTrackingImportPanel carriers={carriers} originId={filters.originId} shippingHref={shipmentConsoleHref('shipping',filters,{tab:'transit',page:1})}/>
   </details>
   <ShipmentConsoleGrid actorId={actorId} rows={rows} columns={columns} gridRows={gridRows} tab={filters.tab} origins={isDispatch?origins:[]} originId={filters.originId}

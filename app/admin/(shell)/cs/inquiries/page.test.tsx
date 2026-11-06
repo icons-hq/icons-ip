@@ -134,7 +134,7 @@ describe('AdminCsInquiriesPage', () => {
   it('선택한 문의를 목록 위 넓은 팝업으로 열고, 선택이 없으면 팝업을 그리지 않는다', async () => {
     mocks.detail.mockResolvedValueOnce({ inquiry: { id: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' } });
     const html = renderToStaticMarkup(await AdminCsInquiriesPage({ searchParams: Promise.resolve({ inquiryId: 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa' }) }));
-    expect(html).toMatch(/<dialog[^>]*class="admin-cs-dialog admin-cs-dialog--wide"/);
+    expect(html).toMatch(/<dialog[^>]*class="admin-cs-dialog [^"]*" data-wide="true"/);
     expect(html).toContain('고객문의 상세 · 답변');
     expect(html).toContain('상세 aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa embedded');
     expect(html).not.toContain('admin-inquiry-preview');

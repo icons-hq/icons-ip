@@ -15,6 +15,9 @@ describe('settlement screen', () => {
     expect(html).toContain('12,684.55'); expect(html).toContain('315.45'); expect(html).toContain('수집 완료 2026-10-13 22:05');
     expect(html).toContain('PG 정산 연결 꺼짐'); expect(html).toContain('실제 입금 완료를 확인한 내역은 아닙니다');
     expect(html).toContain(`import=${report.snapshot!.id}`); expect(html).not.toMatch(/paymentKey|scopeHash|secretKey/);
+    /* 조회 조건은 GET 폼 제출이다 — kit Button은 type이 없으면 button이 된다. */
+    expect(html).toMatch(/<button[^>]*type="submit"[^>]*>검색</);
+    for (const name of ['account', 'dateField', 'from', 'to', 'query', 'kind', 'match', 'mode', 'currency', 'pageSize']) expect(html).toContain(`name="${name}"`);
   });
   it('shows transaction evidence and expandable fee details without raw identifiers', () => {
     const html = render('transactions'); expect(html).toContain('287B949D'); expect(html).toContain('상세 보기'); expect(html).toContain('수집 시점의 결제'); expect(html).toContain('기본 수수료');

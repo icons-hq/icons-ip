@@ -11,6 +11,10 @@ import {
   type GoodsOptionSaleMode,
   type GoodsOptionSaleModeState,
 } from '@/lib/goods-option-sale-mode';
+import { buttonVariants } from '@/components/admin/kit/ui/button';
+
+/* 템플릿 룩(ADR-0028). 라디오·버튼·폼은 네이티브 그대로다 — 테스트가 이 컴포넌트를 함수로 불러 네이티브 요소를 찾는다. */
+const MODE_LABEL_CLASS = 'flex min-w-0 cursor-pointer items-start gap-2 rounded-lg border px-3 py-2.5 text-sm text-foreground transition-colors has-checked:border-primary has-checked:bg-muted/40 has-disabled:cursor-not-allowed has-disabled:opacity-50 [&>input]:mt-0.5';
 
 const SAVE_FAILED = '판매 방식을 바꾸지 못했습니다. 잠시 후 다시 시도하세요.';
 const GOODS_CHANGED = goodsOptionSaleModeErrorMessage('goods_changed');
@@ -108,22 +112,22 @@ export function GoodsOptionSaleModePanel({ goodId, revision, disabled = false }:
   const randomBlocked = Boolean(current && current.optionSaleMode !== 'random' && current.randomProblem);
 
   return (
-    <section className="admin-panel col" style={{ gap: 10 }} aria-label="판매 방식">
-      <div>
-        <strong>판매 방식</strong>
-        <p className="admin-note">
+    <section className="flex min-w-0 flex-col gap-3 rounded-lg border p-4 text-sm" aria-label="판매 방식" data-good-option-sale-mode="">
+      <div className="flex flex-col gap-1">
+        <strong className="text-base leading-snug font-medium">판매 방식</strong>
+        <p className="text-sm text-muted-foreground">
           랜덤 판매는 고객이 옵션을 고르지 않고 &apos;랜덤&apos;으로 주문합니다. 주문할 때 남은 재고에 비례해 옵션이 무작위로 정해지고,
           주문 상세와 출고 파일에는 정해진 옵션이 보입니다. 고객의 상품·장바구니·주문·메일·리뷰에는 &apos;랜덤&apos;으로 보이고
           옵션별 재고도 보이지 않습니다. 교환으로 다시 보내는 상품은 보내는 옵션이 고객에게 안내됩니다.
         </p>
       </div>
-      {loadError && <p className="admin-error" role="alert">{loadError}</p>}
-      {!current && !loadError && <p className="admin-note" role="status">판매 방식을 불러오는 중입니다.</p>}
+      {loadError && <p className="text-sm text-destructive" role="alert">{loadError}</p>}
+      {!current && !loadError && <p className="text-sm text-muted-foreground" role="status">판매 방식을 불러오는 중입니다.</p>}
       {current && (
         <form onSubmit={submit}>
-          <fieldset disabled={disabled || pending} className="col" style={{ gap: 8, border: 0, padding: 0, margin: 0 }}>
+          <fieldset disabled={disabled || pending} className="m-0 flex min-w-0 flex-col gap-2 border-0 p-0">
             <legend className="sr-only">판매 방식</legend>
-            <label>
+            <label className={MODE_LABEL_CLASS}>
               <input
                 type="radio"
                 name="optionSaleMode"
@@ -133,7 +137,7 @@ export function GoodsOptionSaleModePanel({ goodId, revision, disabled = false }:
               />{' '}
               옵션 선택 판매
             </label>
-            <label>
+            <label className={MODE_LABEL_CLASS}>
               <input
                 type="radio"
                 name="optionSaleMode"
@@ -145,16 +149,16 @@ export function GoodsOptionSaleModePanel({ goodId, revision, disabled = false }:
               랜덤 판매 (판매 중인 옵션 {current.activeOptionCount}개)
             </label>
             {randomBlocked && current.randomProblem && (
-              <p className="admin-note">{goodsOptionSaleModeErrorMessage(current.randomProblem)}</p>
+              <p className="text-sm text-[var(--wc-warning)]">{goodsOptionSaleModeErrorMessage(current.randomProblem)}</p>
             )}
-            <button type="submit" className="btn btn-ghost" disabled={!selected || selected === current.optionSaleMode}>
+            <button type="submit" className={`${buttonVariants({ variant: 'outline' })} mt-1 self-start`} data-slot="button" disabled={!selected || selected === current.optionSaleMode}>
               {pending ? '바꾸는 중' : '판매 방식 저장'}
             </button>
           </fieldset>
         </form>
       )}
-      {result.error && <p className="admin-error" role="alert">{result.error}</p>}
-      {result.message && <p className="admin-note" role="status">{result.message}</p>}
+      {result.error && <p className="text-sm text-destructive" role="alert">{result.error}</p>}
+      {result.message && <p className="text-sm text-[var(--wc-success)]" role="status">{result.message}</p>}
     </section>
   );
 }

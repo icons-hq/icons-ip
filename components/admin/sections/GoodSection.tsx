@@ -15,6 +15,7 @@ import { adminCatalogArchiveCounts, filterAdminCatalogRecords, formatAdminCatalo
 import { goodsReadinessAnchor, type AdminGoodsReadiness } from '@/lib/admin/goods-readiness';
 import { ADMIN_VOCABULARY, adminGoodsCopy } from '@/lib/admin/vocabulary';
 import { AdminStatusBadge } from '../console/AdminKit';
+import { GOOD_INPUT_CLASS, GOOD_NOTE_CLASS } from '../GoodEditorParts';
 import { RecordList } from '../fields';
 import { GoodEditor } from '../GoodEditor';
 import { CatalogArchiveControl, CatalogArchiveFilter } from '../CatalogArchiveControls';
@@ -136,11 +137,11 @@ export function GoodSection({
 
   return (
     <GoodWorkspaceProvider completedKey={completedKey}>
-    <div className={hideRecordList?'col':'admin-master-detail'}>
-      {!hideRecordList && <div className="col" style={{ gap: 12, minWidth: 0 }}>
-        <label className="col" style={{gap:7}}>
+    <div className={hideRecordList ? 'flex min-w-0 flex-col gap-4' : 'grid min-w-0 items-start gap-4 lg:grid-cols-[minmax(15rem,0.34fr)_minmax(0,1fr)]'} data-good-workspace="">
+      {!hideRecordList && <div className="flex min-w-0 flex-col gap-3">
+        <label className="flex flex-col gap-2 text-sm font-medium">
           <span>{ADMIN_VOCABULARY.goods}명·{ADMIN_VOCABULARY.goodsCode}·ERP 코드·ERP 품명·바코드·검색 키워드</span>
-          <input className="admin-field-control" onChange={(event)=>setQuery(event.target.value)} placeholder={`${ADMIN_VOCABULARY.goods}명·${ADMIN_VOCABULARY.goodsCode}·검색 키워드`} type="search" value={query}/>
+          <input className={GOOD_INPUT_CLASS} data-slot="input" onChange={(event)=>setQuery(event.target.value)} placeholder={`${ADMIN_VOCABULARY.goods}명·${ADMIN_VOCABULARY.goodsCode}·검색 키워드`} type="search" value={query}/>
         </label>
         <CatalogArchiveFilter
           counts={adminCatalogArchiveCounts(records)}
@@ -164,25 +165,26 @@ export function GoodSection({
           thumbnailUrlFor={(good) => good.imageUrl}
         />
       </div>}
-      <div className="col" style={{ gap: 16, minWidth: 0 }}>
+      {/* 아래 여백은 고정 저장 영역(GoodEditor)에 마지막 카드가 가리지 않게 한다. */}
+      <div className="flex min-w-0 flex-col gap-4 pb-40 xl:pb-20">
         {!selected && accountId ? <GoodCopySourcePicker accountId={accountId} disabledReason={pending || editingState?.busy ? '현재 입력을 저장하는 중입니다.'
           : editingState?.dirty ? '작성 중인 입력은 먼저 임시저장한 뒤 복사할 상품을 선택해주세요.' : ''} /> : null}
-        {ownership?.group ? <section className="admin-good-workspace__lock"><strong>{ownership.group.name} · 그룹상품</strong><p>상품명과 옵션 구성은 <a href={goodsGroupHref(ownership.group.id)}>그룹 구성</a>에서, 카테고리·속성·IP·유형·고시·상세설명·A/S·사이즈는 <a href={goodsGroupCommonHref(ownership.group)}>공통정보 편집</a>에서 수정합니다.</p></section> : null}
-        {ownership && !ownership.aggregation.editable ? <p>배송비·주문 수량·회원 누적 한도·복수구매 할인은 <a href={`/admin/catalog/goods?goodId=${encodeURIComponent(ownership.aggregation.ownerGoodId)}`}>합산 기준 상품</a>에서 관리합니다.</p> : null}
-        {selected && <section aria-label="서버 판매 준비 상태" className="admin-good-workspace__readiness">
-          <h3>저장된 상품의 판매 준비</h3>
-          <p>게시·판매 설정·KC 검토는 별도 조건입니다. 이 요약은 결제사 승인이나 실제 구매 성공을 보증하지 않습니다.</p>
-          {readiness ? <><div className="admin-good-workspace__states">
+        {ownership?.group ? <section className={`${GOOD_NOTE_CLASS} flex flex-col gap-1`} data-good-lock=""><strong className="font-medium">{ownership.group.name} · 그룹상품</strong><p className="text-muted-foreground">상품명과 옵션 구성은 <a className="text-foreground underline underline-offset-4" href={goodsGroupHref(ownership.group.id)}>그룹 구성</a>에서, 카테고리·속성·IP·유형·고시·상세설명·A/S·사이즈는 <a className="text-foreground underline underline-offset-4" href={goodsGroupCommonHref(ownership.group)}>공통정보 편집</a>에서 수정합니다.</p></section> : null}
+        {ownership && !ownership.aggregation.editable ? <p className={`${GOOD_NOTE_CLASS} text-muted-foreground`}>배송비·주문 수량·회원 누적 한도·복수구매 할인은 <a className="text-foreground underline underline-offset-4" href={`/admin/catalog/goods?goodId=${encodeURIComponent(ownership.aggregation.ownerGoodId)}`}>합산 기준 상품</a>에서 관리합니다.</p> : null}
+        {selected && <section aria-label="서버 판매 준비 상태" className="flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4 text-sm text-card-foreground sm:p-5" data-good-readiness="">
+          <h3 className="text-base leading-snug font-medium">저장된 상품의 판매 준비</h3>
+          <p className="text-muted-foreground">게시·판매 설정·KC 검토는 별도 조건입니다. 이 요약은 결제사 승인이나 실제 구매 성공을 보증하지 않습니다.</p>
+          {readiness ? <><div className="flex flex-wrap items-center gap-2">
             <AdminStatusBadge>게시 · {{ draft: '초안', published: '공개', archived: '보관', unknown: '확인 필요' }[readiness.publication]}</AdminStatusBadge>
             <AdminStatusBadge>운영 · {{ active: '정상', stopped: '판매 중지', unknown: '확인 필요' }[readiness.operation]}</AdminStatusBadge>
             <AdminStatusBadge tone={readiness.saleSettings === 'ready' ? 'success' : 'warning'}>판매 설정 · {readiness.saleSettings === 'ready' ? '준비 완료' : '확인 필요'}</AdminStatusBadge>
             <AdminStatusBadge>공개 검토 · {{ current: 'KC 검토 완료', required: 'KC 검토 필요', legacy_unrecorded: '기존 공개 · KC 미기록', unknown: '확인 필요' }[readiness.publicReview]}</AdminStatusBadge>
-            <span>가용 할당 재고 {readiness.availableQty === null ? '확인 필요' : `${readiness.availableQty.toLocaleString('ko-KR')}개`}</span>
+            <span className="text-sm tabular-nums">가용 할당 재고 {readiness.availableQty === null ? '확인 필요' : `${readiness.availableQty.toLocaleString('ko-KR')}개`}</span>
           </div>
-            <ul>{readiness.reasons.map((reason) => <li key={reason.code}><a href={`#${goodsReadinessAnchor(reason.target)}`} onClick={(event) => { event.preventDefault(); focusGoodWorkspaceTarget(goodsReadinessAnchor(reason.target)); }}>{reason.label}</a> · {reason.detail}</li>)}</ul>
-            <small>확인 시각 {readiness.checkedAt ? new Date(readiness.checkedAt).toLocaleString('ko-KR') : '확인 필요'} · 미저장 입력은 판정에 포함되지 않습니다.</small></> : <p>판매 준비 정보를 확인하지 못했습니다. 다시 불러와 확인해주세요.</p>}
+            <ul className="flex list-disc flex-col gap-1 pl-5">{readiness.reasons.map((reason) => <li key={reason.code}><a className="underline underline-offset-4" href={`#${goodsReadinessAnchor(reason.target)}`} onClick={(event) => { event.preventDefault(); focusGoodWorkspaceTarget(goodsReadinessAnchor(reason.target)); }}>{reason.label}</a> · {reason.detail}</li>)}</ul>
+            <small className="text-xs text-muted-foreground">확인 시각 {readiness.checkedAt ? new Date(readiness.checkedAt).toLocaleString('ko-KR') : '확인 필요'} · 미저장 입력은 판정에 포함되지 않습니다.</small></> : <p className="text-muted-foreground">판매 준비 정보를 확인하지 못했습니다. 다시 불러와 확인해주세요.</p>}
         </section>}
-        <fieldset className="col" disabled={transactionBusy || subscriptionBusy || chargeBusy} style={{ border: 0, padding: 0, margin: 0, minWidth: 0, gap: 16 }}>
+        <fieldset className="m-0 flex min-w-0 flex-col gap-4 border-0 p-0" disabled={transactionBusy || subscriptionBusy || chargeBusy}>
         <GoodEditor
           ownership={ownership}
           onEditingStateChange={setEditingState}

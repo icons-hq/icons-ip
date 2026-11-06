@@ -18,9 +18,10 @@ export function CategoryDisplayPreview({ page, mobile, onQueryChange }: { page: 
     setPortal(doc.getElementById('category-preview'));
   }, []);
   useEffect(() => { const element = stage.current; if (!element) return; const observer = new ResizeObserver(([entry]) => setWidth(entry.contentRect.width)); observer.observe(element); return () => observer.disconnect(); }, []);
-  return <div ref={stage} className="admin-category-display__preview-stage"><div style={{ width: width > 0 ? viewport * scale : '100%', height: 700 }}>
-    {width > 0 ? <iframe ref={frame} data-preview-ready={Boolean(portal)} onLoad={mount} srcDoc={DOCUMENT} sandbox="allow-same-origin" title={`${mobile ? '모바일' : 'PC'} 카테고리 전시 미리보기`}
-      style={{ width: viewport, height: 700 / scale, transform: `scale(${scale})`, transformOrigin: 'top left' }} /> : <p role="status">미리보기 준비 중…</p>}
+  /* 관리자 쪽 틀만 유틸리티로 그린다(ADR-0028) — iframe 안은 공개 스토어프런트 그대로다. */
+  return <div ref={stage} className="mt-1 w-full overflow-hidden rounded-lg bg-muted" data-category-preview-stage=""><div style={{ width: width > 0 ? viewport * scale : '100%', height: 700 }}>
+    {width > 0 ? <iframe className="block border-0" ref={frame} data-preview-ready={Boolean(portal)} onLoad={mount} srcDoc={DOCUMENT} sandbox="allow-same-origin" title={`${mobile ? '모바일' : 'PC'} 카테고리 전시 미리보기`}
+      style={{ width: viewport, height: 700 / scale, transform: `scale(${scale})`, transformOrigin: 'top left' }} /> : <p className="p-4 text-sm text-muted-foreground" role="status">미리보기 준비 중…</p>}
     {portal ? createPortal(<div onClickCapture={event => { if ((event.target as HTMLElement).closest('a')) event.preventDefault(); }}>
       <CategoryDisplayContents page={page} /><Shop view="all" title={page.category.name} query={page.query} result={page.result} onQueryChange={onQueryChange}
         refreshScheduledContent={false} overlayContainer={portal.ownerDocument.body} paging={{ loading: false, hasMore: false, onLoadMore: () => undefined }} />

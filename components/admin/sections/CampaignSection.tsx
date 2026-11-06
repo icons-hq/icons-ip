@@ -41,32 +41,36 @@ function campaignPeriodLabel(campaign: AdminCampaignRecord) {
 
 function campaignListLabel(campaign: AdminCampaignRecord) {
   return (
-    <span className="col" style={{ gap: 3, minWidth: 0, textAlign: 'left' }}>
-      <strong style={{ fontSize: 13 }}>{campaign.title}</strong>
-      <span className="faint mono" style={{ fontSize: 11 }}>
+    <span className="flex min-w-0 flex-col gap-0.5 text-left">
+      <strong className="truncate text-[13px] font-medium">{campaign.title}</strong>
+      <span className="text-[11px] text-muted-foreground">
         {ADMIN_CAMPAIGN_KIND_LABELS[campaign.kind]}
         {' · '}
         {ADMIN_CAMPAIGN_STATUS_LABELS[campaign.status]}
         {campaign.featuredOrder ? ` · 배너 ${campaign.featuredOrder}` : ''}
       </span>
-      <span className="faint mono" style={{ fontSize: 10.5 }}>{campaignPeriodLabel(campaign)}</span>
+      <span className="text-[11px] text-muted-foreground tabular-nums">{campaignPeriodLabel(campaign)}</span>
     </span>
   );
 }
 
+/* 본문 안 code 조각(필드 이름·경로)의 모양. code 요소에는 클래스를 달지 않고 부모가 입힌다. */
+const CODE = '[&_code]:rounded [&_code]:bg-muted [&_code]:px-1 [&_code]:py-0.5 [&_code]:font-mono [&_code]:text-[0.85em] [&_code]:text-foreground';
+const NOTE = 'm-0 text-xs leading-relaxed text-muted-foreground';
+
 /** 블록 스키마 안내. 직접 편집이 계약이면 계약서가 화면에 있어야 한다. */
 function SectionSchemaHelp() {
   return (
-    <details className="admin-campaign-help">
-      <summary>랜딩 구성 JSON 스키마 (블록 {ADMIN_CAMPAIGN_SECTION_SPECS.length}종)</summary>
-      <div className="col" style={{ gap: 8, marginTop: 8 }}>
-        <p className="muted" style={{ fontSize: 12, lineHeight: 1.7, margin: 0 }}>
+    <details className={`group rounded-lg border bg-muted/40 px-3.5 py-3 text-sm ${CODE}`}>
+      <summary className="cursor-pointer font-medium">랜딩 구성 JSON 스키마 (블록 {ADMIN_CAMPAIGN_SECTION_SPECS.length}종)</summary>
+      <div className="mt-2 flex flex-col gap-2">
+        <p className={NOTE}>
           최상위는 블록 배열이고 최대 {ADMIN_CAMPAIGN_MAX_SECTIONS}개까지입니다. 모든 블록은
           {' '}<code>type</code>이 필수이고 <code>anchor</code>(1~20자, 상세 목차 링크)를 선택으로
           받습니다. 목록에 없는 키는 저장되지 않습니다 — 오타는 조용히 통과하는 대신 거절됩니다.
           이 화면은 블록 편집기가 아니라 JSON 직접 편집이 v1 계약입니다.
         </p>
-        <ul className="admin-campaign-help-list">
+        <ul className="list-disc space-y-1 pl-5 text-xs leading-relaxed text-muted-foreground">
           {ADMIN_CAMPAIGN_SECTION_SPECS.map((spec) => (
             <li key={spec.type}>
               <code>{spec.type}</code> — {spec.label}
@@ -79,21 +83,21 @@ function SectionSchemaHelp() {
             </li>
           ))}
         </ul>
-        <p className="muted" style={{ fontSize: 12, lineHeight: 1.7, margin: 0 }}>
+        <p className={NOTE}>
           <code>exchange</code> 블록의 <code>offer_id</code>는 아래 카드팩 교환처 목록의 ID를
           복사해 넣습니다. <code>goods</code>의 <code>good_ids</code>{adminGoodsCopy("는 굿즈 ID 1~8개, ")}{' '}<code>notice</code>의 <code>items</code>는 문구 1~20줄입니다.
         </p>
-        <p className="muted" style={{ fontSize: 12, lineHeight: 1.7, margin: 0 }}>
+        <p className={NOTE}>
           <code>coupon</code>의 <code>coupon_code</code>는 쿠폰 관리에 먼저 등록되어 있어야 해요 —
           등록되지 않은 코드는 저장 단계에서 거절됩니다.
         </p>
-        <p className="muted" style={{ fontSize: 12, lineHeight: 1.7, margin: 0 }}>
+        <p className={NOTE}>
           <code>cta</code>는 이동 버튼입니다. <code>label</code>은 버튼 문구(1~{CAMPAIGN_CTA_LABEL_MAX_LENGTH}자),
           {' '}<code>href</code>는 <code>/</code>로 시작하는 ICONS 내부 경로(예: <code>/shop</code>,
           {' '}<code>/events/autumn-attendance</code>)만 받습니다. 외부 주소(<code>https://…</code>,
           {' '}<code>{'//…'}</code>), 공백·역슬래시가 든 주소, <code>.</code>·<code>..</code> 경로 조각은 저장되지 않습니다.
         </p>
-        <pre className="admin-campaign-help-sample">
+        <pre className="overflow-x-auto rounded-md border bg-background p-3 font-mono text-xs leading-relaxed">
 {`[
   { "type": "intro", "copy": "출석하고 카드팩을 받아 가세요" },
   { "type": "attendance", "anchor": "attend" },
@@ -127,7 +131,7 @@ function CampaignEditor({
   return (
     <form
       action={action}
-      className="card col wc-admin-kit wc-admin-kit__card"
+      className="flex min-w-0 flex-col gap-4 rounded-xl border bg-card p-4 text-sm text-card-foreground sm:p-5"
       onSubmit={(event) => {
         const raw = new FormData(event.currentTarget).get('sections');
         const parsed = parseAdminCampaignSections(typeof raw === 'string' ? raw : '');
@@ -138,7 +142,6 @@ function CampaignEditor({
         setSectionsError(parsed.message);
         event.preventDefault();
       }}
-      style={{ gap: 14 }}
     >
       <input name="previousId" type="hidden" value={selected?.id ?? ''} />
       <AdminFormGrid>
@@ -234,7 +237,7 @@ function CampaignEditor({
         />
       </AdminFormGrid>
 
-      <div className="admin-campaign-sections col" style={{ gap: 8 }}>
+      <div className="flex flex-col gap-2 [&_textarea]:min-h-[260px] [&_textarea]:font-mono [&_textarea]:text-[12.5px] [&_textarea]:leading-relaxed">
         <TextArea
           defaultValue={adminCampaignSectionsInput(selected?.sections)}
           label="랜딩 구성 (sections JSON · 비우면 본문 없음)"
@@ -248,7 +251,7 @@ function CampaignEditor({
       </div>
 
       {selected && (
-        <p className="muted" style={{ fontSize: 12, margin: 0 }}>
+        <p className="text-xs text-muted-foreground">
           블록 {selected.sections.length}개 · 최근 수정 {adminCampaignDateTimeInput(selected.updatedAt).replace('T', ' ')} (KST)
         </p>
       )}
@@ -273,13 +276,13 @@ export function CampaignSection({
   state: AdminCampaignActionState;
 }) {
   return (
-    <div className="col" style={{ gap: 14 }}>
-      <p className="muted" style={{ fontSize: 12, lineHeight: 1.7, margin: 0 }}>
+    <div className="flex min-w-0 flex-col gap-4">
+      <p className={`${NOTE} ${CODE}`}>
         캠페인은 이벤트 허브(<code>/events</code>)와 상세 페이지가 읽는 편성 단위입니다.
         오프라인 팝업 예매(이벤트 카탈로그)와는 다른 도메인이라 슬러그가 서로 겹칠 수 없습니다.
-        상태를 <strong>종료</strong>로 바꾸면 진행 중 목록에서 내려갑니다.
+        상태를 <strong className="font-medium text-foreground">종료</strong>로 바꾸면 진행 중 목록에서 내려갑니다.
       </p>
-      <div className="admin-master-detail">
+      <div className="grid items-start gap-4 lg:grid-cols-[minmax(240px,0.34fr)_minmax(0,1fr)] [&>*]:min-w-0">
         <RecordList
           activeId={selected?.id ?? null}
           ariaLabel="캠페인 목록"

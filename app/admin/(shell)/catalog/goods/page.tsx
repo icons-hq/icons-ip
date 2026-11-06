@@ -53,10 +53,10 @@ export default async function AdminCatalogGoodsPage({ searchParams }: {
     ? filters.ipId : undefined;
   const listHref = goodsListHref(filters);
   const business = creating ? await getBusinessInfo() : null;
-  return <section className="wc-admin-kit wc-admin-kit__screen">
-    <Link href={listHref}>← {ADMIN_VOCABULARY.goods} 목록으로</Link>
+  return <section className="flex min-w-0 flex-col gap-4" data-admin-screen="good-editor">
+    <Link className="w-fit text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline" href={listHref}>← {ADMIN_VOCABULARY.goods} 목록으로</Link>
     <AdminPageHeader title={selected?.name ?? `${ADMIN_VOCABULARY.goods} 등록`} description={selected?.id} />
-    {selected && hasAdminCapability(auth, 'catalog.manage') ? <p><Link href={`/admin/catalog/goods/media?goodId=${encodeURIComponent(selected.id)}`}>동영상·숏클립 관리</Link></p> : null}
+    {selected && hasAdminCapability(auth, 'catalog.manage') ? <p className="text-sm"><Link className="underline underline-offset-4" href={`/admin/catalog/goods/media?goodId=${encodeURIComponent(selected.id)}`}>동영상·숏클립 관리</Link></p> : null}
     <GoodScreen
       ownership={editor.ownership}
       accountId={auth.user.id} cloneOperationId={randomUUID()} canManageCosts={canAccessAdminScreen(auth, null, { capability: 'platform.manage', adminOnly: true })} canReadOrders={hasAdminCapability(auth, 'sales.read')} canManageSales={hasAdminCapability(auth, 'sales.manage')} canSearchErp={hasAdminCapability(auth, 'platform.manage')} categories={editor.categories} shippingNoticeOptions={editor.shippingNoticeOptions} origins={editor.origins} noticeDefaults={business ? { asManager: business.companyName, asContact: business.phone || business.email } : undefined}

@@ -16,7 +16,7 @@ describe('AdminLocalDraftNotice', () => {
     expect(html).toContain('type="button"');
     expect(html).toContain('>복구</button>');
     expect(html).toContain('>버리기</button>');
-    expect(html).toContain('wc-admin-kit');
+    expect(html).toContain('data-admin-kit="section"');
     const pending = renderToStaticMarkup(<AdminLocalDraftNotice recovery pending onRestore={vi.fn()} onDiscard={vi.fn()} />);
     expect(pending.match(/disabled=""/g)).toHaveLength(2);
   });

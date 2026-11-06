@@ -157,7 +157,6 @@ describe('해시 이동 착지선 (html scroll-padding-top)', () => {
      변수를 읽지 못해 globals.css 가 같은 상태 조건으로 같은 수치를 적는다 — 한쪽만 바뀌면 sticky 표면과 해시 착지가
      갈라진다. 2026-10-23까지는 White Catalog 이전 셸의 112(≤720px 88)가 남아 해시 대상이 크롬보다 그만큼 아래에 섰다. */
   const globals = postcss.parse(readFileSync(new URL('../../app/globals.css', import.meta.url), 'utf8'));
-  const admin = postcss.parse(readFileSync(new URL('../../app/styles/wc-admin.css', import.meta.url), 'utf8'));
 
   function htmlScrollPadding() {
     const found: Array<{ selector: string; media: string | null; layer: string | null; value: string }> = [];
@@ -191,12 +190,11 @@ describe('해시 이동 착지선 (html scroll-padding-top)', () => {
   });
 
   it('어드민은 고정 상단바 높이를, 셸이 없는 집중형 화면은 0을 둔다', () => {
-    const topbar: Decls = {};
-    admin.walkRules('.wc-admin .wc-admin__header', (rule) => {
-      if (mediaOf(rule) === null) rule.walkDecls((decl) => { topbar[decl.prop] = decl.value; });
-    });
-    expect(topbar).toMatchObject({ position: 'fixed', height: '55px' });
-    expect(htmlScrollPadding().filter((entry) => entry.selector === 'html:has(.wc-admin__header)').map((entry) => entry.value)).toEqual([topbar.height]);
+    /* 어드민 상단 막대는 kit 유틸리티로 그린다(ADR-0028): sticky top-0 · h-12(48px). */
+    const header = readFileSync(new URL('../admin/Header.tsx', import.meta.url), 'utf8');
+    const headerClass = header.match(/<header className="([^"]+)"[^>]*data-admin-header/)?.[1] ?? '';
+    expect(headerClass.split(/\s+/)).toEqual(expect.arrayContaining(['sticky', 'top-0', 'h-12']));
+    expect(htmlScrollPadding().filter((entry) => entry.selector === 'html:has([data-admin-header])').map((entry) => entry.value)).toEqual(['48px']);
     /* 셸을 묻지 않는 html 규칙에 높이를 두면 게임·초대 같은 화면도 없는 크롬만큼 내려간다. */
     expect(htmlScrollPadding().map((entry) => entry.selector).filter((selector) => !selector.startsWith('html:has('))).toEqual([]);
   });

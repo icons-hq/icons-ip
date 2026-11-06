@@ -4,6 +4,13 @@ import Link from 'next/link';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { getShippingChargeGroupAction, listShippingChargeGroupsAction } from '@/app/admin/shipping-charge-group-actions';
 import type { ShippingChargeGroup, ShippingChargeGroupIdentity, ShippingChargeGroupListData } from '@/lib/admin/shipping-charge-groups';
+import { Badge } from '@/components/admin/kit/ui/badge';
+import { buttonVariants } from '@/components/admin/kit/ui/button';
+import { GOOD_INPUT_CLASS } from './GoodEditorParts';
+
+/* 묶음그룹 요약 상자 — 미확인·미지정·지정 세 경우가 같은 모양을 쓴다. */
+const SUMMARY_CLASS = 'flex min-w-0 flex-col gap-1.5 rounded-lg border bg-muted/30 p-3 text-sm font-normal text-foreground';
+const LINK_CLASS = 'underline underline-offset-4';
 
 export type ShippingChargeGroupSummaryValue = Pick<ShippingChargeGroup,
   'id' | 'originId' | 'revision' | 'name' | 'enabled' | 'archived' | 'calculationMode'> & {
@@ -13,19 +20,19 @@ export type ShippingChargeGroupSummaryValue = Pick<ShippingChargeGroup,
 export function ShippingChargeGroupSummary({ group, originName, ownerGoodId, inherited = false, manageLink = false }: {
   group: ShippingChargeGroupSummaryValue | null | undefined; originName?: string; ownerGoodId?: string; inherited?: boolean; manageLink?: boolean;
 }) {
-  if (group === undefined) return <div className="admin-shipping-charge-group-summary"><p>배송비 묶음그룹을 확인하고 있습니다. 미확인 상태를 미지정이나 무료배송으로 처리하지 않습니다.</p></div>;
-  if (group === null) return <div className="admin-shipping-charge-group-summary"><strong>배송비 묶음그룹 미지정</strong><p>기존 상품·출고지의 배송비 규칙을 유지합니다. 기본 그룹을 바꾸어도 이 상품을 자동으로 배정하지 않습니다.</p>
-    {inherited && ownerGoodId ? <p>묶음그룹 배정은 <Link href={`/admin/catalog/goods?goodId=${encodeURIComponent(ownerGoodId)}`}>원상품에서 관리</Link>합니다.</p> : null}
+  if (group === undefined) return <div className={SUMMARY_CLASS} data-shipping-charge-group-summary="pending"><p className="text-muted-foreground">배송비 묶음그룹을 확인하고 있습니다. 미확인 상태를 미지정이나 무료배송으로 처리하지 않습니다.</p></div>;
+  if (group === null) return <div className={SUMMARY_CLASS} data-shipping-charge-group-summary="none"><strong className="font-medium">배송비 묶음그룹 미지정</strong><p className="text-muted-foreground">기존 상품·출고지의 배송비 규칙을 유지합니다. 기본 그룹을 바꾸어도 이 상품을 자동으로 배정하지 않습니다.</p>
+    {inherited && ownerGoodId ? <p className="text-muted-foreground">묶음그룹 배정은 <Link className={`${LINK_CLASS} text-foreground`} href={`/admin/catalog/goods?goodId=${encodeURIComponent(ownerGoodId)}`}>원상품에서 관리</Link>합니다.</p> : null}
   </div>;
   const regionMode = group.regional?.mode ?? group.regionalMode;
-  return <div className="admin-shipping-charge-group-summary">
-    <strong>{group.name} <span className="admin-shipping-charge-groups__badge">{group.archived ? '보관' : group.enabled ? '사용' : '사용 안 함'}</span></strong>
-    <dl><dt>배송비 계산</dt><dd>{group.calculationMode === 'min' ? '최소 부과' : '최대 부과'} · 유효 무료 조건 우선</dd>
+  return <div className={SUMMARY_CLASS} data-shipping-charge-group-summary="group">
+    <strong className="flex flex-wrap items-center gap-2 font-medium wrap-anywhere">{group.name} <Badge variant={group.archived || !group.enabled ? 'outline' : 'secondary'}>{group.archived ? '보관' : group.enabled ? '사용' : '사용 안 함'}</Badge></strong>
+    <dl className="grid min-w-0 grid-cols-1 gap-x-3 gap-y-0.5 sm:grid-cols-[max-content_minmax(0,1fr)] sm:gap-y-1 [&>dd]:m-0 [&>dd]:wrap-anywhere max-sm:[&>dd]:mb-1.5 [&>dt]:text-muted-foreground"><dt>배송비 계산</dt><dd>{group.calculationMode === 'min' ? '최소 부과' : '최대 부과'} · 유효 무료 조건 우선</dd>
       <dt>지역 추가료</dt><dd>{regionMode === 'inherit' ? '출고지 지역 정책 상속' : regionMode === 'override' ? '그룹 지역표로 그룹당 한 번' : '지역 정책 확인 필요'}</dd>
-      {originName ? <><dt>출고지</dt><dd>{originName}</dd></> : null}<dt>저장 버전</dt><dd>{group.revision}</dd></dl>
-    <p>같은 주문·출고지에서 실제 구매한 상품만 함께 계산합니다. 기본 배송비가 무료여도 지역 추가료는 별도 조건을 따릅니다.</p>
-    {inherited && ownerGoodId ? <p>이 상품은 <Link href={`/admin/catalog/goods?goodId=${encodeURIComponent(ownerGoodId)}`}>원상품의 묶음그룹 배정</Link>을 공유합니다.</p> : null}
-    {manageLink ? <Link href="/admin/settings/origins#shipping-charge-groups">배송비 묶음그룹 관리</Link> : null}
+      {originName ? <><dt>출고지</dt><dd>{originName}</dd></> : null}<dt>저장 버전</dt><dd className="tabular-nums">{group.revision}</dd></dl>
+    <p className="text-muted-foreground">같은 주문·출고지에서 실제 구매한 상품만 함께 계산합니다. 기본 배송비가 무료여도 지역 추가료는 별도 조건을 따릅니다.</p>
+    {inherited && ownerGoodId ? <p className="text-muted-foreground">이 상품은 <Link className={`${LINK_CLASS} text-foreground`} href={`/admin/catalog/goods?goodId=${encodeURIComponent(ownerGoodId)}`}>원상품의 묶음그룹 배정</Link>을 공유합니다.</p> : null}
+    {manageLink ? <Link className={`${LINK_CLASS} w-fit`} href="/admin/settings/origins#shipping-charge-groups">배송비 묶음그룹 관리</Link> : null}
   </div>;
 }
 
@@ -85,34 +92,34 @@ export function ShippingChargeGroupField({ identity, originId, value, onChange, 
     } catch { if (lane.isAlive() && request === sequence.current) setList({ owner, data: null, busy: false, error: '묶음그룹을 불러오지 못했습니다. 같은 출고지로 다시 조회해주세요.' }); }
   }
   const options = list.data?.groups.filter(group => group.originId === originId && group.enabled && !group.archived) ?? [];
-  return <div className="admin-shipping-charge-group-field">
+  return <div className="flex min-w-0 flex-col gap-2.5 text-sm" data-shipping-charge-group-field="">
     {name ? <input type="hidden" name={name} value={value ?? ''} /> : null}
     <ShippingChargeGroupSummary group={selected} ownerGoodId={ownerGoodId} inherited={readOnly} manageLink />
-    {!originId ? <p>출고지를 먼저 선택해주세요. 같은 출고지의 사용 중인 그룹만 선택할 수 있습니다.</p> : null}
-    {mismatch ? <p className="admin-shipping-charge-groups__error" role="alert">현재 선택한 그룹과 출고지가 다릅니다. 같은 출고지의 그룹을 다시 선택하거나 배정을 명시적으로 해제해주세요.</p> : null}
-    {error || loadedGroup?.error ? <p className="admin-shipping-charge-groups__error" role="alert">{error || loadedGroup?.error}</p> : null}
-    {!readOnly ? <div className="admin-shipping-charge-group-field__actions">
-      <button className="btn btn-sm btn-ghost" type="button" disabled={locked} aria-expanded={picker.open} aria-controls={`${id}-picker`}
+    {!originId ? <p className="text-muted-foreground">출고지를 먼저 선택해주세요. 같은 출고지의 사용 중인 그룹만 선택할 수 있습니다.</p> : null}
+    {mismatch ? <p className="text-destructive wrap-anywhere" role="alert">현재 선택한 그룹과 출고지가 다릅니다. 같은 출고지의 그룹을 다시 선택하거나 배정을 명시적으로 해제해주세요.</p> : null}
+    {error || loadedGroup?.error ? <p className="text-destructive wrap-anywhere" role="alert">{error || loadedGroup?.error}</p> : null}
+    {!readOnly ? <div className="flex min-w-0 flex-wrap items-center gap-2 print:hidden">
+      <button className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" type="button" disabled={locked} aria-expanded={picker.open} aria-controls={`${id}-picker`}
         onClick={() => { if (locked) return; setPicker({ owner, open: !picker.open, query: picker.query }); if (!picker.open) void search(1); }}>배송비 묶음그룹 선택</button>
-      {allowClear && value !== null ? <button className="btn btn-sm btn-ghost" type="button" disabled={locked} onClick={() => { if (!locked) { onChange(null, null); setPicker({ owner, open: false, query: '' }); } }}>묶음그룹 배정 해제</button> : null}
+      {allowClear && value !== null ? <button className={buttonVariants({ variant: 'ghost', size: 'sm' })} data-slot="button" type="button" disabled={locked} onClick={() => { if (!locked) { onChange(null, null); setPicker({ owner, open: false, query: '' }); } }}>묶음그룹 배정 해제</button> : null}
     </div> : null}
-    {picker.open && !readOnly ? <div id={`${id}-picker`} className="admin-shipping-charge-groups__notice">
-      <div className="admin-shipping-charge-group-field__search"><label htmlFor={`${id}-query`}>배송비 묶음그룹명<input id={`${id}-query`} value={picker.query} maxLength={100} disabled={locked}
+    {picker.open && !readOnly ? <div id={`${id}-picker`} className="flex min-w-0 flex-col gap-3 rounded-lg border p-3">
+      <div className="flex min-w-0 flex-wrap items-end gap-2"><label className="flex min-w-0 flex-1 basis-60 flex-col gap-2 font-medium" htmlFor={`${id}-query`}>배송비 묶음그룹명<input className={GOOD_INPUT_CLASS} data-slot="input" id={`${id}-query`} value={picker.query} maxLength={100} disabled={locked}
         onChange={event => setPicker({ owner, open: true, query: event.target.value })} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); void search(1); } }} /></label>
-        <button className="btn btn-sm" type="button" disabled={locked} onClick={() => { void search(1); }}>검색</button></div>
-      <p>조회 {list.data?.total.toLocaleString('ko-KR') ?? '—'}개 · 현재 출고지의 사용 중인 그룹</p>
-      {list.busy ? <p role="status">묶음그룹을 불러오고 있습니다.</p> : null}
-      {list.error ? <p className="admin-shipping-charge-groups__error" role="alert">{list.error}</p> : null}
-      <ul className="admin-shipping-charge-group-field__choices">{options.map(group => <li key={group.id} className="admin-shipping-charge-group-field__choice">
-        <div><strong>{group.name} {group.isDefault ? <span className="admin-shipping-charge-groups__badge">기본</span> : null}</strong>
-          <small>{group.calculationMode === 'min' ? '최소 부과' : '최대 부과'} · 무료 우선 · {group.regional.mode === 'inherit' ? '출고지 지역 정책 상속' : '그룹 지역표 1회'} · 버전 {group.revision}</small></div>
-        <button className="btn btn-sm btn-ghost" type="button" disabled={locked || value === group.id} onClick={() => { if (!locked && group.originId === originId && group.enabled && !group.archived) { onChange(group.id, group); setPicker({ owner, open: false, query: '' }); } }}>{value === group.id ? '선택됨' : '선택'}</button>
+        <button className={buttonVariants()} data-slot="button" type="button" disabled={locked} onClick={() => { void search(1); }}>검색</button></div>
+      <p className="text-muted-foreground tabular-nums">조회 {list.data?.total.toLocaleString('ko-KR') ?? '—'}개 · 현재 출고지의 사용 중인 그룹</p>
+      {list.busy ? <p className="text-muted-foreground" role="status">묶음그룹을 불러오고 있습니다.</p> : null}
+      {list.error ? <p className="text-destructive wrap-anywhere" role="alert">{list.error}</p> : null}
+      <ul className="m-0 flex min-w-0 list-none flex-col gap-2 p-0">{options.map(group => <li key={group.id} className="grid min-w-0 grid-cols-[minmax(0,1fr)_auto] items-center gap-3 rounded-lg border p-3">
+        <div className="min-w-0"><strong className="flex flex-wrap items-center gap-2 font-medium wrap-anywhere">{group.name} {group.isDefault ? <Badge variant="secondary">기본</Badge> : null}</strong>
+          <small className="mt-1 block text-xs text-muted-foreground wrap-anywhere">{group.calculationMode === 'min' ? '최소 부과' : '최대 부과'} · 무료 우선 · {group.regional.mode === 'inherit' ? '출고지 지역 정책 상속' : '그룹 지역표 1회'} · 버전 {group.revision}</small></div>
+        <button className={buttonVariants({ variant: value === group.id ? 'secondary' : 'outline', size: 'sm' })} data-slot="button" type="button" disabled={locked || value === group.id} onClick={() => { if (!locked && group.originId === originId && group.enabled && !group.archived) { onChange(group.id, group); setPicker({ owner, open: false, query: '' }); } }}>{value === group.id ? '선택됨' : '선택'}</button>
       </li>)}</ul>
-      {!list.busy && list.data && !options.length ? <p>선택할 수 있는 그룹이 없습니다. 기존 선택이나 미지정 상태는 자동으로 바뀌지 않습니다.</p> : null}
-      <div className="admin-shipping-charge-groups__pagination"><button className="btn btn-sm btn-ghost" type="button" disabled={locked || !list.data || list.data.page <= 1} onClick={() => { void search((list.data?.page ?? 1) - 1); }}>이전</button>
+      {!list.busy && list.data && !options.length ? <p className="text-muted-foreground">선택할 수 있는 그룹이 없습니다. 기존 선택이나 미지정 상태는 자동으로 바뀌지 않습니다.</p> : null}
+      <div className="flex min-w-0 items-center justify-center gap-3 tabular-nums print:hidden"><button className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" type="button" disabled={locked || !list.data || list.data.page <= 1} onClick={() => { void search((list.data?.page ?? 1) - 1); }}>이전</button>
         <span>{list.data?.page ?? 1} / {list.data ? Math.max(1, Math.ceil(list.data.total / list.data.pageSize)) : 1}</span>
-        <button className="btn btn-sm btn-ghost" type="button" disabled={locked || !list.data || list.data.page * list.data.pageSize >= list.data.total} onClick={() => { void search((list.data?.page ?? 1) + 1); }}>다음</button></div>
-      <p>기본 그룹 표시는 선택을 돕기 위한 정보입니다. 새 상품이나 기존 상품을 자동으로 배정하지 않습니다.</p>
+        <button className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" type="button" disabled={locked || !list.data || list.data.page * list.data.pageSize >= list.data.total} onClick={() => { void search((list.data?.page ?? 1) + 1); }}>다음</button></div>
+      <p className="text-xs text-muted-foreground">기본 그룹 표시는 선택을 돕기 위한 정보입니다. 새 상품이나 기존 상품을 자동으로 배정하지 않습니다.</p>
     </div> : null}
   </div>;
 }

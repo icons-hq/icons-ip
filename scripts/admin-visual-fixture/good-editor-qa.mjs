@@ -7,7 +7,7 @@ export async function verifyGoodEditor(page, origin, output) {
   page.on('dialog', acceptDialog);
   async function check(name, verify) { await verify(); checks.push(name); }
   try {
- await page.goto(`${origin}/?view=editor`);await page.waitForSelector('.admin-good-workspace__form');
+ await page.goto(`${origin}/?view=editor`);await page.waitForSelector('[data-good-workspace-form]');
  await check('identity and initial clean state',async()=>{assert.equal(await page.title(),'ICONS Admin visual fixture');await page.getByText('새 초안 · 아직 저장 전',{exact:true}).waitFor();});
  await page.locator('input[name="name"]').fill('편집 복구 검증 상품');
  await page.locator('input[name="regularPrice"]').fill('2000');
@@ -61,7 +61,7 @@ export async function verifyGoodEditor(page, origin, output) {
  const snapshot=await page.locator('input[name="variants"]').inputValue();
  await page.getByRole('button',{name:'초안으로 저장',exact:true}).click();
  await check('failed submission preserves latest options and uploads',async()=>{
-  await page.locator('.admin-good-workspace__save [role=alert]').filter({hasText:'합성 저장 실패'}).waitFor();
+  await page.locator('[data-good-workspace-save] [role=alert]').filter({hasText:'합성 저장 실패'}).waitFor();
   assert.equal(await page.locator('input[name="variants"]').inputValue(),snapshot);
   assert.equal(await page.locator('input[name="name"]').inputValue(),'편집 복구 검증 상품');
   assert.equal(await page.locator('#fixture-good-submission').textContent().then(text=>JSON.parse(text).variants),snapshot);

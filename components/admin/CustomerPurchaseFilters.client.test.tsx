@@ -48,3 +48,10 @@ it('retains manually entered comparison dates when comparison is disabled and re
   expect(input('compareFrom').props.value).toBe('2018-08-01');
   expect(input('compareTo').props.value).toBe('2018-08-31');
 });
+
+it('조회는 GET 폼을 제출하고 직전 동일 기간은 제출하지 않는다', () => {
+  /* kit Button은 type을 주지 않으면 type="button"이 된다 — 조회 버튼은 반드시 제출 버튼이어야 한다. */
+  expect(render().find(node => node.props.children === '조회')?.props.type).toBe('submit');
+  toggle(true);
+  expect(render().find(node => node.props.children === '직전 동일 기간')?.props.type).toBe('button');
+});

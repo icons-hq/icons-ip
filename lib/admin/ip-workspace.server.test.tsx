@@ -86,7 +86,8 @@ describe('loadAdminIpWorkspace', () => {
     expect(form).toContain(`현재 경로: ${MO}`);
     /* 저장된 배너를 운영자가 지울 수 있다 — 두 칸의 '이미지 제거'가 켜진다. */
     const banners = form.slice(0, form.indexOf('IP관 배너 저장'));
-    expect(banners.match(/class="btn btn-ghost admin-artwork-remove"[^>]*>/g)).toHaveLength(2);
-    expect(banners).not.toMatch(/admin-artwork-remove" disabled/);
+    const removeButtons = banners.match(/<button[^>]*data-artwork-remove=""[^>]*>이미지 제거<\/button>/g) ?? [];
+    expect(removeButtons).toHaveLength(2);
+    expect(removeButtons.filter((tag) => /\sdisabled=""/.test(tag))).toEqual([]);
   });
 });

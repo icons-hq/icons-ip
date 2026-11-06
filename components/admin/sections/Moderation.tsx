@@ -10,12 +10,20 @@ import {
 } from '@/app/admin/actions';
 import type { AdminReportRecord } from '@/lib/admin/moderation.server';
 import type { CommunityReportStatus } from '@/lib/community';
-import { Icon } from '@/components/ui/Icon';
+import { Check, EyeOff, MessageSquareText } from 'lucide-react';
+import { Badge } from '@/components/admin/kit/ui/badge';
+import { Button, buttonVariants } from '@/components/admin/kit/ui/button';
+import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/admin/kit/ui/empty';
+import { NativeSelect, NativeSelectOption } from '@/components/admin/kit/ui/native-select';
 import { InlineNotice } from '../fields';
 import { reportTargetLabels } from '@/lib/admin/moderation';
+import { SECTION_CARD } from './SectionLayout';
 
 const emptyState: AdminCatalogActionState = {};
 const reportStatuses: CommunityReportStatus[] = ['open', 'reviewing', 'resolved', 'dismissed'];
+
+/* 신고 처리 칸은 터치 기기에서 44px 높이를 지킨다(포인터가 거친 기기만, 데스크톱은 kit 기본 높이). */
+const TOUCH_TARGET = 'pointer-coarse:h-11';
 
 export function confirmCommunityCommentHide(event: FormEvent<HTMLFormElement>) {
   const confirmed = window.confirm(
@@ -28,23 +36,22 @@ function ReportStatusForm({ report }: { report: AdminReportRecord }) {
   const [state, action, pending] = useActionState(updateCommunityReportStatusAction, emptyState);
 
   return (
-    <form action={action} className="row" style={{ gap: 8, flexWrap: 'wrap', justifyContent: 'flex-start' }}>
+    <form action={action} className="flex flex-wrap items-center gap-2">
       <input name="reportId" type="hidden" value={report.id} />
-      <select
+      <NativeSelect
         aria-label={`${reportTargetLabels[report.targetType]} 신고 상태`}
-        className="admin-field-control"
+        className="w-32 [&>select]:pointer-coarse:h-11"
         defaultValue={report.status}
         key={report.status}
         name="status"
-        style={{ padding: '0 10px' }}
       >
         {reportStatuses.map((status) => (
-          <option key={status} value={status}>{status}</option>
+          <NativeSelectOption key={status} value={status}>{status}</NativeSelectOption>
         ))}
-      </select>
-      <button className="btn btn-sm admin-field-control" disabled={pending} style={{ minHeight: 44 }}>
-        <Icon name="check" size={14} /> {pending ? '저장 중' : '상태 저장'}
-      </button>
+      </NativeSelect>
+      <Button className={TOUCH_TARGET} disabled={pending} type="submit">
+        <Check aria-hidden="true" /> {pending ? '저장 중' : '상태 저장'}
+      </Button>
       <InlineNotice state={state} />
     </form>
   );
@@ -55,12 +62,12 @@ function HidePostForm({ report }: { report: AdminReportRecord }) {
   if (!report.targetPostId) return null;
 
   return (
-    <form action={action} className="row" style={{ gap: 8, flexWrap: 'wrap', justifyContent: 'flex-start' }}>
+    <form action={action} className="flex flex-wrap items-center gap-2">
       <input name="reportId" type="hidden" value={report.id} />
       <input name="postId" type="hidden" value={report.targetPostId} />
-      <button className="btn btn-sm admin-field-control" disabled={pending} style={{ minHeight: 44 }}>
-        <Icon name="shield" size={14} /> {pending ? '처리 중' : '포스트 숨김'}
-      </button>
+      <Button className={TOUCH_TARGET} disabled={pending} type="submit" variant="destructive">
+        <EyeOff aria-hidden="true" /> {pending ? '처리 중' : '포스트 숨김'}
+      </Button>
       <InlineNotice state={state} />
     </form>
   );
@@ -75,15 +82,14 @@ function HideCommentForm({ report }: { report: AdminReportRecord }) {
   return (
     <form
       action={action}
-      className="row"
+      className="flex flex-wrap items-center gap-2"
       onSubmit={confirmCommunityCommentHide}
-      style={{ gap: 8, flexWrap: 'wrap', justifyContent: 'flex-start' }}
     >
       <input name="reportId" type="hidden" value={report.id} />
       <input name="commentId" type="hidden" value={report.targetCommentId} />
-      <button className="btn btn-sm admin-field-control" disabled={hidden || pending} style={{ minHeight: 44 }}>
-        <Icon name="shield" size={14} /> {hidden ? '숨김 처리됨' : pending ? '처리 중' : '댓글 숨김'}
-      </button>
+      <Button className={TOUCH_TARGET} disabled={hidden || pending} type="submit" variant="destructive">
+        <EyeOff aria-hidden="true" /> {hidden ? '숨김 처리됨' : pending ? '처리 중' : '댓글 숨김'}
+      </Button>
       <InlineNotice state={state} />
     </form>
   );
@@ -102,35 +108,33 @@ function ReviewModerationLink({ report }: { report: AdminReportRecord }) {
 
   return (
     <Link
-      className="btn btn-sm btn-ghost admin-field-control"
+      className={`${buttonVariants({ variant: 'outline' })} ${TOUCH_TARGET}`}
+      data-slot="button"
       href={`/admin/cs/reviews?reviewId=${report.targetReviewId}`}
-      style={{ minHeight: 44 }}
     >
-      <Icon name="chat" size={14} /> 리뷰 관리에서 열기
+      <MessageSquareText aria-hidden="true" /> 리뷰 관리에서 열기
     </Link>
   );
 }
 
 export function ModerationSection({ reports }: { reports: AdminReportRecord[] }) {
   return (
-    <section className="col" style={{ gap: 12 }}>
+    <section className="flex min-w-0 flex-col gap-3">
       {reports.map((report) => (
-        <article key={report.id} className="card col wc-admin-kit wc-admin-kit__card" style={{ gap: 12 }}>
-          <div className="between" style={{ gap: 12, alignItems: 'start' }}>
-            <div className="col" style={{ gap: 6, minWidth: 0 }}>
-              <div className="row" style={{ gap: 8, flexWrap: 'wrap', justifyContent: 'flex-start' }}>
-                <span className="tag">{reportTargetLabels[report.targetType]}</span>
-                <span className="tag" style={{ color: 'var(--wc-info)' }}>{report.status}</span>
-                <span className="faint mono" style={{ fontSize: 11 }}>{new Date(report.createdAt).toLocaleString('ko-KR')}</span>
-              </div>
-              <strong style={{ fontSize: 15, lineHeight: 1.4 }}>{report.targetLabel}</strong>
-              <div className="muted" style={{ fontSize: 13 }}>
-                신고자 @{report.reporterName} · 대상 @{report.targetAuthorName}
-              </div>
-              {report.reason && <p style={{ fontSize: 13.5, lineHeight: 1.5, margin: 0 }}>{report.reason}</p>}
+        <article className={SECTION_CARD} key={report.id}>
+          <div className="flex min-w-0 flex-col gap-2">
+            <div className="flex flex-wrap items-center gap-2">
+              <Badge variant="secondary">{reportTargetLabels[report.targetType]}</Badge>
+              <Badge className="text-[var(--wc-info)]" variant="outline">{report.status}</Badge>
+              <span className="text-xs text-muted-foreground tabular-nums">{new Date(report.createdAt).toLocaleString('ko-KR')}</span>
             </div>
+            <p className="text-base leading-snug font-medium break-words text-foreground">{report.targetLabel}</p>
+            <p className="text-sm text-muted-foreground">
+              신고자 @{report.reporterName} · 대상 @{report.targetAuthorName}
+            </p>
+            {report.reason && <p className="text-sm break-words">{report.reason}</p>}
           </div>
-          <div className="row" style={{ gap: 10, flexWrap: 'wrap', justifyContent: 'flex-start' }}>
+          <div className="flex flex-wrap items-start gap-x-4 gap-y-2 border-t pt-4">
             <ReportStatusForm report={report} />
             <HideCommentForm report={report} />
             <HidePostForm report={report} />
@@ -139,10 +143,12 @@ export function ModerationSection({ reports }: { reports: AdminReportRecord[] })
         </article>
       ))}
       {!reports.length && (
-        <div className="card wc-admin-kit wc-admin-kit__card" style={{  }}>
-          <div style={{ fontWeight: 700 }}>처리할 신고가 없습니다.</div>
-          <p className="muted" style={{ marginTop: 6 }}>커뮤니티 신고가 접수되면 이곳에 표시됩니다.</p>
-        </div>
+        <Empty className="border">
+          <EmptyHeader>
+            <EmptyTitle>처리할 신고가 없습니다.</EmptyTitle>
+            <EmptyDescription>커뮤니티 신고가 접수되면 이곳에 표시됩니다.</EmptyDescription>
+          </EmptyHeader>
+        </Empty>
       )}
     </section>
   );

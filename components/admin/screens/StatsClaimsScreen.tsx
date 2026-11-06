@@ -1,6 +1,7 @@
 import { ADMIN_VOCABULARY as V } from '@/lib/admin/vocabulary';
 import { StatsComparison } from '@/components/admin/StatsComparison';
 import { StatsRangeTabs } from '@/components/admin/StatsRangeTabs';
+import { StatsSection, StatsSummaryGrid, StatsSummaryTile } from '@/components/admin/StatsSummary';
 import { ConsoleGrid, type ConsoleGridColumn } from '@/components/admin/console';
 import {
   adminClaimReasonLabel,
@@ -47,73 +48,56 @@ export function StatsClaimsScreen({
   comparison?: AdminClaimsReport | null;
 }) {
   return (
-    <section className="admin-console admin-stats wc-admin-kit">
+    <div className="flex min-w-0 flex-col gap-4" data-stats-screen="claims">
       <StatsRangeTabs base="/admin/stats/claims" filters={filters} now={now} />
 
-      <div className="admin-stats-summary">
-        <div>
-          <span>확정 주문</span>
-          <strong className="mono">{data.orderCount.toLocaleString('ko-KR')}</strong>
-        </div>
-        <div>
-          <span>{V.claimRequest} 접수</span>
-          <strong className="mono">{data.claimCount.toLocaleString('ko-KR')}</strong>
-        </div>
-        <div>
-          <span>환불 완료</span>
-          <strong className="mono">{data.refunds.completedCount.toLocaleString('ko-KR')}</strong>
-        </div>
-        <div>
-          <span>접수→환불 평균</span>
-          <strong className="mono">
-            {data.refunds.averageHours === null ? '—' : `${data.refunds.averageHours}시간`}
-          </strong>
-        </div>
-        <div>
-          <span>72시간 내 환불</span>
-          <strong className="mono">{data.refunds.within72h.toLocaleString('ko-KR')}건</strong>
-        </div>
-      </div>
+      <StatsSummaryGrid>
+        <StatsSummaryTile label="확정 주문" value={data.orderCount.toLocaleString('ko-KR')} />
+        <StatsSummaryTile label={`${V.claimRequest} 접수`} value={data.claimCount.toLocaleString('ko-KR')} />
+        <StatsSummaryTile label="환불 완료" value={data.refunds.completedCount.toLocaleString('ko-KR')} />
+        <StatsSummaryTile label="접수→환불 평균" value={data.refunds.averageHours === null ? '—' : `${data.refunds.averageHours}시간`} />
+        <StatsSummaryTile label="72시간 내 환불" value={`${data.refunds.within72h.toLocaleString('ko-KR')}건`} />
+      </StatsSummaryGrid>
 
       {comparison ? <StatsComparison filters={filters} now={now} rows={[
         { label: '클레임 접수', current: data.claimCount, previous: comparison.claimCount, unit: '건' },
         { label: '환불 완료', current: data.refunds.completedCount, previous: comparison.refunds.completedCount, unit: '건' },
       ]} /> : null}
-      <h3>유형별 접수와 {V.claimRate}</h3>
-      <ConsoleGrid
-        caption={`유형별 ${V.claimRequest}`}
-        columns={TYPE_COLUMNS}
-        emptyLabel={`이 기간에 접수된 ${V.claimRequest}이 없습니다.`}
-        rows={data.byType.map((row) => ({
-          id: row.claimType,
-          cells: [
-            adminClaimTypeLabel(row.claimType),
-            row.total.toLocaleString('ko-KR'),
-            row.completed.toLocaleString('ko-KR'),
-            row.rejected.toLocaleString('ko-KR'),
-            row.withdrawn.toLocaleString('ko-KR'),
-            row.open.toLocaleString('ko-KR'),
-            <span className="mono" key="rate">
-              {row.ratePerMille === null ? '—' : row.ratePerMille.toFixed(1)}
-            </span>,
-          ],
-        }))}
-      />
+      <StatsSection title={`유형별 접수와 ${V.claimRate}`}>
+        <ConsoleGrid
+          caption={`유형별 ${V.claimRequest}`}
+          columns={TYPE_COLUMNS}
+          emptyLabel={`이 기간에 접수된 ${V.claimRequest}이 없습니다.`}
+          rows={data.byType.map((row) => ({
+            id: row.claimType,
+            cells: [
+              adminClaimTypeLabel(row.claimType),
+              row.total.toLocaleString('ko-KR'),
+              row.completed.toLocaleString('ko-KR'),
+              row.rejected.toLocaleString('ko-KR'),
+              row.withdrawn.toLocaleString('ko-KR'),
+              row.open.toLocaleString('ko-KR'),
+              row.ratePerMille === null ? '—' : row.ratePerMille.toFixed(1),
+            ],
+          }))}
+        />
+      </StatsSection>
 
-      <h3>사유 분포</h3>
-      <ConsoleGrid
-        caption={`${V.claimRequest} 사유 분포`}
-        columns={REASON_COLUMNS}
-        emptyLabel={`이 기간에 접수된 ${V.claimRequest}이 없습니다.`}
-        rows={data.byReason.map((row) => ({
-          id: `${row.claimType}:${row.reasonType}:${row.staffReasonCode ?? ''}`,
-          cells: [
-            adminClaimTypeLabel(row.claimType),
-            adminClaimReasonLabel(row.reasonType, row.staffReasonCode ?? null),
-            row.total.toLocaleString('ko-KR'),
-          ],
-        }))}
-      />
-    </section>
+      <StatsSection title="사유 분포">
+        <ConsoleGrid
+          caption={`${V.claimRequest} 사유 분포`}
+          columns={REASON_COLUMNS}
+          emptyLabel={`이 기간에 접수된 ${V.claimRequest}이 없습니다.`}
+          rows={data.byReason.map((row) => ({
+            id: `${row.claimType}:${row.reasonType}:${row.staffReasonCode ?? ''}`,
+            cells: [
+              adminClaimTypeLabel(row.claimType),
+              adminClaimReasonLabel(row.reasonType, row.staffReasonCode ?? null),
+              row.total.toLocaleString('ko-KR'),
+            ],
+          }))}
+        />
+      </StatsSection>
+    </div>
   );
 }

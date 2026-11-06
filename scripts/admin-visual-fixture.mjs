@@ -12,9 +12,6 @@ const port = 4319;
 const fixtureStaticAssets = new Map([
   ['/fonts/admin/PretendardVariable.woff2', { file: resolve(repoRoot, 'public/fonts/admin/PretendardVariable.woff2'), type: 'font/woff2' }],
   ['/generated/goods/g13.webp', { file: resolve(repoRoot, 'public/generated/goods/g13.webp'), type: 'image/webp' }],
-  ...['sales', 'claims', 'goods', 'reviews'].map(name => [`/admin/seller-icons/${name}.svg`, {
-    file: resolve(repoRoot, `public/admin/seller-icons/${name}.svg`), type: 'image/svg+xml',
-  }]),
 ]);
 const replayAssetTypes = new Map([
   ['.avif', 'image/avif'], ['.css', 'text/css'], ['.gif', 'image/gif'],
@@ -104,7 +101,7 @@ const blockExternalBoundary = () => ({
     server.middlewares.use(async (request, response, next) => {
       const requestUrl = new URL(request.url || '/', `http://${host}:${port}`);
       const pathname = requestUrl.pathname;
-      if (pathname.startsWith('/fonts/') || pathname.startsWith('/admin/seller-icons/') || pathname.startsWith('/generated/')) {
+      if (pathname.startsWith('/fonts/') || pathname.startsWith('/generated/')) {
         const asset = fixtureStaticAssets.get(pathname);
         if (!asset) { response.statusCode = 404; response.end(); return; }
         if (!['GET', 'HEAD'].includes(request.method || 'GET')) { response.statusCode = 405; response.end(); return; }

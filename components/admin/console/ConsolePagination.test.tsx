@@ -12,7 +12,7 @@ describe('ConsolePagination', () => {
 
     expect(html).toContain('1–20 / 전체 137건');
     expect(html).toContain('1 / 7 페이지');
-    expect(html).not.toContain('이전');
+    expect(html).not.toContain('aria-label="이전 페이지"');
     expect(html).toContain('href="/admin/orders?page=2"');
   });
 
@@ -24,7 +24,7 @@ describe('ConsolePagination', () => {
     expect(html).toContain('121–137 / 전체 137건');
     expect(html).toContain('7 / 7 페이지');
     expect(html).toContain('href="/admin/orders?page=6"');
-    expect(html).not.toContain('다음');
+    expect(html).not.toContain('aria-label="다음 페이지"');
   });
 
   /* 0건에서도 "전체 0건"이 보여야 조회가 실패한 화면과 구분된다. */
@@ -46,7 +46,7 @@ describe('ConsolePagination', () => {
 
     expect(html).toContain('121–137 / 전체 137건');
     expect(html).toContain('7 / 7 페이지');
-    expect(html).not.toContain('다음');
+    expect(html).not.toContain('aria-label="다음 페이지"');
   });
 
   it('한 페이지에 다 들어가면 이전·다음이 모두 없다', () => {

@@ -209,6 +209,26 @@ describe('ClaimActionPanel 확인과 취소 안내', () => {
     expect(html).toContain('수거를 승인하면 출고지별 반송 주소와 상품이 표시됩니다.');
   });
 
+  /* kit 버튼은 type을 주지 않으면 type="button"이 된다(Base UI). 양식의 처리 버튼은 모두 제출이어야 한다. */
+  it('처리 양식의 kit 버튼은 제출 버튼이고, 양식 복사만 제출하지 않는다', async () => {
+    const button = (html: string, label: string) => html.match(new RegExp(`<button[^>]*>${label.replace(/[()]/g, '\\$&')}</button>`))?.[0] ?? '';
+    const decision = await render({ claimType: 'return', stage: 'requested', collectionPolicy: 'origin' });
+    for (const [label, value] of [['승인하고 수거 시작', 'approve'], ['검토중으로 표시', 'review']] as const) {
+      expect(button(decision, label)).toContain('type="submit"');
+      expect(button(decision, label)).toContain('name="decision"');
+      expect(button(decision, label)).toContain(`value="${value}"`);
+    }
+    expect(button(decision, '거부')).toContain('type="submit"');
+
+    const filing = await render({ claimType: 'return', stage: 'collected', collectionPolicy: 'legacy', collectionComplete: true, paymentProvider: 'korpay' });
+    expect(button(filing, '환불 접수 완료로 기록')).toContain('type="submit"');
+    const completion = await render({ stage: 'needs_review', paymentProvider: 'korpay', collectionPolicy: 'origin', refundLedgerOpen: true, cancellationForm: '[결제 취소 요청]' });
+    expect(button(completion, '환불 완료 확정 (재고 복원 · 카드팩 회수 포함)')).toContain('type="submit"');
+    expect(button(completion, '양식 복사')).toContain('type="button"');
+    const legacy = await render({ claimType: 'return', stage: 'collecting', collectionPolicy: 'legacy', collectionComplete: false });
+    expect(button(legacy, '반송 상품 입고 확인')).toContain('type="submit"');
+  });
+
   it('누른 버튼의 확인을 취소하면 보내지 않고, 확인 문구가 없으면 묻지 않고 보낸다', async () => {
     const { confirmClaimPanelSubmit } = await import('./ClaimActionPanel');
     const submitter = { getAttribute: (name: string) => (name === 'data-confirm' ? '승인할까요?' : null) };

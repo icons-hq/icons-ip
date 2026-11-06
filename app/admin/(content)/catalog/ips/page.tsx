@@ -2,6 +2,7 @@ import { IpScreen } from '@/components/admin/screens/IpScreen';
 import Link from 'next/link';
 import { IpIndexScreen } from '@/components/admin/screens/IpIndexScreen';
 import { AdminPageHeader } from '@/components/admin/console/AdminKit';
+import { buttonVariants } from '@/components/admin/kit/ui/button';
 import { requireAdminScreenAccess } from '@/lib/admin/guard.server';
 import { getCatalogSnapshot } from '@/lib/catalog';
 import { loadAdminIpIndex } from '@/lib/admin/ip-workspace.server';
@@ -14,8 +15,8 @@ export default async function AdminCatalogIpsPage({ searchParams }: {
   const params = await searchParams;
   if (params.create === '1') {
     const catalog = await getCatalogSnapshot({ previewDefaultSource: 'supabase' });
-    return <section className="wc-admin-kit">
-      <AdminPageHeader title="IP 등록" actions={<Link href={IP_INDEX_PATH}>IP 목록</Link>} />
+    return <section className="flex min-w-0 flex-col gap-6">
+      <AdminPageHeader title="IP 등록" actions={<Link className={buttonVariants({ variant: 'outline' })} data-slot="button" href={IP_INDEX_PATH}>IP 목록</Link>} />
       <IpScreen accountId={auth.user.id} records={[]} verticals={catalog.verticals} hideRecordList />
     </section>;
   }

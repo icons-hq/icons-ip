@@ -55,14 +55,14 @@ describe('QnaConsoleScreen', () => {
   it('미답변 건수와 바로가기를 결과 영역에 보존한다', () => {
     const markup = render();
 
-    expect(markup).toContain('admin-console-pinned-filter');
+    expect(markup).toContain('data-cs-pinned');
     expect(markup).toContain('답변 미등록 5건');
     expect(markup).toContain('미답변만 보기');
   });
 
   it('실제 문의 정보를 기본 목록형으로 보여주고 답변 진입점은 한 개만 렌더한다', () => {
     const markup = render();
-    expect(markup).toContain('class="admin-cs-question-list"');
+    expect(markup).toContain('data-cs-question-list');
     expect(markup).toContain('aria-pressed="true">목록형');
     expect(markup).toContain('aria-pressed="false">표형');
     expect(markup.match(/data-testid="action-/g)).toHaveLength(1);
@@ -77,9 +77,11 @@ describe('QnaConsoleScreen', () => {
   });
 
   it('검색 조건이 없으면 접고 활성 조건이 있으면 처음부터 펼친다', () => {
-    expect(render()).not.toContain('class="admin-cs-search-disclosure" open=""');
-    expect(render({ filters: { ...DEFAULT_ADMIN_PRODUCT_QUESTION_FILTERS, query: '상품 질문' } })).toContain('class="admin-cs-search-disclosure" open=""');
-    expect(render({ filters: { ...DEFAULT_ADMIN_PRODUCT_QUESTION_FILTERS, status: 'unanswered' } })).toContain('class="admin-cs-search-disclosure" open=""');
+    const openSearch = /<details(?=[^>]*data-cs-search="")(?=[^>]*\sopen="")/;
+    expect(render()).toContain('data-cs-search=""');
+    expect(render()).not.toMatch(openSearch);
+    expect(render({ filters: { ...DEFAULT_ADMIN_PRODUCT_QUESTION_FILTERS, query: '상품 질문' } })).toMatch(openSearch);
+    expect(render({ filters: { ...DEFAULT_ADMIN_PRODUCT_QUESTION_FILTERS, status: 'unanswered' } })).toMatch(openSearch);
   });
 
   it('미답변 필터가 걸려 있으면 해제 링크로 바뀐다', () => {
@@ -134,10 +136,10 @@ describe('QnaConsoleScreen', () => {
   it('비밀글 질문에 비밀글 표시를 붙이고 원문은 그대로 보여 준다', () => {
     const markup = render({ rows: [row({ secret: true, body: '배송지를 바꿀 수 있나요?' })] });
 
-    expect(markup).toContain('admin-cs-secret-badge');
+    expect(markup).toContain('data-secret-badge');
     expect(markup).toContain('>비밀글<');
     expect(markup).toContain('배송지를 바꿀 수 있나요?');
-    expect(render()).not.toContain('admin-cs-secret-badge');
+    expect(render()).not.toContain('data-secret-badge');
   });
 
   it('조건에 맞는 질문이 없으면 그 사실을 말한다', () => {

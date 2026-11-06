@@ -2,7 +2,10 @@ import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 
 import { ShipmentDetails } from '@/components/shop/ShipmentDetails';
 import Link from 'next/link';
+import type { ReactNode } from 'react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { InquiryMessageBody } from '@/components/screens/InquiryMessageBody';
+import { Button, buttonVariants } from '@/components/admin/kit/ui/button';
 import { inquiryMessageAuthorLabel } from '@/lib/inquiries';
 import type { AdminInquiryDetail } from '@/lib/admin/inquiries.server';
 import {
@@ -20,6 +23,7 @@ import { InquiryPreviewBackLink } from './CustomerServiceDialog';
 import { CustomerHistoryPanel } from './CustomerHistoryPanel';
 import { InquiryLiveUpdates } from '@/components/screens/InquiryLiveUpdates';
 import { InquirySatisfactionContext } from './InquirySatisfactionContext';
+import { INQUIRY_SLA_TONE_CLASS } from './cs-kit-classes';
 
 /* 어드민 문의 상세(#253).
  *
@@ -28,7 +32,10 @@ import { InquirySatisfactionContext } from './InquirySatisfactionContext';
  * 같은 질문을 한 번 더 만든다.
  *
  * 클레임은 여기서 처리하지 않는다. 문의는 대화이고 클레임은 절차다 — 취소·반품이
- * 필요하면 주문 콘솔로 넘어가는 링크만 둔다. */
+ * 필요하면 주문 콘솔로 넘어가는 링크만 둔다.
+ *
+ * 템플릿 룩(ADR-0028). 배치는 화면 폭이 아니라 이 화면이 놓인 폭(컨테이너)을 본다 — 같은 화면이
+ * 독립 상세(셸 본문)와 목록 위 팝업(최대 1024px) 양쪽에 그려진다. */
 
 const ORDER_STATUS_LABELS: Record<string, string> = {
   pending: '결제 대기',
@@ -53,13 +60,22 @@ const PAYMENT_PROVIDER_LABELS: Record<string, string> = {
   korpay: 'Korpay',
 };
 
+const CONTEXT_LINK_CLASS = `${buttonVariants({ size: 'sm', variant: 'outline' })} self-start`;
+
 function ContextRow({ label, value }: { label: string; value: string }) {
   return (
-    <div className="row" style={{ gap: 8, justifyContent: 'space-between' }}>
-      <span className="muted" style={{ fontSize: 12 }}>{label}</span>
-      <span style={{ fontSize: 13 }}>{value}</span>
+    <div className="flex items-baseline justify-between gap-3 text-sm">
+      <span className="shrink-0 text-xs text-muted-foreground">{label}</span>
+      <span className="min-w-0 text-right wrap-anywhere">{value}</span>
     </div>
   );
+}
+
+function ContextCard({ title, children }: { title: string; children: ReactNode }) {
+  return <section className="flex min-w-0 flex-col gap-2 rounded-xl border bg-card p-4 text-card-foreground">
+    <h3 className="text-sm font-medium text-foreground">{title}</h3>
+    {children}
+  </section>;
 }
 
 export function InquiryDetailScreen({
@@ -95,65 +111,65 @@ export function InquiryDetailScreen({
     closed={inquiry.status === 'closed'}
     inquiryId={inquiry.id}
   />;
+  const navLink = buttonVariants({ size: 'sm', variant: 'outline' });
 
   return (
-    <section className="admin-console col" style={{ gap: 16 }}>
+    <div className="@container/inquiry flex min-w-0 flex-col gap-4" data-inquiry-detail={embedded ? 'embedded' : 'page'}>
       <InquiryLiveUpdates inquiryId={inquiry.id} audience="staff" />
-      {navigation ? <nav className="admin-cs-record-nav" aria-label="고객문의 상세 이동">
-        {navigation.previousHref ? <Link className="btn btn-sm btn-ghost" href={navigation.previousHref} scroll={false}>이전 문의</Link> : <button className="btn btn-sm btn-ghost" disabled>이전 문의</button>}
-        <span>{navigation.position === null ? '현재 목록 조건에 없는 문의' : `${navigation.position} / ${navigation.total} · 현재 조회 순서`}</span>
-        {navigation.nextHref ? <Link className="btn btn-sm btn-ghost" href={navigation.nextHref} scroll={false}>다음 문의</Link> : <button className="btn btn-sm btn-ghost" disabled>다음 문의</button>}
+      {navigation ? <nav className="flex items-center justify-between gap-3 rounded-lg border bg-muted/40 px-3 py-2 text-sm" aria-label="고객문의 상세 이동">
+        {navigation.previousHref ? <Link className={navLink} data-slot="button" href={navigation.previousHref} scroll={false}><ChevronLeft aria-hidden="true" />이전 문의</Link> : <Button disabled size="sm" type="button" variant="outline"><ChevronLeft aria-hidden="true" />이전 문의</Button>}
+        <span className="text-center text-muted-foreground tabular-nums">{navigation.position === null ? '현재 목록 조건에 없는 문의' : `${navigation.position} / ${navigation.total} · 현재 조회 순서`}</span>
+        {navigation.nextHref ? <Link className={navLink} data-slot="button" href={navigation.nextHref} scroll={false}>다음 문의<ChevronRight aria-hidden="true" /></Link> : <Button disabled size="sm" type="button" variant="outline">다음 문의<ChevronRight aria-hidden="true" /></Button>}
       </nav> : null}
-      <div className="col" style={{ gap: 6 }}>
+      <header className="flex min-w-0 flex-col gap-1.5">
         {/* 팝업(embedded) 안에서는 닫기와 같다 — X·Esc처럼 목록 스크롤을 두고 기록을 바꿔 쓰고, 패널이 기다리는 동안에는 누를 수 없다(R4). */}
-        {embedded ? <InquiryPreviewBackLink href={backHref} /> : <Link className="mono" href={backHref} style={{ fontSize: 12 }}>← 문의 목록</Link>}
-        <div className="row" style={{ alignItems: 'baseline', gap: 8, justifyContent: 'flex-start' }}>
-          <span className="mono">{inquiryReferenceLabel(inquiry.reference)}</span>
-          <span className="muted">·</span>
-          <span className="muted">{adminGoodsCopy(INQUIRY_CATEGORY_LABELS[inquiry.category])}</span>
-          <span className="muted">·</span>
+        {embedded ? <InquiryPreviewBackLink href={backHref} /> : <Link className="w-fit text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline" href={backHref}>← 문의 목록</Link>}
+        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm">
+          <span className="font-medium tabular-nums">{inquiryReferenceLabel(inquiry.reference)}</span>
+          <span aria-hidden="true" className="text-muted-foreground">·</span>
+          <span className="text-muted-foreground">{adminGoodsCopy(INQUIRY_CATEGORY_LABELS[inquiry.category])}</span>
+          <span aria-hidden="true" className="text-muted-foreground">·</span>
           <span>{ADMIN_INQUIRY_STATUS_LABELS[inquiry.status]}</span>
-          <span className="muted">·</span>
-          <span data-sla-tone={sla.tone}>{sla.label}</span>
+          <span aria-hidden="true" className="text-muted-foreground">·</span>
+          <span className={INQUIRY_SLA_TONE_CLASS} data-sla-tone={sla.tone}>{sla.label}</span>
         </div>
-        <h2 style={{ margin: 0 }}>{inquiry.title}</h2>
-        {isAdminInquiryOverdue(inquiry, now) ? <span data-sla-tone="danger">미답변 24시간 경과</span> : null}
-        <span className="muted" style={{ fontSize: 12.5 }}>
+        <h2 className="text-lg leading-snug font-semibold tracking-tight text-foreground wrap-anywhere">{inquiry.title}</h2>
+        {isAdminInquiryOverdue(inquiry, now) ? <span className={`w-fit ${INQUIRY_SLA_TONE_CLASS}`} data-sla-tone="danger">미답변 24시간 경과</span> : null}
+        <span className="text-sm text-muted-foreground wrap-anywhere">
           @{inquiry.buyerName}
           {inquiry.buyerEmail ? ` · ${inquiry.buyerEmail}` : ''}
           {' · 접수 '}{formatInquiryDateTime(inquiry.createdAt)}
           {inquiry.assigneeName ? ` · 담당자 @${inquiry.assigneeName}` : ' · 담당자 미배정'}
         </span>
-      </div>
+      </header>
 
-      <div className={`admin-inquiry-layout${embedded ? ' admin-inquiry-layout--embedded' : ''}`}>
-        <div className="col" style={{ gap: 14 }}>
-          {embedded ? <h3 className="admin-inquiry-workspace-title">고객문의 내용 보기</h3> : null}
-          <ol className="col admin-inquiry-thread" style={{ gap: 10, listStyle: 'none', margin: 0, padding: 0 }}>
+      <div className={`grid min-w-0 items-start gap-4 ${embedded ? '@3xl/inquiry:grid-cols-2 @3xl/inquiry:gap-6' : '@4xl/inquiry:grid-cols-[minmax(0,1.6fr)_minmax(16rem,0.9fr)]'}`}>
+        <div className="flex min-w-0 flex-col gap-3.5">
+          {embedded ? <h3 className="border-b pb-2 text-sm font-medium text-muted-foreground">고객문의 내용 보기</h3> : null}
+          <ol className="flex flex-col gap-2.5">
             {messages.map((message) => (
               <li
-                className="card col"
+                className="flex min-w-0 flex-col gap-2 rounded-xl border bg-card p-3.5 text-card-foreground data-[author=staff]:bg-muted/50 data-[author=system]:border-dashed"
                 data-author={message.author}
                 key={message.id}
-                style={{ gap: 8, padding: 14 }}
               >
-                <span className="mono muted" style={{ fontSize: 11 }}>
+                <span className="text-xs text-muted-foreground tabular-nums">
                   {inquiryMessageAuthorLabel(message.author,message.authorName,`@${inquiry.buyerName}`)}
                   {' · '}
                   {formatInquiryDateTime(message.createdAt)}
                 </span>
-                <p style={{ fontSize: 13.5, lineHeight: 1.75, margin: 0, whiteSpace: 'pre-wrap' }}>
+                <p className="text-sm leading-relaxed whitespace-pre-wrap wrap-anywhere">
                   <InquiryMessageBody body={message.body} automatic={message.author==='system'}/>
                 </p>
                 {message.imageUrls.length ? (
-                  <div className="row" style={{ flexWrap: 'wrap', gap: 8, justifyContent: 'flex-start' }}>
+                  <div className="flex flex-wrap gap-2">
                     {message.imageUrls.map((url, index) => (
                       // eslint-disable-next-line @next/next/no-img-element
                       <img
                         alt={`첨부 이미지 ${index + 1}`}
+                        className="max-h-50 max-w-full rounded-lg border object-contain"
                         key={url}
                         src={url}
-                        style={{ borderRadius: 8, maxHeight: 200, maxWidth: '100%' }}
                       />
                     ))}
                   </div>
@@ -166,12 +182,11 @@ export function InquiryDetailScreen({
 
           {!embedded ? replyPanel : null}
         </div>
-        {embedded ? <section className="admin-inquiry-reply-column" aria-label="판매자 답변 처리"><h3 className="admin-inquiry-workspace-title">판매자 답변 처리</h3>{replyPanel}</section> : null}
-        <aside aria-label="문의 컨텍스트" className={`col${embedded ? ' admin-inquiry-context--embedded' : ''}`} style={{ gap: 12 }}>
+        {embedded ? <section className="flex min-w-0 flex-col gap-3.5" aria-label="판매자 답변 처리"><h3 className="border-b pb-2 text-sm font-medium text-muted-foreground">판매자 답변 처리</h3>{replyPanel}</section> : null}
+        <aside aria-label="문의 컨텍스트" className={`grid min-w-0 content-start gap-3 ${embedded ? '@3xl/inquiry:col-span-2 @3xl/inquiry:grid-cols-2' : ''}`}>
           <InquirySatisfactionContext result={detail.satisfaction} />
           <InquiryAssignmentPanel assigneeId={inquiry.assigneeId} assigneeName={inquiry.assigneeName} inquiryId={inquiry.id} staffOptions={staffOptions} />
-          {canReadOrders ? <section className="card col" style={{ gap: 8, padding: 16 }}>
-            <strong style={{ fontSize: 13.5 }}>연결 주문</strong>
+          {canReadOrders ? <ContextCard title="연결 주문">
             {order ? (
               <>
                 <ContextRow label="주문번호" value={orderReferenceLabel(order.id, order.orderNumber)} />
@@ -191,12 +206,12 @@ export function InquiryDetailScreen({
                     : '결제 내역 없음'}
                 /> : null}
                 <ShipmentDetails admin shipments={order.shipments} />
-                {canManageSales ? <div className="col" style={{ gap: 4 }}>
-                  <span className="muted" style={{ fontSize: 12 }}>클레임 이력</span>
+                {canManageSales ? <div className="flex flex-col gap-1">
+                  <span className="text-xs text-muted-foreground">클레임 이력</span>
                   {order.claims.length ? (
-                    <ul className="col" style={{ gap: 3, listStyle: 'none', margin: 0, padding: 0 }}>
+                    <ul className="flex flex-col gap-0.5">
                       {order.claims.map((claim) => (
-                        <li key={`${claim.requestedAt}-${claim.status}`} style={{ fontSize: 12.5 }}>
+                        <li className="text-sm" key={`${claim.requestedAt}-${claim.status}`}>
                           {CLAIM_STATUS_LABELS[claim.status] ?? claim.status}
                           {' · '}
                           {formatInquiryDateTime(claim.requestedAt)}
@@ -204,34 +219,29 @@ export function InquiryDetailScreen({
                       ))}
                     </ul>
                   ) : (
-                    <span style={{ fontSize: 12.5 }}>없음</span>
+                    <span className="text-sm">없음</span>
                   )}
                 </div> : null}
                 {/* 문의에서 클레임이 필요해지면 여기서 넘어간다. 이 화면은 절차를 만들지 않는다. */}
-                <Link
-                  className="btn btn-sm btn-ghost"
-                  href={`/admin/sales/orders/${order.id}`}
-                >
+                <Link className={CONTEXT_LINK_CLASS} data-slot="button" href={`/admin/sales/orders/${order.id}`}>
                   주문 콘솔에서 열기
                 </Link>
               </>
             ) : (
-              <span className="muted" style={{ fontSize: 12.5 }}>
+              <span className="text-sm text-muted-foreground">
                 연결된 주문이 없습니다. 주문 관련 문의라면 구매자에게 주문번호를 물어보세요.
               </span>
             )}
-          </section> : null}
+          </ContextCard> : null}
 
           {inquiry.goodId ? (
-            <section className="card col" style={{ gap: 8, padding: 16 }}>
-              <strong style={{ fontSize: 13.5 }}>{adminGoodsCopy("연결 굿즈")}</strong>
+            <ContextCard title={adminGoodsCopy('연결 굿즈')}>
               <ContextRow label="상품" value={inquiry.goodName ?? inquiry.goodId} />
-              <Link className="btn btn-sm btn-ghost" href={`/shop/${inquiry.goodId}`}>{adminGoodsCopy(" 굿즈 상세 보기 ")}</Link>
-            </section>
+              <Link className={CONTEXT_LINK_CLASS} data-slot="button" href={`/shop/${inquiry.goodId}`}>{adminGoodsCopy(' 굿즈 상세 보기 ')}</Link>
+            </ContextCard>
           ) : null}
 
-          <section className="card col" style={{ gap: 8, padding: 16 }}>
-            <strong style={{ fontSize: 13.5 }}>구매자</strong>
+          <ContextCard title="구매자">
             <ContextRow label="닉네임" value={`@${inquiry.buyerName}`} />
             <ContextRow label="이메일" value={buyer.email ?? '없음'} />
             {canReadOrders && typeof buyer.orderCount === 'number' ? <ContextRow label="주문 수" value={`${buyer.orderCount.toLocaleString('ko-KR')}건`} /> : null}
@@ -240,20 +250,17 @@ export function InquiryDetailScreen({
               value={`총 ${buyer.inquiryCount}건 · 진행 중 ${buyer.openInquiryCount}건`}
             />
             {buyer.suspendedAt ? (
-              <span role="alert" style={{ fontSize: 12.5 }}>
+              <span className="text-sm text-destructive" role="alert">
                 정지된 계정입니다 ({formatInquiryDateTime(buyer.suspendedAt)}).
               </span>
             ) : null}
-            {canViewCustomer ? <Link
-              className="btn btn-sm btn-ghost"
-              href={`/admin/customers/${buyer.id}`}
-            >
+            {canViewCustomer ? <Link className={CONTEXT_LINK_CLASS} data-slot="button" href={`/admin/customers/${buyer.id}`}>
               고객 상세 열기
             </Link> : null}
-          </section>
+          </ContextCard>
           {canReadOrders ? <CustomerHistoryPanel key={buyer.id} userId={buyer.id} canReadClaims={canManageSales} /> : null}
         </aside>
       </div>
-    </section>
+    </div>
   );
 }

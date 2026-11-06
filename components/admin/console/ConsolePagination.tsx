@@ -1,4 +1,6 @@
 import Link from 'next/link';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { buttonVariants } from '@/components/admin/kit/ui/button';
 
 export interface ConsolePaginationProps {
   /** 1부터 시작하는 현재 페이지. 범위를 벗어나면 안쪽으로 보정한다. */
@@ -36,34 +38,31 @@ export function ConsolePagination({
   const first = safeTotal === 0 ? 0 : (current - 1) * size + 1;
   const last = Math.min(current * size, safeTotal);
 
+  /* kit 표 페이지 이동(DataTablePagination)과 같은 배치: 왼쪽에 범위 요약, 오른쪽에 이전·다음. */
+  const link = buttonVariants({ size: 'sm', variant: 'outline' });
   return (
     <nav
       aria-label={label}
-      className={`${className ? `${className} ` : ''}admin-console-pagination`}
+      className={`${className ? `${className} ` : ''}flex flex-wrap items-center justify-between gap-2 px-1 text-sm`}
+      data-console-pagination=""
     >
-      {current > 1 ? (
-        <Link
-          aria-label="이전 페이지"
-          className="btn btn-sm btn-ghost"
-          href={hrefForPage(current - 1)}
-        >
-          이전
-        </Link>
-      ) : <span />}
-      <span aria-live="polite" className="admin-console-pagination-summary">
+      <span aria-live="polite" className="text-muted-foreground tabular-nums">
         {first.toLocaleString('ko-KR')}–{last.toLocaleString('ko-KR')} / 전체 {safeTotal.toLocaleString('ko-KR')}건
         {' · '}
         {current} / {totalPages} 페이지
       </span>
-      {current < totalPages ? (
-        <Link
-          aria-label="다음 페이지"
-          className="btn btn-sm btn-ghost"
-          href={hrefForPage(current + 1)}
-        >
-          다음
-        </Link>
-      ) : <span />}
+      <span className="flex items-center gap-1.5">
+        {current > 1 ? (
+          <Link aria-label="이전 페이지" className={link} data-slot="button" href={hrefForPage(current - 1)}>
+            <ChevronLeft aria-hidden="true" />이전
+          </Link>
+        ) : <span aria-disabled="true" className={`${link} pointer-events-none opacity-50`}><ChevronLeft aria-hidden="true" />이전</span>}
+        {current < totalPages ? (
+          <Link aria-label="다음 페이지" className={link} data-slot="button" href={hrefForPage(current + 1)}>
+            다음<ChevronRight aria-hidden="true" />
+          </Link>
+        ) : <span aria-disabled="true" className={`${link} pointer-events-none opacity-50`}>다음<ChevronRight aria-hidden="true" /></span>}
+      </span>
     </nav>
   );
 }

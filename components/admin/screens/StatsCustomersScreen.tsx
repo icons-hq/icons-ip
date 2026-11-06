@@ -1,6 +1,7 @@
 import { StatsComparison } from '@/components/admin/StatsComparison';
 import { adminSalesTrend } from '@/lib/admin/stats';
 import { StatsRangeTabs } from '@/components/admin/StatsRangeTabs';
+import { STATS_NOTE, StatsSection, StatsSummaryGrid, StatsSummaryTile } from '@/components/admin/StatsSummary';
 import { ConsoleGrid, type ConsoleGridColumn } from '@/components/admin/console';
 import {
   adminPercentLabel,
@@ -37,107 +38,73 @@ export function StatsCustomersScreen({
   comparison?: AdminCustomerReport | null;
 }) {
   return (
-    <section className="admin-console admin-stats wc-admin-kit">
+    <div className="flex min-w-0 flex-col gap-4" data-stats-screen="customers">
       <StatsRangeTabs base="/admin/stats/customers" filters={filters} now={now} />
 
-      <div className="admin-stats-summary">
-        <div>
-          <span>신규 가입</span>
-          <strong className="mono">{data.signupTotal.toLocaleString('ko-KR')}</strong>
-        </div>
-        <div>
-          <span>구매 고객</span>
-          <strong className="mono">{data.buyerCount.toLocaleString('ko-KR')}</strong>
-        </div>
-        <div>
-          <span>기간 내 재구매</span>
-          <strong className="mono">{data.repeatBuyerCount.toLocaleString('ko-KR')}</strong>
-        </div>
-        <div>
-          <span>기간 내 재구매율</span>
-          <strong className="mono">
-            {adminPercentLabel(adminRepeatRate(data.repeatBuyerCount, data.buyerCount))}
-          </strong>
-        </div>
-      </div>
+      <StatsSummaryGrid>
+        <StatsSummaryTile label="신규 가입" value={data.signupTotal.toLocaleString('ko-KR')} />
+        <StatsSummaryTile label="구매 고객" value={data.buyerCount.toLocaleString('ko-KR')} />
+        <StatsSummaryTile label="기간 내 재구매" value={data.repeatBuyerCount.toLocaleString('ko-KR')} />
+        <StatsSummaryTile label="기간 내 재구매율" value={adminPercentLabel(adminRepeatRate(data.repeatBuyerCount, data.buyerCount))} />
+      </StatsSummaryGrid>
 
       {comparison ? <StatsComparison filters={filters} now={now} rows={[
         { label: '신규 가입', current: data.signupTotal, previous: comparison.signupTotal, unit: '명' },
         { label: '구매 고객', current: data.buyerCount, previous: comparison.buyerCount, unit: '명' },
         { label: '기간 내 재구매', current: data.repeatBuyerCount, previous: comparison.repeatBuyerCount, unit: '명' },
       ]} /> : null}
-      <h3>문의</h3>
-      <div className="admin-stats-summary">
-        <div>
-          <span>접수</span>
-          <strong className="mono">{data.inquiries.total.toLocaleString('ko-KR')}</strong>
-        </div>
-        <div>
-          <span>미답변</span>
-          <strong className="mono">{data.inquiries.unanswered.toLocaleString('ko-KR')}</strong>
-        </div>
-        <div>
-          <span>평균 1차 응답</span>
-          <strong className="mono">
-            {data.inquiries.averageFirstResponseHours === null
-              ? '—'
-              : `${data.inquiries.averageFirstResponseHours}시간`}
-          </strong>
-        </div>
-      </div>
+      <StatsSection title="문의">
+        <StatsSummaryGrid>
+          <StatsSummaryTile label="접수" value={data.inquiries.total.toLocaleString('ko-KR')} />
+          <StatsSummaryTile label="미답변" value={data.inquiries.unanswered.toLocaleString('ko-KR')} />
+          <StatsSummaryTile label="평균 1차 응답" value={data.inquiries.averageFirstResponseHours === null
+            ? '—'
+            : `${data.inquiries.averageFirstResponseHours}시간`} />
+        </StatsSummaryGrid>
+      </StatsSection>
 
-      <h3>리뷰</h3>
-      <div className="admin-stats-summary">
-        <div>
-          <span>작성</span>
-          <strong className="mono">{data.reviews.total.toLocaleString('ko-KR')}</strong>
-        </div>
-        <div>
-          <span>답글 없음</span>
-          <strong className="mono">{data.reviews.unanswered.toLocaleString('ko-KR')}</strong>
-        </div>
-        <div>
-          <span>평균 평점</span>
-          <strong className="mono">
-            {data.reviews.averageRating === null ? '—' : data.reviews.averageRating.toFixed(2)}
-          </strong>
-        </div>
-      </div>
+      <StatsSection title="리뷰">
+        <StatsSummaryGrid>
+          <StatsSummaryTile label="작성" value={data.reviews.total.toLocaleString('ko-KR')} />
+          <StatsSummaryTile label="답글 없음" value={data.reviews.unanswered.toLocaleString('ko-KR')} />
+          <StatsSummaryTile label="평균 평점" value={data.reviews.averageRating === null ? '—' : data.reviews.averageRating.toFixed(2)} />
+        </StatsSummaryGrid>
 
-      {data.reviews.total === 0 ? (
-        <p className="admin-note">이 기간에 작성된 리뷰가 없습니다.</p>
-      ) : (
-        <ul className="admin-stats-share">
-          {[5, 4, 3, 2, 1].map((score) => {
-            const count = data.reviews.distribution[score - 1] ?? 0;
-            return (
-              <li key={score}>
-                <span>{score}점</span>
-                <strong className="mono">{count.toLocaleString('ko-KR')}</strong>
-                <span className="mono">
-                  {adminPercentLabel(adminRatingShare(count, data.reviews.total))}
-                </span>
-                <span>{score === 1 || score === 2 ? '불만' : score === 3 ? '보통' : '만족'}</span>
-              </li>
-            );
-          })}
-        </ul>
-      )}
+        {data.reviews.total === 0 ? (
+          <p className={STATS_NOTE}>이 기간에 작성된 리뷰가 없습니다.</p>
+        ) : (
+          <ul className="flex flex-col divide-y rounded-lg border bg-card">
+            {[5, 4, 3, 2, 1].map((score) => {
+              const count = data.reviews.distribution[score - 1] ?? 0;
+              return (
+                <li className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-4 gap-y-1 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_auto_auto_auto]" key={score}>
+                  <span className="font-medium">{score}점</span>
+                  <strong className="font-semibold tabular-nums">{count.toLocaleString('ko-KR')}</strong>
+                  <span className="text-muted-foreground tabular-nums">
+                    {adminPercentLabel(adminRatingShare(count, data.reviews.total))}
+                  </span>
+                  <span className="text-xs text-muted-foreground sm:text-right">{score === 1 || score === 2 ? '불만' : score === 3 ? '보통' : '만족'}</span>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </StatsSection>
 
-      <h3>신규 가입 추이</h3>
-      <ConsoleGrid
-        caption="신규 가입 추이"
-        columns={SIGNUP_COLUMNS}
-        emptyLabel="이 기간에 신규 가입이 없습니다."
-        rows={adminSalesTrend(data.signups.map(row => ({ date: row.date, orderCount: row.total, revenue: 0, averageOrderValue: 0 })), filters, now).map((row) => ({
-          id: row.date,
-          cells: [
-            <span className="mono" key="date">{row.date}</span>,
-            row.orderCount.toLocaleString('ko-KR'),
-          ],
-        }))}
-      />
-
-    </section>
+      <StatsSection title="신규 가입 추이">
+        <ConsoleGrid
+          caption="신규 가입 추이"
+          columns={SIGNUP_COLUMNS}
+          emptyLabel="이 기간에 신규 가입이 없습니다."
+          rows={adminSalesTrend(data.signups.map(row => ({ date: row.date, orderCount: row.total, revenue: 0, averageOrderValue: 0 })), filters, now).map((row) => ({
+            id: row.date,
+            cells: [
+              <span className="tabular-nums" key="date">{row.date}</span>,
+              row.orderCount.toLocaleString('ko-KR'),
+            ],
+          }))}
+        />
+      </StatsSection>
+    </div>
   );
 }

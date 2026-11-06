@@ -2,7 +2,13 @@
 
 import { Area, AreaChart, CartesianGrid, ResponsiveContainer, Tooltip, XAxis, YAxis } from 'recharts';
 import type { AdminDailyRevenue } from '@/lib/admin/insights.server';
+import { Card, CardAction, CardContent, CardDescription, CardHeader } from '@/components/admin/kit/ui/card';
 import { formatKrw } from '../format';
+import { CHART_AXIS_TICK, CHART_GRID_STROKE, CHART_TOOLTIP_STYLE } from './chart-theme';
+
+/* kit 차트 토큰(ADR-0028). 두 계열은 명도로 구분하고 범례·툴팁이 이름을 붙인다. */
+const GOODS_COLOR = 'var(--chart-4)';
+const TICKETS_COLOR = 'var(--chart-2)';
 
 function dayLabel(date: string) {
   const [, month, day] = date.split('-');
@@ -11,8 +17,8 @@ function dayLabel(date: string) {
 
 function LegendDot({ color, label }: { color: string; label: string }) {
   return (
-    <span className="admin-overview-legend__item">
-      <span className="admin-overview-legend__dot" style={{ background: color }} />
+    <span className="inline-flex items-center gap-1.5 text-xs whitespace-nowrap text-muted-foreground">
+      <span aria-hidden="true" className="size-2 rounded-full" style={{ background: color }} />
       {label}
     </span>
   );
@@ -21,69 +27,64 @@ function LegendDot({ color, label }: { color: string; label: string }) {
 export function RevenueTrend({ data, days = 30 }: { data: AdminDailyRevenue[]; days?: number }) {
   const hasRevenue = data.some(day => day.goods !== 0 || day.tickets !== 0);
   return (
-    <div className="card wc-admin-kit wc-admin-kit__card admin-overview-panel">
-      <header className="admin-overview-panel__heading">
-        <div>
-          <h3 className="admin-overview-panel__title">매출 추이</h3>
-          <p className="admin-overview-panel__description">최근 {days}일 · 결제 완료 기준</p>
-        </div>
-        <div className="admin-overview-legend">
-          <LegendDot color="var(--wc-info)" label="상품" />
-          <LegendDot color="var(--wc-success)" label="티켓" />
-        </div>
-      </header>
-      {hasRevenue ? <div className="admin-revenue-chart">
-        <ResponsiveContainer height="100%" width="100%">
-          <AreaChart data={data} margin={{ bottom: 0, left: 0, right: 8, top: 8 }}>
-            <defs>
-              <linearGradient id="adminGoodsRevenue" x1="0" x2="0" y1="0" y2="1">
-                <stop offset="0%" stopColor="var(--wc-info)" stopOpacity={0.4} />
-                <stop offset="100%" stopColor="var(--wc-info)" stopOpacity={0} />
-              </linearGradient>
-              <linearGradient id="adminTicketRevenue" x1="0" x2="0" y1="0" y2="1">
-                <stop offset="0%" stopColor="var(--wc-success)" stopOpacity={0.3} />
-                <stop offset="100%" stopColor="var(--wc-success)" stopOpacity={0} />
-              </linearGradient>
-            </defs>
-            <CartesianGrid stroke="var(--wc-hairline)" strokeDasharray="3 3" vertical={false} />
-            <XAxis
-              axisLine={false}
-              dataKey="date"
-              dy={8}
-              minTickGap={28}
-              tick={{ fill: 'var(--wc-ink-tertiary)', fontSize: 11 }}
-              tickFormatter={dayLabel}
-              tickLine={false}
-            />
-            <YAxis
-              axisLine={false}
-              dx={-6}
-              tick={{ fill: 'var(--wc-ink-tertiary)', fontSize: 11 }}
-              tickFormatter={(value: number) => (value ? formatKrw(value) : '0')}
-              tickLine={false}
-              width={64}
-            />
-            <Tooltip
-              contentStyle={{
-                backgroundColor: 'var(--wc-surface)',
-                border: '1px solid var(--wc-line-control)',
-                borderRadius: 'var(--wc-radius-form)',
-                fontSize: 12,
-              }}
-              formatter={(value, name) => [formatKrw(Number(value)), name === 'goods' ? '상품' : '티켓']}
-              itemStyle={{ color: 'var(--wc-ink-tertiary)' }}
-              labelFormatter={(label) => dayLabel(String(label))}
-              labelStyle={{ color: 'var(--wc-ink)', fontWeight: 600 }}
-            />
-            {/* 캡처/헤드리스 환경에서 rAF 클록이 얼면 마운트 애니메이션 clip이 프레임 0에 멈춘다 — 정적 렌더 */}
-            <Area dataKey="tickets" fill="url(#adminTicketRevenue)" isAnimationActive={false} stroke="var(--wc-success)" strokeWidth={2} type="monotone" />
-            <Area dataKey="goods" fill="url(#adminGoodsRevenue)" isAnimationActive={false} stroke="var(--wc-info)" strokeWidth={2} type="monotone" />
-          </AreaChart>
-        </ResponsiveContainer>
-      </div> : <div className="admin-revenue-empty" role="status">
-        <strong>최근 {days}일 결제 완료 매출이 없습니다.</strong>
-        <p>결제가 완료되면 날짜별 매출이 여기에 표시됩니다.</p>
-      </div>}
-    </div>
+    <Card className="min-w-0">
+      <CardHeader>
+        <h3 className="text-base leading-snug font-medium">매출 추이</h3>
+        <CardDescription>최근 {days}일 · 결제 완료 기준</CardDescription>
+        <CardAction className="flex flex-wrap items-center gap-3 pt-0.5">
+          <LegendDot color={GOODS_COLOR} label="상품" />
+          <LegendDot color={TICKETS_COLOR} label="티켓" />
+        </CardAction>
+      </CardHeader>
+      <CardContent>
+        {hasRevenue ? <div className="h-60 w-full min-w-0 sm:h-72">
+          <ResponsiveContainer height="100%" width="100%">
+            <AreaChart data={data} margin={{ bottom: 0, left: 0, right: 8, top: 8 }}>
+              <defs>
+                <linearGradient id="adminGoodsRevenue" x1="0" x2="0" y1="0" y2="1">
+                  <stop offset="0%" stopColor={GOODS_COLOR} stopOpacity={0.35} />
+                  <stop offset="100%" stopColor={GOODS_COLOR} stopOpacity={0} />
+                </linearGradient>
+                <linearGradient id="adminTicketRevenue" x1="0" x2="0" y1="0" y2="1">
+                  <stop offset="0%" stopColor={TICKETS_COLOR} stopOpacity={0.3} />
+                  <stop offset="100%" stopColor={TICKETS_COLOR} stopOpacity={0} />
+                </linearGradient>
+              </defs>
+              <CartesianGrid stroke={CHART_GRID_STROKE} strokeDasharray="3 3" vertical={false} />
+              <XAxis
+                axisLine={false}
+                dataKey="date"
+                dy={8}
+                minTickGap={28}
+                tick={CHART_AXIS_TICK}
+                tickFormatter={dayLabel}
+                tickLine={false}
+              />
+              <YAxis
+                axisLine={false}
+                dx={-6}
+                tick={CHART_AXIS_TICK}
+                tickFormatter={(value: number) => (value ? formatKrw(value) : '0')}
+                tickLine={false}
+                width={64}
+              />
+              <Tooltip
+                contentStyle={CHART_TOOLTIP_STYLE.content}
+                formatter={(value, name) => [formatKrw(Number(value)), name === 'goods' ? '상품' : '티켓']}
+                itemStyle={CHART_TOOLTIP_STYLE.item}
+                labelFormatter={(label) => dayLabel(String(label))}
+                labelStyle={CHART_TOOLTIP_STYLE.label}
+              />
+              {/* 캡처/헤드리스 환경에서 rAF 클록이 얼면 마운트 애니메이션 clip이 프레임 0에 멈춘다 — 정적 렌더 */}
+              <Area dataKey="tickets" fill="url(#adminTicketRevenue)" isAnimationActive={false} stroke={TICKETS_COLOR} strokeWidth={2} type="monotone" />
+              <Area dataKey="goods" fill="url(#adminGoodsRevenue)" isAnimationActive={false} stroke={GOODS_COLOR} strokeWidth={2} type="monotone" />
+            </AreaChart>
+          </ResponsiveContainer>
+        </div> : <div className="flex min-h-60 flex-col items-center justify-center gap-2 rounded-lg bg-muted/50 p-6 text-center sm:min-h-72" role="status">
+          <strong className="text-sm font-medium">최근 {days}일 결제 완료 매출이 없습니다.</strong>
+          <p className="text-sm text-muted-foreground">결제가 완료되면 날짜별 매출이 여기에 표시됩니다.</p>
+        </div>}
+      </CardContent>
+    </Card>
   );
 }

@@ -3,8 +3,13 @@
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { startTransition, useActionState, useId, useMemo, useRef, useState, type InputHTMLAttributes, type ReactNode, type SelectHTMLAttributes } from 'react';
+import { ArrowDown, ArrowUp, ExternalLink, Plus, X } from 'lucide-react';
 import { upsertAdminCurationAction } from '@/app/admin/curation-actions';
 import { AdminField } from '@/components/admin/console/AdminKit';
+import { Button, buttonVariants } from '@/components/admin/kit/ui/button';
+import { Input } from '@/components/admin/kit/ui/input';
+import { NativeSelect } from '@/components/admin/kit/ui/native-select';
+import { Textarea } from '@/components/admin/kit/ui/textarea';
 import { CurationPreview, type CurationPreviewDevice } from '@/components/admin/curation/CurationPreview';
 import { CurationEditorDialog, CurationProductPicker } from '@/components/admin/curation/CurationProductPicker';
 import { CurationMosaicFields } from '@/components/admin/curation/CurationMosaicFields';
@@ -74,6 +79,21 @@ const ARTWORK_HELP: Record<AdminCurationKind, string> = {
 };
 const DEFAULT_PREVIEW: CurationPublicPreview = { curation: emptyCurationPreview(), noticeStrip: null, goods: [], cardRewardsEnabled: false };
 
+/*
+ * 스토어 전시 편집기(템플릿 룩, ADR-0028). 구성 목록 · 속성 · 미리보기 3단 작업 영역과 저장 흐름은 그대로이고,
+ * 모양만 kit 부품과 유틸리티로 그린다. 미리보기 iframe 안(공개 스토어프런트)은 공개 CSS 그대로다.
+ */
+const SEGMENTED = 'inline-flex items-center rounded-lg bg-muted p-0.5';
+const SEGMENT = 'h-7 flex-1 rounded-md px-2.5 text-[0.8rem] text-muted-foreground hover:bg-transparent hover:text-foreground aria-pressed:bg-background aria-pressed:text-foreground aria-pressed:shadow-sm sm:flex-none';
+const FORM_SECTION = 'flex flex-col gap-4 border-b px-4 py-6 sm:px-5';
+const SECTION_TITLE = 'text-sm font-semibold text-foreground';
+const HELP = 'text-xs leading-relaxed text-muted-foreground';
+const EMPTY_NOTE = 'px-5 py-8 text-center text-sm leading-relaxed text-muted-foreground';
+const ORDER_LIST = 'flex flex-col border-t';
+const ORDER_ROW = 'grid grid-cols-[20px_minmax(0,1fr)_auto] items-center gap-2 border-b py-3';
+const ORDER_NUMBER = 'text-xs text-muted-foreground tabular-nums';
+const PANEL_HEADER = 'flex flex-col gap-2 border-b px-4 py-5 sm:px-5';
+
 export function getCurationFormKey(selected: AdminCurationRecord | null, draftId: string) {
   return JSON.stringify([selected?.id ?? draftId, selected?.updatedAt ?? null]);
 }
@@ -135,43 +155,47 @@ export function CurationSection({
     else setView(next);
   }
 
-  return <section aria-label="스토어 전시 편집기" className="admin-store-editor" data-full-preview={fullPreview}>
-    <header className="admin-store-editor__toolbar">
-      <div><h2>스토어 전시관리</h2><span>홈 큐레이션</span></div>
-      <div aria-label="미리보기 기기" className="admin-store-editor__devices" role="group">
-        <button aria-pressed={device === 'mobile' && !fullPreview} onClick={() => { setDevice('mobile'); setFullPreview(false); }} type="button">모바일</button>
-        <button aria-pressed={device === 'desktop' && !fullPreview} onClick={() => { setDevice('desktop'); setFullPreview(false); }} type="button">PC</button>
-        <button aria-pressed={fullPreview} onClick={() => { setDevice('desktop'); setFullPreview((value) => !value); }} type="button">{fullPreview ? '편집으로 돌아가기' : '전체보기'}</button>
+  return <section aria-label="스토어 전시 편집기" className="flex min-w-0 flex-col overflow-hidden rounded-xl border bg-card text-sm text-card-foreground" data-admin-store-editor="" data-full-preview={fullPreview}>
+    <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-3 border-b px-4 py-3 sm:px-5 print:hidden">
+      <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1"><h2 className="text-lg leading-tight font-semibold tracking-tight">스토어 전시관리</h2><span className="text-xs text-muted-foreground">홈 큐레이션</span></div>
+      <div aria-label="미리보기 기기" className={`${SEGMENTED} order-last w-full sm:order-none sm:w-auto`} role="group">
+        <Button aria-pressed={device === 'mobile' && !fullPreview} className={SEGMENT} onClick={() => { setDevice('mobile'); setFullPreview(false); }} size="sm" type="button" variant="ghost">모바일</Button>
+        <Button aria-pressed={device === 'desktop' && !fullPreview} className={SEGMENT} onClick={() => { setDevice('desktop'); setFullPreview(false); }} size="sm" type="button" variant="ghost">PC</Button>
+        <Button aria-pressed={fullPreview} className={SEGMENT} onClick={() => { setDevice('desktop'); setFullPreview((value) => !value); }} size="sm" type="button" variant="ghost">{fullPreview ? '편집으로 돌아가기' : '전체보기'}</Button>
       </div>
-      <MarketingLinkIssuer source="home" targetIds={['home']} label="스토어 홈 마케팅 링크" />
-      <Link href="/" target="_blank">스토어 보기 ↗</Link>
+      <div className="flex flex-wrap items-center gap-2">
+        <MarketingLinkIssuer source="home" targetIds={['home']} label="스토어 홈 마케팅 링크" />
+        <Link className={buttonVariants({ size: 'sm', variant: 'ghost' })} data-slot="button" href="/" target="_blank">스토어 보기 <ExternalLink aria-hidden="true" /></Link>
+      </div>
     </header>
-    {homeLayout && homeLayoutOperationId ? <nav className="admin-store-editor__view-tabs" aria-label="전시 편집 방식">
-      <button aria-pressed={view === 'content'} onClick={() => requestView('content')} type="button">구성 편집</button>
-      <button aria-pressed={view === 'layout'} onClick={() => requestView('layout')} type="button">영역 순서·노출</button>
-    </nav> : null}
-    {savedMessage && view === 'content' ? <p className="admin-store-editor__saved" role="status">{savedMessage}</p> : null}
-    {layoutSavedMessage && view === 'layout' ? <p className="admin-store-editor__saved" role="status">{layoutSavedMessage}</p> : null}
-    {view === 'content' ? <div className="admin-store-editor__workspace">
-      <aside className="admin-store-editor__composition" aria-label="홈 구성 목록">
-        <div className="admin-store-editor__composition-heading"><h3>스토어 홈</h3><span>{records.length}개 구성</span></div>
-        <p className="admin-store-editor__dialog-copy">프로모션 배너 {heroCount} / {HOME_HERO_LIMIT}개 · 비노출 포함</p>
-        <p className="admin-store-editor__dialog-copy">자유상품 {freeProductCount} / {HOME_FREE_PRODUCT_LIMIT}개 · 모자이크·비노출·종료 포함</p>
-        <nav aria-label="홈 구성 바로가기">
+    {homeLayout && homeLayoutOperationId ? <div className="border-b px-4 py-2 sm:px-5"><nav className={SEGMENTED} aria-label="전시 편집 방식">
+      <Button aria-pressed={view === 'content'} className={SEGMENT} onClick={() => requestView('content')} size="sm" type="button" variant="ghost">구성 편집</Button>
+      <Button aria-pressed={view === 'layout'} className={SEGMENT} onClick={() => requestView('layout')} size="sm" type="button" variant="ghost">영역 순서·노출</Button>
+    </nav></div> : null}
+    {savedMessage && view === 'content' ? <p className="border-b bg-muted/40 px-4 py-2.5 text-sm text-[var(--wc-success)] sm:px-5" role="status">{savedMessage}</p> : null}
+    {layoutSavedMessage && view === 'layout' ? <p className="border-b bg-muted/40 px-4 py-2.5 text-sm text-[var(--wc-success)] sm:px-5" role="status">{layoutSavedMessage}</p> : null}
+    {view === 'content' ? <div className={`grid grid-cols-1 xl:h-[max(780px,calc(100dvh-210px))] print:block print:h-auto${fullPreview ? '' : ' md:grid-cols-[210px_minmax(0,1fr)] xl:grid-cols-[210px_minmax(320px,400px)_minmax(250px,1fr)]'}`}>
+      <aside className={`${fullPreview ? 'hidden' : 'flex'} min-h-0 min-w-0 flex-col border-b md:border-r md:border-b-0 print:hidden`} aria-label="홈 구성 목록">
+        <div className="flex items-baseline justify-between gap-2 px-4 pt-5 pb-2"><h3 className="text-base font-medium">스토어 홈</h3><span className="text-xs text-muted-foreground tabular-nums">{records.length}개 구성</span></div>
+        <p className="px-4 text-xs text-muted-foreground">프로모션 배너 {heroCount} / {HOME_HERO_LIMIT}개 · 비노출 포함</p>
+        <p className="px-4 pt-1 text-xs text-muted-foreground">자유상품 {freeProductCount} / {HOME_FREE_PRODUCT_LIMIT}개 · 모자이크·비노출·종료 포함</p>
+        <nav aria-label="홈 구성 바로가기" className="flex flex-wrap gap-x-3 gap-y-1 border-b px-4 pt-3 pb-4 text-xs [&_a]:text-muted-foreground [&_a]:underline [&_a]:underline-offset-3 [&_a]:hover:text-foreground">
           <Link href="/admin/settings/store">기본정보</Link><Link href="/admin/catalog/categories">카테고리</Link><Link href="/admin/display/campaigns">기획전</Link>
         </nav>
-        <ul className="admin-store-editor__list">
+        <ul className="flex min-h-0 flex-1 flex-col gap-1 overflow-y-auto p-2 max-md:max-h-[300px] md:max-xl:max-h-[580px]">
           {ordered.map((record) => <li key={record.id}>
-            <button aria-current={selected?.id === record.id ? 'true' : undefined} className="admin-curation-record-button" onClick={() => requestSelection({ id: record.id })} type="button">
-              <span className="admin-store-editor__record-top"><strong>{CURATION_KIND_LABELS[record.kind]}</strong><span data-active={record.status === 'active'}>{CURATION_STATUS_LABELS[record.status]}</span></span>
-              <span className="admin-curation-record-title">{record.title || '제목 없는 배너'}</span>
-              <span className="admin-curation-record-meta">순서 {record.displayOrder} · {curationKstInput(record.activeFrom).replace('T', ' ')} KST</span>
+            <button aria-current={selected?.id === record.id ? 'true' : undefined} className="flex w-full min-w-0 flex-col gap-1 rounded-lg border border-transparent p-3 text-left transition-colors outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 aria-[current=true]:border-border aria-[current=true]:bg-muted" data-slot="button" onClick={() => requestSelection({ id: record.id })} type="button">
+              <span className="flex items-center justify-between gap-1.5"><strong className="text-sm font-medium">{CURATION_KIND_LABELS[record.kind]}</strong><span className="inline-flex items-center gap-1 text-[11px] whitespace-nowrap text-muted-foreground data-[active=true]:text-foreground" data-active={record.status === 'active'}>{record.status === 'active' ? <span aria-hidden="true" className="size-1.5 rounded-full bg-[var(--wc-success)]" /> : null}{CURATION_STATUS_LABELS[record.status]}</span></span>
+              <span className="text-xs leading-normal [overflow-wrap:anywhere]">{record.title || '제목 없는 배너'}</span>
+              <span className="block text-[11px] text-muted-foreground tabular-nums">순서 {record.displayOrder} · {curationKstInput(record.activeFrom).replace('T', ' ')} KST</span>
             </button>
           </li>)}
         </ul>
-        {records.length === 0 ? <p className="admin-store-editor__empty">등록된 홈 큐레이션이 없습니다.</p> : null}
-        <button className="admin-store-editor__add" onClick={() => setAdding(true)} type="button">＋ 구성 추가</button>
-        <ArchivedHeroBanners onRestored={() => setSavedMessage('배너 복구 요청을 처리했습니다. 현재 목록과 노출 설정을 확인해주세요.')} />
+        {records.length === 0 ? <p className={EMPTY_NOTE}>등록된 홈 큐레이션이 없습니다.</p> : null}
+        <div className="flex flex-col gap-2 border-t p-3">
+          <Button className="w-full" onClick={() => setAdding(true)} type="button" variant="secondary"><Plus aria-hidden="true" />구성 추가</Button>
+          <ArchivedHeroBanners onRestored={() => setSavedMessage('배너 복구 요청을 처리했습니다. 현재 목록과 노출 설정을 확인해주세요.')} />
+        </div>
       </aside>
       <CurationForm
         draftActiveFrom={draftSeed.draftActiveFrom} draftId={draftSeed.draftId} eventOptions={eventOptions} goodOptions={goodOptions}
@@ -180,36 +204,37 @@ export function CurationSection({
         dirty={dirty} onDeleted={() => { setSavedMessage('배너 삭제 요청을 처리했습니다. 현재 목록을 확인해주세요.'); applySelection({ id: null }); }}
         onSaved={(id) => { setDirty(false); setSavedMessage('홈 큐레이션을 저장했습니다.'); onSelect({ id }); }}
         operationId={selected ? operationId : draftSeed.operationId} preview={preview} selected={selected} device={device} heroCount={heroCount} freeProductCount={freeProductCount}
+        fullPreview={fullPreview}
       />
     </div> : homeLayout && homeLayoutOperationId ? <CurationLayoutEditor
       key={`${homeLayout.revision}:${homeLayoutOperationId}`} layout={homeLayout} operationId={homeLayoutOperationId}
       preview={preview} records={records} device={device} onDirty={() => { setLayoutDirty(true); setLayoutSavedMessage(''); }} onSaved={(message) => { setLayoutDirty(false); setLayoutSavedMessage(message); }}
     /> : null}
     {adding ? <CurationEditorDialog title="홈 구성 추가" onClose={() => setAdding(false)}>
-      <div className="admin-store-editor__kind-grid">{CURATION_KIND_ORDER.filter((kind) => !['featured_ip', 'announcement'].includes(kind)).map((kind) => {
+      <div className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 sm:p-6">{CURATION_KIND_ORDER.filter((kind) => !['featured_ip', 'announcement'].includes(kind)).map((kind) => {
         const limited = (kind === 'hero' && heroCount >= HOME_HERO_LIMIT) || (isFreeProductKind(kind) && freeProductCount >= HOME_FREE_PRODUCT_LIMIT);
-        return <button disabled={limited} key={kind} onClick={() => requestSelection({ id: null, kind })} type="button"><strong>{CURATION_KIND_LABELS[kind]}</strong><span>{limited ? '등록 한도에 도달했습니다. 기존 구성을 수정해주세요.' : KIND_HELP[kind]}</span></button>;
+        return <button className="flex flex-col items-start gap-2 rounded-lg border bg-background p-4 text-left transition-colors outline-none hover:bg-muted focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:opacity-50 sm:p-5" data-slot="button" disabled={limited} key={kind} onClick={() => requestSelection({ id: null, kind })} type="button"><strong className="text-[15px] font-medium">{CURATION_KIND_LABELS[kind]}</strong><span className="text-xs leading-relaxed text-muted-foreground">{limited ? '등록 한도에 도달했습니다. 기존 구성을 수정해주세요.' : KIND_HELP[kind]}</span></button>;
       })}</div>
-      <footer><button onClick={() => setAdding(false)} type="button">취소</button></footer>
+      <footer><Button onClick={() => setAdding(false)} type="button" variant="outline">취소</Button></footer>
     </CurationEditorDialog> : null}
     {pendingSelection ? <CurationEditorDialog title="변경사항을 저장하지 않고 이동할까요?" onClose={() => setPendingSelection(null)}>
-      <p className="admin-store-editor__dialog-copy">아직 적용하지 않은 입력 내용은 사라집니다.</p>
-      <footer><button onClick={() => setPendingSelection(null)} type="button">계속 편집</button><button onClick={() => applySelection(pendingSelection)} type="button">변경 취소하고 이동</button></footer>
+      <p className="p-6 text-sm leading-relaxed">아직 적용하지 않은 입력 내용은 사라집니다.</p>
+      <footer><Button onClick={() => setPendingSelection(null)} type="button" variant="outline">계속 편집</Button><Button onClick={() => applySelection(pendingSelection)} type="button" variant="destructive">변경 취소하고 이동</Button></footer>
     </CurationEditorDialog> : null}
     {pendingView ? <CurationEditorDialog title="변경사항을 저장하지 않고 이동할까요?" onClose={() => setPendingView(null)}>
-      <p className="admin-store-editor__dialog-copy">현재 편집 방식에서 적용하지 않은 변경사항은 사라집니다.</p>
-      <footer><button onClick={() => setPendingView(null)} type="button">계속 편집</button><button onClick={() => { setDirty(false); setLayoutDirty(false); setSavedMessage(''); setView(pendingView); setPendingView(null); }} type="button">변경 취소하고 이동</button></footer>
+      <p className="p-6 text-sm leading-relaxed">현재 편집 방식에서 적용하지 않은 변경사항은 사라집니다.</p>
+      <footer><Button onClick={() => setPendingView(null)} type="button" variant="outline">계속 편집</Button><Button onClick={() => { setDirty(false); setLayoutDirty(false); setSavedMessage(''); setView(pendingView); setPendingView(null); }} type="button" variant="destructive">변경 취소하고 이동</Button></footer>
     </CurationEditorDialog> : null}
   </section>;
 }
 
 function CurationInput({ label, error, ...props }: InputHTMLAttributes<HTMLInputElement> & { label: string; error?: string }) {
   const id = useId();
-  return <AdminField error={error} inputId={id} label={label}><input {...props} aria-describedby={error ? `${id}-error` : undefined} aria-invalid={Boolean(error)} className="admin-field-control" id={id} /></AdminField>;
+  return <AdminField error={error} inputId={id} label={label}><Input {...props} aria-describedby={error ? `${id}-error` : undefined} aria-invalid={Boolean(error)} id={id} /></AdminField>;
 }
-function CurationSelect({ label, error, children, ...props }: SelectHTMLAttributes<HTMLSelectElement> & { label: string; error?: string; children: ReactNode }) {
+function CurationSelect({ label, error, children, ...props }: Omit<SelectHTMLAttributes<HTMLSelectElement>, 'size'> & { label: string; error?: string; children: ReactNode }) {
   const id = useId();
-  return <AdminField error={error} inputId={id} label={label}><select {...props} aria-describedby={error ? `${id}-error` : undefined} aria-invalid={Boolean(error)} className="admin-field-control" id={id}>{children}</select></AdminField>;
+  return <AdminField error={error} inputId={id} label={label}><NativeSelect {...props} aria-describedby={error ? `${id}-error` : undefined} aria-invalid={Boolean(error)} className="w-full" id={id}>{children}</NativeSelect></AdminField>;
 }
 
 function CurationCountedText({ name, label, value, onChange, limit, error, multiline = false, required = false }: {
@@ -217,10 +242,10 @@ function CurationCountedText({ name, label, value, onChange, limit, error, multi
 }) {
   const id = useId();
   const common = { id, name, value, required, onChange: (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => onChange(event.target.value),
-    className: 'admin-field-control', 'aria-invalid': Boolean(error), 'aria-describedby': `${id}-count${error ? ` ${id}-error` : ''}` };
+    'aria-invalid': Boolean(error), 'aria-describedby': `${id}-count${error ? ` ${id}-error` : ''}` };
   return <AdminField inputId={id} label={label} error={error}>
-    {multiline ? <textarea {...common} rows={3} /> : <input {...common} />}
-    <small id={`${id}-count`}>{Array.from(value).length} / {limit}자</small>
+    {multiline ? <Textarea {...common} rows={3} /> : <Input {...common} />}
+    <small className="text-xs text-muted-foreground tabular-nums" id={`${id}-count`}>{Array.from(value).length} / {limit}자</small>
   </AdminField>;
 }
 
@@ -235,18 +260,18 @@ export function SearchTermFields({ terms, onChange, error }: { terms: string[]; 
   const filled = rows.filter((term) => term.trim()).length;
   const issues = error ? searchTermFieldIssues(rows) : [];
   const invalidAt = (index: number) => Boolean(error) && (Boolean(issues[index]) || (filled === 0 && index === 0));
-  return <section className="admin-store-editor__form-section" aria-labelledby={`${id}-heading`}>
-    <div className="admin-store-editor__section-title"><h4 id={`${id}-heading`}>추천 검색어 <span>{filled} / {SEARCH_TERM_LIMIT}</span></h4>
-      <button disabled={rows.length >= SEARCH_TERM_LIMIT} onClick={() => onChange([...rows, ''])} type="button">검색어 추가</button></div>
-    <p>검색어마다 {SEARCH_TERM_MAX_LENGTH}자까지, 겹치지 않게 입력합니다(영문 대소문자는 같은 검색어로 봅니다). 입력한 그대로 검색되니 실제 상품·IP 이름처럼 결과가 있는 말을 고르세요. 목록이 없으면 기본 추천 검색어가 보입니다.</p>
-    <ol className="admin-store-editor__selected-products">{rows.map((term, index) => <li key={index}>
-      <span className="admin-store-editor__product-number">{index + 1}</span>
-      <input aria-describedby={invalidAt(index) ? `${id}-error` : undefined} aria-invalid={invalidAt(index)} aria-label={`추천 검색어 ${index + 1}`} className="admin-field-control" maxLength={SEARCH_TERM_MAX_LENGTH * 2} name="searchTerm"
+  return <section className={FORM_SECTION} aria-labelledby={`${id}-heading`}>
+    <div className="flex items-center justify-between gap-3"><h4 className={SECTION_TITLE} id={`${id}-heading`}>추천 검색어 <span className="text-xs font-normal text-muted-foreground tabular-nums">{filled} / {SEARCH_TERM_LIMIT}</span></h4>
+      <Button disabled={rows.length >= SEARCH_TERM_LIMIT} onClick={() => onChange([...rows, ''])} size="sm" type="button" variant="outline"><Plus aria-hidden="true" />검색어 추가</Button></div>
+    <p className={HELP}>검색어마다 {SEARCH_TERM_MAX_LENGTH}자까지, 겹치지 않게 입력합니다(영문 대소문자는 같은 검색어로 봅니다). 입력한 그대로 검색되니 실제 상품·IP 이름처럼 결과가 있는 말을 고르세요. 목록이 없으면 기본 추천 검색어가 보입니다.</p>
+    <ol className={ORDER_LIST}>{rows.map((term, index) => <li className={ORDER_ROW} key={index}>
+      <span className={ORDER_NUMBER}>{index + 1}</span>
+      <Input aria-describedby={invalidAt(index) ? `${id}-error` : undefined} aria-invalid={invalidAt(index)} aria-label={`추천 검색어 ${index + 1}`} maxLength={SEARCH_TERM_MAX_LENGTH * 2} name="searchTerm"
         onChange={(event) => onChange(rows.map((value, current) => (current === index ? event.target.value : value)))} value={term} />
-      <div>
-        <button aria-label={`추천 검색어 ${index + 1} 위로`} disabled={index === 0} onClick={() => onChange(moveCurationProduct(rows, index, -1))} type="button">↑</button>
-        <button aria-label={`추천 검색어 ${index + 1} 아래로`} disabled={index === rows.length - 1} onClick={() => onChange(moveCurationProduct(rows, index, 1))} type="button">↓</button>
-        <button aria-label={`추천 검색어 ${index + 1} 삭제`} onClick={() => onChange(rows.filter((_, current) => current !== index))} type="button">×</button>
+      <div className="flex gap-0.5">
+        <Button aria-label={`추천 검색어 ${index + 1} 위로`} disabled={index === 0} onClick={() => onChange(moveCurationProduct(rows, index, -1))} size="icon-sm" type="button" variant="ghost"><ArrowUp aria-hidden="true" /></Button>
+        <Button aria-label={`추천 검색어 ${index + 1} 아래로`} disabled={index === rows.length - 1} onClick={() => onChange(moveCurationProduct(rows, index, 1))} size="icon-sm" type="button" variant="ghost"><ArrowDown aria-hidden="true" /></Button>
+        <Button aria-label={`추천 검색어 ${index + 1} 삭제`} onClick={() => onChange(rows.filter((_, current) => current !== index))} size="icon-sm" type="button" variant="ghost"><X aria-hidden="true" /></Button>
       </div>
     </li>)}</ol>
     <ErrorText id={`${id}-error`}>{error}</ErrorText>
@@ -254,7 +279,7 @@ export function SearchTermFields({ terms, onChange, error }: { terms: string[]; 
 }
 
 function CurationForm({
-  draftActiveFrom, draftId, eventOptions, goodOptions, initialKind, ipOptions, onDirty, onSaved, operationId, preview, selected, device, heroCount, freeProductCount, dirty, onDeleted,
+  draftActiveFrom, draftId, eventOptions, goodOptions, initialKind, ipOptions, onDirty, onSaved, operationId, preview, selected, device, heroCount, freeProductCount, dirty, onDeleted, fullPreview,
 }: {
   draftActiveFrom: string; draftId: string; eventOptions: AdminCurationTargetRecord[]; goodOptions: AdminCurationTargetRecord[];
   initialKind: AdminCurationKind; ipOptions: AdminCurationTargetRecord[]; onDirty: () => void; onSaved: (id: string) => void;
@@ -263,6 +288,7 @@ function CurationForm({
   freeProductCount: number;
   dirty: boolean;
   onDeleted: () => void;
+  fullPreview: boolean;
 }) {
   const router = useRouter();
   const [values, setValues] = useState(() => createCurationEditorValues(selected, draftActiveFrom, initialKind));
@@ -314,7 +340,7 @@ function CurationForm({
   }
 
   return <>
-    <form action={action} className="admin-store-editor__form wc-admin-kit" aria-label="홈 구성 편집" onReset={(event) => event.preventDefault()} onSubmit={(event) => {
+    <form action={action} className={`${fullPreview ? 'hidden' : 'flex'} h-[780px] min-h-0 min-w-0 flex-col xl:h-auto xl:border-r print:h-auto print:border-0`} aria-label="홈 구성 편집" onReset={(event) => event.preventDefault()} onSubmit={(event) => {
       event.preventDefault();
       const formData = fixedRequest.current ?? new FormData(event.currentTarget);
       startTransition(() => action(formData));
@@ -323,10 +349,10 @@ function CurationForm({
       <input name="expectedUpdatedAt" type="hidden" value={selected?.updatedAt ?? ''} />
       <input name="originalTitle" type="hidden" value={selected?.kind === 'hero' ? selected.title : ''} />
       <input name="originalSubtitle" type="hidden" value={selected?.kind === 'hero' && typeof selected.payload?.subtitle === 'string' ? encodeURIComponent(selected.payload.subtitle) : ''} />
-      <header><div><h3>{CURATION_KIND_LABELS[kind]} {selected ? '관리' : '추가'}</h3><p>{KIND_HELP[kind]}</p></div></header>
-      <fieldset disabled={pending || state.uncertain || state.conflict}>
-        <section className="admin-store-editor__form-section">
-          <h4>기본 설정</h4>
+      <header className={PANEL_HEADER}><h3 className="text-base font-medium">{CURATION_KIND_LABELS[kind]} {selected ? '관리' : '추가'}</h3><p className={HELP}>{KIND_HELP[kind]}</p></header>
+      <fieldset disabled={pending || state.uncertain || state.conflict} className="min-h-0 min-w-0 flex-1 overflow-y-auto print:overflow-visible">
+        <section className={FORM_SECTION}>
+          <h4 className={SECTION_TITLE}>기본 설정</h4>
           <CurationSelect error={state.errors?.kind} label="홈에 보일 영역" name="kind" onChange={(event) => {
             const next = event.target.value as AdminCurationKind;
             /* 새 구성은 바꾼 종류의 시작값(새 띠배너는 상품 목록 제외, 새 공지 바는 링크 없음·전 화면)을 손대지 않은 칸에 다시 적용한다. */
@@ -343,21 +369,21 @@ function CurationForm({
           </CurationSelect>
           {kind === 'notice_bar' ? <>
             <CurationCountedText name="title" label="공지 문구" value={values.title} limit={NOTICE_BAR_MESSAGE_LIMIT} required error={state.errors?.title} onChange={value => update('title', value)} />
-            <p>한 줄 문구로 보여줍니다. 줄바꿈은 쓸 수 없고, 화면이 좁으면 문구가 다음 줄로 넘어갑니다.</p>
+            <p className={HELP}>한 줄 문구로 보여줍니다. 줄바꿈은 쓸 수 없고, 화면이 좁으면 문구가 다음 줄로 넘어갑니다.</p>
           </> : kind === 'hero' ? <>
             <CurationCountedText name="title" label="제목" value={values.title} limit={HOME_HERO_TITLE_LIMIT} error={state.errors?.title} onChange={value => update('title', value)} />
             <CurationCountedText name="subtitle" label="내용" value={values.subtitle} limit={HOME_HERO_CONTENT_LIMIT} multiline error={state.errors?.subtitle} onChange={value => update('subtitle', value)} />
-            <p>제목과 내용은 선택항목입니다. 새 제목은 40자, 내용은 150자·최대 3줄까지 입력합니다. 이전에 등록한 긴 문구는 그대로 유지할 수 있습니다.</p>
+            <p className={HELP}>제목과 내용은 선택항목입니다. 새 제목은 40자, 내용은 150자·최대 3줄까지 입력합니다. 이전에 등록한 긴 문구는 그대로 유지할 수 있습니다.</p>
           </> : kind === 'collection_banner' ? <>
             <CurationSelect error={state.errors?.slot} label="배너를 보일 컬렉션" name="slot" onChange={(event) => update('slot', event.target.value)} required value={values.slot}>
               {COLLECTION_BANNER_SLOTS.map((slot) => <option key={slot} value={slot}>{COLLECTION_BANNER_SLOT_LABELS[slot]}</option>)}
             </CurationSelect>
             <CurationCountedText name="title" label="배너 문구" value={values.title} limit={COLLECTION_BANNER_TITLE_LIMIT} required error={state.errors?.title} onChange={value => update('title', value)} />
             <CurationCountedText name="subtitle" label="부제 (선택)" value={values.subtitle} limit={COLLECTION_BANNER_SUBTITLE_LIMIT} error={state.errors?.subtitle} onChange={value => update('subtitle', value)} />
-            <p>문구는 줄바꿈 없이 한 줄로 입력합니다. 굿즈샵 전체는 여러 장을 노출 순서대로 넘겨 보고(자동으로 넘기지 않음), BEST·NEW는 노출 순서가 가장 앞선 한 장을 보여줍니다. 한 컬렉션에 노출 기간이 겹치는 배너는 비노출을 빼고 10장까지 등록합니다. BEST·NEW 배너는 문구가 길면 모바일에서 배너가 그만큼 길어지니 짧게 쓰는 것을 권장합니다. 카테고리 전시·검색·IP관에는 보이지 않습니다.</p>
+            <p className={HELP}>문구는 줄바꿈 없이 한 줄로 입력합니다. 굿즈샵 전체는 여러 장을 노출 순서대로 넘겨 보고(자동으로 넘기지 않음), BEST·NEW는 노출 순서가 가장 앞선 한 장을 보여줍니다. 한 컬렉션에 노출 기간이 겹치는 배너는 비노출을 빼고 10장까지 등록합니다. BEST·NEW 배너는 문구가 길면 모바일에서 배너가 그만큼 길어지니 짧게 쓰는 것을 권장합니다. 카테고리 전시·검색·IP관에는 보이지 않습니다.</p>
           </> : kind === 'search_terms' ? <>
             <CurationCountedText name="title" label="목록 이름 (관리용)" value={values.title} limit={SEARCH_TERM_LIST_NAME_LIMIT} required error={state.errors?.title} onChange={value => update('title', value)} />
-            <p>스토어 화면에는 보이지 않는 이름이지만 공개 데이터로 읽힐 수 있으니 내부 메모나 협력사 정보는 적지 마세요. 예: 11월 추천 검색어</p>
+            <p className={HELP}>스토어 화면에는 보이지 않는 이름이지만 공개 데이터로 읽힐 수 있으니 내부 메모나 협력사 정보는 적지 마세요. 예: 11월 추천 검색어</p>
           </> : kind === 'product_collection'
             ? <CurationCountedText name="title" label="제목" value={values.title} limit={HOME_PRODUCT_TITLE_LIMIT} required error={state.errors?.title} onChange={value => update('title', value)} />
             : textField('title', '제목', { required: true, maxLength: ['sales_best', 'review_best', 'product_mosaic'].includes(kind) ? 15 : 120, placeholder: '제목을 입력하세요' })}
@@ -370,11 +396,11 @@ function CurationForm({
             : <CurationSelect error={state.errors?.linkPath} label={kind === 'notice_bar' ? '버튼을 눌렀을 때 이동할 화면' : '눌렀을 때 이동할 화면'} name="linkPath" onChange={(event) => update('linkPath', event.target.value)} required={!optionalLink} value={values.linkPath}>{optionalLink ? <option value="">링크 없음</option> : null}{targetGroups.map((group) => <optgroup key={group.label} label={group.label}>{group.options.map((option) => <option key={option.path} value={option.path}>{option.label}</option>)}</optgroup>)}</CurationSelect>}
           {kind === 'notice_bar' && values.linkPath ? <>
             <CurationCountedText name="ctaLabel" label="버튼 문구" value={values.ctaLabel} limit={NOTICE_BAR_CTA_LIMIT} required error={state.errors?.ctaLabel} onChange={value => update('ctaLabel', value)} />
-            <p>문구 옆 버튼으로 보입니다. 링크 없음을 고르면 버튼 없이 문구와 닫기만 보입니다.</p>
+            <p className={HELP}>문구 옆 버튼으로 보입니다. 링크 없음을 고르면 버튼 없이 문구와 닫기만 보입니다.</p>
           </> : null}
         </section>
-        {!IMAGE_FREE.has(kind) ? <section className="admin-store-editor__form-section">
-          <h4>이미지 관리</h4>
+        {!IMAGE_FREE.has(kind) ? <section className={FORM_SECTION}>
+          <h4 className={SECTION_TITLE}>이미지 관리</h4>
           <ArtworkUploadField allowRemove={!IMAGE_REQUIRED.has(kind)} currentPath={values.imagePath || null} currentUrl={values.imageUrl} helpText={ARTWORK_HELP[kind]} kind="curation" label="PC 이미지" onPathChange={(path) => update('imagePath', path)} onPreviewChange={(url) => update('imageUrl', url)} showCropGuide={false} showPath={false} />
           <ErrorText>{state.errors?.imagePath}</ErrorText>
           {kind === 'hero' || kind === 'notice_strip' || kind === 'collection_banner' ? <><ArtworkUploadField allowRemove currentPath={values.mobileImagePath || null} currentUrl={values.mobileImageUrl} fieldId="curation-mobile" helpText="등록하지 않으면 PC 이미지를 사용합니다." kind="curation" label="모바일 이미지" name="mobileImagePath" onPathChange={(path) => update('mobileImagePath', path)} onPreviewChange={(url) => update('mobileImageUrl', url)} showCropGuide={false} showPath={false} /><ErrorText>{state.errors?.mobileImagePath}</ErrorText></> : null}
@@ -384,8 +410,8 @@ function CurationForm({
           <input name="imagePath" type="hidden" value={isFreeProductKind(kind) || kind === 'notice_bar' || kind === 'search_terms' ? '' : values.imagePath} />
           <ErrorText>{state.errors?.imagePath}</ErrorText>
         </>}
-        {kind === 'product_collection' ? <section className="admin-store-editor__form-section">
-          <h4>디자인과 사진</h4>
+        {kind === 'product_collection' ? <section className={FORM_SECTION}>
+          <h4 className={SECTION_TITLE}>디자인과 사진</h4>
           <CurationSelect name="productLayout" label="디자인 유형" error={state.errors?.productLayout} value={values.productLayout} onChange={event => update('productLayout', event.target.value as HomeProductLayout)}>
             <option value="list">리스트형</option><option value="full_image">풀이미지형</option>
           </CurationSelect>
@@ -396,12 +422,12 @@ function CurationForm({
             {!productCountValid ? <option value={values.productItemCount}>{values.productItemCount}개 · 새 개수를 선택해주세요</option> : null}
             {Array.from({ length: productCountMax - productCountMin + 1 }, (_, index) => index + productCountMin).map(count => <option value={count} key={count}>{count}개</option>)}
           </CurationSelect>
-          <p>상품 대표이미지의 가운데를 기준으로 잘라 표시합니다. 풀이미지형은 PC 2열·모바일 1열입니다. 사진 비율은 이 구성에만 적용됩니다.</p>
-          <p>선택한 목록에서 공개 가능한 상품부터 설정한 개수까지 표시합니다. 상품이 없으면 제목을 포함해 영역 전체를 숨깁니다. 품절 상품은 품절 표시와 함께 전시하며, 매출이 없어도 직접 선택한 상품은 표시합니다.</p>
-          <p>상품을 누르면 해당 상품 상세로 이동합니다. 디자인이나 전시 개수를 바꿔도 아래 후보 목록은 유지됩니다.</p>
+          <p className={HELP}>상품 대표이미지의 가운데를 기준으로 잘라 표시합니다. 풀이미지형은 PC 2열·모바일 1열입니다. 사진 비율은 이 구성에만 적용됩니다.</p>
+          <p className={HELP}>선택한 목록에서 공개 가능한 상품부터 설정한 개수까지 표시합니다. 상품이 없으면 제목을 포함해 영역 전체를 숨깁니다. 품절 상품은 품절 표시와 함께 전시하며, 매출이 없어도 직접 선택한 상품은 표시합니다.</p>
+          <p className={HELP}>상품을 누르면 해당 상품 상세로 이동합니다. 디자인이나 전시 개수를 바꿔도 아래 후보 목록은 유지됩니다.</p>
         </section> : null}
-        {kind === 'hero' || kind === 'collection_banner' ? <section className="admin-store-editor__form-section">
-          <h4>딤과 텍스트 색상</h4>
+        {kind === 'hero' || kind === 'collection_banner' ? <section className={FORM_SECTION}>
+          <h4 className={SECTION_TITLE}>딤과 텍스트 색상</h4>
           <CurationSelect name="imageDim" label="이미지 딤처리" error={state.errors?.imageDim} value={values.imageDim} onChange={event => update('imageDim', event.target.value as HomeHeroImageDim | '')}>
             {kind === 'hero' && selected && !selected.payload?.image_dim ? <option value="">기존 표시 유지</option> : null}
             <option value="none">적용안함</option><option value="white">흰색</option><option value="black">검정색</option>
@@ -410,14 +436,14 @@ function CurationForm({
             {kind === 'hero' && selected && !selected.payload?.text_color ? <option value="">기존 흰색 유지</option> : null}
             <option value="white">흰색</option><option value="black">검정색</option>
           </CurationSelect>
-          <p>{kind === 'hero'
+          <p className={HELP}>{kind === 'hero'
             ? '흰색·검정색 딤은 이미지 전체에 35%로 적용됩니다. 적용안함을 선택하면 기존 그라데이션도 사라집니다.'
             : '흰색·검정색 딤은 이미지 전체에 35%로 적용됩니다. 밝은 이미지에 흰색 문구를 쓰면 검정색 딤을 함께 고르세요.'}</p>
-          {values.imageDim === '' ? <p>기존 표시 유지에서는 문구가 있을 때 하단 그라데이션을 그대로 보여줍니다.</p> : null}
+          {values.imageDim === '' ? <p className={HELP}>기존 표시 유지에서는 문구가 있을 때 하단 그라데이션을 그대로 보여줍니다.</p> : null}
         </section> : null}
-        {kind === 'hero' ? <section className="admin-store-editor__form-section">
-          <h4>이미지 대체텍스트</h4>
-          <p>이미지 안에 있는 문구나 의미를 스크린리더에 전달합니다. 화면에 보이는 제목·내용과 별도로 입력합니다.</p>
+        {kind === 'hero' ? <section className={FORM_SECTION}>
+          <h4 className={SECTION_TITLE}>이미지 대체텍스트</h4>
+          <p className={HELP}>이미지 안에 있는 문구나 의미를 스크린리더에 전달합니다. 화면에 보이는 제목·내용과 별도로 입력합니다.</p>
           <CurationSelect name="altEnabled" label="대체텍스트 설정" error={state.errors?.altEnabled} value={values.altEnabled ? 'on' : 'off'} onChange={event => update('altEnabled', event.target.value === 'on')}>
             <option value="off">설정 안함</option><option value="on">설정함</option>
           </CurationSelect>
@@ -426,9 +452,9 @@ function CurationForm({
             <CurationCountedText name="altContent" label="대체텍스트 내용" value={values.altContent} limit={HOME_HERO_CONTENT_LIMIT} multiline error={state.errors?.altContent} onChange={value => update('altContent', value)} />
           </> : null}
         </section> : null}
-        {kind === 'collection_banner' ? <section className="admin-store-editor__form-section">
-          <h4>이미지 대체텍스트</h4>
-          <p>배너 문구는 화면에 글자로 읽히므로 따로 적지 않습니다. 이미지 자체에 담긴 상품이나 장면을 스크린리더에 전달하려면 입력하고, 꾸밈용 이미지면 비워 두세요.</p>
+        {kind === 'collection_banner' ? <section className={FORM_SECTION}>
+          <h4 className={SECTION_TITLE}>이미지 대체텍스트</h4>
+          <p className={HELP}>배너 문구는 화면에 글자로 읽히므로 따로 적지 않습니다. 이미지 자체에 담긴 상품이나 장면을 스크린리더에 전달하려면 입력하고, 꾸밈용 이미지면 비워 두세요.</p>
           <CurationCountedText name="imageAlt" label="이미지 대체텍스트 (선택)" value={values.imageAlt} limit={COLLECTION_BANNER_ALT_LIMIT} error={state.errors?.imageAlt} onChange={value => update('imageAlt', value)} />
         </section> : null}
         {kind === 'search_terms' ? <SearchTermFields error={state.errors?.searchTerms} onChange={(terms) => update('searchTerms', terms)} terms={values.searchTerms} /> : null}
@@ -436,28 +462,28 @@ function CurationForm({
           options={goodOptions} goods={preview.goods} error={state.errors?.mosaic}
           onTitle={value => update('mosaicTitle', value)} onSubtitle={value => update('mosaicSubtitle', value)}
           onSlots={value => update('mosaicSlots', value)} onImages={value => update('mosaicImageUrls', value)} /> : null}
-        {kind === 'sales_best' ? <section className="admin-store-editor__form-section">
-          <h4>판매량 자동 선정</h4>
+        {kind === 'sales_best' ? <section className={FORM_SECTION}>
+          <h4 className={SECTION_TITLE}>판매량 자동 선정</h4>
           <CurationSelect error={state.errors?.salesExposure} label="베스트 노출 방식" name="salesExposure" onChange={(event) => update('salesExposure', event.target.value as 'single' | 'all')} value={values.salesExposure}>
             <option value="single">1개 베스트 유형 선택 노출</option><option value="all">4개 베스트 유형 모두 노출</option>
           </CurationSelect>
           <CurationSelect error={state.errors?.salesPeriod} label={values.salesExposure === 'all' ? '기본 베스트 유형' : '베스트 유형'} name="salesPeriod" onChange={(event) => update('salesPeriod', event.target.value as HomeSalesPeriod)} value={values.salesPeriod}>
             {HOME_SALES_PERIODS.map((period) => <option key={period} value={period}>{HOME_SALES_PERIOD_LABELS[period]} 베스트</option>)}
           </CurationSelect>
-          <p>실시간은 오늘, 일간은 어제, 주간·월간은 어제까지 7일·30일을 한국시간으로 집계합니다. 확인된 결제 승인시각 기준 판매수량순이며 구매확정 전 결제도 포함합니다.</p>
-          <p>취소·반품 완료 주문과 비노출 상품은 제외하고 품절 상품은 포함합니다. 같은 판매수량은 찜수·등록일순으로 정렬합니다. 부족하면 찜한 상품으로 보충하며 판매·찜이 모두 없으면 채우지 않습니다.</p>
-          {values.salesExposure === 'all' ? <p>네 가지 유형을 모두 표시하고 선택한 기본 유형이 먼저 열립니다. 해당 기간에 상품이 없으면 빈 상태로 안내합니다.</p> : null}
+          <p className={HELP}>실시간은 오늘, 일간은 어제, 주간·월간은 어제까지 7일·30일을 한국시간으로 집계합니다. 확인된 결제 승인시각 기준 판매수량순이며 구매확정 전 결제도 포함합니다.</p>
+          <p className={HELP}>취소·반품 완료 주문과 비노출 상품은 제외하고 품절 상품은 포함합니다. 같은 판매수량은 찜수·등록일순으로 정렬합니다. 부족하면 찜한 상품으로 보충하며 판매·찜이 모두 없으면 채우지 않습니다.</p>
+          {values.salesExposure === 'all' ? <p className={HELP}>네 가지 유형을 모두 표시하고 선택한 기본 유형이 먼저 열립니다. 해당 기간에 상품이 없으면 빈 상태로 안내합니다.</p> : null}
         </section> : null}
-        {kind === 'review_best' ? <section className="admin-store-editor__form-section">
-          <h4>리뷰 상품 선정</h4>
+        {kind === 'review_best' ? <section className={FORM_SECTION}>
+          <h4 className={SECTION_TITLE}>리뷰 상품 선정</h4>
           <CurationSelect error={state.errors?.reviewSelectionMode} label="리뷰 상품 선정 방식" name="reviewSelectionMode" onChange={(event) => update('reviewSelectionMode', event.target.value as 'rating' | 'manual')} value={values.reviewSelectionMode}>
             <option value="rating">평점순 자동등록</option><option value="manual">직접등록</option>
           </CurationSelect>
-          <p>공개 리뷰 평균평점이 3점 이상인 상품만 전시합니다. 자동등록은 어제까지 7일간 리뷰가 작성된 상품 중 평균평점·최근 리뷰순 상위 6개를 표시합니다.</p>
-          <p>직접등록은 선택한 순서대로 최대 20개를 표시합니다. 상품별 대표 후기는 공개 후기 중 별점·최신 작성순으로 선정하며, 삭제·블라인드하면 바로 다시 선정합니다.</p>
-          <p>노출 가능한 상품이 4개 미만이면 영역 전체를 숨깁니다. 상품 비노출이나 리뷰 삭제·블라인드 후에도 같은 조건이 적용됩니다.</p>
+          <p className={HELP}>공개 리뷰 평균평점이 3점 이상인 상품만 전시합니다. 자동등록은 어제까지 7일간 리뷰가 작성된 상품 중 평균평점·최근 리뷰순 상위 6개를 표시합니다.</p>
+          <p className={HELP}>직접등록은 선택한 순서대로 최대 20개를 표시합니다. 상품별 대표 후기는 공개 후기 중 별점·최신 작성순으로 선정하며, 삭제·블라인드하면 바로 다시 선정합니다.</p>
+          <p className={HELP}>노출 가능한 상품이 4개 미만이면 영역 전체를 숨깁니다. 상품 비노출이나 리뷰 삭제·블라인드 후에도 같은 조건이 적용됩니다.</p>
         </section> : null}
-        {kind === 'best_tab' || kind === 'band_banner' || showManualProducts ? <section className="admin-store-editor__form-section">
+        {kind === 'best_tab' || kind === 'band_banner' || showManualProducts ? <section className={FORM_SECTION}>
           {kind === 'best_tab' ? <>
             <CurationSelect error={state.errors?.selectionMode} label="상품 선정 방식" name="selectionMode" onChange={(event) => update('selectionMode', event.target.value as 'manual' | 'latest')} value={values.selectionMode}>
               <option value="manual">직접 선택</option><option value="latest">최신 등록순 자동</option>
@@ -466,22 +492,22 @@ function CurationForm({
               <CurationSelect error={state.errors?.itemCount} label="전시 상품 수" name="itemCount" onChange={(event) => update('itemCount', event.target.value)} value={values.itemCount}>
                 {Array.from({ length: 8 }, (_, index) => index + 3).map((count) => <option key={count} value={count}>{count}개</option>)}
               </CurationSelect>
-              <p>공개된 상품을 등록일이 최근인 순서로 자동 전시합니다. 상품이 추가되거나 비노출로 바뀌면 목록도 바뀝니다. 전시 가능한 상품이 설정 수보다 적으면 있는 상품만 표시합니다.</p>
+              <p className={HELP}>공개된 상품을 등록일이 최근인 순서로 자동 전시합니다. 상품이 추가되거나 비노출로 바뀌면 목록도 바뀝니다. 전시 가능한 상품이 설정 수보다 적으면 있는 상품만 표시합니다.</p>
             </> : null}
           </> : null}
           {showManualProducts ? <>
-          <div className="admin-store-editor__section-title"><h4>전시할 상품 <span>{values.goodIds.length} / {productLimit}</span></h4><button onClick={() => setPicker(true)} type="button">상품 추가</button></div>
+          <div className="flex items-center justify-between gap-3"><h4 className={SECTION_TITLE}>전시할 상품 <span className="text-xs font-normal text-muted-foreground tabular-nums">{values.goodIds.length} / {productLimit}</span></h4><Button onClick={() => setPicker(true)} size="sm" type="button" variant="outline"><Plus aria-hidden="true" />상품 추가</Button></div>
           <input name="goodIds" type="hidden" value={values.goodIds.join(', ')} />
-          <p>선택한 순서대로 전시합니다. {kind === 'review_best' ? '공개 평점 3점 미만이거나 비노출인 상품은 자동으로 제외합니다.' : '비노출 상품은 공개 홈에 표시되지 않습니다.'}</p>
-          <ol className="admin-store-editor__selected-products">{values.goodIds.map((goodId, index) => <li key={`${goodId}-${index}`}><span className="admin-store-editor__product-number">{index + 1}</span><span><strong>{names.get(goodId) ?? '현재 선택 상품'}</strong><small>{goodId}</small></span><div><button aria-label={`${names.get(goodId) ?? goodId} 위로`} disabled={index === 0} onClick={() => update('goodIds', moveCurationProduct(values.goodIds, index, -1))} type="button">↑</button><button aria-label={`${names.get(goodId) ?? goodId} 아래로`} disabled={index === values.goodIds.length - 1} onClick={() => update('goodIds', moveCurationProduct(values.goodIds, index, 1))} type="button">↓</button><button aria-label={`${names.get(goodId) ?? goodId} 삭제`} onClick={() => update('goodIds', values.goodIds.filter((_, current) => current !== index))} type="button">×</button></div></li>)}</ol>
-          {values.goodIds.length === 0 ? <p className="admin-store-editor__empty">선택한 상품이 없습니다.</p> : null}<ErrorText>{state.errors?.goodIds}</ErrorText>
+          <p className={HELP}>선택한 순서대로 전시합니다. {kind === 'review_best' ? '공개 평점 3점 미만이거나 비노출인 상품은 자동으로 제외합니다.' : '비노출 상품은 공개 홈에 표시되지 않습니다.'}</p>
+          <ol className={ORDER_LIST}>{values.goodIds.map((goodId, index) => <li className={ORDER_ROW} key={`${goodId}-${index}`}><span className={ORDER_NUMBER}>{index + 1}</span><span className="min-w-0"><strong className="block text-xs font-medium [overflow-wrap:anywhere]">{names.get(goodId) ?? '현재 선택 상품'}</strong><small className="text-[11px] text-muted-foreground [overflow-wrap:anywhere]">{goodId}</small></span><div className="flex gap-0.5"><Button aria-label={`${names.get(goodId) ?? goodId} 위로`} disabled={index === 0} onClick={() => update('goodIds', moveCurationProduct(values.goodIds, index, -1))} size="icon-sm" type="button" variant="ghost"><ArrowUp aria-hidden="true" /></Button><Button aria-label={`${names.get(goodId) ?? goodId} 아래로`} disabled={index === values.goodIds.length - 1} onClick={() => update('goodIds', moveCurationProduct(values.goodIds, index, 1))} size="icon-sm" type="button" variant="ghost"><ArrowDown aria-hidden="true" /></Button><Button aria-label={`${names.get(goodId) ?? goodId} 삭제`} onClick={() => update('goodIds', values.goodIds.filter((_, current) => current !== index))} size="icon-sm" type="button" variant="ghost"><X aria-hidden="true" /></Button></div></li>)}</ol>
+          {values.goodIds.length === 0 ? <p className={EMPTY_NOTE}>선택한 상품이 없습니다.</p> : null}<ErrorText>{state.errors?.goodIds}</ErrorText>
           </> : null}
         </section> : null}
-        {isShellNoticeKind(kind) ? <section className="admin-store-editor__form-section">
-          <h4 id={`${id}-page-types`}>공지를 보일 화면</h4>
+        {isShellNoticeKind(kind) ? <section className={FORM_SECTION}>
+          <h4 className={SECTION_TITLE} id={`${id}-page-types`}>공지를 보일 화면</h4>
           <input name="pageTypesField" type="hidden" value="1" />
-          <div aria-labelledby={`${id}-page-types`} role="group">
-            {SHELL_NOTICE_PAGE_TYPES.map((type) => <label className="admin-store-editor__enabled" key={type}>
+          <div aria-labelledby={`${id}-page-types`} className="flex flex-col gap-2.5" role="group">
+            {SHELL_NOTICE_PAGE_TYPES.map((type) => <label className="flex items-center gap-2.5 text-sm" key={type}>
               <input checked={values.pageTypes.includes(type)} name="pageTypes" onChange={(event) => update('pageTypes', event.target.checked
                 ? SHELL_NOTICE_PAGE_TYPES.filter((option) => option === type || values.pageTypes.includes(option))
                 : values.pageTypes.filter((option) => option !== type))} type="checkbox" value={type} />
@@ -489,36 +515,36 @@ function CurationForm({
             </label>)}
           </div>
           <ErrorText>{state.errors?.pageTypes}</ErrorText>
-          <p>{kind === 'notice_bar'
+          <p className={HELP}>{kind === 'notice_bar'
             ? '고른 화면의 맨 위, 상단 띠배너 위에 보입니다. 결제·마이 화면처럼 방해가 되는 곳은 빼 두세요.'
             : '고른 화면의 상단에 보입니다. 새로 만드는 띠배너는 상품 목록을 빼고 시작합니다.'} 노출 종료 시각이 되면 이미 열려 있는 화면에서도 사라집니다. 적용한 변경(문구·노출안함 등)과 예약한 노출 시작은 새로 여는 화면부터 보이며, 예약 시작은 최대 10분가량 늦게 나타날 수 있습니다.</p>
         </section> : null}
-        <section className="admin-store-editor__form-section">
-          <h4>노출 설정</h4>
-          <label className="admin-store-editor__enabled"><span>홈 노출</span><input checked={values.enabled} name="enabled" onChange={(event) => update('enabled', event.target.checked)} type="checkbox" />{values.enabled ? '노출함' : '노출안함'}</label>
+        <section className={FORM_SECTION}>
+          <h4 className={SECTION_TITLE}>노출 설정</h4>
+          <label className="flex items-center gap-2.5 text-sm"><span className="mr-auto font-medium">홈 노출</span><input checked={values.enabled} name="enabled" onChange={(event) => update('enabled', event.target.checked)} type="checkbox" />{values.enabled ? '노출함' : '노출안함'}</label>
           {textField('displayOrder', '같은 영역 안의 노출 순서', { min: 0, step: 1, type: 'number', required: true })}
           {textField('activeFrom', '노출 시작 (KST)', { type: 'datetime-local', required: true })}
           {textField('activeTo', '노출 종료 (KST, 선택)', { type: 'datetime-local' })}
         </section>
       </fieldset>
-      <footer className="admin-store-editor__form-footer"><ActionNotice state={state} />
-        {heroLimitReached ? <p role="alert">프로모션 배너는 비노출을 포함해 최대 10개까지 등록합니다. 기존 배너를 수정해주세요.</p> : null}
-        {freeProductLimitReached ? <p role="alert">자유상품은 모자이크·비노출·종료를 포함해 합계 5개까지 등록합니다. 기존 구성을 수정해주세요.</p> : null}
-        <button className="admin-store-editor__primary" disabled={pending || state.conflict || heroLimitReached || freeProductLimitReached} type="submit">{pending ? '적용 중…' : state.uncertain ? '같은 요청 결과 확인' : '이 구성 적용하기'}</button>
-        {state.conflict ? <button type="button" onClick={() => router.refresh()}>입력을 취소하고 최신 저장본 불러오기</button> : null}
+      <footer className="grid gap-3 border-t p-4 sm:p-5 print:hidden"><ActionNotice state={state} />
+        {heroLimitReached ? <p className="text-sm text-destructive" role="alert">프로모션 배너는 비노출을 포함해 최대 10개까지 등록합니다. 기존 배너를 수정해주세요.</p> : null}
+        {freeProductLimitReached ? <p className="text-sm text-destructive" role="alert">자유상품은 모자이크·비노출·종료를 포함해 합계 5개까지 등록합니다. 기존 구성을 수정해주세요.</p> : null}
+        <Button disabled={pending || state.conflict || heroLimitReached || freeProductLimitReached} size="lg" type="submit">{pending ? '적용 중…' : state.uncertain ? '같은 요청 결과 확인' : '이 구성 적용하기'}</Button>
+        {state.conflict ? <Button onClick={() => router.refresh()} type="button" variant="outline">입력을 취소하고 최신 저장본 불러오기</Button> : null}
         {selected?.kind === 'hero' ? <HeroBannerDeleteButton target={selected} dirty={dirty}
           disabled={pending || Boolean(state.uncertain) || Boolean(state.conflict)} onDeleted={onDeleted} /> : null}
-        <Link className="admin-curation-notification-cta" href="/admin/messaging/notifications">인앱 공지 발송</Link></footer>
+        <Link className="text-center text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline" href="/admin/messaging/notifications">인앱 공지 발송</Link></footer>
     </form>
-    <aside className="admin-store-editor__preview" aria-label="스토어 미리보기">
-      <header><h3>미리보기</h3><select aria-label="미리보기 범위" onChange={(event) => setPreviewScope(event.target.value as 'draft' | 'public')} value={previewScope}><option value="draft">편집 중인 구성</option><option value="public">현재 공개 홈</option></select><span>{device === 'mobile' ? '390px' : '1212px'}</span></header>
-      {previewScope === 'draft' ? <div className="admin-store-editor__preview-note"><span>편집 중인 내용입니다. 적용하면 노출 설정에 따라 반영됩니다.</span>{!values.enabled ? <strong>현재 비노출로 설정되어 있습니다.</strong> : null}{draft.missingGoodIds.length && showManualProducts ? <strong>비노출 또는 없는 상품 {draft.missingGoodIds.length}개는 미리보기에 표시되지 않습니다.</strong> : null}{kind === 'benefit' && !preview.cardRewardsEnabled && isCardRewardDestination(values.linkPath) ? <strong>카드 리워드가 중지되어 카드팩·게임으로 가는 이 혜택 타일은 노출되지 않습니다. 다른 화면으로 가는 혜택 타일은 그대로 보입니다.</strong> : null}
+    <aside className={`flex h-[780px] min-h-0 min-w-0 flex-col border-t bg-muted/40 xl:h-auto print:hidden${fullPreview ? ' border-t-0' : ' md:col-span-2 xl:col-span-1 xl:border-t-0'}`} aria-label="스토어 미리보기">
+      <header className="flex items-center gap-3 border-b bg-background px-4 py-3"><h3 className="text-sm font-medium whitespace-nowrap">미리보기</h3><NativeSelect aria-label="미리보기 범위" className="min-w-0 max-w-[180px] flex-1" onChange={(event) => setPreviewScope(event.target.value as 'draft' | 'public')} size="sm" value={previewScope}><option value="draft">편집 중인 구성</option><option value="public">현재 공개 홈</option></NativeSelect><span className="ml-auto text-xs text-muted-foreground tabular-nums">{device === 'mobile' ? '390px' : '1212px'}</span></header>
+      {previewScope === 'draft' ? <div className="grid gap-1.5 border-b bg-background px-4 py-3 text-xs text-muted-foreground [&_strong]:font-medium [&_strong]:text-[var(--wc-warning)]"><span>편집 중인 내용입니다. 적용하면 노출 설정에 따라 반영됩니다.</span>{!values.enabled ? <strong>현재 비노출로 설정되어 있습니다.</strong> : null}{draft.missingGoodIds.length && showManualProducts ? <strong>비노출 또는 없는 상품 {draft.missingGoodIds.length}개는 미리보기에 표시되지 않습니다.</strong> : null}{kind === 'benefit' && !preview.cardRewardsEnabled && isCardRewardDestination(values.linkPath) ? <strong>카드 리워드가 중지되어 카드팩·게임으로 가는 이 혜택 타일은 노출되지 않습니다. 다른 화면으로 가는 혜택 타일은 그대로 보입니다.</strong> : null}
         {kind === 'collection_banner' && !preview.cardRewardsEnabled && values.linkPath && isCardRewardDestination(values.linkPath) ? <strong>카드 리워드가 중지되어 카드팩·게임으로 가는 이 컬렉션 배너는 노출되지 않습니다. 배너가 없으면 컬렉션은 지금처럼 시작합니다.</strong> : null}
         {isShellNoticeKind(kind) && !values.pageTypes.includes('home') ? <strong>홈이 노출 화면에 없어 공개 홈에서는 보이지 않습니다. 미리보기는 모양만 보여줍니다.</strong> : null}
         {kind === 'sales_best' && !preview.productRankings?.salesAvailable ? <strong>판매량을 불러오지 못했습니다. 새로고침 후 다시 확인해주세요.</strong> : null}
         {kind === 'review_best' ? !preview.productRankings?.reviewsAvailable ? <strong>리뷰 평점을 불러오지 못했습니다. 새로고침 후 다시 확인해주세요.</strong> : draft.reviewEligibleCount < 4 ? <strong>노출 가능한 리뷰 상품 {draft.reviewEligibleCount}개 · 4개 이상이어야 영역이 표시됩니다.</strong> : <span>노출 가능한 리뷰 상품 {draft.reviewEligibleCount}개</span> : null}
       </div> : null}
-      {previewScope === 'draft' && legacyKind ? <p className="admin-store-editor__empty">{KIND_HELP[kind]}</p> : <CurationPreview cardRewardsEnabled={preview.cardRewardsEnabled} collectionBanner={previewScope === 'draft' ? draft.collectionBanner : null} curation={previewScope === 'public' ? preview.curation : draft.curation} device={device} noticeBar={previewScope === 'public' ? preview.noticeBar ?? null : draft.noticeBar} noticeStrip={previewScope === 'public' ? preview.noticeStrip : draft.noticeStrip} searchTerms={previewScope === 'draft' ? draft.searchTerms : null} />}
+      {previewScope === 'draft' && legacyKind ? <p className={EMPTY_NOTE}>{KIND_HELP[kind]}</p> : <CurationPreview cardRewardsEnabled={preview.cardRewardsEnabled} collectionBanner={previewScope === 'draft' ? draft.collectionBanner : null} curation={previewScope === 'public' ? preview.curation : draft.curation} device={device} noticeBar={previewScope === 'public' ? preview.noticeBar ?? null : draft.noticeBar} noticeStrip={previewScope === 'public' ? preview.noticeStrip : draft.noticeStrip} searchTerms={previewScope === 'draft' ? draft.searchTerms : null} />}
     </aside>
     {picker ? <CurationProductPicker goods={preview.goods} limit={productLimit} onApply={(ids) => { update('goodIds', ids); setPicker(false); }} onClose={() => setPicker(false)} options={kind === 'review_best' ? goodOptions.filter((good) => eligibleReviewIds.has(good.id)) : goodOptions} reviewStatistics={kind === 'review_best' ? reviewStatistics : undefined} selectedIds={values.goodIds} /> : null}
   </>;

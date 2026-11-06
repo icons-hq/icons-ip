@@ -12,8 +12,10 @@ import {
   type AdminCoinExchangeOfferRecord,
 } from '@/lib/admin/campaigns';
 import type { AdminCardPoolRecord } from '@/lib/admin/catalog.server';
-import { Icon } from '@/components/ui/Icon';
+import { Check } from 'lucide-react';
+import { Button } from '@/components/admin/kit/ui/button';
 import { Field, InlineNotice, SelectField } from '../fields';
+import { SECTION_CARD, SectionHeading } from './SectionLayout';
 
 /*
  * 카드팩 교환처 패널 (S8 #330).
@@ -28,6 +30,7 @@ import { Field, InlineNotice, SelectField } from '../fields';
  */
 
 const emptyState: AdminCampaignActionState = {};
+const CODE = 'rounded bg-muted px-1 py-0.5 font-mono text-xs text-foreground';
 
 function poolLabel(pool: AdminCardPoolRecord) {
   const readiness = pool.rewardReady ? '' : ' · 개봉 준비 안 됨';
@@ -46,17 +49,17 @@ function OfferRow({
   pool: AdminCardPoolRecord | undefined;
 }) {
   return (
-    <li className="admin-campaign-offer">
-      <button
+    <li className="flex min-w-0 flex-col gap-1">
+      <Button
         aria-current={active ? 'true' : undefined}
-        className={active ? 'chip on' : 'chip'}
+        className="h-auto w-full justify-start py-2 text-left whitespace-normal aria-[current=true]:border-primary aria-[current=true]:bg-muted"
         onClick={onSelect}
-        style={{ justifyContent: 'flex-start', minHeight: 36, textAlign: 'left', width: '100%' }}
         type="button"
+        variant="outline"
       >
-        <span className="col" style={{ gap: 3, minWidth: 0 }}>
-          <strong style={{ fontSize: 13 }}>{offer.label}</strong>
-          <span className="faint mono" style={{ fontSize: 11 }}>
+        <span className="flex min-w-0 flex-col items-start gap-0.5">
+          <span className="text-sm font-medium">{offer.label}</span>
+          <span className="text-xs font-normal text-muted-foreground tabular-nums">
             {pool ? pool.name : '삭제된 카드풀'}
             {' · '}코인 {offer.coinCost.toLocaleString('ko-KR')}
             {' · '}카드팩 {offer.ticketCount}장
@@ -64,9 +67,9 @@ function OfferRow({
             {pool && !pool.rewardReady ? ' · 개봉 준비 안 됨' : ''}
           </span>
         </span>
-      </button>
+      </Button>
       {/* 캠페인 sections 의 exchange 블록이 이 id 를 그대로 받는다. */}
-      <code className="admin-campaign-offer-id">{offer.id}</code>
+      <code className="overflow-x-auto px-0.5 font-mono text-xs text-muted-foreground select-all" data-coin-offer-id="">{offer.id}</code>
     </li>
   );
 }
@@ -84,20 +87,22 @@ export function CoinExchangeOfferPanel({
   const poolsById = new Map(pools.map((pool) => [pool.id, pool]));
 
   return (
-    <section className="card col admin-campaign-panel wc-admin-kit wc-admin-kit__card" style={{ gap: 14 }}>
-      <div className="col" style={{ gap: 5 }}>
-        <strong style={{ fontSize: 15 }}>카드팩 교환처</strong>
-        <p className="muted" style={{ fontSize: 12, lineHeight: 1.7, margin: 0 }}>
-          출석으로 모은 코인을 카드팩으로 바꾸는 자리입니다. 등록한 뒤 목록의 ID를 복사해
-          캠페인 랜딩 구성의 <code>exchange</code> 블록 <code>offer_id</code>에 넣으면 상세에 붙습니다.
-          카드풀 확률이 채워지지 않으면 교환 시점에 실패하므로 <strong>개봉 준비 안 됨</strong> 표시가
-          붙은 풀은 그대로 두지 마세요.
-        </p>
-      </div>
+    <section className={SECTION_CARD}>
+      <SectionHeading
+        description={(
+          <>
+            출석으로 모은 코인을 카드팩으로 바꾸는 자리입니다. 등록한 뒤 목록의 ID를 복사해
+            캠페인 랜딩 구성의 <code className={CODE}>exchange</code> 블록 <code className={CODE}>offer_id</code>에 넣으면 상세에 붙습니다.
+            카드풀 확률이 채워지지 않으면 교환 시점에 실패하므로 <strong className="font-semibold text-foreground">개봉 준비 안 됨</strong> 표시가
+            붙은 풀은 그대로 두지 마세요.
+          </>
+        )}
+        title="카드팩 교환처"
+      />
 
-      <ul className="admin-campaign-offers">
+      <ul className="flex flex-col gap-3">
         {offers.length === 0 && (
-          <li className="muted" style={{ fontSize: 13 }}>등록된 교환처가 없습니다.</li>
+          <li className="text-sm text-muted-foreground">등록된 교환처가 없습니다.</li>
         )}
         {offers.map((offer) => (
           <OfferRow
@@ -110,7 +115,7 @@ export function CoinExchangeOfferPanel({
         ))}
       </ul>
 
-      <form action={action} className="col" key={selected ? `${selected.id}:${selected.updatedAt}` : 'new-offer'} style={{ gap: 12 }}>
+      <form action={action} className="flex flex-col gap-4 border-t pt-4" key={selected ? `${selected.id}:${selected.updatedAt}` : 'new-offer'}>
         <input name="offerId" type="hidden" value={selected?.id ?? ''} />
         <AdminFormGrid>
           <SelectField
@@ -166,19 +171,18 @@ export function CoinExchangeOfferPanel({
             ))}
           </SelectField>
         </AdminFormGrid>
-        <div className="row" style={{ flexWrap: 'wrap', gap: 8, justifyContent: 'flex-start' }}>
-          <button className="btn btn-sm admin-field-control" disabled={pending} style={{ minHeight: 40 }}>
-            <Icon name="check" size={14} /> {pending ? '저장 중' : selected ? '교환처 수정' : '교환처 등록'}
-          </button>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button disabled={pending} type="submit">
+            <Check aria-hidden="true" /> {pending ? '저장 중' : selected ? '교환처 수정' : '교환처 등록'}
+          </Button>
           {selected && (
-            <button
-              className="btn btn-sm btn-ghost"
+            <Button
               onClick={() => setSelectedId(null)}
-              style={{ minHeight: 40 }}
               type="button"
+              variant="outline"
             >
               새 교환처
-            </button>
+            </Button>
           )}
           <InlineNotice state={state} />
         </div>

@@ -1,7 +1,9 @@
 import Link from 'next/link';
+import { ArrowRight, BookOpen } from 'lucide-react';
 import { ShippingRegionExpiryNotice } from '../ShippingRegionExpiryNotice';
 import type { ShippingRegionExpiryState } from '@/lib/admin/shipping-regions';
 import { AdminPageHeader, AdminSectionCard, AdminStatusBadge } from '@/components/admin/console/AdminKit';
+import { buttonVariants } from '@/components/admin/kit/ui/button';
 import { OperationsContactForm } from './OperationsContactForm';
 import { OPERATIONS_CONTACT_FIELDS, operationsContactValues, type OperationsContact, type OperationsContactHistory } from '@/lib/admin/operations-contacts';
 import { formatOrderDateTime } from '@/lib/orders';
@@ -25,39 +27,38 @@ function changedFieldLabels(fields: string[]): string {
 }
 
 export function OperationsSettingsScreen({ contacts, history, canEdit, shippingRegionExpiry }: { contacts: OperationsContact[]; history: OperationsContactHistory[]; canEdit: boolean; shippingRegionExpiry?: ShippingRegionExpiryState }) {
-  return <section className="wc-admin-kit admin-operations">
+  return <div className="flex min-w-0 flex-col gap-4" data-admin-screen="operations">
     <AdminPageHeader title="운영 준비" description="운영에 필요한 설정을 입력하고, 담당자와 자료 위치를 함께 관리합니다."
-      actions={<Link href="/admin/guide/store-settings">입력 가이드</Link>}/>
+      actions={<Link className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" href="/admin/guide/store-settings"><BookOpen aria-hidden="true" />입력 가이드</Link>}/>
     <ShippingRegionExpiryNotice state={shippingRegionExpiry} />
-    <AdminSectionCard title="운영 정보 입력">
-      <p className="wc-admin-kit__description">항목을 선택하면 해당 입력 화면으로 이동합니다. 실제 계약과 자료를 확인한 뒤 저장해주세요.</p>
-      <ul className="admin-operations__links">{INPUT_LINKS.filter(item => !item.adminOnly || canEdit).map(item => <li key={item.href}>
-        <Link href={item.href}><strong>{item.label}</strong><span>{item.description}</span><span className="admin-operations__link-action" aria-hidden="true">입력 화면 →</span></Link>
+    <AdminSectionCard title="운영 정보 입력" summary="항목을 선택하면 해당 입력 화면으로 이동합니다. 실제 계약과 자료를 확인한 뒤 저장해주세요.">
+      <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">{INPUT_LINKS.filter(item => !item.adminOnly || canEdit).map(item => <li className="min-w-0" key={item.href}>
+        <Link className="group/input flex h-full min-w-0 flex-col gap-1 rounded-lg border bg-background p-3 transition-colors hover:bg-muted" href={item.href}><strong className="text-sm font-medium">{item.label}</strong><span className="text-sm text-muted-foreground">{item.description}</span><span aria-hidden="true" className="mt-auto inline-flex items-center gap-1 pt-1 text-xs font-medium text-muted-foreground group-hover/input:text-foreground">입력 화면 <ArrowRight className="size-3.5" /></span></Link>
       </li>)}</ul>
     </AdminSectionCard>
-    <div className="admin-operations__intro">
-      <h3>담당자와 자료 위치</h3>
-      <p>관리자와 직원만 볼 수 있습니다. {canEdit ? '변경할 항목을 입력하고 해당 담당자 정보의 저장 버튼을 눌러주세요.' : '직원은 조회만 가능합니다. 변경은 관리자에게 요청해주세요.'}</p>
-      <p>자료 위치는 문서 주소나 폴더 경로로 기록합니다. 입력 여부는 담당자 정보 기준이며, 실제 인수 완료 여부는 인수 기록에서 확인합니다.</p>
+    <div className="flex flex-col gap-1">
+      <h3 className="text-base font-medium">담당자와 자료 위치</h3>
+      <p className="text-sm text-muted-foreground">관리자와 직원만 볼 수 있습니다. {canEdit ? '변경할 항목을 입력하고 해당 담당자 정보의 저장 버튼을 눌러주세요.' : '직원은 조회만 가능합니다. 변경은 관리자에게 요청해주세요.'}</p>
+      <p className="text-sm text-muted-foreground">자료 위치는 문서 주소나 폴더 경로로 기록합니다. 입력 여부는 담당자 정보 기준이며, 실제 인수 완료 여부는 인수 기록에서 확인합니다.</p>
     </div>
     {contacts.map(contact => {
       const filled = Object.values(operationsContactValues(contact)).filter(value => value.trim()).length;
       const title = contact.scope === 'operations' ? '운영 총괄' : `${contact.originName} 출고지`;
       return <AdminSectionCard key={`${contact.scope}:${contact.originId ?? 'general'}`} title={title}>
-        <div className="admin-operations__meta">
+        <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
           <AdminStatusBadge>{filled ? `정보 입력 ${filled}/4` : '담당자 정보 미입력'}</AdminStatusBadge>
           {contact.scope === 'origin' ? <AdminStatusBadge tone={contact.originActive ? 'neutral' : 'warning'}>{contact.originActive ? '출고지 사용 중' : '출고지 비활성'}</AdminStatusBadge> : null}
-          {contact.updatedAt ? <span>최근 저장 <time dateTime={contact.updatedAt}>{formatOrderDateTime(contact.updatedAt)}</time> · {contact.updatedByName ?? '삭제된 운영자'}</span> : null}
+          {contact.updatedAt ? <span>최근 저장 <time className="tabular-nums" dateTime={contact.updatedAt}>{formatOrderDateTime(contact.updatedAt)}</time> · {contact.updatedByName ?? '삭제된 운영자'}</span> : null}
         </div>
         <OperationsContactForm contact={contact} canEdit={canEdit}/>
       </AdminSectionCard>;
     })}
-    {!contacts.some(contact => contact.scope === 'origin') ? <p>출고지가 없습니다. <Link href="/admin/settings/origins">출고지 설정</Link>을 확인해주세요.</p> : null}
+    {!contacts.some(contact => contact.scope === 'origin') ? <p className="rounded-lg border bg-muted/40 px-3 py-2.5 text-sm">출고지가 없습니다. <Link className="font-medium underline underline-offset-4" href="/admin/settings/origins">출고지 설정</Link>을 확인해주세요.</p> : null}
     <AdminSectionCard title="담당자 정보 변경 이력">
-      {history.length ? <ol className="admin-operations__history">{history.map(entry => <li key={entry.id}>
-        <div><time dateTime={entry.createdAt}>{formatOrderDateTime(entry.createdAt)}</time> · {entry.actorName}</div>
+      {history.length ? <ol className="flex flex-col divide-y">{history.map(entry => <li className="flex flex-col gap-0.5 py-2.5 first:pt-0 last:pb-0" key={entry.id}>
+        <div className="text-xs text-muted-foreground"><time className="tabular-nums" dateTime={entry.createdAt}>{formatOrderDateTime(entry.createdAt)}</time> · {entry.actorName}</div>
         <p>{entry.scope === 'operations' ? '운영 총괄' : `${entry.originName ?? '출고지'} 담당자`} · {changedFieldLabels(entry.changedFields)}</p>
-      </li>)}</ol> : <p>저장된 변경 이력이 없습니다.</p>}
+      </li>)}</ol> : <p className="text-muted-foreground">저장된 변경 이력이 없습니다.</p>}
     </AdminSectionCard>
-  </section>;
+  </div>;
 }

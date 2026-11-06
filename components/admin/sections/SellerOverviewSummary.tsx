@@ -1,6 +1,7 @@
 import Link from 'next/link';
-import Image from 'next/image';
-import { Icon } from '@/components/ui/Icon';
+import type { ReactNode } from 'react';
+import { ArrowLeftRight, ChevronRight, ClipboardList, CreditCard, Info, MessageSquareText, Package, ShoppingBag, type LucideIcon } from 'lucide-react';
+import { Card, CardAction, CardContent, CardHeader } from '@/components/admin/kit/ui/card';
 import type { AdminInsights } from '@/lib/admin/insights.server';
 import type { AdminHomeSummary } from '@/lib/admin/home-summary';
 import { ADMIN_WORK_QUEUES, visibleAdminWorkQueues, type AdminWorkQueueData } from '@/lib/admin/work-queue';
@@ -8,29 +9,52 @@ import { goodsListHref, normalizeGoodsListFilters } from '@/lib/admin/goods-list
 import { ADMIN_ORDER_STATUS_LABELS, adminOrdersHref, normalizeAdminOrderFilters } from '@/lib/admin/orders';
 import { formatKrwExact } from '../format';
 import { adminReviewHref, DEFAULT_ADMIN_REVIEW_FILTERS } from '@/lib/admin/reviews';
-import type { ReactNode } from 'react';
 
-const PANEL_ICON_ASSETS: Record<string, string> = {
-  bag: '/admin/seller-icons/sales.svg',
-  swap: '/admin/seller-icons/claims.svg',
-  grid: '/admin/seller-icons/goods.svg',
-  chat: '/admin/seller-icons/reviews.svg',
-};
+/*
+ * 홈 요약 카드(템플릿 대시보드 룩, ADR-0028). 카드 머리 아이콘은 단색이고 숫자는 foreground다. 처리할 건수
+ * (요청·대기·지연·미답변)만 0보다 클 때 의미색 하나(destructive)로 눈에 띄게 한다.
+ */
 
-function SummaryPanel({ title, description, icon, tone, href, children, className = '' }: {
-  title: string; description: string; icon: string; tone?: string; href: string; children: ReactNode; className?: string;
+function SummaryPanel({ id, title, description, icon: PanelIcon, href, children, className = '' }: {
+  id: string; title: string; description: string; icon: LucideIcon; href: string; children: ReactNode; className?: string;
 }) {
-  return <section className={`admin-home-panel ${className}`} data-tone={tone}>
-    <header>
-      <Link href={href}><span className="admin-home-panel-icon">{PANEL_ICON_ASSETS[icon] ? <Image src={PANEL_ICON_ASSETS[icon]} width={32} height={32} alt="" /> : <Icon name={icon} size={17} />}</span><h2>{title}</h2></Link>
-      <span className="admin-home-panel-info" title={description} aria-label={description}>ⓘ</span>
-    </header>
-    <div className="admin-home-panel-body">{children}</div>
-  </section>;
+  return <Card className={`min-w-0 ${className}`} data-home-panel={id}>
+    <CardHeader>
+      <h2 className="text-base leading-snug font-medium">
+        <Link className="inline-flex items-center gap-2 underline-offset-4 hover:underline" href={href}>
+          <PanelIcon aria-hidden="true" className="size-4 text-muted-foreground" />{title}
+        </Link>
+      </h2>
+      <CardAction>
+        <span aria-label={description} className="flex size-6 items-center justify-center text-muted-foreground" role="img" title={description}>
+          <Info aria-hidden="true" className="size-4" />
+        </span>
+      </CardAction>
+    </CardHeader>
+    <CardContent className="flex flex-1 flex-col gap-1">{children}</CardContent>
+  </Card>;
 }
-function CountLink({ label, value, href, unit = '건' }: { label: string; value: number | null | undefined; href: string; unit?: string }) {
+
+/** 집계 실패는 0건과 다르게 작은 회색 글자로, 처리할 건수는 0보다 클 때만 destructive로 읽힌다. */
+function countClass(value: number | null | undefined, attention: boolean) {
+  if (value == null) return 'shrink-0 text-sm font-medium text-muted-foreground';
+  return `shrink-0 text-lg font-semibold tabular-nums${attention && value > 0 ? ' text-destructive' : ''}`;
+}
+
+function CountLink({ label, value, href, unit = '건', attention = false }: {
+  label: string; value: number | null | undefined; href: string; unit?: string; attention?: boolean;
+}) {
   const reading = value == null ? '확인 필요' : value.toLocaleString('ko-KR');
-  return <Link className="admin-home-count" href={href} prefetch={false} aria-label={`${label} ${reading}${value == null ? '' : unit}`}><span>{label}</span><strong>{reading}</strong></Link>;
+  return <Link
+    aria-label={`${label} ${reading}${value == null ? '' : unit}`}
+    className="group/count -mx-2 flex min-h-9 min-w-0 items-center justify-between gap-3 rounded-md px-2 text-sm transition-colors hover:bg-muted"
+    href={href}
+    prefetch={false}
+  ><span className="min-w-0 truncate text-muted-foreground group-hover/count:text-foreground">{label}</span><strong className={countClass(value, attention)}>{reading}</strong></Link>;
+}
+
+function SummaryNote({ children }: { children: ReactNode }) {
+  return <p className="mt-auto pt-2 text-xs leading-relaxed text-muted-foreground">{children}</p>;
 }
 
 export function SellerOverviewSummary({ insights, workQueue, summary, days }: {
@@ -43,41 +67,46 @@ export function SellerOverviewSummary({ insights, workQueue, summary, days }: {
   const queueHref = (id: typeof ADMIN_WORK_QUEUES[number]['id']) => ADMIN_WORK_QUEUES.find((queue) => queue.id === id)!.href;
   const visibleQueues = new Set<string>(visibleAdminWorkQueues(workQueue).map((queue) => queue.id));
   const stages = ['paid', 'confirmed', 'shipping', 'delivered', 'done'] as const;
-  return <div className="admin-home-summary">
-    <SummaryPanel title="판매 관리" description="전체 기간의 상품 주문 상태별 건수입니다." icon="bag" href="/admin/sales/orders" className="admin-home-sales">
-      <div className="admin-home-sales-stages">{stages.map((status, index) => <Link key={status} href={adminOrdersHref(normalizeAdminOrderFilters({ status }))} prefetch={false}>
-        <span className="admin-home-stage-reading"><span>{ADMIN_ORDER_STATUS_LABELS[status]}</span><strong>{insights ? `${(insights.pipeline.find((stage) => stage.status === status)?.count ?? 0).toLocaleString('ko-KR')}건` : '확인 필요'}</strong></span>
-        {index < stages.length - 1 ? <Icon name="chevronRight" size={18} /> : null}
+  return <div className="grid grid-cols-1 gap-4 md:grid-cols-2 xl:grid-cols-6" data-admin-home="summary">
+    <SummaryPanel className="md:col-span-2 xl:col-span-4" description="전체 기간의 상품 주문 상태별 건수입니다." href="/admin/sales/orders" icon={ShoppingBag} id="sales" title="판매 관리">
+      <div className="grid grid-cols-2 gap-x-3 gap-y-2 sm:grid-cols-5 sm:gap-1">{stages.map((status, index) => <Link className="flex min-w-0 items-center gap-1 rounded-md p-2 transition-colors hover:bg-muted" href={adminOrdersHref(normalizeAdminOrderFilters({ status }))} key={status} prefetch={false}>
+        <span className="flex min-w-0 flex-1 flex-col gap-0.5"><span className="truncate text-sm text-muted-foreground">{ADMIN_ORDER_STATUS_LABELS[status]}</span><strong className="text-2xl font-semibold whitespace-nowrap tabular-nums">{insights ? `${(insights.pipeline.find((stage) => stage.status === status)?.count ?? 0).toLocaleString('ko-KR')}건` : <span className="text-sm font-medium text-muted-foreground">확인 필요</span>}</strong></span>
+        {index < stages.length - 1 ? <ChevronRight aria-hidden="true" className="hidden size-4 shrink-0 text-muted-foreground/60 sm:block" /> : null}
       </Link>)}</div>
-      <div className="admin-home-sales-foot"><CountLink label="발송 대기" value={queueValue('ready')} href={queueHref('ready')} /><CountLink label="미응답 문의" value={queueValue('inquiries')} href={queueHref('inquiries')} /></div>
-      <p className="admin-home-summary-note">판매 단계는 주문 수, 발송 대기는 출고지별 배송 건 수입니다. 전체 기간 기준입니다.</p>
+      <div className="mt-2 grid grid-cols-1 gap-x-6 rounded-lg bg-muted/50 px-3 py-1 sm:grid-cols-2">
+        <CountLink attention href={queueHref('ready')} label="발송 대기" value={queueValue('ready')} />
+        <CountLink attention href={queueHref('inquiries')} label="미응답 문의" value={queueValue('inquiries')} />
+      </div>
+      <SummaryNote>판매 단계는 주문 수, 발송 대기는 출고지별 배송 건 수입니다. 전체 기간 기준입니다.</SummaryNote>
     </SummaryPanel>
-    <SummaryPanel title="결제 현황" description={`최근 ${days}일 상품·티켓 결제완료 기준입니다.`} icon="card" href="/admin/stats/sales" className="admin-home-payment">
-      <Link className="admin-home-count" href="/admin/stats/sales"><span>최근 {days}일 결제금액</span><strong>{insights ? formatKrwExact(insights.revenue.current) : '확인 필요'}</strong></Link>
-      <CountLink label={`최근 ${days}일 결제 건수`} value={insights?.paymentCount.current} href="/admin/stats/sales" />
-      <p className="admin-home-summary-note">상품·티켓 결제완료 기준</p>
+    <SummaryPanel className="md:col-span-2 xl:col-span-2" description={`최근 ${days}일 상품·티켓 결제완료 기준입니다.`} href="/admin/stats/sales" icon={CreditCard} id="payment" title="결제 현황">
+      <div className="grid gap-x-6 gap-y-1 md:grid-cols-2 xl:grid-cols-1">
+        <Link className="group/count -mx-2 flex min-w-0 flex-col gap-0.5 rounded-md p-2 transition-colors hover:bg-muted" href="/admin/stats/sales"><span className="text-sm text-muted-foreground group-hover/count:text-foreground">최근 {days}일 결제금액</span><strong className="text-2xl font-semibold tabular-nums [overflow-wrap:anywhere]">{insights ? formatKrwExact(insights.revenue.current) : <span className="text-sm font-medium text-muted-foreground">확인 필요</span>}</strong></Link>
+        <CountLink href="/admin/stats/sales" label={`최근 ${days}일 결제 건수`} value={insights?.paymentCount.current} />
+      </div>
+      <SummaryNote>상품·티켓 결제완료 기준</SummaryNote>
     </SummaryPanel>
-    <SummaryPanel title="취소 · 반품 · 교환" description={visibleQueues.has('refundTransfers') ? '요청 상태인 취소·반품·교환 건수와 계좌로 보낼 무통장 환불 건수입니다.' : '요청 상태인 취소·반품·교환 건수입니다.'} icon="swap" tone="danger" href="/admin/sales/claims/cancels" className="admin-home-claims">
-      <CountLink label="취소요청" value={summary?.claims.cancel} href="/admin/sales/claims/cancels?stage=requested" />
-      <CountLink label="반품요청" value={summary?.claims.return} href="/admin/sales/claims/returns?stage=requested" />
-      <CountLink label="교환요청" value={summary?.claims.exchange} href="/admin/sales/claims/exchanges?stage=requested" />
-      {visibleQueues.has('refundTransfers') ? <CountLink label="환불 송금 대기" value={queueValue('refundTransfers')} href={queueHref('refundTransfers')} /> : null}
+    <SummaryPanel className="xl:col-span-3" description={visibleQueues.has('refundTransfers') ? '요청 상태인 취소·반품·교환 건수와 계좌로 보낼 무통장 환불 건수입니다.' : '요청 상태인 취소·반품·교환 건수입니다.'} href="/admin/sales/claims/cancels" icon={ArrowLeftRight} id="claims" title="취소 · 반품 · 교환">
+      <CountLink attention href="/admin/sales/claims/cancels?stage=requested" label="취소요청" value={summary?.claims.cancel} />
+      <CountLink attention href="/admin/sales/claims/returns?stage=requested" label="반품요청" value={summary?.claims.return} />
+      <CountLink attention href="/admin/sales/claims/exchanges?stage=requested" label="교환요청" value={summary?.claims.exchange} />
+      {visibleQueues.has('refundTransfers') ? <CountLink attention href={queueHref('refundTransfers')} label="환불 송금 대기" value={queueValue('refundTransfers')} /> : null}
     </SummaryPanel>
-    <SummaryPanel title="처리할 업무" description={visibleQueues.has('unpaid') ? '발주확인 대기 주문, 발송 지연 배송, 미답변 문의, 입금 확인 전 무통장 주문 건수입니다.' : '발주확인 대기 주문, 발송 지연 배송, 미답변 문의 건수입니다.'} icon="clock" tone="danger" href="/admin/sales/dispatch" className="admin-home-work">
-      <CountLink label="신규주문" value={queueValue('orders')} href={queueHref('orders')} />
-      <CountLink label="발송 지연" value={queueValue('delayed')} href={queueHref('delayed')} />
-      <CountLink label="미응답 문의" value={queueValue('inquiries')} href={queueHref('inquiries')} />
-      {visibleQueues.has('unpaid') ? <CountLink label="무통장 입금 대기" value={queueValue('unpaid')} href={queueHref('unpaid')} /> : null}
+    <SummaryPanel className="xl:col-span-3" description={visibleQueues.has('unpaid') ? '발주확인 대기 주문, 발송 지연 배송, 미답변 문의, 입금 확인 전 무통장 주문 건수입니다.' : '발주확인 대기 주문, 발송 지연 배송, 미답변 문의 건수입니다.'} href="/admin/sales/dispatch" icon={ClipboardList} id="work" title="처리할 업무">
+      <CountLink attention href={queueHref('orders')} label="신규주문" value={queueValue('orders')} />
+      <CountLink attention href={queueHref('delayed')} label="발송 지연" value={queueValue('delayed')} />
+      <CountLink attention href={queueHref('inquiries')} label="미응답 문의" value={queueValue('inquiries')} />
+      {visibleQueues.has('unpaid') ? <CountLink attention href={queueHref('unpaid')} label="무통장 입금 대기" value={queueValue('unpaid')} /> : null}
     </SummaryPanel>
-    <SummaryPanel title="상품 관리" description="전시중·품절·검토가 필요한 상품 수입니다." icon="grid" tone="goods" href="/admin/catalog/goods" className="admin-home-goods">
-      <CountLink label="전시중 상품" value={summary?.goods.published} href={goodsListHref(normalizeGoodsListFilters({ status: 'published' }))} unit="개" />
-      <CountLink label="품절 상품" value={summary?.goods.soldout} href={goodsListHref(normalizeGoodsListFilters({ stock: 'soldout' }))} unit="개" />
-      <CountLink label="상품 검토 대기" value={queueValue('goods')} href={queueHref('goods')} unit="개" />
+    <SummaryPanel className="xl:col-span-3" description="전시중·품절·검토가 필요한 상품 수입니다." href="/admin/catalog/goods" icon={Package} id="goods" title="상품 관리">
+      <CountLink href={goodsListHref(normalizeGoodsListFilters({ status: 'published' }))} label="전시중 상품" unit="개" value={summary?.goods.published} />
+      <CountLink attention href={goodsListHref(normalizeGoodsListFilters({ stock: 'soldout' }))} label="품절 상품" unit="개" value={summary?.goods.soldout} />
+      <CountLink attention href={queueHref('goods')} label="상품 검토 대기" unit="개" value={queueValue('goods')} />
     </SummaryPanel>
-    <SummaryPanel title="리뷰 현황" description="전체 리뷰, 낮은 평점 리뷰와 미답변 리뷰 건수입니다." icon="chat" tone="reviews" href="/admin/cs/reviews" className="admin-home-reviews">
-      <CountLink label="전체 리뷰" value={summary?.reviews.total} href={adminReviewHref(DEFAULT_ADMIN_REVIEW_FILTERS)} />
-      <CountLink label="낮은 평점 리뷰" value={summary?.reviews.lowRating} href={adminReviewHref(DEFAULT_ADMIN_REVIEW_FILTERS, { lowRating: true })} />
-      <CountLink label="미답변 리뷰" value={summary?.reviews.awaitingReply} href={adminReviewHref(DEFAULT_ADMIN_REVIEW_FILTERS, { reply: 'without' })} />
+    <SummaryPanel className="xl:col-span-3" description="전체 리뷰, 낮은 평점 리뷰와 미답변 리뷰 건수입니다." href="/admin/cs/reviews" icon={MessageSquareText} id="reviews" title="리뷰 현황">
+      <CountLink href={adminReviewHref(DEFAULT_ADMIN_REVIEW_FILTERS)} label="전체 리뷰" value={summary?.reviews.total} />
+      <CountLink attention href={adminReviewHref(DEFAULT_ADMIN_REVIEW_FILTERS, { lowRating: true })} label="낮은 평점 리뷰" value={summary?.reviews.lowRating} />
+      <CountLink attention href={adminReviewHref(DEFAULT_ADMIN_REVIEW_FILTERS, { reply: 'without' })} label="미답변 리뷰" value={summary?.reviews.awaitingReply} />
     </SummaryPanel>
   </div>;
 }

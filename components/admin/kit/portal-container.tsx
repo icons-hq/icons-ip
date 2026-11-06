@@ -21,7 +21,7 @@ const AdminKitPortalContainer = createContext<HTMLElement | undefined>(undefined
 function createPortalNode() {
   if (typeof document === 'undefined') return undefined;
   const node = document.createElement('div');
-  node.className = 'wc-root wc-admin admin-kit-portal';
+  node.className = 'wc-admin admin-kit-portal';
   node.dataset.adminKitPortal = '';
   return node;
 }

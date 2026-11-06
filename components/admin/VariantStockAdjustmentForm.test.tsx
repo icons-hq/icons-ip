@@ -9,6 +9,9 @@ describe('옵션 실재고 조정', () => {
     expect(html).toContain('name="variantId"'); expect(html).toContain(variant.id);
     expect(html).toContain('name="expectedStockQty" value="3"');
     expect(html).not.toContain('<select'); expect(html).toContain('조정 사유');
+    /* kit Button은 type을 빼면 type="button"이 된다 — 조정 버튼은 이 폼을 제출해야 한다. */
+    const form = html.match(/<form\b[\s\S]*?<\/form>/)?.[0] ?? '';
+    expect(form).toMatch(/<button[^>]*type="submit"[^>]*>[^<]*재고 조정[^<]*<\/button>/);
   });
   it('여러 옵션은 선택기를 제공하고 보관 옵션은 새 조정 대상에서 뺀다', () => {
     const html = renderToStaticMarkup(<VariantStockAdjustmentForm adjustmentId="operation" good={{ id: 'good', ipId: 'ip', stockQty: 99 }} variants={[variant,

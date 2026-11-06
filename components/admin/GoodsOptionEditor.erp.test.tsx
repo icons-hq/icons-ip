@@ -93,3 +93,47 @@ describe('옵션 상세 정보의 ERP 품목 선택', () => {
     expect(detailTable().props.erpRows?.[savedRed]).toEqual({ item });
   });
 });
+
+/*
+ * 2026-10-07 3차 리뷰: 표 안 재고 부족 경고 규칙이 ERP 안내까지 덮어 성공 안내도 경고색 11px로 보였다. 템플릿 룩(ADR-0028)에서는
+ * 안내마다 자기 색·크기 유틸리티를 갖는다 — 그 칸의 실제 요소를 그려 확인한다.
+ */
+describe('옵션 상세 정보의 ERP 안내 색', () => {
+  type Tagged = ReactElement<DetailProps & { className?: string; 'data-tone'?: string; 'data-good-option-erp-message'?: string; 'data-good-option-low-stock'?: string }>;
+  function detailParts() {
+    const table = detailTable();
+    return find((table.type as (props: DetailProps) => ReactNode)(table.props), () => true) as Tagged[];
+  }
+  const erpMessages = () => detailParts().filter((element) => element.type === 'small' && element.props['data-good-option-erp-message'] === '');
+
+  it('적용 성공은 성공색, 적용 실패·확인 필요는 경고색이고 둘 다 같은 작은 글자다', () => {
+    choose(savedRed, item);
+    const [failed] = erpMessages();
+    expect(failed.props['data-tone']).toBe('warning');
+    expect(failed.props.className).toContain('text-[var(--wc-warning)]');
+    expect(failed.props.className).toContain('text-xs');
+    expect(failed.props.className).not.toContain('text-[var(--wc-success)]');
+
+    rows[1] = { ...rows[1], erpCode: '000124', barcode: '0880000000124' };
+    choose(savedRed, item);
+    (detailTable().props as { onErpPrice?: (key: string, salePrice: number) => void }).onErpPrice?.(savedRed, item.salePrice!);
+    expect(rows[0]).toMatchObject({ extraPrice: 2000 });
+    const [applied] = erpMessages();
+    expect(applied.props.children).toBe('옵션가를 2,000원으로 맞춰 판매 12,000원이 되었습니다.');
+    expect(applied.props['data-tone']).toBe('success');
+    expect(applied.props.className).toContain('text-[var(--wc-success)]');
+    expect(applied.props.className).toContain('text-xs');
+    expect(applied.props.className).not.toContain('text-[var(--wc-warning)]');
+  });
+
+  it('같은 칸의 재고 부족 경고는 ERP 안내와 따로 경고색의 더 작은 글자로 보인다', () => {
+    rows[0] = { ...rows[0], lowStockThreshold: 3 };
+    choose(savedRed, item);
+    const lowStock = detailParts().filter((element) => element.type === 'small' && element.props['data-good-option-low-stock'] === '');
+    expect(lowStock).toHaveLength(1);
+    expect(lowStock[0].props['data-tone']).toBe('warning');
+    expect(lowStock[0].props.className).toContain('text-[var(--wc-warning)]');
+    expect(lowStock[0].props.className).toContain('text-[11px]');
+    expect(erpMessages()[0].props.className).not.toContain('text-[11px]');
+  });
+});

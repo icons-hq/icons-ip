@@ -1,46 +1,77 @@
 import type { ReactNode } from 'react';
+import { Badge } from '@/components/admin/kit/ui/badge';
+import { AdminPageHeading } from './admin-shell-title';
 
-/** Shared operational screen kit; console primitives keep their behavior. */
+/*
+ * 운영 화면의 골격 부품 — 템플릿 룩(ADR-0028). API는 그대로이고 모양은 kit Card·Badge·Field와 같은 클래스다.
+ * 옛 클래스 이름(wc-admin-kit__*)은 화면 고유 CSS가 닿지 않도록 쓰지 않는다.
+ */
+
+/** 화면 머리(제목·설명·동작). 셸의 h1 아래에서 h2로 선다 — 셸 제목과 같으면 h2는 화면에서 감춘다. */
 export function AdminPageHeader({ title, description, actions }: { title: string; description?: string; actions?: ReactNode }) {
-  return <header className="wc-admin-kit wc-admin-kit__page-header">
-    <div><h2 className="wc-admin-kit__heading">{title}</h2>{description ? <p className="wc-admin-kit__description">{description}</p> : null}</div>
-    {actions ? <div className="wc-admin-kit__actions">{actions}</div> : null}
+  return <header className="flex flex-wrap items-start justify-between gap-3" data-admin-kit="page-header">
+    <div className="flex min-w-0 flex-col gap-1">
+      <AdminPageHeading title={title} />
+      {description ? <p className="max-w-3xl text-sm text-pretty text-muted-foreground">{description}</p> : null}
+    </div>
+    {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
   </header>;
 }
 
+/** 입력 묶음 카드(kit Card). 상태 배지는 오류 수를 우선한다. */
 export function AdminSectionCard({ title, children, id, summary, requirement, status, errorCount = 0 }: {
   title: string; children: ReactNode; id?: string; summary?: ReactNode;
   requirement?: string; status?: string; errorCount?: number;
 }) {
-  return <section aria-label={title} id={id} tabIndex={id ? -1 : undefined} className="wc-admin-kit wc-admin-kit__card wc-admin-kit__section">
-    <header><h3>{title}</h3>{requirement ? <span className="wc-admin-kit__hint">{requirement}</span> : null}
-      {status ? <AdminStatusBadge tone={errorCount ? 'danger' : 'neutral'}>{errorCount ? `오류 ${errorCount}개` : status}</AdminStatusBadge> : null}
-      {summary ? <p className="wc-admin-kit__hint">{summary}</p> : null}
-    </header>{children}
+  return <section
+    aria-label={title}
+    className="flex min-w-0 scroll-mt-16 flex-col gap-4 rounded-xl border bg-card p-4 text-sm text-card-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50 sm:p-5"
+    data-admin-kit="section"
+    id={id}
+    tabIndex={id ? -1 : undefined}
+  >
+    <header className="flex flex-col gap-1">
+      <div className="flex flex-wrap items-center gap-2">
+        <h3 className="text-base leading-snug font-medium text-foreground">{title}</h3>
+        {requirement ? <span className="text-xs text-muted-foreground">{requirement}</span> : null}
+        {status ? <AdminStatusBadge tone={errorCount ? 'danger' : 'neutral'}>{errorCount ? `오류 ${errorCount}개` : status}</AdminStatusBadge> : null}
+      </div>
+      {summary ? <p className="text-sm text-muted-foreground">{summary}</p> : null}
+    </header>
+    {children}
   </section>;
 }
 
 export function AdminFormGrid({ children }: { children: ReactNode }) {
-  return <div className="wc-admin-kit wc-admin-kit__form-grid">{children}</div>;
+  return <div className="grid gap-x-6 gap-y-5 [grid-template-columns:repeat(auto-fit,minmax(min(100%,max(16rem,calc((100%-1.5rem)/2))),1fr))]" data-admin-kit="form-grid">{children}</div>;
 }
 
 /** Inputs use `${inputId}-hint` / `${inputId}-error` for aria-describedby. */
 export function AdminField({ label, inputId, hint, error, children }: { label: string; inputId: string; hint?: string; error?: string; children: ReactNode }) {
-  return <div className="wc-admin-kit wc-admin-kit__field">
-    <label className="wc-admin-kit__field-label" htmlFor={inputId}>{label}</label>
+  return <div className="group/field flex min-w-0 flex-col gap-2 data-[invalid=true]:text-destructive" data-admin-kit="field" data-invalid={error ? 'true' : undefined}>
+    <label className="text-sm leading-snug font-medium text-foreground" htmlFor={inputId}>{label}</label>
     {children}
-    {hint ? <p className="wc-admin-kit__hint" id={`${inputId}-hint`}>{hint}</p> : null}
-    {error ? <p className="wc-admin-kit__error" id={`${inputId}-error`} role="alert">{error}</p> : null}
+    {hint ? <p className="text-sm leading-normal text-muted-foreground" id={`${inputId}-hint`}>{hint}</p> : null}
+    {error ? <p className="text-sm text-destructive" id={`${inputId}-error`} role="alert">{error}</p> : null}
   </div>;
 }
 
+/* 상태색은 배지 바탕이 아니라 작은 점으로 싣는다(템플릿 대시보드의 상태 열과 같은 테두리 배지 + 색 점). */
+const BADGE_TONE_DOT = {
+  success: 'bg-[var(--wc-success)]',
+  warning: 'bg-[var(--wc-warning)]',
+} as const;
+
 export function AdminStatusBadge({ tone = 'neutral', children }: { tone?: 'neutral' | 'success' | 'warning' | 'danger'; children: ReactNode }) {
-  return <span className="wc-admin-kit wc-admin-kit__badge" data-tone={tone}>{children}</span>;
+  const dot = tone === 'success' || tone === 'warning' ? BADGE_TONE_DOT[tone] : null;
+  return <Badge data-tone={tone} variant={tone === 'danger' ? 'destructive' : dot ? 'outline' : 'secondary'}>
+    {dot ? <span aria-hidden="true" className={`size-1.5 shrink-0 rounded-full ${dot}`} /> : null}{children}
+  </Badge>;
 }
 
 /** An in-flow, non-modal context panel; the owning screen supplies its close link. */
 export function AdminSidePanel({ title, actions, children }: { title: string; actions?: ReactNode; children: ReactNode }) {
-  return <aside aria-label={title} className="wc-admin-kit wc-admin-kit__panel">
-    <header><h2 className="wc-admin-kit__heading">{title}</h2>{actions}</header>{children}
+  return <aside aria-label={title} className="flex min-w-0 flex-col gap-4 rounded-xl border bg-card p-4 text-sm text-card-foreground" data-admin-kit="side-panel">
+    <header className="flex items-center justify-between gap-3"><h2 className="text-base font-semibold text-foreground">{title}</h2>{actions}</header>{children}
   </aside>;
 }

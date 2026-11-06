@@ -15,6 +15,7 @@ import {
 import { ArtworkUploadField } from '../ArtworkUploadField';
 import { CatalogArchiveControl, CatalogArchiveFilter } from '../CatalogArchiveControls';
 import { ColorField, Field, FormShell, RecordList, SelectField } from '../fields';
+import { MasterDetail, SECTION_CARD } from './SectionLayout';
 
 function dateTimeInput(value: string | null | undefined) {
   if (!value) return '';
@@ -65,28 +66,30 @@ export function EventSection({
   const visibleRecords = filterAdminCatalogRecords(records, archiveFilter);
 
   return (
-    <div className="admin-master-detail">
-      <div className="col" style={{ gap: 12, minWidth: 0 }}>
-        <CatalogArchiveFilter
-          counts={adminCatalogArchiveCounts(records)}
-          filter={archiveFilter}
-          onChange={(filter) => {
-            setArchiveFilter(filter);
-            if (selected && !filterAdminCatalogRecords([selected], filter).length) onSelect(null);
-          }}
-        />
-        <RecordList
-          activeId={selected?.id ?? null}
-          items={visibleRecords}
-          labelFor={(event) => formatAdminCatalogRecordLabel(`${event.id} · ${event.title}`, event.archivedAt)}
-          onNew={() => onSelect(null)}
-          onSelect={onSelect}
-          thumbnailKind="event"
-          thumbnailUrlFor={(event) => event.imageUrl}
-        />
-      </div>
-      <div className="col" style={{ gap: 16, minWidth: 0 }}>
-        <form action={action} className="card col wc-admin-kit wc-admin-kit__card" key={adminFormRemountKey(state, selected)} style={{ gap: 14 }}>
+    <MasterDetail
+      list={(
+        <>
+          <CatalogArchiveFilter
+            counts={adminCatalogArchiveCounts(records)}
+            filter={archiveFilter}
+            onChange={(filter) => {
+              setArchiveFilter(filter);
+              if (selected && !filterAdminCatalogRecords([selected], filter).length) onSelect(null);
+            }}
+          />
+          <RecordList
+            activeId={selected?.id ?? null}
+            items={visibleRecords}
+            labelFor={(event) => formatAdminCatalogRecordLabel(`${event.id} · ${event.title}`, event.archivedAt)}
+            onNew={() => onSelect(null)}
+            onSelect={onSelect}
+            thumbnailKind="event"
+            thumbnailUrlFor={(event) => event.imageUrl}
+          />
+        </>
+      )}
+    >
+      <form action={action} className={SECTION_CARD} key={adminFormRemountKey(state, selected)}>
         <input name="previousId" type="hidden" value={selected?.id ?? ''} />
         <input name="previousIpId" type="hidden" value={selected?.ipId ?? ''} />
         <AdminFormGrid>
@@ -129,16 +132,15 @@ export function EventSection({
           kind="event"
         />
         <FormShell pending={pending} state={state} />
-        </form>
-        {selected && (
-          <CatalogArchiveControl
-            archivedAt={selected.archivedAt}
-            id={selected.id}
-            key={`${selected.id}:${selected.archivedAt ?? 'active'}`}
-            kind="event"
-          />
-        )}
-      </div>
-    </div>
+      </form>
+      {selected && (
+        <CatalogArchiveControl
+          archivedAt={selected.archivedAt}
+          id={selected.id}
+          key={`${selected.id}:${selected.archivedAt ?? 'active'}`}
+          kind="event"
+        />
+      )}
+    </MasterDetail>
   );
 }

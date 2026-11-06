@@ -18,7 +18,7 @@ export type {
   ConsoleCountChip,
   ConsoleCountChipsProps,
 } from './ConsoleCountChips';
-export { ConsoleFilterPanel } from './ConsoleFilterPanel';
+export { ConsoleFilterField, ConsoleFilterPanel } from './ConsoleFilterPanel';
 export type {
   ConsoleDateRangeFilter,
   ConsoleFilterOption,

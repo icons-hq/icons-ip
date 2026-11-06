@@ -29,11 +29,15 @@ describe('ICONS 상담 콘솔', () => {
     const html = render({ detail, selected: true });
     for (const label of ['합성 고객 메시지', '상담완료', '사진 첨부', '자주 쓰는 문구', '내부 메모', '담당자 관리']) expect(html).toContain(label);
     expect(html).toContain(`name="inquiryId" value="${ID}"`); expect(html).not.toContain('구매이력'); expect(html).not.toContain('고객 상세 보기');
+    /* Enter 전송과 같은 폼을 버튼으로도 제출한다(kit Button은 type을 주지 않으면 button이 된다). */
+    expect(html).toMatch(/<button(?=[^>]*type="submit")[^>]*>(?:<svg[\s\S]*?<\/svg>)?전송<\/button>/);
+    expect(html).toMatch(/<button(?=[^>]*type="submit")[^>]*aria-label="대화 검색하기"|<button(?=[^>]*aria-label="대화 검색하기")(?=[^>]*type="submit")/);
     expect(html).not.toContain('네이버'); expect(html).not.toContain('<iframe');
   });
   it('종결된 대화에는 전송 폼을 만들지 않는다', () => {
     const html = render({ detail: { ...detail, inquiry: { ...detail.inquiry, status: 'closed' } }, selected: true });
-    expect(html).toContain('상담이 완료되었습니다.'); expect(html).not.toContain('class="admin-inquiry-chat__composer"');
+    expect(html).toContain('상담이 완료되었습니다.'); expect(html).not.toContain('data-chat-composer');
+    expect(render({ detail, selected: true })).toContain('data-chat-composer');
   });
   it('정상 빈 목록과 존재하지 않는 선택 대화를 구분한다', () => {
     const html = render({ selected: true });

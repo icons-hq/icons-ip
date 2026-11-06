@@ -19,6 +19,16 @@ import {
 } from '../shipping-charge-groups/useShippingChargeGroupOperation';
 import { CustomerServiceDialog } from './CustomerServiceDialog';
 import { ShippingChargeGroupAssignmentDialog } from '../shipping-charge-groups/ShippingChargeGroupAssignmentDialog';
+import { ChevronLeft, ChevronRight, Plus, Search } from 'lucide-react';
+import { Badge } from '@/components/admin/kit/ui/badge';
+import { Button } from '@/components/admin/kit/ui/button';
+import { Input } from '@/components/admin/kit/ui/input';
+import { NativeSelect } from '@/components/admin/kit/ui/native-select';
+import { Textarea } from '@/components/admin/kit/ui/textarea';
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/admin/kit/ui/table';
+import { ACTIONS, ALERT_BOX, CHECK_LABEL, CHECK_LABEL_TOP, EMPTY, FIELD_HINT, FIELD_LABEL, INFO_PANEL, NOTE, RESULT_HEADING, STATUS_BOX, TABLE_BOX, TSV_TEXTAREA } from '@/components/admin/settings-kit';
+
+const WARN_BOX = 'rounded-lg border border-[color-mix(in_oklab,var(--wc-warning)_35%,transparent)] bg-[color-mix(in_oklab,var(--wc-warning)_6%,transparent)] px-3 py-2.5 text-sm';
 
 const emptyFilters = (): ShippingChargeGroupFilters => ({ originId: null, query: '', status: 'all', page: 1 });
 function groupValues(group: ShippingChargeGroup): ShippingChargeGroupValues {
@@ -47,33 +57,33 @@ function RegionFields({ policy, onChange, tsv, onTsvChange, disabled, carriers, 
   const patch = (value: Partial<ShippingChargeGroupRegionPolicy>) => onChange({ ...policy, ...value });
   const parsed = parseShippingRegionRulesTsv(tsv, policy.rules);
   const rules = parsed.rules ?? [];
-  return <fieldset disabled={disabled} className="admin-shipping-charge-group-editor__region">
-    <legend>그룹 지역 추가료 · 그룹당 한 번</legend>
-    <p>실제 계약의 우편번호·주소 구간과 요금을 입력합니다. 이 그룹의 상품은 출고지 지역료와 중복 부과하지 않으며, 기본 배송비 반복 횟수로 지역료를 곱하지 않습니다.</p>
-    <div className="admin-shipping-charge-group-editor__grid">
-      <label>계약 택배사<select value={policy.carrierCode} onChange={event => patch({ carrierCode: event.target.value })}>
+  return <fieldset disabled={disabled} className="m-0 flex min-w-0 flex-col gap-3 rounded-lg border p-3 sm:p-4">
+    <legend className="float-left w-full p-0 text-sm font-medium">그룹 지역 추가료 · 그룹당 한 번</legend>
+    <p className={NOTE}>실제 계약의 우편번호·주소 구간과 요금을 입력합니다. 이 그룹의 상품은 출고지 지역료와 중복 부과하지 않으며, 기본 배송비 반복 횟수로 지역료를 곱하지 않습니다.</p>
+    <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2">
+      <label className={FIELD_LABEL}>계약 택배사<NativeSelect className="w-full" value={policy.carrierCode} onChange={event => patch({ carrierCode: event.target.value })}>
         <option value="">택배사를 선택해주세요</option>{carriers.map(carrier => <option key={carrier.code} value={carrier.code} disabled={!carrier.active && carrier.code !== policy.carrierCode}>{carrier.label}{carrier.active ? '' : ' · 사용 안 함'}</option>)}
         {policy.carrierCode && !carriers.some(carrier => carrier.code === policy.carrierCode) ? <option value={policy.carrierCode}>{policy.carrierCode} · 현재 목록 확인 필요</option> : null}
-      </select></label>
-      <p>출고지 기본 택배사: {carriers.find(carrier => carrier.code === originCarrier)?.label ?? originCarrier ?? '미설정'}. 실제 계약 택배사와 일치하는지 확인해주세요.</p>
-      <label>적용 시작 · 한국 시각<input type="datetime-local" step="any" value={localDate(policy.startsAt)} onChange={event => patch({ startsAt: serverDate(event.target.value) })} /></label>
-      <label>적용 종료 방식<select value={policy.openEnded === null ? '' : String(policy.openEnded)} onChange={event => {
+      </NativeSelect></label>
+      <p className={`${NOTE} self-end`}>출고지 기본 택배사: {carriers.find(carrier => carrier.code === originCarrier)?.label ?? originCarrier ?? '미설정'}. 실제 계약 택배사와 일치하는지 확인해주세요.</p>
+      <label className={FIELD_LABEL}>적용 시작 · 한국 시각<Input type="datetime-local" step="any" value={localDate(policy.startsAt)} onChange={event => patch({ startsAt: serverDate(event.target.value) })} /></label>
+      <label className={FIELD_LABEL}>적용 종료 방식<NativeSelect className="w-full" value={policy.openEnded === null ? '' : String(policy.openEnded)} onChange={event => {
         const openEnded = event.target.value === '' ? null : event.target.value === 'true'; patch({ openEnded, ...(openEnded ? { endsAt: null } : {}) });
-      }}><option value="">미확인</option><option value="true">무기한</option><option value="false">종료 일시 지정</option></select></label>
-      <label>적용 종료 · 한국 시각<input type="datetime-local" step="any" value={localDate(policy.endsAt)} disabled={policy.openEnded === true} onChange={event => patch({ endsAt: serverDate(event.target.value) })} /></label>
-      <label>표에 없는 지역<select value={policy.unlistedDisposition ?? ''} onChange={event => patch({ unlistedDisposition: event.target.value === '' ? null : event.target.value as 'standard' | 'manual_review' })}>
-        <option value="">미확인</option><option value="standard">추가료 없음</option><option value="manual_review">개별 확인 필요</option></select></label>
+      }}><option value="">미확인</option><option value="true">무기한</option><option value="false">종료 일시 지정</option></NativeSelect></label>
+      <label className={FIELD_LABEL}>적용 종료 · 한국 시각<Input type="datetime-local" step="any" value={localDate(policy.endsAt)} disabled={policy.openEnded === true} onChange={event => patch({ endsAt: serverDate(event.target.value) })} /></label>
+      <label className={FIELD_LABEL}>표에 없는 지역<NativeSelect className="w-full" value={policy.unlistedDisposition ?? ''} onChange={event => patch({ unlistedDisposition: event.target.value === '' ? null : event.target.value as 'standard' | 'manual_review' })}>
+        <option value="">미확인</option><option value="standard">추가료 없음</option><option value="manual_review">개별 확인 필요</option></NativeSelect></label>
     </div>
-    <label>물류사 회신·계약 근거<textarea rows={3} value={policy.sourceEvidence} maxLength={2000} onChange={event => patch({ sourceEvidence: event.target.value })} /></label>
-    <p>실제 조건을 확인할 수 있는 내부 문서번호나 접근 제한 문서 주소를 입력하세요. 이 근거와 지역표 원문은 고객에게 공개하지 않습니다.</p>
-    <label>지역표 · 스프레드시트의 6개 열 붙여넣기<textarea className="admin-shipping-charge-group-editor__tsv" rows={7} spellCheck={false} value={tsv} maxLength={500000} onChange={event => onTsvChange(event.target.value)} /></label>
-    <p>우편번호 시작·끝 / 기본주소 시작문구 / 지역명 / 처리 / 추가료 순서입니다. 처리는 ‘추가료 없음’, ‘추가료 부과’, ‘배송 불가’, ‘개별 확인 필요’ 중 하나이며 추가료 부과 행의 0원은 명시해야 합니다. 최대 1,000행입니다.</p>
-    <p>2권역·3권역 이름만으로 주소를 임의 분류하지 않습니다. 제주·도서산간도 실제 물류사 분류 근거에 있는 주소 구간을 입력해주세요.</p>
-    <label className="admin-shipping-charge-group-editor__check"><input type="checkbox" checked={policy.noRulesConfirmed} onChange={event => patch({ noRulesConfirmed: event.target.checked })} /><span>실제 회신에 예외 지역이 없으며 지역표가 비어 있음을 확인했습니다.</span></label>
-    {parsed.error ? <p className="admin-shipping-charge-groups__error" role="alert">{parsed.error}</p> : <details><summary>지역표 미리보기 · {rules.length}행</summary>
-      {rules.length ? <div className="admin-shipping-charge-groups__table"><table><caption>그룹 지역 추가료 주소표</caption><thead><tr><th>우편번호</th><th>주소 시작문구</th><th>지역명</th><th>처리</th><th>추가료</th></tr></thead>
-        <tbody>{rules.slice(0, 50).map((row, index) => <tr key={row.id ?? index}><td>{row.postalFrom || '미입력'}~{row.postalTo || '미입력'}</td><td>{row.addressPrefix || '우편번호로 판정'}</td><td>{row.regionLabel || '미입력'}</td><td>{row.disposition ? REGION_DISPOSITION_LABELS[row.disposition] : '미입력'}</td><td>{row.amount === null ? row.disposition === 'surcharge' ? '미입력' : '해당 없음' : `${row.amount.toLocaleString('ko-KR')}원`}</td></tr>)}</tbody></table>
-        {rules.length > 50 ? <p>앞의 50행을 표시합니다. 저장 시 전체 {rules.length}행을 검증합니다.</p> : null}</div> : <p>입력된 지역표가 없습니다. 미입력과 확인된 예외 지역 없음을 구분합니다.</p>}
+    <label className={FIELD_LABEL}>물류사 회신·계약 근거<Textarea rows={3} value={policy.sourceEvidence} maxLength={2000} onChange={event => patch({ sourceEvidence: event.target.value })} /></label>
+    <p className={NOTE}>실제 조건을 확인할 수 있는 내부 문서번호나 접근 제한 문서 주소를 입력하세요. 이 근거와 지역표 원문은 고객에게 공개하지 않습니다.</p>
+    <label className={FIELD_LABEL}>지역표 · 스프레드시트의 6개 열 붙여넣기<Textarea className={TSV_TEXTAREA} rows={7} spellCheck={false} value={tsv} maxLength={500000} onChange={event => onTsvChange(event.target.value)} /></label>
+    <p className={NOTE}>우편번호 시작·끝 / 기본주소 시작문구 / 지역명 / 처리 / 추가료 순서입니다. 처리는 ‘추가료 없음’, ‘추가료 부과’, ‘배송 불가’, ‘개별 확인 필요’ 중 하나이며 추가료 부과 행의 0원은 명시해야 합니다. 최대 1,000행입니다.</p>
+    <p className={NOTE}>2권역·3권역 이름만으로 주소를 임의 분류하지 않습니다. 제주·도서산간도 실제 물류사 분류 근거에 있는 주소 구간을 입력해주세요.</p>
+    <label className={CHECK_LABEL_TOP}><input className="mt-0.5" type="checkbox" checked={policy.noRulesConfirmed} onChange={event => patch({ noRulesConfirmed: event.target.checked })} /><span>실제 회신에 예외 지역이 없으며 지역표가 비어 있음을 확인했습니다.</span></label>
+    {parsed.error ? <p className={ALERT_BOX} role="alert">{parsed.error}</p> : <details className="rounded-lg border bg-muted/40 px-3 py-2.5 text-sm"><summary className="cursor-pointer font-medium">지역표 미리보기 · {rules.length}행</summary>
+      {rules.length ? <div className={`mt-2 ${TABLE_BOX}`}><Table className="min-w-[40rem]"><caption className="sr-only">그룹 지역 추가료 주소표</caption><TableHeader className="bg-muted/50"><TableRow className="hover:bg-transparent"><TableHead>우편번호</TableHead><TableHead>주소 시작문구</TableHead><TableHead>지역명</TableHead><TableHead>처리</TableHead><TableHead className="text-right">추가료</TableHead></TableRow></TableHeader>
+        <TableBody>{rules.slice(0, 50).map((row, index) => <TableRow key={row.id ?? index}><TableCell className="tabular-nums">{row.postalFrom || '미입력'}~{row.postalTo || '미입력'}</TableCell><TableCell className="whitespace-normal">{row.addressPrefix || '우편번호로 판정'}</TableCell><TableCell>{row.regionLabel || '미입력'}</TableCell><TableCell>{row.disposition ? REGION_DISPOSITION_LABELS[row.disposition] : '미입력'}</TableCell><TableCell className="text-right tabular-nums">{row.amount === null ? row.disposition === 'surcharge' ? '미입력' : '해당 없음' : `${row.amount.toLocaleString('ko-KR')}원`}</TableCell></TableRow>)}</TableBody></Table>
+        {rules.length > 50 ? <p className="border-t px-3 py-2 text-xs text-muted-foreground">앞의 50행을 표시합니다. 저장 시 전체 {rules.length}행을 검증합니다.</p> : null}</div> : <p className={`mt-2 ${NOTE}`}>입력된 지역표가 없습니다. 미입력과 확인된 예외 지역 없음을 구분합니다.</p>}
     </details>}
   </fieldset>;
 }
@@ -83,14 +93,14 @@ function OperationRecovery({ context, identity, scope, canEdit, onReceipt }: {
   canEdit: boolean; onReceipt: (receipt: ShippingChargeGroupOperationReceipt) => void;
 }) {
   const operation = useShippingChargeGroupOperation({ identity, scope, groupId: context.groupId, command: context.command, onReceipt });
-  return <div className="admin-shipping-charge-groups__recovery">
-    <strong>미확정 {context.command === 'save' ? '묶음그룹 저장' : '상품 배정'} 요청</strong>
-    <p>요청번호 {context.operationId} · 기준 버전 {context.expectedRevision}</p>
-    <p>원래 입력을 다시 보내지 않습니다. 결과를 확인하거나 미처리 요청을 종료한 뒤 최신 내용으로 진행해주세요.</p>
-    <div className="admin-shipping-charge-groups__actions"><button className="btn btn-sm" type="button" disabled={operation.busy} onClick={() => { void operation.recover(); }}>저장 결과 확인</button>
-      <button className="btn btn-sm btn-ghost" type="button" disabled={operation.busy || !canEdit} onClick={() => { void operation.recover(true); }}>미처리 요청 종료</button></div>
-    {operation.error ? <p className="admin-shipping-charge-groups__error" role="alert">{operation.error}</p> : null}
-    {operation.message ? <p role="status">{operation.message}</p> : null}
+  return <div className={INFO_PANEL}>
+    <strong className="font-medium">미확정 {context.command === 'save' ? '묶음그룹 저장' : '상품 배정'} 요청</strong>
+    <p className="text-muted-foreground tabular-nums">요청번호 {context.operationId} · 기준 버전 {context.expectedRevision}</p>
+    <p className="text-muted-foreground">원래 입력을 다시 보내지 않습니다. 결과를 확인하거나 미처리 요청을 종료한 뒤 최신 내용으로 진행해주세요.</p>
+    <div className={ACTIONS}><Button disabled={operation.busy} onClick={() => { void operation.recover(); }} size="sm" type="button">저장 결과 확인</Button>
+      <Button disabled={operation.busy || !canEdit} onClick={() => { void operation.recover(true); }} size="sm" type="button" variant="outline">미처리 요청 종료</Button></div>
+    {operation.error ? <p className={ALERT_BOX} role="alert">{operation.error}</p> : null}
+    {operation.message ? <p className={STATUS_BOX} role="status">{operation.message}</p> : null}
   </div>;
 }
 
@@ -184,49 +194,49 @@ export function ShippingChargeGroupEditor({ start, identity, scope, origins, car
     setError(''); setMessage(''); await operation.send(request);
   }
   return <CustomerServiceDialog title={base ? '배송비 묶음그룹 수정' : '배송비 묶음그룹 추가'} onClose={() => { if (!locked) onClose(); }} busy={locked} wide>
-    <form className="wc-admin-kit admin-shipping-charge-group-editor" onSubmit={submit}>
-      <fieldset disabled={locked || !canEdit}>
-        <div className="admin-shipping-charge-group-editor__grid">
-          <label>출고지<select value={originId} disabled={Boolean(base)} onChange={event => { const id = event.target.value; setOriginId(id); setOrigin(null); setAttested(false); if (id) void readOrigin(id); }}>
+    <form className="flex min-w-0 flex-col gap-4" data-charge-group-editor="" onSubmit={submit}>
+      <fieldset disabled={locked || !canEdit} className="m-0 flex min-w-0 flex-col gap-4 border-0 p-0">
+        <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2">
+          <label className={FIELD_LABEL}>출고지<NativeSelect className="w-full" value={originId} disabled={Boolean(base)} onChange={event => { const id = event.target.value; setOriginId(id); setOrigin(null); setAttested(false); if (id) void readOrigin(id); }}>
             <option value="">출고지를 선택해주세요</option>{origins.map(item => <option key={item.id} value={item.id} disabled={!item.active && item.id !== originId}>{item.name}{item.active ? '' : ' · 비활성'}</option>)}
-          </select></label>
-          <label>묶음그룹 이름<input value={values.name} maxLength={80} required onChange={event => change({ name: event.target.value })} /></label>
-          <label>사용 여부<select value={String(values.enabled)} disabled={inUse || values.archived || (!regionalAllowed && base?.regional.mode === 'override' && !base.enabled)} onChange={event => {
+          </NativeSelect></label>
+          <label className={FIELD_LABEL}>묶음그룹 이름<Input value={values.name} maxLength={80} required onChange={event => change({ name: event.target.value })} /></label>
+          <label className={FIELD_LABEL}>사용 여부<NativeSelect className="w-full" value={String(values.enabled)} disabled={inUse || values.archived || (!regionalAllowed && base?.regional.mode === 'override' && !base.enabled)} onChange={event => {
             const enabled = event.target.value === 'true'; change({ enabled, ...(!enabled ? { isDefault: false } : {}) });
-          }}><option value="false">사용 안 함</option><option value="true" disabled={!capabilities.runtimeEnabled || !origin?.isActive}>사용</option></select></label>
-          <label>계산 방식<select value={values.calculationMode} onChange={event => change({ calculationMode: event.target.value as 'min' | 'max' })}><option value="min">그룹에서 가장 작은 배송비 부과</option><option value="max">그룹에서 가장 큰 배송비 부과</option></select></label>
+          }}><option value="false">사용 안 함</option><option value="true" disabled={!capabilities.runtimeEnabled || !origin?.isActive}>사용</option></NativeSelect></label>
+          <label className={FIELD_LABEL}>계산 방식<NativeSelect className="w-full" value={values.calculationMode} onChange={event => change({ calculationMode: event.target.value as 'min' | 'max' })}><option value="min">그룹에서 가장 작은 배송비 부과</option><option value="max">그룹에서 가장 큰 배송비 부과</option></NativeSelect></label>
         </div>
-        <p>유효한 무료배송 조건을 충족한 상품이 있으면 최소·최대 방식 모두 그룹 기본 배송비가 0원입니다. 활성 수량 정책과 그룹 전체 구매 수량을 먼저 반영하며 지역 추가료는 별도로 판단합니다.</p>
-        <label className="admin-shipping-charge-group-editor__check"><input type="checkbox" checked={values.isDefault} disabled={!values.enabled || values.archived} onChange={event => change({ isDefault: event.target.checked })} /><span>이 출고지의 기본 그룹으로 표시</span></label>
-        <p>기본 그룹은 선택을 돕는 표시입니다. 신규 상품은 기본 상품 저장 후 직접 배정하며, 이미 저장된 상품의 그룹은 자동으로 바꾸지 않습니다.</p>
-        {base ? <label className="admin-shipping-charge-group-editor__check"><input type="checkbox" checked={values.archived} disabled={inUse} onChange={event => change({ archived: event.target.checked, ...(event.target.checked ? { enabled: false, isDefault: false } : {}) })} /><span>그룹 보관 · 기존 정책 이력은 유지</span></label> : null}
-        {inUse ? <p>현재 원상품 {base?.assignedCount.toLocaleString('ko-KR')}개에 배정되어 사용 중지·보관할 수 없습니다. 상품의 배정을 먼저 명시적으로 변경해주세요.</p> : null}
-        {!capabilities.runtimeEnabled ? <p>현재 상품 거래 경로에서 그룹을 사용할 수 없습니다. 사용 안 함 상태의 설정만 저장할 수 있습니다.</p> : null}
-        <label>지역 추가료 적용 방식<select value={values.regional.mode} disabled={!regionalAllowed} onChange={event => change({ regional: event.target.value === 'inherit' ? { mode: 'inherit', policy: null } : { mode: 'override', policy: regional } })}>
+        <p className={NOTE}>유효한 무료배송 조건을 충족한 상품이 있으면 최소·최대 방식 모두 그룹 기본 배송비가 0원입니다. 활성 수량 정책과 그룹 전체 구매 수량을 먼저 반영하며 지역 추가료는 별도로 판단합니다.</p>
+        <label className={CHECK_LABEL}><input type="checkbox" checked={values.isDefault} disabled={!values.enabled || values.archived} onChange={event => change({ isDefault: event.target.checked })} /><span>이 출고지의 기본 그룹으로 표시</span></label>
+        <p className={NOTE}>기본 그룹은 선택을 돕는 표시입니다. 신규 상품은 기본 상품 저장 후 직접 배정하며, 이미 저장된 상품의 그룹은 자동으로 바꾸지 않습니다.</p>
+        {base ? <label className={CHECK_LABEL}><input type="checkbox" checked={values.archived} disabled={inUse} onChange={event => change({ archived: event.target.checked, ...(event.target.checked ? { enabled: false, isDefault: false } : {}) })} /><span>그룹 보관 · 기존 정책 이력은 유지</span></label> : null}
+        {inUse ? <p className={WARN_BOX}>현재 원상품 {base?.assignedCount.toLocaleString('ko-KR')}개에 배정되어 사용 중지·보관할 수 없습니다. 상품의 배정을 먼저 명시적으로 변경해주세요.</p> : null}
+        {!capabilities.runtimeEnabled ? <p className={WARN_BOX}>현재 상품 거래 경로에서 그룹을 사용할 수 없습니다. 사용 안 함 상태의 설정만 저장할 수 있습니다.</p> : null}
+        <label className={FIELD_LABEL}>지역 추가료 적용 방식<NativeSelect className="w-full" value={values.regional.mode} disabled={!regionalAllowed} onChange={event => change({ regional: event.target.value === 'inherit' ? { mode: 'inherit', policy: null } : { mode: 'override', policy: regional } })}>
           <option value="inherit">출고지 지역 정책 상속</option><option value="override">이 그룹의 지역표로 지정 · 그룹당 한 번</option>
-        </select></label>
-        {values.regional.mode === 'inherit' ? <p>같은 출고지에서 정책을 상속하는 상품과 함께 지역료를 계산합니다. 배송 건당 지역료를 그룹 수만큼 반복 부과하지 않습니다.</p>
+        </NativeSelect></label>
+        {values.regional.mode === 'inherit' ? <p className={NOTE}>같은 출고지에서 정책을 상속하는 상품과 함께 지역료를 계산합니다. 배송 건당 지역료를 그룹 수만큼 반복 부과하지 않습니다.</p>
           : <RegionFields policy={regional} onChange={changeRegion} tsv={tsv} onTsvChange={value => { setTsv(value); setAttested(false); setError(''); }} disabled={!regionalAllowed} carriers={carriers} originCarrier={origin?.defaultCarrier ?? null} />}
-        {!regionalAllowed ? <p>지역 설정 변경과 비활성 그룹 지역 정책의 재활성화는 별도 관리 권한이 필요합니다. 기존 지역 설정을 유지한 이름·계산 방식 수정은 가능합니다.</p> : null}
-        {values.regional.mode === 'override' && regionProblems.length ? <div><strong>지역 정책 사용 전 확인</strong><ul className="admin-shipping-charge-group-editor__problems">{regionProblems.map((problem, index) => <li key={index}>{problem}</li>)}</ul></div> : null}
-        {regionalReview ? <label className="admin-shipping-charge-group-editor__check"><input type="checkbox" checked={attested} disabled={!regionalAllowed} onChange={event => setAttested(event.target.checked)} /><span>지역 추가료 설정을 변경하는 내용과 적용 범위를 확인했습니다.</span></label> : null}
+        {!regionalAllowed ? <p className={NOTE}>지역 설정 변경과 비활성 그룹 지역 정책의 재활성화는 별도 관리 권한이 필요합니다. 기존 지역 설정을 유지한 이름·계산 방식 수정은 가능합니다.</p> : null}
+        {values.regional.mode === 'override' && regionProblems.length ? <div className={WARN_BOX}><strong className="font-medium text-[var(--wc-warning)]">지역 정책 사용 전 확인</strong><ul className="mt-1 flex list-disc flex-col gap-1 pl-5 text-destructive">{regionProblems.map((problem, index) => <li key={index}>{problem}</li>)}</ul></div> : null}
+        {regionalReview ? <label className={CHECK_LABEL_TOP}><input className="mt-0.5" type="checkbox" checked={attested} disabled={!regionalAllowed} onChange={event => setAttested(event.target.checked)} /><span>지역 추가료 설정을 변경하는 내용과 적용 범위를 확인했습니다.</span></label> : null}
       </fieldset>
-      {latest ? <div className="admin-shipping-charge-groups__notice"><strong>최신 저장본과 비교</strong><ShippingChargeGroupSummary group={latest.group} originName={latest.origin.name} />
-        <p>현재 입력: {values.name || '이름 미입력'} · {values.enabled ? '사용' : '사용 안 함'} · {values.isDefault ? '기본 그룹' : '일반 그룹'} · {values.calculationMode === 'min' ? '최소 부과' : '최대 부과'} · {values.regional.mode === 'inherit' ? '출고지 지역 정책 상속' : '그룹 지역표 지정'}</p>
-        <p>최신 저장본: {latest.group.isDefault ? '기본 그룹' : '일반 그룹'} · 배정 원상품 {latest.group.assignedCount}개</p>
-        {latest.group.regional.mode === 'override' ? <details><summary>최신 저장본의 지역표·계약 근거</summary><p>택배사 {latest.group.regional.policy.carrierCode} · 시작 {latest.group.regional.policy.startsAt ?? '미확인'} · 종료 {latest.group.regional.policy.openEnded ? '무기한' : latest.group.regional.policy.endsAt ?? '미확인'}</p>
-          <p>표에 없는 지역: {latest.group.regional.policy.unlistedDisposition === 'standard' ? '추가료 없음' : latest.group.regional.policy.unlistedDisposition === 'manual_review' ? '개별 확인 필요' : '미확인'} · 예외 지역 없음 확인: {latest.group.regional.policy.noRulesConfirmed ? '확인함' : '확인하지 않음'}</p>
-          <p>{latest.group.regional.policy.sourceEvidence || '근거 미입력'}</p><pre className="admin-shipping-charge-group-editor__tsv">{shippingRegionRulesTsv(latest.group.regional.policy.rules)}</pre></details> : null}
-        <div className="admin-shipping-charge-groups__actions"><button className="btn btn-sm" type="button" disabled={locked} onClick={() => acceptLatest(true)}>내 입력 유지 · 최신 버전을 저장 기준으로</button><button className="btn btn-sm btn-ghost" type="button" disabled={locked} onClick={() => acceptLatest(false)}>최신 저장본 불러오기</button></div>
+      {latest ? <div className={INFO_PANEL}><strong className="font-medium">최신 저장본과 비교</strong><ShippingChargeGroupSummary group={latest.group} originName={latest.origin.name} />
+        <p className="text-muted-foreground">현재 입력: {values.name || '이름 미입력'} · {values.enabled ? '사용' : '사용 안 함'} · {values.isDefault ? '기본 그룹' : '일반 그룹'} · {values.calculationMode === 'min' ? '최소 부과' : '최대 부과'} · {values.regional.mode === 'inherit' ? '출고지 지역 정책 상속' : '그룹 지역표 지정'}</p>
+        <p className="text-muted-foreground">최신 저장본: {latest.group.isDefault ? '기본 그룹' : '일반 그룹'} · 배정 원상품 {latest.group.assignedCount}개</p>
+        {latest.group.regional.mode === 'override' ? <details className="rounded-lg border bg-background px-3 py-2"><summary className="cursor-pointer font-medium">최신 저장본의 지역표·계약 근거</summary><p className="mt-2 text-muted-foreground">택배사 {latest.group.regional.policy.carrierCode} · 시작 {latest.group.regional.policy.startsAt ?? '미확인'} · 종료 {latest.group.regional.policy.openEnded ? '무기한' : latest.group.regional.policy.endsAt ?? '미확인'}</p>
+          <p className="text-muted-foreground">표에 없는 지역: {latest.group.regional.policy.unlistedDisposition === 'standard' ? '추가료 없음' : latest.group.regional.policy.unlistedDisposition === 'manual_review' ? '개별 확인 필요' : '미확인'} · 예외 지역 없음 확인: {latest.group.regional.policy.noRulesConfirmed ? '확인함' : '확인하지 않음'}</p>
+          <p className="text-muted-foreground">{latest.group.regional.policy.sourceEvidence || '근거 미입력'}</p><pre className="mt-2 max-h-60 overflow-auto rounded-md bg-muted p-2 font-mono text-xs whitespace-pre">{shippingRegionRulesTsv(latest.group.regional.policy.rules)}</pre></details> : null}
+        <div className={ACTIONS}><Button disabled={locked} onClick={() => acceptLatest(true)} size="sm" type="button">내 입력 유지 · 최신 버전을 저장 기준으로</Button><Button disabled={locked} onClick={() => acceptLatest(false)} size="sm" type="button" variant="outline">최신 저장본 불러오기</Button></div>
       </div> : null}
-      {otherPending ? <p role="status">다른 묶음그룹 요청의 결과를 먼저 확인해주세요.</p> : null}
-      {error || operation.error ? <p className="admin-shipping-charge-groups__error" role="alert">{error || operation.error}</p> : null}
-      {message || operation.message ? <p role="status">{message || operation.message}</p> : null}
-      {operation.context ? <div className="admin-shipping-charge-groups__recovery"><strong>같은 요청의 결과를 확인해주세요.</strong><p>새로고침 후에도 요청번호와 저장 기준만 남습니다. 입력 원문은 저장하지 않으며 원래 요청을 자동 재전송하지 않습니다.</p>
-        <div className="admin-shipping-charge-groups__actions"><button className="btn" type="button" disabled={operation.busy || reading} onClick={() => { void operation.recover(); }}>저장 결과 확인</button><button className="btn btn-ghost" type="button" disabled={operation.busy || reading || !canEdit} onClick={() => { void operation.recover(true); }}>미처리 요청 종료</button></div>
+      {otherPending ? <p className={STATUS_BOX} role="status">다른 묶음그룹 요청의 결과를 먼저 확인해주세요.</p> : null}
+      {error || operation.error ? <p className={ALERT_BOX} role="alert">{error || operation.error}</p> : null}
+      {message || operation.message ? <p className={STATUS_BOX} role="status">{message || operation.message}</p> : null}
+      {operation.context ? <div className={INFO_PANEL}><strong className="font-medium">같은 요청의 결과를 확인해주세요.</strong><p className="text-muted-foreground">새로고침 후에도 요청번호와 저장 기준만 남습니다. 입력 원문은 저장하지 않으며 원래 요청을 자동 재전송하지 않습니다.</p>
+        <div className={ACTIONS}><Button disabled={operation.busy || reading} onClick={() => { void operation.recover(); }} type="button">저장 결과 확인</Button><Button disabled={operation.busy || reading || !canEdit} onClick={() => { void operation.recover(true); }} type="button" variant="outline">미처리 요청 종료</Button></div>
       </div> : null}
-      <div className="admin-shipping-charge-groups__actions"><button className="btn" type="submit" disabled={locked || needsRefresh || !canEdit}>{operation.busy ? '처리 중…' : base ? '새 버전 저장' : '묶음그룹 추가'}</button>
-        <button className="btn btn-ghost" type="button" disabled={locked} onClick={() => { void readLatest(); }}>최신 저장 기준 확인</button><button className="btn btn-ghost" type="button" disabled={locked} onClick={onClose}>취소</button></div>
+      <div className={`${ACTIONS} border-t pt-4`}><Button disabled={locked || needsRefresh || !canEdit} type="submit">{operation.busy ? '처리 중…' : base ? '새 버전 저장' : '묶음그룹 추가'}</Button>
+        <Button disabled={locked} onClick={() => { void readLatest(); }} type="button" variant="outline">최신 저장 기준 확인</Button><Button disabled={locked} onClick={onClose} type="button" variant="ghost">취소</Button></div>
     </form>
   </CustomerServiceDialog>;
 }
@@ -271,32 +281,32 @@ function GroupsWorkspace({ identity, scope, origins, carriers, canEdit, canManag
   }
   const locked = busy || Boolean(pending.length);
   return <>
-    <form className="admin-shipping-charge-groups__filters" onSubmit={event => { event.preventDefault(); if (!busy) void load({ ...filters, query: filters.query.trim(), page: 1 }); }}>
-      <label>출고지<select value={filters.originId ?? ''} disabled={busy} onChange={event => setFilters({ ...filters, originId: event.target.value || null })}><option value="">전체 출고지</option>{origins.map(origin => <option key={origin.id} value={origin.id}>{origin.name}{origin.active ? '' : ' · 비활성'}</option>)}</select></label>
-      <label>사용 상태<select value={filters.status} disabled={busy} onChange={event => setFilters({ ...filters, status: event.target.value as ShippingChargeGroupFilters['status'] })}><option value="all">전체</option><option value="active">사용</option><option value="inactive">사용 안 함</option><option value="archived">보관</option></select></label>
-      <label className="admin-shipping-charge-groups__filter-query">배송비 묶음그룹명<input value={filters.query} maxLength={100} disabled={busy} onChange={event => setFilters({ ...filters, query: event.target.value })} placeholder="묶음그룹 이름을 입력해주세요" /></label>
-      <div className="admin-shipping-charge-groups__filter-actions"><button className="btn" type="submit" disabled={busy}>조회</button><button className="btn btn-ghost" type="button" disabled={busy} onClick={() => { const next = emptyFilters(); setFilters(next); void load(next); }}>초기화</button></div>
+    <form className="grid min-w-0 grid-cols-1 gap-x-4 gap-y-3 rounded-xl border bg-card p-4 text-card-foreground sm:grid-cols-2 lg:grid-cols-[minmax(9rem,1fr)_minmax(9rem,1fr)_minmax(14rem,2fr)]" onSubmit={event => { event.preventDefault(); if (!busy) void load({ ...filters, query: filters.query.trim(), page: 1 }); }}>
+      <label className={FIELD_LABEL}>출고지<NativeSelect className="w-full" value={filters.originId ?? ''} disabled={busy} onChange={event => setFilters({ ...filters, originId: event.target.value || null })}><option value="">전체 출고지</option>{origins.map(origin => <option key={origin.id} value={origin.id}>{origin.name}{origin.active ? '' : ' · 비활성'}</option>)}</NativeSelect></label>
+      <label className={FIELD_LABEL}>사용 상태<NativeSelect className="w-full" value={filters.status} disabled={busy} onChange={event => setFilters({ ...filters, status: event.target.value as ShippingChargeGroupFilters['status'] })}><option value="all">전체</option><option value="active">사용</option><option value="inactive">사용 안 함</option><option value="archived">보관</option></NativeSelect></label>
+      <label className={`${FIELD_LABEL} sm:col-span-2 lg:col-span-1`}>배송비 묶음그룹명<Input value={filters.query} maxLength={100} disabled={busy} onChange={event => setFilters({ ...filters, query: event.target.value })} placeholder="묶음그룹 이름을 입력해주세요" /></label>
+      <div className="flex flex-wrap justify-end gap-2 border-t pt-3 sm:col-span-2 lg:col-span-3"><Button disabled={busy} onClick={() => { const next = emptyFilters(); setFilters(next); void load(next); }} type="button" variant="outline">초기화</Button><Button disabled={busy} type="submit"><Search aria-hidden="true" />조회</Button></div>
     </form>
-    {message ? <p className="admin-shipping-charge-groups__notice" role="status">{message}</p> : null}
-    {error ? <p className="admin-shipping-charge-groups__error" role="alert">{error}</p> : null}
+    {message ? <p className={STATUS_BOX} role="status">{message}</p> : null}
+    {error ? <p className={ALERT_BOX} role="alert">{error}</p> : null}
     {!editor && !assignment ? pending.map(context => <OperationRecovery key={context.operationId} context={context} identity={identity} scope={scope} canEdit={canEdit} onReceipt={receiptReceived} />) : null}
-    <div className="admin-shipping-charge-groups__results" aria-busy={busy}>
-      <div className="admin-shipping-charge-groups__result-heading"><h3>조회 결과 <span>총 {data?.total.toLocaleString('ko-KR') ?? '—'}개</span></h3>
-        {canEdit ? <button className="btn btn-sm" type="button" disabled={locked || !data} onClick={() => { if (!locked && data) { setMessage(''); setEditor({ id: crypto.randomUUID(), data: null, originId: applied.originId ?? '' }); } }}>묶음그룹 추가</button> : <span className="admin-shipping-charge-groups__muted">읽기 전용</span>}
+    <div aria-busy={busy} className="flex min-w-0 flex-col gap-3 rounded-xl border bg-card text-card-foreground" data-charge-groups-results="">
+      <div className={RESULT_HEADING}><h3 className="flex flex-wrap items-baseline gap-2 text-base font-medium">조회 결과 <span className="text-xs font-normal text-muted-foreground tabular-nums">총 {data?.total.toLocaleString('ko-KR') ?? '—'}개</span></h3>
+        {canEdit ? <Button disabled={locked || !data} onClick={() => { if (!locked && data) { setMessage(''); setEditor({ id: crypto.randomUUID(), data: null, originId: applied.originId ?? '' }); } }} size="sm" type="button"><Plus aria-hidden="true" />묶음그룹 추가</Button> : <span className="text-xs text-muted-foreground">읽기 전용</span>}
       </div>
-      {busy ? <p className="admin-shipping-charge-groups__hint" role="status">묶음그룹을 불러오고 있습니다.</p> : null}
-      <div className="admin-shipping-charge-groups__table"><table><caption>배송비 묶음그룹 목록</caption><thead><tr><th>그룹명</th><th>출고지</th><th>계산 방식</th><th>지역 추가료</th><th>배정 원상품</th><th>사용 상태</th><th>버전·수정일</th><th>관리</th></tr></thead>
-        <tbody>{data?.groups.map(group => <tr key={group.id}><th scope="row">{group.name}{group.isDefault ? <small><span className="admin-shipping-charge-groups__badge">기본 그룹</span></small> : null}<small>그룹번호 {group.id}</small></th>
-          <td>{origins.find(origin => origin.id === group.originId)?.name ?? '출고지 확인 필요'}</td><td>{group.calculationMode === 'min' ? '최소 부과' : '최대 부과'}<small>유효 무료 조건 우선</small></td>
-          <td>{group.regional.mode === 'inherit' ? '출고지 정책 상속' : '그룹 지역표 1회'}{group.regional.mode === 'override' ? <small>{group.regional.policy.rules.length.toLocaleString('ko-KR')}개 주소 구간</small> : null}</td>
-          <td><button className="btn btn-sm btn-ghost" type="button" disabled={locked} aria-label={`${group.name} 연결 원상품 ${group.assignedCount}개 조회`} onClick={() => { if (!locked) setAssignment(group); }}>{group.assignedCount.toLocaleString('ko-KR')}개</button></td><td>{group.archived ? '보관' : group.enabled ? '사용' : '사용 안 함'}</td><td>버전 {group.revision}<small>{formatOrderDateTime(group.updatedAt)}</small></td>
-          <td><div className="admin-shipping-charge-groups__actions"><button className="btn btn-sm btn-ghost" type="button" disabled={locked} onClick={() => { void edit(group); }}>{canEdit ? '조회/수정' : '조회'}</button>
-            {canEdit ? <button className="btn btn-sm btn-ghost" type="button" disabled={locked} onClick={() => { if (!locked) setAssignment(group); }}>상품 배정</button> : null}</div></td></tr>)}</tbody></table></div>
-      {!busy && data && !data.groups.length ? <p className="admin-shipping-charge-groups__empty">{applied.query || applied.originId || applied.status !== 'all' ? '조회 조건에 맞는 묶음그룹이 없습니다.' : '등록한 배송비 묶음그룹이 없습니다. 기존 상품은 현재 배송비 규칙을 유지합니다.'}</p> : null}
-      <div className="admin-shipping-charge-groups__pagination"><button className="btn btn-sm btn-ghost" type="button" disabled={busy || !data || data.page <= 1} onClick={() => { void load({ ...applied, page: (data?.page ?? 1) - 1 }); }}>이전</button>
-        <span>{data?.page ?? 1} / {data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1}</span><button className="btn btn-sm btn-ghost" type="button" disabled={busy || !data || data.page * data.pageSize >= data.total} onClick={() => { void load({ ...applied, page: (data?.page ?? 1) + 1 }); }}>다음</button></div>
+      {busy ? <p className="px-4 text-sm text-muted-foreground" role="status">묶음그룹을 불러오고 있습니다.</p> : null}
+      <div className="min-w-0 overflow-auto px-4"><Table className="min-w-[46.25rem]"><caption className="sr-only">배송비 묶음그룹 목록</caption><TableHeader><TableRow className="hover:bg-transparent"><TableHead>그룹명</TableHead><TableHead>출고지</TableHead><TableHead>계산 방식</TableHead><TableHead>지역 추가료</TableHead><TableHead>배정 원상품</TableHead><TableHead>사용 상태</TableHead><TableHead>버전·수정일</TableHead><TableHead>관리</TableHead></TableRow></TableHeader>
+        <TableBody>{data?.groups.map(group => <TableRow key={group.id}><TableHead className="h-auto py-3 align-top whitespace-normal [overflow-wrap:anywhere]" scope="row">{group.name}{group.isDefault ? <small className="mt-1 block"><Badge variant="secondary">기본 그룹</Badge></small> : null}<small className={`mt-1 block ${FIELD_HINT}`}>그룹번호 {group.id}</small></TableHead>
+          <TableCell className="align-top whitespace-normal">{origins.find(origin => origin.id === group.originId)?.name ?? '출고지 확인 필요'}</TableCell><TableCell className="align-top">{group.calculationMode === 'min' ? '최소 부과' : '최대 부과'}<small className={`mt-1 block ${FIELD_HINT}`}>유효 무료 조건 우선</small></TableCell>
+          <TableCell className="align-top">{group.regional.mode === 'inherit' ? '출고지 정책 상속' : '그룹 지역표 1회'}{group.regional.mode === 'override' ? <small className={`mt-1 block ${FIELD_HINT}`}>{group.regional.policy.rules.length.toLocaleString('ko-KR')}개 주소 구간</small> : null}</TableCell>
+          <TableCell className="align-top"><Button aria-label={`${group.name} 연결 원상품 ${group.assignedCount}개 조회`} className="tabular-nums" disabled={locked} onClick={() => { if (!locked) setAssignment(group); }} size="xs" type="button" variant="outline">{group.assignedCount.toLocaleString('ko-KR')}개</Button></TableCell><TableCell className="align-top">{group.archived ? '보관' : group.enabled ? '사용' : '사용 안 함'}</TableCell><TableCell className="align-top tabular-nums">버전 {group.revision}<small className={`mt-1 block ${FIELD_HINT}`}>{formatOrderDateTime(group.updatedAt)}</small></TableCell>
+          <TableCell className="align-top"><div className="flex flex-nowrap items-center gap-1.5"><Button disabled={locked} onClick={() => { void edit(group); }} size="xs" type="button" variant="outline">{canEdit ? '조회/수정' : '조회'}</Button>
+            {canEdit ? <Button disabled={locked} onClick={() => { if (!locked) setAssignment(group); }} size="xs" type="button" variant="outline">상품 배정</Button> : null}</div></TableCell></TableRow>)}</TableBody></Table></div>
+      {!busy && data && !data.groups.length ? <p className={EMPTY}>{applied.query || applied.originId || applied.status !== 'all' ? '조회 조건에 맞는 묶음그룹이 없습니다.' : '등록한 배송비 묶음그룹이 없습니다. 기존 상품은 현재 배송비 규칙을 유지합니다.'}</p> : null}
+      <div className="flex items-center justify-center gap-3 px-4 pb-3 text-sm"><Button disabled={busy || !data || data.page <= 1} onClick={() => { void load({ ...applied, page: (data?.page ?? 1) - 1 }); }} size="sm" type="button" variant="outline"><ChevronLeft aria-hidden="true" />이전</Button>
+        <span className="text-muted-foreground tabular-nums">{data?.page ?? 1} / {data ? Math.max(1, Math.ceil(data.total / data.pageSize)) : 1}</span><Button disabled={busy || !data || data.page * data.pageSize >= data.total} onClick={() => { void load({ ...applied, page: (data?.page ?? 1) + 1 }); }} size="sm" type="button" variant="outline">다음<ChevronRight aria-hidden="true" /></Button></div>
     </div>
-    <p className="admin-shipping-charge-groups__hint">같은 주문·출고지의 배송비만 묶습니다. 전시 그룹상품·구매 합산군과 구분하며, 기본 그룹 변경으로 기존 상품을 자동 재배정하지 않습니다.</p>
+    <p className={NOTE}>같은 주문·출고지의 배송비만 묶습니다. 전시 그룹상품·구매 합산군과 구분하며, 기본 그룹 변경으로 기존 상품을 자동 재배정하지 않습니다.</p>
     {editor && data ? <ShippingChargeGroupEditor key={`${identity.expectedActorId}:${identity.expectedSessionId}:${editor.id}`} start={editor} identity={identity} scope={scope} origins={origins} carriers={carriers}
       canEdit={canEdit} canManageRegional={canManageRegional} initialList={data} otherPending={pending.some(context => context.groupId !== editor.id || context.command !== 'save')} onClose={() => setEditor(null)} onSaved={receiptReceived} /> : null}
     {assignment ? <ShippingChargeGroupAssignmentDialog key={`${identity.expectedActorId}:${identity.expectedSessionId}:${assignment.id}`} group={assignment}
@@ -308,9 +318,9 @@ export function ShippingChargeGroupsPanel({ accountId, origins, carriers, canEdi
   accountId: string; origins: GoodsFulfillmentOrigin[]; carriers: EditableCarrier[]; canEdit: boolean; canManageRegional: boolean;
 }) {
   const { identity, scope, blocked } = useShippingChargeGroupSession(accountId);
-  return <section id="shipping-charge-groups" className="wc-admin-kit admin-shipping-charge-groups" aria-labelledby="shipping-charge-groups-title">
-    <header className="admin-shipping-charge-groups__heading"><h2 id="shipping-charge-groups-title">배송비 묶음그룹 관리</h2><p>배송비를 함께 계산할 그룹과 최소·최대 부과, 무료 우선, 지역 추가료를 관리합니다.</p></header>
+  return <section id="shipping-charge-groups" className="flex min-w-0 scroll-mt-16 flex-col gap-4" aria-labelledby="shipping-charge-groups-title">
+    <header className="flex flex-col gap-1"><h2 className="text-lg leading-tight font-semibold tracking-tight" id="shipping-charge-groups-title">배송비 묶음그룹 관리</h2><p className="text-sm text-muted-foreground">배송비를 함께 계산할 그룹과 최소·최대 부과, 무료 우선, 지역 추가료를 관리합니다.</p></header>
     {identity ? <GroupsWorkspace key={`${identity.expectedActorId}:${identity.expectedSessionId}`} identity={identity} scope={scope} origins={origins} carriers={carriers} canEdit={canEdit} canManageRegional={canManageRegional} />
-      : <p role={blocked ? 'alert' : 'status'}>{blocked ? '로그인 계정 또는 세션이 바뀌었습니다. 현재 계정으로 화면을 다시 열어주세요.' : '현재 로그인과 묶음그룹 관리 권한을 확인하고 있습니다.'}</p>}
+      : <p className={blocked ? ALERT_BOX : STATUS_BOX} role={blocked ? 'alert' : 'status'}>{blocked ? '로그인 계정 또는 세션이 바뀌었습니다. 현재 계정으로 화면을 다시 열어주세요.' : '현재 로그인과 묶음그룹 관리 권한을 확인하고 있습니다.'}</p>}
   </section>;
 }

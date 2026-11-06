@@ -117,7 +117,7 @@ describe('m27 가이드 — 클레임(R7·R8)', () => {
   const text = guide('claims');
 
   it('요청번호는 목록 위 팝업을 열고, 전체 화면 상세는 팝업 버튼으로 연다(R8)', () => {
-    expect(repoFile('components/admin/screens/ClaimQueueScreen.tsx')).toContain('요청번호를 누르면 목록 위에 상세가 열리고');
+    expect(repoFile('components/admin/screens/ClaimQueueKitScreen.tsx')).toContain('요청번호를 누르면 목록 위에 상세가 열리고');
     expect(repoFile('components/admin/screens/ClaimPreviewDialog.tsx')).toContain('전체 화면으로 열기');
     expect(text).toContain('요청번호를 누르면 목록 위');
     expect(text).toContain('"전체 화면으로 열기"');
@@ -130,22 +130,15 @@ describe('m27 가이드 — 클레임(R7·R8)', () => {
     expect(text).toContain('한 건씩 순서대로');
   });
 
-  it('일괄 거부 사유 칸의 위치를 화면 그대로(목록 위, 일괄 처리 버튼 바로 아래) 적는다(R8·ADM-5)', () => {
-    const bulk = repoFile('components/admin/screens/ClaimQueueBulk.tsx');
-    /* 일괄 처리 버튼 줄과 거부 사유 칸은 ConsoleGrid의 children이고, ConsoleGrid는 children을 표보다 먼저 그린다. */
-    const grid = bulk.slice(bulk.indexOf('<ConsoleGrid'), bulk.indexOf('</ConsoleGrid>'));
-    expect(grid.indexOf('admin-claim-bulk-bar')).toBeGreaterThan(-1);
-    expect(grid.indexOf('admin-claim-bulk-reason')).toBeGreaterThan(grid.indexOf('admin-claim-bulk-bar'));
-    const consoleGrid = repoFile('components/admin/console/ConsoleGrid.tsx');
-    expect(consoleGrid.indexOf('{children}')).toBeLessThan(consoleGrid.indexOf('<table className="admin-console-grid-table"'));
-    expect(text).toContain('목록 위 일괄 처리 버튼 바로 아래의 거부 사유 칸');
+  it('일괄 거부 사유 칸의 위치를 화면 그대로(아래 처리 막대의 거부 버튼이 여는 칸) 적는다(R8·ADM-5)', () => {
+    /* ADR-0028: 취소·반품·교환 목록이 모두 kit 화면이다 — 아래 처리 막대의 거부 버튼이 거부 사유 팝오버를 연다. */
+    expect(text).not.toContain('목록 위 일괄 처리 버튼 바로 아래의 거부 사유 칸');
     expect(text).not.toContain('목록 아래 거부 사유 칸');
-    /* ADR-0028: 취소 관리(kit)는 아래 처리 막대의 거부 버튼이 거부 사유 팝오버를 연다. */
     const kit = repoFile('components/admin/screens/ClaimQueueKitTable.tsx');
     const actionBar = kit.slice(kit.indexOf('<ActionBar'), kit.indexOf('</ActionBar>'));
     expect(actionBar.indexOf('ADMIN_CLAIM_BULK_ACTION_LABELS.reject')).toBeGreaterThan(-1);
     expect(actionBar.indexOf('<KitRejectionReasonField')).toBeGreaterThan(actionBar.indexOf('<PopoverContent'));
-    expect(text).toContain(`취소 관리에서는 아래 처리 막대의 "${ADMIN_CLAIM_BULK_ACTION_LABELS.reject}"를 누르면 뜨는 거부 사유 칸`);
+    expect(text).toContain(`취소·반품·교환 관리 모두 아래 처리 막대의 "${ADMIN_CLAIM_BULK_ACTION_LABELS.reject}"를 누르면 뜨는 거부 사유 칸`);
   });
 
   it('거부 사유 프리셋과 유형별 사유, 운영자 철회 버튼 제거를 안내한다(R7)', () => {

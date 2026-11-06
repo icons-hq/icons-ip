@@ -19,6 +19,9 @@ describe('manager directory controls', () => {
     expect(html).toContain('aria-label="매니저1 담당업무 변경"');
     expect(html).toContain('대표');
     expect(html).not.toContain('name="role" aria-label="매니저3 권한"');
+    /* kit 버튼의 기본 type은 button이다 — 팝업의 저장·확인만 제출하고 여는 버튼은 제출하지 않는다. */
+    expect(html).toMatch(/<button[^>]*type="submit"[^>]*>저장<\/button>/);
+    expect(html).toMatch(/<button[^>]*type="button"[^>]*aria-label="매니저3 권한 변경"|<button[^>]*aria-label="매니저3 권한 변경"[^>]*type="button"/);
   });
   it('offers ownership transfer only for active primary targets', () => {
     const ownerData: OperatorDirectoryData = { ...data, actorManagerRole: 'owner' };
@@ -35,5 +38,6 @@ describe('manager directory controls', () => {
     expect(html).toContain('통합 매니저');
     expect(html).toContain('미선택');
     expect(html).not.toContain('value="owner" selected');
+    expect(html).toMatch(/<button[^>]*type="submit"[^>]*>매니저 역할 적용<\/button>/);
   });
 });
