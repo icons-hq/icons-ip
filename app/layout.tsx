@@ -54,7 +54,6 @@ import './styles/goods-benefits.css';
 import './styles/admin-review-best.css';
 import './styles/goods-review-best.css';
 import './styles/goods-media.css';
-import './styles/admin-marketing-messages.css';
 import './styles/admin-review-events.css';
 /* 콘솔의 옛 클래스 어휘(btn·card·chip·tag·폼 요소)를 kit 모양으로 입힌다(ADR-0028). 관리자 스타일시트 뒤에 둔다. */
 import './styles/admin-kit-vocabulary.css';
