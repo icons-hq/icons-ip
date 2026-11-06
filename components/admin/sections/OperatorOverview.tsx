@@ -3,7 +3,7 @@ import { ArrowRight } from 'lucide-react';
 import { MANAGER_ROLE_LABELS, type OperatorAccess } from '@/lib/admin/access';
 import { visibleAdminNavGroups } from '@/lib/admin/navigation';
 import type { AdminHomeAttention } from '@/lib/admin/home-attention';
-import { adminNavGroupIcon } from '../admin-nav-icons';
+import { AdminNavGroupIcon } from '../admin-nav-icons';
 import { HomeAttention } from './HomeAttention';
 
 /* 매니저 홈 — 권한으로 열 수 있는 화면을 메뉴 그룹별 링크 카드로 편다(ADR-0028 템플릿 룩). */
@@ -18,9 +18,8 @@ export function OperatorOverview({ role, access, attention }: {
         <p className="text-sm text-muted-foreground">{access.managerRole ? MANAGER_ROLE_LABELS[access.managerRole] : '매니저'} 권한으로 이용할 수 있는 메뉴입니다.</p>
       </header>
       {groups.map(group => {
-        const GroupIcon = adminNavGroupIcon(group.id);
         return <section className="flex min-w-0 flex-col gap-2" key={group.id}>
-          <h3 className="flex items-center gap-2 text-sm font-medium"><GroupIcon aria-hidden="true" className="size-4 text-muted-foreground" />{group.label}</h3>
+          <h3 className="flex items-center gap-2 text-sm font-medium"><span aria-hidden="true" className="text-muted-foreground [&>svg]:size-4"><AdminNavGroupIcon groupId={group.id} /></span>{group.label}</h3>
           <nav aria-label={`${group.label} 바로가기`} className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
             {group.screens.filter(screen => screen.status === 'ready').map(screen => <Link
               className="group/shortcut flex min-h-11 min-w-0 items-center justify-between gap-2 rounded-xl bg-card px-4 py-3 text-sm font-medium text-card-foreground ring-1 ring-foreground/10 transition-colors hover:bg-muted"
