@@ -10,6 +10,9 @@
 
 - 코드와 DB는 배포돼도 **닫혀 있다.** 공개 스위치와 canary가 비어 있으면 인증을 시작할 수 없고,
   증거가 없으니 19금 굿즈 구매 경계도 그대로 닫혀 있다.
+- 개인정보처리방침 성인 인증 개정은 2026-11-06 공지, **2026-11-13 시행**으로 예약돼 있다
+  (`lib/legal/privacy-adult-verification-revision.ts`). 공개 스위치(`ADULT_VERIFICATION_ENABLED=true`)는
+  시행일(KST)부터만 효력이 있다 — 미리 켜 두면 시행일 0시에 배포 없이 열린다. canary는 시행일과 무관하다.
 - 상점관리자 설정 상태(2026-10-23 확인):
   - 인증결과URL: `https://iconsip.com/` 등록됨, "설정함".
   - 신규 연동방식(V2) 사용여부: **미전환.** 전환은 되돌릴 수 없어 운영 개방 직전에 한다.
@@ -78,11 +81,11 @@ docker exec -i <격리 DB 컨테이너> psql -X -U postgres -d postgres -v ON_ER
 
 ## 개방 순서
 
-1. 개인정보처리방침 개정 시행(아래 초안) — 시행 전에는 공개 스위치를 켜지 않는다.
+1. 개인정보처리방침 개정 공지(아래 개정 내용, 제13조대로 시행 7일 전) — 코드가 시행일 전에는 공개 스위치를 막는다.
 2. 상점관리자: 인증키 발급 → V2 사용 전환.
 3. Vercel Production env 등록(위 표) → 새 Production 배포 → 설정 readback(설정 여부만, 값은 출력하지 않는다).
 4. canary: `ADULT_VERIFICATION_CANARY_USER_ID`에 내부 계정 하나 → 배포 → 실제 휴대폰으로 인증 → 결과·DB 확인.
-5. 공개: `ADULT_VERIFICATION_ENABLED=true` → 배포.
+5. 공개: `ADULT_VERIFICATION_ENABLED=true` → 배포. 처리방침 시행일 전이면 시행일 0시(KST)에 열린다.
 6. 19금 판매 개방은 별도 트랙이다(가림 카드·상세 게이트·주문 서버 게이트, 코페이 gate). 이 런북만으로 구매가 열리지 않는다.
 
 ## 롤백
@@ -101,7 +104,7 @@ docker exec -i <격리 DB 컨테이너> psql -X -U postgres -d postgres -v ON_ER
 - 결과 코드: 세션 `result_code`에 `kcp_window_<코드>`(인증창 실패)·`kcp_result_<코드>`(조회 실패)·`kcp_result_decrypt`·
   `claim_expired`(조회 처리기가 중간에 멈춤)·`session_expired`·`superseded` 등이 남는다.
 
-## 개인정보처리방침 개정 초안 (법무 확인 후 시행일과 함께 반영)
+## 개인정보처리방침 개정 내용 (2026-11-13 시행, `lib/legal/documents.ts`)
 
 - 제1조 표에 행 추가 — 구분 "성인 인증(휴대폰 본인확인)": 본인확인기관(NHN KCP)이 인증 결과로 전달하는 이름, 생년월일,
   성별, 내·외국인 구분, 휴대폰번호, 통신사, 연계정보(CI), 중복가입확인정보(DI). 19세 이상 여부 판정에만 쓰고 저장하지 않으며,
