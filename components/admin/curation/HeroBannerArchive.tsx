@@ -3,6 +3,7 @@
 import { useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { Archive } from 'lucide-react';
+import { ConsolePagination } from '@/components/admin/console/ConsolePagination';
 import { Button } from '@/components/admin/kit/ui/button';
 import { readArchivedHeroBannersAction, setHeroBannerArchivedAction } from '@/app/admin/curation-archive-actions';
 import { ARCHIVED_HERO_PAGE_SIZE, curationArchiveForm, type ArchivedHeroBanner, type ArchivedHeroPage } from '@/lib/admin/curation-archive';
@@ -111,7 +112,6 @@ export function ArchivedHeroBanners({ onRestored }: { onRestored: () => void }) 
     });
   };
   const close = () => { if (selected) return; ++readGeneration.current; setOpen(false); };
-  const pageCount = Math.max(1, Math.ceil((page?.total ?? 0) / ARCHIVED_HERO_PAGE_SIZE));
   return <>
     <Button className="w-full" onClick={() => { setOpen(true); setPage(null); load(1); }} type="button" variant="outline"><Archive aria-hidden="true" />삭제한 배너</Button>
     {open ? <CurationEditorDialog title="삭제한 배너" closeDisabled={Boolean(selected)} onClose={close}>
@@ -127,11 +127,7 @@ export function ArchivedHeroBanners({ onRestored }: { onRestored: () => void }) 
           <span className="text-xs text-muted-foreground tabular-nums">{curationKstInput(banner.archivedAt).replace('T', ' ')} 삭제</span>
           <Button className="self-start" disabled={pending} onClick={() => setSelected(banner)} size="sm" type="button" variant="outline">{banner.title || '제목 없는 배너'} 복구</Button>
         </li>)}</ul>
-        <nav aria-label="삭제한 배너 페이지" className="flex items-center justify-center gap-3 text-xs">
-          <Button disabled={pending || page.page <= 1} onClick={() => load(page.page - 1)} size="sm" type="button" variant="outline">이전</Button>
-          <span className="tabular-nums">{page.page} / {pageCount}</span>
-          <Button disabled={pending || page.page >= pageCount} onClick={() => load(page.page + 1)} size="sm" type="button" variant="outline">다음</Button>
-        </nav>
+        <ConsolePagination label="삭제한 배너 페이지" page={page.page} pageSize={ARCHIVED_HERO_PAGE_SIZE} total={page.total} unit="개" disabled={pending} onPageChange={load} />
       </> : null}
       {error ? <Button className="self-start" disabled={pending} onClick={() => load(page?.page ?? 1)} type="button" variant="outline">목록 다시 불러오기</Button> : null}
       </div>

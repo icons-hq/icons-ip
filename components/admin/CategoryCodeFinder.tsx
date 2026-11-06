@@ -8,6 +8,7 @@ import { selectedCategoryPath, usableTemplateCategory } from '@/lib/admin/catego
 import { Copy, Download } from 'lucide-react';
 import { CategoryTemplateTree, CategoryTemplatesScreen } from './screens/CategoryTemplatesScreen';
 import { CustomerServiceDialog } from './screens/CustomerServiceDialog';
+import { ConsolePagination } from './console/ConsolePagination';
 import { Button, buttonVariants } from './kit/ui/button';
 import { Input } from './kit/ui/input';
 import { TableBody, TableCell, TableHead, TableHeader, TableRow } from './kit/ui/table';
@@ -37,7 +38,6 @@ export function CategoryCodeFinder({ onClose }: { onClose: () => void }) {
   const usable = Boolean(categories && usableTemplateCategory(categories, selectedId));
   const choices = useMemo(() => categoryCodeChoices(categories ?? []), [categories]);
   const rows = choices.filter(row => `${row.path} ${row.code}`.toLocaleLowerCase('ko').includes(query.trim().toLocaleLowerCase('ko')));
-  const lastPage = Math.max(1, Math.ceil(rows.length / 20));
   function select(id: string) { setSelectedId(id); setMessage(''); setError(false); }
   async function copy() {
     if (!selected || !usable || pending) return;
@@ -65,7 +65,7 @@ export function CategoryCodeFinder({ onClose }: { onClose: () => void }) {
             {rows.slice((page - 1) * 20, page * 20).map(row => <TableRow key={row.id} data-state={selectedId === row.id ? 'selected' : undefined}><TableCell><Button size="xs" variant="outline" type="button" className="aria-pressed:border-primary aria-pressed:bg-primary aria-pressed:text-primary-foreground" aria-pressed={selectedId === row.id} onClick={() => select(row.id)}>선택</Button></TableCell><TableCell className="whitespace-normal">{row.path}</TableCell><TableCell className="tabular-nums">{row.code}</TableCell></TableRow>)}
             {!rows.length ? <TableRow><TableCell className="h-24 text-center text-muted-foreground" colSpan={3}>선택할 수 있는 카테고리가 없습니다.</TableCell></TableRow> : null}
           </TableBody></table></div>
-          <nav className="flex flex-wrap items-center justify-between gap-2 px-1 text-sm" aria-label="카테고리 코드 페이지"><span className="text-muted-foreground tabular-nums">{page} / {lastPage} 페이지</span><span className="flex items-center gap-1.5"><Button size="sm" variant="outline" type="button" disabled={page <= 1} onClick={() => setPage(page - 1)}>이전</Button><Button size="sm" variant="outline" type="button" disabled={page >= lastPage} onClick={() => setPage(page + 1)}>다음</Button></span></nav>
+          <ConsolePagination label="카테고리 코드 페이지" page={page} pageSize={20} total={rows.length} onPageChange={setPage} />
         </> : mode === 'tree' ? <CategoryTemplateTree categories={categories} value={selectedId} onChange={select} disabled={false} />
           : <CategoryTemplatesScreen selectionHint="템플릿을 선택하면 아래에 카테고리 코드가 표시됩니다. 코드 복사 후 ICONS 상품 엑셀에 붙여넣으세요." onSelect={template => {
             if (!template.usable || !usableTemplateCategory(categories, template.categoryId)) { setMessage('현재 사용할 수 없는 카테고리입니다. 최신 카테고리를 다시 조회해주세요.'); setError(true); return; }

@@ -5,6 +5,7 @@ import type { GoodsRelationCandidates, GoodsRelationGood } from '@/lib/admin/goo
 import { CustomerServiceDialog } from './CustomerServiceDialog';
 import { findGoodById, GOOD_URL_ERRORS } from '@/lib/admin/good-url';
 import { GoodUrlAddField } from '@/components/admin/GoodUrlAddField';
+import { ConsolePagination } from '../console/ConsolePagination';
 import { Button } from '../kit/ui/button';
 import { Input } from '../kit/ui/input';
 import { TableBody, TableCell, TableHead, TableHeader, TableRow } from '../kit/ui/table';
@@ -51,7 +52,7 @@ export function GoodsRelationProductPicker({ value, limit, onApply, onClose }: {
         <TableCell className="relative w-12 min-w-12 p-0"><label className="absolute inset-0 flex cursor-pointer items-center justify-center"><input type="checkbox" checked={selected.some(item => item.id === good.id)} aria-label={`${good.name} 선택`} disabled={pending} onChange={() => toggle(good)} /></label></TableCell>
         <TableCell className="whitespace-normal">{good.name}<small className="block text-xs text-muted-foreground wrap-anywhere">{good.id}</small></TableCell><TableCell>{good.code}</TableCell><TableCell>{good.public ? '공개' : '비노출'}</TableCell>
       </TableRow>)}</TableBody></table>{!pending && data?.total === 0 ? <p className="px-3 py-6 text-center text-sm text-muted-foreground">조건에 맞는 상품이 없습니다.</p> : null}</div>
-      <div className="flex items-center justify-center gap-3 text-sm"><Button size="sm" variant="outline" type="button" disabled={pending || !data || data.page <= 1} onClick={() => { void search((data?.page ?? 1) - 1); }}>이전</Button><span className="text-muted-foreground tabular-nums">{data?.page ?? 1} / {data ? Math.max(1, Math.ceil(data.total / 20)) : 1}</span><Button size="sm" variant="outline" type="button" disabled={pending || !data || data.page * 20 >= data.total} onClick={() => { void search((data?.page ?? 1) + 1); }}>다음</Button></div>
+      <ConsolePagination label="연관상품 검색 결과 페이지" page={data?.page ?? 1} pageSize={20} total={data?.total ?? 0} unit="개" disabled={pending || !data} onPageChange={page => { void search(page); }} />
       <div className="flex flex-wrap justify-end gap-2 border-t pt-4"><Button variant="outline" type="button" onClick={onClose}>취소</Button><Button type="button" disabled={pending || selected.length < 2 || selected.length > limit} onClick={() => onApply(selected)}>선택 상품 적용</Button></div>
     </div>
   </CustomerServiceDialog>;

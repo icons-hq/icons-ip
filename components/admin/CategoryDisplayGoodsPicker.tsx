@@ -6,6 +6,7 @@ import type { StoryGoodCandidates, StoryGoodCandidate } from '@/lib/admin/shoppi
 import { krw } from '@/lib/format';
 import { findGoodById, GOOD_URL_ERRORS } from '@/lib/admin/good-url';
 import { GoodUrlAddField } from './GoodUrlAddField';
+import { ConsolePagination } from '@/components/admin/console/ConsolePagination';
 import { Button } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
 import { NativeSelect } from '@/components/admin/kit/ui/native-select';
@@ -63,7 +64,7 @@ export function CategoryDisplayGoodsPicker({ selected, limit, onlyPublished = fa
         <TableBody>{data?.rows.map(row => <TableRow data-state={picked.includes(row.id) ? 'selected' : undefined} key={row.id}><TableCell><input type="checkbox" aria-label={`${row.name} 선택`} checked={picked.includes(row.id)} disabled={pending || !picked.includes(row.id) && picked.length >= limit}
           onChange={() => setPicked(current => current.includes(row.id) ? current.filter(id => id !== row.id) : [...current, row.id])} /></TableCell><TableCell className="whitespace-normal"><strong className="block font-medium [overflow-wrap:anywhere]">{row.name}</strong><small className="block text-[11px] text-muted-foreground">{row.code}</small></TableCell><TableCell className="text-right tabular-nums">{krw(row.price)}</TableCell><TableCell>{row.published ? row.soldOut ? '품절' : '노출 중' : '비노출'}</TableCell></TableRow>)}</TableBody></Table></div>
       {data && !data.rows.length ? <p className="py-6 text-center text-sm text-muted-foreground">조회된 상품이 없습니다.</p> : null}
-      <nav aria-label="상품 선택 페이지" className="flex items-center justify-center gap-3 text-xs"><Button type="button" disabled={pending || !data || data.page <= 1} onClick={() => { if (data) void search(data.page - 1); }} size="sm" variant="outline">이전</Button><span className="tabular-nums">{data?.page ?? 1} / {Math.max(1, Math.ceil((data?.total ?? 0) / 20))}</span><Button type="button" disabled={pending || !data || data.page * 20 >= data.total} onClick={() => { if (data) void search(data.page + 1); }} size="sm" variant="outline">다음</Button></nav>
+      <ConsolePagination label="상품 선택 페이지" page={data?.page ?? 1} pageSize={20} total={data?.total ?? 0} unit="개" disabled={pending || !data} onPageChange={page => { if (data) void search(page); }} />
       <footer className="flex flex-wrap justify-end gap-2 border-t pt-4"><Button type="button" onClick={onClose} variant="outline">취소</Button><Button type="button" disabled={pending} onClick={() => onApply(picked, [...known.current.values()])}>선택 완료</Button></footer>
     </div>
   </CustomerServiceDialog>;

@@ -10,6 +10,7 @@ import { CS_REPLY_SURFACE_LABELS, CS_REPLY_TEMPLATE_CATEGORIES, CS_REPLY_TEMPLAT
 import { REPLY_TEMPLATE_REPLACE_CONFIRM, REPLY_TEMPLATE_REPLACE_HINT } from '@/lib/admin/inquiry-reply-templates';
 import { FileText } from 'lucide-react';
 import { AdminSelect } from '@/components/admin/console/AdminSelect';
+import { ConsolePagination } from '@/components/admin/console/ConsolePagination';
 import { Badge } from '@/components/admin/kit/ui/badge';
 import { Button } from '@/components/admin/kit/ui/button';
 import { CustomerServiceDialog } from './CustomerServiceDialog';
@@ -41,7 +42,12 @@ export function CsReplyTemplateTools({ surface, body, onInsert, disabled = false
   }
   async function load(page = 1) {
     const result = await listCsReplyTemplatesAction({ surface, query, category, archived, page });
-    if (result.ok) setData(result.data); else setError(result.error);
+    if (!result.ok) { setError(result.error); return; }
+    /* 삭제·복구로 건수가 줄어 보던 페이지가 범위를 벗어나면 마지막 페이지를 다시 읽는다.
+       공용 페이지 이동은 범위 밖 번호를 마지막 페이지로 보정해 보여 주므로 목록도 그 페이지여야 한다. */
+    const last = Math.max(1, Math.ceil(result.data.total / CS_REPLY_TEMPLATE_PAGE_SIZE));
+    if (page > last) { await load(last); return; }
+    setData(result.data);
   }
   function run(work: () => Promise<void>) {
     startTransition(async () => { setError(''); setMessage(''); try { await work(); } catch { setError('처리 결과를 확인하지 못했습니다. 작성 중인 문구는 유지됩니다.'); } });
@@ -139,11 +145,7 @@ export function CsReplyTemplateTools({ surface, body, onInsert, disabled = false
           })} size="sm" type="button" variant={template.archivedAt ? 'outline' : 'ghost'}>{template.archivedAt ? '복구' : '삭제'}</Button>
         </div>
       </article>) : <p className="py-6 text-center text-sm text-muted-foreground">조건에 맞는 템플릿이 없습니다.</p>}</div>
-      <nav className="flex items-center justify-between gap-3 border-t pt-4 text-sm" aria-label="답변 템플릿 목록 페이지">
-        <Button disabled={locked || data.page <= 1} onClick={() => run(() => load(data.page - 1))} size="sm" type="button" variant="outline">이전</Button>
-        <span className="text-muted-foreground tabular-nums">{data.page} / {Math.max(1, Math.ceil(data.total / CS_REPLY_TEMPLATE_PAGE_SIZE))}</span>
-        <Button disabled={locked || data.page * CS_REPLY_TEMPLATE_PAGE_SIZE >= data.total} onClick={() => run(() => load(data.page + 1))} size="sm" type="button" variant="outline">다음</Button>
-      </nav>
+      <ConsolePagination className="border-t pt-4" label="답변 템플릿 목록 페이지" page={data.page} pageSize={CS_REPLY_TEMPLATE_PAGE_SIZE} total={data.total} unit="개" disabled={locked} onPageChange={page => run(() => load(page))} />
       {draft ? <form className={TEMPLATE_EDITOR_CLASS} data-cs-template="editor" onSubmit={event => { event.preventDefault(); void save(); }}>
         <h3 className="text-base font-medium text-foreground">{draft.revision ? '템플릿 수정' : '템플릿 등록'}</h3>
         <label className="flex flex-col gap-1.5"><span className={FIELD_LABEL_CLASS}>편집 유형</span><AdminSelect disabled={locked} value={draft.category} onChange={event => changeDraft({ ...draft, category: event.target.value as CsReplyTemplateCategory })}>{CS_REPLY_TEMPLATE_CATEGORIES.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</AdminSelect></label>

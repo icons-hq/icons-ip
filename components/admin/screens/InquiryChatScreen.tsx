@@ -1,7 +1,8 @@
 import Link from 'next/link';
 import { ChevronDown, MessagesSquare, Search } from 'lucide-react';
 import { InquiryLiveUpdates } from '@/components/screens/InquiryLiveUpdates';
-import { Button, buttonVariants } from '@/components/admin/kit/ui/button';
+import { ConsolePagination } from '@/components/admin/console/ConsolePagination';
+import { Button } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
 import { ADMIN_INQUIRY_CHAT_PAGE_SIZE, ADMIN_INQUIRY_CHAT_PATH, CHAT_STATUS_OPTIONS, inquiryChatHref, type InquiryChatContext, type InquiryChatData, type InquiryChatFilters } from '@/lib/admin/inquiry-chat';
 import type { AdminInquiryDetail } from '@/lib/admin/inquiries.server';
@@ -19,7 +20,6 @@ import type { CustomerHistoryState } from '@/app/admin/customer-actions';
 type PurchaseHistory = NonNullable<CustomerHistoryState['history']>;
 
 const TEXT_LINK_CLASS = 'font-medium text-foreground underline underline-offset-4 hover:text-muted-foreground';
-const PAGE_LINK_CLASS = buttonVariants({ size: 'xs', variant: 'ghost' });
 
 /* 구매이력(A7, ADR-0020 그대로): sales.read 역할이면 page가 고객 주문 첫 페이지를 미리 읽어
    버튼 없이 바로 보여 준다. 권한이 없으면 카드 자체를 만들지 않는다.
@@ -36,7 +36,6 @@ export function InquiryChatScreen({ accountId, filters, data, detail, chatContex
   selected: boolean; canReadOrders: boolean; canViewCustomer: boolean;
   purchaseHistory?: PurchaseHistory | null; purchaseHistoryError?: boolean;
 }) {
-  const pages = Math.max(1, Math.ceil(data.total / ADMIN_INQUIRY_CHAT_PAGE_SIZE));
   return <section className="@container/chat group/chat flex h-full min-h-0 min-w-0 flex-col bg-background text-sm print:h-auto [&>.inquiry-live:not(:empty)]:border-b [&>.inquiry-live:not(:empty)]:bg-muted/50 [&>.inquiry-live:not(:empty)]:px-3 [&>.inquiry-live:not(:empty)]:py-1" data-selected={selected ? 'true' : 'false'} aria-label="ICONS 실시간 상담">
     <div className="sr-only"><strong>ICONS 고객 상담</strong><span>문의 내용과 답변은 ICONS 고객에게 표시됩니다.</span></div>
     <InquiryLiveUpdates audience="staff" />
@@ -64,10 +63,7 @@ export function InquiryChatScreen({ accountId, filters, data, detail, chatContex
           </Link>
         </li>)}</ul>
         {!data.rows.length ? <div className="flex flex-col items-center gap-2 px-3 py-6 text-center text-sm text-muted-foreground"><p>조건에 맞는 대화가 없습니다.</p><Link className={TEXT_LINK_CLASS} href={inquiryChatHref(filters, { status: 'all', assignee: 'all', period: 'all', read: 'all', query: '', page: 1 })}>전체 대화 보기</Link></div> : null}
-        <nav className="flex shrink-0 items-center justify-between border-t px-3 py-2 text-xs" aria-label="대화 목록 페이지">
-          {filters.page > 1 ? <Link className={PAGE_LINK_CLASS} data-slot="button" scroll={false} href={inquiryChatHref(filters, { page: filters.page - 1 })}>이전</Link> : <span aria-disabled="true" className={`${PAGE_LINK_CLASS} pointer-events-none opacity-50`}>이전</span>}
-          <span className="text-muted-foreground tabular-nums">{filters.page} / {pages}</span>{filters.page < pages ? <Link className={PAGE_LINK_CLASS} data-slot="button" scroll={false} href={inquiryChatHref(filters, { page: filters.page + 1 })}>다음</Link> : <span aria-disabled="true" className={`${PAGE_LINK_CLASS} pointer-events-none opacity-50`}>다음</span>}
-        </nav>
+        <div className="shrink-0 border-t px-2 py-2"><ConsolePagination label="대화 목록 페이지" page={filters.page} pageSize={ADMIN_INQUIRY_CHAT_PAGE_SIZE} total={data.total} scroll={false} hrefForPage={page => inquiryChatHref(filters, { page })} /></div>
       </aside>
       {/* 중간 폭에서만 대화와 상담 정보를 한 스크롤 칸으로 묶는다. 다른 폭에서는 상자 없이(contents) 바깥 배치의 칸이 된다. */}
       <div className="contents @2xl/chat:@max-4xl/chat:flex @2xl/chat:@max-4xl/chat:min-h-0 @2xl/chat:@max-4xl/chat:flex-col @2xl/chat:@max-4xl/chat:overflow-y-auto print:block! print:overflow-visible!">

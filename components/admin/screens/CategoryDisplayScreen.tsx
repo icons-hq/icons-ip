@@ -3,6 +3,7 @@ import Link from 'next/link';
 import { useEffect, useRef, useState } from 'react';
 import { ArrowDown, ArrowUp, ExternalLink, RefreshCw } from 'lucide-react';
 import { AdminSectionCard } from '../console/AdminKit';
+import { ConsolePagination } from '../console/ConsolePagination';
 import { Button, buttonVariants } from '@/components/admin/kit/ui/button';
 import { NativeSelect } from '@/components/admin/kit/ui/native-select';
 import { CategoryDisplayGoodsPicker } from '../CategoryDisplayGoodsPicker';
@@ -36,7 +37,7 @@ function SelectedGoods({ ids, names, disabled, onChange }: { ids: string[]; name
       <Button type="button" aria-label={`${names.get(id) ?? id} 아래로`} disabled={disabled || index === ids.length - 1} onClick={() => move(index, 1)} size="icon-sm" variant="outline"><ArrowDown aria-hidden="true" /></Button>
       <Button type="button" disabled={disabled} onClick={() => onChange(ids.filter(value => value !== id))} size="sm" variant="ghost">해제</Button>
     </div></li>;
-  })}</ol>{ids.length > 20 ? <nav aria-label="연결한 상품 페이지" className="flex flex-wrap items-center gap-2 text-xs"><Button type="button" disabled={currentPage <= 1} onClick={() => setPage(currentPage - 1)} size="sm" variant="outline">이전</Button><span className="tabular-nums">{currentPage} / {Math.ceil(ids.length / 20)}</span><Button type="button" disabled={currentPage * 20 >= ids.length} onClick={() => setPage(currentPage + 1)} size="sm" variant="outline">다음</Button></nav> : null}</>;
+  })}</ol>{ids.length > 20 ? <ConsolePagination label="연결한 상품 페이지" page={currentPage} pageSize={20} total={ids.length} unit="개" onPageChange={setPage} /> : null}</>;
 }
 
 export function CategoryDisplayScreen({ directory, initial, actorId, sessionId }: { directory: CategoryDisplayDirectory; initial: CategoryDisplaySnapshot | null; actorId: string; sessionId: string | null }) {
