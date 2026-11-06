@@ -170,6 +170,11 @@ describe('IpSection', () => {
 
   /* 게시 상태(20260907130000) — 초안·공개·보관을 폼 머리와 목록에서 읽을 수 있어야 한다. */
   describe('publish state', () => {
+    /* 제출 버튼(type="submit")의 intent 값과 문구. 앞에 장식 아이콘(svg) 하나가 올 수 있다 — 속성 순서는 묻지 않는다. */
+    function intentButton(intent: string, label: string) {
+      return new RegExp(`<button(?=[^>]*type="submit")(?=[^>]*value="${intent}")(?=[^>]*name="intent")[^>]*>(?:<svg[\\s\\S]*?</svg>)?\\s*${label}</button>`);
+    }
+
     function render(selected: AdminIpRecord | null, records = selected ? [selected] : []) {
       return renderToStaticMarkup(
         <IpSection
@@ -190,8 +195,8 @@ describe('IpSection', () => {
 
       expect(html).toContain('data-publish-state="draft"');
       expect(html).toContain('새 IP는 초안으로 시작합니다.');
-      expect(html).toMatch(/<button[^>]*value="draft"[^>]*name="intent"[^>]*>[^<]*초안으로 저장<\/button>/);
-      expect(html).toMatch(/<button[^>]*value="publish"[^>]*name="intent"[^>]*>[^<]*저장 후 공개<\/button>/);
+      expect(html).toMatch(intentButton('draft', '초안으로 저장'));
+      expect(html).toMatch(intentButton('publish', '저장 후 공개'));
       expect(html).not.toContain('PUBLISH STATE');
     });
 
@@ -213,7 +218,7 @@ describe('IpSection', () => {
       expect(html).toContain('hwasan · 화산강림');
       expect(html).not.toContain('[초안]');
       expect(html).toContain('data-publish-state="published"');
-      expect(html).toMatch(/<button[^>]*value="save"[^>]*name="intent"[^>]*>[^<]*저장<\/button>/);
+      expect(html).toMatch(intentButton('save', '저장'));
       expect(html).not.toContain('value="publish"');
       expect(html).not.toContain('초안으로 저장');
       expect(html).toContain('data-ip-publish-control="published"');
