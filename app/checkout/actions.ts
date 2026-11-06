@@ -93,7 +93,7 @@ export async function prepareGoodsPaymentAction(
 
   try {
     /* 카드 provider는 주문의 판매 제한 여부에서 파생된다(#392). gate도 파생된
-       provider의 것을 본다 — 제한 주문은 korpay gate가 열릴 때(19금 오픈 트랙)
+       provider의 것을 본다 — 제한 주문은 nicepay gate가 열릴 때(19금 오픈 트랙)
        까지 payment_unavailable로 남는다. DB prepare가 같은 파생을 최종 강제한다. */
     const provider = await deriveGoodsOrderProvider(order.id);
     if (!goodsCheckoutPaymentsEnabled(auth.user.id, provider)) {

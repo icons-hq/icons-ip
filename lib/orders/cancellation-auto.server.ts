@@ -1,6 +1,7 @@
 import 'server-only';
 
 import { after } from 'next/server';
+import { providerCancelsAutomatically } from '../payments/provider-capabilities';
 import { createServiceClient } from '../supabase/service';
 import {
   reconcileOrderCancellation,
@@ -101,7 +102,7 @@ function createDefaultDependencies(): SystemCancellationDependencies {
       if (paymentError) throw new Error('payment lookup failed');
       const manualProviderPayment = (paymentData ?? []).some((row) => {
         const payment = row as Record<string, unknown>;
-        return payment.status !== 'failed' && payment.provider !== 'toss';
+        return payment.status !== 'failed' && !providerCancelsAutomatically(payment.provider);
       });
 
       return {

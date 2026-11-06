@@ -50,6 +50,7 @@ const CLAIM_STATUS_LABELS: Record<string, string> = {
 
 const PAYMENT_PROVIDER_LABELS: Record<string, string> = {
   toss: '토스페이먼츠',
+  nicepay: '나이스페이',
   korpay: 'Korpay',
 };
 

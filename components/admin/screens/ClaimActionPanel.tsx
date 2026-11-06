@@ -5,6 +5,10 @@ import { startTransition, useActionState, useState, type ReactNode } from 'react
 import { ADMIN_CANCELLATION_RECHECK_LABELS, adminOrderSearchHref } from '@/lib/admin/orders';
 import { ADMIN_VOCABULARY as V, adminClaimCopy } from '@/lib/admin/vocabulary';
 import {
+  automatedCancelProviderLabel,
+  providerCancelsAutomatically,
+} from '@/lib/payments/provider-capabilities';
+import {
   decideOrderClaimAction,
   recordOrderClaimCollectionAction,
   recordOrderClaimRefundAction,
@@ -124,19 +128,22 @@ function ignoreUnconfirmedClaimSubmit() {}
 
 /** 취소 승인 확인 문구. 결제마다 승인 뒤 일어나는 일이 다르다. */
 export function claimCancelApprovalConfirmation(paymentProvider: string | null) {
-  if (paymentProvider === 'toss') {
-    return '취소를 승인하고 토스 전액 취소를 발행할까요? 되돌릴 수 없고, 확인되면 주문 취소·재고 복원·카드팩 회수와 환불 원장 기록이 함께 끝납니다.';
+  if (providerCancelsAutomatically(paymentProvider)) {
+    return `취소를 승인하고 ${automatedCancelProviderLabel(paymentProvider)} 전액 취소를 발행할까요? 되돌릴 수 없고, 확인되면 주문 취소·재고 복원·카드팩 회수와 환불 원장 기록이 함께 끝납니다.`;
   }
   if (paymentProvider === 'korpay') return '취소를 승인할까요? 승인 뒤 Korpay 취소 접수와 환불 완료 확정으로 진행합니다.';
   if (paymentProvider === 'bank_transfer') return '취소를 승인할까요? 승인 뒤 환불계좌 송금 절차로 진행합니다.';
   return '취소를 승인할까요? 결제 전 주문은 바로 주문이 취소되고 되돌릴 수 없습니다.';
 }
 
-/** 환불 완료 기록 확인 문구. 아직 종결되지 않은 클레임은 정합화(토스면 전액 취소 발행)가 먼저 돈다. */
-export function claimRefundCompletionConfirmation(finalizationPending: boolean, tossPayment: boolean) {
+/**
+ * 환불 완료 기록 확인 문구. 아직 종결되지 않은 클레임은 정합화(토스·나이스페이면 전액 취소
+ * 발행)가 먼저 돈다. autoCancelLabel은 취소 API로 자동 취소되는 결제사 이름이고, 아니면 null이다.
+ */
+export function claimRefundCompletionConfirmation(finalizationPending: boolean, autoCancelLabel: string | null) {
   if (!finalizationPending) return '환불 완료를 원장에 기록할까요?';
-  return tossPayment
-    ? '토스 전액 취소를 발행하고 주문 취소·재고 복원·카드팩 회수를 확정할까요? 되돌릴 수 없습니다.'
+  return autoCancelLabel
+    ? `${autoCancelLabel} 전액 취소를 발행하고 주문 취소·재고 복원·카드팩 회수를 확정할까요? 되돌릴 수 없습니다.`
     : '결제사 원장에서 전액 취소를 확인했나요? 확정하면 주문 취소·재고 복원·카드팩 회수가 진행되고 되돌릴 수 없습니다.';
 }
 
@@ -159,19 +166,19 @@ function Feedback({ state }: { state: AdminClaimActionState }) {
 function RefundMethodField({
   fixedMethod,
   id,
-  tossPayment,
+  autoCancelLabel,
 }: {
   fixedMethod: OrderClaimRefundMethod | null;
   id: string;
-  tossPayment: boolean;
+  autoCancelLabel: string | null;
 }) {
   if (fixedMethod) {
     return (
       <p style={{ fontSize: 13, margin: 0 }}>
         <input name="method" type="hidden" value={fixedMethod} />
         <span className="muted">환불 수단 · </span>
-        {fixedMethod === 'pg_cancel' && tossPayment
-          ? '결제사 취소 (토스 전액 취소)'
+        {fixedMethod === 'pg_cancel' && autoCancelLabel
+          ? `결제사 취소 (${autoCancelLabel} 전액 취소)`
           : ORDER_CLAIM_REFUND_METHOD_LABELS[fixedMethod]}
       </p>
     );
@@ -292,7 +299,10 @@ export function ClaimActionPanel({
     : null;
   /* 이미 종결된 클레임에서는 정합화가 더 돌지 않는다. 남은 일은 원장 기록뿐이다. */
   const refundFinalizationPending = stage !== 'completed';
-  const tossPayment = paymentProvider === 'toss';
+  /* 취소 API로 전액 취소를 발행하는 결제사(토스·나이스페이)면 그 이름, 아니면 null. */
+  const autoCancelLabel = providerCancelsAutomatically(paymentProvider)
+    ? automatedCancelProviderLabel(paymentProvider)
+    : null;
   /* 수단은 원장 기록 → 결제 provider 순으로 정해진다. 정해지지 않은 결제(Korpay)만
      운영자가 고른다. 서버 액션이 같은 규칙으로 다시 검사한다. */
   const fixedRefundMethod = recordedRefundMethod ?? orderClaimRefundMethodForProvider(paymentProvider);
@@ -340,14 +350,14 @@ export function ClaimActionPanel({
               >
                 {claimType !== 'cancel'
                   ? '승인하고 수거 시작'
-                  : tossPayment ? '승인하고 토스 전액 취소' : '승인하고 환불 처리 시작'}
+                  : autoCancelLabel ? `승인하고 ${autoCancelLabel} 전액 취소` : '승인하고 환불 처리 시작'}
               </button>
             ) : null}
           </div>
           {canApprove && claimType === 'cancel' ? (
             <p className="muted" style={{ fontSize: 12, margin: '6px 0 0' }}>
-              {tossPayment
-                ? '승인하면 바로 토스 전액 취소를 발행하고 결제사 조회로 결과를 확인합니다. 확인되면 주문 취소·재고 복원·카드팩 회수와 환불 원장 기록이 함께 끝납니다.'
+              {autoCancelLabel
+                ? `승인하면 바로 ${autoCancelLabel} 전액 취소를 발행하고 결제사 조회로 결과를 확인합니다. 확인되면 주문 취소·재고 복원·카드팩 회수와 환불 원장 기록이 함께 끝납니다.`
                 : paymentProvider === 'korpay'
                   ? 'Korpay 결제는 승인 뒤 결제사 취소 접수 양식으로 접수하고 환불 완료를 확정합니다.'
                   : paymentProvider === 'bank_transfer'
@@ -421,7 +431,7 @@ export function ClaimActionPanel({
           <input name="claimType" type="hidden" value={claimType} />
           <input name="orderId" type="hidden" value={orderId} />
           <input name="stage" type="hidden" value="filed" />
-          <RefundMethodField fixedMethod={fixedRefundMethod} id="claim-refund-method" tossPayment={tossPayment} />
+          <RefundMethodField fixedMethod={fixedRefundMethod} id="claim-refund-method" autoCancelLabel={autoCancelLabel} />
           <label htmlFor="claim-refund-note">
             <span>상계·정산 메모 (선택)</span>
             <input
@@ -435,9 +445,9 @@ export function ClaimActionPanel({
           <button className="btn btn-sm" disabled={pending} type="submit">
             {refundFiled ? '환불 접수 정보 갱신' : '환불 접수 완료로 기록'}
           </button>
-          {tossPayment ? (
+          {autoCancelLabel ? (
             <p className="muted" style={{ fontSize: 12, margin: '6px 0 0' }}>
-              접수만 원장에 기록합니다. 토스 전액 취소는 아래 [환불 완료 확정]을 누를 때 발행됩니다.
+              접수만 원장에 기록합니다. {autoCancelLabel} 전액 취소는 아래 [환불 완료 확정]을 누를 때 발행됩니다.
             </p>
           ) : null}
         </form>
@@ -446,7 +456,7 @@ export function ClaimActionPanel({
       {canCompleteRefund && !bankTransfer ? (
         <form
           action={ignoreUnconfirmedClaimSubmit}
-          data-confirm={claimRefundCompletionConfirmation(refundFinalizationPending, tossPayment)}
+          data-confirm={claimRefundCompletionConfirmation(refundFinalizationPending, autoCancelLabel)}
           onSubmit={submitConfirmed}
         >
           <PanelActionField kind="refund" />
@@ -454,7 +464,7 @@ export function ClaimActionPanel({
           <input name="claimType" type="hidden" value={claimType} />
           <input name="orderId" type="hidden" value={orderId} />
           <input name="stage" type="hidden" value="completed" />
-          <RefundMethodField fixedMethod={fixedRefundMethod} id="claim-refund-complete-method" tossPayment={tossPayment} />
+          <RefundMethodField fixedMethod={fixedRefundMethod} id="claim-refund-complete-method" autoCancelLabel={autoCancelLabel} />
           <label htmlFor="claim-refund-complete-note">
             <span>상계·정산 메모 (선택)</span>
             <input id="claim-refund-complete-note" maxLength={300} name="note" type="text" />
@@ -462,15 +472,15 @@ export function ClaimActionPanel({
           <button className="btn btn-sm" disabled={pending} type="submit">
             {!refundFinalizationPending
               ? '환불 완료를 원장에 기록'
-              : tossPayment
-                ? '환불 완료 확정 (토스 전액 취소 발행 · 재고 복원 · 카드팩 회수)'
+              : autoCancelLabel
+                ? `환불 완료 확정 (${autoCancelLabel} 전액 취소 발행 · 재고 복원 · 카드팩 회수)`
                 : '환불 완료 확정 (재고 복원 · 카드팩 회수 포함)'}
           </button>
           <p className="muted" style={{ fontSize: 12, margin: '6px 0 0' }}>
             {!refundFinalizationPending
               ? `이 ${V.claimRequest}은 이미 종결됐습니다. 주문 취소·재고 복원·카드팩 회수는 끝났고, 여기서는 환불 원장에 완료 기록만 남깁니다.`
-              : tossPayment
-                ? '누르면 토스 전액 취소를 발행하고 결제사 조회로 결과를 확인합니다. 이미 취소된 결제면 확인만 합니다. 확인되지 않으면 주문과 재고는 그대로 유지되고 정합화 오류가 남습니다.'
+              : autoCancelLabel
+                ? `누르면 ${autoCancelLabel} 전액 취소를 발행하고 결제사 조회로 결과를 확인합니다. 이미 취소된 결제면 확인만 합니다. 확인되지 않으면 주문과 재고는 그대로 유지되고 정합화 오류가 남습니다.`
                 : '결제사 원장에서 전액 취소를 확인한 뒤 눌러주세요. 확인되지 않으면 주문과 재고는 그대로 유지됩니다.'}
           </p>
         </form>

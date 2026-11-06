@@ -1,5 +1,12 @@
 # Korpay Production rollout runbook
 
+> **2026-11-06 — 코페이는 drain 전용으로 은퇴했다.** 판매 제한 상품(성인/19금) 주문의 카드
+> PG는 나이스페이다([NICEPAY Production rollout runbook](./nicepay-production-rollout.md)).
+> 앱·DB 모두 새 코페이 결제를 준비하지 않고, 런타임은 `KORPAY_*_CHECKOUT_ENABLED`·
+> `KORPAY_*_CANARY_USER_ID`를 더는 읽지 않는다(남아 있으면 빌드 경고). 아래의 재개방 절차는
+> 이력으로만 남긴다. `KORPAY_MID`·`KORPAY_KEY`·콜백 drain·수동 복구 seam은 진행 중 결제와
+> 과거 원장 처리를 위해 그대로 유지한다.
+
 이 runbook은 Korpay 신규 결제를 **자격 증명 등록 → dark deploy → 단일 actor canary →
 목적별 공개 활성화** 순서로 운영한다. MID, MKEY, paymentKey, TID, 승인번호, 원문 응답,
 자격 증명 fingerprint는 문서·issue·PR·로그·명령 인자에 기록하지 않는다.

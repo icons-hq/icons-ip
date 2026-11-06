@@ -12,7 +12,8 @@ begin;
 --   3. 제한 상품 구매는 주문 생성에서 막힌다 — 스토어 비노출은 쿼리
 --      레이어라 보안 경계가 아니다
 --   4. 카드 provider는 주문 구성에서 파생된다 — 일반 주문은 toss, 제한
---      주문은 korpay뿐이고 클라이언트가 고를 수 없다
+--      주문은 nicepay뿐이고 클라이언트가 고를 수 없다. korpay는 진행 중 결제
+--      drain만 남아 새 결제를 준비하지 않는다(2026-11-05 나이스페이 전환)
 --   5. 무통장은 PG가 아니라 업종 제한과 무관하다 — 제한 주문에서도 열린다
 --   6. 파생은 캡처 직전에 한 번 더 확인된다 — prepare 뒤에 상품이 내려가면
 --      토스 선점이 거절되고, 그 거절은 attempt를 prepared로 남긴다
@@ -317,6 +318,35 @@ begin
         select id from public.orders
         where checkout_key = '9c000000-0000-4000-8000-000000000001'
       ),
+      'nicepay'::public.payment_provider
+    );
+    accepted := true;
+  exception
+    when object_not_in_prerequisite_state then rejection := sqlerrm;
+  end;
+
+  if accepted then
+    raise exception 'an unrestricted order must not open a nicepay attempt';
+  end if;
+  if rejection <> 'goods_payment_provider_mismatch' then
+    raise exception 'an unrestricted nicepay attempt failed for the wrong reason: %', rejection;
+  end if;
+end;
+$$;
+
+-- korpay는 drain 전용으로 은퇴했다 — 어느 주문에도 새 korpay 결제를 준비하지 않는다.
+do $$
+declare
+  accepted boolean := false;
+  rejection text := '';
+begin
+  begin
+    perform public.prepare_goods_payment_attempt(
+      '00000000-0000-4000-8000-000000000f01',
+      (
+        select id from public.orders
+        where checkout_key = '9c000000-0000-4000-8000-000000000001'
+      ),
       'korpay'::public.payment_provider
     );
     accepted := true;
@@ -325,10 +355,10 @@ begin
   end;
 
   if accepted then
-    raise exception 'an unrestricted order must not open a korpay attempt';
+    raise exception 'a retired korpay provider must not open an attempt';
   end if;
-  if rejection <> 'goods_payment_provider_mismatch' then
-    raise exception 'an unrestricted korpay attempt failed for the wrong reason: %', rejection;
+  if rejection <> 'goods_payment_unavailable' then
+    raise exception 'a retired korpay attempt failed for the wrong reason: %', rejection;
   end if;
 end;
 $$;
@@ -349,7 +379,7 @@ select 1 / case when (
 ) then 1 else 0 end as assert_unrestricted_order_opens_a_toss_attempt;
 
 -- ---------------------------------------------------------------------------
--- provider 파생 — 제한 주문은 korpay뿐이다
+-- provider 파생 — 제한 주문은 nicepay뿐이다
 -- ---------------------------------------------------------------------------
 -- place_order가 제한 주문을 거절하므로 픽스처는 주문·아이템을 직접 만든다.
 -- 성인인증(#209·#210)이 붙어 주문 생성 차단이 걷히면 실제로 이 모양의 주문이
@@ -427,20 +457,187 @@ begin
 end;
 $$;
 
+-- 은퇴한 korpay로는 제한 주문도 준비하지 않는다.
+do $$
+declare
+  accepted boolean := false;
+  rejection text := '';
+begin
+  begin
+    perform public.prepare_goods_payment_attempt(
+      '00000000-0000-4000-8000-000000000f01',
+      '2c000000-0000-4000-8000-000000000001',
+      'korpay'::public.payment_provider
+    );
+    accepted := true;
+  exception
+    when object_not_in_prerequisite_state then rejection := sqlerrm;
+  end;
+
+  if accepted then
+    raise exception 'a restricted order must not open a retired korpay attempt';
+  end if;
+  if rejection <> 'goods_payment_unavailable' then
+    raise exception 'a restricted korpay attempt failed for the wrong reason: %', rejection;
+  end if;
+end;
+$$;
+
 select public.prepare_goods_payment_attempt(
   '00000000-0000-4000-8000-000000000f01',
   '2c000000-0000-4000-8000-000000000001'::uuid,
-  'korpay'::public.payment_provider
+  'nicepay'::public.payment_provider
 );
 
 select 1 / case when (
   select count(*) = 1
-    and bool_and(attempt.provider = 'korpay')
+    and bool_and(attempt.provider = 'nicepay')
     and bool_and(attempt.state = 'prepared')
   from public.payment_attempts as attempt
   where attempt.purpose = 'order'
     and attempt.ref_id = '2c000000-0000-4000-8000-000000000001'::uuid
-) then 1 else 0 end as assert_restricted_order_opens_a_korpay_attempt;
+) then 1 else 0 end as assert_restricted_order_opens_a_nicepay_attempt;
+
+-- ---------------------------------------------------------------------------
+-- 나이스페이 TID 기록 — 승인 API 전에 남기고, 재정합이 그 기록으로 조회한다
+-- ---------------------------------------------------------------------------
+select 1 / case when (
+  has_function_privilege('service_role', 'public.service_record_nicepay_payment_reference(uuid,text)', 'execute')
+  and has_function_privilege('service_role', 'public.service_get_nicepay_payment_references(uuid)', 'execute')
+  and not has_function_privilege('anon', 'public.service_record_nicepay_payment_reference(uuid,text)', 'execute')
+  and not has_function_privilege('authenticated', 'public.service_record_nicepay_payment_reference(uuid,text)', 'execute')
+  and not has_function_privilege('anon', 'public.service_get_nicepay_payment_references(uuid)', 'execute')
+  and not has_function_privilege('authenticated', 'public.service_get_nicepay_payment_references(uuid)', 'execute')
+) then 1 else 0 end as assert_nicepay_reference_rpcs_are_service_only;
+
+select attempt.id as nicepay_attempt_id, attempt.provider_order_id as nicepay_provider_order_id
+from public.payment_attempts as attempt
+where attempt.purpose = 'order'
+  and attempt.ref_id = '2c000000-0000-4000-8000-000000000001'::uuid
+\gset
+
+-- 콜백 claim 전(prepared)에는 TID를 남길 수 없다 — 승인 API를 부를 단계가 아니다.
+do $$
+declare
+  rejection text := '';
+begin
+  begin
+    perform public.service_record_nicepay_payment_reference(
+      (select id from public.payment_attempts where ref_id = '2c000000-0000-4000-8000-000000000001'::uuid),
+      'nicetest0m01162611061015001234'
+    );
+  exception
+    when object_not_in_prerequisite_state then rejection := sqlerrm;
+  end;
+  if rejection <> 'nicepay_reference_claim_required' then
+    raise exception 'a prepared nicepay attempt accepted a transaction reference: %', rejection;
+  end if;
+end;
+$$;
+
+select public.bind_goods_payment_callback_nonce(:'nicepay_attempt_id'::uuid, repeat('e', 64));
+
+select 1 / case when (
+  public.claim_goods_payment_attempt(
+    'nicepay'::public.payment_provider,
+    :'nicepay_provider_order_id',
+    repeat('e', 64),
+    '4c000000-0000-4000-8000-000000000011'
+  ) ->> 'claim_status' = 'claimed'
+) then 1 else 0 end as assert_nicepay_callback_claims_the_attempt;
+
+select public.service_record_nicepay_payment_reference(:'nicepay_attempt_id'::uuid, 'nicetest0m01162611061015001234');
+-- 같은 TID 재기록은 멱등이다.
+select public.service_record_nicepay_payment_reference(:'nicepay_attempt_id'::uuid, 'nicetest0m01162611061015001234');
+
+do $$
+declare
+  conflict text := '';
+  invalid text := '';
+begin
+  begin
+    perform public.service_record_nicepay_payment_reference(
+      (select id from public.payment_attempts where ref_id = '2c000000-0000-4000-8000-000000000001'::uuid),
+      'nicetest0m01162611061015009999'
+    );
+  exception
+    when object_not_in_prerequisite_state then conflict := sqlerrm;
+  end;
+  begin
+    perform public.service_record_nicepay_payment_reference(
+      (select id from public.payment_attempts where ref_id = '2c000000-0000-4000-8000-000000000001'::uuid),
+      'bad tid'
+    );
+  exception
+    when invalid_parameter_value then invalid := sqlerrm;
+  end;
+  if conflict <> 'nicepay_reference_conflict' or invalid <> 'nicepay_reference_invalid' then
+    raise exception 'nicepay reference guards mismatch: % / %', conflict, invalid;
+  end if;
+end;
+$$;
+
+select 1 / case when (
+  public.service_get_nicepay_payment_references(:'nicepay_attempt_id'::uuid)
+    = array['nicetest0m01162611061015001234']::text[]
+  and (
+    select count(*) = 1
+    from private.payment_provider_evidence as evidence
+    where evidence.payment_attempt_id = :'nicepay_attempt_id'::uuid
+      and evidence.evidence_kind = 'nicepay_authenticated'
+      and evidence.approved_at is null
+  )
+) then 1 else 0 end as assert_nicepay_reference_is_recorded_once;
+
+-- 모호하게 끝난 확정은 같은 TID를 증거로 남기고, 재정합 claim이 nicepay attempt를 받는다.
+select 1 / case when (
+  public.finalize_goods_payment_attempt(
+    :'nicepay_attempt_id'::uuid,
+    '4c000000-0000-4000-8000-000000000011',
+    'unknown'::public.payment_attempt_state,
+    'nicetest0m01162611061015001234',
+    'nicetest0m01162611061015001234',
+    null,
+    'approve_unanswered'
+  ) = 'unknown'
+) then 1 else 0 end as assert_nicepay_attempt_finalizes_unknown;
+
+select 1 / case when (
+  public.service_get_nicepay_payment_references(:'nicepay_attempt_id'::uuid)
+    = array['nicetest0m01162611061015001234']::text[]
+) then 1 else 0 end as assert_nicepay_references_stay_deduplicated;
+
+select 1 / case when (
+  public.claim_goods_payment_reconciliation(
+    :'nicepay_attempt_id'::uuid,
+    '4c000000-0000-4000-8000-000000000012',
+    'case_nicepay_restricted_0001'
+  ) ->> 'claim_status' = 'claimed'
+) then 1 else 0 end as assert_nicepay_attempt_is_reconcilable;
+
+-- 다른 provider attempt의 TID 목록은 읽을 수 없다.
+do $$
+declare
+  rejection text := '';
+begin
+  begin
+    perform public.service_get_nicepay_payment_references(
+      (
+        select attempt.id
+        from public.payment_attempts as attempt
+        join public.orders as order_record on order_record.id = attempt.ref_id
+        where order_record.checkout_key = '9c000000-0000-4000-8000-000000000001'
+          and attempt.provider = 'toss'
+      )
+    );
+  exception
+    when no_data_found then rejection := sqlerrm;
+  end;
+  if rejection <> 'goods_payment_attempt_not_found' then
+    raise exception 'a toss attempt exposed nicepay references: %', rejection;
+  end if;
+end;
+$$;
 
 -- 무통장은 PG 경로가 아니다. 업종 제한은 카드 매입사 계약의 문제이므로
 -- 제한 상품이라고 자체 법인계좌 입금까지 막을 이유가 없다.
@@ -571,10 +768,10 @@ select 1 / case when (
 ) then 1 else 0 end as assert_rejected_claim_leaves_the_attempt_prepared;
 
 -- ---------------------------------------------------------------------------
--- claim 재검증은 한 방향이다 — korpay attempt는 전환에 걸리지 않는다
+-- claim 재검증은 한 방향이다 — nicepay attempt는 전환에 걸리지 않는다
 -- ---------------------------------------------------------------------------
 -- 전용 PG가 일반 상품을 결제하는 것은 업종 위반이 아니다. adult → none 전환이
--- 이미 열린 korpay 결제를 깨뜨리면, 제한을 푸는 결정이 진행 중인 결제를
+-- 이미 열린 nicepay 결제를 깨뜨리면, 제한을 푸는 결정이 진행 중인 결제를
 -- 실패시키는 부작용을 갖게 된다.
 insert into public.orders (
   id, user_id, status, total, shipping_fee, discount_total,
@@ -607,7 +804,7 @@ values (
 select public.prepare_goods_payment_attempt(
   '00000000-0000-4000-8000-000000000f01',
   '2c000000-0000-4000-8000-000000000004'::uuid,
-  'korpay'::public.payment_provider
+  'nicepay'::public.payment_provider
 );
 
 select public.bind_goods_payment_callback_nonce(
@@ -635,7 +832,7 @@ declare
   claimed jsonb;
 begin
   claimed := public.claim_goods_payment_attempt(
-    'korpay'::public.payment_provider,
+    'nicepay'::public.payment_provider,
     (
       select attempt.provider_order_id
       from public.payment_attempts as attempt
@@ -647,19 +844,19 @@ begin
   );
 
   if claimed ->> 'claim_status' is distinct from 'claimed' then
-    raise exception 'a korpay capture must not be blocked by a lifted restriction: %', claimed;
+    raise exception 'a nicepay capture must not be blocked by a lifted restriction: %', claimed;
   end if;
 end;
 $$;
 
 select 1 / case when (
   select count(*) = 1
-    and bool_and(attempt.provider = 'korpay')
+    and bool_and(attempt.provider = 'nicepay')
     and bool_and(attempt.state = 'confirming')
     and bool_and(attempt.claim_token = '4c000000-0000-4000-8000-000000000002')
   from public.payment_attempts as attempt
   where attempt.purpose = 'order'
     and attempt.ref_id = '2c000000-0000-4000-8000-000000000004'::uuid
-) then 1 else 0 end as assert_korpay_claim_is_untouched_by_the_restriction_axis;
+) then 1 else 0 end as assert_nicepay_claim_is_untouched_by_the_restriction_axis;
 
 rollback;

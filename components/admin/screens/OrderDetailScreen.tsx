@@ -119,7 +119,7 @@ function TimelineEntry({ entry, digital = false }: { entry: AdminOrderTimelineEn
     </div>
     <h4>{digital && entry.source === 'shipment' && entry.action === 'delivered' ? '파일 제공 시작' : entryTitle(entry)}</h4>
     {entry.fromStatus && entry.toStatus ? <p>{stateLabel(entry.fromStatus)} → {stateLabel(entry.toStatus)}</p> : null}
-    {entry.amount != null ? <p>{money(entry.amount)}{entry.provider ? ` · ${entry.provider === 'korpay' ? 'Korpay' : entry.provider === 'toss' ? 'Toss' : '결제사'}` : ''}</p> : null}
+    {entry.amount != null ? <p>{money(entry.amount)}{entry.provider ? ` · ${entry.provider === 'korpay' ? 'Korpay' : entry.provider === 'toss' ? 'Toss' : entry.provider === 'nicepay' ? 'NICEPAY' : '결제사'}` : ''}</p> : null}
     {status ? <p className="admin-order-detail__muted">현재 상태 · {status}</p> : null}
     {entry.shipmentId ? <p>{entry.originName ?? '배송 건'} · {entry.shipmentId}</p> : null}
     {entry.trackingNumber ? <p>운송장 · {entry.carrier} {entry.trackingNumber}</p> : null}

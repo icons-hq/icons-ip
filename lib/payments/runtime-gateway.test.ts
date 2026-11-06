@@ -27,12 +27,27 @@ const korpayAttempt: PaymentAttempt = {
   providerProductCode: 'P30000000000040008000000000000205',
 };
 
+const nicepayAttempt: PaymentAttempt = {
+  ...tossAttempt,
+  provider: 'nicepay',
+  providerOrderId: 'O30000000000040008000000000000611',
+  providerProductCode: 'P30000000000040008000000000000611',
+};
+
 const CANARY_USER_ID = '10000000-0000-4000-8000-000000000207';
 
 function configureToss(siteUrl = 'https://iconsip.com') {
   vi.stubEnv('VERCEL_ENV', 'production');
   vi.stubEnv('NEXT_PUBLIC_TOSS_CLIENT_KEY', 'test_gck_iconsdocs00000000000001');
   vi.stubEnv('TOSS_SECRET_KEY', 'test_gsk_iconsdocs00000000000001');
+  vi.stubEnv('SITE_URL', siteUrl);
+}
+
+// 형식만 맞춘 가짜 값이다. 실제 MID·MerchantKey는 저장소에 두지 않는다.
+function configureNicepay(siteUrl = 'https://iconsip.com') {
+  vi.stubEnv('VERCEL_ENV', 'production');
+  vi.stubEnv('NICEPAY_MID', 'iconst000m');
+  vi.stubEnv('NICEPAY_MERCHANT_KEY', 'c2VydmVyLW9ubHktbmljZXBheS1rZXktZml4dHVyZS0yMDI2');
   vi.stubEnv('SITE_URL', siteUrl);
 }
 
@@ -125,23 +140,69 @@ describe('payment runtime gateway', () => {
   });
 
   it('provider별 gate와 자격 증명은 서로 새지 않는다', () => {
-    // toss 자격 증명 + korpay gate 'true' — korpay는 자격 증명이 없으니 닫힘.
+    // toss 자격 증명 + nicepay gate 'true' — nicepay는 자격 증명이 없으니 닫힘.
     configureToss();
-    vi.stubEnv('KORPAY_ORDER_CHECKOUT_ENABLED', 'true');
-    expect(newPaymentCheckoutEnabled('order', undefined, 'korpay')).toBe(false);
-    // toss gate 'true'는 korpay 경로를 열지 않는다.
+    vi.stubEnv('NICEPAY_ORDER_CHECKOUT_ENABLED', 'true');
+    expect(newPaymentCheckoutEnabled('order', undefined, 'nicepay')).toBe(false);
+    // toss gate 'true'는 nicepay 경로를 열지 않는다.
     vi.stubEnv('TOSS_ORDER_CHECKOUT_ENABLED', 'true');
-    expect(newPaymentCheckoutEnabled('order', undefined, 'korpay')).toBe(false);
+    expect(newPaymentCheckoutEnabled('order', undefined, 'nicepay')).toBe(false);
     expect(newPaymentCheckoutEnabled('order', undefined, 'toss')).toBe(true);
   });
 
-  it('korpay는 명시 인자로 여전히 구성·개방된다(콜백 drain·판매 제한 분기 경로)', async () => {
+  it('nicepay는 production 자격 증명이 있을 때만 구성되고 목적 gate는 기본 OFF다', async () => {
+    configureNicepay();
+
+    expect(paymentProviderConfigured('nicepay')).toBe(true);
+    expect(paymentProviderConfigured('toss')).toBe(false);
+    expect(newPaymentCheckoutEnabled('order', undefined, 'nicepay')).toBe(false);
+    await expect(getPaymentGateway('nicepay').prepare(nicepayAttempt)).resolves.toMatchObject({
+      provider: 'nicepay',
+      action: { kind: 'client_sdk', payload: { MID: 'iconst000m', PayMethod: 'CARD' } },
+    });
+
+    vi.stubEnv('VERCEL_ENV', 'preview');
+    expect(paymentProviderConfigured('nicepay')).toBe(false);
+    await expect(getPaymentGateway('nicepay').prepare(nicepayAttempt))
+      .rejects.toBeInstanceOf(PaymentGatewayUnavailableError);
+  });
+
+  it('nicepay MID·MerchantKey 형식이 틀리면 fail closed한다', () => {
+    configureNicepay();
+    vi.stubEnv('NICEPAY_MID', 'short');
+    expect(paymentProviderConfigured('nicepay')).toBe(false);
+
+    configureNicepay();
+    vi.stubEnv('NICEPAY_MERCHANT_KEY', 'not base64 key!');
+    expect(paymentProviderConfigured('nicepay')).toBe(false);
+  });
+
+  it('nicepay 주문 gate는 공개 true나 단일 canary로 열리고 티켓은 닫혀 있다', () => {
+    configureNicepay();
+    vi.stubEnv('NICEPAY_ORDER_CANARY_USER_ID', CANARY_USER_ID);
+
+    expect(newPaymentCheckoutEnabled('order', CANARY_USER_ID, 'nicepay')).toBe(true);
+    expect(newPaymentCheckoutEnabled('order', '10000000-0000-4000-8000-000000000208', 'nicepay')).toBe(false);
+    expect(newPaymentCheckoutEnabled('ticket', CANARY_USER_ID, 'nicepay')).toBe(false);
+
+    vi.stubEnv('NICEPAY_ORDER_CHECKOUT_ENABLED', 'true');
+    vi.stubEnv('NICEPAY_TICKET_CHECKOUT_ENABLED', 'true');
+    expect(newPaymentCheckoutEnabled('order', undefined, 'nicepay')).toBe(true);
+    expect(newPaymentCheckoutEnabled('ticket', undefined, 'nicepay')).toBe(false);
+  });
+
+  it('korpay는 drain 전용이다 — 어댑터는 구성되지만 신규 결제 gate는 어떤 env로도 열리지 않는다', async () => {
     configureKorpay();
     vi.stubEnv('KORPAY_ORDER_CHECKOUT_ENABLED', 'true');
+    vi.stubEnv('KORPAY_TICKET_CHECKOUT_ENABLED', 'true');
+    vi.stubEnv('KORPAY_ORDER_CANARY_USER_ID', CANARY_USER_ID);
 
     expect(paymentProviderConfigured('korpay')).toBe(true);
     expect(paymentProviderConfigured('toss')).toBe(false);
-    expect(newPaymentCheckoutEnabled('order', undefined, 'korpay')).toBe(true);
+    expect(newPaymentCheckoutEnabled('order', undefined, 'korpay')).toBe(false);
+    expect(newPaymentCheckoutEnabled('order', CANARY_USER_ID, 'korpay')).toBe(false);
+    expect(newPaymentCheckoutEnabled('ticket', undefined, 'korpay')).toBe(false);
+    // 진행 중 콜백 drain은 같은 어댑터를 쓴다.
     await expect(getPaymentGateway('korpay').prepare(korpayAttempt)).resolves.toMatchObject({
       provider: 'korpay',
       action: { kind: 'client_sdk' },

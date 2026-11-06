@@ -69,9 +69,11 @@ select 1 / case when (
 -- `bank_transfer` (#256) is a provider in the same ledger rather than a parallel
 -- table: the confirmation path differs only in that no PG round trip produces
 -- the evidence, and the finalizer stays the single place an order turns paid.
+-- `nicepay` (2026-11-06) is the restricted-goods card PG that replaced Korpay for
+-- new checkouts; `korpay` stays as a value for in-flight drain and history.
 select 1 / case when (
   select array_agg(enum_value::text order by enum_order)
-    = array['toss', 'korpay', 'bank_transfer']::text[]
+    = array['toss', 'korpay', 'bank_transfer', 'nicepay']::text[]
   from (
     select enumlabel as enum_value, enumsortorder as enum_order
     from pg_enum
