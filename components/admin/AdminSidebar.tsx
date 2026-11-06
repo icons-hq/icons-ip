@@ -40,7 +40,7 @@ import {
   SidebarRail,
   useSidebar,
 } from '@/components/admin/kit/ui/sidebar';
-import { adminNavGroupIcon } from './admin-nav-icons';
+import { AdminNavGroupIcon } from './admin-nav-icons';
 
 /*
  * 어드민 사이드바 — kit Sidebar(shadcn/ui, ADR-0028). 메뉴 정의·권한 판정·즐겨찾기와 그룹 접힘 저장(계정별
@@ -164,7 +164,6 @@ function TopLevelItem({ active, favorite, favoriteCopy = false, group, onToggleF
   onToggleFavorite: (screenId: string) => void;
   screen: AdminScreen;
 }) {
-  const Icon = favoriteCopy ? Star : adminNavGroupIcon(group.id);
   return (
     <SidebarMenuItem>
       <SidebarMenuButton
@@ -177,7 +176,7 @@ function TopLevelItem({ active, favorite, favoriteCopy = false, group, onToggleF
         />}
         tooltip={screen.label}
       >
-        <Icon />
+        {favoriteCopy ? <Star /> : <AdminNavGroupIcon groupId={group.id} />}
         <span>{screen.label}</span>
       </SidebarMenuButton>
       <SidebarMenuAction
@@ -290,11 +289,10 @@ export function AdminSidebar({
               || activeGroup?.id === group.id
               || !preferences.collapsedGroupIds.includes(group.id);
             const groupPanelId = `admin-nav-group-${group.id}`;
-            const GroupIcon = adminNavGroupIcon(group.id);
             return (
               <SidebarMenuItem data-admin-nav-group={group.id} data-state={isExpanded ? 'open' : 'closed'} key={group.id}>
                 <GroupToggle aria-controls={groupPanelId} expanded={isExpanded} label={group.label} onClick={() => toggleGroup(group.id)}>
-                  <GroupIcon />
+                  <AdminNavGroupIcon groupId={group.id} />
                   <span>{group.label}</span>
                   <ChevronRight aria-hidden="true" className={`ml-auto transition-transform duration-200${isExpanded ? ' rotate-90' : ''}`} />
                 </GroupToggle>

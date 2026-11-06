@@ -28,10 +28,8 @@ describe('complete admin WC cutover (#433)', () => {
       rules.set(selector,declarations);
     });
     /* R1(D1①): 배지는 셸 헤더 아래가 아니라 고객문의 페이지 본문(.admin-content 여백 안)에 그려진다. */
-    expect(rules.get('.wc-admin .admin-shell-badges')?.get('padding')).toBe('0 0 12px');
-    expect(rules.get('.wc-admin .admin-shell-badge')?.get('display')).toBe('inline-flex');
-    expect(rules.get('.wc-admin .admin-shell-badge')?.get('gap')).toBe('8px');
-    expect(rules.get('.wc-admin .admin-shell-badge')?.get('border')).toBe('1px solid var(--wc-warning)');
+    /* ADR-0028: 배지는 kit 유틸리티로 그린다(InquiryQueueScreen의 data-open-inquiry-badge) — 셸 공통 규칙이 남아 있지 않다. */
+    expect([...rules.keys()].some((selector) => selector.includes('admin-shell-badge'))).toBe(false);
   });
   it('retires the shared editorial cascade and global admin selectors', () => {
     for (const file of retired) {

@@ -97,10 +97,10 @@ describe('AdminShell', () => {
   it('상품 등록·주문 화면 셸에는 미답변 문의 배지가 없다', () => {
     mocks.pathname = '/admin/catalog/goods';
     mocks.search = 'create=1';
-    expect(render()).not.toContain('admin-shell-badge');
+    expect(render()).not.toContain('data-open-inquiry-badge');
     mocks.pathname = '/admin/sales/orders';
     mocks.search = '';
-    expect(render()).not.toContain('admin-shell-badge');
+    expect(render()).not.toContain('data-open-inquiry-badge');
   });
 
   /* R2(D2①): 새 문의 PC 알림은 커머스 콘솔의 cs.manage 운영자에게만, 화면마다 다시 마운트되는 본문 밖에 상시 둔다. */

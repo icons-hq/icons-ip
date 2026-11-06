@@ -15,11 +15,9 @@
   .wc-admin .admin-cs-results__header h3 strong:not([data-slot]) { color: var(--wc-success); }
   .wc-admin .admin-cs-results__toolbar:not([data-slot]) { display: flex; align-items: center; gap: 10px; padding: 12px 24px; font-size: 12px; color: var(--wc-ink-tertiary); }
   .wc-admin .admin-cs-console .admin-cs-help:not([data-slot]) { margin: 0; padding: 12px 16px; background: var(--wc-surface); font-size: 12px; color: var(--wc-ink-sub); line-height: 1.7; }
-  .wc-admin .admin-cs-dialog__body:not([data-slot]) { white-space: normal; text-align: left; }
   @media (max-width: 749px) {
     .wc-admin .admin-cs-results__header:not([data-slot]) { align-items: flex-start; flex-direction: column; padding: 16px; }
   }
   @media print {
-    .wc-admin .admin-cs-dialog:not([data-slot]) { position: static; }
   }
 }

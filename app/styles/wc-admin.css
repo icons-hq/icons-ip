@@ -74,13 +74,7 @@
     --wc-admin-sales-table-stripe: #f6f6f6;
     --wc-admin-success-aa: #147d3f;
   }
-  /* Rendered only on the customer-inquiry list/detail pages (inside .admin-content padding) when an unanswered inquiry needs attention. */
-  .wc-admin .admin-shell-badges:not([data-slot]) { display: flex; flex-wrap: wrap; gap: 8px; padding: 0 0 12px; }
-  .wc-admin .admin-shell-badge:not([data-slot]) { display: inline-flex; min-height: 34px; align-items: center; gap: 8px; padding: 7px 14px; border: 1px solid var(--wc-warning); border-radius: var(--wc-radius-badge); background: var(--wc-surface); color: var(--wc-ink); font-size: 13px; }
-  .wc-admin .admin-shell-badge strong:not([data-slot]) { color: var(--wc-warning); font-weight: 700; }
-  .wc-admin .admin-shell-badge:hover:not([data-slot]) { background: var(--wc-surface-grey); }
   /* Keep keyboard focus visible across the admin shell and operational surfaces. */
-  .wc-admin .admin-shell-badge:focus-visible:not([data-slot]),
   .wc-admin .wc-admin-kit :focus-visible:not([data-slot]) {
     border-color: var(--wc-focus);
     box-shadow: none;

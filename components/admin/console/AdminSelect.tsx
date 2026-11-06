@@ -41,7 +41,8 @@ function measureSelectedText(select: HTMLSelectElement) {
     + (Number.parseFloat(style.borderRightWidth) || 0);
   /* Native select arrows occupy platform-dependent space. Keep the estimate
      conservative without changing the select width or its native appearance. */
-  const available = select.clientWidth - padding - 24;
+  const arrow = style.appearance === 'none' ? 0 : 24;
+  const available = select.clientWidth - padding - arrow;
 
   return { clipped: textWidth > available + 1, selectedText };
 }
