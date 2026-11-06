@@ -100,53 +100,26 @@ describe('/legal/[document] 라우트', () => {
       }
     });
 
-    it('시행일부터는 주소록 사전 공지 없이 개정 본문이 현행이다', async () => {
-      at('2026-11-06T00:00:00+09:00');
-      for (const slug of LEGAL_DOCUMENT_SLUGS) {
-        const html = renderToStaticMarkup(await Page({ params: Promise.resolve({ document: slug }) }));
-        expect(html, slug).not.toContain('시행 예정일 2026-11-06');
-        /* 같은 날 공지한 성인 인증 개정(2026-11-13 시행)의 사전 공지만 개인정보처리방침에 남는다. */
-        if (slug !== 'privacy') expect(html, slug).not.toContain('개정 사전 공지');
-      }
-      const privacy = renderToStaticMarkup(await Page({ params: Promise.resolve({ document: 'privacy' }) }));
-      expect(privacy).toContain('<p class="wc-document__effective">시행일 2026-11-06</p>');
-      expect(privacy).toContain('2026-11-06 개정 안내');
-      expect(privacy).toContain('이전 정책 본문 (시행일 2026-10-19)');
-    });
-  });
-
-  describe('성인 인증 예약 개정(ADR-0024) — 요청한 날(KST)로 사전 공지와 개정 본문을 가른다', () => {
-    afterEach(() => { vi.useRealTimers(); });
-    const at = (iso: string) => { vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(new Date(iso)); };
-
-    it('시행일 전에는 개인정보처리방침만 주소록 개정 본문에 사전 공지 배너를 붙인다', async () => {
-      at('2026-11-12T23:59:00+09:00');
-      for (const slug of LEGAL_DOCUMENT_SLUGS) {
-        const html = renderToStaticMarkup(await Page({ params: Promise.resolve({ document: slug }) }));
-        if (slug !== 'privacy') {
-          expect(html, slug).not.toContain('개정 사전 공지');
-          continue;
-        }
-        expect(html).toContain('<p class="wc-document__effective">시행일 2026-11-06</p>');
-        expect(html).toContain('<p class="wc-document__notice-kicker">개정 사전 공지</p>');
-        expect(html).toContain('성인 인증(휴대폰 본인확인) 도입에 따른 개정 예정 안내');
-        expect(html).toContain('공지일 2026-11-06');
-        expect(html).toContain('시행 예정일 2026-11-13');
-        expect(html).not.toContain('2026-11-13 개정 안내');
-      }
-    });
-
     it('시행일부터는 세 문서 모두 사전 공지 없이 개정 본문이 현행이다', async () => {
-      at('2026-11-13T00:00:00+09:00');
+      at('2026-11-06T00:00:00+09:00');
       for (const slug of LEGAL_DOCUMENT_SLUGS) {
         const html = renderToStaticMarkup(await Page({ params: Promise.resolve({ document: slug }) }));
         expect(html, slug).not.toContain('개정 사전 공지');
       }
       const privacy = renderToStaticMarkup(await Page({ params: Promise.resolve({ document: 'privacy' }) }));
-      expect(privacy).toContain('<p class="wc-document__effective">시행일 2026-11-13</p>');
-      expect(privacy).toContain('2026-11-13 개정 안내');
-      expect(privacy).toContain('이전 정책 본문 (시행일 2026-11-06)');
+      expect(privacy).toContain('<p class="wc-document__effective">시행일 2026-11-06</p>');
+      expect(privacy).toContain('2026-11-06 개정 안내');
+      expect(privacy).toContain('이전 정책 본문 (시행일 2026-10-19)');
+      /* 성인 인증(ADR-0024)은 사전 공지 없이 같은 날 시행해 같은 개정에 담긴다. */
       expect(privacy).toContain('엔에이치엔케이씨피 주식회사');
+      expect(privacy).toContain('성인 인증 (휴대폰 본인확인)');
+    });
+
+    it('시행일 전에는 성인 인증 안내도 본문도 없다', async () => {
+      at('2026-11-05T23:59:00+09:00');
+      const privacy = renderToStaticMarkup(await Page({ params: Promise.resolve({ document: 'privacy' }) }));
+      expect(privacy).not.toContain('성인 인증');
+      expect(privacy).not.toContain('엔에이치엔케이씨피 주식회사');
     });
   });
 

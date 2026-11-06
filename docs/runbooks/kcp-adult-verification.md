@@ -8,12 +8,12 @@
 
 ## 현재 상태
 
-- **운영 개방 준비 완료(2026-11-06).** Production env 등록, canary 실인증 성공(세션 `verified`, 증거 1건·유효 1년,
-  다이제스트만 저장). 공개 스위치 `ADULT_VERIFICATION_ENABLED=true`를 켜 두었고, 아래 시행일 게이트 때문에
-  **2026-11-13 0시(KST)에 배포 없이 모든 회원에게 열린다.** 그 전에는 canary 계정만 인증할 수 있다.
-- 개인정보처리방침 성인 인증 개정은 2026-11-06 공지, **2026-11-13 시행**으로 예약돼 있다
-  (`lib/legal/privacy-adult-verification-revision.ts`). 공개 스위치(`ADULT_VERIFICATION_ENABLED=true`)는
-  시행일(KST)부터만 효력이 있다 — 미리 켜 두면 시행일 0시에 배포 없이 열린다. canary는 시행일과 무관하다.
+- **운영 개방(2026-11-06).** Production env 등록, canary 실인증 성공(세션 `verified`, 증거 1건·유효 1년,
+  다이제스트만 저장) 뒤 공개 스위치 `ADULT_VERIFICATION_ENABLED=true`를 켰다. 모든 회원이 인증할 수 있다.
+- 개인정보처리방침 성인 인증 개정은 **사전 공지 없이 2026-11-06 시행**이다(주소록 개정과 한 개정,
+  `lib/legal/privacy-adult-verification-revision.ts`). 실사용자가 없어 유예가 보호할 대상이 없다는 2026-08-22 선례를
+  따랐다. 공개 스위치는 처리방침 시행일(KST)부터만 효력이 있고 canary는 시행일과 무관하다 — 다음 수집 항목
+  개정은 실사용자가 있으면 제13조대로 7일 전에 공지한다.
 - 상점관리자 설정 상태(2026-11-06 확인):
   - 인증결과URL: "설정함". 가맹점 URL은 `https://iconsip.com/`과 도메인 형식 `iconsip.com` 두 개다.
     `https://iconsip.com/`만 있을 때 운영 거래등록이 `CS13`(인증되지 않은 도메인)으로 실패했고,
@@ -84,7 +84,7 @@ docker exec -i <격리 DB 컨테이너> psql -X -U postgres -d postgres -v ON_ER
 
 ## 개방 순서
 
-1. 개인정보처리방침 개정 공지(아래 개정 내용, 제13조대로 시행 7일 전) — 코드가 시행일 전에는 공개 스위치를 막는다.
+1. 개인정보처리방침 개정(아래 개정 내용). 실사용자가 있으면 제13조대로 시행 7일 전에 공지한다 — 코드가 시행일 전에는 공개 스위치를 막는다.
 2. 상점관리자: 인증키 발급 → V2 사용 전환.
 3. Vercel Production env 등록(위 표) → 새 Production 배포 → 설정 readback(설정 여부만, 값은 출력하지 않는다).
 4. canary: `ADULT_VERIFICATION_CANARY_USER_ID`에 내부 계정 하나 → 배포 → 실제 휴대폰으로 인증 → 결과·DB 확인.
@@ -137,7 +137,7 @@ docker exec -i <격리 DB 컨테이너> psql -X -U postgres -d postgres -v ON_ER
 - 결과 코드: 세션 `result_code`에 `kcp_window_<코드>`(인증창 실패)·`kcp_result_<코드>`(조회 실패)·`kcp_result_decrypt`·
   `claim_expired`(조회 처리기가 중간에 멈춤)·`session_expired`·`superseded` 등이 남는다.
 
-## 개인정보처리방침 개정 내용 (2026-11-13 시행, `lib/legal/documents.ts`)
+## 개인정보처리방침 개정 내용 (2026-11-06 시행, `lib/legal/documents.ts`)
 
 - 제1조 표에 행 추가 — 구분 "성인 인증(휴대폰 본인확인)": 본인확인기관(NHN KCP)이 인증 결과로 전달하는 이름, 생년월일,
   성별, 내·외국인 구분, 휴대폰번호, 통신사, 연계정보(CI), 중복가입확인정보(DI). 19세 이상 여부 판정에만 쓰고 저장하지 않으며,
