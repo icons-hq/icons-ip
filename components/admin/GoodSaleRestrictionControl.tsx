@@ -7,6 +7,7 @@ import {
 } from '../../app/admin/good-sale-restriction-actions';
 import type { AdminGoodSaleRestriction } from '../../lib/admin/catalog.server';
 import { SelectField } from './fields';
+import { buttonVariants } from '@/components/admin/kit/ui/button';
 
 const saleRestrictionInitialState: AdminGoodSaleRestrictionActionState = {};
 
@@ -38,10 +39,10 @@ export function GoodSaleRestrictionControl({
   );
 
   return (
-    <form action={action} className="admin-panel col" style={{ gap: 10 }}>
-      <div>
-        <strong>판매 제한 유형</strong>
-        <p className="mono" style={{ color: 'var(--dim)', fontSize: 11 }}>
+    <form action={action} className="flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4 text-sm text-card-foreground">
+      <div className="flex flex-col gap-1">
+        <strong className="font-medium">판매 제한 유형</strong>
+        <p className="text-xs text-muted-foreground">
           성인(19금) 상품은 휴대폰 본인확인으로 성인 인증을 마친 회원에게만 보이고 판매됩니다. 인증 전 방문자에게는 목록에 가림 카드로만 보이고, 성인 인증이 열리기 전에는 스토어에 노출되지 않습니다. 카드 결제는 전용 PG(코페이)로 분기됩니다.
         </p>
       </div>
@@ -51,11 +52,11 @@ export function GoodSaleRestrictionControl({
           <option key={option.value} value={option.value}>{option.label}</option>
         ))}
       </SelectField>
-      <button className="btn btn-ghost" disabled={pending}>
+      <button className={`${buttonVariants({ variant: 'outline' })} self-start`} data-slot="button" disabled={pending}>
         {pending ? '변경하는 중' : '판매 제한 저장'}
       </button>
-      {state.error && <p className="admin-error" role="alert">{state.error}</p>}
-      {state.message && <p className="admin-note" role="status">{state.message}</p>}
+      {state.error && <p className="text-sm text-destructive" role="alert">{state.error}</p>}
+      {state.message && <p className="text-sm font-medium text-[var(--wc-success)]" role="status">{state.message}</p>}
     </form>
   );
 }
