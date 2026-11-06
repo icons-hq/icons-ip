@@ -202,6 +202,11 @@ describe('InquiryDetailScreen', () => {
     expect(html).toContain('답변 템플릿 불러오기');
     expect(html).toContain('답변 발송');
     expect(html).toContain('지금 종결');
+    /* kit Button은 type을 주지 않으면 type="button"이 된다 — 발송·종결·담당자 변경·메모 저장은 폼을 제출해야 한다. */
+    for (const label of ['답변 발송', '지금 종결', '담당자 변경', '내부 메모 저장']) {
+      expect(html).toMatch(new RegExp(`<button(?=[^>]*type="submit")[^>]*>(?:<svg[\\s\\S]*?</svg>)?${label}</button>`));
+    }
+    expect(html).toMatch(/<button(?=[^>]*type="button")[^>]*>(?:<svg[\s\S]*?<\/svg>)?답변 템플릿 불러오기<\/button>/);
   });
 });
 

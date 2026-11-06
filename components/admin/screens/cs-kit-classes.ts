@@ -10,8 +10,8 @@
 /** `<input data-slot="input">` — kit Input과 같은 모양. */
 export const KIT_INPUT_CLASS = 'h-8 w-full min-w-0 rounded-lg border border-input bg-transparent px-2.5 py-1 text-base transition-colors outline-none file:inline-flex file:h-6 file:border-0 file:bg-transparent file:text-sm file:font-medium file:text-foreground placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 md:text-sm';
 
-/** `<textarea data-slot="textarea">` — kit Textarea와 같은 모양(높이는 min-h로 정한다). */
-export const KIT_TEXTAREA_CLASS = 'flex min-h-16 w-full rounded-lg border border-input bg-transparent px-2.5 py-2 text-base transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 md:text-sm';
+/** `<textarea data-slot="textarea">` — kit Textarea와 같은 모양. 높이(min-h-*)는 쓰는 곳이 정한다(겹치는 유틸리티를 만들지 않게). */
+export const KIT_TEXTAREA_CLASS = 'flex w-full rounded-lg border border-input bg-transparent px-2.5 py-2 text-base transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20 md:text-sm';
 
 /** 링크·버튼 구분 선택의 바탕. */
 export const KIT_SEGMENT_CLASS = 'inline-flex w-fit max-w-full flex-wrap items-center gap-0.5 rounded-lg bg-muted p-0.5';
@@ -38,3 +38,18 @@ export const LATEST_CLASS = 'flex flex-col gap-2 rounded-lg border bg-muted/40 p
 
 /** 상담하기 오른쪽 상담 정보 칸의 카드. */
 export const CHAT_CONTEXT_CARD_CLASS = 'flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4 text-sm text-card-foreground wrap-anywhere';
+
+/* 상품문의·리뷰 상세 팝업(레코드) 공용. */
+/** 레코드 요약(dl). 칸은 RECORD_META_ITEM_CLASS(div > dt + dd). */
+export const RECORD_META_CLASS = 'grid gap-x-6 gap-y-3 rounded-lg border p-4 text-sm sm:grid-cols-2';
+export const RECORD_META_ITEM_CLASS = 'flex min-w-0 flex-col gap-0.5 [&>dt]:text-xs [&>dt]:text-muted-foreground [&>dd]:wrap-anywhere';
+/** 원문·저장본 같은 본문 구역. h3 + p. */
+export const RECORD_SECTION_CLASS = 'flex min-w-0 flex-col gap-2 rounded-lg border p-4 [&>h3]:text-sm [&>h3]:font-medium [&>h3]:text-foreground [&>p]:text-sm [&>p]:leading-relaxed [&>p]:whitespace-pre-wrap [&>p]:wrap-anywhere';
+/** 저장본이 바뀌었다는 경고 구역. */
+export const RECORD_CHANGED_CLASS = `${RECORD_SECTION_CLASS} border-[color-mix(in_oklab,var(--wc-warning)_45%,transparent)] bg-[color-mix(in_oklab,var(--wc-warning)_6%,transparent)]`;
+/** 답변·답글 작성 폼. */
+export const REPLY_FORM_CLASS = 'flex flex-col gap-3 rounded-lg border bg-muted/40 p-4';
+/** 서버 액션 결과(오류·완료). 비어 있으면 자리를 차지하지 않는다. */
+export const ACTION_FEEDBACK_CLASS = 'flex flex-col gap-1 text-sm empty:hidden [&>[role=alert]]:text-destructive [&>[role=status]]:text-[var(--wc-success)]';
+/** 노출 관리처럼 접어 두는 위험 작업 구역의 펼침 줄. */
+export const DISCLOSURE_SUMMARY_CLASS = 'flex w-fit cursor-pointer list-none items-center gap-1.5 text-sm text-muted-foreground transition-colors hover:text-foreground [&::-webkit-details-marker]:hidden';

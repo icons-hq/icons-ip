@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { MessageSquareWarning } from 'lucide-react';
+import { cn } from 'cn';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
 
 /**
@@ -19,7 +20,7 @@ export function AdminOpenInquiryBadge({ count }: { count: number }) {
   /* 화면 본문(.rise) 바로 위에 선다 — 아래 화면과 간격을 스스로 둔다. */
   return (
     <div className="mb-4 flex flex-wrap gap-2" data-open-inquiry-badge="">
-      <Link className={`${buttonVariants({ size: 'sm', variant: 'outline' })} border-[color-mix(in_oklab,var(--wc-warning)_45%,transparent)]`} data-slot="button" href="/admin/cs/inquiries?status=open&page=1">
+      <Link className={cn(buttonVariants({ size: 'sm', variant: 'outline' }), 'border-[color-mix(in_oklab,var(--wc-warning)_45%,transparent)]')} data-slot="button" href="/admin/cs/inquiries?status=open&page=1">
         <MessageSquareWarning aria-hidden="true" className="text-[var(--wc-warning)]" />
         <span>미답변 1:1 문의</span>
         <strong className="font-semibold text-[var(--wc-warning)] tabular-nums">{count.toLocaleString('ko-KR')}건</strong>

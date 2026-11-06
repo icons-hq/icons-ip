@@ -1,17 +1,24 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
+import { ChevronDown } from 'lucide-react';
 import { ClaimContactSession, type ClaimContactIdentity, type ClaimContactScope } from '@/components/claim-contact/ClaimContactSession';
 import { readReviewTypePolicyAction, saveReviewTypePolicyAction } from '@/app/admin/review-type-policy-actions';
 import type { ReviewTypePolicy } from '@/lib/review-types';
-import { AdminField } from './console/AdminKit';
-import '@/app/styles/admin-review-types.css';
+import { AdminField, AdminFormGrid } from './console/AdminKit';
+import { AdminSelect } from './console/AdminSelect';
+import { Button } from '@/components/admin/kit/ui/button';
+import { Input } from '@/components/admin/kit/ui/input';
+import { Textarea } from '@/components/admin/kit/ui/textarea';
 const draftOf = (p: ReviewTypePolicy) => ({ enabled: p.enabled, basis: p.basis, startDays: p.startDays?.toString() ?? '', endDays: p.endDays?.toString() ?? '', maxOrderDays: p.maxOrderDays?.toString() ?? '', rewardEligible: p.rewardEligible, evidence: p.evidence, confirmed: false });
 type Draft = ReturnType<typeof draftOf>;
 type Request = { values: Omit<Draft, 'startDays' | 'endDays' | 'maxOrderDays'> & { startDays: number | null; endDays: number | null; maxOrderDays: number | null }; revision: number; operation: string };
+const CHECK_CLASS = 'flex items-start gap-2 text-sm leading-relaxed [&>input]:mt-0.5';
+const NOTE_CLASS = 'text-sm leading-relaxed text-muted-foreground';
+/* 템플릿 룩(ADR-0028): 접는 카드. 펼칠 때만 로그인 세션 확인과 설정 읽기를 시작한다. */
 export function ReviewTypePolicyPanel({ accountId }: { accountId: string }) {
  const [open, setOpen] = useState(false);
- return <details className="admin-review-type-policy wc-admin-kit__card" open={open} onToggle={event => setOpen(event.currentTarget.open)}><summary>한달사용 리뷰 작성·보상 설정</summary>
-  {open ? <ClaimContactSession actorId={accountId} pendingMessage="로그인 상태를 확인하고 있습니다.">{(identity, scope) => <Panel identity={identity} scope={scope} />}</ClaimContactSession> : null}
+ return <details className="group/policy rounded-xl border bg-card text-card-foreground" open={open} onToggle={event => setOpen(event.currentTarget.open)}><summary className="flex cursor-pointer list-none items-center justify-between gap-2 px-4 py-3 text-sm font-medium text-foreground [&::-webkit-details-marker]:hidden">한달사용 리뷰 작성·보상 설정<ChevronDown aria-hidden="true" className="size-4 text-muted-foreground transition-transform group-open/policy:rotate-180" /></summary>
+  {open ? <div className="border-t px-4 py-4"><ClaimContactSession actorId={accountId} pendingMessage="로그인 상태를 확인하고 있습니다.">{(identity, scope) => <Panel identity={identity} scope={scope} />}</ClaimContactSession></div> : null}
  </details>;
 }
 function Panel({ identity, scope }: { identity: ClaimContactIdentity; scope: ClaimContactScope }) {
@@ -36,20 +43,20 @@ function Panel({ identity, scope }: { identity: ClaimContactIdentity; scope: Cla
   } catch { if (alive.current && scope.canApply(ticket)) { setUncertain(true); setMessage('저장 결과를 확인하지 못했습니다. 같은 요청으로 다시 확인해주세요.'); } }
   finally { busy.current = false; if (alive.current) setPending(false); }
  }
- return <div><p>일반 리뷰는 배송완료 후 90일까지 유지합니다. 한달사용 리뷰는 주문·상품별로 일반 리뷰와 별도로 1회 작성할 수 있습니다. 재구매는 작성 시점의 최근 180일 내 동일 상품 배송완료 이력으로 표시합니다.</p>
-  <button type="button" className="wc-admin-kit__button" disabled={pending || uncertain} onClick={() => { void read(); }}>{policy ? '현재 설정 다시 불러오기' : '현재 설정 불러오기'}</button>
-  {draft ? <form onSubmit={event => { event.preventDefault(); void save(); }}><fieldset disabled={pending || uncertain}><legend>한달사용 리뷰</legend>
-   <label className="admin-review-type-policy__check"><input type="checkbox" checked={draft.enabled} onChange={e => setDraft({ ...draft, enabled: e.target.checked })} />한달사용 리뷰 작성 사용</label>
-   <div className="wc-admin-kit__form-grid"><AdminField label="기간 기준" inputId="review-type-basis"><select id="review-type-basis" value={draft.basis} onChange={e => setDraft({ ...draft, basis: e.target.value as Draft['basis'] })}><option value="delivered">배송완료</option><option value="confirmed">구매확정</option></select></AdminField>
-    <AdminField label="기준일 후 작성 시작 (일)" inputId="review-type-start"><input id="review-type-start" type="number" min="30" max="365" value={draft.startDays} onChange={e => setDraft({ ...draft, startDays: e.target.value })} required={draft.enabled} /></AdminField>
-    <AdminField label="기준일 후 작성 마감 (일)" inputId="review-type-end"><input id="review-type-end" type="number" min="30" max="730" value={draft.endDays} onChange={e => setDraft({ ...draft, endDays: e.target.value })} required={draft.enabled} /></AdminField>
-    <AdminField label="주문일 후 최대 기간 (일, 선택)" inputId="review-type-order"><input id="review-type-order" type="number" min="1" max="1095" value={draft.maxOrderDays} onChange={e => setDraft({ ...draft, maxOrderDays: e.target.value })} /></AdminField></div>
-   <label className="admin-review-type-policy__check"><input type="checkbox" checked={draft.rewardEligible} onChange={e => setDraft({ ...draft, rewardEligible: e.target.checked })} />한달사용 리뷰도 BEST 보상·리뷰이벤트 대상에 포함</label>
-   <p>보상 여부 변경에는 마케팅 권한이 필요합니다. 실제 지급은 별도 활성 정책과 선정 조건을 따르며, 리뷰 작성만으로 지급하지 않습니다.</p>
-   <AdminField label="설정 근거" inputId="review-type-evidence"><textarea id="review-type-evidence" minLength={2} maxLength={1000} value={draft.evidence} onChange={e => setDraft({ ...draft, evidence: e.target.value })} required /></AdminField>
-   <p>저장한 설정은 기존 주문을 포함한 신규 한달사용 리뷰 작성에 즉시 적용됩니다. 이미 작성한 리뷰의 수정 기한과 보상 자격은 작성 당시 값을 유지합니다. 공개된 일반·한달사용 리뷰는 모두 평점에 포함합니다.</p>
-   <label className="admin-review-type-policy__check"><input type="checkbox" checked={draft.confirmed} onChange={e => setDraft({ ...draft, confirmed: e.target.checked })} required />작성 기간과 기존 주문 적용 범위, 보상 조건을 확인했습니다.</label>
-  </fieldset><button type="submit" className="wc-admin-kit__button wc-admin-kit__button--primary" disabled={pending || !draft.confirmed}>{uncertain ? '같은 요청으로 저장 결과 확인' : '한달사용 리뷰 설정 저장'}</button></form> : null}
-  {message ? <p role="status">{message}</p> : null}
+ return <div className="flex flex-col items-start gap-4"><p className={NOTE_CLASS}>일반 리뷰는 배송완료 후 90일까지 유지합니다. 한달사용 리뷰는 주문·상품별로 일반 리뷰와 별도로 1회 작성할 수 있습니다. 재구매는 작성 시점의 최근 180일 내 동일 상품 배송완료 이력으로 표시합니다.</p>
+  <Button disabled={pending || uncertain} onClick={() => { void read(); }} size="sm" type="button" variant="outline">{policy ? '현재 설정 다시 불러오기' : '현재 설정 불러오기'}</Button>
+  {draft ? <form className="flex w-full flex-col items-start gap-4" onSubmit={event => { event.preventDefault(); void save(); }}><fieldset className="flex w-full min-w-0 flex-col gap-4 disabled:opacity-60" disabled={pending || uncertain}><legend className="mb-1 text-base font-medium text-foreground">한달사용 리뷰</legend>
+   <label className={CHECK_CLASS}><input type="checkbox" checked={draft.enabled} onChange={e => setDraft({ ...draft, enabled: e.target.checked })} />한달사용 리뷰 작성 사용</label>
+   <AdminFormGrid><AdminField label="기간 기준" inputId="review-type-basis"><AdminSelect id="review-type-basis" value={draft.basis} onChange={e => setDraft({ ...draft, basis: e.target.value as Draft['basis'] })}><option value="delivered">배송완료</option><option value="confirmed">구매확정</option></AdminSelect></AdminField>
+    <AdminField label="기준일 후 작성 시작 (일)" inputId="review-type-start"><Input id="review-type-start" type="number" min="30" max="365" value={draft.startDays} onChange={e => setDraft({ ...draft, startDays: e.target.value })} required={draft.enabled} /></AdminField>
+    <AdminField label="기준일 후 작성 마감 (일)" inputId="review-type-end"><Input id="review-type-end" type="number" min="30" max="730" value={draft.endDays} onChange={e => setDraft({ ...draft, endDays: e.target.value })} required={draft.enabled} /></AdminField>
+    <AdminField label="주문일 후 최대 기간 (일, 선택)" inputId="review-type-order"><Input id="review-type-order" type="number" min="1" max="1095" value={draft.maxOrderDays} onChange={e => setDraft({ ...draft, maxOrderDays: e.target.value })} /></AdminField></AdminFormGrid>
+   <label className={CHECK_CLASS}><input type="checkbox" checked={draft.rewardEligible} onChange={e => setDraft({ ...draft, rewardEligible: e.target.checked })} />한달사용 리뷰도 BEST 보상·리뷰이벤트 대상에 포함</label>
+   <p className={NOTE_CLASS}>보상 여부 변경에는 마케팅 권한이 필요합니다. 실제 지급은 별도 활성 정책과 선정 조건을 따르며, 리뷰 작성만으로 지급하지 않습니다.</p>
+   <AdminField label="설정 근거" inputId="review-type-evidence"><Textarea id="review-type-evidence" minLength={2} maxLength={1000} value={draft.evidence} onChange={e => setDraft({ ...draft, evidence: e.target.value })} required /></AdminField>
+   <p className={NOTE_CLASS}>저장한 설정은 기존 주문을 포함한 신규 한달사용 리뷰 작성에 즉시 적용됩니다. 이미 작성한 리뷰의 수정 기한과 보상 자격은 작성 당시 값을 유지합니다. 공개된 일반·한달사용 리뷰는 모두 평점에 포함합니다.</p>
+   <label className={CHECK_CLASS}><input type="checkbox" checked={draft.confirmed} onChange={e => setDraft({ ...draft, confirmed: e.target.checked })} required />작성 기간과 기존 주문 적용 범위, 보상 조건을 확인했습니다.</label>
+  </fieldset><Button disabled={pending || !draft.confirmed} type="submit">{uncertain ? '같은 요청으로 저장 결과 확인' : '한달사용 리뷰 설정 저장'}</Button></form> : null}
+  {message ? <p className="text-sm text-muted-foreground" role="status">{message}</p> : null}
  </div>;
 }

@@ -86,7 +86,7 @@ describe('ReviewConsoleScreen', () => {
   it('검색을 먼저 배치하고 저평점 바로가기는 결과 목록 앞에 유지한다', () => {
     const html = render();
 
-    const pinnedIndex = html.indexOf('admin-console-pinned-filter');
+    const pinnedIndex = html.indexOf('data-cs-pinned');
     const panelIndex = html.indexOf('data-console-filters');
 
     expect(pinnedIndex).toBeGreaterThanOrEqual(0);

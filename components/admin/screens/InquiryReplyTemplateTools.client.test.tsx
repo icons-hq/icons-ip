@@ -138,3 +138,10 @@ it('작성 중인 답변이 있으면 확인 뒤에만 템플릿으로 바꾸고
   expect(onInsert).toHaveBeenLastCalledWith('A 본문');
   vi.unstubAllGlobals();
 });
+
+it('검색과 템플릿 저장은 각자의 폼을 제출하고 나머지 버튼은 제출하지 않는다', async () => {
+  await open(); click(button(render(), '템플릿 등록'));
+  expect(button(render(), '검색').props.type).toBe('submit');
+  expect(button(render(), '템플릿 저장').props.type).toBe('submit');
+  for (const label of ['템플릿 등록', '편집 닫기 · 문구 보존', '불러오기']) expect(button(render(), label).props.type).toBe('button');
+});

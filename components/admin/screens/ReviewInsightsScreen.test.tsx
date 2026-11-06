@@ -13,9 +13,11 @@ describe('review insights screen',()=>{
     expect(html).toContain('25.0%');
     expect(html).toContain('미작성 상품주문');
     expect(html).toContain('page=2');
+    /* 상품 검색은 같은 화면 GET 폼을 제출한다(kit Button은 type을 주지 않으면 button이 된다). */
+    expect(html).toMatch(/<form[^>]*method="get"[\s\S]*?<button(?=[^>]*type="submit")[^>]*>조회<\/button>/);
     expect(html).toContain('상품별 평균의 평균');
     expect(html).not.toContain('NaN');
-    const href=html.match(/href="([^"]+)">리뷰 조회 및 관리/)?.[1]?.replaceAll('&amp;','&');
+    const href=html.match(/href="([^"]+)"[^>]*>리뷰 조회 및 관리/)?.[1]?.replaceAll('&amp;','&');
     expect(href).toBeTruthy();
     const linkedFilters=normalizeAdminReviewFilters(Object.fromEntries(new URL(href!, 'https://icons.example').searchParams));
     expect(linkedFilters).toMatchObject({field:'good',query:'검수 상품',status:'visible'});
