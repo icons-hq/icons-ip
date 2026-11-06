@@ -229,21 +229,24 @@ export function measureAdminLayout(options = {}) {
         box.bottom = Math.min(box.bottom, boundary.top + parent.clientTop + parent.clientHeight);
       }
     }
+    /* Opaque in any color syntax the console paints with: rgb()/oklch()/lab()… without an alpha part. */
+    const opaque = (color) => /^[a-z]+\([^)]*\)$/.test(color) && !/\/\s*(0?\.\d+|0)\s*\)$|rgba\(|hsla\(|transparent/.test(color);
     // The documented fixed/sticky save bars intentionally occlude scrolling content.
     // Its own controls remain collision candidates, and only an opaque bar
     // spanning the entire control width may clip the underlying painted area.
     for (const bar of root?.querySelectorAll('[data-good-workspace-save], .admin-story-editor__footer') || []) {
       const style = getComputedStyle(bar), boundary = rect(bar);
-      if (!bar.contains(element) && ['fixed', 'sticky'].includes(style.position) && /^rgb\([^)]*\)$/.test(style.backgroundColor)
+      if (!bar.contains(element) && ['fixed', 'sticky'].includes(style.position) && opaque(style.backgroundColor)
         && box.left >= boundary.left && box.right <= boundary.right && box.top < boundary.bottom && box.bottom > boundary.top) box.bottom = Math.min(box.bottom, boundary.top);
     }
     // A dialog's opaque sticky heading covers the scrolled body from above.
     // Only clip its own body, keeping collisions among heading controls visible.
     const dialog = element.closest('dialog');
-    const header = dialog?.querySelector(':scope > .admin-cs-dialog__header');
+    /* The shared dialog's heading (CustomerServiceDialog) is its first child header since ADR-0028. */
+    const header = dialog?.querySelector(':scope > header');
     if (header && !header.contains(element)) {
       const style = getComputedStyle(header), boundary = rect(header);
-      if (style.position === 'sticky' && /^rgb\([^)]*\)$/.test(style.backgroundColor)
+      if (style.position === 'sticky' && opaque(style.backgroundColor)
         && box.left >= boundary.left && box.right <= boundary.right && box.top < boundary.bottom && box.bottom > boundary.top) box.top = Math.max(box.top, boundary.bottom);
     }
     return { left: rounded(box.left), top: rounded(box.top), right: rounded(box.right), bottom: rounded(box.bottom), width: rounded(Math.max(0, box.right - box.left)), height: rounded(Math.max(0, box.bottom - box.top)) };
