@@ -1,5 +1,6 @@
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import postcss from 'postcss';
+import { withoutKitGuard } from './styles/css-cascade.test-helpers';
 import { describe, expect, it } from 'vitest';
 
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8');
@@ -21,9 +22,10 @@ describe('complete admin WC cutover (#433)', () => {
     const css=postcss.parse(read('./styles/wc-admin.css'));
     const rules=new Map<string,Map<string,string>>();
     css.walkRules(rule=>{
-      const declarations=rules.get(rule.selector)??new Map<string,string>();
+      const selector=withoutKitGuard(rule.selector);
+      const declarations=rules.get(selector)??new Map<string,string>();
       rule.walkDecls(decl=>{declarations.set(decl.prop,decl.value);});
-      rules.set(rule.selector,declarations);
+      rules.set(selector,declarations);
     });
     /* R1(D1①): 배지는 셸 헤더 아래가 아니라 고객문의 페이지 본문(.admin-content 여백 안)에 그려진다. */
     expect(rules.get('.wc-admin .admin-shell-badges')?.get('padding')).toBe('0 0 12px');
@@ -73,6 +75,6 @@ describe('complete admin WC cutover (#433)', () => {
   it('keeps every major workbench layout and the independent check-in in scope', () => {
     const css = read('./styles/wc-admin-surfaces.css');
     for (const selector of ['.admin-master-detail', '.admin-form-grid', '.admin-console-grid', '.admin-order-master-detail', '.admin-notification-layout', '.admin-guide-doc', '.check-in-grid']) expect(css).toContain(selector);
-    expect(read('../components/admin/check-in/TicketCheckIn.tsx')).toContain('check-in-shell wc-root wc-admin');
+    expect(read('../components/admin/check-in/TicketCheckIn.tsx')).toContain('check-in-shell wc-admin');
   });
 });

@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
+import { withoutKitGuard } from '@/app/styles/css-cascade.test-helpers';
 import { describe, expect, it, vi } from 'vitest';
 import { GoodsImageGrid } from './GoodsImageGrid';
 
@@ -68,7 +69,7 @@ describe('상품 이미지 썸네일 그리드', () => {
     const rules = [...css.matchAll(/([^{}\n]+)\{([^}]*)\}/g)].filter(([, selector]) => selector.includes('wc-admin-image-tile'));
 
     expect(rules.find(([, selector]) => selector.includes('__frame[data-draggable]'))?.[2]).toMatch(/touch-action:\s*pan-y\b/);
-    expect(rules.filter(([, , body]) => /touch-action:\s*none/.test(body)).map(([, selector]) => selector.trim()))
+    expect(rules.filter(([, , body]) => /touch-action:\s*none/.test(body)).map(([, selector]) => withoutKitGuard(selector)))
       .toEqual(['.wc-admin .wc-admin-image-tile__handle']);
   });
 

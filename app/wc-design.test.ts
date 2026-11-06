@@ -1,4 +1,5 @@
 import { readdirSync, readFileSync } from 'node:fs';
+import { withoutKitGuard } from './styles/css-cascade.test-helpers';
 import { describe, expect, it } from 'vitest';
 import postcss, { type AtRule, type Rule } from 'postcss';
 
@@ -23,15 +24,20 @@ describe('White Catalog admin boundary (#433)', () => {
 
   it('scopes all admin rules including nested media rules and uses only WC tokens', () => {
     const ast = postcss.parse(read('./styles/wc-admin.css'));
+    /* ADR-0028: the console's --wc-* names are mapped onto the shadcn tokens of admin-kit.css. */
+    const kitTokens = new Set<string>();
+    postcss.parse(read('./styles/admin-kit.css')).walkDecls((decl) => { if (decl.prop.startsWith('--')) kitTokens.add(decl.prop); });
     ast.walkRules((rule) => {
       for (const selector of rule.selectors) expect(selector.trim()).toMatch(/^\.wc-admin(?:\b|[.\s:#])/);
     });
     ast.walkDecls((decl) => {
-      for (const match of decl.value.matchAll(/var\(\s*(--[\w-]+)/g)) expect(match[1]).toMatch(/^--wc-/);
-      // The seller-center palette belongs to the isolated admin token boundary.
+      for (const match of decl.value.matchAll(/var\(\s*(--[\w-]+)/g)) {
+        expect(match[1].startsWith('--wc-') || kitTokens.has(match[1]), `${decl.prop}: ${match[1]}`).toBe(true);
+      }
+      // The console palette belongs to the isolated admin token boundary.
       // Components still consume variables so the public foundation cannot drift.
       if (decl.prop.startsWith('--wc-')) {
-        expect(decl.parent?.type === 'rule' ? decl.parent.selector : '').toBe('.wc-admin');
+        expect(decl.parent?.type === 'rule' ? withoutKitGuard(decl.parent.selector) : '').toBe('.wc-admin');
       } else {
         expect(decl.value).not.toMatch(/#[\da-f]{3,8}\b|rgba?\(|hsla?\(/i);
       }

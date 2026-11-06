@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import postcss from 'postcss';
+import { atTopLevel, mediaOf, withoutKitGuard } from './css-cascade.test-helpers';
 import { describe, expect, it } from 'vitest';
 
 /*
@@ -53,8 +54,8 @@ function specificity(selector: string, path: Element[]): [number, number] | null
 function computed(path: Element[], property: string): string | undefined {
   let winner: { value: string; weight: [number, number] } | undefined;
   css.walkRules((rule) => {
-    if (rule.parent?.type !== 'root') return;
-    for (const selector of rule.selectors) {
+    if (!atTopLevel(rule)) return;
+    for (const selector of rule.selectors.map(withoutKitGuard)) {
       const weight = specificity(selector, path);
       if (!weight) continue;
       rule.walkDecls(property, (declaration) => {
@@ -105,7 +106,7 @@ describe('편집기 설정함/설정안함 버튼 클릭 영역', () => {
   function declarationsFor(fragment: string, inMedia: boolean) {
     const found: Map<string, string>[] = [];
     css.walkRules((rule) => {
-      if ((rule.parent?.type === 'atrule') !== inMedia || !rule.selectors.some((selector) => selector.includes(fragment))) return;
+      if (Boolean(mediaOf(rule)) !== inMedia || !rule.selectors.map(withoutKitGuard).some((selector) => selector.includes(fragment))) return;
       const declarations = new Map<string, string>();
       rule.walkDecls((decl) => { declarations.set(decl.prop, decl.value); });
       found.push(declarations);
@@ -125,7 +126,7 @@ describe('편집기 설정함/설정안함 버튼 클릭 영역', () => {
 
   it('판매가·판매기간과 구매 제한의 설정함/설정안함 묶음 모두 같은 배치 규칙을 쓴다', () => {
     const selectors: string[] = [];
-    css.walkRules((rule) => { if (rule.parent?.type === 'root') selectors.push(...rule.selectors); });
+    css.walkRules((rule) => { if (atTopLevel(rule)) selectors.push(...rule.selectors.map(withoutKitGuard)); });
     for (const group of ['.goods-price-editor > .goods-choice > legend', '.goods-purchase-limits__group > .goods-choice > legend']) {
       expect(selectors.some((selector) => selector.endsWith(group))).toBe(true);
     }

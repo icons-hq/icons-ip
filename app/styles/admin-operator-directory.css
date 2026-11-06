@@ -1,58 +1,58 @@
 @layer components {
-  .wc-admin .admin-operator-directory { display: grid; gap: 20px; min-width: 0; font-size: 13px; }
-  .wc-admin .admin-operator-directory__list { border: 1px solid var(--wc-hairline); background: var(--wc-surface); min-width: 0; }
-  .wc-admin .admin-operator-directory__list > header { padding: 18px 22px; border-bottom: 1px solid var(--wc-hairline); }
-  .wc-admin .admin-operator-directory__list h2 { margin: 0; font-size: 15px; }
-  .wc-admin .admin-operator-directory__list h2 strong { color: var(--wc-accent); }
-  .wc-admin .admin-operator-directory__guide { padding: 18px 22px; background: var(--wc-surface-grey); color: var(--wc-ink-sub); line-height: 1.8; }
-  .wc-admin .admin-operator-directory__guide p { margin: 0; }
-  .wc-admin .admin-operator-directory__table { overflow-x: auto; width: 100%; }
-  .wc-admin .admin-operator-directory table { width: 100%; min-width: 1080px; border-collapse: collapse; }
-  .wc-admin .admin-operator-directory th, .wc-admin .admin-operator-directory td { padding: 15px 14px; border-bottom: 1px solid var(--wc-hairline); border-right: 1px solid var(--wc-hairline); text-align: left; vertical-align: middle; }
-  .wc-admin .admin-operator-directory th { background: var(--wc-surface-grey); font-weight: 500; color: var(--wc-ink-sub); white-space: nowrap; }
-  .wc-admin .admin-operator-directory td:last-child { min-width: 260px; border-right: 0; }
-  .wc-admin .admin-operator-directory small { display: block; color: var(--wc-ink-tertiary); margin-top: 5px; }
-  .wc-admin .admin-operator-directory__duty { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
-  .wc-admin .admin-operator-directory__controls { display: flex; flex-wrap: wrap; gap: 6px; }
-  .wc-admin .admin-operator-directory__duty > button, .wc-admin .admin-operator-directory__controls > button, .wc-admin .admin-operator-setup button, .wc-admin .admin-operator-duty-dialog button { min-height: 34px; padding: 4px 12px; background: var(--wc-surface); border: 1px solid var(--wc-line-control); color: var(--wc-ink-sub); }
-  .wc-admin .admin-operator-setup select { width: 100%; min-width: 200px; min-height: 38px; border: 1px solid var(--wc-line-control); padding: 6px 10px; background: var(--wc-surface); color: var(--wc-ink); }
-  .wc-admin .admin-operator-setup table { min-width: 780px; }
-  .wc-admin .admin-operator-setup__confirm { display: grid; gap: 14px; padding: 18px 22px; }
-  .wc-admin .admin-operator-setup__confirm p { margin: 0; }
-  .wc-admin .admin-operator-setup__confirm > button { justify-self: start; }
-  .wc-admin .admin-operator-setup__confirm label, .wc-admin .admin-operator-confirm { display: flex; align-items: center; gap: 8px; line-height: 1.6; }
-  .wc-admin .admin-operator-setup input[type=checkbox], .wc-admin .admin-operator-confirm input[type=checkbox] { appearance: auto; flex: 0 0 16px; width: 16px; height: 16px; min-height: 0; padding: 0; accent-color: var(--wc-accent); }
-  .wc-admin .admin-operator-setup [role=alert] { color: var(--wc-danger); }
-  .wc-admin .admin-operator-duty-dialog { width: min(620px, calc(100vw - 32px)); }
-  .wc-admin .admin-operator-duty-dialog .admin-grid-settings-body { display: grid; gap: 14px; }
-  .wc-admin .admin-operator-duty-dialog select { width: 100%; min-height: 38px; border: 1px solid var(--wc-line-control); padding: 6px 10px; background: var(--wc-surface); color: var(--wc-ink); }
-  .wc-admin .admin-operator-duty-dialog [role=alert] { color: var(--wc-danger); }
-  .wc-admin .admin-operator-duty-dialog [role=status] { color: var(--wc-success); }
-  .wc-admin .admin-operator-duty-dialog__actions { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; padding: 18px; border-top: 1px solid var(--wc-hairline); }
-  .wc-admin .admin-operator-duty-dialog .admin-operator-primary, .wc-admin .admin-operator-setup .admin-operator-primary { background: var(--wc-accent); color: var(--wc-surface); border-color: var(--wc-accent); }
-  @media (max-width: 760px) { .wc-admin .admin-operator-directory__list > header, .wc-admin .admin-operator-directory__guide, .wc-admin .admin-operator-setup__confirm { padding: 14px; } .wc-admin .admin-operator-directory__duty > button, .wc-admin .admin-operator-directory__controls > button, .wc-admin .admin-operator-setup button, .wc-admin .admin-operator-duty-dialog button { min-height: 44px; } }
-  @media (forced-colors: active) { .wc-admin .admin-operator-duty-dialog button { border: 1px solid ButtonText; } }
-  .wc-admin .admin-operator-invite-start { display: flex; align-items: center; flex-wrap: wrap; gap: 14px; padding: 18px 22px; }
-  .wc-admin .admin-operator-invitations { scroll-margin-top: 16px; }
-  .wc-admin .admin-operator-invitations button, .wc-admin .admin-operator-invite-dialog button { min-height: 38px; padding: 6px 14px; border: 1px solid var(--wc-line-control); background: var(--wc-surface); color: var(--wc-ink); }
-  .wc-admin .admin-operator-invitations .admin-operator-primary, .wc-admin .admin-operator-invite-dialog .admin-operator-primary { background: var(--wc-accent); border-color: var(--wc-accent); color: var(--wc-surface); }
-  .wc-admin .admin-operator-invite-dialog { width: min(920px, calc(100vw - 32px)); }
-  .wc-admin .admin-operator-invite-dialog .admin-grid-settings-body { display: grid; gap: 18px; max-height: 65vh; overflow-y: auto; }
-  .wc-admin .admin-operator-invite-fields { display: grid; grid-template-columns: 1fr 1.7fr 1.5fr 1fr; gap: 10px; }
-  .wc-admin .admin-operator-invite-fields label, .wc-admin .admin-operator-invite-filter label { display: grid; gap: 7px; min-width: 0; }
-  .wc-admin .admin-operator-invite-fields input, .wc-admin .admin-operator-invite-fields select, .wc-admin .admin-operator-invite-filter input, .wc-admin .admin-operator-invite-filter select { width: 100%; min-width: 0; min-height: 40px; padding: 8px; border: 1px solid var(--wc-line-control); background: var(--wc-surface); color: var(--wc-ink); }
-  .wc-admin .admin-operator-invite-row { display: grid; gap: 12px; padding: 15px; border: 1px solid var(--wc-hairline); }
-  .wc-admin .admin-operator-invite-row > button { justify-self: end; }
-  .wc-admin .admin-operator-invite-filter { display: flex; flex-wrap: wrap; gap: 12px; padding: 0 22px 18px; align-items: end; }
-  .wc-admin .admin-operator-invite-filter > a { padding: 12px; }
-  .wc-admin .admin-operator-invite-message { padding: 0 22px; line-height: 1.7; }
-  .wc-admin .admin-operator-invite-dialog [role=alert] { color: var(--wc-danger); }
-  @media (max-width: 760px) { .wc-admin .admin-operator-invite-fields { grid-template-columns: 1fr; } .wc-admin .admin-operator-invite-start, .wc-admin .admin-operator-invite-filter { padding: 14px; } .wc-admin .admin-operator-invitations button, .wc-admin .admin-operator-invite-dialog button { min-height: 44px; } }
+  .wc-admin .admin-operator-directory:not([data-slot]) { display: grid; gap: 20px; min-width: 0; font-size: 13px; }
+  .wc-admin .admin-operator-directory__list:not([data-slot]) { border: 1px solid var(--wc-hairline); background: var(--wc-surface); min-width: 0; }
+  .wc-admin .admin-operator-directory__list > header:not([data-slot]) { padding: 18px 22px; border-bottom: 1px solid var(--wc-hairline); }
+  .wc-admin .admin-operator-directory__list h2:not([data-slot]) { margin: 0; font-size: 15px; }
+  .wc-admin .admin-operator-directory__list h2 strong:not([data-slot]) { color: var(--wc-accent); }
+  .wc-admin .admin-operator-directory__guide:not([data-slot]) { padding: 18px 22px; background: var(--wc-surface-grey); color: var(--wc-ink-sub); line-height: 1.8; }
+  .wc-admin .admin-operator-directory__guide p:not([data-slot]) { margin: 0; }
+  .wc-admin .admin-operator-directory__table:not([data-slot]) { overflow-x: auto; width: 100%; }
+  .wc-admin .admin-operator-directory table:not([data-slot]) { width: 100%; min-width: 1080px; border-collapse: collapse; }
+  .wc-admin .admin-operator-directory th:not([data-slot]), .wc-admin .admin-operator-directory td:not([data-slot]) { padding: 15px 14px; border-bottom: 1px solid var(--wc-hairline); border-right: 1px solid var(--wc-hairline); text-align: left; vertical-align: middle; }
+  .wc-admin .admin-operator-directory th:not([data-slot]) { background: var(--wc-surface-grey); font-weight: 500; color: var(--wc-ink-sub); white-space: nowrap; }
+  .wc-admin .admin-operator-directory td:last-child:not([data-slot]) { min-width: 260px; border-right: 0; }
+  .wc-admin .admin-operator-directory small:not([data-slot]) { display: block; color: var(--wc-ink-tertiary); margin-top: 5px; }
+  .wc-admin .admin-operator-directory__duty:not([data-slot]) { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+  .wc-admin .admin-operator-directory__controls:not([data-slot]) { display: flex; flex-wrap: wrap; gap: 6px; }
+  .wc-admin .admin-operator-directory__duty > button:not([data-slot]), .wc-admin .admin-operator-directory__controls > button:not([data-slot]), .wc-admin .admin-operator-setup button:not([data-slot]), .wc-admin .admin-operator-duty-dialog button:not([data-slot]) { min-height: 34px; padding: 4px 12px; background: var(--wc-surface); border: 1px solid var(--wc-line-control); color: var(--wc-ink-sub); }
+  .wc-admin .admin-operator-setup select:not([data-slot]) { width: 100%; min-width: 200px; min-height: 38px; border: 1px solid var(--wc-line-control); padding: 6px 10px; background: var(--wc-surface); color: var(--wc-ink); }
+  .wc-admin .admin-operator-setup table:not([data-slot]) { min-width: 780px; }
+  .wc-admin .admin-operator-setup__confirm:not([data-slot]) { display: grid; gap: 14px; padding: 18px 22px; }
+  .wc-admin .admin-operator-setup__confirm p:not([data-slot]) { margin: 0; }
+  .wc-admin .admin-operator-setup__confirm > button:not([data-slot]) { justify-self: start; }
+  .wc-admin .admin-operator-setup__confirm label:not([data-slot]), .wc-admin .admin-operator-confirm:not([data-slot]) { display: flex; align-items: center; gap: 8px; line-height: 1.6; }
+  .wc-admin .admin-operator-setup input[type=checkbox]:not([data-slot]), .wc-admin .admin-operator-confirm input[type=checkbox]:not([data-slot]) { appearance: auto; flex: 0 0 16px; width: 16px; height: 16px; min-height: 0; padding: 0; accent-color: var(--wc-accent); }
+  .wc-admin .admin-operator-setup [role=alert]:not([data-slot]) { color: var(--wc-danger); }
+  .wc-admin .admin-operator-duty-dialog:not([data-slot]) { width: min(620px, calc(100vw - 32px)); }
+  .wc-admin .admin-operator-duty-dialog .admin-grid-settings-body:not([data-slot]) { display: grid; gap: 14px; }
+  .wc-admin .admin-operator-duty-dialog select:not([data-slot]) { width: 100%; min-height: 38px; border: 1px solid var(--wc-line-control); padding: 6px 10px; background: var(--wc-surface); color: var(--wc-ink); }
+  .wc-admin .admin-operator-duty-dialog [role=alert]:not([data-slot]) { color: var(--wc-danger); }
+  .wc-admin .admin-operator-duty-dialog [role=status]:not([data-slot]) { color: var(--wc-success); }
+  .wc-admin .admin-operator-duty-dialog__actions:not([data-slot]) { display: flex; flex-wrap: wrap; justify-content: center; gap: 10px; padding: 18px; border-top: 1px solid var(--wc-hairline); }
+  .wc-admin .admin-operator-duty-dialog .admin-operator-primary:not([data-slot]), .wc-admin .admin-operator-setup .admin-operator-primary:not([data-slot]) { background: var(--wc-accent); color: var(--wc-surface); border-color: var(--wc-accent); }
+  @media (max-width: 760px) { .wc-admin .admin-operator-directory__list > header:not([data-slot]), .wc-admin .admin-operator-directory__guide:not([data-slot]), .wc-admin .admin-operator-setup__confirm:not([data-slot]) { padding: 14px; } .wc-admin .admin-operator-directory__duty > button:not([data-slot]), .wc-admin .admin-operator-directory__controls > button:not([data-slot]), .wc-admin .admin-operator-setup button:not([data-slot]), .wc-admin .admin-operator-duty-dialog button:not([data-slot]) { min-height: 44px; } }
+  @media (forced-colors: active) { .wc-admin .admin-operator-duty-dialog button:not([data-slot]) { border: 1px solid ButtonText; } }
+  .wc-admin .admin-operator-invite-start:not([data-slot]) { display: flex; align-items: center; flex-wrap: wrap; gap: 14px; padding: 18px 22px; }
+  .wc-admin .admin-operator-invitations:not([data-slot]) { scroll-margin-top: 16px; }
+  .wc-admin .admin-operator-invitations button:not([data-slot]), .wc-admin .admin-operator-invite-dialog button:not([data-slot]) { min-height: 38px; padding: 6px 14px; border: 1px solid var(--wc-line-control); background: var(--wc-surface); color: var(--wc-ink); }
+  .wc-admin .admin-operator-invitations .admin-operator-primary:not([data-slot]), .wc-admin .admin-operator-invite-dialog .admin-operator-primary:not([data-slot]) { background: var(--wc-accent); border-color: var(--wc-accent); color: var(--wc-surface); }
+  .wc-admin .admin-operator-invite-dialog:not([data-slot]) { width: min(920px, calc(100vw - 32px)); }
+  .wc-admin .admin-operator-invite-dialog .admin-grid-settings-body:not([data-slot]) { display: grid; gap: 18px; max-height: 65vh; overflow-y: auto; }
+  .wc-admin .admin-operator-invite-fields:not([data-slot]) { display: grid; grid-template-columns: 1fr 1.7fr 1.5fr 1fr; gap: 10px; }
+  .wc-admin .admin-operator-invite-fields label:not([data-slot]), .wc-admin .admin-operator-invite-filter label:not([data-slot]) { display: grid; gap: 7px; min-width: 0; }
+  .wc-admin .admin-operator-invite-fields input:not([data-slot]), .wc-admin .admin-operator-invite-fields select:not([data-slot]), .wc-admin .admin-operator-invite-filter input:not([data-slot]), .wc-admin .admin-operator-invite-filter select:not([data-slot]) { width: 100%; min-width: 0; min-height: 40px; padding: 8px; border: 1px solid var(--wc-line-control); background: var(--wc-surface); color: var(--wc-ink); }
+  .wc-admin .admin-operator-invite-row:not([data-slot]) { display: grid; gap: 12px; padding: 15px; border: 1px solid var(--wc-hairline); }
+  .wc-admin .admin-operator-invite-row > button:not([data-slot]) { justify-self: end; }
+  .wc-admin .admin-operator-invite-filter:not([data-slot]) { display: flex; flex-wrap: wrap; gap: 12px; padding: 0 22px 18px; align-items: end; }
+  .wc-admin .admin-operator-invite-filter > a:not([data-slot]) { padding: 12px; }
+  .wc-admin .admin-operator-invite-message:not([data-slot]) { padding: 0 22px; line-height: 1.7; }
+  .wc-admin .admin-operator-invite-dialog [role=alert]:not([data-slot]) { color: var(--wc-danger); }
+  @media (max-width: 760px) { .wc-admin .admin-operator-invite-fields:not([data-slot]) { grid-template-columns: 1fr; } .wc-admin .admin-operator-invite-start:not([data-slot]), .wc-admin .admin-operator-invite-filter:not([data-slot]) { padding: 14px; } .wc-admin .admin-operator-invitations button:not([data-slot]), .wc-admin .admin-operator-invite-dialog button:not([data-slot]) { min-height: 44px; } }
 
   @media (max-width: 900px) {
-   .wc-admin .admin-operator-setup select,
-   .wc-admin .admin-operator-duty-dialog select,
-   .wc-admin .admin-operator-invite-fields :is(input, select),
-   .wc-admin .admin-operator-invite-filter :is(input, select) { min-height: 44px; }
+   .wc-admin .admin-operator-setup select:not([data-slot]),
+   .wc-admin .admin-operator-duty-dialog select:not([data-slot]),
+   .wc-admin .admin-operator-invite-fields :is(input, select):not([data-slot]),
+   .wc-admin .admin-operator-invite-filter :is(input, select):not([data-slot]) { min-height: 44px; }
   }
 }

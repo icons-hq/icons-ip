@@ -10,6 +10,11 @@
  * Values are shadcn's base-nova neutral palette, unchanged: the console takes the template's
  * look (ADR-0028 replaces ADR-0014 decision 3). Fonts stay the console's local Pretendard
  * (admin-font.css) — Korean text needs it, and it is not a colour or shape decision.
+ *
+ * Cascade: the console's older stylesheets live in `@layer components` and never match kit
+ * parts (`:not([data-slot])` on every selector, app/admin-kit-contract.test.ts), so kit
+ * utilities win without a bridge. Older markup that has not moved to kit parts yet wears the
+ * kit's look through admin-kit-vocabulary.css.
  */
 
 @import "tw-animate-css";
@@ -37,6 +42,19 @@
   --color-border: var(--border);
   --color-input: var(--input);
   --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
   /* shadcn's scale, with Tailwind's default radius as the fallback outside the console. */
   --radius-sm: calc(var(--radius, 0.625rem) * 0.6);
   --radius-md: calc(var(--radius, 0.625rem) * 0.8);
@@ -67,31 +85,53 @@
   --border: oklch(0.922 0 0);
   --input: oklch(0.922 0 0);
   --ring: oklch(0.708 0 0);
+  --chart-1: oklch(0.87 0 0);
+  --chart-2: oklch(0.556 0 0);
+  --chart-3: oklch(0.439 0 0);
+  --chart-4: oklch(0.371 0 0);
+  --chart-5: oklch(0.269 0 0);
   --radius: 0.625rem;
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.145 0 0);
+  --sidebar-primary: oklch(0.205 0 0);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.97 0 0);
+  --sidebar-accent-foreground: oklch(0.205 0 0);
+  --sidebar-border: oklch(0.922 0 0);
+  --sidebar-ring: oklch(0.708 0 0);
 }
 
-/* shadcn's base layer, scoped to kit territory: `border` utilities take the border token instead
-   of currentColor, and focus outlines use the ring. Layered, so kit utilities still win. */
+/* shadcn's base layer, scoped to the console: `border` utilities take the border token instead
+   of currentColor, and focus outlines use the ring. Layered, so every other rule still wins. */
 @layer base {
-  .wc-admin .admin-kit-island,
-  .wc-admin .admin-kit-island *,
-  .wc-admin.admin-kit-portal * {
+  .wc-admin,
+  .wc-admin * {
     border-color: var(--border);
     outline-color: color-mix(in oklab, var(--ring) 50%, transparent);
   }
-}
-
-/*
- * Cascade bridge. The console's White Catalog rules are unlayered and target elements
- * (`.wc-admin :where(input, select, textarea)`, `.admin-sales-console button` …), while Tailwind v4
- * utilities live in `@layer utilities`. Unlayered rules beat layered ones whatever their specificity,
- * so inside the console every kit control would wear the old control styles on top of its own.
- * `revert-layer` rolls the unlayered declarations back to the layered ones — the kit's utilities —
- * for kit parts only (every shadcn/Dice part carries `data-slot`). Old markup inside the island
- * (no `data-slot`) keeps its White Catalog styles.
- * The lasting fix is to move the console CSS into a layer below `utilities` (ADR-0028 step 1).
- */
-.wc-admin .admin-kit-island [data-slot],
-.wc-admin.admin-kit-portal [data-slot] {
-  all: revert-layer;
+  .wc-admin {
+    background-color: var(--background);
+    color: var(--foreground);
+    color-scheme: light;
+    font-size: 0.875rem;
+    line-height: 1.5;
+    letter-spacing: normal;
+    word-break: keep-all;
+    overflow-wrap: break-word;
+    -webkit-font-smoothing: antialiased;
+  }
+  .wc-admin ::selection {
+    background-color: color-mix(in oklab, var(--primary) 12%, transparent);
+  }
+  /* 10/27 회의 R18 — no spinner on any console number input, kit or not; AdminNumberWheelGuard
+     stops the wheel from changing values. */
+  .wc-admin input[type='number'] {
+    -moz-appearance: textfield;
+    appearance: textfield;
+  }
+  .wc-admin input[type='number']::-webkit-inner-spin-button,
+  .wc-admin input[type='number']::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+  }
 }

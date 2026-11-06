@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
-import postcss, { type AtRule, type Rule } from 'postcss';
+import postcss, { type Rule } from 'postcss';
+import { mediaOf, withoutKitGuard } from './css-cascade.test-helpers';
 import { describe, expect, it } from 'vitest';
 
 /*
@@ -9,9 +10,9 @@ import { describe, expect, it } from 'vitest';
 function declarations(file: string, selector: string, media?: string) {
   const values: Record<string, string> = {};
   postcss.parse(readFileSync(new URL(file, import.meta.url), 'utf8')).walkRules((rule: Rule) => {
-    const parent = rule.parent?.type === 'atrule' ? rule.parent as AtRule : null;
-    if (media ? !(parent?.name === 'media' && parent.params.trim() === media) : parent) return;
-    if (!rule.selectors.map(value => value.replace(/\s+/g, ' ').trim()).includes(selector)) return;
+    const parent = mediaOf(rule);
+    if (media ? !(parent && parent.params.trim() === media) : parent) return;
+    if (!rule.selectors.map(withoutKitGuard).includes(selector)) return;
     rule.walkDecls(decl => { values[decl.prop] = decl.value; });
   });
   return values;

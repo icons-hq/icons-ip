@@ -8,7 +8,7 @@
 }
 
 @layer components {
-  .wc-admin {
+  .wc-admin:not([data-slot]) {
     --wc-font: 'ICONS Admin Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Segoe UI', sans-serif;
     font-family: var(--wc-font);
   }

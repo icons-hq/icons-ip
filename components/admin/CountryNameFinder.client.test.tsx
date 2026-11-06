@@ -106,7 +106,7 @@ it('검색 Enter와 portal의 change/submit은 상품 폼에 전파하지 않는
   const body = {}; vi.stubGlobal('document', { body }); CountryNamePicker(props);
   expect(hooks.portal).toHaveBeenCalledWith(expect.anything(), body);
   const container = hooks.portal.mock.calls[0][0] as Element;
-  expect(container.props.className).toContain('wc-root wc-admin');
+  expect(container.props.className).toContain('wc-admin');
   (container.props.onChange as (event: unknown) => void)({ stopPropagation }); expect(stopPropagation).toHaveBeenCalledTimes(2);
 });
 it('복사 중 창을 닫으면 늦은 응답으로 상태나 다른 폼을 바꾸지 않는다', async () => {
