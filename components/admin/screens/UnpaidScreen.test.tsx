@@ -74,7 +74,7 @@ describe('UnpaidScreen', () => {
 
     expect(html).toContain('연장됨');
     /* 2시간 남은 주문 하나만 임박이다 — 20시간 남은 주문까지 붉으면 신호가 죽는다. */
-    expect(html.match(/admin-badge--warn/g)).toHaveLength(1);
+    expect(html.match(/data-tone="warning"/g)).toHaveLength(1);
   });
 
   /*
