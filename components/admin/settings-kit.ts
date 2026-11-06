@@ -37,6 +37,22 @@ export const TABLE_SCROLL = 'max-h-[28.75rem] min-w-0 overflow-auto rounded-lg b
 export const TSV_TEXTAREA = 'field-sizing-fixed font-mono text-xs whitespace-pre md:text-xs';
 /** 빈 목록 안내. */
 export const EMPTY = 'px-4 py-10 text-center text-sm text-muted-foreground';
+/*
+ * 화면이 직접 여닫는 네이티브 <dialog>(showModal)의 kit 모양 — CustomerServiceDialog와 같은 판. 닫힌 dialog도
+ * 마크업에 남으므로 표시는 open일 때만 켠다(hidden + open:flex). 포커스·Esc·처리 중 닫기 금지는 네이티브 동작 그대로다.
+ */
+export const NATIVE_DIALOG = 'm-auto hidden max-h-[calc(100svh-2rem)] w-[calc(100vw-2rem)] max-w-xl flex-col overflow-hidden rounded-xl border-0 bg-popover p-0 text-sm text-popover-foreground shadow-lg ring-1 ring-foreground/10 outline-none backdrop:bg-black/50 open:flex';
+export const NATIVE_DIALOG_WIDE = 'm-auto hidden max-h-[calc(100svh-2rem)] w-[calc(100vw-2rem)] max-w-4xl flex-col overflow-hidden rounded-xl border-0 bg-popover p-0 text-sm text-popover-foreground shadow-lg ring-1 ring-foreground/10 outline-none backdrop:bg-black/50 open:flex';
+export const DIALOG_HEADER = 'flex shrink-0 items-center justify-between gap-3 border-b px-4 py-3';
+export const DIALOG_TITLE = 'text-base leading-none font-semibold text-foreground';
+export const DIALOG_FORM = 'flex min-h-0 flex-1 flex-col';
+export const DIALOG_BODY = 'flex min-h-0 flex-1 flex-col gap-3 overflow-y-auto p-4';
+export const DIALOG_FOOTER = 'flex shrink-0 flex-wrap justify-end gap-2 border-t bg-muted/50 px-4 py-3';
 /** 링크 탭 묶음과 항목(셸의 콘솔 전환과 같은 모양). */
 export const SEGMENTED = 'inline-flex w-fit max-w-full flex-wrap items-center rounded-lg bg-muted p-0.5';
 export const SEGMENT_LINK = 'inline-flex h-7 items-center rounded-md px-2.5 text-[0.8rem] font-medium whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground aria-[current=page]:bg-background aria-[current=page]:text-foreground aria-[current=page]:shadow-sm aria-[current=true]:bg-background aria-[current=true]:text-foreground aria-[current=true]:shadow-sm';
+
+/** 매니저 목록·초대 내역의 카드·안내·표 상자. */
+export const OPERATOR_CARD = 'flex min-w-0 flex-col gap-3 rounded-xl border bg-card pb-3 text-card-foreground';
+export const OPERATOR_GUIDE = 'mx-4 flex flex-col gap-1 rounded-lg bg-muted/50 px-3 py-2.5 text-sm leading-relaxed text-muted-foreground';
+export const OPERATOR_TABLE = 'mx-4 min-w-0 overflow-x-auto rounded-lg border outline-none focus-visible:ring-3 focus-visible:ring-ring/50';
