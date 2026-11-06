@@ -22,14 +22,21 @@ import { ConsoleGrid } from '@/components/admin/console';
 import { bulkConfirmAdminOrdersAction } from '@/app/admin/order-actions';
 import { CustomerServiceDialog } from './CustomerServiceDialog';
 import { ShipmentConsoleGrid } from './ShipmentConsoleGrid';
+import { Button } from '@/components/admin/kit/ui/button';
+import { Input } from '@/components/admin/kit/ui/input';
+import { NativeSelect } from '@/components/admin/kit/ui/native-select';
 type Element = ReactElement<Record<string, unknown>>;
+/* 처리 막대·팝업은 kit 버튼·셀렉트·입력(ADR-0028)이다 — 렌더 전 요소 트리에서는 그 부품 자체가 요소 종류다. */
+const isButton = (node: Element) => node.type === 'button' || node.type === Button;
+const isSelect = (node: Element) => node.type === 'select' || node.type === NativeSelect;
+const isInput = (node: Element) => node.type === 'input' || node.type === Input;
 const ids = ['60000000-0000-4000-8000-000000000001', '60000000-0000-4000-8000-000000000002', '60000000-0000-4000-8000-000000000003'];
 const row: ShipmentConsoleRow = { id: ids[0], orderId: ids[0], originId: 'origin', originName: '합성 출고지', status: 'shipping', createdAt: '2026-10-16T00:00:00Z', confirmedAt: null, buyerName: '합성 구매자', recipientName: '합성 수령인', total: 10000, paymentMethod: 'card', shippingFee: 0, carrier: 'hanjin', trackingNumber: 'TEST12345', shippedAt: '2026-10-16T00:00:00Z', deliveredAt: null, exportedAt: null, updatedAt: '2026-10-16T00:00:00Z', delayReason: null, expectedShipDate: null, items: [], pack: { id: ids[2], revision: 1, count: 2, shipmentIds: ids.slice(0, 2), collectFee: 0, canRelease: false } };
 const props: Parameters<typeof ShipmentConsoleGrid>[0] = { rows: [row, { ...row, id: ids[1] }, { ...row, id: ids[2], pack: null }], columns: [], gridRows: [], tab: 'transit', currentHref: '/admin/sales/shipping', readyHref: '/admin/sales/dispatch' };
 function nodes(value: ReactNode): Element[] { return Children.toArray(value).flatMap(node => isValidElement<Record<string, unknown>>(node) ? [node, ...nodes(node.props.children as ReactNode)] : []); }
 function text(value: ReactNode): string { return Children.toArray(value).map(node => isValidElement<Record<string, unknown>>(node) ? text(node.props.children as ReactNode) : String(node)).join(''); }
 function render() { mocks.index = 0; return ShipmentConsoleGrid(props); }
-function button(label: string) { const result = nodes(render()).find(node => node.type === 'button' && text(node.props.children as ReactNode) === label); if (!result) throw new Error(`Missing button: ${label}`); return result; }
+function button(label: string) { const result = nodes(render()).find(node => isButton(node) && text(node.props.children as ReactNode) === label); if (!result) throw new Error(`Missing button: ${label}`); return result; }
 function click(label: string) { const element = button(label); (element.props.onClick as () => void)(); }
 function select(selected: string[]) { const grid = nodes(render()).find(node => node.type === ConsoleGrid)!; (grid.props.onSelectionChange as (ids: string[]) => void)(selected); }
 beforeEach(() => { vi.clearAllMocks(); mocks.states = []; mocks.index = 0; mocks.work = []; mocks.effects = []; mocks.complete.mockResolvedValue({ message: '2건 배송완료', failed: [] }); });
@@ -60,14 +67,14 @@ it('김포·남양주에 스마트스토어 양식을 기본으로 보내고 기
   const grid = nodes(ready()).find(node => node.type === ConsoleGrid)!;
   (grid.props.onSelectionChange as (ids: string[]) => void)([ids[0]]);
   function exportFile() {
-    const target = nodes(ready()).find(node => node.type === 'button' && text(node.props.children as ReactNode) === '출고지시 내보내기')!;
+    const target = nodes(ready()).find(node => isButton(node) && text(node.props.children as ReactNode) === '출고지시 내보내기')!;
     (target.props.onClick as () => void)();
   }
-  expect(nodes(ready()).find(node => node.type === 'select')!.props.value).toBe('auto');
+  expect(nodes(ready()).find(node => isSelect(node))!.props.value).toBe('auto');
   exportFile();
   expect(mocks.export).not.toHaveBeenCalled();
   expect(text(ready())).toContain('비밀번호 확인');
-  for (const input of nodes(ready()).filter(node => node.type === 'input' && node.props.type === 'password')) {
+  for (const input of nodes(ready()).filter(node => isInput(node) && node.props.type === 'password')) {
     expect(input.props).toMatchObject({ minLength: 4, maxLength: 16 });
   }
   const formData = new FormData();
@@ -80,9 +87,9 @@ it('김포·남양주에 스마트스토어 양식을 기본으로 보내고 기
   expect(reset).toHaveBeenCalledOnce();
   expect(formData.has('password')).toBe(false);
   expect(mocks.export).toHaveBeenLastCalledWith([ids[0]], 'xlsx', 'smartstore', { password: '1234', passwordConfirmation: '1234' });
-  const cancel = nodes(ready()).find(node => node.type === 'button' && text(node.props.children as ReactNode) === '취소')!;
+  const cancel = nodes(ready()).find(node => isButton(node) && text(node.props.children as ReactNode) === '취소')!;
   (cancel.props.onClick as () => void)();
-  const layout = nodes(ready()).find(node => node.type === 'select')!;
+  const layout = nodes(ready()).find(node => isSelect(node))!;
   (layout.props.onChange as (event: unknown) => void)({ target: { value: 'warehouse' } });
   exportFile(); await Promise.all(mocks.work);
   expect(mocks.export).toHaveBeenLastCalledWith([ids[0]], 'xlsx', 'warehouse', undefined);
@@ -92,14 +99,14 @@ it('남양주(서원) 출고지는 원형 송장양식이 기본이고, 74열을
  const origin={id:'00000000-0000-4000-8000-000000042202',name:'남양주',template:'seowon_xlsx',active:true};
  const readyProps={...props,tab:'ready' as const,rows:[],origins:[origin]};
  function ready(){mocks.index=0;return ShipmentConsoleGrid(readyProps);}
- function clickOrigin(){const target=nodes(ready()).find(node=>node.type==='button'&&text(node.props.children as ReactNode).startsWith('남양주 새 출고지시 전체 내려받기'))!;(target.props.onClick as ()=>void)();}
+ function clickOrigin(){const target=nodes(ready()).find(node=>isButton(node)&&text(node.props.children as ReactNode).startsWith('남양주 새 출고지시 전체 내려받기'))!;(target.props.onClick as ()=>void)();}
  mocks.exportOrigin.mockResolvedValue({error:'합성 재시도 안내'});
- expect(nodes(ready()).find(node=>node.type==='select')!.props.value).toBe('auto');
+ expect(nodes(ready()).find(node=>isSelect(node))!.props.value).toBe('auto');
  // 버튼이 실제로 받을 양식을 적는다.
  expect(text(ready())).toContain('남양주 새 출고지시 전체 내려받기 (서원 송장양식)');
  clickOrigin();await Promise.all(mocks.work);
  expect(mocks.exportOrigin).toHaveBeenLastCalledWith(origin.id,'xlsx','warehouse',undefined);
- const layout=nodes(ready()).find(node=>node.type==='select')!;(layout.props.onChange as (event:unknown)=>void)({target:{value:'smartstore'}});
+ const layout=nodes(ready()).find(node=>isSelect(node))!;(layout.props.onChange as (event:unknown)=>void)({target:{value:'smartstore'}});
  expect(text(ready())).toContain('남양주 새 출고지시 전체 내려받기 (스마트스토어 74열)');
  clickOrigin();expect(text(ready())).toContain('남양주의 아직 전달하지 않은 발송 대기 건');
  const input=new FormData();input.set('password','1234');input.set('passwordConfirmation','1234');
@@ -116,7 +123,7 @@ it('CSV를 골라도 남양주(서원) 송장양식은 XLSX로 받는다고 알�
  for(const rows of [[],[readyRow]]){
   mocks.states=[];
   const ready=()=>{mocks.index=0;return ShipmentConsoleGrid({...props,tab:'ready',rows,origins:[origin]});};
-  const selects=()=>nodes(ready()).filter(node=>node.type==='select');
+  const selects=()=>nodes(ready()).filter(node=>isSelect(node));
   expect(text(ready())).not.toContain('XLSX로 받습니다');
   (selects()[1].props.onChange as (event:unknown)=>void)({target:{value:'csv'}});
   expect(text(ready())).toContain('CSV를 골라도 남양주(서원) 송장양식은 XLSX로 받습니다.');
@@ -135,7 +142,7 @@ it('김포 등 다른 출고지와 섞이면 스마트스토어 74열이 기본�
  const seowonOnly=[{...readyRow,originId:'seowon'}];
  grid=nodes(ready(seowonOnly)).find(node=>node.type===ConsoleGrid)!;(grid.props.onSelectionChange as (ids:string[])=>void)([ids[0]]);
  expect(text(ready(seowonOnly))).toContain('선택한 배송 건 내려받기 양식: 서원 송장양식');
- expect(nodes(ready(seowonOnly)).find(node=>node.type==='select')!.props.value).toBe('auto');
+ expect(nodes(ready(seowonOnly)).find(node=>isSelect(node))!.props.value).toBe('auto');
  // 버튼마다 실제 양식을 적는다.
  expect(text(ready(seowonOnly))).toContain('김포 새 출고지시 전체 내려받기 (스마트스토어 74열)');
 });
@@ -144,7 +151,7 @@ it('이미 전달한 선택 건은 중복 출고 경고를 확인해야 다운�
  function ready(){mocks.index=0;return ShipmentConsoleGrid(readyProps);}
  const confirm=vi.fn(()=>false);vi.stubGlobal('window',{confirm});
  const grid=nodes(ready()).find(node=>node.type===ConsoleGrid)!;(grid.props.onSelectionChange as (ids:string[])=>void)([ids[0]]);
- const trigger=nodes(ready()).find(node=>node.type==='button'&&text(node.props.children as ReactNode)==='출고지시 내보내기')!;
+ const trigger=nodes(ready()).find(node=>isButton(node)&&text(node.props.children as ReactNode)==='출고지시 내보내기')!;
  (trigger.props.onClick as ()=>void)();expect(confirm).toHaveBeenCalledOnce();expect(text(ready())).not.toContain('비밀번호 확인');expect(mocks.export).not.toHaveBeenCalled();
  confirm.mockReturnValue(true);(trigger.props.onClick as ()=>void)();expect(text(ready())).toContain('비밀번호 확인');
 });
@@ -167,14 +174,14 @@ it('바코드 칸이 있는 기존 창고 양식이면 내보내기 전에 바�
  // 섞인 선택은 기본이 74열이라 경고하지 않는다. 기존 창고 양식을 고르면 선택 전체를 넘기고,
  // 바코드 칸이 있는 출고지(서원)의 건만 세는 판정은 서버(admin_shipment_barcode_gaps)가 한다.
  expect(mocks.gaps).not.toHaveBeenCalled();
- const layout=nodes(ready()).find(node=>node.type==='select')!;(layout.props.onChange as (event:unknown)=>void)({target:{value:'warehouse'}});
+ const layout=nodes(ready()).find(node=>isSelect(node))!;(layout.props.onChange as (event:unknown)=>void)({target:{value:'warehouse'}});
  ready();await settle();
  expect(mocks.gaps).toHaveBeenLastCalledWith([ids[0],ids[1]]);
  expect(text(ready())).toContain('바코드가 없는 옵션 2개 — 파일의 바코드 칸이 비어 있습니다.');
- const exportButton=nodes(ready()).find(node=>node.type==='button'&&text(node.props.children as ReactNode)==='출고지시 내보내기')!;
+ const exportButton=nodes(ready()).find(node=>isButton(node)&&text(node.props.children as ReactNode)==='출고지시 내보내기')!;
  expect(exportButton.props.disabled).toBe(false);
  // 스마트스토어 74열에는 바코드 칸이 없어 경고하지 않는다.
- (nodes(ready()).find(node=>node.type==='select')!.props.onChange as (event:unknown)=>void)({target:{value:'smartstore'}});
+ (nodes(ready()).find(node=>isSelect(node))!.props.onChange as (event:unknown)=>void)({target:{value:'smartstore'}});
  expect(text(ready())).not.toContain('바코드가 없는 옵션');
 });
 
@@ -187,7 +194,7 @@ it('방금 발주확인해 다른 페이지로 밀린 배송 건도 바코드 �
  vi.mocked(bulkConfirmAdminOrdersAction).mockResolvedValue({message:'1건 발주확인했습니다.',confirmedOrderIds:[confirmedId]} as never);
  const fresh=()=>{mocks.index=0;mocks.effects=[];return ShipmentConsoleGrid({...base,tab:'new',currentHref:'/admin/sales/dispatch?tab=new',rows:[{...row,id:confirmedId,orderId:confirmedId,status:'confirmed' as never,pack:null,originId:seowon.id}]});};
  (nodes(fresh()).find(node=>node.type===ConsoleGrid)!.props.onSelectionChange as (ids:string[])=>void)([confirmedId]);
- const confirm=nodes(fresh()).find(node=>node.type==='button'&&text(node.props.children as ReactNode)==='선택 주문 1건 발주확인')!;
+ const confirm=nodes(fresh()).find(node=>isButton(node)&&text(node.props.children as ReactNode)==='선택 주문 1건 발주확인')!;
  (confirm.props.onClick as ()=>void)();await Promise.all(mocks.work);
  // 발송 대기 탭의 첫 페이지는 앞선 대기 건으로 차 있어 방금 확인한 배송 건이 보이지 않는다.
  const backlog={...row,id:ids[2],status:'ready' as const,pack:null,originId:seowon.id};
@@ -212,7 +219,7 @@ it('데이터를 바꾼 처리가 끝나면 이전 바코드 경고를 거두고
  expect(text(ready())).toContain('바코드가 없는 옵션 2개 — 파일의 바코드 칸이 비어 있습니다.');
  // 다른 운영자가 먼저 바꿔 내보내기가 거절됐다. 목록은 새로 고치고, 바코드 개수도 지금 값으로 다시 센다.
  mocks.export.mockResolvedValue({error:'배송 상태가 변경되었습니다. 목록을 새로고침한 뒤 다시 내보내주세요.'});
- (nodes(ready()).find(node=>node.type==='button'&&text(node.props.children as ReactNode)==='출고지시 내보내기')!.props.onClick as ()=>void)();
+ (nodes(ready()).find(node=>isButton(node)&&text(node.props.children as ReactNode)==='출고지시 내보내기')!.props.onClick as ()=>void)();
  await Promise.all(mocks.work);
  expect(mocks.export).toHaveBeenLastCalledWith([ids[0]],'xlsx','warehouse',undefined);
  expect(text(ready())).not.toContain('바코드가 없는 옵션 2개');
@@ -225,7 +232,7 @@ it('데이터를 바꾼 처리가 끝나면 이전 바코드 경고를 거두고
  mocks.export.mockResolvedValue({file:{base64:'',mime:'application/octet-stream',name:'f.xlsx'},message:'1건의 출고지시를 내려받았습니다. 바코드가 없는 옵션 1개 — 파일의 바코드 칸이 비어 있습니다.'});
  const anchor={click:vi.fn(),href:'',download:''};
  vi.stubGlobal('document',{createElement:()=>anchor});vi.stubGlobal('URL',{createObjectURL:()=>'blob:x',revokeObjectURL:vi.fn()});
- (nodes(ready()).find(node=>node.type==='button'&&text(node.props.children as ReactNode)==='출고지시 내보내기')!.props.onClick as ()=>void)();
+ (nodes(ready()).find(node=>isButton(node)&&text(node.props.children as ReactNode)==='출고지시 내보내기')!.props.onClick as ()=>void)();
  await Promise.all(mocks.work);
  expect(anchor.click).toHaveBeenCalledOnce();
  expect(text(ready())).toContain('1건의 출고지시를 내려받았습니다. 바코드가 없는 옵션 1개 — 파일의 바코드 칸이 비어 있습니다.');

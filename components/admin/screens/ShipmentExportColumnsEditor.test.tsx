@@ -31,9 +31,9 @@ describe('shipment export optional warehouse SKU', () => {
  it('shows a stored optional mapping with its custom header and keeps staff read-only', () => {
   const html=renderToStaticMarkup(<ShipmentExportColumnsEditor origin={{...origin,exportColumns:[...DEFAULT_SHIPMENT_EXPORT_COLUMNS,{key:'variantCode',header:'WMS SKU'}]}} canEdit={false} />);
   expect(html).toContain('checked=""');
-  expect(html).toContain('<th>옵션코드</th>');
+  expect(html).toMatch(/<th[^>]*>옵션코드<\/th>/);
   expect(html).toContain('value="WMS SKU"');
-  expect(html).toContain('<fieldset disabled=""');
+  expect(html).toMatch(/<fieldset[^>]*disabled=""/);
   expect(html).not.toContain('출고지시 양식 저장');
  });
 });
