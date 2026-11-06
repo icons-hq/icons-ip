@@ -15,10 +15,13 @@ export function MarketingLinksGoodsGrid({ canIssue = false, bulkIdentity, ...pro
   const router = useRouter();
   const visible = new Set(props.rows.map(row => row.id));
   const selectedIds = rawSelectedIds.filter(id => visible.has(id));
+  /* 선택 개수는 한 번만 보인다 — 일괄 변경 막대가 있으면 선택 해제·마케팅 링크도 그 막대의 같은 줄에 둔다. */
+  const selectionActions = <>
+    {selectedIds.length ? <Button type="button" onClick={() => setSelectedIds([])} size="sm" variant="ghost">선택 해제</Button> : null}
+    <MarketingLinkIssuer source="good" targetIds={selectedIds} size="sm" /><small className="text-xs text-muted-foreground">한 번에 최대 100개</small>
+  </>;
   return <ConsoleGrid {...props} selectable={canIssue} selectedIds={selectedIds} onSelectionChange={setSelectedIds}>
-    {canIssue && bulkIdentity ? <GoodsBulkToolbar kind="goods" identity={bulkIdentity} selectedIds={selectedIds} onCompleted={() => router.refresh()} /> : null}
-    {canIssue ? <div className="flex flex-wrap items-center gap-3 border-b px-3 py-2.5 text-sm"><span className="tabular-nums">{selectedIds.length}개 선택</span>
-      {selectedIds.length ? <Button type="button" onClick={() => setSelectedIds([])} size="sm" variant="ghost">선택 해제</Button> : null}
-      <MarketingLinkIssuer source="good" targetIds={selectedIds} /><small className="text-xs text-muted-foreground">한 번에 최대 100개</small></div> : null}
+    {canIssue && bulkIdentity ? <GoodsBulkToolbar kind="goods" identity={bulkIdentity} selectedIds={selectedIds} onCompleted={() => router.refresh()} selectionActions={selectionActions} />
+      : canIssue ? <div className="flex flex-wrap items-center gap-1.5 text-sm"><strong className="mr-1 text-sm font-semibold whitespace-nowrap tabular-nums">{selectedIds.length}개 선택</strong>{selectionActions}</div> : null}
   </ConsoleGrid>;
 }

@@ -1,5 +1,6 @@
 import Link from 'next/link';
-import { ConsoleGrid, type ConsoleGridColumn } from '@/components/admin/console';
+import { Download } from 'lucide-react';
+import { ConsoleGrid, ConsoleListCard, ConsolePagination, type ConsoleGridColumn } from '@/components/admin/console';
 import { StatsComparison } from '@/components/admin/StatsComparison';
 import { BENEFIT_REPORT_PATH, benefitCohortRate, benefitReportHref, benefitTrend, type BenefitIssuances, type BenefitMetrics, type BenefitReport, type BenefitReportFilters } from '@/lib/admin/benefit-report';
 import { adminStatsDateInputs } from '@/lib/admin/stats';
@@ -55,6 +56,8 @@ export function BenefitReportScreen({ data, comparison, issuances = null, filter
   const showIssuances = Boolean(filters.code && filters.detail === 'issuances');
   const issuanceExportTooLarge = showIssuances && Boolean(issuances && issuances.totalCount > 10000);
   const count = filters.code ? showIssuances ? issuances?.totalCount ?? null : data.useCount : data.couponCount;
+  /* 페이지 이동은 지금 보이는 목록(혜택 목록, 또는 선택한 혜택의 사용·발급 상세) 카드 안에 둔다. */
+  const pagination = count !== null ? <ConsolePagination label="혜택 리포트 페이지" page={filters.page} pageSize={50} total={count} unit="개" hrefForPage={page => benefitReportHref({ ...resolvedFilters, page })} /> : null;
   return <section className="flex min-w-0 flex-col gap-4 text-sm" data-admin-benefit-report="">
     <BenefitReportControls filters={filters} admin={admin} now={now} />
     <div className="grid grid-cols-2 gap-2 lg:grid-cols-4">
@@ -75,17 +78,18 @@ export function BenefitReportScreen({ data, comparison, issuances = null, filter
       <li>사용 주문금액은 할인·적립금 적용 후 주문 총액입니다. 검색·할인종류·대상 필터는 현재 쿠폰 설정을 기준으로 합니다. 주·월의 일부 기간은 조회기간 안의 실적만 합산합니다.</li>
       <li>엑셀은 혜택·사용 상세·발급 상세 각각 최대 10,000건입니다. 발급 상세를 선택해도 사용 상세를 함께 내보내므로 사용 이력이 한도를 넘으면 기간을 줄여야 합니다.</li>
     </ul></details>
-    <div className="flex flex-wrap items-center justify-between gap-3"><h2 className={SECTION_TITLE}>혜택 지급현황 <span className="text-sm font-normal text-muted-foreground">(총 {data.couponCount.toLocaleString('ko-KR')}개)</span></h2>{issuanceExportTooLarge ? <p className="text-[var(--wc-warning)]">발급 상세 엑셀은 최대 10,000건입니다. 기간이나 혜택 조건을 줄여주세요.</p> : <a className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" href={benefitReportHref(resolvedFilters, '/api/admin/benefit-workbook')}>엑셀 다운로드</a>}</div>
-    {filters.code ? <p className="text-muted-foreground">선택한 혜택: <strong className="font-medium text-foreground">{filters.code}</strong> · <Link className="underline underline-offset-4" href={benefitReportHref({ ...resolvedFilters, code: '', page: 1 })}>전체 혜택 보기</Link></p> : null}
+    <ConsoleListCard title="혜택 지급현황" total={data.couponCount} unit="개" actions={issuanceExportTooLarge ? <p className="text-[var(--wc-warning)]">발급 상세 엑셀은 최대 10,000건입니다. 기간이나 혜택 조건을 줄여주세요.</p> : <a className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" href={benefitReportHref(resolvedFilters, '/api/admin/benefit-workbook')}><Download aria-hidden="true" />엑셀 다운로드</a>}>
+      {filters.code ? <p className="text-muted-foreground">선택한 혜택: <strong className="font-medium text-foreground">{filters.code}</strong> · <Link className="underline underline-offset-4" href={benefitReportHref({ ...resolvedFilters, code: '', page: 1 })}>전체 혜택 보기</Link></p> : null}
     <ConsoleGrid caption="혜택별 지급현황" preferencesKey="benefit-report-coupons" columns={[{ key: 'name', label: '혜택이름', width: '220px' }, { key: 'code', label: '혜택 ID', width: '160px' }, ...metricColumns]}
       rows={data.coupons.map(row => ({ id: row.code, cells: [<Link key="name" className="font-medium underline-offset-4 hover:underline" href={benefitReportHref({ ...resolvedFilters, code: row.code, detail: 'uses', page: 1 })}>{row.name}</Link>, row.code,
         <Link key="issued" className="tabular-nums underline underline-offset-4" aria-label={`${row.name} 발급 ${row.issued.toLocaleString('ko-KR')}장 상세`} href={benefitReportHref({ ...resolvedFilters, code: row.code, detail: 'issuances', page: 1 })}>{row.issued.toLocaleString('ko-KR')}</Link>, ...metricCells(row).slice(1)] }))} emptyLabel="조회기간에 발급·결제 사용·복구된 혜택이 없습니다." />
+      {!filters.code ? pagination : null}
+    </ConsoleListCard>
     {filters.code ? <nav aria-label="쿠폰 상세 종류" className={TABS}>
       <Link className={TAB} aria-current={!showIssuances ? 'page' : undefined} href={benefitReportHref({ ...resolvedFilters, detail: 'uses', page: 1 })}>사용 상세</Link>
       <Link className={TAB} aria-current={showIssuances ? 'page' : undefined} href={benefitReportHref({ ...resolvedFilters, detail: 'issuances', page: 1 })}>발급 상세</Link>
     </nav> : null}
-    {showIssuances ? <section className="flex min-w-0 flex-col gap-3" aria-labelledby="benefit-issuance-heading">
-      <h3 className={SECTION_TITLE} id="benefit-issuance-heading">쿠폰 발급 상세</h3>
+    {showIssuances ? <ConsoleListCard aria-labelledby="benefit-issuance-heading" headingLevel={3} title={<span id="benefit-issuance-heading">쿠폰 발급 상세</span>}>
       {issuances ? <>
         <p>발급 전체 <strong className="font-medium tabular-nums">{issuances.totalCount.toLocaleString('ko-KR')}장</strong> · 현재 결제 사용 집계 <strong className="font-medium tabular-nums">{issuances.paidUseCount.toLocaleString('ko-KR')}장</strong> · 조회시각(KST) {issuanceDate(issuances.asOf)}</p>
         <p className="text-muted-foreground">조회기간에 발급된 쿠폰입니다. ‘예’는 현재 결제가 유지되어 기간 발급분 사용률에 포함되는 건입니다. ‘아니오’는 사용 가능이나 환불 완료를 뜻하지 않습니다. 발급·취소가 진행 중이면 먼저 읽은 상단 요약과 차이가 날 수 있습니다.</p>
@@ -95,13 +99,14 @@ export function BenefitReportScreen({ data, comparison, issuances = null, filter
         ]} rows={issuances.rows.map(row => ({ id: row.id, cells: [row.id, row.couponCode, issuanceDate(row.issuedAt), row.isPaidUse ? '예' : '아니오'] }))} emptyLabel={issuances.totalCount ? '이 페이지에는 발급 내역이 없습니다.' : '선택한 조건과 기간에 발급된 쿠폰이 없습니다.'} />
         {filters.page > 1 && issuances.rows.length === 0 ? <Link className={`${PAGE_LINK} self-start`} data-slot="button" href={benefitReportHref({ ...resolvedFilters, page: 1 })}>발급 상세 첫 페이지</Link> : null}
       </> : <p className="rounded-lg border border-destructive/30 bg-card px-3 py-2.5 text-destructive" role="alert">발급 상세를 읽지 못했습니다. <Link className="font-medium underline underline-offset-4" href={benefitReportHref(resolvedFilters)}>다시 조회</Link></p>}
-    </section> : null}
-    {filters.code && !showIssuances ? <><h3 className={SECTION_TITLE}>쿠폰 사용 상세</h3><ConsoleGrid caption="쿠폰 사용 상세" preferencesKey="benefit-report-uses" columns={[
+    {pagination}
+    </ConsoleListCard> : null}
+    {filters.code && !showIssuances ? <ConsoleListCard headingLevel={3} title="쿠폰 사용 상세"><ConsoleGrid caption="쿠폰 사용 상세" preferencesKey="benefit-report-uses" columns={[
       { key: 'order', label: '주문번호', width: '300px' }, { key: 'date', label: '적용일시(KST)', width: '180px' }, { key: 'status', label: '현재 상태', width: '100px' },
       { key: 'discount', label: '할인금액', align: 'end', width: '130px' }, { key: 'amount', label: '주문금액', align: 'end', width: '130px' }, { key: 'released', label: '복구일시(KST)', width: '180px' },
-    ]} rows={data.uses.map(row => ({ id: row.id, cells: [<Link key="order" className="tabular-nums underline-offset-4 hover:underline" href={`/admin/sales/orders/${row.orderId}`}>{row.orderId}</Link>, new Date(row.appliedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }), useStatus[row.status], krw(row.discountAmount), krw(row.orderAmount), row.releasedAt ? new Date(row.releasedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }) : '—'] }))} emptyLabel="선택한 기간에 쿠폰 사용 이력이 없습니다." /></> : null}
-    {count !== null ? <nav className="flex flex-wrap items-center justify-between gap-2 px-1" aria-label="혜택 리포트 페이지">{filters.page > 1 ? <Link className={PAGE_LINK} data-slot="button" href={benefitReportHref({ ...resolvedFilters, page: filters.page - 1 })}>이전</Link> : null}<span className="text-muted-foreground tabular-nums">{filters.page} / {Math.max(1, Math.ceil(count / 50))} 페이지 · {count.toLocaleString('ko-KR')}개</span>{filters.page * 50 < count ? <Link className={PAGE_LINK} data-slot="button" href={benefitReportHref({ ...resolvedFilters, page: filters.page + 1 })}>다음</Link> : null}</nav> : null}
-    <h3 className={SECTION_TITLE}>{filters.bucket === 'week' ? '주간' : filters.bucket === 'month' ? '월간' : '일간'} 혜택 추이</h3>
+    ]} rows={data.uses.map(row => ({ id: row.id, cells: [<Link key="order" className="tabular-nums underline-offset-4 hover:underline" href={`/admin/sales/orders/${row.orderId}`}>{row.orderId}</Link>, new Date(row.appliedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }), useStatus[row.status], krw(row.discountAmount), krw(row.orderAmount), row.releasedAt ? new Date(row.releasedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' }) : '—'] }))} emptyLabel="선택한 기간에 쿠폰 사용 이력이 없습니다." />{pagination}</ConsoleListCard> : null}
+    <ConsoleListCard headingLevel={3} title={<>{filters.bucket === 'week' ? '주간' : filters.bucket === 'month' ? '월간' : '일간'} 혜택 추이</>}>
     <ConsoleGrid caption="기간별 혜택 추이" preferencesKey="benefit-report-daily" columns={[{ key: 'date', label: '기준일(KST)', width: '130px' }, ...metricColumns]} rows={trend.map(row => ({ id: row.date, cells: [row.date, ...metricCells(row)] }))} />
+    </ConsoleListCard>
   </section>;
 }

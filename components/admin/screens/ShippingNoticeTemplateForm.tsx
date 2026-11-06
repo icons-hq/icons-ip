@@ -8,6 +8,7 @@ import {
   type ShippingNoticeTemplateActionState,
 } from '@/app/admin/shipping-notice-template-actions';
 import { AdminField, AdminFormGrid } from '@/components/admin/console/AdminKit';
+import { useAdminCreateDialogBusy } from '@/components/admin/console/AdminCreateDialogButton';
 import {
   SHIPPING_NOTICE_TEMPLATE_CODE_MAX,
   SHIPPING_NOTICE_TEMPLATE_CS_EMAIL_MAX,
@@ -30,6 +31,8 @@ const EMPTY_STATE: ShippingNoticeTemplateActionState = {};
 
 export function ShippingNoticeTemplateForm({ template }: { template?: ShippingNoticeTemplate }) {
   const [state, action, pending] = useActionState(saveShippingNoticeTemplateAction, EMPTY_STATE);
+  /* 등록 팝업 안에서 저장을 기다리는 동안 팝업을 닫지 못하게 한다(목록 안 수정 폼에서는 아무 일도 하지 않는다). */
+  useAdminCreateDialogBusy(pending);
   const prefix = useId();
   const value = (name: string, fallback: string) => state.values?.[name] ?? fallback;
   const locked = template?.status === 'active';
@@ -71,7 +74,7 @@ export function ShippingNoticeTemplateForm({ template }: { template?: ShippingNo
           <Input {...inputProps('csEmail')} type="email" defaultValue={value('csEmail', template?.csEmail ?? '')} maxLength={SHIPPING_NOTICE_TEMPLATE_CS_EMAIL_MAX} />
         </AdminField>
       </AdminFormGrid>
-      <Button className="w-fit min-w-28" type="submit"><Check aria-hidden="true" />{pending ? '저장 중…' : template ? '초안 수정 저장' : '새 초안 저장'}</Button>
+      <Button className="w-fit" type="submit"><Check aria-hidden="true" />{pending ? '저장 중…' : template ? '초안 수정 저장' : '새 초안 저장'}</Button>
     </fieldset>
     {state.errors?.form ? <p className={ALERT_BOX} role="alert">{state.errors.form}</p> : null}
     {state.message ? <p className={SUCCESS_BOX} role="status">{state.message}</p> : null}
@@ -89,7 +92,7 @@ export function ShippingNoticeTemplateActivationForm({ template }: { template: S
       <AdminField label="활성화 확인 근거" inputId={`${prefix}-confirmationEvidence`} error={state.errors?.confirmationEvidence} hint="실제 운영 자료를 확인한 근거를 적습니다. 임의의 주소·연락처를 대신 입력하지 않습니다.">
         <Textarea id={`${prefix}-confirmationEvidence`} name="confirmationEvidence" maxLength={SHIPPING_NOTICE_TEMPLATE_EVIDENCE_MAX} rows={3} required aria-invalid={Boolean(state.errors?.confirmationEvidence)} aria-describedby={state.errors?.confirmationEvidence ? `${prefix}-confirmationEvidence-error` : `${prefix}-confirmationEvidence-hint`} />
       </AdminField>
-      <Button className="w-fit min-w-28" type="submit">{pending ? '활성화 중…' : '활성화'}</Button>
+      <Button className="w-fit" type="submit">{pending ? '활성화 중…' : '활성화'}</Button>
     </fieldset>
     {state.errors?.form ? <p className={ALERT_BOX} role="alert">{state.errors.form}</p> : null}
     {state.message ? <p className={SUCCESS_BOX} role="status">{state.message}</p> : null}

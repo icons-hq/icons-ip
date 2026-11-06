@@ -5,6 +5,7 @@ import { AdminPageHeader, AdminStatusBadge } from '../console/AdminKit';
 import { AdminSelect } from '../console/AdminSelect';
 import { ConsoleFilterField, ConsoleFilterPanel } from '../console/ConsoleFilterPanel';
 import { ConsoleGrid } from '../console/ConsoleGrid';
+import { ConsoleListCard } from '../console/ConsoleListCard';
 import { ConsolePagination } from '../console/ConsolePagination';
 import { IP_INDEX_PATH, IP_INDEX_PAGE_SIZE, ipIndexHref, ipWorkspaceHref, type AdminIpIndexData } from '@/lib/admin/ip-workspace';
 
@@ -24,6 +25,7 @@ export function IpIndexScreen({ data }: { data: AdminIpIndexData }) {
         </AdminSelect>
       </ConsoleFilterField>
     </ConsoleFilterPanel>
+    <ConsoleListCard title="목록" total={total}>
     <ConsoleGrid caption="IP 목록" columns={[
       { key: 'title', label: 'IP 이름' }, { key: 'id', label: 'ID' }, { key: 'vertical', label: '버티컬' },
       { key: 'status', label: '게시 상태' }, { key: 'featured', label: '피처드' }, { key: 'position', label: '순번', align: 'end' },
@@ -33,5 +35,6 @@ export function IpIndexScreen({ data }: { data: AdminIpIndexData }) {
       ip.featured ? '지정' : '—', ip.sortOrder,
     ] }))} />
     <ConsolePagination page={filters.page} pageSize={IP_INDEX_PAGE_SIZE} total={total} hrefForPage={(page) => ipIndexHref(filters, page)} />
+    </ConsoleListCard>
   </section>;
 }

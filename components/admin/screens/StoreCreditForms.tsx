@@ -46,7 +46,7 @@ export function StoreCreditPolicyForm({ policy, operationId }: { policy: StoreCr
     <label className={CHECK_LABEL}><input type="checkbox" name="enabled" checked={values.enabled === 'true'} onChange={event => set('enabled', String(event.target.checked))} /> 적립금 지급과 주문 사용 활성화</label>
     <p className={NOTE}>비활성화해도 기존 주문에 약속한 적립과 사용분 복원, 기존 원장은 보존됩니다.</p>
     {state.error ? <p className={ALERT_BOX} role="alert">{state.error}</p> : null}{state.message ? <p className={SUCCESS_BOX} role="status">{state.message}</p> : null}
-    <Button className="w-fit min-w-28" disabled={pending} type="submit"><Check aria-hidden="true" />{pending ? '저장 중…' : '정책 저장'}</Button>
+    <Button className="w-fit" disabled={pending} type="submit"><Check aria-hidden="true" />{pending ? '저장 중…' : '정책 저장'}</Button>
   </form>;
 }
 
@@ -69,7 +69,7 @@ export function StoreCreditAdjustmentForm({ userId, available, enabled, operatio
         {direction === 'credit' ? <AdminField label="만료 일시 (KST)" inputId="credit-expiresAt"><Input id="credit-expiresAt" name="expiresAt" type="datetime-local" required value={expiresAt} onChange={event => setExpiresAt(event.target.value)} /></AdminField> : null}
       </AdminFormGrid>
       <AdminField label="조정 사유" inputId="credit-reason" hint="고객의 적립금 이력에도 표시됩니다. 고객에게 안내할 수 있는 근거만 적어주세요."><Textarea id="credit-reason" name="reason" required maxLength={1000} rows={3} value={reason} onChange={event => setReason(event.target.value)} /></AdminField>
-      <Button className="w-fit min-w-28" type="submit"><Check aria-hidden="true" />{pending ? '저장 중…' : '적립금 조정 저장'}</Button>
+      <Button className="w-fit" type="submit"><Check aria-hidden="true" />{pending ? '저장 중…' : '적립금 조정 저장'}</Button>
     </fieldset>
     {!enabled ? <p className={STATUS_BOX}>적립금 정책이 비활성 상태입니다. 정책을 설정하고 활성화해야 조정할 수 있습니다.</p> : null}
     {state.error ? <p className={ALERT_BOX} role="alert">{state.error}</p> : null}{state.message ? <p className={SUCCESS_BOX} role="status">{state.message} 현재 사용 가능 적립금: {state.available?.toLocaleString('ko-KR')}원</p> : null}

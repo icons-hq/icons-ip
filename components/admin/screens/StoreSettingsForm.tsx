@@ -40,7 +40,7 @@ export function StoreSettingsForm({section,settings,canEdit}:{section:'business'
     </AdminField>)}</AdminFormGrid>
     {section==='bank_transfer'?<p className={NOTE}>세 항목을 모두 비우면 새 주문에서 무통장 입금이 표시되지 않습니다. 기존 입금 대기 주문을 먼저 확인해주세요.</p>:<p className={NOTE}>빈 항목은 공개 사업자 정보에서 숨겨집니다. 연락처를 변경하면 푸터와 법정 문서에 함께 반영됩니다.</p>}
     <Feedback state={state}/>
-    {canEdit?<Button className="w-fit min-w-28" disabled={pending} type="submit"><Check aria-hidden="true"/>{pending?'저장 중…':'설정 저장'}</Button>:<ReadOnlyNotice/>}
+    {canEdit?<Button className="w-fit" disabled={pending} type="submit"><Check aria-hidden="true"/>{pending?'저장 중…':'설정 저장'}</Button>:<ReadOnlyNotice/>}
     {contactHelpOpen?<CustomerServiceDialog title="고객센터 연락처 노출위치" onClose={()=>setContactHelpOpen(false)}>
       <div className="flex flex-col gap-5 leading-relaxed" data-contact-help="">
       <section className="flex flex-col gap-1.5">
@@ -77,7 +77,7 @@ export function InquiryAutoRepliesForm({settings,canEdit}:{settings:StoreSetting
       </fieldset>)}
     </div>
     <Feedback state={state}/>
-    {canEdit?<Button className="w-fit min-w-28" disabled={pending} type="submit"><Check aria-hidden="true"/>{pending?'저장 중…':'문의 자동 안내 저장'}</Button>:<ReadOnlyNotice/>}
+    {canEdit?<Button className="w-fit" disabled={pending} type="submit"><Check aria-hidden="true"/>{pending?'저장 중…':'문의 자동 안내 저장'}</Button>:<ReadOnlyNotice/>}
   </form>;
 }
 export function ShippingCarrierForm({carrier,canEdit}:{carrier?:EditableCarrier;canEdit:boolean}) {
@@ -92,6 +92,6 @@ export function ShippingCarrierForm({carrier,canEdit}:{carrier?:EditableCarrier;
     </AdminField></div>)}</AdminFormGrid>
     <label className={CHECK_LABEL}><input type="checkbox" name="active" value="true" defaultChecked={state.values?state.values.active==='true':carrier?.active??true} disabled={!canEdit}/> 새 발송에서 사용</label>
     <p className={NOTE}>비활성화해도 기존 주문의 배송조회 링크는 유지됩니다.</p><Feedback state={state}/>
-    {canEdit?<Button className="w-fit min-w-28" disabled={pending} type="submit"><Check aria-hidden="true"/>{pending?'저장 중…':carrier?'택배사 저장':'택배사 등록'}</Button>:null}
+    {canEdit?<Button className="w-fit" disabled={pending} type="submit"><Check aria-hidden="true"/>{pending?'저장 중…':carrier?'택배사 저장':'택배사 등록'}</Button>:null}
   </form>;
 }

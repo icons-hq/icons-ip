@@ -17,8 +17,10 @@ import { Button } from '../kit/ui/button';
 import { Input } from '../kit/ui/input';
 
 type Element = ReactElement<{ children?: ReactNode; onClick?: () => void; onChange?: (event: unknown) => void; onKeyDown?: (event: unknown) => void; 'aria-label'?: string; value?: string; loading?: string; src?: string; alt?: string }>;
-function all(node: ReactNode): Element[] { return Array.isArray(node) ? node.flatMap(all) : isValidElement(node) ? [node as Element, ...all((node.props as { children?: ReactNode }).children)] : []; }
-function text(node: ReactNode): string { return Array.isArray(node) ? node.map(text).join('') : isValidElement(node) ? text((node.props as { children?: ReactNode }).children) : typeof node === 'string' || typeof node === 'number' ? String(node) : ''; }
+/* 화면 머리(AdminPageHeader)의 설명·동작 자리도 이 화면이 그리는 요소다. */
+type Slots = { description?: ReactNode; actions?: ReactNode; children?: ReactNode };
+function all(node: ReactNode): Element[] { return Array.isArray(node) ? node.flatMap(all) : isValidElement(node) ? [node as Element, ...all((node.props as Slots).description), ...all((node.props as Slots).actions), ...all((node.props as Slots).children)] : []; }
+function text(node: ReactNode): string { return Array.isArray(node) ? node.map(text).join('') : isValidElement(node) ? [(node.props as Slots).description, (node.props as Slots).actions, (node.props as Slots).children].map(text).join('') : typeof node === 'string' || typeof node === 'number' ? String(node) : ''; }
 function photo(id: string, name: string, references: { id: string; name: string; kind: string }[] = []) {
   return { id: `00000000-0000-4000-8000-0000000713${id}`, name, imagePath: `public-media/catalog/good/00000000-0000-4000-8000-0000000714${id}.webp`, revision: 1, archived: false, createdAt: '2026-10-28T00:00:00Z', references };
 }

@@ -6,8 +6,8 @@ import { resendOrderEmailAction, type AdminOrderActionState } from '@/app/admin/
 import type { EmailDeliveryRecord } from '@/lib/email/deliveries.server';
 import { Badge } from '@/components/admin/kit/ui/badge';
 import { Button } from '@/components/admin/kit/ui/button';
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/admin/kit/ui/empty';
-import { SECTION_CARD } from './SectionLayout';
+import { AdminPageHeader } from '../console/AdminKit';
+import { ConsoleListCard } from '../console/ConsoleListCard';
 
 /* 트랜잭션 메일 발송 이력(#180 범위 5).
  *
@@ -57,25 +57,22 @@ function ResendForm({ delivery }: { delivery: EmailDeliveryRecord }) {
 export function EmailDeliverySection({ deliveries }: { deliveries: EmailDeliveryRecord[] }) {
   return (
     <section className="flex min-w-0 flex-col gap-4">
-      <p className="max-w-prose text-sm text-muted-foreground">
-        주문 확인·배송 시작·문의 답변 메일의 발송 이력입니다. 주문 확인 메일은 전자상거래법상
-        계약내용에 관한 서면이라 실패한 건은 반드시 다시 보내야 합니다. 이미 발송된 건은 다시
-        보내도 중복 발송되지 않습니다.
-      </p>
+      <AdminPageHeader
+        title="메일 발송 이력"
+        description="주문 확인·배송 시작·문의 답변 메일의 발송 이력입니다. 주문 확인 메일은 전자상거래법상 계약내용에 관한 서면이라 실패한 건은 반드시 다시 보내야 합니다. 이미 발송된 건은 다시 보내도 중복 발송되지 않습니다."
+      />
 
+      {/* 발송 이력 목록 카드(콘솔 목록 카드) — 한 건이 한 줄이고, 빈 목록도 카드 안에 보인다. */}
+      <ConsoleListCard aria-label="메일 발송 이력 목록">
       {!deliveries.length ? (
-        <Empty className="border" role="status">
-          <EmptyHeader>
-            <EmptyTitle>다시 보낼 메일이 없습니다.</EmptyTitle>
-            <EmptyDescription>
-              실패했거나 결과를 확인하지 못한 발송이 생기면 여기에 쌓입니다.
-            </EmptyDescription>
-          </EmptyHeader>
-        </Empty>
+        <div className="py-10 text-center" role="status">
+          <p className="text-sm font-medium">다시 보낼 메일이 없습니다.</p>
+          <p className="mt-1.5 text-sm text-muted-foreground">실패했거나 결과를 확인하지 못한 발송이 생기면 여기에 쌓입니다.</p>
+        </div>
       ) : (
-        <ul className="flex flex-col gap-3">
+        <ul className="flex flex-col divide-y">
           {deliveries.map((delivery) => (
-            <li className={SECTION_CARD} key={delivery.dedupeKey}>
+            <li className="flex min-w-0 flex-col gap-4 py-4 text-sm first:pt-0 last:pb-0" key={delivery.dedupeKey}>
               <div className="flex flex-wrap items-start justify-between gap-2">
                 <strong className="text-base leading-snug font-medium text-foreground">{delivery.templateLabel}</strong>
                 <span className="flex items-center gap-2 text-xs text-muted-foreground">
@@ -112,6 +109,7 @@ export function EmailDeliverySection({ deliveries }: { deliveries: EmailDelivery
           ))}
         </ul>
       )}
+      </ConsoleListCard>
     </section>
   );
 }

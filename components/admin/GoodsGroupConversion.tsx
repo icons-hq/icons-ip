@@ -6,7 +6,7 @@ import { GOODS_GROUPS_PATH, goodsGroupBlockerLabel, goodsGroupHref, parseGoodsGr
   type GoodsGroupConversionRequest, type GoodsGroupPreview, type GoodsGroupSource } from '@/lib/admin/goods-groups';
 import { formatWon } from '@/lib/admin/goods-price-editor';
 import { ArrowDown, ArrowUp } from 'lucide-react';
-import { AdminField, AdminFormGrid, AdminSectionCard, AdminStatusBadge } from './console/AdminKit';
+import { AdminField, AdminFormGrid, AdminPageHeader, AdminSectionCard, AdminStatusBadge } from './console/AdminKit';
 import { AdminSelect } from './console/AdminSelect';
 import { Button, buttonVariants } from './kit/ui/button';
 import { Input } from './kit/ui/input';
@@ -19,7 +19,10 @@ function initialDraft(source: GoodsGroupSource | null): GoodsGroupConversionRequ
   return { sourceGoodId: source?.goodId ?? '', name: [...(source?.name ?? '')].slice(0, 40).join(''), optionNames,
     selections: source?.variants.slice(0, 100).map(row => ({ variantId: row.id, values: optionNames.map((name, index) => row.attributes[name] ?? (index === 0 ? row.name : '')) })) ?? [] };
 }
-export function GoodsGroupConversion({ initialSource, actorId, sessionId }: { initialSource: GoodsGroupSource | null; actorId: string; sessionId: string | null }) {
+const CONVERSION_DESCRIPTION = '한 상품의 선택형 옵션을 각각 독립된 판매옵션으로 전환합니다. 첫 번째 옵션이 기존 상품번호를 유지합니다.';
+
+/** `title`: 화면 머리 제목. 주면 머리(제목·설명·관련 화면 링크)를 이 화면이 그린다. */
+export function GoodsGroupConversion({ initialSource, actorId, sessionId, title }: { initialSource: GoodsGroupSource | null; actorId: string; sessionId: string | null; title?: string }) {
   const session = useGoodsGroupSession(actorId, sessionId), identity = sessionId ? { actorId, sessionId } : null;
   const operation = useGoodsGroupOperation(identity, 'convert', session.current, session.deny);
   const [source, setSource] = useState(initialSource), [draft, setDraft] = useState(() => initialDraft(initialSource));
@@ -63,9 +66,11 @@ export function GoodsGroupConversion({ initialSource, actorId, sessionId }: { in
   const byId = new Map(source?.variants.map(row => [row.id, row]) ?? []), selectedIds = new Set(draft.selections.map(row => row.variantId));
   const ordered = [...draft.selections.map(row => byId.get(row.variantId)!).filter(Boolean), ...(source?.variants.filter(row => !selectedIds.has(row.id)) ?? [])];
   if (session.blocked) return <p className="text-sm text-destructive" role="alert">로그인 상태가 바뀌었습니다. 현재 계정으로 화면을 다시 열어주세요.</p>;
+  const relatedLinks = <><Link className={buttonVariants({ variant: 'outline' })} data-slot="button" href={GOODS_GROUPS_PATH}>그룹상품 목록</Link><Link className={buttonVariants({ variant: 'outline' })} data-slot="button" href={`${GOODS_GROUPS_PATH}/new?mode=assemble`}>기존 상품으로 그룹 구성</Link></>;
   return <section className="flex min-w-0 flex-col gap-4" aria-busy={pending || operation.pending} data-admin-screen="goods-group-conversion">
-    <div className="flex flex-wrap items-center gap-2"><Link className={buttonVariants({ variant: 'outline' })} data-slot="button" href={GOODS_GROUPS_PATH}>그룹상품 목록</Link><Link className={buttonVariants({ variant: 'outline' })} data-slot="button" href={`${GOODS_GROUPS_PATH}/new?mode=assemble`}>기존 상품으로 그룹 구성</Link></div>
-    <p className="max-w-prose text-sm text-muted-foreground">한 상품의 선택형 옵션을 각각 독립된 판매옵션으로 전환합니다. 첫 번째 옵션이 기존 상품번호를 유지합니다.</p>
+    {title ? <AdminPageHeader title={title} description={CONVERSION_DESCRIPTION} actions={relatedLinks} />
+      : <><div className="flex flex-wrap items-center gap-2">{relatedLinks}</div>
+        <p className="max-w-prose text-sm text-muted-foreground">{CONVERSION_DESCRIPTION}</p></>}
     <GroupOperationStatus operation={operation} disabled={session.blocked} />
     {operation.receipt?.state === 'completed' ? <GroupCompleted receipt={operation.receipt} /> : <>
       {operation.receipt?.state === 'sealed' ? <Button className="self-start" variant="outline" type="button" onClick={() => { operation.clearReceipt(); setPreview(null); setApproved(false); }}>입력으로 돌아가 다시 비교</Button> : null}

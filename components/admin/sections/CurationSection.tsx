@@ -530,7 +530,7 @@ function CurationForm({
       <footer className="grid gap-3 border-t p-4 sm:p-5 print:hidden"><ActionNotice state={state} />
         {heroLimitReached ? <p className="text-sm text-destructive" role="alert">프로모션 배너는 비노출을 포함해 최대 10개까지 등록합니다. 기존 배너를 수정해주세요.</p> : null}
         {freeProductLimitReached ? <p className="text-sm text-destructive" role="alert">자유상품은 모자이크·비노출·종료를 포함해 합계 5개까지 등록합니다. 기존 구성을 수정해주세요.</p> : null}
-        <Button disabled={pending || state.conflict || heroLimitReached || freeProductLimitReached} size="lg" type="submit">{pending ? '적용 중…' : state.uncertain ? '같은 요청 결과 확인' : '이 구성 적용하기'}</Button>
+        <Button disabled={pending || state.conflict || heroLimitReached || freeProductLimitReached} type="submit">{pending ? '적용 중…' : state.uncertain ? '같은 요청 결과 확인' : '이 구성 적용하기'}</Button>
         {state.conflict ? <Button onClick={() => router.refresh()} type="button" variant="outline">입력을 취소하고 최신 저장본 불러오기</Button> : null}
         {selected?.kind === 'hero' ? <HeroBannerDeleteButton target={selected} dirty={dirty}
           disabled={pending || Boolean(state.uncertain) || Boolean(state.conflict)} onDeleted={onDeleted} /> : null}

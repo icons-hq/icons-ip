@@ -64,7 +64,8 @@ describe('goods list screen', () => {
     expect(html).toContain('상품 일괄등록·수정');
     // R21: 그룹상품 탭 링크는 숨긴다(라우트는 그대로).
     expect(html).not.toContain('href="/admin/catalog/groups"');
-    expect(html).toMatch(/<span aria-current="page"[^>]*>전체 상품 조회\/수정<\/span>/);
+    /* 전환할 탭이 하나뿐이면 탭 줄을 그리지 않는다(외톨이 탭 제거). */
+    expect(html).not.toContain('aria-label="상품 관리 화면"');
     expect(html).toContain('from=2026-10-01');
   });
   it('상세 조건을 하단 검색 동작 앞에 유지하고 지정된 조건이 있으면 펼친다', () => {

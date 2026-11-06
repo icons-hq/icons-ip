@@ -26,7 +26,8 @@ import { GoodsGroupsScreen } from './GoodsGroupsScreen';
 import { DEFAULT_GROUP_FILTERS } from '@/lib/admin/goods-group-console';
 import type { GoodsGroupSnapshot } from '@/lib/admin/goods-groups';
 type Element = ReactElement<Record<string, unknown>>;
-function nodes(value: ReactNode): Element[] { return Children.toArray(value).flatMap(node => isValidElement<Record<string, unknown>>(node) ? [node, ...nodes(node.props.children as ReactNode)] : []); }
+/* 일괄 변경 막대의 선택 동작 자리(selectionActions)도 이 화면이 그리는 요소다. */
+function nodes(value: ReactNode): Element[] { return Children.toArray(value).flatMap(node => isValidElement<Record<string, unknown>>(node) ? [node, ...nodes(node.props.selectionActions as ReactNode), ...nodes(node.props.children as ReactNode)] : []); }
 function text(value: ReactNode): string { return Children.toArray(value).map(node => isValidElement<Record<string, unknown>>(node) ? text(node.props.children as ReactNode) : String(node)).join(''); }
 const group = (id: string, archivedAt: string | null = null) => ({ id, name: `그룹 ${id}`, optionNames: ['색상'], members: [], archivedAt }) as unknown as GoodsGroupSnapshot;
 const page = (rows: GoodsGroupSnapshot[]) => ({ rows, total: rows.length, page: 1, pageSize: 20, counts: { all: rows.length, active: rows.length, archived: 0 }, metadata: {} });

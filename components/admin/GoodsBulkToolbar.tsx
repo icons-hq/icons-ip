@@ -1,6 +1,6 @@
 'use client';
 import Link from 'next/link';
-import { useEffect, useRef, useState, useTransition } from 'react';
+import { useEffect, useRef, useState, useTransition, type ReactNode } from 'react';
 import { previewGoodsBulkAction, commitGoodsBulkAction, readGoodsBulkAction } from '@/app/admin/goods-bulk-actions';
 import { GOODS_BULK_IP_LIMIT, GOODS_BULK_LABELS, goodsBulkError, goodsBulkShippingHref, goodsBulkSkipLabel, parseGoodsBulkRequest, type GoodsBulkCommand, type GoodsBulkKind, type GoodsBulkPreview, type GoodsBulkReceipt, type GoodsBulkSkipped } from '@/lib/admin/goods-bulk';
 import { isUuid } from '@/lib/uuid';
@@ -36,8 +36,10 @@ const NOTE = 'text-sm text-muted-foreground';
 const CHECK = 'flex cursor-pointer items-center gap-2 text-sm';
 /* kind="ip"는 IP 필터 결과 전체(보관 제외, 최대 1,000개)에 즉시할인만 적용한다(A10). 기간이 겹치는
    상품은 비교 단계에서 건너뛰기로 고정되고, 저장 후 건너뛴 목록을 그대로 보여 준다. */
-export function GoodsBulkToolbar({ kind, selectedIds, shippingGoodIds = selectedIds, identity, disabled = false, onCompleted, ipTitle }: {
+/** `selectionActions`: 같은 선택에 거는 다른 동작(선택 해제·마케팅 링크 등). 선택 개수는 이 막대에서 한 번만 보인다. */
+export function GoodsBulkToolbar({ kind, selectedIds, shippingGoodIds = selectedIds, identity, disabled = false, onCompleted, ipTitle, selectionActions }: {
   kind: GoodsBulkKind; selectedIds: string[]; shippingGoodIds?: string[]; identity: GoodsGroupIdentity; disabled?: boolean; onCompleted: () => void; ipTitle?: string;
+  selectionActions?: ReactNode;
 }) {
   const session = useGoodsGroupSession(identity.actorId, identity.sessionId);
   const [dialog, setDialog] = useState<{ ids: string[]; command: GoodsBulkCommand } | null>(null), [preview, setPreview] = useState<GoodsBulkPreview | null>(null);
@@ -146,6 +148,7 @@ export function GoodsBulkToolbar({ kind, selectedIds, shippingGoodIds = selected
         <Button key={command} size="sm" variant="outline" type="button" disabled={locked || !selectedIds.length || selectedIds.length > 100} onClick={() => open(command)}>{label}</Button>)}
       {shippingGoodIds.length > 0 && shippingGoodIds.length <= 100 && !locked ? <Link className={buttonVariants({ size: 'sm', variant: 'outline' })} data-slot="button" href={goodsBulkShippingHref(shippingGoodIds)}>배송 변경</Link>
         : <Button size="sm" variant="outline" type="button" disabled>배송 변경</Button>}
+      {selectionActions ? <><span aria-hidden="true" className="mx-1 h-5 w-px bg-border" />{selectionActions}</> : null}
     </div>}
     {session.blocked ? <p className="text-sm text-destructive" role="alert">로그인 계정 또는 세션이 변경되었습니다. 화면을 다시 열어주세요.</p> : null}
     {storageBroken ? <p className="text-sm text-destructive" role="alert">진행 기록을 확인하지 못했습니다. 브라우저 저장공간을 확인하고 화면을 다시 열어주세요.</p> : null}
