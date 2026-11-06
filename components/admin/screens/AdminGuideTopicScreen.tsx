@@ -1,6 +1,5 @@
 import Link from 'next/link';
 import { ArrowRight, Info, OctagonAlert, TriangleAlert } from 'lucide-react';
-import { Badge } from '@/components/admin/kit/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/admin/kit/ui/table';
 import {
   adjacentAdminGuideTopics,
@@ -47,9 +46,9 @@ function screenChipLabel(href: string): string {
 function ScreenChip({ screen, access }: { screen: AdminGuideScreenLink; access?: AdminAccessSource }) {
   if (access !== undefined && !canAccessAdminScreen(access, adminScreenForPath(screen.href))) return null;
   return (
-    <Link className="group/chip inline-flex min-h-9 max-w-full items-center gap-2 rounded-lg border bg-background px-3 py-1.5 text-sm font-medium transition-colors hover:bg-muted" data-guide="screen-chip" href={screen.href}>
+    <Link className="group/chip inline-flex min-h-9 max-w-full flex-wrap items-center gap-x-2 gap-y-1 rounded-lg border bg-background px-3 py-1.5 text-left text-sm font-medium transition-colors hover:bg-muted" data-guide="screen-chip" href={screen.href}>
       <span className="min-w-0">{screenChipLabel(screen.href)}</span>
-      {screen.note && <Badge variant="secondary">{screen.note}</Badge>}
+      {screen.note && <span className="min-w-0 rounded-md bg-muted px-2 py-0.5 text-xs font-medium text-muted-foreground">{screen.note}</span>}
       <ArrowRight aria-hidden="true" className="size-4 shrink-0 text-muted-foreground transition-transform group-hover/chip:translate-x-0.5 group-hover/chip:text-foreground" />
     </Link>
   );

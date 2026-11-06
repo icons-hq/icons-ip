@@ -26,7 +26,10 @@ const REVIEW_TABS = [
 
 /* 목록 한 줄. 문의·리뷰 팝업 트리거(QnaActionPanel·ReviewActionPanel의 button)도 링크와 같은 한 줄 글자로 맞춘다. */
 const ROW_TARGET = 'min-w-0 [&>a]:block [&>a]:truncate [&>a]:text-sm [&>a]:underline-offset-4 [&>a]:hover:underline [&>button]:block [&>button]:w-full [&>button]:truncate [&>button]:text-left [&>button]:text-sm [&>button]:underline-offset-4 [&>button]:hover:underline';
-const TAB_LIST = 'max-w-full justify-start overflow-x-auto [&_strong]:font-semibold [&_strong]:tabular-nums';
+/* kit Tabs는 data-horizontal 변형에 기대지만 Base UI는 data-orientation만 단다 — 세로 쌓기·목록 높이를 여기서 직접 준다. */
+const TABS = 'flex-1 flex-col gap-3';
+const TAB_LIST = 'h-8 max-w-full justify-start overflow-x-auto [&_strong]:font-semibold [&_strong]:tabular-nums';
+const TAB_PANEL = 'flex min-w-0 flex-col gap-3';
 const METRIC_LINK = 'inline-flex min-h-11 min-w-11 items-center justify-end gap-1 text-lg font-semibold tabular-nums underline-offset-4 hover:underline';
 
 function AttentionColumn({ label, children }: { label: string; children: ReactNode }) {
@@ -84,22 +87,22 @@ export function HomeAttention({ data }: { data: AdminHomeAttention }) {
     </summary>
     <div className="grid gap-6 border-t p-4 md:grid-cols-2">
       <AttentionColumn label="확인 필요한 문의">
-        <Tabs className="flex-1 gap-3" onValueChange={(value) => setInquiryTab(value as typeof inquiryTab)} value={inquiryTab}>
+        <Tabs className={TABS} onValueChange={(value) => setInquiryTab(value as typeof inquiryTab)} value={inquiryTab}>
           <TabsList aria-label="문의 종류" className={TAB_LIST}>
             {INQUIRY_TABS.map(tab => <TabsTrigger className="flex-none px-2.5" key={tab.value} value={tab.value}>{tab.label} <strong>{count(data[tab.value])}</strong></TabsTrigger>)}
           </TabsList>
-          {INQUIRY_TABS.map(tab => <TabsContent className="flex flex-col gap-3" key={tab.value} value={tab.value}>
+          {INQUIRY_TABS.map(tab => <TabsContent className={TAB_PANEL} key={tab.value} value={tab.value}>
             {inquiryRows(tab.value)}
             <MoreLink href={tab.more}>자세히 확인하기</MoreLink>
           </TabsContent>)}
         </Tabs>
       </AttentionColumn>
       <AttentionColumn label="확인 필요한 리뷰">
-        <Tabs className="flex-1 gap-3" onValueChange={(value) => setReviewTab(value as typeof reviewTab)} value={reviewTab}>
+        <Tabs className={TABS} onValueChange={(value) => setReviewTab(value as typeof reviewTab)} value={reviewTab}>
           <TabsList aria-label="리뷰 종류" className={TAB_LIST}>
             {REVIEW_TABS.map(tab => <TabsTrigger className="flex-none px-2.5" key={tab.value} value={tab.value}>{tab.label} <strong>{count(data[tab.value])}</strong></TabsTrigger>)}
           </TabsList>
-          {REVIEW_TABS.map(tab => <TabsContent className="flex flex-col gap-3" key={tab.value} value={tab.value}>
+          {REVIEW_TABS.map(tab => <TabsContent className={TAB_PANEL} key={tab.value} value={tab.value}>
             {reviewRows(tab.value)}
             <MoreLink href={tab.more}>자세히 확인하기</MoreLink>
           </TabsContent>)}
