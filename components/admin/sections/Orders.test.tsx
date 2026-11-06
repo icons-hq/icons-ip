@@ -227,7 +227,7 @@ describe('OrdersSection', () => {
     expect(html).toContain('₩10,000');
     expect(html).toContain('₩0');
     expect(html).not.toContain('₩4만');
-    expect(html).toMatch(/order-status order-status--paid[^>]*>신규주문/);
+    expect(html).toMatch(/data-order-status="paid"[^>]*>신규주문/);
   });
 
   it('opens no replacement panel when a linked order is outside the current page', () => {
@@ -311,7 +311,7 @@ describe('OrdersSection', () => {
       'data-confirm="Korpay 주문 O0123456789ABCDEF · ₩32,000 KRW의 전액 취소 완료를 원장에서 확인했습니다. 반영하면 확인된 결제에는 환불 원장을 남기고, 주문 취소와 재고 복원을 즉시 완료합니다. 계속할까요?"',
     );
     expect(html).toContain('Korpay 전액 취소 반영');
-    expect(html).toContain('admin-order-korpay-recovery-submit');
+    expect(html).toContain('data-order-action="korpay-recovery-submit"');
     expect(html).not.toContain('상태 다시 확인');
   });
 
@@ -587,10 +587,10 @@ describe('OrdersSection', () => {
       cancellationRequest: cancellationRequest({ reasonType: 'defect' }),
     })} />);
 
-    expect(html).toContain('admin-order-row-reason');
+    expect(html).toContain('data-order-row-reason');
     expect(html).toContain(`aria-label="주문 ${ORDER_ID.slice(0, 8)} 선택 · 청약철회 상품 하자·오배송"`);
     expect(html).toContain('상품 하자·오배송');
-    expect(html).toContain('admin-order-reason--defect');
+    expect(html).toContain('data-order-reason="defect"');
     expect(html).toContain('공급받은 날부터 3개월');
     expect(html).toContain('반송비 회사 부담');
   });
@@ -602,8 +602,8 @@ describe('OrdersSection', () => {
     })} />);
 
     expect(html).toContain('단순 변심');
-    expect(html).toContain('admin-order-reason--change_of_mind');
-    expect(html).not.toContain('admin-order-reason--defect');
+    expect(html).toContain('data-order-reason="change_of_mind"');
+    expect(html).not.toContain('data-order-reason="defect"');
     expect(html).toContain('공급받은 날부터 7일');
     expect(html).toContain('반송비 이용자 부담');
   });
@@ -621,7 +621,7 @@ describe('OrdersSection', () => {
     })} />);
 
     expect(html).toContain('운영자 전액 취소 · 품절·출고 불가');
-    expect(html).toContain('admin-order-reason--staff');
+    expect(html).toContain('data-order-reason="staff"');
     expect(html).toContain(`aria-label="주문 ${ORDER_ID.slice(0, 8)} 선택 · 운영자 전액 취소 · 품절·출고 불가"`);
     expect(html).not.toContain('단순 변심');
     expect(html).not.toContain('공급받은 날부터 7일');
@@ -640,7 +640,7 @@ describe('OrdersSection', () => {
       }),
     })} />);
 
-    expect(html).toContain('정합화 오류 · <code class="mono">provider_unavailable</code>');
+    expect(html).toMatch(/정합화 오류 · <code[^>]*>provider_unavailable<\/code>/);
     expect(html).toContain('상태 다시 확인');
   });
 
@@ -656,8 +656,8 @@ describe('OrdersSection', () => {
   it('청약철회 요청이 없는 주문은 사유 표시를 만들지 않는다', () => {
     const html = renderToStaticMarkup(<OrdersSection data={orderData()} />);
 
-    expect(html).not.toContain('admin-order-reason');
-    expect(html).not.toContain('admin-order-row-reason');
+    expect(html).not.toContain('data-order-reason');
+    expect(html).not.toContain('data-order-row-reason');
   });
 
   /* 반송은 배송이 시작된 주문에서만 일어난다. 미출고 주문에 부담 주체를 띄우면
@@ -685,10 +685,10 @@ describe('OrdersSection', () => {
       }),
     })} />);
 
-    expect(html).not.toContain('admin-order-row-reason');
+    expect(html).not.toContain('data-order-row-reason');
     expect(html).toContain(`aria-label="주문 ${ORDER_ID.slice(0, 8)} 선택"`);
     // 상세에는 남는다 — 어떤 사유로 종결됐는지는 사후에도 필요하다.
-    expect(html).toContain('admin-order-reason--defect');
+    expect(html).toContain('data-order-reason="defect"');
   });
 
   it('배송 건 운송장 정정 폼에서 택배사와 운송장번호를 필수로 받는다', () => {
@@ -856,7 +856,8 @@ describe('주문 통합검색 목록 엑셀 다운로드', () => {
     expect(html).toContain('목록 엑셀 다운로드');
     expect(html).toContain('data-export-href="/api/admin/list-export?screen=orders&amp;status=paid&amp;from=2026-10-01&amp;query=%EB%B0%B0%EC%86%A1+%EC%88%98%EC%B7%A8%EC%9D%B8&amp;field=recipient"');
     expect(html).toContain('전체 57건을 받습니다');
-    expect(html.indexOf('admin-order-filters')).toBeLessThan(html.indexOf('목록 엑셀 다운로드'));
+    expect(html.indexOf('data-sales-filters')).toBeGreaterThan(-1);
+    expect(html.indexOf('data-sales-filters')).toBeLessThan(html.indexOf('목록 엑셀 다운로드'));
   });
 });
 
