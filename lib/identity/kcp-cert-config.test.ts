@@ -88,8 +88,17 @@ describe('adultVerificationEnabledFor', () => {
     expect(adultVerificationEnabledFor(CANARY, { ADULT_VERIFICATION_ENABLED: 'true' })).toBe(false);
   });
 
-  it('공개 스위치가 켜지면 모든 로그인 사용자에게 열린다', () => {
-    expect(adultVerificationEnabledFor(CANARY, { ...testEnvironment, ADULT_VERIFICATION_ENABLED: 'true' })).toBe(true);
+  it('공개 스위치가 켜지면 처리방침 개정 시행일부터 모든 로그인 사용자에게 열린다', () => {
+    const env = { ...testEnvironment, ADULT_VERIFICATION_ENABLED: 'true' };
+    expect(adultVerificationEnabledFor(CANARY, env, '2026-11-13')).toBe(true);
+    expect(adultVerificationEnabledFor('00000000-0000-4000-8000-0000000a1902', env, '2027-01-01')).toBe(true);
+  });
+
+  it('처리방침 개정 시행 전에는 공개 스위치가 켜져 있어도 canary만 열린다', () => {
+    const env = { ...testEnvironment, ADULT_VERIFICATION_ENABLED: 'true', ADULT_VERIFICATION_CANARY_USER_ID: CANARY };
+    expect(adultVerificationEnabledFor('00000000-0000-4000-8000-0000000a1902', env, '2026-11-12')).toBe(false);
+    expect(adultVerificationEnabledFor(CANARY, env, '2026-11-12')).toBe(true);
+    expect(adultVerificationEnabledFor(CANARY, { ...testEnvironment, ADULT_VERIFICATION_ENABLED: 'true' }, '2026-11-12')).toBe(false);
   });
 
   it('공개 스위치가 꺼져 있으면 단일 canary만 열린다', () => {
