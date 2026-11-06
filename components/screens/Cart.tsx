@@ -29,6 +29,8 @@ import { shippingGroupLabel, shippingGroupsNotice } from '@/lib/fulfillment';
 import { goodsShipDateLabel, preorderSupplyLabel, type GoodsVariantSupply } from '@/lib/goods-preorders';
 import { GoodsSalePeriodRefresh } from '@/components/shop/GoodsSalePeriodRefresh';
 import { goodsSaleUnavailableLabel } from '@/lib/goods-sale-period';
+import { ADULT_GOOD_LABEL } from '@/lib/adult-goods';
+import { adultVerificationHref } from '@/lib/identity/adult-verification-routes';
 
 interface CartLine {
   goodId: string;
@@ -39,6 +41,8 @@ interface CartLine {
   good?: Good;
   ip?: Ip;
   supply?: GoodsVariantSupply;
+  /** 성인 인증이 없거나 만료된 계정에 남은 19금 굿즈 줄(ADR-0024). 주문을 막는다. */
+  masked?: boolean;
   /** 옵션별 주문당 최대 수량(D7②) — 수량 스테퍼 상한. */
   orderMaxQty?: number | null;
   /** 견적이 알린 옵션별 구매 제한 위반 안내(확정 카피). */
@@ -56,7 +60,7 @@ function isSoldOut(good: Good) {
 
 /** 주문을 막는 라인인지. 카탈로그에서 사라진 굿즈·품절·재고 초과가 여기 걸린다. */
 function isUnavailable(line: CartLine) {
-  if (!line.good) return true;
+  if (line.masked || !line.good) return true;
   return Boolean(goodsSaleUnavailableLabel(line.good.salePeriod)) || isSoldOut(line.good) || line.qty > line.good.stockQty || Boolean(goodsCustomInputProblem(line.good.customInputs,line.customInputs));
 }
 
@@ -73,6 +77,32 @@ function lineStateLabel(good: Good, qty: number) {
 function CartLineRow({ line }: { line: CartLine }) {
   const { pending, remove, setQuantity } = useCart();
   const { good, goodId, variantId, ip, qty, optionName, supply,customInputs, orderMaxQty, optionLimitMessage, refold } = line;
+
+  if (line.masked) {
+    return (
+      <li className="wc-cart__line wc-cart__line--unavailable">
+        <span aria-hidden className="wc-cart__line-media wc-product-card__adult-cover">
+          <span className="wc-product-card__adult-mark">19</span>
+        </span>
+        <div className="wc-cart__line-info">
+          <p className="wc-cart__line-brand">{ip?.title ?? 'ICONS'}</p>
+          <p className="wc-cart__line-name">{ADULT_GOOD_LABEL}</p>
+          <p className="wc-cart__line-state">
+            성인 인증 후 구매할 수 있어요. <Link href={adultVerificationHref('/cart')}>성인 인증하기</Link>
+          </p>
+        </div>
+        <button
+          aria-label={`${ADULT_GOOD_LABEL} 장바구니에서 삭제`}
+          className="wc-cart__remove"
+          disabled={pending}
+          onClick={() => void remove(goodId, variantId,customInputs)}
+          type="button"
+        >
+          <Icon name="close" size={18} />
+        </button>
+      </li>
+    );
+  }
 
   if (!good) {
     return (
@@ -192,6 +222,8 @@ export function Cart({
     return items.map((item) => {
       const quoteLine = prices.get(cartItemKey(item.goodId, item.variantId));
       const catalogGood = goodsById.get(item.goodId);
+      /* 성인 인증 전에 남은 19금 굿즈 줄은 가림 줄이다(ADR-0024) — 옵션·가격을 읽지 않는다. */
+      if (catalogGood?.masked) return { ...item, masked: true, ip: ipsById.get(catalogGood.ip) };
       const good = goodAtQuotedPrice(cartOptionGood(catalogGood, item.variantId), quoteLine);
       const option = cartLineOption(good, item.variantId);
       /* 랜덤 판매 굿즈(D5②)는 카탈로그가 옵션을 '랜덤' 하나로 접어 두었다 — 옵션명이 그대로 '랜덤'이다. */

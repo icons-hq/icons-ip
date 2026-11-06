@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { Wishlist } from '@/components/screens/Wishlist';
 import { getCurrentAuthState } from '@/lib/auth/server';
 import { getCatalogSnapshot } from '@/lib/catalog';
+import { getAdultGoodsAccess } from '@/lib/adult-goods-access.server';
 import { loadMyFollowedIpIds } from '@/lib/my-follows.server';
 import { getWishlistEntries } from '@/lib/wishlist.server';
 import { followedIpList, wishlistLines, wishlistTab, wishlistTabHref } from '@/lib/wishlist-lines';
@@ -35,7 +36,7 @@ export default async function Page({
 
   const [entries, catalog, followedIpIds] = await Promise.all([
     getWishlistEntries(),
-    getCatalogSnapshot(),
+    getAdultGoodsAccess().then(adultGoods => getCatalogSnapshot({ adultGoods })),
     loadMyFollowedIpIds(auth.user.id),
   ]);
 

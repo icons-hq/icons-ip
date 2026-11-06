@@ -17,7 +17,7 @@ import { bankTransferCheckoutEnabled } from '@/lib/payments/bank-transfer.server
 import { goodsCheckoutPaymentsEnabled } from '@/lib/payments/goods-checkout-availability';
 import { GoodsPaymentRepositoryError } from '@/lib/payments/goods-checkout.server';
 import { createRuntimeGoodsPaymentCheckout } from '@/lib/payments/goods-checkout.runtime.server';
-import { deriveGoodsOrderProvider } from '@/lib/payments/goods-sale-restriction.server';
+import { deriveGoodsCartProvider, deriveGoodsOrderProvider } from '@/lib/payments/goods-sale-restriction.server';
 import { createServiceClient } from '@/lib/supabase/service';
 import { normalizeStoreCreditAmount } from '@/lib/store-credits';
 import { couponErrorNeedsPendingOrder } from '@/lib/coupons';
@@ -144,9 +144,15 @@ export async function placeOrderAction(
 
   // 수단별로 게이트가 다르다. 무통장에는 결제사가 없으므로 PG rollout gate가
   // 닫혀 있어도 열릴 수 있고, 반대로 계좌가 없으면 카드가 열려 있어도 닫힌다.
-  const available = paymentMethod === 'bank_transfer'
-    ? await bankTransferCheckoutEnabled()
-    : goodsCheckoutPaymentsEnabled(auth.user.id);
+  // 카드 gate는 카트 구성으로 파생한 provider의 것이다 — 19금 굿즈가 섞이면 코페이다.
+  let available: boolean;
+  try {
+    available = paymentMethod === 'bank_transfer'
+      ? await bankTransferCheckoutEnabled()
+      : goodsCheckoutPaymentsEnabled(auth.user.id, await deriveGoodsCartProvider(expectedCart.map(item => item.goodId)));
+  } catch {
+    return { ok: false, error: 'unavailable' };
+  }
   if (!available) {
     return { ok: false, error: 'payment_unavailable' };
   }
