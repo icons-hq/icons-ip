@@ -31,14 +31,15 @@ describe('상품 목록 바로 수정 값 버튼', () => {
     expect(declarations('./admin-goods-worklist.css', '.wc-admin .admin-goods-inline__value')).toMatchObject({ display: 'flex', width: '100%', 'justify-content': 'flex-start' });
     expect(declarations('./admin-goods-worklist.css', ".wc-admin td[data-align='end'] .admin-goods-inline__value")).toMatchObject({ 'justify-content': 'flex-end' });
   });
-  it('판매가·재고수량 칸은 버튼의 덮개가 셀 전체를 덮고, 같은 칸의 링크는 그 위에 남는다', () => {
-    expect(declarations('./admin-goods-worklist.css', '.wc-admin .admin-console-grid-table td:has(.admin-goods-inline--cell)')).toMatchObject({ position: 'relative' });
+  it('판매가·재고수량 칸은 버튼의 덮개가 셀 전체를 덮고, 같은 칸의 다른 조작은 그 위에 남는다', () => {
+    /* 덮개의 기준 상자(칸의 position: relative)는 상품 목록 화면이 kit 표에 유틸리티로 준다 —
+       components/admin/screens/GoodsListScreen.test.tsx가 그 표시를 확인한다(kit 표 칸은 data-slot이라 관리자 CSS가 닿지 않는다). */
     expect(declarations('./admin-goods-worklist.css', '.wc-admin .admin-goods-inline--cell .admin-goods-inline__value::after')).toMatchObject({ content: "''", position: 'absolute', inset: '0' });
-    expect(declarations('./admin-goods-worklist.css', '.wc-admin .admin-console-grid-table td:has(.admin-goods-inline--cell) :is(a, button):not(.admin-goods-inline__value)')).toMatchObject({ position: 'relative', 'z-index': '1' });
+    expect(declarations('./admin-goods-worklist.css', '.wc-admin .admin-goods-inline--cell :is(a, button):not(.admin-goods-inline__value)')).toMatchObject({ position: 'relative', 'z-index': '1' });
   });
   it('결과가 불명확한 저장 뒤의 \'처리 결과 조회\' 버튼도 덮개 위에 남는다(덮개가 수정 폼을 열지 않는다)', () => {
     // 덮개 예외가 링크(a)에만 걸리면 같은 칸의 복구 버튼을 눌러도 값 버튼이 눌린다(리뷰 T4-R11-1).
-    expect(declarations('./admin-goods-worklist.css', '.wc-admin .admin-console-grid-table td:has(.admin-goods-inline--cell) a')).toEqual({});
+    expect(declarations('./admin-goods-worklist.css', '.wc-admin .admin-goods-inline--cell a')).toEqual({});
   });
 });
 

@@ -21,6 +21,7 @@ vi.mock('react', async () => ({
   useTransition: () => [false, (work: () => Promise<void>) => { mocks.work.push(work()); }],
 }));
 import { GoodsBulkToolbar } from '../GoodsBulkToolbar';
+import { Button } from '../kit/ui/button';
 import { GoodsGroupsScreen } from './GoodsGroupsScreen';
 import { DEFAULT_GROUP_FILTERS } from '@/lib/admin/goods-group-console';
 import type { GoodsGroupSnapshot } from '@/lib/admin/goods-groups';
@@ -51,9 +52,9 @@ it('그룹 일괄 변경을 확정해도 선택을 유지하고, 다시 읽은 �
 });
 
 it('선택 해제 버튼이 선택을 비우고, 검색·페이지 이동은 지금처럼 선택을 비운다', async () => {
-  expect(nodes(render()).some(node => node.type === 'button' && text(node.props.children as ReactNode) === '선택 해제')).toBe(false);
+  expect(nodes(render()).some(node => (node.type === 'button' || node.type === Button) && text(node.props.children as ReactNode) === '선택 해제')).toBe(false);
   check('그룹 a 선택');
-  const clear = nodes(render()).find(node => node.type === 'button' && text(node.props.children as ReactNode) === '선택 해제')!;
+  const clear = nodes(render()).find(node => (node.type === 'button' || node.type === Button) && text(node.props.children as ReactNode) === '선택 해제')!;
   (clear.props.onClick as () => void)();
   expect(toolbar().props.selectedIds).toEqual([]);
   check('그룹 b 선택');

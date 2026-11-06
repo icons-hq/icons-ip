@@ -7,18 +7,25 @@ import { readGoodsGroupOperationAction, readGoodsGroupSourceAction, searchGoodsG
 import { goodsGroupHref, goodsGroupRecoveryKey, parseGoodsGroupRecovery, type GoodsGroupCandidates, type GoodsGroupIdentity,
   type GoodsGroupReceipt, type GoodsGroupRecovery, type GoodsGroupResult, type GoodsGroupSource } from '@/lib/admin/goods-groups';
 import { AdminField, AdminSectionCard } from './console/AdminKit';
+import { Button, buttonVariants } from './kit/ui/button';
+import { Input } from './kit/ui/input';
+import { TableBody, TableCell, TableHead, TableHeader, TableRow } from './kit/ui/table';
 
-export const GROUP_BUTTON = 'wc-admin-kit__button';
-export const GROUP_PRIMARY = `${GROUP_BUTTON} wc-admin-kit__button--primary`;
-export function GroupTable({ label, children }: { label: string; children: ReactNode }) {
-  return <div className="admin-console-grid"><div className="admin-console-grid-scroll" role="region" aria-label={`${label} 가로 스크롤`} tabIndex={0}>
-    <table className="admin-console-grid-table"><caption className="admin-console-grid-caption">{label}</caption>{children}</table>
-  </div></div>;
+/*
+ * 그룹상품·일괄 변경 화면이 함께 쓰는 표(템플릿 룩, ADR-0028). kit 표 모양(components/admin/kit/ui/table.tsx의 클래스)을
+ * 가로 스크롤 영역 안에 그린다 — 키보드로 스크롤되도록 표 바깥 상자가 스크롤 상자다(ConsoleGrid와 같다).
+ * 자식은 kit TableHeader·TableBody·TableRow·TableHead·TableCell로 채운다. 훅이 없는 순수 부품이다.
+ */
+export function GroupTable({ label, children, layout }: { label: string; children: ReactNode; layout?: 'fixed' }) {
+  return <div aria-label={`${label} 가로 스크롤`} className="relative min-w-0 overflow-x-auto rounded-lg border bg-card outline-none focus-visible:ring-3 focus-visible:ring-ring/50" data-group-table="" role="region" tabIndex={0}>
+    <table className={`w-full caption-bottom text-sm${layout === 'fixed' ? ' table-fixed' : ''}`} data-slot="table"><caption className="sr-only">{label}</caption>{children}</table>
+  </div>;
 }
 export function GroupPager({ page, total, pageSize, disabled, onChange }: { page: number; total: number; pageSize: number; disabled: boolean; onChange: (page: number) => void }) {
-  return <nav className="admin-console-pagination" aria-label="목록 페이지"><button className={GROUP_BUTTON} type="button" disabled={disabled || page <= 1} onClick={() => onChange(page - 1)}>이전</button>
-    <span className="admin-console-pagination-summary">{page} / {Math.max(1, Math.ceil(total / pageSize))} 페이지 · {total.toLocaleString('ko-KR')}건</span>
-    <button className={GROUP_BUTTON} type="button" disabled={disabled || page * pageSize >= total} onClick={() => onChange(page + 1)}>다음</button></nav>;
+  return <nav className="flex flex-wrap items-center justify-between gap-2 px-1 text-sm" aria-label="목록 페이지">
+    <span className="text-muted-foreground tabular-nums">{page} / {Math.max(1, Math.ceil(total / pageSize))} 페이지 · {total.toLocaleString('ko-KR')}건</span>
+    <span className="flex items-center gap-1.5"><Button size="sm" variant="outline" type="button" disabled={disabled || page <= 1} onClick={() => onChange(page - 1)}>이전</Button>
+      <Button size="sm" variant="outline" type="button" disabled={disabled || page * pageSize >= total} onClick={() => onChange(page + 1)}>다음</Button></span></nav>;
 }
 export function useGoodsGroupSession(actorId: string, sessionId: string | null) {
   const [blocked, setBlocked] = useState(!sessionId); const mounted = useRef(true), blockedRef = useRef(!sessionId);
@@ -116,17 +123,17 @@ export function useGoodsGroupOperation(identity: GoodsGroupIdentity | null, scop
     execute, recover, clearReceipt: () => { setReceipt(null); setMessage(''); }, setMessage };
 }
 export function GroupOperationStatus({ operation, disabled }: { operation: ReturnType<typeof useGoodsGroupOperation>; disabled: boolean }) {
-  return <>{operation.message ? <p role={operation.recovery ? 'alert' : 'status'}>{operation.message}</p> : null}
-    {operation.recovery ? <AdminSectionCard title="진행 결과 확인"><p>진행 내역을 조회합니다. 이미 완료된 변경은 한 번만 반영됩니다.</p>
-      <div className="wc-admin-kit__actions"><button type="button" className={GROUP_PRIMARY} disabled={disabled || operation.pending} onClick={() => operation.recover()}>진행 내역 확인</button>
-        <button type="button" className={GROUP_BUTTON} disabled={disabled || operation.pending} onClick={() => operation.recover(true)}>이 요청 종료하고 다시 준비</button></div>
-      <p className="wc-admin-kit__hint">종료를 누르면 아직 처리되지 않은 요청만 종료합니다. 이미 처리됐다면 완료 결과를 불러옵니다.</p></AdminSectionCard> : null}</>;
+  return <>{operation.message ? <p className="text-sm" role={operation.recovery ? 'alert' : 'status'}>{operation.message}</p> : null}
+    {operation.recovery ? <AdminSectionCard title="진행 결과 확인"><p className="text-sm">진행 내역을 조회합니다. 이미 완료된 변경은 한 번만 반영됩니다.</p>
+      <div className="flex flex-wrap items-center gap-2"><Button type="button" disabled={disabled || operation.pending} onClick={() => operation.recover()}>진행 내역 확인</Button>
+        <Button variant="outline" type="button" disabled={disabled || operation.pending} onClick={() => operation.recover(true)}>이 요청 종료하고 다시 준비</Button></div>
+      <p className="text-sm text-muted-foreground">종료를 누르면 아직 처리되지 않은 요청만 종료합니다. 이미 처리됐다면 완료 결과를 불러옵니다.</p></AdminSectionCard> : null}</>;
 }
 export function GroupCompleted({ receipt, children }: { receipt: Extract<GoodsGroupReceipt, { state: 'completed' }>; children?: ReactNode }) {
   return <AdminSectionCard title={receipt.group.archivedAt ? '그룹 연결을 해제했습니다' : '그룹상품 저장을 확인했습니다'}>
-    <p>{receipt.group.name} · {receipt.group.members.length}개 판매옵션</p>
-    <p>{receipt.group.archivedAt ? '개별 상품과 원상품의 합산 조건은 유지됩니다.' : '변경한 상품은 미공개 상태입니다. 상품정보와 KC 검토를 마친 뒤 개별 상품에서 공개해주세요.'}</p>
-    <div className="wc-admin-kit__actions"><Link className={GROUP_BUTTON} href={goodsGroupHref(receipt.group.id)}>그룹상품 열기</Link>{children}</div>
+    <p className="text-sm">{receipt.group.name} · {receipt.group.members.length}개 판매옵션</p>
+    <p className="text-sm text-muted-foreground">{receipt.group.archivedAt ? '개별 상품과 원상품의 합산 조건은 유지됩니다.' : '변경한 상품은 미공개 상태입니다. 상품정보와 KC 검토를 마친 뒤 개별 상품에서 공개해주세요.'}</p>
+    <div className="flex flex-wrap items-center gap-2"><Link className={buttonVariants({ variant: 'outline' })} data-slot="button" href={goodsGroupHref(receipt.group.id)}>그룹상품 열기</Link>{children}</div>
   </AdminSectionCard>;
 }
 export function GoodsGroupProductPicker({ identity, disabled, onSelect }: { identity: GoodsGroupIdentity | null; disabled: boolean; onSelect: (source: GoodsGroupSource) => void }) {
@@ -149,12 +156,12 @@ export function GoodsGroupProductPicker({ identity, disabled, onSelect }: { iden
       } catch { if (alive.current && sequence === ticket.current) setError('상품과 옵션을 불러오지 못했습니다. 다시 선택해주세요.'); }
     });
   }
-  return <AdminSectionCard title="상품 선택"><div className="wc-admin-kit__form-grid" role="search">
-    <AdminField label="상품명·판매자상품코드·상품번호" inputId="group-product-search"><input id="group-product-search" type="search" value={query} maxLength={100} disabled={disabled || pending}
-      onChange={event => setQuery(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); search(); } }} /></AdminField>
-    <div className="wc-admin-kit__actions"><button type="button" className={GROUP_BUTTON} disabled={disabled || pending || !identity} onClick={() => search()}>상품 검색</button></div>
-  </div>{error ? <p role="alert">{error}</p> : null}{page ? <><GroupTable label="상품 검색 결과"><thead><tr><th>상품</th><th>판매자상품코드</th><th>선택</th></tr></thead><tbody>
-    {page.rows.map(row => <tr key={row.id}><td>{row.name}<br /><small>{row.id}</small></td><td>{row.code ?? '—'}</td><td><button type="button" className={GROUP_BUTTON} disabled={disabled || pending} onClick={() => select(row.id)}>{row.name} 선택</button></td></tr>)}
-    {!page.rows.length ? <tr><td colSpan={3}>검색 결과가 없습니다.</td></tr> : null}</tbody></GroupTable>
-    <GroupPager {...page} disabled={disabled || pending} onChange={number => search(number, applied)} /></> : <p className="wc-admin-kit__hint">검색어를 비우고 조회하면 등록된 상품을 확인할 수 있습니다.</p>}</AdminSectionCard>;
+  return <AdminSectionCard title="상품 선택"><div className="flex flex-wrap items-end gap-2" role="search">
+    <div className="min-w-[min(100%,20rem)] flex-1"><AdminField label="상품명·판매자상품코드·상품번호" inputId="group-product-search"><Input id="group-product-search" type="search" value={query} maxLength={100} disabled={disabled || pending}
+      onChange={event => setQuery(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); search(); } }} /></AdminField></div>
+    <Button variant="outline" type="button" disabled={disabled || pending || !identity} onClick={() => search()}>상품 검색</Button>
+  </div>{error ? <p className="text-sm text-destructive" role="alert">{error}</p> : null}{page ? <><GroupTable label="상품 검색 결과"><TableHeader><TableRow><TableHead>상품</TableHead><TableHead>판매자상품코드</TableHead><TableHead>선택</TableHead></TableRow></TableHeader><TableBody>
+    {page.rows.map(row => <TableRow key={row.id}><TableCell className="whitespace-normal">{row.name}<small className="block text-xs text-muted-foreground">{row.id}</small></TableCell><TableCell>{row.code ?? '—'}</TableCell><TableCell><Button size="xs" variant="outline" type="button" disabled={disabled || pending} onClick={() => select(row.id)}>{row.name} 선택</Button></TableCell></TableRow>)}
+    {!page.rows.length ? <TableRow><TableCell className="h-24 text-center text-muted-foreground" colSpan={3}>검색 결과가 없습니다.</TableCell></TableRow> : null}</TableBody></GroupTable>
+    <GroupPager {...page} disabled={disabled || pending} onChange={number => search(number, applied)} /></> : <p className="text-sm text-muted-foreground">검색어를 비우고 조회하면 등록된 상품을 확인할 수 있습니다.</p>}</AdminSectionCard>;
 }

@@ -27,6 +27,19 @@ describe('goods list screen', () => {
     const readOnly = renderToStaticMarkup(<GoodsListScreen data={data} bulkIdentity={identity} />);
     expect(readOnly).not.toContain('바로 수정'); expect(readOnly).not.toContain('IP 전체 즉시할인');
   });
+  it('R11: 판매가·재고수량 칸 전체가 바로 수정 덮개의 기준 상자다 — 틀고정이 아닌 칸은 relative, 틀고정 칸은 sticky 그대로다', () => {
+    const identity = { actorId: 'b9000000-0000-4000-8000-000000000001', sessionId: 'b9000000-0000-4000-8000-000000000002' };
+    const good = { id: 'good-a', code: 'A', name: '상품 A', ipId: 'maple', ipTitle: '메이플', publishedAt: null, archivedAt: null, stock: 'ok' as const, stockQty: 7,
+      activeStockQty: 7, lowStockOptionCount: 0, noticeComplete: true, priceMin: 10000, priceMax: 10000, basePrice: 10000, activeVariantCount: 1,
+      inlineStock: { variantId: 'b9000000-0000-4000-8000-000000000010', stockQty: 7 } };
+    const html = renderToStaticMarkup(<GoodsListScreen data={{ filters: normalizeGoodsListFilters({}), goods: [good], ips: [], total: 1 }} canIssueMarketingLinks bulkIdentity={identity} />);
+    // 값 버튼의 ::after 덮개(position: absolute; inset: 0)가 칸을 채우려면 칸이 기준 상자여야 한다. kit 표 칸은 data-slot이라 관리자 CSS가
+    // 닿지 않으므로 화면이 표에 유틸리티로 준다. 틀고정 칸(data-frozen)은 sticky가 기준 상자이고 relative로 덮으면 고정이 풀린다.
+    expect(html).toMatch(/<div class="[^"]*\[&amp;_td:not\(\[data-frozen\]\)\]:relative[^"]*" data-console-grid="">/);
+    // 같은 칸의 보조 링크(옵션별 재고 수정 등)는 덮개 위에 남는다.
+    const multi = renderToStaticMarkup(<GoodsListScreen data={{ filters: normalizeGoodsListFilters({}), goods: [{ ...good, id: 'good-b', activeVariantCount: 3, inlineStock: null }], ips: [], total: 1 }} canIssueMarketingLinks bulkIdentity={identity} />);
+    expect(multi).toMatch(/<a class="[^"]*relative z-\[1\][^"]*" href="[^"]*#good-section-variants">옵션별 재고 수정<\/a>/);
+  });
   it('shows server status counts independently of the filtered total and exposes real list controls', () => {
     const html = renderToStaticMarkup(<GoodsListScreen data={{ filters: normalizeGoodsListFilters({ status: 'draft', from: '2026-10-01', pageSize: '50', image: 'without' }), goods: [], ips: [], total: 3, pageSize: 50, counts: { all: 20, active: 15, draft: 3, published: 12, archived: 5 } }} />);
     expect(html).toContain('상품등록일');
@@ -35,15 +48,16 @@ describe('goods list screen', () => {
     expect(html).toContain('name="originId"');
     expect(html).toContain('name="image"');
     expect(html).toContain('aria-label="상품 목록수"');
-    expect(html).toContain('전시중<strong>12');
-    expect(html).toContain('전체<strong>20');
-    expect(html).toContain('상품목록 <span>(총 <strong>3</strong>개)');
+    // 상태별 건수 카드: 링크 이름이 '상태 n건'이고 카드에 그 수가 보인다(서버 집계, 필터 결과 총수와 별개).
+    expect(html).toMatch(/aria-label="전시중 12건"[^>]*>[\s\S]*?<strong[^>]*>12</);
+    expect(html).toMatch(/aria-label="전체 20건"[^>]*>[\s\S]*?<strong[^>]*>20</);
+    expect(html).toMatch(/상품목록 <span[^>]*>\(총 <strong[^>]*>3<\/strong>개\)<\/span>/);
     expect(html).not.toContain('wc-admin-kit__page-header');
     expect(html).toContain('create=1');
     expect(html).toContain('상품 일괄등록·수정');
     // R21: 그룹상품 탭 링크는 숨긴다(라우트는 그대로).
     expect(html).not.toContain('href="/admin/catalog/groups"');
-    expect(html).toContain('<span aria-current="page">전체 상품 조회/수정</span>');
+    expect(html).toMatch(/<span aria-current="page"[^>]*>전체 상품 조회\/수정<\/span>/);
     expect(html).toContain('from=2026-10-01');
   });
   it('상세 조건을 하단 검색 동작 앞에 유지하고 지정된 조건이 있으면 펼친다', () => {
@@ -52,7 +66,7 @@ describe('goods list screen', () => {
       origins: [{ id: '11111111-1111-4111-8111-111111111111', name: '기본 출고지', active: true }],
     }} />);
     const active = render({ image: 'without', payment: 'bank', saleType: 'preorder', restriction: 'adult', originId: '11111111-1111-4111-8111-111111111111' });
-    expect(active).toContain('class="admin-goods-search__advanced" open=""');
+    expect(active).toMatch(/<details[^>]*data-goods-search="advanced"[^>]*open=""/);
     expect(active).toContain('value="without" selected=""');
     expect(active).toContain('value="bank" selected=""');
     expect(active).toContain('value="preorder" selected=""');
@@ -60,7 +74,8 @@ describe('goods list screen', () => {
     expect(active).toContain('value="11111111-1111-4111-8111-111111111111" selected=""');
     expect(active.indexOf('name="image"')).toBeLessThan(active.indexOf('type="submit"'));
     expect(active).toContain('href="/admin/catalog/goods">초기화');
-    expect(render({})).not.toContain('class="admin-goods-search__advanced" open=""');
+    expect(render({})).toMatch(/<details[^>]*data-goods-search="advanced"/);
+    expect(render({})).not.toMatch(/<details[^>]*data-goods-search="advanced"[^>]*open=""/);
   });
   it('판매상태 필터는 품절과 판매중지를 따로 고르고, 이전 주소(stock=soldout)는 둘 다 찾는 선택지로 보여 준다(MD-0026)', () => {
     const form = (stock: string) => renderToStaticMarkup(<GoodsListFiltersForm data={{ filters: normalizeGoodsListFilters({ stock }), goods: [], ips: [], total: 0 }} />);
@@ -78,7 +93,7 @@ describe('goods list screen', () => {
     expect(html).toContain('name="salePeriod"');
     expect(html).toContain('<option value="scheduled">판매대기 (시작 전)</option>');
     expect(html).toContain('<option value="ended" selected="">판매기간 종료</option>');
-    expect(html.indexOf('name="salePeriod"')).toBeLessThan(html.indexOf('admin-goods-search__advanced'));
+    expect(html.indexOf('name="salePeriod"')).toBeLessThan(html.indexOf('data-goods-search="advanced"'));
   });
   it('상품번호 열: 고객에게 보이는 상품은 고객 화면을 새 탭으로, 아니면 편집기 미리보기로 연다. 상품명은 지금처럼 수정 화면이다', () => {
     const base = { code: 'A', name: '상품 A', ipId: 'maple', ipTitle: '메이플', archivedAt: null, stock: 'ok' as const, stockQty: 1, activeStockQty: 1, lowStockOptionCount: 0, noticeComplete: true };
@@ -88,13 +103,13 @@ describe('goods list screen', () => {
       { ...base, id: 'good-draft', publishedAt: null, customerVisible: false },
     ] }} />);
     expect(html).toContain('>상품번호</th>');
-    expect(html).toMatch(/<a class="admin-goods-worklist__good-id" href="\/shop\/good-public" target="_blank" rel="noopener noreferrer">good-public/);
+    expect(html).toMatch(/<a [^>]*data-goods-list="good-id" href="\/shop\/good-public" target="_blank" rel="noopener noreferrer">good-public/);
     expect(html).toContain(`href="${goodEditorHref(filters, 'good-draft').replaceAll('&', '&amp;')}#good-preview"`);
     expect(html).toContain('공개 전 · 미리보기');
     // 상품명(첫 열)은 수정 화면으로 간다.
     expect(html).toContain(`hover:underline" href="${goodEditorHref(filters, 'good-public').replaceAll('&', '&amp;')}">`);
     // 상품번호는 열로 옮겼으므로 접힌 추가 정보에 다시 두지 않는다.
-    expect(html).not.toContain('<dt>상품번호</dt>');
+    expect(html).not.toMatch(/<dt[^>]*>상품번호<\/dt>/);
   });
   it('상품번호 보조 문구는 고객 화면에 안 보이는 사유와 같은 행의 상태 배지와 어긋나지 않는다', () => {
     // 리뷰 T4-R15-1: 보관·전시 중 성인·IP 비공개 상품에 '공개 전'이라고 쓰면 '보관'·'전시중' 배지와 모순된다.
@@ -104,7 +119,7 @@ describe('goods list screen', () => {
       { ...base, id: 'archived-good', publishedAt: '2026-10-01T00:00:00Z', archivedAt: '2026-10-20T00:00:00Z' },
       { ...base, id: 'adult-good', publishedAt: '2026-10-01T00:00:00Z', archivedAt: null },
     ] }} />);
-    const secondary = (id: string) => new RegExp(`>${id}<small class="admin-goods-worklist__secondary">([^<]+)</small>`).exec(html)?.[1];
+    const secondary = (id: string) => new RegExp(`>${id}<small[^>]*>([^<]+)</small>`).exec(html)?.[1];
     expect(secondary('draft-good')).toBe('공개 전 · 미리보기');
     expect(secondary('archived-good')).toBe('보관 · 미리보기');
     // 전시 중이지만 판매 제한(성인)·IP 비공개 등으로 고객 상세가 열리지 않는 상품.
