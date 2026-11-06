@@ -17,7 +17,6 @@ import './styles/admin-sales-console.css';
 import './styles/admin-customer-service.css';
 import './styles/admin-inquiry-chat.css';
 import './styles/admin-stats-console.css';
-import './styles/admin-store-analytics.css';
 import './styles/store-analytics.css';
 import './styles/admin-store-editor.css';
 import './styles/admin-category-display.css';
