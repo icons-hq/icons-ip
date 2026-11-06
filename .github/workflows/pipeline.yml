@@ -42,6 +42,9 @@ env:
   # 2.101.0 bundles Postgres 17.6.1.106, whose supautils permission-denied
   # path can crash instead of raising 42501 (supabase/postgres#2112).
   SUPABASE_CLI_VERSION: "2.109.1"
+  # `.github/actions/setup-supabase-cli`가 받은 tarball(supabase_<version>_linux_amd64.tar.gz)을
+  # 이 값과 대조한다. 버전을 올리면 release의 checksums.txt 값으로 함께 바꾸고, cleanup workflow도 맞춘다.
+  SUPABASE_CLI_SHA256: "36d87b7fe6b4bcfe89ac47a4354e526cff22480224de426d7b370f6934556976"
   VERCEL_CLI_VERSION: "54.17.2"
 
 jobs:
@@ -247,9 +250,10 @@ jobs:
 
       - name: Set up Supabase CLI
         timeout-minutes: 5
-        uses: supabase/setup-cli@v2
+        uses: ./.github/actions/setup-supabase-cli
         with:
           version: ${{ env.SUPABASE_CLI_VERSION }}
+          sha256: ${{ env.SUPABASE_CLI_SHA256 }}
 
       - name: Start local Supabase database
         run: supabase db start
@@ -375,9 +379,10 @@ jobs:
 
       - name: Set up Supabase CLI
         timeout-minutes: 5
-        uses: supabase/setup-cli@v2
+        uses: ./.github/actions/setup-supabase-cli
         with:
           version: ${{ env.SUPABASE_CLI_VERSION }}
+          sha256: ${{ env.SUPABASE_CLI_SHA256 }}
 
       - name: Check Supabase deployment secrets
         run: |
@@ -622,9 +627,10 @@ jobs:
       - name: Set up Supabase CLI
         if: steps.check.outputs.configured == 'true'
         timeout-minutes: 5
-        uses: supabase/setup-cli@v2
+        uses: ./.github/actions/setup-supabase-cli
         with:
           version: ${{ env.SUPABASE_CLI_VERSION }}
+          sha256: ${{ env.SUPABASE_CLI_SHA256 }}
 
       # PR migration은 수정·삭제될 수 있어 기존 branch를 재사용하면 같은 version의
       # 과거 SQL이 남는다. 무데이터 branch를 매 실행 재생성해 PR head와 정확히 맞춘다.
@@ -841,9 +847,10 @@ jobs:
 
       - name: Set up Supabase CLI
         timeout-minutes: 5
-        uses: supabase/setup-cli@v2
+        uses: ./.github/actions/setup-supabase-cli
         with:
           version: ${{ env.SUPABASE_CLI_VERSION }}
+          sha256: ${{ env.SUPABASE_CLI_SHA256 }}
 
       - name: Check Vercel deployment secrets
         run: |
@@ -1030,9 +1037,10 @@ jobs:
 
       - name: Set up Supabase CLI
         timeout-minutes: 5
-        uses: supabase/setup-cli@v2
+        uses: ./.github/actions/setup-supabase-cli
         with:
           version: ${{ env.SUPABASE_CLI_VERSION }}
+          sha256: ${{ env.SUPABASE_CLI_SHA256 }}
 
       - name: Check shared preview sync secrets
         run: |
@@ -1139,9 +1147,10 @@ jobs:
         run: npm ci
       - name: Set up Supabase CLI
         timeout-minutes: 5
-        uses: supabase/setup-cli@v2
+        uses: ./.github/actions/setup-supabase-cli
         with:
           version: ${{ env.SUPABASE_CLI_VERSION }}
+          sha256: ${{ env.SUPABASE_CLI_SHA256 }}
       - name: Install Vercel CLI
         run: npm install --global "vercel@${VERCEL_CLI_VERSION}"
       - name: Check staging configuration and current main
