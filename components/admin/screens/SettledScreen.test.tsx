@@ -47,7 +47,8 @@ describe('SettledScreen', () => {
     expect(html).toContain('name="field" value="recipient"');
     expect(html).toContain('field=recipient');
     expect(html).toContain('field%3Drecipient');
-    const search = html.slice(html.indexOf('class="admin-sales-filters"'), html.indexOf('</form>'));
+    expect(html).toContain('data-sales-filters=""');
+    const search = html.slice(html.indexOf('data-sales-filters=""'), html.indexOf('</form>'));
     expect((search.match(/name="field"/g) ?? [])).toHaveLength(1);
   });
   it('확정일과 하자 클레임 잔여 기한을 함께 보여준다', () => {
@@ -96,7 +97,7 @@ describe('SettledScreen', () => {
     const html = renderToStaticMarkup(<SettledScreen data={data()} now={NOW} />);
 
     expect(html).not.toContain('aria-label="전체 선택"');
-    expect(html).not.toContain('admin-console-bulk-bar');
+    expect(html).not.toContain('data-console-bulk-bar');
     expect(html).not.toContain('name="orderIds"');
   });
 

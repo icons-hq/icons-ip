@@ -51,35 +51,35 @@ export function SettledScreen({
       cells: [
         <Link
           aria-label={`주문 ${orderReferenceLabel(row.id, row.orderNumber)} 상세 열기 (새 탭)`}
-          className="admin-console-grid-link"
+          className="font-medium underline-offset-4 hover:underline"
           href={adminOrderDetailHrefFromBack(row.id, adminSettledHref(filters))}
           key="reference"
           rel="noopener noreferrer"
           target="_blank"
         >
-          <span className="mono">{orderReferenceLabel(row.id, row.orderNumber)}</span>
+          <span className="tabular-nums">{orderReferenceLabel(row.id, row.orderNumber)}</span>
         </Link>,
         <span key="buyer">@{row.buyerName}</span>,
         row.deliveredAt
           ? (
-            <time dateTime={row.deliveredAt} key="deliveredAt">
+            <time className="tabular-nums" dateTime={row.deliveredAt} key="deliveredAt">
               {formatOrderDateTime(row.deliveredAt)}
             </time>
           )
-          : <span className="faint" key="deliveredAt">미기록</span>,
+          : <span className="text-muted-foreground" key="deliveredAt">미기록</span>,
         row.doneAt
-          ? <time dateTime={row.doneAt} key="doneAt">{formatOrderDateTime(row.doneAt)}</time>
-          : <span className="faint" key="doneAt">미기록</span>,
+          ? <time className="tabular-nums" dateTime={row.doneAt} key="doneAt">{formatOrderDateTime(row.doneAt)}</time>
+          : <span className="text-muted-foreground" key="doneAt">미기록</span>,
         <span data-claim-open={claim.open ? 'true' : 'false'} key="claim">
           {adminDefectClaimLabel(claim)}
         </span>,
-        <span className="mono" key="total">₩{row.total.toLocaleString('ko-KR')}</span>,
+        <span className="tabular-nums" key="total">₩{row.total.toLocaleString('ko-KR')}</span>,
       ],
     };
   });
 
   return (
-    <section className="admin-console admin-sales-console wc-admin-kit">
+    <section className="flex min-w-0 flex-col gap-4 text-sm" data-admin-settled="">
       <SalesGuide title="거래확정된 주문과 결제 내역을 조회할 수 있습니다.">
         <p>거래확정 주문의 품목·결제 근거를 엑셀로 보존할 수 있습니다. PG의 판매대금 지급 내역은 포함하지 않습니다.</p>
         <Link href="/admin/sales/settled/policy">구매확정 정책 설정</Link>
@@ -97,12 +97,12 @@ export function SettledScreen({
         }}
       />
 
-      <div className="admin-sales-results">
+      <div className="flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4 text-card-foreground" data-sales-results="">
       <SalesResultsHeader currentHref={currentHref} total={total} pageSize={pageSize} sort={filters.sort ?? 'newest'}>
         {exportRequestId ? <SettledExportForm key={`settled-export:${currentHref}`} filters={filters} requestId={exportRequestId} initialReceiptId={exportReceiptId} /> : null}
       </SalesResultsHeader>
-      <p className="admin-sales-note">
-        <span data-admin-tooltip={ADMIN_VOCABULARY.settledHint} title={ADMIN_VOCABULARY.settledHint} tabIndex={0}>{ADMIN_VOCABULARY.settled}</span>은 구매자 직접 확정 또는 설정된 자동 정책으로 처리됩니다. 자동 확정은 기본 꺼짐입니다. 확정 이후에도 반품·교환은 배송일과 사유별 신청 기한을 적용합니다.
+      <p className="text-muted-foreground">
+        <span className="font-medium text-foreground underline decoration-dotted underline-offset-4" data-admin-tooltip={ADMIN_VOCABULARY.settledHint} title={ADMIN_VOCABULARY.settledHint} tabIndex={0}>{ADMIN_VOCABULARY.settled}</span>은 구매자 직접 확정 또는 설정된 자동 정책으로 처리됩니다. 자동 확정은 기본 꺼짐입니다. 확정 이후에도 반품·교환은 배송일과 사유별 신청 기한을 적용합니다.
       </p>
 
       <ConsoleGrid
