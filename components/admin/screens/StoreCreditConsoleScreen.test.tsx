@@ -11,6 +11,9 @@ describe('global credit console',()=>{
   expect(html).toContain('적립금 내역');expect(html).toContain('운영 지급');expect(html).toContain('환불 적립금 상계');expect(html.match(/<select[^>]*name="kind"/g)).toHaveLength(1);expect(html.match(/name="pageSize"/g)).toHaveLength(1);expect(html).not.toContain('적립금 지급 등록');
   const registration=renderToStaticMarkup(<StoreCreditConsoleScreen data={{filters:normalizeStoreCreditConsoleFilters({}),total:0,rows:[]}} policy={policy}/>);
   expect(registration).toContain('정책이 비활성');expect(registration).toContain('fieldset disabled');
+  /* kit 버튼의 기본 type은 button이다 — 대상 검증은 폼 제출이고 금액 프리셋은 제출하지 않는다. */
+  expect(registration).toMatch(/<button[^>]*type="submit"[^>]*>대상·총액 검증<\/button>/);
+  expect(registration).toMatch(/<button[^>]*type="button"[^>]*>1,000원<\/button>/);
  });
  it('never labels a failed all-or-nothing grant as issued funds',()=>{
   const batch:StoreCreditBatch={id:'11111111-1111-4111-8111-111111111111',status:'failed',purpose:'general',reason:'합성',amount:1000,expiresAt:'2026-12-01T00:00:00Z',count:1,invalidCount:0,gross:1000,offset:0,net:1000,rows:[{target:'fan@example.test',userId:null,nickname:'합성',error:null,balance:{available:0,reserved:0,debt:0},offset:0}],createdAt:'2026-10-12T00:00:00Z',error:'store_credit_balance_conflict',completedCount:0,failedCount:1,finishedAt:'2026-10-12T00:01:00Z'};

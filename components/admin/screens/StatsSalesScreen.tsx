@@ -6,6 +6,7 @@ import { StatsComparison } from '@/components/admin/StatsComparison';
 import { StatsSalesTrend } from '@/components/admin/charts/StatsSalesTrend';
 import { adminSalesTrend } from '@/lib/admin/stats';
 import { StatsRangeTabs } from '@/components/admin/StatsRangeTabs';
+import { STATS_NOTE, STATS_SEGMENTED, STATS_SEGMENT_LINK, StatsSection, StatsSummaryGrid, StatsSummaryTile } from '@/components/admin/StatsSummary';
 import { ConsoleGrid, type ConsoleGridColumn } from '@/components/admin/console';
 import {
   adminPaymentMethodLabel,
@@ -37,6 +38,14 @@ const TICKET_COLUMNS: ConsoleGridColumn[] = [
   { key: 'revenue', label: '매출', align: 'end', width: '130px' },
 ];
 
+/** 판매분석 두 화면(기간별·시간대별)의 전환 탭. */
+export function StatsSalesViews({ current, ipId, comparisonDate }: { current: 'period' | 'hourly'; ipId?: string; comparisonDate?: string | null }) {
+  return <nav aria-label="판매분석 조회 종류" className={STATS_SEGMENTED} data-stats-views="sales">
+    <Link aria-current={current === 'period' ? 'page' : undefined} className={STATS_SEGMENT_LINK} href="/admin/stats/sales">기간별 판매분석</Link>
+    <Link aria-current={current === 'hourly' ? 'page' : undefined} className={STATS_SEGMENT_LINK} href={adminSalesHourlyHref({ comparisonDate, ipId })}>시간대별 현황</Link>
+  </nav>;
+}
+
 /**
  * 판매분석 — 조회 전용 (#258).
  *
@@ -67,93 +76,95 @@ export function StatsSalesScreen({
   const totalOrders = data.daily.reduce((sum, row) => sum + row.orderCount, 0);
 
   return (
-    <section className="admin-console admin-stats wc-admin-kit">
-      <nav className="admin-sales-stats-views" aria-label="판매분석 조회 종류"><Link aria-current="page" href="/admin/stats/sales">기간별 판매분석</Link><Link href={adminSalesHourlyHref({ ipId: filters.ipId })}>시간대별 현황</Link></nav>
+    <div className="flex min-w-0 flex-col gap-4" data-stats-screen="sales">
+      <StatsSalesViews current="period" ipId={filters.ipId} />
       <StatsRangeTabs base="/admin/stats/sales" filters={filters} now={now} exportDisabledReason={adminSalesGoodsExportDisabledReason(goods.totalCount, comparisonGoodsTotal)} />
 
-      <div className="admin-stats-summary">
-        <div><span>기간 매출</span><strong className="mono">{krw(totalRevenue)}</strong></div>
-        <div><span>주문수</span><strong className="mono">{totalOrders.toLocaleString('ko-KR')}</strong></div>
-        <div>
-          <span>객단가</span>
-          <strong className="mono">
-            {krw(totalOrders > 0 ? Math.floor(totalRevenue / totalOrders) : 0)}
-          </strong>
-        </div>
-      </div>
+      <StatsSummaryGrid>
+        <StatsSummaryTile label="기간 매출" value={krw(totalRevenue)} />
+        <StatsSummaryTile label="주문수" value={totalOrders.toLocaleString('ko-KR')} />
+        <StatsSummaryTile label="객단가" value={krw(totalOrders > 0 ? Math.floor(totalRevenue / totalOrders) : 0)} />
+      </StatsSummaryGrid>
 
       {comparison ? <StatsComparison filters={filters} now={now} rows={[
         { label: '매출', current: totalRevenue, previous: comparison.daily.reduce((sum, row) => sum + row.revenue, 0), unit: '원' },
         { label: '주문수', current: totalOrders, previous: comparison.daily.reduce((sum, row) => sum + row.orderCount, 0), unit: '건' },
       ]} /> : null}
       <StatsSalesTrend rows={trend} />
-      <h3>결제수단별 비중</h3>
-      {data.paymentMethods.length === 0 ? (
-        <p className="admin-note">이 기간에 확정된 주문이 없습니다.</p>
-      ) : (
-        <ul className="admin-stats-share">
-          {data.paymentMethods.map((row) => (
-            <li key={row.method}>
-              <span>{adminPaymentMethodLabel(row.method)}</span>
-              <strong className="mono">{krw(row.revenue)}</strong>
-              <span className="mono">{adminPercentLabel(adminShareOfTotal(row.revenue, totalRevenue))}</span>
-              <span>{row.orderCount.toLocaleString('ko-KR')}건</span>
-            </li>
-          ))}
-        </ul>
-      )}
+      <StatsSection title="결제수단별 비중">
+        {data.paymentMethods.length === 0 ? (
+          <p className={STATS_NOTE}>이 기간에 확정된 주문이 없습니다.</p>
+        ) : (
+          <ul className="flex flex-col divide-y rounded-lg border bg-card">
+            {data.paymentMethods.map((row) => {
+              const share = adminShareOfTotal(row.revenue, totalRevenue);
+              return (
+                <li className="grid grid-cols-[minmax(0,1fr)_auto] items-baseline gap-x-4 gap-y-1 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_auto_auto_auto]" key={row.method}>
+                  <span className="font-medium">{adminPaymentMethodLabel(row.method)}</span>
+                  <strong className="font-semibold tabular-nums">{krw(row.revenue)}</strong>
+                  <span className="text-muted-foreground tabular-nums">{adminPercentLabel(share)}</span>
+                  <span className="text-xs text-muted-foreground sm:text-right">{row.orderCount.toLocaleString('ko-KR')}건</span>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </StatsSection>
 
-      <h3>{periodLabel}</h3>
-      <ConsoleGrid
-        caption={periodLabel} preferencesKey="stats-sales-daily"
-        columns={DAILY_COLUMNS}
-        emptyLabel="이 기간에 확정된 주문이 없습니다."
-        rows={trend.map((row) => ({
-          id: row.date,
-          cells: [
-            <span className="mono" key="date">{row.date}</span>,
-            row.orderCount.toLocaleString('ko-KR'),
-            <span className="mono" key="revenue">{krw(row.revenue)}</span>,
-            <span className="mono" key="aov">{krw(row.averageOrderValue)}</span>,
-          ],
-        }))}
-      />
+      <StatsSection title={periodLabel}>
+        <ConsoleGrid
+          caption={periodLabel} preferencesKey="stats-sales-daily"
+          columns={DAILY_COLUMNS}
+          emptyLabel="이 기간에 확정된 주문이 없습니다."
+          rows={trend.map((row) => ({
+            id: row.date,
+            cells: [
+              <span className="tabular-nums" key="date">{row.date}</span>,
+              row.orderCount.toLocaleString('ko-KR'),
+              krw(row.revenue),
+              krw(row.averageOrderValue),
+            ],
+          }))}
+        />
+      </StatsSection>
 
       <StatsSalesGoods report={goods} filters={filters} now={now} comparisonTotalCount={comparisonGoodsTotal} />
 
-      <h3>티켓 매출 · 이벤트</h3>
-      <ConsoleGrid
-        caption="이벤트별 티켓 매출"
-        columns={TICKET_COLUMNS}
-        emptyLabel="이 기간에 확정된 예매가 없습니다."
-        rows={data.tickets.map((row) => ({
-          id: row.eventId,
-          cells: [
-            row.eventTitle,
-            row.orderCount.toLocaleString('ko-KR'),
-            row.ticketCount.toLocaleString('ko-KR'),
-            <span className="mono" key="revenue">{krw(row.revenue)}</span>,
-          ],
-        }))}
-      />
+      <StatsSection title="티켓 매출 · 이벤트">
+        <ConsoleGrid
+          caption="이벤트별 티켓 매출"
+          columns={TICKET_COLUMNS}
+          emptyLabel="이 기간에 확정된 예매가 없습니다."
+          rows={data.tickets.map((row) => ({
+            id: row.eventId,
+            cells: [
+              row.eventTitle,
+              row.orderCount.toLocaleString('ko-KR'),
+              row.ticketCount.toLocaleString('ko-KR'),
+              krw(row.revenue),
+            ],
+          }))}
+        />
+      </StatsSection>
 
       {/* 이벤트 합계만으로는 "어느 회차가 안 팔리는가"를 볼 수 없다. 그 판단이
           정원 조정의 근거라 회차 축을 따로 둔다. */}
-      <h3>티켓 매출 · 회차</h3>
-      <ConsoleGrid
-        caption="회차별 티켓 매출"
-        columns={OCCURRENCE_COLUMNS}
-        emptyLabel="이 기간에 확정된 예매가 없습니다."
-        rows={(data.ticketOccurrences ?? []).map((row) => ({
-          id: row.ticketTypeId,
-          cells: [
-            row.occurrenceName,
-            row.eventTitle,
-            row.ticketCount.toLocaleString('ko-KR'),
-            <span className="mono" key="revenue">{krw(row.revenue)}</span>,
-          ],
-        }))}
-      />
-    </section>
+      <StatsSection title="티켓 매출 · 회차">
+        <ConsoleGrid
+          caption="회차별 티켓 매출"
+          columns={OCCURRENCE_COLUMNS}
+          emptyLabel="이 기간에 확정된 예매가 없습니다."
+          rows={(data.ticketOccurrences ?? []).map((row) => ({
+            id: row.ticketTypeId,
+            cells: [
+              row.occurrenceName,
+              row.eventTitle,
+              row.ticketCount.toLocaleString('ko-KR'),
+              krw(row.revenue),
+            ],
+          }))}
+        />
+      </StatsSection>
+    </div>
   );
 }

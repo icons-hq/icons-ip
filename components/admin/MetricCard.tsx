@@ -1,50 +1,40 @@
-import { Icon } from '@/components/ui/Icon';
+import { Minus, TrendingDown, TrendingUp } from 'lucide-react';
+import { Badge } from '@/components/admin/kit/ui/badge';
+import { Card, CardAction, CardDescription, CardHeader, CardTitle } from '@/components/admin/kit/ui/card';
 import type { MetricChangeType } from './format';
 
-const CHANGE_COLORS: Record<MetricChangeType, string> = {
-  positive: 'var(--wc-success)',
-  negative: 'var(--wc-danger)',
-  neutral: 'var(--wc-ink-tertiary)',
-};
+const CHANGE_ICONS = { positive: TrendingUp, negative: TrendingDown, neutral: Minus } as const;
 
+/*
+ * 지표 카드(템플릿 대시보드의 SectionCards 모양, ADR-0028). 숫자는 foreground, 증감은 아이콘과 부호가 있는
+ * 외곽선 배지로 읽는다 — 색만으로 오르내림을 구분하지 않는다.
+ */
 export function MetricCard({
   change,
   changeType,
-  icon,
   label,
   value,
   comparisonDays = 30,
 }: {
   change: string;
   changeType: MetricChangeType;
-  icon: string;
   label: string;
   value: string;
   comparisonDays?: number;
 }) {
+  const ChangeIcon = CHANGE_ICONS[changeType];
   return (
-    <div className="card admin-metric wc-admin-kit wc-admin-kit__card">
-      <div className="admin-metric__heading">
-        <span className="admin-metric__label">
-          {label}
-        </span>
-        <span className="admin-metric-icon">
-          <Icon name={icon} size={16} />
-        </span>
-      </div>
-      <div className="admin-metric__reading">
-        <span className="admin-metric__value">
-          {value}
-        </span>
-        <span
-          className="admin-metric__change"
-          style={{ color: CHANGE_COLORS[changeType] }}
-          title={`이전 ${comparisonDays}일 대비`}
-        >
-          {changeType !== 'neutral' && <Icon name={changeType === 'positive' ? 'trendUp' : 'trendDown'} size={13} />}
-          {change}
-        </span>
-      </div>
-    </div>
+    <Card className="min-w-0" data-admin-metric="">
+      <CardHeader>
+        <CardDescription>{label}</CardDescription>
+        <CardTitle className="text-2xl leading-tight font-semibold tabular-nums [overflow-wrap:anywhere]">{value}</CardTitle>
+        <CardAction>
+          <Badge title={`이전 ${comparisonDays}일 대비`} variant="outline">
+            <ChangeIcon aria-hidden="true" />
+            {change}
+          </Badge>
+        </CardAction>
+      </CardHeader>
+    </Card>
   );
 }

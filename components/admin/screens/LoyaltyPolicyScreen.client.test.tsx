@@ -12,6 +12,9 @@ vi.mock('react', async () => {
   } };
 });
 import { LoyaltyPolicyScreen } from './LoyaltyPolicyScreen';
+import { Button } from '@/components/admin/kit/ui/button';
+import { Input } from '@/components/admin/kit/ui/input';
+import { NativeSelect } from '@/components/admin/kit/ui/native-select';
 type Element = ReactElement<Record<string, unknown>>;
 const data: LoyaltyPolicyData = { policy: { revision: 1, updatedAt: '2026-10-13T00:00:00Z', tiers: [
   { grade: 'silver', enabled: true, amount: 100000, itemCount: 2 },
@@ -21,12 +24,13 @@ const data: LoyaltyPolicyData = { policy: { revision: 1, updatedAt: '2026-10-13T
 function render(props = data) { mocks.index = 0; return LoyaltyPolicyScreen({ data: props }) as Element; }
 function nodes(node: ReactNode): Element[] { return Children.toArray(node).flatMap(value => isValidElement<Record<string, unknown>>(value) ? [value, ...nodes(value.props.children as ReactNode)] : []); }
 function text(node: ReactNode): string { return Children.toArray(node).map(value => isValidElement<Record<string, unknown>>(value) ? text(value.props.children as ReactNode) : String(value)).join(''); }
-function button(label: string) { const found = nodes(render()).find(node => node.type === 'button' && (text(node.props.children as ReactNode) === label || node.props['aria-label'] === label)); if (!found) throw new Error(`Missing button ${label}`); return found; }
+/* 화면은 kit Button·Input·NativeSelect(ADR-0028)를 쓴다. 이 얕은 렌더는 kit 부품을 펼치지 않으므로 그 요소를 그대로 찾는다 — kit 부품은 onClick·onChange를 네이티브 요소에 그대로 넘긴다. */
+function button(label: string) { const found = nodes(render()).find(node => (node.type === 'button' || node.type === Button) && (text(node.props.children as ReactNode) === label || node.props['aria-label'] === label)); if (!found) throw new Error(`Missing button ${label}`); return found; }
 function click(label: string) { (button(label).props.onClick as () => void)(); }
-function field(id: string) { return nodes(render()).find(node => (node.type === 'input' || node.type === 'select') && node.props.id === id)!; }
+function field(id: string) { return nodes(render()).find(node => [Input, NativeSelect, 'input', 'select'].includes(node.type as never) && node.props.id === id)!; }
 function change(id: string, value: string) { (field(id).props.onChange as (event: unknown) => void)({ target: { value } }); }
 function submit() { return (nodes(render()).find(node => node.type === 'form')!.props.onSubmit as (event: unknown) => Promise<void>)({ preventDefault() {} }); }
-function applyCondition() { (nodes(render()).find(node => node.type === 'form' && node.props.className === 'admin-loyalty-policy__editor')!.props.onSubmit as (event: unknown) => void)({ preventDefault() {} }); }
+function applyCondition() { (nodes(render()).find(node => node.type === 'form' && node.props['data-loyalty-editor'] !== undefined)!.props.onSubmit as (event: unknown) => void)({ preventDefault() {} }); }
 function customAmount(grade: string, value: string) { click(`${grade.toUpperCase()} 조건 수정`); change(`loyalty-${grade}-amount-preset`, 'custom'); change(`loyalty-${grade}-amount`, value); applyCondition(); }
 async function settle() { for (let i = 0; i < 12; i++) await Promise.resolve(); }
 beforeEach(() => { vi.clearAllMocks(); mocks.states = []; mocks.index = 0; });
