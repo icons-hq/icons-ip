@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { ConsoleCountChips, ConsoleGrid, ConsolePagination, type ConsoleGridColumn } from '@/components/admin/console';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
+import { cn } from 'cn';
 import { CLAIM_FEE_FILTERS, claimFeeQueueHref, type ClaimFeeFilter, type ClaimFeeQueue } from '@/lib/admin/claim-fees';
 import { CLAIM_FEE_POLICY_PATH, CLAIM_FEE_STATES } from '@/lib/orders/claim-fees';
 import { formatOrderDateTime, orderReferenceLabel } from '@/lib/orders';
@@ -30,7 +31,7 @@ export function ClaimFeesScreen({ data }: { data: ClaimFeeQueue }) {
    tone: state === 'refund_due' ? 'danger' as const : 'default' as const, href: claimFeeQueueHref(state as ClaimFeeFilter) }))} />
   <div className="flex flex-wrap items-center justify-between gap-2">
    <h2 className="text-lg font-semibold tracking-tight">{CLAIM_FEE_FILTERS[data.state]} <span className="text-sm font-normal text-muted-foreground">(총 <strong className="font-medium text-foreground tabular-nums">{data.total.toLocaleString('ko-KR')}</strong>건)</span></h2>
-   <Link className={buttonVariants({ size: 'sm', variant: 'outline' })} data-slot="button" href={claimFeeQueueHref(data.state, data.page)}>새로고침</Link>
+   <Link className={cn(buttonVariants({ size: 'sm', variant: 'outline' }))} data-slot="button" href={claimFeeQueueHref(data.state, data.page)}>새로고침</Link>
   </div>
   <ConsoleGrid caption="반품 교환 배송비 청구 목록" preferencesKey="sales-claim-fees" columns={columns} emptyLabel="조건에 맞는 배송비 청구가 없습니다." rows={data.rows.map(row => ({ id: row.id,
    href: `/admin/sales/claims/${row.claimType === 'exchange' ? 'exchanges' : 'returns'}/${row.claimId}`,

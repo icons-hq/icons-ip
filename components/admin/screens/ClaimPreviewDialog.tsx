@@ -4,6 +4,7 @@ import Link, { useLinkStatus } from 'next/link';
 import { useContext, type ReactNode } from 'react';
 import { ClaimPreviewBusy, useClaimPreviewBusy } from '@/components/orders/claim-preview-busy';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
+import { cn } from 'cn';
 
 /*
  * 취소·반품·교환 목록 위 상세 팝업(R8)의 링크 부품. 팝업 자체는 ClaimPreviewKitDialog(kit Dialog)다.
@@ -19,7 +20,7 @@ import { buttonVariants } from '@/components/admin/kit/ui/button';
 /** 처리 패널은 중립 모듈의 훅을 직접 불러도 된다. 기존 import 경로를 위해 다시 내보낸다. */
 export { useClaimPreviewBusy };
 
-const FULL_SCREEN_CLASS = buttonVariants({ size: 'sm', variant: 'outline' });
+const FULL_SCREEN_CLASS = cn(buttonVariants({ size: 'sm', variant: 'outline' }));
 
 /** 팝업의 '전체 화면으로 열기'. 처리 패널이 기다리는 동안에는 누를 수 없다(이동도 대기 중인 액션 상태를 버린다). */
 export function ClaimPreviewFullScreenLink({ href }: { href: string }) {

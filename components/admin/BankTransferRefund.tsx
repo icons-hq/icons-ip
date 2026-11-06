@@ -10,6 +10,7 @@ import { createGoodsDescriptionToolScope } from '@/lib/admin/goods-description-t
 import { formatOrderDateTime } from '@/lib/orders';
 import { useClaimPreviewBusy } from '@/components/admin/screens/ClaimPreviewDialog';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
+import { cn } from 'cn';
 import {
   BANK_REFUND_LABELS, BANK_REFUND_RECOVERY_PREFIX, bankRefundError, bankRefundMetadata, bankRefundReceiptMatches,
   bankRefundRecoveryKey, normalizeBankRefundRequest, parseBankRefundRecovery,
@@ -19,8 +20,8 @@ import {
 
 type Scope = ReturnType<typeof createGoodsDescriptionToolScope>;
 /* 템플릿 룩(ADR-0028). 입력은 네이티브 그대로이고(어휘 CSS가 kit 모양을 입힌다), 버튼은 kit 버튼 모양이다. */
-const PRIMARY = buttonVariants({ size: 'sm' });
-const OUTLINE = buttonVariants({ size: 'sm', variant: 'outline' });
+const PRIMARY = cn(buttonVariants({ size: 'sm' }));
+const OUTLINE = cn(buttonVariants({ size: 'sm', variant: 'outline' }));
 const FIELD = 'flex min-w-0 flex-col gap-1.5';
 const FIELD_LABEL = 'font-medium';
 const empty = { occurredAt: '', evidence: '', note: '', confirmed: false };
@@ -45,7 +46,7 @@ function AccountView({ account, onClose }: { account: BankRefundAccountView; onC
       <dl className="grid grid-cols-[6rem_minmax(0,1fr)] gap-x-3 gap-y-1.5 rounded-lg border bg-muted/40 p-3 break-all" data-private="true">
         <dt className="text-muted-foreground">은행</dt><dd className="m-0">{account.bankName}</dd><dt className="text-muted-foreground">계좌번호</dt><dd className="m-0 tabular-nums">{account.accountNumber}</dd><dt className="text-muted-foreground">예금주</dt><dd className="m-0">{account.accountHolder}</dd>
       </dl>
-      <button className={`${buttonVariants({ size: 'sm' })} w-fit`} data-slot="button" type="button" onClick={onClose}>계좌정보 닫기</button>
+      <button className={`${cn(buttonVariants({ size: 'sm' }))} w-fit`} data-slot="button" type="button" onClick={onClose}>계좌정보 닫기</button>
     </div>
   </dialog>;
 }

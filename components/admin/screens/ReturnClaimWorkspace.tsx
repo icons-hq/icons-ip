@@ -2,6 +2,7 @@
 
 import { useRef, type ReactNode } from 'react';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
+import { cn } from 'cn';
 import { ORDER_CLAIM_STAGE_LABELS, type OrderClaimStage } from '@/lib/orders/claims';
 
 /* 단계 바로가기. 지금 할 단계(aria-current=step)는 테두리·글자로 강조하고, 고대비 모드에서도 윤곽선으로 남긴다. */
@@ -66,7 +67,7 @@ export function ReturnClaimWorkspace({ progress, review, collection, hold, refun
       <div className="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/40 px-3 py-2.5">
         <p className="min-w-0 break-words" role="status">{closed ? '요청 처리가 종료됐습니다. 기존 증빙과 환불 기록을 확인하세요.'
           : nextStep ? `다음 확인: ${nextStep.title}` : '반품과 환불 완료 기록을 확인했습니다.'}</p>
-        {nextStep ? <button className={`${buttonVariants({ size: 'sm', variant: 'outline' })} print:hidden`} data-slot="button" type="button" onClick={() => focusStep(nextStep.id)}>다음 작업 보기</button> : null}
+        {nextStep ? <button className={`${cn(buttonVariants({ size: 'sm', variant: 'outline' }))} print:hidden`} data-slot="button" type="button" onClick={() => focusStep(nextStep.id)}>다음 작업 보기</button> : null}
       </div>
     </header>
     <nav aria-label="반품 처리 단계" className="grid grid-cols-2 gap-2 sm:flex sm:flex-wrap print:hidden">

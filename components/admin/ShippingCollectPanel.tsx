@@ -11,9 +11,10 @@ import { getSupabaseConfig } from '@/lib/supabase/config';
 import { krw } from '@/lib/format';
 import { formatOrderDateTime } from '@/lib/orders';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
+import { cn } from 'cn';
 /* 템플릿 룩(ADR-0028). 입력은 네이티브 그대로이고(어휘 CSS가 kit 모양을 입힌다), 버튼은 kit 버튼 모양이다. */
-const PRIMARY = buttonVariants({ size: 'sm' });
-const OUTLINE = buttonVariants({ size: 'sm', variant: 'outline' });
+const PRIMARY = cn(buttonVariants({ size: 'sm' }));
+const OUTLINE = cn(buttonVariants({ size: 'sm', variant: 'outline' }));
 const FIELD = 'flex min-w-0 flex-col gap-1.5';
 const FIELD_LABEL = 'font-medium';
 const HINT = 'text-xs text-muted-foreground';

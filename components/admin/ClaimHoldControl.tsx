@@ -11,10 +11,11 @@ import { ORDER_CLAIM_STAGE_LABELS, ORDER_CLAIM_TYPE_LABELS, ORDER_CLAIM_TYPE_SLU
 import { formatOrderDateTime } from '@/lib/orders';
 import { useClaimPreviewBusy } from '@/components/admin/screens/ClaimPreviewDialog';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
+import { cn } from 'cn';
 
 /* 템플릿 룩(ADR-0028). 입력은 네이티브 그대로이고(어휘 CSS가 kit 모양을 입힌다), 버튼은 kit 버튼 모양이다. */
-const PRIMARY = buttonVariants({ size: 'sm' });
-const OUTLINE = buttonVariants({ size: 'sm', variant: 'outline' });
+const PRIMARY = cn(buttonVariants({ size: 'sm' }));
+const OUTLINE = cn(buttonVariants({ size: 'sm', variant: 'outline' }));
 const FIELD = 'flex min-w-0 flex-col gap-1.5';
 const CHECK = 'flex items-start gap-2 leading-relaxed';
 

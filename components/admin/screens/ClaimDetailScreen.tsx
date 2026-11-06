@@ -4,6 +4,7 @@ import { ClaimFeePanel } from '@/components/orders/ClaimFeePanel';
 import { GoodsCustomInputsSummary } from '@/components/shop/GoodsCustomInputs';
 import { ShipmentDetails } from '@/components/shop/ShipmentDetails';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
+import { cn } from 'cn';
 import { Card, CardContent, CardHeader } from '@/components/admin/kit/ui/card';
 import { ADMIN_VOCABULARY as V } from '@/lib/admin/vocabulary';
 import { adminClaimReasonText } from '@/lib/admin/claims';
@@ -116,7 +117,7 @@ const ORDER_STATUS_LABELS: Record<string, string> = {
 const SLA_TONE_CLASS = 'data-[sla-tone=warning]:font-semibold data-[sla-tone=warning]:text-[var(--wc-warning)] data-[sla-tone=danger]:font-bold data-[sla-tone=danger]:text-destructive';
 /* 구역 바로가기 — 셸의 콘솔 전환과 같은 모양의 구분 선택. */
 const SECTION_LINK_CLASS = 'inline-flex h-7 items-center rounded-md px-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-background hover:text-foreground';
-const OUTLINE_SM = `${buttonVariants({ size: 'sm', variant: 'outline' })} w-fit`;
+const OUTLINE_SM = `${cn(buttonVariants({ size: 'sm', variant: 'outline' }))} w-fit`;
 
 function Row({ label, value }: { label: string; value: string }) {
   return (

@@ -13,11 +13,12 @@ import { selectableShippingCarriers, type ShippingCarrierRegistry } from '@/lib/
 import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import { formatKrwExact } from '@/components/admin/format';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
+import { cn } from 'cn';
 import { CustomerServiceDialog } from './CustomerServiceDialog';
 
 /* 템플릿 룩(ADR-0028). 입력은 네이티브 그대로이고(어휘 CSS가 kit 모양을 입힌다), 버튼은 kit 버튼 모양이다. */
-const PRIMARY = buttonVariants();
-const OUTLINE = buttonVariants({ variant: 'outline' });
+const PRIMARY = cn(buttonVariants());
+const OUTLINE = cn(buttonVariants({ variant: 'outline' }));
 const FIELDSET = 'm-0 flex min-w-0 flex-col gap-3 rounded-lg border p-4';
 const LEGEND = 'px-1 font-medium';
 const FIELDS = 'grid min-w-0 gap-3 sm:grid-cols-2';
@@ -185,7 +186,7 @@ export function SellerClaimIntakeButton({ orderId, mode = 'return-exchange' }: {
     finally { setPending(false); }
   }
   return <div className="flex min-w-0 flex-col items-start gap-2" data-seller-claim-intake-entry="">
-    <button className={buttonVariants({ size: 'sm', variant: 'outline' })} data-slot="button" type="button" disabled={pending} onClick={() => { void open(); }}>{pending ? '접수 가능 여부 확인 중…' : mode === 'cancel' ? '판매자 직접 취소 접수' : '판매자 직접 반품·교환 접수'}</button>
+    <button className={cn(buttonVariants({ size: 'sm', variant: 'outline' }))} data-slot="button" type="button" disabled={pending} onClick={() => { void open(); }}>{pending ? '접수 가능 여부 확인 중…' : mode === 'cancel' ? '판매자 직접 취소 접수' : '판매자 직접 반품·교환 접수'}</button>
     {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
     {context ? <SellerClaimIntakeForm key={context.orderId} context={context} carriers={context.carriers} onClose={() => setContext(null)} /> : null}
   </div>;

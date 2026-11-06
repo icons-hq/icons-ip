@@ -496,6 +496,10 @@ describe('ClaimDetailScreen', () => {
     const html = render();
 
     expect(html).toContain('/admin/sales/claims/returns');
+    /* 버튼 모양 링크(outline)는 테두리 색이 남는다 — buttonVariants를 cn으로 합치지 않으면 기본의 border-transparent가 이긴다. */
+    const back = html.match(/<a[^>]*>← 목록으로<\/a>/)?.[0] ?? '';
+    expect(back).toContain('border-border');
+    expect(back).not.toContain('border-transparent');
   });
 
   /* R8: 목록 위 팝업에서는 대화상자가 제목·닫기를 맡는다. 같은 처리 패널을 그대로 쓴다. */
