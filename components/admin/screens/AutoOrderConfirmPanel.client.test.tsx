@@ -13,7 +13,7 @@ import type { AutoOrderConfirmationState } from '@/lib/admin/auto-order-confirma
 /* 실행 시각 입력은 kit Input(ADR-0028)이다 — 렌더 전 요소 트리에서는 그 부품 자체가 요소 종류다. */
 import { Input } from '@/components/admin/kit/ui/input';
 
-type Element = ReactElement<{ children?: ReactNode; summary?: string; value?: string; role?: string; tabIndex?: number;
+type Element = ReactElement<{ children?: ReactNode; summary?: ReactNode; value?: string; role?: string; tabIndex?: number;
   type?: string; onChange?: (event: unknown) => void; onSubmit?: (event: unknown) => void }>;
 function all(node: ReactNode): Element[] { return Array.isArray(node) ? node.flatMap(all) : isValidElement(node) ? [node as Element, ...all((node.props as { children?: ReactNode }).children)] : []; }
 function text(node: ReactNode): string { return Array.isArray(node) ? node.map(text).join('') : isValidElement(node) ? text((node.props as { children?: ReactNode }).children) : typeof node === 'string' ? node : ''; }
@@ -49,21 +49,21 @@ it('저장 뒤 서버가 새 설정으로 다시 그려도 저장 결과 문구�
   expect(text(status)).toBe('저장했습니다. 매일 17:00에 자동 발주확인합니다.');
   // 저장 중 잠긴 입력에서 빠진 포커스를 받을 수 있는 자리다.
   expect(status?.props.tabIndex).toBe(-1);
-  expect(tree.props.summary).toContain('매일 17:00 · 켜짐');
+  expect(text(tree.props.summary)).toContain('매일 17:00 · 켜짐');
   expect(timeInput(tree).props.value).toBe('17:00');
 });
 
 it('늦게 도착한 이전 설정은 되돌리지 않고, 같은 revision의 새 실행 기록은 반영하며 고치던 입력은 남긴다', async () => {
   await saveRunTime('17:00');
   const stale = render(structuredClone(base));
-  expect(stale.props.summary).toContain('매일 17:00');
+  expect(text(stale.props.summary)).toContain('매일 17:00');
   expect(text(result(stale))).toContain('저장했습니다');
 
   timeInput(render(saved)).props.onChange?.({ target: { value: '18:00' } });
   const ran = { ...saved, lastRun: { runDate: '2026-10-27', cutoffAt: '2026-10-27T08:00:00Z', startedAt: '2026-10-27T08:00:30Z', finishedAt: '2026-10-27T08:00:31Z',
     confirmedCount: 5, excludedCount: 1 } };
   const tree = render(ran);
-  expect(tree.props.summary).toContain('발주확인 5건 · 제외 1건');
+  expect(text(tree.props.summary)).toContain('발주확인 5건 · 제외 1건');
   expect(timeInput(tree).props.value).toBe('18:00');
   expect(text(result(tree))).toContain('저장했습니다');
 });
@@ -71,6 +71,6 @@ it('늦게 도착한 이전 설정은 되돌리지 않고, 같은 revision의 �
 it('처음에 설정을 읽지 못했어도 다시 그릴 때 받은 설정으로 패널을 연다', () => {
   expect(text(render(null))).toContain('자동 발주확인 설정을 불러오지 못했습니다');
   const tree = render(base);
-  expect(tree.props.summary).toContain('매일 16:30 · 켜짐');
+  expect(text(tree.props.summary)).toContain('매일 16:30 · 켜짐');
   expect(timeInput(tree).props.value).toBe('16:30');
 });

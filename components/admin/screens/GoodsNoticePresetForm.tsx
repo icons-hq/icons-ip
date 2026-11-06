@@ -15,7 +15,8 @@ import {
 
 const EMPTY_STATE: GoodsNoticePresetActionState = {};
 
-export function GoodsNoticePresetForm({ preset }: { preset?: GoodsNoticePreset }) {
+/** `inset`: 접는 목록 안에서는 자기 여백을 두고, 등록 팝업 안에서는 팝업 본문 여백을 쓴다. */
+export function GoodsNoticePresetForm({ preset, inset = true }: { preset?: GoodsNoticePreset; inset?: boolean }) {
   const [state, action, pending] = useActionState(saveGoodsNoticePresetAction, EMPTY_STATE);
   const prefix = useId();
   // Keep the editing version until this form saves successfully. Another form's
@@ -35,7 +36,7 @@ export function GoodsNoticePresetForm({ preset }: { preset?: GoodsNoticePreset }
 
   // Keep the form's controlled KC selects until the keyed fieldset restores the
   // action result. A handled failure must not invoke the native action reset.
-  return <form action={action} className="flex min-w-0 flex-col gap-4 p-4 sm:p-6" onSubmit={event => {
+  return <form action={action} className={`flex min-w-0 flex-col gap-4${inset ? ' p-4 sm:p-6' : ''}`} onSubmit={event => {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
     startTransition(() => action(data));

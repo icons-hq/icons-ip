@@ -1,10 +1,13 @@
 import Link from 'next/link';
-import { Plus, Search } from 'lucide-react';
+import { ChevronDown } from 'lucide-react';
 import { AdminPageHeader, AdminSectionCard, AdminStatusBadge } from '@/components/admin/console/AdminKit';
+import { AdminCreateDialogButton } from '@/components/admin/console/AdminCreateDialogButton';
+import { CONSOLE_FILTER_CARD_CLASS, CONSOLE_FILTER_FIELDS_CLASS, ConsoleFilterActions, ConsoleFilterField } from '@/components/admin/console/ConsoleFilterPanel';
+import { CONSOLE_LIST_EMPTY_CLASS, ConsoleListCard } from '@/components/admin/console/ConsoleListCard';
 import { ConsolePagination } from '@/components/admin/console/ConsolePagination';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
-import { EMPTY, FILTER_CARD, NOTE, STATUS_BOX } from '@/components/admin/settings-kit';
+import { NOTE, STATUS_BOX } from '@/components/admin/settings-kit';
 import {
   SHIPPING_NOTICE_TEMPLATE_NAME_MAX,
   SHIPPING_NOTICE_TEMPLATE_PAGE_SIZE,
@@ -18,35 +21,38 @@ import {
   ShippingNoticeTemplateForm,
 } from './ShippingNoticeTemplateForm';
 
-const DETAILS = 'group min-w-0 rounded-xl border bg-card text-card-foreground';
-const DETAILS_SUMMARY = 'flex cursor-pointer flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3 text-sm';
+/* 목록 카드 안 접는 항목(상품정보제공고시 프리셋 목록과 같은 줄 모양). */
+const DETAILS = 'group min-w-0 border-b last:border-b-0 open:bg-muted/20';
+const DETAILS_SUMMARY = 'flex min-h-12 cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3 text-sm [&::-webkit-details-marker]:hidden';
 
 export function ShippingNoticeTemplatesScreen({ data }: { data: ShippingNoticeTemplatePageData }) {
   const { templates, impactGoods, filters, total } = data;
+  /* 템플릿 화면군 공통 골격: 머리(설명·등록) → 조회 카드 → 목록 카드(항목·페이지 이동). 등록은 머리 오른쪽 버튼의 팝업이다. */
   return <div className="flex min-w-0 flex-col gap-4" data-admin-screen="shipping-notices">
     <AdminPageHeader
-      title="배송 안내 템플릿"
+      title="배송 안내 템플릿 관리"
       description="배송·교환/반품 안내와 고객센터 연락처를 버전으로 저장합니다. 실제 운임과 반송 주소는 출고지 설정이 소유하며, 창고 출고지시 양식과 분리됩니다."
+      actions={<AdminCreateDialogButton label="새 배송 안내 템플릿 등록" title="새 배송 안내 템플릿 등록" wide><ShippingNoticeTemplateForm /></AdminCreateDialogButton>}
     />
     <p className={STATUS_BOX}>
       배송비 유형·출고지·반품 조건은 <Link className="font-medium underline underline-offset-4" href="/admin/settings/shipping-templates">배송정보 템플릿 관리</Link>에서 적용합니다. 이 안내 템플릿은 초안으로 저장되고 필수 안내와 확인 근거가 있어야 활성화됩니다. 활성 버전은 수정할 수 없으며 새 버전으로 등록합니다.
     </p>
-    <details className={DETAILS}>
-      <summary className={`${DETAILS_SUMMARY} font-medium`}><Plus aria-hidden="true" className="size-4 text-muted-foreground" />새 배송 안내 템플릿 등록</summary>
-      <div className="border-t p-4"><ShippingNoticeTemplateForm /></div>
-    </details>
-    <form action={SHIPPING_NOTICE_TEMPLATES_PATH} className={FILTER_CARD}>
-      <div className="flex min-w-[min(100%,15rem)] flex-1 flex-col gap-1.5"><label className="text-sm leading-none font-medium" htmlFor="shipping-notice-template-query">템플릿 이름 검색</label>
-        <Input id="shipping-notice-template-query" name="q" type="search" defaultValue={filters.query} maxLength={SHIPPING_NOTICE_TEMPLATE_NAME_MAX} placeholder="템플릿 이름" />
+    <form action={SHIPPING_NOTICE_TEMPLATES_PATH} className={CONSOLE_FILTER_CARD_CLASS}>
+      <div className={CONSOLE_FILTER_FIELDS_CLASS}>
+        <ConsoleFilterField className="min-w-[min(100%,15rem)] flex-1" htmlFor="shipping-notice-template-query" label="템플릿 이름 검색">
+          <Input id="shipping-notice-template-query" name="q" type="search" defaultValue={filters.query} maxLength={SHIPPING_NOTICE_TEMPLATE_NAME_MAX} placeholder="템플릿 이름" />
+        </ConsoleFilterField>
+        <ConsoleFilterField className="min-w-[min(100%,15rem)] flex-1" htmlFor="shipping-notice-good-query" label="상품 찾기">
+          <Input id="shipping-notice-good-query" name="good" type="search" defaultValue={filters.goodQuery} maxLength={120} placeholder="상품 ID 또는 이름" />
+        </ConsoleFilterField>
       </div>
-      <div className="flex min-w-[min(100%,15rem)] flex-1 flex-col gap-1.5"><label className="text-sm leading-none font-medium" htmlFor="shipping-notice-good-query">상품 찾기</label>
-        <Input id="shipping-notice-good-query" name="good" type="search" defaultValue={filters.goodQuery} maxLength={120} placeholder="상품 ID 또는 이름" />
-      </div>
-      <div className="flex flex-wrap items-center gap-2"><button className={buttonVariants()} data-slot="button" type="submit"><Search aria-hidden="true" />검색</button>
-        {filters.query || filters.goodQuery ? <Link className={buttonVariants({ variant: 'outline' })} data-slot="button" href={SHIPPING_NOTICE_TEMPLATES_PATH}>검색 초기화</Link> : null}</div>
+      <ConsoleFilterActions>
+        {filters.query || filters.goodQuery ? <Link className={buttonVariants({ variant: 'outline' })} data-slot="button" href={SHIPPING_NOTICE_TEMPLATES_PATH}>검색 초기화</Link> : null}
+        <button className={buttonVariants()} data-slot="button" type="submit">검색</button>
+      </ConsoleFilterActions>
     </form>
-    <p className={NOTE}>총 <span className="tabular-nums">{total.toLocaleString('ko-KR')}</span>개 · 활성 템플릿은 상품에 적용한 버전과 함께 공개됩니다.</p>
-    {templates.length ? <div className="flex min-w-0 flex-col gap-3" data-shipping-notice-entries="">
+    <ConsoleListCard title="목록" total={total} unit="개" description="활성 템플릿은 상품에 적용한 버전과 함께 공개됩니다.">
+    {templates.length ? <div className="flex min-w-0 flex-col overflow-hidden rounded-lg border" data-shipping-notice-entries="">
       {templates.map((template) => {
         const assigned = impactGoods.filter((good) => good.templateId === template.id);
         return <details key={template.id} className={DETAILS}>
@@ -54,6 +60,7 @@ export function ShippingNoticeTemplatesScreen({ data }: { data: ShippingNoticeTe
             <strong className="font-medium">{template.name}</strong>
             <span className="text-xs text-muted-foreground tabular-nums">{template.code} v{template.version}</span>
             <AdminStatusBadge tone={template.status === 'active' ? 'success' : 'neutral'}>{template.status === 'active' ? '활성' : '초안'}</AdminStatusBadge>
+            <ChevronDown aria-hidden="true" className="ml-auto size-4 shrink-0 text-muted-foreground transition-transform group-open:rotate-180" />
           </summary>
           <div className="flex min-w-0 flex-col gap-4 border-t p-4">
             <ShippingNoticeTemplateForm template={template} />
@@ -79,7 +86,8 @@ export function ShippingNoticeTemplatesScreen({ data }: { data: ShippingNoticeTe
           </div>
         </details>;
       })}
-    </div> : <p className={`${EMPTY} rounded-xl border bg-card`}>{filters.query ? '조건에 맞는 템플릿이 없습니다.' : '아직 배송 안내 템플릿이 없습니다. 새 초안을 등록해주세요.'}</p>}
+    </div> : <p className={CONSOLE_LIST_EMPTY_CLASS}>{filters.query ? '조건에 맞는 템플릿이 없습니다.' : '아직 배송 안내 템플릿이 없습니다. 새 초안을 등록해주세요.'}</p>}
     <ConsolePagination page={filters.page} pageSize={SHIPPING_NOTICE_TEMPLATE_PAGE_SIZE} total={total} hrefForPage={(page) => shippingNoticeTemplateHref(filters, page)} />
+    </ConsoleListCard>
   </div>;
 }

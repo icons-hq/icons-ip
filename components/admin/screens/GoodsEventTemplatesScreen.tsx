@@ -5,10 +5,14 @@ import type { GoodsEventTemplate, GoodsEventTemplatePage } from '@/lib/goods-ben
 import { kstDateTimeText } from '@/lib/admin/list-export';
 import { Plus } from 'lucide-react';
 import { CustomerServiceDialog } from './CustomerServiceDialog';
+import { AdminPageHeader } from '../console/AdminKit';
 import { AdminSelect } from '../console/AdminSelect';
+import { CONSOLE_FILTER_CARD_CLASS, CONSOLE_FILTER_FIELDS_CLASS, CONSOLE_FILTER_LABEL_CLASS, ConsoleFilterActions } from '../console/ConsoleFilterPanel';
+import { CONSOLE_TABLE_FRAME_CLASS, ConsoleListCard, ConsoleTableEmptyRow, ConsoleTableHeader } from '../console/ConsoleListCard';
+import { ConsolePagination } from '../console/ConsolePagination';
 import { Button } from '../kit/ui/button';
 import { Input } from '../kit/ui/input';
-import { TableBody, TableCell, TableHead, TableHeader, TableRow } from '../kit/ui/table';
+import { TableBody, TableCell, TableHead, TableRow } from '../kit/ui/table';
 
 function EventTemplateEditor({ template, onClose, onSaved }: { template: GoodsEventTemplate | null; onClose: () => void; onSaved: () => void }) {
   const [text, setText] = useState(template?.eventText ?? ''), [pending, setPending] = useState(false), [uncertain, setUncertain] = useState(false), [conflict, setConflict] = useState(false), [message, setMessage] = useState('');
@@ -64,21 +68,28 @@ export function GoodsEventTemplatesScreen({ onSelect }: { onSelect?: (template: 
     } catch { if (mounted.current && sequence === readSequence.current) setMessage('템플릿을 불러오지 못했습니다. 다시 조회해주세요.'); }
     finally { busy.current = false; if (mounted.current) setPending(false); }
   }
+  /* 템플릿 화면군 공통 골격: 머리(설명·등록) → 조회 카드([초기화][검색]) → 목록 카드(표·페이지 이동). 선택 팝업은 머리 없이 쓴다. */
   return <section className="flex min-w-0 flex-col gap-4" data-admin-screen="event-templates">
-    <form className="flex flex-wrap items-end gap-3 rounded-xl border bg-card p-4 text-card-foreground" onSubmit={event => { event.preventDefault(); void load(1, query, archived); }}>
-      <label className="flex min-w-[min(100%,15rem)] flex-1 flex-col gap-2 text-sm font-medium">이벤트 문구 검색<Input value={query} onChange={event => setQuery(event.target.value)} maxLength={100} type="search" /></label>
-      {!onSelect ? <label className="flex flex-col gap-2 text-sm font-medium">보관 상태<AdminSelect value={archived ? 'archived' : 'active'} onChange={event => void load(1, search, event.target.value === 'archived')} disabled={pending} wrapperClassName="w-40"><option value="active">사용 중</option><option value="archived">보관됨</option></AdminSelect></label> : null}
-      <Button type="submit" disabled={pending}>검색</Button>
+    {!onSelect ? <AdminPageHeader title="이벤트 템플릿 관리" description="불러온 문구는 상품에 복사됩니다. 템플릿 수정·보관으로 이미 저장된 상품 문구가 바뀌지 않습니다."
+      actions={<Button type="button" disabled={!data} onClick={() => setEditor({ template: null })}><Plus aria-hidden="true" />이벤트 템플릿 등록</Button>} /> : null}
+    <form className={CONSOLE_FILTER_CARD_CLASS} onSubmit={event => { event.preventDefault(); void load(1, query, archived); }}>
+      <div className={CONSOLE_FILTER_FIELDS_CLASS}>
+        <label className={`${CONSOLE_FILTER_LABEL_CLASS} min-w-[min(100%,15rem)] flex-1`}>이벤트 문구 검색<Input value={query} onChange={event => setQuery(event.target.value)} maxLength={100} type="search" /></label>
+        {!onSelect ? <label className={CONSOLE_FILTER_LABEL_CLASS}>보관 상태<AdminSelect value={archived ? 'archived' : 'active'} onChange={event => void load(1, search, event.target.value === 'archived')} disabled={pending} wrapperClassName="w-40"><option value="active">사용 중</option><option value="archived">보관됨</option></AdminSelect></label> : null}
+      </div>
+      <ConsoleFilterActions>
+        <Button variant="outline" type="button" disabled={pending} onClick={() => { setQuery(''); void load(1, '', false); }}>초기화</Button>
+        <Button type="submit" disabled={pending}>검색</Button>
+      </ConsoleFilterActions>
     </form>
     {message ? <p className="text-sm text-destructive" role="alert">{message}</p> : null}
-    {data ? <>
-      <div className="flex flex-wrap items-center gap-3"><strong className="text-sm font-medium tabular-nums">조회 결과 {data.total.toLocaleString('ko-KR')}건</strong>{!onSelect ? <Button size="sm" type="button" onClick={() => setEditor({ template: null })}><Plus aria-hidden="true" />이벤트 템플릿 등록</Button> : null}</div>
-      <div className="relative min-w-0 overflow-x-auto rounded-lg border bg-card outline-none focus-visible:ring-3 focus-visible:ring-ring/50" role="region" aria-label="이벤트 템플릿 목록 가로 스크롤" tabIndex={0}><table className="w-full min-w-[480px] caption-bottom text-sm" data-slot="table"><caption className="sr-only">이벤트 템플릿 목록</caption><TableHeader><TableRow className="bg-muted/50"><TableHead>이벤트 문구</TableHead><TableHead>등록일</TableHead><TableHead className="w-24">{onSelect ? '선택' : '관리'}</TableHead></TableRow></TableHeader><TableBody>
+    {data ? <ConsoleListCard headingLevel={3} title="조회 결과" total={data.total}>
+      <div className={CONSOLE_TABLE_FRAME_CLASS} role="region" aria-label="이벤트 템플릿 목록 가로 스크롤" tabIndex={0}><table className="w-full min-w-[480px] caption-bottom text-sm" data-slot="table"><caption className="sr-only">이벤트 템플릿 목록</caption><ConsoleTableHeader><TableRow className="hover:bg-transparent"><TableHead>이벤트 문구</TableHead><TableHead>등록일</TableHead><TableHead className="w-24">{onSelect ? '선택' : '관리'}</TableHead></TableRow></ConsoleTableHeader><TableBody>
         {data.rows.map(row => <TableRow key={row.id}><TableCell className="whitespace-normal">{row.eventText}</TableCell><TableCell className="tabular-nums">{kstDateTimeText(row.createdAt)}</TableCell><TableCell><Button size="xs" variant="outline" type="button" onClick={() => onSelect ? onSelect(row) : setEditor({ template: row })}>{onSelect ? '선택' : '수정'}</Button></TableCell></TableRow>)}
-        {!data.rows.length ? <TableRow><TableCell className="h-24 text-center text-muted-foreground" colSpan={3}>등록된 이벤트 템플릿이 없습니다.</TableCell></TableRow> : null}
+        {!data.rows.length ? <ConsoleTableEmptyRow colSpan={3}>등록된 이벤트 템플릿이 없습니다.</ConsoleTableEmptyRow> : null}
       </TableBody></table></div>
-      <nav aria-label="이벤트 템플릿 페이지" className="flex flex-wrap items-center justify-between gap-2 px-1 text-sm"><span className="text-muted-foreground tabular-nums">{data.page} / {Math.max(1, Math.ceil(data.total / 20))} 페이지</span><span className="flex items-center gap-1.5"><Button size="sm" variant="outline" type="button" disabled={pending || data.page <= 1} onClick={() => void load(data.page - 1)}>이전</Button><Button size="sm" variant="outline" type="button" disabled={pending || data.page * 20 >= data.total} onClick={() => void load(data.page + 1)}>다음</Button></span></nav>
-    </> : <p className="text-sm text-muted-foreground" role="status">{message ? '조회 후에 템플릿을 관리할 수 있습니다.' : '템플릿을 불러오는 중…'}</p>}
+      <ConsolePagination label="이벤트 템플릿 페이지" page={data.page} pageSize={20} total={data.total} disabled={pending} onPageChange={page => void load(page)} />
+    </ConsoleListCard> : <p className="text-sm text-muted-foreground" role="status">{message ? '조회 후에 템플릿을 관리할 수 있습니다.' : '템플릿을 불러오는 중…'}</p>}
     {editor ? <EventTemplateEditor template={editor.template} onClose={() => setEditor(null)} onSaved={() => { setEditor(null); void load(data?.page ?? 1); }} /> : null}
   </section>;
 }

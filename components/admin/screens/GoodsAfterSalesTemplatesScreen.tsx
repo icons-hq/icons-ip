@@ -1,14 +1,18 @@
 'use client';
 import { useEffect, useRef, useState, type FormEvent } from 'react';
-import { Plus, Search } from 'lucide-react';
+import { Plus } from 'lucide-react';
 import { listGoodsAfterSalesTemplatesAction, saveGoodsAfterSalesTemplateAction, type GoodsAfterSalesResult } from '@/app/admin/goods-after-sales-actions';
 import type { GoodsAfterSalesValues, GoodsAfterSalesTemplate, GoodsAfterSalesTemplatePage } from '@/lib/goods-after-sales';
 import { kstDateTimeText } from '@/lib/admin/list-export';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
 import { Label } from '@/components/admin/kit/ui/label';
 import { NativeSelect } from '@/components/admin/kit/ui/native-select';
-import { Table, TableBody, TableCaption, TableCell, TableHead, TableHeader, TableRow } from '@/components/admin/kit/ui/table';
-import { GOOD_INPUT_CLASS, GOOD_TABLE_FRAME_CLASS } from '../GoodEditorParts';
+import { Table, TableBody, TableCaption, TableCell, TableHead, TableRow } from '@/components/admin/kit/ui/table';
+import { AdminPageHeader } from '@/components/admin/console/AdminKit';
+import { CONSOLE_FILTER_CARD_CLASS, CONSOLE_FILTER_FIELDS_CLASS, CONSOLE_FILTER_LABEL_CLASS, ConsoleFilterActions } from '@/components/admin/console/ConsoleFilterPanel';
+import { CONSOLE_TABLE_FRAME_CLASS, ConsoleListCard, ConsoleTableEmptyRow, ConsoleTableHeader } from '@/components/admin/console/ConsoleListCard';
+import { ConsolePagination } from '@/components/admin/console/ConsolePagination';
+import { GOOD_INPUT_CLASS } from '../GoodEditorParts';
 import { CustomerServiceDialog } from './CustomerServiceDialog';
 import { GoodsAfterSalesFields } from '../GoodsAfterSalesFields';
 
@@ -71,21 +75,28 @@ export function GoodsAfterSalesTemplatesScreen({ onSelect }: { onSelect?: (templ
     } catch { if (mounted.current && sequence === readSequence.current) setMessage('템플릿을 불러오지 못했습니다. 다시 조회해주세요.'); }
     finally { busy.current = false; if (mounted.current) setPending(false); }
   }
+  /* 템플릿 화면군 공통 골격: 머리(설명·등록) → 조회 카드([초기화][검색]) → 목록 카드(표·페이지 이동). 선택 팝업은 머리 없이 쓴다. */
   return <section className="flex min-w-0 flex-col gap-4 text-sm" data-goods-after-sales-templates="">
-    <form className="flex flex-wrap items-end gap-3 rounded-xl border bg-card p-4 text-card-foreground" onSubmit={event => { event.preventDefault(); void load(1, query, archived); }}>
-      <label className="flex min-w-0 flex-1 basis-60 flex-col gap-2"><span className="font-medium">A/S 안내 검색</span><input className={GOOD_INPUT_CLASS} data-slot="input" value={query} onChange={event => setQuery(event.target.value)} maxLength={100} type="search" /></label>
-      {!onSelect ? <div className="flex min-w-0 flex-col gap-2"><Label htmlFor={ARCHIVED_SELECT_ID}>보관 상태</Label><NativeSelect className="w-full sm:w-32" id={ARCHIVED_SELECT_ID} value={archived ? 'archived' : 'active'} onChange={event => void load(1, search, event.target.value === 'archived')} disabled={pending}><option value="active">사용 중</option><option value="archived">보관됨</option></NativeSelect></div> : null}
-      <button className={buttonVariants()} data-slot="button" disabled={pending}><Search aria-hidden="true" />검색</button>
+    {!onSelect ? <AdminPageHeader title="A/S 템플릿 관리" description="불러온 전화번호·안내·특이사항은 상품에 복사됩니다. 템플릿 수정·보관으로 이미 저장된 상품 안내가 바뀌지 않습니다."
+      actions={<button className={buttonVariants()} data-slot="button" type="button" disabled={!data} onClick={() => setEditor({ template: null })}><Plus aria-hidden="true" />A/S 템플릿 등록</button>} /> : null}
+    <form className={CONSOLE_FILTER_CARD_CLASS} onSubmit={event => { event.preventDefault(); void load(1, query, archived); }}>
+      <div className={CONSOLE_FILTER_FIELDS_CLASS}>
+        <label className={`${CONSOLE_FILTER_LABEL_CLASS} flex-1 basis-60`}>A/S 안내 검색<input className={GOOD_INPUT_CLASS} data-slot="input" value={query} onChange={event => setQuery(event.target.value)} maxLength={100} type="search" /></label>
+        {!onSelect ? <div className="flex min-w-0 flex-col gap-1.5"><Label htmlFor={ARCHIVED_SELECT_ID}>보관 상태</Label><NativeSelect className="w-full sm:w-32" id={ARCHIVED_SELECT_ID} value={archived ? 'archived' : 'active'} onChange={event => void load(1, search, event.target.value === 'archived')} disabled={pending}><option value="active">사용 중</option><option value="archived">보관됨</option></NativeSelect></div> : null}
+      </div>
+      <ConsoleFilterActions>
+        <button className={buttonVariants({ variant: 'outline' })} data-slot="button" type="button" disabled={pending} onClick={() => { setQuery(''); void load(1, '', false); }}>초기화</button>
+        <button className={buttonVariants()} data-slot="button" disabled={pending}>검색</button>
+      </ConsoleFilterActions>
     </form>
     {message ? <p className="text-destructive" role="alert">{message}</p> : null}
-    {data ? <>
-      <div className="flex flex-wrap items-center justify-between gap-2"><strong className="font-medium tabular-nums">조회 결과 {data.total.toLocaleString('ko-KR')}건</strong>{!onSelect ? <button className={buttonVariants({ variant: 'outline' })} data-slot="button" type="button" onClick={() => setEditor({ template: null })}><Plus aria-hidden="true" />A/S 템플릿 등록</button> : null}</div>
-      <div className={GOOD_TABLE_FRAME_CLASS} role="region" aria-label="A/S 템플릿 목록 가로 스크롤" tabIndex={0}><Table className="min-w-[35rem]"><TableCaption className="sr-only">A/S 템플릿 목록</TableCaption><TableHeader className="bg-muted/50"><TableRow className="hover:bg-transparent"><TableHead className="px-3">A/S 전화번호</TableHead><TableHead className="px-3">A/S 안내</TableHead><TableHead className="px-3">판매자 특이사항</TableHead><TableHead className="px-3">등록일</TableHead><TableHead className="px-3">{onSelect ? '선택' : '관리'}</TableHead></TableRow></TableHeader><TableBody>
+    {data ? <ConsoleListCard headingLevel={3} title="조회 결과" total={data.total}>
+      <div className={`${CONSOLE_TABLE_FRAME_CLASS} [&>[data-slot=table-container]]:overflow-visible`} role="region" aria-label="A/S 템플릿 목록 가로 스크롤" tabIndex={0}><Table className="min-w-[35rem]"><TableCaption className="sr-only">A/S 템플릿 목록</TableCaption><ConsoleTableHeader><TableRow className="hover:bg-transparent"><TableHead className="px-3">A/S 전화번호</TableHead><TableHead className="px-3">A/S 안내</TableHead><TableHead className="px-3">판매자 특이사항</TableHead><TableHead className="px-3">등록일</TableHead><TableHead className="px-3">{onSelect ? '선택' : '관리'}</TableHead></TableRow></ConsoleTableHeader><TableBody>
         {data.rows.map(row => <TableRow key={row.id}><TableCell className="px-3 align-top tabular-nums">{row.phone}</TableCell><TableCell className="px-3 align-top whitespace-normal"><span className={EXCERPT_CLASS}>{row.guide}</span></TableCell><TableCell className="px-3 align-top whitespace-normal"><span className={EXCERPT_CLASS}>{row.sellerSpecialNotes || '—'}</span></TableCell><TableCell className="px-3 align-top text-muted-foreground tabular-nums">{kstDateTimeText(row.createdAt)}</TableCell><TableCell className="px-3 align-top"><button type="button" className={buttonVariants({ variant: 'outline', size: 'xs' })} data-slot="button" onClick={() => onSelect ? onSelect(row) : setEditor({ template: row })}>{onSelect ? '선택' : '수정'}</button></TableCell></TableRow>)}
-        {!data.rows.length ? <TableRow className="hover:bg-transparent"><TableCell className="px-3 py-10 text-center text-muted-foreground" colSpan={5}>등록된 A/S 템플릿이 없습니다.</TableCell></TableRow> : null}
+        {!data.rows.length ? <ConsoleTableEmptyRow colSpan={5}>등록된 A/S 템플릿이 없습니다.</ConsoleTableEmptyRow> : null}
       </TableBody></Table></div>
-      <nav aria-label="A/S 템플릿 페이지" className="flex flex-wrap items-center justify-center gap-3"><button className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" type="button" disabled={pending || data.page <= 1} onClick={() => void load(data.page - 1)}>이전</button><span className="text-sm text-muted-foreground tabular-nums">{data.page} / {Math.max(1, Math.ceil(data.total / 20))} 페이지</span><button className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" type="button" disabled={pending || data.page * 20 >= data.total} onClick={() => void load(data.page + 1)}>다음</button></nav>
-    </> : <p className="py-10 text-center text-muted-foreground" role="status">{message ? '조회 후에 템플릿을 관리할 수 있습니다.' : '템플릿을 불러오는 중…'}</p>}
+      <ConsolePagination label="A/S 템플릿 페이지" page={data.page} pageSize={20} total={data.total} disabled={pending} onPageChange={page => void load(page)} />
+    </ConsoleListCard> : <p className="py-10 text-center text-muted-foreground" role="status">{message ? '조회 후에 템플릿을 관리할 수 있습니다.' : '템플릿을 불러오는 중…'}</p>}
     {editor ? <AfterSalesTemplateEditor template={editor.template} onClose={() => setEditor(null)} onSaved={() => { setEditor(null); void load(data?.page ?? 1); }} /> : null}
   </section>;
 }

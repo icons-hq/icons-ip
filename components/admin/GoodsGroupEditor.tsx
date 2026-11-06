@@ -6,7 +6,7 @@ import { GOODS_GROUPS_PATH, goodsGroupConversionHref, parseGoodsGroupValues, typ
 import { formatWon } from '@/lib/admin/goods-price-editor';
 import { goodsGroupCommonHref } from '@/lib/admin/goods-group-common';
 import { ArrowDown, ArrowUp } from 'lucide-react';
-import { AdminField, AdminFormGrid, AdminSectionCard, AdminStatusBadge } from './console/AdminKit';
+import { AdminField, AdminFormGrid, AdminPageHeader, AdminSectionCard, AdminStatusBadge } from './console/AdminKit';
 import { AdminSelect } from './console/AdminSelect';
 import { Button, buttonVariants } from './kit/ui/button';
 import { Input } from './kit/ui/input';
@@ -19,7 +19,10 @@ const CHECK = 'flex cursor-pointer items-center gap-2 text-sm';
 
 const valuesOf = (group: GoodsGroupSnapshot | null): GoodsGroupValues => group ? { name: group.name, optionNames: [...group.optionNames], members: group.members.map(row => ({ goodId: row.goodId, values: [...row.values] })) } : { name: '', optionNames: ['종류'], members: [] };
 type Product = { name: string; code: string | null; price: number; stockQty: number };
-export function GoodsGroupEditor({ initial, newGroupId, actorId, sessionId }: { initial: GoodsGroupSnapshot | null; newGroupId: string; actorId: string; sessionId: string | null }) {
+const GROUP_EDITOR_DESCRIPTION = '기본 옵션 하나를 가진 상품들을 판매옵션으로 연결합니다. 상품별 가격·재고와 기존 합산 조건은 유지됩니다.';
+
+/** `title`: 새 그룹 등록 화면의 머리 제목. 주면 등록 방식 탭 아래에 화면 머리(제목·설명·관련 화면 링크)를 그린다. */
+export function GoodsGroupEditor({ initial, newGroupId, actorId, sessionId, title }: { initial: GoodsGroupSnapshot | null; newGroupId: string; actorId: string; sessionId: string | null; title?: string }) {
   const session = useGoodsGroupSession(actorId, sessionId), identity = sessionId ? { actorId, sessionId } : null;
   const operation = useGoodsGroupOperation(identity, initial ? `group:${initial.id}` : 'create', session.current, session.deny);
   const [stored, setStored] = useState(initial), [values, setValues] = useState(() => valuesOf(initial));
@@ -87,12 +90,15 @@ export function GoodsGroupEditor({ initial, newGroupId, actorId, sessionId }: { 
   if (session.blocked) return <p className="text-sm text-destructive" role="alert">로그인 상태가 바뀌었습니다. 현재 계정으로 화면을 다시 열어주세요.</p>;
   const removed = stored?.members.filter(row => !values.members.some(member => member.goodId === row.goodId)) ?? [];
   const navigationGroup = operation.receipt?.state === 'completed' ? operation.receipt.group : stored;
+  const relatedLinks = <><Link className={buttonVariants({ variant: 'outline' })} data-slot="button" href={GOODS_GROUPS_PATH} onNavigate={leave}>그룹상품 목록</Link><Link className={buttonVariants({ variant: 'outline' })} data-slot="button" href={goodsGroupConversionHref()} onNavigate={leave}>선택형 옵션에서 그룹 전환</Link>
+    {navigationGroup && !navigationGroup.archivedAt ? <Link className={buttonVariants({ variant: 'outline' })} data-slot="button" href={goodsGroupCommonHref(navigationGroup)} onNavigate={leave}>공통정보 편집</Link> : null}
+    {stored ? <Button variant="outline" type="button" disabled={operation.locked || pending || session.blocked} onClick={reload}>최신 저장본 불러오기</Button> : null}</>;
   return <section className="flex min-w-0 flex-col gap-4" aria-busy={pending || operation.pending} data-admin-screen="goods-group-editor">
     {!initial ? <nav className="inline-flex w-fit rounded-lg bg-muted p-0.5" aria-label="상품 등록 방식"><Link className={TAB} href="/admin/catalog/goods?create=1" onNavigate={leave}>상품 등록</Link><span aria-current="page" className={TAB}>그룹상품 등록</span></nav> : null}
-    <div className="flex flex-wrap items-center gap-2"><Link className={buttonVariants({ variant: 'outline' })} data-slot="button" href={GOODS_GROUPS_PATH} onNavigate={leave}>그룹상품 목록</Link><Link className={buttonVariants({ variant: 'outline' })} data-slot="button" href={goodsGroupConversionHref()} onNavigate={leave}>선택형 옵션에서 그룹 전환</Link>
-      {navigationGroup && !navigationGroup.archivedAt ? <Link className={buttonVariants({ variant: 'outline' })} data-slot="button" href={goodsGroupCommonHref(navigationGroup)} onNavigate={leave}>공통정보 편집</Link> : null}
-      {stored ? <Button variant="outline" type="button" disabled={operation.locked || pending || session.blocked} onClick={reload}>최신 저장본 불러오기</Button> : null}</div>
-    <p className="max-w-prose text-sm text-muted-foreground">기본 옵션 하나를 가진 상품들을 판매옵션으로 연결합니다. 상품별 가격·재고와 기존 합산 조건은 유지됩니다.</p>
+    {/* 위계: 등록 방식 탭 → 화면 머리(제목·설명·관련 화면) → 입력. 그룹 편집(제목 없음)은 목록 화면이 머리를 그린다. */}
+    {title ? <AdminPageHeader title={title} description={GROUP_EDITOR_DESCRIPTION} actions={relatedLinks} />
+      : <><div className="flex flex-wrap items-center gap-2">{relatedLinks}</div>
+        <p className="max-w-prose text-sm text-muted-foreground">{GROUP_EDITOR_DESCRIPTION}</p></>}
     <GroupOperationStatus operation={operation} disabled={session.blocked} />
     {operation.receipt?.state === 'completed' ? <GroupCompleted receipt={operation.receipt}>{initial && !operation.receipt.group.archivedAt ? <Button variant="outline" type="button" onClick={() => {
       if (operation.receipt?.state !== 'completed') return; const group = operation.receipt.group;

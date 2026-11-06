@@ -8,12 +8,12 @@ import { publicMediaUrl } from '@/lib/media';
 import { reviewRatingComparisonText, type ReviewRatingHistoryResult } from '@/lib/admin/review-rating-history';
 import { REVIEW_INSIGHTS_PATH, REVIEW_INSIGHT_FOCUSES, REVIEW_INSIGHT_LABELS, reviewInsightHref, type ReviewInsightFilters, type ReviewInsightFocus, type ReviewInsights } from '@/lib/admin/review-insights';
 import { FIELD_LABEL_CLASS } from './cs-kit-classes';
+import { ConsolePagination } from '../console/ConsolePagination';
 
 const rate=(value: number | null) => value===null ? '—' : `${value.toFixed(1)}%`;
 const rating=(value: number | null) => value===null ? '—' : value.toFixed(2);
 const FOCUS_ICONS: Record<ReviewInsightFocus, LucideIcon> = { all: LayoutGrid, photo: ImageIcon, coverage: TrendingUp, rating: Star, unanswered: MessageSquare };
 const STAT_CLASS = 'flex min-w-0 flex-col gap-1 rounded-xl border bg-card p-4 text-card-foreground';
-const PAGE_CLASS = buttonVariants({ size: 'sm', variant: 'outline' });
 
 /* 템플릿 룩(ADR-0028): 요약 카드 → 진단 주제 → 기준 → 상품 목록 카드. 조회 키(focus·q·sort·size·page)는 그대로다. */
 export function ReviewInsightsScreen({ data,filters,history = { kind: 'error' } }: { data: ReviewInsights; filters: ReviewInsightFilters; history?: ReviewRatingHistoryResult }) {
@@ -45,7 +45,7 @@ export function ReviewInsightsScreen({ data,filters,history = { kind: 'error' } 
         <dl className="col-span-full grid grid-cols-2 gap-4 xl:col-span-1"><div><dt className="text-xs text-muted-foreground">사진 리뷰 비중</dt><dd className="mt-1 text-base font-semibold tabular-nums">{rate(row.photoRate)}</dd></div><div><dt className="text-xs text-muted-foreground">배송완료 대비 작성률</dt><dd className="mt-1 text-base font-semibold tabular-nums">{rate(row.coverageRate)}</dd></div><div><dt className="text-xs text-muted-foreground">미작성 상품주문</dt><dd className="mt-1 text-base font-semibold tabular-nums">{(row.deliveredCount-row.reviewedCount).toLocaleString('ko-KR')}건</dd></div><div><dt className="text-xs text-muted-foreground">미답글 리뷰</dt><dd className="mt-1 text-base font-semibold tabular-nums">{row.unansweredCount.toLocaleString('ko-KR')}건</dd></div></dl>
         <Link className={`${buttonVariants({ size: 'sm', variant: 'outline' })} col-span-full xl:col-span-1`} data-slot="button" href={`/admin/cs/reviews?field=good&query=${encodeURIComponent(row.name)}&status=visible`}>리뷰 조회 및 관리</Link>
       </li>)}</ul>}
-      <nav className="flex items-center justify-center gap-3 border-t p-4 text-sm" aria-label="리뷰 분석 페이지">{data.page>1 ? <Link className={PAGE_CLASS} data-slot="button" href={reviewInsightHref(filters,{page:data.page-1})}>이전</Link> : <span aria-disabled="true" className={`${PAGE_CLASS} pointer-events-none opacity-50`}>이전</span>}<span className="text-muted-foreground tabular-nums">{data.page} / {Math.max(1,Math.ceil(data.total/data.pageSize))}</span>{data.page*data.pageSize<data.total ? <Link className={PAGE_CLASS} data-slot="button" href={reviewInsightHref(filters,{page:data.page+1})}>다음</Link> : <span aria-disabled="true" className={`${PAGE_CLASS} pointer-events-none opacity-50`}>다음</span>}</nav>
+      <div className="border-t p-4"><ConsolePagination label="리뷰 분석 페이지" page={data.page} pageSize={data.pageSize} total={data.total} unit="개" hrefForPage={page => reviewInsightHref(filters, { page })} /></div>
     </section>
   </div>;
 }

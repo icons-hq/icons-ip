@@ -1,4 +1,4 @@
-import { ConsoleGrid, ConsolePagination, type ConsoleGridColumn } from '@/components/admin/console';
+import { ConsoleGrid, ConsoleListCard, ConsolePagination, type ConsoleGridColumn } from '@/components/admin/console';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
 import { cn } from 'cn';
 import { formatKrwExact } from '@/components/admin/format';
@@ -32,10 +32,8 @@ export function RefundTransfersScreen({ data }: { data: RefundTransferPage }) {
         <li>선물의 결제자와 요청자는 다를 수 있습니다. 환불은 결제자 기준으로 처리하며 계좌 원문은 권한이 있는 담당자가 요청 상세에서 열람합니다.</li>
       </ul>
     </details>
-    <div className="flex flex-wrap items-center justify-between gap-2">
-      <h2 className="text-lg font-semibold tracking-tight">송금 대기 <span className="text-sm font-normal text-muted-foreground">(총 <strong className="font-medium text-foreground tabular-nums">{data.total.toLocaleString('ko-KR')}</strong>건)</span></h2>
-      <a className={cn(buttonVariants({ size: 'sm', variant: 'outline' }))} data-slot="button" href={refundTransfersHref(data.page)}>새로고침</a>
-    </div>
+    <ConsoleListCard title="송금 대기" total={data.total}
+      actions={<a className={cn(buttonVariants({ size: 'sm', variant: 'outline' }))} data-slot="button" href={refundTransfersHref(data.page)}>새로고침</a>}>
     <ConsoleGrid caption="무통장 환불 송금 대기 목록" preferencesKey="sales-refund-transfers" columns={columns}
       emptyLabel="송금 대기 중인 무통장 환불이 없습니다." rows={data.rows.map(row => ({ id: row.claimId,
         href: `/admin/sales/claims/${row.claimType === 'cancel' ? 'cancels' : 'returns'}/${row.claimId}`,
@@ -45,5 +43,6 @@ export function RefundTransfersScreen({ data }: { data: RefundTransferPage }) {
           <span className="tabular-nums" key="amount">{formatKrwExact(row.amount)}</span>, formatOrderDateTime(row.confirmedAt), row.filedAt ? formatOrderDateTime(row.filedAt) : '미접수'],
       }))} />
     <ConsolePagination label="환불 송금 대기 목록 페이지" page={data.page} pageSize={data.pageSize} total={data.total} hrefForPage={refundTransfersHref} />
+    </ConsoleListCard>
   </section>;
 }

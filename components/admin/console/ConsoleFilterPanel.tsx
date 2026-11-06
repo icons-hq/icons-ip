@@ -164,7 +164,7 @@ export function ConsoleFilterPanel({
   return (
     <form
       action={action}
-      className={`${className ? `${className} ` : ''}flex flex-col gap-3 rounded-xl border bg-card p-4 text-card-foreground`}
+      className={`${className ? `${className} ` : ''}${CONSOLE_FILTER_CARD_CLASS}`}
       data-console-filters=""
       method="get"
     >
@@ -173,7 +173,7 @@ export function ConsoleFilterPanel({
       ))}
 
       {/* 칸은 위 기준으로 맞춘다 — 도움말 줄이 붙은 칸도 라벨·입력 줄이 이웃 칸과 같은 높이에 선다. */}
-      <div className="flex flex-wrap items-start gap-x-5 gap-y-3">
+      <div className={CONSOLE_FILTER_FIELDS_CLASS}>
         {dateRange ? (
           <div className="flex min-w-0 flex-col gap-1.5" data-console-filter="period">
             <span className="text-sm leading-none font-medium" id={periodLabelId}>
@@ -256,15 +256,38 @@ export function ConsoleFilterPanel({
         {children}
       </div>
 
-      <div className="flex flex-wrap justify-end gap-2 border-t pt-3">
+      <ConsoleFilterActions>
         <Link className={buttonVariants({ variant: 'outline' })} data-slot="button" href={resetHref ?? buildHref(action, hiddenFields, {})}>
           초기화
         </Link>
         <button className={buttonVariants()} data-slot="button" type="submit">{submitLabel}</button>
-      </div>
+      </ConsoleFilterActions>
     </form>
   );
 }
+
+/**
+ * 조회 조건 카드의 바닥 버튼 줄 — 구분선 아래 오른쪽에 [초기화][검색] 순서로 둔다. 조회 폼을 직접 그리는 화면도
+ * (클라이언트 조회·서버 액션 폼) 같은 줄을 쓴다. `start`는 같은 줄 왼쪽에 두는 안내·보조 동작이다.
+ */
+export function ConsoleFilterActions({ children, start }: { children: ReactNode; start?: ReactNode }) {
+  return (
+    <div
+      className={`flex flex-wrap items-center gap-2 border-t pt-3 ${start ? 'justify-between' : 'justify-end'}`}
+      data-console-filter-actions=""
+    >
+      {start ? <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2">{start}</div> : null}
+      <div className="flex flex-wrap items-center justify-end gap-2">{children}</div>
+    </div>
+  );
+}
+
+/** 조회 조건 카드 바깥 상자(ConsoleFilterPanel과 같은 모양). 조회 폼을 직접 그리는 화면이 form·div에 단다. */
+export const CONSOLE_FILTER_CARD_CLASS = 'flex flex-col gap-3 rounded-xl border bg-card p-4 text-card-foreground';
+/** 조회 조건 칸 줄(라벨 위·입력 아래 칸을 위 기준으로 감싼다). */
+export const CONSOLE_FILTER_FIELDS_CLASS = 'flex flex-wrap items-start gap-x-5 gap-y-3';
+/** 입력을 감싸는 조회 조건 라벨(ConsoleFilterField와 같은 글자·간격). */
+export const CONSOLE_FILTER_LABEL_CLASS = 'flex min-w-0 flex-col gap-1.5 text-sm font-medium [&_input]:font-normal [&_select]:font-normal';
 
 /** 조회 조건 한 칸(라벨 위·입력 아래). 화면이 children으로 더하는 조건도 이 모양을 쓴다. */
 export function ConsoleFilterField({ children, className, htmlFor, label }: {

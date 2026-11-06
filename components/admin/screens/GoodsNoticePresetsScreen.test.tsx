@@ -1,6 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { describe, expect, it, vi } from 'vitest';
 import { GoodsNoticePresetsScreen } from './GoodsNoticePresetsScreen';
+import { GoodsNoticePresetForm } from './GoodsNoticePresetForm';
 
 vi.mock('@/app/admin/goods-notice-preset-actions', () => ({ saveGoodsNoticePresetAction: vi.fn(), deleteGoodsNoticePresetAction: vi.fn() }));
 
@@ -29,7 +30,12 @@ describe('상품정보제공고시 프리셋 관리 화면', () => {
     expect(html).toContain('기존 상품에 입력된 값은 바뀌지 않습니다.');
     expect(html).toContain('action="/admin/catalog/notice-presets"');
     // 서버 액션 폼의 제출 버튼은 submit이다(kit 버튼의 기본 type은 button).
-    for (const label of ['프리셋 수정 저장', '프리셋 등록', '삭제 확정', '검색']) expect(html).toMatch(new RegExp(`<button(?=[^>]*type="submit")[^>]*>${label}</button>`));
+    for (const label of ['프리셋 수정 저장', '삭제 확정', '검색']) expect(html).toMatch(new RegExp(`<button(?=[^>]*type="submit")[^>]*>${label}</button>`));
+    /* 등록은 화면 머리 오른쪽 버튼이 여는 팝업이다(템플릿 화면군 공통 위치). 팝업의 등록 폼도 제출 버튼을 쓴다. */
+    expect(html).toMatch(/<button[^>]*type="button"[^>]*>(?:<svg[\s\S]*?<\/svg>)?새 프리셋 등록<\/button>/);
+    const create = renderToStaticMarkup(<GoodsNoticePresetForm inset={false} />);
+    expect(create).toMatch(/<button(?=[^>]*type="submit")[^>]*>프리셋 등록<\/button>/);
+    expect(create).toContain('name="noticeAsContact"');
   });
   it('결과가 없는 검색에서도 등록과 검색 초기화를 제공한다', () => {
     const html = renderToStaticMarkup(<GoodsNoticePresetsScreen data={{ total: 0, filters: { query: '없는 이름', page: 1 }, presets: [] }} />);
