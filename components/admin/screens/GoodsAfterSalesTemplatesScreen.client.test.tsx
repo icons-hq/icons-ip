@@ -9,8 +9,11 @@ vi.mock('react', async () => ({ ...await vi.importActual<typeof import('react')>
 }));
 vi.mock('@/app/admin/goods-after-sales-actions', () => ({ listGoodsAfterSalesTemplatesAction: mocks.list, saveGoodsAfterSalesTemplateAction: vi.fn() }));
 import { GoodsAfterSalesTemplatesScreen } from './GoodsAfterSalesTemplatesScreen';
+import { NativeSelect } from '@/components/admin/kit/ui/native-select';
 type Element = ReactElement<{ children?: ReactNode; onClick?: () => void; onChange?: (event: { target: { value: string } }) => void; onSubmit?: (event: { preventDefault: () => void }) => void; value?: string }>;
 function all(node: ReactNode): Element[] { return Array.isArray(node) ? node.flatMap(all) : isValidElement(node) ? [node as Element, ...all((node.props as { children?: ReactNode }).children)] : []; }
+/** 보관 상태 선택은 kit NativeSelect(네이티브 select를 감싼다)다. */
+const isSelect = (item: Element) => item.type === 'select' || item.type === NativeSelect;
 function text(node: ReactNode): string { return Array.isArray(node) ? node.map(text).join('') : isValidElement(node) ? text((node.props as { children?: ReactNode }).children) : typeof node === 'string' || typeof node === 'number' ? String(node) : ''; }
 function render() { hooks.index = 0; hooks.refIndex = 0; hooks.effects = []; return GoodsAfterSalesTemplatesScreen({}); }
 async function settle() { for (let i = 0; i < 18; i++) await Promise.resolve(); }
@@ -22,11 +25,11 @@ it('keeps archive filter and matching rows together when the initial active quer
   let initial!: (value: unknown) => void;
   mocks.list.mockImplementationOnce(() => new Promise(resolve => { initial = resolve; })).mockResolvedValueOnce({ ok: true, value: page(archived) });
   render(); hooks.effects[0]();
-  all(render()).find(item => item.type === 'select')?.props.onChange?.({ target: { value: 'archived' } }); await settle();
+  all(render()).find(isSelect)?.props.onChange?.({ target: { value: 'archived' } }); await settle();
   expect(mocks.list.mock.calls).toEqual([['', false, 1], ['', true, 1]]);
   initial({ ok: true, value: page(active) }); await settle();
   const screen = render();
-  expect(all(screen).find(item => item.type === 'select')?.props.value).toBe('archived');
+  expect(all(screen).find(isSelect)?.props.value).toBe('archived');
   expect(text(screen)).toContain(archived.guide);
   expect(text(screen)).not.toContain(active.guide);
 });
