@@ -2,7 +2,7 @@
 
 import { Fragment, useActionState, useRef, type FormEvent, type ReactNode } from 'react';
 import Link from 'next/link';
-import { BookOpen, ChevronsUpDown, ExternalLink, LogOut } from 'lucide-react';
+import { ArrowLeftRight, BookOpen, Check, ChevronsUpDown, ExternalLink, LogOut } from 'lucide-react';
 import { adminSignOutAction, type SignOutActionState } from '@/app/login/actions';
 import { MANAGER_ROLE_LABELS, type OperatorAccess } from '@/lib/admin/access';
 import { clearInquiryDraftsForSignOut } from '@/lib/admin/inquiry-draft-lifecycle';
@@ -158,6 +158,20 @@ export function Header({
               </DropdownMenuLabel>
             </DropdownMenuGroup>
             <DropdownMenuSeparator />
+            {/* 640px 아래에서는 상단 막대의 콘솔 전환이 숨으므로, 커머스↔콘텐츠 운영 전환을 계정 메뉴로 옮긴다. */}
+            {consoles.length > 1 ? (
+              <DropdownMenuGroup className="sm:hidden">
+                <DropdownMenuLabel className="text-xs font-normal text-muted-foreground">콘솔 전환</DropdownMenuLabel>
+                {consoles.map((item) => (
+                  <DropdownMenuItem aria-current={item.current ? 'page' : undefined} key={item.id} render={<Link href={item.href} />}>
+                    <ArrowLeftRight />
+                    {item.label}
+                    {item.current ? <Check className="ml-auto" /> : null}
+                  </DropdownMenuItem>
+                ))}
+                <DropdownMenuSeparator />
+              </DropdownMenuGroup>
+            ) : null}
             <DropdownMenuGroup className="md:hidden">
               <DropdownMenuItem render={<Link href="/admin/guide" />}><BookOpen />판매자 가이드</DropdownMenuItem>
               <DropdownMenuItem render={<Link href="/" rel="noopener noreferrer" target="_blank" />}><ExternalLink />쇼핑몰 바로가기</DropdownMenuItem>
