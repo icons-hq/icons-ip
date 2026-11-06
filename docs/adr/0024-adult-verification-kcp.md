@@ -28,5 +28,5 @@ status: accepted
 
 - `private.adult_verification_sessions`·`private.adult_verifications`와 service role 전용 RPC(begin·register·claim·stage·fail), 로그인 세션 전용 RPC(`complete_my_adult_verification`·`get_my_adult_verification`)가 생긴다. 판정 helper는 `private.adult_verification_valid(uuid)`이고 19금 노출·구매 경계는 이 함수만 본다.
 - `ADULT_VERIFICATION_DIGEST_SECRET`은 바꾸면 기존 증거와 새 인증의 DI 해시가 이어지지 않는다 — 1명의 1계정이 회전 시점에 끊긴다. 회전은 기존 증거 전체 해제와 함께 계획한다.
-- 개인정보처리방침에 본인확인 수집 항목·위탁(NHN KCP)·보관 항목을 고지해야 한다. 개정 시행 전에는 공개 스위치를 켜지 않는다(`docs/runbooks/kcp-adult-verification.md`).
-- 19금 판매 개방은 같은 판정 위에 구현됐다(20261105093418). DB가 상세·가격·검색·담기·견적·주문을 판정하고, 화면은 gate 상태에 따라 감춤·가림 카드·일반 상세를 고른다. 카드 결제는 코페이 굿즈 gate가 따로 연다. 추가 구성·홈 추천·마케팅·선물·구독에는 19금 굿즈를 쓰지 않는다.
+- 개인정보처리방침에 본인확인 수집 항목·위탁(NHN KCP)·보관 항목을 고지해야 한다. 방침이 고지하기 전에는 공개 스위치를 켜지 않는다 — 2026-11-06 오픈 전 최초 판이 고지한다(`docs/runbooks/kcp-adult-verification.md`).
+- 19금 판매 개방은 같은 판정 위에 구현됐다(20261105093418). DB가 상세·가격·검색·담기·견적·주문을 판정하고, 화면은 gate 상태에 따라 감춤·가림 카드·일반 상세를 고른다. 카드 결제는 19금 굿즈 주문 전용 결제대행사의 gate가 따로 연다(코페이에서 나이스페이로 대체, PR #628). 추가 구성·홈 추천·마케팅·선물·구독에는 19금 굿즈를 쓰지 않는다.
