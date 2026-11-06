@@ -127,7 +127,7 @@ export function CurationPreview({
                 {bannerAllowed && collectionBanner.slot === 'all' ? <CollectionBanners banners={[collectionBanner]} slot="all" /> : null}
                 <div className="wc-container">
                   {bannerAllowed && collectionBanner.slot !== 'all' ? <CollectionBanners banners={[collectionBanner]} slot={collectionBanner.slot} /> : null}
-                  <p className="admin-store-editor__preview-note">{bannerAllowed
+                  <p className="grid gap-[5px] border-b border-[var(--wc-hairline)] px-4 py-3 text-[11px] text-[var(--wc-ink-tertiary)]">{bannerAllowed
                     ? '배너 아래에는 이 컬렉션의 상품 목록이 이어집니다.'
                     : '이동할 화면이 지금 공개되지 않아 이 배너는 고객 화면에 보이지 않습니다.'}</p>
                 </div>
