@@ -33,7 +33,8 @@ describe('ICONS 상담 콘솔', () => {
   });
   it('종결된 대화에는 전송 폼을 만들지 않는다', () => {
     const html = render({ detail: { ...detail, inquiry: { ...detail.inquiry, status: 'closed' } }, selected: true });
-    expect(html).toContain('상담이 완료되었습니다.'); expect(html).not.toContain('class="admin-inquiry-chat__composer"');
+    expect(html).toContain('상담이 완료되었습니다.'); expect(html).not.toContain('data-chat-composer');
+    expect(render({ detail, selected: true })).toContain('data-chat-composer');
   });
   it('정상 빈 목록과 존재하지 않는 선택 대화를 구분한다', () => {
     const html = render({ selected: true });

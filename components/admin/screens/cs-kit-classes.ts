@@ -35,3 +35,6 @@ export const TEMPLATE_ROW_CLASS = 'flex min-w-0 flex-col gap-2 rounded-lg border
 export const TEMPLATE_BODY_CLASS = 'max-h-40 overflow-y-auto text-sm leading-relaxed whitespace-pre-wrap wrap-anywhere';
 export const TEMPLATE_EDITOR_CLASS = 'flex flex-col gap-3 border-t pt-5';
 export const LATEST_CLASS = 'flex flex-col gap-2 rounded-lg border bg-muted/40 p-3 text-sm';
+
+/** 상담하기 오른쪽 상담 정보 칸의 카드. */
+export const CHAT_CONTEXT_CARD_CLASS = 'flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4 text-sm text-card-foreground wrap-anywhere';
