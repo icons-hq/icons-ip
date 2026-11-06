@@ -16,7 +16,6 @@ node scripts/admin-visual-fixture.mjs
 
 어드민 글꼴은 앱과 같은 `admin-font.css` 및 로컬 Pretendard 1.3.9를 사용한다.
 fixture는 저장소 `public/` 전체를 공개하지 않고 `/fonts/admin/PretendardVariable.woff2`와
-`/admin/seller-icons/{sales,claims,goods,reviews}.svg` 네 아이콘 및
 상품문의 합성 행에 쓰는 기존 `/generated/goods/g13.webp`의 정확한 경로에만
 GET·HEAD를 제공한다. 기존 글로벌 CDN import는 fixture에서 제거하므로
 캡처 전에 `document.fonts.load('400 14px "ICONS Admin Pretendard"')`가 완료됐는지 확인한다.
