@@ -34,17 +34,18 @@ AuthToken, 승인번호, 카드번호, 원문 응답, 자격 증명 fingerprint�
 
 ## 의존 순서
 
-1. [#595](https://github.com/icons-hq/icons-ip/pull/595) — KCP 휴대폰 본인확인 V2 성인 인증.
+1. [#595](https://github.com/icons-hq/icons-ip/pull/595) — KCP 휴대폰 본인확인 V2 성인 인증
+   (2026-11-06 main 머지).
 2. [#596](https://github.com/icons-hq/icons-ip/pull/596) — 성인 인증을 마친 회원에게 19금
-   굿즈를 공개·판매(노출·장바구니·주문 생성 개방). 심사용 계정이 19금 상품을 보고 주문하려면
-   이 PR이 필요하다.
+   굿즈를 공개·판매(노출·장바구니·주문 생성 개방, 2026-11-06 main 머지). 심사용 계정이 19금
+   상품을 보고 주문하려면 이 변경과 성인 인증 공개 스위치(또는 성인 인증 canary)가 필요하다
+   ([KCP 성인 인증 runbook](./kcp-adult-verification.md)).
 3. 이 runbook의 나이스페이 연동.
 
-머지 순서와 무관하게 셋이 모두 production에 있어야 심사용 canary가 실제 결제를 할 수 있다.
-#596이 장바구니 단계 파생(`deriveGoodsCartProvider`·`deriveUserCartProvider`)에서 `'korpay'`를
-돌려주므로, 어느 쪽이 나중에 머지되든 그 함수는 `RESTRICTED_GOODS_CARD_PROVIDER`
-(`lib/payments/goods-sale-restriction.server.ts`, 값 `'nicepay'`)를 쓰게 맞춘다. 주문 단계
-파생과 DB 강제(`prepare_goods_payment_attempt`)는 이미 나이스페이다.
+셋이 모두 production에 있어야 심사용 canary가 실제 결제를 할 수 있다. 장바구니 단계 파생
+(`deriveGoodsCartProvider`·`deriveUserCartProvider`), 주문 단계 파생(`deriveGoodsOrderProvider`)은
+모두 `RESTRICTED_GOODS_CARD_PROVIDER`(`lib/payments/goods-sale-restriction.server.ts`, 값
+`'nicepay'`)를 쓰고, DB 강제(`prepare_goods_payment_attempt`)도 같은 값이다.
 
 ## 환경 변수
 
@@ -157,8 +158,10 @@ AuthToken, 승인번호, 카드번호, 원문 응답, 자격 증명 fingerprint�
    배포하고 build readback이 `NICEPAY configured=true, order checkout enabled=false, order
    canary configured=false`인지 확인한다. build log에 MID·키가 없는지 본다.
 4. **(human) 심사용 계정 지정.** 심사용 회원 계정을 하나 정하고, 그 계정으로 성인 인증
-   (#595)을 마친다. UUID를 `NICEPAY_ORDER_CANARY_USER_ID`에 등록하고 3번과 같은 경로로 다시
-   배포한 뒤 readback(`order checkout enabled=false, order canary configured=true`)을 확인한다.
+   (#595)을 마친다. 성인 인증 공개 스위치가 닫혀 있으면 같은 UUID를
+   `ADULT_VERIFICATION_CANARY_USER_ID`에도 둔다(KCP 성인 인증 runbook). UUID를
+   `NICEPAY_ORDER_CANARY_USER_ID`에 등록하고 3번과 같은 경로로 다시 배포한 뒤
+   readback(`order checkout enabled=false, order canary configured=true`)을 확인한다.
 5. **(human/agent) canary 실증.** 그 계정으로 실제 19금 상품을 주문해 결제 1건을 승인시키고,
    이어서 취소(클레임 승인 또는 운영자 전액 취소)해 환불 경로를 한 번 태운다. 확인할 것:
    - PC·모바일 결제창이 열리고 인증 응답이 confirm 라우트에 도착한다(PC 결제 폼에 인증
