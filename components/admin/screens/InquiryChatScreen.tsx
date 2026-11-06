@@ -37,11 +37,11 @@ export function InquiryChatScreen({ accountId, filters, data, detail, chatContex
   purchaseHistory?: PurchaseHistory | null; purchaseHistoryError?: boolean;
 }) {
   const pages = Math.max(1, Math.ceil(data.total / ADMIN_INQUIRY_CHAT_PAGE_SIZE));
-  return <section className="@container/chat group/chat flex h-full min-h-0 min-w-0 flex-col bg-background text-sm [&>.inquiry-live:not(:empty)]:border-b [&>.inquiry-live:not(:empty)]:bg-muted/50 [&>.inquiry-live:not(:empty)]:px-3 [&>.inquiry-live:not(:empty)]:py-1" data-selected={selected ? 'true' : 'false'} aria-label="ICONS 실시간 상담">
+  return <section className="@container/chat group/chat flex h-full min-h-0 min-w-0 flex-col bg-background text-sm print:h-auto [&>.inquiry-live:not(:empty)]:border-b [&>.inquiry-live:not(:empty)]:bg-muted/50 [&>.inquiry-live:not(:empty)]:px-3 [&>.inquiry-live:not(:empty)]:py-1" data-selected={selected ? 'true' : 'false'} aria-label="ICONS 실시간 상담">
     <div className="sr-only"><strong>ICONS 고객 상담</strong><span>문의 내용과 답변은 ICONS 고객에게 표시됩니다.</span></div>
     <InquiryLiveUpdates audience="staff" />
-    <div className={`flex min-h-0 flex-1 flex-col @max-2xl/chat:group-data-[selected=true]/chat:overflow-y-auto @2xl/chat:grid @2xl/chat:grid-cols-[16rem_minmax(0,1fr)] @2xl/chat:grid-rows-[minmax(0,1fr)] @2xl/chat:overflow-hidden ${detail ? '@4xl/chat:grid-cols-[17.875rem_minmax(0,1fr)_18rem]' : '@4xl/chat:grid-cols-[17.875rem_minmax(0,1fr)]'}`}>
-      <aside className="flex min-h-0 min-w-0 flex-1 flex-col bg-background @max-2xl/chat:group-data-[selected=true]/chat:hidden @2xl/chat:border-r" aria-label="대화 목록">
+    <div className={`flex min-h-0 flex-1 flex-col print:block! print:overflow-visible! @max-2xl/chat:group-data-[selected=true]/chat:overflow-y-auto @2xl/chat:grid @2xl/chat:grid-cols-[16rem_minmax(0,1fr)] @2xl/chat:grid-rows-[minmax(0,1fr)] @2xl/chat:overflow-hidden ${detail ? '@4xl/chat:grid-cols-[17.875rem_minmax(0,1fr)_18rem]' : '@4xl/chat:grid-cols-[17.875rem_minmax(0,1fr)]'}`}>
+      <aside className="flex min-h-0 min-w-0 flex-1 flex-col bg-background @max-2xl/chat:group-data-[selected=true]/chat:hidden @2xl/chat:border-r print:hidden!" aria-label="대화 목록">
         <form action={ADMIN_INQUIRY_CHAT_PATH} className="flex shrink-0 gap-2 p-3">
           <input type="hidden" name="status" value={filters.status} /><input type="hidden" name="period" value={filters.period} />
           <input type="hidden" name="read" value={filters.read} /><input type="hidden" name="assignee" value={filters.assignee} /><input type="hidden" name="sort" value={filters.sort} />
@@ -70,16 +70,16 @@ export function InquiryChatScreen({ accountId, filters, data, detail, chatContex
         </nav>
       </aside>
       {/* 중간 폭에서만 대화와 상담 정보를 한 스크롤 칸으로 묶는다. 다른 폭에서는 상자 없이(contents) 바깥 배치의 칸이 된다. */}
-      <div className="contents @2xl/chat:@max-4xl/chat:flex @2xl/chat:@max-4xl/chat:min-h-0 @2xl/chat:@max-4xl/chat:flex-col @2xl/chat:@max-4xl/chat:overflow-y-auto">
-        <section className="flex h-full min-h-0 min-w-0 shrink-0 flex-col bg-muted/30 @max-2xl/chat:group-data-[selected=false]/chat:hidden @2xl/chat:@max-4xl/chat:min-h-[30rem]" aria-label="선택한 상담">
-          {selected ? <nav className="flex shrink-0 items-center justify-between border-b bg-background px-3 py-2 text-xs @2xl/chat:hidden" aria-label="상담 화면 이동"><Link className={TEXT_LINK_CLASS} href={inquiryChatHref(filters)} scroll={false}>← 대화 목록</Link>
+      <div className="contents @2xl/chat:@max-4xl/chat:flex @2xl/chat:@max-4xl/chat:min-h-0 @2xl/chat:@max-4xl/chat:flex-col @2xl/chat:@max-4xl/chat:overflow-y-auto print:block! print:overflow-visible!">
+        <section className="flex h-full min-h-0 min-w-0 shrink-0 flex-col bg-muted/30 print:h-auto! @max-2xl/chat:group-data-[selected=false]/chat:hidden @2xl/chat:@max-4xl/chat:min-h-[30rem]" aria-label="선택한 상담">
+          {selected ? <nav className="flex shrink-0 items-center justify-between border-b bg-background px-3 py-2 text-xs @2xl/chat:hidden print:hidden" aria-label="상담 화면 이동"><Link className={TEXT_LINK_CLASS} href={inquiryChatHref(filters)} scroll={false}>← 대화 목록</Link>
             {detail ? <a className={TEXT_LINK_CLASS} href="#inquiry-chat-context">상담정보 ↓</a> : null}</nav> : null}
           {detail ? <InquiryChatConversation key={`${accountId}:${detail.inquiry.id}`} accountId={accountId} detail={detail} /> : <div className="flex flex-1 flex-col items-center justify-center gap-2 p-7 text-center">
             <span className="mb-2 flex size-16 items-center justify-center rounded-full border bg-background text-muted-foreground" aria-hidden="true"><MessagesSquare className="size-7" /></span><h2 className="text-base font-medium text-foreground">{selected ? '대화를 찾을 수 없습니다.' : '상담할 대화를 선택해 주세요'}</h2>
             <p className="text-sm text-muted-foreground">{selected ? '문의가 삭제되었거나 접근 권한이 변경되었을 수 있습니다.' : '고객의 문의 내용과 구매 이력을 확인하면서 답변할 수 있습니다.'}</p>
           </div>}
         </section>
-        {detail ? <aside id="inquiry-chat-context" tabIndex={-1} className="flex min-w-0 shrink-0 flex-col gap-3 bg-muted/30 p-3 outline-none @max-4xl/chat:border-t @4xl/chat:min-h-0 @4xl/chat:overflow-y-auto @4xl/chat:border-l" aria-label="상담 정보">
+        {detail ? <aside id="inquiry-chat-context" tabIndex={-1} className="flex min-w-0 shrink-0 flex-col gap-3 bg-muted/30 p-3 outline-none print:hidden! @max-4xl/chat:border-t @4xl/chat:min-h-0 @4xl/chat:overflow-y-auto @4xl/chat:border-l" aria-label="상담 정보">
           <section className={CHAT_CONTEXT_CARD_CLASS}><h2 className="text-sm font-medium text-foreground">상담 정보</h2><strong className="text-base leading-snug font-semibold text-foreground wrap-anywhere">{detail.inquiry.title}</strong>
             <dl className="grid gap-1.5 text-xs"><div className="grid grid-cols-[4rem_minmax(0,1fr)] gap-2"><dt className="text-muted-foreground">문의번호</dt><dd className="text-right tabular-nums">{inquiryReferenceLabel(detail.inquiry.reference)}</dd></div>
               <div className="grid grid-cols-[4rem_minmax(0,1fr)] gap-2"><dt className="text-muted-foreground">상담 시작</dt><dd className="text-right tabular-nums">{formatInquiryDateTime(detail.inquiry.createdAt)}</dd></div>

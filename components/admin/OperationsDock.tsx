@@ -79,8 +79,9 @@ export function OperationsDock({ accountId, access, inquiryNotifications = false
         <MessagesSquare aria-hidden="true" />
       </Link> : null}
     </div>
-    <Sheet onOpenChange={(open) => { if (!open) close(); }} open={section !== null}>
-      <SheetContent className="w-full gap-0 p-0 sm:max-w-md" showCloseButton={false} side="right">
+    {/* 비모달: 도움말·할 일을 펼친 채 본문을 조작한다(옛 업무 도구 패널과 같다). 닫기는 패널의 닫기 버튼과 Esc. */}
+    <Sheet disablePointerDismissal modal={false} onOpenChange={(open) => { if (!open) close(); }} open={section !== null}>
+      <SheetContent className="w-full gap-0 p-0 sm:max-w-md" showCloseButton={false} showOverlay={false} side="right">
         {section ? <Panel key={`${accountId}:${access?.revision}:${section}`} section={section} pathname={pathname} categories={allowedAdminAlertCategories(access)} inquiryNotificationAccountId={inquiryNotifications && accountId ? accountId : undefined} onClose={close} onAlertRead={page => { setBadge(page.unreadCount); setBadgeEnabled(page.badgeEnabled); }} /> : null}
       </SheetContent>
     </Sheet>

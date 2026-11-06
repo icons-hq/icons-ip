@@ -9,7 +9,8 @@ import { STORE_PRESENTATION_PATH, STORE_THEME_COLORS, storeThemeForeground,
   type StorePresentation, type StorePresentationSection, type StorePresentationSnapshot } from '@/lib/store-presentation';
 
 /* 링크 탭(템플릿 룩, ADR-0028) — 셸의 콘솔 전환과 같은 모양. */
-const TABS = 'inline-flex max-w-full items-center self-start overflow-x-auto rounded-lg bg-muted p-0.5';
+/* 탭이 많아 좁은 화면에서 잘리지 않게 줄을 바꾼다(가로 스크롤은 단서가 없어 쓰지 않는다). */
+const TABS = 'inline-flex max-w-full flex-wrap items-center gap-0.5 self-start rounded-lg bg-muted p-0.5';
 const TAB = 'inline-flex h-7 shrink-0 items-center rounded-md px-2.5 text-[0.8rem] font-medium whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground aria-[current=page]:bg-background aria-[current=page]:text-foreground aria-[current=page]:shadow-sm';
 const GROUP = 'flex min-w-0 flex-col gap-3';
 const LEGEND = 'mb-3 text-sm font-medium text-foreground';

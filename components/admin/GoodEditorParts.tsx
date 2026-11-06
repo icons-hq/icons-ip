@@ -19,7 +19,8 @@ export const GOOD_SUBPANEL_CLASS = 'flex min-w-0 flex-col gap-4 rounded-lg borde
 /** 안내·주의 상자. */
 export const GOOD_NOTE_CLASS = 'rounded-lg border bg-muted/40 px-3 py-2.5 text-sm';
 /** 가로로 넘치는 표의 테두리 상자. 안의 kit Table이 스스로 가로 스크롤한다. */
-export const GOOD_TABLE_FRAME_CLASS = 'min-w-0 max-w-full overflow-hidden rounded-lg border';
+/** 표 가로 스크롤 영역(role=region·tabIndex=0과 함께 쓴다). 영역이 스크롤해야 화살표 키가 표를 옮긴다 — kit Table의 안쪽 컨테이너는 넘치게 둔다. */
+export const GOOD_TABLE_FRAME_CLASS = 'min-w-0 max-w-full overflow-x-auto rounded-lg border outline-none focus-visible:ring-3 focus-visible:ring-ring/50 [&>[data-slot=table-container]]:overflow-visible';
 
 /**
  * 설정함/설정안함 같은 하나 고르기. 네이티브 라디오라 폼 제출·기본값이 그대로이고, legend는 흐름 안에 있어

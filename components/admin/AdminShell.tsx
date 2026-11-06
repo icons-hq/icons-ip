@@ -8,6 +8,7 @@ import { TooltipProvider } from '@/components/admin/kit/ui/tooltip';
 import { AdminSidebar } from './AdminSidebar';
 import { Header } from './Header';
 import { AdminPreferencesProvider } from './console/AdminPreferences';
+import { AdminShellTitleProvider } from './console/admin-shell-title';
 import { AdminKitPortalHost } from './kit/portal-container';
 import { OperationsDock } from './OperationsDock';
 import { AdminInquiryNotifier } from './AdminInquiryNotifier';
@@ -67,7 +68,7 @@ export function AdminShell({
           operatorAccess={access}
           role={admin.role}
         />
-        <SidebarInset className={isChat ? 'h-svh min-h-0 overflow-hidden md:h-[calc(100svh-1rem)]' : 'min-w-0'}>
+        <SidebarInset className={`print:m-0! print:rounded-none! print:shadow-none! ${isChat ? 'h-svh min-h-0 overflow-hidden md:h-[calc(100svh-1rem)] print:h-auto! print:overflow-visible!' : 'min-w-0'}`}>
           <Header
             admin={admin}
             consoles={consoleLinks}
@@ -77,17 +78,20 @@ export function AdminShell({
             title={title}
             tools={<OperationsDock accountId={admin.id} access={admin.operatorAccess} inquiryNotifications={inquiryNotifications} />}
           />
-          <div className={`admin-content flex min-w-0 flex-1 flex-col ${isChat ? 'min-h-0 overflow-hidden' : 'gap-4 p-4 md:p-6'}`}>
+          {/* 본문만 main 랜드마크다(상단 막대는 그 밖의 banner). */}
+          <main className={`admin-content flex min-w-0 flex-1 flex-col ${isChat ? 'min-h-0 overflow-hidden print:overflow-visible' : 'gap-4 p-4 md:p-6 print:p-0'}`}>
             {isChat || isHome ? <h1 className="sr-only">{title}</h1> : (
-              <div className="admin-page-context flex flex-wrap items-end justify-between gap-2">
+              <div className="admin-page-context flex flex-wrap items-end justify-between gap-2 print:hidden">
                 <h1 className="text-xl font-semibold tracking-tight text-foreground">{title}</h1>
               </div>
             )}
             {/* key로 화면 전환마다 진입 애니메이션을 다시 태운다 */}
-            <div className={`rise min-w-0${isChat ? ' min-h-0 flex-1' : ''}`} key={pathname}>
-              {children}
+            {/* 화면이 여러 덩어리를 나란히 돌려줘도(접이 카드 + 목록 등) 카드 사이 간격은 같다. */}
+            <div className={`rise min-w-0${isChat ? ' min-h-0 flex-1' : ' flex flex-col gap-4'}`} key={pathname}>
+              {/* 홈·상담처럼 h1을 감춘 화면은 화면 머리가 제목을 보여 준다. */}
+              <AdminShellTitleProvider title={isChat || isHome ? '' : title}>{children}</AdminShellTitleProvider>
             </div>
-          </div>
+          </main>
         </SidebarInset>
       </SidebarProvider>
       {inquiryNotifications ? <AdminInquiryNotifier accountId={admin.id} /> : null}

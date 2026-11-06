@@ -1,17 +1,18 @@
 import type { ReactNode } from 'react';
 import { Badge } from '@/components/admin/kit/ui/badge';
+import { AdminPageHeading } from './admin-shell-title';
 
 /*
  * 운영 화면의 골격 부품 — 템플릿 룩(ADR-0028). API는 그대로이고 모양은 kit Card·Badge·Field와 같은 클래스다.
  * 옛 클래스 이름(wc-admin-kit__*)은 화면 고유 CSS가 닿지 않도록 쓰지 않는다.
  */
 
-/** 화면 머리(제목·설명·동작). 셸의 h1 아래에서 h2로 선다. */
+/** 화면 머리(제목·설명·동작). 셸의 h1 아래에서 h2로 선다 — 셸 제목과 같으면 h2는 화면에서 감춘다. */
 export function AdminPageHeader({ title, description, actions }: { title: string; description?: string; actions?: ReactNode }) {
   return <header className="flex flex-wrap items-start justify-between gap-3" data-admin-kit="page-header">
     <div className="flex min-w-0 flex-col gap-1">
-      <h2 className="text-lg leading-tight font-semibold tracking-tight text-foreground">{title}</h2>
-      {description ? <p className="max-w-prose text-sm text-muted-foreground">{description}</p> : null}
+      <AdminPageHeading title={title} />
+      {description ? <p className="max-w-3xl text-sm text-pretty text-muted-foreground">{description}</p> : null}
     </div>
     {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}
   </header>;
@@ -55,15 +56,17 @@ export function AdminField({ label, inputId, hint, error, children }: { label: s
   </div>;
 }
 
-const BADGE_TONE_CLASS = {
-  neutral: '',
-  success: 'border-transparent bg-[color-mix(in_oklab,var(--wc-success)_12%,transparent)] text-[var(--wc-success)]',
-  warning: 'border-transparent bg-[color-mix(in_oklab,var(--wc-warning)_12%,transparent)] text-[var(--wc-warning)]',
-  danger: '',
+/* 상태색은 배지 바탕이 아니라 작은 점으로 싣는다(템플릿 대시보드의 상태 열과 같은 테두리 배지 + 색 점). */
+const BADGE_TONE_DOT = {
+  success: 'bg-[var(--wc-success)]',
+  warning: 'bg-[var(--wc-warning)]',
 } as const;
 
 export function AdminStatusBadge({ tone = 'neutral', children }: { tone?: 'neutral' | 'success' | 'warning' | 'danger'; children: ReactNode }) {
-  return <Badge className={BADGE_TONE_CLASS[tone]} data-tone={tone} variant={tone === 'danger' ? 'destructive' : 'secondary'}>{children}</Badge>;
+  const dot = tone === 'success' || tone === 'warning' ? BADGE_TONE_DOT[tone] : null;
+  return <Badge data-tone={tone} variant={tone === 'danger' ? 'destructive' : dot ? 'outline' : 'secondary'}>
+    {dot ? <span aria-hidden="true" className={`size-1.5 shrink-0 rounded-full ${dot}`} /> : null}{children}
+  </Badge>;
 }
 
 /** An in-flow, non-modal context panel; the owning screen supplies its close link. */

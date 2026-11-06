@@ -55,4 +55,4 @@ export const SEGMENT_LINK = 'inline-flex h-7 items-center rounded-md px-2.5 text
 /** 매니저 목록·초대 내역의 카드·안내·표 상자. */
 export const OPERATOR_CARD = 'flex min-w-0 flex-col gap-3 rounded-xl border bg-card pb-3 text-card-foreground';
 export const OPERATOR_GUIDE = 'mx-4 flex flex-col gap-1 rounded-lg bg-muted/50 px-3 py-2.5 text-sm leading-relaxed text-muted-foreground';
-export const OPERATOR_TABLE = 'mx-4 min-w-0 overflow-x-auto rounded-lg border outline-none focus-visible:ring-3 focus-visible:ring-ring/50';
+export const OPERATOR_TABLE = 'mx-4 min-w-0 overflow-x-auto rounded-lg border outline-none focus-visible:ring-3 focus-visible:ring-ring/50 [&>[data-slot=table-container]]:overflow-visible';

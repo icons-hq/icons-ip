@@ -58,7 +58,7 @@ export function SalesFilterPanel({
   const hidden = salesListHiddenFields(currentHref, ['from', 'to', 'dateField', 'query', 'q', 'field', 'status', 'stage', 'reasonType', 'originId', 'method', 'paymentMethod', 'state', 'tab', ...hiddenFieldExclusions]);
   return <form action={action} className="flex flex-col gap-3 rounded-xl border bg-card p-4 text-sm text-card-foreground print:hidden" data-sales-filters="" method="get" key={currentHref}>
     {Object.entries(hidden).map(([name, value]) => <input key={name} type="hidden" name={name} value={value} />)}
-    <div className="flex flex-wrap items-end gap-x-5 gap-y-3">
+    <div className="flex flex-wrap items-start gap-x-5 gap-y-3">
       {date ? <SalesFilterField label="조회기간" htmlFor={`${id}-date-field`}>
         <SalesSelect id={`${id}-date-field`} name="dateField" value={date.field} options={date.options} />
         <SalesDateRange key={currentHref} id={id} from={date.from} to={date.to} now={now} />

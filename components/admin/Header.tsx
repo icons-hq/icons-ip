@@ -77,7 +77,7 @@ export function Header({
   ];
 
   return (
-    <header className="sticky top-0 z-30 flex h-12 shrink-0 items-center gap-2 border-b bg-background/95 px-3 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:rounded-t-xl md:px-4" data-admin-header="">
+    <header className="sticky top-0 z-30 flex h-12 shrink-0 items-center gap-2 border-b bg-background/95 px-3 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:rounded-t-xl md:px-4 print:hidden" data-admin-header="">
       <NavigationToggle />
       <Separator className="mr-1 data-[orientation=vertical]:h-4" orientation="vertical" />
       <Breadcrumb className="min-w-0 flex-1">
@@ -89,7 +89,8 @@ export function Header({
             const last = index === crumbs.length - 1;
             return (
               <Fragment key={`${index}-${crumb}`}>
-                <BreadcrumbSeparator className={index === 0 ? 'max-sm:hidden' : undefined} />
+                {/* 구분자는 앞 칸과 함께 숨는다 — 첫 구분자는 루트(640px 아래), 나머지는 가운데 칸(768px 아래)을 따른다. */}
+                <BreadcrumbSeparator className={index === 0 ? 'max-sm:hidden' : 'max-md:hidden'} />
                 <BreadcrumbItem className={last ? 'min-w-0' : 'max-md:hidden'}>
                   {last ? <BreadcrumbPage className="truncate">{crumb}</BreadcrumbPage> : <span>{crumb}</span>}
                 </BreadcrumbItem>

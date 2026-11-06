@@ -287,9 +287,11 @@ export function CouponSection({
     {filters.inputError ? <p className="text-sm text-destructive" role="alert">{filters.inputError}</p> : null}
     {filters.selectedCode ? <p className="text-sm text-destructive" role="alert">선택한 쿠폰을 찾을 수 없습니다.</p> : null}
     <div className="min-w-0 overflow-hidden rounded-xl border bg-card">
-      <SalesResultsHeader currentHref={href} total={total} pageSize={pageSize} pageSizes={[20,50,100]} sort={filters.sort ?? 'created_desc'} sortOptions={COUPON_SORTS}>
-        <Link className={buttonVariants()} data-slot="button" href={`${ADMIN_COUPON_LIST_PATH}/new`}><Plus aria-hidden="true" />새 고객혜택 등록</Link>
-      </SalesResultsHeader>
+      <div className="px-4 pt-4">
+        <SalesResultsHeader currentHref={href} total={total} pageSize={pageSize} pageSizes={[20,50,100]} sort={filters.sort ?? 'created_desc'} sortOptions={COUPON_SORTS}>
+          <Link className={buttonVariants()} data-slot="button" href={`${ADMIN_COUPON_LIST_PATH}/new`}><Plus aria-hidden="true" />새 고객혜택 등록</Link>
+        </SalesResultsHeader>
+      </div>
       <div className="flex min-w-0 flex-col gap-3 p-4">
         <ConsoleGrid caption="혜택 목록" preferencesKey="coupons" columns={[
           { key: 'code', label: '쿠폰 코드', width: '170px' }, { key: 'actions', label: '관리', width: '170px', required: true },

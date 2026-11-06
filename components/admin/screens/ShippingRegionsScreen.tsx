@@ -1,6 +1,7 @@
 'use client';
 
 import Link from 'next/link';
+import { TriangleAlert } from 'lucide-react';
 import { useState, useTransition } from 'react';
 import { saveShippingRegionPolicyAction, setShippingRegionPolicyStatusAction } from '@/app/admin/shipping-region-actions';
 import { AdminPageHeader, AdminSectionCard } from '../console/AdminKit';
@@ -115,7 +116,7 @@ function ShippingRegionEditor({ policy, initialCopy, origins, carriers, canEdit,
           <TableCell className="text-right tabular-nums">{rule.amount === null ? rule.disposition === 'surcharge' ? '미입력' : '해당 없음' : krw(rule.amount)}</TableCell></TableRow>)}</TableBody></Table>
         {parsed.rules.length > 50 ? <p className="border-t px-3 py-2 text-xs text-muted-foreground">앞의 50행을 표시합니다. 저장·서버 검증은 전체 {parsed.rules.length}행에 적용합니다.</p> : null}</div> : <p className={`mt-2 ${NOTE}`}>입력된 지역표가 없습니다.</p>}
     </details>
-    {!readOnly && problems.length > 0 ? <div className="rounded-lg border border-[color-mix(in_oklab,var(--wc-warning)_35%,transparent)] bg-[color-mix(in_oklab,var(--wc-warning)_6%,transparent)] px-3 py-2.5 text-sm"><strong className="font-medium text-[var(--wc-warning)]">활성화 전 확인</strong><ul className="mt-1 flex list-disc flex-col gap-1 pl-5">{problems.map((problem, index) => <li key={index}>{problem}</li>)}</ul></div> : null}
+    {!readOnly && problems.length > 0 ? <div className="rounded-lg border bg-muted/40 px-3 py-2.5 text-sm"><strong className="flex items-center gap-1.5 font-medium"><TriangleAlert aria-hidden="true" className="size-4 shrink-0 text-[var(--wc-warning)]" />활성화 전 확인</strong><ul className="mt-1 flex list-disc flex-col gap-1 pl-5">{problems.map((problem, index) => <li key={index}>{problem}</li>)}</ul></div> : null}
     {!readOnly ? <>
       <Button className="w-fit" disabled={pending} onClick={save} type="button" variant="outline">초안 저장</Button>
       {policy && <>

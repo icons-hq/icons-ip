@@ -223,7 +223,7 @@ export function ConsoleGrid({
     <div className={`${className ? `${className} ` : ''}flex min-w-0 flex-col gap-2`} data-console-grid="">
       {children}
       {configurable ? <div className="flex justify-end"><ConsoleTableSettings columns={columns} onSave={save} preferences={preferences} /></div> : null}
-      <div aria-label={`${caption} 가로 스크롤`} className="relative min-w-0 overflow-x-auto rounded-lg border bg-card outline-none focus-visible:ring-3 focus-visible:ring-ring/50" role="region" tabIndex={0}>
+      <div aria-label={`${caption} 가로 스크롤`} className="@container relative min-w-0 overflow-x-auto rounded-lg border bg-card outline-none focus-visible:ring-3 focus-visible:ring-ring/50" role="region" tabIndex={0}>
         <table className="w-full caption-bottom text-sm" data-slot="table" ref={tableRef}>
           <caption className="sr-only">{caption}</caption>
           {hasWidths ? (
@@ -264,7 +264,7 @@ export function ConsoleGrid({
                         ? sort?.direction === 'asc' ? 'ascending' : 'descending'
                         : 'none'
                       : undefined}
-                    className={`h-10 bg-muted px-2 text-left align-middle text-xs font-medium whitespace-nowrap text-muted-foreground data-[align=end]:text-right ${frozenCellClass}`}
+                    className={`h-10 bg-muted px-3 text-left align-middle text-xs font-medium whitespace-nowrap text-muted-foreground data-[align=end]:text-right ${frozenCellClass}`}
                     data-align={column.align ?? 'start'}
                     data-frozen={displayIndex < frozenCount || undefined}
                     data-slot="table-head"
@@ -292,8 +292,11 @@ export function ConsoleGrid({
           <tbody className="[&_tr:last-child]:border-0" data-slot="table-body">
             {rows.length === 0 ? (
               <tr data-slot="table-row">
-                <td className="h-24 p-2 text-center align-middle text-muted-foreground" colSpan={columnCount} data-slot="table-cell">
-                  {emptyLabel}
+                <td className="h-24 p-0 text-center align-middle text-muted-foreground" colSpan={columnCount} data-slot="table-cell">
+                  {/* 표가 보이는 폭보다 넓어도 문구는 보이는 폭(스크롤 영역 = 크기 질의 컨테이너) 가운데에 남는다. */}
+                  <div className="sticky left-0 flex h-24 w-[100cqw] items-center justify-center px-4">
+                    {emptyLabel}
+                  </div>
                 </td>
               </tr>
             ) : rows.map((row) => {
@@ -327,7 +330,7 @@ export function ConsoleGrid({
                     const frozen = displayIndex < frozenCount;
                     return (
                       <td
-                        className={`p-2 align-middle break-keep data-[align=end]:text-right data-[align=end]:tabular-nums ${frozen ? `bg-card group-hover/row:bg-[color-mix(in_oklab,var(--muted)_50%,var(--card))] group-data-[state=selected]/row:bg-muted ${frozenCellClass}` : ''}`}
+                        className={`px-3 py-2 align-middle break-keep data-[align=end]:text-right data-[align=end]:tabular-nums ${frozen ? `bg-card group-hover/row:bg-[color-mix(in_oklab,var(--muted)_50%,var(--card))] group-data-[state=selected]/row:bg-muted ${frozenCellClass}` : ''}`}
                         data-align={column?.align ?? 'start'}
                         data-frozen={frozen || undefined}
                         data-slot="table-cell"

@@ -172,7 +172,8 @@ export function ConsoleFilterPanel({
         <input key={name} name={name} type="hidden" value={value} />
       ))}
 
-      <div className="flex flex-wrap items-end gap-x-5 gap-y-3">
+      {/* 칸은 위 기준으로 맞춘다 — 도움말 줄이 붙은 칸도 라벨·입력 줄이 이웃 칸과 같은 높이에 선다. */}
+      <div className="flex flex-wrap items-start gap-x-5 gap-y-3">
         {dateRange ? (
           <div className="flex min-w-0 flex-col gap-1.5" data-console-filter="period">
             <span className="text-sm leading-none font-medium" id={periodLabelId}>

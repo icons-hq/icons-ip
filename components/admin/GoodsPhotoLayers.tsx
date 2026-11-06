@@ -20,7 +20,7 @@ export const PHOTO_LABEL_CLASS = 'flex min-w-0 flex-col gap-1.5 text-sm font-med
 export const PHOTO_INPUT_CLASS = GOOD_INPUT_CLASS;
 export const PHOTO_TEXTAREA_CLASS = `${GOOD_TEXTAREA_CLASS} resize-y`;
 export const PHOTO_SELECT_CLASS = 'h-8 w-full min-w-0 rounded-lg border border-input bg-transparent py-1 pr-8 pl-2.5 text-sm font-normal transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50';
-export const PHOTO_COLOR_CLASS = 'h-8 w-full min-w-0 cursor-pointer rounded-lg border border-input bg-transparent p-1 outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50';
+export const PHOTO_COLOR_CLASS = 'h-8 w-full min-w-0 cursor-pointer rounded-lg border border-input bg-transparent p-1 outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50 [&::-webkit-color-swatch-wrapper]:p-0 [&::-webkit-color-swatch]:rounded-md [&::-webkit-color-swatch]:border-0 [&::-moz-color-swatch]:rounded-md [&::-moz-color-swatch]:border-0';
 export const PHOTO_RANGE_CLASS = 'h-8 w-full min-w-0 cursor-pointer accent-primary disabled:cursor-not-allowed disabled:opacity-50';
 export const PHOTO_HINT_CLASS = 'text-xs text-muted-foreground';
 /** 버튼 줄. 좁은 화면에서는 두 개씩 나눠 누르기 쉽게 한다. */

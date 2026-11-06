@@ -412,8 +412,9 @@ protected-boundaries:
 ### 셸
 
 - 사이드바: kit Sidebar inset·아이콘 접힘(15.5rem / 3rem), 768px 미만은 왼쪽 시트. 접힘 상태는 `sidebar_state` 쿠키로 다음 화면에도 같다(⌘/Ctrl+B·가장자리 레일·상단 버튼). 머리(브랜드·역할·메뉴 검색) → 홈 → 즐겨찾기 → 대분류(lucide 그룹 아이콘, 접이식 — 현재 화면의 그룹은 항상 펼침, 접힘·즐겨찾기는 계정별 localStorage) → 사이트로 돌아가기.
-- 상단 막대: h-12 sticky(`data-admin-header`, `html` scroll-padding-top 48). 사이드바 버튼 · 현재 위치(홈 › 메뉴 › 화면) · 콘솔 전환(구분 선택) · 판매자 가이드·쇼핑몰 바로가기 · 업무 도구(알림·할 일·도움말 아이콘 → 오른쪽 시트, 상담하기 링크) · 계정 메뉴(이메일·권한·로그아웃).
-- 본문: 회색 바탕 위 rounded-xl 흰 패널(SidebarInset), 안쪽 p-4 md:p-6. 첫 줄이 화면 제목 h1(text-xl semibold, 홈·상담하기는 sr-only), 구역 간격 gap-4~6. 화면 하단 고정 바는 `--admin-content-left`·`--admin-content-inset`으로 패널에 맞춘다.
+- 상단 막대: h-12 sticky(`data-admin-header`, `html` scroll-padding-top 48). 사이드바 버튼 · 현재 위치(홈 › 메뉴 › 화면) · 콘솔 전환(구분 선택) · 판매자 가이드·쇼핑몰 바로가기 · 업무 도구(알림·할 일·도움말 아이콘 → 오른쪽 비모달 시트 — 연 채로 본문을 조작하고, 패널의 닫기·Esc로 닫는다 — 상담하기 링크) · 계정 메뉴(이메일·권한·로그아웃). 768px 미만 메뉴 시트는 안쪽 닫기 버튼이 있다. ⌘/Ctrl+B는 입력칸·본문 편집기 안에서는 사이드바를 접지 않는다(굵게 등 편집 단축키 우선).
+- 본문: 회색 바탕 위 rounded-xl 흰 패널(SidebarInset, div), 안쪽 p-4 md:p-6. 본문 칸만 `<main>`이고 상단 막대는 그 밖의 banner다. 첫 줄이 화면 제목 h1(text-xl semibold, 홈·상담하기는 sr-only), 화면이 돌려준 덩어리 사이는 gap-4. 화면 머리(`AdminPageHeader`)의 h2가 셸 h1과 같은 이름이면 h2는 sr-only로 감추고 설명·동작만 보인다(`admin-shell-title.tsx`). 화면 하단 고정 바는 `--admin-content-left`·`--admin-content-inset`으로 패널에 맞춘다.
+- 인쇄: 상단 막대·사이드바·화면 제목을 숨기고 패널 여백·그림자를 뺀다. 상담하기는 선택한 대화만(목록·작성칸·상담 정보 제외) 높이 제한 없이, 문의·리뷰 팝업은 높이 제한·닫기 없이 인쇄한다.
 - 현장 검표(`/admin/check-in`)는 셸 없는 전체 화면이다(`check-in-shell wc-admin`). 태블릿·휴대폰용으로 버튼·입력 48px.
 
 ### 부품
@@ -421,11 +422,11 @@ protected-boundaries:
 | 요소 | 구조와 규율 |
 |---|---|
 | 버튼 | kit `Button`·`buttonVariants`: default(주 동작)·outline(보조)·destructive(위험)·secondary·ghost(아이콘). 크기 default h-8 · sm h-7 · xs h-6 · lg h-9 · icon size-8/7. form 제출 버튼은 `type="submit"`(kit 기본은 button). Link·label·summary 버튼은 `buttonVariants` + `data-slot="button"`. 아이콘만 있는 버튼은 aria-label. |
-| 입력 | kit Input·Textarea·NativeSelect·Label·Field, h-8 text-sm rounded-lg, 포커스 ring-3 ring/50, 오류 aria-invalid. 체크박스·라디오는 FormData·비제어 동작에 기대면 네이티브로 두고 `admin-kit-vocabulary.css`가 kit 모양을 입힌다. 숫자 입력 스피너 없음(R18, 휠은 AdminNumberWheelGuard). 긴 선택값은 `AdminSelect`가 실제 잘림에만 아래 도움말로 보인다. |
+| 입력 | kit Input·Textarea·NativeSelect·Label·Field, h-8 text-sm rounded-lg, 포커스 ring-3 ring/50, 오류 aria-invalid. 체크박스·라디오는 FormData·비제어 동작에 기대면 네이티브로 두고 `admin-kit-vocabulary.css`가 kit 모양을 입힌다. 숫자 입력 스피너 없음(R18, 휠은 AdminNumberWheelGuard). `AdminSelect`는 kit NativeSelect와 같은 폭 규칙(감싸개 기본 내용 폭, 화면이 준 폭은 셀렉트가 채움)이고, 긴 선택값은 실제 잘림에만 아래 도움말로 보인다. 파일 입력은 회색 "파일 선택" 버튼(kit Input), 색 입력은 둥근 견본. 네이티브 `details`의 기본 표시는 kit 화살표(`admin-kit-vocabulary.css`), fieldset 제목은 테두리 위가 아니라 상자 안(`float-left w-full`). 조회 줄은 위 기준 정렬(도움말이 달린 칸도 같은 높이). |
 | 화면 골격 | `AdminPageHeader`(h2 text-lg semibold·설명·동작), `AdminSectionCard`(kit Card, 제목 text-base medium·필수·상태 배지·오류 수·요약), `AdminFormGrid`(최대 2열, 16rem 미만이면 1열, gap-x-6 gap-y-5), `AdminField`(label→입력→도움말→오류, `${inputId}-hint`·`-error`), `AdminSidePanel`, `fields.tsx`(Field·TextArea·SelectField·ColorField·FormShell·RecordList). |
-| 목록 | `ConsoleGrid`: kit 표 모양(머리 bg-muted text-xs, 행 hover·선택 bg-muted), 정렬 링크와 화살표 아이콘, 첫 셀 상세 링크, 선택 열 40px(칸 전체가 클릭 영역), 지정 열 너비는 최소 폭(좁으면 표만 가로 스크롤), 조회항목 설정(열 표시·순서·왼쪽 0~4열 고정, 계정별 저장), 인쇄에서 고정 칸 static. `ConsoleFilterPanel`(카드, 라벨 위 입력, 기간 프리셋 구분 선택, 초기화·검색), `ConsoleFilterField`, `ConsoleCountChips`(건수 카드, 현재 상태 테두리·고리), `ConsoleBulkActionBar`(0건이면 숨김), `ConsolePagination`(범위 요약 + 이전·다음). 취소·반품·교환은 Dice data-table + `useConsoleTable`(열 머리 정렬·필터, 아래 ActionBar 일괄 처리). 표의 URL은 화면의 기존 계약을 쓴다. |
+| 목록 | `ConsoleGrid`: kit 표 모양(머리 bg-muted text-xs, 행 hover·선택 bg-muted), 정렬 링크와 화살표 아이콘, 첫 셀 상세 링크, 선택 열 40px(칸 전체가 클릭 영역), 지정 열 너비는 최소 폭(좁으면 표만 가로 스크롤), 조회항목 설정(열 표시·순서·왼쪽 0~4열 고정, 계정별 저장), 인쇄에서 고정 칸 static, 칸 좌우 px-3. 빈 상태 문구는 표가 넓어도 보이는 폭 가운데(스크롤 영역 = 크기 질의 컨테이너, `sticky left-0 w-[100cqw]`). 가로 스크롤 영역(`role="region"` + tabIndex 0)은 스크롤하는 그 요소여야 화살표 키가 표를 옮긴다 — kit Table을 감쌀 때는 안쪽 컨테이너를 넘치게 둔다(`GOOD_TABLE_FRAME_CLASS`·`OPERATOR_TABLE`). `ConsoleFilterPanel`(카드, 라벨 위 입력, 기간 프리셋 구분 선택, 초기화·검색), `ConsoleFilterField`, `ConsoleCountChips`(건수 카드, 현재 상태 테두리·고리), `ConsoleBulkActionBar`(0건이면 숨김), `ConsolePagination`(범위 요약 + 이전·다음). 취소·반품·교환은 Dice data-table + `useConsoleTable`(열 머리 정렬·필터, 아래 ActionBar 일괄 처리, 스크롤 영역에 포커스·같은 빈 상태). 표의 URL은 화면의 기존 계약을 쓴다. |
 | 팝업 | kit Dialog·Sheet·AlertDialog·Popover·DropdownMenu·Tooltip은 `AdminKitPortalHost`의 `body > .wc-admin.admin-kit-portal`에 붙는다. 공용 `CustomerServiceDialog`는 네이티브 dialog 동작(처리 중 닫기 막기·Esc·포커스 복귀)을 유지하고 kit 모양(rounded-xl·머리·닫기)을 쓴다. |
-| 상태 | kit `Badge`(secondary·outline·destructive) 또는 `AdminStatusBadge`(neutral·success·warning·danger, 의미색 토큰). 처리 기한·저평점은 `data-sla-tone`·`data-low-rating`. |
+| 상태 | kit `Badge`(secondary·outline·destructive) 또는 `AdminStatusBadge`(neutral = secondary, success·warning = outline 배지 + 의미색 점, danger = destructive — 배지 바탕을 의미색으로 칠하지 않는다). 처리 기한·저평점은 `data-sla-tone`·`data-low-rating`. |
 | 안내·빈 상태 | kit Alert·Empty, 또는 `rounded-lg border bg-muted/40` 안내 상자와 `py-10 text-center text-muted-foreground` 빈 상태. 메뉴설명은 접는 `details`. |
 | 차트 | recharts 색 `var(--chart-1..5)`·격자 `var(--border)`·축 muted-foreground, 애니메이션 끔(캡처 환경 rAF 정지). |
 

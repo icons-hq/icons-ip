@@ -9,7 +9,8 @@ import { DETAIL_MODULE_KEYS, PRODUCT_DETAIL_PRESENTATION_PATH, type DetailBanner
 
 export interface DetailTargetOption { id: string; title: string; archived?: boolean }
 /* 상품상세 표시 설정(템플릿 룩, ADR-0028). 링크 탭은 셸의 콘솔 전환과 같은 모양이다. */
-const TABS = 'inline-flex max-w-full items-center self-start overflow-x-auto rounded-lg bg-muted p-0.5';
+/* 탭이 많아 좁은 화면에서 잘리지 않게 줄을 바꾼다(가로 스크롤은 단서가 없어 쓰지 않는다). */
+const TABS = 'inline-flex max-w-full flex-wrap items-center gap-0.5 self-start rounded-lg bg-muted p-0.5';
 const TAB = 'inline-flex h-7 shrink-0 items-center rounded-md px-2.5 text-[0.8rem] font-medium whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground aria-[current=page]:bg-background aria-[current=page]:text-foreground aria-[current=page]:shadow-sm';
 const CHECK = 'flex items-start gap-2.5 text-sm [&>input]:mt-0.5';
 const CHECK_TEXT = 'flex flex-col gap-1 leading-normal';
@@ -99,7 +100,7 @@ function DetailForm({ snapshot, section, goods, categories }: {
         </div> : <div className="grid gap-2 text-[13px] [&>div]:rounded-lg [&>div]:border [&>div]:p-4 [&_small]:mt-1.5 [&_small]:block [&_small]:text-muted-foreground"><div>상품 대표이미지·구매 영역</div>{values.modules.reviewSummary ? <div>4점 이상 리뷰 비율·리뷰 카드</div> : null}{values.otherComposition.enabled ? <div>다른 구성도 살펴보세요<small>공개된 다른 구성 상품과 선택적 구성 표시값</small></div> : null}<div>수동 연관상품 편성</div>{DETAIL_MODULE_KEYS.filter(key => key !== 'reviewSummary' && values.modules[key]).map(key => <div key={key}>{moduleCopy[key].title}<small>현재 노출 가능한 후보가 있을 때 표시</small></div>)}<div>상세정보·리뷰·문의·배송 안내</div></div>}
       </aside>
     </div>
-    <div className="flex flex-col items-stretch justify-end gap-3 rounded-xl border bg-card p-4 sm:flex-row sm:items-center">{message ? <p className={`text-sm sm:mr-auto ${error ? 'text-destructive' : 'text-[var(--wc-success)]'}`} role={error ? 'alert' : 'status'}>{message}</p> : null}<Button type="submit" disabled={pending}>{pending ? '저장 중…' : uncertain ? '같은 요청 결과 확인' : '설정 저장'}</Button></div>
+    <div className="flex flex-col items-stretch justify-end gap-3 sm:flex-row sm:items-center">{message ? <p className={`text-sm sm:mr-auto ${error ? 'text-destructive' : 'text-[var(--wc-success)]'}`} role={error ? 'alert' : 'status'}>{message}</p> : null}<Button type="submit" disabled={pending}>{pending ? '저장 중…' : uncertain ? '같은 요청 결과 확인' : '설정 저장'}</Button></div>
     <p className={NOTE}>띠배너, 리뷰·자동 추천, 다른 구성 추천은 각각 저장합니다. 후보가 없거나 조건에 맞지 않는 영역은 공개 화면에서 숨깁니다.</p>
   </form>;
 }

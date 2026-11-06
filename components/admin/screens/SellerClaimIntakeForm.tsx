@@ -20,7 +20,7 @@ import { CustomerServiceDialog } from './CustomerServiceDialog';
 const PRIMARY = cn(buttonVariants());
 const OUTLINE = cn(buttonVariants({ variant: 'outline' }));
 const FIELDSET = 'm-0 flex min-w-0 flex-col gap-3 rounded-lg border p-4';
-const LEGEND = 'px-1 font-medium';
+const LEGEND = 'float-left w-full p-0 font-medium';
 const FIELDS = 'grid min-w-0 gap-3 sm:grid-cols-2';
 const FIELD = 'flex min-w-0 flex-col gap-1.5';
 const FIELD_LABEL = 'font-medium';

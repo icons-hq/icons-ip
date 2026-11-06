@@ -65,7 +65,7 @@ export function InquiryAutoRepliesForm({settings,canEdit}:{settings:StoreSetting
     <p className={NOTE}>문의 유형별 사용 여부와 안내 문구를 함께 저장합니다. 기본은 모두 꺼짐입니다. 문구에 HTTPS로 시작하는 FAQ 전체 주소를 넣을 수 있습니다.</p>
     <div key={state.attempt??0} className="flex min-w-0 flex-col gap-4" data-auto-replies="">
       {INQUIRY_CATEGORIES.map(({id,label})=><fieldset key={id} disabled={pending} className="flex min-w-0 flex-col gap-3 rounded-lg border p-4">
-        <legend className="px-1 text-sm font-medium">{adminGoodsCopy(label)}</legend>
+        <legend className="float-left w-full p-0 text-sm font-medium">{adminGoodsCopy(label)}</legend>
         <label className={CHECK_LABEL}><input type="checkbox" name={`${id}.enabled`} value="true" disabled={!canEdit}
           defaultChecked={state.values?state.values[`${id}.enabled`]==='true':settings.inquiryAutoReplies[id].enabled}/> {adminGoodsCopy(label)} 자동 안내 사용</label>
         <AdminField label="안내 문구" inputId={`auto-reply-${id}`} error={state.errors?.[`${id}.body`]} hint="최대 2,000자. 사용을 켜려면 공백이 아닌 문구가 필요합니다.">
@@ -86,10 +86,10 @@ export function ShippingCarrierForm({carrier,canEdit}:{carrier?:EditableCarrier;
     <input type="hidden" name="updatedAt" value={latestStamp(carrier?.updatedAt??'',state.updatedAt)}/>
     <AdminFormGrid>{[
       ['code','택배사 코드',carrier?.code??''],['label','택배사 이름',carrier?.label??''],['trackingUrlTemplate','배송조회 URL',carrier?.trackingUrlTemplate??''],
-    ].map(([key,label,initial])=><AdminField key={key} label={label} inputId={`carrier-${carrier?.code??'new'}-${key}`} error={state.errors?.[key]} hint={key==='trackingUrlTemplate'?'운송장번호 자리에 {trackingNumber}를 넣습니다.':undefined}>
+    ].map(([key,label,initial])=><div className={key==='trackingUrlTemplate'?'col-span-full min-w-0':'min-w-0'} key={key}><AdminField label={label} inputId={`carrier-${carrier?.code??'new'}-${key}`} error={state.errors?.[key]} hint={key==='trackingUrlTemplate'?'운송장번호 자리에 {trackingNumber}를 넣습니다.':undefined}>
       <Input id={`carrier-${carrier?.code??'new'}-${key}`} name={key} defaultValue={state.values?.[key]??initial} maxLength={key==='label'?60:key==='code'?32:500} readOnly={!canEdit||key==='code'&&Boolean(carrier)}
         aria-invalid={Boolean(state.errors?.[key])} aria-describedby={state.errors?.[key]?`carrier-${carrier?.code??'new'}-${key}-error`:key==='trackingUrlTemplate'?`carrier-${carrier?.code??'new'}-${key}-hint`:undefined}/>
-    </AdminField>)}</AdminFormGrid>
+    </AdminField></div>)}</AdminFormGrid>
     <label className={CHECK_LABEL}><input type="checkbox" name="active" value="true" defaultChecked={state.values?state.values.active==='true':carrier?.active??true} disabled={!canEdit}/> 새 발송에서 사용</label>
     <p className={NOTE}>비활성화해도 기존 주문의 배송조회 링크는 유지됩니다.</p><Feedback state={state}/>
     {canEdit?<Button className="w-fit min-w-28" disabled={pending} type="submit"><Check aria-hidden="true"/>{pending?'저장 중…':carrier?'택배사 저장':'택배사 등록'}</Button>:null}

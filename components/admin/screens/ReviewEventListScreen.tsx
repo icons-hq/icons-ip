@@ -32,7 +32,7 @@ export function ReviewEventListScreen({ data }: { data: ReviewEventList }) {
     </form>
     <section aria-label="리뷰이벤트 목록" className="flex min-w-0 flex-col gap-4 rounded-xl border bg-card p-4 text-card-foreground">
       <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-        <p className="text-sm">전체 <strong className="font-semibold text-foreground tabular-nums">{total.toLocaleString('ko-KR')}</strong>건 <span className="text-muted-foreground">· 날짜는 한국 시각 기준입니다.</span></p>
+        <p className="text-sm lg:shrink-0">전체 <strong className="font-semibold text-foreground tabular-nums">{total.toLocaleString('ko-KR')}</strong>건 <span className="text-muted-foreground">· 날짜는 한국 시각 기준입니다.</span></p>
         <ReviewEventExportButton total={total} href={reviewEventExportHref({ mode: 'events', query: filters.query, state: filters.state, dateField: filters.dateField, from: filters.from || null, to: filters.to || null })} />
       </div>
       <div className="min-w-0 overflow-hidden rounded-lg border"><Table className="min-w-[53rem]"><caption className="sr-only">리뷰이벤트 목록</caption><TableHeader><TableRow className="bg-muted/50"><TableHead className="text-xs text-muted-foreground">번호 / 이벤트명</TableHead><TableHead className="text-xs text-muted-foreground">상태</TableHead><TableHead className="text-xs text-muted-foreground">응모기간 / 발표일</TableHead><TableHead className="text-right text-xs text-muted-foreground">선정 혜택</TableHead><TableHead className="text-right text-xs text-muted-foreground">응모 / 선정 / 지급</TableHead><TableHead className="text-xs text-muted-foreground">관리</TableHead></TableRow></TableHeader><TableBody>

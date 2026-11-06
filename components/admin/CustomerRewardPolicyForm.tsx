@@ -12,7 +12,7 @@ import { ACTIONS, ALERT_BOX, CHECK_LABEL, NOTE, STATUS_BOX } from './settings-ki
 import { useGoodsGroupSession } from './GoodsGroupOperation';
 
 const FIELDSET = 'm-0 flex min-w-0 flex-col gap-3 rounded-lg border p-4';
-const LEGEND = 'px-1 text-sm font-medium';
+const LEGEND = 'float-left w-full p-0 text-sm font-medium';
 const GRID = 'grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2';
 
 const draftOf = (policy: CustomerRewardPolicy) => ({ gradeEnabled: policy.gradeEnabled, rates: Object.fromEntries(REWARD_GRADES.map(grade => [grade, policy.gradeRates[grade] === null ? '' : String(policy.gradeRates[grade]! / 100)])),

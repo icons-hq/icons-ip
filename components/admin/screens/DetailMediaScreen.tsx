@@ -35,7 +35,7 @@ export function DetailMediaScreen({ initial }: { initial: GoodsMediaSettingsSnap
         <label className={CHOICE}><input type="checkbox" checked={values.shortclips} onChange={event => setValues(current => ({ ...current, shortclips: event.target.checked }))} />상품상세에 숏클립 영역 표시</label>
         <p className="text-sm text-muted-foreground">상품에 직접 등록한 숏클립이 있을 때 별도 영역을 표시합니다.</p>
       </fieldset></AdminSectionCard>
-      <div className="flex flex-col items-stretch justify-end gap-3 rounded-xl border bg-card p-4 sm:flex-row sm:items-center">{message ? <p className={`text-sm sm:mr-auto ${error ? 'text-destructive' : 'text-[var(--wc-success)]'}`} role={error ? 'alert' : 'status'}>{message}</p> : null}<Button type="submit" disabled={pending || Boolean(initial.unavailable)}>{pending ? '저장 중…' : uncertain ? '같은 요청 결과 확인' : '설정 저장'}</Button></div>
+      <div className="flex flex-col items-stretch justify-end gap-3 sm:flex-row sm:items-center">{message ? <p className={`text-sm sm:mr-auto ${error ? 'text-destructive' : 'text-[var(--wc-success)]'}`} role={error ? 'alert' : 'status'}>{message}</p> : null}<Button type="submit" disabled={pending || Boolean(initial.unavailable)}>{pending ? '저장 중…' : uncertain ? '같은 요청 결과 확인' : '설정 저장'}</Button></div>
     </form>
   </section>;
 }

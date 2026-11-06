@@ -25,7 +25,6 @@ import {
 import { DataTablePagination } from "@/components/admin/kit/data-table/data-table-pagination";
 import { useDirection } from "@/components/admin/kit/ui/direction";
 import {
-  Table,
   TableBody,
   TableCell,
   TableHead,
@@ -65,7 +64,8 @@ export function DataTable<TData extends RowData>({
       {...props}
     >
       {children}
-      <div className="isolate overflow-hidden rounded-md border">
+      {/* ICONS: 크기 질의 컨테이너 — 빈 목록 문구가 보이는 폭(100cqw)에 가운데 선다. */}
+      <div className="@container isolate overflow-hidden rounded-md border">
         <DataTableLayout
           table={table}
           aria-label={ariaLabel}
@@ -98,16 +98,29 @@ function DataTableLayout<TData extends RowData>({
   children,
   ...props
 }: DataTableLayoutProps<TData>) {
+  /* ICONS: 가로로 넘치는 표는 스크롤 영역이 포커스를 받아야 키보드(화살표)로 옆으로 옮긴다. kit Table과 같은
+     클래스에 region·tabIndex·안쪽 포커스 링만 더한다(바깥 테두리 상자가 overflow-hidden이라 링을 안쪽에 그린다). */
+  const regionLabel = props["aria-label"] ? `${props["aria-label"]} 가로 스크롤` : undefined;
   return (
     <table.Subscribe selector={selectLayoutState}>
       {() => (
-        <Table
-          className="table-fixed"
-          style={getColumnSizingStyle(table)}
-          {...props}
+        <div
+          aria-label={regionLabel}
+          aria-labelledby={regionLabel ? undefined : props["aria-labelledby"]}
+          className="relative w-full overflow-x-auto outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset"
+          data-slot="table-container"
+          role="region"
+          tabIndex={0}
         >
-          {children}
-        </Table>
+          <table
+            className="w-full table-fixed caption-bottom text-sm"
+            data-slot="table"
+            style={getColumnSizingStyle(table)}
+            {...props}
+          >
+            {children}
+          </table>
+        </div>
       )}
     </table.Subscribe>
   );
@@ -194,9 +207,12 @@ function DataTableBody<TData extends RowData>({
             <TableRow>
               <TableCell
                 colSpan={table.getVisibleLeafColumns().length || 1}
-                className="h-24 text-center"
+                className="h-24 p-0 text-center"
               >
-                {emptyLabel}
+                {/* ICONS: 표가 보이는 폭보다 넓어도 문구가 가로 스크롤 전체 폭이 아니라 보이는 폭 가운데에 남는다. */}
+                <div className="sticky left-0 flex h-24 w-[100cqw] items-center justify-center px-4 whitespace-normal">
+                  {emptyLabel}
+                </div>
               </TableCell>
             </TableRow>
           </TableBody>

@@ -113,7 +113,7 @@ export function InquiryChatConversation({ accountId, detail }: { accountId: stri
       <span className="inline-flex size-9 shrink-0 items-center justify-center rounded-full border bg-muted text-sm font-semibold text-foreground @max-2xl/chat:hidden" aria-hidden="true">{inquiry.buyerName.slice(0, 1)}</span>
       <div className="min-w-0 flex-1"><strong className="block truncate font-medium text-foreground">{inquiry.buyerName}</strong><p className="truncate text-xs text-muted-foreground" title={inquiry.title}>{inquiry.title}</p></div>
       <span className="max-w-24 truncate text-xs text-muted-foreground @max-2xl/chat:max-w-18">{inquiry.assigneeName ?? '담당자 미배정'}</span>
-      {inquiry.status !== 'closed' ? <Button disabled={busy} onClick={() => setCloseRequested(true)} size="sm" type="button" variant="outline"><CircleCheck aria-hidden="true" />상담완료</Button> : <Badge variant="secondary">상담완료</Badge>}
+      {inquiry.status !== 'closed' ? <Button className="print:hidden" disabled={busy} onClick={() => setCloseRequested(true)} size="sm" type="button" variant="outline"><CircleCheck aria-hidden="true" />상담완료</Button> : <Badge variant="secondary">상담완료</Badge>}
     </header>
     {closeRequested && inquiry.status !== 'closed' ? <div className="flex shrink-0 flex-col gap-2 border-b bg-muted/60 px-4 py-2.5" role="group" aria-label="상담완료 확인">
       <p className="text-sm">상담을 완료하면 이 대화에 추가 답변을 보낼 수 없습니다. 완료할까요?</p>
@@ -123,7 +123,7 @@ export function InquiryChatConversation({ accountId, detail }: { accountId: stri
       </form><Feedback state={closeState} />
     </div> : null}
     <InquiryChatReadReceipt accountId={accountId} inquiryId={inquiry.id} messageIds={messages.filter(message => message.author === 'user').map(message => message.id)} />
-    <ol className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain p-4 @max-2xl/chat:p-3" ref={messageList} aria-label="상담 대화" aria-live="polite" aria-relevant="additions"
+    <ol className="flex min-h-0 flex-1 flex-col gap-4 overflow-y-auto overscroll-contain p-4 print:overflow-visible @max-2xl/chat:p-3" ref={messageList} aria-label="상담 대화" aria-live="polite" aria-relevant="additions"
       onScroll={() => { const list = messageList.current; if (list) followLatest.current = list.scrollHeight - list.scrollTop - list.clientHeight < 100; }}>
       {messages.map(message => <li className="group/message flex max-w-[90%] flex-col items-start gap-1 self-start data-[author=staff]:items-end data-[author=staff]:self-end data-[author=system]:items-center data-[author=system]:self-center @max-2xl/chat:max-w-[95%]" key={message.id} data-author={message.author}>
         <span className="text-xs text-muted-foreground">{inquiryMessageAuthorLabel(message.author, message.authorName, inquiry.buyerName)}</span>
@@ -136,7 +136,7 @@ export function InquiryChatConversation({ accountId, detail }: { accountId: stri
       </li>)}
     </ol>
     {inquiry.status === 'closed' ? <p className="shrink-0 border-t bg-background p-4 text-center text-sm text-muted-foreground" role="status">상담이 완료되었습니다. 고객이 새 문의를 남기면 새 대화에서 이어갈 수 있습니다.</p> :
-      <form action={answerAction} className="flex shrink-0 flex-col gap-2 border-t bg-background px-4 pt-2 pb-3 @max-2xl/chat:px-3" data-chat-composer="">
+      <form action={answerAction} className="flex shrink-0 flex-col gap-2 border-t bg-background px-4 pt-2 pb-3 @max-2xl/chat:px-3 print:hidden" data-chat-composer="">
         <input type="hidden" name="inquiryId" value={inquiry.id} /><input type="hidden" name="category" value={inquiry.category} />
         <input type="hidden" name="fileIds" value={JSON.stringify(attachmentEntries.flatMap(entry => entry.file ? [entry.file.id] : []))} />
         <div className="flex flex-wrap items-center gap-1">

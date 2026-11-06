@@ -58,7 +58,7 @@ function RegionFields({ policy, onChange, tsv, onTsvChange, disabled, carriers, 
   const parsed = parseShippingRegionRulesTsv(tsv, policy.rules);
   const rules = parsed.rules ?? [];
   return <fieldset disabled={disabled} className="m-0 flex min-w-0 flex-col gap-3 rounded-lg border p-3 sm:p-4">
-    <legend className="px-1 text-sm font-medium">그룹 지역 추가료 · 그룹당 한 번</legend>
+    <legend className="float-left w-full p-0 text-sm font-medium">그룹 지역 추가료 · 그룹당 한 번</legend>
     <p className={NOTE}>실제 계약의 우편번호·주소 구간과 요금을 입력합니다. 이 그룹의 상품은 출고지 지역료와 중복 부과하지 않으며, 기본 배송비 반복 횟수로 지역료를 곱하지 않습니다.</p>
     <div className="grid min-w-0 grid-cols-1 gap-4 sm:grid-cols-2">
       <label className={FIELD_LABEL}>계약 택배사<NativeSelect className="w-full" value={policy.carrierCode} onChange={event => patch({ carrierCode: event.target.value })}>

@@ -168,3 +168,14 @@ describe('CustomerServiceDialog native close 동기화', () => {
     }
   });
 });
+
+/* 작성자 display 유틸리티는 UA의 dialog:not([open]) 숨김을 이긴다. 닫힌 팝업이 SSR 직후·강제 닫힘 뒤에 목록 아래 펼쳐지면 안 된다. */
+describe('CustomerServiceDialog 닫힌 상태', () => {
+  it('닫힌 dialog는 hidden이고 열렸을 때만 flex로 배치한다', () => {
+    const dialog = CustomerServiceDialog({ title: '고객문의 상세 · 답변', onClose: vi.fn(), children: null }) as DialogElement;
+    const classes = String((dialog.props as { className?: string }).className).split(/\s+/);
+    expect(classes).toContain('hidden');
+    expect(classes).toContain('open:flex');
+    expect(classes).not.toContain('flex');
+  });
+});

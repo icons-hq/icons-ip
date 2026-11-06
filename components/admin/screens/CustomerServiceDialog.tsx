@@ -6,7 +6,11 @@ import { useRouter } from 'next/navigation';
 import { X } from 'lucide-react';
 import { Button } from '@/components/admin/kit/ui/button';
 
-/** Native dialog keeps focus and Escape inside the selected record, even from a grid cell. */
+/**
+ * Native dialog keeps focus and Escape inside the selected record, even from a grid cell.
+ * The closed dialog stays `hidden` and only `open:flex` lays it out — an author display utility beats the UA
+ * `dialog:not([open])` rule, so a bare `flex` would spread the dialog into the page before `showModal()` runs.
+ */
 export function CustomerServiceDialog({ title, children, onClose, busy = false, wide = false }: {
   title: string;
   children: ReactNode;
@@ -36,7 +40,7 @@ export function CustomerServiceDialog({ title, children, onClose, busy = false, 
 
   return <dialog
     aria-labelledby={titleId}
-    className={`admin-cs-dialog m-auto flex max-h-[calc(100svh-2rem)] w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-xl border-0 bg-popover p-0 text-sm text-popover-foreground shadow-lg ring-1 ring-foreground/10 outline-none backdrop:bg-black/50 print:static forced-colors:border forced-colors:border-[CanvasText] ${wide ? 'max-w-5xl' : 'max-w-xl'}`}
+    className={`admin-cs-dialog m-auto hidden max-h-[calc(100svh-2rem)] w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-xl border-0 bg-popover p-0 text-sm text-popover-foreground shadow-lg ring-1 ring-foreground/10 outline-none backdrop:bg-black/50 open:flex print:static print:max-h-none print:w-full print:max-w-none print:shadow-none print:ring-0 forced-colors:border forced-colors:border-[CanvasText] ${wide ? 'max-w-5xl' : 'max-w-xl'}`}
     data-wide={wide || undefined}
     onCancel={(event) => {
       /* React는 버블링하지 않는 native cancel도 컴포넌트 트리로 전달한다. 안쪽 dialog(답변 템플릿 등)의
@@ -66,9 +70,9 @@ export function CustomerServiceDialog({ title, children, onClose, busy = false, 
   >
     <header className="flex shrink-0 items-center justify-between gap-3 border-b px-4 py-3">
       <h2 className="text-base leading-none font-semibold text-foreground" id={titleId}>{title}</h2>
-      <Button aria-label="닫기" disabled={busy} onClick={onClose} size="icon-sm" type="button" variant="ghost"><X /></Button>
+      <Button aria-label="닫기" className="print:hidden" disabled={busy} onClick={onClose} size="icon-sm" type="button" variant="ghost"><X /></Button>
     </header>
-    <div className="admin-cs-dialog__body min-h-0 flex-1 overflow-y-auto p-4 text-left whitespace-normal">{children}</div>
+    <div className="admin-cs-dialog__body min-h-0 flex-1 overflow-y-auto p-4 text-left whitespace-normal print:overflow-visible">{children}</div>
   </dialog>;
 }
 
