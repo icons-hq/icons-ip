@@ -176,7 +176,7 @@ describe('GameSection', () => {
     const html = renderGameSection();
 
     expect(mocks.useActionState).toHaveBeenCalledWith(mocks.save, {});
-    expect(html).toContain('class="admin-master-detail"');
+    expect(html).toContain('data-admin-layout="master-detail"');
     expect(html).toContain('data-admin-kit="form-grid"');
     expect(html).toContain('aria-label="게임 목록"');
     expect(html).toContain('새 게임 등록');
