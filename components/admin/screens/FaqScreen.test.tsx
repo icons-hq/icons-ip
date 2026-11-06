@@ -7,8 +7,8 @@ describe('FAQ 운영 화면', () => {
   it('필터·등록·수정의 카테고리는 상품으로 표시하고 작성한 질문은 보존한다', () => {
     const html = renderToStaticMarkup(<FaqScreen data={{ total: 1, filters: normalizeFaqFilters({ category: 'good' }), entries: [{ id: 'faq-1', category: 'good', question: '굿즈 교환이 가능한가요?', answer: '주문 상세에서 확인하세요.', sortOrder: 0, published: true, updatedAt: '2026-09-08T00:00:00Z' }] }} />);
     expect(html.match(/<option value="good"(?: selected="")?>상품<\/option>/g)).toHaveLength(3);
-    expect(html).toContain('<span>상품</span>');
-    expect(html).toContain('<strong>굿즈 교환이 가능한가요?</strong>');
+    expect(html).toMatch(/<summary[^>]*><span[^>]*>상품<\/span>/);
+    expect(html).toMatch(/<strong[^>]*>굿즈 교환이 가능한가요\?<\/strong>/);
   });
   it('검색·카테고리·게시 필터와 등록·수정·삭제 확인을 연결한다', () => {
     const html = renderToStaticMarkup(<FaqScreen data={{ total: 1, filters: normalizeFaqFilters({}), entries: [{ id: 'faq-1', category: 'order', question: '배송 확인', answer: '주문 상세', sortOrder: 3, published: false, updatedAt: '2026-09-08T00:00:00Z' }] }} />);
@@ -23,5 +23,7 @@ describe('FAQ 운영 화면', () => {
     expect(html).toContain('name="updatedAt" value="2026-09-08T00:00:00Z"');
     expect(html).toContain('이 FAQ를 삭제하겠습니다.');
     expect(html).toContain('FAQ 수정 저장');
+    /* 등록·수정·삭제는 각자의 폼을 제출한다(kit Button은 type을 주지 않으면 button이 된다). */
+    for (const label of ['FAQ 등록', 'FAQ 수정 저장', '삭제 확정']) expect(html).toMatch(new RegExp(`<button(?=[^>]*type="submit")[^>]*>${label}</button>`));
   });
 });
