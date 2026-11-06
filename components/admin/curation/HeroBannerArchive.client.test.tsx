@@ -35,6 +35,7 @@ vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: mocks.refresh }
 vi.mock('@/app/admin/curation-archive-actions', () => ({ setHeroBannerArchivedAction: mocks.save, readArchivedHeroBannersAction: mocks.read }));
 vi.mock('./CurationProductPicker', () => ({ CurationEditorDialog: () => null }));
 import { ArchivedHeroBanners, HeroBannerDeleteButton } from './HeroBannerArchive';
+import { Button } from '@/components/admin/kit/ui/button';
 
 type Element = ReactElement<{
   children?: ReactNode; title?: string; disabled?: boolean; closeDisabled?: boolean;
@@ -68,8 +69,10 @@ function confirmation(parent: ReactNode) {
   const component = element.type as (props: Element['props']) => ReactNode;
   return render('confirmation', () => component(element.props));
 }
+/* 버튼은 kit Button 부품(ADR-0028) 또는 네이티브 button이다. */
+const isButton = (value: Element) => value.type === 'button' || value.type === Button;
 function button(node: ReactNode, label: string) {
-  const element = all(node).find(value => value.type === 'button' && text(value) === label);
+  const element = all(node).find(value => isButton(value) && text(value) === label);
   if (!element) throw new Error(`Missing button: ${label}`);
   return element;
 }

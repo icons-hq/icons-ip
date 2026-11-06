@@ -20,7 +20,6 @@ import './styles/admin-inquiry-chat.css';
 import './styles/admin-stats-console.css';
 import './styles/admin-store-analytics.css';
 import './styles/store-analytics.css';
-import './styles/admin-store-editor.css';
 import './styles/admin-category-display.css';
 import './styles/wc-category-display.css';
 import './styles/admin-goods-announcements.css';

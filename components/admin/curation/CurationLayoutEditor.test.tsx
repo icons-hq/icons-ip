@@ -16,7 +16,7 @@ describe('CurationLayoutEditor', () => {
       operationId="33333333-3333-4333-8333-333333333333" preview={{ curation: emptyCurationPreview(), noticeStrip: null, goods: [], cardRewardsEnabled: false }} records={[]}
     />);
 
-    expect(html).toContain('<strong>혜택</strong>');
+    expect(html).toMatch(/<strong[^>]*>혜택<\/strong>/);
     expect(html).toContain('aria-label="혜택 홈 노출"');
     expect(html).not.toContain('카드팩·게임 혜택');
   });

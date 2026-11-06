@@ -92,7 +92,7 @@ describe('CurationSection', () => {
     await mocks.reducer!({ uncertain: true }, changed);
     expect(mocks.action.mock.calls[1][1].get('title')).toBe('보낸 원본');
     mocks.state = { errors: { form: '결과 확인 필요' }, uncertain: true };
-    expect(renderSection()).toContain('<fieldset disabled="">');
+    expect(renderSection()).toMatch(/<fieldset disabled=""[ >]/);
     expect(renderSection()).toContain('같은 요청 결과 확인');
   });
 
@@ -112,7 +112,7 @@ describe('CurationSection', () => {
     mocks.state = { errors: { form: '저장본 충돌' }, conflict: true };
     const html = renderSection();
     expect(html).toContain('value="여름 신작"');
-    expect(html).toContain('<fieldset disabled="">');
+    expect(html).toMatch(/<fieldset disabled=""[ >]/);
     expect(html).toContain('입력을 취소하고 최신 저장본 불러오기');
   });
 
