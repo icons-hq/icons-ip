@@ -1,8 +1,11 @@
 'use client';
 
 import { useActionState, useState } from 'react';
+import { Check } from 'lucide-react';
 import { saveOperationsContactAction, type OperationsContactActionState } from '@/app/admin/operations-contact-actions';
 import { AdminField, AdminFormGrid } from '@/components/admin/console/AdminKit';
+import { Button } from '@/components/admin/kit/ui/button';
+import { Input } from '@/components/admin/kit/ui/input';
 import { OPERATIONS_CONTACT_FIELDS, operationsContactValues, type OperationsContact, type OperationsContactValues } from '@/lib/admin/operations-contacts';
 
 export function OperationsContactForm({ contact, canEdit }: { contact: OperationsContact; canEdit: boolean }) {
@@ -13,7 +16,7 @@ export function OperationsContactForm({ contact, canEdit }: { contact: Operation
   const [state, action, pending] = useActionState<OperationsContactActionState, FormData>(saveOperationsContactAction, {});
   const version = state.updatedAt === undefined ? initialVersion : state.updatedAt;
   const formId = `operations-contact-${contact.originId ?? 'general'}`;
-  return <form action={action} className="admin-operations__form" aria-label={`${contact.scope === 'operations' ? '운영 총괄' : contact.originName} 담당자 정보`}>
+  return <form action={action} aria-label={`${contact.scope === 'operations' ? '운영 총괄' : contact.originName} 담당자 정보`} className="flex min-w-0 flex-col gap-4">
     <input type="hidden" name="scope" value={contact.scope}/>
     <input type="hidden" name="originId" value={contact.originId ?? ''}/>
     <input type="hidden" name="updatedAt" value={version ?? ''}/>
@@ -21,13 +24,13 @@ export function OperationsContactForm({ contact, canEdit }: { contact: Operation
       const key = field as keyof OperationsContactValues;
       const inputId = `${formId}-${key}`;
       return <AdminField key={key} label={config.label} inputId={inputId} hint={config.hint} error={state.errors?.[key]}>
-        <input id={inputId} name={key} value={values[key]} maxLength={config.maxLength} readOnly={!canEdit} disabled={pending}
+        <Input id={inputId} name={key} value={values[key]} maxLength={config.maxLength} readOnly={!canEdit} disabled={pending}
           onChange={event => setValues(current => ({ ...current, [key]: event.target.value }))}
           aria-invalid={Boolean(state.errors?.[key])} aria-describedby={`${inputId}-hint${state.errors?.[key] ? ` ${inputId}-error` : ''}`}/>
       </AdminField>;
     })}</AdminFormGrid>
-    {state.errors?.form ? <p className="wc-admin-kit__error" role="alert">{state.errors.form}</p> : null}
-    {state.message ? <p role="status">{state.message}</p> : null}
-    {canEdit ? <button className="btn" type="submit" disabled={pending}>{pending ? '저장 중…' : '담당자 정보 저장'}</button> : null}
+    {state.errors?.form ? <p className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2.5 text-sm text-destructive" role="alert">{state.errors.form}</p> : null}
+    {state.message ? <p className="rounded-lg border bg-muted/40 px-3 py-2.5 text-sm font-medium text-[var(--wc-success)]" role="status">{state.message}</p> : null}
+    {canEdit ? <Button className="w-fit min-w-28" disabled={pending} type="submit"><Check aria-hidden="true"/>{pending ? '저장 중…' : '담당자 정보 저장'}</Button> : null}
   </form>;
 }
