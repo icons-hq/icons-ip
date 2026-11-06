@@ -89,6 +89,9 @@ describe('그룹 전환 화면 복구', () => {
     expect(render().some(node => isInput(node) && node.props.value === source.name)).toBe(true);
     const event = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(event); expect(event.defaultPrevented).toBe(true);
   });
+  it('변환 전 비교 버튼은 폼 제출이다(kit 버튼의 기본 type은 button)', () => {
+    expect(render().find(node => isButton(node) && text(node) === '변환 전 변경사항 비교')?.props.type).toBe('submit');
+  });
   it('응답 유실 뒤 새로고침은 자동 재전송 없이 동일 내역만 조회한다', async () => {
     await ready(); click('이 내용으로 그룹 전환'); await flush(); const metadata = saved(); remount(); await flush();
     expect(mocks.confirm).toHaveBeenCalledOnce(); expect(mocks.read).not.toHaveBeenCalled();
@@ -151,6 +154,10 @@ describe('그룹 구성 화면', () => {
     for (const member of group.members) expect(render().some(node => node.props.href === `/admin/catalog/goods?goodId=${encodeURIComponent(member.goodId)}` && text(node) === member.name)).toBe(true);
     authenticate(id(99)); await flush();
     expect(render().some(node => typeof node.props.href === 'string' && node.props.href.startsWith('/admin/catalog/goods?goodId='))).toBe(false);
+  });
+  it('구성 변경 확인 버튼은 폼 제출이다(kit 버튼의 기본 type은 button)', async () => {
+    mode = 'editor'; remount(); await flush();
+    expect(render().find(node => isButton(node) && text(node) === '변경사항 확인')?.props.type).toBe('submit');
   });
   it('제외만으로 상품을 합치지 않으며 승인된 구성 metadata와 입력을 분리한다', async () => {
     mode = 'editor'; remount(); await flush(); click('TEST 그룹 파랑 제외'); submit(); await flush(); check('변경 내용과 미공개'); render();

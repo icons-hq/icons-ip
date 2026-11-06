@@ -48,6 +48,11 @@ it('이름·부모 변경은 전시 노드 명령 하나만 보내며 결과 불
   const first = mocks.save.mock.calls[0]; submit(); await flush(); expect(mocks.save.mock.calls[1]).toEqual(first);
   const event = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(event); expect(event.defaultPrevented).toBe(true);
 });
+it('이름·상위 분류 저장 버튼은 폼 제출이고 나머지 조작은 제출하지 않는다(kit 버튼의 기본 type은 button)', () => {
+  const buttons = render().filter(isButton);
+  expect(buttons.filter(node => node.props.type === 'submit').map(node => text(node))).toEqual(['이름·상위 분류 저장']);
+  expect(buttons.every(node => node.props.type === 'submit' || node.props.type === 'button')).toBe(true);
+});
 it('CAS 충돌에서 입력을 유지하고 최신 분류를 명시적으로 읽은 뒤에만 다시 수정한다', async () => {
   mocks.save.mockResolvedValue({ error: '다른 관리자가 변경했습니다.', conflict: true }); change('전시분류명', '보존할 입력'); submit(); await flush();
   expect(render().some(node => isInput(node) && node.props.value === '보존할 입력')).toBe(true);

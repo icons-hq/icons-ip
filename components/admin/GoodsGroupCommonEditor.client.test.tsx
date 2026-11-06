@@ -120,6 +120,10 @@ describe('그룹 공통정보 편집 복구',()=>{
     await flush();
     expect(mocks.save).toHaveBeenCalledWith(expect.objectContaining({ expectedRevision: 1 }), expect.any(FormData));
   });
+  it('공통정보 적용 버튼은 폼 제출이다(kit 버튼의 기본 type은 button)',()=>{
+    const apply = render().find(node=>node.type===Button && text(node).startsWith('연결된 '))!;
+    expect(apply.props.type).toBe('submit');
+  });
   it('한 번의 원자적 action을 보내고 브라우저에는 payload를 보관하지 않는다',async()=>{
     submit(); await flush(); submit(); await flush(); expect(mocks.save).toHaveBeenCalledOnce();
     expect(saved()).toMatchObject({...identity,version:1,command:'common',groupId:commonTestSnapshot().group.id,expectedRevision:1});

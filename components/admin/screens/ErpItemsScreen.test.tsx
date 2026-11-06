@@ -75,6 +75,8 @@ describe('ERP 품목 화면', () => {
     expect(html).toContain('aria-label="000123 아크릴 키링 선택"');
     expect(html).toContain('aria-label="전체 선택"');
     expect(html).toContain('action="/admin/catalog/erp-items"');
+    // 품목 검색은 GET 폼 제출이다(kit 버튼의 기본 type은 button).
+    expect(html).toMatch(/<button(?=[^>]*type="submit")[^>]*>검색<\/button>/);
     expect(html).toContain('href="/admin/catalog/erp-items?page=2"');
   });
 

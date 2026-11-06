@@ -60,6 +60,8 @@ it('선택 해제 버튼이 선택을 비우고, 검색·페이지 이동은 지
   check('그룹 b 선택');
   mocks.search.mockResolvedValue({ value: page([group('a'), group('b')]) });
   const form = nodes(render()).find(node => node.type === 'form')!;
+  // 검색은 폼 제출이다(kit 버튼의 기본 type은 button).
+  expect(nodes(form.props.children as ReactNode).find(node => node.type === Button && text(node.props.children as ReactNode) === '검색')?.props.type).toBe('submit');
   (form.props.onSubmit as (event: unknown) => void)({ preventDefault: vi.fn() }); await Promise.all(mocks.work);
   expect(toolbar().props.selectedIds).toEqual([]);
 });
