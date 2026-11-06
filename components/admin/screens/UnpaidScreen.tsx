@@ -13,6 +13,7 @@ import { adminUnpaidAttemptStateLabel, adminUnpaidHref, type AdminUnpaidConsoleD
 import { ADMIN_VOCABULARY } from '@/lib/admin/vocabulary';
 import { SALES_SORT_OPTIONS } from '@/lib/admin/sales-list';
 import { SalesFilterField, SalesFilterPanel, SalesGuide, SalesResultsHeader, SalesSelect } from '@/components/admin/sales/SalesConsole';
+import { AdminStatusBadge } from '@/components/admin/console/AdminKit';
 import { krw } from '@/lib/format';
 import { formatOrderDateTime } from '@/lib/orders';
 import {
@@ -61,30 +62,31 @@ export function UnpaidScreen({
       id: row.id,
       href: adminUnpaidHref({ ...filters, selectedOrderId: row.id }),
       cells: [
-        <span className="mono" key="code">{row.depositCode}</span>,
+        <span className="font-medium tabular-nums" key="code">{row.depositCode}</span>,
         row.buyerName,
-        <span className="mono" key="depositName">
+        <span className="tabular-nums" key="depositName">
           {bankTransferDepositNameWithCode(row.recipientName, row.depositCode)}
         </span>,
         row.itemSummary || '품목 정보 없음',
         formatOrderDateTime(row.createdAt),
-        <span className={imminent ? 'admin-badge admin-badge--warn' : undefined} key="deadline">
+        /* 임박한 기한만 강조한다 — 모든 행이 주의색이면 신호가 죽는다. */
+        imminent ? <AdminStatusBadge key="deadline" tone="warning">
+          {bankTransferDeadlineLabel(row.expiresAt, now.getTime())}
+          {row.extendedAt ? ' · 연장됨' : ''}
+        </AdminStatusBadge> : <span key="deadline">
           {bankTransferDeadlineLabel(row.expiresAt, now.getTime())}
           {row.extendedAt ? ' · 연장됨' : ''}
         </span>,
-        <span
-          className={row.attemptState === 'prepared' ? undefined : 'admin-badge admin-badge--warn'}
-          key="state"
-        >
-          {adminUnpaidAttemptStateLabel(row.attemptState)}
-        </span>,
-        <span className="mono" key="total">{krw(row.total)}</span>,
+        row.attemptState === 'prepared'
+          ? <span key="state">{adminUnpaidAttemptStateLabel(row.attemptState)}</span>
+          : <AdminStatusBadge key="state" tone="warning">{adminUnpaidAttemptStateLabel(row.attemptState)}</AdminStatusBadge>,
+        <span className="tabular-nums" key="total">{krw(row.total)}</span>,
       ],
     };
   });
 
   return (
-    <div className="admin-console admin-sales-console wc-admin-kit">
+    <div className="flex min-w-0 flex-col gap-4 text-sm" data-admin-unpaid="">
       <SalesGuide title="미결제 무통장 주문의 입금 여부를 확인할 수 있습니다.">
         <p>입금확인코드·안내된 입금자명·금액을 실제 입금 내역과 대조한 뒤 입금 확인을 처리합니다. 기한 연장과 취소는 주문을 선택해 처리합니다.</p>
       </SalesGuide>
@@ -92,7 +94,7 @@ export function UnpaidScreen({
         <SalesFilterField label="결제상태" htmlFor="sales-unpaid-state"><SalesSelect id="sales-unpaid-state" name="state" value={filters.state ?? ''}
           options={[{value:'',label:'전체'},{value:'prepared',label:'입금 대기'},{value:'confirming',label:'확정 처리중'},{value:'needs_review',label:'정합화 필요'},{value:'unknown',label:'결과 불명'},{value:'missing',label:'원장 없음'}]} /></SalesFilterField>
       </SalesFilterPanel>
-      <div className="admin-sales-results">
+      <div className="flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4 text-card-foreground" data-sales-results="">
       <SalesResultsHeader currentHref={currentHref} total={total} pageSize={pageSize} sort={filters.sort ?? 'oldest'}
         sortOptions={SALES_SORT_OPTIONS.map(option => option.value === 'oldest' ? {...option,label:'입금기한 임박순'} : option.value === 'newest' ? {...option,label:'입금기한 여유순'} : option)}>
         <AdminListExportButton href={adminListExportHref('unpaid', currentHref)} total={total} />
@@ -117,7 +119,7 @@ export function UnpaidScreen({
       {selected ? (
         <UnpaidActionsPanel order={selected} />
       ) : (
-        <p className="admin-sales-note">
+        <p className="text-muted-foreground">
           목록에서 주문을 고르면 입금 확인·기한 연장·즉시 취소를 처리할 수 있습니다.
         </p>
       )}
@@ -125,9 +127,9 @@ export function UnpaidScreen({
       <BankDepositQueue deposits={deposits} />
 
       {filters.selectedOrderId && !selected && (
-        <p className="admin-note" role="status">
+        <p className="rounded-lg border bg-muted/40 px-3 py-2.5" role="status">
           고른 주문이 목록에 없습니다. 이미 처리됐을 수 있어요.{' '}
-          <Link href={adminUnpaidHref({ ...filters, selectedOrderId: null })}>목록으로</Link>
+          <Link className="font-medium underline underline-offset-4" href={adminUnpaidHref({ ...filters, selectedOrderId: null })}>목록으로</Link>
         </p>
       )}
     </div>

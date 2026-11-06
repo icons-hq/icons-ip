@@ -17,6 +17,8 @@ describe('shipment export optional warehouse SKU', () => {
  it('바코드·ERP 코드·ERP 품명을 선택 열로 고를 수 있고 값의 원천을 설명한다', () => {
   const html=renderToStaticMarkup(<ShipmentExportColumnsEditor origin={origin} canEdit />);
   for(const label of ['바코드 포함','ERP 코드 포함','ERP 품명 포함'])expect(html).toContain(label);
+  /* 저장은 양식 제출(onSubmit)이다 — kit Button은 type이 없으면 button이 된다. */
+  expect(html).toMatch(/<button[^>]*type="submit"[^>]*>출고지시 양식 저장</);
   expect(html).toContain('주문 당시 값이 비어 있으면 지금 등록된 값');
  });
  it('서원·김포 양식 설명에 덧붙인 열과 ERP 품명 사용을 적는다', () => {
@@ -31,9 +33,9 @@ describe('shipment export optional warehouse SKU', () => {
  it('shows a stored optional mapping with its custom header and keeps staff read-only', () => {
   const html=renderToStaticMarkup(<ShipmentExportColumnsEditor origin={{...origin,exportColumns:[...DEFAULT_SHIPMENT_EXPORT_COLUMNS,{key:'variantCode',header:'WMS SKU'}]}} canEdit={false} />);
   expect(html).toContain('checked=""');
-  expect(html).toContain('<th>옵션코드</th>');
+  expect(html).toMatch(/<th[^>]*>옵션코드<\/th>/);
   expect(html).toContain('value="WMS SKU"');
-  expect(html).toContain('<fieldset disabled=""');
+  expect(html).toMatch(/<fieldset[^>]*disabled=""/);
   expect(html).not.toContain('출고지시 양식 저장');
  });
 });

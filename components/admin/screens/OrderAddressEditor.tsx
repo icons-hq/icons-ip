@@ -5,7 +5,12 @@ import { changeOrderAddressAction, loadOrderAddressContextAction, readOrderAddre
 import { normalizeOrderAddressRequest, orderAddressError, orderAddressReceiptMatches, type OrderAddressContext, type OrderAddressReceipt, type OrderAddressRequest } from '@/lib/admin/order-address';
 import type { CheckoutAddress } from '@/lib/checkout';
 import { formatOrderDateTime, orderReferenceLabel } from '@/lib/orders';
+import { Button } from '@/components/admin/kit/ui/button';
+import { Input } from '@/components/admin/kit/ui/input';
 import { CustomerServiceDialog } from './CustomerServiceDialog';
+
+/* 팝업 안 입력 칸(kit Input, ADR-0028). 라벨 글자 아래 입력이 놓이고 라벨이 입력의 이름이 된다. */
+const LABEL_CLASS = 'flex min-w-0 flex-col gap-1.5 [&>span]:font-medium';
 
 const fields: { key: keyof CheckoutAddress; label: string; max: number; optional?: boolean }[] = [
   { key: 'recipientName', label: '수령자', max: 50 }, { key: 'phone', label: '연락처', max: 25 },
@@ -71,33 +76,33 @@ export function OrderAddressEditor({ initial, onClose }: { initial: OrderAddress
     finally { inFlight.current = false; setPending(false); }
   }
   return <CustomerServiceDialog title="발송 전 배송지 수정" wide busy={busy} onClose={close}>
-    <div className="admin-order-address">
-      <p><strong>주문 {orderReferenceLabel(context.orderId, context.orderNumber)}</strong> · 연결 배송건 {context.shipmentCount}개 전체에 적용합니다.</p>
-      <p>출고지시 전달·발송 전 주문만 수정합니다. 배송 지역이 바뀌면 배송 가능 여부와 각 배송비를 대조하며, 결제금액이 달라지는 변경은 저장할 수 없습니다.</p>
-      <div className="admin-order-address__current"><strong>{receipt ? '변경 전 배송 정보' : '현재 배송 정보'}</strong><p>{addressText(context.address)}</p></div>
-      {!context.allowed ? <p role="status">{orderAddressError(undefined, context.blocker ?? '')}</p> : null}
-      {receipt ? <section role="status"><h3>배송 정보를 저장했습니다.</h3><p>{addressText(receipt.address)}</p><p>{formatOrderDateTime(receipt.changedAt)} · {receipt.reason}</p>
-        {!receipt.currentMatches ? <p>이후 다른 변경이 있습니다. 주문 상세의 최신 배송지를 확인해주세요.</p> : null}<button className="btn" type="button" onClick={close}>닫기</button></section>
-        : <form onSubmit={event => { event.preventDefault(); void save(); }}>
-          <fieldset disabled={locked || !context.allowed}>
-            <legend>고객이 요청한 변경 정보</legend>
-            <div className="admin-order-address__fields">{fields.map(field => <label key={field.key}>{field.label}
-              <input required={!field.optional} maxLength={field.max} value={address[field.key] ?? ''} inputMode={field.key === 'phone' || field.key === 'postalCode' ? 'numeric' : undefined}
+    <div className="flex flex-col gap-3.5 text-sm leading-relaxed" data-order-address-editor="">
+      <p><strong className="font-medium">주문 {orderReferenceLabel(context.orderId, context.orderNumber)}</strong> · 연결 배송건 {context.shipmentCount}개 전체에 적용합니다.</p>
+      <p className="text-muted-foreground">출고지시 전달·발송 전 주문만 수정합니다. 배송 지역이 바뀌면 배송 가능 여부와 각 배송비를 대조하며, 결제금액이 달라지는 변경은 저장할 수 없습니다.</p>
+      <div className="flex flex-col gap-1 rounded-lg border bg-muted/40 p-3.5 wrap-anywhere"><strong className="font-medium">{receipt ? '변경 전 배송 정보' : '현재 배송 정보'}</strong><p>{addressText(context.address)}</p></div>
+      {!context.allowed ? <p className="rounded-lg border bg-muted/40 px-3 py-2.5" role="status">{orderAddressError(undefined, context.blocker ?? '')}</p> : null}
+      {receipt ? <section className="flex flex-col items-start gap-1.5 rounded-lg border p-3.5" role="status"><h3 className="text-base font-medium">배송 정보를 저장했습니다.</h3><p className="wrap-anywhere">{addressText(receipt.address)}</p><p className="text-muted-foreground">{formatOrderDateTime(receipt.changedAt)} · {receipt.reason}</p>
+        {!receipt.currentMatches ? <p>이후 다른 변경이 있습니다. 주문 상세의 최신 배송지를 확인해주세요.</p> : null}<Button className="mt-1" type="button" onClick={close}>닫기</Button></section>
+        : <form className="flex flex-col gap-4" onSubmit={event => { event.preventDefault(); void save(); }}>
+          <fieldset className="m-0 flex min-w-0 flex-col gap-3.5 border-0 p-0" disabled={locked || !context.allowed}>
+            <legend className="mb-3 font-medium">고객이 요청한 변경 정보</legend>
+            <div className="grid gap-3 sm:grid-cols-2">{fields.map(field => <label className={LABEL_CLASS} key={field.key}><span>{field.label}</span>
+              <Input required={!field.optional} maxLength={field.max} value={address[field.key] ?? ''} inputMode={field.key === 'phone' || field.key === 'postalCode' ? 'numeric' : undefined}
                 onChange={event => { if (canEdit()) { setAddress(previous => ({ ...previous, [field.key]: event.target.value })); setAgreed(false); } }} />
             </label>)}</div>
-            <label className="admin-order-address__reason">고객 요청 확인 근거<input required maxLength={500} value={reason} onChange={event => { if (canEdit()) setReason(event.target.value); }} placeholder="상담 경로·참조번호와 고객이 요청한 변경 내용을 적어주세요." /></label>
-            <label className="admin-order-address__agreement"><input type="checkbox" checked={agreed} onChange={event => { if (canEdit()) setAgreed(event.target.checked); }} required />{context.isGift ? '선물을 받는 사람이 위 주문 전체의 배송 정보 변경에 동의했음을 확인했습니다.' : '고객이 위 주문 전체의 배송 정보 변경에 동의했음을 확인했습니다.'}</label>
+            <label className={LABEL_CLASS}><span>고객 요청 확인 근거</span><Input required maxLength={500} value={reason} onChange={event => { if (canEdit()) setReason(event.target.value); }} placeholder="상담 경로·참조번호와 고객이 요청한 변경 내용을 적어주세요." /></label>
+            <label className="flex items-start gap-2"><input className="mt-1" type="checkbox" checked={agreed} onChange={event => { if (canEdit()) setAgreed(event.target.checked); }} required /><span>{context.isGift ? '선물을 받는 사람이 위 주문 전체의 배송 정보 변경에 동의했음을 확인했습니다.' : '고객이 위 주문 전체의 배송 정보 변경에 동의했음을 확인했습니다.'}</span></label>
           </fieldset>
-          <div className="admin-order-address__actions">
-            {uncertain ? <><button className="btn" disabled={pending} type="button" onClick={() => { void readback(); }}>같은 요청의 저장 결과 확인</button><button className="btn btn-ghost" disabled={pending} type="button" onClick={() => { void save(); }}>같은 내용으로 다시 저장</button></>
-              : conflict ? <button className="btn" disabled={pending} type="button" onClick={() => { void refreshContext(); }}>최신 배송지와 비교</button>
-                : <button className="btn" type="submit" disabled={pending || !context.allowed || !agreed}>{pending ? '저장 중…' : '주문 전체 배송지 변경'}</button>}
-            <button className="btn btn-ghost" type="button" disabled={busy} onClick={close}>닫기</button>
+          <div className="flex flex-wrap gap-2">
+            {uncertain ? <><Button disabled={pending} type="button" onClick={() => { void readback(); }}>같은 요청의 저장 결과 확인</Button><Button disabled={pending} type="button" variant="outline" onClick={() => { void save(); }}>같은 내용으로 다시 저장</Button></>
+              : conflict ? <Button disabled={pending} type="button" onClick={() => { void refreshContext(); }}>최신 배송지와 비교</Button>
+                : <Button type="submit" disabled={pending || !context.allowed || !agreed}>{pending ? '저장 중…' : '주문 전체 배송지 변경'}</Button>}
+            <Button type="button" variant="outline" disabled={busy} onClick={close}>닫기</Button>
           </div>
         </form>}
-      {error ? <p ref={errorRef} tabIndex={-1} role="alert" className="admin-error">{error}</p> : null}{message && !receipt ? <p role="status">{message}</p> : null}
-      {context.history.length ? <details><summary>최근 변경 이력 {context.history.length}건</summary><ol className="admin-order-address__history">{context.history.map(entry => <li key={entry.id}>
-        <strong>{formatOrderDateTime(entry.changedAt)} · {entry.actorName}</strong><p>{entry.reason}</p><p>변경 전: {addressText(entry.before)}</p><p>변경 후: {addressText(entry.after)}</p>
+      {error ? <p ref={errorRef} tabIndex={-1} role="alert" className="text-sm text-destructive outline-none">{error}</p> : null}{message && !receipt ? <p role="status">{message}</p> : null}
+      {context.history.length ? <details className="group rounded-lg border px-3.5 py-2.5"><summary className="cursor-pointer font-medium">최근 변경 이력 {context.history.length}건</summary><ol className="mt-3 flex list-decimal flex-col gap-3 pl-5 wrap-anywhere">{context.history.map(entry => <li key={entry.id}>
+        <strong className="font-medium">{formatOrderDateTime(entry.changedAt)} · {entry.actorName}</strong><p>{entry.reason}</p><p className="text-muted-foreground">변경 전: {addressText(entry.before)}</p><p className="text-muted-foreground">변경 후: {addressText(entry.after)}</p>
       </li>)}</ol></details> : null}
     </div>
   </CustomerServiceDialog>;
@@ -109,6 +114,6 @@ export function OrderAddressButton({ orderId }: { orderId: string }) {
     try { const result = await loadOrderAddressContextAction(orderId); if ('error' in result) setError(result.error); else setContext(result.context); }
     catch { setError('배송 정보를 읽지 못했습니다. 다시 확인해주세요.'); } finally { setPending(false); }
   }
-  return <><button type="button" disabled={pending} className="admin-order-detail__button admin-order-detail__button--secondary" onClick={() => { void open(); }}>{pending ? '배송 정보 확인 중…' : '배송지 수정·이력'}</button>
-    {error ? <span role="alert" className="admin-error">{error}</span> : null}{context ? <OrderAddressEditor initial={context} onClose={() => setContext(null)} /> : null}</>;
+  return <><Button type="button" disabled={pending} variant="outline" onClick={() => { void open(); }}>{pending ? '배송 정보 확인 중…' : '배송지 수정·이력'}</Button>
+    {error ? <span role="alert" className="text-sm text-destructive">{error}</span> : null}{context ? <OrderAddressEditor initial={context} onClose={() => setContext(null)} /> : null}</>;
 }

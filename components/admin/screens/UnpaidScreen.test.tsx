@@ -74,7 +74,7 @@ describe('UnpaidScreen', () => {
 
     expect(html).toContain('연장됨');
     /* 2시간 남은 주문 하나만 임박이다 — 20시간 남은 주문까지 붉으면 신호가 죽는다. */
-    expect(html.match(/admin-badge--warn/g)).toHaveLength(1);
+    expect(html.match(/data-tone="warning"/g)).toHaveLength(1);
   });
 
   /*
@@ -121,6 +121,10 @@ describe('UnpaidScreen', () => {
     expect(html).toContain('입금 확인');
     expect(html).toContain('기한 24시간 연장');
     expect(html).toContain('즉시 취소');
+    /* kit Button은 type이 없으면 button이 된다 — 세 양식 모두 제출 버튼으로 보낸다. */
+    for (const label of ['입금 확인', '기한 24시간 연장', '즉시 취소']) {
+      expect(html).toMatch(new RegExp(`<button[^>]*type="submit"[^>]*>${label}<`));
+    }
   });
 
   /* 연장은 주문당 1회다. 폼이 열려 있으면 운영자가 눌러 보고 실패를 본다. */
@@ -183,6 +187,8 @@ describe('UnpaidScreen 입금 내역 큐', () => {
     expect(html).toContain('주문코드·금액 일치');
     expect(html).toContain('이 주문으로 확정');
     expect(html).toContain('큐에서 내리기');
+    expect(html).toMatch(/<button[^>]*type="submit"[^>]*>이 주문으로 확정</);
+    expect(html).toMatch(/<button[^>]*type="submit"[^>]*>큐에서 내리기</);
   });
 
   /* 금액이 다른 제안은 부분 입금일 수도, 남의 주문일 수도 있다. */

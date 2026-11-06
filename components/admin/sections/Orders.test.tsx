@@ -149,6 +149,10 @@ describe('OrdersSection', () => {
       expect(html).toContain('<option value="out_of_stock">품절·출고 불가</option>');
       expect(html).not.toContain('name="warehouseStopConfirmed"');
       expect(html).toContain('전액 취소 실행');
+      /* kit Button은 type이 없으면 button이 된다 — 처리 양식의 버튼은 모두 제출 버튼이어야 한다. */
+      expect(html).toMatch(/<button[^>]*type="submit"[^>]*>전액 취소 실행</);
+      expect(html).toMatch(/<button[^>]*type="submit"[^>]*>발주확인</);
+      expect(html).toMatch(/<button[^>]*type="submit"[^>]*>선택 주문 발주확인</);
     });
 
     it('출고지시가 나간 발주확인 주문은 창고 출고 중단 확인을 필수로 받는다', () => {
@@ -227,7 +231,7 @@ describe('OrdersSection', () => {
     expect(html).toContain('₩10,000');
     expect(html).toContain('₩0');
     expect(html).not.toContain('₩4만');
-    expect(html).toMatch(/order-status order-status--paid[^>]*>신규주문/);
+    expect(html).toMatch(/data-order-status="paid"[^>]*>신규주문/);
   });
 
   it('opens no replacement panel when a linked order is outside the current page', () => {
@@ -311,7 +315,8 @@ describe('OrdersSection', () => {
       'data-confirm="Korpay 주문 O0123456789ABCDEF · ₩32,000 KRW의 전액 취소 완료를 원장에서 확인했습니다. 반영하면 확인된 결제에는 환불 원장을 남기고, 주문 취소와 재고 복원을 즉시 완료합니다. 계속할까요?"',
     );
     expect(html).toContain('Korpay 전액 취소 반영');
-    expect(html).toContain('admin-order-korpay-recovery-submit');
+    expect(html).toContain('data-order-action="korpay-recovery-submit"');
+    expect(html).toMatch(/<button[^>]*type="submit"[^>]*data-order-action="korpay-recovery-submit"|<button[^>]*data-order-action="korpay-recovery-submit"[^>]*type="submit"/);
     expect(html).not.toContain('상태 다시 확인');
   });
 
@@ -587,10 +592,10 @@ describe('OrdersSection', () => {
       cancellationRequest: cancellationRequest({ reasonType: 'defect' }),
     })} />);
 
-    expect(html).toContain('admin-order-row-reason');
+    expect(html).toContain('data-order-row-reason');
     expect(html).toContain(`aria-label="주문 ${ORDER_ID.slice(0, 8)} 선택 · 청약철회 상품 하자·오배송"`);
     expect(html).toContain('상품 하자·오배송');
-    expect(html).toContain('admin-order-reason--defect');
+    expect(html).toContain('data-order-reason="defect"');
     expect(html).toContain('공급받은 날부터 3개월');
     expect(html).toContain('반송비 회사 부담');
   });
@@ -602,8 +607,8 @@ describe('OrdersSection', () => {
     })} />);
 
     expect(html).toContain('단순 변심');
-    expect(html).toContain('admin-order-reason--change_of_mind');
-    expect(html).not.toContain('admin-order-reason--defect');
+    expect(html).toContain('data-order-reason="change_of_mind"');
+    expect(html).not.toContain('data-order-reason="defect"');
     expect(html).toContain('공급받은 날부터 7일');
     expect(html).toContain('반송비 이용자 부담');
   });
@@ -621,7 +626,7 @@ describe('OrdersSection', () => {
     })} />);
 
     expect(html).toContain('운영자 전액 취소 · 품절·출고 불가');
-    expect(html).toContain('admin-order-reason--staff');
+    expect(html).toContain('data-order-reason="staff"');
     expect(html).toContain(`aria-label="주문 ${ORDER_ID.slice(0, 8)} 선택 · 운영자 전액 취소 · 품절·출고 불가"`);
     expect(html).not.toContain('단순 변심');
     expect(html).not.toContain('공급받은 날부터 7일');
@@ -640,7 +645,7 @@ describe('OrdersSection', () => {
       }),
     })} />);
 
-    expect(html).toContain('정합화 오류 · <code class="mono">provider_unavailable</code>');
+    expect(html).toMatch(/정합화 오류 · <code[^>]*>provider_unavailable<\/code>/);
     expect(html).toContain('상태 다시 확인');
   });
 
@@ -656,8 +661,8 @@ describe('OrdersSection', () => {
   it('청약철회 요청이 없는 주문은 사유 표시를 만들지 않는다', () => {
     const html = renderToStaticMarkup(<OrdersSection data={orderData()} />);
 
-    expect(html).not.toContain('admin-order-reason');
-    expect(html).not.toContain('admin-order-row-reason');
+    expect(html).not.toContain('data-order-reason');
+    expect(html).not.toContain('data-order-row-reason');
   });
 
   /* 반송은 배송이 시작된 주문에서만 일어난다. 미출고 주문에 부담 주체를 띄우면
@@ -685,10 +690,10 @@ describe('OrdersSection', () => {
       }),
     })} />);
 
-    expect(html).not.toContain('admin-order-row-reason');
+    expect(html).not.toContain('data-order-row-reason');
     expect(html).toContain(`aria-label="주문 ${ORDER_ID.slice(0, 8)} 선택"`);
     // 상세에는 남는다 — 어떤 사유로 종결됐는지는 사후에도 필요하다.
-    expect(html).toContain('admin-order-reason--defect');
+    expect(html).toContain('data-order-reason="defect"');
   });
 
   it('배송 건 운송장 정정 폼에서 택배사와 운송장번호를 필수로 받는다', () => {
@@ -710,6 +715,7 @@ describe('OrdersSection', () => {
 
     expect(html).toContain('123456789012');
     expect(html).toContain('운송장 수정');
+    expect(html).toMatch(/<button[^>]*type="submit"[^>]*>운송장 수정</);
     expect(html).toContain('data-confirm="운송장번호를 수정할까요? 변경 이력이 감사 로그에 남습니다."');
   });
 
@@ -748,6 +754,8 @@ describe('OrdersSection', () => {
     expect(html).toContain('data-confirm="청약철회를 승인하고 결제 취소를 시작할까요?"');
     expect(html).toContain('data-confirm="청약철회 요청을 거절할까요? 입력한 사유가 기록됩니다."');
     expect(html).toContain(`for="admin-order-reject-reason-${requestId}">거절 사유`);
+    expect(html).toMatch(/<button[^>]*type="submit"[^>]*>청약철회 승인</);
+    expect(html).toMatch(/<button[^>]*type="submit"[^>]*>요청 거절</);
     expect(html).toContain('minLength="10"');
     expect(html).toContain('maxLength="200"');
     expect(html).toContain('aria-live="polite"');
@@ -856,7 +864,8 @@ describe('주문 통합검색 목록 엑셀 다운로드', () => {
     expect(html).toContain('목록 엑셀 다운로드');
     expect(html).toContain('data-export-href="/api/admin/list-export?screen=orders&amp;status=paid&amp;from=2026-10-01&amp;query=%EB%B0%B0%EC%86%A1+%EC%88%98%EC%B7%A8%EC%9D%B8&amp;field=recipient"');
     expect(html).toContain('전체 57건을 받습니다');
-    expect(html.indexOf('admin-order-filters')).toBeLessThan(html.indexOf('목록 엑셀 다운로드'));
+    expect(html.indexOf('data-sales-filters')).toBeGreaterThan(-1);
+    expect(html.indexOf('data-sales-filters')).toBeLessThan(html.indexOf('목록 엑셀 다운로드'));
   });
 });
 

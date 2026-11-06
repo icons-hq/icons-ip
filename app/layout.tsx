@@ -47,7 +47,6 @@ import './styles/admin-store-presentation.css';
 import './styles/admin-product-detail-presentation.css';
 import './styles/admin-product-detail-experience.css';
 import './styles/admin-goods-media.css';
-import './styles/admin-pg-settlements.css';
 import './styles/admin-goods-benefits.css';
 import './styles/admin-category-templates.css';
 import './styles/admin-country-finder.css';

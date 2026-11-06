@@ -10,6 +10,9 @@ it('수락 전 결제 안내·빈 수령인·50/100/200 선택과 검색 전체 
   expect(html).toContain('수락 전에는 주문·결제가 생성되지 않습니다.'); expect(html).toContain('TEST 보낸 사람');
   expect(html).toContain('>수락 전<'); expect(html).toContain('>주문 전<');
   for (const size of [50, 100, 200]) expect(html).toContain(`${size}개씩`);
+  /* 목록 수 변경은 GET 폼 제출이다 — kit Button은 type이 없으면 button이 된다. */
+  expect(html).toMatch(/<button[^>]*type="submit"[^>]*>적용</);
+  expect(html).toMatch(/<button[^>]*type="submit"[^>]*>검색</);
   expect(html).toContain('/api/admin/gifts/export'); expect(html).toContain('page=2');
 });
 it('주문 생성 상태는 결제완료로 표시하지 않고 실제 주문 상세로 연결한다', () => {
