@@ -188,7 +188,11 @@ function PreorderReservations({ goodId, revision, onSaved, canAllocate }: { good
   useEffect(() => {
     let canceled = false;
     void listGoodsPreorderReservationsAction(goodId, state, pageNumber).then((result) => {
-      if (!canceled) setLoaded(result.ok ? { key, reservations: result.reservations } : { key, error: result.error });
+      if (canceled) return;
+      /* 새로고침 사이 건수가 줄어 보던 페이지가 범위를 벗어나면 마지막 페이지를 다시 읽는다(공용 페이지 이동은 번호를 안쪽으로 보정해 보여 준다). */
+      const last = result.ok ? Math.max(1, Math.ceil(result.reservations.total / ADMIN_PREORDER_RESERVATION_PAGE_SIZE)) : 1;
+      if (result.ok && pageNumber > last) { setPageNumber(last); return; }
+      setLoaded(result.ok ? { key, reservations: result.reservations } : { key, error: result.error });
     }).catch(() => { if (!canceled) setLoaded({ key, error: '예약 주문을 불러오지 못했습니다.' }); });
     return () => { canceled = true; };
   }, [goodId, key, pageNumber, state]);

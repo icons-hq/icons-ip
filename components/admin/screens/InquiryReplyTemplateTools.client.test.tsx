@@ -20,6 +20,7 @@ vi.mock('react', async () => {
   } };
 });
 import { InquiryReplyTemplateTools } from './InquiryReplyTemplateTools';
+import { ConsolePagination } from '@/components/admin/console/ConsolePagination';
 import { Button } from '@/components/admin/kit/ui/button';
 type Element = ReactElement<Record<string, unknown>>;
 const rows = [{ id: '10000000-0000-4000-8000-000000000001', category: 'other', title: '기존 A', body: 'A 본문', revision: 1, archivedAt: null, updatedAt: '2026-10-13T00:00:00Z' },
@@ -144,4 +145,18 @@ it('검색과 템플릿 저장은 각자의 폼을 제출하고 나머지 버튼
   expect(button(render(), '검색').props.type).toBe('submit');
   expect(button(render(), '템플릿 저장').props.type).toBe('submit');
   for (const label of ['템플릿 등록', '편집 닫기 · 문구 보존', '불러오기']) expect(button(render(), label).props.type).toBe('button');
+});
+/* 페이지 이동은 공용 ConsolePagination(버튼 모드)이다 — 범위 밖 번호를 마지막 페이지로 보정해 보여 주므로 목록도 그 페이지를 다시 읽어야 한다. */
+it('마지막 페이지의 마지막 템플릿을 삭제하면 비어 버린 페이지 대신 마지막 유효 페이지를 다시 읽는다', async () => {
+  const lastRow = { ...rows[0], id: '10000000-0000-4000-8000-000000000021', title: '마지막 C' };
+  let total = 21;
+  mocks.list.mockImplementation(async ({ page }: { page: number }) => ({ data: page === 1 ? { rows, total, page } : { rows: total > 20 ? [lastRow] : [], total, page } }));
+  mocks.mutate.mockImplementation(async input => { total = 20; return { receipt: { operationId: input.operationId, templateId: input.templateId, action: 'archive', template: { ...lastRow, archivedAt: '2026-11-06T00:00:00Z' } } }; });
+  const pagination = () => nodes(render()).find(node => node.type === ConsolePagination) as unknown as ReactElement<{ page: number; total: number; onPageChange: (page: number) => void }>;
+  await open(); pagination().props.onPageChange(2); await settle();
+  expect(pagination().props).toMatchObject({ page: 2, total: 21 });
+  click(button(nodes(render()).find(node => node.type === 'article' && text(node).includes('마지막 C'))!, '삭제')); await settle();
+  expect(mocks.mutate).toHaveBeenCalledOnce(); expect(mocks.mutate.mock.calls[0][0]).toMatchObject({ templateId: lastRow.id, action: 'archive' });
+  expect(mocks.list.mock.calls.map(([input]) => (input as { page: number }).page)).toEqual([1, 2, 2, 1]);
+  expect(pagination().props).toMatchObject({ page: 1, total: 20 }); expect(text(render())).toContain('기존 A');
 });

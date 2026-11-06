@@ -42,7 +42,12 @@ export function CsReplyTemplateTools({ surface, body, onInsert, disabled = false
   }
   async function load(page = 1) {
     const result = await listCsReplyTemplatesAction({ surface, query, category, archived, page });
-    if (result.ok) setData(result.data); else setError(result.error);
+    if (!result.ok) { setError(result.error); return; }
+    /* 삭제·복구로 건수가 줄어 보던 페이지가 범위를 벗어나면 마지막 페이지를 다시 읽는다.
+       공용 페이지 이동은 범위 밖 번호를 마지막 페이지로 보정해 보여 주므로 목록도 그 페이지여야 한다. */
+    const last = Math.max(1, Math.ceil(result.data.total / CS_REPLY_TEMPLATE_PAGE_SIZE));
+    if (page > last) { await load(last); return; }
+    setData(result.data);
   }
   function run(work: () => Promise<void>) {
     startTransition(async () => { setError(''); setMessage(''); try { await work(); } catch { setError('처리 결과를 확인하지 못했습니다. 작성 중인 문구는 유지됩니다.'); } });

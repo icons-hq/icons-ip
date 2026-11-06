@@ -44,6 +44,10 @@ export function InquiryReplyTemplateTools({ body, onInsert, disabled = false, ac
   async function load(page = 1) {
     const result = await listInquiryReplyTemplatesAction({ query, category, archived, page });
     if ('error' in result) { setError(result.error); return; }
+    /* 삭제·복구로 건수가 줄어 보던 페이지가 범위를 벗어나면 마지막 페이지를 다시 읽는다.
+       공용 페이지 이동은 범위 밖 번호를 마지막 페이지로 보정해 보여 주므로 목록도 그 페이지여야 한다. */
+    const last = Math.max(1, Math.ceil(result.data.total / INQUIRY_TEMPLATE_PAGE_SIZE));
+    if (page > last) { await load(last); return; }
     setData(result.data);
   }
   async function run(work: () => Promise<void>) {
