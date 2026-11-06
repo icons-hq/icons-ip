@@ -76,10 +76,10 @@ export function GoodsListScreen({ data, shippingRegionExpiry, canIssueMarketingL
         <p className="text-sm text-muted-foreground">상품명 또는 수정 버튼을 눌러 상품 정보를 변경할 수 있습니다.{inlineIdentity ? ' 판매가·재고수량·판매상태는 목록에서 값을 눌러 바로 고칠 수 있습니다.' : ''}</p>
       </div>
       {inlineIdentity && filteredIp ? <GoodsIpBulkDiscount key={`${filteredIp.id}:${inlineIdentity.actorId}:${inlineIdentity.sessionId}`} ipId={filteredIp.id} ipTitle={filteredIp.title} identity={inlineIdentity} /> : null}
-      {/* R11: 판매가·재고수량은 칸 어디를 눌러도 바로 수정이 열린다. 값 버튼의 덮개가 칸을 채우도록 표 칸이 기준 상자가 된다
-          (틀고정 칸은 sticky라 이미 기준 상자다 — relative로 덮으면 고정이 풀린다). 좁은 화면에서는 열이 짜부라지지 않게
-          표가 1050px 아래로 줄지 않고 가로로 스크롤한다. 칸 전체가 클릭 영역인 체크박스 열은 내용이 절대배치라 최소 폭을 준다. */}
-      <MarketingLinksGoodsGrid key={`${goodsListHref(filters)}:${bulkIdentity?.actorId}:${bulkIdentity?.sessionId}`} canIssue={canIssueMarketingLinks} bulkIdentity={bulkIdentity} caption="상품 목록" preferencesKey="catalog-goods" className="[&_table]:min-w-[1050px] [&_td:not([data-frozen])]:relative [&_thead_th:first-child]:min-w-10" columns={[
+      {/* R11: 판매가·재고수량은 칸 어디를 눌러도 바로 수정이 열린다 — 값 버튼의 덮개가 감싼 칸을 기준 상자로 세운다(GoodsInlineEdit).
+          좁은 화면에서는 열이 짜부라지지 않게 표가 1050px 아래로 줄지 않고 가로로 스크롤한다.
+          칸 전체가 클릭 영역인 체크박스 열은 내용이 절대배치라 최소 폭을 준다. */}
+      <MarketingLinksGoodsGrid key={`${goodsListHref(filters)}:${bulkIdentity?.actorId}:${bulkIdentity?.sessionId}`} canIssue={canIssueMarketingLinks} bulkIdentity={bulkIdentity} caption="상품 목록" preferencesKey="catalog-goods" className="[&_table]:min-w-[1050px] [&_thead_th:first-child]:min-w-10" columns={[
         { key: 'name', label: '상품명 · 판매자상품코드', width: '280px' }, { key: 'goodId', label: '상품번호', width: '160px' }, { key: 'edit', label: '수정', width: '76px' }, { key: 'price', label: '판매가', align: 'end', width: '130px' },
         { key: 'readiness', label: '전시상태 · 판매 준비', width: '220px' }, { key: 'qty', label: '재고수량', align: 'end', width: '100px' },
         { key: 'ip', label: 'IP · 카테고리' }, { key: 'createdAt', label: '상품등록일', width: '130px' }, { key: 'updatedAt', label: '상품수정일', width: '130px' }, { key: 'details', label: '추가 정보' },

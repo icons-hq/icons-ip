@@ -27,15 +27,16 @@ describe('goods list screen', () => {
     const readOnly = renderToStaticMarkup(<GoodsListScreen data={data} bulkIdentity={identity} />);
     expect(readOnly).not.toContain('바로 수정'); expect(readOnly).not.toContain('IP 전체 즉시할인');
   });
-  it('R11: 판매가·재고수량 칸 전체가 바로 수정 덮개의 기준 상자다 — 틀고정이 아닌 칸은 relative, 틀고정 칸은 sticky 그대로다', () => {
+  it('R11: 판매가·재고수량은 칸 전체가 바로 수정이고, 같은 칸의 보조 링크는 덮개 위에 남는다', () => {
     const identity = { actorId: 'b9000000-0000-4000-8000-000000000001', sessionId: 'b9000000-0000-4000-8000-000000000002' };
     const good = { id: 'good-a', code: 'A', name: '상품 A', ipId: 'maple', ipTitle: '메이플', publishedAt: null, archivedAt: null, stock: 'ok' as const, stockQty: 7,
       activeStockQty: 7, lowStockOptionCount: 0, noticeComplete: true, priceMin: 10000, priceMax: 10000, basePrice: 10000, activeVariantCount: 1,
       inlineStock: { variantId: 'b9000000-0000-4000-8000-000000000010', stockQty: 7 } };
     const html = renderToStaticMarkup(<GoodsListScreen data={{ filters: normalizeGoodsListFilters({}), goods: [good], ips: [], total: 1 }} canIssueMarketingLinks bulkIdentity={identity} />);
-    // 값 버튼의 ::after 덮개(position: absolute; inset: 0)가 칸을 채우려면 칸이 기준 상자여야 한다. kit 표 칸은 data-slot이라 관리자 CSS가
-    // 닿지 않으므로 화면이 표에 유틸리티로 준다. 틀고정 칸(data-frozen)은 sticky가 기준 상자이고 relative로 덮으면 고정이 풀린다.
-    expect(html).toMatch(/<div class="[^"]*\[&amp;_td:not\(\[data-frozen\]\)\]:relative[^"]*" data-console-grid="">/);
+    // 판매가·재고수량 값 버튼은 칸을 채우는 덮개형(data-inline-edit="cell")이고, 다른 링크와 한 칸을 쓰는 판매상태는 그 줄만 채운다.
+    // 덮개가 감싼 칸을 기준 상자로 세우는 방식(틀고정 칸은 sticky 그대로)과 인쇄는 components/admin/GoodsInlineEdit.test.tsx가 확인한다.
+    const cellOf = (label: string) => new RegExp(`data-inline-edit="(cell|value)"><button[^>]*aria-label="${label} 바로 수정"`).exec(html)?.[1];
+    expect([cellOf('판매가'), cellOf('재고수량'), cellOf('판매상태')]).toEqual(['cell', 'cell', 'value']);
     // 같은 칸의 보조 링크(옵션별 재고 수정 등)는 덮개 위에 남는다.
     const multi = renderToStaticMarkup(<GoodsListScreen data={{ filters: normalizeGoodsListFilters({}), goods: [{ ...good, id: 'good-b', activeVariantCount: 3, inlineStock: null }], ips: [], total: 1 }} canIssueMarketingLinks bulkIdentity={identity} />);
     expect(multi).toMatch(/<a class="[^"]*relative z-\[1\][^"]*" href="[^"]*#good-section-variants">옵션별 재고 수정<\/a>/);
