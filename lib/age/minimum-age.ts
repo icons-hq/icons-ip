@@ -6,9 +6,9 @@
  * `age()`로 구현한다 — 두 구현이 윤년·경계일에서 같은 답을 낸다는 것을
  * migration의 회귀 테스트가 고정한다.
  *
- * 이 판정은 `minimum_age_14` purpose 하나만 담당한다. 19+ 성인 상품 접근은
- * NICE 본인확인 증거(`adult_19`, #210)로 별도 관리하며, 여기서 계산한 생년월일
- * 기반 나이를 성인인증으로 승격하지 않는다.
+ * 이 판정은 `minimum_age_14` purpose 하나만 담당한다. 19금 굿즈 접근은 휴대폰
+ * 본인확인 증거(`adult_19`, lib/age/adult-age.ts)로 별도 관리하며, 여기서 계산한
+ * 자가신고 생년월일 기반 나이를 성인 인증으로 승격하지 않는다.
  */
 
 /** 만 나이 판정의 기준 시간대. 이용자가 자기 달력으로 이해하는 날짜와 어긋나면 안 된다. */
@@ -23,14 +23,14 @@ export const MINIMUM_AGE_POLICY_VERSION = 'minimum_age_14@2026-08-22';
 const ISO_DATE = /^(\d{4})-(\d{2})-(\d{2})$/;
 const KST_OFFSET_MS = 9 * 60 * 60 * 1000;
 
-interface CalendarDate {
+export interface CalendarDate {
   year: number;
   month: number;
   day: number;
 }
 
 /** KST 달력 기준의 연·월·일. 서버가 어느 타임존에서 돌든 같은 답을 낸다. */
-function kstCalendarDate(instant: Date): CalendarDate {
+export function kstCalendarDate(instant: Date): CalendarDate {
   const shifted = new Date(instant.getTime() + KST_OFFSET_MS);
   return {
     year: shifted.getUTCFullYear(),

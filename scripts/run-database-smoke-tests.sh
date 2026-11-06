@@ -13,6 +13,7 @@ run_sql_test() {
 run_sql_test supabase/tests/catalog_baseline.sql
 run_sql_test supabase/tests/profile_editing.sql
 run_sql_test supabase/tests/minimum_age_gate.sql
+run_sql_test supabase/tests/adult_verification.sql
 run_sql_test supabase/tests/account_deletion_phase_one.sql
 bash supabase/tests/account_deletion_phase_one_concurrency.sh
 run_sql_test supabase/tests/email_dispatcher_dark.sql
