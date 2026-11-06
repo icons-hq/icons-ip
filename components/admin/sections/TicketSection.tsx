@@ -104,7 +104,7 @@ function TicketForm({
       <input name="id" type="hidden" value={id} />
 
       {selected && (
-        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border bg-muted/40 px-3 py-2.5 text-sm" data-ticket-allocation="">
+        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 rounded-lg border bg-muted/40 px-3 py-2.5 text-sm">
           <strong className="font-semibold text-foreground">{allocationStatus(selected)}</strong>
           <span className="tabular-nums">할당 {selected.sold} / {selected.capacity}</span>
           <span className="tabular-nums">잔여 {Math.max(0, selected.capacity - selected.sold)}</span>
