@@ -7,7 +7,9 @@
   src: url('/fonts/admin/PretendardVariable.woff2') format('woff2');
 }
 
-.wc-admin {
-  --wc-font: 'ICONS Admin Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Segoe UI', sans-serif;
-  font-family: var(--wc-font);
+@layer components {
+  .wc-admin {
+    --wc-font: 'ICONS Admin Pretendard', -apple-system, BlinkMacSystemFont, 'Apple SD Gothic Neo', 'Segoe UI', sans-serif;
+    font-family: var(--wc-font);
+  }
 }

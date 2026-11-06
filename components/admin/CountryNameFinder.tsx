@@ -14,7 +14,7 @@ type CountryNameFinderProps = {
 /** The picker is outside the native product form, including its autosave event listeners. */
 export function CountryNamePicker(props: CountryNameFinderProps) {
   if (typeof document === 'undefined') return null;
-  return createPortal(<div className="wc-root wc-admin admin-country-finder-shell" onChange={event => event.stopPropagation()} onSubmit={event => { event.preventDefault(); event.stopPropagation(); }}>
+  return createPortal(<div className="wc-admin admin-country-finder-shell" onChange={event => event.stopPropagation()} onSubmit={event => { event.preventDefault(); event.stopPropagation(); }}>
     <CountryNameFinder {...props} />
   </div>, document.body);
 }

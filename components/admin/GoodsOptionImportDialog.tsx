@@ -18,7 +18,7 @@ type Comparison = { source: GoodsOptionImportSource; targetVersion: string; fing
 /** Keep picker inputs outside the product's native form and autosave listeners. */
 export function GoodsOptionImportPicker(props: Parameters<typeof GoodsOptionImportDialog>[0]) {
   if (typeof document === 'undefined') return null;
-  return createPortal(<div className="wc-root wc-admin" onChange={event => event.stopPropagation()} onSubmit={event => event.stopPropagation()}>
+  return createPortal(<div className="wc-admin" onChange={event => event.stopPropagation()} onSubmit={event => event.stopPropagation()}>
     <GoodsOptionImportDialog {...props} />
   </div>, document.body);
 }

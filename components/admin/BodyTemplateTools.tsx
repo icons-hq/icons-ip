@@ -157,7 +157,7 @@ export function BodyTemplateTools({ accountId, surface, disabled, captureEditor,
       {undo?.scope === scope ? <button type="button" disabled={blocked} onClick={restore}>직전 템플릿 적용 되돌리기</button> : null}
       {outsideMessage ? <p role="status">{outsideMessage}</p> : null}
     </div>
-    {active ? createPortal(<div className="wc-root wc-admin admin-body-template-portal" onInput={event => event.stopPropagation()} onChange={event => event.stopPropagation()}>
+    {active ? createPortal(<div className="wc-admin admin-body-template-portal" onInput={event => event.stopPropagation()} onChange={event => event.stopPropagation()}>
       <CustomerServiceDialog title="개인 본문 템플릿" onClose={close} busy={active.busy} wide>
         <div className="admin-body-template">
           <p>본인만 사용하는 글·서식 템플릿입니다. 이미지·문서 제목·관련상품·전시기간은 저장하지 않습니다. 다른 편집기에 적용하면 해당 화면의 링크 규칙에 맞춰 정리합니다.</p>

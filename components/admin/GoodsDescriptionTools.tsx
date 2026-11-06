@@ -123,7 +123,7 @@ export function GoodsDescriptionTools({ accountId, formRef, disabled }: {
       <BodyTemplateTools accountId={accountId} surface="goods" disabled={blocked} captureEditor={captureBodyTemplate} insertLabel="선택 위치에 넣기" />
     </div>
     {snapshot.blocked ? <p role="status">로그인 상태가 바뀌었습니다. 페이지를 새로 열어주세요.</p> : message ? <p role="status">{message}</p> : null}
-    {active && typeof document !== 'undefined' ? createPortal(<div className="wc-root wc-admin admin-goods-description-dialog"
+    {active && typeof document !== 'undefined' ? createPortal(<div className="wc-admin admin-goods-description-dialog"
       onInput={event => event.stopPropagation()} onChange={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}
       onSubmit={event => { event.preventDefault(); event.stopPropagation(); }}>
       <DescriptionToolDialog key={active.kind} kind={active.kind} initialText={active.initialText} onClose={() => close(active)} onApply={tool => apply(active.target, tool)} />

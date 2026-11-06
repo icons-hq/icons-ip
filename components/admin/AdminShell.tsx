@@ -45,7 +45,7 @@ export function AdminShell({
   return (
     <AdminPreferencesProvider accountId={admin.id || admin.email || admin.role}>
     <AdminKitPortalHost>
-    <div className={`admin-shell wc-root wc-admin${collapsed ? ' collapsed' : ''}${isChat ? ' admin-shell--chat' : ''}`} data-admin-console={consoleId}>
+    <div className={`admin-shell wc-admin${collapsed ? ' collapsed' : ''}${isChat ? ' admin-shell--chat' : ''}`} data-admin-console={consoleId}>
       <AdminSidebar
         accountId={admin.id || admin.email || admin.role}
         currentPath={currentPath}

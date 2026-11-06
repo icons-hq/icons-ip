@@ -93,5 +93,5 @@ export function CategoryTemplatesScreen({ categories = [], onSelect, selectionHi
 export function CategoryTemplatePicker({ onSelect, onClose }: { onSelect: (template: CategoryTemplate) => void; onClose: () => void }) {
   // The picker belongs to the product form's React tree, but never its DOM form.
   if (typeof document === 'undefined') return null;
-  return createPortal(<div className="wc-root wc-admin"><CustomerServiceDialog title="카테고리 템플릿" onClose={onClose} wide><CategoryTemplatesScreen onSelect={onSelect} /></CustomerServiceDialog></div>, document.body);
+  return createPortal(<div className="wc-admin"><CustomerServiceDialog title="카테고리 템플릿" onClose={onClose} wide><CategoryTemplatesScreen onSelect={onSelect} /></CustomerServiceDialog></div>, document.body);
 }

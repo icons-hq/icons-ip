@@ -288,7 +288,7 @@ export function TicketCheckIn() {
   const busy = flow.kind === 'starting' || flow.kind === 'submitting';
 
   return (
-    <main className="check-in-shell wc-root wc-admin">
+    <main className="check-in-shell wc-admin">
       <header className="check-in-header">
         <div>
           <span className="mono check-in-eyebrow">ICONS · STAFF ONLY</span>

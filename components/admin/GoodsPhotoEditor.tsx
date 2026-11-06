@@ -24,7 +24,7 @@ const fullCrop = { x: 0, y: 0, width: 1, height: 1 };
 
 export function GoodsPhotoEditor(props: Props) {
   if (typeof document === 'undefined') return null;
-  return createPortal(<div className="wc-root wc-admin admin-photo-editor-shell" onChange={event => event.stopPropagation()}
+  return createPortal(<div className="wc-admin admin-photo-editor-shell" onChange={event => event.stopPropagation()}
     onKeyDown={event => event.stopPropagation()} onSubmit={event => { event.preventDefault(); event.stopPropagation(); }}>
     <PhotoEditorBody key={props.sourcePath} {...props} />
   </div>, document.body);
