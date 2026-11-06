@@ -69,7 +69,7 @@ export function SalesFilterPanel({
           <Input className="min-w-0 flex-1" id={`${id}-query`} type="search" name={search.name ?? 'query'} maxLength={100}
             defaultValue={search.value} placeholder="검색어를 입력하세요" aria-describedby={searchHint ? `${id}-query-hint` : undefined} />
         </div>
-        {searchHint && <small className="text-xs text-muted-foreground [overflow-wrap:anywhere]" id={`${id}-query-hint`}>{searchHint}</small>}
+        {searchHint && <small className="text-xs text-muted-foreground wrap-anywhere" id={`${id}-query-hint`}>{searchHint}</small>}
       </ConsoleFilterField>
       {children}
     </div>

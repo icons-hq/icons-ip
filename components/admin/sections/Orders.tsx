@@ -88,7 +88,7 @@ const LINK_BUTTON = buttonVariants({ size: 'sm', variant: 'outline' });
 const FACTS_CLASS = 'grid grid-cols-1 gap-px overflow-hidden rounded-lg border bg-border sm:grid-cols-2';
 const FACT_CLASS = 'min-w-0 bg-card p-3';
 const FACT_TERM = 'text-xs text-muted-foreground';
-const FACT_VALUE = 'mt-1 font-medium [overflow-wrap:anywhere]';
+const FACT_VALUE = 'mt-1 font-medium wrap-anywhere';
 const DETAIL_SECTION = 'flex flex-col gap-2 border-t pt-4';
 const DETAIL_HEADING = 'text-sm font-medium text-muted-foreground';
 
@@ -884,7 +884,7 @@ function OrderDetail({
               tabIndex={0}><OrderStatusBadge label={statusLabel} status={order.status} /></span>
           ) : <OrderStatusBadge label={statusLabel} status={order.status} />}
           <h2 className="text-lg font-semibold tracking-tight text-foreground" id="admin-order-detail-title">주문 {orderReferenceLabel(order.id, order.orderNumber)}</h2>
-          <p className="text-xs text-muted-foreground tabular-nums [overflow-wrap:anywhere]">{order.id}</p>
+          <p className="text-xs text-muted-foreground tabular-nums wrap-anywhere">{order.id}</p>
           <Link
             className={LINK_BUTTON}
             data-slot="button"
@@ -910,7 +910,7 @@ function OrderDetail({
         <div className="flex flex-col gap-2">
           {order.items.map((item) => (
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border px-3 py-2.5" key={item.id}>
-              <div className="flex min-w-0 flex-1 flex-col gap-0.5"><strong className="font-medium [overflow-wrap:anywhere]">{item.name}</strong><span className="text-xs text-muted-foreground">{item.type}</span><GoodsCustomInputsSummary selection={item.customInputs} /></div>
+              <div className="flex min-w-0 flex-1 flex-col gap-0.5"><strong className="font-medium wrap-anywhere">{item.name}</strong><span className="text-xs text-muted-foreground">{item.type}</span><GoodsCustomInputsSummary selection={item.customInputs} /></div>
               <span className="text-muted-foreground tabular-nums">{item.qty.toLocaleString('ko-KR')}개</span>
               <strong className="font-semibold tabular-nums">{formatKrwExact(item.unitPrice * item.qty)}</strong>
             </div>
@@ -922,7 +922,7 @@ function OrderDetail({
         <section className={DETAIL_SECTION} aria-labelledby="admin-order-address-title">
           <h3 className={DETAIL_HEADING} id="admin-order-address-title">배송지</h3>
           {order.addressNeedsReview && <p className="rounded-lg border bg-muted/40 px-3 py-2.5" role="status">주문 당시 주소 형식 확인이 필요합니다. 배송 처리 전 원본 기록과 수령 주소를 확인해주세요.</p>}
-          <address className="flex flex-col gap-0.5 not-italic [overflow-wrap:anywhere]">
+          <address className="flex flex-col gap-0.5 not-italic wrap-anywhere">
             <strong className="font-medium">{order.address.recipientName}</strong>
             <span className="text-muted-foreground">{order.address.phone}</span>
             <span className="text-muted-foreground">[{order.address.postalCode}] {order.address.address1}</span>
@@ -986,13 +986,13 @@ function OrderDetail({
             </small>
           </div>
           {cancellationRequest.decisionNote ? (
-            <p className="text-muted-foreground [overflow-wrap:anywhere]">처리 메모 · {cancellationRequest.decisionNote}</p>
+            <p className="text-muted-foreground wrap-anywhere">처리 메모 · {cancellationRequest.decisionNote}</p>
           ) : null}
           {/* 재시도 결과와 같은 원인 코드를 요청 영역에도 남긴다(QA-10). 결과 문구는 다른
               주문을 처리하거나 새로고침하면 사라지지만 코드는 요청이 열려 있는 동안 남는다. */}
           {cancellationRequest.lastErrorCode
             && (cancellationRequest.status === 'needs_review' || cancellationRequest.status === 'processing') ? (
-            <p className="text-muted-foreground [overflow-wrap:anywhere]">
+            <p className="text-muted-foreground wrap-anywhere">
               정합화 오류 · <code className="rounded bg-muted px-1 font-mono text-xs text-foreground">{cancellationRequest.lastErrorCode}</code>
               {' · 코드별 조치는 어드민 가이드 "클레임 처리"에 있습니다.'}
             </p>
