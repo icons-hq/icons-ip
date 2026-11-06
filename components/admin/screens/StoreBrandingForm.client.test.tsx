@@ -1,4 +1,4 @@
-import type { FormEvent, ReactElement } from 'react';
+import { Children, isValidElement, type FormEvent, type ReactElement, type ReactNode } from 'react';
 import { beforeEach, expect, it, vi } from 'vitest';
 import type { StoreSettingsSnapshot } from '@/lib/admin/store-settings';
 const mocks=vi.hoisted(()=>({save:vi.fn(),states:[] as unknown[],index:0,tasks:[] as Promise<void>[]}));
@@ -15,6 +15,7 @@ vi.mock('react',async()=>{
   };
 });
 import { StoreBrandingForm } from './StoreBrandingForm';
+import { Button } from '@/components/admin/kit/ui/button';
 import { DEFAULT_STORE_BRANDING } from '@/lib/store-branding';
 const initialStamp='2026-10-12T01:00:00.000001Z';
 const operation='00000000-0000-4000-8000-000000016001';
@@ -59,4 +60,10 @@ it('대표 이미지 경로는 저장 실패에도 유지하고 성공 후 다�
     await submit(form());
     expect(mocks.save.mock.calls[2][1]).toBe('2026-10-12T03:00:00.000001Z');expect(mocks.save.mock.calls[2][2]).not.toBe(operation);
   } finally {vi.unstubAllGlobals();}
+});
+/* kit Button은 type을 주지 않으면 type="button"이라 폼을 제출하지 않는다 — 저장 버튼이 제출 버튼인지 지킨다. */
+it('브랜드·SNS 저장 버튼은 폼을 제출한다',()=>{
+  const nodes=(node:ReactNode):ReactElement<Record<string,unknown>>[]=>Children.toArray(node).flatMap(value=>isValidElement<Record<string,unknown>>(value)?[value,...nodes(value.props.children as ReactNode)]:[]);
+  const save=nodes(form()).find(node=>node.type===Button&&node.props.children==='브랜드·SNS 저장');
+  expect(save?.props.type).toBe('submit');
 });
