@@ -16,6 +16,8 @@ const mocks = vi.hoisted(() => ({
   availabilityProviders: [] as Array<string | undefined>,
   derivedProvider: 'toss' as 'toss' | 'korpay',
   deriveProvider: vi.fn(),
+  derivedCartProvider: 'toss' as 'toss' | 'korpay',
+  deriveCartProvider: vi.fn(),
   runtimeProviders: [] as Array<string | undefined>,
   prepare: vi.fn(),
   rpc: vi.fn(),
@@ -34,6 +36,10 @@ vi.mock('@/lib/payments/goods-sale-restriction.server', () => ({
   deriveGoodsOrderProvider: (orderId: string) => {
     mocks.deriveProvider(orderId);
     return Promise.resolve(mocks.derivedProvider);
+  },
+  deriveGoodsCartProvider: (goodIds: string[]) => {
+    mocks.deriveCartProvider(goodIds);
+    return Promise.resolve(mocks.derivedCartProvider);
   },
 }));
 vi.mock('@/lib/payments/goods-checkout.runtime.server', () => ({
@@ -211,6 +217,33 @@ describe('placeOrderAction', () => {
       error: 'payment_unavailable',
     });
     expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it('19금 굿즈가 섞인 카트의 카드 주문은 카트 구성으로 파생한 코페이 gate를 본다(ADR-0024)', async () => {
+    mocks.availabilityProviders = [];
+    mocks.deriveCartProvider.mockReset();
+    mocks.derivedCartProvider = 'korpay';
+    mocks.paymentAvailable = false;
+
+    await expect(placeOrderAction(address, checkoutKey)).resolves.toEqual({ ok: false, error: 'payment_unavailable' });
+    expect(mocks.deriveCartProvider).toHaveBeenCalledWith(['g1']);
+    expect(mocks.availabilityProviders).toEqual(['korpay']);
+    expect(mocks.rpc).not.toHaveBeenCalled();
+
+    mocks.derivedCartProvider = 'toss';
+  });
+
+  it('카트 구성 조회가 실패하면 주문을 만들지 않는다', async () => {
+    mocks.deriveCartProvider.mockReset();
+    mocks.deriveCartProvider.mockImplementationOnce(() => { throw new Error('lookup failed'); });
+
+    await expect(placeOrderAction(address, checkoutKey)).resolves.toEqual({ ok: false, error: 'unavailable' });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+  });
+
+  it('DB의 성인 인증 요구를 주문서 오류로 알린다', async () => {
+    mocks.rpc.mockResolvedValueOnce({ data: null, error: { message: 'adult verification required: g1' } });
+    await expect(placeOrderAction(address, checkoutKey)).resolves.toEqual({ ok: false, error: 'adult_verification_required' });
   });
 
   it('rejects a suspended account before validating or reserving an order', async () => {

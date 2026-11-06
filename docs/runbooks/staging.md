@@ -120,4 +120,4 @@ node scripts/staging-accounts.mjs
 3. after snapshot에서 새 main SHA/run/배포 URL, 동일 branch/계정, 선택한 업무 값·원장 hash를 대조한다. 비밀번호 사용 가능 여부는 기존 보관소로 다시 로그인해 확인한다. 차이가 있으면 원인을 조사하고 자동 보존 PASS로 기록하지 않는다.
 4. 결과는 #416에 남긴다. 이 docs PR 병합 전에 미래 보존 결과를 PASS로 쓰지 않으며, 문서 기록 자체를 이유로 검증용 배포를 무한히 반복하지 않는다. 실제 운영팀 S1~S5는 #434에서 별도로 기록한다.
 
-앱 build/deploy 또는 URL 검증 실패는 alias 변경 전에 멈춘다. migration·시드가 앞서 적용됐을 수 있으므로 DB 전체가 rollback됐다고 가정하지 않는다. alias 연결 뒤 recovery template 활성화가 실패하면 새 alias가 이미 연결됐을 수 있어 실제 단계·상태를 읽고 복구한다. branch를 reset하거나 다시 만들지 말고 실패한 migration·시드·Auth·Functions·Vercel 단계의 원인을 먼저 수정한다. 오래된 main run 재실행은 거절되므로 현재 main의 run을 사용한다.
+앱 build/deploy 또는 URL 검증 실패는 alias 변경 전에 멈춘다. migration·시드가 앞서 적용됐을 수 있으므로 DB 전체가 rollback됐다고 가정하지 않는다. alias 연결 뒤 recovery template 활성화가 실패하면 새 alias가 이미 연결됐을 수 있어 실제 단계·상태를 읽고 복구한다. branch를 reset하거나 다시 만들지 말고 실패한 migration·시드·Auth·Functions·Vercel 단계의 원인을 먼저 수정한다. 오래된 main run 재실행은 거절되므로 현재 main의 run을 사용한다. job 상한(40분) 초과로 `cancelled`가 됐거나 Supabase CLI 설치 step이 5분 상한으로 `failure`가 됐다면 그 현재 main run을 `gh run rerun <run-id> --failed`로 다시 실행한다.

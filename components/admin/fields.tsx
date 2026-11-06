@@ -253,7 +253,7 @@ function RecordThumbnail({ kind, url }: { kind: AdminArtworkKind; url: string })
         decoding="async"
         loading="lazy"
         src={url}
-        style={{ display: 'block', height: '100%', objectFit: 'cover', width: '100%' }}
+        style={{ display: 'block', height: '100%', objectFit: kind === 'event' ? 'contain' : 'cover', width: '100%' }}
       />
     </span>
   );

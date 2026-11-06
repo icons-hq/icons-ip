@@ -1,5 +1,20 @@
 import { describe, expect, it } from 'vitest';
-import { validGoodsPhotoInput, parseGoodsPhotoPage, goodsPhotoError, goodsPhotoReferenceLabel } from './goods-photo-library';
+import { validGoodsPhotoInput, parseGoodsPhotoPage, goodsPhotoError, goodsPhotoNameFromFileName, goodsPhotoReferenceLabel, normalizeGoodsPhotoQuery } from './goods-photo-library';
+describe('사진 이름 정규화 (R20)', () => {
+  it('macOS NFD 파일 이름을 NFC로 바꾸고 앞뒤 공백을 지운다', () => {
+    expect(goodsPhotoNameFromFileName(' 메이플 키링.png '.normalize('NFD'))).toBe('메이플 키링.png'.normalize('NFC'));
+    expect(normalizeGoodsPhotoQuery(' 키링 '.normalize('NFD'))).toBe('키링'.normalize('NFC'));
+  });
+  it('NFC로 바꾼 뒤 100자로 자르고, 이모지를 반으로 자르지 않는다', () => {
+    expect(goodsPhotoNameFromFileName('가'.repeat(120).normalize('NFD'))).toBe('가'.repeat(100));
+    const emoji = goodsPhotoNameFromFileName('😀'.repeat(60));
+    expect(emoji).toBe('😀'.repeat(50));
+    expect(validGoodsPhotoInput({ ...photo, name: emoji })).toBe(true);
+  });
+  it('빈 이름은 기본 이름으로 등록한다', () => {
+    expect(goodsPhotoNameFromFileName('   ')).toBe('상품 이미지');
+  });
+});
 const photo = { id: '00000000-0000-4000-8000-000000071301', name: '검수 사진', imagePath: 'public-media/catalog/good/00000000-0000-4000-8000-000000071302.webp', revision: 1, archived: false, createdAt: '2026-10-13T00:00:00Z', references: [] };
 describe('공용 사진 계약', () => {
   it('상품 업로드 경로만 받고 외부 URL·다른 종류·불완전 입력은 차단한다', () => {

@@ -61,10 +61,14 @@ describe('OverviewSection', () => {
         delayed: { state: 'ready', count: 2 },
         inquiries: { state: 'ready', count: 4 },
         goods: { state: 'error', count: null },
+        unpaid: { state: 'hidden', count: null },
+        refundTransfers: { state: 'hidden', count: null },
       },
       goodsReasons: [],
     };
     const html = renderToStaticMarkup(<OverviewSection insights={insights} reports={[]} workQueue={workQueue} days={7} />);
+    expect(html).not.toContain('무통장 입금 대기');
+    expect(html).not.toContain('환불 송금 대기');
 
     expect(html).toContain('결제 현황');
     expect(html).toContain('dateTime="2026-10-16T00:00:00Z"');
@@ -81,6 +85,27 @@ describe('OverviewSection', () => {
     expect(html).toContain('href="/admin/cs/inquiries?status=open');
     expect(html).toContain('href="/admin/catalog/goods?');
     expect(html).toContain('readiness=review_required');
+  });
+
+  /* 2026-11-05 IA 재정의 D4: 목적지 화면을 열 수 있는 계정에만 돈 관련 대기열을 보인다. */
+  it('무통장 입금 대기와 환불 송금 대기를 권한이 있을 때만 해당 패널에 보인다', () => {
+    const workQueue: AdminWorkQueueData = {
+      checkedAt: '2026-11-05T00:00:00Z',
+      counts: {
+        orders: { state: 'ready', count: 0 }, ready: { state: 'ready', count: 0 }, delayed: { state: 'ready', count: 0 },
+        inquiries: { state: 'ready', count: 0 }, goods: { state: 'ready', count: 0 },
+        unpaid: { state: 'ready', count: 5 }, refundTransfers: { state: 'error', count: null },
+      },
+      goodsReasons: [],
+    };
+    const html = renderToStaticMarkup(<OverviewSection insights={insights} reports={[]} workQueue={workQueue} days={7} />);
+    expect(html).toContain('aria-label="무통장 입금 대기 5건"');
+    expect(html).toContain('href="/admin/sales/unpaid"');
+    expect(html).toContain('aria-label="환불 송금 대기 확인 필요"');
+    expect(html).toContain('href="/admin/sales/claims/refund-transfers"');
+    const claims = html.slice(html.indexOf('admin-home-claims'), html.indexOf('admin-home-work'));
+    expect(claims).toContain('환불 송금 대기');
+    expect(html.slice(html.indexOf('admin-home-work'), html.indexOf('admin-home-goods'))).toContain('무통장 입금 대기');
   });
 
   it('매출이 없는 기간에는 임의의 숫자 축 대신 빈 상태를 표시한다', () => {

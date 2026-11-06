@@ -155,8 +155,8 @@ describe('Supabase preview branch workflow contract', () => {
     expect(verify.if).toContain("database_mode == 'isolated'");
     expect(verify.run).toContain('postgres:17-alpine');
     expect(job.steps.some((step) => step.run?.includes('db push --linked'))).toBe(false);
-    // branch 생성 대기 10분 + 플랫폼 run 대기 기본 15분 + push 여유.
-    expect(job['timeout-minutes']).toBeGreaterThanOrEqual(45);
+    // branch 생성 대기 10분 + 플랫폼 run 대기 기본 15분 + push 여유. 상한은 pipeline-timeouts가 지킨다.
+    expect(job['timeout-minutes']).toBeGreaterThanOrEqual(40);
   });
 
   it('injects the selected branch credentials into Vercel build and runtime', async () => {

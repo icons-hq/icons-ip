@@ -13,6 +13,7 @@ run_sql_test() {
 run_sql_test supabase/tests/catalog_baseline.sql
 run_sql_test supabase/tests/profile_editing.sql
 run_sql_test supabase/tests/minimum_age_gate.sql
+run_sql_test supabase/tests/adult_verification.sql
 run_sql_test supabase/tests/account_deletion_phase_one.sql
 bash supabase/tests/account_deletion_phase_one_concurrency.sh
 run_sql_test supabase/tests/email_dispatcher_dark.sql
@@ -217,6 +218,7 @@ run_sql_test supabase/tests/purchase_restriction_batches.sql
 run_sql_test supabase/tests/coupon_issue_schedule.sql
 run_sql_test supabase/tests/store_branding_settings.sql
 run_sql_test supabase/tests/admin_goods_photo_library.sql
+run_sql_test supabase/tests/admin_artwork_upload_feedback.sql
 run_sql_test supabase/tests/admin_seller_claim_intake.sql
 run_sql_test supabase/tests/admin_optimistic_conflicts_http409.sql
 run_sql_test supabase/tests/admin_review_insights.sql

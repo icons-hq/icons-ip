@@ -66,16 +66,26 @@ beforeEach(() => {
 
 describe('askProductQuestionAction', () => {
   /* 작성 자격 판정은 RLS insert 정책이 갖는다. 액션은 세션의 user_id 만 실어 보낸다 —
-     insert grant 가 열린 컬럼도 good_id·user_id·body 뿐이다. */
-  it('세션 명의로 세 컬럼만 insert 한다', async () => {
+     insert grant 가 열린 컬럼도 good_id·user_id·body·is_secret 뿐이다. */
+  it('세션 명의로 grant 가 열린 네 컬럼만 insert 한다', async () => {
     const state = await askProductQuestionAction({}, questionForm());
 
     expect(mocks.inserts).toEqual([[
       'product_questions',
-      { body: '재입고 예정이 있나요?', good_id: 'g13', user_id: USER_ID },
+      { body: '재입고 예정이 있나요?', good_id: 'g13', is_secret: false, user_id: USER_ID },
     ]]);
     expect(state.message).toBe('질문을 등록했어요. 답변이 달리면 알림으로 알려드려요.');
     expect(state.resultKey).toBeTruthy();
+  });
+
+  /* 비밀글(MD-0023). 가림은 DB 가 하고, 액션은 작성자의 선택만 싣는다. */
+  it('비밀글을 고르면 is_secret 을 켜서 insert 한다', async () => {
+    await askProductQuestionAction({}, questionForm({ secret: 'true' }));
+
+    expect(mocks.inserts).toEqual([[
+      'product_questions',
+      { body: '재입고 예정이 있나요?', good_id: 'g13', is_secret: true, user_id: USER_ID },
+    ]]);
   });
 
   /* 질문은 굿즈 상세와 내 Q&A 두 곳에 동시에 나타난다. */

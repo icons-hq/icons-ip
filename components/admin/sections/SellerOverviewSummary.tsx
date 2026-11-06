@@ -3,7 +3,7 @@ import Image from 'next/image';
 import { Icon } from '@/components/ui/Icon';
 import type { AdminInsights } from '@/lib/admin/insights.server';
 import type { AdminHomeSummary } from '@/lib/admin/home-summary';
-import { ADMIN_WORK_QUEUES, type AdminWorkQueueData } from '@/lib/admin/work-queue';
+import { ADMIN_WORK_QUEUES, visibleAdminWorkQueues, type AdminWorkQueueData } from '@/lib/admin/work-queue';
 import { goodsListHref, normalizeGoodsListFilters } from '@/lib/admin/goods-list';
 import { ADMIN_ORDER_STATUS_LABELS, adminOrdersHref, normalizeAdminOrderFilters } from '@/lib/admin/orders';
 import { formatKrwExact } from '../format';
@@ -41,6 +41,7 @@ export function SellerOverviewSummary({ insights, workQueue, summary, days }: {
     return value?.state === 'ready' ? value.count : null;
   };
   const queueHref = (id: typeof ADMIN_WORK_QUEUES[number]['id']) => ADMIN_WORK_QUEUES.find((queue) => queue.id === id)!.href;
+  const visibleQueues = new Set<string>(visibleAdminWorkQueues(workQueue).map((queue) => queue.id));
   const stages = ['paid', 'confirmed', 'shipping', 'delivered', 'done'] as const;
   return <div className="admin-home-summary">
     <SummaryPanel title="판매 관리" description="전체 기간의 상품 주문 상태별 건수입니다." icon="bag" href="/admin/sales/orders" className="admin-home-sales">
@@ -56,15 +57,17 @@ export function SellerOverviewSummary({ insights, workQueue, summary, days }: {
       <CountLink label={`최근 ${days}일 결제 건수`} value={insights?.paymentCount.current} href="/admin/stats/sales" />
       <p className="admin-home-summary-note">상품·티켓 결제완료 기준</p>
     </SummaryPanel>
-    <SummaryPanel title="취소 · 반품 · 교환" description="요청 상태인 취소·반품·교환 건수입니다." icon="swap" tone="danger" href="/admin/sales/claims/cancels" className="admin-home-claims">
+    <SummaryPanel title="취소 · 반품 · 교환" description={visibleQueues.has('refundTransfers') ? '요청 상태인 취소·반품·교환 건수와 계좌로 보낼 무통장 환불 건수입니다.' : '요청 상태인 취소·반품·교환 건수입니다.'} icon="swap" tone="danger" href="/admin/sales/claims/cancels" className="admin-home-claims">
       <CountLink label="취소요청" value={summary?.claims.cancel} href="/admin/sales/claims/cancels?stage=requested" />
       <CountLink label="반품요청" value={summary?.claims.return} href="/admin/sales/claims/returns?stage=requested" />
       <CountLink label="교환요청" value={summary?.claims.exchange} href="/admin/sales/claims/exchanges?stage=requested" />
+      {visibleQueues.has('refundTransfers') ? <CountLink label="환불 송금 대기" value={queueValue('refundTransfers')} href={queueHref('refundTransfers')} /> : null}
     </SummaryPanel>
-    <SummaryPanel title="처리할 업무" description="발주확인 대기 주문, 발송 지연 배송, 미답변 문의 건수입니다." icon="clock" tone="danger" href="/admin/sales/dispatch" className="admin-home-work">
+    <SummaryPanel title="처리할 업무" description={visibleQueues.has('unpaid') ? '발주확인 대기 주문, 발송 지연 배송, 미답변 문의, 입금 확인 전 무통장 주문 건수입니다.' : '발주확인 대기 주문, 발송 지연 배송, 미답변 문의 건수입니다.'} icon="clock" tone="danger" href="/admin/sales/dispatch" className="admin-home-work">
       <CountLink label="신규주문" value={queueValue('orders')} href={queueHref('orders')} />
       <CountLink label="발송 지연" value={queueValue('delayed')} href={queueHref('delayed')} />
       <CountLink label="미응답 문의" value={queueValue('inquiries')} href={queueHref('inquiries')} />
+      {visibleQueues.has('unpaid') ? <CountLink label="무통장 입금 대기" value={queueValue('unpaid')} href={queueHref('unpaid')} /> : null}
     </SummaryPanel>
     <SummaryPanel title="상품 관리" description="전시중·품절·검토가 필요한 상품 수입니다." icon="grid" tone="goods" href="/admin/catalog/goods" className="admin-home-goods">
       <CountLink label="전시중 상품" value={summary?.goods.published} href={goodsListHref(normalizeGoodsListFilters({ status: 'published' }))} unit="개" />

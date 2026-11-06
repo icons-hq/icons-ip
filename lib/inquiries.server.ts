@@ -14,6 +14,8 @@ import {
   type InquiryCategory,
   type InquiryStatus,
 } from '@/lib/inquiries';
+import { adultGoodsRestrictions } from './adult-goods';
+import { getAdultGoodsAccess } from './adult-goods-access.server';
 
 /* 사용자 표면의 문의 로더(#253).
  *
@@ -247,9 +249,9 @@ export async function resolveInquiryLinkTargets(
       .not('published_at', 'is', null)
       .is('ips.archived_at', null)
       .not('ips.published_at', 'is', null)
-      // 판매 제한(19금) 상품은 비노출 표면과 같은 취급 — 문의 컨텍스트가
-      // 상품명을 되돌려주는 우회 노출을 막는다(#392).
-      .eq('sale_restriction', 'none')
+      // 판매 제한(19금) 상품은 인증 성인에게만 문의 컨텍스트로 이름을 돌려준다 —
+      // 인증 전 방문자에게 상품명을 되돌려주는 우회 노출을 막는다(#392·ADR-0024).
+      .in('sale_restriction', adultGoodsRestrictions(await getAdultGoodsAccess() === 'full' ? 'full' : 'hidden'))
       .maybeSingle<{ id: string; name: string }>();
     if (data) {
       targets.goodId = data.id;

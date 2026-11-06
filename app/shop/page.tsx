@@ -1,6 +1,7 @@
 import { loadPublicCatalogCategories } from '@/lib/catalog-categories.server';
 import { Shop } from '@/components/screens/Shop';
 import { getCatalogSnapshot } from '@/lib/catalog';
+import { getAdultGoodsAccess } from '@/lib/adult-goods-access.server';
 import { parseShopSearchParams, selectShopGoods } from '@/lib/shop-catalog';
 import { notFound } from 'next/navigation';
 import { parseCategoryDisplayRequest } from '@/lib/category-display';
@@ -24,7 +25,7 @@ export default async function Page({ searchParams }: PageProps) {
     return <CategoryDisplayShop key={`${page.category.id}:${page.token}`} initial={{ ...page, navigation }} wishlist={wishlist} />;
   }
   /* 컬렉션 배너(CL-09)는 굿즈샵 전체에만 선다 — 카테고리 전시 분기(위)는 배너를 읽지 않는다. */
-  const [catalog, displayNavigation, wishlist, banners] = await Promise.all([getCatalogSnapshot({ includeReviewSummaries: true }), loadCategoryDisplayNavigation().then(entries => ({ entries, failed: false })).catch(() => ({ entries: [], failed: true })), loadListingWishlist(), getCollectionBanners('all')]);
+  const [catalog, displayNavigation, wishlist, banners] = await Promise.all([getAdultGoodsAccess().then(adultGoods => getCatalogSnapshot({ adultGoods, includeReviewSummaries: true })), loadCategoryDisplayNavigation().then(entries => ({ entries, failed: false })).catch(() => ({ entries: [], failed: true })), loadListingWishlist(), getCollectionBanners('all')]);
   const categories = catalog.source === 'supabase' ? await loadPublicCatalogCategories() : [];
   const query = parseShopSearchParams(params, {
     view: 'all',

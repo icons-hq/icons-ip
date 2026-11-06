@@ -4,6 +4,7 @@ import { describe, expect, it } from 'vitest';
 import { CATEGORY_BULK_LINE_LIMIT, categoryBulkResultLabel } from '@/lib/admin/category-bulk';
 import { ADMIN_CLAIM_BULK_ACTION_LABELS, ADMIN_CLAIM_BULK_LIMIT, ADMIN_CLAIM_BULK_OUTCOME_LABELS } from '@/lib/admin/claim-bulk';
 import { REPLY_TEMPLATE_REPLACE_CONFIRM, REPLY_TEMPLATE_REPLACE_HINT } from '@/lib/admin/inquiry-reply-templates';
+import { GOODS_LIST_STOCK_OPTIONS } from '@/lib/admin/goods-list';
 import { ADMIN_NAV_GROUPS, ADMIN_SCREENS } from '@/lib/admin/navigation';
 import { shipmentBarcodeGapWarning } from '@/lib/admin/shipment-workbook';
 import { GOODS_HTML_MAX_LENGTH } from '@/lib/goods-description';
@@ -98,7 +99,7 @@ describe('m27 가이드 — 고객문의·상담·리뷰(R1~R6)', () => {
     expect(lib).toContain('적립금 정책: 켜짐 · 보유 상한');
     expect(lib).toContain('적립금 정책: 꺼짐');
     expect(repoFile('lib/admin/navigation.ts')).toContain("label: '적립금 정책', href: '/admin/settings/store-credits', status: 'ready', adminOnly: true");
-    expect(text).toContain('혜택/마케팅 → 적립금 정책');
+    expect(text).toContain('판매자 정보 → 적립금 정책');
     expect(text).toContain('보유 상한');
   });
 
@@ -139,6 +140,12 @@ describe('m27 가이드 — 클레임(R7·R8)', () => {
     expect(consoleGrid.indexOf('{children}')).toBeLessThan(consoleGrid.indexOf('<table className="admin-console-grid-table"'));
     expect(text).toContain('목록 위 일괄 처리 버튼 바로 아래의 거부 사유 칸');
     expect(text).not.toContain('목록 아래 거부 사유 칸');
+    /* ADR-0028: 취소 관리(kit)는 아래 처리 막대의 거부 버튼이 거부 사유 팝오버를 연다. */
+    const kit = repoFile('components/admin/screens/ClaimQueueKitTable.tsx');
+    const actionBar = kit.slice(kit.indexOf('<ActionBar'), kit.indexOf('</ActionBar>'));
+    expect(actionBar.indexOf('ADMIN_CLAIM_BULK_ACTION_LABELS.reject')).toBeGreaterThan(-1);
+    expect(actionBar.indexOf('<KitRejectionReasonField')).toBeGreaterThan(actionBar.indexOf('<PopoverContent'));
+    expect(text).toContain(`취소 관리에서는 아래 처리 막대의 "${ADMIN_CLAIM_BULK_ACTION_LABELS.reject}"를 누르면 뜨는 거부 사유 칸`);
   });
 
   it('거부 사유 프리셋과 유형별 사유, 운영자 철회 버튼 제거를 안내한다(R7)', () => {
@@ -225,7 +232,7 @@ describe('m27 가이드 — 상품 등록·목록·카테고리·랜덤 판매(R
     expect(editor('GoodsInlineSale')).toContain('<InlineEditor label="판매상태"');
     expect(editor('GoodsInlineSale')).not.toContain('fillCell');
     expect(text).toContain('판매가·재고수량은 상품 목록에서 값 칸 어디를 눌러도 바로 고칠 수 있고, 판매상태는 칸 안의 판매중·판매중지 값 버튼을 눌러 고칩니다.');
-    const changes = ADMIN_WEEKLY_CHANGES[0].changes.join('\n');
+    const changes = ADMIN_WEEKLY_CHANGES.find((entry) => entry.week === '2026-10-28')!.changes.join('\n');
     expect(changes).toContain('판매가·재고수량은 값 칸 어디를 눌러도 바로 고치고 판매상태는 값 버튼을 눌러 고치며');
     for (const stale of ['판매가·재고수량·판매상태는 상품 목록에서 값 칸 어디를', '값 칸이나 체크 칸 어디를 눌러도 바로 수정']) {
       expect(text).not.toContain(stale);
@@ -244,6 +251,15 @@ describe('m27 가이드 — 상품 등록·목록·카테고리·랜덤 판매(R
     expect(text).toContain('상품번호를 누르면');
     expect(text).toContain('판매대기(시작 전)');
     expect(text).toContain('사이드바에서 숨겼습니다');
+  });
+
+  it('판매상태 필터의 품절·판매중지 구분을 필터 선택지 그대로 안내한다(MD-0026)', () => {
+    const labels = Object.fromEntries(GOODS_LIST_STOCK_OPTIONS.map((option) => [option.value, option.label]));
+    expect(labels).toMatchObject({ out_of_stock: '품절', stopped: '판매중지', soldout: '품절·판매중지 모두' });
+    expect(repoFile('components/admin/screens/GoodsListFiltersForm.tsx')).toContain('GOODS_LIST_STOCK_OPTIONS.map');
+    expect(text).toContain('판매상태 필터는 품절과 판매중지를 나눠 찾습니다');
+    expect(text).toContain(`${labels.soldout}를 고릅니다`);
+    expect(text).toContain('고객 화면에는 둘 다 품절로 보입니다');
   });
 
   it('판매 방식(랜덤 판매) 절이 패널의 선택지·고객 은닉 범위·조건과 같다(R24·D5②)', () => {
@@ -279,15 +295,27 @@ describe('m27 가이드 — 메뉴·배송정보·출고 파일(R21~R23·R26·R2
   it('배송정보·템플릿 화면을 새 대분류 경로로 부른다(R21·R22)', () => {
     const group = (href: string) => ADMIN_NAV_GROUPS.find((item) => item.screens.some((screen) => screen.href === href))?.label;
     expect(group('/admin/settings/origins')).toBe('배송관리');
-    expect(group('/admin/settings/shipping-templates')).toBe('템플릿 관리');
-    expect(group('/admin/settings/shipping-notices')).toBe('템플릿 관리');
+    /* 2026-11-05 IA 재정의: 배송 템플릿 두 화면은 배송관리로 모았다. */
+    expect(group('/admin/settings/shipping-templates')).toBe('배송관리');
+    expect(group('/admin/settings/shipping-notices')).toBe('배송관리');
+    expect(group('/admin/catalog/notice-presets')).toBe('템플릿 관리');
     const all = Object.values(ADMIN_GUIDE_TOPICS).map(plainText).join('\n');
     for (const stale of ['상품관리 → 배송정보', '상품관리 → 배송 안내', '상품관리의 배송 안내']) expect(all).not.toContain(stale);
     expect(guide('store-settings')).toContain('배송관리 → 배송정보 관리');
-    expect(guide('orders-shipping')).toContain('템플릿 관리 → 배송정보 템플릿 관리');
-    expect(guide('orders-shipping')).toContain('템플릿 관리 → 배송 안내 템플릿 관리');
+    expect(guide('orders-shipping')).toContain('배송관리 → 배송정보 템플릿 관리');
+    expect(guide('orders-shipping')).toContain('배송관리 → 배송 안내 템플릿 관리');
+    for (const stale of ['템플릿 관리 → 배송정보', '템플릿 관리 → 배송 안내', '템플릿 관리의 배송 안내']) expect(all).not.toContain(stale);
     expect(repoFile('components/admin/screens/FulfillmentOriginsScreen.tsx')).toContain('>출고지 추가</Link>');
     expect(guide('store-settings')).toContain('출고지 추가');
+  });
+
+  it('운영에서 꺼진 선물 수락 대기·정기구매 관리 메뉴는 사이드바에서만 숨기고 주소로 여는 방법을 안내한다', () => {
+    const hidden = ADMIN_SCREENS.filter((screen) => screen.href === '/admin/sales/gifts' || screen.href === '/admin/sales/subscriptions');
+    expect(hidden.map((screen) => screen.label)).toEqual(['선물 수락 대기', '정기구매 관리']);
+    expect(hidden.every((screen) => screen.navHidden && screen.status === 'ready')).toBe(true);
+    const text = guide('orders-shipping');
+    expect(text).toContain('선물 수락 대기 메뉴는 사이드바에서 숨겼습니다. 화면 주소(/admin/sales/gifts)와 권한은 그대로라');
+    expect(text).toContain('정기구매 관리 메뉴는 사이드바에서 숨겼습니다. 화면 주소(/admin/sales/subscriptions)와 권한은 그대로라');
   });
 
   it('출고 파일의 바코드·ERP 품명 열과 바코드 경고를 화면 문구 그대로 안내한다(R23)', () => {
@@ -309,10 +337,10 @@ describe('m27 가이드 — 메뉴·배송정보·출고 파일(R21~R23·R26·R2
 });
 
 describe('m27 업데이트 내역(2026-10-28)', () => {
-  const entry = ADMIN_WEEKLY_CHANGES[0];
+  const entry = ADMIN_WEEKLY_CHANGES.find((item) => item.week === '2026-10-28')!;
   const all = [entry.title, ...entry.changes].join('\n');
 
-  it('맨 앞 항목이 10/27 온라인몰 2차 회의 후속이다', () => {
+  it('2026-10-28 항목이 10/27 온라인몰 2차 회의 후속이다', () => {
     expect(entry.week).toBe('2026-10-28');
     expect(entry.title).toContain('10/27 온라인몰 2차 회의 후속');
   });

@@ -1,12 +1,12 @@
 import Link from 'next/link';
 import { AdminSectionCard } from '../console/AdminKit';
-import { ADMIN_WORK_QUEUES, type AdminWorkQueueData } from '@/lib/admin/work-queue';
+import { visibleAdminWorkQueues, type AdminWorkQueueData } from '@/lib/admin/work-queue';
 import { GOODS_READINESS_REASONS } from '@/lib/admin/goods-readiness';
 
 export function WorkQueueSection({ data }: { data?: AdminWorkQueueData }) {
   return <AdminSectionCard title="지금 처리할 업무" summary={<>현재 처리 대기 잔량입니다. 주문 1건이 여러 배송 건으로 나뉠 수 있습니다. 발송 지연은 발송 대기에도 포함됩니다.</>}>
     <div className="admin-work-queue">
-      <div className="admin-work-queue__cards">{ADMIN_WORK_QUEUES.map(queue => {
+      <div className="admin-work-queue__cards">{visibleAdminWorkQueues(data).map(queue => {
         const value = data?.counts[queue.id];
         return <Link key={queue.id} href={queue.href} prefetch={false} className="admin-work-queue__card">
           <span>{queue.label}</span><strong className={value?.state === 'error' ? 'admin-work-queue__error' : undefined}>{value?.state === 'ready' ? `${value.count.toLocaleString('ko-KR')}건` : '확인 필요'}</strong>

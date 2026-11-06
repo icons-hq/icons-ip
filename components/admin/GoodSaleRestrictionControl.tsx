@@ -42,7 +42,7 @@ export function GoodSaleRestrictionControl({
       <div>
         <strong>판매 제한 유형</strong>
         <p className="mono" style={{ color: 'var(--dim)', fontSize: 11 }}>
-          성인(19금) 상품은 성인인증 도입 전까지 스토어에 노출되지 않고 구매가 차단됩니다. 결제는 전용 PG(코페이)로 분기됩니다.
+          성인(19금) 상품은 휴대폰 본인확인으로 성인 인증을 마친 회원에게만 보이고 판매됩니다. 인증 전 방문자에게는 목록에 가림 카드로만 보이고, 성인 인증이 열리기 전에는 스토어에 노출되지 않습니다. 카드 결제는 전용 PG(코페이)로 분기됩니다.
         </p>
       </div>
       <input name="id" type="hidden" value={id} />

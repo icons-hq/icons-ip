@@ -20,18 +20,19 @@ describe('AdminSidebar 2단 메뉴', () => {
   it('대분류 헤딩과 소분류 항목을 함께 보여준다', () => {
     const html = render();
 
-    expect(html).toContain('판매관리');
+    expect(html).toContain('주문관리');
     expect(html).toContain('상품관리');
     expect(html).toContain('주문통합검색');
     expect(html).toContain('href="/admin/catalog/goods"');
   });
 
-  /* 대분류 순서가 뒤집히면 운영자가 익힌 메뉴 위치가 매번 달라진다. */
+  /* 대분류 순서가 뒤집히면 운영자가 익힌 메뉴 위치가 매번 달라진다. 2026-11-05 IA 재정의: 매일 쓰는 업무가 위, 설정 구역이 아래. */
   it('대분류를 정해진 순서로 세운다', () => {
-    const html = render();
-
-    expect(html.indexOf('상품관리')).toBeLessThan(html.indexOf('판매관리'));
-    expect(html.indexOf('판매관리')).toBeLessThan(html.indexOf('데이터분석'));
+    const html = render('admin');
+    const order = ['주문관리', '취소·반품·교환', '상품관리', '문의/리뷰관리', '고객관리', '스토어 전시관리', '혜택/마케팅', '데이터분석',
+      '정산관리', '배송관리', '템플릿 관리', '판매자 정보'].map((label) => html.indexOf(`>${label}<`));
+    expect(order.every((index) => index >= 0)).toBe(true);
+    expect([...order].sort((a, b) => a - b)).toEqual(order);
   });
 
   it('현재 화면만 aria-current를 단다', () => {

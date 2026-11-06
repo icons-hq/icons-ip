@@ -13,16 +13,26 @@ import {
   type LegalDocument,
 } from './documents';
 import { PRIVACY_ADDRESS_BOOK_REVISION, kstToday, koreanLegalDate, privacyAddressBookRevisionInEffect } from './privacy-address-book-revision';
+import {
+  PRIVACY_ADULT_VERIFICATION_REVISION,
+  privacyAdultVerificationRevisionAnnounced,
+  privacyAdultVerificationRevisionInEffect,
+} from './privacy-adult-verification-revision';
 import { SOCIAL_LOGIN_LABELS } from './social-login';
 
 /* 주소록 예약 개정(L7 · MY-11)은 날짜(KST)로 시행 여부가 갈린다 — 시행 전날과 시행일 두 상태를 고정해 검사한다.
    LEGAL_DOCUMENTS(오늘 날짜)는 어느 쪽이든 성립해야 하는 검사에만 쓴다. */
 const BEFORE_ADDRESS_BOOK = createLegalDocuments(BUSINESS_INFO, '2026-11-05');
 const AFTER_ADDRESS_BOOK = createLegalDocuments(BUSINESS_INFO, PRIVACY_ADDRESS_BOOK_REVISION.effectiveDate);
+/* 성인 인증 예약 개정(ADR-0024)도 같은 방식이다 — 시행 전날(사전 공지 중)과 시행일을 고정한다. */
+const BEFORE_ADULT_VERIFICATION = createLegalDocuments(BUSINESS_INFO, '2026-11-12');
+const AFTER_ADULT_VERIFICATION = createLegalDocuments(BUSINESS_INFO, PRIVACY_ADULT_VERIFICATION_REVISION.effectiveDate);
 const documents = [
   ...LEGAL_DOCUMENT_SLUGS.map((slug) => LEGAL_DOCUMENTS[slug]),
   BEFORE_ADDRESS_BOOK.privacy,
   AFTER_ADDRESS_BOOK.privacy,
+  BEFORE_ADULT_VERIFICATION.privacy,
+  AFTER_ADULT_VERIFICATION.privacy,
 ];
 
 function source() {
@@ -151,7 +161,8 @@ describe('법정 문서 레지스트리', () => {
 
     const after = AFTER_ADDRESS_BOOK.privacy;
     expect(after.effectiveDate).toBe(effectiveDate);
-    expect(after.pendingRevision).toBeUndefined();
+    /* 주소록 시행일(2026-11-06)은 성인 인증 개정의 공지일이기도 하다 — 남은 사전 공지는 주소록이 아니다. */
+    expect(after.pendingRevision?.heading).not.toContain('주소록');
     /* 직전 공개 본문(2026-10-19, 선택 성별 수집 포함)을 이전 판으로 그대로 보존한다. */
     expect(after.previousVersion).toEqual({ effectiveDate: '2026-10-19', articles: before.articles });
     expect(JSON.stringify(after.articles)).toContain('주소록');
@@ -167,9 +178,63 @@ describe('법정 문서 레지스트리', () => {
     expect(privacyAddressBookRevisionInEffect('2026-11-05')).toBe(false);
     expect(privacyAddressBookRevisionInEffect('2026-11-06')).toBe(true);
     expect(createLegalDocuments(BUSINESS_INFO, '2026-11-05').privacy.pendingRevision).toBeDefined();
-    expect(createLegalDocuments(BUSINESS_INFO, '2026-11-06').privacy.pendingRevision).toBeUndefined();
-    expect(createLegalDocuments(BUSINESS_INFO, '2027-01-01').privacy.effectiveDate).toBe('2026-11-06');
+    expect(createLegalDocuments(BUSINESS_INFO, '2026-11-06').privacy.pendingRevision?.heading).not.toContain('주소록');
+    expect(createLegalDocuments(BUSINESS_INFO, '2026-11-12').privacy.effectiveDate).toBe('2026-11-06');
+    expect(createLegalDocuments(BUSINESS_INFO, '2027-01-01').privacy.effectiveDate).toBe('2026-11-13');
     expect(koreanLegalDate('2026-11-06')).toBe('2026년 11월 6일');
+  });
+
+  /* 성인 인증 개정(ADR-0024) — 제13조대로 시행 7일 전부터 사전 공지하고, 시행일 전에는 현행 본문을 바꾸지 않는다. */
+  it('성인 인증 개정은 공지일부터 시행일 전까지 사전 공지로만 붙고, 시행일부터 개정 본문이 현행이 된다', () => {
+    const { announcedDate, effectiveDate } = PRIVACY_ADULT_VERIFICATION_REVISION;
+    const days = (Date.parse(`${effectiveDate}T00:00:00+09:00`) - Date.parse(`${announcedDate}T00:00:00+09:00`)) / 86_400_000;
+    expect(days, '시행 7일 전부터 공지').toBeGreaterThanOrEqual(7);
+    /* 주소록 개정이 시행된 뒤에 공지한다 — 사전 공지 두 개가 한 자리를 다투지 않는다. */
+    expect(announcedDate >= PRIVACY_ADDRESS_BOOK_REVISION.effectiveDate).toBe(true);
+
+    /* 공지 전에는 성인 인증 안내가 없다. */
+    expect(JSON.stringify(createLegalDocuments(BUSINESS_INFO, '2026-11-05').privacy)).not.toContain('성인 인증');
+
+    const before = BEFORE_ADULT_VERIFICATION.privacy;
+    expect(before.effectiveDate).toBe(PRIVACY_ADDRESS_BOOK_REVISION.effectiveDate);
+    expect(before.pendingRevision).toEqual({
+      announcedDate,
+      effectiveDate,
+      heading: '성인 인증(휴대폰 본인확인) 도입에 따른 개정 예정 안내',
+      changes: expect.arrayContaining([expect.stringContaining('엔에이치엔케이씨피 주식회사')]),
+    });
+    expect(before.pendingRevision!.changes.join('\n')).toContain('개정 방침이 시행되는 날부터 이용할 수 있습니다');
+    expect(JSON.stringify(before.articles), '시행 전 현행 본문에는 성인 인증이 없다').not.toContain('성인 인증');
+
+    const after = AFTER_ADULT_VERIFICATION.privacy;
+    expect(after.effectiveDate).toBe(effectiveDate);
+    expect(after.pendingRevision).toBeUndefined();
+    /* 직전 공개 본문(주소록 개정본)을 이전 판으로 그대로 보존한다. */
+    expect(after.previousVersion).toEqual({ effectiveDate: PRIVACY_ADDRESS_BOOK_REVISION.effectiveDate, articles: before.articles });
+    expect(JSON.stringify(after.articles)).toContain('주소록');
+    for (const change of after.revisionChanges!) expect(before.pendingRevision!.changes).toContain(change);
+
+    const article = (prefix: string) => after.articles.find((item) => item.heading.startsWith(prefix))!;
+    const rows = article('제1조 ').table!.rows;
+    const row = rows[rows.findIndex((item) => item[0] === '온보딩') + 1];
+    expect(row?.[0]).toBe('성인 인증 (휴대폰 본인확인)');
+    expect(row?.[1]).toMatch(/연계정보\(CI\), 중복가입확인정보\(DI\)/);
+    expect(row?.[1]).toMatch(/19세 이상 여부 판정에만 쓰고 저장하지 않으며/);
+    expect(row?.[2]).toMatch(/성인 인증을 진행한 경우/);
+    expect(article('제2조 ').list!.join('\n')).toMatch(/청소년 보호법에 따른 19세 이상 여부 확인/);
+    expect(article('제3조 ').closing!.join('\n')).toMatch(/성인 인증 기록의 유효기간은 인증일부터 1년/);
+    expect(article('제5조 ').table!.rows).toContainEqual(
+      ['엔에이치엔케이씨피 주식회사', '휴대폰 본인확인(성인 인증) 서비스 제공', '위탁계약 종료 시까지'],
+    );
+  });
+
+  it('성인 인증 개정의 공지·시행은 한국 시간 날짜로 가른다', () => {
+    expect(privacyAdultVerificationRevisionAnnounced('2026-11-05')).toBe(false);
+    expect(privacyAdultVerificationRevisionAnnounced('2026-11-06')).toBe(true);
+    expect(privacyAdultVerificationRevisionAnnounced('2026-11-12')).toBe(true);
+    expect(privacyAdultVerificationRevisionAnnounced('2026-11-13')).toBe(false);
+    expect(privacyAdultVerificationRevisionInEffect('2026-11-12')).toBe(false);
+    expect(privacyAdultVerificationRevisionInEffect('2026-11-13')).toBe(true);
   });
 
   it('본문이 Korpay 신규 카드 결제와 Toss 기존 결제 조회·취소·환급 유지를 함께 밝힌다', () => {
