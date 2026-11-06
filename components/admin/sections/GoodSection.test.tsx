@@ -135,7 +135,7 @@ describe('GoodSection', () => {
     expect(html).toContain('groupCommon='); expect(html).not.toContain('이전 브라우저 이름'); expect(html).not.toContain('이전 공통 설명');
     expect(html).toMatch(/readOnly=""[^>]*name="name"|name="name"[^>]*readOnly=""/);
     expect(html).toMatch(/readOnly=""[^>]*aria-label="기본 옵션명"|aria-label="기본 옵션명"[^>]*readOnly=""/);
-    expect(html).toContain('disabled="" class="goods-choice goods-option-usage"');
+    expect(html).toMatch(/<fieldset[^>]*disabled=""[^>]*data-good-option-usage=""/);
     expect(html).not.toContain('다른 상품 옵션 불러오기'); expect(html).not.toContain('id="good-operation-variants"');
     expect(html).not.toContain('id="good-operation-after-sales"'); expect(html).not.toContain('id="good-operation-size-chart"');
     expect(html).toContain('id="goods-single-stock"'); expect(html).toContain('name="allowCardPayment"'); expect(html).toContain('id="good-section-images"');
@@ -265,7 +265,6 @@ describe('GoodSection', () => {
     expect(html).toContain('low');
     expect(html).toContain('name="delta"');
     expect(html).toContain('name="reason"');
-    expect(html).toContain('class="admin-field-control"');
     expect(html).toContain('required=""');
     expect(html).toContain('maxLength="200"');
     expect(html).toContain('name="adjustmentId"');
@@ -273,6 +272,8 @@ describe('GoodSection', () => {
     expect(html).toContain('재고 조정');
     const stockForm = (html.match(/<form\b[\s\S]*?<\/form>/g) ?? []).find(form => form.includes('name="delta"'));
     expect(stockForm).toContain('name="reason"');
+    expect(stockForm).toMatch(/<input[^>]*data-slot="input"[^>]*name="delta"/);
+    expect(stockForm).toMatch(/<textarea[^>]*data-slot="textarea"[^>]*name="reason"/);
     expect(stockForm).not.toContain('name="saleRestriction"');
   });
 
@@ -405,7 +406,7 @@ describe('GoodSection', () => {
     /* 오류가 있는 선택 영역은 강제로 연다. */
     const search = html.lastIndexOf('<details', html.indexOf('data-good-optional-title="">검색설정·판매자상품코드<'));
     expect(html.slice(search, html.indexOf('>', search))).toContain('open=""');
-    expect(opening(/<details class="goods-option-secondary"[^>]*>/)).toContain('data-known-open="false"');
+    expect(opening(/<details[^>]*data-good-option-details=""[^>]*>/)).toContain('data-known-open="false"');
     expect(opening(/<details id="good-preview"[^>]*>/)).toContain('data-known-open="false"');
     expect(opening(/<details[^>]*data-good-save-info=""[^>]*>/)).toContain('data-known-open="false"');
   });
@@ -626,7 +627,7 @@ describe('GoodSection', () => {
     const card = html.slice(html.indexOf('id="good-section-variants"'), html.indexOf('id="good-section-notice"'));
     expect(card).toContain('data-good-section-title="">재고수량 / 옵션');
     expect(card).toContain('옵션 없음 · 재고수량 12개');
-    expect(card.indexOf('for="goods-single-stock">재고수량')).toBeLessThan(card.indexOf('<legend>옵션</legend>'));
+    expect(card.indexOf('for="goods-single-stock">재고수량')).toBeLessThan(card.indexOf('>옵션</legend>'));
     expect(html).toContain('2. 상품속성');
     expect(html).toContain('4. 판매가');
     expect(html).toContain('5. 판매기간');
