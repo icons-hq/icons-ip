@@ -4,8 +4,12 @@ import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import Link from 'next/link';
 import { InquiryLiveUpdates } from '@/components/screens/InquiryLiveUpdates';
 import { InquiryPreviewLink } from './InquiryPreviewLink';
+import { INQUIRY_SLA_TONE_CLASS } from './cs-kit-classes';
+import { buttonVariants } from '@/components/admin/kit/ui/button';
+import { AdminSelect } from '@/components/admin/console/AdminSelect';
 import {
   ConsoleCountChips,
+  ConsoleFilterField,
   ConsoleFilterPanel,
   ConsoleGrid,
   ConsolePagination,
@@ -41,7 +45,9 @@ import { INQUIRY_SATISFACTION_LABELS, inquirySatisfactionPercent } from '@/lib/i
  * 정렬을 바꾸는 화면이 아니다 — 이 큐에서 순서를 정하는 것은 취향이 아니라 SLA다.
  *
  * 경과시간 칸은 단순 경과가 아니라 1차 답변 기한까지 남은 시간을 말한다. "3시간 지남"은
- * 늦었는지 아닌지를 알려주지 않는다. */
+ * 늦었는지 아닌지를 알려주지 않는다.
+ *
+ * 템플릿 룩(ADR-0028): 조회 조건 카드 → 결과 카드(목록·페이지·상태별 집계·만족도) → 안내 순서는 그대로다. */
 
 const COLUMNS: ConsoleGridColumn[] = [
   { key: 'reference', label: '문의번호', width: '92px' },
@@ -84,40 +90,40 @@ export function InquiryQueueScreen({
       id: row.id,
       href: adminInquiryDetailHref(row.id, filters),
       cells: [
-        <span className="mono" key="reference">{inquiryReferenceLabel(row.reference)}</span>,
+        <span className="tabular-nums" key="reference">{inquiryReferenceLabel(row.reference)}</span>,
         <span key="category">{adminGoodsCopy(INQUIRY_CATEGORY_LABELS[row.category])}</span>,
-        <span className="admin-cs-inquiry-title" key="title">
-          <InquiryPreviewLink href={adminInquiryPreviewHref(row.id, filters)}>{row.title}</InquiryPreviewLink>
-          {isAdminInquiryOverdue(row, now) ? <span data-sla-tone="danger"> · 미답변 24시간 경과</span> : null}
+        <span className="inline-block min-w-70" key="title">
+          <InquiryPreviewLink className="font-medium text-foreground underline-offset-4 hover:underline" href={adminInquiryPreviewHref(row.id, filters)}>{row.title}</InquiryPreviewLink>
+          {isAdminInquiryOverdue(row, now) ? <span className={INQUIRY_SLA_TONE_CLASS} data-sla-tone="danger"> · 미답변 24시간 경과</span> : null}
           {row.messageCount > 1 ? (
-            <span className="muted"> · {row.messageCount}건</span>
+            <span className="text-muted-foreground"> · {row.messageCount}건</span>
           ) : null}
         </span>,
         <span key="buyer">@{row.buyerName}</span>,
         row.orderId ? (
-          <span className="mono" key="order">{orderReferenceLabel(row.orderId, row.orderNumber)}</span>
+          <span className="tabular-nums" key="order">{orderReferenceLabel(row.orderId, row.orderNumber)}</span>
         ) : (
-          <span className="muted" key="order">-</span>
+          <span className="text-muted-foreground" key="order">-</span>
         ),
         <span key="status">{ADMIN_INQUIRY_STATUS_LABELS[row.status]}</span>,
         <span key="satisfaction">{row.satisfaction === undefined ? '확인 불가' : INQUIRY_SATISFACTION_LABELS[row.satisfaction ?? 'unrated']}</span>,
         <span key="times">
-          <time dateTime={row.createdAt}>{formatInquiryDateTime(row.createdAt)}</time>
+          <time className="tabular-nums" dateTime={row.createdAt}>{formatInquiryDateTime(row.createdAt)}</time>
           <br />
-          <span className="muted">최근 {inquiryElapsedLabel(row.lastMessageAt, now)} 전</span>
+          <span className="text-xs text-muted-foreground">최근 {inquiryElapsedLabel(row.lastMessageAt, now)} 전</span>
         </span>,
-        /* SLA는 운영자가 가장 먼저 보는 값이라 톤을 데이터 속성으로 남겨 CSS가 강조한다. */
-        <span data-sla-tone={sla.tone} key="sla">{sla.label}</span>,
+        /* SLA는 운영자가 가장 먼저 보는 값이라 톤을 데이터 속성으로 남기고 그 값으로 강조한다. */
+        <span className={INQUIRY_SLA_TONE_CLASS} data-sla-tone={sla.tone} key="sla">{sla.label}</span>,
         row.assigneeName
           ? <span key="handler">@{row.assigneeName}</span>
-          : <span className="muted" key="handler">미배정</span>,
-        <InquiryPreviewLink className="admin-cs-open" href={adminInquiryPreviewHref(row.id, filters)} key="action">답변처리</InquiryPreviewLink>,
+          : <span className="text-muted-foreground" key="handler">미배정</span>,
+        <InquiryPreviewLink button className={buttonVariants({ size: 'xs', variant: 'outline' })} href={adminInquiryPreviewHref(row.id, filters)} key="action">답변처리</InquiryPreviewLink>,
       ],
     };
   });
 
   return (
-    <section className="admin-console wc-admin-kit admin-cs-console admin-cs-console--inquiries">
+    <div className="flex min-w-0 flex-col gap-4" data-cs-console="inquiries">
       <ConsoleFilterPanel
         action="/admin/cs/inquiries"
         dateRange={{
@@ -151,74 +157,67 @@ export function InquiryQueueScreen({
         }}
         statusFilter={{ options: ADMIN_INQUIRY_STATUS_OPTIONS, value: filters.status }}
       >
-        <div className="admin-console-filter-field">
-          <label className="admin-console-filter-label" htmlFor="admin-inquiry-category">
-            문의 유형
-          </label>
-          <select defaultValue={filters.category} id="admin-inquiry-category" name="category">
+        <ConsoleFilterField htmlFor="admin-inquiry-category" label="문의 유형">
+          <AdminSelect defaultValue={filters.category} id="admin-inquiry-category" name="category" wrapperClassName="w-40">
             {ADMIN_INQUIRY_CATEGORY_OPTIONS.map((option) => (
               <option key={option.value} value={option.value}>{option.label}</option>
             ))}
-          </select>
-        </div>
-        <div className="admin-console-filter-field">
-          <label className="admin-console-filter-label" htmlFor="admin-inquiry-satisfaction">답변 만족도</label>
-          <select defaultValue={filters.satisfaction ?? 'all'} id="admin-inquiry-satisfaction" name="satisfaction">
+          </AdminSelect>
+        </ConsoleFilterField>
+        <ConsoleFilterField htmlFor="admin-inquiry-satisfaction" label="답변 만족도">
+          <AdminSelect defaultValue={filters.satisfaction ?? 'all'} id="admin-inquiry-satisfaction" name="satisfaction" wrapperClassName="w-40">
             {ADMIN_INQUIRY_SATISFACTION_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}
-          </select>
-        </div>
+          </AdminSelect>
+        </ConsoleFilterField>
       </ConsoleFilterPanel>
 
+      <section aria-label="고객문의 목록" className="flex min-w-0 flex-col gap-4 rounded-xl border bg-card p-4 text-card-foreground">
+        <CustomerServiceResultsHeader title="고객문의 목록" total={total} pageSize={pageSize} pageSizeOptions={CUSTOMER_SERVICE_PAGE_SIZES.map(size => ({ value: String(size), label: `${size}개씩`, href: adminInquiryHref(filters, { pageSize: size, page: 1 }) }))} />
+        <p className="text-sm text-muted-foreground">문의 제목 또는 답변처리를 누르면 목록 위 팝업에서 문의·연결 주문을 보고 바로 답변할 수 있습니다.</p>
+        <ConsoleGrid
+          caption="1:1 문의 목록"
+          preferencesKey="cs-inquiries"
+          columns={COLUMNS}
+          emptyLabel="조건에 맞는 문의가 없습니다."
+          rows={rowsForGrid}
+        />
 
+        <ConsolePagination
+          hrefForPage={(page) => adminInquiryHref(filters, { page })}
+          label="문의 목록 페이지"
+          page={filters.page}
+          pageSize={pageSize}
+          total={total}
+        />
+        <div className="flex min-w-0 flex-col gap-3 border-t pt-4">
+          <CustomerServiceTabs active="inquiries" />
+          <InquiryLiveUpdates audience="staff" />
+          <ConsoleCountChips
+            chips={INQUIRY_STATUSES.map((status) => ({
+              active: filters.status === status,
+              count: counts[status] ?? 0,
+              href: adminInquiryHref(filters, { page: 1, status }),
+              label: ADMIN_INQUIRY_STATUS_LABELS[status],
+              tone: CHIP_TONES[status],
+            }))}
+            label="상태별 건수"
+          />
 
-      <section className="admin-cs-results" aria-label="고객문의 목록">
-      <CustomerServiceResultsHeader title="고객문의 목록" total={total} pageSize={pageSize} pageSizeOptions={CUSTOMER_SERVICE_PAGE_SIZES.map(size => ({ value: String(size), label: `${size}개씩`, href: adminInquiryHref(filters, { pageSize: size, page: 1 }) }))}></CustomerServiceResultsHeader>
-      <div className="admin-cs-results__toolbar">문의 제목 또는 답변처리를 누르면 목록 위 팝업에서 문의·연결 주문을 보고 바로 답변할 수 있습니다.</div>
-      <ConsoleGrid
-        caption="1:1 문의 목록"
-        preferencesKey="cs-inquiries"
-        columns={COLUMNS}
-        emptyLabel="조건에 맞는 문의가 없습니다."
-        rows={rowsForGrid}
-      />
-
-      <ConsolePagination
-        hrefForPage={(page) => adminInquiryHref(filters, { page })}
-        label="문의 목록 페이지"
-        page={filters.page}
-        pageSize={pageSize}
-        total={total}
-      />
-      <div className="admin-cs-results__context">
-      <CustomerServiceTabs active="inquiries" />
-      <InquiryLiveUpdates audience="staff" />
-      <ConsoleCountChips
-        chips={INQUIRY_STATUSES.map((status) => ({
-          active: filters.status === status,
-          count: counts[status] ?? 0,
-          href: adminInquiryHref(filters, { page: 1, status }),
-          label: ADMIN_INQUIRY_STATUS_LABELS[status],
-          tone: CHIP_TONES[status],
-        }))}
-        label="상태별 건수"
-      />
-
-      <section className="admin-cs-satisfaction-summary" aria-label="답변 만족도 요약">
-        {data.satisfactionSummary ? <>
-          <strong>평가 응답 중 만족 비율 {satisfactionPercent === null ? '—' : `${satisfactionPercent.toLocaleString('ko-KR')}%`}</strong>
-          <span>만족 {data.satisfactionSummary.satisfied.toLocaleString('ko-KR')} · 불만족 {data.satisfactionSummary.dissatisfied.toLocaleString('ko-KR')} · 미평가 {data.satisfactionSummary.unrated.toLocaleString('ko-KR')}</span>
-          <small>{satisfactionPercent === null ? '평가 응답 없음 · ' : ''}만족도 선택을 제외한 현재 조회 조건 기준입니다. 만족·불만족 응답만 비율에 포함합니다.</small>
-        </> : <p role="alert">만족도 요약을 불러오지 못했습니다.</p>}
+          <section aria-label="답변 만족도 요약" className="flex flex-wrap items-baseline gap-x-4 gap-y-1 rounded-lg border bg-muted/40 px-3 py-2.5 text-sm">
+            {data.satisfactionSummary ? <>
+              <strong className="font-semibold text-foreground">평가 응답 중 만족 비율 {satisfactionPercent === null ? '—' : `${satisfactionPercent.toLocaleString('ko-KR')}%`}</strong>
+              <span className="text-muted-foreground tabular-nums">만족 {data.satisfactionSummary.satisfied.toLocaleString('ko-KR')} · 불만족 {data.satisfactionSummary.dissatisfied.toLocaleString('ko-KR')} · 미평가 {data.satisfactionSummary.unrated.toLocaleString('ko-KR')}</span>
+              <small className="basis-full text-xs text-muted-foreground">{satisfactionPercent === null ? '평가 응답 없음 · ' : ''}만족도 선택을 제외한 현재 조회 조건 기준입니다. 만족·불만족 응답만 비율에 포함합니다.</small>
+            </> : <p className="bg-transparent text-destructive" role="alert">만족도 요약을 불러오지 못했습니다.</p>}
+          </section>
+        </div>
       </section>
 
-      </div>
-      </section>
-
-      <p className="admin-cs-help">
+      <p className="text-sm leading-relaxed text-muted-foreground">
         미답변 24시간 배지는 주말을 포함한 실제 대기 시간이며 오래 기다린 문의부터 정렬합니다. 1차 답변 목표는 영업일 기준 24시간입니다. 답변 후 7일 동안 추가 질문이 없으면 문의는 자동으로
         종결됩니다. 취소·반품·교환을 실제로 처리하려면{' '}
-        <Link href="/admin/sales/orders">주문 통합검색</Link>에서 해당 주문의 클레임 경로를 이용하세요.
+        <Link className="font-medium text-foreground underline underline-offset-4" href="/admin/sales/orders">주문 통합검색</Link>에서 해당 주문의 클레임 경로를 이용하세요.
       </p>
-    </section>
+    </div>
   );
 }

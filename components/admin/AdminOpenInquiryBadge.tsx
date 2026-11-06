@@ -1,4 +1,6 @@
 import Link from 'next/link';
+import { MessageSquareWarning } from 'lucide-react';
+import { buttonVariants } from '@/components/admin/kit/ui/button';
 
 /**
  * 고객문의 목록·상세 상단의 미답변 문의 배지(#253, 10/27 회의 D1①).
@@ -14,11 +16,13 @@ import Link from 'next/link';
 export function AdminOpenInquiryBadge({ count }: { count: number }) {
   if (count <= 0) return null;
 
+  /* 화면 본문(.rise) 바로 위에 선다 — 아래 화면과 간격을 스스로 둔다. */
   return (
-    <div className="admin-shell-badges">
-      <Link className="admin-shell-badge" href="/admin/cs/inquiries?status=open&page=1">
+    <div className="mb-4 flex flex-wrap gap-2" data-open-inquiry-badge="">
+      <Link className={`${buttonVariants({ size: 'sm', variant: 'outline' })} border-[color-mix(in_oklab,var(--wc-warning)_45%,transparent)]`} data-slot="button" href="/admin/cs/inquiries?status=open&page=1">
+        <MessageSquareWarning aria-hidden="true" className="text-[var(--wc-warning)]" />
         <span>미답변 1:1 문의</span>
-        <strong>{count.toLocaleString('ko-KR')}건</strong>
+        <strong className="font-semibold text-[var(--wc-warning)] tabular-nums">{count.toLocaleString('ko-KR')}건</strong>
       </Link>
     </div>
   );

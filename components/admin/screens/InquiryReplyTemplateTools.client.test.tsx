@@ -20,13 +20,15 @@ vi.mock('react', async () => {
   } };
 });
 import { InquiryReplyTemplateTools } from './InquiryReplyTemplateTools';
+import { Button } from '@/components/admin/kit/ui/button';
 type Element = ReactElement<Record<string, unknown>>;
 const rows = [{ id: '10000000-0000-4000-8000-000000000001', category: 'other', title: '기존 A', body: 'A 본문', revision: 1, archivedAt: null, updatedAt: '2026-10-13T00:00:00Z' },
   { id: '10000000-0000-4000-8000-000000000002', category: 'shipping', title: '기존 B', body: 'B 본문', revision: 1, archivedAt: null, updatedAt: '2026-10-13T00:00:00Z' }];
 function render() { mocks.index = 0; return InquiryReplyTemplateTools({ body: '고객별 미저장 답변', onInsert: vi.fn() }) as Element; }
 function nodes(node: ReactNode): Element[] { return Children.toArray(node).flatMap(value => isValidElement<Record<string, unknown>>(value) ? [value, ...nodes(value.props.children as ReactNode)] : []); }
 function text(node: ReactNode): string { return Children.toArray(node).map(value => isValidElement<Record<string, unknown>>(value) ? text(value.props.children as ReactNode) : String(value)).join(''); }
-function button(root: ReactNode, label: string) { const result = nodes(root).find(node => node.type === 'button' && text(node.props.children as ReactNode) === label); if (!result) throw new Error(`Missing button ${label}`); return result; }
+/* 버튼은 네이티브 <button>이거나 kit Button(템플릿 룩, ADR-0028)이다. */
+function button(root: ReactNode, label: string) { const result = nodes(root).find(node => (node.type === 'button' || node.type === Button) && text(node.props.children as ReactNode) === label); if (!result) throw new Error(`Missing button ${label}`); return result; }
 function click(node: Element) { (node.props.onClick as () => void)(); }
 function change(root: ReactNode, label: string, value: string) {
   const wrapper = nodes(root).find(node => node.type === 'label' && text(node.props.children as ReactNode).startsWith(label));
@@ -41,7 +43,7 @@ function fieldValue(root: ReactNode, label: string) {
 async function settle() { for (let i = 0; i < 12; i++) await Promise.resolve(); }
 async function open() { click(button(render(), '답변 템플릿 불러오기')); await settle(); }
 function submit() {
-  const form = nodes(render()).find(node => node.type === 'form' && node.props.className === 'admin-cs-template__editor');
+  const form = nodes(render()).find(node => node.type === 'form' && node.props['data-cs-template'] === 'editor');
   (form!.props.onSubmit as (event: unknown) => void)({ preventDefault() {} });
 }
 beforeEach(() => { vi.clearAllMocks(); mocks.states = []; mocks.index = 0; mocks.draftValue = null; mocks.recoveryValue = null; mocks.persisted = null; mocks.list.mockResolvedValue({ data: { rows, total: 2, page: 1 } }); });
@@ -56,7 +58,7 @@ it('검색·창 닫기·다른 템플릿 편집 이후에도 미저장 초안을
   expect(fieldValue(render(), '템플릿 제목')).toBe('B 미저장 제목');
   click(button(nodes(render()).find(node => node.type === 'article' && text(node).includes('기존 A'))!, '수정'));
   expect(fieldValue(render(), '템플릿 내용')).toBe('A 미저장 문구');
-  const search = nodes(render()).find(node => node.type === 'form' && node.props.className === 'admin-cs-template__search')!;
+  const search = nodes(render()).find(node => node.type === 'form' && node.props['data-cs-template'] === 'search')!;
   (search.props.onSubmit as (event: unknown) => void)({ preventDefault() {} }); await settle();
   expect(fieldValue(render(), '템플릿 내용')).toBe('A 미저장 문구');
 });

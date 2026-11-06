@@ -20,13 +20,15 @@ vi.mock('react', async () => {
   } };
 });
 import { CsReplyTemplateTools } from './CsReplyTemplateTools';
+import { Button } from '@/components/admin/kit/ui/button';
 type Element = ReactElement<Record<string, unknown>>;
 const rows = [{ id: '10000000-0000-4000-8000-000000000001', surface: 'review', category: 'other', title: '기존 A', body: 'A 본문', revision: 1, archivedAt: null, updatedAt: '2026-10-13T00:00:00Z' },
   { id: '10000000-0000-4000-8000-000000000002', surface: 'review', category: 'shipping', title: '기존 B', body: 'B 본문', revision: 1, archivedAt: null, updatedAt: '2026-10-13T00:00:00Z' }];
 function render() { mocks.index = 0; return CsReplyTemplateTools({ accountId: 'staff', surface: 'review', body: '미저장 리뷰 답글', onInsert: vi.fn() }) as Element; }
 function nodes(node: ReactNode): Element[] { return Children.toArray(node).flatMap(value => isValidElement<Record<string, unknown>>(value) ? [value, ...nodes(value.props.children as ReactNode)] : []); }
 function text(node: ReactNode): string { return Children.toArray(node).map(value => isValidElement<Record<string, unknown>>(value) ? text(value.props.children as ReactNode) : String(value)).join(''); }
-function button(root: ReactNode, label: string) { const result = nodes(root).find(node => node.type === 'button' && text(node.props.children as ReactNode) === label); if (!result) throw new Error(`Missing button ${label}`); return result; }
+/* 버튼은 네이티브 <button>이거나 kit Button(템플릿 룩, ADR-0028)이다. */
+function button(root: ReactNode, label: string) { const result = nodes(root).find(node => (node.type === 'button' || node.type === Button) && text(node.props.children as ReactNode) === label); if (!result) throw new Error(`Missing button ${label}`); return result; }
 function click(node: Element) { (node.props.onClick as () => void)(); }
 function input(root: ReactNode, label: string) {
   const wrapper = nodes(root).find(node => node.type === 'label' && text(node.props.children as ReactNode).startsWith(label));
@@ -35,7 +37,7 @@ function input(root: ReactNode, label: string) {
 }
 function change(label: string, value: string) { (input(render(), label).props.onChange as (event: unknown) => void)({ target: { value } }); }
 function edit(title: string) { click(button(nodes(render()).find(node => node.type === 'article' && text(node).includes(title))!, '수정')); }
-function submit() { (nodes(render()).find(node => node.type === 'form' && node.props.className === 'admin-cs-template__editor')!.props.onSubmit as (event: unknown) => void)({ preventDefault() {} }); }
+function submit() { (nodes(render()).find(node => node.type === 'form' && node.props['data-cs-template'] === 'editor')!.props.onSubmit as (event: unknown) => void)({ preventDefault() {} }); }
 async function settle() { for (let i = 0; i < 14; i++) await Promise.resolve(); }
 async function open() { click(button(render(), '답변 템플릿 불러오기')); await settle(); }
 function reload() { mocks.recovery = mocks.persisted; mocks.value = null; mocks.states = []; }

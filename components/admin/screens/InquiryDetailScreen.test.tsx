@@ -104,7 +104,7 @@ describe('InquiryDetailScreen', () => {
     const html = renderToStaticMarkup(<InquiryDetailScreen embedded backHref="/admin/cs/inquiries" detail={detail()} now={NOW} />);
     expect(html).toContain('고객문의 내용 보기');
     expect(html).toContain('aria-label="판매자 답변 처리"');
-    expect(html.match(/<strong>답변 작성<\/strong>/g)).toHaveLength(1);
+    expect(html.match(/<h3[^>]*>답변 작성<\/h3>/g)).toHaveLength(1);
     expect(html).toContain('주문한 지 일주일이 지났어요');
     expect(html).toContain(`/admin/sales/orders/${ORDER_ID}`);
     expect(html).not.toContain('<dialog');
@@ -115,7 +115,7 @@ describe('InquiryDetailScreen', () => {
   it('팝업 안 문의 목록 링크는 스크롤을 건드리지 않고 닫는다', () => {
     const embedded = renderToStaticMarkup(<InquiryDetailScreen embedded backHref="/admin/cs/inquiries?page=3" detail={detail()} now={NOW} />);
     expect(embedded).toMatch(/<a href="\/admin\/cs\/inquiries\?page=3" data-scroll="false" data-replace="true"[^>]*>← 문의 목록<\/a>/);
-    expect(render()).toMatch(/<a href="\/admin\/cs\/inquiries\?status=open&amp;page=1" class="mono"[^>]*>← 문의 목록<\/a>/);
+    expect(render()).toMatch(/<a href="\/admin\/cs\/inquiries\?status=open&amp;page=1" class="[^"]*"[^>]*>← 문의 목록<\/a>/);
   });
 
   it('자동 안내가 있어도 답변자·담당자로 표시하지 않고 미답변 기한을 유지한다', () => {

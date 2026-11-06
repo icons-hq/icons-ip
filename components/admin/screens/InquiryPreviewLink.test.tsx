@@ -14,16 +14,23 @@ describe('InquiryPreviewLink', () => {
 
   /* R4: 상세 팝업을 서버에서 읽는 동안에도 클릭이 먹혔다는 표시가 즉시 보여야 한다. */
   it('누른 직후 이동이 끝나기 전까지 여는 중을 알린다', () => {
-    const idle = renderToStaticMarkup(<InquiryPreviewLink className="admin-cs-open" href="/admin/cs/inquiries?inquiryId=a">답변처리</InquiryPreviewLink>);
+    const idle = renderToStaticMarkup(<InquiryPreviewLink button className="preview-action" href="/admin/cs/inquiries?inquiryId=a">답변처리</InquiryPreviewLink>);
     expect(idle).toContain('href="/admin/cs/inquiries?inquiryId=a"');
-    expect(idle).toContain('class="admin-cs-open"');
+    expect(idle).toContain('class="preview-action"');
+    expect(idle).toContain('data-slot="button"');
     expect(idle).toContain('답변처리');
     expect(idle).toContain('aria-live="polite"');
     expect(idle).not.toContain('여는 중');
 
     mocks.pending = true;
-    const pending = renderToStaticMarkup(<InquiryPreviewLink className="admin-cs-open" href="/admin/cs/inquiries?inquiryId=a">답변처리</InquiryPreviewLink>);
+    const pending = renderToStaticMarkup(<InquiryPreviewLink button className="preview-action" href="/admin/cs/inquiries?inquiryId=a">답변처리</InquiryPreviewLink>);
     expect(pending).toContain('여는 중');
     expect(pending).toContain('data-pending="true"');
+  });
+
+  it('제목 링크는 버튼 표시 없이 같은 팝업 주소로 간다', () => {
+    const html = renderToStaticMarkup(<InquiryPreviewLink href="/admin/cs/inquiries?inquiryId=a">배송 문의</InquiryPreviewLink>);
+    expect(html).toContain('href="/admin/cs/inquiries?inquiryId=a"');
+    expect(html).not.toContain('data-slot="button"');
   });
 });
