@@ -243,7 +243,8 @@ export function ShippingChargeGroupEditor({ start, identity, scope, origins, car
   </CustomerServiceDialog>;
 }
 
-function GroupsWorkspace({ identity, scope, origins, carriers, canEdit, canManageRegional }: {
+/** 묶음그룹 조회·목록·편집 작업 영역. 세션이 확인된 뒤 ShippingChargeGroupsPanel이 그린다(테스트는 직접 그린다). */
+export function GroupsWorkspace({ identity, scope, origins, carriers, canEdit, canManageRegional }: {
   identity: ShippingChargeGroupIdentity; scope: ShippingChargeGroupScope; origins: GoodsFulfillmentOrigin[]; carriers: EditableCarrier[];
   canEdit: boolean; canManageRegional: boolean;
 }) {
@@ -257,10 +258,16 @@ function GroupsWorkspace({ identity, scope, origins, carriers, canEdit, canManag
     const ticket = scope.capture(); if (!ticket || lane.current) return;
     lane.current = true; setBusy(true); setError('');
     try {
-      const result = await listShippingChargeGroupsAction(next, { expectedActorId, expectedSessionId });
+      let request = next, result = await listShippingChargeGroupsAction(request, { expectedActorId, expectedSessionId });
+      /* 보관·사용 안 함으로 마지막 페이지가 비면(같은 페이지를 다시 읽을 때) 마지막 유효 페이지를 다시 읽는다 —
+         빈 페이지에 남으면 공용 페이지 이동은 범위 안으로 보정해 그리므로 돌아갈 '이전'이 없다. */
+      if (!('error' in result) && alive.current && scope.canApply(ticket)) {
+        const lastPage = Math.max(1, Math.ceil(result.data.total / result.data.pageSize));
+        if (request.page > lastPage) { request = { ...request, page: lastPage }; result = await listShippingChargeGroupsAction(request, { expectedActorId, expectedSessionId }); }
+      }
       if (!alive.current || !scope.canApply(ticket)) return;
       if ('error' in result) { setData(null); setError(result.error); if (result.authChanged) scope.authenticate(null, null); }
-      else { setData(result.data); setApplied(next); }
+      else { setData(result.data); setApplied(request); }
     } catch { if (alive.current && scope.canApply(ticket)) { setData(null); setError('배송비 묶음그룹을 불러오지 못했습니다. 조회 조건은 유지됩니다.'); } }
     finally { lane.current = false; if (alive.current && scope.canApply(ticket)) setBusy(false); }
   }, [scope, expectedActorId, expectedSessionId]);
