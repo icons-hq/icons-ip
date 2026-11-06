@@ -74,7 +74,7 @@ export async function placeCartTransactionAction(value: unknown): Promise<CartTr
   if (await loadGoodsTransactionRuntimeMode() !== 'transaction') return { ok: false, error: 'checkout_unavailable', uncertain: false };
   let available: boolean;
   try {
-    // 카드 gate는 카트 구성으로 파생한 provider의 것이다 — 19금 굿즈가 섞이면 코페이다.
+    // 카드 gate는 카트 구성으로 파생한 provider의 것이다 — 19금 굿즈가 섞이면 나이스페이다.
     available = input.paymentMethod === 'bank_transfer' ? await bankTransferCheckoutEnabled()
       : goodsCheckoutPaymentsEnabled(input.expectedActorId, await deriveGoodsCartProvider(input.items.map(item => item.goodId)));
   } catch { return { ok: false, error: 'unavailable', uncertain: false }; }

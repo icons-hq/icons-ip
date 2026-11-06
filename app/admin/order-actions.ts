@@ -381,7 +381,7 @@ function staffCancellationError(message: string | null | undefined) {
   }
   if (value.includes('payment_reconciliation_required')) return '결제 결과가 아직 확정되지 않았습니다. 결제 상태를 먼저 확인해주세요.';
   if (value.includes('staff_cancellation_toss_only')) {
-    return '토스 결제 주문만 이 화면에서 전액 취소할 수 있습니다. Korpay·무통장 주문은 기존 수동 절차를 따릅니다.';
+    return '토스·나이스페이 결제 주문만 이 화면에서 전액 취소할 수 있습니다. Korpay·무통장 주문은 기존 수동 절차를 따릅니다.';
   }
   if (value.includes('invalid_staff_cancellation_note')) return '기타 사유는 메모를 5자 이상 입력해주세요(최대 500자).';
   if (value.includes('invalid_staff_cancellation_reason')) return '취소 사유를 선택해주세요.';

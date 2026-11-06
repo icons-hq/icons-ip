@@ -37,6 +37,10 @@ import {
 } from '@/lib/orders/claims';
 import { reconcileOrderCancellation } from '@/lib/orders/cancellation-orchestrator.server';
 import { recoverGoodsPaymentManually } from '@/lib/payments/goods-manual-recovery.server';
+import {
+  automatedCancelProviderLabel,
+  providerCancelsAutomatically,
+} from '@/lib/payments/provider-capabilities';
 import { createClient } from '@/lib/supabase/server';
 
 /* 어드민 클레임 콘솔 액션(#252).
@@ -219,8 +223,8 @@ async function issueApprovedClaimCancellation(
     };
   }
   return {
-    message: provider === 'toss'
-      ? '취소를 승인하고 토스 전액 취소까지 확인했습니다. 주문 취소·재고 복원·카드팩 회수와 환불 원장 기록이 함께 끝났습니다.'
+    message: providerCancelsAutomatically(provider)
+      ? `취소를 승인하고 ${automatedCancelProviderLabel(provider)} 전액 취소까지 확인했습니다. 주문 취소·재고 복원·카드팩 회수와 환불 원장 기록이 함께 끝났습니다.`
       : '취소를 승인하고 주문 취소를 마쳤습니다. 결제 전 주문이라 결제사 취소는 없었습니다.',
   };
 }
@@ -549,7 +553,10 @@ export async function recordOrderClaimRefundAction(
   if (derivedMethod && derivedMethod !== normalized.value.method) {
     return { error: REFUND_METHOD_MISMATCH };
   }
-  const tossPayment = current.payment?.provider === 'toss';
+  const paymentProvider = current.payment?.provider ?? null;
+  const cancelLabel = providerCancelsAutomatically(paymentProvider)
+    ? automatedCancelProviderLabel(paymentProvider)
+    : null;
 
   if (normalized.value.stage === 'completed') {
     const orderId = String(formData.get('orderId') ?? '');
@@ -600,7 +607,7 @@ export async function recordOrderClaimRefundAction(
        보이면 운영자가 같은 돈을 다른 수단으로 다시 돌려준다. 끝난 일을 먼저 말한다. */
     return {
       error: finalizationRan
-        ? `${tossPayment ? '토스 전액 취소와 ' : ''}주문 취소·재고 복원·카드팩 회수는 이미 완료됐습니다. 환불 원장 기록만 실패했습니다 — 다시 환불하지 마세요. ${reason}`
+        ? `${cancelLabel ? `${cancelLabel} 전액 취소와 ` : ''}주문 취소·재고 복원·카드팩 회수는 이미 완료됐습니다. 환불 원장 기록만 실패했습니다 — 다시 환불하지 마세요. ${reason}`
         : reason,
     };
   }
@@ -608,8 +615,8 @@ export async function recordOrderClaimRefundAction(
   revalidateClaimSurfaces(normalized.value.claimId, readClaimType(formData));
   if (normalized.value.stage === 'filed') {
     return {
-      message: tossPayment
-        ? '환불 접수를 기록했습니다. 토스 전액 취소는 [환불 완료 확정]을 누를 때 발행됩니다.'
+      message: cancelLabel
+        ? `환불 접수를 기록했습니다. ${cancelLabel} 전액 취소는 [환불 완료 확정]을 누를 때 발행됩니다.`
         : '환불 접수를 기록했습니다.',
     };
   }
@@ -619,8 +626,8 @@ export async function recordOrderClaimRefundAction(
     return { message: '환불 완료를 원장에 기록했습니다. 주문 취소와 재고 복원은 이미 확정된 상태였습니다.' };
   }
   return {
-    message: tossPayment
-      ? '토스 전액 취소를 확인하고 환불 완료를 기록했습니다. 재고 복원과 카드팩 회수가 함께 확정됐습니다.'
+    message: cancelLabel
+      ? `${cancelLabel} 전액 취소를 확인하고 환불 완료를 기록했습니다. 재고 복원과 카드팩 회수가 함께 확정됐습니다.`
       : '환불 완료를 기록했습니다. 재고 복원과 카드팩 회수가 함께 확정됐습니다.',
   };
 }

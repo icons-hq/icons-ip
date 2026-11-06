@@ -93,7 +93,7 @@ export async function prepareGoodsPaymentAction(
 
   try {
     /* 카드 provider는 주문의 판매 제한 여부에서 파생된다(#392). gate도 파생된
-       provider의 것을 본다 — 제한 주문은 korpay gate가 열릴 때(19금 오픈 트랙)
+       provider의 것을 본다 — 제한 주문은 nicepay gate가 열릴 때(19금 오픈 트랙)
        까지 payment_unavailable로 남는다. DB prepare가 같은 파생을 최종 강제한다. */
     const provider = await deriveGoodsOrderProvider(order.id);
     if (!goodsCheckoutPaymentsEnabled(auth.user.id, provider)) {
@@ -144,7 +144,7 @@ export async function placeOrderAction(
 
   // 수단별로 게이트가 다르다. 무통장에는 결제사가 없으므로 PG rollout gate가
   // 닫혀 있어도 열릴 수 있고, 반대로 계좌가 없으면 카드가 열려 있어도 닫힌다.
-  // 카드 gate는 카트 구성으로 파생한 provider의 것이다 — 19금 굿즈가 섞이면 코페이다.
+  // 카드 gate는 카트 구성으로 파생한 provider의 것이다 — 19금 굿즈가 섞이면 나이스페이다.
   let available: boolean;
   try {
     available = paymentMethod === 'bank_transfer'
