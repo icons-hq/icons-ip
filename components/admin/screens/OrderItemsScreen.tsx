@@ -80,7 +80,8 @@ export function OrderItemsScreen({ data, canManage }: { data: AdminOrderItemData
         <AdminListExportButton href={adminListExportHref('orders', currentHref)} total={data.total} />
       </SalesResultsHeader>
       <p className="text-muted-foreground">조회 조건에 맞는 상품주문 {data.total.toLocaleString('ko-KR')}개 · 주문 {data.orderCount.toLocaleString('ko-KR')}건 · 수량 {data.qty.toLocaleString('ko-KR')}개</p>
-      <ConsoleGrid caption="상품주문 목록" preferencesKey="sales-order-items" columns={columns} selectable={canManage}
+      {/* 16열 표 — 옛 목록처럼 최소 폭을 두어 열이 눌려 글자가 세로로 쌓이지 않게 가로로 스크롤한다. */}
+      <ConsoleGrid className="[&_table]:min-w-[2040px]" caption="상품주문 목록" preferencesKey="sales-order-items" columns={columns} selectable={canManage}
         selectedIds={selection} onSelectionChange={setSelected} emptyLabel="검색 조건에 맞는 상품주문이 없습니다."
         rows={data.rows.map(row => ({ id: row.id, selectable: eligible.has(row.id), selectLabel: `상품주문 ${row.productOrderNumber ?? row.id} 선택`, cells: [
           <Link key="item" className="font-medium tabular-nums underline-offset-4 hover:underline" href={`${adminOrderDetailHrefFromBack(row.orderId, currentHref)}#item-${row.id}`} target="_blank" rel="noopener noreferrer">{row.productOrderNumber ?? row.id}</Link>,

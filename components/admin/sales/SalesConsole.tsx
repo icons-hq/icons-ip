@@ -111,7 +111,7 @@ export function SalesStatusSummary({ items, label }: {
 }) {
   return <nav aria-label={label} className="flex flex-col gap-2" data-sales-summary="">
     <p className="text-xs font-medium text-muted-foreground">{label}</p>
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-[repeat(auto-fill,minmax(8.5rem,1fr))]">
+    <div className="grid grid-cols-2 gap-2 sm:grid-cols-[repeat(auto-fill,minmax(7.5rem,1fr))]">
       {items.map((item) => <Link key={item.href} href={item.href} aria-label={item.count === undefined ? item.label : `${item.label} ${item.count.toLocaleString('ko-KR')}건`} aria-current={item.active ? 'page' : undefined} data-urgent={item.urgent || undefined}
         className="flex min-w-0 flex-col gap-1 rounded-lg border bg-card px-3 py-2.5 transition-colors hover:bg-accent aria-[current=page]:border-primary aria-[current=page]:ring-1 aria-[current=page]:ring-primary">
         <span className="truncate text-xs text-muted-foreground">{item.label}</span>
