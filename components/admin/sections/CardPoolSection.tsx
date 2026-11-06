@@ -2,7 +2,7 @@
 
 import { AdminFormGrid } from '@/components/admin/console/AdminKit';
 import Link from 'next/link';
-import { useActionState, useMemo, useState } from 'react';
+import { useActionState, useId, useMemo, useState } from 'react';
 import {
   setAdminPoolOddsAction,
   upsertAdminCardPoolAction,
@@ -11,7 +11,11 @@ import {
 import type { AdminCardPoolRecord, AdminCardRecord } from '@/lib/admin/catalog.server';
 import { adminFormRemountKey, resolveFieldDefault } from '@/lib/admin/form-state';
 import type { RarityKey } from '@/lib/rarity';
+import { buttonVariants } from '@/components/admin/kit/ui/button';
+import { Input } from '@/components/admin/kit/ui/input';
+import { Label } from '@/components/admin/kit/ui/label';
 import { ErrorText, Field, FormShell, RecordList, SelectField } from '../fields';
+import { MasterDetail, SECTION_CARD, SECTION_NOTE, SECTION_WARNING, SectionHeading } from './SectionLayout';
 
 const emptyState: AdminCatalogActionState = {};
 const RARITIES: RarityKey[] = ['N', 'R', 'SR', 'SSR', 'HOLO'];
@@ -70,9 +74,10 @@ export function CardPoolSection({
     [cards, selected?.id],
   );
 
+  /* 목록 열에는 카드풀 목록만, 편집 열에는 선택한 카드풀의 정보 → 발급 확률 → 소속 카드를 차례로 둔다. */
   return (
-    <div className="col" style={{ gap: 16 }}>
-      <div className="admin-master-detail">
+    <MasterDetail
+      list={(
         <RecordList
           activeId={selected?.id ?? null}
           ariaLabel="카드풀 목록"
@@ -82,25 +87,23 @@ export function CardPoolSection({
           onNew={() => onSelect(null)}
           onSelect={onSelect}
         />
-        <PoolForm
-          draftActiveFrom={draftActiveFrom}
-          draftId={draftId}
-          ipOptions={ipOptions}
-          key={`${selected?.id ?? draftId}-${operationId}-${selected?.updatedAt ?? 'new'}`}
-          operationId={operationId}
-          selected={selected}
-        />
-      </div>
-
-      <div className="admin-master-detail">
-        <OddsForm
-          key={`${selected?.id ?? 'no-pool'}-${oddsOperationId}`}
-          operationId={oddsOperationId}
-          selected={selected}
-        />
-        <PoolCardRoster cards={poolCards} selected={selected} />
-      </div>
-    </div>
+      )}
+    >
+      <PoolForm
+        draftActiveFrom={draftActiveFrom}
+        draftId={draftId}
+        ipOptions={ipOptions}
+        key={`${selected?.id ?? draftId}-${operationId}-${selected?.updatedAt ?? 'new'}`}
+        operationId={operationId}
+        selected={selected}
+      />
+      <OddsForm
+        key={`${selected?.id ?? 'no-pool'}-${oddsOperationId}`}
+        operationId={oddsOperationId}
+        selected={selected}
+      />
+      <PoolCardRoster cards={poolCards} selected={selected} />
+    </MasterDetail>
   );
 }
 
@@ -129,7 +132,7 @@ function PoolForm({
   const field = (name: string) => resolveFieldDefault(state, defaults, name, { scopeKey: 'id' });
 
   return (
-    <form action={action} className="card col wc-admin-kit wc-admin-kit__card" key={adminFormRemountKey(state, defaults)} style={{ gap: 14 }}>
+    <form action={action} className={SECTION_CARD} key={adminFormRemountKey(state, defaults)}>
       <input name="operationId" type="hidden" value={operationId} />
       <input name="id" type="hidden" value={selected?.id ?? draftId} />
       <AdminFormGrid>
@@ -174,7 +177,7 @@ function PoolForm({
           type="datetime-local"
         />
       </AdminFormGrid>
-      {noIps && <p role="status" style={{ margin: 0 }}>먼저 IP를 등록해주세요.</p>}
+      {noIps && <p className={SECTION_NOTE} role="status">먼저 IP를 등록해주세요.</p>}
       <FormShell disabled={noIps} pending={pending} state={state} />
     </form>
   );
@@ -188,6 +191,7 @@ function OddsForm({
   selected: AdminCardPoolRecord | null;
 }) {
   const [state, action, pending] = useActionState(setAdminPoolOddsAction, emptyState);
+  const idPrefix = useId();
   const [values, setValues] = useState<OddsInputs>(() => Object.fromEntries(
     RARITIES.map((rarity) => [rarity, probabilityToPercent(selected?.odds[rarity] ?? 0)]),
   ) as OddsInputs);
@@ -198,31 +202,30 @@ function OddsForm({
     : `합계 ${Number((total / 1_000).toFixed(3))}% · ${validTotal ? '저장 가능' : '100% 필요'}`;
 
   return (
-    <form action={action} className="card col wc-admin-kit wc-admin-kit__card" style={{ gap: 14 }}>
+    <form action={action} className={SECTION_CARD}>
       <input name="operationId" type="hidden" value={operationId} />
       <input name="poolId" type="hidden" value={selected?.id ?? ''} />
-      <div>
-        <strong>등급별 발급 확률</strong>
-        <p style={{ color: 'var(--wc-ink-tertiary)', fontSize: 12, margin: '6px 0 0' }}>퍼센트 합계가 정확히 100%여야 저장됩니다.</p>
-      </div>
-      {!selected && <div className="card wc-admin-kit wc-admin-kit__card" role="status" style={{  }}>카드풀을 먼저 저장해주세요.</div>}
+      <SectionHeading description="퍼센트 합계가 정확히 100%여야 저장됩니다." title="등급별 발급 확률" />
+      {!selected && <div className={SECTION_NOTE} role="status">카드풀을 먼저 저장해주세요.</div>}
       {selected && !selected.oddsConfigured && (
-        <div className="card wc-admin-kit wc-admin-kit__card" role="status" style={{ color: 'var(--wc-danger)' }}>
+        <div className={SECTION_WARNING} role="status">
           등급별 발급 확률이 아직 설정되지 않았습니다.
         </div>
       )}
-      <AdminFormGrid>
+      <div className="grid grid-cols-2 gap-x-4 gap-y-5 sm:grid-cols-3 xl:grid-cols-5">
         {RARITIES.map((rarity) => {
           const name = `odds${rarity[0]}${rarity.slice(1).toLowerCase()}`;
+          const inputId = `${idPrefix}-${name}`;
           const errorId = state.errors?.[name] ? `${name}-error` : undefined;
           return (
-            <label className="col" key={rarity} style={{ gap: 7 }}>
-              <span className="mono" style={{ color: 'var(--wc-ink-tertiary)', fontSize: 11 }}>{rarity} (%)</span>
-              <input
+            <div className="flex min-w-0 flex-col gap-2" key={rarity}>
+              <Label htmlFor={inputId}>{rarity} (%)</Label>
+              <Input
                 aria-describedby={errorId}
                 aria-invalid={Boolean(errorId)}
-                className="admin-field-control"
+                className="tabular-nums"
                 disabled={!selected}
+                id={inputId}
                 max={100}
                 min={0}
                 name={name}
@@ -231,22 +234,21 @@ function OddsForm({
                 step="0.001"
                 type="number"
                 value={values[rarity]}
-                style={{ padding: '0 12px', width: '100%' }}
               />
               <ErrorText id={errorId}>{state.errors?.[name]}</ErrorText>
-            </label>
+            </div>
           );
         })}
-      </AdminFormGrid>
+      </div>
       <div
         aria-live="polite"
+        className={`text-sm font-semibold tabular-nums ${validTotal ? 'text-[var(--wc-success)]' : 'text-destructive'}`}
         role="status"
-        style={{ color: validTotal ? 'var(--wc-success)' : 'var(--wc-danger)', fontSize: 13, fontWeight: 800 }}
       >
         {totalLabel}
       </div>
       <ErrorText>{state.errors?.oddsTotal}</ErrorText>
-      <div className="card wc-admin-kit wc-admin-kit__card" style={{ color: 'var(--wc-ink-tertiary)', fontSize: 12, lineHeight: 1.6 }}>
+      <div className={SECTION_NOTE}>
         변경한 구성과 확률은 저장 즉시 적용되며, 이미 발급된 미사용 카드팩도 개봉 시점의 최신 구성과 확률을 사용합니다.
       </div>
       <FormShell disabled={!selected || !validTotal} pending={pending} state={state} />
@@ -276,27 +278,28 @@ function PoolCardRoster({
     : [];
 
   return (
-    <section aria-label="선택한 카드풀 소속 카드" className="card col wc-admin-kit wc-admin-kit__card" style={{ gap: 12 }}>
-      <div>
-        <strong>소속 카드</strong>
-        <p style={{ color: 'var(--wc-ink-tertiary)', fontSize: 12, margin: '6px 0 0' }}>카드 편집 화면에서 풀 바인딩을 변경합니다.</p>
-      </div>
-      {!selected && <p style={{ color: 'var(--wc-ink-tertiary)', margin: 0 }}>카드풀을 선택해주세요.</p>}
-      {selected && !cards.length && <p style={{ color: 'var(--wc-ink-tertiary)', margin: 0 }}>연결된 카드가 없습니다.</p>}
+    <section aria-label="선택한 카드풀 소속 카드" className={SECTION_CARD}>
+      <SectionHeading description="카드 편집 화면에서 풀 바인딩을 변경합니다." title="소속 카드" />
+      {!selected && <p className="text-sm text-muted-foreground">카드풀을 선택해주세요.</p>}
+      {selected && !cards.length && <p className="text-sm text-muted-foreground">연결된 카드가 없습니다.</p>}
       {missingRarities.map((rarity) => (
-        <div className="card wc-admin-kit wc-admin-kit__card" key={rarity} role="alert" style={{ color: 'var(--wc-danger)' }}>
+        <div className={SECTION_WARNING} key={rarity} role="alert">
           {rarity} 등급 카드가 없습니다.
         </div>
       ))}
-      {cards.map((card) => (
-        <div className="card row wc-admin-kit wc-admin-kit__card" key={card.id} style={{ alignItems: 'center', gap: 12, justifyContent: 'space-between' }}>
-          <div>
-            <strong>{card.archivedAt ? `[보관] ${card.name}` : card.name}</strong>
-            <div className="mono" style={{ color: 'var(--wc-ink-tertiary)', fontSize: 11, marginTop: 4 }}>{card.rarity} · {card.id}</div>
-          </div>
-          <Link className="btn" href={`/admin/catalog/cards?cardId=${encodeURIComponent(card.id)}`}>카드 편집</Link>
-        </div>
-      ))}
+      {cards.length ? (
+        <ul className="flex flex-col divide-y rounded-lg border">
+          {cards.map((card) => (
+            <li className="flex flex-wrap items-center justify-between gap-3 px-3 py-2.5" key={card.id}>
+              <div className="flex min-w-0 flex-col gap-0.5">
+                <span className="font-medium break-words">{card.archivedAt ? `[보관] ${card.name}` : card.name}</span>
+                <span className="text-xs text-muted-foreground tabular-nums">{card.rarity} · {card.id}</span>
+              </div>
+              <Link className={buttonVariants({ size: 'sm', variant: 'outline' })} data-slot="button" href={`/admin/catalog/cards?cardId=${encodeURIComponent(card.id)}`}>카드 편집</Link>
+            </li>
+          ))}
+        </ul>
+      ) : null}
     </section>
   );
 }
