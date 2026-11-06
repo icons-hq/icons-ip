@@ -11,8 +11,8 @@ const render = (changes: Partial<GoodsPriceDraft> = {}, showDiscountRate = 'true
 
 /** 할인 입력 묶음(설정안함이면 hidden) 안의 마크업 */
 const discountBlock = (html: string) => {
-  const start = html.indexOf('class="goods-price-editor__discount"');
-  return html.slice(start, html.indexOf('class="goods-price-editor__result"', start));
+  const start = html.indexOf('data-good-price-discount=""');
+  return html.slice(start, html.indexOf('data-good-price-result=""', start));
 };
 
 describe('판매가·할인 입력', () => {
@@ -36,7 +36,7 @@ describe('판매가·할인 입력', () => {
       expect(html).toContain('기간 할인에도 적용됩니다');
       expect(html).toMatch(/<option value="false" selected="">숨김 · 할인가만 표시<\/option>/);
     }
-    expect(render()).toContain('class="goods-price-editor__discount" hidden=""');
+    expect(render()).toContain('data-good-price-discount="" hidden=""');
   });
 
   /* 2026-10-07 QA: 10%로 저장한 할인을 다시 열면 1,200원으로 보여, 판매가를 바꿔도 할인율이 따라가지 않는 것을 몰랐다. */

@@ -27,7 +27,7 @@ beforeEach(() => {
   vi.stubGlobal('HTMLDetailsElement', class {});
   vi.stubGlobal('document', {
     getElementById: (id: string) => { sections.push(id); return { closest: () => ({ querySelectorAll: () => Object.values(inputs) }), querySelector: () => null }; },
-    querySelector: (selector: string) => selector === '.admin-good-workspace__errors' ? summary : null,
+    querySelector: (selector: string) => selector === '[data-good-workspace-errors]' ? summary : null,
   });
 });
 afterEach(() => vi.unstubAllGlobals());

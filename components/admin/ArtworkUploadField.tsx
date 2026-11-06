@@ -303,6 +303,7 @@ export function ArtworkUploadField({
     <section
       data-auto-upload={autoUpload || undefined}
       data-upload-state={uploadState}
+      data-artwork-upload-field=""
       className={`card col wc-admin-artwork-upload-field${compact ? ' wc-admin-artwork-upload-field--compact' : ''}`}
       data-artwork-kind={kind}
     >

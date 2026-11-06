@@ -354,7 +354,7 @@ export function GoodsOptionEditor({
     record(plan.message, plan.attention);
   }
 
-  return <div className="col admin-option-editor wc-admin-option-artwork" style={{ gap: 16 }} data-option-mode={single ? 'single' : 'multiple'}>
+  return <div className="col admin-option-editor wc-admin-option-artwork" style={{ gap: 16 }} data-option-editor="" data-option-mode={single ? 'single' : 'multiple'}>
     <section className="goods-option-stock" aria-label="재고수량">
       {singleRow ? <SingleStock structureLocked={structureLocked} row={singleRow} basePrice={basePrice} predictedCode={predictedCodes[0] ?? null} update={update} />
         : <p className="goods-option-stock__total">

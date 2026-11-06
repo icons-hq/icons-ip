@@ -403,7 +403,7 @@ export function GoodsImageGrid({ errors = {}, initialPaths, initialUrls, onPrevi
     const state = tile?.status ?? 'empty';
     const stateText = tile?.status === 'uploading' ? '업로드 중…' : tile?.status === 'uploaded' ? '업로드 완료 · 저장 전' : tile?.status === 'failed' ? '업로드 실패' : null;
     return <li
-      className="wc-admin-image-tile wc-admin-artwork-upload-field"
+      className="wc-admin-image-tile wc-admin-artwork-upload-field" data-artwork-upload-field=""
       data-add-tile={isAdd || undefined}
       data-drop-target={drag && drag.over === position && drag.from !== position ? 'true' : undefined}
       data-dragging={drag?.from === position || undefined}

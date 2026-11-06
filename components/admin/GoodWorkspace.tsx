@@ -1,7 +1,8 @@
 'use client';
 
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ComponentProps, type Dispatch, type ReactNode, type SetStateAction, type SyntheticEvent } from 'react';
-import { Icon } from '@/components/ui/Icon';
+import { ChevronDown, ChevronRight } from 'lucide-react';
+import { buttonVariants } from '@/components/admin/kit/ui/button';
 import { GOOD_EDITOR_SECTIONS, goodFieldSection, orderedGoodErrors } from '@/lib/admin/good-workspace';
 import { EMPTY_GOOD_WORKSPACE_SECTIONS, GOOD_WORKSPACE_ERROR_SECTIONS, type GoodWorkspaceErrorField, type GoodWorkspaceSectionsDraft } from '@/lib/admin/good-workspace-sections';
 import { initialGoodsOptionRows, type GoodsOptionRow } from '@/lib/admin/goods-option-editor';
@@ -102,7 +103,7 @@ export function focusGoodWorkspaceTarget(id: string, field?: string) {
   if (field) {
     const named = Array.from((section.closest('form') ?? section).querySelectorAll<HTMLElement>('[name]')).filter((element) => element.getAttribute('name') === field);
     const input = named.find((element) => element.getAttribute('type') !== 'hidden' && !element.hasAttribute('disabled') && !element.closest('[hidden]'));
-    const artwork = named[0]?.closest('.wc-admin-artwork-upload-field');
+    const artwork = named[0]?.closest('[data-artwork-upload-field]');
     const upload = artwork?.querySelector<HTMLInputElement>('input[type="file"]');
     const invalid = (artwork ?? section).querySelector<HTMLElement>('input:invalid, select:invalid, textarea:invalid');
     target = input ?? invalid ?? upload
@@ -130,9 +131,18 @@ export function useFocusFirstGoodError(attempt: number | undefined, errors?: Rec
     if (!entries.length) return;
     const field = entries.find(([name]) => operationTarget(name) || GOOD_EDITOR_SECTIONS.some(section => (section.fields as readonly string[]).includes(name)))?.[0];
     if (field) { const target = errorTarget(field); focusGoodWorkspaceTarget(target.id, target.field); }
-    else document.querySelector<HTMLElement>('.admin-good-workspace__errors')?.focus();
+    else document.querySelector<HTMLElement>('[data-good-workspace-errors]')?.focus();
   }, [attempt, errors]);
 }
+
+/*
+ * 편집기 섹션 카드(kit Card 모양 · AdminSectionCard와 같은 머리 구성). 접힘은 네이티브 details라 접어도 입력이 그대로 제출되고,
+ * 펼침 상태는 키 밖에 남는다(R14). 셸 상단바(48px)는 html scroll-padding이, 그 아래 고정 섹션 내비는 scroll-mt가 비켜 준다.
+ */
+const SECTION_CLASS = 'group/section min-w-0 scroll-mt-24 rounded-xl border bg-card text-sm text-card-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50';
+const SECTION_SUMMARY_CLASS = 'flex min-h-14 cursor-pointer list-none items-center gap-3 rounded-xl px-4 py-3 outline-none select-none group-open/section:rounded-b-none focus-visible:ring-3 focus-visible:ring-ring/50 sm:px-5 [&::-webkit-details-marker]:hidden';
+const SECTION_BODY_CLASS = 'flex min-w-0 flex-col gap-5 border-t px-4 py-4 sm:px-5 sm:py-5';
+const SECTION_CHEVRON = <ChevronDown aria-hidden="true" className="size-4 shrink-0 text-muted-foreground transition-transform group-open/section:rotate-180 motion-reduce:transition-none" />;
 
 export function GoodWorkspaceNavigation() {
   useEffect(() => {
@@ -145,8 +155,9 @@ export function GoodWorkspaceNavigation() {
     window.addEventListener('hashchange', openHash);
     return () => window.removeEventListener('hashchange', openHash);
   }, []);
-  return <nav aria-label="상품 작성 섹션" className="admin-good-workspace__nav">
-    {GOOD_EDITOR_SECTIONS.map((section, index) => <a key={section.key} href={`#good-section-${section.key}`} onClick={(event) => {
+  /* 셸 상단바(h-12) 바로 아래에 붙는다. 좁은 화면에서는 한 줄로 가로 이동하고, 넓은 화면에서는 줄을 바꾼다. */
+  return <nav aria-label="상품 작성 섹션" className="sticky top-14 z-20 flex min-w-0 gap-1 overflow-x-auto rounded-lg border bg-background/95 p-1 shadow-xs backdrop-blur supports-[backdrop-filter]:bg-background/80 xl:flex-wrap xl:overflow-visible print:hidden" data-good-workspace-nav="">
+    {GOOD_EDITOR_SECTIONS.map((section, index) => <a className="inline-flex h-7 shrink-0 items-center rounded-md px-2.5 text-sm whitespace-nowrap text-muted-foreground transition-colors outline-none hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50" key={section.key} href={`#good-section-${section.key}`} onClick={(event) => {
       event.preventDefault(); focusGoodWorkspaceTarget(`good-section-${section.key}`, section.fields[0]);
     }}>{index + 1}. {section.label}</a>)}
   </nav>;
@@ -155,20 +166,25 @@ export function GoodWorkspaceNavigation() {
 export function GoodWorkspaceErrors({ errors }: { errors?: Record<string, string | undefined> }) {
   const entries = orderedGoodErrors(errors);
   if (!entries.length) return null;
-  return <section aria-label="저장 오류 요약" className="admin-good-workspace__errors" role="alert" tabIndex={-1}>
-    <h3>저장하지 못했습니다 · {entries.length}개 확인</h3>
-    <ul>{entries.map(([field, message]) => { const target = errorTarget(field); return <li key={field}><a href={`#${target.id}`} onClick={(event) => {
+  return <section aria-label="저장 오류 요약" className="flex min-w-0 flex-col gap-2 rounded-lg border border-destructive/30 bg-destructive/5 px-4 py-3 text-sm text-destructive outline-none focus-visible:ring-3 focus-visible:ring-destructive/20" data-good-workspace-errors="" role="alert" tabIndex={-1}>
+    <h3 className="font-medium">저장하지 못했습니다 · {entries.length}개 확인</h3>
+    <ul className="flex list-disc flex-col gap-1 pl-5">{entries.map(([field, message]) => { const target = errorTarget(field); return <li key={field}><a className="underline underline-offset-4 wrap-anywhere hover:text-destructive/80" href={`#${target.id}`} onClick={(event) => {
       event.preventDefault(); focusGoodWorkspaceTarget(target.id, target.field);
     }}>{message}</a></li>; })}</ul>
-    <p>입력값과 업로드한 이미지가 유지됩니다. 해당 항목을 수정하고 다시 저장해주세요.</p>
+    <p className="text-muted-foreground">입력값과 업로드한 이미지가 유지됩니다. 해당 항목을 수정하고 다시 저장해주세요.</p>
   </section>;
 }
 
 /** 섹션 안의 선택 입력 묶음. `id`로 펼침 상태를 키 밖에 기억해 저장 시도 뒤에도 유지한다(R14). */
 export function GoodOptionalFields({ id, title, summary, children, hasErrors = false }: { id: string; title: string; summary: string; children: ReactNode; hasErrors?: boolean }) {
-  return <GoodWorkspaceDetails stateId={id} className="admin-good-workspace__optional" forceOpen={hasErrors}>
-    <summary>{title}<span>{summary}</span>{hasErrors ? <strong>오류 확인</strong> : null}</summary>
-    <div className="col">{children}</div>
+  return <GoodWorkspaceDetails stateId={id} className="group/optional min-w-0 rounded-lg border" data-good-optional="" forceOpen={hasErrors}>
+    <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-2 gap-y-1 rounded-lg px-3 py-2.5 outline-none select-none group-open/optional:rounded-b-none focus-visible:ring-3 focus-visible:ring-ring/50 [&::-webkit-details-marker]:hidden">
+      <ChevronRight aria-hidden="true" className="size-4 shrink-0 text-muted-foreground transition-transform group-open/optional:rotate-90 motion-reduce:transition-none" />
+      <span className="text-sm font-medium text-foreground" data-good-optional-title="">{title}</span>
+      <span className="min-w-0 text-xs text-muted-foreground wrap-anywhere">{summary}</span>
+      {hasErrors ? <strong className="text-xs font-medium text-destructive">오류 확인</strong> : null}
+    </summary>
+    <div className="flex min-w-0 flex-col gap-4 border-t px-3 py-4">{children}</div>
   </GoodWorkspaceDetails>;
 }
 
@@ -177,7 +193,7 @@ export const GOOD_UNSAVED_BASE_COPY = '위 기본 정보에 저장하지 않은 
 
 /** 고정 저장 영역의 저장하기 버튼으로 포커스를 옮긴다(Enter로 바로 저장할 수 있게). */
 export function focusGoodWorkspaceSave() {
-  const button = document.querySelector<HTMLButtonElement>('.admin-good-workspace__save button[name="intent"][value="save"]');
+  const button = document.querySelector<HTMLButtonElement>('[data-good-workspace-save] button[name="intent"][value="save"]');
   if (!button) return;
   button.scrollIntoView({ block: 'nearest', behavior: 'instant' });
   button.focus({ preventScroll: true });
@@ -189,9 +205,9 @@ export function focusGoodWorkspaceSave() {
  */
 export function GoodOperationDisabledNotice({ reason, unsaved = false }: { reason: string; unsaved?: boolean }) {
   if (!reason) return null;
-  return <div className="admin-good-workspace__disabled" role="status">
-    <p>{unsaved ? GOOD_UNSAVED_BASE_COPY : reason}</p>
-    {unsaved ? <button type="button" className="wc-admin-kit__button" onClick={focusGoodWorkspaceSave}>저장 위치로 이동</button> : null}
+  return <div className="flex flex-wrap items-center gap-x-4 gap-y-2 rounded-lg border bg-muted/40 px-3 py-2.5 text-sm" data-good-operation-notice="" role="status">
+    <p className="min-w-0 flex-1 text-foreground">{unsaved ? GOOD_UNSAVED_BASE_COPY : reason}</p>
+    {unsaved ? <button type="button" className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" onClick={focusGoodWorkspaceSave}>저장 위치로 이동</button> : null}
   </div>;
 }
 
@@ -210,13 +226,21 @@ export function GoodOperationSection({ id, title, description, children, mode = 
   /* 등록 화면에서 펼쳐 두고 입력한 KC·예약판매는 저장 뒤 같은 자리의 독립 패널도 펼친 채로 이어 보인다. */
   useEffect(() => { if (rememberOpen) setOpen?.(`good-operation-${id}`, true); }, [rememberOpen, setOpen, id]);
   const placeholder = mode === 'placeholder';
-  return <details id={`good-operation-${id}`} className={`admin-good-workspace__operation${placeholder ? ' admin-good-workspace__operation--placeholder' : ''}`}
+  return <details id={`good-operation-${id}`} className={`${SECTION_CLASS}${placeholder ? ' bg-muted/40' : ''}`} data-good-operation={mode}
     tabIndex={-1} {...openProps} aria-disabled={placeholder || undefined}>
-    <summary>{title}<span>{placeholder ? GOOD_OPERATION_PLACEHOLDER_COPY : mode === 'inline' ? '상품과 함께 저장' : '별도 저장'}</span></summary>
-    {placeholder ? <p className="admin-good-workspace__placeholder" role="note">{GOOD_OPERATION_PLACEHOLDER_COPY} {description}</p>
-      : <p>{description} {mode === 'inline' ? '저장하기를 누르면 기본 상품 입력과 함께 한 번에 저장됩니다. 하나라도 실패하면 아무것도 저장되지 않고 입력은 유지됩니다.' : '기본 상품 입력은 함께 저장되지 않습니다.'}</p>}
-    {placeholder ? null : notice}
-    {placeholder ? null : children}
+    <summary className={SECTION_SUMMARY_CLASS}>
+      <span className="flex min-w-0 flex-1 flex-col gap-0.5">
+        <span className={`text-base leading-snug font-medium${placeholder ? ' text-muted-foreground' : ' text-foreground'}`} data-good-operation-title="">{title}</span>
+        <span className="text-sm text-muted-foreground" data-good-operation-mode="">{placeholder ? GOOD_OPERATION_PLACEHOLDER_COPY : mode === 'inline' ? '상품과 함께 저장' : '별도 저장'}</span>
+      </span>
+      {SECTION_CHEVRON}
+    </summary>
+    <div className={SECTION_BODY_CLASS}>
+      {placeholder ? <p className="text-sm text-muted-foreground" role="note">{GOOD_OPERATION_PLACEHOLDER_COPY} {description}</p>
+        : <p className="text-sm text-muted-foreground">{description} {mode === 'inline' ? '저장하기를 누르면 기본 상품 입력과 함께 한 번에 저장됩니다. 하나라도 실패하면 아무것도 저장되지 않고 입력은 유지됩니다.' : '기본 상품 입력은 함께 저장되지 않습니다.'}</p>}
+      {placeholder ? null : notice}
+      {placeholder ? null : children}
+    </div>
   </details>;
 }
 
@@ -225,9 +249,12 @@ export function GoodEditorSection({ id, title, requirement, status, summary, err
   id?: string; title: string; requirement?: string; status?: string; summary?: string; errorCount?: number; children: ReactNode; defaultOpen?: boolean;
 }) {
   const openProps = useSectionOpen(id, defaultOpen, errorCount > 0);
-  return <details id={id} className="admin-good-section" aria-label={title} {...openProps}>
-    <summary><span className="admin-good-section__title">{title}{requirement?.includes('필수') ? <span className="admin-good-section__required" aria-label="필수">*</span> : null}</span>
-      <span className="admin-good-section__summary">{errorCount ? <strong>{errorCount}개 확인 필요</strong> : summary || status}</span><span className="admin-good-section__chevron" aria-hidden="true"><Icon name="chevronRight" size={17} /></span></summary>
-    <div className="admin-good-section__body">{requirement ? <p className="admin-good-section__requirement">{requirement}</p> : null}{children}</div>
+  return <details id={id} className={SECTION_CLASS} aria-label={title} data-good-section="" {...openProps}>
+    <summary className={SECTION_SUMMARY_CLASS}>
+      <span className="shrink-0 text-base leading-snug font-medium text-foreground" data-good-section-title="">{title}{requirement?.includes('필수') ? <span className="ml-0.5 text-destructive" aria-label="필수">*</span> : null}</span>
+      <span className="ml-auto max-w-[55%] min-w-0 text-right text-xs text-muted-foreground wrap-anywhere sm:max-w-[60%] sm:text-sm" data-good-section-summary="">{errorCount ? <strong className="font-medium text-destructive">{errorCount}개 확인 필요</strong> : summary || status}</span>
+      {SECTION_CHEVRON}
+    </summary>
+    <div className={SECTION_BODY_CLASS}>{requirement ? <p className="text-sm text-muted-foreground" data-good-section-requirement="">{requirement}</p> : null}{children}</div>
   </details>;
 }
