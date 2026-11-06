@@ -40,7 +40,7 @@ export interface GoodsTransactionDisplay {
   lines: GoodsTransactionLine[]; shipping: GoodsTransactionShippingGroup[]; totals: GoodsTransactionTotals;
   userCouponId: string | null; storeCreditMaximum: number; paymentMethods: { card: boolean; bankTransfer: boolean };
 }
-export const GOODS_TRANSACTION_ISSUE_CODES = ['address_required', 'invalid_selection', 'goods_unavailable', 'purchase_limit', 'purchase_restricted', 'payment_method_unavailable',
+export const GOODS_TRANSACTION_ISSUE_CODES = ['address_required', 'invalid_selection', 'goods_unavailable', 'adult_verification_required', 'purchase_limit', 'purchase_restricted', 'payment_method_unavailable',
   'shipping_unresolved', 'collect_not_ready', 'delivery_choice_required', 'coupon_unavailable', 'store_credit_unavailable', 'below_minimum_payment',
   'amount_overflow', 'source_changed'] as const;
 export type GoodsTransactionIssueCode = typeof GOODS_TRANSACTION_ISSUE_CODES[number];
