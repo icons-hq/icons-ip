@@ -3,6 +3,9 @@ import { ClaimFeePanel } from '@/components/orders/ClaimFeePanel';
 
 import { GoodsCustomInputsSummary } from '@/components/shop/GoodsCustomInputs';
 import { ShipmentDetails } from '@/components/shop/ShipmentDetails';
+import { buttonVariants } from '@/components/admin/kit/ui/button';
+import { cn } from 'cn';
+import { Card, CardContent, CardHeader } from '@/components/admin/kit/ui/card';
 import { ADMIN_VOCABULARY as V } from '@/lib/admin/vocabulary';
 import { adminClaimReasonText } from '@/lib/admin/claims';
 import Link from 'next/link';
@@ -34,7 +37,7 @@ import { ClaimProgressSummary } from './ClaimProgressSummary';
 import { ClaimContactOperations } from '@/components/admin/ClaimContactOperations';
 import { ClaimContactHistory } from '@/components/claim-contact/ClaimContactHistory';
 
-/* 어드민 클레임 상세(#252).
+/* 어드민 클레임 상세(#252) — 템플릿 룩 kit Card(ADR-0028).
  *
  * 왼쪽이 주문 맥락, 오른쪽이 처리다. 운영자가 승인 버튼을 누르기 전에 확인해야 하는
  * 것 — 품목·금액·결제사·뽑기권 발급/사용 여부·환불계좌 — 이 전부 이 화면에 있어야
@@ -43,7 +46,10 @@ import { ClaimContactHistory } from '@/components/claim-contact/ClaimContactHist
  * 주문의 취소는 사람이 한 번 더 봐야 한다.
  *
  * 타임라인은 감사 로그를 그대로 읽는다. 별도 이력 테이블을 만들면 감사와 화면이
- * 갈라지고, 갈라지면 어느 쪽이 사실인지 알 수 없다. */
+ * 갈라지고, 갈라지면 어느 쪽이 사실인지 알 수 없다.
+ *
+ * 회수 계획·배송비 청구·요청 철회(components/orders)는 고객 화면과 같이 쓰는 부품이라 모양을 그대로 두고
+ * kit Card로 감싸기만 한다. */
 
 const TIMELINE_LABELS: Record<string, string> = {
   'admin.order.claim_intake_created': '판매자 대리 접수',
@@ -107,13 +113,23 @@ const ORDER_STATUS_LABELS: Record<string, string> = {
   canceled: '취소',
 };
 
+/* SLA는 운영자가 가장 먼저 보는 값이라 톤을 데이터 속성으로 남기고, 임박·초과를 의미색으로 강조한다. */
+const SLA_TONE_CLASS = 'data-[sla-tone=warning]:font-semibold data-[sla-tone=warning]:text-[var(--wc-warning)] data-[sla-tone=danger]:font-bold data-[sla-tone=danger]:text-destructive';
+/* 구역 바로가기 — 셸의 콘솔 전환과 같은 모양의 구분 선택. */
+const SECTION_LINK_CLASS = 'inline-flex h-7 items-center rounded-md px-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-background hover:text-foreground';
+const OUTLINE_SM = `${cn(buttonVariants({ size: 'sm', variant: 'outline' }))} w-fit`;
+
 function Row({ label, value }: { label: string; value: string }) {
   return (
-    <div className="admin-claim-summary-row">
-      <span>{label}</span>
-      <span>{value}</span>
+    <div className="grid grid-cols-[minmax(5.5rem,8rem)_minmax(0,1fr)] gap-3 border-b py-2 last:border-b-0" data-claim-summary-row="">
+      <span className="text-muted-foreground">{label}</span>
+      <span className="min-w-0 break-words">{value}</span>
     </div>
   );
+}
+
+function CardHeading({ children }: { children: string }) {
+  return <CardHeader><h3 className="text-base leading-snug font-medium text-foreground">{children}</h3></CardHeader>;
 }
 
 export function ClaimDetailScreen({
@@ -152,83 +168,86 @@ export function ClaimDetailScreen({
     now,
   );
 
-  const collectionContact = actorId && claim.claimType !== 'cancel' ? <div className="card">
-          <ClaimCollectionPlan actorId={actorId} claimId={claim.id} operator carriers={carriers} />
-          <ClaimContactOperations actorId={actorId} orderId={claim.orderId} claimId={claim.id}
-            canReship={claim.claimType === 'exchange' && claim.stage === 'collected' && claim.collectionPolicy !== null && claim.collectionComplete}
-            carriers={carriers} reshipItems={order?.items ?? []} />
-          <ClaimContactHistory actorId={actorId} orderId={claim.orderId} claimId={claim.id} operator />
-        </div> : null;
-  const refundSummary = <div className="card" id="claim-refund" tabIndex={-1}>
-          <h3 style={{ marginTop: 0 }}>카드팩 · 환불</h3>
+  const collectionContact = actorId && claim.claimType !== 'cancel' ? <Card>
+    <CardContent className="flex min-w-0 flex-col gap-4">
+      <ClaimCollectionPlan actorId={actorId} claimId={claim.id} operator carriers={carriers} />
+      <ClaimContactOperations actorId={actorId} orderId={claim.orderId} claimId={claim.id}
+        canReship={claim.claimType === 'exchange' && claim.stage === 'collected' && claim.collectionPolicy !== null && claim.collectionComplete}
+        carriers={carriers} reshipItems={order?.items ?? []} />
+      <ClaimContactHistory actorId={actorId} orderId={claim.orderId} claimId={claim.id} operator />
+    </CardContent>
+  </Card> : null;
+  const refundSummary = <Card id="claim-refund" tabIndex={-1} className="scroll-mt-16 outline-none">
+    <CardHeading>카드팩 · 환불</CardHeading>
+    <CardContent className="flex flex-col gap-3">
+      <div>
+        <Row
+          label="뽑기권 발급"
+          value={cardPacks.issued === 0
+            ? '없음'
+            : `${cardPacks.issued}개 (개봉 ${cardPacks.consumed} · 회수 ${cardPacks.revoked})`}
+        />
+        {claim.claimType === 'exchange' ? (
+          <p className="mt-1.5 text-xs text-muted-foreground">
+            교환은 카드팩을 회수하지 않습니다.
+          </p>
+        ) : cardPacks.consumed > 0 ? (
+          <p className="mt-1.5 text-xs text-[var(--wc-warning)]">
+            이미 개봉된 카드팩 {cardPacks.consumed}개는 회수되지 않습니다(약관 제17조).
+            승인 전에 확인해주세요.
+          </p>
+        ) : null}
+      </div>
+
+      {refund ? (
+        <div className="border-t pt-1">
+          <Row label="환불 원장" value={`${refundStatusLabel(refund.status)} · ${krw(refund.amount)}`} />
           <Row
-            label="뽑기권 발급"
-            value={cardPacks.issued === 0
-              ? '없음'
-              : `${cardPacks.issued}개 (개봉 ${cardPacks.consumed} · 회수 ${cardPacks.revoked})`}
+            label="환불 수단"
+            value={refund.method ? ORDER_CLAIM_REFUND_METHOD_LABELS[refund.method] : '미접수'}
           />
-          {claim.claimType === 'exchange' ? (
-            <p className="muted" style={{ fontSize: 12, margin: '6px 0 0' }}>
-              교환은 카드팩을 회수하지 않습니다.
-            </p>
-          ) : cardPacks.consumed > 0 ? (
-            <p style={{ fontSize: 12, margin: '6px 0 0' }}>
-              이미 개봉된 카드팩 {cardPacks.consumed}개는 회수되지 않습니다(약관 제17조).
-              승인 전에 확인해주세요.
-            </p>
+          <Row
+            label="접수 · 완료"
+            value={`${refund.filedAt ? formatOrderDateTime(refund.filedAt) : '-'} · ${refund.completedAt ? formatOrderDateTime(refund.completedAt) : '-'}`}
+          />
+          {refund.settlementNote ? (
+            <Row label="상계 메모" value={refund.settlementNote} />
           ) : null}
+          {refund.handlerName ? <Row label="처리자" value={`@${refund.handlerName}`} /> : null}
+        </div>
+      ) : (
+        <p className="border-t pt-3 text-muted-foreground">
+          {claim.claimType === 'exchange'
+            ? '교환에는 환불 원장이 없습니다.'
+            : '아직 환불 원장이 열리지 않았습니다.'}
+        </p>
+      )}
 
-          <hr style={{ margin: '12px 0' }} />
-
-          {refund ? (
-            <>
-              <Row label="환불 원장" value={`${refundStatusLabel(refund.status)} · ${krw(refund.amount)}`} />
-              <Row
-                label="환불 수단"
-                value={refund.method ? ORDER_CLAIM_REFUND_METHOD_LABELS[refund.method] : '미접수'}
-              />
-              <Row
-                label="접수 · 완료"
-                value={`${refund.filedAt ? formatOrderDateTime(refund.filedAt) : '-'} · ${refund.completedAt ? formatOrderDateTime(refund.completedAt) : '-'}`}
-              />
-              {refund.settlementNote ? (
-                <Row label="상계 메모" value={refund.settlementNote} />
-              ) : null}
-              {refund.handlerName ? <Row label="처리자" value={`@${refund.handlerName}`} /> : null}
-            </>
-          ) : (
-            <p className="muted" style={{ fontSize: 12.5 }}>
-              {claim.claimType === 'exchange'
-                ? '교환에는 환불 원장이 없습니다.'
-                : '아직 환불 원장이 열리지 않았습니다.'}
-            </p>
-          )}
-
-          {refundAccount ? (
-            <>
-              <hr style={{ margin: '12px 0' }} />
-              <Row label="환불계좌" value={refundAccount.maskedAccount} />
-              <Row label="예금주" value={refundAccount.maskedHolder} />
-              <p className="muted" style={{ fontSize: 12, margin: '6px 0 0' }}>
-                {refundAccount.purgedAt
-                  ? '원문은 파기됐습니다. 송금이 필요하면 구매자에게 다시 요청하세요.'
-                  : '기본 화면에는 마스킹된 계좌만 표시합니다. 무통장 환불 담당자는 아래 처리에서 열람 기록을 남긴 뒤 원문을 확인할 수 있습니다. 요청 종결 또는 교환 전환 후 30일이 지나면 원문을 파기합니다.'}
-              </p>
-            </>
-          ) : null}
-        </div>;
+      {refundAccount ? (
+        <div className="border-t pt-1">
+          <Row label="환불계좌" value={refundAccount.maskedAccount} />
+          <Row label="예금주" value={refundAccount.maskedHolder} />
+          <p className="mt-1.5 text-xs text-muted-foreground">
+            {refundAccount.purgedAt
+              ? '원문은 파기됐습니다. 송금이 필요하면 구매자에게 다시 요청하세요.'
+              : '기본 화면에는 마스킹된 계좌만 표시합니다. 무통장 환불 담당자는 아래 처리에서 열람 기록을 남긴 뒤 원문을 확인할 수 있습니다. 요청 종결 또는 교환 전환 후 30일이 지나면 원문을 파기합니다.'}
+          </p>
+        </div>
+      ) : null}
+    </CardContent>
+  </Card>;
 
   return (
-    <section className="admin-console admin-sales-console admin-claim-detail">
-      <div className="admin-sales-detail-header">
-        <div>
+    <section className="flex min-w-0 flex-col gap-4 text-sm text-foreground" data-admin-kit="claim-detail">
+      <header className="flex flex-wrap items-start justify-between gap-3">
+        <div className="flex min-w-0 flex-col gap-2">
           {embedded ? null : <>
-            <Link className="btn btn-sm btn-ghost" href={backHref}>← 목록으로</Link>
-            <h2>
+            <Link className={OUTLINE_SM} data-slot="button" href={backHref}>← 목록으로</Link>
+            <h2 className="text-lg font-semibold tracking-tight text-foreground">
               {ORDER_CLAIM_TYPE_LABELS[claim.claimType]} {orderClaimReferenceLabel(claim.reference)}
             </h2>
           </>}
-          <p>
+          <p className="text-muted-foreground">
             {adminClaimStageLabel(claim.claimType, claim.stage)}
             {' · '}
             {adminClaimReasonText(claim.reasonType, claim.staffReasonCode)}
@@ -236,134 +255,145 @@ export function ClaimDetailScreen({
             <time dateTime={claim.requestedAt}>{formatOrderDateTime(claim.requestedAt)}</time>
           </p>
         </div>
-        <p data-sla-tone={sla.tone}>
-          환급 기한 {sla.label}
-        </p>
-        {embedded && detailHref ? <ClaimPreviewFullScreenLink href={detailHref} /> : null}
-      </div>
-      <nav className="admin-sales-detail-tabs" aria-label="클레임 상세 항목">
-        <Link href="#claim-order">주문정보</Link><Link href="#claim-request">요청·처리이력</Link><Link href="#claim-process">처리</Link>
+        <div className="flex flex-wrap items-center gap-2">
+          <p className={`rounded-lg border bg-muted/40 px-3 py-1.5 tabular-nums ${SLA_TONE_CLASS}`} data-sla-tone={sla.tone}>
+            환급 기한 {sla.label}
+          </p>
+          {embedded && detailHref ? <ClaimPreviewFullScreenLink href={detailHref} /> : null}
+        </div>
+      </header>
+      <nav aria-label="클레임 상세 항목" className="inline-flex w-fit max-w-full flex-wrap gap-0.5 rounded-lg bg-muted p-0.5">
+        <Link className={SECTION_LINK_CLASS} href="#claim-order">주문정보</Link>
+        <Link className={SECTION_LINK_CLASS} href="#claim-request">요청·처리이력</Link>
+        <Link className={SECTION_LINK_CLASS} href="#claim-process">처리</Link>
       </nav>
       <ClaimProgressSummary claim={claim} refund={refund} />
 
-      <div className="admin-claim-detail-layout">
-        <div className="admin-claim-detail-column">
-        {actorId && claim.claimType !== 'cancel' ? <div className="card"><ClaimFeePanel actorId={actorId} claimId={claim.id} operator /></div> : null}
-        <div className="card">
-          <ClaimOperationalFeePanel claimId={claim.id} claimType={claim.claimType} fee={claim.operationalFee} />
+      <div className="grid min-w-0 items-start gap-4 lg:grid-cols-[minmax(0,1.3fr)_minmax(18.75rem,1fr)]">
+        <div className="flex min-w-0 flex-col gap-4">
+          {actorId && claim.claimType !== 'cancel' ? <Card><CardContent className="min-w-0"><ClaimFeePanel actorId={actorId} claimId={claim.id} operator /></CardContent></Card> : null}
+          <Card>
+            <CardContent className="min-w-0">
+              <ClaimOperationalFeePanel claimId={claim.id} claimType={claim.claimType} fee={claim.operationalFee} />
+            </CardContent>
+          </Card>
+          <Card id="claim-order" className="scroll-mt-16">
+            <CardHeading>주문 요약</CardHeading>
+            <CardContent className="flex min-w-0 flex-col gap-3">
+              {order ? (
+                <>
+                  <div>
+                    <Row
+                      label="주문번호"
+                      value={`${orderReferenceLabel(order.id, order.orderNumber)} · ${ORDER_STATUS_LABELS[order.status] ?? order.status}`}
+                    />
+                    <Row label="구매자" value={`${order.buyerName ?? '-'} (${order.buyerEmail ?? '이메일 없음'})`} />
+                    {detail.gift ? <><Row label="선물 요청자" value={`${detail.gift.requesterName} · ${detail.gift.requesterRole === 'recipient' ? '선물 받는 분' : '구매자'}`} /><p className="border-b py-2 text-[var(--wc-warning)]">환불은 구매자의 결제수단으로 처리합니다. 받는 분에게 결제정보를 전달하지 마세요.</p></> : null}
+                    <Row label="결제금액" value={`${krw(order.total)} (배송비 ${krw(order.shippingFee)} 포함)`} />
+                    <Row
+                      label="결제사"
+                      value={payment
+                        ? `${PAYMENT_PROVIDER_LABELS[payment.provider ?? ''] ?? payment.provider ?? '알 수 없음'} · ${payment.status}`
+                        : '결제 내역 없음'}
+                    />
+                    {order.transaction ? <><Row label="복수구매 할인" value={krw(order.transaction.totals.volumeDiscountTotal)} /><Row label="계약상 착불 배송비" value={`${krw(order.transaction.totals.collectShippingTotal)} · 온라인 환불금액에 포함되지 않음`} /></> : null}
+                  </div>
+                  <ShipmentDetails admin shipments={order.shipments} items={order.items} transactionShipping={order.transaction?.shipping} />
+                  <ul className="list-disc space-y-1 pl-5">
+                    {order.items.map((item, index) => (
+                      <li className="break-words" key={`${item.name}-${index}`}>
+                        {item.name} × {item.qty} · {krw(item.unitPrice * item.qty)}<GoodsCustomInputsSummary selection={item.customInputs} />
+                      </li>
+                    ))}
+                  </ul>
+                  <p className="text-xs text-muted-foreground">
+                    {V.claimRequest}은 주문 단위 전액으로만 처리됩니다. 일부 품목만 불량이면 전체 반품 또는
+                    협의 재발송으로 안내하고, 부분 환불을 약속하지 마세요.
+                  </p>
+                  <Link className={OUTLINE_SM} data-slot="button" href={adminOrderSearchHref(order.id)}>
+                    주문 통합검색에서 열기
+                  </Link>
+                </>
+              ) : (
+                <p className="text-muted-foreground">주문 정보를 불러오지 못했습니다.</p>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card id="claim-request" className="scroll-mt-16">
+            <CardHeading>요청 내용</CardHeading>
+            <CardContent className="flex min-w-0 flex-col gap-3">
+              <p className="break-words whitespace-pre-wrap">{claim.reason}</p>
+              {claim.staffNote || claim.decisionNote || claim.holdReason || claim.lastErrorCode || claim.reshipTrackingNumber || claim.reshippedItems?.length ? <div>
+                {claim.staffNote ? <Row label="운영 메모" value={claim.staffNote} /> : null}
+                {claim.decisionNote ? <Row label="거부 사유" value={claim.decisionNote} /> : null}
+                {claim.holdReason ? <Row label="보류 사유" value={claim.holdReason} /> : null}
+                {claim.lastErrorCode ? (
+                  <Row label="정합화 오류" value={claim.lastErrorCode} />
+                ) : null}
+                {claim.reshipTrackingNumber ? (
+                  <Row
+                    label="재출고 운송장"
+                    value={`${claim.reshipCarrier ?? ''} ${claim.reshipTrackingNumber}`}
+                  />
+                ) : null}
+                {claim.reshippedItems?.map((item) => <Row key={item.orderItemId} label="재출고 상품"
+                  value={`${item.name} · ${item.variantName} · ${item.variantCode} · ${item.qty}개`} />)}
+              </div> : null}
+              {detail.sellerIntake ? <SellerClaimIntakeEvidence intake={detail.sellerIntake} /> : null}
+
+              <h4 className="font-medium">타임라인</h4>
+              {timeline.length === 0 ? (
+                <p className="text-muted-foreground">아직 기록된 처리가 없습니다.</p>
+              ) : (
+                <ol className="flex flex-col gap-1.5 border-l pl-4">
+                  {timeline.map((entry, index) => (
+                    <li className="break-words" key={`${entry.action}-${index}`}>
+                      <time className="text-muted-foreground tabular-nums" dateTime={entry.createdAt}>{formatOrderDateTime(entry.createdAt)}</time>
+                      {' · '}
+                      {TIMELINE_LABELS[entry.action] ?? entry.action}
+                      {entry.actorName ? ` · @${entry.actorName}` : ''}
+                    </li>
+                  ))}
+                </ol>
+              )}
+            </CardContent>
+          </Card>
         </div>
-        <div className="card" id="claim-order">
-          <h3 style={{ marginTop: 0 }}>주문 요약</h3>
-          {order ? (
-            <>
-              <Row
-                label="주문번호"
-                value={`${orderReferenceLabel(order.id, order.orderNumber)} · ${ORDER_STATUS_LABELS[order.status] ?? order.status}`}
+        <div className="flex min-w-0 flex-col gap-4">
+          {claim.claimType !== 'return' ? <>{collectionContact}{refundSummary}</> : null}
+          <Card id="claim-process" tabIndex={-1} className="scroll-mt-16 outline-none">
+            <CardContent className="flex min-w-0 flex-col gap-4">
+              <ClaimActionPanel
+                actorId={actorId}
+                bankTransfer={payment?.provider === 'bank_transfer'}
+                key={claim.id}
+                cancellationForm={cancellationForm}
+                carriers={carriers}
+                claimId={claim.id}
+                claimType={claim.claimType}
+                collectionPolicy={claim.collectionPolicy}
+                collectionComplete={claim.collectionComplete}
+                collectedAt={claim.collectedAt}
+                returnCollectionContact={claim.claimType === 'return' ? collectionContact : undefined}
+                returnRefundSummary={claim.claimType === 'return' ? refundSummary : undefined}
+                collections={claim.collections}
+                heldFrom={claim.heldFrom}
+                orderId={claim.orderId}
+                paymentProvider={payment?.provider ?? null}
+                recordedRefundMethod={refund?.method ?? null}
+                refundCompleted={Boolean(refund?.completedAt)}
+                refundFiled={Boolean(refund?.filedAt)}
+                refundLedgerOpen={Boolean(refund)}
+                reshipItems={order?.items}
+                stage={claim.stage}
               />
-              <Row label="구매자" value={`${order.buyerName ?? '-'} (${order.buyerEmail ?? '이메일 없음'})`} />
-              {detail.gift ? <><Row label="선물 요청자" value={`${detail.gift.requesterName} · ${detail.gift.requesterRole === 'recipient' ? '선물 받는 분' : '구매자'}`} /><p>환불은 구매자의 결제수단으로 처리합니다. 받는 분에게 결제정보를 전달하지 마세요.</p></> : null}
-              <Row label="결제금액" value={`${krw(order.total)} (배송비 ${krw(order.shippingFee)} 포함)`} />
-              <Row
-                label="결제사"
-                value={payment
-                  ? `${PAYMENT_PROVIDER_LABELS[payment.provider ?? ''] ?? payment.provider ?? '알 수 없음'} · ${payment.status}`
-                  : '결제 내역 없음'}
-              />
-              {order.transaction ? <><Row label="복수구매 할인" value={krw(order.transaction.totals.volumeDiscountTotal)} /><Row label="계약상 착불 배송비" value={`${krw(order.transaction.totals.collectShippingTotal)} · 온라인 환불금액에 포함되지 않음`} /></> : null}
-              <ShipmentDetails admin shipments={order.shipments} items={order.items} transactionShipping={order.transaction?.shipping} />
-              <ul style={{ margin: '10px 0 0', paddingLeft: 18 }}>
-                {order.items.map((item, index) => (
-                  <li key={`${item.name}-${index}`} style={{ fontSize: 13 }}>
-                    {item.name} × {item.qty} · {krw(item.unitPrice * item.qty)}<GoodsCustomInputsSummary selection={item.customInputs} />
-                  </li>
-                ))}
-              </ul>
-              <p className="muted" style={{ fontSize: 12, margin: '10px 0 0' }}>
-                {V.claimRequest}은 주문 단위 전액으로만 처리됩니다. 일부 품목만 불량이면 전체 반품 또는
-                협의 재발송으로 안내하고, 부분 환불을 약속하지 마세요.
-              </p>
-              <Link
-                className="btn btn-sm btn-ghost"
-                href={adminOrderSearchHref(order.id)}
-                style={{ marginTop: 10 }}
-              >
-                주문 통합검색에서 열기
-              </Link>
-            </>
-          ) : (
-            <p className="muted">주문 정보를 불러오지 못했습니다.</p>
-          )}
-        </div>
-
-        <div className="card" id="claim-request">
-          <h3 style={{ marginTop: 0 }}>요청 내용</h3>
-          <p style={{ fontSize: 13 }}>{claim.reason}</p>
-          {claim.staffNote ? <Row label="운영 메모" value={claim.staffNote} /> : null}
-          {detail.sellerIntake ? <SellerClaimIntakeEvidence intake={detail.sellerIntake} /> : null}
-          {claim.decisionNote ? <Row label="거부 사유" value={claim.decisionNote} /> : null}
-          {claim.holdReason ? <Row label="보류 사유" value={claim.holdReason} /> : null}
-          {claim.lastErrorCode ? (
-            <Row label="정합화 오류" value={claim.lastErrorCode} />
-          ) : null}
-          {claim.reshipTrackingNumber ? (
-            <Row
-              label="재출고 운송장"
-              value={`${claim.reshipCarrier ?? ''} ${claim.reshipTrackingNumber}`}
-            />
-          ) : null}
-          {claim.reshippedItems?.map((item) => <Row key={item.orderItemId} label="재출고 상품"
-            value={`${item.name} · ${item.variantName} · ${item.variantCode} · ${item.qty}개`} />)}
-
-          <h4 style={{ margin: '14px 0 6px' }}>타임라인</h4>
-          {timeline.length === 0 ? (
-            <p className="muted" style={{ fontSize: 12.5 }}>아직 기록된 처리가 없습니다.</p>
-          ) : (
-            <ol style={{ margin: 0, paddingLeft: 18 }}>
-              {timeline.map((entry, index) => (
-                <li key={`${entry.action}-${index}`} style={{ fontSize: 12.5 }}>
-                  <time dateTime={entry.createdAt}>{formatOrderDateTime(entry.createdAt)}</time>
-                  {' · '}
-                  {TIMELINE_LABELS[entry.action] ?? entry.action}
-                  {entry.actorName ? ` · @${entry.actorName}` : ''}
-                </li>
-              ))}
-            </ol>
-          )}
-        </div>
-
-        </div>
-        <div className="admin-claim-detail-column">
-        {claim.claimType !== 'return' ? <>{collectionContact}{refundSummary}</> : null}
-        <div className="card" id="claim-process" tabIndex={-1}>
-          <ClaimActionPanel
-            actorId={actorId}
-            bankTransfer={payment?.provider === 'bank_transfer'}
-            key={claim.id}
-            cancellationForm={cancellationForm}
-            carriers={carriers}
-            claimId={claim.id}
-            claimType={claim.claimType}
-            collectionPolicy={claim.collectionPolicy}
-            collectionComplete={claim.collectionComplete}
-            collectedAt={claim.collectedAt}
-            returnCollectionContact={claim.claimType === 'return' ? collectionContact : undefined}
-            returnRefundSummary={claim.claimType === 'return' ? refundSummary : undefined}
-            collections={claim.collections}
-            heldFrom={claim.heldFrom}
-            orderId={claim.orderId}
-            paymentProvider={payment?.provider ?? null}
-            recordedRefundMethod={refund?.method ?? null}
-            refundCompleted={Boolean(refund?.completedAt)}
-            refundFiled={Boolean(refund?.filedAt)}
-            refundLedgerOpen={Boolean(refund)}
-            reshipItems={order?.items}
-            stage={claim.stage}
-          />
-          <ClaimReshipmentDelivery claim={claim} />
-          <ClaimWithdrawal claimId={claim.id} stage={claim.stage} operator />
-          {claim.claimType !== 'cancel' ? <ClaimTypeConversion embedded={embedded} key={`${claim.id}-${claim.claimType}`} claimId={claim.id} /> : null}
-          {claim.claimType === 'exchange' ? <ClaimReasonChange key={`reason-${claim.id}`} claimId={claim.id} /> : null}
-        </div>
+              <ClaimReshipmentDelivery claim={claim} />
+              <ClaimWithdrawal claimId={claim.id} stage={claim.stage} operator />
+              {claim.claimType !== 'cancel' ? <ClaimTypeConversion embedded={embedded} key={`${claim.id}-${claim.claimType}`} claimId={claim.id} /> : null}
+              {claim.claimType === 'exchange' ? <ClaimReasonChange key={`reason-${claim.id}`} claimId={claim.id} /> : null}
+            </CardContent>
+          </Card>
         </div>
       </div>
     </section>

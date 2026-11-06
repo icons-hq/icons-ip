@@ -7,6 +7,15 @@ import { formatOrderDateTime, ORDER_WITHDRAWAL_REASON_LABELS, ORDER_WITHDRAWAL_R
 import { ORDER_CLAIM_TYPE_SLUGS } from '@/lib/orders/claims';
 import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import { useClaimPreviewBusy } from '@/components/admin/screens/ClaimPreviewDialog';
+import { buttonVariants } from '@/components/admin/kit/ui/button';
+import { cn } from 'cn';
+
+/* 템플릿 룩(ADR-0028). 입력은 네이티브 그대로이고(어휘 CSS가 kit 모양을 입힌다), 버튼은 kit 버튼 모양이다. */
+const PRIMARY = cn(buttonVariants({ size: 'sm' }));
+const OUTLINE = cn(buttonVariants({ size: 'sm', variant: 'outline' }));
+const FIELD = 'flex min-w-0 flex-col gap-1.5';
+const FIELD_LABEL = 'font-medium';
+const CHECK = 'flex items-start gap-2 leading-relaxed';
 
 export function ClaimReasonChangePanel({ initial, onClose }: { initial: ClaimReasonContext; onClose: () => void }) {
   const router = useRouter(); const [context, setContext] = useState(initial);
@@ -68,38 +77,38 @@ export function ClaimReasonChangePanel({ initial, onClose }: { initial: ClaimRea
     } catch { setError('최신 요청을 읽지 못했습니다.'); }
     finally { inFlight.current = false; setPending(false); }
   }
-  return <section className="claim-withdrawal" aria-label="교환 사유 정정">
-    <h3>교환 사유 정정</h3>
+  return <section className="flex min-w-0 flex-col gap-3 rounded-lg border bg-muted/30 p-4 text-sm break-words" aria-label="교환 사유 정정" data-claim-panel="reason-change">
+    <h3 className="text-base leading-snug font-medium">교환 사유 정정</h3>
     <p>원래 접수일 {formatOrderDateTime(context.requestedAt)} · 최초 사유: {adminGoodsCopy(ORDER_WITHDRAWAL_REASON_LABELS[context.originalReasonType])} / {context.originalReason}</p>
     <p>현재 사유: {adminGoodsCopy(ORDER_WITHDRAWAL_REASON_LABELS[receipt?.toReasonType ?? context.reasonType])} / {receipt?.toReason ?? context.reason}</p>
-    <p>고객과 확인한 실제 사유를 기록합니다. 최초 접수일과 수거·보류·비용 기록은 유지되며, 새 분류의 기한도 원래 접수일 기준입니다.</p>
+    <p className="text-muted-foreground">고객과 확인한 실제 사유를 기록합니다. 최초 접수일과 수거·보류·비용 기록은 유지되며, 새 분류의 기한도 원래 접수일 기준입니다.</p>
     {context.fee ? <p>기존 비용: {context.fee.amount.toLocaleString('ko-KR')}원 · {context.fee.note} · {formatOrderDateTime(context.fee.confirmedAt)}</p> : null}
-    {context.history.length ? <details><summary>사유 정정 이력 {context.history.length}건</summary><ol>{context.history.map(row => <li key={row.id}>
-      <time dateTime={row.createdAt}>{formatOrderDateTime(row.createdAt)}</time> · {adminGoodsCopy(ORDER_WITHDRAWAL_REASON_LABELS[row.fromReasonType])} → {adminGoodsCopy(ORDER_WITHDRAWAL_REASON_LABELS[row.toReasonType])}
-      <p>정정 전: {row.fromReason}</p><p>정정 후: {row.toReason}</p><p>내부 협의 근거: {row.agreement}</p>
+    {context.history.length ? <details className="rounded-lg border bg-background px-3 py-2"><summary className="cursor-pointer font-medium">사유 정정 이력 {context.history.length}건</summary><ol className="mt-2 flex flex-col gap-2 border-l pl-4">{context.history.map(row => <li key={row.id}>
+      <time className="text-muted-foreground tabular-nums" dateTime={row.createdAt}>{formatOrderDateTime(row.createdAt)}</time> · {adminGoodsCopy(ORDER_WITHDRAWAL_REASON_LABELS[row.fromReasonType])} → {adminGoodsCopy(ORDER_WITHDRAWAL_REASON_LABELS[row.toReasonType])}
+      <p>정정 전: {row.fromReason}</p><p>정정 후: {row.toReason}</p><p className="text-muted-foreground">내부 협의 근거: {row.agreement}</p>
     </li>)}</ol></details> : null}
     {receipt ? <p role="status">{receipt.changed ? '교환 사유를 정정하고 고객에게 앱 알림을 남겼습니다.' : '기존 사유와 설명이 같아 변경하지 않았습니다. 고객 알림을 추가하지 않았습니다.'}</p>
-      : !context.allowed ? <p role="status">{claimReasonError(undefined, context.blocker ?? '')}</p>
-        : <form onSubmit={event => { event.preventDefault(); void save(); }}>
-          <fieldset disabled={locked}><legend>정정 내용과 고객 협의</legend>
-            <label>사유 분류<select value={reasonType} onChange={event => { if (editable()) setReasonType(event.target.value as OrderWithdrawalReasonType); }}>
+      : !context.allowed ? <p className="text-muted-foreground" role="status">{claimReasonError(undefined, context.blocker ?? '')}</p>
+        : <form className="flex min-w-0 flex-col gap-3" onSubmit={event => { event.preventDefault(); void save(); }}>
+          <fieldset className="m-0 flex min-w-0 flex-col gap-3 border-0 p-0" disabled={locked}><legend className="mb-1 font-medium">정정 내용과 고객 협의</legend>
+            <label className={FIELD}><span className={FIELD_LABEL}>사유 분류</span><select className="w-full sm:w-64" value={reasonType} onChange={event => { if (editable()) setReasonType(event.target.value as OrderWithdrawalReasonType); }}>
               {ORDER_WITHDRAWAL_REASON_TYPES.map(type => <option key={type} value={type} disabled={type !== context.reasonType && !(type === 'defect' ? context.canUseDefect : context.canUseChangeOfMind)}>{adminGoodsCopy(ORDER_WITHDRAWAL_REASON_LABELS[type])}</option>)}
             </select></label>
-            {!context.canUseChangeOfMind || !context.canUseDefect ? <p>원래 접수일에 신청 기한을 지난 분류로는 바꿀 수 없습니다.</p> : null}
-            <label>고객용 설명 (1~200자)<input value={reason} minLength={1} maxLength={400} required onChange={event => { if (editable()) setReason(event.target.value); }} /></label>
-            <label>내부 고객 협의 근거 (2~500자)<input value={agreement} minLength={2} maxLength={1000} required placeholder="상담 일시, 참조번호와 협의한 내용을 적어주세요." onChange={event => { if (editable()) setAgreement(event.target.value); }} /></label>
-            <p>협의 근거는 운영자에게만 보입니다. 고객에게는 정정된 분류와 고객용 설명이 안내됩니다.</p>
-            <label className="claim-withdrawal__agreement"><input type="checkbox" checked={confirmed} required onChange={event => { if (editable()) setConfirmed(event.target.checked); }} />고객과 사유 정정 내용을 확인했습니다.</label>
-            {context.fee ? <label className="claim-withdrawal__agreement"><input type="checkbox" checked={feeReviewed} required onChange={event => { if (editable()) setFeeReviewed(event.target.checked); }} />기존 비용 기록과 정정할 사유의 정합성을 확인했습니다. 비용 정정은 별도로 처리합니다.</label> : null}
+            {!context.canUseChangeOfMind || !context.canUseDefect ? <p className="text-muted-foreground">원래 접수일에 신청 기한을 지난 분류로는 바꿀 수 없습니다.</p> : null}
+            <label className={FIELD}><span className={FIELD_LABEL}>고객용 설명 (1~200자)</span><input className="w-full" value={reason} minLength={1} maxLength={400} required onChange={event => { if (editable()) setReason(event.target.value); }} /></label>
+            <label className={FIELD}><span className={FIELD_LABEL}>내부 고객 협의 근거 (2~500자)</span><input className="w-full" value={agreement} minLength={2} maxLength={1000} required placeholder="상담 일시, 참조번호와 협의한 내용을 적어주세요." onChange={event => { if (editable()) setAgreement(event.target.value); }} /></label>
+            <p className="text-muted-foreground">협의 근거는 운영자에게만 보입니다. 고객에게는 정정된 분류와 고객용 설명이 안내됩니다.</p>
+            <label className={CHECK}><input className="mt-0.5" type="checkbox" checked={confirmed} required onChange={event => { if (editable()) setConfirmed(event.target.checked); }} /><span>고객과 사유 정정 내용을 확인했습니다.</span></label>
+            {context.fee ? <label className={CHECK}><input className="mt-0.5" type="checkbox" checked={feeReviewed} required onChange={event => { if (editable()) setFeeReviewed(event.target.checked); }} /><span>기존 비용 기록과 정정할 사유의 정합성을 확인했습니다. 비용 정정은 별도로 처리합니다.</span></label> : null}
           </fieldset>
-          <div className="claim-withdrawal__actions">{uncertain ? <>
-            <button className="btn" type="button" disabled={pending} onClick={() => { void readback(); }}>같은 요청 결과 확인</button>
-            <button className="btn btn-ghost" type="button" disabled={pending} onClick={() => { void save(); }}>같은 내용으로 재시도</button>
-          </> : conflict ? <button className="btn" type="button" disabled={pending} onClick={() => { void reload(); }}>최신 요청 상태 확인</button>
-            : <button className="btn" type="submit" disabled={pending || !confirmed || Boolean(context.fee && !feeReviewed)}>{pending ? '처리 중…' : '사유 정정 확정'}</button>}</div>
+          <div className="flex flex-wrap gap-2">{uncertain ? <>
+            <button className={PRIMARY} data-slot="button" type="button" disabled={pending} onClick={() => { void readback(); }}>같은 요청 결과 확인</button>
+            <button className={OUTLINE} data-slot="button" type="button" disabled={pending} onClick={() => { void save(); }}>같은 내용으로 재시도</button>
+          </> : conflict ? <button className={PRIMARY} data-slot="button" type="button" disabled={pending} onClick={() => { void reload(); }}>최신 요청 상태 확인</button>
+            : <button className={PRIMARY} data-slot="button" type="submit" disabled={pending || !confirmed || Boolean(context.fee && !feeReviewed)}>{pending ? '처리 중…' : '사유 정정 확정'}</button>}</div>
         </form>}
-    {error ? <p role="alert" ref={errorRef} tabIndex={-1}>{error}</p> : null}{message ? <p role="status">{message}</p> : null}
-    <button className="btn btn-ghost" type="button" disabled={pending || uncertain} onClick={() => { if (!inFlight.current && !dispatched.current) onClose(); }}>닫기</button>
+    {error ? <p className="text-destructive outline-none" role="alert" ref={errorRef} tabIndex={-1}>{error}</p> : null}{message ? <p className="text-muted-foreground" role="status">{message}</p> : null}
+    <button className={`${OUTLINE} w-fit`} data-slot="button" type="button" disabled={pending || uncertain} onClick={() => { if (!inFlight.current && !dispatched.current) onClose(); }}>닫기</button>
   </section>;
 }
 export function ClaimReasonChange({ claimId }: { claimId: string }) {
@@ -114,5 +123,5 @@ export function ClaimReasonChange({ claimId }: { claimId: string }) {
     } catch { setError('최신 요청을 읽지 못했습니다.'); } finally { loading.current = false; setPending(false); }
   }
   return context ? <ClaimReasonChangePanel initial={context} onClose={() => setContext(null)} />
-    : <div className="claim-withdrawal-entry"><button className="btn btn-ghost" type="button" disabled={pending} onClick={() => { void open(); }}>{pending ? '요청 확인 중…' : '교환 사유 정정 및 이력'}</button>{error ? <p role="alert">{error}</p> : null}</div>;
+    : <div className="flex min-w-0 flex-col items-start gap-2" data-claim-panel-entry="reason-change"><button className={OUTLINE} data-slot="button" type="button" disabled={pending} onClick={() => { void open(); }}>{pending ? '요청 확인 중…' : '교환 사유 정정 및 이력'}</button>{error ? <p className="text-sm text-destructive" role="alert">{error}</p> : null}</div>;
 }

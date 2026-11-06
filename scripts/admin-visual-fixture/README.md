@@ -32,7 +32,7 @@ GET·HEAD를 제공한다. 기존 글로벌 CDN import는 fixture에서 제거�
 명시된 `create`·`goodId`는 보존하며 브라우저 주소 자체는 변경하지 않는다.
 
 `?view=orders&capture=1`은 실제 `OrderItemsScreen`에 합성 상품주문 6개를,
-`?view=claims&capture=1`은 실제 `ClaimQueueScreen`에 합성 반품 요청 4개를 표시한다.
+`?view=claims&capture=1`은 실제 `ClaimQueueKitScreen`에 합성 반품 요청 4개를 표시한다.
 상태·검색어·페이지는 합성 행을 대상으로만 작동한다. 날짜 등 나머지 조건은 조판 검수용이며,
 발주확인·엑셀·환불·수거 등 서버 작업의 성공을 재현하지 않는다.
 

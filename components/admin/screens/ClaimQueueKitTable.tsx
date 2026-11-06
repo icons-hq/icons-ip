@@ -40,12 +40,13 @@ import {
 } from '@/lib/admin/claims';
 import type { SalesListSort } from '@/lib/admin/sales-list';
 import { adminClaimCopy } from '@/lib/admin/vocabulary';
-import type { OrderClaimType } from '@/lib/orders/claims';
+import { ORDER_CLAIM_TYPE_LABELS, type OrderClaimType } from '@/lib/orders/claims';
 import { X } from 'lucide-react';
 import { ClaimPreviewLink } from './ClaimPreviewDialog';
 
 /*
- * 취소관리 목록 — admin kit(shadcn/ui · Base UI · Dice UI data table, ADR-0028).
+ * 취소·반품·교환 목록 — admin kit(shadcn/ui · Base UI · Dice UI data table, ADR-0028).
+ * 세 유형이 같은 표를 쓰고, 유형마다 다른 것은 문구·단계·사유 선택지뿐이다.
  *
  * 판정은 바뀌지 않는다: 조회는 서버가 `admin_search_order_claims_console`로, 처리는
  * `bulkDecideOrderClaimsAction`이 한 건씩 기존 단건 경로로 한다. 이 파일은 화면만 바꾼다.
@@ -80,6 +81,8 @@ interface Option<T extends string = string> { value: T; label: string }
 const EMPTY_STATE: AdminClaimBulkState = {};
 const BULK_RESULT_LOST = '처리 결과를 받지 못했습니다. 목록을 새로고침해 각 건의 상태를 확인하세요.';
 const PAGE_SIZE_OPTIONS = [20, 50, 100];
+/* SLA는 운영자가 가장 먼저 보는 값이라 톤을 데이터 속성으로 남기고, 임박·초과를 의미색으로 강조한다. */
+const SLA_TONE_CLASS = 'data-[sla-tone=warning]:font-semibold data-[sla-tone=warning]:text-[var(--wc-warning)] data-[sla-tone=danger]:font-bold data-[sla-tone=danger]:text-destructive';
 
 /* 정렬 ↔ RPC p_sort. RPC가 아는 정렬은 네 가지뿐이라 그 밖의 열은 정렬을 끈다. */
 function sortingFor(sort: SalesListSort | undefined): SortingState {
@@ -156,7 +159,20 @@ function SelectColumnHeader({ table }: { table: CoreTable<DataTableFeatures, Cla
   </Subscribe>;
 }
 
-function buildColumns(stageOptions: Option[], reasonOptions: Option[], dateLabel: string): ColumnDef<DataTableFeatures, ClaimKitRow>[] {
+/**
+ * 표의 단계·사유 필터 선택지. 그 유형에 생길 수 없는 단계(취소의 수거)·사유(취소의 하자, 반품·교환의
+ * 운영자 전액 취소)는 고를 수 없다(R7). '전체'는 필터를 지운 상태라 선택지에 두지 않는다.
+ */
+export function claimKitFilterOptions(claimType: OrderClaimType): { stage: Option[]; reason: Option[] } {
+  return {
+    stage: adminClaimStageOptions(claimType).filter((option) => option.value !== 'all'),
+    reason: adminClaimReasonOptions(claimType).filter((option) => option.value !== 'all'),
+  };
+}
+
+function buildColumns(claimType: OrderClaimType, dateLabel: string): ColumnDef<DataTableFeatures, ClaimKitRow>[] {
+  const typeLabel = ORDER_CLAIM_TYPE_LABELS[claimType];
+  const { reason: reasonOptions, stage: stageOptions } = claimKitFilterOptions(claimType);
   return [
     {
       id: 'select',
@@ -181,11 +197,11 @@ function buildColumns(stageOptions: Option[], reasonOptions: Option[], dateLabel
       header: '요청번호',
       meta: { label: '요청번호' },
       cell: ({ row }) => <ClaimPreviewLink href={row.original.previewHref} label={`요청 ${row.original.reference} 상세 열기`}>
-        <span className="mono">{row.original.reference}</span>
+        <span className="tabular-nums">{row.original.reference}</span>
       </ClaimPreviewLink>,
       size: 110,
     },
-    { id: 'order', accessorKey: 'order', enableSorting: false, header: '주문번호', meta: { label: '주문번호' }, cell: ({ row }) => <span className="mono">{row.original.order}</span>, size: 190 },
+    { id: 'order', accessorKey: 'order', enableSorting: false, header: '주문번호', meta: { label: '주문번호' }, cell: ({ row }) => <span className="tabular-nums">{row.original.order}</span>, size: 190 },
     { id: 'type', accessorKey: 'type', enableSorting: false, header: '유형', meta: { label: '유형' }, size: 70 },
     {
       id: 'reason',
@@ -193,7 +209,7 @@ function buildColumns(stageOptions: Option[], reasonOptions: Option[], dateLabel
       enableColumnFilter: true,
       enableSorting: false,
       header: ({ column }) => <DataTableColumnHeader column={column} label="사유" />,
-      meta: { label: '취소사유', variant: 'select', options: reasonOptions },
+      meta: { label: `${typeLabel}사유`, variant: 'select', options: reasonOptions },
       size: 150,
     },
     {
@@ -202,7 +218,7 @@ function buildColumns(stageOptions: Option[], reasonOptions: Option[], dateLabel
       enableColumnFilter: true,
       enableSorting: false,
       header: ({ column }) => <DataTableColumnHeader column={column} label="상태" />,
-      meta: { label: '취소처리상태', variant: 'select', options: stageOptions },
+      meta: { label: `${typeLabel}처리상태`, variant: 'select', options: stageOptions },
       size: 110,
     },
     { id: 'buyer', accessorKey: 'buyer', enableSorting: false, header: '구매자', meta: { label: '구매자' }, cell: ({ row }) => <>@{row.original.buyer}</> },
@@ -223,9 +239,9 @@ function buildColumns(stageOptions: Option[], reasonOptions: Option[], dateLabel
       meta: { label: dateLabel, variant: 'date', filter: 'range' },
       size: 150,
     },
-    { id: 'sla', accessorKey: 'slaLabel', enableSorting: false, header: '환급 기한', meta: { label: '환급 기한' }, cell: ({ row }) => <span data-sla-tone={row.original.slaTone}>{row.original.slaLabel}</span>, size: 116 },
-    { id: 'refund', accessorKey: 'refund', enableSorting: false, header: '환불 수단', meta: { label: '환불 수단' }, cell: ({ row }) => row.original.refund ?? <span className="muted">미접수</span>, size: 110 },
-    { id: 'handler', accessorKey: 'handler', enableSorting: false, header: '처리자', meta: { label: '처리자' }, cell: ({ row }) => row.original.handler ? <>@{row.original.handler}</> : <span className="muted">미배정</span>, size: 104 },
+    { id: 'sla', accessorKey: 'slaLabel', enableSorting: false, header: '환급 기한', meta: { label: '환급 기한' }, cell: ({ row }) => <span className={SLA_TONE_CLASS} data-sla-tone={row.original.slaTone}>{row.original.slaLabel}</span>, size: 116 },
+    { id: 'refund', accessorKey: 'refund', enableSorting: false, header: '환불 수단', meta: { label: '환불 수단' }, cell: ({ row }) => row.original.refund ?? <span className="text-muted-foreground">미접수</span>, size: 110 },
+    { id: 'handler', accessorKey: 'handler', enableSorting: false, header: '처리자', meta: { label: '처리자' }, cell: ({ row }) => row.original.handler ? <>@{row.original.handler}</> : <span className="text-muted-foreground">미배정</span>, size: 104 },
   ];
 }
 
@@ -241,12 +257,13 @@ const PREFERENCE_COLUMNS: readonly ConsoleTableSettingsColumn[] = [
  * 검색어는 조합이 끝난 뒤에만 확정한다. Dice UI의 텍스트 필터는 입력할 때마다 값을 올려 보내
  * (조합 중인 한글도) URL·서버 재조회로 이어지므로 쓰지 않는다. Enter의 조합 확정 키는 검색을 보내지 않는다.
  */
-function ClaimSearchBox({ field, fieldOptions, onSearch, pending, query }: {
+function ClaimSearchBox({ field, fieldOptions, onSearch, pending, query, typeLabel }: {
   field: string;
   fieldOptions: readonly Option[];
   onSearch: (field: string, query: string) => void;
   pending: boolean;
   query: string;
+  typeLabel: string;
 }) {
   const inputId = useId();
   const [draft, setDraft] = useState(query);
@@ -255,7 +272,7 @@ function ClaimSearchBox({ field, fieldOptions, onSearch, pending, query }: {
     event.preventDefault();
     onSearch(draftField, draft.trim());
   }
-  return <form aria-label="취소 요청 검색" className="flex flex-wrap items-center gap-2" onSubmit={submit} role="search">
+  return <form aria-label={`${typeLabel} 요청 검색`} className="flex flex-wrap items-center gap-2" onSubmit={submit} role="search">
     <Select items={fieldOptions} onValueChange={(value) => { if (typeof value === 'string') setDraftField(value); }} value={draftField}>
       <SelectTrigger aria-label="검색 항목" className="w-36"><SelectValue /></SelectTrigger>
       <SelectContent>
@@ -264,7 +281,7 @@ function ClaimSearchBox({ field, fieldOptions, onSearch, pending, query }: {
     </Select>
     <label className="sr-only" htmlFor={inputId}>검색어</label>
     <Input
-      className="w-72"
+      className="w-full sm:w-72"
       id={inputId}
       maxLength={100}
       onChange={(event) => setDraft(event.target.value)}
@@ -345,6 +362,7 @@ export function ClaimQueueKitTable({
   const [note, setNote] = useState('');
   const [clientError, setClientError] = useState('');
   const [rejectOpen, setRejectOpen] = useState(false);
+  const typeLabel = ORDER_CLAIM_TYPE_LABELS[claimType];
   const dateField = filters.dateField ?? 'requested';
   const dateLabel = dateFieldOptions.find((option) => option.value === dateField)?.label ?? '요청일';
   /*
@@ -352,11 +370,7 @@ export function ClaimQueueKitTable({
    * 만들어지면 모든 셀이 다시 마운트되고, 상세 팝업을 연 요청번호 링크도 교체돼 닫은 뒤 포커스를 돌려줄 곳이
    * 사라진다. 그래서 서버가 이동마다 새로 보내는 옵션 배열을 받지 않고 여기서 유형으로 만든다.
    */
-  const columns = useMemo(() => buildColumns(
-    adminClaimStageOptions(claimType).filter((option) => option.value !== 'all'),
-    adminClaimReasonOptions(claimType).filter((option) => option.value !== 'all'),
-    dateLabel,
-  ), [claimType, dateLabel]);
+  const columns = useMemo(() => buildColumns(claimType, dateLabel), [claimType, dateLabel]);
   const currentHref = adminClaimHref(claimType, filters);
 
   const { pending, preferences, savePreferences, table } = useConsoleTable({
@@ -437,7 +451,7 @@ export function ClaimQueueKitTable({
   const error = clientError || state.error;
   const busy = pending || searching;
 
-  return <div className="admin-kit-table flex flex-col gap-3" data-pending={busy ? 'true' : undefined}>
+  return <div className="flex min-w-0 flex-col gap-3" data-admin-kit="claims-table" data-pending={busy ? 'true' : undefined}>
     <ClaimSearchBox
       field={filters.field ?? 'all'}
       fieldOptions={searchFieldOptions}
@@ -445,10 +459,11 @@ export function ClaimQueueKitTable({
       onSearch={onSearch}
       pending={busy}
       query={filters.query}
+      typeLabel={typeLabel}
     />
     <DataTable
-      aria-label="취소 요청 목록"
-      emptyLabel="조건에 맞는 취소 요청이 없습니다."
+      aria-label={`${typeLabel} 요청 목록`}
+      emptyLabel={`조건에 맞는 ${typeLabel} 요청이 없습니다.`}
       pagination={<DataTablePagination pageSizeOptions={PAGE_SIZE_OPTIONS} table={table} />}
       table={table}
     >
@@ -505,21 +520,22 @@ export function ClaimQueueKitTable({
   </div>;
 }
 
-function ClaimKitBulkResult({ previewHrefBase, state }: { previewHrefBase: string; state: AdminClaimBulkState }) {
+/** 일괄 처리의 건별 결과표. 목록에서 빠진 요청도 남고, 요청번호는 같은 목록 위 팝업을 연다. */
+export function ClaimKitBulkResult({ previewHrefBase, state }: { previewHrefBase: string; state: AdminClaimBulkState }) {
   if (!state.results?.length) return null;
   return <section aria-label="일괄 처리 결과" className="flex flex-col gap-2">
     <p className="text-sm" role="status">{state.summary}</p>
-    <div className="overflow-hidden rounded-md border">
+    <div className="overflow-hidden rounded-lg border">
       <Table>
         <TableCaption>일괄 처리 결과</TableCaption>
-        <TableHeader><TableRow><TableHead>번호</TableHead><TableHead>결과</TableHead><TableHead>사유</TableHead></TableRow></TableHeader>
+        <TableHeader><TableRow><TableHead scope="col">번호</TableHead><TableHead scope="col">결과</TableHead><TableHead scope="col">사유</TableHead></TableRow></TableHeader>
         <TableBody>
           {state.results.map((result) => <TableRow data-outcome={result.outcome} key={result.claimId}>
             <TableCell>{result.reference
               ? <ClaimPreviewLink href={`${previewHrefBase}&claimId=${result.claimId}`} label={`요청 ${result.reference} 상세 열기`}>{result.reference}</ClaimPreviewLink>
-              : <span className="muted">확인 불가</span>}</TableCell>
+              : <span className="text-muted-foreground">확인 불가</span>}</TableCell>
             <TableCell>{ADMIN_CLAIM_BULK_OUTCOME_LABELS[result.outcome]}</TableCell>
-            <TableCell>{adminClaimCopy(result.message)}</TableCell>
+            <TableCell className="whitespace-normal">{adminClaimCopy(result.message)}</TableCell>
           </TableRow>)}
         </TableBody>
       </Table>
