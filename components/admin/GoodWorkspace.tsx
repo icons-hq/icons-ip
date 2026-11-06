@@ -155,8 +155,8 @@ export function GoodWorkspaceNavigation() {
     window.addEventListener('hashchange', openHash);
     return () => window.removeEventListener('hashchange', openHash);
   }, []);
-  /* 셸 상단바(h-12) 바로 아래에 붙는다. 좁은 화면에서는 한 줄로 가로 이동하고, 넓은 화면에서는 줄을 바꾼다. */
-  return <nav aria-label="상품 작성 섹션" className="sticky top-14 z-20 flex min-w-0 gap-1 overflow-x-auto rounded-lg border bg-background/95 p-1 shadow-xs backdrop-blur supports-[backdrop-filter]:bg-background/80 xl:flex-wrap xl:overflow-visible print:hidden" data-good-workspace-nav="">
+  /* 셸 상단바(h-12) 바로 아래에 붙는 띠(콘텐츠 여백 p-4·md:p-6만큼 양옆으로 넓힌다). 좁은 화면에서는 한 줄로 가로 이동하고, 넓은 화면에서는 줄을 바꾼다. */
+  return <nav aria-label="상품 작성 섹션" className="sticky top-12 z-20 -mx-4 flex min-w-0 gap-1 overflow-x-auto border-b bg-background/95 px-4 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:-mx-6 md:px-6 xl:flex-wrap xl:overflow-visible print:hidden" data-good-workspace-nav="">
     {GOOD_EDITOR_SECTIONS.map((section, index) => <a className="inline-flex h-7 shrink-0 items-center rounded-md px-2.5 text-sm whitespace-nowrap text-muted-foreground transition-colors outline-none hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50" key={section.key} href={`#good-section-${section.key}`} onClick={(event) => {
       event.preventDefault(); focusGoodWorkspaceTarget(`good-section-${section.key}`, section.fields[0]);
     }}>{index + 1}. {section.label}</a>)}
