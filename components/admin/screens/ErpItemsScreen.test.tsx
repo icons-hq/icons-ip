@@ -74,6 +74,8 @@ describe('ERP 품목 화면', () => {
     expect(html).toContain('총 51건');
     expect(html).toContain('aria-label="000123 아크릴 키링 선택"');
     expect(html).toContain('aria-label="전체 선택"');
+    // 체크박스 label은 칸을 덮는 절대 배치라 내용 폭이 없다 — 좁은 화면에서 칸이 0px로 접히지 않게 머리칸 최소 폭을 준다.
+    expect(html).toMatch(/<div class="[^"]*\[&amp;_thead_th:first-child\]:min-w-10[^"]*" data-console-grid="">/);
     expect(html).toContain('action="/admin/catalog/erp-items"');
     // 품목 검색은 GET 폼 제출이다(kit 버튼의 기본 type은 button).
     expect(html).toMatch(/<button(?=[^>]*type="submit")[^>]*>검색<\/button>/);

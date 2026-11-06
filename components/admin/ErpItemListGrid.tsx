@@ -44,6 +44,7 @@ export function ErpItemListGrid({ columns, rows, emptyLabel }: {
   return <form className="flex min-w-0 flex-col gap-2" onSubmit={remove}>
     <ConsoleGrid
       caption="반입된 ERP 품목"
+      className="[&_table]:min-w-[880px] [&_thead_th:first-child]:min-w-10"
       columns={columns}
       rows={rows}
       emptyLabel={emptyLabel}

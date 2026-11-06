@@ -16,9 +16,10 @@ import { TableBody, TableCell, TableHead, TableHeader, TableRow } from './kit/ui
  * 가로 스크롤 영역 안에 그린다 — 키보드로 스크롤되도록 표 바깥 상자가 스크롤 상자다(ConsoleGrid와 같다).
  * 자식은 kit TableHeader·TableBody·TableRow·TableHead·TableCell로 채운다. 훅이 없는 순수 부품이다.
  */
-export function GroupTable({ label, children, layout }: { label: string; children: ReactNode; layout?: 'fixed' }) {
+/** `className`은 표(table)에 붙는다 — 좁은 화면에서 열이 짜부라지지 않게 최소 폭(min-w-[…])을 준다. */
+export function GroupTable({ label, children, layout, className }: { label: string; children: ReactNode; layout?: 'fixed'; className?: string }) {
   return <div aria-label={`${label} 가로 스크롤`} className="relative min-w-0 overflow-x-auto rounded-lg border bg-card outline-none focus-visible:ring-3 focus-visible:ring-ring/50" data-group-table="" role="region" tabIndex={0}>
-    <table className={`w-full caption-bottom text-sm${layout === 'fixed' ? ' table-fixed' : ''}`} data-slot="table"><caption className="sr-only">{label}</caption>{children}</table>
+    <table className={`w-full caption-bottom text-sm${layout === 'fixed' ? ' table-fixed' : ''}${className ? ` ${className}` : ''}`} data-slot="table"><caption className="sr-only">{label}</caption>{children}</table>
   </div>;
 }
 export function GroupPager({ page, total, pageSize, disabled, onChange }: { page: number; total: number; pageSize: number; disabled: boolean; onChange: (page: number) => void }) {
@@ -160,7 +161,7 @@ export function GoodsGroupProductPicker({ identity, disabled, onSelect }: { iden
     <div className="min-w-[min(100%,20rem)] flex-1"><AdminField label="상품명·판매자상품코드·상품번호" inputId="group-product-search"><Input id="group-product-search" type="search" value={query} maxLength={100} disabled={disabled || pending}
       onChange={event => setQuery(event.target.value)} onKeyDown={event => { if (event.key === 'Enter') { event.preventDefault(); search(); } }} /></AdminField></div>
     <Button variant="outline" type="button" disabled={disabled || pending || !identity} onClick={() => search()}>상품 검색</Button>
-  </div>{error ? <p className="text-sm text-destructive" role="alert">{error}</p> : null}{page ? <><GroupTable label="상품 검색 결과"><TableHeader><TableRow><TableHead>상품</TableHead><TableHead>판매자상품코드</TableHead><TableHead>선택</TableHead></TableRow></TableHeader><TableBody>
+  </div>{error ? <p className="text-sm text-destructive" role="alert">{error}</p> : null}{page ? <><GroupTable label="상품 검색 결과" className="min-w-[480px]"><TableHeader><TableRow><TableHead>상품</TableHead><TableHead>판매자상품코드</TableHead><TableHead>선택</TableHead></TableRow></TableHeader><TableBody>
     {page.rows.map(row => <TableRow key={row.id}><TableCell className="whitespace-normal">{row.name}<small className="block text-xs text-muted-foreground">{row.id}</small></TableCell><TableCell>{row.code ?? '—'}</TableCell><TableCell><Button size="xs" variant="outline" type="button" disabled={disabled || pending} onClick={() => select(row.id)}>{row.name} 선택</Button></TableCell></TableRow>)}
     {!page.rows.length ? <TableRow><TableCell className="h-24 text-center text-muted-foreground" colSpan={3}>검색 결과가 없습니다.</TableCell></TableRow> : null}</TableBody></GroupTable>
     <GroupPager {...page} disabled={disabled || pending} onChange={number => search(number, applied)} /></> : <p className="text-sm text-muted-foreground">검색어를 비우고 조회하면 등록된 상품을 확인할 수 있습니다.</p>}</AdminSectionCard>;

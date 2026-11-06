@@ -40,6 +40,12 @@ describe('goods list screen', () => {
     const multi = renderToStaticMarkup(<GoodsListScreen data={{ filters: normalizeGoodsListFilters({}), goods: [{ ...good, id: 'good-b', activeVariantCount: 3, inlineStock: null }], ips: [], total: 1 }} canIssueMarketingLinks bulkIdentity={identity} />);
     expect(multi).toMatch(/<a class="[^"]*relative z-\[1\][^"]*" href="[^"]*#good-section-variants">옵션별 재고 수정<\/a>/);
   });
+  it('좁은 화면에서도 체크박스 칸이 접히지 않는다 — 칸 전체가 선택 영역이라 머리칸 최소 폭과 표 최소 폭을 준다', () => {
+    const html = renderToStaticMarkup(<GoodsListScreen data={{ filters: normalizeGoodsListFilters({}), goods: [], ips: [], total: 0 }} canIssueMarketingLinks={false} />);
+    // 체크박스 label은 칸을 덮는 절대 배치라 내용 폭이 없다. 자동 표 배치에서 표가 좁아지면 이 칸부터 0px로 접혀 누를 곳이 사라진다.
+    const grid = html.match(/<div class="([^"]*)" data-console-grid="">/)?.[1] ?? '';
+    expect(grid.split(' ')).toEqual(expect.arrayContaining(['[&amp;_thead_th:first-child]:min-w-10', expect.stringMatching(/^\[&amp;_table\]:min-w-\[\d+px\]$/)]));
+  });
   it('shows server status counts independently of the filtered total and exposes real list controls', () => {
     const html = renderToStaticMarkup(<GoodsListScreen data={{ filters: normalizeGoodsListFilters({ status: 'draft', from: '2026-10-01', pageSize: '50', image: 'without' }), goods: [], ips: [], total: 3, pageSize: 50, counts: { all: 20, active: 15, draft: 3, published: 12, archived: 5 } }} />);
     expect(html).toContain('상품등록일');

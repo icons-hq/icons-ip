@@ -77,8 +77,9 @@ export function GoodsListScreen({ data, shippingRegionExpiry, canIssueMarketingL
       </div>
       {inlineIdentity && filteredIp ? <GoodsIpBulkDiscount key={`${filteredIp.id}:${inlineIdentity.actorId}:${inlineIdentity.sessionId}`} ipId={filteredIp.id} ipTitle={filteredIp.title} identity={inlineIdentity} /> : null}
       {/* R11: 판매가·재고수량은 칸 어디를 눌러도 바로 수정이 열린다. 값 버튼의 덮개가 칸을 채우도록 표 칸이 기준 상자가 된다
-          (틀고정 칸은 sticky라 이미 기준 상자다 — relative로 덮으면 고정이 풀린다). */}
-      <MarketingLinksGoodsGrid key={`${goodsListHref(filters)}:${bulkIdentity?.actorId}:${bulkIdentity?.sessionId}`} canIssue={canIssueMarketingLinks} bulkIdentity={bulkIdentity} caption="상품 목록" preferencesKey="catalog-goods" className="[&_td:not([data-frozen])]:relative" columns={[
+          (틀고정 칸은 sticky라 이미 기준 상자다 — relative로 덮으면 고정이 풀린다). 좁은 화면에서는 열이 짜부라지지 않게
+          표가 1050px 아래로 줄지 않고 가로로 스크롤한다. 칸 전체가 클릭 영역인 체크박스 열은 내용이 절대배치라 최소 폭을 준다. */}
+      <MarketingLinksGoodsGrid key={`${goodsListHref(filters)}:${bulkIdentity?.actorId}:${bulkIdentity?.sessionId}`} canIssue={canIssueMarketingLinks} bulkIdentity={bulkIdentity} caption="상품 목록" preferencesKey="catalog-goods" className="[&_table]:min-w-[1050px] [&_td:not([data-frozen])]:relative [&_thead_th:first-child]:min-w-10" columns={[
         { key: 'name', label: '상품명 · 판매자상품코드', width: '280px' }, { key: 'goodId', label: '상품번호', width: '160px' }, { key: 'edit', label: '수정', width: '76px' }, { key: 'price', label: '판매가', align: 'end', width: '130px' },
         { key: 'readiness', label: '전시상태 · 판매 준비', width: '220px' }, { key: 'qty', label: '재고수량', align: 'end', width: '100px' },
         { key: 'ip', label: 'IP · 카테고리' }, { key: 'createdAt', label: '상품등록일', width: '130px' }, { key: 'updatedAt', label: '상품수정일', width: '130px' }, { key: 'details', label: '추가 정보' },
@@ -95,8 +96,8 @@ export function GoodsListScreen({ data, shippingRegionExpiry, canIssueMarketingL
           /* R15: 고객에게 보이는 상품은 고객 화면을 새 탭으로, 공개 전·보관·판매 제한 상품은 편집기 미리보기로 연다.
              보조 문구는 같은 행의 상태 배지(임시저장·보관·전시중)와 같은 사유로 쓴다. 전시 중인데 안 보이면 판매 제한·IP 비공개다. */
           good.customerVisible
-            ? <a key="goodId" className="inline-flex items-center gap-0.5 font-medium wrap-anywhere underline-offset-4 hover:underline" data-goods-list="good-id" href={goodDetailHref(good.id)} target="_blank" rel="noopener noreferrer">{good.id}<span className="sr-only"> 고객 화면 새 탭으로 열기</span><ArrowUpRight aria-hidden="true" className="size-3.5 shrink-0" /></a>
-            : <Link key="goodId" className="flex flex-col gap-0.5 font-medium wrap-anywhere underline-offset-4 hover:underline" data-goods-list="good-id" href={goodPreviewHref(filters, good.id)}>{good.id}<small className={SECONDARY}>{good.archivedAt ? '보관' : good.publishedAt ? '고객 화면 비노출' : '공개 전'} · 미리보기</small></Link>,
+            ? <a key="goodId" className="inline-flex items-center gap-0.5 font-medium underline-offset-4 hover:underline" data-goods-list="good-id" href={goodDetailHref(good.id)} target="_blank" rel="noopener noreferrer">{good.id}<span className="sr-only"> 고객 화면 새 탭으로 열기</span><ArrowUpRight aria-hidden="true" className="size-3.5 shrink-0" /></a>
+            : <Link key="goodId" className="flex flex-col gap-0.5 font-medium underline-offset-4 hover:underline" data-goods-list="good-id" href={goodPreviewHref(filters, good.id)}>{good.id}<small className={SECONDARY}>{good.archivedAt ? '보관' : good.publishedAt ? '고객 화면 비노출' : '공개 전'} · 미리보기</small></Link>,
           <Link key="edit" className={buttonVariants({ variant: 'outline', size: 'xs' })} data-slot="button" href={goodEditorHref(filters, good.id)}>수정</Link>,
           editable && inlineIdentity && typeof good.basePrice === 'number' && good.compareAtPrice == null && !good.activeDiscountEndsAt
             ? <GoodsInlinePrice key="price" goodId={good.id} basePrice={good.basePrice} identity={inlineIdentity} hasOptions={(good.activeVariantCount ?? 0) !== 1}

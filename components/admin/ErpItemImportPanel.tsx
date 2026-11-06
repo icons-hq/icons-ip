@@ -296,7 +296,7 @@ export function ErpItemImportPanel() {
       {plan.blocking ? <p className="text-sm text-destructive" role="alert">{plan.blocking}</p> : null}
 
       {previewRows.length ? <div className={TABLE_REGION} role="region" aria-label="반입 미리보기" tabIndex={0}>
-        <table className={TABLE} data-slot="table">
+        <table className={`${TABLE} min-w-[640px]`} data-slot="table">
           <caption className={CAPTION}>반입할 품목 · 앞 {Math.min(ERP_ITEM_PREVIEW_ROWS, plan.rows.length).toLocaleString('ko-KR')}건</caption>
           <TableHeader><TableRow>
             <TableHead scope="col">행</TableHead><TableHead scope="col">ERP 코드</TableHead><TableHead scope="col">ERP 품명</TableHead>
