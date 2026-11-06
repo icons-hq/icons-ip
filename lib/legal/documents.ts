@@ -15,7 +15,6 @@ import {
 } from './privacy-address-book-revision';
 import {
   PRIVACY_ADULT_VERIFICATION_REVISION,
-  privacyAdultVerificationRevisionAnnounced,
   privacyAdultVerificationRevisionInEffect,
 } from './privacy-adult-verification-revision';
 
@@ -99,10 +98,10 @@ const EMAIL_PROCESSOR_LABEL = 'Resend';
  * (pendingRevision)로만 알리고, 시행일(PRIVACY_ADDRESS_BOOK_REVISION.effectiveDate, KST)부터 개정 본문이 현행이 되며
  * 문서 시행일도 그 날짜로 바뀐다 — createLegalDocuments 가 날짜로 고른다. 시행일이 지난 뒤 이 예약 구조를 걷어
  * 본문으로 접어도 된다(2026-08-21 #207 승격 선례). terms·shipping 은 본문에 주소록이 없어 그대로다. */
-/* 2026-11-13 예약 개정(개인정보처리방침만) — 성인 인증(NHN KCP 휴대폰 본인확인, ADR-0024).
- * 주소록 개정이 시행된 2026-11-06에 공지하고 7일 뒤 시행한다(PRIVACY_ADULT_VERIFICATION_REVISION). 공지일부터 시행일
- * 전까지는 주소록 개정 본문(2026-11-06)을 현행으로 두고 사전 공지만 붙이며, 시행일부터 성인 인증 항목을 더한 본문이
- * 현행이 된다. 성인 인증 공개 스위치도 같은 날짜부터만 효력이 있다(lib/identity/kcp-cert-config.ts). */
+/* 2026-11-06 개정(개인정보처리방침만)에 성인 인증(NHN KCP 휴대폰 본인확인, ADR-0024)을 함께 담는다.
+ * 사전 공지 없이 주소록 개정과 같은 날 시행한다 — 실사용자가 없어 유예가 보호할 대상이 없다는 2026-08-22 선례와 같은
+ * 근거다(PRIVACY_ADULT_VERIFICATION_REVISION의 실측 기록). 두 변경은 한 개정으로 보이고 직전 판은 2026-10-19 본문이다.
+ * 성인 인증 공개 스위치도 이 시행일부터만 효력이 있다(lib/identity/kcp-cert-config.ts). */
 export const LEGAL_EFFECTIVE_DATES: Record<LegalDocumentSlug, string> = {
   terms: '2026-09-09',
   privacy: '2026-10-19',
@@ -717,8 +716,9 @@ if (!privacyAddressBookRevisionInEffect(today)) {
     '주소록에 저장한 배송지는 마이페이지의 배송지 관리(/my/addresses)에서 직접 열람·수정·삭제할 수 있습니다.');
 }
 
-// 2026-11-13 예약 개정 — 성인 인증(NHN KCP 휴대폰 본인확인, ADR-0024). 공지일부터 시행일 전까지는 현행 본문에 사전 공지만
-// 붙이고, 시행일부터 직전 본문을 이전 판으로 보존한 뒤 성인 인증 항목을 더한다.
+// 2026-11-06 개정 — 성인 인증(NHN KCP 휴대폰 본인확인, ADR-0024). 사전 공지 없이 시행한다(근거는 위 LEGAL_EFFECTIVE_DATES 주석).
+// 주소록 개정과 시행일이 같으면 한 개정으로 합친다 — 직전 판(2026-10-19)을 그대로 두고 변경 내용만 더한다. 날짜가 다르면
+// 직전 본문을 이전 판으로 보존한다.
 // 본인확인기관이 넘기는 결과 원문(이름·생년월일 등)은 서울 리전(icn1) 서버 함수가 19세 이상 여부 판정에만 쓰고 저장하지 않는다.
 // DB(private.adult_verifications·adult_verification_sessions)에는 인증 여부·일시·유효기간과 DI·거래번호의 HMAC 다이제스트만 남고,
 // 둘 다 auth.users 삭제에 cascade 된다 — 그래서 별도 보존 기간 행을 두지 않고 제3조 일반 원칙(탈퇴 시 파기)을 따른다.
@@ -727,9 +727,12 @@ const adultVerificationRevisionChanges = [
   '휴대폰 본인확인 서비스를 제공하는 엔에이치엔케이씨피 주식회사를 개인정보 처리업무 수탁자로 추가합니다.',
 ];
 if (privacyAdultVerificationRevisionInEffect(today)) {
-  privacy.previousVersion = { effectiveDate: privacy.effectiveDate, articles: structuredClone(privacy.articles) };
+  const sameRevision = privacy.effectiveDate === PRIVACY_ADULT_VERIFICATION_REVISION.effectiveDate;
+  if (!sameRevision) privacy.previousVersion = { effectiveDate: privacy.effectiveDate, articles: structuredClone(privacy.articles) };
   privacy.effectiveDate = PRIVACY_ADULT_VERIFICATION_REVISION.effectiveDate;
-  privacy.revisionChanges = adultVerificationRevisionChanges;
+  privacy.revisionChanges = sameRevision
+    ? [...(privacy.revisionChanges ?? []), ...adultVerificationRevisionChanges]
+    : adultVerificationRevisionChanges;
   const article = (prefix: string) => privacy.articles.find((item) => item.heading.startsWith(prefix))!;
   const collected = article('제1조 ').table!.rows;
   collected.splice(collected.findIndex((row) => row[0] === '온보딩') + 1, 0, [
@@ -747,16 +750,6 @@ if (privacyAdultVerificationRevisionInEffect(today)) {
   const processors = article('제5조 ').table!.rows;
   processors.splice(processors.findIndex((row) => row[0] === EMAIL_PROCESSOR_LABEL), 0,
     ['엔에이치엔케이씨피 주식회사', '휴대폰 본인확인(성인 인증) 서비스 제공', '위탁계약 종료 시까지']);
-} else if (privacyAdultVerificationRevisionAnnounced(today)) {
-  privacy.pendingRevision = {
-    announcedDate: PRIVACY_ADULT_VERIFICATION_REVISION.announcedDate,
-    effectiveDate: PRIVACY_ADULT_VERIFICATION_REVISION.effectiveDate,
-    heading: '성인 인증(휴대폰 본인확인) 도입에 따른 개정 예정 안내',
-    changes: [
-      ...adultVerificationRevisionChanges,
-      '성인 인증은 개정 방침이 시행되는 날부터 이용할 수 있습니다.',
-    ],
-  };
 }
 
 const shipping: LegalDocument = {
