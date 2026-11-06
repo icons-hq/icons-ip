@@ -4,6 +4,7 @@ import { randomBytes } from 'node:crypto';
 import { pathToFileURL } from 'node:url';
 
 import { isTossKeyPairAligned, tossKeyMode } from '../lib/payments/toss-config.mjs';
+import { isSupabasePublishableKey, isSupabaseSecretKey } from '../lib/supabase/api-key-format.mjs';
 
 const REF = /^[a-z]{20}$/;
 const ALIAS = /^icons-ip-staging(?:-[a-z0-9]+)*\.vercel\.app$/;
@@ -69,7 +70,7 @@ export function stagingCredentials(credentials, projectRef) {
   const result = {
     PROJECT_REF: projectRef,
     SUPABASE_URL: credentials.SUPABASE_URL,
-    SUPABASE_PUBLISHABLE_KEY: credentials.SUPABASE_PUBLISHABLE_KEY || credentials.SUPABASE_ANON_KEY,
+    SUPABASE_PUBLISHABLE_KEY: credentials.SUPABASE_PUBLISHABLE_KEY,
     SUPABASE_SERVICE_ROLE_KEY: credentials.SUPABASE_SERVICE_ROLE_KEY,
     POSTGRES_URL: credentials.POSTGRES_URL,
   };
@@ -80,6 +81,10 @@ export function stagingCredentials(credentials, projectRef) {
   }
   if (result.SUPABASE_URL !== `https://${projectRef}.supabase.co`) {
     throw new Error('Staging API credential does not match the selected branch');
+  }
+  if (!isSupabasePublishableKey(result.SUPABASE_PUBLISHABLE_KEY)
+    || !isSupabaseSecretKey(result.SUPABASE_SERVICE_ROLE_KEY)) {
+    throw new Error('Staging requires sb_publishable_/sb_secret_ API keys, not legacy JWT or masked keys');
   }
   let database;
   try { database = new URL(result.POSTGRES_URL); } catch { throw new Error('Invalid staging database URL'); }
@@ -95,6 +100,23 @@ export function stagingCredentials(credentials, projectRef) {
     }
   }
   return result;
+}
+
+/** `branches get` masks secret keys, so the deploy key comes from the revealed API key list. */
+export function selectBranchApiKeys(keys) {
+  if (!Array.isArray(keys)) throw new Error('Invalid Supabase API key list');
+  const pick = (type) => keys.find((entry) => entry?.type === type
+    && entry.name === 'default' && entry.disabled !== true)?.api_key;
+  return { SUPABASE_PUBLISHABLE_KEY: pick('publishable'), SUPABASE_SERVICE_ROLE_KEY: pick('secret') };
+}
+
+export function loadStagingCredentials({ previewRef, projectRef, invoke = invokeSupabase }) {
+  const branch = JSON.parse(invoke(['branches', 'get', 'staging', '--project-ref', previewRef, '--output', 'json']));
+  const keys = selectBranchApiKeys(JSON.parse(invoke([
+    'projects', 'api-keys', '--project-ref', projectRef, '--reveal', '--output', 'json',
+  ])));
+  // Spread unset new keys too, so legacy branch values can never fill the gap.
+  return stagingCredentials({ ...branch, ...keys }, projectRef);
 }
 
 export function invokeSupabase(args) {
@@ -128,9 +150,7 @@ export async function prepareStagingBranch({
     }
   }
   const projectRef = assertStagingBranch(branch, { previewRef, productionRef });
-  return stagingCredentials(JSON.parse(invoke([
-    'branches', 'get', 'staging', '--project-ref', previewRef, '--output', 'json',
-  ])), projectRef);
+  return loadStagingCredentials({ previewRef, projectRef, invoke });
 }
 
 export function stagingDeploymentEnvironment(environment) {
@@ -142,7 +162,6 @@ export function stagingDeploymentEnvironment(environment) {
   return {
     NEXT_PUBLIC_SUPABASE_URL: credentials.SUPABASE_URL,
     NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY: credentials.SUPABASE_PUBLISHABLE_KEY,
-    NEXT_PUBLIC_SUPABASE_ANON_KEY: '',
     SUPABASE_SERVICE_ROLE_KEY: credentials.SUPABASE_SERVICE_ROLE_KEY,
     ICONS_CATALOG_SOURCE: 'supabase', SITE_URL: `https://${alias}`,
     AUTH_SIGNUP_RESEND_SECRET: environment.STAGING_AUTH_RESEND_SECRET || randomBytes(32).toString('base64url'),
