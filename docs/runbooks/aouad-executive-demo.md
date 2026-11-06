@@ -7,7 +7,7 @@
 ## 접근과 회수
 
 - 2026-09-10 현재 기본값은 `AOUAD_POPUP_ENABLED=true`, `AOUAD_POPUP_PUBLIC=true`다. 비로그인·일반 회원·staff/admin 모두 `/ip`의 카드를 보고 `/ip/aouad`에 직접 들어가며, 전용 에셋 GET·HEAD·Range도 사용할 수 있다. Next.js의 스트리밍 응답은 HTTP 200일 수 있으므로 페이지 검증 때 상태 코드만 보지 않고 시연 본문·noindex를 함께 확인한다.
-- 서버 페이지·에셋의 공통 게이트는 `lib/aouad-popup.server.ts`의 `canViewAouadPopup()`이다. 공개 모드에서는 인증 전에 통과하고, `AOUAD_POPUP_PUBLIC=false`인 비공개 모드에서만 `getCurrentAdminAuthState()`의 정지되지 않은 staff/admin 판정을 사용한다. 디렉토리의 `is_staff` readback은 비공개 카드 노출용이며 서버 검사를 대신하지 않는다.
+- 서버 페이지·에셋의 공통 게이트는 `lib/aouad-popup.server.ts`의 `canViewAouadPopup()`이다. 공개 모드에서는 인증 전에 통과하고, `AOUAD_POPUP_PUBLIC=false`인 비공개 모드에서만 `getCurrentAdminAuthState()`로 정지되지 않은 계정의 현재 `platform.manage` 권한을 확인한다. `profiles.role`의 staff/admin은 이 권한을 대신하지 않는다([ADR-0020](../adr/0020-store-manager-capabilities.md)). 디렉토리 카드는 같은 능력의 `has_operator_capability('platform.manage')` readback으로 노출하며 서버 검사를 대신하지 않는다.
 - 공개 전환은 `lib/aouad-popup.ts`의 `AOUAD_POPUP_PUBLIC`을, 전체 회수는 `AOUAD_POPUP_ENABLED`를 변경한 뒤 같은 검증·배포 경로로 반영한다. 현재 공개 상태는 환경 변수로 우회하지 않으며, `AOUAD_POPUP_PUBLIC=false`로 되돌릴 때는 아래 비공개 접근 검증을 다시 적용한다.
 - 2026-09-10 PM이 현재 시연 스틸의 Netflix 검토용 공유에 대한 사용을 승인했다. 공개 모드는 페이지뿐 아니라 현재 시연의 이미지·영상도 익명으로 열며, `noindex`·캐시 지시자는 접근 통제가 아니다. 원본 권리 기록과 이번 시연 사용 승인 범위는 [모듈 README](../../components/online-popup/aouad/README.md#시연과-운영의-경계)에 구분해 둔다.
 - 페이지는 `force-dynamic`이고 `noindex, nofollow`다. 전용 화면의 ICONS 복귀 링크로 `/ip`에 돌아온다.
@@ -159,7 +159,7 @@ Vercel Git 자동 배포는 비활성화되어 있다. 일반 PR의 `validate`·
 
 배포 후에는 실제 `https://iconsip.com`에서 다음을 확인한다.
 
-1. 현재 공개 모드에서는 비로그인 상태에서 `/ip`에 시연 카드가 보이고 `/ip/aouad` 직접 진입이 성공하는지 확인한다. 에셋 직접 URL의 GET·HEAD·Range도 비로그인 상태에서 성공하고, 실제 이미지·Phaser 에셋·오디오·영상 재생 및 seek가 동작하는지 확인한다. `AOUAD_POPUP_PUBLIC=false`인 비공개 배포에서는 이 검증을 비로그인·일반 회원 404, staff/admin 성공으로 바꾼다.
+1. 현재 공개 모드에서는 비로그인 상태에서 `/ip`에 시연 카드가 보이고 `/ip/aouad` 직접 진입이 성공하는지 확인한다. 에셋 직접 URL의 GET·HEAD·Range도 비로그인 상태에서 성공하고, 실제 이미지·Phaser 에셋·오디오·영상 재생 및 seek가 동작하는지 확인한다. `AOUAD_POPUP_PUBLIC=false`인 비공개 배포에서는 이 검증을 비로그인·일반 회원과 `platform.manage`가 없는 운영자 404, `platform.manage` 권한 운영자 성공으로 바꾼다.
 2. 데스크톱·모바일의 첫 방문, 모든 장/존 이동, 상품 옵션·장바구니·주문 체험, 학생증·퀘스트, 세 게임, 네 뽑기 방식, 현장 예약 체험, 뒤로가기·새로고침·초기화를 확인한다.
 3. 화면의 시연 표기, 네이티브 대화상자 초점·Escape, 숨긴 패널의 키보드 제외, 오류 없는 네트워크/콘솔을 확인한다. 시연 행동으로 실제 거래 API가 호출되지 않아야 한다.
 4. 배포 SHA와 canonical alias를 확인하고 새 이미지 23종의 실제 HTTP bytes를 manifest의 최종 SHA와 대조한다. 실제 Preview/production 실행 결과는 연결된 PR의 배포 체크와 완료 기록으로 남긴다.
