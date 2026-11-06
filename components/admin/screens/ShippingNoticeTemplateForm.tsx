@@ -8,6 +8,7 @@ import {
   type ShippingNoticeTemplateActionState,
 } from '@/app/admin/shipping-notice-template-actions';
 import { AdminField, AdminFormGrid } from '@/components/admin/console/AdminKit';
+import { useAdminCreateDialogBusy } from '@/components/admin/console/AdminCreateDialogButton';
 import {
   SHIPPING_NOTICE_TEMPLATE_CODE_MAX,
   SHIPPING_NOTICE_TEMPLATE_CS_EMAIL_MAX,
@@ -30,6 +31,8 @@ const EMPTY_STATE: ShippingNoticeTemplateActionState = {};
 
 export function ShippingNoticeTemplateForm({ template }: { template?: ShippingNoticeTemplate }) {
   const [state, action, pending] = useActionState(saveShippingNoticeTemplateAction, EMPTY_STATE);
+  /* 등록 팝업 안에서 저장을 기다리는 동안 팝업을 닫지 못하게 한다(목록 안 수정 폼에서는 아무 일도 하지 않는다). */
+  useAdminCreateDialogBusy(pending);
   const prefix = useId();
   const value = (name: string, fallback: string) => state.values?.[name] ?? fallback;
   const locked = template?.status === 'active';
