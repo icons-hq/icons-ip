@@ -15,6 +15,7 @@ vi.mock('react', async () => ({
 import { ConsoleGrid } from '@/components/admin/console/ConsoleGrid';
 import { GoodsBulkToolbar } from '../GoodsBulkToolbar';
 import { MarketingLinksGoodsGrid } from './MarketingLinksGoodsGrid';
+import { Button } from '@/components/admin/kit/ui/button';
 type Element = ReactElement<Record<string, unknown>>;
 function nodes(value: ReactNode): Element[] { return Children.toArray(value).flatMap(node => isValidElement<Record<string, unknown>>(node) ? [node, ...nodes(node.props.children as ReactNode)] : []); }
 function text(value: ReactNode): string { return Children.toArray(value).map(node => isValidElement<Record<string, unknown>>(node) ? text(node.props.children as ReactNode) : String(node)).join(''); }
@@ -22,6 +23,8 @@ const identity = { actorId: 'b9000000-0000-4000-8000-000000000001', sessionId: '
 const rows = ['good-a', 'good-b', 'good-c'].map(id => ({ id, cells: [id] }));
 function render(visible = rows) { mocks.index = 0; return MarketingLinksGoodsGrid({ canIssue: true, bulkIdentity: identity, caption: '상품 목록', columns: [{ key: 'name', label: '상품명' }], rows: visible }); }
 const grid = (tree: ReactNode) => nodes(tree).find(node => node.type === ConsoleGrid)!;
+/* 버튼은 kit Button 부품(ADR-0028)이다. */
+const isButton = (node: Element) => node.type === 'button' || node.type === Button;
 beforeEach(() => { vi.clearAllMocks(); mocks.states = []; mocks.index = 0; });
 
 it('일괄 변경을 확정해도 선택을 유지하고 목록만 새로 읽는다', () => {
@@ -35,9 +38,9 @@ it('일괄 변경을 확정해도 선택을 유지하고 목록만 새로 읽는
 });
 
 it('선택 해제 버튼이 선택을 비우고, 선택이 없으면 버튼을 두지 않는다', () => {
-  expect(nodes(render()).some(node => node.type === 'button' && text(node.props.children as ReactNode) === '선택 해제')).toBe(false);
+  expect(nodes(render()).some(node => isButton(node) && text(node.props.children as ReactNode) === '선택 해제')).toBe(false);
   (grid(render()).props.onSelectionChange as (ids: string[]) => void)(['good-c']);
-  const clear = nodes(render()).find(node => node.type === 'button' && text(node.props.children as ReactNode) === '선택 해제')!;
+  const clear = nodes(render()).find(node => isButton(node) && text(node.props.children as ReactNode) === '선택 해제')!;
   (clear.props.onClick as () => void)();
   expect(grid(render()).props.selectedIds).toEqual([]);
 });
