@@ -8,6 +8,7 @@ const ISOLATED_PREVIEW_PATHS = [
   /^scripts\/sync-supabase-auth\.mjs$/,
   /^scripts\/reconcile-supabase-functions\.mjs$/,
   /^scripts\/preview-supabase-mode\.mjs$/,
+  /^scripts\/wait-supabase-branch-deployment\.mjs$/,
   /^\.github\/workflows\/(?:pipeline|supabase-preview-cleanup)\.yml$/,
 ];
 
