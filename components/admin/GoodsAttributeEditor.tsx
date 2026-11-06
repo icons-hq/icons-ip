@@ -1,6 +1,10 @@
 'use client';
 import { useEffect, useRef, useState } from 'react';
+import { RefreshCw } from 'lucide-react';
 import { readGoodsAttributesAction } from '@/app/admin/goods-attribute-actions';
+import { Button } from '@/components/admin/kit/ui/button';
+import { NativeSelect } from '@/components/admin/kit/ui/native-select';
+import { GOOD_INPUT_CLASS } from './GoodEditorParts';
 import { EMPTY_GOODS_ATTRIBUTES, goodsAttributeValueLabel, parseGoodsAttributeFields, parseGoodsAttributeSubmission, validGoodsAttributeValue, type GoodsAttributeDocument, type GoodsAttributeField, type GoodsAttributeSchema, type GoodsAttributeSubmission } from '@/lib/goods-attributes';
 
 type RawEntry = { field: GoodsAttributeField; raw: string | string[] };
@@ -89,27 +93,30 @@ export function GoodsAttributeEditor({ categoryId, goodId, initialSubmission, in
     if (!result.data) {setLoadError(result.error ?? '조회하지 못했습니다.');return;}
     setLatest(result.data); setLoadError('');
   }
-  return <div className="admin-attributes admin-attributes--values">
+  /* 상품 폼 안에 놓인다. 버튼은 모두 type="button"이고, 값은 위 hidden 두 칸으로만 제출한다. */
+  return <div className="flex min-w-0 flex-col gap-4" data-good-attributes="">
     <input type="hidden" name="productAttributes" value={serialized} /><input type="hidden" name="productAttributeDraft" value={draft} />
-    <p>대표 카테고리의 상품속성을 사용합니다. 추가 카테고리는 속성 정의에 영향을 주지 않습니다. 기본 상품 저장으로 반영하며, 임시저장에는 미완성 입력도 보관합니다.</p>
-    {loading || !ready && !loadError ? <p role="status">상품속성을 불러오는 중입니다.</p> : null}
-    {loadError ? <p role="alert">{loadError}</p> : null}{error ? <p role="alert">{error}</p> : null}
-    <button type="button" className="wc-admin-kit__button" onClick={refresh}>최신 속성 정의·저장값 조회</button>
-    {latest ? <div className="admin-attributes__comparison"><h4>최신 정의 버전 {latest.schema?.revision ?? 0} · 저장값 버전 {latest.document.revision}</h4>{latest.document.entries.map(entry=><p key={entry.field.id}>{entry.field.name}: {goodsAttributeValueLabel(entry.field,entry.value)}</p>)}
-      <button type="button" className="wc-admin-kit__button" onClick={()=>{setSchema(latest.schema);setSchemaRevision(latest.schema?.revision??0);setDocument(latest.document);setExpectedRevision(latest.document.revision);setLatest(null);initialized.current=true;setLoaded(true);setLoading(false);}}>내 입력 유지하고 최신 버전으로 저장 준비</button>
-      <button type="button" className="wc-admin-kit__button" onClick={()=>{setSchema(latest.schema);setSchemaRevision(latest.schema?.revision??0);setDocument(latest.document);setExpectedRevision(latest.document.revision);setRaw(rawDocument(latest.document));setRemoveIds([]);setLatest(null);initialized.current=true;setLoaded(true);setLoading(false);}}>최신 저장값으로 입력 교체</button>
+    <p className="text-sm text-muted-foreground">대표 카테고리의 상품속성을 사용합니다. 추가 카테고리는 속성 정의에 영향을 주지 않습니다. 기본 상품 저장으로 반영하며, 임시저장에는 미완성 입력도 보관합니다.</p>
+    {loading || !ready && !loadError ? <p className="text-sm text-muted-foreground" role="status">상품속성을 불러오는 중입니다.</p> : null}
+    {loadError ? <p className="text-sm text-destructive" role="alert">{loadError}</p> : null}{error ? <p className="text-sm text-destructive" role="alert">{error}</p> : null}
+    <Button type="button" variant="outline" size="sm" className="self-start" onClick={refresh}><RefreshCw aria-hidden="true" />최신 속성 정의·저장값 조회</Button>
+    {latest ? <div className="flex min-w-0 flex-col gap-2 rounded-lg border bg-muted/40 p-4 text-sm"><h4 className="font-medium">최신 정의 버전 {latest.schema?.revision ?? 0} · 저장값 버전 {latest.document.revision}</h4>{latest.document.entries.map(entry=><p className="text-muted-foreground wrap-anywhere" key={entry.field.id}>{entry.field.name}: {goodsAttributeValueLabel(entry.field,entry.value)}</p>)}
+      <div className="flex flex-wrap gap-2 pt-1">
+      <Button type="button" variant="outline" size="sm" onClick={()=>{setSchema(latest.schema);setSchemaRevision(latest.schema?.revision??0);setDocument(latest.document);setExpectedRevision(latest.document.revision);setLatest(null);initialized.current=true;setLoaded(true);setLoading(false);}}>내 입력 유지하고 최신 버전으로 저장 준비</Button>
+      <Button type="button" variant="outline" size="sm" onClick={()=>{setSchema(latest.schema);setSchemaRevision(latest.schema?.revision??0);setDocument(latest.document);setExpectedRevision(latest.document.revision);setRaw(rawDocument(latest.document));setRemoveIds([]);setLatest(null);initialized.current=true;setLoaded(true);setLoading(false);}}>최신 저장값으로 입력 교체</Button>
+      </div>
     </div> : null}
-    {ready && !schema?.fields.length ? <p>선택한 대표 카테고리에 정의된 상품속성이 없습니다.</p> : null}
-    {ready ? <div className="admin-attributes__value-fields">{schema?.fields.map(field=>{
+    {ready && !schema?.fields.length ? <p className="text-sm text-muted-foreground">선택한 대표 카테고리에 정의된 상품속성이 없습니다.</p> : null}
+    {ready ? <div className="grid min-w-0 gap-x-6 gap-y-5 empty:hidden sm:grid-cols-2">{schema?.fields.map(field=>{
       const entry=raw.find(item=>item.field.id===field.id && compatible(item,field) && !removeIds.includes(field.id));
       const value=entry?.raw ?? (field.kind==='multi'?[]:''); const id=`product-attribute-${field.id}`;
-      return <div className="admin-attributes__value" key={field.id}><label htmlFor={id}>{field.name}{field.required?' · 필수':''}{field.unit?` (${field.unit})`:''}</label>
-        {field.kind==='single' ? <select id={id} value={typeof value==='string'?value:''} onChange={event=>edit(field,event.target.value)}><option value="">선택 안 함</option>{field.options.map(option=><option key={option.id} value={option.id}>{option.label}</option>)}</select>
-          :field.kind==='multi' ? <fieldset id={id}><legend className="sr-only">{field.name}</legend>{field.options.map(option=><label key={option.id}><input type="checkbox" checked={Array.isArray(value)&&value.includes(option.id)} onChange={event=>edit(field,event.target.checked?[...(Array.isArray(value)?value:[]),option.id]:(Array.isArray(value)?value:[]).filter(item=>item!==option.id))}/>{option.label}</label>)}</fieldset>
-          : <input id={id} inputMode={field.kind==='number'?'decimal':undefined} maxLength={field.kind==='number'?40:500} value={typeof value==='string'?value:''} onChange={event=>edit(field,event.target.value)} />}
-        {field.kind==='number'?<small>절댓값 10억 이하 · 소수점 6자리까지</small>:null}
+      return <div className="flex min-w-0 flex-col gap-2" key={field.id}><label className="text-sm leading-snug font-medium text-foreground" htmlFor={id}>{field.name}{field.required?' · 필수':''}{field.unit?` (${field.unit})`:''}</label>
+        {field.kind==='single' ? <NativeSelect className="w-full" id={id} value={typeof value==='string'?value:''} onChange={event=>edit(field,event.target.value)}><option value="">선택 안 함</option>{field.options.map(option=><option key={option.id} value={option.id}>{option.label}</option>)}</NativeSelect>
+          :field.kind==='multi' ? <fieldset className="m-0 flex min-w-0 flex-wrap gap-x-4 gap-y-1 border-0 p-0" id={id}><legend className="sr-only">{field.name}</legend>{field.options.map(option=><label className="inline-flex min-h-8 cursor-pointer items-center gap-2 text-sm" key={option.id}><input type="checkbox" checked={Array.isArray(value)&&value.includes(option.id)} onChange={event=>edit(field,event.target.checked?[...(Array.isArray(value)?value:[]),option.id]:(Array.isArray(value)?value:[]).filter(item=>item!==option.id))}/>{option.label}</label>)}</fieldset>
+          : <input className={field.kind==='number' ? `${GOOD_INPUT_CLASS} tabular-nums` : GOOD_INPUT_CLASS} data-slot="input" id={id} inputMode={field.kind==='number'?'decimal':undefined} maxLength={field.kind==='number'?40:500} value={typeof value==='string'?value:''} onChange={event=>edit(field,event.target.value)} />}
+        {field.kind==='number'?<small className="text-xs text-muted-foreground">절댓값 10억 이하 · 소수점 6자리까지</small>:null}
       </div>;
     })}</div> : null}
-    {unmatched.length ? <section className="admin-attributes__retained"><h4>현재 정의와 맞지 않는 보관값 {unmatched.length}개</h4><p>자동으로 삭제하지 않습니다. 저장된 보관값은 유지되며 공개 상세에서 제외합니다. 아직 저장하지 않은 이전 카테고리 입력은 해당 카테고리에서 저장하거나 아래에서 명시적으로 삭제해주세요.</p>{unmatched.map(entry=><div key={entry.field.id}><span>{entry.field.name} · {Array.isArray(entry.raw)?entry.raw.map(id=>entry.field.options.find(option=>option.id===id)?.label??id).join(', '):entry.field.kind==='single'?entry.field.options.find(option=>option.id===entry.raw)?.label??entry.raw:entry.raw} {entry.field.unit}</span><button type="button" className="wc-admin-kit__button" onClick={()=>setRemoveIds(ids=>[...ids,entry.field.id])}>보관값 명시적으로 삭제</button></div>)}</section>:null}
+    {unmatched.length ? <section className="flex min-w-0 flex-col gap-2 rounded-lg border border-[color-mix(in_oklab,var(--wc-warning)_40%,transparent)] bg-[color-mix(in_oklab,var(--wc-warning)_8%,transparent)] p-4 text-sm" data-good-attributes-retained=""><h4 className="font-medium text-[var(--wc-warning)]">현재 정의와 맞지 않는 보관값 {unmatched.length}개</h4><p className="text-muted-foreground">자동으로 삭제하지 않습니다. 저장된 보관값은 유지되며 공개 상세에서 제외합니다. 아직 저장하지 않은 이전 카테고리 입력은 해당 카테고리에서 저장하거나 아래에서 명시적으로 삭제해주세요.</p>{unmatched.map(entry=><div className="flex min-w-0 flex-wrap items-center justify-between gap-2" key={entry.field.id}><span className="min-w-0 wrap-anywhere">{entry.field.name} · {Array.isArray(entry.raw)?entry.raw.map(id=>entry.field.options.find(option=>option.id===id)?.label??id).join(', '):entry.field.kind==='single'?entry.field.options.find(option=>option.id===entry.raw)?.label??entry.raw:entry.raw} {entry.field.unit}</span><Button type="button" variant="destructive" size="sm" onClick={()=>setRemoveIds(ids=>[...ids,entry.field.id])}>보관값 명시적으로 삭제</Button></div>)}</section>:null}
   </div>;
 }

@@ -18,6 +18,7 @@ vi.mock('react-dom', () => ({ createPortal: hooks.portal }));
 vi.mock('next/navigation', () => ({ useRouter: () => ({ replace: vi.fn() }) }));
 import { CountryNameFinder, CountryNamePicker, GoodsOriginField } from './CountryNameFinder';
 import { Field } from './fields';
+import { NativeSelect } from './kit/ui/native-select';
 
 type Element = ReactElement<Record<string, unknown>>;
 const nodes = (node: ReactNode): Element[] => Children.toArray(node).flatMap(value => isValidElement<Record<string, unknown>>(value) ? [value, ...nodes(value.props.children as ReactNode)] : []);
@@ -29,9 +30,12 @@ function button(name: string) { return nodes(render()).find(node => node.type ==
 function click(name: string) { (button(name).props.onClick as () => void)(); }
 function search(query: string) { (nodes(render()).find(node => node.type === 'input' && node.props.type === 'search')!.props.onChange as (event: unknown) => void)({ target: { value: query } }); }
 function select(code: string) { (nodes(render()).find(node => node.type === 'input' && node.props.type === 'radio' && node.props.value === code)!.props.onChange as () => void)(); }
+/** 라벨(htmlFor)로 이어진 시·도/시·군·구 select를 찾아 고른다. */
 function selectRegion(label: string, value: string) {
-  const field = nodes(render()).find(node => node.type === 'label' && text(node.props.children as ReactNode).startsWith(label))!;
-  (nodes(field.props.children as ReactNode).find(node => node.type === 'select')!.props.onChange as (event: unknown) => void)({ target: { value } });
+  const tree = nodes(render());
+  const field = tree.find(node => node.type === 'label' && text(node.props.children as ReactNode).startsWith(label))!;
+  expect(field.props.htmlFor).toBeTruthy();
+  (tree.find(node => node.type === NativeSelect && node.props.id === field.props.htmlFor)!.props.onChange as (event: unknown) => void)({ target: { value } });
 }
 async function settle() { await Promise.resolve(); await Promise.resolve(); await Promise.resolve(); }
 beforeEach(() => {
@@ -75,7 +79,7 @@ it('국내 시도·일반구는 최종 문구를 확인한 뒤 한 번만 기존
 it('시도 변경은 이전 일반구를 지우고 세종에는 중복 두 번째 단계를 만들지 않는다', () => {
   select('domestic'); selectRegion('시·도', '4100000000'); selectRegion('시·군·구', '4111700000');
   selectRegion('시·도', '3600000000');
-  expect(nodes(render()).filter(node => node.type === 'select')).toHaveLength(1);
+  expect(nodes(render()).filter(node => node.type === NativeSelect)).toHaveLength(1);
   expect(nodes(render()).find(node => node.props.readOnly)!.props.value).toBe('대한민국(세종특별자치시)');
   selectRegion('시·도', '4100000000');
   expect(nodes(render()).find(node => node.props.readOnly)!.props.value).toBe('대한민국(경기도)');
