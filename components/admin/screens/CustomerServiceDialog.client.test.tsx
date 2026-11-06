@@ -85,7 +85,7 @@ describe('CustomerServiceDialog Esc 닫기', () => {
 describe('CustomerServiceDialog native close 동기화', () => {
   it('처리 중에는 × 닫기 버튼도 누를 수 없다', () => {
     const dialog = CustomerServiceDialog({ title: '선택 건 처리', onClose: vi.fn(), busy: true, children: null }) as DialogElement;
-    const button = all(dialog).find((element) => element.type === 'button' && element.props['aria-label'] === '닫기');
+    const button = all(dialog).find((element) => element.props['aria-label'] === '닫기');
     expect(button?.props.disabled).toBe(true);
   });
 

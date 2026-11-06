@@ -137,7 +137,7 @@ describe('m27 가이드 — 클레임(R7·R8)', () => {
     expect(grid.indexOf('admin-claim-bulk-bar')).toBeGreaterThan(-1);
     expect(grid.indexOf('admin-claim-bulk-reason')).toBeGreaterThan(grid.indexOf('admin-claim-bulk-bar'));
     const consoleGrid = repoFile('components/admin/console/ConsoleGrid.tsx');
-    expect(consoleGrid.indexOf('{children}')).toBeLessThan(consoleGrid.indexOf('<table className='data-slot="table"''));
+    expect(consoleGrid.indexOf('{children}')).toBeLessThan(consoleGrid.indexOf('data-slot="table"'));
     expect(text).toContain('목록 위 일괄 처리 버튼 바로 아래의 거부 사유 칸');
     expect(text).not.toContain('목록 아래 거부 사유 칸');
     /* ADR-0028: 취소 관리(kit)는 아래 처리 막대의 거부 버튼이 거부 사유 팝오버를 연다. */
