@@ -12,7 +12,8 @@ import {
 import { ShippingChargeGroupField, ShippingChargeGroupSummary } from '../ShippingChargeGroupField';
 import { CustomerServiceDialog } from '../screens/CustomerServiceDialog';
 import { useShippingChargeGroupOperation, useShippingChargeGroupPending, type ShippingChargeGroupScope } from './useShippingChargeGroupOperation';
-import { ChevronLeft, ChevronRight, Search, X } from 'lucide-react';
+import { Search, X } from 'lucide-react';
+import { ConsolePagination } from '@/components/admin/console/ConsolePagination';
 import { Button } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
 import { NativeSelect } from '@/components/admin/kit/ui/native-select';
@@ -115,7 +116,6 @@ export function ShippingChargeGroupAssignmentDialog({ group, identity, scope, ca
     void operation.send(input);
   }
   const close = () => { if (!locked) onClose(); };
-  const maxPage = rows ? Math.max(1, Math.ceil(rows.total / rows.pageSize)) : 1;
   return <CustomerServiceDialog title={preview ? '배송비 묶음그룹 배정 미리보기' : '배송비 묶음그룹 연결 상품·배정'} onClose={close} busy={locked} wide>
     <div className="flex min-w-0 flex-col gap-4" data-charge-group-assignment="">
       <p><strong className="font-medium">{group.name}</strong> · 현재 연결 원상품 {group.assignedCount.toLocaleString('ko-KR')}개</p>
@@ -135,7 +135,7 @@ export function ShippingChargeGroupAssignmentDialog({ group, identity, scope, ca
           <TableCell className="align-top whitespace-normal">{good.effectiveCount > 1 ? <small className={`block ${FIELD_HINT}`}>합산군 {good.effectiveCount}개 상품이 배정을 공유합니다.</small> : <small className={`block ${FIELD_HINT}`}>개별 원상품</small>}
             {good.blocker ? <small className="mt-1 block text-xs text-destructive">{blockerText[good.blocker]}{mode === 'clear' && good.editable && clearableBlockers.has(good.blocker) ? ' 배정 해제 가능 여부는 미리보기에서 확인합니다.' : ''}</small> : null}{good.ownerGoodId !== good.id ? <Link className="mt-1 inline-block text-xs font-medium underline underline-offset-4" href={`/admin/catalog/goods?goodId=${encodeURIComponent(good.ownerGoodId)}`}>원상품 확인</Link> : null}</TableCell>
         </TableRow>)}</TableBody></Table>{!reading && rows?.total === 0 ? <p className="px-4 py-8 text-center text-sm text-muted-foreground">조회 조건에 맞는 상품이 없습니다.</p> : null}</div>
-        <div className="flex items-center justify-center gap-3 text-sm"><Button disabled={locked || !rows || rows.page <= 1} onClick={() => { void search({ ...appliedFilters, page: (rows?.page ?? 1) - 1 }); }} size="sm" type="button" variant="outline"><ChevronLeft aria-hidden="true" />이전</Button><span className="text-muted-foreground tabular-nums">{rows?.page ?? 1} / {maxPage}</span><Button disabled={locked || !rows || rows.page >= maxPage} onClick={() => { void search({ ...appliedFilters, page: (rows?.page ?? 1) + 1 }); }} size="sm" type="button" variant="outline">다음<ChevronRight aria-hidden="true" /></Button></div>
+        <ConsolePagination label="묶음그룹 배정 상품 페이지" page={rows?.page ?? 1} pageSize={rows?.pageSize ?? 20} total={rows?.total ?? 0} unit="개" disabled={locked || !rows} onPageChange={page => { void search({ ...appliedFilters, page }); }} />
         {canEdit ? <div className={INFO_PANEL}><label className={FIELD_LABEL}>선택 상품의 배정 변경<NativeSelect className="w-full" value={mode} disabled={locked} onChange={event => { setMode(event.target.value as typeof mode); setPreview(null); setInput(null); setMessage(''); }}>
           <option value="">배정 변경을 선택해주세요</option><option value="set">선택한 묶음그룹으로 지정·이동</option><option value="clear">묶음그룹 배정 해제</option></NativeSelect></label>
           {mode === 'set' ? <ShippingChargeGroupField identity={identity} originId={group.originId} value={target?.id ?? null} selectedGroup={target} disabled={locked}

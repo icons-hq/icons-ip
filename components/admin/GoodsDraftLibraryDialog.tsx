@@ -1,10 +1,10 @@
 /* eslint-disable @next/next/no-img-element -- Draft thumbnails use fixed dimensions and verified stored paths. */
 'use client';
 import { useEffect, useId, useRef, useState } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { findGoodsDraftsAction, getGoodsDraftAction, setGoodsDraftArchivedAction } from '@/app/admin/goods-draft-actions';
 import type { GoodsDraft, GoodsDraftPage, GoodsDraftSummary } from '@/lib/admin/goods-drafts';
 import { publicMediaUrl } from '@/lib/media';
+import { ConsolePagination } from '@/components/admin/console/ConsolePagination';
 import { Button } from '@/components/admin/kit/ui/button';
 import { NativeSelect } from '@/components/admin/kit/ui/native-select';
 import { CustomerServiceDialog } from './screens/CustomerServiceDialog';
@@ -71,7 +71,7 @@ export function GoodsDraftLibraryDialog({ onClose, onLoad }: { onClose: () => vo
         <div className="flex min-w-0 flex-col gap-1"><strong className="font-medium wrap-anywhere">{row.name}</strong><small className="text-xs text-muted-foreground tabular-nums">{time(row.updatedAt)} · 버전 {row.revision}</small></div>
         <div className="col-span-2 flex justify-end gap-2 sm:col-span-1">{!row.archived ? <Button type="button" size="sm" disabled={busy} onClick={() => { void run(() => load(row)); }}>불러오기</Button> : null}<Button type="button" size="sm" variant={row.archived ? 'outline' : 'destructive'} disabled={busy} onClick={() => { void run(() => archive(row)); }}>{row.archived ? '복구' : '삭제'}</Button></div>
       </li>)}</ul>
-      <nav aria-label="임시저장 페이지" className="flex items-center justify-center gap-3"><Button type="button" variant="outline" size="sm" disabled={busy || data.page <= 1} onClick={() => { void run(() => refresh(data.page - 1)); }}><ChevronLeft aria-hidden="true" />이전</Button><span className="tabular-nums">{data.page} / {Math.max(1, Math.ceil(data.total / data.pageSize))}</span><Button type="button" variant="outline" size="sm" disabled={busy || data.page * data.pageSize >= data.total} onClick={() => { void run(() => refresh(data.page + 1)); }}>다음<ChevronRight aria-hidden="true" /></Button></nav>
+      <ConsolePagination label="임시저장 페이지" page={data.page} pageSize={data.pageSize} total={data.total} disabled={busy} onPageChange={page => { void run(() => refresh(page)); }} />
     </section>
   </CustomerServiceDialog>;
 }

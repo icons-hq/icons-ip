@@ -9,6 +9,7 @@ import { INQUIRY_TEMPLATE_CATEGORIES, INQUIRY_TEMPLATE_PAGE_SIZE, INQUIRY_TEMPLA
   type InquiryTemplateReceipt, type InquiryReplyTemplate } from '@/lib/admin/inquiry-reply-templates';
 import { FileText } from 'lucide-react';
 import { AdminSelect } from '@/components/admin/console/AdminSelect';
+import { ConsolePagination } from '@/components/admin/console/ConsolePagination';
 import { Badge } from '@/components/admin/kit/ui/badge';
 import { Button } from '@/components/admin/kit/ui/button';
 import { CustomerServiceDialog } from './CustomerServiceDialog';
@@ -133,11 +134,7 @@ export function InquiryReplyTemplateTools({ body, onInsert, disabled = false, ac
           <Button disabled={locked} onClick={() => { void mutate({ templateId: row.id, revision: row.revision, action: row.archivedAt ? 'restore' : 'archive', values: {} }); }} size="sm" type="button" variant={row.archivedAt ? 'outline' : 'ghost'}>{row.archivedAt ? '복구' : '삭제'}</Button>
         </div>
       </article>) : <p className="py-6 text-center text-sm text-muted-foreground">조건에 맞는 템플릿이 없습니다.</p>}</div>
-      <nav className="flex items-center justify-between gap-3 border-t pt-4 text-sm" aria-label="고객문의 템플릿 목록 페이지">
-        <Button disabled={locked || data.page <= 1} onClick={() => { void run(() => load(data.page - 1)); }} size="sm" type="button" variant="outline">이전</Button>
-        <span className="text-muted-foreground tabular-nums">{data.page} / {Math.max(1, Math.ceil(data.total / INQUIRY_TEMPLATE_PAGE_SIZE))}</span>
-        <Button disabled={locked || data.page * INQUIRY_TEMPLATE_PAGE_SIZE >= data.total} onClick={() => { void run(() => load(data.page + 1)); }} size="sm" type="button" variant="outline">다음</Button>
-      </nav>
+      <ConsolePagination className="border-t pt-4" label="고객문의 템플릿 목록 페이지" page={data.page} pageSize={INQUIRY_TEMPLATE_PAGE_SIZE} total={data.total} unit="개" disabled={locked} onPageChange={page => { void run(() => load(page)); }} />
       {draft ? <form className={TEMPLATE_EDITOR_CLASS} data-cs-template="editor" onSubmit={event => { event.preventDefault(); void mutate({ templateId: draft.id, revision: draft.revision, action: 'save', values: { category: draft.category, title: draft.title, body: draft.body } }); }}>
         <h3 className="text-base font-medium text-foreground">{draft.revision ? '템플릿 수정' : '템플릿 등록'}</h3>
         <label className="flex flex-col gap-1.5"><span className={FIELD_LABEL_CLASS}>편집 유형</span><AdminSelect disabled={locked} value={draft.category} onChange={event => updateDraft({ category: event.target.value as InquiryTemplateDraft['category'] })}>{INQUIRY_TEMPLATE_CATEGORIES.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</AdminSelect></label>

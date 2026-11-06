@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { getShippingChargeGroupAction, listShippingChargeGroupsAction } from '@/app/admin/shipping-charge-group-actions';
 import type { ShippingChargeGroup, ShippingChargeGroupIdentity, ShippingChargeGroupListData } from '@/lib/admin/shipping-charge-groups';
+import { ConsolePagination } from '@/components/admin/console/ConsolePagination';
 import { Badge } from '@/components/admin/kit/ui/badge';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
 import { GOOD_INPUT_CLASS } from './GoodEditorParts';
@@ -116,9 +117,7 @@ export function ShippingChargeGroupField({ identity, originId, value, onChange, 
         <button className={buttonVariants({ variant: value === group.id ? 'secondary' : 'outline', size: 'sm' })} data-slot="button" type="button" disabled={locked || value === group.id} onClick={() => { if (!locked && group.originId === originId && group.enabled && !group.archived) { onChange(group.id, group); setPicker({ owner, open: false, query: '' }); } }}>{value === group.id ? '선택됨' : '선택'}</button>
       </li>)}</ul>
       {!list.busy && list.data && !options.length ? <p className="text-muted-foreground">선택할 수 있는 그룹이 없습니다. 기존 선택이나 미지정 상태는 자동으로 바뀌지 않습니다.</p> : null}
-      <div className="flex min-w-0 items-center justify-center gap-3 tabular-nums print:hidden"><button className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" type="button" disabled={locked || !list.data || list.data.page <= 1} onClick={() => { void search((list.data?.page ?? 1) - 1); }}>이전</button>
-        <span>{list.data?.page ?? 1} / {list.data ? Math.max(1, Math.ceil(list.data.total / list.data.pageSize)) : 1}</span>
-        <button className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" type="button" disabled={locked || !list.data || list.data.page * list.data.pageSize >= list.data.total} onClick={() => { void search((list.data?.page ?? 1) + 1); }}>다음</button></div>
+      <ConsolePagination className="print:hidden" label="배송비 묶음그룹 선택 페이지" page={list.data?.page ?? 1} pageSize={list.data?.pageSize ?? 20} total={list.data?.total ?? 0} unit="개" disabled={locked || !list.data} onPageChange={page => { void search(page); }} />
       <p className="text-xs text-muted-foreground">기본 그룹 표시는 선택을 돕기 위한 정보입니다. 새 상품이나 기존 상품을 자동으로 배정하지 않습니다.</p>
     </div> : null}
   </div>;

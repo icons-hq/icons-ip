@@ -20,6 +20,8 @@ interface ConsolePaginationCommonProps {
 interface ConsolePaginationLinkProps extends ConsolePaginationCommonProps {
   /** 페이지 번호로 이동할 href를 만든다. 다른 필터 조건은 호출자가 유지한다. */
   hrefForPage: (page: number) => string;
+  /** next/link의 scroll. 목록이 제자리에서 바뀌는 화면(대화 목록 등)은 `false`로 스크롤을 유지한다. */
+  scroll?: boolean;
   onPageChange?: never;
   disabled?: never;
 }
@@ -27,6 +29,7 @@ interface ConsolePaginationLinkProps extends ConsolePaginationCommonProps {
 /** 화면이 상태로 페이지를 읽는 목록(팝업·클라이언트 조회) — 이전·다음이 버튼이다. */
 interface ConsolePaginationButtonProps extends ConsolePaginationCommonProps {
   hrefForPage?: never;
+  scroll?: never;
   /** 이동할 페이지 번호를 받는다. 조회는 화면이 한다. */
   onPageChange: (page: number) => void;
   /** 조회 중처럼 이동을 막아야 할 때. */
@@ -73,7 +76,7 @@ export function ConsolePagination(props: ConsolePaginationProps) {
       >{content}</button>;
     }
     return enabled
-      ? <Link aria-label={name} className={link} data-slot="button" href={props.hrefForPage(target)}>{content}</Link>
+      ? <Link aria-label={name} className={link} data-slot="button" href={props.hrefForPage(target)} scroll={props.scroll}>{content}</Link>
       : <span aria-disabled="true" className={`${link} pointer-events-none opacity-50`}>{content}</span>;
   };
   return (

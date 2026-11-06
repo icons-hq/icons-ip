@@ -5,7 +5,8 @@ import {
   allocateGoodsPreordersAction, listGoodsPreorderReservationsAction, listGoodsPreordersAction, saveGoodsPreorderAction, switchToStockSupplyAction,
 } from '@/app/admin/goods-preorder-actions';
 import { toKstDateTimeInput } from '@/lib/admin/goods-price-periods';
-import { preparePreorderAllocation, type AdminGoodsPreorder, type AdminPreorderReservationPage } from '@/lib/admin/goods-preorders';
+import { ADMIN_PREORDER_RESERVATION_PAGE_SIZE, preparePreorderAllocation, type AdminGoodsPreorder, type AdminPreorderReservationPage } from '@/lib/admin/goods-preorders';
+import { ConsolePagination } from '@/components/admin/console/ConsolePagination';
 import type { AdminGoodsVariant } from '@/lib/admin/goods-variants';
 import { goodsShipDateLabel } from '@/lib/goods-preorders';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
@@ -203,10 +204,7 @@ function PreorderReservations({ goodId, revision, onSaved, canAllocate }: { good
     {!visible ? <p className="text-sm text-muted-foreground" role="status">예약 주문을 불러오는 중입니다…</p> : visible.error ? <p className="text-sm text-destructive" role="alert">{visible.error}</p> : visible.reservations ? <>
       <small className="text-xs text-muted-foreground tabular-nums">총 {visible.reservations.total.toLocaleString('ko-KR')}품목 · {pageNumber}페이지</small>
       <ReservationSelection key={key} canAllocate={canAllocate} goodId={goodId} page={visible.reservations} onSaved={(message) => { setPageNumber(1); onSaved(message); }} />
-      <div className="flex gap-2">
-        <button className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" type="button" disabled={pageNumber === 1} onClick={() => setPageNumber((page) => page - 1)}>이전</button>
-        <button className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" type="button" disabled={!visible.reservations.hasMore} onClick={() => setPageNumber((page) => page + 1)}>다음</button>
-      </div>
+      <ConsolePagination label="예약 주문 페이지" page={pageNumber} pageSize={ADMIN_PREORDER_RESERVATION_PAGE_SIZE} total={visible.reservations.total} unit="품목" onPageChange={setPageNumber} />
     </> : null}
   </div>;
 }
