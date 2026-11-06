@@ -10,6 +10,7 @@ vi.mock('react', async () => ({ ...await vi.importActual<typeof import('react')>
 }));
 vi.mock('@/app/admin/store-presentation-actions', () => ({ saveStorePresentationAction: mocks.save }));
 import { StorePresentationScreen } from './StorePresentationScreen';
+import { Button } from '@/components/admin/kit/ui/button';
 import { DEFAULT_STORE_PRESENTATION } from '@/lib/store-presentation';
 
 type Element = ReactElement<Record<string, unknown>>;
@@ -24,9 +25,11 @@ function render() {
   return nodes(result);
 }
 const checkbox = () => render().find(node => node.type === 'input' && node.props.type === 'checkbox')!;
+/* 버튼은 kit Button 부품(ADR-0028)이다. */
+const isButton = (node: Element) => node.type === 'button' || node.type === Button;
 function edit() { (checkbox().props.onChange as (event: unknown) => void)({ target: { checked: !DEFAULT_STORE_PRESENTATION.common.showHomeSearch } }); render(); }
 function unloadBlocked() { const event = new Event('beforeunload', { cancelable: true }); window.dispatchEvent(event); return event.defaultPrevented; }
-function cancel() { const button = render().find(node => node.type === 'button' && text(node) === '변경 취소')!; expect(button.props.disabled).toBe(false); (button.props.onClick as () => void)(); render(); }
+function cancel() { const button = render().find(node => isButton(node) && text(node) === '변경 취소')!; expect(button.props.disabled).toBe(false); (button.props.onClick as () => void)(); render(); }
 async function save() { const form = render().find(node => node.type === 'form')!; (form.props.onSubmit as (event: unknown) => void)({ preventDefault() {} }); for (let i = 0; i < 8; i++) { await Promise.resolve(); render(); } }
 beforeEach(() => { hooks.values = []; hooks.effects.clear(); hooks.jobs = []; vi.clearAllMocks(); vi.stubGlobal('window', Object.assign(new EventTarget(), { confirm: vi.fn(() => true) })); vi.stubGlobal('document', new EventTarget()); render(); });
 afterEach(() => { for (const effect of hooks.effects.values()) effect.cleanup?.(); vi.unstubAllGlobals(); });
@@ -42,7 +45,7 @@ it('미저장 전시 설정의 이동을 보호하고 명시적으로 취소한 
 it('확인된 저장만 새 기준으로 삼고 결과 불명확 상태에서는 변경 취소로 요청을 잃지 않는다', async () => {
   edit(); mocks.save.mockRejectedValueOnce(new Error('Failed to fetch')); await save();
   const first = mocks.save.mock.calls[0];
-  expect(render().find(node => node.type === 'button' && text(node) === '변경 취소')!.props.disabled).toBe(true);
+  expect(render().find(node => isButton(node) && text(node) === '변경 취소')!.props.disabled).toBe(true);
   expect(unloadBlocked()).toBe(true);
   mocks.save.mockResolvedValueOnce({ revision: 2 }); await save();
   expect(mocks.save.mock.calls[1]).toEqual(first);

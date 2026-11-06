@@ -38,7 +38,6 @@ import './styles/admin-goods-notice-presets.css';
 import './styles/admin-order-detail.css';
 import './styles/admin-customer-detail.css';
 import './styles/admin-store-settings.css';
-import './styles/admin-store-navigation.css';
 import './styles/admin-shopping-stories.css';
 import './styles/admin-marketing-links.css';
 import './styles/admin-customer-segments.css';
