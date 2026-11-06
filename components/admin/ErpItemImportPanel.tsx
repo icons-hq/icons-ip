@@ -4,6 +4,11 @@ import { useMemo, useRef, useState, useTransition } from 'react';
 import { useRouter } from 'next/navigation';
 import { importErpItemsAction, readErpItemFileAction, type ErpItemFileResult, type ErpItemImportResult } from '@/app/admin/erp-item-actions';
 import { AdminSectionCard, AdminStatusBadge } from '@/components/admin/console/AdminKit';
+import { AdminSelect } from '@/components/admin/console/AdminSelect';
+import { Button } from '@/components/admin/kit/ui/button';
+import { Input } from '@/components/admin/kit/ui/input';
+import { Textarea } from '@/components/admin/kit/ui/textarea';
+import { TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/admin/kit/ui/table';
 import {
   ERP_COLUMN_TARGETS,
   ERP_COLUMN_TARGET_LABELS,
@@ -52,23 +57,30 @@ export function erpItemFileError(file: Pick<File, 'name' | 'size'>): string | nu
 }
 
 function keptValue(row: ErpImportRow, key: 'category' | 'salePrice' | 'barcode') {
-  if (!Object.hasOwn(row, key)) return <span className="admin-erp-items__muted">기존 값 유지</span>;
-  if (key === 'salePrice') return row.salePrice === null ? <span className="admin-erp-items__muted">비움</span> : formatErpSalePrice(row.salePrice ?? null);
+  if (!Object.hasOwn(row, key)) return <span className="text-muted-foreground">기존 값 유지</span>;
+  if (key === 'salePrice') return row.salePrice === null ? <span className="text-muted-foreground">비움</span> : formatErpSalePrice(row.salePrice ?? null);
   const value = row[key];
-  return value ? value : <span className="admin-erp-items__muted">비움</span>;
+  return value ? value : <span className="text-muted-foreground">비움</span>;
 }
+
+/* kit 표 모양의 스크롤 영역: 최대 520px 높이, 머리 행 고정, 인쇄에서는 펼친다(옛 ERP 품목 표와 같다). */
+const TABLE_REGION = 'relative max-h-[520px] min-w-0 overflow-auto rounded-lg border bg-card outline-none focus-visible:ring-3 focus-visible:ring-ring/50 print:max-h-none print:overflow-visible [&_thead_th]:sticky [&_thead_th]:top-0 [&_thead_th]:z-10 [&_thead_th]:bg-muted';
+const TABLE = 'w-full caption-top text-sm';
+const CAPTION = 'px-2 py-2 text-left text-sm text-muted-foreground';
+const CODE = 'font-mono text-xs tabular-nums';
+const HINT = 'text-sm text-muted-foreground';
 
 function IssueTable({ caption, issues }: { caption: string; issues: ErpImportIssue[] }) {
   if (!issues.length) return null;
-  return <div className="admin-erp-items__table-scroll" role="region" aria-label={caption} tabIndex={0}>
-    <table className="admin-erp-items__table">
-      <caption>{caption}{issues.length > ISSUE_LIST_LIMIT ? ` · 앞 ${ISSUE_LIST_LIMIT}건만 표시` : ''}</caption>
-      <thead><tr><th scope="col">행</th><th scope="col">ERP 코드</th><th scope="col">사유</th></tr></thead>
-      <tbody>{issues.slice(0, ISSUE_LIST_LIMIT).map((issue, index) => <tr key={`${issue.row}:${index}`}>
-        <td>{issue.row.toLocaleString('ko-KR')}</td>
-        <td className="admin-erp-items__code">{issue.code || '-'}</td>
-        <td>{erpImportIssueLabel(issue)}</td>
-      </tr>)}</tbody>
+  return <div className={TABLE_REGION} role="region" aria-label={caption} tabIndex={0}>
+    <table className={TABLE} data-slot="table">
+      <caption className={CAPTION}>{caption}{issues.length > ISSUE_LIST_LIMIT ? ` · 앞 ${ISSUE_LIST_LIMIT}건만 표시` : ''}</caption>
+      <TableHeader><TableRow><TableHead scope="col">행</TableHead><TableHead scope="col">ERP 코드</TableHead><TableHead scope="col">사유</TableHead></TableRow></TableHeader>
+      <TableBody>{issues.slice(0, ISSUE_LIST_LIMIT).map((issue, index) => <TableRow key={`${issue.row}:${index}`}>
+        <TableCell className="tabular-nums">{issue.row.toLocaleString('ko-KR')}</TableCell>
+        <TableCell className={CODE}>{issue.code || '-'}</TableCell>
+        <TableCell className="whitespace-normal">{erpImportIssueLabel(issue)}</TableCell>
+      </TableRow>)}</TableBody>
     </table>
   </div>;
 }
@@ -193,10 +205,11 @@ export function ErpItemImportPanel() {
     id="erp-item-import"
     summary={`ERP '품목 생성' 화면의 표를 엑셀에서 복사해 붙여넣거나 XLSX·CSV 파일로 올립니다. 한 번에 ${ERP_ITEM_IMPORT_ROW_LIMIT.toLocaleString('ko-KR')}행까지, ERP 코드(품번)가 같으면 새 값으로 바꿉니다.`}
   >
-    <div className="admin-erp-items__sources">
-      <div className="wc-admin-kit__field">
-        <label className="wc-admin-kit__field-label" htmlFor="erp-item-paste">붙여넣기</label>
-        <textarea
+    <div className="grid gap-x-6 gap-y-5 [grid-template-columns:repeat(auto-fit,minmax(min(100%,20rem),1fr))] print:hidden" data-erp-items="sources">
+      <div className="flex min-w-0 flex-col gap-2">
+        <label className="text-sm leading-snug font-medium" htmlFor="erp-item-paste">붙여넣기</label>
+        <Textarea
+          className="min-h-36 font-mono text-[13px] field-sizing-fixed"
           id="erp-item-paste"
           rows={6}
           value={pasted}
@@ -205,12 +218,12 @@ export function ErpItemImportPanel() {
           placeholder={'품번\t품명\t카테고리\t판매가\t바코드\n000123\t아크릴 키링\t문구 > 키링\t12,000\t8801234567890'}
           onChange={(event) => setPasted(event.target.value)}
         />
-        <p className="wc-admin-kit__hint" id="erp-item-paste-hint">머리글 행까지 함께 복사하면 열을 자동으로 짝짓습니다. 선행 0이 있는 품번·바코드는 그대로 보존합니다.</p>
-        <div><button className="wc-admin-kit__button" type="button" disabled={busy} onClick={readPasted}>붙여넣은 표 확인</button></div>
+        <p className={HINT} id="erp-item-paste-hint">머리글 행까지 함께 복사하면 열을 자동으로 짝짓습니다. 선행 0이 있는 품번·바코드는 그대로 보존합니다.</p>
+        <div><Button variant="outline" type="button" disabled={busy} onClick={readPasted}>붙여넣은 표 확인</Button></div>
       </div>
-      <div className="wc-admin-kit__field">
-        <label className="wc-admin-kit__field-label" htmlFor="erp-item-file">또는 파일 선택</label>
-        <input
+      <div className="flex min-w-0 flex-col gap-2">
+        <label className="text-sm leading-snug font-medium" htmlFor="erp-item-file">또는 파일 선택</label>
+        <Input
           ref={fileInput}
           id="erp-item-file"
           type="file"
@@ -219,95 +232,95 @@ export function ErpItemImportPanel() {
           accept=".xlsx,.csv,.tsv,.txt,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv,text/plain"
           onChange={(event) => { const file = event.target.files?.[0]; if (file) readFile(file); }}
         />
-        <p className="wc-admin-kit__hint" id="erp-item-file-hint">XLSX·CSV {FILE_KB}KB 이하. 제목 행이 있어도 처음 10행 안에서 머리글을 찾습니다. XLS는 XLSX로 다시 저장해 올려주세요.</p>
-        {reading ? <p className="wc-admin-kit__hint" role="status">파일을 읽는 중입니다.</p> : null}
+        <p className={HINT} id="erp-item-file-hint">XLSX·CSV {FILE_KB}KB 이하. 제목 행이 있어도 처음 10행 안에서 머리글을 찾습니다. XLS는 XLSX로 다시 저장해 올려주세요.</p>
+        {reading ? <p className={HINT} role="status">파일을 읽는 중입니다.</p> : null}
       </div>
     </div>
 
-    <div aria-live="polite" className="admin-erp-items__feedback">
-      {error ? <p className="wc-admin-kit__error" role="alert">{error}</p> : null}
-      {progress ? <p role="status">반입 중 · {progress.done.toLocaleString('ko-KR')} / {progress.total.toLocaleString('ko-KR')}건</p> : null}
+    <div aria-live="polite" className="flex flex-col gap-1 empty:hidden">
+      {error ? <p className="text-sm text-destructive" role="alert">{error}</p> : null}
+      {progress ? <p className="text-sm tabular-nums" role="status">반입 중 · {progress.done.toLocaleString('ko-KR')} / {progress.total.toLocaleString('ko-KR')}건</p> : null}
     </div>
 
-    {summary ? <div className="admin-erp-items__result" role="status">
-      <p>
+    {summary ? <div className="flex min-w-0 flex-col gap-3 border-t pt-4" role="status">
+      <p className="flex flex-wrap gap-2">
         <AdminStatusBadge tone="success">추가 {summary.inserted.toLocaleString('ko-KR')}</AdminStatusBadge>{' '}
         <AdminStatusBadge tone="success">변경 {summary.updated.toLocaleString('ko-KR')}</AdminStatusBadge>{' '}
         <AdminStatusBadge>같음 {summary.unchanged.toLocaleString('ko-KR')}</AdminStatusBadge>{' '}
         <AdminStatusBadge tone={summary.rejected.length ? 'danger' : 'neutral'}>거부 {summary.rejected.length.toLocaleString('ko-KR')}</AdminStatusBadge>
       </p>
-      <p className="wc-admin-kit__hint">같은 내용을 다시 반입해도 &lsquo;같음&rsquo;으로 처리됩니다. 거부된 행은 고친 뒤 다시 반입해주세요.</p>
+      <p className={HINT}>같은 내용을 다시 반입해도 &lsquo;같음&rsquo;으로 처리됩니다. 거부된 행은 고친 뒤 다시 반입해주세요.</p>
       <IssueTable caption="반입하지 못한 행" issues={summary.rejected} />
     </div> : null}
 
-    {source && plan ? <div className="admin-erp-items__preview">
-      <header className="admin-erp-items__preview-header">
-        <h4>미리보기 · {source.label}</h4>
-        <p className="wc-admin-kit__hint">
+    {source && plan ? <div className="flex min-w-0 flex-col gap-4 border-t pt-4" data-erp-items="preview">
+      <header className="flex flex-col gap-1">
+        <h4 className="text-base leading-snug font-medium wrap-anywhere">미리보기 · {source.label}</h4>
+        <p className={`${HINT} tabular-nums`}>
           비어 있지 않은 {plan.dataRowCount.toLocaleString('ko-KR')}행 · 반입 가능 {plan.rows.length.toLocaleString('ko-KR')}건 · 오류 {plan.issues.length.toLocaleString('ko-KR')}건
           {plan.duplicateCount ? ` · 중복 ${plan.duplicateCount.toLocaleString('ko-KR')}건` : ''}
         </p>
       </header>
 
-      <div className="wc-admin-kit__field admin-erp-items__header-row">
-        <label className="wc-admin-kit__field-label" htmlFor="erp-item-header-row">머리글 행</label>
-        <select id="erp-item-header-row" value={plan.headerIndex} disabled={busy}
+      <div className="flex max-w-[35rem] min-w-0 flex-col gap-2">
+        <label className="text-sm leading-snug font-medium" htmlFor="erp-item-header-row">머리글 행</label>
+        <AdminSelect id="erp-item-header-row" value={plan.headerIndex} disabled={busy} wrapperClassName="w-full"
           onChange={(event) => { setHeaderIndex(Number(event.target.value)); setMapping(undefined); }}>
           <option value={-1}>머리글 없음 · 첫 행부터 품목</option>
           {headerOptions.map((row, index) => <option key={index} value={index}>
             {index + 1}행 · {row.map((cell) => normalizeErpText(cell, true)).filter(Boolean).slice(0, 4).join(' / ').slice(0, 60) || '빈 행'}
           </option>)}
-        </select>
+        </AdminSelect>
       </div>
 
-      <div className="admin-erp-items__table-scroll" role="region" aria-label="열 짝짓기" tabIndex={0}>
-        <table className="admin-erp-items__table">
-          <caption>열마다 가져올 항목을 고릅니다. ERP 분류는 여러 열을 고르면 왼쪽부터 &lsquo; &gt; &rsquo;로 이어 붙입니다.</caption>
-          <thead><tr><th scope="col">파일의 열</th><th scope="col">첫 값</th><th scope="col">가져올 항목</th></tr></thead>
-          <tbody>{plan.columns.map((column) => <tr key={column.index}>
-            <th scope="row">{column.label}</th>
-            <td>{column.sample || '-'}</td>
-            <td>
-              <select aria-label={`${column.label} 열의 항목`} value={column.target} disabled={busy}
+      <div className={TABLE_REGION} role="region" aria-label="열 짝짓기" tabIndex={0}>
+        <table className={TABLE} data-slot="table">
+          <caption className={CAPTION}>열마다 가져올 항목을 고릅니다. ERP 분류는 여러 열을 고르면 왼쪽부터 &lsquo; &gt; &rsquo;로 이어 붙입니다.</caption>
+          <TableHeader><TableRow><TableHead scope="col">파일의 열</TableHead><TableHead scope="col">첫 값</TableHead><TableHead scope="col">가져올 항목</TableHead></TableRow></TableHeader>
+          <TableBody>{plan.columns.map((column) => <TableRow key={column.index}>
+            <TableHead scope="row" className="font-medium whitespace-normal">{column.label}</TableHead>
+            <TableCell className="max-w-64 whitespace-normal wrap-anywhere text-muted-foreground">{column.sample || '-'}</TableCell>
+            <TableCell>
+              <AdminSelect aria-label={`${column.label} 열의 항목`} value={column.target} disabled={busy} wrapperClassName="w-48"
                 onChange={(event) => setMapping(assignErpColumnTarget(plan.columns.map((entry) => entry.target), column.index, event.target.value as ErpColumnTarget))}>
                 {ERP_COLUMN_TARGETS.map((target) => <option key={target} value={target}>{ERP_COLUMN_TARGET_LABELS[target]}</option>)}
-              </select>
-            </td>
-          </tr>)}</tbody>
+              </AdminSelect>
+            </TableCell>
+          </TableRow>)}</TableBody>
         </table>
       </div>
 
-      {[...source.warnings, ...plan.warnings].length ? <ul className="admin-erp-items__warnings">
+      {[...source.warnings, ...plan.warnings].length ? <ul className="flex list-disc flex-col gap-1.5 rounded-lg border bg-muted/40 py-3 pr-4 pl-8 text-sm">
         {[...source.warnings, ...plan.warnings].map((warning) => <li key={warning}>{warning}</li>)}
       </ul> : null}
-      {plan.blocking ? <p className="wc-admin-kit__error" role="alert">{plan.blocking}</p> : null}
+      {plan.blocking ? <p className="text-sm text-destructive" role="alert">{plan.blocking}</p> : null}
 
-      {previewRows.length ? <div className="admin-erp-items__table-scroll" role="region" aria-label="반입 미리보기" tabIndex={0}>
-        <table className="admin-erp-items__table">
-          <caption>반입할 품목 · 앞 {Math.min(ERP_ITEM_PREVIEW_ROWS, plan.rows.length).toLocaleString('ko-KR')}건</caption>
-          <thead><tr>
-            <th scope="col">행</th><th scope="col">ERP 코드</th><th scope="col">ERP 품명</th>
-            <th scope="col">ERP 분류</th><th scope="col">판매가</th><th scope="col">바코드</th>
-          </tr></thead>
-          <tbody>{previewRows.map((row) => <tr key={row.code}>
-            <td>{row.row.toLocaleString('ko-KR')}</td>
-            <td className="admin-erp-items__code">{row.code}</td>
-            <td>{row.name}</td>
-            <td>{keptValue(row, 'category')}</td>
-            <td>{keptValue(row, 'salePrice')}</td>
-            <td className="admin-erp-items__code">{keptValue(row, 'barcode')}</td>
-          </tr>)}</tbody>
+      {previewRows.length ? <div className={TABLE_REGION} role="region" aria-label="반입 미리보기" tabIndex={0}>
+        <table className={TABLE} data-slot="table">
+          <caption className={CAPTION}>반입할 품목 · 앞 {Math.min(ERP_ITEM_PREVIEW_ROWS, plan.rows.length).toLocaleString('ko-KR')}건</caption>
+          <TableHeader><TableRow>
+            <TableHead scope="col">행</TableHead><TableHead scope="col">ERP 코드</TableHead><TableHead scope="col">ERP 품명</TableHead>
+            <TableHead scope="col">ERP 분류</TableHead><TableHead scope="col" className="text-right">판매가</TableHead><TableHead scope="col">바코드</TableHead>
+          </TableRow></TableHeader>
+          <TableBody>{previewRows.map((row) => <TableRow key={row.code}>
+            <TableCell className="tabular-nums">{row.row.toLocaleString('ko-KR')}</TableCell>
+            <TableCell className={CODE}>{row.code}</TableCell>
+            <TableCell className="whitespace-normal">{row.name}</TableCell>
+            <TableCell className="whitespace-normal">{keptValue(row, 'category')}</TableCell>
+            <TableCell className="text-right tabular-nums">{keptValue(row, 'salePrice')}</TableCell>
+            <TableCell className={CODE}>{keptValue(row, 'barcode')}</TableCell>
+          </TableRow>)}</TableBody>
         </table>
       </div> : null}
 
       <IssueTable caption="반입할 수 없는 행" issues={plan.issues} />
 
-      <p className="wc-admin-kit__hint">열을 고르지 않은 항목은 이미 반입된 값을 그대로 둡니다. 열을 골랐는데 칸이 비어 있으면 그 값을 비웁니다.</p>
-      <div className="wc-admin-kit__actions">
-        <button className="wc-admin-kit__button" type="button" disabled={busy || Boolean(plan.blocking) || !plan.rows.length} onClick={runImport}>
+      <p className={HINT}>열을 고르지 않은 항목은 이미 반입된 값을 그대로 둡니다. 열을 골랐는데 칸이 비어 있으면 그 값을 비웁니다.</p>
+      <div className="flex flex-wrap items-center gap-2 print:hidden">
+        <Button type="button" disabled={busy || Boolean(plan.blocking) || !plan.rows.length} onClick={runImport}>
           {importing ? '반입 중' : `${plan.rows.length.toLocaleString('ko-KR')}건 반입`}
-        </button>
-        <button className="btn btn-sm btn-ghost" type="button" disabled={busy} onClick={reset}>처음부터 다시</button>
+        </Button>
+        <Button variant="ghost" type="button" disabled={busy} onClick={reset}>처음부터 다시</Button>
       </div>
     </div> : null}
   </AdminSectionCard>;

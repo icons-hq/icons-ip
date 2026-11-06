@@ -41,7 +41,7 @@ export function ErpItemListGrid({ columns, rows, emptyLabel }: {
     });
   };
 
-  return <form className="admin-erp-items__list" onSubmit={remove}>
+  return <form className="flex min-w-0 flex-col gap-2" onSubmit={remove}>
     <ConsoleGrid
       caption="반입된 ERP 품목"
       columns={columns}
@@ -57,6 +57,6 @@ export function ErpItemListGrid({ columns, rows, emptyLabel }: {
         actions={[{ label: pending ? '지우는 중' : '선택 삭제', name: 'delete', variant: 'danger', disabled: pending }]}
       />
     </ConsoleGrid>
-    <p aria-live="polite" className={status?.tone === 'error' ? 'wc-admin-kit__error' : 'wc-admin-kit__hint'}>{status?.text ?? ''}</p>
+    <p aria-live="polite" className={`text-sm empty:sr-only ${status?.tone === 'error' ? 'text-destructive' : 'text-muted-foreground'}`}>{status?.text ?? ''}</p>
   </form>;
 }
