@@ -24,7 +24,7 @@ export function MetricCard({
 }) {
   const ChangeIcon = CHANGE_ICONS[changeType];
   return (
-    <Card className="min-w-0" data-admin-metric="" size="sm">
+    <Card className="min-w-0" data-admin-metric="">
       <CardHeader>
         <CardDescription>{label}</CardDescription>
         <CardTitle className="text-2xl leading-tight font-semibold tabular-nums [overflow-wrap:anywhere]">{value}</CardTitle>
