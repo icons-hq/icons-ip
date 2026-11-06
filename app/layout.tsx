@@ -13,7 +13,6 @@ import './styles/admin-goods-worklist.css';
 import './styles/wc-admin-option-artwork.css';
 import './styles/admin-ux-521.css';
 import './styles/admin-console-controls.css';
-import './styles/admin-home.css';
 import './styles/admin-sales-console.css';
 import './styles/admin-customer-service.css';
 import './styles/admin-inquiry-chat.css';
