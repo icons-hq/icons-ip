@@ -165,8 +165,8 @@ export function ReviewConsoleScreen({
         }}
         statusFilter={{ options: ADMIN_REVIEW_STATUS_OPTIONS, value: filters.status }}
       >
-        <ConsoleFilterField htmlFor="review-kind" label="리뷰 구분"><AdminSelect id="review-kind" name="kind" defaultValue={filters.kind ?? 'all'} wrapperClassName="w-36">{REVIEW_KIND_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</AdminSelect></ConsoleFilterField>
-        <ConsoleFilterField htmlFor="review-repeat" label="재구매"><AdminSelect id="review-repeat" name="repeat" defaultValue={filters.repeat ?? 'all'} wrapperClassName="w-36">{REVIEW_REPEAT_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</AdminSelect></ConsoleFilterField>
+        <ConsoleFilterField htmlFor="review-kind" label="리뷰 구분"><AdminSelect id="review-kind" name="kind" defaultValue={filters.kind ?? 'all'} wrapperClassName="w-40">{REVIEW_KIND_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</AdminSelect></ConsoleFilterField>
+        <ConsoleFilterField htmlFor="review-repeat" label="재구매"><AdminSelect id="review-repeat" name="repeat" defaultValue={filters.repeat ?? 'all'} wrapperClassName="w-44">{REVIEW_REPEAT_OPTIONS.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</AdminSelect></ConsoleFilterField>
         <ConsoleFilterField htmlFor="admin-review-rating" label="평점">
           <AdminSelect defaultValue={filters.rating} id="admin-review-rating" name="rating" wrapperClassName="w-36">
             {ADMIN_REVIEW_RATING_OPTIONS.map((option) => (

@@ -2,23 +2,25 @@
 
 import { useRouter } from 'next/navigation';
 import { useState, type ReactNode } from 'react';
-import { AdminSelect } from '../console/AdminSelect';
+import { NativeSelect } from '@/components/admin/kit/ui/native-select';
 import { KIT_SEGMENT_CLASS, KIT_SEGMENT_ITEM_CLASS } from './cs-kit-classes';
 
+/* 목록 머리의 정렬·목록 수 선택 상자(kit 작은 선택 상자). 너비를 고정하지 않아 가장 긴 선택지
+   (예: 문의등록일 오래된순)에 맞춰 자라므로 선택값이 잘리지 않는다 — 잘림 안내 줄도 필요 없다. */
 export function CustomerServiceListSelect({ label, value, options }: {
   label: string;
   value: string;
   options: { value: string; label: string; href: string }[];
 }) {
   const router = useRouter();
-  return <label className="block w-32 min-w-0" data-cs-list-select="">
+  return <label className="block max-w-full" data-cs-list-select="">
     <span className="sr-only">{label}</span>
-    <AdminSelect aria-label={label} value={value} onChange={(event) => {
+    <NativeSelect className="max-w-full" size="sm" aria-label={label} value={value} onChange={(event) => {
       const option = options.find((entry) => entry.value === event.target.value);
       if (option) router.push(option.href, { scroll: false });
     }}>
       {options.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-    </AdminSelect>
+    </NativeSelect>
   </label>;
 }
 
