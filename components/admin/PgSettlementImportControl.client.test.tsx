@@ -10,12 +10,15 @@ vi.mock('next/navigation', () => ({ useRouter: () => ({ refresh: mocks.refresh }
 vi.mock('@/app/admin/pg-settlement-actions', () => ({ startPgSettlementImportAction: mocks.start, advancePgSettlementImportAction: mocks.advance, readPgSettlementImportAction: mocks.read }));
 import { PgSettlementImportControl } from './PgSettlementImportControl';
 import { SETTLEMENT_FIXTURE_JOB as job } from '@/lib/settlements/fixture';
+import { Button } from '@/components/admin/kit/ui/button';
 const query = { mode: job.mode, dateType: job.dateType, startDate: job.startDate, endDate: job.endDate };
 type Element = ReactElement<{ children?: ReactNode; onClick?: () => void; disabled?: boolean }>;
+/* 수집 버튼은 kit Button(ADR-0028)이다 — 렌더 전 요소 트리에서는 그 부품 자체가 요소 종류다. */
+const isButton = (item: Element) => item.type === 'button' || item.type === Button;
 function all(node: ReactNode): Element[] { return Array.isArray(node) ? node.flatMap(all) : isValidElement(node) ? [node as Element, ...all((node.props as { children?: ReactNode }).children)] : []; }
 function text(node: ReactNode): string { return Array.isArray(node) ? node.map(text).join('') : isValidElement(node) ? text((node.props as { children?: ReactNode }).children) : typeof node === 'string' ? node : ''; }
 function render(enabled = true) { hooks.index = 0; hooks.refIndex = 0; return PgSettlementImportControl({ query, enabled, connectedMode: 'test', operationId: job.operationId, initialJob: null }); }
-function button(label: string) { const element = all(render()).find(item => item.type === 'button' && text(item) === label); if (!element) throw new Error(label); return element; }
+function button(label: string) { const element = all(render()).find(item => isButton(item) && text(item) === label); if (!element) throw new Error(label); return element; }
 async function settle() { for (let i = 0; i < 18; i++) await Promise.resolve(); }
 beforeEach(() => { vi.clearAllMocks(); hooks.state = []; hooks.refs = []; });
 it('keeps an unknown creation on the original operation and blocks same-render double submissions', async () => {
@@ -40,7 +43,7 @@ it('offers a full server reload after a confirmed conflict even when the lost cr
   expect(mocks.start.mock.calls[1]).toEqual(mocks.start.mock.calls[0]); expect(mocks.advance).not.toHaveBeenCalled();
 });
 it('stops before the next page when requested and never fetches with a disabled connection', async () => {
-  const disconnected = all(render(false)).find(item => item.type === 'button'); expect(disconnected?.props.disabled).toBe(true);
+  const disconnected = all(render(false)).find(isButton); expect(disconnected?.props.disabled).toBe(true);
   disconnected?.props.onClick?.(); await settle(); expect(mocks.start).not.toHaveBeenCalled();
   let finish!: (result: unknown) => void;
   mocks.start.mockResolvedValue({ ok: true, kind: 'created', job }); mocks.advance.mockImplementationOnce(() => new Promise(resolve => { finish = resolve; }));
