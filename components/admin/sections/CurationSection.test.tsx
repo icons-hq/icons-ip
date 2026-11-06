@@ -148,6 +148,13 @@ describe('CurationSection', () => {
     expect(html).toContain('이 구성 적용하기');
   });
 
+  /* kit Button은 type을 주지 않으면 type="button"이라 폼을 제출하지 않는다 — 적용 버튼이 제출 버튼인지 지킨다. */
+  it('이 구성 적용하기 버튼은 홈 구성 폼을 제출한다', () => {
+    const html = renderSection();
+    expect(html).toMatch(/<button[^>]*type="submit"[^>]*>이 구성 적용하기<\/button>/);
+    expect(html).toMatch(/<button[^>]*type="button"[^>]*>전체보기<\/button>/);
+  });
+
   it('이동 대상에 실재 상품을 표시하고 보관 상품을 새 선택지에서 제외한다', () => {
     const select = renderSection().match(/<select[^>]*name="linkPath"[\s\S]*?<\/select>/)?.[0];
     expect(select).toContain('value="/shop/g13"');
