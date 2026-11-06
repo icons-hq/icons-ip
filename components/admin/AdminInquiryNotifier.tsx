@@ -5,6 +5,7 @@ import { useEffect, useState, useSyncExternalStore } from 'react';
 import { observeInquiryChanges, type InquiryRealtimeClient } from '@/lib/inquiry-realtime';
 import { createClient } from '@/lib/supabase/client';
 import { getSupabaseConfig } from '@/lib/supabase/config';
+import { Button } from '@/components/admin/kit/ui/button';
 
 /*
  * 새 1:1 문의 PC 브라우저 알림(R2, 10/27 회의 D2①).
@@ -302,13 +303,13 @@ export function InquiryNotificationSettingsView({ support, enabled, message, bus
     : support === 'denied' ? INQUIRY_NOTIFICATION_DENIED
     : on ? '켜짐 · 이 기기의 이 계정에서 커머스 콘솔 탭이 하나라도 열려 있으면 새 1:1 문의를 PC 알림으로 알려 드리고, 탭 제목 앞에 미답변 수를 표시합니다. 탭을 모두 닫으면 알림이 오지 않습니다.'
     : '꺼짐 · 켜면 새 1:1 문의가 올 때 PC 알림을 띄웁니다. 알림을 누르면 그 문의가 열립니다.';
-  return <section className="admin-operations-settings" aria-label="새 1:1 문의 PC 알림">
-    <h3>새 1:1 문의 PC 알림</h3>
-    <p role="status">{status}</p>
-    {message && message !== status ? <p role="status">{message}</p> : null}
-    <div>{on
-      ? <button type="button" disabled={busy} onClick={onDisable}>문의 알림 끄기</button>
-      : <button type="button" disabled={busy || support === 'unsupported'} onClick={onEnable}>문의 알림 받기</button>}</div>
+  return <section className="flex flex-col gap-2 rounded-lg border bg-muted/40 p-3" aria-label="새 1:1 문의 PC 알림">
+    <h3 className="text-sm font-medium text-foreground">새 1:1 문의 PC 알림</h3>
+    <p className="text-xs leading-relaxed text-muted-foreground" role="status">{status}</p>
+    {message && message !== status ? <p className="text-xs leading-relaxed text-muted-foreground" role="status">{message}</p> : null}
+    <div className="flex gap-2">{on
+      ? <Button disabled={busy} onClick={onDisable} size="sm" type="button" variant="outline">문의 알림 끄기</Button>
+      : <Button disabled={busy || support === 'unsupported'} onClick={onEnable} size="sm" type="button">문의 알림 받기</Button>}</div>
   </section>;
 }
 

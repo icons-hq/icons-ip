@@ -1168,8 +1168,6 @@
   @media (max-width: 900px) {
     .wc-admin .admin-master-detail:not([data-slot]) { grid-template-columns: minmax(0, 1fr); }
   }
-  @media (max-width: 720px) {
-  }
   .wc-admin .admin-master-detail > .wc-admin-kit__panel:not([data-slot]),
   .wc-admin .admin-master-detail > .col:first-child > .wc-admin-kit__panel:not([data-slot]) { position: sticky; top: 98px; align-self: start; width: 100%; max-width: 100%; }
   .wc-admin .admin-record-label:not([data-slot]) { min-width: 0; white-space: normal; word-break: keep-all; overflow-wrap: anywhere; line-height: 1.6; }
@@ -1293,12 +1291,9 @@
   .wc-admin .admin-good-workspace__states:not([data-slot]) { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-block: 12px; }
 
   /* Canonical page and legacy-form layout; responsive/print rules stay together. */
-  .wc-admin .admin-content:not([data-slot]) { min-width: 0; width: 100%; flex: 1; align-self: stretch; padding: 12px 24px; }
   .wc-admin .admin-form-grid:not([data-slot]) { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, max(260px, calc((100% - 24px) / 2))), 1fr)); gap: 20px 24px; }
   .wc-admin .admin-order-filters:not([data-slot]) { display: flex; flex-wrap: wrap; align-items: end; gap: 16px; padding: 16px; border-color: var(--wc-line-control); }
-  @media (max-width: 900px) { .wc-admin .admin-content:not([data-slot]) { padding: 16px; } }
   @media (max-width: 600px) { .wc-admin .admin-form-grid:not([data-slot]) { grid-template-columns: minmax(0, 1fr); } }
-  @media (max-width: 400px) { .wc-admin .admin-content:not([data-slot]) { padding: 12px; } }
   @media print { .wc-admin:is(.admin-shell, .check-in-shell) .admin-content:not([data-slot]) { width: 100%; padding: 0; } }
   /* Embedded customer disclosures must leave readable values in narrow editors. */
   .wc-admin .wc-pdp.is-embedded .wc-pdp-notice__table th:not([data-slot]) {

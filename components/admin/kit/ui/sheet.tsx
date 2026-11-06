@@ -6,6 +6,7 @@ import { cn } from "cn"
 
 import { Button } from "@/components/admin/kit/ui/button"
 import { XIcon } from "lucide-react"
+import { useAdminKitPortalContainer } from "@/components/admin/kit/portal-container"
 
 function Sheet({ ...props }: SheetPrimitive.Root.Props) {
   return <SheetPrimitive.Root data-slot="sheet" {...props} />
@@ -19,8 +20,9 @@ function SheetClose({ ...props }: SheetPrimitive.Close.Props) {
   return <SheetPrimitive.Close data-slot="sheet-close" {...props} />
 }
 
-function SheetPortal({ ...props }: SheetPrimitive.Portal.Props) {
-  return <SheetPrimitive.Portal data-slot="sheet-portal" {...props} />
+function SheetPortal({ container, ...props }: SheetPrimitive.Portal.Props) {
+  const consoleContainer = useAdminKitPortalContainer()
+  return <SheetPrimitive.Portal data-slot="sheet-portal" container={container ?? consoleContainer} {...props} />
 }
 
 function SheetOverlay({ className, ...props }: SheetPrimitive.Backdrop.Props) {
@@ -72,7 +74,7 @@ function SheetContent({
           >
             <XIcon
             />
-            <span className="sr-only">Close</span>
+            <span className="sr-only">닫기</span>
           </SheetPrimitive.Close>
         )}
       </SheetPrimitive.Popup>

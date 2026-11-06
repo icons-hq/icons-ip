@@ -5,6 +5,7 @@ import { AlertDialog as AlertDialogPrimitive } from "@base-ui/react/alert-dialog
 import { cn } from "cn"
 
 import { Button } from "@/components/admin/kit/ui/button"
+import { useAdminKitPortalContainer } from "@/components/admin/kit/portal-container"
 
 function AlertDialog({ ...props }: AlertDialogPrimitive.Root.Props) {
   return <AlertDialogPrimitive.Root data-slot="alert-dialog" {...props} />
@@ -16,9 +17,10 @@ function AlertDialogTrigger({ ...props }: AlertDialogPrimitive.Trigger.Props) {
   )
 }
 
-function AlertDialogPortal({ ...props }: AlertDialogPrimitive.Portal.Props) {
+function AlertDialogPortal({ container, ...props }: AlertDialogPrimitive.Portal.Props) {
+  const consoleContainer = useAdminKitPortalContainer()
   return (
-    <AlertDialogPrimitive.Portal data-slot="alert-dialog-portal" {...props} />
+    <AlertDialogPrimitive.Portal data-slot="alert-dialog-portal" container={container ?? consoleContainer} {...props} />
   )
 }
 

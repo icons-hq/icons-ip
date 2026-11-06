@@ -2,6 +2,7 @@
 
 import { Tooltip as TooltipPrimitive } from "@base-ui/react/tooltip"
 import { cn } from "cn"
+import { useAdminKitPortalContainer } from "@/components/admin/kit/portal-container"
 
 function TooltipProvider({
   delay = 0,
@@ -37,8 +38,9 @@ function TooltipContent({
     TooltipPrimitive.Positioner.Props,
     "align" | "alignOffset" | "side" | "sideOffset"
   >) {
+  const container = useAdminKitPortalContainer()
   return (
-    <TooltipPrimitive.Portal>
+    <TooltipPrimitive.Portal container={container}>
       <TooltipPrimitive.Positioner
         align={align}
         alignOffset={alignOffset}

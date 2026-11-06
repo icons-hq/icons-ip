@@ -15,9 +15,6 @@
     background: var(--wc-surface);
     font-size: 13px;
   }
-  .wc-admin.admin-shell--chat .wc-admin__main:not([data-slot]) { height: 100dvh; min-height: 0; overflow: hidden; }
-  .wc-admin.admin-shell--chat .admin-content:not([data-slot]) { height: calc(100dvh - 55px); min-height: 0; padding: 0; overflow: hidden; flex: none; }
-  .wc-admin.admin-shell--chat .admin-content > .rise:not([data-slot]) { height: 100%; }
   .wc-admin .admin-inquiry-chat__heading:not([data-slot]) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
   .wc-admin .admin-inquiry-chat > .inquiry-live:empty:not([data-slot]) { display: none; }
   .wc-admin .admin-inquiry-chat > .inquiry-live:not(:empty):not([data-slot]) { flex: none; padding: 4px 12px; background: var(--wc-chat-blue-tint); }
@@ -155,9 +152,6 @@
     .wc-admin .admin-inquiry-chat__toolbar > span:not([data-slot]) { display: none; }
     .wc-admin .admin-inquiry-chat :is(button,select,input[type="search"]):not([data-slot]) { min-height: 44px; }
   }
-  @media (max-width: 760px) {
-    .wc-admin.admin-shell--chat .admin-content:not([data-slot]) { height: calc(100dvh - 55px - 56px); min-height: 0; padding: 0; }
-  }
   @media (forced-colors: active) {
     .wc-admin .admin-inquiry-chat__bubble:not([data-slot]),
     .wc-admin .admin-inquiry-chat__threads a[aria-current="page"]:not([data-slot]),
@@ -165,8 +159,6 @@
     .wc-admin .admin-inquiry-chat__thread-meta > span:not([data-slot]) { background: Highlight; color: HighlightText; forced-color-adjust: none; }
   }
   @media print {
-    .wc-admin.admin-shell--chat .wc-admin__main:not([data-slot]) { height: auto; overflow: visible; }
-    .wc-admin.admin-shell--chat .admin-content:not([data-slot]) { height: auto; overflow: visible; }
     .wc-admin .admin-inquiry-chat:not([data-slot]) { height: auto; }
     .wc-admin .admin-inquiry-chat__layout:not([data-slot]) { display: block; }
     .wc-admin .admin-inquiry-chat__queue:not([data-slot]),

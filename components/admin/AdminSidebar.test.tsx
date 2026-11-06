@@ -1,5 +1,6 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { beforeEach, describe, expect, it, vi } from 'vitest';
+import { SidebarProvider } from '@/components/admin/kit/ui/sidebar';
 import { AdminSidebar } from './AdminSidebar';
 
 const mocks = vi.hoisted(() => ({ pathname: '/admin' }));
@@ -8,7 +9,7 @@ vi.mock('next/navigation', () => ({ usePathname: () => mocks.pathname }));
 
 function render(role = 'staff', consoleId: 'commerce' | 'content' = 'commerce') {
   return renderToStaticMarkup(
-    <AdminSidebar collapsed={false} onCollapsedChange={() => {}} role={role} console={consoleId} />,
+    <SidebarProvider><AdminSidebar role={role} console={consoleId} /></SidebarProvider>,
   );
 }
 
@@ -58,21 +59,23 @@ describe('AdminSidebar 2단 메뉴', () => {
     expect(content).toContain('aria-label="콘텐츠 운영 메뉴"');
   });
 
-  it('홈 링크와 즐겨찾기를 검색 위 바로가기에 유지한다', () => {
+  it('홈 링크와 즐겨찾기를 메뉴 그룹 위 바로가기에 유지한다', () => {
     const html = render();
 
     expect(html.match(/aria-current="page"/g)).toHaveLength(1);
     expect(html).toMatch(/aria-current="page"[^>]*data-admin-nav-screen="overview"/);
     expect(html).toContain('aria-label="홈 즐겨찾기 추가"');
-    expect(html.indexOf('data-admin-nav-screen="overview"')).toBeLessThan(html.indexOf('aria-label="어드민 메뉴 검색"'));
+    /* 메뉴 검색은 사이드바 머리(브랜드 아래)에 있고, 홈은 메뉴 맨 위 — 어느 그룹보다 먼저 선다. */
+    expect(html.indexOf('aria-label="어드민 메뉴 검색"')).toBeLessThan(html.indexOf('data-admin-nav-screen="overview"'));
+    expect(html.indexOf('data-admin-nav-screen="overview"')).toBeLessThan(html.indexOf('data-admin-nav-group="sales"'));
     expect(html).not.toContain('id="admin-nav-group-home"');
   });
 
-  it('접기 제어는 메뉴 스크롤 영역 밖에서 상태를 알린다', () => {
+  it('접기 제어는 메뉴 스크롤 영역 밖(가장자리 레일)에 있고, 메뉴는 헤더 버튼이 가리키는 id를 가진다', () => {
     const html = render();
 
-    expect(html.indexOf('aria-label="사이드바 접기"')).toBeGreaterThan(html.indexOf('</aside>'));
-    expect(html).toContain('aria-expanded="true" aria-controls="admin-mobile-navigation" aria-label="사이드바 접기"');
+    expect(html.indexOf('data-sidebar="rail"')).toBeGreaterThan(html.indexOf('</nav>'));
+    expect(html).toContain('id="admin-navigation"');
   });
 
   it('상품 일괄등록에서는 상위 상품 조회 메뉴를 동시에 활성화하지 않는다', () => {

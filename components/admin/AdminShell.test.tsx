@@ -24,21 +24,24 @@ describe('AdminShell', () => {
   /* editorial-admin.css 의 `#root:has(> .admin-shell)` 이 이 클래스를 보고
    * 어드민 캔버스를 덮어쓴다. 클래스가 사라지면 공개 화면 테마가 새어 들어온다. */
   it('셸 루트에 admin-shell 클래스를 남긴다', () => {
-    expect(render()).toContain('class="admin-shell wc-root wc-admin"');
+    /* ADR-0028: 셸 루트는 공개 표면(.wc-root)이 아니라 콘솔 토큰(.wc-admin)이 시작하는 곳이다. */
+    const html = render();
+    expect(html).toContain('class="admin-shell wc-admin"');
+    expect(html).not.toContain('wc-root');
   });
 
   it('현재 화면 이름을 헤더 제목으로 쓴다', () => {
     mocks.pathname = '/admin/catalog/ticket-types';
 
     expect(render()).toContain('티켓 회차');
-    expect(render()).toContain('class="wc-admin__page-context"');
+    expect(render()).toContain('admin-page-context');
   });
 
   it('홈에는 중복 제목 행 없이 접근성 제목을 남긴다', () => {
     const html = render();
 
     expect(html).toContain('<h1 class="sr-only">홈</h1>');
-    expect(html).not.toContain('class="wc-admin__page-context"');
+    expect(html).not.toContain('admin-page-context');
     expect(html.match(/<h1\b/g)).toHaveLength(1);
   });
 
@@ -49,7 +52,7 @@ describe('AdminShell', () => {
 
     expect(html).toContain('admin-shell--chat');
     expect(html).toContain('<h1 class="sr-only">상담하기</h1>');
-    expect(html).not.toContain('class="wc-admin__page-context"');
+    expect(html).not.toContain('admin-page-context');
     expect(html).toContain('대화 영역');
     expect(html).toMatch(/aria-current="page"[^>]*data-admin-nav-screen="inquiry-chat"/);
     expect(html).toContain('value="/admin/cs/chat?inquiry=case-a"');
@@ -58,15 +61,15 @@ describe('AdminShell', () => {
   it('콘텐츠 운영 권한이 있으면 상단에서 커머스와 콘텐츠 운영 콘솔을 전환한다', () => {
     const html = render();
     expect(html).toContain('aria-label="콘솔 전환"');
-    expect(html).toContain('<a aria-current="page" data-admin-console-link="commerce" href="/admin">커머스</a>');
-    expect(html).toContain('<a data-admin-console-link="content" href="/admin/catalog/ips">콘텐츠 운영</a>');
+    expect(html).toMatch(/<a aria-current="page" class="[^"]*" data-admin-console-link="commerce" href="\/admin">커머스<\/a>/);
+    expect(html).toMatch(/<a class="[^"]*" data-admin-console-link="content" href="\/admin\/catalog\/ips">콘텐츠 운영<\/a>/);
     expect(html).toContain('data-admin-console="commerce"');
 
     mocks.pathname = '/admin/catalog/cards';
     const content = renderToStaticMarkup(<AdminShell admin={admin} console="content"><p>카드</p></AdminShell>);
     expect(content).toContain('data-admin-console="content"');
-    expect(content).toContain('<a aria-current="page" data-admin-console-link="content" href="/admin/catalog/ips">콘텐츠 운영</a>');
-    expect(content).toContain('<a data-admin-console-link="commerce" href="/admin">커머스</a>');
+    expect(content).toMatch(/<a aria-current="page" class="[^"]*" data-admin-console-link="content" href="\/admin\/catalog\/ips">콘텐츠 운영<\/a>/);
+    expect(content).toMatch(/<a class="[^"]*" data-admin-console-link="commerce" href="\/admin">커머스<\/a>/);
     expect(content).toContain('aria-label="콘텐츠 운영 메뉴"');
     expect(content).toMatch(/aria-current="page"[^>]*data-admin-nav-screen="cards"/);
     expect(content).toContain('>콘텐츠 운영</a>');
@@ -120,8 +123,12 @@ describe('AdminShell', () => {
       expect(html.match(/data-number-wheel-guard/g)).toHaveLength(1);
       expect(html.indexOf('data-number-wheel-guard')).toBeGreaterThan(html.indexOf('</main>'));
       expect(html.lastIndexOf('</div>')).toBeGreaterThan(html.indexOf('data-number-wheel-guard'));
-      expect(html.slice(0, html.indexOf('data-number-wheel-guard'))).toContain('class="admin-shell wc-root wc-admin"');
+      expect(html.slice(0, html.indexOf('data-number-wheel-guard'))).toContain('class="admin-shell wc-admin"');
     }
+  });
+
+  it('헤더의 사이드바 버튼이 메뉴를 가리키고 펼침 상태를 알린다', () => {
+    expect(render()).toMatch(/<button[^>]*aria-controls="admin-navigation" aria-expanded="true" aria-label="사이드바 접기"/);
   });
 
   it('본문을 그대로 렌더한다', () => {
@@ -132,14 +139,14 @@ describe('AdminShell', () => {
     mocks.pathname = '/admin/catalog/goods';
     mocks.search = 'status=draft&create=1';
     const creating = render();
-    expect(creating).toContain('<h1 class="wc-admin__title">상품 등록</h1>');
+    expect(creating).toMatch(/<h1 class="[^"]*">상품 등록<\/h1>/);
     expect(creating).toMatch(/aria-current="page"[^>]*data-admin-nav-screen="goods-create"/);
     expect(creating).not.toMatch(/aria-current="page"[^>]*data-admin-nav-screen="goods"/);
     expect(creating).toContain('value="/admin/catalog/goods?status=draft&amp;create=1"');
 
     mocks.search = 'goodId=good-a';
     const editing = render();
-    expect(editing).toContain('<h1 class="wc-admin__title">상품 수정</h1>');
+    expect(editing).toMatch(/<h1 class="[^"]*">상품 수정<\/h1>/);
     expect(editing).toMatch(/aria-current="page"[^>]*data-admin-nav-screen="goods"/);
   });
 
@@ -147,14 +154,16 @@ describe('AdminShell', () => {
     mocks.search = 'period=7';
     const html = render();
     expect(html).toContain('<h1 class="sr-only">홈</h1>');
-    expect(html).not.toContain('class="wc-admin__page-context"');
+    expect(html).not.toContain('admin-page-context');
   });
 
   it('관리자 이메일과 역할을 헤더에 보여준다', () => {
     const html = render();
 
+    /* 계정 메뉴는 열 때만 그리므로, 닫힌 버튼이 이메일과 역할을 보여 준다. */
     expect(html).toContain('ops@example.test');
-    expect(html).toContain('권한 · 운영자');
+    expect(html).toMatch(/aria-label="ops@example\.test 계정 메뉴"/);
+    expect(html).toContain('>운영자</span>');
   });
 
   it('현재 관리자 경로를 로그아웃 복귀 값으로 전달한다', () => {

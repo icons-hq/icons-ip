@@ -123,6 +123,22 @@
   .wc-admin ::selection {
     background-color: color-mix(in oklab, var(--primary) 12%, transparent);
   }
+  /* Where the shell's content panel sits, for bars fixed to the bottom of a screen (the goods
+     editor's save bar). The inset sidebar leaves --sidebar-width, the icon rail 3rem + its padding,
+     and phones none; the panel keeps a 0.5rem margin from the viewport edge on desktop. */
+  .wc-admin [data-slot='sidebar-wrapper'] {
+    --admin-content-left: var(--sidebar-width);
+    --admin-content-inset: 0.5rem;
+  }
+  .wc-admin [data-slot='sidebar-wrapper']:has(> [data-slot='sidebar'][data-state='collapsed']) {
+    --admin-content-left: calc(var(--sidebar-width-icon) + 1rem);
+  }
+  @media (max-width: 767px) {
+    .wc-admin [data-slot='sidebar-wrapper'] {
+      --admin-content-left: 0px;
+      --admin-content-inset: 0px;
+    }
+  }
   /* 10/27 회의 R18 — no spinner on any console number input, kit or not; AdminNumberWheelGuard
      stops the wheel from changing values. */
   .wc-admin input[type='number'] {
