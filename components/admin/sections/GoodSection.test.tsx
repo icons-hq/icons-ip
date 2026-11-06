@@ -193,7 +193,7 @@ describe('GoodSection', () => {
     expect(html).toContain('value="-1"');
     /* 대표·추가 이미지는 한 그리드(자리별 hidden input)이고, 상세 HTML 이미지·긴 상세 이미지만 별도 업로드 칸이다. */
     expect(html.match(/data-auto-upload="true"/g)).toHaveLength(2);
-    expect(html.match(/class="wc-admin-image-tile wc-admin-artwork-upload-field"/g)).toHaveLength(2);
+    expect(html.match(/<li class="[^"]*" data-artwork-upload-field=""/g)).toHaveLength(2);
     expect(html).toContain('최근 저장된 상품에서 복사');
     expect(html).toContain('프리셋 찾기');
   });
@@ -495,11 +495,11 @@ describe('GoodSection', () => {
   /* 리뷰 재현: HTML 이미지 업로드가 그리드의 1:1(1000×1000) 권장을 설명으로 읽었다 — 긴 세로 상세 이미지에는 틀린 안내다. */
   it('HTML 이미지 업로드는 1:1 권장 대신 자기 파일 규격 안내만 설명으로 연결한다', () => {
     const html = renderGoodSection(null);
-    const describedBy = (id: string) => html.match(new RegExp(`aria-describedby="(${id}[^"]*)"[^>]*class="admin-artwork-input"`))?.[1];
+    const describedBy = (id: string) => html.match(new RegExp(`aria-describedby="(${id}[^"]*)"[^>]*data-artwork-input=""`))?.[1];
 
     expect(describedBy('good-description-image')).toBe('good-description-image-artwork-help good-description-image-artwork-guidance');
     expect(html).toContain('id="good-description-image-artwork-help"');
-    expect(html).not.toMatch(/aria-describedby="[^"]*goods-image-upload-guidance[^"]*"[^>]*class="admin-artwork-input"/);
+    expect(html).not.toMatch(/aria-describedby="[^"]*goods-image-upload-guidance[^"]*"[^>]*data-artwork-input=""/);
   });
 
   /* 리뷰 재현: 요약이 원문 길이만 보여 줘 정리된 코드가 30,000자를 넘어 저장이 거부될 때 이유를 알 수 없었다. */

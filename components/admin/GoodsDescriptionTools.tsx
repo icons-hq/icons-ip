@@ -9,6 +9,9 @@ import { INQUIRY_DRAFT_SIGN_OUT_EVENT } from '@/lib/admin/inquiry-draft-lifecycl
 import { createClient } from '@/lib/supabase/client';
 import { getSupabaseConfig } from '@/lib/supabase/config';
 import { CustomerServiceDialog } from './screens/CustomerServiceDialog';
+import { buttonVariants } from '@/components/admin/kit/ui/button';
+import { toggleVariants } from '@/components/admin/kit/ui/toggle';
+import { GOOD_INPUT_CLASS, GOOD_TEXTAREA_CLASS } from './GoodEditorParts';
 import { BodyTemplateTools } from './BodyTemplateTools';
 import type { BodyTemplateEditorTarget } from '@/lib/admin/body-templates';
 import { CONTENT_ALIGNMENTS, CONTENT_DIVIDER_STYLES, CONTENT_FONT_SIZES, CONTENT_QUOTE_STYLES, type ContentAlignment, type ContentDividerStyle, type ContentFontSize, type ContentQuoteStyle } from '@/lib/content-format';
@@ -17,6 +20,11 @@ type Target = { ticket: GoodsDescriptionToolTicket; form: HTMLFormElement; input
 type Dialog = { kind: 'quote' | 'link' | 'text'; target: Target; initialText: string };
 const QUOTE_LABELS: Record<ContentQuoteStyle, string> = { line: '왼쪽 선', quotes: '따옴표', bubble: '말풍선', note: '메모', frame: '모서리' };
 const DIVIDER_LABELS: Record<ContentDividerStyle, string> = { line: '긴 선', short: '짧은 선', bold: '굵은 선', chevron: '꺾인 선', diamond: '마름모', dots: '점선', slash: '사선', vertical: '세로선' };
+/* 템플릿 룩(ADR-0028). 테스트가 요소 트리에서 네이티브 select·button을 찾으므로 kit 클래스를 네이티브 요소에 입힌다.
+   select는 data-slot 없이 두어 어휘 CSS가 펼침 화살표를 그린다. */
+const SELECT_CLASS = 'h-8 w-full min-w-0 rounded-lg border border-input bg-transparent py-1 pr-8 pl-2.5 text-sm font-normal text-foreground transition-colors outline-none focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-50';
+const LABEL_CLASS = 'flex min-w-0 flex-col gap-2 text-sm font-medium text-foreground';
+const TOOL_BUTTON_CLASS = buttonVariants({ variant: 'outline' });
 
 export function GoodsDescriptionTools({ accountId, formRef, disabled }: {
   accountId: string; formRef: RefObject<HTMLFormElement | null>; disabled: boolean;
@@ -107,23 +115,24 @@ export function GoodsDescriptionTools({ accountId, formRef, disabled }: {
   }
   const active = dialog && !blocked && dialog.target.ticket.epoch === snapshot.epoch ? dialog : null;
   return <>
-    <div className="row admin-goods-description-tools" aria-label="상세설명 추가 도구">
-      <button className="btn btn-ghost" type="button" disabled={blocked} onClick={() => open('text')}>글자 서식</button>
-      <button className="btn btn-ghost" type="button" disabled={blocked} onClick={() => open('quote')}>인용 넣기</button>
-      <label>구분선 모양<select className="admin-field-control" disabled={blocked} value={dividerStyle} onInput={event => event.stopPropagation()}
+    <div className="flex min-w-0 flex-wrap items-end gap-2" aria-label="상세설명 추가 도구" data-description-tools="">
+      <button className={TOOL_BUTTON_CLASS} data-slot="button" type="button" disabled={blocked} onClick={() => open('text')}>글자 서식</button>
+      <button className={TOOL_BUTTON_CLASS} data-slot="button" type="button" disabled={blocked} onClick={() => open('quote')}>인용 넣기</button>
+      <label className="flex min-w-0 flex-col gap-1.5 text-xs font-medium text-muted-foreground">구분선 모양<select className={`${SELECT_CLASS} w-auto min-w-28`} disabled={blocked} value={dividerStyle} onInput={event => event.stopPropagation()}
         onChange={event => { event.stopPropagation(); setDividerStyle(event.target.value as ContentDividerStyle); }}>
         {CONTENT_DIVIDER_STYLES.map(style => <option key={style} value={style}>{DIVIDER_LABELS[style]}</option>)}
       </select></label>
-      <button className="btn btn-ghost" type="button" disabled={blocked} onClick={() => {
+      <button className={TOOL_BUTTON_CLASS} data-slot="button" type="button" disabled={blocked} onClick={() => {
         const target = capture(); if (!target) return;
         const error = apply(target, { kind: 'divider', ...(dividerStyle === 'line' ? {} : { style: dividerStyle }) });
         if (error) setMessage(error); else target.input.focus();
       }}>구분선 넣기</button>
-      <button className="btn btn-ghost" type="button" disabled={blocked} onClick={() => open('link')}>링크 넣기</button>
+      <button className={TOOL_BUTTON_CLASS} data-slot="button" type="button" disabled={blocked} onClick={() => open('link')}>링크 넣기</button>
       <BodyTemplateTools accountId={accountId} surface="goods" disabled={blocked} captureEditor={captureBodyTemplate} insertLabel="선택 위치에 넣기" />
     </div>
-    {snapshot.blocked ? <p role="status">로그인 상태가 바뀌었습니다. 페이지를 새로 열어주세요.</p> : message ? <p role="status">{message}</p> : null}
-    {active && typeof document !== 'undefined' ? createPortal(<div className="wc-admin admin-goods-description-dialog"
+    {snapshot.blocked ? <p className="text-sm text-[var(--wc-warning)]" role="status">로그인 상태가 바뀌었습니다. 페이지를 새로 열어주세요.</p> : message ? <p className="text-sm text-muted-foreground" role="status">{message}</p> : null}
+    {/* 상품 폼 바깥(body) portal이라 kit 토큰 경계(.wc-admin)를 래퍼가 다시 연다. */}
+    {active && typeof document !== 'undefined' ? createPortal(<div className="wc-admin" data-description-dialog=""
       onInput={event => event.stopPropagation()} onChange={event => event.stopPropagation()} onKeyDown={event => event.stopPropagation()}
       onSubmit={event => { event.preventDefault(); event.stopPropagation(); }}>
       <DescriptionToolDialog key={active.kind} kind={active.kind} initialText={active.initialText} onClose={() => close(active)} onApply={tool => apply(active.target, tool)} />
@@ -143,36 +152,37 @@ function DescriptionToolDialog({ kind, initialText, onClose, onApply }: { kind: 
     if (failure) setError(failure); else onClose();
   }
   return <CustomerServiceDialog title={kind === 'quote' ? '상세설명에 인용 넣기' : kind === 'text' ? '상세설명 글자 서식' : '상세설명에 링크 넣기'} onClose={onClose}>
-    <div className="admin-goods-description-dialog__form" onKeyDown={event => {
+    <div className="flex min-w-0 flex-col gap-4 text-sm" onKeyDown={event => {
       if (event.key === 'Enter' && !event.nativeEvent.isComposing && event.target instanceof HTMLInputElement) {
         event.preventDefault(); event.stopPropagation(); submit();
       }
     }}>
-      <p>입력한 내용을 선택한 부분에 넣습니다. 선택한 글이 있으면 바뀝니다. 상품 저장 후 공개 화면에 반영됩니다.</p>
-      {kind !== 'link' ? <><label>{kind === 'quote' ? '인용할 내용' : '서식을 적용할 내용'}<textarea className="admin-field-control" rows={5} value={text} maxLength={GOODS_HTML_MAX_LENGTH}
+      <p className="text-sm text-muted-foreground wrap-anywhere">입력한 내용을 선택한 부분에 넣습니다. 선택한 글이 있으면 바뀝니다. 상품 저장 후 공개 화면에 반영됩니다.</p>
+      {kind !== 'link' ? <><label className={LABEL_CLASS}>{kind === 'quote' ? '인용할 내용' : '서식을 적용할 내용'}<textarea className={`${GOOD_TEXTAREA_CLASS} resize-y`} data-slot="textarea" rows={5} value={text} maxLength={GOODS_HTML_MAX_LENGTH}
         onChange={event => { setText(event.target.value); setError(''); }} /></label>
-        {kind === 'quote' ? <label>인용 모양<select className="admin-field-control" value={quoteStyle} onChange={event => setQuoteStyle(event.target.value as ContentQuoteStyle)}>
+        {kind === 'quote' ? <label className={LABEL_CLASS}>인용 모양<select className={SELECT_CLASS} value={quoteStyle} onChange={event => setQuoteStyle(event.target.value as ContentQuoteStyle)}>
           {CONTENT_QUOTE_STYLES.map(style => <option key={style} value={style}>{QUOTE_LABELS[style]}</option>)}
         </select></label> : <>
-          <p>선택한 HTML에서 글자만 가져옵니다. 이 창의 내용은 한 문단으로 넣으며 기존 선택 영역의 이미지·태그는 바뀝니다.</p>
-          <div className="row"><label>정렬<select className="admin-field-control" value={alignment} onChange={event => setAlignment(event.target.value as ContentAlignment)}>
+          <p className="text-sm text-muted-foreground wrap-anywhere">선택한 HTML에서 글자만 가져옵니다. 이 창의 내용은 한 문단으로 넣으며 기존 선택 영역의 이미지·태그는 바뀝니다.</p>
+          <div className="grid min-w-0 gap-3 sm:grid-cols-2"><label className={LABEL_CLASS}>정렬<select className={SELECT_CLASS} value={alignment} onChange={event => setAlignment(event.target.value as ContentAlignment)}>
             {CONTENT_ALIGNMENTS.map(align => <option key={align} value={align}>{{ left: '왼쪽', center: '가운데', right: '오른쪽' }[align]}</option>)}
-          </select></label><label>글자 크기<select className="admin-field-control" value={size} onChange={event => setSize(event.target.value as ContentFontSize)}>
+          </select></label><label className={LABEL_CLASS}>글자 크기<select className={SELECT_CLASS} value={size} onChange={event => setSize(event.target.value as ContentFontSize)}>
             {CONTENT_FONT_SIZES.map(value => <option key={value} value={value}>{value}px</option>)}
           </select></label></div>
-          <div className="row" role="group" aria-label="글자 강조">
-            {([['strong', '굵게'], ['em', '기울임'], ['u', '밑줄'], ['s', '취소선']] as const).map(([tag, label]) => <button className="btn btn-ghost" type="button" key={tag} aria-pressed={emphasis.includes(tag)}
+          <div className="flex flex-wrap gap-2" role="group" aria-label="글자 강조">
+            {([['strong', '굵게'], ['em', '기울임'], ['u', '밑줄'], ['s', '취소선']] as const).map(([tag, label]) => <button className={`${toggleVariants({ variant: 'outline' })} aria-pressed:border-primary`} data-slot="toggle" type="button" key={tag} aria-pressed={emphasis.includes(tag)}
               onClick={() => setEmphasis(current => current.includes(tag) ? current.filter(value => value !== tag) : [...current, tag])}>{label}</button>)}
           </div>
         </>}
       </>
-        : <><label>링크 문구<input className="admin-field-control" value={text} maxLength={GOODS_HTML_MAX_LENGTH} onChange={event => { setText(event.target.value); setError(''); }} /></label>
-          <label>링크 주소<input className="admin-field-control" value={href} maxLength={GOODS_HTML_MAX_LENGTH} placeholder="https://example.com 또는 /shop"
+        : <><label className={LABEL_CLASS}>링크 문구<input className={GOOD_INPUT_CLASS} data-slot="input" value={text} maxLength={GOODS_HTML_MAX_LENGTH} onChange={event => { setText(event.target.value); setError(''); }} /></label>
+          <label className={LABEL_CLASS}>링크 주소<input className={GOOD_INPUT_CLASS} data-slot="input" value={href} maxLength={GOODS_HTML_MAX_LENGTH} placeholder="https://example.com 또는 /shop"
             onChange={event => { setHref(event.target.value); setError(''); }} /></label>
-          <p>https·http·mailto·tel 주소 또는 /로 시작하는 내부 경로를 사용할 수 있습니다.</p></>}
-      {error ? <p role="alert">{error}</p> : null}
-      {preview?.ok ? <div aria-label="서식 미리보기" className="admin-goods-description-dialog__preview wc-goods-description" dangerouslySetInnerHTML={{ __html: sanitizeGoodsDescription(preview.value).html }} /> : null}
-      <div className="row"><button type="button" className="btn btn-primary" onClick={submit}>상세설명에 넣기</button><button type="button" className="btn btn-ghost" onClick={onClose}>취소</button></div>
+          <p className="text-xs text-muted-foreground">https·http·mailto·tel 주소 또는 /로 시작하는 내부 경로를 사용할 수 있습니다.</p></>}
+      {error ? <p className="text-sm text-destructive" role="alert">{error}</p> : null}
+      {/* wc-goods-description은 상세설명 내용의 표식이다(공개 화면의 같은 이름). 관리자 미리보기 상자 모양만 유틸리티로 둔다. */}
+      {preview?.ok ? <div aria-label="서식 미리보기" className="max-h-60 min-w-0 overflow-auto rounded-lg border p-4 wrap-anywhere wc-goods-description" dangerouslySetInnerHTML={{ __html: sanitizeGoodsDescription(preview.value).html }} /> : null}
+      <div className="flex flex-wrap gap-2"><button type="button" className={buttonVariants()} data-slot="button" onClick={submit}>상세설명에 넣기</button><button type="button" className={buttonVariants({ variant: 'outline' })} data-slot="button" onClick={onClose}>취소</button></div>
     </div>
   </CustomerServiceDialog>;
 }

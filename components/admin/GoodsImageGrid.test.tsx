@@ -1,6 +1,4 @@
-import { readFileSync } from 'node:fs';
 import { renderToStaticMarkup } from 'react-dom/server';
-import { withoutKitGuard } from '@/app/styles/css-cascade.test-helpers';
 import { describe, expect, it, vi } from 'vitest';
 import { GoodsImageGrid } from './GoodsImageGrid';
 
@@ -28,7 +26,8 @@ describe('상품 이미지 썸네일 그리드', () => {
     expect([...html.matchAll(/<input readOnly="" type="hidden" name="([a-zA-Z0-9]+)" value="([^"]*)"\/>/g)].map(([, name, value]) => [name, value]))
       .toEqual([['imagePath', path('main')], ['galleryPath0', path('a')], ['galleryPath1', path('b')],
         ...Array.from({ length: 7 }, (_, index) => [`galleryPath${index + 2}`, ''])]);
-    expect(html.match(/<li class="wc-admin-image-tile wc-admin-artwork-upload-field"/g)).toHaveLength(4);
+    /* 타일마다 업로드 경계(data-artwork-upload-field)다 — 오류 이동이 그 안의 hidden input으로 자리 이름을 찾는다. */
+    expect(html.match(/<li class="[^"]*" data-artwork-upload-field=""/g)).toHaveLength(4);
     expect(html).toContain('src="https://cdn.example/b.webp"');
   });
 
@@ -48,10 +47,10 @@ describe('상품 이미지 썸네일 그리드', () => {
     expect(html).toContain('추가 이미지 2/9');
     expect(html.match(/data-draggable="true"/g)).toHaveLength(2);
     /* 끌기 손잡이는 추가 이미지에만 있고, 스크린리더·키보드에서도 닿는 버튼이다(aria-hidden 아님). */
-    expect(html.match(/class="wc-admin-image-tile__handle"/g)).toHaveLength(2);
+    expect(html.match(/data-image-handle=""/g)).toHaveLength(2);
     expect(html).toContain('aria-label="추가 이미지 2 순서 바꾸기 손잡이 (끌거나 ←·→ 키)"');
     expect(html).not.toContain('aria-label="대표 이미지 순서 바꾸기');
-    expect(html).toMatch(/<button aria-keyshortcuts="ArrowLeft ArrowRight" aria-label="추가 이미지 1 순서 바꾸기 손잡이[^"]*" class="wc-admin-image-tile__handle" type="button"><svg aria-hidden="true"/);
+    expect(html).toMatch(/<button aria-keyshortcuts="ArrowLeft ArrowRight" aria-label="추가 이미지 1 순서 바꾸기 손잡이[^"]*" class="[^"]*" data-image-handle="" type="button"><svg aria-hidden="true"/);
   });
 
   /* 리뷰 재현: 추가 이미지는 끌기 때문에 무엇이 상세의 어디에 나오는지 안내한다 — 상세페이지 HTML 본문과 헷갈리지 않게. */
@@ -65,12 +64,18 @@ describe('상품 이미지 썸네일 그리드', () => {
 
   /* openRisks 재현: 타일 본문이 touch-action:none이면 모바일 어드민에서 타일 위 세로 스크롤이 막혔다. */
   it('타일 본문은 세로 스크롤을 허용하고, 터치 끌기를 막는 touch-action:none은 손잡이에만 둔다', () => {
-    const css = readFileSync(new URL('../../app/styles/wc-admin-surfaces.css', import.meta.url), 'utf8');
-    const rules = [...css.matchAll(/([^{}\n]+)\{([^}]*)\}/g)].filter(([, selector]) => selector.includes('wc-admin-image-tile'));
-
-    expect(rules.find(([, selector]) => selector.includes('__frame[data-draggable]'))?.[2]).toMatch(/touch-action:\s*pan-y\b/);
-    expect(rules.filter(([, , body]) => /touch-action:\s*none/.test(body)).map(([, selector]) => withoutKitGuard(selector)))
-      .toEqual(['.wc-admin .wc-admin-image-tile__handle']);
+    const html = render(['main', 'a', 'b', '', '']);
+    const frames = html.match(/<label[^>]*data-draggable="true"[^>]*>/g) ?? [];
+    expect(frames).toHaveLength(2);
+    for (const frame of frames) {
+      expect(frame).toMatch(/\btouch-pan-y\b/);
+      expect(frame).toMatch(/\btouch-pinch-zoom\b/);
+      expect(frame).not.toMatch(/\btouch-none\b/);
+    }
+    /* touch-action:none(touch-none)은 끌기 손잡이 두 개에만 있다 — 대표 이미지·추가 타일·목록에는 없다. */
+    const blocking = html.match(/<[a-z]+\b[^>]*\btouch-none\b[^>]*>/g) ?? [];
+    expect(blocking).toHaveLength(2);
+    for (const element of blocking) expect(element).toContain('data-image-handle=""');
   });
 
   it('빈 상품은 대표 이미지 추가와 이미지 추가 타일만 보여준다', () => {
