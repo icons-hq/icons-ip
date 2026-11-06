@@ -2,8 +2,9 @@
 
 import Link from 'next/link';
 import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react';
+import { ConsoleTableSettings } from '@/components/admin/kit/console-table-settings';
 import { useGridPreferences } from './AdminPreferences';
-import { ConsoleGridSettings } from './ConsoleGridSettings';
 
 export type ConsoleSortDirection = 'asc' | 'desc';
 
@@ -210,28 +211,34 @@ export function ConsoleGrid({
 
   const columnCount = visibleColumns.length + (selectable ? 1 : 0);
   const hasWidths = visibleColumns.some((column) => column.width);
+  const frozenCellClass = 'data-[frozen]:sticky data-[frozen]:z-10';
 
+  /*
+   * kit 표 모양(components/admin/kit/ui/table.tsx의 클래스, ADR-0028). 표는 화면 고유 CSS가 닿지 않게 kit 부품
+   * 표시(data-slot)를 단다. 체크박스는 폼 제출(선택 hidden input)과 단위 테스트를 위해 네이티브 그대로 두고
+   * kit 체크박스 모양을 입는다(admin-kit-vocabulary.css). 고정 열은 불투명 배경이라 가로 스크롤 아래가 비치지 않는다.
+   */
   return (
-    <div className={`${className ? `${className} ` : ''}admin-console-grid`}>
+    <div className={`${className ? `${className} ` : ''}flex min-w-0 flex-col gap-2`} data-console-grid="">
       {children}
-      {configurable ? <ConsoleGridSettings columns={columns} preferences={preferences} onSave={save} /> : null}
-      <div className="admin-console-grid-scroll" role="region" aria-label={`${caption} 가로 스크롤`} tabIndex={0}>
-        <table className="admin-console-grid-table" ref={tableRef}>
-          <caption className="admin-console-grid-caption">{caption}</caption>
+      {configurable ? <div className="flex justify-end"><ConsoleTableSettings columns={columns} onSave={save} preferences={preferences} /></div> : null}
+      <div aria-label={`${caption} 가로 스크롤`} className="relative min-w-0 overflow-x-auto rounded-lg border bg-card outline-none focus-visible:ring-3 focus-visible:ring-ring/50" role="region" tabIndex={0}>
+        <table className="w-full caption-bottom text-sm" data-slot="table" ref={tableRef}>
+          <caption className="sr-only">{caption}</caption>
           {hasWidths ? (
             <colgroup>
-              {selectable ? <col className="admin-console-grid-check-col" /> : null}
+              {selectable ? <col className="w-10" /> : null}
               {visibleColumns.map((column) => (
                 <col key={column.key} style={column.width ? { width: column.width } : undefined} />
               ))}
             </colgroup>
           ) : null}
-          <thead>
-            <tr>
+          <thead className="[&_tr]:border-b" data-slot="table-header">
+            <tr className="border-b bg-muted/50" data-slot="table-row">
               {selectable ? (
-                <th className="admin-console-grid-check" data-frozen={frozenCount > 0 || undefined} style={frozenStyle(0)} scope="col">
+                <th className={`relative h-10 w-10 bg-muted p-0 align-middle ${frozenCellClass}`} data-frozen={frozenCount > 0 || undefined} data-slot="table-head" style={frozenStyle(0)} scope="col">
                   {/* 칸 전체가 클릭 영역이다(label이 칸을 채운다). */}
-                  <label className="admin-console-grid-check-hit"><input
+                  <label className="absolute inset-0 flex cursor-pointer items-center justify-center"><input
                     aria-label="전체 선택"
                     checked={allSelected}
                     disabled={selectableIds.length === 0}
@@ -247,6 +254,7 @@ export function ConsoleGrid({
                 const href = column.sortable
                   ? column.sortHref ?? sortHrefFor?.(column.key, direction)
                   : undefined;
+                const SortIcon = active ? (sort?.direction === 'asc' ? ArrowUp : ArrowDown) : ArrowUpDown;
 
                 return (
                   <th
@@ -255,8 +263,10 @@ export function ConsoleGrid({
                         ? sort?.direction === 'asc' ? 'ascending' : 'descending'
                         : 'none'
                       : undefined}
+                    className={`h-10 bg-muted px-2 text-left align-middle text-xs font-medium whitespace-nowrap text-muted-foreground data-[align=end]:text-right ${frozenCellClass}`}
                     data-align={column.align ?? 'start'}
                     data-frozen={displayIndex < frozenCount || undefined}
+                    data-slot="table-head"
                     style={frozenStyle(displayIndex + (selectable ? 1 : 0))}
                     key={column.key}
                     scope="col"
@@ -264,14 +274,13 @@ export function ConsoleGrid({
                     {href ? (
                       <Link
                         aria-label={`${column.label} ${SORT_DIRECTION_LABELS[direction]} 정렬`}
-                        className={`admin-console-grid-sort${active ? ' on' : ''}`}
+                        className="-mx-1.5 inline-flex h-7 items-center gap-1 rounded-md px-1.5 transition-colors outline-none hover:bg-accent hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50 data-[active]:text-foreground"
+                        data-active={active || undefined}
                         data-direction={active ? sort?.direction : undefined}
                         href={href}
                       >
                         {column.label}
-                        <span aria-hidden="true" className="admin-console-grid-sort-mark">
-                          {active ? (sort?.direction === 'asc' ? '↑' : '↓') : '↕'}
-                        </span>
+                        <SortIcon aria-hidden="true" className={`size-3.5${active ? '' : ' opacity-50'}`} />
                       </Link>
                     ) : column.label}
                   </th>
@@ -279,11 +288,11 @@ export function ConsoleGrid({
               })}
             </tr>
           </thead>
-          <tbody>
+          <tbody className="[&_tr:last-child]:border-0" data-slot="table-body">
             {rows.length === 0 ? (
-              <tr>
-                <td className="admin-console-grid-empty" colSpan={columnCount}>
-                  <p className="muted">{emptyLabel}</p>
+              <tr data-slot="table-row">
+                <td className="h-24 p-2 text-center align-middle text-muted-foreground" colSpan={columnCount} data-slot="table-cell">
+                  {emptyLabel}
                 </td>
               </tr>
             ) : rows.map((row) => {
@@ -291,11 +300,17 @@ export function ConsoleGrid({
               const rowSelected = selected.has(row.id);
 
               return (
-                <tr data-selected={rowSelected ? 'true' : undefined} key={row.id}>
+                <tr
+                  className="group/row border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted"
+                  data-selected={rowSelected ? 'true' : undefined}
+                  data-slot="table-row"
+                  data-state={rowSelected ? 'selected' : undefined}
+                  key={row.id}
+                >
                   {selectable ? (
-                    <td className="admin-console-grid-check" data-frozen={frozenCount > 0 || undefined} style={frozenStyle(0)}>
+                    <td className={`relative w-10 bg-card p-0 align-middle group-hover/row:bg-[color-mix(in_oklab,var(--muted)_50%,var(--card))] group-data-[state=selected]/row:bg-muted ${frozenCellClass}`} data-frozen={frozenCount > 0 || undefined} data-slot="table-cell" style={frozenStyle(0)}>
                       {rowSelectable ? (
-                        <label className="admin-console-grid-check-hit"><input
+                        <label className="absolute inset-0 flex cursor-pointer items-center justify-center"><input
                           aria-label={row.selectLabel ?? `${row.id} 선택`}
                           checked={rowSelected}
                           onChange={(event) => toggleRow(row.id, event.target.checked)}
@@ -308,16 +323,19 @@ export function ConsoleGrid({
                   {indexes.map((index, displayIndex) => {
                     const cell = row.cells[index];
                     const column = columns[index];
+                    const frozen = displayIndex < frozenCount;
                     return (
                       <td
+                        className={`p-2 align-middle break-keep data-[align=end]:text-right data-[align=end]:tabular-nums ${frozen ? `bg-card group-hover/row:bg-[color-mix(in_oklab,var(--muted)_50%,var(--card))] group-data-[state=selected]/row:bg-muted ${frozenCellClass}` : ''}`}
                         data-align={column?.align ?? 'start'}
-                        data-frozen={displayIndex < frozenCount || undefined}
+                        data-frozen={frozen || undefined}
+                        data-slot="table-cell"
                         style={frozenStyle(displayIndex + (selectable ? 1 : 0))}
                         key={column?.key ?? `cell-${index}`}
                       >
                         {/* 표에서는 행 전체를 링크로 만들 수 없다. 첫 셀만 상세 링크가 된다. */}
                         {index === 0 && row.href ? (
-                          <Link className="admin-console-grid-link" href={row.href}>{cell}</Link>
+                          <Link className="font-medium text-foreground underline-offset-4 hover:underline" href={row.href}>{cell}</Link>
                         ) : cell}
                       </td>
                     );

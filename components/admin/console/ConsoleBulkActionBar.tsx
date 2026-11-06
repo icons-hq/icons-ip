@@ -1,4 +1,5 @@
 import type { ReactNode } from 'react';
+import { buttonVariants } from '@/components/admin/kit/ui/button';
 
 export type ConsoleBulkActionVariant = 'primary' | 'ghost' | 'danger';
 
@@ -32,18 +33,11 @@ export interface ConsoleBulkActionBarProps {
 }
 
 const VARIANT_CLASSES: Record<ConsoleBulkActionVariant, string> = {
-  primary: 'btn btn-sm admin-console-bulk-action',
-  ghost: 'btn btn-sm btn-ghost admin-console-bulk-action',
-  danger: 'btn btn-sm admin-console-bulk-action admin-console-bulk-action--danger',
+  primary: buttonVariants({ size: 'sm' }),
+  ghost: buttonVariants({ size: 'sm', variant: 'outline' }),
+  danger: buttonVariants({ size: 'sm', variant: 'destructive' }),
 };
 
-/**
- * 선택된 행이 있을 때만 뜨는 일괄 액션 바.
- *
- * 실제 제출은 호출자의 `<form>`과 server action이 맡는다. 이 컴포넌트는 `type="submit"`
- * 버튼만 그리고 `name`/`value`/`formAction`을 그대로 통과시킨다. 그래서 서버 컴포넌트로
- * 남을 수 있다 — 선택 건수만 바깥에서 받아온다.
- */
 export function ConsoleBulkActionBar({
   actions,
   children,
@@ -57,17 +51,19 @@ export function ConsoleBulkActionBar({
   return (
     <div
       aria-label={`${label} 일괄 처리`}
-      className={`${className ? `${className} ` : ''}admin-console-bulk-bar`}
+      className={`${className ? `${className} ` : ''}flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border bg-muted/40 px-3 py-2`}
+      data-console-bulk-bar=""
       role="group"
     >
-      <p aria-live="polite" className="admin-console-bulk-count">
-        {label} <strong>{selectedCount.toLocaleString('ko-KR')}</strong>건
+      <p aria-live="polite" className="text-sm">
+        {label} <strong className="font-semibold tabular-nums">{selectedCount.toLocaleString('ko-KR')}</strong>건
       </p>
-      <div className="admin-console-bulk-actions">
+      <div className="flex flex-wrap items-center gap-1.5">
         {actions.map((action) => (
           <button
             className={VARIANT_CLASSES[action.variant ?? 'primary']}
             data-confirm={action.confirmLabel}
+            data-slot="button"
             disabled={action.disabled}
             formAction={action.formAction}
             key={`${action.name}:${action.value ?? action.name}`}

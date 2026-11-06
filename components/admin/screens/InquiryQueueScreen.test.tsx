@@ -71,8 +71,8 @@ function data(overrides: Partial<AdminInquiryConsoleData> = {}): AdminInquiryCon
 describe('InquiryQueueScreen', () => {
   it('검색과 목록을 앞에 두고 상태별 집계·만족도·문의 바로가기를 보존한다', () => {
     const html = renderToStaticMarkup(<InquiryQueueScreen data={data()} now={NOW} />);
-    expect(html.indexOf('admin-console-filters')).toBeLessThan(html.indexOf('admin-console-grid-table'));
-    expect(html.indexOf('admin-console-grid-table')).toBeLessThan(html.indexOf('답변 만족도 요약'));
+    expect(html.indexOf('data-console-filters')).toBeLessThan(html.indexOf('data-slot="table"'));
+    expect(html.indexOf('data-slot="table"')).toBeLessThan(html.indexOf('답변 만족도 요약'));
     expect(html).toContain('문의·리뷰 관리');
     expect(html).toContain('aria-live="polite"');
     expect(html).toContain('미답변 2건');

@@ -87,11 +87,11 @@ describe('ReviewConsoleScreen', () => {
     const html = render();
 
     const pinnedIndex = html.indexOf('admin-console-pinned-filter');
-    const panelIndex = html.indexOf('admin-console-filters');
+    const panelIndex = html.indexOf('data-console-filters');
 
     expect(pinnedIndex).toBeGreaterThanOrEqual(0);
     expect(panelIndex).toBeLessThan(pinnedIndex);
-    expect(pinnedIndex).toBeLessThan(html.indexOf('admin-console-grid-table'));
+    expect(pinnedIndex).toBeLessThan(html.indexOf('data-slot="table"'));
     expect(html).toContain('저평점 리뷰 3건');
     expect(html).toContain('저평점만 보기');
     // MD-0017: 저평점 안내는 왜 빨리 답해야 하는지를 쉬운 말로 적는다.

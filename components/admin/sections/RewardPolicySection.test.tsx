@@ -257,9 +257,9 @@ describe('RewardPolicySection', () => {
     const noPoolHtml = renderPolicySection({ pools: [endedPool, unreadyPool] });
 
     expect(noIpHtml).toContain('먼저 IP를 등록해주세요.');
-    expect(noIpHtml).toMatch(/<button[^>]*disabled=""[^>]*>[^<]*(?:<[^>]+>[^<]*<\/[^>]+>)?\s*저장<\/button>/);
+    expect(noIpHtml).toMatch(/<button[^>]*disabled=""[^>]*>(?:<svg[\s\S]*?<\/svg>)?\s*저장<\/button>/);
     expect(noPoolHtml).toContain('확률과 카드 구성이 완료된 운영 예정/운영 중 카드풀을 먼저 준비해주세요.');
-    expect(noPoolHtml).toMatch(/<button[^>]*disabled=""[^>]*>[^<]*(?:<[^>]+>[^<]*<\/[^>]+>)?\s*저장<\/button>/);
+    expect(noPoolHtml).toMatch(/<button[^>]*disabled=""[^>]*>(?:<svg[\s\S]*?<\/svg>)?\s*저장<\/button>/);
   });
 
   it('defaults a new policy to the first active IP when an archived IP sorts first', () => {

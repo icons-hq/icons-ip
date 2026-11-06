@@ -44,7 +44,7 @@ describe('상품 옵션 ERP 식별자 입력', () => {
     />);
 
     expect(html).toContain('data-option-mode="single"');
-    expect(html).toContain('<label class="wc-admin-kit__field-label" for="goods-single-stock">재고수량</label>');
+    expect(html).toMatch(/<label class="[^"]*" for="goods-single-stock">재고수량<\/label>/);
     expect(html).toContain('ICONS에서 판매할 수량이며 주문하면 차감됩니다. 안전재고는 부족 알림 기준입니다.');
     expect(html).toMatch(/<input type="radio" name="optionUsage" checked="" value="off"\/>설정안함/);
     expect(html).toContain('aria-label="기본 옵션명"');

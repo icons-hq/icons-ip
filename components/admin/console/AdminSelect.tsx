@@ -138,8 +138,9 @@ export const AdminSelect = forwardRef<HTMLSelectElement, AdminSelectProps>(funct
 
   return (
     <span
-      className={wrapperClassName}
-      style={{ display: 'block', minWidth: 0, ...wrapperStyle }}
+      className={`block min-w-0${wrapperClassName ? ` ${wrapperClassName}` : ''}`}
+      data-admin-select=""
+      style={wrapperStyle}
     >
       <select
         {...selectProps}
@@ -152,7 +153,7 @@ export const AdminSelect = forwardRef<HTMLSelectElement, AdminSelectProps>(funct
       </select>
       {clipped && selectedText ? (
         <span
-          className="admin-select-hint wc-admin-kit__select-hint"
+          className="mt-1 block text-xs leading-snug text-muted-foreground"
           id={hintId}
 
         >

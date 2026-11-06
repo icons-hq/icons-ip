@@ -98,7 +98,7 @@ describe('상품 이미지 썸네일 그리드', () => {
   it('폼 오류 키(imagePath, galleryPath{i})를 해당 타일의 오류 문구와 파일 입력 설명에 연결한다', () => {
     const html = render(['', 'a', 'b', '', ''], { imagePath: '대표 이미지를 업로드한 뒤 공개해주세요.', galleryPath1: '같은 이미지를 갤러리에 두 번 넣을 수 없습니다.' });
 
-    expect(html).toContain('<span id="imagePath-error" role="alert"');
+    expect(html).toContain('id="imagePath-error" role="alert"');
     expect(html).toContain('대표 이미지를 업로드한 뒤 공개해주세요.');
     expect(html).toMatch(/aria-describedby="goods-image-upload-guidance imagePath-error" aria-invalid="true" aria-label="대표 이미지 추가"/);
     expect(html).toMatch(/aria-describedby="goods-image-upload-guidance galleryPath1-error" aria-invalid="true" aria-label="추가 이미지 2 교체"/);

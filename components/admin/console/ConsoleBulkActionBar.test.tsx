@@ -50,7 +50,8 @@ describe('ConsoleBulkActionBar', () => {
     );
 
     expect(html).toContain('data-confirm="선택한 주문을 취소할까요?"');
-    expect(html).toContain('admin-console-bulk-action--danger');
+    /* 위험 동작은 kit destructive 버튼 모양이다. */
+    expect(html).toMatch(/<button class="[^"]*text-destructive[^"]*" data-confirm=/);
   });
 
   it('비활성 액션은 disabled로 렌더한다', () => {

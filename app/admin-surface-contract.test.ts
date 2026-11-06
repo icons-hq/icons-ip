@@ -13,10 +13,10 @@ describe('complete admin WC cutover (#433)', () => {
         expect(declaration.important, `${file}: ${declaration.toString()}`).toBeFalsy();
       });
     }
+    /* 잘린 선택값 안내는 kit 유틸리티로 그린다(ADR-0028) — 인라인 색을 쓰지 않는다. */
     const select = read('../components/admin/console/AdminSelect.tsx');
-    expect(select).toContain('wc-admin-kit__select-hint');
+    expect(select).toContain('text-muted-foreground');
     expect(select).not.toContain("color: 'var(--wc-ink-sub)'");
-    expect(read('./styles/wc-admin.css')).toContain('.wc-admin .wc-admin-kit__select-hint');
   });
   it('keeps the actionable unanswered-inquiry badge spaced inside the inquiry pages', () => {
     const css=postcss.parse(read('./styles/wc-admin.css'));

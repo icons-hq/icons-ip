@@ -92,7 +92,7 @@ describe('goods list screen', () => {
     expect(html).toContain(`href="${goodEditorHref(filters, 'good-draft').replaceAll('&', '&amp;')}#good-preview"`);
     expect(html).toContain('공개 전 · 미리보기');
     // 상품명(첫 열)은 수정 화면으로 간다.
-    expect(html).toContain(`<a class="admin-console-grid-link" href="${goodEditorHref(filters, 'good-public').replaceAll('&', '&amp;')}">`);
+    expect(html).toContain(`hover:underline" href="${goodEditorHref(filters, 'good-public').replaceAll('&', '&amp;')}">`);
     // 상품번호는 열로 옮겼으므로 접힌 추가 정보에 다시 두지 않는다.
     expect(html).not.toContain('<dt>상품번호</dt>');
   });
@@ -123,7 +123,7 @@ describe('goods list screen', () => {
       ips:[{id:'hwasan',title:'화산강림',archivedAt:null}],
       goods:[{id:'g100',code:'ICONS-100',name:'운영 상품',ipId:'hwasan',ipTitle:'화산강림',publishedAt:null,archivedAt:null,stock:'ok',noticeComplete: true, stockQty:0,activeStockQty:0,lowStockOptionCount:0}],
     }}/>);
-    expect(html).toContain('admin-console-grid-table');
+    expect(html).toContain('data-slot="table"');
     expect(html).toContain('상품코드'); expect(html).toContain('상품명');
     expect(html).toContain('ERP 코드·품명');
     expect(html).toContain('바코드');
