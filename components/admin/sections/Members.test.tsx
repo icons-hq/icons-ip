@@ -145,7 +145,19 @@ describe('MembersSection', () => {
     expect(html).toContain('name="reason"');
     expect(html).toContain('maxLength="200"');
     expect(html).toContain('required=""');
-    expect(html).toContain('min-height:44px');
+    /* 터치 화면(pointer: coarse)에서 정지 버튼은 44px 이상이다. 템플릿 룩에서 마우스 크기는 kit 기본값을 쓴다. */
+    expect(html).toMatch(/<button(?=[^>]*type="submit")(?=[^>]*pointer-coarse:min-h-11)[^>]*>(?:<svg[\s\S]*?<\/svg>)? 회원 정지<\/button>/);
+  });
+
+  it('검색·상세 보기·정지·등급 보정은 각자의 폼을 제출한다', () => {
+    hooks.detailState = { member: detail };
+    const html = renderToStaticMarkup(
+      <MembersSection actor={{ id: 'staff-a', role: 'staff' }} initialMembers={summaries} />,
+    );
+    /* kit Button은 type을 주지 않으면 type="button"이 된다 — 폼 안 동작은 제출 버튼이어야 한다. */
+    for (const label of ['검색', '상세 보기', '회원 정지', '등급 보정', '실적으로 재산정']) {
+      expect(html).toMatch(new RegExp(`<button(?=[^>]*type="submit")[^>]*>(?:<svg[\\s\\S]*?</svg>)? ${label}</button>`));
+    }
   });
 
   it('현재 검색 결과와 다른 이전 상세는 PII와 제재 form을 렌더링하지 않는다', () => {

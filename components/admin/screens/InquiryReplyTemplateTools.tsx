@@ -7,10 +7,15 @@ import { listInquiryReplyTemplatesAction, mutateInquiryReplyTemplateAction, read
 import { INQUIRY_TEMPLATE_CATEGORIES, INQUIRY_TEMPLATE_PAGE_SIZE, INQUIRY_TEMPLATE_TITLE_LIMIT, INQUIRY_TEMPLATE_BODY_LIMIT,
   REPLY_TEMPLATE_REPLACE_CONFIRM, REPLY_TEMPLATE_REPLACE_HINT, applyInquiryReplyTemplate, type InquiryTemplateDraft, type InquiryTemplateList, type InquiryTemplateMutation,
   type InquiryTemplateReceipt, type InquiryReplyTemplate } from '@/lib/admin/inquiry-reply-templates';
+import { FileText } from 'lucide-react';
+import { AdminSelect } from '@/components/admin/console/AdminSelect';
+import { Badge } from '@/components/admin/kit/ui/badge';
+import { Button } from '@/components/admin/kit/ui/button';
 import { CustomerServiceDialog } from './CustomerServiceDialog';
 import { CsEditorDraftNotice, CsTemplateDraftList } from './CsEditorDraftNotice';
+import { COUNTER_CLASS, FIELD_LABEL_CLASS, KIT_INPUT_CLASS, KIT_TEXTAREA_CLASS, LATEST_CLASS, TEMPLATE_BODY_CLASS, TEMPLATE_EDITOR_CLASS, TEMPLATE_NOTICE_CLASS, TEMPLATE_ROW_CLASS, TEMPLATE_SEARCH_CLASS } from './cs-kit-classes';
 
-export function InquiryReplyTemplateTools({ body, onInsert, disabled = false, accountId = '', label = '답변 템플릿 불러오기' }: { body: string; onInsert: (value: string) => void; disabled?: boolean; accountId?: string; label?: string }) {
+export function InquiryReplyTemplateTools({ body, onInsert, disabled = false, accountId = '', label = '답변 템플릿 불러오기', triggerVariant = 'outline' }: { body: string; onInsert: (value: string) => void; disabled?: boolean; accountId?: string; label?: string; triggerVariant?: 'outline' | 'ghost' }) {
   const [open, setOpen] = useState(false), [pending, setPending] = useState(false), [uncertain, setUncertain] = useState(false);
   const [query, setQuery] = useState(''), [category, setCategory] = useState(''), [archived, setArchived] = useState(false);
   const [data, setData] = useState<InquiryTemplateList>({ rows: [], total: 0, page: 1 });
@@ -103,49 +108,51 @@ export function InquiryReplyTemplateTools({ body, onInsert, disabled = false, ac
     onInsert(result.body); setOpen(false);
   }
   return <>
-    <button className="btn btn-sm btn-ghost" disabled={disabled} type="button" onClick={() => { setOpen(true); void run(() => load()); }}>{label}</button>
+    <Button disabled={disabled} onClick={() => { setOpen(true); void run(() => load()); }} size="sm" type="button" variant={triggerVariant}><FileText aria-hidden="true" />{label}</Button>
     {open ? <CustomerServiceDialog title="고객문의 답변 템플릿" busy={locked} onClose={() => { if (!locked) setOpen(false); }} wide>
-      <p className="muted">운영자가 공유하는 고객문의용 문구입니다. {REPLY_TEMPLATE_REPLACE_HINT} 템플릿 관리만으로 메일·알림을 보내지 않습니다.</p>
+      <div className="flex flex-col gap-4">
+      <p className="text-sm text-muted-foreground">운영자가 공유하는 고객문의용 문구입니다. {REPLY_TEMPLATE_REPLACE_HINT} 템플릿 관리만으로 메일·알림을 보내지 않습니다.</p>
       <CsEditorDraftNotice draft={recovery} pending={pending} onRestore={restore} onDiscard={discard} discardLabel="보관 초안 모두 버리기"
         discardDisabled={uncertain || Boolean(recovery.recovery?.pending)} />
       <CsTemplateDraftList drafts={workspace.drafts} disabled={locked} onSelect={id => { setSelected(id); setLatest(null); setAttempt(null); setError(''); setMessage(''); }} />
-      <form className="admin-cs-template__search" onSubmit={event => { event.preventDefault(); void run(() => load()); }}>
-        <label>유형<select disabled={locked} value={category} onChange={event => setCategory(event.target.value)}><option value="">전체</option>{INQUIRY_TEMPLATE_CATEGORIES.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
-        <label>제목<input disabled={locked} value={query} maxLength={100} onChange={event => setQuery(event.target.value)} /></label>
-        <label className="admin-cs-template__archive"><input type="checkbox" disabled={locked} checked={archived} onChange={event => setArchived(event.target.checked)} />삭제한 템플릿</label>
-        <button className="btn btn-sm" disabled={locked} type="submit">검색</button>
-        <button className="btn btn-sm btn-ghost" disabled={locked} type="button" onClick={createDraft}>템플릿 등록</button>
+      <form className={TEMPLATE_SEARCH_CLASS} data-cs-template="search" onSubmit={event => { event.preventDefault(); void run(() => load()); }}>
+        <label className="flex w-36 min-w-0 flex-col gap-1.5"><span className={FIELD_LABEL_CLASS}>유형</span><AdminSelect disabled={locked} value={category} onChange={event => setCategory(event.target.value)}><option value="">전체</option>{INQUIRY_TEMPLATE_CATEGORIES.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</AdminSelect></label>
+        <label className="flex min-w-[min(100%,12rem)] flex-1 flex-col gap-1.5"><span className={FIELD_LABEL_CLASS}>제목</span><input className={KIT_INPUT_CLASS} data-slot="input" disabled={locked} value={query} maxLength={100} onChange={event => setQuery(event.target.value)} /></label>
+        <label className="flex h-8 items-center gap-2 text-sm"><input type="checkbox" disabled={locked} checked={archived} onChange={event => setArchived(event.target.checked)} />삭제한 템플릿</label>
+        <Button disabled={locked} size="sm" type="submit">검색</Button>
+        <Button disabled={locked} onClick={createDraft} size="sm" type="button" variant="outline">템플릿 등록</Button>
       </form>
-      <p aria-live="polite">총 {data.total.toLocaleString('ko-KR')}개{pending ? ' · 처리 중' : ''}</p>
-      {error ? <p className="admin-form-error" role="alert">{error}</p> : null}
-      {message ? <p role="status">{message}</p> : null}
-      {uncertain ? <div className="admin-cs-template__actions"><p>입력과 요청 번호를 보존했습니다. 확인 전에는 새 저장 요청을 만들지 않습니다.</p><button className="btn btn-sm" disabled={pending} type="button" onClick={() => { void readback(); }}>같은 요청의 저장 결과 확인</button></div> : null}
-      <div className="admin-cs-template__list">{data.rows.length ? data.rows.map(row => <article key={row.id}>
-        <header><span>{INQUIRY_TEMPLATE_CATEGORIES.find(option => option.value === row.category)?.label}</span><strong>{row.title}</strong><small>버전 {row.revision}</small></header><p>{row.body}</p>
-        <div className="admin-cs-template__actions">
-          {!row.archivedAt ? <><button className="btn btn-sm" disabled={locked} type="button" onClick={() => insert(row)}>불러오기</button><button className="btn btn-sm btn-ghost" disabled={locked} type="button" onClick={() => edit(row)}>수정</button></> : null}
-          <button className="btn btn-sm btn-ghost" disabled={locked} type="button" onClick={() => { void mutate({ templateId: row.id, revision: row.revision, action: row.archivedAt ? 'restore' : 'archive', values: {} }); }}>{row.archivedAt ? '복구' : '삭제'}</button>
+      <p aria-live="polite" className="text-sm text-muted-foreground">총 {data.total.toLocaleString('ko-KR')}개{pending ? ' · 처리 중' : ''}</p>
+      {error ? <p className="bg-transparent text-sm text-destructive" role="alert">{error}</p> : null}
+      {message ? <p className="text-sm text-muted-foreground" role="status">{message}</p> : null}
+      {uncertain ? <div className={TEMPLATE_NOTICE_CLASS}><p className="mr-auto">입력과 요청 번호를 보존했습니다. 확인 전에는 새 저장 요청을 만들지 않습니다.</p><Button disabled={pending} onClick={() => { void readback(); }} size="sm" type="button">같은 요청의 저장 결과 확인</Button></div> : null}
+      <div className="flex flex-col gap-3">{data.rows.length ? data.rows.map(row => <article className={TEMPLATE_ROW_CLASS} key={row.id}>
+        <header className="flex flex-wrap items-center gap-2"><Badge variant="secondary">{INQUIRY_TEMPLATE_CATEGORIES.find(option => option.value === row.category)?.label}</Badge><strong className="font-medium text-foreground">{row.title}</strong><small className="text-xs text-muted-foreground">버전 {row.revision}</small></header><p className={TEMPLATE_BODY_CLASS}>{row.body}</p>
+        <div className="flex flex-wrap justify-end gap-2">
+          {!row.archivedAt ? <><Button disabled={locked} onClick={() => insert(row)} size="sm" type="button">불러오기</Button><Button disabled={locked} onClick={() => edit(row)} size="sm" type="button" variant="outline">수정</Button></> : null}
+          <Button disabled={locked} onClick={() => { void mutate({ templateId: row.id, revision: row.revision, action: row.archivedAt ? 'restore' : 'archive', values: {} }); }} size="sm" type="button" variant={row.archivedAt ? 'outline' : 'ghost'}>{row.archivedAt ? '복구' : '삭제'}</Button>
         </div>
-      </article>) : <p className="muted">조건에 맞는 템플릿이 없습니다.</p>}</div>
-      <nav className="admin-cs-record-nav" aria-label="고객문의 템플릿 목록 페이지">
-        <button className="btn btn-sm btn-ghost" disabled={locked || data.page <= 1} type="button" onClick={() => { void run(() => load(data.page - 1)); }}>이전</button>
-        <span>{data.page} / {Math.max(1, Math.ceil(data.total / INQUIRY_TEMPLATE_PAGE_SIZE))}</span>
-        <button className="btn btn-sm btn-ghost" disabled={locked || data.page * INQUIRY_TEMPLATE_PAGE_SIZE >= data.total} type="button" onClick={() => { void run(() => load(data.page + 1)); }}>다음</button>
+      </article>) : <p className="py-6 text-center text-sm text-muted-foreground">조건에 맞는 템플릿이 없습니다.</p>}</div>
+      <nav className="flex items-center justify-between gap-3 border-t pt-4 text-sm" aria-label="고객문의 템플릿 목록 페이지">
+        <Button disabled={locked || data.page <= 1} onClick={() => { void run(() => load(data.page - 1)); }} size="sm" type="button" variant="outline">이전</Button>
+        <span className="text-muted-foreground tabular-nums">{data.page} / {Math.max(1, Math.ceil(data.total / INQUIRY_TEMPLATE_PAGE_SIZE))}</span>
+        <Button disabled={locked || data.page * INQUIRY_TEMPLATE_PAGE_SIZE >= data.total} onClick={() => { void run(() => load(data.page + 1)); }} size="sm" type="button" variant="outline">다음</Button>
       </nav>
-      {draft ? <form className="admin-cs-template__editor" onSubmit={event => { event.preventDefault(); void mutate({ templateId: draft.id, revision: draft.revision, action: 'save', values: { category: draft.category, title: draft.title, body: draft.body } }); }}>
-        <h3>{draft.revision ? '템플릿 수정' : '템플릿 등록'}</h3>
-        <label>편집 유형<select disabled={locked} value={draft.category} onChange={event => updateDraft({ category: event.target.value as InquiryTemplateDraft['category'] })}>{INQUIRY_TEMPLATE_CATEGORIES.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</select></label>
-        <label>템플릿 제목<input required disabled={locked} maxLength={INQUIRY_TEMPLATE_TITLE_LIMIT} value={draft.title} onChange={event => updateDraft({ title: event.target.value })} /></label><small>{draft.title.length} / 40자</small>
-        <label>템플릿 내용<textarea required disabled={locked} rows={6} maxLength={INQUIRY_TEMPLATE_BODY_LIMIT} value={draft.body} onChange={event => updateDraft({ body: event.target.value })} /></label><small>{draft.body.length} / 2,000자</small>
-        <div className="admin-cs-template__actions"><button className="btn btn-sm" disabled={locked} type="submit">템플릿 저장</button><button className="btn btn-sm btn-ghost" disabled={locked} type="button" onClick={() => setSelected(null)}>편집 닫기 · 문구 보존</button>
-          {draft.revision ? <button className="btn btn-sm btn-ghost" disabled={locked} type="button" onClick={() => { void run(async () => { const result = await readInquiryReplyTemplateAction(draft.id); if ('error' in result) setError(result.error); else if (!result.template) setError('최신 저장본이 없습니다. 편집 문구는 유지됩니다.'); else setLatest(result.template); }); }}>최신 저장본 비교</button> : null}
+      {draft ? <form className={TEMPLATE_EDITOR_CLASS} data-cs-template="editor" onSubmit={event => { event.preventDefault(); void mutate({ templateId: draft.id, revision: draft.revision, action: 'save', values: { category: draft.category, title: draft.title, body: draft.body } }); }}>
+        <h3 className="text-base font-medium text-foreground">{draft.revision ? '템플릿 수정' : '템플릿 등록'}</h3>
+        <label className="flex flex-col gap-1.5"><span className={FIELD_LABEL_CLASS}>편집 유형</span><AdminSelect disabled={locked} value={draft.category} onChange={event => updateDraft({ category: event.target.value as InquiryTemplateDraft['category'] })}>{INQUIRY_TEMPLATE_CATEGORIES.map(option => <option key={option.value} value={option.value}>{option.label}</option>)}</AdminSelect></label>
+        <label className="flex flex-col gap-1.5"><span className={FIELD_LABEL_CLASS}>템플릿 제목</span><input className={KIT_INPUT_CLASS} data-slot="input" required disabled={locked} maxLength={INQUIRY_TEMPLATE_TITLE_LIMIT} value={draft.title} onChange={event => updateDraft({ title: event.target.value })} /></label><small className={COUNTER_CLASS}>{draft.title.length} / 40자</small>
+        <label className="flex flex-col gap-1.5"><span className={FIELD_LABEL_CLASS}>템플릿 내용</span><textarea className={`${KIT_TEXTAREA_CLASS} min-h-36`} data-slot="textarea" required disabled={locked} rows={6} maxLength={INQUIRY_TEMPLATE_BODY_LIMIT} value={draft.body} onChange={event => updateDraft({ body: event.target.value })} /></label><small className={COUNTER_CLASS}>{draft.body.length} / 2,000자</small>
+        <div className="flex flex-wrap justify-end gap-2"><Button disabled={locked} size="sm" type="submit">템플릿 저장</Button><Button disabled={locked} onClick={() => setSelected(null)} size="sm" type="button" variant="outline">편집 닫기 · 문구 보존</Button>
+          {draft.revision ? <Button disabled={locked} onClick={() => { void run(async () => { const result = await readInquiryReplyTemplateAction(draft.id); if ('error' in result) setError(result.error); else if (!result.template) setError('최신 저장본이 없습니다. 편집 문구는 유지됩니다.'); else setLatest(result.template); }); }} size="sm" type="button" variant="outline">최신 저장본 비교</Button> : null}
         </div>
-        {latest && latest.id === draft.id ? <section className="card col" style={{ padding: 12, gap: 8 }}>
-          <strong>최신 저장본 · 버전 {latest.revision}{latest.archivedAt ? ' · 삭제됨' : ''}</strong><span>{latest.title}</span><p style={{ whiteSpace: 'pre-wrap' }}>{latest.body}</p>
-          <p className="faint">현재 편집 문구는 위 입력창에 유지됩니다. 아래 버튼을 누를 때만 최신 저장본으로 바꿉니다.</p>
-          <button className="btn btn-sm btn-ghost" disabled={locked || Boolean(latest.archivedAt)} type="button" onClick={() => { if (!keep(without(latest.id))) return; setCleanDrafts(previous => ({ ...previous, [latest.id]: latest })); setAttempt(null); setLatest(null); }}>편집 문구를 최신 저장본으로 바꾸기</button>
+        {latest && latest.id === draft.id ? <section className={LATEST_CLASS} aria-label="최신 템플릿 저장본">
+          <strong className="font-medium text-foreground">최신 저장본 · 버전 {latest.revision}{latest.archivedAt ? ' · 삭제됨' : ''}</strong><span>{latest.title}</span><p className={TEMPLATE_BODY_CLASS}>{latest.body}</p>
+          <p className="text-xs text-muted-foreground">현재 편집 문구는 위 입력창에 유지됩니다. 아래 버튼을 누를 때만 최신 저장본으로 바꿉니다.</p>
+          <Button className="self-start" disabled={locked || Boolean(latest.archivedAt)} onClick={() => { if (!keep(without(latest.id))) return; setCleanDrafts(previous => ({ ...previous, [latest.id]: latest })); setAttempt(null); setLatest(null); }} size="sm" type="button" variant="outline">편집 문구를 최신 저장본으로 바꾸기</Button>
         </section> : null}
       </form> : null}
+      </div>
     </CustomerServiceDialog> : null}
   </>;
 }

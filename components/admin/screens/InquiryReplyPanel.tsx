@@ -1,9 +1,14 @@
 'use client';
 
-import { useActionState, useRef } from 'react';
+import { useActionState, useId, useRef } from 'react';
+import { Send } from 'lucide-react';
 import { useInquiryDraft } from '@/components/admin/useInquiryDraft';
+import { Button } from '@/components/admin/kit/ui/button';
+import { Label } from '@/components/admin/kit/ui/label';
+import { Textarea } from '@/components/admin/kit/ui/textarea';
 import { InquiryDraftNotice } from './InquiryDraftNotice';
 import { useInquiryPreviewBusy } from './CustomerServiceDialog';
+import { KIT_INPUT_CLASS } from './cs-kit-classes';
 import {
   answerInquiryAction,
   closeInquiryAction,
@@ -35,16 +40,16 @@ function Feedback({ state }: { state: AdminInquiryActionState }) {
   return (
     <>
       {state.errors?.form ? (
-        <span role="alert" style={{ fontSize: 12.5 }}>{state.errors.form}</span>
+        <span className="text-sm text-destructive" role="alert">{state.errors.form}</span>
       ) : null}
       {state.errors?.body ? (
-        <span role="alert" style={{ fontSize: 12.5 }}>{state.errors.body}</span>
+        <span className="text-sm text-destructive" role="alert">{state.errors.body}</span>
       ) : null}
       {state.errors?.images ? (
-        <span role="alert" style={{ fontSize: 12.5 }}>{state.errors.images}</span>
+        <span className="text-sm text-destructive" role="alert">{state.errors.images}</span>
       ) : null}
       {state.message ? (
-        <span className="muted" role="status" style={{ fontSize: 12.5 }}>{state.message}</span>
+        <span className="text-sm text-muted-foreground" role="status">{state.message}</span>
       ) : null}
     </>
   );
@@ -68,6 +73,7 @@ export function InquiryReplyPanel({
   const { body, change: setBody } = draft;
   const bodyRef = useRef<HTMLTextAreaElement>(null);
   const busy = answerPending || closePending || !draft.ready || draft.blocked;
+  const id = useId();
 
   function insertTemplate(nextBody: string) {
     setBody(nextBody);
@@ -76,9 +82,9 @@ export function InquiryReplyPanel({
 
   if (closed) {
     return (
-      <section className="card col" style={{ gap: 8, padding: 18 }}>
-        <strong>종결된 문의입니다.</strong>
-        <span className="muted" style={{ fontSize: 13 }}>
+      <section className="flex flex-col gap-1.5 rounded-xl border bg-muted/40 p-4">
+        <strong className="text-sm font-medium">종결된 문의입니다.</strong>
+        <span className="text-sm text-muted-foreground">
           종결 후에도 기록은 남습니다. 구매자가 이어서 물으려면 새 문의를 접수해야 합니다.
         </span>
       </section>
@@ -86,20 +92,22 @@ export function InquiryReplyPanel({
   }
 
   return (
-    <section className="card col" style={{ gap: 14, padding: 18 }}>
-      <div className="row" style={{ alignItems: 'center', gap: 8, justifyContent: 'space-between' }}>
-        <strong>답변 작성</strong>
+    <section className="flex min-w-0 flex-col gap-4 rounded-xl border bg-card p-4 text-card-foreground sm:p-5">
+      <div className="flex flex-wrap items-center justify-between gap-2">
+        <h3 className="text-base font-medium text-foreground">답변 작성</h3>
         <InquiryReplyTemplateTools accountId={accountId} body={body} onInsert={insertTemplate} disabled={busy} />
       </div>
       <InquiryDraftNotice draft={draft} pending={busy} />
 
-      <form action={answerAction} className="col" style={{ gap: 10 }}>
+      <form action={answerAction} className="flex flex-col gap-3">
         <input name="category" type="hidden" value={category} />
         <input name="inquiryId" type="hidden" value={inquiryId} />
-        <label className="col" style={{ gap: 6 }}>
-          <span className="muted" style={{ fontSize: 12 }}>답변 내용</span>
-          <textarea
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor={`${id}-body`}>답변 내용</Label>
+          <Textarea
+            className="max-h-[60vh] min-h-40"
             disabled={busy}
+            id={`${id}-body`}
             maxLength={MAX_INQUIRY_BODY_LENGTH}
             name="body"
             onChange={(event) => setBody(event.target.value)}
@@ -108,30 +116,28 @@ export function InquiryReplyPanel({
             rows={8}
             value={body}
           />
-        </label>
-        <label className="col" style={{ gap: 6 }}>
-          <span className="muted" style={{ fontSize: 12 }}>
-            이미지 첨부 · 최대 {MAX_INQUIRY_IMAGES}장
-          </span>
-          <input key={answerState.resultKey ?? 'initial'} disabled={busy} accept={INQUIRY_IMAGE_ACCEPT} multiple name="images" type="file" />
-        </label>
-        <div className="row" style={{ gap: 8, justifyContent: 'flex-end' }}>
-          <button className="btn" disabled={busy} type="submit">
-            {answerPending ? '발송 중' : '답변 발송'}
-          </button>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label htmlFor={`${id}-images`}>이미지 첨부 · 최대 {MAX_INQUIRY_IMAGES}장</Label>
+          <input className={KIT_INPUT_CLASS} data-slot="input" id={`${id}-images`} key={answerState.resultKey ?? 'initial'} disabled={busy} accept={INQUIRY_IMAGE_ACCEPT} multiple name="images" type="file" />
+        </div>
+        <div className="flex justify-end">
+          <Button disabled={busy} type="submit">
+            <Send aria-hidden="true" />{answerPending ? '발송 중' : '답변 발송'}
+          </Button>
         </div>
         <Feedback state={answerState} />
       </form>
 
-      <form action={closeAction} className="col" style={{ gap: 6 }}>
+      <form action={closeAction} className="flex flex-col gap-2 border-t pt-4">
         <input name="inquiryId" type="hidden" value={inquiryId} />
-        <div className="row" style={{ alignItems: 'center', gap: 8, justifyContent: 'space-between' }}>
-          <span className="muted" style={{ fontSize: 12 }}>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <span className="text-xs text-muted-foreground">
             답변 후 7일 동안 추가 질문이 없으면 자동으로 종결됩니다.
           </span>
-          <button className="btn btn-sm btn-ghost" disabled={busy} type="submit">
+          <Button disabled={busy} size="sm" type="submit" variant="outline">
             {closePending ? '종결 중' : '지금 종결'}
-          </button>
+          </Button>
         </div>
         <Feedback state={closeState} />
       </form>

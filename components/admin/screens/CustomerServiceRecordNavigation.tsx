@@ -2,6 +2,8 @@
 
 import Link from 'next/link';
 import { createContext, useContext, useState, type ReactNode } from 'react';
+import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { Button, buttonVariants } from '@/components/admin/kit/ui/button';
 
 export interface CustomerServiceRecordNavigationProps {
   ids:string[]; initialDetail?:string|null; offset?:number; total?:number;
@@ -26,14 +28,15 @@ export function useCustomerServiceRecord(id:string) {
   return context?{open:context.activeId===id,setOpen:(open:boolean)=>context.select(open?id:null),draft:context.drafts[id],saveDraft:(field:string,value:string)=>context.saveDraft(id,field,value)}:null;
 }
 function detailHref(href:string,value:'first'|'last'){return `${href}${href.includes('?')?'&':'?'}detail=${value}`;}
+const LINK_CLASS = buttonVariants({ size: 'sm', variant: 'outline' });
 export function CustomerServiceRecordNavigation({id,busy=false,noun}:{id:string;busy?:boolean;noun:string}) {
   const context=useContext(Context);if(!context)return null;
   const index=context.ids.indexOf(id);const previous=context.ids[index-1],next=context.ids[index+1];
-  return <nav className="admin-cs-record-nav" aria-label={`${noun} 상세 이동`}>
-    {previous?<button type="button" className="btn btn-sm btn-ghost" disabled={busy} onClick={()=>context.select(previous)}>이전 {noun}</button>
-      :context.previousPageHref&&!busy?<Link className="btn btn-sm btn-ghost" href={detailHref(context.previousPageHref,'last')} scroll={false}>이전 {noun}</Link>:<button type="button" className="btn btn-sm btn-ghost" disabled>이전 {noun}</button>}
-    <span>{(context.offset??0)+index+1} / {context.total??context.ids.length}</span>
-    {next?<button type="button" className="btn btn-sm btn-ghost" disabled={busy} onClick={()=>context.select(next)}>다음 {noun}</button>
-      :context.nextPageHref&&!busy?<Link className="btn btn-sm btn-ghost" href={detailHref(context.nextPageHref,'first')} scroll={false}>다음 {noun}</Link>:<button type="button" className="btn btn-sm btn-ghost" disabled>다음 {noun}</button>}
+  return <nav className="flex items-center justify-between gap-3 border-t pt-4 text-sm" aria-label={`${noun} 상세 이동`}>
+    {previous?<Button disabled={busy} onClick={()=>context.select(previous)} size="sm" type="button" variant="outline"><ChevronLeft aria-hidden="true" />이전 {noun}</Button>
+      :context.previousPageHref&&!busy?<Link className={LINK_CLASS} data-slot="button" href={detailHref(context.previousPageHref,'last')} scroll={false}><ChevronLeft aria-hidden="true" />이전 {noun}</Link>:<Button disabled size="sm" type="button" variant="outline"><ChevronLeft aria-hidden="true" />이전 {noun}</Button>}
+    <span className="text-muted-foreground tabular-nums">{(context.offset??0)+index+1} / {context.total??context.ids.length}</span>
+    {next?<Button disabled={busy} onClick={()=>context.select(next)} size="sm" type="button" variant="outline">다음 {noun}<ChevronRight aria-hidden="true" /></Button>
+      :context.nextPageHref&&!busy?<Link className={LINK_CLASS} data-slot="button" href={detailHref(context.nextPageHref,'first')} scroll={false}>다음 {noun}<ChevronRight aria-hidden="true" /></Link>:<Button disabled size="sm" type="button" variant="outline">다음 {noun}<ChevronRight aria-hidden="true" /></Button>}
   </nav>;
 }
