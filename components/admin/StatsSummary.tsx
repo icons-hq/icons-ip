@@ -1,6 +1,6 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
-import { ArrowUpRight, Minus, TrendingDown, TrendingUp } from 'lucide-react';
+import { ArrowUpRight } from 'lucide-react';
 import { AdminStatusBadge } from '@/components/admin/console/AdminKit';
 import type { AdminTone } from '@/lib/admin/status-tone';
 
@@ -32,14 +32,23 @@ export function statsDateTick(value: string) {
 }
 
 export type StatsChangeDirection = 'up' | 'down' | 'flat';
-/** 오를수록 좋은 지표(higher), 줄수록 좋은 지표(lower), 좋고 나쁨이 없는 지표(none). */
-export type StatsChangePolarity = 'higher' | 'lower' | 'none';
+/** 오를수록 좋은 지표(higher)와 오르면 나쁜 지표(lower — 클레임·환불처럼). */
+export type StatsChangePolarity = 'higher' | 'lower';
+type StatsChangeTone = Extract<AdminTone, 'success' | 'danger' | 'neutral'>;
 
-const CHANGE_ICONS = { up: TrendingUp, down: TrendingDown, flat: Minus } as const;
-
-function changeTone(direction: StatsChangeDirection, polarity: StatsChangePolarity): AdminTone {
-  if (direction === 'flat' || polarity === 'none') return 'neutral';
+/**
+ * 증감 색의 단일 규칙. 값의 크기가 아니라 방향만 본다 — 오름 success, 내림 danger, 변동 없음 neutral.
+ * 오르면 나쁜 지표만 polarity="lower"로 뒤집는다. 데이터분석·홈의 모든 증감 표시가 이 함수를 지난다.
+ */
+export function statsChangeTone(direction: StatsChangeDirection, polarity: StatsChangePolarity = 'higher'): StatsChangeTone {
+  if (direction === 'flat') return 'neutral';
   return (direction === 'up') === (polarity === 'higher') ? 'success' : 'danger';
+}
+
+/** 색만으로 오르내림을 전하지 않도록 화살표 글자를 함께 둔다. 숫자의 부호가 읽어 주는 값이라 스크린리더에는 감춘다. */
+const CHANGE_GLYPHS = { up: '▲', down: '▼', flat: '–' } as const;
+function StatsChangeGlyph({ direction }: { direction: StatsChangeDirection }) {
+  return <span aria-hidden="true" className="text-[0.75em] leading-none">{CHANGE_GLYPHS[direction]}</span>;
 }
 
 /** 증감 방향. 어느 한쪽 값이 없으면(비교 불가) 방향이 없다. */
@@ -48,15 +57,19 @@ export function statsChangeDirection(current: number | null | undefined, previou
   return current > previous ? 'up' : 'down';
 }
 
-/**
- * 증감 배지. 나아짐은 success, 나빠짐은 danger, 변동 없음·비교 불가는 neutral이고, 아이콘과 부호 있는 글자로도 읽는다.
- * 기본은 오를수록 좋은 지표이고, 클레임처럼 줄수록 좋은 지표는 polarity로 색을 뒤집는다.
- */
-export function StatsChangeBadge({ direction, polarity = 'higher', title, className = '', children }: {
-  direction: StatsChangeDirection; polarity?: StatsChangePolarity; title?: string; className?: string; children: ReactNode;
-}) {
-  const Icon = CHANGE_ICONS[direction];
-  return <AdminStatusBadge className={`tabular-nums before:hidden ${className}`} title={title} tone={changeTone(direction, polarity)}><Icon aria-hidden="true" />{children}</AdminStatusBadge>;
+type StatsChangeProps = { direction: StatsChangeDirection; polarity?: StatsChangePolarity; title?: string; children: ReactNode };
+
+/** 증감 배지(요약 카드). 색은 statsChangeTone 하나로 정하고, 화살표와 부호 있는 글자로도 읽는다. */
+export function StatsChangeBadge({ direction, polarity, title, className = '', children }: StatsChangeProps & { className?: string }) {
+  return <AdminStatusBadge className={`tabular-nums before:hidden ${className}`} title={title} tone={statsChangeTone(direction, polarity)}><StatsChangeGlyph direction={direction} />{children}</AdminStatusBadge>;
+}
+
+const CHANGE_TEXT: Record<StatsChangeTone, string> = { success: 'text-success', danger: 'text-destructive', neutral: 'text-muted-foreground' };
+
+/** 표 칸의 증감. 배지와 규칙·화살표는 같고 바탕만 뺀다 — 줄마다 반복되는 칸이 표를 색 덩어리로 만들지 않는다. */
+export function StatsChangeText({ direction, polarity, title, children }: StatsChangeProps) {
+  const tone = statsChangeTone(direction, polarity);
+  return <span className={`inline-flex items-center gap-1 font-medium whitespace-nowrap tabular-nums ${CHANGE_TEXT[tone]}`} data-tone={tone} title={title}><StatsChangeGlyph direction={direction} />{children}</span>;
 }
 
 export function StatsSummaryGrid({ children, className = '' }: { children: ReactNode; className?: string }) {

@@ -41,8 +41,8 @@ export function StatsSalesHourlyTrend({ report }: { report: AdminSalesHourlyRepo
       <div className="h-64 px-2 pt-4 pb-1 sm:h-80 sm:px-3"><ResponsiveContainer width="100%" height="100%"><LineChart data={rows} margin={{ top: 12, right: 20, bottom: 10, left: 10 }}>
         <CartesianGrid stroke={CHART_GRID_STROKE} vertical={false} />
         <XAxis axisLine={{ stroke: CHART_GRID_STROKE }} dataKey="label" tick={CHART_AXIS_TICK} tickLine={false} minTickGap={24} />
-        <YAxis tick={CHART_AXIS_TICK} tickFormatter={value => `${Number(value).toLocaleString('ko-KR')}${metric === 'revenue' ? '원' : '건'}`} width={92} axisLine={false} tickLine={false} />
-        <Tooltip formatter={(value, name) => [value === undefined || value === null ? '미집계' : `${Number(value).toLocaleString('ko-KR')}${metric === 'revenue' ? '원' : '건'}`, name]} contentStyle={CHART_TOOLTIP_STYLE.content} itemStyle={CHART_TOOLTIP_STYLE.item} labelStyle={CHART_TOOLTIP_STYLE.label} />
+        <YAxis tick={CHART_AXIS_TICK} tickFormatter={value => metric === 'revenue' ? krw(Number(value)) : `${Number(value).toLocaleString('ko-KR')}건`} width={92} axisLine={false} tickLine={false} />
+        <Tooltip formatter={(value, name) => [value === undefined || value === null ? '미집계' : metric === 'revenue' ? krw(Number(value)) : `${Number(value).toLocaleString('ko-KR')}건`, name]} contentStyle={CHART_TOOLTIP_STYLE.content} itemStyle={CHART_TOOLTIP_STYLE.item} labelStyle={CHART_TOOLTIP_STYLE.label} />
         <Legend formatter={(value) => <span style={{ color: 'var(--muted-foreground)' }}>{value}</span>} wrapperStyle={{ fontSize: 12 }} />
         <Line name={`오늘 ${statsDateLabel(report.date)}`} dataKey="current" stroke={CHART_CURRENT} strokeWidth={2} dot connectNulls={false} isAnimationActive={false} />
         <Line name={`비교일 ${statsDateLabel(report.comparisonDate)}`} dataKey="comparison" stroke={CHART_COMPARISON} strokeWidth={2} strokeDasharray="5 4" dot connectNulls={false} isAnimationActive={false} />

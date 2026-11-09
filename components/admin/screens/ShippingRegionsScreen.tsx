@@ -191,7 +191,7 @@ export function ShippingRegionsScreen({ policies: initialPolicies, adoptions, or
       })}</ul>
       {hasUnregistered ? <p className={NOTE}>지역표 미등록은 계약 추가료가 0원이라는 뜻이 아닙니다. 현재 표시된 배송비로 주문이 확정되며, 이미 확정된 주문에 지역료를 뒤늦게 더하지 않습니다.</p> : null}
       {uncovered.length ? <AdminNotice title="신규 주문이 차단될 수 있습니다" tone="warning">{uncovered.map((origin) => origin.name).join('·')}에 적용 중인 정책이 없습니다. 지역 정책을 도입한 출고지는 정책 만료·중단·택배사 불일치 시 신규 주문을 차단합니다.</AdminNotice>
-        : <p className={NOTE}>지역 정책을 도입한 출고지는 정책 만료·중단·택배사 불일치 시 신규 주문을 차단합니다.</p>}
+        : <AdminNotice tone="info">지역 정책을 도입한 출고지는 정책 만료·중단·택배사 불일치 시 <strong className="font-semibold">신규 주문을 차단합니다</strong>.</AdminNotice>}
     </AdminSectionCard>
     <AdminSectionCard title="정책 버전" summary={firstDraftId ? '초안은 내용을 확인한 뒤 확정해야 실제 배송비에 적용됩니다.' : undefined}>
       {policies.length ? <ul className="flex flex-col gap-1.5">{policies.map((policy) => {
