@@ -99,7 +99,7 @@ export function EventSection({
         />
       )}
     >
-      <RecordDetailPane hint="새 이벤트는 오른쪽 위 이벤트 등록을 누릅니다." open={Boolean(selected) || creating} prompt="목록에서 이벤트를 고르면 여기에서 수정합니다.">
+      <RecordDetailPane hint="새 이벤트는 오른쪽 위 이벤트 등록 버튼으로 만듭니다." open={Boolean(selected) || creating} prompt="목록에서 이벤트를 고르면 여기에서 수정합니다.">
       <form action={action} className={SECTION_CARD} key={adminFormRemountKey(state, selected)}>
         <input name="previousId" type="hidden" value={selected?.id ?? ''} />
         <input name="previousIpId" type="hidden" value={selected?.ipId ?? ''} />

@@ -50,6 +50,7 @@ export function RecordMasterList<T extends { id: string }>({
   ariaLabel,
   emptyMessage,
   filters,
+  headerAction,
   items,
   labelFor,
   onSelect,
@@ -62,6 +63,8 @@ export function RecordMasterList<T extends { id: string }>({
   emptyMessage?: string;
   /** 검색칸 옆에 놓을 조건(보관 상태 등). 목록 상자 안에 들어간다. */
   filters?: ReactNode;
+  /** 목록 제목 줄 오른쪽에 놓을 요소(처리할 건수 등). */
+  headerAction?: ReactNode;
   items: T[];
   labelFor: (item: T) => ReactNode;
   onSelect: (item: T) => void;
@@ -77,7 +80,7 @@ export function RecordMasterList<T extends { id: string }>({
     : items;
 
   return (
-    <AdminSidePanel title={ariaLabel}>
+    <AdminSidePanel actions={headerAction} title={ariaLabel}>
       {searchTextFor || filters ? (
         <div className="flex min-w-0 flex-wrap items-center gap-2" data-record-list="tools">
           {searchTextFor ? <Input aria-label={`${ariaLabel} 검색`} className="min-w-36 flex-1" onChange={(event) => setQuery(event.target.value)} placeholder="코드·이름 검색" type="search" value={query} /> : null}

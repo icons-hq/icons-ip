@@ -77,24 +77,22 @@ export function CardSection({
           activeId={selected?.id ?? null}
           ariaLabel="카드 목록"
           filters={(
-            <>
-              <CatalogArchiveFilter
-                compact
-                counts={adminCatalogArchiveCounts(records)}
-                filter={archiveFilter}
-                onChange={(filter) => {
-                  setArchiveFilter(filter);
-                  if (selected && !filterAdminCatalogRecords([selected], filter).length) onSelect(null);
-                }}
-              />
-              {/* 줄마다 노란 표시를 반복하지 않고 처리할 건수 하나로 모은다. 누르면 그 카드만 본다. */}
-              {unboundCount ? (
-                <button aria-pressed={showUnboundOnly} className="rounded-full outline-none focus-visible:ring-3 focus-visible:ring-ring/50 aria-pressed:ring-1 aria-pressed:ring-warning" onClick={() => setUnboundOnly(!showUnboundOnly)} title="누르면 카드풀을 지정하지 않은 카드만 봅니다." type="button">
-                  <AdminStatusBadge tone="warning">풀 미지정 {unboundCount}장</AdminStatusBadge>
-                </button>
-              ) : null}
-            </>
+            <CatalogArchiveFilter
+              compact
+              counts={adminCatalogArchiveCounts(records)}
+              filter={archiveFilter}
+              onChange={(filter) => {
+                setArchiveFilter(filter);
+                if (selected && !filterAdminCatalogRecords([selected], filter).length) onSelect(null);
+              }}
+            />
           )}
+          headerAction={unboundCount ? (
+            /* 줄마다 노란 표시를 반복하지 않고 처리할 건수 하나로 모은다. 누르면 그 카드만 본다. */
+            <button aria-pressed={showUnboundOnly} className="rounded-full outline-none focus-visible:ring-3 focus-visible:ring-ring/50 aria-pressed:ring-1 aria-pressed:ring-warning" onClick={() => setUnboundOnly(!showUnboundOnly)} title="누르면 카드풀을 지정하지 않은 카드만 봅니다." type="button">
+              <AdminStatusBadge tone="warning">풀 미지정 {unboundCount}장</AdminStatusBadge>
+            </button>
+          ) : undefined}
           items={visibleRecords}
           labelFor={(card) => <RecordStatusLabel detail={`${card.rarity} · ${poolName(card.poolId)}`} name={`${card.id} · ${card.name}`} singleLine status={card.archivedAt ? '보관' : null} tone={statusTone('publication', 'archived')} title={formatAdminCatalogRecordLabel(`${card.id} · ${card.name}`, card.archivedAt)} />}
           onSelect={onSelect}
@@ -104,7 +102,7 @@ export function CardSection({
         />
       )}
     >
-      <RecordDetailPane hint="새 카드는 오른쪽 위 카드 등록을 누릅니다." open={Boolean(selected) || creating} prompt="목록에서 카드를 고르면 여기에서 수정합니다.">
+      <RecordDetailPane hint="새 카드는 오른쪽 위 카드 등록 버튼으로 만듭니다." open={Boolean(selected) || creating} prompt="목록에서 카드를 고르면 여기에서 수정합니다.">
       <form action={action} className={SECTION_CARD} key={formKey}>
         <input name="previousId" type="hidden" value={selected?.id ?? ''} />
         <input name="previousIpId" type="hidden" value={selected?.ipId ?? ''} />

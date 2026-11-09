@@ -134,7 +134,7 @@ export function GameSection({
         />
       )}
     >
-      <RecordDetailPane hint="새 게임은 오른쪽 위 게임 등록을 누릅니다." open={Boolean(selected) || creating} prompt="목록에서 게임을 고르면 여기에서 수정합니다.">
+      <RecordDetailPane hint="새 게임은 오른쪽 위 게임 등록 버튼으로 만듭니다." open={Boolean(selected) || creating} prompt="목록에서 게임을 고르면 여기에서 수정합니다.">
       {editable ? (
         <GameForm
           events={events}

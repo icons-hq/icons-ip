@@ -131,7 +131,7 @@ export function RewardPolicySection({
         />
       )}
     >
-      <RecordDetailPane hint="새 정책은 오른쪽 위 발급 정책 등록을 누릅니다." open={Boolean(selected) || creating} prompt="목록에서 발급 정책을 고르면 여기에서 수정합니다.">
+      <RecordDetailPane hint="새 정책은 오른쪽 위 발급 정책 등록 버튼으로 만듭니다." open={Boolean(selected) || creating} prompt="목록에서 발급 정책을 고르면 여기에서 수정합니다.">
       <RewardPolicyForm
         draftActiveFrom={draftActiveFrom}
         draftId={draftId}
