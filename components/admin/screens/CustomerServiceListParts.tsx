@@ -22,7 +22,7 @@ export function CustomerServiceResultsHeader({ title, total, pageSize, pageSizeO
   children?: ReactNode;
 }) {
   return <div className="flex flex-wrap items-center justify-between gap-3" data-cs-results-header="">
-    <h3 className="text-base leading-snug font-medium text-foreground">{title} <span className="text-sm font-normal text-muted-foreground">(총 <strong className="font-semibold text-foreground tabular-nums">{total.toLocaleString('ko-KR')}</strong>개)</span></h3>
+    <h3 className="text-base leading-snug font-semibold text-foreground">{title} <span className="text-sm font-normal text-muted-foreground">(총 <strong className="font-semibold text-foreground tabular-nums">{total.toLocaleString('ko-KR')}</strong>개)</span></h3>
     <div className="flex flex-wrap items-center gap-2">
       {children}
       <CustomerServiceListSelect label={`${title} 수`} value={String(pageSize)} options={pageSizeOptions} />

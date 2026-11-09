@@ -39,21 +39,21 @@ export function FaqEntryForm({ entry }: { entry?: FaqEntry }) {
       <Button className="self-start" type="submit">{pending ? '저장 중…' : entry ? 'FAQ 수정 저장' : 'FAQ 등록'}</Button>
     </fieldset>
     {error('form')}
-    {state.message ? <p className="text-sm text-[var(--wc-success)]" role="status">{state.message}</p> : null}
+    {state.message ? <p className="text-sm text-success" role="status">{state.message}</p> : null}
   </form>;
 }
 export function FaqDeleteForm({ entry }: { entry: FaqEntry }) {
   const [state, action, pending] = useActionState(deleteFaqAction, EMPTY);
   return <details className="group/delete border-t pt-4">
     <summary className="flex w-fit cursor-pointer list-none items-center gap-1.5 text-sm text-destructive underline-offset-4 hover:underline [&::-webkit-details-marker]:hidden">FAQ 삭제<ChevronDown aria-hidden="true" className="size-4 transition-transform group-open/delete:rotate-180" /></summary>
-    <form action={action} className="mt-3 flex flex-col items-start gap-3 rounded-lg border border-destructive/30 bg-destructive/5 p-4">
+    <form action={action} className="mt-3 flex flex-col items-start gap-3 rounded-lg border border-danger-border bg-danger-soft p-4">
       <input type="hidden" name="id" value={entry.id} />
       <input type="hidden" name="updatedAt" value={entry.updatedAt} />
       <p className="text-sm">질문과 답변을 삭제합니다. 잠시 숨기려면 게시 상태를 비공개로 바꿔주세요.</p>
       <label className="flex items-center gap-2 text-sm"><input name="confirmed" type="checkbox" value="true" required disabled={pending} /> 이 FAQ를 삭제하겠습니다.</label>
       <Button disabled={pending} size="sm" type="submit" variant="destructive">{pending ? '삭제 중…' : '삭제 확정'}</Button>
       {state.errors?.form ? <p className="bg-transparent text-sm text-destructive" role="alert">{state.errors.form}</p> : null}
-      {state.message ? <p className="text-sm text-[var(--wc-success)]" role="status">{state.message}</p> : null}
+      {state.message ? <p className="text-sm text-success" role="status">{state.message}</p> : null}
     </form>
   </details>;
 }

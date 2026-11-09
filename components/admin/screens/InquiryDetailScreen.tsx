@@ -5,7 +5,9 @@ import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { InquiryMessageBody } from '@/components/screens/InquiryMessageBody';
+import { AdminNotice, AdminStatusBadge } from '@/components/admin/console/AdminKit';
 import { Button, buttonVariants } from '@/components/admin/kit/ui/button';
+import { statusTone } from '@/lib/admin/status-tone';
 import { inquiryMessageAuthorLabel } from '@/lib/inquiries';
 import type { AdminInquiryDetail } from '@/lib/admin/inquiries.server';
 import {
@@ -63,7 +65,7 @@ const PAYMENT_PROVIDER_LABELS: Record<string, string> = {
 
 const CONTEXT_LINK_CLASS = `${buttonVariants({ size: 'sm', variant: 'outline' })} self-start`;
 
-function ContextRow({ label, value }: { label: string; value: string }) {
+function ContextRow({ label, value }: { label: string; value: ReactNode }) {
   return (
     <div className="flex items-baseline justify-between gap-3 text-sm">
       <span className="shrink-0 text-xs text-muted-foreground">{label}</span>
@@ -125,17 +127,15 @@ export function InquiryDetailScreen({
       <header className="flex min-w-0 flex-col gap-1.5">
         {/* 팝업(embedded) 안에서는 닫기와 같다 — X·Esc처럼 목록 스크롤을 두고 기록을 바꿔 쓰고, 패널이 기다리는 동안에는 누를 수 없다(R4). */}
         {embedded ? <InquiryPreviewBackLink href={backHref} /> : <Link className="w-fit text-xs text-muted-foreground underline-offset-4 hover:text-foreground hover:underline" href={backHref}>← 문의 목록</Link>}
-        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1 text-sm">
+        <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
           <span className="font-medium tabular-nums">{inquiryReferenceLabel(inquiry.reference)}</span>
           <span aria-hidden="true" className="text-muted-foreground">·</span>
           <span className="text-muted-foreground">{adminGoodsCopy(INQUIRY_CATEGORY_LABELS[inquiry.category])}</span>
-          <span aria-hidden="true" className="text-muted-foreground">·</span>
-          <span>{ADMIN_INQUIRY_STATUS_LABELS[inquiry.status]}</span>
-          <span aria-hidden="true" className="text-muted-foreground">·</span>
+          <AdminStatusBadge tone={statusTone('inquiry', inquiry.status)}>{ADMIN_INQUIRY_STATUS_LABELS[inquiry.status]}</AdminStatusBadge>
           <span className={INQUIRY_SLA_TONE_CLASS} data-sla-tone={sla.tone}>{sla.label}</span>
         </div>
         <h2 className="text-lg leading-snug font-semibold tracking-tight text-foreground wrap-anywhere">{inquiry.title}</h2>
-        {isAdminInquiryOverdue(inquiry, now) ? <span className={`w-fit ${INQUIRY_SLA_TONE_CLASS}`} data-sla-tone="danger">미답변 24시간 경과</span> : null}
+        {isAdminInquiryOverdue(inquiry, now) ? <AdminStatusBadge data-sla-tone="danger" tone="danger">미답변 24시간 경과</AdminStatusBadge> : null}
         <span className="text-sm text-muted-foreground wrap-anywhere">
           @{inquiry.buyerName}
           {inquiry.buyerEmail ? ` · ${inquiry.buyerEmail}` : ''}
@@ -191,7 +191,7 @@ export function InquiryDetailScreen({
             {order ? (
               <>
                 <ContextRow label="주문번호" value={orderReferenceLabel(order.id, order.orderNumber)} />
-                <ContextRow label="주문상태" value={ORDER_STATUS_LABELS[order.status] ?? order.status} />
+                <ContextRow label="주문상태" value={<AdminStatusBadge tone={statusTone('order', order.status)}>{ORDER_STATUS_LABELS[order.status] ?? order.status}</AdminStatusBadge>} />
                 <ContextRow label="주문일시" value={formatInquiryDateTime(order.createdAt)} />
                 <ContextRow
                   label="상품"
@@ -210,12 +210,11 @@ export function InquiryDetailScreen({
                 {canManageSales ? <div className="flex flex-col gap-1">
                   <span className="text-xs text-muted-foreground">클레임 이력</span>
                   {order.claims.length ? (
-                    <ul className="flex flex-col gap-0.5">
+                    <ul className="flex flex-col gap-1">
                       {order.claims.map((claim) => (
-                        <li className="text-sm" key={`${claim.requestedAt}-${claim.status}`}>
-                          {CLAIM_STATUS_LABELS[claim.status] ?? claim.status}
-                          {' · '}
-                          {formatInquiryDateTime(claim.requestedAt)}
+                        <li className="flex flex-wrap items-center gap-1.5 text-sm" key={`${claim.requestedAt}-${claim.status}`}>
+                          <AdminStatusBadge tone={statusTone('claim', claim.status)}>{CLAIM_STATUS_LABELS[claim.status] ?? claim.status}</AdminStatusBadge>
+                          <span className="text-muted-foreground tabular-nums">{formatInquiryDateTime(claim.requestedAt)}</span>
                         </li>
                       ))}
                     </ul>
@@ -251,9 +250,7 @@ export function InquiryDetailScreen({
               value={`총 ${buyer.inquiryCount}건 · 진행 중 ${buyer.openInquiryCount}건`}
             />
             {buyer.suspendedAt ? (
-              <span className="text-sm text-destructive" role="alert">
-                정지된 계정입니다 ({formatInquiryDateTime(buyer.suspendedAt)}).
-              </span>
+              <AdminNotice role="alert" tone="danger">정지된 계정입니다 ({formatInquiryDateTime(buyer.suspendedAt)}).</AdminNotice>
             ) : null}
             {canViewCustomer ? <Link className={CONTEXT_LINK_CLASS} data-slot="button" href={`/admin/customers/${buyer.id}`}>
               고객 상세 열기

@@ -119,6 +119,15 @@ describe('ReviewConsoleScreen', () => {
     expect(html).toContain('조건에 맞는 리뷰가 없습니다.');
   });
 
+  /* 같은 상태는 모든 화면에서 같은 색이다 — 건수 카드도 상태 표를 따른다(블라인드는 조용한 상태라 기본 모양이다). */
+  it('건수 카드와 상태 칸의 색은 상태 표(status-tone)를 따른다', () => {
+    const html = render();
+    expect(html).toMatch(/<a(?=[^>]*aria-label="블라인드 1건")(?=[^>]*data-tone="default")/);
+    expect(html).toMatch(/<a(?=[^>]*aria-label="미처리 신고 2건")(?=[^>]*data-tone="warning")/);
+    expect(html).toMatch(/<a(?=[^>]*aria-label="저평점\(2점 이하\) 3건")(?=[^>]*data-tone="danger")/);
+    expect(html).toMatch(/data-tone="success"[^>]*data-review-status="visible"|data-review-status="visible"[^>]*data-tone="success"/);
+  });
+
   it('요구된 그리드 칸을 모두 그린다', () => {
     const html = render();
 

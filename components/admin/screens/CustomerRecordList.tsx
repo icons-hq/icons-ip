@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { AdminStatusBadge } from '@/components/admin/console/AdminKit';
 import type { AdminCustomerRow, CustomerTab } from '@/lib/admin/customer-detail';
+import { statusTone, type AdminStatusDomain } from '@/lib/admin/status-tone';
 import { ADMIN_ORDER_STATUS_LABELS } from '@/lib/admin/orders';
 import { ADMIN_INQUIRY_STATUS_LABELS } from '@/lib/inquiries';
 import { isOrderClaimType, ORDER_CLAIM_STAGE_LABELS, ORDER_CLAIM_TYPE_LABELS, ORDER_CLAIM_TYPE_SLUGS } from '@/lib/orders/claims';
@@ -12,6 +13,7 @@ const labels: Partial<Record<CustomerTab, Record<string, string>>> = {
   orders: ADMIN_ORDER_STATUS_LABELS, inquiries: ADMIN_INQUIRY_STATUS_LABELS, claims: ORDER_CLAIM_STAGE_LABELS,
   coupons: { active: '보유', used: '사용 완료', expired: '만료' },
 };
+const toneDomains: Partial<Record<CustomerTab, AdminStatusDomain>> = { orders: 'order', inquiries: 'inquiry', claims: 'claim', coupons: 'coupon' };
 const RECORD_LINK_CLASS = 'text-sm font-medium text-foreground underline underline-offset-4 hover:text-muted-foreground';
 export function CustomerRecordList({ tab, items }: { tab: CustomerTab; items: AdminCustomerRow[] }) {
   if (!items.length) return <p className="py-6 text-center text-sm text-muted-foreground">등록된 이력이 없습니다.</p>;
@@ -24,7 +26,7 @@ export function CustomerRecordList({ tab, items }: { tab: CustomerTab; items: Ad
       <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
         <time className="tabular-nums" dateTime={row.createdAt}>{customerDateTime(row.createdAt)}</time>
         {row.authorName ? <span>{row.authorName}</span> : null}
-        {row.status && labels[tab]?.[row.status] ? <AdminStatusBadge>{labels[tab]?.[row.status]}</AdminStatusBadge> : null}
+        {row.status && labels[tab]?.[row.status] ? <AdminStatusBadge tone={toneDomains[tab] ? statusTone(toneDomains[tab], row.status) : 'neutral'}>{labels[tab]?.[row.status]}</AdminStatusBadge> : null}
       </div>
       {title ? <strong className="font-medium text-foreground">{title}</strong> : null}
       {row.amount != null ? <span className="tabular-nums">{row.amount.toLocaleString('ko-KR')}원{row.itemCount ? ` · ${row.itemCount}개 품목` : ''}</span> : null}

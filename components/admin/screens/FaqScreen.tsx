@@ -6,6 +6,7 @@ import { AdminSelect } from '@/components/admin/console/AdminSelect';
 import { ConsoleFilterField, ConsoleFilterPanel } from '@/components/admin/console/ConsoleFilterPanel';
 import { ConsolePagination } from '@/components/admin/console/ConsolePagination';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
+import { statusTone } from '@/lib/admin/status-tone';
 import { ADMIN_FAQ_PATH, FAQ_CATEGORIES, FAQ_PAGE_SIZE, faqHref } from '@/lib/faq';
 import type { FaqPageData } from '@/lib/faq.server';
 import { inquiryCategoryLabel } from '@/lib/inquiries';
@@ -24,7 +25,7 @@ export function FaqScreen({ data }: { data: FaqPageData }) {
     </ConsoleFilterPanel>
     <p className="text-sm text-muted-foreground">질문을 열어 수정할 수 있습니다. 공개 FAQ만 고객에게 표시됩니다.</p>
     {entries.length ? <div className="flex flex-col divide-y overflow-hidden rounded-xl border bg-card text-card-foreground">{entries.map((entry) => <details key={entry.id} className="group/entry">
-      <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-4 gap-y-1.5 px-4 py-3.5 transition-colors hover:bg-muted/50 group-open/entry:bg-muted/40 [&::-webkit-details-marker]:hidden"><span className="text-xs text-muted-foreground">{adminGoodsCopy(inquiryCategoryLabel(entry.category))}</span><strong className="min-w-30 flex-1 text-sm font-medium text-foreground wrap-anywhere">{entry.question}</strong><AdminStatusBadge tone={entry.published ? 'success' : 'neutral'}>{entry.published ? '공개' : '비공개'}</AdminStatusBadge><span className="text-xs text-muted-foreground tabular-nums">순서 {entry.sortOrder}</span><ChevronDown aria-hidden="true" className="size-4 text-muted-foreground transition-transform group-open/entry:rotate-180" /></summary>
+      <summary className="flex cursor-pointer list-none flex-wrap items-center gap-x-4 gap-y-1.5 px-4 py-3.5 transition-colors hover:bg-muted/50 group-open/entry:bg-muted/40 [&::-webkit-details-marker]:hidden"><span className="text-xs text-muted-foreground">{adminGoodsCopy(inquiryCategoryLabel(entry.category))}</span><strong className="min-w-30 flex-1 text-sm font-medium text-foreground wrap-anywhere">{entry.question}</strong><AdminStatusBadge tone={statusTone('publication', entry.published ? 'published' : 'draft')}>{entry.published ? '공개' : '비공개'}</AdminStatusBadge><span className="text-xs text-muted-foreground tabular-nums">순서 {entry.sortOrder}</span><ChevronDown aria-hidden="true" className="size-4 text-muted-foreground transition-transform group-open/entry:rotate-180" /></summary>
       <div className="flex flex-col gap-4 border-t p-4"><FaqEntryForm entry={entry} /><FaqDeleteForm entry={entry} /></div>
     </details>)}</div> : <p className="rounded-xl border bg-card py-12 text-center text-sm text-muted-foreground">조건에 맞는 FAQ가 없습니다. 새 FAQ를 등록하거나 검색 조건을 바꿔주세요.</p>}
     <ConsolePagination page={filters.page} pageSize={FAQ_PAGE_SIZE} total={total} hrefForPage={(page) => faqHref(ADMIN_FAQ_PATH, filters, page)} />

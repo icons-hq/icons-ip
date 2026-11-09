@@ -16,7 +16,9 @@ import { Button, buttonVariants } from '@/components/admin/kit/ui/button';
 import { NativeSelect, NativeSelectOption } from '@/components/admin/kit/ui/native-select';
 import { InlineNotice } from '../fields';
 import { reportTargetLabels } from '@/lib/admin/moderation';
+import { statusTone } from '@/lib/admin/status-tone';
 import { ConsoleListCard } from '../console/ConsoleListCard';
+import { AdminStatusBadge } from '../console/AdminKit';
 
 const emptyState: AdminCatalogActionState = {};
 const reportStatuses: CommunityReportStatus[] = ['open', 'reviewing', 'resolved', 'dismissed'];
@@ -48,7 +50,7 @@ function ReportStatusForm({ report }: { report: AdminReportRecord }) {
           <NativeSelectOption key={status} value={status}>{status}</NativeSelectOption>
         ))}
       </NativeSelect>
-      <Button className={TOUCH_TARGET} disabled={pending} type="submit">
+      <Button className={TOUCH_TARGET} disabled={pending} type="submit" variant="soft">
         <Check aria-hidden="true" /> {pending ? '저장 중' : '상태 저장'}
       </Button>
       <InlineNotice state={state} />
@@ -125,7 +127,7 @@ export function ModerationSection({ reports }: { reports: AdminReportRecord[] })
           <div className="flex min-w-0 flex-col gap-2">
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant="secondary">{reportTargetLabels[report.targetType]}</Badge>
-              <Badge className="text-[var(--wc-info)]" variant="outline">{report.status}</Badge>
+              <AdminStatusBadge tone={statusTone('report', report.status)}>{report.status}</AdminStatusBadge>
               <span className="text-xs text-muted-foreground tabular-nums">{new Date(report.createdAt).toLocaleString('ko-KR')}</span>
             </div>
             <p className="text-base leading-snug font-medium break-words text-foreground">{report.targetLabel}</p>

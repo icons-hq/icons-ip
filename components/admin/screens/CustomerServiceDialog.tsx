@@ -144,7 +144,7 @@ export function CustomerServiceInlinePanel({ title, children, onClose, busy = fa
   return <section aria-labelledby={titleId} className="admin-cs-inline flex flex-col gap-3 rounded-xl border bg-card p-4 text-sm text-card-foreground" onKeyDown={event => {
     if (event.key === 'Escape' && !busy) { event.preventDefault(); event.stopPropagation(); onClose(); }
   }}>
-    <header className="flex items-center justify-between gap-3"><h3 className="text-base font-medium text-foreground outline-none" id={titleId} ref={heading} tabIndex={-1}>{title}</h3><Button disabled={busy} onClick={onClose} size="sm" type="button" variant="outline">답변 접기</Button></header>
+    <header className="flex items-center justify-between gap-3"><h3 className="text-base font-semibold text-foreground outline-none" id={titleId} ref={heading} tabIndex={-1}>{title}</h3><Button disabled={busy} onClick={onClose} size="sm" type="button" variant="outline">답변 접기</Button></header>
     <div className="admin-cs-inline__body flex flex-col gap-3">{children}</div>
   </section>;
 }

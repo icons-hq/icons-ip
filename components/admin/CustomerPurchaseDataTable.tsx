@@ -9,7 +9,7 @@ export function CustomerPurchaseDataTable({ periods, grain }: { periods: Custome
   const flat = [...periods].reverse().flatMap(period => period.rows.map(row => ({ period, row })));
   const pages = Math.max(1, Math.ceil(flat.length / 20));
   const current = Math.min(page, pages);
-  return <section aria-label="고객 구매 분석 데이터 표" className="flex min-w-0 flex-col gap-3"><div className="flex flex-col gap-1"><h3 className="text-base font-medium text-foreground">데이터 표</h3>
+  return <section aria-label="고객 구매 분석 데이터 표" className="flex min-w-0 flex-col gap-3"><div className="flex flex-col gap-1"><h3 className="text-base font-semibold text-foreground">데이터 표</h3>
     <p className="text-xs text-muted-foreground">최근 {grain === 'week' ? '13주의 마감 주별' : '13개월의 마감 월별'} 상세 데이터 · {flat.length}행</p></div>
     <ConsoleGrid caption={`고객 구매 분석 ${grain === 'week' ? '주별' : '월별'} 상세`} columns={[
       { key: 'period', label: '기간(KST)', width: '205px' }, { key: 'group', label: '고객분류', width: '90px' },
