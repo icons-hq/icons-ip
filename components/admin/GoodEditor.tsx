@@ -459,8 +459,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
   const publishOnSave = Boolean(selected) && showPublishProgress && dirty && !remaining.length && !kcContextChanged;
   useEffect(() => { onPublishOnSaveChange?.(publishOnSave); }, [publishOnSave, onPublishOnSaveChange]);
   /* 저장할 변경이 없으면 저장하기는 초안·공개 중 어느 상품에서나 같은 보조 모양이다. 입력이 바뀌면 다시 주 색이 된다. */
-  const saveIsPrimary = !selected || dirty;
-  function changeCustomInputs(customInputs: string) { setValues((current) => ({ ...current, customInputs })); setDirty(true); }
+    function changeCustomInputs(customInputs: string) { setValues((current) => ({ ...current, customInputs })); setDirty(true); }
   /* 대표 카테고리에서 유형을 제안한다. 이미 고른 유형은 그대로 두고, 값 목록은 서버 계약(GOOD_TYPES)이다. */
   const suggestedType = categoryId && !values.type && !locked && !groupOwned ? goodTypeSuggestion(categoryPath(categories, categoryId)) : null;
   function applySuggestedType(type: string) {
@@ -489,6 +488,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
     : kcContextChanged ? '바꾼 상품명·유형·IP·고시정보나 옵션을 저장하면 KC를 다시 검토해야 공개할 수 있습니다.'
     : remaining.length ? '필수 입력을 마치면 공개할 수 있습니다.'
     : publishOnSave ? '저장 후 공개를 누르면 수정한 내용까지 고객 화면에 공개됩니다.' : <>화면 맨 위 판매 준비에서 공개할 수 있습니다. <a className="text-foreground underline underline-offset-4" href="#good-operation-publish" onClick={(event) => { event.preventDefault(); focusGoodWorkspaceTarget('good-operation-publish'); }}>판매 준비로 이동</a></>;
+  const saveIsPrimary = !selected || dirty;
   /* 말풍선은 다른 곳을 누르면 닫는다. 열린 채 남으면 입력칸을 가린다. 펼침 기록은 toggle 이벤트가 맡는다. */
   function closeSaveInfo(event: ReactPointerEvent<HTMLFormElement>) {
     const info = event.currentTarget.querySelector<HTMLDetailsElement>('[data-good-save-info][open]');
@@ -659,8 +659,8 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
         <div className="flex min-w-0 flex-wrap items-center gap-1.5 md:gap-2 xl:justify-end">
           {showRemainingCount ? <button className={`inline-flex items-center rounded-md px-1 text-xs font-medium tabular-nums underline-offset-4 outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50 ${selected ? 'text-warning' : 'text-muted-foreground'}`} data-good-publish-remaining={remaining.length} onClick={() => focusGoodWorkspaceTarget(remaining[0].anchor, remaining[0].field)} title={`${remaining.map((item) => item.label).join(', ')} · 공개할 때 서버가 다시 확인합니다.`} type="button">공개까지 필수 {remaining.length}개 남음</button> : null}
           <button className={`${buttonVariants({ variant: 'outline' })} ${SAVE_BAR_BUTTON_CLASS} max-md:[&>svg]:hidden`} data-slot="button" type="button" onClick={() => { const preview = document.getElementById('good-preview'); if (preview instanceof HTMLDetailsElement) { preview.open = true; preview.scrollIntoView({ block: 'start', behavior: 'instant' }); preview.querySelector('summary')?.focus(); } }}><Eye aria-hidden="true" />미리보기</button>
-          {selected ? <button className={`${buttonVariants({ variant: 'secondary' })} ${SAVE_BAR_BUTTON_CLASS}`} data-slot="button" data-good-draft-button="" type="button" disabled={pending} onClick={() => { if (editorRef.current) { const saved = onSaveLocalDraft(editorRef.current); setLocalSaveMessage({ text: saved ? '입력 내용을 이 브라우저에 임시저장했습니다.' : '브라우저에 임시저장할 수 없습니다. 저장하기를 이용해주세요.', ok: saved }); } }}>입력 임시저장</button> : <span className="inline-flex" role="group" aria-label="임시저장">
-            <button className={`${buttonVariants({ variant: 'secondary' })} ${SAVE_BAR_BUTTON_CLASS} rounded-r-none`} data-slot="button" data-good-draft-button="" type="button" disabled={pending || draftBusy} onClick={() => { void saveServerDraft(); }}>{draftBusy ? '임시저장 중…' : '임시저장'}</button>
+          {selected ? <button className={`${buttonVariants({ variant: 'ghost' })} ${SAVE_BAR_BUTTON_CLASS}`} data-slot="button" data-good-draft-button="" type="button" disabled={pending} onClick={() => { if (editorRef.current) { const saved = onSaveLocalDraft(editorRef.current); setLocalSaveMessage({ text: saved ? '입력 내용을 이 브라우저에 임시저장했습니다.' : '브라우저에 임시저장할 수 없습니다. 저장하기를 이용해주세요.', ok: saved }); } }}>입력 임시저장</button> : <span className="inline-flex" role="group" aria-label="임시저장">
+            <button className={`${buttonVariants({ variant: 'ghost' })} ${SAVE_BAR_BUTTON_CLASS} rounded-r-none`} data-slot="button" data-good-draft-button="" type="button" disabled={pending || draftBusy} onClick={() => { void saveServerDraft(); }}>{draftBusy ? '임시저장 중…' : '임시저장'}</button>
             <DropdownMenu modal={false}>
               <DropdownMenuTrigger aria-label="임시저장 메뉴" className={`${buttonVariants({ variant: 'secondary', size: 'icon' })} rounded-l-none border-l border-l-background/60 max-md:size-7`} disabled={pending || draftBusy}><ChevronUp aria-hidden="true" /></DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-auto min-w-44" side="top">

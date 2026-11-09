@@ -23,7 +23,7 @@ describe('상품 게시 상태 화면', () => {
     expect(html).toContain('value="false"');
   });
   /* 사람 눈 테스트 3라운드 — 판매를 내리는 일인데 옆 안내와 같은 펼침 글자라 낮아 보였다. 모양만 outline+빨간 글자로 올리고 펼쳐서 확인하는 동작은 그대로다. */
-  it('초안으로 되돌리기는 outline 빨간 글자의 펼침 버튼이고 실제 전환은 펼친 뒤 확인을 거친다', () => {
+  it('초안으로 되돌리기는 평소에는 조용한 outline 펼침 버튼이고 실제 전환은 펼친 뒤 확인을 거친다', () => {
     const html = renderToStaticMarkup(<GoodPublishControls id="g1" publishedAt="2026-09-08" archivedAt={null}/>);
     const summary = html.match(/<summary[^>]*>(?:(?!<\/summary>)[^])*초안으로 되돌리기<\/summary>/)?.[0] ?? '';
     expect(summary).toContain('border-border-strong'); expect(summary).toContain('text-destructive'); expect(summary).toContain('hover:text-destructive');

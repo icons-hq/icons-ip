@@ -67,7 +67,7 @@ export function GoodPublishControls({ id, publishedAt, archivedAt, readiness, un
     {state.error && <p className="text-destructive" role="alert">{state.error}</p>}{state.message && <p className="font-medium text-success" role="status">{state.message}</p>}
     <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
       {published && !archivedAt ? <details className={`group/unpublish scroll-mt-24 ${FOLD_CLASS}`} id="good-operation-publish" tabIndex={-1}>
-        <summary className={buttonVariants({ variant: 'outline', size: 'sm', className: 'w-fit cursor-pointer list-none text-destructive hover:text-destructive [&::-webkit-details-marker]:hidden' })} data-slot="button"><ChevronRight aria-hidden="true" className={`${FOLD_CHEVRON_CLASS} group-open/unpublish:rotate-90`} />초안으로 되돌리기</summary>
+        <summary className={buttonVariants({ variant: 'outline', size: 'sm', className: 'w-fit cursor-pointer list-none hover:text-destructive [&::-webkit-details-marker]:hidden' })} data-slot="button"><ChevronRight aria-hidden="true" className={`${FOLD_CHEVRON_CLASS} group-open/unpublish:rotate-90`} />초안으로 되돌리기</summary>
         <div className="mt-2 flex min-w-0 flex-col gap-3">
           <AdminNotice title="판매 중인 상품이 고객 화면에서 내려갑니다" tone="danger">목록·검색·상품 상세에서 숨겨지고, 장바구니에서는 판매 종료로 표시되어 새 주문을 할 수 없습니다. 기존 주문과 결제·취소 처리는 유지됩니다.</AdminNotice>
           <form action={action} className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
