@@ -5,6 +5,7 @@ import {
   deleteGoodsNoticePresetAction, saveGoodsNoticePresetAction, type GoodsNoticePresetActionState,
 } from '@/app/admin/goods-notice-preset-actions';
 import { AdminField, AdminFormGrid } from '@/components/admin/console/AdminKit';
+import { useAdminCreateDialogBusy } from '@/components/admin/console/AdminCreateDialogButton';
 import { Button } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
 import { GoodsKcPresetFields } from '@/components/admin/GoodsKcPresetFields';
@@ -15,8 +16,11 @@ import {
 
 const EMPTY_STATE: GoodsNoticePresetActionState = {};
 
-export function GoodsNoticePresetForm({ preset }: { preset?: GoodsNoticePreset }) {
+/** `inset`: 접는 목록 안에서는 자기 여백을 두고, 등록 팝업 안에서는 팝업 본문 여백을 쓴다. */
+export function GoodsNoticePresetForm({ preset, inset = true }: { preset?: GoodsNoticePreset; inset?: boolean }) {
   const [state, action, pending] = useActionState(saveGoodsNoticePresetAction, EMPTY_STATE);
+  /* 등록 팝업 안에서 저장을 기다리는 동안 팝업을 닫지 못하게 한다(목록 안 수정 폼에서는 아무 일도 하지 않는다). */
+  useAdminCreateDialogBusy(pending);
   const prefix = useId();
   // Keep the editing version until this form saves successfully. Another form's
   // revalidation must not advance our token while these inputs are still unsaved.
@@ -35,7 +39,7 @@ export function GoodsNoticePresetForm({ preset }: { preset?: GoodsNoticePreset }
 
   // Keep the form's controlled KC selects until the keyed fieldset restores the
   // action result. A handled failure must not invoke the native action reset.
-  return <form action={action} className="flex min-w-0 flex-col gap-4 p-4 sm:p-6" onSubmit={event => {
+  return <form action={action} className={`flex min-w-0 flex-col gap-4${inset ? ' p-4 sm:p-6' : ''}`} onSubmit={event => {
     event.preventDefault();
     const data = new FormData(event.currentTarget);
     startTransition(() => action(data));

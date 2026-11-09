@@ -237,8 +237,8 @@ function CouponEditor({
       )}
       {stepError ? <p className="border-t px-4 pt-3 text-sm text-destructive sm:px-6" role="alert">{stepError}</p> : null}
       {step === 1 ? <div className="flex flex-wrap justify-center gap-3 border-t p-4 sm:p-5">
-        <Button className="min-w-0 flex-1 sm:min-w-44 sm:flex-none" type="button" size="lg" disabled={pending} onClick={next}>확인</Button>
-        <Button className="min-w-0 flex-1 sm:min-w-44 sm:flex-none" type="button" size="lg" variant="outline" disabled={pending} onClick={onCancel}>취소</Button>
+        <Button type="button" disabled={pending} onClick={next}>확인</Button>
+        <Button type="button" variant="outline" disabled={pending} onClick={onCancel}>취소</Button>
       </div> : <div className="flex flex-wrap items-start justify-center gap-3 border-t p-4 sm:p-5">
         {!selected ? <Button type="button" variant="outline" disabled={pending} onClick={() => { setStep(1); form.current?.scrollIntoView({ block: 'start' }); }}><ArrowLeft aria-hidden="true" />대상 설정으로</Button> : null}
         <FormShell pending={pending} state={state} />

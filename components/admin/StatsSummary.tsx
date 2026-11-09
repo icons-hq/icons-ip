@@ -29,12 +29,15 @@ export function StatsSummaryTile({ label, value, children }: { label: ReactNode;
   </div>;
 }
 
-/** 표·목록 하나의 구역 머리(제목 + 오른쪽 동작). */
+/**
+ * 표·목록 하나의 구역 — 콘솔 목록 카드(ConsoleListCard)와 같은 흰 카드 안에 머리(제목 + 오른쪽 동작)와 표를 담는다.
+ * 데이터분석 화면의 목록이 셸 위에 바로 놓이지 않고 주문 목록과 같은 카드에 선다.
+ */
 export function StatsSection({ title, titleId, actions, children, className = '', ...rest }: {
   title: ReactNode; titleId?: string; actions?: ReactNode; children: ReactNode; className?: string;
   'aria-label'?: string; id?: string;
 }) {
-  return <section aria-labelledby={rest['aria-label'] ? undefined : titleId} className={`flex min-w-0 flex-col gap-2 ${className}`} {...rest}>
+  return <section aria-labelledby={rest['aria-label'] ? undefined : titleId} className={`flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4 text-card-foreground ${className}`} data-console-list="" {...rest}>
     <div className="flex flex-wrap items-center justify-between gap-2">
       <h3 className="text-base leading-snug font-medium" id={titleId}>{title}</h3>
       {actions ? <div className="flex flex-wrap items-center gap-2">{actions}</div> : null}

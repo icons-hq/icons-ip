@@ -85,7 +85,7 @@ export function CurationLayoutEditor({ layout, operationId, preview, records, de
       </fieldset>
       <footer className="grid gap-3 border-t p-4 sm:p-5 print:hidden"><ActionNotice state={{ errors: state.errors }} />
         {state.conflict ? <Button onClick={() => router.refresh()} type="button" variant="outline">최신 구성 다시 불러오기</Button> : null}
-        <Button disabled={pending} size="lg" type="submit">{pending ? '적용 중…' : '전체 순서·노출 적용하기'}</Button>
+        <Button disabled={pending} type="submit">{pending ? '적용 중…' : '전체 순서·노출 적용하기'}</Button>
       </footer>
     </form>
     <aside className="flex h-[780px] min-h-0 min-w-0 flex-col border-t bg-muted/40 xl:h-auto xl:border-t-0 print:hidden" aria-label="홈 영역 순서 미리보기">

@@ -1,6 +1,6 @@
 'use client';
 import Link from 'next/link';
-import { useEffect, useRef, useState } from 'react';
+import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 import { saveAutoOrderConfirmationAction, type AutoOrderConfirmationResult } from '@/app/admin/auto-order-confirmation-actions';
 import { AdminField, AdminSectionCard, AdminStatusBadge } from '@/components/admin/console/AdminKit';
 import { AUTO_ORDER_CONFIRMATION_EXCLUSIONS, AUTO_ORDER_CONFIRMATION_PATH, isAutoOrderRunTime, type AutoOrderConfirmationState } from '@/lib/admin/auto-order-confirmation';
@@ -8,6 +8,9 @@ import { adminOrderDetailHrefFromBack } from '@/lib/admin/orders';
 import { formatOrderDateTime, orderReferenceLabel } from '@/lib/orders';
 import { Button } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
+
+/** 한국 시각 날짜·시간을 한 덩어리(줄바꿈 없음)로 보인다. */
+const dateTimeText = (value: string) => <span className="whitespace-nowrap tabular-nums">{formatOrderDateTime(value)}</span>;
 
 const UNKNOWN = '저장 결과를 확인하지 못했습니다. 같은 요청으로 다시 확인해주세요.';
 
@@ -56,12 +59,14 @@ export function AutoOrderConfirmPanel({ initial }: { initial: AutoOrderConfirmat
     setMessage(result.state.enabled ? `저장했습니다. 매일 ${result.state.runTime}에 자동 발주확인합니다.` : '저장했습니다. 자동 발주확인을 껐습니다. 신규주문은 직접 발주확인합니다.');
   }
   const last = current.lastRun;
-  const summary = [`매일 ${current.runTime}`, current.enabled ? '켜짐' : '꺼짐',
-    last ? `마지막 실행 ${formatOrderDateTime(last.finishedAt ?? last.startedAt)}${last.finishedAt ? '' : '(진행 중)'} · 발주확인 ${last.confirmedCount.toLocaleString('ko-KR')}건 · 제외 ${last.excludedCount.toLocaleString('ko-KR')}건` : '아직 실행 기록 없음',
-    current.nextRunAt ? `다음 실행 ${formatOrderDateTime(current.nextRunAt)}` : null].filter(Boolean).join(' · ');
+  /* 날짜·시각은 좁은 화면에서도 한 덩어리로 둔다('2026. / 11. 6.'처럼 갈리지 않게). 글자는 그대로다. */
+  const summary = ([`매일 ${current.runTime}`, current.enabled ? '켜짐' : '꺼짐',
+    last ? <>마지막 실행 {dateTimeText(last.finishedAt ?? last.startedAt)}{last.finishedAt ? '' : '(진행 중)'} · 발주확인 {last.confirmedCount.toLocaleString('ko-KR')}건 · 제외 {last.excludedCount.toLocaleString('ko-KR')}건</> : '아직 실행 기록 없음',
+    current.nextRunAt ? <>다음 실행 {dateTimeText(current.nextRunAt)}</> : null].filter(Boolean) as ReactNode[])
+    .map((part, index) => <Fragment key={index}>{index ? ' · ' : null}{part}</Fragment>);
   return <AdminSectionCard title="자동 발주확인" status={current.enabled ? '켜짐' : '꺼짐'} summary={summary}>
     <p className="text-muted-foreground">매일 설정한 시각까지 결제가 끝난 신규주문을 시스템이 발주확인합니다. 그 시각 뒤에 결제된 주문은 다음 날 처리하며, 발주확인 전까지 고객은 주문을 직접 취소할 수 있습니다.
-      {current.enabled && current.enabledAt ? ` 켠 시각(${formatOrderDateTime(current.enabledAt)}) 전에 결제된 주문은 자동 대상이 아니므로 직접 발주확인합니다.` : ' 꺼져 있는 동안에는 신규주문을 직접 발주확인합니다.'}
+      {current.enabled && current.enabledAt ? <> 켠 시각({dateTimeText(current.enabledAt)}) 전에 결제된 주문은 자동 대상이 아니므로 직접 발주확인합니다.</> : ' 꺼져 있는 동안에는 신규주문을 직접 발주확인합니다.'}
       {' '}취소 요청이 진행 중이거나 예약 재고 할당 전인 주문은 신규주문에 남습니다.</p>
     <form className="flex flex-col gap-4" ref={formRef} onSubmit={event => { event.preventDefault(); void save(); }}>
       <fieldset className="m-0 flex min-w-0 flex-col gap-4 border-0 p-0" disabled={pending || uncertain}>

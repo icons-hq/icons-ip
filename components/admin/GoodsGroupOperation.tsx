@@ -7,6 +7,7 @@ import { readGoodsGroupOperationAction, readGoodsGroupSourceAction, searchGoodsG
 import { goodsGroupHref, goodsGroupRecoveryKey, parseGoodsGroupRecovery, type GoodsGroupCandidates, type GoodsGroupIdentity,
   type GoodsGroupReceipt, type GoodsGroupRecovery, type GoodsGroupResult, type GoodsGroupSource } from '@/lib/admin/goods-groups';
 import { AdminField, AdminSectionCard } from './console/AdminKit';
+import { ConsolePagination } from './console/ConsolePagination';
 import { Button, buttonVariants } from './kit/ui/button';
 import { Input } from './kit/ui/input';
 import { TableBody, TableCell, TableHead, TableHeader, TableRow } from './kit/ui/table';
@@ -22,11 +23,9 @@ export function GroupTable({ label, children, layout, className }: { label: stri
     <table className={`w-full caption-bottom text-sm${layout === 'fixed' ? ' table-fixed' : ''}${className ? ` ${className}` : ''}`} data-slot="table"><caption className="sr-only">{label}</caption>{children}</table>
   </div>;
 }
+/** 그룹상품 목록·상품 찾기의 페이지 이동 — 콘솔 목록과 같은 범위 요약 + 이전·다음(ConsolePagination 버튼 모드). */
 export function GroupPager({ page, total, pageSize, disabled, onChange }: { page: number; total: number; pageSize: number; disabled: boolean; onChange: (page: number) => void }) {
-  return <nav className="flex flex-wrap items-center justify-between gap-2 px-1 text-sm" aria-label="목록 페이지">
-    <span className="text-muted-foreground tabular-nums">{page} / {Math.max(1, Math.ceil(total / pageSize))} 페이지 · {total.toLocaleString('ko-KR')}건</span>
-    <span className="flex items-center gap-1.5"><Button size="sm" variant="outline" type="button" disabled={disabled || page <= 1} onClick={() => onChange(page - 1)}>이전</Button>
-      <Button size="sm" variant="outline" type="button" disabled={disabled || page * pageSize >= total} onClick={() => onChange(page + 1)}>다음</Button></span></nav>;
+  return <ConsolePagination page={page} pageSize={pageSize} total={total} disabled={disabled} onPageChange={onChange} />;
 }
 export function useGoodsGroupSession(actorId: string, sessionId: string | null) {
   const [blocked, setBlocked] = useState(!sessionId); const mounted = useRef(true), blockedRef = useRef(!sessionId);

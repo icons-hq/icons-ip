@@ -22,8 +22,6 @@ function priceLabel(min: number | null | undefined, max: number | null | undefin
 }
 
 const STATUS_ITEMS = [{ label: '전체', status: 'all' }, { label: '임시저장', status: 'draft' }, { label: '전시중', status: 'published' }, { label: '보관', status: 'archived' }] as const;
-/* 셸의 콘솔 전환과 같은 탭 모양(템플릿 룩, ADR-0028). */
-const TAB = 'inline-flex h-7 items-center rounded-md px-3 text-sm font-medium whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground aria-[current=page]:bg-background aria-[current=page]:text-foreground aria-[current=page]:shadow-sm';
 const SECONDARY = 'block text-xs leading-snug text-muted-foreground';
 /* 같은 칸의 바로 수정 덮개(R11) 위에 남아야 하는 보조 링크. */
 const SECONDARY_LINK = `${SECONDARY} relative z-[1] underline-offset-4 hover:text-foreground hover:underline`;
@@ -36,8 +34,7 @@ export function GoodsListScreen({ data, shippingRegionExpiry, canIssueMarketingL
   const inlineIdentity = canIssueMarketingLinks ? bulkIdentity : undefined;
   const filteredIp = filters.ipId ? data.ips.find(ip => ip.id === filters.ipId && !ip.archivedAt) : undefined;
   return <section className="flex min-w-0 flex-col gap-4" data-admin-screen="goods-list">
-    {/* R21: 그룹상품 탭 링크는 메뉴와 함께 숨긴다(그룹상품 라우트·권한은 그대로). */}
-    <nav aria-label="상품 관리 화면" className="inline-flex w-fit rounded-lg bg-muted p-0.5"><span aria-current="page" className={TAB}>전체 상품 조회/수정</span></nav>
+    {/* R21: 그룹상품 탭은 메뉴와 함께 숨겼다 — 전환할 탭이 하나뿐이라 탭 줄을 그리지 않는다(그룹상품 라우트·권한은 그대로). */}
     <ShippingRegionExpiryNotice state={shippingRegionExpiry} />
     <div aria-label="상품 조회 현황" className="grid grid-cols-2 gap-2 sm:grid-cols-4" data-goods-list="status" role="group">
       {STATUS_ITEMS.map(item => {

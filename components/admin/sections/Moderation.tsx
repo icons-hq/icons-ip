@@ -13,11 +13,10 @@ import type { CommunityReportStatus } from '@/lib/community';
 import { Check, EyeOff, MessageSquareText } from 'lucide-react';
 import { Badge } from '@/components/admin/kit/ui/badge';
 import { Button, buttonVariants } from '@/components/admin/kit/ui/button';
-import { Empty, EmptyDescription, EmptyHeader, EmptyTitle } from '@/components/admin/kit/ui/empty';
 import { NativeSelect, NativeSelectOption } from '@/components/admin/kit/ui/native-select';
 import { InlineNotice } from '../fields';
 import { reportTargetLabels } from '@/lib/admin/moderation';
-import { SECTION_CARD } from './SectionLayout';
+import { ConsoleListCard } from '../console/ConsoleListCard';
 
 const emptyState: AdminCatalogActionState = {};
 const reportStatuses: CommunityReportStatus[] = ['open', 'reviewing', 'resolved', 'dismissed'];
@@ -119,9 +118,10 @@ function ReviewModerationLink({ report }: { report: AdminReportRecord }) {
 
 export function ModerationSection({ reports }: { reports: AdminReportRecord[] }) {
   return (
-    <section className="flex min-w-0 flex-col gap-3">
-      {reports.map((report) => (
-        <article className={SECTION_CARD} key={report.id}>
+    /* 신고 목록 카드(콘솔 목록 카드) — 신고 한 건이 한 줄이고, 빈 목록도 카드 안에 보인다. */
+    <ConsoleListCard aria-label="신고 목록">
+      {reports.length ? <div className="flex flex-col divide-y">{reports.map((report) => (
+        <article className="flex min-w-0 flex-col gap-4 py-4 text-sm first:pt-0 last:pb-0" key={report.id}>
           <div className="flex min-w-0 flex-col gap-2">
             <div className="flex flex-wrap items-center gap-2">
               <Badge variant="secondary">{reportTargetLabels[report.targetType]}</Badge>
@@ -141,15 +141,12 @@ export function ModerationSection({ reports }: { reports: AdminReportRecord[] })
             <ReviewModerationLink report={report} />
           </div>
         </article>
-      ))}
-      {!reports.length && (
-        <Empty className="border">
-          <EmptyHeader>
-            <EmptyTitle>처리할 신고가 없습니다.</EmptyTitle>
-            <EmptyDescription>커뮤니티 신고가 접수되면 이곳에 표시됩니다.</EmptyDescription>
-          </EmptyHeader>
-        </Empty>
+      ))}</div> : (
+        <div className="py-10 text-center" role="status">
+          <p className="text-sm font-medium">처리할 신고가 없습니다.</p>
+          <p className="mt-1.5 text-sm text-muted-foreground">커뮤니티 신고가 접수되면 이곳에 표시됩니다.</p>
+        </div>
       )}
-    </section>
+    </ConsoleListCard>
   );
 }

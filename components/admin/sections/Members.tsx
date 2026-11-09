@@ -29,6 +29,8 @@ import {
   loyaltyGradeLabel,
 } from '@/lib/loyalty';
 import { ErrorText, InlineNotice, SelectField, TextArea } from '../fields';
+import { CONSOLE_FILTER_CARD_CLASS, CONSOLE_FILTER_FIELDS_CLASS, ConsoleFilterActions, ConsoleFilterField } from '../console/ConsoleFilterPanel';
+import { ConsoleListCard } from '../console/ConsoleListCard';
 
 const emptyMutationState: AdminMemberMutationActionState = {};
 const dateFormatter = new Intl.DateTimeFormat('ko-KR', {
@@ -299,32 +301,51 @@ export function MembersSection({
       </p>
       <form
         action={searchAction}
-        className="flex flex-col gap-2 rounded-xl border bg-card p-4 text-card-foreground"
+        className={CONSOLE_FILTER_CARD_CLASS}
         onSubmit={() => setSelectedProfileId(null)}
       >
-        <label className="text-sm leading-none font-medium" htmlFor="member-query">회원 검색</label>
-        <div className="flex gap-2">
-          <Input
-            aria-describedby={searchState.errors?.query ? 'member-query-error' : undefined}
-            aria-invalid={Boolean(searchState.errors?.query)}
+        <div className={CONSOLE_FILTER_FIELDS_CLASS}>
+          <ConsoleFilterField className="min-w-[min(100%,20rem)] flex-1" htmlFor="member-query" label="회원 검색">
+            <Input
+              aria-describedby={searchState.errors?.query ? 'member-query-error' : undefined}
+              aria-invalid={Boolean(searchState.errors?.query)}
+              className={TOUCH_TARGET_CLASS}
+              defaultValue={searchState.query}
+              id="member-query"
+              maxLength={100}
+              name="query"
+              placeholder="이메일 또는 닉네임"
+            />
+            <ErrorText id="member-query-error">{searchState.errors?.query}</ErrorText>
+          </ConsoleFilterField>
+        </div>
+        <InlineNotice state={searchState} />
+        {/* 조회 카드 바닥 줄 [초기화][검색]. 초기화는 검색어를 비우고 처음 목록을 다시 읽는다. */}
+        <ConsoleFilterActions>
+          <Button
             className={TOUCH_TARGET_CLASS}
-            defaultValue={searchState.query}
-            id="member-query"
-            maxLength={100}
-            name="query"
-            placeholder="이메일 또는 닉네임"
-          />
+            disabled={searchPending}
+            onClick={(event) => {
+              const form = event.currentTarget.form;
+              const query = form?.elements.namedItem('query');
+              if (query instanceof HTMLInputElement) query.value = '';
+              form?.requestSubmit();
+            }}
+            type="button"
+            variant="outline"
+          >
+            초기화
+          </Button>
           <Button className={TOUCH_TARGET_CLASS} disabled={searchPending} type="submit">
             <Search aria-hidden="true" /> {searchPending ? '검색 중' : '검색'}
           </Button>
-        </div>
-        <ErrorText id="member-query-error">{searchState.errors?.query}</ErrorText>
-        <InlineNotice state={searchState} />
+        </ConsoleFilterActions>
       </form>
 
-      <div className="flex flex-col gap-2">
+      <ConsoleListCard aria-label="회원 검색 결과">
+        {searchState.members.length ? <div className="flex flex-col divide-y">
         {searchState.members.map((member) => (
-          <article key={member.id} className="flex flex-wrap items-center justify-between gap-3 rounded-xl border bg-card p-4 text-card-foreground">
+          <article key={member.id} className="flex flex-wrap items-center justify-between gap-3 py-3 first:pt-0 last:pb-0">
             <div className="flex min-w-0 flex-col gap-1">
               <div className="flex flex-wrap items-center gap-2">
                 <strong className="text-sm font-semibold text-foreground">@{member.nickname}</strong>
@@ -345,13 +366,13 @@ export function MembersSection({
             </div>
           </article>
         ))}
-        {!searchState.members.length && (
-          <div className="rounded-xl border bg-card p-6 text-center text-card-foreground">
+        </div> : (
+          <div className="py-10 text-center">
             <div className="text-sm font-semibold">검색 결과가 없습니다.</div>
             <p className="mt-1.5 text-sm text-muted-foreground">다른 이메일 또는 닉네임으로 검색해주세요.</p>
           </div>
         )}
-      </div>
+      </ConsoleListCard>
 
       <InlineNotice state={detailState} />
       {activeDetail && <MemberDetail actor={actor} member={activeDetail} />}
