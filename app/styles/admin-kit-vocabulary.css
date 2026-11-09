@@ -38,7 +38,7 @@
 
   /* ── Native text controls (kit/ui/input.tsx · textarea.tsx · native-select.tsx) ── */
   .wc-admin :is(input:not([type='checkbox'], [type='radio'], [type='range'], [type='file'], [type='color'], [type='hidden'], [type='image'], [type='button'], [type='submit'], [type='reset']), select, textarea):not([data-slot]):not(.wc-root *) {
-    @apply h-8 min-h-0 min-w-0 rounded-lg border border-input bg-transparent py-1 text-sm text-foreground shadow-none transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:bg-input/50 disabled:opacity-50 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20;
+    @apply h-8 min-h-0 min-w-0 rounded-lg border border-input bg-transparent py-1 text-sm text-foreground shadow-none transition-colors outline-none placeholder:text-muted-foreground focus-visible:border-ring focus-visible:ring-3 focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:bg-muted disabled:text-secondary-foreground disabled:opacity-100 aria-invalid:border-destructive aria-invalid:ring-3 aria-invalid:ring-destructive/20;
     background-image: none;
     filter: none;
     letter-spacing: normal;
