@@ -365,8 +365,8 @@ export function MembersSection({
                 </TableCell>
                 <TableCell className="px-3 tabular-nums">{member.maskedEmail}</TableCell>
                 <TableCell className="px-3 text-muted-foreground tabular-nums">{formatDate(member.createdAt)}</TableCell>
-                {/* 평상 상태는 글자로 물러나고 정지만 배지로 세운다 — 줄마다 초록을 깔면 정지가 묻힌다. */}
-                <TableCell className="px-3">{member.suspendedAt ? <AdminStatusBadge tone={statusTone('member', 'suspended')}>정지</AdminStatusBadge> : <span className="text-muted-foreground">이용 중</span>}</TableCell>
+                {/* 고객 상세·매니저 관리와 같은 상태는 같은 배지다. */}
+                <TableCell className="px-3"><AdminStatusBadge tone={statusTone('member', member.suspendedAt ? 'suspended' : 'active')}>{member.suspendedAt ? '정지' : '이용 중'}</AdminStatusBadge></TableCell>
                 <TableCell className="px-3 text-right"><form action={detailAction} onSubmit={() => setSelectedProfileId(member.id)}>
                   <input name="profileId" type="hidden" value={member.id} />
                   <Button aria-expanded={activeDetail?.id === member.id} className={TOUCH_TARGET_CLASS} disabled={detailPending} size="sm" type="submit" variant="outline">

@@ -35,11 +35,11 @@ describe('고객 상세 작업 공간', () => {
     expect(html).toMatch(/data-tone="neutral"[^>]*>미동의</);
   });
 
-  /* 같은 상태는 같은 색이다 — 필수 동의가 비어 있어도 미동의는 회색이고, 필수·선택은 글자로 나눈다. */
-  it('미동의는 필수·선택과 관계없이 같은 색이고 글자로 구분한다', () => {
+  /* 필수 약관이 비어 있는 계정은 확인할 일이고, 선택 동의를 안 한 것은 평상 상태다 — 색과 글자가 함께 가른다. */
+  it('필수 약관 미동의만 주의색이고 선택 동의 미동의는 조용하다', () => {
     const html = render({ ...detail, customer: { ...detail.customer, consents: { terms: false, privacy: false, marketing: false } } });
-    expect(html.match(/data-tone="neutral"[^>]*>미동의</g)).toHaveLength(3);
-    expect(html).not.toMatch(/data-tone="warning"[^>]*>미동의</);
+    expect(html.match(/data-tone="warning"[^>]*>미동의</g)).toHaveLength(2);
+    expect(html.match(/data-tone="neutral"[^>]*>미동의</g)).toHaveLength(1);
     expect(html).toContain('필수');
     expect(html).toContain('선택');
   });
