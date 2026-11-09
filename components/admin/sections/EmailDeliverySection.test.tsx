@@ -71,4 +71,36 @@ describe('EmailDeliverySection · 주문에 매이지 않는 메일', () => {
     expect(html).not.toContain('다시 보내기');
     expect(html).toContain('1:1 문의 화면에서 답변을 다시 등록해주세요');
   });
+
+  /* DB가 원문을 가린 값(legacy_*·masked)은 코드 그대로 보이지 않고, 줄마다의 안내는 메일 종류를 따른다. */
+  it('가려진 코드를 사람 말로 바꾸고 주문 메일에 문의 답변 안내를 붙이지 않는다', () => {
+    const redacted: EmailDeliveryRecord = {
+      ...failedDelivery,
+      dedupeKey: 'order_shipped:legacy-key',
+      template: 'order_shipped',
+      templateLabel: '배송 시작',
+      orderId: null,
+      recipient: 'masked',
+      subject: 'legacy_order_shipped',
+      lastError: 'legacy_unverified',
+      resendable: false,
+    };
+    const html = renderToStaticMarkup(<EmailDeliverySection deliveries={[redacted]} />);
+
+    for (const code of ['legacy_order_shipped', 'legacy_unverified', '받는 사람 masked']) expect(html).not.toContain(code);
+    expect(html).toContain('상세 사유는 개인정보 보호로 저장하지 않습니다.');
+    expect(html).toContain('대상 주문을 확인할 수 없어');
+    expect(html).not.toContain('1:1 문의 화면');
+    expect(html).not.toContain('다시 보내기');
+  });
+
+  it('실패 건수를 위에 보이고 실패한 건을 먼저 보여준다', () => {
+    const pending: EmailDeliveryRecord = { ...failedDelivery, dedupeKey: `order_shipped:${ORDER_ID}`, template: 'order_shipped', templateLabel: '배송 시작', status: 'pending', lastError: null, claimedAt: '2026-08-08T02:30:00.000Z' };
+    const html = renderToStaticMarkup(<EmailDeliverySection deliveries={[pending, failedDelivery]} />);
+
+    expect(html).toContain('발송 실패');
+    expect(html.indexOf('data-email-delivery-summary')).toBeLessThan(html.indexOf('메일 발송 이력 목록'));
+    expect(html.indexOf('주문 확인 메일은')).toBeLessThan(html.indexOf('메일 발송 이력 목록'));
+    expect(html.indexOf(`order_confirmation:${ORDER_ID}`)).toBeLessThan(html.indexOf(`order_shipped:${ORDER_ID}`));
+  });
 });

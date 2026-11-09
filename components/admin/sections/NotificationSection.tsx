@@ -2,8 +2,7 @@
 
 import { useActionState, useState } from 'react';
 import { sendAdminNotificationAction } from '@/app/admin/notification-actions';
-import { Bell, Check, Info } from 'lucide-react';
-import { Alert, AlertDescription } from '@/components/admin/kit/ui/alert';
+import { Bell, Check } from 'lucide-react';
 import { Badge } from '@/components/admin/kit/ui/badge';
 import { Button } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
@@ -11,7 +10,7 @@ import { Label } from '@/components/admin/kit/ui/label';
 import { NativeSelect, NativeSelectOption } from '@/components/admin/kit/ui/native-select';
 import { Textarea } from '@/components/admin/kit/ui/textarea';
 import { ErrorText } from '../fields';
-import { AdminNotice } from '../console/AdminKit';
+import { AdminNotice, AdminPageHeader, AdminStatusBadge } from '../console/AdminKit';
 import { SECTION_CARD, SectionHeading } from './SectionLayout';
 import type {
   AdminNotificationActionState,
@@ -94,21 +93,17 @@ export function NotificationSection({
    * kit 모양으로 그린다(공개 미리보기 부품이 아니다).
    */
   return (
-    <section aria-labelledby="admin-notification-heading" className="flex min-w-0 flex-col gap-6">
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex min-w-0 flex-col gap-1">
-          <h2 className="text-lg leading-tight font-semibold tracking-tight text-foreground" id="admin-notification-heading">공지·알림 발송</h2>
-          <p className="max-w-prose text-sm text-muted-foreground">전체 사용자 또는 특정 IP 팔로워에게 운영 공지를 보냅니다.</p>
-        </div>
-        <Badge variant="outline">인앱 전용</Badge>
-      </header>
+    <section aria-label="공지 발송" className="flex min-w-0 flex-col gap-6">
+      <AdminPageHeader
+        actions={<Badge variant="outline">인앱 전용</Badge>}
+        description="전체 사용자 또는 특정 IP 팔로워에게 운영 공지를 보냅니다."
+        title="공지 발송"
+      />
 
-      <Alert role="note">
-        <Info aria-hidden="true" />
-        <AlertDescription>
-          인앱 알림함에 즉시 발송됩니다. 이메일·푸시는 발송하지 않습니다. 수신자 수는 현재 기준 추정치이며 실제 수신자는 발송 시점에 확정됩니다.
-        </AlertDescription>
-      </Alert>
+      {/* 바로 나가고 되돌릴 수 없는 발송이라 일반 안내가 아니라 주의로 둔다. */}
+      <AdminNotice role="note" tone="warning">
+        인앱 알림함에 즉시 발송됩니다. 이메일·푸시는 발송하지 않습니다. 수신자 수는 현재 기준 추정치이며 실제 수신자는 발송 시점에 확정됩니다.
+      </AdminNotice>
 
       <div className="grid min-w-0 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(17.5rem,0.72fr)]">
         <form
@@ -308,7 +303,7 @@ export function NotificationSection({
             {data.history.slice(0, 20).map((record) => (
               <li className="flex min-w-0 flex-col gap-1.5 px-4 py-3" key={record.operationId}>
                 <div className="flex flex-wrap items-center justify-between gap-2 text-xs text-muted-foreground">
-                  <span className="font-medium text-foreground">{audienceLabel(record)}</span>
+                  <span className="flex flex-wrap items-center gap-2"><span className="font-medium text-foreground">{audienceLabel(record)}</span><AdminStatusBadge tone="success">발송 완료</AdminStatusBadge></span>
                   <time className="tabular-nums" dateTime={record.sentAt}>{historyDate.format(new Date(record.sentAt))}</time>
                 </div>
                 <strong className="text-sm font-semibold break-words text-foreground">{record.title}</strong>
