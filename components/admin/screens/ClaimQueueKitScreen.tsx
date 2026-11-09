@@ -146,6 +146,8 @@ export function ClaimQueueKitScreen({
         <div className="flex flex-wrap items-center justify-between gap-2">
           <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1">
             <p className="shrink-0 whitespace-nowrap">총 <strong className="tabular-nums">{total.toLocaleString('ko-KR')}</strong>건{stageFilterLabel ? <span className="text-muted-foreground"> · {stageFilterLabel}</span> : null}</p>
+            {/* 검색 버튼은 위 줄이고 조건은 아래 줄이라, 조건을 바꾼 뒤 검색을 눌러야 하는지 망설인다. */}
+            <p className="min-w-0 text-xs text-muted-foreground">사유·처리상태·기간은 고르면 바로 적용되고, 검색 버튼은 검색어에만 씁니다.</p>
           </div>
           <AdminListExportButton href={adminListExportHref(adminListExportClaimScreenId(claimType), currentHref)} total={total} />
         </div>

@@ -68,6 +68,13 @@ describe('ClaimQueueKitScreen (admin kit)', () => {
     expect(html).toContain('최장 대기 1일째');
   });
 
+  /* 사람 눈 판정: 검색은 위 줄, 조건은 아래 줄이라 조건을 바꾼 뒤 검색을 눌러야 하는지 몰랐다. */
+  it('사유·처리상태·기간은 바로 적용된다고 목록 머리에서 말한다', () => {
+    const html = renderToStaticMarkup(<ClaimQueueKitScreen data={data()} now={NOW} />);
+    expect(html).toContain('사유·처리상태·기간은 고르면 바로 적용되고, 검색 버튼은 검색어에만 씁니다.');
+    expect(html.indexOf('고르면 바로 적용')).toBeLessThan(html.indexOf('data-claim-next-action'));
+  });
+
   /* 사람 눈 판정: 세 목록 중 취소에만 '이 페이지'가 붙었다. 말은 같게 두고 페이지 기준은 도움말로 밝힌다. */
   it('다음 쪽이 있어도 최장 대기라고 쓰고 이 페이지 기준임은 도움말로 둔다', () => {
     const paged = renderToStaticMarkup(<ClaimQueueKitScreen data={data({ total: 45 })} now={NOW} />);
