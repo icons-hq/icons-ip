@@ -355,7 +355,7 @@ export function AdminSidebar({
   return (
     <Sidebar collapsible="icon" variant="inset">
       {/* 사이드바 전체가 탐색 랜드마크다(모든 콘텐츠가 랜드마크 안에 있도록 — axe region). */}
-      <nav aria-label={consoleId === 'content' ? '콘텐츠 운영 메뉴' : '판매자센터 메뉴'} className="flex min-h-0 flex-1 flex-col">
+      <nav aria-label={consoleId === 'content' ? '콘텐츠 운영 사이드바' : '판매자센터 사이드바'} className="flex min-h-0 flex-1 flex-col">
       <SidebarHeader>
         <SidebarMenu>
           <SidebarMenuItem>
