@@ -25,9 +25,9 @@ it('금액은 쉼표로 읽히고 제출 값은 숫자 그대로이며 저장은
 
 /* 잘못된 적립률은 hidden 값이 비어 기존 값을 NULL로 덮는다(비활성 정책은 서버가 빈 값을 받아 준다) — 고칠 때까지 저장을 막는다. */
 it('적립률 칸이 잘못되면 칸 아래 안내와 함께 정책 저장을 막는다', () => {
-  const html = renderToStaticMarkup(<StoreCreditPolicyForm operationId="11111111-1111-4111-8111-111111111111" policy={{ ...policy, enabled: false, earnValue: 12345 }} />);
+  const html = renderToStaticMarkup(<StoreCreditPolicyForm operationId="11111111-1111-4111-8111-111111111111" policy={{ ...(policy as object), enabled: false, earnValue: 12345 } as never} />);
   expect(html).toContain('적립률은 0~100 사이, 소수 둘째 자리까지 입력해주세요.');
   expect(html).toMatch(/<button[^>]*\sdisabled=""[^>]*>[\s\S]*?정책 저장<\/button>/);
-  const valid = renderToStaticMarkup(<StoreCreditPolicyForm operationId="11111111-1111-4111-8111-111111111111" policy={{ ...policy, enabled: false }} />);
+  const valid = renderToStaticMarkup(<StoreCreditPolicyForm operationId="11111111-1111-4111-8111-111111111111" policy={{ ...(policy as object), enabled: false } as never} />);
   expect(valid).not.toMatch(/<button[^>]*\sdisabled=""[^>]*>[\s\S]*?정책 저장<\/button>/);
 });

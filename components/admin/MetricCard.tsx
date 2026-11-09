@@ -10,7 +10,7 @@ export function MetricChangeBadge({ change, changeType, title }: { change: strin
 }
 
 /*
- * 지표 카드(템플릿 대시보드의 SectionCards 모양, ADR-0028). 숫자는 foreground, 증감은 아이콘과 부호가 있는
+ * 지표 카드(템플릿 대시보드의 SectionCards 모양, ADR-0028). 숫자는 foreground, 증감은 화살표와 부호가 있는
  * 의미색 배지로 읽는다(ADR-0029) — 색만으로 오르내림을 구분하지 않는다.
  */
 export function MetricCard({
