@@ -7,6 +7,7 @@ import { ConsolePagination } from '@/components/admin/console/ConsolePagination'
 import { ErpCategoryMappingPanel } from '@/components/admin/ErpCategoryMappingPanel';
 import { ErpItemImportPanel } from '@/components/admin/ErpItemImportPanel';
 import { ErpItemListGrid } from '@/components/admin/ErpItemListGrid';
+import { ErpItemsImportButton } from './ErpItemsImportButton';
 import { CATEGORY_PATH, categoryPath } from '@/lib/admin/category';
 import {
   ERP_ITEMS_PAGE_SIZE,
@@ -34,6 +35,7 @@ export function ErpItemsScreen({ data }: { data: ErpItemsWorkspaceData }) {
     if (!id) return <span className="text-muted-foreground">연결 없음</span>;
     return categories.some((category) => category.id === id) ? categoryPath(categories, id).join(' > ') : id;
   };
+  const importOpen = page.total === 0 && !filters.query;
   const rows = page.items.map((item) => ({
     id: item.code,
     selectLabel: `${item.code} ${item.name} 선택`,
@@ -53,9 +55,10 @@ export function ErpItemsScreen({ data }: { data: ErpItemsWorkspaceData }) {
     <AdminPageHeader
       title="ERP 품목"
       description="반입해 둔 품목은 상품 옵션에 ERP 품명을 입력할 때 코드·바코드·카테고리·판매가로 제안됩니다. ERP와 자동으로 연동되지 않으니 신제품이 생기면 다시 반입해주세요."
+      actions={<ErpItemsImportButton defaultOpen={importOpen} />}
     />
 
-    <ErpItemImportPanel defaultOpen={page.total === 0 && !filters.query} />
+    <ErpItemImportPanel defaultOpen={importOpen} />
 
     {/* 반입 결과 목록을 먼저 보이고 분류 연결(설정)은 그 아래에 둔다. */}
     <AdminSectionCard
