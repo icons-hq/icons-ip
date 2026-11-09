@@ -12,11 +12,10 @@ import {
   type AdminCoinExchangeOfferRecord,
 } from '@/lib/admin/campaigns';
 import type { AdminCardPoolRecord } from '@/lib/admin/catalog.server';
-import { Check } from 'lucide-react';
+import { Check, ChevronDown } from 'lucide-react';
 import { Button } from '@/components/admin/kit/ui/button';
 import { statusTone } from '@/lib/admin/status-tone';
 import { Field, InlineNotice, SelectField } from '../fields';
-import { SECTION_CARD, SectionHeading } from './SectionLayout';
 
 /*
  * 카드팩 교환처 패널 (S8 #330).
@@ -101,11 +100,13 @@ export function CoinExchangeOfferPanel({
   const poolsById = new Map(pools.map((pool) => [pool.id, pool]));
 
   return (
-    <section className={SECTION_CARD}>
-      <SectionHeading
-        description="출석으로 모은 코인을 카드팩으로 바꾸는 자리입니다. 아래에서 교환처를 등록하고 목록의 [구성 코드 복사]를 누른 뒤, 캠페인 수정의 '이미지·랜딩 구성 > 구성 코드' 칸에 붙여 넣으면 그 캠페인 상세에 나타납니다."
-        title="카드팩 교환처"
-      />
+    <details className="group/offers min-w-0 rounded-xl border bg-card p-4 text-sm text-card-foreground sm:p-5" open={offers.some((offer) => poolsById.get(offer.poolId)?.rewardReady === false) || undefined}>
+      <summary className="flex cursor-pointer list-none items-center justify-between gap-3 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 [&::-webkit-details-marker]:hidden">
+        <span className="flex min-w-0 flex-col gap-1"><span className="text-base leading-snug font-semibold text-foreground">카드팩 교환처</span><span className="text-sm text-muted-foreground">캠페인 상세에 코인 → 카드팩 교환을 붙일 때만 씁니다 · 등록 {offers.length.toLocaleString('ko-KR')}개</span></span>
+        <ChevronDown aria-hidden="true" className="size-4 shrink-0 text-muted-foreground transition-transform group-open/offers:rotate-180 motion-reduce:transition-none" />
+      </summary>
+      <div className="mt-4 flex min-w-0 flex-col gap-4">
+      <ol className="flex flex-col gap-1 text-sm text-muted-foreground"><li>1. 아래에서 교환처를 등록합니다.</li><li>2. 목록의 [구성 코드 복사]를 누릅니다.</li><li>3. 캠페인 수정의 &apos;이미지·랜딩 구성 &gt; 구성 코드&apos; 칸에 붙여 넣습니다.</li></ol>
 
       {/* 주의는 등록된 교환처가 실제로 준비 안 된 풀을 쓸 때만 상자로 말한다(처리할 대상 없는 경고를 띄우지 않는다). */}
       {offers.some((offer) => poolsById.get(offer.poolId)?.rewardReady === false) ? (
@@ -201,6 +202,7 @@ export function CoinExchangeOfferPanel({
           <InlineNotice state={state} />
         </div>
       </form>
-    </section>
+      </div>
+    </details>
   );
 }

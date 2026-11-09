@@ -480,7 +480,7 @@ export function ClaimQueueKitTable({
   const error = clientError || state.error;
   const busy = pending || searching;
 
-  return <div className="flex min-w-0 flex-col gap-3" data-admin-kit="claims-table" data-pending={busy ? 'true' : undefined}>
+  return <div className="flex min-w-0 flex-col gap-3 pb-14" data-admin-kit="claims-table" data-pending={busy ? 'true' : undefined}>
     <ClaimSearchBox
       field={filters.field ?? 'all'}
       fieldOptions={searchFieldOptions}
@@ -514,23 +514,23 @@ export function ClaimQueueKitTable({
     <ActionBar
       aria-label="선택 건 일괄 처리"
       onOpenChange={(open) => { if (!open && !deciding) setSelection({}); }}
-      open={selectedIds.length > 0}
+      /* 선택 전에도 처리 버튼이 있다는 것을 흐린 버튼으로 보여 준다(발주 화면의 '선택 주문 0건'과 같은 약속). */
+      open
     >
       <ActionBarSelection>
         {selectedIds.length}건 선택 · 최대 {ADMIN_CLAIM_BULK_LIMIT}건
-        <ActionBarSeparator />
-        <ActionBarClose aria-label="선택 해제"><X /></ActionBarClose>
+        {selectedIds.length ? <><ActionBarSeparator /><ActionBarClose aria-label="선택 해제"><X /></ActionBarClose></> : null}
       </ActionBarSelection>
       <ActionBarSeparator />
       <ActionBarGroup>
         {(['approve', 'review'] as const).map((decision) => <ActionBarItem
-          disabled={deciding || overLimit}
+          disabled={deciding || overLimit || selectedIds.length === 0}
           key={decision}
           onSelect={(event) => { event.preventDefault(); decide(decision); }}
           variant={decision === 'approve' ? 'default' : 'secondary'}
         >{ADMIN_CLAIM_BULK_ACTION_LABELS[decision]}</ActionBarItem>)}
         <Popover onOpenChange={setRejectOpen} open={rejectOpen}>
-          <PopoverTrigger render={<ActionBarItem disabled={deciding || overLimit} onSelect={(event) => event.preventDefault()} variant="destructive" />}>
+          <PopoverTrigger render={<ActionBarItem disabled={deciding || overLimit || selectedIds.length === 0} onSelect={(event) => event.preventDefault()} variant="destructive" />}>
             {ADMIN_CLAIM_BULK_ACTION_LABELS.reject}
           </PopoverTrigger>
           <PopoverContent className="w-96" side="top">
