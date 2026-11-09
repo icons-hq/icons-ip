@@ -67,7 +67,7 @@ export function OperationsDock({ accountId, access, inquiryNotifications = false
         variant="ghost"
       >
         <Icon aria-hidden="true" />
-        {id === 'alerts' && showBadge ? <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-destructive px-1 text-[10px] leading-none font-semibold text-primary-foreground tabular-nums">{badge > 99 ? '99+' : badge}</span> : null}
+        {id === 'alerts' && showBadge ? <span className="absolute -top-1 -right-1 flex h-4 min-w-4 items-center justify-center rounded-full bg-muted-foreground px-1 text-[10px] leading-none font-semibold text-primary-foreground tabular-nums">{badge > 99 ? '99+' : badge}</span> : null}
       </Button>)}
       {hasAdminCapability(access, 'cs.manage') ? <Link
         aria-current={pathname === '/admin/cs/chat' ? 'page' : undefined}
