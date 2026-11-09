@@ -87,7 +87,7 @@ describe('CampaignSection', () => {
   it('배너 순서 칸이 비면 미노출임을 라벨로 말한다', () => {
     const markup = render(campaign({ featuredOrder: null }));
 
-    expect(markup).toContain('허브 배너 미노출');
+    expect(markup).toContain('이벤트 목록 배너 미노출');
   });
 
   /* 블록 JSON 직접 편집이 v1 계약이라 계약서가 화면 안에 있어야 한다. */

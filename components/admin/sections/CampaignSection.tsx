@@ -19,6 +19,7 @@ import {
   type AdminCampaignRecord,
 } from '@/lib/admin/campaigns';
 import { ErrorText, Field, FormShell, RecordList, SelectField, TextArea } from '../fields';
+import { SettingsFormGroup } from '../screens/StoreSettingsFormGroup';
 
 /*
  * 캠페인 콘솔 (S8 #330).
@@ -43,7 +44,8 @@ function campaignPeriodLabel(campaign: AdminCampaignRecord) {
 function campaignListLabel(campaign: AdminCampaignRecord) {
   return (
     <span className="flex min-w-0 flex-col gap-0.5 text-left">
-      <strong className="truncate text-[13px] font-medium">{campaign.title}</strong>
+      {/* 작성 중과 종료는 같은 회색 배지다 — 끝난 캠페인은 제목까지 물러나 준비 중인 것과 갈린다. */}
+      <strong className={`truncate text-[13px] font-medium${campaign.status === 'ended' ? ' text-muted-foreground' : ''}`}>{campaign.title}</strong>
       <span className="flex flex-wrap items-center gap-x-1.5 gap-y-1 text-[11px] text-muted-foreground">
         <AdminStatusBadge tone={statusTone('campaign', campaign.status)}>{ADMIN_CAMPAIGN_STATUS_LABELS[campaign.status]}</AdminStatusBadge>
         {ADMIN_CAMPAIGN_KIND_LABELS[campaign.kind]}
@@ -62,7 +64,7 @@ const NOTE = 'm-0 text-xs leading-relaxed text-muted-foreground';
 function SectionSchemaHelp() {
   return (
     <details className={`group rounded-lg border bg-muted/40 px-3.5 py-3 text-sm ${CODE}`}>
-      <summary className="cursor-pointer font-medium">랜딩 구성 JSON 스키마 (블록 {ADMIN_CAMPAIGN_SECTION_SPECS.length}종)</summary>
+      <summary className="cursor-pointer font-medium">구성 코드 작성 방법 (블록 {ADMIN_CAMPAIGN_SECTION_SPECS.length}종)</summary>
       <div className="mt-2 flex flex-col gap-2">
         <p className={NOTE}>
           최상위는 블록 배열이고 최대 {ADMIN_CAMPAIGN_MAX_SECTIONS}개까지입니다. 모든 블록은
@@ -144,13 +146,22 @@ function CampaignEditor({
       }}
     >
       <input name="previousId" type="hidden" value={selected?.id ?? ''} />
+      {/* 오른쪽이 새로 만드는 중인지 고치는 중인지 첫눈에 읽히게 한다. */}
+      <header className="flex min-w-0 flex-wrap items-center gap-2">
+        <h3 className="min-w-0 truncate text-base font-semibold text-foreground">{selected ? selected.title : '새 캠페인'}</h3>
+        {selected
+          ? <AdminStatusBadge tone={statusTone('campaign', selected.status)}>{ADMIN_CAMPAIGN_STATUS_LABELS[selected.status]}</AdminStatusBadge>
+          : <AdminStatusBadge tone="info">새로 등록</AdminStatusBadge>}
+        <span className="ml-auto text-xs text-muted-foreground">{selected ? '선택한 캠페인을 수정합니다.' : '왼쪽 목록에서 고르면 수정할 수 있습니다.'}</span>
+      </header>
+      <SettingsFormGroup description="캠페인 주소는 등록 후 바꿀 수 없고, 이벤트 카탈로그의 오프라인 팝업 예매 주소와 겹칠 수 없습니다." title="기본 정보">
       <AdminFormGrid>
         <Field
           defaultValue={selected?.id ?? ''}
           error={state.errors?.id}
-          label="ID (URL 슬러그 · 소문자·숫자·하이픈)"
+          label="캠페인 주소 (영문 소문자·숫자·하이픈)"
           name="id"
-          placeholder="autumn-attendance"
+          placeholder="예: autumn-attendance"
           readOnly={Boolean(selected)}
           required
         />
@@ -169,7 +180,7 @@ function CampaignEditor({
           error={state.errors?.title}
           label="제목"
           name="title"
-          placeholder="가을 출석 이벤트"
+          placeholder="예: 가을 출석 이벤트"
           required
         />
         <Field
@@ -177,8 +188,12 @@ function CampaignEditor({
           error={state.errors?.subtitle}
           label="부제 (선택, 200자 이하)"
           name="subtitle"
-          placeholder="매일 출석하고 코인을 모으세요"
+          placeholder="예: 매일 출석하고 코인을 모으세요"
         />
+      </AdminFormGrid>
+      </SettingsFormGroup>
+      <SettingsFormGroup title="공개 설정">
+      <AdminFormGrid>
         <SelectField
           defaultValue={selected?.status ?? 'draft'}
           error={state.errors?.status}
@@ -192,7 +207,7 @@ function CampaignEditor({
         <Field
           defaultValue={selected?.featuredOrder ?? ''}
           error={state.errors?.featuredOrder}
-          label="배너 순서 (비우면 허브 배너 미노출)"
+          label="배너 순서 (비우면 이벤트 목록 배너 미노출)"
           min={1}
           name="featuredOrder"
           step={1}
@@ -201,7 +216,7 @@ function CampaignEditor({
         <Field
           defaultValue={adminCampaignDateTimeInput(selected?.startsAt)}
           error={state.errors?.startsAt}
-          label="시작 (KST)"
+          label="시작 (한국 시각)"
           name="startsAt"
           required
           type="datetime-local"
@@ -209,53 +224,63 @@ function CampaignEditor({
         <Field
           defaultValue={adminCampaignDateTimeInput(selected?.endsAt)}
           error={state.errors?.endsAt}
-          label="종료 (KST)"
+          label="종료 (한국 시각)"
           name="endsAt"
           required
           type="datetime-local"
         />
+      </AdminFormGrid>
+      </SettingsFormGroup>
+      <SettingsFormGroup title="이미지">
+      <AdminFormGrid>
         <Field
           defaultValue={selected?.heroImagePath ?? ''}
           error={state.errors?.heroImagePath}
-          label="상세 히어로 이미지 경로"
+          label="상세 상단 이미지 경로"
           name="heroImagePath"
-          placeholder="campaigns/autumn/hero.webp"
+          placeholder="예: campaigns/autumn/hero.webp"
         />
         <Field
           defaultValue={selected?.cardImagePath ?? ''}
           error={state.errors?.cardImagePath}
           label="목록 카드 이미지 경로"
           name="cardImagePath"
-          placeholder="campaigns/autumn/card.webp"
+          placeholder="예: campaigns/autumn/card.webp"
         />
         <Field
           defaultValue={selected?.bannerImagePath ?? ''}
           error={state.errors?.bannerImagePath}
-          label="허브 배너 이미지 경로"
+          label="이벤트 목록 배너 이미지 경로"
           name="bannerImagePath"
-          placeholder="campaigns/autumn/banner.webp"
+          placeholder="예: campaigns/autumn/banner.webp"
         />
       </AdminFormGrid>
+      </SettingsFormGroup>
 
-      <div className="flex flex-col gap-2 [&_textarea]:min-h-[260px] [&_textarea]:font-mono [&_textarea]:text-[12.5px] [&_textarea]:leading-relaxed">
+      <SettingsFormGroup title="랜딩 구성">
+      <div className="flex flex-col gap-2 [&_textarea]:min-h-40 [&_textarea]:font-mono [&_textarea]:text-[12.5px] [&_textarea]:leading-relaxed">
         <TextArea
           defaultValue={adminCampaignSectionsInput(selected?.sections)}
-          label="랜딩 구성 (sections JSON · 비우면 본문 없음)"
+          label="구성 코드 (비우면 본문 없음)"
           name="sections"
-          placeholder='[{ "type": "intro", "copy": "..." }]'
+          placeholder='예: [{ "type": "intro", "copy": "..." }]'
         />
         <ErrorText id={sectionsMessage ? 'campaign-sections-error' : undefined}>
           {sectionsMessage}
         </ErrorText>
         <SectionSchemaHelp />
       </div>
+      </SettingsFormGroup>
 
-      {selected && (
-        <p className="text-xs text-muted-foreground">
-          블록 {selected.sections.length}개 · 최근 수정 {adminCampaignDateTimeInput(selected.updatedAt).replace('T', ' ')} (KST)
-        </p>
-      )}
-      <FormShell pending={pending} state={state} />
+      {/* 폼이 화면보다 길어도 저장은 늘 첫 화면 바닥에 있다. */}
+      <div className="sticky bottom-0 z-10 -mx-4 -mb-4 flex flex-wrap items-center justify-end gap-3 rounded-b-xl border-t bg-card px-4 py-3 sm:-mx-5 sm:-mb-5 sm:px-5 [&>[role]]:mr-auto" data-admin-savebar="">
+        {selected && (
+          <p className="mr-auto text-xs text-muted-foreground">
+            블록 {selected.sections.length}개 · 최근 수정 {adminCampaignDateTimeInput(selected.updatedAt).replace('T', ' ')} (한국 시각)
+          </p>
+        )}
+        <FormShell pending={pending} state={state} />
+      </div>
     </form>
   );
 }
@@ -277,9 +302,8 @@ export function CampaignSection({
 }) {
   return (
     <div className="flex min-w-0 flex-col gap-4">
-      <p className={`${NOTE} ${CODE}`}>
-        캠페인은 이벤트 허브(<code>/events</code>)와 상세 페이지가 읽는 편성 단위입니다.
-        오프라인 팝업 예매(이벤트 카탈로그)와는 다른 도메인이라 슬러그가 서로 겹칠 수 없습니다.
+      <p className={NOTE}>
+        캠페인은 고객 화면의 이벤트 목록과 상세 페이지에 노출됩니다.
         상태를 <strong className="font-medium text-foreground">종료</strong>로 바꾸면 진행 중 목록에서 내려갑니다.
       </p>
       <div className="grid items-start gap-4 lg:grid-cols-[minmax(240px,0.34fr)_minmax(0,1fr)] [&>*]:min-w-0">
@@ -287,6 +311,7 @@ export function CampaignSection({
           activeId={selected?.id ?? null}
           ariaLabel="캠페인 목록"
           emptyMessage="등록된 캠페인이 없습니다."
+          itemClassName="aria-[current=true]:ring-1 aria-[current=true]:ring-primary"
           items={records}
           labelFor={campaignListLabel}
           newLabel="새 캠페인"

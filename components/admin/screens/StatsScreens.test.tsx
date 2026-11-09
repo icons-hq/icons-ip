@@ -122,6 +122,13 @@ describe('StatsClaimsScreen', () => {
     expect(html).toContain('10시간');
   });
 
+  it('진행중 건수를 카드와 표에서 밝히고 유형 칸은 처리 화면으로 간다', () => {
+    const html = renderToStaticMarkup(<StatsClaimsScreen data={claims} filters={filters} />);
+    expect(html).toContain('>진행중<');
+    expect(html).toMatch(/<strong class="font-semibold text-warning tabular-nums">1<\/strong>/);
+    expect(html).toContain('href="/admin/sales/claims/returns"');
+  });
+
   /* 2026-10-12 QA-4: 운영자 전액 취소는 구매자 단순 변심과 따로, 운영 사유별로 센다. */
   it('운영자 전액 취소를 운영 사유별 행으로 나눈다', () => {
     const html = renderToStaticMarkup(
@@ -213,6 +220,12 @@ describe('StatsCustomersScreen', () => {
     );
 
     expect(html).toContain('기간 내 재구매율');
+  });
+
+  it('바로 처리할 건수는 처리 화면 링크로 밝힌다', () => {
+    const html = renderToStaticMarkup(<StatsCustomersScreen data={customers} filters={filters} />);
+    expect(html).toContain('href="/admin/cs/inquiries?status=open"');
+    expect(html).toContain('href="/admin/cs/reviews?reply=without&amp;status=visible"');
   });
 
   it('리뷰 평균과 평점 분포를 함께 보여준다', () => {

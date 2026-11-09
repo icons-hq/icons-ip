@@ -1,13 +1,11 @@
 'use client';
-import Link from 'next/link';
 import { useRef, useState } from 'react';
 import { AdminPageHeader, AdminSectionCard } from '@/components/admin/console/AdminKit';
 import { saveBestReviewSettingsAction, type BestReviewSettingsResult } from '@/app/admin/review-best-actions';
 import { Alert, AlertDescription } from '@/components/admin/kit/ui/alert';
-import { Button, buttonVariants } from '@/components/admin/kit/ui/button';
+import { Button } from '@/components/admin/kit/ui/button';
 import type { ReviewBestSettings } from '@/lib/review-best';
-
-const LINK_CLASS = buttonVariants({ size: 'sm', variant: 'outline' });
+import { StoreSettingsRelatedLinks } from './StoreSettingsRelatedLinks';
 
 export function DetailReviewBestScreen({ initial }: { initial: ReviewBestSettings }) {
   const [enabled, setEnabled] = useState(initial.enabled), [revision, setRevision] = useState(initial.revision), [pending, setPending] = useState(false), [uncertain, setUncertain] = useState(false), [message, setMessage] = useState(''), [error, setError] = useState(false);
@@ -24,7 +22,7 @@ export function DetailReviewBestScreen({ initial }: { initial: ReviewBestSetting
   }
   return <div className="flex min-w-0 flex-col gap-4" data-review-best-settings="">
     <AdminPageHeader title="BEST 리뷰 전시 설정" description="운영자가 선정한 리뷰를 상품상세 대표 이미지 영역에 표시합니다." />
-    <nav aria-label="상품상세 추가 설정" className="flex flex-wrap gap-2"><Link className={LINK_CLASS} data-slot="button" href="/admin/display/detail">띠배너·리뷰·추천</Link><Link className={LINK_CLASS} data-slot="button" href="/admin/display/detail/media">대표미디어 설정</Link><Link className={LINK_CLASS} data-slot="button" href="/admin/cs/reviews?best=selected">선정 리뷰 관리</Link></nav>
+    <StoreSettingsRelatedLinks label="상품상세 추가 설정" links={[{ href: '/admin/display/detail', label: '띠배너·리뷰·추천' }, { href: '/admin/display/detail/media', label: '대표미디어 설정' }, { href: '/admin/cs/reviews?best=selected', label: '선정 리뷰 관리' }]} />
     {initial.unavailable ? <Alert variant="destructive"><AlertDescription>현재 설정을 불러오지 못했습니다. 새로고침 후 다시 확인해주세요.</AlertDescription></Alert> : null}
     <form className="flex flex-col gap-4" onSubmit={event => { event.preventDefault(); void save(); }}>
       <AdminSectionCard title="베스트리뷰 상단 노출"><fieldset className="flex min-w-0 flex-col gap-3 disabled:opacity-60" disabled={pending || uncertain || initial.unavailable}>

@@ -11,6 +11,13 @@ describe('지역 추가 배송비 운영 화면', () => {
     expect(html).not.toContain('>저장된 정책 활성화</button>');
     expect(html).not.toContain('TEST-ONLY');
   });
+  it('신규 주문 차단을 경고로 보이고 초안 줄에 확정 동선을 표시한다', () => {
+    const policy = { id: 'p1', originId: origin.id, carrierCode: 'hanjin', name: '합성 초안', version: 2, revision: 1, status: 'draft', rules: [] } as never;
+    const html = renderToStaticMarkup(<ShippingRegionsScreen policies={[policy]} adoptions={[]} origins={[origin]} carriers={[]} canEdit />);
+    expect(html).toContain('data-admin-notice="warning"');
+    expect(html).toContain('신규 주문을 차단합니다');
+    expect(html).toContain('확정하기');
+  });
   it('staff 조회 화면에는 생성·저장 입력을 제공하지 않는다', () => {
     const html = renderToStaticMarkup(<ShippingRegionsScreen policies={[]} adoptions={[]} origins={[origin]} carriers={[]} canEdit={false} />);
     expect(html).toContain('지역표 미등록');

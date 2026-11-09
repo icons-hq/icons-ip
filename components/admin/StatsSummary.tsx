@@ -1,5 +1,6 @@
+import Link from 'next/link';
 import type { ReactNode } from 'react';
-import { Minus, TrendingDown, TrendingUp } from 'lucide-react';
+import { ArrowUpRight, Minus, TrendingDown, TrendingUp } from 'lucide-react';
 import { AdminStatusBadge } from '@/components/admin/console/AdminKit';
 import type { AdminTone } from '@/lib/admin/status-tone';
 
@@ -62,13 +63,24 @@ export function StatsSummaryGrid({ children, className = '' }: { children: React
   return <div className={`grid grid-cols-1 gap-3 min-[420px]:grid-cols-2 md:grid-cols-[repeat(auto-fit,minmax(11rem,1fr))] ${className}`} data-stats-summary="">{children}</div>;
 }
 
-/** 요약 수치 카드. 숫자는 foreground이고, 보조 줄(children)은 비교값·안내를 담는다. */
-export function StatsSummaryTile({ label, value, children }: { label: ReactNode; value: ReactNode; children?: ReactNode }) {
-  return <div className="flex min-w-0 flex-col gap-1 rounded-xl border bg-card px-4 py-3 text-card-foreground">
-    <span className="text-sm text-muted-foreground">{label}</span>
-    <strong className="text-2xl leading-tight font-semibold tabular-nums [overflow-wrap:anywhere]">{value}</strong>
+const TILE_ATTENTION = {
+  warning: { box: 'border-warning-border bg-warning-soft', value: 'text-warning' },
+  danger: { box: 'border-danger-border bg-danger-soft', value: 'text-destructive' },
+} as const;
+
+/**
+ * 요약 수치 카드. 숫자는 foreground이고, 보조 줄(children)은 비교값·안내를 담는다.
+ * `tone`은 지금 처리할 건수가 있을 때만 켠다. `href`를 주면 처리 화면으로 가는 링크가 되고 화살표가 붙는다.
+ */
+export function StatsSummaryTile({ label, value, children, tone, href }: { label: ReactNode; value: ReactNode; children?: ReactNode; tone?: keyof typeof TILE_ATTENTION; href?: string }) {
+  const attention = tone ? TILE_ATTENTION[tone] : null;
+  const className = `flex min-w-0 flex-col gap-1 rounded-xl border px-4 py-3 text-card-foreground ${attention?.box ?? 'bg-card'}`;
+  const body = <>
+    <span className="flex items-center justify-between gap-2 text-sm text-muted-foreground">{label}{href ? <ArrowUpRight aria-hidden="true" className="size-4 shrink-0" /> : null}</span>
+    <strong className={`text-2xl leading-tight font-semibold tabular-nums [overflow-wrap:anywhere]${attention ? ` ${attention.value}` : ''}`}>{value}</strong>
     {children}
-  </div>;
+  </>;
+  return href ? <Link className={`${className} transition-colors hover:border-ring`} href={href}>{body}</Link> : <div className={className}>{body}</div>;
 }
 
 /**

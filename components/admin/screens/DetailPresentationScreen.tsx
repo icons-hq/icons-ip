@@ -1,9 +1,10 @@
 'use client';
 import Link from 'next/link';
-import { useRef, useState } from 'react';
+import { useRef, useState, type ReactNode } from 'react';
 import { saveDetailPresentationAction, type DetailSaveResult } from '@/app/admin/product-detail-presentation-actions';
-import { AdminPageHeader, AdminSectionCard } from '../console/AdminKit';
+import { AdminNotice, AdminPageHeader, AdminSectionCard } from '../console/AdminKit';
 import { ConsolePagination } from '../console/ConsolePagination';
+import { StoreSettingsRelatedLinks } from './StoreSettingsRelatedLinks';
 import { Button } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
 import { DETAIL_MODULE_KEYS, PRODUCT_DETAIL_PRESENTATION_PATH, type DetailBanner, type DetailModules, type DetailPresentation, type DetailPresentationSnapshot, type DetailSection } from '@/lib/product-detail-presentation';
@@ -12,7 +13,7 @@ export interface DetailTargetOption { id: string; title: string; archived?: bool
 /* 상품상세 표시 설정(템플릿 룩, ADR-0028). 링크 탭은 셸의 콘솔 전환과 같은 모양이다. */
 /* 탭이 많아 좁은 화면에서 잘리지 않게 줄을 바꾼다(가로 스크롤은 단서가 없어 쓰지 않는다). */
 const TABS = 'inline-flex max-w-full flex-wrap items-center gap-0.5 self-start rounded-lg bg-muted p-0.5';
-const TAB = 'inline-flex h-7 shrink-0 items-center rounded-md px-2.5 text-[0.8rem] font-medium whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground aria-[current=page]:bg-background aria-[current=page]:text-foreground aria-[current=page]:shadow-sm';
+const TAB = 'inline-flex h-7 shrink-0 items-center rounded-md px-2.5 text-[0.8rem] font-medium whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground aria-[current=page]:bg-background aria-[current=page]:text-primary-soft-foreground aria-[current=page]:shadow-sm';
 const CHECK = 'flex items-start gap-2.5 text-sm [&>input]:mt-0.5';
 const CHECK_TEXT = 'flex flex-col gap-1 leading-normal';
 const CHECK_HINT = 'text-sm font-normal text-muted-foreground';
@@ -28,20 +29,26 @@ const moduleCopy: Record<keyof DetailModules, { title: string; text: string }> =
   categoryPopular: { title: '카테고리 인기상품', text: '공개된 최하위 대표 분류에서 직전 30일 판매수량·현재 찜 수 순으로 최대 12개를 보여줍니다. 대분류만 지정된 상품에서는 숨깁니다.' },
   storePopular: { title: '스토어 인기상품', text: '스토어 전체의 직전 30일 판매수량·현재 찜 수 순으로 최대 12개를 보여줍니다. 판매·찜 근거가 없는 상품으로 채우지 않습니다.' },
 };
+/** 탭의 켜짐 표시 — 어느 설정이 공개 화면에 나가고 있는지 눌러 보지 않아도 읽힌다. */
+function TabState({ on, children }: { on: boolean; children: ReactNode }) {
+  return <span className={`ml-1.5 inline-flex items-center gap-1 text-[0.7rem] font-normal ${on ? 'text-success' : 'text-muted-foreground'}`}><span aria-hidden="true" className={`size-1.5 rounded-full ${on ? 'bg-success' : 'bg-muted-foreground/50'}`} />{children}</span>;
+}
+
 export function DetailPresentationScreen({ snapshot, section, goods, categories }: {
   snapshot: DetailPresentationSnapshot; section: DetailSection; goods: DetailTargetOption[]; categories: DetailTargetOption[];
 }) {
+  const modulesOn = DETAIL_MODULE_KEYS.filter(key => snapshot.values.modules[key]).length;
   return <section className="flex min-w-0 flex-col gap-4">
-    <AdminPageHeader title="상품상세 표시 설정" description="상세 상단 문구와 리뷰, 실제 상품·구매 데이터를 사용하는 자동 추천을 설정합니다." />
-    <nav aria-label="상품상세 설정 종류" className={TABS}>
-      <Link className={TAB} href={PRODUCT_DETAIL_PRESENTATION_PATH} aria-current={section === 'banner' ? 'page' : undefined}>상단 띠배너</Link>
-      <Link className={TAB} href={`${PRODUCT_DETAIL_PRESENTATION_PATH}?tab=modules`} aria-current={section === 'modules' ? 'page' : undefined}>리뷰·자동 추천</Link>
-      <Link className={TAB} href={`${PRODUCT_DETAIL_PRESENTATION_PATH}?tab=otherComposition`} aria-current={section === 'otherComposition' ? 'page' : undefined}>다른 구성 추천</Link>
-      <Link className={TAB} href="/admin/display/settings">공통·상품목록 설정</Link>
-      <Link className={TAB} href="/admin/display/detail/experience">구매·탐색 설정</Link>
-      <Link className={TAB} href="/admin/display/detail/media">대표미디어 설정</Link>
-      <Link className={TAB} href="/admin/display/detail/reviews">BEST 리뷰 설정</Link>
-    </nav>
+    <AdminPageHeader title="상품 상세 구성" description="상세 상단 문구와 리뷰, 실제 상품·구매 데이터를 사용하는 자동 추천을 설정합니다." />
+    <div className="flex min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-2">
+      <nav aria-label="상품상세 설정 종류" className={TABS}>
+        <Link className={TAB} href={PRODUCT_DETAIL_PRESENTATION_PATH} aria-current={section === 'banner' ? 'page' : undefined}>상단 띠배너<TabState on={snapshot.values.banner.enabled}>{snapshot.values.banner.enabled ? '켜짐' : '꺼짐'}</TabState></Link>
+        <Link className={TAB} href={`${PRODUCT_DETAIL_PRESENTATION_PATH}?tab=modules`} aria-current={section === 'modules' ? 'page' : undefined}>리뷰·자동 추천<TabState on={modulesOn > 0}>{modulesOn}/{DETAIL_MODULE_KEYS.length} 켜짐</TabState></Link>
+        <Link className={TAB} href={`${PRODUCT_DETAIL_PRESENTATION_PATH}?tab=otherComposition`} aria-current={section === 'otherComposition' ? 'page' : undefined}>다른 구성 추천<TabState on={snapshot.values.otherComposition.enabled}>{snapshot.values.otherComposition.enabled ? '켜짐' : '꺼짐'}</TabState></Link>
+      </nav>
+      <StoreSettingsRelatedLinks label="상품상세 다른 설정" links={[{ href: '/admin/display/settings', label: '공통·상품목록 설정' }, { href: '/admin/display/detail/experience', label: '구매·탐색 설정' }, { href: '/admin/display/detail/media', label: '대표미디어 설정' }, { href: '/admin/display/detail/reviews', label: 'BEST 리뷰 설정' }]} />
+    </div>
+    <AdminNotice tone="info">띠배너, 리뷰·자동 추천, 다른 구성 추천은 각각 저장합니다.</AdminNotice>
     <DetailForm key={section} snapshot={snapshot} section={section} goods={goods} categories={categories} />
   </section>;
 }
@@ -95,14 +102,14 @@ function DetailForm({ snapshot, section, goods, categories }: {
       </AdminSectionCard>
       <aside className="flex w-full min-w-0 max-w-[440px] flex-col gap-1 rounded-xl border bg-card p-5 text-sm lg:max-w-none" aria-label="상품상세 저장 전 미리보기"><h2 className="text-base font-medium">저장 전 미리보기</h2><p className="mb-3 text-xs text-muted-foreground">표시 위치를 확인하는 예시입니다.</p>
         {section === 'banner' ? <div className="overflow-hidden rounded-lg border pb-4">
-          {banner.enabled && banner.title.trim() && banner.text.trim() ? <div className="flex flex-wrap gap-x-3 gap-y-1.5 bg-muted px-4 py-3.5 text-[13px] [overflow-wrap:anywhere] data-[style=dark]:bg-foreground data-[style=dark]:text-background" data-style={banner.style}><strong className="font-semibold">{banner.title}</strong><span>{banner.text}</span></div> : null}
-          <div className="grid aspect-square place-items-center bg-muted text-muted-foreground">대표이미지</div><h3 className="mx-4 mt-3 font-medium">상품명</h3><p className="mx-4 mt-3">가격·옵션·구매 영역</p>
+          {banner.enabled && banner.title.trim() && banner.text.trim() ? <div className="flex flex-wrap gap-x-3 gap-y-1.5 bg-muted px-4 py-3.5 text-[13px] [overflow-wrap:anywhere] data-[style=dark]:bg-foreground data-[style=dark]:text-background" data-style={banner.style}><strong className="font-semibold">{banner.title}</strong><span>{banner.text}</span></div> : <div className="border-b border-dashed px-4 py-3.5 text-center text-[13px] text-muted-foreground">띠배너를 노출하면 이 자리에 표시됩니다</div>}
+          <div className="grid aspect-[4/3] place-items-center bg-muted text-muted-foreground">대표이미지</div><h3 className="mx-4 mt-3 font-medium">상품명</h3><p className="mx-4 mt-3">가격·옵션·구매 영역</p>
           <small className="mx-4 mt-3 block leading-relaxed text-muted-foreground">선택 대상·노출 기간·현재 공개 상태는 저장 후 실제 상품상세에서 확인합니다.</small>
         </div> : <div className="grid gap-2 text-[13px] [&>div]:rounded-lg [&>div]:border [&>div]:p-4 [&_small]:mt-1.5 [&_small]:block [&_small]:text-muted-foreground"><div>상품 대표이미지·구매 영역</div>{values.modules.reviewSummary ? <div>4점 이상 리뷰 비율·리뷰 카드</div> : null}{values.otherComposition.enabled ? <div>다른 구성도 살펴보세요<small>공개된 다른 구성 상품과 선택적 구성 표시값</small></div> : null}<div>수동 연관상품 편성</div>{DETAIL_MODULE_KEYS.filter(key => key !== 'reviewSummary' && values.modules[key]).map(key => <div key={key}>{moduleCopy[key].title}<small>현재 노출 가능한 후보가 있을 때 표시</small></div>)}<div>상세정보·리뷰·문의·배송 안내</div></div>}
       </aside>
     </div>
     <div className="flex flex-col items-stretch justify-end gap-3 sm:flex-row sm:items-center">{message ? <p className={`text-sm sm:mr-auto ${error ? 'text-destructive' : 'text-success'}`} role={error ? 'alert' : 'status'}>{message}</p> : null}<Button type="submit" disabled={pending}>{pending ? '저장 중…' : uncertain ? '같은 요청 결과 확인' : '설정 저장'}</Button></div>
-    <p className={NOTE}>띠배너, 리뷰·자동 추천, 다른 구성 추천은 각각 저장합니다. 후보가 없거나 조건에 맞지 않는 영역은 공개 화면에서 숨깁니다.</p>
+    <p className={NOTE}>후보가 없거나 조건에 맞지 않는 영역은 공개 화면에서 숨깁니다.</p>
   </form>;
 }
 function DetailTargetPicker({ name, options, selected, limit, onChange }: { name: string; options: DetailTargetOption[]; selected: string[]; limit: number; onChange: (ids: string[]) => void }) {

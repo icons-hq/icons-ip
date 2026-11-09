@@ -55,7 +55,7 @@ export function StoreCreditBatchForm({ enabled, validityDays }: { enabled: boole
     start(async () => { const result = await readStoreCreditBatchAction(batch.id); if (result.error) setError(result.error); else if (result.batch) { setBatch(result.batch); setError(''); if (['completed','failed'].includes(result.batch.status)) setUncertain(false); } });
   }
   const done = batch?.status === 'completed' || batch?.status === 'failed';
-  return <details className="group/register min-w-0 rounded-xl border bg-card text-sm text-card-foreground" data-credit-register=""><summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-xl px-4 py-3 font-medium [&::-webkit-details-marker]:hidden"><span className="flex items-center gap-2"><Plus aria-hidden="true" className="size-4 text-muted-foreground" />적립금 지급 등록</span><ChevronDown aria-hidden="true" className="size-4 text-muted-foreground transition-transform group-open/register:rotate-180" /></summary>
+  return <details className="group/register min-w-0 rounded-xl border bg-card text-sm text-card-foreground" data-credit-register=""><summary className="flex cursor-pointer list-none items-center justify-between gap-3 rounded-xl px-4 py-3 font-medium [&::-webkit-details-marker]:hidden"><span className={buttonVariants({ variant: 'soft' })} data-slot="button"><Plus aria-hidden="true" />적립금 지급 등록</span><ChevronDown aria-hidden="true" className="size-4 text-muted-foreground transition-transform group-open/register:rotate-180" /></summary>
     <div className="flex min-w-0 flex-col gap-4 border-t p-4">
     {!enabled ? <AdminNotice tone="warning">적립금 정책이 비활성 상태입니다. 정책 설정을 완료한 뒤 지급할 수 있습니다.</AdminNotice> : null}
     <form method="post" onSubmit={preview}>

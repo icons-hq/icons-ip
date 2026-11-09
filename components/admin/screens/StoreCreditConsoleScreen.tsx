@@ -23,10 +23,10 @@ export function StoreCreditConsoleScreen({ data, policy }: { data: StoreCreditCo
     { key: 'balance', label: '잔액 변동', width: '165px' },{ key: 'reason', label: '사유', width: '220px' },
     { key: 'order', label: '주문번호', width: '170px' },{ key: 'expiry', label: '만료 일시', width: '155px' },{ key: 'batch', label: '지급 작업', width: '180px' },
   ] : [
-    { key: 'date', label: '등록일시', width: '155px', required: true },{ key: 'kind', label: '처리상태', width: '110px' },
-    { key: 'reason', label: '지급 사유 / 목적', width: '230px', required: true },{ key: 'count', label: '대상 / 성공 / 실패', width: '140px' },
-    { key: 'amount', label: '1인 지급액', width: '130px' },{ key: 'total', label: '총 발급 예정액', width: '145px' },
-    { key: 'expiry', label: '만료 일시', width: '155px' },{ key: 'detail', label: '저장된 결과', width: '240px', required: true },
+    { key: 'date', label: '등록일시', width: '146px', required: true },{ key: 'kind', label: '처리상태', width: '96px' },
+    { key: 'reason', label: '지급 사유 / 목적', width: '200px', required: true },{ key: 'count', label: '대상 / 성공 / 실패', width: '120px' },
+    { key: 'amount', label: '1인 지급액', width: '96px' },{ key: 'total', label: '총 발급 예정액', width: '112px' },
+    { key: 'expiry', label: '만료 일시', width: '146px' },{ key: 'detail', label: '저장된 결과', width: '150px', required: true },
   ];
   return <div className="flex min-w-0 flex-col gap-4" data-admin-screen="store-credits">
     <SalesGuide title="운영 적립금을 지급하고 실제 원장 내역을 확인합니다."><p>관리자만 지급할 수 있습니다. 최대 1,000명을 먼저 검증하고 대상 수·금액을 확인한 뒤 일괄 지급합니다. 기존 정책의 보유 상한·유효기간과 회수 적립금 상계를 적용합니다.</p><p>한 명이라도 처리 조건이 달라지면 전체 지급을 중단합니다. 저장된 작업 ID로 결과를 조회하거나 재시도해 중복 지급을 방지합니다.</p></SalesGuide>
