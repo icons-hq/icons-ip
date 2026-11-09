@@ -154,6 +154,21 @@ describe('ReviewConsoleScreen', () => {
     expect(render({ rows: [row({ rating: 5 })] })).not.toContain('data-low-rating="true"');
   });
 
+  /* 표 위 층을 줄인다 — 전시 설정·엑셀은 목록 머리에 버튼으로 모이고, 긴 상품명은 두 줄까지만 보인다. */
+  it('전시 설정과 엑셀을 목록 머리로 모으고 상품 링크는 새 창으로 연다', () => {
+    const html = render();
+    const head = html.slice(html.indexOf('data-cs-results-header'), html.indexOf('data-cs-search'));
+    expect(head).toMatch(/<a(?=[^>]*data-slot="button")(?=[^>]*href="\/admin\/display\/detail\/reviews")[^>]*>[\s\S]*?BEST 리뷰 전시 설정<\/a>/);
+    expect(head).toContain('엑셀 다운로드');
+    expect(html).toMatch(/<a(?=[^>]*target="_blank")(?=[^>]*href="\/shop\/g13[^"]*")[^>]*><span class="line-clamp-2">아크릴 블록<\/span>/);
+  });
+
+  it('시작일이 종료일보다 늦은 조회는 날짜 조건을 뺐다고 알린다', () => {
+    const html = renderToStaticMarkup(<ReviewConsoleScreen data={data()} dateRangeInvalid now={NOW} />);
+    expect(html).toContain('시작일은 종료일보다 늦을 수 없습니다.');
+    expect(render()).not.toContain('시작일은 종료일보다 늦을 수 없습니다.');
+  });
+
   /* 신고가 0건인 리뷰와 "신고는 있었지만 다 처리된" 리뷰는 다른 상황이다. */
   it('미처리 신고와 처리된 신고를 다르게 적는다', () => {
     expect(render({ rows: [row({ openReportCount: 2, reportCount: 3 })] }))
