@@ -1,5 +1,6 @@
 import Link from 'next/link';
-import { AdminPageHeader, AdminSectionCard } from '../console/AdminKit';
+import { AdminNotice, AdminPageHeader, AdminSectionCard, AdminStatusBadge } from '../console/AdminKit';
+import { statusTone } from '@/lib/admin/status-tone';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/admin/kit/ui/table';
 import { ShipmentExportColumnsEditor } from './ShipmentExportColumnsEditor';
@@ -14,8 +15,13 @@ export { selectedFulfillmentOriginTab };
 
 /* 출고지 탭(셸의 콘솔 전환과 같은 링크 탭, ADR-0028). */
 const ORIGIN_TABS = 'inline-flex w-fit max-w-full flex-wrap items-center rounded-lg bg-muted p-0.5';
-const ORIGIN_TAB = 'inline-flex h-7 items-center gap-1 rounded-md px-2.5 text-[0.8rem] font-medium whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground aria-[current=page]:bg-background aria-[current=page]:text-foreground aria-[current=page]:shadow-sm';
+const ORIGIN_TAB = 'inline-flex h-7 items-center gap-1 rounded-md px-2.5 text-[0.8rem] font-medium whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground aria-[current=page]:bg-background aria-[current=page]:text-primary-soft-foreground aria-[current=page]:shadow-sm';
 const RELATED_LINK = buttonVariants({ variant: 'outline', size: 'sm' });
+
+/** 출고지 카드 머리의 사용 상태. */
+function OriginStatus({ active }: { active: boolean }) {
+  return <AdminStatusBadge tone={statusTone('setting', active ? 'active' : 'inactive')}>{active ? '사용 중' : '비활성'}</AdminStatusBadge>;
+}
 
 /**
  * 배송정보 관리. 출고지마다 링크형 탭(R22, `?origin=<코드>`)으로 한 번에 한 출고지만 보인다 — 새로고침·주소 공유에도 유지되고
@@ -31,7 +37,7 @@ export function FulfillmentOriginsScreen({ origins, carriers, history, canEdit, 
       {origins.map(item => <Link key={item.id} aria-current={tab === item.code ? 'page' : undefined} className={ORIGIN_TAB} href={fulfillmentOriginTabHref(item.code)}>{item.name}{item.active ? '' : ' · 비활성'}</Link>)}
       {canEdit ? <Link aria-current={tab === NEW_FULFILLMENT_ORIGIN_TAB ? 'page' : undefined} className={ORIGIN_TAB} href={fulfillmentOriginTabHref(NEW_FULFILLMENT_ORIGIN_TAB)}>출고지 추가</Link> : null}
     </nav> : null}
-    {origin ? <AdminSectionCard key={origin.id} title={`${origin.name} · ${origin.active ? '사용 중' : '비활성'}`}>
+    {origin ? <AdminSectionCard key={origin.id} summary={<OriginStatus active={origin.active} />} title={origin.name}>
       <FulfillmentOriginForm origin={origin} carriers={carriers} canEdit={canEdit} />
       <ShipmentExportColumnsEditor origin={origin} canEdit={canEdit} />
       <DeliveryPoliciesPanel originId={origin.id} canEdit={canEdit} />
@@ -50,10 +56,11 @@ export function FulfillmentOriginsScreen({ origins, carriers, history, canEdit, 
 export function GoodsOriginSummaryScreen({ origins }: { origins: GoodsFulfillmentOrigin[] }) {
   return <div className="flex min-w-0 flex-col gap-4" data-admin-screen="goods-origins">
     <AdminPageHeader title="출고지·배송 정책" description="상품에 적용할 출고지와 고객 배송 정보를 확인합니다." />
-    {origins.map(origin => <AdminSectionCard key={origin.id} title={`${origin.name} · ${origin.active ? '사용 중' : '비활성'}`}>
+    {origins.map(origin => <AdminSectionCard key={origin.id} summary={<OriginStatus active={origin.active} />} title={origin.name}>
       <dl className="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2"><div className="flex flex-col gap-0.5"><dt className="text-xs text-muted-foreground">기본 배송비</dt><dd className="tabular-nums">{origin.baseFee.toLocaleString('ko-KR')}원</dd></div>
         <div className="flex flex-col gap-0.5"><dt className="text-xs text-muted-foreground">무료배송 기준</dt><dd className="tabular-nums">{origin.freeThreshold === null ? '미설정' : `${origin.freeThreshold.toLocaleString('ko-KR')}원 이상`}</dd></div>
         <div className="flex flex-col gap-0.5"><dt className="text-xs text-muted-foreground">기본 택배사</dt><dd>{origin.defaultCarrier ?? '미설정'}</dd></div><div className="flex flex-col gap-0.5"><dt className="text-xs text-muted-foreground">반품 주소</dt><dd className="[overflow-wrap:anywhere]">{origin.returnAddress || '미설정'}</dd></div></dl>
+      {origin.returnAddress ? null : <AdminNotice tone="warning">반품 주소가 없으면 이 출고지 상품의 반품을 진행할 수 없습니다.</AdminNotice>}
     </AdminSectionCard>)}
   </div>;
 }

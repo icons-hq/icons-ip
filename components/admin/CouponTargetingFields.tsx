@@ -3,7 +3,7 @@ import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import { ShoppingBag, User, UserCheck, UserPlus } from 'lucide-react';
 import { useState, useTransition } from 'react';
 import { searchCouponTargetGoodsAction, type CouponTargetSearch } from '@/app/admin/coupon-target-actions';
-import { AdminField, AdminFormGrid } from '@/components/admin/console/AdminKit';
+import { AdminField, AdminFormGrid, AdminNotice } from '@/components/admin/console/AdminKit';
 import { ConsolePagination } from '@/components/admin/console/ConsolePagination';
 import { SelectField } from '@/components/admin/fields';
 import type { CouponTargetCategory, CouponTargetGood, CouponTargetIp } from '@/lib/coupon-targeting';
@@ -41,7 +41,7 @@ export function CouponTargetingFields({ recipientSegment, goodsScope, targetIds,
   return <div className="flex min-w-0 flex-col gap-4 border-t p-4 sm:p-6">
     <AdminFormGrid>
       <fieldset className="min-w-0"><legend className="mb-2 text-sm font-medium">타겟팅 대상</legend><div className="grid grid-cols-2 gap-1.5 sm:flex sm:flex-wrap">
-        {TARGETS.map(option => <label className="relative flex min-h-[90px] cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border p-3 text-sm transition-colors hover:bg-muted has-[:disabled]:cursor-default has-[:disabled]:opacity-55 has-[:focus-visible]:ring-3 has-[:focus-visible]:ring-ring/50 data-selected:border-primary data-selected:bg-primary data-selected:text-primary-foreground sm:w-[116px] forced-colors:data-selected:outline-2" key={option.value} data-selected={segment === option.value || undefined}>
+        {TARGETS.map(option => <label className="relative flex min-h-[90px] cursor-pointer flex-col items-center justify-center gap-2 rounded-lg border p-3 text-sm transition-colors hover:bg-muted has-[:disabled]:cursor-default has-[:disabled]:opacity-55 has-[:focus-visible]:ring-3 has-[:focus-visible]:ring-ring/50 data-selected:border-primary data-selected:bg-primary-soft data-selected:text-primary-soft-foreground data-selected:ring-1 data-selected:ring-primary sm:w-[116px] forced-colors:data-selected:outline-2" key={option.value} data-selected={segment === option.value || undefined}>
           <input className="sr-only" name="couponTargetChoice" type="radio" value={option.value} checked={segment === option.value} disabled={modeLocked && (option.value === 'targeted') !== (issuanceMode === 'targeted')} onChange={() => setSegment(option.value)} /><option.Icon aria-hidden="true" className="size-7" /><span>{option.label}</span>
         </label>)}
       </div>{errors?.recipientSegment || errors?.issuanceMode ? <p className="mt-2 text-sm text-destructive" role="alert">{errors.recipientSegment || errors.issuanceMode}</p> : null}</fieldset>
@@ -53,7 +53,7 @@ export function CouponTargetingFields({ recipientSegment, goodsScope, targetIds,
       </SelectField>
     </AdminFormGrid>
     <input type="hidden" name="targetGoodIds" value={JSON.stringify(scope === 'selected_goods' ? selected.map(item => item.id) : [])} />
-    {segment === 'targeted' ? <p className="rounded-lg border bg-muted/40 px-3 py-2.5 text-xs leading-relaxed">저장 후 고객이나 세그먼트를 선택하고 발급 대상을 확인합니다. 직접 발급된 고객만 사용할 수 있으며, 코드 입력으로 새로 받을 수 없습니다.</p> : null}
+    {segment === 'targeted' ? <AdminNotice tone="info">저장 후 고객이나 세그먼트를 선택하고 발급 대상을 확인합니다. 직접 발급된 고객만 사용할 수 있으며, 코드 입력으로 새로 받을 수 없습니다.</AdminNotice> : null}
     <p className="text-xs leading-relaxed text-muted-foreground">{adminGoodsCopy("첫구매·재구매는 전액 취소 완료를 제외한 유효 굿즈 결제 이력으로 판단합니다. 발급 자격과 할인 대상 상품은 별개이며, 등급 혜택도 스토어 정책과 각 쿠폰의 중복 사용 조건을 따릅니다.")}</p>
     {scope === 'selected_goods' ? <>
       <AdminField inputId="coupon-goods-query" label="대상 상품명·상품코드 검색" error={errors?.targetGoodIds}>

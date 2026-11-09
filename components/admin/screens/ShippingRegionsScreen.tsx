@@ -1,10 +1,10 @@
 'use client';
 
 import Link from 'next/link';
-import { TriangleAlert } from 'lucide-react';
 import { useState, useTransition } from 'react';
 import { saveShippingRegionPolicyAction, setShippingRegionPolicyStatusAction } from '@/app/admin/shipping-region-actions';
-import { AdminPageHeader, AdminSectionCard } from '../console/AdminKit';
+import { AdminPageHeader, AdminSectionCard, AdminNotice, AdminStatusBadge } from '../console/AdminKit';
+import { statusTone } from '@/lib/admin/status-tone';
 import type { GoodsFulfillmentOrigin } from '@/lib/admin/fulfillment-origins';
 import type { EditableCarrier } from '@/lib/admin/store-settings';
 import {
@@ -19,7 +19,7 @@ import { Input } from '@/components/admin/kit/ui/input';
 import { NativeSelect } from '@/components/admin/kit/ui/native-select';
 import { Textarea } from '@/components/admin/kit/ui/textarea';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/admin/kit/ui/table';
-import { ALERT_BOX, CHECK_LABEL, CHECK_LABEL_TOP, FIELD_LABEL, NOTE, STATUS_BOX, SUCCESS_BOX, TABLE_BOX, TSV_TEXTAREA } from '@/components/admin/settings-kit';
+import { CHECK_LABEL, CHECK_LABEL_TOP, FIELD_LABEL, NOTE, TABLE_BOX, TSV_TEXTAREA } from '@/components/admin/settings-kit';
 
 function koreaInput(value: string | null): string { return value ? new Date(Date.parse(value) + 9 * 3600000).toISOString().slice(0, 16) : ''; }
 function fromKoreaInput(value: string): string | null { return value ? new Date(`${value}:00+09:00`).toISOString() : null; }
@@ -116,7 +116,7 @@ function ShippingRegionEditor({ policy, initialCopy, origins, carriers, canEdit,
           <TableCell className="text-right tabular-nums">{rule.amount === null ? rule.disposition === 'surcharge' ? '미입력' : '해당 없음' : krw(rule.amount)}</TableCell></TableRow>)}</TableBody></Table>
         {parsed.rules.length > 50 ? <p className="border-t px-3 py-2 text-xs text-muted-foreground">앞의 50행을 표시합니다. 저장·서버 검증은 전체 {parsed.rules.length}행에 적용합니다.</p> : null}</div> : <p className={`mt-2 ${NOTE}`}>입력된 지역표가 없습니다.</p>}
     </details>
-    {!readOnly && problems.length > 0 ? <div className="rounded-lg border bg-muted/40 px-3 py-2.5 text-sm"><strong className="flex items-center gap-1.5 font-medium"><TriangleAlert aria-hidden="true" className="size-4 shrink-0 text-[var(--wc-warning)]" />활성화 전 확인</strong><ul className="mt-1 flex list-disc flex-col gap-1 pl-5">{problems.map((problem, index) => <li key={index}>{problem}</li>)}</ul></div> : null}
+    {!readOnly && problems.length > 0 ? <AdminNotice title="활성화 전 확인" tone="warning"><ul className="flex list-disc flex-col gap-1 pl-5">{problems.map((problem, index) => <li key={index}>{problem}</li>)}</ul></AdminNotice> : null}
     {!readOnly ? <>
       <Button className="w-fit" disabled={pending} onClick={save} type="button" variant="outline">초안 저장</Button>
       {policy && <>
@@ -131,7 +131,7 @@ function ShippingRegionEditor({ policy, initialCopy, origins, carriers, canEdit,
         <span>정책을 중단하면 적용할 다른 정책이 없는 출고지의 신규 주문이 차단됩니다. 기존 주문의 배송비는 그대로 보존됨을 확인했습니다.</span></label>
       <Button className="w-fit" disabled={pending || !attested} onClick={() => setStatus('retired')} type="button" variant="destructive">정책 중단</Button>
     </> : null}
-    {error ? <p className={ALERT_BOX} role="alert">{error}</p> : null}
+    {error ? <AdminNotice role="alert" tone="danger">{error}</AdminNotice> : null}
   </div>;
 }
 
@@ -150,7 +150,7 @@ export function ShippingRegionsScreen({ policies: initialPolicies, adoptions, or
   return <div className="flex min-w-0 flex-col gap-4" data-admin-screen="shipping-regions">
     <AdminPageHeader title="지역 추가 배송비" description="실제 물류사 회신을 출고지·계약 택배사·적용 기간별로 관리합니다. 확정된 정책만 배송지별 견적과 주문에 적용합니다." />
     <nav aria-label="배송 설정" className="flex flex-wrap gap-2"><Link className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" href="/admin/settings/origins">출고지·배송비</Link><Link className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" href="/admin/settings/carriers">택배사</Link></nav>
-    {message ? <p className={SUCCESS_BOX} role="status">{message}</p> : null}
+    {message ? <AdminNotice role="status" tone="success">{message}</AdminNotice> : null}
     <AdminSectionCard title="출고지별 등록 상태">
       <ul className="flex flex-col divide-y">{origins.map((origin) => {
         const adoption = adoptions.find((row) => row.originId === origin.id);
@@ -162,13 +162,13 @@ export function ShippingRegionsScreen({ policies: initialPolicies, adoptions, or
         지역 정책을 도입한 출고지는 정책 만료·중단·택배사 불일치 시 신규 주문을 차단합니다.</p>
     </AdminSectionCard>
     <AdminSectionCard title="정책 버전">
-      {policies.length ? <div className="flex flex-col gap-1.5">{policies.map((policy) => <Button className="h-auto min-h-8 justify-start py-1.5 text-left whitespace-normal [overflow-wrap:anywhere] aria-pressed:border-primary aria-pressed:bg-muted" key={policy.id} type="button" variant="outline"
+      {policies.length ? <div className="flex flex-col gap-1.5">{policies.map((policy) => <Button className="h-auto min-h-8 justify-start py-1.5 text-left whitespace-normal [overflow-wrap:anywhere] aria-pressed:border-primary aria-pressed:bg-primary-soft" key={policy.id} type="button" variant="outline"
         aria-pressed={selectedId === policy.id} onClick={() => { setSelectedId(policy.id); setCopy(null); setEditorKey((key) => key + 1); setMessage(null); }}>
-        {origins.find((origin) => origin.id === policy.originId)?.name} · {policy.name || '이름 미입력'} · 버전 {policy.version} · {STATUS_LABELS[policy.status]}
+        <span className="min-w-0">{origins.find((origin) => origin.id === policy.originId)?.name} · {policy.name || '이름 미입력'} · 버전 {policy.version}</span><AdminStatusBadge className="ml-auto" tone={statusTone('regionPolicy', policy.status)}>{STATUS_LABELS[policy.status]}</AdminStatusBadge>
       </Button>)}</div> : <p className={NOTE}>등록한 지역 정책이 없습니다. 실제 회신을 확보한 출고지부터 초안을 작성해주세요.</p>}
       {canEdit && <Button className="w-fit" onClick={() => { setSelectedId(null); setCopy(null); setEditorKey((key) => key + 1); }} type="button" variant="outline">새 정책 초안</Button>}
     </AdminSectionCard>
-    {(selected || canEdit) && <AdminSectionCard title={selected ? `${selected.name || '지역 정책'} · 버전 ${selected.version} · ${STATUS_LABELS[selected.status]}` : '새 정책 초안'}>
+    {(selected || canEdit) && <AdminSectionCard summary={selected ? <AdminStatusBadge tone={statusTone('regionPolicy', selected.status)}>{STATUS_LABELS[selected.status]}</AdminStatusBadge> : undefined} title={selected ? `${selected.name || '지역 정책'} · 버전 ${selected.version}` : '새 정책 초안'}>
       {selected?.confirmedAt ? <p className={NOTE}>원본 확인: {selected.confirmedBy} · {formatOrderDateTime(selected.confirmedAt)}</p> : null}
       {canEdit && selected && <Button className="w-fit" type="button" variant="outline" onClick={() => {
         const source = parseShippingRegionPolicyInput(selected)!;
@@ -176,7 +176,7 @@ export function ShippingRegionsScreen({ policies: initialPolicies, adoptions, or
         setSelectedId(null); setEditorKey((key) => key + 1); setMessage(null);
       }}>이 정책으로 새 버전 초안 만들기</Button>}
       <ShippingRegionEditor key={editorKey} policy={selected} initialCopy={copy} origins={origins} carriers={carriers} canEdit={canEdit} onSaved={saved} />
-      {copy ? <p className={STATUS_BOX}>이전 정책의 원본을 기준으로 새 정책을 입력해주세요. 실제 계약과 기간을 다시 확인해야 합니다.</p> : null}
+      {copy ? <AdminNotice tone="info">이전 정책의 원본을 기준으로 새 정책을 입력해주세요. 실제 계약과 기간을 다시 확인해야 합니다.</AdminNotice> : null}
     </AdminSectionCard>}
   </div>;
 }

@@ -16,7 +16,8 @@ import { Button } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
 import { NativeSelect } from '@/components/admin/kit/ui/native-select';
 import { Textarea } from '@/components/admin/kit/ui/textarea';
-import { ACTIONS, ALERT_BOX, FIELD_ERROR, FIELD_HINT, FIELD_LABEL, INFO_PANEL, NOTE, STATUS_BOX } from '@/components/admin/settings-kit';
+import { ACTIONS, FIELD_ERROR, FIELD_HINT, FIELD_LABEL, INFO_PANEL, NOTE } from '@/components/admin/settings-kit';
+import { AdminNotice } from '@/components/admin/console/AdminKit';
 
 export function ShippingSettingsTemplateForm({ template, newId, origins, regions, identity, scope, onClose, onSaved }: {
   template?: ShippingSettingsTemplate; newId?: string; origins: GoodsFulfillmentOrigin[]; regions: GoodShippingRegionSummary[];
@@ -126,8 +127,8 @@ export function ShippingSettingsTemplateForm({ template, newId, origins, regions
           <p>제한 사유와 적용 조건: {latest.settings.claimPolicy.restrictionReason ?? '미입력'}</p></> : <p>아직 저장된 템플릿이 없습니다.</p>}
         <Button className="w-fit" disabled={locked} onClick={() => { setRevision(latest?.revision ?? 0); setNeedsRefresh(false); setLatest(undefined); setNotice('현재 입력을 유지하고 최신 버전을 저장 기준으로 선택했습니다.'); }} size="sm" type="button">내 입력 유지 · 최신 버전을 저장 기준으로</Button>
       </div> : null}
-      {errors.form || operation.error ? <p role="alert" className={ALERT_BOX}>{errors.form || operation.error}</p> : null}
-      {notice || operation.message ? <p className={STATUS_BOX} role="status">{notice || operation.message}</p> : null}
+      {errors.form || operation.error ? <AdminNotice role="alert" tone="danger">{errors.form || operation.error}</AdminNotice> : null}
+      {notice || operation.message ? <AdminNotice role="status" tone="neutral">{notice || operation.message}</AdminNotice> : null}
       {operation.context ? <div className={INFO_PANEL}><strong className="font-medium">진행한 요청의 결과를 먼저 확인해주세요.</strong><p className="text-muted-foreground">이 탭에는 요청번호와 저장 기준만 보관합니다. 새로고침 후에는 결과 확인 또는 미처리 요청 종료만 할 수 있습니다.</p>
         <div className={ACTIONS}><Button disabled={pending} onClick={() => { void operation.recover(); }} type="button">저장 결과 확인</Button>
           {operation.canRetry ? <Button disabled={pending} onClick={() => { void operation.retry(); }} type="button" variant="outline">같은 입력으로 재시도</Button> : null}

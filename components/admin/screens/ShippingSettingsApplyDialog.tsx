@@ -19,7 +19,8 @@ import { ConsolePagination } from '@/components/admin/console/ConsolePagination'
 import { Button } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/admin/kit/ui/table';
-import { ACTIONS, ALERT_BOX, FIELD_HINT, INFO_PANEL, NOTE, STATUS_BOX, TABLE_SCROLL } from '@/components/admin/settings-kit';
+import { ACTIONS, FIELD_HINT, INFO_PANEL, NOTE, TABLE_SCROLL } from '@/components/admin/settings-kit';
+import { AdminNotice } from '@/components/admin/console/AdminKit';
 
 function PolicySummary({ settings, effective, origins }: { settings: ShippingSettings; effective: ShippingSettingsEffective; origins: GoodsFulfillmentOrigin[] }) {
   const flag = (value: boolean | null) => value === null ? '미검토' : value ? '기본 정책에 따라 가능' : '제한 사유 개별 확인';
@@ -119,7 +120,7 @@ export function ShippingSettingsApplyDialog({ template, origins, identity, scope
     <div className="flex min-w-0 flex-col gap-4" data-shipping-apply="">
       <p><strong className="font-medium">{preview?.template.name ?? template.name}</strong> · 버전 {preview?.template.revision ?? template.revision}</p>
       {!preview ? <>
-        <form className="flex flex-wrap items-end gap-2" onSubmit={event => { event.preventDefault(); void search(1); }}><label className="flex min-w-[min(100%,16rem)] flex-1 flex-col gap-1.5 text-sm font-medium [&_input]:font-normal" htmlFor="shipping-settings-good-query">상품명·판매자상품코드·상품번호<Input id="shipping-settings-good-query" value={query} maxLength={100} disabled={locked} onChange={event => setQuery(event.target.value)} /></label><Button disabled={locked} type="submit"><Search aria-hidden="true" />검색</Button></form>
+        <form className="flex flex-wrap items-end gap-2" onSubmit={event => { event.preventDefault(); void search(1); }}><label className="flex min-w-[min(100%,16rem)] flex-1 flex-col gap-1.5 text-sm font-medium [&_input]:font-normal" htmlFor="shipping-settings-good-query">상품명·판매자상품코드·상품번호<Input id="shipping-settings-good-query" value={query} maxLength={100} disabled={locked} onChange={event => setQuery(event.target.value)} /></label><Button disabled={locked} type="submit" variant="soft"><Search aria-hidden="true" />검색</Button></form>
         <p className={NOTE}>선택 {selected.length}개 / 최대 {SHIPPING_SETTINGS_GOOD_LIMIT}개 · 조회 {candidates?.total.toLocaleString('ko-KR') ?? '—'}개</p>
         <p className={NOTE}>합산군 원상품이 관리하는 다른 상품은 직접 선택하지 않습니다. 원상품이나 합산군 전체를 자동으로 추가하지 않습니다.</p>
         {selected.length ? <div className="flex max-h-30 flex-wrap gap-1.5 overflow-auto">{selected.map(good => <Button key={good.id} aria-label={`${good.name} 선택 해제`} disabled={locked} onClick={() => toggle(good)} size="xs" type="button" variant="outline">{good.name}<X aria-hidden="true" /></Button>)}</div> : null}
@@ -143,12 +144,12 @@ export function ShippingSettingsApplyDialog({ template, origins, identity, scope
           <TableHead className="h-auto py-3 align-top whitespace-normal" scope="row">{good.name}<small className={`mt-1 block ${FIELD_HINT}`}>{good.code}</small>{good.familyGoodIds.length > 1 ? <small className={`mt-1 block ${FIELD_HINT}`}>확장 배송 정책 공유 {good.familyGoodIds.length}개 상품</small> : null}{good.blocker ? <small className="mt-1 block text-xs font-normal text-destructive">{blockerText[good.blocker]}{good.ownerGoodId !== good.id ? <Link className="font-medium underline underline-offset-4" href={`/admin/catalog/goods?goodId=${encodeURIComponent(good.ownerGoodId)}`}> 원상품 확인</Link> : null}</small> : null}</TableHead>
           <TableCell className="align-top whitespace-normal"><PolicySummary settings={good.before} effective={good.effectiveBefore} origins={origins} /></TableCell><TableCell className="align-top whitespace-normal"><PolicySummary settings={good.after} effective={good.effectiveAfter} origins={origins} /></TableCell>
         </TableRow>)}</TableBody></Table></div>
-        {!preview.canApply ? <p role="alert" className={ALERT_BOX}>적용할 수 없는 상품이 있어 전체 적용을 중단했습니다. 표시된 조건을 확인하고 상품을 다시 선택해주세요.</p> : null}
+        {!preview.canApply ? <AdminNotice role="alert" tone="danger">적용할 수 없는 상품이 있어 전체 적용을 중단했습니다. 표시된 조건을 확인하고 상품을 다시 선택해주세요.</AdminNotice> : null}
         <p className={NOTE}>미리보기 후 상품·원상품·템플릿·출고지·묶음그룹 배정과 버전 또는 착불·수령 조건이 바뀌면 전체 적용을 중단합니다.</p>
       </>}
       {pending || operation.busy ? <p className="text-sm text-muted-foreground" role="status">처리 중입니다.</p> : null}
-      {error || operation.error ? <p role="alert" className={ALERT_BOX}>{error || operation.error}</p> : null}
-      {message || operation.message ? <p className={STATUS_BOX} role="status">{message || operation.message}</p> : null}
+      {error || operation.error ? <AdminNotice role="alert" tone="danger">{error || operation.error}</AdminNotice> : null}
+      {message || operation.message ? <AdminNotice role="status" tone="neutral">{message || operation.message}</AdminNotice> : null}
       {operation.context ? <div className={INFO_PANEL}><strong className="font-medium">같은 요청의 결과를 먼저 확인해주세요.</strong><p className="text-muted-foreground">새로고침 후에도 요청번호만 남습니다. 조회 결과가 없으면 미처리 요청을 종료한 뒤 새 미리보기를 만드세요.</p>
         <div className={ACTIONS}><Button disabled={pending || operation.busy} onClick={() => { void operation.recover(); }} type="button">저장 결과 확인</Button>
           {operation.canRetry ? <Button disabled={pending || operation.busy} onClick={() => { void operation.retry(); }} type="button" variant="outline">같은 입력으로 재시도</Button> : null}

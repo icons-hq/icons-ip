@@ -18,7 +18,8 @@ import { Button } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
 import { NativeSelect } from '@/components/admin/kit/ui/native-select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/admin/kit/ui/table';
-import { ACTIONS, ALERT_BOX, FIELD_HINT, FIELD_LABEL, INFO_PANEL, NOTE, STATUS_BOX, TABLE_SCROLL } from '@/components/admin/settings-kit';
+import { ACTIONS, FIELD_HINT, FIELD_LABEL, INFO_PANEL, NOTE, TABLE_SCROLL } from '@/components/admin/settings-kit';
+import { AdminNotice } from '@/components/admin/console/AdminKit';
 
 const blockerText: Record<ShippingChargeGroupBlocker, string> = {
   goods_aggregation_policy_owned_by_source: '합산군 원상품에서 배정을 관리합니다.',
@@ -124,7 +125,7 @@ export function ShippingChargeGroupAssignmentDialog({ group, identity, scope, ca
         <form className="grid min-w-0 grid-cols-1 items-end gap-3 rounded-lg border bg-muted/40 p-3 sm:grid-cols-[minmax(10rem,1fr)_minmax(14rem,2fr)_auto]" onSubmit={event => { event.preventDefault(); void search({ originId: group.originId, groupId: onlyAssigned ? group.id : null, query: query.trim(), page: 1 }); }}>
           <label className={FIELD_LABEL}>조회 범위<NativeSelect className="w-full" value={onlyAssigned ? 'assigned' : 'all'} disabled={locked} onChange={event => setOnlyAssigned(event.target.value === 'assigned')}><option value="assigned">현재 그룹에 연결된 상품</option><option value="all">같은 출고지의 전체 상품</option></NativeSelect></label>
           <label className={FIELD_LABEL}>상품명·상품코드·상품번호<Input value={query} maxLength={100} disabled={locked} onChange={event => setQuery(event.target.value)} /></label>
-          <Button disabled={locked} type="submit"><Search aria-hidden="true" />상품 조회</Button>
+          <Button disabled={locked} type="submit" variant="soft"><Search aria-hidden="true" />상품 조회</Button>
         </form>
         <p className={NOTE}>선택 {selected.length}개 / 최대 {SHIPPING_CHARGE_GROUP_GOOD_LIMIT}개 · 조회 {rows?.total.toLocaleString('ko-KR') ?? '—'}개 · 선택은 조회 범위를 바꾸어도 유지됩니다.</p>
         {selected.length ? <div className="flex max-h-30 flex-wrap gap-1.5 overflow-auto">{selected.map(good => <Button key={good.id} aria-label={`${good.name} 선택 해제`} disabled={locked || !canEdit} onClick={() => toggle(good)} size="xs" type="button" variant="outline">{good.name}<X aria-hidden="true" /></Button>)}</div> : null}
@@ -149,12 +150,12 @@ export function ShippingChargeGroupAssignmentDialog({ group, identity, scope, ca
           <TableHead className="h-auto py-3 align-top whitespace-normal [overflow-wrap:anywhere]" scope="row">{good.name}<small className={`mt-1 block ${FIELD_HINT}`}>{good.code ?? good.id} · 합산군 {good.effectiveCount}개</small>{good.blocker ? <small className="mt-1 block text-xs font-normal text-destructive">{blockerText[good.blocker]}</small> : null}</TableHead>
           <TableCell className="align-top whitespace-normal"><ShippingChargeGroupSummary group={good.beforeGroup} /></TableCell><TableCell className="align-top whitespace-normal"><ShippingChargeGroupSummary group={good.afterGroup} /></TableCell>
         </TableRow>)}</TableBody></Table></div>
-        {!preview.canAssign || !input ? <p className={ALERT_BOX} role="alert">적용할 수 없는 상품이나 저장 기준이 있어 전체 적용을 중단했습니다. 조건을 확인한 뒤 다시 선택해주세요.</p> : null}
+        {!preview.canAssign || !input ? <AdminNotice role="alert" tone="danger">적용할 수 없는 상품이나 저장 기준이 있어 전체 적용을 중단했습니다. 조건을 확인한 뒤 다시 선택해주세요.</AdminNotice> : null}
       </>}
       {reading || operation.busy ? <p className="text-sm text-muted-foreground" role="status">처리 중입니다.</p> : null}
-      {otherPending ? <p className={ALERT_BOX} role="alert">다른 묶음그룹 요청의 결과를 먼저 확인해주세요. 이 창을 닫고 목록에서 원래 요청을 확인할 수 있습니다.</p> : null}
-      {error || operation.error ? <p className={ALERT_BOX} role="alert">{error || operation.error}</p> : null}
-      {message || operation.message ? <p className={STATUS_BOX} role="status">{message || operation.message}</p> : null}
+      {otherPending ? <AdminNotice role="alert" tone="danger">다른 묶음그룹 요청의 결과를 먼저 확인해주세요. 이 창을 닫고 목록에서 원래 요청을 확인할 수 있습니다.</AdminNotice> : null}
+      {error || operation.error ? <AdminNotice role="alert" tone="danger">{error || operation.error}</AdminNotice> : null}
+      {message || operation.message ? <AdminNotice role="status" tone="neutral">{message || operation.message}</AdminNotice> : null}
       {operation.context ? <div className={INFO_PANEL}><strong className="font-medium">같은 요청의 배정 결과를 확인해주세요.</strong><p className="text-muted-foreground">상품 목록과 지역 설정 원문을 보관하거나 재전송하지 않습니다. 저장 결과가 없으면 미처리 요청을 종료하고 새 미리보기를 만드세요.</p>
         <div className={ACTIONS}><Button disabled={reading || operation.busy} onClick={() => { void operation.recover(); }} type="button">저장 결과 확인</Button><Button disabled={reading || operation.busy || !canEdit} onClick={() => { void operation.recover(true); }} type="button" variant="outline">미처리 요청 종료</Button></div></div> : null}
       <div className={`${ACTIONS} border-t pt-4`}>{preview ? <><Button disabled={locked || !canEdit || !preview.canAssign || !input} onClick={apply} type="button">{preview.goods.length}개 원상품에 적용</Button>

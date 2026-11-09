@@ -1,7 +1,7 @@
 'use client';
 import Link from 'next/link';
 import { useRef, useState } from 'react';
-import { AdminPageHeader, AdminSectionCard } from '../console/AdminKit';
+import { AdminPageHeader, AdminSectionCard, AdminNotice } from '../console/AdminKit';
 import { Button } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
 import { saveDetailExperienceAction, type ExperienceSaveResult } from '@/app/admin/product-detail-experience-actions';
@@ -44,7 +44,7 @@ function ExperienceForm({ snapshot, section }: { snapshot: DetailExperienceSnaps
     else { setValues(current => ({ ...current, [section]: result.values })); setRevision(result.revision); request.current = null; setUncertain(false); setError(false); setMessage('저장했습니다. 상품상세에 적용되었습니다.'); }
   }
   return <form className="flex min-w-0 flex-col gap-4" onSubmit={event => { event.preventDefault(); void save(); }}>
-    {snapshot.unavailable ? <p className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2.5 text-sm text-destructive" role="alert">현재 설정을 불러오지 못했습니다. 새로고침 후 다시 확인해주세요.</p> : null}
+    {snapshot.unavailable ? <AdminNotice role="alert" tone="danger">현재 설정을 불러오지 못했습니다. 새로고침 후 다시 확인해주세요.</AdminNotice> : null}
     <AdminSectionCard title={section === 'messages' ? '구매유도 메시지' : '배송비·관심상품'}>
       <fieldset disabled={pending || uncertain || snapshot.unavailable} className="grid min-w-0 gap-5">
         {section === 'messages' ? <>
@@ -63,6 +63,6 @@ function ExperienceForm({ snapshot, section }: { snapshot: DetailExperienceSnaps
         </>}
       </fieldset>
     </AdminSectionCard>
-    <div className="flex flex-col items-stretch justify-end gap-3 sm:flex-row sm:items-center">{message ? <p className={`text-sm sm:mr-auto ${error ? 'text-destructive' : 'text-[var(--wc-success)]'}`} role={error ? 'alert' : 'status'}>{message}</p> : null}<Button type="submit" disabled={pending || Boolean(snapshot.unavailable)}>{pending ? '저장 중…' : uncertain ? '같은 요청 결과 확인' : '설정 저장'}</Button></div>
+    <div className="flex flex-col items-stretch justify-end gap-3 sm:flex-row sm:items-center">{message ? <p className={`text-sm sm:mr-auto ${error ? 'text-destructive' : 'text-success'}`} role={error ? 'alert' : 'status'}>{message}</p> : null}<Button type="submit" disabled={pending || Boolean(snapshot.unavailable)}>{pending ? '저장 중…' : uncertain ? '같은 요청 결과 확인' : '설정 저장'}</Button></div>
   </form>;
 }

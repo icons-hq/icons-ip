@@ -3,7 +3,8 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { Plus } from 'lucide-react';
-import { AdminPageHeader } from '@/components/admin/console/AdminKit';
+import { AdminPageHeader, AdminNotice, AdminStatusBadge } from '@/components/admin/console/AdminKit';
+import { statusTone } from '@/lib/admin/status-tone';
 import { CONSOLE_FILTER_CARD_CLASS, CONSOLE_FILTER_FIELDS_CLASS, ConsoleFilterActions, ConsoleFilterField } from '@/components/admin/console/ConsoleFilterPanel';
 import { CONSOLE_LIST_EMPTY_CLASS, CONSOLE_TABLE_FRAME_CLASS, ConsoleListCard, ConsoleTableHeader } from '@/components/admin/console/ConsoleListCard';
 import { ConsolePagination } from '@/components/admin/console/ConsolePagination';
@@ -11,7 +12,7 @@ import { Button, buttonVariants } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
 import { NativeSelect } from '@/components/admin/kit/ui/native-select';
 import { Table, TableBody, TableCell, TableHead, TableRow } from '@/components/admin/kit/ui/table';
-import { ACTIONS, ALERT_BOX, FIELD_HINT, INFO_PANEL, NOTE, STATUS_BOX } from '@/components/admin/settings-kit';
+import { ACTIONS, FIELD_HINT, INFO_PANEL, NOTE } from '@/components/admin/settings-kit';
 import type { GoodsFulfillmentOrigin } from '@/lib/admin/fulfillment-origins';
 import type { GoodShippingRegionSummary } from '@/lib/admin/good-shipping-summary';
 import { SHIPPING_SETTINGS_PATH, shippingSettingsFeeLabel, shippingSettingsHref, type ShippingSettingsIdentity, type ShippingSettingsListData, type ShippingSettingsOperationContext, type ShippingSettingsOperationReceipt, type ShippingSettingsTemplate } from '@/lib/admin/shipping-settings-templates';
@@ -31,7 +32,7 @@ function PendingOperation({ context, identity, scope, onReceipt }: { context: Sh
     <p className="text-muted-foreground tabular-nums">템플릿 {context.templateId} · 기준 버전 {context.expectedRevision}</p>
     <div className={ACTIONS}><Button disabled={operation.busy} onClick={() => { void operation.recover(); }} size="sm" type="button">저장 결과 확인</Button>
       <Button disabled={operation.busy} onClick={() => { void operation.recover(true); }} size="sm" type="button" variant="outline">미처리 요청 종료</Button></div>
-    {operation.error ? <p className={ALERT_BOX} role="alert">{operation.error}</p> : null}{operation.message ? <p className={STATUS_BOX} role="status">{operation.message}</p> : null}
+    {operation.error ? <AdminNotice role="alert" tone="danger">{operation.error}</AdminNotice> : null}{operation.message ? <AdminNotice role="status" tone="neutral">{operation.message}</AdminNotice> : null}
   </div>;
 }
 export function ShippingSettingsTemplatesScreen({ data, origins, regions, accountId, initialGoodIds = [] }: { data: ShippingSettingsListData; origins: GoodsFulfillmentOrigin[]; regions: GoodShippingRegionSummary[]; accountId: string; initialGoodIds?: string[] }) {
@@ -44,16 +45,16 @@ export function ShippingSettingsTemplatesScreen({ data, origins, regions, accoun
   return <div className="flex min-w-0 flex-col gap-4" data-admin-screen="shipping-templates">
     <AdminPageHeader title="배송정보 템플릿 관리" description="출고지·배송비·수령 방식·설치비·반품 및 교환 조건을 저장하고 선택한 상품에 적용합니다." actions={<Button disabled={!canEdit} onClick={() => { if (canEdit) { setMessage(''); setEditor({ owner: identityKey, newId: crypto.randomUUID() }); } }} type="button"><Plus aria-hidden="true" />템플릿 등록</Button>} />
     <nav aria-label="배송 설정 관련 관리" className="flex flex-wrap gap-2"><Link className={RELATED_LINK} data-slot="button" href="/admin/settings/origins">출고지·배송정보 관리</Link><Link className={RELATED_LINK} data-slot="button" href="/admin/settings/shipping-regions">지역별 추가배송비 관리</Link><Link className={RELATED_LINK} data-slot="button" href="/admin/settings/shipping-notices">배송 안내 템플릿 관리</Link></nav>
-    {initialGoodIds.length ? <p className={STATUS_BOX} role="status">상품 목록에서 선택한 {initialGoodIds.length}개 상품에 적용할 템플릿을 선택해주세요. <Link className="font-medium underline underline-offset-4" href={SHIPPING_SETTINGS_PATH}>상품 선택 취소</Link></p> : null}
+    {initialGoodIds.length ? <AdminNotice role="status" tone="neutral">상품 목록에서 선택한 {initialGoodIds.length}개 상품에 적용할 템플릿을 선택해주세요. <Link className="font-medium underline underline-offset-4" href={SHIPPING_SETTINGS_PATH}>상품 선택 취소</Link></AdminNotice> : null}
     <form action={SHIPPING_SETTINGS_PATH} className={CONSOLE_FILTER_CARD_CLASS}>{initialGoodIds.length ? <input type="hidden" name="goods" value={initialGoodIds.join(',')} /> : null}
       <div className={CONSOLE_FILTER_FIELDS_CLASS}>
         <ConsoleFilterField className="min-w-[min(100%,18rem)] flex-1" htmlFor="shipping-template-query" label="템플릿 이름"><Input id="shipping-template-query" name="q" defaultValue={data.filters.query} maxLength={80} type="search" placeholder="템플릿 이름을 입력해주세요" /></ConsoleFilterField>
         <ConsoleFilterField htmlFor="shipping-template-state" label="사용 여부"><NativeSelect className="w-36" id="shipping-template-state" name="state" defaultValue={data.filters.state}><option value="all">전체</option><option value="enabled">사용</option><option value="disabled">사용 안 함</option></NativeSelect></ConsoleFilterField>
       </div>
-      <ConsoleFilterActions><Link className={buttonVariants({ variant: 'outline' })} data-slot="button" href={withSelection(SHIPPING_SETTINGS_PATH)}>초기화</Link><button className={buttonVariants()} data-slot="button" type="submit">검색</button></ConsoleFilterActions>
+      <ConsoleFilterActions><Link className={buttonVariants({ variant: 'outline' })} data-slot="button" href={withSelection(SHIPPING_SETTINGS_PATH)}>초기화</Link><button className={buttonVariants({ variant: 'soft' })} data-slot="button" type="submit">검색</button></ConsoleFilterActions>
     </form>
-    {message ? <p className={STATUS_BOX} role="status">{message}</p> : null}
-    {blocked ? <p className={ALERT_BOX} role="alert">로그인 계정 또는 세션이 바뀌었습니다. 현재 계정으로 이 화면을 다시 열어주세요.</p> : null}
+    {message ? <AdminNotice role="status" tone="neutral">{message}</AdminNotice> : null}
+    {blocked ? <AdminNotice role="alert" tone="danger">로그인 계정 또는 세션이 바뀌었습니다. 현재 계정으로 이 화면을 다시 열어주세요.</AdminNotice> : null}
     {identity ? pending.map(context => <PendingOperation key={context.operationId} context={context} identity={identity} scope={scope} onReceipt={receipt => {
       setMessage(receipt.state === 'sealed' ? '미처리 요청을 종료했습니다. 최신 내용을 확인하고 다시 진행해주세요.'
         : receipt.state === 'saved' ? `‘${receipt.template?.name}’ 버전 ${receipt.template?.revision}의 저장 결과를 확인했습니다.` : `${receipt.appliedCount}개 상품의 적용 결과를 확인했습니다.`);
@@ -61,7 +62,7 @@ export function ShippingSettingsTemplatesScreen({ data, origins, regions, accoun
     }} />) : null}
     <ConsoleListCard data-shipping-templates="" title="배송정보 템플릿" total={data.total} unit="개" actions={<span className="text-xs text-muted-foreground">최근 수정순 · 20개씩 보기</span>}>
       <div aria-label="배송정보 템플릿 목록 가로 스크롤" className={`${CONSOLE_TABLE_FRAME_CLASS} max-h-[28.75rem] overflow-y-auto [&>[data-slot=table-container]]:overflow-visible`} role="region" tabIndex={0}>
-        <Table className="min-w-[42.5rem]"><caption className="sr-only">배송정보 템플릿 목록</caption><ConsoleTableHeader><TableRow className="hover:bg-transparent"><TableHead>템플릿 이름</TableHead><TableHead>사용 여부</TableHead><TableHead>출고지</TableHead><TableHead>저장된 배송비 조건</TableHead><TableHead>버전</TableHead><TableHead>관리</TableHead></TableRow></ConsoleTableHeader><TableBody>{data.rows.map(template => <TableRow key={template.id}><TableHead className="h-auto py-3 align-top whitespace-normal" scope="row">{template.name}</TableHead><TableCell className="align-top">{template.enabled ? '사용' : '사용 안 함'}</TableCell><TableCell className="align-top whitespace-normal">{origins.find(origin => origin.id === template.settings.originId)?.name ?? '출고지 확인 필요'}</TableCell>
+        <Table className="min-w-[42.5rem]"><caption className="sr-only">배송정보 템플릿 목록</caption><ConsoleTableHeader><TableRow className="hover:bg-transparent"><TableHead>템플릿 이름</TableHead><TableHead>사용 여부</TableHead><TableHead>출고지</TableHead><TableHead>저장된 배송비 조건</TableHead><TableHead>버전</TableHead><TableHead>관리</TableHead></TableRow></ConsoleTableHeader><TableBody>{data.rows.map(template => <TableRow key={template.id}><TableHead className="h-auto py-3 align-top whitespace-normal" scope="row">{template.name}</TableHead><TableCell className="align-top"><AdminStatusBadge tone={statusTone('setting', template.enabled ? 'active' : 'inactive')}>{template.enabled ? '사용' : '사용 안 함'}</AdminStatusBadge></TableCell><TableCell className="align-top whitespace-normal">{origins.find(origin => origin.id === template.settings.originId)?.name ?? '출고지 확인 필요'}</TableCell>
           <TableCell className="min-w-56 align-top whitespace-normal">{template.settings.delivery?.mode === 'replace' ? <ShippingSettingsDeliverySummary effective={{ ...template.settings, chargeGroup: undefined, fulfillment: undefined, delivery: template.settings.delivery.policy }} />
             : <>{shippingSettingsFeeLabel(template.settings)} · 기본 설정<small className={`mt-1 block ${FIELD_HINT}`}>상품의 기존 수량별·착불 설정 유지 · 실제 운임 규칙은 적용 미리보기에서 확인</small></>}
             <ShippingSettingsFulfillmentDirective value={template.settings.fulfillment} />

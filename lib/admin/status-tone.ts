@@ -56,6 +56,16 @@ const STATUS_TONES = {
   // [cs]
   // [catalog]
   // [ops]
+  /** 쿠폰 혜택상태(lib/admin/coupons couponPhase) — 중지는 coupon.archived(보관)와 같은 색이다. */
+  couponPhase: { scheduled: 'info', live: 'success', ended: 'neutral', stopped: 'neutral' },
+  /** 쿠폰 지정 발급 작업 */
+  couponIssue: { prepared: 'info', invalid: 'warning', completed: 'success', failed: 'danger' },
+  /** 설정 항목(출고지·배송비 묶음그룹·템플릿 등)의 사용 상태 */
+  setting: { active: 'success', inactive: 'neutral', archived: 'neutral' },
+  /** 지역 추가 배송비 정책 버전 */
+  regionPolicy: { draft: 'neutral', active: 'success', retired: 'neutral' },
+  /** 적립금 일괄 지급 작업 */
+  creditBatch: { prepared: 'warning', invalid: 'warning', completed: 'success', failed: 'danger' },
 } as const satisfies Record<string, Record<string, AdminTone>>;
 
 export type AdminStatusDomain = keyof typeof STATUS_TONES;

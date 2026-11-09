@@ -101,7 +101,7 @@ function DetailForm({ snapshot, section, goods, categories }: {
         </div> : <div className="grid gap-2 text-[13px] [&>div]:rounded-lg [&>div]:border [&>div]:p-4 [&_small]:mt-1.5 [&_small]:block [&_small]:text-muted-foreground"><div>상품 대표이미지·구매 영역</div>{values.modules.reviewSummary ? <div>4점 이상 리뷰 비율·리뷰 카드</div> : null}{values.otherComposition.enabled ? <div>다른 구성도 살펴보세요<small>공개된 다른 구성 상품과 선택적 구성 표시값</small></div> : null}<div>수동 연관상품 편성</div>{DETAIL_MODULE_KEYS.filter(key => key !== 'reviewSummary' && values.modules[key]).map(key => <div key={key}>{moduleCopy[key].title}<small>현재 노출 가능한 후보가 있을 때 표시</small></div>)}<div>상세정보·리뷰·문의·배송 안내</div></div>}
       </aside>
     </div>
-    <div className="flex flex-col items-stretch justify-end gap-3 sm:flex-row sm:items-center">{message ? <p className={`text-sm sm:mr-auto ${error ? 'text-destructive' : 'text-[var(--wc-success)]'}`} role={error ? 'alert' : 'status'}>{message}</p> : null}<Button type="submit" disabled={pending}>{pending ? '저장 중…' : uncertain ? '같은 요청 결과 확인' : '설정 저장'}</Button></div>
+    <div className="flex flex-col items-stretch justify-end gap-3 sm:flex-row sm:items-center">{message ? <p className={`text-sm sm:mr-auto ${error ? 'text-destructive' : 'text-success'}`} role={error ? 'alert' : 'status'}>{message}</p> : null}<Button type="submit" disabled={pending}>{pending ? '저장 중…' : uncertain ? '같은 요청 결과 확인' : '설정 저장'}</Button></div>
     <p className={NOTE}>띠배너, 리뷰·자동 추천, 다른 구성 추천은 각각 저장합니다. 후보가 없거나 조건에 맞지 않는 영역은 공개 화면에서 숨깁니다.</p>
   </form>;
 }

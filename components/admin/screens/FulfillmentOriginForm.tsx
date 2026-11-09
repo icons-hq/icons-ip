@@ -2,7 +2,7 @@
 import { useActionState, useState } from 'react';
 import { Check } from 'lucide-react';
 import { saveFulfillmentOriginAction, type FulfillmentActionState } from '@/app/admin/fulfillment-actions';
-import { AdminField, AdminFormGrid } from '../console/AdminKit';
+import { AdminField, AdminFormGrid, AdminNotice } from '../console/AdminKit';
 import { Button } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
 import { NativeSelect } from '@/components/admin/kit/ui/native-select';
@@ -22,7 +22,7 @@ export function FulfillmentOriginForm({ origin, carriers, canEdit }: { origin?: 
   function input(name: string, label: string, type = 'text', hint?: string) {
     const id = `${prefix}-${name}`;
     return <AdminField key={name} inputId={id} label={label} hint={hint} error={state.errors?.[name]}>
-      <Input id={id} name={name} type={type} defaultValue={field(name)} readOnly={name === 'code' && Boolean(origin)}
+      <Input className={name === 'code' && origin ? 'border-dashed bg-muted text-muted-foreground' : undefined} id={id} name={name} type={type} defaultValue={field(name)} readOnly={name === 'code' && Boolean(origin)}
         aria-invalid={Boolean(state.errors?.[name])} aria-describedby={state.errors?.[name] ? `${id}-error` : hint ? `${id}-hint` : undefined}
         {...(type === 'number' ? { min: 0, step: 1 } : {})} />
     </AdminField>;
@@ -31,6 +31,8 @@ export function FulfillmentOriginForm({ origin, carriers, canEdit }: { origin?: 
     <fieldset disabled={pending || !canEdit} key={state.attempt ?? 0} className="m-0 flex min-w-0 flex-col gap-4 border-0 p-0">
       <input type="hidden" name="id" value={origin?.id ?? ''} />
       <input type="hidden" name="updatedAt" value={state.values?.updatedAt ?? state.updatedAt ?? initialStamp} />
+      {!origin ? <AdminNotice title="출고지 코드는 등록 후 바꿀 수 없습니다" tone="warning">저장하기 전에 코드를 다시 확인해주세요.</AdminNotice> : null}
+      {origin && !origin.returnAddress ? <AdminNotice title="반품 주소를 입력해주세요" tone="warning">반품 주소가 없으면 이 출고지 상품의 반품을 진행할 수 없습니다.</AdminNotice> : null}
       <AdminFormGrid>
         {input('code', '출고지 코드', 'text', '등록 후 바꿀 수 없습니다.')}
         {input('name', '출고지 이름')}
@@ -52,8 +54,8 @@ export function FulfillmentOriginForm({ origin, carriers, canEdit }: { origin?: 
           <NativeSelect className="w-full" id={`${prefix}-active`} name="active" defaultValue={field('active')}><option value="false">비활성</option><option value="true">사용</option></NativeSelect>
         </AdminField>
       </AdminFormGrid>
-      {state.errors?.form ? <p className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2.5 text-sm text-destructive" role="alert">{state.errors.form}</p> : null}
-      {state.message ? <p className="rounded-lg border bg-muted/40 px-3 py-2.5 text-sm font-medium text-[var(--wc-success)]" role="status">{state.message}</p> : null}
+      {state.errors?.form ? <AdminNotice role="alert" tone="danger">{state.errors.form}</AdminNotice> : null}
+      {state.message ? <AdminNotice role="status" tone="success">{state.message}</AdminNotice> : null}
       {canEdit ? <Button className="w-fit" type="submit"><Check aria-hidden="true" />{pending ? '저장 중…' : '출고지 저장'}</Button> : null}
     </fieldset>
   </form>;

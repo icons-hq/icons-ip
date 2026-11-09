@@ -1,7 +1,7 @@
-import { StatsComparison } from '@/components/admin/StatsComparison';
+import { StatsComparison, StatsRateChange } from '@/components/admin/StatsComparison';
 import { adminSalesTrend } from '@/lib/admin/stats';
 import { StatsRangeTabs } from '@/components/admin/StatsRangeTabs';
-import { STATS_NOTE, StatsSection, StatsSummaryGrid, StatsSummaryTile } from '@/components/admin/StatsSummary';
+import { STATS_NOTE, StatsChangeBadge, StatsSection, StatsSummaryGrid, StatsSummaryTile, statsChangeDirection, statsDateLabel } from '@/components/admin/StatsSummary';
 import { ConsoleGrid, type ConsoleGridColumn } from '@/components/admin/console';
 import {
   adminPercentLabel,
@@ -37,15 +37,18 @@ export function StatsCustomersScreen({
   now?: Date;
   comparison?: AdminCustomerReport | null;
 }) {
+  const repeatRate = adminRepeatRate(data.repeatBuyerCount, data.buyerCount);
+  const previousRepeatRate = comparison ? adminRepeatRate(comparison.repeatBuyerCount, comparison.buyerCount) : null;
+  const repeatRateChange = repeatRate !== null && previousRepeatRate !== null ? Math.round((repeatRate - previousRepeatRate) * 10) / 10 : null;
   return (
     <div className="flex min-w-0 flex-col gap-4" data-stats-screen="customers">
       <StatsRangeTabs base="/admin/stats/customers" filters={filters} now={now} />
 
       <StatsSummaryGrid>
-        <StatsSummaryTile label="신규 가입" value={data.signupTotal.toLocaleString('ko-KR')} />
-        <StatsSummaryTile label="구매 고객" value={data.buyerCount.toLocaleString('ko-KR')} />
-        <StatsSummaryTile label="기간 내 재구매" value={data.repeatBuyerCount.toLocaleString('ko-KR')} />
-        <StatsSummaryTile label="기간 내 재구매율" value={adminPercentLabel(adminRepeatRate(data.repeatBuyerCount, data.buyerCount))} />
+        <StatsSummaryTile label="신규 가입" value={data.signupTotal.toLocaleString('ko-KR')}>{comparison ? <StatsRateChange current={data.signupTotal} previous={comparison.signupTotal} /> : null}</StatsSummaryTile>
+        <StatsSummaryTile label="구매 고객" value={data.buyerCount.toLocaleString('ko-KR')}>{comparison ? <StatsRateChange current={data.buyerCount} previous={comparison.buyerCount} /> : null}</StatsSummaryTile>
+        <StatsSummaryTile label="기간 내 재구매" value={data.repeatBuyerCount.toLocaleString('ko-KR')}>{comparison ? <StatsRateChange current={data.repeatBuyerCount} previous={comparison.repeatBuyerCount} /> : null}</StatsSummaryTile>
+        <StatsSummaryTile label="기간 내 재구매율" value={adminPercentLabel(repeatRate)}>{repeatRateChange === null ? null : <StatsChangeBadge direction={statsChangeDirection(repeatRateChange, 0)}>{`${repeatRateChange > 0 ? '+' : ''}${repeatRateChange.toFixed(1)}%p`}</StatsChangeBadge>}</StatsSummaryTile>
       </StatsSummaryGrid>
 
       {comparison ? <StatsComparison filters={filters} now={now} rows={[
@@ -99,7 +102,7 @@ export function StatsCustomersScreen({
           rows={adminSalesTrend(data.signups.map(row => ({ date: row.date, orderCount: row.total, revenue: 0, averageOrderValue: 0 })), filters, now).map((row) => ({
             id: row.date,
             cells: [
-              <span className="tabular-nums" key="date">{row.date}</span>,
+              <span className="tabular-nums" key="date">{statsDateLabel(row.date)}</span>,
               row.orderCount.toLocaleString('ko-KR'),
             ],
           }))}

@@ -27,6 +27,11 @@ it('혜택 조회 조건은 GET 폼으로 제출되고 빠른 기간 선택은 �
   expect(form).not.toMatch(/<button[^>]*type="submit"[^>]*>6개월<\/button>/);
 });
 
+it('혜택상태는 같은 상태 같은 색의 배지로 보인다', () => {
+  const html = render();
+  expect(html).toMatch(/data-tone="(success|info|neutral)"[^>]*>(적용중|대기중|완료|중지)<\/span>/);
+});
+
 it('혜택 중지 확인은 대상 코드·약관 개정·다음 상태를 담아 제출한다', () => {
   const html = render();
   const dialog = html.match(/<dialog[^>]*aria-label="혜택 상태 변경"[^>]*>(.*?)<\/dialog>/s)?.[1] ?? '';

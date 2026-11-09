@@ -1,13 +1,13 @@
 import Link from 'next/link';
 import { ChevronDown } from 'lucide-react';
-import { AdminPageHeader, AdminSectionCard, AdminStatusBadge } from '@/components/admin/console/AdminKit';
+import { AdminPageHeader, AdminSectionCard, AdminStatusBadge, AdminNotice } from '@/components/admin/console/AdminKit';
 import { AdminCreateDialogButton } from '@/components/admin/console/AdminCreateDialogButton';
 import { CONSOLE_FILTER_CARD_CLASS, CONSOLE_FILTER_FIELDS_CLASS, ConsoleFilterActions, ConsoleFilterField } from '@/components/admin/console/ConsoleFilterPanel';
 import { CONSOLE_LIST_EMPTY_CLASS, ConsoleListCard } from '@/components/admin/console/ConsoleListCard';
 import { ConsolePagination } from '@/components/admin/console/ConsolePagination';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
-import { NOTE, STATUS_BOX } from '@/components/admin/settings-kit';
+import { NOTE } from '@/components/admin/settings-kit';
 import {
   SHIPPING_NOTICE_TEMPLATE_NAME_MAX,
   SHIPPING_NOTICE_TEMPLATE_PAGE_SIZE,
@@ -34,9 +34,9 @@ export function ShippingNoticeTemplatesScreen({ data }: { data: ShippingNoticeTe
       description="배송·교환/반품 안내와 고객센터 연락처를 버전으로 저장합니다. 실제 운임과 반송 주소는 출고지 설정이 소유하며, 창고 출고지시 양식과 분리됩니다."
       actions={<AdminCreateDialogButton label="새 배송 안내 템플릿 등록" title="새 배송 안내 템플릿 등록" wide><ShippingNoticeTemplateForm /></AdminCreateDialogButton>}
     />
-    <p className={STATUS_BOX}>
+    <AdminNotice tone="info">
       배송비 유형·출고지·반품 조건은 <Link className="font-medium underline underline-offset-4" href="/admin/settings/shipping-templates">배송정보 템플릿 관리</Link>에서 적용합니다. 이 안내 템플릿은 초안으로 저장되고 필수 안내와 확인 근거가 있어야 활성화됩니다. 활성 버전은 수정할 수 없으며 새 버전으로 등록합니다.
-    </p>
+    </AdminNotice>
     <form action={SHIPPING_NOTICE_TEMPLATES_PATH} className={CONSOLE_FILTER_CARD_CLASS}>
       <div className={CONSOLE_FILTER_FIELDS_CLASS}>
         <ConsoleFilterField className="min-w-[min(100%,15rem)] flex-1" htmlFor="shipping-notice-template-query" label="템플릿 이름 검색">
@@ -48,7 +48,7 @@ export function ShippingNoticeTemplatesScreen({ data }: { data: ShippingNoticeTe
       </div>
       <ConsoleFilterActions>
         {filters.query || filters.goodQuery ? <Link className={buttonVariants({ variant: 'outline' })} data-slot="button" href={SHIPPING_NOTICE_TEMPLATES_PATH}>검색 초기화</Link> : null}
-        <button className={buttonVariants()} data-slot="button" type="submit">검색</button>
+        <button className={buttonVariants({ variant: 'soft' })} data-slot="button" type="submit">검색</button>
       </ConsoleFilterActions>
     </form>
     <ConsoleListCard title="목록" total={total} unit="개" description="활성 템플릿은 상품에 적용한 버전과 함께 공개됩니다.">

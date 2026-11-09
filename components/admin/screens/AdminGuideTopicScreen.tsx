@@ -30,10 +30,10 @@ const CALLOUT_TONES: Record<AdminGuideCalloutTone, { icon: typeof Info; classNam
   info: { icon: Info, className: 'bg-muted/40', titleClassName: '' },
   warning: {
     icon: TriangleAlert,
-    className: 'border-[color-mix(in_oklab,var(--wc-warning)_35%,transparent)] bg-[color-mix(in_oklab,var(--wc-warning)_6%,transparent)]',
-    titleClassName: 'text-[var(--wc-warning)]',
+    className: 'border-warning-border bg-warning-soft',
+    titleClassName: 'text-warning',
   },
-  danger: { icon: OctagonAlert, className: 'border-destructive/30 bg-destructive/5', titleClassName: 'text-destructive' },
+  danger: { icon: OctagonAlert, className: 'border-danger-border bg-danger-soft', titleClassName: 'text-destructive' },
 };
 
 function screenChipLabel(href: string): string {

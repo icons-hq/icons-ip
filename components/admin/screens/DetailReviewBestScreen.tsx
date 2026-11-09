@@ -34,7 +34,7 @@ export function DetailReviewBestScreen({ initial }: { initial: ReviewBestSetting
         <p className="text-sm leading-relaxed text-muted-foreground">리뷰 관리에서 별점과 무관하게 선정·해제합니다. 작성자 수정이나 블라인드, 구매 취소·반품·환불은 노출에서 제외하며 다시 확인한 뒤 재선정할 수 있습니다.</p>
         <p className="text-sm leading-relaxed text-muted-foreground">평점 평균과 리뷰 전체 건수는 기존 공개 리뷰 전체를 기준으로 유지합니다. 상단 리뷰 요약과는 별도 설정입니다.</p>
       </fieldset></AdminSectionCard>
-      <div className="flex flex-wrap items-center justify-end gap-4 rounded-xl border bg-card p-4">{message ? <p className={error ? 'mr-auto bg-transparent text-sm text-destructive' : 'mr-auto text-sm text-[var(--wc-success)]'} role={error ? 'alert' : 'status'}>{message}</p> : null}<Button disabled={pending || Boolean(initial.unavailable)} type="submit">{pending ? '저장 중…' : uncertain ? '같은 요청 결과 확인' : '설정 저장'}</Button></div>
+      <div className="flex flex-wrap items-center justify-end gap-4 rounded-xl border bg-card p-4">{message ? <p className={error ? 'mr-auto bg-transparent text-sm text-destructive' : 'mr-auto text-sm text-success'} role={error ? 'alert' : 'status'}>{message}</p> : null}<Button disabled={pending || Boolean(initial.unavailable)} type="submit">{pending ? '저장 중…' : uncertain ? '같은 요청 결과 확인' : '설정 저장'}</Button></div>
     </form>
   </div>;
 }

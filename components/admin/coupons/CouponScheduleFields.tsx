@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { Field } from '../fields';
 
 /* 쿠폰 발급·유효기간 입력(템플릿 룩, ADR-0028). 유효기간 방식은 숨긴 라디오 + 구분 선택 모양이고, 고르지 않은 방식의 칸은 숨기고 잠가서 보내지 않는다. */
-const MODE = 'relative inline-flex h-8 cursor-pointer items-center rounded-md px-3 text-sm font-medium whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground has-[:focus-visible]:ring-3 has-[:focus-visible]:ring-ring/50 data-selected:bg-background data-selected:text-foreground data-selected:shadow-sm';
+const MODE = 'relative inline-flex h-8 cursor-pointer items-center rounded-md px-3 text-sm font-medium whitespace-nowrap text-muted-foreground transition-colors hover:text-foreground has-[:focus-visible]:ring-3 has-[:focus-visible]:ring-ring/50 data-selected:bg-background data-selected:text-primary-soft-foreground data-selected:shadow-sm';
 const PERIOD = 'grid min-w-0 gap-x-6 gap-y-5 [grid-column:1/-1] sm:grid-cols-2';
 
 export function CouponScheduleFields({ values, errors }: { values: Record<string, string>; errors?: Record<string, string> }) {

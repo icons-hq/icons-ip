@@ -94,6 +94,6 @@ export function ShoppingStoryBodyEditor({ accountId, value, onChange, disabled }
       <Button className="self-start" type="button" disabled={blocked || !path} onClick={() => { if (insert(`<figure><img src="${path}" alt="${escape(alt)}"></figure>`)) { setPath(''); setAlt(''); setUploadKey(key => key + 1); } }} variant="outline">업로드한 이미지 본문에 넣기</Button>
     </div></details>
     <details className={DISCLOSURE}><summary className="cursor-pointer font-medium">HTML 가져오기</summary><div className="flex flex-col gap-3"><label className={FIELD}>붙여넣을 HTML<Textarea className="font-mono text-xs" value={source} onChange={event => setSource(event.target.value)} disabled={blocked} rows={5} /></label><Button className="self-start" type="button" disabled={blocked || !source} onClick={() => { if (insert(source)) setSource(''); }} variant="outline">정리해서 본문에 넣기</Button></div></details>
-    {warning ? <p className="text-xs text-[var(--wc-warning)]" role="status">{warning}</p> : null}<p className="text-xs leading-relaxed text-muted-foreground">정렬·크기는 커서가 있는 문단이나 선택한 문단에 적용됩니다. 굵게·기울임·밑줄·취소선은 선택한 글에 적용됩니다. 외부 링크·외부 이미지·스크립트는 제거됩니다. 본문 30,000자, 이미지 20장까지 등록할 수 있습니다.</p>
+    {warning ? <p className="text-xs text-warning" role="status">{warning}</p> : null}<p className="text-xs leading-relaxed text-muted-foreground">정렬·크기는 커서가 있는 문단이나 선택한 문단에 적용됩니다. 굵게·기울임·밑줄·취소선은 선택한 글에 적용됩니다. 외부 링크·외부 이미지·스크립트는 제거됩니다. 본문 30,000자, 이미지 20장까지 등록할 수 있습니다.</p>
   </div>;
 }

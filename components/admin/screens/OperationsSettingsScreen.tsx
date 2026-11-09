@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { ArrowRight, BookOpen } from 'lucide-react';
 import { ShippingRegionExpiryNotice } from '../ShippingRegionExpiryNotice';
 import type { ShippingRegionExpiryState } from '@/lib/admin/shipping-regions';
-import { AdminPageHeader, AdminSectionCard, AdminStatusBadge } from '@/components/admin/console/AdminKit';
+import { AdminNotice, AdminPageHeader, AdminSectionCard, AdminStatusBadge } from '@/components/admin/console/AdminKit';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
 import { OperationsContactForm } from './OperationsContactForm';
 import { OPERATIONS_CONTACT_FIELDS, operationsContactValues, type OperationsContact, type OperationsContactHistory } from '@/lib/admin/operations-contacts';
@@ -46,14 +46,14 @@ export function OperationsSettingsScreen({ contacts, history, canEdit, shippingR
       const title = contact.scope === 'operations' ? '운영 총괄' : `${contact.originName} 출고지`;
       return <AdminSectionCard key={`${contact.scope}:${contact.originId ?? 'general'}`} title={title}>
         <div className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-          <AdminStatusBadge>{filled ? `정보 입력 ${filled}/4` : '담당자 정보 미입력'}</AdminStatusBadge>
-          {contact.scope === 'origin' ? <AdminStatusBadge tone={contact.originActive ? 'neutral' : 'warning'}>{contact.originActive ? '출고지 사용 중' : '출고지 비활성'}</AdminStatusBadge> : null}
+          <AdminStatusBadge tone={filled === 4 ? 'success' : filled ? 'neutral' : 'warning'}>{filled ? `정보 입력 ${filled}/4` : '담당자 정보 미입력'}</AdminStatusBadge>
+          {contact.scope === 'origin' ? <AdminStatusBadge tone={contact.originActive ? 'success' : 'warning'}>{contact.originActive ? '출고지 사용 중' : '출고지 비활성'}</AdminStatusBadge> : null}
           {contact.updatedAt ? <span>최근 저장 <time className="tabular-nums" dateTime={contact.updatedAt}>{formatOrderDateTime(contact.updatedAt)}</time> · {contact.updatedByName ?? '삭제된 운영자'}</span> : null}
         </div>
         <OperationsContactForm contact={contact} canEdit={canEdit}/>
       </AdminSectionCard>;
     })}
-    {!contacts.some(contact => contact.scope === 'origin') ? <p className="rounded-lg border bg-muted/40 px-3 py-2.5 text-sm">출고지가 없습니다. <Link className="font-medium underline underline-offset-4" href="/admin/settings/origins">출고지 설정</Link>을 확인해주세요.</p> : null}
+    {!contacts.some(contact => contact.scope === 'origin') ? <AdminNotice tone="warning">출고지가 없습니다. <Link className="font-medium underline underline-offset-4" href="/admin/settings/origins">출고지 설정</Link>을 확인해주세요.</AdminNotice> : null}
     <AdminSectionCard title="담당자 정보 변경 이력">
       {history.length ? <ol className="flex flex-col divide-y">{history.map(entry => <li className="flex flex-col gap-0.5 py-2.5 first:pt-0 last:pb-0" key={entry.id}>
         <div className="text-xs text-muted-foreground"><time className="tabular-nums" dateTime={entry.createdAt}>{formatOrderDateTime(entry.createdAt)}</time> · {entry.actorName}</div>

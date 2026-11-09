@@ -12,7 +12,7 @@ export const SECTION_CARD = 'flex min-w-0 flex-col gap-4 rounded-xl border bg-ca
 /** 중립 안내 상자. */
 export const SECTION_NOTE = 'rounded-lg border bg-muted/40 px-3 py-2.5 text-sm text-muted-foreground';
 /** 경고·차단 안내 상자. */
-export const SECTION_WARNING = 'rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2.5 text-sm text-destructive';
+export const SECTION_WARNING = 'rounded-lg border border-danger-border bg-danger-soft px-3 py-2.5 text-sm text-destructive';
 /** 현황 수치 묶음(발급·플레이 현황). 항목 하나가 "이름 값" 한 줄이다. */
 export const SECTION_STATS = 'grid grid-cols-1 gap-2 text-sm tabular-nums sm:grid-cols-2 xl:grid-cols-3';
 export const SECTION_STAT = 'min-w-0 rounded-lg border bg-muted/40 px-3 py-2';

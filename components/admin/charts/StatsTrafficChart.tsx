@@ -2,10 +2,11 @@
 import { useId, useState } from 'react';
 import { NativeSelect } from '@/components/admin/kit/ui/native-select';
 import { TRAFFIC_STATE_LABELS, trafficNumber, type TrafficMetric, type TrafficTrend } from '@/lib/admin/store-analytics';
-import { STATS_SEGMENTED, STATS_SEGMENT_BUTTON } from '../StatsSummary';
+import { STATS_SEGMENTED, STATS_SEGMENT_BUTTON, statsDateLabel } from '../StatsSummary';
+import { CHART_COMPARISON as COMPARISON, CHART_CURRENT as CURRENT } from './chart-theme';
 const OPTIONS:{key:TrafficMetric;label:string}[]=[{key:'sessions',label:'방문 세션'},{key:'productViews',label:'상품 상세 열람'},{key:'orders',label:'결제 주문'},{key:'conversionRate',label:'전환율'}];
-/* kit 차트 토큰(ADR-0028): 조회 기간은 진한 선, 비교 기간은 옅은 점선, 축·격자는 border·muted-foreground. */
-const CURRENT='var(--chart-4)';const COMPARISON='var(--chart-2)';const GRID='var(--border)';const MUTED='var(--muted-foreground)';
+/* 차트 토큰(ADR-0029): 조회 기간은 주 색 실선, 비교 기간은 회색 점선, 축·격자는 border·muted-foreground. */
+const GRID='var(--border)';const MUTED='var(--muted-foreground)';
 function paths(rows:TrafficTrend[],key:TrafficMetric,max:number,length:number){const paths:string[]=[];let current='';rows.forEach((row,index)=>{const value=row.metrics[key];if(value===null){if(current)paths.push(current);current='';return;}current+=`${current?' L':'M'}${40+index*860/Math.max(length-1,1)},${170-value*145/max}`;});if(current)paths.push(current);return paths;}
 export function StatsTrafficChart({rows,comparison}:{rows:TrafficTrend[];comparison:TrafficTrend[]}){
  const [metric,setMetric]=useState<TrafficMetric>('sessions');const [selected,setSelected]=useState<number|null>(null);
@@ -22,12 +23,12 @@ export function StatsTrafficChart({rows,comparison}:{rows:TrafficTrend[];compari
    <text x="8" y="30" fontSize="12" fill={MUTED}>{maximum.toLocaleString('ko-KR')}</text><text x="22" y="174" fontSize="12" fill={MUTED}>0</text>
    {paths(comparison,metric,maximum,count).map((path,index)=><path key={`c${index}`} d={path} fill="none" stroke={COMPARISON} strokeWidth="2" strokeDasharray="5 5"/>)}
    {paths(rows,metric,maximum,count).map((path,index)=><path key={`r${index}`} d={path} fill="none" stroke={CURRENT} strokeWidth="3"/>)}
-   {rows.map((row,index)=>row.metrics[metric]===null?null:<circle key={row.date} cx={40+index*860/Math.max(count-1,1)} cy={170-(row.metrics[metric]??0)*145/maximum} r={4} fill={CURRENT}><title>{row.date}: {trafficNumber(row.metrics[metric],metric==='conversionRate'?'%':'')}</title></circle>)}
-   <text x="40" y="198" fontSize="13" fill={MUTED}>{rows[0]?.date}</text><text x="900" y="198" fontSize="13" fill={MUTED} textAnchor="end">{rows.at(-1)?.date}</text>
+   {rows.map((row,index)=>row.metrics[metric]===null?null:<circle key={row.date} cx={40+index*860/Math.max(count-1,1)} cy={170-(row.metrics[metric]??0)*145/maximum} r={4} fill={CURRENT}><title>{statsDateLabel(row.date)}: {trafficNumber(row.metrics[metric],metric==='conversionRate'?'%':'')}</title></circle>)}
+   <text x="40" y="198" fontSize="13" fill={MUTED}>{rows[0]?statsDateLabel(rows[0].date):null}</text><text x="900" y="198" fontSize="13" fill={MUTED} textAnchor="end">{rows.length?statsDateLabel(rows[rows.length-1].date):null}</text>
   </svg>
   </div>}
-  <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground"><span>● 조회 기간</span>{comparison.length>0?<span>┄ 비교 기간</span>:null}<span>빈 구간은 미측정</span></div>
-  <div className="flex flex-wrap items-center gap-2"><label className="text-sm text-muted-foreground" htmlFor={selectId}>날짜별 수치</label><NativeSelect className="w-44" id={selectId} value={selected??''} onChange={event=>setSelected(event.target.value===''?null:Number(event.target.value))}><option value="">날짜 선택</option>{rows.map((row,index)=><option key={row.date} value={index}>{row.date}</option>)}</NativeSelect></div>
-  {selection?<p className="text-sm" role="status">{selection.date} · {label} {trafficNumber(selection.metrics[metric],metric==='conversionRate'?'%':'')} · {selection.states.map(state=>TRAFFIC_STATE_LABELS[state]||state).join(', ')}{selection.archived?' · 보존 합계':''}</p>:null}
+  <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground"><span><span aria-hidden="true" style={{color:CURRENT}}>●</span> 조회 기간</span>{comparison.length>0?<span><span aria-hidden="true" style={{color:COMPARISON}}>┄</span> 비교 기간</span>:null}<span>빈 구간은 미측정</span></div>
+  <div className="flex flex-wrap items-center gap-2"><label className="text-sm text-muted-foreground" htmlFor={selectId}>날짜별 수치</label><NativeSelect className="w-44" id={selectId} value={selected??''} onChange={event=>setSelected(event.target.value===''?null:Number(event.target.value))}><option value="">날짜 선택</option>{rows.map((row,index)=><option key={row.date} value={index}>{statsDateLabel(row.date)}</option>)}</NativeSelect></div>
+  {selection?<p className="text-sm" role="status">{statsDateLabel(selection.date)} · {label} {trafficNumber(selection.metrics[metric],metric==='conversionRate'?'%':'')} · {selection.states.map(state=>TRAFFIC_STATE_LABELS[state]||state).join(', ')}{selection.archived?' · 보존 합계':''}</p>:null}
  </div>;
 }

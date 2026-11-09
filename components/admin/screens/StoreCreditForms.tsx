@@ -2,14 +2,14 @@
 import { adminGoodsCopy } from '@/lib/admin/vocabulary';
 import { useActionState, useState } from 'react';
 import { adjustStoreCreditAction, saveStoreCreditPolicyAction, type StoreCreditActionState } from '@/app/admin/store-credit-actions';
-import { AdminField, AdminFormGrid } from '@/components/admin/console/AdminKit';
+import { AdminField, AdminFormGrid, AdminNotice } from '@/components/admin/console/AdminKit';
 import type { StoreCreditPolicyRecord } from '@/lib/store-credits';
 import { Check } from 'lucide-react';
 import { Button } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
 import { NativeSelect } from '@/components/admin/kit/ui/native-select';
 import { Textarea } from '@/components/admin/kit/ui/textarea';
-import { ALERT_BOX, CHECK_LABEL, NOTE, STATUS_BOX, SUCCESS_BOX } from '@/components/admin/settings-kit';
+import { CHECK_LABEL, NOTE } from '@/components/admin/settings-kit';
 
 const POLICY_FIELDS = [
   ['earnMaxPerOrder', '주문당 적립 상한 (원)'], ['maxBalance', '보유 적립금 상한 (원)'],
@@ -45,7 +45,7 @@ export function StoreCreditPolicyForm({ policy, operationId }: { policy: StoreCr
     <AdminField label="정책 승인 근거" inputId="credit-evidence"><Textarea id="credit-evidence" name="evidence" maxLength={2000} rows={4} value={values.evidence} onChange={event => set('evidence', event.target.value)} /></AdminField>
     <label className={CHECK_LABEL}><input type="checkbox" name="enabled" checked={values.enabled === 'true'} onChange={event => set('enabled', String(event.target.checked))} /> 적립금 지급과 주문 사용 활성화</label>
     <p className={NOTE}>비활성화해도 기존 주문에 약속한 적립과 사용분 복원, 기존 원장은 보존됩니다.</p>
-    {state.error ? <p className={ALERT_BOX} role="alert">{state.error}</p> : null}{state.message ? <p className={SUCCESS_BOX} role="status">{state.message}</p> : null}
+    {state.error ? <AdminNotice role="alert" tone="danger">{state.error}</AdminNotice> : null}{state.message ? <AdminNotice role="status" tone="success">{state.message}</AdminNotice> : null}
     <Button className="w-fit" disabled={pending} type="submit"><Check aria-hidden="true" />{pending ? '저장 중…' : '정책 저장'}</Button>
   </form>;
 }
@@ -71,7 +71,7 @@ export function StoreCreditAdjustmentForm({ userId, available, enabled, operatio
       <AdminField label="조정 사유" inputId="credit-reason" hint="고객의 적립금 이력에도 표시됩니다. 고객에게 안내할 수 있는 근거만 적어주세요."><Textarea id="credit-reason" name="reason" required maxLength={1000} rows={3} value={reason} onChange={event => setReason(event.target.value)} /></AdminField>
       <Button className="w-fit" type="submit"><Check aria-hidden="true" />{pending ? '저장 중…' : '적립금 조정 저장'}</Button>
     </fieldset>
-    {!enabled ? <p className={STATUS_BOX}>적립금 정책이 비활성 상태입니다. 정책을 설정하고 활성화해야 조정할 수 있습니다.</p> : null}
-    {state.error ? <p className={ALERT_BOX} role="alert">{state.error}</p> : null}{state.message ? <p className={SUCCESS_BOX} role="status">{state.message} 현재 사용 가능 적립금: {state.available?.toLocaleString('ko-KR')}원</p> : null}
+    {!enabled ? <AdminNotice tone="warning">적립금 정책이 비활성 상태입니다. 정책을 설정하고 활성화해야 조정할 수 있습니다.</AdminNotice> : null}
+    {state.error ? <AdminNotice role="alert" tone="danger">{state.error}</AdminNotice> : null}{state.message ? <AdminNotice role="status" tone="success">{state.message} 현재 사용 가능 적립금: {state.available?.toLocaleString('ko-KR')}원</AdminNotice> : null}
   </form>;
 }

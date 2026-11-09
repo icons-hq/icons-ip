@@ -11,7 +11,7 @@ export function WorkQueueSection({ data }: { data?: AdminWorkQueueData }) {
         const ready = value?.state === 'ready';
         return <Link className="flex min-w-0 flex-col gap-1 rounded-lg border bg-card px-3 py-2.5 transition-colors hover:bg-accent" href={queue.href} key={queue.id} prefetch={false}>
           <span className="text-xs text-muted-foreground">{queue.label}</span>
-          <strong className={ready ? 'text-xl font-semibold tabular-nums' : `text-base font-medium ${value?.state === 'error' ? 'text-destructive' : 'text-muted-foreground'}`}>{ready ? `${value.count.toLocaleString('ko-KR')}건` : '확인 필요'}</strong>
+          <strong className={ready ? `text-xl font-semibold tabular-nums${value.count > 0 ? queue.id === 'delayed' ? ' text-destructive' : ' text-warning' : ''}` : `text-base font-medium ${value?.state === 'error' ? 'text-destructive' : 'text-muted-foreground'}`}>{ready ? `${value.count.toLocaleString('ko-KR')}건` : '확인 필요'}</strong>
           <small className="text-xs text-muted-foreground">{queue.unit} 수 · {queue.description}</small>
           {!ready ? <small className="text-xs text-muted-foreground">집계를 불러오지 못했습니다. 목록에서 다시 확인하세요.</small> : null}
         </Link>;
