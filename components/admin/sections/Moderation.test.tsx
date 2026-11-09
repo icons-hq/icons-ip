@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from 'react-dom/server';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { AdminReportRecord } from '@/lib/admin/moderation.server';
-import { confirmCommunityCommentHide, ModerationSection } from './Moderation';
+import { confirmCommunityCommentHide, confirmCommunityPostHide, ModerationSection } from './Moderation';
 
 const actions = vi.hoisted(() => ({
   hideComment: vi.fn(),
@@ -76,6 +76,30 @@ describe('ModerationSection', () => {
     expect(html).toMatch(/aria-pressed="false"[^>]*>[\s\S]*?접수/);
     expect(html.indexOf('신고된 댓글 원문')).toBeLessThan(html.indexOf('처리 끝난 원문'));
     expect(html).toMatch(/<button(?=[^>]*text-destructive)(?=[^>]*border-border-strong)[^>]*>(?:<svg[\s\S]*?<\/svg>)? 댓글 숨김<\/button>/);
+  });
+
+  /* 숨김을 누르면 신고도 함께 끝난다는 것을 그 자리에서 말하고, 사유와 문제의 글에 이름표를 단다. */
+  it('숨김과 상태 변경의 관계를 말하고 신고 사유·신고된 글에 이름표를 붙인다', () => {
+    const html = renderToStaticMarkup(<ModerationSection reports={[commentReport('visible')]} />);
+
+    expect(html).toContain('숨기면 이 신고는 처리완료로 바뀝니다.');
+    expect(html).toContain('숨기지 않고 상태만 변경');
+    expect(html).toContain('>신고 사유</dt>');
+    expect(html).toContain('>신고된 댓글</dt>');
+    /* 댓글 신고의 포스트 숨김은 빨간 테두리 버튼으로 나란히 두지 않는다. */
+    const postHide = html.slice(html.lastIndexOf('<button', html.indexOf(' 포스트 숨김')), html.indexOf(' 포스트 숨김'));
+    expect(postHide).not.toContain('border-border-strong');
+  });
+
+  it('포스트 숨김도 댓글 숨김처럼 확인을 거친다', () => {
+    const confirm = vi.fn(() => false);
+    const preventDefault = vi.fn();
+    vi.stubGlobal('window', { confirm });
+
+    confirmCommunityPostHide({ preventDefault } as unknown as Parameters<typeof confirmCommunityPostHide>[0]);
+
+    expect(confirm).toHaveBeenCalledOnce();
+    expect(preventDefault).toHaveBeenCalledOnce();
   });
 
   it('cancels submission when the operator declines the irreversible comment hide', () => {

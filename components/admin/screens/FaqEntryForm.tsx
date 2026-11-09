@@ -21,7 +21,8 @@ export function FaqEntryForm({ entry }: { entry?: FaqEntry }) {
   const value = (name: string, fallback: string) => values?.[name] ?? fallback;
   const error = (name: string) => state.errors?.[name] ? <span id={`${prefix}-${name}-error`} className="text-sm text-destructive" role="alert">{state.errors[name]}</span> : null;
   const fieldProps = (name: string) => ({ 'aria-invalid': Boolean(state.errors?.[name]), 'aria-describedby': state.errors?.[name] ? `${prefix}-${name}-error` : undefined });
-  return <form action={action} className="flex flex-col gap-3" data-faq-form="">
+  /* 필수·형식 검사는 서버가 칸마다 돌려준다(입력값 유지) — 브라우저 말풍선 대신 칸 아래 오류로 통일한다. */
+  return <form action={action} className="flex flex-col gap-3" data-faq-form="" noValidate>
     <fieldset className="flex min-w-0 flex-col gap-4 disabled:opacity-60" key={state.revision ?? 0} disabled={pending}>
       <input type="hidden" name="id" value={entry?.id ?? ''} />
       <input type="hidden" name="updatedAt" value={value('updatedAt', entry?.updatedAt ?? '')} />

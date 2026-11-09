@@ -19,7 +19,7 @@ import { ADMIN_REPORT_STATUS_LABELS, reportTargetLabels } from '@/lib/admin/mode
 import { statusTone } from '@/lib/admin/status-tone';
 import { ConsoleListCard } from '../console/ConsoleListCard';
 import { AdminStatusBadge } from '../console/AdminKit';
-import { ADMIN_COUNT_CARD_GRID_CLASS, AdminCountCard, type AdminCountTone } from '../console/AdminCountCard';
+import { AdminCountCard, type AdminCountTone } from '../console/AdminCountCard';
 import { ROW_DANGER_BUTTON_CLASS, csChipTone } from '../screens/cs-kit-classes';
 
 const emptyState: AdminCatalogActionState = {};
@@ -31,6 +31,12 @@ const TOUCH_TARGET = 'pointer-coarse:h-11';
 /* 처리할 신고(접수·검토중)를 위로 — 같은 상태 안의 최신순은 서버 순서 그대로다. */
 const STATUS_ORDER: Record<CommunityReportStatus, number> = { open: 0, reviewing: 1, resolved: 2, dismissed: 3 };
 type ReportFilter = 'all' | CommunityReportStatus;
+
+/* 다른 문의·리뷰 화면과 같은 날짜 표기(한국 시각, 초 없음). */
+const reportTimeFormatter = new Intl.DateTimeFormat('ko-KR', { timeZone: 'Asia/Seoul', year: 'numeric', month: 'numeric', day: 'numeric', hour: '2-digit', minute: '2-digit', hour12: false });
+const isActiveReport = (report: AdminReportRecord) => report.status === 'open' || report.status === 'reviewing';
+/* 끝난 신고나 부수적인 숨김(댓글 신고의 포스트 전체 숨김)은 빨간 버튼으로 나란히 두지 않는다 — 잘못 누를 일을 줄인다. */
+const QUIET_HIDE_CLASS = 'text-muted-foreground hover:text-destructive';
 
 /** 건수 카드를 누르면 이미 읽은 목록을 그 상태로 거른다(서버 재조회·URL 변경 없음). */
 function ReportFilterCard({ active, count, label, onSelect, tone, quiet = false }: { active: boolean; count: number; label: string; onSelect: () => void; tone?: AdminCountTone; quiet?: boolean }) {
@@ -49,12 +55,20 @@ export function confirmCommunityCommentHide(event: FormEvent<HTMLFormElement>) {
   if (!confirmed) event.preventDefault();
 }
 
-function ReportStatusForm({ report }: { report: AdminReportRecord }) {
+export function confirmCommunityPostHide(event: FormEvent<HTMLFormElement>) {
+  const confirmed = window.confirm(
+    '이 포스트를 숨기고 연결된 신고를 처리완료로 바꿉니다. 현재 화면에서는 되돌릴 수 없습니다. 계속할까요?',
+  );
+  if (!confirmed) event.preventDefault();
+}
+
+function ReportStatusForm({ report, label }: { report: AdminReportRecord; label: string }) {
   const [state, action, pending] = useActionState(updateCommunityReportStatusAction, emptyState);
 
   return (
     <form action={action} className="flex flex-wrap items-center gap-2">
       <input name="reportId" type="hidden" value={report.id} />
+      <span className="text-xs text-muted-foreground">{label}</span>
       <NativeSelect
         aria-label={`${reportTargetLabels[report.targetType]} 신고 상태`}
         className="w-32 [&>select]:pointer-coarse:h-11"
@@ -77,12 +91,13 @@ function ReportStatusForm({ report }: { report: AdminReportRecord }) {
 function HidePostForm({ report }: { report: AdminReportRecord }) {
   const [state, action, pending] = useActionState(hideCommunityPostAction, emptyState);
   if (!report.targetPostId) return null;
+  const quiet = report.targetType === 'comment' || !isActiveReport(report);
 
   return (
-    <form action={action} className="flex flex-wrap items-center gap-2">
+    <form action={action} className="flex flex-wrap items-center gap-2" onSubmit={confirmCommunityPostHide}>
       <input name="reportId" type="hidden" value={report.id} />
       <input name="postId" type="hidden" value={report.targetPostId} />
-      <Button className={`${TOUCH_TARGET} ${ROW_DANGER_BUTTON_CLASS}`} disabled={pending} type="submit" variant="outline">
+      <Button className={`${TOUCH_TARGET} ${quiet ? QUIET_HIDE_CLASS : ROW_DANGER_BUTTON_CLASS}`} disabled={pending} type="submit" variant={quiet ? 'ghost' : 'outline'}>
         <EyeOff aria-hidden="true" /> {pending ? '처리 중' : '포스트 숨김'}
       </Button>
       <InlineNotice state={state} />
@@ -95,6 +110,7 @@ function HideCommentForm({ report }: { report: AdminReportRecord }) {
   if (!report.targetCommentId) return null;
 
   const hidden = report.targetCommentStatus === 'hidden';
+  const quiet = !isActiveReport(report);
 
   return (
     <form
@@ -104,7 +120,7 @@ function HideCommentForm({ report }: { report: AdminReportRecord }) {
     >
       <input name="reportId" type="hidden" value={report.id} />
       <input name="commentId" type="hidden" value={report.targetCommentId} />
-      <Button className={`${TOUCH_TARGET} ${ROW_DANGER_BUTTON_CLASS}`} disabled={hidden || pending} type="submit" variant="outline">
+      <Button className={`${TOUCH_TARGET} ${quiet ? QUIET_HIDE_CLASS : ROW_DANGER_BUTTON_CLASS}`} disabled={hidden || pending} type="submit" variant={quiet ? 'ghost' : 'outline'}>
         <EyeOff aria-hidden="true" /> {hidden ? '숨김 처리됨' : pending ? '처리 중' : '댓글 숨김'}
       </Button>
       <InlineNotice state={state} />
@@ -142,43 +158,49 @@ export function ModerationSection({ reports }: { reports: AdminReportRecord[] })
     .sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status]);
 
   return (
-    /* 신고 목록 카드(콘솔 목록 카드) — 신고 한 건이 한 줄이고, 빈 목록도 카드 안에 보인다. */
-    <ConsoleListCard aria-label="신고 목록">
+    <div className="flex min-w-0 flex-col gap-4">
       {reports.length ? <div className="flex flex-col gap-1.5" data-report-summary="">
-        <div aria-label="신고 상태별 건수" className={ADMIN_COUNT_CARD_GRID_CLASS} role="group">
+        <div aria-label="신고 상태별 건수" className="grid grid-cols-2 gap-2 sm:grid-cols-5" role="group">
           <ReportFilterCard active={filter === 'all'} count={reports.length} label="전체" onSelect={() => setFilter('all')} quiet />
           {reportStatuses.map((status) => <ReportFilterCard active={filter === status} count={countOf(status)} key={status} label={ADMIN_REPORT_STATUS_LABELS[status]} onSelect={() => setFilter(status)} tone={csChipTone('report', status)} />)}
         </div>
-        <p className="text-xs text-muted-foreground">최근 신고 {reports.length.toLocaleString('ko-KR')}건 기준입니다. 처리할 신고를 먼저 보여줍니다.</p>
+        <p className="text-xs text-muted-foreground">숫자를 누르면 그 상태만 봅니다. 최근 신고 {reports.length.toLocaleString('ko-KR')}건 기준이며 처리할 신고를 먼저 보여줍니다.</p>
       </div> : null}
-      {visible.length ? <div className="flex flex-col divide-y">{visible.map((report) => (
-        <article className="flex min-w-0 flex-col gap-3 py-4 text-sm first:pt-0 last:pb-0" key={report.id}>
-          <div className="flex min-w-0 flex-col gap-2">
-            <div className="flex flex-wrap items-center gap-2">
-              <Badge variant="secondary">{reportTargetLabels[report.targetType]}</Badge>
-              <AdminStatusBadge tone={statusTone('report', report.status)}>{ADMIN_REPORT_STATUS_LABELS[report.status]}</AdminStatusBadge>
-              <span className="text-xs text-muted-foreground tabular-nums">{new Date(report.createdAt).toLocaleString('ko-KR')}</span>
+      {/* 신고 목록 카드(콘솔 목록 카드) — 신고 한 건이 한 줄이고, 빈 목록도 카드 안에 보인다. */}
+      <ConsoleListCard aria-label="신고 목록">
+      {visible.length ? <div className="flex flex-col divide-y">{visible.map((report) => {
+        const canHide = isActiveReport(report) && Boolean(report.targetCommentId || report.targetPostId);
+        return <article className="flex min-w-0 flex-col gap-2.5 py-4 text-sm first:pt-0 last:pb-0" key={report.id}>
+          <div className="flex flex-wrap items-center gap-2">
+            <AdminStatusBadge tone={statusTone('report', report.status)}>{ADMIN_REPORT_STATUS_LABELS[report.status]}</AdminStatusBadge>
+            <Badge variant="secondary">{reportTargetLabels[report.targetType]}</Badge>
+            <span className="text-xs text-muted-foreground tabular-nums">{reportTimeFormatter.format(new Date(report.createdAt))}</span>
+            <span className="ml-auto text-xs text-muted-foreground">신고자 @{report.reporterName} · 대상 @{report.targetAuthorName}</span>
+          </div>
+          {/* 어느 쪽이 사유이고 어느 쪽이 문제의 글인지 이름표로 말한다. */}
+          <dl className="grid grid-cols-[5rem_minmax(0,1fr)] items-baseline gap-x-3 gap-y-1.5">
+            {report.reason ? <><dt className="text-xs text-muted-foreground">신고 사유</dt><dd className="font-semibold break-words text-foreground">{report.reason}</dd></> : null}
+            <dt className="text-xs text-muted-foreground">신고된 {reportTargetLabels[report.targetType]}</dt>
+            <dd className="rounded-md bg-muted/60 px-2.5 py-1.5 leading-snug break-words text-foreground">{report.targetLabel}</dd>
+          </dl>
+          {/* 왼쪽은 숨김(신고도 함께 처리완료), 오른쪽은 숨기지 않고 상태만 바꾸는 길이다. */}
+          <div className="flex flex-wrap items-center justify-between gap-x-6 gap-y-2 border-t pt-2.5">
+            <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+              <HideCommentForm report={report} />
+              <HidePostForm report={report} />
+              <ReviewModerationLink report={report} />
+              {canHide ? <span className="text-xs text-muted-foreground">숨기면 이 신고는 처리완료로 바뀝니다.</span> : null}
             </div>
-            {/* 판단 기준인 신고 사유를 먼저, 신고된 글은 인용으로 물러난다. */}
-            {report.reason && <p className="font-semibold break-words text-foreground">{report.reason}</p>}
-            <p className="rounded-md bg-muted/60 px-3 py-2 leading-snug break-words text-foreground">{report.targetLabel}</p>
-            <p className="text-xs text-muted-foreground">
-              신고자 @{report.reporterName} · 대상 @{report.targetAuthorName}
-            </p>
+            <ReportStatusForm label={canHide ? '숨기지 않고 상태만 변경' : '상태 변경'} report={report} />
           </div>
-          <div className="flex flex-wrap items-start gap-x-4 gap-y-2">
-            <ReportStatusForm report={report} />
-            <HideCommentForm report={report} />
-            <HidePostForm report={report} />
-            <ReviewModerationLink report={report} />
-          </div>
-        </article>
-      ))}</div> : (
+        </article>;
+      })}</div> : (
         <div className="py-10 text-center" role="status">
           <p className="text-sm font-medium">처리할 신고가 없습니다.</p>
           <p className="mt-1.5 text-sm text-muted-foreground">{reports.length ? '다른 상태를 골라 확인해주세요.' : '커뮤니티 신고가 접수되면 이곳에 표시됩니다.'}</p>
         </div>
       )}
-    </ConsoleListCard>
+      </ConsoleListCard>
+    </div>
   );
 }

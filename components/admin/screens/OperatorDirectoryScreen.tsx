@@ -79,27 +79,37 @@ function ManagerSetup({ data, actorId }: { data: OperatorDirectoryData; actorId:
   const [roles, setRoles] = useState<Record<string, ManagerRole | 'none' | ''>>({});
   const [confirmed, setConfirmed] = useState(false);
   const [inputError, setInputError] = useState('');
+  const [showMissing, setShowMissing] = useState(false);
   const request = useOperatorRequest(() => router.refresh());
   const assignments = data.setupCandidates.map(profile => ({ profileId: profile.id, managerRole: roles[profile.id] === 'none' ? null : roles[profile.id] })) as OperatorSetupAssignment[];
   const owner = data.setupCandidates.find(profile => roles[profile.id] === 'owner');
   /* 하나도 고르지 않았을 때만 막는다. 일부만 고른 경우는 눌러야 어떤 조건이 빠졌는지 안내를 볼 수 있다. */
   const noneChosen = !data.setupCandidates.some(profile => roles[profile.id]);
+  const remaining = data.setupCandidates.filter(profile => !roles[profile.id]).length;
+  /* 버튼 바로 옆에서 무엇이 남았는지 말한다 — 위 긴 안내를 다시 읽지 않아도 다음 단계가 보이게. */
+  const ownerCount = data.setupCandidates.filter(profile => roles[profile.id] === 'owner').length;
+  const nextStep = request.uncertain ? '' : remaining > 0 ? `${remaining.toLocaleString('ko-KR')}명의 새 역할을 더 고르면 적용할 수 있습니다.` : ownerCount !== 1 ? '통합 매니저를 한 명만 지정해주세요.' : !confirmed ? '위 확인란에 체크하면 적용할 수 있습니다.' : '';
   async function submit(event: FormEvent) {
     event.preventDefault();
     if (!request.uncertain && (!confirmed || !validateOperatorSetup(assignments, data.setupCandidates, actorId))) {
-      setInputError('모든 운영자의 역할을 선택해주세요. 통합 매니저는 이용 중인 기존 관리자 한 명, 본인은 통합 또는 주매니저로 지정해야 합니다. 정지 계정은 권한 회수를 선택해주세요.'); return;
+      /* 무엇이 빠졌는지 그 칸에 표시하고 첫 빈 칸으로 옮겨 준다. */
+      setShowMissing(true);
+      setInputError(nextStep || '통합 매니저는 이용 중인 기존 관리자 한 명, 본인은 통합 또는 주매니저로 지정해야 합니다. 정지 계정은 권한 회수를 선택해주세요.');
+      const firstMissing = data.setupCandidates.find(profile => !roles[profile.id]);
+      if (firstMissing) document.getElementById(`operator-setup-${firstMissing.id}`)?.focus();
+      return;
     }
-    setInputError('');
+    setShowMissing(false); setInputError('');
     await request.run(operationId => activateOperatorAccessAction(assignments, data.revision, operationId));
   }
   return <section className={OPERATOR_CARD} data-operator-setup="">
-    <header className={RESULT_HEADING}><h2 className="text-base font-semibold">매니저 역할 설정</h2></header>
-    <div className={OPERATOR_GUIDE}><p>기존 운영자 {data.setupCandidates.length}명의 역할을 모두 선택하면 새 권한을 적용합니다. 통합 매니저는 이용 중인 기존 관리자 중 한 명을 직접 지정해주세요. 설정하는 본인은 통합 매니저 또는 계정 주매니저로 유지합니다.</p></div>
+    <header className={RESULT_HEADING}><h2 className="flex flex-wrap items-center gap-2 text-base font-semibold">매니저 역할 설정<AdminStatusBadge tone="warning">설정 전</AdminStatusBadge></h2><span className="text-sm text-muted-foreground tabular-nums">선택 {(data.setupCandidates.length - remaining).toLocaleString('ko-KR')} / {data.setupCandidates.length.toLocaleString('ko-KR')}명</span></header>
+    <div className={OPERATOR_GUIDE}><p>기존 운영자 {data.setupCandidates.length}명의 새 역할을 한 번 정하는 설정입니다. 적용하기 전까지 지금 권한은 그대로이고, 비어 있는 칸은 아직 고르지 않았다는 뜻입니다.</p><p>통합 매니저는 이용 중인 기존 관리자 중 한 명을 지정하고, 설정하는 본인은 통합 매니저 또는 계정 주매니저로 둡니다.</p></div>
     <AdminNotice className="mx-4" tone="warning">권한 회수를 고른 계정은 일반 회원으로 전환됩니다.</AdminNotice>
     <form className="flex min-w-0 flex-col gap-3" onSubmit={submit}>
       <div className={OPERATOR_TABLE} tabIndex={0} role="region" aria-label="기존 운영자 역할 배정"><Table className="min-w-[48.75rem]"><ConsoleTableHeader><TableRow className="hover:bg-transparent"><TableHead>운영자</TableHead><TableHead>이메일</TableHead><TableHead>현재 권한</TableHead><TableHead>새 매니저 역할</TableHead></TableRow></ConsoleTableHeader><TableBody>
-        {data.setupCandidates.map(profile => <TableRow key={profile.id}><TableCell className="font-medium">{profile.nickname}{profile.id === actorId ? ' (본인)' : ''}{profile.suspendedAt ? ' · 정지' : ''}</TableCell><TableCell className="text-muted-foreground">{profile.maskedEmail}</TableCell><TableCell><AdminStatusBadge tone={statusTone('memberRole', profile.role)}>{profile.role === 'admin' ? '관리자' : '직원'}</AdminStatusBadge></TableCell><TableCell><NativeSelect aria-label={`${profile.nickname} 새 매니저 역할`} className="w-full min-w-48" value={roles[profile.id] ?? ''} disabled={request.pending || request.uncertain} onChange={event => { const value = event.target.value; if (value === '' || value === 'none' || isManagerRole(value)) { setRoles(current => ({ ...current, [profile.id]: value })); setConfirmed(false); setInputError(''); } }}>
-          <option value="">역할 선택</option>
+        {data.setupCandidates.map(profile => <TableRow key={profile.id}><TableCell className="font-medium">{profile.nickname}{profile.id === actorId ? ' (본인)' : ''}{profile.suspendedAt ? ' · 정지' : ''}</TableCell><TableCell className="text-muted-foreground">{profile.maskedEmail}</TableCell><TableCell><span className="flex flex-wrap items-center gap-1.5"><AdminStatusBadge tone={statusTone('memberRole', profile.role)}>{profile.role === 'admin' ? '관리자' : '직원'}</AdminStatusBadge>{profile.managerRole ? <span className="text-xs text-muted-foreground">{MANAGER_ROLE_LABELS[profile.managerRole]}</span> : null}</span></TableCell><TableCell><NativeSelect aria-invalid={showMissing && !roles[profile.id] ? true : undefined} aria-label={`${profile.nickname} 새 매니저 역할`} className="w-full min-w-48" id={`operator-setup-${profile.id}`} value={roles[profile.id] ?? ''} disabled={request.pending || request.uncertain} onChange={event => { const value = event.target.value; if (value === '' || value === 'none' || isManagerRole(value)) { setRoles(current => ({ ...current, [profile.id]: value })); setConfirmed(false); setInputError(''); } }}>
+          <option value="">새 역할 고르기</option>
           {!profile.suspendedAt ? MANAGER_ROLES.filter(role => role !== 'owner' || profile.role === 'admin').filter(role => profile.id !== actorId || role === 'owner' || role === 'primary').map(role => <option key={role} value={role}>{MANAGER_ROLE_LABELS[role]}</option>) : null}
           {profile.id !== actorId ? <option value="none">권한 회수 (일반 회원)</option> : null}
         </NativeSelect></TableCell></TableRow>)}
@@ -107,7 +117,7 @@ function ManagerSetup({ data, actorId }: { data: OperatorDirectoryData; actorId:
       <div className="flex flex-col gap-3 px-4"><p>통합 매니저: <strong className="font-semibold">{owner?.nickname ?? '미선택'}</strong> · 권한 회수: {assignments.filter(item => item.managerRole === null).length}명</p>
         <label className={CHECK_LABEL_TOP}><input className="mt-0.5" type="checkbox" checked={confirmed} disabled={request.pending || request.uncertain} onChange={event => setConfirmed(event.target.checked)} />역할별 권한과 위 배정을 확인했습니다.</label>
         {inputError || request.error ? <AdminNotice role="alert" tone="danger">{inputError || request.error}</AdminNotice> : null}
-        <Button className="w-fit" disabled={request.pending || (!request.uncertain && noneChosen)} type="submit">{request.pending ? '적용 중' : request.uncertain ? '같은 요청으로 결과 확인' : '매니저 역할 적용'}</Button>
+        <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5"><Button className="w-fit" disabled={request.pending || (!request.uncertain && noneChosen)} type="submit">{request.pending ? '적용 중' : request.uncertain ? '같은 요청으로 결과 확인' : '매니저 역할 적용'}</Button>{nextStep ? <span className="text-sm text-muted-foreground">{nextStep}</span> : null}</div>
       </div>
     </form>
   </section>;
