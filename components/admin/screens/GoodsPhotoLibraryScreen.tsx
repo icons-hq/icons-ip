@@ -2,7 +2,7 @@
 import { useEffect, useRef, useState, type ChangeEvent } from 'react';
 import Link from 'next/link';
 import { findGoodsPhotosAction, finishGoodsPhotoUploadsAction, saveGoodsPhotoAction } from '@/app/admin/goods-photo-library-actions';
-import { ADMIN_ARTWORK_ACCEPT, ADMIN_ARTWORK_ERROR } from '@/lib/admin/artwork';
+import { ADMIN_ARTWORK_ACCEPT } from '@/lib/admin/artwork';
 import { uploadAdminArtwork } from '@/lib/admin/artwork-upload.client';
 import { GOODS_PHOTO_UPLOAD_LIMIT, goodsPhotoNameFromFileName, goodsPhotoReferenceLabel, type GoodsPhoto, type GoodsPhotoPage } from '@/lib/admin/goods-photo-library';
 import { publicMediaUrl } from '@/lib/media';
@@ -101,7 +101,7 @@ export function GoodsPhotoLibraryScreen({ initial = emptyPage, onSelect }: { ini
         <label className={`${CONSOLE_FILTER_LABEL_CLASS} w-full sm:w-64`}>사진 이름<Input aria-label="사진 이름 검색" value={query} maxLength={100} onChange={event => setQuery(event.target.value)} onKeyDown={event => { if(event.key==='Enter') { event.preventDefault(); void search(); } }} /></label>
         {!onSelect ? <label className={CONSOLE_FILTER_LABEL_CLASS}>표시<AdminSelect aria-label="사진 표시 상태" value={archived ? 'archived' : 'active'} disabled={busy} onChange={event => { void search(1,event.target.value==='archived'); }} wrapperClassName="w-44"><option value="active">사용 가능한 사진</option><option value="archived">보관한 사진</option></AdminSelect></label> : null}
       </div>
-      <ConsoleFilterActions start={<p className="text-xs text-muted-foreground">보관해도 파일은 유지됩니다.{!onSelect ? ` 상품·전시에 연결된 사진은 연결을 해제해야 보관할 수 있습니다. 업로드는 한 번에 최대 ${GOODS_PHOTO_UPLOAD_LIMIT}장, ${ADMIN_ARTWORK_ERROR}` : ''}</p>}>
+      <ConsoleFilterActions start={<p className="text-xs text-muted-foreground">보관해도 파일은 유지됩니다.{!onSelect ? ` 연결된 사진은 연결을 해제해야 보관할 수 있습니다. 업로드는 한 번에 ${GOODS_PHOTO_UPLOAD_LIMIT}장, 장당 5MB 이하 JPEG·PNG·WebP.` : ''}</p>}>
         <Button variant="ghost" type="button" disabled={busy} onClick={() => { setQuery(''); void search(1, false, ''); }}>초기화</Button>
         <Button type="button" disabled={busy} onClick={() => { void search(); }} variant="soft">조회</Button>
       </ConsoleFilterActions>

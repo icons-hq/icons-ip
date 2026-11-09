@@ -39,7 +39,8 @@ const REASONS_SAID_BY_BADGE: ReadonlySet<string> = new Set(['draft', 'archived']
 const SECONDARY = 'block text-xs leading-snug text-muted-foreground';
 /* 같은 칸의 바로 수정 덮개(R11) 위에 남아야 하는 보조 링크. */
 const SECONDARY_LINK = `${SECONDARY} relative z-[1] underline-offset-4 hover:text-foreground hover:underline`;
-const GOOD_ID_LINK = 'block truncate text-xs text-muted-foreground tabular-nums underline-offset-4 hover:text-foreground hover:underline';
+/* relative: 스크린리더 전용 글자가 잘린 글자 끝에 놓여 표 영역 밖으로 스크롤을 만들지 않게 이 칸을 기준으로 삼는다. */
+const GOOD_ID_LINK = 'relative block truncate text-xs text-muted-foreground tabular-nums underline-offset-4 hover:text-foreground hover:underline';
 const MENU_ITEM = 'flex items-center rounded-md px-2 py-1.5 text-sm outline-none hover:bg-accent focus-visible:bg-accent';
 
 /** 주 상태 배지 하나. 지금 고객이 살 수 있는지를 말하고, 전시·설정 준비 같은 세부는 `detail`로 내린다. */
@@ -108,8 +109,8 @@ export function GoodsListScreen({ data, shippingRegionExpiry, canIssueMarketingL
         /* 1440 화면에서 끝 열까지 들어오는 폭이다. 긴 영문이 많은 상품번호는 맨 뒤로 뺐고, 상세 재고는 재고수량 칸 안에 접어 둔다. */
         columns={[
         { key: 'name', label: '상품명 · 판매자상품코드', width: '216px' }, { key: 'edit', label: '수정', width: '64px' }, { key: 'price', label: '판매가', align: 'end', width: '112px' },
-        { key: 'readiness', label: '전시상태 · 판매 준비', width: '168px' }, { key: 'qty', label: '재고수량', align: 'end', width: '92px' },
-        { key: 'ip', label: 'IP · 카테고리', width: '108px' }, { key: 'createdAt', label: '상품등록일', width: '100px' }, { key: 'updatedAt', label: '상품수정일', width: '100px' }, { key: 'goodId', label: '상품번호', width: '88px' },
+        { key: 'readiness', label: '전시상태 · 판매 준비', width: '168px' }, { key: 'qty', label: '재고수량', align: 'end', width: '88px' },
+        { key: 'ip', label: 'IP · 카테고리', width: '108px' }, { key: 'createdAt', label: '상품등록일', width: '104px' }, { key: 'updatedAt', label: '상품수정일', width: '104px' }, { key: 'goodId', label: '상품번호', width: '84px' },
       ]} rows={goods.map(good => {
         const readiness = good.readiness ?? unknownGoodsReadiness();
         const editable = Boolean(inlineIdentity) && !good.archivedAt;
@@ -170,8 +171,8 @@ export function GoodsListScreen({ data, shippingRegionExpiry, canIssueMarketingL
              보조 문구는 같은 행의 상태 칸(임시저장·보관·전시중)과 같은 사유로 쓴다. 전시 중인데 안 보이면 판매 제한·IP 비공개다.
              상품번호는 긴 영문 값이라 앞부분만 줄여 보이고 전체 값은 말풍선에 둔다(복사·브라우저 찾기는 전체 값 그대로). 주 색 링크는 첫 칸 하나만이라 흐린 글자다. */
           good.customerVisible
-            ? <span key="goodId" className="inline-flex max-w-full items-center gap-0.5 text-muted-foreground"><a className={`${GOOD_ID_LINK} max-w-12`} title={good.id} data-goods-list="good-id" href={goodDetailHref(good.id)} target="_blank" rel="noopener noreferrer">{good.id}<span className="sr-only"> 고객 화면 새 탭으로 열기</span></a><ArrowUpRight aria-hidden="true" className="size-3.5 shrink-0" /></span>
-            : <Link key="goodId" className={`${GOOD_ID_LINK} max-w-16`} title={good.id} data-goods-list="good-id" href={goodPreviewHref(filters, good.id)}>{good.id}<small className={`${SECONDARY} mt-0.5 whitespace-normal`}>{good.archivedAt ? '보관' : good.publishedAt ? '고객 화면 비노출' : '공개 전'} · 미리보기</small></Link>,
+            ? <span key="goodId" className="inline-flex max-w-full items-center gap-0.5 text-muted-foreground"><a className={`${GOOD_ID_LINK} max-w-11`} title={good.id} data-goods-list="good-id" href={goodDetailHref(good.id)} target="_blank" rel="noopener noreferrer">{good.id}<span className="sr-only"> 고객 화면 새 탭으로 열기</span></a><ArrowUpRight aria-hidden="true" className="size-3.5 shrink-0" /></span>
+            : <Link key="goodId" className={`${GOOD_ID_LINK} max-w-15`} title={good.id} data-goods-list="good-id" href={goodPreviewHref(filters, good.id)}>{good.id}<small className={`${SECONDARY} mt-0.5 whitespace-normal`}>{good.archivedAt ? '보관' : good.publishedAt ? '고객 화면 비노출' : '공개 전'} · 미리보기</small></Link>,
         ] };
       })} />
       <ConsolePagination page={filters.page} pageSize={pageSize} total={total} hrefForPage={page => goodsListHref(filters, page)} />

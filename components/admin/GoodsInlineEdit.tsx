@@ -167,7 +167,7 @@ export function GoodsInlineSale({ goodId, stopped, identity, display, valueText,
       if (result.value.state === 'completed') state.router.refresh();
     });
   }
-  return <InlineEditor compact={compact} label="판매상태" display={display ?? (stopped ? '판매중지' : '판매중')} valueText={valueText} onSubmit={save} pending={state.pending} error={state.error} recovery={Boolean(state.recovery)} onRecover={recover} editing={state.editing} setEditing={state.setEditing}>
+  return <InlineEditor label="판매상태" compact={compact} display={display ?? (stopped ? '판매중지' : '판매중')} valueText={valueText} onSubmit={save} pending={state.pending} error={state.error} recovery={Boolean(state.recovery)} onRecover={recover} editing={state.editing} setEditing={state.setEditing}>
     <label htmlFor={inputId} className="sr-only">판매상태</label>
     <NativeSelect id={inputId} name="sale" defaultValue={stopped ? 'stopped' : 'active'} autoFocus size="sm" className="w-28 max-md:w-full">
       <option value="active">판매중</option><option value="stopped">판매중지</option>
