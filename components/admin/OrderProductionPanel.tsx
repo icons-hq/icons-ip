@@ -6,13 +6,15 @@ import { useRouter } from 'next/navigation';
 import { ClaimContactSession, type ClaimContactIdentity, type ClaimContactScope } from '@/components/claim-contact/ClaimContactSession';
 import { readOrderProductionAction, changeOrderProductionAction } from '@/app/admin/production-actions';
 import { PRODUCTION_STATE_LABELS, productionLeadLabel, type OrderProduction } from '@/lib/order-production';
+import { formatOrderDateTime } from '@/lib/orders';
 import { Button } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
 import { Label } from '@/components/admin/kit/ui/label';
 import { NativeSelect } from '@/components/admin/kit/ui/native-select';
 import { SellerClaimIntakeButton } from './screens/SellerClaimIntakeForm';
 /* 주문 상세의 주문제작 처리 카드 — kit 부품과 유틸리티로 그린다(ADR-0028). 상품 화면의 주문제작 설정(GoodsProductionPanel)은 따로다. */
-const time = (value: string) => new Date(value).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul', dateStyle: 'medium', timeStyle: 'short' });
+/* 날짜는 목록·상세와 같은 표기다. */
+const time = formatOrderDateTime;
 type Props = { initial: OrderProduction | null; actorId: string; canManage: boolean };
 export function OrderProductionPanel(props: Props) {
  if (props.initial?.jobs.length === 0) return null;
