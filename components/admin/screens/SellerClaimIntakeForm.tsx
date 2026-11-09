@@ -187,7 +187,7 @@ export function SellerClaimIntakeButton({ orderId, mode = 'return-exchange' }: {
     finally { setPending(false); }
   }
   return <div className="flex min-w-0 flex-col items-start gap-2" data-seller-claim-intake-entry="">
-    <button className={cn(buttonVariants({ size: 'sm', variant: mode === 'cancel' ? 'destructive' : 'outline' }))} data-slot="button" type="button" disabled={pending} onClick={() => { void open(); }}>{pending ? '접수 가능 여부 확인 중…' : mode === 'cancel' ? '판매자 직접 취소 접수' : '판매자 직접 반품·교환 접수'}</button>
+    <button className={cn(buttonVariants({ variant: mode === 'cancel' ? 'destructive' : 'outline' }))} data-slot="button" type="button" disabled={pending} onClick={() => { void open(); }}>{pending ? '접수 가능 여부 확인 중…' : mode === 'cancel' ? '판매자 직접 취소 접수' : '판매자 직접 반품·교환 접수'}</button>
     {error ? <p role="alert" className="text-sm text-destructive">{error}</p> : null}
     {context ? <SellerClaimIntakeForm key={context.orderId} context={context} carriers={context.carriers} onClose={() => setContext(null)} /> : null}
   </div>;

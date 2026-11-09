@@ -36,7 +36,7 @@ describe('발주 화면의 자동 발주확인 패널', () => {
   it('꺼짐에는 다음 실행이 없고, 읽기 실패에도 직접 발주확인 안내를 남긴다', () => {
     const off = renderToStaticMarkup(<AutoOrderConfirmPanel initial={{ ...state, enabled: false, nextRunAt: null, lastRun: null, lastExclusions: [] }} />);
     expect(off).toMatch(/data-tone="warning"[^>]*>꺼짐</); expect(off).toContain('매일 16:30 · 아직 실행 기록 없음'); expect(off).not.toContain('다음 실행');
-    expect(renderToStaticMarkup(<AutoOrderConfirmPanel initial={null} />)).toContain('신규주문은 아래에서 직접 발주확인할 수 있습니다');
+    expect(renderToStaticMarkup(<AutoOrderConfirmPanel initial={null} />)).toContain('신규주문은 위 목록에서 직접 발주확인할 수 있습니다');
   });
   it('테스트 배송완료는 스테이징 전용임과 메일 미발송을 알린다', () => {
     const html = renderToStaticMarkup(<StagingTestDeliveryPanel />);

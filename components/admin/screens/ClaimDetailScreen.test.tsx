@@ -143,6 +143,45 @@ describe('ClaimDetailScreen', () => {
     expect(closed).not.toContain('처리하기');
   });
 
+  /* 사람 눈 판정: '환급 기한 재출고 대기'가 버튼처럼 보였고, 교환에 환급이 나오는 것이 이상했다. */
+  it('실제 기한이 계산된 때만 환급 기한을 글자로 적고 알약·버튼 모양을 쓰지 않는다', () => {
+    const exchange = render({ claim: { ...detail().claim, claimType: 'exchange', stage: 'requested', collectedAt: null } });
+    expect(exchange).not.toContain('환급 기한');
+    const cancel = render({ claim: { ...detail().claim, claimType: 'cancel', stage: 'requested', collectedAt: null } });
+    expect(cancel).not.toContain('환급 기한');
+    const counted = render().match(/<span[^>]*data-sla-tone="[a-z]+"[^>]*>/)?.[0] ?? '';
+    expect(counted).not.toBe('');
+    expect(counted).not.toContain('data-slot="badge"');
+  });
+
+  it('처리 칸은 유형을 붙여 부르고 이동 탭도 같은 이름을 쓴다', () => {
+    const html = render({ claim: { ...detail().claim, claimType: 'cancel', stage: 'requested', collectedAt: null } });
+    expect(html).toMatch(/<a[^>]*href="#claim-process"[^>]*>취소 처리<\/a>/);
+    expect(html).toMatch(/<h3[^>]*>취소 처리<\/h3>/);
+    /* 처리 칸이 옆에 보이는 넓은 화면에서는 처리하기 버튼을 겹쳐 두지 않는다. */
+    expect(html.match(/<a[^>]*>처리하기<\/a>/)?.[0]).toContain('lg:hidden');
+  });
+
+  it('돈이 나가는 승인·확정 버튼 바로 앞에 금액을 적는다', () => {
+    const toss = { ...detail().payment!, provider: 'toss' };
+    const approve = render({ payment: toss, refund: null, claim: { ...detail().claim, claimType: 'cancel', stage: 'requested', collectedAt: null } });
+    expect(approve).toMatch(/data-claim-money-at-stake=""[^>]*>(?:(?!<button)[\s\S])*취소 금액(?:(?!<button)[\s\S])*₩43,000/);
+    expect(approve.indexOf('data-claim-money-at-stake')).toBeLessThan(approve.indexOf('value="approve"'));
+    const complete = render({ payment: toss, claim: { ...detail().claim, stage: 'processing', status: 'processing' } });
+    expect(complete).toMatch(/환불 금액(?:(?!<button)[\s\S])*₩43,000/);
+    /* 돈이 나가지 않는 승인에는 금액을 붙이지 않는다. */
+    expect(render({ payment: toss, claim: { ...detail().claim, stage: 'requested', collectedAt: null } })).not.toContain('data-claim-money-at-stake');
+  });
+
+  it('교환은 고객이 남긴 요청과 지금 주문의 옵션을 처리 칸 맨 위에 보이고 다른 유형에는 두지 않는다', () => {
+    const exchange = render({ claim: { ...detail().claim, claimType: 'exchange', stage: 'requested', reason: 'M 대신 S로 바꿔주세요', collectedAt: null } });
+    const box = exchange.indexOf('data-claim-exchange-request');
+    expect(box).toBeGreaterThan(exchange.indexOf('id="claim-process"'));
+    expect(exchange.slice(box)).toContain('M 대신 S로 바꿔주세요');
+    expect(exchange.slice(box)).toContain('아크릴 블록 · 파랑 × 2');
+    expect(render()).not.toContain('data-claim-exchange-request');
+  });
+
   it('운영 확인액은 선택 입력임을 밝히고 접은 채로 그린다', () => {
     const html = render();
     expect(html).toMatch(/운영 확인액<\/h3><span[^>]*>선택 입력</);

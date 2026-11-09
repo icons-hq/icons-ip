@@ -2,19 +2,20 @@
 import Link from 'next/link';
 import { ConsoleGrid, ConsolePagination, type ConsoleGridColumn } from '@/components/admin/console';
 import { EncryptedWorkbookDownloadButton } from '@/components/admin/EncryptedWorkbookDownloadButton';
-import { SalesFilterField, SalesFilterPanel, SalesGuide, SalesResultsTitle, SalesSelect } from '@/components/admin/sales/SalesConsole';
+import { SalesFilterField, SalesFilterPanel, SalesGuide, SalesResultsTitle, SalesSelect, ShortId } from '@/components/admin/sales/SalesConsole';
 import { AdminStatusBadge } from '@/components/admin/console/AdminKit';
 import { statusTone } from '@/lib/admin/status-tone';
 import { adminSubscriptionsHref, subscriptionScheduleLabel, type AdminSubscriptionData } from '@/lib/admin/subscriptions';
 import { SUBSCRIPTION_PLAN_STATES, SUBSCRIPTION_PLAN_LABELS } from '@/lib/subscriptions/model';
 import { formatKrwExact } from '@/components/admin/format';
 import { formatOrderDateTime } from '@/lib/orders';
+/* 1440 화면(표 폭 약 1,100px)에 다음 회차 금액까지 들어오게 나눈다. 상품은 폭을 비워 남는 자리를 받고, 누계·변경일은 뒤로 보낸다. */
 const columns: ConsoleGridColumn[] = [
-  { key: 'id', label: '정기구매 번호', width: '190px', required: true }, { key: 'state', label: '상태', width: '130px' },
-  { key: 'buyer', label: '구매자', width: '120px' }, { key: 'goods', label: '상품', width: '240px' }, { key: 'schedule', label: '주기', width: '120px' },
-  { key: 'next', label: '다음 결제일', width: '170px' }, { key: 'online', label: '이후 회차 온라인 금액', width: '170px', align: 'end' },
-  { key: 'collect', label: '별도 착불 배송비', width: '150px', align: 'end' }, { key: 'paid', label: '결제완료 회차', width: '130px', align: 'end' },
-  { key: 'paidTotal', label: '결제완료 누계', width: '150px', align: 'end' }, { key: 'updated', label: '최근 변경', width: '170px' },
+  { key: 'id', label: '정기구매 번호', width: '106px', required: true }, { key: 'state', label: '상태', width: '148px' },
+  { key: 'buyer', label: '구매자', width: '96px' }, { key: 'goods', label: '상품' }, { key: 'schedule', label: '주기', width: '64px' },
+  { key: 'next', label: '다음 결제일', width: '146px' }, { key: 'online', label: '이후 회차 온라인 금액', width: '150px', align: 'end' },
+  { key: 'collect', label: '별도 착불 배송비', width: '120px', align: 'end' }, { key: 'paid', label: '결제완료 회차', width: '104px', align: 'end' },
+  { key: 'paidTotal', label: '결제완료 누계', width: '110px', align: 'end' }, { key: 'updated', label: '최근 변경', width: '146px' },
 ];
 export function AdminSubscriptionsScreen({ data }: { data: AdminSubscriptionData }) {
   const filters = data.filters, query = new URLSearchParams(); if (filters.state) query.set('state', filters.state); if (filters.query) query.set('query', filters.query);
@@ -29,8 +30,8 @@ export function AdminSubscriptionsScreen({ data }: { data: AdminSubscriptionData
       <EncryptedWorkbookDownloadButton href={`/api/admin/subscriptions/export${query.size ? `?${query}` : ''}`} label="암호화 엑셀 다운로드" disabled={data.total > 10000} />
     </div>
     <ConsoleGrid caption="정기구매 신청 목록" preferencesKey="sales-subscriptions" columns={columns} emptyLabel="검색 조건에 맞는 정기구매가 없습니다."
-      rows={data.rows.map(row => ({ id: row.id, cells: [<Link key="id" className="font-medium tabular-nums underline-offset-4 hover:underline" href={`/admin/sales/subscriptions/${row.id}`}>{row.id}</Link>,
-        <AdminStatusBadge key="state" tone={statusTone('subscription', row.state)}>{SUBSCRIPTION_PLAN_LABELS[row.state]}</AdminStatusBadge>, row.buyerName, row.goodsLabel, subscriptionScheduleLabel(row.schedule), row.nextRunAt ? formatOrderDateTime(row.nextRunAt) : '—',
+      rows={data.rows.map(row => ({ id: row.id, cells: [<Link key="id" className="font-medium tabular-nums underline-offset-4 hover:underline" href={`/admin/sales/subscriptions/${row.id}`}><ShortId value={row.id} /></Link>,
+        <AdminStatusBadge key="state" tone={statusTone('subscription', row.state)}>{SUBSCRIPTION_PLAN_LABELS[row.state]}</AdminStatusBadge>, row.buyerName, <span className="block min-w-48" key="goods">{row.goodsLabel}</span>, subscriptionScheduleLabel(row.schedule), row.nextRunAt ? formatOrderDateTime(row.nextRunAt) : '—',
         formatKrwExact(row.renewalOnlineTotal), formatKrwExact(row.renewalCollectTotal), row.paidCycleCount, formatKrwExact(row.paidOnlineTotal), formatOrderDateTime(row.updatedAt)] }))} />
     <ConsolePagination label="정기구매 목록 페이지" page={data.page} pageSize={data.pageSize} total={data.total} hrefForPage={page => adminSubscriptionsHref(filters, page)} />
     <p className="text-muted-foreground">현재 검색 조건의 전체 신청을 받습니다. 최대 10,000건이며 내려받은 기록이 남습니다.</p></div>

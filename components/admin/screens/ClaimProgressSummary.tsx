@@ -3,7 +3,6 @@ import { adminClaimStageLabel } from '@/lib/admin/claims';
 import { formatOrderDateTime, refundStatusLabel } from '@/lib/orders';
 import { statusTone } from '@/lib/admin/status-tone';
 import { AdminStatusBadge } from '@/components/admin/console/AdminKit';
-import { LARGE_STATUS_BADGE_CLASS } from '@/components/admin/sales/OrderStatusBadge';
 import type { ReactNode } from 'react';
 
 type Fact = { label: string; value: ReactNode; detail: string; href: string; link: string };
@@ -44,7 +43,7 @@ export function ClaimProgressSummary({ claim, refund }: Props) {
     };
   const facts: Fact[] = [
     {
-      label: '현재 처리 단계', value: <AdminStatusBadge className={LARGE_STATUS_BADGE_CLASS} tone={statusTone('claim', claim.stage)}>{adminClaimStageLabel(claim.claimType, claim.stage)}</AdminStatusBadge>,
+      label: '현재 처리 단계', value: <AdminStatusBadge tone={statusTone('claim', claim.stage)}>{adminClaimStageLabel(claim.claimType, claim.stage)}</AdminStatusBadge>,
       detail: claim.stage === 'on_hold'
         ? `보류 전 ${claim.heldFrom ? adminClaimStageLabel(claim.claimType, claim.heldFrom) : '단계 확인 필요'}`
         : `최근 변경 ${formatOrderDateTime(claim.updatedAt)}`,
@@ -54,17 +53,13 @@ export function ClaimProgressSummary({ claim, refund }: Props) {
     settlement,
   ];
 
-  return <section aria-label="클레임 처리 현황" className="flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4 text-sm text-card-foreground" data-admin-kit="claim-progress">
-    <div className="flex flex-wrap items-baseline gap-x-4 gap-y-1">
-      <h3 className="text-base leading-snug font-medium">처리 현황</h3>
-      <p className="text-muted-foreground">처리 단계와 회수·환불·배송 기록을 각각 확인합니다.</p>
-    </div>
-    <dl className="grid gap-3 sm:grid-cols-3">{facts.map(fact => <div className="flex min-w-0 flex-col gap-2 rounded-lg border bg-muted/30 p-3" key={fact.label}>
-      <dt className="text-xs text-muted-foreground">{fact.label}</dt>
-      <dd className="flex min-w-0 flex-col gap-1 break-words">
-        <strong className="text-base font-semibold">{fact.value}</strong>
-        <span className="text-muted-foreground">{fact.detail}</span>
-        <a className="w-fit py-1 underline underline-offset-4" href={fact.href}>{fact.link}</a>
+  /* 처리 현황은 한 줄 요약이다 — 카드 세 개로 키우면 지금 할 일(처리 칸)이 첫 화면 아래로 밀린다. */
+  return <section aria-label="클레임 처리 현황" className="flex min-w-0 flex-col gap-2 rounded-xl border bg-card px-4 py-3 text-sm text-card-foreground" data-admin-kit="claim-progress">
+    <dl className="grid gap-x-6 gap-y-3 sm:grid-cols-3 sm:divide-x">{facts.map(fact => <div className="flex min-w-0 flex-col gap-1 sm:pl-6 sm:first:pl-0" key={fact.label}>
+      <dt className="flex items-baseline justify-between gap-2 text-xs text-muted-foreground">{fact.label}<a className="shrink-0 underline underline-offset-4 hover:text-foreground" href={fact.href}>{fact.link}</a></dt>
+      <dd className="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-0.5 break-words">
+        <strong className="font-semibold">{fact.value}</strong>
+        <span className="text-xs text-muted-foreground">{fact.detail}</span>
       </dd>
     </div>)}</dl>
     {claim.stage === 'on_hold' && claim.holdReason ? <p className="break-words text-muted-foreground">보류 사유: {claim.holdReason}</p> : null}

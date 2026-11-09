@@ -5,6 +5,7 @@ import {
   changeShipmentPreorderDateAction, readShipmentPreorderPromiseAction, type ShipmentPreorderPromise,
 } from '@/app/admin/preorder-shipment-actions';
 import { goodsShipDateLabel } from '@/lib/goods-preorders';
+import { formatOrderDateTime } from '@/lib/orders';
 import { Button } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
 import { Textarea } from '@/components/admin/kit/ui/textarea';
@@ -66,7 +67,7 @@ export function ShipmentPreorderPromisePanel({ shipmentId, orderId }: { shipment
         {promise.changes.length ? <ol className="flex list-decimal flex-col gap-2.5 pl-5">
           {promise.changes.map((change) => <li key={change.id}>
             <span className="tabular-nums">{change.fromDate} → {change.toDate}</span><p className="my-1 whitespace-pre-wrap wrap-anywhere">{change.reason}</p>
-            <small className="text-xs text-muted-foreground">{new Date(change.changedAt).toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' })} · {change.actorName ?? '운영자'}</small>
+            <small className="text-xs text-muted-foreground">{formatOrderDateTime(change.changedAt)} · {change.actorName ?? '운영자'}</small>
           </li>)}
         </ol> : <p className="text-muted-foreground">기록된 일정 변경이 없습니다.</p>}
       </> : <p className="text-muted-foreground">이 배송 건에는 예약 상품이 없습니다.</p>}

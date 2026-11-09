@@ -54,6 +54,14 @@ describe('ClaimQueueKitScreen (admin kit)', () => {
     }
   });
 
+  /* 사람 눈 판정: 체크칸은 있는데 체크하고 누를 버튼이 보이지 않아 체크해야 나오는 건지 알 수 없었다. */
+  it('표 위에 체크하면 처리 버튼이 나온다고 말하고 지금 걸린 단계 조건을 적는다', () => {
+    const html = renderToStaticMarkup(<ClaimQueueKitScreen data={data({ filters: { ...FILTERS, stage: 'open' } })} now={NOW} />);
+    expect(html).toContain('처리할 요청을 체크하면 화면 아래에 승인·검토중·거부 버튼이 나타납니다.');
+    expect(html.indexOf('처리할 요청을 체크하면')).toBeLessThan(html.indexOf('<thead'));
+    expect(html).toContain(' · 미처리 전체');
+  });
+
   it('요청번호는 같은 목록 위 상세 팝업 링크다', () => {
     const html = renderToStaticMarkup(<ClaimQueueKitScreen data={data()} now={NOW} />);
     expect(html).toContain(`claimId=${CLAIM_ID}`);

@@ -77,6 +77,10 @@ const STATUS_TONES = {
   shippingCollect: { planned: 'info', collected: 'success', void: 'neutral', refund_review: 'warning', refunded: 'neutral', mismatch: 'danger' },
   /** 주문제작 — lib/order-production */
   production: { pending: 'warning', started: 'info', completed: 'success', canceled: 'danger' },
+  /** PG 정산 거래 구분 — lib/settlements/report. 승인은 평상 상태라 조용히 두고 취소 줄만 구분한다 */
+  pgSettlementKind: { approval: 'neutral', cancel: 'danger' },
+  /** PG 정산 수집 시점 대조 — lib/settlements/report */
+  pgSettlementMatch: { matched: 'success', unlinked: 'warning', mismatch: 'danger' },
   // [cs]
   /** 고객문의 답변 만족도 — lib/inquiry-satisfaction */
   inquirySatisfaction: { satisfied: 'success', dissatisfied: 'danger', unrated: 'neutral' },

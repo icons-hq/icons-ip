@@ -5,21 +5,22 @@ import { PurchaseRestrictionBatchForm } from './PurchaseRestrictionBatchForm';
 import { ConsolePagination, type ConsoleGridColumn } from '@/components/admin/console';
 import type { PurchaseRestrictionReleaseReceipt } from '@/lib/admin/purchase-restriction-release';
 import { PurchaseRestrictionReleaseGrid } from './PurchaseRestrictionReleaseGrid';
-import { SalesGuide, SalesFilterField, SalesFilterPanel, SalesResultsTitle, SalesSelect } from '@/components/admin/sales/SalesConsole';
+import { SalesGuide, SalesFilterField, SalesFilterPanel, SalesResultsTitle, SalesSelect, ShortId } from '@/components/admin/sales/SalesConsole';
 import { AdminNotice, AdminStatusBadge } from '@/components/admin/console/AdminKit';
 /* 구매제한 관리 — 템플릿 룩(ADR-0028). 셀 보조 줄은 유틸리티다. */
 const CELL_STACK = 'flex flex-col items-start gap-0.5 [&_small]:text-xs [&_small]:text-muted-foreground';
 import { PURCHASE_RESTRICTION_REASONS, purchaseRestrictionsHref, type PurchaseRestrictionData } from '@/lib/admin/purchase-restrictions';
 import { formatOrderDateTime } from '@/lib/orders';
 import { PurchaseRestrictionRegister, PurchaseRestrictionRelease } from './PurchaseRestrictionForms';
+/* 1440 화면(표 폭 약 1,100px)에 관리 열까지 들어오게 나눈다. 긴 번호는 앞 8자로 줄이고(전체 값은 마우스를 올리면 보인다) 등록 사유가 남는 자리를 받는다. */
 const COLUMNS: ConsoleGridColumn[] = [
-  { key: 'state', label: '상태', width: '90px', required: true },
-  { key: 'customer', label: '고객', width: '190px', required: true },
-  { key: 'reason', label: '등록 사유', width: '230px' },
-  { key: 'order', label: '근거 주문번호', width: '170px' },
-  { key: 'registered', label: '등록일시 / 처리자', width: '170px' },
-  { key: 'released', label: '해제일시 / 처리자 / 사유', width: '230px' },
-  { key: 'action', label: '관리', width: '190px', required: true },
+  { key: 'state', label: '상태', width: '104px', required: true },
+  { key: 'customer', label: '고객', width: '150px', required: true },
+  { key: 'reason', label: '등록 사유' },
+  { key: 'order', label: '근거 주문번호', width: '106px' },
+  { key: 'registered', label: '등록일시 / 처리자', width: '146px' },
+  { key: 'released', label: '해제일시 / 처리자 / 사유', width: '170px' },
+  { key: 'action', label: '관리', width: '100px', required: true },
 ];
 export function PurchaseRestrictionsScreen({ data, initialBatch = null, batchMissing = false, initialRelease = null, releaseMissing = false }: { data: PurchaseRestrictionData; initialBatch?: PurchaseRestrictionBatch | null; batchMissing?: boolean; initialRelease?: PurchaseRestrictionReleaseReceipt | null; releaseMissing?: boolean }) {
   const { filters, total } = data;
@@ -42,9 +43,9 @@ export function PurchaseRestrictionsScreen({ data, initialBatch = null, batchMis
       <PurchaseRestrictionReleaseGrid key={currentHref + (initialRelease?.id ?? '')} columns={COLUMNS} currentHref={currentHref} initialReceipt={initialRelease}
         rows={data.rows.map(row => ({ id: row.id, selectable: row.releasedAt === null, selectLabel: `${row.nickname || row.userId} 구매제한 선택`, cells: [
           <AdminStatusBadge key="state" tone={row.releasedAt ? 'neutral' : 'warning'}>{row.releasedAt ? '해제' : '구매제한 중'}</AdminStatusBadge>,
-          <div key="customer" className={CELL_STACK}><Link className="font-medium underline-offset-4 hover:underline" href={`/admin/customers/${row.userId}`}>{row.nickname || '이름 없음'}</Link><small>{row.maskedEmail}</small><small className="tabular-nums">{row.userId}</small></div>,
+          <div key="customer" className={CELL_STACK}><Link className="font-medium underline-offset-4 hover:underline" href={`/admin/customers/${row.userId}`}>{row.nickname || '이름 없음'}</Link><small>{row.maskedEmail}</small><small><ShortId value={row.userId} /></small></div>,
           <div key="reason" className={CELL_STACK}><strong className="font-medium">{PURCHASE_RESTRICTION_REASONS.find(reason => reason.value === row.reasonCode)?.label ?? row.reasonCode}</strong><small>{row.reasonDetail}</small></div>,
-          row.evidenceOrderId ? <Link key="order" className="tabular-nums underline-offset-4 hover:underline" href={`/admin/sales/orders/${row.evidenceOrderId}`}>{row.evidenceOrderId}</Link> : '—',
+          row.evidenceOrderId ? <Link key="order" className="underline-offset-4 hover:underline" href={`/admin/sales/orders/${row.evidenceOrderId}`}><ShortId value={row.evidenceOrderId} /></Link> : '—',
           <div key="registered" className={CELL_STACK}>{formatOrderDateTime(row.createdAt)}<small>{row.createdBy || '담당자 정보 없음'}</small></div>,
           row.releasedAt ? <div key="released" className={CELL_STACK}>{formatOrderDateTime(row.releasedAt)}<small>{row.releasedBy || '담당자 정보 없음'}</small><small>{row.releaseReason}</small></div> : '—',
           row.releasedAt ? '—' : <PurchaseRestrictionRelease key="action" restrictionId={row.id} customerName={row.nickname || row.userId} />,

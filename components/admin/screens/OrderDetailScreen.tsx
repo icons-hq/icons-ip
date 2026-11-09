@@ -6,8 +6,10 @@ import { GoodsCustomInputsSummary } from '@/components/shop/GoodsCustomInputs';
 import { shipmentStatusLabel, type ShipmentStatus } from '@/lib/orders/shipments';
 import { ShipmentDetails } from '@/components/shop/ShipmentDetails';
 import Link from 'next/link';
-import { AdminNotice, AdminPageHeader, AdminSectionCard, AdminStatusBadge } from '@/components/admin/console/AdminKit';
+import { AdminNotice, AdminSectionCard, AdminStatusBadge } from '@/components/admin/console/AdminKit';
+import { AdminPageHeading } from '@/components/admin/console/admin-shell-title';
 import { LARGE_STATUS_BADGE_CLASS, OrderStatusBadge } from '@/components/admin/sales/OrderStatusBadge';
+import { ShortId } from '@/components/admin/sales/SalesConsole';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
 import type { AdminOrderDetail, AdminOrderTimelineEntry, AdminOrderTimelineSource } from '@/lib/admin/order-detail';
 import type { OrderItemAllocation } from '@/lib/admin/item-allocation';
@@ -17,6 +19,7 @@ import { adminClaimStageLabel } from '@/lib/admin/claims';
 import { isParcelShipment } from '@/lib/admin/shipment-dispatch';
 import { statusTone } from '@/lib/admin/status-tone';
 import { krw } from '@/lib/format';
+import { formatOrderDateTime, refundStatusLabel } from '@/lib/orders';
 import { isOpenOrderClaimStage, isOrderClaimStage, isOrderClaimType, ORDER_CLAIM_STAGE_LABELS, ORDER_CLAIM_TYPE_LABELS, ORDER_CLAIM_TYPE_SLUGS } from '@/lib/orders/claims';
 import { OrderNoteForm } from './OrderNoteForm';
 import { PurchaseConfirmationPanel } from '@/components/orders/PurchaseConfirmationPanel';
@@ -80,9 +83,8 @@ const shipmentState = (status: string) => ['ready','shipping','delivered','cance
 const orderStatus = (status: string) => (ADMIN_ORDER_STATUS_LABELS as Record<string, string>)[status] ?? '변경';
 /* 배송 건별 현황(공개 부품 ShipmentDetails)과 주문 목록이 ₩로 적으므로 이 화면의 금액도 같은 표기를 쓴다. */
 const money = krw;
-const dateTime = (value: string) => new Date(value).toLocaleString('ko-KR', {
-  timeZone: 'Asia/Seoul', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hour12: false,
-});
+/* 날짜는 목록·클레임 상세와 같은 표기다. */
+const dateTime = formatOrderDateTime;
 
 /* 주문 상세의 사실 목록·품목 보조 줄(템플릿 룩, ADR-0028). 배송 건별 정보(ShipmentDetails)는 공개 부품이라 그 모양은 admin-order-detail.css가 맡는다. */
 const FACTS = 'grid gap-3';
@@ -147,7 +149,7 @@ function TimelineEntry({ entry, digital = false }: { entry: AdminOrderTimelineEn
     {entry.fromStatus && entry.toStatus ? <p className={EVENT_TEXT}>{stateLabel(entry.fromStatus)} → {stateLabel(entry.toStatus)}</p> : null}
     {entry.amount != null ? <p className={`${EVENT_TEXT} tabular-nums`}>{money(entry.amount)}{entry.provider ? ` · ${entry.provider === 'korpay' ? 'Korpay' : entry.provider === 'toss' ? 'Toss' : entry.provider === 'nicepay' ? 'NICEPAY' : '결제사'}` : ''}</p> : null}
     {status ? <p className={`${EVENT_TEXT} text-muted-foreground`}>현재 상태 · {status}</p> : null}
-    {entry.shipmentId ? <p className={EVENT_TEXT}>{entry.originName ?? '배송 건'} · {entry.shipmentId}</p> : null}
+    {entry.shipmentId ? <p className={EVENT_TEXT}>{entry.originName ?? '배송 건'} · <ShortId value={entry.shipmentId} /></p> : null}
     {entry.trackingNumber ? <p className={EVENT_TEXT}>운송장 · {entry.carrier} {entry.trackingNumber}</p> : null}
     {entry.body ? <p className={`${EVENT_TEXT} whitespace-pre-wrap`}>{entry.body}</p> : null}
     {href ? <Link className="inline-flex min-h-10 items-center text-sm underline underline-offset-4" href={href}>{entry.source === 'inquiry' ? '문의 상세 열기' : '요청 상세 열기'}</Link> : null}
@@ -183,22 +185,33 @@ export function OrderDetailScreen({
   const addressNotRequired = detail.shipments.length > 0 && detail.shipments.every(shipment => shipment.delivery && ['pickup', 'none', 'digital'].includes(shipment.delivery.method));
   const hasOpenClaim = detail.timeline.some(entry => entry.source === 'claim' && isOrderClaimStage(entry.status) && isOpenOrderClaimStage(entry.status));
   const nextStep = orderNextStep(order.status, hasOpenClaim, !detail.shipments.length || detail.shipments.some(isParcelShipment));
+  /* 취소 주문에서 제일 궁금한 것은 환불이 됐는지다. 타임라인의 환불 기록을 머리로 올린다. 사유는 요청 상세에 있어 그리로 잇는다. */
+  const canceled = order.status === 'canceled';
+  const latestRefund = canceled ? [...timeline].reverse().find(entry => entry.source === 'refund') ?? null : null;
+  const canceledClaim = canceled ? [...timeline].reverse().find(entry => entry.source === 'claim' && entry.relatedId && isOrderClaimType(entry.claimType)) ?? null : null;
+  const trackingMissing = detail.shipments.filter(shipment => isParcelShipment(shipment) && shipment.status === 'shipping' && !shipment.trackingNumber).length;
   return <div className="flex min-w-0 flex-col gap-6" data-order-detail-screen="">
-    <div className="flex min-w-0 flex-col gap-3">
-    <AdminPageHeader title="주문 상세" description={order.orderNumber ?? order.id} actions={<>
-      <Link href={backHref} className={buttonVariants({ variant: 'outline' })} data-slot="button">{backLabel}</Link>
-      {canManage ? <Link href={`/admin/sales/orders?status=all&query=${order.id}&order=${order.id}`} className={buttonVariants({ variant: nextStep ? 'default' : 'outline' })} data-slot="button">{nextStep ? `주문 처리 · ${nextStep}` : '주문 처리'}</Link> : null}
-      {canManage && !addressNotRequired ? <OrderAddressButton orderId={order.id} /> : null}
-      {canManage && ['shipping', 'delivered', 'done'].includes(order.status) ? <SellerClaimIntakeButton orderId={order.id} /> : null}
-      {canManage && (order.status === 'pending' || order.status === 'paid') ? <SellerClaimIntakeButton orderId={order.id} mode="cancel" /> : null}
-    </>} />
-    {/* 이 주문의 지금 상태를 맨 위에서 먼저 읽는다. */}
-    <section aria-label="주문 현재 상태" className="flex flex-wrap items-center gap-x-3 gap-y-2" data-order-status-strip="">
-      <OrderStatusBadge className={LARGE_STATUS_BADGE_CLASS} status={order.status} />
-      <strong className="text-base font-semibold tabular-nums">{money(order.total)}</strong>
-      <span className="text-muted-foreground tabular-nums">{dateTime(order.createdAt)}</span>
-    </section>
-    </div>
+    {/* 이 주문의 번호와 지금 상태를 맨 위 한 줄에서 먼저 읽고, 같은 줄 오른쪽에서 처리한다. */}
+    <header className="flex flex-wrap items-center justify-between gap-3" data-admin-kit="page-header">
+      <section aria-label="주문 현재 상태" className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-2" data-order-status-strip="">
+        <AdminPageHeading title="주문 상세" />
+        <strong className="text-base font-semibold tabular-nums">{order.orderNumber ?? order.id}</strong>
+        <OrderStatusBadge className={LARGE_STATUS_BADGE_CLASS} status={order.status} />
+        <strong className="text-base font-semibold tabular-nums">{money(order.total)}</strong>
+        <span className="text-muted-foreground tabular-nums">{dateTime(order.createdAt)}</span>
+        {canceled && canManage ? <span className="flex flex-wrap items-center gap-2" data-order-cancel-result="">
+          {latestRefund ? <><AdminStatusBadge tone={statusTone('refund', latestRefund.status)}>{latestRefund.status ? refundStatusLabel(latestRefund.status) : '환불 기록'}</AdminStatusBadge>{latestRefund.amount != null ? <span className="tabular-nums">{money(latestRefund.amount)}</span> : null}</> : <span className="text-muted-foreground">환불 기록 없음</span>}
+          {canceledClaim?.relatedId && isOrderClaimType(canceledClaim.claimType) ? <Link className="underline underline-offset-4" href={`/admin/sales/claims/${ORDER_CLAIM_TYPE_SLUGS[canceledClaim.claimType]}/${canceledClaim.relatedId}`}>취소 사유 보기</Link> : null}
+        </span> : null}
+      </section>
+      <div className="flex flex-wrap items-center gap-2">
+        <Link href={backHref} className={buttonVariants({ variant: 'outline' })} data-slot="button">{backLabel}</Link>
+        {canManage ? <Link href={`/admin/sales/orders?status=all&query=${order.id}&order=${order.id}`} className={buttonVariants({ variant: nextStep ? 'default' : 'outline' })} data-slot="button">{nextStep ? `주문 처리 · ${nextStep}` : canceled ? '주문 통합검색에서 보기' : '주문 처리'}</Link> : null}
+        {canManage && !addressNotRequired ? <OrderAddressButton orderId={order.id} /> : null}
+        {canManage && ['shipping', 'delivered', 'done'].includes(order.status) ? <SellerClaimIntakeButton orderId={order.id} /> : null}
+        {canManage && (order.status === 'pending' || order.status === 'paid') ? <SellerClaimIntakeButton orderId={order.id} mode="cancel" /> : null}
+      </div>
+    </header>
     {actorId && production !== undefined ? <OrderProductionPanel initial={production} actorId={actorId} canManage={canManage} /> : null}
     <div className="grid min-w-0 gap-6 md:grid-cols-2">
       <AdminSectionCard title="주문 정보">
@@ -207,7 +220,9 @@ export function OrderDetailScreen({
           <div className={FACT_ROW}><dt className={FACT_TERM}>주문 일시</dt><dd className={FACT_VALUE}>{dateTime(order.createdAt)}</dd></div>
           <div className={FACT_ROW}><dt className={FACT_TERM}>주문자</dt><dd className={FACT_VALUE}>{order.buyerName || '이름 미등록'}{order.buyerEmail ? <span className="mt-1 block text-xs text-muted-foreground">{order.buyerEmail}</span> : null}{canViewCustomer ? <Link className="mt-1 block w-fit underline underline-offset-4" href={`/admin/customers/${order.userId}`}>고객 상세 열기</Link> : null}</dd></div>
           <div className={FACT_ROW}><dt className={FACT_TERM}>주문 금액</dt><dd className={`${FACT_VALUE} tabular-nums`}>{money(order.total)}</dd></div>
-          <div className={FACT_ROW}><dt className={FACT_TERM}>배송비 / 쿠폰 할인 / 적립금 사용</dt><dd className={`${FACT_VALUE} tabular-nums`}>{money(order.shippingFee)} / {money(order.discountTotal)} / {money(order.storeCreditTotal)}</dd></div>
+          <div className={FACT_ROW}><dt className={FACT_TERM}>배송비</dt><dd className={`${FACT_VALUE} tabular-nums`}>{money(order.shippingFee)}</dd></div>
+          <div className={FACT_ROW}><dt className={FACT_TERM}>쿠폰 할인</dt><dd className={`${FACT_VALUE} tabular-nums`}>{money(order.discountTotal)}</dd></div>
+          <div className={FACT_ROW}><dt className={FACT_TERM}>적립금 사용</dt><dd className={`${FACT_VALUE} tabular-nums`}>{money(order.storeCreditTotal)}</dd></div>
           {order.transaction && <>
             <div className={FACT_ROW}><dt className={FACT_TERM}>복수구매 할인</dt><dd className={`${FACT_VALUE} tabular-nums`}>{money(order.transaction.totals.volumeDiscountTotal)}</dd></div>
             <div className={FACT_ROW}><dt className={FACT_TERM}>온라인 결제금액 / 착불 배송비</dt><dd className={FACT_VALUE}>{money(order.transaction.totals.onlineTotal)} / {money(order.transaction.totals.collectShippingTotal)} · 착불은 별도 수납 원장으로 확인</dd></div>
@@ -227,6 +242,7 @@ export function OrderDetailScreen({
     </div>
     {downloads !== undefined && <AdminOrderDownloads document={downloads} />}
     <AdminSectionCard title="배송 건별 현황">
+      {trackingMissing ? <AdminNotice role="status" tone="warning">배송 중인데 운송장이 등록되지 않은 배송 건이 {trackingMissing}건 있습니다. 택배사와 운송장번호를 확인해주세요.</AdminNotice> : null}
       <ShipmentDetails admin shipments={detail.shipments} items={items} transactionShipping={order.transaction?.shipping} />
       {actorId && (order.transaction?.totals.collectShippingTotal ?? 0) > 0 ? <ShippingCollectPanel key={`${actorId}:${order.id}`} orderId={order.id} expectedActorId={actorId} canManage={canManage} /> : null}
       {canManage ? detail.shipments.map(shipment => <ShipmentDeliveryPanel orderId={order.id} shipmentId={shipment.id} shipmentNumber={shipment.shipmentNumber} originName={shipment.originName} key={shipment.id} />) : null}

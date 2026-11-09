@@ -4,6 +4,7 @@ import { ClaimFeePanel } from '@/components/orders/ClaimFeePanel';
 import { GoodsCustomInputsSummary } from '@/components/shop/GoodsCustomInputs';
 import { ShipmentDetails } from '@/components/shop/ShipmentDetails';
 import type { ReactNode } from 'react';
+import { Clock } from 'lucide-react';
 import { AdminNotice, AdminStatusBadge } from '@/components/admin/console/AdminKit';
 import { LARGE_STATUS_BADGE_CLASS } from '@/components/admin/sales/OrderStatusBadge';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
@@ -16,7 +17,7 @@ import type { AdminClaimDetail } from '@/lib/admin/claims.server';
 import { adminClaimStageLabel } from '@/lib/admin/claims';
 import { adminOrderSearchHref } from '@/lib/admin/orders';
 import { krw } from '@/lib/format';
-import { statusTone, type AdminTone } from '@/lib/admin/status-tone';
+import { statusTone } from '@/lib/admin/status-tone';
 import {
   formatOrderDateTime,
   orderReferenceLabel,
@@ -29,7 +30,6 @@ import {
   ORDER_CLAIM_TYPE_LABELS,
   orderClaimReferenceLabel,
   orderClaimSlaState,
-  type OrderClaimSlaState,
 } from '@/lib/orders/claims';
 import type { ShippingCarrierRegistry } from '@/lib/orders/shipment';
 import { ClaimWithdrawal } from '@/components/orders/ClaimWithdrawal';
@@ -120,10 +120,10 @@ const ORDER_STATUS_LABELS: Record<string, string> = {
   canceled: '취소',
 };
 
-/* SLA는 운영자가 가장 먼저 보는 값이라 톤을 데이터 속성으로도 남기고, 임박·초과를 의미색으로 강조한다. */
-const SLA_BADGE_TONE: Record<OrderClaimSlaState['tone'], AdminTone> = { muted: 'neutral', ok: 'info', warning: 'warning', danger: 'danger' };
+/* 환급 기한이 실제로 계산된 때만 머리에 적는다. 버튼으로 오해받지 않게 알약이 아니라 시계 아이콘 + 글자이고, 임박·초과만 의미색을 입는다. */
+const SLA_TEXT_CLASS = 'inline-flex items-center gap-1 tabular-nums text-muted-foreground data-[sla-tone=warning]:font-semibold data-[sla-tone=warning]:text-warning data-[sla-tone=danger]:font-semibold data-[sla-tone=danger]:text-destructive';
 /* 구역 바로가기 — 셸의 콘솔 전환과 같은 모양의 구분 선택. */
-const SECTION_LINK_CLASS = 'inline-flex h-7 items-center rounded-md px-3 text-sm font-medium text-muted-foreground transition-colors hover:bg-background hover:text-foreground';
+const SECTION_LINK_CLASS = 'inline-flex h-7 items-center rounded-md px-3 text-sm font-medium whitespace-nowrap text-muted-foreground transition-colors hover:bg-background hover:text-foreground';
 const OUTLINE_SM = `${cn(buttonVariants({ size: 'sm', variant: 'outline' }))} w-fit`;
 const ROW_INLINE = 'flex flex-wrap items-center gap-2';
 
@@ -166,6 +166,7 @@ export function ClaimDetailScreen({
   now?: Date;
 }) {
   const { cardPacks, claim, order, payment, refund, refundAccount, timeline } = detail;
+  const typeLabel = ORDER_CLAIM_TYPE_LABELS[claim.claimType];
   const sla = orderClaimSlaState(
     {
       claimType: claim.claimType,
@@ -188,6 +189,14 @@ export function ClaimDetailScreen({
       <ClaimContactHistory actorId={actorId} orderId={claim.orderId} claimId={claim.id} operator />
     </CardContent>
   </Card> : null;
+  /* 교환에서 가장 먼저 보는 정보다. 바꿀 옵션을 따로 받는 칸은 없어 고객이 남긴 요청 글과 지금 주문의 상품·옵션을 처리 칸 맨 위에 함께 보인다. */
+  const exchangeRequest = claim.claimType === 'exchange' ? <section aria-label="교환 요청 내용" className="flex min-w-0 flex-col gap-1.5 rounded-lg border bg-muted/40 p-3" data-claim-exchange-request="">
+    <h4 className="text-xs font-medium text-muted-foreground">고객이 남긴 교환 요청</h4>
+    <p className="font-medium break-words whitespace-pre-wrap">{claim.reason}</p>
+    {order?.items.length ? <ul className="flex flex-col gap-0.5 text-muted-foreground">
+      {order.items.map(item => <li className="break-words" key={item.id}>지금 주문 · {item.name}{item.variantName ? ` · ${item.variantName}` : ''} × {item.qty}</li>)}
+    </ul> : null}
+  </section> : null;
   const refundSummary = <Card id="claim-refund" tabIndex={-1} className="scroll-mt-16 outline-none">
     <CardHeading>카드팩 · 환불</CardHeading>
     <CardContent className="flex flex-col gap-3">
@@ -250,36 +259,31 @@ export function ClaimDetailScreen({
 
   return (
     <section className="flex min-w-0 flex-col gap-4 text-sm text-foreground" data-admin-kit="claim-detail">
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div className="flex min-w-0 flex-col gap-2">
-          {embedded ? null : <>
-            <Link className={OUTLINE_SM} data-slot="button" href={backHref}>← 목록으로</Link>
-            <h2 className="text-lg font-semibold tracking-tight text-foreground">
-              {ORDER_CLAIM_TYPE_LABELS[claim.claimType]} {orderClaimReferenceLabel(claim.reference)}
-            </h2>
-          </>}
-          <div className="flex flex-wrap items-center gap-2">
-            <AdminStatusBadge className={LARGE_STATUS_BADGE_CLASS} tone={statusTone('claim', claim.stage)}>{adminClaimStageLabel(claim.claimType, claim.stage)}</AdminStatusBadge>
-            <p className="text-muted-foreground">
-              {adminClaimReasonText(claim.reasonType, claim.staffReasonCode)}
-              {' · 접수 '}
-              <time dateTime={claim.requestedAt}>{formatOrderDateTime(claim.requestedAt)}</time>
-            </p>
-          </div>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <AdminStatusBadge className={`${LARGE_STATUS_BADGE_CLASS} tabular-nums`} data-sla-tone={sla.tone} tone={SLA_BADGE_TONE[sla.tone]}>
-            환급 기한 {sla.label}
-          </AdminStatusBadge>
-          {awaitsOperator ? <Link className={buttonVariants()} data-slot="button" href="#claim-process">처리하기</Link> : null}
+      {/* 지금 할 일(처리 칸)이 첫 화면에 오도록 머리는 한 줄로 모은다. 넓은 화면에서는 처리 칸이 바로 보여 처리하기 버튼을 두지 않는다. */}
+      <header className="flex flex-wrap items-center gap-x-3 gap-y-2">
+        {embedded ? null : <>
+          <Link className={OUTLINE_SM} data-slot="button" href={backHref}>← 목록으로</Link>
+          <h2 className="text-lg font-semibold tracking-tight text-foreground">
+            {typeLabel} {orderClaimReferenceLabel(claim.reference)}
+          </h2>
+        </>}
+        <AdminStatusBadge className={LARGE_STATUS_BADGE_CLASS} tone={statusTone('claim', claim.stage)}>{adminClaimStageLabel(claim.claimType, claim.stage)}</AdminStatusBadge>
+        <p className="text-muted-foreground">
+          {adminClaimReasonText(claim.reasonType, claim.staffReasonCode)}
+          {' · 접수 '}
+          <time dateTime={claim.requestedAt}>{formatOrderDateTime(claim.requestedAt)}</time>
+        </p>
+        {sla.tone !== 'muted' ? <span className={SLA_TEXT_CLASS} data-sla-tone={sla.tone}><Clock aria-hidden="true" className="size-3.5" />환급 기한 {sla.label}</span> : null}
+        <div className="ml-auto flex flex-wrap items-center gap-2">
+          {awaitsOperator ? <Link className={`${buttonVariants({ variant: 'soft' })} lg:hidden`} data-slot="button" href="#claim-process">처리하기</Link> : null}
           {embedded && detailHref ? <ClaimPreviewFullScreenLink href={detailHref} /> : null}
+          <nav aria-label="클레임 상세 항목" className="inline-flex w-fit max-w-full flex-wrap gap-0.5 rounded-lg bg-muted p-0.5">
+            <Link className={SECTION_LINK_CLASS} href="#claim-order">주문정보</Link>
+            <Link className={SECTION_LINK_CLASS} href="#claim-request">요청·처리이력</Link>
+            <Link className={SECTION_LINK_CLASS} href="#claim-process">{typeLabel} 처리</Link>
+          </nav>
         </div>
       </header>
-      <nav aria-label="클레임 상세 항목" className="inline-flex w-fit max-w-full flex-wrap gap-0.5 rounded-lg bg-muted p-0.5">
-        <Link className={SECTION_LINK_CLASS} href="#claim-order">주문정보</Link>
-        <Link className={SECTION_LINK_CLASS} href="#claim-request">요청·처리이력</Link>
-        <Link className={SECTION_LINK_CLASS} href="#claim-process">처리</Link>
-      </nav>
       <ClaimProgressSummary claim={claim} refund={refund} />
 
       <div className="grid min-w-0 items-start gap-4 lg:grid-cols-[minmax(0,1fr)_minmax(20rem,1fr)]">
@@ -305,14 +309,23 @@ export function ClaimDetailScreen({
                     />
                     {order.transaction ? <><Row label="복수구매 할인" value={krw(order.transaction.totals.volumeDiscountTotal)} /><Row label="계약상 착불 배송비" value={`${krw(order.transaction.totals.collectShippingTotal)} · 온라인 환불금액에 포함되지 않음`} /></> : null}
                   </div>
-                  <ShipmentDetails admin shipments={order.shipments} items={order.items} transactionShipping={order.transaction?.shipping} />
-                  <ul className="list-disc space-y-1 pl-5">
-                    {order.items.map((item, index) => (
-                      <li className="break-words" key={`${item.name}-${index}`}>
-                        {item.name} × {item.qty} · {krw(item.unitPrice * item.qty)}<GoodsCustomInputsSummary selection={item.customInputs} />
-                      </li>
-                    ))}
-                  </ul>
+                  {/* 배송 건의 품목 줄은 아래 주문 상품(옵션·금액 포함)과 겹친다. ShipmentDetails는 고객 화면과 함께 쓰는 부품이라 여기서만 감춘다. */}
+                  <div className="[&_section>ul]:hidden"><ShipmentDetails admin shipments={order.shipments} items={order.items} transactionShipping={order.transaction?.shipping} /></div>
+                  <section aria-label="주문 상품" className="flex flex-col gap-1.5 border-t pt-3">
+                    <h4 className="text-xs font-medium text-muted-foreground">주문 상품</h4>
+                    <ul className="flex flex-col gap-1.5">
+                      {order.items.map((item, index) => (
+                        <li className="flex items-baseline justify-between gap-3" key={`${item.name}-${index}`}>
+                          <span className="min-w-0 break-words">
+                            {item.name} × {item.qty}
+                            {item.variantName ? <span className="ml-1.5 text-xs text-muted-foreground">{item.variantName}</span> : null}
+                            <GoodsCustomInputsSummary selection={item.customInputs} />
+                          </span>
+                          <span className="shrink-0 tabular-nums">{krw(item.unitPrice * item.qty)}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </section>
                   <p className="text-xs text-muted-foreground">
                     {V.claimRequest}은 주문 단위 전액으로만 처리됩니다. 일부 품목만 불량이면 전체 반품 또는
                     협의 재발송으로 안내하고, 부분 환불을 약속하지 마세요.
@@ -376,6 +389,8 @@ export function ClaimDetailScreen({
             <CardContent className="flex min-w-0 flex-col gap-4">
               <ClaimActionPanel
                 actorId={actorId}
+                refundAmount={refund?.amount ?? order?.total ?? null}
+                requestSummary={exchangeRequest}
                 bankTransfer={payment?.provider === 'bank_transfer'}
                 key={claim.id}
                 cancellationForm={cancellationForm}

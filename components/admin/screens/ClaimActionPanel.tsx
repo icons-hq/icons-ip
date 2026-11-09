@@ -4,6 +4,7 @@ import Link from 'next/link';
 import { startTransition, useActionState, useState, type ReactNode } from 'react';
 import { ADMIN_CANCELLATION_RECHECK_LABELS, adminOrderSearchHref } from '@/lib/admin/orders';
 import { adminClaimStageLabel } from '@/lib/admin/claims';
+import { krw } from '@/lib/format';
 import { statusTone } from '@/lib/admin/status-tone';
 import { ADMIN_VOCABULARY as V, adminClaimCopy } from '@/lib/admin/vocabulary';
 import {
@@ -20,6 +21,7 @@ import {
 import {
   ORDER_CLAIM_REFUND_METHOD_LABELS,
   ORDER_CLAIM_REFUND_METHODS,
+  ORDER_CLAIM_TYPE_LABELS,
   canRejectOrderClaim,
   orderClaimNextStages,
   orderClaimRefundMethodForProvider,
@@ -171,6 +173,15 @@ const FORM_CLASS = 'flex min-w-0 flex-col gap-3';
 const HINT_CLASS = 'text-xs text-muted-foreground';
 const SECTION_TITLE_CLASS = 'text-sm font-medium text-foreground';
 
+/** 돈이 나가는 버튼 옆에 얼마가 나가는지 적는다. 왼쪽 주문 요약까지 눈을 옮기지 않아도 되게 한다. */
+function MoneyAtStake({ amount, label }: { amount: string | null; label: string }) {
+  if (!amount) return null;
+  return <p className="flex items-baseline gap-1.5" data-claim-money-at-stake="">
+    <span className="text-muted-foreground">{label}</span>
+    <strong className="text-base font-semibold tabular-nums">{amount}</strong>
+  </p>;
+}
+
 /** 환불 수단 입력. 결제가 정한 수단이 있으면 고르지 않고 그 값을 그대로 보낸다. */
 function RefundMethodField({
   fixedMethod,
@@ -243,6 +254,10 @@ export interface ClaimActionPanelProps {
   returnCollectionContact?: ReactNode;
   returnRefundSummary?: ReactNode;
   collections: AdminClaimCollection[];
+  /** 돈이 나가는 버튼 옆에 적는 금액. 환불 원장 금액, 없으면 주문 금액이다. 표시 전용이다. */
+  refundAmount?: number | null;
+  /** 처리 제목 바로 아래에 둘 요청 요약(교환이 무엇으로 바꾸려는지). */
+  requestSummary?: ReactNode;
 }
 
 export function ClaimActionPanel({
@@ -265,6 +280,8 @@ export function ClaimActionPanel({
   collectedAt = null,
   returnCollectionContact,
   returnRefundSummary,
+  refundAmount = null,
+  requestSummary = null,
 }: ClaimActionPanelProps) {
   const [result, panelAction, pending] = useActionState(runClaimPanelAction, EMPTY_STATE);
   /* 목록 위 팝업(R8)에서는 결제사 취소·환불 완료 확정을 기다리는 동안 팝업이 닫히지 않게 한다. */
@@ -327,7 +344,9 @@ export function ClaimActionPanel({
   /* 수단은 원장 기록 → 결제 provider 순으로 정해진다. 정해지지 않은 결제(Korpay)만
      운영자가 고른다. 서버 액션이 같은 규칙으로 다시 검사한다. */
   const fixedRefundMethod = recordedRefundMethod ?? orderClaimRefundMethodForProvider(paymentProvider);
-  if (stage === 'withdrawn' && claimType !== 'return') return <div className="flex flex-col gap-2"><h3 className="text-base font-medium">처리</h3><p>요청 철회로 처리가 종료됐습니다. 주문과 결제는 유지됩니다.</p></div>;
+  const panelTitle = `${ORDER_CLAIM_TYPE_LABELS[claimType]} 처리`;
+  const amountAtStake = refundAmount === null ? null : krw(refundAmount);
+  if (stage === 'withdrawn' && claimType !== 'return') return <div className="flex flex-col gap-2"><h3 className="text-base font-medium">{panelTitle}</h3><p>요청 철회로 처리가 종료됐습니다. 주문과 결제는 유지됩니다.</p></div>;
 
   const originCollection = <>
     {cancellationWithoutCollection ? <p className="text-muted-foreground">상품 회수가 필요하지 않은 취소입니다.</p> : collectionPolicy === 'origin' ? <section aria-label="출고지별 회수 확인" className="flex min-w-0 flex-col gap-3">
@@ -354,7 +373,8 @@ export function ClaimActionPanel({
               {`승인하면 바로 ${autoCancelLabel} 전액 취소를 발행하고 결제사 조회로 결과를 확인합니다. 확인되면 주문 취소·재고 복원·카드팩 회수와 환불 원장 기록이 함께 끝납니다.`}
             </AdminNotice>
           ) : null}
-          <div className="flex flex-wrap items-center gap-2">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            {approvalMovesMoney ? <MoneyAtStake amount={amountAtStake} label="취소 금액" /> : null}
             {canApprove ? (
               <Button
                 data-confirm={claimType === 'cancel' ? claimCancelApprovalConfirmation(paymentProvider) : undefined}
@@ -461,7 +481,7 @@ export function ClaimActionPanel({
           <input name="stage" type="hidden" value="filed" />
           <RefundMethodField fixedMethod={fixedRefundMethod} id="claim-refund-method" autoCancelLabel={autoCancelLabel} />
           <SettlementNoteField id="claim-refund-note" placeholder="예: 정산 완료분이라 코페이 상계 처리" />
-          <Button className="w-fit" disabled={pending} size="sm" type="submit">
+          <Button className="w-fit" disabled={pending} size="sm" type="submit" variant={refundFiled ? 'outline' : 'default'}>
             {refundFiled ? '환불 접수 정보 갱신' : '환불 접수 완료로 기록'}
           </Button>
           {autoCancelLabel ? (
@@ -493,13 +513,16 @@ export function ClaimActionPanel({
                 : '결제사 원장에서 전액 취소를 확인한 뒤 눌러주세요. 확인되지 않으면 주문과 재고는 그대로 유지됩니다.'}
             </AdminNotice>
           ) : null}
-          <Button className="h-auto min-h-7 w-fit max-w-full py-1 whitespace-normal" disabled={pending} size="sm" type="submit" variant={refundFinalizationPending ? 'danger' : 'default'}>
-            {!refundFinalizationPending
-              ? '환불 완료를 원장에 기록'
-              : autoCancelLabel
-                ? `환불 완료 확정 (${autoCancelLabel} 전액 취소 발행 · 재고 복원 · 카드팩 회수)`
-                : '환불 완료 확정 (재고 복원 · 카드팩 회수 포함)'}
-          </Button>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            {refundFinalizationPending ? <MoneyAtStake amount={amountAtStake} label="환불 금액" /> : null}
+            <Button className="h-auto min-h-7 w-fit max-w-full py-1 whitespace-normal" disabled={pending} size="sm" type="submit" variant={refundFinalizationPending ? 'danger' : 'default'}>
+              {!refundFinalizationPending
+                ? '환불 완료를 원장에 기록'
+                : autoCancelLabel
+                  ? `환불 완료 확정 (${autoCancelLabel} 전액 취소 발행 · 재고 복원 · 카드팩 회수)`
+                  : '환불 완료 확정 (재고 복원 · 카드팩 회수 포함)'}
+            </Button>
+          </div>
           {!refundFinalizationPending ? (
             <p className={HINT_CLASS}>
               {`이 ${V.claimRequest}은 이미 종결됐습니다. 주문 취소·재고 복원·카드팩 회수는 끝났고, 여기서는 환불 원장에 완료 기록만 남깁니다.`}
@@ -549,24 +572,27 @@ export function ClaimActionPanel({
       <p>주문 전체의 상품·금액과 반품 사유를 먼저 확인해주세요.</p>
       <div className="flex flex-wrap gap-3"><a className="underline underline-offset-4" href="#claim-order">주문정보 보기</a><a className="underline underline-offset-4" href="#claim-request">요청·처리이력 보기</a></div>
       {stage === 'withdrawn' ? <p>요청 철회로 처리가 종료됐습니다. 주문과 결제는 유지됩니다.</p> : decisionForm}
+      {/* 승인과 거부는 둘 중 하나를 고르는 일이다 — 취소·교환 처리 칸과 같이 승인 바로 아래에 둔다. */}
+      {canApprove ? rejectionForm : null}
     </>}
-    collection={<>{returnCollectionContact}{stage === 'withdrawn'
+    collection={<>{stage === 'withdrawn'
       ? <p className="text-muted-foreground">철회된 요청의 회수 처리는 종료됐습니다.</p>
-      : <>{originCollection}{legacyCollection}</>}</>}
+      : <>{originCollection}{legacyCollection}</>}{returnCollectionContact}</>}
     hold={<>{holdControl}<p className="text-muted-foreground">{stage === 'withdrawn' || stage === 'rejected' || stage === 'completed'
       ? '종결된 요청은 보류하거나 보류를 해제할 수 없습니다.' : canResume
       ? '보류를 해제한 뒤 돌아온 단계에서 회수·환불을 별도로 확인해주세요.'
       : '추가 확인이 필요한 경우에만 보류합니다. 보류할 사유가 없으면 다음 작업을 진행하세요.'}</p></>}
-    refund={<>{returnRefundSummary}{stage !== 'withdrawn' ? refundControls : null}</>}
-    exception={canReject ? rejectionForm : null}
+    refund={<>{stage !== 'withdrawn' ? refundControls : null}{returnRefundSummary}</>}
+    exception={canReject && !canApprove ? rejectionForm : null}
   /></>;
 
   return <div className="flex min-w-0 flex-col gap-4" data-claim-actions="">
-    <div className="flex flex-col gap-1">
-      <h3 className="text-base leading-snug font-medium">처리</h3>
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+      <h3 className="text-base leading-snug font-medium">{panelTitle}</h3>
       <p className="flex flex-wrap items-center gap-1.5 text-muted-foreground">현재 단계 <AdminStatusBadge tone={statusTone('claim', stage)}>{adminClaimStageLabel(claimType, stage)}</AdminStatusBadge></p>
     </div>
     <div aria-live="polite" className="flex flex-col gap-1" data-claim-action-result=""><Feedback state={result} /></div>
+    {requestSummary}
     {/* 승인할 수 있는 단계에서는 거부를 승인 바로 아래에 둔다 — 둘 중 하나를 고르는 것이 지금 할 일이다. */}
     {originCollection}{decisionForm}{canApprove ? rejectionForm : null}{holdControl}{legacyCollection}{refundControls}{canApprove ? null : rejectionForm}
   </div>;

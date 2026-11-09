@@ -14,9 +14,11 @@ import { Input } from '@/components/admin/kit/ui/input';
 const dateTimeText = (value: string) => <span className="whitespace-nowrap tabular-nums">{formatOrderDateTime(value)}</span>;
 
 const UNKNOWN = '저장 결과를 확인하지 못했습니다. 같은 요청으로 다시 확인해주세요.';
+/* 주문 표 위 단계 이름 줄의 켜짐·꺼짐이 이 자리로 내려온다. */
+const AUTO_ORDER_CONFIRM_ANCHOR = 'auto-order-confirm';
 
 /**
- * 자동 발주확인(ADR-0025) — 발주확인/발송관리 상단에서 켜짐·꺼짐과 실행 결과를 한 줄로 보고, 펼쳐서 바꾼다.
+ * 자동 발주확인(ADR-0025) — 발주확인/발송관리의 주문 표 아래에서 켜짐·꺼짐과 실행 결과를 한 줄로 보고, 펼쳐서 바꾼다.
  * 접어도 입력은 DOM과 상태에 남고, 저장은 양식 값이 아니라 이 패널의 상태로 보낸다.
  * 결과가 불확실하면 입력과 요청 ID를 고정해 같은 요청으로만 다시 확인한다.
  * 저장 뒤 revalidatePath·router.refresh로 서버가 새 설정을 다시 그려도 패널을 다시 마운트하지 않는다 —
@@ -44,7 +46,7 @@ export function AutoOrderConfirmPanel({ initial }: { initial: AutoOrderConfirmat
     const active = document.activeElement;
     if (!active || active === document.body || formRef.current?.contains(active)) resultRef.current?.focus();
   });
-  if (!state) return <AdminNotice role="alert" title="자동 발주확인" tone="danger">자동 발주확인 설정을 불러오지 못했습니다. 새로고침 후 다시 확인해주세요. 신규주문은 아래에서 직접 발주확인할 수 있습니다.</AdminNotice>;
+  if (!state) return <div className="scroll-mt-16" id={AUTO_ORDER_CONFIRM_ANCHOR}><AdminNotice role="alert" title="자동 발주확인" tone="danger">자동 발주확인 설정을 불러오지 못했습니다. 새로고침 후 다시 확인해주세요. 신규주문은 위 목록에서 직접 발주확인할 수 있습니다.</AdminNotice></div>;
   const current = state;
   const changed = enabled !== current.enabled || runTime !== current.runTime;
   async function save() {
@@ -66,7 +68,7 @@ export function AutoOrderConfirmPanel({ initial }: { initial: AutoOrderConfirmat
     last ? <>마지막 실행 {dateTimeText(last.finishedAt ?? last.startedAt)}{last.finishedAt ? '' : '(진행 중)'} · 발주확인 {last.confirmedCount.toLocaleString('ko-KR')}건 · 제외 {last.excludedCount.toLocaleString('ko-KR')}건</> : '아직 실행 기록 없음',
     current.nextRunAt ? <>다음 실행 {dateTimeText(current.nextRunAt)}</> : null].filter(Boolean) as ReactNode[])
     .map((part, index) => <Fragment key={index}>{index ? ' · ' : null}{part}</Fragment>);
-  return <SalesDisclosureCard status={<AdminStatusBadge tone={current.enabled ? 'success' : 'warning'}>{current.enabled ? '켜짐' : '꺼짐'}</AdminStatusBadge>} summary={summary} title="자동 발주확인">
+  return <SalesDisclosureCard id={AUTO_ORDER_CONFIRM_ANCHOR} status={<AdminStatusBadge tone={current.enabled ? 'success' : 'warning'}>{current.enabled ? '켜짐' : '꺼짐'}</AdminStatusBadge>} summary={summary} title="자동 발주확인">
     <p className="text-muted-foreground">매일 설정한 시각까지 결제가 끝난 신규주문을 시스템이 발주확인합니다. 그 시각 뒤에 결제된 주문은 다음 날 처리하며, 발주확인 전까지 고객은 주문을 직접 취소할 수 있습니다.
       {current.enabled && current.enabledAt ? <> 켠 시각({dateTimeText(current.enabledAt)}) 전에 결제된 주문은 자동 대상이 아니므로 직접 발주확인합니다.</> : ' 꺼져 있는 동안에는 신규주문을 직접 발주확인합니다.'}
       {' '}취소 요청이 진행 중이거나 예약 재고 할당 전인 주문은 신규주문에 남습니다.</p>
