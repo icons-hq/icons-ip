@@ -31,7 +31,7 @@ beforeEach(() => {
 });
 
 type DialogElement = ReactElement<{ onCancel: (event: unknown) => void; onClose: (event: unknown) => void; children?: ReactNode }>;
-type NativeDialog = { open: boolean; isConnected: boolean; showModal: ReturnType<typeof vi.fn> };
+type NativeDialog = { open: boolean; isConnected: boolean; contains: ReturnType<typeof vi.fn>; focus: ReturnType<typeof vi.fn>; showModal: ReturnType<typeof vi.fn> };
 
 function cancel(dialog: DialogElement, target: object, currentTarget: object, cancelable?: boolean) {
   const event = { target, currentTarget, cancelable, preventDefault: vi.fn() };
@@ -40,7 +40,7 @@ function cancel(dialog: DialogElement, target: object, currentTarget: object, ca
 }
 
 function nativeDialog(state: Partial<NativeDialog> = {}): NativeDialog {
-  return { open: false, isConnected: true, showModal: vi.fn(), ...state };
+  return { open: false, isConnected: true, contains: vi.fn(() => true), focus: vi.fn(), showModal: vi.fn(), ...state };
 }
 
 function close(dialog: DialogElement, target: object, currentTarget: NativeDialog) {

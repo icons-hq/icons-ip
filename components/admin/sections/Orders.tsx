@@ -76,6 +76,7 @@ import { Input } from '@/components/admin/kit/ui/input';
 import { Label } from '@/components/admin/kit/ui/label';
 import { NativeSelect } from '@/components/admin/kit/ui/native-select';
 import { Textarea } from '@/components/admin/kit/ui/textarea';
+import { adminPaymentCancelErrorCopy } from '@/lib/admin/payment-cancel-error';
 import { Ban, BadgeCheck, ChevronDown, ClipboardCheck, Hourglass, ListChecks, PackageCheck, Truck, type LucideIcon } from 'lucide-react';
 
 /*
@@ -1024,7 +1025,7 @@ function OrderDetail({
           {cancellationRequest.lastErrorCode
             && (cancellationRequest.status === 'needs_review' || cancellationRequest.status === 'processing') ? (
             <p className="text-muted-foreground wrap-anywhere">
-              결제사 확인 오류 · <code className="rounded bg-muted px-1 font-mono text-xs text-foreground">{cancellationRequest.lastErrorCode}</code>
+              결제사 확인 오류 · {adminPaymentCancelErrorCopy(cancellationRequest.lastErrorCode).label} <code className="rounded bg-muted px-1 font-mono text-xs text-foreground">{cancellationRequest.lastErrorCode}</code>
               {' · 코드별 조치는 어드민 가이드 "클레임 처리"에 있습니다.'}
             </p>
           ) : null}

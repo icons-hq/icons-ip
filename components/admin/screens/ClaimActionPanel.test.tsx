@@ -174,7 +174,7 @@ describe('ClaimActionPanel 확인과 취소 안내', () => {
   it('토스 취소 승인 버튼은 전액 취소 발행 확인 문구를 갖고 검토중 표시는 묻지 않는다', async () => {
     const html = await render({ stage: 'requested', paymentProvider: 'toss', collectionPolicy: 'origin' });
 
-    expect(html).toMatch(/data-confirm="취소를 승인하고 토스 전액 취소를 발행할까요\? 되돌릴 수 없고[^"]*"[^>]*value="approve"/);
+    expect(html).toMatch(/data-confirm="취소를 승인하고 토스 결제 전액을 취소할까요\? 되돌릴 수 없고[^"]*"[^>]*value="approve"/);
     expect(html).not.toMatch(/data-confirm="[^"]*"[^>]*value="review"/);
   });
 
@@ -202,8 +202,8 @@ describe('ClaimActionPanel 확인과 취소 안내', () => {
       stage: 'needs_review', paymentProvider: 'toss', collectionPolicy: 'origin', refundLedgerOpen: true,
     });
 
-    expect(html).toContain('data-confirm="토스 전액 취소를 발행하고 주문 취소·재고 복원·카드팩 회수를 확정할까요? 되돌릴 수 없습니다."');
-    expect(html).toContain('환불 완료 확정 (토스 전액 취소 발행');
+    expect(html).toContain('data-confirm="토스 결제 전액을 취소하고 주문 취소·재고 복원·카드팩 회수를 확정할까요? 되돌릴 수 없습니다."');
+    expect(html).toContain('환불 완료 확정 (토스 전액 취소)');
   });
 
   it('반품 승인은 금전 처리가 아니라 확인을 붙이지 않는다', async () => {

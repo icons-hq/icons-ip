@@ -42,6 +42,7 @@ import {
   providerCancelsAutomatically,
 } from '@/lib/payments/provider-capabilities';
 import { createClient } from '@/lib/supabase/server';
+import { adminPaymentCancelFailureMessage } from '@/lib/admin/payment-cancel-error';
 
 /* 어드민 클레임 콘솔 액션(#252).
  *
@@ -69,7 +70,7 @@ const OPERATIONAL_FEE_FAILED = '운영 확인액을 기록하지 못했습니다
 const FINALIZE_FAILED = '결제 취소 상태를 확정하지 못했습니다. 주문과 재고는 그대로 유지됩니다. 결제사 확인 오류를 확인한 뒤 다시 시도해주세요.';
 /** 정합화 결과 코드가 있는 실패. 코드별 조치를 찾을 수 있게 그대로 싣는다(QA-10). */
 function finalizeFailed(code: string) {
-  return `결제 취소 상태를 확정하지 못했습니다(${code}). 주문과 재고는 그대로 유지됩니다. 결제사 확인 오류 코드는 가이드 '클레임 처리'에서 조치를 찾은 뒤 다시 시도해주세요.`;
+  return adminPaymentCancelFailureMessage(code);
 }
 const IN_PROGRESS = '결제 상태 처리가 아직 끝나지 않았습니다. 주문과 재고는 그대로 유지됩니다.';
 const REFUND_METHOD_MISMATCH = '이 결제의 환불 수단과 다릅니다. 토스 결제는 결제사 취소(토스 전액 취소)로만 환불합니다. 화면을 새로고침한 뒤 다시 진행해주세요.';
@@ -211,7 +212,7 @@ async function issueApprovedClaimCancellation(
   if (!result.ok) {
     return {
       error: hasPayment
-        ? `취소는 승인했지만 결제 취소를 확정하지 못했습니다(${result.code}). 주문과 재고는 그대로 유지됩니다. 결제사 확인 오류를 확인한 뒤 [환불 완료 확정]으로 다시 시도해주세요.`
+        ? `취소는 승인했습니다. ${adminPaymentCancelFailureMessage(result.code)}`
         : `취소는 승인했지만 주문 취소를 확정하지 못했습니다(${result.code}). 주문과 재고는 그대로 유지됩니다. 결제 내역이 없는 주문이라 [환불 완료 확정]은 보이지 않습니다. 원인을 확인한 뒤 ${ORDER_PANEL_RECHECK}으로 다시 시도해주세요.`,
     };
   }

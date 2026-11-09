@@ -7,7 +7,7 @@ const buttonVariantClasses = cva(
   {
     variants: {
       variant: {
-        default: "bg-primary text-primary-foreground hover:bg-primary/90",
+        default: "bg-primary text-primary-foreground hover:bg-primary/90 focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 focus-visible:ring-offset-background",
         /* ICONS: 보조 행동을 주 색 옅은 바탕으로(ADR-0029) — 조회처럼 자주 누르지만 그 화면의 주 행동은 아닌 버튼. */
         soft: "border-primary/35 bg-primary-soft font-semibold text-primary-soft-foreground hover:bg-primary/15 aria-expanded:bg-primary/15",
         outline:
@@ -19,7 +19,7 @@ const buttonVariantClasses = cva(
         destructive:
           "border-danger-border bg-danger-soft text-destructive hover:bg-destructive/15 focus-visible:border-destructive/40 focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:hover:bg-destructive/30 dark:focus-visible:ring-destructive/40",
         /* ICONS: 되돌릴 수 없는 위험 행동의 실선 빨강(ADR-0029) — 환불 실행·삭제 확정처럼 그 화면의 주 행동이 위험할 때만 쓴다. */
-        danger: "bg-destructive text-white hover:bg-destructive/90 focus-visible:border-destructive/40 focus-visible:ring-destructive/20",
+        danger: "bg-destructive text-white hover:bg-destructive/90 focus-visible:ring-2 focus-visible:ring-destructive focus-visible:ring-offset-2 focus-visible:ring-offset-background",
         link: "text-primary underline-offset-4 hover:underline",
       },
       size: {

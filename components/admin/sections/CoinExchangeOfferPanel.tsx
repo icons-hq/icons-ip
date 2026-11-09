@@ -37,6 +37,15 @@ function poolLabel(pool: AdminCardPoolRecord) {
   return `${pool.name} (${pool.ipId})${readiness}`;
 }
 
+/** '구성 코드' 칸이 받는 형식 그대로 복사한다. 이미 다른 구성이 있으면 그 목록 안에 항목으로 넣는다. */
+function CopyExchangeBlockButton({ offerId }: { offerId: string }) {
+  const [copied, setCopied] = useState<string | null>(null);
+  function copy() {
+    void navigator.clipboard?.writeText(JSON.stringify([{ type: 'exchange', offer_id: offerId }])).then(() => setCopied(offerId));
+  }
+  return <Button onClick={copy} size="xs" title="캠페인 '구성 코드' 칸에 붙여 넣는 형식입니다. 이미 다른 구성이 있으면 그 목록 안에 항목으로 넣어주세요." type="button" variant="outline">{copied ? '복사했습니다' : '구성 코드 복사'}</Button>;
+}
+
 function OfferRow({
   active,
   offer,
@@ -70,8 +79,11 @@ function OfferRow({
           </span>
         </span>
       </Button>
-      {/* 캠페인 sections 의 exchange 블록이 이 id 를 그대로 받는다. */}
-      <code className="overflow-x-auto px-0.5 font-mono text-xs text-muted-foreground select-all" data-coin-offer-id="">{offer.id}</code>
+      {/* 캠페인 sections 의 exchange 블록이 이 id 를 그대로 받는다. 손으로 옮겨 적지 않게 블록 째 복사한다. */}
+      <span className="flex min-w-0 flex-wrap items-center gap-2">
+        <code className="overflow-x-auto px-0.5 font-mono text-xs text-muted-foreground select-all" data-coin-offer-id="">{offer.id}</code>
+        <CopyExchangeBlockButton offerId={offer.id} />
+      </span>
     </li>
   );
 }
@@ -91,14 +103,14 @@ export function CoinExchangeOfferPanel({
   return (
     <section className={SECTION_CARD}>
       <SectionHeading
-        description="출석으로 모은 코인을 카드팩으로 바꾸는 자리입니다. 등록하면 목록에 교환처 번호가 생깁니다. 이 번호를 복사해 캠페인 수정의 '이미지·랜딩 구성 > 구성 코드'에 넣으면 그 캠페인 상세에 교환처가 나타납니다."
+        description="출석으로 모은 코인을 카드팩으로 바꾸는 자리입니다. 아래에서 교환처를 등록하고 목록의 [구성 코드 복사]를 누른 뒤, 캠페인 수정의 '이미지·랜딩 구성 > 구성 코드' 칸에 붙여 넣으면 그 캠페인 상세에 나타납니다."
         title="카드팩 교환처"
       />
 
-      {/* 주의는 설명 속 굵은 글자가 아니라 실제로 준비 안 된 풀이 있을 때 상자로 말한다. */}
-      {pools.some((pool) => !pool.rewardReady) ? (
-        <AdminNotice title="개봉 준비 안 됨 표시가 붙은 카드풀을 그대로 두지 마세요" tone="warning">
-          카드풀 확률이 채워지지 않으면 고객이 교환할 때 실패합니다. 확률을 채우거나 그 교환처를 내림으로 바꿔주세요.
+      {/* 주의는 등록된 교환처가 실제로 준비 안 된 풀을 쓸 때만 상자로 말한다(처리할 대상 없는 경고를 띄우지 않는다). */}
+      {offers.some((offer) => poolsById.get(offer.poolId)?.rewardReady === false) ? (
+        <AdminNotice title="개봉 준비 안 됨 표시가 붙은 교환처가 있습니다" tone="warning">
+          카드풀 확률이 채워지지 않으면 고객이 교환할 때 실패합니다. 확률을 채우거나 그 교환처를 내려주세요.
         </AdminNotice>
       ) : null}
 
@@ -135,7 +147,7 @@ export function CoinExchangeOfferPanel({
           <Field
             defaultValue={selected?.label ?? ''}
             error={state.errors?.label}
-            label="교환처 이름 (사용자에게 보이는 문구)"
+            label="교환처 이름 (고객에게 보이는 문구)"
             name="label"
             placeholder="가을 카드팩 1장"
             required

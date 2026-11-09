@@ -63,7 +63,7 @@ export function RefundTransfersScreen({ data, now = new Date() }: {
             <span className="font-semibold tabular-nums" key="amount">{formatKrwExact(row.amount)}</span>,
             row.payerName || <AdminStatusBadge key="payer" tone="warning">이름 미등록</AdminStatusBadge>,
             days >= LONG_WAIT_DAYS ? <AdminStatusBadge key="waiting" tone="warning">{waiting}</AdminStatusBadge> : <span className="tabular-nums" key="waiting">{waiting}</span>,
-            <Link aria-label={`요청 ${orderClaimReferenceLabel(row.reference)} 계좌 확인·송금 기록 열기`} className={cn(buttonVariants({ size: 'sm', variant: 'soft' }))} data-slot="button" href={`${detailHref}#claim-process`} key="action">송금 처리</Link>,
+            <Link aria-label={`송금 처리 · 요청 ${orderClaimReferenceLabel(row.reference)} 계좌 확인·송금 기록 열기`} className={cn(buttonVariants({ size: 'sm', variant: 'soft' }))} data-slot="button" href={`${detailHref}#claim-process`} key="action">송금 처리</Link>,
             `${row.gift ? '선물 · ' : ''}${row.claimType === 'cancel' ? '취소' : '반품'}`,
             <span className="tabular-nums" key="order">{orderReferenceLabel(row.orderId, row.orderNumber)}</span>,
             formatOrderDateTime(row.confirmedAt), row.filedAt ? formatOrderDateTime(row.filedAt) : <AdminStatusBadge key="filed" tone="warning">미접수</AdminStatusBadge>,

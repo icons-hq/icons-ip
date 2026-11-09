@@ -24,14 +24,28 @@ export function useRecordDetail<T extends { id: string }>(records: readonly T[],
     creating,
     open: Boolean(selected) || creating,
     select: (record: T | null) => { setCreating(false); selectRecord(record); },
-    startNew: () => { selectRecord(null); setCreating(true); },
-    close: () => { selectRecord(null); setCreating(false); },
+    startNew: () => { selectRecord(null); setCreating(true); focusRecordForm(); },
+    close: () => { selectRecord(null); setCreating(false); focusRecordNewButton(); },
   };
+}
+
+/** 폼이 열린 다음 프레임에 첫 입력칸으로 보낸다 — 좁은 화면에서는 폼이 목록 아래에 열려 화면 변화가 안 보인다. */
+function focusRecordForm() {
+  requestAnimationFrame(() => {
+    const form = document.querySelector<HTMLElement>('[data-record-detail="form"]');
+    form?.scrollIntoView({ block: 'nearest' });
+    form?.querySelector<HTMLElement>('input:not([type=hidden]), select, textarea')?.focus({ preventScroll: true });
+  });
+}
+
+/** 닫기 버튼이 숨으면 포커스가 사라지므로 등록 버튼으로 돌려준다. */
+function focusRecordNewButton() {
+  requestAnimationFrame(() => document.querySelector<HTMLElement>('[data-record-new]')?.focus());
 }
 
 /** 화면 머리 오른쪽의 등록 버튼. 입력 칸이 열려 있으면 그쪽의 저장이 주 행동이라 외곽선으로 물러난다. */
 export function RecordNewButton({ label, onClick, open }: { label: string; onClick: () => void; open: boolean }) {
-  return <Button onClick={onClick} type="button" variant={open ? 'outline' : 'default'}><Plus aria-hidden="true" />{label}</Button>;
+  return <Button data-record-new="" onClick={onClick} type="button" variant={open ? 'outline' : 'default'}><Plus aria-hidden="true" />{label}</Button>;
 }
 
 function RecordThumbnail({ kind, url }: { kind: AdminArtworkKind; url: string | null | undefined }) {

@@ -76,7 +76,7 @@ function CategoryForm({ category, categories, formRef }: { category?: AdminCateg
     <div className={FIELD_GRID}>
       <Labeled label="카테고리 이름"><Input defaultValue={category?.name ?? ''} maxLength={120} name="name" required /></Labeled>
       <Labeled label="카테고리 코드 (영문)"><Input defaultValue={category?.code ?? ''} maxLength={80} name="code" required /></Labeled>
-      <Labeled label="상위 카테고리"><AdminSelect defaultValue={category?.parentId ?? ''} name="parentId" wrapperClassName="w-full"><option value="">최상위</option>{options.map((option) => <option key={option.id} value={option.id}>{'　'.repeat(Math.max(0, option.depth - 1))}{option.name} ({option.code})</option>)}</AdminSelect></Labeled>
+      <Labeled label="상위 카테고리"><AdminSelect defaultValue={category?.parentId ?? ''} key={category?.parentId ?? ''} name="parentId" wrapperClassName="w-full"><option value="">최상위</option>{options.map((option) => <option key={option.id} value={option.id}>{'　'.repeat(Math.max(0, option.depth - 1))}{option.name} ({option.code})</option>)}</AdminSelect></Labeled>
       <Labeled label="노출 순서 (작을수록 앞)"><Input className="tabular-nums" defaultValue={category?.sortOrder ?? 0} min={0} name="sortOrder" type="number" /></Labeled>
     </div>
     <Notice state={state} />

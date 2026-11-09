@@ -91,7 +91,7 @@ export function Header({
               <Fragment key={`${index}-${crumb}`}>
                 {/* 구분자는 앞 칸과 함께 숨는다 — 첫 구분자는 루트(640px 아래), 나머지는 가운데 칸(768px 아래)을 따른다. */}
                 <BreadcrumbSeparator className={index === 0 ? 'max-sm:hidden' : 'max-md:hidden'} />
-                <BreadcrumbItem className={last ? 'min-w-0' : 'max-md:hidden'}>
+                <BreadcrumbItem className={last ? 'min-w-0' : 'whitespace-nowrap max-md:hidden'}>
                   {last ? <BreadcrumbPage className="truncate">{crumb}</BreadcrumbPage> : <span>{crumb}</span>}
                 </BreadcrumbItem>
               </Fragment>
@@ -143,11 +143,11 @@ export function Header({
             <Avatar className="size-7 rounded-lg">
               <AvatarFallback className="rounded-lg text-xs font-semibold">{initial}</AvatarFallback>
             </Avatar>
-            <span className="hidden max-w-48 min-w-0 flex-col leading-tight lg:flex">
+            <span className="hidden max-w-48 min-w-0 flex-col leading-tight 2xl:flex">
               <span className="truncate text-sm font-medium">{email}</span>
               <span className="truncate text-xs text-muted-foreground">{roleLabel}</span>
             </span>
-            <ChevronsUpDown aria-hidden="true" className="hidden size-4 text-muted-foreground lg:block" />
+            <ChevronsUpDown aria-hidden="true" className="hidden size-4 text-muted-foreground 2xl:block" />
           </DropdownMenuTrigger>
           <DropdownMenuContent align="end" className="w-60">
             <DropdownMenuGroup>

@@ -7,5 +7,5 @@ export default async function AdminMessagingEmailsPage() {
 
   const deliveries = await loadEmailDeliveries();
 
-  return <EmailDeliverySection deliveries={deliveries} />;
+  return <EmailDeliverySection deliveries={deliveries} nowMs={Date.now()} />;
 }

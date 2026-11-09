@@ -15,7 +15,6 @@ import { Input } from '../kit/ui/input';
 import { TableBody, TableCell, TableHead, TableHeader, TableRow } from '../kit/ui/table';
 import { GoodsGroupEditor } from '../GoodsGroupEditor';
 import { GoodsBulkToolbar } from '../GoodsBulkToolbar';
-import { GoodsGroupsMenuNote } from './GoodsGroupsMenuNote';
 import { GroupPager, GroupTable, useGoodsGroupSession } from '../GoodsGroupOperation';
 import { DEFAULT_GROUP_FILTERS, GROUP_SEARCH_FIELDS, GROUP_SORTS, GROUP_STATUSES, goodsGroupConsoleHref, type GoodsGroupConsole, type GoodsGroupFilters } from '@/lib/admin/goods-group-console';
 
@@ -70,7 +69,7 @@ export function GoodsGroupsScreen({ initialPage, initialGroup, initialQuery = ''
   /* 접힌 조건이 걸려 있으면 펼쳐 둔다. 입력 중 값이 아니라 적용한 값으로 정해 고르는 동안 접히지 않는다. */
   const advancedApplied = Boolean(applied.from || applied.to || applied.stock !== 'all' || applied.originId || applied.shippingFee !== 'all');
   return <section className="flex min-w-0 flex-col gap-4" aria-busy={pending} data-admin-screen="goods-groups">
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1"><nav className="inline-flex w-fit rounded-lg bg-muted p-0.5" aria-label="상품 목록"><Link className={TAB} href="/admin/catalog/goods">전체 상품 조회/수정</Link><span aria-current="page" className={TAB}>그룹상품 조회/수정</span></nav><GoodsGroupsMenuNote /></div>
+    <div className="flex flex-wrap items-center gap-x-3 gap-y-1"><nav className="inline-flex w-fit rounded-lg bg-muted p-0.5" aria-label="상품 목록"><Link className={TAB} href="/admin/catalog/goods">전체 상품 조회/수정</Link><span aria-current="page" className={TAB}>그룹상품 조회/수정</span></nav></div>
     {/* 조회가 화면 상태라 칸이 링크가 아니라 버튼이다 — 눌림·포커스·호버는 버튼이, 모양은 공용 건수 칸이 맡는다. */}
     <div className={ADMIN_COUNT_CARD_GRID_CLASS} data-goods-groups="status">{GROUP_STATUSES.map(status => <button type="button" key={status.value} disabled={pending} aria-pressed={applied.status === status.value} onClick={() => load({ ...applied, status: status.value, page: 1 })}
       className="min-w-0 rounded-xl text-left outline-none hover:[&>span]:bg-accent focus-visible:ring-3 focus-visible:ring-ring/50 disabled:opacity-50">
@@ -118,7 +117,7 @@ export function GoodsGroupsScreen({ initialPage, initialGroup, initialQuery = ''
             <TableCell className="whitespace-normal">{member.values.join(' / ')}</TableCell><TableCell className="text-right tabular-nums">{formatWon(member.price)}</TableCell><TableCell className="text-right tabular-nums">{member.stockQty.toLocaleString('ko-KR')}개</TableCell><TableCell><AdminStatusBadge tone={statusTone('publication', member.archivedAt ? 'archived' : member.publishedAt ? 'published' : 'draft')}>{member.archivedAt ? '보관' : member.publishedAt ? '공개' : '미공개'}</AdminStatusBadge></TableCell></TableRow>)}
         </TableBody></GroupTable></TableCell></TableRow> : null}</Fragment>)}
       {/* 하나도 없는 것과 검색에 안 걸린 것은 다른 안내다 — 처음이면 위 주 버튼으로 시작하게 한다. */}
-      {!page.rows.length ? <TableRow><TableCell className="h-24 text-center whitespace-normal text-muted-foreground" colSpan={9}>{consoleData?.counts.all === 0 ? '아직 등록한 그룹상품이 없습니다. 위의 기존 상품으로 그룹 구성을 눌러 첫 그룹상품을 만들어주세요.' : '검색 조건에 맞는 그룹상품이 없습니다.'}</TableCell></TableRow> : null}</TableBody></GroupTable>
+      {!page.rows.length ? <TableRow><TableCell className="h-24 text-center whitespace-normal text-muted-foreground" colSpan={9}>{consoleData?.counts.all === 0 && !(applied.query || applied.categoryId || applied.from || applied.to || applied.stock !== 'all' || applied.originId || applied.shippingFee !== 'all') ? '아직 등록한 그룹상품이 없습니다. 위의 기존 상품으로 그룹 구성을 눌러 첫 그룹상품을 만들어주세요.' : '검색 조건에 맞는 그룹상품이 없습니다.'}</TableCell></TableRow> : null}</TableBody></GroupTable>
       <GroupPager {...page} disabled={pending} onChange={number => load({ ...applied, page: number })} /></div> : <p className="text-sm text-muted-foreground" role="status">목록을 조회해주세요.</p>}
   </section>;
 }

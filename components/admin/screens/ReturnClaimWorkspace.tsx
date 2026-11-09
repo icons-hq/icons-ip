@@ -72,7 +72,7 @@ export function ReturnClaimWorkspace({ progress, review, collection, hold, refun
     { id: 'review', number: 1, title: '검토·승인', label: '검토·승인', summary: evidence.review ? '승인 완료' : `현재 단계: ${adminClaimStageLabel('return', progress.stage)}`, content: review },
     { id: 'collection', number: 2, title: '회수 확인', label: '회수 확인', summary: collectionSummary, content: collection },
     { id: 'refund', number: 3, title: '환불 처리', label: '환불 처리', summary: progress.refundCompleted ? '환불 완료 시각 기록됨'
-      : progress.refundLedgerOpen ? progress.refundFiled ? '환불 접수 기록 있음 · 완료 시각 없음' : '환불 원장 열림 · 완료 시각 없음'
+      : progress.refundLedgerOpen ? progress.refundFiled ? '환불 접수 기록 있음 · 완료 시각 없음' : '환불 확인 전 · 완료 시각 없음'
         : '환불 기록 없음', content: refund },
     { id: 'hold', number: null, title: '보류 상태 · 필요 시 처리', label: '보류', summary: progress.stage === 'on_hold'
       ? `보류 중 · 보류 전 ${progress.heldFrom ? adminClaimStageLabel('return', progress.heldFrom) : '단계 확인 필요'}`
@@ -99,7 +99,7 @@ export function ReturnClaimWorkspace({ progress, review, collection, hold, refun
       <nav aria-label="반품 처리 단계" className="grid grid-cols-2 gap-2 sm:grid-cols-4 print:hidden">
         {steps.map(step => {
           const state = stateOf(step.id);
-          return <button key={step.id} type="button" aria-current={state === 'current' ? 'step' : undefined}
+          return <button id={`return-step-${step.id}`} key={step.id} type="button" aria-current={state === 'current' ? 'step' : undefined}
             className={STEP_BUTTON_CLASS} data-slot="button" data-step-state={state}
             onClick={() => focusStep(step.id)}>
             <span aria-hidden="true" className={STEP_MARK_CLASS} data-step-state={state}>{state === 'done' ? <Check className="size-3.5" /> : step.number ?? '–'}</span>
@@ -117,7 +117,11 @@ export function ReturnClaimWorkspace({ progress, review, collection, hold, refun
         const state = stateOf(step.id);
         /* 지금 단계 칸은 접지 않는다 — 접으면 위 단계 칸 말고는 아무것도 남지 않는다. */
         const pinned = state === 'current';
-        return <details key={step.id} className={`${STEP_SECTION_CLASS}${next ? ` ${STEP_SECTION_FOCUS_CLASS}` : ''}`} data-step-state={state} open={pinned}>
+        return <details key={step.id} className={`${STEP_SECTION_CLASS}${next ? ` ${STEP_SECTION_FOCUS_CLASS}` : ''}`} data-step-state={state} open={pinned} onToggle={event => {
+          /* 접으면 이 칸 전체가 숨는다 — 포커스가 사라지지 않게 위 단계 칸으로 돌려준다. */
+          const section = event.currentTarget;
+          if (next && !section.open && (section.contains(document.activeElement) || document.activeElement === document.body)) document.getElementById(`return-step-${step.id}`)?.focus();
+        }}>
           <summary className={`flex list-none items-center gap-2 rounded-lg px-3 py-2.5 outline-none focus-visible:ring-3 focus-visible:ring-ring/50 [&::-webkit-details-marker]:hidden ${pinned ? 'cursor-default' : 'cursor-pointer'}`} onClick={pinned ? event => event.preventDefault() : undefined} tabIndex={pinned ? -1 : undefined}>
             <h4 className="flex min-w-0 flex-1 scroll-mt-16 flex-wrap items-center gap-x-2 gap-y-0.5 rounded-sm text-sm font-medium outline-none focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-ring"
               id={`return-${step.id}`} tabIndex={-1} ref={node => { headings.current[step.id] = node; }}>

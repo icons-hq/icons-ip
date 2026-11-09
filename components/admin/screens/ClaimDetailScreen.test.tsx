@@ -261,8 +261,8 @@ describe('ClaimDetailScreen', () => {
       claim: { ...detail().claim, stage: 'processing', status: 'processing' },
       refund: { ...detail().refund!, method: null, filedAt: null },
     });
-    expect(html).toContain('환불 완료 확정 (토스 전액 취소 발행 · 재고 복원 · 카드팩 회수)');
-    expect(html).toContain('누르면 토스 전액 취소를 발행하고 결제사 조회로 결과를 확인합니다.');
+    expect(html).toContain('환불 완료 확정 (토스 전액 취소)');
+    expect(html).toContain('누르면 토스 결제 전액을 취소하고 결제사에 결과를 확인합니다.');
     expect(html).not.toContain('결제사 원장에서 전액 취소를 확인한 뒤 눌러주세요');
     expect(html).toContain('결제사 취소 (토스 전액 취소)');
     expect(html).toContain('type="hidden" name="method" value="pg_cancel"');
@@ -283,7 +283,7 @@ describe('ClaimDetailScreen', () => {
       refund: null,
     });
     expect(html).toContain('승인하고 토스 전액 취소');
-    expect(html).toContain('승인하면 바로 토스 전액 취소를 발행하고 결제사 조회로 결과를 확인합니다.');
+    expect(html).toContain('승인하면 바로 토스 결제 전액을 취소하고 결제사에 결과를 확인합니다.');
   });
 
   /* 2026-10-12 QA-4: 운영자 전액 취소의 헤더는 단순 변심이 아니라 운영 사유다. */

@@ -130,6 +130,14 @@ describe('EmailDeliverySection · 주문에 매이지 않는 메일', () => {
     expect(html).not.toContain('다시 등록해주세요');
   });
 
+  /* 결과 기록이 끊긴 건은 영구히 '확인 중'으로 남는다 — 기다려도 오지 않으니 다음 행동을 말한다. */
+  it('시도 뒤 오래 지난 문의 답변은 수신 여부 확인을 안내한다', () => {
+    const delivery = { ...inquiryDelivery, status: 'pending' as const, lastError: null, claimedAt: '2026-08-07T02:30:00.000Z' };
+    const html = renderToStaticMarkup(<EmailDeliverySection deliveries={[delivery]} nowMs={new Date('2026-08-07T04:00:00.000Z').getTime()} />);
+    expect(html).toContain('고객에게 수신 여부를 확인해주세요');
+    expect(renderToStaticMarkup(<EmailDeliverySection deliveries={[delivery]} nowMs={new Date('2026-08-07T02:40:00.000Z').getTime()} />)).toContain('발송 결과를 확인하는 중입니다');
+  });
+
   it('다시 보낼 수 있는 건은 주문으로 가는 링크와 건수를 보인다', () => {
     const html = renderToStaticMarkup(<EmailDeliverySection deliveries={[failedDelivery]} />);
 

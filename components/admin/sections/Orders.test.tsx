@@ -664,7 +664,7 @@ describe('OrdersSection', () => {
       }),
     })} />);
 
-    expect(html).toMatch(/결제사 확인 오류 · <code[^>]*>provider_unavailable<\/code>/);
+    expect(html).toMatch(/결제사 확인 오류 · 결제사 응답을 받지 못했습니다 <code[^>]*>provider_unavailable<\/code>/);
     expect(html).toContain('상태 다시 확인');
   });
 
