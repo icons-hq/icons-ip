@@ -86,9 +86,32 @@ describe('ModerationSection', () => {
     expect(html).toContain('숨기지 않고 상태만 변경');
     expect(html).toContain('>신고 사유</dt>');
     expect(html).toContain('>신고된 댓글</dt>');
-    /* 댓글 신고의 포스트 숨김은 빨간 테두리 버튼으로 나란히 두지 않는다. */
-    const postHide = html.slice(html.lastIndexOf('<button', html.indexOf(' 포스트 숨김')), html.indexOf(' 포스트 숨김'));
-    expect(postHide).not.toContain('border-border-strong');
+  });
+
+  /* 나란한 숨김 버튼의 모양이 다르면 한쪽이 꺼진 버튼처럼 보인다 — 처리할 신고의 숨김은 댓글·포스트 모두 같은 모양이다. */
+  it('처리할 신고의 숨김 버튼은 댓글·포스트가 같은 모양이고 끝난 신고는 회색 글자로 물러난다', () => {
+    const buttonOf = (html: string, label: string) => html.slice(html.lastIndexOf('<button', html.indexOf(` ${label}`)), html.indexOf(` ${label}`));
+    const open = renderToStaticMarkup(<ModerationSection reports={[commentReport('visible')]} />);
+    for (const label of ['댓글 숨김', '포스트 숨김']) {
+      expect(buttonOf(open, label)).toContain('border-border-strong');
+      expect(buttonOf(open, label)).toContain('text-destructive');
+    }
+
+    const resolved = renderToStaticMarkup(<ModerationSection reports={[{ ...commentReport('visible'), status: 'resolved' }]} />);
+    for (const label of ['댓글 숨김', '포스트 숨김']) {
+      expect(buttonOf(resolved, label)).toContain('border-border-strong');
+      expect(buttonOf(resolved, label)).toContain('text-muted-foreground');
+    }
+  });
+
+  /* 신고 한 건의 범위가 테두리로 보여야 한다 — 안쪽 처리 줄은 선이 아니라 옅은 면으로 나눈다. */
+  it('신고마다 카드로 묶고 바뀐 게 없는 상태 저장은 강조하지 않는다', () => {
+    const html = renderToStaticMarkup(<ModerationSection reports={[commentReport('visible'), { ...commentReport('visible'), id: '55555555-5555-4555-8555-555555555555' }]} />);
+
+    expect(html.match(/<article[^>]*data-report-card=""/g)).toHaveLength(2);
+    expect(html).not.toContain('border-t pt-2.5');
+    expect(html.match(/<button(?=[^>]*border-border-strong)[^>]*>(?:<svg[\s\S]*?<\/svg>)? 상태 저장<\/button>/g)).toHaveLength(2);
+    expect(html).not.toMatch(/<button(?=[^>]*bg-primary-soft)[^>]*>(?:<svg[\s\S]*?<\/svg>)? 상태 저장/);
   });
 
   it('포스트 숨김도 댓글 숨김처럼 확인을 거친다', () => {
