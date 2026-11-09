@@ -203,6 +203,32 @@ describe('InquiryDetailScreen', () => {
     expect(html).not.toContain('답변 발송');
   });
 
+  /* 이미 답변을 보낸 문의에 빈 입력칸을 크게 열어 두면 또 써야 하는 것처럼 보인다. */
+  it('답변 완료 문의는 상태를 먼저 말하고 입력칸은 접어 둔다', () => {
+    const input = detail();
+    const html = render({ ...input, inquiry: { ...input.inquiry, status: 'answered', answeredAt: '2026-08-19T00:00:00.000Z', waitingSince: null } });
+    expect(html).toContain('답변을 보낸 문의입니다.');
+    expect(html).toMatch(/<details(?![^>]*\sopen)[^>]*>[\s\S]*?추가 답변 작성/);
+    expect(html).toContain('추가 답변 발송');
+    expect(html).not.toMatch(/<h3[^>]*>답변 작성<\/h3>/);
+  });
+
+  /* 결제·클레임 값은 운영자 말로 보이고, 끝난 클레임이 주문상태(취소)와 다른 색으로 엇갈리지 않는다. */
+  it('결제 상태는 한글로, 끝난 클레임 이력은 조용한 색으로 보인다', () => {
+    const input = detail();
+    const html = render({ ...input, order: { ...input.order!, status: 'canceled', payment: { provider: 'toss', status: 'canceled', amount: 57000 }, claims: [{ status: 'completed', requestedAt: '2026-08-17T01:00:00.000Z', decidedAt: null, reasonType: 'change_of_mind' }] } });
+    expect(html).toContain('토스페이먼츠 · 결제취소');
+    expect(html).not.toContain('· canceled');
+    expect(html).toMatch(/data-tone="neutral"[^>]*>취소 완료</);
+  });
+
+  it('전체 미답변 바로가기는 제목보다 앞서지 않고 머리 줄 오른쪽에 둔다', () => {
+    const html = renderToStaticMarkup(<InquiryDetailScreen backHref="/admin/cs/inquiries" detail={detail()} now={NOW} pendingBadge={<a href="/x">미답변 바로가기</a>} />);
+    expect(html.indexOf('← 문의 목록')).toBeLessThan(html.indexOf('미답변 바로가기'));
+    expect(html.indexOf('미답변 바로가기')).toBeLessThan(html.indexOf('배송이 아직 안 왔어요'));
+    expect(html.indexOf('배송이 아직 안 왔어요')).toBeLessThan(html.indexOf('class="inquiry-live"'));
+  });
+
   it('미종결 문의에는 템플릿과 답변 발송·종결 버튼을 둔다', () => {
     const html = render();
 

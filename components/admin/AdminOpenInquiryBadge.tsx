@@ -18,9 +18,9 @@ import { buttonVariants } from '@/components/admin/kit/ui/button';
 export function AdminOpenInquiryBadge({ count }: { count: number }) {
   if (count <= 0) return null;
 
-  /* 화면 본문(.rise) 바로 위에 선다 — 아래 화면과 간격을 스스로 둔다. */
+  /* 셸 본문이 덩어리 사이 간격을 맡는다 — 여기서 여백을 더 주면 혼자 떨어져 보인다. 문의 상세는 제목을 밀어내지 않게 머리 줄 오른쪽에 넘겨 그린다. */
   return (
-    <div className="mb-4 flex flex-wrap gap-2" data-open-inquiry-badge="">
+    <div className="flex flex-wrap gap-2" data-open-inquiry-badge="">
       <AdminPendingCountLink count={count} href="/admin/cs/inquiries?status=open&page=1"><span>미답변 1:1 문의</span></AdminPendingCountLink>
     </div>
   );

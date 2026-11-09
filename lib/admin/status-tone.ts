@@ -82,6 +82,8 @@ const STATUS_TONES = {
   /** PG 정산 수집 시점 대조 — lib/settlements/report */
   pgSettlementMatch: { matched: 'success', unlinked: 'warning', mismatch: 'danger' },
   // [cs]
+  /** 상담하기 대화 상태 — lib/admin/inquiry-chat CHAT_STATUS_OPTIONS. 답변 뒤 대화가 이어지는 '진행중'은 진행 색이고, 고객문의의 '답변 완료'와 뜻이 달라 별도 줄이다 */
+  inquiryChat: { open: 'warning', answered: 'info', closed: 'neutral' },
   /** 고객문의 답변 만족도 — lib/inquiry-satisfaction */
   inquirySatisfaction: { satisfied: 'success', dissatisfied: 'danger', unrated: 'neutral' },
   /** 상품문의 노출 */

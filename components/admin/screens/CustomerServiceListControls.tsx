@@ -24,14 +24,18 @@ export function CustomerServiceListSelect({ label, value, options }: {
   </label>;
 }
 
-/* 목록형·표형 전환. 버튼은 네이티브 그대로 두고 구분 선택 모양(kit)을 입는다 — 한쪽 처리 UI만 마운트한다. */
-export function CustomerServiceListView({ list, table }: { list: ReactNode; table: ReactNode }) {
+/*
+ * 목록형·표형 전환. 버튼은 네이티브 그대로 두고 구분 선택 모양(kit)을 입는다 — 한쪽 처리 UI만 마운트한다.
+ * toolbar(접는 검색 조건)와 전환 버튼은 한 줄에 둔다. 검색 조건을 펼치면 조건 칸이 줄 전체를 쓰고 전환 버튼은 그 아래로 간다.
+ */
+export function CustomerServiceListView({ list, table, toolbar }: { list: ReactNode; table: ReactNode; toolbar?: ReactNode }) {
   const [view, setView] = useState<'list' | 'table'>('list');
+  const toggle = <div className={`${KIT_SEGMENT_CLASS} self-end`} role="group" aria-label="상품 문의 표시 방식">
+    <button className={KIT_SEGMENT_ITEM_CLASS} data-slot="button" type="button" onClick={() => setView('list')} aria-pressed={view === 'list'}>목록형</button>
+    <button className={KIT_SEGMENT_ITEM_CLASS} data-slot="button" type="button" onClick={() => setView('table')} aria-pressed={view === 'table'}>표형</button>
+  </div>;
   return <div className="flex min-w-0 flex-col gap-3" data-cs-list-view="">
-    <div className={`${KIT_SEGMENT_CLASS} self-end`} role="group" aria-label="상품 문의 표시 방식">
-      <button className={KIT_SEGMENT_ITEM_CLASS} data-slot="button" type="button" onClick={() => setView('list')} aria-pressed={view === 'list'}>목록형</button>
-      <button className={KIT_SEGMENT_ITEM_CLASS} data-slot="button" type="button" onClick={() => setView('table')} aria-pressed={view === 'table'}>표형</button>
-    </div>
+    {toolbar ? <div className="flex min-w-0 flex-wrap items-start justify-between gap-2 has-[details[open]]:flex-col has-[details[open]]:items-stretch">{toolbar}{toggle}</div> : toggle}
     {view === 'list' ? list : table}
   </div>;
 }
