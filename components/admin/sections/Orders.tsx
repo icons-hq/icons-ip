@@ -1138,13 +1138,13 @@ function OrderDetail({
   );
 }
 
-/** 상품 칸은 대표 상품 한 줄 + 외 N건이다 — 품목 수에 따라 줄 높이가 들쭉날쭉하면 목록을 훑을 수 없다. 전체 품목은 title과 화면 낭독기로 읽는다. */
+/** 상품 칸은 대표 상품(두 줄까지) + 외 N건이다 — 품목 수에 따라 줄 높이가 들쭉날쭉하면 목록을 훑을 수 없다. 전체 품목은 title과 화면 낭독기로 읽는다. */
 function OrderItemsCell({ items }: { items: AdminOrderRecord['items'] }) {
   const [first, ...others] = items;
   if (!first) return <span className="text-muted-foreground">-</span>;
   const line = (item: AdminOrderRecord['items'][number]) => `${item.name}${item.variantName ? ` · ${item.variantName}` : ''}`;
   return <div className="flex min-w-48 items-baseline gap-1.5" title={items.map(line).join('\n')}>
-    <span className="line-clamp-1 min-w-0 flex-1">{line(first)}</span>
+    <span className="line-clamp-2 min-w-0 flex-1">{line(first)}</span>
     {others.length ? <span aria-hidden="true" className="shrink-0 text-xs whitespace-nowrap text-muted-foreground">외 {others.length}건</span> : null}
     <ul className="sr-only">
       {others.map((item) => <li key={item.id}>{line(item)}</li>)}
