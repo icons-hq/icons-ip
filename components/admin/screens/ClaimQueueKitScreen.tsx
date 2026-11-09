@@ -41,7 +41,7 @@ import { ClaimQueueKitTable, type ClaimKitRow } from './ClaimQueueKitTable';
 /* 단계 → 카드 색은 상태 표(status-tone)를 따른다. 완료·철회는 조용히 둔다. */
 const CLAIM_STAGE_CARD_TONE = (stage: OrderClaimStage): AdminCountTone => {
   const tone = statusTone('claim', stage);
-  return tone === 'neutral' ? 'default' : tone;
+  return tone === 'warning' || tone === 'danger' ? tone : 'default';
 };
 
 const CHIP_STAGES: Record<OrderClaimType, OrderClaimStage[]> = {

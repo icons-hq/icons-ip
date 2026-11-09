@@ -4,12 +4,14 @@ import { statusTone } from './status-tone';
 describe('상태 → tone 단일 표 (ADR-0029)', () => {
   it('처리해야 할 상태는 주의, 끝난 상태는 조용히, 문제는 위험으로 말한다', () => {
     expect(statusTone('order', 'paid')).toBe('warning');
+    expect(statusTone('order', 'pending')).toBe('neutral');
     expect(statusTone('order', 'shipping')).toBe('info');
     expect(statusTone('order', 'delivered')).toBe('success');
     expect(statusTone('order', 'done')).toBe('neutral');
     expect(statusTone('order', 'canceled')).toBe('danger');
     expect(statusTone('claim', 'requested')).toBe('warning');
     expect(statusTone('claim', 'needs_review')).toBe('danger');
+    expect(statusTone('claim', 'rejected')).toBe('neutral');
     expect(statusTone('inquiry', 'open')).toBe('warning');
     expect(statusTone('inquiry', 'answered')).toBe('success');
     expect(statusTone('stock', 'soldout')).toBe('danger');

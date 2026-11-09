@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, type ReactNode } from 'react';
 import { ArrowDown, ArrowUp, ArrowUpDown } from 'lucide-react';
 import { ConsoleTableSettings } from '@/components/admin/kit/console-table-settings';
 import { useGridPreferences } from './AdminPreferences';
+import { useHorizontalOverflow } from './useHorizontalOverflow';
 
 export type ConsoleSortDirection = 'asc' | 'desc';
 
@@ -146,6 +147,7 @@ export function ConsoleGrid({
   const selected = new Set(selection);
   const selectAllRef = useRef<HTMLInputElement>(null);
   const tableRef = useRef<HTMLTableElement>(null);
+  const { ref: overflowRef, more: overflowMore } = useHorizontalOverflow<HTMLDivElement>();
   const { preferences, save } = useGridPreferences(preferencesKey ?? caption, columns);
   const indexes = configurable
     ? preferences.order.filter((key) => !preferences.hidden.includes(key)).map((key) => columns.findIndex((column) => column.key === key))
@@ -223,7 +225,10 @@ export function ConsoleGrid({
     <div className={`${className ? `${className} ` : ''}flex min-w-0 flex-col gap-2`} data-console-grid="">
       {children}
       {configurable ? <div className="flex justify-end"><ConsoleTableSettings columns={columns} onSave={save} preferences={preferences} /></div> : null}
-      <div aria-label={`${caption} 가로 스크롤`} className="@container relative min-w-0 overflow-x-auto rounded-lg border bg-card outline-none focus-visible:ring-3 focus-visible:ring-ring/50" role="region" tabIndex={0}>
+      <div className="relative min-w-0">
+      {/* 표가 영역보다 넓으면 오른쪽 끝을 흐리게 해 옆으로 더 있다는 것을 보인다(ADR-0029, 잘린 열 지적). */}
+      {overflowMore ? <div aria-hidden="true" className="pointer-events-none absolute inset-y-px right-px z-20 w-10 rounded-r-lg bg-gradient-to-l from-foreground/15 to-transparent print:hidden" data-console-grid-more="" /> : null}
+      <div aria-label={`${caption} 가로 스크롤`} className="@container relative min-w-0 overflow-x-auto rounded-lg border bg-card outline-none focus-visible:ring-3 focus-visible:ring-ring/50" ref={overflowRef} role="region" tabIndex={0}>
         <table className="w-full caption-bottom text-sm" data-slot="table" ref={tableRef}>
           <caption className="sr-only">{caption}</caption>
           {hasWidths ? (
@@ -349,6 +354,7 @@ export function ConsoleGrid({
             })}
           </tbody>
         </table>
+      </div>
       </div>
       {selectionName
         ? selection.map((id) => (

@@ -14,6 +14,7 @@ import {
 import { cn } from "cn";
 import * as React from "react";
 
+import { useHorizontalOverflow } from "@/components/admin/console/useHorizontalOverflow"
 import type { DataTableFeatures } from "@/components/admin/kit/lib/data-table-features";
 
 import {
@@ -101,14 +102,18 @@ function DataTableLayout<TData extends RowData>({
   /* ICONS: 가로로 넘치는 표는 스크롤 영역이 포커스를 받아야 키보드(화살표)로 옆으로 옮긴다. kit Table과 같은
      클래스에 region·tabIndex·안쪽 포커스 링만 더한다(바깥 테두리 상자가 overflow-hidden이라 링을 안쪽에 그린다). */
   const regionLabel = props["aria-label"] ? `${props["aria-label"]} 가로 스크롤` : undefined;
+  const { ref: overflowRef, more: overflowMore } = useHorizontalOverflow<HTMLDivElement>();
   return (
     <table.Subscribe selector={selectLayoutState}>
       {() => (
+        <div className="relative w-full">
+        {overflowMore ? <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-0 z-30 w-10 bg-gradient-to-l from-foreground/15 to-transparent print:hidden" data-console-grid-more="" /> : null}
         <div
           aria-label={regionLabel}
           aria-labelledby={regionLabel ? undefined : props["aria-labelledby"]}
           className="relative w-full overflow-x-auto outline-none focus-visible:ring-3 focus-visible:ring-ring/50 focus-visible:ring-inset"
           data-slot="table-container"
+          ref={overflowRef}
           role="region"
           tabIndex={0}
         >
@@ -120,6 +125,7 @@ function DataTableLayout<TData extends RowData>({
           >
             {children}
           </table>
+        </div>
         </div>
       )}
     </table.Subscribe>

@@ -7,20 +7,20 @@
  * - neutral: 끝났거나 조용한 상태(초안·종결·보관·거래확정)
  * - info: 진행 중(배송중·검토중·예약)
  * - success: 정상 완료(배송완료·답변 완료·공개)
- * - warning: 사람이 곧 처리해야 함(입금 대기·미답변·임박)
+ * - warning: 우리가 곧 처리해야 함(신규주문·미답변·임박). 고객을 기다리는 상태(입금 대기·선물 수락 대기)는 neutral이다
  * - danger: 문제·중단(취소·거부·품절·실패)
  */
 export type AdminTone = 'neutral' | 'info' | 'success' | 'warning' | 'danger';
 
 const STATUS_TONES = {
   /** 주문 상태 — lib/admin/orders ADMIN_ORDER_STATUS_LABELS */
-  order: { pending: 'warning', paid: 'warning', confirmed: 'info', shipping: 'info', delivered: 'success', done: 'neutral', canceled: 'danger' },
+  order: { pending: 'neutral', paid: 'warning', confirmed: 'info', shipping: 'info', delivered: 'success', done: 'neutral', canceled: 'danger' },
   /** 티켓 예매 상태 */
   ticketOrder: { pending: 'warning', paid: 'success', canceled: 'danger' },
   /** 결제 상태 */
   payment: { pending: 'warning', paid: 'success', canceled: 'danger', failed: 'danger', refunded: 'neutral' },
   /** 클레임 단계 — lib/orders/claims ORDER_CLAIM_STAGE_LABELS */
-  claim: { requested: 'warning', in_review: 'info', collecting: 'info', collected: 'info', on_hold: 'warning', processing: 'info', needs_review: 'danger', completed: 'success', rejected: 'danger', withdrawn: 'neutral' },
+  claim: { requested: 'warning', in_review: 'info', collecting: 'info', collected: 'info', on_hold: 'warning', processing: 'info', needs_review: 'danger', completed: 'success', rejected: 'neutral', withdrawn: 'neutral' },
   /** 고객문의 */
   inquiry: { open: 'warning', answered: 'success', closed: 'neutral' },
   /** 상품문의 */
@@ -46,7 +46,7 @@ const STATUS_TONES = {
   /** 마케팅 메시지 */
   marketing: { draft: 'neutral', queued: 'info', processing: 'info', completed: 'success', blocked: 'warning', canceled: 'neutral', expired: 'warning' },
   /** 선물 */
-  gift: { awaiting_acceptance: 'warning', accepted: 'info', ordered: 'success', declined: 'neutral', expired: 'neutral', canceled: 'danger' },
+  gift: { awaiting_acceptance: 'neutral', accepted: 'info', ordered: 'success', declined: 'neutral', expired: 'neutral', canceled: 'danger' },
   /** 티켓 */
   ticket: { valid: 'success', used: 'neutral', refunded: 'neutral' },
   /** 판매 준비 */

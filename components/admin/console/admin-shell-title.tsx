@@ -22,7 +22,7 @@ export function AdminPageHeading({ title }: { title: string }) {
   return <h2
     className={duplicate
       ? 'sr-only print:not-sr-only print:text-lg print:font-semibold'
-      : 'text-lg leading-tight font-semibold tracking-tight text-foreground'}
+      : 'text-base leading-tight font-semibold text-foreground'}
     data-shell-duplicate={duplicate || undefined}
   >{title}</h2>;
 }

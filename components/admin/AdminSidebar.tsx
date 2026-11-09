@@ -335,6 +335,14 @@ export function AdminSidebar({
                       </SidebarMenuSubItem>
                     );
                   })}
+                  {/* 메뉴에서만 숨긴 화면(선물·정기구매·그룹상품 등)으로 들어오면 현재 위치를 잃지 않게 이 그룹 아래에 잠깐 보인다. */}
+                  {activeScreen?.navHidden && activeGroup?.id === group.id ? (
+                    <SidebarMenuSubItem key={activeScreen.id}>
+                      <SidebarMenuSubButton aria-current="page" isActive render={<span title={activeScreen.label} />}>
+                        <span>{activeScreen.label}</span>
+                      </SidebarMenuSubButton>
+                    </SidebarMenuSubItem>
+                  ) : null}
                 </SidebarMenuSub>
               </SidebarMenuItem>
             );

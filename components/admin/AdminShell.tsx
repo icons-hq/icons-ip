@@ -82,7 +82,7 @@ export function AdminShell({
           <main className={`admin-content flex min-w-0 flex-1 flex-col ${isChat ? 'min-h-0 overflow-hidden print:overflow-visible' : 'gap-4 p-4 md:p-6 print:p-0'}`}>
             {isChat || isHome ? <h1 className="sr-only">{title}</h1> : (
               <div className="admin-page-context flex flex-wrap items-end justify-between gap-2 print:hidden">
-                <h1 className="text-xl font-semibold tracking-tight text-foreground">{title}</h1>
+                <h1 className="text-2xl font-bold tracking-tight text-foreground">{title}</h1>
               </div>
             )}
             {/* key로 화면 전환마다 진입 애니메이션을 다시 태운다 */}

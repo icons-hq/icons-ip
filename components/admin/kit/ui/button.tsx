@@ -9,7 +9,7 @@ const buttonVariantClasses = cva(
       variant: {
         default: "bg-primary text-primary-foreground hover:bg-primary/90",
         /* ICONS: 보조 행동을 주 색 옅은 바탕으로(ADR-0029) — 조회처럼 자주 누르지만 그 화면의 주 행동은 아닌 버튼. */
-        soft: "bg-primary-soft text-primary-soft-foreground hover:bg-primary/15 aria-expanded:bg-primary/15",
+        soft: "border-primary/35 bg-primary-soft font-semibold text-primary-soft-foreground hover:bg-primary/15 aria-expanded:bg-primary/15",
         outline:
           "border-border-strong bg-background hover:bg-muted hover:text-foreground aria-expanded:bg-muted aria-expanded:text-foreground dark:border-input dark:bg-input/30 dark:hover:bg-input/50",
         secondary:

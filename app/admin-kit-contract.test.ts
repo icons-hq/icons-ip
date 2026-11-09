@@ -87,7 +87,7 @@ describe('admin kit 경계 (ADR-0028)', () => {
 
   it('의미색 글자는 자기 옅은 바탕과 흰 바탕에서 WCAG AA(4.5:1)를 넘는다 — 토큰을 바꿀 때 계산으로 지킨다', () => {
     const values = new Map<string, string>();
-    css.walkRules('.wc-admin', (rule) => rule.walkDecls((declaration) => values.set(declaration.prop, declaration.value)));
+    css.walkRules('.wc-admin', (rule) => { rule.walkDecls((declaration) => { values.set(declaration.prop, declaration.value); }); });
     const oklch = (name: string): [number, number, number] => {
       let value = values.get(name);
       while (value?.startsWith('var(')) value = values.get(value.slice(4, -1));
