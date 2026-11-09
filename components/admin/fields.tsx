@@ -192,14 +192,14 @@ export function SelectField({
 export function ActionNotice({ state }: { state: AdminCatalogActionState }) {
   if (state.errors?.form) {
     return (
-      <div className="rounded-lg border border-destructive/30 bg-destructive/5 px-3 py-2.5 text-sm font-medium text-destructive" role="alert">
+      <div className="rounded-lg border border-danger-border bg-danger-soft px-3 py-2.5 text-sm font-medium text-destructive" role="alert">
         {state.errors.form}
       </div>
     );
   }
   if (state.message) {
     return (
-      <div className="rounded-lg border bg-muted/40 px-3 py-2.5 text-sm font-medium text-[var(--wc-success)]" role="status">
+      <div className="rounded-lg border border-success-border bg-success-soft px-3 py-2.5 text-sm font-medium text-success" role="status">
         {state.message}
       </div>
     );

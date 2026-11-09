@@ -14,7 +14,11 @@ const badgeVariantClasses = cva(
         secondary:
           "bg-secondary text-secondary-foreground [a]:hover:bg-secondary/80",
         destructive:
-          "bg-destructive/10 text-destructive focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:focus-visible:ring-destructive/40 [a]:hover:bg-destructive/20",
+          "bg-danger-soft text-destructive focus-visible:ring-destructive/20 dark:bg-destructive/20 dark:focus-visible:ring-destructive/40 [a]:hover:bg-destructive/15",
+        /* ICONS: 상태 의미색(ADR-0029). 화면은 이 변형을 직접 고르지 않고 AdminStatusBadge·lib/admin/status-tone을 거친다. */
+        success: "bg-success-soft text-success [a]:hover:bg-success/15",
+        warning: "bg-warning-soft text-warning [a]:hover:bg-warning/15",
+        info: "bg-info-soft text-info [a]:hover:bg-info/15",
         outline:
           "border-border text-foreground [a]:hover:bg-muted [a]:hover:text-muted-foreground",
         ghost:

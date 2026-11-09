@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import type { ReactNode } from 'react';
 import { ConsoleFilterField } from '@/components/admin/console';
+import { ADMIN_COUNT_CARD_GRID_CLASS, AdminCountCard, type AdminCountTone } from '@/components/admin/console/AdminCountCard';
 import { Button, buttonVariants } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
 import { NativeSelect } from '@/components/admin/kit/ui/native-select';
@@ -17,7 +18,7 @@ type Option = { value: string; label: string };
 
 /** 접는 메뉴설명(기준 화면 ClaimQueueKitScreen과 같은 모양). 처음에는 펼쳐 둔다. */
 export function SalesGuide({ title, children }: { title: string; children: ReactNode }) {
-  return <details className="group rounded-lg border bg-muted/40 px-4 py-3 text-sm" data-sales-guide="" open>
+  return <details className="group rounded-xl border bg-card px-4 py-3 text-sm" data-sales-guide="" open>
     <summary className="flex cursor-pointer list-none items-center justify-between gap-3 font-medium [&::-webkit-details-marker]:hidden">
       <strong className="min-w-0 font-medium">{title}</strong>
       <span className="shrink-0 text-xs font-normal text-muted-foreground"><span className="hidden group-open:inline">메뉴설명 접기</span><span className="group-open:hidden">메뉴설명 보기</span></span>
@@ -75,7 +76,7 @@ export function SalesFilterPanel({
     </div>
     <div className="flex flex-wrap justify-end gap-2 border-t pt-3">
       <Link className={buttonVariants({ variant: 'outline' })} data-slot="button" href={resetHref ?? action}>초기화</Link>
-      <Button type="submit">검색</Button>
+      <Button type="submit" variant="soft">검색</Button>
     </div>
   </form>;
 }
@@ -101,22 +102,18 @@ export function SalesResultsHeader({
 
 /** 목록 제목과 총 건수. 정렬·목록 수 폼이 없는 목록도 같은 모양을 쓴다. */
 export function SalesResultsTitle({ total, unit = '건' }: { total: number; unit?: string }) {
-  return <h2 className="mr-auto text-base font-medium whitespace-nowrap text-foreground">목록 <span className="text-sm font-normal text-muted-foreground">(총 <strong className="font-semibold text-foreground tabular-nums">{total.toLocaleString('ko-KR')}</strong>{unit})</span></h2>;
+  return <h2 className="mr-auto text-base font-semibold whitespace-nowrap text-foreground">목록 <span className="text-sm font-normal text-muted-foreground">(총 <strong className="font-semibold text-foreground tabular-nums">{total.toLocaleString('ko-KR')}</strong>{unit})</span></h2>;
 }
 
 /** 처리 단계별 건수 카드(기준 화면의 단계 카드 모양). 건수를 모르면 0으로 꾸미지 않고 숫자를 비워 둔다. */
 export function SalesStatusSummary({ items, label }: {
-  items: readonly { label: string; href: string; count?: number; active: boolean; urgent?: boolean }[];
+  items: readonly { label: string; href: string; count?: number; active: boolean; urgent?: boolean; tone?: AdminCountTone }[];
   label: string;
 }) {
   return <nav aria-label={label} className="flex flex-col gap-2" data-sales-summary="">
     <p className="text-xs font-medium text-muted-foreground">{label}</p>
-    <div className="grid grid-cols-2 gap-2 sm:grid-cols-[repeat(auto-fill,minmax(7.5rem,1fr))]">
-      {items.map((item) => <Link key={item.href} href={item.href} aria-label={item.count === undefined ? item.label : `${item.label} ${item.count.toLocaleString('ko-KR')}건`} aria-current={item.active ? 'page' : undefined} data-urgent={item.urgent || undefined}
-        className="flex min-w-0 flex-col gap-1 rounded-lg border bg-card px-3 py-2.5 transition-colors hover:bg-accent aria-[current=page]:border-primary aria-[current=page]:ring-1 aria-[current=page]:ring-primary">
-        <span className="truncate text-xs text-muted-foreground">{item.label}</span>
-        {item.count !== undefined ? <strong className={`text-xl leading-tight font-semibold tabular-nums${item.urgent ? ' text-[var(--wc-warning)]' : ''}`}>{item.count.toLocaleString('ko-KR')}<small className="ml-0.5 text-xs font-normal text-muted-foreground">건</small></strong> : null}
-      </Link>)}
+    <div className={ADMIN_COUNT_CARD_GRID_CLASS}>
+      {items.map((item) => <AdminCountCard active={item.active} count={item.count} current="page" href={item.href} key={item.href} label={item.label} tone={item.urgent ? 'danger' : item.tone ?? 'default'} />)}
     </div>
   </nav>;
 }

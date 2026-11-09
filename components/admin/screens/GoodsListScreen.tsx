@@ -5,6 +5,7 @@ import { ShippingRegionExpiryNotice } from '../ShippingRegionExpiryNotice';
 import type { ShippingRegionExpiryState } from '@/lib/admin/shipping-regions';
 import { GOODS_READINESS_STATE_LABELS, unknownGoodsReadiness } from '@/lib/admin/goods-readiness';
 import { AdminStatusBadge } from '../console/AdminKit';
+import { AdminCountCard } from '../console/AdminCountCard';
 import { MarketingLinksGoodsGrid } from '../marketing/MarketingLinksGoodsGrid';
 import { ConsolePagination } from '../console/ConsolePagination';
 import { buttonVariants } from '../kit/ui/button';
@@ -38,17 +39,7 @@ export function GoodsListScreen({ data, shippingRegionExpiry, canIssueMarketingL
     <ShippingRegionExpiryNotice state={shippingRegionExpiry} />
     <div aria-label="상품 조회 현황" className="grid grid-cols-2 gap-2 sm:grid-cols-4" data-goods-list="status" role="group">
       {STATUS_ITEMS.map(item => {
-        const count = counts ? counts[item.status].toLocaleString('ko-KR') : null;
-        return <Link
-          aria-current={filters.status === item.status ? 'page' : undefined}
-          aria-label={`${item.label} ${count === null ? '집계 없음' : `${count}건`}`}
-          className="flex min-w-0 flex-col gap-1 rounded-lg border bg-card px-3 py-2.5 transition-colors hover:bg-accent aria-[current=page]:border-primary aria-[current=page]:ring-1 aria-[current=page]:ring-primary"
-          href={goodsListHref({ ...filters, status: item.status }, 1)}
-          key={item.status}
-        >
-          <span className="text-xs text-muted-foreground">{item.label}</span>
-          <strong className="text-xl leading-tight font-semibold tabular-nums">{count ?? '—'}<small className="ml-0.5 text-xs font-normal text-muted-foreground">{count === null ? '집계 없음' : '건'}</small></strong>
-        </Link>;
+        return <AdminCountCard active={filters.status === item.status} count={counts ? counts[item.status] : null} current="page" href={goodsListHref({ ...filters, status: item.status }, 1)} key={item.status} label={item.label} />;
       })}
     </div>
     <GoodsListFiltersForm data={data} />

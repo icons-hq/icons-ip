@@ -23,16 +23,16 @@ describe('화면 머리와 셸 제목', () => {
     }
   });
 
-  it('상태색은 배지 바탕이 아니라 테두리 배지의 색 점으로 싣는다', () => {
+  it('상태는 tone별 의미색 배지로 보이고, 색만이 아니라 글자로도 말한다(ADR-0029)', () => {
     const success = renderToStaticMarkup(<AdminStatusBadge tone="success">공개</AdminStatusBadge>);
     const neutral = renderToStaticMarkup(<AdminStatusBadge>초안</AdminStatusBadge>);
-    expect(success).toContain('border-border'); // outline 배지
-    expect(success).not.toContain('bg-secondary');
-    expect(success).toContain('bg-[var(--wc-success)]');
-    expect(success).toContain('aria-hidden="true"');
-    expect(success).not.toMatch(/color-mix\(in_oklab,var\(--wc-success\)/);
+    const danger = renderToStaticMarkup(<AdminStatusBadge tone="danger">취소</AdminStatusBadge>);
+    expect(success).toContain('bg-success-soft');
+    expect(success).toContain('before:bg-success');
+    expect(success).toContain('공개</span>');
     expect(neutral).toContain('bg-secondary');
-    expect(neutral).not.toContain('aria-hidden="true"');
+    expect(danger).toContain('bg-danger-soft');
+    expect(danger).toContain('before:bg-destructive');
   });
 });
 

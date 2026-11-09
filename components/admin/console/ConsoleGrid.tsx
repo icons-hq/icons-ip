@@ -264,7 +264,7 @@ export function ConsoleGrid({
                         ? sort?.direction === 'asc' ? 'ascending' : 'descending'
                         : 'none'
                       : undefined}
-                    className={`h-10 bg-muted px-3 text-left align-middle text-xs font-medium whitespace-nowrap text-muted-foreground data-[align=end]:text-right ${frozenCellClass}`}
+                    className={`h-10 bg-muted px-3 text-left align-middle text-xs font-semibold whitespace-nowrap text-secondary-foreground data-[align=end]:text-right ${frozenCellClass}`}
                     data-align={column.align ?? 'start'}
                     data-frozen={displayIndex < frozenCount || undefined}
                     data-slot="table-head"
@@ -305,14 +305,14 @@ export function ConsoleGrid({
 
               return (
                 <tr
-                  className="group/row border-b transition-colors hover:bg-muted/50 data-[state=selected]:bg-muted"
+                  className="group/row border-b transition-colors hover:bg-primary-soft/40 data-[state=selected]:bg-primary-soft"
                   data-selected={rowSelected ? 'true' : undefined}
                   data-slot="table-row"
                   data-state={rowSelected ? 'selected' : undefined}
                   key={row.id}
                 >
                   {selectable ? (
-                    <td className={`relative w-10 min-w-10 bg-card p-0 align-middle group-hover/row:bg-[color-mix(in_oklab,var(--muted)_50%,var(--card))] group-data-[state=selected]/row:bg-muted ${frozenCellClass}`} data-frozen={frozenCount > 0 || undefined} data-slot="table-cell" style={frozenStyle(0)}>
+                    <td className={`relative w-10 min-w-10 bg-card p-0 align-middle group-hover/row:bg-[color-mix(in_oklab,var(--primary-soft)_40%,var(--card))] group-data-[state=selected]/row:bg-primary-soft ${frozenCellClass}`} data-frozen={frozenCount > 0 || undefined} data-slot="table-cell" style={frozenStyle(0)}>
                       {rowSelectable ? (
                         <label className="absolute inset-0 flex cursor-pointer items-center justify-center print:static"><input
                           aria-label={row.selectLabel ?? `${row.id} 선택`}
@@ -330,7 +330,7 @@ export function ConsoleGrid({
                     const frozen = displayIndex < frozenCount;
                     return (
                       <td
-                        className={`px-3 py-2 align-middle break-keep data-[align=end]:text-right data-[align=end]:tabular-nums ${frozen ? `bg-card group-hover/row:bg-[color-mix(in_oklab,var(--muted)_50%,var(--card))] group-data-[state=selected]/row:bg-muted ${frozenCellClass}` : ''}`}
+                        className={`px-3 py-2 align-middle break-keep data-[align=end]:text-right data-[align=end]:tabular-nums ${frozen ? `bg-card group-hover/row:bg-[color-mix(in_oklab,var(--primary-soft)_40%,var(--card))] group-data-[state=selected]/row:bg-primary-soft ${frozenCellClass}` : ''}`}
                         data-align={column?.align ?? 'start'}
                         data-frozen={frozen || undefined}
                         data-slot="table-cell"
@@ -339,7 +339,7 @@ export function ConsoleGrid({
                       >
                         {/* 표에서는 행 전체를 링크로 만들 수 없다. 첫 셀만 상세 링크가 된다. */}
                         {index === 0 && row.href ? (
-                          <Link className="font-medium text-foreground underline-offset-4 hover:underline" href={row.href}>{cell}</Link>
+                          <Link className="font-medium text-primary underline-offset-4 hover:underline" href={row.href}>{cell}</Link>
                         ) : cell}
                       </td>
                     );

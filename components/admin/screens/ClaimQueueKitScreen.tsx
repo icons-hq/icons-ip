@@ -23,6 +23,8 @@ import {
   type OrderClaimStage,
   type OrderClaimType,
 } from '@/lib/orders/claims';
+import { ADMIN_COUNT_CARD_GRID_CLASS, AdminCountCard, type AdminCountTone } from '@/components/admin/console/AdminCountCard';
+import { statusTone } from '@/lib/admin/status-tone';
 import { ClaimQueueKitTable, type ClaimKitRow } from './ClaimQueueKitTable';
 
 /*
@@ -36,17 +38,18 @@ import { ClaimQueueKitTable, type ClaimKitRow } from './ClaimQueueKitTable';
  */
 
 /* 목록에 뜨는 단계 칩. completed·rejected는 종료라 맨 뒤로 민다. 취소에는 회수가 없어 수거 단계가 없다. */
+/* 단계 → 카드 색은 상태 표(status-tone)를 따른다. 완료·철회는 조용히 둔다. */
+const CLAIM_STAGE_CARD_TONE = (stage: OrderClaimStage): AdminCountTone => {
+  const tone = statusTone('claim', stage);
+  return tone === 'neutral' ? 'default' : tone;
+};
+
 const CHIP_STAGES: Record<OrderClaimType, OrderClaimStage[]> = {
   cancel: ['requested', 'in_review', 'on_hold', 'processing', 'needs_review', 'completed', 'rejected'],
   return: ['requested', 'in_review', 'collecting', 'collected', 'on_hold', 'processing', 'needs_review', 'completed', 'rejected'],
   exchange: ['requested', 'in_review', 'collecting', 'collected', 'on_hold', 'processing', 'needs_review', 'completed', 'rejected'],
 };
 /* 칩 수에 맞춘 열 수. 넓은 화면에서는 한 줄에 모든 단계가 선다. */
-const CHIP_GRID: Record<OrderClaimType, string> = {
-  cancel: 'sm:grid-cols-4 xl:grid-cols-7',
-  return: 'sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-9',
-  exchange: 'sm:grid-cols-3 lg:grid-cols-5 xl:grid-cols-9',
-};
 
 export function ClaimQueueKitScreen({
   canViewRefundTransfers = false,
@@ -90,7 +93,7 @@ export function ClaimQueueKitScreen({
      kit 부품을 덮지 않는다. */
   return (
     <div className="flex min-w-0 flex-col gap-4 text-sm text-foreground" data-admin-kit="claims" data-claim-type={claimType}>
-      <details className="group rounded-lg border bg-muted/40 px-4 py-3" open>
+      <details className="group rounded-xl border bg-card px-4 py-3" open>
         <summary className="flex cursor-pointer list-none items-center justify-between gap-3 font-medium">
           {typeLabel} 요청과 처리상태를 확인할 수 있습니다.
           <span className="shrink-0 text-xs text-muted-foreground group-open:hidden">메뉴설명 보기</span>
@@ -104,21 +107,11 @@ export function ClaimQueueKitScreen({
           <li>수취인명과 번호는 입력한 내용이 포함된 요청을 찾습니다. 상품주문번호는 주문 품목, 상품번호는 등록 상품의 식별값입니다. 품목으로 찾아도 처리와 엑셀은 요청 주문 전체를 대상으로 합니다.</li>
         </ul>
       </details>
-      <nav aria-label="단계별 건수" className={`grid grid-cols-2 gap-2 ${CHIP_GRID[claimType]}`}>
+      <nav aria-label="단계별 건수" className={ADMIN_COUNT_CARD_GRID_CLASS}>
         {CHIP_STAGES[claimType].map((stage) => {
           const count = counts[stage] ?? 0;
           const active = filters.stage === stage;
-          const urgent = stage === 'needs_review' && count > 0;
-          return <Link
-            aria-current={active ? 'true' : undefined}
-            aria-label={`${adminClaimStageLabel(claimType, stage)} ${count}건`}
-            className="flex min-w-0 flex-col gap-1 rounded-lg border bg-card px-3 py-2.5 transition-colors hover:bg-accent aria-[current=true]:border-primary aria-[current=true]:ring-1 aria-[current=true]:ring-primary"
-            href={adminClaimHref(claimType, filters, { page: 1, stage })}
-            key={stage}
-          >
-            <span className="truncate text-xs text-muted-foreground">{adminClaimStageLabel(claimType, stage)}</span>
-            <span className={`text-xl font-semibold tabular-nums${urgent ? ' text-destructive' : ''}`}>{count.toLocaleString('ko-KR')}<span className="ml-0.5 text-xs font-normal text-muted-foreground">건</span></span>
-          </Link>;
+          return <AdminCountCard active={active} count={count} href={adminClaimHref(claimType, filters, { page: 1, stage })} key={stage} label={adminClaimStageLabel(claimType, stage)} tone={CLAIM_STAGE_CARD_TONE(stage)} />;
         })}
       </nav>
       <div className="flex items-center justify-between gap-2">

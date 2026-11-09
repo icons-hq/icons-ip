@@ -1,9 +1,11 @@
-import type { ReactNode } from 'react';
+import type { ComponentProps, ReactNode } from 'react';
+import { AlertTriangle, CheckCircle2, Info, OctagonAlert, type LucideIcon } from 'lucide-react';
 import { Badge } from '@/components/admin/kit/ui/badge';
+import type { AdminTone } from '@/lib/admin/status-tone';
 import { AdminPageHeading } from './admin-shell-title';
 
 /*
- * 운영 화면의 골격 부품 — 템플릿 룩(ADR-0028). API는 그대로이고 모양은 kit Card·Badge·Field와 같은 클래스다.
+ * 운영 화면의 골격 부품 — 색·위계(ADR-0029). API는 그대로이고 모양은 kit Card·Badge·Field와 같은 클래스다.
  * 옛 클래스 이름(wc-admin-kit__*)은 화면 고유 CSS가 닿지 않도록 쓰지 않는다.
  */
 
@@ -32,7 +34,7 @@ export function AdminSectionCard({ title, children, id, summary, requirement, st
   >
     <header className="flex flex-col gap-1">
       <div className="flex flex-wrap items-center gap-2">
-        <h3 className="text-base leading-snug font-medium text-foreground">{title}</h3>
+        <h3 className="text-base leading-snug font-semibold text-foreground">{title}</h3>
         {requirement ? <span className="text-xs text-muted-foreground">{requirement}</span> : null}
         {status ? <AdminStatusBadge tone={errorCount ? 'danger' : 'neutral'}>{errorCount ? `오류 ${errorCount}개` : status}</AdminStatusBadge> : null}
       </div>
@@ -56,17 +58,46 @@ export function AdminField({ label, inputId, hint, error, children }: { label: s
   </div>;
 }
 
-/* 상태색은 배지 바탕이 아니라 작은 점으로 싣는다(템플릿 대시보드의 상태 열과 같은 테두리 배지 + 색 점). */
-const BADGE_TONE_DOT = {
-  success: 'bg-[var(--wc-success)]',
-  warning: 'bg-[var(--wc-warning)]',
+/* 같은 상태는 모든 화면에서 같은 색이다 — 상태→tone은 lib/admin/status-tone 한 곳에서 정하고, 여기서 색으로 바꾼다. */
+const BADGE_VARIANT = { neutral: 'secondary', info: 'info', success: 'success', warning: 'warning', danger: 'destructive' } as const;
+/* 점은 ::before로 그려 배지 글자가 첫 텍스트로 남는다(스크린리더·테스트의 글자 읽기 순서). */
+const BADGE_DOT = {
+  neutral: 'before:bg-muted-foreground',
+  info: 'before:bg-info',
+  success: 'before:bg-success',
+  warning: 'before:bg-warning',
+  danger: 'before:bg-destructive',
 } as const;
 
-export function AdminStatusBadge({ tone = 'neutral', children }: { tone?: 'neutral' | 'success' | 'warning' | 'danger'; children: ReactNode }) {
-  const dot = tone === 'success' || tone === 'warning' ? BADGE_TONE_DOT[tone] : null;
-  return <Badge data-tone={tone} variant={tone === 'danger' ? 'destructive' : dot ? 'outline' : 'secondary'}>
-    {dot ? <span aria-hidden="true" className={`size-1.5 shrink-0 rounded-full ${dot}`} /> : null}{children}
+/** 상태 배지. 색만으로 뜻을 전하지 않도록 글자(children)가 항상 상태 이름을 말한다. */
+export function AdminStatusBadge({ tone = 'neutral', children, className, ...props }: { tone?: AdminTone; children: ReactNode } & Omit<ComponentProps<typeof Badge>, 'variant' | 'children'>) {
+  return <Badge className={`before:size-1.5 before:shrink-0 before:rounded-full before:content-[''] ${BADGE_DOT[tone]}${className ? ` ${className}` : ''}`} data-tone={tone} variant={BADGE_VARIANT[tone]} {...props}>
+    {children}
   </Badge>;
+}
+
+const NOTICE_TONE: Record<AdminTone, { box: string; icon: LucideIcon }> = {
+  neutral: { box: 'border-border bg-muted text-secondary-foreground', icon: Info },
+  info: { box: 'border-info-border bg-info-soft text-info', icon: Info },
+  success: { box: 'border-success-border bg-success-soft text-success', icon: CheckCircle2 },
+  warning: { box: 'border-warning-border bg-warning-soft text-warning', icon: AlertTriangle },
+  danger: { box: 'border-danger-border bg-danger-soft text-destructive', icon: OctagonAlert },
+};
+
+/** 안내·주의·위험 상자. 색 + 아이콘 + 글자로 말한다(ADR-0029). 화면 전용 색 클래스 대신 이 상자를 쓴다. */
+export function AdminNotice({ tone = 'info', title, children, className, role, icon }: {
+  tone?: AdminTone; title?: ReactNode; children?: ReactNode; className?: string;
+  role?: ComponentProps<'div'>['role']; icon?: LucideIcon;
+}) {
+  const { box, icon: ToneIcon } = NOTICE_TONE[tone];
+  const Icon = icon ?? ToneIcon;
+  return <div className={`flex min-w-0 items-start gap-2.5 rounded-lg border px-3 py-2.5 text-sm ${box}${className ? ` ${className}` : ''}`} data-admin-notice={tone} role={role}>
+    <Icon aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
+    <div className="flex min-w-0 flex-col gap-1">
+      {title ? <p className="font-semibold">{title}</p> : null}
+      {children ? <div className="text-foreground">{children}</div> : null}
+    </div>
+  </div>;
 }
 
 /** An in-flow, non-modal context panel; the owning screen supplies its close link. */

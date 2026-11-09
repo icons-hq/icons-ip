@@ -22,9 +22,9 @@ describe('ConsoleListCard', () => {
     expect(html).toMatch(/<h3[^>]*>조회 결과<span[^>]*>\(총 <strong[^>]*>0<\/strong>개\)/);
   });
 
-  it('표 머리는 ConsoleGrid와 같은 회색 바탕·작은 흐린 글자다', () => {
+  it('표 머리는 ConsoleGrid와 같은 옅은 바탕·작은 진한 글자다', () => {
     const html = renderToStaticMarkup(<table><ConsoleTableHeader><tr><th>이름</th></tr></ConsoleTableHeader></table>);
-    for (const token of ['[&amp;_th]:bg-muted', '[&amp;_th]:text-xs', '[&amp;_th]:text-muted-foreground']) expect(html).toContain(token);
+    for (const token of ['[&amp;_th]:bg-muted', '[&amp;_th]:text-xs', '[&amp;_th]:text-secondary-foreground']) expect(html).toContain(token);
   });
 
   /* 좁은 화면에서 표가 가로로 넓어도 빈 목록 문구는 보이는 폭 가운데에 남는다(ConsoleGrid와 같다). */

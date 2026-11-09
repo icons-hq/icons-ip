@@ -51,7 +51,7 @@ export function ConsoleBulkActionBar({
   return (
     <div
       aria-label={`${label} 일괄 처리`}
-      className={`${className ? `${className} ` : ''}flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border bg-muted/40 px-3 py-2`}
+      className={`${className ? `${className} ` : ''}flex flex-wrap items-center gap-x-3 gap-y-2 rounded-lg border border-primary/25 bg-primary-soft px-3 py-2`}
       data-console-bulk-bar=""
       role="group"
     >

@@ -184,7 +184,7 @@ function DataTableHeadCell<TData extends RowData>({
 
 function getCellClassName(pinned: ColumnPinningPosition) {
   return pinned
-    ? "overflow-hidden bg-background transition-colors group-hover/row:bg-[color-mix(in_srgb,var(--muted)_50%,var(--background))] group-has-aria-expanded/row:bg-[color-mix(in_srgb,var(--muted)_50%,var(--background))] group-data-[state=selected]/row:bg-muted"
+    ? "overflow-hidden bg-background transition-colors group-hover/row:bg-[color-mix(in_srgb,var(--primary-soft)_40%,var(--background))] group-has-aria-expanded/row:bg-[color-mix(in_srgb,var(--primary-soft)_40%,var(--background))] group-data-[state=selected]/row:bg-primary-soft"
     : "overflow-hidden";
 }
 

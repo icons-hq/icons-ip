@@ -44,7 +44,7 @@ export function ConsoleListCard({
       {head ? (
         <div className="flex flex-wrap items-center gap-2" data-console-list-head="">
           {title !== undefined ? (
-            <Heading className="mr-auto flex flex-wrap items-baseline gap-x-1.5 text-base font-medium text-foreground">
+            <Heading className="mr-auto flex flex-wrap items-baseline gap-x-1.5 text-base font-semibold text-foreground">
               {title}
               {typeof total === 'number' ? (
                 <span className="text-sm font-normal text-muted-foreground">
@@ -92,7 +92,7 @@ export function ConsoleTableEmptyRow({ children, colSpan }: { children: ReactNod
 export function ConsoleTableHeader({ className, ...props }: ComponentProps<typeof TableHeader>) {
   return (
     <TableHeader
-      className={`[&_th]:bg-muted [&_th]:text-xs [&_th]:font-medium [&_th]:text-muted-foreground${className ? ` ${className}` : ''}`}
+      className={`[&_th]:bg-muted [&_th]:text-xs [&_th]:font-semibold [&_th]:text-secondary-foreground${className ? ` ${className}` : ''}`}
       {...props}
     />
   );
