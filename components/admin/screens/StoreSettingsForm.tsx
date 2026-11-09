@@ -38,7 +38,7 @@ export function StoreSettingsForm({section,settings,canEdit}:{section:'business'
       </div>:<Input id={`settings-${key}`} name={key} defaultValue={state.values?.[key]??defaults[key]} maxLength={500} readOnly={!canEdit}
         aria-invalid={Boolean(state.errors?.[key])} aria-describedby={state.errors?.[key]?`settings-${key}-error`:undefined} type={key==='email'?'email':'text'}/>}
     </AdminField>)}</AdminFormGrid>
-    {section==='bank_transfer'?<p className={NOTE}>세 항목을 모두 비우면 새 주문에서 무통장 입금이 표시되지 않습니다. 기존 입금 대기 주문을 먼저 확인해주세요.</p>:<p className={NOTE}>빈 항목은 공개 사업자 정보에서 숨겨집니다. 연락처를 변경하면 푸터와 법정 문서에 함께 반영됩니다.</p>}
+    {section==='bank_transfer'?<AdminNotice tone="warning">세 항목을 모두 비우면 새 주문에서 무통장 입금이 표시되지 않습니다. 기존 입금 대기 주문을 먼저 확인해주세요.</AdminNotice>:<AdminNotice tone="warning">빈 항목은 공개 사업자 정보에서 숨겨집니다. 연락처를 변경하면 푸터와 법정 문서에 함께 반영됩니다.</AdminNotice>}
     <Feedback state={state}/>
     {canEdit?<Button className="w-fit" disabled={pending} type="submit"><Check aria-hidden="true"/>{pending?'저장 중…':'설정 저장'}</Button>:<ReadOnlyNotice/>}
     {contactHelpOpen?<CustomerServiceDialog title="고객센터 연락처 노출위치" onClose={()=>setContactHelpOpen(false)}>
@@ -86,9 +86,9 @@ export function ShippingCarrierForm({carrier,canEdit}:{carrier?:EditableCarrier;
     <input type="hidden" name="updatedAt" value={latestStamp(carrier?.updatedAt??'',state.updatedAt)}/>
     <AdminFormGrid>{[
       ['code','택배사 코드',carrier?.code??''],['label','택배사 이름',carrier?.label??''],['trackingUrlTemplate','배송조회 URL',carrier?.trackingUrlTemplate??''],
-    ].map(([key,label,initial])=><div className={key==='trackingUrlTemplate'?'col-span-full min-w-0':'min-w-0'} key={key}><AdminField label={label} inputId={`carrier-${carrier?.code??'new'}-${key}`} error={state.errors?.[key]} hint={key==='trackingUrlTemplate'?'운송장번호 자리에 {trackingNumber}를 넣습니다.':undefined}>
-      <Input id={`carrier-${carrier?.code??'new'}-${key}`} name={key} defaultValue={state.values?.[key]??initial} maxLength={key==='label'?60:key==='code'?32:500} readOnly={!canEdit||key==='code'&&Boolean(carrier)}
-        aria-invalid={Boolean(state.errors?.[key])} aria-describedby={state.errors?.[key]?`carrier-${carrier?.code??'new'}-${key}-error`:key==='trackingUrlTemplate'?`carrier-${carrier?.code??'new'}-${key}-hint`:undefined}/>
+    ].map(([key,label,initial])=><div className={key==='trackingUrlTemplate'?'col-span-full min-w-0':'min-w-0'} key={key}><AdminField label={label} inputId={`carrier-${carrier?.code??'new'}-${key}`} error={state.errors?.[key]} hint={key==='trackingUrlTemplate'?'운송장번호 자리에 {trackingNumber}를 넣습니다.':key==='code'&&carrier?'등록 후 바꿀 수 없습니다.':undefined}>
+      <Input className={key==='code'&&carrier?'border-dashed bg-muted':undefined} id={`carrier-${carrier?.code??'new'}-${key}`} name={key} defaultValue={state.values?.[key]??initial} maxLength={key==='label'?60:key==='code'?32:500} readOnly={!canEdit||key==='code'&&Boolean(carrier)}
+        aria-invalid={Boolean(state.errors?.[key])} aria-describedby={state.errors?.[key]?`carrier-${carrier?.code??'new'}-${key}-error`:key==='trackingUrlTemplate'||key==='code'&&carrier?`carrier-${carrier?.code??'new'}-${key}-hint`:undefined}/>
     </AdminField></div>)}</AdminFormGrid>
     <label className={CHECK_LABEL}><input type="checkbox" name="active" value="true" defaultChecked={state.values?state.values.active==='true':carrier?.active??true} disabled={!canEdit}/> 새 발송에서 사용</label>
     <p className={NOTE}>비활성화해도 기존 주문의 배송조회 링크는 유지됩니다.</p><Feedback state={state}/>
