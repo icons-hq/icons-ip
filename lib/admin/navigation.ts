@@ -275,6 +275,7 @@ const ADMIN_DETAIL_TITLES: readonly (readonly [RegExp, string])[] = [
   [/^\/admin\/sales\/subscriptions\/[^/]+$/, '정기구매 상세'],
   [/^\/admin\/cs\/inquiries\/[^/]+$/, '고객문의 상세'],
   [/^\/admin\/customers\/[^/]+$/, '고객 상세'],
+  [/^\/admin\/catalog\/goods\/export$/, '상품 엑셀 내보내기'],
 ];
 
 export function adminDetailTitleForPath(pathname: string): string | null {

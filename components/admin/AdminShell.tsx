@@ -51,7 +51,9 @@ export function AdminShell({
   /* 콘텐츠 콘솔은 경로 첫 칸이 콘솔 이름이라, 그 콘솔 전용 메뉴 그룹(IP·콘텐츠 운영)을 다시 적지 않는다. */
   const groupLabel = group && consoleId !== 'commerce' && adminGroupConsoles(group).every((id) => id === consoleId) ? undefined : group?.label;
   const title = pathname === '/admin/catalog/goods' && searchParams.get('create') !== '1' && searchParams.get('goodId')
-    ? '상품 수정' : adminDetailTitleForPath(pathname) ?? screen?.label ?? '판매자센터';
+    ? '상품 수정'
+    : pathname === '/admin/catalog/ips' && searchParams.get('create') === '1' ? 'IP 등록'
+      : adminDetailTitleForPath(pathname) ?? screen?.label ?? '판매자센터';
   const accountId = admin.id || admin.email || admin.role;
   /* WCAG 2.4.2 — 탭 제목으로 화면을 구분한다(서버 메타데이터 없이 셸 제목 하나를 쓴다). */
   useEffect(() => { document.title = `${title} · ICONS 판매자센터`; }, [title]);
