@@ -17,4 +17,10 @@ describe('IP workspace screen', () => {
     expect(html).toContain('연결 상품');
     expect(html).toContain('aria-current="page"');
   });
+  it('어느 IP인지와 게시 상태를 머리에 모으고, 게시 상태를 바꾸는 곳으로 가는 길을 둔다', () => {
+    const html = renderToStaticMarkup(<IpWorkspaceScreen data={data} />);
+    expect(html).toMatch(/<h2 class="[^"]*text-xl[^"]*">화산강림<\/h2><span[^>]*data-tone="neutral"[^>]*>초안<\/span>/);
+    expect(html).toContain('href="/admin/catalog/ips/hwasan#ip-publish"');
+    expect(html).toContain('게시 상태 변경');
+  });
 });

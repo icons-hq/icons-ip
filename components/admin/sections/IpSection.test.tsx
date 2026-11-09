@@ -168,6 +168,16 @@ describe('IpSection', () => {
     expect(html).toContain('글리프 (줄바꿈 가능)');
   });
 
+  it('입력을 기본 정보·소개 글·대표 이미지로 나누고, 낯선 말의 뜻을 칸 이름에서 바로 말하며, 저장 줄은 오른쪽에 둔다', () => {
+    const html = renderToStaticMarkup(
+      <IpSection accountId="operator-a" action={vi.fn()} onSelect={vi.fn()} pending={false} records={[]} selected={null} state={{}} verticals={[]} />,
+    );
+    for (const group of ['기본 정보', '소개 글', '대표 이미지']) expect(html).toContain(`aria-label="${group}"`);
+    for (const label of ['한 줄 소개 · 태그라인', '크게 쓰는 글자 · 글리프', '소개 글 · 시놉시스', '키아트 이미지']) expect(html).toContain(label);
+    expect(html).toMatch(/data-admin-savebar=""/);
+    expect(html).toMatch(/class="[^"]*\bjustify-end\b[^"]*" data-admin-savebar=""/);
+  });
+
   /* 게시 상태(20260907130000) — 초안·공개·보관을 폼 머리와 목록에서 읽을 수 있어야 한다. */
   describe('publish state', () => {
     /* 제출 버튼(type="submit")의 intent 값과 문구. 앞에 장식 아이콘(svg) 하나가 올 수 있다 — 속성 순서는 묻지 않는다. */

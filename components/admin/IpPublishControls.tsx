@@ -47,7 +47,7 @@ export function IpPublishControl({
   const [actionState, formAction, pending] = useActionState(action, initialState);
 
   return (
-    <section className={SECTION_CARD} data-ip-publish-control={state}>
+    <section className={`${SECTION_CARD} scroll-mt-16`} data-ip-publish-control={state} id="ip-publish">
       <SectionHeading
         description={state === 'archived'
           ? '보관된 IP는 게시 상태를 바꿀 수 없습니다. 복원하면 초안이 됩니다. 다시 노출하려면 공개로 전환해주세요.'
