@@ -270,7 +270,7 @@ export const ADMIN_SCREENS: AdminScreen[] = ADMIN_NAV_GROUPS.flatMap((group) => 
 const ADMIN_DETAIL_TITLES: readonly (readonly [RegExp, string])[] = [
   [/^\/admin\/sales\/orders\/(?!new$)[^/]+$/, '주문 상세'],
   [/^\/admin\/sales\/claims\/cancels\/[^/]+$/, '취소 상세'],
-  [/^\/admin\/sales\/claims\/returns\/[^/]+$/, '반품 상세'],
+  [/^\/admin\/sales\/claims\/returns\/(?!fees$|fee-policy$)[^/]+$/, '반품 상세'],
   [/^\/admin\/sales\/claims\/exchanges\/[^/]+$/, '교환 상세'],
   [/^\/admin\/sales\/subscriptions\/[^/]+$/, '정기구매 상세'],
   [/^\/admin\/cs\/inquiries\/[^/]+$/, '고객문의 상세'],

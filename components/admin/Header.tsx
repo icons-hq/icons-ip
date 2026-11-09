@@ -79,7 +79,7 @@ export function Header({
   return (
     <header className="sticky top-0 z-30 flex h-12 shrink-0 items-center gap-2 border-b bg-background/95 px-3 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:rounded-t-xl md:px-4 print:hidden" data-admin-header="">
       <NavigationToggle />
-      <Separator className="mr-1 data-[orientation=vertical]:h-4" orientation="vertical" />
+      <Separator className="mr-1 data-vertical:self-center data-[orientation=vertical]:h-4" orientation="vertical" />
       <Breadcrumb className="min-w-0 flex-1">
         <BreadcrumbList className="flex-nowrap">
           <BreadcrumbItem className={crumbs.length ? 'max-sm:hidden' : undefined}>
@@ -126,7 +126,7 @@ export function Header({
           </Link>
         </nav>
         {tools}
-        <Separator className="mx-1 data-[orientation=vertical]:h-4" orientation="vertical" />
+        <Separator className="mx-1 data-vertical:self-center data-[orientation=vertical]:h-4" orientation="vertical" />
         <form
           action={signOutFormAction}
           className="hidden"

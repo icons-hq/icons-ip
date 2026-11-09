@@ -249,6 +249,8 @@ describe('상세 화면 셸 제목(ADR-0029)', () => {
     expect(adminDetailTitleForPath('/admin/sales/claims/returns/abc')).toBe('반품 상세');
     expect(adminDetailTitleForPath('/admin/cs/inquiries/abc')).toBe('고객문의 상세');
     expect(adminDetailTitleForPath('/admin/customers/abc')).toBe('고객 상세');
+    expect(adminDetailTitleForPath('/admin/sales/claims/returns/fees')).toBeNull();
+    expect(adminDetailTitleForPath('/admin/sales/claims/returns/fee-policy')).toBeNull();
     expect(adminDetailTitleForPath('/admin/sales/orders')).toBeNull();
     expect(adminDetailTitleForPath('/admin/sales/claims/cancels')).toBeNull();
   });

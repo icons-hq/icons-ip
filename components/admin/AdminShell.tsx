@@ -1,7 +1,7 @@
 'use client';
 
 import { usePathname, useSearchParams } from 'next/navigation';
-import { useEffect, type CSSProperties, type ReactNode } from 'react';
+import type { CSSProperties, ReactNode } from 'react';
 import { ADMIN_CONSOLES, adminConsoleHomeHref, adminDetailTitleForPath, adminGroupConsoles, adminGroupForPath, adminScreenForPath, type AdminConsoleId } from '@/lib/admin/navigation';
 import { SidebarInset, SidebarProvider } from '@/components/admin/kit/ui/sidebar';
 import { TooltipProvider } from '@/components/admin/kit/ui/tooltip';
@@ -9,6 +9,7 @@ import { AdminSidebar } from './AdminSidebar';
 import { Header } from './Header';
 import { AdminPreferencesProvider } from './console/AdminPreferences';
 import { AdminShellTitleProvider } from './console/admin-shell-title';
+import { useAdminDocumentTitle } from './console/useAdminDocumentTitle';
 import { AdminKitPortalHost } from './kit/portal-container';
 import { OperationsDock } from './OperationsDock';
 import { AdminInquiryNotifier } from './AdminInquiryNotifier';
@@ -56,7 +57,7 @@ export function AdminShell({
       : adminDetailTitleForPath(pathname) ?? screen?.label ?? '판매자센터';
   const accountId = admin.id || admin.email || admin.role;
   /* WCAG 2.4.2 — 탭 제목으로 화면을 구분한다(서버 메타데이터 없이 셸 제목 하나를 쓴다). */
-  useEffect(() => { document.title = `${title} · ICONS 판매자센터`; }, [title]);
+  useAdminDocumentTitle(title);
 
   return (
     <AdminPreferencesProvider accountId={accountId}>
