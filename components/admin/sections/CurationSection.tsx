@@ -176,7 +176,7 @@ export function CurationSection({
     </nav></div> : null}
     {savedMessage && view === 'content' ? <p className="border-b bg-muted/40 px-4 py-2.5 text-sm text-success sm:px-5" role="status">{savedMessage}</p> : null}
     {layoutSavedMessage && view === 'layout' ? <p className="border-b bg-muted/40 px-4 py-2.5 text-sm text-success sm:px-5" role="status">{layoutSavedMessage}</p> : null}
-    {view === 'content' ? <div className={`grid grid-cols-1 xl:h-[max(780px,calc(100dvh-210px))] print:block print:h-auto${fullPreview ? '' : ' md:grid-cols-[210px_minmax(0,1fr)] xl:grid-cols-[210px_minmax(320px,400px)_minmax(250px,1fr)]'}`}>
+    {view === 'content' ? <div className={`grid grid-cols-1 xl:h-[max(700px,calc(100dvh-250px))] print:block print:h-auto${fullPreview ? '' : ' md:grid-cols-[210px_minmax(0,1fr)] xl:grid-cols-[210px_minmax(320px,400px)_minmax(250px,1fr)]'}`}>
       <aside className={`${fullPreview ? 'hidden' : 'flex'} min-h-0 min-w-0 flex-col border-b md:border-r md:border-b-0 print:hidden`} aria-label="홈 구성 목록">
         <div className="flex items-baseline justify-between gap-2 px-4 pt-5 pb-2"><h3 className="text-base font-medium">스토어 홈</h3><span className="text-xs text-muted-foreground tabular-nums">{records.length}개 구성</span></div>
         <p className="px-4 text-xs text-muted-foreground">프로모션 배너 {heroCount} / {HOME_HERO_LIMIT}개 · 비노출 포함</p>
@@ -189,7 +189,7 @@ export function CurationSection({
             <button aria-current={selected?.id === record.id ? 'true' : undefined} className="flex w-full min-w-0 flex-col gap-1 rounded-lg border border-transparent p-3 text-left transition-colors outline-none hover:bg-muted focus-visible:ring-3 focus-visible:ring-ring/50 aria-[current=true]:border-primary aria-[current=true]:bg-primary-soft aria-[current=true]:ring-1 aria-[current=true]:ring-primary" data-slot="button" onClick={() => requestSelection({ id: record.id })} type="button">
               <span className="flex items-center justify-between gap-1.5"><strong className="text-sm font-medium">{CURATION_KIND_LABELS[record.kind]}</strong><AdminStatusBadge tone={statusTone('display', record.status)}>{CURATION_STATUS_LABELS[record.status]}</AdminStatusBadge></span>
               <span className="text-xs leading-normal [overflow-wrap:anywhere]">{record.title || '제목 없는 배너'}</span>
-              <span className="block text-[11px] text-muted-foreground tabular-nums">순서 {record.displayOrder} · {curationKstInput(record.activeFrom).replace('T', ' ')} KST</span>
+              <span className="block text-xs text-muted-foreground tabular-nums">순서 {record.displayOrder} · {curationKstInput(record.activeFrom).replace('T', ' ')} KST</span>
             </button>
           </li>)}
         </ul>
@@ -299,7 +299,9 @@ function CurationForm({
   const [touched, setTouched] = useState<ReadonlySet<keyof CurationEditorValues>>(() => new Set());
   const [picker, setPicker] = useState(false);
   const [saveOperationId] = useState(operationId);
-  const [previewScope, setPreviewScope] = useState<'draft' | 'public'>('draft');
+  /* 아직 아무것도 고치지 않은 새 구성은 보여 줄 내용이 없다 — 손대기 전에는 지금 공개 중인 홈을 보인다(직접 고른 범위가 우선이다). */
+  const [chosenPreviewScope, setPreviewScope] = useState<'draft' | 'public' | null>(null);
+  const previewScope = chosenPreviewScope ?? (selected || dirty ? 'draft' : 'public');
   const fixedRequest = useRef<FormData | null>(null);
   const [state, action, pending] = useActionState(async (previous: AdminCurationActionState, formData: FormData) => {
     fixedRequest.current ??= formData;
