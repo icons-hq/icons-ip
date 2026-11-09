@@ -8,7 +8,7 @@ export function useHorizontalOverflow<T extends HTMLElement>() {
   const [more, setMore] = useState(false);
   useEffect(() => {
     const element = ref.current;
-    if (!element) return;
+    if (!element?.addEventListener) return;
     const update = () => setMore(element.scrollWidth - element.clientWidth - element.scrollLeft > 4);
     update();
     element.addEventListener('scroll', update, { passive: true });
