@@ -62,6 +62,12 @@ const node = () => render() as ReactElement;
 const CONTROL_TYPES: unknown[] = ['input', 'select', 'textarea', Input, NativeSelect, Textarea];
 const button = (label: string) => all(node()).find(item => (item.type === 'button' || item.type === Button) && text(item) === label)!;
 function click(label: string) { const item = button(label); expect(item).toBeDefined(); expect(item.props.disabled).not.toBe(true); (item.props.onClick as () => void)(); }
+/* 페이지 이동은 공용 ConsolePagination(버튼 모드)이다 — 얕은 렌더는 부품을 펼치지 않으므로 그 요소의 onPageChange를 직접 부른다. */
+function nextPage() {
+  const item = all(node()).find(element => element.type === ConsolePagination) as unknown as ReactElement<{ page: number; pageSize: number; total: number; disabled?: boolean; onPageChange: (page: number) => void }> | undefined;
+  expect(item).toBeDefined(); expect(item!.props.disabled).not.toBe(true); expect(item!.props.page * item!.props.pageSize).toBeLessThan(item!.props.total);
+  item!.props.onPageChange(item!.props.page + 1);
+}
 function field(label: string) { const parent = all(node()).find(item => item.type === 'label' && text(item).startsWith(label)); return parent && all(parent.props.children as ReactNode).find(item => CONTROL_TYPES.includes(item.type)); }
 function change(label: string, value: string | boolean) { const item = field(label)!; expect(item).toBeDefined(); (item.props.onChange as (event: unknown) => void)({ target: typeof value === 'boolean' ? { checked: value } : { value } }); }
 async function submit() { const form = all(node()).find(item => item.type === 'form')!; await (form.props.onSubmit as (event: unknown) => Promise<void>)({ preventDefault() {} }); await flush(); }
@@ -270,7 +276,7 @@ it('상품 배정은 100개 선택 한도를 handler에서도 제한한다', asy
   await mountAssignment();
   for (let page = 1; page <= 6; page++) {
     for (let index = 0; index < (page === 6 ? 1 : 20); index++) selectAssignmentGood(index);
-    if (page < 6) { click('다음'); await flush(); }
+    if (page < 6) { nextPage(); await flush(); }
   }
   expect(text(node())).toContain('선택 100개'); expect(text(node())).toContain('한 번에 최대 100개 원상품');
 });

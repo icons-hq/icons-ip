@@ -1,9 +1,10 @@
 'use client';
 import { useState, useTransition } from 'react';
-import { ChevronLeft, ChevronRight, Search } from 'lucide-react';
+import { Search } from 'lucide-react';
 import { findGoodNoticePresets, loadLastSavedGoodNotice } from '@/app/admin/good-notice-actions';
 import type { GoodsNoticePresetPageData, GoodsKcPresetTemplate } from '@/lib/admin/goods-notice-presets';
 import type { GoodsNoticeInfo } from '@/lib/goods-notice';
+import { ConsolePagination } from '@/components/admin/console/ConsolePagination';
 import { Button } from '@/components/admin/kit/ui/button';
 import { GOOD_INPUT_CLASS } from './GoodEditorParts';
 
@@ -30,7 +31,7 @@ export function GoodNoticePicker({ onApply, readOnly=false, copyKcTemplate=true 
     </div>
     <p className="text-sm text-muted-foreground">선택하면 현재 고시정보 7개를 모두 바꿉니다. 저장 후에는 복사한 값이 상품에 독립적으로 남습니다.</p>
     {page && <div className="flex flex-wrap gap-2">{page.presets.map((preset) => <Button type="button" variant="outline" size="sm" disabled={readOnly} key={preset.id} onClick={() => { onApply(preset.notice,copyKcTemplate?preset.kcTemplate:undefined); setMessage(`${preset.name} 프리셋의 7개 항목을 복사했습니다.${copyKcTemplate&&preset.kcTemplate?' KC 유형 틀을 새 미검토 모델로 불러옵니다. 신규 상품은 초안을 저장한 뒤 KC 영역에서 입력을 이어가세요.':''}`); }}>{preset.name} 적용</Button>)}</div>}
-    {page && page.total > 20 && <div className="flex items-center gap-2"><Button type="button" variant="outline" size="sm" disabled={pending || page.filters.page <= 1} onClick={() => search(page.filters.page - 1)}><ChevronLeft aria-hidden="true" />이전</Button><span className="text-sm tabular-nums">{page.filters.page} 페이지</span><Button type="button" variant="outline" size="sm" disabled={pending || page.filters.page * 20 >= page.total} onClick={() => search(page.filters.page + 1)}>다음<ChevronRight aria-hidden="true" /></Button></div>}
+    {page && page.total > 20 && <ConsolePagination label="고시정보 프리셋 페이지" page={page.filters.page} pageSize={20} total={page.total} unit="개" disabled={pending} onPageChange={search} />}
     {message && <p className="text-sm text-foreground" role="status">{message}</p>}
   </div>;
 }

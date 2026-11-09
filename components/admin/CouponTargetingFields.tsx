@@ -4,6 +4,7 @@ import { ShoppingBag, User, UserCheck, UserPlus } from 'lucide-react';
 import { useState, useTransition } from 'react';
 import { searchCouponTargetGoodsAction, type CouponTargetSearch } from '@/app/admin/coupon-target-actions';
 import { AdminField, AdminFormGrid } from '@/components/admin/console/AdminKit';
+import { ConsolePagination } from '@/components/admin/console/ConsolePagination';
 import { SelectField } from '@/components/admin/fields';
 import type { CouponTargetCategory, CouponTargetGood, CouponTargetIp } from '@/lib/coupon-targeting';
 import { CouponCategoryPicker } from './CouponCategoryPicker';
@@ -64,7 +65,7 @@ export function CouponTargetingFields({ recipientSegment, goodsScope, targetIds,
       {result?.ok ? <>
         <p className="text-xs text-muted-foreground" role="status">검색 결과 전체 {result.total}개 · {result.page}페이지</p>
         <ul className="grid gap-2">{result.items.map(good => <li className={ROW} key={good.id}><span className="min-w-0 [overflow-wrap:anywhere]">{good.code} · {good.name}</span> <Button className="shrink-0" type="button" size="xs" variant="outline" disabled={selected.some(item => item.id === good.id) || selected.length >= 1000} onClick={() => setSelected(items => [...items, good])}>선택</Button></li>)}</ul>
-        <div className="flex gap-2"><Button type="button" size="sm" variant="outline" disabled={pending || result.page <= 1} onClick={() => search(result.page - 1)}>이전</Button><Button type="button" size="sm" variant="outline" disabled={pending || result.page * result.pageSize >= result.total} onClick={() => search(result.page + 1)}>다음</Button></div>
+        <ConsolePagination label="상품 검색 결과 페이지" page={result.page} pageSize={result.pageSize} total={result.total} unit="개" disabled={pending} onPageChange={search} />
       </> : result ? <p className="text-sm text-destructive" role="alert">{result.error}</p> : null}
     </> : null}
     <CouponCategoryPicker active={scope === 'selected_categories'} targetIds={categoryIds} categories={targetCategories} error={errors?.targetCategoryIds} />

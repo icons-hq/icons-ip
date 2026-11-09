@@ -2,8 +2,9 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
-import { COUNTRY_NAME_SOURCE, countryNamePage, findCountryName } from '@/lib/admin/country-names';
+import { COUNTRY_NAME_PAGE_SIZE, COUNTRY_NAME_SOURCE, countryNamePage, findCountryName } from '@/lib/admin/country-names';
 import { KOREAN_PROVINCES, KOREAN_REGION_SOURCE, findKoreanProvince, koreanOriginValue } from '@/lib/admin/korean-regions';
+import { ConsolePagination } from '@/components/admin/console/ConsolePagination';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
 import { NativeSelect } from '@/components/admin/kit/ui/native-select';
 import { CustomerServiceDialog } from './screens/CustomerServiceDialog';
@@ -76,11 +77,7 @@ export function CountryNameFinder(props: CountryNameFinderProps) {
         </label>)}
         {!result.rows.length && <p className="p-4 text-muted-foreground">일치하는 국가·지역이 없습니다. 원산지는 직접 입력할 수도 있습니다.</p>}
       </fieldset>
-      <nav className="flex flex-wrap items-center gap-2" aria-label="국가·지역 목록 페이지">
-        <button type="button" className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" disabled={copying || result.page <= 1} onClick={() => setPage(result.page - 1)}>이전</button>
-        <span className="tabular-nums">{result.page} / {result.pages}</span>
-        <button type="button" className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" disabled={copying || result.page >= result.pages} onClick={() => setPage(result.page + 1)}>다음</button>
-      </nav>
+      <ConsolePagination label="국가·지역 목록 페이지" page={result.page} pageSize={COUNTRY_NAME_PAGE_SIZE} total={result.total} unit="개" disabled={copying} onPageChange={setPage} />
       </> : <div className="flex min-w-0 flex-col gap-4">
         <p className="text-muted-foreground">시·도만 선택하거나 시·군·구까지 지정할 수 있습니다.</p>
         <div className="flex min-w-0 flex-col gap-2"><label className={LABEL_CLASS} htmlFor="country-finder-province">시·도</label><NativeSelect className="w-full" id="country-finder-province" value={provinceCode} disabled={copying} onChange={event => {

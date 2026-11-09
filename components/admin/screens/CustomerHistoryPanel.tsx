@@ -1,9 +1,8 @@
 'use client';
-import { useActionState, useId } from 'react';
-import { ChevronLeft, ChevronRight } from 'lucide-react';
+import { startTransition, useActionState, useId } from 'react';
 import { loadCustomerHistoryAction, type CustomerHistoryState } from '@/app/admin/customer-actions';
 import { AdminSectionCard } from '@/components/admin/console/AdminKit';
-import { Button } from '@/components/admin/kit/ui/button';
+import { ConsolePagination } from '@/components/admin/console/ConsolePagination';
 import { CUSTOMER_TAB_LABELS } from '@/lib/admin/customer-detail';
 import { CustomerRecordList } from './CustomerRecordList';
 import { KIT_SEGMENT_CLASS, KIT_SEGMENT_ITEM_CLASS } from './cs-kit-classes';
@@ -18,7 +17,6 @@ export function CustomerHistoryPanel({ userId, canReadClaims = true, initialHist
   const [state, action, pending] = useActionState(loadCustomerHistoryAction, initialHistory?.userId === userId ? { history: initialHistory } : EMPTY);
   const panelId = useId();
   const history = state.history?.userId === userId ? state.history : null;
-  const totalPages = history ? Math.max(1, Math.ceil(history.total / history.pageSize)) : 1;
   const body = <>
     <p className="text-sm text-muted-foreground">답변 작성 중 고객의 다른 주문과 요청을 함께 확인할 수 있습니다.</p>
     {canReadClaims || !history ? <form action={action} className={KIT_SEGMENT_CLASS}>
@@ -33,12 +31,12 @@ export function CustomerHistoryPanel({ userId, canReadClaims = true, initialHist
       {pending ? <p className="text-sm text-muted-foreground" role="status">이력을 불러오는 중입니다.</p> : null}
       {history ? <>
         <CustomerRecordList tab={history.tab} items={history.items} />
-        <form action={action} className="flex flex-wrap items-center justify-between gap-2 border-t pt-3 text-sm" aria-label="고객 이력 페이지">
-          <input type="hidden" name="userId" value={userId} /><input type="hidden" name="tab" value={history.tab} />
-          <Button disabled={pending || history.page <= 1} name="page" size="sm" type="submit" value={history.page - 1} variant="outline"><ChevronLeft aria-hidden="true" />이전</Button>
-          <span className="text-muted-foreground tabular-nums">{history.page} / {totalPages} · {history.total}건</span>
-          <Button disabled={pending || history.page >= totalPages} name="page" size="sm" type="submit" value={history.page + 1} variant="outline">다음<ChevronRight aria-hidden="true" /></Button>
-        </form>
+        {/* 페이지 이동도 탭과 같은 서버 액션에 같은 값(userId·tab·page)을 보낸다. 폼 제출 대신 전환 안에서 부른다. */}
+        <ConsolePagination className="border-t pt-3" label="고객 이력 페이지" page={history.page} pageSize={history.pageSize} total={history.total} disabled={pending} onPageChange={page => {
+          const form = new FormData();
+          form.set('userId', userId); form.set('tab', history.tab); form.set('page', String(page));
+          startTransition(() => action(form));
+        }} />
       </> : null}
     </div>
   </>;

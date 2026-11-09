@@ -24,6 +24,8 @@ export interface AdminPreorderReservation {
   releasedAt: string | null; releaseReason: string | null;
 }
 export interface AdminPreorderReservationPage { total: number; items: AdminPreorderReservation[]; hasMore: boolean }
+/** 예약 주문 목록 한 페이지 행 수 — 조회 RPC의 `p_limit`(상한 100)과 화면 페이지 이동이 같은 값을 쓴다. */
+export const ADMIN_PREORDER_RESERVATION_PAGE_SIZE = 100;
 function object(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }

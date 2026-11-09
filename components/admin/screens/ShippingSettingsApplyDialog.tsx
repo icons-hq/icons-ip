@@ -14,7 +14,8 @@ import { ShippingSettingsDeliverySummary } from './ShippingSettingsDeliverySumma
 import { useShippingSettingsOperation, type ShippingSettingsScope } from './useShippingSettingsOperation';
 import { ShippingSettingsFulfillmentSummary } from './ShippingSettingsFulfillmentFields';
 import { ShippingChargeGroupSummary } from '@/components/admin/ShippingChargeGroupField';
-import { ChevronLeft, ChevronRight, Search, X } from 'lucide-react';
+import { Search, X } from 'lucide-react';
+import { ConsolePagination } from '@/components/admin/console/ConsolePagination';
 import { Button } from '@/components/admin/kit/ui/button';
 import { Input } from '@/components/admin/kit/ui/input';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/admin/kit/ui/table';
@@ -112,7 +113,6 @@ export function ShippingSettingsApplyDialog({ template, origins, identity, scope
     finally { requesting.current = false; if (alive.current && scope.canApply(ticket)) setPending(false); }
   }
   const close = () => { if (!locked) onClose(); };
-  const maxPage = candidates ? Math.max(1, Math.ceil(candidates.total / candidates.pageSize)) : 1;
   const delivery = shippingSettingsDelivery(preview?.template.settings ?? template.settings);
   const chargeGroup = shippingSettingsChargeGroup(preview?.template.settings ?? template.settings);
   return <CustomerServiceDialog title={preview ? '배송정보 적용 미리보기' : '배송정보 적용 상품 선택'} onClose={close} busy={locked} wide>
@@ -128,7 +128,7 @@ export function ShippingSettingsApplyDialog({ template, origins, identity, scope
           <TableCell className="align-top whitespace-normal">{good.name}<small className={`mt-1 block ${FIELD_HINT}`}>{good.id}</small>{good.familyGoodIds.length > 1 ? <small className={`mt-1 block ${FIELD_HINT}`}>확장 배송 정책을 {good.familyGoodIds.length}개 상품이 공유합니다.</small> : null}{!good.editable ? <small className={`mt-1 block ${FIELD_HINT}`}>합산군 원상품 관리 · <Link className="font-medium text-foreground underline underline-offset-4" href={`/admin/catalog/goods?goodId=${encodeURIComponent(good.ownerGoodId)}`}>원상품 확인</Link></small> : null}</TableCell>
           <TableCell className="align-top">{good.code}</TableCell><TableCell className="min-w-56 align-top whitespace-normal"><ShippingSettingsDeliverySummary effective={good.effective} />{Object.hasOwn(good.effective, 'chargeGroup') ? <ShippingChargeGroupSummary group={good.effective.chargeGroup} /> : null}</TableCell><TableCell className="align-top">{good.templateId ? `${good.templateId === template.id ? '이 템플릿' : '다른 템플릿'} · 버전 ${good.templateRevision}` : '개별 설정'}</TableCell>
         </TableRow>)}</TableBody></Table>{!pending && candidates?.total === 0 ? <p className="px-4 py-8 text-center text-sm text-muted-foreground">조건에 맞는 상품이 없습니다.</p> : null}</div>
-        <div className="flex items-center justify-center gap-3 text-sm"><Button disabled={locked || !candidates || candidates.page <= 1} onClick={() => { void search((candidates?.page ?? 1) - 1); }} size="sm" type="button" variant="outline"><ChevronLeft aria-hidden="true" />이전</Button><span className="text-muted-foreground tabular-nums">{candidates?.page ?? 1} / {maxPage}</span><Button disabled={locked || !candidates || candidates.page >= maxPage} onClick={() => { void search((candidates?.page ?? 1) + 1); }} size="sm" type="button" variant="outline">다음<ChevronRight aria-hidden="true" /></Button></div>
+        <ConsolePagination label="배송정보 적용 상품 페이지" page={candidates?.page ?? 1} pageSize={candidates?.pageSize ?? 20} total={candidates?.total ?? 0} unit="개" disabled={locked || !candidates} onPageChange={page => { void search(page); }} />
       </> : <>
         <div className={INFO_PANEL}><strong className="font-medium">{preview.origin.name} · 현재 출고지 정책</strong><p className="text-muted-foreground">기본 배송비 {shippingSettingsMoney(preview.origin.baseFee)} · {preview.origin.freeThreshold === null ? '무료 기준 없음' : `${shippingSettingsMoney(preview.origin.freeThreshold)} 이상 무료`} · 기본 택배사 {preview.origin.defaultCarrier ?? '미설정'}</p><p className="text-muted-foreground">반송 주소: {preview.origin.returnAddress || '미설정'}</p>
           <p className="text-muted-foreground">착불 수납 조건 {preview.origin.collectReady ? `준비됨${preview.origin.collectorName ? ` · ${preview.origin.collectorName}` : ''}` : '준비되지 않음'}</p></div>

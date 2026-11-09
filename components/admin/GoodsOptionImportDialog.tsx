@@ -9,6 +9,7 @@ import { goodsOptionImportTargetVersion, planGoodsOptionImport, type GoodsOption
 import type { GoodsOptionRow } from '@/lib/admin/goods-option-editor';
 import { formatWon } from '@/lib/admin/goods-price-editor';
 import { CustomerServiceDialog } from './screens/CustomerServiceDialog';
+import { ConsolePagination } from '@/components/admin/console/ConsolePagination';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
 import { NativeSelect } from '@/components/admin/kit/ui/native-select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/admin/kit/ui/table';
@@ -109,7 +110,6 @@ export function GoodsOptionImportDialog({ context, categories, currentRows, base
   }
   const stale = comparison !== null && (comparison.fingerprint !== fingerprint || comparison.includePrices !== includePrices);
   const blocked = Boolean(context.blockedReason) || context.pending;
-  const pageCount = Math.max(1, Math.ceil(data.total / data.pageSize));
   return <CustomerServiceDialog title="다른 상품 옵션 불러오기" onClose={onClose} wide>
     <section className="flex min-w-0 flex-col gap-4 text-sm" data-good-option-import-dialog="">
       <p className="text-muted-foreground">상품 하나의 선택형 옵션을 현재 작성 중인 상품에 가져옵니다. 같은 조합은 기존 ID·재고·관리코드를 유지하고, 새 조합은 재고 0으로 만듭니다. 적용 후 상품을 저장해야 반영됩니다.</p>
@@ -142,11 +142,7 @@ export function GoodsOptionImportDialog({ context, categories, currentRows, base
           </button>
         </article>)}
       </div>
-      <nav className="flex flex-wrap items-center justify-end gap-3" aria-label="옵션 원본 상품 목록 페이지">
-        <button type="button" className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" disabled={busy || blocked || data.page <= 1} onClick={() => void run(sequence => search({ ...appliedFilters, page: data.page - 1 }, sequence))}>이전</button>
-        <span className="text-muted-foreground tabular-nums">{data.page} / {pageCount}</span>
-        <button type="button" className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" disabled={busy || blocked || data.page >= pageCount} onClick={() => void run(sequence => search({ ...appliedFilters, page: data.page + 1 }, sequence))}>다음</button>
-      </nav>
+      <ConsolePagination label="옵션 원본 상품 목록 페이지" page={data.page} pageSize={data.pageSize} total={data.total} unit="개" disabled={busy || blocked} onPageChange={page => void run(sequence => search({ ...appliedFilters, page }, sequence))} />
       <label className="inline-flex w-fit cursor-pointer items-center gap-2 font-medium has-disabled:cursor-not-allowed has-disabled:opacity-50"><input type="checkbox" checked={includePrices} disabled={busy || blocked} onChange={event => setIncludePrices(event.target.checked)} />옵션가도 불러오기</label>
       <p className="text-muted-foreground">선택하면 원본의 일반 저장 기준가와 옵션 금액의 차액을 적용합니다. 현재 상품의 판매가·할인·판매기간은 유지합니다. 원본 재고·관리코드·ERP·KC 정보와 직접입력형 옵션은 가져오지 않습니다.</p>
       {stale && <p className="text-destructive" role="alert">{STALE}</p>}
