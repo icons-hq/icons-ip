@@ -104,7 +104,7 @@ function ManagerSetup({ data, actorId }: { data: OperatorDirectoryData; actorId:
   }
   return <section className={OPERATOR_CARD} data-operator-setup="">
     <header className={RESULT_HEADING}><h2 className="flex flex-wrap items-center gap-2 text-base font-semibold">매니저 역할 설정<AdminStatusBadge tone="warning">설정 전</AdminStatusBadge></h2><span className="text-sm text-muted-foreground tabular-nums">선택 {(data.setupCandidates.length - remaining).toLocaleString('ko-KR')} / {data.setupCandidates.length.toLocaleString('ko-KR')}명</span></header>
-    <div className={OPERATOR_GUIDE}><p>기존 운영자 {data.setupCandidates.length}명의 새 역할을 한 번 정하는 설정입니다. 적용하기 전까지 지금 권한은 그대로이고, 비어 있는 칸은 아직 고르지 않았다는 뜻입니다.</p><p>통합 매니저는 이용 중인 기존 관리자 중 한 명을 지정하고, 설정하는 본인은 통합 매니저 또는 계정 주매니저로 둡니다.</p></div>
+    <div className={OPERATOR_GUIDE}><p>적용하기 전까지 지금 권한은 그대로입니다. 통합 매니저(대표 계정)는 기존 관리자 중 한 명만, 본인은 통합 또는 계정 주매니저로 지정합니다.</p></div>
     <AdminNotice className="mx-4" tone="warning">권한 회수를 고른 계정은 일반 회원으로 전환됩니다.</AdminNotice>
     <form className="flex min-w-0 flex-col gap-3" onSubmit={submit}>
       <div className={OPERATOR_TABLE} tabIndex={0} role="region" aria-label="기존 운영자 역할 배정"><Table className="min-w-[48.75rem]"><ConsoleTableHeader><TableRow className="hover:bg-transparent"><TableHead>운영자</TableHead><TableHead>이메일</TableHead><TableHead>현재 권한</TableHead><TableHead>새 매니저 역할</TableHead></TableRow></ConsoleTableHeader><TableBody>

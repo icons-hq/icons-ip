@@ -14,9 +14,9 @@ import { CustomerRecordList, customerDateTime } from './CustomerRecordList';
 
 const FACT_ROW_CLASS = 'grid grid-cols-[5rem_minmax(0,1fr)] gap-3 sm:grid-cols-[6.25rem_minmax(0,1fr)]';
 
-/** 같은 상태는 같은 색이다 — 미동의는 회색 하나로 두고, 필수·선택의 차이는 글자가 말한다. */
+/** 선택 동의를 안 한 것은 평상 상태라 조용히 두고, 필수 동의가 비어 있는 것만 확인할 일이라 주의색이다. */
 function ConsentRow({ label, agreed, required = false }: { label: string; agreed: boolean; required?: boolean }) {
-  return <span className="flex items-center gap-2">{label}<span className="text-xs text-muted-foreground">{required ? '필수' : '선택'}</span><AdminStatusBadge tone={agreed ? 'success' : 'neutral'}>{agreed ? '동의' : '미동의'}</AdminStatusBadge></span>;
+  return <span className="flex items-center gap-2">{label}<span className="text-xs text-muted-foreground">{required ? '필수' : '선택'}</span><AdminStatusBadge tone={agreed ? 'success' : required ? 'warning' : 'neutral'}>{agreed ? '동의' : '미동의'}</AdminStatusBadge></span>;
 }
 
 /* 템플릿 룩(ADR-0028): 고객 머리 카드(누구인지·상태·동작) → 탭(밑줄형) → 개요(건수 카드 + 카드 두 칸) 또는 탭별 이력 카드. 정지·등급 보정은 접어 둔다 — 고객을 보러 들어온 화면이다. */

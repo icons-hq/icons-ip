@@ -29,6 +29,13 @@ describe('ReviewEventListScreen', () => {
     expect(late).toMatch(/data-tone="danger"[^>]*>발표일 2일 지남</);
   });
 
+  /* 파일 책임 확인 문구가 목록보다 먼저 읽히면 부담스럽다 — 내려받을 때만 펼친다. */
+  it('엑셀 다운로드 확인 문구는 접어 두고 표보다 앞서 펼치지 않는다', () => {
+    const html = render([{}]);
+    expect(html).toMatch(/<details(?![^>]*\sopen)(?=[^>]*data-review-event-export-toggle="")[^>]*>[\s\S]*?엑셀 다운로드/);
+    expect(html.indexOf('엑셀 다운로드')).toBeLessThan(html.indexOf('data-slot="table"'));
+  });
+
   it('진행 중인 이벤트에는 할 일 표시를 달지 않는다', () => {
     const html = render([{ state: 'active' }]);
     expect(html).not.toContain('필요');
