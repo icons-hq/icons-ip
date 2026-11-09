@@ -12,6 +12,14 @@ it('separates gift payer from requester and links to existing claim detail', () 
   expect(html).not.toContain('계좌번호');
   expect(html).not.toContain('송금 완료 확정');
 });
+it('대기 일수는 24시간이 아니라 한국 달력으로 센다', () => {
+  const row = { claimId: 'a1010000-0000-4000-8000-000000000001', orderId: 'a1010000-0000-4000-8000-000000000002', reference: 45, claimType: 'cancel' as const, amount: 12000,
+    confirmedAt: '2026-10-13T14:30:00Z', filedAt: '2026-10-13T14:30:00Z', updatedAt: '2026-10-13T14:30:00Z', revision: 1, gift: false, payerName: '결제자', requesterName: '요청자' };
+  /* 전날 23시 30분(KST) 확정 건은 2시간 뒤 자정을 넘기면 오늘이 아니다. */
+  const next = renderToStaticMarkup(<RefundTransfersScreen now={new Date('2026-10-13T16:30:00Z')} data={{ page: 1, pageSize: 50, total: 1, rows: [row] }} />);
+  expect(next).toContain('1일째'); expect(next).not.toContain('>오늘<');
+  expect(renderToStaticMarkup(<RefundTransfersScreen now={new Date('2026-10-13T14:40:00Z')} data={{ page: 1, pageSize: 50, total: 1, rows: [row] }} />)).toContain('>오늘<');
+});
 it('보낼 돈 합계와 오래 기다린 요청·이름 없는 결제자를 주의로 보이고 송금 처리는 요청 상세로 잇는다', () => {
   const row = { claimId: 'a1010000-0000-4000-8000-000000000001', orderId: 'a1010000-0000-4000-8000-000000000002', reference: 45, claimType: 'cancel' as const, amount: 12000,
     confirmedAt: '2026-10-10T06:00:00Z', filedAt: '2026-10-10T06:00:00Z', updatedAt: '2026-10-10T06:00:00Z', revision: 1, gift: false, payerName: null, requesterName: '요청자' };
