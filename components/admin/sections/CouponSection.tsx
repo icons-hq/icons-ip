@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import { useRef, useState } from 'react';
 import { CouponFilters } from '@/components/admin/coupons/CouponFilters';
-import { CouponRowActions } from '@/components/admin/coupons/CouponStatusAction';
+import { CouponRowActions } from '@/components/admin/coupons/CouponRowActions';
 import { CouponScheduleFields } from '@/components/admin/coupons/CouponScheduleFields';
 import { ConsoleGrid } from '@/components/admin/console/ConsoleGrid';
 import { SalesResultsHeader } from '@/components/admin/sales/SalesConsole';
