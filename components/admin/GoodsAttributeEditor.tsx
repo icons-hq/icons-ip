@@ -25,9 +25,11 @@ const rawDocument = (document: GoodsAttributeDocument): RawEntry[] => document.e
 const compatible = (entry: RawEntry, field: GoodsAttributeField | undefined) => Boolean(field && entry.field.kind === field.kind && entry.field.unit === field.unit
   && (!['single','multi'].includes(field.kind) || (Array.isArray(entry.raw) ? entry.raw : entry.raw ? [entry.raw] : []).every(id => field.options.some(option => option.id === id))));
 
-export function GoodsAttributeEditor({ categoryId, goodId, initialSubmission, initialDraft, error, onChange }: {
+export function GoodsAttributeEditor({ categoryId, goodId, initialSubmission, initialDraft, error, onChange, onRequiredMissing }: {
   categoryId: string; goodId: string | null; initialSubmission?: string; initialDraft?: string; error?: string;
   onChange: (submission: string, draft: string, initialize: boolean, preview: {id:string;name:string;value:string}[]) => void;
+  /** 아직 안 채운 필수 속성 이름. 저장 전 진행 표시에 쓴다. */
+  onRequiredMissing?: (names: readonly string[]) => void;
 }) {
   const [schema, setSchema] = useState<GoodsAttributeSchema | null>(null); const [document, setDocument] = useState<GoodsAttributeDocument>(EMPTY_GOODS_ATTRIBUTES);
   const [raw, setRaw] = useState<RawEntry[]>(() => restoreRaw(initialDraft) ?? []); const [removeIds, setRemoveIds] = useState<string[]>([]);
@@ -84,6 +86,8 @@ export function GoodsAttributeEditor({ categoryId, goodId, initialSubmission, in
     if (!ready) return;
     onChange(serialized,draft,!announced.current,JSON.parse(preview)); announced.current=true;
   }, [serialized,draft,ready,onChange,preview]);
+  const missingRequired = ready ? (schema?.fields ?? []).filter(field => field.required && !validGoodsAttributeValue(field,values[field.id])).map(field => field.name).join('\n') : '';
+  useEffect(() => { onRequiredMissing?.(missingRequired ? missingRequired.split('\n') : []); }, [missingRequired,onRequiredMissing]);
   function edit(field: GoodsAttributeField, value: string|string[]) {
     setRemoveIds(ids=>ids.filter(id=>id!==field.id)); setRaw(entries=>[...entries.filter(entry=>entry.field.id!==field.id),{field,raw:value}]);
   }

@@ -38,7 +38,7 @@ export function GoodCategoryField({ categories, primary, onPrimaryChange, error 
     <div className="flex min-w-0 max-w-2xl flex-col gap-2" onBlur={(event) => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setBrowsing(false); }}>
       <div className="flex min-w-0 flex-wrap items-center gap-2">
         <input className={`${GOOD_INPUT_CLASS} min-w-0 flex-1 basis-56`} data-slot="input" id="good-category-search" type="search" aria-describedby="good-category-hint" autoComplete="off" value={query} maxLength={120} placeholder="카테고리명 또는 코드로 찾기"
-          onChange={(event) => setQuery(event.target.value)} onFocus={() => setBrowsing(true)}
+          onChange={(event) => setQuery(event.target.value)} onClick={() => setBrowsing(true)} onFocus={() => setBrowsing(true)}
           onKeyDown={(event) => { if (event.key === 'Enter') event.preventDefault(); if (event.key === 'Escape') { setQuery(''); setBrowsing(false); } }} />
         <button type="button" className={buttonVariants({ variant: 'outline' })} data-slot="button" onClick={() => setTemplatePicker(true)}>카테고리 템플릿</button>
       </div>
@@ -77,6 +77,12 @@ export function GoodAdditionalCategoryField({ categories, primary, value, error 
       return Array.isArray(values) ? values.filter((id): id is string => typeof id === 'string') : [];
     } catch { return []; }
   });
+  /* 대표로 옮긴 분류는 추가 목록에서 영구히 뺀다(대표를 다시 바꿔도 되살아나지 않는다 — 저장 결과 계약). */
+  const [lastPrimary, setLastPrimary] = useState(primary);
+  if (primary !== lastPrimary) {
+    setLastPrimary(primary);
+    if (additional.includes(primary)) setAdditional(additional.filter((id) => id !== primary));
+  }
   const activeLeaves = categories.filter((category) => usableTemplateCategory(categories, category.id));
   const visible = additional.filter((id) => id !== primary);
   return <div className="flex min-w-0 flex-col gap-2" data-good-category-additional="">

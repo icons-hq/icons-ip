@@ -35,6 +35,12 @@ describe('상품 등록 카드와 필수 입력 안내', () => {
     expect(missing.find((item) => item.key === 'kc')?.anchor).toBe('good-operation-kc');
   });
 
+  it('고른 카테고리의 필수 상품속성도 기본 정보에서 남은 칸으로 센다', () => {
+    const requirements = goodPublishRequirements({ values, regularPrice: 12900, hasStock: true, kcDone: true, missingAttributes: ['핏'] });
+    expect(requirements.filter((item) => !item.done)).toEqual([expect.objectContaining({ key: 'attribute:핏', card: 'basic', anchor: 'good-section-attributes', field: 'productAttributes' })]);
+    expect(goodRemainingByCard(requirements).basic).toBe(1);
+  });
+
   it('저장에 실패한 칸을 카드별로 세고 카드에 속하지 않는 오류는 세지 않는다', () => {
     expect(goodErrorsByCard({})).toEqual({});
     expect(goodErrorsByCard({ name: 'n', ipId: undefined, categoryId: 'c', regularPrice: 'p', maxOrderQty: 'l', originId: 'o', badge: 'b', form: '폼 오류' })).toEqual({ basic: 2, sales: 2, delivery: 1, additional: 1 });

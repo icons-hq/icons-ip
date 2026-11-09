@@ -54,7 +54,11 @@ export function GoodNoticePicker({ onApply, readOnly=false, copyKcTemplate=true,
       <Button type="button" variant="outline" aria-expanded={open} disabled={pending && !open} onClick={() => { const next = !open; setOpen(next); if (next && !page) search(); }}><ListChecks aria-hidden="true" />템플릿에서 가져오기</Button>
       <Button type="button" variant="outline" disabled={pending||readOnly} onClick={() => start(async () => {
         const result = await loadLastSavedGoodNotice();
-        if (result.notice) { onApply(result.notice); setMessage(`${result.name}의 최근 저장값 7개를 복사했습니다.`); }
+        if (result.notice) {
+          /* 어느 상품에서 오는지 보고 고르게 한다 — 담당자가 여럿이면 방금 저장한 상품이 내 상품이 아닐 수 있다. */
+          if (!window.confirm(`‘${result.name}’의 고시정보 7개로 지금 입력을 모두 바꿀까요?`)) return;
+          onApply(result.notice); setMessage(`${result.name}의 최근 저장값 7개를 복사했습니다.`);
+        }
         else setMessage(result.error ?? '최근 값이 없습니다.');
       })}>최근 저장된 상품에서 복사</Button>
       <p className="basis-full text-sm text-muted-foreground">선택하면 현재 고시정보 7개를 모두 바꿉니다. 저장 후에는 복사한 값이 상품에 독립적으로 남습니다.</p>
@@ -65,7 +69,7 @@ export function GoodNoticePicker({ onApply, readOnly=false, copyKcTemplate=true,
           onChange={(event) => setQuery(event.target.value)} onKeyDown={(event) => { if (event.key === 'Enter') { event.preventDefault(); search(); } }} />
         <Button type="button" variant="outline" size="sm" disabled={pending} onClick={() => search()}><Search aria-hidden="true" />찾기</Button>
       </div>
-      {page ? <div className="flex flex-wrap gap-2">{page.presets.map((preset) => <Button type="button" variant="outline" size="sm" disabled={readOnly} key={preset.id} onClick={() => apply(preset)}>{preset.name} 적용</Button>)}</div> : <p className="text-sm text-muted-foreground" role="status">템플릿을 불러오고 있습니다.</p>}
+      {page ? <div className="flex flex-wrap gap-2">{page.presets.map((preset) => <Button type="button" variant="outline" size="sm" disabled={readOnly} key={preset.id} onClick={() => apply(preset)}>{preset.name} 적용</Button>)}</div> : message ? null : <p className="text-sm text-muted-foreground" role="status">템플릿을 불러오고 있습니다.</p>}
       {page && page.total > 20 && <ConsolePagination label="고시정보 템플릿 페이지" page={page.filters.page} pageSize={20} total={page.total} unit="개" disabled={pending} onPageChange={search} />}
     </div> : null}
     {message && <p className="text-sm text-foreground" role="status">{message}</p>}

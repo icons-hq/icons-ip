@@ -242,7 +242,7 @@ export function GoodSection({
             </> : null}
           </div>
           {readiness ? null : <AdminNotice tone="warning">판매 준비 정보를 확인하지 못했습니다. 다시 불러와 확인해주세요.</AdminNotice>}
-          <GoodPublishControls id={selected.id} publishedAt={selected.publishedAt} archivedAt={selected.archivedAt} readiness={readiness} unsaved={policyUnsaved} publishOnSave={publishOnSave} key={`publish-${selected.id}-${selected.publishedAt}-${selected.archivedAt}`}/>
+          <GoodPublishControls id={selected.id} publishedAt={selected.publishedAt} archivedAt={selected.archivedAt} readiness={readiness} unsaved={policyUnsaved} publishOnSave={publishOnSave} priceZero={selected.price <= 0} key={`publish-${selected.id}-${selected.publishedAt}-${selected.archivedAt}`}/>
         </section>}
         <fieldset className="m-0 flex min-w-0 flex-col gap-4 border-0 p-0" disabled={transactionBusy || subscriptionBusy || chargeBusy}>
         <GoodEditor

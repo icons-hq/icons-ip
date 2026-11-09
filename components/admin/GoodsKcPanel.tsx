@@ -121,7 +121,7 @@ export function ProductNotApplicable({ variants, models, disabled, onNoteChange,
     <p className="text-sm text-muted-foreground">{!active.length ? '사용 중인 옵션이 없습니다. 옵션을 저장한 뒤 해당 없음으로 검토를 완료할 수 있습니다.'
       : checkOnly ? (checked ? `사용 중인 옵션 ${active.length}개가 모두 연결됩니다. 저장하기를 누르면 해당 없음으로 검토 완료됩니다. 더 입력할 것은 없습니다.` : 'KC 대상이 아닌 상품은 확인 체크 하나로 끝납니다. 모델·사업자·판단 근거는 입력하지 않아도 됩니다.')
       : `KC 대상이 아닌 상품은 확인 체크 후 바로 검토를 끝낼 수 있습니다. 사용 중인 옵션 ${active.length}개가 모두 연결되고, 모델·사업자·판단 근거는 입력하지 않아도 됩니다.`}</p>
-    <label className={CHECK_LABEL_CLASS}><input className="mt-0.5" type="checkbox" checked={checkOnly ? checked : confirmed} disabled={!active.length}
+    <label className={CHECK_LABEL_CLASS}><input className="mt-0.5" type="checkbox" checked={checkOnly ? checked : confirmed} disabled={!active.length && !(checkOnly && checked)}
       onChange={(event) => { if (!checkOnly) setConfirmed(event.target.checked); else if (event.target.checked) complete(); else onClear?.(); }} /><span>{GOODS_KC_NOT_APPLICABLE_ATTESTATION}</span></label>
     <details className={`${DETAILS_CLASS} bg-background`}><summary className={SUMMARY_CLASS}>고객 안내 추가 (선택)</summary>
       <div className={DETAILS_BODY_CLASS}>
@@ -174,7 +174,7 @@ export function GoodsKcEditor({ goodId, configuration, onSaved, templateRequest,
   const dirty=JSON.stringify(models)!==JSON.stringify(configuration.models);
   useEffect(()=>{onDraftChange?.({models,attested});},[models,attested,onDraftChange]);
   // 해당 없음 완료 요약의 모델 상세는 사용자가 연 상태를 유지한다. 미저장 입력이 생기면 열기만 하고 닫지는 않는다.
-  const [wasDirty, setWasDirty] = useState(dirty);
+  const [wasDirty, setWasDirty] = useState(false);
   if (wasDirty !== dirty) { setWasDirty(dirty); if (dirty) setDetailsOpen(true); }
   const problems = goodsKcReviewProblems(models, configuration.variants);
   function change(next: GoodsKcModelInput[]) { setModels(next); setAttested(false); }

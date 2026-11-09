@@ -65,6 +65,7 @@ import { saveGoodsDraftAction } from '@/app/admin/goods-draft-actions';
 import { collectGoodsDraftValues, validGoodsDraftIdentity, type GoodsDraft, type GoodsDraftIdentity } from '@/lib/admin/goods-drafts';
 import { GoodWorkspaceNavigation, GoodWorkspaceErrors, GoodOptionalFields, GoodEditorSection, GoodFoldedRow, GoodWorkspaceDetails, focusGoodWorkspaceTarget, useFocusFirstGoodError, useGoodWorkspaceSections } from './GoodWorkspace';
 import { GOOD_WORKSPACE_ERROR_SECTIONS, GOOD_WORKSPACE_OPERATION_FIELD, GOOD_WORKSPACE_SECTIONS_FIELD, prepareGoodWorkspaceSections } from '@/lib/admin/good-workspace-sections';
+import { DEFAULT_FULFILLMENT_ORIGIN_ID } from '@/lib/admin/fulfillment-origins';
 import { GOOD_EDITOR_SECTIONS, GOOD_PUBLISHED_LOCKS, changedGoodLockedFields, goodErrorsByCard, goodFieldSection, goodKcContextChanged, goodPublishRequirements, goodRemainingByCard, goodTypeSuggestion, type GoodEditorSectionKey } from '@/lib/admin/good-workspace';
 import { ADMIN_STOCK_LABELS, ADMIN_VOCABULARY, adminGoodsCopy } from '@/lib/admin/vocabulary';
 import { ADMIN_SCREENS, type AdminScreen } from '@/lib/admin/navigation';
@@ -277,7 +278,15 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
     finally { draftOperation.current = false; setDraftBusy(false); }
   }
   const draftSaved = Boolean(localSaveMessage?.ok);
-  const errors: Record<string, string | undefined> = draftSaved ? {} : { ...state.errors, ...clientErrors };
+  const [missingAttributes, setMissingAttributes] = useState<readonly string[]>([]);
+  const collectedErrors: Record<string, string | undefined> = draftSaved ? {} : { ...state.errors, ...clientErrors };
+  /* 빠졌던 필수 상품속성을 채우면 다음 저장을 기다리지 않고 오류를 지운다. */
+  const errors = collectedErrors.productAttributes?.includes('필수 상품속성') && !missingAttributes.length ? { ...collectedErrors, productAttributes: undefined } : collectedErrors;
+  /* 방금 공개했는지. 공개 버튼은 저장 폼 밖이라 저장 막대의 지난 저장 안내가 남는다. */
+  const publishedNow = Boolean(selected?.publishedAt);
+  const [publishedBefore, setPublishedBefore] = useState(publishedNow);
+  const [justPublished, setJustPublished] = useState(false);
+  if (publishedBefore !== publishedNow) { setPublishedBefore(publishedNow); setJustPublished(publishedNow); }
   const locked = Boolean(selected?.publishedAt);
   const lockedValues = goodEditorValues(selected, {}, initialIpId, noticeDefaults);
   const attachForm = useCallback((form: HTMLFormElement | null) => {
@@ -439,7 +448,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
   const kcDone = selected ? readiness?.publicReview === 'current' : Boolean(atomicSections?.sections.kc.attested && atomicSections.sections.kc.models.length);
   const published = Boolean(selected?.publishedAt);
   /* 공개 중인 상품은 공개 조건을 이미 통과했다. 재고 0(품절)과 기존 공개 · KC 미기록은 미입력이 아니고, 서버가 KC 재검토를 요구할 때만 남은 칸으로 센다. */
-  const requirements = goodPublishRequirements({ values, regularPrice: priceResult.regularPrice, hasStock: published || rows.some((row) => row.isActive !== false && row.stockQty > 0), kcDone: published ? readiness?.publicReview !== 'required' : kcDone });
+  const requirements = goodPublishRequirements({ values, regularPrice: priceResult.regularPrice, hasStock: published || rows.some((row) => row.isActive !== false && row.stockQty > 0), kcDone: published ? readiness?.publicReview !== 'required' : kcDone, missingAttributes });
   const remainingByCard = goodRemainingByCard(requirements);
   const remaining = requirements.filter((item) => !item.done);
   const showPublishProgress = !published && !selected?.archivedAt;
@@ -464,7 +473,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
   const shippingFee = values.shippingFeeType === 'free' ? '무료배송' : values.shippingFeeType === 'individual' ? `개별 배송비 ${won(Number(values.individualFee) || 0)}`
     : origin ? `출고지 정책(기본 ${won(origin.baseFee)}${origin.freeThreshold === null ? '' : ` · ${won(origin.freeThreshold)} 이상 무료`})` : '출고지 정책';
   const shippingNotice = values.shippingNoticeTemplate ? shippingNoticeOptions.find((option) => `${option.code}@${option.version}` === values.shippingNoticeTemplate)?.name ?? '선택한 안내' : '기본 안내';
-  const shippingDefault = values.shippingFeeType === 'policy' && !values.shippingNoticeTemplate && Boolean(origin);
+  const shippingDefault = values.shippingFeeType === 'policy' && !values.shippingNoticeTemplate && values.originId === DEFAULT_FULFILLMENT_ORIGIN_ID && Boolean(origin);
   /* KC를 끝낸 뒤에도 지난 공개 보류 안내가 남지 않게 지금 서버 판정을 함께 본다. */
   const kcBlockedVisible = Boolean(state.kcPublishBlocked && state.message && !published && readiness?.publicReview !== 'current' && !draftSaved);
   const statusLabel = pending ? '저장 중…' : draftSaved ? '임시저장 완료' : Object.keys(errors).some((key) => errors[key]) ? '저장 실패 · 입력값 유지' : dirty ? '미저장 변경 있음'
@@ -479,7 +488,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
     : kcIsNextStep ? <>KC 검토를 마치면 공개할 수 있습니다. {kcLink}</>
     : kcContextChanged ? '바꾼 상품명·유형·IP·고시정보나 옵션을 저장하면 KC를 다시 검토해야 공개할 수 있습니다.'
     : remaining.length ? '필수 입력을 마치면 공개할 수 있습니다.'
-    : publishOnSave ? '저장 후 공개를 누르면 수정한 내용까지 고객 화면에 공개됩니다.' : '화면 맨 위 판매 준비에서 공개할 수 있습니다.';
+    : publishOnSave ? '저장 후 공개를 누르면 수정한 내용까지 고객 화면에 공개됩니다.' : <>화면 맨 위 판매 준비에서 공개할 수 있습니다. <a className="text-foreground underline underline-offset-4" href="#good-operation-publish" onClick={(event) => { event.preventDefault(); focusGoodWorkspaceTarget('good-operation-publish'); }}>판매 준비로 이동</a></>;
   /* 말풍선은 다른 곳을 누르면 닫는다. 열린 채 남으면 입력칸을 가린다. 펼침 기록은 toggle 이벤트가 맡는다. */
   function closeSaveInfo(event: ReactPointerEvent<HTMLFormElement>) {
     const info = event.currentTarget.querySelector<HTMLDetailsElement>('[data-good-save-info][open]');
@@ -494,7 +503,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
         }}>그룹상품 등록</Link></span></nav> : null}
     <GoodWorkspaceNavigation errors={goodErrorsByCard(errors)} remaining={showCardProgress ? remainingByCard : undefined} remainingTone={selected ? 'warning' : 'neutral'} />
     {/* 키보드로 옮긴 입력칸이 위 고정 섹션 내비·아래 고정 저장 영역에 가리지 않게 위아래 여백을 둔다(섹션 자체는 scroll-mt). */}
-    <form action={action} className="flex min-w-0 flex-col gap-4 [&_:is(input,select,textarea,button,summary,a)]:scroll-my-32" data-good-workspace-form="" onInvalidCapture={showInvalidFields} onPointerDownCapture={closeSaveInfo} onSubmitCapture={submit} ref={attachForm}>
+    <form action={action} className="flex min-w-0 flex-col gap-4 [&_:is(input,select,textarea,button,summary,a)]:scroll-my-32" data-good-workspace-form="" onInputCapture={() => setLocalSaveMessage(current => current ? null : current)} onInvalidCapture={showInvalidFields} onPointerDownCapture={closeSaveInfo} onSubmitCapture={submit} ref={attachForm}>
       <input name="previousId" type="hidden" value={selected?.id ?? ''} />
       <input name="previousIpId" type="hidden" value={selected?.ipId ?? ''} />
       <input name="published" type="hidden" value={String(Boolean(selected?.publishedAt))} />
@@ -525,7 +534,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
         <p className="-mt-2 text-xs text-muted-foreground">연결 IP는 브랜드·작품, 카테고리는 쇼핑 분류, 유형은 상품의 형태입니다.</p>
         {canSearchErp && values.ipId && <a className="w-fit text-sm underline underline-offset-4" href={`/admin/catalog/ips/${encodeURIComponent(values.ipId)}`} target="_blank" rel="noreferrer">연결 IP의 공개 상태 확인 (새 탭)</a>}
         <div className="min-w-0 scroll-mt-24 outline-none" id="good-section-attributes" tabIndex={-1}>
-          <OwnedFields locked={groupOwned} fields={[]} values={initial}><GoodsAttributeEditor categoryId={categoryId} goodId={selected?.id ?? null} initialSubmission={initial.productAttributes} initialDraft={initial.productAttributeDraft} error={errors.productAttributes} onChange={onAttributeChange} /></OwnedFields>
+          <OwnedFields locked={groupOwned} fields={[]} values={initial}><GoodsAttributeEditor categoryId={categoryId} goodId={selected?.id ?? null} initialSubmission={initial.productAttributes} initialDraft={initial.productAttributeDraft} error={errors.productAttributes} onChange={onAttributeChange} onRequiredMissing={setMissingAttributes} /></OwnedFields>
         </div>
       </GoodEditorSection>
 
@@ -652,7 +661,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
           <button className={`${buttonVariants({ variant: 'outline' })} ${SAVE_BAR_BUTTON_CLASS} max-md:[&>svg]:hidden`} data-slot="button" type="button" onClick={() => { const preview = document.getElementById('good-preview'); if (preview instanceof HTMLDetailsElement) { preview.open = true; preview.scrollIntoView({ block: 'start', behavior: 'instant' }); preview.querySelector('summary')?.focus(); } }}><Eye aria-hidden="true" />미리보기</button>
           {selected ? <button className={`${buttonVariants({ variant: 'secondary' })} ${SAVE_BAR_BUTTON_CLASS}`} data-slot="button" data-good-draft-button="" type="button" disabled={pending} onClick={() => { if (editorRef.current) { const saved = onSaveLocalDraft(editorRef.current); setLocalSaveMessage({ text: saved ? '입력 내용을 이 브라우저에 임시저장했습니다.' : '브라우저에 임시저장할 수 없습니다. 저장하기를 이용해주세요.', ok: saved }); } }}>입력 임시저장</button> : <span className="inline-flex" role="group" aria-label="임시저장">
             <button className={`${buttonVariants({ variant: 'secondary' })} ${SAVE_BAR_BUTTON_CLASS} rounded-r-none`} data-slot="button" data-good-draft-button="" type="button" disabled={pending || draftBusy} onClick={() => { void saveServerDraft(); }}>{draftBusy ? '임시저장 중…' : '임시저장'}</button>
-            <DropdownMenu>
+            <DropdownMenu modal={false}>
               <DropdownMenuTrigger aria-label="임시저장 메뉴" className={`${buttonVariants({ variant: 'secondary', size: 'icon' })} rounded-l-none border-l border-l-background/60 max-md:size-7`} disabled={pending || draftBusy}><ChevronUp aria-hidden="true" /></DropdownMenuTrigger>
               <DropdownMenuContent align="end" className="w-auto min-w-44" side="top">
                 <DropdownMenuItem onClick={() => setDraftOpen(true)}>임시저장 불러오기</DropdownMenuItem>
@@ -666,7 +675,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
           <Link className={`${buttonVariants({ variant: 'ghost' })} aria-disabled:pointer-events-none aria-disabled:opacity-50 ${SAVE_BAR_BUTTON_CLASS}`} data-slot="button" href={listHref} aria-disabled={pending || draftBusy} onNavigate={(event) => { if (pending || draftBusy || dirty && !window.confirm('저장하지 않은 변경사항이 있습니다. 상품 목록으로 이동하시겠습니까?')) event.preventDefault(); }}>취소</Link>
         </div>
         {localSaveMessage ? <p className={`text-xs xl:col-span-2 ${localSaveMessage.ok ? 'text-success' : 'text-destructive'}`} role="status">{localSaveMessage.text}</p> : null}
-        {draftSaved ? null : kcBlockedVisible ? <AdminNotice className="xl:col-span-2" tone="warning"><span role="alert">{state.message}</span>{selected && <> <a href="#good-operation-kc" className="underline underline-offset-4" onClick={(event) => { event.preventDefault(); focusGoodWorkspaceTarget('good-operation-kc'); }}>KC 정보 열기</a></>}</AdminNotice> : state.kcPublishBlocked ? null : <div className="empty:hidden xl:col-span-2"><ActionNotice state={state} /></div>}
+        {justPublished && !dirty ? <AdminNotice className="xl:col-span-2" tone="success"><span role="status">공개했습니다. <a className="underline underline-offset-4" href={`/shop/${selected?.id}`} rel="noreferrer" target="_blank">고객 화면에서 보기</a></span></AdminNotice> : draftSaved ? null : kcBlockedVisible ? <AdminNotice className="xl:col-span-2" tone="warning"><span role="alert">{state.message}</span>{selected && <> <a href="#good-operation-kc" className="underline underline-offset-4" onClick={(event) => { event.preventDefault(); focusGoodWorkspaceTarget('good-operation-kc'); }}>KC 정보 열기</a></>}</AdminNotice> : state.kcPublishBlocked ? null : <div className="empty:hidden xl:col-span-2"><ActionNotice state={state} /></div>}
       </div>
     </form>
     {draftOpen ? <GoodsDraftLibraryDialog onClose={() => setDraftOpen(false)} onLoad={loaded => {
@@ -685,6 +694,8 @@ export function GoodEditor({ accountId, ...props }: GoodEditorProps) {
   const local = useAdminLocalAutosave({
     scope: { accountId, formId: 'good', recordId: props.selected?.id ?? null },
     fields: GOOD_LOCAL_DRAFT_FIELDS, serverState: props.state, passiveInitializationFields: GOOD_PASSIVE_INITIALIZATION_FIELDS,
+    /* KC 입력은 복구 대상이 아니고 name도 없다. 폼 안에 있어도 "사용자 수정"으로 세지 않는다. */
+    ignoreEditsWithin: '[data-good-kc-slot]',
   });
   const [serverRecovery, setServerRecovery] = useState<{ draft: GoodsDraft; attempt: number; version: number } | null>(null);
   const localState = withLocalRecoveryValues(props.state, props.selected?.id ?? null, local.snapshot.restoredValues);

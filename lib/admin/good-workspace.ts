@@ -67,14 +67,17 @@ export interface GoodPublishRequirement { key: string; label: string; card: Good
  * 공개까지 채워야 할 칸의 안내용 목록이다. 판정은 서버(private.set_good_published)가 하고, 이 목록은 무엇이 남았는지 보여 주기만 한다.
  * 판매가·재고는 서버 공개 조건은 아니지만 없으면 팔 수 없어 함께 센다.
  */
-export function goodPublishRequirements({ values, regularPrice, hasStock, kcDone }: {
+export function goodPublishRequirements({ values, regularPrice, hasStock, kcDone, missingAttributes = [] }: {
   values: Record<string, string | undefined>; regularPrice: number | null; hasStock: boolean; kcDone: boolean;
+  /** 고른 대표 카테고리에서 아직 안 채운 필수 상품속성 이름. 서버가 저장을 막는 칸이라 함께 센다. */
+  missingAttributes?: readonly string[];
 }): GoodPublishRequirement[] {
   const filled = (name: string) => Boolean(values[name]?.trim());
   return [
     { key: 'name', label: '상품명', card: 'basic', anchor: 'good-section-basic', field: 'name', done: filled('name') },
     { key: 'ipId', label: '연결 IP', card: 'basic', anchor: 'good-section-basic', field: 'ipId', done: filled('ipId') },
     { key: 'type', label: '상품 유형', card: 'basic', anchor: 'good-section-basic', field: 'type', done: filled('type') },
+    ...missingAttributes.map((name) => ({ key: `attribute:${name}`, label: name, card: 'basic' as const, anchor: 'good-section-attributes', field: 'productAttributes', done: false })),
     { key: 'regularPrice', label: '판매가', card: 'sales', anchor: 'good-section-price', field: 'regularPrice', done: Boolean(regularPrice && regularPrice > 0) },
     { key: 'stock', label: '재고수량', card: 'sales', anchor: 'good-section-variants', field: 'variants', done: hasStock },
     { key: 'imagePath', label: '대표 이미지', card: 'images', anchor: 'good-section-images', field: 'imagePath', done: filled('imagePath') },

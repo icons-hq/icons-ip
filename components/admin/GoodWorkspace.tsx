@@ -159,6 +159,10 @@ export function useFocusFirstGoodError(attempt: number | undefined, errors?: Rec
 const SECTION_CLASS = 'group/section min-w-0 scroll-mt-24 rounded-xl border bg-card text-sm text-card-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50';
 const SECTION_SUMMARY_CLASS = 'flex min-h-14 cursor-pointer list-none items-center gap-3 rounded-xl px-4 py-3 outline-none select-none group-open/section:rounded-b-none focus-visible:ring-3 focus-visible:ring-ring/50 sm:px-5 [&::-webkit-details-marker]:hidden';
 const SECTION_BODY_CLASS = 'flex min-w-0 flex-col gap-5 border-t px-4 py-4 sm:px-5 sm:py-5';
+/* 고시 카드 안에 들어가는 운영 패널은 그룹 이름이 달라야 한다 — 같은 이름이면 바깥 카드의 열림에 반응한다. */
+const OPERATION_SECTION_CLASS = 'group/operation min-w-0 scroll-mt-24 rounded-xl border bg-card text-sm text-card-foreground outline-none focus-visible:ring-3 focus-visible:ring-ring/50';
+const OPERATION_SUMMARY_CLASS = 'flex min-h-14 cursor-pointer list-none items-center gap-3 rounded-xl px-4 py-3 outline-none select-none group-open/operation:rounded-b-none focus-visible:ring-3 focus-visible:ring-ring/50 sm:px-5 [&::-webkit-details-marker]:hidden';
+const OPERATION_CHEVRON = <ChevronDown aria-hidden="true" className="size-4 shrink-0 text-muted-foreground transition-transform group-open/operation:rotate-180 motion-reduce:transition-none" />;
 const SECTION_CHEVRON = <ChevronDown aria-hidden="true" className="size-4 shrink-0 text-muted-foreground transition-transform group-open/section:rotate-180 motion-reduce:transition-none" />;
 
 interface GoodWorkspaceStripProps {
@@ -305,13 +309,13 @@ export function GoodOperationSection({ id, title, description, children, mode = 
   /* 등록 화면에서 펼쳐 두고 입력한 KC·예약판매는 저장 뒤 같은 자리의 독립 패널도 펼친 채로 이어 보인다. */
   useEffect(() => { if (rememberOpen) setOpen?.(`good-operation-${id}`, true); }, [rememberOpen, setOpen, id]);
   const modeLabel = mode === 'inline' ? '상품과 함께 저장' : separateLabel ? '별도 저장' : null;
-  return <details id={`good-operation-${id}`} className={SECTION_CLASS} data-good-operation={mode} tabIndex={-1} {...openProps}>
-    <summary className={SECTION_SUMMARY_CLASS}>
+  return <details id={`good-operation-${id}`} className={OPERATION_SECTION_CLASS} data-good-operation={mode} tabIndex={-1} {...openProps}>
+    <summary className={OPERATION_SUMMARY_CLASS}>
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
         <span className="text-base leading-snug font-medium text-foreground" data-good-operation-title="">{title}</span>
         {modeLabel ? <span className="text-sm text-muted-foreground" data-good-operation-mode="">{modeLabel}</span> : null}
       </span>
-      {SECTION_CHEVRON}
+      {OPERATION_CHEVRON}
     </summary>
     <div className={SECTION_BODY_CLASS}>
       {description ? <p className="text-sm text-muted-foreground">{description}</p> : null}
