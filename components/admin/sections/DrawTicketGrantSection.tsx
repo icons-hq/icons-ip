@@ -15,6 +15,7 @@ import {
   DRAW_TICKET_GRANT_MAX_QUANTITY,
   type AdminDrawTicketGrantRecord,
 } from '@/lib/admin/draw-ticket-grants';
+import { kstDateTimeText } from '@/lib/admin/list-export';
 import type { AdminMemberSummary } from '@/lib/admin/members';
 import { Check, Search, UserCheck, UserRound } from 'lucide-react';
 import { Button } from '@/components/admin/kit/ui/button';
@@ -31,15 +32,9 @@ import { SECTION_CARD, SectionHeading } from './SectionLayout';
 
 const emptyGrantState: AdminDrawTicketGrantActionState = {};
 
-const dateTimeFormatter = new Intl.DateTimeFormat('ko-KR', {
-  dateStyle: 'medium',
-  timeStyle: 'short',
-  timeZone: 'Asia/Seoul',
-});
-
+/* 어드민 표의 날짜와 같은 표기다(2026.11.06 17:40, 한국 시각). */
 function formatGrantedAt(value: string) {
-  const parsed = Date.parse(value);
-  return Number.isNaN(parsed) ? '시각 기록 없음' : dateTimeFormatter.format(new Date(parsed));
+  return kstDateTimeText(value).replaceAll('-', '.') || '시각 기록 없음';
 }
 
 export function DrawTicketGrantSection({

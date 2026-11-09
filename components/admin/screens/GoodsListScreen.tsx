@@ -26,7 +26,7 @@ function priceLabel(min: number | null | undefined, max: number | null | undefin
 }
 
 /* 기본 조회가 '보관 제외'라 그 칸도 둔다 — 어느 칸을 보고 있는지 항상 한 칸이 켜진다. */
-const STATUS_ITEMS = [{ label: '보관 제외', status: 'active', icon: Package }, { label: '전체', status: 'all', icon: Boxes }, { label: '임시저장', status: 'draft', icon: FilePen }, { label: '전시중', status: 'published', icon: Eye }, { label: '보관', status: 'archived', icon: Archive }] as const;
+const STATUS_ITEMS = [{ label: '전체', status: 'all', icon: Boxes }, { label: '보관 제외', status: 'active', icon: Package }, { label: '임시저장', status: 'draft', icon: FilePen }, { label: '전시중', status: 'published', icon: Eye }, { label: '보관', status: 'archived', icon: Archive }] as const;
 /* 재고 건수는 상태 건수처럼 서버가 함께 세어 주지 않아 숫자 없이 조회 링크로 둔다. 다시 누르면 재고 조건을 푼다.
    MD가 매일 먼저 보는 칸이라 숫자가 없어도 항상 의미색으로 보인다(건수 카드는 숫자가 있을 때만 색이 켜진다). */
 const STOCK_ITEMS = [
