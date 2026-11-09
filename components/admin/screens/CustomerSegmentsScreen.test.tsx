@@ -13,7 +13,7 @@ it('세그먼트 목록 조회는 같은 조회 키로 GET 폼을 제출한다',
     data={{ rows: [], favorites: [], total: 0, filters: normalizeSegmentFilters({ q: '장바구니', favorite: '1' }) }}
     overview={{ checkedAt: '2026-11-06T00:00:00.000Z', groups: { potential: null, visitor: 3, interested: 2, buyer: 1, loyal: 0 }, firstPurchaseMembers: 4, memberCount: 9 }}
   />);
-  expect(html).toMatch(/<button[^>]*type="submit"[^>]*>조회<\/button>/);
+  expect(html).toMatch(/<button[^>]*type="submit"[^>]*>검색<\/button>/);
   expect(html).toMatch(/<button[^>]*type="button"[^>]*>선택 삭제<\/button>/);
   for (const name of ['group', 'target', 'kind', 'q', 'favorite', 'pageSize']) expect(html).toContain(`name="${name}"`);
   expect(html).toContain('value="장바구니"');

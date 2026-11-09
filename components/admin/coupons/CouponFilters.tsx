@@ -38,7 +38,7 @@ export function CouponFilters({ filters }: { filters: AdminCouponFilters }) {
       <div className="inline-flex max-w-full flex-wrap rounded-lg bg-muted p-0.5" aria-label="혜택 조회기간 빠른 선택" role="group">{presets.map(preset => <Button aria-pressed={range.from === preset.range.from && range.to === preset.range.to} className={PRESET} key={preset.id} onClick={() => setRange(preset.range)} size="sm" type="button" variant="ghost">{preset.label}</Button>)}</div>
       <div className="flex items-center gap-1.5"><Input aria-label="조회 시작일" className="w-36" type="date" name="from" value={range.from} onChange={event => setRange({ ...range, from: event.target.value })} /><span aria-hidden="true" className="text-muted-foreground">~</span><Input aria-label="조회 종료일" className="w-36" type="date" name="to" value={range.to} onChange={event => setRange({ ...range, to: event.target.value })} /></div>
     </div></ConsoleFilterField>
-    <div className="ml-auto flex items-center gap-2"><Link className={buttonVariants({ variant: 'ghost' })} data-slot="button" href={ADMIN_COUPON_LIST_PATH}>초기화</Link><Button type="submit" variant="soft">조회</Button></div>
+    <div className="ml-auto flex items-center gap-2"><Link className={buttonVariants({ variant: 'ghost' })} data-slot="button" href={ADMIN_COUPON_LIST_PATH}>초기화</Link><Button type="submit" variant="soft">검색</Button></div>
     </div>
   </form>;
 }

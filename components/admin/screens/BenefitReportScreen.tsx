@@ -46,7 +46,7 @@ export function BenefitReportControls({ filters, admin, now = new Date() }: { fi
           <label className="flex items-center gap-2"><input type="checkbox" name="compare" value="previous" defaultChecked={filters.compare} /> 직전 동일 기간 비교</label>
         </div></ConsoleFilterField>
       </div>
-      <div className="flex flex-wrap justify-end gap-2 border-t pt-3"><Link className={buttonVariants({ variant: 'ghost' })} data-slot="button" href={BENEFIT_REPORT_PATH}>초기화</Link><Button type="submit" variant="soft">조회</Button></div>
+      <div className="flex flex-wrap justify-end gap-2 border-t pt-3"><Link className={buttonVariants({ variant: 'ghost' })} data-slot="button" href={BENEFIT_REPORT_PATH}>초기화</Link><Button type="submit" variant="soft">검색</Button></div>
     </form>
   </>;
 }
