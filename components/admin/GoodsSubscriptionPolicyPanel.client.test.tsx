@@ -77,7 +77,7 @@ it('저장은 확인되고 readback이 실패하면 새 저장을 잠그고 최�
   change({ message: '내 입력' }); mocks.save.mockResolvedValueOnce({ ok: false, committed: true, error: '다시 읽기 실패' });
   click('정기배송 설정 저장'); await flush(); expect(button('정기배송 설정 저장').props.disabled).toBe(true);
   expect(text(render())).toContain('최신 저장본 확인 필요'); mocks.read.mockResolvedValueOnce({ ok: true, value: { ...base, revision: 1, message: '내 입력' } });
-  click('최신 저장본 비교'); await flush(); click('내 입력 버리고 최신 저장본 불러오기'); await flush(); expect(text(render())).toContain('서버 저장값과 동일');
+  click('최신 저장본 비교'); await flush(); click('내 입력 버리고 최신 저장본 불러오기'); await flush(); expect(text(render())).toContain('저장된 내용과 같음');
 });
 it.each(['account', 'session', 'signout', 'unmount'])('%s 이후 늦은 응답이 다른 계정이나 세션에 노출되지 않는다', async kind => {
   change({ message: '이전 계정 입력' }); const pending = deferred<unknown>(); mocks.save.mockReturnValueOnce(pending.promise); click('정기배송 설정 저장'); await flush();

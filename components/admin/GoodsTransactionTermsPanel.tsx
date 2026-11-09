@@ -248,7 +248,7 @@ export function GoodsTransactionTermsPanel({ goodId, accountId, disabledReason =
           <button type="button" className={`${buttonVariants()} self-start`} data-slot="button" disabled={locked || Boolean(disabledReason)} onClick={() => void save('delivery')}>확장 배송비 저장</button></section>
         <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
           <button className={buttonVariants({ variant: 'outline' })} data-slot="button" type="button" onClick={() => void readLatest()} disabled={busy}>최신 저장본 비교</button>
-          <small className="text-xs text-muted-foreground" role="status">{busy ? '요청 처리 중…' : workspace.retry ? '결과 확인 필요' : dirty ? '미저장 입력 · 이 브라우저에 7일 임시보관' : '서버 저장값과 동일'}</small>
+          <small className="text-xs text-muted-foreground" role="status">{busy ? '요청 처리 중…' : workspace.retry ? '결과 확인 필요' : dirty ? '미저장 입력 · 이 브라우저에 7일 임시보관' : '저장된 내용과 같음'}</small>
         </div>
       </>}
     </>}

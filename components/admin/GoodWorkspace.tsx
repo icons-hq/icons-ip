@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ComponentProps, type Dispatch, type ReactNode, type RefObject, type SetStateAction, type SyntheticEvent } from 'react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ComponentProps, type Dispatch, type ReactNode, type SetStateAction, type SyntheticEvent } from 'react';
 import { Check, ChevronDown, ChevronRight } from 'lucide-react';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
 import { GOOD_EDITOR_CARDS, GOOD_EDITOR_SECTIONS, goodFieldSection, orderedGoodErrors, type GoodEditorCardKey } from '@/lib/admin/good-workspace';
@@ -29,7 +29,8 @@ interface SectionsContext {
   /** 등록 화면 원자 저장의 작업 ID. 성공할 때까지 같은 값을 써 재시도가 상품을 두 번 만들지 않는다. */
   operationId: () => string;
   /** 고시 카드 안의 KC 패널은 기본 폼과 함께 다시 마운트된다. 입력 중인 KC가 기본 저장으로 사라지지 않게 키 밖에 맡긴다. */
-  kcPanelStash: RefObject<GoodsKcPanelStash | null>;
+  readKcPanelStash: (goodId: string) => GoodsKcPanelStash | null;
+  rememberKcPanel: (goodId: string, changes: Partial<Omit<GoodsKcPanelStash, 'goodId'>>) => void;
 }
 /** 저장된 상품의 KC 패널이 다시 마운트돼도 이어 쓸 값(불러온 설정과 입력 중인 모델). */
 export interface GoodsKcPanelStash {
@@ -58,12 +59,17 @@ export function GoodWorkspaceProvider({ completedKey = null, children }: { compl
   useEffect(() => { if (completedKey) operation.current = null; }, [completedKey]);
   const operationId = useCallback(() => (operation.current ??= crypto.randomUUID()), []);
   const kcPanelStash = useRef<GoodsKcPanelStash | null>(null);
+  const readKcPanelStash = useCallback((goodId: string) => kcPanelStash.current?.goodId === goodId ? kcPanelStash.current : null, []);
+  const rememberKcPanel = useCallback((goodId: string, changes: Partial<Omit<GoodsKcPanelStash, 'goodId'>>) => {
+    const current = kcPanelStash.current?.goodId === goodId ? kcPanelStash.current : { goodId, configuration: null, draft: null };
+    kcPanelStash.current = { ...current, ...changes };
+  }, []);
   const publishOptionRows = useCallback((rows: GoodsOptionRow[]) => {
     setOptionRows((current) => JSON.stringify(current) === JSON.stringify(rows) ? current : rows);
   }, []);
   const openValue = useMemo(() => ({ open, setOpen }), [open, setOpen]);
-  const sectionsValue = useMemo(() => ({ sections, setSections, optionRows, publishOptionRows, sectionErrors, setSectionErrors, operationId, kcPanelStash }),
-    [sections, optionRows, publishOptionRows, sectionErrors, operationId]);
+  const sectionsValue = useMemo(() => ({ sections, setSections, optionRows, publishOptionRows, sectionErrors, setSectionErrors, operationId, readKcPanelStash, rememberKcPanel }),
+    [sections, optionRows, publishOptionRows, sectionErrors, operationId, readKcPanelStash, rememberKcPanel]);
   return <OpenState.Provider value={openValue}><Sections.Provider value={sectionsValue}>{children}</Sections.Provider></OpenState.Provider>;
 }
 

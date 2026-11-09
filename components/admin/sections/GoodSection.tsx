@@ -46,7 +46,7 @@ import { GoodsOptionSaleModePanel } from '../GoodsOptionSaleModePanel';
 /** 운영 섹션 제목·설명. 저장된 상품의 독립 패널과 등록 화면의 이어서 설정 목록이 같은 문구·같은 id를 쓴다. */
 const OPERATION = {
   stock: ['재고 조정', '대상 옵션·변경 수량·사유를 확인해 재고 조정만 즉시 반영합니다.'],
-  publish: ['게시 상태 · 공개·초안 전환', '현재 서버 저장값으로 게시 상태만 전환합니다.'],
+  publish: ['게시 상태 · 공개·초안 전환', '저장된 내용으로 게시 상태만 전환합니다.'],
   variants: ['옵션 사용·보관', '옵션 사용 상태만 별도로 반영합니다.'],
   kc: ['KC 자료·검토', 'KC 대상이 아니면 상품 전체 KC 해당 없음으로 바로 검토하고, KC 대상이면 모델·근거·적용 옵션을 검토합니다. KC만 저장합니다.'],
   costs: ['매입단가', '권한이 있는 관리자만 매입단가를 저장합니다.'],
@@ -120,6 +120,8 @@ export function GoodSection({
   const [transactionBusy, setTransactionBusy] = useState(false);
   const [subscriptionBusy, setSubscriptionBusy] = useState(false);
   const [chargeBusy, setChargeBusy] = useState(false);
+  /* 처음 열 때 KC 검토가 필요하면 펼쳐 둔다. 검토를 끝낸 순간 판정이 바뀌어도 방금 작업한 패널을 접지 않게 처음 값을 쓴다. */
+  const [kcStartsOpen] = useState(readiness?.publicReview === 'required');
   const policyUnsaved = !(pending || editingState?.busy) && editingState?.goodId === selected?.id && Boolean(editingState?.dirty);
   const policyDisabled = pending || editingState?.busy ? '기본 상품을 저장하는 중입니다. 저장이 끝난 뒤 별도 설정을 저장해주세요.'
     : editingState?.goodId !== selected?.id ? '기본 상품의 입력 상태를 확인하고 있습니다.'
@@ -146,7 +148,7 @@ export function GoodSection({
   const readinessReasonAnchor = (reason: AdminGoodsReadiness['reasons'][number]) => reason.code === 'stopped' ? 'good-section-information' : reason.code === 'image_missing' ? 'good-section-images' : goodsReadinessAnchor(reason.target);
   /* 고시 입력 바로 아래 놓일 KC 영역. 저장 전에는 기본 입력과 함께 저장하고, 저장 뒤에는 KC만 따로 저장한다. */
   const kcSlot: ReactNode = selected
-    ? (selected.archivedAt ? null : <GoodOperationSection id="kc" title={OPERATION.kc[0]} description={OPERATION.kc[1]} separateLabel defaultOpen={readiness?.publicReview === 'required'}><GoodsKcPanel goodId={selected.id} refreshKey={state.attempt ?? 0} templateRequest={kcTemplate.request} onTemplateApplied={kcTemplate.consume} key={`kc-${selected.id}-${selected.publishedAt}-${selected.archivedAt}`} /></GoodOperationSection>)
+    ? (selected.archivedAt ? null : <GoodOperationSection id="kc" title={OPERATION.kc[0]} description={OPERATION.kc[1]} separateLabel defaultOpen={kcStartsOpen}><GoodsKcPanel goodId={selected.id} refreshKey={state.attempt ?? 0} templateRequest={kcTemplate.request} onTemplateApplied={kcTemplate.consume} key={`kc-${selected.id}-${selected.publishedAt}-${selected.archivedAt}`} /></GoodOperationSection>)
     : <GoodOperationSection id="kc" title={OPERATION.kc[0]} mode="inline" defaultOpen><GoodWorkspaceKcCard serverError={state.errors?.workspaceKc} disabled={pending} /></GoodOperationSection>;
   /* 저장 뒤 이어서 설정 카드에 들어가는 패널. 내용은 그대로이고 묶음만 새로 나눴다. */
   const operationPanels: Partial<Record<OperationId, ReactNode>> = !selected ? {} : {

@@ -565,6 +565,35 @@ describe('GoodSection', () => {
     expect(renderGoodSection(good).match(/<textarea[^>]*name="description"[^>]*>/)?.[0]).toContain('maxLength="2000"');
   });
 
+  /* 복잡도 측정(카드 36개·필수 12개가 첫 화면에 0개)의 후속 — 카드마다 남은 필수 입력, 저장 막대에 공개까지 남은 수를 보인다. */
+  it('카드와 저장 막대에 공개까지 남은 필수 입력을 보이고, 공개 뒤에는 보이지 않는다', () => {
+    const create = renderGoodSection(null);
+    const count = (html: string, id: string) => html.match(new RegExp(`id="good-section-${id}"[^]*?data-good-card-remaining="(\\d+)"`))?.[1];
+    expect(count(create, 'basic')).toBe('3');
+    expect(count(create, 'images')).toBe('1');
+    expect(create).toMatch(/data-good-publish-remaining="\d+"[^>]*>공개까지 필수 \d+개 남음/);
+    expect(create).toContain('필수 입력 남음');
+    /* 공개 중인 상품에는 남은 수를 보이지 않는다(공개 조건은 이미 서버가 확인했다). */
+    const published = renderGoodSection(good);
+    expect(published).not.toContain('data-good-publish-remaining');
+    expect(published).not.toContain('data-good-card-remaining');
+  });
+
+  it('저장 막대는 저장하기·미리보기·임시저장 메뉴·취소로 줄이고 불러오기는 메뉴에 묶는다', () => {
+    const create = renderGoodSection(null);
+    const bar = create.slice(create.indexOf('data-good-workspace-save'), create.indexOf('</form>'));
+    expect(bar).toContain('aria-label="임시저장 메뉴"');
+    expect(bar).toMatch(/data-good-draft-button=""[^>]*>임시저장</);
+    expect(bar).not.toContain('>임시저장 불러오기<');
+    expect(bar).not.toContain('>새 임시저장으로 저장<');
+    for (const label of ['미리보기', '저장하기', '취소']) expect(bar).toContain(label);
+    /* 탭이 하나뿐이면 탭 줄을 그리지 않고, 복사등록은 머리 줄의 버튼 하나다. */
+    expect(create).not.toContain('data-good-editor-tabs');
+    const head = create.slice(create.indexOf('data-good-editor-head'), create.indexOf('data-good-workspace-nav'));
+    expect(renderGoodSection(null, {}, { accountId: 'operator-1' })).toMatch(/data-good-editor-head=""[^]*?data-good-copy-entry=""[^]*?기존 상품으로 복사등록/);
+    expect(head).toContain('필수항목');
+  });
+
   /* 10/27 회의 R21(D9①) — 그룹상품 등록은 메뉴·탭에서 숨기고 라우트만 유지한다. */
   it('등록 화면 탭에 그룹상품 등록 링크를 두지 않는다', () => {
     const html = renderGoodSection(null);

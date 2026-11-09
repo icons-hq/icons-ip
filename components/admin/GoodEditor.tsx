@@ -420,7 +420,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
    */
   const previewValues = useDeferredValue(values);
   const previewImageUrls = useDeferredValue(imageUrls);
-  const { origin: previewOrigin, ip: previewIp, detail: previewDetail, shippingPolicy } = useMemo(() => buildGoodEditorPreview({
+  const { ip: previewIp, detail: previewDetail, shippingPolicy } = useMemo(() => buildGoodEditorPreview({
     values: previewValues, imageUrls: previewImageUrls, selected, catalogIps, origins, shippingNoticeOptions,
   }), [previewValues, previewImageUrls, selected, catalogIps, origins, shippingNoticeOptions]);
   const previewWithAttributes = useMemo(() => ({ ...previewDetail, attributes: attributePreview }), [previewDetail, attributePreview]);
@@ -444,6 +444,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
   const published = Boolean(selected?.publishedAt);
   const showPublishProgress = !published && !selected?.archivedAt;
   const cardRemaining = (key: keyof typeof remainingByCard) => showPublishProgress ? remainingByCard[key] : undefined;
+  function changeCustomInputs(customInputs: string) { setValues((current) => ({ ...current, customInputs })); setDirty(true); }
   /* 대표 카테고리에서 유형을 제안한다. 이미 고른 유형은 그대로 두고, 값 목록은 서버 계약(GOOD_TYPES)이다. */
   const suggestedType = categoryId && !values.type && !locked && !groupOwned ? goodTypeSuggestion(categoryPath(categories, categoryId)) : null;
   function applySuggestedType(type: string) {
@@ -465,7 +466,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
   const kcLink = <a className="text-foreground underline underline-offset-4" href="#good-operation-kc" onClick={(event) => { event.preventDefault(); focusGoodWorkspaceTarget('good-operation-kc'); }}>KC 정보로 이동</a>;
   const nextStep: ReactNode = selected?.archivedAt ? null : published ? '저장하면 공개 중인 상품 화면에 바로 반영됩니다.'
     : !selected ? '다음 단계: 저장하면 화면 맨 위에 판매 준비가 열리고, 거기서 공개합니다.'
-    : !kcDone ? <>KC 검토 전에는 저장 후 공개를 눌러도 초안으로만 저장됩니다. {kcLink}</>
+    : readiness && !kcDone ? <>KC 검토 전에는 저장 후 공개를 눌러도 초안으로만 저장됩니다. {kcLink}</>
     : remaining.length ? '필수 입력을 마치면 공개할 수 있습니다.' : '저장 후 공개를 누르면 고객 화면에 공개됩니다.';
   /* 말풍선은 다른 곳을 누르면 닫는다. 열린 채 남으면 입력칸을 가린다. 펼침 기록은 toggle 이벤트가 맡는다. */
   function closeSaveInfo(event: ReactPointerEvent<HTMLFormElement>) {
@@ -511,8 +512,9 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
           <SelectField defaultValue={initial.type} error={errors.type} label={locked ? "유형 · 공개 중 잠금" : "상품 유형 (필수)"} disabled={locked || groupOwned} name="type"><option value="">선택</option>{GOOD_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}</SelectField>
           {(locked || groupOwned) && <input type="hidden" name="type" value={initial.type} />}
         </AdminFormGrid>
-        {suggestedType ? <p className="flex min-w-0 flex-wrap items-center gap-2 text-sm text-muted-foreground" data-good-type-suggestion="">카테고리 기준 추천 유형 <button className={buttonVariants({ variant: 'soft', size: 'sm' })} data-slot="button" onClick={() => applySuggestedType(suggestedType)} type="button">{suggestedType}로 선택</button></p>
+        {suggestedType ? <p className="flex min-w-0 flex-wrap items-center gap-2 text-sm text-muted-foreground" data-good-type-suggestion="">카테고리 기준 추천 유형 <button className={buttonVariants({ variant: 'soft', size: 'sm' })} data-slot="button" onClick={() => applySuggestedType(suggestedType)} type="button">{suggestedType} 선택</button></p>
           : categoryId && !values.type && !locked && !groupOwned ? <p className="text-xs text-muted-foreground">맞는 유형이 없으면 ‘기타’를 고릅니다.</p> : null}
+        <p className="-mt-2 text-xs text-muted-foreground">연결 IP는 브랜드·작품, 카테고리는 쇼핑 분류, 유형은 상품의 형태입니다.</p>
         {canSearchErp && values.ipId && <a className="w-fit text-sm underline underline-offset-4" href={`/admin/catalog/ips/${encodeURIComponent(values.ipId)}`} target="_blank" rel="noreferrer">연결 IP의 공개 상태 확인 (새 탭)</a>}
         <div className="min-w-0 scroll-mt-24 outline-none" id="good-section-attributes" tabIndex={-1}>
           <OwnedFields locked={groupOwned} fields={[]} values={initial}><GoodsAttributeEditor categoryId={categoryId} goodId={selected?.id ?? null} initialSubmission={initial.productAttributes} initialDraft={initial.productAttributeDraft} error={errors.productAttributes} onChange={onAttributeChange} /></OwnedFields>
@@ -601,7 +603,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
         </AdminFormGrid>
         <GoodsDiscountRateField value={initial.showDiscountRate} error={errors.showDiscountRate} />
         <OwnedFields locked={groupOwned} fields={['additionalCategoryIds']} values={initial}><GoodAdditionalCategoryField categories={categories} primary={categoryId} value={initial.additionalCategoryIds} error={errors.additionalCategoryIds} /></OwnedFields>
-        <GoodsCustomInputEditor value={values.customInputs} revision={initial.customInputsExpectedRevision ?? '0'} error={errors.customInputs} onChange={customInputs=>{setValues(current=>({...current,customInputs}));setDirty(true);}} />
+        <GoodsCustomInputEditor value={values.customInputs} revision={initial.customInputsExpectedRevision ?? '0'} error={errors.customInputs} onChange={changeCustomInputs} />
         <section className="flex min-w-0 flex-col gap-5 border-t pt-5" aria-labelledby="good-search-settings-title">
           <h4 className="text-sm font-medium text-foreground" id="good-search-settings-title">검색설정·판매자상품코드</h4>
           <AdminFormGrid>
@@ -617,7 +619,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
             placeholder="한 줄에 하나 또는 쉼표로 구분해 입력해주세요."
           /></OwnedFields>
           <p className="text-sm text-muted-foreground">고객 통합 검색과 어드민 상품 검색에만 쓰이며, 공개 상세에는 표시하지 않습니다.</p>
-          <GoodIdentifierFields code={initial.code} defaultVariantCode={initial.defaultVariantCode ?? variants.find((v) => v.isDefault)?.code} hideVariantCode onCodeSuggestion={setSuggestedCode} errors={state.errors ?? {}} ipId={values.ipId} name={values.name} slug={initial.id} slugLocked={groupOwned || Boolean(selected?.firstPublishedAt)} />
+          <GoodIdentifierFields code={initial.code} defaultVariantCode={initial.defaultVariantCode ?? variants.find((v) => v.isDefault)?.code} hideVariantCode onCodeSuggestion={setSuggestedCode} errors={errors as Record<string, string>} ipId={values.ipId} name={values.name} slug={initial.id} slugLocked={groupOwned || Boolean(selected?.firstPublishedAt)} />
         </section>
       </GoodEditorSection>
 
@@ -639,7 +641,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
         </div>
         <div className="flex min-w-0 flex-wrap items-center gap-1.5 md:gap-2 xl:justify-end">
           {showPublishProgress ? remaining.length
-            ? <button className="inline-flex items-center rounded-md px-1 text-xs font-medium text-destructive tabular-nums underline-offset-4 outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50" data-good-publish-remaining={remaining.length} onClick={() => focusGoodWorkspaceTarget(remaining[0].anchor, remaining[0].field)} title="서버가 공개할 때 다시 확인합니다." type="button">공개까지 필수 {remaining.length}개 남음</button>
+            ? <button className="inline-flex items-center rounded-md px-1 text-xs font-medium text-destructive tabular-nums underline-offset-4 outline-none hover:underline focus-visible:ring-3 focus-visible:ring-ring/50" data-good-publish-remaining={remaining.length} onClick={() => focusGoodWorkspaceTarget(remaining[0].anchor, remaining[0].field)} title={`${remaining.map((item) => item.label).join(', ')} · 공개할 때 서버가 다시 확인합니다.`} type="button">공개까지 필수 {remaining.length}개 남음</button>
             : <span className="inline-flex items-center gap-1 px-1 text-xs font-medium text-success" data-good-publish-remaining="0"><Check aria-hidden="true" className="size-3.5" />공개 필수 입력 완료</span> : null}
           <button className={`${buttonVariants({ variant: 'outline' })} ${SAVE_BAR_BUTTON_CLASS} max-md:[&>svg]:hidden`} data-slot="button" type="button" onClick={() => { const preview = document.getElementById('good-preview'); if (preview instanceof HTMLDetailsElement) { preview.open = true; preview.scrollIntoView({ block: 'start', behavior: 'instant' }); preview.querySelector('summary')?.focus(); } }}><Eye aria-hidden="true" />미리보기</button>
           {selected ? <button className={`${buttonVariants({ variant: 'secondary' })} ${SAVE_BAR_BUTTON_CLASS}`} data-slot="button" data-good-draft-button="" type="button" disabled={pending} onClick={() => { if (editorRef.current) { const saved = onSaveLocalDraft(editorRef.current); setLocalSaveMessage({ text: saved ? '입력 내용을 이 브라우저에 임시저장했습니다.' : '브라우저에 임시저장할 수 없습니다. 저장하기를 이용해주세요.', ok: saved }); } }}>입력 임시저장</button> : <span className="inline-flex" role="group" aria-label="임시저장">

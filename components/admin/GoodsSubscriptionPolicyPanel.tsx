@@ -211,7 +211,7 @@ export function GoodsSubscriptionPolicyPanel({ goodId, accountId, disabledReason
           <button type="button" className={buttonVariants({ variant: 'outline' })} data-slot="button" disabled={busy} onClick={() => void readLatest()}>최신 저장본 비교</button>
         </div>
         <small className="text-xs text-muted-foreground" role="status">{busy ? '요청 처리 중…' : workspace.retry ? '결과 확인 필요' : workspace.readbackRequired ? '최신 저장본 확인 필요'
-          : dirty ? '미저장 입력 · 이 브라우저에 7일 임시보관' : '서버 저장값과 동일'}</small>
+          : dirty ? '미저장 입력 · 이 브라우저에 7일 임시보관' : '저장된 내용과 같음'}</small>
       </>}
     </>}
   </div>;

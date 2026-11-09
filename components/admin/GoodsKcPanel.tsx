@@ -262,13 +262,12 @@ export function GoodsKcPanel({ goodId,templateRequest,onTemplateApplied,refreshK
   refreshKey?: number;
 }) {
   /* 고시 카드 안에 있어 기본 상품 저장 때 함께 다시 마운트된다. 불러온 설정과 입력 중인 KC는 폼 키 밖 provider에서 이어 받는다. */
-  const stash = useGoodWorkspaceSections()?.kcPanelStash;
-  const resumed = stash?.current?.goodId === goodId ? stash.current : null;
+  const workspace = useGoodWorkspaceSections();
+  const readStash = workspace?.readKcPanelStash, rememberStash = workspace?.rememberKcPanel;
+  const [resumed] = useState(() => readStash?.(goodId) ?? null);
   const [loaded, setLoaded] = useState<{ goodId: string; configuration?: AdminGoodsKc; error?: string } | null>(resumed?.configuration ? { goodId, configuration: resumed.configuration } : null);
   const [initialDraft] = useState(resumed?.draft ?? null);
-  const remember = useCallback((changes: Partial<GoodsKcPanelStash>) => {
-    if (stash) stash.current = { goodId, configuration: stash.current?.goodId === goodId ? stash.current.configuration : null, draft: stash.current?.goodId === goodId ? stash.current.draft : null, ...changes };
-  }, [stash, goodId]);
+  const remember = useCallback((changes: Partial<Omit<GoodsKcPanelStash, 'goodId'>>) => rememberStash?.(goodId, changes), [rememberStash, goodId]);
   const onDraftChange = useCallback((draft: NonNullable<GoodsKcPanelStash['draft']>) => remember({ draft }), [remember]);
   useEffect(() => { if (loaded?.goodId === goodId && loaded.configuration) remember({ configuration: loaded.configuration }); }, [loaded, goodId, remember]);
   const [notice, setNotice] = useState<{ goodId: string; message: string } | null>(null);
