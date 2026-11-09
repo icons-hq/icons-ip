@@ -39,6 +39,11 @@ const operators = [
   sql('operator_manual_recovery_guards'),
   sql('admin_operator_directory'),
   sql('readable_order_numbers'),
+  sql('erp_read'),
+  run(
+    'erp_read_concurrency.py',
+    `ERP_READ_TEST_SCOPE=ci SUPABASE_DB_CONTAINER=${databaseContainer} PGDATABASE=postgres python3 supabase/tests/erp_read_concurrency.py`,
+  ),
   run(
     'readable_order_numbers_concurrency.py',
     `READABLE_ORDER_TEST_SCOPE=ci SUPABASE_DB_CONTAINER=${databaseContainer} PGDATABASE=postgres python3 supabase/tests/readable_order_numbers_concurrency.py`,
