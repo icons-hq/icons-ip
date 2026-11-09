@@ -205,19 +205,20 @@ export function ShippingRegionsScreen({ policies: initialPolicies, adoptions, or
             : <Button aria-pressed={pressed} onClick={() => openPolicy(policy.id)} size="sm" type="button" variant="ghost">내용 보기<ChevronRight aria-hidden="true" /></Button>}
         </li>;
       })}</ul> : <p className={NOTE}>등록한 지역 정책이 없습니다. 실제 회신을 확보한 출고지부터 초안을 작성해주세요.</p>}
-      {canEdit && <Button className="w-fit" onClick={startDraft} type="button" variant={firstDraftId ? 'outline' : 'default'}>새 정책 초안</Button>}
+      {/* 새 초안 입력칸이 이미 열려 있으면 이 버튼은 할 일이 없다(주 행동은 그 칸의 저장이다). */}
+      {canEdit && (selected || !composing) && <Button className="w-fit" onClick={startDraft} type="button" variant={firstDraftId ? 'outline' : 'default'}>새 정책 초안</Button>}
     </AdminSectionCard>
     {editorOpen && <AdminSectionCard id={POLICY_EDITOR_ID} summary={selected ? <AdminStatusBadge tone={statusTone('regionPolicy', selected.status)}>{STATUS_LABELS[selected.status]}</AdminStatusBadge> : undefined} title={selected ? `${selected.name || '지역 정책'} · 버전 ${selected.version}` : '새 정책 초안'}>
       {selected?.confirmedAt ? <p className={NOTE}>원본 확인: {selected.confirmedBy} · {formatOrderDateTime(selected.confirmedAt)}</p> : null}
       {copy ? <AdminNotice tone="info">이전 정책의 원본을 기준으로 새 정책을 입력해주세요. 실제 계약과 기간을 다시 확인해야 합니다.</AdminNotice> : null}
-      <div className="flex flex-wrap items-center gap-2">
+      {(canEdit && selected) || policies.length ? <div className="flex flex-wrap items-center gap-2">
         {canEdit && selected && <Button type="button" variant="outline" onClick={() => {
           const source = parseShippingRegionPolicyInput(selected)!;
           setCopy({ ...source, startsAt: null, endsAt: null, openEnded: null, rules: source.rules.map((rule) => ({ ...rule, id: null })) });
           setSelectedId(null); setEditorKey((key) => key + 1); setMessage(null); setComposing(true);
         }}>이 정책으로 새 버전 초안 만들기</Button>}
         {policies.length ? <Button className="ml-auto" onClick={closeEditor} type="button" variant="ghost">닫기</Button> : null}
-      </div>
+      </div> : null}
       <ShippingRegionEditor key={editorKey} policy={selected} initialCopy={copy} origins={origins} carriers={carriers} canEdit={canEdit} onSaved={saved} />
     </AdminSectionCard>}
   </div>;
