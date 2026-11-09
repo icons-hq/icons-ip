@@ -22,6 +22,14 @@ describe('상품 게시 상태 화면', () => {
     expect(html.match(/<details[^>]*id="good-operation-publish"[^>]*>/)?.[0]).not.toContain('open=""');
     expect(html).toContain('value="false"');
   });
+  /* 사람 눈 테스트 3라운드 — 판매를 내리는 일인데 옆 안내와 같은 펼침 글자라 낮아 보였다. 모양만 outline+빨간 글자로 올리고 펼쳐서 확인하는 동작은 그대로다. */
+  it('초안으로 되돌리기는 outline 빨간 글자의 펼침 버튼이고 실제 전환은 펼친 뒤 확인을 거친다', () => {
+    const html = renderToStaticMarkup(<GoodPublishControls id="g1" publishedAt="2026-09-08" archivedAt={null}/>);
+    const summary = html.match(/<summary[^>]*>(?:(?!<\/summary>)[^])*초안으로 되돌리기<\/summary>/)?.[0] ?? '';
+    expect(summary).toContain('border-border-strong'); expect(summary).toContain('text-destructive'); expect(summary).toContain('hover:text-destructive');
+    expect(summary).not.toContain('hover:text-foreground'); expect(summary).not.toContain('bg-danger-soft');
+    expect(html.indexOf('</summary>')).toBeLessThan(html.indexOf('name="confirmUnpublish"'));
+  });
   it('공개를 막는 항목이 남으면 공개 버튼을 그리지 않고, 저장할 입력이 생기면 다음 할 일은 주 색을 저장에 넘긴다', () => {
     const clean = renderToStaticMarkup(<GoodPublishControls id="g1" publishedAt={null} archivedAt={null} readiness={kcRequired}/>);
     expect(publishButton(clean)).toBe(''); expect(clean).toContain('KC 검토하기');

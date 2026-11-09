@@ -35,7 +35,7 @@ function GoodReadinessStep({ title, reason, others, variant, note, children }: {
 /*
  * 템플릿 룩(ADR-0028). 게시 상태만 바꾸는 독립 작업 — 기본 상품 폼 밖, 판매 준비 카드 안에 둔다.
  * 초안에서 주 행동은 하나다: 막는 항목이 남으면 다음 할 일, 없으면 공개로 전환, 저장하지 않은 입력이 있으면 저장 막대의 저장 후 공개.
- * 공개 중인 상품을 내리는 작업은 위험 표시와 함께 접힌 줄로 낮춘다(`#good-operation-publish` 링크는 열어서 들어온다).
+ * 공개 중인 상품을 내리는 작업은 빨간 글자의 보조 버튼으로 접어 두고, 펼친 뒤 확인을 거친다(`#good-operation-publish` 링크는 열어서 들어온다).
  */
 export function GoodPublishControls({ id, publishedAt, archivedAt, readiness, unsaved = false, publishOnSave = false }: {
   id: string; publishedAt: string | null; archivedAt: string | null;
@@ -65,7 +65,7 @@ export function GoodPublishControls({ id, publishedAt, archivedAt, readiness, un
     {state.error && <p className="text-destructive" role="alert">{state.error}</p>}{state.message && <p className="font-medium text-success" role="status">{state.message}</p>}
     <div className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2">
       {published && !archivedAt ? <details className={`group/unpublish scroll-mt-24 ${FOLD_CLASS}`} id="good-operation-publish" tabIndex={-1}>
-        <summary className={`${FOLD_SUMMARY_CLASS} text-sm font-medium text-destructive`}><ChevronRight aria-hidden="true" className={`${FOLD_CHEVRON_CLASS} group-open/unpublish:rotate-90`} />초안으로 되돌리기</summary>
+        <summary className={buttonVariants({ variant: 'outline', size: 'sm', className: 'w-fit cursor-pointer list-none text-destructive hover:text-destructive [&::-webkit-details-marker]:hidden' })} data-slot="button"><ChevronRight aria-hidden="true" className={`${FOLD_CHEVRON_CLASS} group-open/unpublish:rotate-90`} />초안으로 되돌리기</summary>
         <div className="mt-2 flex min-w-0 flex-col gap-3">
           <AdminNotice title="판매 중인 상품이 고객 화면에서 내려갑니다" tone="danger">목록·검색·상품 상세에서 숨겨지고, 장바구니에서는 판매 종료로 표시되어 새 주문을 할 수 없습니다. 기존 주문과 결제·취소 처리는 유지됩니다.</AdminNotice>
           <form action={action} className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2">

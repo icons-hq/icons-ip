@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { ChevronDown, ChevronUp, Eye } from 'lucide-react';
+import { AlertTriangle, ChevronDown, ChevronUp, Eye } from 'lucide-react';
 
 import { GROUP_COMMON_FIELDS, type GoodsEditorOwnership } from '@/lib/admin/goods-group-common';
 import type { ReactNode } from 'react';
@@ -41,6 +41,7 @@ import { GoodsDiscountRateField, GoodsPriceFields } from './GoodsPriceFields';
 import { GoodsErpCategoryNotice } from './GoodsErpCategoryNotice';
 import { GoodsPurchaseLimitFields, GoodsSalePolicyFields } from './GoodsSalePolicyFields';
 import { GoodNoticePicker } from './GoodNoticePicker';
+import { GOOD_LOCKED_SELECTS_CLASS } from './GoodEditorParts';
 import { GoodsOriginField } from './CountryNameFinder';
 import type { GoodsKcPresetTemplate } from '@/lib/admin/goods-notice-presets';
 import { useAdminLocalAutosave } from './useAdminLocalAutosave';
@@ -64,7 +65,7 @@ import { saveGoodsDraftAction } from '@/app/admin/goods-draft-actions';
 import { collectGoodsDraftValues, validGoodsDraftIdentity, type GoodsDraft, type GoodsDraftIdentity } from '@/lib/admin/goods-drafts';
 import { GoodWorkspaceNavigation, GoodWorkspaceErrors, GoodOptionalFields, GoodEditorSection, GoodFoldedRow, GoodWorkspaceDetails, focusGoodWorkspaceTarget, useFocusFirstGoodError, useGoodWorkspaceSections } from './GoodWorkspace';
 import { GOOD_WORKSPACE_ERROR_SECTIONS, GOOD_WORKSPACE_OPERATION_FIELD, GOOD_WORKSPACE_SECTIONS_FIELD, prepareGoodWorkspaceSections } from '@/lib/admin/good-workspace-sections';
-import { GOOD_EDITOR_SECTIONS, GOOD_PUBLISHED_LOCKS, changedGoodLockedFields, goodErrorsByCard, goodFieldSection, goodKcContextChanged, goodPublishRequirements, goodReadinessPlan, goodRemainingByCard, goodTypeSuggestion, type GoodEditorSectionKey } from '@/lib/admin/good-workspace';
+import { GOOD_EDITOR_SECTIONS, GOOD_PUBLISHED_LOCKS, changedGoodLockedFields, goodErrorsByCard, goodFieldSection, goodKcContextChanged, goodPublishRequirements, goodRemainingByCard, goodTypeSuggestion, type GoodEditorSectionKey } from '@/lib/admin/good-workspace';
 import { ADMIN_STOCK_LABELS, ADMIN_VOCABULARY, adminGoodsCopy } from '@/lib/admin/vocabulary';
 import { ADMIN_SCREENS, type AdminScreen } from '@/lib/admin/navigation';
 import { ActionNotice, ErrorText, Field, SelectField, TextArea } from './fields';
@@ -448,9 +449,8 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
   const kcContextChanged = Boolean(selected && !published && kcDone && dirty && goodKcContextChanged(lockedValues, values, initialGoodsOptionRows(variants, Number(lockedValues.price)), rows));
   const publishOnSave = Boolean(selected) && showPublishProgress && dirty && !remaining.length && !kcContextChanged;
   useEffect(() => { onPublishOnSaveChange?.(publishOnSave); }, [publishOnSave, onPublishOnSaveChange]);
-  /* 저장된 초안에 고칠 입력이 없으면 주 행동은 판매 준비 카드의 다음 할 일(또는 공개)이다. 입력이 바뀌면 저장하기가 다시 주 색이 된다. */
-  const readinessPlan = goodReadinessPlan(readiness);
-  const saveIsPrimary = !selected || published || Boolean(selected.archivedAt) || dirty || !(readinessPlan.next || readinessPlan.publish === 'primary');
+  /* 저장할 변경이 없으면 저장하기는 초안·공개 중 어느 상품에서나 같은 보조 모양이다. 입력이 바뀌면 다시 주 색이 된다. */
+  const saveIsPrimary = !selected || dirty;
   function changeCustomInputs(customInputs: string) { setValues((current) => ({ ...current, customInputs })); setDirty(true); }
   /* 대표 카테고리에서 유형을 제안한다. 이미 고른 유형은 그대로 두고, 값 목록은 서버 계약(GOOD_TYPES)이다. */
   const suggestedType = categoryId && !values.type && !locked && !groupOwned ? goodTypeSuggestion(categoryPath(categories, categoryId)) : null;
@@ -474,7 +474,7 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
   const kcIsNextStep = Boolean(selected && readiness && !kcDone);
   /* 남은 것이 KC 하나면 아래 다음 단계 문장이 이미 말한다. 같은 일을 저장 막대에 두 번 적지 않는다. */
   const showRemainingCount = showPublishProgress && remaining.length > 0 && !(kcIsNextStep && remaining.length === 1 && remaining[0].key === 'kc');
-  const nextStep: ReactNode = selected?.archivedAt ? null : published ? '저장하면 공개 중인 상품 화면에 바로 반영됩니다.'
+  const nextStep: ReactNode = selected?.archivedAt ? null : published ? <span className="inline-flex items-center gap-1 text-warning"><AlertTriangle aria-hidden="true" className="size-3.5 shrink-0" />저장하면 공개 중인 상품 화면에 바로 반영됩니다.</span>
     : !selected ? '다음 단계: 저장하면 화면 맨 위에 판매 준비가 열리고, 거기서 공개합니다.'
     : kcIsNextStep ? <>KC 검토를 마치면 공개할 수 있습니다. {kcLink}</>
     : kcContextChanged ? '바꾼 상품명·유형·IP·고시정보나 옵션을 저장하면 KC를 다시 검토해야 공개할 수 있습니다.'
@@ -514,12 +514,12 @@ function GoodEditorForm({ ownership, accountId, action, catalogIps, ipOptions, p
           <Field readOnly={locked || groupOwned} defaultValue={initial.name} error={errors.name} label={locked ? '상품명 · 공개 중 잠금' : '상품명 (필수)'} name="name" />
           {selected ? null : <p className="text-xs text-muted-foreground">상품명만 입력해도 등록 중인 상품을 임시저장할 수 있습니다.</p>}
         </div>
-        <AdminFormGrid>
+        <div className={locked || groupOwned ? GOOD_LOCKED_SELECTS_CLASS : 'min-w-0'}><AdminFormGrid>
           <SelectField defaultValue={initial.ipId} error={errors.ipId} label={locked ? "연결 IP · 공개 중 잠금" : "연결 IP (필수)"} disabled={locked || groupOwned} name="ipId"><option value="">선택</option>{ipOptions.map((ip) => <option disabled={Boolean(ip.archivedAt && ip.id !== selected?.ipId)} key={ip.id} value={ip.id}>{ip.archivedAt ? `[보관] ${ip.title}` : ip.title}</option>)}</SelectField>
           {(locked || groupOwned) && <input type="hidden" name="ipId" value={initial.ipId} />}
           <SelectField defaultValue={initial.type} error={errors.type} label={locked ? "유형 · 공개 중 잠금" : "상품 유형 (필수)"} disabled={locked || groupOwned} name="type"><option value="">선택</option>{GOOD_TYPES.map((type) => <option key={type} value={type}>{type}</option>)}</SelectField>
           {(locked || groupOwned) && <input type="hidden" name="type" value={initial.type} />}
-        </AdminFormGrid>
+        </AdminFormGrid></div>
         {suggestedType ? <p className="flex min-w-0 flex-wrap items-center gap-2 text-sm text-muted-foreground" data-good-type-suggestion="">카테고리 기준 추천 유형 <button className={buttonVariants({ variant: 'soft', size: 'sm' })} data-slot="button" onClick={() => applySuggestedType(suggestedType)} type="button">{suggestedType} 선택</button></p>
           : categoryId && !values.type && !locked && !groupOwned ? <p className="text-xs text-muted-foreground">맞는 유형이 없으면 ‘기타’를 고릅니다.</p> : null}
         <p className="-mt-2 text-xs text-muted-foreground">연결 IP는 브랜드·작품, 카테고리는 쇼핑 분류, 유형은 상품의 형태입니다.</p>

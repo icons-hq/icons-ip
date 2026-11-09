@@ -12,6 +12,7 @@ import { ADMIN_SCREENS, adminScreenForPath } from '@/lib/admin/navigation';
 import { commonTestOwnership } from '@/lib/admin/goods-group-common.test-fixtures';
 import { parseGoodsEditorOwnership } from '@/lib/admin/goods-group-common';
 import { GoodsKcTemplateProvider } from '../useGoodsKcTemplate';
+import { GOOD_LOCKED_SELECTS_CLASS } from '../GoodEditorParts';
 
 vi.mock('@/app/admin/actions', () => ({
   adjustAdminStockAction: vi.fn(),
@@ -379,6 +380,28 @@ describe('GoodSection', () => {
       expect(nav).toMatch(/data-good-card-remaining="1"[^>]*data-tone="warning"|data-tone="warning"[^>]*data-good-card-remaining="1"/);
       expect(nav).not.toContain('data-tone="danger"');
       expect(bar(html)).not.toContain('data-good-publish-remaining');
+    });
+
+    /* 사람 눈 테스트 3라운드 — "저장된 내용과 같음"인데 초안은 흰색, 공개 중인 상품은 파란색이라 눌러도 되는지 망설였다. */
+    it('저장할 변경이 없으면 저장하기는 초안·공개 중 어느 상품이든 같은 보조 모양이다', () => {
+      const clean = [renderGoodSection(draft, {}, { readiness: kcBlocked }), renderGoodSection(draft, {}, { readiness: ready }), renderGoodSection(good, {}, { readiness: live })];
+      for (const html of clean) {
+        expect(bar(html)).toContain('저장된 내용과 같음');
+        expect(button(bar(html), '저장하기')).not.toContain('bg-primary');
+      }
+      expect(button(bar(renderGoodSection(null)), '저장하기')).toContain('bg-primary');
+    });
+
+    it('공개 중 반영 안내는 주의색이고 잠긴 연결 IP·유형 선택칸은 잠긴 입력칸과 같은 모양이다', () => {
+      const publishedHtml = renderGoodSection(good, {}, { readiness: live });
+      expect(bar(publishedHtml)).toMatch(/data-good-next-step=""><span class="[^"]*text-warning[^"]*">[^]*?저장하면 공개 중인 상품 화면에 바로 반영됩니다\./);
+      /* 잠금은 모양만 바꾼다. 값은 hidden input이 그대로 제출한다. */
+      const lockedOpen = `<div class="${GOOD_LOCKED_SELECTS_CLASS.replaceAll('&', '&amp;')}">`;
+      expect(publishedHtml).toContain(lockedOpen);
+      const locked = publishedHtml.slice(publishedHtml.indexOf(lockedOpen));
+      expect(locked).toMatch(/<select[^>]*disabled=""[^>]*name="ipId"|<select[^>]*name="ipId"[^>]*disabled=""/);
+      expect(locked).toContain('<input type="hidden" name="ipId" value="hwasan"/>');
+      expect(renderGoodSection(draft, {}, { readiness: ready })).not.toContain(lockedOpen);
     });
 
     it('실제로 막는 항목만 주의색이다: 초안만으로는 판매 설정을 확인 필요로 보이지 않는다', () => {
