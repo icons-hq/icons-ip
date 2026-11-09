@@ -35,6 +35,9 @@ export function OperationsSettingsScreen({ contacts, history, canEdit, shippingR
   const links = INPUT_LINKS.filter(item => !item.adminOnly || canEdit);
   const known = links.flatMap(item => item.readiness && readiness[item.readiness] ? [readiness[item.readiness]!] : []);
   const missingContacts = contacts.filter(contact => !filledCount(contact));
+  /* 분모 없이 카드 배지와 같은 말로 센다 — '7/7'은 칸이 10개인데 다 끝난 것처럼 읽힌다. */
+  const doneCount = known.filter(item => item.done).length;
+  const readinessSummary = [`입력 완료 ${doneCount}개`, known.length > doneCount ? `입력 필요 ${known.length - doneCount}개` : '', links.length > known.length ? `화면에서 확인 ${links.length - known.length}개` : ''].filter(Boolean).join(' · ');
   return <div className="flex min-w-0 flex-col gap-4" data-admin-screen="operations">
     <AdminPageHeader title="운영 준비" description="운영에 필요한 설정을 입력하고, 담당자와 자료 위치를 함께 관리합니다."
       actions={<Link className={buttonVariants({ variant: 'outline', size: 'sm' })} data-slot="button" href="/admin/guide/store-settings"><BookOpen aria-hidden="true" />입력 가이드</Link>}/>
@@ -43,7 +46,7 @@ export function OperationsSettingsScreen({ contacts, history, canEdit, shippingR
     {missingContacts.length ? <AdminNotice title={`담당자 정보 미입력 ${missingContacts.length}곳`} tone="warning">
       <span className="flex flex-wrap gap-x-3 gap-y-1">{missingContacts.map(contact => <a className="font-medium underline underline-offset-4" href={`#${contactAnchor(contact)}`} key={contactAnchor(contact)}>{contactTitle(contact)}</a>)}</span>
     </AdminNotice> : null}
-    <AdminSectionCard status={known.length ? `입력 완료 ${known.filter(item => item.done).length}/${known.length}` : undefined} title="운영 정보 입력" summary="항목을 선택하면 해당 입력 화면으로 이동합니다. 실제 계약과 자료를 확인한 뒤 저장해주세요.">
+    <AdminSectionCard status={known.length ? readinessSummary : undefined} title="운영 정보 입력" summary="항목을 선택하면 해당 입력 화면으로 이동합니다. 실제 계약과 자료를 확인한 뒤 저장해주세요.">
       <ul className="grid grid-cols-1 gap-2 sm:grid-cols-2 xl:grid-cols-3">{links.map(item => {
         const state = item.readiness ? readiness[item.readiness] : undefined;
         return <li className="min-w-0" key={item.href}>

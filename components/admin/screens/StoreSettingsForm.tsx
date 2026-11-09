@@ -11,6 +11,7 @@ import { BUSINESS_INFO_LABELS } from '@/lib/legal/business-info';
 import { INQUIRY_CATEGORIES } from '@/lib/inquiries';
 import { BANK_ACCOUNT_LABELS,mergeBusinessInfo,type EditableCarrier,type StoreSettingsSnapshot } from '@/lib/admin/store-settings';
 import { CustomerServiceDialog } from './CustomerServiceDialog';
+import { SettingsSaveBar } from './StoreSettingsFormGroup';
 
 const NOTE = 'text-sm text-muted-foreground';
 const CHECK_LABEL = 'flex w-fit items-center gap-2 text-sm';
@@ -39,8 +40,7 @@ export function StoreSettingsForm({section,settings,canEdit}:{section:'business'
         aria-invalid={Boolean(state.errors?.[key])} aria-describedby={state.errors?.[key]?`settings-${key}-error`:undefined} type={key==='email'?'email':'text'}/>}
     </AdminField>)}</AdminFormGrid>
     {section==='bank_transfer'?<AdminNotice tone="warning">세 항목을 모두 비우면 새 주문에서 무통장 입금이 표시되지 않습니다. 기존 입금 대기 주문을 먼저 확인해주세요.</AdminNotice>:<AdminNotice tone="warning">빈 항목은 공개 사업자 정보에서 숨겨집니다. 연락처를 변경하면 푸터와 법정 문서에 함께 반영됩니다.</AdminNotice>}
-    <Feedback state={state}/>
-    {canEdit?<Button className="w-fit" disabled={pending} type="submit"><Check aria-hidden="true"/>{pending?'저장 중…':'설정 저장'}</Button>:<ReadOnlyNotice/>}
+    {canEdit?<SettingsSaveBar><div className="flex min-w-0 flex-1 flex-col gap-2 empty:hidden"><Feedback state={state}/></div><Button disabled={pending} type="submit"><Check aria-hidden="true"/>{pending?'저장 중…':'설정 저장'}</Button></SettingsSaveBar>:<ReadOnlyNotice/>}
     {contactHelpOpen?<CustomerServiceDialog title="고객센터 연락처 노출위치" onClose={()=>setContactHelpOpen(false)}>
       <div className="flex flex-col gap-5 leading-relaxed" data-contact-help="">
       <section className="flex flex-col gap-1.5">
