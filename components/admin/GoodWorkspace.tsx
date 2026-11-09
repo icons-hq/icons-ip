@@ -1,11 +1,13 @@
 'use client';
 
-import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ComponentProps, type Dispatch, type ReactNode, type SetStateAction, type SyntheticEvent } from 'react';
-import { ChevronDown, ChevronRight } from 'lucide-react';
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ComponentProps, type Dispatch, type ReactNode, type RefObject, type SetStateAction, type SyntheticEvent } from 'react';
+import { Check, ChevronDown, ChevronRight } from 'lucide-react';
 import { buttonVariants } from '@/components/admin/kit/ui/button';
-import { GOOD_EDITOR_SECTIONS, goodFieldSection, orderedGoodErrors } from '@/lib/admin/good-workspace';
+import { GOOD_EDITOR_CARDS, GOOD_EDITOR_SECTIONS, goodFieldSection, orderedGoodErrors, type GoodEditorCardKey } from '@/lib/admin/good-workspace';
 import { EMPTY_GOOD_WORKSPACE_SECTIONS, GOOD_WORKSPACE_ERROR_SECTIONS, type GoodWorkspaceErrorField, type GoodWorkspaceSectionsDraft } from '@/lib/admin/good-workspace-sections';
 import { initialGoodsOptionRows, type GoodsOptionRow } from '@/lib/admin/goods-option-editor';
+import type { AdminGoodsKc, GoodsKcModelInput } from '@/lib/admin/goods-kc';
+import { AdminStatusBadge } from './console/AdminKit';
 
 /*
  * 상품 작성 화면의 키 밖 상태(10/27 회의 R13·R14).
@@ -26,6 +28,14 @@ interface SectionsContext {
   setSectionErrors: (errors: Partial<Record<GoodWorkspaceErrorField, string>>) => void;
   /** 등록 화면 원자 저장의 작업 ID. 성공할 때까지 같은 값을 써 재시도가 상품을 두 번 만들지 않는다. */
   operationId: () => string;
+  /** 고시 카드 안의 KC 패널은 기본 폼과 함께 다시 마운트된다. 입력 중인 KC가 기본 저장으로 사라지지 않게 키 밖에 맡긴다. */
+  kcPanelStash: RefObject<GoodsKcPanelStash | null>;
+}
+/** 저장된 상품의 KC 패널이 다시 마운트돼도 이어 쓸 값(불러온 설정과 입력 중인 모델). */
+export interface GoodsKcPanelStash {
+  goodId: string;
+  configuration: AdminGoodsKc | null;
+  draft: { models: GoodsKcModelInput[]; attested: boolean } | null;
 }
 const OpenState = createContext<OpenStateContext | null>(null);
 const Sections = createContext<SectionsContext | null>(null);
@@ -47,11 +57,12 @@ export function GoodWorkspaceProvider({ completedKey = null, children }: { compl
   const operation = useRef<string | null>(null);
   useEffect(() => { if (completedKey) operation.current = null; }, [completedKey]);
   const operationId = useCallback(() => (operation.current ??= crypto.randomUUID()), []);
+  const kcPanelStash = useRef<GoodsKcPanelStash | null>(null);
   const publishOptionRows = useCallback((rows: GoodsOptionRow[]) => {
     setOptionRows((current) => JSON.stringify(current) === JSON.stringify(rows) ? current : rows);
   }, []);
   const openValue = useMemo(() => ({ open, setOpen }), [open, setOpen]);
-  const sectionsValue = useMemo(() => ({ sections, setSections, optionRows, publishOptionRows, sectionErrors, setSectionErrors, operationId }),
+  const sectionsValue = useMemo(() => ({ sections, setSections, optionRows, publishOptionRows, sectionErrors, setSectionErrors, operationId, kcPanelStash }),
     [sections, optionRows, publishOptionRows, sectionErrors, operationId]);
   return <OpenState.Provider value={openValue}><Sections.Provider value={sectionsValue}>{children}</Sections.Provider></OpenState.Provider>;
 }
@@ -144,7 +155,13 @@ const SECTION_SUMMARY_CLASS = 'flex min-h-14 cursor-pointer list-none items-cent
 const SECTION_BODY_CLASS = 'flex min-w-0 flex-col gap-5 border-t px-4 py-4 sm:px-5 sm:py-5';
 const SECTION_CHEVRON = <ChevronDown aria-hidden="true" className="size-4 shrink-0 text-muted-foreground transition-transform group-open/section:rotate-180 motion-reduce:transition-none" />;
 
-export function GoodWorkspaceNavigation() {
+/** 카드별 남은 필수 입력: 남았으면 숫자(위험색), 끝났으면 체크. 서버 판정을 대신하지 않는 안내다. */
+function GoodCardProgressMark({ remaining }: { remaining: number }) {
+  if (remaining > 0) return <span className="ml-1 inline-flex min-w-4 items-center justify-center rounded-full bg-danger-soft px-1 text-xs font-medium text-destructive tabular-nums"><span className="sr-only">필수 입력 남음 </span>{remaining}</span>;
+  return <span className="ml-1 inline-flex items-center text-success"><Check aria-hidden="true" className="size-3.5" /><span className="sr-only">필수 입력 완료</span></span>;
+}
+
+export function GoodWorkspaceNavigation({ remaining }: { remaining?: Partial<Record<GoodEditorCardKey, number>> } = {}) {
   useEffect(() => {
     const openHash = () => {
       const id = window.location.hash.slice(1);
@@ -157,9 +174,9 @@ export function GoodWorkspaceNavigation() {
   }, []);
   /* 셸 상단바(h-12) 바로 아래에 붙는 띠(콘텐츠 여백 p-4·md:p-6만큼 양옆으로 넓힌다). 좁은 화면에서는 한 줄로 가로 이동하고, 넓은 화면에서는 줄을 바꾼다. */
   return <nav aria-label="상품 작성 섹션" className="sticky top-12 z-20 -mx-4 flex min-w-0 gap-1 overflow-x-auto border-b bg-background/95 px-4 py-2 backdrop-blur supports-[backdrop-filter]:bg-background/80 md:-mx-6 md:px-6 xl:flex-wrap xl:overflow-visible print:hidden" data-good-workspace-nav="">
-    {GOOD_EDITOR_SECTIONS.map((section, index) => <a className="inline-flex h-7 shrink-0 items-center rounded-md px-2.5 text-sm whitespace-nowrap text-muted-foreground transition-colors outline-none hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50" key={section.key} href={`#good-section-${section.key}`} onClick={(event) => {
-      event.preventDefault(); focusGoodWorkspaceTarget(`good-section-${section.key}`, section.fields[0]);
-    }}>{index + 1}. {section.label}</a>)}
+    {GOOD_EDITOR_CARDS.map((card, index) => { const left = remaining?.[card.key]; return <a className="inline-flex h-7 shrink-0 items-center rounded-md px-2.5 text-sm whitespace-nowrap text-muted-foreground transition-colors outline-none hover:bg-muted hover:text-foreground focus-visible:ring-3 focus-visible:ring-ring/50" key={card.key} href={`#${card.anchor}`} onClick={(event) => {
+      event.preventDefault(); focusGoodWorkspaceTarget(card.anchor, 'field' in card ? card.field : undefined);
+    }}>{index + 1}. {card.label}{left === undefined ? null : <GoodCardProgressMark remaining={left} />}</a>; })}
   </nav>;
 }
 
@@ -188,6 +205,7 @@ export function GoodOptionalFields({ id, title, summary, children, hasErrors = f
   </GoodWorkspaceDetails>;
 }
 
+/** 저장 전 이어서 설정 카드의 이유 문구. 카드에 한 번만 보인다. */
 export const GOOD_OPERATION_PLACEHOLDER_COPY = '상품을 저장하면 이 자리에서 바로 입력할 수 있습니다.';
 export const GOOD_UNSAVED_BASE_COPY = '위 기본 정보에 저장하지 않은 변경이 있습니다. 먼저 저장하세요.';
 
@@ -212,47 +230,86 @@ export function GoodOperationDisabledNotice({ reason, unsaved = false }: { reaso
 }
 
 /**
- * 운영 섹션. `mode`가 'placeholder'면 저장 전 등록 화면의 비활성 자리표시 카드(같은 id·같은 순서)이고,
- * 'inline'이면 기본 입력과 함께 원자 저장되는 등록 화면 섹션(KC·예약판매)이다.
+ * 운영 섹션. 'separate'는 저장된 상품의 독립 패널이고, 'inline'은 기본 입력과 함께 원자 저장되는 등록 화면 섹션(KC·예약판매)이다.
+ * 저장 전에는 나머지 패널을 카드로 늘어놓지 않고 이어서 설정 카드(GoodSection)에 이름만 보인다(D6·R13).
  */
-export function GoodOperationSection({ id, title, description, children, mode = 'separate', defaultOpen = false, notice }: {
-  id: string; title: string; description: string; children?: ReactNode; mode?: 'separate' | 'placeholder' | 'inline'; defaultOpen?: boolean;
+export function GoodOperationSection({ id, title, description, children, mode = 'separate', defaultOpen = false, notice, separateLabel = false }: {
+  id: string; title: string; description?: string; children?: ReactNode; mode?: 'separate' | 'inline'; defaultOpen?: boolean;
   /** 패널 맨 위에 보일 잠금 이유(GoodOperationDisabledNotice). */
   notice?: ReactNode;
+  /** 이어서 설정 카드 밖에 놓인 패널에 "별도 저장"을 표시한다. 카드 안에서는 머리의 한 문장이 대신한다. */
+  separateLabel?: boolean;
 }) {
   const openProps = useSectionOpen(`good-operation-${id}`, defaultOpen, false);
   const setOpen = useContext(OpenState)?.setOpen;
   const rememberOpen = mode === 'inline' && defaultOpen;
   /* 등록 화면에서 펼쳐 두고 입력한 KC·예약판매는 저장 뒤 같은 자리의 독립 패널도 펼친 채로 이어 보인다. */
   useEffect(() => { if (rememberOpen) setOpen?.(`good-operation-${id}`, true); }, [rememberOpen, setOpen, id]);
-  const placeholder = mode === 'placeholder';
-  return <details id={`good-operation-${id}`} className={`${SECTION_CLASS}${placeholder ? ' bg-muted/40' : ''}`} data-good-operation={mode}
-    tabIndex={-1} {...openProps} aria-disabled={placeholder || undefined}>
+  const modeLabel = mode === 'inline' ? '상품과 함께 저장' : separateLabel ? '별도 저장' : null;
+  return <details id={`good-operation-${id}`} className={SECTION_CLASS} data-good-operation={mode} tabIndex={-1} {...openProps}>
     <summary className={SECTION_SUMMARY_CLASS}>
       <span className="flex min-w-0 flex-1 flex-col gap-0.5">
-        <span className={`text-base leading-snug font-medium${placeholder ? ' text-muted-foreground' : ' text-foreground'}`} data-good-operation-title="">{title}</span>
-        <span className="text-sm text-muted-foreground" data-good-operation-mode="">{placeholder ? GOOD_OPERATION_PLACEHOLDER_COPY : mode === 'inline' ? '상품과 함께 저장' : '별도 저장'}</span>
+        <span className="text-base leading-snug font-medium text-foreground" data-good-operation-title="">{title}</span>
+        {modeLabel ? <span className="text-sm text-muted-foreground" data-good-operation-mode="">{modeLabel}</span> : null}
       </span>
       {SECTION_CHEVRON}
     </summary>
     <div className={SECTION_BODY_CLASS}>
-      {placeholder ? <p className="text-sm text-muted-foreground" role="note">{GOOD_OPERATION_PLACEHOLDER_COPY} {description}</p>
-        : <p className="text-sm text-muted-foreground">{description} {mode === 'inline' ? '저장하기를 누르면 기본 상품 입력과 함께 한 번에 저장됩니다. 하나라도 실패하면 아무것도 저장되지 않고 입력은 유지됩니다.' : '기본 상품 입력은 함께 저장되지 않습니다.'}</p>}
-      {placeholder ? null : notice}
-      {placeholder ? null : children}
+      {description ? <p className="text-sm text-muted-foreground">{description}</p> : null}
+      {notice}
+      {children}
     </div>
   </details>;
 }
 
+/** 저장 뒤 이어서 설정 카드의 접이식 묶음. 기본은 접힘이고, `#good-operation-*` 링크는 조상 details를 열어 들어온다. */
+export function GoodOperationGroup({ id, title, names, children }: { id: string; title: string; names: string; children: ReactNode }) {
+  return <GoodWorkspaceDetails stateId={`good-operation-group-${id}`} className="group/operation-group min-w-0 rounded-lg border" data-good-operation-group={id}>
+    <summary className="flex min-h-11 cursor-pointer list-none items-center gap-3 rounded-lg px-3 py-2 outline-none select-none group-open/operation-group:rounded-b-none focus-visible:ring-3 focus-visible:ring-ring/50 [&::-webkit-details-marker]:hidden">
+      <span className="shrink-0 text-sm font-medium text-foreground">{title}</span>
+      <span className="min-w-0 flex-1 truncate text-xs text-muted-foreground">{names}</span>
+      <ChevronDown aria-hidden="true" className="size-4 shrink-0 text-muted-foreground transition-transform group-open/operation-group:rotate-180 motion-reduce:transition-none" />
+    </summary>
+    <div className="flex min-w-0 flex-col gap-3 border-t p-3">{children}</div>
+  </GoodWorkspaceDetails>;
+}
+
+/**
+ * 카드 안의 접힌 줄(현재 값 한 줄 요약 + 변경). 네이티브 details라 접어도 입력이 DOM에 남아 저장·임시저장·자동복구가 같은 값을 읽는다.
+ * `id`는 오류·판매 준비 링크의 대상이자 펼침 상태 열쇠다.
+ */
+export function GoodFoldedRow({ id, title, summary, errorCount = 0, isDefault = false, defaultOpen = false, children }: {
+  id: string; title: string; summary: ReactNode; errorCount?: number;
+  /** 기본값 그대로면 건드릴 것 없음을 표시한다. */
+  isDefault?: boolean; defaultOpen?: boolean; children: ReactNode;
+}) {
+  return <GoodWorkspaceDetails stateId={id} id={id} aria-label={title} className="group/row min-w-0 scroll-mt-24 rounded-lg border outline-none focus-visible:ring-3 focus-visible:ring-ring/50" data-good-folded-row="" defaultOpen={defaultOpen} forceOpen={errorCount > 0} tabIndex={-1}>
+    <summary className="flex min-h-11 cursor-pointer list-none flex-wrap items-center gap-x-3 gap-y-1 rounded-lg px-3 py-2 outline-none select-none group-open/row:rounded-b-none focus-visible:ring-3 focus-visible:ring-ring/50 [&::-webkit-details-marker]:hidden">
+      <span className="shrink-0 text-sm font-medium text-foreground" data-good-section-title="">{title}</span>
+      <span className="min-w-0 flex-1 text-xs text-muted-foreground wrap-anywhere sm:text-sm" data-good-section-summary="">{errorCount ? <strong className="font-medium text-destructive">{errorCount}개 확인 필요</strong> : summary}</span>
+      {isDefault && !errorCount ? <AdminStatusBadge className="shrink-0">기본값</AdminStatusBadge> : null}
+      <span aria-hidden="true" className="shrink-0 text-xs font-medium text-primary group-open/row:hidden">변경</span>
+      <span aria-hidden="true" className="hidden shrink-0 text-xs font-medium text-muted-foreground group-open/row:inline">접기</span>
+    </summary>
+    <div className="flex min-w-0 flex-col gap-4 border-t px-3 py-4">{children}</div>
+  </GoodWorkspaceDetails>;
+}
+
 /** Native details keep every named input mounted when a section is folded. */
-export function GoodEditorSection({ id, title, requirement, status, summary, errorCount = 0, children, defaultOpen = true }: {
-  id?: string; title: string; requirement?: string; status?: string; summary?: string; errorCount?: number; children: ReactNode; defaultOpen?: boolean;
+export function GoodEditorSection({ id, title, requirement, required = false, remaining, summary, errorCount = 0, children, defaultOpen = true }: {
+  id?: string; title: string; requirement?: string; required?: boolean;
+  /** 이 카드의 남은 필수 입력 수. undefined면 필수 항목이 없는 카드다. */
+  remaining?: number;
+  summary?: ReactNode; errorCount?: number; children: ReactNode; defaultOpen?: boolean;
 }) {
   const openProps = useSectionOpen(id, defaultOpen, errorCount > 0);
-  return <details id={id} className={SECTION_CLASS} aria-label={title} data-good-section="" {...openProps}>
+  return <details id={id} className={SECTION_CLASS} aria-label={title} data-good-section="" tabIndex={-1} {...openProps}>
     <summary className={SECTION_SUMMARY_CLASS}>
-      <span className="shrink-0 text-base leading-snug font-medium text-foreground" data-good-section-title="">{title}{requirement?.includes('필수') ? <span className="ml-0.5 text-destructive" aria-label="필수">*</span> : null}</span>
-      <span className="ml-auto max-w-[55%] min-w-0 text-right text-xs text-muted-foreground wrap-anywhere sm:max-w-[60%] sm:text-sm" data-good-section-summary="">{errorCount ? <strong className="font-medium text-destructive">{errorCount}개 확인 필요</strong> : summary || status}</span>
+      <span className="shrink-0 text-base leading-snug font-medium text-foreground" data-good-section-title="">{title}{required ? <span className="ml-0.5 text-destructive" aria-label="필수">*</span> : null}</span>
+      {remaining === undefined ? null : remaining > 0
+        ? <AdminStatusBadge className="shrink-0 tabular-nums" data-good-card-remaining={remaining} tone="danger">필수 {remaining}개 남음</AdminStatusBadge>
+        : <span className="inline-flex shrink-0 items-center gap-1 text-xs font-medium text-success" data-good-card-remaining="0"><Check aria-hidden="true" className="size-3.5" />필수 입력 완료</span>}
+      <span className="ml-auto max-w-[55%] min-w-0 text-right text-xs text-muted-foreground wrap-anywhere sm:max-w-[60%] sm:text-sm" data-good-section-summary="">{errorCount ? <strong className="font-medium text-destructive">{errorCount}개 확인 필요</strong> : summary}</span>
       {SECTION_CHEVRON}
     </summary>
     <div className={SECTION_BODY_CLASS}>{requirement ? <p className="text-sm text-muted-foreground" data-good-section-requirement="">{requirement}</p> : null}{children}</div>

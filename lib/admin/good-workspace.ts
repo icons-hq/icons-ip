@@ -1,4 +1,5 @@
 import { GOODS_NOTICE_FIELDS } from '@/lib/goods-notice';
+import { GOOD_TYPES, type GoodType } from '@/lib/goods-taxonomy';
 
 /**
  * 옵션별 구매 제한 표(D7②)의 입력은 옵션 행 JSON(`variants`)으로 제출돼 자기 이름이 없다. 브라우저 검증 오류를
@@ -6,35 +7,100 @@ import { GOODS_NOTICE_FIELDS } from '@/lib/goods-notice';
  */
 export const GOOD_OPTION_LIMIT_ERROR_FIELD = 'optionLimits';
 
-/** Display grouping only. Validation and publish decisions remain with the server. */
+/**
+ * Display grouping only. Validation and publish decisions remain with the server.
+ * 화면 순서이자 오류 안내 순서다. `good-section-<key>`는 카드 안의 자리로도 남는다(판매 준비·목록·오류 링크가 이 id로 온다).
+ */
 export const GOOD_EDITOR_SECTIONS = [
-  { key: 'category', label: '카테고리', fields: ['categoryId', 'additionalCategoryIds'] },
+  { key: 'category', label: '카테고리', fields: ['categoryId'] },
+  { key: 'basic', label: '상품명', fields: ['name', 'ipId', 'type'] },
   { key: 'attributes', label: '상품속성', fields: ['productAttributes', 'productAttributeDraft'] },
-  { key: 'basic', label: '상품명', fields: ['name'] },
-  { key: 'price', label: '판매가', fields: ['price', 'compareAtPrice', 'showDiscountRate', 'regularPrice', 'discountEnabled', 'discountValue', 'discountUnit'] },
+  { key: 'price', label: '판매가', fields: ['price', 'compareAtPrice', 'regularPrice', 'discountEnabled', 'discountValue', 'discountUnit'] },
+  { key: 'variants', label: '재고수량·옵션', fields: ['variants', 'variantBaseline', 'optionUsage', 'optionAxisName0', 'optionAxisValues0', 'optionAxisName1', 'optionAxisValues1', 'optionAxisName2', 'optionAxisValues2'] },
   { key: 'period', label: '판매기간', fields: ['salePeriodEnabled', 'saleStartsAt', 'saleEndsAt', 'salePeriodRevision'] },
   { key: 'limits', label: '구매 제한', fields: ['orderQuantityLimitEnabled', 'minOrderQty', 'maxOrderQty', 'memberPurchaseLimitEnabled', 'memberLifetimeQtyLimit', GOOD_OPTION_LIMIT_ERROR_FIELD] },
-  { key: 'variants', label: '재고수량·옵션', fields: ['variants', 'variantBaseline', 'optionUsage', 'optionAxisName0', 'optionAxisValues0', 'optionAxisName1', 'optionAxisValues1', 'optionAxisName2', 'optionAxisValues2', 'customInputs', 'customInputsExpectedRevision'] },
   { key: 'images', label: '상품이미지', fields: ['imagePath', 'galleryPath0', 'galleryPath1', 'galleryPath2', 'galleryPath3', 'galleryPath4', 'galleryPath5', 'galleryPath6', 'galleryPath7', 'galleryPath8'] },
   { key: 'description', label: '상세설명', fields: ['description', 'descriptionFormat', 'detailImagePath', 'descriptionUploadPath', 'descriptionImageAlt'] },
-  { key: 'information', label: '상품 주요정보', fields: ['ipId', 'type', 'id', 'code', 'defaultVariantCode', 'nameEn', 'searchKeywords', 'displayOrder', 'badge', 'stock'] },
   { key: 'notice', label: '상품정보제공고시', fields: GOODS_NOTICE_FIELDS.map((field) => field.formName) },
-  { key: 'shipping', label: '배송', fields: ['originId', 'shippingFeeType', 'individualFee', 'shippingNoticeTemplate'] },
+  { key: 'shipping', label: '출고지·배송비', fields: ['originId', 'shippingFeeType', 'individualFee', 'shippingNoticeTemplate'] },
   { key: 'claims', label: '반품·교환', fields: [ 'claimReturnAllowed', 'claimExchangeAllowed', 'claimReturnFee', 'claimReturnFreeShippingFee', 'claimExchangeFee', 'claimRestrictionReason'] },
-  { key: 'sale', label: '판매 조건', fields: ['allowCardPayment', 'allowBankTransfer', 'saleRestriction'] },
+  { key: 'sale', label: '결제·판매 제한', fields: ['allowCardPayment', 'allowBankTransfer', 'saleRestriction'] },
+  { key: 'information', label: '추가 설정', fields: ['additionalCategoryIds', 'customInputs', 'customInputsExpectedRevision', 'showDiscountRate', 'badge', 'stock', 'nameEn', 'displayOrder', 'searchKeywords', 'code', 'defaultVariantCode', 'id'] },
 ] as const;
+export type GoodEditorSectionKey = typeof GOOD_EDITOR_SECTIONS[number]['key'];
+
+/**
+ * 상품 등록·수정 화면의 카드 7장(스마트스토어식 한 페이지). 위 섹션을 묶은 표시 단위이고 입력·이름·제출 값은 그대로다.
+ * `field`가 있으면 섹션 이동 띠에서 그 칸으로 포커스를 옮기고, 없으면 카드 머리로 간다(접힌 줄을 띠에서 열지 않는다).
+ */
+export const GOOD_EDITOR_CARDS = [
+  { key: 'basic', label: '기본 정보', anchor: 'good-section-basic', sections: ['category', 'basic', 'attributes'], field: 'name' },
+  { key: 'sales', label: '판매 정보', anchor: 'good-section-price', sections: ['price', 'variants', 'period', 'limits'], field: 'regularPrice' },
+  { key: 'images', label: '상품이미지', anchor: 'good-section-images', sections: ['images'] },
+  { key: 'description', label: '상세설명', anchor: 'good-section-description', sections: ['description'], field: 'descriptionFormat' },
+  { key: 'notice', label: '고시·KC', anchor: 'good-section-notice', sections: ['notice'], field: 'noticeMaker' },
+  { key: 'delivery', label: '배송·반품·결제', anchor: 'good-section-delivery', sections: ['shipping', 'claims', 'sale'] },
+  { key: 'additional', label: '추가 설정', anchor: 'good-section-information', sections: ['information'] },
+] as const;
+export type GoodEditorCardKey = typeof GOOD_EDITOR_CARDS[number]['key'];
 
 export function goodFieldSection(name: string) {
   return GOOD_EDITOR_SECTIONS.find((section) => (section.fields as readonly string[]).includes(name)) ?? GOOD_EDITOR_SECTIONS[0];
 }
 
-/* 등록 화면 원자 저장 섹션(KC·예약판매)의 오류는 기본 입력 섹션 뒤, 운영 섹션 순서대로 놓는다. */
-const OPERATION_ERROR_ORDER = ['workspaceKc', 'workspacePreorders'];
-const errorOrder = (field: string) => OPERATION_ERROR_ORDER.includes(field)
-  ? GOOD_EDITOR_SECTIONS.length + OPERATION_ERROR_ORDER.indexOf(field) : GOOD_EDITOR_SECTIONS.indexOf(goodFieldSection(field));
+/* 등록 화면 원자 저장 섹션의 오류: KC는 고시 카드 안이라 고시 바로 뒤, 예약판매는 기본 입력 뒤의 이어서 설정 카드에 있다. */
+const errorOrder = (field: string) => {
+  if (field === 'workspaceKc') return GOOD_EDITOR_SECTIONS.findIndex((section) => section.key === 'notice') + 0.5;
+  if (field === 'workspacePreorders') return GOOD_EDITOR_SECTIONS.length;
+  return GOOD_EDITOR_SECTIONS.indexOf(goodFieldSection(field));
+};
 
 export function orderedGoodErrors(errors: Record<string, string | undefined> = {}) {
   return Object.entries(errors).filter((entry): entry is [string, string] => Boolean(entry[1])).sort(([a], [b]) => errorOrder(a) - errorOrder(b));
+}
+
+export interface GoodPublishRequirement { key: string; label: string; card: GoodEditorCardKey; anchor: string; field?: string; done: boolean }
+
+/**
+ * 공개까지 채워야 할 칸의 안내용 목록이다. 판정은 서버(private.set_good_published)가 하고, 이 목록은 무엇이 남았는지 보여 주기만 한다.
+ * 판매가·재고는 서버 공개 조건은 아니지만 없으면 팔 수 없어 함께 센다.
+ */
+export function goodPublishRequirements({ values, regularPrice, hasStock, kcDone }: {
+  values: Record<string, string | undefined>; regularPrice: number | null; hasStock: boolean; kcDone: boolean;
+}): GoodPublishRequirement[] {
+  const filled = (name: string) => Boolean(values[name]?.trim());
+  return [
+    { key: 'name', label: '상품명', card: 'basic', anchor: 'good-section-basic', field: 'name', done: filled('name') },
+    { key: 'ipId', label: '연결 IP', card: 'basic', anchor: 'good-section-basic', field: 'ipId', done: filled('ipId') },
+    { key: 'type', label: '상품 유형', card: 'basic', anchor: 'good-section-basic', field: 'type', done: filled('type') },
+    { key: 'regularPrice', label: '판매가', card: 'sales', anchor: 'good-section-price', field: 'regularPrice', done: Boolean(regularPrice && regularPrice > 0) },
+    { key: 'stock', label: '재고수량', card: 'sales', anchor: 'good-section-variants', field: 'variants', done: hasStock },
+    { key: 'imagePath', label: '대표 이미지', card: 'images', anchor: 'good-section-images', field: 'imagePath', done: filled('imagePath') },
+    ...GOODS_NOTICE_FIELDS.map((field) => ({ key: field.formName, label: field.label, card: 'notice' as const, anchor: 'good-section-notice', field: field.formName, done: filled(field.formName) })),
+    { key: 'kc', label: 'KC 검토', card: 'notice', anchor: 'good-operation-kc', done: kcDone },
+    { key: 'originId', label: '출고지', card: 'delivery', anchor: 'good-section-shipping', field: 'originId', done: filled('originId') },
+  ];
+}
+
+/** 카드별 남은 필수 입력 수. 필수 항목이 없는 카드는 키가 없다(표시하지 않는다). */
+export function goodRemainingByCard(requirements: readonly GoodPublishRequirement[]): Partial<Record<GoodEditorCardKey, number>> {
+  const remaining: Partial<Record<GoodEditorCardKey, number>> = {};
+  for (const item of requirements) remaining[item.card] = (remaining[item.card] ?? 0) + (item.done ? 0 : 1);
+  return remaining;
+}
+
+/* 유형 이름을 그대로 쓰지 않는 흔한 카테고리 이름. 값 목록은 DB CHECK(GOOD_TYPES)이고 여기서는 제안만 한다. */
+const GOOD_TYPE_ALIASES: Record<string, GoodType> = { 열쇠고리: '키링', 키홀더: '키링', 봉제: '인형', 스태츄: '피규어', 스티커: '문구', 엽서: '문구', 포스터: '문구', 노트: '문구', 다이어리: '문구', 베개: '쿠션' };
+
+/** 대표 카테고리 경로(위→아래)에서 상품 유형을 제안한다. 말단에 가까운 이름을 먼저 본다. 맞는 유형이 없으면 null이다. */
+export function goodTypeSuggestion(categoryPath: readonly string[]): GoodType | null {
+  for (const name of [...categoryPath].reverse()) {
+    const type = GOOD_TYPES.find((candidate) => candidate !== '기타' && name.includes(candidate));
+    if (type) return type;
+    const alias = Object.entries(GOOD_TYPE_ALIASES).find(([word]) => name.includes(word));
+    if (alias) return alias[1];
+  }
+  return null;
 }
 
 export const GOOD_PUBLISHED_LOCKS = {

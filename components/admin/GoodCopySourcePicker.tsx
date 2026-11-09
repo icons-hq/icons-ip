@@ -17,11 +17,12 @@ const LABEL_CLASS = 'text-sm leading-snug font-medium text-foreground';
 
 export function GoodCopySourcePicker({ accountId, disabledReason = '' }: { accountId: string; disabledReason?: string }) {
   const [open, setOpen] = useState(false);
-  return <section className="flex min-w-0 flex-col gap-3 rounded-xl border bg-card p-4 text-sm text-card-foreground sm:flex-row sm:items-center sm:justify-between sm:p-5" aria-label="기존 상품으로 복사등록" data-good-copy-entry="">
-    <div className="flex min-w-0 flex-col gap-1"><strong className="text-base leading-snug font-medium">기존 상품으로 복사등록</strong><p className="text-sm text-muted-foreground">최근 등록 상품이나 검색한 상품의 복사 설정을 열어 새 초안을 만듭니다. 재고는 0으로 시작하며 KC를 다시 검토합니다.</p>{disabledReason ? <p className="text-sm font-medium text-foreground" role="status">{disabledReason}</p> : null}</div>
-    <Button type="button" variant="outline" className="self-start sm:self-auto" disabled={Boolean(disabledReason)} onClick={() => setOpen(true)}><Copy aria-hidden="true" />복사할 상품 선택</Button>
+  /* 첫 화면을 필수 입력에 돌리려고 카드 대신 머리 줄의 버튼 하나로 둔다. 재고 0·KC 재검토 안내는 복사 팝업이 보여 준다. */
+  return <div className="flex min-w-0 flex-wrap items-center gap-2 text-sm" aria-label="기존 상품으로 복사등록" data-good-copy-entry="" role="group">
+    <Button type="button" variant="outline" size="sm" disabled={Boolean(disabledReason)} onClick={() => setOpen(true)}><Copy aria-hidden="true" />기존 상품으로 복사등록</Button>
+    {disabledReason ? <p className="text-xs text-muted-foreground" role="status">{disabledReason}</p> : null}
     {open ? <GoodCopySourceDialog accountId={accountId} blocked={Boolean(disabledReason)} onClose={() => setOpen(false)} /> : null}
-  </section>;
+  </div>;
 }
 
 export function GoodCopySourceDialog({ accountId, blocked, onClose }: { accountId: string; blocked: boolean; onClose: () => void }) {
@@ -54,7 +55,7 @@ export function GoodCopySourceDialog({ accountId, blocked, onClose }: { accountI
   const locked = busy || blocked || authChanged;
   return <CustomerServiceDialog title="복사할 상품 선택" onClose={onClose} wide>
     <div className="flex min-w-0 flex-col gap-4 text-sm" data-good-copy-picker="">
-      <p className="text-muted-foreground">보관하지 않은 상품을 등록일 최신순으로 20개씩 조회합니다. 선택하면 해당 상품의 복사 설정으로 이동하며, ‘새 초안으로 복사’를 눌러야 새 상품이 생성됩니다.</p>
+      <p className="text-muted-foreground">보관하지 않은 상품을 등록일 최신순으로 20개씩 조회합니다. 선택하면 해당 상품의 복사 설정으로 이동하며, ‘새 초안으로 복사’를 눌러야 새 상품이 생성됩니다. 재고는 0으로 시작하며 KC를 다시 검토합니다.</p>
       <form className="grid min-w-0 items-end gap-3 sm:grid-cols-[13rem_minmax(0,1fr)_auto]" onSubmit={e => { e.preventDefault(); void search({ ...filters, page: 1 }); }}>
         <div className="flex min-w-0 flex-col gap-2"><label className={LABEL_CLASS} htmlFor="good-copy-field">검색 항목</label><NativeSelect className="w-full" id="good-copy-field" value={filters.field} disabled={locked} onChange={e => setFilters({ ...filters, field: e.target.value as typeof filters.field })}><option value="name">상품명</option><option value="code">판매자상품코드·옵션코드</option><option value="id">상품번호</option></NativeSelect></div>
         <div className="flex min-w-0 flex-col gap-2"><label className={LABEL_CLASS} htmlFor="good-copy-query">검색어</label><input className={GOOD_INPUT_CLASS} data-slot="input" id="good-copy-query" type="search" maxLength={100} value={filters.query} disabled={locked} onChange={e => setFilters({ ...filters, query: e.target.value })} /></div>

@@ -77,9 +77,10 @@ function wholeNumber(raw: string): number {
   return raw === '' ? 0 : Number(raw);
 }
 
-function OptionDetailTable({ rows, single, update, erpRows, onErpChange, onErpSelect, onErpPrice, notice, canSearchErp, structureLocked }: {
+function OptionDetailTable({ rows, single, predictedCodes, update, erpRows, onErpChange, onErpSelect, onErpPrice, notice, canSearchErp, structureLocked }: {
   rows: GoodsOptionRow[];
   single: boolean;
+  predictedCodes: (string | null)[];
   update: (key: string, changes: Partial<GoodsOptionRow>) => void;
   erpRows: Record<string, ErpRowState>;
   onErpChange: (key: string, value: string) => void;
@@ -93,21 +94,22 @@ function OptionDetailTable({ rows, single, update, erpRows, onErpChange, onErpSe
   return <GoodWorkspaceDetails stateId="good-option-details" className="group/option-details min-w-0 rounded-lg border" data-good-option-details="">
     <summary className="flex cursor-pointer list-none items-center gap-2 rounded-lg px-3 py-2.5 text-sm font-medium outline-none select-none group-open/option-details:rounded-b-none focus-visible:ring-3 focus-visible:ring-ring/50 [&::-webkit-details-marker]:hidden">
       <ChevronRight aria-hidden="true" className="size-4 shrink-0 text-muted-foreground transition-transform group-open/option-details:rotate-90 motion-reduce:transition-none" />
-      옵션 상세 정보 · ERP 품명·ERP 코드·바코드·안전재고
+      옵션 상세 정보 · 관리코드·ERP 품명·ERP 코드·바코드·안전재고
     </summary>
     <div className="flex min-w-0 flex-col gap-3 border-t p-3">
       <p id="goods-option-external-identity-guidance" className="text-sm text-muted-foreground">
-        ERP 품명을 입력해 반입된 ERP 품목을 고르면 ERP 코드·바코드를 채우고 카테고리·판매가를 제안합니다. ERP 코드·바코드는 관리코드와 따로 저장하며 선행 0을 유지합니다. 비워 두면 미설정입니다.
+        ERP 품명을 입력해 반입된 ERP 품목을 고르면 ERP 코드·바코드를 채우고 카테고리·판매가를 제안합니다. ERP 코드·바코드는 관리코드와 따로 저장하며 선행 0을 유지합니다. 비워 두면 미설정입니다. 관리코드는 ICONS 자체 옵션코드이고 비워 두면 저장할 때 만듭니다.
       </p>
       <div className={GOOD_TABLE_FRAME_CLASS} role="region" aria-label="옵션 ERP 정보와 안전재고 상세" tabIndex={0}>
-        <Table className="min-w-[44rem] table-fixed">
-          <TableCaption className="sr-only">옵션별 ERP 품명·ERP 코드·바코드·안전재고 기준</TableCaption>
+        <Table className="min-w-[54rem] table-fixed">
+          <TableCaption className="sr-only">옵션별 관리코드·ERP 품명·ERP 코드·바코드·안전재고 기준</TableCaption>
           <TableHeader className="bg-muted/50"><TableRow className="hover:bg-transparent">
-            <TableHead scope="col" className={`w-[18%] ${TABLE_HEAD_CLASS}`}>옵션</TableHead>
-            <TableHead scope="col" className={`w-[30%] ${TABLE_HEAD_CLASS}`}>ERP 품명</TableHead>
-            <TableHead scope="col" className={`w-[18%] ${TABLE_HEAD_CLASS}`}>ERP 코드</TableHead>
-            <TableHead scope="col" className={`w-[17%] ${TABLE_HEAD_CLASS}`}>바코드</TableHead>
-            <TableHead scope="col" className={`w-[17%] ${TABLE_HEAD_CLASS}`}>안전재고 기준</TableHead>
+            <TableHead scope="col" className={`w-[15%] ${TABLE_HEAD_CLASS}`}>옵션</TableHead>
+            <TableHead scope="col" className={`w-[17%] ${TABLE_HEAD_CLASS}`}>{ADMIN_VOCABULARY.optionCode}</TableHead>
+            <TableHead scope="col" className={`w-[26%] ${TABLE_HEAD_CLASS}`}>ERP 품명</TableHead>
+            <TableHead scope="col" className={`w-[14%] ${TABLE_HEAD_CLASS}`}>ERP 코드</TableHead>
+            <TableHead scope="col" className={`w-[14%] ${TABLE_HEAD_CLASS}`}>바코드</TableHead>
+            <TableHead scope="col" className={`w-[14%] ${TABLE_HEAD_CLASS}`}>안전재고 기준</TableHead>
           </TableRow></TableHeader>
           <TableBody>{rows.map((row, index) => {
             const key = goodsOptionRowKey(row);
@@ -118,6 +120,7 @@ function OptionDetailTable({ rows, single, update, erpRows, onErpChange, onErpSe
               <TableCell className={`${TABLE_CELL_CLASS} wrap-anywhere`}>{single
                 ? <input className={GOOD_INPUT_CLASS} data-slot="input" readOnly={structureLocked} aria-label="기본 옵션명" value={row.name} maxLength={200} onChange={(event) => update(key, { name: event.target.value })} />
                 : row.name || `옵션 ${index + 1}`}</TableCell>
+              <TableCell className={TABLE_CELL_CLASS}><input className={GOOD_INPUT_CLASS} data-slot="input" id={single ? 'goods-single-code' : undefined} aria-label={single ? '기본 옵션 관리코드' : `옵션 ${index + 1} 관리코드`} value={row.code} maxLength={120} placeholder={predictedCodes[index] ?? AUTO_CODE} onChange={(event) => update(key, { code: event.target.value })} /></TableCell>
               <TableCell className={TABLE_CELL_CLASS}>
                 {canSearchErp ? <ErpItemNameInput value={row.erpName ?? ''} onChange={(value) => onErpChange(key, value)} onSelect={(item) => onErpSelect(key, item)}
                   ariaLabel={`옵션 ${index + 1} ERP 품명`} ariaDescribedBy="goods-option-external-identity-guidance" maxLength={200} placeholder="미설정" /> : <input className={GOOD_INPUT_CLASS} data-slot="input" aria-label={`옵션 ${index + 1} ERP 품명`} value={row.erpName ?? ''} onChange={event => onErpChange(key, event.target.value)} maxLength={200} placeholder="미설정" />}
@@ -149,12 +152,15 @@ function OptionInputs({ axes, rows, hidden, setAxes, setRows }: {
   setRows: Dispatch<SetStateAction<GoodsOptionRow[]>>;
 }) {
   const [generationError, setGenerationError] = useState('');
+  /* 세 번째 옵션명은 드물게 쓴다. 입력은 DOM에 남겨 두고(저장·복구가 같은 이름을 읽는다) 값이 있거나 옵션 추가를 누를 때만 보인다. */
+  const [extraAxisOpen, setExtraAxisOpen] = useState(false);
+  const extraAxisShown = extraAxisOpen || axes.slice(2).some((axis) => axis.name.trim() || axis.values.trim());
   return <section className={GOOD_SUBPANEL_CLASS} aria-labelledby="goods-option-inputs-title" data-good-option-inputs="" hidden={hidden}>
     <div className="flex flex-wrap items-baseline gap-x-3 gap-y-1">
       <h5 id="goods-option-inputs-title" className="text-sm leading-snug font-medium text-foreground">옵션 입력</h5>
       <span className="text-xs text-muted-foreground">옵션명 최대 {GOODS_OPTION_AXIS_LIMIT}개 · 옵션 최대 {GOODS_OPTION_ROW_LIMIT}개</span>
     </div>
-    {axes.map((axis, index) => <div className="grid min-w-0 gap-x-4 gap-y-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]" key={index}>
+    {axes.map((axis, index) => <div className="grid min-w-0 gap-x-4 gap-y-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]" hidden={index >= 2 && !extraAxisShown} key={index}>
       <AdminField inputId={`option-axis-${index}`} label={`옵션명 ${index + 1}${index ? ' (선택)' : ''}`}>
         <input className={GOOD_INPUT_CLASS} data-slot="input" id={`option-axis-${index}`} name={`optionAxisName${index}`} value={axis.name} maxLength={40} placeholder={['예: 색상', '예: 사이즈', '예: 구성'][index]} onChange={(event) => setAxes((old) => old.map((item, i) => i === index ? { ...item, name: event.target.value } : item))} />
       </AdminField>
@@ -162,6 +168,7 @@ function OptionInputs({ axes, rows, hidden, setAxes, setRows }: {
         <input className={GOOD_INPUT_CLASS} data-slot="input" id={`option-values-${index}`} name={`optionAxisValues${index}`} value={axis.values} placeholder={['예: 빨강, 파랑', '예: S, M, L', '예: 기본, 선물포장'][index]} onChange={(event) => setAxes((old) => old.map((item, i) => i === index ? { ...item, values: event.target.value } : item))} />
       </AdminField>
     </div>)}
+    {extraAxisShown ? null : <button type="button" className={`${buttonVariants({ variant: 'ghost', size: 'sm' })} self-start`} data-slot="button" onClick={() => setExtraAxisOpen(true)}>옵션 추가</button>}
     <p className="text-sm text-muted-foreground">
       이미 있는 조합의 옵션가·재고수량·관리코드·ERP 정보는 그대로 둡니다. 목록에서 빠진 조합은 저장할 때 지워지며, 주문·장바구니에 쓰인 옵션은 삭제 대신 보관됩니다.
     </p>
@@ -174,11 +181,9 @@ function OptionInputs({ axes, rows, hidden, setAxes, setRows }: {
   </section>;
 }
 
-function OptionList({ rows, basePrice, predictedCodes, update, setRows }: {
+function OptionList({ rows, basePrice, update, setRows }: {
   rows: GoodsOptionRow[];
   basePrice: number;
-  /** 행마다 저장 시 코드(예상). 모르면 null */
-  predictedCodes: (string | null)[];
   update: (key: string, changes: Partial<GoodsOptionRow>) => void;
   setRows: Dispatch<SetStateAction<GoodsOptionRow[]>>;
 }) {
@@ -233,16 +238,15 @@ function OptionList({ rows, basePrice, predictedCodes, update, setRows }: {
     </div>
     {bulkMessage && <p className={bulkTone === 'warning' ? 'text-xs text-[var(--wc-warning)]' : 'text-xs text-[var(--wc-success)]'} data-tone={bulkTone} role="status">{bulkMessage.text}</p>}
     <div className={GOOD_TABLE_FRAME_CLASS} data-good-option-list="" role="region" aria-label="옵션목록 편집표" tabIndex={0}>
-      {/* 8개 열은 좁은 화면에서 줄이지 않고 표 영역 안에서 가로로 이동한다. */}
-      <Table className="min-w-[55rem] table-fixed">
-        <TableCaption className="sr-only">선택·옵션명·옵션가·재고수량·사용여부·관리코드·순서·삭제</TableCaption>
+      {/* 7개 열은 좁은 화면에서 줄이지 않고 표 영역 안에서 가로로 이동한다. 관리코드는 옵션 상세 정보에 있다. */}
+      <Table className="min-w-[46rem] table-fixed">
+        <TableCaption className="sr-only">선택·옵션명·옵션가·재고수량·사용여부·순서·삭제</TableCaption>
         <TableHeader className="bg-muted/50"><TableRow className="hover:bg-transparent">
           <TableHead scope="col" className={`w-12 text-center ${TABLE_HEAD_CLASS}`}><span className="sr-only">선택</span></TableHead>
-          <TableHead scope="col" className={`w-[22%] ${TABLE_HEAD_CLASS}`}>옵션명</TableHead>
-          <TableHead scope="col" className={`w-[15%] ${TABLE_HEAD_CLASS}`}>{ADMIN_VOCABULARY.optionPrice}</TableHead>
-          <TableHead scope="col" className={`w-[12%] ${TABLE_HEAD_CLASS}`}>{ADMIN_VOCABULARY.stockQuantity}</TableHead>
-          <TableHead scope="col" className={`w-[11%] ${TABLE_HEAD_CLASS}`}>사용여부</TableHead>
-          <TableHead scope="col" className={`w-[17%] ${TABLE_HEAD_CLASS}`}>{ADMIN_VOCABULARY.optionCode}</TableHead>
+          <TableHead scope="col" className={`w-[30%] ${TABLE_HEAD_CLASS}`}>옵션명</TableHead>
+          <TableHead scope="col" className={`w-[18%] ${TABLE_HEAD_CLASS}`}>{ADMIN_VOCABULARY.optionPrice}</TableHead>
+          <TableHead scope="col" className={`w-[15%] ${TABLE_HEAD_CLASS}`}>{ADMIN_VOCABULARY.stockQuantity}</TableHead>
+          <TableHead scope="col" className={`w-[14%] ${TABLE_HEAD_CLASS}`}>사용여부</TableHead>
           <TableHead scope="col" className={`w-24 ${TABLE_HEAD_CLASS}`}>순서</TableHead>
           <TableHead scope="col" className={`w-20 ${TABLE_HEAD_CLASS}`}>삭제</TableHead>
         </TableRow></TableHeader>
@@ -263,7 +267,6 @@ function OptionList({ rows, basePrice, predictedCodes, update, setRows }: {
             <TableCell className={TABLE_CELL_CLASS}><NativeSelect className="w-full" aria-label={`옵션 ${index + 1} 사용여부`} value={row.isActive === false ? 'stopped' : 'active'} onChange={(event) => update(key, { isActive: event.target.value === 'active' })}>
               <option value="active">사용</option><option value="stopped">중지</option>
             </NativeSelect></TableCell>
-            <TableCell className={TABLE_CELL_CLASS}><input className={GOOD_INPUT_CLASS} data-slot="input" aria-label={`옵션 ${index + 1} 관리코드`} value={row.code} maxLength={120} placeholder={predictedCodes[index] ?? AUTO_CODE} onChange={(event) => update(key, { code: event.target.value })} /></TableCell>
             <TableCell className={TABLE_CELL_CLASS}><div className="flex flex-wrap gap-1">
               <button type="button" className={buttonVariants({ variant: 'outline', size: 'icon-sm' })} data-slot="button" aria-label={`옵션 ${index + 1} 위로`} disabled={index === 0} onClick={() => move(index, -1)}><ArrowUp aria-hidden="true" /></button>
               <button type="button" className={buttonVariants({ variant: 'outline', size: 'icon-sm' })} data-slot="button" aria-label={`옵션 ${index + 1} 아래로`} disabled={index === rows.length - 1} onClick={() => move(index, 1)}><ArrowDown aria-hidden="true" /></button>
@@ -276,11 +279,10 @@ function OptionList({ rows, basePrice, predictedCodes, update, setRows }: {
   </section>;
 }
 
-function SingleStock({ row, basePrice, predictedCode, update, structureLocked }: {
+function SingleStock({ row, basePrice, update, structureLocked }: {
   row: GoodsOptionRow;
   structureLocked?: boolean;
   basePrice: number;
-  predictedCode: string | null;
   update: (key: string, changes: Partial<GoodsOptionRow>) => void;
 }) {
   const key = goodsOptionRowKey(row);
@@ -293,9 +295,6 @@ function SingleStock({ row, basePrice, predictedCode, update, structureLocked }:
       <GoodAmountField unit="개">
         <input className={GOOD_NUMBER_INPUT_CLASS} data-slot="input" id="goods-single-stock" aria-describedby="goods-option-stock-guidance" value={row.stockQty} min={0} step={1} type="number" onChange={(event) => update(key, { stockQty: wholeNumber(event.target.value) })} />
       </GoodAmountField>
-    </AdminField>
-    <AdminField inputId="goods-single-code" label="관리코드 (선택)" hint="ICONS 자체 옵션코드입니다. 비워 두면 저장할 때 만듭니다.">
-      <input className={GOOD_INPUT_CLASS} data-slot="input" id="goods-single-code" aria-describedby="goods-single-code-hint" value={row.code} maxLength={120} placeholder={predictedCode ?? AUTO_CODE} onChange={(event) => update(key, { code: event.target.value })} />
     </AdminField>
     {(extraVisible || row.extraPrice !== 0) && <AdminField inputId="goods-single-extra-price" label="기본 옵션 옵션가" hint="판매가(할인하면 할인가)에 더하는 금액입니다. 0원이면 판매가 그대로 판매합니다.">
       <GoodAmountField unit="원">
@@ -380,7 +379,7 @@ export function GoodsOptionEditor({
 
   return <div className="flex min-w-0 flex-col gap-5" data-option-editor="" data-option-mode={single ? 'single' : 'multiple'}>
     <section className={GOOD_SUBPANEL_CLASS} aria-label="재고수량">
-      {singleRow ? <SingleStock structureLocked={structureLocked} row={singleRow} basePrice={basePrice} predictedCode={predictedCodes[0] ?? null} update={update} />
+      {singleRow ? <SingleStock structureLocked={structureLocked} row={singleRow} basePrice={basePrice} update={update} />
         : <p className="flex flex-wrap items-baseline gap-x-2.5 gap-y-1 tabular-nums">
           <span className="text-xs text-muted-foreground">옵션 재고수량 합계</span><strong className="text-base font-semibold text-foreground">{stock.total.toLocaleString('ko-KR')}개</strong>
           {stock.active !== stock.total && <small className="text-xs text-muted-foreground">사용 중 옵션 {stock.active.toLocaleString('ko-KR')}개</small>}
@@ -396,7 +395,7 @@ export function GoodsOptionEditor({
       <span className="basis-full text-xs text-muted-foreground">색상·사이즈처럼 고객이 골라 사는 상품이면 설정합니다. 설정안함은 옵션 선택 없이 판매합니다.</span>
     </GoodChoiceGroup>
 
-    {!structureLocked && optionImport && <div className="flex min-w-0 flex-col items-start gap-2" data-good-option-import="">
+    {!structureLocked && optionImport && optionsEnabled && <div className="flex min-w-0 flex-col items-start gap-2" data-good-option-import="">
       <button type="button" className={buttonVariants({ variant: 'outline' })} data-slot="button" disabled={optionImport.pending || Boolean(optionImport.blockedReason)} onClick={() => { setImportMessage(''); setImportOpen(true); }}>다른 상품 옵션 불러오기</button>
       {optionImport.blockedReason && <p className="text-sm text-muted-foreground">{optionImport.blockedReason}</p>}
       {importMessage && <p className="text-sm text-foreground" role="status">{importMessage}</p>}
@@ -412,9 +411,9 @@ export function GoodsOptionEditor({
     <fieldset disabled={structureLocked} className="m-0 flex min-w-0 flex-col gap-4 border-0 p-0"><OptionInputs axes={axes} rows={rows} hidden={!optionsEnabled} setAxes={setAxes} setRows={setRows} />
     {optionsEnabled && (single
       ? <p className="rounded-lg border border-dashed px-4 py-3 text-sm text-muted-foreground" role="status">옵션목록 (총 0개) · 옵션명과 옵션값을 입력하고 옵션목록으로 적용을 누르세요. 적용 전에는 옵션 없이 판매하는 상품으로 저장됩니다.</p>
-      : <OptionList rows={rows} basePrice={basePrice} predictedCodes={predictedCodes} update={update} setRows={setRows} />)}</fieldset>
+      : <OptionList rows={rows} basePrice={basePrice} update={update} setRows={setRows} />)}</fieldset>
 
-    <OptionDetailTable rows={rows} single={single} update={update} erpRows={erpRows} onErpChange={changeErpName}
+    <OptionDetailTable rows={rows} single={single} predictedCodes={predictedCodes} update={update} erpRows={erpRows} onErpChange={changeErpName}
       onErpSelect={selectErp} onErpPrice={applyErpPrice} notice={erpNotice} canSearchErp={canSearchErp} structureLocked={structureLocked} />
     {error && <p className="text-sm text-destructive" role="alert">{error}</p>}
     {rows.every((row) => row.isActive === false) && <p className="text-sm font-medium text-[var(--wc-warning)]" role="status">모든 옵션이 사용 중지되어 고객이 구매할 수 없습니다.</p>}
