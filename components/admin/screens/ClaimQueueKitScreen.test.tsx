@@ -95,10 +95,10 @@ describe('ClaimQueueKitScreen (admin kit)', () => {
   });
 
   /* 사람 눈 판정: 체크칸은 있는데 체크하고 누를 버튼이 보이지 않아 체크해야 나오는 건지 알 수 없었다. */
-  it('표 위에 체크하면 처리 버튼이 나온다고 말하고 지금 걸린 단계 조건을 적는다', () => {
+  it('표 위에 상세에서 처리한다고 말하고 지금 걸린 단계 조건을 적는다', () => {
     const html = renderToStaticMarkup(<ClaimQueueKitScreen data={data({ filters: { ...FILTERS, stage: 'open' } })} now={NOW} />);
-    expect(html).toContain('여러 건은 왼쪽 체크칸을 고른 뒤 화면 아래 막대에서 처리합니다.');
-    expect(html.indexOf('여러 건은 왼쪽 체크칸을')).toBeLessThan(html.indexOf('<thead'));
+    expect(html).toContain('요청번호를 누르면 이 자리에서 상세가 열려 처리합니다.');
+    expect(html.indexOf('요청번호를 누르면 이 자리에서')).toBeLessThan(html.indexOf('<thead'));
     expect(html).toContain(' · 미처리 전체');
   });
 

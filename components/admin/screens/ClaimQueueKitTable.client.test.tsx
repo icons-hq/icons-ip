@@ -210,3 +210,13 @@ it('결과표는 번호·결과·사유 세 열이고 요청번호가 같은 목
   /* 운영 어휘: 결과 사유의 '클레임'은 운영 화면의 요청 어휘로 바뀐다. */
   expect(html).not.toContain('클레임을 승인');
 });
+
+/* 사람 눈 판정(4·5라운드): 처리 막대가 체크 뒤에야 떠서 승인 버튼을 찾아 헤맸다. 떠 있는 막대를 항상 띄우면 줄을 가리므로, 체크 전에는 표 위에 흐린 버튼으로 보인다. */
+it('체크 전에는 표 위에 흐린 처리 버튼을 보이고, 체크하면 떠 있는 막대에 넘긴다', () => {
+  const idle = () => all(render()).find((element) => (element.props as Record<string, unknown>)['data-claims-bulk-idle'] === '');
+  expect(idle()).toBeTruthy();
+  const buttons = all(idle()!.props.children as ReactNode).filter((element) => element.type === Button);
+  expect(buttons.map((button) => button.props.disabled)).toEqual([true, true, true]);
+  select([A]);
+  expect(idle()).toBeUndefined();
+});
