@@ -1,6 +1,6 @@
 'use client';
 
-import { AdminFormGrid, AdminStatusBadge } from '@/components/admin/console/AdminKit';
+import { AdminFormGrid, AdminNotice, AdminStatusBadge } from '@/components/admin/console/AdminKit';
 import { useActionState, useState } from 'react';
 import {
   upsertAdminCoinExchangeOfferAction,
@@ -31,7 +31,6 @@ import { SECTION_CARD, SectionHeading } from './SectionLayout';
  */
 
 const emptyState: AdminCampaignActionState = {};
-const CODE = 'rounded bg-muted px-1 py-0.5 font-mono text-xs text-foreground';
 
 function poolLabel(pool: AdminCardPoolRecord) {
   const readiness = pool.rewardReady ? '' : ' · 개봉 준비 안 됨';
@@ -92,16 +91,16 @@ export function CoinExchangeOfferPanel({
   return (
     <section className={SECTION_CARD}>
       <SectionHeading
-        description={(
-          <>
-            출석으로 모은 코인을 카드팩으로 바꾸는 자리입니다. 등록한 뒤 목록의 ID를 복사해
-            캠페인 랜딩 구성의 <code className={CODE}>exchange</code> 블록 <code className={CODE}>offer_id</code>에 넣으면 상세에 붙습니다.
-            카드풀 확률이 채워지지 않으면 교환 시점에 실패하므로 <strong className="font-semibold text-foreground">개봉 준비 안 됨</strong> 표시가
-            붙은 풀은 그대로 두지 마세요.
-          </>
-        )}
+        description="출석으로 모은 코인을 카드팩으로 바꾸는 자리입니다. 등록하면 목록에 교환처 번호가 생깁니다. 이 번호를 복사해 캠페인 수정의 '이미지·랜딩 구성 > 구성 코드'에 넣으면 그 캠페인 상세에 교환처가 나타납니다."
         title="카드팩 교환처"
       />
+
+      {/* 주의는 설명 속 굵은 글자가 아니라 실제로 준비 안 된 풀이 있을 때 상자로 말한다. */}
+      {pools.some((pool) => !pool.rewardReady) ? (
+        <AdminNotice title="개봉 준비 안 됨 표시가 붙은 카드풀을 그대로 두지 마세요" tone="warning">
+          카드풀 확률이 채워지지 않으면 고객이 교환할 때 실패합니다. 확률을 채우거나 그 교환처를 내림으로 바꿔주세요.
+        </AdminNotice>
+      ) : null}
 
       <ul className="flex flex-col gap-3">
         {offers.length === 0 && (

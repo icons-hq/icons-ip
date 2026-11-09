@@ -41,7 +41,7 @@ export const EVENTS_TICKETS_TOPIC: AdminGuideTopic = {
       steps: [
         { text: '먼저 이벤트가 등록되어 있어야 합니다. 이벤트가 없으면 회차 저장 버튼이 비활성화됩니다.' },
         {
-          text: '티켓 회차 화면에서 연결 이벤트, 회차명, 가격(원), 정원을 입력해 저장합니다.',
+          text: '티켓 회차 화면 오른쪽 위 등록 버튼을 누른 뒤 연결 이벤트, 회차명, 가격(원), 정원을 입력해 저장합니다.',
           screenHref: '/admin/catalog/ticket-types',
         },
         {

@@ -5,7 +5,9 @@ import { AdminSectionCard, AdminStatusBadge } from './console/AdminKit';
 import { statusTone } from '@/lib/admin/status-tone';
 import { AdminSelect } from './console/AdminSelect';
 import { Button } from './kit/ui/button';
+import { Empty, EmptyDescription, EmptyHeader, EmptyMedia, EmptyTitle } from './kit/ui/empty';
 import { Input } from './kit/ui/input';
+import { FolderTree } from 'lucide-react';
 import { CategoryDisplayArtwork } from './CategoryDisplayArtwork';
 import { reloadCategoryDisplayTreeAction, updateCategoryDisplayNodeImageAction, updateCategoryDisplayTreeAction, type CategoryDisplayTreeResult } from '@/app/admin/category-display-actions';
 import { CATEGORY_DISPLAY_ADMIN_PATH, categoryDisplayParentChoices, type CategoryDisplayDirectory, type CategoryDisplayTreeChange } from '@/lib/category-display';
@@ -133,14 +135,16 @@ export function CategoryDisplayTree({ initial, selectedId, actorId, sessionId }:
   return <AdminSectionCard title="전시분류">
     <p className="text-sm text-muted-foreground">상품분류와 별도로 이름·계층·순서를 구성합니다. 새 분류는 3단계까지, 최상위 19개·각 하위 15개까지 만들 수 있습니다. 기존 분류와 상품 연결은 유지됩니다.</p>
     {blocked ? <p className="text-sm text-destructive" role="alert">로그인 상태가 바뀌었습니다. 이 화면을 새로 열어주세요.</p> : null}
-    <div className="grid items-start gap-5 md:grid-cols-[minmax(12.5rem,18.75rem)_minmax(0,1fr)]" data-category-display="tree-layout">
+    {/* 분류가 없을 때는 왼쪽 빈 안내가 오른쪽 입력 칸과 같은 높이로 선다. */}
+    <div className={`grid gap-5 md:grid-cols-[minmax(12.5rem,18.75rem)_minmax(0,1fr)] ${directory.categories.length ? 'items-start' : 'items-stretch'}`} data-category-display="tree-layout">
       {/* 전시분류 화면 상자의 옛 nav 규칙(flex-wrap 등)이 닿아도 세로 목록이 되도록 배치 속성을 모두 적는다. */}
       <nav className="flex max-h-[380px] flex-col flex-nowrap items-stretch gap-0 overflow-y-auto rounded-lg border" aria-label="전시분류 목록">{directory.categories.map(node => <Link key={node.id} href={`${CATEGORY_DISPLAY_ADMIN_PATH}?id=${node.id}`} aria-current={node.id === selectedId ? 'page' : undefined}
         className="flex items-center gap-2 border-b py-2.5 pr-3 text-sm wrap-anywhere text-muted-foreground transition-colors last:border-b-0 hover:bg-muted hover:text-foreground aria-[current=page]:bg-primary-soft aria-[current=page]:font-medium aria-[current=page]:text-primary-soft-foreground aria-[current=page]:shadow-[inset_3px_0_var(--primary)]"
-        style={{ paddingInlineStart: `${12 + (node.depth - 1) * 18}px` }}><span>{node.name}</span>{node.archivedAt ? <AdminStatusBadge tone={statusTone('publication', 'archived')}>보관됨</AdminStatusBadge> : null}</Link>)}{!directory.categories.length ? <p className="px-3 py-2.5 text-sm text-muted-foreground">첫 전시분류를 만들어주세요.</p> : null}</nav>
+        style={{ paddingInlineStart: `${12 + (node.depth - 1) * 18}px` }}><span>{node.name}</span>{node.archivedAt ? <AdminStatusBadge tone={statusTone('publication', 'archived')}>보관됨</AdminStatusBadge> : null}</Link>)}{!directory.categories.length ? <Empty className="rounded-none border-0"><EmptyHeader><EmptyMedia variant="icon"><FolderTree aria-hidden="true" /></EmptyMedia><EmptyTitle>아직 전시분류가 없습니다</EmptyTitle><EmptyDescription>오른쪽에서 첫 전시분류를 만들면 이곳에 목록이 쌓입니다.</EmptyDescription></EmptyHeader></Empty> : null}</nav>
       <form className="flex min-w-0 flex-col gap-3.5" onSubmit={event => { event.preventDefault(); save(); }}>
-        <div className="flex flex-wrap gap-2"><Button variant="outline" type="button" disabled={locked || creating} onClick={() => { if (dirty && !window.confirm('현재 전시분류 입력을 버리고 새 분류를 만들까요?')) return; setCreating(true); setName(''); setParentId(''); setMessage(''); }}>새 전시분류</Button>
-          {selected ? <Button variant="outline" type="button" disabled={locked || !creating} onClick={() => { if (dirty && !window.confirm('새 전시분류 입력을 버릴까요?')) return; setCreating(false); setName(selected.name); setParentId(selected.parentId ?? ''); setMessage(''); }}>선택한 분류 편집</Button> : null}</div>
+        {/* 지금 누를 수 없는 전환 버튼을 흐리게 남기지 않는다 — 입력 칸 제목과 말이 겹쳐 제목처럼 보인다. */}
+        {!creating || selected ? <div className="flex flex-wrap gap-2">{!creating ? <Button variant="outline" type="button" disabled={locked} onClick={() => { if (dirty && !window.confirm('현재 전시분류 입력을 버리고 새 분류를 만들까요?')) return; setCreating(true); setName(''); setParentId(''); setMessage(''); }}>새 전시분류</Button> : null}
+          {selected && creating ? <Button variant="outline" type="button" disabled={locked} onClick={() => { if (dirty && !window.confirm('새 전시분류 입력을 버릴까요?')) return; setCreating(false); setName(selected.name); setParentId(selected.parentId ?? ''); setMessage(''); }}>선택한 분류 편집</Button> : null}</div> : null}
         <fieldset className="flex min-w-0 flex-col gap-3" disabled={locked}><legend className="float-left w-full p-0 text-sm font-medium">{creating ? '새 전시분류 만들기' : '선택한 전시분류 설정'}</legend>
           <label className="flex flex-col gap-2 text-sm font-medium">전시분류명 · 20자<Input value={name} onChange={event => setName(event.target.value)} maxLength={Math.max(40, selected?.name.length ?? 0)} required /></label>
           <label className="flex flex-col gap-2 text-sm font-medium">상위 전시분류<AdminSelect value={parentId} onChange={event => setParentId(event.target.value)} wrapperClassName="w-full"><option value="">최상위</option>{parents.map(node => <option key={node.id} value={node.id}>{'　'.repeat(node.depth - 1)}{node.name}</option>)}
